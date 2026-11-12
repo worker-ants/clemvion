@@ -471,3 +471,215 @@ describe('ChannelConversationService', () => {
     });
   });
 });
+
+/**
+ * fail-open 경로가 `clemvion.redis.fail_open` 카운터에 잡히는지 본다. 메서드마다 다른 `reason` 으로
+ * 한 번씩만 세는지가 요점이다. 한 값으로 뭉치면 알람에서 조회 장애와 잠금 장애를 구분할 수 없다.
+ *
+ * 세지 않는 쪽도 고정한다. compare-and-set 재시도 소진은 오류 없이 끝나는 분기이고, 저장된 값이
+ * JSON 이 아닌 것은 Redis 실패가 아니다. 정상 경로 · Redis 미주입 · metrics 미주입(optional DI)도
+ * 같이 본다.
+ */
+describe('ChannelConversationService — fail-open 관측 (metrics)', () => {
+  const triggerId = 'trigger-1';
+  const conversationKey = 'chat-12345';
+  const state: ChannelConversationState = {
+    executionId: 'exec-abc',
+    threadId: 'default',
+    channelUserKey: 'user-9999',
+    startedAt: '2026-05-22T00:00:00.000Z',
+    lastUpdateAt: '2026-05-22T00:00:00.000Z',
+  };
+
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  function makeSvc(
+    redis: MockRedis | undefined,
+    metrics?: { recordRedisFailOpen: jest.Mock },
+  ): ChannelConversationService {
+    return new ChannelConversationService(
+      undefined,
+      redis as never,
+      undefined,
+      metrics as never,
+    );
+  }
+
+  let redis: MockRedis;
+  beforeEach(() => {
+    redis = new MockRedis();
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('lookup 의 GET 실패 → chat_conversation/get_failed 1번, null 그대로', async () => {
+    const metrics = makeMetrics();
+    jest.spyOn(redis, 'get').mockRejectedValue(new Error('ECONNRESET'));
+
+    await expect(
+      makeSvc(redis, metrics).lookup(triggerId, conversationKey),
+    ).resolves.toBeNull();
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_conversation',
+      'get_failed',
+    );
+  });
+
+  it('upsert 의 SET 실패 → chat_conversation/set_failed 1번, 던지지 않는다', async () => {
+    const metrics = makeMetrics();
+    jest.spyOn(redis, 'set').mockRejectedValue(new Error('ECONNRESET'));
+
+    await expect(
+      makeSvc(redis, metrics).upsert(triggerId, conversationKey, state),
+    ).resolves.toBeUndefined();
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_conversation',
+      'set_failed',
+    );
+  });
+
+  it('clear 의 DEL 실패 → chat_conversation/del_failed 1번, 던지지 않는다', async () => {
+    const metrics = makeMetrics();
+    jest.spyOn(redis, 'del').mockRejectedValue(new Error('ECONNRESET'));
+
+    await expect(
+      makeSvc(redis, metrics).clear(triggerId, conversationKey),
+    ).resolves.toBeUndefined();
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_conversation',
+      'del_failed',
+    );
+  });
+
+  it.each([
+    ['읽기(GET)', 'get' as const],
+    ['비교 후 교체(EVAL)', 'eval' as const],
+  ])(
+    'clearExecutionIdIfMatches 의 %s 실패 → chat_conversation/cas_failed 1번, false 그대로',
+    async (_label, method) => {
+      const metrics = makeMetrics();
+      const svc = makeSvc(redis, metrics);
+      await svc.upsert(triggerId, conversationKey, state);
+      jest.spyOn(redis, method).mockRejectedValue(new Error('ECONNRESET'));
+
+      await expect(
+        svc.clearExecutionIdIfMatches(triggerId, conversationKey, 'exec-abc'),
+      ).resolves.toBe(false);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+        'chat_conversation',
+        'cas_failed',
+      );
+    },
+  );
+
+  it('acquireLock 의 SET NX 실패 → chat_conversation/lock_failed 1번, fail-open(true) 그대로', async () => {
+    const metrics = makeMetrics();
+    jest.spyOn(redis, 'set').mockRejectedValue(new Error('ECONNRESET'));
+
+    await expect(
+      makeSvc(redis, metrics).acquireLock(triggerId, conversationKey, 'tok'),
+    ).resolves.toBe(true);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_conversation',
+      'lock_failed',
+    );
+  });
+
+  it('releaseLock 의 EVAL 실패 → chat_conversation/unlock_failed 1번, 던지지 않는다', async () => {
+    const metrics = makeMetrics();
+    jest.spyOn(redis, 'eval').mockRejectedValue(new Error('ECONNRESET'));
+
+    await expect(
+      makeSvc(redis, metrics).releaseLock(triggerId, conversationKey, 'tok'),
+    ).resolves.toBeUndefined();
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_conversation',
+      'unlock_failed',
+    );
+  });
+
+  it('compare-and-set 재시도 소진은 세지 않는다 — 오류 없이 끝나는 분기다', async () => {
+    const metrics = makeMetrics();
+    const svc = makeSvc(redis, metrics);
+    await svc.upsert(triggerId, conversationKey, state);
+    jest.spyOn(redis, 'eval').mockResolvedValue(0);
+
+    await expect(
+      svc.clearExecutionIdIfMatches(triggerId, conversationKey, 'exec-abc'),
+    ).resolves.toBe(false);
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('저장된 값이 JSON 이 아니면 세지 않는다 — Redis 실패가 아니다 (lookup · compare-and-set)', async () => {
+    const metrics = makeMetrics();
+    const svc = makeSvc(redis, metrics);
+    jest.spyOn(redis, 'get').mockResolvedValue('not-json');
+
+    await expect(svc.lookup(triggerId, conversationKey)).resolves.toBeNull();
+    await expect(
+      svc.clearExecutionIdIfMatches(triggerId, conversationKey, 'exec-abc'),
+    ).resolves.toBe(false);
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('정상 경로에서는 세지 않는다', async () => {
+    const metrics = makeMetrics();
+    const svc = makeSvc(redis, metrics);
+    await svc.upsert(triggerId, conversationKey, state);
+    await svc.lookup(triggerId, conversationKey);
+    await svc.clearExecutionIdIfMatches(triggerId, conversationKey, 'exec-abc');
+    await svc.acquireLock(triggerId, conversationKey, 'tok');
+    // 이미 잡힌 lock 의 재획득(false)도 장애가 아니다.
+    await svc.acquireLock(triggerId, conversationKey, 'other');
+    await svc.releaseLock(triggerId, conversationKey, 'tok');
+    await svc.clear(triggerId, conversationKey);
+
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미주입이면 세지 않는다 — 장애가 아니라 미설정이다', async () => {
+    const metrics = makeMetrics();
+    const svc = makeSvc(undefined, metrics);
+    await svc.lookup(triggerId, conversationKey);
+    await svc.upsert(triggerId, conversationKey, state);
+    await svc.clear(triggerId, conversationKey);
+    await svc.clearExecutionIdIfMatches(triggerId, conversationKey, 'exec-abc');
+    await svc.acquireLock(triggerId, conversationKey, 'tok');
+    await svc.releaseLock(triggerId, conversationKey, 'tok');
+
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 를 주지 않아도 fail-open 이 죽지 않는다 (optional DI)', async () => {
+    const svc = makeSvc(redis);
+    for (const method of ['get', 'set', 'del', 'eval'] as const) {
+      jest.spyOn(redis, method).mockRejectedValue(new Error('ECONNRESET'));
+    }
+
+    await expect(svc.lookup(triggerId, conversationKey)).resolves.toBeNull();
+    await expect(
+      svc.upsert(triggerId, conversationKey, state),
+    ).resolves.toBeUndefined();
+    await expect(
+      svc.clear(triggerId, conversationKey),
+    ).resolves.toBeUndefined();
+    await expect(
+      svc.clearExecutionIdIfMatches(triggerId, conversationKey, 'exec-abc'),
+    ).resolves.toBe(false);
+    await expect(
+      svc.acquireLock(triggerId, conversationKey, 'tok'),
+    ).resolves.toBe(true);
+    await expect(
+      svc.releaseLock(triggerId, conversationKey, 'tok'),
+    ).resolves.toBeUndefined();
+  });
+});

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /**
  * Inbound interaction API 의 per-execution rate-limiter (Spec EIA §8.4).
@@ -44,6 +45,7 @@ export class InteractionRateLimiterService {
     @Inject('INTERACTION_RATE_LIMIT_REDIS')
     injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     this.interactPerMinute =
       configService?.get<number>('interaction.rateLimit.interactPerMinute') ??
@@ -82,6 +84,8 @@ export class InteractionRateLimiterService {
   /**
    * fixed-window 카운터를 원자적으로 증가시키고 한도 초과 여부를 반환한다.
    * Redis 미가용/오류 시 fail-open → `{ allowed: true, retryAfterSec: 0 }`.
+   * Redis 오류는 `clemvion.redis.fail_open{component=interaction_rate_limit, reason=incr_failed}` 로 센다.
+   * 한도 초과 뒤 TTL 조회 실패도 같은 catch 라 같은 reason 이다. Redis 미설정(null)은 세지 않는다.
    */
   private async consume(key: string, limit: number): Promise<RateLimitResult> {
     if (!this.redis) return { allowed: true, retryAfterSec: 0 };
@@ -99,6 +103,10 @@ export class InteractionRateLimiterService {
     } catch (err) {
       this.logger.warn(
         `InteractionRateLimiterService.consume 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.metrics?.recordRedisFailOpen(
+        'interaction_rate_limit',
+        'incr_failed',
       );
       return { allowed: true, retryAfterSec: 0 };
     }

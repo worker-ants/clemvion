@@ -6,7 +6,7 @@ import {
   ApiOkResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import { ApiOkWrappedResponse } from '../../common/swagger';
+import { ApiOkWrappedResponse, wrapDataSchema } from '../../common/swagger';
 import { HealthService } from './health.service';
 import {
   HealthCheckDto,
@@ -22,13 +22,15 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   // 근거: [로깅과 헬스 체크 「/api/health 응답」](CLE-OBS-LOGGING#apihealth-응답)
+  // 503 본문 예외: [에러 응답과 클라이언트 처리](CLE-API-ERROR) 규칙 1
   /**
    * Readiness probe.
    *
    * DB·Redis 의존성을 점검해 정상이면 200, 하나라도 비정상이면 503 을 반환한다.
-   * 503 일 때도 응답 body(`{ status, version, uptime, checks }`)는 그대로 유지된다
-   * — throw 가 아닌 응답 status 설정(`@Res({ passthrough: true })`)이라
-   * GlobalExceptionFilter 의 `{ error: {...} }` shape 로 변형되지 않는다.
+   * 503 일 때도 응답 body 는 200 과 같은 `{ data: { status, version, uptime, checks } }` 다.
+   * throw 가 아니라 응답 status 만 바꾸므로(`@Res({ passthrough: true })`)
+   * GlobalExceptionFilter 의 `{ error: {...} }` 봉투가 되지 않고 TransformInterceptor 가
+   * 200 과 똑같이 `{ data }` 로 감싼다. 에러 봉투 규칙 1 의 예외다(위 근거 주석).
    * k8s readinessProbe 가 이 경로를 쓴다 (의존성 장애 시 503 → Service 에서 제외).
    */
   @Public()
@@ -42,9 +44,9 @@ export class HealthController {
     description: '전체 서비스 상태 (healthy)',
   })
   @ApiServiceUnavailableResponse({
-    type: HealthCheckDto,
+    schema: wrapDataSchema(HealthCheckDto),
     description:
-      '의존 서비스 중 하나 이상이 비정상 상태 (unhealthy) — body 구조는 200 과 동일',
+      '의존 서비스 중 하나 이상이 비정상 상태 (unhealthy). body 는 200 과 같은 { data } 다',
   })
   async check(@Res({ passthrough: true }) res: Response) {
     const result = await this.healthService.check();
@@ -75,10 +77,16 @@ export class HealthController {
     description: '프로세스 생존',
     schema: {
       type: 'object',
+      required: ['data'],
       properties: {
-        status: { type: 'string', example: 'ok' },
+        data: {
+          type: 'object',
+          required: ['status'],
+          properties: {
+            status: { type: 'string', example: 'ok' },
+          },
+        },
       },
-      required: ['status'],
     },
   })
   live(): { status: 'ok' } {

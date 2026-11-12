@@ -28,8 +28,12 @@ const MAX_KEY_LENGTH = 200;
 /** 유효 HTTP 상태코드 범위 — 캐시 엔트리의 `statusCode` 검증용 ({@link isHttpStatusCode}). */
 const MIN_HTTP_STATUS_CODE = 100;
 const MAX_HTTP_STATUS_CODE = 599;
-/** `clemvion.redis.fail_open` 의 `component` 라벨 — 이 클래스의 강등을 한 이름으로 묶는다. */
-const METRICS_COMPONENT: RedisFailOpenComponent = 'idempotency';
+/**
+ * `clemvion.redis.fail_open` 의 `component` 라벨 — 이 클래스의 강등을 한 이름으로 묶는다.
+ * 타입 표기 대신 `satisfies` 를 쓴다. 상수가 리터럴 타입으로 남아야 `reason` 이 이 component 의
+ * 값으로 좁혀진다.
+ */
+const METRICS_COMPONENT = 'idempotency' satisfies RedisFailOpenComponent;
 
 /**
  * `context.switchToHttp().getResponse()` 의 반환 타입. Nest 시그니처가

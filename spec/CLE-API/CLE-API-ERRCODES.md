@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 31
+version: 32
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "6243205347ea2bc9cad449d13ddabd65cd35653024f2787f7b7b0c8512b159c9"
+content_hash: "b4a80a7cb381517ef766a0a8f16d2697bdcc527b229040647868d57200356f8f"
 read_as: "approved_fallback"
-task: "CLE-T-5GYWFA"
+task: "CLE-T-DM3AXQ"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "2e3a3358ce59a412cfd03781c30aa6341f73e1be8aed4826f3c934eee63d3f48"
-etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
+mirror_sha256: "d7326198c59779d4b52f6b9649bf701534279e835f67c00d0dc068f6966b15d7"
+etag: "sha256-2b8793c1c57729179e1f0a999a631494c5872675ef192bb82a9de0e84f7f397c"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -74,8 +74,8 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 | `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | 이름은 `https://` 가 아닌 URL 만 말한다. 실제로는 파싱할 수 없는 URL 과 사설 · loopback · 메타데이터 호스트(SSRF 차단)에도 난다. 코드를 나누는 일은 NERV Task `CLE-T-DDN3MS` 가 한다 | MCP 서버 URL 이 안전한 HTTPS 주소가 아니다. 두 연결 테스트(`POST /api/integrations/:id/test` · `POST /api/integrations/preview-test`)가 이 코드를 돌려준다. 노드 실행의 도구 목록 구성(`buildTools`)에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 남는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「연결 테스트」](../CLE-INT/CLE-INT-MCP.md#연결-테스트) |
 | `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` · `rate_limited` | 404 · 410 · 410 · 400 · 429 (순서대로) | `lower_snake_case` 로 표기 규칙을 어긴다. 워크스페이스 초대 흐름 v1 에서 이 형태로 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR_CODES`)와 백엔드(`workspace-invitations.service.ts`, `auth.service.ts`)가 `code` 값으로 분기한다. 바꾸면 호환이 깨진다(§2) | 초대 토큰 없음·만료·사용됨·이메일 불일치·빈도 제한. **초대 API 한정**이다. 이 소문자 `rate_limited` 는 초대 흐름 전용이고 다른 영역의 `RATE_LIMITED` 와 별개다. 2026-09-25 에 발행처가 없던 `forbidden` 을 이 행에서 뺐다(`code: 'forbidden'` 0건). 초대 권한 부족은 `RolesGuard` 의 `ADMIN_REQUIRED` 다. 소유자가 아닌 요청자의 관리자 역할 초대 거부는 서비스 계층이 내는 대문자 `OWNER_REQUIRED`(§6.2)라 이 예외에 들지 않는다. `rate_limited` 발행처는 [미결 사항](#미결-사항) 참조 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
 | `workspace_type_mismatch` · `already_a_member` · `invitation_already_pending` · `invitation_already_accepted` | 403 · 409 · 409 · 409 | `lower_snake_case`. 위 초대 토큰 코드와 같은 모듈(`workspace-invitations.service.ts`)의 초대 발급·재발송 흐름 코드다. 프론트엔드는 `code` 로 분기하지 않고 `message` 만 보이지만 정규화하면 같은 모듈의 다른 소문자 코드와 대소문자가 섞이고 호환 이득이 0이라 소문자를 유지한다(2026-06-28 결정) | non-team 워크스페이스에 초대 / 이미 멤버 / 같은 이메일의 대기 초대 경합(partial UNIQUE) / 이미 수락된 초대의 재발송·취소. **초대 발급·재발송·취소 API 한정**이다. 직접 추가 경로의 대문자 코드와 같은 뜻의 **별개 코드**다(§6.12) | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
-| `workspace_not_found` · `user_not_found` · `admin_required` | 404 · 404 · 403 | `lower_snake_case`. 위 두 행과 같은 초대 모듈이 조회·RBAC 단계에서 발행한다. 모듈 안 소문자 일관성을 위해 유지한다(등록부 완전성 차원의 등재) | 워크스페이스 없음 / 대상 사용자 없음 / 관리자 미만 권한. 2026-09-25 이후 `admin_required` 는 HTTP 로 나가지 않는다. 초대 라우트가 `RolesGuard` 의 `@Roles('admin')` 를 먼저 거쳐 `ADMIN_REQUIRED` 가 나기 때문이다. 서비스 계층의 `admin_required` 는 가드가 빠졌을 때만 닿는 두 번째 방어선이다. **초대 모듈 한정**이고 직접 추가·관리 경로의 `WORKSPACE_NOT_FOUND`·`USER_NOT_FOUND`(§6.4)와 별개 코드다 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 초대 발급·수락 절 |
-| `invalid_state` · `token_exchange_failed` · `email_required` · `server_error` (OAuth 콜백 `?error=`) | 없음 (302 리다이렉트) | `lower_snake_case`. 봉투의 `error.code` 가 아니라 로그인 OAuth 콜백이 `{frontend_url}/callback?error=<값>` 으로 보내는 **URL query 값**이다. v1 에서 굳었고 콜백 페이지가 이 값으로 분기한다(§2) | 소셜 로그인 콜백 실패 사유(state 불일치 / 코드 교환 실패 / 이메일 미제공 / 서버 에러). **로그인 OAuth 콜백 URL 한정**이고 통합 OAuth 의 `OAUTH_*` 봉투 코드와 별개다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 OAuth 에러 처리 |
+| `workspace_not_found` · `user_not_found` · `admin_required` | 404 · 404 · 403 | `lower_snake_case`. 위 두 행과 같은 초대 모듈이 조회·RBAC 단계에서 발행한다. 모듈 안 소문자 일관성을 위해 유지한다(등록부 완전성 차원의 등재) | 워크스페이스 없음 / 대상 사용자 없음 / 관리자 미만 권한. 2026-09-25 이후 `admin_required` 는 HTTP 로 나가지 않는다. 초대 라우트가 `RolesGuard` 의 `@Roles('admin')` 를 먼저 거쳐 `ADMIN_REQUIRED` 가 나기 때문이다. 서비스 계층의 `admin_required` 는 가드가 빠졌을 때만 닿는 두 번째 방어선이다. **초대 모듈 한정**이고 직접 추가·관리 경로의 `WORKSPACE_NOT_FOUND`·`USER_NOT_FOUND`(§6.4)와 별개 코드다 | [계정과 워크스페이스 데이터 흐름 「초대 발급」](../CLE-ACCT/CLE-ACCT-DATA.md#초대-발급). 세 코드는 도메인 문서에 적혀 있지 않아 이 행이 유일한 등재다 |
+| `invalid_state` · `token_exchange_failed` · `email_required` · `server_error` (OAuth 콜백 `?error=`) | 없음 (302 리다이렉트) | `lower_snake_case`. 봉투의 `error.code` 가 아니라 로그인 OAuth 콜백이 `{frontend_url}/callback?error=<값>` 으로 보내는 **URL query 값**이다. v1 에서 굳었고 콜백 페이지가 이 값으로 분기한다(§2) | 소셜 로그인 콜백 실패 사유(state 불일치 / 코드 교환 실패 / 이메일 미제공 / 서버 에러). **로그인 OAuth 콜백 URL 한정**이고 통합 OAuth 의 `OAUTH_*` 봉투 코드와 별개다. `invalid_state` 는 §6.4 의 봉투 코드 `INVALID_STATE`(422, 상태 전이 불가)와 대소문자만 같고 뜻이 다른 별개 값이다 | [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 OAuth 에러 처리 |
 | `WORKER_HEARTBEAT_TIMEOUT` | 없음 (HTTP 무관. 엔진 수준 `error.code`, 실행 `failed`) | "HEARTBEAT" 는 워커가 주기적으로 보내는 별도 heartbeat 채널을 암시하지만 그런 채널은 만들지 않는다. 처음에는 부팅 때 30분 넘게 멈춘 `running` 실행을 실패 처리했다. 2026-07-04 에 부팅 경로는 rehydration 재구동(`recoverStuckExecutions`, 이 코드를 쓰지 않음)으로 바꾸고 이 코드는 BullMQ stalled 재배달(`maxStalledCount=1`)을 다 쓸 때 `finalizeStalledExhausted` 가 내도록 뜻을 다시 정의했다. 코드와 여러 문서가 값으로 참조하므로 바꾸면 호환이 깨진다(§2) | 활성 세그먼트 워커의 최종 실패로 실행이 `failed` 가 된다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `AbortError` | 없음 (HTTP 무관. 노드 수준 `error.code`, 노드 실행 `cancelled`) | PascalCase 다. 우리가 정한 코드가 아니라 웹 표준 `AbortSignal` 이 던지는 `DOMException.name` 을 그대로 옮긴 값이다. fetch·SDK·DB 드라이버가 모두 이 이름으로 던지므로 정규화하면 엔진 분류 키(`error.name === 'AbortError'`)와 `code` 가 갈라진다. 여러 핸들러와 테스트가 값으로 참조한다(§2) | 노드의 외부 I/O 가 `abortSignal` 로 중단돼 노드 실행이 `cancelled` 가 된다. 엔진의 `ExecutionCancelledError`(DB 관측 취소 가드)는 같은 상태로 끝나지만 `code` 를 싣지 않는 별개 신호다. ForEach · Map · Parallel 이 실패한 회차 · 병렬 분기를 결과에 담을 때도 `name` 이 `AbortError` 인 에러는 이 값이다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) |
 
@@ -108,9 +108,9 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 
 | 내부 사유 | 정규화한 항목 코드 (`error.details[].code`) | 뜻 | 정의 문서 |
 |---|---|---|---|
-| `missing_required` | `MISSING_REQUIRED_FIELD` | `required: true` 파라미터 값 누락 | [트리거 노드 공통](../CLE-NODE-TRIG/CLE-NODE-TRIG-COMMON.md) |
-| `coerce_failed` | `TYPE_COERCION_FAILED` | 선언한 타입으로 바꿀 수 없음 | [트리거 노드 공통](../CLE-NODE-TRIG/CLE-NODE-TRIG-COMMON.md) |
-| `invalid_schema` | `INVALID_SCHEMA` | 파라미터 스키마 구조 위반 | [트리거 노드 공통](../CLE-NODE-TRIG/CLE-NODE-TRIG-COMMON.md) |
+| `missing_required` | `MISSING_REQUIRED_FIELD` | `required: true` 파라미터 값 누락 | [수동 트리거 노드 「실행할 때의 검증」](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md#실행할-때의-검증) |
+| `coerce_failed` | `TYPE_COERCION_FAILED` | 선언한 타입으로 바꿀 수 없음 | [수동 트리거 노드 「실행할 때의 검증」](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md#실행할-때의-검증) |
+| `invalid_schema` | `INVALID_SCHEMA` | 파라미터 스키마 구조 위반 | [수동 트리거 노드 「실행할 때의 검증」](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md#실행할-때의-검증) |
 | `masked_value_resubmitted` | `MASKED_VALUE_RESUBMITTED` | 마스킹 마커가 그대로 다시 제출됨 | [응답 자격 증명 마스킹](CLE-API-EGRESS.md) |
 
 **최상위 봉투 코드는 진입점이 정한다.** 이 표는 `details[]` 항목 코드만 다룬다. 같은 사유가 수동 트리거 세 경로에서는 `INVALID_TRIGGER_PARAMETERS`, 웹훅 진입점에서는 `INVALID_WEBHOOK_PAYLOAD` 로 감싸진다([수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)).
@@ -144,7 +144,9 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 
 제품 전체의 에러 코드 목록이다. 코드마다 그 코드를 정의하거나 발행하는 문서를 "정의 문서" 열에 적는다. 발생 조건의 상세는 정의 문서가 정하고 이 카탈로그는 제품 전체에서 코드를 찾을 수 있게 등재한다.
 
-**같은 뜻을 표면마다 다른 코드로 적는다.** 상태 불일치는 REST 핵심 API 가 `INVALID_STATE`(422), WebSocket 이 `INVALID_EXECUTION_STATE`, EIA REST `/interact` 가 `STATE_MISMATCH`(409)다. 메시지 길이 초과도 WebSocket 은 `EXECUTION_MESSAGE_TOO_LONG`, EIA REST 는 `MESSAGE_TOO_LONG` 이다. 라우팅 분기를 드러내려고 일부러 나눴다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 재개 명령 사전 검증 절, [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 의 「WS 코드와 EIA 코드는 경로마다 다르게 쓴다」 Rationale).
+**표의 열은 절마다 다르다.** 기본은 `코드 | HTTP | 설명 | 정의 문서` 다. §6.1 은 HTTP 열 대신 `이름` · `사용자 메시지` 열을 둔다. §6.2 는 `이름` 열을 더하고 HTTP 를 설명 뒤에 둔다. §6.4 도 HTTP 를 설명 뒤에 둔다. §6.5 ~ §6.8 에는 HTTP 열이 없다. 실행 상태나 WebSocket 으로 나가는 코드이기 때문이다. HTTP 로도 나가는 행은 설명에 상태 코드를 적는다(§6.7 의 `SERVER_SHUTTING_DOWN` · `EXECUTION_ENQUEUE_FAILED`). 더하는 열은 §6.5 첫 표의 `앵커`, §6.6 의 `부류`, §6.9 의 `비고`, §6.10 의 `상태` 다. §6.13 은 세부 코드(`details.code`)를 행으로 두고 봉투 `code` 와 HTTP 를 한 열에 적는다.
+
+**같은 뜻을 표면마다 다른 코드로 적는다.** 상태 불일치는 REST 핵심 API 가 `INVALID_STATE`(422), WebSocket 이 `INVALID_EXECUTION_STATE`, EIA REST `/interact` 가 `STATE_MISMATCH`(409)다. 메시지 길이 초과도 WebSocket 은 `EXECUTION_MESSAGE_TOO_LONG`, EIA REST 는 `MESSAGE_TOO_LONG` 이다. 라우팅 분기를 드러내려고 일부러 나눴다([큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 의 「WS 코드와 EIA 코드는 경로마다 다르게 쓴다」 Rationale).
 
 **HTTP 진입점에서만 쓰는 `EXECUTION_ENQUEUE_FAILED` 는 표면마다 나누지 않는다.** REST `stop`, EIA REST `/interact`, 채팅 채널 인바운드의 `/start` 가 이 503 을 같은 코드로 낸다(§6.7). 세 진입점 모두 재개 메시지를 큐에 넣지 못했다는 같은 뜻이다. 클라이언트가 할 일도 다시 보내기 하나다. 이 코드는 실행 엔진 사전 검증의 결과가 아니라 큐 상태를 알린다. 그래서 위에서 표면마다 나눈 코드와 부류가 다르다. 같은 503 선례인 `SERVER_SHUTTING_DOWN`(§6.7)은 REST 의 실행 시작 진입점만 낸다. 근거는 [`EXECUTION_ENQUEUE_FAILED` 를 EIA `/interact` 재개 명령에도 쓴다](#execution_enqueue_failed-를-eia-interact-재개-명령에도-쓴다-2026-10-09) Rationale 에 있다.
 
@@ -153,7 +155,7 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 | 코드 | 이름 | 설명 | 사용자 메시지 | 정의 문서 |
 |------|------|------|--------------|-----------|
 | `INTERNAL_ERROR` | 내부 서버 에러 | 예상하지 못한 서버 에러. 5xx 기본 코드 | "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
-| `SERVICE_UNAVAILABLE` | 서비스 불가 | 의존 서비스에 접근할 수 없음. 로그인 2단계 Passkey 인증 검증(`POST /api/auth/2fa/webauthn/authenticate/verify`)에서 Passkey 인증 챌린지를 기록하지 못할 때 낸다. 기록하지 못하는 조건은 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다 | "서비스를 일시적으로 사용할 수 없습니다." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| `SERVICE_UNAVAILABLE` | 서비스 불가 | 의존 서비스에 접근할 수 없음. 로그인 2단계 Passkey 인증 검증(`POST /api/auth/2fa/webauthn/authenticate/verify`)에서 Passkey 인증 챌린지를 기록하지 못할 때 낸다. 기록하지 못하는 조건은 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다 | "서비스를 일시적으로 사용할 수 없습니다." | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `DATABASE_ERROR` | DB 에러 | 데이터베이스 연결·쿼리 실패. 발행처는 [미결 사항](#미결-사항) 참조 | "데이터 처리 중 오류가 발생했습니다." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `RATE_LIMITED` | 요청 빈도 제한 | 요청 빈도 제한 초과. 429 기본 코드 | "요청이 너무 많습니다. {retry_after}초 후 다시 시도해 주세요." | [HTTP API 규약](CLE-API-CONV.md) |
 
@@ -213,15 +215,15 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 | `PAYLOAD_TOO_LARGE` (요청 본문) | 요청 본문이 body-parser 한도를 넘음. 전역 기본 100KB, `/api/hooks/*` 인증 웹훅 1MB(`createHooksBodyParsers`). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 바꾼다. `message` 는 내부 원문(`"request entity too large"` 등)을 싣지 않고 고정 문구 `"Request payload too large."` 만 돌려준다. 공개 웹훅의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§6.10) | 413 | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `PAYLOAD_TOO_LARGE` (multipart 업로드) | 업로드 파일이 `FileInterceptor` 의 `limits.fileSize` 를 넘음(아바타 2MB, 지식 저장소 문서 50MB). Nest 가 multer 의 `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException` 으로 바꾸고 `GlobalExceptionFilter` 가 상태 코드로 이 코드를 채운다. `message` 는 multer 원문(`"File too large"`)을 싣지 않고 요청 본문 행과 같은 고정 문구 `"Request payload too large."` 를 돌려준다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 「`message` 에 내부 원문을 싣지 않는다」) | 413 | [내 프로필 「아바타」](../CLE-ACCT/CLE-ACCT-PROFILE.md#아바타), [HTTP API 규약](CLE-API-CONV.md) 의 「9. 파일 업로드」 |
 | `FILE_REQUIRED` | 업로드 요청에 파일이 없거나 내용이 비어 있음(`file?.buffer?.length` 가 0). 확장자 불허(`INVALID_FILE_TYPE`)와 다른 코드다. 클라이언트가 취할 행동이 다르기 때문이다("파일을 고르세요" 와 "다른 형식으로 바꾸세요"). 메시지 문자열 파싱이 금지돼 있으므로 코드로 갈라야 분기할 수 있다. 현재 발행처는 아바타 업로드다 | 400 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
-| `INVALID_FILE_TYPE` | 확장자가 허용 목록에 없음. 지식 저장소 문서 업로드와 아바타 업로드가 함께 쓰고 허용 목록은 도메인마다 정한다(지식 저장소 `txt`·`md`·`pdf`·`csv`, 아바타 `png`·`jpg`·`jpeg`·`webp`·`gif`, SVG 제외) | 400 | [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md), [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
+| `INVALID_FILE_TYPE` | 확장자가 허용 목록에 없음. 지식 저장소 문서 업로드와 아바타 업로드가 함께 쓰고 허용 목록은 도메인마다 정한다(지식 저장소 `txt`·`md`·`pdf`·`csv`, 아바타 `png`·`jpg`·`jpeg`·`webp`·`gif`, SVG 제외) | 400 | [파일 저장소 「지식 저장소 문서」](../CLE-PLAT/CLE-PLAT-STORAGE.md#지식-저장소-문서), [파일 저장소 「아바타」](../CLE-PLAT/CLE-PLAT-STORAGE.md#아바타), [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트가 **없음**. `X-Workspace-Id` 헤더도 JWT `activeWorkspaceId` 클레임(옛 `workspaceId`)도 없다(`workspace.decorator.ts` 발행). 헤더가 있으나 형식이 깨진 경우는 아래 `VALIDATION_ERROR` 행이며 다른 경우다 | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
 | `VALIDATION_ERROR` | **`X-Workspace-Id` 형식 에러**. 헤더가 있으나 canonical UUID 형태(8-4-4-4-12 hex)가 아니면 일찍 거부한다. `RolesGuard` 와 `@WorkspaceId()` 가 함께 쓰는 헬퍼(`resolveRequestWorkspaceContext`) 한 곳에서 throw 한다(반환 플래그로 두면 두 경로의 응답이 갈라진다). 일찍 거부하지 않으면 그 값이 멤버십 조회까지 흘러가 `QueryFailedError`(SQLSTATE 22P02)가 되고 500 `INTERNAL_ERROR` 로 가려진다. **JWT 클레임은 검증하지 않는다.** 서버가 서명한 값이라 거기서 400 을 내면 서버 버그를 클라이언트 에러로 보고하게 된다. 검증을 경로 파라미터보다 느슨하게 하는 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-헤더는-경로-파라미터보다-느슨하게-검사한다) 의 「`X-Workspace-Id` 헤더는 경로 파라미터보다 느슨하게 검사한다」 Rationale | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
-| `INVALID_TRIGGER_PARAMETERS` | 수동 트리거 parameters 스키마 검증 실패. **세 엔드포인트가 함께 쓴다**: 주 실행(`POST /workflows/:id/execute`), 저장(`POST /workflows/:id/save`, `validateManualTrigger`), 재실행의 `inputOverride`(`POST /executions/:id/re-run`). 셋 다 `resolveTriggerParameters` 가 던지는 같은 검증 실패를 감싸므로 같은 코드를 낸다. 필드별 사유는 `details[]`(§4.2, §6.10). 경로별로 `RERUN_` prefix 를 붙이지 않는 것은 의도다. 세 경로를 하나로 모으는 것이 이 코드가 있는 이유다 | 400 | [수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md), [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
+| `INVALID_TRIGGER_PARAMETERS` | 수동 트리거 parameters 스키마 검증 실패. **세 엔드포인트가 함께 쓴다**: 주 실행(`POST /workflows/:id/execute`), 저장(`POST /workflows/:id/save`, `validateManualTrigger`), 재실행의 `inputOverride`(`POST /executions/:id/re-run`). 셋 다 `resolveTriggerParameters` 가 던지는 같은 검증 실패를 감싸므로 같은 코드를 낸다. 필드별 사유는 `details[]`(§4.2, §6.10). 경로별로 `RERUN_` prefix 를 붙이지 않는 것은 의도다. 세 경로를 하나로 모으는 것이 이 코드가 있는 이유다. 최상위는 이 특화 코드이고 `details[].code` 에는 필드별 사유를 싣는다. [에러 응답과 클라이언트 처리 「2.6 top-level 이 이미 특화 코드일 때」](CLE-API-ERROR.md#26-top-level-이-이미-특화-코드일-때-2026-09-11) 의 판별 기준은 사유의 중복이다. 최상위는 "파라미터 검증 실패" 라는 묶음 사유이고 필드별 사유와 겹치지 않아 이 기준에 걸리지 않는다. 규칙 6 도 지킨다. 새 검증 사유가 생기면 최상위 코드는 그대로 두고 §4.2 에 새 항목 코드를 더한다 | 400 | [수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md), [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
 | `MODEL_CONFIG_INVALID` | 모델 설정 입력 검증 실패. 알 수 없는 `kind`, 필수 프로바이더의 apiKey 누락, 사설망·loopback baseUrl(사설망 차단, tei·local 제외) 등. `model-config.service.ts`, `model-config.controller.ts`, `llm-preview.service.ts`(preview-models) 발행 | 400 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md), [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `RESOURCE_NOT_FOUND` | 리소스 없음. 404 기본 코드 | 404 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `ALERT_RULE_NOT_FOUND` | 알림 규칙 없음. 워크스페이스 범위 안에서 규칙 id 를 찾지 못함. `alerts.service.ts` 가 `where: { id, workspaceId }` 로 조회하므로 다른 워크스페이스 규칙에 접근해도 같은 404 다(존재 누설 방지, `MODEL_CONFIG_NOT_FOUND` 의 종류 간 차단과 같은 형태) | 404 | [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) |
-| `MODEL_CONFIG_NOT_FOUND` | 지정한 id 의 모델 설정이 없거나 다른 종류(kind)에 접근해 차단됨(존재 누설 방지). id 지정 경로와 `resolveEmbedding` 의 워크스페이스 기본값 부재(지식 저장소 임베딩 설정 부재 = 리소스 부재)에 쓴다. `RESOURCE_NOT_FOUND` 의 모델 설정 특화 코드(`model-config.service.ts` 발행) | 404 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md) |
-| `MODEL_CONFIG_DEFAULT_MISSING` | id 를 지정하지 않았는데 워크스페이스 기본 설정이 없음(설정 안내용). `resolveConfig` 의 chat/LLM 기본값 경로 전용이다. `resolveEmbedding` 의 기본값 부재는 `MODEL_CONFIG_NOT_FOUND`(404)를 쓴다(사용자 결정 2026-06-12) | 400 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md) |
+| `MODEL_CONFIG_NOT_FOUND` | 지정한 id 의 모델 설정이 없거나 다른 종류(kind)에 접근해 차단됨(존재 누설 방지). id 지정 경로와 `resolveEmbedding` 의 워크스페이스 기본값 부재(지식 저장소 임베딩 설정 부재 = 리소스 부재)에 쓴다. `RESOURCE_NOT_FOUND` 의 모델 설정 특화 코드(`model-config.service.ts` 발행) | 404 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md), [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md), [문서 임베딩 「임베딩 모델 해석」](../CLE-KB/CLE-KB-EMBED.md#임베딩-모델-해석) |
+| `MODEL_CONFIG_DEFAULT_MISSING` | id 를 지정하지 않았는데 워크스페이스 기본 설정이 없음(설정 안내용). `resolveConfig` 의 chat/LLM 기본값 경로 전용이다. `resolveEmbedding` 의 기본값 부재는 `MODEL_CONFIG_NOT_FOUND`(404)를 쓴다(사용자 결정 2026-06-12) | 400 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md). 이 코드는 도메인 문서에 적혀 있지 않다. [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) 는 임베딩 기본값 부재(404)와 구분할 때만 이름을 든다 |
 | `USER_NOT_FOUND` | 대상 사용자가 없음. `RESOURCE_NOT_FOUND` 의 사용자 특화 코드다. 사용자 API(`users.service.ts`, `users.controller.ts`), 알림 설정(`notifications.service.ts`), TOTP · Passkey(`totp.service.ts`, `webauthn.service.ts`), 멤버 직접 추가의 가입하지 않은 이메일(`workspaces.service.ts`)이 발행한다. 초대 모듈의 소문자 `user_not_found`(§3)와 별개 코드다. 로그인 감사값 `failure_reason='USER_NOT_FOUND'` 와는 문자열만 같다(§6.3) | 404 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md), [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
 | `WORKSPACE_NOT_FOUND` (관리 경로) | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행이 없음(`workspaces.service.ts`). 사실상 동시 삭제 경합에서만 난다. `RESOURCE_NOT_FOUND` 의 워크스페이스 특화 코드다. 초대 모듈의 소문자 `workspace_not_found`(§3)와 별개 코드다 | 404 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
 | `WORKSPACE_NOT_FOUND` (토큰 검증) | 액세스 토큰은 유효한데 사용자가 쓸 워크스페이스가 하나도 없음(`jwt.strategy.ts`). 한 코드가 두 상태로 쓰이는 점은 [미결 사항](#미결-사항) 에 있다 | 401 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
@@ -230,7 +232,8 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 | `RESERVED_VARIABLE_NAME` | 변수 선언·변수 수정 노드의 변수 이름이 시스템 예약 `__` prefix 로 시작함(`variables.__*` 는 엔진 시스템 네임스페이스). **이 행은 저장 시점(L0)만 다룬다.** `saveCanvas`·`importWorkflow` 가 `details.offenders[]` 와 함께 HTTP 400 을 낸다(`restoreVersion` 은 옛 데이터 탈출구라 면제). 저장을 우회한 리터럴은 엔진 사전 검증(L1)에서 `INVALID_NODE_CONFIG` 가 된다(§6.5 표 아래). 표현식이 예약 이름으로 평가되는 런타임(L2)은 HTTP 와 무관하다. 핸들러가 `RESERVED_VARIABLE_NAME:` 메시지 prefix 로 throw 해 노드 실패로 기록되지만 구조화 `error.code` 는 없다 | 400 (저장) / 없음 (런타임) | [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md), [변수 선언 노드](../CLE-NODE-LOGIC/CLE-NODE-VARDECL.md), [변수 수정 노드](../CLE-NODE-LOGIC/CLE-NODE-VARSET.md) |
 | `WORKFLOW_VERSION_CONFLICT` | 캔버스 저장이나 버전 복원이 같은 워크플로우에 동시에 버전을 만드는 경합. 버전 복원도 캔버스 저장과 같은 쓰기를 거쳐 버전을 만든다. 같은 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 돌려준다(`workflow-versions.service.ts` 발행) | 409 | [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
 | `INVALID_VERSION_SNAPSHOT` | 버전 복원 때 버전 스냅샷 형식이 잘못됐다(`nodes` · `edges` 가 배열이 아니거나 `name` 이 있는데 문자열이 아니다). `workflows.service.ts` 의 `restoreVersion` 발행. 상태 코드는 등재 전부터 내던 400 을 그대로 적었다. 요청이 아니라 저장된 버전 스냅샷의 결함이라 [HTTP API 규약](CLE-API-CONV.md) 「6. HTTP 상태 코드」 의 422 · 500 과 결이 다르다. 상태 코드를 바꾸면 API 계약이 바뀌므로 등재와 함께 바꾸지 않았다 | 400 | [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
-| `INVALID_STATE` | 상태 전이 불가(이미 실행 중인 워크플로우 삭제 등). 422 기본 코드. 표면별 같은 뜻 코드는 §6 머리말 | 422 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| `GRAPH_VALIDATION_FAILED` | 캔버스 저장(`POST /workflows/:id/save`)이나 버전 복원(`POST /workflows/:id/versions/:versionId/restore`)에서 심각도 `error` 인 그래프 경고 규칙이 하나 이상 걸림. 노드 · 연결선을 쓴 트랜잭션 안에서 평가하고 이 코드를 던져 저장을 되돌린다(`workflows.service.ts` 발행). 버전 복원은 옛 데이터 호환 게이트(수동 트리거 parameters 스키마, 예약 변수 이름)를 건너뛰지만 이 평가는 건너뛰지 않는다. `message` 는 `Graph validation failed: ` 뒤에 걸린 첫 규칙의 메시지를 싣고 `details.errors` 는 그 평가에서 심각도 `error` 인 결과를 모두 싣는다. AI 에이전트 노드의 도구 payload 예산 규칙은 `AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 일 때만 `error` 로 올라 이 코드로 막힌다 | 400 | [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md), [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md), [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) |
+| `INVALID_STATE` | 상태 전이 불가(이미 실행 중인 워크플로우 삭제 등). 422 기본 코드. 표면별 같은 뜻 코드는 §6 머리말. 로그인 OAuth 콜백의 소문자 URL 값 `invalid_state`(§3, state 불일치)와 별개 코드다 | 422 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증), [실행 데이터와 흐름 「입력으로 재개」](../CLE-EXEC/CLE-EXEC-DATA.md#입력으로-재개) |
 | `INVALID_FIELD` | 응답의 최상위 코드가 아니다. 400 응답의 `details` 안에서 문제 필드를 가리키는 필드 단위 표시다. `details` 가 배열이면 원소마다, 객체이면 그 객체에 `field` 와 `code: 'INVALID_FIELD'` 를 싣는다. 최상위 코드는 `VALIDATION_ERROR` 이고 트리거 인증 설정 연결만 `AUTH_CONFIG_NOT_FOUND`(§6.14)다. 클라이언트는 최상위 코드로 분기한다 | 없음 (400 응답 `details` 안의 `code`) | [에러 응답과 클라이언트 처리 「2.4 `details` 의 형태」](CLE-API-ERROR.md#24-details-의-형태), [에러 응답과 클라이언트 처리 「2.5 `field` 를 실으면 `code` 도 싣는다」](CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다-2026-09-11) |
 | `INVALID_NOTIFICATION_URL` | 트리거 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 `notification.url` 이 알림 URL 안전 검사를 통과하지 못함. `message` 에 거절 사유를 싣는다. 보내기 직전 검사에 걸린 알림은 이 코드를 내지 않는다. 보내지 않고 발송 건강도를 `degraded` 로 둔다 | 400 | [EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) |
 
@@ -246,7 +249,7 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 
 엔진 수준 에러다. 실행 상태가 `failed` 가 된다.
 
-**이 표는 한 곳에 모여 등재된 코드를 뜻하지 않는다.** 앵커가 셋으로 갈린다. `ErrorCode` const(`EXECUTION_TIME_LIMIT_EXCEEDED`), `EngineErrorCode` const(`WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED`), 에러 클래스의 `readonly code`(`ERROR_PORT_FALLBACK`)다. 나머지 7종은 앵커 없는 맨 문자열이라 오탈자가 `tsc` 를 통과한다. 다른 모듈(`shadow-workflow.ts` 의 union, `execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다.
+**이 표는 한 곳에 모여 등재된 코드를 뜻하지 않는다.** 앵커가 셋으로 갈린다. `ErrorCode` const(`EXECUTION_TIME_LIMIT_EXCEEDED`), `EngineErrorCode` const(`WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED`), 에러 클래스의 `readonly code`(`ERROR_PORT_FALLBACK`)다. 앵커 열이 `없음` 인 나머지 코드는 맨 문자열이라 오탈자가 `tsc` 를 통과한다. 다른 모듈(`shadow-workflow.ts` 의 union, `execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다.
 
 | 코드 | 앵커 | 설명 | 정의 문서 |
 |------|------|------|-----------|
@@ -264,7 +267,7 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 
 **`INVALID_NODE_CONFIG` 는 행이 없다.** 엔진은 노드를 실행하기 전에 노드 설정을 검사한다(`handler.validate`). 검사에 실패하면 메시지가 `INVALID_NODE_CONFIG: ` 로 시작하는 에러를 던진다. 구조화된 `error.code` 는 없고 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다. 코드가 아니라 메시지 접두라서 행을 두지 않는다. 이 접두로 분기하지 않는다(규칙 4).
 
-**취소로 끝나는 시스템 코드**(위 `failed` 표와 구분한다). 둘 다 실행이 `cancelled`, `cancelledBy='timeout'` 으로 끝나고 `error.code` 로 원인을 가른다. §6.7 의 `RESUME_*` 와 같은 취소 귀결 부류다.
+**취소로 끝나는 시스템 코드**(위 `failed` 표와 구분한다). 둘 다 실행이 `cancelled`, `cancelledBy='timeout'` 으로 끝나고 `error.code` 로 원인을 가른다. §6.7 의 `RESUME_*` 와 같은 취소 귀결 부류다. 두 코드의 앵커는 모두 `EngineErrorCode` const 다. 그래서 `EngineErrorCode` 의 네 값은 위 `failed` 표의 `WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED` 와 이 표의 두 코드다.
 
 | 코드 | 설명 | 정의 문서 |
 |------|------|-----------|
@@ -300,19 +303,19 @@ etag: "sha256-c19e3db2ff4d84ccddb19f1039a7eb9d6f30a89c553c55a76078f6369fb3b212"
 
 | 코드 | 설명 | 정의 문서 |
 |------|------|-----------|
-| `INVALID_EXECUTION_STATE` | 실행이 기대한 상태가 아님(재개 명령 넷은 입력 대기, `retry_last_turn` 은 `failed` 를 기대). 동기 ack 응답이고 BullMQ 에 넣지 않는다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| `INVALID_EXECUTION_STATE` | 실행이 기대한 상태가 아님(재개 명령 넷(`submit_form` · `click_button` · `submit_message` · `end_conversation`)은 입력 대기, `retry_last_turn` 은 `failed` 를 기대). 동기 ack 응답이고 BullMQ 에 넣지 않는다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID(`click_button`) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `VALIDATION_ERROR` (ack) | `submit_form` 의 필드 검증 실패. ack 는 평면 `errorCode` 이고 필드별 `details[]` 가 없다. EIA REST 의 `400 VALIDATION_ERROR` 와 같은 뜻, 같은 검증 지점이다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
-| `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 메시지가 최대 길이(10000자)를 넘음. 발행 쪽 동기 검증(typed `MessageTooLongError`) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| `EXECUTION_INTERNAL_ERROR` | 재개 처리 중 typed `ExecutionError` 가 아닌 내부 에러의 일반 fallback. ack `error` 는 고정 일반 문자열이고 내부 메시지는 클라이언트에 보내지 않는다(서버 로그 전용) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 메시지가 최대 길이(10000자)를 넘음. 발행 쪽 동기 검증(typed `MessageTooLongError`) | [WebSocket 이벤트와 명령 「2.3 재개 명령의 에러」](CLE-API-WS-EVENTS.md#23-재개-명령의-에러), [큐 워커와 동시 실행 제한 「발행 결과와 ack 에러 표면」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면) |
+| `EXECUTION_INTERNAL_ERROR` | 재개 처리 중 typed `ExecutionError` 가 아닌 내부 에러의 일반 fallback. ack `error` 는 고정 일반 문자열이고 내부 메시지는 클라이언트에 보내지 않는다(서버 로그 전용) | [WebSocket 이벤트와 명령 「2.3 재개 명령의 에러」](CLE-API-WS-EVENTS.md#23-재개-명령의-에러), [큐 워커와 동시 실행 제한 「발행 결과와 ack 에러 표면」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면) |
 | `RESUME_CHECKPOINT_MISSING` | rehydration 때 재개에 필요한 영속 상태가 없거나 손상됨(예: `NodeExecution.outputData`, 중첩 재개의 호출 스택 frame). 실행이 `cancelled` 로 끝난다. ack 가 아니라 뒤따르는 `execution.cancelled` 의 `error.code` 로 알린다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RESUME_FAILED` | 재개 큐의 `RESUME_BULLMQ_ATTEMPTS` 소진. 실행이 `cancelled` 로 끝난다. 뒤따르는 `execution.cancelled` 의 `error.code` 로 알린다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RESUME_INCOMPATIBLE_STATE` | 멀티턴 AI 의 `_resumeCheckpoint` 가 없음(기능 배포 전에 들어간 대기 행), 손상됨(스키마 변경으로 재구성 실패), 미래 버전임(`schemaVersion` 이 현재 코드가 지원하는 버전보다 큼. 롤링 배포 중 옛 인스턴스가 새 형식을 가져간 경우). 실행이 `cancelled` 로 끝나고 채널에는 "세션 만료" 안내를 보낸다. 정상 경로(checkpoint 가 있고 버전이 호환)는 재구성해 재개하므로 생기지 않는다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | `RETRY_STATE_NOT_FOUND` | `retry_last_turn` 대상 행의 `_retryState` 가 없거나 만료됨(TTL 초과 또는 다른 재시도가 이미 소비) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `NODE_NOT_RETRYABLE` | 대상 노드가 재시도 가능한 에러로 끝나지 않음(`outputData.output.error.details.retryable === false`, 정상 종결, 조건 종결 등) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `RETRY_TOO_EARLY` | `outputData.output.error.details.retryAfterSec` 카운트다운이 끝나기 전에 호출함(서버 쪽 강제) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
-| `SERVER_SHUTTING_DOWN` | 서버가 SIGTERM 을 받은 뒤 새 실행을 시작할 수 없음. 새 실행을 시작하는 HTTP 진입점(`POST /api/workflows/:id/execute`, 단일 노드 실행 `POST /api/workflows/:id/nodes/:nodeId/execute`)이 503 으로 낸다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| `SERVER_SHUTTING_DOWN` | 서버가 SIGTERM 을 받은 뒤 새 실행을 시작할 수 없음. 새 실행을 시작하는 HTTP 진입점(`POST /api/workflows/:id/execute`, 단일 노드 실행 `POST /api/workflows/:id/nodes/:nodeId/execute`)이 503 으로 낸다 | [장애 복구와 안전 종료 「안전 종료」](../CLE-EXEC/CLE-EXEC-RECOVERY.md#안전-종료) |
 | `EXECUTION_ENQUEUE_FAILED` | 입력 대기 실행에 보내는 취소와 재개 명령에서 재개 메시지 발행(BullMQ `queue.add`) 자체가 실패함. `publish` 가 `queued:false`(Redis 장애 등으로 큐에 들어가지 못함)를 돌려준 경우다. HTTP 진입점은 503 이고 실행은 입력 대기 상태를 유지한다(`failed` 아님). 다시 시도를 권한다. 이 코드를 내는 HTTP 진입점은 셋이다. REST `POST /executions/:id/stop`, External Interaction API `/interact`(별칭 `POST .../cancel` 포함), 채팅 채널 인바운드의 `/start` 다. External Interaction API 에서 어느 요청이 이 코드를 받는지는 [EIA 수신 API와 SSE 「명령 에러」](../CLE-IX/CLE-EIA-INBOUND.md#명령-에러) 가 정한다. 채팅 채널의 `/start` 는 활성 실행을 취소할 때 `ExecutionsService.stop` 을 직접 부르고 이 503 을 그대로 돌려준다. 이때 새 실행은 시작하지 않고 프로바이더는 non-2xx 를 받아 같은 update 를 다시 보낼 수 있다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 채팅 채널 인바운드의 `/cancel` 과 재개 입력은 이 코드를 내지 않는다. 큐에 넣지 못해도 `202` 로 응답하고 채널 건강도를 `degraded` 로 바꾼다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). WebSocket 재개 명령 4종은 이 코드를 싣지 않는다. 같은 발행 실패는 `errorCode` 없는 실패 ack(`success:false`)로 알린다. `SERVER_SHUTTING_DOWN` 503 선례와 같은 형태이고 큐에 들어간 뒤 재개가 실패하는 워커 쪽 비동기 실패(`RESUME_*`)와 구분한다 | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면), [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개), [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 
 ### 6.8 WebSocket 전송 (도메인 문서 참조)
@@ -406,7 +409,7 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 
 - **이름은 `_NOT_FOUND` 지만 404 가 아니다.** 이 카탈로그에서 HTTP 로 나가는 `*_NOT_FOUND` 가운데 404 가 아닌 코드는 이 코드 말고 둘이다. 액세스 토큰 검증의 `WORKSPACE_NOT_FOUND`(401, §6.4)와 트리거 단위 토큰 경로의 `EXECUTION_NOT_FOUND`(401, [§6.9 의 「트리거 단위 토큰」 행](#69-eia-rest-외부-표면-도메인-문서-참조))다. 나머지는 모두 404 이고 이 상태 일관성을 위해 코드를 쪼갠 선례도 있다(`MODEL_CONFIG_NOT_FOUND` 404 와 `MODEL_CONFIG_DEFAULT_MISSING` 400).
 - 400 인 근거: 다른 워크스페이스 참조는 리소스 부재가 아니라 입력값 유효성 문제다. 그래서 `details.field='authConfigId'` 로 필드를 지목하고 `BadRequestException` 으로 던진다.
-- 이름을 바꾸거나 404 로 바꿀지는 소비자 분기에 영향을 주는 별도 결정이며 후속 작업으로 등재돼 있다.
+- 이름을 바꾸거나 404 로 바꿀지는 소비자 분기에 영향을 주는 별도 결정이다. NERV Task `CLE-T-3P4ENZ` 가 맡는다.
 - 특화 코드와 일반 `details[].code` 를 함께 싣는 것이 "겹쳐 쓰지 않는다" 에 걸리지 않는 근거는 [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 판별 기준이다.
 
 ### 6.15 채팅 채널 봇 토큰 재발급 (도메인 문서 참조)
@@ -623,13 +626,13 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 ## 미결 사항
 
-- **발행처가 없는 등재 코드**: `DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
+- **발행처가 없는 등재 코드**: `DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. `INTERACTION_TIMEOUT`(§6.7)도 `error-codes.ts` 에 정의만 있고 발행처가 없다(2026-11-12 grep 0건). [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 재개 명령 에러 표에도 있어 함께 정한다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **발행하는데 행이 없는 어시스턴트 스트림 코드**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 스트림 `error` 이벤트는 `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `ASSISTANT_STREAM_FAILED` 를 내는데 이 카탈로그에 행이 없다(규칙 8). §6.19 는 세션 REST 코드만 싣는다. 어시스턴트 코드의 등재는 NERV Task `CLE-T-YFDSY7` 이 한다. `CLE-T-5BZ3M2` 는 통합 · MCP · Background Runs 코드를 도메인 참조 절(§6.21~6.24)로 등재했다. 이 코드들에는 규칙과 맞지 않는 점이 두 가지 있다. 규칙 4 와는 같은 429 와 SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가는 점이 어긋난다(429 는 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED`). 규칙 6 과는 `ASSISTANT_STREAM_FAILED` 한 코드가 429 · SDK 타임아웃 · 서비스 내부 실패를 함께 담는 점이 어긋난다. 프로바이더 분기를 통일할지는 NERV Task `CLE-T-0R5SYN` 이 정한다.
 - **발행 중인데 등재되지 않은 Passkey 코드**: 백엔드는 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_CREDENTIAL_NOT_FOUND` · `WEBAUTHN_NOT_REGISTERED` 를 발행한다. 그런데 §6.3 과 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 에러 코드 표에 없다(규칙 8). NERV Task `CLE-T-9KCQ7Y` 가 Passkey 등록 저장의 원자성과 함께 등재한다.
 - **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
 - **`LLM_TIMEOUT` 의 등재**: 2026-10-10 에 LLM 타임아웃을 이 코드로 내지 않기로 정했고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 약속도 거뒀다(§6.6). 남은 것은 `HTTP_TIMEOUT` 처럼 enum 에 남길지, 규칙 9 에 따라 등재를 지울지다. 정리는 NERV Task `CLE-T-8WXV7T` 가 다른 미발행 코드와 함께 한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 예시와 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 분류 표의 행도 그때 함께 정리한다.
 - **`RECURSION_DEPTH_EXCEEDED` 의 발행 형태**: 카탈로그는 이 코드를 등재하지만 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 는 재귀 깊이 초과를 코드 없이 메시지 `Maximum recursion depth exceeded (limit: 10)` 로 throw 한다고 적는다. 코드를 붙일지 카탈로그에서 뺄지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
-- **가이드 식별자 실재 가드의 소유**: `PROJECT.md` 는 가이드가 인용한 에러 코드·환경 변수가 코드에 실재하는지 보는 가드(`guide-identifier-existence`)의 기준 문서로 이 규약을 지목한다. 원문 규약에는 가이드 인용 규칙도 이 가드도 없어 여기 싣지 않았다. 어느 문서가 이 가드를 소유할지는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md#미결-사항) 의 미결에서 정한다.
+- **가이드 식별자 실재 가드의 소유**: `PROJECT.md` 는 가이드가 인용한 에러 코드·환경 변수가 코드에 실재하는지 보는 가드(`guide-identifier-existence`)의 기준 문서로 이 규약을 지목한다. 원문 규약에는 가이드 인용 규칙도 이 가드도 없어 여기 싣지 않았다. 어느 문서가 이 가드를 소유할지는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md#미결-사항) 의 미결에서 정한다. 소유와 별개로 이 가드는 지금 이 문서 미러의 `## 6. 카탈로그` 절 제목을 찾아 그 아래 행을 읽는다(`guide-identifier-existence.test.ts` 의 `CATALOG_SECTION_HEADING`). 제목이 없으면 가드가 멈춘다. 그래서 이 절 제목을 바꾸는 초안은 `CATALOG_SECTION_HEADING` 을 함께 고치는 구현 PR 을 낸다.
 - **`WORKSPACE_NOT_FOUND` 의 두 상태**: 워크스페이스 관리 경로는 이 코드를 404 로 내고 액세스 토큰 검증은 401 로 낸다(§6.4). 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 401 경로에 별도 코드를 줄지는 NERV Task `CLE-T-3P4ENZ` 에서 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 결정 필요.
 
 ## 구현 위치
@@ -991,3 +994,11 @@ NERV Task `CLE-T-B4WH9N`(통합 스펙 정리)이 최신 승인본과 대조해 
 
 - **`ADMIN_REQUIRED`**: 관리자 미만이 조직 공개 범위로 `oauth/begin` 을 `new` 모드로 부르면 다시 쓸 설치 대기 행을 찾기 전에 이 코드로 거절한다(REQ-INTOAUTH-064). 컨트롤러가 통합 생성과 같은 판정(`IntegrationsService.assertCanCreate`)을 부른다. 통합 OAuth 의 발행 자리를 두 곳에서 세 곳으로 고쳤다.
 - **`EDITOR_REQUIRED`**: 통합 쓰기 라우트와 `oauth/begin`(REQ-INTOAUTH-063)에는 편집자 이상 라우트 가드가 붙는다. 뷰어가 부르면 대상의 공개 범위와 상관없이 이 코드다. 기준은 [통합 관리 「권한」](../CLE-INT/CLE-INT-MANAGE.md#권한) 의 «역할 거부 코드는 라우트 가드가 먼저 정한다» 다. 관련 문서 칸에 그 문서를 더했다.
+
+### `GRAPH_VALIDATION_FAILED` 를 §6.4 에 직접 등재했다 (2026-11-12)
+
+NERV Task `CLE-T-PA0EMN` 에서 더했다. `workflows.service.ts` 가 캔버스 저장과 버전 복원에서 400 으로 내고 프론트엔드도 이 코드의 안내 문구를 두는데(`backend-labels.ts`) 카탈로그에 없어 규칙 8 을 어겼다. 도메인 참조 절을 새로 만들지 않고 §6.4 에 직접 등재했다. `ALERT_RULE_NOT_FOUND` 의 직접 등재 선례를 따랐다. 정의 문서는 규칙과 심각도를 정하는 [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md)과 저장 흐름을 정하는 [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)이다.
+
+- **새 코드가 아니다.** 이미 내던 코드를 등재만 했다. 이름 · 상태 코드 · `details.errors` 형태는 그대로다.
+- **`VALIDATION_ERROR` 로 합치지 않는다.** 요청 본문 형식이 틀린 경우가 아니라 저장하려는 그래프가 규칙에 걸린 경우다. 클라이언트는 이 코드로 캔버스의 오류 배지를 보라는 안내를 고른다.
+- **도구 payload 예산 규칙도 이 코드를 쓴다.** 그래프 규칙 평가를 통과한 뒤 따로 평가하고 `AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 일 때만 저장을 막는다. 막는 이유가 같아(저장할 그래프의 규칙 위반) 코드를 나누지 않았다.

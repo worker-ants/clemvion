@@ -1,4 +1,5 @@
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
+import { Logger } from '@nestjs/common';
 import type { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
 /**
@@ -381,5 +382,181 @@ describe('ExecutionSeqAllocator', () => {
     it('비문자열 입력도 String() 강제 후 처리 (방어적)', () => {
       expect(sanitize(123 as unknown as string)).toBe('123');
     });
+  });
+});
+
+/**
+ * fail-open 관측 — Redis INCR 이 실패해 in-memory 발급으로 물러나는 경로와 종료 정리의
+ * DEL 실패가 `clemvion.redis.fail_open` 에 각자 다른 reason 으로 한 번 잡히는지 고정한다.
+ * 발급 seq · release 의 동기 반환은 그대로여야 한다.
+ *
+ * 공유 연결을 얻지 못한 경우(config 누락으로 `getClient()` throw)는 Redis 미설정이라 세지 않는다.
+ * 같은 catch 로 들어오지만 연결을 얻기 전에 실패했는지로 가른다. EXPIRE 튜플 오류도 세지 않는다.
+ * 발급한 seq 가 유효하고 다음 발급이 TTL 을 다시 걸기 때문이다.
+ */
+describe('ExecutionSeqAllocator — fail-open 관측 (metrics)', () => {
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  /** exec 결과와 del 동작을 테스트가 정하는 최소 fake. */
+  function makeClient(opts: {
+    exec?: jest.Mock;
+    del?: jest.Mock;
+  }): Record<string, unknown> {
+    let n = 0;
+    const exec =
+      opts.exec ??
+      jest.fn(async () => {
+        n += 1;
+        return [
+          [null, n],
+          [null, 1],
+        ];
+      });
+    return {
+      pipeline: jest.fn(() => {
+        const b: Record<string, unknown> = {};
+        b.incr = () => b;
+        b.expire = () => b;
+        b.exec = exec;
+        return b;
+      }),
+      del: opts.del ?? jest.fn(async () => 1),
+    };
+  }
+  /** client=null 이면 getClient 가 throw(config 누락), getClientOrNull 은 null. */
+  function makeConn(client: unknown): RedisConnectionProvider {
+    return {
+      getClient: jest.fn(() => {
+        if (!client)
+          throw new Error('redis.host / redis.port 설정이 누락됐습니다.');
+        return client;
+      }),
+      getClientOrNull: jest.fn(() => client ?? null),
+    } as unknown as RedisConnectionProvider;
+  }
+
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it.each([
+    [
+      'pipeline exec reject',
+      () => jest.fn().mockRejectedValue(new Error('Connection lost')),
+    ],
+    ['pipeline exec 가 null', () => jest.fn().mockResolvedValue(null)],
+    [
+      'INCR 튜플 오류',
+      () =>
+        jest.fn().mockResolvedValue([
+          [new Error('WRONGTYPE'), null],
+          [null, 1],
+        ]),
+    ],
+  ])(
+    '%s → (execution_seq, incr_failed) 1번 + in-memory seq 그대로',
+    async (_label, makeExec) => {
+      const m = makeMetrics();
+      const alloc = new ExecutionSeqAllocator(
+        makeConn(makeClient({ exec: makeExec() })),
+        m as never,
+      );
+
+      expect(await alloc.next('exec-obs')).toBe(1);
+      expect(m.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+      expect(m.recordRedisFailOpen).toHaveBeenCalledWith(
+        'execution_seq',
+        'incr_failed',
+      );
+    },
+  );
+
+  it('DEL 실패 → (execution_seq, del_failed) 1번 + release 는 throw 하지 않는다', async () => {
+    const m = makeMetrics();
+    const alloc = new ExecutionSeqAllocator(
+      makeConn(
+        makeClient({
+          del: jest.fn().mockRejectedValue(new Error('DEL failed')),
+        }),
+      ),
+      m as never,
+    );
+
+    expect(() => alloc.release('exec-obs-del')).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(m.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(m.recordRedisFailOpen).toHaveBeenCalledWith(
+      'execution_seq',
+      'del_failed',
+    );
+  });
+
+  it('정상 발급 · 정상 DEL 에서는 오르지 않는다', async () => {
+    const m = makeMetrics();
+    const alloc = new ExecutionSeqAllocator(
+      makeConn(makeClient({})),
+      m as never,
+    );
+
+    expect(await alloc.next('exec-obs-ok')).toBe(1);
+    expect(await alloc.next('exec-obs-ok')).toBe(2);
+    alloc.release('exec-obs-ok');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('EXPIRE 튜플 오류는 세지 않는다 (INCR seq 는 유효)', async () => {
+    const m = makeMetrics();
+    const alloc = new ExecutionSeqAllocator(
+      makeConn(
+        makeClient({
+          exec: jest.fn().mockResolvedValue([
+            [null, 7],
+            [new Error('EXPIRE failed'), null],
+          ]),
+        }),
+      ),
+      m as never,
+    );
+
+    expect(await alloc.next('exec-obs-exp')).toBe(7);
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('공유 연결 미설정(config 누락) 이면 next · release 모두 오르지 않는다', async () => {
+    const m = makeMetrics();
+    const alloc = new ExecutionSeqAllocator(makeConn(null), m as never);
+
+    expect(await alloc.next('exec-obs-nocfg')).toBe(1);
+    expect(await alloc.next('exec-obs-nocfg')).toBe(2);
+    alloc.release('exec-obs-nocfg');
+    await Promise.resolve();
+
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 미주입이어도 fail-open 경로가 죽지 않는다 (optional DI)', async () => {
+    const alloc = new ExecutionSeqAllocator(
+      makeConn(
+        makeClient({
+          exec: jest.fn().mockRejectedValue(new Error('Connection lost')),
+          del: jest.fn().mockRejectedValue(new Error('DEL failed')),
+        }),
+      ),
+    );
+
+    expect(await alloc.next('exec-obs-bare')).toBe(1);
+    expect(() => alloc.release('exec-obs-bare')).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
   });
 });

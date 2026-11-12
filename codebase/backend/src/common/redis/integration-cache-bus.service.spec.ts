@@ -16,6 +16,7 @@ import {
   IntegrationCacheBus,
   INTEGRATION_CACHE_INVALIDATE_CHANNEL,
 } from './integration-cache-bus.service';
+import { Logger } from '@nestjs/common';
 import { RedisConnectionProvider } from './redis-connection.provider';
 
 interface FakeRedis {
@@ -259,5 +260,140 @@ describe('IntegrationCacheBus', () => {
 
       await expect(bus.onModuleDestroy()).resolves.toBeUndefined();
     });
+  });
+});
+
+/**
+ * fail-open 관측 — 발행 실패와 구독 실패(구독 reject · 구독 연결 'error')가
+ * `clemvion.redis.fail_open` 에 각자 다른 reason 으로 한 번 잡히는지 고정한다. 모두 삼키는
+ * 동작은 그대로여야 한다. invalidator(핸들러) 오류 · quit 실패 · Redis 미설정은 세지 않는다.
+ */
+describe('IntegrationCacheBus — fail-open 관측 (metrics)', () => {
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  /** base.duplicate() 가 sub 를 돌려주는 구성. */
+  function setup() {
+    const sub = makeFakeRedis();
+    const base = makeFakeRedis();
+    base.duplicate.mockReturnValue(sub);
+    const m = makeMetrics();
+    const bus = new IntegrationCacheBus(makeProvider(base), m as never);
+    return { sub, base, m, bus };
+  }
+
+  let warnSpy: jest.SpyInstance;
+  let errorSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('PUBLISH 실패 → (integration_cache_bus, publish_failed) 1번 + 삼킴', async () => {
+    const { base, m, bus } = setup();
+    base.publish.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(bus.publish('int-1')).resolves.toBeUndefined();
+    expect(m.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(m.recordRedisFailOpen).toHaveBeenCalledWith(
+      'integration_cache_bus',
+      'publish_failed',
+    );
+  });
+
+  it('SUBSCRIBE reject → (integration_cache_bus, subscribe_failed) 1번 + 삼킴', async () => {
+    const { sub, m, bus } = setup();
+    sub.subscribe.mockRejectedValueOnce(new Error('subscribe failed'));
+
+    expect(() => bus.onModuleInit()).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(m.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(m.recordRedisFailOpen).toHaveBeenCalledWith(
+      'integration_cache_bus',
+      'subscribe_failed',
+    );
+  });
+
+  it("구독 연결 'error' → (integration_cache_bus, subscribe_failed) 1번 + throw 없음", async () => {
+    const { sub, m, bus } = setup();
+    bus.onModuleInit();
+    await Promise.resolve();
+
+    expect(() => sub.emitError(new Error('connection reset'))).not.toThrow();
+    expect(m.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(m.recordRedisFailOpen).toHaveBeenCalledWith(
+      'integration_cache_bus',
+      'subscribe_failed',
+    );
+  });
+
+  it('정상 발행 · 구독 · 메시지 처리에서는 오르지 않는다', async () => {
+    const { sub, m, bus } = setup();
+    const fn = jest.fn();
+    bus.register(fn);
+    bus.onModuleInit();
+    await Promise.resolve();
+    await bus.publish('int-ok');
+    sub.emitMessage(INTEGRATION_CACHE_INVALIDATE_CHANNEL, 'int-ok');
+
+    expect(fn).toHaveBeenCalledWith('int-ok');
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('invalidator 오류(동기 throw · 비동기 reject)는 Redis 실패가 아니라 세지 않는다', async () => {
+    const { sub, m, bus } = setup();
+    bus.register(() => {
+      throw new Error('evict failed');
+    });
+    bus.register(jest.fn().mockRejectedValue(new Error('async evict')));
+    bus.onModuleInit();
+    await Promise.resolve();
+
+    sub.emitMessage(INTEGRATION_CACHE_INVALIDATE_CHANNEL, 'int-9');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('구독 연결 quit 실패는 세지 않는다 (종료 정리)', async () => {
+    const { sub, m, bus } = setup();
+    sub.quit.mockRejectedValueOnce(new Error('already closed'));
+    bus.onModuleInit();
+    await Promise.resolve();
+
+    await expect(bus.onModuleDestroy()).resolves.toBeUndefined();
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미설정(null)이면 발행 · 구독 모두 오르지 않는다', async () => {
+    const m = makeMetrics();
+    const bus = new IntegrationCacheBus(makeProvider(null), m as never);
+
+    bus.onModuleInit();
+    await bus.publish('int-1');
+
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 미주입이어도 fail-open 경로가 죽지 않는다 (optional DI)', async () => {
+    const sub = makeFakeRedis();
+    sub.subscribe.mockRejectedValueOnce(new Error('subscribe failed'));
+    const base = makeFakeRedis();
+    base.duplicate.mockReturnValue(sub);
+    base.publish.mockRejectedValueOnce(new Error('redis down'));
+    const bus = new IntegrationCacheBus(makeProvider(base));
+
+    expect(() => bus.onModuleInit()).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(() => sub.emitError(new Error('connection reset'))).not.toThrow();
+    await expect(bus.publish('int-1')).resolves.toBeUndefined();
   });
 });

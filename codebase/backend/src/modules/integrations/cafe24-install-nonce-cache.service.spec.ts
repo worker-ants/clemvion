@@ -1,4 +1,5 @@
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
+import { Logger } from '@nestjs/common';
 
 type Mock = jest.Mock;
 
@@ -146,5 +147,85 @@ describe('Cafe24InstallNonceCache', () => {
     const keys = redis.set.mock.calls.map((c) => c[0] as string);
     expect(keys[0]).toBe(keys[1]);
     expect(keys[0]).toContain(':AAAA1234');
+  });
+});
+
+/**
+ * fail-open 관측 — SETNX 가 Redis 오류로 실패해 replay 검사를 건너뛸 때
+ * `clemvion.redis.fail_open` 에 `(cafe24_install_nonce, set_failed)` 가 한 번 잡히는지 고정한다.
+ * 반환값(false)은 그대로여야 하고, 정상 · replay · Redis 미설정에서는 오르지 않는다.
+ */
+describe('Cafe24InstallNonceCache — fail-open 관측 (metrics)', () => {
+  const PARAMS = {
+    mallId: 'myshop',
+    timestamp: '1700000000',
+    hmac: 'MMMM1234MMMM1234MMMM1234MMMM1234MMMM1234MMMM',
+  };
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it('SETNX 실패 → (cafe24_install_nonce, set_failed) 1번 + isReplay=false', async () => {
+    const redis = makeRedisMock();
+    redis.set.mockRejectedValue(new Error('ECONNREFUSED'));
+    const m = makeMetrics();
+    const cache = new Cafe24InstallNonceCache(
+      undefined,
+      redis as never,
+      undefined,
+      m as never,
+    );
+
+    expect(await cache.isReplay(PARAMS)).toBe(false);
+    expect(m.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(m.recordRedisFailOpen).toHaveBeenCalledWith(
+      'cafe24_install_nonce',
+      'set_failed',
+    );
+  });
+
+  it('정상(OK) · replay(null) 경로에서는 오르지 않는다', async () => {
+    const redis = makeRedisMock();
+    redis.set.mockResolvedValueOnce('OK').mockResolvedValueOnce(null);
+    const m = makeMetrics();
+    const cache = new Cafe24InstallNonceCache(
+      undefined,
+      redis as never,
+      undefined,
+      m as never,
+    );
+
+    expect(await cache.isReplay(PARAMS)).toBe(false);
+    expect(await cache.isReplay(PARAMS)).toBe(true);
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미설정(null)이면 오르지 않는다', async () => {
+    const m = makeMetrics();
+    const cache = new Cafe24InstallNonceCache(
+      undefined,
+      undefined,
+      undefined,
+      m as never,
+    );
+
+    expect(await cache.isReplay(PARAMS)).toBe(false);
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 미주입이어도 fail-open 경로가 죽지 않는다 (optional DI)', async () => {
+    const redis = makeRedisMock();
+    redis.set.mockRejectedValue(new Error('ECONNREFUSED'));
+    const cache = new Cafe24InstallNonceCache(undefined, redis as never);
+
+    expect(await cache.isReplay(PARAMS)).toBe(false);
   });
 });

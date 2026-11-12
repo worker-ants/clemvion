@@ -119,10 +119,12 @@ describe('BusinessMetricsService (NF-OB-07)', () => {
     service.recordRedisFailOpen('idempotency', s);
     // @ts-expect-error component 축도 같은 방식으로 고정한다
     service.recordRedisFailOpen(s, 'get_failed');
+    // @ts-expect-error 다른 component 의 reason 은 못 들어간다 — rate limiter 에는 조회 경로가 없다
+    service.recordRedisFailOpen('chat_rate_limit', 'get_failed');
     // 타입만 보는 캐너리가 아니라 **호출 시그니처**를 본다 — 별칭만 검사하면
     // `reason: string` 으로 되돌리는 회귀가 그대로 통과한다(실측 확인).
     expect(mock.counters['clemvion.redis.fail_open'].add).toHaveBeenCalledTimes(
-      2,
+      3,
     );
   });
 

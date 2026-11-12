@@ -154,3 +154,97 @@ describe('InteractionRateLimiterService', () => {
     expect(r).toEqual({ allowed: true, retryAfterSec: 0 });
   });
 });
+
+/**
+ * fail-open 경로가 `clemvion.redis.fail_open` 카운터에 `interaction_rate_limit/incr_failed` 로 잡히는지 본다.
+ * 반환값은 위 블록이 고정한 fail-open 값 그대로여야 한다.
+ */
+describe('InteractionRateLimiterService — fail-open 관측 (metrics)', () => {
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  function makeServiceWithMetrics(
+    redis: FakeRedis | null,
+    metrics: { recordRedisFailOpen: jest.Mock },
+    config?: Record<string, number>,
+  ): InteractionRateLimiterService {
+    const configService = config
+      ? ({ get: (k: string) => config[k] } as never)
+      : undefined;
+    return new InteractionRateLimiterService(
+      configService,
+      redis as unknown as Redis | undefined,
+      undefined,
+      metrics as never,
+    );
+  }
+
+  it('EVAL(INCR) 실패 → incr_failed 를 한 번 기록하고 허용한다', async () => {
+    const redis = new FakeRedis();
+    redis.eval.mockRejectedValueOnce(new Error('ECONNRESET'));
+    const metrics = makeMetrics();
+    const svc = makeServiceWithMetrics(redis, metrics);
+    expect(await svc.consumeInteract('exec-1')).toEqual({
+      allowed: true,
+      retryAfterSec: 0,
+    });
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'interaction_rate_limit',
+      'incr_failed',
+    );
+  });
+
+  it('한도 초과 뒤 TTL 조회 실패도 같은 catch 라 incr_failed 로 한 번 센다 (허용 그대로)', async () => {
+    const redis = new FakeRedis();
+    redis.ttl.mockRejectedValueOnce(new Error('ECONNRESET'));
+    const metrics = makeMetrics();
+    const svc = makeServiceWithMetrics(redis, metrics, {
+      'interaction.rateLimit.interactPerMinute': 1,
+      'interaction.rateLimit.statusPerMinute': 120,
+    });
+    await svc.consumeInteract('exec-1'); // 1 (한도)
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+    expect(await svc.consumeInteract('exec-1')).toEqual({
+      allowed: true,
+      retryAfterSec: 0,
+    });
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'interaction_rate_limit',
+      'incr_failed',
+    );
+  });
+
+  it('성공 경로(허용 · 초과)에서는 기록하지 않는다', async () => {
+    const metrics = makeMetrics();
+    const svc = makeServiceWithMetrics(new FakeRedis(), metrics, {
+      'interaction.rateLimit.interactPerMinute': 1,
+      'interaction.rateLimit.statusPerMinute': 120,
+    });
+    expect((await svc.consumeInteract('exec-1')).allowed).toBe(true);
+    expect((await svc.consumeInteract('exec-1')).allowed).toBe(false);
+    expect((await svc.consumeStatus('exec-1')).allowed).toBe(true);
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미가용(null)은 강등이 아니라 기록하지 않는다', async () => {
+    const metrics = makeMetrics();
+    const svc = makeServiceWithMetrics(null, metrics);
+    expect(await svc.consumeInteract('exec-1')).toEqual({
+      allowed: true,
+      retryAfterSec: 0,
+    });
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 를 주지 않아도 fail-open 경로가 죽지 않는다 (optional DI)', async () => {
+    const redis = new FakeRedis();
+    redis.eval.mockRejectedValueOnce(new Error('ECONNRESET'));
+    const svc = makeService(redis);
+    await expect(svc.consumeStatus('exec-1')).resolves.toEqual({
+      allowed: true,
+      retryAfterSec: 0,
+    });
+  });
+});

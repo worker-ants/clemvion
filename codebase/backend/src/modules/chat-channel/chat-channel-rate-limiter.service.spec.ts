@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   ChatChannelRateLimiterService,
   makeChatRateLimitKey,
@@ -85,6 +86,99 @@ describe('ChatChannelRateLimiterService', () => {
       }),
     } as never;
     const svc = new ChatChannelRateLimiterService(redis);
+    await expect(svc.consume(TRIGGER_ID, CHAT, LIMIT)).resolves.toBe(true);
+  });
+});
+
+/**
+ * fail-open 경로가 `clemvion.redis.fail_open` 카운터에 `chat_rate_limit/incr_failed` 로 한 번씩
+ * 잡히는지 본다. pipeline 거부와 INCR 결과 오류는 같은 catch 로 모이므로 둘 다 한 번만 센다.
+ * exec 가 오류 없이 빈 결과를 돌려준 분기와 Redis 미주입은 장애가 아니라서 세지 않는다.
+ */
+describe('ChatChannelRateLimiterService — fail-open 관측 (metrics)', () => {
+  const TRIGGER_ID = 'trig-1';
+  const CHAT = 'chat-123';
+  const LIMIT = 60;
+
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  function makeRedis(exec: jest.Mock) {
+    return {
+      pipeline: jest.fn().mockReturnValue({
+        incr: jest.fn(),
+        expire: jest.fn(),
+        exec,
+      }),
+    };
+  }
+  function makeSvc(
+    redis: unknown,
+    metrics?: { recordRedisFailOpen: jest.Mock },
+  ): ChatChannelRateLimiterService {
+    return new ChatChannelRateLimiterService(
+      redis as never,
+      undefined,
+      metrics as never,
+    );
+  }
+
+  beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it.each([
+    ['exec 거부', () => jest.fn().mockRejectedValue(new Error('redis down'))],
+    [
+      'INCR 결과 오류',
+      () => jest.fn().mockResolvedValue([[new Error('incr boom'), null]]),
+    ],
+  ])(
+    '%s → chat_rate_limit/incr_failed 1번, fail-open(true) 그대로',
+    async (_label, makeExec) => {
+      const metrics = makeMetrics();
+      const svc = makeSvc(makeRedis(makeExec()), metrics);
+
+      await expect(svc.consume(TRIGGER_ID, CHAT, LIMIT)).resolves.toBe(true);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+        'chat_rate_limit',
+        'incr_failed',
+      );
+    },
+  );
+
+  it.each([
+    ['한도 이내', [[null, 1]]],
+    ['한도 초과', [[null, LIMIT + 1]]],
+    ['exec null', null],
+    ['exec 빈 배열', []],
+  ])('%s 는 세지 않는다', async (_label, execResult) => {
+    const metrics = makeMetrics();
+    const svc = makeSvc(
+      makeRedis(jest.fn().mockResolvedValue(execResult)),
+      metrics,
+    );
+
+    await svc.consume(TRIGGER_ID, CHAT, LIMIT);
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미주입이면 세지 않는다 — 장애가 아니라 미설정이다', async () => {
+    const metrics = makeMetrics();
+    await expect(
+      makeSvc(undefined, metrics).consume(TRIGGER_ID, CHAT, LIMIT),
+    ).resolves.toBe(true);
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 를 주지 않아도 fail-open 이 죽지 않는다 (optional DI)', async () => {
+    const svc = makeSvc(
+      makeRedis(jest.fn().mockRejectedValue(new Error('redis down'))),
+    );
     await expect(svc.consume(TRIGGER_ID, CHAT, LIMIT)).resolves.toBe(true);
   });
 });

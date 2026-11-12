@@ -5,6 +5,7 @@ import {
   INTERACTION_TOKEN_AUDIENCE,
   newPerTriggerToken,
 } from './interaction-token.service';
+import { Logger } from '@nestjs/common';
 import { sign } from 'jsonwebtoken';
 
 type Mock = jest.Mock;
@@ -766,5 +767,161 @@ describe('InteractionTokenService — secret fallback chain (refactor M-6)', () 
     expect(config.get).toHaveBeenCalledWith('interaction.jwtSecret');
     // `??` 단락 평가: 좌측이 truthy 라 jwt.secret 은 조회되지 않아야 한다.
     expect(config.get).not.toHaveBeenCalledWith('jwt.secret');
+  });
+});
+
+/**
+ * blacklist 의 Redis fail-open 경로가 `clemvion.redis.fail_open` 카운터에 `token_blacklist` 로 잡히는지 본다.
+ * 세는 것은 verify 의 blacklist GET 실패(`get_failed`)와 revoke 의 blacklist SET 실패(`set_failed`) 둘이다.
+ * `execution_token` 테이블(DB) 오류 · Redis 미설정 · JWT 검증 오류는 Redis 강등이 아니라 세지 않는다.
+ */
+describe('InteractionTokenService — fail-open 관측 (metrics)', () => {
+  type Metrics = { recordRedisFailOpen: Mock };
+  function makeMetrics(): Metrics {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  function makeServiceWithMetrics(
+    redis: Record<string, Mock> | undefined,
+    metrics: Metrics,
+    repo?: Record<string, unknown>,
+  ) {
+    const config = {
+      get: jest.fn((key: string) =>
+        key === 'interaction.jwtSecret' ? TEST_SECRET : undefined,
+      ),
+    };
+    return new InteractionTokenService(
+      config as never,
+      redis as never,
+      repo as never,
+      undefined,
+      metrics as never,
+    );
+  }
+
+  let redis: Record<string, Mock>;
+  let metrics: Metrics;
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    redis = makeRedisMock();
+    metrics = makeMetrics();
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+  });
+  afterEach(() => warn.mockRestore());
+
+  it('verify 의 blacklist GET 실패 → get_failed 를 한 번 기록하고 valid 로 통과시킨다', async () => {
+    redis.get.mockRejectedValue(new Error('ECONNREFUSED'));
+    const svc = makeServiceWithMetrics(redis, metrics);
+    const { token } = await svc.issuePerExecution('exec-A');
+    const v = await svc.verifyPerExecution(token);
+    expect(v).toMatchObject({ valid: true, executionId: 'exec-A' });
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'token_blacklist',
+      'get_failed',
+    );
+  });
+
+  it('revokePerExecution 의 blacklist SET 실패 → set_failed 를 한 번 기록하고 던지지 않는다', async () => {
+    redis.set.mockRejectedValue(new Error('ECONNREFUSED'));
+    const svc = makeServiceWithMetrics(redis, metrics);
+    await expect(svc.revokePerExecution('jti-1', 60)).resolves.toBeUndefined();
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'token_blacklist',
+      'set_failed',
+    );
+  });
+
+  it('revokeAllForExecution 은 revokePerExecution 을 거치므로 jti 마다 SET 실패를 한 번씩 센다 (revoked 집계는 그대로)', async () => {
+    redis.set.mockRejectedValue(new Error('ECONNREFUSED'));
+    const now = Date.now();
+    const repo = {
+      find: jest.fn().mockResolvedValue([
+        { jti: 'j1', expAt: new Date(now + 60_000) },
+        { jti: 'j2', expAt: new Date(now + 60_000) },
+      ]),
+      delete: jest.fn().mockResolvedValue({ affected: 2 }),
+    };
+    const svc = makeServiceWithMetrics(redis, metrics, repo);
+    expect(await svc.revokeAllForExecution('exec-1')).toEqual({ revoked: 2 });
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(2);
+    expect(metrics.recordRedisFailOpen).toHaveBeenNthCalledWith(
+      1,
+      'token_blacklist',
+      'set_failed',
+    );
+    expect(metrics.recordRedisFailOpen).toHaveBeenNthCalledWith(
+      2,
+      'token_blacklist',
+      'set_failed',
+    );
+  });
+
+  it('성공 경로(통과 · blacklisted · revoke)에서는 기록하지 않는다', async () => {
+    redis.get.mockResolvedValue(null);
+    redis.set.mockResolvedValue('OK');
+    const svc = makeServiceWithMetrics(redis, metrics);
+    const { token } = await svc.issuePerExecution('exec-A');
+    expect((await svc.verifyPerExecution(token)).valid).toBe(true);
+    redis.get.mockResolvedValue('1');
+    expect(await svc.verifyPerExecution(token)).toMatchObject({
+      valid: false,
+      reason: 'blacklisted',
+    });
+    await svc.revokePerExecution('jti-1', 60);
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미설정이면 verify · revoke 가 강등돼도 기록하지 않는다', async () => {
+    const svc = makeServiceWithMetrics(undefined, metrics);
+    const { token } = await svc.issuePerExecution('exec-A');
+    expect((await svc.verifyPerExecution(token)).valid).toBe(true);
+    await svc.revokePerExecution('jti-1', 60);
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('JWT 검증 오류 · execution_token(DB) 오류 · reconcile 실패 집계는 세지 않는다', async () => {
+    redis.get.mockResolvedValue(null);
+    redis.set.mockResolvedValue('OK');
+    const qb: Record<string, Mock> = {};
+    ['innerJoin', 'where', 'select', 'distinct', 'limit'].forEach((m) => {
+      qb[m] = jest.fn().mockReturnValue(qb);
+    });
+    qb.getRawMany = jest.fn().mockResolvedValue([{ executionId: 'bad' }]);
+    const repo = {
+      insert: jest.fn().mockRejectedValue(new Error('db down')),
+      find: jest.fn().mockRejectedValue(new Error('db down')),
+      delete: jest.fn().mockRejectedValue(new Error('db down')),
+      createQueryBuilder: jest.fn().mockReturnValue(qb),
+    };
+    const svc = makeServiceWithMetrics(redis, metrics, repo);
+    // JWT 검증 오류.
+    expect(await svc.verifyPerExecution(`${IEXT_PREFIX}garbage`)).toEqual({
+      valid: false,
+      reason: 'malformed',
+    });
+    // INSERT 실패(fail-open) 뒤 refresh 의 DELETE 실패(fail-open).
+    const { token } = await svc.issuePerExecution('exec-A', { ttlSec: 600 });
+    const refreshed = await svc.refreshPerExecution(token);
+    expect('token' in refreshed).toBe(true);
+    // reconcile 의 revokeAll 실패 집계(DB find 실패).
+    expect(await svc.reconcileTerminalRevocations()).toEqual({
+      swept: 1,
+      revoked: 0,
+    });
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 를 주지 않아도 fail-open 경로가 죽지 않는다 (optional DI)', async () => {
+    redis.get.mockRejectedValue(new Error('ECONNREFUSED'));
+    redis.set.mockRejectedValue(new Error('ECONNREFUSED'));
+    const svc = makeService(redis);
+    const { token } = await svc.issuePerExecution('exec-A');
+    expect((await svc.verifyPerExecution(token)).valid).toBe(true);
+    await expect(svc.revokePerExecution('jti-1', 60)).resolves.toBeUndefined();
   });
 });

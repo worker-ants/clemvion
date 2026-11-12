@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { Logger } from '@nestjs/common';
 import {
   PublicWebhookQuotaService,
   makeMinKey,
@@ -237,5 +238,132 @@ describe('PublicWebhookQuotaService', () => {
       last = await svc.consumeStart(UNIDENTIFIED_IP_BUCKET);
     }
     expect(last).toEqual({ allowed: false, reason: 'hourly_new' });
+  });
+});
+
+/**
+ * fail-open 관측 — Redis 카운터 증가가 실패해 허용으로 물러날 때 `clemvion.redis.fail_open`
+ * 카운터에 `(public_webhook_quota, incr_failed)` 가 한 번 잡히는지 고정한다. 반환값(fail-open
+ * 허용)은 그대로여야 하고, 정상 경로 · 한도 초과 · Redis 미설정에서는 오르지 않아야 한다.
+ */
+describe('PublicWebhookQuotaService — fail-open 관측 (metrics)', () => {
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  /** pipeline().incr().expire().exec() 만 흉내내고 exec 결과를 테스트가 정한다. */
+  function makeRedisWithExec(exec: jest.Mock): Redis {
+    const pipe: Record<string, unknown> = {};
+    pipe.incr = jest.fn(() => pipe);
+    pipe.expire = jest.fn(() => pipe);
+    pipe.exec = exec;
+    return { pipeline: jest.fn(() => pipe) } as unknown as Redis;
+  }
+
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it.each([
+    [
+      'pipeline exec reject',
+      () => jest.fn().mockRejectedValue(new Error('ECONNRESET')),
+    ],
+    ['pipeline exec 가 null', () => jest.fn().mockResolvedValue(null)],
+    [
+      'INCR 튜플 오류',
+      () =>
+        jest.fn().mockResolvedValue([
+          [new Error('OOM'), null],
+          [null, 1],
+        ]),
+    ],
+    [
+      '분 버킷은 성공하고 시간 버킷 증가가 실패',
+      () =>
+        jest
+          .fn()
+          .mockResolvedValueOnce([
+            [null, 1],
+            [null, 1],
+          ])
+          .mockRejectedValueOnce(new Error('ECONNRESET')),
+    ],
+  ])(
+    '%s → (public_webhook_quota, incr_failed) 1번 + 허용 그대로',
+    async (_label, makeExec) => {
+      const m = makeMetrics();
+      const svc = new PublicWebhookQuotaService(
+        undefined,
+        makeRedisWithExec(makeExec()),
+        undefined,
+        m as never,
+      );
+
+      const r = await svc.consumeStart('9.9.9.9');
+
+      expect(r).toEqual({ allowed: true, reason: null });
+      expect(m.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+      expect(m.recordRedisFailOpen).toHaveBeenCalledWith(
+        'public_webhook_quota',
+        'incr_failed',
+      );
+    },
+  );
+
+  it('정상 경로 · 한도 초과에서는 오르지 않는다', async () => {
+    const m = makeMetrics();
+    const config = {
+      get: jest.fn((k: string) =>
+        k === 'publicWebhook.startupPerMinute' ? 1 : undefined,
+      ),
+    } as unknown as import('@nestjs/config').ConfigService;
+    const svc = new PublicWebhookQuotaService(
+      config,
+      makeFakeRedis(),
+      undefined,
+      m as never,
+    );
+
+    expect(await svc.consumeStart('ip-ok')).toEqual({
+      allowed: true,
+      reason: null,
+    });
+    expect(await svc.consumeStart('ip-ok')).toEqual({
+      allowed: false,
+      reason: 'startup_rate',
+    });
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미설정(null)이면 오르지 않는다', async () => {
+    const m = makeMetrics();
+    const svc = new PublicWebhookQuotaService(
+      undefined,
+      undefined,
+      undefined,
+      m as never,
+    );
+
+    expect(await svc.consumeStart('1.2.3.4')).toEqual({
+      allowed: true,
+      reason: null,
+    });
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 미주입이어도 fail-open 경로가 죽지 않는다 (optional DI)', async () => {
+    const svc = new PublicWebhookQuotaService(
+      undefined,
+      makeRedisWithExec(jest.fn().mockRejectedValue(new Error('ECONNRESET'))),
+    );
+
+    await expect(svc.consumeStart('1.2.3.4')).resolves.toEqual({
+      allowed: true,
+      reason: null,
+    });
   });
 });

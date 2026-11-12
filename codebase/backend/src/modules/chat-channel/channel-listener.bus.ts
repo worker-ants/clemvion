@@ -3,12 +3,14 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import { validate as isUuid } from 'uuid';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import { withTimeout } from '../../common/utils/with-timeout';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /**
  * 트리거 단위 listener 레지스트리의 등록 · 해제를 모든 인스턴스에 알리는 Redis pub/sub 채널.
@@ -77,7 +79,10 @@ export type ChannelListenerSubscribedHandler = () => void | Promise<void>;
  *
  * **실패 정책**: 모든 pub/sub 실패는 warn 만 남기고 삼킨다. 트리거 PATCH · 삭제를 실패시키지
  * 않는다. PUBLISH 응답을 {@link PUBLISH_WAIT_TIMEOUT_MS} 안에 받지 못한 것도 실패다. Redis 가
- * 없으면 프로세스 안 레지스트리만 바뀐다(단일 인스턴스 동작).
+ * 없으면 프로세스 안 레지스트리만 바뀐다(단일 인스턴스 동작). 삼킨 실패는 `clemvion.redis.fail_open`
+ * 카운터에 `chat_listener_bus` 로 센다. 발행 실패는 `publish_failed`, 구독 연결의 'error' 와
+ * SUBSCRIBE · 재구독 실패는 `subscribe_failed` 다. 깨진 메시지, handler 오류, 구독 연결 종료(quit)
+ * 실패, Redis 미설정은 세지 않는다.
  *
  * **연결 분리**: `IntegrationCacheBus` 와 같다. 공유 command 연결에는 SUBSCRIBE 를 보내지
  * 않고 전용 `duplicate()` 연결로 구독한다. PUBLISH 는 공유 연결로 보낸다.
@@ -92,7 +97,10 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
     new Set<ChannelListenerSubscribedHandler>();
   private subscriber: Redis | null = null;
 
-  constructor(private readonly redis: RedisConnectionProvider) {}
+  constructor(
+    private readonly redis: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
+  ) {}
 
   /** 다른 인스턴스에서 온 변경을 받을 handler 를 등록한다. 같은 참조는 한 번만 등록된다. */
   onChange(handler: ChannelListenerChangeHandler): void {
@@ -127,6 +135,7 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(
         `listener ${change.op} 발행 실패 (trigger=${change.triggerId}): ${errMessage(err)}`,
       );
+      this.metrics?.recordRedisFailOpen('chat_listener_bus', 'publish_failed');
     }
   }
 
@@ -143,6 +152,10 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
     const sub = base.duplicate();
     sub.on('error', (err: Error) => {
       this.logger.error(`listener 구독 연결 오류: ${err.message}`);
+      this.metrics?.recordRedisFailOpen(
+        'chat_listener_bus',
+        'subscribe_failed',
+      );
     });
     sub.on('message', (channel: string, message: string) => {
       if (channel !== CHAT_CHANNEL_LISTENER_CHANNEL) return;
@@ -157,10 +170,18 @@ export class ChannelListenerBus implements OnModuleInit, OnModuleDestroy {
         .then(() => this.runSubscribedHandlers())
         .catch((err: unknown) => {
           this.logger.warn(`listener 채널 재구독 실패: ${errMessage(err)}`);
+          this.metrics?.recordRedisFailOpen(
+            'chat_listener_bus',
+            'subscribe_failed',
+          );
         });
     });
     sub.subscribe(CHAT_CHANNEL_LISTENER_CHANNEL).catch((err: unknown) => {
       this.logger.warn(`listener 채널 구독 실패: ${errMessage(err)}`);
+      this.metrics?.recordRedisFailOpen(
+        'chat_listener_bus',
+        'subscribe_failed',
+      );
     });
     this.subscriber = sub;
   }

@@ -499,3 +499,195 @@ describe('ChannelListenerBus', () => {
     });
   });
 });
+
+/**
+ * pub/sub 실패가 `clemvion.redis.fail_open` 카운터에 잡히는지 본다. 발행 실패(거부 · 응답 상한
+ * 초과)는 `publish_failed`, 구독 연결의 'error' 와 SUBSCRIBE · 재구독 거부는 `subscribe_failed` 로
+ * 한 번씩 센다.
+ *
+ * 세지 않는 쪽도 고정한다. 깨진 메시지와 handler 오류는 Redis 실패가 아니고, 구독 연결 종료(quit)
+ * 실패는 종료 경로다. Redis 미가용은 장애가 아니라 미설정이다. metrics 를 주지 않아도
+ * 삼키는 동작이 그대로인지(optional DI)도 본다.
+ */
+describe('ChannelListenerBus — fail-open 관측 (metrics)', () => {
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  function makeBus(
+    client: FakeRedis | null,
+    metrics?: { recordRedisFailOpen: jest.Mock },
+  ): ChannelListenerBus {
+    return new ChannelListenerBus(makeProvider(client), metrics as never);
+  }
+  /** 구독까지 마친 bus. 첫 SUBSCRIBE 의 결과는 `firstSubscribe` 로 정한다. */
+  function makeSubscribed(
+    metrics?: { recordRedisFailOpen: jest.Mock },
+    firstSubscribe?: Error,
+  ) {
+    const sub = makeFakeRedis();
+    if (firstSubscribe) sub.subscribe.mockRejectedValueOnce(firstSubscribe);
+    const base = makeFakeRedis();
+    base.duplicate.mockReturnValue(sub);
+    const bus = makeBus(base, metrics);
+    bus.onModuleInit();
+    return { bus, sub };
+  }
+
+  beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  it('PUBLISH 거부 → chat_listener_bus/publish_failed 1번, 던지지 않는다', async () => {
+    const metrics = makeMetrics();
+    const client = makeFakeRedis();
+    client.publish.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(
+      makeBus(client, metrics).publish({ op: 'unregister', triggerId: T1 }),
+    ).resolves.toBeUndefined();
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_listener_bus',
+      'publish_failed',
+    );
+  });
+
+  it('PUBLISH 응답 상한 초과 → publish_failed 1번, 늦은 거부는 다시 세지 않는다', async () => {
+    jest.useFakeTimers();
+    const metrics = makeMetrics();
+    const client = makeFakeRedis();
+    let rejectLate: (err: Error) => void = () => undefined;
+    client.publish.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectLate = reject;
+      }),
+    );
+    const publishing = makeBus(client, metrics).publish({
+      op: 'unregister',
+      triggerId: T1,
+    });
+    await jest.advanceTimersByTimeAsync(2000);
+    await publishing;
+
+    jest.useRealTimers(); // 가짜 타이머는 setImmediate 도 막는다
+    rejectLate(new Error('late redis down'));
+    await flush();
+
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_listener_bus',
+      'publish_failed',
+    );
+  });
+
+  it('첫 SUBSCRIBE 거부 → chat_listener_bus/subscribe_failed 1번, 던지지 않는다', async () => {
+    const metrics = makeMetrics();
+    expect(() =>
+      makeSubscribed(metrics, new Error('subscribe failed')),
+    ).not.toThrow();
+    await flush();
+
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_listener_bus',
+      'subscribe_failed',
+    );
+  });
+
+  it('ready 뒤 재구독 거부 → subscribe_failed 1번', async () => {
+    const metrics = makeMetrics();
+    const { sub } = makeSubscribed(metrics);
+    await flush();
+    sub.subscribe.mockRejectedValueOnce(new Error('resubscribe failed'));
+
+    sub.emit('ready');
+    await flush();
+
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_listener_bus',
+      'subscribe_failed',
+    );
+  });
+
+  it("구독 연결의 'error' → subscribe_failed 1번, 프로세스를 죽이지 않는다", async () => {
+    const metrics = makeMetrics();
+    const { sub } = makeSubscribed(metrics);
+    await flush();
+
+    expect(() =>
+      sub.emit('error', new Error('connection reset')),
+    ).not.toThrow();
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+      'chat_listener_bus',
+      'subscribe_failed',
+    );
+  });
+
+  it('정상 발행 · 구독 · 재구독에서는 세지 않는다', async () => {
+    const metrics = makeMetrics();
+    const { bus, sub } = makeSubscribed(metrics);
+    const handler = jest.fn();
+    bus.onSubscribed(handler);
+    await bus.publish({ op: 'register', triggerId: T1, provider: 'slack' });
+    sub.emit('ready');
+    await flush();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('깨진 메시지 · handler 오류 · onSubscribed 거부 · quit 실패는 세지 않는다 — Redis 실패가 아니다', async () => {
+    const metrics = makeMetrics();
+    const { bus, sub } = makeSubscribed(metrics);
+    bus.onChange(() => {
+      throw new Error('boom');
+    });
+    bus.onSubscribed(() => Promise.reject(new Error('db down')));
+    sub.quit.mockRejectedValueOnce(new Error('quit failed'));
+
+    sub.emit('message', CHAT_CHANNEL_LISTENER_CHANNEL, 'not-json');
+    sub.emit(
+      'message',
+      CHAT_CHANNEL_LISTENER_CHANNEL,
+      remote({ op: 'unregister', triggerId: T1 }),
+    );
+    sub.emit('ready');
+    await flush();
+    await bus.onModuleDestroy();
+
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('Redis 미가용이면 세지 않는다 — 장애가 아니라 미설정이다', async () => {
+    const metrics = makeMetrics();
+    const bus = makeBus(null, metrics);
+    bus.onModuleInit();
+    await bus.publish({ op: 'unregister', triggerId: T1 });
+
+    expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 를 주지 않아도 실패를 삼킨다 (optional DI)', async () => {
+    const client = makeFakeRedis();
+    client.publish.mockRejectedValueOnce(new Error('redis down'));
+    await expect(
+      makeBus(client).publish({ op: 'unregister', triggerId: T1 }),
+    ).resolves.toBeUndefined();
+
+    const { sub } = makeSubscribed(undefined, new Error('subscribe failed'));
+    await flush();
+    sub.subscribe.mockRejectedValueOnce(new Error('resubscribe failed'));
+    sub.emit('ready');
+    await flush();
+    expect(() =>
+      sub.emit('error', new Error('connection reset')),
+    ).not.toThrow();
+  });
+});
