@@ -12,7 +12,7 @@
 - 이 디렉터리가 정본이다. 스펙의 정본은 NERV 지만 카탈로그는 예외로 둔다. 생성기와 OpenAPI JSON 은 NERV 문서에 담을 수 없고, 대조 테스트가 이 파일들을 직접 읽기 때문이다. 근거는 각 `_overview.md` 의 Rationale 에 있다.
 - 2026-10-02 `spec/conventions/<vendor>-api-catalog/` 에서 이 자리로 옮겼다(NERV Task `CLE-T-BD48J3`). 카탈로그 데이터(표 · 필드 · OpenAPI JSON)는 그대로 두고 위치 표기와 링크를 고쳤다. 두 `_overview.md` 에는 NERV 사본을 고치는 절차와 정본 위치의 근거를 더했다.
 - NERV 의 `CLE-C24-CATALOG` · `CLE-MKS-CATALOG` 와 그 아래 문서(2026-10-02 기준 272편)는 이 디렉터리의 사본이다. 저장소 `spec/` 미러에는 넣지 않는다(`.claude/tools/nerv-mirror/pull.py` 의 `EXCLUDED_AREAS`).
-- 같은 영역(`CLE-C24` · `CLE-MKS`)에 있어도 `CLE-C24-META` · `CLE-C24-SCOPES` · `CLE-MKS-META` 는 사본이 아니다. NERV 가 정본인 규약 문서이고 이 디렉터리에 대응하는 파일이 없다. 다른 스펙처럼 `/nerv:spec edit <KEY>` 로 고친다.
+- 같은 영역(`CLE-C24` · `CLE-MKS`)에 있어도 `CLE-C24-META` · `CLE-C24-SCOPES` · `CLE-MKS-META` 는 사본이 아니다. NERV 가 정본인 규약 문서이고 이 디렉터리에 대응하는 파일이 없다. 다른 스펙처럼 `/nerv:spec edit <KEY>` 로 고친다. 저장소 `spec/` 미러에도 없으니 NERV 에서 읽는다(아래 「링크」).
 - 사본 문서에 적힌 옛 경로(머리의 `원문:` 줄, MakeShop 섹션 문서의 `상위:` 줄 등)는 옮기기 전 경로다. `spec/conventions/<vendor>-api-catalog/` 를 `codebase/api-catalogs/<vendor>/` 로 바꿔 읽는다. 두 루트 문서는 머리에 `원문:` 과 함께 `정본:` 을 적는다.
 - 사본이 정본과 어긋났는지 확인하는 자동 검사는 없다. 어긋나면 이 디렉터리가 이긴다.
 
@@ -30,7 +30,7 @@
 
 ## 사본 갱신 범위
 
-카탈로그를 바꾼 작업이 어느 사본까지 같은 작업에서 고치는지 정한다. 근거는 각 `_overview.md` Rationale 의 「카탈로그 정본을 저장소 codebase 데이터로 둔다」 항목에 있다.
+카탈로그를 바꾼 작업이 어느 사본까지 같은 작업에서 고치는지 정한다. 「같은 작업」은 정본을 바꾼 NERV Task 를 말한다. 사본 초안은 사람 승인을 기다리므로 PR 에 넣지 않고 그 Task 안에서 저장하고 검토를 요청한다. 근거는 각 `_overview.md` Rationale 의 「카탈로그 정본을 저장소 codebase 데이터로 둔다」 항목에 있다.
 
 - 루트 `_overview.md` 와 색인(Cafe24 `<resource>.md`, MakeShop `<section>.md`)의 사본은 늘 같은 작업에서 고친다. 다른 NERV 문서가 키 링크로 가리키는 문서가 대부분 이쪽이다.
 - 손으로 고친 필드 파일(Cafe24 `<resource>/<entity>.md`)의 사본도 같은 작업에서 고친다.
