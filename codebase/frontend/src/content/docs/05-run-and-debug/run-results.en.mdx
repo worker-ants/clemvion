@@ -153,6 +153,8 @@ A run started with Re-run joins the same chain as the original run. The executio
 
 Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead. Cafe24·MakeShop read nodes are really called. An operation that is a read request but changes settings, such as MakeShop's "Update Cart Free Config", returns a mock result like a write.
 
+Dry-run also carries into sub-workflows, both synchronous and asynchronous. If a sub-workflow contains a node that does not support dry-run, the re-run is rejected and does not start.
+
 <Callout type="warn">
   In dry-run, the AI Agent's tools behave differently depending on their kind.
 
