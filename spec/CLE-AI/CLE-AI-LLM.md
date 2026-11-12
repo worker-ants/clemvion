@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "409d389e2c3925082b1af2a6031f8caec83393c1b65afb3bd46d50448f49a40e"
+content_hash: "ecaf7d88538d4622c718ed6d61d9fbc0954ce748241fdd51e46421c5c405bc30"
 read_as: "approved_fallback"
 task: "CLE-T-FPVQPM"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "46b521372f2591bbf44cbb118b6382dbecbb39d2013a422e00a1d766429e50b0"
-etag: "sha256-a4d4a335d2bfeb0ebbfff3caa715ec7433e4c217f1702ab7755cb9d1ac6b10a2"
+mirror_sha256: "08ad109bae11c0b384e47f95df39d6e44e86ff64d7f3469bcc84f911086b2f3c"
+etag: "sha256-54a94818aec817f98d22957a6c10041747cafb92253eb60c856564fc77fef958"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -142,6 +142,8 @@ interface TokenUsage {
   thinkingTokens?: number;    // reasoning/thought 토큰. OpenAI reasoning 모델·Gemini 2.5 에서만 채워진다
 }
 ```
+
+`temperature`·`topP` 를 프로바이더 요청에 어떻게 옮기는지는 [프로바이더별 매핑](#프로바이더별-매핑) 에서 정하고 Anthropic 에는 보내지 않는다.
 
 ### embed 시그니처
 
@@ -297,6 +299,7 @@ class RerankClientFactory {
 | `messages[].role` | `system` 은 별도 `system` 파라미터로 뺀다 |
 | `tools` | Anthropic tool_use 형식으로 바꾼다 |
 | `maxTokens` | `max_tokens` (필수 파라미터) |
+| `temperature`·`topP` | 보내지 않는다. 값을 받아도 버리고 API 기본값(temperature 1.0)으로 샘플링한다. `top_k` 도 보내지 않는다([Rationale](#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)) |
 
 ### Google AI
 
@@ -307,6 +310,8 @@ class RerankClientFactory {
 | `listModels()` | `ai.models.list()`. Gemini 모델 조회 API 를 실시간으로 부른다. `supportedActions` 에 `generateContent` 가 있으면 chat, `embedContent` 가 있으면 embedding 으로 나눈다 |
 | `stream()` | `ai.models.generateContentStream()` (새 SDK 는 평탄한 AsyncGenerator 를 돌려준다) |
 | `tools` | `functionDeclarations` 로 옮기고, 스키마는 OpenAPI 3.0 서브셋으로 정리한다 |
+
+Gemini Developer API 버전은 SDK 기본값을 따르지 않고 `v1beta` 로 고정한다. `GoogleGenAI` 를 만들 때 `apiVersion` 인자로 넘긴다([Rationale](#gemini-api-버전을-v1beta-로-고정한다-2026-11-12)).
 
 ### Local (Ollama/vLLM)
 
@@ -489,7 +494,7 @@ class LlmService {
 `chat` 호출은 `LlmCallOptions` 로 다음을 제어한다.
 
 - `timeoutMs`: 0 이거나 없으면 타임아웃을 걸지 않는다. 값이 있으면 `withTimeout` race 로 건다.
-- 프로바이더 SDK 에도 요청 타임아웃이 따로 있다. OpenAI·Anthropic·Azure OpenAI·Local(OpenAI 계열) 클라이언트는 SDK 를 만들 때 약 120초 요청 타임아웃이 들어간다. `timeoutMs` 는 이 SDK 타임아웃과 나란히 걸리고 먼저 발화하는 쪽이 실제 상한이다. 앱 레벨 값을 1차 상한으로 쓰려면 SDK 타임아웃보다 낮게 준다. Google 클라이언트는 SDK 를 만들 때 요청 타임아웃을 주지 않아(`new GoogleGenAI({ apiKey })`) SDK 타임아웃이 없다. SDK 요청 타이머는 응답 헤더가 오면 멈추고, OpenAI·Anthropic SDK 는 타임아웃 난 요청도 기본 2회(`maxRetries`) 다시 보낸다. 그래서 한 호출이 SDK 타임아웃만으로 끝나기까지는 120초보다 길 수 있다. 노드별 앱 레벨 기본값(예: `AI_AGENT_LLM_CALL_TIMEOUT_MS`)은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다. 모든 호출에 거는 공통 앱 타임아웃은 없다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
+- 프로바이더 SDK 에도 요청 타임아웃이 따로 있다. OpenAI·Anthropic·Azure OpenAI·Local(OpenAI 계열) 클라이언트는 SDK 를 만들 때 약 120초 요청 타임아웃이 들어간다. `timeoutMs` 는 이 SDK 타임아웃과 나란히 걸리고 먼저 발화하는 쪽이 실제 상한이다. 앱 레벨 값을 1차 상한으로 쓰려면 SDK 타임아웃보다 낮게 준다. Google 클라이언트는 SDK 를 만들 때 요청 타임아웃을 주지 않아(`new GoogleGenAI({ apiKey, apiVersion })`) SDK 타임아웃이 없다. SDK 요청 타이머는 응답 헤더가 오면 멈추고, OpenAI·Anthropic SDK 는 타임아웃 난 요청도 기본 2회(`maxRetries`) 다시 보낸다. 그래서 한 호출이 SDK 타임아웃만으로 끝나기까지는 120초보다 길 수 있다. 노드별 앱 레벨 기본값(예: `AI_AGENT_LLM_CALL_TIMEOUT_MS`)은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다. 모든 호출에 거는 공통 앱 타임아웃은 없다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
 - `withTimeout` 은 콜백에 넘기는 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 프로바이더 HTTP 요청도 취소되므로 소켓이 남지 않는다(`listModels` 와 같은 방식). Google 클라이언트는 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 `client.embed` 가 signal 을 받지 않아 이 배선 밖이다.
 - `signal`: [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규약을 따른다. 취소되면 SDK 가 바로 throw 하고 재시도 대상이 아니다.
 - `disableInnerRetry`: 호출하는 쪽에 자체 재시도 층(예: 지식 저장소의 `retryWithBackoff`)이 있으면 내부 재시도를 꺼서 호출이 불어나지 않게 한다.
@@ -535,6 +540,7 @@ class LlmService {
 - **스트림 열기 실패의 프로바이더별 분기**: OpenAI 계열(OpenAI·Azure·Local) `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던지고 Anthropic·Google 은 `error` 이벤트로 보낸다([스트리밍 에러 매핑](#스트리밍-에러-매핑)). 그래서 호출하는 쪽이 같은 실패를 프로바이더에 따라 다르게 받는다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 낸다. 프로바이더 차이를 클라이언트 계층에 가두는 원칙([모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유))과 맞지 않는다. 표의 분기는 현행 구현을 적은 것이다. `error` 이벤트로 통일할지 결정 필요. NERV Task `CLE-T-0R5SYN`.
 - **공통 기본값**: 클라이언트 계층은 호출하는 쪽이 준 `timeoutMs` 만 건다. `LlmService` 에 공통 기본값을 둘지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 이 함께 정한다(NERV Task `CLE-T-0R5SYN`). 120초 하향안을 기각한 이력은 [그 문서의 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10) 에 있다.
 - **없는 설정의 연결 테스트 응답**: [testConnection](#testconnection) 은 설정이 없거나 다른 워크스페이스의 설정이어도 200 실패 결과를 돌려준다. 그런데 `POST /api/model-configs/:id/test` 의 Swagger(`llm-model-config.controller.ts`)는 404 응답을 선언한다. 같은 컨트롤러의 `:id/models` 는 설정 조회가 `try` 밖이라 없는 설정을 404 로 거절한다. 통합의 `:id/test` 도 없는 통합을 404 로 거절한다. 조회를 `try` 밖으로 빼 404 로 맞출지, Swagger 에서 404 를 지울지 정해야 한다. 담당 NERV Task `CLE-T-RH45H8`.
+- **Gemini `v1` 이전**: Google 클라이언트는 지금 `v1beta` 로 고정돼 있다. `v1` 로 옮길지는 [Rationale](#gemini-api-버전을-v1beta-로-고정한다-2026-11-12) 에 적은 기능이 `v1` 에서 되는지 실제 키로 확인한 뒤 정한다. 담당 NERV Task `CLE-T-752NN3`.
 
 2026-10-10 에 «LLM 호출 타임아웃 기준» 의 문서와 코드 정합을 닫았다. 결정은 Rationale 「LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)」 에 있다. 공통 기본값은 위 항목대로 열려 있다.
 
@@ -622,3 +628,34 @@ LLM 스텁 모드 절은 운영 환경 가드가 검사하는 대상을 열거�
 - 200 결과 객체의 필드 이름은 에러 봉투와 겹치지 않게 둔다. 결과 객체는 성공 봉투의 `data` 안에 있고 `error` 키를 쓰지 않는다. 클라이언트는 먼저 상태 코드로 가른다. 2xx 면 `data.success` 를 본다. 2xx 가 아니면 에러 봉투의 `error.code` 를 본다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 결과 객체에 `error` 를 두면 두 경로를 한 필드 이름으로 읽게 되어 클라이언트가 섞어 처리하기 쉽다.
 - 저장을 함께 하는 요청은 다르다. 통합 자격 증명 교체는 안에서 연결 테스트를 하지만 실패하면 저장을 거절하므로 에러 봉투로 돌려준다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
 - `code` 를 두지 않은 이유는 「testConnection」 에 적었다. 세분화 코드(`LLM_AUTH_ERROR` 등)를 구현하면 결과 객체에 `code` 를 더하는 것을 다시 본다.
+
+### Anthropic 에 샘플링 파라미터를 보내지 않는다 (2026-11-12)
+
+Anthropic 클라이언트의 `chat()`·`stream()` 은 `ChatParams` 의 `temperature`·`topP` 를 받아도 요청에 넣지 않는다. `top_k` 는 원래 보내지 않았다. 요청은 API 기본값(temperature 1.0)으로 샘플링한다. 다른 프로바이더(OpenAI · Google AI · Azure OpenAI · Local)의 요청은 바뀌지 않는다. NERV Task `CLE-T-GKZPKY` 에서 정했다.
+
+- **API 버전 `2026-10-21` 이 세 필드를 거절한다.** 이 버전은 Messages 요청에 `temperature`·`top_p`·`top_k` 가 있으면 값이 기본값이어도 모든 모델에서 400 을 낸다. `@anthropic-ai/sdk` 1.0 부터 이 버전을 기본으로 보내고 SDK 1.x 요청 타입에서도 세 필드가 빠졌다. 그래서 SDK 를 1.x 로 올리려면 클라이언트가 이 필드를 보내지 않아야 한다. 근거는 [Anthropic API 마이그레이션 안내](https://platform.claude.com/docs/en/api/migration-2026-10-21) 에 있다.
+- **이전 모델에서는 temperature 로 맞추던 일관성을 잃는다.** Claude 4.7 이후 모델은 원래 기본값만 받아서 달라지는 것이 없다. Sonnet 4.6 · Haiku 4.5 같은 이전 모델에서는 temperature 를 낮춰 얻던 일관성이 사라진다. 이를 대신할 설정은 없다.
+- **2026-11-12 사용자가 temperature 제거를 정했다.** 이전 모델에서 temperature 0 의 효과가 사라지는 것도 받아들였다.
+- **옛 API 버전 헤더를 고정해 이전 모델에 계속 보내는 안은 기각했다.** SDK 1.x 요청 타입에 세 필드가 없어서 타입을 우회해야 한다. 클라이언트도 옛 API 버전에 묶인다. 사용자가 제거를 택했다(2026-11-12).
+
+[AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 설정 화면의 Temperature 필드 힌트(`ai-agent.schema.ts`)와 유저 가이드의 AI 노드 문서에 Anthropic 모델에는 이 값이 적용되지 않는다고 적었다.
+
+### Gemini API 버전을 v1beta 로 고정한다 (2026-11-12)
+
+`@google/genai` 3.0.0 에서 Gemini Developer API 의 기본 버전이 `v1beta` 에서 `v1` 로 바뀌었다. SDK 상수 `GOOGLE_AI_API_DEFAULT_VERSION` 은 2.32.0 에서 `'v1beta'` 이고 3.0.0 에서 `'v1'` 이다. 그래서 클라이언트 코드를 그대로 두고 SDK 만 3.0 으로 올려도 Google 클라이언트가 부르는 엔드포인트가 `v1` 로 바뀐다. SDK 를 3.0 으로 올리는 dependabot PR 이 이미 올라와 있다.
+
+아래 기능이 `v1` 에서 되는지는 아직 확인하지 않았다.
+
+- `embedContent` 의 `taskType` (기본 임베딩 모델 `text-embedding-004`)
+- thoughtSignature 를 다음 턴에 그대로 되돌려 보내기 (`ToolCall.signature`)
+- `functionCall.id` 와 `functionResponse.id` 왕복
+- `*-latest` 별칭 모델 (`v1` 에는 없다고 알려져 있다)
+
+단위 테스트는 SDK 를 mock 하거나 fetch 를 가로채므로 `v1` 지원 여부를 증명하지 못한다. 그래서 실제 키로 확인하기 전까지 API 버전을 `v1beta` 로 고정한다. `google.client.ts` 의 모듈 상수 `GEMINI_API_VERSION` 을 `new GoogleGenAI({ apiKey, apiVersion })` 의 `apiVersion` 으로 넘긴다. SDK 2.32 와 3.0 모두 최상위 옵션 `GoogleGenAIOptions.apiVersion` 을 받는다. 3.0 에서는 이 옵션이 `GOOGLE_GENAI_API_VERSION` 환경 변수보다 우선한다. NERV Task `CLE-T-FPVQPM` 에서 정했다.
+
+기각한 대안은 두 가지다.
+
+- SDK 기본값(`v1`)을 따른다. 위 기능이 `v1` 에서 되지 않으면 임베딩 품질이 조용히 떨어지거나 도구 호출 왕복이 깨질 수 있다. 단위 테스트로는 이를 잡지 못해서 기각했다.
+- 환경 변수 `GOOGLE_GENAI_API_VERSION` 으로 정한다. SDK 2.32 는 이 변수를 읽지 않는다. 그러면 어느 API 버전을 부를지가 SDK 버전과 배포 설정에 달린다. 코드에 고정하면 SDK 2.32 와 3.0 어느 쪽에서도 같은 엔드포인트를 부른다. 그래서 기각했다.
+
+`v1` 로 옮길지는 실제 키로 위 기능을 확인한 뒤 정한다. 확인은 NERV Task `CLE-T-752NN3` 에서 한다([미결 사항](#미결-사항)).
