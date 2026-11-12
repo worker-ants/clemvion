@@ -159,6 +159,14 @@ export type ExecutionDetailWithTrigger = ResponseExecution & {
  * WS `waiting_for_input` 이벤트가 set 한 waiting 상태가 resume 으로 오인돼 wipe 된다
  * (Carousel 버튼이 콜백 없이 disabled 로 stuck).
  *
+ * AI 대화 노드(AI 에이전트 · 정보 추출기)의 재개 턴도 같은 창을 만든다. 재개 claim 이
+ * 행을 `running` 으로 바꾸고, 엔진은 LLM 호출 전에 재개 스냅샷
+ * (`outputData.status === 'resumed'`, `meta.interactionType === 'ai_conversation'`)을
+ * 저장한다. LLM 응답이 오면 다시 대기로 park 한다. 그 사이 snapshot 이 대기로 보이지
+ * 않으면 실행 상세 폴링이 대화 화면을 비우므로 이 조합도 대기로 본다(NERV
+ * `CLE-NODE-AGENT-OUTPUT` 「멀티턴 재개」, `CLE-EXEC-STATE`). form · buttons 노드의
+ * `resumed` 는 재개 뒤 바로 종결되는 마지막 출력이라 `interactionType` 으로 제외한다.
+ *
  * snapshot 단계에서 봉투 status 를 surface 해 일관성을 복원한다 — DB write/원자성은
  * 불변(순수 read-side normalization)이고, 모든 snapshot 소비자(웹 앱·channel-web-chat
  * ·external-interaction-api)에 일관 적용된다. terminal row 의 stale 봉투 문자열이
@@ -169,7 +177,8 @@ export type ExecutionDetailWithTrigger = ResponseExecution & {
  * `snapshotCache` 에 저장될 때 변이된 참조가 공유되는 캐시 오염을 방지한다.
  *
  * **동기화 의무 (의도적 중복 방어 레이어)**: 이 함수의 판정 조건
- * (`running`/`pending` + `outputData.status==='waiting_for_input'`, terminal 제외)
+ * (`running`/`pending` + `outputData.status==='waiting_for_input'` 또는 AI 대화 재개
+ * 스냅샷, terminal 제외 — {@link isWaitingEnvelope})
  * 을 변경할 때는 frontend `apply-execution-snapshot.ts: isNodeWaitingForInput`
  * 도 동일 조건으로 함께 변경해야 한다 — 두 레이어는 같은 intra-row inconsistency
  * 를 각각 backend read-side / frontend defense-in-depth 로 막는 의도적 중복이라,
@@ -185,13 +194,30 @@ function reconcilePreParkWaitingStatus(
     if (
       (ne.status === NodeExecutionStatus.RUNNING ||
         ne.status === NodeExecutionStatus.PENDING) &&
-      (ne.outputData as { status?: unknown } | null)?.status ===
-        NodeExecutionStatus.WAITING_FOR_INPUT
+      isWaitingEnvelope(ne.outputData)
     ) {
       return { ...ne, status: NodeExecutionStatus.WAITING_FOR_INPUT };
     }
     return ne;
   });
+}
+
+/**
+ * `outputData` 봉투가 사용자 입력 대기를 뜻하는지 본다. 대기 봉투
+ * (`status === 'waiting_for_input'`)와 AI 대화 재개 턴의 스냅샷
+ * (`status === 'resumed'` + `meta.interactionType === 'ai_conversation'`)이다.
+ * 프런트 `isNodeWaitingForInput` 과 같은 조건이어야 한다.
+ */
+function isWaitingEnvelope(outputData: unknown): boolean {
+  const envelope = outputData as {
+    status?: unknown;
+    meta?: { interactionType?: unknown } | null;
+  } | null;
+  if (envelope?.status === NodeExecutionStatus.WAITING_FOR_INPUT) return true;
+  return (
+    envelope?.status === 'resumed' &&
+    envelope.meta?.interactionType === 'ai_conversation'
+  );
 }
 
 @Injectable()

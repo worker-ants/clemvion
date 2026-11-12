@@ -378,6 +378,63 @@ describe("applyExecutionSnapshot — REST → store bridge (Carousel disabled st
     ).toBe("waiting_for_input");
   });
 
+  // AI 대화 재개 턴 — LLM 호출 동안 실행 · 노드 행이 모두 running 이고 노드 봉투는
+  // 재개 스냅샷(status 'resumed')이다. 2초 폴링이 이 스냅샷을 받아도 대화 화면을
+  // 비우지 않아야 한다(resumeFromConversation 회귀, NERV CLE-NODE-AGENT-OUTPUT).
+  it("AI 재개 턴(ne.status=running + outputData.status=resumed) — prevStatus=waiting 시 대화 상태 보존 (wipe 차단)", () => {
+    const messages = [
+      { id: "m1", type: "assistant", content: "무엇을 도와드릴까요?" },
+    ];
+    useExecutionStore.setState({
+      status: "waiting_for_input",
+      waitingNodeId: "ai-agent-node",
+      waitingInteractionType: "ai_conversation",
+      waitingConversationConfig: { mode: "multi_turn" },
+      conversationMessages: messages as never,
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "running",
+        nodeExecutions: [
+          {
+            id: "ne-ai-1",
+            executionId: "exec-1",
+            nodeId: "ai-agent-node",
+            nodeType: "ai_agent",
+            status: "running",
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: { mode: "multi_turn" },
+              output: {
+                result: {
+                  messages: [
+                    { role: "assistant", content: "무엇을 도와드릴까요?" },
+                    { role: "user", content: "환불 문의입니다" },
+                  ],
+                },
+                interaction: {
+                  type: "message_received",
+                  data: { content: "환불 문의입니다", role: "user" },
+                  receivedAt: "2026-04-01T00:00:01.000Z",
+                },
+              },
+              status: "resumed",
+              meta: { interactionType: "ai_conversation", durationMs: 0 },
+            },
+          },
+        ],
+      }),
+    );
+
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe("ai-agent-node");
+    expect(state.waitingInteractionType).toBe("ai_conversation");
+    expect(state.waitingConversationConfig).not.toBeNull();
+    expect(state.conversationMessages).toBe(messages);
+  });
+
   it("intra-row inconsistent (ne.status=running + outputData.status=waiting) — prevStatus=running 첫 진입도 reconcile 로 waiting 진입", () => {
     useExecutionStore.setState({
       executionId: "exec-1",
@@ -708,6 +765,36 @@ describe("isNodeWaitingForInput — 직접 unit", () => {
         outputData: { status: "completed" },
       } as never),
     ).toBe(false);
+  });
+
+  // AI 대화 재개 턴 — LLM 호출 동안 행은 running, 봉투는 재개 스냅샷이다.
+  // backend reconcilePreParkWaitingStatus 와 같은 조건이어야 한다.
+  it.each(["running", "pending"])(
+    "status=%s + outputData.status=resumed + meta.interactionType=ai_conversation → true (AI 재개 턴)",
+    (status) => {
+      expect(
+        isNodeWaitingForInput({
+          status,
+          outputData: {
+            status: "resumed",
+            meta: { interactionType: "ai_conversation" },
+          },
+        } as never),
+      ).toBe(true);
+    },
+  );
+
+  it.each([
+    ["form 의 resumed", "running", { status: "resumed", meta: { interactionType: "form" } }],
+    ["interactionType 없는 resumed", "running", { status: "resumed", meta: {} }],
+    ["meta 가 null 인 resumed", "running", { status: "resumed", meta: null }],
+    [
+      "종결 행의 AI 재개 스냅샷",
+      "completed",
+      { status: "resumed", meta: { interactionType: "ai_conversation" } },
+    ],
+  ])("%s → false", (_label, status, outputData) => {
+    expect(isNodeWaitingForInput({ status, outputData } as never)).toBe(false);
   });
 });
 

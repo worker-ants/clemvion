@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import {
   Execution,
   ExecutionStatus,
@@ -12,6 +13,7 @@ import {
 import { Node } from '../nodes/entities/node.entity';
 import {
   ExecutionContext,
+  NodeHandlerOutput,
   ResumableMessageSource,
   ResumableNodeHandler,
   isResumableNodeHandler,
@@ -594,26 +596,26 @@ export class AiTurnOrchestrator {
   }
 
   /**
-   * 재개 스냅샷(`status: 'resumed'`)을 구조화 캐시와 평면 캐시에 싣는다. 재개 턴의
-   * LLM 호출 전에 한 번 부른다. 정본은 NERV `CLE-NODE-AGENT-OUTPUT` 「멀티턴 재개」 ·
-   * `CLE-NODE-EXTRACTOR` 「멀티턴 재개」다.
+   * 재개 스냅샷(`status: 'resumed'`)을 구조화 캐시와 평면 캐시에 싣고 노드 실행 행의
+   * `outputData` 에도 저장한다. 재개 턴의 LLM 호출 전에 한 번 부른다. 정본은 NERV
+   * `CLE-NODE-AGENT-OUTPUT` 「멀티턴 재개」 · `CLE-NODE-EXTRACTOR` 「멀티턴 재개」다.
    *
    * 직전 대기 스냅샷은 구조화 캐시에서 먼저 찾고 없으면 대기 행의 `outputData` 를 쓴다.
    * park 가 턴마다 컨텍스트를 풀기 때문에 재개 턴에서는 보통 구조화 캐시가 비어 있다.
-   * LLM 응답이 오면 대기 · 종결 · 오류 출력이 같은 칸을 덮는다.
+   * LLM 응답이 오면 대기 · 종결 · 오류 출력이 캐시와 행을 다시 덮는다.
    *
    * 컨텍스트가 없으면 아무것도 하지 않는다. `setNodeOutput` 이 그 경우 throw 하는데,
    * 컨텍스트 소실은 LLM 호출 뒤 가드가 graceful 로 처리하는 경로라 여기서 새 throw 를
    * 만들지 않는다.
    */
-  private publishAiResumedSnapshot(
+  private async publishAiResumedSnapshot(
     contextKey: string,
     node: Node,
     nodeExec: NodeExecution | null,
     resumeState: Record<string, unknown>,
     interaction: AiResumeInteraction,
     receivedAt: string,
-  ): void {
+  ): Promise<void> {
     const context = this.contextService.getContext(contextKey);
     if (!context) return;
     const previous =
@@ -636,6 +638,76 @@ export class AiTurnOrchestrator {
       toEngineFlatShape(snapshot),
     );
     this.contextService.setStructuredOutput(contextKey, node.id, snapshot);
+    if (nodeExec) {
+      await this.persistAiResumedSnapshot(
+        node,
+        nodeExec,
+        snapshot,
+        resumeState,
+      );
+    }
+  }
+
+  /**
+   * 재개 스냅샷을 노드 실행 행의 `outputData` 에 저장한다. 재개 턴의 LLM 호출 동안
+   * REST 로 읽은 실행 상세의 출력 탭에 사용자 입력이 보이게 하려는 것이다.
+   *
+   * - 대기 저장과 같은 규칙을 따른다. `_resumeState` 는 빼고(엔진 내부 상태 · 자격
+   *   증명 후보) 체크포인트 대상 노드면 `_resumeCheckpoint` 를 싣는다. LLM 호출 중
+   *   서버가 재시작해도 재개 체크포인트가 남는다.
+   * - 행 상태가 `running`(재개 claim) 이나 `waiting_for_input`(claim 없는 옛 진입) 일
+   *   때만 쓴다. 그사이 취소 등으로 종결된 행의 출력은 덮지 않는다. 엔티티 전체를
+   *   `save` 하면 낡은 `status` 까지 다시 쓰므로 `outputData` 한 열만 조건부로 고친다.
+   * - 이 동안 행 상태는 `running`, 출력 상태는 `resumed` 다. REST 대기 정규화
+   *   (`reconcilePreParkWaitingStatus`)와 프런트 `isNodeWaitingForInput` 이
+   *   `meta.interactionType: 'ai_conversation'` 인 재개 스냅샷을 대기로 보므로
+   *   대화 화면이 비지 않는다.
+   * - 저장에 실패해도 턴은 이어 간다. 관찰용 스냅샷이고 LLM 응답 뒤 대기 저장이
+   *   같은 열을 다시 쓴다.
+   * - 호출 측은 이 저장을 기다린 뒤 LLM 을 부른다. 기다리지 않으면 늦게 끝난 이
+   *   저장이 턴 끝의 대기 저장을 덮을 수 있다.
+   */
+  private async persistAiResumedSnapshot(
+    node: Node,
+    nodeExec: NodeExecution,
+    snapshot: NodeHandlerOutput,
+    resumeState: Record<string, unknown>,
+  ): Promise<void> {
+    const { _resumeState: _stripped, ...rest } = snapshot as unknown as Record<
+      string,
+      unknown
+    >;
+    void _stripped;
+    const persisted: Record<string, unknown> = { ...rest };
+    if (this.driver.isCheckpointEligibleNodeType(node.type)) {
+      const checkpoint = this.driver.buildResumeCheckpoint(resumeState);
+      if (checkpoint) {
+        persisted._resumeCheckpoint = checkpoint;
+      }
+    }
+    try {
+      const res = await this.nodeExecutionRepository.update(
+        {
+          id: nodeExec.id,
+          status: In([
+            NodeExecutionStatus.RUNNING,
+            NodeExecutionStatus.WAITING_FOR_INPUT,
+          ]),
+        },
+        // JSONB 열이라 `QueryDeepPartialEntity` 가 `Record<string, unknown>` 값을 받지 못한다.
+        { outputData: persisted } as QueryDeepPartialEntity<NodeExecution>,
+      );
+      if ((res.affected ?? 0) > 0) {
+        nodeExec.outputData = persisted;
+      }
+    } catch (err) {
+      this.logger.error(
+        `handleAiMessageTurn: failed to persist resumed snapshot for ` +
+          `executionId=${nodeExec.executionId} nodeId=${node.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+      );
+    }
   }
 
   /**
@@ -778,7 +850,8 @@ export class AiTurnOrchestrator {
       );
     }
     // 재개 스냅샷(`status: 'resumed'`) — 실행 내역 관찰용. 연결선 라우팅은 없다.
-    this.publishAiResumedSnapshot(
+    // 행 저장까지 기다린 뒤 LLM 을 부른다(턴 끝 대기 저장과 순서를 지킨다).
+    await this.publishAiResumedSnapshot(
       contextKey,
       node,
       nodeExec,

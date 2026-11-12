@@ -273,7 +273,9 @@ function asPlainRecord(value: unknown): Record<string, unknown> | undefined {
  *   `output.interaction` 은 이번 입력으로 바꾼다.
  * - `meta` 는 직전 대기 스냅샷의 값을 두되 `contextInjection` 은 빼고
  *   `durationMs` 는 `0` 으로 둔다(이 시점에는 LLM 호출이 없다).
- *   `interactionType` 은 직전 대기의 AI 대화 분류를 유지하고 없으면 `ai_conversation` 이다.
+ *   `interactionType` 은 늘 `ai_conversation` 이다. 폼을 제출한 턴도 폼 입력을 더
+ *   기다리지 않기 때문이다. REST 대기 정규화(`reconcilePreParkWaitingStatus`)와 프런트
+ *   `isNodeWaitingForInput` 이 이 값과 `status: 'resumed'` 로 재개 턴의 행을 대기로 본다.
  * - `_resumeState` 는 이번 턴 처리에 쓰는 상태를 그대로 싣는다. DB 에 저장할 때는
  *   호출 측이 빼야 한다.
  */
@@ -317,10 +319,7 @@ export function buildAiResumedSnapshot(params: {
   };
   delete meta.contextInjection;
   meta.durationMs = 0;
-  meta.interactionType =
-    meta.interactionType === 'ai_form_render'
-      ? 'ai_form_render'
-      : 'ai_conversation';
+  meta.interactionType = 'ai_conversation';
 
   return {
     config: asPlainRecord(previous?.config) ?? fallbackConfig,
