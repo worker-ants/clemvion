@@ -92,16 +92,18 @@ export function getConfigSummary(
 /**
  * Returns the localized messages of the `advisory` warning rules that fire
  * for a node (REQ-MERGE-018). The canvas shows them as a header icon tooltip
- * and keeps the summary line. `getConfigSummary` ignores advisory rules, so a
- * blocking warning still wins: the caller shows these only when the summary is
- * not a warning.
+ * and keeps the summary line. `getConfigSummary` ignores advisory rules, and a
+ * blocking warning wins: this returns `[]` when `getConfigSummary` would
+ * return a warning for the same node, so callers need no extra check.
  */
 export function getAdvisoryWarnings(
   nodeType: string,
   config: NodeConfig,
   locale: Locale = DEFAULT_LOCALE,
+  context?: SummaryContext,
 ): string[] {
   if (nodeType === "manual_trigger") return [];
+  if (getConfigSummary(nodeType, config, context, locale)?.isWarning) return [];
   const def = getNodeDefinition(nodeType);
   return evaluateWarnings(config, def?.warningRules)
     .filter((w) => w.severity === "advisory")

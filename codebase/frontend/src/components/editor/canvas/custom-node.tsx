@@ -204,12 +204,17 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const showHeaderSummary = isContainer && showSummary && summary && !isWarning;
   const showBodySummary = !isContainer && showSummary && summary && !isWarning;
   // REQ-MERGE-018 — advisory 노드 경고는 요약 줄을 그대로 두고 헤더 아이콘
-  // 툴팁으로 보인다. blocking 경고가 있으면 blocking 아이콘만 보인다.
+  // 툴팁으로 보인다. blocking 경고가 있으면 getAdvisoryWarnings 가 [] 를 돌려
+  // 주어 blocking 아이콘만 보인다.
   const advisoryWarnings = useMemo(
-    () => (isWarning ? [] : getAdvisoryWarnings(data.type, data.config, locale)),
-    [isWarning, data.type, data.config, locale],
+    () => getAdvisoryWarnings(data.type, data.config, locale, summaryContext),
+    [data.type, data.config, locale, summaryContext],
   );
   const showHeaderAdvisory = showSummary && advisoryWarnings.length > 0;
+  // 헤더 우측 정렬(`ml-auto`)을 이미 앞선 요소가 맡고 있는지. 헤더 아이콘이
+  // 늘면 여기만 고친다.
+  const headerHasLeadingItem =
+    showHeaderSummary || showHeaderWarning || showHeaderAdvisory;
 
   // §5 ⚠ Missing integration — category=integration 노드가 참조하는
   // integrationId. http_request 만 integrationId 가 `authentication ===
@@ -330,10 +335,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
               <span
                 className={cn(
                   "shrink-0 inline-flex items-center justify-center rounded-full p-0.5",
-                  !showHeaderSummary &&
-                    !showHeaderWarning &&
-                    !showHeaderAdvisory &&
-                    "ml-auto",
+                  !headerHasLeadingItem && "ml-auto",
                   graphWarningSeverity === "error"
                     ? "bg-red-500 text-white"
                     : "bg-amber-400 text-amber-950",
@@ -362,12 +364,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         {integrationId !== "" && (
           <MissingIntegrationBadge
             integrationId={integrationId}
-            pushToRight={
-              !showHeaderSummary &&
-              !showHeaderWarning &&
-              !showHeaderAdvisory &&
-              !graphWarningSeverity
-            }
+            pushToRight={!headerHasLeadingItem && !graphWarningSeverity}
           />
         )}
       </div>
