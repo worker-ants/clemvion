@@ -3663,19 +3663,50 @@ describe('IntegrationsService', () => {
           message: 'The server rejected the credentials (HTTP 401).',
         });
 
-        await expect(
-          service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+        const err: unknown = await service
+          .rotate('int-1', 'ws-1', 'user-1', 'member', {
             credentials: { token: 'new' },
-          }),
-        ).rejects.toMatchObject({
-          response: {
-            code: 'INTEGRATION_TEST_FAILED',
-            message: 'The server rejected the credentials (HTTP 401).',
-          },
+          })
+          .catch((err_: unknown) => err_);
+
+        // 테스트 결과의 `code` 는 최상위 `code` 가 아니라 `details.testCode` 에 싣는다(CLE-INT-MANAGE 「에러 코드」).
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect((err as BadRequestException).getResponse()).toStrictEqual({
+          code: 'INTEGRATION_TEST_FAILED',
+          message: 'The server rejected the credentials (HTTP 401).',
+          details: { testCode: 'HTTP_AUTH_FAILED' },
         });
         expect(mockedHttpTester).toHaveBeenCalledWith('bearer_token', {
           base_url: 'https://api.example.com',
           token: 'new',
+        });
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('rotate 실패 결과에 code 가 없으면 details 를 싣지 않는다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'http',
+            authType: 'bearer_token',
+            credentials: { base_url: 'https://api.example.com', token: 'old' },
+          }),
+        );
+        mockedHttpTester.mockResolvedValueOnce({
+          success: false,
+          message: 'Connection test failed.',
+        });
+
+        const err: unknown = await service
+          .rotate('int-1', 'ws-1', 'user-1', 'member', {
+            credentials: { token: 'new' },
+          })
+          .catch((err_: unknown) => err_);
+
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect((err as BadRequestException).getResponse()).toStrictEqual({
+          code: 'INTEGRATION_TEST_FAILED',
+          message: 'Connection test failed.',
         });
         expect(integrationRepo.update).not.toHaveBeenCalled();
         expect(integrationRepo.save).not.toHaveBeenCalled();

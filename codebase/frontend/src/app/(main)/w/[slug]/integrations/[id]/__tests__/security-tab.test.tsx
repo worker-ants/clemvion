@@ -10,12 +10,17 @@ import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
-import type { IntegrationDto, OAuthBeginResult } from "@/lib/api/integrations";
+import type {
+  AuthVariant,
+  IntegrationDto,
+  OAuthBeginResult,
+} from "@/lib/api/integrations";
 import { useT } from "@/lib/i18n";
 import type { WorkspaceRole } from "@/lib/stores/workspace-store";
 import { seedWorkspaceViewer } from "@/test/seed-workspace-viewer";
 
 const reauthorizeMock = vi.fn();
+const rotateMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
 const toastInfoMock = vi.fn();
@@ -39,6 +44,7 @@ vi.mock("@/lib/api/integrations", async () => {
     ...actual,
     integrationsApi: {
       reauthorize: (...args: unknown[]) => reauthorizeMock(...args),
+      rotate: (...args: unknown[]) => rotateMock(...args),
     },
   };
 });
@@ -83,13 +89,14 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 function renderSecurityTab(
   integration: IntegrationDto,
   onChanged: () => void = vi.fn(),
+  variant: AuthVariant | undefined = undefined,
 ) {
   function Host() {
     const t = useT();
     return (
       <SecurityTab
         integration={integration}
-        variant={undefined}
+        variant={variant}
         onChanged={onChanged}
         t={t}
       />
@@ -316,5 +323,107 @@ describe("SecurityTab — 역할과 통합 소유에 따른 표시", () => {
     expect(screen.queryByRole("button", { name: "Rotate" }) !== null).toBe(
       visible,
     );
+  });
+});
+
+/*
+ * 자격 증명 교체 실패 토스트 — 서버는 실패를 `{ error: { code, message, requestId, details? } }` 봉투로 보낸다
+ * (NERV CLE-API-ERROR §4). 토스트 문구는 통합 화면 공통 규칙(`formatIntegrationErrorToast`, CLE-UI-I18N 규칙 5)으로
+ * 고른다. 매핑에 없는 `INTEGRATION_TEST_FAILED` 는 봉투의 `error.message` 가 보이고, 문구가 없으면 기본 문구를 쓴다.
+ * NERV CLE-INT-MANAGE 「에러 코드」, Task CLE-T-XCMNP6.
+ */
+describe("SecurityTab — 자격 증명 교체 실패 토스트", () => {
+  const HTTP_BEARER: AuthVariant = {
+    authType: "bearer_token",
+    label: "Bearer token",
+    fields: [
+      { key: "token", label: "Token", type: "string", required: true, secret: true },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+    seedWorkspaceViewer("owner");
+  });
+  afterEach(() => cleanup());
+
+  async function submitRotation() {
+    await act(async () => {
+      renderSecurityTab(
+        buildIntegration({
+          authType: "bearer_token",
+          serviceType: "http",
+          credentials: { token: "********" },
+          meta: { appType: null },
+          appUrl: null,
+        }),
+        vi.fn(),
+        HTTP_BEARER,
+      );
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Rotate" }));
+    await userEvent.type(screen.getByLabelText(/Token/), "new-token");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  }
+
+  it("서버 에러 봉투의 error.message 를 토스트에 보인다", async () => {
+    rotateMock.mockRejectedValue({
+      isAxiosError: true,
+      message: "Request failed with status code 400",
+      response: {
+        status: 400,
+        data: {
+          error: {
+            code: "INTEGRATION_TEST_FAILED",
+            message: "The server rejected the credentials (HTTP 401).",
+            requestId: "req-1",
+            details: { testCode: "HTTP_AUTH_FAILED" },
+          },
+        },
+      },
+    });
+
+    await submitRotation();
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledTimes(1));
+    expect(rotateMock).toHaveBeenCalledWith("int-1", { token: "new-token" });
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "The server rejected the credentials (HTTP 401).",
+    );
+  });
+
+  it("매핑에 있는 코드는 사전 문구 뒤 괄호에 서버 문구를 붙인다", async () => {
+    // 편집자가 조직 통합을 교체하면 서버가 403 `ADMIN_REQUIRED` 로 거절한다(CLE-INT-MANAGE 「권한」).
+    rotateMock.mockRejectedValue({
+      isAxiosError: true,
+      message: "Request failed with status code 403",
+      response: {
+        status: 403,
+        data: {
+          error: {
+            code: "ADMIN_REQUIRED",
+            message: "Admin role required.",
+            requestId: "req-2",
+          },
+        },
+      },
+    });
+
+    await submitRotation();
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledTimes(1));
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Only Admins and above can add or change organization integrations. (Admin role required.)",
+    );
+  });
+
+  it("응답 문구도 오류 문구도 없으면 기본 문구를 보인다", async () => {
+    rotateMock.mockRejectedValue({});
+
+    await submitRotation();
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledTimes(1));
+    expect(toastErrorMock).toHaveBeenCalledWith("Rotation failed");
   });
 });
