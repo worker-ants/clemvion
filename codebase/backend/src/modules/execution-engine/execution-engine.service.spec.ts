@@ -8345,6 +8345,77 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    // CLE-T-TDAV1G — 재개 경로(`runNodeDispatchLoop`)의 범위 입력은 `{}` 다. 재개 뒤
+    // 실행한 Background 도 Background 노드가 받은 입력으로 본문을 큐에 넣는다.
+    it('재개 뒤 실행한 Background 는 범위 입력이 아니라 Background 노드가 받은 입력(앞 노드 출력)으로 본문을 큐에 넣는다 (CLE-T-TDAV1G)', async () => {
+      handlerRegistry.register('background', new BackgroundHandler(), {
+        kind: 'background',
+      });
+      handlerRegistry.register('pre_node', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => mockOutput({ marker: 'pre-output' })),
+      });
+      const [startNode, formNode, endNode] = formNodes;
+      mockNodeRepo.findBy.mockResolvedValue([
+        startNode,
+        formNode,
+        { ...endNode, id: 'node-pre', type: 'pre_node', label: 'Pre' },
+        { ...endNode, id: 'node-bg', type: 'background', label: 'Bg' },
+        endNode,
+        { ...endNode, id: 'node-bg-body', label: 'BgBody' },
+      ]);
+      const [startToForm, formToEnd] = formEdges;
+      mockEdgeRepo.findBy.mockResolvedValue([
+        startToForm,
+        { ...formToEnd, id: 'edge-form-pre', targetNodeId: 'node-pre' },
+        {
+          ...formToEnd,
+          id: 'edge-pre-bg',
+          sourceNodeId: 'node-pre',
+          targetNodeId: 'node-bg',
+        },
+        {
+          ...formToEnd,
+          id: 'edge-bg-end',
+          sourceNodeId: 'node-bg',
+          sourcePort: 'main',
+          targetNodeId: 'node-end',
+        },
+        {
+          ...formToEnd,
+          id: 'edge-bg-body',
+          sourceNodeId: 'node-bg',
+          sourcePort: 'background',
+          targetNodeId: 'node-bg-body',
+        },
+      ]);
+      const queueAdd = (
+        service as unknown as { backgroundQueue: { add: jest.Mock } }
+      ).backgroundQueue.add;
+      queueAdd.mockClear();
+
+      await service.execute(
+        workflowId,
+        { data: 'test' },
+        { workspaceId: 'ws-1' },
+      );
+      await flushPromises();
+      // 폼에서 멈췄으므로 Background 는 아직 실행하지 않았다.
+      expect(queueAdd).not.toHaveBeenCalled();
+
+      armSlowPathResume('node-form', formNode);
+      void service.continueExecution(executionId, { approved: true });
+      await flushResumeDrive();
+
+      const jobs = queueAdd.mock.calls.map(
+        (call: unknown[]) => call[1] as BackgroundExecutionJob,
+      );
+      expect(jobs.map((job) => job.bodyEntryNodeIds)).toEqual([
+        ['node-bg-body'],
+      ]);
+      expect(jobs.map((job) => job.input)).toEqual([{ marker: 'pre-output' }]);
+    });
+
     // ai-review C2 (2026-07-26) — mutation 실측: `runNodeDispatchLoop` 상단의
     // §2.3 가드(`assertExecutionNotCancelled`)를 제거해도 이전엔 407/407 GREEN
     // 이었다(커버리지 0). §7.5 재개 경로(driveResumeAwaited → runNodeDispatchLoop)
@@ -15639,6 +15710,99 @@ describe('ExecutionEngineService', () => {
         expect(bodyCtx[0].itemContext).toBeUndefined();
         expect(bodyCtx[0].loopContext).toBeUndefined();
       });
+
+      // CLE-T-TDAV1G — 질문 01a1cef7 답 A. 맨 바깥 실행 · 서브 워크플로우(`executeInline`)도
+      // 컨테이너 본문 루프처럼 Background 노드가 받은 입력으로 본문을 큐에 넣는다
+      // (CLE-NODE-BACKGROUND 의 진입 입력 표). 재개 경로는 「Form node blocking」, 병렬 분기
+      // 루프는 「done 포트 완료 출력」 describe 에 있다.
+      describe('Background 본문 진입 입력 (CLE-T-TDAV1G)', () => {
+        const preOutput = { marker: 'pre-output' };
+        const triggerOutput = { marker: 'trigger-output' };
+        // src → pre → bg, bg.main → after, bg.background → bgBody. 앞 노드 pre 를 두어
+        // 실행 범위의 입력과 Background 노드의 입력을 가른다.
+        const backgroundAfterPre = () => {
+          handlerRegistry.register('background', new BackgroundHandler(), {
+            kind: 'background',
+          });
+          recordingHandler('test_node', () => triggerOutput);
+          recordingHandler('pre_node', () => preOutput);
+          recordingHandler('after_node', (input) => input);
+          recordingHandler('bg_body_node', (input) => input);
+          backgroundQueueAdd().mockClear();
+          return {
+            nodes: [
+              cNode('src', 'test_node', null),
+              cNode('pre', 'pre_node', null),
+              cNode('bg', 'background', null),
+              cNode('after', 'after_node', null),
+              cNode('bgBody', 'bg_body_node', null),
+            ],
+            edges: [
+              cEdge('src', 'out', 'pre'),
+              cEdge('pre', 'out', 'bg'),
+              cEdge('bg', 'main', 'after'),
+              cEdge('bg', 'background', 'bgBody'),
+            ],
+          };
+        };
+        const queuedInputs = () =>
+          backgroundQueueAdd().mock.calls.map(
+            (call: unknown[]) => (call[1] as BackgroundExecutionJob).input,
+          );
+
+        it('맨 바깥 실행은 실행 입력이 아니라 Background 노드가 받은 입력(앞 노드 출력)으로 본문을 큐에 넣는다', async () => {
+          const g = backgroundAfterPre();
+
+          await runGraph(g.nodes, g.edges);
+
+          expect(queuedInputs()).toEqual([preOutput]);
+        });
+
+        it('트리거 바로 뒤 Background 는 트리거 출력으로 본문을 큐에 넣는다', async () => {
+          const g = backgroundAfterPre();
+
+          await runGraph(
+            g.nodes.filter((node) => node.id !== 'pre'),
+            [
+              cEdge('src', 'out', 'bg'),
+              ...g.edges.filter((edge) => edge.sourceNodeId === 'bg'),
+            ],
+          );
+
+          expect(queuedInputs()).toEqual([triggerOutput]);
+        });
+
+        it('서브 워크플로우 인라인 실행(executeInline)도 그 실행의 입력이 아니라 Background 노드가 받은 입력으로 본문을 큐에 넣는다', async () => {
+          const g = backgroundAfterPre();
+          // 서브 워크플로우 진입점은 manual_trigger 만 허용되므로 트리거를 빼고 pre 가
+          // 그 실행의 입력을 받는 진입 노드가 된다.
+          mockNodeRepo.findBy.mockResolvedValue(
+            g.nodes.filter((node) => node.id !== 'src'),
+          );
+          mockEdgeRepo.findBy.mockResolvedValue(
+            g.edges.filter((edge) => edge.sourceNodeId !== 'src'),
+          );
+          const contextService = (
+            service as unknown as { contextService: ExecutionContextService }
+          ).contextService;
+
+          await service.executeInline(
+            workflowId,
+            { marker: 'inline-input' },
+            {
+              executionId,
+              context: withWorkspace(
+                contextService.createContext(executionId, workflowId),
+              ),
+              executedNodes: new Set<string>(),
+              recursionDepth: 1,
+            },
+          );
+          await flushPromises();
+
+          expect(queuedInputs()).toEqual([preOutput]);
+        });
+      });
     });
   });
 
@@ -17831,6 +17995,48 @@ describe('ExecutionEngineService', () => {
             ]);
           });
         });
+      });
+
+      // CLE-T-TDAV1G — 병렬 분기 루프도 Parallel 이 받은 입력이 아니라 Background 노드가
+      // 받은 입력으로 본문을 큐에 넣는다(CLE-NODE-BACKGROUND 의 진입 입력 표).
+      it('병렬 분기 안 Background 는 Parallel 입력이 아니라 Background 노드가 받은 입력(앞 노드 출력)으로 본문을 큐에 넣는다 (CLE-T-TDAV1G)', async () => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        registerHandler('pre_node', async () =>
+          mockOutput({ marker: 'pre-output' }),
+        );
+        registerHandler('ok_node', async () => mockOutput({ ok: true }));
+        const queueAdd = (
+          service as unknown as { backgroundQueue: { add: jest.Mock } }
+        ).backgroundQueue.add;
+        queueAdd.mockClear();
+
+        await runGraph(
+          {},
+          [
+            pNode('pre', 'pre_node'),
+            pNode('bg', 'background'),
+            pNode('bgBody', 'ok_node'),
+            pNode('b', 'ok_node'),
+            pNode('sink', 'sink_node'),
+          ],
+          [
+            pEdge('par', 'branch_0', 'pre'),
+            pEdge('pre', 'out', 'bg'),
+            pEdge('bg', 'background', 'bgBody'),
+            pEdge('par', 'branch_1', 'b'),
+            pEdge('par', 'done', 'sink'),
+          ],
+        );
+
+        const jobs = queueAdd.mock.calls.map(
+          (call: unknown[]) => call[1] as BackgroundExecutionJob,
+        );
+        expect(jobs.map((job) => job.bodyEntryNodeIds)).toEqual([['bgBody']]);
+        expect(jobs.map((job) => job.input)).toEqual([
+          { marker: 'pre-output' },
+        ]);
       });
 
       // CLE-T-0DGHGF — 컨테이너 본문 루프와 동기 서브 워크플로우 루프도 Parallel 을 엔진의

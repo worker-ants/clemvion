@@ -386,6 +386,36 @@ interface RunParallelOptions {
   input: unknown;
 }
 
+/**
+ * {@link ExecutionEngineService.dispatchByNodeKind} 인자. 노드를 실행하는 루프마다 연결선
+ * 범위와 Parallel 처리 여부가 달라서 이름으로 넘긴다.
+ */
+interface NodeKindDispatchOptions {
+  /** 방금 실행한 노드. */
+  node: Node;
+  /** 컨테이너 · Background · 병렬 분기 본문 노드를 찾는 노드. */
+  allNodes: Node[];
+  /** 컨테이너 · Background · 병렬 분기 본문을 찾는 연결선. */
+  allEdges: Edge[];
+  context: ExecutionContext;
+  executionId: string;
+  executedNodes: Set<string>;
+  executionMeta: { startedAt?: string; mode?: string };
+  /**
+   * 그 노드가 받은 입력. Background 면 본문 진입 노드가 받고(CLE-NODE-BACKGROUND 의 진입
+   * 입력 표), Parallel 이면 병렬 분기 입구 노드가 받는다.
+   */
+  nodeInput: unknown;
+  /**
+   * Parallel 을 엔진의 Parallel 실행 경로로 넘길 때 쓰는 연결선 범위와 도달 가능 집합.
+   * 주지 않으면 Parallel 은 넘기지 않는다(`PARALLEL_ENGINE=off`).
+   */
+  parallel?: Pick<
+    RunParallelOptions,
+    'forwardEdges' | 'backEdges' | 'outgoingEdgeMap' | 'reachable'
+  >;
+}
+
 /** {@link ExecutionEngineService.executeParallelBranchBody} 인자. */
 interface ParallelBranchBodyOptions {
   parallelNode: Node;
@@ -2008,50 +2038,24 @@ export class ExecutionEngineService
           dispatchMeta,
           outgoingEdgeMap,
         );
-        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
-        if (dispatchKind === 'container') {
-          await this.runContainer(
-            node,
-            nodes,
-            edges,
-            context,
-            executionId,
-            executedNodes,
-            dispatchMeta,
-          );
-        }
-        if (dispatchKind === 'background') {
-          await this.scheduleBackgroundBody(
-            node,
-            edges,
-            context,
-            executionId,
-            input,
-          );
-        }
-        if (
-          dispatchKind === 'parallel' &&
+        const ranParallel = await this.dispatchByNodeKind({
+          node,
+          allNodes: nodes,
+          allEdges: edges,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta: dispatchMeta,
+          nodeInput,
           // PR #364 (default ON) 정책 정합 — runExecution / resumeFromCheckpoint
           // 가 모두 'v1' default. helper 도 동일 default 사용해 retry 경로의
           // 우연한 'off' default (PR #365 잔재) 도 동시 통일.
-          this.resolveParallelEngineFlag() === 'v1'
-        ) {
-          // WARNING #14: `gatherNodeInput` 의 두 번째 호출을 제거 — 이미 위에서
-          // 동일 인자로 호출한 결과 `nodeInput` 을 재사용.
-          await this.runParallel({
-            parallelNode: node,
-            allNodes: nodes,
-            allEdges: edges,
-            forwardEdges,
-            backEdges,
-            outgoingEdgeMap,
-            context,
-            executionId,
-            executedNodes,
-            executionMeta: dispatchMeta,
-            reachable,
-            input: nodeInput,
-          });
+          parallel:
+            this.resolveParallelEngineFlag() === 'v1'
+              ? { forwardEdges, backEdges, outgoingEdgeMap, reachable }
+              : undefined,
+        });
+        if (ranParallel) {
           pointer++;
           continue;
         }
@@ -4271,54 +4275,24 @@ export class ExecutionEngineService
           outgoingEdgeMap,
         );
 
-        // PR-G — metadata flag dispatch (CRIT #3 시나리오 D). hard-coded
-        // node.type 분기를 NodeHandlerRegistry.getMetadata 의 kind 로 통일.
-        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
-
-        // Container dispatch for sub-workflow inline execution.
-        if (dispatchKind === 'container') {
-          await this.runContainer(
-            node,
-            subNodes,
-            subEdges,
-            context,
-            executionId,
-            executedNodes,
-            executionMeta,
-          );
-        }
-
-        // Background dispatch — enqueue body subgraph and continue main flow.
-        if (dispatchKind === 'background') {
-          await this.scheduleBackgroundBody(
-            node,
-            subEdges,
-            context,
-            executionId,
-            cleanInput,
-          );
-        }
-
-        // CLE-T-0DGHGF — 메인 루프와 같이 Parallel 을 엔진의 Parallel 실행 경로로 넘긴다.
-        // `runParallel` 이 `done` 포트와 합류 노드까지 `reachable` 에 넣는다.
-        if (
-          dispatchKind === 'parallel' &&
-          this.resolveParallelEngineFlag() === 'v1'
-        ) {
-          await this.runParallel({
-            parallelNode: node,
-            allNodes: subNodes,
-            allEdges: subEdges,
-            forwardEdges,
-            backEdges,
-            outgoingEdgeMap,
-            context,
-            executionId,
-            executedNodes,
-            executionMeta,
-            reachable,
-            input: nodeInput,
-          });
+        // PR-G — metadata flag dispatch (CRIT #3 시나리오 D). 노드 종류별 실행 경로는
+        // `dispatchByNodeKind` 하나가 고른다. CLE-T-0DGHGF — 메인 루프와 같이 Parallel 을
+        // 엔진의 Parallel 실행 경로로 넘긴다.
+        const ranParallel = await this.dispatchByNodeKind({
+          node,
+          allNodes: subNodes,
+          allEdges: subEdges,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta,
+          nodeInput,
+          parallel:
+            this.resolveParallelEngineFlag() === 'v1'
+              ? { forwardEdges, backEdges, outgoingEdgeMap, reachable }
+              : undefined,
+        });
+        if (ranParallel) {
           lastOutput = context.nodeOutputCache[node.id];
           pointer++;
           continue;
@@ -4844,73 +4818,33 @@ export class ExecutionEngineService
           break;
         }
 
-        // PR-G — metadata flag dispatch (CRIT #3 시나리오 D).
-        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
-
-        // Container dispatch: after the handler runs (which resolves config),
-        // iterate the body subgraph and overwrite container output with the
-        // collected results so `done`-port edges see the right value.
-        if (dispatchKind === 'container') {
-          await this.runContainer(
-            node,
-            nodes,
-            edges,
-            context,
-            executionId,
-            executedNodes,
-            {
-              startedAt: savedExecution.startedAt?.toISOString(),
-              mode: 'manual',
-            },
-          );
-        }
-
-        // Background dispatch — enqueue body subgraph and continue main flow.
-        if (dispatchKind === 'background') {
-          await this.scheduleBackgroundBody(
-            node,
-            edges,
-            context,
-            executionId,
-            input,
-          );
-        }
-
+        // PR-G — metadata flag dispatch (CRIT #3 시나리오 D). 노드 종류별 실행 경로는
+        // `dispatchByNodeKind` 하나가 고른다.
+        //
         // Parallel dispatch (PARALLEL_ENGINE=v1): run branch subgraphs
         // concurrently. Default is now 'v1' (parallel-p2 결정 B). Set
         // PARALLEL_ENGINE=off explicitly to roll back to legacy sequential
         // propagateReachability behavior — the Parallel handler's
         // `port: string[]` return value is still handled there, preserving
         // existing semantics as a rollback card.
-        if (
-          dispatchKind === 'parallel' &&
-          this.resolveParallelEngineFlag() === 'v1'
-        ) {
-          const nodeInput = this.gatherNodeInput(
-            nodeId,
-            graphEdges,
-            executedNodes,
-            context.nodeOutputCache,
-            input,
-            incomingEdgeMap,
-          );
-          await this.runParallel({
-            parallelNode: node,
-            allNodes: nodes,
-            allEdges: edges,
-            forwardEdges,
-            backEdges,
-            outgoingEdgeMap,
-            context,
-            executionId,
-            executedNodes,
-            executionMeta: {
-              startedAt: savedExecution.startedAt?.toISOString(),
-              mode: 'manual',
-            },
-            reachable,
-            input: nodeInput,
-          });
+        const ranParallel = await this.dispatchByNodeKind({
+          node,
+          allNodes: nodes,
+          allEdges: edges,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta: {
+            startedAt: savedExecution.startedAt?.toISOString(),
+            mode: 'manual',
+          },
+          nodeInput,
+          parallel:
+            this.resolveParallelEngineFlag() === 'v1'
+              ? { forwardEdges, backEdges, outgoingEdgeMap, reachable }
+              : undefined,
+        });
+        if (ranParallel) {
           // Skip downstream checks — runParallel already handled
           // branch bodies, reachability propagation, and neutralized
           // the Parallel node's _selectedPort sentinel so that the
@@ -7270,57 +7204,33 @@ export class ExecutionEngineService
         outgoingEdgeMap,
       );
 
-      const bodyDispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
-
-      // CLE-T-MR6ZH3 — 메인 루프 · 병렬 분기 루프와 같다. 본문 안 Loop · ForEach · Map 은
-      // 회차 컨텍스트를 그대로 받아 자기 본문을 반복한다. 반복 변수는 안쪽 실행기가
-      // 바깥 값을 저장했다가 되돌린다. 끝나면 완료 출력이 캐시에 있으므로 아래 전파가
-      // `done` 뒤 본문 노드를 연다.
-      if (bodyDispatchKind === 'container') {
-        await this.runContainer(
-          node,
-          plan.allNodes,
-          plan.allEdges,
-          context,
-          executionId,
-          executedNodes,
-          executionMeta,
-        );
-      }
-
-      // Background 는 본문을 큐에 넣고 회차를 이어 간다. 본문 진입 입력은 Background
-      // 노드가 이번 회차에 받은 입력이다(CLE-NODE-BACKGROUND 의 진입 입력 표).
-      // `background` 포트 뒤 노드는 핸들러가 `main` 만 고르므로 이 회차 루프에서
-      // 실행되지 않는다.
-      if (bodyDispatchKind === 'background') {
-        await this.scheduleBackgroundBody(
-          node,
-          plan.allEdges,
-          context,
-          executionId,
-          nodeInput,
-        );
-      }
-
-      // 병렬 분기 루프 · 메인 루프와 같다. 본문 안 연결선만 넘기므로 병렬 분기 탐색은
-      // 본문 안에 머문다. 되돌아가는 연결선은 `planContainerBody` 가 이미 막았다.
-      // `runParallel` 이 `done` 포트와 출구 노드의 다음 노드를 `reachable` 에 넣으므로
-      // 아래 전파는 건너뛴다.
-      if (parallelEngineV1 && bodyDispatchKind === 'parallel') {
-        const written = await this.runParallel({
-          parallelNode: node,
-          allNodes: plan.allNodes,
-          allEdges: plan.allEdges,
-          forwardEdges: internalEdges,
-          backEdges: [],
-          outgoingEdgeMap,
-          context,
-          executionId,
-          executedNodes,
-          executionMeta,
-          reachable,
-          input: nodeInput,
-        });
+      // CLE-T-MR6ZH3 — 메인 루프 · 병렬 분기 루프와 같은 `dispatchByNodeKind` 를 쓴다.
+      // 본문 안 Loop · ForEach · Map 은 회차 컨텍스트를 그대로 받아 자기 본문을 반복한다.
+      // 반복 변수는 안쪽 실행기가 바깥 값을 저장했다가 되돌린다. Background 는 이번 회차에
+      // 받은 입력으로 본문을 큐에 넣고 회차를 이어 간다.
+      //
+      // Parallel 에는 본문 안 연결선만 넘기므로 병렬 분기 탐색은 본문 안에 머문다.
+      // 되돌아가는 연결선은 `planContainerBody` 가 이미 막았다. `runParallel` 이 `done`
+      // 포트와 출구 노드의 다음 노드를 `reachable` 에 넣으므로 아래 전파는 건너뛴다.
+      const written = await this.dispatchByNodeKind({
+        node,
+        allNodes: plan.allNodes,
+        allEdges: plan.allEdges,
+        context,
+        executionId,
+        executedNodes,
+        executionMeta,
+        nodeInput,
+        parallel: parallelEngineV1
+          ? {
+              forwardEdges: internalEdges,
+              backEdges: [],
+              outgoingEdgeMap,
+              reachable,
+            }
+          : undefined,
+      });
+      if (written) {
         for (const id of written) ranInParallelBranches.add(id);
         continue;
       }
@@ -7496,17 +7406,85 @@ export class ExecutionEngineService
   }
 
   /**
+   * 방금 실행한 노드를 종류(핸들러 메타데이터의 `kind`)에 따라 넘긴다. 맨 바깥 실행 ·
+   * 재개 · `executeInline` · 컨테이너 본문 · 병렬 분기 루프가 모두 이 규칙을 쓴다
+   * (CLE-T-TDAV1G).
+   *
+   * - container: {@link runContainer} 가 본문을 반복하고 완료 출력을 캐시에 쓴다. 호출한
+   *   루프의 전파가 `done` 뒤 노드를 연다.
+   * - background: {@link scheduleBackgroundBody} 가 노드가 받은 입력으로 본문을 큐에 넣는다.
+   *   `background` 포트 뒤 노드는 핸들러가 `main` 만 고르므로 호출한 루프에서 실행되지 않는다.
+   * - parallel: `parallel` 을 줬으면 {@link runParallel} 로 넘긴다.
+   *
+   * @returns Parallel 을 넘겼으면 `runParallel` 이 돌려준 "출력을 쓴 노드" 집합. `runParallel`
+   *   이 `done` 포트와 출구 노드의 다음 노드를 `reachable` 에 넣었으므로 호출한 루프는 전파와
+   *   blocking 검사를 건너뛴다. 그 밖에는 `undefined` 다.
+   */
+  private async dispatchByNodeKind({
+    node,
+    allNodes,
+    allEdges,
+    context,
+    executionId,
+    executedNodes,
+    executionMeta,
+    nodeInput,
+    parallel,
+  }: NodeKindDispatchOptions): Promise<ReadonlySet<string> | undefined> {
+    switch (this.handlerRegistry.getMetadata(node.type).kind) {
+      case 'container':
+        await this.runContainer(
+          node,
+          allNodes,
+          allEdges,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta,
+        );
+        return undefined;
+      case 'background':
+        await this.scheduleBackgroundBody(
+          node,
+          allEdges,
+          context,
+          executionId,
+          nodeInput,
+        );
+        return undefined;
+      case 'parallel':
+        if (!parallel) return undefined;
+        return this.runParallel({
+          parallelNode: node,
+          allNodes,
+          allEdges,
+          ...parallel,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta,
+          input: nodeInput,
+        });
+      default:
+        return undefined;
+    }
+  }
+
+  /**
    * After a Background node executes (handler returned `port: 'main'`),
    * snapshot the current execution context and enqueue the `background`-port
    * body subgraph for asynchronous execution. The main flow continues without
    * waiting. Failures inside the body never affect the main execution.
+   *
+   * `bodyInput` 은 본문 진입 노드가 받는 입력이다. 어느 루프에서든 Background 노드가 받은
+   * 입력을 넘긴다(CLE-NODE-BACKGROUND 의 진입 입력 표, CLE-T-TDAV1G).
    */
   private async scheduleBackgroundBody(
     node: Node,
     allEdges: Edge[],
     context: ExecutionContext,
     executionId: string,
-    mainInput: unknown,
+    bodyInput: unknown,
   ): Promise<void> {
     const bodyEntryNodeIds = allEdges
       .filter(
@@ -7577,7 +7555,7 @@ export class ExecutionEngineService
       ...(context.loopContext
         ? { loopContext: { ...context.loopContext } }
         : {}),
-      input: mainInput,
+      input: bodyInput,
       variables: { ...context.variables },
       nodeOutputCache: { ...context.nodeOutputCache },
       expressionContext: { ...(context.expressionContext ?? {}) },
@@ -8143,38 +8121,10 @@ export class ExecutionEngineService
       // `skip_node` 는 출력을 남기지 않으므로 후보에서 빠진다.
       if (writtenNodeIds.has(nodeId)) resultNodeId = nodeId;
 
-      // PR-G — metadata flag dispatch (CRIT #3 시나리오 D).
-      const branchDispatchKind = this.handlerRegistry.getMetadata(
-        node.type,
-      ).kind;
-
-      // Container dispatch inside a branch body — mirrors the main loop so
-      // ForEach/Loop/Map inside a Parallel branch still iterates its body.
-      if (branchDispatchKind === 'container') {
-        await this.runContainer(
-          node,
-          allNodes,
-          allEdges,
-          context,
-          executionId,
-          executedNodes,
-          executionMeta,
-        );
-      }
-
-      // Background inside a branch just enqueues its body; the main flow
-      // (this branch) continues without waiting, which matches the top-level
-      // Background contract.
-      if (branchDispatchKind === 'background') {
-        await this.scheduleBackgroundBody(
-          node,
-          allEdges,
-          context,
-          executionId,
-          branchInput,
-        );
-      }
-
+      // PR-G — metadata flag dispatch (CRIT #3 시나리오 D). 메인 루프와 같은
+      // `dispatchByNodeKind` 를 쓴다. 병렬 분기 안 ForEach · Loop · Map 도 본문을 반복하고,
+      // Background 는 본문을 큐에 넣은 뒤 이 병렬 분기를 기다리지 않고 이어 간다.
+      //
       // CLE-T-GGZSC2 — 안쪽 Parallel 도 엔진의 Parallel 실행 경로로 넘긴다
       // (REQ-PARALLEL-024 · 025). 이 루프는 `PARALLEL_ENGINE=v1` 에서만 닿으므로
       // 플래그를 다시 보지 않는다. 연결선은 이 병렬 분기 본문 안의 것만 넘긴다.
@@ -8183,23 +8133,23 @@ export class ExecutionEngineService
       // `planParallelBody` 가 바깥 본문에서 이미 막았다. `runParallel` 이 `done`
       // 포트와 안쪽 출구 노드의 다음 노드까지 `reachable` 에 넣으므로 아래 전파는
       // 건너뛴다.
-      if (branchDispatchKind === 'parallel') {
-        await this.runParallel({
-          parallelNode: node,
-          allNodes,
-          allEdges,
+      const ranParallel = await this.dispatchByNodeKind({
+        node,
+        allNodes,
+        allEdges,
+        context,
+        executionId,
+        executedNodes,
+        executionMeta,
+        nodeInput,
+        parallel: {
           forwardEdges: plan.internalEdges,
           backEdges: [],
           outgoingEdgeMap: plan.outgoingEdgeMap,
-          context,
-          executionId,
-          executedNodes,
-          executionMeta,
           reachable,
-          input: nodeInput,
-        });
-        continue;
-      }
+        },
+      });
+      if (ranParallel) continue;
 
       const nodeOutput = context.nodeOutputCache[node.id] as
         Record<string, unknown> | undefined;
