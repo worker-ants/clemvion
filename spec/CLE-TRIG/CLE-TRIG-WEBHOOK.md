@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
 content_hash: "b5ac43ccc27570dca00a0cd3a3d6b6b2c27271d45c704fef9e70fe227093ddf6"
 read_as: "approved_fallback"
-task: "CLE-T-XKK9KH"
+task: "CLE-T-QKJ2TZ"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "bfa2cc5d06ed4ad795fa943bf36d22e61927ced10a75652a9e9111ef7d4178ed"
-etag: "sha256-38eba5c5674ddc3530c58494327229a5df8b40976f0b718ab3d6f84b10001dfd"
+mirror_sha256: "c76daec3983ac22e1c083383d876393a467d1e0385d19e7b3e29dc8db65ee9c0"
+etag: "sha256-3c001292df42cbf0fbe309544e0f417c48c3f364affa971c12b7f85d939d1bc3"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
