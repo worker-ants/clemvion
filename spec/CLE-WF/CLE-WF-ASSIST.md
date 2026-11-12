@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061", "REQ-ASSIST-062"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "2c1c1f30daef741c52901fce1336b265ea4a8311e2d411c432d319ae4b5582f1"
+content_hash: "faf1c13468c30a8f7b3d968bf1edd81a0a58f4e7694d16c78f9f7f61d9a2668c"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-GXCJAB"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "4411cd97aa647b9af9a794836f83c1f73a265348b3d38ad83075e852991a4abb"
-etag: "sha256-eb5ecc1ec6ab6f7a5804f1e30e01701e7ef703f2c1efd9aae1c4a5cd277a18e1"
+mirror_sha256: "c8150e1d9589b924bac26acf3a283bca786a7673ce708a8329842c067259688d"
+etag: "sha256-347fbc041569ac3e1b856273b13b45c05929b8b46f0de47374d76f2d9655809c"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현 · 부분 구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -253,11 +253,11 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 이렇게 보�
 | `ASSISTANT_SESSION_NOT_FOUND` | 세션이 삭제됐다 | "세션이 만료되었어요. 새 대화를 시작할게요." 와 새 세션 자동 생성 (미구현, NERV Task `CLE-T-ZWQ4K2`) |
 | `ASSISTANT_SESSION_NOT_YOURS` | 같은 워크스페이스의 다른 사용자 세션이다. 다른 워크스페이스의 세션은 `ASSISTANT_SESSION_NOT_FOUND` 로 온다([AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md#세션-rest-api)) | 접근 거부 |
 
-에러 버블 동작과 코드별 사전 키는 이 표가 기준이다. 에러 버블에는 제목(`assistant.errorBubbleTitle`), 에러 코드, 안내 문구가 보인다(`assistant-message.tsx`). 안내 문구는 `ERROR_MESSAGE_KEYS` 가 에러 코드로 고른 `assistant.*` 사전 문구다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 1). 이 표에서 사전 키를 적은 여섯 코드가 `ERROR_MESSAGE_KEYS` 에 있다. 사전 문구가 없는 코드는 서버가 보낸 `message` 로 폴백한다.
+에러 버블 동작과 코드별 사전 키는 이 표가 기준이다. 에러 버블에는 제목(`assistant.errorBubbleTitle`), 에러 코드, 안내 문구가 보인다(`assistant-message.tsx`). 안내 문구는 `ERROR_MESSAGE_KEYS` 가 에러 코드로 고른 `assistant.*` 사전 문구다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 1). 이 표에서 사전 키를 적은 여섯 코드가 `ERROR_MESSAGE_KEYS` 에 있다. 사전 문구가 없는 코드는 서버가 보낸 영문 `message` 로 폴백한다. 그 `message` 는 아래 문단대로 코드별 고정 영문이거나 공통 폴백 문구다.
 
-서버는 SSE `error` 이벤트의 `message` 에 코드별 고정 영문만 싣는다. 어시스턴트 모듈(스트림 서비스와 컨트롤러)이 SSE `error` 이벤트로 보내는 모든 `message` 는 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 세션 REST API 오류 응답의 `message` 는 HTTP 에러 응답이라 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다. `ASSISTANT_NO_LLM_CONFIG` 의 두 갈래(설정이 없을 때, 설정을 읽지 못했을 때)와 `ASSISTANT_TOO_MANY_TOOL_CALLS` 의 두 갈래(라운드 상한, 도구 호출 한도)도 이 파일의 문구를 쓴다. 스트림 서비스 밖에서 컨트롤러가 잡은 예외는 `ASSISTANT_STREAM_FAILED` 의 고정 문구로 보낸다. 이 파일의 표에 없는 LLM 클라이언트 코드는 공통 폴백 문구(`The LLM stream failed. Please try again.`)를 쓴다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트가 쓴 안내문(`LLM_OUTPUT_MALFORMED` 의 안내문 등)은 서버 로그에만 남는다(REQ-ASSIST-048). [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 와 같은 동기다(CWE-209). 서버 문구를 영문으로 두는 근거는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 이다.
+서버는 SSE `error` 이벤트의 `message` 에 코드별 고정 영문만 싣는다. 어시스턴트 모듈(스트림 서비스와 컨트롤러)이 SSE `error` 이벤트로 보내는 모든 `message` 는 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 세션 REST API 오류 응답의 `message` 는 HTTP 에러 응답이라 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다. 문구는 이 파일의 표에서 고르고 한도 숫자가 문구에 들어가는 `ASSISTANT_TOO_MANY_TOOL_CALLS` 만 이 파일의 함수가 만든다. `ASSISTANT_NO_LLM_CONFIG` 의 두 갈래(설정이 없을 때, 설정을 읽지 못했을 때)와 `ASSISTANT_TOO_MANY_TOOL_CALLS` 의 두 갈래(라운드 상한, 도구 호출 한도)도 이 파일의 문구를 쓴다. 스트림 서비스 밖에서 컨트롤러가 잡은 예외는 `ASSISTANT_STREAM_FAILED` 의 고정 문구로 보낸다. 이 파일의 표에 없는 LLM 클라이언트 코드는 공통 폴백 문구(`The LLM stream failed. Please try again.`)를 쓴다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트가 쓴 안내문(`LLM_OUTPUT_MALFORMED` 의 안내문 등)은 서버 로그에만 남는다(REQ-ASSIST-048). [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 와 같은 동기다(CWE-209). 서버 문구를 영문으로 두는 근거는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 이다.
 
-백엔드 문구(`workflow-assistant-stream-errors.ts`)와 프론트엔드 `ERROR_MESSAGE_KEYS` 는 같은 여섯 코드를 다룬다. 새 코드를 더하면 양쪽을 함께 고친다. 양쪽 테스트(`workflow-assistant-stream-errors.spec.ts`, `assistant-message-error.test.tsx`)가 같은 코드 목록을 적어 두어 한쪽만 바뀌면 실패한다.
+백엔드 문구 표 · 함수(`workflow-assistant-stream-errors.ts`)와 프론트엔드 `ERROR_MESSAGE_KEYS` 는 같은 여섯 코드를 다룬다. 새 코드를 더하면 양쪽을 함께 고친다. 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 프론트엔드 소스의 `ERROR_MESSAGE_KEYS` 리터럴을 읽어 백엔드 코드 집합과 맞추므로 한쪽만 바뀌면 실패한다. `backend-checks` 의 경로 목록에 그 프론트엔드 파일이 있어 프론트엔드만 바꾼 변경에서도 이 테스트가 돈다. 코드마다 사전 문구가 나오는지는 프론트엔드 테스트(`assistant-message-error.test.tsx`)가 본다. 대조의 남은 한계와 공유 상수 패키지를 두지 않은 이유는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유-2026-10-24) 의 Rationale 에 있다.
 
 알려진 예외가 하나 있다. 같은 실패가 모델 프로바이더마다 다른 코드로 온다. `ASSISTANT_STREAM_FAILED` 한 코드에 여러 원인이 합쳐진 것도 이 공백이다(NERV Task `CLE-T-0R5SYN`). 카탈로그에 행이 없는 스트림 코드는 [미결 사항](#미결-사항)에 있다.
 
