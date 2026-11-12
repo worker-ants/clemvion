@@ -324,6 +324,152 @@ describe('IPv4 를 품은 IPv6 리터럴', () => {
   });
 });
 
+/**
+ * IANA 특수 용도 대역 가운데 공인 인터넷에서 웹훅 · MCP 서버를 받을 수 없는 대역을 사설 대역과 같이 막는다(NERV Task
+ * `CLE-T-W95HND`). 대역마다 양 끝 주소가 막히고, 바로 옆 공인 주소는 통과하는지 함께 고정한다.
+ */
+describe('특수 용도 대역 (CLE-T-W95HND)', () => {
+  const blockedIpv4: Array<[string, string]> = [
+    ['192.0.0.0', '192.0.0.0/24 IETF 프로토콜 할당 — 시작'],
+    ['192.0.0.170', '192.0.0.0/24 — NAT64 접두 탐색 주소'],
+    ['192.0.0.255', '192.0.0.0/24 — 끝'],
+    ['198.18.0.0', '198.18.0.0/15 벤치마크 — 시작'],
+    ['198.19.255.255', '198.18.0.0/15 — 끝'],
+    ['224.0.0.0', '224.0.0.0/4 멀티캐스트 — 시작'],
+    ['224.0.0.251', '224.0.0.0/4 — mDNS'],
+    ['239.255.255.255', '224.0.0.0/4 — 끝'],
+    ['240.0.0.0', '240.0.0.0/4 예약 — 시작'],
+    ['255.255.255.255', '240.0.0.0/4 — 제한 브로드캐스트'],
+  ];
+  const publicIpv4: Array<[string, string]> = [
+    ['191.255.255.255', '192.0.0.0/24 바로 앞'],
+    ['192.0.1.0', '192.0.0.0/24 바로 뒤'],
+    ['198.17.255.255', '198.18.0.0/15 바로 앞'],
+    ['198.20.0.0', '198.18.0.0/15 바로 뒤'],
+    ['223.255.255.255', '224.0.0.0/4 바로 앞'],
+  ];
+
+  it.each(blockedIpv4)('isPrivateIpv4 차단 — %s (%s)', (host) => {
+    expect(isPrivateIpv4(host)).toBe(true);
+  });
+
+  it.each(publicIpv4)('isPrivateIpv4 통과 — %s (%s)', (host) => {
+    expect(isPrivateIpv4(host)).toBe(false);
+  });
+
+  it.each(blockedIpv4)('checkSsrfSafeUrl 차단 — %s (%s)', (host) => {
+    const r = checkSsrfSafeUrl(`https://${host}/x`);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/private IPv4/);
+  });
+
+  it.each(publicIpv4)('checkSsrfSafeUrl 통과 — %s (%s)', (host) => {
+    expect(checkSsrfSafeUrl(`https://${host}/x`).ok).toBe(true);
+  });
+
+  // 10진 정수 · 16진 표기도 URL 파서가 점 표기로 바꾼 뒤 판정한다.
+  it.each([
+    ['https://3758096385/x', '224.0.0.1'],
+    ['https://0xc6120001/x', '198.18.0.1'],
+  ])('checkSsrfSafeUrl 차단 — 점 표기가 아닌 IPv4 %s (→ %s)', (url) => {
+    expect(checkSsrfSafeUrl(url).ok).toBe(false);
+  });
+
+  // 새 IPv4 대역은 IPv6 에 담긴 IPv4 판정에도 그대로 쓰인다.
+  it.each([
+    ['::ffff:e000:1', 'mapped → 224.0.0.1'],
+    ['::ffff:c612:1', 'mapped → 198.18.0.1'],
+    ['64:ff9b::c000:aa', 'NAT64 → 192.0.0.170'],
+    ['::ffff:ffff:ffff', 'mapped → 255.255.255.255'],
+  ])('isPrivateIpv6 차단 — 담긴 IPv4 가 특수 대역 %s (%s)', (host) => {
+    expect(isPrivateIpv6(host)).toBe(true);
+  });
+
+  const blockedIpv6: Array<[string, string]> = [
+    ['fec0::1', 'fec0::/10 옛 site-local — 시작'],
+    ['fef0::1', 'fec0::/10 — 가운데'],
+    ['feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'fec0::/10 — 끝'],
+    ['ff00::', 'ff00::/8 멀티캐스트 — 시작'],
+    ['ff02::1', 'ff00::/8 — 링크 범위 전체 노드'],
+    ['ff05::1:3', 'ff00::/8 — 사이트 범위 DHCP 서버'],
+    ['ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'ff00::/8 — 끝'],
+  ];
+  const publicIpv6: Array<[string, string]> = [
+    ['fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'fe80::/10 바로 앞'],
+    // 첫 그룹을 문자열 접두가 아니라 16비트 값으로 본다. `fec::1` 은 0x0fec, `ff::1` 은 0x00ff 다.
+    ['fec::1', '첫 그룹 0x0fec'],
+    ['ff::1', '첫 그룹 0x00ff'],
+    ['2001:db8::1', '문서용 IPv6(공인 취급)'],
+  ];
+
+  it.each(blockedIpv6)('isPrivateIpv6 차단 — %s (%s)', (host) => {
+    expect(isPrivateIpv6(host)).toBe(true);
+  });
+
+  it.each(publicIpv6)('isPrivateIpv6 통과 — %s (%s)', (host) => {
+    expect(isPrivateIpv6(host)).toBe(false);
+  });
+
+  it.each(blockedIpv6)('checkSsrfSafeUrl 차단 — [%s] (%s)', (host) => {
+    const r = checkSsrfSafeUrl(`https://[${host}]/x`);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/private IPv6/);
+  });
+
+  it.each(publicIpv6)('checkSsrfSafeUrl 통과 — [%s] (%s)', (host) => {
+    expect(checkSsrfSafeUrl(`https://[${host}]/x`).ok).toBe(true);
+  });
+
+  it('대문자 · zone id 가 붙은 표기도 같은 대역으로 본다', () => {
+    expect(isPrivateIpv6('FEC0::1')).toBe(true);
+    expect(isPrivateIpv6('[FF02::1]')).toBe(true);
+    expect(isPrivateIpv6('ff02::1%eth0')).toBe(true);
+  });
+
+  describe('발송 직전 검사(checkResolvedHostIp)', () => {
+    beforeEach(() => {
+      mockedLookup.mockReset();
+    });
+
+    it.each([
+      ['192.0.0.170', 4],
+      ['198.18.0.1', 4],
+      ['224.0.0.251', 4],
+      ['255.255.255.255', 4],
+      ['fec0::1', 6],
+      ['ff02::1', 6],
+    ])('도메인이 특수 대역 %s 로 풀리면 ok:false', async (address, family) => {
+      mockedLookup.mockResolvedValue([{ address, family }]);
+      const r = await checkResolvedHostIp('hooks.example.com');
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain(address);
+    });
+
+    it.each([
+      ['192.0.1.0', 4],
+      ['198.20.0.0', 4],
+      ['223.255.255.255', 4],
+      ['fe7f::1', 6],
+    ])(
+      '도메인이 바로 옆 공인 주소 %s 로 풀리면 ok:true',
+      async (address, family) => {
+        mockedLookup.mockResolvedValue([{ address, family }]);
+        const r = await checkResolvedHostIp('hooks.example.com');
+        expect(r).toEqual({ ok: true });
+      },
+    );
+
+    it.each(['198.19.0.1', '[ff02::1]', '[fec0::1]'])(
+      '리터럴 %s → ok:false (DNS 를 묻지 않는다)',
+      async (host) => {
+        const r = await checkResolvedHostIp(host);
+        expect(r.ok).toBe(false);
+        expect(mockedLookup).not.toHaveBeenCalled();
+      },
+    );
+  });
+});
+
 describe('checkResolvedHostIp — DNS rebinding 방어 [Spec EIA §8.1]', () => {
   beforeEach(() => {
     mockedLookup.mockReset();

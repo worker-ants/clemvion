@@ -7,9 +7,11 @@ import { lookup } from 'node:dns/promises';
  * 검증 정책 ([Spec EIA §3.1 EIA-NX-09 / §8.1 / §R12]):
  * 1. URL 파싱 가능해야 함.
  * 2. protocol 은 `https:` (개발 환경 환경변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http:` 허용).
- * 3. hostname 이 literal IP 형태인 경우 사설 IP / metadata service IP / loopback 차단:
- *    - IPv4: 10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, 100.64/10 (CGNAT), 0/8
- *    - IPv6: ::1, fe80::/10 (link-local), fc00::/7 (ULA), unspecified ::
+ * 3. hostname 이 literal IP 형태인 경우 사설 IP / metadata service IP / loopback · 특수 용도 대역 차단:
+ *    - IPv4: 10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, 100.64/10 (CGNAT), 0/8,
+ *      192.0.0/24 (IETF 프로토콜 할당), 198.18/15 (벤치마크), 224/4 (멀티캐스트), 240/4 (예약 · 브로드캐스트)
+ *    - IPv6: ::1, fe80::/10 (link-local), fc00::/7 (ULA), unspecified ::, fec0::/10 (옛 site-local),
+ *      ff00::/8 (멀티캐스트)
  *    - IPv4 를 품은 IPv6: IPv4-mapped `::ffff:0:0/96` · IPv4-compatible `::/96` · SIIT `::ffff:0:0:0/96` ·
  *      NAT64 `64:ff9b::/96` 는 품은 IPv4 를 위 IPv4 대역으로 판정한다
  *    - cloud metadata: 169.254.169.254 (AWS/Azure/GCP)
@@ -34,6 +36,10 @@ const PRIVATE_IPV4_PATTERNS: RegExp[] = [
   /^169\.254\./, // link-local (includes 169.254.169.254 metadata)
   /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./, // 100.64.0.0/10 CGNAT
   /^0\./, // 0.0.0.0/8
+  /^192\.0\.0\./, // 192.0.0.0/24 IETF protocol assignments
+  /^198\.1[89]\./, // 198.18.0.0/15 benchmarking
+  /^(22[4-9]|23[0-9])\./, // 224.0.0.0/4 multicast
+  /^(24[0-9]|25[0-5])\./, // 240.0.0.0/4 reserved (incl. 255.255.255.255)
 ];
 
 const IPV4_REGEX = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
@@ -121,6 +127,23 @@ export function embeddedIpv4FromIpv6(normalized: string): string | null {
   return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
 }
 
+/**
+ * 첫 그룹의 16비트 값으로 판정하는 특수 용도 IPv6 대역(CLE-T-W95HND).
+ * - `fec0::/10` 옛 site-local (RFC 3879 가 폐기했지만 사설망에서 쓰일 수 있다)
+ * - `ff00::/8` 멀티캐스트
+ *
+ * 문자열 접두가 아니라 그룹 값으로 본다. 정규화된 표기는 앞자리 0 을 지우므로 `fec::1`(0x0fec) · `ff::1`(0x00ff) 처럼
+ * 접두만 같은 다른 주소가 있다. 인자는 {@link normalizeIpv6Literal} 이 돌려준 값이다.
+ */
+function isSpecialIpv6Prefix(normalized: string): boolean {
+  const groups = ipv6Groups(normalized);
+  if (!groups) return false;
+  const first = groups[0];
+  if ((first & 0xffc0) === 0xfec0) return true; // fec0::/10
+  if ((first & 0xff00) === 0xff00) return true; // ff00::/8
+  return false;
+}
+
 export function isPrivateIpv6(host: string): boolean {
   const lower = normalizeIpv6Literal(host);
   // null 은 IPv6 리터럴이 아니라는 뜻이라 사설로 보지 않는다(fail-open). 호출자 셋이 넘기는 값은 `':'` 가 든 `URL.hostname` 이나
@@ -141,6 +164,7 @@ export function isPrivateIpv6(host: string): boolean {
     // fc00::/7 (ULA)
     return true;
   }
+  if (isSpecialIpv6Prefix(lower)) return true;
   const embedded = embeddedIpv4FromIpv6(lower);
   return embedded !== null && isPrivateIpv4(embedded);
 }
