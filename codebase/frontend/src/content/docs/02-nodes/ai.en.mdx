@@ -319,4 +319,5 @@ In Multi Turn mode, leaving `inputField` empty skips the initial LLM call and wa
   - Text Classifier single result: `$node["TC"].output.result.category` · multi-label: `$node["TC"].output.result.categories`
   - Information Extractor result: `$node["IE"].output.result.extracted.<fieldName>`
   - Model/token metrics: `$node["X"].meta.{model, inputTokens, outputTokens, totalTokens}`
+  - For a single-turn AI Agent, the token values add up every LLM call in the turn, including the extra calls made while running tools.
   - Error branching: `$node["X"].output.error?.code` / `$node["X"].port === 'error'`

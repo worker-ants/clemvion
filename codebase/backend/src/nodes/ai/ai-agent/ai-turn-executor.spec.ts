@@ -201,6 +201,16 @@ describe('AiTurnExecutor', () => {
         ...baseContext,
         abortSignal: new AbortController().signal,
       };
+      // thread 를 주입한 실행기는 `ai_user` 턴을 컨텍스트에 push 하므로 그런 테스트는 공유
+      // 컨텍스트 대신 이 헬퍼로 자기 컨텍스트를 만든다. 신호는 열려 있다(노드 취소 아님).
+      const openContext = (executionId: string): ExecutionContext =>
+        makeExecutionContext({
+          executionId,
+          workflowId: 'wf-1',
+          nodeId: 'agent-1',
+          variables: { __workspaceId: 'ws-1' },
+          abortSignal: new AbortController().signal,
+        });
       // 단일 턴 결과의 공통 shape. `error` 포트는 `output.error` 를, `out` 포트는
       // `output.result` 를 싣는다.
       type SingleTurnOutput = {
@@ -363,8 +373,10 @@ describe('AiTurnExecutor', () => {
       });
 
       // `buildSingleTurnMeta` 가 정상 완료와 error 포트에 공통인 조건부 `meta` 키를 싣는지
-      // 값으로 고정한다. 도구 호출 둘이 성공한 뒤 세 번째 chat 이 실패하는 시나리오다.
-      describe('partial meta carried on the error port', () => {
+      // 값으로 고정한다. 도구 호출 둘이 성공한 뒤 세 번째 chat 이 실패하거나(error 포트)
+      // 끝나는(정상 완료) 시나리오다. 토큰은 세 종결(정상 완료 · 조건 분기 · LLM 실패) 모두
+      // 성공한 호출 usage 의 합이다(CLE-NODE-AI-COMMON 토큰 회계).
+      describe('single-turn meta shared by the out, condition and error ports', () => {
         const usageTurn = (
           id: string,
           usage: {
@@ -562,13 +574,7 @@ describe('AiTurnExecutor', () => {
 
         it('echoes meta.contextInjection when thread injection was applied', async () => {
           const thread = new ConversationThreadService();
-          const context = makeExecutionContext({
-            executionId: 'exec-inj',
-            workflowId: 'wf-1',
-            nodeId: 'agent-1',
-            variables: { __workspaceId: 'ws-1' },
-            abortSignal: new AbortController().signal,
-          });
+          const context = openContext('exec-inj');
           thread.appendAiAssistantMessage(context, {
             node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
             content: 'Earlier assistant turn',
@@ -599,15 +605,7 @@ describe('AiTurnExecutor', () => {
         });
 
         it('echoes meta.memory for an auto memory strategy and no contextInjection', async () => {
-          // thread 를 주입한 실행기는 `ai_user` 턴을 컨텍스트에 push 하므로 공유 컨텍스트 대신
-          // 이 테스트 전용 컨텍스트를 만든다.
-          const context = makeExecutionContext({
-            executionId: 'exec-mem',
-            workflowId: 'wf-1',
-            nodeId: 'agent-1',
-            variables: { __workspaceId: 'ws-1' },
-            abortSignal: new AbortController().signal,
-          });
+          const context = openContext('exec-mem');
           mockLlmService.chat.mockRejectedValueOnce(
             httpError(503, 'unavailable'),
           );
@@ -633,18 +631,11 @@ describe('AiTurnExecutor', () => {
         });
 
         // 두 경로가 `buildSingleTurnMeta` 를 함께 쓰는지(복제로 다시 갈라지지 않는지)를 키
-        // 집합으로 고정한다. 정상 완료의 토큰은 마지막 호출 하나, 실패는 성공 호출의 합이라
-        // 값은 두 경로를 서로 비교하지 않고 각각 단언한다(실패 쪽은 위 합산 테스트).
+        // 집합으로 고정한다. 토큰 값은 아래 합산 테스트들이 경로마다 단언한다.
         it('gives the normal completion and the error port the same meta key set', async () => {
           const buildSeeded = () => {
             const thread = new ConversationThreadService();
-            const context = makeExecutionContext({
-              executionId: 'exec-parity',
-              workflowId: 'wf-1',
-              nodeId: 'agent-1',
-              variables: { __workspaceId: 'ws-1' },
-              abortSignal: new AbortController().signal,
-            });
+            const context = openContext('exec-parity');
             thread.appendAiAssistantMessage(context, {
               node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
               content: 'Earlier assistant turn',
@@ -674,16 +665,6 @@ describe('AiTurnExecutor', () => {
             ok.context,
           );
           expect(success.port).toBe('out');
-          // 정상 완료는 마지막 호출(finalTurn) 하나의 usage 만 싣는다. 도구 호출 둘의 usage
-          // (30 · 15 · 45)는 합산하지 않는다. 합산으로 바꾸는 후속 Task 는 CLE-T-9VRXGD 다.
-          expect(success.meta).toMatchObject({
-            inputTokens: 1,
-            outputTokens: 1,
-            totalTokens: 2,
-            thinkingTokens: 0,
-            model: 'gpt-4o',
-            toolCalls: 2,
-          });
 
           mockLlmService.chat
             .mockResolvedValueOnce(turnA)
@@ -716,6 +697,102 @@ describe('AiTurnExecutor', () => {
             ]),
           );
         });
+
+        it('sums every successful call on the normal completion, the final call included', async () => {
+          mockLlmService.chat
+            .mockResolvedValueOnce(turnA)
+            .mockResolvedValueOnce(turnB)
+            .mockResolvedValueOnce(finalTurn);
+          const result = await executeSingleTurnAs(
+            buildExecutor({ toolProviders: [diagnosticToolProvider()] }),
+            diagnosticConfig,
+            openSignalContext,
+          );
+
+          expect(result.port).toBe('out');
+          // 도구 호출 둘(30 · 15 · 45 · 7)에 마지막 호출(1 · 1 · 2 · 0)을 더한 값이다.
+          // 마지막 호출 하나만 실으면 1 · 1 · 2 · 0 이 된다.
+          expect(result.meta).toMatchObject({
+            inputTokens: 31,
+            outputTokens: 16,
+            totalTokens: 47,
+            thinkingTokens: 7,
+            toolCalls: 2,
+          });
+          expect(result.meta.turnDebug[0].llmCalls).toHaveLength(3);
+        });
+
+        it('sums every successful call on the condition branch reached after a tool call', async () => {
+          // 둘째 호출이 조건 도구만 부르면 도구 반복을 멈추고 조건 분기로 끝난다.
+          const conditionTurn = {
+            content: '',
+            toolCalls: [{ id: 'tc-c', name: 'cond_c1', arguments: {} }],
+            usage: {
+              inputTokens: 20,
+              outputTokens: 10,
+              totalTokens: 30,
+              thinkingTokens: 4,
+            },
+            model: 'gpt-4o',
+            finishReason: 'tool_calls',
+          };
+          mockLlmService.chat
+            .mockResolvedValueOnce(turnA)
+            .mockResolvedValueOnce(conditionTurn);
+          const result = await executeSingleTurnAs(
+            buildExecutor({ toolProviders: [diagnosticToolProvider()] }),
+            {
+              ...diagnosticConfig,
+              conditions: [{ id: 'c1', label: '환불', prompt: '환불 요청' }],
+            },
+            openSignalContext,
+          );
+
+          expect(result.port).toBe('c1');
+          // 첫 호출(10 · 5 · 15 · 3)과 조건 호출(20 · 10 · 30 · 4)의 합이다.
+          expect(result.meta).toMatchObject({
+            inputTokens: 30,
+            outputTokens: 15,
+            totalTokens: 45,
+            thinkingTokens: 7,
+            toolCalls: 1,
+          });
+          expect(result.meta.turnDebug[0].llmCalls).toHaveLength(2);
+        });
+
+        // error 포트는 요청한 모델(`config.model`, 없으면 LLM 설정의 기본 모델)을 싣고 정상
+        // 완료는 응답이 알려 준 모델을 싣는다. 두 값이 갈리도록 `config.model` 을 바꾼다.
+        it('reports the requested model on the error port and the response model on the normal completion', async () => {
+          const config = {
+            mode: 'single_turn',
+            systemPrompt: 'S',
+            userPrompt: 'Hi',
+            model: 'gpt-4o-mini',
+          };
+
+          mockLlmService.chat.mockRejectedValueOnce(
+            httpError(503, 'unavailable'),
+          );
+          const failure = await executeSingleTurnAs(
+            buildExecutor(),
+            config,
+            openSignalContext,
+          );
+          expect(failure.port).toBe('error');
+          expect(failure.meta.model).toBe('gpt-4o-mini');
+
+          mockLlmService.chat.mockResolvedValueOnce({
+            ...finalTurn,
+            model: 'gpt-4o-mini-2024-07-18',
+          });
+          const success = await executeSingleTurnAs(
+            buildExecutor(),
+            config,
+            openSignalContext,
+          );
+          expect(success.port).toBe('out');
+          expect(success.meta.model).toBe('gpt-4o-mini-2024-07-18');
+        });
       });
 
       it('adds no ai_assistant thread turn and schedules no memory extraction', async () => {
@@ -737,13 +814,7 @@ describe('AiTurnExecutor', () => {
           mockEventEmitter as never,
           thread,
         );
-        const context = makeExecutionContext({
-          executionId: 'exec-err',
-          workflowId: 'wf-1',
-          nodeId: 'agent-1',
-          variables: { __workspaceId: 'ws-1' },
-          abortSignal: new AbortController().signal,
-        });
+        const context = openContext('exec-err');
         mockLlmService.chat.mockRejectedValueOnce(
           httpError(503, 'unavailable'),
         );
