@@ -1475,3 +1475,104 @@ describe('GoogleClient.chat', () => {
     });
   });
 });
+
+// `@google/genai` 3.0 에서 Gemini Developer API 기본 버전이 `v1beta` 에서 `v1`
+// 으로 바뀌었다. 위 테스트들은 `client.ai` 를 stub 으로 바꿔서 엔드포인트를
+// 보지 못한다. 여기서는 실제 SDK 를 쓰고 `fetch` 만 가로채 요청 URL 의 버전을
+// 확인한다. SDK 2.x 는 기본값이 v1beta 라서 `apiVersion` 을 빼도 URL 테스트가
+// 통과한다. 그래서 생성자 인자도 따로 확인한다.
+describe('GoogleClient Gemini API version', () => {
+  const genai =
+    jest.requireActual<typeof import('@google/genai')>('@google/genai');
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  function jsonResponse(body: unknown): Response {
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  function sseResponse(chunk: unknown): Response {
+    return new Response(`data: ${JSON.stringify(chunk)}\n\n`, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+  }
+
+  it('passes apiVersion v1beta to the GoogleGenAI constructor', () => {
+    const RealGoogleGenAI = genai.GoogleGenAI;
+    const ctor = jest
+      .spyOn(genai, 'GoogleGenAI')
+      .mockImplementation((opts) => new RealGoogleGenAI(opts));
+
+    new GoogleClient('test-key', 'gemini-2.5-flash');
+
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(ctor).toHaveBeenCalledWith({
+      apiKey: 'test-key',
+      apiVersion: 'v1beta',
+    });
+  });
+
+  const okCandidate = {
+    candidates: [
+      {
+        content: { role: 'model', parts: [{ text: 'ok' }] },
+        finishReason: 'STOP',
+      },
+    ],
+  };
+
+  it.each<{
+    name: string;
+    response: () => Response;
+    call: (client: GoogleClient) => Promise<unknown>;
+  }>([
+    {
+      name: 'chat',
+      response: () => jsonResponse(okCandidate),
+      call: (client) =>
+        client.chat({
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'hi' }],
+        }),
+    },
+    {
+      name: 'stream',
+      response: () => sseResponse(okCandidate),
+      call: (client) =>
+        collect(
+          client.stream({
+            model: 'gemini-2.5-flash',
+            messages: [{ role: 'user', content: 'hi' }],
+          }),
+        ),
+    },
+    {
+      name: 'embed',
+      response: () => jsonResponse({ embeddings: [{ values: [0.1, 0.2] }] }),
+      call: (client) => client.embed(['hello'], 'text-embedding-004', 'query'),
+    },
+    {
+      name: 'listModels',
+      response: () => jsonResponse({ models: [] }),
+      call: (client) => client.listModels(),
+    },
+  ])('$name requests the v1beta endpoint', async ({ response, call }) => {
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(response()));
+    const client = new GoogleClient('test-key', 'gemini-2.5-flash');
+
+    await call(client);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [input] = fetchSpy.mock.calls[0];
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    expect(url.pathname).toMatch(/^\/v1beta\/models/);
+  });
+});
