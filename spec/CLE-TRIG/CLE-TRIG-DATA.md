@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "4cb9457917d69570df6e3baf4ce82bafb2e7d220af4211b022a1c16041bfe927"
+content_hash: "934a475ab9c799438c796a277e51218276300626a09a94cb1cbc9769f7334682"
 read_as: "approved_fallback"
-task: "CLE-T-0QAJ5M"
+task: "CLE-T-VRBS51"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "395479c0a09f662b6b4eadf97f1b5b1a35c8285a5018bf0ad92a27eb1aebe43e"
-etag: "sha256-004313e435e45e0ba42c613b1934ff04ee6a533260b18cd098deb434bbdf50ad"
+mirror_sha256: "57874809335ee3fcaf11d2540185cd31255f7fbcc02f197f6730256644519969"
+etag: "sha256-c4c36ea619f7eb9627b176b10cf26ab25232b5134656300ba26b2c0942b77b15"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -75,7 +75,7 @@ erDiagram
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
 | notification_health | VARCHAR(16) | `unknown` / `healthy` / `degraded` 세 값만 받는다(CHECK 제약, V059). EIA 알림 웹훅 발송 건강도. 기본 `unknown`. `degraded` 가 되는 원인은 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) 의 「재시도와 실패 처리」 와 「폭주 감지」 가 정한다 |
 | notification_last_error | Text? | EIA 알림 웹훅 발송 건강도가 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 발송 실패면 그 실패 사유이고 폭주면 폭주 전용 문구다. 응답에서는 자격 증명 모양을 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
-| notification_secret_v2 | Text? | EIA 알림 웹훅 HMAC 시크릿 교체의 24시간 유예 동안 쓰는 새 시크릿. NOT NULL 이면 발송 쪽이 주 시크릿(`config.notification.signing.secretRef` 가 가리키는 값)과 이 값으로 각각 서명해 `v1=` 를 두 개 싣는다. 저장 형태는 시크릿 참조(`secret://`)가 아니라 컬럼에 담긴 평문이고 승격하면 컬럼을 `null` 로 비운다. 이 예외의 조건과 근거는 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 저장소 예외 필드 등재가 정한다. 교체 흐름은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
+| notification_secret_v2 | Text? | EIA 알림 웹훅 HMAC 시크릿 교체의 24시간 유예 동안 쓰는 새 시크릿. NOT NULL 이면 발송 쪽이 주 시크릿(트리거 id 로 다시 만든 참조 `secret://triggers/<id>/notification-signing` 이 가리키는 값. 저장된 `config.notification.signing.secretRef` 는 있는지만 본다)과 이 값으로 각각 서명해 `v1=` 를 두 개 싣는다. 저장 형태는 시크릿 참조(`secret://`)가 아니라 컬럼에 담긴 평문이고 승격하면 컬럼을 `null` 로 비운다. 이 예외의 조건과 근거는 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 저장소 예외 필드 등재가 정한다. 교체 흐름은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 | notification_rotated_at | Timestamp? | 시크릿 교체 시작 시각(유예 종료 판정용) |
 | chat_channel_health | VARCHAR(16) | `unknown` / `healthy` / `degraded` 세 값만 받는다(CHECK 제약, V062). 채팅 채널의 동작 상태. `degraded` 가 되는 원인은 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 기본 `unknown`. 값 집합과 저장 형태는 `notification_health` 와 같다 |
 | chat_channel_last_error | Text? | 채팅 채널이 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 어댑터 실패(렌더 · 발송 · 채널 설정)면 그 에러 메시지이고 그 밖의 원인은 서버가 정한 문구다. 화면은 번역하지 않고 그대로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). 새로 저장되는 값에서는 프로바이더 API 클라이언트가 자기 실패 문장의 봇 토큰을 지우고 응답에서는 자격 증명 모양을 가린다(한계까지 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
@@ -209,7 +209,7 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유는 예약 대상�
 
 비밀 값 접두사는 `wfk_`(API 키), `wft_`(Bearer 토큰), `whs_`(HMAC 시크릿)다. 로그와 디버깅에서 접두사로 자격 증명 종류를 알아보되 평문 자체는 가린다. 인증 설정 밖의 비밀·토큰 접두사(`wsk_` EIA 알림 웹훅 HMAC 시크릿, `iext_` 실행 단위 인터랙션 JWT, `itk_` 트리거 단위 토큰)는 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정한다.
 
-`config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. `secret://` URI 체계는 트리거 ref 슬롯 전용이라 인증 설정은 쓰지 않는다. transformer 가 읽는 키는 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY` 다. 키가 없을 때의 동작과 암호화가 보장되는 범위는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
+`config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. 인증 설정은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 저장소 예외 필드라 시크릿 참조(`secret://`)를 쓰지 않는다. transformer 가 읽는 키는 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY` 다. 키가 없을 때의 동작과 암호화가 보장되는 범위는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
 
 ## 진입 흐름
 
@@ -283,7 +283,7 @@ sequenceDiagram
 
 202 응답 본문의 모양은 [웹훅 「수신 API」](CLE-TRIG-WEBHOOK.md#수신-api) 가 정한다. 트리거의 `config.interaction.enabled` 가 참이면 `HooksService` 가 결과에 `status` 와 `interaction` 을 더한다. `HooksController` 는 `HooksService` 가 돌려준 결과에 `message` 를 더한다. 전역 `TransformInterceptor` 가 그 결과를 `{ data }` 로 감싼다. 실행 단위 토큰의 발급과 저장은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#토큰-발급) 이 정한다. 채팅 채널 분기의 Slack challenge · Discord PING 응답과 네이티브 모달 응답은 감싸지 않고 그대로 보낸다. 이 문서의 다른 곳에 적은 `{ executionId: 'ignored' }` 는 `data` 감싸기와 `message` 를 뺀 줄임 표기다.
 
-진입 앞단에서 `PublicWebhookThrottleGuard` 가 공개 웹훅에 IP 단위 요청 빈도 제한과 본문 32KB 제한을 먼저 적용한다. 카운터는 Redis fixed-window 다([저장소 매핑](#저장소-매핑)). 같은 라우트의 두 번째 공개 엔드포인트 `GET /api/hooks/:endpointPath/embed-config`(웹채팅 위젯 임베드 설정 조회, [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md))는 실행을 시작하지 않는다.
+진입 앞단에서 `PublicWebhookThrottleGuard` 가 공개 웹훅에 IP 단위 요청 빈도 제한과 본문 32KB 제한을 먼저 적용한다. 채팅 채널 트리거는 `auth_config_id` 가 없어도 이 가드의 대상이 아니다([웹훅 「요청 제한과 남용 방어」](CLE-TRIG-WEBHOOK.md#요청-제한과-남용-방어)). 지금 코드는 이 트리거에도 가드를 건다. 결함이고 NERV Task `CLE-T-QKJ2TZ` 가 고친다. 카운터는 Redis fixed-window 다([저장소 매핑](#저장소-매핑)). 같은 라우트의 두 번째 공개 엔드포인트 `GET /api/hooks/:endpointPath/embed-config`(웹채팅 위젯 임베드 설정 조회, [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md))는 실행을 시작하지 않는다.
 
 ### 스케줄 발사
 
@@ -473,7 +473,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. processor 의 재계�
 |------|------|------|
 | 실행 도메인 | 교차 참조 | 모든 트리거가 마지막에 들어가는 곳([실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md)) |
 | 인증 설정 | 웹훅 인증 | API Key / Bearer / Basic / HMAC. 운영 환경에서 새로 쓰는 자격 증명은 AES-256-GCM 으로 암호화한다([통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화)). 인증 성공 때 `last_used_at` 갱신 |
-| 시크릿 저장소 | 트리거 비밀 | `secret://triggers/<id>/` 아래 채팅 채널 비밀. 트리거 삭제 커밋 뒤 정리([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) |
+| 시크릿 저장소 | 트리거 비밀 | `secret://triggers/<id>/` 아래 채팅 채널 비밀과 알림 서명 시크릿. 트리거 삭제 커밋 뒤 정리([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) |
 
 ## 미결 사항
 
@@ -585,7 +585,7 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. processor 의 재계�
 - `none` 을 넣지 않는다: 인증 설정 유형에는 `none` 이 없다. 인증 없음은 `Trigger.auth_config_id IS NULL` 로 나타내고 `type='none'` 인 인증 설정 행은 의미가 없다. 통합의 `auth_type='none'`(통합은 있지만 자격 증명이 필요 없는 공용 MCP 서버 등)과는 다른 개념이다. 인증 설정은 "행 없음 = 인증 없음", 통합은 "행 있음 + auth_type=none" 이다. 두 도메인이 같은 단어를 다른 뜻으로 쓰지 않도록 인증 설정에는 `none` 을 두지 않는다.
 - Bearer 토큰 자동 발급만 허용하는 근거는 [외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md) 에 있다.
 - TypeScript 타입 이름을 나눈다: 인증 설정 유형(`api_key`/`bearer_token`/`basic_auth`/`hmac`)과 통합 `auth_type`(`oauth2`/`api_key`/`bearer_token`/`basic`/…)은 일부 문자열(`api_key`/`bearer_token`)이 겹치지만 별개 도메인이다. 코드에서는 `AuthConfigType` 과 `IntegrationAuthType` 유니온을 따로 정의해 섞이지 않게 한다. 특히 Basic 인증은 인증 설정이 `basic_auth`(inbound 웹훅용), 통합이 `basic`(외부 서비스 연결용)으로 일부러 다르게 쓴다. 두 도메인의 자원 성격이 다르다.
-- transformer 를 함께 쓴다: 인증 설정 `config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. `secret://` URI 체계는 트리거 ref 슬롯 전용이고 인증 설정은 자기 테이블 컬럼 transformer 라 이 체계를 쓰지 않는다. 암호화가 보장되는 범위는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다. 이 transformer 의 키를 시크릿 저장소의 마스터키와 따로 두는 이유는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
+- transformer 를 함께 쓴다: 인증 설정 `config` 는 통합 `credentials` 와 같은 AES-256-GCM transformer 를 쓴다. 인증 설정은 자기 테이블 컬럼을 transformer 로 암호화하므로 시크릿 참조(`secret://`)를 쓰지 않는다([시크릿 저장소 「저장소 예외 필드」](../CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드)). 암호화가 보장되는 범위는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다. 이 transformer 의 키를 시크릿 저장소의 마스터키와 따로 두는 이유는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 - `ip_whitelist` 를 저장 때 검증한다: 잘못된 IP·CIDR 이 DB 에 들어가면 런타임 평가에서 조용히 fail-closed 불일치로만 드러나, 설정한 사람이 의도와 다른 차단을 디버깅하기 어렵다. 그래서 저장 때 형식을 검증해 400 으로 일찍 돌려준다. 검증 기준은 런타임 `AuthConfigsService.parseIp` 와 같은 `ip-address`(`Address4`/`Address6.isValid`)를 다시 쓴다. 저장 때 검증을 통과한 값은 런타임이 늘 파싱할 수 있어 저장과 평가의 수용 범위가 어긋나지 않는다. class-validator 의 `@IsIP` 는 CIDR 를 거부하므로 단일 IP 와 CIDR 를 함께 받는 커스텀 `@IsIpOrCidr` 를 쓴다.
 
 ### 웹훅 202 응답 모양의 기준은 웹훅 문서에 있다 (2026-10-09)

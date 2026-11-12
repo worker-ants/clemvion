@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 20
+version: 21
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "5c71344f62d1f9048d2a7b9bcfc6ebacb3302f52c36853d7198b608628cbc90a"
+content_hash: "de4ab94ea9ea7f297d2c62cefb8d3cc7470ce8664eb8d73bbbd42827a20d6184"
 read_as: "approved_fallback"
-task: "CLE-T-KG01YT"
+task: "CLE-T-VRBS51"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "7b3c91c0368d567ea5e8a312712ca8e1084466fa9bf1f036f16244f365d9cecf"
-etag: "sha256-8940dbcc7fe97faf7455cc81f50d89db6a323a65ab0c4a66d34bfc14ef262fe8"
+mirror_sha256: "d7381f631416a8f70358cf550ea562ca54495b386f51c4ab921359c507ec8d34"
+etag: "sha256-a552ac4d17ced23541dbc1f6b6c9f7b48c60ac9980d7cb161668bfcb4d1056c4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -572,7 +572,7 @@ sequenceDiagram
 2. 워크스페이스 트리거의 외부 자원(스케줄 job, 채팅 채널 해제, 리스너 레지스트리)을 해제한다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)).
 3. 한 트랜잭션에서 잠금 대기 상한(5초)을 건다. 워크스페이스 행을 비관적 잠금(`pessimistic_write`)으로 잡고 트리거를 열거한다. 워크스페이스, 멤버십 순으로 잠근 채 권한을 다시 검사한다.
 4. 코드 엔티티에 관계가 선언되지 않은 `workspace_invitation` 을 명시적으로 DELETE 하고, `workspace_member` 를 DELETE 한 뒤, `workspace` 를 지운다. 트리거는 FK CASCADE 로 지워진다.
-5. 커밋 뒤, 트랜잭션 안에서 열거한 트리거마다 `secret_store` 비밀을 지운다(`ref LIKE 'secret://triggers/<id>/%'`, `deleteByPrefix`). `secret_store` 는 FK 가 없어(V063) `workspace_id` 로 지우지 않는다. 이어서 그 트리거들의 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다(best-effort). 순서와 이유는 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](../CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
+5. 커밋 뒤, 트랜잭션 안에서 열거한 트리거마다 `secret_store` 비밀을 지운다(`ref LIKE 'secret://triggers/<id>/%'`, `deleteByPrefix`). `secret_store` 는 FK 가 없어(V063) `workspace_id` 로 지우지 않는다. 그래서 참조가 다른 워크스페이스 트리거의 prefix 아래에 있는데 `workspace_id` 가 삭제한 워크스페이스인 행(교차 행)은 이 단계에서 지워지지 않는다. 그 행은 참조의 트리거가 삭제될 때 함께 지워진다. 그 전에 지우려면 사람이 일회성 운영 SQL 을 돌린다. 이 SQL 은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 13 의 대상이 아니다. 점검과 정리 순서는 [시크릿 저장소 「교차 행 점검과 정리」](../CLE-INT/CLE-INT-SECRET.md#교차-행-점검과-정리) 에 있다. 이어서 그 트리거들의 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다(best-effort). 순서와 이유는 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](../CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
 6. 트랜잭션이 실패하면(재검사 거부 포함) 외부 해제가 이미 끝났다는 사실을 서버 로그에 남긴다.
 
 잠금 순서(워크스페이스, 멤버십)는 소유자 이양과 같다. 둘이 겹칠 때 교착하지 않게 하기 위해서다.

@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA"
 title: "EIA 데이터와 흐름"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "900f6b31da9fa56d2d49671114ee48b38cf979e168f38c28de9af16a8bc054bc"
+content_hash: "b47e2392f14932e303123d762f66c3a4b2d00850406aac6d40ad1e9167307d77"
 read_as: "approved_fallback"
-task: "CLE-T-94Z6A5"
+task: "CLE-T-VRBS51"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "d60b5728c63e7f04a7fb03b821c5e16506f712b757e4397a6fcec720778cf61d"
-etag: "sha256-815350cf9cb13a4125d66d657295af0be53274b0f8deba3ab15b442defe98306"
+mirror_sha256: "cd2b80c64a5bd2fc499d5901dc998dd7edb9222abc7a46c5c7ede58de9ef118c"
+etag: "sha256-6bca8af06e2da096c2a8d3ee7750aaa94ae0daaf7c385a0214aef879b3fc464f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -98,7 +98,7 @@ External Interaction API(EIA)는 워크플로우 실행을 외부 시스템과 �
 저장 형태:
 
 - **알림 서명 시크릿**: `config.notification.signing.secretRef` 의 평문은 `SecretResolver` 가 관리하는 `secret_store` 테이블에 백엔드 AES-256-GCM 으로 암호화해 둔다. 정상 경로에서는 DB 에 암호문만 있고 설정 JSONB 에는 참조만 있다. 첫 시크릿은 서버가 발급한다. 언제 발급하고 언제 옛 평문을 옮기는지는 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. PATCH 의 잠금은 위 「PATCH 와 서버가 만든 값」 에 있다. 서버는 `wsk_<64hex>` 를 만들어 트리거 id 로 정해지는 정식 참조(`secret://triggers/{triggerId}/notification-signing`)에 넣는다. `config` 에는 `signing.secretRef` 만 남긴다. 트리거를 만들 때는 트리거 INSERT 와 서버가 만드는 값의 처리(첫 시크릿 발급, `itk_*` 발급)를 한 트랜잭션에서 한다. 그래서 어느 단계가 실패해도 트리거 행과 시크릿이 남지 않는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 평문은 발급한 그 응답에만 한 번 싣는다. 응답 위치(`data.secrets.notificationSigningSecret`)는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 가 정한다. `signing.secret` 은 옛 키다. 타입 필드 `notification.signing` 은 `algorithm` 만 받고 원시 `config` 는 `notification` 키를 받지 않으므로 이 평문을 새로 받는 경로는 없다. 이미 저장된 행에 옛 평문 `signing.secret` 이 남아 있으면 발송 때 그 값으로 서명한다. 서버는 새 시크릿을 발급하지 않는다. 이 옛 평문은 그 트리거의 PATCH 때 시크릿 저장소로 옮긴다. `notification` 이 실린 PATCH 에서는 `NotificationSigningSecretService.settle` 이 트리거 설정 잠금 안에서 옮긴다. 그 밖의 PATCH 에서는 행을 저장한 뒤 `NotificationSigningSecretService.migrateLegacyPlaintext` 가 옮긴다. 옮기는 시점의 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다. 옮기기 전이나 옮기다 실패하면 JSONB 에 옛 평문이 남는다. 빈 문자열이거나 공백만 있는 `signing.secret` 은 옛 평문으로 보지 않는다. 발송 처리기는 주 시크릿이 없는 것으로 보고 발송 건강도를 `degraded` 로 둔다. 다음 `notification` PATCH 가 첫 시크릿을 발급한다. 저장 뒤 정규화(`migrateLegacyPlaintext`)는 그 값을 옮기지 않고 건너뛴다. 판정 기준은 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다.
-- **`notification_secret_v2`**: 참조 대신 새 시크릿 평문 자체를 담는다. `NotificationSigningSecretService.writeRotation` 이 `` `wsk_${randomBytes(32).toString('hex')}` `` 를 그대로 저장하고, 발송 쪽 `notification-webhook.processor.ts` 는 그 값을 `SecretResolver` 를 거치지 않고 보조 HMAC 키로 쓴다(주 키만 `resolveSigningSecret` 을 거친다). 같은 역할의 채팅 채널 컬럼 `chat_channel_token_v2` 는 참조를 담아 일부러 다르다. 두 컬럼은 뜻이 다르다(알림 서명 시크릿 대 외부 봇 토큰). 컬럼 이름에 관한 결정은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), 저장 형태 예외의 기준은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 가 정한다. 유예가 끝나 승격하면 값을 `secrets.rotate(canonical ref, v2)` 로 시크릿 저장소에 옮기고 컬럼을 `null` 로 비운다. 이 컬럼은 비밀이 잠시 머무는 경유지다.
+- **`notification_secret_v2`**: 참조 대신 새 시크릿 평문 자체를 담는다. `NotificationSigningSecretService.writeRotation` 이 `` `wsk_${randomBytes(32).toString('hex')}` `` 를 그대로 저장하고, 발송 쪽 `notification-webhook.processor.ts` 는 그 값을 `SecretResolver` 를 거치지 않고 보조 HMAC 키로 쓴다(주 키만 `resolveSigningSecret` 을 거친다). 같은 역할의 채팅 채널 컬럼 `chat_channel_token_v2` 는 참조를 담아 일부러 다르다. 두 컬럼은 뜻이 다르다(알림 서명 시크릿 대 외부 봇 토큰). 컬럼 이름에 관한 결정은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), 저장 형태 예외의 기준은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 가 정한다. 유예가 끝나 승격하면 값을 `secrets.rotate(정식 참조, 트리거의 워크스페이스 id, v2)` 로 시크릿 저장소에 옮기고 컬럼을 `null` 로 비운다. 이 컬럼은 비밀이 잠시 머무는 경유지다.
 - **`config.interaction.triggerToken`**: 설정 JSONB 에 평문으로 둔다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 가 정한 명시적 예외다(결정 2026-08-16). 이 예외는 값이 서버가 발급한 무작위 hex 로만 채워진다는 전제에 기댄다. 이 값은 서버가 만든 값이다. 호출자가 원시 `config` 로 이 값을 실으면 생성과 PATCH 모두 400 `VALIDATION_ERROR` 로 거부한다. 이 예외를 다른 필드를 평문으로 두는 선례로 쓰지 않는다.
 - **응답 비노출**: 저장된 값은 응답에 나가지 않는다. [시크릿 저장소 §규칙](../CLE-INT/CLE-INT-SECRET.md#규칙) 4 의 목록에 오른 일회성 응답은 예외다. 어느 필드·컬럼이 대상인지와 시행 방식은 같은 규칙 4~6 이 기준이라 여기서 목록을 되풀이하지 않는다. 현재 구현은 `TriggersService` 의 `TRIGGER_RESPONSE_STRIP_COLUMNS` 가 응답 경계에서 걷어 내고, `shared/testing/schedule-trigger-ref.ts`(스케줄 조인)와 `shared/testing/trigger-workflow-ref.ts`(트리거 직접 조회)가 부재를 단언한다. 저장 형태 예외(평문 보관)와 노출은 다른 문제다.
 - 서버가 첫 시크릿을 발급한 트리거 생성 · 수정 응답과 시크릿 교체 응답이 새 시크릿을 한 번 평문으로 싣는 것([EIA 알림 웹훅](CLE-EIA-NOTIFY.md))과 이 컬럼이 유예 동안 평문인 것은 서로 다른 이야기다. 앞의 것은 응답이고 뒤의 것은 DB 저장이다.
@@ -325,6 +325,7 @@ sequenceDiagram
 - **낡은 알림 차단**: 진행 중 성격의 `waiting_for_input`·`ai_message` 는 보내기 직전 실행 상태를 다시 확인해 이미 종료면 건너뛴다(재시도해도 의미 없음).
 - **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`checkSsrfSafeUrl`) 두 번 검증한다. 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 발송 직전에 호스트 이름을 DNS 로 풀어 보는 검사(DNS rebinding 가드)는 운영 환경(`NODE_ENV=production`)에서 기본으로 켜져 있고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 이면 꺼진다. 운영 밖에서는 기본으로 꺼져 있고 `1` 이면 켜진다. 범위는 [EIA 알림 웹훅 「SSRF 방지」](CLE-EIA-NOTIFY.md#ssrf-방지) 가 정한다.
 - **서명**: `X-Clemvion-Signature: t=<unix>,v1=<hex>[,v1=<v2hex>]`(`notification-signature.util.ts`). 정규형 `{timestamp}.{rawBody}`, 알고리즘 `hmac-sha256`(기본)·`hmac-sha512`. 시크릿이 없거나 가져오지 못하면 서명 없이 보내지 않는다. 이때 발송 건강도를 `degraded`(저하됨)로 바꾼다. 주 시크릿이 없으면 v2 가 있어도 같다. v2 는 주 시크릿이 있을 때 보조 서명으로만 쓴다. 교체 유예 중에는 `notification_secret_v2` 로도 서명해 `v1=` 를 두 개 싣는다.
+- **주 시크릿 읽기**: 발송 처리기(`resolveSigningSecret`)는 저장된 `signing.secretRef` 값으로 시크릿을 읽지 않는다. 참조(`secret://` 형식의 문자열)가 있으면 트리거 id 로 다시 만든 정식 참조(`notificationSigningSecretRef`)로 시크릿 저장소에서 읽는다. 저장값이 다시 만든 참조와 다르면 에러 로그를 남긴다. 참조가 있는데 시크릿 저장소에서 읽지 못하면 옛 평문 `signing.secret` 으로 내려가지 않는다. 그 알림 웹훅은 보내지 않고 발송 건강도를 `degraded` 로 바꾼다. 옛 평문은 참조가 없을 때만 주 시크릿으로 쓴다. 기준은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24 다.
 - **적재 실패**: fanout 이 트리거를 다시 읽거나 발송 큐에 적재하다 실패하면 경고 로그를 남기고 그 알림을 버린다. 다시 적재하지 않는다. 실행과 단일 싱크는 영향을 받지 않는다. Redis 연결이 끊긴 동안에는 적재가 바로 실패하지 않는다. 연결된 적이 있으면 재연결을 20번 시도한 뒤(약 4분) 실패하고, 기동 때부터 닿지 않았으면 연결될 때까지 기다린다. 근거는 [알림 적재 실패를 경고 로그로 받는다](#알림-적재-실패를-경고-로그로-받는다-2026-11-06) 에 있다.
 - **실패 정책**: 실패로 보는 응답(3xx 포함)과 재시도는 [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다. 마지막 시도가 실패해도 트리거를 끄지 않는다. `notification_health`·`notification_last_error`(500자로 자름)만 갱신한다. BullMQ `removeOnComplete` 24시간, `removeOnFail` 7일이다.
 - **폭주 감지**: 발송 성공(2xx)마다 `OutboundNotificationRateLimiterService.consume`(Redis 고정 윈도우 `INCR`+`EXPIRE NX`, fail-open)이 트리거당 분당 발송 수를 센다. 60건을 넘으면 `healthy` 대신 `degraded` 와 폭주 전용 `notification_last_error` 로 표시한다. 발송 실패로 바뀐 `degraded` 와는 `notification_last_error` 로 원인을 가른다. 초과분도 계속 보낸다([EIA 알림 웹훅](CLE-EIA-NOTIFY.md)).
@@ -346,10 +347,11 @@ flowchart TD
 ```
 
 - 교체 요청은 `TriggersService.rotateNotificationSecret` 이 받는다. 잠금 안에서 `notification_secret_v2` 와 `notification_rotated_at` 을 쓰는 일은 `NotificationSigningSecretService.writeRotation` 이 한다.
-- 승격은 `NotificationSigningSecretService.promoteRotated` 가 한다. 매시 승격 작업은 `TriggersService.promoteRotatedNotificationSecrets` 를 거쳐 이 메서드를 부른다. `rotated_at ≤ now-24h` 인 트리거의 v2 를 시크릿 저장소 정식 참조(`secret://triggers/<id>/notification-signing`) 내용으로 바꾸고 `signing.secretRef` 를 연결한다.
-- 승격은 평문을 설정에 쓰지 않는다. `secrets.rotate(canonical ref, v2)` 로 시크릿 저장소 내용을 바꾸고, `signing.secretRef` 를 정식 참조로 맞추고, 옛 `signing.secret` 평문 키를 지운다(`migrateLegacyPlaintext` 와 같은 참조 규약). 발송 쪽 `resolveSigningSecret` 이 `secretRef` 를 먼저 보므로, 승격 즉시 새 시크릿으로 주 서명이 바뀐다.
+- 승격은 `NotificationSigningSecretService.promoteRotated` 가 한다. 매시 승격 작업은 `TriggersService.promoteRotatedNotificationSecrets` 를 거쳐 이 메서드를 부른다. `rotated_at ≤ now-24h` 인 트리거의 v2 를 시크릿 저장소 정식 참조(`secret://triggers/<id>/notification-signing`) 내용으로 바꾸고 `signing.secretRef` 를 연결한다. 정식 참조는 저장된 `signing.secretRef` 값을 읽지 않고 트리거 id 로 만든다(`notificationSigningSecretRef`).
+- 승격은 평문을 설정에 쓰지 않는다. `secrets.rotate(정식 참조, 트리거의 워크스페이스 id, v2)` 로 시크릿 저장소 내용을 바꾸고, `signing.secretRef` 를 정식 참조로 맞추고, 옛 `signing.secret` 평문 키를 지운다(`migrateLegacyPlaintext` 와 같은 참조 규약). 발송 쪽 `resolveSigningSecret` 이 `secretRef` 를 먼저 보므로, 승격 즉시 새 시크릿으로 주 서명이 바뀐다.
 - 교체와 승격은 같은 트리거 설정 잠금(`acquireTriggerConfigLock`)을 잡는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 유예 중에 `rotate-secret` 을 다시 부르면 앞의 새 시크릿(v2)을 덮고 `notification_rotated_at` 을 지금 시각으로 바꾼다. 그래서 24시간 유예를 처음부터 다시 센다. 승격은 대상 트리거의 v2 를 먼저 고른다. 그 뒤 잠금 안에서 승격 조건을 확인한다. 조건이 맞을 때만 같은 잠금 안에서 v2 를 정식 참조로 옮기고 v2 와 `notification_rotated_at` 을 비운다. 확인보다 먼저 옮기면 그사이 재교체로 덮인 옛 v2 가 주 시크릿이 된다. 승격 조건은 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다.
 - EIA 알림 웹훅 설정(`config.notification`)이 없는 트리거는 승격하지 않는다. 서명할 대상이 없으므로 v2 와 `notification_rotated_at` 을 비운다. 이때 경고 로그를 남긴다.
+- 시크릿 저장소에 정식 참조의 행이 이미 있고 그 행의 `workspace_id` 가 트리거의 워크스페이스와 다르면 `rotate` 가 거부한다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25). 승격은 그 트리거만 건너뛰고 에러 로그를 남긴다. v2 와 `notification_rotated_at` 은 비우지 않는다. 그래서 매시 승격 작업이 그 트리거를 다시 고르고 다시 건너뛴다. 운영자가 정리하기 전까지 그 트리거는 주 시크릿과 v2 두 키로 서명한다. 정리 순서는 [시크릿 저장소 「교차 행 점검과 정리」](../CLE-INT/CLE-INT-SECRET.md#교차-행-점검과-정리) 에 있다. 그 밖의 실패는 다시 던져 작업 재시도에 맡긴다.
 
 ## 저장소 매핑
 
@@ -436,6 +438,7 @@ stateDiagram-v2
   Primary --> Grace: rotate-secret 호출
   Grace --> Grace: 유예 중 rotate-secret 재호출, 앞의 v2 를 덮고 유예를 다시 시작
   Grace --> Primary: 매시 승격 작업이 24시간 지난 v2 를 승격하고 비움
+  Grace --> Grace: 시크릿 저장소 행의 워크스페이스가 달라 매시 승격 작업이 건너뜀, v2 유지
 ```
 
 유예 동안에는 주 시크릿과 v2 로 두 번 서명한다.
@@ -511,7 +514,7 @@ SSE 와 알림 흐름이 모두 `WebsocketService.executionEvents$` 에서 출�
 
 ### 승격 때 시크릿 저장소 참조를 교체한다
 
-시크릿 승격은 평문을 설정에 쓰지 않고 시크릿 저장소 정식 참조를 `secrets.rotate` 로 교체한다. 발송 쪽 `resolveSigningSecret` 이 `secretRef` 를 먼저 보기 때문에, 평문을 설정에 쓰면 교체한 시크릿이 실제 서명에 쓰이지 않는 어긋남이 생긴다. 이 어긋남은 "교체한 시크릿이 실제로 쓰이는가" 라는 보안 운영에 직접 닿는다. 한때 코드 주석과 명세가 말한 "v2 → secretRef 승격" 과 실제 코드가 갈라졌던 적이 있어 지금의 방식으로 맞췄다.
+시크릿 승격은 평문을 설정에 쓰지 않고 시크릿 저장소 정식 참조를 `secrets.rotate` 로 교체한다. 발송 쪽 `resolveSigningSecret` 은 `secretRef` 가 있으면 평문 대신 시크릿 저장소를 읽는다. 읽는 참조는 저장값이 아니라 트리거 id 로 다시 만든 정식 참조다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24). 그래서 평문을 설정에 쓰면 교체한 시크릿이 실제 서명에 쓰이지 않는 어긋남이 생긴다. 이 어긋남은 "교체한 시크릿이 실제로 쓰이는가" 라는 보안 운영에 직접 닿는다. 한때 코드 주석과 명세가 말한 "v2 → secretRef 승격" 과 실제 코드가 갈라졌던 적이 있어 지금의 방식으로 맞췄다.
 
 ### SSE 버퍼와 실시간 전달을 Redis 에 둔다 (2026-10-17)
 

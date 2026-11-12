@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "b2a822fd0d085d591dbd719497ab42c7358de06dcda00b69f7fe21c060d5a132"
+content_hash: "d3135609f64e366fe1e9565fb1eb7bbe921aef4ac38ed73f8251ec3d5706927b"
 read_as: "approved_fallback"
-task: "CLE-T-94Z6A5"
+task: "CLE-T-VRBS51"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "e13124a570575e4b728868b0ec2888c7e77033882015069c8a19dd3aab588234"
-etag: "sha256-9c51dce6e694630b981ad40653fb3275f8cef2c0270980074e3930d8725677d7"
+mirror_sha256: "bb56d12f6e4e527efe2bf7a9174838c959ddb3918edb73d3b4e06116865e67b4"
+etag: "sha256-d0d5f603ee9e6e238e35516d555db66c3af976f3e9d144be4272a850778769c9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -24,7 +24,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 
 이 문서는 알림 웹훅의 계약을 정한다. 구독할 수 있는 이벤트, 헤더와 서명, 이벤트 봉투와 알림 웹훅 페이로드, 종결 이벤트의 필드 집합과 `execution.cancelled` 행동 계약, 이벤트별 payload, 재시도와 실패 처리, 폭주 감지, SSRF 방지, 시크릿 교체가 여기 있다. 종결 이벤트 필드 집합과 이벤트 봉투는 SSE·WebSocket 도 이 문서를 기준으로 삼는다.
 
-범위 밖: 트리거 등록 페이로드와 채널 공통 규칙은 [External Interaction API](CLE-EIA.md), SSE 로 같은 이벤트를 받는 방법은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md), 발송 파이프라인의 큐·저장소·시크릿 승격 흐름은 [EIA 데이터와 흐름](CLE-EIA-DATA.md), 값 가리기 정책은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다.
+범위 밖: 트리거 등록 페이로드와 EIA 채널 공통 규칙은 [External Interaction API](CLE-EIA.md), SSE 로 같은 이벤트를 받는 방법은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md), 발송 파이프라인의 큐·저장소·시크릿 승격 흐름은 [EIA 데이터와 흐름](CLE-EIA-DATA.md), 값 가리기 정책은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다.
 
 ## 요구사항
 
@@ -38,8 +38,8 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-008 IF 응답이 `2xx` 가 아니거나 10초 안에 오지 않으면 THE SYSTEM SHALL 1초에서 시작해 4배씩 늘어나되 1시간을 넘지 않는 간격(1초 · 4초 · 16초 · 64초 … 최대 1시간)으로 다시 보내고 첫 시도를 포함한 총 시도 횟수를 `notification.retry.maxAttempts`(기본 5, 상한 10, 0 은 1 로 본다)로 제한한다. (원본: EIA-NX-06)
 - REQ-EIANOTI-009 IF 마지막 시도까지 실패하면 THE SYSTEM SHALL 트리거의 발송 건강도(`notification_health`)를 `degraded` 로 바꾸고 `notification_last_error` 를 기록하되 트리거를 끄지 않는다. (원본: EIA-NX-07)
 - REQ-EIANOTI-010 WHEN EIA 알림 웹훅을 보내면 THE SYSTEM SHALL 알림 웹훅 페이로드에 그 실행의 이벤트 순번(`seq`)을 싣는다. (원본: EIA-NX-08)
-- REQ-EIANOTI-011 IF `notification.url` 이 `https://` 가 아니면 THE SYSTEM SHALL 거부하되, 개발 환경 변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 트리거 생성 · 수정 요청에서는 `400 INVALID_NOTIFICATION_URL` 로 거부한다. 보내기 직전에 걸리면 그 알림을 보내지 않고 발송 건강도를 `degraded` 로 둔다. (원본: EIA-NX-09)
-- REQ-EIANOTI-012 IF `notification.url` 의 호스트가 사설 IP·loopback·메타데이터 주소의 IP 리터럴이거나 `localhost` · `0.0.0.0` 이면 THE SYSTEM SHALL 등록할 때와 보내기 직전에 모두 거부한다. 등록할 때 거부하면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다. 보내기 직전에 거부하면 그 알림을 보내지 않고 발송 건강도를 `degraded` 로 둔다. 호스트 이름을 DNS 로 풀어 보는 검사는 [SSRF 방지](#ssrf-방지) 가 정한다. 운영 환경(`NODE_ENV=production`)에서는 이 검사가 기본으로 켜져 있어 보내기 직전에 사설 IP 로 풀리는 호스트 이름도 거부한다. 운영 밖에서는 기본으로 꺼져 있다. (원본: EIA-NX-10)
+- REQ-EIANOTI-011 IF `notification.url` 이 `https://` 가 아니면 THE SYSTEM SHALL 거부하되, 개발 환경 변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 트리거 생성 · 수정 요청에서는 `400 INVALID_NOTIFICATION_URL` 로 거부한다. 보내기 직전에 걸리면 그 알림 웹훅을 보내지 않고 발송 건강도를 `degraded` 로 둔다. (원본: EIA-NX-09)
+- REQ-EIANOTI-012 IF `notification.url` 의 호스트가 사설 IP·loopback·메타데이터 주소의 IP 리터럴이거나 `localhost` · `0.0.0.0` 이면 THE SYSTEM SHALL 등록할 때와 보내기 직전에 모두 거부한다. 등록할 때 거부하면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다. 보내기 직전에 거부하면 그 알림 웹훅을 보내지 않고 발송 건강도를 `degraded` 로 둔다. 호스트 이름을 DNS 로 풀어 보는 검사는 [SSRF 방지](#ssrf-방지) 가 정한다. 운영 환경(`NODE_ENV=production`)에서는 이 검사가 기본으로 켜져 있어 보내기 직전에 사설 IP 로 풀리는 호스트 이름도 거부한다. 운영 밖에서는 기본으로 꺼져 있다. (원본: EIA-NX-10)
 - REQ-EIANOTI-013 WHEN EIA 알림 웹훅 URL 을 검증하면 THE SYSTEM SHALL 워크스페이스 단위 허용·차단 목록을 함께 적용한다. (원본: EIA-NX-10) (미구현)
 - REQ-EIANOTI-014 WHEN 한 트리거의 발송 성공이 분당 60건을 넘으면 THE SYSTEM SHALL EIA 알림 웹훅을 버리거나 늦추지 않고 보내되 발송 건강도를 `degraded` 로, `notification_last_error` 를 폭주 전용 메시지로 기록한다. (원본: EIA-NX-11)
 - REQ-EIANOTI-015 WHEN 폭주가 멎어 분당 60건 이내로 발송에 성공하면 THE SYSTEM SHALL 발송 건강도를 `healthy` 로 되돌린다. (원본: R-outbound-flood)
@@ -60,7 +60,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 - REQ-EIANOTI-030 WHEN 입력 대기·AI 메시지 이벤트를 밖으로 보내면 THE SYSTEM SHALL 디버그 전용 필드(`llmCalls` 등 원본 LLM 요청·응답)를 깊이와 관계없이 뺀다. (원본: §6.2, §6.5)
 - REQ-EIANOTI-031 WHEN `execution.ai_message` 에 표시물이 있으면 THE SYSTEM SHALL WebSocket payload 의 `presentations[]` 를 그대로 전달한다. (원본: §6.5)
 - REQ-EIANOTI-032 WHEN `execution.completed` 를 보내면 THE SYSTEM SHALL 실행 결과 출력(`result.outputs`)을 싣는다. (원본: §6) (미구현)
-- REQ-EIANOTI-033 WHEN `waiting_for_input` 알림을 보내면 THE SYSTEM SHALL 인터랙션 안내 블록(`submitUrl`·`streamUrl`·`statusUrl`·`cancelUrl`·`token`·`expiresAt`·`expectedCommands`)을 싣는다. (원본: §6.2) (미구현)
+- REQ-EIANOTI-033 WHEN `waiting_for_input` 알림 웹훅을 보내면 THE SYSTEM SHALL 인터랙션 안내 블록(`submitUrl`·`streamUrl`·`statusUrl`·`cancelUrl`·`token`·`expiresAt`·`expectedCommands`)을 싣는다. (원본: §6.2) (미구현)
 - REQ-EIANOTI-034 WHEN 트리거 조회 · 생성 · 수정 응답이 `notificationLastError` 를 돌려주면 THE SYSTEM SHALL 저장값은 두고 응답에서 자격 증명 모양을 가린다. ([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05))
 - REQ-EIANOTI-035 WHEN 시크릿 교체 유예 중에 `rotate-secret` 이 다시 호출되면 THE SYSTEM SHALL 앞서 만든 새 시크릿을 이번 새 시크릿으로 덮어쓰고 24시간 유예를 그 시각부터 다시 시작한다. ([시크릿 교체](#시크릿-교체))
 - REQ-EIANOTI-036 WHEN 매시 승격 작업이 유예가 끝난 새 시크릿을 승격하면 THE SYSTEM SHALL 시크릿 교체와 같은 트리거 설정 잠금을 잡고 잠금 안에서 읽은 `notification_secret_v2` 가 처음 고른 값과 같을 때만 같은 잠금 안에서 그 값을 정식 참조로 옮기고 비운다. ([시크릿 교체](#시크릿-교체))
@@ -112,13 +112,13 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - `timestamp` 가 현재 시각 ±5분 밖이면 거부한다(재전송 공격 방지).
 - 시크릿 교체 유예(24시간) 중에는 옛 시크릿과 새 시크릿을 둘 다 시도하고 하나라도 맞으면 통과시킨다.
 - 알고리즘은 `hmac-sha256`·`hmac-sha512` 두 값만 받는다. 웹훅 인바운드 HMAC 검증([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md))의 `sha256`·`sha512` 와 같은 두 알고리즘이고 표기만 다르다.
-- 서명 헤더 누락·형식 오류·시간 창 초과·서명 불일치는 모두 같은 401 메시지로 답한다. 어떤 알고리즘을 쓰는지 새지 않게 하려는 것이다.
+- 서명 헤더 누락·형식 위반·시간 창 초과·서명 불일치는 모두 같은 401 메시지로 답한다. 어떤 알고리즘을 쓰는지 새지 않게 하려는 것이다.
 
 ## 이벤트 봉투
 
-엔진이 만드는 이벤트는 하나지만 받는 채널마다 최종 형태가 다르다. `payload` 래퍼는 알림 웹훅에만 있다. WebSocket·SSE 의 형태는 이벤트 봉투, 알림 웹훅 요청 본문의 `payload` 틀은 알림 웹훅 페이로드라고 부른다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md)).
+엔진이 만드는 이벤트는 하나지만 받는 경로마다 최종 형태가 다르다. `payload` 래퍼는 알림 웹훅에만 있다. WebSocket·SSE 의 형태는 이벤트 봉투, 알림 웹훅 요청 본문의 `payload` 틀은 알림 웹훅 페이로드라고 부른다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md)).
 
-| 채널 | 최종 형태 |
+| 받는 경로 | 최종 형태 |
 |---|---|
 | WebSocket(에디터, 내부) | `{ executionId, …필드 집합, seq, timestamp }` 평면 |
 | SSE | 위 평면 객체 + `triggerId`·`workflowId`. `payload` 래퍼 없음 |
@@ -126,7 +126,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 - 알림 웹훅 요청 본문에는 키 다섯 개(`executionId`·`seq`·`timestamp`·`triggerId`·`workflowId`)가 최상위와 `payload` 안에 두 번 나온다. 결함으로 보지 않는다. 지금 구조가 그렇다. 바깥 `workflowId` 는 트리거 행에서, 안쪽은 실행 라우팅 컨텍스트에서 온다.
 - 알림 웹훅 페이로드(`payload` 래퍼)는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투(`{ data }`)와 다른 것이다. 한 겹 감싸는 모양만 비슷하고 서로 참조하지 않는다.
-- 평면은 이벤트 봉투 차원의 말이다. `executionId`·`seq`·`timestamp` 가 필드 집합과 같은 층에 온다는 뜻이지 필드 집합 안의 중첩을 펴라는 뜻이 아니다. `result.cancelledBy` 의 `result` 는 세 채널 모두에서 그대로다.
+- 평면은 이벤트 봉투 차원의 말이다. `executionId`·`seq`·`timestamp` 가 필드 집합과 같은 층에 온다는 뜻이지 필드 집합 안의 중첩을 펴라는 뜻이 아니다. `result.cancelledBy` 의 `result` 는 세 경로 모두에서 그대로다.
 - 여러 문서가 같은 필드를 나열하면 저마다 두 번째 기준이 된다. 그래서 필드 집합·이벤트 봉투·알림 웹훅 페이로드·`cancelled` 행동 계약은 이 문서에만 두고 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)·[채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)·[에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md) 은 여기를 가리킨다.
 
 ## 종결 이벤트 필드 집합
@@ -221,7 +221,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 `node.type` 에는 외부 소비용 대응이 없다. `waitingNodeType` 이 평면으로 실리기는 하지만 내부 WebSocket 의 부가 식별자(에디터 타임라인 관측용)다. 외부 클라이언트는 노드 종류 대신 `interactionType` 으로 가른다. 참조 구현 `parseWaitingForInput` 이 `waitingNodeType` 을 읽지 않는 것이 그 근거다(실제 소비처는 내부 에디터의 `use-execution-events.ts` 뿐). `waitingNodeType`·`waitingNodeLabel`·`nodeExecutionId`·`startedAt` 도 평면으로 실리지만 같은 이유로 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 정한다. 이 문서는 외부 클라이언트가 읽는 필드만 다룬다. 참조 구현은 `codebase/channel-web-chat/src/lib/eia-events.ts` 의 `parseWaitingForInput` 이다.
 
-외부로 나가는 `interactionType` 은 세 값이다. 엔진 내부의 `ai_form_render` 가 알림·SSE 에서 어떻게 보이는지는 [인터랙션 타입 레지스트리](CLE-IX-TYPES.md#미결-사항) 의 미결 사항이다.
+외부로 나가는 `interactionType` 은 세 값이다. 엔진 내부의 `ai_form_render` 가 알림 웹훅·SSE 에서 어떻게 보이는지는 [인터랙션 타입 레지스트리](CLE-IX-TYPES.md#미결-사항) 의 미결 사항이다.
 
 ### `execution.completed`
 
@@ -317,7 +317,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 `notification.url` 을 등록할 때(`TriggersService.assertNotificationUrlSafe`)와 보내기 직전(`checkSsrfSafeUrl`)에 두 번 검증한다.
 
-등록할 때 걸리면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4). 보내기 직전 검사는 발송 작업 안에서 돌아서 응답할 HTTP 요청이 없다. 걸리면 그 알림을 보내지 않고 재시도하지도 않는다. 발송 건강도를 `degraded` 로 바꾸고 `notification_last_error` 에 거부 사유를 남긴다. 아래 DNS 결과 검사에 걸려도 같다.
+등록할 때 걸리면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4). 보내기 직전 검사는 발송 작업 안에서 돌아서 응답할 HTTP 요청이 없다. 걸리면 그 알림 웹훅을 보내지 않고 재시도하지도 않는다. 발송 건강도를 `degraded` 로 바꾸고 `notification_last_error` 에 거부 사유를 남긴다. 아래 DNS 결과 검사에 걸려도 같다.
 
 - 호스트가 사설 · 특수 대역(10/8, 172.16/12, 192.168/16, 100.64/10, 0/8, fc00::/7, 미지정 주소 ::), loopback(127/8, ::1), link-local · 메타데이터 서비스 IP(169.254/16, fe80::/10, 169.254.169.254 등)의 IP 리터럴이면 거부한다. `localhost` 와 `0.0.0.0` 도 거부한다. 이 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 그래서 사설 IP 로 풀리는 호스트 이름은 아래 DNS 결과 검사가 켜져 있을 때만 막힌다. 이 검사는 운영 환경에서 기본으로 켜져 있다.
 - 마지막 32비트에 IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다. IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), SIIT(`::ffff:0:0:0/96`), NAT64 well-known prefix(`64:ff9b::/96`) 가 대상이다. 점 표기(`::ffff:127.0.0.1`)와 16진 표기(`::ffff:7f00:1`)를 같게 본다. 공인 IPv4 를 품었으면 통과한다. 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 자리가 달라 보지 않는다. [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 범위를 쓴다. 범위를 정한 이유는 [Rationale](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다.
@@ -343,16 +343,18 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - 유예가 끝나면 매시 승격 작업이 새 시크릿을 시크릿 저장소 정식 참조로 승격한다. 저장 형태(`notification_secret_v2` 평문 컬럼)와 승격 흐름은 [EIA 데이터와 흐름](CLE-EIA-DATA.md), 저장 형태 예외의 기준은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 가 정한다.
 - 유예 중에 `rotate-secret` 을 다시 부르면 앞서 만든 새 시크릿(`notification_secret_v2`)을 이번 값으로 덮어쓴다. 24시간 유예도 그 시각부터 다시 시작한다. 덮어쓴 값은 더는 서명에 쓰지 않는다. 수신 측은 주 시크릿과 마지막으로 받은 새 시크릿만 알면 된다.
 - 교체와 승격은 같은 트리거 설정 잠금(`acquireTriggerConfigLock`)을 잡는다. 승격은 잠금 안에서 읽은 `notification_secret_v2` 가 처음 고른 값과 같을 때만 그 값을 정식 참조로 옮기고 비운다. 옮기기도 이 확인 뒤에 같은 잠금 안에서 한다. 먼저 옮기면 그사이 다시 교체해 덮인 옛 값이 주 시크릿이 된다. 값이 다르면 그 사이 다시 교체한 것이라 옮기지도 비우지도 않는다. 새 값은 다시 시작한 유예가 끝난 뒤에 승격한다. 잠금 자체의 규칙은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) 가 정한다. 승격 조건은 이 문서가 정하고 다른 문서는 여기를 가리킨다.
+- 시크릿 저장소에 정식 참조의 행이 이미 있고 그 행의 워크스페이스가 트리거와 다르면 `rotate` 가 거부한다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25). 승격은 그 트리거만 건너뛰고 에러 로그를 남긴다. `notification_secret_v2` 와 `notification_rotated_at` 은 그대로 둔다. 매시 승격 작업은 그 트리거를 다시 고르고 다시 건너뛴다. 정리하기 전까지 그 트리거는 주 시크릿과 새 시크릿 두 키로 서명한다. 처리 흐름은 [EIA 데이터와 흐름 「서명 시크릿 교체와 승격」](CLE-EIA-DATA.md#서명-시크릿-교체와-승격) 에 있다.
 - 첫 시크릿은 서버가 발급한다. 발급하는 경우는 두 가지다. 하나는 EIA 알림 웹훅 설정(`config.notification`)이 있는 트리거를 만들 때다. 다른 하나는 PATCH 로 EIA 알림 웹훅 설정을 처음 붙일 때다. 트리거 설정 잠금 안에서 다시 읽은 행에 `signing.secretRef` 가 없으면 처음 붙이는 것으로 본다. 값이 있어도 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 24 의 형식(`secret://` 문자열)이 아니면 없는 것으로 본다. 참조가 없어도 그 행에 옛 평문 `signing.secret` 이 있으면 처음 붙이는 것이 아니다. 서버는 발급하지 않고 그 평문을 시크릿 저장소로 옮긴다. 통째 교체로 옛 평문이 사라지면 수신 측이 쓰던 시크릿이 유예 없이 바뀌기 때문이다. 옛 평문이 있다는 것은 `signing.secret` 이 공백 말고 다른 문자가 있는 문자열이라는 뜻이다. 빈 문자열이거나 공백만 있으면 없는 것으로 보고 첫 시크릿을 발급한다. 시크릿 저장소가 그런 값을 거부하기 때문이다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 27). 값은 다듬지 않고 그대로 쓴다. 발송 처리기도 같은 기준으로 주 시크릿이 있는지 읽는다. 이 판정과 시크릿 저장소 쓰기(발급이나 옮기기)는 같은 잠금 안에서 한다. 서버는 `wsk_<64hex>` 를 만들어 시크릿 저장소에 넣는다. 참조는 트리거 id 로 정해진다(`secret://triggers/<triggerId>/notification-signing`). `config` 에는 시크릿 대신 참조(`signing.secretRef`)만 남는다.
 - 트리거를 만들 때는 트리거 INSERT 와 위 판정 · 시크릿 저장소 쓰기를 한 트랜잭션에서 한다. 그래서 어느 단계가 실패해도 트리거 행과 시크릿이 남지 않는다. 트랜잭션 범위는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) 가 정한다.
 - 발급한 평문은 그 요청의 응답에만 한 번 싣는다. 응답 안의 위치와 발급하지 않은 응답의 키 생략은 [트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api) 가 정한다. 발급한 요청은 감사 기록(`trigger.created` · `trigger.updated`)의 `details.issuedSecrets` 에 `"notificationSigningSecret"` 을 남긴다. 평문은 싣지 않는다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)).
 - 생성이나 PATCH 의 응답을 받지 못해 첫 시크릿의 평문을 모르면 `rotate-secret` 으로 새 시크릿을 받는다. 발급한 평문은 다시 볼 수 없기 때문이다. 새 시크릿은 유예 동안 두 번째 `v1=` 의 서명에도 쓰인다. 그래서 수신 측은 받은 즉시 그 값으로 검증할 수 있다.
 - 원시 `config` 로는 `notification` 을 보낼 수 없다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 행에 옛 평문 `signing.secret` 이 있으면 그 값을 옮기고 발급하지 않는다. 그 평문을 시크릿 저장소로 옮기는 처리는 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 이 정한다.
 - 참조가 이미 있으면 PATCH 로 EIA 알림 웹훅 설정을 바꿔도 서버는 새로 발급하지 않는다. `signing.secretRef` 는 PATCH 뒤에도 남는다. 서버는 행의 값을 복사하지 않고 트리거 id 로 참조를 다시 만들어 싣는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)).
+- 발송 처리기도 주 시크릿을 저장된 `signing.secretRef` 값으로 읽지 않고 트리거 id 로 다시 만든 참조로 읽는다. 참조가 있으면 시크릿 저장소에서 읽지 못해도 옛 평문 `signing.secret` 으로 내려가지 않는다. 이때는 서명 없이 보내지 않고 발송 건강도를 `degraded` 로 바꾼다. 옛 평문은 참조가 없을 때만 주 시크릿으로 쓴다. 참조를 다시 만드는 규칙은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24 가 정한다.
 
 ## 미결 사항
 
-- **워크스페이스 알림 URL 허용 목록**: [SSRF 방지](#ssrf-방지) 와 요구사항 목록은 워크스페이스 단위 허용·차단 목록을 약속하고(원문 우선순위는 필수) `workspace_settings.notification_url_allow_pattern` 을 이름으로 든다. [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 워크스페이스 설정 키에는 이 값이 없고 `workspace_settings` 테이블도 없으며, 현재 구현도 없다(분석 단계 확인). 미구현으로 두고 설정 키 이름을 정할지, 요구사항에서 뺄지 결정 필요.
+- **워크스페이스 알림 웹훅 URL 허용 목록**: [SSRF 방지](#ssrf-방지) 와 요구사항 목록은 워크스페이스 단위 허용·차단 목록을 약속하고(원문 우선순위는 필수) `workspace_settings.notification_url_allow_pattern` 을 이름으로 든다. [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 워크스페이스 설정 키에는 이 값이 없고 `workspace_settings` 테이블도 없으며, 현재 구현도 없다(분석 단계 확인). 미구현으로 두고 설정 키 이름을 정할지, 요구사항에서 뺄지 결정 필요.
 - **`ai_form_render` 가 외부에서 어떻게 보이는가**: [인터랙션 타입 레지스트리](CLE-IX-TYPES.md#미결-사항) 참조.
 
 ## 구현 위치
@@ -378,10 +380,10 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 ### EIA 알림 웹훅 응답으로 인터랙션을 받지 않는다
 
-인터랙션은 별도 인바운드 채널로 나누고 알림은 순수 통보로 한정한다. 알림의 HTTP 응답 본문으로 인터랙션 결과를 받는 방식(예: `waiting_for_input` 알림에 200 OK 와 폼 데이터를 돌려주면 그대로 폼 제출로 처리)은 채택하지 않았다.
+인터랙션은 별도 인바운드 채널로 나누고 알림 웹훅은 순수 통보로 한정한다. 알림 웹훅의 HTTP 응답 본문으로 인터랙션 결과를 받는 방식(예: `waiting_for_input` 알림 웹훅에 200 OK 와 폼 데이터를 돌려주면 그대로 폼 제출로 처리)은 채택하지 않았다.
 
 - HTTP 응답 한 번은 양방향 대화(AI 멀티턴의 여러 턴)를 표현할 수 없다.
-- "알림 한 번 = 응답 한 번" 의 비대칭 모델이 되어 모든 노드를 같은 모델로 묶기 어렵다.
+- "알림 웹훅 한 번 = 응답 한 번" 의 비대칭 모델이 되어 모든 노드를 같은 모델로 묶기 어렵다.
 - 재시도 때 같은 인터랙션 응답을 여러 번 보내는 모호함이 생긴다. 서버는 첫 응답만 의미 있게 처리해야 하지만, 클라이언트는 "성공 = 인터랙션 반영" 으로 오해할 수 있다.
 - 서명 검증 직후 곧바로 비즈니스 응답을 요구하는 동기 모델은 클라이언트 구현 부담이 크다.
 
@@ -400,10 +402,10 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 ### 폭주는 저하 표시로 알린다
 
-트리거당 분당 60건을 넘어도 알림을 버리거나 늦추지 않고 보내며, 성공했을 때 초과했으면 `degraded` 로만 표시한다(결정 2026-07-07).
+트리거당 분당 60건을 넘어도 알림 웹훅을 버리거나 늦추지 않고 보낸다. 성공했을 때 초과했으면 `degraded` 로만 표시한다(결정 2026-07-07).
 
 - 버리기·늦추기 안을 기각했다. 폭주 감지 요구사항은 초과분도 버리지 않고 그대로 보낸다고 정한다. EIA 알림 웹훅은 실행 결과의 부수 통지라 잃으면 관측성을 잃는다. 그래서 발송을 줄이거나 늦추지 않고 "폭주 감지 → 건강도 표시" 로 구현한다.
-- 발송 실패와 폭주가 `degraded` 를 함께 쓴다. `flooded` 같은 새 값을 두는 안은 V059 CHECK 제약·UI·기록의 세 군데 마이그레이션을 부르는데, 두 상태 모두 "이 트리거의 알림 발송이 정상이 아니다" 라는 같은 운영 신호라 이득이 작다. 원인은 `notification_last_error` 로 가른다.
+- 발송 실패와 폭주가 `degraded` 를 함께 쓴다. `flooded` 같은 새 값을 두는 안은 V059 CHECK 제약·UI·기록의 세 군데 마이그레이션을 부르는데, 두 상태 모두 "이 트리거의 알림 웹훅 발송이 정상이 아니다" 라는 같은 운영 신호라 이득이 작다. 원인은 `notification_last_error` 로 가른다.
 - `healthy` 복귀: 폭주가 멎어 분당 60건 이내로 발송에 성공하면 다음 성공이 `healthy` 로 되돌린다. `degraded` 는 폭주가 이어지는 동안만 유지되는 일시 신호다.
 
 ### 종결 이벤트 필드를 약속한 만큼만 둔다
@@ -423,13 +425,13 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 ### 재시도 간격에 1시간 상한을 둔다 (2026-10-17)
 
-알림 재시도의 한 간격은 1시간을 넘지 않는다. 총 시도 횟수 상한 10 은 그대로다. 사용자 결정(2026-10-17)이고 작업은 NERV Task `CLE-T-EQDYC1` 다(finding `01a11f6b-bd7a-737c-9035-344ab0290d74` · finding `01a11f6b-d09b-70fe-92b8-81a7eb3500b4` · finding `01a11f6b-cc1c-70c1-8336-bc2a1853d5f3`).
+알림 웹훅 재시도의 한 간격은 1시간을 넘지 않는다. 총 시도 횟수 상한 10 은 그대로다. 사용자 결정(2026-10-17)이고 작업은 NERV Task `CLE-T-EQDYC1` 다(finding `01a11f6b-bd7a-737c-9035-344ab0290d74` · finding `01a11f6b-d09b-70fe-92b8-81a7eb3500b4` · finding `01a11f6b-cc1c-70c1-8336-bc2a1853d5f3`).
 
 - 상한이 없으면 총 시도 횟수 10 의 마지막 간격은 65,536초(약 18.2시간)다. 간격을 모두 더하면 87,381초(약 24.3시간)다. 상한을 두면 같은 설정에서 12,165초(약 3.4시간)로 줄어든다.
 - 발송 건강도는 마지막 시도가 실패해야 `degraded` 가 된다. 재시도 창이 하루면 운영자는 발송 실패를 하루 늦게 안다.
 - 진행 중 이벤트는 낡은 알림 차단이 걸러 낸다. 종결 이벤트는 그 대상이 아니라서 하루 늦게라도 나간다.
 - 발송 직전 SSRF 검사는 시도마다 한다. 그러나 이 결정 때는 호스트 이름을 DNS 로 풀어 보는 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)가 기본 꺼짐이었다. 2026-11-06 부터 운영 환경에서는 기본으로 켠다([운영 환경에서 DNS 결과 검사를 기본으로 켠다](#운영-환경에서-dns-결과-검사를-기본으로-켠다-2026-11-06)). 재시도 창이 길수록 등록 뒤 바뀐 DNS 응답으로 보낼 여지도 길어진다.
-- 상한은 EIA 알림 웹훅에만 둔다. 재개 큐(`execution-continuation`)도 1초에서 4배씩 늘지만 상한이 없고 전략 이름(`continuation-exp4`)도 따로다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 알림 쪽 전략 이름 `exp-base4` 는 그대로 둔다.
+- 상한은 EIA 알림 웹훅에만 둔다. 재개 큐(`execution-continuation`)도 1초에서 4배씩 늘지만 상한이 없고 전략 이름(`continuation-exp4`)도 따로다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 알림 웹훅 쪽 전략 이름 `exp-base4` 는 그대로 둔다.
 
 기각한 대안:
 
@@ -495,7 +497,7 @@ NERV Task `CLE-T-YR4EK5` 에서 두 문장을 구현에 맞췄다.
 
 NERV Task `CLE-T-5BZ3M2` 가 발행 중인 `INVALID_NOTIFICATION_URL` 을 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4 에 올린다. 그 행은 이 문서와 함께 검토 요청하는 ERRCODES 초안에 있다. 이 문서는 등록할 때와 보내기 직전에 거부한다고만 적고 그 거부가 호출자와 운영자에게 어떻게 보이는지는 적지 않았다. 그래서 REQ-EIANOTI-011 · 012 와 [SSRF 방지](#ssrf-방지) 에 등록 거부의 HTTP 상태 · 코드와 보내기 직전 거부의 결과를 적었다. 동작은 바꾸지 않았다.
 
-보내기 직전 거부를 재시도하지 않는 것도 지금 구현 그대로다. 발송 처리기(`NotificationWebhookProcessor`)는 검사에 걸리면 발송 건강도를 `degraded` 로 바꾸고 작업을 정상으로 끝낸다. 작업이 실패로 끝나지 않으므로 큐가 다시 시도하지 않는다. URL 검사는 등록 URL 만 보고 판정하므로 같은 URL 로 다시 시도해도 결과가 같다. 3xx 를 다른 실패처럼 재시도하는 결정([리다이렉트를 따라가지 않는다](#알림-웹훅-발송은-리다이렉트를-따라가지-않는다-2026-10-18))과 다른 것도 이 때문이다. 3xx 는 받는 서버의 응답이라 다음 시도에서 달라질 수 있다. DNS 결과 검사도 같은 처리를 따른다. 사설 대역으로 풀린 호스트에는 보내지 않는 것이 그 검사의 목적이다. 다음 이벤트의 알림은 처음부터 다시 검사하므로 사용자가 URL 을 고치면 그 뒤 알림부터 나간다.
+보내기 직전 거부를 재시도하지 않는 것도 지금 구현 그대로다. 발송 처리기(`NotificationWebhookProcessor`)는 검사에 걸리면 발송 건강도를 `degraded` 로 바꾸고 작업을 정상으로 끝낸다. 작업이 실패로 끝나지 않으므로 큐가 다시 시도하지 않는다. URL 검사는 등록 URL 만 보고 판정하므로 같은 URL 로 다시 시도해도 결과가 같다. 3xx 를 다른 실패처럼 재시도하는 결정([리다이렉트를 따라가지 않는다](#알림-웹훅-발송은-리다이렉트를-따라가지-않는다-2026-10-18))과 다른 것도 이 때문이다. 3xx 는 받는 서버의 응답이라 다음 시도에서 달라질 수 있다. DNS 결과 검사도 같은 처리를 따른다. 사설 대역으로 풀린 호스트에는 보내지 않는 것이 그 검사의 목적이다. 다음 이벤트의 알림 웹훅은 처음부터 다시 검사하므로 사용자가 URL 을 고치면 그 뒤 알림 웹훅부터 나간다.
 
 기각한 대안:
 
@@ -507,26 +509,26 @@ NERV Task `CLE-T-M1P83C` 의 변경이다. [SSRF 방지 본문을 구현에 맞�
 
 2026-11-05 결정은 기본값을 꺼짐으로 둔 채 본문을 구현에 맞췄고, 그 Rationale 은 «알림 웹훅만 기본으로 풀지 않는다» 고 적었다. 이번 변경은 그 기본값을 운영 환경에서 켜짐으로 바꾼다. 검사 함수도 `dns.resolve4` · `dns.resolve6` 에서 `dns.lookup` 으로 바꿨다. 앞선 Rationale 의 `resolve4` · `resolve6` 언급은 그때 구현을 적은 것이다.
 
-- **켜는 이유**: 기본이 꺼짐이면 사설 IP 로 풀리는 호스트 이름이 등록 검사와 발송 직전 검사를 모두 지난다. 내부 DNS 이름이나 공개 DNS 에 사설 IP 를 올린 이름이 그렇다. 그러면 서명한 알림 본문이 내부망 주소로 나간다. [통합 노드](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단) 와 [LLM 연결](../CLE-AI/CLE-AI-LLM.md) 은 이미 호스트 이름을 풀어 다시 검사한다.
+- **켜는 이유**: 기본이 꺼짐이면 사설 IP 로 풀리는 호스트 이름이 등록 검사와 발송 직전 검사를 모두 지난다. 내부 DNS 이름이나 공개 DNS 에 사설 IP 를 올린 이름이 그렇다. 그러면 서명한 알림 웹훅 본문이 내부망 주소로 나간다. [통합 노드](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단) 와 [LLM 연결](../CLE-AI/CLE-AI-LLM.md) 은 이미 호스트 이름을 풀어 다시 검사한다.
 - **비용 측정**(2026-11-06, Node 26, 호스트 이름 넷 × 20회): 공개 호스트 셋(`example.com` · `hooks.slack.com` · `api.github.com`)과 없는 이름 하나를 풀었다.
   - macOS 개발 장비: 예전 방식(`resolve4` 뒤 `resolve6`)은 이름별 중앙값 8.4~76.2ms, 최댓값 620.5ms(없는 이름)였다. `lookup` 은 중앙값 1.7~2.6ms, 최댓값 38.0ms 였다.
   - Linux 컨테이너(`node:26-alpine`, Docker Desktop): 예전 방식은 중앙값 0.9~2.3ms, 최댓값 41.5ms 였다. `lookup` 은 중앙값 0.7~1.5ms, 최댓값 2.8ms 였다.
   - 발송 제한 시간 10초에 견주면 작다. 측정은 개발 장비의 해석기 기준이다. 운영 클러스터는 `ndots` 와 검색 도메인 때문에 질의가 더 늘 수 있다.
 - **`lookup` 으로 바꾼 이유**: `resolve4` · `resolve6` 는 네트워크 DNS 에만 묻고 `/etc/hosts` 와 OS 검색 도메인을 보지 않는다. `fetch` 는 `lookup`(getaddrinfo)으로 연결한다. 그래서 검사와 연결이 다른 답을 볼 수 있었다. Linux 컨테이너에서 자기 호스트 이름(`/etc/hosts` 의 172.17.0.2)을 풀자 `resolve4` · `resolve6` 는 `ENOTFOUND` · `ENODATA` 로 실패해 검사를 통과시켰고, `lookup` 은 사설 IP 를 돌려줘 막았다. 질의도 둘에서 하나로 준다. 통합 노드 가드(`assertSafeOutboundHostResolved`)도 `lookup` 을 쓴다.
-- **조회 실패는 통과시킨다**: 검사와 발송이 같은 해석기를 쓰므로 조회가 실패하면 발송도 대개 연결 전에 실패하고 재시도된다. 실패를 거부로 보면 일시적인 DNS 장애가 바로 `degraded` 와 알림 유실이 된다. [거부가 어떻게 보이는지 본문에 적는다](#거부가-어떻게-보이는지-본문에-적는다-2026-11-05) 에서 정한 대로 검사 거부는 재시도하지 않기 때문이다. 통합 노드 가드도 조회 실패를 통과시킨다.
+- **조회 실패는 통과시킨다**: 검사와 발송이 같은 해석기를 쓰므로 조회가 실패하면 발송도 대개 연결 전에 실패하고 재시도된다. 실패를 거부로 보면 일시적인 DNS 장애가 바로 `degraded` 와 알림 웹훅 유실이 된다. [거부가 어떻게 보이는지 본문에 적는다](#거부가-어떻게-보이는지-본문에-적는다-2026-11-05) 에서 정한 대로 검사 거부는 재시도하지 않기 때문이다. 통합 노드 가드도 조회 실패를 통과시킨다.
 - **조회는 3초까지만 기다린다**: 해석기가 느리면 발송 작업이 HTTP 제한 시간(10초) 밖에서 조회에 묶인다. 위 측정의 최댓값(38.0ms)보다 훨씬 긴 3초를 넘기면 조회 실패와 같이 통과시킨다. 다만 실패와 달리 시간 초과는 연결 때 답이 와서 발송이 나갈 수 있다. 검사 없이 나간 발송을 운영자가 볼 수 있게 경고 로그를 남긴다. 시간을 넘긴 `getaddrinfo` 는 끝날 때까지 libuv 스레드풀 자리를 잡는다. 이 점은 검사와 연결의 조회를 하나로 합치는 주소 고정 후속(`CLE-T-GAQCF9`)에서 다룬다. 2026-11-06 코드 리뷰에서 더했다.
 - **끄는 값은 `0` 하나다**: 운영에서 `1` 이 아닌 값을 모두 꺼짐으로 보면 오타나 빈 값이 방어를 끈다. 켜짐을 기본으로 두고 정확히 `0` 일 때만 끄면 잘못 쓴 값은 켜짐으로 남는다.
-- **운영에서 끄는 길을 남긴다**: 사설 IP 로 풀리는 내부 수신기에 알림을 보내야 하는 자체 설치 배포가 있다. 정당한 용도가 있어 기동을 막지 않는다. 대신 `main.ts` 가 기동할 때 `[SECURITY]` 경고 로그를 남긴다. 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 와 같은 방식이다. 그래서 [운영 환경 가드](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 넣지 않았다.
-- **운영 밖은 꺼 둔다**: e2e 는 Docker 내장 DNS 가 사설 IP 로 푸는 컨테이너 이름으로 알림 수신기에 보낸다(`notification-webhook-redirect.e2e-spec.ts`). 개발 환경도 비슷하다. 운영 밖에서 켜려면 `1` 을 준다.
+- **운영에서 끄는 길을 남긴다**: 사설 IP 로 풀리는 내부 수신기에 알림 웹훅을 보내야 하는 자체 설치 배포가 있다. 정당한 용도가 있어 기동을 막지 않는다. 대신 `main.ts` 가 기동할 때 `[SECURITY]` 경고 로그를 남긴다. 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 와 같은 방식이다. 그래서 [운영 환경 가드](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 넣지 않았다.
+- **운영 밖은 꺼 둔다**: e2e 는 Docker 내장 DNS 가 사설 IP 로 푸는 컨테이너 이름으로 알림 웹훅 수신기에 보낸다(`notification-webhook-redirect.e2e-spec.ts`). 개발 환경도 비슷하다. 운영 밖에서 켜려면 `1` 을 준다.
 - **남은 위험**: 검사한 IP 로 연결을 고정하지 않으므로 검사와 연결 사이에 DNS 응답이 바뀌면(TTL 0 rebinding) 막지 못한다. 권한 DNS 를 쥔 공격자가 검사 때는 조회 실패를, 연결 때는 내부 주소를 돌려주는 변형도 남는다. 검사 때 답을 3초 넘게 늦추는 변형도 같다. 고정하려면 `fetch` 의 연결 계층을 바꿔야 해서 후속 NERV Task `CLE-T-GAQCF9` 로 넘겼다. 외부 MCP · HTTP Request 노드의 같은 작업은 `CLE-T-BS1WD1` 이다.
 
 기각한 대안:
 
 - **등록 때도 DNS 를 풀어 거부한다**: 등록 때 받은 답은 발송 때 다시 바뀔 수 있어 발송 직전 검사를 대신하지 못한다. 트리거 생성 · 수정 API 가 외부 DNS 의 가용성과 지연에 묶이고, 같은 URL 의 등록 결과가 시점마다 달라진다. 발송 직전 검사가 시도마다 보므로 등록 검사는 문자열 검사로 둔다.
 - **예전 방식(`resolve4` · `resolve6`)을 그대로 켠다**: 위 측정처럼 질의가 둘이라 느리고, `/etc/hosts` 를 보지 않아 `fetch` 와 다른 답을 본다.
-- **운영에서 끄는 길을 없앤다**: 자체 설치 배포가 내부 수신기에 알림을 보낼 수 없게 된다.
+- **운영에서 끄는 길을 없앤다**: 자체 설치 배포가 내부 수신기에 알림 웹훅을 보낼 수 없게 된다.
 - **조회 실패를 거부로 본다(fail-closed)**: 위 「조회 실패는 통과시킨다」 를 보라. 연결을 고정하는 후속 작업에서 함께 다시 정한다.
-- **시간 초과를 거부로 본다**: 느린 해석기가 일시적으로 늦어도 바로 `degraded` 와 알림 유실이 된다. 조회 실패를 통과시키는 것과 같은 이유로 통과시키고 경고 로그로 남긴다.
+- **시간 초과를 거부로 본다**: 느린 해석기가 일시적으로 늦어도 바로 `degraded` 와 알림 웹훅 유실이 된다. 조회 실패를 통과시키는 것과 같은 이유로 통과시키고 경고 로그로 남긴다.
 - **제한 시간 없이 기다린다**: 해석기가 멈추면 발송 작업이 HTTP 제한 시간과 상관없이 끝나지 않는다.
 
 ### 공백만 있는 옛 평문도 없는 것으로 본다 (2026-11-06)
@@ -545,9 +547,9 @@ NERV Task `CLE-T-94Z6A5` 의 변경이다. 이 Task 에서 시크릿 저장소�
 - 저장 뒤 정규화는 그 값을 옮기지 않고 건너뛴다.
 - 값은 다듬지 않는다. 앞뒤에 공백이 있어도 다른 문자가 있으면 그대로 옛 평문이다.
 
-이 처리는 [시크릿 교체](#시크릿-교체) 의 «옛 평문이 있으면 발급하지 않고 옮긴다» 원칙의 예외다. 그런 행의 수신 측 시크릿은 유예 없이 바뀌고, 다음 `notification` PATCH 로 새 `wsk_*` 를 받기 전까지는 알림이 나가지 않는다. 그래도 «없음» 으로 본 이유는 셋이다. 공백만 있는 키는 짐작하기 쉬워 서명이 출처를 증명하지 못하므로 보존할 시크릿이 아니다. 빈 문자열은 이미 «없음» 이었고 같은 기준으로 맞췄다. 시크릿 저장소가 그 값을 받지 않으므로 옮길 수도 없다. 유예 원칙은 공백 말고 다른 문자가 있는 옛 평문에만 적용된다.
+이 처리는 [시크릿 교체](#시크릿-교체) 의 «옛 평문이 있으면 발급하지 않고 옮긴다» 원칙의 예외다. 그런 행의 수신 측 시크릿은 유예 없이 바뀌고, 다음 `notification` PATCH 로 새 `wsk_*` 를 받기 전까지는 알림 웹훅이 나가지 않는다. 그래도 «없음» 으로 본 이유는 셋이다. 공백만 있는 키는 짐작하기 쉬워 서명이 출처를 증명하지 못하므로 보존할 시크릿이 아니다. 빈 문자열은 이미 «없음» 이었고 같은 기준으로 맞췄다. 시크릿 저장소가 그 값을 받지 않으므로 옮길 수도 없다. 유예 원칙은 공백 말고 다른 문자가 있는 옛 평문에만 적용된다.
 
 기각한 대안:
 
-- **지금 동작을 두고 결함으로 적는다**: [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) R18 의 호출부 표에 결함으로 적고 후속 Task 로 넘기는 안이다. 그동안 그런 행은 알림 PATCH 가 계속 500 이 된다.
+- **지금 동작을 두고 결함으로 적는다**: [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 Rationale 「store · rotate 는 빈 평문을 거부한다」 호출부 표에 결함으로 적고 후속 Task 로 넘기는 안이다. 그동안 그런 행은 EIA 알림 웹훅 설정 PATCH 가 계속 500 이 된다.
 - **`rotate` 가드를 좁힌다**: 빈 문자열만 거부하고 공백만 있는 값은 받는 안이다. 이미 승인된 `CLE-T-94Z6A5` 계획과 다르다. 그 계획은 공백만 있는 평문도 거부한다.
