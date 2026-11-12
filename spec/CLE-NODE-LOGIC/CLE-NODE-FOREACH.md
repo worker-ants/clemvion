@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021", "REQ-FOREACH-022"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "0a760eb166c169290999b2bab70bfb2df8fd7b8fb12a3f251d0d4f2297e21333"
+content_hash: "82d88df46bcc17c59218fdd0863b7c621eb3f6b0656cd5415cdd1a430466a3e2"
 read_as: "approved_fallback"
-task: "CLE-T-REC4X3"
+task: "CLE-T-W0377J"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "447c7eb66667f6b182f7f27ebef2920dc6ca8d06d1498d53f9a719f492f01faa"
-etag: "sha256-ff2e4e47fe0d0841d62e63da65bf815199ff0bb533312294c8416b3437e0e112"
+mirror_sha256: "d0e4854ded7bfa7f302e9752566eb086cf26e0b43269a0953f40f85c7bc5e399"
+etag: "sha256-889957cefc40a3a01f4eb4f16e04f39ab427e890f8c6b6daf290502935515391"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -115,7 +115,7 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 
 ```json
 {
-  "config": { "arrayField": "{{ $input.items }}" },
+  "config": { "arrayField": "{{ $input.items }}", "errorPolicy": "stop" },
   "output": [
     { "id": "a", "name": "Alice" },
     { "id": "b", "name": "Bob" }
@@ -127,6 +127,7 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.arrayField` | Expression (원래 값) | 설정 에코 | 사용자가 입력한 원래 경로·표현식. `{{ }}` 을 남긴다 |
+| `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 엔진은 `stop` 일 때와 같이 동작한다 |
 | `output` | unknown[] | 핸들러 반환 | 해석한 배열. 엔진이 항목을 본문 반복 회차 입력으로 나눠 준다. 엔진 안에서만 쓰는 중간 형태다. 밖에서 보이지 않는 범위는 [엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 1번에 있다 |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `arrayField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
 
@@ -154,7 +155,7 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.arrayField` | Expression (원래 값) | 설정 에코 | 사용자 입력 원래 값. `{{ }}` 을 남긴다 |
-| `config.errorPolicy` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 기본 `stop` |
+| `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 시작 시점과 같다 |
 | `output.items` | unknown[] | 엔진 덮어쓰기 | 회차마다의 `emit` 포트 출력 배열. `errorPolicy` 가 `skip` / `continue` 면 실패 인덱스는 `null` 자리 |
 | `output.count` | number | 엔진 덮어쓰기 | 반복 실행한 항목 수(입력 배열 길이와 같음. 인덱스 유지) |
 | `output.skipped?` | `Array<{index, error}>` | 엔진 덮어쓰기 | `errorPolicy` 가 `skip` / `continue` 일 때 따로 모은 실패 항목. 실패가 0건이면 필드 자체를 뺀다 |
@@ -238,10 +239,6 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 - 형식: `{arrayField}`. `errorPolicy` 가 `stop` 이 아니면 `· {policy}` 를 붙인다.
 - 예: `$input.items · skip errors`
 - 현재 구현은 `foreach.schema.ts` 에 `summaryTemplate` 이 없어 캔버스에 이 요약을 표시하지 않는다. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 참조.
-
-## 미결 사항
-
-- **시작 시점 설정 에코에 `errorPolicy` 가 빠져 있다** (info): 시작 시점 예시의 `config` 에는 `arrayField` 만 있다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 설정 에코 규칙은 `foreach.errorPolicy` 를 보강할 누락 필드로 든다. Loop 의 `breakCondition` 과 함께 예외로 둘지 보강할지 결정 필요([Loop 노드](CLE-NODE-LOOP.md)).
 
 ## 구현 위치
 

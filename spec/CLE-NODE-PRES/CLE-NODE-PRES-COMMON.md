@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "8cba63722e628ad2f6ed8eee0df04bea44bea8f9a2fe0c6ee68bfe689e8610ba"
+content_hash: "7f5a48435a2e46697807702db1b388d03bd2317650c92255b25c79f1d7593a2a"
 read_as: "approved_fallback"
-task: "CLE-T-N901G9"
+task: "CLE-T-MBGDA4"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e22c571c51493e173b0ddcc1dd8226eaebd640fe0841d4fdd9a420421c581b3c"
-etag: "sha256-706a05985ac4a4d76b4b18218730d3e3194e87c481ed859936c218bc60ebecec"
+mirror_sha256: "7e192439cbe759d701012ae7c17b039fc5efd23600c6e92710a3bf2863006154"
+etag: "sha256-31f21a9d4eebf15128e252bf1b912f936e11eb22e199f282044227eda8343b50"
 ---
 > 구현 상태: 부분 구현 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -55,6 +55,7 @@ Presentation 노드는 두 가지 목적으로 쓴다. 하나는 다운스트림
 8. 사용자 입력은 대화 스레드에 자동으로 쌓는다. `excludeFromConversationThread: true` 인 노드의 입력은 쌓지 않는다.
 9. 표시 도구 모드는 다섯 노드의 설정 스키마(zod)를 LLM 도구 파라미터의 단일 기준으로 다시 쓴다. 표시 도구의 버튼은 그래프 포트로 라우팅하지 않고 다음 LLM 대화 턴의 사용자 메시지가 된다.
 10. 입력 대기에는 기한이 없다. 노드는 사용자가 입력하거나 사용자 취소 · 공개 웹채팅 유휴 실행 회수처럼 외부에서 실행을 끝낼 때까지 `waiting_for_input` 으로 기다린다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)). 다섯 노드 설정에 타임아웃 필드는 없고 옛 `buttonTimeout` 입력은 무시한다. 실행 시간 한도는 입력 대기 시간을 세지 않는다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 이 규칙은 메인 흐름 기준이다. Background 본문은 예외다. 본문의 블로킹 노드가 입력 대기에 들어가면 기다리지 않고 본문이 그 지점에서 조용히 끝난다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문의-블로킹-노드가-입력-대기로-멈추면-곧바로-조용히-끝낸다)). 컨테이너 본문의 제약은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 을 따른다.
+11. Template 본문(`output.rendered`, 표시 도구 `render_template` 의 `content`)은 정화하지 않은 데이터다. 본문을 HTML 로 해석해 그리는 표면은 그리기 전에 허용 목록으로 정화한다([Template 본문 정화 책임](#template-본문-정화-책임)).
 
 ## 버튼 정의
 
@@ -318,8 +319,8 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 
 | 항목 | 설명 |
 |------|------|
-| HTML 출력 | 샌드박스 iframe 안에서 그린다. 외부 스크립트 실행을 막는다 |
-| Markdown 출력 | Markdown 을 HTML 로 바꿔 그린다 |
+| HTML 출력 | 허용 목록으로 정화한 뒤 그린다([Template 본문 정화 책임](#template-본문-정화-책임)) |
+| Markdown 출력 | Markdown 을 HTML 로 바꾸고 정화한 뒤 그린다 |
 | Text 출력 | 코드 블록(`<pre>`)으로 보여 준다 |
 | 빈 결과 | "Empty output" 메시지 |
 | 버튼 대기 중(`waiting_for_input`) | 렌더링한 내용 아래에 버튼 바를 보여 준다. 동작은 Carousel 과 같다 |
@@ -333,6 +334,24 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 - 채팅 채널: 서버 안 listener 가 `execution.node.completed` 를 받아 채널 메시지로 바꾼다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#노드와-채널-ui-매핑)). 렌더러 입력 모양은 [미결 사항](#미결-사항) 참조.
 
 버튼이 있는 노드와 Form 은 `execution.waiting_for_input` 입력 대기 흐름으로 전달한다. 웹채팅 위젯은 v1 에서 첨부를 꺼 두므로 Form 파일 필드로 파일을 받지 못한다([웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md#패널)).
+
+## Template 본문 정화 책임
+
+[Template 노드](CLE-NODE-TEMPLATE.md)의 `output.rendered` 와 표시 도구 `render_template` 의 본문(`content`)은 정화하지 않은 데이터다. 백엔드와 표현식 해석기는 본문을 정화하거나 escape 하지 않는다. 그래서 본문을 해석하는 소비처가 자기 표면에 맞게 처리한다.
+
+| 소비처 | 처리 |
+|------|------|
+| 실행 결과 드로어 | `html` 은 허용 목록으로 정화한 뒤 그린다. `markdown` 은 HTML 로 바꾸고 정화한 뒤 그린다. `text` 는 태그를 해석하지 않고 `<pre>` 에 글자로 보여 준다 |
+| 웹채팅 위젯 | 드로어보다 좁은 거부 기본 허용 목록으로 정화한 뒤 그린다. 허용 목록과 링크 규칙은 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#마크다운html-sanitize) 이 정한다([웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md#표시물-렌더)) |
+| 채팅 채널 | 본문을 HTML 로 해석하지 않으므로 HTML 정화는 하지 않는다. 채널 문법 escape 는 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 이 프로바이더별로 정한다. 지금 Telegram 렌더러는 MarkdownV2 escape 를 하고 Slack · Discord 렌더러는 Template 본문을 그대로 보낸다. 두 채널의 멘션 처리는 NERV Task `CLE-T-FQTQ7K` 가 정한다 |
+| EIA 응답 · 웹훅 · 다음 노드 | 본문을 바꾸지 않고 넘긴다. 받는 쪽이 HTML 로 그리면 그쪽이 정화한다 |
+
+정화 규칙은 다음과 같다.
+
+- 허용 목록 방식으로 정화한다. 목록에 없는 태그와 속성(`<script>`, `<iframe>`, `<style>`, `on*` 이벤트 핸들러, `style` 속성 등)은 지운다. 정화 라이브러리는 DOMPurify 다.
+- `href` · `src` 에 든 `javascript:` 같은 위험한 URL 은 지운다.
+- 위 두 항목은 모든 표면이 지키는 하한이다. 실제 허용 목록은 표면마다 다르다. 웹채팅 위젯은 SVG 와 `class` 속성도 받지 않는 더 좁은 목록을 쓰고 그 정본은 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#마크다운html-sanitize) 이다. 드로어 목록의 정본은 `presentation-renderers.tsx` 의 `SANITIZE_CONFIG` 다.
+- 본문을 HTML 로 그리는 소비처를 새로 만들면 같은 의무를 진다.
 
 ## 표시 도구 모드
 
@@ -519,6 +538,7 @@ AI 에이전트 멀티턴은 턴마다 rehydration 으로 단발 처리기 `proc
 - 폼 옵션 값 방어: 프런트엔드 `dynamic-form-ui.tsx` 가 placeholder `<option value="">` 와 옵션 value 를 `String(value) === String(opt.value)` 로 비교한다.
 - 파일 필드: 백엔드 `formNodeConfigSchema` 의 `formFieldSchema.type` enum 과 파일 네 필드, 프런트엔드 `dynamic-form-ui.tsx` 의 `<input type="file" multiple={maxFiles > 1} accept={allowedMimeTypes.join(",")}>` 와 제출 때 `FileList` 를 메타데이터 배열로 바꾸는 코드.
 - 폼 제출 경로: `continueExecution`(감싸기) → `ContinuationExecutionProcessor` → `ExecutionEngineService.applyContinuation → rehydrateAndResume`(전달) → `AiTurnOrchestrator.processAiResumeTurn`(네 경우 분기, `ai-turn-orchestrator.service.ts`, 엔진의 `EngineDriver` 위임) → `ai-agent.handler.processMultiTurnMessage`(`pendingFormToolCall` 매칭과 누락 시 대체 처리).
+- Template 본문 정화: 드로어 `presentation-renderers.tsx` 의 `SANITIZE_CONFIG` · `sanitizeHtml`, 웹채팅 위젯 `codebase/channel-web-chat/src/lib/safe-html.ts` 의 `renderTemplateHtml`.
 
 ## Rationale
 
@@ -630,3 +650,16 @@ AI 에이전트 멀티턴은 턴마다 rehydration 으로 단발 처리기 `proc
 
 - 2026-06-03 에 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md#buttonconfig-예시-정정-타임아웃-제거와-nodeoutput-판별자-폐지-2026-06-03-c2c3) 을 고치면서 공통 규약에 타임아웃 정책을 들이는 안을 기각하고 `buttonConfig` 예시에서 타임아웃을 지웠다. 현 구현과 다른 문서가 모두 무제한 대기였기 때문이다.
 - [External Interaction API](../CLE-IX/CLE-EIA.md#공개-위젯-회수-신호는-토큰-만료다) 에서는 공개 위젯 실행을 회수할 때 "N일 동안 조용하면 종료" 같은 엔진 전역 유휴 타이머를 쓰지 않기로 했다. 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 수 있기 때문이다. 이 결정은 노드별 입력 대기 기한이 아니라 서버 전체에 거는 정리 규칙을 다룬다.
+
+### Template 본문은 그리는 쪽이 정화한다 (2026-11-12)
+
+**배경**: 이 문서는 드로어가 Template HTML 을 "샌드박스 iframe 안에서 그린다" 고 적었고 [Template 노드](CLE-NODE-TEMPLATE.md)는 정화를 "별도 보안 과제" 로 미뤄 두었다. 코드와 대조하니 드로어는 iframe 없이 DOMPurify 허용 목록으로 정화한 뒤 그리고, 웹채팅 위젯은 더 좁은 허용 목록으로 따로 정화한다. 백엔드는 정화하지 않는다. 문서만 보면 정화 책임이 어디에 있는지 알 수 없었다(NERV Task `CLE-T-MBGDA4`).
+
+**결정**: 사용자가 2026-11-12 에 소비 쪽 정화 의무를 규약으로 적는 안을 골랐다(NERV 질문 `01a1cd71-0bab-70ba-9168-49e83c564256`). 지금 코드와 같은 동작이라 코드 변경은 없다.
+
+**기각한 대안**:
+
+- **백엔드가 `output.rendered` 를 정화한다**: 본문은 HTML 로 그리는 화면 말고도 채팅 채널, EIA 응답, 웹훅, 다음 노드로 나간다. 서버에서 HTML 기준으로 정화하면 이 경로의 본문까지 바뀐다. 예를 들어 다음 노드가 본문을 이메일 HTML 로 쓰면 `style` 같은 정상 마크업이 지워지고, Text · Markdown 본문에 꺾쇠 괄호로 쓴 글자가 지워지거나 바뀐다. 표면마다 허용 목록도 다르다(웹채팅 위젯이 드로어보다 좁다). 그래서 서버 정화 하나로 소비 쪽 정화를 없앨 수 없다. 백엔드에는 서버용 DOM 구현과 정화 라이브러리라는 새 의존성도 생긴다.
+- **백엔드와 소비처가 둘 다 정화한다**: 첫 대안의 본문 훼손 문제가 그대로 남는다. 소비 쪽 정화는 어차피 있어야 하므로 이 안은 첫 대안의 비용을 그대로 지고 얻는 것은 중복 방어뿐이다.
+
+채팅 채널의 멘션 · 채널 문법 처리는 HTML 정화와 다른 문제라 이 결정에 넣지 않았다. NERV Task `CLE-T-FQTQ7K` 가 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 에서 정한다.

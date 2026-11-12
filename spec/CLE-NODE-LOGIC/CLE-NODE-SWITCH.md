@@ -2,19 +2,19 @@
 id: "CLE-NODE-SWITCH"
 title: "Switch 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-SWITCH-001", "REQ-SWITCH-002", "REQ-SWITCH-003", "REQ-SWITCH-004", "REQ-SWITCH-005", "REQ-SWITCH-006", "REQ-SWITCH-007", "REQ-SWITCH-008", "REQ-SWITCH-009", "REQ-SWITCH-010", "REQ-SWITCH-011", "REQ-SWITCH-012", "REQ-SWITCH-013", "REQ-SWITCH-014", "REQ-SWITCH-015", "REQ-SWITCH-016", "REQ-SWITCH-017", "REQ-SWITCH-018", "REQ-SWITCH-019", "REQ-SWITCH-020", "REQ-SWITCH-021", "REQ-SWITCH-022", "REQ-SWITCH-023", "REQ-SWITCH-024"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "51e59eebd32e157a4bd2a985146ef852c7622769c1c6aad24d7e09eca0db7662"
+content_hash: "81f3f50a09faf3597864ce78d324540c6928b6c91232008546f5c9c7497bfbb3"
 read_as: "approved_fallback"
-task: "CLE-T-ETAZAT"
+task: "CLE-T-W0377J"
 source_paths: ["spec/4-nodes/1-logic/2-switch.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7298947dd7555a327ab319ff5949aa1246a3bbe64f968cb40ef98bcd91346b9c"
-etag: "sha256-75e5c46d40c7c1f43a9f58e7a695c4ff70c76988a8cd9e2364b06d49a7f152a5"
+mirror_sha256: "c4fda9b7c6614df6f85b5dbae250f90e1875e99922bc766bab04f7d954c0ed99"
+etag: "sha256-a58f22be06c5440a31c5371b0c8be254e829eaf9372a52c8f1868efcf82248cd"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/2-switch.md`, `spec/4-nodes/_product-overview.md` (§4.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -157,9 +157,9 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
 | `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 엔진이 모든 노드에 주입한다 |
 | `meta.mode` | `'value'` / `'expression'` | 핸들러 반환 | 기본값을 적용한 뒤의 모드 |
 | `meta.matchedCase` | string | 핸들러 반환 | 매칭된 케이스 id |
-| `meta.matchedCaseLabel` | string \| undefined | 핸들러 반환 | 매칭된 케이스의 `label`. 없으면 `undefined` |
+| `meta.matchedCaseLabel?` | string | 핸들러 반환 | 매칭된 케이스의 `label`. 케이스에 `label` 이 없으면 값이 `undefined` 라 JSON 에서 빠진다 |
 | `meta.matchedCaseIndex` | number | 핸들러 반환 | `config.cases` 안의 매칭 인덱스(0부터). `default` 대체면 `-1` |
-| `meta.resolvedValue` | unknown | 핸들러 반환 | `mode=value` 일 때만 평가한 `switchValue`. `mode=expression` 에서는 생략한다 |
+| `meta.resolvedValue?` | unknown | 핸들러 반환 | `mode=value` 일 때만 평가한 `switchValue`. `mode=expression` 이면 싣지 않는다 |
 | `port` | `<case.id>` | 핸들러 반환 | 매칭된 케이스의 동적 포트 ID |
 
 표현식 접근 예:
@@ -205,9 +205,9 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
 | `config.*` | 케이스 매칭과 같음 | 설정 에코 | 케이스 매칭과 같은 다섯 키(`mode` · `switchValue` · `cases` · `hasDefault` · `strictComparison`)를 싣는다. 어느 포트로 가든 설정 에코는 같다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로 |
 | `meta.matchedCase` | `'default'` | 핸들러 반환 | 매칭 실패 때의 고정 문자열 |
-| `meta.matchedCaseLabel` | `undefined` | 핸들러 반환 | `default` 대체 때는 항상 `undefined` (전용 label 없음) |
+| `meta.matchedCaseLabel?` | `undefined` | 핸들러 반환 | `default` 대체 때는 전용 label 이 없어 항상 `undefined` 라 JSON 에서 빠진다 |
 | `meta.matchedCaseIndex` | `-1` | 핸들러 반환 | `default` 대체 표시 값 |
-| `meta.resolvedValue` | unknown | 핸들러 반환 | `mode=value` 일 때 평가한 `switchValue`. `default` 대체여도 남긴다 |
+| `meta.resolvedValue?` | unknown | 핸들러 반환 | `mode=value` 일 때 평가한 `switchValue`. `default` 대체여도 남긴다. `mode=expression` 이면 싣지 않는다 |
 | `port` | `'default'` | 핸들러 반환 | 정적 `default` 포트 |
 
 표현식 접근 예:

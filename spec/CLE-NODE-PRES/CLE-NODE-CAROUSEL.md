@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAROUSEL"
 title: "Carousel 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-CAROUSEL-001", "REQ-CAROUSEL-002", "REQ-CAROUSEL-003", "REQ-CAROUSEL-004", "REQ-CAROUSEL-005", "REQ-CAROUSEL-006", "REQ-CAROUSEL-007", "REQ-CAROUSEL-008", "REQ-CAROUSEL-009", "REQ-CAROUSEL-010", "REQ-CAROUSEL-011", "REQ-CAROUSEL-012", "REQ-CAROUSEL-013", "REQ-CAROUSEL-014", "REQ-CAROUSEL-015", "REQ-CAROUSEL-016", "REQ-CAROUSEL-017", "REQ-CAROUSEL-018", "REQ-CAROUSEL-019", "REQ-CAROUSEL-020", "REQ-CAROUSEL-021", "REQ-CAROUSEL-022", "REQ-CAROUSEL-023", "REQ-CAROUSEL-024", "REQ-CAROUSEL-025", "REQ-CAROUSEL-026"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "26fc71c43df42cbe89500d73dc24885691e674830a5e8f53143282f9dd49d66b"
+content_hash: "cd9c6da368ce7b39ccbf17ae92ca8e5c31b498037261125e8051dc4f353adcd6"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-W0377J"
 source_paths: ["spec/4-nodes/6-presentation/1-carousel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "3296c1648b69b2b1f0c9e40b756261e9697fcdb3ae1c3054b8398ca814eb1378"
-etag: "sha256-a0f0a3ce5f95e74051d8f83ebf1021cda70731feaf7c1bff00e36392f370c4fb"
+mirror_sha256: "c57a1d33733af77b5732d80a51551942a2d6057973ee3bef18e1e05a501e0d80"
+etag: "sha256-ff8bbf1be7b80d950223d78c38359b9cf9730930a5b82ffab4c8f43bc260fb8f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/1-carousel.md`, `spec/4-nodes/_product-overview.md` (§9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -199,11 +199,14 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.mode` | `'static'` / `'dynamic'` | 설정 에코 | 사용자가 정한 모드. 없으면 `'dynamic'` |
-| `config.layout` | `'card'` / `'image'` / `'minimal'` | 설정 에코 | 카드 레이아웃(기본 `card`) |
-| `config.source` | String(원문) | 설정 에코 | 동적 모드 표현식. `{{ }}` 원문을 보존한다 |
-| `config.titleField` / `descriptionField` / `imageField` | String | 설정 에코 | 매핑 필드 경로(동적 모드 전용) |
-| `config.items` | ItemDef[] | 설정 에코 | 정적 모드 슬라이드 정의 |
+| `config.mode` | `'static'` / `'dynamic'` | 설정 에코 | 사용자가 정한 모드. 설정하지 않았으면 핸들러가 `dynamic` 을 채운다 |
+| `config.layout` | `'card'` / `'image'` / `'minimal'` | 설정 에코 | 카드 레이아웃. 설정하지 않았으면 핸들러가 `card` 를 채운다 |
+| `config.source?` | String(원문) | 설정 에코 | 동적 모드 표현식. `{{ }}` 원문을 보존한다. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 입력 포트 데이터를 쓴다 |
+| `config.titleField?` / `config.descriptionField?` / `config.imageField?` | String | 설정 에코 | 매핑 필드 경로(동적 모드 전용). 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 슬라이드의 그 칸이 빈다 |
+| `config.items?` | ItemDef[] | 설정 에코 | 정적 모드 슬라이드 정의. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 슬라이드가 없을 때와 같다(동적 모드에서는 쓰지 않는다) |
+| `config.maxItems?` | number | 설정 에코 | 최대 슬라이드 수(동적 모드 전용). 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 개수를 자르지 않는다. 출력 크기 한도는 그대로 적용한다 |
+| `config.itemButtons?` | ButtonDef[] | 설정 에코 | 동적 모드 항목 공통 버튼 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 항목 버튼이 없을 때와 같다. 버튼이 없어 표시 전용으로 끝났으면 이 값은 빈 배열이거나 키가 빠진다 |
+| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 전역 버튼이 없을 때와 같다. 버튼이 없어 표시 전용으로 끝났으면 이 값은 빈 배열이거나 키가 빠진다 |
 | `output.items` | Array | 런타임(`source` 해석 + 필드 매핑, 동적 모드 전용) | 동적 모드 매핑 결과. 출력 크기 한도를 적용한다. **정적 모드는 이 필드를 싣지 않는다.** 슬라이드는 `config.items` 를 본다 |
 | `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms) |
 | `port` | `undefined` | 없음 | 단일 출력(`out`). `port` 를 두지 않는다 |
@@ -257,9 +260,10 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.items` | ItemDef[] | 설정 에코 | 사용자가 정의한 정적 슬라이드. 다음 노드는 `$node["C"].config.items` 로 읽는다 |
-| `config.buttons` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. `label`·`url` 의 `{{ }}` 를 보존한다 |
+| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. `label`·`url` 의 `{{ }}` 를 보존한다. 항목 버튼만으로 입력 대기에 들어왔고 전역 버튼을 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다 |
+| `config.*`(이 표에 따로 적지 않은 키) | 표시 전용과 같다 | 설정 에코 | 표시 전용 표의 키를 모두 싣는다. 키마다 `?` 표기와 미설정 때 동작은 표시 전용 표를 따른다 |
 | `config.buttonConfig.buttons` | ButtonDef[] | 런타임(전역 + 항목 합산) | 핸들러가 만든 통합 버튼 목록. 항목 버튼은 `<btn.id>__item_<idx>` 런타임 ID 다 |
-| `config.buttonConfig.buttonItemMap` | `Record<string, number>?` | 런타임 | 항목 버튼 런타임 ID → 한도 적용 후 `items` 인덱스. 비어 있으면 생략한다 |
+| `config.buttonConfig.buttonItemMap?` | `Record<string, number>` | 런타임 | 항목 버튼 런타임 ID → 한도 적용 후 `items` 인덱스. 비어 있으면 생략한다 |
 | `output` | `{}` | 없음 | 정적 모드는 런타임 계산값이 없다. 슬라이드는 `config.items` 를 본다 |
 | `meta.durationMs` | number | 엔진 주입 | |
 | `meta.interactionType` | `'buttons'` | 핸들러 반환 | 대기 표면 |
@@ -301,11 +305,11 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.source` / `titleField` / `descriptionField` / `imageField` / `itemButtons` | 설정 표 참조 | 설정 에코 | 동적 모드 설정 원문 |
+| `config.*` | 표시 전용과 같다 | 설정 에코 | 표시 전용 표의 키를 모두 싣는다. 키마다 `?` 표기와 미설정 때 동작은 표시 전용 표를 따른다. 동적 모드 설정(`source` · `titleField` · `descriptionField` · `imageField` · `maxItems` · `itemButtons`)은 원문이다 |
 | `config.buttonConfig` | object | 런타임 | 정적 모드와 같다. 전역 버튼과 항목 버튼을 합치고 매핑한다 |
 | `output.items` | Array | 런타임(`source` 해석 + 필드 매핑 + `maxItems`·한도 적용) | 동적 모드 런타임 값. `config.items` 와 독립이다 |
-| `output.itemsTruncated` | `true?` | 런타임 | 한도로 뒤쪽 원소를 잘랐을 때만 싣는다 |
-| `output.itemsTotalCount` | number? | 런타임 | 한도 적용 전 원소 수 |
+| `output.itemsTruncated?` | `true` | 런타임 | 한도로 뒤쪽 원소를 잘랐을 때만 싣는다 |
+| `output.itemsTotalCount?` | number | 런타임 | 한도 적용 전 원소 수. 한도로 잘랐을 때만 싣는다 |
 | `meta.durationMs` / `meta.interactionType` | 정적 모드와 같다 | | |
 | `status` | `'waiting_for_input'` | | |
 

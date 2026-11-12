@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-WIDGET"
 title: "웹채팅 위젯"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-WCWIDGET-001", "REQ-WCWIDGET-002", "REQ-WCWIDGET-003", "REQ-WCWIDGET-004", "REQ-WCWIDGET-005", "REQ-WCWIDGET-006", "REQ-WCWIDGET-007", "REQ-WCWIDGET-008", "REQ-WCWIDGET-009", "REQ-WCWIDGET-010", "REQ-WCWIDGET-011", "REQ-WCWIDGET-012", "REQ-WCWIDGET-013", "REQ-WCWIDGET-014", "REQ-WCWIDGET-015", "REQ-WCWIDGET-016", "REQ-WCWIDGET-017", "REQ-WCWIDGET-018", "REQ-WCWIDGET-019", "REQ-WCWIDGET-020", "REQ-WCWIDGET-021", "REQ-WCWIDGET-022", "REQ-WCWIDGET-023", "REQ-WCWIDGET-024", "REQ-WCWIDGET-025", "REQ-WCWIDGET-026", "REQ-WCWIDGET-027", "REQ-WCWIDGET-028", "REQ-WCWIDGET-029", "REQ-WCWIDGET-030", "REQ-WCWIDGET-031", "REQ-WCWIDGET-032", "REQ-WCWIDGET-033", "REQ-WCWIDGET-034", "REQ-WCWIDGET-035", "REQ-WCWIDGET-036", "REQ-WCWIDGET-037", "REQ-WCWIDGET-038", "REQ-WCWIDGET-039", "REQ-WCWIDGET-040", "REQ-WCWIDGET-041", "REQ-WCWIDGET-042", "REQ-WCWIDGET-043", "REQ-WCWIDGET-044", "REQ-WCWIDGET-045", "REQ-WCWIDGET-046", "REQ-WCWIDGET-047", "REQ-WCWIDGET-048", "REQ-WCWIDGET-049", "REQ-WCWIDGET-050", "REQ-WCWIDGET-051"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "142767ec6f5ad79d54afb8e658b8b828a8349a1cf82183ae3fcd769ae5c7a0ae"
-read_as: "approved"
-task: null
+content_hash: "95595bf75ebb1226f950d6572010afadb65e455c463af3f5a8e5266c7be668d4"
+read_as: "approved_fallback"
+task: "CLE-T-MBGDA4"
 source_paths: ["spec/7-channel-web-chat/1-widget-app.md"]
-mirror_sha256: "ef69b9cd0e75e045f736518216adf6862c2549483b3dea139fe59a998eca7c08"
-etag: "sha256-05748faae81720357e035a01803d98a86fd347b019246c7bd10be0dafb70d0d2"
+mirror_sha256: "f4da10213a22df515346107ddbc461e1078a759f715df5fa2c113734dbc8fd91"
+etag: "sha256-b723a5edb5786fb44ed576347e8bd00f18e21ba6a6cfbada028ba0d1bb58a9d9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/1-widget-app.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -123,6 +123,7 @@ etag: "sha256-05748faae81720357e035a01803d98a86fd347b019246c7bd10be0dafb70d0d2"
 - table 과 carousel 은 대칭이다. table 은 `rows*`, carousel 은 `items*` 키를 읽어 각자 잘림 배너를 그린다. 총 개수가 없으면 table 은 "일부 행만 표시돼요.", carousel 은 "일부 항목만 표시돼요." 를 쓴다.
 - 총 개수는 유한한 비음수 정수만 받는다. 믿을 수 없는 값으로 "총 NaN개…" 가 새지 않게 한다.
 - **복원 범위 제약**: 영속 대화 스레드의 `turn.presentations[]` 는 `source: 'ai_assistant'` 에만 있어 AI 표시 도구의 표시물만 저장된다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md)). 표시 전용 Presentation 노드의 표시물은 라이브 표시 메시지 이벤트로만 오므로 새로고침 복원 대상이 아니다.
+- **Template 본문 정화**: Template 본문(`output.rendered`, 표시 도구 `render_template` 의 `content`)은 서버에서 정화하지 않은 채로 온다([Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#template-본문-정화-책임)). 포맷이 `html` · `markdown` 이면 [웹채팅 보안](CLE-WEBCHAT-SECURITY.md#마크다운html-sanitize) 의 허용 목록으로 정화한 뒤 그리고 `markdown` 은 HTML 로 바꾼 뒤 정화한다. 포맷 값이 없거나 모르는 값이면 `html` 로 다룬다. `text` 포맷이거나 정화 결과가 비었거나 브라우저 밖(정적 빌드 단계)이면 태그를 해석하지 않고 글자로 보여 준다.
 
 ### 입력창
 

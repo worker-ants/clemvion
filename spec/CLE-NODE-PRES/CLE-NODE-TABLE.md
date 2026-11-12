@@ -2,19 +2,19 @@
 id: "CLE-NODE-TABLE"
 title: "Table 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-TABLE-001", "REQ-TABLE-002", "REQ-TABLE-003", "REQ-TABLE-004", "REQ-TABLE-005", "REQ-TABLE-006", "REQ-TABLE-007", "REQ-TABLE-008", "REQ-TABLE-009", "REQ-TABLE-010", "REQ-TABLE-011", "REQ-TABLE-012", "REQ-TABLE-013", "REQ-TABLE-014", "REQ-TABLE-015", "REQ-TABLE-016", "REQ-TABLE-017", "REQ-TABLE-018", "REQ-TABLE-019", "REQ-TABLE-020"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "1acda752e2525a75ac3dda86f029cec390333d30fc0e257f8480e59ee439b5fe"
+content_hash: "9ce64b8487221e4a135cda73230eed50cd6004749798271f79cf76aed0a054f4"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-W0377J"
 source_paths: ["spec/4-nodes/6-presentation/2-table.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "b7806a50bb9599538c290ef03523507ae922792298d00e85b18c97c0749b6dc1"
-etag: "sha256-f378b859394d8a3ba1a4f71e8f0576f1695f6238cb07f462f572dee2e5c5d22d"
+mirror_sha256: "7ce13749a1389d8e035bb0d53c884e6ad6b32ac620353586b0885a26080d7101"
+etag: "sha256-a7a729963005e0e60f4bd97754fb71628e70ead8f4b9fe2f2b36d8049e2a1a06"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/2-table.md`, `spec/4-nodes/_product-overview.md` (§9.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -189,17 +189,19 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 }
 ```
 
-**설정 에코는 모든 키를 싣는다**: 핸들러는 민감하지 않은 스키마 필드 `mode`·`dataSource`·`columns`·`rows`·`pagination`·`pageSize`·`sortBy`·`sortOrder` 를 모두 되돌린다. 원문 값이 없으면 `undefined` 키로 남고 JSON 직렬화에서 빠진다. 위 예시는 `undefined` 필드를 생략했을 뿐 실제 에코 객체에는 모든 키가 있다(`table.handler.ts:166-177`, `configEcho`).
+**설정 에코는 모든 키를 싣는다**: 핸들러는 민감하지 않은 스키마 필드 `mode`·`dataSource`·`columns`·`rows`·`pagination`·`pageSize`·`sortBy`·`sortOrder` 를 모두 되돌린다. 핸들러가 기본값을 채우는 `mode`·`columns`·`sortOrder` 말고는 원문 값이 없으면 `undefined` 키로 남고 JSON 직렬화에서 빠진다. 위 예시는 `undefined` 필드를 생략했을 뿐 실제 에코 객체에는 모든 키가 있다(`table.handler.ts:166-177`, `configEcho`).
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.mode` | `'static'` / `'dynamic'` | 설정 에코 | 행 생성 방식. `rawConfig.mode ?? mode`(정규화 기본값으로 대체) |
-| `config.dataSource` | string? | 설정 에코 | 배열 데이터 소스 표현식 원문. 없으면 `undefined` |
-| `config.columns` | ColumnDef[] | 설정 에코 | **원문** 컬럼 정의. `label` 의 `{{ }}` 를 보존한다(`rawConfig.columns ?? columns`) |
-| `config.rows` | RowDef[]? | 설정 에코 | 정적 모드 행 데이터 원문. 동적 모드이거나 없으면 `undefined` |
-| `config.pagination` | boolean? | 설정 에코 | 페이지네이션 플래그 원문 |
-| `config.pageSize` | number? | 설정 에코 | `rawConfig.pageSize ?? pageSize` |
-| `config.sortBy` / `config.sortOrder` | string? / enum? | 설정 에코 | 정렬 설정(`rawConfig.* ?? 런타임 값`) |
+| `config.mode` | `'static'` / `'dynamic'` | 설정 에코 | 행 생성 방식. 설정하지 않았으면 핸들러가 `dynamic` 을 채운다(`rawConfig.mode ?? mode`) |
+| `config.dataSource?` | string | 설정 에코 | 배열 데이터 소스 표현식 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 입력 포트 데이터를 쓴다 |
+| `config.columns` | ColumnDef[] | 설정 에코 | **원문** 컬럼 정의. `label` 의 `{{ }}` 를 보존한다. 설정하지 않았으면 핸들러가 `[]` 를 채운다(`rawConfig.columns ?? columns`) |
+| `config.rows?` | RowDef[] | 설정 에코 | 정적 모드 행 데이터 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 정적 모드는 행이 없을 때와 같다 |
+| `config.pagination?` | boolean | 설정 에코 | 페이지네이션 플래그 원문. 핸들러는 기본값을 채우지 않고 이 값을 읽지도 않는다([미결 사항](#미결-사항)). 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다 |
+| `config.pageSize?` | number | 설정 에코 | 페이지당 행 수 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 행 수를 자르지 않는다 |
+| `config.sortBy?` | string | 설정 에코 | 기본 정렬 컬럼 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 정렬하지 않는다 |
+| `config.sortOrder` | `'asc'` / `'desc'` | 설정 에코 | 정렬 방향. 설정하지 않았으면 핸들러가 `asc` 를 채운다(`rawConfig.sortOrder ?? sortOrder`) |
+| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의. 표시 전용이면 지금 핸들러가 싣지 않는다. [노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4 에 맞춰 싣도록 고치는 일은 NERV Task `CLE-T-961M2W` 가 맡는다 |
 | `output.rows` | `Record<string, unknown>[]` | 런타임 | 정적 모드는 `columns[*].field` 기준으로 고른 행, 동적 모드는 `dataSource` 항목별로 평가한 셀. 한도로 잘렸을 수 있다 |
 | `output.totalRows` | number | 런타임 | **한도 적용 전** 행 수(정렬과 `pageSize` 적용 후). `rows.length !== totalRows` 만으로도 잘림을 알 수 있다 |
 | `output.columns` | ColumnDef[] | 런타임 | `label` 표현식을 평가한 컬럼(동적 모드만). 설정의 원문 label 과 따로 둔다 |
