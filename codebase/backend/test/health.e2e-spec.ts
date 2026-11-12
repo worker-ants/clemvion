@@ -5,8 +5,8 @@ import request from 'supertest';
  * e2e: health probe 엔드포인트 (spec/data-flow/9-observability.md §1.1).
  *
  * 전제 — docker-compose.e2e.yml 환경에서 DB/Redis 가 정상이므로:
- *   - GET /api/health (readiness)     → 200, body.status === 'healthy'
- *   - GET /api/health/live (liveness) → 200, body.status === 'ok' (의존성 미점검)
+ *   - GET /api/health (readiness)     → 200, body.data.status === 'healthy'
+ *   - GET /api/health/live (liveness) → 200, body.data.status === 'ok' (의존성 미점검)
  *
  * unhealthy 시 503 경로는 의존성을 인위적으로 죽여야 해 e2e 범위 밖 —
  * health.controller.spec.ts 의 HTTP wire 통합 테스트(mock unhealthy service)가 커버한다.

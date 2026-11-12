@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "c0f6c443402efc7ad24e4fe3abf0e128b3c78dba4dba9bdff298e607e1ff0eff"
+content_hash: "5766529de2ddfb935deb4f449a04bd091c432f0b8f72b8c0cce80fa79cd0ee1b"
 read_as: "approved_fallback"
-task: "CLE-T-8MQMGQ"
+task: "CLE-T-DM3AXQ"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "050a0a8af8a1c78aa2f5454196bd9feb9afbb5b3eb962c1981478eda87179b18"
-etag: "sha256-e306118ca59864a7196e1b64e9ecd7fedadeac421160d2ae6265571c07c8b07d"
+mirror_sha256: "8dd393ce6d74638e8c07942b6b0dea3fbd32b6cd693ee9272f902e1b8b9829df"
+etag: "sha256-d3daa8eb55a5d9fd5d694aaf9c671923a390961c0859b374b6e0a7e50362f93a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -42,7 +42,7 @@ etag: "sha256-e306118ca59864a7196e1b64e9ecd7fedadeac421160d2ae6265571c07c8b07d"
 
 ## 규칙
 
-1. 모든 HTTP 에러 응답은 에러 응답 봉투 `{ error: { code, message, requestId, details? } }` 형식이다.
+1. 모든 HTTP 에러 응답은 에러 응답 봉투 `{ error: { code, message, requestId, details? } }` 형식이다. 헬스 체크 준비 상태 API(`GET /api/health`)의 503 은 이 규칙의 예외다. 정상 응답과 같은 `{ data: { status, version, uptime, checks } }` 본문을 돌려준다([로깅과 헬스 체크 「`/api/health` 응답」](../CLE-OBS/CLE-OBS-LOGGING.md#apihealth-응답)).
 2. `message` 는 사람이 읽을 짧은 설명이다. 라이브러리 예외 메시지·스택·파일 경로 같은 내부 구현 원문을 싣지 않는다(CWE-209).
 3. 요청 ID(`requestId`)는 모든 에러 응답에 늘 싣는다.
 4. 에러 상세(`details`)는 추가 맥락이 있을 때만 싣는다. 배열과 객체 두 형태가 모두 유효하고 어느 형태를 쓸지는 발행 지점이 정해 그 엔드포인트 문서에 적는다.
@@ -134,7 +134,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 | 410 | **없음** |
 
 - `RolesGuard` 의 멤버십·역할 거부는 기본값이 아니라 전용 가드 거부 코드(`NOT_A_MEMBER`, `EDITOR_REQUIRED`, `ADMIN_REQUIRED`, `OWNER_REQUIRED`)를 쓴다. 2026-09-25 이전에는 코드를 지정하지 않아 기본값 `FORBIDDEN` 이 나갔다. 결정 근거는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 "가드 거부의 오류 코드" Rationale 이다.
-- **`410` 에는 기본값이 없다.** 위 표는 필터의 상태→코드 매핑을 옮긴 것이고 그 매핑에 `410` 항목이 없다. 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 그래서 `410` 을 돌려주는 경로는 `code` 를 반드시 명시한다. 현재 `410` 발행 지점(`TRIGGER_INACTIVE`, `WORKFLOW_INACTIVE`, `EXECUTION_TERMINATED`, `invitation_expired`, `invitation_already_used`)은 모두 코드를 명시한다. 기본값을 새로 만들지 않은 이유는 Rationale 에 있다.
+- **`410` 에는 기본값이 없다.** 위 표는 필터의 상태→코드 매핑을 옮긴 것이고 그 매핑에 `410` 항목이 없다. 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 그래서 `410` 을 돌려주는 경로는 `code` 를 반드시 명시한다. 현재 `410` 발행 지점(`TRIGGER_INACTIVE`, `WORKFLOW_INACTIVE`, `EXECUTION_TERMINATED`, `invitation_expired`, `invitation_already_used`)은 모두 코드를 명시한다. 소문자 두 값은 이름 규칙의 예외로 등록된 초대 흐름 코드다([에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md#3-예외-등록-코드) §3). 기본값을 새로 만들지 않은 이유는 Rationale 에 있다.
 - **외부 표면의 의도적 교체**: EIA REST(`/api/external/*`)와 웹훅 수신(`/api/hooks/*`)은 외부 호출자에게 보이는 표면이라 기본 코드 대신 도메인 코드를 쓴다(예: 400 에 `INVALID_COMMAND`·`INVALID_WEBHOOK_PAYLOAD`, 429 에 `TOO_MANY_CONNECTIONS`). `410` 은 교체가 아니라 명시 의무다. 교체할 기본값이 애초에 없다.
 
 ### 2.3 도메인 세부 사유를 어디에 싣는가: top-level `code` 교체와 `details[].code`
@@ -144,7 +144,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 | 싣는 자리 | 쓸 때 | 선례 |
 |---|---|---|
 | **top-level `code` 교체** | 그 사유가 엔드포인트 결과 자체라 소비자가 `code` 하나로 분기하면 되는 경우. 한 요청에 사유가 하나뿐이다 | `DUPLICATE_NODE_LABEL`, `WORKFLOW_VERSION_CONFLICT`, `ALREADY_A_MEMBER`, `KB_REEXTRACT_IN_PROGRESS` |
-| **`details[].code`** (top-level 은 §2.2 기본값 유지) | 사유가 어느 필드·항목에 붙는지가 정보의 일부이거나 한 응답에 사유가 여럿 실릴 수 있는 경우 | 검증 에러 `INVALID_FIELD`, 트리거 파라미터 검증 사유(`MISSING_REQUIRED_FIELD` 등), `TRIGGER_ENDPOINT_PATH_CONFLICT` |
+| **`details[].code`** (top-level 은 §2.2 기본값 유지) | 사유가 어느 필드·항목에 붙는지가 정보의 일부이거나 한 응답에 사유가 여럿 실릴 수 있는 경우 | 검증 에러 `INVALID_FIELD`, 트리거 파라미터 검증 사유(`MISSING_REQUIRED_FIELD` 등. 이 경우 top-level 은 기본값이 아니라 `INVALID_TRIGGER_PARAMETERS` · `INVALID_WEBHOOK_PAYLOAD` 다. §2.6), `TRIGGER_ENDPOINT_PATH_CONFLICT` |
 
 - **둘을 겹쳐 쓰지 않는다.** top-level 을 특화 코드로 바꾸면서 같은 사유를 `details[].code` 에도 넣으면 소비자가 어느 쪽으로 분기할지 갈린다.
 - 어느 쪽을 택하든 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에 등재한다.
@@ -177,6 +177,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 |---|---|---|
 | top-level 과 같은 사유를 반복 (예: 둘 다 `KB_REEXTRACT_IN_PROGRESS`) | **금지** | 분기 대상이 둘이 되어 갈린다 |
 | 일반 표지 (`INVALID_FIELD`) | **허용** | 사유를 싣지 않고 "필드 수준 문제다" 만 알린다 |
+| 묶음 사유 아래의 필드별 사유 (예: top-level `INVALID_TRIGGER_PARAMETERS` 아래 `MISSING_REQUIRED_FIELD`) | **허용** | top-level 은 "파라미터 검증 실패" 라는 묶음 사유이고 `details[].code` 는 어느 필드가 왜 걸렸는지를 싣는다. 같은 사유가 두 자리에 실리지 않는다 |
 
 실례: `AUTH_CONFIG_NOT_FOUND` 와 `details: { field: 'authConfigId', code: 'INVALID_FIELD' }`(`TriggersService.assertAuthConfigInWorkspace`). 소비자는 top-level 로 분기하고 `details` 는 어느 필드인지와 필드 수준 문제라는 점을 덧붙인다. 경쟁하는 사유가 없다.
 
@@ -296,6 +297,19 @@ body-parser 같은 http-errors 미들웨어가 던지는 4xx(예: 413 `request e
 ### `@Res` 직접 응답 경로의 `requestId` (2026-11-06)
 
 설치 엔드포인트처럼 `@Res` 로 응답을 직접 쓰는 경로는 `GlobalExceptionFilter` 를 거치지 않아 필터가 `requestId` 를 붙이지 못한다. 규칙 3(요청 ID 는 모든 에러 응답에 싣는다)을 지키려고 그 컨트롤러가 필터와 같은 형식(uuid v4)으로 직접 발급한다. 형식이 같아야 로그 검색과 클라이언트 표시가 경로에 따라 갈리지 않는다. 필드 표가 필터 발급만 적어 이 경로를 빠뜨렸다는 일관성 검토 지적(NERV Task `CLE-T-909H23`, W2)으로 더했다. 위 413 변경과는 별건이다.
+
+### 헬스 체크 503 을 규칙 1 의 예외로 적는다 (2026-11-12)
+
+`GET /api/health` 는 의존성 장애 때 예외를 던지지 않고 응답 상태 코드만 503 으로 바꾼다. 본문은 정상일 때와 같은 `{ data: { status, version, uptime, checks } }` 다. k8s 준비 상태 probe 와 외부 모니터는 상태 코드로 판정하고 운영자는 본문의 `checks` 로 어느 의존성이 비정상인지 본다. 에러 응답 봉투로 바꾸면 그 점검 결과가 응답에서 사라진다. 이 동작은 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 가 정했는데 규칙 1 은 예외 없이 적혀 있어 두 문서가 서로 다른 말을 했다(NERV Task `CLE-T-DM3AXQ` 항목 11). 그래서 규칙 1 에 예외를 적었다.
+
+- 이 503 에는 봉투가 없다. 그래서 봉투의 `requestId` · `code` 를 다루는 규칙 3 · 7 · 8 도 이 응답에는 적용하지 않는다.
+- **기각한 대안**: 규칙 9 의 외부 표면 목록에 헬스 체크를 넣는 것. 규칙 9 는 봉투 안의 기본 코드를 도메인 코드로 바꾸는 허용이라 봉투를 아예 쓰지 않는 이 경우와 결이 다르다.
+
+### 묶음 코드 아래의 필드별 사유를 §2.6 표에 적었다 (2026-11-12)
+
+NERV Task `CLE-T-DM3AXQ` 항목 10 에서 더했다. 트리거 파라미터 검증은 처음부터 top-level 특화 코드(`INVALID_TRIGGER_PARAMETERS` · `INVALID_WEBHOOK_PAYLOAD`)와 `details[].code` 의 필드별 사유를 함께 실었다. 그런데 §2.3 표는 이 선례의 top-level 을 기본값이라고 적었고 §2.6 표에는 이 경우가 없었다. 그래서 "둘을 겹쳐 쓰지 않는다" 를 어긴 것처럼 읽혔다.
+
+판별 기준(사유의 중복)은 바꾸지 않았다. 그 기준을 이 경우에 적용한 결과를 표에 한 행으로 적었다. 코드와 응답 형태는 바뀌지 않는다. 행마다의 설명은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 §4.2 와 `INVALID_TRIGGER_PARAMETERS` 행에 있다.
 
 ### 실행 에러 예시의 필드 이름을 `nodeLabel` 로 고친 이유 (2026-08-17)
 
