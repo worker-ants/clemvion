@@ -4054,8 +4054,13 @@ export class ExecutionEngineService
       return cleanInput;
     }
 
-    // Build graph for the sub-workflow
-    const { graphNodes, graphEdges } = buildGraph(subNodes, subEdges);
+    // Build graph for the sub-workflow. 컨테이너 본문 안 Background 의 본문은 그
+    // 컨테이너 단계의 노드로 만든다(CLE-T-MR6ZH3).
+    const { graphNodes, graphEdges } = buildGraph(
+      subNodes,
+      subEdges,
+      options.containerScopeId ?? null,
+    );
     const { forwardEdges, backEdges } = identifyBackEdges(
       graphNodes,
       graphEdges,
@@ -7148,6 +7153,12 @@ export class ExecutionEngineService
    * 읽고, 병렬 분기 안 컨테이너면 바깥 병렬 분기 깊이를 이어받는다. 병렬 분기 노드는 이
    * 루프의 `reachable` 에 들어가지 않으므로 emit 원천이 병렬 분기 안에 있으면
    * `runParallel` 이 돌려준 "출력을 쓴 노드" 로 이번 회차 실행 여부를 판정한다.
+   *
+   * 본문 안 Loop · ForEach · Map 은 {@link runContainer} 로, Background 는
+   * {@link scheduleBackgroundBody} 로 넘긴다(CLE-T-MR6ZH3). 메인 루프 · 병렬 분기 루프와
+   * 같은 규칙이고 Parallel 플래그와 상관없다. Background 본문은 그 회차에 Background 가
+   * 받은 입력으로 큐에 들어가고 워커는 작업의 `containerScopeId` 로 이 컨테이너 단계의
+   * 그래프를 만들어 실행한다.
    */
   private async executeContainerBody(
     containerNode: Node,
@@ -7251,14 +7262,43 @@ export class ExecutionEngineService
         outgoingEdgeMap,
       );
 
+      const bodyDispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
+
+      // CLE-T-MR6ZH3 — 메인 루프 · 병렬 분기 루프와 같다. 본문 안 Loop · ForEach · Map 은
+      // 회차 컨텍스트를 그대로 받아 자기 본문을 반복한다. 반복 변수는 안쪽 실행기가
+      // 바깥 값을 저장했다가 되돌린다. 끝나면 완료 출력이 캐시에 있으므로 아래 전파가
+      // `done` 뒤 본문 노드를 연다.
+      if (bodyDispatchKind === 'container') {
+        await this.runContainer(
+          node,
+          plan.allNodes,
+          plan.allEdges,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta,
+        );
+      }
+
+      // Background 는 본문을 큐에 넣고 회차를 이어 간다. 본문 진입 입력은 Background
+      // 노드가 이번 회차에 받은 입력이다(CLE-NODE-BACKGROUND 의 진입 입력 표).
+      // `background` 포트 뒤 노드는 핸들러가 `main` 만 고르므로 이 회차 루프에서
+      // 실행되지 않는다.
+      if (bodyDispatchKind === 'background') {
+        await this.scheduleBackgroundBody(
+          node,
+          plan.allEdges,
+          context,
+          executionId,
+          nodeInput,
+        );
+      }
+
       // 병렬 분기 루프 · 메인 루프와 같다. 본문 안 연결선만 넘기므로 병렬 분기 탐색은
       // 본문 안에 머문다. 되돌아가는 연결선은 `planContainerBody` 가 이미 막았다.
       // `runParallel` 이 `done` 포트와 출구 노드의 다음 노드를 `reachable` 에 넣으므로
       // 아래 전파는 건너뛴다.
-      if (
-        parallelEngineV1 &&
-        this.handlerRegistry.getMetadata(node.type).kind === 'parallel'
-      ) {
+      if (parallelEngineV1 && bodyDispatchKind === 'parallel') {
         const written = await this.runParallel({
           parallelNode: node,
           allNodes: plan.allNodes,
@@ -7515,6 +7555,20 @@ export class ExecutionEngineService
       workspaceId,
       workflowId: context.workflowId,
       bodyEntryNodeIds,
+      // CLE-T-MR6ZH3 — 컨테이너 본문 안 Background 의 본문 노드는 에디터의 소속 전파로
+      // 같은 컨테이너 소속이다. 워커가 그 컨테이너 단계의 노드로 그래프를 만들도록
+      // 컨테이너 ID 를 싣는다. 맨 바깥 Background 는 싣지 않는다(옛 작업 모양 유지).
+      ...(node.containerId ? { containerScopeId: node.containerId } : {}),
+      // 질문 01a1cd70 답 A — 큐에 넣은 회차의 반복 변수를 값으로 복사해 싣는다. 본문은
+      // 그 회차의 `$item` · `$itemIndex` · `$loop` 를 읽고, 컨테이너가 다음 회차로
+      // 넘어가도 이미 넣은 작업의 값은 바뀌지 않는다. 병렬 분기가 바깥 반복 변수를
+      // 이어받는 규칙(REQ-PARALLEL-009)과 같다. 반복 밖이면 싣지 않는다.
+      ...(context.itemContext
+        ? { itemContext: { ...context.itemContext } }
+        : {}),
+      ...(context.loopContext
+        ? { loopContext: { ...context.loopContext } }
+        : {}),
       input: mainInput,
       variables: { ...context.variables },
       nodeOutputCache: { ...context.nodeOutputCache },
@@ -7570,6 +7624,10 @@ export class ExecutionEngineService
     // thread instead of crashing on `undefined.turns`.
     context.conversationThread =
       job.conversationThread ?? createEmptyConversationThread();
+    // 큐에 넣은 회차의 반복 변수를 되살린다(CLE-T-MR6ZH3). 맨 바깥 Background 와
+    // 옛 작업에는 필드가 없어 본문의 반복 변수는 비어 있다.
+    if (job.itemContext) context.itemContext = { ...job.itemContext };
+    if (job.loopContext) context.loopContext = { ...job.loopContext };
 
     try {
       const run = this.executeInline(job.workflowId, job.input, {
@@ -7579,6 +7637,9 @@ export class ExecutionEngineService
         recursionDepth: 0,
         parentNodeExecutionId: job.parentNodeExecutionId || undefined,
         entryNodeIds: job.bodyEntryNodeIds,
+        ...(job.containerScopeId
+          ? { containerScopeId: job.containerScopeId }
+          : {}),
       });
 
       if (job.config.maxDurationMs > 0) {

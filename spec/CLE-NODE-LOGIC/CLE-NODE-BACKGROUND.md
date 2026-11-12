@@ -2,27 +2,27 @@
 id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
-requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026"]
+requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026", "REQ-BGRUN-027", "REQ-BGRUN-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "856e1eccac51dc572c4d824f5c78a1af9c7672ba72594a0d5f1dc622180fae44"
+content_hash: "053634e49e82f00e50d1d0b9f03232f1a9b38b6eb518d81bcf3dd203ad638f0c"
 read_as: "approved_fallback"
-task: "CLE-T-7ZYES5"
+task: "CLE-T-MR6ZH3"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "be57102fa3cebee751c927dab8ab9de778316a72557f3916e34874dcb028508e"
-etag: "sha256-97a2c2ada74ffc82a4be9c8f6a85970b37b2ce12b543840a8dbb7cad3aa937a7"
+mirror_sha256: "a32bd1b847f94dd48aace834dda52eeef05efc83c0ff00c44999be0597453e4f"
+etag: "sha256-1dd40b0bdfc9761e86d6d9a61f9a74fe2b02b1435193348498ce6e90261033ea"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (REQ-BGRUN-026 AI 어시스턴트 조회 도구는 미구현) · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
 Background 노드(Background, `background`)는 `background` 출력 포트에 연결된 노드 묶음을 BullMQ 큐로 떼어 내 비동기로 실행하고 메인 흐름은 `main` 포트로 곧바로 넘기는 fire-and-forget 노드다. Background 본문(background body)의 결과와 실패는 메인 흐름에 영향을 주지 않는다(격리).
 
-Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰지 않고 `background` 출력 포트의 연결선으로 이어진 노드를 본문 진입점으로 본다. 그 진입점에서 앞으로 도달할 수 있는 노드 전체가 Background 본문이다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴)). 핸들러 자체는 단순한 패스스루다. 본문 enqueue 는 핸들러가 끝난 직후 `ExecutionEngineService.scheduleBackgroundBody()` 가 따로 하고 핸들러는 큐를 모른다.
+Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰지 않고 `background` 출력 포트의 연결선으로 이어진 노드를 본문 진입점으로 본다. 그 진입점에서 앞으로 도달할 수 있는 노드 전체가 Background 본문이다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴)). 컨테이너 본문 안에 둔 Background 라면 본문 노드에도 `containerId` 가 있다. 이 값은 에디터 연결선 체인 규칙이 준 위치 속성이고 Background 가 놓인 컨테이너를 가리킬 뿐이다. 본문 범위는 `background` 포트에서 연결선으로 닿는 노드로 정하고 워커는 그 컨테이너 단계의 노드로 그래프를 만든다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). 핸들러 자체는 단순한 패스스루다. 본문 enqueue 는 핸들러가 끝난 직후 `ExecutionEngineService.scheduleBackgroundBody()` 가 따로 하고 핸들러는 큐를 모른다.
 
 **구현 상태**: 노드 정의·핸들러·BullMQ 큐(`background-execution`)·워커가 모두 `ExecutionEngineService` 에 들어가 있다. 핸들러 실행 직후 `scheduleBackgroundBody()` 가 컨텍스트 스냅샷과 함께 본문 진입점을 enqueue 하고 워커는 `executeBackgroundSubgraph()` 로 진입점에서 앞으로 도달할 수 있는 노드 묶음을 격리된 컨텍스트에서 실행한다.
 
@@ -56,6 +56,8 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
 - REQ-BGRUN-024 WHEN Background 본문 노드가 실행되면 THE SYSTEM SHALL 노드 이벤트를 메인 `execution:<id>` 구독 채널에 보낸다.
 - REQ-BGRUN-025 WHEN 사용자가 `background:run:<id>` 채널을 구독하면 THE SYSTEM SHALL 모니터링 API 와 같은 권한 규칙으로 확인한다.
 - REQ-BGRUN-026 WHEN AI 어시스턴트가 실행을 조회하면 THE SYSTEM SHALL `get_background_run` · `list_background_runs` 읽기 전용 도구로 Background 본문 실행을 조회할 수 있게 한다. (미구현)
+- REQ-BGRUN-027 WHEN Background 가 Loop · ForEach · Map 본문 안에서 실행되면 THE SYSTEM SHALL 회차마다 본문을 큐에 넣고 작업에 그 컨테이너 ID 를 실어 워커가 그 컨테이너의 본문 노드로 그래프를 만들게 한다.
+- REQ-BGRUN-028 WHEN Background 가 컨테이너 본문 안이나 그 안의 병렬 분기에서 본문을 큐에 넣으면 THE SYSTEM SHALL 그 회차의 반복 변수(`itemContext` · `loopContext`)를 작업 스냅샷에 복사해 싣고 워커가 본문 실행 컨텍스트에 되살려 본문 노드가 그 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽게 한다.
 
 ## 설정
 
@@ -96,10 +98,13 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
    - `context.variables`, `context.nodeOutputCache`, `context.expressionContext` 의 얕은 복사 스냅샷
    - 대화 스레드 스냅샷. `turns` 배열까지 새로 복사해 본문과 메인이 서로의 턴 목록을 건드리지 못하게 한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md))
    - 메인 입력(`input` 스냅샷)
+   - Background 가 컨테이너 본문 안에 있으면 그 컨테이너 ID(`containerScopeId`). 맨 바깥 Background 는 넣지 않는다
+   - 컨테이너 본문 안(또는 그 안 병렬 분기)에서 큐에 넣으면 그 회차의 반복 변수(`itemContext` · `loopContext`) 복사본. 맨 바깥 Background 는 넣지 않는다
    - `notifyOnFailure`, `maxDurationMs`
 3. `BackgroundExecutionProcessor` 워커가 작업을 꺼내면 `executeBackgroundSubgraph(job)` 이 다음을 한다.
    - 새 `ExecutionContext` 를 만들고 스냅샷으로 채운다.
-   - `executeInline(workflowId, input, { entryNodeIds, ... })` 으로 진입점에서 앞으로 도달할 수 있는 노드만 실행한다.
+   - 작업에 반복 변수가 있으면 본문 실행 컨텍스트에 되살린다. 본문 노드의 식은 큐에 넣은 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽는다. 반복 변수가 없는 작업(맨 바깥 Background, 필드를 넣기 전에 큐에 들어간 작업)은 본문에서 반복 변수가 비어 있다.
+   - `executeInline(workflowId, input, { entryNodeIds, containerScopeId, ... })` 으로 진입점에서 앞으로 도달할 수 있는 노드만 실행한다. `containerScopeId` 가 있으면 그 컨테이너의 본문 노드만으로 그래프를 만든다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). 큐에 넣은 뒤 그 컨테이너가 워크플로우에서 지워졌으면 워커가 만든 그래프가 비어 본문을 실행하지 않고 오류 없이 끝난다.
    - `maxDurationMs > 0` 이면 `Promise.race` 로 시간 제한을 건다.
    - 본문 안의 블로킹 노드(form / buttons / ai_conversation)가 입력 대기로 멈추면 `executeInline` 이 `ParkReleaseSignal` 을 던지고 `executeBackgroundSubgraph` 가 이를 잡아 본문을 그 지점에서 곧바로 조용히 끝낸다. fire-and-forget 이라 바깥에서 `continueExecution` 으로 재개할 경로가 없어 입력 대기를 유지할 뜻이 없다. 실패로 세지 않고 `notifyOnFailure` 알림도 보내지 않는다([에러](#에러)).
 4. 본문 노드의 노드 실행 기록은 정상으로 만들고 `parentNodeExecutionId` 에 Background 노드 자신의 노드 실행 ID 를 넣는다. 타임라인에서 Background 묶음 아래에 모여 보인다.
@@ -195,6 +200,7 @@ Background 는 경로 선택 노드처럼 출력 포트가 두 개지만 핸들�
 | `context.nodeOutputCache` | enqueue 시점 스냅샷 | 본문에서는 enqueue 시점까지의 메인 노드 출력을 참조할 수 있다 |
 | `context.expressionContext` | enqueue 시점 스냅샷 | 표현식 평가용 |
 | `context.conversationThread` | enqueue 시점 스냅샷(`turns` 배열까지 새로 복사) | 본문에서 쌓인 턴은 메인 스레드에 들어가지 않고 반대도 같다. 필드가 없는 옛 큐 작업은 빈 스레드로 시작한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md), [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#background-본문-실행)) |
+| 반복 변수 | enqueue 시점 스냅샷(`itemContext` · `loopContext` 복사본) | 컨테이너 본문 안(또는 그 안 병렬 분기)에서 큐에 넣었으면 본문 노드는 그 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽는다. 맨 바깥 Background 의 작업과 필드를 넣기 전에 큐에 들어간 작업은 본문에서 반복 변수가 비어 있다 |
 | `parentNodeExecutionId` | Background 노드의 노드 실행 ID | 본문 노드 실행 기록에 넣는다 |
 
 메인 흐름에서는 본문 결과를 읽을 수 없다.
@@ -402,3 +408,15 @@ Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행
 예전에는 본문 안의 블로킹 노드(form / buttons / ai_conversation)가 입력 대기로 멈추면 `pendingContinuations` 에 등록된 채 `maxDurationMs` 까지 매달려 있다가 시간 초과 실패로 끝났다(`notifyOnFailure` 알림이 갈 수 있었다). 입력 대기를 DB 에 보존하는 방식(durable park)을 도입한 뒤로는 `executeInline` 이 멈추는 순간 `ParkReleaseSignal` 을 던지고 `executeBackgroundSubgraph` 가 이를 잡아 본문을 곧바로 조용히 끝낸다. Background 는 fire-and-forget 이라 바깥에서 `continueExecution` 으로 재개할 경로가 없어 입력 대기를 보존할 뜻이 없기 때문이다.
 
 사용자에게 보이는 동작이 바뀌었다. 전에는 시간 초과 실패로 보였지만 지금은 에러 없이 그 지점에서 조용히 끝난다(실패로 세지 않고 알림도 보내지 않는다). 본문에 블로킹 노드를 두는 구성 자체를 권하지 않는다. 사용자 입력을 기다려야 하면 메인 흐름에 둔다.
+
+### 컨테이너 본문 안 Background 는 컨테이너 단계 그래프로 실행한다 (2026-11-12)
+
+컨테이너 본문 안 Background 는 회차마다 본문을 큐에 넣는다. 본문 노드는 에디터 규칙에 따라 Background 와 같은 컨테이너 소속을 받는다. 그런데 워커가 맨 바깥 노드로만 그래프를 만들어 이 노드를 실행하지 못했다. 그래서 작업에 컨테이너 ID 를 싣고 워커가 그 단계의 그래프를 만든다. 본문은 계속 `background` 포트 연결선으로 찾는다.
+
+반복 변수는 큐에 넣는 회차의 `itemContext` · `loopContext` 를 작업 스냅샷에 복사해 싣고 워커가 본문 실행 컨텍스트에 되살린다(NERV 질문 `01a1cd70-d2c0-74dd-9078-f6f0b3492ff3`, 답 A). 그래서 본문 노드는 그 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽는다. 병렬 분기가 바깥 반복 변수를 이어받는 규칙([Parallel 노드 요구사항](CLE-NODE-PARALLEL.md#요구사항))과 같다.
+
+반복 변수를 정할 때 기각한 대안은 다음과 같다.
+
+- **반복 변수를 비우는 안**: 본문에서 `$item` · `$loop` 같은 반복 변수가 비어 회차별 처리를 할 수 없다.
+
+결정 경위와 나머지 기각 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#본문-안-컨테이너와-background-도-실행-경로로-넘긴다-2026-11-12) 의 Rationale 에 있다(NERV Task `CLE-T-MR6ZH3`).

@@ -47,6 +47,13 @@ export interface InlineExecutionOptions {
    * to run a body subgraph rooted at the `background`-port edge targets.
    */
   entryNodeIds?: string[];
+  /**
+   * 그래프를 이 컨테이너의 본문 노드(`containerId` 가 이 값인 노드)로 만든다. 비우면
+   * 지금처럼 맨 바깥 노드(`containerId` 가 없는 노드)로 만든다. 컨테이너 본문 안
+   * Background 의 본문을 워커가 실행할 때만 쓴다(CLE-T-MR6ZH3). 그 본문 노드는 에디터의
+   * 소속 전파로 Background 와 같은 컨테이너 소속이라 맨 바깥 그래프에 없다.
+   */
+  containerScopeId?: string;
 }
 
 export interface WorkflowExecutor {
