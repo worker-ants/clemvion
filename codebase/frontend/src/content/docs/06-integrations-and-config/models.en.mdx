@@ -56,9 +56,9 @@ Token-level streaming in the Workflow AI Assistant and AI Agent works with every
 Provider-level defaults are inherited as initial values by every AI node. Each node can override them independently.
 
 <FieldTable rows={[
-  { name: "temperature", type: "number (0.0–2.0)", required: "Optional", description: "Response creativity. Default 0.7." },
+  { name: "temperature", type: "number (0.0–2.0)", required: "Optional", description: "Response creativity. Default 0.7. Not sent to Anthropic models." },
   { name: "max_tokens", type: "integer", required: "Required for Anthropic", description: "Max output tokens. Default 4096." },
-  { name: "top_p", type: "number (0.0–1.0)", required: "Optional", description: "Cumulative-probability sampling. Default 1.0." },
+  { name: "top_p", type: "number (0.0–1.0)", required: "Optional", description: "Cumulative-probability sampling. Default 1.0. Not sent to Anthropic models." },
   { name: "frequency_penalty", type: "number", required: "Optional", description: "Suppress repeated tokens. Default 0.0." },
   { name: "presence_penalty", type: "number", required: "Optional", description: "Encourage new tokens. Default 0.0." }
 ]} />

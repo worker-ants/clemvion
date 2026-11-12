@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
 content_hash: "ecaf7d88538d4622c718ed6d61d9fbc0954ce748241fdd51e46421c5c405bc30"
 read_as: "approved_fallback"
-task: "CLE-T-FPVQPM"
+task: "CLE-T-GKZPKY"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "08ad109bae11c0b384e47f95df39d6e44e86ff64d7f3469bcc84f911086b2f3c"
-etag: "sha256-54a94818aec817f98d22957a6c10041747cafb92253eb60c856564fc77fef958"
+mirror_sha256: "cccc1dd163d68c9e0157bbf6a48317f32f292808b975392358831d9a07e0bee6"
+etag: "sha256-42285d8e2bc0ef4435a3c156fbb0ade48dbbb08cc5173601b10bc5971d1acafb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

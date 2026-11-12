@@ -8,6 +8,18 @@ import {
   ToolCall,
 } from '../interfaces/llm-client.interface';
 
+/**
+ * Anthropic Messages API 클라이언트.
+ *
+ * 샘플링 파라미터(`temperature` · `top_p` · `top_k`)는 요청에 넣지 않는다.
+ * `ChatParams.temperature` · `topP` 를 받아도 버린다. API 버전 `2026-10-21`
+ * (`@anthropic-ai/sdk` 1.0 부터 기본값)은 이 세 필드가 있으면 값이 기본값이어도
+ * 모든 모델에서 400 을 내고, SDK 1.x 타입에서도 빠졌다. 그래서 요청은 API 기본값
+ * (temperature 1.0)으로 샘플링한다. Claude 4.7 이후 모델은 원래 기본값만 받아서
+ * 달라지는 것이 없다. Sonnet 4.6 · Haiku 4.5 같은 이전 모델에서는 temperature 를
+ * 낮춰 얻던 일관성이 사라진다. 대체 설정은 없다.
+ * 근거: https://platform.claude.com/docs/en/api/migration-2026-10-21
+ */
 export class AnthropicClient implements LLMClient {
   private readonly client: Anthropic;
 
@@ -84,15 +96,12 @@ export class AnthropicClient implements LLMClient {
         return { role: m.role as 'user' | 'assistant', content: m.content };
       });
 
+    // `params.temperature` · `params.topP` 는 보내지 않는다. 이유는 클래스 주석.
     const requestParams: Anthropic.MessageCreateParamsNonStreaming = {
       model: params.model || this.defaultModel,
       messages,
       max_tokens: params.maxTokens || 4096,
       ...(system ? { system } : {}),
-      ...(params.temperature !== undefined
-        ? { temperature: params.temperature }
-        : {}),
-      ...(params.topP !== undefined ? { top_p: params.topP } : {}),
     };
 
     if (params.tools?.length) {
@@ -222,16 +231,13 @@ export class AnthropicClient implements LLMClient {
         return { role: m.role as 'user' | 'assistant', content: m.content };
       });
 
+    // `params.temperature` · `params.topP` 는 보내지 않는다. 이유는 클래스 주석.
     const requestParams: Anthropic.MessageCreateParamsStreaming = {
       model: params.model || this.defaultModel,
       messages,
       max_tokens: params.maxTokens || 4096,
       stream: true,
       ...(system ? { system } : {}),
-      ...(params.temperature !== undefined
-        ? { temperature: params.temperature }
-        : {}),
-      ...(params.topP !== undefined ? { top_p: params.topP } : {}),
     };
 
     if (params.tools?.length) {

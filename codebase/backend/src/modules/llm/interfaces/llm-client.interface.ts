@@ -41,8 +41,10 @@ export interface ToolCall {
 export interface ChatParams {
   model: string;
   messages: ChatMessage[];
+  /** AnthropicClient ignores this field (see its class comment). */
   temperature?: number;
   maxTokens?: number;
+  /** AnthropicClient ignores this field (see its class comment). */
   topP?: number;
   responseFormat?: 'text' | 'json';
   jsonSchema?: Record<string, unknown>;

@@ -167,7 +167,8 @@ const LABEL_KO: Record<string, string> = {
 };
 
 const HINT_KO: Record<string, string> = {
-  "0 = deterministic, 2 = creative": "0 = 결정적, 2 = 창의적",
+  "0 = deterministic, 2 = creative. Not applied to Anthropic models":
+    "0 = 결정적, 2 = 창의적. Anthropic 모델에는 적용되지 않아요",
   "stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches; a failed branch leaves null in output.branches[i] and its error is collected in output.skipped. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).":
     "stop: 첫 분기 실패 시 즉시 throw (Parallel 노드 FAILED). continue: 모든 분기 종료 대기 후 실패한 분기 자리는 output.branches[i] 에 null 로 두고 에러는 output.skipped 에 수집. cancel-others-on-fail: 첫 실패 시 AbortSignal 로 다른 분기의 외부 I/O 즉시 abort (signal 인지 노드만 cleanup, best-effort).",
   "Brand/style fixed values that override LLM payload on deep-merge":

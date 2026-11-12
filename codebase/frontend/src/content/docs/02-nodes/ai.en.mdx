@@ -23,7 +23,7 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "ragThreshold", required: false, type: "float", description: "RAG similarity threshold (0–1).", default: "0.7"},
   {name: "mcpServers", required: false, type: "McpServerRef[]", description: "MCP (Model Context Protocol) servers to expose to the agent. Each entry takes a required `integrationId` plus optional `enabledTools`, `includeResources`, `includePrompts`, and `toolOverrides`. Tools from the registered servers become callable by the LLM automatically.", default: "[]"},
   {name: "conditions", required: false, type: "ConditionDef[]", description: "Conditions. Each has `id`, `label`, and `prompt`, and each condition gets its own dynamic output port.", default: "[]"},
-  {name: "temperature", required: false, type: "float", description: "Overrides the LLMConfig default.", default: "-"},
+  {name: "temperature", required: false, type: "float", description: "Overrides the LLMConfig default. Not sent to Anthropic models, so it has no effect there.", default: "-"},
   {name: "maxTokens", required: false, type: "integer", description: "Max tokens.", default: "-"},
   {name: "maxToolCalls", required: false, type: "integer", description: "Max tool calls.", default: "10"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Automatic Conversation Thread injection scope. `none` sends only system+user, `thread` injects the full workflow thread, and `lastN` injects only the most recent N turns.", default: "none"},
