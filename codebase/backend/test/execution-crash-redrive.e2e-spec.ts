@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { randomUUID } from 'crypto';
+import { sign } from 'jsonwebtoken';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -26,6 +27,21 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 const MANUAL_TRIGGER_TYPE = 'manual_trigger';
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'] as const;
+
+// backend-e2e 의 JWT_SECRET(docker-compose.e2e.yml). interaction-token 을 backend 와
+// 같은 키로 만들려고 쓴다. runner env 에 없으면 compose 값(테스트 전용, 공개됨)을 쓴다.
+const JWT_SECRET =
+  process.env.JWT_SECRET ?? 'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7';
+
+/** InteractionTokenService.issuePerExecution 과 같은 모양의 iext_* 토큰. */
+function mintInteractionToken(executionId: string): string {
+  const jwt = sign(
+    { sub: executionId, aud: 'interaction', jti: randomUUID() },
+    JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: 3600 },
+  );
+  return `iext_${jwt}`;
+}
 
 interface CanvasNode {
   id: string;
@@ -110,6 +126,49 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
     }
     throw new Error(
       `poll timed out at status=${last} (execution=${executionId})`,
+    );
+  }
+
+  /** EIA submit_message — 멀티턴 AI 의 한 턴을 cold rehydration 으로 구동한다. */
+  async function submitMessage(
+    executionId: string,
+    nodeId: string,
+    message: string,
+  ): Promise<void> {
+    const res = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${mintInteractionToken(executionId)}`)
+      .send({ command: 'submit_message', nodeId, message });
+    expect(res.status).toBe(202);
+  }
+
+  /** durable thread 에 그 사용자 메시지가 나타날 때까지(= 턴 처리 완료) 기다린다. */
+  async function waitForUserTurn(
+    executionId: string,
+    expectedUserText: string,
+    timeoutMs = 20_000,
+  ): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const row = await db.query(
+        `SELECT conversation_thread FROM execution WHERE id = $1`,
+        [executionId],
+      );
+      const turns =
+        (
+          row.rows[0]?.conversation_thread as {
+            turns?: Array<{ source: string; text: string }>;
+          } | null
+        )?.turns ?? [];
+      if (
+        turns.some((t) => t.source === 'ai_user' && t.text === expectedUserText)
+      ) {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    throw new Error(
+      `waitForUserTurn timed out — "${expectedUserText}" (execution=${executionId})`,
     );
   }
 
@@ -292,4 +351,254 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
       'WORKER_HEARTBEAT_TIMEOUT',
     );
   }, 90_000);
+
+  /** 4196DR — 실행 · AI 노드 행 · thread 를 한 번에 읽는다. */
+  async function readAiCrashState(executionId: string, aiNodeId: string) {
+    const exec = await db.query(
+      `SELECT status, error, finished_at, conversation_thread
+         FROM execution WHERE id = $1`,
+      [executionId],
+    );
+    const rows = await db.query(
+      `SELECT id, status, error, output_data, finished_at
+         FROM node_execution
+        WHERE execution_id = $1 AND node_id = $2
+        ORDER BY started_at ASC`,
+      [executionId, aiNodeId],
+    );
+    return { exec: exec.rows[0], aiRows: rows.rows };
+  }
+
+  it('AI 재개 턴 LLM 호출 중 크래시(running + resumed 스냅샷)를 부팅 재구동이 거두고 실행이 running 에 머물지 않는다 (CLE-T-4196DR)', async () => {
+    // 1. stub LLM(LLM_STUB_MODE=true) 모델 설정 — 응답을 `__e2e_delay_ms:<n>` 로
+    //    늦춰 재개 턴의 LLM 호출 도중 상태를 실제로 만든다.
+    const llmCreateRes = await request(BASE_URL)
+      .post('/api/model-configs')
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        kind: 'chat',
+        provider: 'openai',
+        name: uniqueName('redrive-ai-llm'),
+        apiKey: 'stub-not-used',
+        defaultModel: 'stub-model',
+        defaultParams: {},
+        isDefault: false,
+      });
+    expect(llmCreateRes.status).toBe(201);
+    const llmConfigId = (llmCreateRes.body.data as { id: string }).id;
+
+    // 2. trigger → ai_agent(multi_turn).
+    const workflowId = await createWorkflow();
+    const trigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const aiNode: CanvasNode = {
+      id: randomUUID(),
+      type: 'ai_agent',
+      category: 'ai',
+      label: 'Conversation',
+      positionX: 240,
+      positionY: 0,
+      config: {
+        mode: 'multi_turn',
+        llmConfigId,
+        systemPrompt: 'You are a helpful assistant.',
+        maxTurns: 10,
+      },
+    };
+    await saveCanvas(
+      workflowId,
+      [trigger, aiNode],
+      [
+        {
+          sourceNodeId: trigger.id,
+          sourcePort: 'out',
+          targetNodeId: aiNode.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    // 3. 실행 → 첫 사용자 메시지 대기로 park.
+    const execRes = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/execute`)
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(execRes.status).toBe(202);
+    const executionId = (execRes.body.data as { executionId: string })
+      .executionId;
+    expect(
+      await poll(
+        executionId,
+        (s) =>
+          s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+      ),
+    ).toBe('waiting_for_input');
+
+    // 4. 1턴은 정상으로 마친다(대화 기록이 있는 상태에서 크래시를 만든다).
+    await submitMessage(executionId, aiNode.id, 'turn-one');
+    await waitForUserTurn(executionId, 'turn-one');
+    expect(
+      await poll(
+        executionId,
+        (s) =>
+          s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+      ),
+    ).toBe('waiting_for_input');
+    const triggerCountBefore = await nodeExecRowCount(executionId, trigger.id);
+
+    // 5. 2턴 — LLM 응답을 늦춰 두고 그 사이 행이 `running` + 재개 스냅샷이 되는
+    //    순간을 DB 에서 잡는다. 이 값이 크래시 시점의 영속 상태다.
+    await submitMessage(
+      executionId,
+      aiNode.id,
+      '__e2e_delay_ms:5000 turn-two-crash',
+    );
+    let crashRow:
+      | { id: string; output_data: Record<string, unknown> }
+      | undefined;
+    let crashThread: unknown;
+    const captureStart = Date.now();
+    while (Date.now() - captureStart < 10_000) {
+      const r = await db.query(
+        `SELECT ne.id, ne.output_data, e.conversation_thread
+           FROM node_execution ne JOIN execution e ON e.id = ne.execution_id
+          WHERE ne.execution_id = $1 AND ne.node_id = $2
+            AND ne.status = 'running'
+            AND ne.output_data->>'status' = 'resumed'
+          ORDER BY ne.started_at DESC LIMIT 1`,
+        [executionId, aiNode.id],
+      );
+      if (r.rows[0]) {
+        crashRow = {
+          id: r.rows[0].id as string,
+          output_data: r.rows[0].output_data as Record<string, unknown>,
+        };
+        crashThread = r.rows[0].conversation_thread;
+        break;
+      }
+      await new Promise((res) => setTimeout(res, 50));
+    }
+    expect(crashRow).toBeDefined();
+    expect(
+      (crashRow!.output_data.meta as Record<string, unknown> | undefined)
+        ?.interactionType,
+    ).toBe('ai_conversation');
+    expect(crashRow!.output_data._resumeCheckpoint).toBeDefined();
+
+    // 지연된 턴이 끝나 다시 park 할 때까지 기다린다(실제 워커가 일을 마친 뒤에
+    // 크래시 상태로 되감아야 재구동만 관측된다).
+    await waitForUserTurn(executionId, '__e2e_delay_ms:5000 turn-two-crash');
+    expect(
+      await poll(
+        executionId,
+        (s) =>
+          s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+        20_000,
+      ),
+    ).toBe('waiting_for_input');
+    const aiRowCountBefore = await nodeExecRowCount(executionId, aiNode.id);
+
+    // 6. 크래시 합성 — 2턴 LLM 호출 도중 서버가 죽은 상태로 되감는다. AI 노드 행은
+    //    잡아 둔 재개 스냅샷 + `running`, 실행은 30분 넘게 멈춘 `running`, thread
+    //    는 크래시 시점 값이다.
+    await db.query(
+      `UPDATE node_execution
+          SET status = 'running', output_data = $2::jsonb,
+              finished_at = NULL, error = NULL
+        WHERE id = $1`,
+      [crashRow!.id, JSON.stringify(crashRow!.output_data)],
+    );
+    await db.query(
+      `UPDATE execution
+          SET status = 'running', finished_at = NULL, output_data = NULL,
+              conversation_thread = $2::jsonb,
+              started_at = NOW() - INTERVAL '31 minutes'
+        WHERE id = $1`,
+      [executionId, JSON.stringify(crashThread ?? null)],
+    );
+
+    // 7. 부팅 복구를 on-demand 로 돌린다.
+    const recoverRes = await request(BASE_URL)
+      .post(`/api/executions/_test/recover-stuck-executions`)
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(recoverRes.status).toBe(202);
+
+    // 8. 실행이 `running` 에 머물지 않는다. case B 재구동은 크래시 때 끝나지 않은
+    //    AI 노드를 새 행으로 다시 실행하고(at-least-once) 그 노드가 다시 대기에
+    //    들어가 park 한다(CLE-EXEC-RECOVERY 「재구동 절차」 6 · 「남은 행 마감」).
+    //    재구동은 fire-and-forget 이라 상태가 바뀔 때까지 본다.
+    const settled = await poll(
+      executionId,
+      (s) =>
+        s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+      20_000,
+    );
+    expect(settled).toBe('waiting_for_input');
+
+    const state = await readAiCrashState(executionId, aiNode.id);
+    expect(state.exec?.status).toBe('waiting_for_input');
+    expect(state.exec?.finished_at).toBeNull();
+
+    // 완료 노드(trigger)는 다시 실행하지 않는다.
+    expect(await nodeExecRowCount(executionId, trigger.id)).toBe(
+      triggerCountBefore,
+    );
+
+    // 크래시 때의 행은 `failed` 로 마감되고 다시 실행은 새 행이다.
+    type AiRow = {
+      id: string;
+      status: string;
+      error: { message?: string } | null;
+      output_data: Record<string, unknown> | null;
+      finished_at: Date | null;
+    };
+    const aiRows = state.aiRows as AiRow[];
+    expect(aiRows).toHaveLength(aiRowCountBefore + 1);
+    const oldRow = aiRows.find((r) => r.id === crashRow!.id);
+    expect(oldRow?.status).toBe('failed');
+    expect(oldRow?.error?.message).toContain('crash re-drive');
+    expect(oldRow?.finished_at).not.toBeNull();
+
+    // 재개 스냅샷이 노드의 최종 출력으로 남지 않는다. 끝나지 않은 행은 새 행
+    // 하나이고 그 출력은 재개 스냅샷(`resumed`)이 아니라 대기 출력이다. 옛 행의
+    // 출력에 남은 재개 스냅샷은 종결 행이라 두 대기 판정(CLE-EXEC-STATE 「AI 대화
+    // 재개 턴」)이 대기로 보지 않는다.
+    const openRows = aiRows.filter(
+      (r) => !['completed', 'failed', 'cancelled'].includes(r.status),
+    );
+    expect(openRows).toHaveLength(1);
+    expect(openRows[0].id).not.toBe(crashRow!.id);
+    expect(openRows[0].status).toBe('waiting_for_input');
+    expect(openRows[0].output_data?.status).toBe('waiting_for_input');
+
+    // rehydrate 가 대화 기록(thread)을 되살린다.
+    const turns =
+      (
+        state.exec?.conversation_thread as {
+          turns?: Array<{ text: string }>;
+        } | null
+      )?.turns ?? [];
+    expect(turns.map((t) => t.text)).toContain('turn-one');
+
+    // 9. 다시 들어간 대기가 진짜 대기다. 새 메시지를 받아 한 턴을 돌고 다시 park 한다.
+    await submitMessage(executionId, aiNode.id, 'turn-after-recovery');
+    await waitForUserTurn(executionId, 'turn-after-recovery');
+    expect(
+      await poll(
+        executionId,
+        (s) =>
+          s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+      ),
+    ).toBe('waiting_for_input');
+  }, 120_000);
 });
