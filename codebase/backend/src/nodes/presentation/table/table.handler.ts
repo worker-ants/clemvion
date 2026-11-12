@@ -162,8 +162,9 @@ export class TableHandler implements NodeHandler {
     }
     // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
     // schema field unconditionally; `dataSource` / `rows` / `pagination` were
-    // previously missing. `buttons` is echoed raw on the display-only path too
-    // (Principle 7 rule 4); the waiting path below overrides it as before.
+    // previously missing. `buttons` is echoed raw on both paths (Principle 7
+    // rule 4); only `buttonConfig.buttons` on the waiting path carries the
+    // evaluated buttons.
     const configEcho: Record<string, unknown> = {
       mode: rawConfig.mode ?? mode,
       dataSource: rawConfig.dataSource,
@@ -180,10 +181,13 @@ export class TableHandler implements NodeHandler {
 
     const buttons = config.buttons as ButtonDef[] | undefined;
     if (Array.isArray(buttons) && buttons.length > 0) {
+      // CLE-NODE-TABLE 「입력 대기」 — `config.buttons` 는 원문(`{{ }}` 보존),
+      // `buttonConfig.buttons` 는 평가한 값이다. 버튼을 그리는 표면(채팅 채널 ·
+      // 웹채팅 위젯 · 실행 결과 드로어)은 `buttonConfig.buttons` 를 읽는다.
       return Promise.resolve({
         config: {
           ...configEcho,
-          buttons,
+          buttons: (rawConfig.buttons as ButtonDef[] | undefined) ?? buttons,
           buttonConfig: {
             buttons,
           },
