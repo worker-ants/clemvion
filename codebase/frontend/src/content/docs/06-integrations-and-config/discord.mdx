@@ -34,6 +34,7 @@ Discord Developer Portal 의 앱 **General Information** 페이지 하단:
 
 - **Interactions Endpoint URL** = `https://<your-clemvion-domain>/api/hooks/<endpointPath>`
 - 저장 시 Discord 가 즉시 PING handshake (type=1) 전송 → clemvion 이 자동으로 `{ type: 1 }` 200 응답
+- 트리거가 켜져 있어야 이 검증을 통과해요
 - 응답 실패 시 Discord 가 "Validation Failed" 표시 → public key 또는 endpoint 도달 가능성 확인
 
 ## 3. Bot 권한 + Invite
@@ -78,6 +79,15 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 - `/workflow cancel` — 진행 중 execution 취소
 - `/workflow help` — 도움말
 - `/workflow reply <message>` — AI Multi Turn 진행 중 자유 텍스트 reply
+
+slash command 를 보내면 3초 안에 본인에게만 보이는(ephemeral) 응답 메시지가 와요. 그래서 Discord 화면에 "애플리케이션이 응답하지 않았습니다" 같은 실패 표시가 뜨지 않아요. 워크플로우의 실제 결과는 이 응답과 별도로 메시지로 도착해요.
+
+| 명령 | 본인에게 보이는 응답 | 문구를 바꾸는 키 |
+|---|---|---|
+| `help` | 명령 목록 (`/workflow start - 새 대화 시작` · `/workflow cancel - 진행 중인 대화 취소` · `/workflow reply - 진행 중인 대화에 답장` · `/workflow help - 도움말`) | `languageHints.help` |
+| `start` · `cancel` · `reply` | 수신 문구 (기본값 `요청을 받았습니다.`) | `languageHints.commandReceived` |
+
+명령 목록의 `workflow` 는 `languageHints.slashPrefix` 를 따라요. 길드 채널에서 보낸 slash command 도 같은 수신 문구를 받아요. 처리는 DM 에서만 해요. 트리거를 꺼 두어도 버튼 클릭 · modal 제출 · slash command 에는 응답하므로 실패 표시가 뜨지 않아요. 이때 실행은 시작하지 않아요.
 
 ### 5.2 Button / Modal
 
@@ -202,4 +212,5 @@ executionFailedInternal       → 서비스에 일시적 문제가 발생했습�
 | Discord Portal "Interactions Endpoint URL — Validation Failed" | Public Key 불일치 또는 endpoint 가 PING 에 `{ type: 1 }` 200 응답 못 함. clemvion 의 `chat_channel_health` 확인 |
 | slash command 가 Discord 에서 안 보임 | bulk overwrite 후 캐시 반영까지 1시간 소요 가능. 또는 `applications.commands` scope 누락 |
 | `401 Unauthorized` | Bot Token 만료 — clemvion 의 **Bot Token 재발급** API 로 24h grace 회전 |
+| slash command 를 보낸 뒤 "애플리케이션이 응답하지 않았습니다" 가 표시됨 | 이제 slash command 는 3초 안에 본인에게만 보이는 응답을 받아요. 계속 보이면 Interactions Endpoint URL 도달 여부와 backend latency 를 점검해요 |
 | modal "Reply" 가 click 후 안 뜸 | 3초 ack 시한 초과 — backend latency 점검 (degraded health) |
