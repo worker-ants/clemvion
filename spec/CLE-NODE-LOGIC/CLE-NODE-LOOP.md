@@ -2,21 +2,21 @@
 id: "CLE-NODE-LOOP"
 title: "Loop 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-LOOP-001", "REQ-LOOP-002", "REQ-LOOP-003", "REQ-LOOP-004", "REQ-LOOP-005", "REQ-LOOP-006", "REQ-LOOP-007", "REQ-LOOP-008", "REQ-LOOP-009", "REQ-LOOP-010", "REQ-LOOP-011", "REQ-LOOP-012", "REQ-LOOP-013", "REQ-LOOP-014", "REQ-LOOP-015", "REQ-LOOP-016", "REQ-LOOP-017", "REQ-LOOP-018", "REQ-LOOP-019", "REQ-LOOP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "e86137d3274b6c6d6541944b658283bd38855839bf6ca3b91805abb8e5c043f9"
+content_hash: "ec73db132ca6b57ecac28bf535941487a5983acb52801b03ad582aef2de1e566"
 read_as: "approved_fallback"
-task: "CLE-T-QV1NFT"
+task: "CLE-T-CYCGST"
 source_paths: ["spec/4-nodes/1-logic/3-loop.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d6d43ff592d378414f1168d5cabc7e130622d86a7f1dd34fb7bb4dabcc5e79e8"
-etag: "sha256-c83aaa7ab91ee87d602ba15bf9a93ac80e271f413cfedf91b9b6dc24f4bac30f"
+mirror_sha256: "e5a565ed45dce1dc62934debb0b18860811c7c2d99b28fda567b845690b7e1dc"
+etag: "sha256-a36cb0a98c6b1afc23d30e88ee77eee5f9fa3b3e9d4088a17393c19abbd943db"
 ---
-> 구현 상태: 부분 구현(`breakCondition` 설정 에코는 미구현) · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -78,7 +78,7 @@ Loop 는 동적 포트가 없다.
 
 ## 실행 로직
 
-1. **시작 시점(핸들러 실행)**: `LoopHandler.execute` 가 `{ config: { count, maxIterations, breakCondition }, output: null }` 을 반환한다(`breakCondition` 에코는 미구현. [출력 구조](#출력-구조) 참조). 엔진은 `output: null` 을 보고 엔진 덮어쓰기 계약을 활성화한다.
+1. **시작 시점(핸들러 실행)**: `LoopHandler.execute` 가 `{ config: { count, maxIterations, breakCondition }, output: null }` 을 반환한다([출력 구조](#출력-구조) 참조). 엔진은 `output: null` 을 보고 엔진 덮어쓰기 계약을 활성화한다.
 2. **count 평가**: 엔진이 `engineResolvedConfig.count` 를 정수로 바꾼다(`coerceContainerNumber`). `count > maxIterations` 면 곧바로 `MAX_ITERATIONS_EXCEEDED` 를 던진다.
 3. **반복 실행**: `LoopExecutor.execute` 가 인덱스 0 부터 `count - 1` 까지 컨테이너 본문을 차례로 실행한다. 반복 회차마다 `context.loopContext = { index, count, isFirst, isLast }` 를 묶는다.
 4. **emit 수집**: 반복 회차마다 `emit` 포트에 연결된 본문 노드의 출력을 `LoopIterationResult { index, output }` 으로 모은다.
@@ -139,10 +139,10 @@ Loop 는 컨테이너라서 핸들러가 반환하는 출력과 엔진 덮어쓰
 |------|------|------|------|
 | `config.count` | number \| string | 설정 에코 | 사용자가 입력한 원래 값. 표현식 `{{ }}` 과 숫자 문자열을 그대로 남긴다 |
 | `config.maxIterations` | number | 설정 에코 | 원래 값 또는 기본값 `1000` |
-| `config.breakCondition?` | string | 설정 에코 | 사용자가 입력한 원래 표현식 문자열. 평가하지 않은 원문이다. 엔진은 반복 회차마다 이 식을 따로 평가한다([실행 로직](#실행-로직) 6번). 설정하지 않으면 `undefined` 라서 JSON 에서 빠진다. **현재 핸들러는 싣지 않는다**(NERV Task `CLE-T-CYCGST`) |
+| `config.breakCondition?` | string | 설정 에코 | 사용자가 입력한 원래 표현식 문자열. 평가하지 않은 원문이다. 엔진은 반복 회차마다 이 식을 따로 평가한다([실행 로직](#실행-로직) 6번). 설정하지 않으면 `undefined` 라서 JSON 에서 빠진다 |
 | `output` | `null` | 핸들러 반환 | 엔진 덮어쓰기 신호. 엔진이 완료 시점 형태로 덮어쓴다 |
 
-- `breakCondition` 도 다른 비민감 필드처럼 원문을 싣는다. 이 필드가 표현식 평가 제외 목록(`expression-exclusions.ts`)에 있는 것은 평가에서 뺀다는 뜻이고 에코에서 뺀다는 뜻은 아니다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙)). 지금 핸들러(`loop.handler.ts`)는 `count` · `maxIterations` 만 싣는다. 결정과 근거는 [Rationale](#breakcondition-도-설정-에코에-싣는다-2026-11-12) 에 있다.
+- `breakCondition` 도 다른 비민감 필드처럼 원문을 싣는다. 이 필드가 표현식 평가 제외 목록(`expression-exclusions.ts`)에 있는 것은 평가에서 뺀다는 뜻이고 에코에서 뺀다는 뜻은 아니다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙)). 핸들러(`loop.handler.ts`)는 `count` · `maxIterations` 와 함께 이 원문을 싣는다. 결정과 근거는 [Rationale](#breakcondition-도-설정-에코에-싣는다-2026-11-12) 에 있다.
 - Loop 는 입력을 나눠 주지 않고 횟수로 도는 컨테이너다. 그래서 이 시점의 본문 입력은 `undefined` (첫 회차)이거나 직전 회차의 emit 출력이다.
 
 ### 완료 시점 (`done` 포트)
