@@ -7559,6 +7559,16 @@ export class ExecutionEngineService
       // 같은 컨테이너 소속이다. 워커가 그 컨테이너 단계의 노드로 그래프를 만들도록
       // 컨테이너 ID 를 싣는다. 맨 바깥 Background 는 싣지 않는다(옛 작업 모양 유지).
       ...(node.containerId ? { containerScopeId: node.containerId } : {}),
+      // 질문 01a1cd70 답 A — 큐에 넣은 회차의 반복 변수를 값으로 복사해 싣는다. 본문은
+      // 그 회차의 `$item` · `$itemIndex` · `$loop` 를 읽고, 컨테이너가 다음 회차로
+      // 넘어가도 이미 넣은 작업의 값은 바뀌지 않는다. 병렬 분기가 바깥 반복 변수를
+      // 이어받는 규칙(REQ-PARALLEL-009)과 같다. 반복 밖이면 싣지 않는다.
+      ...(context.itemContext
+        ? { itemContext: { ...context.itemContext } }
+        : {}),
+      ...(context.loopContext
+        ? { loopContext: { ...context.loopContext } }
+        : {}),
       input: mainInput,
       variables: { ...context.variables },
       nodeOutputCache: { ...context.nodeOutputCache },
@@ -7614,6 +7624,10 @@ export class ExecutionEngineService
     // thread instead of crashing on `undefined.turns`.
     context.conversationThread =
       job.conversationThread ?? createEmptyConversationThread();
+    // 큐에 넣은 회차의 반복 변수를 되살린다(CLE-T-MR6ZH3). 맨 바깥 Background 와
+    // 옛 작업에는 필드가 없어 본문의 반복 변수는 비어 있다.
+    if (job.itemContext) context.itemContext = { ...job.itemContext };
+    if (job.loopContext) context.loopContext = { ...job.loopContext };
 
     try {
       const run = this.executeInline(job.workflowId, job.input, {

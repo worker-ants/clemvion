@@ -1,3 +1,4 @@
+import type { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import type { ConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
@@ -42,6 +43,16 @@ export interface BackgroundExecutionJob {
    * 그래프를 쓴다(CLE-T-MR6ZH3).
    */
   containerScopeId?: string;
+  /**
+   * Background 를 큐에 넣은 회차의 ForEach · Map 반복 변수(`$item` · `$itemIndex` ·
+   * `$itemIsFirst` · `$itemIsLast`) 스냅샷. 컨테이너 본문 안이나 그 안 병렬 분기에서
+   * 큐에 넣을 때만 있다. 워커가 본문 실행 컨텍스트에 되살려 본문 노드 식이 그 회차의
+   * 값을 읽는다. 맨 바깥 Background 와 이 필드가 생기기 전에 큐에 들어간 작업에는 없고
+   * 그때 본문의 반복 변수는 비어 있다(CLE-T-MR6ZH3, 질문 01a1cd70 답 A).
+   */
+  itemContext?: ExecutionContext['itemContext'];
+  /** 같은 규칙의 Loop 반복 변수(`$loop`) 스냅샷. */
+  loopContext?: ExecutionContext['loopContext'];
   /** 메인 흐름에서 컨테이너로 전달된 입력 (snapshot) */
   input: unknown;
   /** Snapshot of context.variables at enqueue time. */

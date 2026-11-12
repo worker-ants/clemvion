@@ -15151,6 +15151,128 @@ describe('ExecutionEngineService', () => {
         expect(jobs.map((job) => job.containerScopeId)).toEqual(['fe', 'fe']);
       });
 
+      // 질문 01a1cd70 답 A — 스냅샷에 큐에 넣은 회차의 반복 변수를 함께 싣는다.
+      // 병렬 분기가 바깥 반복 변수를 이어받는 규칙(REQ-PARALLEL-009)과 같다.
+      it('ForEach 본문 안 Background 는 큐에 넣은 회차의 반복 변수($item)를 작업 스냅샷에 싣는다', async () => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        recordingHandler('test_node', () => ({ items: ['a', 'b'] }));
+        recordingHandler('after_node', (input) => input);
+        recordingHandler('bg_body_node', (input) => input);
+        backgroundQueueAdd().mockClear();
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('fe', 'foreach', null, { arrayField: 'items' }),
+            cNode('bg', 'background', 'fe'),
+            cNode('after', 'after_node', 'fe'),
+            cNode('bgBody', 'bg_body_node', 'fe'),
+          ],
+          [
+            cEdge('src', 'out', 'fe'),
+            cEdge('fe', 'body', 'bg'),
+            cEdge('bg', 'main', 'after'),
+            cEdge('bg', 'background', 'bgBody'),
+            cEdge('after', 'out', 'fe', 'emit'),
+          ],
+        );
+
+        const jobs = backgroundQueueAdd().mock.calls.map(
+          (call: unknown[]) => call[1] as BackgroundExecutionJob,
+        );
+        expect(jobs.map((job) => job.itemContext)).toEqual([
+          { item: 'a', index: 0, isFirst: true, isLast: false },
+          { item: 'b', index: 1, isFirst: false, isLast: true },
+        ]);
+        // Loop 밖이라 $loop 는 싣지 않는다.
+        expect(jobs.every((job) => !('loopContext' in job))).toBe(true);
+      });
+
+      it('ForEach 본문 안 Loop 본문의 Background 는 바깥 $item 과 안쪽 $loop 를 함께 싣는다', async () => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        recordingHandler('test_node', () => ({ items: ['a', 'b'] }));
+        recordingHandler('after_node', (input) => input);
+        recordingHandler('bg_body_node', (input) => input);
+        backgroundQueueAdd().mockClear();
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('fe', 'foreach', null, { arrayField: 'items' }),
+            cNode('lp', 'loop', 'fe', { count: 2 }),
+            cNode('bg', 'background', 'lp'),
+            cNode('after', 'after_node', 'lp'),
+            cNode('bgBody', 'bg_body_node', 'lp'),
+          ],
+          [
+            cEdge('src', 'out', 'fe'),
+            cEdge('fe', 'body', 'lp'),
+            cEdge('lp', 'body', 'bg'),
+            cEdge('bg', 'main', 'after'),
+            cEdge('bg', 'background', 'bgBody'),
+            cEdge('after', 'out', 'lp', 'emit'),
+            cEdge('lp', 'out', 'fe', 'emit'),
+          ],
+        );
+
+        const jobs = backgroundQueueAdd().mock.calls.map(
+          (call: unknown[]) => call[1] as BackgroundExecutionJob,
+        );
+        expect(
+          jobs.map((job) => [
+            job.containerScopeId,
+            job.itemContext?.item,
+            job.loopContext?.index,
+          ]),
+        ).toEqual([
+          ['lp', 'a', 0],
+          ['lp', 'a', 1],
+          ['lp', 'b', 0],
+          ['lp', 'b', 1],
+        ]);
+        expect(jobs[3].loopContext).toEqual({
+          index: 1,
+          count: 2,
+          isFirst: false,
+          isLast: true,
+        });
+      });
+
+      it('맨 바깥 Background 작업에는 반복 변수 필드를 싣지 않는다', async () => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        recordingHandler('test_node', () => ({}));
+        recordingHandler('after_node', (input) => input);
+        recordingHandler('bg_body_node', (input) => input);
+        backgroundQueueAdd().mockClear();
+
+        await runGraph(
+          [
+            cNode('src', 'test_node', null),
+            cNode('bg', 'background', null),
+            cNode('after', 'after_node', null),
+            cNode('bgBody', 'bg_body_node', null),
+          ],
+          [
+            cEdge('src', 'out', 'bg'),
+            cEdge('bg', 'main', 'after'),
+            cEdge('bg', 'background', 'bgBody'),
+          ],
+        );
+
+        const jobs = backgroundQueueAdd().mock.calls.map(
+          (call: unknown[]) => call[1] as BackgroundExecutionJob,
+        );
+        expect(jobs).toHaveLength(1);
+        expect(jobs[0]).not.toHaveProperty('itemContext');
+        expect(jobs[0]).not.toHaveProperty('loopContext');
+      });
+
       it('ForEach 본문 안 Map 이 회차마다 결과 배열을 만들어 done 뒤 본문 노드에 넘긴다', async () => {
         handlerRegistry.register('map', new MapHandler(), {
           kind: 'container',
@@ -15364,6 +15486,86 @@ describe('ExecutionEngineService', () => {
         ).resolves.not.toThrow();
 
         expect(bgBodyCalls).toHaveLength(0);
+      });
+
+      it('워커는 작업 스냅샷의 반복 변수를 본문 실행 컨텍스트에 되살려 본문 노드 식이 그 회차의 $item · $itemIndex · $loop 를 읽는다', async () => {
+        const bodyConfigs: unknown[] = [];
+        const bodyCtx: ExecutionContext[] = [];
+        handlerRegistry.register('bg_expr_node', {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(
+            async (
+              _input: unknown,
+              config: unknown,
+              context: ExecutionContext,
+            ) => {
+              bodyConfigs.push(config);
+              bodyCtx.push(context);
+              return mockOutput({});
+            },
+          ) as NodeHandler['execute'],
+        });
+        mockNodeRepo.findBy.mockResolvedValue([
+          cNode('fe', 'foreach', null, { arrayField: 'items' }),
+          cNode('bg', 'background', 'fe'),
+          cNode('bgBody', 'bg_expr_node', 'fe', {
+            item: '{{ $item.n }}',
+            itemIndex: '{{ $itemIndex }}',
+            loopIndex: '{{ $loop.index }}',
+          }),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          cEdge('bg', 'background', 'bgBody'),
+        ]);
+
+        await service.executeBackgroundSubgraph(
+          bgWorkerJob({
+            containerScopeId: 'fe',
+            itemContext: {
+              item: { n: 7 },
+              index: 1,
+              isFirst: false,
+              isLast: true,
+            },
+            loopContext: { index: 2, count: 3, isFirst: false, isLast: true },
+          }),
+        );
+
+        expect(bodyCtx).toHaveLength(1);
+        expect(bodyCtx[0].itemContext).toEqual({
+          item: { n: 7 },
+          index: 1,
+          isFirst: false,
+          isLast: true,
+        });
+        expect(bodyCtx[0].loopContext).toEqual({
+          index: 2,
+          count: 3,
+          isFirst: false,
+          isLast: true,
+        });
+        expect(bodyConfigs[0]).toEqual({ item: 7, itemIndex: 1, loopIndex: 2 });
+      });
+
+      it('반복 변수가 없는 작업(맨 바깥 Background · 옛 작업)은 본문에서 반복 변수가 비어 있다', async () => {
+        const bodyCtx: ExecutionContext[] = [];
+        recordingHandler('bg_body_node', (_input, ctx) => {
+          bodyCtx.push(ctx);
+          return {};
+        });
+        mockNodeRepo.findBy.mockResolvedValue([
+          cNode('bg', 'background', null),
+          cNode('bgBody', 'bg_body_node', null),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          cEdge('bg', 'background', 'bgBody'),
+        ]);
+
+        await service.executeBackgroundSubgraph(bgWorkerJob());
+
+        expect(bodyCtx).toHaveLength(1);
+        expect(bodyCtx[0].itemContext).toBeUndefined();
+        expect(bodyCtx[0].loopContext).toBeUndefined();
       });
     });
   });
@@ -17693,7 +17895,7 @@ describe('ExecutionEngineService', () => {
             ]);
           });
 
-          it('ForEach 본문 안 Parallel 의 병렬 분기에 둔 Background 도 회차마다 컨테이너 ID 를 실어 본문을 큐에 넣는다 (CLE-T-MR6ZH3)', async () => {
+          it('ForEach 본문 안 Parallel 의 병렬 분기에 둔 Background 도 회차마다 컨테이너 ID 와 회차 반복 변수를 실어 본문을 큐에 넣는다 (CLE-T-MR6ZH3)', async () => {
             handlerRegistry.register('background', new BackgroundHandler(), {
               kind: 'background',
             });
@@ -17733,6 +17935,11 @@ describe('ExecutionEngineService', () => {
             expect(jobs.map((job) => job.containerScopeId)).toEqual([
               'fe',
               'fe',
+            ]);
+            // 병렬 분기가 이어받은 바깥 반복 변수를 그 회차 값으로 싣는다.
+            expect(jobs.map((job) => job.itemContext?.item)).toEqual([
+              { n: 1 },
+              { n: 2 },
             ]);
           });
 
