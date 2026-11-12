@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "567ba9aed16e0a8e5a701cb6b0a7ae2f2174678a82c4d36175294429824fd18e"
+content_hash: "4c8e4f6189d6761cb20e1d420d25d5bb1fdcac5f2e2d0bfe048b77b04f5d5bb7"
 read_as: "approved_fallback"
-task: "CLE-T-XKK9KH"
+task: "CLE-T-7XWVC5"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "fdf573ec331b9de7fcfdca47bb773f087e6c3c1c5f5777fd67f9d3d2949161b1"
-etag: "sha256-d1cc59f65c66de5b8fc731e6adea4e8d90c4cdbe9a03696d2c384eb822f0230a"
+mirror_sha256: "30e6881af6a2375bd7ab0007d3c22e43794869548dadc0782fc4f11a2d21a7f6"
+etag: "sha256-16d3a18d3bddfde1146c01abecc16420eee3b4fe9409f4f280eeae153e2e431a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -159,7 +159,7 @@ interface ChatChannelAdapter {
 | `parseUpdate` | raw body → `ChannelUpdate \| null`. `null` 은 "해석하지 않음" 하나의 뜻이다. 안내 발송 여부는 호출자가 정한다 | 없음 | 순수 |
 | `renderNode` | `EiaEvent \| ChatChannelInternalEvent` → `ChannelMessage[]` | 없음 | 순수 |
 | `sendMessage` | 외부 API 호출. API 호출 재시도·rate limit 책임 | 외부 API 호출 | 옛 규약은 "중복 제거는 호출자가 EIA `seq` 와 `X-Clemvion-Delivery` 로 한다" 고 적었다. 정의가 갈린다([미결 사항](#미결-사항)) |
-| `ackInteraction` | 인바운드 명령 처리 뒤의 인터랙션 후처리(Telegram `answerCallbackQuery` 와 인라인 키보드 제거, Slack `response_url` 메시지 갱신). Slack·Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답이 맡고 이 함수는 하지 않는다. 지금 Discord 버튼 · 셀렉트의 웹훅 HTTP 응답이 Discord 인터랙션 응답 모양이 아닌 것은 결함이고 NERV Task `CLE-T-7XWVC5` 가 고친다. 함수는 필수지만 빈 구현이어도 된다(Discord). [Slack 어댑터](CLE-CHAT-SLACK.md) · [Discord 어댑터](CLE-CHAT-DISCORD.md) 는 아직 이 함수가 3초 안 수신 확인을 한다고 적는다. 두 문서를 이 정의에 맞추는 일은 NERV Task `CLE-T-GNTWP9` 가 한다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
+| `ackInteraction` | 인바운드 명령 처리 뒤의 인터랙션 후처리(Telegram `answerCallbackQuery` 와 인라인 키보드 제거, Slack `response_url` 메시지 갱신). Slack·Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답이 맡고 이 함수는 하지 않는다. 함수는 필수지만 빈 구현이어도 된다(Discord) | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `escapeControlText` | 제어 안내 텍스트를 프로바이더 표면에 맞게 escape | 없음 | 순수 |
 | `revokeBotToken?` | 이전 봇 토큰의 외부 revoke(Slack `auth.revoke`). API 가 없으면 구현하지 않는다. 실패는 흡수한다. 24시간 유예가 끝난 정리 작업(`cleanupRotatedChatChannelTokens`)이 부르고 재발급 시점에는 부르지 않는다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `enrichInbound?` | `parseUpdate` 결과를 외부 API 로 보강한다(Slack `files.info` 로 파일 이름·MIME·다운로드 URL). 호출자는 `HooksService` 이고 인바운드 중복 제거와 분당 한도 검사 뒤에 부른다. 보강할 정보가 없으면 구현하지 않는다 | 프로바이더에 따라 외부 API 호출 | 멱등 |

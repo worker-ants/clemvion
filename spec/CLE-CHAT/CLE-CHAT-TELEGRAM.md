@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM"
 title: "Telegram 어댑터"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "b793b2b1961e40705511541dc11bdfa299cb718832d370d7fdf6f4a917109bd2"
+content_hash: "8ef59b7b1b2a17bb4d5bcb7731e3f4212b90076e91e782b5b9e905752b836ed0"
 read_as: "approved_fallback"
 task: "CLE-T-7XWVC5"
 source_paths: ["spec/4-nodes/7-trigger/providers/telegram.md"]
-mirror_sha256: "3435633e57570a14eaa2d3916fdd4ce08288ab86a23ff79caafb7b2ae3fb399c"
-etag: "sha256-47ceec7c49697e8f7f3f33c7091495d8fed1a807ad24ea75293583115937a465"
+mirror_sha256: "fa2e97131214fdb9ca97ea9015d210559fd514edb104ed6501f546f1b35879a2"
+etag: "sha256-efec5946ef490394ddfde0f145a8dfd6de5589ad4b670260d362e1dca6ffceb5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/telegram.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -44,7 +44,7 @@ etag: "sha256-47ceec7c49697e8f7f3f33c7091495d8fed1a807ad24ea75293583115937a465"
 - REQ-TGRAM-008 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL MarkdownV2 escape 한 `sendMessage` 로 보내고 4096자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. (원본: telegram §5.1)
 - REQ-TGRAM-009 WHEN 본문이 있는 `execution.ai_message` 를 보내면 THE SYSTEM SHALL 텍스트 앞에 `sendChatAction(typing)` 을 한 번 보내고 본문이 비어 있으면 둘 다 보내지 않는다. (원본: telegram §5.1)
 - REQ-TGRAM-010 WHEN 버튼 대기를 보내면 THE SYSTEM SHALL `buttonConfig.buttons[]` 를 `uiMapping.buttonLayout` 에 따라 `inline_keyboard` 로 만들고 `callback_data` 에 `buttonId` 를 그대로 넣는다. (원본: telegram §5.2)
-- REQ-TGRAM-011 WHEN `callback_query` 가 오면 THE SYSTEM SHALL 곧바로 `answerCallbackQuery` 를 부르고 EIA `click_button` 을 부른 뒤 원본 메시지의 키보드를 `editMessageReplyMarkup` 으로 지운다. (원본: telegram §5.2)
+- REQ-TGRAM-011 WHEN `callback_query` 가 오면 THE SYSTEM SHALL EIA `click_button` 을 부른 뒤 `answerCallbackQuery` 를 부르고 원본 메시지의 키보드를 `editMessageReplyMarkup` 으로 지운다. (원본: telegram §5.2) (부분 구현)
 - REQ-TGRAM-012 IF 키보드 제거(`editMessageReplyMarkup`)가 실패하면 THE SYSTEM SHALL 로그만 남기고 ack 흐름을 막지 않는다. (원본: telegram §5.2)
 - REQ-TGRAM-013 WHEN Form 입력 대기가 오면 THE SYSTEM SHALL 늘 다단계 질문으로 받고 필드 `type` 별 키보드 힌트를 붙인다. (원본: telegram §5.3)
 - REQ-TGRAM-014 WHEN `text` 필드에 `validation.preset: 'phone'` 이 있으면 THE SYSTEM SHALL `request_contact: true` 버튼을 보내고 받은 번호를 폼 데이터에 채운다. (원본: telegram §5.3) (미구현)
@@ -68,6 +68,7 @@ etag: "sha256-47ceec7c49697e8f7f3f33c7091495d8fed1a807ad24ea75293583115937a465"
 
 요구사항 보충 설명은 다음과 같다.
 
+- 관련 REQ-TGRAM-011·012: 처리 순서는 EIA `click_button` 요청 큐 등록, `answerCallbackQuery`, 키보드 제거, 웹훅 HTTP 응답(`202`)이다. EIA 요청은 큐에 넣기만 하고 처리를 기다리지 않는다. 클릭을 버리는 경로(분당 한도 초과, 실행이 입력 대기가 아님, 워크플로우 비활성)에서는 `ackInteraction` 을 부르지 않아 `answerCallbackQuery` 도 불리지 않는다. 그 클릭의 로딩 표시는 시간 초과까지 남는다. 결함이고 NERV Task `CLE-T-K8Z2W0` 이 고친다.
 - 관련 REQ-TGRAM-013·014: 전화번호 preset 은 [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 아직 없다(스키마, 서버 정규식, 어댑터 힌트 모두 없음). Form 의 `type` enum 자체는 바꾸지 않는다.
 - 관련 REQ-TGRAM-018·019: 현재 구현(`telegram.adapter.ts` 의 `image` 분기, `renderCarouselFallback`)은 이미지 메시지를 caption·`fallbackText` 텍스트로 보내고 Carousel 카드도 모두 텍스트로 보낸다. multipart 업로드와 SSR PNG 인프라가 없다.
 - 관련 REQ-TGRAM-024·025: 활성 실행 중 `/start` 의 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 새로 시작한다. 트리거의 워크플로우가 비활성이면 두 경우 모두 새 실행을 시작하지 않고 기존 실행도 취소하지 않는다(REQ-CHAT-066). 취소와 새 시작은 구현됐고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
@@ -86,7 +87,7 @@ etag: "sha256-47ceec7c49697e8f7f3f33c7091495d8fed1a807ad24ea75293583115937a465"
 | `sendMessage`(form_prompt) | `sendMessage` + 선택 `reply_markup.keyboard`(텍스트·숫자·연락처 공유)나 `remove_keyboard` |
 | `sendMessage`(image) | 목표는 `POST /bot{token}/sendPhoto`(chat_id, photo, caption). 미구현이라 현재는 caption·`fallbackText` 를 텍스트 `sendMessage` 로 보낸다 |
 | `sendMessage`(typing) | `POST /bot{token}/sendChatAction`(action=typing) |
-| `ackInteraction`(button_callback) | `POST /bot{token}/answerCallbackQuery`(callback_query_id) |
+| `ackInteraction`(button_callback) | `POST /bot{token}/answerCallbackQuery`(callback_query_id)를 부르고 이어서 `POST /bot{token}/editMessageReplyMarkup`(빈 `inline_keyboard`)으로 키보드를 지운다. 인바운드 명령 처리(EIA 요청 큐 등록) 뒤에 불린다 |
 
 ### setupChannel
 
@@ -151,9 +152,11 @@ Telegram 은 모든 update 에 단조 증가 `update_id` 를 붙이므로 그 �
 - `style: 'primary'` 는 ✅ 접두, `'danger'` 는 ⚠️ 접두, 그 밖은 그대로.
 - 노드가 시각형이면 시각 메시지를 먼저 보내고 인라인 키보드는 다음 메시지로 붙인다([시각형 매트릭스](#시각형-매트릭스)). 현재 구현은 버튼 달린 Template 도 이렇게 처리하지만, 시스템 요구사항(CCH-MP-04)에 Template 을 넣을지는 [Template 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md#미결-사항) 에서 정한다.
 - `callback_query` 가 오면 다음 순서로 처리한다.
-  1. `answerCallbackQuery(callback_query_id)` 를 곧바로 부른다. Telegram 의무이고, 부르지 않으면 모바일 클라이언트에 로딩 표시가 계속 남는다.
-  2. EIA `click_button` 을 부른다.
-  3. 원본 메시지를 `editMessageReplyMarkup`(빈 `inline_keyboard`)으로 바꿔 키보드를 지워 중복 클릭을 막는다. `ackInteraction` 이 `ChannelUpdate.command.messageId` 로 이것을 부르고, 메시지 만료(48시간)나 이미 편집된 경우 같은 실패는 로그만 남긴다. `messageId` 가 없으면 부르지 않는다.
+  1. EIA `click_button` 요청을 큐에 넣는다. 처리는 기다리지 않는다.
+  2. `ackInteraction` 이 `answerCallbackQuery(callback_query_id)` 를 부른다. Telegram 의무이고, 부르지 않으면 모바일 클라이언트에 로딩 표시가 계속 남는다.
+  3. `ackInteraction` 이 이어서 원본 메시지를 `editMessageReplyMarkup`(빈 `inline_keyboard`)으로 바꿔 키보드를 지워 중복 클릭을 막는다. `ChannelUpdate.command.messageId` 로 부르고, 메시지 만료(48시간)나 이미 편집된 경우 같은 실패는 로그만 남긴다. `messageId` 가 없으면 부르지 않는다.
+  4. 웹훅 HTTP 응답 `202` 를 돌려준다.
+- 클릭을 버리는 경로(분당 한도 초과, 실행이 입력 대기가 아님, 워크플로우 비활성)에서는 `ackInteraction` 을 부르지 않는다. 그래서 `answerCallbackQuery` 가 불리지 않고 로딩 표시가 시간 초과까지 남는다. 결함이고 NERV Task `CLE-T-K8Z2W0` 이 고친다.
 
 ### Form
 
@@ -288,3 +291,4 @@ LLM 응답은 일반 Markdown 이지만 Telegram MarkdownV2 는 추가 escape(`_
 ### R6 활성 실행 중 /start 의 규칙은 채팅 채널 문서가 정한다
 
 2026-10-10 에 명령 우선 규칙을 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 로 정했다(NERV Task `CLE-T-V4WVF2`). 세 프로바이더에 같은 규칙이라 시스템 문서에 두고 이 문서는 명령 이름과 안내 문구만 정한다. 이 결정으로 이 문서의 미결 «활성 실행 중 `/start`» 를 닫았다.
+
