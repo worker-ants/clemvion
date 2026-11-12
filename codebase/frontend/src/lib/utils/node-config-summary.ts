@@ -89,6 +89,25 @@ export function getConfigSummary(
   return renderSummaryTemplate(def?.summaryTemplate, config);
 }
 
+/**
+ * Returns the localized messages of the `advisory` warning rules that fire
+ * for a node (REQ-MERGE-018). The canvas shows them as a header icon tooltip
+ * and keeps the summary line. `getConfigSummary` ignores advisory rules, so a
+ * blocking warning still wins: the caller shows these only when the summary is
+ * not a warning.
+ */
+export function getAdvisoryWarnings(
+  nodeType: string,
+  config: NodeConfig,
+  locale: Locale = DEFAULT_LOCALE,
+): string[] {
+  if (nodeType === "manual_trigger") return [];
+  const def = getNodeDefinition(nodeType);
+  return evaluateWarnings(config, def?.warningRules)
+    .filter((w) => w.severity === "advisory")
+    .map((w) => translateBackendWarning(w.message, locale) ?? w.message);
+}
+
 /** Truncates text to maxLen (default 40) with ellipsis. Returns whether truncation occurred. */
 export function truncateSummary(
   text: string,

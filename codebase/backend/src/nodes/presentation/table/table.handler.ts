@@ -162,7 +162,8 @@ export class TableHandler implements NodeHandler {
     }
     // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
     // schema field unconditionally; `dataSource` / `rows` / `pagination` were
-    // previously missing.
+    // previously missing. `buttons` is echoed raw on the display-only path too
+    // (Principle 7 rule 4); the waiting path below overrides it as before.
     const configEcho: Record<string, unknown> = {
       mode: rawConfig.mode ?? mode,
       dataSource: rawConfig.dataSource,
@@ -174,6 +175,7 @@ export class TableHandler implements NodeHandler {
       sortBy: rawConfig.sortBy !== undefined ? rawConfig.sortBy : sortBy,
       sortOrder:
         rawConfig.sortOrder !== undefined ? rawConfig.sortOrder : sortOrder,
+      buttons: rawConfig.buttons,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;

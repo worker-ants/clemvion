@@ -116,5 +116,23 @@ export const mergeNodeMetadata: NodeComponentMetadata = {
       message:
         'Merge partialOnTimeout has no effect — Merge never times out, so there are no partial inputs to merge. Turn it off.',
     },
+    // REQ-MERGE-018 — 이름과 실제 동작이 다른 strategy 를 알린다. 실행은
+    // 막지 않으므로 advisory 다(handler.validate 는 blocking 규칙만 본다).
+    // `first` 는 먼저 도착한 입력이 아니라 ID 순으로 첫 선행 노드의 입력을 고른다.
+    // `append` 는 `wait_all` 과 같은 결과를 낸다.
+    {
+      id: 'merge:strategy-first-not-arrival-order',
+      when: 'strategy == first',
+      message:
+        "Merge strategy 'first' does not pick the first input to arrive. It keeps the input from the connected node whose ID sorts first, which can change when nodes are copied.",
+      severity: 'advisory',
+    },
+    {
+      id: 'merge:strategy-append-same-as-wait-all',
+      when: 'strategy == append',
+      message:
+        "Merge strategy 'append' works the same as 'wait_all': it keeps every input.",
+      severity: 'advisory',
+    },
   ],
 };

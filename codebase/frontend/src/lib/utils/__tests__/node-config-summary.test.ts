@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  getAdvisoryWarnings,
   getConfigSummary,
   truncateSummary,
 } from "../node-config-summary";
@@ -311,5 +312,65 @@ describe("getConfigSummary — hasDefaultLlmConfig context", () => {
     expect(
       getConfigSummary("other", {}, { hasDefaultLlmConfig: true }),
     ).toEqual(warningOf("Other warning"));
+  });
+});
+
+// REQ-MERGE-018 (CLE-T-1J0F6R) — advisory 노드 경고는 요약 줄을 가리지 않고
+// 헤더 아이콘 툴팁으로 보인다. 그 문구 목록을 돌려주는 helper 다.
+describe("getAdvisoryWarnings", () => {
+  const FIRST_EN =
+    "Merge strategy 'first' does not pick the first input to arrive. It keeps the input from the connected node whose ID sorts first, which can change when nodes are copied.";
+  const APPEND_EN =
+    "Merge strategy 'append' works the same as 'wait_all': it keeps every input.";
+
+  function seedMerge() {
+    seedStore({
+      merge: stubDefinition("merge", {
+        warningRules: [
+          { id: "merge:no-strategy", when: "!strategy", message: "Merge strategy must be selected." },
+          {
+            id: "merge:strategy-first-not-arrival-order",
+            when: "strategy == first",
+            message: FIRST_EN,
+            severity: "advisory",
+          },
+          {
+            id: "merge:strategy-append-same-as-wait-all",
+            when: "strategy == append",
+            message: APPEND_EN,
+            severity: "advisory",
+          },
+        ],
+      }),
+    });
+  }
+
+  it("returns the advisory message that fires", () => {
+    seedMerge();
+    expect(getAdvisoryWarnings("merge", { strategy: "first" }, "en")).toEqual([FIRST_EN]);
+    expect(getAdvisoryWarnings("merge", { strategy: "append" }, "en")).toEqual([APPEND_EN]);
+  });
+
+  it("returns nothing when no advisory rule fires", () => {
+    seedMerge();
+    expect(getAdvisoryWarnings("merge", { strategy: "wait_all" }, "en")).toEqual([]);
+  });
+
+  it("never returns blocking warnings", () => {
+    seedMerge();
+    expect(getAdvisoryWarnings("merge", {}, "en")).toEqual([]);
+  });
+
+  it("localizes the message through WARNING_KO", () => {
+    seedMerge();
+    const [ko] = getAdvisoryWarnings("merge", { strategy: "append" }, "ko");
+    expect(ko).not.toBe(APPEND_EN);
+    expect(ko).toContain("wait_all");
+  });
+
+  it("returns nothing for unknown types and manual_trigger", () => {
+    seedMerge();
+    expect(getAdvisoryWarnings("missing", { strategy: "first" }, "en")).toEqual([]);
+    expect(getAdvisoryWarnings("manual_trigger", {}, "en")).toEqual([]);
   });
 });

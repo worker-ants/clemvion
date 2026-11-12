@@ -49,6 +49,9 @@ export class TemplateHandler implements NodeHandler {
       template: rawConfig.template,
       outputFormat: rawConfig.outputFormat ?? outputFormat,
       helpers: rawConfig.helpers,
+      // Principle 7 rule 4 — raw `buttons` on the display-only path too. The
+      // waiting path below keeps its own `buttons` / `buttonConfig`.
+      buttons: rawConfig.buttons,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;

@@ -10,7 +10,11 @@ import { isNodeDeletable } from "@/lib/node-definitions/is-trigger";
 import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useEditorStore } from "@/lib/stores/editor-store";
-import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
+import {
+  getAdvisoryWarnings,
+  getConfigSummary,
+  truncateSummary,
+} from "@/lib/utils/node-config-summary";
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
 import { useLocale, useT } from "@/lib/i18n";
 import {
@@ -199,6 +203,13 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const showHeaderWarning = showSummary && summary && isWarning;
   const showHeaderSummary = isContainer && showSummary && summary && !isWarning;
   const showBodySummary = !isContainer && showSummary && summary && !isWarning;
+  // REQ-MERGE-018 — advisory 노드 경고는 요약 줄을 그대로 두고 헤더 아이콘
+  // 툴팁으로 보인다. blocking 경고가 있으면 blocking 아이콘만 보인다.
+  const advisoryWarnings = useMemo(
+    () => (isWarning ? [] : getAdvisoryWarnings(data.type, data.config, locale)),
+    [isWarning, data.type, data.config, locale],
+  );
+  const showHeaderAdvisory = showSummary && advisoryWarnings.length > 0;
 
   // §5 ⚠ Missing integration — category=integration 노드가 참조하는
   // integrationId. http_request 만 integrationId 가 `authentication ===
@@ -289,6 +300,26 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
             <TooltipContent side="bottom">{summary.text}</TooltipContent>
           </Tooltip>
         )}
+        {showHeaderAdvisory && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={cn(
+                  "shrink-0 inline-flex items-center justify-center text-white/70 hover:text-white transition-colors",
+                  !showHeaderSummary && "ml-auto",
+                )}
+                role="img"
+                aria-label="advisory warning"
+                data-testid="advisory-warning-badge"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="whitespace-pre-line">
+              {advisoryWarnings.map((message) => `⚠ ${message}`).join("\n")}
+            </TooltipContent>
+          </Tooltip>
+        )}
         {/* Cross-node graph-warning badge — distinct from the single-node
             config-summary warning above. Red for error, amber for warning.
             `ml-auto` only when no header summary/warning already pushed to the
@@ -299,7 +330,10 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
               <span
                 className={cn(
                   "shrink-0 inline-flex items-center justify-center rounded-full p-0.5",
-                  !showHeaderSummary && !showHeaderWarning && "ml-auto",
+                  !showHeaderSummary &&
+                    !showHeaderWarning &&
+                    !showHeaderAdvisory &&
+                    "ml-auto",
                   graphWarningSeverity === "error"
                     ? "bg-red-500 text-white"
                     : "bg-amber-400 text-amber-950",
@@ -329,7 +363,10 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
           <MissingIntegrationBadge
             integrationId={integrationId}
             pushToRight={
-              !showHeaderSummary && !showHeaderWarning && !graphWarningSeverity
+              !showHeaderSummary &&
+              !showHeaderWarning &&
+              !showHeaderAdvisory &&
+              !graphWarningSeverity
             }
           />
         )}
