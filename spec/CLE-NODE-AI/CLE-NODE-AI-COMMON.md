@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "7d26fc2c491641896d9deb1265b17463783974143d55b3e0d3d0c6f61608f53f"
+content_hash: "39c34269cfc524d73a02e2902e47989207b3a0f60ff3f187da06f18aa15b65a3"
 read_as: "approved_fallback"
-task: "CLE-T-68XG50"
+task: "CLE-T-TBJ863"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d164610fb7f3d5c9a643a5017b399ffb27270129ce1f502db0d984a75d33def4"
-etag: "sha256-75fce08547216f2db9bf9fed8e59bbe010f9f43475e1af7a2f7e6c22e08d7cfe"
+mirror_sha256: "dbe6928b291e1ccb5588bbba4b4195d3e1a291e75f2a76b5e156d951b8ce8c6e"
+etag: "sha256-caa395fb13904922e6bc70f72cf0c7be88ff3ed03874caede130ffd566ddc798"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -108,7 +108,7 @@ AI 에이전트와 정보 추출기의 멀티턴 모드는 워크플로우 실�
 - 첫 턴이나 후속 턴에서 종료 조건을 채우지 못하면 `status: 'waiting_for_input'`, `interactionType: 'ai_conversation'` 으로 멈춘다.
 - 클라이언트가 `execution.submit_message` 명령으로 사용자 메시지를 보내면 재개한다. 사용자가 `execution.end_conversation` 명령을 보내면 대화를 끝낸다. 두 명령은 AI 에이전트와 정보 추출기가 함께 쓴다. 명령 정의는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md), 외부 표면 매핑은 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md), 대기 표면 값 집합은 [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 에서 정한다.
 - 사용자 응답은 무제한으로 기다린다. 외부 취소 말고는 타임아웃이 없다.
-- 재개할 때 `status: 'resumed'` 와 `output.interaction.{type, data, receivedAt}` 스냅샷을 한 번 내는 것이 목표 계약이다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md)). 현재 AI 대화 경로는 이 스냅샷을 내지 않는다(미구현). 같은 수신 시점의 WS `execution.user_message` 라이브 신호는 구현돼 있다.
+- 재개하면 엔진이 다음 턴 LLM 호출 전에 `status: 'resumed'` 와 `output.interaction.{type, data, receivedAt}` 스냅샷을 한 번 낸다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md), 형식과 저장 범위는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 의 재개 절). 같은 수신 시점에 WS `execution.user_message` 라이브 신호도 보낸다.
 
 종료 사유별 출력 포트는 각 노드 문서의 포트 절이 정한다. park 와 rehydration 은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 에서 정한다.
 
@@ -153,7 +153,7 @@ AI 노드는 `output.result.*`·`output.error.*`·`output.interaction.*` 세 묶
 
 텍스트 분류기는 `turnDebug` 대신 평면 배열 `meta.llmCalls` 에 호출 기록을 싣는다. 에러 출력의 `meta` 규칙은 노드마다 다르다. [미결 사항](#미결-사항) 참조.
 
-AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력(정상 완료 `out`, 조건 분기 `<조건 id>`, LLM 호출 실패 `error`)은 `meta.inputTokens` · `meta.outputTokens` · `meta.totalTokens` · `meta.thinkingTokens` 네 값을 늘 싣는다. 보고가 없는 값은 `0` 이다. 그래서 단일 턴의 `thinkingTokens` 가 `0` 이면 모델이 0 을 보고했는지 보고하지 않았는지 가르지 않는다. 출력 경로와 상관없이 같은 키를 싣도록 구현이 `0` 으로 채운다. LLM 호출 실패 출력의 네 값은 실패 전에 성공한 LLM 호출 usage 의 합이다. 성공한 호출이 없으면 네 값은 모두 `0` 이다. 롤링 요약 호출의 사용량은 `meta` 토큰에 넣지 않는다. 그래서 롤링 요약 호출이 실패하거나 요약 모델 설정(`summaryModelConfigId`)을 조회하지 못해 나온 `error` 출력은 네 값을 싣되 모두 `0` 이다([AI 에이전트 노드 §출력 포트](CLE-NODE-AGENT.md#출력-포트)). 정상 완료와 조건 분기의 토큰은 지금 마지막 LLM 호출 하나의 usage 다. 그래서 도구 루프로 LLM 을 여러 번 부르면 두 경로의 집계 기준이 다르다. 기준을 맞추는 일은 NERV Task `CLE-T-9VRXGD` 가 맡는다. 도구 정의 크기 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 을 부르기 전에 끝나므로 토큰 필드 없이 `model` · `durationMs` 만 싣는다([미결 사항](#미결-사항)).
+AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력(정상 완료 `out`, 조건 분기 `<조건 id>`, LLM 호출 실패 `error`)은 `meta.inputTokens` · `meta.outputTokens` · `meta.totalTokens` · `meta.thinkingTokens` 네 값을 늘 싣는다. 보고가 없는 값은 `0` 이다. 그래서 단일 턴의 `thinkingTokens` 가 `0` 이면 모델이 0 을 보고했는지 보고하지 않았는지 가르지 않는다. 출력 경로와 상관없이 같은 키를 싣도록 구현이 `0` 으로 채운다. 네 값은 그 턴에서 성공한 LLM 호출 usage 의 합이다. 도구 루프로 LLM 을 여러 번 부르면 앞선 호출도 모두 더한다. 정상 완료와 조건 분기는 마지막 호출까지 더한다. LLM 호출 실패는 실패 전에 성공한 호출만 더한다. 성공한 호출이 없으면 네 값은 모두 `0` 이다. 롤링 요약 호출의 사용량은 `meta` 토큰에 넣지 않는다. 그래서 롤링 요약 호출이 실패하거나 요약 모델 설정(`summaryModelConfigId`)을 조회하지 못해 나온 `error` 출력은 네 값을 싣되 모두 `0` 이다([AI 에이전트 노드 §출력 포트](CLE-NODE-AGENT.md#출력-포트)). 도구 정의 크기 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 을 부르기 전에 끝나므로 토큰 필드 없이 `model` · `durationMs` 만 싣는다([미결 사항](#미결-사항)).
 
 **공통 타입의 단일 기준**: `LlmCallRecord` 와 `TurnDebugEntry` 의 타입 정의는 `codebase/backend/src/shared/llm-tracing/llm-call-record.ts` 하나다. AI 에이전트와 정보 추출기가 함께 쓴다.
 
@@ -466,3 +466,12 @@ AI 제품 정의는 처음에 임베딩을 in-process 비동기로 처리하기�
 ### 단일 턴 토큰 기준의 정본을 이 문서에 둔다 (2026-11-05)
 
 AI 에이전트 단일 턴 `meta` 토큰 기준을 [AI 에이전트 노드](CLE-NODE-AGENT.md) · [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) · 이 문서가 따로 적고 있었다. 정본을 [토큰 회계](#토큰-회계) 한 곳으로 정하고 두 문서는 링크와 한 줄 요약만 둔다(NERV Task `CLE-T-KPDDKB`). 반대로 롤링 요약 · 요약 모델 설정 조회 실패의 처리는 AI 에이전트 노드 문서가 정하고 [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표는 결과만 적는다. 토큰 기준을 맞추는 일(`CLE-T-9VRXGD`)이 끝나면 이 문서만 고치면 된다.
+
+### 단일 턴 토큰을 성공한 호출의 합으로 맞춘다 (2026-11-12)
+
+AI 에이전트 단일 턴의 정상 완료와 조건 분기는 마지막 LLM 호출 하나의 usage 만 `meta` 토큰에 실었다. LLM 호출 실패는 실패 전에 성공한 호출의 합을 실었다. 그래서 도구 루프로 LLM 을 여러 번 부르면 정상 완료 값이 실제 사용량보다 작았고 같은 노드의 출력끼리 기준이 달랐다. 세 출력 모두 성공한 호출의 합으로 맞췄다(NERV Task `CLE-T-9VRXGD`).
+
+- 기각: 실패 출력도 마지막 호출 하나로 맞추는 안. 실패 전에 성공한 호출의 비용을 버리게 되어 [AI 에이전트 노드](CLE-NODE-AGENT.md) Rationale 의 «부분 결과를 `meta` 에 남긴다» 결정과 어긋난다.
+- 기각: 정상 완료를 그대로 두고 차이를 문서로만 알리는 안. 사용자는 `meta` 토큰을 노드의 사용량으로 읽고 실행 결과의 LLM 사용량 탭도 이 값을 먼저 보여 준다. 과소 집계가 그대로 남는다.
+- 사용량 통계와 비용 집계는 호출마다 남기는 LLM 사용 기록을 쓰므로 이 변경과 관계없다.
+- 2026-11-05 결정은 기준을 맞출 때 이 문서만 고치면 된다고 적었다. 실제로는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 의 오류 포트 표와 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 미결 사항도 기준 차이를 적고 있어서 함께 고쳤다.

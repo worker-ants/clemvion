@@ -2,19 +2,19 @@
 id: "CLE-NODE-EXTRACTOR"
 title: "정보 추출기 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-EXTRACT-001", "REQ-EXTRACT-002", "REQ-EXTRACT-003", "REQ-EXTRACT-004", "REQ-EXTRACT-005", "REQ-EXTRACT-006", "REQ-EXTRACT-007", "REQ-EXTRACT-008", "REQ-EXTRACT-009", "REQ-EXTRACT-010", "REQ-EXTRACT-011", "REQ-EXTRACT-012", "REQ-EXTRACT-013", "REQ-EXTRACT-014", "REQ-EXTRACT-015", "REQ-EXTRACT-016", "REQ-EXTRACT-017", "REQ-EXTRACT-018", "REQ-EXTRACT-019", "REQ-EXTRACT-020", "REQ-EXTRACT-021", "REQ-EXTRACT-022", "REQ-EXTRACT-023", "REQ-EXTRACT-024", "REQ-EXTRACT-025", "REQ-EXTRACT-026", "REQ-EXTRACT-027", "REQ-EXTRACT-028", "REQ-EXTRACT-029", "REQ-EXTRACT-030"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "4f3ef9315e2139403130e51e827a0788a29025f5924bca3be02ec3468112a5e0"
+content_hash: "0c83527f29ae57eccbbd4fd444db4827f805b2ffd4c1fa936fa993ee3c24e7a4"
 read_as: "approved_fallback"
-task: "CLE-T-SFH6RG"
+task: "CLE-T-9VRXGD"
 source_paths: ["spec/4-nodes/3-ai/3-information-extractor.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "8547e08233b1bd4afd3d314011c8ab526e59c4ce6270a691eb6f30ce7fa6a888"
-etag: "sha256-c152ce045026f5e61276d204053965e686de7c84d70fab44fd054a1d9ee58b5f"
+mirror_sha256: "08249be622386f454b80c380528c85435da8717f2f2b9fdd049c872d7602b28f"
+etag: "sha256-b3ad5fb4de05b1926819461a9acee7297027ab9a2d6999a81d0437ee312f99e3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/3-information-extractor.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.4), `spec/4-nodes/_product-overview.md` (§6.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -47,7 +47,7 @@ etag: "sha256-c152ce045026f5e61276d204053965e686de7c84d70fab44fd054a1d9ee58b5f"
 - REQ-EXTRACT-019 WHEN LLM 이 도구 호출 없이 텍스트만 돌려주면 THE SYSTEM SHALL 후속 질문으로 보고 입력 대기에 들어간다.
 - REQ-EXTRACT-020 WHEN 멀티턴 대화가 `completed`·`max_turns`·`user_ended` 로 끝나면 THE SYSTEM SHALL 최종 추출 스냅샷을 `ai_assistant` 턴으로 대화 스레드에 한 번 누적한다.
 - REQ-EXTRACT-021 IF 멀티턴이 LLM 호출 실패(`error`)로 끝나면 THE SYSTEM SHALL 대화 스레드에 누적하지 않는다. 노드 취소로 끝난 멀티턴은 REQ-EXTRACT-030 을 따른다.
-- REQ-EXTRACT-022 WHEN 사용자 메시지를 받아 재개하고 종료 조건에 닿지 않으면 THE SYSTEM SHALL `status: 'resumed'` 스냅샷을 한 번 낸다. (미구현)
+- REQ-EXTRACT-022 WHEN 사용자 메시지를 받아 멀티턴을 재개하면 THE SYSTEM SHALL 다음 턴 LLM 호출 전에 `status: 'resumed'` 스냅샷을 한 번 낸다.
 - REQ-EXTRACT-023 WHEN `memoryStrategy` 가 `persistent` 면 THE SYSTEM SHALL 추출 LLM 호출 전에 에이전트 메모리를 한 번 회수해 시스템 메시지 뒤 안정 프리픽스에 넣는다.
 - REQ-EXTRACT-024 WHEN `memoryStrategy` 가 `persistent` 이고 대화 스레드에 결과를 누적하면 THE SYSTEM SHALL 메모리 추출을 비동기로 넣는다.
 - REQ-EXTRACT-025 WHILE `memoryStrategy` 가 `manual` 인 동안 THE SYSTEM SHALL 메모리 회수·추출을 부르지 않고 기존 동작과 같은 messages 와 출력을 낸다.
@@ -206,7 +206,7 @@ stateDiagram-v2
     - **종결 누적과 메모리 추출**: `buildMultiTurnFinalOutput` 종결 경로(`completed`·`max_turns`·`user_ended`)에서 최종 추출 스냅샷을 `ai_assistant` 턴(`JSON.stringify(extracted)`)으로 한 번 누적한다(단일 턴과 같음, [대화 스레드](../CLE-IX/CLE-IX-THREAD.md)). 입력 대기 중에는 누적하지 않는다. `error`(LLM 호출 실패)는 불완전한 결과를 쌓지 않으려 누적하지 않는다. 노드 취소도 누적하지 않는다(REQ-EXTRACT-030). 누적 직후 `persistent` 면 그 스레드를 소스로 메모리 추출을 비동기로 넣는다. 이 누적이 추출 소스와 다운스트림의 대화 맥락 가시성을 준다.
 4. **`processMultiTurnMessage(userMessage, _resumeState)`**: 엔진이 사용자 메시지를 받으면 부른다. 메시지를 대화에 더하고 2~3을 반복한다. 이 경로에는 전파할 노드 취소 신호가 없다([노드 취소 신호 처리](#노드-취소-신호-처리)).
 5. **`endMultiTurnConversation(_resumeState, endReason)`**: 사용자가 `execution.end_conversation` 을 보내면 엔진이 부른다. `endReason` 에 따라 `user_ended`·`max_turns`·`error` 포트로 보낸다.
-6. **재개 스냅샷**: 사용자 메시지로 재개했지만 종결 조건에 닿지 않으면 다음 `waiting_for_input` 직전에 `status: 'resumed'` 와 `output.interaction.{type, data, receivedAt}` 스냅샷을 한 번 내는 것이 목표 계약이다. 지금은 내지 않는다(미구현, 아래 재개 절).
+6. **재개 스냅샷**: 사용자 메시지로 재개하면 엔진이 4의 LLM 호출 전에 `status: 'resumed'` 와 `output.interaction.{type, data, receivedAt}` 스냅샷을 한 번 낸다(아래 재개 절). 핸들러는 이 스냅샷을 만들지 않는다.
 
 단일 기준은 `information-extractor.handler.ts` 다. 시스템 프롬프트와 도구 정의는 같은 파일의 `buildMultiTurnSystemPrompt`·`buildFinalizationTool` 이다.
 
@@ -239,7 +239,7 @@ stateDiagram-v2
 | 단일 턴 정상 | `out` | `ended` |
 | 에러(단일 턴·멀티턴 LLM 실패) | `error` | `ended` |
 | 멀티턴 입력 대기 | 없음 | `waiting_for_input` |
-| 멀티턴 재개 | 없음 | `resumed` (미구현) |
+| 멀티턴 재개 | 없음 | `resumed`(일시) |
 | 멀티턴 종결 4종 | `completed` / `user_ended` / `max_turns` / `error`(`max_retries`) | `ended` |
 | 노드 취소 | 없음 | - |
 
@@ -418,9 +418,7 @@ stateDiagram-v2
 
 ### 멀티턴 재개 (`status: 'resumed'`)
 
-사용자 메시지를 받아 다음 턴을 처리한 뒤 종결 조건에 닿지 않았을 때, 다음 `waiting_for_input` 직전에 한 번 내는 관찰 전용 스냅샷이다. 연결선 라우팅은 없고 실행 내역·타임라인에만 기록한다.
-
-> 구현 현황: 이 구조화 스냅샷은 목표 관찰 계약이며 아직 내지 않는다(미구현). 현재 엔진의 AI 대화 턴 경로(`processAiResumeTurn` → `handleAiMessageTurn`)는 정보 추출기 턴에서 `message_received` interaction 과 `status:'resumed'` 스냅샷을 내지 않는다. `resumed` 스냅샷은 form·buttons 경로에만 있다([AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 와 같은 상태). 같은 수신 시점의 WS `execution.user_message` 라이브 신호는 노드 타입과 무관한 공통 경로라 정보 추출기에도 적용된다. 구현하거나 이 절을 폐기할지는 `plan/in-progress/node-output-redesign/information-extractor.md` 가 추적한다.
+사용자 메시지를 받으면 엔진이 다음 턴 LLM 호출 전에 한 번 내는 관찰 전용 스냅샷이다. 연결선 라우팅은 없다. LLM 응답이 오면 대기나 종결 출력이 이 스냅샷을 덮는다. 저장 범위와 만드는 규칙은 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 의 재개 절과 같다.
 
 ```json
 {
@@ -459,16 +457,16 @@ stateDiagram-v2
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.*` | | 설정 에코 | 대기 시점과 같은 원본 |
-| `output.result.messages` | `ChatMessage[]` | 핸들러 | 사용자 메시지를 더한 직후 누적(system 제외) |
-| `output.partial` | object | 핸들러 | 직전 대기 시점 스냅샷 유지(새 LLM 결과가 아직 없음) |
+| `output.result.messages` | `ChatMessage[]` | 엔진 | 직전 대기의 누적 대화(system 제외) 끝에 사용자 메시지를 더한 값 |
+| `output.partial` | object | 엔진 | 직전 대기 값을 그대로 잇는다(새 LLM 결과가 아직 없음) |
 | `output.interaction.type` | `'message_received'` | 엔진 | 재개 계기 종류([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 4.5). 핸들러는 `waiting_for_input` 만 내고 `output.interaction.*` 와 `status: 'resumed'` 는 엔진이 넣는다 |
 | `output.interaction.data.content` | string | 엔진 | 사용자 메시지 |
 | `output.interaction.data.role` | `'user'` | 엔진 | 고정 |
-| `output.interaction.receivedAt` | ISO8601 string | 엔진 | 수신 시각 |
-| `meta.durationMs` | number | 엔진 | 별도 LLM 호출이 없어 보통 0 |
-| `meta.interactionType` | `'ai_conversation'` | 핸들러 | 대기·재개 공통 분류 |
+| `output.interaction.receivedAt` | ISO8601 string | 엔진 | 수신 시각. 같은 턴 `execution.user_message` 의 `receivedAt` 과 같다 |
+| `meta.durationMs` | number | 엔진 | 늘 `0`. LLM 호출 전에 내기 때문이다 |
+| `meta.interactionType` | `'ai_conversation'` | 엔진 | 늘 `'ai_conversation'` 이다. 대기·재개 공통 분류 |
 | `status` | `'resumed'` | 엔진 | 관찰용 일시 표지 |
-| `_resumeState` | object | 핸들러 내부 | 다음 턴 처리용 내부 상태 |
+| `_resumeState` | object | 엔진 | 다음 턴 처리용 내부 상태. 저장본에는 싣지 않는다 |
 
 `meta.contextInjection` 은 이 스냅샷에도 일부러 싣지 않는다. 표현식 접근 예: `$node["X"].output.interaction.data.content`, `$node["X"].output.interaction.receivedAt`, `$node["X"].status` → `"resumed"`.
 
@@ -638,6 +636,8 @@ stateDiagram-v2
 - `codebase/backend/src/nodes/ai/shared/agent-memory-injection.ts`
 - `codebase/backend/src/nodes/ai/shared/agent-memory-schema.ts`
 - `codebase/backend/src/nodes/ai/shared/llm-cancellation.ts` (`rethrowIfNodeCancelled`, 노드 취소 판정)
+- `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts` (멀티턴 재개 스냅샷 싣기 · 저장)
+- `codebase/backend/src/modules/execution-engine/ai-conversation-helpers.ts` (`buildAiResumedSnapshot`)
 
 진행 중 작업: `plan/in-progress/node-output-redesign/information-extractor.md`
 
@@ -675,3 +675,9 @@ stateDiagram-v2
 멀티턴도 같다. 취소된 멀티턴은 부분 결과(`output.result`)를 내지 않고 대화 스레드와 메모리에 누적하지 않는다. 입력 대기 중에는 누적하지 않아 미완성 결과가 스레드와 메모리에 쌓이지 않게 한 결정([멀티턴 종결 누적을 함께 들인 이유](#멀티턴-종결-누적을-함께-들인-이유))과 같은 이유다. 취소된 대화는 끝나지 않았으므로 그때까지의 추출 결과도 미완성이다. 취소에도 부분 결과를 남기는 대안은 기각했다. [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19 에 따라 엔진은 취소된 노드 실행의 `output_data` 를 쓰지 않는다. 쓰게 하더라도 하류 노드가 미완성 결과를 읽게 된다.
 
 취소 판정은 에러 이름이 아니라 노드 취소 신호로 한다. provider SDK 마다 끊긴 요청에 던지는 에러의 이름이 다르기 때문이다. 판정 기준의 근거는 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#rationale) Rationale 의 2026-10-31 항목에 있다. 프로바이더 SDK 요청 타임아웃은 노드 취소 신호를 켜지 않으므로 지금처럼 노드 자신의 실패(`LLM_CALL_FAILED`, `retryable: true`)다. 멀티턴 재개 경로에는 전파할 신호가 없어 이 판정이 걸리지 않는다. 그 경로의 사용자 실행 중지는 턴 경계 DB 관측이 맡는다.
+
+### 재개 스냅샷을 구현하고 시점을 LLM 호출 전으로 고친다 (2026-11-12)
+
+이번 작업에서 REQ-EXTRACT-022 의 재개 스냅샷을 구현했다(NERV Task `CLE-T-TBJ863`). AI 에이전트와 같은 엔진 코드가 만든다. 결정과 근거는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) Rationale 의 2026-11-12 항목에 있다.
+
+고치기 전의 REQ-EXTRACT-022 는 「종결 조건에 닿지 않으면 다음 `waiting_for_input` 직전에」 낸다고 적었다. 그 시점에는 LLM 응답이 이미 와 있어 대기 출력이 곧바로 덮으므로 사용자 입력을 받은 순간이 남지 않는다. 그래서 시점을 다음 턴 LLM 호출 전으로 고쳤다. 이 시점에는 종결 여부를 아직 모르므로 조건 구절도 뺐다.

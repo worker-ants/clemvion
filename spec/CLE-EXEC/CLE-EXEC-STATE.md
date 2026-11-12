@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "364c3b689fa9f9e8f093d2fabd76ff845aa4dbb6f3f8ab09262fbf72430f8f72"
+content_hash: "cae9b2090c0d8a0f5a2f763a997402db1eaf3f86d2daaab2d4306dd613c956a3"
 read_as: "approved_fallback"
-task: "CLE-T-68XG50"
+task: "CLE-T-TBJ863"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "4e66e3368253361e5126c7763816d3dcbae85b5df56b8cacb0856504c27e2e7b"
-etag: "sha256-88c927497eb87353c70e355b79420f7cef0c4e9e58c6294936a8b4f93eb17173"
+mirror_sha256: "914fc072b619d4828dcb90b2057ec7570e65b0ec5e82bb3edb84f1d924935f6d"
+etag: "sha256-3ebdd3a4df08aa85878c41d29d29bfb8ac0af2e24278f6b29dca624a08bcdcb3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -111,10 +111,12 @@ stateDiagram-v2
 
 이 창은 두 층에서 막는다.
 
-1. **백엔드 읽기 정규화** (`ExecutionsService.findById` 의 `reconcilePreParkWaitingStatus`): 스냅샷 응답 직전에 `status` 가 `running`·`pending` 이면서 `outputData.status==='waiting_for_input'` 인 행은 응답 상태를 `waiting_for_input` 으로 올린다. DB 쓰기와 엔진 원자성은 바꾸지 않는다. 모든 스냅샷 소비자(웹 앱, 웹채팅, External Interaction API)에 똑같이 적용된다.
-2. **프론트엔드 이중 방어** (`codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts` 의 `isNodeWaitingForInput`): WebSocket `execution.snapshot` 이벤트, read replica, 옛 응답 모양처럼 백엔드 정규화가 닿지 않는 경로에서도 불일치를 잡는다. `ne.status` 하나만 믿지 않고 `running`·`pending` 행에 한해 `ne.outputData.status==='waiting_for_input'` 도 본다. 종결 행은 제외한다.
+1. **백엔드 읽기 정규화** (`ExecutionsService.findById` 의 `reconcilePreParkWaitingStatus`): 스냅샷 응답 직전에 `status` 가 `running`·`pending` 이면서 `outputData.status==='waiting_for_input'` 인 행(아래 AI 대화 재개 스냅샷 포함)은 응답 상태를 `waiting_for_input` 으로 올린다. DB 쓰기와 엔진 원자성은 바꾸지 않는다. 모든 스냅샷 소비자(웹 앱, 웹채팅, External Interaction API)에 똑같이 적용된다.
+2. **프론트엔드 이중 방어** (`codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts` 의 `isNodeWaitingForInput`): WebSocket `execution.snapshot` 이벤트, read replica, 옛 응답 모양처럼 백엔드 정규화가 닿지 않는 경로에서도 불일치를 잡는다. `ne.status` 하나만 믿지 않고 `running`·`pending` 행에 한해 `ne.outputData.status==='waiting_for_input'`(아래 AI 대화 재개 스냅샷 포함)도 본다. 종결 행은 제외한다.
 
-두 층의 판정 조건(노드 상태, 출력 상태, 종결 제외)은 일부러 똑같이 둔다. 한쪽만 바꾸면 불일치 창이 다시 열리므로 `reconcilePreParkWaitingStatus` 와 `isNodeWaitingForInput` 은 반드시 함께 바꾼다.
+**AI 대화 재개 턴**: AI 대화 재개 턴의 창도 같은 두 층에서 막는다. 멀티턴 AI 노드(AI 에이전트, 정보 추출기)는 재개 턴에서 LLM 을 부르기 전에 재개 스냅샷(`outputData.status==='resumed'`, `outputData.meta.interactionType==='ai_conversation'`)을 저장한다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 재개 절). 재개 claim 이 행을 `running` 으로 바꾼 뒤라 LLM 응답이 올 때까지 행 상태는 `running` 이다. 두 층은 `running`·`pending` 행의 출력이 이 재개 스냅샷이어도 대기로 본다. 그래서 실행 상세 화면은 LLM 호출 동안에도 대기 화면을 유지한다. form · buttons 의 `resumed` 는 그 노드의 마지막 출력이라 대기로 보지 않는다. 둘은 `meta.interactionType` 으로 가른다.
+
+두 층의 판정 조건(노드 상태, 출력 상태와 재개 스냅샷의 `meta.interactionType`, 종결 제외)은 일부러 똑같이 둔다. 한쪽만 바꾸면 불일치 창이 다시 열리므로 `reconcilePreParkWaitingStatus` 와 `isNodeWaitingForInput` 은 반드시 함께 바꾼다.
 
 ## 노드 실행 상태
 
@@ -188,7 +190,7 @@ stateDiagram-v2
 ```
 
 - **입력 대기**: `status: "waiting_for_input"`. `output` 에는 런타임에 계산한 값만 둔다.
-- **재개 출력**: `status: "resumed"`. `output` 은 대기 시점의 런타임 필드를 그대로 두고 `interaction: { type, data, receivedAt }` 를 더한다. `type` 은 `form_submitted`·`button_click`·`button_continue`·`message_received` 중 하나다. 타입별 `data` 모양과 적용 노드는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `interaction.data` 규격이 정한다.
+- **재개 출력**: `status: "resumed"`. `output` 은 대기 시점의 런타임 필드를 그대로 두고 `interaction: { type, data, receivedAt }` 를 더한다. `type` 은 `form_submitted`·`button_click`·`button_continue`·`message_received` 중 하나다. 타입별 `data` 모양과 적용 노드는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `interaction.data` 규격이 정한다. AI 대화 노드의 재개 출력이 다른 점(사용자 메시지를 `output.result.messages` 에 더하고 `meta.interactionType` 을 고정한다)은 [노드 출력 규약 4.1](../CLE-NODE/CLE-NODE-OUTPUT.md#41-상태-전이) 에 있다.
 - **대화 종료**: 멀티턴 LLM 이 종료 조건에 닿으면 `status: "ended"` 와 종료 사유에 따른 `port`, `output: { result }` 또는 `output: { error }` 를 낸다.
 - **단일 턴 AI 에이전트 종료**: 입력 대기 없이 한 번에 끝나는 단일 턴 AI 에이전트도 `status: "ended"` 를 낸다. `port` 는 정상 완료면 `out`, 조건 분기면 그 조건의 포트, LLM 호출 실패 · 도구 정의 크기 예산 초과면 `error` 다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)).
 
@@ -208,7 +210,7 @@ Presentation 노드의 `interaction` 과 멀티턴 AI 노드의 `message_receive
 `_resumeCheckpoint` 는 서버가 다시 시작된 뒤나 다른 인스턴스에서 멀티턴 대화를 이어 가려고 DB 에 남기는 재개 상태의 일부다. rehydration 절차는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 
 - **적용 범위**: `ai_agent` 와 `information_extractor` 의 멀티턴(`ai_conversation`). 저장 허용 목록은 두 핸들러 런타임 상태의 합집합이다. `ai_agent` 는 messages·turnCount·토큰·RAG·MCP·`pendingFormToolCall` 을, `information_extractor` 는 여기에 `partialResult`·`collectionRetryCount`(둘 다 자격 증명 없는 런타임 값)를 더한다. 설정 필드는 노드마다 다르지만(`ai_agent`: `llmConfigId`·`maxTurns`·`conditions`·`presentationTools`, `information_extractor`: `outputSchema`·`examples`·`instructions`·`maxCollectionRetries`) 재구성 때 공통 함수 `resolveRetryNodeConfig` 가 `node.config` 에서 다시 만든다. `buildRetryReentryState` 는 두 모양의 합집합을 채우고 각 핸들러의 `processMultiTurnMessage` 가 자기 필드만 읽는다. 그 밖의 `ai_conversation` 핸들러는 고유 런타임 상태가 허용 목록에 없어 체크포인트를 남기지 않는다. 이런 노드는 재시작 뒤 재개하면 `RESUME_INCOMPATIBLE_STATE` 로 정리된다.
-- **저장 시점**: 입력 대기에 들어갈 때(`emitAiWaitingForInput`)와 턴마다(`handleAiMessageTurn`) 엔진이 `_resumeState` 의 자격 증명을 뺀 부분집합을 `_resumeCheckpoint` 로 옮겨 `NodeExecution.outputData._resumeCheckpoint` 에 저장한다.
+- **저장 시점**: 입력 대기에 들어갈 때(`emitAiWaitingForInput`)와 턴마다(`handleAiMessageTurn`) 엔진이 `_resumeState` 의 자격 증명을 뺀 부분집합을 `_resumeCheckpoint` 로 옮겨 `NodeExecution.outputData._resumeCheckpoint` 에 저장한다. 재개 턴에는 LLM 을 부르기 전에 저장하는 재개 스냅샷에도 직전 대기와 같은 재개 상태로 만든 체크포인트를 싣는다. LLM 호출 중 서버가 재시작해도 체크포인트가 남는다.
 - **지움 예외**: `stripControlFields()` 는 `_resumeCheckpoint` 를 남긴다. 다음 노드 입력으로 넘길 때는 `_resumeState` 와 함께 지운다.
 - **모양**: `_retryState` 와 같은 부분집합(messages·turnCount·model·temperature·maxTokens·knowledgeBases·RAG·MCP·`pendingFormToolCall?` 등)이다. 다만 `expiresAt`(TTL)이 없다. 입력 대기 실행은 기한 없이 보존되므로 대화는 오래 쉰 뒤에도 이어져야 한다. `lastUserMessage` 도 없다. 재개할 때 도착한 사용자 메시지를 그대로 첫 턴으로 처리한다.
 - **자격 증명 제외**: 자격 증명과 컨텍스트 결속 필드는 싣지 않는다. `buildRetryState`·`buildResumeState` 가 옮길 키를 하나씩 열거하는 허용 목록 방식이다.
@@ -479,3 +481,12 @@ rehydration 실패 세 경우(`RESUME_CHECKPOINT_MISSING`·`RESUME_FAILED`·`RES
 실행도 `failed` 로 통일하는 안은 Re-run 진입점이 `failed` 원인(인프라인지 비즈니스인지)을 코드 밖에서 판별해야 해 UX 가 복잡해져서 택하지 않았다.
 
 이 결정의 본문 처리(실패 경우별 코드와 원자 마감)는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md#rehydration-실패) 에 있다.
+
+### AI 대화 재개 스냅샷도 대기로 정규화한다 (2026-11-12)
+
+AI 대화 경로가 재개 스냅샷을 노드 실행 행에 저장하게 됐다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) Rationale 의 2026-11-12 항목, NERV Task `CLE-T-TBJ863`). 그 전에는 재개 턴의 LLM 호출 동안 행에 직전 대기 출력(`outputData.status==='waiting_for_input'`)이 남아 있어 두 판정이 이 행을 대기로 봤다. 저장 뒤에는 출력 상태가 `resumed` 다. 판정을 그대로 두면 실행 상세의 2초 폴링이 대기가 끝났다고 보고 대화 화면을 비운다. 2026-05-23 에 보고된 깜빡임 회귀와 같은 경로다.
+
+- **두 판정을 함께 넓힌다(사람 결정)**: 백엔드 `reconcilePreParkWaitingStatus` 와 프런트 `isNodeWaitingForInput` 이 `running`·`pending` 행의 AI 대화 재개 스냅샷도 대기로 본다. 짝 규칙대로 두 곳을 같은 조건으로 고쳤다.
+- **`meta.interactionType` 으로 가른다**: form · buttons 의 `resumed` 는 그 노드의 마지막 출력이다. 이를 대기로 보면 끝난 노드가 계속 대기로 보인다. AI 재개 스냅샷은 `meta.interactionType` 을 늘 `ai_conversation` 으로 두므로 이 값으로 가를 수 있다.
+- **쓰기 쪽 전이는 여기서도 앞당기지 않는다**: 재개 턴 동안 노드 실행 행의 상태 컬럼은 `running` 이고 이번 변경은 출력 컬럼만 저장한다. 상태 컬럼을 `waiting_for_input` 으로 되돌리면 실행 상태 `running` 과 짝이 어긋나는 행이 저장된다. 그래서 [대기 진입 직전 읽기 창은 읽기 쪽에서 정규화한다](#대기-진입-직전-읽기-창은-읽기-쪽에서-정규화한다) 항목의 원칙대로 읽기 쪽 판정만 넓혔다.
+- **기각한 대안**: 메모리 캐시에만 싣는 안은 화면 회귀가 없지만 실행 내역 어디에서도 스냅샷이 보이지 않는다. 저장만 하고 판정을 그대로 두는 안은 채팅 턴마다 대화 화면이 깜빡인다. 둘 다 사람 결정으로 택하지 않았다.
