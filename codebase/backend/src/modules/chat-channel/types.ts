@@ -113,7 +113,8 @@ export interface ChatChannelConfig {
    * 채널별 안내 문구 override. 알려진 키(일부): `executionStarted`·`executionCompleted`·
    * `executionCancelled`·`sessionExpired`·`groupChatRefusal`·`help`·`slashPrefix`·
    * `replyButtonLabel`·`replyModalTitle`·`replyModalLabel`·`formModalTitle`(§3.3 form modal 제목,
-   * default `'양식'`). 미설정 키는 provider default(§4.1.1) fallback.
+   * default `'양식'`)·`commandReceived`(Discord 슬래시 명령의 수신 응답). 미설정 키는 provider
+   * default(§4.1.1) fallback.
    */
   languageHints?: Record<string, string>;
 }
@@ -302,6 +303,14 @@ export interface OpenFormModalResult {
 export interface FormSubmissionResult {
   /** provider 가 webhook 응답 body 로 돌려줄 JSON (Slack response_action / Discord ack). undefined 면 일반 ack. */
   httpResponse?: unknown;
+}
+
+/**
+ * 인터랙션 요청에 `{ data }` 봉투 없이 200 으로 돌려줄 기본 응답. `body` 가 없으면 빈 본문이다
+ * (Slack Interactivity). `ChatChannelAdapter.defaultInteractionResponse` 가 돌려준다.
+ */
+export interface InboundInteractionResponse {
+  body?: unknown;
 }
 
 /**
@@ -621,6 +630,28 @@ export interface ChatChannelAdapter {
     update: ChannelUpdate,
     config: ChatChannelConfig,
   ): Promise<ChannelUpdate>;
+
+  /**
+   * (옵션) 서명 검증을 통과한 인바운드 요청이 프로바이더가 3초 안 `200` 응답을 요구하는 인터랙션이면
+   * 그 기본 응답을 돌려준다. Discord 컴포넌트 클릭 · 모달 제출은 `{ type: 6 }`, 슬래시 명령은 본인에게만
+   * 보이는 `{ type: 4 }`, Slack Interactivity 는 빈 본문이다. 핸드셰이크 · 일반 메시지처럼 `202` 로
+   * 답할 요청이면 `undefined` 다. 처리 경로가 따로 정한 응답(모달 열기 · 폼 제출 결과)이 있으면 그
+   * 응답이 우선한다. 트리거가 꺼져 있어도 부른다. pure — 외부 호출 없음.
+   * SoT: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER), [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE).
+   */
+  defaultInteractionResponse?(
+    raw: unknown,
+    config: ChatChannelConfig,
+  ): InboundInteractionResponse | undefined;
+
+  /**
+   * (옵션) 처리하지 않고 버린 인바운드 update 의 수신 확인. HooksService 가 중복 · 분당 한도 초과 ·
+   * 실행 중 · 워크플로우 비활성처럼 `ackInteraction` 을 부르지 않고 끝내는 경로에서 부른다. Telegram 은
+   * `callback_query` 면 `answerCallbackQuery` 만 보내고 인라인 키보드는 남긴다(잠시 뒤 다시 누를 수 있게).
+   * HTTP 응답이 수신 확인인 프로바이더(Slack · Discord)는 구현하지 않는다. 실패는 호출자가 로그만 남기고
+   * 응답을 막지 않는다. 파싱하지 못한 update 에도 부르므로 원본 본문을 받는다.
+   */
+  ackDroppedUpdate?(raw: unknown, config: ChatChannelConfig): Promise<void>;
 
   /**
    * (옵션, supportsNativeForm=true 어댑터 한정) §4.1 native modal open.

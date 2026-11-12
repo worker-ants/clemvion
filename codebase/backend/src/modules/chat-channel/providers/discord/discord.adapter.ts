@@ -8,6 +8,7 @@ import type {
   ChatChannelInternalEvent,
   EiaEvent,
   FormSubmissionResult,
+  InboundInteractionResponse,
   NativeFormAdapter,
   OpenFormModalParams,
   OpenFormModalResult,
@@ -17,12 +18,18 @@ import type {
 import { credentialRejectedError } from '../../types';
 import { DiscordClient } from './discord-client';
 import {
+  DISCORD_INTERACTION_CALLBACK_TYPE,
+  DISCORD_MESSAGE_FLAG_EPHEMERAL,
   isDiscordApiError,
   type DiscordApiError,
   type DiscordMessage,
 } from './discord.types';
 import { renderDiscordEvent } from './discord-message.renderer';
 import { parseDiscordUpdate } from './discord-update.parser';
+import {
+  buildDiscordDefaultInteractionResponse,
+  DISCORD_DEFAULT_SLASH_PREFIX,
+} from './discord-interaction-response';
 import { NATIVE_MODAL_MAX_FIELDS } from '../../shared/form-mode';
 
 /**
@@ -117,7 +124,8 @@ export class DiscordAdapter implements NativeFormAdapter {
       }
     }
     // slash command bulk overwrite — default prefix '/workflow'.
-    const slashPrefix = config.languageHints?.slashPrefix ?? 'workflow';
+    const slashPrefix =
+      config.languageHints?.slashPrefix ?? DISCORD_DEFAULT_SLASH_PREFIX;
     const commands = await this.client.putApplicationCommands(
       botToken,
       application.id,
@@ -296,10 +304,10 @@ export class DiscordAdapter implements NativeFormAdapter {
   }
 
   /**
-   * Discord 의 3초 ack 는 webhook HTTP 응답 본문이라 이 함수는 noop 이다. HooksService 가 컴포넌트
-   * 클릭 · 모달 제출에 `{ type: 6 }`(모달을 열면 type 9, 폼 제출 결과는 type 4)을 실어 200 으로
-   * 답한다(NERV Task `CLE-T-7XWVC5`). 슬래시 명령의 응답은 아직 정하지 않았다. 비동기 후속 갱신은
-   * 별 PATCH /webhooks/.../messages/@original 호출 (Phase 후속 v2).
+   * Discord 의 3초 ack 는 webhook HTTP 응답 본문이라 이 함수는 noop 이다. 기본 응답은
+   * `defaultInteractionResponse` 가 정하고(컴포넌트 클릭 · 모달 제출 `{ type: 6 }`, 슬래시 명령
+   * 본인에게만 보이는 `{ type: 4 }`), 모달 열기(type 9) · 폼 제출 결과(type 4)는 각 경로가 정한다.
+   * 비동기 후속 갱신은 별 PATCH /webhooks/.../messages/@original 호출 (Phase 후속 v2).
    */
   ackInteraction(
     _update: ChannelUpdate,
@@ -320,7 +328,7 @@ export class DiscordAdapter implements NativeFormAdapter {
     // MODAL_SUBMIT(custom_id 'clemvion_reply') 는 parser 가 text_message 로 normalize.
     if (params.modalKind === 'reply') {
       const replyModal = {
-        type: 9,
+        type: DISCORD_INTERACTION_CALLBACK_TYPE.MODAL,
         data: {
           custom_id: 'clemvion_reply',
           title: (params.config.languageHints?.replyModalTitle ?? '답변').slice(
@@ -351,7 +359,7 @@ export class DiscordAdapter implements NativeFormAdapter {
     const rawTitle =
       params.title ?? params.config.languageHints?.formModalTitle ?? '양식';
     const modal = {
-      type: 9,
+      type: DISCORD_INTERACTION_CALLBACK_TYPE.MODAL,
       data: {
         custom_id: 'clemvion_form',
         title: rawTitle.slice(0, 45),
@@ -397,15 +405,21 @@ export class DiscordAdapter implements NativeFormAdapter {
     if (params.validationError) {
       return {
         httpResponse: {
-          type: 4,
-          data: { content: `⚠️ ${params.validationError.message}`, flags: 64 },
+          type: DISCORD_INTERACTION_CALLBACK_TYPE.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content: `⚠️ ${params.validationError.message}`,
+            flags: DISCORD_MESSAGE_FLAG_EPHEMERAL,
+          },
         },
       };
     }
     return {
       httpResponse: {
-        type: 4,
-        data: { content: '✅ 제출되었습니다.', flags: 64 },
+        type: DISCORD_INTERACTION_CALLBACK_TYPE.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: '✅ 제출되었습니다.',
+          flags: DISCORD_MESSAGE_FLAG_EPHEMERAL,
+        },
       },
     };
   }
@@ -417,6 +431,17 @@ export class DiscordAdapter implements NativeFormAdapter {
    */
   escapeControlText(text: string): string {
     return text;
+  }
+
+  /**
+   * 컴포넌트 클릭 · 모달 제출 · 슬래시 명령의 기본 interaction 응답
+   * ({@link buildDiscordDefaultInteractionResponse}). PING · AUTOCOMPLETE 는 `undefined` 다.
+   */
+  defaultInteractionResponse(
+    raw: unknown,
+    config: ChatChannelConfig,
+  ): InboundInteractionResponse | undefined {
+    return buildDiscordDefaultInteractionResponse(raw, config);
   }
 }
 

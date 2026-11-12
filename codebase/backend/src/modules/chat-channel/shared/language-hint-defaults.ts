@@ -191,6 +191,26 @@ export const resolveSurfaceMismatchMessage = makeLocaleResolver(
 );
 
 /**
+ * 수신 응답 문구 — 슬래시 명령처럼 프로바이더가 즉시 응답 메시지를 요구하는 인터랙션에 본인에게만
+ * 보이게 싣는 기본 문구(KO/EN, 합쇼체). 새 실행 · 취소 · 답장 전달 · 중복 · 한도 초과 · 워크플로우
+ * 비활성 경로가 같은 문구를 쓴다. 도움말은 따로 싣는다. 2026-11-12 사람 결정(NERV 질문
+ * `01a1d025-899f-7709-b759-4f7bf6c16ef5`, Task `CLE-T-TSEP9G`).
+ */
+export const COMMAND_RECEIVED_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '요청을 받았습니다.',
+  en: 'Request received.',
+};
+
+/**
+ * 수신 응답 3-level lookup — (1) languageHints.commandReceived override →
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
+ */
+export const resolveCommandReceivedMessage = makeLocaleResolver(
+  'commandReceived',
+  COMMAND_RECEIVED_DEFAULTS,
+);
+
+/**
  * `{statusCode}` placeholder 치환 — 화이트리스트 1종 (CCH-ERR-03).
  * 다른 placeholder (`{nodeId}` 등) 는 literal 유지 — DTO validator 가 등록 시점에 reject 하지만,
  * runtime 도 안전 (raw 노출되어도 internal label 만, 사용자에게 의미 불명).

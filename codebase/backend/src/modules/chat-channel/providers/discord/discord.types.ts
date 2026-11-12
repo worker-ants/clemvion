@@ -63,6 +63,31 @@ export interface DiscordInteractionData {
 /** Channel type values. DM=1, GROUP_DM=3, GUILD_TEXT=0 등. */
 export const DISCORD_CHANNEL_TYPE_DM = 1;
 
+/** 인바운드 interaction 의 `type`. https://discord.com/developers/docs/interactions/receiving-and-responding */
+export const DISCORD_INTERACTION_TYPE = {
+  PING: 1,
+  APPLICATION_COMMAND: 2,
+  MESSAGE_COMPONENT: 3,
+  APPLICATION_COMMAND_AUTOCOMPLETE: 4,
+  MODAL_SUBMIT: 5,
+} as const;
+
+/**
+ * interaction 응답(callback)의 `type`. 3초 안에 200 과 함께 보낸다.
+ * DEFERRED_UPDATE_MESSAGE(6)는 MODAL_SUBMIT 과 컴포넌트 interaction 에만 쓸 수 있다.
+ */
+export const DISCORD_INTERACTION_CALLBACK_TYPE = {
+  PONG: 1,
+  CHANNEL_MESSAGE_WITH_SOURCE: 4,
+  DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE: 5,
+  DEFERRED_UPDATE_MESSAGE: 6,
+  UPDATE_MESSAGE: 7,
+  MODAL: 9,
+} as const;
+
+/** 메시지 flag — 명령을 보낸 사용자에게만 보인다(EPHEMERAL, 1 << 6). */
+export const DISCORD_MESSAGE_FLAG_EPHEMERAL = 64;
+
 /**
  * Discord REST 클라이언트의 실패 결과. 4xx 본문이든 재시도를 다 쓴 합성 실패(5xx · 429 소진 ·
  * fetch 예외)든 `ok: false` 를 싣는다. 실패 판정은 이 표지로 한다([isDiscordApiError]).

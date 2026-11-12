@@ -65,7 +65,7 @@ describe('SlackAdapter', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('ackInteraction — no-op (3초 ack 는 HooksController 책임)', async () => {
+    it('ackInteraction — response_url 이 없으면 no-op (3초 ack 는 defaultInteractionResponse 책임)', async () => {
       const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
       await expect(
         adapter.ackInteraction(
@@ -83,6 +83,37 @@ describe('SlackAdapter', () => {
           SLACK_CONFIG,
         ),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  // 근거: CLE-CHAT-SLACK 「인바운드 응답」 · Slack 공식 문서(Handling user interaction) — Interactivity 는
+  // 3초 안 HTTP 200 을 받아야 하고 빈 본문으로 충분하다. NERV Task `CLE-T-FCBG91`.
+  describe('defaultInteractionResponse (Interactivity 3초 ack)', () => {
+    const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+
+    it.each([
+      ['block_actions', { type: 'block_actions' }],
+      ['view_submission', { type: 'view_submission' }],
+    ])('Interactivity(%s) 는 200 빈 본문이다', (_label, payload) => {
+      expect(
+        adapter.defaultInteractionResponse(
+          { payload: JSON.stringify(payload) },
+          SLACK_CONFIG,
+        ),
+      ).toEqual({});
+    });
+
+    it.each([
+      ['Events API', { type: 'event_callback', event: { type: 'message' } }],
+      ['url_verification', { type: 'url_verification', challenge: 'c' }],
+      ['슬래시 명령', { command: '/workflow', text: 'start' }],
+      ['payload 가 문자열이 아님', { payload: { type: 'block_actions' } }],
+      ['null', null],
+      ['문자열 본문', 'payload=x'],
+    ])('%s 에는 기본 응답이 없다', (_label, raw) => {
+      expect(
+        adapter.defaultInteractionResponse(raw, SLACK_CONFIG),
+      ).toBeUndefined();
     });
   });
 

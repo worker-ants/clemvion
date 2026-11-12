@@ -308,12 +308,40 @@ export class TelegramAdapter implements ChatChannelAdapter {
   }
 
   /**
+   * 버린 update 의 버튼 클릭에 answerCallbackQuery 만 보낸다(Spec CLE-CHAT-TELEGRAM REQ-TGRAM-011).
+   * 중복 · 대화 단위 분당 한도 초과 · 실행 중 · 워크플로우 비활성처럼 처리하지 않은 클릭도 클라이언트의
+   * 진행 표시를 지워야 한다. 키보드는 남긴다. 잠시 뒤 다시 누를 수 있어야 해서다(2026-11-12 사람 결정,
+   * NERV 질문 `01a1d025-92b9-7782-8c6e-09705b4a117f`). `callback_query` 가 아닌 update 는 아무것도
+   * 하지 않는다. 실패는 호출자(HooksService)가 로그만 남긴다.
+   */
+  async ackDroppedUpdate(
+    raw: unknown,
+    config: ChatChannelConfig,
+  ): Promise<void> {
+    const callbackQueryId = readCallbackQueryId(raw);
+    if (callbackQueryId === undefined) return;
+    const botToken = await this.resolveBotToken(config);
+    await this.client.answerCallbackQuery(botToken, {
+      callback_query_id: callbackQueryId,
+    });
+  }
+
+  /**
    * control-plane 안내 escape — telegram 은 `parse_mode: MarkdownV2` 로 발송하므로
    * MarkdownV2 예약문자를 backslash escape 한다 (renderNode 경로와 동일 규칙, escapeMarkdownV2).
    */
   escapeControlText(text: string): string {
     return escapeMarkdownV2(text);
   }
+}
+
+/** raw update 의 `callback_query.id`. 비었거나 문자열이 아니면 `undefined` 다. */
+function readCallbackQueryId(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const callbackQuery = (raw as { callback_query?: unknown }).callback_query;
+  if (!callbackQuery || typeof callbackQuery !== 'object') return undefined;
+  const id = (callbackQuery as { id?: unknown }).id;
+  return typeof id === 'string' && id.length > 0 ? id : undefined;
 }
 
 /**

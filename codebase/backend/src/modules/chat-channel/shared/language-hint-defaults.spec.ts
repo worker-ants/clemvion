@@ -9,6 +9,8 @@ import {
   SESSION_EXPIRED_DEFAULTS,
   resolveSurfaceMismatchMessage,
   SURFACE_MISMATCH_DEFAULTS,
+  resolveCommandReceivedMessage,
+  COMMAND_RECEIVED_DEFAULTS,
   makeLocaleResolver,
   type LanguageLocale,
 } from './language-hint-defaults';
@@ -274,5 +276,34 @@ describe('applyPlaceholders ({statusCode} 치환)', () => {
       statusCode: 500,
     });
     expect(text).toBe('fail in {nodeId} (500)');
+  });
+});
+
+// 근거: NERV 질문 `01a1d025-899f-7709-b759-4f7bf6c16ef5`(2026-11-12) — 슬래시 명령의 수신 응답은 새
+// `languageHints` 키 하나에 합쇼체 기본값을 둔다. NERV Task `CLE-T-TSEP9G`.
+describe('resolveCommandReceivedMessage (슬래시 명령 수신 응답)', () => {
+  it('기본 문구는 KO 합쇼체 · EN 이다', () => {
+    expect(resolveCommandReceivedMessage(undefined, 'ko')).toBe(
+      '요청을 받았습니다.',
+    );
+    expect(resolveCommandReceivedMessage(undefined, 'en')).toBe(
+      'Request received.',
+    );
+    expect(COMMAND_RECEIVED_DEFAULTS.ko).toBe('요청을 받았습니다.');
+  });
+  it('locale 이 없으면 ko 문구다', () => {
+    expect(resolveCommandReceivedMessage(undefined, undefined)).toBe(
+      COMMAND_RECEIVED_DEFAULTS.ko,
+    );
+  });
+  it('languageHints.commandReceived 가 있으면 그 문구다', () => {
+    expect(
+      resolveCommandReceivedMessage({ commandReceived: '접수했어요' }, 'en'),
+    ).toBe('접수했어요');
+  });
+  it('빈 문자열 override 는 무시한다', () => {
+    expect(resolveCommandReceivedMessage({ commandReceived: '' }, 'en')).toBe(
+      COMMAND_RECEIVED_DEFAULTS.en,
+    );
   });
 });
