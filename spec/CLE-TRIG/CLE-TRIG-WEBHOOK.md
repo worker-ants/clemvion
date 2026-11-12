@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052", "REQ-WEBHOOK-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "83c383555442fc9a932ffe7f87c4ff657d0ac82ee08beb3dc327b4973228e5de"
+content_hash: "b5ac43ccc27570dca00a0cd3a3d6b6b2c27271d45c704fef9e70fe227093ddf6"
 read_as: "approved_fallback"
-task: "CLE-T-0Q768N"
+task: "CLE-T-XKK9KH"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "a64c65ee11ac3da39c2e407b49e60bf89c62ded905e856673048e8dff0f63700"
-etag: "sha256-3acecc021a51436f98f9acb3c03ea4541ec8397979a5f723930ea8c1399d807b"
+mirror_sha256: "bfa2cc5d06ed4ad795fa943bf36d22e61927ced10a75652a9e9111ef7d4178ed"
+etag: "sha256-38eba5c5674ddc3530c58494327229a5df8b40976f0b718ab3d6f84b10001dfd"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,7 +67,7 @@ etag: "sha256-3acecc021a51436f98f9acb3c03ea4541ec8397979a5f723930ea8c1399d807b"
 - REQ-WEBHOOK-016 WHEN 인증 설정 유형이 `bearer_token` 이면 THE SYSTEM SHALL `Authorization: Bearer <token>` 값을 `config.token` 과 비교한다. (원본: WH-SC-03)
 - REQ-WEBHOOK-017 IF 인증이 실패하면 THE SYSTEM SHALL 유형과 사유를 가리지 않고 `401 AUTH_FAILED` 하나로 응답하고 진단은 서버 로그에만 남긴다. (원본: WH-SC-04)
 - REQ-WEBHOOK-018 WHEN 웹훅 요청이 오면 THE SYSTEM SHALL 전역 throttler 로 분당 100건을 넘는 요청을 막는다. (원본: WH-SC-05)
-- REQ-WEBHOOK-019 WHEN 공개 웹훅에 요청이 오면 THE SYSTEM SHALL 클라이언트 IP 단위로 분당 시작 10건과 시간당 누적 신규 20건(기본값)을 넘는 요청을 429 로 막는다. (원본: WH-SC-05)
+- REQ-WEBHOOK-019 WHEN 채팅 채널 트리거가 아닌 공개 웹훅에 요청이 오면 THE SYSTEM SHALL 클라이언트 IP 단위로 분당 시작 10건과 시간당 누적 신규 20건(기본값)을 넘는 요청을 429 로 막는다. (원본: WH-SC-05)
 - REQ-WEBHOOK-020 IF 공개 웹훅 요청의 클라이언트 IP 를 헤더에서 알 수 없으면 THE SYSTEM SHALL 그런 요청을 하나의 공유 버킷으로 묶어 같은 한도를 건다. (원본: WH-SC-05)
 - REQ-WEBHOOK-021 WHEN 인증 설정 유형이 `api_key` 이면 THE SYSTEM SHALL `config.headerName`(기본 `X-API-Key`) 헤더 값을 `config.key` 와 비교한다. (원본: WH-SC-06)
 - REQ-WEBHOOK-022 WHEN 인증 설정 유형이 `basic_auth` 이면 THE SYSTEM SHALL `Authorization: Basic` 을 디코드한 사용자 이름과 비밀번호를 `config.username`·`config.password` 와 비교한다. (원본: WH-SC-07)
@@ -90,7 +90,7 @@ etag: "sha256-3acecc021a51436f98f9acb3c03ea4541ec8397979a5f723930ea8c1399d807b"
 - REQ-WEBHOOK-038 WHEN 트리거 생성 요청이 `chatChannel` 을 담으면 THE SYSTEM SHALL 외부 채팅 플랫폼 어댑터를 연결하고 없으면 일반 웹훅 트리거로 동작한다. (원본: WH-MG-08)
 - REQ-WEBHOOK-039 WHEN 트리거 상세 화면을 그리면 THE SYSTEM SHALL `chatChannelHealth` 를 `notificationHealth` 배지와 같은 영역·같은 형식으로 나란히 표시한다. (원본: WH-MG-09)
 - REQ-WEBHOOK-040 WHEN 웹훅 요청을 받으면 THE SYSTEM SHALL 200ms 안에 응답하고 실행은 비동기로 한다. (원본: WH-NF-01)
-- REQ-WEBHOOK-041 IF 공개 웹훅 요청 본문이 32KB 를 넘으면 THE SYSTEM SHALL `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 로 응답한다. (원본: WH-NF-02)
+- REQ-WEBHOOK-041 IF 채팅 채널 트리거가 아닌 공개 웹훅의 요청 본문이 32KB 를 넘으면 THE SYSTEM SHALL `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 로 응답한다. (원본: WH-NF-02)
 - REQ-WEBHOOK-042 IF 인증 웹훅 요청 본문이 1MB(기본값)를 넘으면 THE SYSTEM SHALL `413 PAYLOAD_TOO_LARGE` 로 응답한다. (원본: WH-NF-02)
 - REQ-WEBHOOK-043 WHEN 웹훅 요청이 동시에 여러 건 오면 THE SYSTEM SHALL 요청마다 독립된 실행을 만들어 병렬로 처리한다. (원본: WH-NF-03)
 - REQ-WEBHOOK-044 IF 공개 웹훅 가드가 트리거 조회에 실패하거나 Redis 를 쓸 수 없으면 THE SYSTEM SHALL 요청을 통과시키고 조회 실패는 `error` 레벨로 로그를 남긴다.
@@ -193,7 +193,7 @@ POST /api/hooks/:endpointPath
 |------|------|
 | 인증 | `trigger.auth_config_id` 가 가리키는 인증 설정 유형에 따른다. 연결 없음(`auth_config_id IS NULL`, 공개) / `api_key` / `bearer_token` / `basic_auth` / `hmac`. `is_active=false` 인 인증 설정은 곧바로 401 `AUTH_FAILED`. 인증 설정에 `ip_whitelist` 가 있으면 함께 시행한다 |
 | Content-Type | `application/json`, `application/x-www-form-urlencoded` |
-| 요청 본문 최대 크기 | 공개 웹훅 32KB, 인증 웹훅 1MB(기본). [본문 크기](#본문-크기) |
+| 요청 본문 최대 크기 | 공개 웹훅 32KB, 인증 웹훅과 채팅 채널 트리거 1MB(기본). [본문 크기](#본문-크기) |
 | JWT | `/api/hooks/*` 는 JWT guard 대상이 아니다(외부 서비스가 부르므로) |
 | CORS | 웹훅 엔드포인트에는 CORS 제한이 없다 |
 
@@ -324,21 +324,23 @@ required 파라미터 누락이나 타입 강제 변환 실패가 나면 `hooks.
 
 ## 요청 제한과 남용 방어
 
-공개 웹훅은 무차별 대입과 DoS 의 표면이라 인증 웹훅보다 제한을 더 건다. 이 절의 한도는 웹채팅을 포함한 모든 공개 웹훅에 똑같이 적용된다. 이 절은 설정 키, 에러 코드, Redis 키, 구현 위치를 적는다. 같은 방어를 공개 챗봇 관점에서 설명하는 절이 [웹채팅 보안 §공개 웹훅 남용 방어](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#공개-웹훅-남용-방어) 에 있다. 두 문서 가운데 어느 쪽이 정책 수치의 기준인지는 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#미결-사항) 의 미결 사항에서 정한다. 그때까지 두 문서의 값(분당 10·시간당 20·32KB·공유 버킷)은 같게 유지한다.
+공개 웹훅은 무차별 대입과 DoS 의 표면이라 인증 웹훅보다 제한을 더 건다. 이 절의 한도는 웹채팅을 포함한 공개 웹훅에 똑같이 적용된다. 채팅 채널 트리거만 뺀다(아래 문단). 이 절은 설정 키, 에러 코드, Redis 키, 구현 위치를 적는다. 같은 방어를 공개 챗봇 관점에서 설명하는 절이 [웹채팅 보안 §공개 웹훅 남용 방어](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#공개-웹훅-남용-방어) 에 있다. 두 문서 가운데 어느 쪽이 정책 수치의 기준인지는 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#미결-사항) 의 미결 사항에서 정한다. 그때까지 두 문서의 값(분당 10·시간당 20·32KB·공유 버킷)은 같게 유지한다.
+
+채팅 채널 트리거(`config.chatChannel` 이 있는 트리거)는 `auth_config_id` 가 없어도 이 절의 공개 웹훅 한도(IP 단위 시작 한도 · 시간당 누적 신규 상한 · 본문 32KB)를 받지 않는다. 프로바이더 서명으로 인증하고 응답 계약은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 전역 throttler 는 그대로 걸린다. 지금 코드는 `auth_config_id` 만 보고 이 트리거에도 공개 웹훅 가드를 건다. 결함이고 NERV Task `CLE-T-QKJ2TZ` 가 고친다. 이렇게 정한 이유는 [본문 크기를 공개와 인증으로 나눈 이유](#본문-크기를-공개와-인증으로-나눈-이유) 의 채팅 채널 트리거 항목에 있다.
 
 ### 본문 크기
 
 본문 크기 한도는 공개 웹훅과 인증 웹훅을 나눈다(분리 임계).
 
 - 인증 웹훅: `/api/hooks/*`(`HOOKS_ROUTE_PREFIX` 상수) 라우트 전용 body-parser(`createHooksBodyParsers`, `src/bootstrap/hooks-body-parser.ts`)가 본문을 1MB(기본)까지 받는다. `HOOKS_MAX_BODY_BYTES` 로 바꿀 수 있고 과도한 설정으로 인한 메모리 부족을 막으려고 상한 `HOOKS_MAX_BODY_BYTES_CEILING`(16MiB)으로 자른다. 넘으면 body-parser 가 413 을 던지고 `GlobalExceptionFilter` 가 표준 봉투 `PAYLOAD_TOO_LARGE` 로 바꾼다.
-- 공개 웹훅: 그 위에서 `PublicWebhookThrottleGuard` 가 32KB(`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`)를 넘으면 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 로 더 막는다.
+- 공개 웹훅: 그 위에서 `PublicWebhookThrottleGuard` 가 32KB(`DEFAULT_MAX_BODY_BYTES`, config `publicWebhook.maxBodyBytes`)를 넘으면 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 로 더 막는다. 채팅 채널 트리거는 이 32KB 를 받지 않고 인증 웹훅과 같은 1MB 파서 상한만 받는다.
 - 그 밖의 라우트: 전역 100KB(`createGlobalBodyParsers`)를 명시로 등록해 웹훅이 아닌 라우트의 방어선을 지킨다.
 - 파서 등록 순서: `main.ts` 는 `NestFactory.create(AppModule, { bodyParser: false })` 로 Nest 기본 파서를 끄고 hooks 파서(1MB)를 먼저, 전역 파서(100KB)를 다음에 직접 등록한다. hooks 파서가 먼저 파싱해 `req._body` 를 세우면 뒤의 전역 파서는 hooks 요청을 다시 파싱하지 않는다. 두 파서는 공통 `verify` 로 rawBody 를 보존해 HMAC 검증과 맞는다.
 
 ### 호출 빈도 제한
 
 - 전역: 글로벌 throttler 분당 100건. 수치의 기준은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 rate limiting 이다.
-- 공개 웹훅 추가 한도: `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 트리거에만 IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`)와 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`)을 건다. 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT` 또는 `429 PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다.
+- 공개 웹훅 추가 한도: `PublicWebhookThrottleGuard` 가 `auth_config_id IS NULL` 인 트리거에만(채팅 채널 트리거는 뺀다) IP 단위 시작 한도(기본 분당 10, config `publicWebhook.startupPerMinute`)와 시간당 누적 신규 상한(기본 20, `publicWebhook.hourlyNewMax`)을 건다. 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT` 또는 `429 PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다.
 - 가드는 트리거를 조회한 뒤 가장 먼저 한도를 적용한다. 인증 웹훅은 이 가드를 제한 없이 통과한다(본문 크기는 위 라우트 파서가 따로 막는다).
 - IP 를 알 수 없는 요청: 공격자가 `X-Forwarded-For`·`CF-Connecting-IP` 헤더를 지우는 등으로 헤더에서 클라이언트 IP 를 알 수 없으면 그런 요청을 모두 하나의 공유 버킷(`UNIDENTIFIED_IP_BUCKET`)으로 묶어 같은 한도를 건다. 무제한 우회가 아니라 유한한 완화 한도다. `req.ip`·`req.socket.remoteAddress` 폴백은 쓰지 않는다. 공유 버킷을 고른 근거와 인프라 권고는 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) 의 Rationale «공개 웹훅에서 IP 를 알 수 없으면 공유 버킷 하나로 완화 한도를 건다» 에 있다.
 - 인증 웹훅의 `ip_whitelist` 는 반대로 IP 를 알 수 없으면 거부한다. rate limit 은 가용성 보호이고 whitelist 는 인증 관문이라 성격이 다르다.
@@ -357,7 +359,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 
 ## 처리 흐름
 
-1. `POST /api/hooks/:endpointPath` 를 받는다. 앞단에서 `PublicWebhookThrottleGuard` 가 공개 웹훅의 본문 크기와 IP 한도를 먼저 적용한다.
+1. `POST /api/hooks/:endpointPath` 를 받는다. 앞단에서 `PublicWebhookThrottleGuard` 가 공개 웹훅(채팅 채널 트리거 제외)의 본문 크기와 IP 한도를 먼저 적용한다.
 2. `HooksService.handleWebhook(endpointPath, body, headers, query)` 가 처리를 시작한다.
 3. `TriggersService.findByEndpointPath()` 로 웹훅 트리거를 찾는다. 조회는 워크스페이스 없이 `endpoint_path` 와 `type='webhook'` 으로 한다.
 4. 트리거가 없으면 `404 TRIGGER_NOT_FOUND` 다.
@@ -403,8 +405,8 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 | 비밀 키 저장 | 웹훅 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 으로 암호화 저장한다. 암호화 키는 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)다. 이 보장은 운영 환경에서 새로 쓰는 값 기준이다. 예외는 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 에 있다. 결정 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다. API 응답에서는 항상 가리고 평문은 생성·재생성·평문 보기 세 경로에서만 나간다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)) |
 | 요청 민감 헤더 노출 | 인증·시크릿성 헤더는 저장 전에 `[REDACTED]` 로 가린다. 실행 상세·`$trigger`·`output.request` 어디로도 원본이 새지 않는다. 인증은 가리기 전 원본으로 해 영향이 없다 |
 | `last_used_at` 갱신 | 인증 성공 직후 fire-and-forget UPDATE. 트랜잭션 밖이라 경합하면 마지막 쓰기가 이기고 실패하면 갱신하지 않는다(활성 가시성만 잃는다) |
-| 본문 크기 제한 | 공개 웹훅 32KB, 인증 웹훅 1MB, 그 밖의 라우트 100KB. 공개 진입점은 DoS·남용 표면이라 32KB 보수 한도를 유지한다 |
-| Rate limiting | 전역 throttler 분당 100건 + 공개 웹훅 IP 단위 한도(분당 10·시간당 20 기본). IP 를 알 수 없으면 공유 버킷에 완화 한도 |
+| 본문 크기 제한 | 공개 웹훅 32KB, 인증 웹훅과 채팅 채널 트리거 1MB, 그 밖의 라우트 100KB. 공개 진입점은 DoS·남용 표면이라 32KB 보수 한도를 유지한다 |
+| Rate limiting | 전역 throttler 분당 100건 + 공개 웹훅 IP 단위 한도(분당 10·시간당 20 기본, 채팅 채널 트리거 제외). IP 를 알 수 없으면 공유 버킷에 완화 한도 |
 | JWT 제외 | `/api/hooks/*` 는 JWT guard 대상이 아니다 |
 | CORS | 웹훅 엔드포인트는 CORS 제한이 없다 |
 
@@ -432,6 +434,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 - **채팅 채널 경로의 트리거 파라미터 처리**: [트리거 노드 공통](../CLE-NODE-TRIG/CLE-NODE-TRIG-COMMON.md) 은 웹훅이면 body 에서 파라미터를 추출·검증하고 누락되면 400 이라고 정한다. 현재 채팅 채널 분기는 `resolveTriggerParameters` 를 거치지 않고 `parameters: {}` 와 `chatChannel` 키를 넣어 실행한다. 그래서 required 파라미터가 있는 워크플로우도 채널 경로에서는 검증 없이 빈 값으로 시작한다. 채널 경로의 파라미터 정책(무시, 기본값 적용, 거부)을 정해 트리거 공통 계약에 적어야 한다.
 - **웹채팅 경로 공개와 경로 노출 정책**: 이 문서는 인증 없는 일반 웹훅의 엔드포인트 경로를 사실상 비밀 키로 본다. 웹채팅 문서([웹채팅 SDK](../CLE-WEBCHAT/CLE-WEBCHAT-SDK.md), [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md))는 같은 값을 "비밀 아님" 으로 보고 그 근거로 뷰어에게 설치 스크립트 전체를 보여 준다. 웹채팅 트리거의 경로가 공개된다는 사실은 [비밀성](#비밀성)에 적었다. WH-SC-01(REQ-WEBHOOK-011·012)에 «웹채팅(공개 설치 스크립트) 트리거의 경로는 공개된다» 는 예외를 명시할지, 뷰어에게 경로를 보여 주는 정책이 일반 웹훅에도 번지는지 결정해야 한다. 같은 미결이 [웹채팅 세션](../CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md#미결-사항) 에 있어 함께 정한다.
 - **공개 웹훅 남용 방어의 기준 문서**: 이 문서와 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) 이 서로를 정책 수치의 기준으로 가리켰다. 결정은 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#미결-사항) 의 같은 미결에서 하고, 이 문서는 [요청 제한과 남용 방어](#요청-제한과-남용-방어) 절의 안내를 그 결과에 맞춘다.
+- **채팅 채널 트리거의 서명 검증 전 본문 상한**: 채팅 채널 트리거는 공개 웹훅의 32KB 를 받지 않아 서명 검증 전에 hooks 파서 상한(1MB)까지 본문을 받는다. 프로바이더 update 크기에 맞춘 전용 상한을 둘지는 정하지 않았다. 배경은 [본문 크기를 공개와 인증으로 나눈 이유](#본문-크기를-공개와-인증으로-나눈-이유) 의 채팅 채널 트리거 항목이다.
 
 ## 구현 위치
 
@@ -472,6 +475,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 - 기각한 대안 A(전역 1MB 통일): `app.use(json({ limit: '1mb' }))` 로 전역을 1MB 로 올리면 웹훅이 아닌 라우트(로그인 같은 미인증 표면 포함)까지 1MB 본문을 버퍼링해 DoS 표면이 32배 커진다. 전역 100KB 방어선이 약해진다.
 - 기각한 대안 B(32KB/100KB 유지): 인증 웹훅의 100KB 는 설계 결정이 아니라 express 기본값이었고 큰 PR·결제 이벤트 같은 정당한 인증 페이로드를 막는다. 비표준 `PayloadTooLargeError` 로 끊기는 불일치도 남는다.
 - 채택(분리 임계): 미인증 공개 진입점은 무차별 대입·DoS 표면이라 32KB 보수 한도를 유지하고 신원이 검증된 인증 웹훅만 `/api/hooks/*` 라우트 전용 1MB 파서로 넓힌다. 위험도에 비례한 한도다.
+- 채팅 채널 트리거(2026-11-12 결정): 채팅 채널 트리거는 `auth_config_id` 가 없어도 32KB 와 IP 한도를 받지 않는다. 이 트리거는 인증 설정 대신 프로바이더 서명으로 인증한다. 프로바이더는 적은 수의 발신 IP 에서 모든 사용자의 update 를 보내서 IP 한도가 정상 트래픽도 막는다. 그때 나가는 `429` · `413` 은 프로바이더의 재전송과 웹훅 자동 비활성화를 부른다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 그래서 이 트리거는 인증 웹훅과 같은 1MB 파서 상한을 받는다. 서명 검증은 본문을 파싱한 뒤라 검증 전 본문도 1MB 까지 들어온다. 이 점은 미인증 진입점에 32KB 를 두는 위 채택 논거와 다르다. 전용 상한을 둘지는 [미결 사항](#미결-사항) 에 남겼다.
 - 구현 결정(`bodyParser: false` 와 명시 등록 순서): Nest 기본 파서를 켠 채 `app.use(json())` 같은 수동 파서를 더하면 Nest 가 자기 전역 파서 등록을 건너뛰어 hooks 가 아닌 본문이 파싱되지 않는(`req.body=undefined`) 함정이 있다. 그래서 기본 파서를 끄고 hooks 파서(1MB, 먼저)와 전역 파서(100KB)를 직접 등록한다.
 - 메모리 상한: `HOOKS_MAX_BODY_BYTES` override 는 16MiB 로 잘라 운영 실수로 메모리 표면이 커지는 것을 막는다.
 - 표준 413: 초과하면 body-parser 의 413 을 `GlobalExceptionFilter` 가 표준 봉투 `PAYLOAD_TOO_LARGE` 로 바꾼다.
