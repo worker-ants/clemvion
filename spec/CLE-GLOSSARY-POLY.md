@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-POLY"
 title: "용어 사전 — 다의어 구분"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "7ef103a635dc6ac14bdcff320f37c52956cc3bb8f08036f78cfe6d71c8e4cafe"
+content_hash: "e64632efe05e6e2fd5629e5755d8570cb9c97330c8d1af7da3d344331d2f967a"
 read_as: "approved_fallback"
-task: "CLE-T-6YY7KY"
+task: "CLE-T-GNTWP9"
 source_paths: []
-mirror_sha256: "21abe19833a9a6a291a8d82533f17bd7fca7d0855dff7eeb913d7fce9d914d0a"
-etag: "sha256-f6a9b2c6afa5bb9e3a9e783a8f13c6ee4edc76854b659ad9aad12462b7951597"
+mirror_sha256: "7e8edc4fa9053932fbca4d0d2f279a5b2758ef350fbd43fad98c1aaef2106e7d"
+etag: "sha256-0edf7366b69f7dfcfb01a4d5e008b0a8cfdcfa4aac77cf30b837e4ab794443c3"
 ---
 ## 개요
 
@@ -47,6 +47,8 @@ etag: "sha256-f6a9b2c6afa5bb9e3a9e783a8f13c6ee4edc76854b659ad9aad12462b7951597"
 | 재시도 | 문서 임베딩 자동 재시도(예: 임베딩 재시도 중인 문서는 "재시도 중" 으로 보인다) | 임베딩 재시도 |
 | 재시도 | BullMQ 작업 재시도(`attempts`)(예: 재개 큐는 정한 횟수만큼 큐 재시도를 한다) | 큐 재시도 |
 | 재시도 | LLM 클라이언트 호출 재시도 | LLM 호출 재시도 |
+| 재시도 | 채널 어댑터가 채널 프로바이더 API 호출(`sendMessage` 등)을 다시 시도하는 것(예: 발송 재시도 뒤에도 실패하면 채널 건강도가 `degraded` 로 바뀐다) | 발송 재시도 |
+| 재시도 | 채널 프로바이더가 같은 update 를 웹훅으로 다시 보내는 것. Clemvion 쪽 재시도가 아니다. SSE 재전송과 다르다(예: 채널 프로바이더는 non-2xx 응답을 받으면 같은 update 를 재전송할 수 있다) | 재전송 |
 | `exponential` | EIA 알림 웹훅의 재시도 간격 설정 값(`notification.retry.backoff: "exponential"`). 사용자 정의 backoff 전략 `exp-base4` 로 간격을 늘리고 간격에 상한을 둔다. BullMQ 내장 `exponential` 과 이름만 같다. 값은 [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-IX/CLE-EIA-NOTIFY.md#재시도와-실패-처리) 에 있다 | EIA 알림 웹훅 재시도 간격(`exp-base4`) |
 | `exponential` | 재개 큐(`execution-continuation`)의 큐 재시도 간격. 사용자 정의 backoff 전략 `continuation-exp4` 로 간격을 늘리고 간격에 상한을 두지 않는다. 값은 [큐 워커와 동시 실행 제한 「재개 큐」](CLE-EXEC/CLE-EXEC-WORKER.md#재개-큐) 에 있다. 이 전략을 고른 근거는 [큐 워커와 동시 실행 제한의 재개 큐 재시도 간격 결정](CLE-EXEC/CLE-EXEC-WORKER.md#재개-큐-재시도-간격을-사용자-정의-전략으로-4배씩-늘린다-2026-10-17) 에 있다 | 재개 큐 재시도 간격(`continuation-exp4`) |
 | `exponential` | BullMQ 내장 backoff 전략(`backoff.type: 'exponential'`). 위 두 사용자 정의 전략과 간격을 늘리는 배수가 다르다(예: 만료 스캐너 작업의 큐 재시도) | BullMQ 내장 `exponential` |
@@ -119,6 +121,7 @@ etag: "sha256-f6a9b2c6afa5bb9e3a9e783a8f13c6ee4edc76854b659ad9aad12462b7951597"
 | scope | 에이전트 메모리 네임스페이스(`scope_key`) | 메모리 범위 키 |
 | scope | 시크릿 참조 경로의 첫 칸(`secret://<scope>/…`) | 시크릿 범위 |
 | scope | 대화 스레드·컨텍스트가 유지되는 범위(예: 대화 스레드의 유지 범위는 실행 하나다) | 유지 범위 |
+| scope | EIA 요청 컨텍스트가 외부 HTTP 호출인지 내부 신뢰 호출인지 가르는 값(`InteractionRequestContext.scope`, 값 `in_process_trusted`)(예: 채팅 채널 어댑터는 내부 신뢰 호출로 EIA 서비스를 부른다) | 내부 신뢰 호출 |
 | 추출 | 청크에서 Entity·Relation 뽑기 | 그래프 추출 |
 | 추출 | 대화에서 기억할 사실 뽑기 | 메모리 추출 |
 | 추출 | 정보 추출기 노드가 필드 뽑기 | 필드 추출 |
@@ -167,7 +170,7 @@ etag: "sha256-f6a9b2c6afa5bb9e3a9e783a8f13c6ee4edc76854b659ad9aad12462b7951597"
 | 컬렉션 | 엔진 덮어쓰기 결과 키 | 컬렉션 키 |
 | 컬렉션 | 페이지 없는 작은 목록 응답 | 고정 목록 응답 |
 | 어댑터 | 실행 입력을 트리거 파라미터로 바꾸는 계층 | 진입 어댑터 |
-| 어댑터 | 메신저 프로바이더별 변환 구현 | 채널 어댑터 |
+| 어댑터 | 채널 프로바이더마다 있는 변환 구현 | 채널 어댑터 |
 | 어댑터 | EIA SSE 스트림 구현(`SseAdapter`) | SSE 어댑터 |
 | display-only | 버튼 없는 Presentation 노드 | 표시 전용 노드 |
 | display-only | 입력을 기다리지 않는 표시 도구 | 표시 전용 도구 |
@@ -194,7 +197,7 @@ etag: "sha256-f6a9b2c6afa5bb9e3a9e783a8f13c6ee4edc76854b659ad9aad12462b7951597"
 | 마스킹 | 웹훅 수신 헤더를 저장 전에 가리기 | 수신 헤더 마스킹 |
 | provider | AI 모델 제공 서비스 | 모델 프로바이더 |
 | provider | 통합 OAuth 동의 서비스 | OAuth 제공자 |
-| provider | 채팅 채널 메신저 | 채널 프로바이더 |
+| provider | 채팅 채널 메신저. 채팅 채널 영역 문서가 개요에서 이 뜻으로 정의하면 단독 「프로바이더」 로 줄여 쓸 수 있다 | 채널 프로바이더 |
 | provider | AI 에이전트 도구 구현(`AgentToolProvider`) | 도구 프로바이더 |
 | 관리자 | 워크스페이스 `admin` 역할 | 관리자 |
 | 관리자 | 제품을 배포·운영하는 사람 | 운영자 |
@@ -350,3 +353,12 @@ NERV Task `CLE-T-6YY7KY` 가 더했다. EIA 알림 웹훅의 설정 값 `backoff
 - BullMQ 내장 전략의 배수는 라이브러리가 정한 값이다. 우리 기준 문서가 정하는 값이 아니어서 원칙 14 의 대상으로 보지 않을 수도 있다. 그래도 세 행은 «배수가 다르다» 만으로 갈리므로 이 숫자도 적지 않았다.
 - 기각한 대안: 뜻 칸에 «1초에서 4배씩» · «2배씩» 같은 수치를 적는 안. 위 원칙 14 의 이유로 택하지 않았다.
 - 기각한 대안: 두 사용자 정의 전략을 한 행으로 묶는 안. 간격 상한의 유무와 전략 이름이 달라서 본문이 어느 쪽을 말하는지 구분 표기로 밝혀야 한다.
+
+### 「scope」 · 「재시도」 에 행을 더하고 「provider」 · 「어댑터」 행을 고쳤다 (2026-11-12)
+
+NERV Task `CLE-T-GNTWP9` 가 더했다.
+
+- 「scope」: EIA 요청 컨텍스트의 `scope` 행을 더했다. 이 값은 [External Interaction API 「내부 신뢰 호출」](CLE-IX/CLE-EIA.md#내부-신뢰-호출) 이 정한다. 구분 표기는 [용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 의 표준 용어 「내부 신뢰 호출」 과 맞췄다.
+- 「재시도」: 채팅 채널의 발송 재시도와 재전송 행을 더했다. 재전송은 채널 프로바이더가 하는 일이라 「replay」 의 SSE 재전송과 뜻이 다르다. 이름은 재시도 정책을 정하는 [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) 의 표기를 따랐다. [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) 은 발송 재시도를 «API 호출 재시도» 로 쓴다.
+- 「provider」: 채팅 채널 메신저 행에 단독 「프로바이더」 를 쓰는 조건을 적었다. [용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 의 「채널 프로바이더」 행과 같은 조건이다. 조건 없이 단독으로 쓰면 다른 provider 뜻과 섞인다.
+- 「어댑터」: 뜻 칸의 «메신저 프로바이더» 를 표준 용어 「채널 프로바이더」 로 고쳤다.

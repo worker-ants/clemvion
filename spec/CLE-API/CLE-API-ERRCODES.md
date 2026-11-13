@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 33
+version: 34
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "bf21df747cc40461aa0a012933c85dec121e0d7817430bd9214c789954dc67c7"
+content_hash: "44490be90027b93a5f55ec20fbb96385044aeea5ed2ce6ba8c7fb8263ae96db8"
 read_as: "approved_fallback"
-task: "CLE-T-HGBHF2"
+task: "CLE-T-GNTWP9"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "02cf2088dc3d234dbf7b225c5cf6ed8c240b248de67d0e13952d4f21eb988aa4"
-etag: "sha256-273fa88d3509df2326ff3da0c5351425da5e28be8c23c5154a3051b157aa518b"
+mirror_sha256: "083c4523b2c1a0a68eaedc2cfde7332271d84fb0a8c83e9193c2919a13190f40"
+etag: "sha256-a78fb135952a9ba7bedbc347f6f4de959a8980454c9fb3b24eecdde991b60f73"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -137,7 +137,7 @@ etag: "sha256-273fa88d3509df2326ff3da0c5351425da5e28be8c23c5154a3051b157aa518b"
 | `LLM_CONFIG_NOT_FOUND` | `MODEL_CONFIG_DEFAULT_MISSING` | 400 | 모델 설정 통합 작업 | id 를 지정하지 않았을 때 워크스페이스 기본 설정이 없는 경로. `resolveConfig`(chat/LLM) 전용이다. id 로 찾지 못한 경우(404)는 `MODEL_CONFIG_NOT_FOUND` 로 따로 나눴다. `resolveEmbedding` 의 워크스페이스 기본값 부재도 `MODEL_CONFIG_NOT_FOUND`(404)를 유지한다(리소스 부재, 사용자 결정 2026-06-12). 근거는 Rationale 의 모델 설정 코드 분리 항목 |
 | `LLM_CONFIG_INVALID` | `MODEL_CONFIG_INVALID` | 400 | 모델 설정 통합 작업 | 접두어를 `MODEL_CONFIG_*` 로 맞췄다(LLMConfig 를 ModelConfig 로 1급 통합). 뜻과 상태 코드는 그대로다 |
 | `INVALID_INPUT` | `INVALID_TRIGGER_PARAMETERS` | 400 | #1193 | **[등급 B, 잔여 위험 인수]** 수동 재실행(`POST /executions/:id/re-run`)의 `inputOverride` 검증 실패 봉투. 같은 검증을 쓰는 자매 두 경로(주 실행·저장)는 처음부터 `INVALID_TRIGGER_PARAMETERS` 였고 이 경로만 달랐던 어긋남을 맞췄다. **이 표에서 위험 등급이 가장 높다.** 근거는 등급 B 정의대로 관측 범위의 미발견이다(프론트엔드 `rerun-modal.tsx` 는 `RERUN_*` 넷만 매핑하고 이 코드는 일반 fallback, 나머지 노출은 사용자 가이드 두 곳). 잔여 위험을 명시 인수한 첫 사례(사용자 결정 2026-08-22)이므로 "공개 API 도 이름 바꾸기가 안전하다" 로 일반화하지 않는다 |
-| `WORKSPACE_REQUIRED` | `WORKSPACE_ID_REQUIRED` | 400 | #566 | 채팅 채널 `rotate-bot-token` 컨트롤러의 인라인 코드(`401`)를 공용 `@WorkspaceId()` 데코레이터 코드(`400`)로 맞췄다(상태 코드도 401 에서 400 으로 바로잡음). 사용자 문서 목록에만 노출됐고 client 하드코딩 분기가 없어 호환 영향은 0이다. 경위는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 「R-CC-18 rotate-bot-token 의 워크스페이스 검증은 공용 데코레이터로 한다」 Rationale 에 있다 |
+| `WORKSPACE_REQUIRED` | `WORKSPACE_ID_REQUIRED` | 400 | #566 | 채팅 채널 `rotate-bot-token` 컨트롤러의 인라인 코드(`401`)를 공용 `@WorkspaceId()` 데코레이터 코드(`400`)로 맞췄다(상태 코드도 401 에서 400 으로 바로잡음). 사용자 문서 목록에만 노출됐고 client 하드코딩 분기가 없어 호환 영향은 0이다. 2026-08-08 에 이 엔드포인트에 `@Roles('editor')` 가 붙은 뒤로는 워크스페이스 문맥이 없으면 전역 가드 `RolesGuard` 가 먼저 돌아 `403 FORBIDDEN` 으로 거부한다. 그래서 대체 코드 `400 WORKSPACE_ID_REQUIRED` 도 이 엔드포인트에서는 나지 않는다(§6.15, 2026-11-12 정정). 경위는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 「R-CC-18 rotate-bot-token 의 워크스페이스 검증은 공용 데코레이터로 한다」 Rationale 에 있다 |
 | `INVALID_PASSWORD` | **조건별 두 코드**: `PASSWORD_REQUIRED`(비밀번호 미설정, OAuth 전용 계정) · `PASSWORD_INVALID`(현재 비밀번호 불일치) | 401 | 비밀번호 변경 코드 분리 작업 | **[등급 B, 잔여 위험 인수]** `POST /users/me/change-password` 가 두 조건에 같은 코드를 던지던 것을 형제 흐름(`verifyPasswordForUser`)과 같은 두 코드로 갈랐다. 새 코드는 만들지 않았다. 새로 만드는 안(`PASSWORD_NOT_SET`)은 비슷한 이름을 넷으로 늘리고 그 이름이 이미 `login_history.failure_reason` 감사값이라 같은 이름 충돌을 다시 만든다. 내부 REST 라 저장소 밖 호출자를 배제할 수 없어 등급 B 다(프론트엔드 분기 0건은 부재가 아니라 미발견). 사용자 결정 2026-09-02. **문자열은 남는다**: `INVALID_PASSWORD` 는 로그인 실패(`AuthService.login`)의 `login_history.failure_reason` 감사값으로 계속 기록된다. 감사값 정리는 `login_history` enum 변경을 동반하는 별개 작업이다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)) |
 
 ## 6. 카탈로그
@@ -154,7 +154,7 @@ etag: "sha256-273fa88d3509df2326ff3da0c5351425da5e28be8c23c5154a3051b157aa518b"
 
 | 코드 | 이름 | 설명 | 사용자 메시지 | 정의 문서 |
 |------|------|------|--------------|-----------|
-| `INTERNAL_ERROR` | 내부 서버 에러 | 예상하지 못한 서버 에러. 5xx 기본 코드 | "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
+| `INTERNAL_ERROR` | 내부 서버 에러 | 예상하지 못한 서버 에러. 5xx 기본 코드. 클라이언트가 분기할 수 없는 예상된 내부 거부도 이 코드로 보낸다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25 · 27) | "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `SERVICE_UNAVAILABLE` | 서비스 불가 | 의존 서비스에 접근할 수 없음. 로그인 2단계 Passkey 인증 검증(`POST /api/auth/2fa/webauthn/authenticate/verify`)에서 Passkey 인증 챌린지를 기록하지 못할 때 낸다. 기록하지 못하는 조건은 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다 | "서비스를 일시적으로 사용할 수 없습니다." | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 | `DATABASE_ERROR` | DB 에러 | 데이터베이스 연결·쿼리 실패. 발행처는 [미결 사항](#미결-사항) 참조 | "데이터 처리 중 오류가 발생했습니다." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `RATE_LIMITED` | 요청 빈도 제한 | 요청 빈도 제한 초과. 429 기본 코드 | "요청이 너무 많습니다. {retry_after}초 후 다시 시도해 주세요." | [HTTP API 규약](CLE-API-CONV.md) |
@@ -215,11 +215,11 @@ etag: "sha256-273fa88d3509df2326ff3da0c5351425da5e28be8c23c5154a3051b157aa518b"
 | 코드 | 설명 | HTTP | 정의 문서 |
 |------|------|------|-----------|
 | `VALIDATION_ERROR` | 요청 데이터 유효성 실패. 400 기본 코드. 발행 지점이 정해진 경우(`X-Workspace-Id` 형식 에러)는 아래 별도 행이다. 요청 본문의 참조 id 가 요청자의 워크스페이스나 같은 워크플로우 밖을 가리킬 때도 이 코드와 `details[].code='INVALID_FIELD'` 배열(아래 `INVALID_FIELD` 행)을 싣는다. 노드 생성 · 수정과 캔버스 저장에서 노드 `config` 의 통합 참조 자리에 쓸 수 없는 값(문자열이 아닌 값, 없는 통합, 이 워크플로우에서 쓸 수 없는 개인 통합)이 와도 같은 코드와 배열로 거절한다(`node-integration-ref-check.ts`) | 400 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속), [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) |
-| `PAYLOAD_TOO_LARGE` (요청 본문) | 요청 본문이 body-parser 한도를 넘음. 전역 기본 100KB, `/api/hooks/*` 인증 웹훅 1MB(`createHooksBodyParsers`). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 바꾼다. `message` 는 내부 원문(`"request entity too large"` 등)을 싣지 않고 고정 문구 `"Request payload too large."` 만 돌려준다. 공개 웹훅의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§6.10) | 413 | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
+| `PAYLOAD_TOO_LARGE` (요청 본문) | 요청 본문이 body-parser 한도를 넘음. 전역 기본 100KB, `/api/hooks/*` 인증 웹훅과 채팅 채널 트리거 1MB(`createHooksBodyParsers`). 채팅 채널 트리거는 `auth_config_id` 가 없어도 공개 웹훅의 32KB 추가 제한을 받지 않는다([웹훅 「요청 제한과 남용 방어」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#요청-제한과-남용-방어)). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 바꾼다. `message` 는 내부 원문(`"request entity too large"` 등)을 싣지 않고 고정 문구 `"Request payload too large."` 만 돌려준다. 공개 웹훅의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§6.10) | 413 | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `PAYLOAD_TOO_LARGE` (multipart 업로드) | 업로드 파일이 `FileInterceptor` 의 `limits.fileSize` 를 넘음(아바타 2MB, 지식 저장소 문서 50MB). Nest 가 multer 의 `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException` 으로 바꾸고 `GlobalExceptionFilter` 가 상태 코드로 이 코드를 채운다. `message` 는 multer 원문(`"File too large"`)을 싣지 않고 요청 본문 행과 같은 고정 문구 `"Request payload too large."` 를 돌려준다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 「`message` 에 내부 원문을 싣지 않는다」) | 413 | [내 프로필 「아바타」](../CLE-ACCT/CLE-ACCT-PROFILE.md#아바타), [HTTP API 규약](CLE-API-CONV.md) 의 「9. 파일 업로드」 |
 | `FILE_REQUIRED` | 업로드 요청에 파일이 없거나 내용이 비어 있음(`file?.buffer?.length` 가 0). 확장자 불허(`INVALID_FILE_TYPE`)와 다른 코드다. 클라이언트가 취할 행동이 다르기 때문이다("파일을 고르세요" 와 "다른 형식으로 바꾸세요"). 메시지 문자열 파싱이 금지돼 있으므로 코드로 갈라야 분기할 수 있다. 현재 발행처는 아바타 업로드다 | 400 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | `INVALID_FILE_TYPE` | 확장자가 허용 목록에 없음. 지식 저장소 문서 업로드와 아바타 업로드가 함께 쓰고 허용 목록은 도메인마다 정한다(지식 저장소 `txt`·`md`·`pdf`·`csv`, 아바타 `png`·`jpg`·`jpeg`·`webp`·`gif`, SVG 제외) | 400 | [파일 저장소 「지식 저장소 문서」](../CLE-PLAT/CLE-PLAT-STORAGE.md#지식-저장소-문서), [파일 저장소 「아바타」](../CLE-PLAT/CLE-PLAT-STORAGE.md#아바타), [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
-| `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트가 **없음**. `X-Workspace-Id` 헤더도 JWT `activeWorkspaceId` 클레임(옛 `workspaceId`)도 없다(`workspace.decorator.ts` 발행). 헤더가 있으나 형식이 깨진 경우는 아래 `VALIDATION_ERROR` 행이며 다른 경우다 | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
+| `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트가 **없음**. `X-Workspace-Id` 헤더도 JWT `activeWorkspaceId` 클레임(옛 `workspaceId`)도 없다(`workspace.decorator.ts` 발행). 헤더가 있으나 형식이 깨진 경우는 아래 `VALIDATION_ERROR` 행이며 다른 경우다. 경로로 워크스페이스를 받지 않는 `@Roles()` 라우트(예: 채팅 채널 `rotate-bot-token`)는 가드가 먼저 돌아 이 코드 대신 403 `FORBIDDEN` 을 낸다([§6.15](#615-채팅-채널-봇-토큰-재발급-도메인-문서-참조)) | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
 | `VALIDATION_ERROR` | **`X-Workspace-Id` 형식 에러**. 헤더가 있으나 canonical UUID 형태(8-4-4-4-12 hex)가 아니면 일찍 거부한다. `RolesGuard` 와 `@WorkspaceId()` 가 함께 쓰는 헬퍼(`resolveRequestWorkspaceContext`) 한 곳에서 throw 한다(반환 플래그로 두면 두 경로의 응답이 갈라진다). 일찍 거부하지 않으면 그 값이 멤버십 조회까지 흘러가 `QueryFailedError`(SQLSTATE 22P02)가 되고 500 `INTERNAL_ERROR` 로 가려진다. **JWT 클레임은 검증하지 않는다.** 서버가 서명한 값이라 거기서 400 을 내면 서버 버그를 클라이언트 에러로 보고하게 된다. 검증을 경로 파라미터보다 느슨하게 하는 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-헤더는-경로-파라미터보다-느슨하게-검사한다) 의 「`X-Workspace-Id` 헤더는 경로 파라미터보다 느슨하게 검사한다」 Rationale | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
 | `INVALID_TRIGGER_PARAMETERS` | 수동 트리거 parameters 스키마 검증 실패. **세 엔드포인트가 함께 쓴다**: 주 실행(`POST /workflows/:id/execute`), 저장(`POST /workflows/:id/save`, `validateManualTrigger`), 재실행의 `inputOverride`(`POST /executions/:id/re-run`). 셋 다 `resolveTriggerParameters` 가 던지는 같은 검증 실패를 감싸므로 같은 코드를 낸다. 필드별 사유는 `details[]`(§4.2, §6.10). 경로별로 `RERUN_` prefix 를 붙이지 않는 것은 의도다. 세 경로를 하나로 모으는 것이 이 코드가 있는 이유다. 최상위는 이 특화 코드이고 `details[].code` 에는 필드별 사유를 싣는다. [에러 응답과 클라이언트 처리 「2.6 top-level 이 이미 특화 코드일 때」](CLE-API-ERROR.md#26-top-level-이-이미-특화-코드일-때-2026-09-11) 의 판별 기준은 사유의 중복이다. 최상위는 "파라미터 검증 실패" 라는 묶음 사유이고 필드별 사유와 겹치지 않아 이 기준에 걸리지 않는다. 규칙 6 도 지킨다. 새 검증 사유가 생기면 최상위 코드는 그대로 두고 §4.2 에 새 항목 코드를 더한다 | 400 | [수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md), [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
 | `MODEL_CONFIG_INVALID` | 모델 설정 입력 검증 실패. 알 수 없는 `kind`, 필수 프로바이더의 apiKey 누락, 사설망·loopback baseUrl(사설망 차단, tei·local 제외) 등. `model-config.service.ts`, `model-config.controller.ts`, `llm-preview.service.ts`(preview-models) 발행 | 400 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md), [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
@@ -367,9 +367,9 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 | 코드 | HTTP | 설명 | 상태 | 정의 문서 |
 |------|--------|------|------|-----------|
 | `INVALID_WEBHOOK_PAYLOAD` | 400 | required 트리거 파라미터 누락이나 타입 변환 실패. 400 기본 `VALIDATION_ERROR` 대신 쓰는 웹훅 도메인 코드 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 웹훅(`auth_config_id IS NULL`)의 IP 단위(IP 를 식별하지 못하면 공유 버킷 `UNIDENTIFIED_IP_BUCKET`) 분당 시작 한도 초과(`PublicWebhookThrottleGuard`, 기본 분당 10) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 웹훅 IP 단위(또는 공유 버킷) 시간당 누적 신규 한도 초과(`PublicWebhookThrottleGuard`·`PublicWebhookQuotaService`, 기본 20) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 웹훅 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, 설정 `publicWebhook.maxBodyBytes`)를 넘음(`PublicWebhookThrottleGuard`) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 웹훅(`auth_config_id IS NULL` 이고 채팅 채널 트리거가 아닌 웹훅)의 IP 단위(IP 를 식별하지 못하면 공유 버킷 `UNIDENTIFIED_IP_BUCKET`) 분당 시작 한도 초과(`PublicWebhookThrottleGuard`, 기본 분당 10) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 웹훅(채팅 채널 트리거 제외) IP 단위(또는 공유 버킷) 시간당 누적 신규 한도 초과(`PublicWebhookThrottleGuard`·`PublicWebhookQuotaService`, 기본 20) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 웹훅(채팅 채널 트리거 제외) 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, 설정 `publicWebhook.maxBodyBytes`)를 넘음(`PublicWebhookThrottleGuard`) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, 인증 설정의 기대값(key · token · 사용자 이름 · 비밀번호 · secret)이 비어 있거나 문자열이 아니거나 복호화 불가 표식이라 읽지 못함, 인증 설정의 헤더 이름(`headerName` · `header`)이 문자열이 아님([웹훅 「인증」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#인증)), `ip_whitelist` 불일치가 모두 같은 코드다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 코드다(채팅 채널 트리거는 `202` ignored). 새 코드를 두지 않은 이유는 [Rationale](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05) 에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_INACTIVE` | 410 | 트리거가 비활성. 처음부터 없는 404 와 구분한다. 채팅 채널 트리거는 예외로 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
@@ -430,6 +430,10 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 | `CHAT_CHANNEL_PROVIDER_UNKNOWN` | **400** | registry 에 등록되지 않은 provider | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 | `CHAT_CHANNEL_ENDPOINT_REQUIRED` | **400** | 트리거 `endpointPath` 없음 | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 | `BOT_TOKEN_INVALID` | **400** | `setupChannel` 이 **자격 증명 거부**로 실패함. provider 가 `401`·`403`, `{ok:false,error:'invalid_auth'}`(HTTP 200), `verify_key` 불일치 중 무엇으로 알리든 같은 분류다. 판별은 어댑터가 선언한다([채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)) | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
+| `FORBIDDEN` | **403** | 워크스페이스 문맥이 없음(`X-Workspace-Id` 헤더와 JWT `activeWorkspaceId` 클레임(옛 `workspaceId`)이 둘 다 없음). 전역 가드 `RolesGuard` 가 `@WorkspaceId()` 보다 먼저 돌아 `code` 없이 거부하므로 기본 코드가 실린다 | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
+| `NOT_A_MEMBER` | **403** | 요청자가 그 워크스페이스의 멤버가 아님 | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드) |
+| `EDITOR_REQUIRED` | **403** | 요청자의 역할이 편집자보다 낮음(뷰어) | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드) |
+| `INTERNAL_ERROR` | **500** | [§6.1](#61-시스템) 의 `INTERNAL_ERROR` 와 같은 코드다. 트리거의 비밀 참조에 다른 워크스페이스가 소유한 시크릿 저장소 행이 남아 있어 `rotate` 가 거부함([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25). `message` 는 5xx 가림 문구다 | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 | `CHAT_CHANNEL_SETUP_FAILED` | **502** | 그 밖의 `setupChannel` 실패(provider 5xx, 네트워크, 타임아웃). 이 저장소의 첫 502 다(근거: [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 「R-CC-23 setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다」 Rationale) | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 
 - **이름이 두 갈래라 헷갈리기 쉽다.** `INVALID_BOT_TOKEN`(입력 형식이 틀렸다)과 `BOT_TOKEN_INVALID`(provider 가 거부했다)는 어순만 다르고 뜻이 다르다. 합치거나 바꾸지 않는 이유는 §2 와 같다. 둘 다 이미 응답에 나갔고 프론트엔드 백엔드 라벨 매핑(`backend-labels.ts`)이 각각을 매핑한다.
@@ -1036,3 +1040,7 @@ NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 이름은 `_NOT_FOUND` 인�
 - **토큰 검증의 `WORKSPACE_NOT_FOUND`(401)는 새 코드 `NO_WORKSPACE_AVAILABLE` 로 옮긴다.** 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 뜻이 갈리므로 규칙 6 에 따라 나눈다. 이름은 조건이 워크스페이스 하나가 아니라 사용자의 상태라는 점이 읽히게 골랐다. 규칙 3 의 `<DOMAIN>_<CONDITION>` 은 권장이라 이 이름에서는 따르지 않았다. 다른 후보를 고르지 않은 이유는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 Rationale 에 있다.
 - **두 이동은 구현 전이라 표 아래 문장으로 적었다(규칙 9).** 지금 응답에 나가는 401 은 행으로 그대로 둔다(규칙 8). 구현하는 NERV Task `CLE-T-ZPPWK4` 가 발행과 함께 표를 고친다.
 - **`WEBAUTHN_CREDENTIAL_NOT_FOUND` 를 이번에 등재했다.** 「미결 사항」 의 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이다. 나머지 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_NOT_REGISTERED` 는 NERV Task `CLE-T-9KCQ7Y` 에 남긴다.
+
+### 봇 토큰 재발급 실패 코드와 공개 웹훅 범위를 도메인 문서에 맞췄다 (2026-11-13)
+
+NERV Task `CLE-T-GNTWP9` 에서 도메인 문서와 어긋난 행을 맞췄다. §6.15 에 더한 403 세 행과 500 행은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 「봇 토큰 재발급 API」 의 에러 표를 옮겼다. §5 `WORKSPACE_REQUIRED` 행의 단서는 같은 문서 「R-CC-18 rotate-bot-token 의 워크스페이스 검증은 공용 데코레이터로 한다」 Rationale 의 2026-11-12 정정을 따른다. `INTERNAL_ERROR` 에 더한 문장은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25 · 27 이 거부 전용 코드 없이 일반 500 으로 보낸다고 정한 데서 왔다. 이 거부는 예상된 경우라 「예상하지 못한 서버 에러」 라는 설명만으로는 맞지 않았다. 공개 웹훅 정의와 `PAYLOAD_TOO_LARGE`(요청 본문) 행은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 에 맞췄다. 웹훅 문서는 사람 결정(2026-11-12)에 따라 공개 웹훅 한도에서 채팅 채널 트리거를 뺐다. §6.10 의 분당 · 시간당 한도와 본문 크기 행에 같은 범위를 적었다. 이 제외는 NERV Task `CLE-T-QKJ2TZ`(#1692)가 `PublicWebhookThrottleGuard` 에 구현했으므로 세 행의 상태는 «구현» 그대로 둔다. §6.4 `WORKSPACE_ID_REQUIRED` 행에는 경로로 워크스페이스를 받지 않는 `@Roles()` 라우트가 이 코드 대신 `403 FORBIDDEN` 을 낸다는 단서를 더했다([워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사)).

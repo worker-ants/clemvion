@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-061", "REQ-TRIG-062", "REQ-TRIG-063"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "7ee82a19b17cb9dddbb859312501789f74b10891a26289489500343eb6cf5b73"
+content_hash: "5ec43270414993299b6604885d1a8ff3f93a490e3e4e99551ee27fbe47f8994d"
 read_as: "approved_fallback"
-task: "CLE-T-0QAJ5M"
+task: "CLE-T-GNTWP9"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "2bdeac1a3904bb48e52e8661ca62e5eb1c41ecbf58bbfb2057b376bc792f207b"
-etag: "sha256-458ab4940007869cf8cc1eb91261a0467db4988d09f6c2e3eeb98b2fac0bbe7b"
+mirror_sha256: "ec55b25f6322de8b7f20f45d15f9df35a1cce251157a7b198e258a431811784f"
+etag: "sha256-9afbf0f0a254add92f7c4f627ba06732cc8aad8d6bd5ca4e9082883737e7cbf4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -84,7 +84,7 @@ etag: "sha256-458ab4940007869cf8cc1eb91261a0467db4988d09f6c2e3eeb98b2fac0bbe7b"
 - REQ-TRIG-044 WHEN 트리거를 지우면 THE SYSTEM SHALL 연결된 스케줄을 함께 지우고 실행의 `trigger_id` 는 NULL 로 바꿔 실행 기록을 보존한다.
 - REQ-TRIG-045 WHEN 트리거 행을 없애는 경로가 실행되면 THE SYSTEM SHALL 경로와 상관없이 그 트리거의 외부 자원과 비밀을 정리한다.
 - REQ-TRIG-046 IF 스케줄 BullMQ 작업 해제가 실패하면 THE SYSTEM SHALL 삭제를 멈춘다.
-- REQ-TRIG-047 IF 채팅 채널 provider 등록 해제가 실패하면 THE SYSTEM SHALL 삭제를 계속한다.
+- REQ-TRIG-047 IF 채널 프로바이더 등록 해제가 실패하면 THE SYSTEM SHALL 삭제를 계속한다.
 - REQ-TRIG-048 IF 삭제가 트리거 설정 잠금을 5초 안에 잡지 못하면 THE SYSTEM SHALL 기다리지 않고 에러로 끝내며 외부 등록만 해제된 상태를 서버 로그에 남긴다.
 - REQ-TRIG-049 WHEN 삭제가 성공하면 THE SYSTEM SHALL 본문 없이 `204 No Content` 로 응답한다.
 - REQ-TRIG-050 IF 같은 트리거를 두 요청이 동시에 지우면 THE SYSTEM SHALL 두 번째 요청에 `404 RESOURCE_NOT_FOUND` 로 응답한다.
@@ -272,7 +272,7 @@ etag: "sha256-458ab4940007869cf8cc1eb91261a0467db4988d09f6c2e3eeb98b2fac0bbe7b"
   3. `secret://` 값: 원시 `config` 아래 어디든(중첩 객체와 배열 원소 포함) `secret://` 로 시작하는 문자열 값이다. 키 이름은 보지 않고 값만 본다(예: `config.custom.ref`). 경로는 키를 점으로 잇고 배열 원소는 `[<index>]` 로 적는다(예: `config.custom.refs[0]`). 다른 `details.field` 의 표기(예: `nodes[1].containerId`)와 같다. 이런 값이 여럿이면 키 순서대로 깊이 우선으로 훑어 처음 만난 하나만 보고한다. 거부 메시지는 고정 문구이고 받은 값을 싣지 않는다. 1 의 경로 목록은 사람이 더하는 목록이라 새 참조 슬롯을 빠뜨려도 테스트가 실패하지 않는다. 2 가 막지 못하는 다른 키 아래의 참조는 이 검사가 잡는다.
 - PATCH 의 원시 `config` 는 트리거 설정 잠금 안에서 다시 읽은 행의 `config` 위에 `config` 바로 아래 키 단위로 병합한다. 보낸 키는 그 값으로 통째로 바꾸고 키 아래는 병합하지 않는다. 보내지 않은 키는 그대로 두고 값이 `null` 인 키는 지운다. 타입 키는 원시 `config` 로 받지 않으므로 저장된 `notification` · `interaction` · `chatChannel` 은 이 병합으로 바뀌지 않는다. 그 세 키는 위 표의 top-level 키로만 바뀐다. 그래서 원시 `config` 는 트리거 단위 토큰을 건드리지 않는다. 생성은 저장된 값이 없으므로 병합하지 않고 위 세 검사를 거친 원시 `config` 를 저장한다. 옛 인라인 인증 키(`authType` · `secret` · `bearerToken` · `hmacHeader` · `hmacAlgorithm`)는 생성과 PATCH 모두 저장 전에 지운다(`stripInlineAuthKeys`).
 - 채팅 채널이 없는 트리거에 PATCH 로 채널을 나중에 붙이면 400(`details.field='chatChannel'`, `details.code='INVALID_FIELD'`)이다. 최초 설정은 생성 요청에서만 한다.
-- 채팅 채널 `provider` 를 바꾸면 400(`details.field='provider'`, `details.code='INVALID_FIELD'`)이다. 허용하면 다른 provider 의 토큰을 새 어댑터에 넘기게 된다.
+- 채팅 채널 `provider` 를 바꾸면 400(`details.field='provider'`, `details.code='INVALID_FIELD'`)이다. 허용하면 다른 채널 프로바이더의 토큰을 새 어댑터에 넘기게 된다.
 - 스케줄 유형 트리거 PATCH 는 `name`, `isActive` 만 받는다. `endpointPath` / `config` / `authConfigId` 등을 바꾸려 하면 400 `VALIDATION_ERROR`(`details.field='type'`, `details.code='INVALID_FIELD'`)다. 트리거와 스케줄의 동기화를 지키기 위해서다([트리거 데이터와 흐름](CLE-TRIG-DATA.md)).
 - 엔드포인트 경로가 전역 UNIQUE 를 어기거나 다른 워크스페이스가 예약한 경로(지웠거나 바꾼 경로)면 409 `RESOURCE_CONFLICT`(`details.code=TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)다. 길이·이름 검증 실패는 400 `VALIDATION_ERROR` 다.
 - 웹훅 인증 자격 증명(secret / token / password)은 트리거 응답에 나가지 않는다. 인증 설정 응답은 필드 마스킹(`***<last4>`)을 한다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)).
@@ -291,7 +291,7 @@ flowchart TD
     E --> G{매치된 행이 있나}
     G -- 0행 --> F
     G -- 1행 --> H[커밋<br/>생성 · PATCH 의 감사 기록은 커밋 직후 트랜잭션 밖]
-    F --> I[provider 등록 해제 best-effort<br/>그 트리거 비밀 삭제]
+    F --> I[채널 프로바이더 등록 해제 best-effort<br/>그 트리거 비밀 삭제]
     I --> J[404 또는 에러 응답]
 ```
 
@@ -368,11 +368,11 @@ API 는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 권한 매트
 
 트리거 행을 없애는 모든 경로는 그 트리거의 자원을 정리한다(2026-09-17 결정). 경로는 트리거 화면 삭제, 스케줄 화면 삭제, 워크플로우 삭제, 워크스페이스 삭제다.
 
-정리하는 자원은 셋이다. 외부 자원(스케줄 BullMQ 작업, 채팅 채널 provider 등록, listener 레지스트리), `secret_store` 의 `secret://triggers/<id>/` 비밀, 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림이다. 자원별 정리 시점과 순서, 부모 삭제 때 대상 트리거를 고르는 방법, 정리가 닿지 않는 남은 창은 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
+정리하는 자원은 셋이다. 외부 자원(스케줄 BullMQ 작업, 채널 프로바이더 등록, listener 레지스트리), `secret_store` 의 `secret://triggers/<id>/` 비밀, 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림이다. 자원별 정리 시점과 순서, 부모 삭제 때 대상 트리거를 고르는 방법, 정리가 닿지 않는 남은 창은 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
 
 외부 자원 해제가 실패했을 때의 정책은 다음과 같다.
 
-- 채팅 채널 provider 등록 해제는 best-effort 라 실패해도 삭제를 계속한다.
+- 채널 프로바이더 등록 해제는 best-effort 라 실패해도 삭제를 계속한다.
 - listener 레지스트리 해제를 다른 서버 인스턴스에 알리는 변경 메시지(`chat-channel:listener`)는 best-effort 라 보내지 못해도 삭제를 계속한다. 근거는 [채팅 채널 「R-CC-30 트리거 단위 listener 레지스트리의 변경을 Redis pub/sub 로 모든 서버 인스턴스에 알린다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-30-트리거-단위-listener-레지스트리의-변경을-redis-pubsub-로-모든-서버-인스턴스에-알린다) 에 있다.
 - 스케줄 작업 해제가 실패하면 삭제를 멈춘다.
 - SSE 스트림 닫기는 best-effort 라 실패해도 삭제 결과는 그대로다. 닫는 범위는 모든 서버 인스턴스이고 닫는 방식은 [EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰) 이 정한다.
@@ -434,7 +434,7 @@ v1.1 이후 이 영향을 풀 마이그레이션 계획이 생기면 이 제한�
 
 한때 트리거 설정에 HMAC 시크릿(`config.hmacSecret`)을 직접 입력하고(1차 범위) 나중에 `POST /api/triggers/:id/auth/rotate-secret` 로 유예를 두고 시크릿을 바꾸는 기능을 더하는(후속 범위) 설계가 있었다. 웹훅 인증을 인증 설정 연결로만 받기로 하면서(아래 결정) 인라인 입력이 사라졌고 예고한 그 경로는 만들지 않은 채 폐기했다. 웹훅 자격 증명의 키 재생성은 `POST /api/auth-configs/:id/regenerate` 로 모였다. 그래서 그 설계의 미정 항목(응답 형태, 유예 기간, 경로 세그먼트)도 결정할 대상이 사라졌다.
 
-이 결정 기록을 남기는 이유는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 봇 토큰 단일 경로 결정(R-CC-10)이 "우리 서버가 보관하는 시크릿" 과 "외부 provider 에 등록된 토큰" 의 대조군으로 이 설계를 인용하기 때문이다. 이 대조는 자원 성격의 대조라 설계가 폐기돼도 유효하다.
+이 결정 기록을 남기는 이유는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 봇 토큰 단일 경로 결정(R-CC-10)이 "우리 서버가 보관하는 시크릿" 과 "외부 채널 프로바이더에 등록된 토큰" 의 대조군으로 이 설계를 인용하기 때문이다. 이 대조는 자원 성격의 대조라 설계가 폐기돼도 유효하다.
 
 ### 삭제 확인 문구를 유형별로 나눈 이유
 
@@ -485,7 +485,7 @@ v1.1 이후 이 영향을 풀 마이그레이션 계획이 생기면 이 제한�
 
 ### 채팅 채널 provider·inboundSigning 필드 정책
 
-`provider` 는 v1 에서 `telegram` / `slack` / `discord` 를 지원한다. 바꾸려면 트리거를 지우고 다시 만든다. 이 불변성은 2026-09-11 부터 실제로 강제한다. `provider` 를 바꾸는 PATCH 는 400 이다. `botTokenRef` 는 트리거 id 에서만 다시 유도되므로 전환을 허용하면 다른 provider 의 토큰을 새 어댑터에 넘기게 된다.
+`provider` 는 v1 에서 `telegram` / `slack` / `discord` 를 지원한다. 바꾸려면 트리거를 지우고 다시 만든다. 이 불변성은 2026-09-11 부터 실제로 강제한다. `provider` 를 바꾸는 PATCH 는 400 이다. `botTokenRef` 는 트리거 id 에서만 다시 유도되므로 전환을 허용하면 다른 채널 프로바이더의 토큰을 새 어댑터에 넘기게 된다.
 
 `inboundSigning` 은 Slack·Discord 에서 사용자 입력(채널 프로바이더가 발급한 평문)으로 받는다. Telegram 은 서버가 발급하므로 이 필드를 쓰지 않는다. 이 값의 교체는 1차 범위에 정의되지 않았고 PATCH 로 막는다(`botTokenRef` 차단과 같은 자리). Slack·Discord 의 인바운드 서명 자료는 채널 프로바이더가 발급하고 서버에 저장하는 자원이다. 채널 프로바이더에 등록된 토큰(단일 경로 재발급의 근거, [채팅 채널 「R-CC-10 봇 토큰 변경은 재발급 API 한 경로로만」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-10-봇-토큰-변경은-재발급-api-한-경로로만))과 성격이 달라 앞으로 교체 API 를 들일 때 따로 결정한다.
 
@@ -606,3 +606,7 @@ NERV Task `CLE-T-EQDYC1` 에서 정했다. 원시 `config` 경로에는 두 틈�
 - **원시 `config` 는 `config` 바로 아래 키 단위로 병합한다**(질문 `01a19048-4024-77ad-a466-0cd300f154a4`, REQ-TRIG-063). 표의 «부분 갱신» 문구에 구현을 맞췄다. 병합의 기준은 다른 `config` 쓰기와 같이 잠금 안에서 다시 읽은 행이다(REQ-TRIG-035). 타입 키는 원시 `config` 로 바뀌지 않으므로 늘 저장값이 남는다. 본문의 `config` 자체가 `null` 이면 보내지 않은 것으로 본다. 수정 DTO 가 `null` 을 통과시키고 종전에도 200 · 무변경이었으므로 그 동작을 계약으로 적었다. 조회 응답의 `config` 를 그대로 되보내는 저장소 밖 클라이언트는 이제 타입 키 때문에 400 을 받는다. 병합 의미의 변경과 함께 이 Task 의 PR 본문 배포 안내에 적었다. 기각한 대안 A 는 교체를 유지하되 세 타입 키만 저장값을 지키는 안이다. 원시 `config` 가 그 밖의 키 전체를 바꾸고 표의 문구를 «그 밖의 키 전체 교체» 로 고친다. 기각한 대안 B 는 통째 교체를 유지하고 스펙 문구만 고치는 안이다(비권장으로 제시했다). 세 키가 사라지는 동작이 계약으로 남는다. `chatChannel.inboundSigningRef` 가 사라지면 인바운드 서명 검증이 fail-open 된다. 이미 저장된 행에 참조가 없는 경우는 [채팅 채널 데이터 「인바운드 서명 자료 참조가 없는 행」](../CLE-CHAT/CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 이 다룬다.
 - **`secret://` 값을 위치와 상관없이 거부한다**(질문 `01a19048-52a9-750f-aaa3-084494af9326`, REQ-TRIG-062). 내부 필드 거부(REQ-TRIG-053, `CONFIG_INTERNAL_FIELDS`)는 사람이 더하는 경로 목록이다. 새 `*Ref` 슬롯이 생겨도 목록에 넣지 않으면 테스트가 실패하지 않는다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 22 와 R9 가 남긴 위험이다. 타입 키 거부로 타입 키 아래의 참조 슬롯은 모두 막히지만 다른 키 아래에 참조를 심는 길은 남는다. 값 검사는 슬롯 이름과 상관없이 잡는다. 경로 목록 거부는 그대로 두고 먼저 검사한다. 그래서 기존 거부의 `details.field` 는 바뀌지 않는다. 기각한 대안은 값 검사를 더하지 않고 경로 목록만 유지하는 안이다.
 - **REQ-TRIG-060 을 지웠다.** 그 요구사항은 원시 `config` 로 `interaction` 을 바꾼 PATCH 가 토큰을 없애거나 인터랙션을 끄면 스트림을 닫는다고 정했다. 원시 `config` 의 `interaction` 이 400 이 되어 그 경로가 없어졌다. 같은 동작은 top-level `interaction` 쪽 REQ-TRIG-059 가 맡는다. 번호는 다시 쓰지 않는다. 같은 이유로 REQ-TRIG-056 에서 원시 `config` 갈래를 지웠다.
+
+### 채널 프로바이더 표기 정정 (2026-11-12)
+
+단독 영문 «provider» 를 용어 기준에 맞춰 «채널 프로바이더» 로 고쳤다(NERV Task `CLE-T-GNTWP9`). 고친 곳은 트리거 삭제 · 자원 정리 서술, 「PATCH 본문 계약」 의 `provider` 변경 거부 항목, 「채팅 채널 provider·inboundSigning 필드 정책」 첫 문단, 「인라인 HMAC 시크릿 입력과 회전 분리 설계를 폐기한 이유」 다. 요구사항의 뜻과 코드 식별자 `provider`, 화면 필드 목록, 절 제목은 바꾸지 않았다.

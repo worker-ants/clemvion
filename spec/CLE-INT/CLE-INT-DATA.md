@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 18
+version: 19
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "b0914246c976b455cecb2155fcbaadec303bef431176810c016a5406c0d1f170"
+content_hash: "650c8cc23888d19588ad6a16ce85d139943514aee366e83f39ff9d8f18e5f79f"
 read_as: "approved_fallback"
-task: "CLE-T-J6TZGK"
+task: "CLE-T-GNTWP9"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "13d165cc50dfdd8e2b0a7fbbe7624b0c217c78ae035149a096c4ee611adeaf56"
-etag: "sha256-f71f525742502e2fbea5ca00dc537a10d1feb77ee35e6414eba6c6300b792d4e"
+mirror_sha256: "b9513fb5b2616a63ca2446eabf1b23778c6a8c3c2a4bd7c11dec7b0ff1b794a8"
+etag: "sha256-aeec7eeac35c151aa602c1d4bbdbf9c90d4378e945018b08c026e3bb5938b94f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -204,9 +204,9 @@ erDiagram
 
 현재 쓰는 참조:
 
-- `secret://triggers/{id}/bot-token`: 채팅 채널 봇 토큰(provider 공통). [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)
+- `secret://triggers/{id}/bot-token`: 채팅 채널 봇 토큰(채널 프로바이더 공통). [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)
 - `secret://triggers/{id}/bot-token.v2`: 봇 토큰 24시간 유예용
-- `secret://triggers/{id}/inbound-signing`: 채팅 채널 inbound 웹훅 출처 검증 자료(provider 공통 슬롯). [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)
+- `secret://triggers/{id}/inbound-signing`: 채팅 채널 인바운드 웹훅 출처 검증 자료(채널 프로바이더 공통 슬롯). [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)
 - `secret://triggers/{id}/notification-signing`: EIA 알림 웹훅 HMAC 서명 시크릿. [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)
 
 `secret://triggers/{id}/notification-signing.v2` 는 예약만 된 참조다. 현재 구현은 이 참조를 쓰지 않고, 유예 기간의 새 서명 시크릿을 `Trigger.notification_secret_v2` 컬럼에 둔다([시크릿 저장소](CLE-INT-SECRET.md)).
@@ -228,6 +228,7 @@ erDiagram
 | integration_usage_log | `(workflow_id)` | 워크플로우 삭제의 FK CASCADE. CONCURRENTLY (V114) |
 | integration_oauth_state | `(expires_at)` | 만료 행 정리 (V009) |
 | integration_oauth_preview | `(expires_at)` | 만료 행 정리 (V009) |
+| secret_store | `idx_secret_store_workspace_id` `(workspace_id)` | 워크스페이스별 정리·조회용으로 만들었다. 지금은 이 컬럼으로 거르는 애플리케이션 조회가 없다 (V063) |
 
 `api_*` 컬럼에는 아직 인덱스가 없다. 메서드·경로별 필터(예: «5xx 응답만»)가 필요해질 때 더한다. `reinstall_requested_at` 에도 인덱스가 없다. App URL 은 설치 토큰으로 한 행을 찾은 뒤 이 값을 읽기만 하고 이 컬럼으로 거르는 조회가 없다.
 
@@ -580,3 +581,7 @@ Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실�
 그 전에는 요청 시점에 읽은 행 위에 새 값을 합쳐 저장했다. 연결 테스트가 몇 초 걸리는 동안 같은 통합의 다른 교체가 먼저 커밋되면 그 값이 옛 값으로 되돌아갔다. 그래서 테스트를 마친 뒤 잠근 행을 다시 읽고 그 위에 다시 합치도록 고쳤다.
 
 뺀 안: 연결 테스트까지 잠금 안에 넣으면 두 교체가 차례로 돌아 테스트하지 않은 조합이 생기지 않는다. 대신 잠금을 쥔 채 외부를 불러 DB 커넥션 점유가 길어진다. 토큰 갱신이 advisory lock 을 뺀 이유와 같다. 테스트하지 않은 조합은 두 교체가 서로 다른 필드를 바꿀 때만 생겨서 받아들였다.
+
+### `secret_store` 인덱스 행과 참조 표기 정정 (2026-11-12)
+
+「인덱스」 표에 V063 이 만든 `secret_store` 의 `idx_secret_store_workspace_id` 행을 더했다(NERV Task `CLE-T-GNTWP9`). 「시크릿 저장소」 의 참조 목록에서 «provider» 와 «inbound» 를 용어 기준에 맞춰 «채널 프로바이더» 와 «인바운드» 로 고쳤다.

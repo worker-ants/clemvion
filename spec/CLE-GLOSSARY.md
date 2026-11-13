@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY"
 title: "용어 사전"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "1bdd1500080eeca40d5d66a2d4fcc2e83850f344a2603f08044f52501daec3d9"
+content_hash: "a749cb0290593cf32ff3cf36205e3a660f11f5eafe8ac326ada7b4788a3bacc9"
 read_as: "approved_fallback"
-task: "CLE-T-5ACW0Z"
+task: "CLE-T-GNTWP9"
 source_paths: []
-mirror_sha256: "0f7fde416e8162a4a7ab50951066ed4eea2e34a12738fc5b8498ae0cd8755bbc"
-etag: "sha256-a90fb942347423adf40caf23b47cd957a9c121ce275c4ce7f14638a3c3b78a25"
+mirror_sha256: "4c2b560e21092515f5993ceec2ddb8621f7c0313e771de644c7799032f736970"
+etag: "sha256-34aae5d20bf96a72d8c0ceddb21218c8e7d2a4471c17f02f701312b91ee6e871"
 ---
 ## 개요
 
@@ -82,7 +82,7 @@ etag: "sha256-a90fb942347423adf40caf23b47cd957a9c121ce275c4ce7f14638a3c3b78a25"
 | e2e | end-to-end 테스트 | 개발 규약 |
 | EIA | External Interaction API | 처음에 "External Interaction API(EIA)" 로 쓴 뒤 어디서나 |
 | FK·PK | Foreign Key·Primary Key | 데이터 모델 |
-| HMAC | Hash-based Message Authentication Code | 인증 설정, EIA 알림 웹훅, 설치 흐름 |
+| HMAC | Hash-based Message Authentication Code | 인증 설정, EIA 알림 웹훅, 설치 흐름, 채팅 채널 서명 검증(Slack) |
 | i18n | internationalization(다국어) | 개발 규약. 본문에서는 "다국어" 로 쓴다. |
 | IANA | Internet Assigned Numbers Authority(시간대 이름) | 시간대 |
 | JWT | JSON Web Token | 액세스 토큰, 실행 단위 토큰 |
@@ -322,3 +322,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다. 하위 문서
 ### 상태값 표의 건강도 행을 둘로 나눴다 (2026-10-05)
 
 「발송·채널 건강도」 한 행을 「발송 건강도」 · 「채널 건강도」 두 행으로 나눴다. 사전에 없는 합성어였고 채팅 채널을 «발송» 상태로 읽히게 했다. 이유는 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 의 「「교차 행」 을 다의어로 올리고 「건강도」 의 뜻을 고쳤다 (2026-10-05)」 에 있다(NERV Task `CLE-T-K9S0TE`).
+
+### 약어 표 「HMAC」 행에 채팅 채널을 더했다 (2026-11-12)
+
+NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 채팅 채널에서 HMAC 을 쓰는 곳은 [Slack 어댑터](CLE-CHAT/CLE-CHAT-SLACK.md) 의 인바운드 서명 검증뿐이다. [Telegram 어댑터](CLE-CHAT/CLE-CHAT-TELEGRAM.md) 는 `secret_token` 헤더 값을 비교하고 [Discord 어댑터](CLE-CHAT/CLE-CHAT-DISCORD.md) 는 Ed25519 서명을 검증한다.

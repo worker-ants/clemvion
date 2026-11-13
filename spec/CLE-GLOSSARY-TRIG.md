@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-TRIG"
 title: "용어 사전 — 트리거"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "cbf4195477e52dd4d9f03ba109f04b695d921943e8a1cdbe7418fdca0018ec55"
+content_hash: "a00d834428c0e39ae28889ed57dcf1f1bf032a60b8cdabcd9a7a3d5f12ef1a51"
 read_as: "approved_fallback"
-task: "CLE-T-EA7B5M"
+task: "CLE-T-GNTWP9"
 source_paths: []
-mirror_sha256: "5b5741b49952aeb80ece3d4c35240e3388a784b14859c1cb2cfb1450761fd386"
-etag: "sha256-a21621c31c4faaf007deb1e4ad217e45ccf5f12428d6142d746155d20cac30a3"
+mirror_sha256: "aa3fcd87abf48909487a05cfd795232b896b73ac0cf4b5beb74a459fea915aa2"
+etag: "sha256-7f885b16a3c8399ab6b2ea127d1c6bf823f7778534adaf30131e37abe4254d14"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ etag: "sha256-a21621c31c4faaf007deb1e4ad217e45ccf5f12428d6142d746155d20cac30a3"
 | 웹훅 URL | webhook URL | 백엔드 주소 뒤에 `/api/hooks/` 와 엔드포인트 경로를 붙인 주소. | 전체 URL | [웹훅](CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | 엔드포인트 경로 | endpoint path, `endpointPath` | 웹훅 URL 끝의 경로 값. 클라이언트가 v4 UUID 로 만들고 전역에서 겹치지 않는다. | endpoint_path(본문), Webhook URL 경로 | [웹훅](CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | 엔드포인트 경로 예약 | `WebhookEndpointReservation` | 한 번 쓴 경로를 그 워크스페이스 소유로 영구히 남기는 기록. | 묘비, tombstone | [트리거 데이터와 흐름](CLE-TRIG/CLE-TRIG-DATA.md) |
-| 공개 웹훅 | public webhook, `auth_config_id IS NULL` | 인증 없이 누구나 부를 수 있는 웹훅. 본문 크기와 IP 요청 빈도 제한이 더 걸린다. 웹채팅 트리거는 모두 공개 웹훅이다. | 공개 트리거, 공개 봇, 공개 챗봇 | [웹훅](CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| 공개 웹훅 | public webhook, `auth_config_id IS NULL` and not a chat channel trigger | 인증 설정이 없고(`auth_config_id IS NULL`) 채팅 채널 트리거가 아닌 웹훅. 본문 크기와 IP 요청 빈도 제한이 더 걸린다. 웹채팅 트리거는 모두 공개 웹훅이다. 채팅 채널 트리거는 인증 설정이 없어도 채널 프로바이더 서명으로 출처를 검증하므로 웹훅 남용 방어 대상이 아니다. | 공개 트리거, 공개 봇, 공개 챗봇 | [웹훅](CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | 웹훅 남용 방어 | abuse protection | 공개 웹훅에 거는 본문 크기·IP 요청 빈도 제한. | 없음 | [웹훅](CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | 인증 설정 | AuthConfig, `auth_config` | 외부 호출자가 웹훅을 부를 때 쓰는 워크스페이스 단위 인증 자격 증명. "인증" 메뉴에서 만든다. 로그인 인증이나 통합 자격 증명과 다르다. | Auth Config, Authentication(본문), 통합 자격증명 vault | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
 | 인증 설정 유형 | `AuthConfig.type` | `api_key`, `bearer_token`, `basic_auth`, `hmac` 네 값. 화면 라벨은 API 키·Bearer 토큰·Basic Auth·HMAC 이다. | 인증 방식(이 뜻으로) | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
@@ -93,3 +93,7 @@ NERV Task `CLE-T-EA7B5M` 이 트리거 생성 · 수정 요청 본문의 원시 
 - 문서에서 `config.<키>` 만 쓰면 저장된 `Trigger.config` 의 키를 가리킨다([용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 「채팅 채널」, [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「알림」). 거부 응답의 `details.field` 값(예: `config.chatChannel`)은 요청 본문의 경로인데 저장 위치와 글자가 같다. 그래서 문서는 요청 본문 쪽을 «원시 `config`» 라고 불러 둘을 가른다. 첫 저장은 「타입 키」 영문 칸에 `config.chatChannel`(요청 본문) 처럼 괄호로만 갈랐다. 검토가 괄호를 빼고 읽으면 저장 위치로 읽힌다고 짚어서 영문 칸에는 위치를 말로 적었다.
 - «타입 필드» · «타입 키» 의 «타입» 은 본문 검증 형식이 따로 정해진 필드라는 뜻이다(구현 `RAW_CONFIG_TYPED_KEYS`). 이 사전은 type 을 «유형» 으로 쓰므로 트리거 유형과 섞이지 않도록 정의에 관계없다고 적었다. 이름을 «전용 필드» · «전용 키» 처럼 바꾸는 안은 이번 초안 묶음에서 두 말이 41번(«타입 필드» 8 · «타입 키» 33, 이 문서 제외) 쓰여 함께 고쳐야 한다. 그래서 후속 NERV Task `CLE-T-YQMP4N` 로 넘겼다.
 - 요청 본문 최상위 세 필드는 «타입 필드» 말고도 «top-level `X`» · «최상위 `X`» · «최상위 필드» 로 불린다. 2026-10-31 에 이번 초안 묶음(이 문서 제외)에서 «top-level» 22번, «최상위 …» 13번이 나왔고 미러 전체에는 «top-level» 34번 · «최상위 필드» 16번이 있다(다른 뜻 포함). 이번에는 표준만 정하고 쓰지 않는 표기 칸은 비웠다. 지금 둘을 금지하면 같은 묶음의 초안이 바로 표기 원칙 6 에 어긋난다. 사용처를 맞추는 일과 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「설정(config)」 에 요청 본문 `config` 행을 더하는 일은 `CLE-T-YQMP4N` 이 한다.
+
+### 「공개 웹훅」 에서 채팅 채널 트리거를 뺐다 (2026-11-12)
+
+2026-11-12 사람 결정(NERV 질문 `01a1cd72-1888` 의 1안)으로 [웹훅](CLE-TRIG/CLE-TRIG-WEBHOOK.md) v10 이 공개 웹훅의 IP 요청 빈도 제한과 본문 크기 제한에서 채팅 채널 트리거를 뺐다(NERV Task `CLE-T-GNTWP9`). 옛 정의의 조건은 `auth_config_id IS NULL` 하나뿐이어서 채팅 채널 트리거도 공개 웹훅에 들었다. 결정 근거는 [웹훅 「본문 크기를 공개와 인증으로 나눈 이유」](CLE-TRIG/CLE-TRIG-WEBHOOK.md#본문-크기를-공개와-인증으로-나눈-이유) 의 채팅 채널 트리거 항목에 있다.

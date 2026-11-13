@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N"
 title: "다국어와 화면 문구"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "273f1c1323cf384e932a7e0268b80633593f8d7f889ea2347b85b7c5e268fb8e"
+content_hash: "7a739ad3d68435333fe4ab5d7b3e17734e028ef0a78c5377c91006617210823b"
 read_as: "approved_fallback"
-task: "CLE-T-GXCJAB"
+task: "CLE-T-GNTWP9"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "752cb56bbca0dbbd01956c14d8fef0afcf0424829debfcab5a08bbb0f10984e4"
-etag: "sha256-7b7d1f7f17ecb056010e97be3405a203968dd756eb82fe1472af179432a4462c"
+mirror_sha256: "b5deb98f73a2bdbff71406d407df5189217b8198cab4a5d4bfb6aa5935dd5b43"
+etag: "sha256-4a8d5a1479ea8ecfcdc4c6ee173fd528b1729a40d2d203a82de17308676c5a44"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -123,6 +123,7 @@ etag: "sha256-7b7d1f7f17ecb056010e97be3405a203968dd756eb82fe1472af179432a4462c"
    - 금지어를 쓰지 않는다. 예: "엣지" → "연결선", "작업 흐름" → "워크플로우", "아웃풋" → "결과·출력".
    - 영문 고유명사는 화면 표기와 맞춘다. 예: `Manual Trigger` → "수동 트리거".
    - 이 문체 규칙의 대상은 화면 문구와 사용자 가이드다. OpenAPI 설명의 문체는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 정한다.
+   - 메신저 봇 안내 문구는 이 규칙의 대상이 아니다. 그 문구의 기준은 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](../CLE-CHAT/CLE-CHAT-DATA.md#안내-문구-기본값) 이 정한다. 한국어 기본 문구는 합쇼체로 쓴다. 근거는 [메신저 봇 안내 문구를 규칙 7 밖에 두는 이유](#메신저-봇-안내-문구를-규칙-7-밖에-두는-이유-2026-11-12) 에 있다.
 
 8. **가이드에 내부 기준 문서를 드러내지 않는다(원본: Principle 6-B).** 사용자 가이드는 사용자가 열어 볼 수 있는 화면만 가리킨다. 다음은 사용자가 열 수 없으므로 본문에 쓰지 않고, 같은 사실을 사용자가 보는 표현으로 다시 쓴다.
    - `spec/<area>/...`·`/spec/...` 경로와 NERV 스펙 키(`CLE-...`). 프론트매터의 `spec:` 필드(NERV 키 목록)는 빌드 검증용 메타데이터이고, 렌더되지 않는 부분(MDX · HTML 주석, `<ImplAnchor>`)도 화면에 나오지 않으므로 별개다. `spec:` 키가 실제로 있는지는 [사용자 가이드](CLE-UI-GUIDE.md) 의 빌드 검증이 본다(미러에 넣지 않는 카탈로그 영역 키는 이름 목록으로만 확인한다).
@@ -259,3 +260,7 @@ MDX 주석(`{/* … */}`)과 HTML 주석은 예전부터 본문 검사 밖에 �
 - **사전 문구가 주 안내다.** 어시스턴트 3행은 표에 있는 코드면 사전 문구만 보인다. 그래서 [통합 화면 에러 코드를 통합 화면 모듈의 표로 매핑하는 이유](#통합-화면-에러-코드를-통합-화면-모듈의-표로-매핑하는-이유-2026-10-30) 의 «어시스턴트 예외와 같은 이유다» 는 표를 둘 자리와 사전 경유를 다룬다. 서버 문구를 보이는 방식까지 같다는 뜻은 아니다.
 - **서버 `message` 를 보여도 되는 전제.** 이 표의 코드는 모두 백엔드 상수나 예외 생성 자리에 둔 코드별 고정 문구를 보낸다. 예외 원문이나 다른 사용자의 식별자 · 통합 ID 는 들어가지 않는다. 서버 `message` 에 넣는 값은 Cafe24 `oauth/begin` 이 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 에 넣는 상점 식별자 하나이고 요청자가 방금 입력한 값이다. `INTEGRATION_OWNER_NOT_MEMBER` 는 `message` 에 통합을 만든 사람을 넣지 않는다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)). 표에 코드를 더할 때 지킬 조건은 규칙 5 의 «4행 괄호에 붙는 서버 `message`» 에 두었다. 가드로 막지 않고 리뷰에서 확인한다.
 - **받아들인 잔여.** 영어 로케일에서는 사전 문구와 비슷한 영문이 괄호에 한 번 더 보인다. 역할 하한 코드의 서버 문구는 한국어라 영어 로케일에서도 괄호 안은 한국어다(규칙 5 의 알려진 예외, 후속은 NERV Task `CLE-T-CHP94Z`). 표에 없는 가드 코드(`NOT_A_MEMBER` 등)는 서버 문구로 폴백하므로 영어 로케일에서 안내 전체가 한국어다. 3행처럼 사전 문구만 보이게 바꾸면 화면 동작이 바뀌므로 이 개정판은 바꾸지 않는다.
+
+### 메신저 봇 안내 문구를 규칙 7 밖에 두는 이유 (2026-11-12)
+
+채팅 채널의 봇 안내 문구는 메신저로 나가는 봇 메시지다. 제품 화면 문구나 사용자 가이드가 아니어서 규칙 7 의 해요체를 따르지 않는다. 한국어 기본 문구의 문체와 띄어쓰기는 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](../CLE-CHAT/CLE-CHAT-DATA.md#안내-문구-기본값) 한 곳이 정하고 합쇼체로 쓴다. 사람 결정(2026-11-12, 발견 F48)이고 반영 작업은 NERV Task `CLE-T-GNTWP9` 다.

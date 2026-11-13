@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "d3135609f64e366fe1e9565fb1eb7bbe921aef4ac38ed73f8251ec3d5706927b"
+content_hash: "649bdd97d8400010fc01b884498b39f146eafe75802ac6dd753b1a61969566af"
 read_as: "approved_fallback"
-task: "CLE-T-VRBS51"
+task: "CLE-T-GNTWP9"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "bb56d12f6e4e527efe2bf7a9174838c959ddb3918edb73d3b4e06116865e67b4"
-etag: "sha256-d0d5f603ee9e6e238e35516d555db66c3af976f3e9d144be4272a850778769c9"
+mirror_sha256: "0b63a1de75efa182a0f767936d75a862bf198f0fcc9f53c0a0f540024f557210"
+etag: "sha256-1551c0a6fccc986603db8856a4b84595cc1100234f05674ac8f750d965d2301f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -298,7 +298,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 간격 | 1초에서 시작해 4배씩 늘어나고 한 간격은 1시간을 넘지 않는다(1s · 4s · 16s · 64s … 최대 1시간). 간격 수는 총 시도 횟수보다 하나 적다. 1시간 상한은 일곱째 간격부터 걸린다. 그래서 총 시도 횟수가 8 이상일 때만 걸리고 기본값 5 에는 걸리지 않는다. 총 시도 횟수가 상한 10 이면 간격은 1 · 4 · 16 · 64 · 256 · 1024 · 3600 · 3600 · 3600초다. 마지막 재시도는 첫 시도 뒤 12,165초(약 3.4시간)에 나간다. 이 값은 간격만 더한 것이다. 시도마다 응답을 최대 10초 기다리는 시간은 따로 더해진다. 설정 값 `backoff: "exponential"` 은 이 간격을 뜻한다. BullMQ 내장 `exponential`(2배씩 늘어남)과는 이름만 같다. 내장 전략으로는 4배 간격을 낼 수 없어 사용자 정의 전략을 쓴다. 워커 `settings.backoffStrategy`(`NotificationWebhookProcessor`)가 `min(1000·4^(attemptsMade-1), 3600000)` 밀리초를 돌려준다(`notificationBackoffDelayMs`). 작업 옵션 `backoff.type = NOTIFICATION_BACKOFF_TYPE`(`exp-base4`)이 이 전략을 가리킨다 |
 | 같은 이벤트 식별 | `X-Clemvion-Delivery` UUID(다시 보내도 같다) |
 | 최종 실패 | 발송 건강도 `degraded` + `notification_last_error`(500자로 자름). 트리거를 자동으로 끄지 않는다(사용자 승인 필요). 발송 건강도 배지는 트리거 상세 화면에 보인다. 실패 기록(`notificationLastError`)은 트리거 REST 응답에만 실리고 자격 증명 모양은 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
-| 낡은 알림 차단 | 발송 직전 실행 상태를 다시 읽어 이미 종료면 진행 중 이벤트(`waiting_for_input`·`ai_message`)를 보내지 않는다 |
+| 낡은 알림 웹훅 차단 | 발송 직전 실행 상태를 다시 읽어 이미 종료면 진행 중 이벤트(`waiting_for_input`·`ai_message`)를 보내지 않는다 |
 
 최소 한 번 전달은 발송 작업이 발송 큐(`notification-webhook`)에 적재된 뒤에만 성립한다. 적재 전에 프로세스가 끝나거나 적재가 실패하면 그 발송은 사라지고 발송 건강도에도 남지 않는다. 적재가 실패하면 경고 로그만 남긴다. 적재 실패의 처리는 [EIA 데이터와 흐름 「알림 웹훅 발송」](CLE-EIA-DATA.md#알림-웹훅-발송) 이 정한다. 발송 큐 적재를 fail-open 으로 두는 근거는 [EIA 데이터와 흐름 「인프라 장애에는 fail-open 한다」](CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다) 에 있다.
 
@@ -319,8 +319,8 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 등록할 때 걸리면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4). 보내기 직전 검사는 발송 작업 안에서 돌아서 응답할 HTTP 요청이 없다. 걸리면 그 알림 웹훅을 보내지 않고 재시도하지도 않는다. 발송 건강도를 `degraded` 로 바꾸고 `notification_last_error` 에 거부 사유를 남긴다. 아래 DNS 결과 검사에 걸려도 같다.
 
-- 호스트가 사설 · 특수 대역(10/8, 172.16/12, 192.168/16, 100.64/10, 0/8, fc00::/7, 미지정 주소 ::), loopback(127/8, ::1), link-local · 메타데이터 서비스 IP(169.254/16, fe80::/10, 169.254.169.254 등)의 IP 리터럴이면 거부한다. `localhost` 와 `0.0.0.0` 도 거부한다. 이 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 그래서 사설 IP 로 풀리는 호스트 이름은 아래 DNS 결과 검사가 켜져 있을 때만 막힌다. 이 검사는 운영 환경에서 기본으로 켜져 있다.
-- 마지막 32비트에 IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다. IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), SIIT(`::ffff:0:0:0/96`), NAT64 well-known prefix(`64:ff9b::/96`) 가 대상이다. 점 표기(`::ffff:127.0.0.1`)와 16진 표기(`::ffff:7f00:1`)를 같게 본다. 공인 IPv4 를 품었으면 통과한다. 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 자리가 달라 보지 않는다. [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 범위를 쓴다. 범위를 정한 이유는 [Rationale](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 에 있다.
+- 호스트가 사설 · 특수 대역(10/8, 172.16/12, 192.168/16, 100.64/10, 0/8, 192.0.0/24, 198.18/15, 멀티캐스트 224/4, 예약 · 브로드캐스트 240/4, fc00::/7, 옛 site-local fec0::/10, 멀티캐스트 ff00::/8, NAT64 local-use prefix 64:ff9b:1::/48, 미지정 주소 ::), loopback(127/8, ::1), link-local · 메타데이터 서비스 IP(169.254/16, fe80::/10, 169.254.169.254 등)의 IP 리터럴이면 거부한다. `localhost` 와 `0.0.0.0` 도 거부한다. 이 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 그래서 사설 IP 로 풀리는 호스트 이름은 아래 DNS 결과 검사가 켜져 있을 때만 막힌다. 이 검사는 운영 환경에서 기본으로 켜져 있다.
+- IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다. 마지막 32비트에 IPv4 를 품은 IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), SIIT(`::ffff:0:0:0/96`), NAT64 well-known prefix(`64:ff9b::/96`)와 둘째 · 셋째 16비트에 IPv4 를 품은 6to4(`2002::/16`)가 대상이다. 점 표기(`::ffff:127.0.0.1`)와 16진 표기(`::ffff:7f00:1`)를 같게 본다. 공인 IPv4 를 품었으면 통과한다. NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 자리가 망마다 달라서 품은 IPv4 를 꺼내지 않고 첫째 불릿대로 대역 전체를 막는다. [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)는 6to4 · NAT64 local-use prefix 와 192.0.0/24 · 198.18/15 · 224/4 · 240/4 · fec0::/10 · ff00::/8 을 아직 막지 않는다. 두 가드를 맞추는 일은 NERV Task `CLE-T-753725` 가 맡는다. 범위를 정한 이유는 [Rationale](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 과 [특수 용도 대역 · 6to4 · NAT64 local-use prefix 를 막는다](#특수-용도-대역--6to4--nat64-local-use-prefix-를-막는다-2026-11-12) 에 있다.
 - DNS 결과 검사(DNS rebinding 방어): 보내기 직전에 호스트 이름을 OS 해석기로 풀어(`dns.lookup`, 나온 주소 전부) 하나라도 위 대역에 들면 발송을 거부하고 발송 건강도를 `degraded` 로 둔다(`checkResolvedHostIp`). 발송(`fetch`)이 연결할 때 쓰는 해석기와 같아서 `/etc/hosts` 와 검색 도메인도 같게 본다. 켜짐 여부는 환경과 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD` 로 정한다.
   - 운영 환경(`NODE_ENV=production`): 기본으로 켠다. 값이 정확히 `0` 일 때만 끈다. 끈 채로 기동하면 `main.ts` 가 `[SECURITY]` 경고 로그를 한 번 남긴다(`shouldWarnNotificationDnsGuardOff`). 기동을 막지는 않는다.
   - 운영 밖: 기본으로 끈다. 값이 정확히 `1` 일 때만 켠다.
@@ -362,7 +362,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 - `codebase/backend/src/modules/external-interaction/notification-fanout.service.ts` (단일 싱크 구독, `FANOUT_EVENTS` 화이트리스트, 종료 시 토큰 폐기, `retry.maxAttempts` 를 큐 시도 횟수로 넘김)
 - `codebase/backend/src/modules/external-interaction/notification-dispatcher.service.ts` (BullMQ 적재, `NOTIFICATION_BACKOFF_TYPE`)
 - `codebase/backend/src/modules/external-interaction/notification-dispatcher.types.ts` (`NOTIFICATION_BACKOFF_TYPE`, 4배 간격 계산 `notificationBackoffDelayMs`, 간격 상한 `NOTIFICATION_BACKOFF_MAX_DELAY_MS`)
-- `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (HTTP POST·재시도·서명·SSRF·낡은 알림 검사·발송 건강도, 3xx 를 따라가지 않고 실패로 처리)
+- `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (HTTP POST·재시도·서명·SSRF·낡은 알림 웹훅 검사·발송 건강도, 3xx 를 따라가지 않고 실패로 처리)
 - `codebase/backend/src/modules/external-interaction/notification-signature.util.ts` (서명 계산, `verifySignatureHeader`)
 - `codebase/backend/src/modules/external-interaction/outbound-notification-rate-limiter.service.ts` (폭주 감지 카운터)
 - `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp` 와 켜짐 판정 `isNotificationDnsGuardEnabled`, 운영에서 끈 경우의 기동 경고 판정 `shouldWarnNotificationDnsGuardOff`(`main.ts` 가 부른다), IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`. 두 헬퍼는 MCP 가드 `McpClientService.isBlockedIPv6` 도 쓴다)
@@ -429,7 +429,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 - 상한이 없으면 총 시도 횟수 10 의 마지막 간격은 65,536초(약 18.2시간)다. 간격을 모두 더하면 87,381초(약 24.3시간)다. 상한을 두면 같은 설정에서 12,165초(약 3.4시간)로 줄어든다.
 - 발송 건강도는 마지막 시도가 실패해야 `degraded` 가 된다. 재시도 창이 하루면 운영자는 발송 실패를 하루 늦게 안다.
-- 진행 중 이벤트는 낡은 알림 차단이 걸러 낸다. 종결 이벤트는 그 대상이 아니라서 하루 늦게라도 나간다.
+- 진행 중 이벤트는 낡은 알림 웹훅 차단이 걸러 낸다. 종결 이벤트는 그 대상이 아니라서 하루 늦게라도 나간다.
 - 발송 직전 SSRF 검사는 시도마다 한다. 그러나 이 결정 때는 호스트 이름을 DNS 로 풀어 보는 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)가 기본 꺼짐이었다. 2026-11-06 부터 운영 환경에서는 기본으로 켠다([운영 환경에서 DNS 결과 검사를 기본으로 켠다](#운영-환경에서-dns-결과-검사를-기본으로-켠다-2026-11-06)). 재시도 창이 길수록 등록 뒤 바뀐 DNS 응답으로 보낼 여지도 길어진다.
 - 상한은 EIA 알림 웹훅에만 둔다. 재개 큐(`execution-continuation`)도 1초에서 4배씩 늘지만 상한이 없고 전략 이름(`continuation-exp4`)도 따로다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 알림 웹훅 쪽 전략 이름 `exp-base4` 는 그대로 둔다.
 
@@ -462,8 +462,8 @@ DNS 결과 검사의 기본값과 [SSRF 방지](#ssrf-방지) 본문 · REQ-EIAN
 - IPv4-mapped 주소는 IPv4 대상에 그대로 닿는다. 통합 노드 가드 코드(`http-safety.ts` 의 `mappedIPv4`)도 같은 이유로 IPv4-mapped 를 품은 IPv4 로 판정한다. 그 판정 범위와 실측은 아직 스펙에 없고 코드 주석에만 있다. 알림 웹훅에서는 서명한 POST 가 loopback · 메타데이터 주소로 가고 그 응답 코드가 `notification_last_error` 에 보인다.
 - `dns.resolve6` 는 mapped 주소를 점 표기(`::ffff:127.0.0.1`)로 돌려준다. 발송 직전 DNS 결과 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1`)도 같은 판정을 쓴다. 가드의 기본값은 바꾸지 않았다([SSRF 방지 본문을 구현에 맞춘다](#ssrf-방지-본문을-구현에-맞춘다-2026-11-05)). 2026-11-06 에 이 검사는 `dns.lookup` 으로 바뀌었고 운영 환경에서 기본으로 켜졌다([운영 환경에서 DNS 결과 검사를 기본으로 켠다](#운영-환경에서-dns-결과-검사를-기본으로-켠다-2026-11-06)). 판정 함수가 점 표기와 16진 표기를 같은 정규화로 읽으므로 판정 결과는 같다.
 - IPv4-compatible · SIIT · NAT64 표기도 같은 방식으로 본다. 통합 노드 가드는 이 셋을 막지 않는다. 그 코드 주석은 macOS · `node:24-alpine` 실측에서 이 표기로 IPv4 대상에 닿지 않았다고 적는다. 그러나 NAT64 는 `64:ff9b::a.b.c.d` 를 IPv4 `a.b.c.d` 로 바꿔 보내는 변환이다(RFC 6052 · RFC 6146). NAT64 게이트웨이가 있는 IPv6 전용 망에 배포하면 닿을 수 있다. 품은 IPv4 가 사설 · 특수 대역일 때만 막으므로 공인 주소로 가는 수신 서버는 영향이 없다.
-- 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 판정하지 않는다. 6to4 주소로 보낸 패킷은 그 IPv4 의 6to4 라우터가 받아 뒤쪽 IPv6 망으로 넘긴다. 품은 IPv4 의 TCP 서비스로는 가지 않는다. local-use prefix 는 운영자가 접두 길이를 정한다(RFC 8215). 그래서 IPv4 가 놓이는 자리가 망마다 다르다. 마지막 32비트를 읽으면 엉뚱한 IPv4 로 판정하게 된다.
-- [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 정규화 · 추출 헬퍼를 쓰고 판정 범위가 같다. 꺼낸 IPv4 를 판정하는 대역표는 가드마다 따로 있다.
+- 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 판정하지 않는다. 6to4 주소로 보낸 패킷은 그 IPv4 의 6to4 라우터가 받아 뒤쪽 IPv6 망으로 넘긴다. 품은 IPv4 의 TCP 서비스로는 가지 않는다. local-use prefix 는 운영자가 접두 길이를 정한다(RFC 8215). 그래서 IPv4 가 놓이는 자리가 망마다 다르다. 마지막 32비트를 읽으면 엉뚱한 IPv4 로 판정하게 된다. 2026-11-12 에 두 대역을 막기로 바꿨다([특수 용도 대역 · 6to4 · NAT64 local-use prefix 를 막는다](#특수-용도-대역--6to4--nat64-local-use-prefix-를-막는다-2026-11-12)).
+- [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 정규화 · 추출 헬퍼를 쓰고 판정 범위가 같다. 꺼낸 IPv4 를 판정하는 대역표는 가드마다 따로 있다. 2026-11-12 부터는 알림 웹훅 가드가 더 넓게 막는다. 두 가드를 맞추는 일은 NERV Task `CLE-T-753725` 가 맡는다.
 - 알림 웹훅 · MCP 가드와 통합 노드 · LLM 가드의 판정 범위를 맞출지, 공용 가드를 어디에 둘지는 NERV Task `CLE-T-63RSH6` 가 정한다. 정하면 그 결정과 실측을 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) Rationale 과 [통합 노드 공통 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단)에 남긴다. 그 결정에 따라 판정 코드를 한 모듈로 모으는 일은 NERV Task `CLE-T-753725` 가 맡는다. 공용 판정을 쓰더라도 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 는 알림 웹훅 가드에 닿지 않는다. 알림 웹훅의 호스트 검사에는 우회 플래그가 없다. `ALLOW_HTTP_HOOKS` 는 `http://` 스킴만 연다.
 
 기각한 대안:
@@ -553,3 +553,21 @@ NERV Task `CLE-T-94Z6A5` 의 변경이다. 이 Task 에서 시크릿 저장소�
 
 - **지금 동작을 두고 결함으로 적는다**: [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 Rationale 「store · rotate 는 빈 평문을 거부한다」 호출부 표에 결함으로 적고 후속 Task 로 넘기는 안이다. 그동안 그런 행은 EIA 알림 웹훅 설정 PATCH 가 계속 500 이 된다.
 - **`rotate` 가드를 좁힌다**: 빈 문자열만 거부하고 공백만 있는 값은 받는 안이다. 이미 승인된 `CLE-T-94Z6A5` 계획과 다르다. 그 계획은 공백만 있는 평문도 거부한다.
+
+### 특수 용도 대역 · 6to4 · NAT64 local-use prefix 를 막는다 (2026-11-12)
+
+NERV Task `CLE-T-W95HND` 에서 알림 웹훅 가드(`ssrf-safe-url.util.ts`)의 차단 대역을 넓혔다. 6to4 와 NAT64 local-use prefix 를 어떻게 막을지는 NERV 질문 `01a1d020-ca83-7514-99d7-493572d58129` 에서 사람이 정했다.
+
+- IPv4 192.0.0.0/24(IETF 프로토콜 할당), 198.18.0.0/15(벤치마크), 224.0.0.0/4(멀티캐스트), 240.0.0.0/4(예약 · 브로드캐스트)와 IPv6 fec0::/10(옛 site-local), ff00::/8(멀티캐스트)는 공인 수신 서버가 쓰지 않는 특수 용도 대역이다. 막아도 정상 수신 서버가 잃는 것이 없다. 192.0.0.0/24 와 fec0::/10 은 내부망 장비가 쓸 수 있다.
+- 6to4 는 [2026-11-01 결정](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01)에서 판정하지 않았다. 6to4 주소로 보낸 패킷이 품은 IPv4 의 TCP 서비스가 아니라 그 IPv4 의 6to4 라우터로 가기 때문이다. 이번에 판정하기로 바꾼 이유는 그 라우터가 내부망에 있을 수 있어서다. 품은 IPv4 가 사설 대역이면 서버가 보낸 IPv6 패킷이 IPv4 에 담겨(프로토콜 41) 내부 주소로 가고, 그 라우터 뒤의 IPv6 망에 닿을 수 있다. IPv4 자리는 둘째 · 셋째 16비트로 고정이라 잘못 읽을 일이 없다. 6to4 는 RFC 7526 이 폐기했다. 공인 IPv4 를 품은 주소는 통과시키므로 잃는 수신 서버가 거의 없다.
+- NAT64 local-use prefix(`64:ff9b:1::/48`, RFC 8215)는 운영자가 접두 길이(/48 ~ /96)를 고르고 그에 따라 IPv4 자리가 달라진다(RFC 6052 §2.2). 2026-11-01 결정은 자리를 알 수 없어서 판정하지 않았다. 그러면 NAT64 local-use 를 쓰는 망에서 사설 IPv4 로 가는 경로가 열린다. 자리를 추측해 꺼내면 사설 IPv4 를 품은 주소를 공인으로 볼 수 있다. 그래서 꺼내지 않고 대역 전체를 막는다. 이 대역은 사설 NAT64 배포용이라 공인 수신 서버가 쓰지 않는다.
+- MCP 가드(`mcp-client.service.ts`)는 바꾸지 않았다. MCP 는 IPv6 정규화와 마지막 32비트 추출 헬퍼만 알림 웹훅 가드와 같이 쓰고 IPv4 대역표는 따로 둔다. 이번 작업은 묶음 경계 때문에 알림 웹훅 가드만 고쳤다. 두 가드를 맞추는 일은 NERV Task `CLE-T-753725` 가 맡는다.
+
+기각한 대안(NERV 질문 `01a1d020…` 의 다른 선택지):
+
+- **6to4 도 대역 전체를 막는다**: 판정 코드가 단순해진다. 그러나 IPv4 자리가 고정이라 꺼내 판정할 수 있고, 공인 IPv4 를 품은 6to4 주소는 막을 이유가 없다.
+- **NAT64 local-use prefix 도 마지막 32비트를 꺼내 판정한다(/96 으로 가정)**: well-known prefix 와 같은 코드로 처리된다. 그러나 /48 · /56 · /64 배포에서는 엉뚱한 IPv4 를 읽어 사설 IPv4 를 품은 주소를 통과시킬 수 있다.
+
+### «낡은 알림 웹훅 차단» 으로 이름을 맞췄다 (2026-11-12)
+
+용어 사전 기준(EIA 알림 웹훅을 단독 «알림» 으로 쓰지 않는다)에 맞춰 [EIA 데이터와 흐름](CLE-EIA-DATA.md) 과 같은 이름으로 바꿨다. 뜻은 바뀌지 않았다(NERV Task `CLE-T-GNTWP9`).

@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 16
+version: 17
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "e50a2f263dbba4ad7288ad82f230cd82077a28a71db54a456ddc55fa948e38ce"
+content_hash: "d88fb3d0081639ade901a2aca1e4a96ef98869e9dcf722d3c975bb57a0136659"
 read_as: "approved_fallback"
-task: "CLE-T-VRBS51"
+task: "CLE-T-X6WXFD"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "1496004846080683d01922f37cc9af9d4611b7ba8d50f5ef317d9b0778c1e488"
-etag: "sha256-0cc118dd5ea7db2ae4882c2ad70b87f09476331348290f36da9618cbc4203e53"
+mirror_sha256: "0984582d8b1b031f7856d4e94d1187f32e0f4acdc29136be033c8e9ef43ef52e"
+etag: "sha256-037cfe93fa0621de860bc222389584a53dc4b9a295281c90dd413379aac30207"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -357,6 +357,7 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 - 저장소 예외 필드의 응답 부재 단언(규칙 4 · 6, 최상위 컬럼): `codebase/backend/src/shared/testing/trigger-workflow-ref.ts`, `codebase/backend/src/shared/testing/schedule-trigger-ref.ts`
 - 열린 맵 `config` 안 비밀의 응답 부재 단언(규칙 5 · R19): `codebase/backend/test/trigger-issued-secrets.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`, `codebase/backend/src/modules/triggers/triggers.service.spec.ts`(옛 평문 `signing.secret`)
 - 규칙 8 · 9 의 커밋 뒤 정리와 되돌리기: `codebase/backend/src/modules/triggers/trigger-resource-release.ts`(`cleanUpDeletedTriggersAfterCommit`), `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts`(`undoAbsentWrite`). 잠금 안 쓰기의 트리거 설정 잠금: `codebase/backend/src/modules/triggers/trigger-config-lock.ts`
+- 봇 토큰 재발급 실패 때 되돌리기(R10): `codebase/backend/src/modules/triggers/secret-write-journal.ts`(`SecretWriteJournal`)
 - 규칙 24 의 시행: `codebase/backend/src/modules/chat-channel/chat-channel-secret-refs.ts`(참조 유도와 읽기 관문), `codebase/backend/src/modules/triggers/notification-signing-secret-ref.ts`(알림 서명 참조 유도. 생성 · PATCH 의 첫 발급과 옛 평문 옮기기도 이 유도를 쓴다), `codebase/backend/src/modules/triggers/notification-signing-secret.ts`(첫 알림 서명 시크릿의 판정 `decideNotificationSigning` 과 서명 참조 얹기. 참조를 만드는 위 파일과 역할이 다르다). 관문을 쓰는 곳: `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`, `codebase/backend/src/modules/hooks/hooks.service.ts`, `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts`, `codebase/backend/src/modules/triggers/triggers.service.ts`(봇 토큰 재발급), `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts`(알림 서명 승격), `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts`(알림 서명)
 - 규칙 24 의 읽기 관문과 규칙 25 의 `rotate` 대조(저장된 교차 행): `codebase/backend/test/trigger-stored-secret-refs.e2e-spec.ts`
 
@@ -427,7 +428,7 @@ R9 가 요청 본문을 막은 뒤에도 그 전에 저장된 행은 남는다. 
 - **`rotate` 는 행의 `workspace_id` 와 인자만 대조한다.** 리소스 테이블을 보지 않으므로 scope 와 무관하고 다른 백엔드도 같은 의미를 낼 수 있다(R2 · R4). 애플리케이션 경로에서는 한 번 들어간 행의 `workspace_id` 가 이제 바뀌지 않으므로 대조와 갱신 사이의 경합이 없다. 거부는 클라이언트가 분기할 조건이 아니라서 [에러 코드 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 «새 조건은 새 코드» 로 새 코드를 만들지 않았다. 고칠 수 있는 쪽이 운영자라 5xx 다([채팅 채널 「R-CC-23 setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다) 의 기준). 다른 워크스페이스에 그 참조가 있다는 사실을 코드로 가르지 않는 것은 [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) 의 «없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다» 와 같은 방향이다. 예외 메시지에 참조와 «다른 워크스페이스» 를 싣지 않는 것은 채팅 채널 설정이 실패 메시지를 화면에 보이는 `chat_channel_last_error` 에 저장하기 때문이다(규칙 4).
 - **교차 행의 소유자는 정리 뒤에 다시 쓴다.** 거부는 이미 교차 행이 된 비밀의 진짜 소유자도 막는다. 종전에는 소유자의 재발급이 행을 덮어써 소유가 돌아왔다. 그 행의 내용은 다른 워크스페이스의 요청이 쓴 값이라 `workspace_id` 만 되돌려서는 믿을 수 없다. 암호문의 AAD 가 참조라 다른 행으로 옮겨 살릴 수도 없다. 그래서 배포 전에 점검 SQL 로 찾고 정리 SQL 로 지운 뒤 소유자가 재발급하는 순서를 택했다(사람 결정, 2026-10-04). 이 Task 의 착수 전 검토는 마이그레이션으로 자동 보정하거나 마이그레이션을 멈추는 선례도 들었다. 택하지 않은 것은 덮어써진 비밀을 SQL 로 되살릴 수 없어 어느 쪽이든 소유자의 재발급이 필요하기 때문이다. 데이터를 지우는 판단은 사람이 점검 결과를 본 뒤에 하는 편이 맞다. 정리 전까지 교차 행이 된 비밀은 소유자의 발송 · 검증에서도 그대로 쓰인다. 이 상태를 닫는 것은 운영 정리다.
 - **정리 SQL 은 규칙 3 · 13 밖의 일회성 절차다.** 규칙 3 은 도메인 모듈이 `SecretResolver` 로 읽고 쓰게 하고 규칙 13 은 워크스페이스 조건 삭제를 인터페이스에 두지 않게 한다. 둘 다 애플리케이션 경로의 규칙이다. 다른 워크스페이스 행을 열거하고 지우는 일을 인터페이스로 열면 규칙 21 에 따라 소비 모듈을 함께 고쳐야 한다. 한 번만 할 일이 계속 열린 표면으로 남는다. 그래서 사람이 돌리는 SQL 로 두고 점검이 모든 운영 환경에서 비면 걷는다. 2026-10-05 에 걷었다(아래).
-- **거부가 채널 프로바이더 등록 뒤에 날 수 있다.** 봇 토큰 재발급, 최초 설정, Telegram 의 `chatChannel` PATCH 는 채널 프로바이더에 새 서명 자료를 등록한 뒤 `inbound-signing` 을 `rotate` 한다. [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 이 이 저장을 등록과 한 동작으로 정한 이유(건너뛰면 인바운드가 모두 401)가 교차 행에서는 거부로 다시 생긴다. 등록 뒤에 거부되면 인바운드가 401 로 닫힌다. 재발급은 500 으로, 최초 설정과 PATCH 는 `degraded` 와 `chat_channel_last_error` 로 드러난다. 재발급은 그 앞에서 쓴 `bot-token.v2` 백업 행도 남긴다. ⑤ 에서 거부되면 ⑥ 이 일어나지 않아 그 백업이 유예 정리 대상이 되지 않는다(트리거 삭제 때 prefix 로 지워진다). 쓰기 순서는 규칙 11 의 «백업한 뒤 기본 참조» 를 따르므로 바꾸지 않았다. 등록 전에 대조하려면 인터페이스에 메서드를 더해야 해서 이번에는 운영 정리를 먼저 하는 순서로 막는다. 남는 상태는 닫힌 쪽이다. 채팅 채널 문서의 에러 표와 수명주기 반영은 NERV Task `CLE-T-VRBS51` 이 맡는다.
+- **거부가 채널 프로바이더 등록 뒤에 날 수 있다.** 봇 토큰 재발급, 최초 설정, Telegram 의 `chatChannel` PATCH 는 채널 프로바이더에 새 서명 자료를 등록한 뒤 `inbound-signing` 을 `rotate` 한다. [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 이 이 저장을 등록과 한 동작으로 정한 이유(건너뛰면 인바운드가 모두 401)가 교차 행에서는 거부로 다시 생긴다. 등록 뒤에 거부되면 인바운드가 401 로 닫힌다. 재발급은 500 으로, 최초 설정과 PATCH 는 `degraded` 와 `chat_channel_last_error` 로 드러난다. 재발급은 [채팅 채널 데이터와 흐름 「봇 토큰 라이프사이클」](../CLE-CHAT/CLE-CHAT-DATA.md#봇-토큰-라이프사이클) 의 ⑤ 에서 거부되면 앞 단계에서 쓴 행을 재발급 전 값으로 되돌린다. 기본 참조는 재발급 전 토큰으로 돌아온다. `bot-token.v2` 행은 재발급 전에 없었으면 지워진다. 유예 중이었으면 그 옛 토큰으로 돌아온다. 거부된 `inbound-signing` 쓰기는 되돌리지 않으므로 다른 워크스페이스의 그 행은 그대로다. 채널 프로바이더 등록은 되돌리지 않는다. 쓰기 순서는 규칙 11 의 «백업한 뒤 기본 참조» 를 따르므로 바꾸지 않았다. 등록 전에 대조하려면 인터페이스에 메서드를 더해야 해서 이번에는 운영 정리를 먼저 하는 순서로 막는다. 남는 상태는 닫힌 쪽이다.
 - **반복 배치는 거부된 리소스만 건너뛴다.** 알림 서명 시크릿 승격은 실패를 다시 던져 job 재시도에 맡긴다. 워크스페이스 불일치는 재시도해도 같으므로 그 트리거만 건너뛰고 에러 로그를 남긴다. 알림 서명 비밀 행은 쓰는 쪽(설정 정규화, 승격)이 늘 트리거 id 로 참조를 만들어 왔으므로 교차 행이 생긴 경로가 없고 이 분기는 방어용이다. 만나면 그 트리거의 `notification_secret_v2` 평문과 두 키 서명이 정리 뒤 다음 승격까지 남는다([저장소 예외 필드](#저장소-예외-필드) 근거 1 · 2 의 한계).
 - **로그는 발생할 때마다 남긴다.** 교차 행이 인바운드를 받을 때마다 남지만 같은 요청이 이미 `resolve` 실패 경고를 남기므로 로그 양의 등급은 같다. 참조 불일치 로그에는 저장값을 싣지 않는다. 참조 자리에 평문이 들어 있을 수 있어서다.
 - **이번에 정하지 않은 것.** [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 이 따로 검토하기로 한 `rotate` 의 빈 값 가드는 이번에도 넣지 않는다. 대조하지 않는 소비 지점도 있다. 봇 토큰 유예 정리와 해지는 서버만 쓰는 `chat_channel_token_v2` 컬럼의 참조를 쓴다. `delete` · `exists` · `deleteByPrefix` 는 참조만 본다([`SecretResolver` 인터페이스](#secretresolver-인터페이스)). 채팅 채널 활성화가 `setupChannel` 을 부르게 되면([채팅 채널 「봇 토큰 변경 단일 경로」](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로)) 그 경로도 읽기 관문을 지나야 한다. 실행 시점의 트리거 · 워크플로우 워크스페이스 대조는 [데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검) 이 정했다(2026-10-05). 원시 `config` 의 나머지 계약은 2026-10-31 에 [R16](#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31) 으로 정했다(NERV Task `CLE-T-EA7B5M`). `interaction.triggerToken` 예외의 전제 (c) 는 2026-10-17 에 정했다. 그날 원시 `config` 로 이 값을 보내는 경로를 닫았다(NERV Task `CLE-T-EQDYC1`).
@@ -574,3 +575,7 @@ R9 「남긴 것」 과 R10 「이번에 정하지 않은 것」 이 이 Task �
 `## 구현 위치` 의 두 헬퍼(`trigger-workflow-ref.ts` · `schedule-trigger-ref.ts`)는 최상위 컬럼(`notificationSecretV2` · `chatChannelTokenV2`)의 부재를 본다. 맵 안의 키는 위 테스트가 맡는다.
 
 이 규칙을 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 검증 층에 두는 안도 있었다(NERV Task `CLE-T-F7J4V4`). 지키려는 것이 비밀이라 노출 경계(규칙 4~6)를 정한 이 규약에 뒀다. 스트립을 선언으로 바꾸는 일은 이 결정에 들지 않는다.
+
+### R20. 재발급 실패 뒤 남는 행 서술을 롤백 구현에 맞췄다 (2026-11-12)
+
+앞 판까지 R10 「거부가 채널 프로바이더 등록 뒤에 날 수 있다」 는 봇 토큰 재발급이 ⑤ 에서 거부되면 그 앞에서 쓴 `bot-token.v2` 백업 행이 남아 유예 정리 대상이 되지 않는다고 적었다. 2026-11-12 에 구현이 바뀌었다(NERV Task `CLE-T-Q353Y4`, PR #1689). 이제 재발급이 실패하면 그 요청이 시크릿 저장소에 쓴 행을 재발급 전 값으로 되돌린다. NERV Task `CLE-T-X6WXFD` 에서 정본인 [채팅 채널 데이터와 흐름 「봇 토큰 라이프사이클」](../CLE-CHAT/CLE-CHAT-DATA.md#봇-토큰-라이프사이클) 승인본 v13 에 맞춰 그 항목의 남는 행 서술을 고쳤다. 항목 끝에서 채팅 채널 문서 반영을 NERV Task `CLE-T-VRBS51` 로 넘기던 문장은 그 Task 가 끝나 지웠다. 쓰기 순서와 «닫힌 쪽» 서술은 그대로 두었다. 「구현 위치」 에 되돌리기 구현 파일을 더했다.
