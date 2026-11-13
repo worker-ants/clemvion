@@ -915,15 +915,6 @@ export class ExecutionEngineService
   private readonly llmDefaultConfigCache = new Map<string, Promise<boolean>>();
 
   /**
-   * Sub-Workflow 재귀 호출 깊이 상한. WARN #9 (Security) — workflow A 가 자기
-   * 자신을 sub-workflow 로 부르면 무한 재귀 발생, 메모리·DB 폭주. spec/PRD 의
-   * 명시 한도가 없으므로 보수적으로 10. executeSync / executeAsync / 인라인
-   * 실행 경로 진입 시 검증.
-   */
-  private static readonly MAX_RECURSION_DEPTH =
-    SUB_WORKFLOW_MAX_RECURSION_DEPTH;
-
-  /**
    * Sub-workflow 진입점에서 호출자-피호출자 workspace 격리를 강제한다 (W-6).
    *
    * **fail-closed**: 호출자 workspace 컨텍스트(`callerWorkspaceId`)가 없으면
@@ -3298,7 +3289,8 @@ export class ExecutionEngineService
 
   /**
    * 부팅 스캔의 「종결된 실행 아래 남은 노드 실행 행」 정리 단계(`closeOrphanRunningNodeExecutions`)가 `parent_node_execution_id` 를
-   * 따라 올라가는 깊이 한도. 부모 체인은 서브 워크플로우 호출(재귀 한도 10)과 컨테이너 ·
+   * 따라 올라가는 깊이 한도. 부모 체인은 서브 워크플로우 호출(재귀 한도
+   * {@link SUB_WORKFLOW_MAX_RECURSION_DEPTH})과 컨테이너 ·
    * Background 중첩으로만 길어지므로 넉넉히 잡는다. 체인이 깨져 순환하더라도 재귀가 끝나게 한다.
    */
   private static readonly ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH = 64;
@@ -4565,11 +4557,12 @@ export class ExecutionEngineService
     input?: unknown,
     options?: SubWorkflowOptions,
   ): Promise<SubWorkflowResult> {
-    // WARN #9 (Security) — recursion 폭주 차단.
+    // WARN #9 (Security) — workflow A 가 자기 자신을 서브 워크플로우로 부르는 무한 재귀가
+    // 메모리 · DB 를 소진하지 않게 공용 한도({@link SUB_WORKFLOW_MAX_RECURSION_DEPTH})로 막는다.
     const depth = options?.recursionDepth ?? 0;
-    if (depth > ExecutionEngineService.MAX_RECURSION_DEPTH) {
+    if (depth > SUB_WORKFLOW_MAX_RECURSION_DEPTH) {
       throw new Error(
-        `Sub-workflow recursion depth ${depth} exceeds maximum ${ExecutionEngineService.MAX_RECURSION_DEPTH}`,
+        `Sub-workflow recursion depth ${depth} exceeds maximum ${SUB_WORKFLOW_MAX_RECURSION_DEPTH}`,
       );
     }
 
@@ -4706,11 +4699,12 @@ export class ExecutionEngineService
     input?: unknown,
     options?: Omit<SubWorkflowOptions, 'timeoutMs'>,
   ): Promise<string> {
-    // WARN #9 (Security) — recursion 폭주 차단.
+    // WARN #9 (Security) — workflow A 가 자기 자신을 서브 워크플로우로 부르는 무한 재귀가
+    // 메모리 · DB 를 소진하지 않게 공용 한도({@link SUB_WORKFLOW_MAX_RECURSION_DEPTH})로 막는다.
     const depth = options?.recursionDepth ?? 0;
-    if (depth > ExecutionEngineService.MAX_RECURSION_DEPTH) {
+    if (depth > SUB_WORKFLOW_MAX_RECURSION_DEPTH) {
       throw new Error(
-        `Sub-workflow recursion depth ${depth} exceeds maximum ${ExecutionEngineService.MAX_RECURSION_DEPTH}`,
+        `Sub-workflow recursion depth ${depth} exceeds maximum ${SUB_WORKFLOW_MAX_RECURSION_DEPTH}`,
       );
     }
 

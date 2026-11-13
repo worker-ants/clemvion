@@ -5,6 +5,10 @@
  *
  * 일반 dispatch 는 `NodeHandlerRegistry.getMetadata(type).kind` 를 사용하므로
  * 본 상수는 추가하지 않는 것을 우선한다.
+ *
+ * 이 파일에는 노드 타입이 아닌 상수도 하나 있다. 서브 워크플로우 재귀 한도
+ * {@link SUB_WORKFLOW_MAX_RECURSION_DEPTH} 는 노드 핸들러 · 실행 엔진 · 실행 서비스가 함께
+ * 읽는 값이라 노드 계층의 공용 상수 파일인 여기에 둔다.
  */
 export const NODE_TYPES = {
   /** Manual trigger — 워크플로우의 사용자 수동 진입점. */
@@ -22,8 +26,10 @@ export const NODE_TYPES = {
 } as const;
 
 /**
- * 서브 워크플로우 재귀 깊이 한도. `WorkflowHandler` · `ExecutionEngineService` 의 실행 때 검사와
- * `ExecutionsService` 의 dry-run 사전 검사가 같은 값을 쓴다.
+ * 서브 워크플로우 재귀 깊이 한도(CLE-NODE-SUBWF REQ-SUBWF-014).
+ *
+ * `WorkflowHandler` · `ExecutionEngineService` 의 실행 때 검사와 `ExecutionsService` 의 dry-run
+ * 사전 검사가 이 상수를 직접 참조한다. 모듈마다 별칭을 두지 않는다(CLE-T-YWRJTV).
  */
 export const SUB_WORKFLOW_MAX_RECURSION_DEPTH = 10;
 

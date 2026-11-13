@@ -3791,6 +3791,40 @@ describe('ExecutionEngineService', () => {
       mockEdgeRepo.findBy.mockResolvedValue([]);
     });
 
+    // 재귀 한도는 공용 상수 SUB_WORKFLOW_MAX_RECURSION_DEPTH 하나다(CLE-T-YWRJTV).
+    // 한도와 같은 깊이는 통과해 워크플로우 조회까지 가고, 한도를 넘으면 조회 전에 막힌다.
+    describe.each([
+      [
+        'executeSync',
+        (depth: number) =>
+          service.executeSync(
+            'nonexistent-wf',
+            {},
+            { timeoutMs: 0, recursionDepth: depth },
+          ),
+      ],
+      [
+        'executeAsync',
+        (depth: number) =>
+          service.executeAsync('nonexistent-wf', {}, { recursionDepth: depth }),
+      ],
+    ])('%s — 서브 워크플로우 재귀 한도', (_name, call) => {
+      it('한도와 같은 깊이는 재귀 검사를 통과한다', async () => {
+        mockWorkflowRepo.findOneBy.mockResolvedValueOnce(null);
+        await expect(call(SUB_WORKFLOW_MAX_RECURSION_DEPTH)).rejects.toThrow(
+          'Workflow not found: nonexistent-wf',
+        );
+      });
+
+      it('한도를 넘는 깊이는 워크플로우를 읽기 전에 거부한다', async () => {
+        const depth = SUB_WORKFLOW_MAX_RECURSION_DEPTH + 1;
+        await expect(call(depth)).rejects.toThrow(
+          `Sub-workflow recursion depth ${depth} exceeds maximum ${SUB_WORKFLOW_MAX_RECURSION_DEPTH}`,
+        );
+        expect(mockWorkflowRepo.findOneBy).not.toHaveBeenCalled();
+      });
+    });
+
     describe('executeSync', () => {
       it('throws when workflow does not exist', async () => {
         mockWorkflowRepo.findOneBy.mockResolvedValueOnce(null);
