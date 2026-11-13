@@ -2,19 +2,19 @@
 id: "CLE-AI-USAGE"
 title: "LLM 사용량 기록"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "5cd0f5fc305fe7a331fc7774def25e8413181463df94b19833f1380e1cfe2d79"
+content_hash: "14a02dfb2e77bb61557a32736237af50a2d675eb9949bfe04c8ab568c0d52b2a"
 read_as: "approved_fallback"
-task: "CLE-T-SHNJPQ"
+task: "CLE-T-7KYH1X"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "79b9d2c238fff2ae6f1ce940eb250714db06be791ac1cf9fa3470c075bafc006"
-etag: "sha256-95728aba94fc3638bb25ac2dc5f1238dcb11d051b4f2282c1e4d6e70d28b9411"
+mirror_sha256: "740650b8570d035729e93d4ad0ddf2df772b0462f7a91e8c46f49851cc8f6295"
+etag: "sha256-17256d96c2d3654636e09904411bd16a9f61660d71ade93e02a94b67b958d7c6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/7-llm-usage.md`, `spec/1-data-model.md` (§2.16 ModelConfig, §2.24 LlmUsageLog) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -49,7 +49,7 @@ etag: "sha256-95728aba94fc3638bb25ac2dc5f1238dcb11d051b4f2282c1e4d6e70d28b9411"
 | api_key | String? (encrypted) | API 키(암호화 저장). 자가호스팅(chat·embedding 은 `local`, rerank 는 `tei`)은 키가 필요 없어 선택이다. 외부 API(`openai`·`cohere` 등)는 필수. rerank 에는 `local` 프로바이더가 없으므로 rerank 행이 NULL 일 수 있는 이유는 `tei` 뿐이다 |
 | base_url | String? | 커스텀 엔드포인트. `local`·`tei`·`azure` 는 필수. SSRF 가드를 거치고 `local`·`tei` 만 사설망을 허용한다 |
 | default_model | String | 기본 모델 ID. rerank 예: `dragonkue/bge-reranker-v2-m3-ko`, `rerank-3.5` |
-| default_params | JSONB | 기본 파라미터(temperature, max_tokens 등). chat 전용이고 embedding·rerank 는 쓰지 않는다 |
+| default_params | JSONB | 기본 파라미터(temperature, max_tokens). chat 전용이고 embedding·rerank 는 쓰지 않는다. 지금은 저장하고 응답에 싣기만 하고 LLM 호출에는 넣지 않는다(미구현, [모델 설정 「기본 파라미터 기본값」](CLE-AI-MODELS.md#기본-파라미터-기본값)) |
 | dimension | Integer? | embedding 전용 벡터 차원(예: 384/512/768/1024/1536/3072). 모델 출력 차원이다. chat·rerank 는 NULL. Embedding 연결 테스트가 성공하면 probe 임베딩으로 감지해 자동 저장한다([모델 설정](CLE-AI-MODELS.md)). 지식 저장소의 `embedding_dimension` 과의 관계는 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) 에서 정한다 |
 | is_default | Boolean | `(workspace_id, kind)` 마다 최대 1개(partial unique). 종류별 워크스페이스 기본 설정 |
 | created_at | Timestamp | 생성 시각 |

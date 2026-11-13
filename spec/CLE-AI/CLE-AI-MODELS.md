@@ -2,19 +2,19 @@
 id: "CLE-AI-MODELS"
 title: "모델 설정"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-MODELS-001", "REQ-MODELS-002", "REQ-MODELS-003", "REQ-MODELS-004", "REQ-MODELS-005", "REQ-MODELS-006", "REQ-MODELS-007", "REQ-MODELS-008", "REQ-MODELS-009", "REQ-MODELS-010", "REQ-MODELS-011", "REQ-MODELS-012", "REQ-MODELS-013", "REQ-MODELS-014", "REQ-MODELS-015", "REQ-MODELS-016", "REQ-MODELS-017", "REQ-MODELS-018", "REQ-MODELS-019", "REQ-MODELS-020", "REQ-MODELS-021", "REQ-MODELS-022", "REQ-MODELS-023", "REQ-MODELS-024", "REQ-MODELS-025", "REQ-MODELS-026", "REQ-MODELS-027", "REQ-MODELS-028", "REQ-MODELS-029", "REQ-MODELS-030", "REQ-MODELS-031", "REQ-MODELS-032", "REQ-MODELS-033", "REQ-MODELS-034", "REQ-MODELS-035", "REQ-MODELS-036", "REQ-MODELS-037", "REQ-MODELS-038"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "2338bb0e3a94db332b2744bbcab5c4d4da5f33307771d796ccb3ca9361dd3a13"
+content_hash: "74a82c8806a9e0a09a0193147fda8484743395f5457818d443e7483e4e1af393"
 read_as: "approved_fallback"
-task: "CLE-T-4RHC81"
+task: "CLE-T-7KYH1X"
 source_paths: ["spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "64444ce0faf2a7c88094e526250ceb37485fccf2c32154bb2a165af06a8162e7"
-etag: "sha256-55911b805fb4d0cf6d4ee38492f3e1c7fd146861b90b68f42acbf06dc7f90af8"
+mirror_sha256: "911218d29c6fccbe265b409f2ec7584ae057fe53122b741312b9e421b832d86f"
+etag: "sha256-56bb5d3c162983fd80e657c785e5d4ef40171596ba97edf9cfc41e74a71d89aa"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Part B, §3 API 의 모델 설정 표, R-1·R-3·R-4·R-5·R-7), `spec/2-navigation/_product-overview.md` (§3.7), `spec/4-nodes/3-ai/_product-overview.md` (§3.1, §4 API 키 암호화, §5 NF-AI-04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,8 +40,8 @@ etag: "sha256-55911b805fb4d0cf6d4ee38492f3e1c7fd146861b90b68f42acbf06dc7f90af8"
 - REQ-MODELS-003 WHEN 편집자 이상이 프로바이더 API 키를 입력하면 THE SYSTEM SHALL 키를 AES-256-GCM 으로 암호화해 저장한다. (원본: NAV-CL-03, LLM-02, AI PRD NF-AI-04)
 - REQ-MODELS-004 WHEN 모델 설정을 조회하면 THE SYSTEM SHALL 종류와 상관없이 API 키를 마스킹해 응답한다. (원본: NAV-CL-03)
 - REQ-MODELS-005 WHEN 사용자가 Azure·Local 프로바이더를 고르면 THE SYSTEM SHALL 커스텀 엔드포인트(Base URL)를 필수로 받는다. (원본: LLM-03)
-- REQ-MODELS-006 WHEN 편집자 이상이 Chat 모델 설정을 저장하면 THE SYSTEM SHALL 기본 모델과 기본 파라미터(temperature, max_tokens 등)를 함께 저장한다. (원본: NAV-CL-05, LLM-04)
-- REQ-MODELS-007 WHEN 새 Chat 모델 설정 폼을 열면 THE SYSTEM SHALL 기본 파라미터 기본값(temperature 0.7, max_tokens 4096, top_p 1.0, frequency_penalty 0.0, presence_penalty 0.0)을 채운다. (원본: NAV-CL-05)
+- REQ-MODELS-006 WHEN 편집자 이상이 Chat 모델 설정을 저장하면 THE SYSTEM SHALL 기본 모델과 기본 파라미터(temperature, max_tokens)를 함께 저장한다. (원본: NAV-CL-05, LLM-04)
+- REQ-MODELS-007 WHEN 새 Chat 모델 설정 폼을 열면 THE SYSTEM SHALL 기본 파라미터 기본값(temperature 0.7, max_tokens 4096)을 채우고, 프로바이더가 Anthropic 이면 Temperature 입력을 비활성으로 두고 그 값을 보내지 않는다는 안내를 보인다. (원본: NAV-CL-05)
 - REQ-MODELS-008 WHEN 편집자 이상이 카드의 ⭐ 로 기본 설정을 지정하면 THE SYSTEM SHALL 같은 워크스페이스·같은 종류의 기존 기본 설정을 해제하고 대상만 기본으로 둔다. (원본: NAV-CL-04, LLM-05)
 - REQ-MODELS-009 WHEN AI 노드를 새로 만들면 THE SYSTEM SHALL Chat 종류의 워크스페이스 기본 설정을 기본 선택으로 쓴다. (원본: NAV-CL-04, LLM-05)
 - REQ-MODELS-010 WHEN 편집자 이상이 Chat·Embedding 모델 설정에서 연결 테스트를 누르면 THE SYSTEM SHALL 저장된 자격 증명으로 프로바이더 접속을 확인하고 "Connected" 또는 에러 메시지를 표시한다. (원본: NAV-CL-06, LLM-06)
@@ -96,7 +96,7 @@ etag: "sha256-55911b805fb4d0cf6d4ee38492f3e1c7fd146861b90b68f42acbf06dc7f90af8"
 | API Key | 프로바이더 API 키(마스킹 입력). Local 은 선택 |
 | Base URL | 커스텀 엔드포인트(로컬 모델, Azure 등). Azure·Local 은 필수 |
 | 기본 모델 | "모델 불러오기" 버튼으로 프로바이더 모델 조회 API 를 실시간으로 부른 뒤 응답 목록에서 고른다. 자유 입력은 허용하지 않는다 |
-| 기본 파라미터 | Temperature, Max Tokens, Top-P 등 |
+| 기본 파라미터 | Temperature, Max Tokens. 프로바이더가 Anthropic 이면 Temperature 입력을 비활성으로 두고 «Anthropic 모델에는 Temperature 를 보내지 않아요.» 안내를 입력 아래에 보인다. 저장된 값은 지우지 않아서 다른 프로바이더로 바꾸면 그대로 남는다 |
 | 기본 설정 | ⭐ 로 표시한다. AI 노드를 만들 때 기본으로 선택된다 |
 
 ### 기본 모델 선택
@@ -111,13 +111,12 @@ etag: "sha256-55911b805fb4d0cf6d4ee38492f3e1c7fd146861b90b68f42acbf06dc7f90af8"
 
 | 파라미터 | 설명 | 기본값 |
 |----------|------|--------|
-| temperature | 응답의 창의성·무작위성 | 0.7 |
+| temperature | 응답의 창의성·무작위성. Anthropic 모델에는 보내지 않는다 | 0.7 |
 | max_tokens | 최대 출력 토큰 수 | 4096 |
-| top_p | 누적 확률 기반 샘플링 | 1.0 |
-| frequency_penalty | 반복 토큰 억제 | 0.0 |
-| presence_penalty | 새 토큰 유도 | 0.0 |
 
-여기서 정하는 값은 기본값이다. AI 노드마다 따로 덮어쓸 수 있다. AI 노드의 `maxTokens` 기본값도 이 표를 따른다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)).
+폼에는 이 두 값만 있다. top_p · frequency_penalty · presence_penalty 입력은 없다. Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트 「Anthropic 에 샘플링 파라미터를 보내지 않는다」](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)).
+
+(미구현) 저장한 기본 파라미터는 아직 어떤 호출에도 쓰이지 않는다. 백엔드는 `defaultParams` 를 저장하고 응답에 싣기만 한다. AI 노드는 노드 설정의 Temperature · Max Tokens 를 쓰고([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)), 워크플로우 AI 어시스턴트와 에이전트 메모리 호출도 이 값을 읽지 않는다. 호출 쪽 설정이 비어 있을 때 이 값을 기본으로 넣는 일은 후속 작업 CLE-T-GG3WPZ 가 맡는다.
 
 ## 연결 테스트
 
@@ -206,12 +205,14 @@ Chat·Embedding·Rerank 를 한 엔드포인트에서 `kind` 로 구분해 관�
 
 ## 미결 사항
 
+- **기본 파라미터의 런타임 반영**: 저장한 `defaultParams` 를 어느 호출 경로에, 노드 설정과 어떤 우선순위로 넣을지 정해야 한다([기본 파라미터 기본값](#기본-파라미터-기본값)). 후속 작업 CLE-T-GG3WPZ 에서 정한다.
 - **Embedding 차원 변경 가드의 강제 지점**: Embedding 탭 규칙은 벡터를 적재한 지식 저장소가 참조하는 모델의 차원을 나중에 바꿀 수 없다고 적는다. 같은 문서의 연결 테스트 규칙은 감지한 차원이 저장값과 다르면 `PATCH` 로 자동 저장한다. 현재 구현은 모델 설정 수정(`ModelConfigService.update`)에 차원 변경을 막는 검사가 없고 Embedding 종류이면 `dimension` 을 그대로 바꾼다. 실제 보호가 지식 저장소 쪽 저장 청크 차원(`embedding_dimension`) 초기화와 검색 불가 처리([문서 임베딩](../CLE-KB/CLE-KB-EMBED.md))로 대신되는지, 모델 설정 층에 가드를 둘지 결정 필요. 저장 청크 차원의 정의([지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md#미결-사항))와 함께 정해야 한다([문서 임베딩](../CLE-KB/CLE-KB-EMBED.md#미결-사항)).
 
 ## 구현 위치
 
 - `codebase/frontend/src/app/(main)/w/[slug]/models/page.tsx`
 - `codebase/frontend/src/components/models/model-config-manager.tsx`
+- `codebase/frontend/src/components/models/model-config-form-dialog.tsx`
 - `codebase/frontend/src/lib/api/model-configs.ts`
 - `codebase/backend/src/modules/model-config/**`
 - `codebase/backend/src/modules/llm/llm-preview.service.ts`
@@ -251,7 +252,11 @@ Chat·Embedding·Rerank 를 한 엔드포인트에서 `kind` 로 구분해 관�
 
 ### max_tokens 기본값을 4096 으로 둔 이유
 
-예전 스펙은 `max_tokens` 기본값을 2048 로 적었지만 구현에 적용된 적이 없다. 옛 `/llm-configs` 폼과 지금의 `/models` 폼(`ModelConfigManager`) 모두 처음부터 4096 을 기본값으로 썼다. 코드가 먼저 4096 으로 자리 잡고 스펙 표기만 낡아 있었으므로 스펙을 실제 동작에 맞췄다. 요즘 LLM 은 4096 출력 토큰을 안전하게 지원하므로 잘림을 덜 겪고 쓰기에 더 실용적이다. AI 에이전트 노드 설정 예시의 `maxTokens` 도 4096 으로 맞췄다. 노드 `maxTokens` 의 기본값은 모델 설정 기본값이므로 기본 파라미터 표를 따른다.
+예전 스펙은 `max_tokens` 기본값을 2048 로 적었지만 구현에 적용된 적이 없다. 옛 `/llm-configs` 폼과 지금의 `/models` 폼(`ModelConfigManager`) 모두 처음부터 4096 을 기본값으로 썼다. 코드가 먼저 4096 으로 자리 잡고 스펙 표기만 낡아 있었으므로 스펙을 실제 동작에 맞췄다. 요즘 LLM 은 4096 출력 토큰을 안전하게 지원하므로 잘림을 덜 겪고 쓰기에 더 실용적이다. AI 에이전트 노드 설정 예시의 `maxTokens` 도 4096 으로 맞췄다. 노드 `maxTokens` 가 모델 설정 기본값을 이어받는 동작은 아직 없다([기본 파라미터 기본값](#기본-파라미터-기본값)).
+
+### Anthropic 에서 Temperature 입력을 잠근다 (2026-11-13)
+
+Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)). 그런데 폼은 Anthropic 에서도 Temperature 를 그대로 받아 값이 적용되는 것처럼 보였다. 세 안을 견줬다. 입력을 숨기면 사용자가 왜 없는지 모른다. 그대로 두고 안내만 달면 여전히 적용되는 것처럼 보인다. 그래서 입력을 비활성으로 두고 그 아래에 이유를 보인다. 저장된 값은 지우지 않는다. 프로바이더를 바꾸면 이전 값이 그대로 돌아오고, Anthropic 이 다시 이 값을 받게 되면 폼만 풀면 된다. 폼에 없는 top_p · frequency_penalty · presence_penalty 는 기본값 표에서 뺐다. 예전 표는 이 셋을 적었지만 폼에 입력이 생긴 적이 없다.
 
 ### 연결 테스트와 미리보기를 편집자 이상으로 막는 이유
 

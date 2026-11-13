@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 34
+version: 35
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "44490be90027b93a5f55ec20fbb96385044aeea5ed2ce6ba8c7fb8263ae96db8"
+content_hash: "ec0baf0daf72ff2dd117efb0a8a91a87f563f00df07de87dca9ef1448b44a422"
 read_as: "approved_fallback"
-task: "CLE-T-GNTWP9"
+task: "CLE-T-YFDSY7"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "083c4523b2c1a0a68eaedc2cfde7332271d84fb0a8c83e9193c2919a13190f40"
-etag: "sha256-a78fb135952a9ba7bedbc347f6f4de959a8980454c9fb3b24eecdde991b60f73"
+mirror_sha256: "1196f85cbe35c044ec81799d405bda9a95e3fac911d5707f5d4c3bd1368950b7"
+etag: "sha256-f8b0def8af11a5813e423a69ef98d1f463f6114359f4742d47c6699e0370b3eb"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -144,7 +144,7 @@ etag: "sha256-a78fb135952a9ba7bedbc347f6f4de959a8980454c9fb3b24eecdde991b60f73"
 
 제품 전체의 에러 코드 목록이다. 코드마다 그 코드를 정의하거나 발행하는 문서를 "정의 문서" 열에 적는다. 발생 조건의 상세는 정의 문서가 정하고 이 카탈로그는 제품 전체에서 코드를 찾을 수 있게 등재한다.
 
-**표의 열은 절마다 다르다.** 기본은 `코드 | HTTP | 설명 | 정의 문서` 다. §6.1 은 HTTP 열 대신 `이름` · `사용자 메시지` 열을 둔다. §6.2 는 `이름` 열을 더하고 HTTP 를 설명 뒤에 둔다. §6.4 도 HTTP 를 설명 뒤에 둔다. §6.5 ~ §6.8 에는 HTTP 열이 없다. 실행 상태나 WebSocket 으로 나가는 코드이기 때문이다. HTTP 로도 나가는 행은 설명에 상태 코드를 적는다(§6.7 의 `SERVER_SHUTTING_DOWN` · `EXECUTION_ENQUEUE_FAILED`). 더하는 열은 §6.5 첫 표의 `앵커`, §6.6 의 `부류`, §6.9 의 `비고`, §6.10 의 `상태` 다. §6.13 은 세부 코드(`details.code`)를 행으로 두고 봉투 `code` 와 HTTP 를 한 열에 적는다.
+**표의 열은 절마다 다르다.** 기본은 `코드 | HTTP | 설명 | 정의 문서` 다. §6.1 은 HTTP 열 대신 `이름` · `사용자 메시지` 열을 둔다. §6.2 는 `이름` 열을 더하고 HTTP 를 설명 뒤에 둔다. §6.4 도 HTTP 를 설명 뒤에 둔다. §6.5 ~ §6.8 에는 HTTP 열이 없다. 실행 상태나 WebSocket 으로 나가는 코드이기 때문이다. §6.25 도 SSE 이벤트로 나가는 코드라 HTTP 열이 없다. HTTP 로도 나가는 행은 설명에 상태 코드를 적는다(§6.7 의 `SERVER_SHUTTING_DOWN` · `EXECUTION_ENQUEUE_FAILED`). 더하는 열은 §6.5 첫 표의 `앵커`, §6.6 의 `부류`, §6.9 의 `비고`, §6.10 의 `상태` 다. §6.13 은 세부 코드(`details.code`)를 행으로 두고 봉투 `code` 와 HTTP 를 한 열에 적는다.
 
 **같은 뜻을 표면마다 다른 코드로 적는다.** 상태 불일치는 REST 핵심 API 가 `INVALID_STATE`(422), WebSocket 이 `INVALID_EXECUTION_STATE`, EIA REST `/interact` 가 `STATE_MISMATCH`(409)다. 메시지 길이 초과도 WebSocket 은 `EXECUTION_MESSAGE_TOO_LONG`, EIA REST 는 `MESSAGE_TOO_LONG` 이다. 라우팅 분기를 드러내려고 일부러 나눴다([큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 의 「WS 코드와 EIA 코드는 경로마다 다르게 쓴다」 Rationale).
 
@@ -462,7 +462,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 |------|--------|------|-----------|
 | `LLM_RATE_LIMIT` | 429 (프로바이더 응답) | 프로바이더 속도 제한. `chat` 은 지수 백오프로 최대 3회 다시 시도한다(`withRetry`). `chatStream` 은 앱 수준 재시도를 거치지 않는다. 스트림을 열 때의 프로바이더별 분기는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_CONNECTION_ERROR` | 없음 | 위에 해당하지 않는 모든 클라이언트 호출 실패의 기본값(인증 실패, 모델 없음, 컨텍스트 초과 포함). 스트림을 열 때의 프로바이더별 분기는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
-| `LLM_OUTPUT_MALFORMED` | 없음 | gpt-oss 계열 harmony 제어 토큰 노출(OpenAI 스트리밍 경로). 사용자에게는 안내문으로 바꿔 보인다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_OUTPUT_MALFORMED` | 없음 | gpt-oss 계열 harmony 제어 토큰 노출(OpenAI 스트리밍 경로). `message` 는 고정 영문 진단 문장이다. 사용자에게 보일 문구는 호출하는 쪽이 코드로 고른다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_CREDENTIALS_REQUIRED` | 400 | 미리보기 요청에서 local 이 아닌 프로바이더의 apiKey 누락 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_MODEL_LIST_FAILED` | 400 | 미리보기나 `:id/models` 호출 중 프로바이더 응답 실패. 정리한 메시지를 보인다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_STREAMING_UNSUPPORTED` | 없음 | 스트리밍을 지원하지 않는 프로바이더에 `stream()` 호출 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
@@ -635,10 +635,24 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `EXECUTION_NOT_FOUND` | 404 | 실행이 없거나 그 워크플로우가 요청자의 워크스페이스에 없음. EIA REST 도 같은 404 를 쓴다(§6.9 표 아래). 트리거 단위 토큰 경로의 401 은 §6.9 행이다 | [Background 노드 「API 에러 코드」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#api-에러-코드) |
 | `BACKGROUND_RUN_NOT_FOUND` | 404 | `backgroundRunId` 가 그 실행에 없음 | [Background 노드 「API 에러 코드」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#api-에러-코드) |
 
+### 6.25 AI 어시스턴트 스트림 (도메인 문서 참조)
+
+어시스턴트 메시지 스트림(`POST /api/workflow-assistant/sessions/{id}/messages`)의 SSE `error` 이벤트가 내는 코드다. 이벤트 데이터는 `{code, message}` 이고 HTTP 에러 응답 봉투가 아니다([AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md#sse-이벤트)). `message` 는 코드별 고정 영문이고 화면 문구는 프론트엔드가 코드로 고른다. 같은 API 의 세션 REST 코드는 §6.19 다.
+
+| 코드 | 설명 | 정의 문서 |
+|------|------|-----------|
+| `ASSISTANT_NO_LLM_CONFIG` | 쓸 모델 설정이 없음. 지정한 설정이 없는데 워크스페이스 기본 설정도 없거나, 지정한 설정을 찾지 못해 기본 설정으로 대신하려 했는데 기본 설정도 없음. 기본 설정이 있으면 에러 없이 대신하고 `config_fallback` 이벤트로 알린다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) |
+| `ASSISTANT_STREAM_FAILED` | 스트림을 열기 전 실패(OpenAI 계열의 429 · SDK 요청 타임아웃 포함), 모델 설정 조회 실패(DB 장애 등), 턴 처리 중 서비스 내부 실패. 원인을 나누지 않는다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) |
+| `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 LLM 호출 라운드 상한이나 도구 호출 예산을 넘음. `message` 에 한도 숫자가 들어간다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#어시스턴트-도구-호출-한도) |
+
+LLM 클라이언트 스트림의 `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`(§6.17)도 같은 이벤트에 코드 그대로 실린다. 다만 `message` 는 클라이언트의 진단 문구가 아니라 어시스턴트의 코드별 고정 영문이다. 정의는 §6.17 행이라 이 표에 다시 두지 않는다. 스트리밍을 지원하지 않는 프로바이더의 `LLM_STREAMING_UNSUPPORTED`(§6.17)도 그대로 넘기기로 정했지만 아직 구현하지 않았다(미구현, NERV Task `CLE-T-EK4DMX`). 지금은 `ASSISTANT_STREAM_FAILED` 로 나가고, 다섯 프로바이더가 모두 스트리밍을 지원해 발동 경로는 없다.
+
+편집 도구 실패는 에러 코드가 아니다. `tool_call` 이벤트의 `result.ok: false` 로 오고 턴은 이어진다. 설계 단계에 있던 `ASSISTANT_TOOL_FAILED` · `ASSISTANT_LLM_CONFIG_INVALID` · `ASSISTANT_STREAMING_UNSUPPORTED` 는 발행된 적이 없어 등재하지 않는다(규칙 9).
+
 ## 미결 사항
 
 - **발행처가 없는 등재 코드**: `DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. `INTERACTION_TIMEOUT`(§6.7)도 `error-codes.ts` 에 정의만 있고 발행처가 없다(2026-11-12 grep 0건). [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 재개 명령 에러 표에도 있어 함께 정한다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
-- **발행하는데 행이 없는 어시스턴트 스트림 코드**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 스트림 `error` 이벤트는 `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `ASSISTANT_STREAM_FAILED` 를 내는데 이 카탈로그에 행이 없다(규칙 8). §6.19 는 세션 REST 코드만 싣는다. 어시스턴트 코드의 등재는 NERV Task `CLE-T-YFDSY7` 이 한다. `CLE-T-5BZ3M2` 는 통합 · MCP · Background Runs 코드를 도메인 참조 절(§6.21~6.24)로 등재했다. 이 코드들에는 규칙과 맞지 않는 점이 두 가지 있다. 규칙 4 와는 같은 429 와 SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가는 점이 어긋난다(429 는 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED`). 규칙 6 과는 `ASSISTANT_STREAM_FAILED` 한 코드가 429 · SDK 타임아웃 · 서비스 내부 실패를 함께 담는 점이 어긋난다. 프로바이더 분기를 통일할지는 NERV Task `CLE-T-0R5SYN` 이 정한다.
+- **어시스턴트 스트림 코드의 프로바이더 분기**: §6.25 의 코드에는 규칙과 맞지 않는 점이 두 가지 있다. 규칙 4 와는 같은 429 와 SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가는 점이 어긋난다(429 는 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED`). 규칙 6 과는 `ASSISTANT_STREAM_FAILED` 한 코드가 429 · SDK 타임아웃 · 모델 설정 조회 실패 · 서비스 내부 실패를 함께 담는 점이 어긋난다. 프로바이더 분기를 통일할지는 NERV Task `CLE-T-0R5SYN` 이 정한다.
 - **발행 중인데 등재되지 않은 Passkey 코드**: 백엔드는 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_NOT_REGISTERED` 를 발행한다. 그런데 §6.3 과 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 에러 코드 표에 없다(규칙 8). NERV Task `CLE-T-9KCQ7Y` 가 Passkey 등록 저장의 원자성과 함께 등재한다. 같은 처지였던 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 2026-11-12 에 등재했다(NERV Task `CLE-T-3P4ENZ`).
 - **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
 - **`LLM_TIMEOUT` 의 등재**: 2026-10-10 에 LLM 타임아웃을 이 코드로 내지 않기로 정했고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 약속도 거뒀다(§6.6). 남은 것은 `HTTP_TIMEOUT` 처럼 enum 에 남길지, 규칙 9 에 따라 등재를 지울지다. 정리는 NERV Task `CLE-T-8WXV7T` 가 다른 미발행 코드와 함께 한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 예시와 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 분류 표의 행도 그때 함께 정리한다.
@@ -1044,3 +1058,13 @@ NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 이름은 `_NOT_FOUND` 인�
 ### 봇 토큰 재발급 실패 코드와 공개 웹훅 범위를 도메인 문서에 맞췄다 (2026-11-13)
 
 NERV Task `CLE-T-GNTWP9` 에서 도메인 문서와 어긋난 행을 맞췄다. §6.15 에 더한 403 세 행과 500 행은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 「봇 토큰 재발급 API」 의 에러 표를 옮겼다. §5 `WORKSPACE_REQUIRED` 행의 단서는 같은 문서 「R-CC-18 rotate-bot-token 의 워크스페이스 검증은 공용 데코레이터로 한다」 Rationale 의 2026-11-12 정정을 따른다. `INTERNAL_ERROR` 에 더한 문장은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25 · 27 이 거부 전용 코드 없이 일반 500 으로 보낸다고 정한 데서 왔다. 이 거부는 예상된 경우라 「예상하지 못한 서버 에러」 라는 설명만으로는 맞지 않았다. 공개 웹훅 정의와 `PAYLOAD_TOO_LARGE`(요청 본문) 행은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 에 맞췄다. 웹훅 문서는 사람 결정(2026-11-12)에 따라 공개 웹훅 한도에서 채팅 채널 트리거를 뺐다. §6.10 의 분당 · 시간당 한도와 본문 크기 행에 같은 범위를 적었다. 이 제외는 NERV Task `CLE-T-QKJ2TZ`(#1692)가 `PublicWebhookThrottleGuard` 에 구현했으므로 세 행의 상태는 «구현» 그대로 둔다. §6.4 `WORKSPACE_ID_REQUIRED` 행에는 경로로 워크스페이스를 받지 않는 `@Roles()` 라우트가 이 코드 대신 `403 FORBIDDEN` 을 낸다는 단서를 더했다([워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사)).
+
+### 어시스턴트 스트림 코드를 도메인 참조 절 6.25 로 등재했다 (2026-11-13)
+
+NERV Task `CLE-T-YFDSY7` 이다. 어시스턴트 메시지 스트림의 SSE `error` 이벤트는 `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_STREAM_FAILED` · `ASSISTANT_TOO_MANY_TOOL_CALLS` 를 내는데 이 카탈로그에 행이 없었다(규칙 8). §6.21~6.24 를 더한 2026-11-05 결정의 구조를 따랐다.
+
+- **§6.1~6.24 는 그대로 두고 §6.25 를 더했다.** §6.19 에 합치는 안은 택하지 않았다. §6.19 의 코드는 HTTP 에러 응답으로, §6.25 의 코드는 SSE 이벤트로 나가 나가는 곳이 다르다. 번호를 다시 매기면 절 앵커와 링크가 깨진다.
+- **LLM 클라이언트 코드는 행을 두 번 두지 않았다.** 스트림이 그대로 넘기는 세 코드의 정의는 §6.17 행이다. §6.25 는 넘긴다는 사실과 `message` 가 바뀐다는 점만 적는다.
+- **발행된 적 없는 세 코드는 등재하지 않았다(규칙 9).** `ASSISTANT_LLM_CONFIG_INVALID` 자리는 기본 설정으로 대신하고 `config_fallback` 이벤트로 알리는 동작이 맡는다(사람 결정, 2026-11-13. 구현은 NERV Task `CLE-T-1K2BM4`). `ASSISTANT_STREAMING_UNSUPPORTED` 자리는 LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 그대로 넘기는 것으로 정했다(사람 결정, 2026-11-13). 같은 뜻의 코드를 하나 더 두지 않기 위해서다. `ASSISTANT_TOOL_FAILED` 는 편집 도구 실패가 `tool_call` 결과로 오므로 코드가 아니다.
+- 「발행하는데 행이 없는 어시스턴트 스트림 코드」 미결은 이 등재로 닫혀 지웠다. 규칙 4 · 6 과 어긋나는 프로바이더 분기는 미결로 남긴다.
+- §6.17 `LLM_OUTPUT_MALFORMED` 행의 «사용자에게는 안내문으로 바꿔 보인다» 는 NERV Task `CLE-T-V73FFA` 에서 고쳤다. LLM 클라이언트는 이제 사용자 문구를 정하지 않고 고정 영문 진단 문장만 싣는다([LLM 클라이언트 「스트림 오류 `message` 는 진단용으로 둔다」](../CLE-AI/CLE-AI-LLM.md#스트림-오류-message-는-진단용으로-둔다-2026-11-13)).

@@ -2,19 +2,19 @@
 id: "CLE-AI-MEMORY"
 title: "에이전트 메모리"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-MEMORY-001", "REQ-MEMORY-002", "REQ-MEMORY-003", "REQ-MEMORY-004", "REQ-MEMORY-005", "REQ-MEMORY-006", "REQ-MEMORY-007", "REQ-MEMORY-008", "REQ-MEMORY-009", "REQ-MEMORY-010", "REQ-MEMORY-011", "REQ-MEMORY-012", "REQ-MEMORY-013", "REQ-MEMORY-014", "REQ-MEMORY-015", "REQ-MEMORY-016", "REQ-MEMORY-017", "REQ-MEMORY-018", "REQ-MEMORY-019", "REQ-MEMORY-020", "REQ-MEMORY-021", "REQ-MEMORY-022", "REQ-MEMORY-023", "REQ-MEMORY-024", "REQ-MEMORY-025", "REQ-MEMORY-026", "REQ-MEMORY-027", "REQ-MEMORY-028", "REQ-MEMORY-029", "REQ-MEMORY-030", "REQ-MEMORY-031", "REQ-MEMORY-032", "REQ-MEMORY-033", "REQ-MEMORY-034", "REQ-MEMORY-035", "REQ-MEMORY-036", "REQ-MEMORY-037", "REQ-MEMORY-038", "REQ-MEMORY-039", "REQ-MEMORY-040", "REQ-MEMORY-041", "REQ-MEMORY-042", "REQ-MEMORY-043", "REQ-MEMORY-044", "REQ-MEMORY-045", "REQ-MEMORY-046", "REQ-MEMORY-047", "REQ-MEMORY-048", "REQ-MEMORY-049", "REQ-MEMORY-050", "REQ-MEMORY-051", "REQ-MEMORY-052", "REQ-MEMORY-053"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "cb504fd5261a3a45f933c62c2ac7641a1a0974a167b71bbb671460bf3746f2a2"
+content_hash: "398bcb9def1131ab4ac9c6dc4c330f07848e465d0271b80ab7239dfd9516e189"
 read_as: "approved_fallback"
-task: "CLE-T-GKZPKY"
+task: "CLE-T-7KYH1X"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/16-agent-memory.md", "spec/2-navigation/_product-overview.md", "spec/5-system/17-agent-memory.md", "spec/5-system/_product-overview.md", "spec/data-flow/13-agent-memory.md"]
-mirror_sha256: "8bb66e06c92c4988d56a968ce193d135d9887fad5b878706e23208be45c7be94"
-etag: "sha256-10848abcd1fcc49fe39035ff0c431ccd205532db651a0d2840108d92b168677c"
+mirror_sha256: "0c9419238cb4b241eb1bd731be5b8dadd01fff82e04fb42ec64019ceca03f5a4"
+etag: "sha256-64b3f526fd9c8b8af88901d60665210017aeab5c588a2a660a269cb3b3a3ad2a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/17-agent-memory.md`, `spec/2-navigation/16-agent-memory.md`, `spec/data-flow/13-agent-memory.md`, `spec/1-data-model.md` (§2.23), `spec/5-system/_product-overview.md` (§8), `spec/2-navigation/_product-overview.md` (§3.13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -155,7 +155,7 @@ etag: "sha256-10848abcd1fcc49fe39035ff0c431ccd205532db651a0d2840108d92b168677c"
 - **응답 경로 비차단**: 핸들러는 큐에 넣기까지만 기다린다. 추출 LLM 호출은 worker 에서 하므로 사용자는 추출이 끝나기를 기다리지 않는다. 회수만 동기이고 추출은 비동기다.
 - **스냅샷 격리**: 기존 `scheduleBackgroundBody` 계열 백그라운드 처리 방식을 따른다. 대화 기록 항목 스냅샷을 shallow-copy 로 떼어 넘기므로 뒤이은 메인 루프의 변경이 백그라운드 작업에 스며들지 않는다.
 - **추출 LLM**: 노드 설정 `extractionModelConfigId` 가 가리키는 Chat 모델 설정을 쓴다. 지정하면 그 설정의 프로바이더·자격 증명·기본 모델로 부르므로 노드의 메인 LLM 과 독립이다(다른 프로바이더의 저렴한 모델도 된다). 지정하지 않으면 노드 `llmConfigId` 설정(없으면 워크스페이스 기본 Chat 설정)과 노드 `model`(없으면 그 설정의 기본 모델)을 쓴다. 폴백 순서는 `extractionModelConfigId` 설정 → `llmConfigId` → `model` → `llmConfig.defaultModel` 이다. 추출은 메인 추론보다 단순해서 저렴한 설정을 지정하면 비용을 줄일 수 있다. 필드 결정 이력은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다.
-- **추출 호출**: worker 는 `buildExtractionTranscript(turns)` 로 user·assistant 항목만 남기고(system·tool 제외) `EXTRACTION_SYSTEM_PROMPT` 와 함께 `LlmService.chat` 을 temperature 0, JSON 응답으로 부른다. 이 호출은 사용량을 쌓고 사용량 귀속은 비운다([LLM 사용량 기록](CLE-AI-USAGE.md)).
+- **추출 호출**: worker 는 `buildExtractionTranscript(turns)` 로 user·assistant 항목만 남기고(system·tool 제외) `EXTRACTION_SYSTEM_PROMPT` 와 함께 `LlmService.chat` 을 temperature 0, JSON 응답으로 부른다. 추출 모델이 Anthropic 이면 temperature 를 보내지 않으므로 프로바이더 기본값으로 동작한다([LLM 클라이언트 「Anthropic 에 샘플링 파라미터를 보내지 않는다」](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)). 이 호출은 사용량을 쌓고 사용량 귀속은 비운다([LLM 사용량 기록](CLE-AI-USAGE.md)).
 - **임베딩 설정**: 저장 임베딩과 회수 임베딩은 반드시 같은 설정(같은 모델·차원·엔드포인트)을 써야 한다. 다르면 cosine 검색이 무의미해지거나 400 에러가 난다. 어느 모델 설정을 쓰는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 - **저장 형태**: 추출한 사실·선호 하나를 `content` 로, 그 임베딩을 `LlmService.embed`(`inputType='document'`)로 만들어 메모리 범위 키와 함께 저장한다. 메모리 종류는 `metadata.kind` 로 나눈다. 지식 저장소와 같은 `LlmService.embed` 경로를 쓴다.
 - **지시문 저장 차단**: 저장(`saveMemories`) 전에 명백한 지시문 패턴에 걸리는 항목은 저장하지 않고 버린다(경고 로그). 패턴은 결정적 정규식 목록이다(예: ignore/disregard previous, you are now, system prompt, new instructions:, "이전 지시 무시"). 악의적 사용자가 대화에 심은 지시가 메모리로 굳는 것을 1차로 막는다. 명백한 패턴만 걸러 정상 사실·선호를 잘못 막는 일을 줄인다. 주 방어는 회수 주입 시점의 메모리 주입 경계이고 이 필터는 보조다.
@@ -180,7 +180,7 @@ sequenceDiagram
   Svc->>Q: add(extract, payload + enqueueNonce, jobId 고정)
   Svc-->>H: 수락 여부 (수락됐을 때만 추출 기준점 전진)
   Q-->>P: 작업 전달 (concurrency 2)
-  P->>Lc: 추출 프롬프트 + 대화 기록 (temperature 0, JSON)
+  P->>Lc: 추출 프롬프트 + 대화 기록 (temperature 0 · Anthropic 제외, JSON)
   Lc-->>P: [{ content, kind }]
   P->>Svc: saveMemories(항목, ttlDays)
   Svc->>Svc: 지시문 패턴 필터

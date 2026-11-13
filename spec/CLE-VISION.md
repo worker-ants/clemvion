@@ -2,19 +2,19 @@
 id: "CLE-VISION"
 title: "Clemvion 제품 개요"
 type: "vision"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: null
 ancestors: []
 area: null
-content_hash: "8cc0a5419118491aeec7b5ba7563c4d8ac4496b754efe209a00f512a2c864fd1"
+content_hash: "30e313181ddeea94d7166e5bf9bd2ed90b870b872fdba11c091c37428cb263d7"
 read_as: "approved_fallback"
-task: "CLE-T-B4WH9N"
+task: "CLE-T-YFDSY7"
 source_paths: ["spec/0-overview.md"]
-mirror_sha256: "83e054b7c976818687773c11af1c567edeaeaca379f53483191419663e82ff88"
-etag: "sha256-f9683f6f60b26b9fd4ec2e287b3157ee83c01814d86156a924568bfe75545d91"
+mirror_sha256: "739de1cc8a9d96fd7ffe4072ef75f8ad12a607c459ec825fa83d5c9aeadbb909"
+etag: "sha256-5ae3065f95bc921903dbf45ffb95422ad6247624032294829fbde114dc7b0f19"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (Overview §1~§8, §4 영역별 진입 문서) · 용어: [용어 사전](CLE-GLOSSARY.md)
 
@@ -79,7 +79,7 @@ Clemvion 은 AI 에이전트와 노코드 워크플로우 빌더를 합친 실�
 | 워크플로우 에디터 | 캔버스 노드 편집, 연결선, 실행과 디버깅, 버전 기록 | [워크플로우 에디터와 캔버스](CLE-WF/CLE-WF-EDITOR.md) |
 | 노드 시스템 | 트리거(수동 트리거), Logic(If/Else·Switch·Loop·ForEach·Map·Filter·Split·Merge·Parallel·Background·변수 선언·변수 수정), Flow(워크플로우 호출), AI(AI 에이전트·텍스트 분류기·정보 추출기), 통합(HTTP Request·Database Query·Send Email·Cafe24·MakeShop), Data(Transform·Code), Presentation(Carousel·Chart·Form·Table·Template). Parallel 은 기본 켜짐(`PARALLEL_ENGINE=v1`)이고 끌 때는 `PARALLEL_ENGINE=off` 를 쓴다 | [노드 시스템 구조와 카탈로그](CLE-NODE/CLE-NODE-ARCH.md), [Parallel 노드](CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) |
 | AI 플랫폼 | 모델 설정(채팅·임베딩·리랭크를 한 엔티티로 관리. 프로바이더 OpenAI·Anthropic·Google·Azure OpenAI·로컬 Ollama·vLLM 다섯 모두 스트리밍 지원), 지식 저장소(문서 업로드·임베딩·RAG 검색), Graph RAG(지식 저장소 검색 모드 선택, 엔티티·관계 자동 추출, Hybrid 검색, 엔티티·관계 목록과 삭제, 3D 그래프 시각화), 리랭킹(지식 저장소 단위 검색 후처리. cross-encoder, cross-encoder + LLM 채점. 리랭커 프로바이더 TEI·Cohere) | [모델 설정](CLE-AI/CLE-AI-MODELS.md), [지식 저장소 관리](CLE-KB/CLE-KB-MANAGE.md), [Graph RAG](CLE-KB/CLE-KB-GRAPH.md), [RAG 검색](CLE-KB/CLE-KB-SEARCH.md) |
-| 워크플로우 AI 어시스턴트 | 에디터 안 채팅형 AI 가 자연어 요청으로 노드와 연결선을 구성한다. Clarify → Plan → Execute 3단계 대화, SSE 스트리밍, 세션 유지 | [워크플로우 AI 어시스턴트](CLE-WF/CLE-WF-ASSIST.md) |
+| 워크플로우 AI 어시스턴트 | 에디터 안 채팅형 AI 가 자연어 요청으로 노드와 연결선을 구성한다. Clarify → Plan → Execute 3단계 대화, SSE 스트리밍, 세션 유지. 실행 중인 워크플로우의 편집 거부(REQ-ASSIST-028) 같은 미구현 요구사항은 기준 문서에 따로 표시한다 | [워크플로우 AI 어시스턴트](CLE-WF/CLE-WF-ASSIST.md) |
 | 팀 워크스페이스와 역할 | 개인·팀 워크스페이스, 멤버 역할, 워크스페이스 전환, 멤버 초대·역할 변경·소유자 이양. 가입하면 개인 워크스페이스가 자동으로 생기고, 서버가 `X-Workspace-Id` 를 자동으로 맞춘다 | [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | 워크스페이스 단위 통합 공유 | 통합은 워크스페이스 단위로 격리되고 팀 멤버끼리 공유한다. 모든 통합 API 가 현재 워크스페이스로 범위를 좁힌다. 통합 쓰기(생성·별칭 수정·자격 증명 교체·통합 재인증·추가 권한 요청)는 라우트 가드가 편집자 이상으로 막는다(NAV-IN-07). 조직 통합의 변경은 관리자 이상이다. 뷰어는 자기 개인 통합을 보고 지우는 것만 할 수 있다. 개인 통합은 통합 소유자가 작성한 워크플로우의 노드에서만 쓴다. 공개 범위별 세부 권한과 노드 사용 판정은 기준 문서가 정한다. 여러 워크스페이스를 가로지르는 조직 수준 공유는 로드맵에 있다 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md), [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) |
 | Cafe24 통합 | `cafe24` 단일 노드(18개 리소스 메타데이터 기반 Resource × Operation, 485 endpoint), AI 에이전트 내부 MCP 브리지로 양방향 노출, Public·Private 앱 OAuth, Cafe24 Developers "테스트 실행"·"앱으로 가기" App URL 흐름, 누수 버킷 요청 빈도 제한, BullMQ 기반 인스턴스 사이 토큰 갱신 직렬화, 7일 임계 + 6시간 주기 백그라운드 갱신(리프레시 토큰 14일 만료 전 자동 갱신). 도구 수가 AI 에이전트 도구 수 한도(`AI_AGENT_TOOL_COUNT_MAX`, 기본 128)를 늘 넘으므로 에이전트에 연결할 때 `enabledTools` 허용 목록이 사실상 필요하다 | [Cafe24 노드](CLE-NODE-INT/CLE-NODE-CAFE24.md), [AI 에이전트 노드](CLE-NODE-AI/CLE-NODE-AGENT.md) |
@@ -158,3 +158,7 @@ Cafe24 와 MakeShop 통합은 노드·OAuth·요청 빈도 제한·토큰 갱신
 ### 구현 현황을 스펙 상태에 맞춘 이유
 
 옛 구현 현황 표는 Parallel 노드를 구현 완료 목록과 부분 구현 목록에 함께 두었다. Parallel 노드 스펙은 구현 완료이고 기본으로 켜져 있어, 구현 완료로만 둔다. 옛 표에는 에이전트 메모리·재실행·MCP 클라이언트(구현 완료)와 채팅 채널·External Interaction API(부분 구현)가 빠져 있어 이 기능들이 없는 것처럼 읽혔다. 각 스펙의 상태를 기준으로 행을 더했다. 앞으로도 영역 문서의 구현 상태가 기준이고, 이 표는 요약이다.
+
+### 워크플로우 AI 어시스턴트를 구현 완료에 두는 이유 (2026-11-13)
+
+[워크플로우 AI 어시스턴트](CLE-WF/CLE-WF-ASSIST.md) 의 머리 줄은 «구현됨 (요구사항에 미구현 · 부분 구현으로 표시한 항목 제외)» 이다. 대화 · 계획 · 편집 · 스트리밍 · 세션이라는 영역의 본체는 구현됐다. 남은 것은 실행 중인 워크플로우의 편집 거부(REQ-ASSIST-028)처럼 요구사항 단위로 표시한 항목이다. 이 표는 영역 단위 요약이라 어시스턴트를 구현 완료에 둔다. 영역 안의 미구현은 기준 문서의 요구사항 표시가 정본이고, 표의 행에는 그런 항목이 있다는 사실만 적는다.

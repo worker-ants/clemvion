@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS"
 title: "AI 어시스턴트 도구"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "5219127d90b776d94884d47774d1cf12e4d58a0c8cf7a138e26e0ee8b4303558"
+content_hash: "04dbb60b2edbb4065902a2430f348949d54ebb1d460196b7e9f0e9c1fb409a9f"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-YFDSY7"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md"]
-mirror_sha256: "a6caef6d6ff08c06d4861a7687cf66811222c538c22a54f0ab5f8449a59757dd"
-etag: "sha256-49a7fc0275b6be0672b85b3081f9e7d07c6d75e4ce5b91d8ab155fdacd89d4a7"
+mirror_sha256: "c86ff16d2c227bde99b1a0f887c976ec24cd81170b3185422e3cefea9f9eca61"
+etag: "sha256-b52731f9d632286c8ac425f4d31adf03846ad70f5e5e4f1f4409ca262b2b9fad"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -303,7 +303,7 @@ interface CandidateEntry {
 
 ## 런타임 포트 목록
 
-`add_node`·`update_node` 성공 응답에는 그 노드의 런타임 포트 목록이 붙는다. 동적 포트 노드(Carousel 버튼, Switch 케이스, AI 에이전트 조건 등)는 현재 `config` 로 해석한 실제 포트 ID 까지 담는다. 그래서 LLM 은 `get_node_schema` 를 따로 부르지 않고 다음 `add_edge` 의 `source_port`·`target_port` 를 채울 수 있다. 잘못된 포트로 먼저 보내고 `PORT_NOT_FOUND` 를 받아 한 라운드를 더 쓰는 패턴이 구조적으로 사라진다(ED-AI-40).
+`add_node`·`update_node` 성공 응답에는 그 노드의 런타임 포트 목록이 붙는다. 동적 포트 노드(Carousel 버튼, Switch 케이스, AI 에이전트 조건 등)는 현재 `config` 로 해석한 실제 포트 ID 까지 담는다. 그래서 LLM 은 `get_node_schema` 를 따로 부르지 않고 다음 `add_edge` 의 `source_port`·`target_port` 를 채울 수 있다. 잘못된 포트로 먼저 보내고 `PORT_NOT_FOUND` 를 받아 한 라운드를 더 쓰는 패턴이 구조적으로 사라진다(REQ-ASSIST-034).
 
 ```typescript
 interface RuntimePorts {
@@ -424,7 +424,7 @@ LLM 이 자유 텍스트로 채운 값(라벨, `attemptedType`)을 힌트나 에
 
 ## 미결 사항
 
-- **Background 본문 실행 조회 도구**: [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md)는 AI 어시스턴트가 `get_background_run(executionId, backgroundRunId)`·`list_background_runs(executionId)` 로 Background 본문 실행을 조회할 수 있고 도구 상세는 이 문서에서 정한다고 적는다. 이 문서의 탐색 도구 목록과 요구사항(ED-AI-35 의 "도구 2종")에는 두 도구가 없다. 현재 구현의 `TOOL_KIND_BY_NAME` 에도 없다. Background 문서는 이 요구를 미구현으로 표시하고 같은 문제를 [Background 노드 §미결 사항](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#미결-사항)에 적는다. 도입하면 두 도구를 [탐색 도구](#탐색-도구) 절에 정의한다. 도입할지, Background 쪽 서술을 계획으로 내릴지 결정 필요.
+- **Background 본문 실행 조회 도구**: [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md)는 AI 어시스턴트가 `get_background_run(executionId, backgroundRunId)`·`list_background_runs(executionId)` 로 Background 본문 실행을 조회할 수 있고 도구 상세는 이 문서에서 정한다고 적는다. 이 문서의 탐색 도구 목록과 요구사항(REQ-ASSIST-052)에는 두 도구가 없다. 현재 구현의 `TOOL_KIND_BY_NAME` 에도 없다. Background 문서는 이 요구를 미구현으로 표시하고 같은 문제를 [Background 노드 §미결 사항](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#미결-사항)에 적는다. 도입하면 두 도구를 [탐색 도구](#탐색-도구) 절에 정의한다. 도입할지, Background 쪽 서술을 계획으로 내릴지 결정 필요.
 
 ## 구현 위치
 
@@ -486,7 +486,7 @@ LLM 이 `update_node`·`remove_node`·`add_edge` 의 `id`·`source_id`·`target_
 
 회귀 테스트는 `shadow-workflow.spec.ts` 의 `NODE_NOT_FOUND label-lookalike hint` 묶음(도구·source·target 별 힌트, 양쪽 라벨이면 source 힌트 하나, 공백 ID 는 힌트 없음, FIFO 가 비었을 때의 대체, FIFO 가 있을 때의 우선순위, 개행·`<script>` sanitize)과 `system-prompt.spec.ts` "teaches that tool-argument id slots need UUIDs, never node labels" 다.
 
-### 런타임 포트 목록 반환 (ED-AI-40)
+### 런타임 포트 목록 반환 (REQ-ASSIST-034)
 
 `add_node` 직후 `add_edge` 가 두 패턴으로 자주 실패했다.
 
