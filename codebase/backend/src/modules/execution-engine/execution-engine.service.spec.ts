@@ -83,6 +83,10 @@ import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
+import {
+  StuckExecutionRecoveryService,
+  type StuckRecoveryEnginePort,
+} from './recovery/stuck-execution-recovery.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
@@ -118,13 +122,6 @@ function flushPromises(): Promise<void> {
 function flushResumeDrive(ms = 200): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-// 부팅 스캔의 stale 임계(서비스 private 상수). 테스트가 숫자를 복제하지 않고 서비스 값을 읽는다.
-const STALE_MS = (
-  ExecutionEngineService as unknown as { STUCK_RECOVERY_STALE_MS: number }
-).STUCK_RECOVERY_STALE_MS;
-// 임계 시각 비교의 시계 허용 오차(테스트 실행 중 흐른 시간).
-const CLOCK_TOLERANCE_MS = 5_000;
 
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
@@ -467,6 +464,7 @@ describe('ExecutionEngineService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        StuckExecutionRecoveryService,
         AiTurnOrchestrator,
         // C-1 step3 — 엔진이 forwardRef 로 위임하는 추출 서비스 (DI 필수).
         FormInteractionService,
@@ -1708,397 +1706,114 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // PR3 (§7.1/§7.2 point3/§7.5 case B, 2026-07-04) — recoverStuckExecutions 가
-  // stale RUNNING 을 "일괄 FAILED 마킹" 이 아니라 "started_at 원자 re-claim + case B
-  // rehydration 재구동" 으로 전환됐다. 아래는 그 전환 + 회귀 가드.
-  describe('recoverStuckExecutions (PR3 — 크래시 re-drive)', () => {
-    let updateExecuted: jest.Mock;
-    let returning: jest.Mock;
-    let andWhere: jest.Mock;
-    let where: jest.Mock;
-    let setMethod: jest.Mock;
-    let update: jest.Mock;
+  // CLE-T-S03WEV — 부팅 복구 스캔은 StuckExecutionRecoveryService 로 옮겼다(스캔 자체의 테스트는
+  // recovery/stuck-execution-recovery.service.spec.ts). 여기서는 엔진이 부팅 훅 · e2e 트리거에서
+  // 그 서비스를 부르고, 재구동 · 세그먼트 기록 · 대기 초과 취소를 엔진 자신의 메서드로 넘기는지 본다.
+  describe('부팅 복구 스캔 위임 (CLE-T-S03WEV)', () => {
     let mockBus: { acquireLock: jest.Mock; releaseLock: jest.Mock };
-    let redriveSpy: jest.SpyInstance;
-    let segStartSpy: jest.SpyInstance;
+    let recovery: StuckExecutionRecoveryService;
+    let scanSpy: jest.SpyInstance;
 
     beforeEach(() => {
-      // reclaimStuckRunningExecution 의 UPDATE … RETURNING id — 기본 2건 재점유.
-      updateExecuted = jest
-        .fn()
-        .mockResolvedValue({ affected: 2, raw: [{ id: 'e1' }, { id: 'e2' }] });
-      returning = jest.fn().mockReturnValue({ execute: updateExecuted });
-      andWhere = jest.fn().mockReturnValue({ returning });
-      where = jest.fn().mockReturnValue({ andWhere });
-      setMethod = jest.fn().mockReturnValue({ where });
-      update = jest.fn().mockReturnValue({ set: setMethod });
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue({
-        update,
-      });
       mockBus = (service as unknown as { continuationBus: typeof mockBus })
         .continuationBus;
-      mockBus.acquireLock.mockResolvedValue(true);
+      mockBus.acquireLock.mockResolvedValue(false);
       mockBus.releaseLock.mockResolvedValue(true);
-      // re-drive 는 fire-and-forget 그래프 실행 — 스텁으로 격리해 re-claim/트리거만 검증.
-      redriveSpy = jest
-        .spyOn(
-          service as unknown as {
-            redriveStuckExecution: (id: string) => Promise<void>;
-          },
-          'redriveStuckExecution',
-        )
-        .mockResolvedValue(undefined);
-      segStartSpy = jest
-        .spyOn(
-          service as unknown as {
-            recordRunningSegmentStart: (id: string) => void;
-          },
-          'recordRunningSegmentStart',
-        )
-        .mockImplementation(() => {});
+      recovery = (
+        service as unknown as { stuckRecovery: StuckExecutionRecoveryService }
+      ).stuckRecovery;
+      scanSpy = jest.spyOn(recovery, 'recoverStuckExecutions');
     });
 
-    afterEach(() => {
-      redriveSpy.mockRestore();
-      segStartSpy.mockRestore();
-    });
-
-    it('stale (>30분) RUNNING 을 started_at 원자 re-claim 하고 각 row 를 re-drive 한다 (FAILED 마킹 안 함)', async () => {
-      const before = Date.now();
-      await (
-        service as unknown as { recoverStuckExecutions: () => Promise<void> }
-      ).recoverStuckExecutions();
-
-      expect(mockBus.acquireLock).toHaveBeenCalledWith('exec:recover:lock', 60);
-      expect(update).toHaveBeenCalled();
-      // re-claim: started_at=NOW() 로 소유권 이전 — status 를 FAILED 로 두지 않는다.
-      const setArg = setMethod.mock.calls[0][0] as Record<string, unknown>;
-      expect(typeof setArg.startedAt).toBe('function');
-      expect(setArg.status).toBeUndefined();
-      expect(setArg.error).toBeUndefined();
-      // 대상: RUNNING + started_at < threshold.
-      expect(where).toHaveBeenCalledWith('status = :status', {
-        status: ExecutionStatus.RUNNING,
-      });
-      expect(andWhere).toHaveBeenCalledWith(
-        'started_at < :threshold',
-        expect.objectContaining({ threshold: expect.any(Date) }),
-      );
-      const arg = (andWhere.mock.calls[0][1] as { threshold: Date }).threshold;
-      expect(Math.abs(arg.getTime() - (before - STALE_MS))).toBeLessThan(
-        CLOCK_TOLERANCE_MS,
-      );
-      // 재점유된 각 id 를 re-drive + segment tracking baseline 기록.
-      expect(redriveSpy).toHaveBeenCalledTimes(2);
-      expect(redriveSpy).toHaveBeenCalledWith('e1');
-      expect(redriveSpy).toHaveBeenCalledWith('e2');
-      expect(segStartSpy).toHaveBeenCalledWith('e1');
-      expect(segStartSpy).toHaveBeenCalledWith('e2');
-      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
-    });
-
-    it('옛 fail-only 회귀 가드 — set 에 status=FAILED / WORKER_HEARTBEAT_TIMEOUT 을 쓰지 않는다', async () => {
-      await (
-        service as unknown as { recoverStuckExecutions: () => Promise<void> }
-      ).recoverStuckExecutions();
-      const flat = setMethod.mock.calls
-        .flat()
-        .map((v) => JSON.stringify(v))
-        .join(' ');
-      expect(flat).not.toContain('failed');
-      expect(flat).not.toContain('FAILED');
-      expect(flat).not.toContain('WORKER_HEARTBEAT_TIMEOUT');
-    });
-
-    it('재점유 0건이면 re-drive 하지 않고 lock 만 해제한다', async () => {
-      updateExecuted.mockResolvedValueOnce({ affected: 0, raw: [] });
-      await (
-        service as unknown as { recoverStuckExecutions: () => Promise<void> }
-      ).recoverStuckExecutions();
-      expect(redriveSpy).not.toHaveBeenCalled();
-      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
-    });
-
-    // 회귀 가드 — WAITING_FOR_INPUT 은 re-claim 대상에 절대 포함되지 않는다.
-    it('WAITING_FOR_INPUT 은 re-claim WHERE 절에 절대 포함되지 않는다', async () => {
-      await (
-        service as unknown as { recoverStuckExecutions: () => Promise<void> }
-      ).recoverStuckExecutions();
-      const flat = [...where.mock.calls.flat(), ...andWhere.mock.calls.flat()]
-        .map((v) => JSON.stringify(v))
-        .join(' ');
-      expect(flat).not.toContain('waiting_for_input');
-      expect(flat).not.toContain('WAITING_FOR_INPUT');
-    });
-
-    it('lock 획득 실패 시 re-claim/re-drive 를 하지 않는다 (다른 인스턴스가 처리 중)', async () => {
-      mockBus.acquireLock.mockResolvedValueOnce(false);
-      await (
-        service as unknown as { recoverStuckExecutions: () => Promise<void> }
-      ).recoverStuckExecutions();
-      expect(mockBus.acquireLock).toHaveBeenCalledTimes(1);
-      expect(update).not.toHaveBeenCalled();
-      expect(redriveSpy).not.toHaveBeenCalled();
-    });
+    afterEach(() => scanSpy.mockRestore());
 
     // recovery 는 onModuleInit 이 아니라 onApplicationBootstrap 에서 실행돼야 한다.
     it('onModuleInit 은 recovery 를 트리거하지 않는다', () => {
-      mockBus.acquireLock.mockClear();
       service.onModuleInit();
+      expect(scanSpy).not.toHaveBeenCalled();
       expect(mockBus.acquireLock).not.toHaveBeenCalled();
-      expect(update).not.toHaveBeenCalled();
     });
 
-    it('onApplicationBootstrap 이 recovery 를 트리거하고 lock 을 해제한다', async () => {
-      mockBus.acquireLock.mockClear();
-      mockBus.releaseLock.mockClear();
+    it('onApplicationBootstrap 이 핸들러 정합성 검사 뒤 recovery 를 트리거한다', async () => {
+      const registry = (
+        service as unknown as {
+          handlerRegistry: { assertConsistency: () => void };
+        }
+      ).handlerRegistry;
+      const order: string[] = [];
+      const consistencySpy = jest
+        .spyOn(registry, 'assertConsistency')
+        .mockImplementation(() => {
+          order.push('consistency');
+        });
+      scanSpy.mockImplementation(() => {
+        order.push('scan');
+        return Promise.resolve();
+      });
+      try {
+        await service.onApplicationBootstrap();
+        expect(order).toEqual(['consistency', 'scan']);
+      } finally {
+        consistencySpy.mockRestore();
+      }
+    });
+
+    it('핸들러 정합성 검사가 던지면 recovery 를 돌지 않는다', async () => {
+      const registry = (
+        service as unknown as {
+          handlerRegistry: { assertConsistency: () => void };
+        }
+      ).handlerRegistry;
+      const consistencySpy = jest
+        .spyOn(registry, 'assertConsistency')
+        .mockImplementation(() => {
+          throw new Error('missing metadata');
+        });
+      try {
+        await expect(service.onApplicationBootstrap()).rejects.toThrow(
+          'missing metadata',
+        );
+        expect(scanSpy).not.toHaveBeenCalled();
+      } finally {
+        consistencySpy.mockRestore();
+      }
+    });
+
+    it('onApplicationBootstrap 은 실제 스캔으로 lock 을 잡는다', async () => {
       await service.onApplicationBootstrap();
       expect(mockBus.acquireLock).toHaveBeenCalledWith('exec:recover:lock', 60);
-      expect(update).toHaveBeenCalled();
-      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
     });
 
-    // re-claim DB 오류 시 lock 누수 방지 (try/finally).
-    it('re-claim DB 오류가 발생해도 lock 을 해제하고 오류를 전파한다', async () => {
-      updateExecuted.mockRejectedValueOnce(new Error('db down'));
-      mockBus.releaseLock.mockClear();
-      await expect(
-        (
-          service as unknown as { recoverStuckExecutions: () => Promise<void> }
-        ).recoverStuckExecutions(),
-      ).rejects.toThrow('db down');
-      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
-    });
-  });
-
-  // CLE-T-CCEQEC — 종결된 실행 아래 running 으로 남은 노드 실행 행을 부팅 스캔이 거둔다.
-  // SQL 의미(부모 체인 · Background 제외)는 실제 DB 가 있는 e2e
-  // (test/execution-crash-redrive.e2e-spec.ts)가 확인한다. 여기서는 스캔에 붙는 위치,
-  // 조건부 UPDATE 모양, 넘기는 임계값과 상태 목록, 실패가 부팅을 막지 않는 것을 고정한다.
-  describe('closeOrphanRunningNodeExecutions (CLE-T-CCEQEC 부팅 스캔 백스톱)', () => {
-    let mockBus: { acquireLock: jest.Mock; releaseLock: jest.Mock };
-    let nodeExecute: jest.Mock;
-    let nodeReturning: jest.Mock;
-    let nodeAndWhere: jest.Mock;
-    let nodeWhere: jest.Mock;
-    let nodeSet: jest.Mock;
-    let nodeUpdate: jest.Mock;
-    let execExecute: jest.Mock;
-
-    beforeEach(() => {
-      // reclaimStuckRunningExecution — 재점유 0건(재구동 없음).
-      execExecute = jest.fn().mockResolvedValue({ affected: 0, raw: [] });
-      const execReturning = jest.fn().mockReturnValue({ execute: execExecute });
-      const execAndWhere = jest
-        .fn()
-        .mockReturnValue({ returning: execReturning });
-      const execWhere = jest.fn().mockReturnValue({ andWhere: execAndWhere });
-      const execSet = jest.fn().mockReturnValue({ where: execWhere });
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue({
-        update: jest.fn().mockReturnValue({ set: execSet }),
-      });
-      // recoverOrphanPendingExecutions — 대상 없음.
-      mockExecutionRepo.find = jest.fn().mockResolvedValue([]);
-      // 이 단계의 UPDATE … RETURNING id — 기본 2건 마감.
-      nodeExecute = jest
-        .fn()
-        .mockResolvedValue({ affected: 2, raw: [{ id: 'n1' }, { id: 'n2' }] });
-      nodeReturning = jest.fn().mockReturnValue({ execute: nodeExecute });
-      nodeAndWhere = jest.fn().mockReturnValue({ returning: nodeReturning });
-      nodeWhere = jest.fn().mockReturnValue({ andWhere: nodeAndWhere });
-      nodeSet = jest.fn().mockReturnValue({ where: nodeWhere });
-      nodeUpdate = jest.fn().mockReturnValue({ set: nodeSet });
-      mockNodeExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue({ update: nodeUpdate });
-      mockBus = (service as unknown as { continuationBus: typeof mockBus })
-        .continuationBus;
-      mockBus.acquireLock.mockResolvedValue(true);
-      mockBus.releaseLock.mockResolvedValue(true);
-    });
-
-    const runScan = () =>
-      (
-        service as unknown as { recoverStuckExecutions: () => Promise<void> }
-      ).recoverStuckExecutions();
-
-    it('재점유할 실행이 없어도 종결된 실행 아래 30분 넘은 running 노드 행을 failed 로 마감한다', async () => {
-      const before = Date.now();
-      await runScan();
-
-      expect(nodeUpdate).toHaveBeenCalledWith(NodeExecution);
-      const setArg = nodeSet.mock.calls[0][0] as {
-        status: unknown;
-        error: { message: string };
-        finishedAt: unknown;
+    it('runStuckRecoveryScan 도 같은 스캔을 부르고 포트는 엔진 메서드로 이어진다', async () => {
+      const internals = service as unknown as {
+        redriveStuckExecution: (id: string) => Promise<void>;
+        recordRunningSegmentStart: (id: string) => void;
+        markQueueWaitTimeout: (id: string) => Promise<void>;
       };
-      expect(setArg.status).toBe(NodeExecutionStatus.FAILED);
-      expect(setArg.error.message).toContain('boot recovery scan');
-      expect(setArg.finishedAt).toBeInstanceOf(Date);
-      // 조건부 UPDATE — 그 사이 마감된 행은 건드리지 않는다.
-      expect(nodeWhere).toHaveBeenCalledWith('status = :running', {
-        running: NodeExecutionStatus.RUNNING,
-      });
-      expect(nodeReturning).toHaveBeenCalledWith('id');
-
-      const [subquery, params] = nodeAndWhere.mock.calls[0] as [
-        string,
-        {
-          orphanThreshold: Date;
-          orphanTerminalStatuses: string[];
-          orphanBackgroundType: string;
-          orphanMaxDepth: number;
-        },
-      ];
-      // 노드 행 started_at 30분(STUCK_RECOVERY_STALE_MS 재사용).
-      expect(subquery).toContain('ne.started_at < :orphanThreshold');
-      expect(
-        Math.abs(params.orphanThreshold.getTime() - (before - STALE_MS)),
-      ).toBeLessThan(CLOCK_TOLERANCE_MS);
-      // 부모 실행이 종결 상태일 때만. 대기 · 실행 중 · 대기열 실행은 빠진다.
-      expect(subquery).toContain('e.status IN (:...orphanTerminalStatuses)');
-      expect([...params.orphanTerminalStatuses].sort()).toEqual(
-        [
-          ExecutionStatus.CANCELLED,
-          ExecutionStatus.COMPLETED,
-          ExecutionStatus.FAILED,
-        ].sort(),
-      );
-      // 부모 체인에 Background 노드 행이 있는 본문 행은 뺀다.
-      expect(subquery).toContain('parent_node_execution_id');
-      expect(subquery).toContain('n.type = :orphanBackgroundType');
-      expect(params.orphanBackgroundType).toBe('background');
-      // 부모 체인 깊이 한도는 서브 워크플로우 재귀 한도보다 커야 정상 체인이 잘리지 않는다.
-      expect(params.orphanMaxDepth).toBeGreaterThan(
-        SUB_WORKFLOW_MAX_RECURSION_DEPTH,
-      );
-      // UpdateQueryBuilder 는 접두사 없는 낱말 중 NodeExecution 속성 이름(execution · node)을
-      // 컬럼 이름(execution_id · node_id)으로 바꿔 쓴다. 테이블 이름은 모두 따옴표로 감싸야 한다.
-      const tableRefs = [...subquery.matchAll(/\b(?:FROM|JOIN)\s+(\S+)/g)].map(
-        (m) => m[1],
-      );
-      expect(tableRefs.length).toBeGreaterThan(0);
-      for (const ref of tableRefs) {
-        if (ref === 'candidate' || ref === 'ancestor') continue; // CTE 이름
-        expect(ref).toMatch(/^"[a-z_]+"$/);
-      }
-      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
-    });
-
-    it('마감 단계가 실패해도 부팅 스캔은 throw 하지 않고 lock 을 해제한다 (오류는 error 로그)', async () => {
-      nodeExecute.mockRejectedValueOnce(new Error('db hiccup'));
-      const logger = (
-        service as unknown as { logger: { error: (m: string) => void } }
-      ).logger;
-      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
+      const redrive = jest
+        .spyOn(internals, 'redriveStuckExecution')
+        .mockResolvedValue(undefined);
+      const segStart = jest
+        .spyOn(internals, 'recordRunningSegmentStart')
+        .mockImplementation(() => {});
+      const waitTimeout = jest
+        .spyOn(internals, 'markQueueWaitTimeout')
+        .mockResolvedValue(undefined);
       try {
-        await expect(runScan()).resolves.toBeUndefined();
-        expect(
-          errorSpy.mock.calls.some((c) => String(c[0]).includes('db hiccup')),
-        ).toBe(true);
-        expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+        await service.runStuckRecoveryScan();
+        expect(scanSpy).toHaveBeenCalledTimes(1);
+        const port = scanSpy.mock.calls[0][0] as StuckRecoveryEnginePort;
+        await port.redriveStuckExecution('e1');
+        port.recordRunningSegmentStart('e2');
+        await port.markQueueWaitTimeout('p1');
+        expect(redrive).toHaveBeenCalledWith('e1');
+        expect(segStart).toHaveBeenCalledWith('e2');
+        expect(waitTimeout).toHaveBeenCalledWith('p1');
       } finally {
-        errorSpy.mockRestore();
+        redrive.mockRestore();
+        segStart.mockRestore();
+        waitTimeout.mockRestore();
       }
-    });
-
-    it('lock 을 얻지 못하면 마감 단계도 돌지 않는다', async () => {
-      mockBus.acquireLock.mockResolvedValueOnce(false);
-      await runScan();
-      expect(nodeUpdate).not.toHaveBeenCalled();
-    });
-  });
-
-  // §8 orphan pending backstop (2026-07-04) — admission 재큐 job 소실로 재-pick up
-  // 안 되는 대기 초과 pending 을 recoverStuckExecutions 부팅 스캔이 wait-timeout cancel.
-  describe('recoverOrphanPendingExecutions (orphan pending backstop §8)', () => {
-    let mqtSpy: jest.SpyInstance;
-
-    beforeEach(() => {
-      mockExecutionRepo.find = jest.fn().mockResolvedValue([]);
-      // markQueueWaitTimeout(조건부 UPDATE + emit)은 격리 스텁 — 호출만 검증.
-      mqtSpy = jest
-        .spyOn(
-          service as unknown as {
-            markQueueWaitTimeout: (id: string) => Promise<void>;
-          },
-          'markQueueWaitTimeout',
-        )
-        .mockResolvedValue(undefined);
-    });
-    afterEach(() => mqtSpy.mockRestore());
-
-    const runOrphan = () =>
-      (
-        service as unknown as {
-          recoverOrphanPendingExecutions: () => Promise<void>;
-        }
-      ).recoverOrphanPendingExecutions();
-
-    it('대기 한도 초과 pending(queued_at < now - timeout) 을 markQueueWaitTimeout 으로 cancel 한다', async () => {
-      (mockExecutionRepo.find as jest.Mock).mockResolvedValueOnce([
-        { id: 'p1' },
-        { id: 'p2' },
-      ]);
-      await runOrphan();
-      // 대상 필터: status=PENDING + queued_at < threshold(LessThan operator).
-      const findArg = (mockExecutionRepo.find as jest.Mock).mock
-        .calls[0][0] as {
-        where: { status: unknown; queuedAt: unknown };
-      };
-      expect(findArg.where.status).toBe(ExecutionStatus.PENDING);
-      expect(findArg.where.queuedAt).toBeDefined();
-      expect(mqtSpy).toHaveBeenCalledWith('p1');
-      expect(mqtSpy).toHaveBeenCalledWith('p2');
-      expect(mqtSpy).toHaveBeenCalledTimes(2);
-    });
-
-    it('초과 pending 이 없으면 아무 것도 cancel 하지 않는다', async () => {
-      (mockExecutionRepo.find as jest.Mock).mockResolvedValueOnce([]);
-      await runOrphan();
-      expect(mqtSpy).not.toHaveBeenCalled();
-    });
-
-    it('recoverStuckExecutions 는 stale running 0건이어도 orphan pending 스캔을 수행한다 (early-return 제거)', async () => {
-      const updateExecuted = jest
-        .fn()
-        .mockResolvedValue({ affected: 0, raw: [] });
-      const returning = jest.fn().mockReturnValue({ execute: updateExecuted });
-      const andWhere = jest.fn().mockReturnValue({ returning });
-      const where = jest.fn().mockReturnValue({ andWhere });
-      const setMethod = jest.fn().mockReturnValue({ where });
-      const update = jest.fn().mockReturnValue({ set: setMethod });
-      mockExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue({ update });
-      const mockBus = (
-        service as unknown as {
-          continuationBus: {
-            acquireLock: jest.Mock;
-            releaseLock: jest.Mock;
-          };
-        }
-      ).continuationBus;
-      mockBus.acquireLock.mockResolvedValue(true);
-      mockBus.releaseLock.mockResolvedValue(true);
-      (mockExecutionRepo.find as jest.Mock).mockResolvedValueOnce([
-        { id: 'op' },
-      ]);
-      const redriveSpy = jest
-        .spyOn(
-          service as unknown as {
-            redriveStuckExecution: (id: string) => Promise<void>;
-          },
-          'redriveStuckExecution',
-        )
-        .mockResolvedValue(undefined);
-      await (
-        service as unknown as { recoverStuckExecutions: () => Promise<void> }
-      ).recoverStuckExecutions();
-      expect(redriveSpy).not.toHaveBeenCalled();
-      expect(mqtSpy).toHaveBeenCalledWith('op');
-      expect(mockBus.releaseLock).toHaveBeenCalled();
-      redriveSpy.mockRestore();
     });
   });
 
@@ -3789,6 +3504,40 @@ describe('ExecutionEngineService', () => {
       // 만 검증하므로 노드 그래프는 무관하다.
       mockNodeRepo.findBy.mockResolvedValue([]);
       mockEdgeRepo.findBy.mockResolvedValue([]);
+    });
+
+    // 재귀 한도는 공용 상수 SUB_WORKFLOW_MAX_RECURSION_DEPTH 하나다(CLE-T-YWRJTV).
+    // 한도와 같은 깊이는 통과해 워크플로우 조회까지 가고, 한도를 넘으면 조회 전에 막힌다.
+    describe.each([
+      [
+        'executeSync',
+        (depth: number) =>
+          service.executeSync(
+            'nonexistent-wf',
+            {},
+            { timeoutMs: 0, recursionDepth: depth },
+          ),
+      ],
+      [
+        'executeAsync',
+        (depth: number) =>
+          service.executeAsync('nonexistent-wf', {}, { recursionDepth: depth }),
+      ],
+    ])('%s — 서브 워크플로우 재귀 한도', (_name, call) => {
+      it('한도와 같은 깊이는 재귀 검사를 통과한다', async () => {
+        mockWorkflowRepo.findOneBy.mockResolvedValueOnce(null);
+        await expect(call(SUB_WORKFLOW_MAX_RECURSION_DEPTH)).rejects.toThrow(
+          'Workflow not found: nonexistent-wf',
+        );
+      });
+
+      it('한도를 넘는 깊이는 워크플로우를 읽기 전에 거부한다', async () => {
+        const depth = SUB_WORKFLOW_MAX_RECURSION_DEPTH + 1;
+        await expect(call(depth)).rejects.toThrow(
+          `Sub-workflow recursion depth ${depth} exceeds maximum ${SUB_WORKFLOW_MAX_RECURSION_DEPTH}`,
+        );
+        expect(mockWorkflowRepo.findOneBy).not.toHaveBeenCalled();
+      });
     });
 
     describe('executeSync', () => {
@@ -7788,180 +7537,6 @@ describe('ExecutionEngineService', () => {
 
       // 회귀 전: 4회(최초 1 + 재시도 3). 지금은 1회로 즉시 전파.
       expect(executeImpl).toHaveBeenCalledTimes(1);
-    });
-
-    // CLE-T-0DGHGF — 컨테이너 회차마다 `runParallel` 이 불려도 사전 검사 그래프는 노드 ·
-    // 연결선 배열 참조 기준으로 1회만 만든다. 연결선 배열이 다르면 낡은 연결선을 쓰지 않도록 다시 만든다.
-    it('buildParallelCheckGraph reuses the graph for the same arrays and rebuilds when the edge array differs', () => {
-      const internals = service as unknown as {
-        buildParallelCheckGraph: (
-          allNodes: unknown[],
-          allEdges: unknown[],
-        ) => { allEdges: unknown[]; nodeMap: Map<string, unknown> };
-      };
-      const nodes = [{ id: 'n1', type: 't', label: 'N1' }];
-      const edges: unknown[] = [];
-      const first = internals.buildParallelCheckGraph.call(
-        service,
-        nodes,
-        edges,
-      );
-      expect(
-        internals.buildParallelCheckGraph.call(service, nodes, edges),
-      ).toBe(first);
-      const otherEdges = [
-        { id: 'e1', sourceNodeId: 'n1', sourcePort: 'out', targetNodeId: 'n1' },
-      ];
-      const rebuilt = internals.buildParallelCheckGraph.call(
-        service,
-        nodes,
-        otherEdges,
-      );
-      expect(rebuilt).not.toBe(first);
-      expect(rebuilt.allEdges).toBe(otherEdges);
-      // 다른 노드 배열은 캐시와 무관하게 새 그래프다.
-      expect(
-        internals.buildParallelCheckGraph.call(service, [...nodes], edges),
-      ).not.toBe(first);
-    });
-
-    // CLE-T-0DGHGF — 본문이 빈 병렬 분기(연결선이 없는 `branch_N`)는 본문 검사를 건너뛴다.
-    it('assertNestedParallelBodyAllowed checks only the branches that have a body', () => {
-      const internals = service as unknown as {
-        assertNestedParallelBodyAllowed: (
-          parallelNode: unknown,
-          forwardEdges: unknown[],
-          graph: unknown,
-          depth: number,
-        ) => void;
-        assertParallelBranchChildrenAllowed: (...args: unknown[]) => void;
-      };
-      const spy = jest
-        .spyOn(internals, 'assertParallelBranchChildrenAllowed')
-        .mockImplementation(() => undefined);
-      const graph = {
-        nodeMap: new Map(),
-        childrenByContainer: new Map(),
-        allEdges: [],
-      };
-      internals.assertNestedParallelBodyAllowed.call(
-        service,
-        { id: 'p2', type: 'parallel', label: 'Inner' },
-        [
-          {
-            id: 'e1',
-            sourceNodeId: 'p2',
-            sourcePort: 'branch_0',
-            targetNodeId: 'a',
-          },
-        ],
-        graph,
-        1,
-      );
-      // 분기는 최대 16개지만 본문이 있는 `branch_0` 하나만 검사한다.
-      expect(spy).toHaveBeenCalledTimes(1);
-    });
-
-    // parallel-p2 §2-4 런타임 가드: dispatch 시점 planParallelBody 가 depth>2
-    // (depth=2 분기 body 안에 또 Parallel) 를 PARALLEL_NESTED_DEPTH_EXCEEDED 로
-    // throw 하는지 검증. 정적 save-time 규칙(parallel:nested-depth-exceeded)은
-    // parallel.schema.spec.ts:319 가 별도 커버 — 런타임 throw 는 미검증이던 갭
-    // (parallel-p2-integration.spec.ts JSDoc 이 약속했으나 미작성). PR #649 재검증에서 발견.
-    it('planParallelBody throws PARALLEL_NESTED_DEPTH_EXCEEDED when a depth-2 branch nests another Parallel (runtime guard)', () => {
-      handlerRegistry.register(
-        'parallel_depthtest',
-        { validate: () => ({ valid: true, errors: [] }), execute: jest.fn() },
-        { kind: 'parallel' },
-      );
-      const inner = { id: 'p2', type: 'parallel_depthtest', label: 'Inner' };
-      const innermost = {
-        id: 'p3',
-        type: 'parallel_depthtest',
-        label: 'Innermost',
-      };
-      const forwardEdges = [
-        {
-          id: 'e1',
-          sourceNodeId: 'p2',
-          sourcePort: 'branch_0',
-          targetNodeId: 'p3',
-        },
-      ];
-      const internals = service as unknown as {
-        planParallelBody: (
-          parallelNode: unknown,
-          graph: unknown,
-          forwardEdges: unknown[],
-          backEdges: unknown[],
-          branchCount: number,
-          currentDepth: 1 | 2,
-        ) => unknown;
-        buildParallelCheckGraph: (
-          allNodes: unknown[],
-          allEdges: unknown[],
-        ) => unknown;
-      };
-      // 이 테스트의 연결선은 실행 그래프의 순방향 연결선이다. 컨테이너가 없으므로 검사
-      // 그래프에는 노드만 넣는다.
-      const planParallelBody = (
-        parallelNode: unknown,
-        allNodes: unknown[],
-        forwardEdges: unknown[],
-        backEdges: unknown[],
-        branchCount: number,
-        currentDepth: 1 | 2,
-      ) =>
-        internals.planParallelBody.call(
-          service,
-          parallelNode,
-          internals.buildParallelCheckGraph.call(service, allNodes, []),
-          forwardEdges,
-          backEdges,
-          branchCount,
-          currentDepth,
-        );
-
-      // depth=2 분기 body 에 또 Parallel → throw.
-      expect(() =>
-        planParallelBody(inner, [inner, innermost], forwardEdges, [], 1, 2),
-      ).toThrow(/PARALLEL_NESTED_DEPTH_EXCEEDED/);
-
-      // depth=1 (outermost) 에서는 한 단계 중첩 허용 → throw 안 함. 반환의
-      // allBodyNodeIds 에 inner Parallel(p3) 이 포함됨을 단언해, 위 depth=2 throw 가
-      // edge 위상 우연이 아니라 'body 내 Parallel + depth>2' 조건 발화임을 확정 (ai-review W1).
-      const planDepth1 = planParallelBody(
-        inner,
-        [inner, innermost],
-        forwardEdges,
-        [],
-        1,
-        1,
-      ) as { allBodyNodeIds: Set<string> };
-      expect(planDepth1.allBodyNodeIds.has('p3')).toBe(true);
-
-      // CLE-T-GGZSC2 — depth=1 계획이 안쪽 Parallel 의 본문도 미리 계획한다. 세 단계
-      // (p1 → p2 → p3) 면 바깥 Parallel 을 계획하는 시점에 던진다. 두 단계(p2 → p3)는
-      // 위에서 던지지 않았다.
-      const outer = { id: 'p1', type: 'parallel_depthtest', label: 'Outer' };
-      const threeLevelEdges = [
-        {
-          id: 'e0',
-          sourceNodeId: 'p1',
-          sourcePort: 'branch_0',
-          targetNodeId: 'p2',
-        },
-        ...forwardEdges,
-      ];
-      expect(() =>
-        planParallelBody(
-          outer,
-          [outer, inner, innermost],
-          threeLevelEdges,
-          [],
-          1,
-          1,
-        ),
-      ).toThrow(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /);
     });
 
     it('stops the workflow (ERROR_PORT_FALLBACK) when the error port has no connected edge', async () => {
@@ -24091,6 +23666,7 @@ describe('ExecutionEngineService — registerInFlight / unregisterInFlight pairi
     const mod = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        StuckExecutionRecoveryService,
         AiTurnOrchestrator,
         // C-1 step3 — 엔진이 forwardRef 로 위임하는 추출 서비스 (DI 필수).
         FormInteractionService,
@@ -24389,6 +23965,7 @@ describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
       const module3 = await Test.createTestingModule({
         providers: [
           ExecutionEngineService,
+          StuckExecutionRecoveryService,
           AiTurnOrchestrator,
           // C-1 step3 — 엔진이 forwardRef 로 위임하는 추출 서비스 (DI 필수).
           FormInteractionService,
@@ -24825,6 +24402,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
     const modRef: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        StuckExecutionRecoveryService,
         AiTurnOrchestrator,
         // C-1 step3 — 엔진이 forwardRef 로 위임하는 추출 서비스 (DI 필수).
         FormInteractionService,

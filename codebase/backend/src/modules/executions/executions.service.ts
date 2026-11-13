@@ -63,10 +63,6 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 // 무한 루프 방어로 한도의 2배에서 중단.
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 
-// dry-run 사전 검사가 따라가는 서브 워크플로우 깊이 한도. 실행 때 재귀 한도와 같은 상수를 쓴다.
-// 그보다 깊은 호출은 실행 때 재귀 한도로 실패하므로 볼 필요가 없다.
-const DRY_RUN_PRECHECK_MAX_DEPTH = SUB_WORKFLOW_MAX_RECURSION_DEPTH;
-
 /**
  * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
  * WS 구독자 다수가 동시에 동일 execution 채널에 구독해 반복 fetch 가 발생하면
@@ -607,7 +603,7 @@ export class ExecutionsService {
    * (CLE-T-Y2F1NG). 동기 자식은 부모 context 를, 비동기 자식은 실행 행의 `dry_run` 을
    * 이어받아 dry-run 으로 돌기 때문이다. 탐색은 너비 우선이고 이미 본 워크플로우는
    * 다시 보지 않는다(순환 가드). 깊이는 서브 워크플로우 재귀 한도
-   * ({@link DRY_RUN_PRECHECK_MAX_DEPTH})까지만 본다. 그보다 깊은 호출은 실행 때
+   * ({@link SUB_WORKFLOW_MAX_RECURSION_DEPTH})까지만 본다. 그보다 깊은 호출은 실행 때
    * 재귀 한도로 실패한다. 대상 ID 가 표현식(`{{ … }}`)이면 실행 전에는 알 수 없어
    * 보지 않고, 같은 워크스페이스 밖의 워크플로우는 엔진이 실행 때 막으므로 보지 않는다.
    *
@@ -622,7 +618,7 @@ export class ExecutionsService {
     let frontier = [workflowId];
     for (
       let depth = 0;
-      frontier.length > 0 && depth <= DRY_RUN_PRECHECK_MAX_DEPTH;
+      frontier.length > 0 && depth <= SUB_WORKFLOW_MAX_RECURSION_DEPTH;
       depth++
     ) {
       const nodes = await this.nodeRepository.find({

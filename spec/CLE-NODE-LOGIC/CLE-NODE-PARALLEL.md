@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032", "REQ-PARALLEL-033", "REQ-PARALLEL-034", "REQ-PARALLEL-035", "REQ-PARALLEL-036", "REQ-PARALLEL-037"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "d70b42daf5dc20415fe9f484f9a845037a679e99919ee64f173284a27edbd929"
+content_hash: "5a969f06c186e486591ab6ea6b111ddcf4d2b2604f39983dad79f3a82fffca33"
 read_as: "approved_fallback"
-task: "CLE-T-X3YE55"
+task: "CLE-T-8PAPKV"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "83233cb7bfed022b8cf3fd0c1a806190a73a2833c63100cff0390bafae8645d6"
-etag: "sha256-ed3904dc8eaa0863815e79e10b278fbd058537d31b7e93201f2ff08413423e59"
+mirror_sha256: "8cd1bc7f21b2117fd8ade7f68a7deb411055932c959f8a402a0188005c74fa01"
+etag: "sha256-250700ab7d3b87435dca67cd345d4094bc1abb28d2e032abf2951d0c8d46c8c5"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -321,7 +321,8 @@ Parallel 은 런타임 에러 포트가 없다. 설정 검증 실패는 사전 �
 
 - `codebase/backend/src/nodes/logic/parallel/parallel.*.ts`
 - `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts` (`ParallelExecutor`, `ParallelBranchContext`)
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`planParallelBody` · `executeParallelBranchBody` · `runParallel` 완료 시점 덮어쓰기, 완료 출력 쓰기 `commitParallelDoneOutput`, 엔진 공통 출력 쓰기 지점 `commitNodeOutput`, 병렬 분기 사본 반영 `syncParallelBranchCacheEntry`, 안쪽 병렬 분기 출력을 바깥 병렬 분기 사본에 옮기는 `publishBranchOutputsToParent`, 컨테이너 본문 루프 `executeContainerBody` 와 동기 서브 워크플로우 · Background 본문 루프 `executeInline` 의 Parallel 넘김, 깊이 판별 `parallelDepthOf`, 사전 깊이 검사 `assertParallelBranchChildrenAllowed` · `assertNestedParallelBodyAllowed` · `assertContainerBodyParallelsAllowed`)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeParallelBranchBody` · `runParallel` 완료 시점 덮어쓰기, 완료 출력 쓰기 `commitParallelDoneOutput`, 엔진 공통 출력 쓰기 지점 `commitNodeOutput`, 병렬 분기 사본 반영 `syncParallelBranchCacheEntry`, 안쪽 병렬 분기 출력을 바깥 병렬 분기 사본에 옮기는 `publishBranchOutputsToParent`, 컨테이너 본문 루프 `executeContainerBody` 와 동기 서브 워크플로우 · Background 본문 루프 `executeInline` 의 Parallel 넘김)
+- `codebase/backend/src/modules/execution-engine/graph/parallel-precheck.ts` (`ParallelPrecheck` 의 `planParallelBody` 와 사전 깊이 검사 `assertParallelBranchChildrenAllowed` · `assertNestedParallelBodyAllowed` · `assertContainerBodyParallelsAllowed`, 깊이 판별 `parallelDepthOf`)
 - `codebase/backend/src/modules/execution-engine/graph/parallel-branch-membership.ts` (`collectParallelBranchMembership`, 병렬 분기 소속과 합류 노드 판정)
 - `codebase/backend/src/modules/execution-engine/graph/background-body-membership.ts` (`collectBackgroundOnlyNodeIds`, 컨테이너 본문 노드 가운데 Background 본문으로만 닿는 노드 판정)
 - `codebase/backend/src/modules/execution-engine/graph/topological-sort.ts` (위상 순서)

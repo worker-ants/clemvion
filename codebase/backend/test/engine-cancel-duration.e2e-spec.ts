@@ -33,6 +33,7 @@ import { LoopExecutor } from '../src/modules/execution-engine/containers/loop-ex
 import { ParallelExecutor } from '../src/modules/execution-engine/containers/parallel-executor';
 import { ExecutionContextService } from '../src/modules/execution-engine/context/execution-context.service';
 import { ContinuationBusService } from '../src/modules/execution-engine/continuation/continuation-bus.service';
+import { StuckExecutionRecoveryService } from '../src/modules/execution-engine/recovery/stuck-execution-recovery.service';
 import { ExecutionNodeLog } from '../src/modules/execution-engine/entities/execution-node-log.entity';
 import { ErrorPolicyHandler } from '../src/modules/execution-engine/error/error-policy.handler';
 import { ExecutionEventEmitter } from '../src/modules/execution-engine/events/execution-event-emitter.service';
@@ -253,6 +254,7 @@ describe('엔진 마감 경로의 RETURNING 이 duration_ms 를 종결 이벤트
         { provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE), useValue: {} },
         { provide: getQueueToken(EXECUTION_RUN_QUEUE), useValue: {} },
         { provide: ContinuationBusService, useValue: {} },
+        { provide: StuckExecutionRecoveryService, useValue: {} },
         { provide: ShutdownStateService, useValue: {} },
         { provide: AiTurnOrchestrator, useValue: {} },
         { provide: FormInteractionService, useValue: {} },

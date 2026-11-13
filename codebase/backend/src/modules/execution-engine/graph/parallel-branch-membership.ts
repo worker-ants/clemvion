@@ -27,8 +27,8 @@ export interface ParallelBranchMembership {
  * 닿는 노드는 합류 노드다. 번호가 `branchCount` 이상인 `branch_N` 연결선은 따라가지
  * 않는다. 되돌아가는 연결선은 `forwardEdges` 에 없다고 가정하므로 탐색이 돌지 않는다.
  *
- * 실행 계획(`ExecutionEngineService.planParallelBody`)과 안쪽 Parallel 본문 사전
- * 검사가 함께 쓴다. 사전 검사는 안쪽 병렬 분기 수를 아직 모르므로 최대값을 넘긴다.
+ * 실행 계획(`ParallelPrecheck.planParallelBody`)과 안쪽 Parallel 본문 사전 검사가
+ * 함께 쓴다. 사전 검사는 안쪽 병렬 분기 수를 아직 모르므로 최대값을 넘긴다.
  */
 export function collectParallelBranchMembership(
   parallelNodeId: string,

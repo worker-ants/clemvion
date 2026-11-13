@@ -35,8 +35,6 @@ interface WorkflowConfig {
   timeout?: number;
 }
 
-const MAX_RECURSION_DEPTH = SUB_WORKFLOW_MAX_RECURSION_DEPTH;
-
 export class WorkflowHandler implements NodeHandler {
   metadata = workflowNodeMetadata;
 
@@ -70,9 +68,9 @@ export class WorkflowHandler implements NodeHandler {
 
     // Recursion depth check
     const currentDepth = context.recursionDepth ?? 0;
-    if (currentDepth >= MAX_RECURSION_DEPTH) {
+    if (currentDepth >= SUB_WORKFLOW_MAX_RECURSION_DEPTH) {
       throw new Error(
-        `Maximum recursion depth exceeded (limit: ${MAX_RECURSION_DEPTH})`,
+        `Maximum recursion depth exceeded (limit: ${SUB_WORKFLOW_MAX_RECURSION_DEPTH})`,
       );
     }
 

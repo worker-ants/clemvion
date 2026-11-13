@@ -6,7 +6,7 @@
  * - nested Parallel concurrency cap silent clamp (ParallelExecutor)
  *
  * 런타임 nested-depth 가드(`PARALLEL_NESTED_DEPTH_EXCEEDED` throw) 검증은
- * execution-engine.service.spec.ts 의 planParallelBody 테스트로 이전했고,
+ * graph/parallel-precheck.spec.ts 의 planParallelBody 테스트로 이전했고,
  * 정적 save-time 규칙(`parallel:nested-depth-exceeded`)은 parallel.schema.spec.ts
  * 가 커버한다. 본 spec 은 cancel-others-on-fail signal cascade + concurrency
  * clamp 만 다룬다 — ExecutionEngineService 의 전체 mock 셋업을 피한다.

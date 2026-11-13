@@ -10,7 +10,7 @@ import {
 import { ModuleRef } from '@nestjs/core';
 import { sanitizeErrorMessage } from './sanitize-error-message';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, LessThan, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import {
   Execution,
   ExecutionStatus,
@@ -47,10 +47,11 @@ import {
   DEFAULT_WORKFLOW_MAX_CONCURRENT_EXECUTIONS,
   EXECUTION_ADMISSION_RETRY_DELAY_MS,
 } from './execution-limits';
+import { ContinuationBusService } from './continuation/continuation-bus.service';
 import {
-  ContinuationBusService,
-  RECOVERY_LOCK_KEY,
-} from './continuation/continuation-bus.service';
+  StuckExecutionRecoveryService,
+  type StuckRecoveryEnginePort,
+} from './recovery/stuck-execution-recovery.service';
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
 import {
   coalesceInteractionType,
@@ -83,8 +84,13 @@ import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
 import { EngineErrorCode } from '../../nodes/core/error-codes';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
-import { collectParallelBranchMembership } from './graph/parallel-branch-membership';
-import { collectBackgroundOnlyNodeIds } from './graph/background-body-membership';
+import { pickContainerInternalEdges } from './graph/container-internal-edges';
+import {
+  PARALLEL_BRANCH_COUNT_MAX,
+  ParallelPrecheck,
+  parallelDepthOf,
+  type ParallelBranchPlan,
+} from './graph/parallel-precheck';
 import { identifyBackEdges } from './graph/back-edge-identifier';
 import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
@@ -246,49 +252,16 @@ interface ContainerBodyPlan {
 }
 
 /**
- * 컨테이너 본문 안 연결선(양 끝이 모두 `childIds` 에 있는 연결선)을 고른다.
- * 컨테이너 실행 계획과 Parallel 사전 검사가 함께 쓴다.
- */
-function pickContainerInternalEdges(
-  childIds: ReadonlySet<string>,
-  allEdges: readonly GraphEdge[],
-): GraphEdge[] {
-  return allEdges
-    .filter((e) => childIds.has(e.sourceNodeId) && childIds.has(e.targetNodeId))
-    .map((e) => ({
-      sourceNodeId: e.sourceNodeId,
-      sourcePort: e.sourcePort,
-      targetNodeId: e.targetNodeId,
-      targetPort: e.targetPort,
-    }));
-}
-
-/**
  * Bounds for Parallel node config fields. `branchCount` is min 2 (single-
  * branch Parallel makes no sense) and max 16 (sane upper bound on
  * concurrent branch fan-out). `maxConcurrency` allows 0 as "unbounded
  * within branchCount" (the executor maps 0 → branchCount internally).
+ * 상한 {@link PARALLEL_BRANCH_COUNT_MAX} 는 안쪽 Parallel 사전 검사도 읽어서
+ * `graph/parallel-precheck.ts` 에 둔다.
  */
 const PARALLEL_BRANCH_COUNT_MIN = 2;
-const PARALLEL_BRANCH_COUNT_MAX = 16;
 const PARALLEL_MAX_CONCURRENCY_MIN = 0;
 const PARALLEL_MAX_CONCURRENCY_MAX = 16;
-
-/**
- * Parallel 중첩 깊이 한도(REQ-PARALLEL-024). 맨 바깥 Parallel 이 1, 그 병렬 분기 안의
- * Parallel 이 2 다. 한도 안의 Parallel 본문에 또 Parallel 이 있으면 실행 시
- * `PARALLEL_NESTED_DEPTH_EXCEEDED` 로 막는다({@link ExecutionEngineService.planParallelBody}).
- * 저장 시 규칙 `parallel:nested-depth-exceeded`(`@workflow/graph-warning-rules`)는 같은
- * 한도를 "자식 · 손자" 두 단계 탐색으로 표현하므로 이 상수를 읽지 않는다.
- */
-const PARALLEL_MAX_NESTED_DEPTH = 2;
-
-/**
- * Background 본문에 둔 Parallel 의 중첩 깊이. 워커가 본문을 새 컨텍스트에서 실행하므로
- * 큐에 넣은 쪽의 깊이를 이어받지 않는다(REQ-PARALLEL-036). 컨테이너 본문 사전 검사가
- * 컨테이너 안 Background 본문을 셀 때 쓴다(CLE-T-BTR4ZA).
- */
-const BACKGROUND_BODY_PARALLEL_DEPTH = 1;
 
 // C-1 step2 — 추출된 AiTurnOrchestrator 의 emit 메서드가 동일 union 을 타입
 // 주석으로 참조하므로 export (interaction-type-registry.md §1.1 의 정의 자체는
@@ -326,37 +299,6 @@ function extractChatChannelFromInput(
     return undefined;
   }
   return raw as ChatChannelRoutingInfo;
-}
-
-/**
- * Per-branch subgraph plan for the Parallel logic node.
- *
- * `bodyNodeIds` — nodes exclusive to this branch (reachable from this
- *   `branch_N` target but not from any other `branch_M`). Shared downstream
- *   nodes (typical Merge join points) live in {@link ParallelPlan.joinNodeIds}.
- * `sortedNodeIds` — forward-edge topological order of `bodyNodeIds`.
- * `entryNodeIds` — direct targets of `branch_N` edges; seed the reachability
- *   set for the sequential body traversal.
- * `exitNodeIds` — body nodes that have at least one outgoing edge to a node
- *   outside the body (join nodes or unrelated downstream). After the branch
- *   completes, propagation from these nodes re-activates the main loop's
- *   `reachable` set.
- */
-interface ParallelBranchPlan {
-  branchIndex: number;
-  branchPort: string;
-  bodyNodeIds: Set<string>;
-  sortedNodeIds: string[];
-  entryNodeIds: Set<string>;
-  exitNodeIds: Set<string>;
-  internalEdges: GraphEdge[];
-  outgoingEdgeMap: Map<string, GraphEdge[]>;
-}
-
-interface ParallelPlan {
-  branches: ParallelBranchPlan[];
-  joinNodeIds: Set<string>;
-  allBodyNodeIds: Set<string>;
 }
 
 /**
@@ -431,17 +373,6 @@ interface ParallelBranchBodyOptions {
   executedNodes: Set<string>;
   executionMeta: { startedAt?: string; mode?: string };
   branchInput: unknown;
-}
-
-/**
- * Parallel 사전 검사가 읽는 워크플로우 그래프. 실행 그래프(`buildGraph`)에는 컨테이너
- * 본문 노드가 없으므로 컨테이너 본문은 원본 노드 · 연결선에서 찾는다.
- */
-interface ParallelCheckGraph {
-  nodeMap: ReadonlyMap<string, Node>;
-  /** 컨테이너 ID → 그 컨테이너 본문 노드(`containerId` 가 그 컨테이너인 노드). */
-  childrenByContainer: ReadonlyMap<string, Node[]>;
-  allEdges: readonly Edge[];
 }
 
 /**
@@ -764,20 +695,11 @@ export class ExecutionEngineService
    */
   private readonly containerCancelCheckedAtMs = new Map<string, number>();
   /**
-   * 노드 배열 참조 → Parallel 사전 검사 그래프. 컨테이너 본문 안 Parallel 이 회차마다
-   * `runParallel` 을 불러도 그래프는 한 번만 만든다. 배열이 GC 되면 같이 사라진다.
-   *
-   * 전제: 키로 쓰는 노드 배열과 연결선 배열은 실행 중 제자리에서 바뀌지 않는다.
-   * 두 배열은 실행 · 재개 · 서브 워크플로우 시작 때 `findBy` 로 한 번 읽은 값이고
-   * (`nodes` / `edges` / `subNodes` / `subEdges`), `runParallel` 을 부르는 곳들과
-   * `planContainerBody` 의 `plan.allNodes` / `plan.allEdges` 는 그 참조를 그대로 넘기며
-   * push · splice 같은 제자리 변경을 하지 않는다. 연결선 배열은 적중 때 참조까지 비교해
-   * 다른 배열이 오면 다시 만든다.
+   * Parallel 사전 검사와 병렬 분기 계획(CLE-T-8PAPKV). 노드 종류는 핸들러 레지스트리에
+   * 묻는다. 생성자에서 만들고 람다는 `this` 가 아니라 생성자 인자를 잡는다. 이유는
+   * {@link stuckRecoveryPort} 에 적었다.
    */
-  private readonly parallelCheckGraphCache = new WeakMap<
-    readonly Node[],
-    { allEdges: readonly Edge[]; graph: ParallelCheckGraph }
-  >();
+  private readonly parallelPrecheck: ParallelPrecheck;
 
   /**
    * 병렬 분기 컨텍스트의 `nodeOutputCache`(분기 전용 얕은 복사본) → 이번 분기 실행에서
@@ -915,15 +837,6 @@ export class ExecutionEngineService
   private readonly llmDefaultConfigCache = new Map<string, Promise<boolean>>();
 
   /**
-   * Sub-Workflow 재귀 호출 깊이 상한. WARN #9 (Security) — workflow A 가 자기
-   * 자신을 sub-workflow 로 부르면 무한 재귀 발생, 메모리·DB 폭주. spec/PRD 의
-   * 명시 한도가 없으므로 보수적으로 10. executeSync / executeAsync / 인라인
-   * 실행 경로 진입 시 검증.
-   */
-  private static readonly MAX_RECURSION_DEPTH =
-    SUB_WORKFLOW_MAX_RECURSION_DEPTH;
-
-  /**
    * Sub-workflow 진입점에서 호출자-피호출자 workspace 격리를 강제한다 (W-6).
    *
    * **fail-closed**: 호출자 workspace 컨텍스트(`callerWorkspaceId`)가 없으면
@@ -984,6 +897,8 @@ export class ExecutionEngineService
     private readonly continuationBus: ContinuationBusService,
     private readonly shutdownState: ShutdownStateService,
     private readonly businessMetrics: BusinessMetricsService,
+    // CLE-T-S03WEV — 부팅 복구 스캔. 엔진 동작은 호출마다 포트로 넘겨 순환 DI 를 만들지 않는다.
+    private readonly stuckRecovery: StuckExecutionRecoveryService,
     // C-1 step2 — AI 멀티턴 생명주기 위임 대상. orchestrator 가 ENGINE_DRIVER(=본
     // 엔진) 를 주입받으므로 순환 DI → forwardRef 로 해소.
     @Inject(forwardRef(() => AiTurnOrchestrator))
@@ -1009,7 +924,11 @@ export class ExecutionEngineService
     private readonly notificationsService?: NotificationsService,
     @Optional()
     private readonly moduleRef?: ModuleRef,
-  ) {}
+  ) {
+    this.parallelPrecheck = new ParallelPrecheck(
+      (type) => handlerRegistry.getMetadata(type).kind,
+    );
+  }
 
   private resolvedNotificationsService?: NotificationsService | null;
 
@@ -1094,8 +1013,8 @@ export class ExecutionEngineService
   }
 
   /**
-   * `recoverStuckExecutions` 는 같은 모듈의 `ContinuationBusService.publisher`
-   * 가 초기화된 뒤에야 분산 lock 을 잡을 수 있다. NestJS 는 같은 모듈 내
+   * 부팅 복구 스캔(`StuckExecutionRecoveryService.recoverStuckExecutions`)은 같은 모듈의
+   * `ContinuationBusService.publisher` 가 초기화된 뒤에야 분산 lock 을 잡을 수 있다. NestJS 는 같은 모듈 내
    * providers 의 `onModuleInit` 호출 순서를 등록 순서로만 보장하므로,
    * `OnApplicationBootstrap` (모든 모듈의 `onModuleInit` 완료 후) 단계로
    * 미루어 race 를 원천적으로 회피한다.
@@ -1105,12 +1024,12 @@ export class ExecutionEngineService
     // 완료 후) 에서 metadata 정합성 일괄 검증. 누락 시 명시적 throw 로 부팅
     // 단계 차단 — silent skip 방지.
     this.handlerRegistry.assertConsistency();
-    await this.recoverStuckExecutions();
+    await this.stuckRecovery.recoverStuckExecutions(this.stuckRecoveryPort());
   }
 
   /**
    * §7.1/§7.5 case B 재구동(+ §8 orphan pending cancel)을 **on-demand 로 1회 스캔**
-   * 트리거한다(`recoverStuckExecutions` 전체 위임). 프로덕션에서는
+   * 트리거한다(`StuckExecutionRecoveryService.recoverStuckExecutions` 전체 위임). 프로덕션에서는
    * recovery 가 부팅 시(onApplicationBootstrap)에만 돌지만, e2e 는 이미 부팅된
    * backend 를 재시작할 수 없어(in-network 러너) 재시작 크래시 re-drive 경로를
    * HTTP 로 검증할 수 없다. 본 메서드가 그 트리거를 제공한다 — 호출자
@@ -1118,7 +1037,25 @@ export class ExecutionEngineService
    * 표면이 아니다. (운영용 on-demand recovery 트리거는 PR4 관측성으로 별도 검토.)
    */
   async runStuckRecoveryScan(): Promise<void> {
-    await this.recoverStuckExecutions();
+    await this.stuckRecovery.recoverStuckExecutions(this.stuckRecoveryPort());
+  }
+
+  /**
+   * 부팅 복구 스캔이 엔진에 맡기는 동작(CLE-T-S03WEV). 세 메서드는 엔진 밖으로 공개하지 않는다.
+   *
+   * 필드 초기화 식으로 두지 않고 호출할 때 만든다. 엔진은 forwardRef 순환 DI 안에 있어 Nest 가
+   * 임시 인스턴스를 만든 뒤 그 필드를 내보낼 인스턴스로 복사한다. 초기화 식의 화살표 함수는
+   * 임시 인스턴스를 `this` 로 잡으므로 내보낸 인스턴스의 메서드 · 상태와 어긋날 수 있다.
+   */
+  private stuckRecoveryPort(): StuckRecoveryEnginePort {
+    return {
+      redriveStuckExecution: (executionId) =>
+        this.redriveStuckExecution(executionId),
+      recordRunningSegmentStart: (executionId) =>
+        this.recordRunningSegmentStart(executionId),
+      markQueueWaitTimeout: (executionId) =>
+        this.markQueueWaitTimeout(executionId),
+    };
   }
 
   /**
@@ -3278,322 +3215,6 @@ export class ExecutionEngineService
   }
 
   /**
-   * Recovery 의 stale 임계값 — RUNNING execution 이 이 시간보다 오래되면
-   * worker heartbeat 가 끊긴 stuck 으로 간주한다. WAITING_FOR_INPUT 은 본
-   * 임계값과 무관하며 recovery 대상이 아니다 (사용자 입력은 며칠 후 도착할
-   * 수도 있으므로 무기한 보존, §7.5 rehydration 으로 자연 재개).
-   * 다중 인스턴스 환경에서 다른 인스턴스가 활발히 처리 중인 정상 RUNNING 을
-   * 잘못 FAIL 시키지 않도록 보수적 가드 (heartbeat 간격 5초의 360배).
-   *
-   * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.4 Recovery.
-   */
-  private static readonly STUCK_RECOVERY_STALE_MS = 30 * 60 * 1000;
-
-  /**
-   * 분산 lock 의 TTL (초). 부팅 동시 진행 시 다른 인스턴스가 lock 을 획득해
-   * 본 인스턴스의 recovery 가 skip 되더라도, lock 보유자가 죽었을 때 60초
-   * 후 lock 이 expire 되어 다음 부팅에서 다시 시도 가능.
-   */
-  private static readonly RECOVERY_LOCK_TTL_SECONDS = 60;
-
-  /**
-   * 부팅 스캔의 「종결된 실행 아래 남은 노드 실행 행」 정리 단계(`closeOrphanRunningNodeExecutions`)가 `parent_node_execution_id` 를
-   * 따라 올라가는 깊이 한도. 부모 체인은 서브 워크플로우 호출(재귀 한도 10)과 컨테이너 ·
-   * Background 중첩으로만 길어지므로 넉넉히 잡는다. 체인이 깨져 순환하더라도 재귀가 끝나게 한다.
-   */
-  private static readonly ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH = 64;
-
-  /**
-   * 「종결된 실행 아래 남은 노드 실행 행」 정리 단계가 닫을 노드 실행 행의 id 를 고르는 하위 질의. 외부 UPDATE 의 `id IN (…)` 에 들어간다.
-   *
-   * - `candidate`: 종결된 실행(`:...orphanTerminalStatuses`) 아래 `running` 이고 `started_at` 이
-   *   임계보다 오래된 행. `status IN ('waiting_for_input','running')` 부분 인덱스
-   *   (`idx_node_execution_exec_status_active`)를 탄다.
-   * - `ancestor`: 후보마다 부모 체인을 위로 따라간다. 후보 수만큼만 걷는다.
-   * - Background 노드 행이 체인에 있는 후보는 뺀다. 본문은 부모 실행이 끝난 뒤에도 같은
-   *   executionId 로 돈다.
-   *
-   * 테이블 이름은 큰따옴표로 감싼다. UpdateQueryBuilder 는 별칭 접두사 없이 쓴 낱말 가운데
-   * `NodeExecution` 의 속성 이름과 같은 것을 컬럼 이름으로 바꿔 쓴다. 그래서 따옴표 없이 쓰면
-   * `execution` 이 `execution_id` 로, `node` 가 `node_id` 로 바뀌어 질의가 실패한다.
-   */
-  private static readonly ORPHAN_RUNNING_NODE_EXECUTION_IDS_SQL = `
-    WITH RECURSIVE candidate AS (
-      SELECT ne.id, ne.parent_node_execution_id AS parent_id
-        FROM "node_execution" ne
-        JOIN "execution" e ON e.id = ne.execution_id
-       WHERE ne.status = :running
-         AND ne.started_at < :orphanThreshold
-         AND e.status IN (:...orphanTerminalStatuses)
-    ),
-    ancestor (candidate_id, ancestor_id, depth) AS (
-      SELECT c.id, c.parent_id, 1
-        FROM candidate c
-       WHERE c.parent_id IS NOT NULL
-      UNION ALL
-      SELECT a.candidate_id, p.parent_node_execution_id, a.depth + 1
-        FROM ancestor a
-        JOIN "node_execution" p ON p.id = a.ancestor_id
-       WHERE p.parent_node_execution_id IS NOT NULL
-         AND a.depth < :orphanMaxDepth
-    )
-    SELECT c.id
-      FROM candidate c
-     WHERE NOT EXISTS (
-       SELECT 1
-         FROM ancestor a
-         JOIN "node_execution" pn ON pn.id = a.ancestor_id
-         JOIN "node" n ON n.id = pn.node_id
-        WHERE a.candidate_id = c.id
-          AND n.type = :orphanBackgroundType
-     )`;
-
-  /**
-   * On server restart, **re-drive** stale RUNNING executions **and cancel orphan
-   * PENDING** executions (§7.1/§7.2 point 3 / §7.4 / §7.5 case B / §8 — PR3
-   * 2026-07-04, orphan pending backstop 2026-07-04).
-   *
-   * 옛 동작(일괄 `failed` 마킹)을 **제어된 re-drive** 로 전환한다: stale RUNNING 을
-   * `started_at` 조건부 원자 re-claim(`reclaimStuckRunningExecution`) 한 뒤 각 row 를
-   * §7.5 case B rehydration 으로 재구동(완료 노드 이후부터 그래프 forward, node-type
-   * 무관). §7.2 point 3("재시작 시 running 을 체크포인트에서 resume")의 일반 노드 구현.
-   *
-   * **같은 스캔이 orphan `pending` 도 회수한다**(`recoverOrphanPendingExecutions`, §8):
-   * admission 재큐 job 이 소실된 대기 초과 `pending` 을 wait-timeout `cancelled` 로 마감.
-   * RUNNING 은 진행 흔적이 있어 re-drive, PENDING 은 없어 cancel(§Rationale "orphan
-   * pending backstop"). running 재점유 유무와 무관하게 항상 수행한다.
-   *
-   * 다중 인스턴스 환경에서:
-   * - SET NX 분산 boot-lock(`exec:recover:lock`)으로 동시 스캔 시작을 가드.
-   * - row 단위 `started_at` 조건부 re-claim(affected=1)은 그 안의 defense-in-depth —
-   *   lock 만료·늦은 부팅 스캔 겹침에도 같은 row 를 두 번 re-drive 하지 않는다.
-   * - `status='running' AND started_at < now() - 30분` 인 row 만 대상.
-   * - **WAITING_FOR_INPUT 은 절대 건드리지 않는다** — 사용자 입력은 며칠 후 도착할
-   *   수 있고, 입력 도착 시 §7.5 case A rehydration 으로 자연 재개.
-   *
-   * **PR4 이후 = backstop**: 운영 중 워커 크래시는 BullMQ stalled-job 자동 재배달
-   * (`runExecutionFromQueue` RUNNING 분기)이 즉시 인계하므로, 본 부팅 스캔은 **stalled
-   * 이 놓치는 케이스의 안전망**이다 — (a) 전체 재시작·Redis 비영속으로 active job 이
-   * 소실된 경우, (b) enqueue 후 job 유실, (c) stalled 창(>30분)보다 오래된 잔류.
-   * 이 경우엔 재배달할 stalled job 자체가 없어 DB 부팅 스캔만 복구 가능하다(은퇴 불가 —
-   * KB `stuck-document-recovery` 와 동형). boot-only 트리거라 poison 세그먼트 re-drive
-   * 는 부팅당 최대 1회로 자연 rate-limit 된다.
-   *
-   * **단계** (이 순서로 돈다):
-   *   1. stale RUNNING 원자 re-claim 과 재구동(위 (a)(b)(c) 는 stalled 이 놓치는 원인 목록이다).
-   *   2. orphan pending 회수(`recoverOrphanPendingExecutions`).
-   *   3. 종결된 실행 아래 남은 노드 실행 행 정리(`closeOrphanRunningNodeExecutions`, CLE-T-CCEQEC).
-   *      실행이 먼저 끝나고 노드 행만 `running` 으로 남은 경우를 `failed` 로 닫는다.
-   *
-   * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.2 / §7.4 / §7.5, CLE-T-CCEQEC.
-   */
-  private async recoverStuckExecutions(): Promise<void> {
-    const acquired = await this.continuationBus.acquireLock(
-      RECOVERY_LOCK_KEY,
-      ExecutionEngineService.RECOVERY_LOCK_TTL_SECONDS,
-    );
-    if (!acquired) {
-      // 다른 인스턴스가 이미 처리 중. 본 인스턴스는 skip — lock 이 expire
-      // 된 다음 부팅이나 다른 인스턴스의 후속 호출에서 처리된다.
-      return;
-    }
-
-    try {
-      const staleThreshold = new Date(
-        Date.now() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
-      );
-      // 단계 1: stale RUNNING 을 원자 re-claim(started_at 조건부 UPDATE … RETURNING).
-      //     affected rows = 본 인스턴스가 소유권을 획득한 재구동 대상.
-      const reclaimedIds =
-        await this.reclaimStuckRunningExecution(staleThreshold);
-      if (reclaimedIds.length > 0) {
-        this.logger.warn(
-          `Re-claimed ${reclaimedIds.length} stale RUNNING execution(s) (>30min) for crash re-drive (§7.5 case B)`,
-        );
-        // 각 재구동은 fire-and-forget — 부팅을 그래프 실행으로 막지 않는다.
-        //     redriveStuckExecution 이 내부 try/catch/finally 로 단말 상태를
-        //     자기 마킹하므로 reject 하지 않으나, 방어적 .catch 로 unhandled
-        //     rejection 을 차단한다. 각 row 는 이미 started_at 이 갱신돼 다른
-        //     인스턴스가 재-picking 하지 않으므로 lock 을 곧 풀어도 안전하다.
-        for (const executionId of reclaimedIds) {
-          void this.redriveStuckExecution(executionId).catch((err: unknown) => {
-            this.logger.error(
-              `Crash re-drive failed for execution ${executionId}: ${
-                err instanceof Error ? err.message : String(err)
-              }`,
-            );
-          });
-        }
-      }
-      // 단계 2: orphan pending backstop (§8) — admission 재큐 job 이 소실돼(예: Redis
-      //     비영속·job 유실) 다시 pick up 되지 않는 pending row 를 회수한다. running
-      //     재점유 유무와 무관하게 항상 스캔한다(위 early-return 제거).
-      await this.recoverOrphanPendingExecutions();
-      // 단계 3: 종결된 실행 아래 남은 노드 실행 행 정리 (CLE-T-CCEQEC). 이미 끝난 실행 아래
-      //     running 으로 남은 행을 닫는다. 단계 1 의 재구동은 실행이 running 일 때만 옛 행을 닫으므로(failOrphanRunningNodeExecutions)
-      //     이 행들은 여기서만 닫힌다. 실패해도 부팅을 막지 않는다.
-      await this.closeOrphanRunningNodeExecutions(staleThreshold);
-    } finally {
-      // 작업 완료 후 lock 을 명시 해제 — TTL 60초 만료 대기 없이 다음
-      // 인스턴스가 즉시 처리할 수 있다. owner 검증이 들어가 있어 이미
-      // expire 되어 다른 인스턴스가 잡은 lock 은 절대 삭제하지 않는다.
-      await this.continuationBus.releaseLock(RECOVERY_LOCK_KEY);
-    }
-  }
-
-  /**
-   * §7.5 case B — stale RUNNING 세그먼트의 원자 re-claim. `started_at` 조건부
-   * 단일 UPDATE(`… SET started_at=now() WHERE status='running' AND started_at <
-   * :threshold RETURNING id`)로 소유권을 획득한다. affected rows 만 반환 — 두
-   * 인스턴스가 같은 stale row 를 동시에 잡아도 affected=1 인 쪽만 재구동한다
-   * (§1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화). `started_at`
-   * 갱신은 (i) 재-picking 방지(더 이상 stale 아님)와 (ii) recordRunningSegmentStart
-   * 로 §8 active-running 세그먼트 tracking baseline 을 겸한다.
-   *
-   * 상태 enum 은 `running → running` 불변(소유권 이전만)이라 §1.1 전이표 무변경.
-   */
-  private async reclaimStuckRunningExecution(
-    staleThreshold: Date,
-  ): Promise<string[]> {
-    const result = await this.executionRepository
-      .createQueryBuilder()
-      .update(Execution)
-      .set({ startedAt: () => 'NOW()' })
-      .where('status = :status', { status: ExecutionStatus.RUNNING })
-      .andWhere('started_at < :threshold', { threshold: staleThreshold })
-      .returning('id')
-      .execute();
-    const ids = ((result.raw as Array<{ id?: string }> | undefined) ?? [])
-      .map((r) => r.id)
-      .filter((id): id is string => typeof id === 'string');
-    // §8 — 재구동 세그먼트의 active-running tracking baseline. claimResumeEntry 가
-    // waiting 재개에서 하는 것과 동일(assertActiveTimeWithinLimit 의 in-progress 경과분).
-    for (const id of ids) this.recordRunningSegmentStart(id);
-    return ids;
-  }
-
-  /**
-   * §8 orphan pending backstop — admission 재큐 job 이 소실된 `pending` Execution 회수.
-   *
-   * cap 초과로 delayed 재큐된 job(auto-id, jobId 없음)이 Redis 비영속·eviction 등으로
-   * 소실되면 그 `pending` row 는 다시 pick up 될 job 이 없어 영구 잔류한다. 큐 대기 5분
-   * timeout 은 consumer 가 job 을 pick up 할 때(`admitExecutionOrDefer`)만 검사되므로
-   * orphan 은 그 검사를 받지 못한다(§8 "트리거 = admission 시점 검사").
-   *
-   * **액션 = wait-timeout cancel(re-enqueue 아님)**: 큐 대기 한도를 **이미 초과한**
-   * pending(`queued_at < now - resolveQueueWaitTimeoutMs()`)만 대상으로, consumer 가
-   * pick up 했다면 admission 이전 timeout 검사로 `cancelled` 마감했을 값을 그대로 적용한다.
-   * 재큐→재검사→cancel 과 결과가 같으므로 직접 cancel 이 단순·안전하다(오래된 실행을
-   * RUNNING 으로 부활시키지 않는다). 한도 이내 orphan 은 다음 스캔에서 초과 시 회수
-   * (낮은 확률 엣지·boot-only 트리거 — best-effort). `markQueueWaitTimeout` 은 조건부
-   * UPDATE(`WHERE status='pending'`)라 동시 admit/cancel 과의 race 에 멱등이다.
-   *
-   * SoT: spec/5-system/4-execution-engine.md §8 / §7.4.
-   */
-  private async recoverOrphanPendingExecutions(): Promise<void> {
-    const staleThreshold = new Date(Date.now() - resolveQueueWaitTimeoutMs());
-    // queued_at IS NULL(레거시 pre-V104 row)은 LessThan 이 자연 제외한다(NULL < x = 미매치).
-    // 인덱스: `idx_execution_status(status)`(V002)로 sparse 한 pending 부분집합을 좁힌 뒤
-    // queued_at 필터. 전용 `(status, queued_at)` 복합 인덱스는 두지 않는다 — 본 스캔은
-    // boot-only/on-demand(hot-path 아님)이고 pending 집합은 admission cap+5분 timeout 으로
-    // bound 되며, stale RUNNING backstop(`reclaimStuckRunningExecution`, `status='running'
-    // AND started_at<τ`)도 동일하게 전용 복합 인덱스 없이 `idx_execution_status` 에 의존하는
-    // 기존 선례와 대칭이다(핫 execution 테이블의 write-path 인덱스 유지비 회피).
-    const orphans = await this.executionRepository.find({
-      where: {
-        status: ExecutionStatus.PENDING,
-        queuedAt: LessThan(staleThreshold),
-      },
-      select: { id: true },
-    });
-    if (orphans.length === 0) return;
-    this.logger.warn(
-      `[recovery] orphan pending ${orphans.length}건 (queue-wait 초과, job 소실 추정) — wait-timeout cancel (§8)`,
-    );
-    for (const { id } of orphans) {
-      await this.markQueueWaitTimeout(id);
-    }
-  }
-
-  /**
-   * CLE-T-CCEQEC — 부팅 스캔의 「종결된 실행 아래 남은 노드 실행 행」 정리 단계(단계 3). 종결된 실행(`completed` · `failed` · `cancelled`) 아래
-   * `running` 으로 남은 노드 실행 행을 `failed` 로 닫는다.
-   *
-   * case B 재구동의 {@link failOrphanRunningNodeExecutions} 는 실행이 `running` 일 때만 돈다.
-   * 실행이 먼저 끝나고 노드 행만 `running` 으로 남는 아래 경로는 그 마감에 닿지 않는다.
-   *   1. `retry_last_turn` 2차 claim(`claimSpawnedRetryRow`)이 버린 새 행. 실행은 `failed` 다.
-   *   2. 2차 claim 이 성공한 뒤 try 에 들어가기 전의 예외 · 크래시. 재배달은 claim 에 실패해
-   *      1 로 끝난다.
-   *   3. 짝 전이가 실행을 `cancelled` 로 커밋한 뒤 `markNodeCancelled` 가 끝나기 전의 크래시.
-   * 셋 다 "종결된 실행 + `running` 노드 행" 이라 한 조건으로 닫는다. `retryLastTurn` 이 행을
-   * 만든 뒤 재진입 작업을 잃은 경우도 같은 모양이라 함께 닫힌다.
-   *
-   * 살아 있는 작업은 아래 조건으로 뺀다.
-   *   - 노드 행 `started_at` 이 {@link STUCK_RECOVERY_STALE_MS}(30분)보다 오래돼야 한다. 재시도
-   *     재진입 턴(실행은 `failed`, 새 행은 `running`)과 취소 커밋 뒤 노드 마감 전의 짧은 창이 빠진다.
-   *   - 부모 체인에 Background 노드 행이 있는 본문 행은 뺀다. 본문은 부모 실행이 끝난 뒤에도
-   *     같은 executionId 로 돌고 `maxDurationMs=0` 이면 끝이 없다. 크래시로 남은 본문 행도
-   *     그래서 이 단계가 닫지 않는다.
-   *   - 조건부 UPDATE(`status='running'`)라 고른 뒤 그 사이 닫힌 행은 그대로 둔다.
-   *
-   * 운영 DB 영향: 배포 후 첫 부팅에서는 누적된 고아 행이 한 번에 `failed` 로 닫혀 타임라인 ·
-   * 진행률 집계가 바뀔 수 있다. 배치(LIMIT)는 두지 않았다. UPDATE 가 `status='running'` 조건부라
-   * recovery lock TTL 을 넘겨 두 인스턴스가 함께 돌아도 같은 행을 두 번 바꾸지 않고, 고른 행은
-   * 30분 넘게 종결된 실행 아래 남은 것뿐이다. 첫 배포 때는 `[recovery] 종결된 실행 아래 …` 로그의
-   * 건수로 영향 행 수를 확인한다.
-   *
-   * 노드 이벤트는 내지 않는다. 실행이 이미 끝나 구독자가 기다리는 진행이 없고, 형제
-   * {@link failOrphanRunningNodeExecutions} 와 같다. 실패해도 부팅을 막지 않고 error 로그만
-   * 남긴다. 다음 부팅 스캔이 같은 행을 다시 본다.
-   */
-  private async closeOrphanRunningNodeExecutions(
-    staleThreshold: Date,
-  ): Promise<void> {
-    try {
-      const result = await this.nodeExecutionRepository
-        .createQueryBuilder()
-        .update(NodeExecution)
-        .set({
-          status: NodeExecutionStatus.FAILED,
-          error: {
-            message:
-              'Node run left running under a finished execution; closed by boot recovery scan',
-          },
-          finishedAt: new Date(),
-        })
-        .where('status = :running', { running: NodeExecutionStatus.RUNNING })
-        .andWhere(
-          `id IN (${ExecutionEngineService.ORPHAN_RUNNING_NODE_EXECUTION_IDS_SQL})`,
-          {
-            orphanThreshold: staleThreshold,
-            orphanTerminalStatuses: [
-              ExecutionStatus.COMPLETED,
-              ExecutionStatus.FAILED,
-              ExecutionStatus.CANCELLED,
-            ],
-            orphanBackgroundType: NODE_TYPES.BACKGROUND,
-            orphanMaxDepth:
-              ExecutionEngineService.ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH,
-          },
-        )
-        .returning('id')
-        .execute();
-      const closed = (result.raw as unknown[] | undefined)?.length ?? 0;
-      if (closed > 0) {
-        this.logger.warn(
-          `[recovery] 종결된 실행 아래 running 노드 실행 ${closed}건을 failed 로 닫음 (CLE-T-CCEQEC)`,
-        );
-      }
-    } catch (err) {
-      this.logger.error(
-        `[recovery] 종결된 실행 아래 running 노드 실행 정리 실패: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-  }
-
-  /**
    * 크래시/재시작으로 mid-dispatch 였던 `NodeExecution(status=RUNNING)` orphan row 를
    * terminal(FAILED)로 마감한다. re-drive(§7.5 case B)는 완료 노드 이후를 **새 row** 로
    * 재실행하므로(§7.3 at-least-once) 옛 RUNNING row 는 이 시점에 닫아야 부모 Execution
@@ -4565,11 +4186,12 @@ export class ExecutionEngineService
     input?: unknown,
     options?: SubWorkflowOptions,
   ): Promise<SubWorkflowResult> {
-    // WARN #9 (Security) — recursion 폭주 차단.
+    // WARN #9 (Security) — workflow A 가 자기 자신을 서브 워크플로우로 부르는 무한 재귀가
+    // 메모리 · DB 를 소진하지 않게 공용 한도({@link SUB_WORKFLOW_MAX_RECURSION_DEPTH})로 막는다.
     const depth = options?.recursionDepth ?? 0;
-    if (depth > ExecutionEngineService.MAX_RECURSION_DEPTH) {
+    if (depth > SUB_WORKFLOW_MAX_RECURSION_DEPTH) {
       throw new Error(
-        `Sub-workflow recursion depth ${depth} exceeds maximum ${ExecutionEngineService.MAX_RECURSION_DEPTH}`,
+        `Sub-workflow recursion depth ${depth} exceeds maximum ${SUB_WORKFLOW_MAX_RECURSION_DEPTH}`,
       );
     }
 
@@ -4706,11 +4328,12 @@ export class ExecutionEngineService
     input?: unknown,
     options?: Omit<SubWorkflowOptions, 'timeoutMs'>,
   ): Promise<string> {
-    // WARN #9 (Security) — recursion 폭주 차단.
+    // WARN #9 (Security) — workflow A 가 자기 자신을 서브 워크플로우로 부르는 무한 재귀가
+    // 메모리 · DB 를 소진하지 않게 공용 한도({@link SUB_WORKFLOW_MAX_RECURSION_DEPTH})로 막는다.
     const depth = options?.recursionDepth ?? 0;
-    if (depth > ExecutionEngineService.MAX_RECURSION_DEPTH) {
+    if (depth > SUB_WORKFLOW_MAX_RECURSION_DEPTH) {
       throw new Error(
-        `Sub-workflow recursion depth ${depth} exceeds maximum ${ExecutionEngineService.MAX_RECURSION_DEPTH}`,
+        `Sub-workflow recursion depth ${depth} exceeds maximum ${SUB_WORKFLOW_MAX_RECURSION_DEPTH}`,
       );
     }
 
@@ -7833,347 +7456,13 @@ export class ExecutionEngineService
   }
 
   /**
-   * Compute per-branch subgraph plans for a Parallel node.
-   *
-   * Strategy: for each `branch_N` port of the Parallel node, BFS forward
-   * across `forwardEdges` to collect reachable nodes. A node reached from
-   * multiple branches is a join (Merge) and excluded from every branch
-   * body; a node reached from exactly one branch is in that branch's body
-   * ({@link collectParallelBranchMembership}).
-   *
-   * Fails fast with `PARALLEL_INVALID_CHILD` / `PARALLEL_BACK_EDGE` /
-   * `PARALLEL_NESTED_DEPTH_EXCEEDED` so the user sees a named error at
-   * dispatch time instead of a mid-flight surprise.
-   *
-   * `currentDepth` 는 이 Parallel 의 중첩 깊이다(parallel-p2 결정 #3). 맨 바깥이면 1,
-   * 바깥 병렬 분기 안에서 실행되는 안쪽 Parallel 이면 2 다. 병렬 분기 본문 노드 검사는
-   * {@link assertParallelBranchChildrenAllowed} 가 맡는다. 한도
-   * ({@link PARALLEL_MAX_NESTED_DEPTH}) 안의 안쪽 Parallel 과 병렬 분기 안 컨테이너 본문의
-   * Parallel 은 그 본문까지 지금 검사하므로 깊이 위반은 바깥 Parallel 이 병렬 분기를
-   * 시작하기 전에 드러난다(CLE-T-GGZSC2 · CLE-T-0DGHGF). 안쪽 Parallel 은
-   * {@link executeParallelBranchBody} · {@link executeContainerBody} 가
-   * {@link runParallel} 로 넘길 때 다시 계획된다. `runParallel` 은 context 가
-   * `ParallelBranchContext` 인지로 자기 깊이를 판별한다({@link parallelDepthOf}).
-   */
-  private planParallelBody(
-    parallelNode: Node,
-    graph: ParallelCheckGraph,
-    forwardEdges: GraphEdge[],
-    backEdges: GraphEdge[],
-    branchCount: number,
-    currentDepth: number,
-  ): ParallelPlan {
-    const {
-      forwardAdj,
-      branchEntries,
-      bodyNodeIdsPerBranch,
-      joinNodeIds,
-      allBodyNodeIds,
-    } = collectParallelBranchMembership(
-      parallelNode.id,
-      forwardEdges,
-      branchCount,
-    );
-
-    // Back-edges inside any branch body are rejected to keep semantics
-    // consistent with the Container pattern (which also forbids cyclic bodies).
-    for (const edge of backEdges) {
-      if (
-        allBodyNodeIds.has(edge.sourceNodeId) ||
-        allBodyNodeIds.has(edge.targetNodeId)
-      ) {
-        throw new Error(
-          `PARALLEL_BACK_EDGE: Parallel node "${parallelNode.label ?? parallelNode.type}" body contains back-edges, which are not supported.`,
-        );
-      }
-    }
-
-    const branches: ParallelBranchPlan[] = [];
-    for (let i = 0; i < branchCount; i++) {
-      const bodyNodeIds = bodyNodeIdsPerBranch[i];
-      const internalEdges = pickContainerInternalEdges(
-        bodyNodeIds,
-        forwardEdges,
-      );
-      this.assertParallelBranchChildrenAllowed(
-        parallelNode,
-        bodyNodeIds,
-        internalEdges,
-        graph,
-        currentDepth,
-      );
-
-      const graphNodes = Array.from(bodyNodeIds).map((id) => ({ id }));
-      const sortedNodeIds = topologicalSort(graphNodes, internalEdges);
-
-      const outgoingEdgeMap = new Map<string, GraphEdge[]>();
-      for (const edge of internalEdges) {
-        const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
-        list.push(edge);
-        outgoingEdgeMap.set(edge.sourceNodeId, list);
-      }
-
-      // Exit nodes: body nodes whose outgoing edges leave the body (typically
-      // into a join node such as a Merge). Used after dispatch to propagate
-      // reachability into the main loop's `reachable` set.
-      const exitNodeIds = new Set<string>();
-      for (const id of bodyNodeIds) {
-        const out = forwardAdj.get(id) ?? [];
-        for (const edge of out) {
-          if (!bodyNodeIds.has(edge.targetNodeId)) {
-            exitNodeIds.add(id);
-            break;
-          }
-        }
-        // A body node with no outgoing edges at all is still a terminal leaf;
-        // no propagation needed, so we don't add it to exitNodeIds.
-      }
-
-      branches.push({
-        branchIndex: i,
-        branchPort: `branch_${i}`,
-        bodyNodeIds,
-        sortedNodeIds,
-        entryNodeIds: branchEntries[i],
-        exitNodeIds,
-        internalEdges,
-        outgoingEdgeMap,
-      });
-    }
-
-    return { branches, joinNodeIds, allBodyNodeIds };
-  }
-
-  /**
-   * 병렬 분기 본문 노드 가운데 실행할 수 없는 노드를 막는다.
-   *
-   * - Parallel: `currentDepth` 가 {@link PARALLEL_MAX_NESTED_DEPTH} 이상이면
-   *   `PARALLEL_NESTED_DEPTH_EXCEEDED` 를 던진다(REQ-PARALLEL-024). 한도 안이면 그 본문을
-   *   {@link assertNestedParallelBodyAllowed} 로 지금 검사한다.
-   * - 컨테이너: 본문 안 Parallel 은 이 병렬 분기 컨텍스트에서 실행되어 한 단계 깊다.
-   *   {@link assertContainerBodyParallelsAllowed} 로 지금 검사한다(CLE-T-0DGHGF).
-   * - 블로킹 노드: `PARALLEL_INVALID_CHILD` 를 던진다. 메타데이터만 보므로 buttons ·
-   *   ai_conversation 처럼 실행해야 대기 여부가 정해지는 노드는
-   *   {@link executeParallelBranchBody} 의 런타임 가드가 막는다(PR-G, CRIT #3).
-   */
-  private assertParallelBranchChildrenAllowed(
-    parallelNode: Node,
-    bodyNodeIds: ReadonlySet<string>,
-    internalEdges: GraphEdge[],
-    graph: ParallelCheckGraph,
-    currentDepth: number,
-  ): void {
-    for (const id of bodyNodeIds) {
-      const node = graph.nodeMap.get(id);
-      if (!node) continue;
-      const childKind = this.handlerRegistry.getMetadata(node.type).kind;
-      if (childKind === 'parallel') {
-        if (currentDepth >= PARALLEL_MAX_NESTED_DEPTH) {
-          throw new Error(
-            `PARALLEL_NESTED_DEPTH_EXCEEDED: Nested Parallel node "${parallelNode.label ?? parallelNode.type}" body contains another Parallel node "${node.label ?? node.type}". Parallel nesting depth > ${PARALLEL_MAX_NESTED_DEPTH} is not supported.`,
-          );
-        }
-        this.assertNestedParallelBodyAllowed(
-          node,
-          internalEdges,
-          graph,
-          currentDepth + 1,
-        );
-      }
-      if (childKind === 'container') {
-        this.assertContainerBodyParallelsAllowed(node, graph, currentDepth + 1);
-      }
-      if (childKind === 'blocking') {
-        throw new Error(
-          `PARALLEL_INVALID_CHILD: Blocking node "${node.label ?? node.type}" inside Parallel node "${parallelNode.label ?? parallelNode.type}" is not supported.`,
-        );
-      }
-    }
-  }
-
-  /**
-   * 바깥 병렬 분기 본문에 있는 안쪽 Parallel 의 본문을 계획을 만들지 않고 검사만 한다
-   * (CLE-T-GGZSC2). 안쪽 Parallel 이 실행될 때 검사하면 깊이 위반이 바깥 병렬 분기 하나의
-   * 실패가 되어 바깥 항목 에러 정책(`continue`)에 묻힌다. REQ-PARALLEL-024 는 실행을
-   * 실패시키므로 바깥 병렬 분기를 시작하기 전에 던진다.
-   *
-   * 안쪽 병렬 분기 수는 표현식일 수 있어 아직 모르므로 {@link PARALLEL_BRANCH_COUNT_MAX}
-   * 로 잡는다. 그래서 설정한 병렬 분기 수 밖의 `branch_N` 아래 Parallel 도 깊이 위반으로
-   * 본다. `forwardEdges` 는 안쪽 Parallel 을 둘러싼 본문(바깥 병렬 분기 본문이나 컨테이너
-   * 본문) 안의 연결선이다.
-   *
-   * 블로킹 노드 검사는 바깥 검사와 겹친다. 안쪽 본문은 바깥 병렬 분기 본문 안의 연결선만
-   * 따라가므로 늘 바깥 본문에 들어 있고, 바깥 {@link assertParallelBranchChildrenAllowed}
-   * 도 같은 노드를 본다. 노드를 보는 순서에 따라 어느 쪽이 먼저 던지는지만 다르다.
-   *
-   * 저장 시 규칙 `parallel:nested-depth-exceeded` 와는 판정 범위가 달라 함수를 나누지
-   * 않는다. 저장 시 규칙은 `branch_N` 입구에서 모든 연결선(합류 노드, 컨테이너 본문 연결선
-   * 포함)을 따라가고 병렬 분기 수는 보지 않는다. 실행 시 검사는 맨 바깥 Parallel 의 병렬
-   * 분기 수를 따르고 합류 노드를 뺀다. 컨테이너 본문은 `containerId` 로 찾아 들어간다
-   * ({@link assertContainerBodyParallelsAllowed}).
-   */
-  private assertNestedParallelBodyAllowed(
-    parallelNode: Node,
-    forwardEdges: GraphEdge[],
-    graph: ParallelCheckGraph,
-    depth: number,
-  ): void {
-    const { bodyNodeIdsPerBranch } = collectParallelBranchMembership(
-      parallelNode.id,
-      forwardEdges,
-      PARALLEL_BRANCH_COUNT_MAX,
-    );
-    for (const bodyNodeIds of bodyNodeIdsPerBranch) {
-      // 본문이 빈 병렬 분기(설정한 병렬 분기 수 밖의 `branch_N`)는 검사할 노드가 없다.
-      if (bodyNodeIds.size === 0) continue;
-      const internalEdges = pickContainerInternalEdges(
-        bodyNodeIds,
-        forwardEdges,
-      );
-      this.assertParallelBranchChildrenAllowed(
-        parallelNode,
-        bodyNodeIds,
-        internalEdges,
-        graph,
-        depth,
-      );
-    }
-  }
-
-  /**
-   * 컨테이너 본문에 둔 Parallel 의 깊이와 본문을 회차를 시작하기 전에 검사한다
-   * (CLE-T-0DGHGF). 본문 안 Parallel 은 컨테이너가 받은 컨텍스트에서 실행되므로
-   * 컨테이너를 둘러싼 깊이를 이어받는다. `parallelDepth` 는 본문 안 Parallel 이 실행될
-   * 깊이다. 맨 바깥 컨테이너면 1, 병렬 분기 안 컨테이너면 그 병렬 분기 Parallel 깊이 + 1
-   * 이다.
-   *
-   * 회차 안에서 처음 검사하면 위반이 그 회차 하나의 실패가 되어 컨테이너 `errorPolicy`
-   * (`skip` · `continue`)에 묻힌다. 바깥 병렬 분기 안이면 바깥 항목 에러 정책에도 묻힌다.
-   * REQ-PARALLEL-022 · 024 는 실행을 실패시키므로 병렬 분기 계획
-   * ({@link assertParallelBranchChildrenAllowed})과 컨테이너 시작
-   * ({@link runContainerInner})에서 부른다.
-   *
-   * 본문 안 컨테이너는 Parallel 깊이를 늘리지 않고 그 본문까지 내려간다. `containerId`
-   * 가 돌고 도는 그래프는 `visited` 로 멈춘다(그런 컨테이너는 실행할 때
-   * `CONTAINER_CYCLE` 로 실패한다).
-   *
-   * 본문 안 Background 의 `background` 포트로만 닿는 노드도 같은 `containerId` 를 가진다.
-   * 그 노드는 워커가 새 컨텍스트에서 실행하므로 깊이를 1 부터 센다
-   * ({@link collectBackgroundOnlyNodeIds}, CLE-T-BTR4ZA). 회차 본문에서도 닿는 노드는
-   * 회차 루프에서 실행되므로 컨테이너 깊이로 센다. 본문 Parallel 의 병렬 분기 안에 둔
-   * Background 의 본문은 그 병렬 분기 본문으로도 잡혀 바깥 깊이를 이어서 센다
-   * ({@link assertNestedParallelBodyAllowed}). 병렬 분기 안 Background 본문을 이렇게
-   * 엄격하게 세는 동작은 CLE-NODE-PARALLEL 「미결 사항」에 남아 있다.
-   */
-  private assertContainerBodyParallelsAllowed(
-    containerNode: Node,
-    graph: ParallelCheckGraph,
-    parallelDepth: number,
-    visited: Set<string> = new Set(),
-  ): void {
-    if (visited.has(containerNode.id)) return;
-    visited.add(containerNode.id);
-    const children = graph.childrenByContainer.get(containerNode.id) ?? [];
-    let bodyEdges: GraphEdge[] | undefined;
-    let backgroundOnlyIds: ReadonlySet<string> | undefined;
-    const bodyEdgesOf = () =>
-      (bodyEdges ??= pickContainerInternalEdges(
-        new Set(children.map((c) => c.id)),
-        graph.allEdges,
-      ));
-    // Background 본문 노드는 워커가 새 컨텍스트에서 실행하므로 깊이 1 이다.
-    const depthOf = (child: Node): number => {
-      backgroundOnlyIds ??= collectBackgroundOnlyNodeIds(
-        graph.allEdges
-          .filter(
-            (e) =>
-              e.sourceNodeId === containerNode.id && e.sourcePort === 'body',
-          )
-          .map((e) => e.targetNodeId),
-        bodyEdgesOf(),
-        (id) => {
-          const node = graph.nodeMap.get(id);
-          return (
-            node !== undefined &&
-            this.handlerRegistry.getMetadata(node.type).kind === 'background'
-          );
-        },
-      );
-      return backgroundOnlyIds.has(child.id)
-        ? BACKGROUND_BODY_PARALLEL_DEPTH
-        : parallelDepth;
-    };
-    for (const child of children) {
-      const childKind = this.handlerRegistry.getMetadata(child.type).kind;
-      if (childKind === 'parallel') {
-        const childDepth = depthOf(child);
-        if (childDepth > PARALLEL_MAX_NESTED_DEPTH) {
-          throw new Error(
-            `PARALLEL_NESTED_DEPTH_EXCEEDED: Parallel node "${child.label ?? child.type}" in the body of container "${containerNode.label ?? containerNode.type}" would run at nesting depth ${childDepth}. Parallel nesting depth > ${PARALLEL_MAX_NESTED_DEPTH} is not supported.`,
-          );
-        }
-        this.assertNestedParallelBodyAllowed(
-          child,
-          bodyEdgesOf(),
-          graph,
-          childDepth,
-        );
-      }
-      if (childKind === 'container') {
-        this.assertContainerBodyParallelsAllowed(
-          child,
-          graph,
-          depthOf(child),
-          visited,
-        );
-      }
-    }
-  }
-
-  /** {@link ParallelCheckGraph} 를 만든다. */
-  private buildParallelCheckGraph(
-    allNodes: readonly Node[],
-    allEdges: readonly Edge[],
-  ): ParallelCheckGraph {
-    // 컨테이너 회차마다 같은 노드 · 연결선 배열로 불리므로 배열 참조 기준으로 1회만 만든다.
-    const cached = this.parallelCheckGraphCache.get(allNodes);
-    if (cached && cached.allEdges === allEdges) return cached.graph;
-    const nodeMap = new Map<string, Node>();
-    const childrenByContainer = new Map<string, Node[]>();
-    for (const node of allNodes) {
-      nodeMap.set(node.id, node);
-      if (!node.containerId) continue;
-      const siblings = childrenByContainer.get(node.containerId) ?? [];
-      siblings.push(node);
-      childrenByContainer.set(node.containerId, siblings);
-    }
-    const graph: ParallelCheckGraph = {
-      nodeMap,
-      childrenByContainer,
-      allEdges,
-    };
-    this.parallelCheckGraphCache.set(allNodes, { allEdges, graph });
-    return graph;
-  }
-
-  /**
-   * `context` 에서 실행되는 Parallel 의 중첩 깊이. 바깥 Parallel 이 병렬 분기 컨텍스트
-   * (`ParallelBranchContext`)에 `parentParallelConcurrency` 를 넣으므로 그 필드가 있으면
-   * 2, 없으면 1 이다(parallel-p2 결정 #3). `parentParallelConcurrency` 는
-   * `ExecutionContext` 공통 필드가 아니라서 `in` 으로 확인한다.
-   */
-  private parallelDepthOf(context: ExecutionContext): number {
-    return 'parentParallelConcurrency' in context ? 2 : 1;
-  }
-
-  /**
    * Execute a single branch's body subgraph sequentially — the engine runs
    * branches *between* each other in parallel (via ParallelExecutor), but
    * each branch's own nodes remain in topological order inside the branch.
    *
    * Mirrors {@link executeContainerBody}: seeds reachability with the branch
    * entry nodes, routes by port, and rejects any blocking node encountered
-   * mid-flight (validation in {@link planParallelBody} covers statically-
+   * mid-flight (validation in {@link ParallelPrecheck.planParallelBody} covers statically-
    * declared blocking nodes; this guards against ones emitted via
    * `waiting_for_input` at runtime).
    *
@@ -8573,13 +7862,13 @@ export class ExecutionEngineService
         ? (context as ParallelBranchContext).parentParallelConcurrency
         : undefined;
 
-    const plan = this.planParallelBody(
+    const plan = this.parallelPrecheck.planParallelBody(
       parallelNode,
-      this.buildParallelCheckGraph(allNodes, allEdges),
+      this.parallelPrecheck.buildParallelCheckGraph(allNodes, allEdges),
       forwardEdges,
       backEdges,
       branchCount,
-      this.parallelDepthOf(context),
+      parallelDepthOf(context),
     );
 
     // Resolve the Parallel node's current NodeExecution row so branch
@@ -8873,10 +8162,10 @@ export class ExecutionEngineService
     // CLE-T-0DGHGF — 본문 안 Parallel 의 깊이 · 자식 검사도 회차 전에 한다. 회차 안에서
     // 처음 던지면 컨테이너 `errorPolicy`(`skip` · `continue`)가 그 실패를 흡수한다.
     if (this.resolveParallelEngineFlag() === 'v1') {
-      this.assertContainerBodyParallelsAllowed(
+      this.parallelPrecheck.assertContainerBodyParallelsAllowed(
         containerNode,
-        this.buildParallelCheckGraph(allNodes, allEdges),
-        this.parallelDepthOf(context),
+        this.parallelPrecheck.buildParallelCheckGraph(allNodes, allEdges),
+        parallelDepthOf(context),
       );
     }
 

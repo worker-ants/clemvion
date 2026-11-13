@@ -33,6 +33,7 @@ import { ParallelExecutor } from '../containers/parallel-executor';
 import { ExecutionEventEmitter } from '../events/execution-event-emitter.service';
 import { GraphTraversalService } from '../graph/graph-traversal.service';
 import { ContinuationBusService } from '../continuation/continuation-bus.service';
+import { StuckExecutionRecoveryService } from '../recovery/stuck-execution-recovery.service';
 import { ConversationThreadService } from '../conversation-thread/conversation-thread.service';
 import { ShutdownStateService } from '../shutdown/shutdown-state.service';
 import { ExecutionNodeLog } from '../entities/execution-node-log.entity';
@@ -232,6 +233,7 @@ describe('Filter 다음 노드가 받는 입력: 현재 동작 실측 (CLE-T-4EV
             ),
           },
         },
+        { provide: StuckExecutionRecoveryService, useValue: {} },
         {
           provide: ContinuationBusService,
           useValue: {
