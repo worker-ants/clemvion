@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 21
+version: 22
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "de4ab94ea9ea7f297d2c62cefb8d3cc7470ce8664eb8d73bbbd42827a20d6184"
+content_hash: "512c0d64b34b7068e761d4d6b8544770330e03ad22ce4846c4aad61555e31a81"
 read_as: "approved_fallback"
-task: "CLE-T-VRBS51"
+task: "CLE-T-ZC34Y0"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "d7381f631416a8f70358cf550ea562ca54495b386f51c4ab921359c507ec8d34"
-etag: "sha256-a552ac4d17ced23541dbc1f6b6c9f7b48c60ac9980d7cb161668bfcb4d1056c4"
+mirror_sha256: "b3216a885335dd958648060a9f591fbe9e2c7b554bc16cbafbfb6f2339b1c4fe"
+etag: "sha256-ba3b1f941345fdc19a6da8e87b6d8695295e3a2d310b3a627d4e0d940ee899df"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -632,11 +632,13 @@ BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 
 
 요청 빈도 제한은 Redis 가 아니라 `@nestjs/throttler` 의 in-memory 카운터로 구현했다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 HTTP 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
 
+서명 참조가 있는 채팅 채널 트리거 요청은 전역 한도로 세지 않는다. 이런 요청은 `POST /api/hooks/:endpointPath` 가운데 트리거 설정에 채팅 채널 프로바이더(`config.chatChannel.provider`)와 서명 참조(`config.chatChannel.inboundSigningRef`)가 모두 있는 요청이다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거나 채널을 연결하기 전의 트리거)로 온 요청은 전처럼 전역 한도로 센다. 이 라우트에는 `@DeferGlobalThrottle()` 이 붙어 있어 전역 가드 `UserThrottlerGuard` 가 세지 않고 넘긴다. 이 라우트의 전역 한도는 라우트 가드 `HookTriggerThrottlerGuard` 가 센다. 이 가드는 `PublicWebhookThrottleGuard` 뒤에서 돌고 그 가드가 조회한 트리거로 면제 여부를 판정한다(`isSignedChatChannelTrigger`). 한도 · 저장소 · 집계 키는 전역 가드와 같다. 그래서 면제되지 않는 웹훅 요청은 전과 같은 버킷을 같은 한도로 쓴다. 트리거가 없거나 조회에 실패한 요청도 센다. 이 예외의 정책과 근거는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 와 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
+
 한도 수치는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 의 사본이다. 이 표는 집계 키와 구현 위치의 정본이다.
 
 | 범위 | 한도 | 집계 키 | 위치 |
 | --- | --- | --- | --- |
-| 전역 (모든 HTTP API) | 분당 100회 | 인증 요청은 사용자, `@Public` 라우트는 IP | `app.module.ts` 의 `ThrottlerModule.forRoot`, `common/guards/user-throttler.guard.ts`, `common/utils/http-context.ts`, `common/utils/throttler-skip.ts`(`shouldSkipThrottle`) |
+| 전역 (모든 HTTP API) | 분당 100회 | 인증 요청은 사용자, `@Public` 라우트는 IP | `app.module.ts` 의 `ThrottlerModule.forRoot`, `common/guards/user-throttler.guard.ts`(`UserThrottlerGuard`, `@DeferGlobalThrottle()`), `common/utils/http-context.ts`, `common/utils/throttler-skip.ts`(`shouldSkipThrottle`). `POST /api/hooks/:endpointPath` 는 `modules/hooks/hook-trigger-throttler.guard.ts`(`HookTriggerThrottlerGuard`)와 면제 판정 `modules/chat-channel/chat-channel-secret-refs.ts`(`isSignedChatChannelTrigger`) |
 | `register`·`login` | 분당 10회 | IP | `auth.controller.ts` 의 `@Throttle` |
 | `forgot-password`·`resend-verification`·`check-email` | 분당 5회 | IP | `auth.controller.ts` |
 | `2fa/setup` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
@@ -759,7 +761,8 @@ stateDiagram-v2
 - `codebase/backend/src/modules/workspaces/member-personal-integrations.port.ts`, `codebase/backend/src/modules/integrations/member-personal-integrations-purger.service.ts` (멤버 제거 · 나가기 트랜잭션이 개인 통합을 지우는 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 와 그 구현)
 - `codebase/backend/migrations/V153__purge_departed_member_personal_integrations.sql` (통합 소유자가 멤버가 아닌 개인 통합을 한 번 지운다)
 - `codebase/backend/src/common/constants/workspace-roles.ts` (`ADMIN_ROLE_CHANGE_REQUIRES_OWNER`)
-- `codebase/backend/src/app.module.ts`, `codebase/backend/src/common/guards/user-throttler.guard.ts`, `codebase/backend/src/common/utils/http-context.ts`, `codebase/backend/src/common/constants/throttle.ts` (요청 빈도 제한과 집계 키, HTTP 요청만 세는 판정 `isHttpContext`, `SENSITIVE_ACTION_THROTTLE`)
+- `codebase/backend/src/app.module.ts`, `codebase/backend/src/common/guards/user-throttler.guard.ts`, `codebase/backend/src/common/utils/http-context.ts`, `codebase/backend/src/common/constants/throttle.ts` (요청 빈도 제한과 집계 키, HTTP 요청만 세는 판정 `isHttpContext`, 전역 가드가 세지 않고 라우트 가드에 넘기는 `@DeferGlobalThrottle()`, `SENSITIVE_ACTION_THROTTLE`)
+- `codebase/backend/src/modules/hooks/hook-trigger-throttler.guard.ts`, `codebase/backend/src/modules/hooks/hooks.controller.ts` (`POST /api/hooks/:endpointPath` 의 전역 요청 빈도 제한. `HookTriggerThrottlerGuard` 가 서명 참조가 있는 채팅 채널 트리거를 빼고 센다), `codebase/backend/src/modules/chat-channel/chat-channel-secret-refs.ts` (면제 판정 `isSignedChatChannelTrigger`), `codebase/backend/src/modules/hooks/hooks-throttle.wire.spec.ts` (이 라우트의 가드 체인 테스트)
 - `codebase/backend/src/modules/auth/password-recheck-throttle.spec.ts` (`verifyPasswordForUser` 로 비밀번호를 다시 확인하는 라우트의 목록을 고정하고 핸들러마다 `SENSITIVE_ACTION_THROTTLE` 이 걸렸는지 확인하는 단위 테스트)
 - `codebase/backend/src/modules/mail/mail.service.ts`, `codebase/backend/src/modules/mail/mail.module.ts`, `codebase/backend/src/modules/mail/mail.transporter.ts` (SMTP 전송기와 TLS 강제)
 - `codebase/backend/src/common/config/mail.config.ts` (`MAIL_*` 해석과 운영 경고 판정), `codebase/backend/src/main.ts` (운영 경고)

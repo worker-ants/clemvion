@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "3baf56997136a8b2a82b4153cb3d659b1392debd1030f62a415883d3c57fcef8"
+content_hash: "d8ed0929db795d114755916614eb9041c0887369f90fe3c96281cfdffba7088c"
 read_as: "approved_fallback"
-task: "CLE-T-TSEP9G"
+task: "CLE-T-MGZRRP"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "ec88811a39431a02826a298fe9d7a973bc8643229501180093e3ee2311b45462"
-etag: "sha256-80dc83e3c81dd3c25ad22887cf83475f965cdeb53d5e4eb330b6cf97e9d8f606"
+mirror_sha256: "aff37a068be402ad8b380f86dfcefe4ceb5df63ca1d139b7417fbad05c331f42"
+etag: "sha256-f63a728c1009dc2d2258dc89a1ad43265bbb73b5aa685ec519cce4c0e747d2dc"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -114,9 +114,12 @@ interface ChatChannelAdapter {
    * (선택) 봇 토큰 재발급과 관련해 이전 토큰을 외부 프로바이더에서 revoke 한다.
    * Slack auth.revoke 처럼 revoke API 가 있는 프로바이더만 구현하고 Telegram·Discord 는 구현하지 않는다(undefined).
    * 호출자는 존재 여부를 type-guard 로 확인하고 실패해도 흐름을 막지 않는다.
-   * 호출자는 24시간 유예가 끝난 정리 작업(TriggersService.cleanupRotatedChatChannelTokens)이다.
-   * 재발급(TriggersService.rotateBotToken) 시점에는 부르지 않는다(R-CCA-10).
-   * @param oldBotToken 24시간 유예가 끝난 이전 봇 토큰. 재발급 때 v2 참조(bot-token.v2)에 백업해 둔 평문이다.
+   * 호출자는 둘이다(R-CCA-10).
+   *   - 24시간 유예가 끝난 정리 작업(TriggersService.cleanupRotatedChatChannelTokens): v2 참조(bot-token.v2)에 백업해 둔 이전 토큰을 폐기한다.
+   *   - 재발급(TriggersService.rotateBotToken): 유예 안에 다시 교체해 v2 백업에서 덮인 토큰을 폐기한다.
+   *     교체가 끝까지 성공한 뒤(설정 컬럼 갱신과 감사 기록 뒤)에만 부른다. 덮인 값이 비었거나 지금 토큰·새 토큰과 같으면 부르지 않는다.
+   * 재발급이 방금 v2 로 백업한 이전 토큰은 재발급 시점에 폐기하지 않는다.
+   * @param oldBotToken 폐기할 봇 토큰 평문. 유예가 끝난 v2 백업이거나 유예 중 재교체로 v2 에서 덮인 값이다.
    * @returns 외부 API 응답과 무관하게 void. 내부 에러는 호출자에 전파하지 않고 흡수한다(logger.warn).
    */
   revokeBotToken?(oldBotToken: string): Promise<void>;
@@ -132,7 +135,8 @@ interface ChatChannelAdapter {
   /**
    * (선택) 인터랙션에 3초 안에 200 으로 돌려줄 기본 응답을 만든다. 순수 함수.
    * Discord 는 컴포넌트·모달 제출에 { type: 6 }, 슬래시 명령에 본인에게만 보이는 { type: 4 } 를 돌려준다.
-   * Slack 은 Interactivity payload 에 빈 본문({})을 돌려준다.
+   * Slack 은 Interactivity payload 에 빈 본문({})을, 슬래시 명령에 본인에게만 보이는
+   * { response_type: 'ephemeral', text } 를 돌려준다. text 는 help 하위 명령이면 도움말, 그 밖에는 수신 문구다.
    * 인터랙션이 아니면 undefined 이고 웹훅 응답은 202 다.
    * HooksService 가 서명 검증 직후, 트리거 활성 관문보다 먼저 부른다. 그래서 트리거가 비활성이어도 이 응답으로 답한다.
    * 경로가 따로 만든 응답 본문(openFormModal 의 httpResponse, buildFormSubmissionResponse)이 있으면 그것이 먼저다.
@@ -183,12 +187,12 @@ interface ChatChannelAdapter {
 | `sendMessage` | 외부 API 호출. API 호출 재시도·rate limit 책임 | 외부 API 호출 | 옛 규약은 "중복 제거는 호출자가 EIA `seq` 와 `X-Clemvion-Delivery` 로 한다" 고 적었다. 정의가 갈린다([미결 사항](#미결-사항)) |
 | `ackInteraction` | 인바운드 명령을 처리한 뒤의 인터랙션 후처리. 처리한 Telegram 버튼 탭에는 `answerCallbackQuery` 를 보내고 인라인 키보드를 지운다. Slack 은 `response_url` 로 메시지를 갱신한다. 버린 update 에는 부르지 않는다(버린 탭은 `ackDroppedUpdate?`). Slack·Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답(`defaultInteractionResponse?`)이 맡고 이 함수는 하지 않는다. 함수는 필수지만 빈 구현이어도 된다(Discord) | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `escapeControlText` | 제어 안내 텍스트를 프로바이더 표면에 맞게 escape | 없음 | 순수 |
-| `revokeBotToken?` | 이전 봇 토큰의 외부 revoke(Slack `auth.revoke`). API 가 없으면 구현하지 않는다. 실패는 흡수한다. 24시간 유예가 끝난 정리 작업(`cleanupRotatedChatChannelTokens`)이 부르고 재발급 시점에는 부르지 않는다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
+| `revokeBotToken?` | 이전 봇 토큰의 외부 revoke(Slack `auth.revoke`). API 가 없으면 구현하지 않는다. 실패는 흡수한다. 24시간 유예가 끝난 정리 작업(`cleanupRotatedChatChannelTokens`)이 v2 백업의 이전 토큰에 부른다. 재발급(`rotateBotToken`)은 방금 백업한 이전 토큰에는 부르지 않는다. 유예 안에 다시 교체해 v2 백업에서 덮인 토큰에만 교체가 성공한 뒤 부른다(R-CCA-10) | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `enrichInbound?` | `parseUpdate` 결과를 외부 API 로 보강한다(Slack `files.info` 로 파일 이름·MIME·다운로드 URL). 호출자는 `HooksService` 이고 인바운드 중복 제거와 분당 한도 검사 뒤에 부른다. 보강할 정보가 없으면 구현하지 않는다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
-| `defaultInteractionResponse?` | 인터랙션의 3초 안 기본 응답 본문을 raw body 로 만든다(Discord `{ type: 6 }`·`{ type: 4 }` ephemeral, Slack 빈 본문). `undefined` 면 `202` 다. 서명 검증 직후, 트리거 활성 관문보다 먼저 불려 비활성 트리거에도 쓴다. 경로가 만든 응답 본문이 있으면 그것이 먼저다([인터랙션 기본 응답과 수신 확인](#인터랙션-기본-응답과-수신-확인)) | 없음 | 순수 |
+| `defaultInteractionResponse?` | 인터랙션의 3초 안 기본 응답 본문을 raw body 로 만든다(Discord `{ type: 6 }`·`{ type: 4 }` ephemeral, Slack Interactivity 빈 본문과 슬래시 명령 `{ response_type: 'ephemeral', text }`). `undefined` 면 `202` 다. 서명 검증 직후, 트리거 활성 관문보다 먼저 불려 비활성 트리거에도 쓴다. 경로가 만든 응답 본문이 있으면 그것이 먼저다([인터랙션 기본 응답과 수신 확인](#인터랙션-기본-응답과-수신-확인)) | 없음 | 순수 |
 | `ackDroppedUpdate?` | 버린 update 의 수신 확인을 raw body 로 보낸다(Telegram 버린 버튼 탭에 `answerCallbackQuery` 만, 키보드는 남긴다). 버리는 여섯 경로에서 부르고 비활성 트리거에서는 부르지 않는다. 실패는 호출자가 삼키고 웹훅 HTTP 응답은 바뀌지 않는다 | 프로바이더에 따라 외부 API 호출 | 요구하지 않는다(실패해도 결과에 영향이 없다) |
 | `openFormModal?` | `form_modal` 버튼 클릭(`open_form_modal` 명령) 때 모달을 연다. Slack 은 `views.open(trigger_id, view)`, Discord 는 웹훅 응답 본문 `{ type: 9 }`. 모달 합성에 채널 대화 상태의 `pendingFormModal.fields` 가 필요해 호출자는 `HooksService` 다. Discord 의 AI 답장 모달(`modalKind: "reply"`)도 이 함수로 열고, 이때는 `pendingFormModal` 없이 부른다 | 외부 API 호출 또는 HTTP 응답 본문 합성 | 멱등 |
-| `buildFormSubmissionResponse?` | 모달 제출(`form_submission`)의 HTTP 응답 합성. ack(Slack 빈 200, Discord `{ type: 4 }` ephemeral)나 검증 실패 재표시(Slack `response_action: errors`)만 만든다 | 없음 | 순수 |
+| `buildFormSubmissionResponse?` | 모달 제출(`form_submission`)의 HTTP 응답 합성. ack(Slack 빈 200, Discord `{ type: 4 }` ephemeral)나 검증 실패 재표시(Slack `response_action: errors`)만 만든다. 제출을 재개 큐에 넣지 못하면 호출자는 이 함수를 부르지 않고 기본 응답으로 답한다([네이티브 모달 경로](#네이티브-모달-경로)) | 없음 | 순수 |
 
 ### 인터랙션 기본 응답과 수신 확인
 
@@ -197,14 +201,14 @@ interface ChatChannelAdapter {
 | 프로바이더 | `defaultInteractionResponse?` | `ackInteraction`(처리한 인터랙션) | `ackDroppedUpdate?`(버린 update) |
 |---|---|---|---|
 | Telegram | 구현하지 않는다. 웹훅 응답은 늘 `202` 다 | 처리한 버튼 탭에 `answerCallbackQuery` 를 보내고 원본 메시지의 인라인 키보드를 지운다 | 본문에 `callback_query.id`(비어 있지 않은 문자열)가 있으면 `answerCallbackQuery` 만 보낸다. 인라인 키보드는 남겨 잠시 뒤 다시 누를 수 있다. 그 밖의 update 에는 아무것도 하지 않는다 |
-| Slack | 본문에 문자열 `payload` 필드가 있으면(Interactivity: `block_actions`·`view_submission`) `{}` 를 돌려줘 `200` 빈 본문으로 답한다. Events API, URL Verification, 슬래시 명령은 `undefined`(`202`)다. 슬래시 명령의 3초 응답은 NERV Task `CLE-T-MGZRRP` 가 다룬다 | `response_url` 이 있으면 원본 메시지를 "선택 완료" 문구로 바꾼다 | 구현하지 않는다. 3초 응답이 수신 확인이다 |
+| Slack | 본문에 문자열 `payload` 필드가 있으면(Interactivity: `block_actions`·`view_submission`) `{}` 를 돌려줘 `200` 빈 본문으로 답한다. 슬래시 명령은 본인에게만 보이는 `{ response_type: 'ephemeral', text }` 다. `help` 하위 명령이면 도움말을, 그 밖의 하위 명령이면 수신 문구를 싣는다. `text` 는 mrkdwn 으로 렌더되므로 `&` `<` `>` 를 escape 한다. `help` 는 실행으로 보내지 않고 이 응답 하나로 끝난다. Events API 와 URL Verification 은 `undefined`(`202`)다 | `response_url` 이 있으면 원본 메시지를 "선택 완료" 문구로 바꾼다 | 구현하지 않는다. 3초 응답이 수신 확인이다 |
 | Discord | 컴포넌트·모달 제출은 `{ type: 6 }`, 슬래시 명령은 본인에게만 보이는 `{ type: 4 }`(도움말이나 수신 문구)다. PING, 자동완성, 알 수 없는 `type` 은 `undefined` 다 | 빈 구현 | 구현하지 않는다. 3초 응답이 수신 확인이다 |
 
 - 웹훅 HTTP 응답은 이 순서로 정한다. (1) 경로가 만든 응답 본문(`openFormModal` 의 `httpResponse`, `buildFormSubmissionResponse`), (2) `defaultInteractionResponse?` 의 기본 응답, (3) 그 밖은 `202` 와 `{ data: { executionId } }`. 기본 응답에 `body` 가 있으면 `200` 과 그 본문을 `{ data }` 봉투 없이 보내고, `body` 가 없으면 `200` 빈 본문을 보낸다.
 - 트리거가 비활성이면 `HooksService` 는 실행을 시작하지 않고 외부 API 도 부르지 않는다. `defaultInteractionResponse?` 는 외부 호출이 없어 이때도 쓰고, `ackDroppedUpdate?` 는 부르지 않는다.
 - 핸드셰이크(Slack URL Verification, Discord PING)는 이 함수들이 아니라 `HooksService` 가 트리거 활성 관문 뒤에서 답한다. 그래서 트리거가 비활성이면 핸드셰이크는 `202` 다.
 - 기본 응답이 있는 update 로 새 실행을 시작하면 그 실행의 `response_code` 는 실제로 보낸 응답 코드인 `'200'` 이고, 없으면 `'202'` 다.
-- 응답 코드 계약은 [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 프로바이더별 응답 본문은 각 프로바이더 문서가 정한다. Discord 는 [Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD.md#인바운드-응답) 이다.
+- 응답 코드 계약은 [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 프로바이더별 응답 본문은 각 프로바이더 문서가 정한다. Slack 은 [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK.md#인바운드-응답), Discord 는 [Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD.md#인바운드-응답) 이다.
 
 ### setupChannel 멱등의 뜻
 
@@ -437,7 +441,7 @@ interface ChatChannelConfig {
   /**
    * 안내 문구 덮어쓰기. 키와 기본 문구는 채팅 채널 데이터와 흐름의 안내 문구 기본값이 정한다.
    * 메시지로 보내는 문구 말고 웹훅 HTTP 응답 본문에 싣는 문구도 있다
-   * (defaultInteractionResponse 가 쓰는 Discord 슬래시 명령의 commandReceived·help).
+   * (defaultInteractionResponse 가 쓰는 Discord · Slack 슬래시 명령의 commandReceived·help).
    */
   languageHints?: Record<string, string>;
 }
@@ -453,7 +457,7 @@ interface ChatChannelConfig {
 
 1차 범위의 세 채널 프로바이더는 규약상 모두 서명 자료가 필수다. 그러나 지금 구현은 저장된 `inboundSigningRef` 가 없는 행(옛 행 등)에서 인바운드 서명 검증을 건너뛴다. 규약과 구현이 어긋난 알려진 상태이고 `CLE-T-AAGZRW` 가 정할 때까지의 임시 동작이다([미결 사항](#미결-사항)). 그런 행이 생기는 길은 [채팅 채널 데이터와 흐름 §인바운드 서명 자료 참조가 없는 행](CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 에 적었다.
 
-`languageHints` 의 키 가운데 웹훅 HTTP 응답 본문에 싣는 문구(`commandReceived`, Discord `help`)는 `sendMessage` 로 보내지 않으므로 `escapeControlText` 를 거치지 않는다. 기본값과 찾는 순서는 다른 키와 같다([채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값)).
+`languageHints` 의 키 가운데 웹훅 HTTP 응답 본문에 싣는 문구(슬래시 명령의 `commandReceived` 와 `help`)는 `sendMessage` 로 보내지 않으므로 `escapeControlText` 를 거치지 않는다. Discord 는 이 문구를 그대로 싣는다. Slack 은 응답 `text` 가 mrkdwn 으로 렌더되므로 채널 어댑터가 `escapeControlText` 와 같은 규칙(`&` `<` `>`)으로 escape 해 싣는다. 기본값과 찾는 순서는 다른 키와 같다([채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값)).
 
 ### SetupResult와 SendResult
 
@@ -658,6 +662,9 @@ sequenceDiagram
   alt 서버 쪽 검증 실패
     E-->>H: 400 VALIDATION_ERROR, details
     H-->>U: 에러와 함께 모달 다시 표시
+  else 재개 큐 적재 실패
+    E-->>H: 큐에 넣지 못했다고 알림
+    H-->>U: 기본 응답으로 모달 닫기, 양식 열기 버튼 다시 보내기
   else 성공
     E-->>H: 다음 EIA 이벤트로 진행
   end
@@ -669,6 +676,7 @@ sequenceDiagram
 4. 클라이언트 쪽 검증(모든 필드의 `type`, `pattern`, `minLength`·`maxLength`, 숫자 `min`·`max`)을 한다. 프로바이더 네이티브 검증을 먼저 쓰고 나머지는 채널 어댑터의 schema 검증이다. 통과하면 EIA `submit_form(data: fields)` 을 한 번 부른다.
 5. 서버 쪽 검증이 실패하면(`400 VALIDATION_ERROR` + `error.details[{field, message, code}]`) 에러와 함께 모달을 다시 보여 준다. Slack 은 `view_submission` 응답으로 `{ response_action: "errors", errors: { <block_id>: <msg> } }` 를 돌려줘 모달을 유지한다. Discord 는 같은 interaction 에 모달을 다시 보낼 수 없어 후속 메시지의 버튼으로 다시 열게 한다([Discord 어댑터](CLE-CHAT-DISCORD.md)).
 6. 성공하면 다음 EIA 이벤트로 넘어간다.
+7. 검증을 통과한 제출을 재개 큐에 넣지 못하면(`queued:false`) 입력이 실행에 닿지 않은 것이다. `HooksService` 는 `pendingFormModal` 을 지우지 않고 「양식 작성하기」 버튼을 다시 보낸다. 검증 실패 때 버튼을 다시 보내는 경로와 같다. `buildFormSubmissionResponse` 를 부르지 않으므로 웹훅 응답은 그 채널 어댑터의 기본 응답(`defaultInteractionResponse?`, Discord `{ type: 6 }`, Slack `{}`)이다. 모달은 닫히고 제출했다는 문구는 보이지 않는다. 사용자는 버튼을 다시 눌러 같은 양식을 다시 낸다. 경고 로그와 채널 건강도 `degraded` 는 [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE.md#인바운드-http-응답-계약) 의 재개 명령 큐 적재 실패 규칙을 따른다(R-CCA-8 (e)).
 
 모달에서도 프로바이더 네이티브 검증(Slack input `min_length`·`max_length`, Discord `TEXT_INPUT` `min_length`·`max_length`·`required`)을 먼저 쓰고, `pattern`·email 같은 나머지 schema 검증은 제출 직후 채널 어댑터가 한다. 실패하면 5단계의 재표시 경로를 탄다. "틀린 필드만 다시" 라는 다단계 질문의 원칙은 모달에서도 같다(모달 전체를 유지하고 틀린 필드만 에러로 강조한다).
 
@@ -740,7 +748,7 @@ interface ChannelAdapterRegistry {
 - `codebase/backend/src/modules/hooks/hooks.service.ts`: 인터랙션 기본 응답 적용(`withDefaultInteractionResponse`), 버린 update 의 수신 확인(`dropChatChannelUpdate`), 처리한 인터랙션의 `ackInteraction` 호출
 - `codebase/backend/src/modules/hooks/hooks.controller.ts`: 인터랙션 응답 본문과 빈 본문의 `200` 전송
 
-관련 후속 계획(미구현): 401/403 message fallback 제거 판정(NERV Task `CLE-T-PDWFV8`), Slack 슬래시 명령의 3초 응답(NERV Task `CLE-T-MGZRRP`), Discord Gateway, Slack Socket Mode, 시각형 SSR PNG.
+관련 후속 계획(미구현): 401/403 message fallback 제거 판정(NERV Task `CLE-T-PDWFV8`), Discord Gateway, Slack Socket Mode, 시각형 SSR PNG.
 
 ## Rationale
 
@@ -802,6 +810,7 @@ R4 가 예고한 "네이티브 UI 분기" 를 실현한 것이다. capability(`s
 - (b) 모달 열기는 선택 함수 `openFormModal?`(와 `buildFormSubmissionResponse?`)로 둔다. `ackInteraction(update, config)` 시그니처는 모달 합성에 필요한 폼 필드(채널 대화 상태의 `pendingFormModal.fields`)를 받지 못한다. 모달 합성에는 필드와 프로바이더 토큰이 둘 다 필요한데 ack 시점에는 토큰만 있다. "함수 추가 = 모든 프로바이더 계약 변경" 이라는 우려는 선택(`?`) 시그니처로 피한다. 모달 미지원 프로바이더는 구현하지 않고 기존 필수 계약은 그대로다.
 - (c) 서버 쪽 검증 재표시는 "틀린 필드만 다시" 를 모달에서도 지킨다(Slack `response_action: errors`, Discord 모달 다시 열기).
 - (d) 운영 데이터가 없어 `formMode` 기본값을 `auto` 로 바꿔도 옛 `"multi_step"` 값의 뜻은 같고 마이그레이션이 필요 없다.
+- (e) 모달 제출을 재개 큐에 넣지 못하면(`queued:false`) 폼 제출 성공 응답 대신 그 채널 어댑터의 기본 응답으로 답하고, `pendingFormModal` 을 남긴 채 「양식 작성하기」 버튼을 다시 보낸다. 2026-11-13 사람 결정(NERV 질문 `01a1d2f3-df05-7334-88a9-e745d4a668dc`)이고 출처는 NERV Task `CLE-T-6ZTPZ8` 2번이다. 입력이 실행에 닿지 않았는데 성공 응답을 보내면 사용자는 제출이 끝났다고 믿는다. `pendingFormModal` 을 지우면 같은 양식을 다시 열 길이 없다. 검증 실패 때 쓰는 버튼 재발송 경로를 그대로 쓰므로 새 경로가 생기지 않는다. 채널 건강도를 `degraded` 로 바꾸는 2026-10-17 결정은 바꾸지 않았다.
 
 ### R-CCA-9 실패 사유를 message 가 아니라 code 로 선언한다
 
@@ -818,13 +827,15 @@ R4 가 예고한 "네이티브 UI 분기" 를 실현한 것이다. capability(`s
 
 ### R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다
 
-이전 봇 토큰의 외부 폐기(`revokeBotToken`, Slack `auth.revoke`)는 24시간 유예가 끝난 정리 작업 `TriggersService.cleanupRotatedChatChannelTokens` 가 부른다. 이 작업은 `ChatChannelTokenRotatorService` 가 매시간 돌린다. 폐기 대상은 재발급 때 v2 참조(`bot-token.v2`)에 백업해 둔 이전 토큰이다. 재발급(`TriggersService.rotateBotToken`) 시점에는 폐기하지 않는다.
+이전 봇 토큰의 외부 폐기(`revokeBotToken`, Slack `auth.revoke`)는 24시간 유예가 끝난 정리 작업 `TriggersService.cleanupRotatedChatChannelTokens` 가 부른다. 이 작업은 `ChatChannelTokenRotatorService` 가 매시간 돌린다. 폐기 대상은 재발급 때 v2 참조(`bot-token.v2`)에 백업해 둔 이전 토큰이다. 재발급(`TriggersService.rotateBotToken`) 시점에는 방금 백업한 이전 토큰을 폐기하지 않는다. 유예 안에 다시 교체한 경우의 예외는 이 절 끝에 적었다.
 
 유예를 두는 목적은 재발급 직후에도 이전 토큰으로 진행 중인 요청이 끝까지 처리되게 하는 것이다. 이 목적과 맞는 폐기 시점은 유예가 끝난 뒤뿐이다.
 
 기각한 대안은 재발급 즉시 폐기다. 그러면 24시간 유예 동안 이전 토큰으로 진행 중이던 요청이 실패한다. 유예를 둔 의미가 없어진다.
 
-옛 인터페이스 규약은 호출자를 `TriggersService.rotateBotToken` 으로, v2 참조(`bot-token.v2`)의 토큰을 새 토큰으로 적었다. 그래서 재발급 시점에 이전 토큰을 즉시 폐기한다고 읽혔다. [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 과 현재 구현(`cleanupRotatedChatChannelTokens` → `tryRevokeOldBotToken`)은 유예가 끝난 정리 작업에서 폐기한다. 2026-11-06 에 구현 쪽으로 정하고 미결 항목을 닫았다. 코드 동작은 바꾸지 않았다. 출처는 NERV Task `CLE-T-D41BY6` 와 리뷰 발견 `01a0e596-b8dd-74bb-904b-76b68a4177a6` 이다.
+옛 인터페이스 규약은 호출자를 `TriggersService.rotateBotToken` 으로, v2 참조(`bot-token.v2`)의 토큰을 새 토큰으로 적었다. 그래서 재발급 시점에 이전 토큰을 즉시 폐기한다고 읽혔다. [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 과 현재 구현(`cleanupRotatedChatChannelTokens` → `tryRevokeBotToken`)은 유예가 끝난 정리 작업에서 폐기한다. 2026-11-06 에 구현 쪽으로 정하고 미결 항목을 닫았다. 코드 동작은 바꾸지 않았다. 출처는 NERV Task `CLE-T-D41BY6` 와 리뷰 발견 `01a0e596-b8dd-74bb-904b-76b68a4177a6` 이다.
+
+유예 안에 다시 교체하면 재발급이 폐기를 부르는 경우가 하나 생긴다. 2026-11-13 사람 결정(NERV 질문 `01a1d2f3-e056-744a-a58f-76fe3a46c612`)이고 출처는 NERV Task `CLE-T-6ZTPZ8` 4번이다. 토큰을 A 에서 B 로 바꾸고 24시간 안에 B 에서 C 로 다시 바꾸면 v2 백업 칸(`bot-token.v2`)의 A 가 B 로 덮인다. 그 뒤로는 A 를 가리키는 기록이 우리 쪽에 남지 않아 유예 종료 정리 작업도 A 를 폐기하지 못한다. 그래서 재발급이 끝까지 성공한 뒤(설정 컬럼 갱신과 감사 기록 뒤) 덮인 A 를 `revokeBotToken` 으로 best-effort 폐기한다. 실패해도 재발급은 성공이고 경고 로그만 남긴다. 대가로 A 의 유예는 두 번째 교체 시점에 끝난다. 덮인 값이 비었거나 지금 토큰(B)·새 토큰(C)과 같으면 폐기하지 않는다. 같은 토큰으로 되돌리는 교체에서 쓰고 있는 토큰을 끊지 않기 위해서다. 재발급이 실패해 v2 를 A 로 되돌리면 폐기하지 않는다. B 는 위 원칙대로 유예가 끝난 뒤 정리 작업이 폐기한다.
 
 ### R-CCA-11 클라이언트 실패는 ok:false 표지로 판정한다
 
@@ -878,3 +889,5 @@ Telegram 은 웹훅 응답과 별개로 버튼 탭마다 `answerCallbackQuery` �
 - 버린 탭에도 `ackInteraction` 을 부르는 안: Telegram 구현이 키보드를 지운다. 파싱하지 못한 update 에는 `ChannelUpdate` 도 없다.
 - 버린 Telegram 탭의 키보드도 지우는 안: 잠시 뒤 다시 누를 수 없다.
 - 비활성 트리거에서도 버린 탭에 `answerCallbackQuery` 를 보내는 안: 비활성 트리거에서는 수신 확인을 포함해 외부 호출을 하지 않는다는 결정과 어긋난다.
+
+Slack 슬래시 명령의 기본 응답은 2026-11-13 사람 결정(NERV 질문 `01a1d2f3-e188-7354-8298-243092419a3c`)으로 더했다. 출처는 NERV Task `CLE-T-MGZRRP` 다. Slack 슬래시 명령도 3초 안에 HTTP `200` 을 받아야 사용자 화면에 오류가 보이지 않는다. 전에는 슬래시 명령에 기본 응답이 없어 `202` 로 답했다. 응답 모양은 Discord 슬래시 명령 결정(2026-11-12)을 따랐다. 본인에게만 보이는 메시지(`response_type: 'ephemeral'`)이고 `help` 면 도움말을, 그 밖에는 수신 문구를 싣는다. 이 `text` 는 mrkdwn 으로 렌더되므로 `escapeControlText` 와 같은 규칙으로 escape 한다. Discord 응답 본문은 평문이라 escape 하지 않는다.
