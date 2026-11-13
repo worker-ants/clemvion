@@ -3,7 +3,11 @@
  *
  * Spec [providers/slack §4] — 3종 envelope 분기 + DM-only + bot 무시 + idempotencyKey.
  */
-import { extractSlackChallenge, parseSlackUpdate } from './slack-update.parser';
+import {
+  extractSlackChallenge,
+  parseSlackUpdate,
+  readSlackSlashInvocation,
+} from './slack-update.parser';
 
 function eventCallback(
   event: Record<string, unknown>,
@@ -367,6 +371,53 @@ describe('parseSlackUpdate — Slash Commands', () => {
       slashCommand('start', { trigger_id: undefined }),
     );
     expect(upd).toBeNull();
+  });
+
+  // help 는 실행으로 보내지 않는다. 도움말은 슬래시 명령의 HTTP 응답(defaultInteractionResponse)이
+  // 보여 준다. Discord 의 `/workflow help` 와 같다. NERV Task `CLE-T-MGZRRP`.
+  it.each(['help', '  help ', 'help me'])('"%s" → null', (text) => {
+    expect(parseSlackUpdate(slashCommand(text))).toBeNull();
+  });
+
+  it('"reply help" 는 답장 text_message("help") 다', () => {
+    expect(parseSlackUpdate(slashCommand('reply help'))?.command).toEqual({
+      kind: 'text_message',
+      text: 'help',
+    });
+  });
+});
+
+describe('readSlackSlashInvocation', () => {
+  it('슬래시 명령이면 명령 이름과 첫 토큰(하위 명령)을 돌려준다', () => {
+    expect(readSlackSlashInvocation(slashCommand('  help me '))).toEqual({
+      command: '/workflow',
+      subCommand: 'help',
+    });
+    expect(readSlackSlashInvocation(slashCommand(''))).toEqual({
+      command: '/workflow',
+      subCommand: '',
+    });
+  });
+
+  it.each([
+    ['Events API', eventCallback({ type: 'message' })],
+    [
+      'command 가 있는 Events API',
+      { type: 'event_callback', command: '/workflow', text: 'start' },
+    ],
+    [
+      'command 가 있는 url_verification',
+      { type: 'url_verification', command: '/workflow', text: 'start' },
+    ],
+    [
+      'payload 가 있는 본문',
+      { payload: '{}', command: '/workflow', text: 'start' },
+    ],
+    ['text 가 없는 본문', { command: '/workflow' }],
+    ['null', null],
+    ['문자열', 'command=/workflow'],
+  ])('%s → undefined', (_label, raw) => {
+    expect(readSlackSlashInvocation(raw)).toBeUndefined();
   });
 });
 

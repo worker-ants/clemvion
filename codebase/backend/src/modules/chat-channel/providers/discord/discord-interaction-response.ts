@@ -6,7 +6,7 @@ import {
   pickLocaleDefault,
   readLanguageHintOverride,
   resolveCommandReceivedMessage,
-  type LanguageLocale,
+  SLASH_HELP_DEFAULTS,
 } from '../../shared/language-hint-defaults';
 import {
   DISCORD_INTERACTION_CALLBACK_TYPE,
@@ -17,22 +17,6 @@ import {
 
 /** 슬래시 명령의 기본 prefix. `setupChannel` 의 명령 등록과 같은 값이다. */
 export const DISCORD_DEFAULT_SLASH_PREFIX = 'workflow';
-
-/** `/<prefix> help` 기본 도움말. `{prefix}` 는 등록한 명령 이름으로 바꾼다. */
-export const DISCORD_HELP_DEFAULTS: Record<LanguageLocale, string> = {
-  ko: [
-    '/{prefix} start - 새 대화 시작',
-    '/{prefix} cancel - 진행 중인 대화 취소',
-    '/{prefix} reply - 진행 중인 대화에 답장',
-    '/{prefix} help - 도움말',
-  ].join('\n'),
-  en: [
-    '/{prefix} start - Start a new conversation',
-    '/{prefix} cancel - Cancel the active conversation',
-    '/{prefix} reply - Reply to the active conversation',
-    '/{prefix} help - Show help',
-  ].join('\n'),
-};
 
 /**
  * Discord interaction 에 3초 안에 200 으로 돌려줄 기본 응답(Spec CLE-CHAT-DISCORD 「인바운드 응답」).
@@ -93,7 +77,7 @@ function resolveDiscordHelpText(config: ChatChannelConfig): string {
   if (override !== undefined) return override;
   const prefix =
     config.languageHints?.slashPrefix ?? DISCORD_DEFAULT_SLASH_PREFIX;
-  return pickLocaleDefault(DISCORD_HELP_DEFAULTS, config.languageLocale)
+  return pickLocaleDefault(SLASH_HELP_DEFAULTS, config.languageLocale)
     .split('{prefix}')
     .join(prefix);
 }

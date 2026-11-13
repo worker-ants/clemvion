@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Client } from 'pg';
-import { createHmac } from 'crypto';
+import { createHmac, randomUUID } from 'crypto';
 import request from 'supertest';
 
 import { createDbClient } from './helpers/db';
@@ -23,6 +23,9 @@ import {
  * 4. group chat (channel_type !== 'im') → 202 + ignored (groupChatRefusal)
  * 5. Interactivity(block_actions · view_submission) → 200 + 빈 본문. 트리거가 꺼져 있어도 같다
  *    (NERV Task `CLE-T-FCBG91`)
+ * 6. 슬래시 명령 → 200 + 본인에게만 보이는 `{ response_type: 'ephemeral', text }`. help 는 도움말이고
+ *    실행을 시작하지 않는다. 새 실행의 `response_code` 는 `200`. 트리거가 꺼져 있어도 같다
+ *    (NERV Task `CLE-T-MGZRRP`)
  *
  * 본 e2e 는 chat.postMessage 외부 호출은 검증 안 함 — fake 가 없으면 실 API 호출이라
  * degraded health 갱신만 결과. 핵심은 HooksController + signing + parser dispatch flow.
@@ -65,6 +68,29 @@ function postInteractivity(path: string, payload: unknown) {
       `payload=${encodeURIComponent(typeof payload === 'string' ? payload : JSON.stringify(payload))}`,
     );
 }
+
+/** 슬래시 명령 요청 — Slack 은 `command` · `text` 등을 form-urlencoded 로 보낸다. 대화는 id 마다 따로 둔다. */
+function postSlashCommand(path: string, id: string, text: string) {
+  const form = new URLSearchParams({
+    command: '/workflow',
+    text,
+    user_id: `U-${id}`,
+    channel_id: `D-${id}`,
+    team_id: 'T-e2e',
+    trigger_id: `trg-${id}`,
+  });
+  return request(BASE_URL)
+    .post(`/api/hooks/${path}`)
+    .set('x-forwarded-for', nextE2eClientIp())
+    .set('content-type', 'application/x-www-form-urlencoded')
+    .send(form.toString());
+}
+
+/** 슬래시 명령의 기본 응답 — 본인에게만 보이는 수신 문구. */
+const SLASH_RECEIVED = {
+  response_type: 'ephemeral',
+  text: '요청을 받았습니다.',
+};
 
 // inbound-signing secret 저장 (AES-256-GCM application encryption — secret_store INSERT 는
 // application 경로를 거쳐야 함. e2e 에서는 직접 INSERT 가 불가 — REST API 없이
@@ -342,6 +368,122 @@ describe('Slack Chat Channel e2e', () => {
           }),
         );
       expect(res.status).toBe(202);
+    });
+  });
+
+  // 근거: [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK) · Slack 공식 문서(Slash commands) — 슬래시
+  // 명령에는 3초 안에 HTTP 200 으로 답해야 사용자에게 오류가 보이지 않는다. 응답 모양은 Discord 슬래시
+  // 명령 선례(NERV Task `CLE-T-TSEP9G`)를 따른다. 본인에게만 보이는 메시지로 help 는 도움말, 나머지는
+  // 수신 문구다. 트리거가 꺼져 있어도 같고 이때 실행은 시작하지 않는다. NERV Task `CLE-T-MGZRRP`.
+  describe('슬래시 명령의 응답', () => {
+    let on: { endpointPath: string; triggerId: string; workflowId: string };
+    let off: { endpointPath: string; triggerId: string; workflowId: string };
+
+    const countExecutions = async (workflowId: string): Promise<string> => {
+      const rows = await db.query<{ n: string }>(
+        'SELECT count(*)::text AS n FROM execution WHERE workflow_id = $1',
+        [workflowId],
+      );
+      return rows.rows[0]?.n ?? '';
+    };
+
+    beforeAll(async () => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
+      await dropSigningRef(db, setup.triggerId);
+      on = {
+        endpointPath: setup.endpointPath,
+        triggerId: setup.triggerId,
+        workflowId: setup.workflowId,
+      };
+      const offSetup = await setupChatChannelTrigger({ db, provider: 'slack' });
+      // 켜진 트리거는 지우고 같은 워크플로우에 꺼진 트리거를 단다.
+      await db.query('DELETE FROM trigger WHERE id = $1', [offSetup.triggerId]);
+      const row = await insertChatChannelTriggerRow(db, {
+        workspaceId: offSetup.workspaceId,
+        workflowId: offSetup.workflowId,
+        name: 'slack-e2e-slash-off',
+        provider: 'slack',
+        isActive: false,
+      });
+      await dropSigningRef(db, row.triggerId);
+      off = { ...row, workflowId: offSetup.workflowId };
+    });
+
+    afterAll(async () => {
+      await db
+        .query('DELETE FROM trigger WHERE id = ANY($1::uuid[])', [
+          [on.triggerId, off.triggerId],
+        ])
+        .catch(() => undefined);
+    });
+
+    it('/workflow help → 200 + 기본 도움말이고 실행을 시작하지 않는다', async () => {
+      const res = await postSlashCommand(
+        on.endpointPath,
+        `help-${Date.now()}`,
+        'help',
+      );
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        response_type: 'ephemeral',
+        text: [
+          '/workflow start - 새 대화 시작',
+          '/workflow cancel - 진행 중인 대화 취소',
+          '/workflow reply - 진행 중인 대화에 답장',
+          '/workflow help - 도움말',
+        ].join('\n'),
+      });
+      expect(await countExecutions(on.workflowId)).toBe('0');
+    });
+
+    it('/workflow cancel(진행 중인 대화 없음) → 200 + 수신 문구', async () => {
+      const res = await postSlashCommand(
+        on.endpointPath,
+        `cancel-${Date.now()}`,
+        'cancel',
+      );
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(SLASH_RECEIVED);
+    });
+
+    it('/workflow start → 200 + 수신 문구이고 새 실행의 response_code 는 200 이다', async () => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
+      await dropSigningRef(db, setup.triggerId);
+      await db.query(
+        `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+         VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
+        [randomUUID(), setup.workflowId, JSON.stringify({ parameters: [] })],
+      );
+      try {
+        const res = await postSlashCommand(
+          setup.endpointPath,
+          `start-${Date.now()}`,
+          'start',
+        );
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual(SLASH_RECEIVED);
+
+        const rows = await db.query<{ response_code: string | null }>(
+          'SELECT response_code FROM execution WHERE workflow_id = $1',
+          [setup.workflowId],
+        );
+        expect(rows.rows.map((r) => r.response_code)).toEqual(['200']);
+      } finally {
+        await db
+          .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+          .catch(() => undefined);
+      }
+    });
+
+    it('꺼진 트리거의 /workflow start → 200 + 수신 문구이고 실행을 시작하지 않는다', async () => {
+      const res = await postSlashCommand(
+        off.endpointPath,
+        `off-start-${Date.now()}`,
+        'start',
+      );
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(SLASH_RECEIVED);
+      expect(await countExecutions(off.workflowId)).toBe('0');
     });
   });
 });

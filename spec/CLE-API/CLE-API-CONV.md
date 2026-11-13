@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "a3ec9c861a04f046f09535dde965ed49fe3eab360ba8ced5ab6998c8d55bfd83"
+content_hash: "622415fd521244828f877e28969cda10878043119142399834d665c3d84c542e"
 read_as: "approved_fallback"
-task: "CLE-T-GNTWP9"
+task: "CLE-T-ZC34Y0"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "58ee83c095304a64a31aacef2b81c31f3be9adfe4a1da5ed0de28a2a8aef419a"
-etag: "sha256-a885a91d4389f23aa9624d0a477f73146d7f422beb16d8a340e5dbf34f2bd37f"
+mirror_sha256: "fa72d23e0015bfcfc325ae97355197b00e9c7d5d0015b29550c37fae75dcea37"
+etag: "sha256-d8ec659621c60bcf35b05beb0ce7e92de14a14776cbc061ddae36644ce420447"
 ---
 > 구현 상태: 부분 구현 (WebSocket `execution.continue` 는 미구현) · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -48,7 +48,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 9. 큐에 넣고 바로 돌아오는 요청은 `202 Accepted` 와 ack 본문을 돌려준다. `202` 는 no-content 가 아니다.
 10. `410 Gone` 은 존재했으나 사라졌거나 비활성인 리소스에 쓴다. 처음부터 없던 리소스는 `404` 다. 예외는 §6 의 `404` · `410` 행에 있다.
 11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다. 예외로 Passkey 환경 변수가 없을 때의 `WEBAUTHN_DISABLED` 도 `503` 이다. 이 응답은 다시 시도해도 회복되지 않는다(§6). 언제 나는지는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) 이 정한다.
-12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 §7 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외가 있다. 채팅 채널 인바운드는 전역 요청 빈도 제한을 받지 않는다. 채팅방 단위 한도를 넘으면 `202` 를 돌려준다. WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
+12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 §7 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외가 있다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다. 채팅 채널 인바운드는 채팅방 단위 한도를 넘어도 `202` 를 받는다([§7 머리 콜아웃](#7-요청-빈도-제한)). WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
 13. 목록 조회의 기본 페이지네이션은 offset 방식이다. 대량으로 쌓이는 데이터는 cursor 방식을 쓴다.
 14. `PUT` 은 쓰지 않는다. 부분 수정은 `PATCH` 로 한다.
 
@@ -270,7 +270,7 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 
 > **초과 응답이 `429` 가 아닌 행이 있다.**
 >
-> - 채팅 채널 인바운드는 전역 요청 빈도 제한(일반 API · 웹훅 수신 행)을 받지 않는다. 채팅방 단위 한도를 넘으면 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다. 전역 한도에서 뺀 근거는 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 다. 채팅방 단위 한도의 근거는 [채팅 채널 「R-CC-19」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 다. 응답 계약과 구현의 차이는 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 적는다. 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
+> - 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 채팅 채널 트리거로 온 웹훅 요청은 전역 요청 빈도 제한(일반 API · 웹훅 수신 행)을 받지 않는다. 남용은 서명 검증과 채팅방 단위 분당 한도(채팅 채널 인바운드 행)가 막는다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거, 채널 연결 전 트리거)는 전처럼 전역 한도를 받는다. 그런 트리거는 서명을 검증하지 않아 서명 검증 실패 한도도 걸리지 않으므로 전역 한도까지 빼면 IP 단위 한도가 하나도 남지 않는다(NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A, 2026-11-13). 채팅 채널 트리거는 서명 참조와 무관하게 `auth_config_id IS NULL` 이어도 공개 웹훅 추가 한도를 받지 않는다. 채팅방 단위 한도를 넘은 메시지는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 받고 처리를 건너뛴다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다. 한 트리거에 같은 IP 에서 서명 검증 실패가 거듭되면 한동안 시크릿 조회와 서명 계산 없이 `401` 로 거절한다. 이 서명 검증 실패 한도도 `429` 를 쓰지 않는다. 규칙은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 전역 한도에서 뺀 근거는 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 다. 채팅방 단위 한도의 근거는 [채팅 채널 「R-CC-19」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 다. 경우별 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 웹훅 수신의 전역 한도를 어느 가드가 어떤 순서로 세는지는 표 아래 키 결정 규칙에 있다. 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
 > - WebSocket 명령은 HTTP 요청이 아니라서 상태 코드가 없다. 한도를 넘으면 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)).
 
 | 범위 | 제한 | 헤더 |
@@ -286,8 +286,8 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | Passkey 등록 옵션 (`POST /api/auth/2fa/webauthn/register/options`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 등록 검증(`POST /api/auth/2fa/webauthn/register/verify`)에는 라우트별 `@Throttle` 이 없다. 동작 정의는 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) | 같음 |
 | Passkey 복구 코드 재발급 (`POST /api/auth/2fa/webauthn/recovery-codes/regenerate`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
 | 이메일 변경 요청·재발송 (`POST /api/users/me/email-change/request`, `.../email-change/resend`) | 5 req/min (사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#이메일-변경) | 같음 |
-| 웹훅 수신 | 100 req/min (전역 기본값. `ThrottlerModule` 의 `default` 등급). 채팅 채널 트리거는 이 한도를 받지 않는다(아래 채팅 채널 인바운드 행) | 같음 |
-| 공개 웹훅 추가 한도 (`auth_config_id IS NULL` 이고 채팅 채널 트리거가 아닌 트리거) | IP 단위 분당 10건, 시간당 누적 신규 20건(기본값). 전역 100 req/min 위에 얹히는 층이다. `PublicWebhookThrottleGuard` 가 걸고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT`·`PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다. 상세는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) | 웹훅 문서 참조 |
+| 웹훅 수신 | 100 req/min (전역 기본값. `ThrottlerModule` 의 `default` 등급). 전역 가드 대신 트리거를 조회한 뒤 라우트 가드가 센다(표 아래 키 결정 규칙). 서명 참조가 있는 채팅 채널 트리거는 이 한도를 받지 않는다([위 콜아웃](#7-요청-빈도-제한)) | 같음 |
+| 공개 웹훅 추가 한도 (`auth_config_id IS NULL` 이고 채팅 채널 트리거가 아닌 트리거. 채팅 채널 트리거는 [위 콜아웃](#7-요청-빈도-제한)) | IP 단위 분당 10건, 시간당 누적 신규 20건(기본값). 전역 100 req/min 위에 얹히는 층이다. `PublicWebhookThrottleGuard` 가 걸고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT`·`PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다. 상세는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) | 웹훅 문서 참조 |
 | 파일 업로드 (지식 저장소 문서, 아바타) | 전역 100 req/min 을 그대로 따른다. `POST /api/knowledge-bases/:id/documents` 와 `POST /api/users/me/avatar` 에는 별도 `@Throttle` 이 없다 | 같음 |
 | Provider probe API (`POST /api/model-configs/preview-models`, `POST /api/model-configs/:id/test`, `GET /api/model-configs/:id/models`) | 10 req/min (사용자 기준). 실시간 provider 호출 비용과 provider 쪽 속도 제한을 보호하는 `@Throttle` 이다. 세 핸들러가 컨트롤러 상수 `PROVIDER_PROBE_THROTTLE`(`SENSITIVE_ACTION_THROTTLE` 의 별칭)을 함께 쓴다 | 같음 |
 | 지식 저장소 재임베딩 (`POST /api/knowledge-bases/:id/re-embed`) | 3 req/min (사용자 기준). `@Throttle`, 편집자 이상. 동작 정의는 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) | 같음 |
@@ -303,14 +303,15 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 | External Interaction 인바운드 (`POST /api/external/executions/:id/interact`, `POST /api/external/executions/:id/cancel`, `GET /api/external/executions/:id`) | interact 60 req/min, 상태 조회 120 req/min. `/cancel` 은 `/interact` 와 같은 카운터를 센다. **실행 단위**다(IP 아님). 전역 100/min 위에 얹히는 층이다. `InteractionRateLimiterService`(Redis fixed-window)와 `InteractionRateLimitGuard` 가 걸고 넘으면 `429 RATE_LIMITED` 와 `Retry-After` 를 돌려준다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 rate limit 절. 토큰 갱신(`POST /api/external/executions/:id/refresh-token`)은 이 층 밖이다. 전역 기본값 100 req/min 만 받고 `@Public()` 라우트라 IP 로 센다(아래 키 결정 규칙) | `Retry-After` |
 | External Interaction SSE 동시 연결 (`GET /api/external/executions/:id/stream`) | 실행당 동시 연결 3개. 상한은 모든 서버 인스턴스의 연결을 합쳐 센다. Redis 를 쓸 수 없으면 서버 인스턴스마다 따로 센다(fail-open). 넘으면 `429 TOO_MANY_CONNECTIONS`(EIA 전용). 상세는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
 | 채팅 채널 인바운드 (채팅방 단위) | 채팅방당 분당 60건(기본값. `config.chatChannel.rateLimitPerMinute` 로 1~600 사이에서 바꾼다). 넘은 메시지는 버퍼링·재발사 없이 처리를 건너뛰고 `chat_channel_health=degraded` 로 표시한다. `ChatChannelRateLimiterService`(Redis fixed-window)이고 Redis 를 쓸 수 없으면 fail-open 이다. 상세는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 REQ-CHAT-046 · REQ-CHAT-047 | 없음 (위 콜아웃) |
+| 채팅 채널 서명 검증 실패 (채팅 채널 트리거의 인바운드 웹훅) | (트리거 id, 클라이언트 IP) 쌍마다 60초 고정 창에 서명 검증 실패 20회. 실패가 20회에 이르면 그 창이 끝날 때까지 시크릿 조회와 서명 계산 없이 `401 AUTH_FAILED` 로 거절한다. `429` 는 쓰지 않는다. `ChatChannelSignatureFailureLimiterService`(Redis `cc:sigfail:` 키)이고 Redis 를 쓸 수 없거나 오류가 나면 막지 않는다(fail-open). 동작은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다 | 없음 (`401`, 위 콜아웃) |
 | WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **소켓당** 60 msg/min (in-memory fixed-window, HTTP 아님). 전역 요청 빈도 제한(일반 API 100 req/min)은 이 경로를 세지 않는다. 한도를 넘으면 `WsRateLimitGuard` 가 `WsException(RATE_LIMITED)` 을 던지고 클라이언트는 `exception` 이벤트로 받는다(HTTP status 없음). `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 적용한다. 등록되지 않은 이벤트(`onAny`)도 같은 소켓 예산을 쓴다. 넘었을 때의 응답은 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 가 정한다 | 없음 (전송: 소켓 `exception` 이벤트) |
 
-- HTTP 요청이 한도를 넘으면 `429` 를 받는다. 에러 코드는 행에 다른 코드를 적지 않았으면 기본 코드 `RATE_LIMITED` 다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)). 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도, External Interaction SSE 동시 연결, 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 행(채팅 채널 인바운드, WebSocket 명령)은 위 콜아웃에 있다.
+- HTTP 요청이 한도를 넘으면 `429` 를 받는다. 에러 코드는 행에 다른 코드를 적지 않았으면 기본 코드 `RATE_LIMITED` 다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)). 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도, External Interaction SSE 동시 연결, 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 행(채팅 채널 인바운드, 채팅 채널 서명 검증 실패, WebSocket 명령)은 위 콜아웃에 있다.
 - **표의 범위**: 위 표는 전역 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 제한 서비스로 덮어쓴 엔드포인트별 한도를 한 곳에 모은 것이다. HTTP 라우트에 건 `@Throttle` 은 모두 이 표에 행이 있다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정하고 요청 빈도 제한 수치의 단일 기준은 이 표다. 라우트에 `@Throttle` 을 새로 걸거나 수치를 바꾸면 이 표도 함께 고친다.
 - **공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`**(분당 10회, `throttle.ts`)는 2단계 인증 설정 시작 · 활성화 검증 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급, provider probe, 초대 발송·재발송 행이 함께 쓴다. 상수가 같아도 라우트마다 따로 센다. `verifyPasswordForUser` 를 부르는 라우트(비밀번호 재확인)인 2단계 인증 설정 시작 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급에는 이 상수가 모두 걸려 있어야 한다. 단위 테스트가 이 라우트 목록을 고정해 두고 핸들러마다 이 상수가 걸렸는지 본다. 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
 - 인증된 HTTP 요청은 전역 `UserThrottlerGuard` 가 `user:<sub>` 키로 사용자별로 센다. 인증되지 않은 요청만 IP 로 센다. 그래서 인증된 라우트의 제한은 사용자 기준이다.
-- **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. NestJS 12 부터 전역 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙으므로 그 핸들러 호출이 여기에 든다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건)가 맡는다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)). 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다.
-- **키 결정 규칙(현재 구현, HTTP 기준)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다.
+- **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. NestJS 12 부터 전역 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙으므로 그 핸들러 호출이 여기에 든다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건)가 맡는다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)). 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다. HTTP 요청이어도 `@DeferGlobalThrottle()` 이 붙은 라우트는 전역 가드가 건너뛴다. 그 라우트는 라우트 가드가 같은 한도로 센다(아래 키 결정 규칙). 서명 참조가 있는 채팅 채널 트리거로 온 웹훅 요청은 그 라우트 가드도 세지 않는다([위 콜아웃](#7-요청-빈도-제한)).
+- **키 결정 규칙(현재 구현, HTTP 기준)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다. 웹훅 수신(`POST /api/hooks/:endpointPath`)은 전역 한도를 라우트 가드가 센다. 그 라우트에는 `@DeferGlobalThrottle()` 이 붙어 있어 전역 `UserThrottlerGuard` 가 건너뛴다. 라우트 가드는 `PublicWebhookThrottleGuard` → `HookTriggerThrottlerGuard` 순서로 돈다. `HookTriggerThrottlerGuard` 는 앞 가드가 조회한 트리거로 판정한다. 서명 참조가 있는 채팅 채널 트리거면 세지 않는다([위 콜아웃](#7-요청-빈도-제한)). 그 밖의 요청은 전역 가드와 같은 한도 · 같은 저장소 · 같은 키로 센다. 서명 참조가 없는 채팅 채널 트리거와 트리거가 없거나 조회에 실패한 요청도 센다.
 - External Interaction 인바운드는 `@Throttle` 이 아니라 도메인 전용 `InteractionRateLimiterService`(실행 단위 Redis 카운터)로 덮어쓴 사례다.
 - **환경으로 건너뛰는 경우는 `NODE_ENV=test` 하나다.** e2e 가 컨테이너 IP 하나에서 빠른 인증 호출을 연달아 보내 스스로 요청 빈도 제한(100/60s)에 걸리는 문제를 피하려고 test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 전역 기본값과 라우트별 `@Throttle` 한도를 건너뛴다. production·development 동작은 바뀌지 않는다. 헬퍼는 `throttler-skip.ts` 의 `shouldSkipThrottle` 이다. 위의 HTTP 가 아닌 호출 건너뛰기와는 별개다.
 
@@ -437,7 +438,7 @@ flowchart TD
 
 `interaction.enabled=true` 트리거의 응답 확장 필드는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 웹훅 호출 응답 확장 절이 정한다.
 
-**예외: 채팅 채널 트리거의 handshake 와 인터랙션 ack.** `config.chatChannel` 트리거가 받은 Slack `url_verification` 과 Discord PING 의 handshake 응답, Slack · Discord 의 인터랙션 ack(네이티브 모달 열기와 제출 응답, Discord 슬래시 명령의 즉시 응답 포함)는 `{ data }` 로 감싸지 않는다. 프로바이더가 정한 본문을 `200 OK` 로 그대로 보낸다. 프로바이더가 그 형식만 성공으로 인정하기 때문이다. 인터랙션 요청에는 트리거가 꺼져 있거나 처리를 건너뛰어도 같은 ack 를 보낸다. 경우별 본문은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 채팅 채널 트리거의 `202` 응답은 이 절의 봉투를 그대로 따른다. §6 · §7 과 채팅 채널 문서의 `{ executionId: 'ignored' }` 는 `{ data }` 감싸기와 `message` 를 뺀 줄임 표기다.
+**예외: 채팅 채널 트리거의 handshake · 인터랙션 ack · Slack 슬래시 명령 응답.** `config.chatChannel` 트리거가 받은 Slack `url_verification` 과 Discord PING 의 handshake 응답, Slack · Discord 의 인터랙션 ack(네이티브 모달 열기와 제출 응답, Discord 슬래시 명령의 즉시 응답 포함), Slack 슬래시 명령의 응답은 `{ data }` 로 감싸지 않는다. 프로바이더가 정한 본문을 `200 OK` 로 그대로 보낸다. 프로바이더가 그 형식만 성공으로 인정하기 때문이다. 인터랙션 요청에는 트리거가 꺼져 있거나 처리를 건너뛰어도 같은 ack 를 보낸다. 경우별 본문은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. Slack 슬래시 명령의 본문 `{ response_type: 'ephemeral', text }` 는 [Slack 어댑터 「Slash Commands」](../CLE-CHAT/CLE-CHAT-SLACK.md#slash-commands) 의 REQ-SLACK-043 이 정한다. 채팅 채널 트리거의 `202` 응답은 이 절의 봉투를 그대로 따른다. §6 · §7 과 채팅 채널 문서의 `{ executionId: 'ignored' }` 는 `{ data }` 감싸기와 `message` 를 뺀 줄임 표기다.
 
 ### 11.5 인증 방식
 
@@ -449,7 +450,7 @@ flowchart TD
 
 ### 11.7 요청 빈도 제한
 
-채팅 채널 트리거가 아닌 웹훅 수신은 전역 요청 빈도 제한(100 req/min)을 받는다(§7). 넘으면 `429 Too Many Requests` 다. 공개 웹훅에는 IP 단위 추가 한도가 걸린다. 채팅 채널 트리거는 `auth_config_id IS NULL` 이어도 전역 한도와 공개 웹훅 추가 한도를 모두 받지 않는다. 채팅 채널 트리거의 남용은 서명 검증과 채팅방 단위 한도가 막는다(§7). 수치는 §7 표에 있고 버킷·IP 식별 규칙은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
+웹훅 수신은 전역 요청 빈도 제한(100 req/min)을 받는다(§7). 넘으면 `429 Too Many Requests` 다. 공개 웹훅에는 IP 단위 추가 한도가 걸린다. 채팅 채널 트리거는 `auth_config_id IS NULL` 이어도 공개 웹훅 추가 한도를 받지 않는다. 서명 참조가 있는 채팅 채널 트리거는 전역 한도도 받지 않는다([§7 머리 콜아웃](#7-요청-빈도-제한)). 수치는 §7 표에 있고 버킷·IP 식별 규칙은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
 
 ## 12. 공통 API 패턴
 
@@ -494,7 +495,7 @@ Content-Type: application/json
 - `codebase/backend/src/common/dto/*.ts`
 - `codebase/backend/src/common/swagger/error-response.dto.ts`
 - `codebase/backend/src/common/interceptors/transform.interceptor.ts` (성공 응답 `{ data }` 래핑과 pass-through. HTTP 가 아닌 호출을 건너뛴다)
-- `codebase/backend/src/common/guards/user-throttler.guard.ts` (전역 요청 빈도 제한 키 결정과 HTTP 가 아닌 호출 건너뛰기)
+- `codebase/backend/src/common/guards/user-throttler.guard.ts` (전역 요청 빈도 제한 키 결정. HTTP 가 아닌 호출과 `@DeferGlobalThrottle()` 라우트를 건너뛴다)
 - `codebase/backend/src/common/guards/user-throttler.guard.spec.ts`
 - `codebase/backend/src/common/utils/http-context.ts` (`isHttpContext`. HTTP 전용 전역 enhancer(요청 빈도 제한 가드 · 응답 래핑 · 요청 로깅)가 함께 쓰는 판정)
 - `codebase/backend/src/common/constants/throttle.ts` (§7 의 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`)
@@ -503,6 +504,8 @@ Content-Type: application/json
 - `codebase/backend/src/modules/websocket/ws-rate-limit.guard.ts` (WebSocket 명령 빈도 제한)
 - `codebase/backend/src/modules/hooks/hooks.controller.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`
+- `codebase/backend/src/modules/hooks/hook-trigger-throttler.guard.ts` (웹훅 수신의 전역 요청 빈도 제한. 서명 참조가 있는 채팅 채널 트리거는 세지 않는다)
+- `codebase/backend/src/modules/hooks/hooks-throttle.wire.spec.ts` (웹훅 수신의 가드 순서)
 - `codebase/backend/src/repo-guards/__tests__/global-enhancer-ws-safety.spec.ts` (전역 enhancer 분류 가드)
 - `codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts` (선언과 선언 대조)
 - `codebase/backend/src/shared/testing/response-contract*.ts` (값과 선언 대조)
@@ -662,6 +665,8 @@ NERV Task `CLE-T-EMB0YG` 에서 더했다. §11.4 는 웹훅 수신의 모든 �
 
 기각한 대안: 경우별 본문을 §11.4 에 표로 옮기는 안. 프로바이더를 더할 때마다 두 문서를 함께 고쳐야 하고 한쪽만 고쳐지면 두 표가 갈린다. 본문의 기준은 채팅 채널 문서 한 곳에 둔다.
 
+2026-11-13 에 Slack 슬래시 명령의 응답을 같은 예외에 더했다(NERV Task `CLE-T-MGZRRP`, [Slack 어댑터 「R-S-14」](../CLE-CHAT/CLE-CHAT-SLACK.md#r-s-14-슬래시-명령은-본인에게만-보이는-문구와-200-으로-답한다)). Slack 은 슬래시 명령 요청의 HTTP 응답 본문을 사용자에게 보이는 메시지로 쓴다. 그래서 이 응답은 `{ data }` 로 감싸지 않고 프로바이더 형식 그대로 보내야 한다.
+
 ### 채팅 채널 `/cancel` 의 큐 적재 실패는 `503` 으로 돌려주지 않는다 (2026-10-17)
 
 NERV Task `CLE-T-EQDYC1` 의 사람 결정이다. 채팅 채널 인바운드의 `/cancel` 은 `ExecutionsService.stop` 을 바로 부른다. 취소를 큐에 넣지 못하면 `stop` 이 `503 EXECUTION_ENQUEUE_FAILED` 를 던진다. 그전에는 이 응답이 채널 프로바이더에 그대로 나가 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 의 `202` 고정 정책과 어긋났다.
@@ -767,11 +772,20 @@ NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 사람 결정(2026-11-12, NERV 질문
 
 ### 채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)
 
-NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 사람 결정(2026-11-12, NERV 질문 `01a1d025-94b3-7448-b9dc-4165d0b6ed5f`)으로 채팅 채널 트리거의 인바운드 요청을 전역 요청 빈도 제한(`UserThrottlerGuard`, 분당 100건)에서 뺐다. 채널 프로바이더는 적은 수의 발신 IP 에서 모든 사용자의 update 를 보낸다. 그래서 트래픽이 많은 봇은 IP 단위로 세는 전역 한도에 닿기 쉽다. 그때 나가는 `429` 는 프로바이더의 재전송과 웹훅 비활성화를 부른다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 채팅 채널 인바운드는 `202` 고정을 지키고 남용은 서명 검증과 채팅방 단위 분당 한도가 막는다. 채팅방 단위 한도를 넘은 메시지는 `202` 와 `{ executionId: 'ignored' }` 로 받고 처리를 건너뛴다. 이 결정에 맞춰 규칙 12, §7 머리 콜아웃, 「웹훅 수신」 행, §11.7 을 고쳤다.
+NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 사람 결정(2026-11-12, NERV 질문 `01a1d025-94b3-7448-b9dc-4165d0b6ed5f`)으로 채팅 채널 트리거의 인바운드 요청을 전역 요청 빈도 제한(`UserThrottlerGuard`, 분당 100건)에서 뺐다. 채널 프로바이더는 적은 수의 발신 IP 에서 모든 사용자의 update 를 보낸다. 그래서 트래픽이 많은 봇은 IP 단위로 세는 전역 한도에 닿기 쉽다. 그때 나가는 `429` 는 프로바이더의 재전송과 웹훅 비활성화를 부른다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 채팅 채널 인바운드는 `202` 고정을 지킨다. 남용을 막는 장치와 채팅방 단위 한도를 넘었을 때의 응답은 [§7 머리 콜아웃](#7-요청-빈도-제한) 에 있다. 이 결정에 맞춰 규칙 12, §7 머리 콜아웃, 「웹훅 수신」 행, §11.7 을 고쳤다.
 
-이 결정은 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 의 2026-11-12 결정(NERV Task `CLE-T-XKK9KH` 의 사람 답) 가운데 채팅 채널 인바운드에도 전역 한도를 건다는 부분을 바꾼다. 채팅 채널 문서의 R-CC-12 와 「인바운드 HTTP 응답 계약」 도 이 결정에 맞춰 고친다.
+이 결정은 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 의 2026-11-12 결정(NERV Task `CLE-T-XKK9KH` 의 사람 답) 가운데 채팅 채널 인바운드에도 전역 한도를 건다는 부분을 바꾼다. 채팅 채널 문서의 R-CC-12 와 「인바운드 HTTP 응답 계약」 도 이 결정에 맞춰 고쳤다.
 
-코드는 아직 채팅 채널 인바운드도 전역 한도로 센다. 이 차이는 NERV Task `CLE-T-ZC34Y0` 이 고친다. 그 Task 가 끝나기 전까지는 채팅 채널 인바운드도 전역 한도를 넘으면 `429` 를 받을 수 있다. 구현과의 차이는 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 적는다.
+NERV Task `CLE-T-ZC34Y0` 에서 구현했다. 채팅 채널 트리거인지는 트리거를 조회해야 알 수 있다. 그런데 전역 `APP_GUARD` 인 `UserThrottlerGuard` 는 트리거를 조회하는 라우트 가드 `PublicWebhookThrottleGuard` 보다 먼저 돈다. 그래서 웹훅 수신 라우트에 `@DeferGlobalThrottle()` 을 붙여 전역 가드가 그 라우트를 건너뛰게 했다. 그 라우트의 전역 한도는 `PublicWebhookThrottleGuard` 뒤에 둔 라우트 가드 `HookTriggerThrottlerGuard` 가 센다. 이 가드는 앞 가드가 조회한 트리거로 면제 여부를 판정한다. 판정 함수는 `isSignedChatChannelTrigger` 이고 인바운드 인증기가 서명을 검증하는 조건과 같다. 면제 대상이 아니면 전역 가드와 같은 한도 · 같은 저장소 · 같은 키(`req.ip`)로 센다. 그래서 채팅 채널 트리거가 아닌 웹훅은 전과 같은 버킷을 같은 한도로 쓴다. 트리거가 없거나(`404` 로 끝날 요청) 조회에 실패한 요청은 센다. 판정할 수 없는 요청을 면제하지 않으려는 것이다.
+
+2026-11-13 에 면제를 서명 참조가 있는 채팅 채널 트리거로 좁혔다(NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A). 서명 참조가 없는 채팅 채널 트리거는 인바운드 인증기가 서명 검증을 건너뛴다. 그래서 서명 검증 실패 한도도 걸리지 않는다. 그런 트리거까지 전역 한도에서 빼면 IP 단위 한도가 하나도 남지 않는다. 공개 웹훅 추가 한도는 그대로 채팅 채널 트리거 전부를 뺀다.
+
+순서를 바꾼 대가는 둘이다.
+
+- 이 라우트는 전역 한도를 넘은 요청도 트리거를 한 번 조회(`endpointPath` 인덱스)한 뒤에 `429` 로 거절한다. 요청마다 늘어나는 DB 왕복은 없다. 컨트롤러가 그 조회 결과를 다시 쓴다.
+- 공개 웹훅은 본문 크기 한도(`413`)와 IP 단위 시작 한도(`429`)를 전역 한도의 `429` 보다 먼저 받는다.
+
+e2e 는 `NODE_ENV=test` 에서 돌아 전역 한도가 꺼져 있다. 그래서 가드 순서는 e2e 가 아니라 wire 테스트(`hooks-throttle.wire.spec.ts`)로 확인한다.
 
 같은 초안에서 「일반 API」 행도 고쳤다.
 
@@ -781,3 +795,12 @@ NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 사람 결정(2026-11-12, NERV 질문
 ### 채팅 채널 인터랙션 응답을 §6 · §11.4 에 적었다 (2026-11-13)
 
 NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 채팅 채널 문서가 Discord 인터랙션 · Slack Interactivity 는 트리거가 꺼져 있어도 `200` 과 인터랙션 응답을 받고 Discord 슬래시 명령에는 즉시 응답을 보낸다고 정했다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약), NERV Task `CLE-T-TSEP9G`). 이 문서의 §6 `410` 행과 §11.4 봉투 예외를 그 계약에 맞췄다.
+
+### 채팅 채널의 전역 한도 예외를 §7 머리 콜아웃 한 곳에 모았다 (2026-11-13)
+
+NERV Task `CLE-T-ZC34Y0` · `CLE-T-WGNJWE` 에서 고쳤다. 채팅 채널 트리거 요청이 전역 한도를 받지 않고 채팅방 단위 한도를 넘어도 `202` 를 받는다는 사실이 여러 곳에 거의 같은 문장으로 있었다. 규칙 12, §7 머리 콜아웃, §7 표의 「웹훅 수신」 · 「공개 웹훅 추가 한도」 행, §11.7, 위 「채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)」 다. 한 곳만 고치면 나머지와 어긋난다. 그래서 정본을 [§7 머리 콜아웃](#7-요청-빈도-제한) 에 두고 나머지 자리에는 한 문장과 그 콜아웃 링크만 남겼다.
+
+- 구현을 마친 사실은 「채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)」 에 적었다. 그 절은 전에 코드가 채팅 채널 인바운드도 전역 한도로 센다고 적었다.
+- 「전역 요청 빈도 제한은 HTTP 요청만 센다」 항목과 키 결정 규칙은 전역 가드가 HTTP 요청을 모두 센다고 읽혔다. 두 항목에 웹훅 수신의 라우트 가드와 채팅 채널 트리거 예외를 더했다. 구현 위치에도 그 가드와 가드 순서 테스트를 더했다.
+- 서명 검증 실패 한도는 콜아웃에 한 줄을 두고 수치는 §7 표에 「채팅 채널 서명 검증 실패」 행으로 더했다. §7 표가 요청 빈도 제한 수치의 단일 기준이기 때문이다. 쇼핑몰 앱 설치 진입점의 실패 잠금도 같은 이유로 표에 수치가 있다. 동작 규칙은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
+- 기각한 대안: 다른 자리의 문장을 지우고 콜아웃만 남기는 안. 규칙 12 나 §11.7 만 읽는 사람은 예외가 있다는 것조차 알 수 없다.

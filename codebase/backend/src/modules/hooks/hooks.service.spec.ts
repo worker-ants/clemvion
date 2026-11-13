@@ -24,6 +24,7 @@ import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
+import { ChatChannelSignatureFailureLimiterService } from '../chat-channel/chat-channel-signature-failure-limiter.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
 import { SURFACE_MISMATCH_DEFAULTS } from '../chat-channel/shared/language-hint-defaults';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
@@ -97,6 +98,14 @@ describe('HooksService', () => {
           provide: ChatChannelRateLimiterService,
           // default: 한도 이내(true) — rate-limit 케이스 테스트에서 override.
           useValue: { consume: jest.fn().mockResolvedValue(true) },
+        },
+        {
+          provide: ChatChannelSignatureFailureLimiterService,
+          // default: 한도에 닿지 않음 — 서명 실패 한도 케이스에서 override.
+          useValue: {
+            isBlocked: jest.fn().mockResolvedValue(false),
+            recordFailure: jest.fn().mockResolvedValue(undefined),
+          },
         },
         {
           provide: ChatChannelDedupService,
@@ -1757,13 +1766,17 @@ describe('HooksService', () => {
         });
       });
 
-      it('처리 중 에러는 기본 응답으로 삼키지 않는다', async () => {
+      // REQ-CHAT-056 · 080 — 처리 중 예상하지 못한 오류도 5xx 가 아니라 기본 응답으로 답한다.
+      it('처리 중 예상하지 못한 오류도 기본 응답으로 답한다', async () => {
         mockAdapter.parseUpdate.mockResolvedValue(updateOf(buttonCallback));
         engine.execute.mockRejectedValue(new Error('engine down'));
 
-        await expect(
-          service.handleWebhook('abc', interactionInput(3)),
-        ).rejects.toThrow('engine down');
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({
+          executionId: 'ignored',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
       });
     });
 
@@ -2028,17 +2041,117 @@ describe('HooksService', () => {
         expect(triggerRepo.update).toHaveBeenCalledTimes(1);
       });
 
-      it('다른 실행 에러는 ignored 로 삼키지 않는다', async () => {
+      // REQ-CHAT-056 — 다른 실행 에러는 202 ignored 로 답하되 degraded 원인으로 남기지 않는다.
+      it('다른 실행 에러는 202 ignored 로 답하고 건강도를 바꾸지 않는다', async () => {
         triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
         mockAdapter.parseUpdate.mockResolvedValue(startUpdate);
         conversationService.lookup.mockResolvedValue(null);
-        const boom = new Error('queue down');
-        engine.execute.mockRejectedValue(boom);
+        engine.execute.mockRejectedValue(new Error('queue down'));
 
-        await expect(service.handleWebhook('abc', chatInput)).rejects.toBe(
-          boom,
-        );
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
         expect(triggerRepo.update).not.toHaveBeenCalled();
+      });
+    });
+
+    // 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약) REQ-CHAT-056.
+    // 서명을 통과한 update 의 처리 중 예상하지 못한 오류(DB · Redis 장애 등)는 5xx 로 내지 않는다. 5xx 는
+    // 프로바이더의 재전송과 웹훅 자동 비활성화를 부른다. 에러 로그를 남기고 202 ignored 로 답한다. 예외는
+    // `/start` 의 기존 실행 취소 실패(REQ-CHAT-064) 하나이고 아래 `/start` describe 가 그 전파를 본다.
+    describe('처리 중 예상하지 못한 오류 (REQ-CHAT-056)', () => {
+      const textUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'hello' },
+        idempotencyKey: '3101',
+        receivedAt: new Date().toISOString(),
+      };
+      let errorSpy: jest.SpyInstance;
+
+      beforeEach(() => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(textUpdate);
+        errorSpy = jest
+          .spyOn(Logger.prototype, 'error')
+          .mockImplementation(() => undefined);
+      });
+
+      afterEach(() => {
+        errorSpy.mockRestore();
+      });
+
+      it.each<[string, () => void]>([
+        [
+          'parseUpdate',
+          () =>
+            mockAdapter.parseUpdate.mockRejectedValueOnce(
+              new Error('parse boom'),
+            ),
+        ],
+        [
+          '중복 제거 선점(Redis)',
+          () =>
+            (
+              moduleRef.get(ChatChannelDedupService) as { claim: jest.Mock }
+            ).claim.mockRejectedValueOnce(new Error('redis down')),
+        ],
+        [
+          '대화 단위 분당 한도(Redis)',
+          () =>
+            (
+              moduleRef.get(ChatChannelRateLimiterService) as {
+                consume: jest.Mock;
+              }
+            ).consume.mockRejectedValueOnce(new Error('redis down')),
+        ],
+        [
+          '채널 대화 상태 조회(DB)',
+          () =>
+            conversationService.lookup.mockRejectedValueOnce(
+              new Error('db down'),
+            ),
+        ],
+      ])(
+        '%s 가 실패해도 202 ignored 로 답하고 에러 로그를 남긴다',
+        async (_label, arrange) => {
+          arrange();
+
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expect(engine.execute).not.toHaveBeenCalled();
+          expect(errorSpy).toHaveBeenCalledWith(
+            expect.stringContaining('REQ-CHAT-056'),
+            expect.anything(),
+          );
+        },
+      );
+
+      // 버리는 단계(수신 확인)가 동기로 던져도 오류가 5xx 로 새지 않는다. catch 안에서 던지면 202 계약이 깨진다.
+      // `/start` 취소 실패의 원래 에러 전파는 아래 `/start` describe 의 503 · 400 케이스가 본다.
+      it('버리는 단계의 수신 확인이 동기로 던져도 202 ignored 로 답한다', async () => {
+        Object.assign(mockAdapter, {
+          ackDroppedUpdate: jest.fn(() => {
+            throw new Error('ack sync boom');
+          }),
+        });
+        mockAdapter.parseUpdate.mockRejectedValueOnce(new Error('parse boom'));
+        const warnSpy = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+
+        try {
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('ack sync boom'),
+          );
+        } finally {
+          warnSpy.mockRestore();
+          Reflect.deleteProperty(mockAdapter, 'ackDroppedUpdate');
+        }
       });
     });
 
@@ -2429,12 +2542,14 @@ describe('HooksService', () => {
         }),
       );
 
-      await expect(
-        service.handleWebhook('abc', chatInput),
-      ).rejects.toBeInstanceOf(ConflictException);
+      // STATE_MISMATCH 처럼 표면 불일치 안내를 보내지 않는다. 응답은 REQ-CHAT-056 대로 202 다.
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toEqual({ executionId: 'ignored' });
+      expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
     });
 
-    it('표면 불일치 외의 예외는 그대로 전파 (삼키지 않음)', async () => {
+    it('표면 불일치 외의 예외는 안내 없이 202 ignored 로 답한다', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       mockAdapter.parseUpdate.mockResolvedValue({
         conversationKey: 'chat-123',
@@ -2462,9 +2577,10 @@ describe('HooksService', () => {
         new Error('redis down'),
       );
 
-      await expect(service.handleWebhook('abc', chatInput)).rejects.toThrow(
-        'redis down',
-      );
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toEqual({ executionId: 'ignored' });
+      expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
     });
 
     it('CCH-SE-02 — 동일 update 재도착은 처리 생략(202 ignored) + rate-limit 쿼터 미소비', async () => {
@@ -2974,11 +3090,91 @@ describe('HooksService', () => {
       // re-noise: sendMessage 로 form_modal 버튼 재발송해야 함.
       expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({ kind: 'form_modal' }),
+          body: expect.objectContaining({
+            kind: 'form_modal',
+            openLabel: '양식 작성하기',
+          }),
         }),
         expect.anything(),
       );
     });
+
+    // 다시 보내는 버튼도 처음 보낸 버튼과 같은 조회(languageHints.formOpenLabel → locale 기본값)로
+    // 라벨을 고른다. 전에는 영어 기본값이 따로 하드코딩돼 처음 버튼(«Open form»)과 달랐다.
+    it.each([
+      ['영어 locale 이면 영어 기본값', { languageLocale: 'en' }, 'Open form'],
+      [
+        '덮어쓴 라벨이 있으면 그 라벨',
+        {
+          languageLocale: 'en',
+          languageHints: { formOpenLabel: '신청서 쓰기' },
+        },
+        '신청서 쓰기',
+      ],
+    ])(
+      'form_submission 재안내 버튼 라벨 — %s',
+      async (_label, extraConfig, expectedLabel) => {
+        triggerRepo.findOne.mockResolvedValue({
+          ...chatChannelTrigger,
+          config: {
+            chatChannel: {
+              ...(
+                chatChannelTrigger.config as {
+                  chatChannel: Record<string, unknown>;
+                }
+              ).chatChannel,
+              ...extraConfig,
+            },
+          },
+        } as unknown as Trigger);
+        mockAdapter.parseUpdate.mockResolvedValue({
+          conversationKey: 'chat-123',
+          channelUserKey: 'user-456',
+          command: { kind: 'form_submission', fields: { email: 'a@b.io' } },
+          idempotencyKey: `V3-${expectedLabel}`,
+          receivedAt: new Date().toISOString(),
+        });
+        (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse =
+          jest.fn().mockReturnValue({ httpResponse: { type: 4 } });
+        (mockAdapter as Record<string, unknown>).supportsNativeForm = true;
+        (mockAdapter as Record<string, unknown>).openFormModal = jest.fn();
+        conversationService.lookup.mockResolvedValue({
+          executionId: 'exec-active',
+          threadId: 'default',
+          channelUserKey: 'user-456',
+          startedAt: new Date().toISOString(),
+          lastUpdateAt: new Date().toISOString(),
+          pendingFormModal: {
+            nodeId: 'node-form',
+            fields: [{ name: 'email', label: 'Email', type: 'email' }],
+          },
+        });
+        (
+          moduleRef.get(ExecutionsService) as unknown as {
+            executionRepository: {
+              findOne: jest.Mock;
+            };
+          }
+        ).executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+        interactionService.interact.mockRejectedValue(
+          new Error('validation failed'),
+        );
+
+        await service.handleWebhook('abc', chatInput);
+
+        expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            body: expect.objectContaining({
+              kind: 'form_modal',
+              openLabel: expectedLabel,
+            }),
+          }),
+          expect.anything(),
+        );
+      },
+    );
 
     it('§4.1 form_submission → lock 획득 후 interact + 성공 시 lock 해제 (concurrency guard)', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
@@ -3407,15 +3603,19 @@ describe('HooksService', () => {
         ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
       });
 
-      it('그 밖의 오류는 삼키지 않는다', async () => {
+      // REQ-CHAT-056 — `/start` 의 취소 실패(REQ-CHAT-064)와 달리 202 다. 매핑과 건강도는 그대로 둔다.
+      it('그 밖의 오류도 202 ignored 로 답하고 매핑 · 건강도를 바꾸지 않는다', async () => {
         executions.stop.mockRejectedValue(
           new BadRequestException({ code: 'VALIDATION_ERROR', message: 'x' }),
         );
 
-        await expect(
-          service.handleWebhook('abc', chatInput),
-        ).rejects.toBeInstanceOf(BadRequestException);
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
         expect(triggerRepo.update).not.toHaveBeenCalled();
+        expect(
+          conversationService.clearExecutionIdIfMatches,
+        ).not.toHaveBeenCalled();
       });
     });
 
@@ -3509,7 +3709,9 @@ describe('HooksService', () => {
         expect(triggerRepo.update).not.toHaveBeenCalled();
       });
 
-      it('양식 제출(submit_form) — 202 로 답하고 degraded 를 남긴다', async () => {
+      // 근거: NERV Task `CLE-T-6ZTPZ8` 2번(2026-11-13 답 A). 입력이 실행에 닿지 않았으므로 모달 대기
+      // 상태를 남기고 「양식 작성하기」 버튼을 다시 보내 같은 양식을 다시 낼 수 있게 한다.
+      it('양식 제출(submit_form) — 202 로 답하고 degraded 를 남기며, 모달 대기를 지우지 않고 버튼을 다시 보낸다', async () => {
         mockAdapter.parseUpdate.mockResolvedValue({
           conversationKey: 'chat-123',
           channelUserKey: 'user-456',
@@ -3517,20 +3719,25 @@ describe('HooksService', () => {
           idempotencyKey: '1012',
           receivedAt: new Date().toISOString(),
         });
+        // 성공 응답(Discord 의 「제출되었습니다」 같은)을 돌려주면 안 된다는 것을 가리도록 본문을 둔다.
+        const buildFormSubmissionResponse = jest
+          .fn()
+          .mockReturnValue({ httpResponse: { submitted: true } });
         (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse =
-          jest.fn().mockReturnValue({});
+          buildFormSubmissionResponse;
         (mockAdapter as Record<string, unknown>).supportsNativeForm = true;
         (mockAdapter as Record<string, unknown>).openFormModal = jest.fn();
+        const pendingFormModal = {
+          nodeId: 'node-form',
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        };
         conversationService.lookup.mockResolvedValue({
           executionId: 'exec-active',
           threadId: 'default',
           channelUserKey: 'user-456',
           startedAt: new Date().toISOString(),
           lastUpdateAt: new Date().toISOString(),
-          pendingFormModal: {
-            nodeId: 'node-form',
-            fields: [{ name: 'email', label: 'Email', type: 'email' }],
-          },
+          pendingFormModal,
         });
         interactionService.interact.mockResolvedValueOnce(notQueued);
 
@@ -3538,6 +3745,22 @@ describe('HooksService', () => {
 
         expect(res).toEqual({ executionId: 'exec-active' });
         expect(triggerRepo.update).toHaveBeenCalledWith(...degradedUpdate);
+        expect(buildFormSubmissionResponse).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          expect.objectContaining({ pendingFormModal: undefined }),
+        );
+        expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            conversationKey: 'chat-123',
+            body: expect.objectContaining({
+              kind: 'form_modal',
+              formConfig: { fields: pendingFormModal.fields },
+            }),
+          }),
+          expect.anything(),
+        );
       });
 
       it('여러 단계 양식의 마지막 제출(submit_form) — 202 로 답하고 degraded 를 남긴다', async () => {
@@ -3834,6 +4057,88 @@ describe('HooksService', () => {
         chatInput.headers,
         expect.any(String),
       );
+    });
+
+    // 근거: NERV Task `CLE-T-ZC34Y0`(2026-11-13 답 A). 채팅 채널 트리거는 전역 요청 한도에서 빠지므로
+    // (트리거, 클라이언트 IP) 쌍의 서명 검증 실패를 분당 세고, 한도에 닿으면 검증 없이 401 로 답한다.
+    describe('서명 검증 실패 한도', () => {
+      const IP = '203.0.113.50';
+      const withIp: WebhookInput = {
+        ...chatInput,
+        headers: { ...chatInput.headers, 'x-forwarded-for': `${IP}, 10.0.0.1` },
+      };
+      let limiter: { isBlocked: jest.Mock; recordFailure: jest.Mock };
+
+      beforeEach(() => {
+        limiter = moduleRef.get(ChatChannelSignatureFailureLimiterService);
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(null);
+      });
+
+      it('한도에 닿은 쌍은 서명을 검증하지 않고 401 로 답한다', async () => {
+        limiter.isBlocked.mockResolvedValueOnce(true);
+
+        await expect(
+          service.handleWebhook('abc', withIp),
+        ).rejects.toMatchObject({ status: 401 });
+
+        expect(limiter.isBlocked).toHaveBeenCalledWith(
+          chatChannelTrigger.id,
+          IP,
+        );
+        expect(authenticator.verify).not.toHaveBeenCalled();
+        expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
+        // 막힌 요청은 다시 세지 않는다. 세면 창이 끝나도 계속 막힐 수 있다.
+        expect(limiter.recordFailure).not.toHaveBeenCalled();
+      });
+
+      it('서명 검증이 실패하면 그 쌍의 실패를 하나 세고 401 을 그대로 던진다', async () => {
+        const rejection = new UnauthorizedException({
+          code: 'AUTH_FAILED',
+          message: 'Invalid Telegram secret token',
+        });
+        authenticator.verify.mockRejectedValueOnce(rejection);
+
+        await expect(service.handleWebhook('abc', withIp)).rejects.toBe(
+          rejection,
+        );
+
+        expect(limiter.recordFailure).toHaveBeenCalledTimes(1);
+        expect(limiter.recordFailure).toHaveBeenCalledWith(
+          chatChannelTrigger.id,
+          IP,
+        );
+      });
+
+      it('서명 검증을 통과하면 세지 않는다', async () => {
+        await service.handleWebhook('abc', withIp);
+
+        expect(authenticator.verify).toHaveBeenCalled();
+        expect(limiter.recordFailure).not.toHaveBeenCalled();
+      });
+
+      it('401 이 아닌 오류는 세지 않는다', async () => {
+        authenticator.verify.mockRejectedValueOnce(new Error('unexpected'));
+
+        await expect(service.handleWebhook('abc', withIp)).rejects.toThrow(
+          'unexpected',
+        );
+
+        expect(limiter.recordFailure).not.toHaveBeenCalled();
+      });
+
+      it('클라이언트 IP 를 알 수 없으면 한도를 보지도 세지도 않는다 — 한 버킷을 함께 쓰지 않는다', async () => {
+        authenticator.verify.mockRejectedValueOnce(
+          new UnauthorizedException({ code: 'AUTH_FAILED', message: 'x' }),
+        );
+
+        await expect(
+          service.handleWebhook('abc', chatInput),
+        ).rejects.toMatchObject({ status: 401 });
+
+        expect(limiter.isBlocked).not.toHaveBeenCalled();
+        expect(limiter.recordFailure).not.toHaveBeenCalled();
+      });
     });
   });
 });

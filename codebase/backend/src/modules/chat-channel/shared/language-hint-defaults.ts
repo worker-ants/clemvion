@@ -227,6 +227,26 @@ export const resolveCommandReceivedMessage = makeLocaleResolver(
 );
 
 /**
+ * 슬래시 명령 `help` 의 기본 도움말(KO/EN). `{prefix}` 는 호출한 쪽이 명령 이름으로 바꾼다. Discord 는
+ * 등록한 명령 이름(`languageHints.slashPrefix`), Slack 은 요청의 `command` 를 넣는다.
+ * `languageHints.help` override 가 있으면 이 문구를 쓰지 않는다.
+ */
+export const SLASH_HELP_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: [
+    '/{prefix} start - 새 대화 시작',
+    '/{prefix} cancel - 진행 중인 대화 취소',
+    '/{prefix} reply - 진행 중인 대화에 답장',
+    '/{prefix} help - 도움말',
+  ].join('\n'),
+  en: [
+    '/{prefix} start - Start a new conversation',
+    '/{prefix} cancel - Cancel the active conversation',
+    '/{prefix} reply - Reply to the active conversation',
+    '/{prefix} help - Show help',
+  ].join('\n'),
+};
+
+/**
  * `{statusCode}` placeholder 치환 — 화이트리스트 1종 (CCH-ERR-03).
  * 다른 placeholder (`{nodeId}` 등) 는 literal 유지 — DTO validator 가 등록 시점에 reject 하지만,
  * runtime 도 안전 (raw 노출되어도 internal label 만, 사용자에게 의미 불명).

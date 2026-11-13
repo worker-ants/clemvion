@@ -8,6 +8,7 @@ import { HooksController } from './hooks.controller';
 import { HooksService } from './hooks.service';
 import { PublicWebhookQuotaService } from './public-webhook-quota.service';
 import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
+import { HookTriggerThrottlerGuard } from './hook-trigger-throttler.guard';
 import { EmbedConfigService } from './embed-config.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { ExternalInteractionModule } from '../external-interaction/external-interaction.module';
@@ -32,6 +33,7 @@ import { AuthConfigsModule } from '../auth-configs/auth-configs.module';
     HooksService,
     PublicWebhookQuotaService,
     PublicWebhookThrottleGuard,
+    HookTriggerThrottlerGuard,
     EmbedConfigService,
   ],
 })

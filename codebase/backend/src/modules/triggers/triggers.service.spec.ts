@@ -2531,6 +2531,122 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
   });
 
   /**
+   * 유예 중 재교체(A→B 뒤 24시간 안에 B→C)는 유예 백업 칸의 A 를 B 로 덮는다. A 는 그 뒤 어디에도
+   * 남지 않아 유예 종료 정리가 revoke 하지 못한다. 그래서 교체가 끝난 뒤 A 를 best-effort 로
+   * revoke 한다. 근거: NERV Task `CLE-T-6ZTPZ8` 4번(2026-11-13 답 A).
+   */
+  describe('유예 중 다시 교체하면 덮이는 유예 백업 토큰', () => {
+    const V2_REF = 'secret://triggers/trig-1/bot-token.v2';
+    const GRACE_TOKEN = '000000000:GraceToken'; // A — 두 세대 전 토큰
+    let revokeBotToken: jest.Mock;
+
+    const resolveByRef =
+      (v2: string | null) =>
+      (ref: string): Promise<string> => {
+        if (ref === V2_REF) {
+          return v2 === null
+            ? Promise.reject(new NotFoundException('absent'))
+            : Promise.resolve(v2);
+        }
+        return Promise.resolve(OLD_TOKEN); // B — 지금 primary
+      };
+
+    beforeEach(() => {
+      revokeBotToken = jest.fn().mockResolvedValue(undefined);
+      (mockAdapter as Record<string, unknown>).revokeBotToken = revokeBotToken;
+    });
+
+    it('교체가 끝난 뒤 덮인 토큰을 revoke 한다', async () => {
+      secrets.resolve.mockImplementation(resolveByRef(GRACE_TOKEN));
+
+      await service.rotateBotToken(
+        TRIGGER_ID,
+        WORKSPACE_ID,
+        NEW_TOKEN,
+        'u-bot',
+      );
+
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        V2_REF,
+        WORKSPACE_ID,
+        OLD_TOKEN,
+      );
+      expect(revokeBotToken).toHaveBeenCalledTimes(1);
+      expect(revokeBotToken).toHaveBeenCalledWith(GRACE_TOKEN);
+      // 컬럼 갱신(6단계)이 끝난 뒤에 부른다.
+      expect(revokeBotToken.mock.invocationCallOrder[0]).toBeGreaterThan(
+        triggerRepo.update.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('revoke 가 실패해도 교체는 성공하고 경고만 남긴다', async () => {
+      secrets.resolve.mockImplementation(resolveByRef(GRACE_TOKEN));
+      revokeBotToken.mockRejectedValue(new Error('slack down'));
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      let warnings: unknown[];
+      let result: Awaited<ReturnType<TriggersService['rotateBotToken']>>;
+      try {
+        result = await service.rotateBotToken(
+          TRIGGER_ID,
+          WORKSPACE_ID,
+          NEW_TOKEN,
+          'u-bot',
+        );
+        warnings = warnSpy.mock.calls.map((call) => call[0]);
+      } finally {
+        warnSpy.mockRestore();
+      }
+
+      expect(result.chatChannelHealth).toBe('healthy');
+      expect(warnings).toContainEqual(expect.stringContaining('slack down'));
+    });
+
+    it('유예 백업이 비어 있으면(첫 교체) revoke 하지 않는다', async () => {
+      secrets.resolve.mockImplementation(resolveByRef(null));
+
+      await service.rotateBotToken(
+        TRIGGER_ID,
+        WORKSPACE_ID,
+        NEW_TOKEN,
+        'u-bot',
+      );
+
+      expect(revokeBotToken).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['새 토큰과 같으면(A 로 되돌리는 교체)', NEW_TOKEN],
+      ['지금 primary 와 같으면(덮어도 남는 값)', OLD_TOKEN],
+      ['빈 값이면', '   '],
+    ])('덮이는 토큰이 %s revoke 하지 않는다', async (_label, v2) => {
+      secrets.resolve.mockImplementation(resolveByRef(v2));
+
+      await service.rotateBotToken(
+        TRIGGER_ID,
+        WORKSPACE_ID,
+        NEW_TOKEN,
+        'u-bot',
+      );
+
+      expect(revokeBotToken).not.toHaveBeenCalled();
+    });
+
+    it('교체가 실패하면 revoke 하지 않는다 — 유예 백업이 되돌아가 A 가 다시 남는다', async () => {
+      secrets.resolve.mockImplementation(resolveByRef(GRACE_TOKEN));
+      mockAdapter.setupChannel.mockRejectedValue(new Error('network'));
+
+      await expect(
+        service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot'),
+      ).rejects.toThrow();
+
+      expect(revokeBotToken).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
    * **감사 기록 — 성공/실패 양쪽.**
    *
    * 이 자리가 셋 중 유일하게 비어 있었다: 다른 두 회전은 `TriggersService — 감사 로깅`

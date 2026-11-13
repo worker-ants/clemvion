@@ -29,11 +29,13 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import { Public } from '../../common/decorators';
+import { DeferGlobalThrottle } from '../../common/guards/user-throttler.guard';
 import { HooksService } from './hooks.service';
 import {
   PublicWebhookThrottleGuard,
   type PublicWebhookReqExtension,
 } from './public-webhook-throttle.guard';
+import { HookTriggerThrottlerGuard } from './hook-trigger-throttler.guard';
 import { EmbedConfigService } from './embed-config.service';
 import { WebhookAcceptedDto } from './dto/responses/webhook-response.dto';
 import { EmbedConfigDto } from './dto/responses/embed-config-response.dto';
@@ -94,13 +96,16 @@ export class HooksController {
   }
 
   @Public()
-  @UseGuards(PublicWebhookThrottleGuard)
+  // 전역 요청 한도는 트리거를 조회한 뒤 `HookTriggerThrottlerGuard` 가 건다. 채팅 채널 트리거는 받지
+  // 않는다(REQ-CHAT-079). 두 가드의 순서가 그 판정의 전제다.
+  @DeferGlobalThrottle()
+  @UseGuards(PublicWebhookThrottleGuard, HookTriggerThrottlerGuard)
   @Post(':endpointPath')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: '웹훅 수신',
     description:
-      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다(spec 7-channel-web-chat/4-security §4). 채팅 채널 트리거는 프로바이더 서명으로 인증하므로 이 제한을 받지 않습니다. 채팅 채널의 handshake(Slack url_verification · Discord PING)와 프로바이더가 3초 안 응답을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)은 `{ data }` 래핑 없이 200 과 프로바이더가 정한 본문으로 답합니다. Slack Interactivity 의 기본 응답은 빈 본문입니다.',
+      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다(spec 7-channel-web-chat/4-security §4). 채팅 채널 트리거는 프로바이더 서명으로 인증하므로 이 제한을 받지 않습니다. 전역 요청 한도(클라이언트당 분당 100건)는 트리거를 조회한 뒤 걸고, 채팅 채널 트리거에는 걸지 않습니다. 채팅 채널의 handshake(Slack url_verification · Discord PING)와 프로바이더가 3초 안 응답을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)은 `{ data }` 래핑 없이 200 과 프로바이더가 정한 본문으로 답합니다. Slack Interactivity 의 기본 응답은 빈 본문입니다.',
   })
   @ApiTooManyRequestsResponse({
     description: '공개 webhook IP 시작 한도 초과(분당/시간당)',
@@ -144,7 +149,8 @@ export class HooksController {
       '웹훅 접수 및 워크플로우 실행 시작. 전역 TransformInterceptor 에 의해 `{ data: ... }` 로 래핑되어 반환됩니다.',
   })
   @ApiUnauthorizedResponse({
-    description: '웹훅 서명/시크릿 검증 실패',
+    description:
+      '웹훅 서명/시크릿 검증 실패. 서명 참조가 있는 채팅 채널 트리거는 같은 IP 에서 서명 검증에 분당 20회를 넘게 실패하면 한동안 서명이 맞아도 검증 없이 같은 401(`AUTH_FAILED`)로 답한다(429 가 아니다).',
   })
   @ApiNotFoundResponse({
     description: '등록된 트리거(endpointPath)를 찾을 수 없음',
@@ -201,7 +207,8 @@ export class HooksController {
 
     // 채팅 채널 인터랙션 응답 — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
     // (Discord modal `{ type: 9 }` open / `{ type: 4 }` 폼 제출 결과 · 슬래시 명령 수신 응답 /
-    // 컴포넌트 · 모달 제출 기본 ack `{ type: 6 }` / Slack `{ response_action }`).
+    // 컴포넌트 · 모달 제출 기본 ack `{ type: 6 }` / Slack `{ response_action }` · 슬래시 명령
+    // 수신 응답 `{ response_type: 'ephemeral' }`).
     // TransformInterceptor 래핑 우회 — res.json 으로 직접 전송. Spec CLE-CHAT-ADAPTER.
     const interactionHttpResponse = (
       result as unknown as { interactionHttpResponse?: unknown }

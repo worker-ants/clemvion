@@ -16,9 +16,19 @@ import type {
   SetupResult,
 } from '../../types';
 import { credentialRejectedError } from '../../types';
+import {
+  pickLocaleDefault,
+  readLanguageHintOverride,
+  resolveCommandReceivedMessage,
+  SLASH_HELP_DEFAULTS,
+} from '../../shared/language-hint-defaults';
 import { SlackClient } from './slack-client';
 import { renderSlackEvent, escapeSlackMrkdwn } from './slack-message.renderer';
-import { parseSlackUpdate } from './slack-update.parser';
+import {
+  parseSlackUpdate,
+  readSlackSlashInvocation,
+  SLACK_SLASH_HELP_SUBCOMMAND,
+} from './slack-update.parser';
 import type { ChannelButton } from '../../types';
 
 /**
@@ -391,16 +401,25 @@ export class SlackAdapter implements NativeFormAdapter {
   }
 
   /**
-   * Interactivity(block_actions · view_submission)의 기본 응답 — 3초 안 `200` 빈 본문
-   * (Spec CLE-CHAT-SLACK 「인바운드 응답」). Interactivity 는 form `payload=<JSON>` 으로 오므로
-   * `payload` 문자열 필드로 가른다(`parseSlackUpdate` 와 같은 판정). 처리 결과와 무관하게
-   * 받았다는 것만 알리고 메시지 갱신은 {@link ackInteraction} 이 `response_url` 로 따로 한다.
-   * view_submission 의 검증 실패 응답(`response_action: errors`)은 경로별 응답이 이 값보다 앞선다.
-   * Events API · 슬래시 명령은 `undefined` 라 지금처럼 `202` 다. pure.
+   * Slack 이 3초 안 `200` 을 요구하는 요청의 기본 응답(Spec CLE-CHAT-SLACK 「인바운드 응답」).
+   * 처리 결과와 무관하게 받았다는 것만 알린다. 트리거가 꺼져 있어도 HooksService 가 이 응답으로 답한다.
+   *
+   * - Interactivity(block_actions · view_submission): `200` 빈 본문. form `payload=<JSON>` 으로
+   *   오므로 `payload` 문자열 필드로 가른다(`parseSlackUpdate` 와 같은 판정). 메시지 갱신은
+   *   {@link ackInteraction} 이 `response_url` 로 따로 한다. view_submission 의 검증 실패 응답
+   *   (`response_action: errors`)은 경로별 응답이 이 값보다 앞선다.
+   * - 슬래시 명령: 본인에게만 보이는 `{ response_type: 'ephemeral', text }`. `help` 는 도움말
+   *   (`languageHints.help` 나 기본 문구), 나머지는 수신 문구(`languageHints.commandReceived` 나 기본
+   *   문구)다. 슬래시 명령인지와 하위 명령은 {@link readSlackSlashInvocation} 이 파서와 같은 규칙으로
+   *   정한다. Discord 슬래시 명령 선례(2026-11-12, NERV Task `CLE-T-TSEP9G`)를 따른다. NERV Task
+   *   `CLE-T-MGZRRP`.
+   * - Events API · url_verification 은 `undefined` 라 지금처럼 `202` · 핸드셰이크 응답이다.
+   *
+   * pure — 외부 호출 없음.
    */
   defaultInteractionResponse(
     raw: unknown,
-    _config: ChatChannelConfig,
+    config: ChatChannelConfig,
   ): InboundInteractionResponse | undefined {
     if (
       raw &&
@@ -409,8 +428,43 @@ export class SlackAdapter implements NativeFormAdapter {
     ) {
       return {};
     }
-    return undefined;
+    const slash = readSlackSlashInvocation(raw);
+    if (!slash) return undefined;
+    const text =
+      slash.subCommand === SLACK_SLASH_HELP_SUBCOMMAND
+        ? resolveSlackHelpText(slash.command, config)
+        : resolveCommandReceivedMessage(
+            config.languageHints,
+            config.languageLocale,
+          );
+    // 응답 text 는 mrkdwn 으로 렌더된다. 다른 안내 문구(escapeControlText)처럼 & < > 를 escape 한다.
+    return {
+      body: { response_type: 'ephemeral', text: escapeSlackMrkdwn(text) },
+    };
   }
+}
+
+/**
+ * 슬래시 명령 이름이 비어 있을 때 도움말에 넣을 이름. 가이드가 Slack 앱 manifest 에 등록하라고
+ * 안내하는 기본값이다.
+ */
+const SLACK_DEFAULT_SLASH_COMMAND = 'workflow';
+
+/**
+ * `languageHints.help` 가 있으면 그 문구를 그대로 쓴다(`{prefix}` 를 바꾸지 않는다). 없으면 Discord 와
+ * 같은 locale 기본 도움말({@link SLASH_HELP_DEFAULTS})에 요청의 명령 이름을 넣는다. Slack 은 명령 이름을 앱 manifest 에서 정하고
+ * 요청마다 `command` 로 보내 주므로 `languageHints.slashPrefix` 대신 그 값을 쓴다.
+ */
+function resolveSlackHelpText(
+  command: string,
+  config: ChatChannelConfig,
+): string {
+  const override = readLanguageHintOverride(config.languageHints, 'help');
+  if (override !== undefined) return override;
+  const prefix = command.replace(/^\/+/, '') || SLACK_DEFAULT_SLASH_COMMAND;
+  return pickLocaleDefault(SLASH_HELP_DEFAULTS, config.languageLocale)
+    .split('{prefix}')
+    .join(prefix);
 }
 
 /**

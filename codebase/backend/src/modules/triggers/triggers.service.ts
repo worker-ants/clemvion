@@ -66,7 +66,7 @@ import { assertRawConfigAccepted } from './trigger-config-internal-fields';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
-import { SecretWriteJournal } from './secret-write-journal';
+import { SecretWriteJournal, type PriorSecret } from './secret-write-journal';
 import { buildTriggerListOrderBy } from './triggers-list-sort';
 
 export type TriggerDetail = Trigger & {
@@ -289,6 +289,21 @@ function narrowWorkflowRef(wf: { id: string; name: string }): {
   name: string;
 } {
   return { id: wf.id, name: wf.name };
+}
+
+/**
+ * 봇 토큰 교체의 유예 백업 쓰기가 덮는 토큰 가운데 revoke 할 것을 고른다. 백업 칸이 비었거나 읽지 못했으면
+ * 덮이는 토큰이 없다. 빈 값이거나 교체 뒤에도 쓰는 토큰(`stillInUse`: 새 primary · 새 백업)과 같으면
+ * revoke 하지 않는다. 같은 토큰으로 되돌리는 교체에서 새 primary 를 끊지 않기 위해서다.
+ */
+function readOverwrittenGraceToken(
+  prior: PriorSecret,
+  stillInUse: readonly string[],
+): string | null {
+  if (prior.state !== 'present') return null;
+  const token = prior.plaintext;
+  if (token.trim() === '' || stillInUse.includes(token)) return null;
+  return token;
 }
 
 /**
@@ -1641,6 +1656,10 @@ export class TriggersService {
     const oldPlaintext =
       priorPrimary.state === 'present' ? priorPrimary.plaintext : null;
 
+    // 유예 중 재교체(A→B 뒤 24시간 안에 B→C)는 2단계에서 유예 백업의 A 를 B 로 덮는다. 그 뒤 A 는 어디에도
+    // 남지 않아 유예 종료 정리가 revoke 하지 못하므로 교체가 끝난 뒤 여기서 revoke 한다. 교체가 실패하면
+    // 백업이 A 로 되돌아가므로 부르지 않는다(NERV Task `CLE-T-6ZTPZ8` 4번).
+    let overwrittenGraceToken: string | null = null;
     const { wrote, mergedChannel, rotatedAt } = await journal.undoOnFailure(
       this.logger,
       `TriggersService.rotateBotToken trigger=${trigger.id}`,
@@ -1654,8 +1673,13 @@ export class TriggersService {
             `rotateBotToken: 저장된 이전 봇 토큰이 빈 값이라 유예 백업을 건너뜁니다 (trigger=${trigger.id}).`,
           );
         } else if (oldPlaintext !== null) {
-          await journal.write(v2Ref, oldPlaintext, await journal.read(v2Ref));
+          const priorV2 = await journal.read(v2Ref);
+          await journal.write(v2Ref, oldPlaintext, priorV2);
           v2RefUsed = v2Ref;
+          overwrittenGraceToken = readOverwrittenGraceToken(priorV2, [
+            oldPlaintext,
+            newBotToken,
+          ]);
         }
 
         // 3. primary botTokenRef 에 새 token 저장 (UPSERT).
@@ -1761,6 +1785,15 @@ export class TriggersService {
       resourceId: trigger.id,
       type: trigger.type,
     });
+    if (overwrittenGraceToken !== null) {
+      const token = overwrittenGraceToken;
+      await this.tryRevokeBotToken(
+        chatChannelCfg,
+        trigger.id,
+        '유예 중 재교체로 덮인 토큰',
+        () => Promise.resolve(token),
+      );
+    }
     // [Spec Chat Channel §5.4] 성공 응답 3필드 동봉 — triggerId / chatChannelHealth
     // (setupChannel 재호출 결과) / botIdentity (getMe 캐시 갱신 결과, configUpdates 경유).
     return {
@@ -1812,7 +1845,12 @@ export class TriggersService {
         trigger.config as { chatChannel?: ChatChannelConfig }
       ).chatChannel;
       if (chatChannelCfg?.provider) {
-        await this.tryRevokeOldBotToken(chatChannelCfg, v2Ref, trigger.id);
+        await this.tryRevokeBotToken(
+          chatChannelCfg,
+          trigger.id,
+          '유예가 끝난 이전 토큰',
+          () => this.secrets.resolve(v2Ref),
+        );
       }
 
       // secret_store v2 row 삭제 (best-effort — 미존재 ref 는 noop).
@@ -1837,7 +1875,8 @@ export class TriggersService {
   }
 
   /**
-   * 24h grace 종료 시점에 old bot token 을 외부 provider 측에서도 revoke (가능한 경우).
+   * 더는 쓰지 않는 봇 토큰을 provider 쪽에서도 revoke 한다(가능한 경우). 24h grace 종료 정리와
+   * 유예 중 재교체(덮인 유예 백업 토큰)가 부른다.
    *
    * Adapter 인터페이스의 `revokeBotToken?` 옵션 메서드를 활용 — SoT:
    * [spec/conventions/chat-channel-adapter.md §1] Adapter Interface.
@@ -1845,26 +1884,29 @@ export class TriggersService {
    *   - Telegram: revocation API 미지원 — adapter 미구현 (undefined)
    *   - Discord: token revoke endpoint 없음 — adapter 미구현 (undefined)
    *
-   * 실패는 secret_store cleanup 을 차단하지 않는다 (best-effort).
+   * 실패는 호출자를 막지 않는다(best-effort). 토큰 읽기 실패도 같다.
    * Service 단에 provider 별 분기 없음 — adapter 의 메서드 존재 여부가 분기 역할 (OCP 정합).
+   *
+   * @param what 로그에 붙일 토큰 설명
+   * @param readToken revoke 할 토큰을 읽는다. 메서드가 없는 provider 에서는 부르지 않는다.
    */
-  private async tryRevokeOldBotToken(
+  private async tryRevokeBotToken(
     config: ChatChannelConfig,
-    v2Ref: string,
     triggerId: string,
+    what: string,
+    readToken: () => Promise<string>,
   ): Promise<void> {
     if (!this.channelAdapterRegistry.has(config.provider)) return;
     const adapter = this.channelAdapterRegistry.get(config.provider);
     if (typeof adapter.revokeBotToken !== 'function') return; // provider 가 revocation 미지원.
     try {
-      const oldToken = await this.secrets.resolve(v2Ref);
-      await adapter.revokeBotToken(oldToken);
+      await adapter.revokeBotToken(await readToken());
       this.logger.log(
-        `Adapter revokeBotToken 호출 — trigger=${triggerId} provider=${config.provider} 의 old bot token 무효화 완료`,
+        `Adapter revokeBotToken 호출 — trigger=${triggerId} provider=${config.provider} 의 ${what} 무효화 완료`,
       );
     } catch (err) {
       this.logger.warn(
-        `Adapter revokeBotToken best-effort 실패 (trigger=${triggerId}, provider=${config.provider}): ${err instanceof Error ? err.message : String(err)}`,
+        `Adapter revokeBotToken best-effort 실패 (${what}, trigger=${triggerId}, provider=${config.provider}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

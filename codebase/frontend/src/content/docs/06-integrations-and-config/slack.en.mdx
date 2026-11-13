@@ -89,6 +89,16 @@ Copy the endpoint URL using the 📋 button on the trigger list screen. Use the 
 - `/workflow` — same as first DM (starts a new execution)
 - `/workflow cancel` — cancel the active execution
 - `/workflow reply <message>` — free-text reply during an AI Multi Turn (alternative to plain DM)
+- `/workflow help` — show help
+
+Every slash command gets a short reply visible only to the sender within 3 seconds, so no error indicator appears in Slack. The workflow's actual result arrives separately as a message in the channel.
+
+| Command | Reply shown to the sender | Key to change the text |
+|---|---|---|
+| `help` | Command list (`/workflow start - Start a new conversation` · `/workflow cancel - Cancel the active conversation` · `/workflow reply - Reply to the active conversation` · `/workflow help - Show help`) | `languageHints.help` |
+| Other commands (`start` · `cancel` · `reply`, etc.) | Receipt text (default `Request received.`) | `languageHints.commandReceived` |
+
+`help` is answered only by this reply, with no separate message. If you set `languageHints.help`, that text is shown as is. The `workflow` in the command list is the command name you registered in the Slack app. Slack sets command names in the app, so the Discord-only `languageHints.slashPrefix` is not used in Slack. Even when the trigger or workflow is turned off, the same receipt text is shown. No execution is started in that case.
 
 ### 4.3 Buttons / Forms
 

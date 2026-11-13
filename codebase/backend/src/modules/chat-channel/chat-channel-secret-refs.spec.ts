@@ -1,5 +1,8 @@
+import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenticator';
+import type { SecretResolverService } from '../secret-store/secret-resolver.service';
 import {
   chatChannelSecretRef,
+  isSignedChatChannelTrigger,
   pinChatChannelSecretRefs,
   readTriggerChatChannelConfig,
   readTriggerChatChannelProvider,
@@ -146,6 +149,44 @@ describe('readTriggerChatChannelProvider', () => {
   });
 });
 
+// 근거: NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A(2026-11-13, CLE-T-ZC34Y0).
+// 서명 참조가 있는 채팅 채널 트리거만 전역 요청 한도에서 뺀다. 인바운드 인증기가 서명을 검증하는
+// 조건(저장된 `inboundSigningRef` 가 있다)과 같은 판정이어야 한다.
+describe('isSignedChatChannelTrigger', () => {
+  it.each([
+    ['config 가 null', null],
+    ['채팅 채널이 아니다', {}],
+    [
+      'provider 가 없다',
+      {
+        chatChannel: {
+          inboundSigningRef: 'secret://triggers/t/inbound-signing',
+        },
+      },
+    ],
+    ['서명 참조가 없다', { chatChannel: { provider: 'telegram' } }],
+    [
+      '서명 참조가 빈 문자열',
+      { chatChannel: { provider: 'slack', inboundSigningRef: '' } },
+    ],
+  ])('%s 면 false 다', (_label, config) => {
+    expect(isSignedChatChannelTrigger(config)).toBe(false);
+  });
+
+  it('provider 와 서명 참조가 있으면 true 다. 참조가 다른 트리거를 가리켜도 있음으로 본다', () => {
+    // pinChatChannelSecretRefs 는 있는 참조를 이 트리거의 참조로 바꿔 쓸 뿐 지우지 않으므로
+    // 인증기는 이 트리거도 검증한다.
+    expect(
+      isSignedChatChannelTrigger({
+        chatChannel: {
+          provider: 'discord',
+          inboundSigningRef: `secret://triggers/${OTHER}/inbound-signing`,
+        },
+      }),
+    ).toBe(true);
+  });
+});
+
 describe('readTriggerChatChannelConfig', () => {
   it.each([
     ['config 가 null', null],
@@ -184,4 +225,50 @@ describe('readTriggerChatChannelConfig', () => {
     expect(stored.botTokenRef).toBe(`secret://triggers/${OTHER}/bot-token`);
     expect(logger.error).toHaveBeenCalledTimes(1);
   });
+});
+
+// 근거: CLE-T-ZC34Y0. 전역 한도 면제(`isSignedChatChannelTrigger`)와 인증기의 서명 검증 여부는 같아야 한다.
+// 어긋나면 면제됐는데 검증이 없는 트리거가 생겨 IP 단위 한도가 하나도 걸리지 않는다.
+describe('isSignedChatChannelTrigger 와 인바운드 인증기의 서명 검증 여부', () => {
+  const refs: Array<[string, unknown]> = [
+    ['없음', undefined],
+    ['null', null],
+    ['빈 문자열', ''],
+    ['0', 0],
+    ['숫자 7', 7],
+    ['객체', { x: 1 }],
+    ['참조 문자열', 'secret://triggers/t/inbound-signing'],
+  ];
+  const providers = ['telegram', 'slack', 'discord'] as const;
+  const cases = providers.flatMap((provider) =>
+    refs.map(([label, ref]) => [provider, label, ref] as const),
+  );
+
+  it.each(cases)(
+    '%s 서명 참조가 %s 일 때 면제 판정과 시크릿 조회가 같다',
+    async (provider, _label, ref) => {
+      const resolve = jest.fn(async () => 'v');
+      const authenticator = new ChatChannelInboundAuthenticator({
+        resolve,
+      } as unknown as SecretResolverService);
+      const stored = {
+        chatChannel: {
+          provider,
+          botTokenRef: chatChannelSecretRef('t', 'botTokenRef'),
+          inboundSigningRef: ref,
+        },
+      };
+      const config = readTriggerChatChannelConfig(
+        { id: 't', config: stored },
+        makeLogger(),
+        'test',
+      ) as ChatChannelConfig;
+
+      await authenticator.verify('t', config, {}, '').catch(() => undefined);
+
+      expect(resolve.mock.calls.length > 0).toBe(
+        isSignedChatChannelTrigger(stored),
+      );
+    },
+  );
 });
