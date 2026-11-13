@@ -3074,32 +3074,51 @@ describe('WorkflowAssistantStreamService', () => {
         message: 'Model config not found',
       });
 
+    // 지정한 id 로 조회하면 requestedErr, 기본 설정 조회(id 없음)면 defaultResult
+    // (Error 면 reject, 아니면 resolve)를 돌려준다.
+    const rejectByRequest = (
+      mocks: ReturnType<typeof makeService>['mocks'],
+      requestedErr: Error,
+      defaultResult: Error | typeof DEFAULT_CONFIG,
+    ) => {
+      mocks.llmService.resolveConfig.mockImplementation(
+        (id: string | undefined) => {
+          if (id) return Promise.reject(requestedErr);
+          return defaultResult instanceof Error
+            ? Promise.reject(defaultResult)
+            : Promise.resolve(defaultResult);
+        },
+      );
+    };
+
+    const runTurn = (
+      service: ReturnType<typeof makeService>['service'],
+      dto: unknown = dtoWithMissingId,
+    ) => collect(service.streamMessage('sess-1', 'ws-1', 'u-1', dto as never));
+
+    const expectedError = (
+      code: keyof typeof ASSISTANT_STREAM_ERROR_MESSAGES,
+    ) => ({
+      event: 'error',
+      data: { code, message: ASSISTANT_STREAM_ERROR_MESSAGES[code] },
+    });
+
+    const doneStream = (model: string) => () =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model,
+          finishReason: 'stop',
+        },
+      ]);
+
     it('falls back to the workspace default and announces it first', async () => {
       const { service, mocks } = makeService();
-      mocks.llmService.resolveConfig.mockImplementation(
-        (id: string | undefined) =>
-          id ? Promise.reject(notFound()) : Promise.resolve(DEFAULT_CONFIG),
-      );
-      mocks.llmService.chatStream.mockImplementation(() =>
-        asyncIter<ChatStreamEvent>([
-          { type: 'text_delta', delta: 'hi' },
-          {
-            type: 'done',
-            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-            model: 'gpt-4o-mini',
-            finishReason: 'stop',
-          },
-        ]),
-      );
+      rejectByRequest(mocks, notFound(), DEFAULT_CONFIG);
+      mocks.llmService.chatStream.mockImplementation(doneStream('gpt-4o-mini'));
 
-      const events = await collect(
-        service.streamMessage(
-          'sess-1',
-          'ws-1',
-          'u-1',
-          dtoWithMissingId as never,
-        ),
-      );
+      const events = await runTurn(service);
 
       expect(events[0]).toEqual({
         event: 'config_fallback',
@@ -3121,27 +3140,41 @@ describe('WorkflowAssistantStreamService', () => {
       );
     });
 
+    it('falls back when only the session holds the missing config id', async () => {
+      const { service, mocks } = makeService();
+      mocks.sessionService.findOneForUser.mockResolvedValue({
+        id: 'sess-1',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        workflowId: 'wf-1',
+        title: null,
+        llmConfigId: MISSING_ID,
+      });
+      rejectByRequest(mocks, notFound(), DEFAULT_CONFIG);
+      mocks.llmService.chatStream.mockImplementation(doneStream('gpt-4o-mini'));
+
+      // dto 에는 llmConfigId 가 없다. 세션에 저장된 값으로 조회한다.
+      const events = await runTurn(service, baseDto);
+
+      expect(events[0]).toEqual({
+        event: 'config_fallback',
+        data: {
+          requestedConfigId: MISSING_ID,
+          configId: 'cfg-default',
+          configName: 'Workspace default',
+        },
+      });
+      expect(mocks.llmService.resolveConfig.mock.calls).toEqual([
+        [MISSING_ID, 'ws-1'],
+        [undefined, 'ws-1'],
+      ]);
+    });
+
     it('sends no config_fallback event when the requested config resolves', async () => {
       const { service, mocks } = makeService();
-      mocks.llmService.chatStream.mockImplementation(() =>
-        asyncIter<ChatStreamEvent>([
-          {
-            type: 'done',
-            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-            model: 'gpt-4o',
-            finishReason: 'stop',
-          },
-        ]),
-      );
+      mocks.llmService.chatStream.mockImplementation(doneStream('gpt-4o'));
 
-      const events = await collect(
-        service.streamMessage(
-          'sess-1',
-          'ws-1',
-          'u-1',
-          dtoWithMissingId as never,
-        ),
-      );
+      const events = await runTurn(service);
 
       expect(events.some((e) => e.event === 'config_fallback')).toBe(false);
       expect(mocks.llmService.resolveConfig).toHaveBeenCalledTimes(1);
@@ -3149,31 +3182,15 @@ describe('WorkflowAssistantStreamService', () => {
 
     it('ends with ASSISTANT_NO_LLM_CONFIG when the workspace has no default either', async () => {
       const { service, mocks } = makeService();
-      mocks.llmService.resolveConfig.mockImplementation(
-        (id: string | undefined) =>
-          Promise.reject(
-            id ? notFound() : new BadRequestException('no default config'),
-          ),
+      rejectByRequest(
+        mocks,
+        notFound(),
+        new BadRequestException('no default config'),
       );
 
-      const events = await collect(
-        service.streamMessage(
-          'sess-1',
-          'ws-1',
-          'u-1',
-          dtoWithMissingId as never,
-        ),
-      );
+      const events = await runTurn(service);
 
-      expect(events).toEqual([
-        {
-          event: 'error',
-          data: {
-            code: 'ASSISTANT_NO_LLM_CONFIG',
-            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
-          },
-        },
-      ]);
+      expect(events).toEqual([expectedError('ASSISTANT_NO_LLM_CONFIG')]);
       expect(error).not.toHaveBeenCalled();
     });
 
@@ -3183,24 +3200,9 @@ describe('WorkflowAssistantStreamService', () => {
         new Error('connection terminated unexpectedly'),
       );
 
-      const events = await collect(
-        service.streamMessage(
-          'sess-1',
-          'ws-1',
-          'u-1',
-          dtoWithMissingId as never,
-        ),
-      );
+      const events = await runTurn(service);
 
-      expect(events).toEqual([
-        {
-          event: 'error',
-          data: {
-            code: 'ASSISTANT_STREAM_FAILED',
-            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
-          },
-        },
-      ]);
+      expect(events).toEqual([expectedError('ASSISTANT_STREAM_FAILED')]);
       expect(mocks.llmService.resolveConfig).toHaveBeenCalledTimes(1);
       expect(error.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
         'connection terminated unexpectedly',
@@ -3209,29 +3211,24 @@ describe('WorkflowAssistantStreamService', () => {
 
     it('ends with ASSISTANT_STREAM_FAILED when the default lookup fails after a not-found', async () => {
       const { service, mocks } = makeService();
-      mocks.llmService.resolveConfig.mockImplementation(
-        (id: string | undefined) =>
-          Promise.reject(id ? notFound() : new Error('pool exhausted')),
-      );
+      rejectByRequest(mocks, notFound(), new Error('pool exhausted'));
 
-      const events = await collect(
-        service.streamMessage(
-          'sess-1',
-          'ws-1',
-          'u-1',
-          dtoWithMissingId as never,
-        ),
-      );
+      const events = await runTurn(service);
 
-      expect(events).toEqual([
-        {
-          event: 'error',
-          data: {
-            code: 'ASSISTANT_STREAM_FAILED',
-            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
-          },
-        },
-      ]);
+      expect(events).toEqual([expectedError('ASSISTANT_STREAM_FAILED')]);
+    });
+
+    it('ends with ASSISTANT_STREAM_FAILED, not NO_LLM_CONFIG, when the default lookup throws NotFoundException', async () => {
+      const { service, mocks } = makeService();
+      // 실제 resolveConfig(undefined) 는 findDefault 가 null 이면 BadRequest 를
+      // 던지고 NotFound 는 던지지 않는다. 그래도 NotFound 가 나오면 "기본 설정
+      // 없음" 이 아니라 조회 실패로 본다.
+      rejectByRequest(mocks, notFound(), notFound());
+
+      const events = await runTurn(service);
+
+      expect(events).toEqual([expectedError('ASSISTANT_STREAM_FAILED')]);
+      expect(mocks.llmService.resolveConfig).toHaveBeenCalledTimes(2);
     });
 
     it('does not try a fallback when no config was requested', async () => {
@@ -3240,9 +3237,7 @@ describe('WorkflowAssistantStreamService', () => {
         new BadRequestException('no default config'),
       );
 
-      const events = await collect(
-        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
-      );
+      const events = await runTurn(service, baseDto);
 
       expect(events.map((e) => e.event)).toEqual(['error']);
       expect(mocks.llmService.resolveConfig.mock.calls).toEqual([
