@@ -89,6 +89,8 @@ Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in
 | `/cancel` | Cancel the current execution |
 | `/help` | Display help text |
 
+When a button click is dropped without being processed, the bot still sends an acknowledgement to Telegram so the button's loading indicator clears right away. This covers a re-delivered update, exceeding the per-conversation per-minute limit, an execution that is still running and not accepting input, and a workflow that is turned off. The inline keyboard stays in place, so the user can press again shortly after. If the acknowledgement fails, the webhook response is unchanged. When the trigger itself is turned off, no external call is made, so no acknowledgement is sent either.
+
 ## 5. Health monitoring
 
 Check `chatChannelHealth` on the trigger detail view:

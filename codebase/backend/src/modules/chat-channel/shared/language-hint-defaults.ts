@@ -19,6 +19,25 @@ const logger = new Logger('ChatChannelLanguageHint');
 
 export type LanguageLocale = 'ko' | 'en';
 
+/** lookup (1) — `languageHints[key]` 가 비어 있지 않은 문자열이면 그 값, 아니면 `undefined` 다. */
+export function readLanguageHintOverride(
+  languageHints: Record<string, string> | undefined,
+  key: string,
+): string | undefined {
+  const override = languageHints?.[key];
+  return typeof override === 'string' && override.length > 0
+    ? override
+    : undefined;
+}
+
+/** lookup (2)·(3) — `languageLocale` 의 기본 문구, locale 이 없거나 모르는 값이면 ko 다. */
+export function pickLocaleDefault(
+  defaults: Record<LanguageLocale, string>,
+  languageLocale: LanguageLocale | undefined,
+): string {
+  return languageLocale === 'en' ? defaults.en : defaults.ko;
+}
+
 /**
  * languageHints 3-level lookup resolver 공통 factory (F-4) —
  * (1) `languageHints[overrideKey]` 사용자 override(non-empty string) → (2) `languageLocale`
@@ -33,12 +52,9 @@ export function makeLocaleResolver(
   languageHints: Record<string, string> | undefined,
   languageLocale: LanguageLocale | undefined,
 ) => string {
-  return (languageHints, languageLocale) => {
-    const override = languageHints?.[overrideKey];
-    if (typeof override === 'string' && override.length > 0) return override;
-    if (languageLocale === 'en') return defaults.en;
-    return defaults.ko;
-  };
+  return (languageHints, languageLocale) =>
+    readLanguageHintOverride(languageHints, overrideKey) ??
+    pickLocaleDefault(defaults, languageLocale);
 }
 
 /**
@@ -188,6 +204,26 @@ export const SURFACE_MISMATCH_DEFAULTS: Record<LanguageLocale, string> = {
 export const resolveSurfaceMismatchMessage = makeLocaleResolver(
   'surfaceMismatch',
   SURFACE_MISMATCH_DEFAULTS,
+);
+
+/**
+ * 수신 응답 문구 — 슬래시 명령처럼 프로바이더가 즉시 응답 메시지를 요구하는 인터랙션에 본인에게만
+ * 보이게 싣는 기본 문구(KO/EN, 합쇼체). 새 실행 · 취소 · 답장 전달 · 중복 · 한도 초과 · 워크플로우
+ * 비활성 경로가 같은 문구를 쓴다. 도움말은 따로 싣는다. 2026-11-12 사람 결정(NERV 질문
+ * `01a1d025-899f-7709-b759-4f7bf6c16ef5`, Task `CLE-T-TSEP9G`).
+ */
+export const COMMAND_RECEIVED_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '요청을 받았습니다.',
+  en: 'Request received.',
+};
+
+/**
+ * 수신 응답 3-level lookup — (1) languageHints.commandReceived override →
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
+ */
+export const resolveCommandReceivedMessage = makeLocaleResolver(
+  'commandReceived',
+  COMMAND_RECEIVED_DEFAULTS,
 );
 
 /**

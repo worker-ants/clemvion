@@ -44,6 +44,16 @@ describe('DiscordAdapter', () => {
     expect(typeof adapter.ackInteraction).toBe('function');
   });
 
+  it('defaultInteractionResponse — 응답 빌더에 위임한다(컴포넌트는 { type: 6 })', () => {
+    const adapter = new DiscordAdapter(new DiscordClient(), makeSecretsMock());
+    expect(
+      adapter.defaultInteractionResponse({ id: 'I1', type: 3 }, DISCORD_CONFIG),
+    ).toEqual({ body: { type: 6 } });
+    expect(
+      adapter.defaultInteractionResponse({ id: 'I1', type: 1 }, DISCORD_CONFIG),
+    ).toBeUndefined();
+  });
+
   it('escapeControlText — discord 는 평문 그대로 (renderNode 와 동일, identity)', () => {
     const adapter = new DiscordAdapter(new DiscordClient(), makeSecretsMock());
     expect(adapter.escapeControlText('받을 수 없어요.')).toBe(

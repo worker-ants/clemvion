@@ -1,5 +1,8 @@
 import type { ChannelUpdate } from '../../types';
-import { DISCORD_CHANNEL_TYPE_DM } from './discord.types';
+import {
+  DISCORD_CHANNEL_TYPE_DM,
+  DISCORD_INTERACTION_TYPE,
+} from './discord.types';
 import type { DiscordInteraction } from './discord.types';
 
 /**
@@ -23,7 +26,7 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
   const idempotencyKey = i.id;
 
   // type=1 PING — caller 가 handshake 응답.
-  if (i.type === 1) return null;
+  if (i.type === DISCORD_INTERACTION_TYPE.PING) return null;
 
   // bot 무시.
   const user = i.member?.user ?? i.user;
@@ -41,7 +44,7 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
   const channelId = i.channel_id ?? i.channel?.id;
   if (!userId || !channelId) return null;
 
-  if (i.type === 2) {
+  if (i.type === DISCORD_INTERACTION_TYPE.APPLICATION_COMMAND) {
     // APPLICATION_COMMAND — slash. sub-command (options[0].name) 으로 분기.
     const sub = i.data?.options?.[0]?.name;
     if (sub === 'start') {
@@ -78,7 +81,7 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
     return null;
   }
 
-  if (i.type === 3) {
+  if (i.type === DISCORD_INTERACTION_TYPE.MESSAGE_COMPONENT) {
     // MESSAGE_COMPONENT — button or select.
     // §4.1 native modal 게이팅 — "양식 작성하기" 버튼 클릭. interaction token (15분) 운반.
     if (i.data?.custom_id === '__open_form__') {
@@ -134,7 +137,7 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
     };
   }
 
-  if (i.type === 5) {
+  if (i.type === DISCORD_INTERACTION_TYPE.MODAL_SUBMIT) {
     // MODAL_SUBMIT — custom_id 로 분기.
     const modalId = i.data?.custom_id;
     const components = i.data?.components ?? [];
@@ -184,5 +187,5 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
  */
 export function isDiscordPing(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false;
-  return (raw as { type?: unknown }).type === 1;
+  return (raw as { type?: unknown }).type === DISCORD_INTERACTION_TYPE.PING;
 }

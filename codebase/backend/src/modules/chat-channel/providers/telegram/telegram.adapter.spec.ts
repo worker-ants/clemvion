@@ -473,6 +473,69 @@ describe('TelegramAdapter', () => {
     });
   });
 
+  // 근거: CLE-CHAT-TELEGRAM REQ-TGRAM-011 · Telegram Bot API(answerCallbackQuery) — 버튼 클릭에 답하지
+  // 않으면 클라이언트의 진행 표시가 남는다. 버린 클릭은 키보드를 남긴다(2026-11-12 사람 결정).
+  // NERV Task `CLE-T-K8Z2W0`.
+  describe('ackDroppedUpdate()', () => {
+    const callbackUpdate = (id: unknown): Record<string, unknown> => ({
+      update_id: 501,
+      callback_query: {
+        id,
+        data: 'btn-id-1',
+        from: { id: 888 },
+        message: { message_id: 4242, chat: { id: 777 } },
+      },
+    });
+
+    it('callback_query 면 answerCallbackQuery 만 보내고 키보드는 남긴다', async () => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-dropped'), baseConfig);
+
+      expect(secrets.resolve).toHaveBeenCalledWith(BOT_TOKEN_REF);
+      expect(client.answerCallbackQuery).toHaveBeenCalledWith(BOT_TOKEN_PLAIN, {
+        callback_query_id: 'cq-dropped',
+      });
+      expect(client.editMessageReplyMarkup).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['텍스트 메시지', { update_id: 502, message: { text: 'hi' } }],
+      ['빈 callback_query id', callbackUpdate('')],
+      ['숫자 callback_query id', callbackUpdate(123)],
+      [
+        'callback_query 가 객체가 아님',
+        { update_id: 503, callback_query: 'x' },
+      ],
+      ['null', null],
+    ])('%s 는 아무것도 보내지 않는다', async (_label, raw) => {
+      await adapter.ackDroppedUpdate(raw, baseConfig);
+
+      expect(secrets.resolve).not.toHaveBeenCalled();
+      expect(client.answerCallbackQuery).not.toHaveBeenCalled();
+    });
+
+    it('answerCallbackQuery 가 ok:false 여도 던지지 않는다', async () => {
+      client.answerCallbackQuery.mockResolvedValue(
+        failResult('query is too old'),
+      );
+
+      await expect(
+        adapter.ackDroppedUpdate(callbackUpdate('cq-old'), baseConfig),
+      ).resolves.toBeUndefined();
+    });
+
+    it('botTokenRef 가 없으면 reject 한다(호출자가 로그만 남긴다)', async () => {
+      await expect(
+        adapter.ackDroppedUpdate(callbackUpdate('cq-x'), {
+          ...baseConfig,
+          botTokenRef: undefined,
+        }),
+      ).rejects.toThrow('botTokenRef');
+      expect(client.answerCallbackQuery).not.toHaveBeenCalled();
+    });
+  });
+
   // SUMMARY#9 — Telegram exhaustiveness guard + supportsNativeForm assertion.
   describe('native form modal guard (SUMMARY#9)', () => {
     it('supportsNativeForm === false', () => {

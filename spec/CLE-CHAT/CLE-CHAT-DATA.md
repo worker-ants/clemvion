@@ -2,25 +2,25 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "8d4b2dbd7257db79ae7dbcca4b4faea595836fd02e1578cf0e3cb81d06d35d51"
+content_hash: "965d5d9148636a23afe5b02d7242fe85ff3c6653c6ac09cb9dde5542e706ffdd"
 read_as: "approved_fallback"
-task: "CLE-T-Q353Y4"
+task: "CLE-T-C5G12M"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "a80064661fa7da0230a4512659b606e06194967e70f4ebe5f6f8a6d6413c887b"
-etag: "sha256-584d0317573f6cf3067347efeb2939adc486cffe33babed4f8d2810aa05b980e"
+mirror_sha256: "e65d3ae47e9029c96f7dc0be767cd04453fcd35e2b52b2809fc200765e1a26f6"
+etag: "sha256-95d171d622e9f58c09fd6d9ffc3a0b922054b0a87f16ffeeaf36e73f6228cf7d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 [채팅 채널](CLE-CHAT-CORE.md) 이 저장하는 데이터와 그 데이터가 흐르는 경로를 정한다. 다루는 것은 `Trigger.config.chatChannel` 필드, 안내 문구(`languageHints`) 기본값, 트리거의 `chat_channel_*` 컬럼, 채널 대화 상태(`ChannelConversation`)와 Redis 키, 인바운드·아웃바운드 흐름, 봇 토큰 라이프사이클, 상태 전이다.
+이 문서는 [채팅 채널](CLE-CHAT-CORE.md) 이 저장하는 데이터와 그 데이터가 흐르는 경로를 정한다. 다루는 것은 `Trigger.config.chatChannel` 필드, 안내 문구(`languageHints`) 기본값, 트리거의 `chat_channel_*` 컬럼, 채널 대화 상태(`ChannelConversation`)와 Redis 키, 인바운드·아웃바운드 흐름, 봇 토큰 라이프사이클, 상태 전이다. 이 문서에서 단독으로 쓴 「프로바이더」 는 채널 프로바이더를 뜻한다.
 
 저장 모델의 핵심 사실이 하나 있다. 채널 대화 상태는 Postgres 테이블이 아니라 Redis 키-값(`chat-channel:{triggerId}:{conversationKey}`, TTL(Time To Live) 7일)이다. Redis 를 쓸 수 없으면 조용히 기능을 낮춘다(조회는 null, 저장은 no-op 이라 update 마다 새 실행이 시작된다). 영속 데이터는 `trigger` 테이블의 `chat_channel_*` 컬럼 5개와 `trigger.config.chatChannel` JSON, 그리고 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 행뿐이다.
 
@@ -65,6 +65,7 @@ etag: "sha256-584d0317573f6cf3067347efeb2939adc486cffe33babed4f8d2810aa05b980e"
       "executionCompleted":            "워크플로우가 완료되었습니다.",
       "executionStillRunning":         "워크플로우가 처리 중입니다. 잠시만 기다려 주세요.",
       "help":                          "사용 가능한 명령: /start, /cancel, /help",
+      "commandReceived":               "요청을 받았습니다.",
       "formValidationFailed":          "입력값을 다시 확인해 주세요.",
       "formNextField":                 "다음 항목을 입력해 주세요.",
       "formOpenLabel":                 "양식 작성하기",
@@ -91,7 +92,8 @@ etag: "sha256-584d0317573f6cf3067347efeb2939adc486cffe33babed4f8d2810aa05b980e"
 | `unsupportedMessageKind` | 그룹이 아닌 미지원 update 안내 |
 | `executionStarted` · `executionCompleted` | 실행 시작·완료 안내 |
 | `executionStillRunning` | 실행 중 · 대기 중(`running`·`pending`)에 온 메시지 안내 |
-| `help` | `/help` 기본 도움말 |
+| `help` | `/help` 기본 도움말. Discord 의 `/<prefix> help` 는 슬래시 명령의 즉시 응답에 이 값을 싣는다. 값이 없으면 등록한 명령 이름을 넣은 Discord 기본 도움말을 쓴다([Discord 어댑터](CLE-CHAT-DISCORD.md)) |
+| `commandReceived` | Discord 슬래시 명령의 즉시 응답(본인에게만 보이는 메시지)에 싣는 공통 수신 문구. `help` 가 아닌 모든 슬래시 명령에 쓴다([채팅 채널 「인터랙션 기본 응답」](CLE-CHAT-CORE.md#인터랙션-기본-응답)) |
 | `formValidationFailed` · `formNextField` | 다단계 질문의 검증 실패 재질문, 다음 필드 질문 |
 | `formOpenLabel` | 네이티브 모달을 여는 `form_modal` 버튼 라벨 |
 | `sessionExpired` | 멀티턴 재개 실패(`RESUME_*`) 안내 |
@@ -104,7 +106,7 @@ etag: "sha256-584d0317573f6cf3067347efeb2939adc486cffe33babed4f8d2810aa05b980e"
 
 ## 안내 문구 기본값
 
-실행 실패 안내 키 여섯 개의 기본 문구는 한국어와 영어 두 locale 모두 백엔드가 가진다. 채널 어댑터가 문구를 찾는 순서는 (1) `languageHints[key]` 사용자 덮어쓰기, (2) `languageLocale` 의 기본 문구, (3) locale 이 없을 때 `ko` 다. 처음부터 있던 다섯 키(`groupChatRefusal` 등)의 영어 기본값은 범위 밖이다. `formOpenLabel` 은 네이티브 모달과 함께 들어와 두 locale 을 모두 가진다.
+실행 실패 안내 키 여섯 개의 기본 문구는 한국어와 영어 두 locale 모두 백엔드가 가진다. 채널 어댑터가 문구를 찾는 순서는 (1) `languageHints[key]` 사용자 덮어쓰기, (2) `languageLocale` 의 기본 문구, (3) locale 이 없을 때 `ko` 다. 처음부터 있던 다섯 키(`groupChatRefusal` 등)의 영어 기본값은 범위 밖이다. `formOpenLabel` 은 네이티브 모달과 함께 들어와 두 locale 을 모두 가진다. `commandReceived` 는 2026-11-12 에 Discord 슬래시 명령의 즉시 응답과 함께 들어와 두 locale 을 모두 가진다. 찾는 순서는 같다.
 
 | key | KO 기본값 | EN 기본값 |
 |---|---|---|
@@ -117,6 +119,7 @@ etag: "sha256-584d0317573f6cf3067347efeb2939adc486cffe33babed4f8d2810aa05b980e"
 | `formOpenLabel` | "양식 작성하기" | "Open form" |
 | `sessionExpired` | "대화 세션이 만료되어 재개할 수 없습니다. 새 메시지를 보내면 새 대화가 시작됩니다." | "This conversation session has expired and cannot be resumed. Send a new message to start a fresh conversation." |
 | `surfaceMismatch` | "지금은 이 입력을 받을 수 없습니다. 화면에 표시된 양식이나 버튼을 사용해 주세요." | "This input can't be accepted here right now, please use the form or buttons shown above" |
+| `commandReceived` | "요청을 받았습니다." | "Request received." |
 
 `{statusCode}` 는 두 locale 에서 같은 자리에 있다. 그래서 치환 코드가 locale 분기 없이 한 경로로 동작한다.
 
@@ -125,6 +128,8 @@ etag: "sha256-584d0317573f6cf3067347efeb2939adc486cffe33babed4f8d2810aa05b980e"
 `sessionExpired` 는 멀티턴 AI 대화가 서버 재시작이나 AI 재개 체크포인트 부재로 재개할 수 없을 때(`execution.cancelled` 와 `RESUME_*` 코드) 일반 취소 안내 대신 보낸다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 찾는 순서는 `formOpenLabel` 과 같다. 사용자의 다음 메시지는 새 실행으로 시작한다(취소된 실행은 새 실행을 시작시킨다).
 
 `surfaceMismatch` 는 인바운드 명령이 지금 입력을 기다리는 블로킹 노드의 대기 표면과 맞지 않아 재개 명령 발행기가 409 `STATE_MISMATCH` 로 거부했을 때 보내는 부수 안내다. 예를 들어 Form·버튼 입력 대기 중에 자유 텍스트가 오면 `text_message → submit_message` 고정 매핑이 거부된다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 표면 매트릭스). 로그만 남기던 경우에도 사용자에게 알려 주려는 것이다. 현재 구현은 `HooksService.forwardToInteractionService` 가 거부를 흡수하면서 `sendSurfaceMismatchNotice` 로 보낸다.
+
+`commandReceived` 는 Discord 슬래시 명령이 어느 경로로 끝나든(새 실행, 취소, 답장 전달, 중복, 분당 한도 초과, 워크플로우 비활성, 파싱 실패, 트리거 비활성) 같은 문구로 나간다. 문구는 처리 전에 정하므로 경로에 따라 달라지지 않는다. 새 실행의 시작 안내(`executionStarted`)를 대신하지 않는다. 시작 안내는 NERV Task `CLE-T-0400J6` 가 다룬다.
 
 ### 제어 안내의 프로바이더별 escape
 
@@ -135,6 +140,8 @@ etag: "sha256-584d0317573f6cf3067347efeb2939adc486cffe33babed4f8d2810aa05b980e"
 - Discord: 평문 그대로(렌더러도 escape 하지 않는다)
 
 그래서 기본 문구와 운영자 덮어쓰기는 모두 평문으로 쓴다. `\.` 같은 수동 escape 는 필요 없다. 예전에는 Telegram escape 가 들어간 문구가 Slack·Discord 에서 그대로 보이던 공백이 있었는데 이 방식으로 없어졌다. `formOpenLabel` 은 버튼 라벨이라 MarkdownV2 대상이 아니고, `sessionExpired` 와 실행 실패 안내는 `renderNode` 경로라 렌더러가 escape 한다. 함수 계약은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 정한다.
+
+Discord 슬래시 명령의 즉시 응답에 싣는 `commandReceived` 와 도움말(`languageHints.help` 나 Discord 기본 도움말)은 `adapter.sendMessage` 로 보내지 않고 인터랙션 응답 본문으로 나간다. 그래서 `adapter.escapeControlText` 를 거치지 않고 평문 그대로 나간다. Discord 표면은 원래 escape 하지 않으므로 다른 제어 안내와 결과가 같다. 이 응답을 정하는 함수의 계약은 [채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER.md#인터랙션-기본-응답과-수신-확인) 이 정한다.
 
 ## 트리거 컬럼
 
@@ -233,13 +240,16 @@ sequenceDiagram
   alt 서명 실패
     Auth-->>Ext: 401
   end
+  Hk->>Ad: defaultInteractionResponse(raw), 외부 호출 없는 순수 함수
   alt 비활성 트리거
-    Hk-->>Ext: 202 ignored
+    Hk-->>Ext: 202 ignored, 인터랙션이면 200 과 기본 응답
+    Note over Hk,Ext: 수신 확인을 포함한 외부 호출을 하지 않는다
   end
   alt Slack url_verification 이나 Discord PING
     Hk-->>Ext: challenge 나 type 1 즉시 반환
   end
-  Hk->>Ad: parseUpdate(raw), null 이면 안내 뒤 202 ignored
+  Hk->>Ad: parseUpdate(raw), null 이면 안내와 ackDroppedUpdate 를 부르고 202 ignored
+  Note over Hk,Ad: 중복 update, 분당 한도 초과, 실행 중 안내, 워크플로우 비활성, 워크플로우 없음으로 버릴 때도 ackDroppedUpdate 를 부른다. 버린 update 도 인터랙션이면 200 과 기본 응답이다
   Hk->>Ad: enrichInbound (Slack 파일 정보 보강)
   Hk->>R: lookup(triggerId, conversationKey)
   alt 활성 실행과 /start 가 아닌 인터랙션 명령
@@ -247,7 +257,7 @@ sequenceDiagram
   else 새 실행을 시작할 update(새 대화, /start)
     alt 워크플로우가 비활성
       Hk-->>Ext: 202 ignored, 채널 대화 상태와 기존 실행은 그대로
-      Note over Hk,Ext: 이 분기도 여기서 끝난다. ackInteraction 과 아래 응답으로 가지 않는다
+      Note over Hk,Ext: 이 분기도 여기서 끝난다. ackDroppedUpdate 를 부르고 ackInteraction 과 아래 응답으로 가지 않는다
     else 워크플로우가 활성
       opt 활성 실행이 있는 대화의 /start
         Hk->>X: stop(기존 실행)
@@ -256,25 +266,27 @@ sequenceDiagram
       alt 워크플로우가 트리거의 워크스페이스에 없음
         Eng-->>Hk: 없는 워크플로우로 거부
         Hk-->>Ext: 202 ignored, chat_channel_health=degraded
-        Note over Hk,Ext: 이 분기는 여기서 끝난다. ackInteraction 과 아래 응답으로 가지 않는다
+        Note over Hk,Ext: 이 분기는 여기서 끝난다. ackDroppedUpdate 를 부르고 ackInteraction 과 아래 응답으로 가지 않는다
       else 실행 시작
         Hk->>R: upsert 채널 대화 상태, TTL 7일
       end
     end
   end
   Hk->>Ad: ackInteraction(update)
-  Hk-->>Ext: 202 executionId
+  Hk-->>Ext: 202 executionId, 인터랙션이면 200 과 기본 응답이나 처리 경로가 정한 응답
 ```
 
-서명 검증이 먼저이고, 비활성 트리거는 검증을 통과한 뒤 조용히 버린다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 새 대화의 `execute()` 입력은 `{ __triggerSource:'webhook', parameters: {}, body, headers, query, method, chatChannel:{provider, conversationKey, channelUserKey} }` 다. `parameters` 는 트리거 파라미터를 해석하지 않은 빈 객체다. `headers` 는 민감 헤더를 가린 값이다. 진입 경로별 입력은 [실행 컨텍스트 「트리거 입력 파라미터 싣기」](../CLE-EXEC/CLE-EXEC-CONTEXT.md#트리거-입력-파라미터-싣기) 가 정한다. 새 실행을 시작하면 `trigger.last_triggered_at` 을 갱신한다. `parseUpdate` 가 `null` 이면 `maybeNotifyIgnored` 로 필요한 안내를 보낸 뒤 `202 ignored` 로 끝낸다. 중복 제거와 분당 한도 게이트는 `parseUpdate` 직후에 이 순서로 선다([Redis 키](#redis-키)). 첨부 정보 보강(`enrichInbound`)은 두 게이트 뒤, `/help` 처리와 대화 조회 앞에서 부른다. `enrichInbound` 는 채널 어댑터의 선택 메서드다. 지금은 Slack 만 구현한다. 저장된 설정에 인바운드 서명 자료 참조가 없는 행은 서명 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행)).
+서명 검증이 먼저이고, 비활성 트리거는 검증을 통과한 뒤 조용히 버린다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 서명 검증을 통과하면 채널 어댑터의 `defaultInteractionResponse` 로 인터랙션 기본 응답을 먼저 정한다([채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER.md#인터랙션-기본-응답과-수신-확인)). 비활성 트리거도 인터랙션이면 `200` 과 그 기본 응답으로 답하고 수신 확인을 포함한 외부 호출은 하지 않는다([채팅 채널 「인터랙션 기본 응답」](CLE-CHAT-CORE.md#인터랙션-기본-응답)). 새 대화의 `execute()` 입력은 `{ __triggerSource:'webhook', parameters: {}, body, headers, query, method, chatChannel:{provider, conversationKey, channelUserKey} }` 다. `parameters` 는 트리거 파라미터를 해석하지 않은 빈 객체다. `headers` 는 민감 헤더를 가린 값이다. 진입 경로별 입력은 [실행 컨텍스트 「트리거 입력 파라미터 싣기」](../CLE-EXEC/CLE-EXEC-CONTEXT.md#트리거-입력-파라미터-싣기) 가 정한다. 새 실행을 시작하면 `trigger.last_triggered_at` 을 갱신한다. 그 실행의 `response_code` 는 실제로 보낸 응답 코드라 인터랙션이면 `'200'`, 아니면 `'202'` 다. `parseUpdate` 가 `null` 이면 `maybeNotifyIgnored` 로 필요한 안내를 보낸 뒤 `202 ignored` 로 끝낸다. 중복 제거와 분당 한도 게이트는 `parseUpdate` 직후에 이 순서로 선다([Redis 키](#redis-키)). 첨부 정보 보강(`enrichInbound`)은 두 게이트 뒤, `/help` 처리와 대화 조회 앞에서 부른다. `enrichInbound` 는 채널 어댑터의 선택 메서드다. 지금은 Slack 만 구현한다. 저장된 설정에 인바운드 서명 자료 참조가 없는 행은 서명 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행)).
 
-관문의 순서는 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 위 다이어그램은 그 순서를 따르되 `/help`·`/cancel` 같은 분기를 생략했다. 비활성 트리거와 비활성 워크플로우가 막는 범위의 차이도 그 절에 있다. 세 경로에 공통인 관문 규칙은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 워크플로우가 비활성이면 새 실행을 시작할 update(새 대화, `/start`)만 `202 ignored` 로 끝나고 채널 대화 상태, 채널 건강도, 중복 제거 키는 그대로다. 활성 실행이 있는 대화의 입력과 `/cancel`·`/help` 는 워크플로우가 비활성이어도 아래 표대로 처리한다.
+활성 트리거에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 분당 한도 초과, 실행 중 안내, 워크플로우 비활성, 워크플로우 없음) `dropChatChannelUpdate` 가 채널 어댑터의 선택 메서드 `ackDroppedUpdate` 를 부른 뒤 `{ executionId: 'ignored' }` 로 끝낸다. 지금은 Telegram 만 이 메서드가 있고 버튼 클릭(`callback_query`)에만 `answerCallbackQuery` 를 보낸다. 인라인 키보드는 그대로 둔다. 수신 확인은 보내기만 하고 끝나기를 기다리지 않아 웹훅 응답을 늦추지 않는다. 실패는 warn 로그만 남기고 응답을 바꾸지 않는다. `/help` 경로와 비활성 트리거에서는 부르지 않는다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-081). 버린 update 도 인터랙션이면 `200` 과 기본 응답으로 답한다(REQ-CHAT-080). `defaultInteractionResponse` 와 `ackDroppedUpdate` 의 함수 계약은 [채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER.md#인터랙션-기본-응답과-수신-확인) 이 정한다.
+
+관문의 순서는 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 위 다이어그램은 그 순서를 따르되 `/help`·`/cancel` 같은 분기를 생략했다. 비활성 트리거와 비활성 워크플로우가 막는 범위의 차이와 인터랙션 응답의 차이도 그 절에 있다. 세 경로에 공통인 관문 규칙은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 워크플로우가 비활성이면 새 실행을 시작할 update(새 대화, `/start`)만 `202 ignored` 로 끝나고 채널 대화 상태, 채널 건강도, 중복 제거 키는 그대로다. 활성 실행이 있는 대화의 입력과 `/cancel`·`/help` 는 워크플로우가 비활성이어도 아래 표대로 처리한다.
 
 `ChannelUpdate.command` 종류별 처리는 다음과 같다(`hooks.service.ts`).
 
 | command | 처리와 저장 |
 |---|---|
-| `text_message` 가 `/help` | 대화 조회 전에 정적 안내를 `adapter.sendMessage` 로 보내고 `202 ignored`(실행 없음) |
+| `text_message` 가 `/help` | 대화 조회 전에 정적 안내를 `adapter.sendMessage` 로 보내고 `202 ignored`(실행 없음). Discord 의 `/<prefix> help` 는 이 행에 오지 않는다. 파서가 `null` 로 버리고 도움말은 슬래시 명령의 즉시 응답(`{ type: 4 }`) 본문으로 나간다([채팅 채널 「인터랙션 기본 응답」](CLE-CHAT-CORE.md#인터랙션-기본-응답)) |
 | `cancel` | 활성 실행이 있으면 `executionsService.stop` 하고 채널 대화 상태의 `executionId` 가 그 실행을 가리킬 때만 null 로 바꾼다(compare-and-set, [아웃바운드 흐름](#아웃바운드-흐름) 의 종결 이벤트 정리와 같다). 취소 메시지를 재개 큐에 넣지 못하면 `executionId` 를 비우지 않는다. 이때 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 warn 로그를 쓴 뒤 `202` 로 답한다. 실행이 먼저 끝나 취소가 `INVALID_STATE` 나 `RESOURCE_NOT_FOUND` 로 거부되면 채널 건강도를 바꾸지 않고 `202` 로 답한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-074 · 075) |
 | `text_message`·`button_callback`·`contact_share`·`file_upload`(활성 실행) | `formState` 가 진행 중이면 다단계 질문 단계를 처리하고, 아니면 `InteractionService.interact` 로 서버 안 전달([External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출)). 재개 명령을 재개 큐에 넣지 못했을 때의 처리는 표 아래에 있다 |
 | `open_form_modal` | 채널 대화 상태의 `pendingFormModal.fields` 와 프로바이더 openContext 로 `adapter.openFormModal`. Discord 는 웹훅 HTTP 응답 본문으로 모달을 돌려준다. `channelUserKey` 가 다르면 거부한다(그룹 안 가로채기 방어) |
@@ -284,7 +296,7 @@ sequenceDiagram
 
 활성 실행으로 가는 재개 명령(`submit_message`·`click_button`·`submit_form`)을 재개 큐에 넣지 못하면(`queued:false`) 내부 신뢰 호출이라 `503` 이 나지 않는다. 이때 `HooksService` 는 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 warn 로그를 쓴 뒤 `202` 로 답한다. 고정 문구는 `/cancel` 의 큐 적재 실패와 같다. 입력이 실행에 닿지 않았으므로 실행은 입력 대기에 그대로 남는다. 사용자가 같은 입력을 다시 보내면 새 update 로 들어와 다시 처리된다. 규칙은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-076 과 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다.
 
-분당 한도는 구현됐다. `ChatChannelRateLimiterService.consume` 가 `INCR`+`EXPIRE NX` 한 pipeline 으로 세고, `HooksService` 가 `parseUpdate` 뒤 초과분을 `202 ignored` 로 건너뛰고 `chat_channel_health=degraded` 로 바꾼다. 공개 웹훅 가드(`PublicWebhookThrottleGuard`)의 IP 단위 시작 한도와는 별개의 대화 단위 카운터다. 채팅 채널 트리거는 그 가드의 대상이 아니다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)). 지금 코드는 `auth_config_id` 가 없는 채팅 채널 트리거에도 그 가드를 건다. 결함이고 NERV Task `CLE-T-QKJ2TZ` 가 고친다.
+분당 한도는 구현됐다. `ChatChannelRateLimiterService.consume` 가 `INCR`+`EXPIRE NX` 한 pipeline 으로 세고, `HooksService` 가 `parseUpdate` 뒤 초과분을 `202 ignored` 로 건너뛰고 `chat_channel_health=degraded` 로 바꾼다. 공개 웹훅 가드(`PublicWebhookThrottleGuard`)의 IP 단위 시작 한도와는 별개의 대화 단위 카운터다. 채팅 채널 트리거는 그 가드의 대상이 아니다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)). 전역 요청 빈도 제한(`UserThrottlerGuard`)에서도 빼는 것이 목표 동작이다. 그 구현 상태는 같은 절에 있다.
 
 ### 인바운드 서명 자료 참조가 없는 행
 
@@ -450,13 +462,15 @@ stateDiagram-v2
 
 ## 미결 사항
 
-- **`languageHints` 키 목록**: 프로바이더 문서가 참조하는 `executionCancelled`(Telegram 일반 취소 안내)와 `formModalTitle`(Discord 모달 제목 fallback)이 필드 목록에 없다. 코드 주석에는 `slashPrefix` 키도 있다(현재 구현). 목록에 올리고 기본 문구를 둘지 결정 필요.
+- **`languageHints` 키 목록**: 프로바이더 문서가 참조하는 `executionCancelled`(Telegram 일반 취소 안내)와 `formModalTitle`(Discord 모달 제목 fallback)이 필드 목록에 없다. 코드에는 `slashPrefix` 키도 있다(현재 구현). Discord 기본 도움말은 이 값을 명령 이름으로 쓰고 값이 없으면 `workflow` 를 쓴다. 목록에 올리고 기본 문구를 둘지 결정 필요.
 - **인바운드 서명 자료 참조가 없는 행의 검증 생략**: [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 현행 동작을 401 로 막을지 NERV Task `CLE-T-AAGZRW` 가 운영 데이터를 잰 뒤 정한다.
 - **TTL 만료 뒤 남는 입력 대기 실행**: 채널 대화 상태의 TTL 이 만료되면 그 값이 가리키던 입력 대기 실행을 끝내는 경로가 없다. 활성 실행에 입력을 전달하기만 할 때는 TTL 을 다시 걸지 않는다. 이 실행의 회수 여부와 TTL 을 다시 거는 시점을 정해야 한다. 지금 동작은 [Rationale](#rationale) 의 「채널 대화 상태를 Redis 에만 둔다」 에 있다.
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: `handleChatChannelWebhook`(인바운드 전체 조율, 워크플로우 활성 관문, `/start` 의 기존 실행 취소 `stopForRestart`)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: `handleChatChannelWebhook`(인바운드 전체 조율, 워크플로우 활성 관문, `/start` 의 기존 실행 취소 `stopForRestart`, 인터랙션 기본 응답 적용 `withDefaultInteractionResponse`), 버린 update 의 수신 확인(`dropChatChannelUpdate`)
+- `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터의 선택 메서드 `defaultInteractionResponse` · `ackDroppedUpdate` 와 응답 타입 `InboundInteractionResponse`(함수 계약은 [채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER.md#인터랙션-기본-응답과-수신-확인))
+- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 안내 문구의 locale 기본값과 덮어쓰기 해석. 공통 수신 문구 `COMMAND_RECEIVED_DEFAULTS` · `resolveCommandReceivedMessage` 를 포함한다
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`: 프로바이더별 인바운드 서명 검증(`verify`). 저장된 `inboundSigningRef` 가 없는 행은 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행))
 - `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: Redis 채널 대화 상태 CRUD, `executionId` 의 compare-and-set 정리(`clearExecutionIdIfMatches`), Form 제출 잠금
 - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 인바운드 중복 제거 선점(`claim`)과 해제(`release`)
@@ -548,3 +562,12 @@ NERV Task `CLE-T-Q353Y4` 의 결정이다. 앞 판은 재발급이 실패한 단
 되돌리기 직전에 행을 다시 읽어 이 요청이 쓴 값일 때만 되돌린다. 같은 트리거의 재발급 두 건이 겹쳐 하나만 성공하면 실패한 쪽이 성공한 쪽의 primary 를 옛 토큰으로 덮을 수 있어서다. 쓰기 전 값을 읽지 못한 행은 지우지 않는다. 읽지 못했을 뿐 원래 행이 있을 수 있어서다.
 
 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 는 ⑤ 에서 거부되면 그 앞에서 쓴 `bot-token.v2` 백업 행이 남아 유예 정리 대상이 되지 않는다고 적는다. 이 판부터는 그 행을 되돌리므로 맞지 않는다. 그 문서의 정정은 이 Task 범위 밖이라 후속으로 남긴다.
+
+### 슬래시 명령의 공통 수신 문구를 안내 문구 키로 둔다 (2026-11-12)
+
+2026-11-12 결정이다(NERV Task `CLE-T-TSEP9G` · `CLE-T-C5G12M`). 사람이 질문 `01a1d025-899f-7709-b759-4f7bf6c16ef5` 에 답해 정했다. Discord 슬래시 명령은 3초 안에 `{ type: 4 }` 로 답해야 하므로 처리 전에 정할 문구가 하나 필요하다. 그 문구를 `languageHints` 의 새 키 `commandReceived` 로 둔다. 기본값은 ko "요청을 받았습니다." · en "Request received." 이고 다른 안내 문구처럼 운영자가 덮어쓸 수 있다. 찾는 순서도 같다([안내 문구 기본값](#안내-문구-기본값)). 이 문구는 인터랙션 응답 본문으로 나가므로 제어 안내의 `escapeControlText` 를 거치지 않는다([제어 안내의 프로바이더별 escape](#제어-안내의-프로바이더별-escape)). 응답을 처리 전에 정하는 이유는 [채팅 채널 「R-CC-33 인터랙션은 어느 경로로 끝나도 기본 응답으로 답하고 버린 클릭에는 수신 확인을 보낸다」](CLE-CHAT-CORE.md#r-cc-33-인터랙션은-어느-경로로-끝나도-기본-응답으로-답하고-버린-클릭에는-수신-확인을-보낸다) 에 있다.
+
+기각한 대안은 둘이다.
+
+- (a) 서버가 고정한 문구로 답한다. 봇이 보내는 다른 안내 문구는 모두 운영자가 바꿀 수 있는데 이 문구만 바꿀 수 없게 된다. `languageLocale` 도 따르지 못한다.
+- (b) 시작 안내 `executionStarted` 를 다시 쓴다. 이 응답은 새 실행뿐 아니라 취소, 답장 전달, 중복, 분당 한도 초과, 워크플로우 비활성처럼 실행을 시작하지 않는 경로에도 나간다. 그 경로에서 «워크플로우를 시작합니다» 는 사실과 다르다. 시작 안내는 NERV Task `CLE-T-0400J6` 가 따로 다룬다.

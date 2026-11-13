@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG"
 title: "외부 호출 인증 설정"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-AUTHCFG-001", "REQ-AUTHCFG-002", "REQ-AUTHCFG-003", "REQ-AUTHCFG-004", "REQ-AUTHCFG-005", "REQ-AUTHCFG-006", "REQ-AUTHCFG-007", "REQ-AUTHCFG-008", "REQ-AUTHCFG-009", "REQ-AUTHCFG-010", "REQ-AUTHCFG-011", "REQ-AUTHCFG-012", "REQ-AUTHCFG-013", "REQ-AUTHCFG-014", "REQ-AUTHCFG-015", "REQ-AUTHCFG-016", "REQ-AUTHCFG-017", "REQ-AUTHCFG-018", "REQ-AUTHCFG-019", "REQ-AUTHCFG-020", "REQ-AUTHCFG-021", "REQ-AUTHCFG-022", "REQ-AUTHCFG-023", "REQ-AUTHCFG-024", "REQ-AUTHCFG-025", "REQ-AUTHCFG-026", "REQ-AUTHCFG-027", "REQ-AUTHCFG-028", "REQ-AUTHCFG-029", "REQ-AUTHCFG-030", "REQ-AUTHCFG-031", "REQ-AUTHCFG-032", "REQ-AUTHCFG-033", "REQ-AUTHCFG-034"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "755bfb49cc3cd2d8fb1fdb90c9eb85f611ad1a465c499cd792d1549d23207187"
+content_hash: "e346bf8f14c27e8537ecabcf12c154bf443008a0ab478311846d4ac96ceacb71"
 read_as: "approved_fallback"
-task: "CLE-T-0Q768N"
+task: "CLE-T-TSEP9G"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "ceed3afb3f594295bf9ddb325d05c94b88d70b79f0d8cd79428ba381317d3f3c"
-etag: "sha256-7f7821974fcb9330cba54a740f105237b895bf1c1768d57c5a7b85742e19627a"
+mirror_sha256: "80aa5f57a805cfd3ae209345e6def16ac36ea5e56e5aad53454006898ba904a4"
+etag: "sha256-5ccd1dc98753faa2e9d842345beb57c8834e0a2207b2c784056022cee4950cd6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Overview, Part A, §3 Authentication API, Rationale R-2·R-6), `spec/2-navigation/_product-overview.md` (§3.6 Authentication), `spec/1-data-model.md` (§2.17.2 마스킹·노출 정책) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -298,7 +298,7 @@ sequenceDiagram
 사용 내역의 소스 IP·응답 코드·기간별 호출 수는 다음 결정으로 구현했다.
 
 - 저장 위치는 실행(`Execution`) 행에 컬럼을 더하는 것이고(V096) 전용 호출 로그 엔티티는 두지 않는다. 인증 설정 사용 집계는 이미 `Execution.trigger_id → Trigger.auth_config_id` 조인으로 `totalCalls`/`recentCalls` 를 냈다. 같은 행에 `source_ip VARCHAR(45)`·`response_code VARCHAR(10)`(둘 다 nullable)을 더하면 조인 한 번으로 끝나 가장 단순하다. 통합은 전용 `IntegrationUsageLog` 를 두지만 인증 설정은 호출이 곧 워크플로우 실행이라 실행 행을 단일 기준으로 다시 쓴다. 별도 로그를 두면 이중 기록과 정합 부담이 생긴다.
-- 응답 코드는 두 가지를 함께 쓴다. 웹훅(과 채팅 채널 inbound)은 호출이 받은 실제 HTTP 코드를 저장한다. 실행 생성에 성공한 경로는 늘 `202 Accepted` 다. 인증 401·검증 400·비활성 410 은 `execute` 전에 던져져 실행 행이 생기지 않는다. 스케줄 같은 HTTP 가 아닌 트리거는 HTTP 코드가 없어 `response_code` 가 NULL 이고 `getUsage` 가 워크플로우 실행 `status` 값으로 대신 표시한다. 이렇게 WH-MG-05 의 "응답 코드 확인" 을 이행한다. 이 요구를 어느 화면이 이행하는지는 [웹훅](CLE-TRIG-WEBHOOK.md) 의 미결 사항에 적는다.
+- 응답 코드는 두 가지를 함께 쓴다. 웹훅과 채팅 채널 inbound 는 호출이 받은 실제 HTTP 코드를 저장한다. 실행 생성에 성공한 경로는 `202 Accepted` 다. 다만 채팅 채널의 인터랙션 요청(Discord 슬래시 명령·컴포넌트·모달 제출, Slack Interactivity)에는 3초 안에 `200` 인터랙션 응답으로 답하므로 `200` 을 저장한다. 이 응답 계약은 [채팅 채널 공통](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 인증 401·검증 400·비활성 410 은 `execute` 전에 던져져 실행 행이 생기지 않는다. 스케줄 같은 HTTP 가 아닌 트리거는 HTTP 코드가 없어 `response_code` 가 NULL 이고 `getUsage` 가 워크플로우 실행 `status` 값으로 대신 표시한다. 이렇게 WH-MG-05 의 "응답 코드 확인" 을 이행한다. 이 요구를 어느 화면이 이행하는지는 [웹훅](CLE-TRIG-WEBHOOK.md) 의 미결 사항에 적는다.
 - 기간별 호출 수는 롤링 윈도(24h·7d·30d)와 막대 차트로 한다. 사용 내역 화면의 목적은 최근 활동량 파악이고 캘린더 버킷의 경계 정렬(시간대, 주 시작 요일) 모호성도 피한다. `Execution.started_at` 을 한 쿼리에서 조건부 집계(`COUNT(*) FILTER (WHERE started_at >= now()-window)`)해 왕복 한 번으로 세 값을 구한다.
 - 소스 IP 는 `hooks.service` 가 웹훅 진입 때 `extractClientIpFromHeaders` 로 뽑은 값을 인증 IP whitelist 검증과 호출 기록에 함께 쓴다. `CF-Connecting-IP` 를 신뢰하도록 설정했으면 그 값, 아니면 `X-Forwarded-For` 첫 IP 를 쓰고 헤더 기반이라 `req.ip` 폴백은 없다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 클라이언트 IP 항목). 뽑지 못하면 NULL 이다.
 

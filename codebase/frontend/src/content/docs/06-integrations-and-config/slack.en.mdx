@@ -93,6 +93,7 @@ Copy the endpoint URL using the 📋 button on the trigger list screen. Use the 
 ### 4.3 Buttons / Forms
 
 - Button Presentation nodes are converted to Slack Block Kit `actions` blocks
+- Button clicks and modal submissions are always answered within 3 seconds with HTTP 200 and an empty body, even when the trigger is turned off, so no warning icon appears in Slack.
 - Form nodes use **native modal** by default — clicking "Fill out form" opens a Slack Modal (`views.open`) where users fill in all fields at once.
 
 #### Form mode (`formMode`)

@@ -2,27 +2,27 @@
 id: "CLE-CHAT-TELEGRAM"
 title: "Telegram 어댑터"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
-requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031"]
+requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031", "REQ-TGRAM-032", "REQ-TGRAM-033"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "8ef59b7b1b2a17bb4d5bcb7731e3f4212b90076e91e782b5b9e905752b836ed0"
+content_hash: "9fc841f7a0360ba07734cba91b9b002ef3389d39b7222a8aea86bf783b1deb2a"
 read_as: "approved_fallback"
-task: "CLE-T-7XWVC5"
-source_paths: ["spec/4-nodes/7-trigger/providers/telegram.md"]
-mirror_sha256: "fa2e97131214fdb9ca97ea9015d210559fd514edb104ed6501f546f1b35879a2"
-etag: "sha256-efec5946ef490394ddfde0f145a8dfd6de5589ad4b670260d362e1dca6ffceb5"
+task: "CLE-T-K8Z2W0"
+source_paths: []
+mirror_sha256: "4fe212f2b8682fd724650ebe827b134f4f9be9c2be1e6aa790a06dada7ba1012"
+etag: "sha256-bab567146bf930ffec7bfac2b923e80e21810a5a1badb01010dd7ed49b0a93a3"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/telegram.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-`provider: "telegram"` 채널 어댑터는 [Telegram Bot API](https://core.telegram.org/bots/api) 위에서 동작한다. 사용자가 BotFather 에서 봇을 만들고 봇 토큰을 등록하면, 어댑터가 `setWebhook` 으로 Telegram 에서 우리 웹훅 트리거로 오는 연결을 자동 등록한다. 그리고 [채팅 채널](CLE-CHAT-CORE.md) 의 UI 매핑 요구사항(CCH-MP-01~06)이 다루는 노드, 곧 멀티턴 AI, 버튼이 있는 Presentation 노드, Form, 시각형 노드(Carousel·Chart·Table), Template 을 Telegram UI 로 바꾼다.
+`provider: "telegram"` 채널 어댑터는 [Telegram Bot API](https://core.telegram.org/bots/api) 위에서 동작한다. 사용자가 BotFather 에서 봇을 만들고 봇 토큰을 등록하면, 어댑터가 `setWebhook` 으로 Telegram 에서 우리 웹훅 트리거로 오는 연결을 자동 등록한다. 그리고 [채팅 채널 「노드와 채널 UI 매핑」](CLE-CHAT-CORE.md#노드와-채널-ui-매핑) 의 요구사항(REQ-CHAT-018~030)이 다루는 노드, 곧 멀티턴 AI, 버튼이 있는 Presentation 노드, Form, 시각형 노드(Carousel·Chart·Table), Template 을 Telegram UI 로 바꾼다.
 
-이 문서는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 인터페이스의 Telegram 구현을 정한다. 공통 규칙(렌더 매핑, 실행 실패 분류, Form 입력 흐름, 다단계 질문 본문 형식)은 어댑터 규약을, 인바운드 HTTP 응답·명령 공통 의미·재시도 정책은 [채팅 채널](CLE-CHAT-CORE.md) 을, 설정 필드와 안내 문구는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 을 따른다. 시각형 노드 × `visualNode` × 버전 매트릭스는 이 문서가 기준이고 [Slack 어댑터](CLE-CHAT-SLACK.md)·[Discord 어댑터](CLE-CHAT-DISCORD.md) 가 같은 정책을 쓴다.
+이 문서는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 인터페이스의 Telegram 구현을 정한다. 공통 규칙(렌더 매핑, 실행 실패 분류, Form 입력 흐름, 다단계 질문 본문 형식)은 어댑터 규약을, 인바운드 HTTP 응답·명령 공통 의미·재시도 정책은 [채팅 채널](CLE-CHAT-CORE.md) 을, 설정 필드와 안내 문구는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 을 따른다. 시각형 노드 × `visualNode` × 범위(1차·후속) 매트릭스는 이 문서가 기준이고 [Slack 어댑터](CLE-CHAT-SLACK.md)·[Discord 어댑터](CLE-CHAT-DISCORD.md) 가 같은 정책을 쓴다.
 
 ## 사용 시나리오
 
@@ -30,45 +30,48 @@ etag: "sha256-efec5946ef490394ddfde0f145a8dfd6de5589ad4b670260d362e1dca6ffceb5"
 |---|---|
 | 텔레그램 봇 챗봇 | 사용자가 봇에게 메시지를 보내면 멀티턴 AI 노드로 들어가 자연스럽게 대화한다 |
 | 텔레그램 봇 결재 | 사용자 명령 → Form 다단계 질문 → 결재 결과 통보 |
-| 텔레그램 봇 데이터 안내 | 사용자 명령 → Chart 렌더 → v1 은 monospace 텍스트 차트와 선택 버튼, v2 는 `sendPhoto` 이미지 |
+| 텔레그램 봇 데이터 안내 | 사용자 명령 → Chart 렌더 → 1차 범위는 monospace 텍스트 차트와 선택 버튼, 후속 범위는 `sendPhoto` 이미지 |
 
 ## 요구사항
 
-- REQ-TGRAM-001 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `setWebhook`(`url`, `secret_token`, `allowed_updates: ["message", "callback_query"]`, `drop_pending_updates: true`)으로 웹훅을 등록하고 `getMe` 결과를 `config.chatChannel.botIdentity` 에 캐시한다. (원본: telegram §3.1)
-- REQ-TGRAM-002 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL 32자 `secret_token` 을 새로 만들어 `SetupResult.issuedInboundSigning` 으로 한 번만 돌려준다. (원본: telegram §3.1, §6)
-- REQ-TGRAM-003 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `deleteWebhook`(`drop_pending_updates: true`)을 부르고 실패해도 트리거 삭제를 막지 않는다. (원본: telegram §3.2)
-- REQ-TGRAM-004 WHEN Telegram update 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `update.update_id` 를 중복 제거 키로 쓴다. (원본: telegram §4)
-- REQ-TGRAM-005 IF `message.chat.type` 이 `group`·`supergroup`·`channel` 이면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `languageHints.groupChatRefusal` 안내를 보낸 뒤 update 를 버린다. (원본: telegram §4, §6, CCH-CV-05)
-- REQ-TGRAM-006 IF `message.from.is_bot === true` 이면 THE SYSTEM SHALL 안내 없이 update 를 버린다. (원본: telegram §4, §6)
-- REQ-TGRAM-007 IF `sticker`·`voice` 처럼 지원하지 않는 update 가 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `unsupportedMessageKind` 안내를 보낸다. (원본: telegram §4)
-- REQ-TGRAM-008 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL MarkdownV2 escape 한 `sendMessage` 로 보내고 4096자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. (원본: telegram §5.1)
-- REQ-TGRAM-009 WHEN 본문이 있는 `execution.ai_message` 를 보내면 THE SYSTEM SHALL 텍스트 앞에 `sendChatAction(typing)` 을 한 번 보내고 본문이 비어 있으면 둘 다 보내지 않는다. (원본: telegram §5.1)
-- REQ-TGRAM-010 WHEN 버튼 대기를 보내면 THE SYSTEM SHALL `buttonConfig.buttons[]` 를 `uiMapping.buttonLayout` 에 따라 `inline_keyboard` 로 만들고 `callback_data` 에 `buttonId` 를 그대로 넣는다. (원본: telegram §5.2)
-- REQ-TGRAM-011 WHEN `callback_query` 가 오면 THE SYSTEM SHALL EIA `click_button` 을 부른 뒤 `answerCallbackQuery` 를 부르고 원본 메시지의 키보드를 `editMessageReplyMarkup` 으로 지운다. (원본: telegram §5.2) (부분 구현)
-- REQ-TGRAM-012 IF 키보드 제거(`editMessageReplyMarkup`)가 실패하면 THE SYSTEM SHALL 로그만 남기고 ack 흐름을 막지 않는다. (원본: telegram §5.2)
-- REQ-TGRAM-013 WHEN Form 입력 대기가 오면 THE SYSTEM SHALL 늘 다단계 질문으로 받고 필드 `type` 별 키보드 힌트를 붙인다. (원본: telegram §5.3)
-- REQ-TGRAM-014 WHEN `text` 필드에 `validation.preset: 'phone'` 이 있으면 THE SYSTEM SHALL `request_contact: true` 버튼을 보내고 받은 번호를 폼 데이터에 채운다. (원본: telegram §5.3) (미구현)
-- REQ-TGRAM-015 WHEN 시각형 노드나 Template 을 보내면 THE SYSTEM SHALL [시각형 매트릭스](#시각형-매트릭스) 의 v1 MarkdownV2 텍스트·monospace 표현으로 보낸다. (원본: telegram §5.4)
-- REQ-TGRAM-016 IF v1 에서 `visualNode` 가 `photo` 이면 THE SYSTEM SHALL 텍스트로 대신 보내고 warning 로그를 남기며 채널 건강도는 바꾸지 않는다. (원본: telegram §5.4)
-- REQ-TGRAM-017 WHEN 시각형 노드에 `buttonConfig.buttons[]` 가 있으면 THE SYSTEM SHALL 시각 메시지를 모두 보낸 다음 메시지로 `inline_keyboard` 를 보낸다. (원본: telegram §5.4)
-- REQ-TGRAM-018 WHEN `visualNode` 가 `auto` 이고 Carousel 카드에 이미지 URL 이 있으면 THE SYSTEM SHALL 그 카드를 `sendPhoto`(caption 은 제목과 설명)로 보낸다. (원본: telegram §5.4) (미구현)
-- REQ-TGRAM-019 WHEN `image` 메시지를 보내면 THE SYSTEM SHALL `sendPhoto`(chat_id, photo, caption)로 보낸다. (원본: telegram §3) (미구현)
-- REQ-TGRAM-020 WHEN `execution.failed` 를 받으면 THE SYSTEM SHALL 분류 결과 문구를 MarkdownV2 escape 한 `sendMessage` 1회로 보내고 `reply_markup`·`reply_to_message_id` 는 붙이지 않는다. (원본: telegram §5.6)
-- REQ-TGRAM-021 WHEN `execution.cancelled` 의 `error.code` 가 `RESUME_` 로 시작하면 THE SYSTEM SHALL 일반 취소 안내 대신 `languageHints.sessionExpired` 를 보낸다. (원본: telegram §5.7)
-- REQ-TGRAM-022 WHEN 재개 명령이 `STATE_MISMATCH` 로 거부되면 THE SYSTEM SHALL `escapeControlText` 로 escape 한 `languageHints.surfaceMismatch` 를 보내고 발송 실패는 흡수한다. (원본: telegram §5.8)
-- REQ-TGRAM-023 IF `X-Telegram-Bot-Api-Secret-Token` 헤더가 없거나 저장한 값과 다르면 THE SYSTEM SHALL `401` 로 답하고 워크플로우를 시작하지 않는다. (원본: telegram §6)
-- REQ-TGRAM-024 WHEN 활성 실행이 없는 대화에 `/start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 안내를 보낸다. (원본: telegram §7) (부분 구현)
-- REQ-TGRAM-025 WHEN 활성 실행이 있는 대화에 `/start` 가 오면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: telegram §7) (부분 구현)
-- REQ-TGRAM-026 WHEN `/cancel` 이 오면 THE SYSTEM SHALL 활성 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (원본: telegram §7) (부분 구현)
-- REQ-TGRAM-027 WHEN `/help` 가 오면 THE SYSTEM SHALL 대화 조회 전에 `languageHints.help`(없으면 기본 문구)를 보내고 워크플로우는 시작하지 않는다. (원본: telegram §7)
-- REQ-TGRAM-028 IF `/start`·`/cancel`·`/help` 가 아닌 `/` 명령이 오면 THE SYSTEM SHALL 무시한다. (원본: telegram §7)
-- REQ-TGRAM-029 WHEN `sendMessage` 를 부르면 THE SYSTEM SHALL 5초 타임아웃과 지수 백오프로 총 3회까지 시도하고 끝내 실패하면 `chat_channel_health` 를 `degraded` 로 바꾼다. (원본: telegram §8)
-- REQ-TGRAM-030 WHILE Telegram rate limit(사용자 전체 초당 30건, 대화당 초당 1건) 안에서 보내는 동안 THE SYSTEM SHALL 대화 단위 큐와 지연으로 발송 속도를 맞춘다. (원본: telegram §8) (미구현)
-- REQ-TGRAM-031 WHEN 같은 `update_id` 가 30초 안에 다시 오면 THE SYSTEM SHALL 두 번째 update 를 무시한다. (원본: telegram §8)
+- REQ-TGRAM-001 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `setWebhook`(`url`, `secret_token`, `allowed_updates: ["message", "callback_query"]`, `drop_pending_updates: true`)으로 웹훅을 등록하고 `getMe` 결과를 `config.chatChannel.botIdentity` 에 캐시한다.
+- REQ-TGRAM-002 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL 32자 `secret_token` 을 새로 만들어 `SetupResult.issuedInboundSigning` 으로 한 번만 돌려준다.
+- REQ-TGRAM-003 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `deleteWebhook`(`drop_pending_updates: true`)을 부르고 실패해도 트리거 삭제를 막지 않는다.
+- REQ-TGRAM-004 WHEN Telegram update 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `update.update_id` 를 중복 제거 키로 쓴다.
+- REQ-TGRAM-005 IF `message.chat.type` 이 `group`·`supergroup`·`channel` 이면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `languageHints.groupChatRefusal` 안내를 보낸 뒤 update 를 버린다.
+- REQ-TGRAM-006 IF `message.from.is_bot === true` 이면 THE SYSTEM SHALL 안내 없이 update 를 버린다.
+- REQ-TGRAM-007 IF `sticker`·`voice` 처럼 지원하지 않는 update 가 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `unsupportedMessageKind` 안내를 보낸다.
+- REQ-TGRAM-008 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL MarkdownV2 escape 한 `sendMessage` 로 보내고 4096자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
+- REQ-TGRAM-009 WHEN 본문이 있는 `execution.ai_message` 를 보내면 THE SYSTEM SHALL 텍스트 앞에 `sendChatAction(typing)` 을 한 번 보내고 본문이 비어 있으면 둘 다 보내지 않는다.
+- REQ-TGRAM-010 WHEN 버튼 대기를 보내면 THE SYSTEM SHALL `buttonConfig.buttons[]` 를 `uiMapping.buttonLayout` 에 따라 `inline_keyboard` 로 만들고 `callback_data` 에 `buttonId` 를 그대로 넣는다.
+- REQ-TGRAM-011 WHEN 활성 트리거로 `callback_query` 가 오면 THE SYSTEM SHALL 클릭을 처리했든 버렸든 `answerCallbackQuery` 를 부르고 처리한 클릭이면 원본 메시지의 키보드를 `editMessageReplyMarkup` 으로 지우며 버린 클릭이면 키보드를 남긴다.
+- REQ-TGRAM-012 IF 키보드 제거(`editMessageReplyMarkup`)가 실패하면 THE SYSTEM SHALL 로그만 남기고 ack 흐름을 막지 않는다.
+- REQ-TGRAM-013 WHEN Form 입력 대기가 오면 THE SYSTEM SHALL 늘 다단계 질문으로 받고 필드 `type` 별 키보드 힌트를 붙인다.
+- REQ-TGRAM-014 WHEN `text` 필드에 `validation.preset: 'phone'` 이 있으면 THE SYSTEM SHALL `request_contact: true` 버튼을 보내고 받은 번호를 폼 데이터에 채운다. (미구현)
+- REQ-TGRAM-015 WHEN 시각형 노드나 Template 을 보내면 THE SYSTEM SHALL [시각형 매트릭스](#시각형-매트릭스) 의 1차 범위 표현인 MarkdownV2 텍스트·monospace 로 보낸다.
+- REQ-TGRAM-016 IF 1차 범위에서 `visualNode` 가 `photo` 이면 THE SYSTEM SHALL 텍스트로 대신 보내고 warning 로그를 남기며 채널 건강도는 바꾸지 않는다.
+- REQ-TGRAM-017 WHEN 시각형 노드에 `buttonConfig.buttons[]` 가 있으면 THE SYSTEM SHALL 시각 메시지를 모두 보낸 다음 메시지로 `inline_keyboard` 를 보낸다.
+- REQ-TGRAM-018 WHEN `visualNode` 가 `auto` 이고 Carousel 카드에 이미지 URL 이 있으면 THE SYSTEM SHALL 그 카드를 `sendPhoto`(caption 은 제목과 설명)로 보낸다. (미구현)
+- REQ-TGRAM-019 WHEN `image` 메시지를 보내면 THE SYSTEM SHALL `sendPhoto`(chat_id, photo, caption)로 보낸다. (미구현)
+- REQ-TGRAM-020 WHEN `execution.failed` 를 받으면 THE SYSTEM SHALL 분류 결과 문구를 MarkdownV2 escape 한 `sendMessage` 1회로 보내고 `reply_markup`·`reply_to_message_id` 는 붙이지 않는다.
+- REQ-TGRAM-021 WHEN `execution.cancelled` 의 `error.code` 가 `RESUME_` 로 시작하면 THE SYSTEM SHALL 일반 취소 안내 대신 `languageHints.sessionExpired` 를 보낸다.
+- REQ-TGRAM-022 WHEN 재개 명령이 `STATE_MISMATCH` 로 거부되면 THE SYSTEM SHALL `escapeControlText` 로 escape 한 `languageHints.surfaceMismatch` 를 보내고 발송 실패는 흡수한다.
+- REQ-TGRAM-023 IF `X-Telegram-Bot-Api-Secret-Token` 헤더가 없거나 저장한 값과 다르면 THE SYSTEM SHALL `401` 로 답하고 워크플로우를 시작하지 않는다.
+- REQ-TGRAM-024 WHEN 활성 실행이 없는 대화에 `/start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 안내를 보낸다. (부분 구현)
+- REQ-TGRAM-025 WHEN 활성 실행이 있는 대화에 `/start` 가 오면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (부분 구현)
+- REQ-TGRAM-026 WHEN `/cancel` 이 오면 THE SYSTEM SHALL 활성 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (부분 구현)
+- REQ-TGRAM-027 WHEN `/help` 가 오면 THE SYSTEM SHALL 대화 조회 전에 `languageHints.help`(없으면 기본 문구)를 보내고 워크플로우는 시작하지 않는다.
+- REQ-TGRAM-028 IF `/start`·`/cancel`·`/help` 가 아닌 `/` 명령이 오면 THE SYSTEM SHALL 무시한다.
+- REQ-TGRAM-029 WHEN `sendMessage` 를 부르면 THE SYSTEM SHALL 5초 타임아웃과 지수 백오프로 총 3회까지 시도하고 끝내 실패하면 `chat_channel_health` 를 `degraded` 로 바꾼다.
+- REQ-TGRAM-030 WHILE Telegram rate limit(사용자 전체 초당 30건, 대화당 초당 1건) 안에서 보내는 동안 THE SYSTEM SHALL 대화 단위 큐와 지연으로 발송 속도를 맞춘다. (미구현)
+- REQ-TGRAM-031 WHEN 같은 `update_id` 가 30초 안에 다시 오면 THE SYSTEM SHALL 두 번째 update 를 무시한다.
+- REQ-TGRAM-032 IF 버린 클릭의 `answerCallbackQuery` 가 실패하면 THE SYSTEM SHALL 경고 로그만 남기고 웹훅 HTTP 응답(`202 + { executionId: 'ignored' }`)을 바꾸지 않는다.
+- REQ-TGRAM-033 IF 비활성 트리거로 `callback_query` 가 오면 THE SYSTEM SHALL `answerCallbackQuery` 를 포함한 Telegram API 호출을 하지 않고 `202 + { executionId: 'ignored' }` 로 답한다.
 
 요구사항 보충 설명은 다음과 같다.
 
-- 관련 REQ-TGRAM-011·012: 처리 순서는 EIA `click_button` 요청 큐 등록, `answerCallbackQuery`, 키보드 제거, 웹훅 HTTP 응답(`202`)이다. EIA 요청은 큐에 넣기만 하고 처리를 기다리지 않는다. 클릭을 버리는 경로(분당 한도 초과, 실행이 입력 대기가 아님, 워크플로우 비활성)에서는 `ackInteraction` 을 부르지 않아 `answerCallbackQuery` 도 불리지 않는다. 그 클릭의 로딩 표시는 시간 초과까지 남는다. 결함이고 NERV Task `CLE-T-K8Z2W0` 이 고친다.
+- 관련 REQ-TGRAM-011·012: 처리한 클릭의 순서는 EIA `click_button` 요청 큐 등록, `answerCallbackQuery`, 키보드 제거, 웹훅 HTTP 응답(`202`)이다. EIA 요청은 큐에 넣기만 하고 처리를 기다리지 않는다. 수신 확인과 키보드 제거는 `ackInteraction` 이 한다. 활성 실행이 없는 대화로 온 클릭은 새 실행을 시작하는 update 로 처리되고 그 뒤 같은 수신 확인과 키보드 제거를 한다(현재 구현).
+- 관련 REQ-TGRAM-011·032·033: 버린 클릭의 수신 확인은 `HooksService` 의 `dropChatChannelUpdate` 가 채널 어댑터의 `ackDroppedUpdate` 를 불러 보낸다. 클릭을 버리는 경로는 여섯 가지다. 파서가 버린 `callback_query`, 30초 안에 다시 온 같은 update, 대화 단위 분당 한도 초과, 실행이 `running`·`pending` 이라 입력 대기가 아닌 경우(`executionStillRunning` 안내 뒤), 활성 실행이 없는 대화인데 워크플로우가 비활성인 경우, 트리거의 워크플로우가 그 워크스페이스에 없는 경우다. Telegram 어댑터는 본문의 `callback_query.id` 가 비어 있지 않은 문자열일 때만 `answerCallbackQuery` 를 부르고 `editMessageReplyMarkup` 은 부르지 않는다. 클릭이 아닌 update 에는 아무것도 하지 않는다. `HooksService` 는 이 수신 확인을 보내기만 하고 끝나기를 기다리지 않는다. 그래서 수신 확인이 웹훅 HTTP 응답을 기다리게 하지 않는다. 호출이 실패하면 `HooksService` 가 경고 로그만 남기고 응답은 그대로 `202 + { executionId: 'ignored' }` 다. 트리거가 비활성이면 서명 검증 뒤 외부 호출 없이 끝나므로 수신 확인도 보내지 않는다. 그 클릭의 진행 표시는 클라이언트 시간 초과까지 남는다. NERV Task `CLE-T-K8Z2W0` 이 구현했다.
 - 관련 REQ-TGRAM-013·014: 전화번호 preset 은 [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 아직 없다(스키마, 서버 정규식, 어댑터 힌트 모두 없음). Form 의 `type` enum 자체는 바꾸지 않는다.
 - 관련 REQ-TGRAM-018·019: 현재 구현(`telegram.adapter.ts` 의 `image` 분기, `renderCarouselFallback`)은 이미지 메시지를 caption·`fallbackText` 텍스트로 보내고 Carousel 카드도 모두 텍스트로 보낸다. multipart 업로드와 SSR PNG 인프라가 없다.
 - 관련 REQ-TGRAM-024·025: 활성 실행 중 `/start` 의 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 새로 시작한다. 트리거의 워크플로우가 비활성이면 두 경우 모두 새 실행을 시작하지 않고 기존 실행도 취소하지 않는다(REQ-CHAT-066). 취소와 새 시작은 구현됐고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
@@ -88,6 +91,8 @@ etag: "sha256-efec5946ef490394ddfde0f145a8dfd6de5589ad4b670260d362e1dca6ffceb5"
 | `sendMessage`(image) | 목표는 `POST /bot{token}/sendPhoto`(chat_id, photo, caption). 미구현이라 현재는 caption·`fallbackText` 를 텍스트 `sendMessage` 로 보낸다 |
 | `sendMessage`(typing) | `POST /bot{token}/sendChatAction`(action=typing) |
 | `ackInteraction`(button_callback) | `POST /bot{token}/answerCallbackQuery`(callback_query_id)를 부르고 이어서 `POST /bot{token}/editMessageReplyMarkup`(빈 `inline_keyboard`)으로 키보드를 지운다. 인바운드 명령 처리(EIA 요청 큐 등록) 뒤에 불린다 |
+| `defaultInteractionResponse` | 구현하지 않는다. 기본 인터랙션 응답이 없어 인바운드 HTTP 응답은 `202` 그대로다. 버튼 클릭의 수신 확인은 `answerCallbackQuery` 가 맡는다 |
+| `ackDroppedUpdate`(버린 `callback_query`) | `POST /bot{token}/answerCallbackQuery`(callback_query_id)만 부른다. 키보드는 남긴다. `callback_query` 가 아닌 update 에는 아무것도 부르지 않는다 |
 
 ### setupChannel
 
@@ -113,7 +118,7 @@ POST https://api.telegram.org/bot{token}/deleteWebhook
 { "drop_pending_updates": true }
 ```
 
-부분 실패해도 트리거 삭제를 막지 않는다. 남은 웹훅은 삭제된 트리거의 주소를 가리키므로 그 update 는 `404` 로 끝난다([채팅 채널](CLE-CHAT-CORE.md) R-CC-12). 같은 봇으로 새 트리거를 만들면 setup 이 웹훅을 새 주소로 덮어쓴다.
+부분 실패해도 트리거 삭제를 막지 않는다. 남은 웹훅은 삭제된 트리거의 주소를 가리키므로 그 update 는 `404` 로 끝난다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 같은 봇으로 새 트리거를 만들면 setup 이 웹훅을 새 주소로 덮어쓴다.
 
 ## 명령 매핑
 
@@ -139,7 +144,7 @@ Telegram 은 모든 update 에 단조 증가 `update_id` 를 붙이므로 그 �
 
 - `execution.ai_message.message` 를 `sendMessage`(`parse_mode=MarkdownV2`, Bot API 규칙대로 escape)로 보낸다.
 - 4096자(Telegram 메시지 한도)를 넘으면 단어·문장 경계로 나눈다. 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
-- 응답 직전에 `sendChatAction(action=typing)` 을 한 번 보낸다(5초 뒤 자동 만료). `telegram-message.renderer.ts` 의 `renderAiMessage` 가 본문이 있는 `ai_message` 에서 텍스트 앞에 `{ kind: 'typing' }` 메시지를 넣고, 어댑터 `sendMessage` 의 `typing` 분기가 `sendChatAction` 으로 보낸다. 긴 실행 동안 주기적으로 보내는 typing 은 [채팅 채널 「R9 처리 중 메시지는 큐에 쌓지 않고 바로 안내한다」](CLE-CHAT-CORE.md#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 의 v2 검토 항목이다.
+- 응답 직전에 `sendChatAction(action=typing)` 을 한 번 보낸다(5초 뒤 자동 만료). `telegram-message.renderer.ts` 의 `renderAiMessage` 가 본문이 있는 `ai_message` 에서 텍스트 앞에 `{ kind: 'typing' }` 메시지를 넣고, 어댑터 `sendMessage` 의 `typing` 분기가 `sendChatAction` 으로 보낸다. 긴 실행 동안 주기적으로 보내는 typing 은 [채팅 채널 「R9 처리 중 메시지는 큐에 쌓지 않고 바로 안내한다」](CLE-CHAT-CORE.md#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 의 후속 범위 검토 항목이다.
 - 사용자 답장(`text_message`)은 EIA `submit_message` 로 보낸다.
 
 ### 버튼
@@ -148,15 +153,15 @@ Telegram 은 모든 update 에 단조 증가 `update_id` 를 붙이므로 그 �
   - `auto`(기본): 라벨 길이 합이 24자 이하인 버튼은 같은 행, 넘으면 새 행.
   - `vertical`: 1열 N행.
   - `horizontal`: 1행 N열(8개까지, 넘으면 줄바꿈).
-- `callback_data` 에 `buttonId`(UUID)를 그대로 넣는다. 64바이트 한도 안에 UUID 가 들어간다(R2).
+- `callback_data` 에 `buttonId`(UUID)를 그대로 넣는다. 64바이트 한도 안에 UUID 가 들어간다([R2 callback_data 에 buttonId UUID 를 그대로 넣는다](#r2-callback_data-에-buttonid-uuid-를-그대로-넣는다)).
 - `style: 'primary'` 는 ✅ 접두, `'danger'` 는 ⚠️ 접두, 그 밖은 그대로.
-- 노드가 시각형이면 시각 메시지를 먼저 보내고 인라인 키보드는 다음 메시지로 붙인다([시각형 매트릭스](#시각형-매트릭스)). 현재 구현은 버튼 달린 Template 도 이렇게 처리하지만, 시스템 요구사항(CCH-MP-04)에 Template 을 넣을지는 [Template 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md#미결-사항) 에서 정한다.
-- `callback_query` 가 오면 다음 순서로 처리한다.
+- 노드가 시각형이면 시각 메시지를 먼저 보내고 인라인 키보드는 다음 메시지로 붙인다([시각형 매트릭스](#시각형-매트릭스)). 현재 구현은 버튼 달린 Template 도 이렇게 처리하지만, [채팅 채널](CLE-CHAT-CORE.md) 의 시각형 요구사항(REQ-CHAT-024~027)에 Template 을 넣을지는 [Template 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md#미결-사항) 에서 정한다.
+- `callback_query` 를 처리하면 다음 순서를 따른다.
   1. EIA `click_button` 요청을 큐에 넣는다. 처리는 기다리지 않는다.
   2. `ackInteraction` 이 `answerCallbackQuery(callback_query_id)` 를 부른다. Telegram 의무이고, 부르지 않으면 모바일 클라이언트에 로딩 표시가 계속 남는다.
   3. `ackInteraction` 이 이어서 원본 메시지를 `editMessageReplyMarkup`(빈 `inline_keyboard`)으로 바꿔 키보드를 지워 중복 클릭을 막는다. `ChannelUpdate.command.messageId` 로 부르고, 메시지 만료(48시간)나 이미 편집된 경우 같은 실패는 로그만 남긴다. `messageId` 가 없으면 부르지 않는다.
   4. 웹훅 HTTP 응답 `202` 를 돌려준다.
-- 클릭을 버리는 경로(분당 한도 초과, 실행이 입력 대기가 아님, 워크플로우 비활성)에서는 `ackInteraction` 을 부르지 않는다. 그래서 `answerCallbackQuery` 가 불리지 않고 로딩 표시가 시간 초과까지 남는다. 결함이고 NERV Task `CLE-T-K8Z2W0` 이 고친다.
+- 클릭을 버리면(재도착, 대화 단위 분당 한도 초과, 실행이 입력 대기가 아님, 워크플로우 비활성 등) `ackDroppedUpdate` 가 `answerCallbackQuery(callback_query_id)` 만 부르고 키보드는 남긴다. 사용자가 잠시 뒤 다시 누를 수 있게 하려는 것이다([R7 버린 버튼 클릭에는 answerCallbackQuery 만 보내고 키보드는 남긴다](#r7-버린-버튼-클릭에는-answercallbackquery-만-보내고-키보드는-남긴다)). 호출이 실패해도 로그만 남기고 웹훅 HTTP 응답은 `202` 다. 트리거가 비활성이면 외부 호출을 하지 않으므로 수신 확인도 보내지 않는다.
 
 ### Form
 
@@ -168,7 +173,7 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 | `number` | `reply_keyboard` 숫자 패드(1~0 과 ".") |
 | `select`·`radio` | `inline_keyboard` 로 선택지 노출(버튼과 같은 방식) |
 | `checkbox` | 다중 선택. 선택지마다 `inline_keyboard` 와 완료 버튼 |
-| `date` | `force_reply` 와 형식 안내(`YYYY-MM-DD`). v1 은 네이티브 날짜 선택기를 쓰지 않는다 |
+| `date` | `force_reply` 와 형식 안내(`YYYY-MM-DD`). 1차 범위는 네이티브 날짜 선택기를 쓰지 않는다 |
 | `file` | `force_reply` 뒤 `file_upload` 대기. `allowedMimeTypes` 는 어댑터가 1차 검증한다 |
 | `text` + `validation.preset: 'phone'` | `request_contact: true` 버튼(연락처 공유). 받으면 어댑터가 번호를 폼 데이터에 채운다. 미구현(Form 에 preset 이 아직 없다). preset 없는 일반 `text` 는 첫 행처럼 처리한다 |
 
@@ -176,14 +181,14 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 
 ### 시각형 매트릭스
 
-버튼 대기의 `buttonConfig.nodeOutput`, 표시 전용 완료(`execution.node.completed`), AI 표시물(`ai_message.presentations[]`) 세 진입점이 이 매트릭스를 함께 쓴다. v1 은 MarkdownV2 텍스트·monospace 표현이다(의존성 추가 없이 바로 동작). v2 SSR PNG 는 후속이다. `visualNode` 값의 뜻은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 을 본다.
+버튼 대기의 `buttonConfig.nodeOutput`, 표시 전용 완료(`execution.node.completed`), AI 표시물(`ai_message.presentations[]`) 세 진입점이 이 매트릭스를 함께 쓴다. 1차 범위는 MarkdownV2 텍스트·monospace 표현이다(의존성 추가 없이 바로 동작). SSR PNG 는 후속 범위다. `visualNode` 값의 뜻은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 을 본다.
 
-| 노드 유형 | `text`(v1·v2) | `photo` v1 | `photo` v2 | `auto` v1 | `auto` v2 |
+| 노드 유형 | `text`(1차·후속 범위) | `photo` 1차 범위 | `photo` 후속 범위 | `auto` 1차 범위 | `auto` 후속 범위 |
 |---|---|---|---|---|---|
-| `chart` | `output.payload.{title, series, labels}` → monospace 미니 막대 차트(24칸 가로 막대, MarkdownV2 code block, 4096자 넘으면 분할). 입력 모양은 [미결 사항](#미결-사항) 참조 | 텍스트로 대신(warning 로그) | satori SVG → PNG `sendPhoto` | 텍스트(차트는 텍스트가 더 읽기 쉬워 `auto` 도 텍스트 우선) | 텍스트(v2 에서도 텍스트 우선) |
-| `carousel` | `output.items[]` → 카드를 차례로 보낸다. 이미지 URL 을 무시하고 늘 `sendMessage`(굵은 제목, 설명, `🖼 {imageUrl}` 텍스트 줄). 카드 10장 상한과 "외 N장" | `auto` v1 으로 대신(warning 로그) | 카드 1~5장 collage PNG `sendPhoto` 1회 | 현재는 `text` 와 같다(`renderCarouselFallback` 이 모든 카드를 `sendMessage` 로 보내고 이미지 URL 은 `🖼 {url}` 텍스트). 카드별 이미지 URL 이 있으면 `sendPhoto`(caption 은 제목과 설명)로 나누는 것은 미구현. 카드 10장 상한과 "외 N장", 전역 버튼은 마지막 카드 뒤 별도 메시지 | 카드별 분기와 5장 collage PNG 시도 |
+| `chart` | `output.payload.{title, series, labels}` → monospace 미니 막대 차트(24칸 가로 막대, MarkdownV2 code block, 4096자 넘으면 분할). 입력 모양은 [미결 사항](#미결-사항) 참조 | 텍스트로 대신(warning 로그) | satori SVG → PNG `sendPhoto` | 텍스트(차트는 텍스트가 더 읽기 쉬워 `auto` 도 텍스트 우선) | 텍스트(후속 범위에서도 텍스트 우선) |
+| `carousel` | `output.items[]` → 카드를 차례로 보낸다. 이미지 URL 을 무시하고 늘 `sendMessage`(굵은 제목, 설명, `🖼 {imageUrl}` 텍스트 줄). 카드 10장 상한과 "외 N장" | `auto` 1차 범위로 대신(warning 로그) | 카드 1~5장 collage PNG `sendPhoto` 1회 | 현재는 `text` 와 같다(`renderCarouselFallback` 이 모든 카드를 `sendMessage` 로 보내고 이미지 URL 은 `🖼 {url}` 텍스트). 카드별 이미지 URL 이 있으면 `sendPhoto`(caption 은 제목과 설명)로 나누는 것은 미구현. 카드 10장 상한과 "외 N장", 전역 버튼은 마지막 카드 뒤 별도 메시지 | 카드별 분기와 5장 collage PNG 시도 |
 | `table` | `output.{rows, columns}` → monospace MarkdownV2 표(열 너비 자동 정렬, 셀 패딩, 헤더 구분선, 행 20개 상한, 16자 넘는 셀 말줄임, code block, 4096자 분할) | 텍스트로 대신(warning 로그) | 표 PNG `sendPhoto` | 텍스트(표도 텍스트 우선) | 텍스트 |
-| `template` | `output.rendered` 를 MarkdownV2 escape 해 `sendMessage`(4096자 분할). HTML·Markdown·Text 세 모드 모두 텍스트로 보낸다(v1 은 HTML 을 렌더하지 않고 escape 한 평문). v2 의 HTML·Markdown 서식 렌더는 후속 | 텍스트로 대신 | HTML → SSR PNG | 텍스트 | HTML → SSR PNG |
+| `template` | `output.rendered` 를 MarkdownV2 escape 해 `sendMessage`(4096자 분할). HTML·Markdown·Text 세 모드 모두 텍스트로 보낸다(1차 범위는 HTML 을 렌더하지 않고 escape 한 평문). HTML·Markdown 서식 렌더는 후속 범위다 | 텍스트로 대신 | HTML → SSR PNG | 텍스트 | HTML → SSR PNG |
 
 표의 필드 경로는 노드가 무엇을 만드는지를 적은 것이고 렌더러가 읽는 순서와 wire 모양은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 시각형 렌더 입력이 정한다. 다만 `chart`·`carousel` 행의 입력 필드(`payload.{title, series, labels}`, `imageUrl`)는 노드 출력과 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 
@@ -192,12 +197,12 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 
 ### 실행 실패
 
-`execution.failed` 는 어댑터 규약의 `classifyExecutionFailure(event)` 가 정한 `(key, placeholders)` 로 문구를 찾아 채운 뒤 `sendMessage` 한 번으로 보낸다. 민감 정보 제외는 [채팅 채널](CLE-CHAT-CORE.md) 의 CCH-ERR-03 을 따른다.
+`execution.failed` 는 어댑터 규약의 `classifyExecutionFailure(event)` 가 정한 `(key, placeholders)` 로 문구를 찾아 채운 뒤 `sendMessage` 한 번으로 보낸다. 민감 정보 제외는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-041 을 따른다.
 
 | 항목 | Telegram 매핑 |
 |---|---|
 | API 호출 | `POST /bot{token}/sendMessage` 1회. 안내는 한 줄이라 나누지 않는다 |
-| 본문 | `languageHints[key]` 에 `{statusCode}` 를 채운 결과. MarkdownV2 escape(R4 의 예약 문자 모두 backslash), `parse_mode: "MarkdownV2"` |
+| 본문 | `languageHints[key]` 에 `{statusCode}` 를 채운 결과. MarkdownV2 escape([R4 MarkdownV2 escape 는 어댑터가 맡는다](#r4-markdownv2-escape-는-어댑터가-맡는다) 의 예약 문자 모두 backslash), `parse_mode: "MarkdownV2"` |
 | `reply_markup` | 붙이지 않는다(종결 이벤트라 인터랙션 컨트롤이 없다) |
 | `reply_to_message_id` | 붙이지 않는다(1:1 DM) |
 | ack | 관계없다(callback 이 아니다) |
@@ -228,11 +233,12 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 
 ## 보안
 
-- 봇 토큰은 `botTokenRef`(시크릿 참조)만 설정에 둔다. 평문 저장은 금지다(CCH-SE-03).
+- 봇 토큰은 `botTokenRef`(시크릿 참조)만 설정에 둔다. 평문 저장은 금지다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-035).
+- 봇 토큰과 인바운드 서명 자료를 시크릿 저장소 참조로만 다루고 평문을 설정 JSON · 로그 · metric 에 내놓지 않는 규칙, 프로바이더 API 클라이언트가 실패 문장을 돌려주거나 로그에 남기기 전에 봇 토큰을 지우는 규칙은 [채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10 이 정한다.
 - `setWebhook` 의 `secret_token` 은 등록 때 무작위로 만든다(`crypto.randomBytes(24).toString('base64url')`, 32자). 평문은 `SetupResult.issuedInboundSigning` 에 한 번만 드러나고 호출자가 시크릿 저장소에 저장한 뒤 참조만 `inboundSigningRef` 에 둔다. Telegram 은 모든 update 에 `X-Telegram-Bot-Api-Secret-Token` 헤더를 붙인다. 진입점이 `SecretResolver.resolve(inboundSigningRef)` 로 값을 꺼내 헤더와 같은지 확인한다. 다르면 `401` 이고 어댑터는 `null` 을 돌려준다(워크플로우를 시작하지 않는다).
-- 그룹·채널 update 는 진입점에서 `chat.type` 으로 막고 `groupChatRefusal` 안내 뒤 버린다(CCH-CV-05).
+- 그룹·채널 update 는 진입점에서 `chat.type` 으로 막고 `groupChatRefusal` 안내 뒤 버린다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-017).
 - 다른 봇이 보낸 메시지(`from.is_bot === true`)도 무시한다.
-- 인바운드 HTTP 응답 정책(인증, 비활성 트리거, 그룹 대화, 미지원 update, 내부 에러)은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이고 여기 사본을 두지 않는다. 요점은 기본이 `202 Accepted` 이고 인증 실패는 `401`, 엔드포인트 미존재는 `404` 이며 비활성 트리거도 `202 + { executionId: 'ignored' }` 다. 트리거의 워크플로우가 비활성이면 새 실행을 시작할 update(활성 실행이 없는 대화의 메시지, `/start`)만 `202 + { executionId: 'ignored' }` 로 버리고 진행 중인 대화의 입력과 `/cancel`·`/help` 는 그대로 처리한다(REQ-CHAT-066·068). 활성 실행 중 `/start` 의 기존 실행 취소가 실패하면 그 에러로 응답한다(REQ-CHAT-064). 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외다.
+- 인바운드 HTTP 응답 정책(인증, 비활성 트리거, 그룹 대화, 미지원 update, 내부 에러)은 [채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 HTTP 응답 계약이 기준이고 여기 사본을 두지 않는다. 기본은 `202 Accepted` 다. 인증 실패 `401` 과 엔드포인트 미존재 `404` 를 포함한 예외 응답 코드 목록은 [채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 에 있다. 비활성 트리거도 `202 + { executionId: 'ignored' }` 다. 버린 버튼 클릭에 `answerCallbackQuery` 를 보내도 웹훅 HTTP 응답은 `202` 그대로다(REQ-TGRAM-011·032). 트리거의 워크플로우가 비활성이면 새 실행을 시작할 update(활성 실행이 없는 대화의 메시지, `/start`)만 `202 + { executionId: 'ignored' }` 로 버리고 진행 중인 대화의 입력과 `/cancel`·`/help` 는 그대로 처리한다(REQ-CHAT-066·068). 활성 실행 중 `/start` 의 기존 실행 취소가 실패하면 그 에러로 응답한다(REQ-CHAT-064).
 
 ## 명령 처리
 
@@ -241,8 +247,8 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 | `/start`(활성 실행 없음) | 새 실행 시작, `languageHints.executionStarted` 안내. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
 | `/start`(활성 실행 있음) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064·066 이다. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
 | `/cancel` | 활성 실행을 실행 중지 경로(`ExecutionsService.stop`, EIA `cancel` 과 같은 경로)로 취소. 없으면 아무것도 하지 않고 "진행 중인 대화가 없습니다." 안내. 이 안내는 아직 보내지 않는다 |
-| `/help` | v1 정적 도움말(`languageHints.help` 나 기본 문구). `parseTelegramUpdate` 의 `readCommand` 가 `/help` 를 `text_message` 로 통과시키고(`/start`·`/cancel` 밖의 다른 `/` 명령은 `null`), `HooksService` 가 대화 조회 전에 `/help` 인지 검사해 안내한다. 워크플로우는 시작하지 않는다 |
-| 그 밖의 명령(`/...`) | 무시. v1 은 `/start`·`/cancel`·`/help` 만 처리한다 |
+| `/help` | 1차 범위의 정적 도움말(`languageHints.help` 나 기본 문구). `parseTelegramUpdate` 의 `readCommand` 가 `/help` 를 `text_message` 로 통과시키고(`/start`·`/cancel` 밖의 다른 `/` 명령은 `null`), `HooksService` 가 대화 조회 전에 `/help` 인지 검사해 안내한다. 워크플로우는 시작하지 않는다 |
+| 그 밖의 명령(`/...`) | 무시. 1차 범위는 `/start`·`/cancel`·`/help` 만 처리한다 |
 
 ## 비기능
 
@@ -258,12 +264,15 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.ts`
+- `codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.ts`: 처리한 클릭의 수신 확인과 키보드 제거(`ackInteraction`), 버린 클릭의 수신 확인(`ackDroppedUpdate`)
 - `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-message.renderer.ts`
 - `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-update.parser.ts`
 - `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: 명령 처리(`/help`, `/cancel`, 활성 실행 중 `/start` 의 기존 실행 취소)
+- `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터의 버린 update 수신 확인 함수(`ackDroppedUpdate`)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: 명령 처리(`/help`, `/cancel`, 활성 실행 중 `/start` 의 기존 실행 취소), 버린 update 처리(`dropChatChannelUpdate`)
+- `codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.spec.ts`, `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(「버린 update 의 수신 확인」): 버린 클릭의 수신 확인, 비활성 트리거에서 부르지 않음
 - `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`: 활성 실행 중 `/start` 의 취소와 새 시작
+- `codebase/backend/test/chat-channel-telegram-dropped-callback.e2e-spec.ts`: 워크플로우 비활성 · 재도착으로 버린 클릭의 `202` 응답
 - 사용자 가이드: `codebase/frontend/src/content/docs/06-integrations-and-config/telegram.mdx`, `telegram.en.mdx`
 
 ## Rationale
@@ -276,19 +285,34 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 
 `callback_data` 64바이트 한도 안에 UUID v4(36자)가 넉넉히 들어가 별도 매핑 테이블이 필요 없다. 짧은 id 와 Redis 매핑은 64바이트가 모자라지 않으니 과한 설계다. `callback_data` 에 타임스탬프 같은 메타를 더 넣으면 64바이트가 모자랄 수 있어, 메타는 어댑터가 채널 대화 상태에서 보강한다.
 
-### R3 시각형은 v1 에서 텍스트로 보낸다
+### R3 시각형은 1차 범위에서 텍스트로 보낸다
 
-처음에는 "v1 은 Chart 만 PNG, Carousel·Table 은 SSR 인프라가 필요해 후속" 으로 정했다. Chart 는 이미 SVG 렌더가 있어 PNG 변환만 더하면 된다는 근거였다. 이후 v1 을 의존성 없이 바로 동작하는 MarkdownV2 텍스트·monospace 표현으로 통일했고([시각형 매트릭스](#시각형-매트릭스)), 백엔드는 차트 SVG 를 만들지 않으므로(노드 출력 스냅샷 폐기) 그 근거도 성립하지 않는다. 이미지 발송(SSR PNG)은 세 시각형 모두 v2 로 미룬다. SSR 인프라(headless chromium 이나 satori)는 Send Email 통합 같은 다른 노드에도 영향을 준다.
+처음에는 "1차 범위는 Chart 만 PNG, Carousel·Table 은 SSR 인프라가 필요해 후속" 으로 정했다. Chart 는 이미 SVG 렌더가 있어 PNG 변환만 더하면 된다는 근거였다. 이후 1차 범위를 의존성 없이 바로 동작하는 MarkdownV2 텍스트·monospace 표현으로 통일했고([시각형 매트릭스](#시각형-매트릭스)), 백엔드는 차트 SVG 를 만들지 않으므로(노드 출력 스냅샷 폐기) 그 근거도 성립하지 않는다. 이미지 발송(SSR PNG)은 세 시각형 모두 후속 범위로 미룬다. SSR 인프라(headless chromium 이나 satori)는 Send Email 통합 같은 다른 노드에도 영향을 준다.
 
 ### R4 MarkdownV2 escape 는 어댑터가 맡는다
 
 LLM 응답은 일반 Markdown 이지만 Telegram MarkdownV2 는 추가 escape(`_`, `*`, `[`, `]`, `(`, `)`, `~`, `` ` ``, `>`, `#`, `+`, `-`, `=`, `|`, `{`, `}`, `.`, `!`)가 필요하다. 어댑터가 보내기 직전에 escape 한다. 워크플로우 노드는 일반 Markdown 으로 쓰면 되고 채널별 특이점은 어댑터가 흡수한다.
 
-### R5 그룹 대화는 v1 에서 무조건 막는다
+### R5 그룹 대화는 1차 범위에서 무조건 막는다
 
-여러 사용자 대화는 v2 옵션이고 v1 에서 그룹을 허용하면 대화 매핑이 깨진다. 설정으로 그룹을 허용해도 스레드 자료구조가 사용자 한 명을 가정해 동작하지 않는다. 그룹을 한 사용자처럼 흉내 내면 아무나 먼저 보낸 메시지로 대화가 진행돼 사용자가 헷갈린다. CCH-CV-05 의 v1 정책과 맞고 그룹 지원은 v2 여러 사용자 대화와 함께 간다.
+여러 사용자 대화는 후속 범위의 옵션이고 1차 범위에서 그룹을 허용하면 대화 매핑이 깨진다. 설정으로 그룹을 허용해도 스레드 자료구조가 사용자 한 명을 가정해 동작하지 않는다. 그룹을 한 사용자처럼 흉내 내면 아무나 먼저 보낸 메시지로 대화가 진행돼 사용자가 헷갈린다. [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-017 의 1차 범위 정책과 맞고 그룹 지원은 후속 범위의 여러 사용자 대화와 함께 간다.
 
 ### R6 활성 실행 중 /start 의 규칙은 채팅 채널 문서가 정한다
 
 2026-10-10 에 명령 우선 규칙을 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 로 정했다(NERV Task `CLE-T-V4WVF2`). 세 프로바이더에 같은 규칙이라 시스템 문서에 두고 이 문서는 명령 이름과 안내 문구만 정한다. 이 결정으로 이 문서의 미결 «활성 실행 중 `/start`» 를 닫았다.
 
+### R7 버린 버튼 클릭에는 answerCallbackQuery 만 보내고 키보드는 남긴다
+
+2026-11-12 결정이다(NERV Task `CLE-T-K8Z2W0`, NERV 질문 `01a1d025-92b9-7782-8c6e-09705b4a117f` 의 사람 답). 그전에는 클릭을 버리는 경로(재도착, 대화 단위 분당 한도 초과, 실행이 입력 대기가 아님, 워크플로우 비활성)에서 `ackInteraction` 을 부르지 않았다. Telegram 클라이언트는 `answerCallbackQuery` 를 받지 못하면 로딩 표시를 시간 초과까지 남긴다. 그래서 버린 클릭에도 `answerCallbackQuery` 를 보낸다.
+
+키보드는 남긴다. 실행이 아직 입력 대기에 닿지 않았거나 분당 한도에 걸린 클릭은 잠시 뒤 다시 누르면 처리될 수 있다. 키보드를 지우면 사용자가 다시 누를 방법이 없다.
+
+수신 확인을 보낼지는 채널 어댑터의 `ackDroppedUpdate` 가 정한다. `HooksService` 는 프로바이더를 가리지 않고 버린 update 마다 이 함수를 부른다. Slack 과 Discord 는 웹훅 HTTP 응답이 수신 확인이라 이 함수가 없다.
+
+비활성 트리거는 예외다. 꺼진 트리거에서는 수신 확인을 포함한 외부 호출을 하지 않는다(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f` 의 사람 답). 그래서 그 클릭의 진행 표시는 시간 초과까지 남는다.
+
+검토한 다른 선택은 처리한 클릭처럼 키보드까지 지우는 안이다. 다시 누르면 처리될 클릭까지 막혀 택하지 않았다.
+
+### R8 요구사항 줄의 옛 문서 절 표기를 지우고 머리 줄을 고쳤다
+
+요구사항 줄 끝의 `(원본: telegram §n)` 표기와 머리 줄의 «원문» 경로는 NERV 로 옮기기 전 저장소 문서를 가리켰다. 그 문서는 지워져 git 이력에만 있고 절 번호로는 찾아갈 수 없다. 문서는 NERV 링크로 가리킨다는 [용어 사전](../CLE-GLOSSARY.md) 원칙 11 에 따라 지웠다(NERV Task `CLE-T-1FCGJ1`). 요구사항의 뜻은 바꾸지 않았다. 머리 줄의 구현 상태는 `부분 구현` 으로 고쳤다. REQ-TGRAM-014·018·019·030 이 미구현이고 024~026 이 부분 구현이라 [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 의 구현 상태 세 값(구현됨·부분 구현·미구현) 가운데 `구현됨` 이 맞지 않는다.

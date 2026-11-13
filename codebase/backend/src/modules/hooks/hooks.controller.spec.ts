@@ -16,6 +16,7 @@ describe('HooksController', () => {
   const makeRes = () => ({
     status: jest.fn().mockReturnThis(),
     json: jest.fn(),
+    end: jest.fn(),
     set: jest.fn().mockReturnThis(),
   });
 
@@ -83,6 +84,49 @@ describe('HooksController', () => {
     expect(result).toBeUndefined();
   });
 
+  // 근거: CLE-CHAT-SLACK 「인바운드 응답」 — Interactivity 는 3초 안 200 빈 본문. NERV Task `CLE-T-FCBG91`.
+  it('interactionEmptyResponse 면 res.status(200).end() 로 빈 본문을 보낸다', async () => {
+    hooksService.handleWebhook.mockResolvedValue({
+      executionId: 'ignored',
+      interactionEmptyResponse: true,
+    } as unknown as Awaited<ReturnType<HooksService['handleWebhook']>>);
+
+    const res = makeRes();
+    const result = await controller.receiveWebhook(
+      'abc',
+      {},
+      {},
+      makeReq(),
+      res as unknown as import('express').Response,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.end).toHaveBeenCalledWith();
+    expect(res.json).not.toHaveBeenCalled();
+    expect(result).toBeUndefined();
+  });
+
+  it('interactionHttpResponse 가 interactionEmptyResponse 보다 앞선다', async () => {
+    const payload = { response_action: 'errors', errors: { a: 'b' } };
+    hooksService.handleWebhook.mockResolvedValue({
+      executionId: 'exec-3',
+      interactionHttpResponse: payload,
+      interactionEmptyResponse: true,
+    } as unknown as Awaited<ReturnType<HooksService['handleWebhook']>>);
+
+    const res = makeRes();
+    await controller.receiveWebhook(
+      'abc',
+      {},
+      {},
+      makeReq(),
+      res as unknown as import('express').Response,
+    );
+
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(res.end).not.toHaveBeenCalled();
+  });
+
   it('interactionHttpResponse 없으면 일반 return (TransformInterceptor 경로)', async () => {
     hooksService.handleWebhook.mockResolvedValue({
       executionId: 'exec-2',
@@ -97,8 +141,9 @@ describe('HooksController', () => {
       res as unknown as import('express').Response,
     );
 
-    // res.json 미호출 — TransformInterceptor 에 위임.
+    // res.json · res.end 미호출 — TransformInterceptor 에 위임.
     expect(res.json).not.toHaveBeenCalled();
+    expect(res.end).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       executionId: 'exec-2',
       message: expect.stringContaining('Webhook'),
