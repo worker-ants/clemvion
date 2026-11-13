@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WS"
 title: "용어 사전 — 제품과 작업 공간"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "c2ca656a7eb68cd36fe34b8c07480e3bb935a6142e9cc7abcda8c09c0907076a"
+content_hash: "2be166e283c674ce50171bae46e26f4f5ee6cc9490a244e4ab76015cd10f37fd"
 read_as: "approved_fallback"
 task: "CLE-T-2NQ857"
 source_paths: []
-mirror_sha256: "239e1527720a222b1653000fa0005bdc682bacf03901882497e6497c610eb5ec"
-etag: "sha256-a18765fc426b604eaffd616f8584521467321b2c2aefa7bc93048956ab39b4db"
+mirror_sha256: "42d23c2af5713d17731049d8e4599669c571c774a967f9ea5563d02615cc50ca"
+etag: "sha256-d326864946b3690c0a87e3853276ce5717be3f192c99ec715bfcafe75ffcbdd0"
 ---
 ## 개요
 
@@ -71,6 +71,7 @@ etag: "sha256-a18765fc426b604eaffd616f8584521467321b2c2aefa7bc93048956ab39b4db"
 | 계정 재인증 | reauthentication, `verifyReauth` | 세션 강제 종료나 이메일 변경 전에 비밀번호 또는 TOTP 로 본인임을 다시 확인하는 절차. 자격 증명이 모자라면 `REAUTH_REQUIRED` 를 낸다. 다른 실패 코드는 기준 문서에 있다. | 재인증(단독), step-up | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 비밀번호 재확인 | password re-check, `verifyPasswordForUser` | 비밀번호만 받아 확인하는 본인 확인 단계(`verifyPasswordForUser`). 쓰는 동작과 에러 코드는 기준 문서에 있다. | 재인증(이 뜻으로) | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 로그인 힌트 쿠키 | `has_session` | 프론트 서버가 로그인 여부를 미리 짐작하는 쿠키. 인증 수단이 아니다. | 없음 | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
+| 복귀 경로 | post-login return path, `redirect` | 로그인한 뒤 돌아갈 같은 출처 경로. 로그인 화면 주소의 `redirect` 쿼리로 넘긴다. | 리다이렉트 경로, 돌아갈 경로 | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 내 프로필 | profile | 이름·비밀번호·언어·테마·보안 설정을 바꾸는 화면. | 없음 | [내 프로필](CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | 사용자 가이드 | User Guide, `/docs` | 앱 안에서 보는 한국어·영어 사용 설명서. | 유저 가이드, 사용자 매뉴얼, 매뉴얼, User Guide(본문) | [사용자 가이드](CLE-UI/CLE-UI-GUIDE.md) |
 | 빈 상태 | empty state, `EmptyState` | 데이터가 없거나 필터 결과가 0건일 때 보이는 안내와 버튼. | Empty State(본문) | [오류 화면과 빈 상태](CLE-UI/CLE-UI-ERRORS.md) |
@@ -136,3 +137,9 @@ NERV Task `CLE-T-D331TT` 에서 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md)
 NERV Task `CLE-T-D331TT` 에서 [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 로그인 Passkey 인증 챌린지를 한 번만 쓰기로 정했다. 챌린지라는 이름이 붙은 값이 챌린지 토큰, 로그인 1단계 응답의 `methods` 챌린지, Passkey 인증 챌린지 셋이 됐다. 줄여 쓴 「Passkey 챌린지」 로는 어느 값인지 알 수 없다. 그래서 「Passkey 인증 챌린지」 를 올리고 단독 「Passkey 챌린지」 를 쓰지 않는 말로 적었다.
 
 「챌린지 토큰」 정의의 "비밀번호를 통과한 뒤" 는 "로그인 1단계를 통과한 뒤" 로 고쳤다. 로그인 1단계에는 비밀번호 말고도 계정 잠금과 이메일 인증 확인이 든다.
+
+### 「복귀 경로」 를 더했다 (2026-11-13)
+
+NERV Task `CLE-T-2NQ857` 에서 세션 만료 오류 화면도 경로와 쿼리를 `redirect` 에 담게 했다([오류 화면과 빈 상태](CLE-UI/CLE-UI-ERRORS.md)). 로그인한 뒤 돌아갈 경로를 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) · [워크스페이스와 멤버](CLE-ACCT/CLE-ACCT-WS.md) 는 «복귀 경로» 로, [가입과 로그인](CLE-ACCT/CLE-ACCT-SIGNIN.md) 은 «돌아갈 경로» 로 불렀다. 쓰는 문서가 넷으로 늘어 이름을 하나로 정했다.
+
+«리다이렉트 경로» 는 쓰지 않는 표기로 두었다. [HTTP Request 노드](CLE-NODE-INT/CLE-NODE-HTTP.md) 가 HTTP 3xx 응답이 가리키는 곳을 «리다이렉트 대상» 이라 부른다. 로그인 뒤 이동은 HTTP 리다이렉트가 아닐 때도 있다(로그인 폼이 하는 화면 이동).

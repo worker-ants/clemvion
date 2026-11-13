@@ -2,19 +2,19 @@
 id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027", "REQ-PROFILE-028", "REQ-PROFILE-029"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "89e099305db2ef8779500cd0e546da6059d0999fc9dd6dde8475e4cc99b7498b"
+content_hash: "2f6ec1a08758468a6cf01c1f5a0d839b658e93527c5101104bed04e703377c3e"
 read_as: "approved_fallback"
-task: "CLE-T-3158TZ"
+task: "CLE-T-YG34W6"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "1bf316ce841a9d1535fe4dcc65b9ec7f6150c7bb7edea605b8abda37af8cc508"
-etag: "sha256-336d670e314e871c5d36a11234610131fc4df97f589560e0422f2333bd45d699"
+mirror_sha256: "c443cc22a8082ffad72239846b4b180620f468fda37baab593531cb3ed7aa288"
+etag: "sha256-9e30bceadc97a8d818eb010d3b80661f5a79cf2bb9b3907dc25eb789115b7c4b"
 ---
 > 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목은 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -159,7 +159,7 @@ etag: "sha256-336d670e314e871c5d36a11234610131fc4df97f589560e0422f2333bd45d699"
 | 버튼 | 하단 | [취소], [변경] | `POST /api/users/me/change-password` |
 
 - 이 페이지는 diff 미리보기 모달을 생략한다. 마스킹된 값이라 보여 줄 것이 없다. 현재 비밀번호가 1차 인증 역할을 한다.
-- 변경에 성공하면 서버가 사용자의 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. 응답 `{ data: { accessToken } }` 으로 새 액세스 토큰을 준다. 클라이언트는 이 토큰으로 메모리의 액세스 토큰(`auth-store`)을 바꾸고, 리프레시 쿠키는 `Set-Cookie` 로 자동으로 바뀐다. 이어서 `/profile` 로 이동해 성공 토스트를 보여 준다. 재로그인 화면으로 보내지 않는다. 세션 처리 규칙과 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
+- 변경에 성공하면 서버가 사용자의 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. 응답 `{ accessToken }` 으로 새 액세스 토큰을 준다. 클라이언트는 이 토큰으로 메모리의 액세스 토큰(`auth-store`)을 바꾸고, 리프레시 쿠키는 `Set-Cookie` 로 자동으로 바뀐다. 이어서 `/profile` 로 이동해 성공 토스트를 보여 준다. 재로그인 화면으로 보내지 않는다. 세션 처리 규칙과 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
 - OAuth 전용 계정(비밀번호 없음)은 현재 비밀번호 확인 단계에서 `PASSWORD_REQUIRED`(401)로 막힌다. 화면은 비밀번호를 추가하는 경로, 곧 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 비밀번호 재설정(재설정 요청 뒤 재설정 실행)을 안내한다. 이 안내의 기준은 이 절이다.
 - 현재 비밀번호가 틀리면 `PASSWORD_INVALID`(401), 사용자가 없으면 `USER_NOT_FOUND`(404)다. `PASSWORD_INVALID` 의 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다. `USER_NOT_FOUND` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 를 본다.
 - 비밀번호 변경은 감사 로그 `user.password_changed` 로 남는다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)).
@@ -169,6 +169,7 @@ etag: "sha256-336d670e314e871c5d36a11234610131fc4df97f589560e0422f2333bd45d699"
 아바타는 두 방식으로 바꾼다. 이미지 파일을 올리거나(`POST /api/users/me/avatar`), `PATCH /api/users/me` 의 `avatarUrl` 로 외부 URL 을 넣는다. 두 경로가 같은 `user.avatar_url` 컬럼을 쓴다.
 
 - 업로드 계약(필드, 최대 2MB, 허용 확장자, 에러 코드)은 [API](#api) 표에 있다.
+- 외부 URL 을 아바타로 넣으면 사이드바가 (main) 아래 모든 화면에서 그 URL 의 이미지를 요청한다. 그래서 그 외부 서버는 이 사용자의 IP 와 접속 시점을 볼 수 있다. 아바타 이미지(`components/ui/user-avatar.tsx`)는 `referrerPolicy="no-referrer"` 로 요청해 어느 화면에서 요청했는지(Referer)는 보내지 않는다. 이미지를 불러오지 못하면 이름 이니셜로 바뀐다([기본 표시](#기본-표시)).
 - 올린 아바타는 URL 을 아는 누구나 볼 수 있다. 워크스페이스 멤버 전용이 아니다. 공개 URL·서명 URL·백엔드 프록시 세 안 중 공개 URL 을 골랐다(2026-08-31 결정). 접근 통제는 추측할 수 없는 객체 키와 버킷 목록 차단이 함께 맡는다.
 - 배포 선행 조건: 아바타 공개 읽기 버킷 정책이 없으면 업로드는 성공하고 이미지만 403 이 된다. 증상이 업로드가 아니라 표시에서 난다. 브라우저가 닿는 `S3_PUBLIC_BASE_URL` 도 필요하다. 정책 예시와 실측은 `scripts/minio/avatars-public-read.json`, `scripts/minio/README.md` 에 있다.
 
@@ -178,10 +179,10 @@ etag: "sha256-336d670e314e871c5d36a11234610131fc4df97f589560e0422f2333bd45d699"
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| GET | `/api/users/me` | 내 프로필 조회. 응답(`UserProfileDto`)에 진행 중인 이메일 변경을 표시하는 `pendingEmail: string \| null` 과 TOTP 켜짐 여부 `twoFactorEnabled: boolean` 을 싣는다. `pendingEmail` 은 확인 대기 중인 새 이메일이고 없으면 null 이다. `twoFactorEnabled` 는 TOTP 만 가리키고 Passkey 등록 여부는 담지 않는다. `PATCH /api/users/me` 와 아바타 업로드의 프로필 응답(`UserProfileDto`)에도 `twoFactorEnabled` 가 있고 `pendingEmail` 은 없다. 이메일 변경 대기 표시는 조회 화면이 `GET` 으로만 읽는 부가 맥락이라 수정 · 업로드 응답에서는 키를 뺀다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 「부재 표현: `null` 과 키 생략」의 키 생략 기준). 이 키 생략은 `twoFactorEnabled` 를 더한 NERV Task `CLE-T-KTZ9YV` 전부터 있던 동작이다. TOTP secret 과 복구 코드는 싣지 않는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 「응답에 싣지 않는 민감 컬럼 7개」) |
+| GET | `/api/users/me` | 내 프로필 조회. 응답은 `CurrentUserProfileDto` 다. `PATCH /api/users/me` 와 아바타 업로드가 돌려주는 프로필 응답(`UserProfileDto`)에 진행 중인 이메일 변경을 표시하는 `pendingEmail: string \| null` 을 더한 모양이다. `pendingEmail` 은 확인 대기 중인 새 이메일이고 늘 실린다. 없으면 null 이다. TOTP 켜짐 여부 `twoFactorEnabled: boolean` 은 두 응답에 모두 있다. `twoFactorEnabled` 는 TOTP 만 가리키고 Passkey 등록 여부는 담지 않는다. 수정 · 업로드 응답(`UserProfileDto`)에는 `pendingEmail` 필드가 없다. 이메일 변경 대기 표시는 조회 화면이 `GET` 으로만 읽는 부가 맥락이라 조회 응답에만 둔다. 수정 · 업로드 응답에 이 필드가 없는 것은 `twoFactorEnabled` 를 더한 NERV Task `CLE-T-KTZ9YV` 전부터 있던 동작이다. TOTP secret 과 복구 코드는 싣지 않는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 「응답에 싣지 않는 민감 컬럼 7개」) |
 | PATCH | `/api/users/me` | 프로필 수정(이름, `avatarUrl`, 언어, 테마). 테마는 `light`·`dark`·`system` 만 받고 다른 값은 400 `VALIDATION_ERROR` 로 거부하며 저장된 값을 바꾸지 않는다. 이메일은 바꾸지 않는다. 이메일은 `/api/users/me/email-change/*` 별도 흐름이다 |
 | POST | `/api/users/me/avatar` | 아바타 이미지 파일 업로드. `multipart/form-data` 의 `file` 필드, 최대 2MB, 확장자 `png`·`jpg`·`jpeg`·`webp`·`gif`(SVG 제외). 성공하면 200 과 `PATCH /api/users/me` 와 같은 프로필 응답(`UserProfileDto`). 파일 없음·빈 내용 400 `FILE_REQUIRED`, 확장자 불허 400 `INVALID_FILE_TYPE`, 크기 초과 413 `PAYLOAD_TOO_LARGE` |
-| POST | `/api/users/me/change-password` | 비밀번호 변경. 성공하면 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. `{ data: { accessToken } }` 을 돌려주고 리프레시 쿠키를 바꾼다. 비밀번호 없음 401 `PASSWORD_REQUIRED`, 불일치 401 `PASSWORD_INVALID`, 사용자 없음 404 `USER_NOT_FOUND` |
+| POST | `/api/users/me/change-password` | 비밀번호 변경. 성공하면 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. `{ accessToken }` 을 돌려주고 리프레시 쿠키를 바꾼다. 비밀번호 없음 401 `PASSWORD_REQUIRED`, 불일치 401 `PASSWORD_INVALID`, 사용자 없음 404 `USER_NOT_FOUND` |
 
 `/api/users/me` 아래의 다른 엔드포인트와 프로필 하위 화면이 부르는 세션 API 는 소유 문서가 정한다.
 
@@ -206,6 +207,8 @@ etag: "sha256-336d670e314e871c5d36a11234610131fc4df97f589560e0422f2333bd45d699"
 - `codebase/frontend/src/lib/stores/theme-store.ts`, `codebase/frontend/src/lib/stores/locale-store.ts`
 - `codebase/frontend/src/lib/theme/**` (테마 적용 · 첫 화면 인라인 스크립트 · 앱 전체 동기화 `theme-sync.tsx`)
 - `codebase/frontend/src/app/layout.tsx` (`<head>` 의 테마 인라인 스크립트)
+- `codebase/frontend/src/lib/providers.tsx` (앱 전체 테마 동기화 `ThemeSync` 를 마운트한다)
+- `codebase/frontend/src/lib/stores/auth-store.ts` (프로필 응답을 화면의 사용자 정보에 반영하는 `syncProfile`)
 - `codebase/frontend/src/components/ui/user-avatar.tsx` (사이드바 · 사용자 정보 카드의 아바타와 이니셜 대체)
 - `codebase/frontend/src/lib/api/users.ts`, `codebase/frontend/src/lib/api/sessions.ts`
 - `codebase/backend/src/modules/users/**` (`/api/users/me`, 아바타 업로드, 비밀번호 변경. 테마 허용 값은 `dto/update-me.dto.ts` 의 `USER_THEMES`)
@@ -258,7 +261,7 @@ etag: "sha256-336d670e314e871c5d36a11234610131fc4df97f589560e0422f2333bd45d699"
 - 기각: 2단계 인증 상태만 돌려주는 API 를 따로 둔다. 화면이 이미 읽는 사용자 정보에 boolean 하나를 더하면 되는데 요청과 캐시가 하나씩 더 생긴다.
 - 기각: Passkey 등록 여부까지 한 값으로 묶는다. Passkey 카드는 등록 목록(`GET /api/auth/2fa/webauthn/credentials`)을 따로 읽는다. 이 값이 필요한 곳은 TOTP 카드와 계정 재인증 입력이다. 그래서 TOTP 만 뜻하는 `user.two_factor_enabled` 를 같은 이름으로 옮겨 이름과 뜻을 맞췄다.
 - 켜짐 여부는 secret 이 아니다. 비밀번호 로그인 응답도 2단계 인증 수단(`methods`)을 알려 준다. TOTP secret 과 복구 코드는 지금처럼 싣지 않는다.
-- `PATCH /api/users/me` 와 아바타 업로드도 같은 프로필 응답(`UserProfileDto`)을 쓰므로 함께 싣는다. `pendingEmail` 을 조회 응답에만 싣고 수정 · 업로드 응답에서는 키를 빼는 기존 동작은 바꾸지 않았다. 이유는 [API](#api) 표의 `GET /api/users/me` 행에 있다.
+- `PATCH /api/users/me` 와 아바타 업로드도 같은 프로필 응답(`UserProfileDto`)을 쓰므로 함께 싣는다. 조회 응답(`CurrentUserProfileDto`)은 여기에 `pendingEmail` 을 더한다. 수정 · 업로드 응답에 `pendingEmail` 이 없는 기존 동작은 바꾸지 않았다. 이유는 [API](#api) 표의 `GET /api/users/me` 행에 있다.
 
 ### 저장한 테마를 앱 전체에 적용하고 `system` 은 OS 변경을 따른다
 
@@ -272,3 +275,11 @@ etag: "sha256-336d670e314e871c5d36a11234610131fc4df97f589560e0422f2333bd45d699"
 - 로그아웃 뒤에도 기억한 값을 남긴다. 공유 기기에서는 다음 사람이 앞 사람의 테마를 보게 된다. 테마는 민감 정보가 아니라서 이 점은 받아들였다.
 - 기각: 로그인 화면은 늘 라이트로 그린다. 로그인 직후 테마가 바뀌며 화면이 깜빡인다. UI 언어와도 다르게 동작한다.
 - 미리보기는 기억한 값에 쓰지 않는다. 저장하지 않은 미리보기가 다음 새로 고침의 첫 화면에 남으면 저장된 테마와 다른 테마가 잠깐 보인다.
+
+### 응답 표기와 외부 아바타 요청 범위를 정리했다 (2026-11-13)
+
+NERV Task `CLE-T-YG34W6` 에서 고쳤다. 동작과 응답 형식은 바뀌지 않았다.
+
+- 비밀번호 변경 응답을 봉투째(`{ data: { accessToken } }`) 적은 두 곳을 `data` 안의 내용만 적게 고쳤다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 5).
+- `pendingEmail` 을 «수정 · 업로드 응답에서는 키를 뺀다» 로 적어서 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 「5.5 부재 표현: `null` 과 키 생략」 의 키 생략처럼 읽혔다. 실제로는 응답 DTO 가 둘이다. 조회는 `CurrentUserProfileDto` 라 `pendingEmail` 이 늘 있고 값이 없으면 null 이다. 수정 · 업로드는 `UserProfileDto` 라 이 필드가 선언에 없다. 같은 필드의 부재 표현이 엔드포인트마다 다른 경우가 아니어서 DTO 이름으로 적었다.
+- 「아바타」 에 외부 URL 아바타의 요청 범위와 `referrerPolicy="no-referrer"` 를 적었다. NERV Task `CLE-T-3158TZ` 가 사이드바에 아바타를 보이면서 외부 URL 을 모든 (main) 화면에서 요청하게 됐다. 구현은 그때 Referer 를 막았는데 스펙에는 적지 않았다.

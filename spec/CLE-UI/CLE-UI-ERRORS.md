@@ -2,21 +2,21 @@
 id: "CLE-UI-ERRORS"
 title: "오류 화면과 빈 상태"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-ERRPAGE-001", "REQ-ERRPAGE-002", "REQ-ERRPAGE-003", "REQ-ERRPAGE-004", "REQ-ERRPAGE-005", "REQ-ERRPAGE-006", "REQ-ERRPAGE-007", "REQ-ERRPAGE-008", "REQ-ERRPAGE-009", "REQ-ERRPAGE-010", "REQ-ERRPAGE-011", "REQ-ERRPAGE-012", "REQ-ERRPAGE-013", "REQ-ERRPAGE-014", "REQ-ERRPAGE-015", "REQ-ERRPAGE-016", "REQ-ERRPAGE-017", "REQ-ERRPAGE-018", "REQ-ERRPAGE-019", "REQ-ERRPAGE-020", "REQ-ERRPAGE-021", "REQ-ERRPAGE-022", "REQ-ERRPAGE-023", "REQ-ERRPAGE-024"]
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "f67979ce0ecc0d90cd5a5a25b4df58ae0cf03b535cdd313eef2ceca59d087bfa"
+content_hash: "d5b3ab1bfad4397423ece34cea65d1957c457e8853dede6fadc1bd981f38db57"
 read_as: "approved_fallback"
-task: "CLE-T-2NQ857"
+task: "CLE-T-N2FM8W"
 source_paths: ["spec/2-navigation/11-error-empty-states.md"]
-mirror_sha256: "6e4a6a7026a5ce20773828968a6189af90a535519980c1dcc531626f66a45f07"
-etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
+mirror_sha256: "262ed93f729849e3fa3cfd701b7d822055811d195230c3f27ffd7383dc6b0306"
+etag: "sha256-f30cf80bd17041a1623dfb53bd26133584bab224157e47abf11e9f8ea5e773ff"
 ---
-> 구현 상태: 부분 구현 (세션 만료 변형의 쿼리 복귀는 미구현) · 원문: `spec/2-navigation/11-error-empty-states.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/2-navigation/11-error-empty-states.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -35,8 +35,8 @@ etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
 - REQ-ERRPAGE-001 WHEN 시스템 수준 에러가 나면 THE SYSTEM SHALL 화면 전체를 에러 페이지로 바꾼다. (원본: 11 §1)
 - REQ-ERRPAGE-002 WHEN 에러 페이지를 그리면 THE SYSTEM SHALL 아이콘, 제목, 설명, CTA 버튼을 화면 가운데에 세로로 둔다. (원본: 11 §1.1)
 - REQ-ERRPAGE-003 WHEN 에러 페이지를 그리면 THE SYSTEM SHALL 라이트와 다크 테마를 모두 지원한다. (원본: 11 §1.1)
-- REQ-ERRPAGE-004 WHEN 세션이 만료되면(401) THE SYSTEM SHALL 사이드바 없는 `/login?redirect=<현재 경로>` 로 넘겨 로그인 뒤 원래 URL 로 돌아오게 한다. (원본: 11 §1.3) (부분 구현, [미결 사항](#미결-사항))
-- REQ-ERRPAGE-005 WHEN 401 이 에러 바운더리까지 전파되면 THE SYSTEM SHALL `(main)/error.tsx` 가 같은 로그인 리다이렉트를 한다. (원본: 11 §1.3) (부분 구현, [미결 사항](#미결-사항))
+- REQ-ERRPAGE-004 WHEN 세션이 만료되면(401) THE SYSTEM SHALL 지금 화면의 경로와 쿼리를 복귀 경로로 담아 사이드바 없는 `/login?redirect=<복귀 경로>` 로 넘긴다. (원본: 11 §1.3)
+- REQ-ERRPAGE-005 WHEN 401 이 에러 바운더리까지 전파되면 THE SYSTEM SHALL `(main)/error.tsx` 가 같은 로그인 리다이렉트를 한다. (원본: 11 §1.3)
 - REQ-ERRPAGE-006 WHEN API 응답 403 을 받으면 THE SYSTEM SHALL 권한 없음 에러 페이지를 보인다. (원본: 11 §1.3)
 - REQ-ERRPAGE-007 WHEN 존재하지 않는 라우트에 접근하거나 API 404 응답을 받으면 THE SYSTEM SHALL 페이지 없음 에러 페이지를 보인다. (원본: 11 §1.3)
 - REQ-ERRPAGE-008 WHEN API 5xx 응답을 받으면 THE SYSTEM SHALL 서버 에러 페이지를 보인다. (원본: 11 §1.3)
@@ -78,7 +78,7 @@ etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
 
 | 에러 | HTTP | 아이콘 | 제목 | 설명 | CTA |
 | --- | --- | --- | --- | --- | --- |
-| 세션 만료 | 401 | 자물쇠 | "세션이 만료되었습니다" | "보안을 위해 자동 로그아웃 되었습니다. 다시 로그인해주세요." | "다시 로그인" → 로그인 페이지 |
+| 세션 만료 | 401 | 자물쇠 | "세션이 만료되었습니다" | "보안을 위해 자동 로그아웃 되었습니다. 다시 로그인해주세요." | "다시 로그인" → 로그인 페이지(지금 화면을 복귀 경로로 담는다) |
 | 권한 없음 | 403 | 차단 | "접근 권한이 없습니다" | "이 페이지에 접근할 권한이 없습니다. 워크스페이스 관리자에게 문의하세요." | "대시보드로 이동" → 대시보드 |
 | 페이지 없음 | 404 | 돋보기 | "페이지를 찾을 수 없습니다" | "요청하신 페이지가 존재하지 않거나 이동되었습니다." | "대시보드로 이동" → 대시보드 |
 | 서버 에러 | 500 | 경고 | "문제가 발생했습니다" | "서버에서 예기치 않은 오류가 발생했습니다. 잠시 후 다시 시도해주세요." | "다시 시도" → 현재 페이지 새로 고침, "대시보드로 이동" → 대시보드 |
@@ -88,7 +88,7 @@ etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
 
 | 규칙 | 설명 |
 | --- | --- |
-| 401 | 세션이 만료되면 사이드바 없는 `/login?redirect=<현재 경로>` 로 넘겨, 로그인 뒤 원래 URL 로 돌아오게 한다. 401 이 에러 바운더리까지 전파되면 `(main)/error.tsx` 가 같은 리다이렉트를 한다. 지금 이 화면은 경로만 담고 쿼리는 담지 않는다([미결 사항](#미결-사항)) |
+| 401 | 세션이 만료되면 사이드바 없는 `/login?redirect=<복귀 경로>` 로 넘겨, 로그인 뒤 같은 화면으로 돌아오게 한다. 복귀 경로는 지금 화면의 경로와 쿼리다. 안전한 같은 출처 경로가 아니면 `/dashboard` 를 담는다(판정은 [세션과 토큰 「로그인 뒤 이동」](../CLE-ACCT/CLE-ACCT-SESSION.md#로그인-뒤-이동)). 401 이 에러 바운더리까지 전파되면 `(main)/error.tsx` 가 같은 리다이렉트를 한다 |
 | 403 | API 응답 403 을 받으면 권한 없음 페이지를 보인다. 토스트로 보일지와 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
 | 404 | 존재하지 않는 라우트에 접근하거나 API 404 를 받으면 보인다 |
 | 500 | API 응답 5xx 를 받으면 서버 에러 페이지를 보인다. 토스트로 보일지와 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
@@ -142,7 +142,6 @@ etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
 - **403·5xx 를 전체 화면 에러 페이지로 보일지 토스트로 보일지**: 이 문서의 감지 규칙은 API 응답 403·5xx 를 받으면 전체 화면 에러 페이지를 보인다고 정한다. [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 의 클라이언트 처리 규칙은 같은 응답에 토스트("권한이 없습니다", "서버 오류가 발생했습니다")를 보인다고 정한다. 이 문서의 Rationale 은 "페이지까지 전파된 에러만 전체 화면, 컴포넌트가 국소 처리한 에러는 인라인" 으로 두 규칙을 나누지만, 에러 응답 문서는 그 구분을 적지 않는다. 현재 구현은 Next.js 에러 바운더리로, 전파된(처리하지 않은) 에러만 `errorToVariant()` 가 전체 화면 variant 로 바꾼다. 어느 경우를 "전파" 로 볼지 정하고 규칙을 한 문서에 두어 다른 쪽이 인용하게 해야 한다. 결정 필요.
 - **에러 페이지 문구의 문체**: [다국어와 화면 문구](CLE-UI-I18N.md) 는 화면에 보이는 한국어 문자열을 해요체로 통일하라고 정한다. 이 문서의 에러 페이지 제목·설명은 합니다체이고, 현재 화면 문구 사전의 에러 페이지 문구도 합니다체다. 에러 페이지 문구를 해요체로 바꿀지, 에러 페이지를 문체 규칙의 예외로 둘지 정해야 한다. 빈 상태 문구는 사전이 이미 해요체이므로 원문 표기만 낡았다.
 - **"검색 결과 없음" 의 적용 범위**: 이 문서는 검색바나 필터가 있는 모든 목록에 "필터 초기화" CTA 를 가진 전용 상태를 둔다고 정한다. 현재 구현은 워크플로우 목록에만 있고, [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md) 는 초기화 버튼 없이 "필터를 조정해 보세요" 안내만 적는다. 적용 범위를 워크플로우 목록으로 좁힐지, 나머지 목록에도 구현할지 정해야 한다.
-- **세션 만료 변형은 쿼리를 담지 않는다**: 전체 화면 오류의 세션 만료 변형(`components/ui/error-page.tsx`, `app/(main)/error.tsx`)은 `/login?redirect=<현재 경로>` 에 경로만 담는다. 그래서 쿼리가 화면을 정하는 경로(예: 초대 수락 페이지의 `?token=`)에서 401 이 여기까지 오면 로그인 뒤 쿼리 없이 돌아온다. 인증 프로바이더와 proxy 는 경로와 쿼리를 함께 담는다([세션과 토큰 「로그인 뒤 이동」](../CLE-ACCT/CLE-ACCT-SESSION.md#로그인-뒤-이동)). 이 화면을 같은 규칙에 맞추는 일은 NERV Task `CLE-T-2NQ857` 이 맡는다.
 
 ## 구현 위치
 
@@ -151,6 +150,7 @@ etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
 - `codebase/frontend/src/app/not-found.tsx`
 - `codebase/frontend/src/app/global-error.tsx`
 - `codebase/frontend/src/app/(main)/error.tsx`
+- `codebase/frontend/src/lib/auth/use-current-login-href.ts` (세션 만료 변형이 담는 로그인 화면 주소)
 - `codebase/frontend/src/app/(main)/not-found.tsx`
 - `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (`/w/<slug>` 아래 알 수 없는 경로를 404 로 끝내는 `notFound()` 호출)
 - `codebase/frontend/src/app/(main)/w/[slug]/dashboard/page.tsx`
@@ -172,7 +172,7 @@ etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
 
 401·403·404·500·네트워크 감지는 전역 인터셉터가 화면을 가로채는 방식이 아니라 Next.js App Router 에러 바운더리(`error.tsx`, `not-found.tsx`, `global-error.tsx`)로 구현한다. 페이지에서 전파된(처리하지 않은) 에러의 HTTP 상태를 `errorToVariant()` 가 variant 로 바꾼다. 컴포넌트가 스스로 처리하는 에러(인라인 메시지 등)는 화면을 덮지 않는다. "모든 403 이 화면 전체를 덮는" 문자 그대로의 인터셉터보다 실제 사용 흐름에 맞다고 보았다.
 
-- **401 사이드바 숨김**: 세션 만료는 `(main)/error.tsx` 가 사이드바 없는 `/login?redirect=` 로 넘겨 충족한다. 인증 프로바이더의 세션 만료 처리와 같은 로그인 화면으로 보낸다. 다만 인증 프로바이더는 경로와 쿼리를 담고 이 화면은 경로만 담는다([미결 사항](#미결-사항)).
+- **401 사이드바 숨김**: 세션 만료는 `(main)/error.tsx` 가 사이드바 없는 `/login?redirect=` 로 넘겨 충족한다. 인증 프로바이더의 세션 만료 처리와 같은 로그인 화면으로 보내고, 같은 규칙으로 경로와 쿼리를 담는다.
 - **정의하지 않은 4xx(402·405·408·429 등)**: 이 문서가 정하지 않은 상태 코드는 서버 에러 variant 로 보인다. 보수적인 기본값이다. 개별 4xx 페이지가 필요하면 이 문서를 고쳐 더한다.
 - **네트워크 감지**: axios 기준으로 `!response && request`, `ERR_NETWORK`, `ECONNABORTED` 를 네트워크 오류로 본다.
 
@@ -181,3 +181,9 @@ etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
 NERV Task `CLE-T-7WZKFB` 가 인증 프로바이더와 proxy 의 `redirect` 에 쿼리를 담게 했다([세션과 토큰 「로그인 뒤 이동」](../CLE-ACCT/CLE-ACCT-SESSION.md#로그인-뒤-이동)). 이 문서의 세션 만료 변형은 그대로 경로만 담는다. 그래서 「감지를 Next.js 에러 바운더리로 구현한 이유」 의 «인증 프로바이더와 같은 경로» 라는 문장이 틀리게 됐고 REQ-ERRPAGE-004 · 005 는 완전 구현으로 읽혔다(구현 완료 뒤 일관성 검토 finding `01a1614a-5248-7587-8369-a37adf411e34`). 두 요구사항 줄과 머리 줄에 부분 구현을 표시하고 미결 사항을 더했다. 동작 규칙은 바뀌지 않았다. NERV Task `CLE-T-2NQ857` 이 이 화면도 쿼리까지 담게 하면 표시를 지운다. 같은 한계를 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「로그인 뒤 이동은 같은 출처 경로만 받는다」 도 적었다.
 
 같은 Task 에서 세션 만료 변형도 쿼리를 담게 고치는 안은 택하지 않았다. 세션 만료 변형의 이동은 NERV Task `CLE-T-2NQ857` 이 따로 맡았다. `CLE-T-7WZKFB` 의 범위는 로그인 화면 · proxy · 인증 프로바이더와 초대 흐름이다.
+
+### 세션 만료 변형도 경로와 쿼리를 담는다 (2026-11-13)
+
+NERV Task `CLE-T-2NQ857` 에서 세션 만료 변형의 이동(`(main)/error.tsx`)과 «다시 로그인» 링크도 지금 화면의 경로와 쿼리를 복귀 경로로 담게 했다. 주소는 인증 프로바이더 · proxy 와 같은 헬퍼(`resolvePostLoginRedirect` · `buildLoginHref`)로 만든다. 그래서 REQ-ERRPAGE-004 · 005 와 머리 줄의 부분 구현 표시, 미결 사항의 「세션 만료 변형은 쿼리를 담지 않는다」 를 지웠다. 두 요구사항 줄 끝에 괄호 두 개가 이어 붙던 표기도 원본 표기 하나만 남았다. [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 예외 문장과 미결 사항도 함께 지웠다.
+
+쿼리는 세션 만료 변형을 그릴 때만 읽는다. 다섯 변형을 한 컴포넌트가 그리므로 모든 변형에서 쿼리를 읽으면 빌드 때 미리 렌더하는 404 화면(`not-found.tsx`)도 쿼리를 읽게 된다. 그래서 쿼리를 읽는 부분을 세션 만료 변형의 하위 컴포넌트로 나눴다. 이동과 링크는 한 훅(`useCurrentLoginHref`)에서 같은 주소를 받는다.
