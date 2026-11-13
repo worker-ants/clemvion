@@ -34,7 +34,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import pull  # noqa: E402  (같은 폴더의 미러 도구)
 
-LIMIT = 20000
+sys.path.insert(0, str(HERE.parents[1] / "hooks"))
+from _lib.spec_size import LIMIT  # noqa: E402  (훅과 공유하는 한도)
+
 BASELINE = HERE / "size_baseline.json"
 _MIRROR_LINK = re.compile(r"\]\((?:[^()\s#]*/)?(CLE-[A-Z0-9-]+)\.md(#[^)\s]*)?\)")
 
@@ -96,21 +98,22 @@ def write_baseline(docs: dict[str, int], path: Path = BASELINE) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, baseline_path: Path | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--root", type=Path, default=HERE.parents[2], help="저장소 루트")
     ap.add_argument("--update-baseline", action="store_true", help="줄어든 항목만 기준선에 반영")
     ap.add_argument("--report", action="store_true", help="한도를 넘는 문서를 큰 순서로 보인다")
     args = ap.parse_args(argv)
     sizes = measure(args.root / "spec")
-    baseline = load_baseline()
+    path = baseline_path or BASELINE
+    baseline = load_baseline(path)
     if args.report:
         for key, n in sorted(sizes.items(), key=lambda kv: -kv[1]):
             if n > LIMIT:
                 print(f"{n:>8,}  {key}")
     if args.update_baseline:
-        write_baseline(updated(sizes, baseline))
-        baseline = load_baseline()
+        write_baseline(updated(sizes, baseline), path)
+        baseline = load_baseline(path)
     fails, notes = judge(sizes, baseline)
     for line in notes:
         print(f"note: {line}")

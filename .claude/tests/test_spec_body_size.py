@@ -33,6 +33,8 @@ WORKFLOW = _harness.REPO_ROOT / ".github" / "workflows" / "spec-link-checks.yml"
 
 hook = _harness.load_module_by_path("guard_spec_body_size_under_test", HOOK)
 size_check = _harness.load_module_by_path("size_check_under_test", TOOL)
+spec_size = _harness.load_module_by_path(
+    "spec_size_under_test", _harness.REPO_ROOT / ".claude" / "hooks" / "_lib" / "spec_size.py")
 
 TOOL_NAME = "mcp__nerv__nerv_spec_draft_upsert"
 
@@ -143,7 +145,38 @@ class SizeCheckTest(unittest.TestCase):
 
     def test_limits_agree(self):
         self.assertEqual(size_check.LIMIT, hook.LIMIT)
-        self.assertEqual(size_check.load_baseline(), size_check.load_baseline())  # parses
+        self.assertLess(spec_size.TARGET, spec_size.LIMIT)
+
+    def test_load_baseline_rejects_limit_mismatch(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d, "b.json")
+            p.write_text(json.dumps({"limit": self.L + 1, "docs": {}}), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                size_check.load_baseline(p)
+
+    def test_unknown_body_field_name_still_blocked(self):
+        payload = {"tool_name": TOOL_NAME, "tool_input": {
+            "spec_id": "CLE-API-CONV", "base_hash": "x", "content": "x" * (hook.LIMIT + 1)}}
+        self.assertEqual(run_hook(payload).returncode, 2)
+
+    def test_main_cli(self):
+        with tempfile.TemporaryDirectory() as d:
+            spec = Path(d, "spec", "CLE-T")
+            spec.mkdir(parents=True)
+            big = spec / "CLE-T-BIG.md"
+            big.write_text(mirror_file("CLE-T-BIG", "x" * (self.L + 100)), encoding="utf-8")
+            base = Path(d, "baseline.json")
+            base.write_text(json.dumps({"limit": self.L, "docs": {
+                "CLE-T-BIG": self.L + 100, "CLE-T-GONE": self.L + 1}}), encoding="utf-8")
+            # 기준선과 같으면 통과
+            self.assertEqual(size_check.main(["--root", d], baseline_path=base), 0)
+            # 커지면 실패
+            big.write_text(mirror_file("CLE-T-BIG", "x" * (self.L + 200)), encoding="utf-8")
+            self.assertEqual(size_check.main(["--root", d], baseline_path=base), 1)
+            # 줄면 --update-baseline 이 낮추고 사라진 항목을 지운다
+            big.write_text(mirror_file("CLE-T-BIG", "x" * (self.L + 50)), encoding="utf-8")
+            self.assertEqual(size_check.main(["--root", d, "--update-baseline"], baseline_path=base), 0)
+            self.assertEqual(json.loads(base.read_text(encoding="utf-8"))["docs"], {"CLE-T-BIG": self.L + 50})
 
     def test_body_chars_undoes_mirror_links(self):
         nerv = "보기 [에러](CLE-API-ERRCODES#코드) 와 [규약](CLE-API-CONV)"

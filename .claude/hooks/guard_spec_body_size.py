@@ -6,8 +6,8 @@ Registered in `.claude/settings.json` for the NERV draft tool
 exit 0 → 허용, exit 2 → 차단(stderr 가 이유), 그 밖 → 런타임 오류로 보고 허용(fail-open).
 
 한도의 근거와 나누는 방법은 `project-planner` SKILL 「문서 크기 한도」가 정본이다. 글자수는 Python
-`len(str)`(코드 포인트 수)이고 frontmatter 없는 본문만 센다. 한도 값은 미러 검사
-(`.claude/tools/nerv-mirror/size_check.py` 의 `LIMIT`)와 같아야 하고 테스트가 둘을 맞춰 본다.
+`len(str)`(코드 포인트 수)이고 frontmatter 없는 본문만 센다. 한도 값은 `_lib/spec_size.py`
+한 곳에 두고 미러 검사(`.claude/tools/nerv-mirror/size_check.py`)도 거기서 가져온다.
 
 막지 않는 것:
 - 카탈로그 사본(`CLE-C24-*` · `CLE-MKS-*`). codebase 정본에서 생성하므로 크기는 생성기가 정한다.
@@ -28,11 +28,13 @@ import os
 import sys
 import traceback
 
-LIMIT = 20000
-TARGET = 18000
-EXEMPT_PREFIXES = ("CLE-C24-", "CLE-MKS-")
-EXEMPT_KEYS = ("CLE-C24-CATALOG", "CLE-MKS-CATALOG")
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, THIS_DIR)
+from _lib.spec_size import EXEMPT_PREFIXES, LIMIT, TARGET  # noqa: E402
+
 BODY_FIELDS = ("body_markdown", "body_md")
+# 본문이 아닌 필드. 알려진 본문 필드가 없을 때 나머지 문자열 중 가장 긴 값을 본문으로 본다.
+META_FIELDS = ("spec_id", "key", "base_hash", "change_summary", "title", "area", "type")
 
 
 def _read_payload() -> dict:
@@ -55,13 +57,18 @@ def _key(tool_input: dict) -> str:
 
 
 def is_exempt(key: str) -> bool:
-    return key in EXEMPT_KEYS or key.startswith(EXEMPT_PREFIXES)
+    return key.startswith(EXEMPT_PREFIXES)
 
 
 def body_of(tool_input: dict) -> str | None:
-    """저장할 본문. 두 이름 중 먼저 오는 문자열. 둘 다 주면 긴 쪽으로 본다(서버가 무엇을 쓰든 막는다)."""
+    """저장할 본문. `body_markdown` · `body_md` 중 문자열인 값의 최댓값(둘 다 주면 긴 쪽, 서버가 어느 쪽을 쓰든 막는다).
+
+    둘 다 없으면 메타 필드를 뺀 문자열 필드 중 가장 긴 값을 본문으로 본다(필드 이름을 잘못 짐작해도
+    가드가 조용히 꺼지지 않게). 문자열 필드가 없으면 None."""
     bodies = [tool_input.get(f) for f in BODY_FIELDS]
     bodies = [b for b in bodies if isinstance(b, str)]
+    if not bodies:
+        bodies = [v for k, v in tool_input.items() if k not in META_FIELDS and isinstance(v, str)]
     if not bodies:
         return None
     return max(bodies, key=len)
