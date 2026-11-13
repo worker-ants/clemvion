@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "83b634520a59bfa57ec51c6489f94f4ef489e256f769e9554db3f758582dfe6a"
+content_hash: "e6f281992047e461d39384192f740bb7d63a036624163d2d099801ea4ae14de7"
 read_as: "approved_fallback"
-task: "CLE-T-9WQMDE"
+task: "CLE-T-8B66BK"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "15441eb070691d928e345aabcb14504bd7e259ab0e50e865c0d754a51c6abace"
-etag: "sha256-4d6083d64be2ece31dad73f10dcadb0292b817349bdbacbd9c74a754b333c4de"
+mirror_sha256: "3cfcd2733b21d8d4cb9e81f2a7ad9ac4a79a05a25b58f284aec62793b645d66f"
+etag: "sha256-1642070b31f43e18ad462e2da204fd9d039468bf48dee3749ed07603c4713583"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -469,9 +469,9 @@ AI 에이전트가 시작되면 `mcpServers` 설정을 읽고, 서버마다 필�
 
 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) 의 dry-run 재실행에서는 AI 에이전트가 부른 부수효과 도구를 외부로 보내지 않고 모의 응답을 돌려준다. 무엇이 부수효과 도구인지는 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 이 단일 기준이다. 읽기 전용 메타 도구(`resources/*` · `prompts/*`)는 그대로 부른다. LLM 호출도 그대로 한다. 정책은 [재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출) 이 정한다. 이 절은 MCP 도구(외부 MCP 서버 도구와 Cafe24 · MakeShop 내부 MCP 브리지 도구)를 처리하는 도구 프로바이더의 동작과 모의 응답의 형식을 정한다. 이 문서는 모의 응답으로 대신한 호출을 **건너뛴 호출**이라 부른다. 다른 문서의 «모의 응답으로 대신한 호출» 과 같은 말이다.
 
-부수효과 판정은 도구 실행(`execute`) 단계에만 있고 도구 목록 구성(`buildTools`) 단계는 막지 않는다([미결 사항](#미결-사항)).
+부수효과 판정은 도구 실행(`execute`) 단계에만 있다. 도구 목록 구성(`buildTools`) 단계는 dry-run 재실행에서도 평소처럼 돈다([도구 목록 구성 단계](#도구-목록-구성-단계)).
 
-부수효과 판정은 같은 실행 컨텍스트 안에만 적용된다. 비동기 서브 워크플로우로 시작한 자식 실행은 dry-run 을 물려받지 않아 그 안의 MCP 도구는 외부를 그대로 부른다. 이 한계는 [재실행 §미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항) 에서 다룬다.
+부수효과 판정은 서브 워크플로우 자식 실행에서도 똑같이 동작한다. 비동기 서브 워크플로우로 시작한 자식 실행도 부모의 dry-run 을 이어받는다([재실행 §서브 워크플로우와 Background 본문](../CLE-EXEC/CLE-EXEC-RERUN.md#서브-워크플로우와-background-본문), REQ-RERUN-054).
 
 | 호출 | dry-run 재실행에서의 처리 |
 |------|------|
@@ -479,6 +479,17 @@ AI 에이전트가 시작되면 `mcpServers` 설정을 읽고, 서버마다 필�
 | 내부 MCP 브리지 operation(Cafe24·MakeShop) 가운데 HTTP 메서드가 GET 이 아니거나 상태를 바꾸는 GET 예외 목록에 있는 것 | API 를 부르지 않는다 |
 | 내부 MCP 브리지 operation 가운데 나머지 GET | 평소처럼 API 를 부른다 |
 | 메타 도구(`list_resources`·`read_resource`·`list_prompts`·`get_prompt`) | 그대로 부른다 |
+
+### 도구 목록 구성 단계
+
+도구 목록 구성(`buildTools`) 단계는 dry-run 재실행에서도 평소와 똑같이 돈다. 이 단계에서 나가는 호출과 바뀌는 상태는 다음과 같다.
+
+| 프로바이더 | dry-run 재실행에서도 하는 일 |
+|------|------|
+| 외부 MCP 서버 | 서버마다 connect · `initialize` · `tools/list` 를 보낸다. 서버가 `resources` · `prompts` capability 를 보고하면 `resources/list` · `prompts/list` 도 보낸다([단위](#단위)) |
+| Cafe24 · MakeShop 내부 MCP 브리지 | `expired` 상태 통합의 토큰 갱신을 한 번 시도한다(`tryRecoverExpired` → `refreshTokenViaQueue`). 갱신에 성공하면 저장된 토큰이 바뀌고 통합이 `connected` 로 돌아온다. refresh token 이 거절되면 통합이 `error(auth_failed)` 로 바뀌고 조치 필요 알림이 간다(진단의 `skipReason` 은 `expired_refresh_failed`) |
+
+목록 조회는 MCP 프로토콜의 읽기 요청이다. 토큰 갱신과 인증 실패 표시는 통합을 유지하는 작업이고 업무 데이터를 외부에 쓰지 않는다. 그래서 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 의 부수효과 판정 범위에 넣지 않는다. 도구 실행 단계에서 실제로 부른 GET 의 인증 실패 처리도 같은 이유로 평소와 같다([확인 순서](#확인-순서)). 결정과 근거는 [Rationale](#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다-2026-11-13-cle-t-8b66bk) 에 있다.
 
 ### 건너뛴 호출의 결과
 
@@ -508,13 +519,13 @@ AI 에이전트가 시작되면 `mcpServers` 설정을 읽고, 서버마다 필�
 - `skippedReason` 은 통합 노드 dry-run 모의 출력(`dry-run.util.ts` 의 `DryRunMock.skippedReason`)과 같은 필드이고 [진단 누적](#진단-누적-mcpdiagnostics)의 `serverSummaries[].skipReason` 과 무관하다.
 - `kind` 끝의 `_tool` 은 통합 노드 dry-run 모의 출력의 `kind`(`cafe24` · `makeshop` 등)와 겹치지 않게 붙인다. 같은 통합이라도 노드의 모의 출력과 AI 에이전트 도구의 건너뛴 호출의 결과를 `kind` 만으로 가를 수 있다.
 - 도구 인자 값은 싣지 않는다.
-- `message` 는 LLM 이 읽는 안내라 영어로 둔다. 이 호출은 보내지 않았고 아무것도 바뀌지 않았으니 성공한 것으로 보고 이어 가되, 이번 실행에서 같은 호출을 다시 하지 말라는 뜻이다. 이 안내는 그 도구 호출에만 해당한다. 같은 실행에서 실제로 부른 읽기 호출과 도구 목록 구성 단계는 별개다([미결 사항](#미결-사항)). 이 문구는 LLM 에 돌려주는 도구 결과 본문의 일부다. 사용자 화면용 번역 문구가 아니다.
+- `message` 는 LLM 이 읽는 안내라 영어로 둔다. 이 호출은 보내지 않았고 아무것도 바뀌지 않았으니 성공한 것으로 보고 이어 가되, 이번 실행에서 같은 호출을 다시 하지 말라는 뜻이다. 이 안내는 그 도구 호출에만 해당한다. 같은 실행에서 실제로 부른 읽기 호출과 도구 목록 구성 단계는 별개다([도구 목록 구성 단계](#도구-목록-구성-단계)). 이 문구는 LLM 에 돌려주는 도구 결과 본문의 일부다. 사용자 화면용 번역 문구가 아니다.
 - `executed: false` 가 건너뛴 호출의 결과와 실제로 부른 호출의 결과를 가른다. 도구 프로바이더는 실제로 부른 호출의 결과에 이 필드를 붙이지 않는다. 두 결과 모두 status 는 `success` 다.
 - 실패가 아니므로 새 에러 코드를 두지 않는다. `AgentToolResult.mcpErrorDelta` 도 싣지 않는다.
 
 ### 확인 순서
 
-dry-run 여부와 부수효과 판정은 외부로 보내기 바로 앞에서 확인한다. 그 앞의 확인에서 걸린 호출은 dry-run 재실행에서도 평소와 같은 에러 결과를 돌려준다. 부수효과가 없다고 판정된 GET 내부 MCP 브리지 operation 은 평소처럼 부르므로 호출 단계 실패도 평소처럼 보고한다. 인증 실패를 받으면 통합 상태도 평소처럼 바뀐다([인증 실패 상태 전환](#인증-실패-상태-전환)). 노드 dry-run 의 GET 과 같다.
+dry-run 여부와 부수효과 판정은 외부로 보내기 바로 앞에서 확인한다. 그 앞의 확인에서 걸린 호출은 dry-run 재실행에서도 평소와 같은 에러 결과를 돌려준다. 부수효과가 없다고 판정된 GET 내부 MCP 브리지 operation 은 평소처럼 부르므로 호출 단계 실패도 평소처럼 보고한다. 인증 실패를 받으면 통합 상태도 평소처럼 바뀐다. 만료 1분 전 토큰의 미리 갱신, 401 의 토큰 갱신과 한 번 재시도, 403 의 `error(auth_failed | insufficient_scope)` 전환과 조치 필요 알림이 모두 그대로다([인증 실패 상태 전환](#인증-실패-상태-전환)). 노드 dry-run 의 GET 과 같다. 2026-11-13 에 이대로 두기로 정했다([Rationale](#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다-2026-11-13-cle-t-8b66bk)).
 
 - 외부 MCP: 활성 세션이 없거나 노출하지 않은 도구 이름이면 `MCP_UNKNOWN_TOOL`, 인자 JSON 파싱에 실패하면 `INVALID_TOOL_ARGUMENTS` 다. 인자가 서버의 `inputSchema` 에 맞는지는 확인하지 않고 건너뛴다.
 - Cafe24: 모르는 operation 이면 `CAFE24_UNKNOWN_OPERATION`, 필수 필드가 빠졌거나 제약을 어기면 `CAFE24_MISSING_FIELDS` 다.
@@ -532,7 +543,7 @@ dry-run 여부와 부수효과 판정은 외부로 보내기 바로 앞에서 �
 
 dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRun` 으로 들어온다. 턴마다 이 값을 어디서 구하는지는 [재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출) 의 REQ-RERUN-052 와 「dry-run 여부를 넘기는 길」 표가 정한다. 이 문서는 값의 출처를 따로 정하지 않는다.
 
-도구 목록 구성 문맥(`ProviderBuildCtx`)에는 이 값이 없다([미결 사항](#미결-사항)).
+도구 목록 구성 문맥(`ProviderBuildCtx`)에는 이 값을 두지 않는다. 도구 목록 구성 단계는 dry-run 여부와 상관없이 같게 돈다([도구 목록 구성 단계](#도구-목록-구성-단계)).
 
 ## 에러 처리
 
@@ -653,7 +664,6 @@ dry-run 재실행에서 건너뛴 `tools/call` 과 내부 MCP 브리지 operatio
 
 - MCP 통합의 개인 공개 범위 허용 여부는 [통합 관리](CLE-INT-MANAGE.md#미결-사항) 의 미결 사항에서 다룬다. 이 문서 원문은 «기본 `organization`, 개인 등록 미지원» 쪽이다.
 - **`<sid>` 길이 규칙과 현재 구현의 차이**: 이 문서 원문은 `<sid>` 를 `Integration.id` 앞 8자로 두고 워크스페이스 안에서 겹치면 12자로 늘린다고 적는다. 현재 구현은 외부 `McpToolProvider` 가 한 노드의 `mcpServers` 안에서만 겹침을 보고 8 → 12 → 32자 순으로 늘리며(`assignSids`, `buildTools` 시점), 내부 MCP 브리지 프로바이더는 늘 앞 16자를 쓴다(`sanitizeSid`). 문서를 구현에 맞출지, 구현을 문서에 맞출지 정해야 한다. 결정 필요.
-- **dry-run 재실행의 도구 목록 구성 단계**: dry-run 부수효과 판정은 `execute` 단계에만 있다. `buildTools` 는 dry-run 재실행에서도 외부 MCP 서버에 connect·`initialize`·`tools/list` 를 보내고, 서버가 보고하면 `resources/list`·`prompts/list` 도 보낸다. Cafe24 · MakeShop 내부 MCP 브리지는 둘 다 `buildTools` 안에서 `expired` 상태 통합의 토큰 갱신을 한 번 시도한다(`tryRecoverExpired` → `refreshTokenViaQueue`). 이 시도는 각 통합의 토큰 갱신 엔드포인트를 부르고, 결과에 따라 저장된 토큰과 통합 상태가 바뀐다. 목록 조회를 dry-run 판정 범위에 넣을지, 토큰 갱신을 dry-run 에서 막을지 결정 필요. `execute` 단계에서 실제로 부른 GET 의 인증 실패(401 토큰 갱신, 403 `error(auth_failed)` 전환)도 통합 상태를 바꾸므로 같은 Task 에서 함께 본다. 담당 NERV Task `CLE-T-8B66BK`.
 - **외부 MCP 도구 인자의 `inputSchema` 검증**: [격리 원칙](#격리-원칙) 표와 [에러 코드](#에러-코드)의 `INVALID_TOOL_ARGUMENTS` 는 인자가 `inputSchema` 를 어기면 호출하지 않는다고 적는다. 현재 `McpToolProvider.execute` 는 일반 도구 인자의 JSON 파싱만 확인하고 `inputSchema` 검증은 하지 않는다. 메타 도구는 `uri`·`name` 같은 필수 인자만 확인한다. 그래서 dry-run 재실행에서는 형식이 틀린 인자도 건너뛴 호출의 결과를 받는다. 검증을 구현할지, 문서를 서버 쪽 검증에 맡기는 쪽으로 고칠지 결정 필요. 담당 NERV Task `CLE-T-RBMJP0`.
 - **연결 직전 해석 주소의 DNS rebinding**: [자격 증명과 URL 검증](#자격-증명과-url-검증) 3항은 connect 직전에 해석한 주소를 검사하지만, SDK 의 fetch 는 연결할 때 DNS 를 다시 푼다. 그 사이에 응답이 바뀌면 사설 주소에 닿을 수 있다. HTTP Request 노드도 같은 한계가 있다. 검사한 주소로 연결을 고정할지 결정 필요. 담당 NERV Task `CLE-T-BS1WD1`.
 
@@ -767,3 +777,19 @@ URL userinfo(`scheme://user:pass@host`) 패턴과 쿼리의 bare `token=` 은 �
 ### `mcpServers` 조회도 워크플로우 작성자 기준을 따른다 (2026-10-24)
 
 NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로우의 작성자가 통합 소유자일 때만 쓰도록 사용자가 정했다(2026-10-24, 근거는 [통합 관리](CLE-INT-MANAGE.md) Rationale). AI 에이전트의 `mcpServers` 는 Cafe24 · MakeShop 통합을 노드 없이 쓰는 또 하나의 경로다. 이 경로를 빼면 Cafe24 노드에서는 막힌 남의 개인 통합을 AI 에이전트 도구로는 쓸 수 있다. 그래서 같은 기준을 둔다. 걸린 서버만 건너뛰고 노드는 실패시키지 않는 것은 지금 `lookup_failed` 의 격리 원칙 그대로다. [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-052 도 MCP 서버 항목은 이 격리를 따른다고 적는다. 워크플로우 작성자 기준만이 아니라 판정 전체(통합 소유자의 현재 멤버십, 표현식 참조)를 [통합 관리 「개인 통합 사용 판정」](CLE-INT-MANAGE.md#개인-통합-사용-판정) 에 따른다.
+
+### dry-run 에서도 도구 목록 구성과 인증 처리는 평소처럼 한다 (2026-11-13, CLE-T-8B66BK)
+
+**문제**: 2026-10-23 의 부수효과 판정은 도구 실행(`execute`) 단계에만 들어갔다. 도구 목록 구성(`buildTools`) 단계는 dry-run 재실행에서도 외부 MCP 서버에 목록 요청을 보내고, Cafe24 · MakeShop 브리지는 `expired` 통합의 토큰 갱신을 시도한다. 실제로 부른 GET 도 401 이면 토큰을 갱신하고 403 이면 통합 상태를 바꾼다. 이 동작을 dry-run 에서도 둘지 이전 판의 미결 사항이 추적했다.
+
+**결정**: 2026-11-13 에 사람이 세 항목 모두 지금 동작을 유지하기로 골랐다(NERV 질문 `01a1d2f3-9510-774c-8cc1-adfb0bae76a1`, 답 «1A 2A 3A»).
+
+| 항목 | 고른 안 | 기각한 안 |
+| --- | --- | --- |
+| 1 외부 MCP 서버 목록 조회 | A 평소처럼 보낸다 | B dry-run 에서 막는다. 외부 MCP 서버 도구를 LLM 에 노출하지 못해 도구 선택을 재현할 수 없다 |
+| 2 만료 통합의 토큰 갱신 | A 평소처럼 한 번 시도한다 | B 갱신하지 않고 만료 통합을 도구 목록에서 뺀다(dry-run 전용 `skipReason`). 통합 유지 작업을 막을 이유가 없고, 빼면 도구 목록이 일반 실행과 달라진다 |
+| 3 실제로 부른 GET 의 인증 실패 처리 | A 평소처럼 401 토큰 갱신 · 403 상태 전환 · 알림을 한다 | B 호출만 실패로 돌려준다. 만료 직전 토큰도 갱신하지 못해 dry-run 의 GET 이 일반 실행보다 자주 실패한다 |
+
+**근거**: 재실행 원칙(RR-PL-01)이 막는 것은 이메일 재발송이나 외부 데이터 변경 같은 업무 부수효과다. 목록 조회는 MCP 프로토콜의 읽기 요청이다. 토큰 갱신과 인증 실패 표시는 통합을 유지하는 작업이고 다음 일반 실행에서도 똑같이 일어난다. 노드 dry-run 의 GET 은 처음부터 이렇게 동작했고 도구 경로도 2026-10-23(CLE-T-G62XJS)부터 같다. 그래서 도구 목록 구성 문맥(`ProviderBuildCtx`)에 dry-run 값을 넣지 않고 Cafe24 · MakeShop API 클라이언트에도 dry-run 분기를 두지 않는다.
+
+**남는 영향**: dry-run 재실행만 돌려도 통합에 저장된 토큰이 바뀌거나 통합이 `error` 로 바뀌고 알림이 갈 수 있다. 같은 조건이면 일반 실행에서도 생기는 변화다.
