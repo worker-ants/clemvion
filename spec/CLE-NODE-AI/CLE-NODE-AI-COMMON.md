@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "39c34269cfc524d73a02e2902e47989207b3a0f60ff3f187da06f18aa15b65a3"
+content_hash: "51b861d91781229fd86e6178c803b6dfcccb36e3654edb60cdb0eac4b3bbeafb"
 read_as: "approved_fallback"
-task: "CLE-T-TBJ863"
+task: "CLE-T-9WQMDE"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "dbe6928b291e1ccb5588bbba4b4195d3e1a291e75f2a76b5e156d951b8ce8c6e"
-etag: "sha256-caa395fb13904922e6bc70f72cf0c7be88ff3ed03874caede130ffd566ddc798"
+mirror_sha256: "0a184c37755ba1396db0d1ef2b71c14e225b85a7068bad07433e45e4688edc7c"
+etag: "sha256-450097533c444eabdc4f448b54f33cd10d57991c06d37e9dfa5d94df28eca9bd"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -92,7 +92,7 @@ AI 에이전트 노드는 워크스페이스에 등록된 MCP 지원 통합(MCP-
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `integrationId` | UUID | 통합 FK(`service_type ∈ ('mcp', 'cafe24', 'makeshop')`). 외부 HTTP MCP 서버 또는 내부 MCP 브리지를 쓰는 first-party 통합 |
-| `enabledTools` | String[]? | 노출 도구 목록(bare operation id 배열). `['*']` 이거나 비우면 전체를 노출한다. 메타도구(resources·prompts)에는 영향이 없다. Cafe24 는 도구가 많아(2026-07-17 실측 485개, 전체 수의 단일 기준은 [Cafe24 API 카탈로그 §5 Coverage Matrix](CLE-C24-CATALOG#5-coverage-matrix)) 화면에서 Resource 단위로 묶어 보여 준다. 대형 카탈로그는 비워 두면 `AI_AGENT_TOOL_COUNT_MAX`(128)를 늘 넘으므로 목록 지정이 사실상 필수다([AI 에이전트 노드](CLE-NODE-AGENT.md) 의 도구 정의 크기 예산) |
+| `enabledTools` | String[]? | 노출 도구 목록(bare operation id 배열). `['*']` 이거나 비우면 전체를 노출한다. 메타도구(resources·prompts)에는 영향이 없다. Cafe24 는 도구가 많아(2026-07-17 실측 485개, 전체 수의 단일 기준은 저장소 `codebase/api-catalogs/cafe24/_overview.md` §5 이고 NERV 사본은 [Cafe24 API 카탈로그 §5 Coverage Matrix](CLE-C24-CATALOG#5-coverage-matrix) 다) 화면에서 Resource 단위로 묶어 보여 준다. 대형 카탈로그는 비워 두면 `AI_AGENT_TOOL_COUNT_MAX`(128)를 늘 넘으므로 목록 지정이 사실상 필수다([AI 에이전트 노드](CLE-NODE-AGENT.md) 의 도구 정의 크기 예산) |
 | `includeResources` | Boolean? | 서버가 `resources` capability 를 보고할 때 메타도구를 노출할지. 기본 `true`. Cafe24 내부 브리지는 `resources` 를 보고하지 않아 영향이 없다 |
 | `includePrompts` | Boolean? | 서버가 `prompts` capability 를 보고할 때 메타도구를 노출할지. 기본 `true`. Cafe24 도 같다 |
 | `toolOverrides` | `{ toolName: string; description?: string }[]`? | 도구별 description 덮어쓰기. 이름은 바꿀 수 없다 |

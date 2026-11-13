@@ -2,16 +2,16 @@
 
 > 관련 문서: [Cafe24 노드](CLE-NODE-CAFE24) · [Cafe24 operation 메타데이터](CLE-C24-META) · [Cafe24 공식 Admin API 문서](https://developers.cafe24.com/docs/ko/api/admin/)
 
-본 디렉토리(`codebase/api-catalogs/cafe24/`) 는 Cafe24 Admin API 의 **모든 endpoint** 를 18 resource 단위로 enumerate 한 단일 진실(single source of truth)이다. 노드 메타데이터(`codebase/backend/src/nodes/integration/cafe24/metadata/*.ts`) 가 어디까지 구현됐고 어디가 남았는지가 한 화면에서 보이도록 유지한다.
+본 디렉토리(`codebase/api-catalogs/cafe24/`) 는 Cafe24 Admin API 의 **모든 operation** 을 18 resource 단위로 나열한 단일 기준이다. 노드 메타데이터(`codebase/backend/src/nodes/integration/cafe24/metadata/*.ts`) 가 어디까지 구현됐고 어디가 남았는지가 한 화면에서 보이도록 유지한다.
 
 카탈로그는 **두 레이어**로 구성된다.
 
-| 레이어 | 위치 | 내용 | sync 테스트 |
+| 레이어 | 위치 | 내용 | 동기 검사 |
 |--------|------|------|------------|
-| **Index (endpoint enumeration)** | `<resource>.md` (top-level 18개) | operation 표 (id / method / path / scope / status …). 메타데이터와 양방향 동기. | `catalog-sync.spec.ts` 가 파싱 (§4) |
+| **Index (operation 목록)** | `<resource>.md` (top-level 18개) | operation 표 (id / method / path / scope / status …). 메타데이터와 양방향 동기. | `catalog-sync.spec.ts` 가 파싱 (§4) |
 | **Field-level 상세** | `<resource>/<entity>.md` (하위 폴더, 222개) | 각 sub-resource(entity) 의 **응답 속성(property list) + operation 별 요청 파라미터** — name / 필수 / 제약 / 기본값 / 설명. Cafe24 공식 docs 기준. | 미대상 (§7) |
 
-> Field-level 레이어는 **읽기 참조용**이다. `catalog-sync.spec.ts` 의 `readdirSync(CATALOG_DIR)` 는 top-level `.md` 만 본다 (하위 폴더는 디렉토리 엔트리라 `.endsWith('.md')` 필터에서 제외) — 따라서 하위 폴더 추가는 sync 테스트에 영향이 없다. 자세한 정책은 §7.
+> Field-level 레이어는 **읽기 참조용**이다. `catalog-sync.spec.ts` 의 `readdirSync(CATALOG_DIR)` 는 top-level `.md` 만 본다 (하위 폴더는 디렉토리 엔트리라 `.endsWith('.md')` 필터에서 제외) — 따라서 하위 폴더 추가는 동기 검사에 영향이 없다. 자세한 정책은 §7.
 
 ---
 
@@ -54,7 +54,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | `method` | supported 시 ✓ | `GET` / `POST` / `PUT` / `DELETE`. planned 시 `?` 허용 |
 | `path` | supported 시 ✓ | path template (예: `products/{product_no}`). `/api/v2/admin/` 접두는 생략. planned 시 `?` 허용 |
 | `scope` | supported 시 ✓ | `read` / `write`. `mall.<scope>_<resource>` 의 가운데 토큰. planned 시 `?` 허용 |
-| `restricted` | — | `scope` / `operation` / 빈칸. `scope` = 본 scope 자체가 카페24 별도 승인 대상이라 같은 resource 의 모든 row 가 영향. `operation` = 본 row 만 단독 승인 대상 (store 안 케이스). 빈칸 = 일반 사용 가능. **이 컬럼은 `status` 와 직교하며 `status` 의 값이 아니다** — `supported` + `restricted: operation` 조합이 정상이다. 컬럼 값은 backend 메타데이터 `restrictedApproval.level` 과 동일 토큰 (`'scope'` / `'operation'`) 으로 통일. 명단 SoT 는 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) |
+| `restricted` | — | `scope` / `operation` / 빈칸. `scope` = 본 scope 자체가 Cafe24 별도 승인 대상이라 같은 resource 의 모든 row 가 영향. `operation` = 본 row 만 단독 승인 대상 (store 안 케이스). 빈칸 = 일반 사용 가능. **이 컬럼은 `status` 와 직교하며 `status` 의 값이 아니다** — `supported` + `restricted: operation` 조합이 정상이다. 컬럼 값은 backend 메타데이터 `restrictedApproval.level` 과 동일 토큰 (`'scope'` / `'operation'`) 으로 통일. 명단의 단일 기준은 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) |
 | `paginated` | — | `✓` 또는 빈 칸. `paginated: true` 인 operation 만 표시 |
 | `status` | ✓ | §3 의 enum 중 하나 |
 | `docs` | ✓ | Cafe24 공식 docs anchor URL — `https://developers.cafe24.com/docs/ko/api/admin/#<anchor>` |
@@ -65,11 +65,11 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 |-----|------|------|
 | `supported` | 노드/MCP Bridge 에서 호출 가능 | `CAFE24_OPERATIONS_BY_RESOURCE[resource]` 에 row 존재 |
 | `planned` | 카탈로그에 등재만, 미구현. UI 의 Operation 드롭다운에 **disabled + "지원 예정" 배지** 로 노출 | `CAFE24_OPERATIONS_BY_RESOURCE` (supported 메타데이터) 에는 row 없음. 단 전용 mirror `CAFE24_PLANNED_BY_RESOURCE` (`metadata/planned.ts`) 에 `{ id, paginated? }` row 가 존재해야 하며, 이 mirror 가 `GET /nodes/definitions` 로 노출돼 프론트 Operation select 의 "지원 예정" 배지를 구동한다. catalog 의 모든 `planned` row ↔ mirror 는 §4 규칙8 로 양방향 강제. 현재 18 resource 전부 planned 0 이므로 mirror (`planned.ts`) 도 모두 빈 배열 |
-| `deprecated` | Cafe24 가 제거 또는 deprecate 했고 우리 노드에서도 더 이상 호출 안 함. **본 도메인은 외부 API endpoint 폐기 상태다. 스펙 문서 자체의 폐기를 뜻하던 옛 스펙 frontmatter `status: archived`(NERV 전환 단계 5 에서 걷었다. [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE) R-4)와는 별 도메인이다** | row 없으면 정상. 있으면 마이그레이션 대상 |
+| `deprecated` | Cafe24 가 제거 또는 deprecate 했고 우리 노드에서도 더 이상 호출 안 함. **본 도메인은 외부 API operation 폐기 상태다. 스펙 문서 자체의 폐기를 뜻하던 옛 스펙 frontmatter `status: archived`(NERV 전환 단계 5 에서 걷었다. [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE) R-4)와는 별 도메인이다** | row 없으면 정상. 있으면 마이그레이션 대상 |
 
 `planned` 행의 `method`/`path`/`scope` 가 `?` 인 경우, 구현 시점에 공식 docs 를 다시 검증한 뒤 `supported` 로 승격시키며 정확한 값으로 갱신한다.
 
-## 4. 동기 정책 (Sync Contract)
+## 4. 동기 정책 (카탈로그 동기 검사)
 
 본 카탈로그는 `codebase/backend/src/nodes/integration/cafe24/metadata/*.ts` 와 **양방향 동기 테스트**로 보호된다.
 
@@ -85,11 +85,11 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 6. **id 의 resource 내 unique**: 한 카탈로그 파일 안에 같은 `id` 가 두 번 나오면 fail.
 7. **status 가 enum 중 하나**: `supported` / `planned` / `deprecated` 외의 값이 있으면 fail.
 8. **`planned` row ↔ `planned.ts` mirror 양방향 동기**: catalog 의 모든 `status: planned` row 가 `CAFE24_PLANNED_BY_RESOURCE` (`metadata/planned.ts`) 에 매칭돼야 하고 그 역도 동일. (a) catalog→mirror 누락 fail, (b) mirror→catalog 누락 fail, (c) `paginated` 플래그 일치, (d) planned id 가 같은 resource 의 supported id 와 충돌 금지 — 의 4개 `it` 로 검증 (`catalog-sync.spec.ts` `describe('catalog ↔ planned.ts')`). (테스트 헤더 주석은 이를 "규칙7" 로 칭한다 — 본 문서 번호와 1칸 어긋남에 유의.)
-9. **`restricted` 컬럼 ↔ 메타데이터 `restrictedApproval` 동기**: catalog row 의 `restricted` 컬럼이 `scope` 또는 `operation` 이면 그 row 에 대응하는 backend 메타데이터에 `restrictedApproval` 필드가 존재해야 하고, 그 역도 동일. 컬럼 값과 메타데이터 `level` 은 동일 토큰 (`'scope'` ↔ `'scope'`, `'operation'` ↔ `'operation'`). `restrictedApproval.approvalGroup` 필드 (UI 메시지·tooltip 묶음 식별자) 는 catalog 컬럼으로 노출하지 않으므로 본 검증 대상이 아니다 — 정의는 [Cafe24 operation 메타데이터 「Operation 메타데이터 형식」](CLE-C24-META#2-operation-메타데이터-형식) 참고. **`level='program'` 인 메타데이터 row 는 catalog 화 대상이 아닌 별도 트랙 (Analytics 등) 이므로 본 검증에서 제외**된다 — catalog 에 대응 row 가 없는 것이 정상. SoT 명단의 진위 검증은 [Cafe24 별도 승인 scope 「명단 갱신 절차」](CLE-C24-SCOPES#5-명단-갱신-절차) 에서 별도로 다룬다. **`status: planned` 행은 backend 메타데이터 row 가 아직 없으므로 본 검증 대상에서 제외**된다 — `planned` 행의 `restricted` 컬럼은 구현 예정 메모용이며 `planned → supported` 승격 시 메타데이터와 함께 동기 검증 대상이 된다.
+9. **`restricted` 컬럼 ↔ 메타데이터 `restrictedApproval` 동기**: catalog row 의 `restricted` 컬럼이 `scope` 또는 `operation` 이면 그 row 에 대응하는 backend 메타데이터에 `restrictedApproval` 필드가 존재해야 하고, 그 역도 동일. 컬럼 값과 메타데이터 `level` 은 동일 토큰 (`'scope'` ↔ `'scope'`, `'operation'` ↔ `'operation'`). `restrictedApproval.approvalGroup` 필드 (UI 메시지·tooltip 묶음 식별자) 는 catalog 컬럼으로 노출하지 않으므로 본 검증 대상이 아니다 — 정의는 [Cafe24 operation 메타데이터 「Operation 메타데이터 형식」](CLE-C24-META#2-operation-메타데이터-형식) 참고. **`level='program'` 인 메타데이터 row 는 catalog 화 대상이 아닌 별도 트랙 (Analytics 등) 이므로 본 검증에서 제외**된다 — catalog 에 대응 row 가 없는 것이 정상. 명단의 진위 검증은 [Cafe24 별도 승인 scope 「명단 갱신 절차」](CLE-C24-SCOPES#5-명단-갱신-절차) 에서 별도로 다룬다. **`status: planned` 행은 backend 메타데이터 row 가 아직 없으므로 본 검증 대상에서 제외**된다 — `planned` 행의 `restricted` 컬럼은 구현 예정 메모용이며 `planned → supported` 승격 시 메타데이터와 함께 동기 검증 대상이 된다.
 
-테스트는 카탈로그 MD 의 표를 파싱한다 — MD 표 구문이 깨지면 곧장 fail. 따라서 본 카탈로그는 **사람이 직접 손으로 수정하는 SoT** 이며, 코드 변경 시점에 반드시 카탈로그 동기 갱신을 함께 commit 해야 한다([Cafe24 operation 메타데이터 「새 endpoint 추가 절차」](CLE-C24-META#6-새-endpoint-추가-절차) 의 신규 endpoint 추가 절차에 인용).
+테스트는 카탈로그 MD 의 표를 파싱한다 — MD 표 구문이 깨지면 곧장 fail. 따라서 본 카탈로그는 **사람이 직접 손으로 수정하는 단일 기준** 이며, 코드 변경 시점에 반드시 카탈로그 동기 갱신을 함께 commit 해야 한다([Cafe24 operation 메타데이터 「새 operation 추가 절차」](CLE-C24-META#6-새-operation-추가-절차) 의 신규 operation 추가 절차에 인용).
 
-> **참고 — `constraints` invariant 는 본 catalog-sync 와 별개 파일에서 수행**: backend 메타데이터의 `constraints?` ([Cafe24 operation 메타데이터 「Operation 메타데이터 형식」](CLE-C24-META#2-operation-메타데이터-형식)) 필드명 부분집합 검증·길이 invariant 는 `metadata.spec.ts` 가 담당한다 — `catalog-sync.spec.ts` 의 검증 대상이 아니다. `constraints` 자체는 backend 메타데이터 row 가 단일 SoT 이며 catalog 컬럼으로 노출하지 않는다 (`restrictedApproval.approvalGroup` 과 동일 패턴).
+> **참고 — `constraints` invariant 는 본 catalog-sync 와 별개 파일에서 수행**: backend 메타데이터의 `constraints?` ([Cafe24 operation 메타데이터 「Operation 메타데이터 형식」](CLE-C24-META#2-operation-메타데이터-형식)) 필드명 부분집합 검증·길이 invariant 는 `metadata.spec.ts` 가 담당한다 — `catalog-sync.spec.ts` 의 검증 대상이 아니다. `constraints` 자체는 backend 메타데이터 row 가 단일 기준이며 catalog 컬럼으로 노출하지 않는다 (`restrictedApproval.approvalGroup` 과 동일 패턴).
 
 ## 5. Coverage Matrix
 
@@ -119,23 +119,23 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 
 > 18 resource 전부 0-planned. `store.md` 의 `privacy_*` id 명명 우려 (별 `privacy` resource 와 prefix 충돌) 는 별 트랙으로 follow-up 가능.
 
-> "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 endpoint 합계는 ~500.
+> "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 operation 합계는 ~500.
 
-## 6. 신규 endpoint 등재 절차
+## 6. 신규 operation 등재 절차
 
-1. Cafe24 공식 문서에서 endpoint 확인.
+1. Cafe24 공식 문서에서 operation 확인.
 2. 본 카탈로그 해당 resource 파일에 표 row 추가:
    - 처음 등재 시 `status: planned`, `method`/`path` 는 `?` 허용.
    - 구현 PR 에서 backend 메타데이터 row 1줄 추가 + 카탈로그 row 를 `planned → supported` 로 갱신 + `method`/`path`/`scope`/`paginated` 채움.
 3. `_overview.md` §5 의 coverage matrix 카운트도 함께 갱신.
 4. `pnpm --filter backend test -- catalog-sync` 통과 확인.
-5. 바뀐 파일의 NERV 사본(`CLE-C24-*`)도 같은 작업에서 고친다(파일 → 키 대응은 [`../README.md`](../README.md)).
+5. 이 디렉토리의 파일을 먼저 고치고, 바뀐 파일의 NERV 사본(`CLE-C24-CATALOG` 과 그 하위 문서)을 뒤따라 고친다. 파일 → 키 대응과 같은 작업에서 고칠 사본의 범위는 [`../README.md`](../README.md) 에 있다.
 
-> [Cafe24 operation 메타데이터 「새 endpoint 추가 절차」](CLE-C24-META#6-새-endpoint-추가-절차) 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
+> [Cafe24 operation 메타데이터 「새 operation 추가 절차」](CLE-C24-META#6-새-operation-추가-절차) 의 신규 operation 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
 
 ## 7. Field-level 상세 레이어 (`<resource>/<entity>.md`)
 
-각 resource 폴더 하위에 sub-resource(entity) 단위로 **field-level 상세 문서**를 둔다 (222개). Index 레이어(`<resource>.md` 의 표)가 "어떤 endpoint 가 있는가" 를 답한다면, 본 레이어는 "그 endpoint 가 어떤 field 를 주고받는가" 를 답한다.
+각 resource 폴더 하위에 sub-resource(entity) 단위로 **field-level 상세 문서**를 둔다 (222개). Index 레이어(`<resource>.md` 의 표)가 "어떤 operation 이 있는가" 를 답한다면, 본 레이어는 "그 operation 이 어떤 field 를 주고받는가" 를 답한다.
 
 ### 7.1 파일 1개 = entity 1개
 
@@ -150,7 +150,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 2. **Operations** — 해당 entity 의 각 operation 마다:
    - `method` / `path`, **Scope** (`mall.<read|write>_<resource>`), 호출건수 제한, 1회당 요청건수 제한, **Platform** (`cafe24` / `cafe24,youtube` — youtube shopping 채널 가용 여부), Docs anchor.
    - **요청 파라미터 (Request)** — 컬럼: `Parameter` / `필수` / `제약` / `기본값` / `설명`.
-   - **응답 (Response)** — 두 부분으로 구성된다. (1) **응답 파라미터 표** — 컬럼: `Parameter` / `제약` / `설명`. 대표 응답 샘플에 나타난 필드를 요청 파라미터처럼 정리한다(`↳` = 중첩, 배열은 대표 원소). 각 필드의 제약·설명은 HTML 을 대조해 다음 우선순위로 채운다 — ① 같은 entity 의 `## 응답 속성 (Property list)`, ② 같은 entity 의 operation 요청 파라미터(동일 리소스 → 동일 의미), ③ 문서 전체에서 설명이 **유일**한 필드명, ④ 설명 변형이 여러 개지만 가장 짧은 것이 나머지 전부의 **prefix(공통 base)** 인 필드(예: `shipping_fee` 의 "배송비"/"배송비 DEFAULT 0.00"/"배송비 배송비타입.." → base "배송비"). 어디에도 없거나 공통 base 없이 의미가 충돌하는 generic 명은 빈칸으로 둔다(추측 주입 금지). property list 에 없는 wrapper 는 `(응답 객체)`/`(목록)`. (2) **응답 예시 (JSON)** — code 엔드포인트(아래 §7.3)에서 operation 별로 가져온 실제 샘플 원본. 필드 의미·제약의 SoT 는 `## 응답 속성 (Property list)`, 표는 그 operation-scoped 투영(+HTML 대조 보강), JSON 은 형태·예시값.
+   - **응답 (Response)** — 두 부분으로 구성된다. (1) **응답 파라미터 표** — 컬럼: `Parameter` / `제약` / `설명`. 대표 응답 샘플에 나타난 필드를 요청 파라미터처럼 정리한다(`↳` = 중첩, 배열은 대표 원소). 각 필드의 제약·설명은 HTML 을 대조해 다음 우선순위로 채운다 — ① 같은 entity 의 `## 응답 속성 (Property list)`, ② 같은 entity 의 operation 요청 파라미터(동일 리소스 → 동일 의미), ③ 문서 전체에서 설명이 **유일**한 필드명, ④ 설명 변형이 여러 개지만 가장 짧은 것이 나머지 전부의 **prefix(공통 base)** 인 필드(예: `shipping_fee` 의 "배송비"/"배송비 DEFAULT 0.00"/"배송비 배송비타입.." → base "배송비"). 어디에도 없거나 공통 base 없이 의미가 충돌하는 generic 명은 빈칸으로 둔다(추측 주입 금지). property list 에 없는 wrapper 는 `(응답 객체)`/`(목록)`. (2) **응답 예시 (JSON)** — code 엔드포인트(아래 §7.3)에서 operation 별로 가져온 실제 샘플 원본. 필드 의미·제약의 단일 기준은 `## 응답 속성 (Property list)`, 표는 그 operation-scoped 투영(+HTML 대조 보강), JSON 은 형태·예시값.
 
 ### 7.3 출처와 정확성 원칙
 
@@ -158,16 +158,16 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
   - **field (응답 속성·요청 파라미터)**: 렌더링된 전체 페이지 HTML 의 표 파싱.
   - **응답 body 샘플 (Response)**: HTML 의 request/response 예시는 JS 가 런타임에 별도 JSON 에서 주입하므로 정적 저장본엔 빈 `<pre>` 로만 남는다. 실제 샘플은 code 엔드포인트 `https://developers.cafe24.com/docs/code/api/admin/shell/<data-resource>.json` 에 operation 별 `{"<METHOD>_<Title>":{"<Title>":{"REQUEST","RESPONSE"}}}` 형태로 존재하며, 생성기가 entity 별로 fetch 해 `RESPONSE` 를 옮긴다. URL 의 `shell` 은 코드샘플 언어(shell/java/python/node/php/go) 중 하나일 뿐 — RESPONSE 는 언어무관이라 shell 하나만 받는다. `<data-resource>` 는 entity id 의 hyphen 을 underscore 로 치환한 값.
 - docs 가 type 컬럼을 별도 제공하지 않으므로(설명문 내 산문 형태) 본 카탈로그도 `제약`(형식·길이·최대값·날짜 등 `<em>` 노트)과 `설명`을 그대로 옮긴다. 정식 type 추론은 backend 메타데이터 작업(`cafe24-api-metadata.md`) 의 몫.
-- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>` — 응답 fetch 포함, 캐시는 `.resp-cache/` gitignore. `--no-responses` 로 HTML 만 생성 가능). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 재생성으로 바뀐 파일의 NERV 사본도 같은 작업에서 고친다([`../README.md`](../README.md)). 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
+- docs 개정 시 **동일 추출 파이프라인으로 재생성**한다 — 생성기는 [`_generator.py`](./_generator.py) (`python3 _generator.py <docs-full-page.html>` — 응답 fetch 포함, 캐시는 `.resp-cache/` gitignore. `--no-responses` 로 HTML 만 생성 가능). 결정적·멱등이므로 재실행해도 손댄 적 없는 파일은 그대로다. 재생성으로 바뀐 파일의 NERV 사본도 고친다. 어느 사본을 같은 작업에서 고치는지는 [`../README.md`](../README.md) 의 「사본 갱신 범위」 를 따른다. 손으로 행을 추가할 때도 반드시 공식 docs 를 출처로 한다.
 - **응답 래퍼 ↔ 요청 파라미터 이름 충돌 회귀 검증(수동)**: 응답 body 의 래퍼 객체/배열 이름이 동일 entity 의 요청 파라미터명과 충돌하는 경우(`order`/`category` 등), `resp_param_rows` 의 cross-map fallback 은 스칼라 필드에만 적용되고 컨테이너(obj/arr)는 `(응답 객체)`/`(목록)` 라벨로 유지돼야 한다. 재생성 후 해당 entity(예: `application/appstore-orders.md`, `order/orders.md`, `store/orders-setting.md`, `store/users.md`)의 응답 표에서 래퍼 행이 정렬 파라미터 설명("정렬 순서 asc…") 등 스칼라 설명을 가져오지 않았는지 확인한다.
 
-### 7.4 sync 테스트와의 관계
+### 7.4 동기 검사와의 관계
 
-본 레이어는 `catalog-sync.spec.ts` 의 검증 대상이 **아니다** (§4 의 동기 규칙은 top-level index 표 ↔ 메타데이터 사이만 강제). Field-level 문서와 backend 메타데이터의 field 단위 정합(`constraints` 등)은 `metadata.spec.ts` 트랙에서 별도로 다루며, 본 레이어는 그 작업의 **docs-side 참조 SoT** 역할이다.
+본 레이어는 `catalog-sync.spec.ts` 의 검증 대상이 **아니다** (§4 의 동기 규칙은 top-level index 표 ↔ 메타데이터 사이만 강제). Field-level 문서와 backend 메타데이터의 field 단위 정합(`constraints` 등)은 `metadata.spec.ts` 트랙에서 별도로 다루며, 본 레이어는 그 작업의 **docs 쪽 참조 기준** 역할이다.
 
 > 본 레이어는 전환 단계 3(`aaa40f2a0`)에서 지운 작업 문서 `plan/in-progress/cafe24-backlog-residual.md` 의 `G-1-remaining` (docs field ↔ metadata 갭 보강) 착수를 위한 선행 데이터 확보로 생성됐다.
 
-## 8. endpoint 제거 절차
+## 8. operation 제거 절차
 
 §6(등재)의 역과정. operation 을 카탈로그·메타데이터에서 내릴 때:
 
@@ -176,11 +176,17 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 3. frontend i18n `cafe24Catalog.ts` (ko/en) 의 대응 라벨 키 삭제.
 4. `_overview.md §5` coverage matrix 카운트 갱신.
 5. `pnpm --filter backend test -- catalog-sync` + `catalog-docs-drift` 통과 확인 (metadata↔index↔docs 3자 정합).
-6. 바뀐 파일의 NERV 사본(`CLE-C24-*`)도 같은 작업에서 고친다([`../README.md`](../README.md)).
+6. 이 디렉토리의 파일을 먼저 고치고, 바뀐 파일의 NERV 사본(`CLE-C24-CATALOG` 과 그 하위 문서)을 뒤따라 고친다([`../README.md`](../README.md)).
 
-> **`deprecated`(§3) 와 outright 제거의 구분**: `status: deprecated` 는 **Cafe24 공식 문서에 한 번 등재됐다가 폐기된** endpoint 의 전환 상태에만 쓴다. 반대로 **docs 에 한 번도 등재된 적 없는 미문서화 seed**(과거 Chrome 식별 기반으로 추가됐으나 공식 docs 에 부재 확정된 row)는 `deprecated` 단계 없이 **outright 제거**가 적합하다 — 사용자에게 노출할 폐기 안내 대상이 아니라 처음부터 비동작(404)이던 항목이기 때문이다.
+> **`deprecated`(§3) 와 outright 제거의 구분**: `status: deprecated` 는 **Cafe24 공식 문서에 한 번 등재됐다가 폐기된** operation 의 전환 상태에만 쓴다. 반대로 **docs 에 한 번도 등재된 적 없는 미문서화 seed**(과거 Chrome 식별 기반으로 추가됐으나 공식 docs 에 부재 확정된 row)는 `deprecated` 단계 없이 **outright 제거**가 적합하다 — 사용자에게 노출할 폐기 안내 대상이 아니라 처음부터 비동작(404)이던 항목이기 때문이다.
 
 ## Rationale
 
-- **카탈로그 정본을 저장소 codebase 데이터로 둔다 (2026-10-02, NERV 정본 전환)**: 스펙 문서의 정본은 NERV 로 옮겼지만 이 카탈로그의 정본은 저장소 `codebase/api-catalogs/cafe24/` 에 둔다. 생성기(`_generator.py`)는 NERV 문서에 담을 수 없고, backend · frontend 대조 테스트(`catalog-sync` · `catalog-docs-drift` · `catalog-required-fields` · `cafe24-catalog-sync`)가 이 파일들을 직접 읽기 때문이다. NERV `CLE-C24-CATALOG` 와 그 하위 문서는 사본이다. 사본이 정본과 어긋났는지 확인하는 자동 검사는 없어서, 카탈로그를 바꾸는 작업이 바뀐 파일의 사본도 같이 고친다(§6 · §8). 어긋나면 정본이 이긴다. 검토한 대안은 NERV 를 정본으로 두는 안이었다. 생성기는 어차피 저장소에 남아야 하고, 재생성할 때마다 필드 파일 수백 편을 NERV 에 올렸다가 다시 받아야 해서 택하지 않았다(NERV 정본 전환 계획의 카탈로그 정본 결정). 옮기면서 최상위 인덱스의 frontmatter 검증은 spec 가드에서 `api-catalog-index-frontmatter.spec.ts` 로 넘어갔다.
-- **미문서화 seed 9개 outright 제거 (G-3l, 2026-06-27)**: `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·`mains_update/delete`·`socials_apple_settings_get` 는 Cafe24 공식 docs(Latest 2026-03-01)에 부재한 backwards-compat seed 였다. 2026-06-02 시점에는 production 검증 전이라 `KNOWN_DOCS_ABSENT` allowlist 면제 + JSDoc ⚠ 로 **현행 유지**(plan §G-2)했으나, 2026-06-03 공식 docs 전체 HTML(authoritative) 확보로 **최종 API 부재가 확정**됐고, 해당 ops 가 wire 상 이미 비동작(404)이라 호환 영향이 없음을 근거로 **사용자가 전부 제거를 결정**(2026-06-27). 위 §8 의 outright-제거 경로(미문서화 seed)에 해당하며 `deprecated` 전환은 부적합하다. 결정 이력은 전환 단계 3(`aaa40f2a0`)에서 지운 작업 문서 `plan/in-progress/cafe24-backlog-residual.md` §G-3l 에 있었다(git 이력). 제거 후 드리프트 가드 `catalog-docs-drift.spec.ts` 의 `KNOWN_DOCS_ABSENT` 는 빈 set 으로 수렴했다.
+- **카탈로그 정본을 저장소 codebase 데이터로 둔다 (2026-10-02, NERV 정본 전환)**: 스펙 문서의 정본은 NERV 로 옮겼지만 이 카탈로그의 정본은 저장소 `codebase/api-catalogs/cafe24/` 에 둔다. NERV `CLE-C24-CATALOG` 와 그 하위 문서는 사본이다.
+  - 결정 출처: NERV 정본 전환 계획의 결정 D4(2026-09-29 확정)다. `spec/` 트리에서 이 자리로 옮긴 작업은 NERV Task `CLE-T-BD48J3`(2026-10-02)이다.
+  - 이유: 생성기(`_generator.py`)는 NERV 문서에 담을 수 없다. backend · frontend 카탈로그 동기 검사와 대조 테스트(`catalog-sync` · `catalog-docs-drift` · `catalog-required-fields` · `cafe24-catalog-sync`)가 이 파일들을 직접 읽는다.
+  - 기각한 대안: NERV 를 정본으로 두는 안이다. 생성기는 어차피 저장소에 남아야 하고, 다시 생성할 때마다 필드 파일 수백 편(지금 222편)을 NERV 에 올렸다가 다시 받아야 한다. D4 를 정할 때의 근거이고 2026-11-12 에도 그대로다. 대조 테스트와 생성기는 지금도 이 디렉토리를 읽는다.
+  - 사본을 남기는 이유: NERV 문서가 카탈로그를 키 링크(`CLE-C24-CATALOG` · `CLE-C24-<RESOURCE>`)로 가리키고, 에이전트가 NERV 도구로 카탈로그를 찾아 읽는다. 사본을 없애면 그 링크와 조회가 끊긴다.
+  - 받아들인 비용: 사본은 초안과 사람 승인을 거쳐 고치므로 정본보다 늦을 수 있다. 사본이 정본과 어긋났는지 확인하는 자동 검사도 없다. 그 사이의 영향은 NERV 에서 카탈로그를 읽는 사람과 에이전트에만 간다. 테스트와 생성기는 정본을 읽는다. 어긋나면 정본이 이긴다. 그래서 카탈로그를 바꾸는 작업이 바뀐 파일의 사본도 함께 고친다(§6 · §8). 생성기를 다시 돌려 바뀐 파일이 많을 때(필드 파일 222편 · 색인 18편이 한꺼번에 바뀔 수 있다)의 범위는 [`../README.md`](../README.md) 의 「사본 갱신 범위」 에 있다.
+  - 옮기며 바뀐 가드: 최상위 색인의 frontmatter 검증은 spec 가드에서 `api-catalog-index-frontmatter.spec.ts` 로 넘어갔다. 이 테스트는 색인 `<resource>.md` 마다 `id` 가 `<resource>` 인지, `status: implemented` 이면 `code:` 가 하나 이상 있고 적힌 경로가 모두 실재하는지 본다. 필드 파일(`<resource>/<entity>.md`)은 대상이 아니다(§7.1).
+- **미문서화 seed 9개 outright 제거 (G-3l, 2026-06-27)**: `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·`mains_update/delete`·`socials_apple_settings_get` 는 Cafe24 공식 docs(Latest 2026-03-01)에 부재한 backwards-compat seed 였다. 2026-06-02 시점에는 production 검증 전이라 `KNOWN_DOCS_ABSENT` allowlist 면제 + JSDoc ⚠ 로 **현행 유지**하기로 했다(지운 작업 문서의 §G-2. 문서 경로는 이 항목 끝에 있다). 그러나 2026-06-03 공식 docs 전체 HTML(authoritative) 확보로 **최종 API 부재가 확정**됐고, 해당 operation 이 wire 상 이미 비동작(404)이라 호환 영향이 없음을 근거로 **사용자가 전부 제거를 결정**(2026-06-27). 위 §8 의 outright-제거 경로(미문서화 seed)에 해당하며 `deprecated` 전환은 부적합하다. 결정 이력은 전환 단계 3(`aaa40f2a0`)에서 지운 작업 문서 `plan/in-progress/cafe24-backlog-residual.md` §G-3l 에 있었다(git 이력). 제거 후 드리프트 가드 `catalog-docs-drift.spec.ts` 의 `KNOWN_DOCS_ABSENT` 는 빈 set 으로 수렴했다.
