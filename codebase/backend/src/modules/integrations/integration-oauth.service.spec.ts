@@ -709,7 +709,7 @@ describe('IntegrationOAuthService', () => {
             code: 'code',
             state: 'abc',
           })
-          .catch((e: unknown) => e);
+          .catch((err_: unknown) => err_);
         expect(err).toMatchObject({
           response: { code: 'RESOURCE_NOT_FOUND' },
         });
