@@ -2,25 +2,25 @@
 id: "CLE-API-WS-EVENTS"
 title: "WebSocket 이벤트와 명령"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "9dfeaf31b23c2cc73020d1fb389b41c77f8d1a1ed27971f80b7a357e43c8efb1"
+content_hash: "316fe64d8164c8d29fe1cfaa01ad0af12ce6bd8a1addef6b77c125ff2f8c00b0"
 read_as: "approved_fallback"
-task: "CLE-T-4BJ3KR"
+task: "CLE-T-FKKDGT"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "c7efc87c4bf2fc6e3ff4f795cdfc65e7f06aab17461471f0a6dde230ce7fb799"
-etag: "sha256-7d68999db5ba12793da7d907956b12e16f4986977306bd1a5c77a4f6b519a469"
+mirror_sha256: "5b580b6f728c3bbc9a45dd0389a8798a01daa9f18e4c387098afc8e72d3c97a8"
+etag: "sha256-42b061040ddbf870f6e39879e8ef16a97872b444194f9036bd3e958bef09eb8a"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 WebSocket 위를 오가는 실행 이벤트(execution events, `execution.*`)와 클라이언트 명령의 목록, 각 페이로드, 명령 ack 형태, 그리고 같은 이벤트·명령이 외부 External Interaction API(EIA) 표면에서 어떻게 보이는지의 매핑 표를 정한다. 실행 이벤트 외에 지식 저장소 문서 이벤트, 인앱 알림 이벤트, 시스템 이벤트도 다룬다.
+이 문서는 WebSocket 위를 오가는 실행 이벤트(execution events, `execution.*`)와 클라이언트 명령의 목록, 각 페이로드, 명령 ack 형태, 그리고 같은 이벤트·명령이 외부 External Interaction API(EIA) 표면에서 어떻게 보이는지의 매핑 표를 정한다. 실행 이벤트 외에 지식 저장소 문서 이벤트, 인앱 알림 이벤트, 시스템 이벤트, Background 본문 실행 이벤트도 다룬다.
 
 **같은 실행을 두 표면이 보고한다.** 내부 WebSocket 과 외부 EIA 의 REST·SSE·EIA 알림 웹훅이다. §7 매핑 표가 두 표면의 명령·이벤트 매핑의 권위다. 외부 표면은 내부 WebSocket 경로를 facade 로 감싼 **단일 구현 경로**여야 하므로 이벤트나 명령의 형태를 고칠 때 한 표면만 보고 고치면 두 표면의 뜻이 갈린다. 다만 같은 실행을 보고한다는 것이 같은 페이로드를 보낸다는 뜻은 아니다. §7 표는 대칭이 아니라 **선택적** 매핑이다. 명령 표는 "외부 미노출", "외부 미지원", "해당 없음" 으로 갈리고 이벤트 표의 EIA 알림 웹훅 열은 대부분 `—` 다. 디버그 필드(`llmCalls`, `requestPayload`, `responsePayload`)는 외부 수신자에게서 빠진다. 이 비대칭은 누락이 아니라 보안을 위한 결정이므로 두 표면을 맞추려고 지우지 않는다.
 
@@ -230,9 +230,9 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 
 - **한 번만 소비한다.** 재시도 처리는 `nodeExecutionId` 로 `_retryState` 를 조회하고 **같은 트랜잭션 안에서** `NodeExecution.outputData` 에서 `_retryState` 키를 지우며(JSONB `-` 연산) 새 노드 실행 행을 만든다. 키 제거가 affected=1 인 쪽만 진행해 동시 재시도가 행을 중복으로 만드는 것을 막는다. 한 번 소비하면 뒤 재시도는 `RETRY_STATE_NOT_FOUND` 다.
 - **TTL**: `_retryState.expiresAt`(ISO 8601). 기본 60분이고 환경 변수 `AI_RETRY_STATE_TTL_MINUTES` 로 바꾼다. `now > expiresAt` 이면 `RETRY_STATE_NOT_FOUND` 다. 만료된 미소비 `_retryState` 는 행의 `outputData` 에 남아 있다가(별도 정리 작업 없음, 행 수명을 따른다) 다음 시도 때 만료로 거부된다.
-- **재개 버스를 거쳐 워커로 넘긴다.** WebSocket 게이트웨이(다른 인스턴스일 수 있음)는 턴을 동기로 재개할 수 없다. 다시 들어가려면 살아 있는 실행 컨텍스트를 rehydrate 하고 `processAiResumeTurn`(단발 턴 처리기)을 돌려야 하는데 이는 **실행 워커 컨텍스트**에서만 된다. 그래서 검증, 원자 소비, 새 행 생성 뒤 재개 큐(`execution-continuation`)에 **새 job 종류 `retry_last_turn`** 을 넣어 워커로 넘긴다. 워커는 그 job 으로 새 행을 `_retryState`(`_resumeState` 형태)로 채운 채 `processAiResumeTurn`(retryReentry)으로 다시 들어간다. `submit_message` 등과 같은 WebSocket → 워커 다리를 쓰되 대기 행 재개가 아니라 **새 행 재개**라는 점만 다르다.
+- **재개 버스를 거쳐 워커로 넘긴다.** WebSocket 게이트웨이(다른 인스턴스일 수 있음)는 턴을 동기로 재개할 수 없다. 다시 들어가려면 살아 있는 실행 컨텍스트를 rehydrate 하고 `processAiResumeTurn`(단발 턴 처리기)을 돌려야 하는데 이는 **실행 워커 컨텍스트**에서만 된다. 그래서 검증, 원자 소비, 새 행 생성 뒤 재개 큐(`execution-continuation`)에 **새 job 종류 `retry_last_turn`** 을 넣어 워커로 넘긴다. 워커는 그 job 으로 새 행을 `_retryState`(`_resumeState` 형태)로 채운 채 `processAiResumeTurn` 에 `allowRetryReentry` opt-in 을 넘겨 다시 들어간다. `submit_message` 등과 같은 WebSocket → 워커 다리를 쓰되 대기 행 재개가 아니라 **새 행 재개**라는 점만 다르다.
 - **재시도 중 취소**: 다시 들어간 턴이 `running` 으로 도는 동안 사용자 중단(REST `POST /api/executions/:id/stop`)이 오면 진행 중인 턴을 즉시 끊지 않는다. 취소 기록은 바로 커밋되고 재시도는 다음 턴 경계에서 이를 관측해 끝낸다. park 에 닿으면 park 쪽 취소가 짝 행을 마감한다. 이때 `execution.cancelled` 가 나가고 `execution.completed`·`execution.failed` 는 나가지 않는다. 상세 규칙은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 가 정한다.
-- **다시 들어간 턴이 끝난 뒤 그래프 진행**: 성공하면 새 노드 실행은 일반 노드 `COMPLETED` 와 같이 출력 포트의 다음 노드로 그래프 진행이 이어진다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md), [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md)). 실패하면 일반 노드 `FAILED` 와 같이 끝난다(실행도 `FAILED`). **다시 들어간 턴이 대화를 끝내지 않으면**(가장 흔한 경우) 종결이 아니라 입력 대기로 **다시 park** 하고 세그먼트를 끝낸다. 다음 사용자 입력이 오면 일반 rehydration 재개 경로로 합류한다. 워크플로우 재실행과 갈리는 점은 "같은 실행 안 노드 단위 재진입" 이지 "다음 노드 진행 차단" 이 아니다. AI 에이전트 쪽 서술은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에 있다.
+- **다시 들어간 턴이 끝난 뒤 그래프 진행**: 성공하면 새 노드 실행은 일반 노드 `COMPLETED` 와 같이 출력 포트의 다음 노드로 그래프 진행이 이어진다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md), [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md)). 실패하면 일반 노드 `FAILED` 와 같이 끝난다(실행도 `FAILED`). **다시 들어간 턴이 대화를 끝내지 않으면**(가장 흔한 경우) 종결이 아니라 입력 대기로 **다시 park** 하고 세그먼트를 끝낸다. 다음 사용자 입력이 오면 일반 rehydration 재개 경로로 합류한다. 워크플로우 재실행과 갈리는 점은 "같은 실행 안 노드 단위 재시도" 이지 "다음 노드 진행 차단" 이 아니다. AI 에이전트 쪽 서술은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에 있다.
 
 ## 3. 지식 저장소 문서 이벤트 (Server → Client)
 
@@ -664,11 +664,52 @@ Background 본문에는 따로 떨어진 대화 스레드가 있다. 메인 흐�
 - **단일 구현 경로**: 외부 표면은 내부 WebSocket 의 명령·이벤트 처리 경로를 facade 로 감싼 형태로만 구현한다. 두 표면이 갈라지면 유지 부담이 생긴다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 R5).
 - 외부 WebSocket 채널 신설은 v1 에서 보류했다. 보류 사유와 다시 논의할 조건은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R5 에 있다.
 
+## 8. Background 본문 실행 이벤트 (Server → Client)
+
+구독 채널: `background:run:{backgroundRunId}`. 키는 Background 본문 실행 하나의 ID(`backgroundRunId`)다. 이 절이 이 채널의 이벤트, payload, 봉투 필드의 정본이다. 채널 격리, 본문이 끝난 뒤의 조회, 종결 `status` 의 뜻 같은 동작 규칙은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 「실시간 갱신」 이 정하고 구독 인가는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) §4.4 가 정한다.
+
+백엔드 권위 정의는 `websocket-events.types.ts` 의 `BackgroundRunEventType` enum(2개)이다. Background 큐 워커(`BackgroundExecutionProcessor`)가 `WebsocketService.emitBackgroundRunEvent` 로 보낸다. 본문 안 노드의 이벤트(`execution.node.*`)는 이 채널이 아니라 메인 실행의 `execution:{executionId}` 채널로 간다(§1).
+
+| 이벤트 | payload | 설명 |
+|-------------|---------|------|
+| `execution.background_run.started` | `{ executionId, parentNodeExecutionId, startedAt }` | 큐 워커가 본문 실행을 받아 시작할 때 |
+| `execution.background_run.completed` | `{ executionId, parentNodeExecutionId, status: 'completed' \| 'failed', completedAt, durationMs, errorMessage? }` | 본문 실행이 끝날 때. `errorMessage` 는 `failed` 일 때만 있다 |
+
+- `executionId`: Background 노드가 속한 메인 실행의 ID 다. 발행처가 payload 에 넣는 필드이고 봉투 필드가 아니다.
+- `parentNodeExecutionId`: Background 노드의 `NodeExecution.id` 다. 메인 채널에서 본문 노드 이벤트를 거르는 키와 같다.
+- `startedAt`·`completedAt` 은 ISO 8601 이다. `durationMs` 는 큐 워커가 본문 실행을 받은 때부터 끝날 때까지의 시간(ms)이다.
+- `errorMessage` 는 `sanitizeErrorMessage` 로 정제한 문구다.
+
+**봉투 필드**: 이 채널은 실행 이벤트 봉투([WebSocket 연결과 채널 구독](CLE-API-WS.md) §3.2)를 쓰지 않는다. 발행 관문 `emitBackgroundRunEvent` 가 payload 최상위에 아래 필드를 더해 평면 객체 하나로 보낸다.
+
+| 필드 | 값 |
+|------|----|
+| `backgroundRunId` | 채널 키와 같은 본문 실행 ID. 늘 붙는다 |
+| `timestamp` | 발행 시각(ISO 8601). 늘 붙는다 |
+| `seq` | 보내지 않는다. 이벤트 순번은 `execution:` 채널에만 있다 |
+
+예시는 `execution.background_run.started` 이벤트다.
+
+```json
+{
+  "backgroundRunId": "…",
+  "executionId": "…",
+  "parentNodeExecutionId": "…",
+  "startedAt": "2026-11-13T03:00:00.000Z",
+  "timestamp": "2026-11-13T03:00:00.004Z"
+}
+```
+
+- **마스킹**: 관문은 payload 에 키 이름 마스킹(`sanitizePayloadForWs`)을 건 뒤 봉투 전체에 `execution:` wire 와 같은 값 마스킹(`maskWireEnvelope`)을 건다. 뷰어도 이 채널을 구독할 수 있어 수신 인구가 `execution:` 과 같기 때문이다. 규칙은 [응답 자격 증명 마스킹](CLE-API-EGRESS.md) §3.11 이 정한다. 이 채널은 외부 fanout 으로 가지 않는다.
+- **발행 실패**: 발행은 best-effort 다. 실패하면 경고 로그만 남기고 본문 실행과 실패 알림은 그대로 진행한다.
+- **`backgroundRunId` 가 없는 본문 실행**: 채널 키가 없어 이벤트를 보내지 않는다. `backgroundRunId` 를 도입하기 전에 만든 노드 실행의 본문이 그렇다.
+
 ## 구현 위치
 
 - `codebase/backend/src/modules/websocket/websocket-events.types.ts` (`ExecutionEventType`, `NodeEventType`, `BackgroundRunEventType`, `KbEventType`, `InAppNotificationEventType`)
 - `codebase/backend/src/modules/websocket/websocket.gateway.ts` (명령 핸들러 여덟 개)
-- `codebase/backend/src/modules/websocket/websocket.service.ts` (`emitExecutionEvent`, `emitNodeEvent`, `toFanoutEnvelope`)
+- `codebase/backend/src/modules/websocket/websocket.service.ts` (`emitExecutionEvent`, `emitNodeEvent`, `toFanoutEnvelope`, `emitBackgroundRunEvent`, `maskWireEnvelope`)
+- `codebase/backend/src/modules/execution-engine/queues/background-execution.processor.ts` (`BackgroundExecutionProcessor`. Background 본문 실행 이벤트 발행처)
 - `codebase/backend/src/modules/websocket/ws-rate-limit.guard.ts` (`WsRateLimitGuard`. 명령 빈도 제한을 넘으면 `WsException` 을 던져 `exception` 이벤트가 나간다)
 - `codebase/backend/src/modules/websocket/ws-rate-limiter.service.ts` (`WsRateLimiterService`. 소켓별 분당 예산. 게이트웨이 `onAny` 도 같은 예산을 쓴다)
 - `codebase/backend/src/shared/utils/strip-external-only-fields.ts`

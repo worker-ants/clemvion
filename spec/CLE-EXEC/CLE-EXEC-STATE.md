@@ -2,29 +2,29 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "e7152fb647ff7dd46cbb085254e7fc89e3bcfad657dfd4e8c556f9016ef19bf1"
+content_hash: "59f470128067e08becbf24424d6ce22f876fc633a4f568ea29960e9b9f86493b"
 read_as: "approved_fallback"
-task: "CLE-T-CCEQEC"
+task: "CLE-T-1GNR0N"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "07db4702464fa840d652e1964762f32572060a015d7eaf16318e4f1e3d410b8e"
-etag: "sha256-54948b07ea976a16c6ad2722cda53118fc01772f4335f18d325e2589432d932a"
+mirror_sha256: "5e765c803979bf49e06b35512625d38249c1a0ea658b366ff0c1ccfccd4eeb59"
+etag: "sha256-c5a8bacc65af5ec96b8f72d78bb54c4aaaff4d8c3329999530f93740a22841ab"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 실행(Execution)과 노드 실행(NodeExecution) 두 층의 상태와 전이를 정한다. 노드 핸들러가 엔진 흐름을 바꾸는 흐름 지시 상태(`NodeHandlerOutput.status`)와 입력 대기·재개 계약, 멀티턴 AI 노드의 재개 상태 보존, 마지막 턴 재시도(`retry_last_turn`)의 재진입 흐름도 여기서 정한다.
+이 문서는 실행(Execution)과 노드 실행(NodeExecution) 두 층의 상태와 전이를 정한다. 노드 핸들러가 엔진 흐름을 바꾸는 흐름 지시 상태(`NodeHandlerOutput.status`)와 입력 대기·재개 계약, 멀티턴 AI 노드의 재개 상태 보존, 마지막 턴 재시도(`retry_last_turn`) 흐름도 여기서 정한다.
 
 입력 대기(`waiting_for_input`)에 들어간 실행은 세그먼트를 끝내고 DB 에만 남는다. 이 동작을 park 라고 부른다. park 한 실행에는 큐 작업·heartbeat·TTL 이 없고 기한 없이 보존된다. 사용자 입력이 도착해야만 재개 명령(`execution.submit_form`·`execution.click_button`·`execution.submit_message`·`execution.end_conversation`)이 재개 큐 작업을 만들고 다음 세그먼트가 시작된다. 재개 때는 DB 에 저장한 내용으로 실행 컨텍스트를 되살린다(rehydration).
 
-입력 대기가 아닌 실행에 재개 명령을 보내면 상태 불일치 에러(invalid execution state)로 거부한다. 같은 뜻을 진입점마다 다른 코드로 알린다. WebSocket 은 `INVALID_EXECUTION_STATE`, REST 는 422 `INVALID_STATE`, EIA 는 409 `STATE_MISMATCH` 다. 검사 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md#발행-전-사전-검증) 에 있다.
+입력 대기가 아닌 실행에 재개 명령을 보내면 상태 불일치 에러(invalid execution state)로 거부한다. 같은 뜻을 진입점마다 다른 코드로 알린다. WebSocket 은 `INVALID_EXECUTION_STATE`, REST 는 422 `INVALID_STATE`, External Interaction API(EIA) 는 409 `STATE_MISMATCH` 다. 검사 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md#발행-전-사전-검증) 에 있다.
 
 범위 밖:
 
@@ -45,13 +45,13 @@ stateDiagram-v2
   pending --> cancelled: 큐 대기 중 취소
   running --> completed: 정상 종료
   running --> failed: 에러
-  running --> cancelled: 사용자 취소
+  running --> cancelled: 사용자 취소·claim 뒤 rehydration 실패
   running --> waiting_for_input: 입력 대기 노드 도달
   waiting_for_input --> running: 재개 (원자 claim)
   waiting_for_input --> failed: 멀티턴 턴 LLM 에러
   waiting_for_input --> cancelled: 취소·rehydration 실패
   failed --> running: 마지막 턴 재시도 재진입
-  failed --> waiting_for_input: 재진입한 턴이 이어짐
+  failed --> waiting_for_input: 재시도 턴이 이어짐
   completed --> [*]
   failed --> [*]
   cancelled --> [*]
@@ -65,7 +65,7 @@ stateDiagram-v2
 | `running` | 실행 중 | 실행 중 | 워커가 작업을 가져감 |
 | `waiting_for_input` | 입력 대기 | Form 노드, 버튼이 설정된 Presentation 노드, 멀티턴 AI 노드가 사용자 입력을 기다린다 | 해당 노드 도달 또는 멀티턴 대화 턴 대기 |
 | `completed` | 완료 | 정상 종료 | 모든 노드 실행 완료 |
-| `failed` | 실패 | 실패 | 노드 에러와 Stop Workflow 정책, 또는 시스템 에러 |
+| `failed` | 실패 | 실패 | 노드 에러와 워크플로우 중단 정책, 또는 시스템 에러 |
 | `cancelled` | 취소됨 | 사용자나 시스템 사유로 멈춤 | 실행 중지 요청 등 |
 
 건너뜀(`skipped`)은 노드 실행 전용이다. 실행 층에는 `skipped` 가 없다. 모든 노드가 건너뜀(노드 비활성·분기 미선택·도달 불가)으로 끝나 에러 없이 dispatch 루프가 끝나면 실행은 `completed` 로 마감한다. 그래서 [실행 내역](CLE-EXEC-HISTORY.md) 필터에도 실행 층 `skipped` 는 없고 모든 노드가 건너뛴 실행은 `completed` 로 보인다.
@@ -80,14 +80,14 @@ stateDiagram-v2
 | `pending` | `cancelled` | 큐 대기 중 취소 |
 | `running` | `completed` | 정상 종료 |
 | `running` | `failed` | 에러 발생 |
-| `running` | `cancelled` | 사용자 취소 |
+| `running` | `cancelled` | 사용자 취소, 재개 진입 claim 뒤 rehydration 실패(`RESUME_CHECKPOINT_MISSING`·`RESUME_FAILED`·`RESUME_INCOMPATIBLE_STATE`). claim 이 실행을 이미 `running` 으로 바꾼 뒤라 이 전이로 마감한다. 실패 경우별 코드와 원자 마감은 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md#rehydration-실패) 에 있다 |
 | `running` | `waiting_for_input` | Form 노드 도달, 버튼이 설정된 Presentation 노드 도달, 멀티턴 대화 턴 대기 |
 | `waiting_for_input` | `running` | 폼 제출, 버튼 클릭, AI 대화 메시지 수신이나 대화 종료로 재개. 재개 진입은 DB 원자 claim(`… WHERE status='waiting_for_input' RETURNING`)으로 조건부로 일어나고 affected=1 인 워커 하나만 진행한다. 동시 재개 경쟁을 이 조건이 막는다 |
 | `waiting_for_input` | `failed` | 멀티턴 턴 처리 중 LLM 에러(429·타임아웃·연결 실패). `handleAiTurnError` 가 `port='error', status='ended'` 모양으로 마감한다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md)). 재개 턴의 LLM 에러는 claim 으로 이미 `running` 이므로 `running → failed` 로 마감한다. 이 행은 claim 을 거치지 않는 경로에만 해당한다 |
 | `waiting_for_input` | `waiting_for_input` | rehydration 재개. 상태 값은 그대로이고 사용자 입력이 오면 아무 워커나 컨텍스트를 되살려 다음 세그먼트를 시작한다. park 하면 코루틴을 해제하므로 같은 인스턴스가 우연히 받아도 같은 경로를 탄다 |
 | `waiting_for_input` | `cancelled` | 사용자 취소, 공개 웹채팅 유휴 실행 회수(`cancelledBy='timeout'`, `error.code='WEBCHAT_IDLE_TIMEOUT'`, [External Interaction API](../CLE-IX/CLE-EIA.md)), rehydration 실패(`RESUME_CHECKPOINT_MISSING`·`RESUME_FAILED`·`RESUME_INCOMPATIBLE_STATE`). 노드별 입력 대기 타임아웃은 없다([Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#규칙) 규칙 10) |
 | `failed` | `running` | 마지막 턴 재시도 재진입 전용(`allowRetryReentry` opt-in). [마지막 턴 재시도 재진입](#마지막-턴-재시도-재진입) 참고 |
-| `failed` | `waiting_for_input` | 마지막 턴 재시도 재진입 전용(`allowRetryReentry` opt-in). 재진입한 턴이 끝나지 않고 다음 사용자 입력을 기다리면 `reparkAiResumeTurn` 이 세그먼트를 끝내며 park 한다 |
+| `failed` | `waiting_for_input` | 마지막 턴 재시도 재진입 전용(`allowRetryReentry` opt-in). 재시도 턴이 끝나지 않고 다음 사용자 입력을 기다리면 `reparkAiResumeTurn` 이 세그먼트를 끝내며 park 한다 |
 
 `failed → running` 과 `failed → waiting_for_input` 은 일반 노드 실패 경로에는 없다. 코드는 상태 머신의 `allowRetryReentry` opt-in 으로만 이 두 전이를 허용한다. 실패로 끝난 실행이 일반 `updateExecutionStatus` 경로로 우연히 되살아나는 것을 막기 위해서다.
 
@@ -98,7 +98,7 @@ stateDiagram-v2
 3. 재개 진입의 `waiting_for_input → running` claim 도 이 원자성에 들어간다. 조건부 UPDATE 가 실행과 노드 실행의 짝 상태를 한 트랜잭션으로 바꾼다. affected=0 이면 어느 쪽도 바꾸지 않고 작업을 받은 뒤 버린다. claim 뒤 rehydration 이 실패하면 `RESUME_*` 종결로 원자 마감해 `running` 이 남지 않게 한다. 절차는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 4. 짝 없이 `running`·`completed`·`failed`·`cancelled` 로 바로 마감하는 경로(else 분기)의 조건부 UPDATE 도 `dataSource.transaction` 안에서 돈다. 짝 전이와 목적이 다르다. 결과 모양 가드가 예외를 던질 때 그 UPDATE 도 함께 되돌리려는 것이다. 되돌리지 않으면 실행 행은 종결 상태로 커밋된 채 종결 이벤트만 사라진다. 부팅 복구 스캔에서 실행 행을 고르는 단계는 비종결 실행만 보므로 이 행을 고르지 않는다. 같은 스캔의 [종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 는 노드 실행 행만 닫고 이벤트를 내지 않아 사라진 종결 이벤트를 되살리지 못한다.
 5. 짝 전이는 방향과 상관없이 아무것도 하지 않고 끝날 수 있다. 재개 방향 claim 뿐 아니라 park 방향(`running → waiting_for_input`)도 대상 행이 이미 종결 상태면 적용하지 않는다. 짝 전이는 같은 트랜잭션 안에서 실행 행을 `SELECT … FOR UPDATE` 로 잠그고 비종결 상태를 확인한 뒤에만 두 행을 저장한다. 선점이 보이면 아무것도 쓰지 않고 `false` 를 돌려준다. 호출자는 이때 park·종결 이벤트 발행을 건너뛰고 짝 노드 실행을 `cancelled` 로 표시한 뒤 취소 전파 경로로 넘긴다.
-6. 마지막 턴 재시도 재진입은 예외다. 위 "비종결 확인" 의 종결 정의가 `allowRetryReentry` opt-in 에 따라 바뀐다. 재진입에 한해 DB 가드(짝 전이의 `FOR UPDATE` 잠금과 else 분기 조건부 UPDATE)가 `failed` 행도 대상에 넣는다(`NON_TERMINAL_OR_FAILED_STATUSES_SQL`). opt-in 을 상태 머신(`canTransition`)에만 반영하고 DB 가드에 전달하지 않으면 재진입 짝 전이가 늘 0행이 돼 기능이 동작하지 않는다. opt-in 이어도 `completed`·`cancelled` 는 대상에서 빠지므로 실제 동시 취소는 계속 막힌다.
+6. 마지막 턴 재시도 재진입은 예외다. 위 "비종결 확인" 의 종결 정의가 `allowRetryReentry` opt-in 에 따라 바뀐다. 마지막 턴 재시도에 한해 DB 가드(짝 전이의 `FOR UPDATE` 잠금과 else 분기 조건부 UPDATE)가 `failed` 행도 대상에 넣는다(`NON_TERMINAL_OR_FAILED_STATUSES_SQL`). DB 가드의 비종결 목록은 손으로 적지 않고 상태 머신의 `canTransition` 에서 계산한다(`nonTerminalStatuses(opts)`, `guardStatusesSql(opts)`). 나가는 전이가 하나라도 허용되는 상태가 비종결이다. opt-in 을 상태 머신(`canTransition`)에만 반영하고 DB 가드에 전달하지 않으면 마지막 턴 재시도의 짝 전이가 늘 0행이 돼 기능이 동작하지 않는다. opt-in 이어도 `completed`·`cancelled` 는 대상에서 빠지므로 실제 동시 취소는 계속 막힌다.
 7. 이 가드가 없으면 park·재개 경로가 실행을 다시 읽지 않아 메모리의 엔티티가 낡은 상태에서 전체 엔티티 저장이 동시에 도착한 취소를 덮어쓴다. 그러면 사용자의 실행 중지가 그대로 사라진다. 같은 이유로 `finalizeFailedExecution` 등 종결 마감 경로도 조건부 UPDATE(`status IN (비종결)`)를 거친다. 가드의 근거는 [노드 취소](CLE-EXEC-CANCEL.md) 에 있다.
 
 조건부 UPDATE 결과를 읽을 때는 `RETURNING` 결과가 `[rows, affectedCount]` 튜플이라는 점을 지켜야 한다. 이 규칙은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 에 있다.
@@ -145,11 +145,11 @@ stateDiagram-v2
 | --- | --- |
 | `pending` | 실행 대기(선행 노드 완료 대기). 엔티티 기본값이며 현재 엔진은 쓰지 않는다 |
 | `running` | 실행 중 |
-| `waiting_for_input` | 사용자 입력 대기. Form 노드, 버튼이 설정된 Presentation 노드, 멀티턴 AI 노드. 턴 처리 중 LLM 에러(429·타임아웃·연결 실패)가 나면 `failed` 로 바뀐다(`handleAiTurnError`). rehydration 실패(`RESUME_CHECKPOINT_MISSING`·`RESUME_FAILED`·`RESUME_INCOMPATIBLE_STATE`)에도 `failed` 로 바뀌고 함께 있는 실행은 `cancelled` 로 마감한다. park 한 실행이 취소되면 짝 노드 실행도 `cancelled` 로 표시한다 |
+| `waiting_for_input` | 사용자 입력 대기. Form 노드, 버튼이 설정된 Presentation 노드, 멀티턴 AI 노드. 턴 처리 중 LLM 에러(429·타임아웃·연결 실패)가 나면 `failed` 로 바뀐다(`handleAiTurnError`). rehydration 실패(`RESUME_CHECKPOINT_MISSING`·`RESUME_FAILED`·`RESUME_INCOMPATIBLE_STATE`)에도 `failed` 로 바뀌고 함께 있는 실행은 `cancelled` 로 마감한다. 재개 진입 claim 뒤의 실패면 노드 실행은 claim 으로 이미 `running` 이라 `running → failed` 로 끝난다. park 한 실행이 취소되면 짝 노드 실행도 `cancelled` 로 표시한다 |
 | `completed` | 정상 완료 |
-| `failed` | 노드 핸들러 에러와 Stop 또는 에러 포트 정책, 또는 시스템 에러. rehydration 인프라 실패도 취소가 아닌 결함이므로 `failed` 다 |
+| `failed` | 노드 핸들러 에러와 워크플로우 중단 정책 또는 에러 포트로 라우팅 정책, 또는 시스템 에러. rehydration 인프라 실패도 취소가 아닌 결함이므로 `failed` 다 |
 | `cancelled` | 노드가 실패한 것이 아니라 중단된 상태. 신호 경로(핸들러가 던진 `AbortError`, dispatch 직전 이미 취소된 신호 포함)와 DB 관측 경로(엔진이 노드 경계·턴 경계·짝 전이에서 실행 행을 다시 읽고 `ExecutionCancelledError` 를 던짐)가 같은 상태로 끝난다. 사용자 실행 중지는 신호를 만들지 않으므로 선형 경로와 재개 경로에서는 DB 관측이 유일한 수단이다. 끝날 때 `execution.node.cancelled` 이벤트를 낸다. 규칙은 [노드 취소](CLE-EXEC-CANCEL.md) 가 정한다 |
-| `skipped` | 건너뜀(노드 비활성, Skip Node 정책, 조건 분기 미선택) |
+| `skipped` | 건너뜀(노드 비활성, 노드 건너뛰기 정책, 조건 분기 미선택) |
 
 마지막 턴 재시도는 새 노드 실행 행을 만든다. 재시도 가능한 에러로 `failed` 가 된 멀티턴 노드 실행 행은 전이시키지 않고 그대로 둔다. `execution.retry_last_turn` 은 같은 노드의 **새 노드 실행 행을 `running` 으로 만들어** 마지막 턴을 다시 돌린다. 그래서 한 노드에 행이 여러 개일 수 있고 재시도 명령은 `nodeExecutionId` 로 행을 가리킨다(`nodeId` 로는 행 하나를 고를 수 없다). 실행 층의 `failed → running` 은 이 새 행을 구동하려는 실행 엔티티의 전이이고 기존 `failed` 행의 전이가 아니다.
 
@@ -164,7 +164,9 @@ stateDiagram-v2
 | `resumed` | 재개 출력 | 사용자 입력을 받은 직후 | 재개 시점. 관측용이며 라우팅에 영향이 없다 |
 | `ended` | 대화 종료 | 멀티턴 종료 · 단일 턴 AI 에이전트 종료 | 멀티턴 LLM 대화가 `completed`·`user_ended`·`max_turns`·`max_retries`·`error` 중 하나로 끝날 때. 단일 턴 AI 에이전트는 정상 완료 · 조건 분기 · `error` 포트 실패 모두 이 값으로 끝난다 |
 | `requires_integration` | 통합 필요 | 외부 통합이 연결되지 않아 준비가 필요함 | Send Email 등이 통합 없이 실행될 때 |
-| `requires_playwright` | PDF 렌더러 필요 | PDF 렌더러가 필요함 | PDF 노드 |
+| `requires_playwright` | PDF 렌더러 필요 | PDF 렌더러가 필요함 | 지금 이 값을 내는 노드가 없다. 핸들러 계약의 `status` 주석에만 남아 있다 |
+
+이 표의 두 곳은 [용어 사전](../CLE-GLOSSARY.md) 의 흐름 지시 상태 표와 다르다. 사전은 `ended` 를 멀티턴 대화 종료로만 적지만 이 문서는 단일 턴 AI 에이전트 종료도 `ended` 로 적는다. `requires_playwright` 는 사전에 없는 값이다. 사전 보강은 NERV Task `CLE-T-TC36RK` 에서 한다.
 
 ### 입력 대기와 재개의 출력 흐름
 
@@ -248,7 +250,7 @@ sequenceDiagram
 - 멀티턴 AI 에이전트가 재시도 가능한 에러(HTTP 429·5xx·네트워크 타임아웃, `output.error.details.retryable === true`)로 끝나면 `buildMultiTurnFinalOutput` 이 `_resumeState` 스냅샷을 `_retryState` 로 옮긴다. 최상위 필드이며 노드 출력 다섯 필드의 예외다.
 - `stripControlFields()` 는 `_retryState` 를 남긴다. `NodeExecution.outputData._retryState` 로 DB 에 저장된다.
 - 모양은 `_resumeState` 의 부분집합에 `expiresAt: ISO 8601` 을 더한 것이다. TTL 기본값은 60분이고 환경 변수 `AI_RETRY_STATE_TTL_MINUTES` 로 바꾼다. 자격 증명 제외 방식은 `_resumeState` 와 같다(허용 목록). 표현식 resolver 와 자동완성에 노출하지 않는다. 필드 목록 전체(`lastUserMessage` 등)는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 보존 예외 절에 있다.
-- **소비(원자적)**: WebSocket 명령 `execution.retry_last_turn` 이 `nodeExecutionId` 로 `_retryState` 를 찾는다. `expiresAt` 을 확인한 뒤 **같은 트랜잭션에서 `_retryState` 키를 지우고(소비) 새 노드 실행 행을 만든다**. 이어 재개 큐(`execution-continuation`)에 `retry_last_turn` 작업을 발행하고 워커가 새 행을 `_retryState` 로 채워 멀티턴 루프에 다시 들어간다. 키 삭제가 affected=1 인 쪽만 진행하므로 동시에 온 재시도가 행을 두 번 만들지 않는다. TTL 이 지났거나 이미 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 다. 재진입에는 워커 컨텍스트가 필요해 WebSocket gateway 가 동기로 처리할 수 없으므로 재개 큐로 넘긴다.
+- **소비(원자적)**: WebSocket 명령 `execution.retry_last_turn` 이 `nodeExecutionId` 로 `_retryState` 를 찾는다. `expiresAt` 을 확인한 뒤 **같은 트랜잭션에서 `_retryState` 키를 지우고(소비) 새 노드 실행 행을 만든다**. 이어 재개 큐(`execution-continuation`)에 `retry_last_turn` 작업을 발행하고 워커가 새 행을 `_retryState` 로 채워 멀티턴 루프에 다시 들어간다. 키 삭제가 affected=1 인 쪽만 진행하므로 동시에 온 재시도가 행을 두 번 만들지 않는다. TTL 이 지났거나 이미 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 다. 재시도 턴을 돌리려면 워커 컨텍스트가 필요해 WebSocket gateway 가 동기로 처리할 수 없으므로 재개 큐로 넘긴다.
 - 사용자 쪽 흐름은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 멀티턴 에러 포트 절에 있다.
 
 ## 마지막 턴 재시도 재진입
@@ -279,8 +281,8 @@ sequenceDiagram
 ```
 
 1. 재시도는 **새 노드 실행 행을 만들어** 마지막 턴을 다시 돌린다. 기존 `failed` 행은 그대로 둔다. 새 행의 턴이 `node.started`·`node.completed` 를 내려면 실행이 `running` 이어야 하므로 실행은 `failed → running` 으로 간다.
-2. 재진입한 턴이 대화를 끝내지 않으면 `reparkAiResumeTurn` 이 실행을 `waiting_for_input` 으로 park 하고 세그먼트를 끝낸다. 멀티턴 재진입에서 가장 흔한 경로다. 이후 재개는 일반 `waiting_for_input → running` 경로(원자 claim)로 합류하므로 opt-in 은 이 한 번의 park 에만 필요하다.
-3. 재진입이 성공하면 실행은 `completed` 로, 다시 실패하면 `failed` 로 마감한다. 재시도 가능한 에러로 다시 실패하면 새 `_retryState` 를 남겨 다시 재시도할 수 있다.
+2. 재시도 턴이 대화를 끝내지 않으면 `reparkAiResumeTurn` 이 실행을 `waiting_for_input` 으로 park 하고 세그먼트를 끝낸다. 멀티턴 노드의 마지막 턴 재시도에서 가장 흔한 경로다. 이후 재개는 일반 `waiting_for_input → running` 경로(원자 claim)로 합류하므로 opt-in 은 이 한 번의 park 에만 필요하다.
+3. 재시도 턴이 성공하면 실행은 `completed` 로, 다시 실패하면 `failed` 로 마감한다. 재시도 가능한 에러로 다시 실패하면 새 `_retryState` 를 남겨 다시 재시도할 수 있다.
 4. **작업 배달 claim**: `applyRetryLastTurn` 은 새 행의 `inputData._retryState` 키를 조건부 UPDATE 로 원자 소비한다. affected=1 인 배달만 진행한다.
 
    ```sql
@@ -289,44 +291,46 @@ sequenceDiagram
    ```
 
    두 조건이 모두 필요하다. `jsonb_exists` 가 경쟁을 가른다. `status = 'running'` 이 없으면 이미 끝난 턴을 다시 돌린다. `inputData` 에 쓰는 지점은 행을 만들 때뿐이라 턴이 `completed` 로 끝나도 키가 남기 때문이다.
-5. claim 은 크래시로 중단된 턴의 BullMQ 재배달도 막는다. 이 claim 에서 버려진 새 행은 `running` 으로 남을 수 있다. 버려지는 시점의 실행은 이미 `failed` 라 부팅 복구 스캔의 재구동 대상(오래 멈춘 `running` 실행)이 아니기 때문이다. claim 이 성공한 뒤 턴에 들어가기 전에 예외나 크래시가 나도 새 행이 `running` 으로 남는다. 크래시뿐 아니라 일반 예외도 여기에 든다. 그 뒤의 재배달은 claim 에 실패해 버려지기 때문이다. 두 경우의 남은 행은 [부팅 복구 스캔의 종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 가 닫는다. 행의 `started_at` 이 30분을 넘으면 `failed` 로 바꾼다. 재진입 턴이 `finalizeAiNode` 의 마감 전에 예외를 던지면 `closeSpawnedRowIfRunning` 이 새 행을 바로 닫는다([재시도 전제와 재진입 시작](#재시도-전제와-재진입-시작)). 부팅 스캔은 이 마감이 닿지 않는 크래시와 턴 진입 전 예외를 맡는다.
-6. **재진입 때 설정 표현식 재평가**: 재진입은 노드 설정의 `{{ }}` 표현식을 가능한 만큼 다시 평가해 조작 필드(`llmConfigId`·`maxTurns` 등)를 일반 dispatch 와 맞춘다. `_retryState` 는 턴 직전 `_resumeState` 스냅샷에서 나와 원래 노드 입력이 없으므로 `$input.*` 는 풀리지 않는다. 되살린 컨텍스트에서 `$node`·`$var`·`$thread`·`$execution`·`$now` 만 풀린다. 재평가에 실패하면 원본 설정으로 돌아가므로 정적 설정은 영향이 없다. `output.config` 설정 에코는 항상 원본(`rawConfig` 고정 스냅샷)이고 재평가 값은 실행에만 쓴다.
-7. 재진입한 노드 이후의 그래프 진행은 일반 `completed` 노드와 같다. 순환 안이면 순환에 다시 들어간다([실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md)).
+5. claim 은 크래시로 중단된 턴의 BullMQ 재배달도 막는다. 이 claim 에서 버려진 새 행은 `running` 으로 남을 수 있다. 버려지는 시점의 실행은 이미 `failed` 라 부팅 복구 스캔의 재구동 대상(오래 멈춘 `running` 실행)이 아니기 때문이다. 워커 진입 때 실행 `failed` 재확인에서 거절된 행은 이와 달리 그 자리에서 `failed` 로 마감한다([재시도 전제와 재시도 턴 시작](#재시도-전제와-재시도-턴-시작)). claim 이 성공한 뒤 턴에 들어가기 전에 예외나 크래시가 나도 새 행이 `running` 으로 남는다. 크래시뿐 아니라 일반 예외도 여기에 든다. 그 뒤의 재배달은 claim 에 실패해 버려지기 때문이다. 두 경우의 남은 행은 [부팅 복구 스캔의 종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 가 닫는다. 행의 `started_at` 이 30분을 넘으면 `failed` 로 바꾼다. 재시도 턴이 `finalizeAiNode` 의 마감 전에 예외를 던지면 `closeSpawnedRowIfRunning` 이 새 행을 바로 닫는다([재시도 전제와 재시도 턴 시작](#재시도-전제와-재시도-턴-시작)). 부팅 스캔은 이 마감이 닿지 않는 크래시와 턴 진입 전 예외를 맡는다.
+6. **재시도 턴의 설정 표현식 재평가**: 재시도 턴은 노드 설정의 `{{ }}` 표현식을 가능한 만큼 다시 평가해 조작 필드(`llmConfigId`·`maxTurns` 등)를 일반 dispatch 와 맞춘다. `_retryState` 는 턴 직전 `_resumeState` 스냅샷에서 나와 원래 노드 입력이 없으므로 `$input.*` 는 풀리지 않는다. 되살린 컨텍스트에서 `$node`·`$var`·`$thread`·`$execution`·`$now` 만 풀린다. 재평가에 실패하면 원본 설정으로 돌아가므로 정적 설정은 영향이 없다. `output.config` 설정 에코는 항상 원본(`rawConfig` 고정 스냅샷)이고 재평가 값은 실행에만 쓴다.
+7. 재시도 턴을 마친 노드 이후의 그래프 진행은 일반 `completed` 노드와 같다. 순환 안이면 순환에 다시 들어간다([실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md)).
 
-### 재시도 전제와 재진입 시작
+### 재시도 전제와 재시도 턴 시작
 
 - **실행이 `failed` 일 때만 재시도한다**: 이 조건을 두 번 확인한다.
   - 명령 시점: `retryLastTurn` 이 `_retryState` 를 소비하기 전에 실행을 읽는다. `failed` 가 아니면 `INVALID_EXECUTION_STATE` 로 거절한다. 새 행을 만들지 않고 `_retryState` 도 소비하지 않는다.
-  - 워커 진입 시점: `applyRetryLastTurn` 이 배달 claim 뒤 실행을 다시 읽는다. 명령과 워커 사이에 실행이 `failed` 에서 벗어났으면 새 행을 `failed` 로 마감하고 작업을 버린다. 같은 실행의 다른 재시도가 먼저 재진입했거나 실행이 취소된 경우다. `node.started` 를 내기 전이라 노드 이벤트는 내지 않는다.
-- 이 확인은 재진입 턴이 살아 있는 본 흐름과 같은 실행에서 함께 도는 것을 막는다.
+  - 워커 진입 시점: `applyRetryLastTurn` 이 배달 claim 뒤 실행을 다시 읽는다. 명령과 워커 사이에 실행이 `failed` 에서 벗어났으면 새 행을 `failed` 로 마감하고 작업을 버린다. 같은 실행의 다른 재시도 턴이 먼저 시작했거나 실행이 취소된 경우다. `node.started` 를 내기 전이라 노드 이벤트는 내지 않는다.
+- 이 확인은 재시도 턴이 살아 있는 본 흐름과 같은 실행에서 함께 도는 것을 막는다.
   - 노드가 에러로 끝나도 에러 포트로 흐름이 이어지면 실행은 `failed` 가 아니다(`running`·`waiting_for_input`·`completed`). 이때 [다시 시도] 버튼이 보여도 재시도는 거절된다.
-  - [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 의 병렬 분기 안에서 실패했고 `errorPolicy` 가 `continue` 면 다른 분기가 도는 동안 실행은 `running` 이라 거절된다. 다른 정책에서는 모든 분기가 끝난 뒤에 실행이 `failed` 가 되므로 재진입이 형제 분기와 겹치지 않는다.
-- **재진입을 시작할 때 옛 실패 필드를 비운다**: 워커 진입 확인을 통과하면 실행의 `error`·`finishedAt`·`durationMs` 를 비운다. 앞선 실패가 남긴 값이다. 재진입 턴 끝의 전이(`failed → running` 또는 `failed → waiting_for_input`)가 빈 값을 함께 저장한다. 그래서 재진입이 park 하거나 그래프를 이어 도는 동안 실행에 옛 에러와 종료 시각이 남지 않고, 다시 종결할 때 옛 `durationMs` 를 그대로 쓰지 않는다.
-- **재진입이 예외로 끝나면 새 행을 마감한다**: 예외가 났는데 새 행이 아직 `running` 이면 조건부 UPDATE(`status = 'running'`)로 새 행을 `failed`(취소로 끝났으면 `cancelled`)로 마감하고 노드 종결 이벤트를 낸다. 그다음 실행을 마감한다. 턴 끝 전이가 거절돼 예외가 난 경우에도 새 행이 `running` 으로 남지 않는다. 턴 안에서 이미 마감한 행은 조건에 걸리지 않아 덮지 않는다.
+  - [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 의 병렬 분기 안에서 실패했고 `errorPolicy` 가 `continue` 면 다른 분기가 도는 동안 실행은 `running` 이라 거절된다. 다른 정책에서는 모든 분기가 끝난 뒤에 실행이 `failed` 가 되므로 재시도 턴이 형제 분기와 겹치지 않는다.
+- **재시도 턴을 시작할 때 옛 실패 필드를 비운다**: 워커 진입 확인을 통과하면 실행의 `error`·`finishedAt`·`durationMs` 를 비운다. 앞선 실패가 남긴 값이다. 재시도 턴 끝의 전이(`failed → running` 또는 `failed → waiting_for_input`)가 빈 값을 함께 저장한다. 그래서 재시도 턴이 park 하거나 그래프를 이어 도는 동안 실행에 옛 에러와 종료 시각이 남지 않고, 다시 종결할 때 옛 `durationMs` 를 그대로 쓰지 않는다.
+- **재시도 턴이 예외로 끝나면 새 행을 마감한다**: 예외가 났는데 새 행이 아직 `running` 이면 조건부 UPDATE(`status = 'running'`)로 새 행을 `failed`(취소로 끝났으면 `cancelled`)로 마감하고 노드 종결 이벤트를 낸다. 그다음 실행을 마감한다. 턴 끝 전이가 거절돼 예외가 난 경우에도 새 행이 `running` 으로 남지 않는다. 턴 안에서 이미 마감한 행은 조건에 걸리지 않아 덮지 않는다.
 
-### 재진입 중 취소
+### 재시도 턴 중 취소
 
-- 재진입이 `running` 으로 도는 동안 도착한 취소는 **진행 중인 턴을 바로 끊지 않는다**. `running` 상태의 재개·재진입 구동에는 깨울 메모리 코루틴이 없기 때문이다.
+- 재시도 턴이 `running` 으로 도는 동안 도착한 취소는 **진행 중인 턴을 바로 끊지 않는다**. `running` 상태의 재개·재시도 턴 구동에는 깨울 메모리 코루틴이 없기 때문이다.
 - 취소 **기록은 늦어지지 않는다**. `stop()` 의 `running`·`pending` 경로가 조건부 UPDATE 로 `cancelled` 와 `finishedAt`·`durationMs` 를 바로 커밋한다.
-- 재진입은 다음 **턴 경계**의 `assertExecutionNotCancelled` 에서 취소를 보고 끝난다. park 에 닿으면 `cancelParkedExecution` 의 `status = WAITING_FOR_INPUT` 가드가 짝 노드 실행까지 `cancelled` 로 표시한다.
+- 재시도 턴은 다음 **턴 경계**의 `assertExecutionNotCancelled` 에서 취소를 보고 끝난다. park 에 닿으면 `cancelParkedExecution` 의 `status = WAITING_FOR_INPUT` 가드가 짝 노드 실행까지 `cancelled` 로 표시한다.
 - park 없이 그 턴에서 끝나도 취소가 우선한다. 종결 경로가 모두 조건부 UPDATE(`status IN (비종결)`)를 거치므로 이미 `cancelled` 인 행은 `completed`·`failed` 로 덮이지 않고 종결 이벤트도 나가지 않는다. 취소 시각(`finishedAt`·`durationMs`)은 `stop()` 이 쓴 값이 기준이다. 가드 규칙은 [노드 취소](CLE-EXEC-CANCEL.md) 에 있다.
 
 ## 미결 사항
 
-- **rehydration 실패를 실행 `cancelled` 로 두는 결정의 유지 여부**: 원문 결정은 Re-run 버튼이 `cancelled` 상태에서 켜지므로 인프라 실패를 `cancelled` 로 두어야 다시 시도할 수 있다는 것을 근거로 들었다. 반면 [실행 내역](CLE-EXEC-HISTORY.md) 은 Re-run 버튼을 상태와 상관없이 항상 보이고 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 의 드로어는 `failed` 에서도 보인다. [재실행](CLE-EXEC-RERUN.md) API 에도 상태 제한이 없다. 그래서 [Rationale](#rationale) 에서 그 근거를 뺐다. 남은 근거(인프라 실패와 비즈니스 실패의 뜻 구분, Re-run 진입점의 원인 판별 부담)만으로 실행 `cancelled` · 노드 실행 `failed` 로 나누는 결정을 유지할지 다시 판단해야 한다. 결정 전까지 본문 규칙은 이분 결정을 따른다.
-- **병렬 분기 안에서 입력 대기를 낸 노드 실행의 종결 상태** (info): [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 의 병렬 분기 안 노드가 실행 중에 `waiting_for_input` 을 내면 그 병렬 분기는 메시지가 `PARALLEL_INVALID_CHILD:` 로 시작하는 에러로 실패한다(REQ-PARALLEL-032). 병렬 분기는 park 하지 않으므로 이 노드 실행은 재개로 끝나지 않는다. 그런데 이 노드 실행 행이 `waiting_for_input` 에서 어느 상태로 끝나는지는 위 전이도와 표에 없다. 종결 상태를 정해 전이도에 넣을지 [Parallel 노드 §미결 사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#미결-사항) 과 함께 결정 필요.
-- **같은 실행의 재시도 둘이 서로 다른 워커에서 함께 재진입하는 경우**: 같은 실행 안 서로 다른 노드 실행(예: 병렬 분기 둘이 모두 재시도 가능한 에러로 실패)의 재시도가 거의 동시에 들어오면 둘 다 명령 시점과 워커 진입 시점에 실행 `failed` 를 볼 수 있다. 재진입 턴이 끝날 때까지 실행은 `failed` 이기 때문이다. 배달 claim 은 새 행 단위라 둘을 가르지 않는다. 워커가 하나면 두 번째 작업은 첫 번째 턴이 끝난 뒤 들어와 워커 진입 확인에서 거절된다. 인스턴스가 여럿이거나 `CONTINUATION_WORKER_CONCURRENCY` 를 올린 경우에만 남는다. 막으려면 실행 단위로 재진입을 하나만 받는 claim 이 필요하고 진 쪽은 실행을 건드리지 않고 물러나야 한다. 후속은 NERV Task `CLE-T-T9HZX7` 다.
+- **rehydration 실패를 실행 `cancelled` 로 두는 결정의 유지 여부**: 원문 결정은 재실행 버튼이 `cancelled` 상태에서 켜지므로 인프라 실패를 `cancelled` 로 두어야 다시 시도할 수 있다는 것을 근거로 들었다. 반면 [실행 내역](CLE-EXEC-HISTORY.md) 은 재실행 버튼을 상태와 상관없이 항상 보이고 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 의 드로어는 `failed` 에서도 보인다. [재실행](CLE-EXEC-RERUN.md) API 에도 상태 제한이 없다. 그래서 [Rationale](#rationale) 에서 그 근거를 뺐다. 남은 근거(인프라 실패와 비즈니스 실패의 뜻 구분, 재실행 진입점의 원인 판별 부담)만으로 실행 `cancelled` · 노드 실행 `failed` 로 나누는 결정을 유지할지 다시 판단해야 한다. 결정 전까지 본문 규칙은 이분 결정을 따른다.
+- **병렬 분기 안에서 입력 대기를 낸 노드 실행의 종결 상태** (info): [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 의 병렬 분기 안 노드가 실행 중에 `waiting_for_input` 을 내면 그 병렬 분기는 에러로 실패하고 그 에러 메시지는 `PARALLEL_INVALID_CHILD:` 로 시작한다(REQ-PARALLEL-032). `PARALLEL_INVALID_CHILD:` 는 에러 코드가 아니라 메시지 접두사다. 병렬 분기는 park 하지 않으므로 이 노드 실행은 재개로 끝나지 않는다. 그런데 이 노드 실행 행이 `waiting_for_input` 에서 어느 상태로 끝나는지는 위 전이도와 표에 없다. 종결 상태를 정해 전이도에 넣을지 [Parallel 노드 §미결 사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#미결-사항) 과 함께 결정 필요.
+- **같은 실행의 재시도 둘이 서로 다른 워커에서 함께 도는 경우**: 같은 실행 안 서로 다른 노드 실행(예: 병렬 분기 둘이 모두 재시도 가능한 에러로 실패)의 재시도가 거의 동시에 들어오면 둘 다 명령 시점과 워커 진입 시점에 실행 `failed` 를 볼 수 있다. 재시도 턴이 끝날 때까지 실행은 `failed` 이기 때문이다. 배달 claim 은 새 행 단위라 둘을 가르지 않는다. 워커가 하나면 두 번째 작업은 첫 번째 턴이 끝난 뒤 들어와 워커 진입 확인에서 거절된다. 인스턴스가 여럿이거나 `CONTINUATION_WORKER_CONCURRENCY` 를 올린 경우에만 남는다. 막으려면 실행 단위로 재시도 턴을 하나만 받는 claim 이 필요하고 진 쪽은 실행을 건드리지 않고 물러나야 한다. 후속은 NERV Task `CLE-T-T9HZX7` 다.
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/execution-engine/state/state-machine.ts` (`ALLOWED_TRANSITIONS`, `canTransition`, `allowRetryReentry`)
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`updateExecutionStatus`, `stripControlFields`, `buildRetryReentryState`, `buildResumeCheckpoint`)
+- `codebase/backend/src/modules/execution-engine/state/state-machine.ts` (`ALLOWED_TRANSITIONS`, `canTransition`, `allowRetryReentry`, `nonTerminalStatuses`)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`updateExecutionStatus`, `guardStatusesSql`, `markExecutionCancelled`, `stripControlFields`, `buildRetryReentryState`, `buildResumeCheckpoint`)
 - `codebase/backend/src/modules/execution-engine/utils/resume-state.schema.ts` (`resumeStateSchema` · `resumeCheckpointSchema`. 서버 목록과 `mcpServerFromExpression` 을 함께 싣는다)
 - `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts`
 - `codebase/backend/src/modules/execution-engine/retry-turn.service.ts`
 - `codebase/backend/src/modules/execution-engine/form-interaction.service.ts`, `button-interaction.service.ts`
 - `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (`markMcpServerRefOrigins` · `liftLegacyMcpServerFromExpression` · `mcpServerRefUse`. MCP 서버의 표현식 여부 배열을 정하고, 옛 항목 값을 옮기고, 읽는다)
-- `codebase/backend/src/shared/execution-resume/**`
+- `codebase/backend/src/shared/execution-resume/park-release-signal.ts` (park 해제 신호 `ParkReleaseSignal`)
+- `codebase/backend/src/shared/execution-resume/process-turn-result.ts` (턴 처리 결과 `ProcessTurnResult` · `PARK_RELEASED`)
+- `codebase/backend/src/shared/execution-resume/resume-call-stack.types.ts` (중첩 재개 호출 스택 `ResumeCallStack` · `CALL_STACK_SCHEMA_VERSION`)
 - `codebase/backend/src/modules/executions/executions.service.ts` (`findById`, `reconcilePreParkWaitingStatus`)
 - `codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts` (`isNodeWaitingForInput`)
 - `codebase/frontend/src/lib/websocket/use-execution-events.ts`
@@ -346,21 +350,21 @@ sequenceDiagram
 
 ### 짝 없는 직접 마감도 트랜잭션 안에서 한다 (2026-08-30)
 
-else 분기의 조건부 UPDATE 는 원래 트랜잭션 밖의 단발 쿼리였다. 결과 모양 가드(`updateReturningRows`, `8332d9a20` 도입)가 예외를 던져도 UPDATE 는 이미 커밋된 뒤였다. 가드가 발동하면 행은 종결 상태로 커밋된 채 종결 이벤트만 사라지고 그 실행은 부팅 복구 스캔에도 걸리지 않는다. 가드가 막으려던 무기한 대기가 가드가 발동한 순간 생기는 셈이었다.
+else 분기의 조건부 UPDATE 는 원래 트랜잭션 밖의 단발 쿼리였다. 결과 모양 가드(`updateReturningRows`, PR #1168 도입)가 예외를 던져도 UPDATE 는 이미 커밋된 뒤였다. 가드가 발동하면 행은 종결 상태로 커밋된 채 종결 이벤트만 사라지고 그 실행은 부팅 복구 스캔에도 걸리지 않는다. 가드가 막으려던 무기한 대기가 가드가 발동한 순간 생기는 셈이었다.
 
-UPDATE 를 `dataSource.transaction` 안에서 돌리도록 바꿨다. 예외가 롤백을 부르고 행은 비종결로 남아 재구동 대상이 된다. 짝 전이 분기는 이미 트랜잭션을 쓰고 있어 두 분기가 대칭이 됐고 공통 종결부를 `finishStatusTransition` 으로 뽑아 두 분기가 따로 어긋날 여지도 없앴다. 상태 전이 지점마다 BEGIN/COMMIT 왕복이 붙지만 롤백 보장이 그 비용보다 크다고 판단했다. 창은 `8332d9a20`(2026-08-13)부터 이 수정까지 약 17일이었다. 결과 모양 위반은 드라이버 계약이 바뀌어야 나는 일이라 실제로 발동했는지는 확인되지 않았다.
+UPDATE 를 `dataSource.transaction` 안에서 돌리도록 바꿨다. 예외가 롤백을 부르고 행은 비종결로 남아 재구동 대상이 된다. 짝 전이 분기는 이미 트랜잭션을 쓰고 있어 두 분기가 대칭이 됐고 공통 종결부를 `finishStatusTransition` 으로 뽑아 두 분기가 따로 어긋날 여지도 없앴다. 상태 전이 지점마다 BEGIN/COMMIT 왕복이 붙지만 롤백 보장이 그 비용보다 크다고 판단했다. 창은 PR #1168(2026-08-13)부터 이 수정까지 약 17일이었다. 결과 모양 위반은 드라이버 계약이 바뀌어야 나는 일이라 실제로 발동했는지는 확인되지 않았다.
 
 ### 종결 이벤트 선점 감지가 넉 달 동안 동작하지 않았다
 
-종결 경로는 조건부 UPDATE(`status IN (비종결)`) 결과로 "동시 취소가 먼저 종결시켰으면 종결 이벤트를 내지 않는다" 를 가른다. 그런데 그 UPDATE 의 반환은 `[rows, affectedCount]` 튜플이라 `updated.length > 0` 이 늘 참이었고 건너뛰는 분기가 한 번도 타지 않았다. `8332d9a20`(2026-08-13)이 고쳤다.
+종결 경로는 조건부 UPDATE(`status IN (비종결)`) 결과로 "동시 취소가 먼저 종결시켰으면 종결 이벤트를 내지 않는다" 를 가른다. 그런데 그 UPDATE 의 반환은 `[rows, affectedCount]` 튜플이라 `updated.length > 0` 이 늘 참이었고 건너뛰는 분기가 한 번도 타지 않았다. PR #1168(2026-08-13)이 고쳤다.
 
 DB 는 깨지지 않았다. `WHERE status IN (...)` 조건이 쓰기 자체를 지켰다. 틀린 것은 앱이 자기가 적용했는지 아는 쪽이었고 증상은 취소된 실행에도 종결 이벤트가 나간 것이다. 영향 범위는 이 반환으로 분기하는 11곳·3파일(수정 시점 기준)이었고 원인은 그들이 함께 쓰는 드라이버 메서드 한 곳이었다. 같은 결함의 반대 부호는 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 의 동시 실행 제한에 있었다. 불변식은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 이 정한다.
 
-### 재진입 opt-in 은 DB 가드까지 전달해야 한다 (2026-07-30)
+### 마지막 턴 재시도 opt-in 은 DB 가드까지 전달해야 한다 (2026-07-30)
 
-`allowRetryReentry` opt-in 을 상태 머신에만 반영하고 DB 가드에 전달하지 않으면 재진입 짝 전이가 늘 0행이 돼 기능이 전혀 동작하지 않는다. 실제로 2026-07-30 까지 그 상태였다(코드 리뷰 8차 CRITICAL). 그래서 종결 정의 자체를 opt-in 에 따라 바꾸도록 했다. opt-in 에서도 `completed`·`cancelled` 는 빼므로 진짜 동시 취소는 계속 막힌다.
+`allowRetryReentry` opt-in 을 상태 머신에만 반영하고 DB 가드에 전달하지 않으면 마지막 턴 재시도의 짝 전이가 늘 0행이 돼 기능이 전혀 동작하지 않는다. 실제로 2026-07-30 까지 그 상태였다. 그래서 종결 정의 자체를 opt-in 에 따라 바꾸도록 했다. 2026-11-06 에는 DB 가드의 목록을 상태 머신에서 계산하게 바꿔 두 곳이 따로 어긋날 수 없게 했다(NERV Task `CLE-T-9WG82W`). opt-in 에서도 `completed`·`cancelled` 는 빼므로 진짜 동시 취소는 계속 막힌다.
 
-같은 날 `failed → waiting_for_input` 도 더했다. 재진입한 턴이 이어지는 경우가 멀티턴 재진입에서 가장 흔한데, 그때까지 상태 머신과 DB 가드 어느 쪽도 이 전이를 허용하지 않아 호출마다 동기 예외가 났다. 예외 메시지가 `EXECUTION_FAILED` 페이로드로 노출됐다(코드 리뷰 CRITICAL #1). 동시성과 무관하게 매번 실패하는 결함이었다.
+같은 날 `failed → waiting_for_input` 도 더했다. 재시도 턴이 이어지는 경우가 멀티턴 노드의 마지막 턴 재시도에서 가장 흔한데, 그때까지 상태 머신과 DB 가드 어느 쪽도 이 전이를 허용하지 않아 호출마다 동기 예외가 났다. 예외 메시지가 `EXECUTION_FAILED` 페이로드로 노출됐다. 동시성과 무관하게 매번 실패하는 결함이었다.
 
 ### 대기 진입 직전 읽기 창은 읽기 쪽에서 정규화한다
 
@@ -372,12 +376,12 @@ DB 는 깨지지 않았다. `WHERE status IN (...)` 조건이 쓰기 자체를 �
 
 읽기 창 자체를 없애는 일(출력 저장과 상태 전이를 한 트랜잭션으로 묶기)은 별도 작업으로 남긴다.
 
-### 재시도 가능한 에러로 끝나면 `_retryState` 를 남긴다 (R1)
+### 재시도 가능한 에러로 끝나면 `_retryState` 를 남긴다
 
-재시도 가능한 에러(HTTP 429·5xx·네트워크 타임아웃)로 끝날 때의 처리 두 안 가운데 **R1**(상태 `ended` 와 `port: 'error'` 는 그대로 두고 `_retryState` 를 함께 싣기)을 골랐다.
+재시도 가능한 에러(HTTP 429·5xx·네트워크 타임아웃)로 끝날 때의 처리 두 안 가운데 상태 `ended` 와 `port: 'error'` 는 그대로 두고 `_retryState` 를 함께 싣는 안을 골랐다.
 
-- **R2(새 상태 `waiting_for_retry`) 기각**: 입력 대기 계열을 넓히는 일이라 흐름 지시 계약이 다른 노드까지 번지고 포트 활성화 모델과의 정합도 다시 따져야 해 스펙 범위가 커진다.
-- R1 은 `ended` 와 `port: 'error'` 의 뜻을 그대로 두므로 에러 포트 뒤 노드(알림 등)의 의미가 바뀌지 않는다. 재시도 가능 여부는 `output.error.details.retryable` 하나로 충분히 전달되고 재시도는 에러 라우팅 뒤의 별도 사용자 행동(`execution.retry_last_turn`)으로 들어온다.
+- **새 상태 `waiting_for_retry` 를 두는 안 기각**: 입력 대기 계열을 넓히는 일이라 흐름 지시 계약이 다른 노드까지 번지고 포트 활성화 모델과의 정합도 다시 따져야 해 스펙 범위가 커진다.
+- 고른 안은 `ended` 와 `port: 'error'` 의 뜻을 그대로 두므로 에러 포트 뒤 노드(알림 등)의 의미가 바뀌지 않는다. 재시도 가능 여부는 `output.error.details.retryable` 하나로 충분히 전달되고 재시도는 에러 라우팅 뒤의 별도 사용자 행동(`execution.retry_last_turn`)으로 들어온다.
 - `_retryState` 는 `_resumeState` 처럼 표현식에 노출하지 않고 자격 증명을 뺀다. TTL(기본 60분)이 사실상 재시도 상한이다.
 
 ### MCP 서버 항목에 표현식 여부를 저장하고 스키마 버전을 올리지 않는다 (2026-10-25)
@@ -402,14 +406,14 @@ NERV Task `CLE-T-68XG50`. 2026-10-25 결정은 표현식 여부를 서버 항목
 - **스키마 버전을 올리지 않는다**: 2026-10-25 결정과 같은 이유다. 배열이 없을 때의 뜻(위 옮기기 규칙)이 정해져 있고 `resumeStateSchema` 는 런타임 검증에 쓰지 않는다.
 - **배열 이름**: 개인 통합 판정 입력(`IntegrationUse.fromExpression`)과 같은 말을 쓰려고 `mcpServerFromExpression` 으로 정했다.
 
-### `_resumeCheckpoint` 를 남긴다 (옛 "WARN #6 미영속" 번복)
+### `_resumeCheckpoint` 를 남긴다 (옛 메모리 전용 결정 번복)
 
-도입 초기(코드 주석 "WARN #6")에는 `_resumeState` 가 원본 설정·턴 디버그·모델 상태 같은 잠재 자격 증명을 담을 수 있다는 우려로 DB 에 남기지 않고 메모리에만 두었다. 그러자 배포·오토스케일·크래시로 인스턴스가 다시 시작되면 진행 중인 멀티턴 대화를 영원히 이어 갈 수 없었다(`RESUME_INCOMPATIBLE_STATE`). 텔레그램처럼 오래 이어지는 채널에서는 대화 중 백엔드가 한 번 배포되면 그 대화가 끝나 버렸다. 실행 행 자체는 기한 없이 보존되지만 재개에 필요한 `_resumeState` 가 사라져 쓸모가 없었다.
+도입 초기에는 `_resumeState` 가 원본 설정·턴 디버그·모델 상태 같은 잠재 자격 증명을 담을 수 있다는 우려로 DB 에 남기지 않고 메모리에만 두었다. 그러자 배포·오토스케일·크래시로 인스턴스가 다시 시작되면 진행 중인 멀티턴 대화를 영원히 이어 갈 수 없었다(`RESUME_INCOMPATIBLE_STATE`). 텔레그램처럼 오래 이어지는 채널에서는 대화 중 백엔드가 한 번 배포되면 그 대화가 끝나 버렸다. 실행 행 자체는 기한 없이 보존되지만 재개에 필요한 `_resumeState` 가 사라져 쓸모가 없었다.
 
 자격 증명을 뺀 부분집합 `_resumeCheckpoint` 를 평문으로 남기는 안을 골랐다.
 
 - **암호화(`ENCRYPTION_KEY` 기반 시크릿 저장소) 기각**: 대화 메시지는 이미 `output.result.messages` 로 평문 저장되고 있어 암호화가 더 지켜 주는 것이 적다. `_resumeState` 는 원시 시크릿을 담지 않고 `llmConfigId` 같은 참조 ID 만 담는다. provider 시크릿은 시크릿 저장소 참조로 따로 있다. 매 턴 시크릿 저장소 쓰기와 대화 종료 뒤 정리도 복잡도를 더한다.
-- **선례 일반화**: `_retryState`(R1)가 같은 일(자격 증명을 뺀 부분집합을 평문으로 남기고 재개 때 다시 만들기)을 재시도 경로에서 이미 검증된 채로 하고 있었다. `_resumeCheckpoint` 는 이 선례를 매 대기 턴 경로로 넓힌 것이다. 자격 증명 제외는 `buildRetryState`·`buildResumeState` 가 옮길 키를 열거하는 허용 목록 방식이다. 원래 `maskSensitiveFields` 와 같은 정책이라고 적었으나 그 함수는 키 이름 목록으로 값을 가리는 마스커였고 해당 경계도 2026-08-24 에 없어졌다.
+- **선례 일반화**: `_retryState` 가 같은 일(자격 증명을 뺀 부분집합을 평문으로 남기고 재개 때 다시 만들기)을 재시도 경로에서 이미 검증된 채로 하고 있었다. `_resumeCheckpoint` 는 이 선례를 매 대기 턴 경로로 넓힌 것이다. 자격 증명 제외는 `buildRetryState`·`buildResumeState` 가 옮길 키를 열거하는 허용 목록 방식이다. 원래 `maskSensitiveFields` 와 같은 정책이라고 적었으나 그 함수는 키 이름 목록으로 값을 가리는 마스커였고 해당 경계도 2026-08-24 에 없어졌다.
 - **재구성기 공유**: 두 필드는 자격 증명을 뺀 부분집합과 `node.config` 재유도라는 같은 재구성 형태로 모이므로 `buildRetryReentryState` 를 함께 쓴다. 차이(재시작 재개인지 재시도 명령인지, `lastUserMessage`·`expiresAt` 유무)는 재구성 결과에 영향이 없다. 체크포인트에는 `lastUserMessage` 가 없어 다시 돌리지 않고 도착한 재개 페이로드를 다음 턴으로 처리한다(`resumeMode` 플래그로 재시도 전용 경고만 나눈다).
 - **TTL 을 두지 않는다**: 입력 대기 실행은 기한 없이 보존되므로 대화는 오래 쉰 뒤에도 이어져야 한다. 시간이 지나는 것만으로 만료되면 이 결함의 원형이 다시 생긴다.
 - **정보 추출기로 넓힌다**: 처음에는 `ai_agent` 모양에 맞춰 `ai_agent` 에만 냈다. 엔진 dispatch 가 이미 `handler.processMultiTurnMessage` 로 다형적이고 `resolveRetryNodeConfig`·`buildRetryReentryState` 가 노드 유형과 무관해 설정 재유도가 정보 추출기에도 그대로 동작한다. 정보 추출기 고유 상태(`partialResult`·`collectionRetryCount`)는 자격 증명이 없고 작아 허용 목록에 더하는 비용이 낮다. 새 멀티턴 핸들러는 자기 런타임 상태를 허용 목록에 등록해야 지원된다.
@@ -417,7 +421,7 @@ NERV Task `CLE-T-68XG50`. 2026-10-25 결정은 표현식 여부를 서버 항목
 
 체크포인트가 없거나 재구성이 실패하면 `RESUME_INCOMPATIBLE_STATE` 로 끝내고 채널 어댑터는 원시 에러 대신 "대화 세션 만료, 새로 시작" 안내를 보인다.
 
-### 재개·재시도 턴의 식별 필드를 다시 넣는다 (#501, 2026-07)
+### 재개·재시도 턴의 식별 필드를 다시 넣는다 (2026-07)
 
 위 체크포인트 항목은 "`node.config` 에서 다시 만든다" 고 단순하게 적어 갭을 가렸다. 실제로 `node.config` 재평가로 다시 만들어지는 것은 조작 필드뿐이고 식별 필드는 호출 쪽 컨텍스트에서 다시 만들어야 한다. 그래서 `buildRetryReentryState` 가 `workflowId`(실행)와 `nodeExecutionId`(옵션)를 재구성 결과에 다시 넣도록 하고 이를 불변식으로 적었다. 코드는 PR #877(재구성 복원)과 PR #879(`llm_usage_log` 소비 지점 교정)로 이미 맞춰져 있었다. 재구성기는 그때부터 `nodeId` 도 `node.id` 로 다시 넣었는데 목록에는 적지 않았다. 2026-10-25 에 개인 통합 판정이 이 값을 쓰게 되어 식별 필드 목록에 더했다(finding 01a17052-f9a4-7697-b5d9-d153a6a25255).
 
@@ -430,11 +434,11 @@ NERV Task `CLE-T-68XG50`. 2026-10-25 결정은 표현식 여부를 서버 항목
 - 세 조립 지점의 모양이 실제로 다르다(3필드, 5필드와 `?? ''` 대체값과 `workspaceId`, 조건부 `undefined` 3필드). 헬퍼 하나로 묶으면 이 차이를 인자로 되살려야 해 이득이 작다.
 - 막 안정된 코드를 흔드는 비용이 작은 이득보다 크다.
 
-### `failed → running` 재진입 전이를 둔다 (옛 "park 도달 후 발효" 철회, 2026-07-28)
+### `failed → running` 마지막 턴 재시도 전이를 둔다 (옛 "park 도달 후 발효" 철회, 2026-07-28)
 
-R1 의 마지막 턴 재시도가 실제로 실행될 때의 전이다. 재시도는 새 노드 실행 행을 만들어 마지막 턴을 다시 돌리고 새 행이 이벤트를 내려면 실행이 `running` 이어야 하므로 `failed → running` 을 더했다. R2 와는 무관한 경로이고 입력을 기다리지 않고 새 행을 바로 구동한다는 점에서 재개 흐름과도 다르다. 일반 노드 실패로 번지지 않도록 `allowRetryReentry` opt-in 으로만 허용한다.
+마지막 턴 재시도가 실제로 실행될 때의 전이다. 재시도는 새 노드 실행 행을 만들어 마지막 턴을 다시 돌리고 새 행이 이벤트를 내려면 실행이 `running` 이어야 하므로 `failed → running` 을 더했다. 기각한 새 상태 `waiting_for_retry` 와는 무관한 경로이고 입력을 기다리지 않고 새 행을 바로 구동한다는 점에서 재개 흐름과도 다르다. 일반 노드 실패로 번지지 않도록 `allowRetryReentry` opt-in 으로만 허용한다.
 
-이 절은 처음 쓸 때(`5e0c5e449`) "재진입이 park 없이 끝나면 취소는 효과 없이 흘려보낸다" 고 적었다. 당시 구현(조건 없는 전체 엔티티 `save()`)을 그대로 적은 것이었다. 그러나 #1021(취소 뒤에도 하류 dispatch 계속), #1022(엔진의 조건 없는 종결 쓰기 5경로), #1024(재시도 턴 종결 2경로)가 그 동작을 결함으로 보고 막았다. 세 PR 모두 "사용자 실행 중지가 사라진다" 를 수정 이유로 들었다. 그래서 park 도달 여부는 취소가 효과를 내는 조건이 아니다. 문서가 반대 내용을 계약으로 남기면 나중에 구현이 가드를 되돌리는 근거로 오해할 수 있어 철회했다.
+이 절은 처음 쓸 때(PR #501, 2026-06-06) "재진입이 park 없이 끝나면 취소는 효과 없이 흘려보낸다" 고 적었다. 당시 구현(조건 없는 전체 엔티티 `save()`)을 그대로 적은 것이었다. 그러나 #1021(취소 뒤에도 하류 dispatch 계속), #1022(엔진의 조건 없는 종결 쓰기 5경로), #1024(재시도 턴 종결 2경로)가 그 동작을 결함으로 보고 막았다. 세 PR 모두 "사용자 실행 중지가 사라진다" 를 수정 이유로 들었다. 그래서 park 도달 여부는 취소가 효과를 내는 조건이 아니다. 문서가 반대 내용을 계약으로 남기면 나중에 구현이 가드를 되돌리는 근거로 오해할 수 있어 철회했다.
 
 ### 마지막 턴 재시도에 배달 단위 claim 을 둔다 (2026-07-28)
 
@@ -444,43 +448,44 @@ R1 의 마지막 턴 재시도가 실제로 실행될 때의 전이다. 재시�
 
 행을 만드는 단계의 원자성만으로는 모자란다. `retryLastTurn` 은 원본 행의 `outputData._retryState` 를 JSONB `-` 로 원자 소비하며 행을 만들므로 행은 한 번만 생긴다. 하지만 재개 큐로 넘기는 순간부터 작업 배달 횟수는 별개 축이다. 작업 ID 가 `${executionId}:${nodeExecutionId}:${seq}` 로 발행마다 달라 BullMQ 중복 제거도 걸리지 않는다. "한 번만 만들었다" 와 "그 행을 한 번만 구동한다" 는 서로 다른 보장이고 뒤쪽에는 별도 claim 이 필요하다.
 
-**대가(의도한 교환, 2026-07-30 서술 정정)**: 크래시로 멈춘 턴의 BullMQ 재배달까지 막힌다. 형제 재개 명령 네 가지도 재개 진입 claim(`claimResumeEntry`)으로 같은 성질을 받아들이고 그 복구는 부팅 복구 스캔(오래 멈춘 `running` 실행의 re-claim, case B)이 맡는다. 그러나 이 2차 claim(`claimSpawnedRetryRow`) 경로에는 그 스캔이 닿지 않는다. claim 실패로 버리는 시점에 대상 실행은 이미 `failed` 로 끝나 있어 스캔의 재구동 대상이 아니다(실측 확인). 그래서 버린 새 행 자체가 `running` 으로 남을 수 있다. [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md#멱등성-계약) 의 "남은 행 마감" 은 case B 재구동에 들어갈 때의 옛 `running` 행을 다루므로 이 경로는 대상이 아니다. 두 서술은 범위가 달라 모순이 아니다. 후속은 NERV Task `CLE-T-CCEQEC` 다(아래 2026-11-12 갱신으로 해소).
+**대가(의도한 교환, 2026-07-30 서술 정정)**: 크래시로 멈춘 턴의 BullMQ 재배달까지 막힌다. 형제 재개 명령 네 가지도 재개 진입 claim(`claimResumeEntry`)으로 같은 성질을 받아들이고 그 복구는 부팅 복구 스캔(오래 멈춘 `running` 실행의 re-claim 과 재구동)이 맡는다. 그러나 이 2차 claim(`claimSpawnedRetryRow`) 경로에는 그 스캔이 닿지 않는다. claim 실패로 버리는 시점에 대상 실행은 이미 `failed` 로 끝나 있어 스캔의 재구동 대상이 아니다(실측 확인). 그래서 버린 새 행 자체가 `running` 으로 남을 수 있다. [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md#멱등성-계약) 의 "남은 행 마감" 은 부팅 스캔이 오래 멈춘 `running` 실행을 재구동할 때의 옛 `running` 행을 다루므로 이 경로는 대상이 아니다. 두 서술은 범위가 달라 모순이 아니다. 후속은 NERV Task `CLE-T-CCEQEC` 다(아래 2026-11-12 갱신으로 해소).
 
 그래도 버리는 편이 옳다. 살아 있는 작업을 두 번 돌리는 것(claim 도입 전 결함)이 이론상의 남은 행보다 늘 더 나쁘다. 마지막 턴 재시도만 claim 을 만들지 않으면 "중복 실행 0" 보장이 그 유형에서만 거짓이 된다. 그 자기모순이 2026-07-28 까지 실제로 남아 있었다. 이것은 claim 을 두느냐의 문제이고 위의 남은 행 문제와는 다른 사안이다.
 
 "크래시로 멈춘 턴" 의 범위(프로세스 크래시뿐 아니라 claim 과 턴 진입 사이의 일반 예외까지 드는지)는 따로 열려 있고 같은 Task `CLE-T-CCEQEC` 에서 정한다(아래 2026-11-12 갱신으로 해소).
 
-이전 구현 판정(`exec-intake-queue-impl`, 2026-06-06 통과)은 이 축을 검증한 적이 없다. 재개 진입 claim 자체가 2026-07-03(`44f956e9c`)에 들어왔으므로 그보다 앞선 판정이다. 무효가 된 것이 아니라 검증 범위 밖이었다.
+실행 intake 큐 작업의 2026-06-06 재검토(PR #505 에 기록한 직렬화 불변식 통과 판정)는 이 축을 검증한 적이 없다. 재개 진입 claim 자체가 2026-07-03(PR #791)에 들어왔으므로 그보다 앞선 판정이다. 무효가 된 것이 아니라 검증 범위 밖이었다.
 
-2026-11-12 갱신: 버린 새 행과 claim 뒤 턴 진입 전 예외 · 크래시로 남은 행은 [부팅 복구 스캔의 종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 가 30분 뒤 `failed` 로 닫는다. 이 30분은 노드 실행 행의 `started_at` 으로 잰다. 실행이 이미 종결된 행에만 적용하므로 PR3(2026-07-04)에서 폐기한 실행 단위 30분 일괄 실패와 대상이 다르다. 위의 열린 범위(일반 예외)도 같은 정리가 덮는다. 버림 결정은 그대로다. 결정 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) Rationale 의 "종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다" 에 있다(NERV Task `CLE-T-CCEQEC`).
+2026-11-12 갱신: 버린 새 행과 claim 뒤 턴 진입 전 예외 · 크래시로 남은 행은 [부팅 복구 스캔의 종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 가 30분 뒤 `failed` 로 닫는다. 이 30분은 노드 실행 행의 `started_at` 으로 잰다. 실행이 이미 종결된 행에만 적용하므로 크래시로 멈춘 `running` 세그먼트를 재구동하게 한 PR #795(2026-07-04)에서 폐기한 실행 단위 30분 일괄 실패와 대상이 다르다. 위의 열린 범위(일반 예외)도 같은 정리가 덮는다. 버림 결정은 그대로다. 결정 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) Rationale 의 "종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다" 에 있다(NERV Task `CLE-T-CCEQEC`).
 
 ### 재시도 전에 실행 `failed` 를 두 번 확인한다 (2026-11-06)
 
-**문제**: 재시도 명령은 `_retryState` 만 보고 실행 상태는 보지 않았다. 에러 포트로 흐름이 이어졌거나 병렬 분기의 다른 분기가 아직 돌아 실행이 `running` 인데도 재진입이 시작됐다. 재진입 턴은 같은 실행의 본 흐름과 함께 `node.*` 이벤트를 내고, 턴 끝에서 `running → waiting_for_input` 같은 일반 전이로 본 흐름의 상태를 덮을 수 있었다. 실행이 `completed` 였다면 턴 끝 전이가 거절돼 새 행이 `running` 으로 남았다. 또 재진입 동안 실행에는 앞선 실패의 `error`·`finishedAt`·`durationMs` 가 그대로 있었고 다시 종결할 때 옛 `durationMs` 를 다시 썼다.
+**문제**: 재시도 명령은 `_retryState` 만 보고 실행 상태는 보지 않았다. 에러 포트로 흐름이 이어졌거나 병렬 분기의 다른 분기가 아직 돌아 실행이 `running` 인데도 재시도 턴이 시작됐다. 재시도 턴은 같은 실행의 본 흐름과 함께 `node.*` 이벤트를 내고, 턴 끝에서 `running → waiting_for_input` 같은 일반 전이로 본 흐름의 상태를 덮을 수 있었다. 실행이 `completed` 였다면 턴 끝 전이가 거절돼 새 행이 `running` 으로 남았다. 또 재시도 턴 동안 실행에는 앞선 실패의 `error`·`finishedAt`·`durationMs` 가 그대로 있었고 다시 종결할 때 옛 `durationMs` 를 다시 썼다.
 
-**결정**: 명령 시점과 워커 진입 시점에 실행이 `failed` 인지 확인한다. 워커 진입 확인을 통과하면 옛 실패 필드를 비운다. 재진입이 예외로 끝나면 `running` 으로 남은 새 행을 조건부로 마감한다.
+**결정**: 명령 시점과 워커 진입 시점에 실행이 `failed` 인지 확인한다. 워커 진입 확인을 통과하면 옛 실패 필드를 비운다. 재시도 턴이 예외로 끝나면 `running` 으로 남은 새 행을 조건부로 마감한다.
 
 - 명령 시점 확인은 사용자에게 바로 `INVALID_EXECUTION_STATE` 를 돌려주고 `_retryState` 를 남긴다. 이것만 두면 명령과 워커 사이에 실행이 바뀌는 창이 남는다.
-- 워커 진입 확인은 그 창을 닫는다. 이것만 두면 명령은 성공 ack 를 받고 `_retryState` 도 소비된 뒤에 재진입이 버려져 사용자가 다시 시도할 수 없다.
+- 워커 진입 확인은 그 창을 닫는다. 이것만 두면 명령은 성공 ack 를 받고 `_retryState` 도 소비된 뒤에 재시도 턴이 버려져 사용자가 다시 시도할 수 없다.
 - 두 확인을 함께 둬도 명령과 워커 사이에 실행이 바뀌면 같은 일이 생긴다. 워커 진입 거절은 성공 ack 뒤라 클라이언트에 알려지지 않는다. 이 창은 대부분 같은 실행의 재시도끼리 겹칠 때 생겨서 [미결 사항](#미결-사항) 의 후속에서 함께 다룬다.
 - 거절 코드는 새로 만들지 않는다. [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 과 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 가 이미 `execution.retry_last_turn` 의 기대 상태를 `failed` 로 두고 이 코드를 쓴다.
-- 옛 필드는 재진입 시작 때 실행 엔티티에서 비우고 턴 끝 전이가 함께 저장하게 한다. 모든 전이가 함께 쓰는 `updateExecutionStatus` 의 SET 절을 재시도 전용으로 바꾸는 방법은 다른 전이까지 영향이 넓어 택하지 않았다.
+- 이 결정으로 [재시도 가능한 에러로 끝나면 `_retryState` 를 남긴다](#재시도-가능한-에러로-끝나면-_retrystate-를-남긴다) 에서 정한 별도 사용자 행동(`execution.retry_last_turn`)은 실행이 `failed` 인 경우로 한정된다.
+- 옛 필드는 재시도 턴 시작 때 실행 엔티티에서 비우고 턴 끝 전이가 함께 저장하게 한다. 모든 전이가 함께 쓰는 `updateExecutionStatus` 의 SET 절을 재시도 전용으로 바꾸는 방법은 다른 전이까지 영향이 넓어 택하지 않았다.
 
 같은 실행의 재시도 둘이 서로 다른 워커에서 함께 들어오는 경우는 이 결정으로 막히지 않는다. 실행 단위 claim 과 진 쪽의 물러남 규칙이 필요해 [미결 사항](#미결-사항) 에 남겼다.
 
-### 재진입 때 설정 표현식을 다시 평가하되 설정 에코는 원본으로 둔다
+### 재시도 턴의 설정 표현식을 다시 평가하되 설정 에코는 원본으로 둔다
 
-재진입한 턴의 조작 필드가 일반 dispatch 와 다르면 같은 노드가 경로에 따라 다른 모델이나 최대 턴 수로 돈다. 그래서 가능한 만큼 다시 평가한다. 설정 에코를 원본으로 두는 것은 [노드 핸들러 계약](CLE-EXEC-HANDLER.md) 의 원본 설정 노출 결정을 따른 것이다. 두 가지를 함께 지켜 같은 입력의 재현성과 설정·출력의 직교성을 모두 보존한다.
+재시도 턴의 조작 필드가 일반 dispatch 와 다르면 같은 노드가 경로에 따라 다른 모델이나 최대 턴 수로 돈다. 그래서 가능한 만큼 다시 평가한다. 설정 에코를 원본으로 두는 것은 [노드 핸들러 계약](CLE-EXEC-HANDLER.md) 의 원본 설정 노출 결정을 따른 것이다. 두 가지를 함께 지켜 같은 입력의 재현성과 설정·출력의 직교성을 모두 보존한다.
 
 ### rehydration 실패의 종결 상태를 실행 `cancelled`, 노드 실행 `failed` 로 나눈다
 
 rehydration 실패 세 경우(`RESUME_CHECKPOINT_MISSING`·`RESUME_FAILED`·`RESUME_INCOMPATIBLE_STATE`)에서 실행은 `cancelled`, 함께 있는 노드 실행은 `failed` 로 끝낸다.
 
-- **실행 `cancelled`**: 세 코드 모두 체크포인트 손상·큐 소진·스키마 변경 같은 인프라 실패다. 사용자가 뜻을 갖고 취소한 것과 다르지만 `cancelled` 를 골랐다. `failed` 는 비즈니스·노드 에러로 워크플로우가 정상 종결된 경우이고 인프라 실패는 다시 시도하면 성공할 수 있는 범주라는 판단이다.
-- **빼낸 근거**: 원문은 여기에 "Re-run UI 가 `cancelled` 상태에서 활성화된다" 를 근거로 덧붙였다. 이 근거는 성립하지 않아 뺐다. 재실행 API 는 원본 실행의 상태를 제한하지 않고([재실행](CLE-EXEC-RERUN.md)) 실행 상세의 재실행 버튼은 상태와 관계없이 항상 보인다([실행 내역](CLE-EXEC-HISTORY.md)). 남은 근거만으로 이분 결정을 유지할지는 [미결 사항](#미결-사항) 참조.
+- **실행 `cancelled`**: 세 코드 모두 인프라 실패다. 재개에 필요한 영속 상태(`NodeExecution.outputData`, 중첩 재개의 호출 스택 frame)가 없거나 손상된 경우, 재개 큐 시도 소진, 체크포인트 스키마 불일치가 그 경우다. 사용자가 뜻을 갖고 취소한 것과 다르지만 `cancelled` 를 골랐다. `failed` 는 비즈니스·노드 에러로 워크플로우가 정상 종결된 경우이고 인프라 실패는 다시 시도하면 성공할 수 있는 범주라는 판단이다.
+- **빼낸 근거**: 원문은 여기에 "재실행 UI 가 `cancelled` 상태에서 활성화된다" 를 근거로 덧붙였다. 이 근거는 성립하지 않아 뺐다. 재실행 API 는 원본 실행의 상태를 제한하지 않고([재실행](CLE-EXEC-RERUN.md)) 실행 상세의 재실행 버튼은 상태와 관계없이 항상 보인다([실행 내역](CLE-EXEC-HISTORY.md)). 남은 근거만으로 이분 결정을 유지할지는 [미결 사항](#미결-사항) 참조.
 - **노드 실행 `failed`**: 노드는 정상 완료하지 못했으므로 `completed` 일 수 없다. 노드 실행 `cancelled` 는 취소 신호와 DB 관측 취소 경로 전용이고 rehydration 실패는 취소가 아닌 인프라 결함이므로 `failed` 다. 두 종결의 뜻(취소와 실패)을 가른다. 노드 실행 `cancelled` 값은 2026-06-03 노드 취소 경로용으로 새로 생겼고([노드 취소](CLE-EXEC-CANCEL.md)) rehydration 실패는 그 경로가 아니다.
 
-실행도 `failed` 로 통일하는 안은 Re-run 진입점이 `failed` 원인(인프라인지 비즈니스인지)을 코드 밖에서 판별해야 해 UX 가 복잡해져서 택하지 않았다.
+실행도 `failed` 로 통일하는 안은 재실행 진입점이 `failed` 원인(인프라인지 비즈니스인지)을 코드 밖에서 판별해야 해 UX 가 복잡해져서 택하지 않았다.
 
 이 결정의 본문 처리(실패 경우별 코드와 원자 마감)는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md#rehydration-실패) 에 있다.
 
