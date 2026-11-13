@@ -103,23 +103,25 @@ interval = min(retryInterval * backoffMultiplier ^ attempt, maxInterval)
 - error 포트에 연결선이 연결되어 있지 않으면 `ERROR_PORT_FALLBACK` 로그와 함께 Stop Workflow로 폴백돼요.
 - `NodeExecution.status`는 `failed`로 기록되지만, **Execution 전체는 계속 진행**돼요.
 
-에러 포트로 전달되는 데이터 구조예요.
+노드가 실패를 던지면 아래 데이터가 다음 노드로 넘어가요.
 
 <Example title="Error 포트 전달 페이로드">
 ```json
 {
   "error": {
-    "code": "LLM_CALL_FAILED",
-    "message": "LLM connection timeout",
-    "nodeId": "uuid-of-failed-node",
-    "nodeType": "ai_agent",
-    "timestamp": "2026-04-16T12:00:00.000Z",
-    "details": { },
-    "originalInput": { }
+    "code": "UNKNOWN_ERROR",
+    "message": "Cannot read properties of undefined (reading 'id')"
   }
 }
 ```
 </Example>
+
+- `code` 에는 등록된 에러 코드가 들어가요. 노드가 등록된 코드(예: `INTEGRATION_NOT_CONNECTED`, `CAFE24_RATE_LIMITED`)로 실패하면 그 코드가 들어가고, 그 밖의 실패는 모두 `UNKNOWN_ERROR` 예요.
+- `message` 에는 실패 메시지가 들어가요.
+- 실패한 노드의 ID 나 원래 입력은 담기지 않아요. 원래 입력이 필요하면 앞 노드의 출력을 `$node["노드 이름"]` 으로 읽어요.
+- HTTP Request 처럼 error 포트가 원래 있는 노드는 실패를 직접 error 포트로 보내기도 해요. 그때는 `details` 에 상태 코드 같은 정보가 더 들어가요.
+
+<Callout type="warn">`code` 값이 바뀌었어요. 예전에는 `Error`, `TypeError`, `IntegrationError` 같은 에러 이름이 들어갔어요. `$node["X"].output.error.code == "Error"` 처럼 에러 이름과 비교하던 조건은 `$node["X"].output.error.code == "UNKNOWN_ERROR"` 나 해당 에러 코드(예: `INTEGRATION_NOT_CONNECTED`)와 비교하도록 바꿔 주세요.</Callout>
 
 **언제 쓰나요**: 실패했을 때 **별도 복구 경로**(예: 관리자 알림, 대체 LLM 호출, 원본 입력 저장)를 태우고 싶을 때 써요.
 

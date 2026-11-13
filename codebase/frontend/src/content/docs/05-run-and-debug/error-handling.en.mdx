@@ -92,23 +92,25 @@ Sends the error payload out the node's **error port**, letting a connected downs
 - With nothing connected to the error port, the run logs `ERROR_PORT_FALLBACK` and falls back to Stop Workflow.
 - `NodeExecution.status` is `failed`, but **the Execution as a whole keeps going**.
 
-Shape of the payload on the error port:
+When a node throws a failure, this policy builds the payload below and passes it to the next node.
 
 <Example title="Error-port payload">
 ```json
 {
   "error": {
-    "code": "LLM_CALL_FAILED",
-    "message": "LLM connection timeout",
-    "nodeId": "uuid-of-failed-node",
-    "nodeType": "ai_agent",
-    "timestamp": "2026-04-16T12:00:00.000Z",
-    "details": { },
-    "originalInput": { }
+    "code": "UNKNOWN_ERROR",
+    "message": "Cannot read properties of undefined (reading 'id')"
   }
 }
 ```
 </Example>
+
+- `code` holds a registered error code. If the node fails with a registered code (e.g. `INTEGRATION_NOT_CONNECTED`, `CAFE24_RATE_LIMITED`), you get that code; every other failure becomes `UNKNOWN_ERROR`.
+- `message` holds the failure message.
+- The failed node's ID and its original input are not included. If you need the original input, read the upstream node's output with `$node["Node name"]`.
+- Nodes that already have an error port, such as HTTP Request, may send a failure to it themselves. In that case `details` carries extra information such as the status code.
+
+<Callout type="warn">The `code` value has changed. It used to hold error names such as `Error`, `TypeError`, or `IntegrationError`. Update conditions that compared against an error name, such as `$node["X"].output.error.code == "Error"`, to compare against `"UNKNOWN_ERROR"` or the specific error code (e.g. `INTEGRATION_NOT_CONNECTED`) instead.</Callout>
 
 **When to use it**: when failures should trigger a **separate recovery path** — admin alert, alternative LLM call, archiving the original input, etc.
 
