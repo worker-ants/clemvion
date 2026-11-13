@@ -95,7 +95,10 @@ export type SeedOutcome =
    * 로 판명된 경우(`404`, 그리고 refresh 재시도까지 실패한 `401`·`410` — §3.1-2·§R4).
    */
   | "ended"
-  /** await 사이 세션이 교체·초기화됨 → 응답을 폐기함(아무 상태도 안 건드림). */
+  /**
+   * await 사이 세션이 교체·초기화됐거나, 재동기화 조회가 뜬 사이 명령을 보냈다(`opts.commandSeq`) →
+   * 응답을 폐기함(아무 상태도 안 건드림).
+   */
   | "stale"
   /** 정상(표면 시드 완료 또는 시드할 표면 없음, soft-fail 포함) → 호출부 진행 가능. */
   | "continue"
@@ -117,6 +120,13 @@ export type SeedOutcome =
    * (ai-review `17_15_33_2` requirement CRITICAL. 둘 다 닫았다).
    */
   | "refresh_deferred";
+
+/** `seedWaitingFromStatus` 의 옵션. 필드마다의 뜻은 그 함수 JSDoc 의 `@param` 이 정본이다. */
+type SeedOptions = {
+  allowWhileStreaming?: boolean;
+  keepCommandFeedback?: boolean;
+  commandSeq?: number;
+};
 
 /**
  * seed 결과를 받은 호출부가 **후속 배선을 중단해야 하는가**.
@@ -344,13 +354,14 @@ export function useWidget() {
   const endedRef = useRef(false);
   // `seedWaitingFromStatus`(아래 정의) 를 그보다 위에 있는 `handleEiaEvent` 에서 쓰기 위한 ref 홀더.
   const seedWaitingFromStatusRef = useRef<
-    | ((
-        client: EiaClient,
-        session: SessionRef,
-        opts?: { allowWhileStreaming?: boolean; keepCommandFeedback?: boolean },
-      ) => Promise<SeedOutcome>)
-    | null
+    ((client: EiaClient, session: SessionRef, opts?: SeedOptions) => Promise<SeedOutcome>) | null
   >(null);
+  /**
+   * 보낸 명령의 순번. `sendCommand` 가 명령을 보낼 때마다 1 올린다. 재동기화(`resyncSurfaceFromStatus`)는
+   * 상태 조회를 시작할 때 이 값을 적어 두고, 응답이 왔을 때 값이 바뀌었으면 그 스냅샷으로 대기 표면을
+   * 그리지 않는다(CLE-T-GYRSVK).
+   */
+  const commandSeqRef = useRef(0);
 
   /**
    * seed 가 `"refresh_deferred"` 를 줘서 **스트림 오픈을 미뤄 둔 상태인가**.
@@ -490,6 +501,12 @@ export function useWidget() {
    *
    * 토큰이 바뀐 것만 보고 두 번째 조회를 하므로, 첫 조회가 성공한 사이 주기 갱신이 회전을 마친 드문
    * 경우에도 한 번 더 조회한다. 같은 스냅샷을 다시 그릴 뿐이라 해가 없다.
+   *
+   * **조회가 뜬 사이 사용자가 명령을 보냈으면 그 스냅샷으로 대기 표면을 그리지 않는다**(CLE-T-GYRSVK).
+   * 그 스냅샷은 새 명령을 보내기 전의 서버 상태다. 그대로 그리면 새 말풍선이 스냅샷 대화로 바뀌고
+   * `unconfirmedSend` 도 지워져서, 새 명령이 실패해도 보낸 글을 입력창에 되돌리지 못한다. 그래서 조회를
+   * 시작할 때의 `commandSeqRef` 를 seed 에 넘긴다. 표면은 새 명령의 SSE 응답이나 그 명령의 실패 처리가
+   * 다시 맞춘다. 종료 스냅샷은 그대로 종료로 확정한다(seed JSDoc 의 staleness 표).
    */
   const resyncSurfaceFromStatus = useCallback(
     async (
@@ -500,7 +517,11 @@ export function useWidget() {
       const seed = seedWaitingFromStatusRef.current;
       if (!seed) return;
       const gen = worldGenRef.current;
-      const seedOpts = { allowWhileStreaming: true, keepCommandFeedback: resyncOpts?.keepCommandFeedback };
+      const seedOpts: SeedOptions = {
+        allowWhileStreaming: true,
+        keepCommandFeedback: resyncOpts?.keepCommandFeedback,
+        commandSeq: commandSeqRef.current,
+      };
       const outcome = await seed(client, session, seedOpts);
       // seed 안의 세대 검사와 이 검사 사이에는 microtask 경계뿐이라 그 사이 세계가 바뀌는 인터리빙을
       // 테스트로 만들지 못했다(이 검사를 지우는 뮤턴트가 생존한다). 재현 실패는 부재의 증거가 아니라서
@@ -771,11 +792,17 @@ export function useWidget() {
    * 생기면 아무도 상기시켜 주지 않아, 이 파일이 반복해 낸 "가드를 한쪽에만 적용" 결함의 다음
    * 재발 자리였다 — 그래서 게이트를 `openStream` 안으로 옮겨 **구조적으로 강제**한다.
    *
-   * @param opts.allowWhileStreaming 스트림이 열려 있어도 WAITING 을 그린다. **`replay_unavailable`
-   *   폴백만** 넘긴다 — 그건 자기 스트림의 표면을 버퍼 만료 후 **재동기화**하는 정당한 경우다(스트림
-   *   열림이 "다른 시도가 가로챔" 이 아니라 "내가 다시 그려야 함" 을 뜻한다). `applyConfig`·`start()`
-   *   는 생략(기본값 = 스트림 열렸으면 스킵) — 그 둘의 스트림 열림은 항상 다른 시도의 것이다
-   *   (자기 자신은 seed **뒤**에 열므로 seed 시점엔 아직 안 열렸다).
+   * @param opts.allowWhileStreaming 스트림이 열려 있어도 WAITING 을 그린다. **`resyncSurfaceFromStatus`
+   *   만** 넘긴다. 그 호출부는 `replay_unavailable` 폴백(REQ-WCWIDGET-029)과 명령 `409`(REQ-WCWIDGET-055)
+   *   둘이고, 둘 다 자기 스트림의 표면을 **재동기화**하는 정당한 경우다(스트림 열림이 "다른 시도가
+   *   가로챔" 이 아니라 "내가 다시 그려야 함" 을 뜻한다). `applyConfig`·`start()` 는 생략(기본값 =
+   *   스트림 열렸으면 스킵) — 그 둘의 스트림 열림은 항상 다른 시도의 것이다(자기 자신은 seed **뒤**에
+   *   열므로 seed 시점엔 아직 안 열렸다).
+   * @param opts.keepCommandFeedback 명령 `409` 재동기화만 넘긴다. `WAITING` 이 방금 띄운 실패 안내와
+   *   필드 문구를 지우지 않게 한다(`unconfirmedSend` 는 지운다).
+   * @param opts.commandSeq 조회를 시작할 때의 `commandSeqRef` 값. 응답이 왔을 때 값이 바뀌었으면(그 사이
+   *   명령을 보냈으면) `WAITING` 을 보내지 않고 `"stale"` 을 돌려준다. 종료 확정은 이 검사를 타지 않는다.
+   *   `resyncSurfaceFromStatus` 만 넘긴다(CLE-T-GYRSVK).
    *
    * **의존성 배열**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
    * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded`·`sessionEstablished` 뿐
@@ -785,7 +812,7 @@ export function useWidget() {
     async (
       client: EiaClient,
       session: SessionRef,
-      opts?: { allowWhileStreaming?: boolean; keepCommandFeedback?: boolean },
+      opts?: SeedOptions,
     ): Promise<SeedOutcome> => {
       const gen = worldGenRef.current;
       try {
@@ -813,6 +840,8 @@ export function useWidget() {
           // 위 종료 확정은 이 가드를 일부러 안 탄다(종료는 world 사실). `replay_unavailable` 폴백만
           // 자기 스트림 재동기화라 opt-in 으로 통과한다.
           if (!opts?.allowWhileStreaming && sessionEstablished()) return "stale";
+          // 조회가 뜬 사이 사용자가 명령을 보냈으면 이 스냅샷은 그 명령 전의 상태다(CLE-T-GYRSVK).
+          if (opts?.commandSeq !== undefined && commandSeqRef.current !== opts.commandSeq) return "stale";
           // WaitingContext 는 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일형식,
           // EIA §5.3) — `as` 캐스트 불필요.
           const parsed = parseWaitingForInput(status.context);
@@ -1019,6 +1048,7 @@ export function useWidget() {
       const client = clientRef.current;
       if (!session || !client) return;
       const gen = worldGenRef.current;
+      commandSeqRef.current += 1;
       dispatch({ type: "COMMAND_SENT" });
       try {
         await client.interact(session.endpoints, session.token, command);

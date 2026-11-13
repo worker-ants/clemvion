@@ -222,7 +222,7 @@ afterEach(() => {
 });
 
 describe("useWidget — 주기 갱신과 401 복구의 refresh 경합(replay_unavailable)", () => {
-  it("창 A: 주기 갱신 응답이 오기 전에 재동기화가 401 을 받아도 대화를 끝내지 않는다", async () => {
+  it("창 A: 주기 갱신 응답이 오기 전에 재동기화가 401 을 받아도 대화를 끝내지 않는다(REQ-WCSESS-035 · REQ-WCWIDGET-052)", async () => {
     const { server, getEs, result, ended } = await startConversation();
 
     // (c) 주기 타이머 발화 — 서버는 iext_1 을 폐기하고 iext_2 를 발급했지만 응답은 아직 오지 않았다.
@@ -251,10 +251,10 @@ describe("useWidget — 주기 갱신과 401 복구의 refresh 경합(replay_una
     // 대화는 살아 있다. 옛 토큰으로 갱신을 한 번 더 보내 401 을 받고 종료로 확정하면 안 된다.
     expect(result.current.state.phase).not.toBe("ended");
     expect(ended).toHaveLength(0);
-    // 갱신 요청은 한 번만 나간다 — 두 경로가 같은 회전을 나눠 받는다.
+    // 갱신 요청은 한 번만 나간다 — 두 경로가 같은 회전을 나눠 받는다(REQ-WCSESS-035).
     expect(server.refreshTokensSent).toEqual(["iext_1"]);
     expect(window.sessionStorage.getItem(STORAGE_KEY)).toContain("iext_2");
-    // 재동기화는 새 토큰으로 다시 조회해 표면을 맞춘다(REQ-WCWIDGET-029).
+    // 재동기화는 새 토큰으로 다시 조회해 표면을 맞춘다(REQ-WCWIDGET-029 · 052).
     expect(server.statusTokensSent.at(-1)).toBe("iext_2");
     await waitFor(() =>
       expect(result.current.state.messages.some((m) => m.text === RESYNC_TEXT)).toBe(true),
@@ -332,7 +332,7 @@ describe("useWidget — 주기 갱신과 401 복구의 refresh 경합(replay_una
     expect(server.refreshTokensSent).toEqual(["iext_1"]);
   });
 
-  it("대조 B: 회전 뒤 실행이 끝났으면 새 토큰으로 다시 조회 · 갱신해 보고 종료로 확정한다", async () => {
+  it("대조 B: 회전 뒤 실행이 끝났으면 새 토큰으로 다시 조회 · 갱신해 보고 종료로 확정한다(REQ-WCWIDGET-052)", async () => {
     const { server, getEs, result, ended } = await startConversation();
 
     server.holdStatus = true;

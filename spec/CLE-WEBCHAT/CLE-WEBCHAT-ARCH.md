@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-ARCH"
 title: "웹채팅 구조"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "005b2c0277af42f54d69248869dd7c5c7843e0a19ec690fc495d2436dacace67"
+content_hash: "39ad7f8363f814f2fcd34b08926a5a2622ae0ec2e851003c3ae5caca6654510b"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-7MSJJR"
 source_paths: ["spec/7-channel-web-chat/0-architecture.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "e8e3a43b60b88c5b0c4cad3c117b28d4480acafbb8a413409b5d6844b7105a3e"
-etag: "sha256-e6d501cbb199f34aebf11b4c9a88a7203172dae25964a39edf0647769db16f18"
+mirror_sha256: "fa4c79560fd72e4e173e50d742cf833d4e234c2df7d79b868df441a239e01078"
+etag: "sha256-a7fcef40b4191f61362d0af5f8ed8c779e191cc5f24c62c8c037c84b8f432323"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/0-architecture.md`, `spec/7-channel-web-chat/5-admin-console.md` (R4·R6 의 배포 결정 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -101,7 +101,7 @@ flowchart TB
 |---|---|---|
 | 임베드 설정 조회(`GET /api/hooks/:endpointPath/embed-config`, `EmbedConfigService`) | 임베드 허용 도메인과 강제 여부를 공개로 돌려준다 | [웹채팅 보안](CLE-WEBCHAT-SECURITY.md) |
 | 경로별 CORS 처리(`webChatCorsDelegate`, `web-chat-cors.ts`) | `/api/hooks/*` 와 `/api/external/*` 에 다른 CORS 정책을 적용한다 | [웹채팅 보안](CLE-WEBCHAT-SECURITY.md) |
-| 공개 웹훅 가드(`PublicWebhookThrottleGuard`) | 공개 웹훅의 IP 호출 수와 본문 크기를 제한한다. 웹채팅만이 아니라 모든 공개 웹훅에 걸린다 | [웹채팅 보안](CLE-WEBCHAT-SECURITY.md), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| 공개 웹훅 가드(`PublicWebhookThrottleGuard`) | 공개 웹훅의 IP 호출 수와 본문 크기를 제한한다. 웹채팅만이 아니라 채팅 채널 트리거를 뺀 모든 공개 웹훅에 걸린다 | [웹채팅 보안](CLE-WEBCHAT-SECURITY.md), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | 유휴 실행 회수(`WebChatIdleReaperService`) | 버려진 공개 위젯 실행을 토큰이 모두 만료된 뒤 취소한다. 이 경로만 실행 상태를 바꾼다 | [External Interaction API](../CLE-IX/CLE-EIA.md), [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) |
 
 ## 배포와 도메인 설정

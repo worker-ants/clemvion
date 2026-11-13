@@ -59,6 +59,9 @@ function installServer() {
     refreshTokensSent: [] as string[],
     statusTokensSent: [] as string[],
     statusSnapshot: "running" as "running" | "waiting" | "completed",
+    /** 상태 조회 응답을 붙잡는다. 놓아주는 시점의 토큰 · 스냅샷 설정으로 판정한다. */
+    holdStatus: false,
+    heldStatus: [] as Held[],
     isValid: (token: string) => valid.has(token),
   };
 
@@ -113,7 +116,10 @@ function installServer() {
     if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
       const token = bearer(init);
       server.statusTokensSent.push(token);
-      return Promise.resolve(statusResponse(token));
+      if (!server.holdStatus) return Promise.resolve(statusResponse(token));
+      return new Promise<Response>((resolve) =>
+        server.heldStatus.push({ release: () => resolve(statusResponse(token)) }),
+      );
     }
     if (u.includes("/interact")) {
       const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
@@ -385,6 +391,104 @@ describe("useWidget — 명령 409 는 상태 조회로 표면을 다시 맞춘�
   });
 });
 
+/** 붙잡아 둔 상태 조회 응답을 놓아주고 그 뒤 처리가 끝나기를 기다린다. */
+async function releaseHeldStatus(server: ReturnType<typeof installServer>) {
+  server.holdStatus = false;
+  for (const held of server.heldStatus.splice(0)) held.release();
+  await flushAsync();
+  await flushAsync();
+}
+
+describe("useWidget — 재동기화 스냅샷은 그 사이 보낸 명령을 덮지 않는다(CLE-T-GYRSVK)", () => {
+  // 상태 조회가 뜬 사이 사용자가 새 명령을 보냈으면, 늦게 온 스냅샷은 그 명령을 보내기 전의 서버 상태다.
+  // 그 스냅샷으로 대기 표면을 그리면 새 말풍선이 사라지고(`mergeMessages` 가 스냅샷을 고른다)
+  // `unconfirmedSend` 도 지워져, 새 명령이 실패해도 보낸 글을 되돌리지 못한다.
+  it("명령 409 재동기화 중 다시 보낸 메시지를 늦게 온 스냅샷이 지우지 않는다", async () => {
+    const { server, result } = await startAt(TEXT_SURFACE);
+    server.interactReply = { status: 409, body: { error: { code: "STATE_MISMATCH" } } };
+    server.statusSnapshot = "waiting";
+    server.holdStatus = true;
+
+    act(() => result.current.actions.submitMessage("어긋난 입력"));
+    await waitFor(() => expect(server.heldStatus).toHaveLength(1));
+    expect(result.current.state.composerDraft).toEqual({ text: "어긋난 입력" });
+
+    // 재동기화 응답이 오기 전에 다시 보낸다. 이번 명령은 서버에 붙잡혀 결과가 아직 없다.
+    server.interactReply = { status: 500 };
+    server.holdInteract = true;
+    act(() => result.current.actions.submitMessage("다시 보낸 글"));
+    await flushAsync();
+    expect(result.current.state.phase).toBe("streaming");
+
+    await releaseHeldStatus(server);
+
+    const s = result.current.state;
+    expect(s.phase).toBe("streaming");
+    expect(s.pending).toBeNull();
+    expect(s.messages.map((m) => m.text)).toEqual(["다시 보낸 글"]);
+
+    // 새 명령이 실패하면 그 글을 입력창에 되돌린다. 스냅샷이 `unconfirmedSend` 를 지웠으면 되돌리지 못한다.
+    for (const held of server.heldInteract.splice(0)) held.release();
+    await waitFor(() => expect(result.current.state.commandFailed).toBe(true));
+    expect(result.current.state.composerDraft).toEqual({ text: "다시 보낸 글" });
+    expect(result.current.state.messages.some((m) => m.role === "user")).toBe(false);
+    expect(result.current.state.pending).toMatchObject({ type: "ai_conversation", nodeId: "n1" });
+  });
+
+  it("replay_unavailable 재동기화 중 보낸 메시지를 늦게 온 스냅샷이 지우지 않는다", async () => {
+    const { server, getEs, result } = await startAt(TEXT_SURFACE);
+    server.statusSnapshot = "waiting";
+    server.holdStatus = true;
+
+    act(() => getEs()?.emit("execution.replay_unavailable", { executionId: "e1" }));
+    await waitFor(() => expect(server.heldStatus).toHaveLength(1));
+
+    act(() => result.current.actions.submitMessage("재동기화 중 보낸 글"));
+    await flushAsync();
+    expect(server.commands.at(-1)?.body).toMatchObject({ message: "재동기화 중 보낸 글" });
+
+    await releaseHeldStatus(server);
+
+    const s = result.current.state;
+    expect(s.phase).toBe("streaming");
+    expect(s.pending).toBeNull();
+    expect(s.messages.map((m) => m.text)).toEqual(["재동기화 중 보낸 글"]);
+    expect(s.unconfirmedSend).toMatchObject({ text: "재동기화 중 보낸 글" });
+  });
+
+  it("그 사이 명령을 보내지 않았으면 늦게 온 스냅샷으로 표면을 그린다(대조)", async () => {
+    const { server, getEs, result } = await startAt(TEXT_SURFACE);
+    server.statusSnapshot = "waiting";
+    server.holdStatus = true;
+
+    act(() => getEs()?.emit("execution.replay_unavailable", { executionId: "e1" }));
+    await waitFor(() => expect(server.heldStatus).toHaveLength(1));
+    await releaseHeldStatus(server);
+
+    expect(result.current.state.pending?.nodeId).toBe("n-resync");
+    expect(result.current.state.messages.map((m) => m.text)).toEqual([RESYNC_TEXT]);
+  });
+
+  it("그 사이 명령을 보냈어도 종료 스냅샷이면 종료로 확정한다", async () => {
+    const { server, result, endedReasons } = await startAt(TEXT_SURFACE);
+    server.interactReply = { status: 409, body: { error: { code: "STATE_MISMATCH" } } };
+    server.statusSnapshot = "completed";
+    server.holdStatus = true;
+
+    act(() => result.current.actions.submitMessage("어긋난 입력"));
+    await waitFor(() => expect(server.heldStatus).toHaveLength(1));
+    server.interactReply = { status: 202 };
+    act(() => result.current.actions.submitMessage("다시 보낸 글"));
+    await flushAsync();
+
+    await releaseHeldStatus(server);
+
+    expect(result.current.state.phase).toBe("ended");
+    expect(endedReasons).toHaveLength(1);
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+});
+
 describe("useWidget — 명령 401 은 갱신을 한 번 시도한 뒤 판정한다(REQ-WCSESS-038~040)", () => {
   it("갱신 성공 → 토큰을 바꾸고 대화를 이어 간다 · 명령은 다시 보내지 않는다", async () => {
     const { server, result, endedReasons } = await startAt(TEXT_SURFACE);
@@ -417,9 +521,14 @@ describe("useWidget — 명령 401 은 갱신을 한 번 시도한 뒤 판정한
     expect(result.current.state.commandFailed).toBeUndefined();
   });
 
+  // `400`(TOKEN_REFRESH_NOT_IN_WINDOW) · `403`(TOKEN_REFRESH_FORBIDDEN) · `429` 도 실행이 끝났다는 증거가 아니라
+  // 네트워크 에러 · 5xx 와 같은 갈래다(CLE-T-7MSJJR 사람 결정). 종료 판정을 `>= 400` 처럼 넓히면 여기서 깨진다.
   it.each<[string, RefreshReply]>([
     ["네트워크 에러", "network"],
     ["5xx", { status: 503 }],
+    ["400", { status: 400 }],
+    ["403", { status: 403 }],
+    ["429", { status: 429 }],
   ])("갱신이 %s 로 실패하면 위젯 세션을 유지한다(REQ-WCSESS-040)", async (_, refresh) => {
     const { server, getEs, result, endedReasons } = await startAt(TEXT_SURFACE);
     server.interactReply = { status: 401, body: { error: { code: "TOKEN_EXPIRED" } } };
