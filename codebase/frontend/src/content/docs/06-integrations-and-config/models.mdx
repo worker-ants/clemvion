@@ -73,7 +73,7 @@ Workflow AI Assistant 와 AI Agent 의 토큰 단위 스트리밍 응답은 모�
 Chat 설정 폼에서 Temperature 와 Max Tokens 를 기본 파라미터로 저장해요. 지금은 저장만 하고 AI 노드 · 워크플로우 어시스턴트 호출에는 아직 쓰지 않아요. AI 노드는 노드 설정 패널의 값을 써요.
 
 <FieldTable rows={[
-  { name: "Temperature", type: "number (0.0 ~ 2.0)", required: "선택", description: "응답 창의성. 기본 0.7. 프로바이더가 Anthropic 이면 입력이 잠기고 «Anthropic 모델에는 Temperature 를 보내지 않습니다.» 안내가 떠요. 저장된 값은 지우지 않아서 다른 프로바이더로 바꾸면 그대로 남아 있어요." },
+  { name: "Temperature", type: "number (0.0 ~ 2.0)", required: "선택", description: "응답 창의성. 기본 0.7. 프로바이더가 Anthropic 이면 입력이 잠기고 «Anthropic 모델에는 Temperature 를 보내지 않아요.» 안내가 떠요. 저장된 값은 지우지 않아서 다른 프로바이더로 바꾸면 그대로 남아 있어요." },
   { name: "Max Tokens", type: "integer", required: "선택", description: "최대 출력 토큰 수. 기본 4096." }
 ]} />
 
