@@ -1,4 +1,5 @@
 import type { Integration } from './entities/integration.entity';
+import { REINSTALL_REQUEST_TTL_HOURS } from './integrations.constants';
 
 /*
  * Cafe24 Private 재설치 요청 표시(`integration.reinstall_requested_at`, V151)를 읽는 판정 — NERV CLE-INT-OAUTH ·
@@ -10,12 +11,6 @@ import type { Integration } from './entities/integration.entity';
  * 읽는 쪽이 이 파일의 술어로 만료를 본다. 만료된 표시는 값이 남아 있어도 없는 것으로 읽는다(지우는 스윕은 없다).
  * 읽는 곳이 늘면 술어를 직접 쓰지 않고 이 파일을 거친다 — 한 곳만 만료를 빠뜨리면 인가 재판정을 건너뛰는 창이 열린다.
  */
-
-/**
- * 재설치 요청 표시의 유효 시간. 설치 대기 TTL(`pending-install-reuse.ts` 의 `PENDING_INSTALL_TTL_HOURS`,
- * 24시간)과 같은 값이다 — 두 흐름이 "App URL 이 OAuth 로 보내는 창"의 길이를 맞춘다. 한쪽을 바꾸면 다른 쪽도 본다.
- */
-export const REINSTALL_REQUEST_TTL_HOURS = 24;
 
 const REINSTALL_REQUEST_TTL_MS = REINSTALL_REQUEST_TTL_HOURS * 60 * 60 * 1000;
 
@@ -47,6 +42,8 @@ export function isInstallFlowRow(
 /**
  * Cafe24 Private 행인가. 재설치 요청 표시를 남기는 행은 이것뿐이라, 표시를 근거로 인가 재판정을 건너뛰는 곳은 이 조건을
  * 함께 본다 — Public · MakeShop 행에 표시가 우연히 있어도 재판정한다(`assertRequesterStillAllowed`).
+ * 설치 토큰은 보지 않는다. 토큰이 있어야 한다는 조건까지 필요하면 `isCafe24PrivateWithInstallToken`(`integrations.service.ts`)을
+ * 쓴다.
  */
 export function isCafe24PrivateRow(
   row: Pick<Integration, 'serviceType' | 'credentials'>,

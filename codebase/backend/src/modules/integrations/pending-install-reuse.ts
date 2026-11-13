@@ -3,22 +3,20 @@ import { createHash } from 'crypto';
 import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
 import type { Integration } from './entities/integration.entity';
 import { adminRequiredError } from './integration-visibility';
+import { PENDING_INSTALL_TTL_HOURS } from './integrations.constants';
 
 /*
  * `oauth/begin`(`new`)이 Cafe24 Private · MakeShop 설치 대기 행을 다시 쓸 때의 판정 — NERV CLE-INT-OAUTH
- * 「설치 대기 행 재사용의 권한」, Task CLE-T-N7ENKQ. 잠금과 쓰기는 `IntegrationOAuthService` 가 한 트랜잭션에서 하고,
- * 이 파일은 잠근 행을 보고 무엇을 할지만 정한다.
+ * 「설치 대기 행 재사용의 권한」, Task CLE-T-N7ENKQ. 잠금과 쓰기는 `PendingInstallWriter`(`pending-install-writer.ts`)가
+ * 한 트랜잭션에서 하고, 이 파일은 잠근 행을 보고 무엇을 할지만 정한다.
  */
-
-/**
- * 설치 대기 행의 설치 기한(시간). 만료 스캐너(`IntegrationExpiryScannerService.expirePendingInstalls`)와 409
- * `details.pendingInstallExpiresAt` 이 같은 값을 쓴다.
- */
-export const PENDING_INSTALL_TTL_HOURS = 24;
 
 const PENDING_INSTALL_TTL_MS = PENDING_INSTALL_TTL_HOURS * 60 * 60 * 1000;
 
-/** 설치 기한 — `COALESCE(install_token_issued_at, created_at)` 에 {@link PENDING_INSTALL_TTL_HOURS} 를 더한다. */
+/**
+ * 설치 기한 — `COALESCE(install_token_issued_at, created_at)` 에 `PENDING_INSTALL_TTL_HOURS`(`integrations.constants.ts`)를
+ * 더한다.
+ */
 export function pendingInstallExpiresAt(
   row: Pick<Integration, 'installTokenIssuedAt' | 'createdAt'>,
 ): Date {
@@ -104,7 +102,7 @@ export function pendingInstallConflict(
  * 없으면(`null`) 새 행을 만들 차례라 `null` 을 돌려준다. Cafe24 Private 과 MakeShop 이 같은 거절 응답을 내도록 두 서비스가
  * 이 함수 하나로 처리한다. 판정 값이 늘면 아래 `never` 에서 컴파일이 멈춘다.
  */
-export function assertPendingReusable<
+export function resolvePendingReuse<
   T extends Pick<
     Integration,
     'scope' | 'createdBy' | 'installTokenIssuedAt' | 'createdAt'

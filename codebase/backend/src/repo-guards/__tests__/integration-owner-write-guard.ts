@@ -22,9 +22,9 @@ export const INTEGRATION_OWNER_WRITES: Readonly<Record<string, string>> = {
     '조직 → 개인 전환. lockForIntegrationWrite 로 만든 사람의 멤버십을 잠근 뒤 바꾼다(REQ-INTMGMT-067)',
   'codebase/backend/src/modules/integrations/integrations.service.ts::updateScope':
     '개인 → 조직 전환만 여기서 바꾼다. 조직 → 개인은 switchToPersonalLocked 로 보낸다',
-  'codebase/backend/src/modules/integrations/integration-oauth.service.ts::writePrivatePending':
+  'codebase/backend/src/modules/integrations/pending-install-writer.ts::writeCafe24PrivateTx':
     'Cafe24 Private begin 의 설치 대기 행. 트랜잭션의 첫 문장에서 lockForPendingWrite 로 잠근다',
-  'codebase/backend/src/modules/integrations/integration-oauth.service.ts::writeMakeshopPendingTx':
+  'codebase/backend/src/modules/integrations/pending-install-writer.ts::writeMakeshopTx':
     'MakeShop begin 의 설치 대기 행. advisory lock 보다 먼저 lockForPendingWrite 로 잠근다',
 };
 
@@ -37,7 +37,7 @@ export const UNLOCKED_INTEGRATION_OWNER_WRITES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 쓰기 잠금 도우미. `lockForPendingWrite` 는 `integration-oauth.service.ts` 안에서 `lockForIntegrationWrite` 를 감싼다.
+ * 쓰기 잠금 도우미. `lockForPendingWrite` 는 `pending-install-writer.ts` 안에서 `lockForIntegrationWrite` 를 감싼다.
  * 감싸는 도우미를 새로 만들면 여기에 더한다.
  */
 export const INTEGRATION_WRITE_LOCK_HELPERS: ReadonlySet<string> = new Set([

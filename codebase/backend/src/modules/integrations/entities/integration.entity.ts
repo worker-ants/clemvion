@@ -12,12 +12,13 @@ import {
 import { Workspace } from '../../workspaces/entities/workspace.entity';
 import { User } from '../../users/entities/user.entity';
 import { encryptedJsonTransformer } from '../services/credentials-transformer';
+import { WORKSPACE_NAME_UNIQUE_CONSTRAINT } from '../integrations.constants';
 
 export type IntegrationStatus =
   'connected' | 'expired' | 'error' | 'pending_install';
 
 @Entity('integration')
-@Unique('integration_workspace_name_unique', ['workspaceId', 'name'])
+@Unique(WORKSPACE_NAME_UNIQUE_CONSTRAINT, ['workspaceId', 'name'])
 @Index('idx_integration_workspace_status', ['workspaceId', 'status'])
 export class Integration {
   @PrimaryGeneratedColumn('uuid')

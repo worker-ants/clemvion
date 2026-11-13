@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -128,6 +129,74 @@ describe('IntegrationOAuthService', () => {
       expect(result.authUrl).toContain('https');
       expect(result.state).toHaveLength(48);
       expect(stateRepo.save).toHaveBeenCalled();
+    });
+
+    // REQ-INTOAUTH-064 — `new` 는 통합 생성과 같은 인가를 받는다. 컨트롤러가 먼저 보지만 서비스도 다시 본다(Task
+    // CLE-T-JDQYT8). 역할이 없으면 관리자 미만으로 본다.
+    describe('new 모드의 생성 인가', () => {
+      const params = (
+        overrides: Partial<Parameters<IntegrationOAuthService['begin']>[0]>,
+      ) => ({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'google',
+        scopes: ['https://www.googleapis.com/auth/drive'],
+        mode: 'new' as const,
+        ...overrides,
+      });
+
+      it.each([
+        ['역할이 없으면', undefined],
+        ['역할이 null 이면', null],
+        ['편집자면', 'editor'],
+      ])(
+        '%s 조직 범위는 403 ADMIN_REQUIRED 이고 state 를 만들지 않는다',
+        async (_label, requesterRole) => {
+          oauthMock.env.google.clientId = 'cid-123';
+          const error = (await service
+            .begin(params({ scope: 'organization', requesterRole }))
+            .catch((err: unknown) => err)) as ForbiddenException;
+          expect(error).toBeInstanceOf(ForbiddenException);
+          expect(error.getResponse()).toMatchObject({ code: 'ADMIN_REQUIRED' });
+          expect(stateRepo.save).not.toHaveBeenCalled();
+          expect(dataSource.transaction).not.toHaveBeenCalled();
+        },
+      );
+
+      it('관리자는 조직 범위로 시작한다', async () => {
+        oauthMock.env.google.clientId = 'cid-123';
+        await service.begin(
+          params({ scope: 'organization', requesterRole: 'admin' }),
+        );
+        expect(stateRepo.save).toHaveBeenCalled();
+      });
+
+      it('개인 범위와 범위 생략은 역할 없이도 막지 않는다', async () => {
+        oauthMock.env.google.clientId = 'cid-123';
+        await service.begin(params({ scope: 'personal' }));
+        await service.begin(params({}));
+        expect(stateRepo.save).toHaveBeenCalledTimes(2);
+      });
+
+      it('Cafe24 Private 조직 범위도 역할이 없으면 설치 대기 행을 쓰기 전에 거절한다', async () => {
+        const error = (await service
+          .begin(
+            params({
+              service: 'cafe24',
+              scopes: ['mall.read_product'],
+              scope: 'organization',
+              providerMeta: {
+                mall_id: 'priv-shop',
+                app_type: 'private',
+                client_id: 'cid',
+                client_secret: 'csec',
+              },
+            }),
+          )
+          .catch((err: unknown) => err)) as ForbiddenException;
+        expect(error.getResponse()).toMatchObject({ code: 'ADMIN_REQUIRED' });
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+      });
     });
 
     // REQ-INTOAUTH-071 — `new` 가 아닌 모드는 본문의 서비스가 대상 통합의 서비스 유형과 같아야 state 를 만든다. 다르면

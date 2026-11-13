@@ -44,8 +44,8 @@ describe('통합 행 생성 · 공개 범위 변경 지점의 쓰기 잠금', ()
       expect.arrayContaining([
         'codebase/backend/src/modules/integrations/integrations.service.ts::create',
         'codebase/backend/src/modules/integrations/integrations.service.ts::switchToPersonalLocked',
-        'codebase/backend/src/modules/integrations/integration-oauth.service.ts::writePrivatePending',
-        'codebase/backend/src/modules/integrations/integration-oauth.service.ts::writeMakeshopPendingTx',
+        'codebase/backend/src/modules/integrations/pending-install-writer.ts::writeCafe24PrivateTx',
+        'codebase/backend/src/modules/integrations/pending-install-writer.ts::writeMakeshopTx',
       ]),
     );
   });

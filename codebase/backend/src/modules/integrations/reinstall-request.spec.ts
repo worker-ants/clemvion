@@ -1,5 +1,8 @@
 import {
+  PENDING_INSTALL_TTL_HOURS,
   REINSTALL_REQUEST_TTL_HOURS,
+} from './integrations.constants';
+import {
   isCafe24PrivateRow,
   isInstallFlowRow,
   isReinstallRequestActive,
@@ -13,6 +16,7 @@ const ago = (ms: number) => new Date(NOW.getTime() - ms);
 describe('reinstall-request', () => {
   it('유효 시간은 설치 대기 TTL 과 같은 24시간이다', () => {
     expect(REINSTALL_REQUEST_TTL_HOURS).toBe(24);
+    expect(REINSTALL_REQUEST_TTL_HOURS).toBe(PENDING_INSTALL_TTL_HOURS);
   });
 
   describe('isReinstallRequestActive', () => {

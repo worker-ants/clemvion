@@ -6,6 +6,7 @@ import {
   JOB_CAFE24_BACKGROUND_REFRESH,
 } from './integration-expiry-scanner.service';
 import { REFRESH_PROACTIVE_THRESHOLD_DAYS } from './cafe24-token-refresh.constants';
+import { pendingInstallExpiresAt } from './pending-install-reuse';
 
 type Mock = jest.Mock;
 
@@ -826,6 +827,21 @@ describe('IntegrationExpiryScannerService.expirePendingInstalls', () => {
     );
     const cutoff: Date = andWhereArgs[1].cutoff;
     expect(cutoff.getTime()).toBe(now.getTime() - 24 * 60 * 60 * 1000);
+  });
+
+  // 409 `details.pendingInstallExpiresAt` 이 알려 주는 기한과 스캐너가 행을 만료시키는 시각이 어긋나면 기한 전에 행이
+  // 사라지거나 기한이 지나도 남는다. 기한 시각에 돈 스윕의 cutoff 는 그 행의 발급 시각과 같아야 한다.
+  it('cutoff 와 pendingInstallExpiresAt 이 같은 시각을 기준으로 한다', async () => {
+    executeMock.mockResolvedValue({ affected: 0 });
+    const issuedAt = new Date('2026-05-14T12:00:00Z');
+    const expiresAt = pendingInstallExpiresAt({
+      installTokenIssuedAt: issuedAt,
+      createdAt: new Date('2026-05-01T00:00:00Z'),
+    });
+    await scanner.expirePendingInstalls(expiresAt);
+    const cutoff: Date = updateBuilder.andWhere.mock.calls[0][1].cutoff;
+    // `<` 비교라 기한 시각 정각의 행은 아직 남고, 그 뒤의 스윕에서 만료된다.
+    expect(cutoff.getTime()).toBe(issuedAt.getTime());
   });
 
   it('returns 0 when no pending_install rows are stale', async () => {
