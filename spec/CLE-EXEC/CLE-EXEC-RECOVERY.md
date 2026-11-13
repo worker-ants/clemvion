@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY"
 title: "장애 복구와 안전 종료"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "4e8543c63b1dff2eda5ffc112bd84ffba2e2a77e71c839c69af401cde5dded23"
+content_hash: "2b6c8898f03964b4f0889d1700d9fd4b86a15c775721d5fd784f70386909524c"
 read_as: "approved_fallback"
-task: "CLE-T-4196DR"
+task: "CLE-T-S03WEV"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "4240e764327d5769e9b96ab4e78003ae62988885e133ddaf7f02addde821943b"
-etag: "sha256-1026e66a28d82bd12ce27a1985c9eb2716c020689281fa70125c2e91bb21069a"
+mirror_sha256: "40be4b0bc188b2665cbd5c39ab14277206534885298a5f522e9f57e00f3341c1"
+etag: "sha256-e35385eed70290e345b467e4355dd8c2ad848273c9340e463651006ef4e2a68b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -313,7 +313,9 @@ SIGTERM 종료를 `failed` 로 볼지 `cancelled` 로 볼지는 정의가 갈린
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/execution-engine/**` (`recoverStuckExecutions`, `recoverOrphanPendingExecutions`, `closeOrphanRunningNodeExecutions`, `rehydrateContext`, `redriveStuckExecution`, `driveCallStackResume`, `finalizeStalledExhausted`)
+- `codebase/backend/src/modules/execution-engine/recovery/stuck-execution-recovery.service.ts` (`StuckExecutionRecoveryService` — 부팅 복구 스캔 `recoverStuckExecutions` 와 단계 `recoverOrphanPendingExecutions` · `closeOrphanRunningNodeExecutions`)
+- `codebase/backend/src/modules/execution-engine/recovery/orphan-running-node-executions.sql.ts` (종결된 실행 아래 남은 노드 실행 행을 고르는 SQL)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`onApplicationBootstrap` 의 부팅 스캔 호출, `rehydrateContext`, `redriveStuckExecution`, `driveCallStackResume`, `finalizeStalledExhausted`)
 - `codebase/backend/src/modules/execution-engine/queues/execution-run.processor.ts` (stalled 재배달 설정과 소진 처리)
 - `codebase/backend/src/modules/execution-engine/continuation/continuation-execution.processor.ts` (재개 큐 소비자, 취소 경로)
 - `codebase/backend/src/modules/execution-engine/resume-turn-dispatch.ts` (재개 turn 분기)
