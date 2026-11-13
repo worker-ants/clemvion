@@ -143,7 +143,6 @@ describe('IntegrationsService', () => {
         .fn()
         .mockImplementation((entity) => Promise.resolve(entity as Integration)),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
-      remove: jest.fn().mockResolvedValue(undefined),
       // 삭제는 `delete` 로 한다 — 그 `affected` 가 «내가 지웠는가» 의 판별자다(동시 DELETE 의 진 쪽은
       // 0행이라 404 로 끝나야 한다).
       delete: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),

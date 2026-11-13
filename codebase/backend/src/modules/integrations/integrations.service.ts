@@ -486,8 +486,6 @@ export type PublicIntegration = Omit<
   autoRefresh: boolean;
 };
 
-export type { IntegrationModifyAction } from './integration-visibility';
-
 /**
  * Thrown when execution-engine code paths try to use an integration whose
  * stored credentials cannot be decrypted (key rotation / corruption). The
@@ -770,6 +768,20 @@ export class IntegrationsService {
   }
 
   /**
+   * 판정한 행에만 · 바꾸는 컬럼만 쓴다(`judgedRow`). 0행이면 그 사이 행이 지워졌거나 scope 가 바뀐 것이라 404 로 끝낸다.
+   * 트랜잭션 안에서는 그 매니저의 저장소를 넘긴다. `patch` 타입은 `rotate` 의 changes 와 같은 이유로 넓힌다(JSONB 컬럼이
+   * QueryDeepPartialEntity 를 통과하지 못한다).
+   */
+  private async updateJudgedOrNotFound(
+    row: Pick<Integration, 'id' | 'workspaceId' | 'scope'>,
+    patch: Record<string, unknown>,
+    repo: Repository<Integration> = this.integrationRepository,
+  ): Promise<void> {
+    const { affected } = await repo.update(this.judgedRow(row), patch);
+    if (affected === 0) this.throwIntegrationNotFound();
+  }
+
+  /**
    * Cafe24 Private 의 재설치 요청 표시를 남긴다 — `:id/reauthorize` · `:id/request-scopes` 가 같은 방식으로 쓴다.
    *
    * 판정한 행에만 · 바꾸는 컬럼만 `update` 한다(`judgedRow`). 엔티티 전체를 `save` 하면 읽은 뒤 다른 요청이 바꾼 컬럼을
@@ -789,11 +801,7 @@ export class IntegrationsService {
       changes.reinstallRequestedAt = new Date();
     }
     if (Object.keys(changes).length === 0) return;
-    const { affected } = await this.integrationRepository.update(
-      this.judgedRow(entity),
-      changes,
-    );
-    if (affected === 0) this.throwIntegrationNotFound();
+    await this.updateJudgedOrNotFound(entity, changes);
   }
 
   /** 조건부 쓰기 뒤 응답용으로 다시 읽는다 — `updated_at` 은 DB 가 정한다(rotate 와 같은 이유). */
@@ -1600,11 +1608,7 @@ export class IntegrationsService {
     if (body.scope === 'personal') {
       await this.switchToPersonalLocked(entity);
     } else {
-      const { affected } = await this.integrationRepository.update(
-        this.judgedRow(entity),
-        { scope: body.scope },
-      );
-      if (affected === 0) this.throwIntegrationNotFound();
+      await this.updateJudgedOrNotFound(entity, { scope: body.scope });
     }
     const saved = await this.reloadOrNotFound(id, workspaceId);
     await this.auditLogsService.record({
@@ -1636,10 +1640,11 @@ export class IntegrationsService {
       if (lock === 'owner_not_member') {
         throw new ConflictException({ ...INTEGRATION_OWNER_NOT_MEMBER });
       }
-      const { affected } = await manager
-        .getRepository(Integration)
-        .update(this.judgedRow(entity), { scope: 'personal' });
-      if (affected === 0) this.throwIntegrationNotFound();
+      await this.updateJudgedOrNotFound(
+        entity,
+        { scope: 'personal' },
+        manager.getRepository(Integration),
+      );
     });
   }
 
@@ -1665,18 +1670,12 @@ export class IntegrationsService {
     const service = findService(entity.serviceType);
 
     if (!service?.oauthProvider) {
-      // 판정한 행에만 · 바꾸는 컬럼만 쓴다(`judgedRow`) — 엔티티 `save()` 는 그 사이 바뀐 scope 를 되돌린다.
-      // 타입은 `rotate` 의 changes 와 같은 이유로 넓힌다(JSONB 컬럼이 QueryDeepPartialEntity 를 통과하지 못한다).
-      const reset: Record<string, unknown> = {
+      // 판정한 행에만 · 바꾸는 컬럼만 쓴다 — 엔티티 `save()` 는 그 사이 바뀐 scope 를 되돌린다.
+      await this.updateJudgedOrNotFound(entity, {
         status: 'connected',
         statusReason: null,
         lastError: null,
-      };
-      const { affected } = await this.integrationRepository.update(
-        this.judgedRow(entity),
-        reset,
-      );
-      if (affected === 0) this.throwIntegrationNotFound();
+      });
       await this.auditLogsService.record({
         workspaceId,
         userId,

@@ -48,10 +48,8 @@ import {
   OperationCatalogDto,
   TestConnectionResultDto,
 } from './dto/responses/integration-response.dto';
-import {
-  IntegrationsService,
-  type IntegrationModifyAction,
-} from './integrations.service';
+import { IntegrationsService } from './integrations.service';
+import type { IntegrationModifyAction } from './integration-visibility';
 import { ROLE_REQUIRED } from '../../common/constants/workspace-roles';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
@@ -288,6 +286,9 @@ export class IntegrationsController {
     @CurrentUser() user: JwtPayload,
     @Body() body: OAuthBeginDto,
   ) {
+    // `request_scopes` 와 `request-scopes` 표기: state · DB 의 모드 값과 서비스 인자는 밑줄(`request_scopes`)이고, URL 경로
+    // (`:id/request-scopes`)와 인가 판정의 동작 이름(`IntegrationModifyAction`)은 하이픈이다. begin 본문은 둘 다 받아 여기서
+    // 밑줄로 맞춘다. 모드에서 동작 이름으로 넘어갈 때는 하이픈으로 바꾼다(`modifyActionOfBeginMode`, 콜백 재판정).
     const mode = body.mode === 'request-scopes' ? 'request_scopes' : body.mode;
     // `integrationId` 를 지정한 재인증 · scope 추가는 그 통합의 자격 증명을 덮어쓴다 — `:id/reauthorize` ·
     // `:id/request-scopes` 와 같은 판정을 받아야 한다(없으면 그 두 경로를 우회하는 입구가 된다, spec §8).

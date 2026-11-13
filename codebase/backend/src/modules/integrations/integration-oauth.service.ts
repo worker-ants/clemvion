@@ -23,7 +23,6 @@ import { Integration } from './entities/integration.entity';
 import {
   assertOrgScopeModifiable,
   assertPersonalWriteRole,
-  INTEGRATION_NOT_FOUND_CODE,
   integrationNotFoundError,
   isIntegrationVisibleTo,
 } from './integration-visibility';
@@ -200,6 +199,12 @@ export interface CallbackContext {
    * spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
    */
   requiresCafe24Approval?: string[];
+  /**
+   * `false` 면 `handleCallbackWithErrorCapture` 가 이 행에 오류를 기록하지 않는다. 커밋 직전 재판정이 «요청자가 볼 수
+   * 없는 행»(행이 없거나 남의 personal 이 됐다)으로 404 를 낼 때만 붙는다. 그 행의 소유자가 모르는 오류를 남기지 않기
+   * 위해서다. 응답 코드 문자열로 가리지 않고 거절하는 자리에서 이 신호를 붙인다. 값이 없으면 기록한다.
+   */
+  recordable?: false;
 }
 
 export function attachCallbackContext<E extends Error>(
@@ -222,6 +227,89 @@ export function callbackContextOf(err: unknown): CallbackContext | undefined {
     return (err as { context?: CallbackContext }).context;
   }
   return undefined;
+}
+
+/**
+ * 커밋 직전 재판정이 «요청자가 볼 수 없는 행» 을 만났을 때의 거절. 응답은 없는 통합 · 남의 personal 과 같은 404 이고,
+ * 컨텍스트에 `recordable: false` 를 붙여 콜백 오류 수집이 그 행에 쓰지 않게 한다.
+ * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
+ */
+function hiddenCallbackTargetRejection(
+  context: CallbackContext,
+): NotFoundException {
+  return attachCallbackContext(integrationNotFoundError(), {
+    ...context,
+    recordable: false,
+  });
+}
+
+/**
+ * 콜백이 받은 자격 증명으로 행의 자격 증명을 바꾼다. 통합 재인증과 설치 대기 행은 통째로 바꾸고, 추가 권한 요청은
+ * 기존 값 위에 덮되 `scopes` 는 교환 결과로 둔다.
+ */
+function replaceCallbackCredentials(
+  integration: Integration,
+  mode: OAuthStateMode,
+  credentials: Record<string, unknown>,
+  scopes: string[],
+): void {
+  if (mode === 'reauthorize' || integration.status === 'pending_install') {
+    integration.credentials = credentials;
+    return;
+  }
+  integration.credentials = {
+    ...integration.credentials,
+    ...credentials,
+    scopes,
+  };
+}
+
+/**
+ * 콜백이 성공한 행을 연결됨으로 돌리고, 상점 식별자 평문 컬럼이 비었으면 채운다.
+ */
+function markCallbackConnected(
+  integration: Integration,
+  provider: OAuthProvider,
+  credentials: Record<string, unknown>,
+  tokenExpiresAt: Date | null,
+): void {
+  integration.status = 'connected';
+  integration.statusReason = null;
+  integration.lastError = null;
+  integration.tokenExpiresAt = tokenExpiresAt;
+  integration.lastRotatedAt = new Date();
+  // 재설치 대기 표시는 콜백이 성공해야 지운다 — 이후 App URL 재호출(「앱으로 가기」)은 다시 상세 화면으로 간다.
+  // 표시를 읽는 판정과 24시간 유효 기간은 `reinstall-request.ts` 한 곳이 정한다. 만료된 표시를 따로 지우지는
+  // 않는다(값이 남아도 술어가 무시한다).
+  integration.reinstallRequestedAt = null;
+  // install_token 은 callback 성공 시 **보존** — Cafe24 의 "앱으로
+  // 가기" 등 post-install navigation 이 같은 App URL 을 재호출하므로
+  // 통합 lifetime 동안 유효한 persistent 식별자로 유지한다.
+  // NULL 처리는 24h TTL 만료 (status='expired', status_reason=
+  // 'install_timeout') 와 통합 삭제(row 자체 소멸) 두 경로에서만 발생.
+  // 자세한 근거는 spec/2-navigation/4-integration.md ## Rationale
+  // "Cafe24 App URL 재호출 흐름 — install_token persistent 격상" 항.
+  // Backfill plain `mall_id` column for cafe24 rows if it's still
+  // NULL — pre-V045 rows pass through this connected path on next
+  // re-auth and get the plain projection set. New rows already have
+  // it set by createPrivatePendingIntegration / public-flow begin.
+  if (
+    provider === 'cafe24' &&
+    !integration.mallId &&
+    typeof credentials.mall_id === 'string'
+  ) {
+    integration.mallId = credentials.mall_id;
+  }
+  // MakeShop: project shop_uid onto the mall_id column (V071 partial
+  // UNIQUE). Normally already set by handleMakeshopInstall, but backfill
+  // defensively if still NULL.
+  if (
+    provider === 'makeshop' &&
+    !integration.mallId &&
+    typeof credentials.shop_uid === 'string'
+  ) {
+    integration.mallId = credentials.shop_uid;
+  }
 }
 
 function readErrorCode(err: unknown): string {
@@ -418,6 +506,43 @@ export class IntegrationOAuthService {
   }
 
   /**
+   * 콜백 트랜잭션의 첫 단계 — 대상 행을 잠그고 커밋 직전 판정을 다시 한다. 통과하면 잠근 행을 돌려준다.
+   *
+   * CONC H-3 (2026-05-16): `SELECT ... FOR UPDATE` 로 행 락을 잡아 동시 통합 재인증 콜백의 lost update 를 막는다. READ
+   * COMMITTED 에서 두 트랜잭션이 같은 행을 동시에 읽고 저장하면 나중 쓰기가 이겨 한쪽 토큰이 사라지고, Cafe24 의
+   * refresh_token 회전 정책 때문에 살아남은 토큰도 무효일 수 있다. `pessimistic_write` 가 두 번째 트랜잭션을 첫 커밋까지
+   * 기다리게 한다.
+   *
+   * 거절은 세 가지다.
+   * - 행이 없거나 요청자가 볼 수 없다: 404 이고 그 행에 기록하지 않는다(`recordable: false`).
+   * - 요청자의 역할이 모자라다: 403(`assertRequesterStillAllowed`).
+   * - 설치 기한이 지나 만료된 행이다: `INTEGRATION_INSTALL_EXPIRED`. 만료 직전에 App URL 이 만든 state 의 콜백이 만료 뒤에
+   *   도착해도 여기서 끝낸다. 되살리면 만료 때 비운 상점 식별자를 다시 채워 그 사이 같은 상점을 등록한 행과 부딪힌다.
+   *   요청자 판정 뒤에 둔다. 볼 수 없는 요청자는 404, 역할을 잃은 요청자는 403 을 그대로 받는다. 앞에 두면 만료 응답
+   *   하나로 볼 수 없는 행이 있다는 것까지 알려 준다.
+   *   근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
+   */
+  private async lockAndRejudgeCallbackTarget(
+    manager: EntityManager,
+    record: Pick<IntegrationOAuthState, 'workspaceId' | 'userId' | 'mode'>,
+    context: CallbackContext,
+  ): Promise<Integration> {
+    const integration = await manager.getRepository(Integration).findOne({
+      where: { id: context.integrationId, workspaceId: context.workspaceId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!integration) {
+      throw hiddenCallbackTargetRejection(context);
+    }
+    // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
+    await this.assertRequesterStillAllowed(integration, record, manager);
+    if (hasReleasedStoreSlot(integration)) {
+      throw new BadRequestException({ ...INTEGRATION_INSTALL_EXPIRED });
+    }
+    return integration;
+  }
+
+  /**
    * 사용자가 시작한 재인증 · scope 추가는 **커밋 직전에** 인가를 다시 본다 — begin 과 콜백 사이(state TTL)에 요청자가
    * 강등됐거나 통합이 남의 personal 로 바뀌었을 수 있다. 콜백은 자격 증명을 덮어쓰므로 begin 시점의 판정만으로는
    * 모자란다(REQ-INTOAUTH-026 — `:id/reauthorize` · `oauth/begin` 이 이미 본 것과 같은 판정: 보이는가 → Organization 이면
@@ -429,10 +554,12 @@ export class IntegrationOAuthService {
    * 봤다. 표시에는 24시간 유효 기간이 있다(`isReinstallRequestActive`) — 그 뒤에는 요청자가 강등됐을 수 있어 다시 본다.
    * Public · MakeShop 행은 표시가 있어도 다시 본다(표시를 남기는 입구가 Cafe24 Private 뿐이다). 사용자가 이런 행에
    * 재인증을 시작하는 입구는 begin 이 막는다(cafe24 private · makeshop 은 `mode: 'new'` 만).
+   *
+   * 요청자가 볼 수 없는 행이면 404 를 내고 그 행에 기록하지 않는다(`hiddenCallbackTargetRejection`).
    */
   private async assertRequesterStillAllowed(
     integration: Integration,
-    record: { workspaceId: string; userId: string; mode: string },
+    record: Pick<IntegrationOAuthState, 'workspaceId' | 'userId' | 'mode'>,
     manager: EntityManager,
   ): Promise<void> {
     if (integration.status === 'pending_install') return;
@@ -442,7 +569,11 @@ export class IntegrationOAuthService {
     )
       return;
     if (!isIntegrationVisibleTo(integration, record.userId)) {
-      throw integrationNotFoundError();
+      throw hiddenCallbackTargetRejection({
+        integrationId: integration.id,
+        workspaceId: integration.workspaceId,
+        mode: record.mode,
+      });
     }
     const role = this.workspacesService
       ? await this.workspacesService.getMemberRole(
@@ -789,8 +920,11 @@ export class IntegrationOAuthService {
           mode: record.mode,
         }
       : undefined;
+    // 이미 컨텍스트가 붙은 오류(재판정의 `recordable: false` 거절)는 그대로 둔다.
     const withContext = <E extends Error>(err: E): E =>
-      context ? attachCallbackContext(err, context) : err;
+      context && !callbackContextOf(err)
+        ? attachCallbackContext(err, context)
+        : err;
 
     if (record.provider !== provider) {
       throw withContext(
@@ -884,7 +1018,7 @@ export class IntegrationOAuthService {
       return { mode: 'new', provider, previewToken };
     }
 
-    if (!record.integrationId) {
+    if (!record.integrationId || !context) {
       throw withContext(
         new BadRequestException({
           code: 'OAUTH_STATE_INVALID',
@@ -895,80 +1029,24 @@ export class IntegrationOAuthService {
 
     try {
       await this.dataSource.transaction(async (manager) => {
-        const repo = manager.getRepository(Integration);
-        // CONC H-3 (2026-05-16): `SELECT ... FOR UPDATE` 로 row lock 을 잡아
-        // 동시 reauthorize callback 의 lost update 를 차단. PostgreSQL READ
-        // COMMITTED 에서 두 트랜잭션이 같은 row 를 동시 read → save 하면
-        // last-write-wins 로 한쪽 토큰이 사라지고, Cafe24 의 refresh_token
-        // rotation 정책 상 살아남은 토큰도 무효일 수 있다. pessimistic_write
-        // lock 이 두 번째 트랜잭션을 첫 commit 까지 대기시켜 serial 보장.
-        const integration = await repo.findOne({
-          where: { id: record.integrationId!, workspaceId: record.workspaceId },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (!integration) {
-          throw integrationNotFoundError();
-        }
-        // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
-        await this.assertRequesterStillAllowed(integration, record, manager);
-        // 설치 기한이 지나 만료된 행은 되살리지 않는다. 만료 직전에 App URL 이 만든 state 의 콜백이 만료 뒤에 도착해도
-        // 여기서 끝낸다. 되살리면 만료 때 비운 상점 식별자를 다시 채워 그 사이 같은 상점을 등록한 행과 부딪힌다.
-        // 요청자 판정 뒤에 둔다 — 볼 수 없는 요청자는 404 · 역할을 잃은 요청자는 403 을 그대로 받는다. 앞에 두면 만료 응답
-        // 하나로 볼 수 없는 행이 있다는 것까지 알려 준다.
-        // 근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
-        if (hasReleasedStoreSlot(integration)) {
-          throw new BadRequestException({ ...INTEGRATION_INSTALL_EXPIRED });
-        }
-        if (
-          record.mode === 'reauthorize' ||
-          integration.status === 'pending_install'
-        ) {
-          integration.credentials = credentials;
-        } else {
-          integration.credentials = {
-            ...integration.credentials,
-            ...credentials,
-            scopes: exchange.scopes,
-          };
-        }
-        integration.status = 'connected';
-        integration.statusReason = null;
-        integration.lastError = null;
-        integration.tokenExpiresAt = exchange.tokenExpiresAt;
-        integration.lastRotatedAt = new Date();
-        // 재설치 요청 표시는 콜백이 성공해야 지운다 — 이후 App URL 재호출(「앱으로 가기」)은 다시 상세 화면으로 간다.
-        // 표시를 읽는 판정과 24시간 유효 기간은 `reinstall-request.ts` 한 곳이 정한다. 만료된 표시를 따로 지우지는
-        // 않는다(값이 남아도 술어가 무시한다).
-        integration.reinstallRequestedAt = null;
-        // install_token 은 callback 성공 시 **보존** — Cafe24 의 "앱으로
-        // 가기" 등 post-install navigation 이 같은 App URL 을 재호출하므로
-        // 통합 lifetime 동안 유효한 persistent 식별자로 유지한다.
-        // NULL 처리는 24h TTL 만료 (status='expired', status_reason=
-        // 'install_timeout') 와 통합 삭제(row 자체 소멸) 두 경로에서만 발생.
-        // 자세한 근거는 spec/2-navigation/4-integration.md ## Rationale
-        // "Cafe24 App URL 재호출 흐름 — install_token persistent 격상" 항.
-        // Backfill plain `mall_id` column for cafe24 rows if it's still
-        // NULL — pre-V045 rows pass through this connected path on next
-        // re-auth and get the plain projection set. New rows already have
-        // it set by createPrivatePendingIntegration / public-flow begin.
-        if (
-          provider === 'cafe24' &&
-          !integration.mallId &&
-          typeof credentials.mall_id === 'string'
-        ) {
-          integration.mallId = credentials.mall_id;
-        }
-        // MakeShop: project shop_uid onto the mall_id column (V071 partial
-        // UNIQUE). Normally already set by handleMakeshopInstall, but backfill
-        // defensively if still NULL.
-        if (
-          provider === 'makeshop' &&
-          !integration.mallId &&
-          typeof credentials.shop_uid === 'string'
-        ) {
-          integration.mallId = credentials.shop_uid;
-        }
-        await repo.save(integration);
+        const integration = await this.lockAndRejudgeCallbackTarget(
+          manager,
+          record,
+          context,
+        );
+        replaceCallbackCredentials(
+          integration,
+          record.mode,
+          credentials,
+          exchange.scopes,
+        );
+        markCallbackConnected(
+          integration,
+          provider,
+          credentials,
+          exchange.tokenExpiresAt,
+        );
+        await manager.getRepository(Integration).save(integration);
       });
     } catch (err) {
       throw withContext(err as Error);
@@ -1058,12 +1136,8 @@ export class IntegrationOAuthService {
       const ctx = callbackContextOf(err);
       const errorCode = readErrorCode(err);
       // 요청자가 볼 수 없는 행(남의 personal 이 됐거나 지워졌다 — 재판정의 404)에는 기록하지 않는다. 그 행의 소유자가 모르는
-      // 오류를 남기게 된다. 거절은 요청자의 응답으로만 알린다.
-      if (
-        ctx?.integrationId &&
-        ctx.workspaceId &&
-        errorCode !== INTEGRATION_NOT_FOUND_CODE
-      ) {
+      // 오류를 남기게 된다. 거절은 요청자의 응답으로만 알린다. 판정은 거절한 자리가 붙인 `recordable: false` 로 한다.
+      if (ctx?.integrationId && ctx.workspaceId && ctx.recordable !== false) {
         const message = readErrorMessage(err);
         // Cafe24 invalid_scope 콜백은 context 에 별도 승인 명단을 실어 보낸다 —
         // last_error.details.requiresCafe24Approval 로 기록 (§10.4).

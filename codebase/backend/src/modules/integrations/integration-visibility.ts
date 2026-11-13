@@ -47,16 +47,15 @@ export const INTEGRATION_USER_PARAM = 'integrationUserId';
  * 한쪽만 바뀌면 두 응답의 문구가 갈려 통합이 있는지 알려 주는 신호가 되므로 이 상수 하나에서 가져간다.
  */
 export const INTEGRATION_NOT_FOUND_MESSAGE = 'Integration not found';
-/** 없는 통합 · 남의 personal 의 응답 코드 — 콜백 기록 경로가 이 코드로 «요청자가 볼 수 없는 행» 을 가린다. */
-export const INTEGRATION_NOT_FOUND_CODE = 'RESOURCE_NOT_FOUND';
 
 /**
  * «없다» — 없는 통합과 남의 personal 이 **같은** 응답을 받는다(구별되면 존재를 드러낸다). 같은 리터럴이 여러 서비스에
- * 흩어지지 않도록 여기서만 만든다.
+ * 흩어지지 않도록 여기서만 만든다. 콜백 오류 수집은 이 응답 코드를 보지 않는다. 재판정이 거절할 때 붙이는
+ * `CallbackContext.recordable` 로 기록 여부를 정한다(`integration-oauth.service.ts`).
  */
 export function integrationNotFoundError(): NotFoundException {
   return new NotFoundException({
-    code: INTEGRATION_NOT_FOUND_CODE,
+    code: 'RESOURCE_NOT_FOUND',
     message: INTEGRATION_NOT_FOUND_MESSAGE,
   });
 }

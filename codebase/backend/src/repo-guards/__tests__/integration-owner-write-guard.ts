@@ -45,6 +45,14 @@ export const INTEGRATION_WRITE_LOCK_HELPERS: ReadonlySet<string> = new Set([
   'lockForPendingWrite',
 ]);
 
+/**
+ * 통합 저장소의 `update` 를 감싼 메서드. `this.<이름>(row, { scope })` 는 저장소의 `update(criteria, { scope })` 와 같은
+ * 공개 범위 변경으로 센다(`IntegrationsService.updateJudgedOrNotFound`). 감싸는 메서드를 새로 만들면 여기에 더한다.
+ */
+export const INTEGRATION_UPDATE_HELPERS: ReadonlySet<string> = new Set([
+  'updateJudgedOrNotFound',
+]);
+
 /** 통합 행을 넣는 원시 SQL. `integration_usage_log` 같은 다른 테이블은 걸리지 않는다. */
 const RAW_INTEGRATION_INSERT = /\bINSERT\s+INTO\s+"?integration"?(?=[\s(]|$)/i;
 
@@ -115,7 +123,7 @@ function receiverName(expr: ts.Expression): string | null {
   return null;
 }
 
-/** 두 번째 인자가 `scope` 키를 가진 객체 리터럴인가(`update(criteria, { scope })`). */
+/** 두 번째 인자가 `scope` 키를 가진 객체 리터럴인가(`update(criteria, { scope })` · `updateJudgedOrNotFound(row, { scope })`). */
 function setsScope(call: ts.CallExpression): boolean {
   const changes = call.arguments[1];
   return (
@@ -141,7 +149,7 @@ export interface IntegrationOwnerWrite {
  *
  * - 통합 저장소의 `create` · `insert` 와 `.into(Integration)` · `INSERT INTO integration` 원시 SQL. 엔티티를 만드는 것은
  *   새 행을 쓰려는 것이다.
- * - 통합 저장소의 `update` 중 바꿀 값에 `scope` 가 있는 것.
+ * - 통합 저장소의 `update` 중 바꿀 값에 `scope` 가 있는 것. {@link INTEGRATION_UPDATE_HELPERS} 를 `this.` 로 부른 것도 같다.
  *
  * `locked` 는 같은 함수(화살표 함수 콜백은 감싼 메서드로 센다) 안에 {@link INTEGRATION_WRITE_LOCK_HELPERS} 호출이 있는가다.
  * 호출 순서와 같은 트랜잭션인지는 보지 않는다. 그것은 각 경로의 단위 테스트가 본다. `save` 로 기존 엔티티의 `scope` 를
@@ -175,11 +183,16 @@ export function findIntegrationOwnerWrites(
         const onIntegrationRepository =
           isGetRepositoryOfIntegration(receiver) ||
           (name !== null && repos.has(name));
+        const viaUpdateHelper =
+          receiver.kind === ts.SyntaxKind.ThisKeyword &&
+          INTEGRATION_UPDATE_HELPERS.has(method) &&
+          setsScope(node);
         if (
           (onIntegrationRepository &&
             (method === 'create' ||
               method === 'insert' ||
               (method === 'update' && setsScope(node)))) ||
+          viaUpdateHelper ||
           (method === 'into' && isIntegrationIdentifier(node.arguments[0]))
         ) {
           writers.add(enclosingScopeName(node, sf));

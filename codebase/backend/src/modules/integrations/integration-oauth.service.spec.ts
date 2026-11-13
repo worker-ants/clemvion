@@ -692,6 +692,120 @@ describe('IntegrationOAuthService', () => {
       );
     });
 
+    /**
+     * 콜백 트랜잭션의 첫 단계만 떼어 본다. state 소비 · 코드 교환을 거치지 않고 거절의 종류와, 그 거절을 행에 남길지 정하는
+     * 신호(`CallbackContext.recordable`)를 확인한다.
+     */
+    describe('lockAndRejudgeCallbackTarget — 잠근 행의 재판정', () => {
+      type Rejudge = {
+        lockAndRejudgeCallbackTarget(
+          manager: unknown,
+          record: { workspaceId: string; userId: string; mode: string },
+          context: { integrationId: string; workspaceId: string; mode: string },
+        ): Promise<unknown>;
+      };
+      const record = {
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        mode: 'reauthorize',
+      };
+      const context = {
+        integrationId: 'int-1',
+        workspaceId: 'ws-1',
+        mode: 'reauthorize',
+      };
+      const rejudge = (role: string | null): Promise<unknown> =>
+        (
+          serviceWithRole(role) as unknown as Rejudge
+        ).lockAndRejudgeCallbackTarget(
+          { getRepository: jest.fn().mockReturnValue(integrationRepo) },
+          record,
+          context,
+        );
+      const rejectionOf = (role: string | null): Promise<unknown> =>
+        rejudge(role).then(
+          () => {
+            throw new Error('재판정이 거절하지 않았다');
+          },
+          (err: unknown) => err,
+        );
+
+      it('통과하면 행 락으로 읽은 그 행을 돌려준다', async () => {
+        const row = rowOf({});
+        integrationRepo.findOne.mockResolvedValue(row);
+
+        await expect(rejudge('admin')).resolves.toBe(row);
+        expect(integrationRepo.findOne).toHaveBeenCalledWith({
+          where: { id: 'int-1', workspaceId: 'ws-1' },
+          lock: { mode: 'pessimistic_write' },
+        });
+      });
+
+      it('행이 없으면 404 이고 그 거절은 기록하지 않는다고 표시한다', async () => {
+        integrationRepo.findOne.mockResolvedValue(null);
+
+        const err = await rejectionOf('owner');
+
+        expect(err).toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        expect(callbackContextOf(err)).toEqual({
+          ...context,
+          recordable: false,
+        });
+      });
+
+      it('남의 personal 이 됐으면 404 이고 그 거절은 기록하지 않는다고 표시한다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({ scope: 'personal', createdBy: 'u-2' }),
+        );
+
+        const err = await rejectionOf('owner');
+
+        expect(err).toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        expect(callbackContextOf(err)).toEqual({
+          ...context,
+          recordable: false,
+        });
+      });
+
+      it('보이는 행의 역할 거절에는 표시를 붙이지 않는다 — 기록 여부는 바깥 컨텍스트가 정한다', async () => {
+        integrationRepo.findOne.mockResolvedValue(rowOf({}));
+
+        const err = await rejectionOf('editor');
+
+        expect(err).toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+        expect(callbackContextOf(err)).toBeUndefined();
+      });
+
+      it('설치 기한이 지나 만료된 행은 INTEGRATION_INSTALL_EXPIRED 로 끝낸다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({ status: 'expired', statusReason: 'install_timeout' }),
+        );
+
+        const err = await rejectionOf('owner');
+
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err).toMatchObject({
+          response: { code: 'INTEGRATION_INSTALL_EXPIRED' },
+        });
+        expect(callbackContextOf(err)).toBeUndefined();
+      });
+
+      it('만료 판정은 요청자 판정 뒤다 — 볼 수 없는 만료 행은 404 를 받는다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({
+            scope: 'personal',
+            createdBy: 'u-2',
+            status: 'expired',
+            statusReason: 'install_timeout',
+          }),
+        );
+
+        const err = await rejectionOf('owner');
+
+        expect(err).toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+      });
+    });
+
     it('pending_install 행(설치 흐름)은 재판정하지 않는다 — state 의 userId 가 요청자가 아니라 생성자다', async () => {
       dataSource.query.mockResolvedValue(stateOf('reauthorize'));
       integrationRepo.findOne.mockResolvedValue(

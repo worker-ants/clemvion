@@ -4,6 +4,7 @@ import type { ModuleRef } from '@nestjs/core';
 import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { MEMBER_PERSONAL_INTEGRATIONS_PURGER } from './member-personal-integrations.port';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import type { EntityManager } from 'typeorm';
 import { findUserSecretLeaks } from '../../shared/testing/user-secret-absence';
 import {
   MEMBER_DEPARTURE_LOCK_TIMEOUT_MS,
@@ -414,6 +415,25 @@ describe('WorkspacesService', () => {
 
       const result = await service.getMemberRole('ws-uuid-1', 'user-uuid-1');
       expect(result).toBeNull();
+    });
+
+    it('manager 를 넘기면 그 트랜잭션의 저장소로 읽고 주입된 저장소는 쓰지 않는다', async () => {
+      const txFindOne = jest.fn().mockResolvedValue({ role: 'manager' });
+      const getRepository = jest.fn().mockReturnValue({ findOne: txFindOne });
+      const manager = { getRepository } as unknown as EntityManager;
+
+      const result = await service.getMemberRole(
+        'ws-uuid-1',
+        'user-uuid-1',
+        manager,
+      );
+
+      expect(result).toBe('manager');
+      expect(getRepository).toHaveBeenCalledWith(WorkspaceMember);
+      expect(txFindOne).toHaveBeenCalledWith({
+        where: { workspaceId: 'ws-uuid-1', userId: 'user-uuid-1' },
+      });
+      expect(memberRepo.findOne).not.toHaveBeenCalled();
     });
   });
 
