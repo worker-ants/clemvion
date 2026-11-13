@@ -580,39 +580,3 @@ export function ParallelConfig({ config, onChange }: { config: Config; onChange:
     </div>
   );
 }
-
-// ===== Merge =====
-export function MergeConfig({ config, onChange }: { config: Config; onChange: OnChange }) {
-  const t = useT();
-  return (
-    <div className="flex flex-col gap-3">
-      <SelectField
-        label={t("nodeConfigs.logic.strategy")}
-        value={(config.strategy as string) ?? "wait_all"}
-        onChange={(v) => onChange({ ...config, strategy: v })}
-        options={[
-          { value: "wait_all", label: t("nodeConfigs.logic.stratWaitAll") },
-          { value: "first", label: t("nodeConfigs.logic.stratFirst") },
-          { value: "append", label: t("nodeConfigs.logic.stratAppend") },
-        ]}
-      />
-      <SelectField
-        label={t("nodeConfigs.logic.outputFormat")}
-        value={(config.outputFormat as string) ?? "array"}
-        onChange={(v) => onChange({ ...config, outputFormat: v })}
-        options={[
-          { value: "array", label: t("nodeConfigs.logic.fmtArray") },
-          { value: "merge_object", label: t("nodeConfigs.logic.fmtMergeObject") },
-          { value: "indexed", label: t("nodeConfigs.logic.fmtIndexedObject") },
-        ]}
-      />
-      <NumberField
-        label={t("nodeConfigs.flow.timeoutSeconds")}
-        value={(config.timeout as number) ?? 0}
-        onChange={(v) => onChange({ ...config, timeout: v })}
-        min={0}
-        hint={t("nodeConfigs.flow.zeroNoTimeout")}
-      />
-    </div>
-  );
-}
