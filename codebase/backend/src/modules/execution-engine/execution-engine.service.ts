@@ -696,11 +696,10 @@ export class ExecutionEngineService
   private readonly containerCancelCheckedAtMs = new Map<string, number>();
   /**
    * Parallel 사전 검사와 병렬 분기 계획(CLE-T-8PAPKV). 노드 종류는 핸들러 레지스트리에
-   * 묻는다. 람다라서 호출 때 `handlerRegistry` 를 읽으므로 필드 초기화 순서와 상관없다.
+   * 묻는다. 생성자에서 만들고 람다는 `this` 가 아니라 생성자 인자를 잡는다. 이유는
+   * {@link stuckRecoveryPort} 에 적었다.
    */
-  private readonly parallelPrecheck = new ParallelPrecheck(
-    (type) => this.handlerRegistry.getMetadata(type).kind,
-  );
+  private readonly parallelPrecheck: ParallelPrecheck;
 
   /**
    * 병렬 분기 컨텍스트의 `nodeOutputCache`(분기 전용 얕은 복사본) → 이번 분기 실행에서
@@ -925,7 +924,11 @@ export class ExecutionEngineService
     private readonly notificationsService?: NotificationsService,
     @Optional()
     private readonly moduleRef?: ModuleRef,
-  ) {}
+  ) {
+    this.parallelPrecheck = new ParallelPrecheck(
+      (type) => handlerRegistry.getMetadata(type).kind,
+    );
+  }
 
   private resolvedNotificationsService?: NotificationsService | null;
 

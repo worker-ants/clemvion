@@ -372,12 +372,12 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
   },
   {
     token: "CONTAINER_MISSING_EMIT",
-    where: "execution-engine.service.ts:7128·7132 — 템플릿 리터럴 메시지 접두",
+    where: "execution-engine.service.ts:7131·7135 — 템플릿 리터럴 메시지 접두",
     why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 2026-11-12 에 전용 코드를 만들지도, 카탈로그 행으로 등재하지도 않기로 정했다(NERV Task `CLE-T-1W44RD`. `CLE-API-ERRCODES` 「6.5」 는 이 이름을 행 없이 메시지 접두로 적는다). 그래서 이 등록은 계속 필요하다.",
   },
   {
     token: "CONTAINER_MULTIPLE_EMIT",
-    where: "execution-engine.service.ts:7137 — 형제 접두",
+    where: "execution-engine.service.ts:7140 — 형제 접두",
     why: "위와 동형. 두 이름은 같은 문장에 함께 등장하므로 처분도 함께 한다.",
   },
 ];
