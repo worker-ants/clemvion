@@ -612,10 +612,14 @@ export interface ChatChannelAdapter {
    * (옵션) 봇 토큰 재발급의 24시간 유예가 끝난 *이전* 토큰을 외부 provider 측에서 revoke.
    * SoT: [spec/conventions/chat-channel-adapter.md §1] Adapter Interface 의 revokeBotToken?
    * 옵션 메서드. provider 가 revocation API 를 제공하면 구현 (Slack `auth.revoke`),
-   * Telegram / Discord 처럼 없으면 미구현 (`undefined`). caller 는 유예 종료 정리 작업
-   * (`TriggersService.cleanupRotatedChatChannelTokens` → `tryRevokeOldBotToken`)이고, 본 메서드
-   * 존재 여부를 type-guard 로 확인 후 best-effort 호출한다. 재발급(`rotateBotToken`) 시점에는
-   * 부르지 않는다 — 유예 중에는 이전 토큰으로 처리 중인 요청이 남아 있다(NERV Task `CLE-T-D41BY6`).
+   * Telegram / Discord 처럼 없으면 미구현 (`undefined`). 호출자는 둘이고, 둘 다 본 메서드
+   * 존재 여부를 type-guard 로 확인한 뒤 best-effort 로 부른다.
+   * - 유예 종료 정리 작업(`TriggersService.cleanupRotatedChatChannelTokens`)이 v2 에 백업한
+   *   직전 토큰을 폐기한다. 재발급 시점에는 그 토큰을 폐기하지 않는다. 유예 중에는 그 토큰으로
+   *   처리 중인 요청이 남아 있다(NERV Task `CLE-T-D41BY6`).
+   * - 재발급(`rotateBotToken`)이 유예 중 재교체로 v2 에서 덮인 토큰을 폐기한다. 재발급이 성공한
+   *   뒤에만 부르고, 덮인 값이 비었거나 지금 토큰 · 새 토큰과 같으면 부르지 않는다
+   *   (NERV Task `CLE-T-6ZTPZ8`).
    */
   revokeBotToken?(oldBotToken: string): Promise<void>;
 

@@ -48,7 +48,10 @@ import {
   isNativeFormAdapter,
 } from '../chat-channel/types';
 import { validateFormSubmission } from '../chat-channel/shared/form-mode';
-import { resolveSurfaceMismatchMessage } from '../chat-channel/shared/language-hint-defaults';
+import {
+  resolveFormOpenLabel,
+  resolveSurfaceMismatchMessage,
+} from '../chat-channel/shared/language-hint-defaults';
 import { randomUUID } from 'crypto';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { readTriggerChatChannelConfig } from '../chat-channel/chat-channel-secret-refs';
@@ -1093,9 +1096,11 @@ export class HooksService {
   ): Promise<void> {
     if (!state.pendingFormModal) return;
     try {
-      const openLabel =
-        config.languageHints?.formOpenLabel ??
-        (config.languageLocale === 'en' ? 'Fill out form' : '양식 작성하기');
+      // 처음 보낸 버튼과 같은 조회(`languageHints.formOpenLabel` → locale 기본값)로 라벨을 고른다.
+      const openLabel = resolveFormOpenLabel(
+        config.languageHints,
+        config.languageLocale,
+      );
       await adapter.sendMessage(
         {
           conversationKey: update.conversationKey,

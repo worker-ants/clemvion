@@ -3064,11 +3064,91 @@ describe('HooksService', () => {
       // re-noise: sendMessage 로 form_modal 버튼 재발송해야 함.
       expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({ kind: 'form_modal' }),
+          body: expect.objectContaining({
+            kind: 'form_modal',
+            openLabel: '양식 작성하기',
+          }),
         }),
         expect.anything(),
       );
     });
+
+    // 다시 보내는 버튼도 처음 보낸 버튼과 같은 조회(languageHints.formOpenLabel → locale 기본값)로
+    // 라벨을 고른다. 전에는 영어 기본값이 따로 하드코딩돼 처음 버튼(«Open form»)과 달랐다.
+    it.each([
+      ['영어 locale 이면 영어 기본값', { languageLocale: 'en' }, 'Open form'],
+      [
+        '덮어쓴 라벨이 있으면 그 라벨',
+        {
+          languageLocale: 'en',
+          languageHints: { formOpenLabel: '신청서 쓰기' },
+        },
+        '신청서 쓰기',
+      ],
+    ])(
+      'form_submission 재안내 버튼 라벨 — %s',
+      async (_label, extraConfig, expectedLabel) => {
+        triggerRepo.findOne.mockResolvedValue({
+          ...chatChannelTrigger,
+          config: {
+            chatChannel: {
+              ...(
+                chatChannelTrigger.config as {
+                  chatChannel: Record<string, unknown>;
+                }
+              ).chatChannel,
+              ...extraConfig,
+            },
+          },
+        } as unknown as Trigger);
+        mockAdapter.parseUpdate.mockResolvedValue({
+          conversationKey: 'chat-123',
+          channelUserKey: 'user-456',
+          command: { kind: 'form_submission', fields: { email: 'a@b.io' } },
+          idempotencyKey: `V3-${expectedLabel}`,
+          receivedAt: new Date().toISOString(),
+        });
+        (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse =
+          jest.fn().mockReturnValue({ httpResponse: { type: 4 } });
+        (mockAdapter as Record<string, unknown>).supportsNativeForm = true;
+        (mockAdapter as Record<string, unknown>).openFormModal = jest.fn();
+        conversationService.lookup.mockResolvedValue({
+          executionId: 'exec-active',
+          threadId: 'default',
+          channelUserKey: 'user-456',
+          startedAt: new Date().toISOString(),
+          lastUpdateAt: new Date().toISOString(),
+          pendingFormModal: {
+            nodeId: 'node-form',
+            fields: [{ name: 'email', label: 'Email', type: 'email' }],
+          },
+        });
+        (
+          moduleRef.get(ExecutionsService) as unknown as {
+            executionRepository: {
+              findOne: jest.Mock;
+            };
+          }
+        ).executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+        interactionService.interact.mockRejectedValue(
+          new Error('validation failed'),
+        );
+
+        await service.handleWebhook('abc', chatInput);
+
+        expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            body: expect.objectContaining({
+              kind: 'form_modal',
+              openLabel: expectedLabel,
+            }),
+          }),
+          expect.anything(),
+        );
+      },
+    );
 
     it('§4.1 form_submission → lock 획득 후 interact + 성공 시 lock 해제 (concurrency guard)', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
