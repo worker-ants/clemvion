@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "3e98f82d0494bcf13fefc9bead95ac4b07e134095709b8a7d877314f35e91068"
+content_hash: "83b634520a59bfa57ec51c6489f94f4ef489e256f769e9554db3f758582dfe6a"
 read_as: "approved_fallback"
-task: "CLE-T-J6TZGK"
+task: "CLE-T-9WQMDE"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "032d37904d222313de72003209e4e40826e70a4365aa8c510483ffed94c3af88"
-etag: "sha256-7de28a393db3047eda5868627072877dba7a700032ebca09b1ab73be45f3fab6"
+mirror_sha256: "15441eb070691d928e345aabcb14504bd7e259ab0e50e865c0d754a51c6abace"
+etag: "sha256-4d6083d64be2ece31dad73f10dcadb0292b817349bdbacbd9c74a754b333c4de"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -140,7 +140,7 @@ URL 검증과 SSRF 차단은 외부 HTTP transport 에만 적용한다. 내부 M
    - RFC 1918 사설 대역(`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
    - 그 밖의 특수 대역(통신사 공유 주소 CGNAT `100.64.0.0/10`, `0.0.0.0/8`, IPv6 미지정 주소 `::`)
    - IPv6 unique-local(`fc00::/7`)
-   - IPv4 를 품은 IPv6 리터럴. IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), 상태 없는 변환 SIIT(`::ffff:0:0:0/96`), IPv6→IPv4 변환 NAT64 의 well-known prefix(`64:ff9b::/96`) 는 품은 IPv4 를 위 대역으로 판정한다. 공인 IPv4 를 품었으면 통과한다. 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 보지 않는다. 판정 범위의 기준 문서는 [알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) 다
+   - IPv4 를 품은 IPv6 리터럴. IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), 상태 없는 변환 SIIT(`::ffff:0:0:0/96`), IPv6→IPv4 변환 NAT64 의 well-known prefix(`64:ff9b::/96`) 는 품은 IPv4 를 위 대역으로 판정한다. 공인 IPv4 를 품었으면 통과한다. 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)는 보지 않는다. 판정 범위의 기준 문서는 [알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) 다. 알림 웹훅 가드는 2026-11-12 부터 특수 용도 대역(192.0.0/24 · 198.18/15 · 224/4 · 240/4 · fec0::/10 · ff00::/8), 6to4, NAT64 local-use prefix 를 더 막는다. MCP 가드를 맞추는 일은 NERV Task `CLE-T-753725` 가 맡는다
    - 클라우드 메타데이터 호스트 이름(`metadata.google.internal`, `metadata.azure.com` 등)
 3. 호스트가 IP literal 이 아니면 연결할 때마다 connect 직전에 호스트 이름을 DNS 로 해석하고, 돌아온 주소를 모두 2항과 같은 판정으로 검사한다. 주소가 하나라도 막히는 대역이면 연결하지 않고 같은 코드(`MCP_HTTPS_REQUIRED`)로 막는다. 연결 테스트와 노드 실행이 같은 connect 를 쓰므로 두 경로 모두 검사한다. 노드 실행에서는 다른 connect 실패와 같이 `MCP_CONNECT_FAILED` 로 모인다([에러 코드](#에러-코드)).
    - 에러 message 에는 호스트 이름만 싣고 해석된 주소는 싣지 않는다. 주소는 서버 경고 로그에만 남긴다.
@@ -356,7 +356,7 @@ MCP 도구 호출은 AI 에이전트의 도구 호출 한도(`maxToolCalls`)에 
 
 MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구 정의 크기 예산(직렬화 bytes 기준)에 더해진다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-정의-크기-예산)). [도구 호출 한도](#도구-호출-한도)(`maxToolCalls`)와는 다른 축이다. 하나는 호출 횟수, 하나는 정의 크기다.
 
-대형 카탈로그는 노출 도구 목록 없이 전부 노출하면 도구 정의가 프롬프트를 provider transport 타임아웃 너머로 밀어 provider 와 무관하게 응답 실패(hang, 끝없는 재시도)를 일으킬 수 있다. Cafe24 Admin API 는 operation 485개, MakeShop 은 REST operation 161개다(2026-07-17 실측. 수치의 단일 기준은 [Cafe24 API 카탈로그](CLE-C24-CATALOG#5-coverage-matrix)와 [MakeShop API 카탈로그](CLE-MKS-CATALOG#5-coverage-matrix)). 실제 노출 수는 허가된 권한 범위로 걸러진다. 이 카탈로그들은 bytes 예산 이전에 도구 개수만으로 `AI_AGENT_TOOL_COUNT_MAX` 기본값(128)을 늘 넘는다. 그래서 대형 서버는 `mcpServers[].enabledTools` 로 노출 도구를 좁히는 것이 사실상 필수다. 목록이 없으면 정상 설정처럼 보여도 실행 전 점검이 실패한다. 예산 초과 판정(실행 전 에러 코드 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`)과 저장 시점 경고(그래프 경고 `ai_agent:tool-payload-budget`)의 단일 기준은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-정의-크기-예산)와 [에러 코드 절](../CLE-NODE-AI/CLE-NODE-AGENT.md#에러-코드)이다.
+대형 카탈로그는 노출 도구 목록 없이 전부 노출하면 도구 정의가 프롬프트를 provider transport 타임아웃 너머로 밀어 provider 와 무관하게 응답 실패(hang, 끝없는 재시도)를 일으킬 수 있다. Cafe24 Admin API 는 operation 485개, MakeShop 은 REST operation 161개다(2026-07-17 실측. 수치의 단일 기준은 저장소 `codebase/api-catalogs/cafe24/_overview.md` 와 `codebase/api-catalogs/makeshop/_overview.md` 의 §5 다. NERV 사본은 [Cafe24 API 카탈로그](CLE-C24-CATALOG#5-coverage-matrix) 와 [MakeShop API 카탈로그](CLE-MKS-CATALOG#5-coverage-matrix) 다). 실제 노출 수는 허가된 권한 범위로 걸러진다. 이 카탈로그들은 bytes 예산 이전에 도구 개수만으로 `AI_AGENT_TOOL_COUNT_MAX` 기본값(128)을 늘 넘는다. 그래서 대형 서버는 `mcpServers[].enabledTools` 로 노출 도구를 좁히는 것이 사실상 필수다. 목록이 없으면 정상 설정처럼 보여도 실행 전 점검이 실패한다. 예산 초과 판정(실행 전 에러 코드 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`)과 저장 시점 경고(그래프 경고 `ai_agent:tool-payload-budget`)의 단일 기준은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-정의-크기-예산)와 [에러 코드 절](../CLE-NODE-AI/CLE-NODE-AGENT.md#에러-코드)이다.
 
 ## 도구 프로바이더 구현 (`McpToolProvider`)
 
