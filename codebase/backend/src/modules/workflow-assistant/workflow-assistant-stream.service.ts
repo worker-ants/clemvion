@@ -723,9 +723,9 @@ export class WorkflowAssistantStreamService {
               },
             };
           } else if (ev.type === 'error') {
-            // 클라이언트 `message` 는 SDK 예외 원문이거나 클라이언트가 쓴 안내문
-            // 이다. 어느 쪽이든 로그에만 남기고 화면에는 코드별 고정 영문을
-            // 보낸다 (REQ-ASSIST-048).
+            // 클라이언트 `message` 는 진단용이다. SDK 예외 원문이거나
+            // `LLM_OUTPUT_MALFORMED` 의 고정 영문 문장이다. 어느 쪽이든 로그에만
+            // 남기고 화면에는 코드별 고정 영문을 보낸다 (REQ-ASSIST-048).
             this.logger.error(
               `Assistant LLM stream error (${ev.code}): ${ev.message}`,
             );

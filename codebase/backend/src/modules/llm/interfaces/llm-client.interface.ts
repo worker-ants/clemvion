@@ -124,7 +124,18 @@ export type ChatStreamEvent =
       model: string;
       finishReason: ChatResult['finishReason'] | 'aborted';
     }
-  | { type: 'error'; code: LlmStreamErrorCode; message: string };
+  | {
+      type: 'error';
+      code: LlmStreamErrorCode;
+      /**
+       * Diagnostic text for server logs, not for display. It is usually the
+       * provider or SDK error text and can carry request details or model
+       * output; `LLM_OUTPUT_MALFORMED` carries a fixed English sentence
+       * instead. Consumers pick user-facing text by `code` (the workflow
+       * assistant logs this and sends its own fixed message per code).
+       */
+      message: string;
+    };
 
 export interface LLMClient {
   /**

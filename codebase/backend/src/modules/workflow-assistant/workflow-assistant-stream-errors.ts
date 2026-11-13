@@ -10,8 +10,8 @@ import type { LlmStreamErrorCode } from '../llm/interfaces/llm-client.interface'
  *
  * 프로바이더 · 라이브러리 예외 원문에는 요청 URL · 키 조각 · 응답 본문이 섞일
  * 수 있어 화면으로 보내지 않고 서버 로그에만 남긴다 (CWE-209, CLE-API-ERROR
- * 규칙 2 와 같은 동기). LLM 클라이언트가 사용자용으로 쓴 `message`
- * (`LLM_OUTPUT_MALFORMED` 의 안내문 등)도 같은 규칙으로 로그에만 남는다. 서버는
+ * 규칙 2 와 같은 동기). LLM 클라이언트 스트림 `error` 의 `message` 는 진단용이라
+ * (`LLM_OUTPUT_MALFORMED` 의 고정 영문 문장 포함) 같은 규칙으로 로그에만 남는다. 서버는
  * 코드별 고정 영문만 보내고(백엔드 응답에 한국어를 넣지 않는다, CLE-UI-I18N
  * 규칙 3), 프런트엔드 에러 버블이 코드로 사전 문구(`assistant.*`)를 고른다.
  * 사전 문구가 없는 코드만 이 영문으로 폴백한다.

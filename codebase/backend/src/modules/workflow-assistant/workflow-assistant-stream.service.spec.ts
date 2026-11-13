@@ -14,6 +14,7 @@ import type {
   ChatStreamEvent,
   LlmStreamErrorCode,
 } from '../llm/interfaces/llm-client.interface';
+import { HARMONY_OUTPUT_MALFORMED_MESSAGE } from '../llm/clients/openai.client';
 import { z } from 'zod';
 import { carouselNodeMetadata } from '../../nodes/presentation/carousel/carousel.schema';
 import { evaluateMetadataBlockingErrors } from '../../nodes/core/metadata-validation';
@@ -3181,14 +3182,18 @@ describe('WorkflowAssistantStreamService', () => {
       expect(loggedText()).toContain(RAW);
     });
 
-    it('does not forward the guidance the LLM client writes for LLM_OUTPUT_MALFORMED', async () => {
+    it('does not forward the LLM client message for LLM_OUTPUT_MALFORMED', async () => {
       const { service, mocks } = makeService();
-      // 클라이언트(openai.client.ts)가 사용자용으로 쓴 안내문도 화면으로 보내지
-      // 않는다. 서버는 코드별 고정 영문만 보내고 안내문은 로그에만 남는다.
-      const guidance = '모델이 harmony 제어 토큰을 응답에 노출했어요';
+      // 클라이언트(openai.client.ts)의 `message` 는 진단용이라 화면으로 보내지
+      // 않는다. 서버는 코드별 고정 영문만 보내고 클라이언트 문장은 로그에만 남는다.
+      const clientMessage = HARMONY_OUTPUT_MALFORMED_MESSAGE;
       mocks.llmService.chatStream.mockImplementation(() =>
         asyncIter<ChatStreamEvent>([
-          { type: 'error', code: 'LLM_OUTPUT_MALFORMED', message: guidance },
+          {
+            type: 'error',
+            code: 'LLM_OUTPUT_MALFORMED',
+            message: clientMessage,
+          },
         ]),
       );
 
@@ -3200,8 +3205,8 @@ describe('WorkflowAssistantStreamService', () => {
         code: 'LLM_OUTPUT_MALFORMED',
         message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_OUTPUT_MALFORMED,
       });
-      expect(JSON.stringify(events)).not.toContain(guidance);
-      expect(loggedText()).toContain(guidance);
+      expect(JSON.stringify(events)).not.toContain(clientMessage);
+      expect(loggedText()).toContain(clientMessage);
     });
 
     it('does not forward the config resolution error text for ASSISTANT_NO_LLM_CONFIG', async () => {
