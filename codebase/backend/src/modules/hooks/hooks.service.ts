@@ -1599,10 +1599,6 @@ function isSlackUrlVerification(body: unknown): boolean {
 }
 
 /**
- * 경로가 따로 정한 인터랙션 응답이 없을 때 어댑터의 기본 응답을 붙인다. 기본 응답의 `body` 가 없으면
- * 200 빈 본문(`interactionEmptyResponse`)이다. 기본 응답이 없으면 결과를 그대로 돌려준다(202).
- */
-/**
  * 채팅 채널 인바운드가 `202` 로 바꾸지 않고 원래 에러로 답할 실패를 감싼다. `handleChatChannelWebhook` 은 처리
  * 중 오류를 모두 `202` 로 끝내는데(REQ-CHAT-056), 이 표지가 붙은 오류만 `cause` 를 다시 던진다. 지금은 `/start`
  * 의 기존 실행 취소 실패(REQ-CHAT-064) 하나다. 프로바이더가 그 update 를 다시 보내게 하려는 예외다.
@@ -1614,6 +1610,10 @@ class ChatChannelErrorResponse extends Error {
   }
 }
 
+/**
+ * 경로가 따로 정한 인터랙션 응답이 없을 때 어댑터의 기본 응답을 붙인다. 기본 응답의 `body` 가 없으면
+ * 200 빈 본문(`interactionEmptyResponse`)이다. 기본 응답이 없으면 결과를 그대로 돌려준다(202).
+ */
 function withDefaultInteractionResponse(
   result: ChatChannelWebhookResult,
   fallback: InboundInteractionResponse | undefined,
