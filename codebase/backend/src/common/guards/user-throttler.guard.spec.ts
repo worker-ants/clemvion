@@ -1,7 +1,10 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ThrottlerException, ThrottlerStorageService } from '@nestjs/throttler';
-import { UserThrottlerGuard } from './user-throttler.guard';
+import {
+  DeferGlobalThrottle,
+  UserThrottlerGuard,
+} from './user-throttler.guard';
 
 /**
  * UserThrottlerGuard.getTracker 4분기 단위 테스트 (spec §12 사용자당 rate-limit).
@@ -100,6 +103,65 @@ describe('UserThrottlerGuard — HTTP 가 아닌 컨텍스트', () => {
     );
     await expect(
       guard.canActivate(buildContext('http', req)),
+    ).rejects.toBeInstanceOf(ThrottlerException);
+  });
+});
+
+/**
+ * `@DeferGlobalThrottle()` 이 붙은 라우트는 전역 가드가 세지 않는다. 그 라우트의 라우트 가드
+ * (`HookTriggerThrottlerGuard`)가 요청 대상을 알아낸 뒤 같은 한도를 건다
+ * ([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE#인바운드-관문-순서), REQ-CHAT-079).
+ */
+describe('UserThrottlerGuard — @DeferGlobalThrottle 라우트', () => {
+  class Controller {
+    @DeferGlobalThrottle()
+    deferred(): void {}
+
+    plain(): void {}
+  }
+
+  const buildGuard = async (): Promise<UserThrottlerGuard> => {
+    const guard = new UserThrottlerGuard(
+      { throttlers: [{ name: 'default', ttl: 60_000, limit: 1 }] },
+      new ThrottlerStorageService(),
+      new Reflector(),
+    );
+    await guard.onModuleInit();
+    return guard;
+  };
+
+  const buildContext = (
+    handler: () => void,
+    req: Record<string, unknown>,
+  ): ExecutionContext =>
+    ({
+      getType: () => 'http',
+      getHandler: () => handler,
+      getClass: () => Controller,
+      switchToHttp: () => ({
+        getRequest: () => req,
+        getResponse: () => ({ header: jest.fn() }),
+      }),
+    }) as unknown as ExecutionContext;
+
+  it('미룬 라우트는 limit 을 넘겨도 통과시킨다(세지 않는다)', async () => {
+    const guard = await buildGuard();
+    const req = { ip: '9.9.9.9' };
+    for (let i = 0; i < 3; i += 1) {
+      await expect(
+        guard.canActivate(buildContext(Controller.prototype.deferred, req)),
+      ).resolves.toBe(true);
+    }
+  });
+
+  it('미루지 않은 라우트는 그대로 막는다 — 위 단언이 vacuous 하지 않다', async () => {
+    const guard = await buildGuard();
+    const req = { ip: '9.9.9.9' };
+    await expect(
+      guard.canActivate(buildContext(Controller.prototype.plain, req)),
+    ).resolves.toBe(true);
+    await expect(
+      guard.canActivate(buildContext(Controller.prototype.plain, req)),
     ).rejects.toBeInstanceOf(ThrottlerException);
   });
 });
