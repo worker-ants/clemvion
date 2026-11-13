@@ -2,19 +2,19 @@
 id: "CLE-KB-DATA"
 title: "지식 저장소 데이터와 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
-content_hash: "94494647d39d3d6200dcf5cb0ff6d33e7dcbe6ecd9291a69682822e452ca1c11"
+content_hash: "53606537348466fd68adb812db28f3e56bed7e43541165ca42fecdc1b9ff382d"
 read_as: "approved_fallback"
-task: "CLE-T-7ZYES5"
+task: "CLE-T-P5BDNX"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "9f63db08f915842bcda42f9e900d18dca08829a12eb91cd2ed5d331557775898"
-etag: "sha256-1a9b51a5efd5388ec326f8d0e4e7e50e23c4f11d8c11def1fe8d906351355b0e"
+mirror_sha256: "33487576b36c62cd451dd614efed65e73acf606e3e8c68b38332a021e618d8c3"
+etag: "sha256-b339f3d8bc92a1ffecdb364663af4594820fc6165eb8b0693680cdcc46e3b4da"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/6-knowledge-base.md`, `spec/1-data-model.md` (§2.11 KnowledgeBase, §2.12 Document, §2.12.1~§2.12.4, Rationale «그래프 RAG 삭제 연쇄의 FK 인덱스 넷») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -363,7 +363,7 @@ sequenceDiagram
 
 ### WebSocket
 
-모든 이벤트는 문서 단위 채널 `kb:${documentId}` 로 간다. `KbEventType` union 은 11개(임베딩 6, 그래프 5)다. 이벤트별 뜻과 페이로드는 [문서 임베딩](CLE-KB-EMBED.md) 과 [Graph RAG](CLE-KB-GRAPH.md), 카탈로그는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다. 지식 저장소 단위 일괄 이벤트는 없다.
+모든 이벤트는 문서 단위 채널 `kb:${documentId}` 로 간다. `KbEventType` union 은 11개(임베딩 6, 그래프 5)다. 이벤트별 뜻과 페이로드는 [문서 임베딩](CLE-KB-EMBED.md) 과 [Graph RAG](CLE-KB-GRAPH.md), 카탈로그는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다. 지식 저장소 단위 일괄 이벤트는 없다. 발행에는 `execution:` wire 와 같은 값 마스킹(`maskWireEnvelope`)을 건다. 구독 인가가 역할을 보지 않아 뷰어도 받기 때문이다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) §3.11).
 
 ## 외부 의존
 

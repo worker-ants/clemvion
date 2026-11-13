@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026", "REQ-BGRUN-027", "REQ-BGRUN-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "5ae9962c7fb8b9cd766b7c26c4b95473f59235aaf83774bf18caa7c0677ee530"
+content_hash: "565c5e65b531c4be3e78f24c5c0dd09b11c017c1d347240936e837f0c2e0eece"
 read_as: "approved_fallback"
-task: "CLE-T-TDAV1G"
+task: "CLE-T-FKKDGT"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "355899971037882f3648b613e331cb89ff32feb6993a11d4f2aa4a42de2cd71a"
-etag: "sha256-d5e676d326598982268f01cfda3028645a72099add9a2e698a4e18a825d9f10e"
+mirror_sha256: "956aa2af475cf9e00c94f17bc832a6b1957fb398ac7b3438e728db6ee269fea1"
+etag: "sha256-e12970b84c8886e8f519458c3753d3bdc21e17c3bc8a19f67175c6721b088817"
 ---
 > 구현 상태: 부분 구현 (REQ-BGRUN-026 AI 어시스턴트 조회 도구는 미구현) · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -310,12 +310,7 @@ URL 은 중첩 구조(`executions/:id/background-runs/:id`)를 쓴다. 이유는
 
 ### 실시간 갱신 (WebSocket 구독 채널)
 
-본문 진행을 실시간으로 받으려면 별도 구독 채널을 구독한다. 이벤트 카탈로그는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다.
-
-| 구독 채널 | 이벤트 | payload |
-|------|--------|---------|
-| `background:run:<backgroundRunId>` | `execution.background_run.started` | `{ backgroundRunId, executionId, parentNodeExecutionId, startedAt }` |
-| 같음 | `execution.background_run.completed` | `{ backgroundRunId, executionId, parentNodeExecutionId, status: 'completed' \| 'failed', completedAt, durationMs, errorMessage? }` |
+본문 진행을 실시간으로 받으려면 별도 구독 채널 `background:run:<backgroundRunId>` 를 구독한다. 이 채널은 `execution.background_run.started` 와 `execution.background_run.completed` 두 이벤트를 보낸다. 이벤트별 payload 와 봉투 필드(`backgroundRunId`·`timestamp`, `seq` 없음)의 정본은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) §8 이다. 이 절은 채널의 동작 규칙을 정한다.
 
 1. 본문 안의 노드 이벤트(`execution.node.started` 등)는 기존 `execution:<id>` 구독 채널에 그대로 보낸다. 본문 노드의 `parentNodeExecutionId` 가 Background 노드의 `NodeExecution.id` 와 같으므로 클라이언트가 그 키로 걸러 본문 카드 안 타임라인을 갱신한다.
 2. `background:run:<id>` 채널은 본문 실행 수명 주기 이벤트만 보낸다. 채널 책임을 좁혀 메인 채널과 데이터가 겹치지 않게 한다.
@@ -323,6 +318,7 @@ URL 은 중첩 구조(`executions/:id/background-runs/:id`)를 쓴다. 이유는
 4. 구독 권한은 [권한](#권한) 과 같다. `backgroundRunId` 로 `executionId` 를 역조회해 워크스페이스를 확인한다.
 5. 본문이 끝나면 채널은 더 이벤트를 보내지 않는다. 다시 구독해도 서버가 마지막 상태 스냅샷을 보내지 않으므로 REST GET 으로 조회한다.
 6. `execution.background_run.completed` 의 `status` 는 `completed` 와 `failed` 두 값이다. `cancelled` 값은 보내지 않는다. 현재 구현(`background-execution.processor.ts`)은 본문 실행 함수가 정상 반환하면 `completed`, 예외로 끝나면 `failed` 를 보낸다. 입력 대기로 조용히 끝난 본문과 메인 실행 중지를 알아채고 멈춘 본문은 모두 `completed` 로 보낸다. 본문 취소를 어떻게 표시할지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+7. 이 채널의 발행에는 `execution:` wire 와 같은 값 마스킹을 건다. 구독 인가가 역할을 보지 않아 뷰어도 받으므로 수신 인구가 `execution:` 과 같기 때문이다. 규칙은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) §3.11 에 있다.
 
 ### AI 어시스턴트 도구 노출 (계획)
 

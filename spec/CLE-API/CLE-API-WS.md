@@ -2,19 +2,19 @@
 id: "CLE-API-WS"
 title: "WebSocket 연결과 채널 구독"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "768a5ad9f3249b82128bd73062620c668114190ea5023a974977f563ae4094a1"
+content_hash: "d25e96062ce9d302d6b4fa404cdd81d05f3ee645b235bcfed898bbe64ef0b209"
 read_as: "approved_fallback"
-task: "CLE-T-7ZYES5"
+task: "CLE-T-P5BDNX"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "0a836636501ed42fa09e21a0d528d56bac957008cd36204ef6d6e4f0bf2c4c4f"
-etag: "sha256-17e290d5f19fcb95ef2ec3532ba9aee9ab6653de7106604eb0e67aa7aabfc536"
+mirror_sha256: "8d4b91bfa33ddd5532933a83c781cf1aad7a26ce4182b874c61bba93bafad072"
+etag: "sha256-2941cd188cedca4d1b44cd8d5cbdd11d14860f3682f4d3e6104dc036fb56bbf1"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-17e290d5f19fcb95ef2ec3532ba9aee9ab6653de7106604eb0e67aa7aabfc536"
 
 이 문서는 서버와 프론트엔드 사이의 양방향 실시간 채널인 WebSocket(`/ws`)의 연결 방식을 정한다. 전송 계층, 게이트웨이에서 전역 enhancer 가 동작하는 방식, 인증과 토큰 만료, 메시지 형식과 서버 이벤트 봉투, 구독 채널(subscription channel) 구독과 인가, heartbeat, 재연결과 놓친 이벤트 복구, 전송 계층 에러, 클라이언트 구현 지침이 대상이다.
 
-채널의 무게중심은 실행이다. 서버가 실행 진행 상황을 밀어 보내고 클라이언트가 실행 제어 명령을 보내고 노드가 사용자 입력을 기다릴 때 그 왕복을 중개한다. 실행 밖에 지식 저장소 문서 처리 상태와 인앱 알림도 같은 채널 위에 있다. 이벤트는 구독한 리소스에 대해서만 전달되고 구독 채널은 `execution:`·`workflow:`·`kb:`·`notifications:`·`background:run:` 다섯 종이다. 끊긴 동안 놓친 것은 다시 구독할 때 받는 1회성 실행 스냅샷 이벤트(`execution.snapshot`)로 맞춘다. 이벤트 순번(`seq`) 기반 재전송 버퍼는 native WebSocket 에 없고 SSE 어댑터에 있다.
+채널의 무게중심은 실행이다. 서버가 실행 진행 상황을 밀어 보내고 클라이언트가 실행 제어 명령을 보내고 노드가 사용자 입력을 기다릴 때 그 왕복을 중개한다. 실행 밖에 지식 저장소 문서 처리 상태와 인앱 알림도 같은 채널 위에 있다. 이벤트는 구독한 리소스에 대해서만 전달되고 구독 채널은 `execution:`·`workflow:`·`kb:`·`notifications:`·`background:run:` 다섯 종이다. 그중 `workflow:` 는 구독 인가만 있고 서버가 이 채널로 보내는 이벤트는 없다. 끊긴 동안 놓친 것은 다시 구독할 때 받는 1회성 실행 스냅샷 이벤트(`execution.snapshot`)로 맞춘다. 이벤트 순번(`seq`) 기반 재전송 버퍼는 native WebSocket 에 없고 SSE 어댑터에 있다.
 
 읽기 전에 두 가지를 알아야 한다.
 
@@ -154,6 +154,8 @@ raw WebSocket 의 `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 �
 | `timestamp` | 서버 이벤트 발생 시각 (ISO 8601) |
 | `seq` | 채널 안 이벤트 순번. 재연결 때 놓친 이벤트를 감지하는 데 쓴다. 자세한 규칙은 아래 |
 
+`kb:`·`background:run:` 채널의 봉투는 이 표와 다르다. 실행 ID 대신 채널 키(`documentId`·`backgroundRunId`)와 `timestamp` 가 붙고 `seq` 는 없다. 필드는 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 지식 저장소 문서 이벤트 절(§3)과 Background 본문 실행 이벤트 절(§8)이 정한다.
+
 **이벤트 순번 `seq`**
 
 - `execution:{executionId}` 채널에서는 실행 안에서 1씩 늘어나는 카운터다(`ExecutionSeqAllocator`, Redis `INCR exec:seq:<executionId>`). 키 정의와 TTL 은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다. 슬라이딩 TTL 은 환경 변수 `EXECUTION_SEQ_TTL_SECONDS`(기본 86400)다.
@@ -171,12 +173,12 @@ raw WebSocket 의 `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 �
 | 채널 | 패턴 | 설명 |
 |------|------|------|
 | 워크플로우 실행 | `execution:{executionId}` | 특정 실행의 모든 이벤트 |
-| 워크플로우 편집 | `workflow:{workflowId}` | 에디터에서 실행 시작·완료 알림 |
+| 워크플로우 편집 | `workflow:{workflowId}` | 서버가 보내는 이벤트가 없다. 구독 인가(§4.4)만 있다. 경위는 Rationale 「`workflow:`·`notifications:` 채널 인가를 더한 이유」 |
 | 지식 저장소 문서 상태 | `kb:{documentId}` | 지식 저장소 문서별 임베딩·그래프 추출 상태. 지식 저장소 ID 가 아니라 **문서 ID** 가 키다 |
 | 인앱 알림 | `notifications:{userId}` | 사용자 인앱 알림 실시간 수신 |
-| Background 본문 실행 | `background:run:{id}` | Background 노드 본문 실행의 진행·완료 이벤트. 이벤트 정의는 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) |
+| Background 본문 실행 | `background:run:{id}` | Background 노드 본문 실행의 시작·완료 이벤트. 이벤트와 봉투 필드는 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) §8, 동작 규칙은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 「실시간 갱신」 이 정한다 |
 
-각 채널의 이벤트 목록은 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 에 있다.
+`workflow:` 를 뺀 각 채널의 이벤트 목록은 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 에 있다.
 
 ### 4.3 구독과 구독 해제
 
@@ -205,13 +207,14 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | 채널 | 검증 |
 |------|------|
 | `execution:{executionId}` | 워크스페이스 소유 검증 (UUID 가 아니면 먼저 차단) |
-| `workflow:{workflowId}` | 워크스페이스 소유 검증 (`WorkflowsService.findById(workflowId, workspaceId)`, UUID 가 아니면 먼저 차단) |
+| `workflow:{workflowId}` | 워크스페이스 소유 검증 (`WorkflowsService.findById(workflowId, workspaceId)`, UUID 가 아니면 먼저 차단). 서버 발행은 없다(§4.2) |
 | `kb:{documentId}` | 워크스페이스 문서 소유 검증 |
 | `background:run:{id}` | 워크스페이스 소유 검증 (UUID 가 아니면 먼저 차단) |
 | `notifications:{userId}` | **사용자 단위**. JWT `sub` 와 채널의 `userId` 가 같은지 검증한다(fail-closed). `notification.new` 발행은 `emitNotificationEvent` 로 구현됐다 |
 
 - 워크스페이스 소유를 보는 구독 채널 인가기는 토큰 클레임의 워크스페이스가 그 리소스를 소유하는지만 확인한다(예: `execution:` 의 `verifyOwnership(executionId, workspaceId)`). 멤버십을 DB 에서 다시 확인하지 않는다(§2.2).
 - `execution:` 구독 인가는 워크스페이스 소유만 보고 역할을 구분하지 않는다. 그래서 이 채널의 수신 인구는 `GET /api/executions/:id` 와 같고 이벤트 페이로드 마스킹 범위가 이 사실에서 나온다([응답 자격 증명 마스킹](CLE-API-EGRESS.md)).
+- `kb:`·`background:run:` 구독 인가도 워크스페이스 소유만 보고 역할을 구분하지 않는다. 뷰어도 받으므로 수신 인구가 `execution:` 과 같다. 그래서 두 채널의 발행에도 `execution:` wire 와 같은 값 마스킹(`maskWireEnvelope`)을 건다([응답 자격 증명 마스킹](CLE-API-EGRESS.md) §3.11).
 - 권한이 없으면 별도 `error` 메시지가 아니라 같은 `subscribed` ack 에 `success: false`, 평문 `error` 문자열, 구조화 `code` 를 실어 돌려준다. `code` 는 평문 `error` 에 **더해** 붙는 확장이라 옛 클라이언트는 계속 `error` 로 동작한다. 새 클라이언트는 `code` 로 분기한다. 아래는 핸들러 반환 형태이고 wire 에는 `data` 만 `subscribed` ack 이벤트로 간다(§4.3).
 
 ```json
@@ -516,5 +519,5 @@ NERV Task `CLE-T-A3W8B8` 에서 실행 패널이 비는 장애를 고치면서 �
 
 §4.4 의 소유 검증 채널 목록에 `workflow:{workflowId}`(워크스페이스 소유 검증, `execution:` 과 같은 형태)와 `notifications:{userId}`(JWT `sub` 일치 검증)를 더했다. `channelAuthorizers` 는 배열에 항목을 더하는 것만으로 따로따로 넓힐 수 있는 구조다.
 
-- **`workflow:` 는 실재하던 IDOR 를 막는다**: 에디터 실행 알림 발행(`workflow:{workflowId}`)이 실제로 있어서 다른 워크스페이스의 `workflowId` 를 추측한 사용자가 이벤트를 받을 수 있었다. `WorkflowsService.findById(workflowId, workspaceId)`(소유하지 않았거나 없으면 NotFound. ID 열거 차단)로 join 전에 막는다.
+- **`workflow:` 는 발행이 있다고 보고 인가를 더했으나 발행은 처음부터 없었다**: 2026-06-12(PR #570)에 에디터 실행 알림 발행(`workflow:{workflowId}`)이 있다고 보고 인가를 더했다. 다른 워크스페이스의 `workflowId` 를 추측한 사용자가 이벤트를 받는 IDOR 를 막으려는 것이었다. 그러나 서버에는 이 채널로 보내는 코드가 처음부터 없었고 프론트엔드도 이 채널을 구독한 적이 없다(2026-11-13 확인, NERV Task `CLE-T-P5BDNX`). 인가는 fail-closed 로 남긴다. 아래 `notifications:` 와 같이 나중에 발행을 들일 때 인가가 빠지는 일을 막는다. `WorkflowsService.findById(workflowId, workspaceId)`(소유하지 않았거나 없으면 NotFound. ID 열거 차단)로 join 전에 막는다.
 - **`notifications:` 는 발행을 도입하기 전에 인가를 먼저 두었다(fail-closed)**: `notification.new` 발행 경로가 없던 시점에 인가를 **먼저** 배치했다. 발행이 뒤 단계에서 들어올 때 인가가 빠지면 사용자 사이 알림 유출로 바로 이어지는 패턴(집행 비대칭)을 구조적으로 막기 위해서다. "발행이 없을 때 인가 먼저" 가 fail-closed 원칙에 맞고 JWT `sub` 비교라 구현 비용도 몇 줄이었다. **기각한 대안**: 발행을 구현할 때 인가를 함께 더하기. 발행 작업이 인가 추가를 기억해야 하는 절차 의존이라 누락이 재발할 위험이 커서 기각했다. 이후 발행(`emitNotificationEvent`)이 실제로 들어오면서 이 선제 배치가 의도대로 인가를 갖춘 채 활성화됐다.

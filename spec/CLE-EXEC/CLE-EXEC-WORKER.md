@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER"
 title: "큐 워커와 동시 실행 제한"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "719cce6c5bc338f950a4e9e7e42af3d8bd58ef066b83f7d76419127dab5a86ad"
+content_hash: "e1c6e085de35732af440bd6a04f4e6872470cd0e6e9d4b52baada2f9f833035b"
 read_as: "approved_fallback"
-task: "CLE-T-DJ3VC8"
+task: "CLE-T-Z13Q0H"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "a40ecb4e4055b4106d5e0148e756206dc35b27958935f3ed2b1654ba97b546f4"
-etag: "sha256-8e750cffab9241d64750dc1693314a6d3a4afc12d5a95c10d85d21f1ed502b4f"
+mirror_sha256: "ea26ee8b0d050cbcdca82b6d35adebd7eba0826212a246ffd53ca6c4d8189484"
+etag: "sha256-912c2096cd1113bc18f06e7730596ad5ec5495c49451d19722d9a5c1f61a6a2c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,7 +61,7 @@ flowchart LR
 
 ## 시작 큐
 
-시작 큐(`execution-run`)는 실행 시작 요청을 받아 워커에 나눈다. PR1(`impl-exec-intake-queue`)에서 구현됐다.
+시작 큐(`execution-run`)는 실행 시작 요청을 받아 워커에 나눈다.
 
 ### 발행
 
@@ -196,7 +196,7 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 | --- | --- | --- |
 | EIA REST `/interact` | 적용(`InteractDto.nodeId` 전달) | 외부 토큰 호출자는 SSE `waiting_for_input` 의 `waitingNodeId` 를 받으므로 대상 nodeId 를 지정할 수 있다. |
 | 채팅 채널 `scope: 'in_process_trusted'` | 면제 | 신뢰하는 합성 컨텍스트는 scope 단위로 면제한다(진입점 판정이 아니다). `HooksService.forwardToInteractionService` 의 고정 매핑(`text_message → submit_message` 등)은 대기 nodeId 를 모른다. 면제가 scope 전체에 적용되므로 nodeId 를 아는 채팅 채널 폼 제출(`handleFormStep`, `pendingFormModal.nodeId`)도 함께 면제된다. |
-| WebSocket 재개 명령(`execution.*`) | nodeId 를 실었을 때 적용(F-6) | `execution.submit_message` / `click_button` / `end_conversation` 은 명령 본문에 `nodeId` 를 실을 수 있다. 실으면 대기 노드와 대조하고 없으면 건너뛴다(하위 호환). `execution.submit_form` 에는 nodeId 필드가 없다. 세 handler 가 `data.nodeId` 를 `expectedNodeId` 로 넘긴다. 프론트엔드는 `submit_message` / `end_conversation` 에 대기 노드 `nodeId` 를 이미 싣는다. |
+| WebSocket 재개 명령(`execution.*`) | nodeId 를 실었을 때 적용 | `execution.submit_message` / `click_button` / `end_conversation` 은 명령 본문에 `nodeId` 를 실을 수 있다. 실으면 대기 노드와 대조하고 없으면 건너뛴다(하위 호환). `execution.submit_form` 에는 nodeId 필드가 없다. 세 handler 가 `data.nodeId` 를 `expectedNodeId` 로 넘긴다. 프론트엔드는 `submit_message` / `end_conversation` 에 대기 노드 `nodeId` 를 이미 싣는다. |
 | REST `/continue` | 미적용 | 요청 본문에 `nodeId` 파라미터가 없다(폼 제출 전용). |
 
 "면제"와 "미적용"은 결과적으로 둘 다 nodeId 검사를 건너뛴다. 앞의 것은 신뢰 컨텍스트의 의도된 정책이고 뒤의 것은 진입점에 nodeId 계약이 없어서다. 어느 쪽도 대기 표면 검사는 건너뛰지 않는다.
@@ -255,7 +255,7 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 
 - 시작 큐의 `jobId = executionId` 중복 제거 때문에 한 실행의 세그먼트는 **항상 하나**다. 두 세그먼트가 동시에 돌지 않는다.
 - 실행 시간 한도는 `assertActiveTimeWithinLimit`(판정)와 `updateExecutionStatus`(누적) 사이에 잠금 없이 읽고 판단하고 쓴다. 이 불변식 때문에 그 사이에 다른 세그먼트가 끼어들 경로가 없어 실제 race 는 없다.
-- **재진입 경로 재검증(2026-07-28)**: `retry_last_turn` 은 재개 큐 jobId(`${executionId}:${nodeExecutionId}:${seq}`)를 써서 `jobId = executionId` 중복 제거 밖에 있다. 그래서 이 불변식이 저절로 성립하지 않는다. `applyRetryLastTurn` 이 자체 원자 claim 으로 같은 보장을 만든다. `status='running'` 과 `jsonb_exists` 조건으로 `input_data - '_retryState'` 를 UPDATE 하고 affected=1 인 배달만 진행한다. 그전에는 읽고 나서 분기하는 방식이라 확인과 실행 사이에 틈이 있었다.
+- **마지막 턴 재시도 경로 재검증(2026-07-28)**: `retry_last_turn` 은 재개 큐 jobId(`${executionId}:${nodeExecutionId}:${seq}`)를 써서 `jobId = executionId` 중복 제거 밖에 있다. 그래서 이 불변식이 저절로 성립하지 않는다. `applyRetryLastTurn` 이 자체 원자 claim 으로 같은 보장을 만든다. `status='running'` 과 `jsonb_exists` 조건으로 `input_data - '_retryState'` 를 UPDATE 하고 affected=1 인 배달만 진행한다. 그전에는 읽고 나서 분기하는 방식이라 확인과 실행 사이에 틈이 있었다.
 - 크래시 재구동 경로의 재검증과 남은 zombie race 는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 - 동시 실행 제한에 걸려 다시 넣는 작업은 jobId 없이 자동 id 를 받는다. 이 작업과 위 불변식의 관계는 [미결 사항](#미결-사항) 참조.
 
@@ -267,7 +267,7 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 | 워커당 동시성 | `EXECUTION_RUN_WORKER_CONCURRENCY`. 잘못된 입력 처리는 `CONTINUATION_WORKER_CONCURRENCY` 방식을 따른다. |
 | 스케일 아웃 | 백엔드·워커 프로세스를 더하면 처리량이 늘어난다(work-stealing). |
 | 우선순위 | BullMQ job priority 로 `manual` > `webhook` > `schedule`(`triggerType` → priority 매핑) |
-| 큐 분할 | 워크스페이스별 큐 분리는 후속(P2)이다. 지금은 시작 큐 하나에 priority 와 concurrency 를 둔다. |
+| 큐 분할 | 워크스페이스별 큐 분리는 후속이다. 지금은 시작 큐 하나에 priority 와 concurrency 를 둔다. |
 
 ## 입력 대기 park
 
@@ -300,7 +300,7 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 
 | 기법 | 적용 기준 | 사례 |
 | --- | --- | --- |
-| `forwardRef(() => X)`(생성자 주입 지연) | 순환은 있지만 양쪽이 부트스트랩 때 함께 인스턴스화돼 정상 해석되는 경우. 기본 선택이다. | `ExecutionEngineService ↔ WebsocketService`, 후속 ④에서 드러난 `ExecutionEventEmitter → WebsocketService`(ES-module 순환 봉인) |
+| `forwardRef(() => X)`(생성자 주입 지연) | 순환은 있지만 양쪽이 부트스트랩 때 함께 인스턴스화돼 정상 해석되는 경우. 기본 선택이다. | `ExecutionEngineService ↔ WebsocketService`, `ExecutionEventEmitter → WebsocketService`(ES-module 순환 봉인) |
 | `ModuleRef.get(X, { strict: false })`(런타임 지연 해석) | 순환 그래프에서 이 서비스가 상대 모듈보다 먼저 인스턴스화돼 생성자 `@Optional` 주입이 `undefined` 로 굳는 경우. `forwardRef` 로도 풀리지 않는 인스턴스화 순서 함정을 런타임 해석으로 피한다. | `ExecutionEngineService → NotificationsService`(`getNotificationsService`, PR #841. 해석하지 못하면 `execution_failed` 알림 발송이 조용히 no-op 이 된다), `NotificationsService → WebsocketService`(`getWebsocket`) |
 
 - 순환 자체를 이벤트 기반 분리 등으로 근본적으로 줄이는 일은 별도 대규모 리팩터링 backlog 다. 지금은 두 기법으로 봉인한 상태를 유지한다.
@@ -308,24 +308,24 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 
 ## 동시 실행 제한
 
-> 구현 상태: 실행 시간 한도(세그먼트 누적 시간 기준)는 PR2a(`impl-exec-concurrency-cap`)에서 구현됐다. 워크스페이스·워크플로우 동시 실행 제한과 큐 대기 5분 취소는 PR2b 에서 구현됐다(settings 키, advisory lock 검사, `queued_at`, `EXECUTION_QUEUE_WAIT_TIMEOUT`, 워크스페이스 settings 쓰기 API). 우선순위 3단계도 구현됐다(2026-07-04). 단일 실행 최대 노드 수(500)만 미구현(Planned)이다. 남은 후속은 `plan/in-progress/execution-engine-residual-gaps.md` 에 있다.
+> 구현 상태: 시작 큐는 2026-06-04(PR #463), 실행 시간 한도(세그먼트 누적 시간 기준) 1단계는 2026-06-05(PR #469)에 구현됐다. 워크스페이스·워크플로우 동시 실행 제한과 큐 대기 5분 취소는 2026-07-04(PR #801)에 구현됐다(settings 키, advisory lock 검사, `queued_at`, `EXECUTION_QUEUE_WAIT_TIMEOUT`, 워크스페이스 settings 쓰기 API). 우선순위 3단계도 구현됐다(2026-07-04). 단일 실행 최대 노드 수(500)만 미구현(Planned)이다.
 
 | 제한 항목 | 기본값 | 설정 위치 | 비고 |
 | --- | --- | --- | --- |
-| 워크스페이스당 동시 실행 수 | 10 | `Workspace.settings.maxConcurrentExecutions`(관리자 이상, `PATCH /api/workspaces/:id/settings`). 키 정의는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) | 시작 큐 + 동시 실행 제한 검사로 센다(PR2b). |
-| 워크플로우당 동시 실행 수 | 3 | `Workflow.settings.maxConcurrentExecutions`(편집자 이상, `PATCH /api/workflows/:id`). 키 정의는 [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) | 시작 큐 + 동시 실행 제한 검사로 센다(PR2b). |
+| 워크스페이스당 동시 실행 수 | 10 | `Workspace.settings.maxConcurrentExecutions`(관리자 이상, `PATCH /api/workspaces/:id/settings`). 키 정의는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) | 시작 큐 + 동시 실행 제한 검사로 센다. |
+| 워크플로우당 동시 실행 수 | 3 | `Workflow.settings.maxConcurrentExecutions`(편집자 이상, `PATCH /api/workflows/:id`). 키 정의는 [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) | 시작 큐 + 동시 실행 제한 검사로 센다. |
 | 단일 실행 최대 노드 수 | 500 | 시스템 설정 | 미구현(Planned) |
-| 단일 실행 최대 실행 시간 | 30분 | 1단계(PR2a): 시스템 env `EXECUTION_MAX_ACTIVE_RUNNING_MS`(기본 `1800000`ms, `0`=무제한). 2단계(후속): 워크플로우별 `Workflow.settings` | 세그먼트 누적 시간 기준(wall-clock 아님, 입력 대기 시간 제외). 1단계 구현 완료 |
+| 단일 실행 최대 실행 시간 | 30분 | 1단계: 시스템 env `EXECUTION_MAX_ACTIVE_RUNNING_MS`(기본 `1800000`ms, `0`=무제한). 2단계(후속): 워크플로우별 `Workflow.settings` | 세그먼트 누적 시간 기준(wall-clock 아님, 입력 대기 시간 제외). 1단계 구현 완료 |
 | 노드별 기본 타임아웃 | 30초 | `Node.config` | |
 
 **실행 시간 한도의 기준은 세그먼트 누적 시간이다.** 최대 실행 시간은 wall-clock 이 아니라 세그먼트들의 누적 시간(`Execution.active_running_ms`)으로 잰다. 입력 대기 park 동안 흐른 시간은 뺀다. 사용자 입력을 며칠 기다리는 정상 워크플로우를 타임아웃으로 끝내면 안 되기 때문이다. 세그먼트 작업은 세그먼트 구간에만 존재하므로(park 중에는 작업이 없다) 세그먼트 작업 시간이 곧 그 세그먼트의 시간이다. 누적은 세그먼트 시간의 합으로 추적한다. 적산 방식은 [실행 데이터와 흐름](CLE-EXEC-DATA.md) 에 있다.
 
 **제한을 넘으면**:
 
-- **동시 실행 수 초과**: 새 실행은 `pending` 상태로 시작 큐에서 기다린다. 시작 큐 소비자(`runExecutionFromQueue`)가 **첫 세그먼트 시작(`pending → running`) 직전에** 원자적으로 동시 실행 제한을 검사한다. 워크스페이스와 워크플로우 **양쪽**의 `COUNT(status='running')` 이 모두 한도 미만일 때만 `running` 으로 들어간다. 아니면 `pending` 을 유지하고 지연 재발행(백오프)한다. PR2b 에서 구현됐다.
-  - 이 검사는 **`pending → running` 최초 진입에만** 적용한다. stalled 재배달의 `running` 분기와 park 재개는 이미 `running` 이거나 재진입이라 다시 세지 않는다. 한 실행이 동시에 두 세그먼트를 돌 수 없으므로 이중 계산이 없다.
-- **실행 시간 한도 도달**: 누적 시간이 **한도 이상**(`activeNow >= maxActiveRunningMs`, 경계값 포함)이면 `EXECUTION_TIME_LIMIT_EXCEEDED` 에러로 실행을 `failed` 로 끝낸다. 엔진 수준 누적 타임아웃 전용 코드다. Code 노드 스크립트 타임아웃 `EXECUTION_TIMEOUT` 과 뜻이 달라 코드를 나눴다. 기준은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 다. PR2a 에서 구현됐다.
-- **큐 대기 한도(`EXECUTION_QUEUE_WAIT_TIMEOUT`) 초과**: 큐 대기 시간(`now - queued_at`)이 기본 5분(시스템 env `EXECUTION_QUEUE_WAIT_TIMEOUT_MS`, 기본 `300000`ms)을 넘으면 실행을 `cancelled` + `error.code='EXECUTION_QUEUE_WAIT_TIMEOUT'` 로 끝낸다. 시스템 취소이며 취소 주체(`cancelledBy`)는 `'timeout'` 이다. `execution.cancelled` 이벤트는 rehydration 실패 취소와 같은 경로로 발행한다. 이벤트 형식은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다. PR2b 에서 구현됐다.
+- **동시 실행 수 초과**: 새 실행은 `pending` 상태로 시작 큐에서 기다린다. 시작 큐 소비자(`runExecutionFromQueue`)가 **첫 세그먼트 시작(`pending → running`) 직전에** 원자적으로 동시 실행 제한을 검사한다. 워크스페이스와 워크플로우 **양쪽**의 `COUNT(status='running')` 이 모두 한도 미만일 때만 `running` 으로 들어간다. 아니면 `pending` 을 유지하고 지연 재발행(백오프)한다.
+  - 이 검사는 **`pending → running` 최초 진입에만** 적용한다. stalled 재배달의 `running` 분기와 park 재개는 이미 `running` 이거나 `waiting_for_input` 에서 돌아오는 재개라 다시 세지 않는다. 한 실행이 동시에 두 세그먼트를 돌 수 없으므로 이중 계산이 없다.
+- **실행 시간 한도 도달**: 누적 시간이 **한도 이상**(`activeNow >= maxActiveRunningMs`, 경계값 포함)이면 `EXECUTION_TIME_LIMIT_EXCEEDED` 에러로 실행을 `failed` 로 끝낸다. 엔진 수준 누적 타임아웃 전용 코드다. Code 노드 스크립트 타임아웃 `EXECUTION_TIMEOUT` 과 뜻이 달라 코드를 나눴다. 기준은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 다.
+- **큐 대기 한도(`EXECUTION_QUEUE_WAIT_TIMEOUT`) 초과**: 큐 대기 시간(`now - queued_at`)이 기본 5분(시스템 env `EXECUTION_QUEUE_WAIT_TIMEOUT_MS`, 기본 `300000`ms)을 넘으면 실행을 `cancelled` + `error.code='EXECUTION_QUEUE_WAIT_TIMEOUT'` 로 끝낸다. 시스템 취소이며 취소 주체(`cancelledBy`)는 `'timeout'` 이다. `execution.cancelled` 이벤트는 rehydration 실패 취소와 같은 경로로 발행한다. 이벤트 형식은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다.
   - **주 경로는 작업을 가져갈 때의 검사다.** 소비자가 작업을 가져가면 동시 실행 제한 검사 전에 `now - queued_at` 을 본다. 한도를 넘었으면 다시 넣지 않고 `cancelled` 로 끝낸다. 한도 초과로 지연 재발행된 작업은 재시도 때마다 다시 검사되므로 대기 초과를 반드시 잡는다.
   - **작업 자체를 잃은 대기 중 실행**(Redis 비영속, 작업 유실 등)은 부팅 복구 스캔이 같은 방식(`EXECUTION_QUEUE_WAIT_TIMEOUT`, `cancelledBy='timeout'`, `releaseExecutionRouting`)으로 회수한다. 2026-07-04 에 구현됐다. 한도 안쪽의 방치된 작업은 다음 스캔 때 한도를 넘었으면 회수한다(드문 경우, 부팅 때만 도는 best-effort). 규칙은 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 
@@ -341,8 +341,8 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 | --- | --- | --- |
 | `EXECUTION_RUN_WORKER_CONCURRENCY` | `1` | 시작 큐 워커가 인스턴스마다 동시에 처리하는 세그먼트 수. work-stealing 처리량, backpressure, 동시 실행 제한의 토대다. 양수가 아니거나 정수가 아니거나 숫자가 아니거나 공백뿐이면 1 로 대신한다(`resolveExecutionRunWorkerConcurrency`). 모듈을 불러올 때 한 번 읽으므로 인스턴스를 다시 시작해야 반영된다. |
 | `CONTINUATION_WORKER_CONCURRENCY` | `1` | 재개 큐 워커가 인스턴스마다 동시에 처리하는 재개 작업 수. 양수가 아니거나 정수가 아니거나 숫자가 아니면 1 로 대신한다. 다시 시작해야 반영된다. |
-| `EXECUTION_MAX_ACTIVE_RUNNING_MS` | `1800000`(30분) | 단일 실행의 세그먼트 누적 시간 한도(ms). 넘으면 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 `failed`. `0` 은 무제한이다. 정수가 아니거나 음수거나 숫자가 아니면 기본값으로 대신한다(`resolveMaxActiveRunningMs`). 입력 대기 시간은 뺀다. 다시 시작해야 반영된다(PR2a). |
-| `EXECUTION_QUEUE_WAIT_TIMEOUT_MS` | `300000`(5분) | 큐 대기 한도. 넘으면 `EXECUTION_QUEUE_WAIT_TIMEOUT` 으로 `cancelled`(PR2b). |
+| `EXECUTION_MAX_ACTIVE_RUNNING_MS` | `1800000`(30분) | 단일 실행의 세그먼트 누적 시간 한도(ms). 넘으면 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 `failed`. `0` 은 무제한이다. 정수가 아니거나 음수거나 숫자가 아니면 기본값으로 대신한다(`resolveMaxActiveRunningMs`). 입력 대기 시간은 뺀다. 다시 시작해야 반영된다. |
+| `EXECUTION_QUEUE_WAIT_TIMEOUT_MS` | `300000`(5분) | 큐 대기 한도. 넘으면 `EXECUTION_QUEUE_WAIT_TIMEOUT` 으로 `cancelled`. |
 
 `RESUME_BULLMQ_ATTEMPTS`(기본 3)는 환경 변수가 아니라 코드 상수다. `background-execution` 큐의 `attempts` 와 같은 방식으로 관리하며 환경 변수화는 후속이다. 안전 종료 관련 변수는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md), DLQ 모니터 변수와 seq TTL 은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다.
 
@@ -353,7 +353,8 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/execution-engine/**` (엔진 전체. `execute`, `runExecutionFromQueue`, 동시 실행 제한 검사)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`execute`, `runExecutionFromQueue`, 동시 실행 제한 검사 `admitExecutionOrDefer`)
+- `codebase/backend/src/modules/execution-engine/waiting-surface-guard.ts` (발행 전 사전 검증의 대기 표면과 명령 조합 `isCommandAllowedOnSurface`)
 - `codebase/backend/src/modules/execution-engine/queues/execution-run.queue.ts` (시작 큐와 우선순위, 작업 옵션)
 - `codebase/backend/src/modules/execution-engine/queues/execution-run.processor.ts` (시작 큐 소비자)
 - `codebase/backend/src/modules/execution-engine/queues/continuation-execution.queue.ts` (재개 큐 작업 옵션과 backoff 전략 이름 `continuation-exp4`)
@@ -370,9 +371,9 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 - **기각(노드 단위 큐)**: in-process dispatch 반복문은 컨테이너(Loop/ForEach/Map), 중첩 컨테이너 스코프 체인([컨테이너 실행](CLE-EXEC-CONTAINER.md). 원문은 `$parent` 로 적었으나 그 변수는 없다), back-edge 순환, Parallel(`p-limit` + `allSettled`)을 "한 실행이 한 프로세스 안에 있다" 는 전제로 처리한다. 노드를 워커로 나누려면 노드마다 실행 컨텍스트 전체(변수, loop·item 컨텍스트, 스코프 체인, 대화 스레드)를 직렬화하고 rehydration 해야 한다. rehydration 인프라는 "입력 대기 뒤 재개" 용이지 "실행 중 노드 인계" 용이 아니다. 엔진을 다시 쓰는 수준의 고위험 작업이다.
 - **채택(실행 단위 시작 큐)**: 워커가 실행 1건의 세그먼트를 통째로 처리한다. 세그먼트 안의 노드 dispatch 는 in-process 로 둔다. n8n queue mode 와 같은 구조이며 수평 처리량, work-stealing, backpressure, 동시 실행 제한의 토대를 노드 단위 방식보다 훨씬 낮은 위험으로 얻는다. `background-execution` 과 재개 큐 패턴을 그대로 다시 쓴다.
 - **세그먼트 모델과 맞물림**: 재개 큐가 이미 "재개 세그먼트" 를 운반하고 있었다. 시작 큐는 그 짝으로 "첫 세그먼트" 를 운반한다. 두 큐가 세그먼트를, park 가 그 사이를 맡는 구조가 자연스럽게 완성된다. 시작 큐 도입은 대기의 의미를 바꾸지 않는다.
-- **대가**: 한 실행 안의 노드들을 여러 워커로 나누는 세밀한 분산은 포기한다. 단일 실행이 매우 무겁고 내부 분산이 실제로 필요해지면 다시 검토한다(지금은 그런 요구가 없다). 워크스페이스별 큐 분할도 후속(P2)이다.
+- **대가**: 한 실행 안의 노드들을 여러 워커로 나누는 세밀한 분산은 포기한다. 단일 실행이 매우 무겁고 내부 분산이 실제로 필요해지면 다시 검토한다(지금은 그런 요구가 없다). 워크스페이스별 큐 분할도 후속이다.
 - **서브 워크플로우는 시작 큐를 타지 않는다**: 부모 세그먼트 안에서 동기 await 나 자체 promise 로 충분하다. 큐를 한 번 더 거치면 부모 세그먼트의 지연만 늘어난다(원문 데이터 흐름 Rationale).
-- **노드 단위 큐가 없음을 확정**: PR1 전에는 큐가 둘뿐이고 실행 시작이 in-process fire-and-forget 이었다. PR1 뒤 BullMQ 큐는 `execution-run`, `background-execution`, `execution-continuation` 세 개이고 모두 실행·세그먼트 단위 작업을 나른다. 안전 종료 절차도 이 전제를 따른다.
+- **노드 단위 큐가 없음을 확정**: 시작 큐 도입(PR #463) 전에는 큐가 둘뿐이고 실행 시작이 in-process fire-and-forget 이었다. 도입 뒤 BullMQ 큐는 `execution-run`, `background-execution`, `execution-continuation` 세 개이고 모두 실행·세그먼트 단위 작업을 나른다. 안전 종료 절차도 이 전제를 따른다.
 
 ### 실행 이벤트 발행 대상을 하나로 둔다
 
@@ -386,24 +387,24 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 - **채택**: 입력 대기 시간을 뺀 세그먼트 누적 시간 기준. wall-clock 이면 사용자 입력을 며칠 기다리는 정상 워크플로우를 타임아웃으로 끝낸다. 과거 테스트에서 "늦게 돌아오니 세션 만료" 회귀로 확인된 안티패턴이다.
 - **설계 맞물림**: 세그먼트 작업은 세그먼트 구간에만 있다(park 중에는 작업이 없다). 그래서 세그먼트 작업 시간이 곧 active 시간이 되고 별도 시계 없이 자연스럽게 나뉜다. 누적은 세그먼트 시간의 합이다.
 - **에러 코드 분리**: 엔진 누적 타임아웃은 새 코드 `EXECUTION_TIME_LIMIT_EXCEEDED` 다. Code 노드 스크립트 타임아웃 `EXECUTION_TIMEOUT`(`nodes/data/code/code.handler.ts`)과 뜻이 달라 이름을 바꾸지 않고 새로 만들었다. 에러 코드 명명 규약을 따른다.
-- **한도 출처는 1단계 env, 2단계 워크플로우별(PR2a)**: 표의 설정 위치는 `Workflow.settings` 였지만 그 설정 필드가 아직 없었다. 그래서 PR2a 는 시스템 env 상수 `EXECUTION_MAX_ACTIVE_RUNNING_MS`(기본 30분, `0`=무제한)로 1단계를 구현했다. 워크플로우별 설정 필드와 UI 는 2단계 후속이다. 멀티테넌트 폭주 방지라는 핵심 목적은 전역 한도로 바로 이룰 수 있다. 워크플로우별 세분화는 DB 마이그레이션과 UI 가 필요한 별도 범위다.
+- **한도 출처는 1단계 env, 2단계 워크플로우별**: 표의 설정 위치는 `Workflow.settings` 였지만 그 설정 필드가 아직 없었다. 그래서 첫 구현(PR #469)은 시스템 env 상수 `EXECUTION_MAX_ACTIVE_RUNNING_MS`(기본 30분, `0`=무제한)로 1단계를 구현했다. 워크플로우별 설정 필드와 UI 는 2단계 후속이다. 멀티테넌트 폭주 방지라는 핵심 목적은 전역 한도로 바로 이룰 수 있다. 워크플로우별 세분화는 DB 마이그레이션과 UI 가 필요한 별도 범위다.
 - **판정은 `>=`(경계 포함)**: 한도와 정확히 같은 값도 초과로 본다. 한도에 닿은 세그먼트는 한도를 다 쓴 것이므로 끝내는 것이 맞다. `>` 보다 경계값에서 조용히 덜 적용될 위험이 없어 보수적으로 안전하다.
-- **판정의 비원자성은 직렬화 불변식이 막는다**: `assertActiveTimeWithinLimit`(DB 누적값 + 진행 중 경과분을 읽어 판정)와 `updateExecutionStatus`(세그먼트 끝에 누적 기록) 사이에 잠금이 없다. 한 실행의 세그먼트가 항상 하나이고 동시에 돌지 않으므로 지금 구조에서는 실제 race 가 없다. 재진입 경로가 늘면 다시 검증한다([세그먼트 직렬화 불변식](#세그먼트-직렬화-불변식)).
+- **판정의 비원자성은 직렬화 불변식이 막는다**: `assertActiveTimeWithinLimit`(DB 누적값 + 진행 중 경과분을 읽어 판정)와 `updateExecutionStatus`(세그먼트 끝에 누적 기록) 사이에 잠금이 없다. 한 실행의 세그먼트가 항상 하나이고 동시에 돌지 않으므로 지금 구조에서는 실제 race 가 없다. 실행을 다시 `running` 으로 들이는 경로가 늘면 다시 검증한다([세그먼트 직렬화 불변식](#세그먼트-직렬화-불변식)).
 
-### 동시 실행 제한은 소비 쪽에서 검사하고 대기 초과는 취소한다 (PR2b, 2026-07-04)
+### 동시 실행 제한은 소비 쪽에서 검사하고 대기 초과는 취소한다 (2026-07-04)
 
 사용자 결정(2026-07-04): spec 을 먼저 나누고 범위는 동시 실행 제한과 5분 취소로 한다. 우선순위 3단계는 후속으로 뺀다.
 
 - **소비 쪽 검사(발행 쪽 아님)**: work-stealing 분산에서 어느 인스턴스가 실행할지는 작업을 가져가는 시점에 정해진다. `execute()` 는 항상 `pending` 으로 넣고 바로 반환하는 계약을 지킨다. 그래서 검사는 소비자(`runExecutionFromQueue`)가 `pending → running` 전이 직전에 원자적으로 해야 분산 정합이 맞다. 발행 쪽 검사(execute 때 세기)는 다중 인스턴스 race 가 생기고 즉시 반환 계약도 깨므로 기각했다.
 - **`failed` 가 아니라 `cancelled`(+`error.code`)**: 큐 대기 초과는 노드 실행이 시작조차 안 된 상태다. "실패" 보다 "취소" 가 뜻에 맞다. 취소 주체 enum 에서 쓰이지 않던 값 `'timeout'` 을 처음 쓰고 `error.code='EXECUTION_QUEUE_WAIT_TIMEOUT'` 으로 사용자 취소와 구분한다. rehydration 실패의 시스템 취소가 `execution.cancelled` 에 `error` 를 함께 싣는 기존 구조를 다시 쓰므로 새 payload 필드가 없다.
 - **검사는 `pending → running` 최초 진입에만**: 한 실행이 동시에 두 세그먼트를 돌 수 없으므로 stalled 재배달과 park 재개까지 다시 세면 이중 계산이 된다. 크래시 재구동에서 인정한 zombie race 는 "같은 실행을 두 워커가 잠깐 굴릴 수 있다" 는 문제다. 동시 실행 제한이 세는 "서로 다른 실행 N 개" 와는 다른 문제다.
-- **TOCTOU 원자화**: 읽고 나서 판단하는 방식은 한도를 넘게 허용한다. 조건부 UPDATE 만으로는 부족했다. 서브쿼리 COUNT 에 잠금이 없어 동시 검사가 같은 스냅샷을 보고 한도를 넘겼다(ai-review 가 실제 Postgres 로 재현했다). 워크스페이스별 advisory lock 으로 같은 범위를 줄 세우고 다른 워크스페이스는 병렬로 둔다.
+- **TOCTOU 원자화**: 읽고 나서 판단하는 방식은 한도를 넘게 허용한다. 조건부 UPDATE 만으로는 부족했다. 서브쿼리 COUNT 에 잠금이 없어 동시 검사가 같은 스냅샷을 보고 한도를 넘겼다(코드 리뷰에서 실제 Postgres 로 재현했다). 워크스페이스별 advisory lock 으로 같은 범위를 줄 세우고 다른 워크스페이스는 병렬로 둔다.
 - **`queued_at` 컬럼 신설(V104)**: 5분 판정은 큐 대기 진입 시각 기준이다. `started_at`(`running` 전이 시각)은 부팅 복구 스캔의 stale 판정에 쓰여 다시 쓸 수 없다.
 - **우선순위 3단계 분리**: `ExecuteOptions.triggerType` 전달은 ExecuteOptions, 트리거 payload, 큐 옵션 세 층을 바꾸는 일이라 동시 실행 제한 검사와 관계가 없다. 리뷰를 집중하려고 별도 후속 PR 로 뺐다(사용자 결정). 2026-07-04 에 구현됐다.
 
 ### 동시 실행 제한 판정은 RETURNING 행 배열로 한다 (2026-08-30 소급 기록)
 
-동시 실행 제한 검사는 4개월 동안 한 번도 통과하지 못했다. 검사는 advisory lock UPDATE 의 `RETURNING` 으로 `rows.length === 1` 을 판정했다. 그 반환값은 `[rows, affectedCount]` 튜플이라 길이가 항상 2였고 판정은 항상 거짓이었다. `8332d9a20`(2026-08-13)이 고쳤다.
+동시 실행 제한 검사는 4개월 동안 한 번도 통과하지 못했다. 검사는 advisory lock UPDATE 의 `RETURNING` 으로 `rows.length === 1` 을 판정했다. 그 반환값은 `[rows, affectedCount]` 튜플이라 길이가 항상 2였고 판정은 항상 거짓이었다. PR #1168(2026-08-13)이 고쳤다.
 
 제품이 동작한 이유: UPDATE 는 이미 커밋돼 행이 `running` 이 됐다. 다시 넣은 작업을 `runExecutionFromQueue` 의 `running` 분기가 stalled 재배달로 잘못 알고 rehydration 으로 재구동했다. 결과만 맞고 경로가 틀렸다. 그 대가로 실행마다 약 2초 지연이 생겼다. `if (admitted)` 블록(`recordRunningSegmentStart`, `EXECUTION_STARTED` 발행)은 통째로 죽은 코드가 됐다.
 
@@ -417,23 +418,23 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 - **새 코드를 만들지 않는 이유**: 기존 `InvalidExecutionStateError` 를 다시 쓰면 진입점별 매핑(WS ack `INVALID_EXECUTION_STATE` / REST `/continue` 422 `INVALID_STATE` / EIA 409 `STATE_MISMATCH`)이 저절로 따라온다. 이 거부는 EIA-IN-13 필수 요구사항과 EIA `STATE_MISMATCH` 행이 이미 약속한 동작이다. 코드가 그 미이행 틈을 메운 것이지 새 계약이 아니다.
 - **판정할 수 없어도 거부(fail-closed)하는 이유**: 짝이 되는 `dispatchResumeTurn` 도 맞는 처리기를 못 찾으면 거부(`RESUME_CHECKPOINT_MISSING`)한다. 표면을 판정할 수 없는 행은 어차피 워커에서 그 에러로 실행이 끝난다(`form` 은 정적 handler metadata 로 항상 판정되므로 이 경우에 오지 않는다). 발행 전에 동기로 거부하면 실행이 `waiting_for_input` 으로 남아 복구 가능성이 높다. 이 프로젝트의 fail-open 선례는 인프라 가용성(Redis/DB) 상황에 한정된다. 데이터 정합성 검사는 fail-closed 가 원칙이다. 서브 워크플로우 워크스페이스 격리를 fail-closed 로 바꾼 선례와 같은 방향이다.
 
-nodeId 불일치 행은 F-1 이 표면 불일치 행 앞에 더했다.
+nodeId 불일치 행은 2026-07-14(PR #950)에 표면 불일치 행 앞에 더했다.
 
 ### `INVALID_EXECUTION_STATE` 와 `INVALID_STATE` 이름을 나눠 둔다
 
 발행 전 사전 검증의 0건·여러 행 경우를 WebSocket 은 `INVALID_EXECUTION_STATE` 로, REST 는 422 `INVALID_STATE` 로 응답한다. 두 층을 `INVALID_STATE` 하나로 합치면 WS ack 를 처리하는 클라이언트가 같은 코드를 동기 ack 응답과 뒤따르는 이벤트로 나눠 분기하기 어렵다. 이름을 나눠 두면 코드 이름만 보고 경로를 알 수 있다. 두 층이 같은 뜻이라는 점은 본문에서 서로 링크한다. 이 코드는 입력 대기 진입점(`execution.submit_form` / `click_button` / `submit_message` / `end_conversation`) 밖에서 `execution.retry_last_turn`(기대 상태 `failed`)에도 같은 뜻으로 쓴다.
 
-### 발행 실패를 `queued:false` 하나로 알린다 (C-1·M-7)
+### 발행 실패를 `queued:false` 하나로 알린다
 
-- **C-1**: `cancelWaitingExecution` 은 원래 `void publish` 로 결과를 버렸다. 발행 실패가 호출자에게 닿지 않아 에러가 사라졌다. 다른 재개 메서드 4종은 이미 `ContinuationPublishResult` 를 돌려주므로 취소만 예외로 둘 근거가 없었다. 같은 방식으로 맞추고 REST `POST /executions/:id/stop` 의 입력 대기 취소 분기가 `queued:false` 를 알리게 했다.
+- **취소도 발행 결과를 돌려준다**: `cancelWaitingExecution` 은 원래 `void publish` 로 결과를 버렸다. 발행 실패가 호출자에게 닿지 않아 에러가 사라졌다. 다른 재개 메서드 4종은 이미 `ContinuationPublishResult` 를 돌려주므로 취소만 예외로 둘 근거가 없었다. 같은 방식으로 맞추고 REST `POST /executions/:id/stop` 의 입력 대기 취소 분기가 `queued:false` 를 알리게 했다.
   - HTTP 코드는 **503** 이다. Redis 의존성 장애는 상류를 쓸 수 없는 상태이므로 502(잘못된 게이트웨이 응답)가 아니라 503(일시적 불가, 재시도)이 맞다. `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)이 같은 503 선례를 만들었다.
   - 취소는 WS ack 경로가 아니라 REST 중지 진입점이므로 새 코드 `EXECUTION_ENQUEUE_FAILED`(`EXECUTION_*` 이름공간)로 표기한다. 이 코드는 처음에 REST 중지 진입점 전용이었다. 2026-10-09 에 EIA `/interact` 의 재개 명령과 취소로 넓어졌다(NERV Task `CLE-T-M6PERB`). 진입점별 표면은 [「진입점마다 큐 적재 실패를 다르게 알린다」](#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
   - "502 가 아니라 503" 판정은 **우리 의존성의 장애**에 한정된다. 외부 서드파티 API 호출 실패의 502 사용은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-23 이 정한다. 두 기준은 지금까지의 사례에서 모두 같은 결론을 낸다.
-- **M-7**: `nextSeq` 의 Redis INCR 이 실패하면 쓰던 `Math.random` seq 대체를 없애고 fail-fast(INCR throw → `publish` 바깥 catch → `null`/`queued:false`)로 바꿨다. 무작위 seq 는 "seq = 멱등 키" 와 단조성 계약을 어겨 jobId 중복 제거를 무력화한다. BullMQ 자체가 Redis 위에서 돌기 때문에 INCR 이 실패하는 장애라면 바로 뒤의 `queue.add` 도 실패할 가능성이 크다. 대체의 가용성 이득이 사실상 없다. 이벤트 순번(`exec:seq`)은 분산 단조성 미보장을 받아들여 in-memory 대체를 두지만 재개 seq 는 jobId 중복 제거 계약이 우선이라 일부러 **비대칭**으로 둔다.
+- **seq 발급 실패는 바로 실패로 처리한다**: `nextSeq` 의 Redis INCR 이 실패하면 쓰던 `Math.random` seq 대체를 없애고 fail-fast(INCR throw → `publish` 바깥 catch → `null`/`queued:false`)로 바꿨다. 무작위 seq 는 "seq = 멱등 키" 와 단조성 계약을 어겨 jobId 중복 제거를 무력화한다. BullMQ 자체가 Redis 위에서 돌기 때문에 INCR 이 실패하는 장애라면 바로 뒤의 `queue.add` 도 실패할 가능성이 크다. 대체의 가용성 이득이 사실상 없다. 이벤트 순번(`exec:seq`)은 분산 단조성 미보장을 받아들여 in-memory 대체를 두지만 재개 seq 는 jobId 중복 제거 계약이 우선이라 일부러 **비대칭**으로 둔다.
 
 두 항목은 발행 실패를 `queued:false` 하나로 알린다는 점에서 같은 결정이다.
 
-### `RESUME_*` 를 동기 ack 에 싣지 않는다 (2026-06-10 spec-sync, refactor 06 M-1)
+### `RESUME_*` 를 동기 ack 에 싣지 않는다 (2026-06-10)
 
 - **옛 서술**: rehydration 실패 3종(`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`)이 "WS ack 에 `resumed: false` + error 로 나간다" 고 적혀 있었다. 같은 문서의 사전 검증 절("`RESUME_*` 는 뒤따르는 `execution.cancelled` 이벤트이며 ack 동기 응답이 아니다")과 정면으로 모순이었다.
 - **맞는 경로**: 항상 큐에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md) 의 "실행 엔진: Redis 큐 + 분산 워커 풀" 결정) 이후 `RESUME_*` 는 enqueue 뒤 임의 워커가 처리하다 실패하는 **비동기** 종결이다. 재개 handler 4종은 enqueue 수락만 동기 ack(`resumed: true`/`queued`)로 돌려준다. 워커 쪽 실패는 뒤따르는 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 알린다. 코드에서도 4종 handler 는 `RESUME_*` 에 대해 `resumed: false` 를 내지 않는다.
@@ -442,8 +443,8 @@ nodeId 불일치 행은 F-1 이 표면 불일치 행 앞에 더했다.
 
 ### ack 에 내부 에러 메시지를 싣지 않는다 (2026-06-14 결정)
 
-- **문제**: 재개 handler 4종의 공통 ack 빌더(`buildContinuationErrorAck`)가 `error instanceof Error ? error.message : fallback` 으로 **임의 `Error` 의 내부 message 를 그대로 ack 에 실었다**. `InvalidExecutionStateError` 만 `errorCode` 로 구분됐다. 그 밖의 에러(특히 DB 조회의 TypeORM 예외)는 스택 힌트, SQL 원문, 내부 식별자를 흘릴 수 있었다(PR #575 ai-review deferred, refactor 04 후속 A-1).
-- **결정(네 가지, 모두 옵션 A, 2026-06-14 사용자 확정)**:
+- **문제**: 재개 handler 4종의 공통 ack 빌더(`buildContinuationErrorAck`)가 `error instanceof Error ? error.message : fallback` 으로 **임의 `Error` 의 내부 message 를 그대로 ack 에 실었다**. `InvalidExecutionStateError` 만 `errorCode` 로 구분됐다. 그 밖의 에러(특히 DB 조회의 TypeORM 예외)는 스택 힌트, SQL 원문, 내부 식별자를 흘릴 수 있었다(PR #575 의 코드 리뷰에서 미룬 항목).
+- **결정(네 가지, 2026-06-14 사용자 확정)**:
   1. **에러 코드 이름공간**: 새 `EXEC_*` prefix 를 만들지 않고 중앙 `ErrorCode` enum 의 `EXECUTION_*` 를 넓힌다. `EXEC_*` 는 기존 `EXECUTION_*` 과 이중 표기라 기각했다. `INVALID_EXECUTION_STATE`, `RESUME_*`, `RETRY_*` 는 안정성 정책상 이름을 유지한다.
   2. **client-safe 메시지**: 백엔드는 code 와 고정 영문 일반 메시지만 내보내고 내부 상세는 서버 로그에만 남긴다. 프론트엔드가 `code → i18n key` 맵으로 표시한다(`integration-error-codes` 선례). 백엔드 i18n 층 신설은 인프라가 없고 비용이 커 기각했다.
   3. **`ExecutionError` 전환 범위는 경계만**: `ExecutionError` 추상 기반을 도입한 뒤 클라이언트 경계에 닿는 throw 만 typed 로 바꾼다. 안쪽 깊은 `Error` 는 ack 경계에서 일반 대체로 처리한다. 전수 전환(약 15곳)은 크고 가치가 낮으며(다수가 클라이언트에 닿지 않는다) 회귀 위험이 있어 기각했다.
