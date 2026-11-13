@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "d67539f2f4a50b07937bfa11b9c6428d605a86b958f2ce170728caf6b8b18a4c"
+content_hash: "be20de2ef4e1daccbb0314dc92d61ce8851ee12c3c9ee3e43c4d5ad588a34a14"
 read_as: "approved_fallback"
-task: "CLE-T-TBJ863"
+task: "CLE-T-X3YE55"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "eeb670b0d03e15370e6298b1d34f1af1c61f18a5baaf547f838b2f83e8793e10"
-etag: "sha256-affb6ea410609fd96f523837e278c4cbf73a9c8df816223c2ba07552edb395e7"
+mirror_sha256: "eadb5ec5f442521819e972c3e1851362d4b31c42417e1c709bae7155db92876a"
+etag: "sha256-f6d1d3c4f19e65aa3843177c36a9d0e009b04c43832c7d1e9d0d01585d6b008c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,6 +52,10 @@ etag: "sha256-affb6ea410609fd96f523837e278c4cbf73a9c8df816223c2ba07552edb395e7"
    ```
 
    중첩 Parallel 동시 실행 수 전파용 `parentParallelConcurrency` 는 이 원칙에 따라 `ParallelBranchContext` 로 분리한다(2026-05-30, C-1 옵션 a). [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 결정 G 가 이 필드를 `ExecutionContext` 에 바로 더했던 것을 뒤집은 결정이다.
+
+   이 값은 Parallel 의 병렬 분기 밖 두 경로에서도 다룬다. 정본은 [Parallel 노드 §놓인 위치별 실행과 중첩 깊이](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#놓인-위치별-실행과-중첩-깊이) 다.
+   - 컨테이너 반복 회차는 컨테이너가 받은 컨텍스트를 그대로 쓴다. 그래서 병렬 분기 안 컨테이너 본문은 바깥 병렬 분기의 값을 이어받는다(REQ-PARALLEL-035).
+   - 동기 서브 워크플로우는 실행하는 동안 호출한 쪽 컨텍스트의 값을 떼어 두고, 끝나면 실패했더라도 되돌린다. 그래서 서브 워크플로우의 Parallel 은 깊이 1 부터 센다(REQ-PARALLEL-036).
 3. **선택 필드 늘리기 금지**: 새로 여러 기능이 함께 쓰는 기능을 더할 때 `ExecutionContext` 에 선택 필드를 바로 늘리지 않는다.
    - 모든 노드가 쓰는 기능이면 `ExecutionContext` 에 더하고 `node-handler.interface.ts` 를 고치고 이 문서에 분류 근거를 적는다.
    - 특정 컨테이너나 기능에 한정되면 `XBranchContext extends ExecutionContext` 로 확장한다(규칙 2).
@@ -141,7 +145,7 @@ setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 
 | `variables.__workspaceId` | 실행 시작 때 `workflow.workspaceId` 로 넣는다 | 통합 조회, 모델 설정 조회 등 워크스페이스 단위 리소스 해석 |
 | `variables.*`(그 밖) | 트리거·워크플로우 변수(변수 선언 노드·변수 수정 노드가 설정하는 사용자 정의 런타임 값) | 표현식 `$var.X` 평가. park 때 시스템 `__*` 를 뺀 사용자 정의분이 `Execution.user_variables` 에 저장되고 rehydration 이 되살린다. 그래서 park 전에 설정한 변수를 park 뒤 노드가 그대로 읽는다 |
 | `conversationThread` | 실행 시작 때 빈 스레드(`{ id: 'default', nextSeq: 0, turns: [], totalChars: 0 }`)로 만들고 노드 훅이 쌓는다 | 사용자 인터랙션과 AI 대화 턴의 단일 기준. `ConversationThreadService.append*` 가 유일한 변경 진입점이고 핸들러는 직접 바꾸지 않는다. 표현식에는 `$thread` 로 노출한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md)) |
-| `loopContext`·`itemContext` | 컨테이너 회차마다 | Loop·ForEach 본문의 반복 변수 원천([컨테이너 실행](CLE-EXEC-CONTAINER.md)) |
+| `loopContext`·`itemContext` | 컨테이너 회차마다. Background 워커는 작업 스냅샷에 실린 값으로 되살린다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#요구사항) REQ-BGRUN-028) | Loop·ForEach 본문의 반복 변수 원천([컨테이너 실행](CLE-EXEC-CONTAINER.md)). 컨테이너 본문 안 Background 의 본문도 큐에 넣은 회차의 값을 읽는다([컨테이너 실행 §컨테이너 본문 안 Background](CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)) |
 | `recursionDepth` | `createContext` 가 `0` 으로 만들고 서브 워크플로우 인라인 실행에 들어갈 때마다 1 씩 늘린다 | 무한 재귀 방지 |
 | `abortSignal` | 취소 신호를 만드는 생산자가 넣는다 | 노드 취소 신호([노드 취소](CLE-EXEC-CANCEL.md)) |
 
@@ -203,14 +207,14 @@ type ExecuteOptions = {
 | 수동 실행 | 컨트롤러가 `{ parameterValues }` 를 받아 `resolveTriggerParameters` 를 거친 뒤 `{ parameters }` 와 `{ executedBy: user.sub, workspaceId }` 로 `execute()` 를 부른다. `workspaceId` 는 요청의 워크스페이스다 | `executed_by` 가 채워져 수동 실행 |
 | 단일 노드 실행 | 수동 실행과 같이 `{ executedBy: user.sub, workspaceId, singleNodeId, previousExecutionId }` 로 부른다. `workspaceId` 는 요청의 워크스페이스다 | `executed_by` 가 채워진다 |
 | 재실행 | `ExecutionsService.reRun` 이 원본 실행을 요청의 워크스페이스에서 찾은 뒤 `{ executedBy, workspaceId, reRunOf, chainId, dryRun }` 로 부른다 | `executed_by` 가 채워진다 |
-| 웹훅 | `HooksService` 가 `body` 를 원천으로 `resolveTriggerParameters` 를 거친다. 실패하면 `400 Bad Request` 를 돌려주고 실행을 만들지 않는다. 성공하면 `{ parameters, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId }` 로 부른다 | `trigger_id` 가 채워져 웹훅 |
-| 채팅 채널 인바운드 | `HooksService` 의 채팅 채널 분기가 파라미터 해석 없이 `{ parameters: {}, chatChannel, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode: '202' }` 로 부른다 | `trigger_id` 가 채워져 웹훅 |
+| 웹훅 | `HooksService` 가 `body` 를 원천으로 `resolveTriggerParameters` 를 거친다. 실패하면 `400 Bad Request` 를 돌려주고 실행을 만들지 않는다. 성공하면 `{ __triggerSource: 'webhook', parameters, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode: '202' }` 로 부른다 | `trigger_id` 가 채워져 웹훅 |
+| 채팅 채널 인바운드 | `HooksService` 의 채팅 채널 분기가 파라미터 해석 없이 `{ __triggerSource: 'webhook', parameters: {}, chatChannel, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode }` 로 부른다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 Discord 컴포넌트(type 3) · 모달 제출(type 5)은 `'200'` 이다([웹훅 §채팅 채널 분기](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#채팅-채널-분기)) | `trigger_id` 가 채워져 웹훅 |
 | Cron 자동 발사 | `ScheduleRunnerService.process()` 가 `schedule.parameterValues` 를 제한 컨텍스트(`{ $now, $schedule: { id, cronExpression, timezone } }`)로 표현식 평가한 뒤 `resolveTriggerParameters` 를 거쳐 `{ parameters }` 와 `{ triggerId: schedule.triggerId, workspaceId }` 로 부른다. `workspaceId` 는 스케줄의 워크스페이스이고 트리거의 워크스페이스가 아니다. `$node`·`$input`·`$var` 는 쓸 수 없다 | `trigger_id` 가 채워져 스케줄 |
 | 스케줄 "지금 실행" | 사용자가 지금 실행 버튼을 누른 경우 수동 실행과 같이 `{ executedBy: userId, workspaceId }` 로 부른다. `workspaceId` 는 요청의 워크스페이스다 | 수동 실행 |
 
 출처를 가르는 규칙(우선순위와 라벨)은 [실행 내역](CLE-EXEC-HISTORY.md) 이 정한다. 분류 함수는 `deriveExecutionTrigger`(`execution-trigger.ts`)다. 민감 헤더 가리기는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
 
-수동 트리거 노드의 출력 모양은 [수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md) 가 정한다. 모든 경로에서 `output.parameters` 를 내고 웹훅 출처일 때만 `output.request: { method, headers, query, body }` 를 더한다. 뒤 노드의 표현식에서 `$input.parameters` 와 `$params` 는 같은 값이다.
+수동 트리거 노드의 출력 모양은 [수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md) 가 정한다. 모든 경로에서 `output.parameters` 를 내고 웹훅 출처일 때만 `output.request: { method, headers, query, body }` 를 더한다. 웹훅 출처는 입력의 `__triggerSource: 'webhook'` 으로 구분한다. 뒤 노드의 표현식에서 `$input.parameters` 와 `$params` 는 같은 값이다.
 
 ## 저장 전략
 

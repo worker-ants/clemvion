@@ -2,19 +2,19 @@
 id: "CLE-NODE-ARCH"
 title: "노드 시스템 구조와 카탈로그"
 type: "design"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "7874e4c302c48d36a9c40bceb714da0dd86c9338f7ecf2796ca3b47273c85c12"
-read_as: "approved"
-task: null
+content_hash: "146b1ac2a1801f8c89de1cca9a2fdf424006bb66570609db24bb376aacc08c50"
+read_as: "approved_fallback"
+task: "CLE-T-D6C9HJ"
 source_paths: ["spec/4-nodes/0-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d8785fbcef09762f06918e71c7bebd335538701c42e260fb5e143d24712b2193"
-etag: "sha256-326b03ae9f419ef09fe6778441765941805398a7fe24cd26099483f109e9e4da"
+mirror_sha256: "0bb0e2041ab226da059da23e534c0fdee1c768288f9f5b4c085e34f1be705749"
+etag: "sha256-d9241c75fe505dcb3db637dce28b95efdf4a893005fab9cabf596bbd4cffcaee"
 ---
 > 구현 상태: 부분 구현(플러그인·마켓플레이스와 파일 시스템 샌드박스 정책은 미구현) · 원문: `spec/4-nodes/0-overview.md`, `spec/4-nodes/_product-overview.md` (§1, §2, §10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -150,6 +150,7 @@ sequenceDiagram
 | `configSchema` | JSONSchema | 설정 폼 스키마 |
 | `defaultConfig` | Object | 설정 기본값 |
 | `summaryTemplate` | String | 캔버스에 보이는 설정 요약 한 줄을 만드는 규칙. [캔버스 설정 요약](#캔버스-설정-요약-summarytemplate) 참조 |
+| `warningRules` | WarningRule[] | 노드 하나의 설정만 보는 노드 경고 규칙. 규칙마다 `id` · `when`(mini-DSL) · `message` 와 선택 필드 `severity` 를 둔다. `severity` 는 `blocking`(생략하면 이 값) 또는 `advisory` 다. 뜻은 [그래프 경고 규칙 §노드 경고 규칙의 심각도](../CLE-WF/CLE-WF-WARN.md#노드-경고-규칙의-심각도) 가 정한다 |
 
 ### 포트 정의 (PortDef)
 
@@ -182,7 +183,7 @@ sequenceDiagram
 | 표시 위치 | 노드 본체 세 번째 줄(아이콘·유형 이름, 사용자 레이블 아래). 컨테이너는 머리 막대 오른쪽 |
 | 최대 길이 | 렌더링한 한 줄 전체가 40자를 넘으면 말줄임표로 자른다. 마우스를 올리면 전체를 툴팁으로 보인다. |
 | 줌 | 줌 50% 미만에서 숨긴다. |
-| 미설정 표시 | 필수 설정이 비었을 때의 경고는 [워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md)가 정한 방식(머리의 경고 아이콘과 툴팁의 구체 누락 항목)으로 보인다. |
+| 미설정 표시 | 필수 설정이 비었을 때의 경고는 [워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md)가 정한 방식(머리의 경고 아이콘과 툴팁의 구체 누락 항목)으로 보인다. `advisory` 노드 경고는 요약을 가리지 않고 머리의 경고 아이콘으로만 보인다. |
 | 갱신 | 노드 설정이 store 에 반영되면 바로 갱신한다. 자세한 시점은 [워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md)에 있다. |
 
 #### 템플릿 문법

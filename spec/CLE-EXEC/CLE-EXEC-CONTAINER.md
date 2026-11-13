@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "50bc545d6d07deac2e4d0f7086fd43880fd79915c3985b6612e7684b127f94bb"
+content_hash: "3f1713389ea8938c9c1c16ab5130372aff2cab38478a21328d47a85c59266ca9"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-2HKPJQ"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "39df2135a738cb926a5643fb5d9b67813ed9dffecc5e2593565006499c3ac1a3"
-etag: "sha256-44c82b720ee461a59ded33ef5cff47b4e89fb86db5b711c058170b70485f3da3"
+mirror_sha256: "c7cfb2de4fa2b94cf46ffd58f0cca5e0df2ef28776be7c31bd4312a33fc4cfa2"
+etag: "sha256-2a6282ddb71c092b8f18782af3a6c9e5bef22fe152f59f22cfa0b9b720b5e277"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -172,8 +172,8 @@ Loop 안에 ForEach 가 있을 때:
 | --- | --- |
 | 반복 변수 | 병렬 분기 노드도 바깥 반복 변수(`$item` · `$itemIndex` · `$loop`)를 읽는다. 위 표의 읽기 · 쓰기 불가 · 가림 규칙을 병렬 분기에도 그대로 적용한다. 병렬 분기 안 컨테이너가 반복 변수를 새로 바인딩해도 다른 병렬 분기와 바깥 컨테이너에는 영향이 없다 |
 | `emit` 수집 | `emit` 원천 노드가 병렬 분기 안에 있어도 그 출력을 회차 결과로 모은다 |
-| 중첩 깊이 | 본문 안 Parallel 은 컨테이너를 둘러싼 병렬 분기의 깊이를 이어받는다. 맨 바깥 컨테이너의 본문 Parallel 은 깊이 1 이다. 병렬 분기 안 컨테이너의 본문 Parallel 은 깊이 2 이고 바깥 × 안쪽 동시 실행 수 곱 상한 32 가 걸린다(줄이면 `meta.clampedConcurrency`). 본문 안 컨테이너는 깊이를 늘리지 않는다 |
-| 깊이 검사 시점 | 엔진은 컨테이너 시작(첫 반복 회차 전)과 바깥 Parallel 의 병렬 분기 계획 두 곳에서 본문의 Parallel 깊이를 미리 검사한다. 본문 안 컨테이너의 본문도 함께 검사한다. 깊이가 2를 넘으면 메시지가 `PARALLEL_NESTED_DEPTH_EXCEEDED:` 로 시작하는 에러로 실행이 실패한다. 첫 반복 회차 전에 던지므로 컨테이너의 항목 에러 정책이 이 에러를 흡수하지 않는다 |
+| 중첩 깊이 | 본문 안 Parallel 은 컨테이너를 둘러싼 병렬 분기의 깊이를 이어받는다. 맨 바깥 컨테이너의 본문 Parallel 은 깊이 1 이다. 병렬 분기 안 컨테이너의 본문 Parallel 은 깊이 2 이고 바깥 × 안쪽 동시 실행 수 곱 상한 32 가 걸린다(줄이면 `meta.clampedConcurrency`). 본문 안 컨테이너는 깊이를 늘리지 않는다. 본문 안 Background 의 본문(`background` 연결선으로만 닿는 노드)은 실행 검사에서 바깥 깊이를 이어받지 않고 깊이 1 부터 센다([컨테이너 본문 안 Background](#컨테이너-본문-안-background), 근거는 [Parallel 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-안-background-본문의-parallel-은-사전-검사도-깊이-1-부터-센다-2026-11-12)). 병렬 분기 안 컨테이너면 저장 단계 규칙은 바깥 깊이를 이어서 센다([Parallel 노드 §저장 규칙과 실행 검사의 범위](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#저장-규칙과-실행-검사의-범위)) |
+| 깊이 검사 시점 | 엔진은 컨테이너 시작(첫 반복 회차 전)과 바깥 Parallel 의 병렬 분기 계획 두 곳에서 본문의 Parallel 깊이를 미리 검사한다. 본문 안 컨테이너의 본문도 함께 검사한다. 깊이가 2를 넘으면 메시지가 `PARALLEL_NESTED_DEPTH_EXCEEDED:` 로 시작하는 에러로 실행이 실패한다. 첫 반복 회차 전에 던지므로 컨테이너의 항목 에러 정책이 이 에러를 흡수하지 않는다. 본문 안 Background 의 본문은 두 검사 모두 깊이 1 부터 센다([Parallel 노드 §놓인 위치별 실행과 중첩 깊이](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#놓인-위치별-실행과-중첩-깊이)) |
 
 동기 서브 워크플로우는 호출한 쪽의 깊이를 이어받지 않고 깊이를 새로 센다([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#서브-워크플로우의-parallel-은-깊이를-새로-센다-2026-11-06)).
 
@@ -199,13 +199,13 @@ sequenceDiagram
 ```
 
 1. `main` 포트로 입력을 바로 넘겨 메인 흐름이 계속된다.
-2. 핸들러가 끝난 직후 `ExecutionEngineService.scheduleBackgroundBody()` 가 현재 컨텍스트 스냅샷과 본문 진입점을 `background-execution` 큐에 넣는다. 스냅샷은 `variables`·`nodeOutputCache`·`expressionContext` 의 얕은 복사와 메인 입력이고 항목의 기준은 [Background 노드 §실행 로직](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#실행-로직) 이다. 엔진은 여기에 대화 스레드를 `{ ...thread, turns: [...thread.turns] }` 형태로 `turns` 배열까지 새로 복사해 싣는다.
+2. 핸들러가 끝난 직후 `ExecutionEngineService.scheduleBackgroundBody()` 가 현재 컨텍스트 스냅샷과 본문 진입점을 `background-execution` 큐에 넣는다. 스냅샷은 `variables`·`nodeOutputCache`·`expressionContext` 의 얕은 복사와 Background 노드가 받은 입력의 스냅샷이고 항목의 기준은 [Background 노드 §실행 로직](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#실행-로직) 이다. 엔진은 여기에 대화 스레드를 `{ ...thread, turns: [...thread.turns] }` 형태로 `turns` 배열까지 새로 복사해 싣는다.
 3. 워커의 `executeBackgroundSubgraph()` 가 `background` 포트 연결선에서 앞으로 닿는 서브그래프를 격리된 컨텍스트로 실행한다. 본문 노드 실행은 `parentNodeExecutionId` 로 묶인다.
 4. 본문이 끝나거나 실패하면 설정에 따라 `NotificationsService` 로 알린다.
 
 - 본문은 메인 실행과 같은 `execution_id` 를 쓴다. 노드 실행 묶음, WebSocket 채널, 권한의 1차 키가 모두 이것이다. 다만 **메모리의 실행 컨텍스트 Map 키만** 따로 `bg:<executionId>:<backgroundRunId>` 를 써서 부모 컨텍스트와 격리하고 `executeBackgroundSubgraph` 가 자기 `finally` 에서 정리한다. 이 키의 분류는 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) 가 정한다.
 - 본문 노드의 `parentNodeExecutionId` 는 Background 노드 자신의 노드 실행 ID 를 가리킨다.
-- 본문의 Parallel 도 엔진의 Parallel 실행 경로를 탄다(`PARALLEL_ENGINE=v1`). 본문은 격리된 새 컨텍스트에서 실행되므로 Parallel 중첩 깊이를 1부터 센다.
+- 본문의 Parallel 도 엔진의 Parallel 실행 경로를 탄다(`PARALLEL_ENGINE=v1`). 본문은 격리된 새 컨텍스트에서 실행되므로 Parallel 중첩 깊이를 1부터 센다. 사전 검사에는 예외가 하나 있다. 병렬 분기 본문에 바로 둔 Background 의 본문은 바깥 Parallel 의 사전 검사(`planParallelBody`)와 저장 규칙 `parallel:nested-depth-exceeded` 가 바깥 깊이를 이어서 센다. 이 검사 범위는 아직 정하지 않았다([Parallel 노드 §저장 규칙과 실행 검사의 범위](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#저장-규칙과-실행-검사의-범위), [미결 사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#미결-사항)). 컨테이너 안 Background 의 본문은 사전 검사도 깊이 1 부터 센다([본문 안 Parallel](#본문-안-parallel)).
 - 본문 실패는 메인 실행 상태에 영향을 주지 않는다.
 - 대화 스레드는 발행 시점 스냅샷으로 격리된다. 본문에서 생긴 턴은 메인 스레드에 영향이 없고 반대도 같다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md)).
 - 본문이 실패하고 `notifyOnFailure=true` 이면 **워크스페이스 관리자에게 인앱 알림**을 보낸다. 알림은 `type: background_failed`, `channel: in_app` 이다. 이메일 채널과 실행자(`executed_by`) 수신은 현재 지원하지 않고 불리언 `notifyOnFailure` 하나로만 켜고 끈다.
@@ -314,6 +314,8 @@ Background 본문은 여전히 `background` 포트 연결선으로 찾는다. �
 - **컨테이너 본문 안 Background 를 금지하는 안**: 지금 저장된 워크플로우가 실행 오류로 끝난다. 실행 경로를 정할 때도 같은 안을 기각했다.
 
 **호환**: `containerScopeId` 가 없는 작업은 맨 바깥 그래프로 실행한다. 그래서 필드를 넣기 전에 큐에 남은 작업도 그대로 돈다. 반복 변수가 없는 옛 작업은 본문에서 반복 변수가 비어 있다. 이 개정 전과 같은 동작이다. 롤링 배포 중에 옛 워커는 반복 변수 필드를 무시한다.
+
+본문 진입 노드가 받는 입력을 어디서나 Background 노드가 받은 입력으로 맞춘 근거는 [Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문-진입-노드는-background-노드가-받은-입력을-받는다-2026-11-12) 에 있다.
 
 ### 컨테이너 구조 검사는 메시지 전체를 적는다 (2026-11-12)
 
