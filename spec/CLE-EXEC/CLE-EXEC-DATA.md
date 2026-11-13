@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA"
 title: "실행 데이터와 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "5d91ff6bfcb3f0ba71b2f3187d5b428992cc0166e6f356f8ae1e6381e2e8713d"
+content_hash: "6b79d526f49a1219f8f669e5dcbe53b1b36741ece08186e9b23bc62fc36fdc13"
 read_as: "approved_fallback"
-task: "CLE-T-KJM75N"
+task: "CLE-T-QBVYQW"
 source_paths: ["spec/1-data-model.md", "spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "08e07f0e41ba76a34fe4e7944ce4fc9bc12d9ba97c2935f1b5619072a37fe97b"
-etag: "sha256-a8f3740c70d6de5790b092fd7525bd61a2c1702418033ad7e3abff297b763617"
+mirror_sha256: "1915cd34a0b65ec7781c04207b4242a4e99ed58dc096d9548a16af720cbe0f2f"
+etag: "sha256-db2c72b2f86a657760a0997dc600d69ce9c4ab507da008e4cad84c8095703337"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/3-execution.md`, `spec/1-data-model.md` (§2.13 Execution, §2.13.1 ExecutionNodeLog, §2.13.3 WorkflowTestDataset, §2.14 NodeExecution, Rationale "삭제 연쇄의 FK 인덱스 다섯", "Execution.execution_path → ExecutionNodeLog"), `spec/5-system/4-execution-engine.md` (§7.4 `execution_node_log` 모델) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -85,7 +85,7 @@ erDiagram
 | user_variables | JSONB? | NULL 허용(V085). park 에 들어갈 때 실행 컨텍스트 변수 중 **시스템 예약 변수(`__*`)를 뺀 사용자 정의분**(변수 선언 노드·변수 수정 노드 값)을 커밋하는 영속 재개 매체다. rehydration 이 되살려 park 뒤 노드가 park 전 변수를 손실 없이 참조한다(`$var.X`). 시스템 `__*` 변수는 rehydration 이 따로 다시 넣으므로 담지 않는다. park 밖 단계에서는 낡을 수 있다. 커밋 규칙은 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) |
 | resume_call_stack | JSONB? | NULL 허용(V087, 사용 중, PR-B2b 2026-06-06). **중첩 서브 워크플로우(`executeInline`) 안의 블로킹 노드**가 park 할 때 재개에 필요한 `executeInline` 호출 체인(바깥쪽부터 입력 대기 안쪽 직전까지, `{version, frames:[{workflowId, invokerNodeId, recursionDepth}]}`)을 커밋하는 영속 재개 매체다. rehydration 이 이 스택을 따라 가장 안쪽 입력 대기 노드부터 frame 단위로 재진입한다. **NULL = 최상위 park(중첩 깊이 0), park 한 적 없는 실행, 배포 이전 행**이며 단일 수준으로 재개한다. 컨테이너 본문 블로킹이 금지라 선형 스택만 담는다(반복 회차·분기 상태 없음). `version` 은 `CALL_STACK_SCHEMA_VERSION`(체크포인트와 독립)이다. 재진입 절차는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) |
 | source_ip | Varchar(45)? | NULL 허용(V096). 웹훅·채팅 채널 트리거가 발화할 때 `hooks.service` 의 `extractClientIpFromHeaders` 결과다(CF-Connecting-IP 를 믿을 때, 아니면 X-Forwarded-For 첫 IP. 헤더 기반이며 `req.ip` 로 대신하지 않는다). HTTP 가 아닌 트리거(스케줄), 수동 실행, 배포 이전 행은 NULL 이다. [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 사용 내역의 호출 이력 "소스 IP" 컬럼 출처다. 길이 45 는 IPv6 표기 최대(IPv4-mapped 포함)다. |
-| response_code | Varchar(10)? | NULL 허용(V096). 웹훅 호출이 받는 **실제 HTTP 응답 코드** 문자열이다(실행 생성 성공 경로 = `'202'` Accepted. 채팅 채널의 Discord 컴포넌트(type 3) · 모달 제출(type 5)로 시작한 실행은 `'200'` 이다([웹훅 §채팅 채널 분기](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#채팅-채널-분기)). 인증·검증 실패는 execute 전에 throw 해 행이 생기지 않는다). HTTP 가 아닌 트리거는 HTTP 코드가 없어 NULL 이고 `getUsage` 가 실행 `status` 로 대신 표시한다. [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 호출 이력 "응답 코드" 컬럼 출처다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) WH-MG-05 이행). |
+| response_code | Varchar(10)? | NULL 허용(V096). 웹훅 호출이 받는 **실제 HTTP 응답 코드** 문자열이다(실행 생성 성공 경로 = `'202'` Accepted. 채팅 채널의 인터랙션 요청(Discord 슬래시 명령 · 컴포넌트 · 모달 제출, Slack Interactivity)으로 시작한 실행은 `'200'` 이다. 응답 계약은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 인증·검증 실패는 execute 전에 throw 해 행이 생기지 않는다). HTTP 가 아닌 트리거는 HTTP 코드가 없어 NULL 이고 `getUsage` 가 실행 `status` 로 대신 표시한다. [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 호출 이력 "응답 코드" 컬럼 출처다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) WH-MG-05 이행). |
 | single_node_id | UUID? | NULL 허용(V098). 단일 노드 실행(`single_node_id`)의 대상 노드 id 다. 값이 있으면 엔진(`runExecution`)이 그 노드만 실행하고 하류로 가지 않는다. 선택 노드부터 실행과 다르다. NULL 이면 일반 실행이나 선택 노드부터 실행이다. `_node_id` 접미사는 Node FK 도메인을, `single_` 한정자는 `fromNodeId`(컬럼이 아니라 `input_data` 로 전달)와의 구분을 나타낸다. `dry_run` / `re_run_of` 와 같은 모드 표시 컬럼이다. 명시적 FK 제약과 인덱스가 없다(`re_run_of` 선례, 디버그 전용이라 조회 패턴 없음). `dry_run` 과 직교하며 단일 노드 실행은 항상 `dry_run = false` 다(두 모드 조합 미지원, v1). 기준은 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) |
 | previous_execution_id | UUID? | NULL 허용(V098). 단일 노드 실행 때 입력 seed 를 가져올 직전 실행 id 다. 그 실행에서 대상 노드의 직속 선행 노드 실행 `output_data` 를 현재 실행 컨텍스트에 되살려 상류 출력을 자동으로 넣는다. NULL 이면 seed 가 없다(수동 입력만). `re_run_of`(재실행 부모)와 뜻이 다르다. 입력 주입 참조일 뿐 체인 관계가 아니다. API 응답 DTO 에는 없다(whitelist 매핑에서 저절로 빠진다). |
 
