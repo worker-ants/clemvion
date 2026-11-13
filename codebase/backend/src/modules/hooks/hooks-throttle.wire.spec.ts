@@ -39,7 +39,19 @@ describe('POST /hooks/:endpointPath — 전역 요청 한도 (가드 체인)', (
       endpointPath: 'chat-hook',
       type: 'webhook',
       authConfigId: null,
-      config: { chatChannel: { provider: 'slack' } },
+      config: {
+        chatChannel: {
+          provider: 'slack',
+          inboundSigningRef: 'secret://triggers/trigger-chat/inbound-signing',
+        },
+      },
+    },
+    'unsigned-chat-hook': {
+      id: 'trigger-unsigned-chat',
+      endpointPath: 'unsigned-chat-hook',
+      type: 'webhook',
+      authConfigId: null,
+      config: { chatChannel: { provider: 'telegram' } },
     },
     'plain-hook': {
       id: 'trigger-plain',
@@ -127,6 +139,14 @@ describe('POST /hooks/:endpointPath — 전역 요청 한도 (가드 체인)', (
     for (let i = 0; i < LIMIT; i += 1) {
       expect((await post('plain-hook')).status).toBe(202);
     }
+  });
+
+  // 근거: NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A(2026-11-13).
+  it('서명 참조가 없는 채팅 채널 트리거는 limit 을 넘으면 429 를 받는다', async () => {
+    for (let i = 0; i < LIMIT; i += 1) {
+      expect((await post('unsigned-chat-hook')).status).toBe(202);
+    }
+    expect((await post('unsigned-chat-hook')).status).toBe(429);
   });
 
   it('없는 endpointPath 도 전역 한도를 받는다(404 → 429)', async () => {

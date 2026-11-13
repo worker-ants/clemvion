@@ -84,6 +84,23 @@ export function readTriggerChatChannelProvider(config: unknown): string | null {
 }
 
 /**
+ * 서명 참조가 있는 채팅 채널 트리거인지 본다. `provider` 가 있고(판정은
+ * {@link readTriggerChatChannelProvider} 와 같다) 저장된 `chatChannel.inboundSigningRef` 가 truthy 면
+ * `true` 다. 인바운드 인증기는 {@link pinChatChannelSecretRefs} 를 거친 참조가 없을 때 서명 검증을
+ * 건너뛰고, pin 은 truthy 인 참조를 이 트리거의 참조로 바꿔 쓸 뿐 지우거나 새로 만들지 않는다. 그래서
+ * 이 판정은 인증기가 서명을 검증할지와 같다. 전역 요청 한도 가드가 이 함수로 면제 여부를 정한다
+ * (NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A, CLE-T-ZC34Y0). 시크릿을 읽지 않으므로
+ * 요청마다 DB · 시크릿 저장소 조회를 더하지 않는다.
+ */
+export function isSignedChatChannelTrigger(config: unknown): boolean {
+  if (readTriggerChatChannelProvider(config) === null) return false;
+  const { chatChannel } = config as {
+    chatChannel: { inboundSigningRef?: unknown };
+  };
+  return Boolean(chatChannel.inboundSigningRef);
+}
+
+/**
  * 트리거 행의 `config.chatChannel` 을 어댑터에 넘길 모양으로 읽는다. 아웃바운드 dispatcher, 인바운드
  * hooks, 트리거 삭제의 해제가 이 함수로 읽는다. 봇 토큰 재발급은 설정이 없을 때 따로 거부하므로
  * 저장된 설정을 직접 읽고 {@link pinChatChannelSecretRefs} 를 거친다. `provider` 가 없으면 채팅

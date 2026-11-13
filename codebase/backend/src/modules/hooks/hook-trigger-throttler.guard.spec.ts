@@ -30,8 +30,18 @@ describe('HookTriggerThrottlerGuard', () => {
 
   const chatTrigger = (provider: string): Partial<Trigger> => ({
     endpointPath: 'chat-hook',
-    config: { chatChannel: { provider } },
+    config: {
+      chatChannel: {
+        provider,
+        inboundSigningRef: 'secret://triggers/t/inbound-signing',
+      },
+    },
   });
+  // 서명 참조가 없는 채팅 채널 트리거(옛 트리거 · 채널 연결 전). 인증기가 서명 검증을 건너뛴다.
+  const unsignedChatTrigger: Partial<Trigger> = {
+    endpointPath: 'unsigned-chat-hook',
+    config: { chatChannel: { provider: 'telegram' } },
+  };
   const plainTrigger: Partial<Trigger> = {
     endpointPath: 'plain-hook',
     config: {},
@@ -57,7 +67,7 @@ describe('HookTriggerThrottlerGuard', () => {
     );
 
   it.each(['slack', 'discord', 'telegram'])(
-    '채팅 채널 트리거(%s)는 limit 을 넘겨도 통과시킨다',
+    '서명 참조가 있는 채팅 채널 트리거(%s)는 limit 을 넘겨도 통과시킨다',
     async (provider) => {
       const guard = await buildGuard();
       for (let i = 0; i < 5; i += 1) {
@@ -83,6 +93,17 @@ describe('HookTriggerThrottlerGuard', () => {
     await expect(hit(guard, plainTrigger)).resolves.toBe(true);
     await expect(hit(guard, plainTrigger)).resolves.toBe(true);
     await expect(hit(guard, plainTrigger)).rejects.toBeInstanceOf(
+      ThrottlerException,
+    );
+  });
+
+  // 근거: NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A(2026-11-13). 서명을 검증하지 않는
+  // 트리거를 빼면 IP 단위 한도가 하나도 남지 않는다(서명 검증 실패 한도도 걸리지 않는다).
+  it('서명 참조가 없는 채팅 채널 트리거는 limit 을 넘으면 막는다', async () => {
+    const guard = await buildGuard();
+    await expect(hit(guard, unsignedChatTrigger)).resolves.toBe(true);
+    await expect(hit(guard, unsignedChatTrigger)).resolves.toBe(true);
+    await expect(hit(guard, unsignedChatTrigger)).rejects.toBeInstanceOf(
       ThrottlerException,
     );
   });

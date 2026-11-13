@@ -1,5 +1,6 @@
 import {
   chatChannelSecretRef,
+  isSignedChatChannelTrigger,
   pinChatChannelSecretRefs,
   readTriggerChatChannelConfig,
   readTriggerChatChannelProvider,
@@ -143,6 +144,44 @@ describe('readTriggerChatChannelProvider', () => {
         },
       }),
     ).toBe('discord');
+  });
+});
+
+// 근거: NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A(2026-11-13, CLE-T-ZC34Y0).
+// 서명 참조가 있는 채팅 채널 트리거만 전역 요청 한도에서 뺀다. 인바운드 인증기가 서명을 검증하는
+// 조건(저장된 `inboundSigningRef` 가 있다)과 같은 판정이어야 한다.
+describe('isSignedChatChannelTrigger', () => {
+  it.each([
+    ['config 가 null', null],
+    ['채팅 채널이 아니다', {}],
+    [
+      'provider 가 없다',
+      {
+        chatChannel: {
+          inboundSigningRef: 'secret://triggers/t/inbound-signing',
+        },
+      },
+    ],
+    ['서명 참조가 없다', { chatChannel: { provider: 'telegram' } }],
+    [
+      '서명 참조가 빈 문자열',
+      { chatChannel: { provider: 'slack', inboundSigningRef: '' } },
+    ],
+  ])('%s 면 false 다', (_label, config) => {
+    expect(isSignedChatChannelTrigger(config)).toBe(false);
+  });
+
+  it('provider 와 서명 참조가 있으면 true 다. 참조가 다른 트리거를 가리켜도 있음으로 본다', () => {
+    // pinChatChannelSecretRefs 는 있는 참조를 이 트리거의 참조로 바꿔 쓸 뿐 지우지 않으므로
+    // 인증기는 이 트리거도 검증한다.
+    expect(
+      isSignedChatChannelTrigger({
+        chatChannel: {
+          provider: 'discord',
+          inboundSigningRef: `secret://triggers/${OTHER}/inbound-signing`,
+        },
+      }),
+    ).toBe(true);
   });
 });
 
