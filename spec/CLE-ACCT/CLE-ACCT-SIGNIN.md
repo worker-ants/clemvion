@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 18
+version: 19
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085", "REQ-SIGNIN-086", "REQ-SIGNIN-087", "REQ-SIGNIN-088", "REQ-SIGNIN-089"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "d38c93cc3ec28937d717d9e3cec757691d090dcfacad1c433861bdd2e6a5da1f"
+content_hash: "242ea5912c2e060ea605de6c389127782fa10c44c3f69049fa68dbbd5085c4d2"
 read_as: "approved_fallback"
-task: "CLE-T-3P4ENZ"
+task: "CLE-T-N2FM8W"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "73176d2a30e915f67af4acef864a8c6c50652c5b0dbd3134ebd211a3165ea433"
-etag: "sha256-a48079154225a3cb40c30d04585bc2998cce966f5a32c6d095a36535f1ffd64f"
+mirror_sha256: "07e81852320031e7fb7fbca3918521adf94e69b44706446e3d9725da46557f6e"
+etag: "sha256-582ffff5f155845fa503ae80d11a3bd6c2ff9e5d79d6073e2c47cad90c7a7839"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -729,7 +729,7 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 | POST | `/api/auth/register` | 가입. 인증 불요(`@Public`), IP 당 분당 10회. 본문 `{ name, email, password, termsAccepted, invitationToken? }`. `password` 는 8~100자다. 강도 규칙 위반은 400 `VALIDATION_ERROR` 이고 `details[].field` 는 `password` 다. `termsAccepted` 가 `true` 가 아니면 400 `VALIDATION_ERROR` 다. 초대 토큰이 없으면 사용자 행과 인증 메일만 만들고 토큰 없이 201 `{ message }` 를 준다. 활성화는 `verify-email` 에서 한다. 초대 토큰이 있으면 인증 메일 없이 바로 로그인하고 `{ message, accessToken }` 과 리프레시 쿠키를 준다. 개인 워크스페이스는 만들지 않는다([워크스페이스와 멤버](CLE-ACCT-WS.md)). 초대 토큰 에러는 [워크스페이스와 멤버 「초대 에러 코드」](CLE-ACCT-WS.md#초대-에러-코드) 에 있다. 이메일이 이미 가입돼 있으면(대소문자만 다른 계정 포함, [이메일 비교 규칙](#이메일-비교-규칙)) 409 `RESOURCE_CONFLICT`(메시지 `Email already registered`)다. 초대 가입 화면은 메시지가 아닌 `error.code` 로 이 경우를 가른다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 4). 이 응답을 전용 코드로 바꾸는 일은 NERV Task `CLE-T-2M6Q02` 가 맡는다 |
 | POST | `/api/auth/verify-email` | 본문 `{ token }` 으로 이메일 인증 토큰을 검증한다. 개인 워크스페이스를 만들고 액세스·리프레시 토큰을 바로 발급한다. 인증 불요(`@Public`). 토큰이 무효하거나 만료되면 400 |
 | POST | `/api/auth/resend-verification` | 인증 메일 재발송(24시간 유효). 인증 불요(`@Public`), IP 당 분당 5회. 계정 존재·인증 여부와 상관없이 같은 응답. 메일은 인증 전 계정에만 보낸다 |
-| POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회. 가입 폼 이메일 입력란의 중복 확인과 초대 가입 화면의 가입 여부 확인([워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면))에 쓴다. 초대 가입 화면은 이 응답을 5초까지만 기다린다. 대소문자를 구분하지 않고 비교한다. 저장된 이메일과 대소문자만 다른 계정이 있어도 `available: false` 다([이메일 비교 규칙](#이메일-비교-규칙)). 이 확인이 이메일 존재를 새로 드러내지 않는 이유는 [워크스페이스와 멤버 「가입 여부 확인은 이메일 존재를 새로 노출하지 않는다」](CLE-ACCT-WS.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다) 에 있다 |
+| POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회. 가입 폼 이메일 입력란의 중복 확인과 초대 가입 화면의 가입 여부 확인([워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면))에 쓴다. 초대 가입 화면은 이 응답을 5초까지만 기다린다. 대소문자를 구분하지 않고 비교한다. 저장된 이메일과 대소문자만 다른 계정이 있어도 `available: false` 다([이메일 비교 규칙](#이메일-비교-규칙)). 이 확인이 이메일 존재를 새로 드러내지 않는 이유는 [워크스페이스와 멤버 「가입 여부 확인은 이메일 존재를 새로 노출하지 않는다 (2026-10-18)」](CLE-ACCT-WS.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다-2026-10-18) 에 있다 |
 | POST | `/api/auth/login` | 로그인. IP 당 분당 10회. 본문 `{ email, password, rememberMe }`. 2단계 인증이 있으면 `{ requires2fa, methods, challengeToken }`, 없으면 `{ accessToken }` 과 리프레시 쿠키. 실패 401 `LOGIN_FAILED`, 비밀번호가 맞는 이메일 인증 전 계정 401 `EMAIL_VERIFICATION_REQUIRED`, 잠긴 계정 401 `ACCOUNT_LOCKED`, Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정 503 `WEBAUTHN_DISABLED`. 순서는 [로그인 처리](#로그인-처리) |
 | POST | `/api/auth/login/totp` | 로그인 2단계 TOTP 검증. 본문 `{ challengeToken, code }`(6자리 코드 또는 TOTP 복구 코드). 성공하면 액세스·리프레시 토큰 발급. 챌린지 토큰 무효 401 `CHALLENGE_INVALID`, TOTP 꺼짐 401 `TOTP_NOT_ENABLED`(Passkey 만 있는 계정 포함), TOTP 와 Passkey 가 모두 있는 계정 401 `WEBAUTHN_REQUIRED`, 코드 불일치 401 `TOTP_INVALID` |
 | POST | `/api/auth/forgot-password` | 비밀번호 재설정 요청. IP 당 분당 5회. 항상 같은 응답 |
@@ -1138,7 +1138,7 @@ NERV Task `CLE-T-7WZKFB` · `CLE-T-YZ9VEX` 에서 고쳤다. 이 문서의 「�
 
 - 이동 규칙은 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 한 곳에 두고 이 문서는 그 절을 링크한다. 두 문서에 규칙을 함께 적으면 한쪽만 고쳐지기 쉽다. 이번에 어긋난 것도 그 경우다.
 - 로그인 화면의 초대 안내 문구와 「계정 만들기」 링크 동작은 화면 요소라서 이 문서의 [로그인 화면](#로그인-화면) 표가 정한다. 세션과 토큰 문서와 워크스페이스와 멤버 문서는 그 표를 링크한다.
-- 소셜 로그인은 제공자를 거쳐 `/callback` 으로 돌아오므로 로그인 화면의 `redirect` 쿼리가 이어지지 않는다. 시작 요청의 `mode` 와 `rememberMe` 는 로그인 OAuth state(`auth_oauth_state`) 행에 실어 콜백까지 나른다. 복귀 경로도 같은 방식으로 나를 수 있다. 이번 범위는 백엔드 인증 API 를 바꾸지 않아서 탭의 sessionStorage 로 넘긴다. 다른 탭에서 돌아오거나 팝업 로그인이 필요해지면 state 행으로 옮긴다. 이유와 비용은 [세션과 토큰 「소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다) 에 있다.
+- 소셜 로그인은 제공자를 거쳐 `/callback` 으로 돌아오므로 로그인 화면의 `redirect` 쿼리가 이어지지 않는다. 시작 요청의 `mode` 와 `rememberMe` 는 로그인 OAuth state(`auth_oauth_state`) 행에 실어 콜백까지 나른다. 복귀 경로도 같은 방식으로 나를 수 있다. 이번 범위는 백엔드 인증 API 를 바꾸지 않아서 탭의 sessionStorage 로 넘긴다. 다른 탭에서 돌아오거나 팝업 로그인이 필요해지면 state 행으로 옮긴다. 이유와 비용은 [세션과 토큰 「소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다-2026-10-18) 에 있다.
 - 콜백은 이동하기 전에 `GET /api/users/me` 를 불러 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 쿠키 없이 보호 경로로 가면 proxy 가 다시 로그인 화면으로 보내기 때문이다. 자세한 내용은 같은 절에 있다.
 - 이메일 인증 링크를 연 뒤의 자동 로그인은 이번 범위가 아니다. 지금처럼 대시보드로 보낸다.
 - 초대 가입 화면의 가입 여부 확인 규칙은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 에만 둔다. 이 문서는 가입 폼 이메일 입력란의 중복 확인 요구사항을 읽기 전용 입력란에서 건너뛰도록 고치고 그 절을 링크한다.
@@ -1147,7 +1147,7 @@ NERV Task `CLE-T-7WZKFB` · `CLE-T-YZ9VEX` 에서 고쳤다. 이 문서의 「�
 
 NERV Task `CLE-T-7WZKFB` 의 구현 완료 뒤 일관성 검토 지적(finding `01a1614a-524b-7063-96ec-aed408cf1382`)으로 고쳤다. 이메일 인증 링크와 초대 토큰 가입의 자동 로그인은 로그인 힌트 쿠키를 심지 않는다. 그래서 대시보드 같은 보호 경로로 가면 proxy 가 로그인 화면으로 보낸다. 이 사실은 [세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항) 에만 있었고 REQ-SIGNIN-011 은 대시보드로 보낸다고만 적었다. REQ-SIGNIN-011 과 머리 줄에 부분 구현을 표시하고 「가입 처리」 와 「이메일 인증 안내 화면」 에 지금 동작을 더했다. 동작 규칙은 바뀌지 않았다. 로그인 세션을 만드는 진입점을 하나로 모으는 NERV Task `CLE-T-1X7DMR` 이 끝나면 표시를 지운다. 지울 곳은 [세션과 토큰](CLE-ACCT-SESSION.md) 의 같은 날짜 Rationale 「로그인 힌트 쿠키 요구를 부분 구현으로 표시했다」 가 모아 둔다.
 
-앞 절의 «이메일 인증 링크를 연 뒤의 자동 로그인은 이번 범위가 아니다» 는 로그인 뒤 돌아갈 경로(`redirect`)의 범위를 말한다. 이번에 표시한 갭은 그 경로와 상관없는 로그인 힌트 쿠키다. 그래서 두 항목은 어긋나지 않는다.
+앞 절의 «이메일 인증 링크를 연 뒤의 자동 로그인은 이번 범위가 아니다» 는 로그인 뒤 복귀 경로(`redirect`)의 범위를 말한다. 이번에 표시한 갭은 그 경로와 상관없는 로그인 힌트 쿠키다. 그래서 두 항목은 어긋나지 않는다.
 
 NERV Task `CLE-T-1X7DMR` 에서 `establishSession` 으로 진입점을 모으고 표시를 지웠다.
 
@@ -1270,3 +1270,11 @@ NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 구현은 NERV Task `CLE-T-
 - **기각: 그대로 둔다.** 같은 이름이 404 와 401 로 나가면 클라이언트가 상태와 코드 가운데 무엇으로 분기할지 정할 수 없다.
 - **로그인 이력은 바꾸지 않는다.** 지금 이 경로는 로그인 이력을 남기지 않는다. 남길지는 이번 결정에 들지 않았다.
 - **이 코드를 이번에 에러 코드 표에 올렸다.** 「미결 사항」 의 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이다. 나머지 둘은 NERV Task `CLE-T-9KCQ7Y` 에 남긴다.
+
+### 소셜 로그인 흐름에서 «(또는 팝업)» 을 지운 이력을 남겼다 (2026-11-13)
+
+NERV Task `CLE-T-N2FM8W` 에서 표기만 고쳤다. 동작은 바뀌지 않았다.
+
+- 2026-10-18 에 NERV Task `CLE-T-7WZKFB` · `CLE-T-YZ9VEX` 가 「소셜 로그인 흐름」 3단계의 «브라우저를 제공자의 인증 페이지로 보낸다(또는 팝업)» 을 «같은 탭에서 보낸다» 로 고쳤다. 화면은 팝업을 쓰지 않고 같은 탭에서 제공자 페이지로 간다. 복귀 경로를 그 탭의 sessionStorage 로 넘기는 결정도 이 동작에 기댄다. 구현에 맞춘 정정이었는데 Rationale 에 이력이 없어서 여기 적는다.
+- [세션과 토큰](CLE-ACCT-SESSION.md) 과 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 Rationale 제목에 날짜가 붙어 앵커가 바뀌었다. 이 문서의 링크 두 곳을 고쳤다.
+- «돌아갈 경로» 를 [용어 사전](../CLE-GLOSSARY-WS.md) 의 표준 용어 «복귀 경로» 로 바꿨다.

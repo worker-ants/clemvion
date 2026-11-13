@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   DEFAULT_POST_LOGIN_PATH,
+  OAUTH_REDIRECT_STORAGE_KEY,
   buildInvitationLoginHref,
   buildLoginHref,
   consumeOauthRedirect,
@@ -123,7 +124,7 @@ describe("rememberOauthRedirect · consumeOauthRedirect", () => {
     rememberOauthRedirect("//evil.example.com");
     expect(consumeOauthRedirect()).toBe(DEFAULT_POST_LOGIN_PATH);
 
-    window.sessionStorage.setItem("clemvion.postLoginRedirect", "https://evil.example.com");
+    window.sessionStorage.setItem(OAUTH_REDIRECT_STORAGE_KEY, "https://evil.example.com");
     expect(consumeOauthRedirect()).toBe(DEFAULT_POST_LOGIN_PATH);
   });
 

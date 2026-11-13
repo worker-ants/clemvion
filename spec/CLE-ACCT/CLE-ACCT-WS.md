@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 23
+version: 24
 status: "approved"
-requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072"]
+requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072", "REQ-WSPACE-073"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "34cdcd941cc9617cc185290545361877953e164fee442ffde591875a4afbaa30"
+content_hash: "5897294fbb17466b45c5999eb551a8783be5a8f591c42fb915ec77273db76a47"
 read_as: "approved_fallback"
-task: "CLE-T-3P4ENZ"
+task: "CLE-T-N2FM8W"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "1898e81b24fe82af4f22928101308c9e1987f2a6ef19619fff4f2d6bba40cff0"
-etag: "sha256-453e9634780d3f00e5537c258e3dc2bb478f3163f8a22ed45bd6be89b0e5776e"
+mirror_sha256: "7b964862721ba82000908893266c738de2eb9ee0fb99078ab6cd52c6a730b3fc"
+etag: "sha256-2acb4b0d92bbf42671e52412cac42950d6c69a62f7c914e2f415092e241a0470"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -112,6 +112,7 @@ etag: "sha256-453e9634780d3f00e5537c258e3dc2bb478f3163f8a22ed45bd6be89b0e5776e"
 - REQ-WSPACE-070 WHEN 멤버 직접 추가나 초대가 대상 이메일로 기존 계정을 찾으면 THE SYSTEM SHALL [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)대로 입력의 앞뒤 공백을 지우고 대소문자를 구분하지 않고 찾는다.
 - REQ-WSPACE-071 IF 직접 추가 대상 이메일에 대소문자만 다른 계정이 둘 이상 맞고 입력과 대소문자까지 같은 계정이 없으면 THE SYSTEM SHALL 가입하지 않은 이메일과 같은 404 `USER_NOT_FOUND` 로 거부한다.
 - REQ-WSPACE-072 IF 초대 대상 이메일에 대소문자만 다른 계정이 둘 이상 맞고 입력과 대소문자까지 같은 계정이 없으면 THE SYSTEM SHALL 가입하지 않은 이메일처럼 멤버 여부를 확인하지 않고 인앱 알림 `team_invite` 없이 초대 메일만 보낸다.
+- REQ-WSPACE-073 WHEN 사용자가 초대 가입 화면의 가입 폼 아래 «로그인» 링크를 누르면 THE SYSTEM SHALL `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
 
 ## 워크스페이스 종류와 생성
 
@@ -342,7 +343,7 @@ sequenceDiagram
 
 수락 페이지는 로그인 이메일과 토큰 이메일을 대소문자를 구분하지 않고 비교한다. 두 값을 소문자로 바꿔 비교하고 앞뒤 공백은 지우지 않는다. 서버 수락과 같은 규칙이다. 서버는 로그인 이메일을 소문자로 바꿔 비교하고 토큰 이메일은 소문자로 저장돼 있다.
 
-두 이메일이 다르면 수락 페이지에 "이 초대는 {토큰.email} 에게 발송되었습니다. 해당 계정으로 로그인하세요" 안내와 «다른 계정으로 로그인» 버튼만 보여 준다. 이 버튼을 누르면 로그아웃한 뒤 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 간다. 다른 계정으로 로그인하면 이 수락 페이지로 돌아온다. 복귀 경로(post-login return path)를 지정한 로그아웃 규칙은 [세션과 토큰 「로그아웃」](CLE-ACCT-SESSION.md#로그아웃) 의 REQ-SESSION-032 가 정한다.
+두 이메일이 다르면 수락 페이지에 "이 초대는 {토큰.email} 에게 발송되었습니다. 해당 계정으로 로그인하세요" 안내와 «다른 계정으로 로그인» 버튼만 보여 준다. 이 버튼을 누르면 로그아웃한 뒤 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 간다. 다른 계정으로 로그인하면 이 수락 페이지로 돌아온다. 복귀 경로를 지정한 로그아웃 규칙은 [세션과 토큰 「로그아웃」](CLE-ACCT-SESSION.md#로그아웃) 이 정한다.
 
 수락 페이지 경로는 `/invitations/accept?token=<초대 토큰>` 이다(쿼리 파라미터 `token`). 화면은 슬러그 경로 `app/(main)/w/[slug]/invitations/accept/**` 에 있다. 슬러그 없는 `/invitations/accept` 로 들어오면 옛 경로 흡수 라우트가 쿼리를 그대로 둔 채 현재 워크스페이스의 슬러그 경로로 넘긴다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)).
 
@@ -360,7 +361,7 @@ sequenceDiagram
 
 먼저 이미 로그인한 사용자를 가려낸다. 초대 메일 링크는 미가입자를 기준으로 한다. 그래도 다른 계정으로 이미 로그인한 사용자가 같은 브라우저의 새 탭에서 누를 수 있다. 이때는 가입 폼 대신 초대 수락 페이지 `/invitations/accept?token=…` 로 바로 보낸다. 토큰 메타와 가입 여부는 묻지 않는다. 그래서 REQ-WSPACE-034 가 REQ-WSPACE-033 보다 먼저 적용된다. `(auth)` 라우트 그룹에는 세션 하이드레이션(AuthProvider)이 없어 클라이언트 스토어로 로그인을 알 수 없다. 그래서 로그인 힌트 쿠키 `has_session` 으로 판정한다([세션과 토큰](CLE-ACCT-SESSION.md)). 힌트가 낡았으면(쿠키만 남고 리프레시 토큰은 만료) 수락 페이지의 라우트 가드가 로그인 화면으로 돌려보낸다.
 
-로그인 힌트가 없으면 아래 표대로 처리한다. 2~4단계에서 로그인하지 않은 기존 가입자를 로그인 화면으로 보낸다. 나머지는 5단계부터 미가입자 가입으로 이어진다.
+로그인 힌트가 없으면 아래 표대로 처리한다. 로그인하지 않은 기존 가입자는 2~3단계와 11단계에서 로그인 화면으로 보낸다. 나머지는 5단계부터 미가입자 가입으로 이어진다.
 
 | 단계 | 처리 |
 | --- | --- |
@@ -376,7 +377,7 @@ sequenceDiagram
 | 10. 초대 에러 분기 | `invitation_email_mismatch`(입력란을 고정해 화면에서는 거의 나지 않는다. 요청을 직접 만든 경우를 막는 서버 검사다), `invitation_expired`, `invitation_already_used` 면 "이 초대는 더 이상 유효하지 않아요. 워크스페이스 관리자에게 재발송을 요청하세요" 안내를 보여 준다 |
 | 11. 이메일 중복 분기 | 가입 제출이 토큰 이메일 중복으로 거부되면 3단계와 같은 안내를 띄우고 같은 로그인 경로로 보낸다. 4단계에서 가입 여부를 확인하지 못한 기존 가입자가 여기에 든다. 지금은 409 `RESOURCE_CONFLICT` 로 중복을 가려낸다. 지금 가입 요청에서 `RESOURCE_CONFLICT` 는 이메일 중복 하나뿐이다. 그래서 화면은 메시지가 아니라 `error.code` 로 가른다. 다만 `RESOURCE_CONFLICT` 는 409 의 기본 코드다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 그래서 이 판별은 전용 코드가 생기기 전까지 쓰는 임시 분기다. NERV Task `CLE-T-2M6Q02` 가 가입 이메일 중복 전용 에러 코드를 만들고 이 분기를 그 코드로 바꾼다 |
 
-- 초대 흐름의 가입 폼 아래 `로그인` 링크도 같은 `redirect` 를 담는다(`/login?redirect=<인코딩한 /invitations/accept?token=…>`).
+- 초대 흐름의 가입 폼 아래 «로그인» 링크도 같은 로그인 경로로 보낸다(REQ-WSPACE-073). 주소 형식과 인코딩은 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한다.
 - 로그인 화면의 초대 안내 문구와 «계정 만들기» 링크는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 이 정한다. 로그인 뒤 이동은 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한다.
 
 ### 초대 에러 코드
@@ -598,6 +599,8 @@ sequenceDiagram
 - 가입 페이지에서 이메일을 채우고 읽기 전용으로 고정하면 정상 사용자에게는 마찰이 거의 없다. 이메일을 고를 필요가 없어진다.
 - 비교는 대소문자를 구분하지 않는다. 가입은 가입 이메일의 앞뒤 공백을 지우고 비교한다([미가입자 가입 경로](#미가입자-가입-경로) 3단계). 수락은 로그인 이메일을 소문자로 바꿔 비교하고 앞뒤 공백은 지우지 않는다([이미 가입한 사용자의 수락 경로](#이미-가입한-사용자의-수락-경로)). 토큰 이메일은 초대할 때 앞뒤 공백을 지우고 소문자로 바꿔 저장한다.
 - 다른 이메일로 가입하고 싶으면 초대 토큰 없는 일반 가입을 따로 거치면 되므로 안내가 단순하다.
+- 수락 페이지의 이메일 비교는 2026-10-18 에 대소문자를 무시하게 바꿨다(NERV Task `CLE-T-7WZKFB` · `CLE-T-YZ9VEX`). 그 전에는 화면이 두 값을 그대로 비교했다. 서버 수락은 그때도 로그인 이메일을 소문자로 바꿔 비교했다. 그래서 대문자를 섞어 가입한 초대 대상자는 서버가 받아 줄 초대인데도 화면에서 불일치 안내를 봤다.
+- 불일치 안내의 버튼을 요구사항에도 화면 문구대로 «다른 계정으로 로그인» 으로 적었다. 요구사항은 «로그아웃 버튼» 이라 적었지만 화면 문구는 2026-07 부터 «다른 계정으로 로그인» 이었다. 이 버튼은 로그아웃한 뒤 로그인 화면을 거쳐 같은 수락 페이지로 돌아온다. 그래서 화면 문구가 동작을 더 잘 나타낸다. 이동 규칙의 이유는 아래 「[로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다 (2026-10-18)](#로그인하지-않은-기존-가입자는-로그인-뒤-수락-페이지로-보낸다-2026-10-18)」 에 있다.
 
 ### 초대 메일은 시스템 SMTP 만 쓴다
 
@@ -772,7 +775,7 @@ sequenceDiagram
 
 NERV Task `CLE-T-D331TT` 에서 바로잡았다. 「미가입자 가입 경로」 의 시퀀스와 「초대 가입 화면」 표는 초대 가입 요청을 `{ name, password, invitationToken }` 으로 적고 서버가 이메일을 토큰에서 가져온다고 했다. 구현은 일반 가입과 같은 본문을 받는다(`register-form.tsx`, `AuthService.registerWithInvitation`). 서버는 입력 이메일을 토큰 이메일과 비교하고 다르면 400 `invitation_email_mismatch` 로 거부한다. 그래서 두 곳의 본문과 설명을 구현에 맞췄다. 동작은 바뀌지 않았다.
 
-### 로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다
+### 로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다 (2026-10-18)
 
 2026-10-10 에 사용자가 아래 선택지 (a) 를 승인했다(NERV Task `CLE-T-YZ9VEX` 「결정」). 2026-10-18 에 같은 Task 가 구현했다. v5 에서 미결 사항으로 올린 항목을 닫고 미결 항목을 지웠다.
 
@@ -798,6 +801,8 @@ v5 미결 사항의 선택지는 세 가지였다.
 
 초대 토큰 검증, 수락 API, 메일 링크 형식은 바뀌지 않았다. 바뀐 곳은 프론트엔드의 가입 화면, 로그인 화면, 수락 페이지다.
 
+수락 페이지의 «다른 계정으로 로그인» 도 이때 바꿨다. 전에는 로그아웃한 뒤 `/login` 으로 가서 다른 계정으로 로그인해도 `/dashboard` 에 닿았다. 사용자는 초대 메일 링크를 다시 열어야 했다. 지금은 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 가서 로그인 뒤 같은 수락 페이지로 돌아온다. 새로 로그인한 계정의 이메일도 초대 이메일과 다르면 같은 불일치 안내가 다시 보인다. `/login` 으로만 보내는 전의 동작은 가입 폼 아래 로그인 링크와 같은 이유로 버렸다. 돌아온 뒤 자동으로 수락하는 안은 위 자동 수락과 같은 이유로 넣지 않았다.
+
 한계가 하나 남는다.
 
 - 가입 여부 확인이 실패하면(429 · 네트워크 에러 · 5초 초과) 기존 가입자도 가입 폼을 본다. 이 사용자는 이름과 비밀번호를 입력해 제출하고 409 를 받은 뒤에야 로그인 화면으로 간다. `check-email` 은 IP 단위 요청 한도 안에서 불린다([HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한)). 그래서 같은 IP 를 쓰는 사무실에서 여러 사람이 초대 링크를 열거나 새로고침을 되풀이하면 429 가 날 수 있다.
@@ -806,7 +811,7 @@ v5 미결 사항의 선택지는 세 가지였다.
 
 워크스페이스 쪽에 남았던 대소문자 비교의 한계는 2026-11-06 에 풀렸다. NERV Task `CLE-T-KG01YT` 가 멤버 직접 추가와 초대도 같은 규칙으로 기존 사용자를 찾게 했다([직접 추가](#직접-추가), [초대](#초대)). 그 전에는 두 경로가 이메일을 대소문자까지 그대로 비교했다. 직접 추가는 입력의 대소문자가 저장된 이메일과 다르면 가입한 사용자여도 404 `USER_NOT_FOUND` 였다. 초대는 소문자로 바꾼 초대 이메일로 찾아서 정규화 전에 대문자를 섞어 가입한 계정을 찾지 못했다. 그 계정이 이미 멤버여도 409 `already_a_member` 로 막히지 않았다. 멤버가 아니면 인앱 알림 `team_invite` 가 가지 않았다. 수락은 그때도 로그인 이메일을 소문자로 바꿔 비교해서 그 계정도 초대를 수락할 수 있었다.
 
-### 가입 여부 확인은 이메일 존재를 새로 노출하지 않는다
+### 가입 여부 확인은 이메일 존재를 새로 노출하지 않는다 (2026-10-18)
 
 2026-10-18, NERV Task `CLE-T-YZ9VEX` 에서 정리했다.
 
@@ -817,9 +822,9 @@ v5 미결 사항의 선택지는 세 가지였다.
 - 토큰 메타 응답은 이미 토큰 이메일을 보여 준다.
 - 로그인 URL 의 `redirect` 에 담긴 토큰은 이미 메일 링크와 수락 페이지 URL 에 있다. 수락은 이메일 일치를 강제하므로 토큰만으로는 합류할 수 없다.
 
-이 확인으로 드러나는 것은 가입 여부뿐이다. 응답에는 `available` 하나만 있어 인증 상태나 잠금 여부는 드러나지 않는다. 그래서 이메일 인증 전 상태를 비밀번호가 맞을 때만 알리는 로그인 규칙과 어긋나지 않는다([가입과 로그인](CLE-ACCT-SIGNIN.md) Rationale 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」).
+이 확인으로 드러나는 것은 가입 여부뿐이다. 응답에는 `available` 하나만 있어 인증 상태나 잠금 여부는 드러나지 않는다. 그래서 이메일 인증 전 상태를 비밀번호가 맞을 때만 알리는 로그인 규칙과 어긋나지 않는다([가입과 로그인](CLE-ACCT-SIGNIN.md) Rationale 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」). 계정이 있는지는 `check-email` 이 이미 공개한 정보다. 인용한 로그인 규칙이 지키는 것은 계정의 인증 상태다.
 
-`check-email` 은 2026-11-05 부터 이메일을 대소문자 구분 없이 비교한다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 그 전의 대소문자 비교 한계와 워크스페이스 쪽 한계를 푼 경과는 위 [로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다](#로그인하지-않은-기존-가입자는-로그인-뒤-수락-페이지로-보낸다) 에 있다.
+`check-email` 은 2026-11-05 부터 이메일을 대소문자 구분 없이 비교한다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 그 전의 대소문자 비교 한계와 워크스페이스 쪽 한계를 푼 경과는 위 [로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다 (2026-10-18)](#로그인하지-않은-기존-가입자는-로그인-뒤-수락-페이지로-보낸다-2026-10-18) 에 있다.
 
 ### 초대 가입 뒤 도착 화면에 세션과 토큰 문서의 미결 사항을 이었다 (2026-10-22)
 
@@ -882,3 +887,15 @@ NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 구현은 NERV Task `CLE-T-
 - **기각: `WORKSPACE_NOT_AVAILABLE`.** 특정 워크스페이스 하나를 쓸 수 없다는 뜻으로 읽힌다.
 - **기각: 멤버십을 넣은 이름(`NO_WORKSPACE_MEMBERSHIP` 류).** 개인 워크스페이스는 멤버십 행이 없어도 대상에 든다. 멤버십이 없다는 것만으로는 이 401 이 나지 않는다.
 - **규칙 3 의 `<DOMAIN>_<CONDITION>` 은 따르지 않았다.** 규칙 3 은 권장이다. `WORKSPACE_` 로 시작하는 이름은 위의 `WORKSPACE_NOT_AVAILABLE` 처럼 워크스페이스 하나의 상태로 읽혔다.
+
+### 초대 가입 화면의 «로그인» 링크를 요구사항으로 올렸다 (2026-11-13)
+
+NERV Task `CLE-T-N2FM8W` 에서 2026-11-13 에 사람이 정했다(NERV 질문 `01a1d2f3-97ee-76c5-9519-da11e3be0d7b`). 초대 가입 화면의 «로그인» 링크는 3단계 · 11단계와 같은 로그인 경로로 보낸다. 그런데 요구사항은 두 분기(REQ-WSPACE-066 · 067)에만 있었다. 같은 주소 형식을 쓰는 세 곳을 같은 꼴로 두려고 REQ-WSPACE-073 을 더했다. 동작은 바뀌지 않았다.
+
+로그인 화면의 초대 안내 문구와 «계정 만들기» 링크는 요구사항으로 올리지 않았다. 화면 요소는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 표가 정한다는 그 문서의 원칙을 따른다.
+
+같은 Task 에서 표기를 다듬었다.
+
+- 「초대 가입 화면」 의 «2~4단계에서 로그인 화면으로 보낸다» 를 «2~3단계와 11단계에서» 로 고쳤다. 4단계는 가입 여부를 확인하지 못해 가입 폼을 보여 주는 단계다.
+- 「이미 가입한 사용자의 수락 경로」 에서 다른 문서의 요구사항 번호 대신 절 링크를 남겼다.
+- 2026-10-18 에 쓴 Rationale 제목 두 개에 날짜를 붙였다. 제목이 바뀌어 앵커도 바뀌었고 이 문서와 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 링크를 함께 고쳤다.

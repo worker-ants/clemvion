@@ -2,10 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import GlobalError from "../global-error";
 
-// ErrorPage 내부에서 usePathname 으로 loginHref 를 구성하므로 mock 한다.
+// ErrorPage 의 세션 만료 링크가 지금 화면의 경로와 쿼리로 로그인 화면 경로를 만들므로 mock 한다.
 vi.mock("next/navigation", () => ({
   useParams: () => ({}),
   usePathname: () => "/x",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function httpError(status: number): Error & { digest?: string } {

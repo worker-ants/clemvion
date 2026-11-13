@@ -22,7 +22,10 @@ export function resolvePostLoginRedirect(
     : DEFAULT_POST_LOGIN_PATH;
 }
 
-/** 로그인 화면 경로. `target` 은 경로와 쿼리를 합친 값이고 통째로 인코딩한다. */
+/**
+ * 로그인 화면 경로. `target` 은 경로와 쿼리를 합친 값이고 통째로 인코딩한다. 로그인 화면으로 보내는
+ * 곳(서버 proxy · 인증 프로바이더 · 세션 만료 오류 화면 · 초대 흐름)은 모두 이 함수로 만든다.
+ */
 export function buildLoginHref(target: string): string {
   return `/login?redirect=${encodeURIComponent(target)}`;
 }
@@ -50,8 +53,12 @@ export function isInvitationAcceptPath(path: string): boolean {
   return INVITATION_ACCEPT_PATH_RE.test(path);
 }
 
-/** sessionStorage 키. OAuth 왕복 동안만 쓰고 콜백이 꺼내며 지운다. 앱 전역 키라 `clemvion.` 접두를 쓴다. */
-const OAUTH_REDIRECT_KEY = "clemvion.postLoginRedirect";
+/**
+ * sessionStorage 키. OAuth 왕복 동안만 쓰고 콜백이 꺼내며 지운다. 앱 전역 키라 `clemvion.` 접두를 쓴다.
+ * 테스트도 이 상수를 읽는다. 키 이름을 바꿨는데 테스트가 옛 리터럴을 보면 «값이 없다» 단언이 처음부터
+ * 비어 있는 키를 보고 그대로 통과한다.
+ */
+export const OAUTH_REDIRECT_STORAGE_KEY = "clemvion.postLoginRedirect";
 
 /**
  * OAuth 로그인을 시작하기 전에 돌아갈 경로를 같은 탭의 sessionStorage 에 둔다. OAuth 는 백엔드와
@@ -62,9 +69,9 @@ const OAUTH_REDIRECT_KEY = "clemvion.postLoginRedirect";
 export function rememberOauthRedirect(target: string | null): void {
   try {
     if (target !== null && isSafeInternalPath(target)) {
-      window.sessionStorage.setItem(OAUTH_REDIRECT_KEY, target);
+      window.sessionStorage.setItem(OAUTH_REDIRECT_STORAGE_KEY, target);
     } else {
-      window.sessionStorage.removeItem(OAUTH_REDIRECT_KEY);
+      window.sessionStorage.removeItem(OAUTH_REDIRECT_STORAGE_KEY);
     }
   } catch {
     // 저장소 접근 실패는 기본 경로로 대신한다.
@@ -78,8 +85,8 @@ export function rememberOauthRedirect(target: string | null): void {
 export function consumeOauthRedirect(): string {
   let raw: string | null = null;
   try {
-    raw = window.sessionStorage.getItem(OAUTH_REDIRECT_KEY);
-    window.sessionStorage.removeItem(OAUTH_REDIRECT_KEY);
+    raw = window.sessionStorage.getItem(OAUTH_REDIRECT_STORAGE_KEY);
+    window.sessionStorage.removeItem(OAUTH_REDIRECT_STORAGE_KEY);
   } catch {
     // 저장소 접근 실패는 기본 경로로 대신한다.
   }

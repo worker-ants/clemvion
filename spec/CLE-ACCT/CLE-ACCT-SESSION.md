@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 16
+version: 17
 status: "approved"
-requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047"]
+requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047", "REQ-SESSION-048"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "6cee1b78394f7131a46543950ff3d2703ad57d35a985f3abd63b6516b0bc049b"
+content_hash: "813ec5f83cf8e7e030fc32f95c691153fb3e158fa8b84ae0f03b7c5d005a2ad8"
 read_as: "approved_fallback"
-task: "CLE-T-0VV3VR"
+task: "CLE-T-N2FM8W"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "291519bb2648798c58c6d9e6f89dd97b228766a1845000d3c5cb11d22dd275e8"
-etag: "sha256-295b5354d3b1c0208d0f799333eaaed11af2733f01a0e2da8f3ffa8ed663a5a4"
+mirror_sha256: "c46bce4b0ac6eeffb77ca64d9ae2e797733758a62203e36e45ae3a24ecbf47de"
+etag: "sha256-d9b8d684c31b492fd15b8aa8de6196ae592df5008c6763ee4c96ae0ee978741a"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -64,11 +64,11 @@ etag: "sha256-295b5354d3b1c0208d0f799333eaaed11af2733f01a0e2da8f3ffa8ed663a5a4"
 - REQ-SESSION-029 IF 비밀번호 변경 뒤 로그인 세션 무효화나 재발급이 실패하면 THE SYSTEM SHALL 이미 커밋한 비밀번호 변경을 유지하고 실패를 서버 로그에 남긴다.
 - REQ-SESSION-030 WHEN 사용자가 로그아웃하면 THE SYSTEM SHALL 호출한 기기의 로그인 세션 전체를 무효화하고 리프레시 쿠키를 지우고 로그인 이력에 `logout` 을 남긴다.
 - REQ-SESSION-031 WHEN 리프레시 쿠키 없이 로그아웃을 요청하면 THE SYSTEM SHALL 200 으로 응답한다.
-- REQ-SESSION-032 WHEN 사용자가 로그아웃하면 THE SYSTEM SHALL 클라이언트 메모리의 액세스 토큰과 `has_session` 쿠키를 지우고 `/login` 으로 보낸다. 복귀 경로(post-login return path)를 지정한 로그아웃(초대 수락 페이지의 «다른 계정으로 로그인»)은 `/login?redirect=<인코딩한 그 화면의 경로와 쿼리>` 로 보낸다.
+- REQ-SESSION-032 WHEN 사용자가 로그아웃하면 THE SYSTEM SHALL 클라이언트 메모리의 액세스 토큰과 `has_session` 쿠키를 지우고 `/login` 으로 보낸다.
 - REQ-SESSION-033 IF 동시 로그인 세션이 5개를 넘으면 THE SYSTEM SHALL 가장 오래된 로그인 세션을 자동 종료한다. (미구현, [미결 사항](#미결-사항))
 - REQ-SESSION-035 IF 로그인하지 않은 사용자가 공개 경로 밖 화면을 열면 THE SYSTEM SHALL 그 화면의 경로와 쿼리를 `redirect` 파라미터에 담아 `/login` 으로 보낸다.
 - REQ-SESSION-036 IF 요청에 `has_session` 쿠키가 없으면 THE SYSTEM SHALL JS 를 내려보내기 전 서버 proxy 단계에서 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다.
-- REQ-SESSION-037 WHEN 로그인에 성공하면 THE SYSTEM SHALL 프론트엔드 JS 가 `has_session=1` 쿠키(non-httpOnly, path=/, max-age 30일, SameSite=Lax)를 설정한다.
+- REQ-SESSION-037 WHEN 로그인에 성공하면 THE SYSTEM SHALL 로그인 힌트 쿠키 `has_session=1`(non-httpOnly, path=/, max-age 30일, SameSite=Lax)을 설정한다.
 - REQ-SESSION-038 WHEN 로그인(비밀번호 · 2단계 인증 · 복구 코드 · 소셜 로그인)에 성공하면 THE SYSTEM SHALL `redirect` 값이 하나뿐이고 안전한 같은 출처 경로일 때 그 경로와 쿼리로 보내고 아니면 `/dashboard` 로 보낸다. 안전한 값의 기준은 [로그인 뒤 이동](#로그인-뒤-이동) 에 있다.
 - REQ-SESSION-039 WHEN 사용자가 `/profile/sessions` 를 열면 THE SYSTEM SHALL 활성 로그인 세션 목록과 "현재" 배지, 개별 종료와 일괄 종료 버튼을 보여 준다.
 - REQ-SESSION-040 WHEN 브라우저가 옛 초대 링크의 페이지 경로 `/auth/register`(끝 슬래시 포함)를 요청하면 THE SYSTEM SHALL 공개 경로 판정과 `has_session` 검사보다 먼저 쿼리를 보존한 채 `/register` 로 리다이렉트한다.
@@ -79,6 +79,7 @@ etag: "sha256-295b5354d3b1c0208d0f799333eaaed11af2733f01a0e2da8f3ffa8ed663a5a4"
 - REQ-SESSION-045 WHEN 소셜 로그인 콜백 화면(`/callback`)이 열리면 THE SYSTEM SHALL 로그인 화면이 소셜 로그인을 시작하기 전에 그 탭의 sessionStorage(키 `clemvion.postLoginRedirect`)에 둔 복귀 경로를 성공 · 실패와 관계없이 한 번 꺼내 바로 지우고 [로그인 뒤 이동](#로그인-뒤-이동) 의 기준으로 다시 검사한다.
 - REQ-SESSION-046 WHEN 사용자가 세션 강제 종료 확인 창에서 계정 재인증을 하면 THE SYSTEM SHALL 처음에는 비밀번호 입력란을 보여 주고 400 `REAUTH_REQUIRED` 를 받았는데 그 계정의 TOTP 가 켜져 있으면 TOTP 코드 입력란으로 바꾸며 403 `REAUTH_NOT_AVAILABLE` 을 받으면 입력란 없이 계정 재인증을 할 수 없다고 안내한다.
 - REQ-SESSION-047 WHEN 갱신으로 리프레시 토큰을 회전하면 THE SYSTEM SHALL 새 리프레시 토큰이 그 로그인 세션의 로그인 유지 여부를 이어받게 하고 새 리프레시 토큰과 갱신 응답의 리프레시 쿠키를 회전한 시점부터 로그인 유지를 켰으면 30일, 껐으면 7일 동안 유효하게 한다.
+- REQ-SESSION-048 WHEN 사용자가 초대 수락 페이지의 «다른 계정으로 로그인» 으로 로그아웃하면 THE SYSTEM SHALL `/login` 대신 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
 
 ## 토큰
 
@@ -226,9 +227,9 @@ sequenceDiagram
 2. 메모리의 액세스 토큰을 지우고 쿠키를 지운다. 로그인 힌트 쿠키 `has_session` 도 지운다.
 3. `/login` 으로 이동한다. 사이드바의 로그아웃이 이 경우다.
 
-로그아웃 요청이 실패해도 2번과 3번을 그대로 한다. 사이드바의 로그아웃과 초대 수락 페이지의 «다른 계정으로 로그인» 이 같게 동작한다. 이유는 Rationale 「[로그아웃 요청이 실패해도 클라이언트를 정리하고 이동한다](#로그아웃-요청이-실패해도-클라이언트를-정리하고-이동한다)」 에 있다.
+로그아웃 요청이 실패해도 2번과 3번을 그대로 한다. 사이드바의 로그아웃과 초대 수락 페이지의 «다른 계정으로 로그인» 이 같게 동작한다. 이유는 Rationale 「[로그아웃 요청이 실패해도 클라이언트를 정리하고 이동한다 (2026-10-18)](#로그아웃-요청이-실패해도-클라이언트를-정리하고-이동한다-2026-10-18)」 에 있다.
 
-복귀 경로를 지정한 로그아웃은 3번의 예외다. 초대 수락 페이지의 «다른 계정으로 로그인» 버튼은 로그아웃한 뒤 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다. 다른 계정으로 로그인하면 같은 초대 수락 페이지로 돌아온다([워크스페이스와 멤버](CLE-ACCT-WS.md#이미-가입한-사용자의-수락-경로)).
+복귀 경로를 지정한 로그아웃은 3번의 예외다. 초대 수락 페이지의 «다른 계정으로 로그인» 버튼은 로그아웃한 뒤 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다. 수락 페이지는 슬러그 경로(`/w/<slug>/invitations/accept`)에 있지만 복귀 경로에는 슬러그 없는 경로를 담는다. 다른 계정으로 로그인하면 같은 초대 수락 페이지로 돌아온다([워크스페이스와 멤버](CLE-ACCT-WS.md#이미-가입한-사용자의-수락-경로)).
 
 ## 세션 화면
 
@@ -295,7 +296,7 @@ sequenceDiagram
 - 슬러그 경로 `/w/<slug>/…` 는 그대로 간다. 슬러그 없는 옛 경로(예: `/invitations/accept?token=…`)는 옛 경로 흡수 라우트(catch-all route)가 받아 쿼리와 해시를 둔 채 현재 워크스페이스의 슬러그 경로로 넘긴다.
 - `/dashboard` 도 슬러그 없는 경로다. 로그인 폼은 슬러그를 알기 전이라 `/dashboard` 로 보내고, `(main)/[...rest]` 옛 경로 흡수 라우트가 워크스페이스 목록을 읽은 뒤 현재 워크스페이스의 `/w/<slug>/dashboard` 로 넘긴다. 리다이렉트만 하는 중간 경로라 화면 깜빡임을 허용한다. 슬러그 라우팅 규칙은 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 이 정한다.
 
-안전한 같은 출처 경로의 기준은 다음 표다. 판정은 `isSafeInternalPath`(`lib/workspace/safe-path.ts`) 하나로 한다. 이 함수는 링크 생성(`buildWorkspaceHref`)과 같은 정규화 함수 `toSafeInternalPath` 를 쓴다. 이유는 Rationale 「[로그인 뒤 이동은 같은 출처 경로만 받는다](#로그인-뒤-이동은-같은-출처-경로만-받는다)」 에 있다.
+안전한 같은 출처 경로의 기준은 다음 표다. 판정은 `isSafeInternalPath`(`lib/workspace/safe-path.ts`) 하나로 한다. 이 함수는 링크 생성(`buildWorkspaceHref`)과 같은 정규화 함수 `toSafeInternalPath` 를 쓴다. 이유는 Rationale 「[로그인 뒤 이동은 같은 출처 경로만 받는다 (2026-10-18)](#로그인-뒤-이동은-같은-출처-경로만-받는다-2026-10-18)」 에 있다.
 
 | `redirect` 값 | 판정 |
 | --- | --- |
@@ -307,8 +308,8 @@ sequenceDiagram
 - 판정은 정규화한 결과가 원래 값과 같은지만 본다. 위 표에 없는 값은 거르지 않는다. 예를 들어 앞머리가 아닌 자리의 백슬래시(`/a\b`)는 통과한다.
 - 판정하는 곳은 로그인 폼이다(`login-form.tsx` 가 `resolvePostLoginRedirect` 를 부른다). `redirect` 를 담아 보낸 쪽이 이미 검사했어도 다시 판정한다. 누구나 `/login?redirect=…` 링크를 만들 수 있어서다.
 - 비밀번호 로그인, 2단계 인증, 복구 코드 로그인은 같은 마무리 단계(`completeLogin`)에서 이동한다. 소셜 로그인은 아래 [소셜 로그인의 복귀 경로](#소셜-로그인의-복귀-경로) 를 따른다.
-- 서버 proxy, AuthProvider, 초대 흐름은 `redirect` 를 담아 로그인 화면으로 보낼 때 `/login?redirect=<인코딩한 경로와 쿼리>` 형식을 쓴다. 경로와 쿼리를 합친 값을 통째로 인코딩한다. AuthProvider 와 초대 흐름은 `buildLoginHref` 로 만들고, 서버 proxy 는 이 헬퍼 없이 URL 쿼리 파라미터로 직접 담는다.
-- 전체 화면 오류(`ErrorPage`, `app/(main)/error.tsx`)의 세션 만료 변형은 예외다. 이 화면은 `/login?redirect=<현재 경로>` 에 경로만 담고 쿼리는 담지 않는다([미결 사항](#미결-사항)).
+- 서버 proxy, AuthProvider, 전체 화면 오류의 세션 만료 변형, 초대 흐름은 `redirect` 를 담아 로그인 화면으로 보낼 때 `/login?redirect=<인코딩한 경로와 쿼리>` 형식을 쓴다. 경로와 쿼리를 합친 값을 통째로 인코딩한다. 네 곳 모두 `buildLoginHref` 로 만든다.
+- 전체 화면 오류(`ErrorPage`, `app/(main)/error.tsx`)의 세션 만료 변형은 지금 화면의 경로와 쿼리를 담는다. 안전한 같은 출처 경로가 아니면 `/dashboard` 를 담는다([오류 화면과 빈 상태 「감지 규칙」](../CLE-UI/CLE-UI-ERRORS.md#감지-규칙)).
 - 초대 흐름은 세 곳에서 로그인 화면으로 보낸다. 가입 화면 아래 «로그인» 링크, 가입 화면의 기존 가입자 이동, 수락 페이지의 «다른 계정으로 로그인» 이다. 세 곳은 같은 헬퍼 `buildInvitationLoginHref` 로 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 을 만든다. 토큰이 없으면 `/login` 이다.
 - 복귀 경로가 초대 수락 페이지(`/invitations/accept` 나 `/w/<slug>/invitations/accept`)면 로그인 화면이 초대 안내 문구를 보여 준다. 문구는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 이 정한다. 초대 흐름은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 이 정한다.
 - 로그인 화면 아래 «계정 만들기» 링크(`/register`)는 복귀 경로를 넘기지 않는다. 동작과 이유는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 이 정한다.
@@ -316,7 +317,7 @@ sequenceDiagram
 
 #### 소셜 로그인의 복귀 경로
 
-소셜 로그인은 백엔드와 OAuth 제공자를 거쳐 `/callback` 으로 돌아온다. 이번 범위는 백엔드 인증 API 를 바꾸지 않는다. 그래서 복귀 경로를 그 탭의 sessionStorage 로 넘긴다(`lib/auth/post-login-redirect.ts`). 이유는 Rationale 「[소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다](#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다)」 에 있다.
+소셜 로그인은 백엔드와 OAuth 제공자를 거쳐 `/callback` 으로 돌아온다. 이번 범위는 백엔드 인증 API 를 바꾸지 않는다. 그래서 복귀 경로를 그 탭의 sessionStorage 로 넘긴다(`lib/auth/post-login-redirect.ts`). 이유는 Rationale 「[소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)](#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다-2026-10-18)」 에 있다.
 
 1. 로그인 화면은 소셜 로그인을 시작하기 전에 `redirect` 값을 그 탭의 sessionStorage 키 `clemvion.postLoginRedirect` 에 둔다. 값이 없거나 안전하지 않으면 남아 있던 값을 지운다.
 2. 가입 화면에서 시작하는 소셜 로그인(`mode=register`)은 남아 있던 값을 지운다.
@@ -394,7 +395,6 @@ sequenceDiagram
 
 - **동시 세션 한도의 값과 설정 주체**: 세션 정책 표는 동시 세션 기본 5개(관리자 설정 가능)와 초과 시 가장 오래된 세션 종료를 약속하지만 둘 다 미구현이다(2026-10-10 코드 확인). 5개가 맞는 값인지, "관리자 설정" 의 주체가 운영자 환경 변수인지 워크스페이스 관리자인지 정해지지 않았다. 후속 Task CLE-T-VBQV4H 가 둘을 정하고 구현한다. 관련 요구는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-048(NF-SC-07)이다.
 - **`/auth/` 아래 다른 JWT 라우트는 401 에서 갱신하지 않는다**: 클라이언트의 갱신 제외 규칙은 `/auth/sessions` 만 예외로 둔다. 2단계 인증 설정·켜기·끄기(`/auth/2fa/setup`·`/auth/2fa/verify`·`/auth/2fa/disable`), Passkey 등록 · 관리(`/auth/2fa/webauthn/*` 의 JWT 라우트), 워크스페이스 전환(`/auth/workspaces/:id/switch`)도 Bearer 액세스 토큰이 필요한 라우트다. 이 라우트들은 액세스 토큰이 만료된 뒤 첫 호출이 갱신 없이 401 로 끝난다. 제외 조건을 갱신이 필요 없는 라우트의 명시 목록(`/auth/login`, `/auth/login/totp`, `/auth/refresh` 등)으로 좁힐지 결정 필요.
-- **전체 화면 오류의 세션 만료 변형은 쿼리를 담지 않는다**: 전체 화면 오류(`ErrorPage`, `app/(main)/error.tsx`)의 세션 만료 변형은 `/login?redirect=<현재 경로>` 에 경로만 담는다. 쿼리가 화면을 정하는 경로(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아온다. [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 REQ-ERRPAGE-004 · 005 는 로그인 뒤 원래 URL 로 돌아온다고 적는다. 두 문서와 구현을 맞추는 일은 `CLE-T-2NQ857` 이 맡는다.
 
 ## 구현 위치
 
@@ -423,6 +423,7 @@ sequenceDiagram
 - `codebase/frontend/src/app/(main)/w/[slug]/profile/sessions/reauth-mode.ts`, `codebase/frontend/src/app/(main)/w/[slug]/profile/sessions/sessions-panel.tsx` (세션 강제 종료 계정 재인증 입력 전환 `nextReauthMode`)
 - `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동 판정 `resolvePostLoginRedirect`, 로그인 경로 `buildLoginHref` · `buildInvitationLoginHref`, 소셜 로그인 복귀 경로 저장 `clemvion.postLoginRedirect`)
 - `codebase/frontend/src/lib/auth/__tests__/post-login-redirect.test.ts` (이동 판정, 로그인 경로 생성, 복귀 경로 저장과 소비)
+- `codebase/frontend/src/lib/auth/use-current-login-href.ts` (전체 화면 오류의 세션 만료 변형이 담는 로그인 경로 `useCurrentLoginHref`)
 - `codebase/frontend/src/lib/workspace/safe-path.ts` (안전한 같은 출처 경로 판정 `isSafeInternalPath` 와 정규화 `toSafeInternalPath`)
 - `codebase/frontend/src/app/(auth)/login/page.tsx` (`redirect` 가 여러 번 오면 쓰지 않는다)
 - `codebase/frontend/src/components/auth/login-form.tsx` (로그인 뒤 이동, 소셜 로그인 시작 전 복귀 경로 저장, 초대 안내 문구)
@@ -585,7 +586,7 @@ Origin 검증(REQ-SESSION-013)은 계속 갱신 요청에만 둔다.
 
 NERV Task `CLE-T-D331TT` 에서 바로잡았다. 계정 재인증 요구사항과 세션 정책 표는 `REAUTH_NOT_AVAILABLE` 의 조건을 "비밀번호도 2단계 인증도 없는 계정" 으로 적었다. [가입과 로그인](CLE-ACCT-SIGNIN.md) 에서 2단계 인증은 TOTP 와 Passkey 를 함께 뜻한다. 구현(`SessionsService.verifyReauth`)은 `password_hash` 와 `two_factor_enabled` 만 본다. `two_factor_enabled` 는 TOTP 사용 여부만 뜻한다. 그래서 Passkey 만 등록하고 비밀번호와 TOTP 가 없는 계정도 403 `REAUTH_NOT_AVAILABLE` 이다. 문서를 이 조건으로 고쳤다. Passkey 로 하는 계정 재인증은 지원하지 않으므로 이 동작이 그 결정과 맞다. 동작은 바뀌지 않았다.
 
-### 로그인 뒤 이동은 같은 출처 경로만 받는다
+### 로그인 뒤 이동은 같은 출처 경로만 받는다 (2026-10-18)
 
 2026-10-18, NERV Task `CLE-T-7WZKFB` 의 결정이다.
 
@@ -600,9 +601,9 @@ NERV Task `CLE-T-D331TT` 에서 바로잡았다. 계정 재인증 요구사항�
 
 `redirect` 가 여러 번 온 요청은 어느 값이 의도한 복귀 경로인지 알 수 없다. 그래서 `redirect` 가 없는 것으로 보고 `/dashboard` 로 보낸다. 첫 값을 쓰는 방식, 마지막 값을 쓰는 방식, 요청을 거부하는 방식은 채택하지 않은 선택지다.
 
-한계가 하나 남는다. 전체 화면 오류(`ErrorPage`)의 세션 만료 변형(`components/ui/error-page.tsx`, `app/(main)/error.tsx`)은 같은 판정을 쓰지만 경로만 담고 쿼리는 담지 않는다. 쿼리가 필요한 화면(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아온다. NERV Task `CLE-T-2NQ857` 이 맞춘다. 그때 [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 REQ-ERRPAGE-004 · 005 도 함께 고친다.
+전체 화면 오류(`ErrorPage`)의 세션 만료 변형(`components/ui/error-page.tsx`, `app/(main)/error.tsx`)도 같은 판정을 쓴다. 이 화면은 처음에 경로만 담고 쿼리는 담지 않았다. 그래서 쿼리가 필요한 화면(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아왔다. 2026-11-13 에 NERV Task `CLE-T-2NQ857` 이 이 화면도 경로와 쿼리를 담게 했다([오류 화면과 빈 상태 「감지 규칙」](../CLE-UI/CLE-UI-ERRORS.md#감지-규칙)). 같은 Task 에서 서버 proxy 도 `buildLoginHref` 로 주소를 만들게 했다. 그래서 로그인 화면으로 보내는 네 곳이 한 헬퍼로 같은 인코딩을 쓴다.
 
-### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다
+### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)
 
 2026-10-18, NERV Task `CLE-T-7WZKFB` 의 결정이다.
 
@@ -622,7 +623,7 @@ NERV Task `CLE-T-D331TT` 에서 바로잡았다. 계정 재인증 요구사항�
 
 콜백은 이동하기 전에 `GET /api/users/me` 를 읽어 비밀번호 로그인과 같게 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 쿠키 없이 보호 경로로 이동하면 proxy 가 JS 를 내려보내기 전에 다시 `/login` 으로 보낸다. 소셜 로그인을 마친 사용자가 복귀 경로 대신 로그인 화면을 보지 않게 하려는 것이다.
 
-### 로그아웃 요청이 실패해도 클라이언트를 정리하고 이동한다
+### 로그아웃 요청이 실패해도 클라이언트를 정리하고 이동한다 (2026-10-18)
 
 2026-10-18, NERV Task `CLE-T-7WZKFB` 에서 기존 동작을 공통 규칙으로 적었다.
 
@@ -705,3 +706,11 @@ NERV Task `CLE-T-0VV3VR` 의 변경이다. [운영 환경 가드](#운영-환경
 
 - **생성자에 같은 검사를 더한다**: 규칙이 `assertProductionConfig` 와 생성자 두 곳으로 갈린다. 표와 코드를 대조하는 단위 테스트도 이 항목을 보지 못한다.
 - **빈 값을 `JWT_SECRET` 으로 대신 쓰게 바꾼다(`??` 를 `||` 로)**: 서명 비밀의 대체 순서를 바꾸는 일이라 이번 범위 밖이다. 이 Task 는 서명 방식과 대체 순서를 바꾸지 않는다.
+
+### 로그아웃 요구사항을 둘로 나누고 제목 날짜를 맞췄다 (2026-11-13)
+
+NERV Task `CLE-T-N2FM8W` 에서 표기만 고쳤다. 동작은 바뀌지 않았다.
+
+- 요구사항 REQ-SESSION-032 한 줄에 로그아웃과 복귀 경로를 지정한 로그아웃 두 동작이 있었다. 뒤의 동작을 REQ-SESSION-048 로 옮겼다. 담는 경로도 «그 화면의 경로와 쿼리» 에서 구현대로 슬러그 없는 `/invitations/accept?token=…` 으로 고쳤다. 앞의 표기는 수락 페이지의 슬러그 경로를 그대로 담는 것처럼 읽혔다.
+- 요구사항 REQ-SESSION-037 의 주어를 «프론트엔드 JS» 에서 시스템으로 바꿨다. 쿠키를 심는 곳은 「[로그인 힌트 쿠키](#로그인-힌트-쿠키)」 가 적는다.
+- 2026-10-18 에 쓴 Rationale 제목 세 개에 날짜를 붙였다. 같은 문서의 다른 제목과 표기를 맞추려는 것이다. 제목이 바뀌어 앵커도 바뀌었고 이 문서와 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 링크를 함께 고쳤다.

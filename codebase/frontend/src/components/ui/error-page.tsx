@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
   Ban,
@@ -13,11 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils/cn";
-import { isSafeInternalPath } from "@/lib/workspace/safe-path";
+import { useCurrentLoginHref } from "@/lib/auth/use-current-login-href";
 
 const DASHBOARD_PATH = "/dashboard";
 
-/** 전체화면 에러 페이지의 5종 (spec/2-navigation/11-error-empty-states.md §1.2). */
+/** 전체화면 에러 페이지의 5종 ([오류 화면과 빈 상태 「에러 페이지 다섯 가지」](CLE-UI-ERRORS#에러-페이지-다섯-가지)). */
 export type ErrorVariant =
   | "sessionExpired"
   | "forbidden"
@@ -33,15 +32,6 @@ const ICONS: Record<ErrorVariant, LucideIcon> = Object.freeze({
   network: WifiOff,
 });
 
-/**
- * open-redirect 방지: 앱 내부 절대경로(`/foo`)만 redirect 대상으로 허용한다. protocol-relative
- * (`//evil.com`·`\\evil.com`·`/\evil.com`)와 제어문자(tab/CR/LF) 우회는 거부한다 —
- * `buildWorkspaceHref` 와 동일한 공용 정규화(`isSafeInternalPath`)를 공유한다.
- */
-export function isSafeRedirectPath(pathname: string | null): boolean {
-  return isSafeInternalPath(pathname);
-}
-
 /** SSR 안전한 현재 페이지 새로고침 (network 폴백). */
 function reloadPage(): void {
   if (typeof window !== "undefined") window.location.reload();
@@ -49,9 +39,9 @@ function reloadPage(): void {
 
 /**
  * 던져진 에러(주로 axios 에러)의 HTTP 상태를 에러 페이지 variant 로 매핑한다.
- * spec/2-navigation/11-error-empty-states.md §1.3 의 감지 규칙:
+ * [오류 화면과 빈 상태 「감지 규칙」](CLE-UI-ERRORS#감지-규칙):
  *   401 → sessionExpired · 403 → forbidden · 404 → notFound · 5xx → server · no-response → network.
- * 미정의 4xx(400/405/429 등)와 분류 불가한 일반 throw 는 `server` 로 폴백한다 (spec §Rationale).
+ * 미정의 4xx(400/405/429 등)와 분류 불가한 일반 throw 는 `server` 로 폴백한다.
  */
 export function errorToVariant(error: unknown): ErrorVariant {
   // 런타임 덕타이핑: axios 에러(`response`/`request`/`code`)·커스텀 에러(`status`)·원시값 모두 허용.
@@ -74,7 +64,7 @@ export function errorToVariant(error: unknown): ErrorVariant {
   return "server";
 }
 
-/** ErrorPage 컴포넌트 props. `variant` 는 ErrorVariant 5종 중 하나 (spec §1.2). */
+/** ErrorPage 컴포넌트 props. `variant` 는 ErrorVariant 5종 중 하나. */
 interface ErrorPageProps {
   variant: ErrorVariant;
   /** 재시도 콜백 (server/network). error.tsx 는 Next.js error boundary 의 `reset` 콜백을 넘긴다. */
@@ -84,21 +74,32 @@ interface ErrorPageProps {
 }
 
 /**
+ * 세션 만료 변형의 «다시 로그인» 링크. 지금 화면의 경로와 쿼리를 복귀 경로로 담는다.
+ * 쿼리를 읽는 훅(`useSearchParams`)을 이 변형에서만 부르려고 따로 둔다. not-found 처럼 미리
+ * 렌더하는 화면은 이 컴포넌트를 그리지 않는다.
+ */
+function SessionExpiredLoginCta() {
+  const t = useT();
+  const loginHref = useCurrentLoginHref();
+  return (
+    <Button asChild>
+      <Link href={loginHref}>{t("errorPage.sessionExpired.cta")}</Link>
+    </Button>
+  );
+}
+
+/**
  * 전체화면 에러 페이지 (아이콘 + 제목 + 설명 + CTA). 5 variant 공통 레이아웃.
  * route 파일(not-found.tsx / error.tsx / global-error.tsx)이 공유한다.
  */
 export function ErrorPage({ variant, onRetry, className }: ErrorPageProps) {
   const t = useT();
-  const pathname = usePathname();
   const Icon = ICONS[variant];
 
   const title = t(`errorPage.${variant}.title` as TranslationKey);
   const description = t(`errorPage.${variant}.description` as TranslationKey);
 
-  const redirectTarget = isSafeRedirectPath(pathname) ? pathname! : DASHBOARD_PATH;
-  const loginHref = `/login?redirect=${encodeURIComponent(redirectTarget)}`;
-
-  /** variant 별 CTA 버튼 목록 (t·loginHref·onRetry 를 클로저로 캡처). */
+  /** variant 별 CTA 버튼 목록 (t·onRetry 를 클로저로 캡처). */
   function buildActions(): React.ReactNode[] {
     const linkCta = (key: TranslationKey, href: string) => (
       <Button key={href} asChild>
@@ -107,7 +108,7 @@ export function ErrorPage({ variant, onRetry, className }: ErrorPageProps) {
     );
     switch (variant) {
       case "sessionExpired":
-        return [linkCta("errorPage.sessionExpired.cta", loginHref)];
+        return [<SessionExpiredLoginCta key="login" />];
       case "forbidden":
         return [linkCta("errorPage.forbidden.cta", DASHBOARD_PATH)];
       case "notFound":

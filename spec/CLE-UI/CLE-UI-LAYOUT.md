@@ -2,19 +2,19 @@
 id: "CLE-UI-LAYOUT"
 title: "레이아웃과 내비게이션"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-LAYOUT-001", "REQ-LAYOUT-002", "REQ-LAYOUT-003", "REQ-LAYOUT-004", "REQ-LAYOUT-005", "REQ-LAYOUT-006", "REQ-LAYOUT-007", "REQ-LAYOUT-008", "REQ-LAYOUT-009", "REQ-LAYOUT-010", "REQ-LAYOUT-011", "REQ-LAYOUT-012", "REQ-LAYOUT-013", "REQ-LAYOUT-014", "REQ-LAYOUT-015", "REQ-LAYOUT-016", "REQ-LAYOUT-017", "REQ-LAYOUT-018", "REQ-LAYOUT-019", "REQ-LAYOUT-020", "REQ-LAYOUT-021", "REQ-LAYOUT-022", "REQ-LAYOUT-023", "REQ-LAYOUT-024", "REQ-LAYOUT-025", "REQ-LAYOUT-026", "REQ-LAYOUT-027", "REQ-LAYOUT-028", "REQ-LAYOUT-029", "REQ-LAYOUT-030", "REQ-LAYOUT-031", "REQ-LAYOUT-032", "REQ-LAYOUT-033", "REQ-LAYOUT-034", "REQ-LAYOUT-035", "REQ-LAYOUT-036", "REQ-LAYOUT-037", "REQ-LAYOUT-038", "REQ-LAYOUT-039", "REQ-LAYOUT-040", "REQ-LAYOUT-041", "REQ-LAYOUT-042", "REQ-LAYOUT-043"]
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "ba4d3c38bd39a291fb163a24d1d43cf917e338dd99f45958d30f9ee374a6d0d6"
+content_hash: "845afdce460fec64356762f22517dd4a0e533d5d898b0ecc0c14e4805223a984"
 read_as: "approved_fallback"
-task: "CLE-T-3158TZ"
+task: "CLE-T-YG34W6"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "ee129fa7d260808df26f9fca9695fa5a83350c2ac686c8ac295550d0db5fa0c8"
-etag: "sha256-22f727f872cb0cd5b3233e1435f1218829eba789045bb6785cc12dc0a3e8f172"
+mirror_sha256: "dba870b8a431458db4cc5cfb6dec072700569befb30eb0362eca47e8a97d267f"
+etag: "sha256-da7bebc3b77c49b2bbae840cf9359cf28e492e1017e04d7d73d159b7fe717b15"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/_layout.md` (§1 레이아웃 구조, §2 사이드바, §4 메인 컨텐츠 영역, §5 공통 헤더, Rationale), `spec/2-navigation/_product-overview.md` (§1 개요, §2 내비게이션 구조), `spec/0-overview.md` (§3 공통 UI 패턴, Rationale «Inline Alert 의 위치») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -62,7 +62,7 @@ etag: "sha256-22f727f872cb0cd5b3233e1435f1218829eba789045bb6785cc12dc0a3e8f172"
 - REQ-LAYOUT-018 WHEN 사이드바가 사용자 가이드 링크를 만들면 THE SYSTEM SHALL 슬러그를 붙이지 않고 `/docs` 로 만든다. (원본: _layout §2.2)
 - REQ-LAYOUT-019 WHEN 사용자가 슬러그 없는 앱 경로로 들어오면 THE SYSTEM SHALL 현재 워크스페이스의 슬러그 경로로 넘기고 query 와 hash 를 보존한다. (원본: _layout §2.2)
 - REQ-LAYOUT-020 WHEN 사용자가 `/w/<slug>` 만으로 들어오면 THE SYSTEM SHALL 그 워크스페이스의 대시보드로 넘기고 query 와 hash 를 보존한다. (원본: _layout §2.2)
-- REQ-LAYOUT-021 IF `/w/` 로 시작하는 경로가 어떤 라우트에도 맞지 않으면 THE SYSTEM SHALL 슬러그를 다시 붙이지 않고 404 로 끝낸다. (원본: _layout §2.2, R-3)
+- REQ-LAYOUT-021 IF `/w/` 로 시작하는 경로가 어떤 라우트에도 맞지 않으면 THE SYSTEM SHALL 슬러그를 다시 붙이지 않고 404 로 끝낸다. (원본: _layout §2.2)
 
 ### 메인 영역과 공통 헤더
 
@@ -155,7 +155,7 @@ etag: "sha256-22f727f872cb0cd5b3233e1435f1218829eba789045bb6785cc12dc0a3e8f172"
 
 - **사용자 가이드는 예외다.** `/docs` 는 워크스페이스와 무관한 콘텐츠라 슬러그 밖에 둔다. 인증 화면(`(auth)`)도 같다. 사이드바는 이 예외를 메뉴 정의(`navItems`)의 `workspaceScoped: false` 로 적는다. 예외를 선언할 때 고정해 두면 "모든 항목에 슬러그를 무조건 붙이는" 회귀를 막는다.
 - **에디터도 슬러그 경로다.** 워크플로우 에디터는 `/w/<slug>/workflows/[id]` 다.
-- **옛 경로 흡수 라우트(catch-all route)**: 슬러그 없는 옛 경로로 들어오면 `(main)/[...rest]` 가 현재 워크스페이스 슬러그로 흡수한다. 이 라우트는 `/w/` 로 시작하는 경로를 흡수하지 않고 끝낸다.
+- **옛 경로 흡수 라우트(catch-all route)**: 슬러그 없는 옛 경로로 들어오면 `(main)/[...rest]` 가 현재 워크스페이스 슬러그로 흡수한다. 이 라우트는 `/w/` 로 시작하는 경로를 흡수하지 않고 끝낸다([옛 경로 흡수 라우트가 `/w/` 경로를 흡수하지 않는 이유](#옛-경로-흡수-라우트가-w-경로를-흡수하지-않는-이유)).
 
 | 들어온 경로 | 동작 |
 | --- | --- |
@@ -216,8 +216,8 @@ etag: "sha256-22f727f872cb0cd5b3233e1435f1218829eba789045bb6785cc12dc0a3e8f172"
 
 ## 미결 사항
 
-- **모바일 뷰어 모드의 근거**: 원문 공통 UI 패턴은 "에디터는 데스크톱 전용이고 모바일에서는 뷰어 모드만 제공한다" 고 적는다. 그런데 뷰어 모드를 정의한 문서가 이 한 줄 말고 없고, 레이아웃 규칙은 1280px 미만에서 사이드바를 숨기는 것만 정한다. 모바일 뷰어 모드가 실제로 있는지 확인이 필요하다. 없으면 계획으로 표시해야 한다.
-- **마켓플레이스 메뉴 위치**: 레이아웃 원문의 주석은 구현하면 시스템 상태 바로 뒤에 둔다고 적고, 내비게이션 PRD 트리는 사용자 가이드 뒤 맨 끝에 둔다. 주석의 번호(11)도 지금 메뉴 순서와 맞지 않는다. 착수할 때 정한다(관련: [마켓플레이스 (구상)](CLE-UI-MARKET.md)).
+- **모바일 뷰어 모드의 근거**: REQ-LAYOUT-042 는 모바일에서 워크플로우 에디터를 열면 뷰어 모드만 준다고 정한다. 그런데 뷰어 모드를 정의한 곳은 이 요구사항과 「공통 UI 패턴」 의 반응형 항목 말고 없다. 레이아웃 규칙은 1280px 미만에서 사이드바를 숨기는 것만 정한다. 모바일 뷰어 모드가 실제로 있는지 확인이 필요하다. 없으면 계획으로 표시해야 한다.
+- **마켓플레이스 메뉴 위치**: 옮겨 오기 전 원문 두 곳이 서로 다른 위치를 적었다. 한 곳은 시스템 상태 바로 뒤이고 다른 곳은 사용자 가이드 뒤 맨 끝이다. 앞의 위치에 붙은 번호(11)도 지금 [메뉴 항목](#메뉴-항목) 순서와 맞지 않는다. 착수할 때 정한다(관련: [마켓플레이스 (구상)](CLE-UI-MARKET.md)).
 
 ## 구현 위치
 
@@ -260,3 +260,11 @@ NERV Task `CLE-T-6YY7KY` 가 고쳤다. [메뉴 항목](#메뉴-항목) 표는 �
 ### 테마 요구에 시스템을 더했다
 
 2026-11-06 변경이다(NERV Task `CLE-T-6RY511`). 환경설정 카드와 저장 값에는 이미 `system` 이 있었다. 그런데 이 문서만 테마를 라이트·다크로 적고 있었다. 그래서 요구사항과 「반응형과 테마」 절에 시스템 테마를 더했다. 적용 규칙의 정본은 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md#테마) 의 「테마」 절이다.
+
+### 옛 문서 이름과 `R-3` 을 정리했다 (2026-11-13)
+
+NERV Task `CLE-T-YG34W6` 에서 표기만 고쳤다. 동작은 바뀌지 않았다.
+
+- 요구사항 REQ-LAYOUT-021 의 원본 표기에서 `R-3` 을 지웠다. 옮겨 오기 전 문서의 Rationale 항목 번호라 이 문서에서는 따라갈 곳이 없었다. 같은 이유는 이 문서의 「[옛 경로 흡수 라우트가 `/w/` 경로를 흡수하지 않는 이유](#옛-경로-흡수-라우트가-w-경로를-흡수하지-않는-이유)」 에 있다. 그래서 「워크스페이스 슬러그 라우팅」 의 흡수 라우트 항목에서 그 절로 링크했다.
+- 「미결 사항」 의 두 항목은 옛 문서 이름 대신 이 문서의 요구사항 번호와 [메뉴 항목](#메뉴-항목) 표로 적었다. 두 항목이 다루는 사실은 그대로다.
+- 요구사항 줄 끝의 `(원본: …)` 은 남겼다. [Clemvion 제품 개요 「문서 종류」](../CLE-VISION.md#문서-종류) 가 기능 문서는 옛 요구사항 ID 를 `(원본: …)` 로 남긴다고 정한다. 옮겨 온 기능 문서가 함께 쓰는 표기다.

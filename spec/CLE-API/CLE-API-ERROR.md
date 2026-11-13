@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "16c52ecce0c62bb4cfc3f8b599ed761eedef8b348ba30ff7d29582e24c7489e9"
+content_hash: "a12e3a1aa4b79ff9f03cd25aada4dd0e1dba98da2fab50a241d1757381253e5c"
 read_as: "approved_fallback"
-task: "CLE-T-HGBHF2"
+task: "CLE-T-N2FM8W"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "0a8c363f013c3dc391f08627efd4e8a086e9836530d1afc7ebb229c2620c9dfb"
-etag: "sha256-5bc8df8ae7e2fb582edb88affdb5144ab0ca5fe41f99ed2259ed3b439f3513f0"
+mirror_sha256: "3a819b0b24c9f5c996cbccd78f58e73785b249231dcacb3ddcd3c009bdbbedfa"
+etag: "sha256-e60044be3c6d7f49e8099fa285c70cd03a10a6126ef158ac9d09cc684093bbad"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -230,7 +230,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 |---|---|
 | 200·201·204 | 정상 처리 |
 | 400 | 유효성 에러를 필드별 메시지로 표시한다 |
-| 401 | 토큰 갱신을 시도한다. 성공하면 원래 요청을 다시 보내고 실패하면 로그인 페이지로 이동한다 |
+| 401 | 토큰 갱신을 시도한다. 성공하면 원래 요청을 다시 보내고 실패하면 로그인 페이지로 이동한다. 로그인 뒤 돌아올 화면은 [세션과 토큰 「로그인 뒤 이동」](../CLE-ACCT/CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한다 |
 | 403 | 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
 | 404 | "리소스를 찾을 수 없습니다" 토스트 또는 404 페이지 |
 | 409 | 충돌 해결 안내 (예: 이름 변경) |

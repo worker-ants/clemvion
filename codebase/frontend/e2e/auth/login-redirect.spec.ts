@@ -16,6 +16,14 @@ import { ACCESS, PAGE_READY_TIMEOUT, USER, WORKSPACE, mockAuth } from "../helper
  */
 
 const SLUG = WORKSPACE.slug;
+
+/**
+ * 소셜 로그인 복귀 경로의 sessionStorage 키. 앱의 `OAUTH_REDIRECT_STORAGE_KEY`
+ * (`src/lib/auth/post-login-redirect.ts`)와 같은 값이어야 한다. 브라우저 안에서 도는 `page.evaluate`
+ * 콜백은 바깥 변수를 닫아 쓸 수 없어 인자로 넘긴다.
+ */
+const OAUTH_REDIRECT_STORAGE_KEY = "clemvion.postLoginRedirect";
+
 const TOKEN = "e2e-invite-token";
 /** 초대 만료 시각을 지금부터 얼마 뒤로 둘지. */
 const ONE_HOUR_MS = 3_600_000;
@@ -95,9 +103,12 @@ test.describe("로그인 뒤 redirect 복귀", () => {
 
     const target = `/w/${SLUG}/workflows?q=oauth`;
     await page.goto("/login");
-    await page.evaluate((value) => {
-      window.sessionStorage.setItem("clemvion.postLoginRedirect", value);
-    }, target);
+    await page.evaluate(
+      ([key, value]) => {
+        window.sessionStorage.setItem(key, value);
+      },
+      [OAUTH_REDIRECT_STORAGE_KEY, target] as const,
+    );
 
     await page.goto("/callback?success=true");
 
@@ -106,7 +117,7 @@ test.describe("로그인 뒤 redirect 복귀", () => {
     });
     expect(new URL(page.url()).searchParams.get("q")).toBe("oauth");
     expect(
-      await page.evaluate(() => window.sessionStorage.getItem("clemvion.postLoginRedirect")),
+      await page.evaluate((key) => window.sessionStorage.getItem(key), OAUTH_REDIRECT_STORAGE_KEY),
     ).toBeNull();
   });
 });

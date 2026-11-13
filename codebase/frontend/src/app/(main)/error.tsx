@@ -1,18 +1,16 @@
 "use client";
 
-// (main) 세그먼트 에러 바운더리 — spec/2-navigation/11-error-empty-states.md §1.
+// (main) 세그먼트 에러 바운더리 — [오류 화면과 빈 상태 「감지 규칙」](CLE-UI-ERRORS#감지-규칙).
 // 페이지에서 전파된(uncaught) 에러를 HTTP 상태별 에러 페이지로 매핑한다.
-// 403/404/500/네트워크는 (main)/layout.tsx 의 사이드바를 유지한다 (§1.3 "사이드바 표시").
-// 401(세션 만료)은 §1.3 "사이드바 숨김" 요건에 따라 사이드바 없는 (auth) 경로(/login)로
-// 보낸다 — auth-provider 의 세션 만료 처리와 동일 경로이며, redirect 파라미터로 원래 URL 복귀.
+// 403/404/500/네트워크는 (main)/layout.tsx 의 사이드바를 유지한다.
+// 401(세션 만료)은 사이드바 없는 (auth) 경로(/login)로 보낸다. 지금 화면의 경로와 쿼리를 복귀 경로로
+// 담아 로그인 뒤 같은 화면이 같은 쿼리로 열린다. 인증 프로바이더 · proxy 와 같은 규칙이다
+// ([세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION#로그인-뒤-이동)).
 
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import {
-  ErrorPage,
-  errorToVariant,
-  isSafeRedirectPath,
-} from "@/components/ui/error-page";
+import { useRouter } from "next/navigation";
+import { ErrorPage, errorToVariant } from "@/components/ui/error-page";
+import { useCurrentLoginHref } from "@/lib/auth/use-current-login-href";
 
 export default function MainError({
   error,
@@ -22,7 +20,7 @@ export default function MainError({
   reset: () => void;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
+  const loginHref = useCurrentLoginHref();
   const variant = errorToVariant(error);
 
   useEffect(() => {
@@ -34,10 +32,9 @@ export default function MainError({
 
   useEffect(() => {
     if (variant === "sessionExpired") {
-      const target = isSafeRedirectPath(pathname) ? pathname! : "/dashboard";
-      router.replace(`/login?redirect=${encodeURIComponent(target)}`);
+      router.replace(loginHref);
     }
-  }, [variant, pathname, router]);
+  }, [variant, loginHref, router]);
 
   // 세션 만료는 redirect 중이므로 (main) 사이드바와 함께 렌더하지 않는다.
   if (variant === "sessionExpired") return null;
