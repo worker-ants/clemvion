@@ -72,7 +72,7 @@ model: opus
 - **요구사항 줄은 옮기지 않는다**: 이미 승인된 요구사항 줄을 다른 문서로 옮기면 소유가 풀리기까지 승인이 두 번 필요하다(`nerv:spec` 의 `requirement_owned`). 기존 문서를 나눌 때는 요구사항 줄을 부모에 그대로 둔다. 새로 쓰는 문서는 처음부터 요구사항을 맡을 문서에 둔다.
 - **들어오는 앵커를 지킨다**: 다른 문서가 `CLE-KEY#앵커` 로 가리키는 절을 하위 문서로 옮기면 부모에 같은 제목의 짧은 절을 두고 옮긴 곳을 링크한다.
 - **크게 줄이는 저장**: 나누면서 부모가 절반 아래로 줄면 `allow_shrink` 가 필요하다. 무엇을 어디로 옮겼는지 `change_summary` 에 적고, 사람에게 확인받은 뒤에 보낸다.
-- **가드레일**: `.claude/hooks/guard_spec_body_size.py` 가 한도를 넘는 초안 저장(`nerv_spec_draft_upsert`)을 막는다. CI `spec-mirror-integrity` 의 `size_check.py` 가 미러를 래칫으로 본다(도입 시점에 넘던 문서는 기준선에 있고 기준선은 줄어들기만 한다). 카탈로그 사본(`CLE-C24-*` · `CLE-MKS-*`)은 생성기가 크기를 정하므로 둘 다 보지 않는다.
+- **가드레일**: `.claude/hooks/guard_spec_body_size.py` 가 한도를 넘는 초안 저장(`nerv_spec_draft_upsert`)을 막는다. CI `spec-mirror-integrity` 의 `size_check.py` 가 미러를 래칫으로 본다(도입 시점에 넘던 문서는 기준선에 있고 기준선은 줄어들기만 한다). 카탈로그 사본(`CLE-C24-*` · `CLE-MKS-*`)은 생성기가 크기를 정하므로 둘 다 보지 않는다. 같은 접두라도 NERV 가 정본인 규약 문서(`CLE-C24-META` · `CLE-C24-SCOPES` · `CLE-MKS-META`)에는 한도를 적용한다.
 
 ## 트리 규칙
 

@@ -1024,7 +1024,8 @@ class CiWiringTest(unittest.TestCase):
 
     def test_the_check_runs_with_only_the_sparse_paths(self):
         # 잡은 저장소 일부만 받는다. `pull.py` 가 그 밖의 파일을 읽게 되면 CI 에서만 깨진다.
-        self.assertEqual(sorted(self.sparse_paths()), [".claude/tools/nerv-mirror", "spec"])
+        # `.claude/hooks/_lib` 는 같은 잡의 크기 래칫(`size_check.py`)이 한도 상수를 읽는 곳이다.
+        self.assertEqual(sorted(self.sparse_paths()), [".claude/hooks/_lib", ".claude/tools/nerv-mirror", "spec"])
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         for rel in self.sparse_paths():

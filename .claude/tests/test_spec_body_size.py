@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -86,6 +87,12 @@ class HookTest(unittest.TestCase):
     def test_catalog_lookalike_not_exempt(self):
         payload = {"tool_name": TOOL_NAME, "tool_input": {"spec_id": "CLE-C24X", "body_md": "x" * 50000}}
         self.assertEqual(run_hook(payload).returncode, 2)
+
+    def test_nerv_owned_conventions_under_catalog_prefix_not_exempt(self):
+        for key in ("CLE-C24-META", "CLE-C24-SCOPES", "CLE-MKS-META"):
+            with self.subTest(key=key):
+                payload = {"tool_name": TOOL_NAME, "tool_input": {"spec_id": key, "body_md": "x" * 50000}}
+                self.assertEqual(run_hook(payload).returncode, 2)
 
     def test_bypass_only_on_one(self):
         big = draft("x" * (hook.LIMIT + 1))
@@ -220,6 +227,34 @@ class WorkflowTest(unittest.TestCase):
         text = WORKFLOW.read_text(encoding="utf-8")
         job = text.split("spec-mirror-integrity:", 1)[1]
         self.assertIn("python3 .claude/tools/nerv-mirror/size_check.py", job)
+
+    def _sparse_paths(self):
+        job = WORKFLOW.read_text(encoding="utf-8").split("spec-mirror-integrity:", 1)[1]
+        block = job.split("sparse-checkout: |", 1)[1]
+        paths = []
+        for line in block.splitlines()[1:]:
+            if not line.startswith(" " * 12) or not line.strip():
+                break
+            paths.append(line.strip())
+        return paths
+
+    def test_size_check_runs_in_sparse_checkout(self):
+        """CI 잡이 받는 경로만 있는 트리에서 size_check.py 가 import 오류 없이 돈다."""
+        paths = self._sparse_paths()
+        self.assertIn(".claude/tools/nerv-mirror", paths)
+        with tempfile.TemporaryDirectory() as d:
+            for rel in paths:
+                if rel == "spec":
+                    continue
+                shutil.copytree(_harness.REPO_ROOT / rel, Path(d, rel),
+                                ignore=shutil.ignore_patterns("__pycache__"))
+            spec = Path(d, "spec", "CLE-T")
+            spec.mkdir(parents=True)
+            (spec / "CLE-T-OK.md").write_text(mirror_file("CLE-T-OK", "x" * 10), encoding="utf-8")
+            r = subprocess.run([sys.executable, str(Path(d, ".claude/tools/nerv-mirror/size_check.py")),
+                                "--root", d], text=True, capture_output=True, timeout=60)
+        self.assertNotIn("ModuleNotFoundError", r.stderr)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 if __name__ == "__main__":
