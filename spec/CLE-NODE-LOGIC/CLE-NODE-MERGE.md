@@ -2,19 +2,19 @@
 id: "CLE-NODE-MERGE"
 title: "Merge 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-MERGE-001", "REQ-MERGE-002", "REQ-MERGE-003", "REQ-MERGE-004", "REQ-MERGE-005", "REQ-MERGE-006", "REQ-MERGE-007", "REQ-MERGE-008", "REQ-MERGE-009", "REQ-MERGE-010", "REQ-MERGE-011", "REQ-MERGE-012", "REQ-MERGE-013", "REQ-MERGE-014", "REQ-MERGE-015", "REQ-MERGE-016", "REQ-MERGE-017", "REQ-MERGE-018"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "993b5a4fa3665255aec9a4017977f79e5cc14c4629582c2ad1832e3629a3cb4d"
+content_hash: "c3670b124366d02598f9ca09d30fc157f55eec6f8d33f499975c3bfbd85bec61"
 read_as: "approved_fallback"
-task: "CLE-T-1J0F6R"
+task: "CLE-T-5BCDMM"
 source_paths: ["spec/4-nodes/1-logic/11-merge.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e87cf970c72c3bf205e93a4d23256745e20dc9d30aacfebbeeabd360f1835096"
-etag: "sha256-9a5216cdc587b620688b64889eefa617b58d2c2024afbdf4145e7f5ba0ffcce6"
+mirror_sha256: "758c1082a9a87396d3f487afa6ad0d674ac8653af7378ffa036f16761ac08d1d"
+etag: "sha256-55eea8e0ef98cc3fcf1111cb3506b28d8827fbdca8be0eff49186a649db324ef"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/11-merge.md`, `spec/4-nodes/_product-overview.md` (§4.11) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -85,7 +85,7 @@ Merge 노드(Merge, `merge`)는 여러 입력 경로의 데이터를 하나로 �
 
 ## 설정 화면
 
-설정 화면은 스키마 기반 자동 폼(auto-form)이 `merge.schema.ts` 의 `ui` 메타로 그린다. Merge 는 전용 설정 컴포넌트를 쓰지 않는다. 아래 표의 라벨은 한국어 화면 문구다. 영문 원문(`Strategy` · `Output Format` · `Timeout (seconds)` · `Partial on Timeout`)은 `ui.label` 에 있다. 한국어 문구는 `backend-labels.ts` 의 `LABEL_KO` 에 있다.
+설정 화면은 auto-form 이 `merge.schema.ts` 의 `ui` 메타로 그린다. Merge 는 전용 설정 컴포넌트를 쓰지 않는다. 아래 표의 라벨은 한국어 화면 문구다. 영문 원문(`Strategy` · `Output Format` · `Timeout (seconds)` · `Partial on Timeout`)은 `ui.label` 에 있다. 한국어 문구는 `backend-labels.ts` 의 `LABEL_KO` 에 있다.
 
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 |------|------|--------------|------|
@@ -280,7 +280,7 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 
 **결정**: Merge 의 비동기 fan-in barrier(`timeout` / `partialOnTimeout` 활성화)를 "다음 단계 예정" 에서 "엔진이 노드 단위 비동기 dispatch 를 도입할 경우 재검토" 로 낮춘다. `timeout` / `partialOnTimeout` 은 무기한 dormant 로 둔다.
 
-**근거는 선결 조건이 엔진 차원에서 기각됐다는 것이다**. 2026-05-11 조사는 "순차 엔진에서는 뜻 있는 barrier 를 구현할 수 없다" 고 결론지었다. 모든 선행 노드가 동시에 풀려 "기다릴 시간" 자체가 0 이기 때문이다. 그래서 활성화의 선결 조건으로 엔진 비동기 dispatch 모델 도입을 들었다. 그 사이 실행 엔진은 반대 방향을 확정했다. [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 은 노드 단위 작업 큐(워커 1개 = 노드 실행 1건)를 채택하지 않는다고 정했고 한 세그먼트 안의 노드 dispatch 는 여전히 프로세스 안 while 루프라고 명시했다. 엔진은 노드 단위가 아니라 실행 단위 intake 큐(워커 1개 = active 세그먼트 1개)를 골랐다. 컨테이너·중첩 스코프·되돌아가는 연결선·Parallel 의미를 바꾸지 않으려는 의도된 결정이다.
+**근거는 선결 조건이 엔진 차원에서 기각됐다는 것이다**. 2026-05-11 조사는 "순차 엔진에서는 뜻 있는 barrier 를 구현할 수 없다" 고 결론지었다. 모든 선행 노드가 동시에 풀려 "기다릴 시간" 자체가 0 이기 때문이다. 그래서 활성화의 선결 조건으로 엔진 비동기 dispatch 모델 도입을 들었다. 그 사이 실행 엔진은 반대 방향을 확정했다. [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 은 노드 단위 작업 큐(워커 1개 = 노드 실행 1건)를 채택하지 않는다고 정했고 한 세그먼트 안의 노드 dispatch 는 여전히 프로세스 안 while 루프라고 명시했다. 엔진은 노드 단위가 아니라 실행 단위 시작 큐(워커 1개 = 세그먼트 1개)를 골랐다. 컨테이너·중첩 스코프·되돌아가는 연결선·Parallel 의미를 바꾸지 않으려는 의도된 결정이다.
 
 그래서 barrier 가 요구하는 "시차를 두고 도착하는 입력 기다리기" 는 세그먼트 안 dispatch 가 프로세스 안에서 차례로 도는 한 성립하지 않는다. 그 전제를 바꾸는 것은 Merge 노드 하나를 위해 엔진의 확정된 설계 결정을 뒤집는 일이다. 원래 작업 계획의 수용 기준에는 "PoC 결과가 비현실적이면 ADR 로 마감하고 dormant 표기를 재검토 과제로 바꾼다" 는 분기가 있었다. 이 분기는 PoC 없이 충족됐다. PoC 가 답하려던 질문(엔진을 비동기 dispatch 로 다시 설계할 수 있는가)에 엔진 문서가 이미 "하지 않는다" 고 답했기 때문이다.
 

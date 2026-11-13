@@ -249,7 +249,7 @@ Split's output does not include other fields from the source. Reference them dir
 </Example>
 
 <Callout type="tip">
-If you just want the branch results as an array, Parallel's `done` port is simpler — no Merge needed. Reach for Merge when you need strategies like **object merge, first-arrival, or indexing**.
+If you just want the branch results as an array, Parallel's `done` port is simpler — no Merge needed. Reach for Merge when you need to reshape the result, such as **merging objects** or **adding index keys**.
 </Callout>
 
 ## Variable Declaration
@@ -378,7 +378,7 @@ Parallel(3)
 
 **Pattern B — reshape with Merge (advanced)**
 
-When you need strategies like object merging or first-arrival-wins, route each branch's last node into Merge.
+When you need to reshape the result, such as merging objects or adding index keys, route each branch's last node into Merge.
 
 ```
 Parallel(2)

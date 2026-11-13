@@ -5,7 +5,7 @@ section: "02-nodes"
 order: 3
 summary: "분기, 반복, 배열 처리, 변수 관리, 병합 등 워크플로우의 흐름을 제어하는 노드들을 설명해요."
 summary_en: "Nodes that control workflow flow: branching, looping, array processing, variable management, and merging."
-spec: ["CLE-NODE-LOGIC-COMMON", "CLE-EXEC-CONTAINER"]
+spec: ["CLE-NODE-LOGIC-COMMON", "CLE-EXEC-CONTAINER", "CLE-NODE-MERGE"]
 code: ["codebase/backend/src/nodes/logic/if-else/if-else.schema.ts", "codebase/backend/src/nodes/logic/switch/switch.schema.ts", "codebase/backend/src/nodes/logic/loop/loop.schema.ts", "codebase/backend/src/nodes/logic/foreach/foreach.schema.ts", "codebase/backend/src/nodes/logic/map/map.schema.ts", "codebase/backend/src/nodes/logic/filter/filter.schema.ts", "codebase/backend/src/nodes/logic/split/split.schema.ts", "codebase/backend/src/nodes/logic/merge/merge.schema.ts", "codebase/backend/src/nodes/logic/variable-declaration/variable-declaration.schema.ts", "codebase/backend/src/nodes/logic/variable-modification/variable-modification.schema.ts", "codebase/backend/src/nodes/logic/parallel/parallel.schema.ts", "codebase/backend/src/nodes/logic/background/background.schema.ts", "codebase/backend/src/modules/execution-engine/containers/iteration-error-code.ts"]
 ---
 
@@ -260,7 +260,7 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 </Example>
 
 <Callout type="tip">
-단순히 분기 결과를 배열로 받기만 하면 되는 경우에는 Merge 없이 Parallel의 `done` 포트를 사용하는 게 더 간편해요. Merge는 **객체 병합, 첫 도착값 선택, 인덱싱** 같은 전략이 필요할 때 쓰세요.
+단순히 분기 결과를 배열로 받기만 하면 되는 경우에는 Merge 없이 Parallel의 `done` 포트를 사용하는 게 더 간편해요. Merge는 **객체 병합**이나 **인덱스 키 붙이기**처럼 결과 모양을 바꿔야 할 때 쓰세요.
 </Callout>
 
 ## Variable Declaration
@@ -389,7 +389,7 @@ Parallel(3)
 
 **패턴 B — Merge로 결과 재구성 (고급)**
 
-객체 병합, 첫 도착값만 사용 등 전략이 필요하면 각 분기의 마지막 노드를 Merge에 직접 연결해요.
+객체 병합이나 인덱스 키 붙이기처럼 결과 모양을 바꿔야 하면 각 분기의 마지막 노드를 Merge에 직접 연결해요.
 
 ```
 Parallel(2)

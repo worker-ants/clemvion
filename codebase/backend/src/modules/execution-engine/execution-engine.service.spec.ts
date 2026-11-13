@@ -17671,7 +17671,7 @@ describe('ExecutionEngineService', () => {
           );
 
           expect(errorInputs).toEqual([
-            { error: { code: 'Error', message: 'routed failure' } },
+            { error: { code: 'UNKNOWN_ERROR', message: 'routed failure' } },
           ]);
           expect(result.branches[0]).toEqual({ handled: true });
         });

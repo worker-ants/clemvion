@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "24c32b424c2a329042d7a8d48b1de02678d0f3a4053c74180e565d8796b1acef"
+content_hash: "dcddf9b113770b1837675dbe8bb2c4a1d4df19e82c2b531a74cf977b0849d2cb"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-KXARNK"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "db0124246de56b7b7e67e08e5171a2bea121c8f32da2b16f21269d998099af15"
-etag: "sha256-4f4a55d275ee643b9b7c8cb69aec6791a617c4891f8ae27b8296d0efd843b2aa"
+mirror_sha256: "cd3be464dc2918609edc565825222113a9751a12cfc0aef5ca8d12cc6d3caaf3"
+etag: "sha256-6664bacf31ee2d2124a159ac29b05ad045c4b5a939db20f19d74f74f75b6d6d9"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도·동적 에러 포트는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -34,7 +34,7 @@ etag: "sha256-4f4a55d275ee643b9b7c8cb69aec6791a617c4891f8ae27b8296d0efd843b2aa"
 1. ForEach·Map·Parallel 노드의 `config.errorHandling` 은 그 노드의 핸들러 호출이 실패할 때 적용한다.
 2. 본문 노드나 병렬 분기 안의 노드가 실패하면 그 노드 자신의 `config.errorHandling` 을 먼저 적용한다.
 3. 그 결과 반복 항목이나 병렬 분기 하나가 실패하면 ForEach·Map·Parallel 노드의 `config.errorPolicy` 를 적용한다.
-4. 반복 회차나 병렬 분기를 실행하는 단계에서 ForEach·Map·Parallel 노드 자신이 실패해도 그 노드의 `config.errorHandling` 은 적용하지 않는다. `config.errorPolicy` 가 `stop` 이라 노드가 실패한 경우와 메시지가 `CONTAINER_MISSING_EMIT: ` 로 시작하는 에러로 실패한 경우가 여기에 든다.
+4. 반복 회차나 병렬 분기를 실행하는 단계에서 ForEach·Map·Parallel 노드 자신이 실패해도 그 노드의 `config.errorHandling` 은 적용하지 않는다. `config.errorPolicy` 가 `stop` 이라 노드가 실패한 경우와 메시지가 `CONTAINER_MISSING_EMIT: ` 나 `CONTAINER_MULTIPLE_EMIT: ` 로 시작하는 에러로 실패한 경우가 여기에 든다.
 5. Parallel 은 `config.errorPolicy` 가 비었을 때만 `config.errorHandling.policy` 를 읽어 항목 에러 정책 값으로 바꿔 쓴다. 대응 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md)가 정한다. 이 예외를 둔 이유는 [두 키가 함께 있는 이유](#두-키가-함께-있는-이유)에 있다.
 
 레거시 평면 키 `config.errorPolicy` 의 단축값(`stop`, `skip`, `default_output`, `retry`, `error_port`)은 ForEach·Map·Parallel 이 아닌 노드에서만 에러 처리 정책으로 옮긴다. 설정 패널은 `config.errorHandling.policy` 가 없는 노드를 불러올 때 이 값을 대응하는 `policy`(`stop_workflow`, `skip_node`, `use_default_output`, `retry`, `route_to_error_port`)로 읽는다. 저장할 때는 `config.errorPolicy` 를 지운다. ForEach·Map·Parallel 에서는 이 키가 현행 항목 에러 정책이다. 그래서 설정 패널은 이 세 노드의 `config.errorPolicy` 를 에러 처리 정책으로 옮기지 않고 저장할 때 지우지도 않는다. 결정 근거는 [레거시 평면 키 이전 범위를 좁힌 이유](#레거시-평면-키-이전-범위를-좁힌-이유)에 있다.
@@ -146,6 +146,15 @@ flowchart TD
 5. 다음 노드는 `$node["X"].output.error?.code` 로 분기하거나 `$node["X"].port === 'error'` 로 판단한다.
 6. 멀티턴 AI 노드가 `max_retries` 같은 사유로 에러 종료하면 `output.error` 와 `output.result` 가 함께 있을 수 있다. 에러 여부는 `output.error` 가 있는지로 판단하고 부분 수집한 결과는 `output.result` 에서 읽는다.
 
+핸들러가 실패를 throw 하고 이 정책이 걸리면 엔진이 출력을 만든다(`error-policy.handler.ts`). `output` 은 `{ error: { code, message } }` 이고 `details` 는 싣지 않는다.
+
+- `message` 는 던진 Error 의 `message` 다. Error 가 아닌 값을 던지면 문자열로 바꾼 값이다.
+- `code` 는 ForEach · Map · Parallel 이 실패한 회차의 `error.code` 를 고르는 규칙(`resolveIterationErrorCode`)과 같다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4번). 던진 Error 가 백엔드가 직접 싣는 카탈로그 코드(예: `CAFE24_RATE_LIMITED` · `INTEGRATION_NOT_CONNECTED`)를 문자열 `code` 로 실으면 그 값이다. 그 밖은 `UNKNOWN_ERROR` 다. `code` 가 없는 평범한 `Error` · `TypeError`, Error 가 아닌 값, Node 런타임 · DB 드라이버가 싣는 `ECONNREFUSED` 같은 `code` 가 여기에 든다.
+- 취소(`AbortError` · `ExecutionCancelledError`)에는 정책을 적용하지 않으므로([1. 에러 처리 정책 다섯 가지](#1-에러-처리-정책-다섯-가지)) 이 출력이 생기지 않는다.
+- 엔진은 이 출력을 실행 캐시에만 쓴다. 노드 실행 기록에는 `error.message` 만 남는다. 그래서 다음 노드는 입력이나 `$node["X"].output.error.code` 표현식으로 이 값을 읽는다.
+
+`code` 를 이 규칙으로 고른 이유는 [throw 한 실패의 `error.code` 를 반복 결과와 같은 규칙으로 고른다](#throw-한-실패의-errorcode-를-반복-결과와-같은-규칙으로-고른다-2026-11-13) 에 있다.
+
 노드 카테고리별 대표 에러 코드는 아래와 같다. 전체 목록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 있다.
 
 | 노드 카테고리 | 코드 |
@@ -189,6 +198,7 @@ flowchart TD
 
 - **워크플로우 수준 자동 재시도의 구현 상태**: 이 문서 4절은 트리거·스케줄 자동 실행에 워크플로우 설정 재시도(기본 0, 최대 5)를 약속하고, [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md)의 자동 재시도 요구는 구현 완료로 표시돼 있다. 반면 워크플로우 설정(`Workflow.settings`)에는 재시도 키가 없고([워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)), 시작 큐(`execution-run`)는 `attempts:1` 로 애플리케이션 재시도를 하지 않는다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 코드에서 워크플로우 수준 재시도 구현을 찾지 못했다. 결정 필요: 4절을 미구현으로 표시하고 비기능 요구사항을 노드 재시도 기준으로 다시 쓸지, 기능을 구현할지.
 - **되돌아가는 연결선으로 다시 실행한 노드를 건너뛸 때 남는 앞 출력** (info): 노드 건너뛰기는 출력을 쓰지 않으므로 그 노드가 같은 실행에서 앞서 쓴 출력이 실행 캐시에 남는다. 다음 노드의 입력, 연결선 활성화, [서브 워크플로우의 최종 노드 출력](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#최종-노드-출력) 이 모두 그 앞 출력을 따른다. 건너뛸 때 앞 출력을 지울지 결정 필요.
+- **throw 경로의 에러 포트 라우팅**: 핸들러가 throw 한 실패에 `route_to_error_port` 가 걸리면 엔진은 출력에 고른 포트를 싣지 않는다. 그래서 출력 연결선이 포트와 상관없이 모두 활성화되고, error 연결선이 없어도 워크플로우를 중단하지 않는다(`ERROR_PORT_FALLBACK` 은 핸들러가 `port: 'error'` 로 돌려준 출력에만 걸린다). [1. 에러 처리 정책 다섯 가지](#1-에러-처리-정책-다섯-가지) 5번과 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5 가 적은 «연결선이 없으면 워크플로우 중단» 과 다르다. 결정 필요: 엔진을 문서대로 고칠지, 문서를 지금 동작에 맞출지(NERV Task `CLE-T-0R8F99`).
 
 ## 구현 위치
 
@@ -253,3 +263,17 @@ Parallel 이 `config.errorPolicy` 가 비었을 때 `config.errorHandling.policy
 기각한 대안은 엔진이 `null` 을 쓰게 바꾸는 안이다. 출력을 쓰면 Parallel 결과 노드 판정(REQ-PARALLEL-030)이 건너뛴 노드를 후보로 보게 되고 실행 캐시를 읽는 다른 규칙도 함께 바뀐다. 이번 정리는 문서를 동작에 맞추는 범위라 동작은 바꾸지 않았다.
 
 **기존 워크플로우 영향**: 엔진 동작은 바꾸지 않았으므로 실행 결과는 그대로다. 다만 옛 서술을 믿고 건너뛴 노드의 출력을 `null` 로 보고 짠 표현식은 처음부터 빈 값(`undefined`)을 받아 왔다. 그런 표현식이 `null` 과 엄격하게 비교하면 문서가 말한 결과와 다르게 나왔을 수 있으니 빈 값도 함께 검사하도록 고쳐야 한다. 같은 날 [노드 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md#에러-처리-정책-설정) 의 정책 표도 고쳤고 사용자 가이드의 같은 설명은 NERV Task `CLE-T-1JZFZW` 가 고친다.
+
+### throw 한 실패의 `error.code` 를 반복 결과와 같은 규칙으로 고른다 (2026-11-13)
+
+**결정**: 핸들러가 throw 한 실패에 `route_to_error_port` 가 걸릴 때 `output.error.code` 를 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4번 규칙(`resolveIterationErrorCode`)으로 고른다. 카탈로그 코드는 그대로 내고 그 밖은 `UNKNOWN_ERROR` 다. 사람이 정했다(NERV 질문 `01a1d2f4-3808-72c5-b859-5a6c7b295c9d`, NERV Task `CLE-T-KXARNK`).
+
+**근거**: 전에는 던진 Error 의 `name` 을 그대로 실었다. 값은 대부분 `Error` · `TypeError` 였고 일부는 `IntegrationError` · `MakeshopRateLimitedError` 같은 클래스 이름이었다. Error 가 아닌 값을 던져도 `Error` 였다. 이 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 2(`UPPER_SNAKE_CASE`)와 규칙 8(발행하는 코드는 카탈로그에 둔다)을 따르지 않았다. ForEach · Map · Parallel 의 실패 회차도 같은 문제가 있었고 2026-11-05 에 이 함수로 고쳤다(NERV Task `CLE-T-REC4X3`). 같은 실패가 반복 결과와 에러 포트에서 다른 코드를 내지 않도록 같은 함수를 쓴다. `UNKNOWN_ERROR` 는 이미 카탈로그 §6.6 에 있어서 새 코드는 만들지 않았다. §6.6 의 설명은 아직 반복 · 병렬 결과만 적는다. 이 경로를 더하는 일은 NERV Task `CLE-T-14VQC2` 가 맡는다.
+
+**기존 워크플로우 영향**: 이 값은 실행 캐시에만 있어서 다음 노드의 입력과 표현식으로만 보인다. `$node["X"].output.error.code == "Error"` 처럼 옛 값으로 나누던 표현식은 `UNKNOWN_ERROR` 와 비교하도록 고쳐야 한다. 옛 값을 따로 남기는 장치는 두지 않았고 사용자 가이드에 바뀐 값과 비교법을 안내했다.
+
+**기각한 대안** (2026-11-13 사용자 선택):
+
+- 원래 클래스 이름을 `error.details.name` 에 함께 남긴다: 옛 분기를 옮기기는 쉽다. 하지만 [노드 출력 규약 3.2.1](CLE-NODE-OUTPUT.md#321-details-의-공통-표준-필드) 에 없는 공통 필드를 새로 만들어야 한다. 지금 이 값을 읽는 길은 표현식 하나뿐이라 그 비용이 얻는 값보다 크다고 봤다.
+- 바꾸지 않고 `error.name` 을 예외로 둔다: 카탈로그 밖 값이 계속 나가고 반복 결과와 값이 갈린다.
+- 카탈로그에 없는 실패에 이 정책 전용 새 코드를 쓴다: 카탈로그 등재를 먼저 해야 하고, 같은 실패가 반복 결과(`UNKNOWN_ERROR`)와 다른 코드를 낸다. 질문에 예로 든 `NODE_EXECUTION_FAILED` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.6 이 노드 출력에 더 이상 쓰지 않는다고 적은 옛 코드라 그대로 쓸 수도 없다.

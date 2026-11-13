@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { resolveIterationErrorCode } from '../containers/iteration-error-code';
 
 export type ErrorPolicy =
   | 'stop_workflow'
@@ -75,11 +76,14 @@ export class ErrorPolicyHandler {
       }
 
       case 'route_to_error_port':
+        // `code` 는 ForEach · Map · Parallel 의 실패 회차와 같은 규칙으로 고른다. 카탈로그 코드는
+        // 그대로, 그 밖은 `UNKNOWN_ERROR` 다(NERV Task `CLE-T-KXARNK`, 규칙의 정의는 NERV
+        // CLE-NODE-ERROR 「2. 에러 포트로 라우팅」).
         return {
           action: 'route_error',
           output: {
             error: {
-              code: error.name,
+              code: resolveIterationErrorCode(error),
               message: error.message,
             },
           },
