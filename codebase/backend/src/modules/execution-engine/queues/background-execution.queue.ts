@@ -53,7 +53,10 @@ export interface BackgroundExecutionJob {
   itemContext?: ExecutionContext['itemContext'];
   /** 같은 규칙의 Loop 반복 변수(`$loop`) 스냅샷. */
   loopContext?: ExecutionContext['loopContext'];
-  /** 메인 흐름에서 컨테이너로 전달된 입력 (snapshot) */
+  /**
+   * Background 노드가 받은 입력의 스냅샷. 본문 진입 노드가 이 값을 입력으로 받는다
+   * (CLE-NODE-BACKGROUND 본문 진입 입력 표, CLE-T-TDAV1G).
+   */
   input: unknown;
   /** Snapshot of context.variables at enqueue time. */
   variables: Record<string, unknown>;

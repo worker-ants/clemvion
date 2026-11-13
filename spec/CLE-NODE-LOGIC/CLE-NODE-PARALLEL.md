@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032", "REQ-PARALLEL-033", "REQ-PARALLEL-034", "REQ-PARALLEL-035", "REQ-PARALLEL-036", "REQ-PARALLEL-037"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "fba24757632b3b4d8f43c4f60222b358659cf19dfe09c4140e9abf095c4e6cb3"
+content_hash: "d70b42daf5dc20415fe9f484f9a845037a679e99919ee64f173284a27edbd929"
 read_as: "approved_fallback"
-task: "CLE-T-BTR4ZA"
+task: "CLE-T-X3YE55"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "fe4cfcac9df60bc8d4a96bd4fdf80e06555da596e9f4abb515b5182b1e63ceb5"
-etag: "sha256-11254dfbcbebbf407322baf4ee8cfcf8e2571be82571a6612c06fae0da554b77"
+mirror_sha256: "83233cb7bfed022b8cf3fd0c1a806190a73a2833c63100cff0390bafae8645d6"
+etag: "sha256-ed3904dc8eaa0863815e79e10b278fbd058537d31b7e93201f2ff08413423e59"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -162,6 +162,8 @@ Parallel 은 워크플로우 맨 바깥, 다른 Parallel 의 병렬 분기 안, 
 컨테이너 반복 회차는 컨테이너가 받은 컨텍스트를 그대로 쓴다. 그래서 병렬 분기 안 컨테이너 본문의 Parallel 은 바깥 병렬 분기 컨텍스트의 `parentParallelConcurrency` 를 보고 깊이 2 로 실행한다(REQ-PARALLEL-035). 바깥 × 안쪽 동시 실행 수 곱이 32를 넘으면 안쪽 동시 실행 수를 줄이고 `meta.clampedConcurrency` 에 남긴다(REQ-PARALLEL-025).
 
 동기 서브 워크플로우는 실행하는 동안 호출한 쪽 컨텍스트의 `parentParallelConcurrency` 를 떼어 둔다. 서브 워크플로우가 끝나면 실패했더라도 그 값을 되돌린다. 그래서 서브 워크플로우의 Parallel 은 깊이 1 부터 센다(REQ-PARALLEL-036). 병렬 분기 안에서 부른 서브 워크플로우의 Parallel 에는 호출한 쪽의 곱 상한이 걸리지 않으므로 동시 실행 수가 바깥 16 × 서브 워크플로우 16 까지 늘 수 있다. Background 본문은 새 컨텍스트에서 실행하므로 깊이 1 부터 센다.
+
+컨테이너 본문 안이나 그 안의 병렬 분기에서 큐에 넣은 Background 는 깊이를 새로 세지만 그 회차의 반복 변수(`itemContext` · `loopContext`)는 복사해 받는다. 그래서 Background 본문의 식은 큐에 넣은 회차의 `$item` · `$loop` 를 읽는다([컨테이너 실행 §컨테이너 본문 안 Background](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background), [Background 노드](CLE-NODE-BACKGROUND.md#요구사항) REQ-BGRUN-028).
 
 깊이 검사는 병렬 분기나 반복 회차가 시작되기 전에 한다(REQ-PARALLEL-037). 바깥 Parallel 은 병렬 분기 본문을 계획할 때(`planParallelBody`) 본문에서 안쪽 Parallel 이나 컨테이너를 만나면 그 본문까지 내려가 검사한다. 컨테이너 본문은 `containerId` 로 찾고 중첩된 컨테이너 본문까지 내려간다. 컨테이너도 시작할 때 첫 반복 전에 자기 본문의 Parallel 깊이를 검사한다(`runContainerInner`). 에디터의 연결선 체인 규칙 때문에 컨테이너 안 Background 의 `background` 연결선 뒤 노드도 그 컨테이너의 `containerId` 를 가진다. 두 사전 검사는 컨테이너 본문 노드 가운데 Background 본문으로만 닿는 노드를 골라(`collectBackgroundOnlyNodeIds`) 그 안의 Parallel 을 깊이 1 부터 센다. 회차 본문에서도 닿는 노드는 회차 루프가 실행하므로 컨테이너 본문 깊이로 센다. 회차 안에서 처음 검사하면 깊이 위반이 회차 하나의 실패가 되어 컨테이너의 `errorPolicy` 가 흡수하고 병렬 분기 안이면 바깥 Parallel 의 `continue` 도 흡수한다. 미리 검사하면 위반이 실행 실패로 드러난다.
 

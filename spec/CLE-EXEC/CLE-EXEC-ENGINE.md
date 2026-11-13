@@ -2,19 +2,19 @@
 id: "CLE-EXEC-ENGINE"
 title: "실행 엔진 개요와 그래프 순회"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "c5d2afa4f86aa4471324115013425b22ba82273b1a7693d17e4e4e6815882352"
+content_hash: "f9c4bc5be2adb161c2cfddddbff35803afee02028559cfe0651b38709fff62dc"
 read_as: "approved_fallback"
-task: "CLE-T-J6GRJ9"
+task: "CLE-T-X3YE55"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "f253792aef1a80fd6c64935e497a9ec95f44854a7a81fbe20489606a9dbbdbc2"
-etag: "sha256-6bf48d22a3ab464b9abf02315e62c4df92aab666e2d06dd42bf3e80b076609d3"
+mirror_sha256: "f58446d14d47734dc974502d258bfc8859dc32e9f41440774a7a4b173228b284"
+etag: "sha256-df32d6c8894a80e5d8dd5c2a48fec085b60514c4667c0a134c04cca97d2ec015"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (Overview, §2, Rationale "C-1 god-class strangler-fig 분할"·"park 즉시 해제 + slow-path 일원화" 중 registry 항목과 `runNodeDispatchLoop` 반환 계약) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -175,6 +175,8 @@ dispatch 루프 `runNodeDispatchLoop` 는 `Promise<{ parked: boolean }>` 를 돌
 - 컨테이너를 실행할 때 본문 노드의 실행 순서를 따로 계산한다.
 - 본문 그래프는 글로벌 순환 검사에서 뺀다.
 - 컨테이너 경계를 넘는 연결선의 취급은 정의가 갈린다. [미결 사항](#미결-사항) 참조. 본문과 바깥의 데이터는 컨테이너 포트(`body`·`emit`·`done`)로 오간다.
+
+Background 본문 워커도 이 단계 구분을 따른다. 작업에 컨테이너 ID(`containerScopeId`)가 있으면 워커는 그 컨테이너의 본문 노드만으로 그래프를 만들어 본문 진입점부터 실행한다. 큐에 넣은 뒤 그 컨테이너가 지워졌으면 그래프가 비어 본문을 실행하지 않고 오류 없이 끝난다. 필드가 없는 작업은 [실행 순서 결정](#실행-순서-결정) 의 맨 바깥 그래프로 실행한다([컨테이너 실행 §컨테이너 본문 안 Background](CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)).
 
 ### 도구 영역 노드
 
