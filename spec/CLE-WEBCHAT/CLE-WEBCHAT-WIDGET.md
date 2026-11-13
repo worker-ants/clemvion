@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-WIDGET"
 title: "웹채팅 위젯"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-WCWIDGET-001", "REQ-WCWIDGET-002", "REQ-WCWIDGET-003", "REQ-WCWIDGET-004", "REQ-WCWIDGET-005", "REQ-WCWIDGET-006", "REQ-WCWIDGET-007", "REQ-WCWIDGET-008", "REQ-WCWIDGET-009", "REQ-WCWIDGET-010", "REQ-WCWIDGET-011", "REQ-WCWIDGET-012", "REQ-WCWIDGET-013", "REQ-WCWIDGET-014", "REQ-WCWIDGET-015", "REQ-WCWIDGET-016", "REQ-WCWIDGET-017", "REQ-WCWIDGET-018", "REQ-WCWIDGET-019", "REQ-WCWIDGET-020", "REQ-WCWIDGET-021", "REQ-WCWIDGET-022", "REQ-WCWIDGET-023", "REQ-WCWIDGET-024", "REQ-WCWIDGET-025", "REQ-WCWIDGET-026", "REQ-WCWIDGET-027", "REQ-WCWIDGET-028", "REQ-WCWIDGET-029", "REQ-WCWIDGET-030", "REQ-WCWIDGET-031", "REQ-WCWIDGET-032", "REQ-WCWIDGET-033", "REQ-WCWIDGET-034", "REQ-WCWIDGET-035", "REQ-WCWIDGET-036", "REQ-WCWIDGET-037", "REQ-WCWIDGET-038", "REQ-WCWIDGET-039", "REQ-WCWIDGET-040", "REQ-WCWIDGET-041", "REQ-WCWIDGET-042", "REQ-WCWIDGET-043", "REQ-WCWIDGET-044", "REQ-WCWIDGET-045", "REQ-WCWIDGET-046", "REQ-WCWIDGET-047", "REQ-WCWIDGET-048", "REQ-WCWIDGET-049", "REQ-WCWIDGET-050", "REQ-WCWIDGET-051", "REQ-WCWIDGET-052", "REQ-WCWIDGET-053", "REQ-WCWIDGET-054", "REQ-WCWIDGET-055", "REQ-WCWIDGET-056"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "339596dc216d9527db1bbd4a59f77efcc881adce5051132669f9f6ede689b09f"
+content_hash: "5225ba97f31faa03bc572d93adf934ff5724005046ed7e1636b2d55b0b26f1c7"
 read_as: "approved_fallback"
-task: "CLE-T-QB5D34"
+task: "CLE-T-GYRSVK"
 source_paths: ["spec/7-channel-web-chat/1-widget-app.md"]
-mirror_sha256: "856b84b5b5a587ff7b3a9db9d22181ba074daa4eb1dd01775443beb47eed6ed1"
-etag: "sha256-88e78d057745f2d22c3366742bc83d603e26d1dcfa53075f01ff09759e881f14"
+mirror_sha256: "5f4e926e2b31f726dfe649f734eafe91886c100709e58bcd0784cb4852455004"
+etag: "sha256-cca6628e0a095fcd5c01eb65d5e278b15e71d0a93b5daca531a98fff35c00173"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/1-widget-app.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -26,7 +26,7 @@ etag: "sha256-88e78d057745f2d22c3366742bc83d603e26d1dcfa53075f01ff09759e881f14"
 
 ## 요구사항
 
-- REQ-WCWIDGET-001 WHEN 위젯을 빌드하면 THE SYSTEM SHALL `output: 'export'` 정적 번들로 내보내 Node 서버 런타임 없이 CDN 에서 서빙한다.
+- REQ-WCWIDGET-001 WHEN 위젯을 빌드하면 THE SYSTEM SHALL `output: 'export'` 정적 번들로 내보내 Node 서버 런타임 없이 위젯 배포 주소에서 정적 파일로 서빙한다.
 - REQ-WCWIDGET-002 WHEN 위젯 UI 컴포넌트를 만들면 THE SYSTEM SHALL 모든 컴포넌트를 Client Component(`'use client'`)로 두고 Server Component 데이터 페칭·Server Actions·Route Handlers 를 쓰지 않는다.
 - REQ-WCWIDGET-003 WHEN 채팅 화면을 불러오면 THE SYSTEM SHALL `next/dynamic` 과 `ssr: false` 로 불러와 prerender 단계에서도 SSR 을 뺀다.
 - REQ-WCWIDGET-004 WHEN 사용자가 런처의 추천 질문 버블을 누르면 THE SYSTEM SHALL 패널을 열고 그 텍스트를 큐에 담는다.
@@ -52,11 +52,11 @@ etag: "sha256-88e78d057745f2d22c3366742bc83d603e26d1dcfa53075f01ff09759e881f14"
 - REQ-WCWIDGET-024 WHEN 어느 진입점(패널 열기 즉시 시작·`[ended]` CTA·헤더 "새 대화"·호스트 `resetSession`)에서든 실행을 시작하면 THE SYSTEM SHALL 진행 중인 웹훅 시작 요청을 최대 1개, 살아 있는 실행을 최대 1개로 제한한다.
 - REQ-WCWIDGET-025 WHILE 위젯 대화 상태가 `booting` 인 동안 THE SYSTEM SHALL 새로 들어온 호스트 `resetSession` 을 진행 중인 시작에 합치고 두 번째 웹훅 요청과 두 번째 실행을 만들지 않는다.
 - REQ-WCWIDGET-026 IF 재로드 복원이 토큰 만료나 복구 불가 응답으로 끝나면 THE SYSTEM SHALL `[ended]` 와 "대화 종료, 새로 시작" 안내를 표시한다.
-- REQ-WCWIDGET-027 WHEN 호스트 페이지가 새로고침되면 THE SYSTEM SHALL sessionStorage 의 위젯 세션으로 상태를 조회하고 SSE 를 다시 연결해 대화를 복원한다.
+- REQ-WCWIDGET-027 WHEN 새로고침 뒤 위젯 세션을 복원하면 THE SYSTEM SHALL 대기 표면을 받거나 종료가 확정될 때까지 위젯 대화 상태를 `streaming` 으로 둔다.
 - REQ-WCWIDGET-028 WHEN SSE 가 끊겼다가 다시 연결하면 THE SYSTEM SHALL 마지막으로 받은 이벤트의 `Last-Event-Id` 로 연결한다.
 - REQ-WCWIDGET-029 WHEN `execution.replay_unavailable` 을 받으면 THE SYSTEM SHALL 상태 조회 스냅샷으로 현재 표면을 다시 맞추고 스트림과 위젯 세션은 유지한다.
 - REQ-WCWIDGET-030 IF 재동기화 스냅샷의 상태가 종료(`completed`·`failed`·`cancelled`)면 THE SYSTEM SHALL 위젯 세션을 정리하고 `[ended]` 로 바꾸며 호스트에 `conversationEnded` 를 알린다.
-- REQ-WCWIDGET-031 IF 세션을 복원할 때 스냅샷이 이미 종료 상태면 THE SYSTEM SHALL SSE 를 다시 열지 않고 토큰 갱신도 예약하지 않는다.
+- REQ-WCWIDGET-031 IF 세션을 복원할 때 스냅샷이 이미 종료 상태면 THE SYSTEM SHALL 대화 표면 대신 `[ended]` 화면을 보인다.
 - REQ-WCWIDGET-032 WHEN 메시지 리스트를 그리면 THE SYSTEM SHALL `waiting_for_input.conversationThread.turns` 스냅샷과 로컬 라이브 이벤트를 소스로 쓰고 `ai_message.messages[]` 원본을 직접 보이지 않는다.
 - REQ-WCWIDGET-033 WHEN 대화 기록 항목을 말풍선으로 그리면 THE SYSTEM SHALL `presentation_user`·`ai_user` 를 user 로, `ai_assistant`·`ai_tool`·`system` 을 assistant 로 그린다.
 - REQ-WCWIDGET-034 WHEN 대화 기록 항목의 텍스트를 그리면 THE SYSTEM SHALL `[user-input]…[/user-input]` 마커를 지운다.
@@ -85,7 +85,7 @@ etag: "sha256-88e78d057745f2d22c3366742bc83d603e26d1dcfa53075f01ff09759e881f14"
 
 ## Next.js CSR 전용 구성
 
-- `next.config.js` 는 `output: 'export'` 다. 정적 export 라 Node 서버 런타임이 없고 CDN 에서 서빙한다.
+- `next.config.js` 는 `output: 'export'` 다. 정적 export 라 Node 서버 런타임이 없고 위젯 배포 주소에서 정적 파일로 서빙한다. 위젯 배포 주소의 기본값은 배포 자신의 origin 에 동봉한 경로이고 외부 CDN 은 선택이다([웹채팅 구조](CLE-WEBCHAT-ARCH.md#동봉-배포와-버전-잠금)).
 - 모든 UI 컴포넌트는 Client Component(`'use client'`)다. 데이터 페칭과 상태는 모두 브라우저 런타임에서 처리한다.
 - Server Component 데이터 페칭·Server Actions·Route Handlers 는 쓰지 않는다.
 - 채팅 화면은 `next/dynamic(() => import(...), { ssr: false })` 로 불러와 prerender 단계에서도 SSR 을 뺀다.
@@ -157,6 +157,8 @@ stateDiagram-v2
   note right of collapsed: 닫기는 어느 상태에서든 패널만 접고 대화를 유지한다
 ```
 
+이 도표는 패널을 펼쳐 대화를 시작하는 라이브 경로만 그린다. 그리지 않은 경로가 둘 있다. 시작 직후 상태 조회가 이미 종료를 돌려주면 웹훅 `202` 로 `streaming` 이 된 직후 `[ended]` 로 간다. 새로고침 복원은 `panel`·`booting` 을 거치지 않고 `collapsed` 에서 바로 `streaming` 으로 간다. 그 뒤 상태 조회가 종료를 돌려주면 `[ended]` 로 끝난다. 두 경로의 종료 판정은 [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md#재로드-복원) 「재로드 복원」의 `200` + 종료 행과 같다. 복원 중 화면은 [새로고침 복원 화면](#새로고침-복원-화면)에 있다.
+
 - **시작 시점**: 패널을 처음 펼칠 때(런처 클릭) 워크플로우를 시작한다. 정적 환영 메시지와 추천 질문을 바로 그리면서 동시에 실행을 시작한다(`POST /api/hooks/:path { profile }`). 첫 `waiting_for_input` 의 `interactionType` 에 따라 첫 표면을 그대로 그린다. `ai_conversation` 이면 입력창과 환영 메시지, `buttons`·carousel 이면 선택지, `form` 이면 폼이다. 그래서 첫 노드가 AI 가 아닌 워크플로우(예: 카테고리 선택 캐러셀)도 패널을 열자마자 그 표면이 보인다. 위젯은 시작 전에 첫 노드 타입을 알 수 없으므로 표면을 보여 주려면 실행을 먼저 시작해야 한다.
 - **토큰 낭비 없음**: AI 에이전트 노드의 멀티턴(`multi_turn`)은 첫 사용자 메시지 전에는 LLM 을 부르지 않고 바로 입력 대기로 들어간다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)). 패널을 열기만 해서 생기는 비용은 입력 대기 실행 행 하나뿐이다(LLM 토큰 0).
 - **`firstMessage` 미사용**: 웹훅 페이로드에는 `profile` 만 싣는다. 첫 사용자 텍스트도 일반 `submit_message` 로 보내 AI 의 첫 턴이 된다. 멀티턴은 트리거 입력을 첫 턴으로 쓰지 않기 때문이다.
@@ -179,6 +181,16 @@ single-flight 합치기, 확립된 대화의 새 대화 전 `cancel`, 서버 쪽
 - 사용자별 여러 대화 목록은 비목표다. 사용자 식별(추후)과 사용자별 실행 목록 API 가 먼저 있어야 한다.
 - 새 대화의 명령 순서와 종료 이벤트 경합은 [미결 사항](#미결-사항) 참조.
 
+### 새로고침 복원 화면
+
+재로드 절차와 판정은 [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md#재로드-복원) 「재로드 복원」이 정하고 이 문서는 그 결과를 화면에 그리는 부분만 다룬다.
+
+- 복원은 패널을 열지 않는다. 런처가 그대로 보이고 사용자가 누르면 패널이 열린다. 이때 새 실행을 시작하지 않는다.
+- 위젯 대화 상태는 `collapsed` 에서 바로 `streaming` 으로 가고 대기 표면을 받거나 종료가 확정될 때까지 그대로다(REQ-WCWIDGET-027).
+- 그동안 패널을 열면 전송 버튼에 스피너가 보이고 입력창은 꺼진다(REQ-WCWIDGET-039 · 040). 위젯 세션이 이미 있으므로 헤더의 "새 대화"·"대화 종료" 도 보인다.
+- 상태 조회가 대기 표면을 주면 그 표면과 과거 대화를 그린다.
+- 세션을 복원할 때 스냅샷이 이미 종료 상태면 대화 표면 대신 `[ended]` 화면을 보인다(REQ-WCWIDGET-031). 그 판정과 SSE · 토큰 갱신 처리는 [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md#재로드-복원) REQ-WCSESS-021 · 022 를 따른다.
+
 ### 명령 실패
 
 입력·선택·제출 명령(`interact`)이 실패해도 그 실패로 종료가 확정되지 않으면 대화를 끝내지 않는다(REQ-WCWIDGET-053). 위젯 세션과 SSE 를 그대로 두고 현재 표면에서 다시 보내게 한다. 종료로 보지 않는 이유는 [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) Rationale 「`410` 이 아닌 명령 실패는 종료가 아니다」에 있다.
@@ -186,8 +198,8 @@ single-flight 합치기, 확립된 대화의 새 대화 전 `cancel`, 서버 쪽
 | 응답 | 동작 |
 |---|---|
 | `410 Gone` | 종료로 확정한다. 위젯 세션을 지우고 `[ended]` 로 바꾼다(REQ-WCSESS-030) |
-| `401` | 주기 갱신과 같은 refresh 진입점으로 갱신을 한 번 시도한다. 갱신이 `401`·`410` 으로 거부되면 종료로 확정한다. 갱신에 성공하거나 네트워크 에러·5xx 로 실패하면 아래 공통 처리를 한다. 명령은 다시 보내지 않는다(REQ-WCSESS-038~040) |
-| `409 STATE_MISMATCH` | 공통 처리를 하고 상태 조회 스냅샷으로 현재 표면을 다시 맞춘다. 버퍼 만료 재동기화처럼 스트림이 열려 있어도 다시 그린다. 스냅샷이 종료 상태면 종료로 확정한다(REQ-WCWIDGET-055) |
+| `401` | 주기 갱신과 같은 refresh 진입점으로 갱신을 한 번 시도한다. 갱신이 `401`·`410` 으로 거부되면 종료로 확정한다. 갱신에 성공하거나 그 밖의 이유(`400`·`403`·`429`·5xx·네트워크 에러)로 실패하면 아래 공통 처리를 한다. 명령은 다시 보내지 않는다(REQ-WCSESS-038~040) |
+| `409 STATE_MISMATCH` | 공통 처리를 하고 상태 조회 스냅샷으로 현재 표면을 다시 맞춘다. 버퍼 만료 재동기화처럼 스트림이 열려 있어도 다시 그린다. 조회가 뜬 사이 다음 명령을 보냈을 때의 처리는 [SSE 재연결](#sse-재연결)과 같다. 스냅샷이 종료 상태면 종료로 확정한다(REQ-WCWIDGET-055) |
 | `400 VALIDATION_ERROR`(`submit_form`) | Form 과 입력값을 그대로 두고 `details[].message` 를 그 `field` 의 입력 칸에 표시한다(REQ-WCWIDGET-041). `details[]` 가 없으면 공통 처리를 한다 |
 | 그 밖(`400`·`429`·5xx·`503 EXECUTION_ENQUEUE_FAILED`·네트워크 에러) | 공통 처리 |
 
@@ -198,7 +210,7 @@ single-flight 합치기, 확립된 대화의 새 대화 전 `cancel`, 서버 쪽
 - 명령 실패 안내(catalog `error.commandFailed`)를 보인다. 서버 원문은 보이지 않는다([웹채팅 보안](CLE-WEBCHAT-SECURITY.md)). 다음 명령을 보내거나 새 대기 표면을 받으면 지운다(REQ-WCWIDGET-056).
 - 자동으로 다시 보내지 않는다.
 
-`details[].message` 는 EIA 가 사용자에게 보이려고 만든 필드 검증 문구다. 백엔드 페이로드라 번역하지 않고 받은 그대로 그린다(REQ-WCWIDGET-051).
+`details[].message` 는 EIA 가 사용자에게 보이려고 만든 필드 검증 문구다. 백엔드 페이로드라 번역하지 않고 받은 그대로 그린다(REQ-WCWIDGET-051). 이 문구는 위젯 `locale` 을 따르지 않는 예외다. 서버가 정한 언어(지금은 한국어)로 오므로 영어 위젯에도 한국어 문구가 보일 수 있다(알려진 한계). 서버 원문을 보이지 않는다는 [웹채팅 보안](CLE-WEBCHAT-SECURITY.md) REQ-WCSEC-026 의 예외이기도 하다. 예외로 두는 이유는 이 문구가 폼 노드의 검증 규칙에서 만든 문장이라 사용자가 넣은 값을 싣지 않기 때문이다. 문장에 들어가는 값은 폼 설정의 한도(최소 길이 · 최댓값 · 파일 크기 등)뿐이다.
 
 ### SSE 재연결
 
@@ -206,9 +218,11 @@ iframe 이 일시 중지되거나 네트워크가 잠깐 끊겨 SSE 가 끊기�
 
 버퍼(5분)가 만료된 뒤 다시 연결하면 놓친 이벤트를 다시 받을 수 없다. 이때는 상태 조회 `GET /api/external/executions/:id` 의 스냅샷(현재 `conversationThread`)으로 다시 맞춘다. 서버는 버퍼가 요청 범위를 채우지 못하면 `execution.replay_unavailable` 을 보내고 위젯은 이 이벤트를 받으면 상태 조회 스냅샷으로 현재 표면을 다시 맞춘다(`use-widget.ts` `handleEiaEvent` → `seedWaitingFromStatus`). 이 신호는 종료를 뜻하지 않으므로 스트림과 위젯 세션을 유지하고 이후 이벤트를 그대로 처리한다.
 
+재동기화 상태 조회가 뜬 사이 사용자가 다음 명령을 보냈으면 그 스냅샷으로 표면을 다시 그리지 않는다. 늦게 온 스냅샷이 방금 보낸 입력과 말풍선을 덮지 않게 하려는 것이다. 스냅샷이 종료 상태면 그대로 종료로 확정한다. 명령을 보냈는지는 조회를 시작할 때와 응답을 받을 때의 명령 순번(`use-widget.ts` `commandSeqRef`)을 비교해 판정한다. 명령 `409` 뒤의 재동기화도 같다.
+
 재동기화 상태 조회가 `401` 을 받으면 재로드와 같은 복구를 한다([웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) REQ-WCSESS-024~027). 복구로 토큰이 바뀌었으면 새 토큰으로 상태를 한 번 더 조회한다(REQ-WCWIDGET-052). 그 왕복에서는 표면을 그리지 못했는데, 재로드 · 시작 경로와 달리 이 경로는 스트림이 이미 열려 있고 버퍼도 비어 있어 `waiting_for_input` 을 다시 받을 길이 없기 때문이다. 두 번째 조회도 `401` 이면 그 안의 복구가 새 토큰으로 refresh 를 보내고, 그것도 `401`·`410` 으로 거부되면 종료로 확정한다. 더 반복하지 않는다. 한 번 더 조회할지는 위젯 세션의 토큰이 바뀌었는지로만 판정한다. 첫 조회가 성공한 사이 주기 갱신이 회전을 마친 드문 경우에도 한 번 더 조회하지만 같은 스냅샷을 다시 그릴 뿐이다. 복구가 refresh 를 따로 보내지 않고 주기 갱신과 진입점 하나를 함께 쓰는 이유는 [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) Rationale 「refresh 는 진입점 하나로 보낸다」에 있다.
 
-> **스냅샷이 이미 종료 상태면 종료로 확정한다.** 버퍼 공백 동안 실행이 `completed`·`failed`·`cancelled` 로 바뀌었다면 그 종료 이벤트도 버퍼와 함께 사라져 다시 오지 않는다. 서버는 신호를 보낸 뒤 연결만 유지하고 재전송하지 않는다. 이 경우 위젯은 표면을 시드하지 않고 위젯 세션을 정리해 `[ended]` 로 바꾸며 호스트에 `conversationEnded` 를 알린다. 이 예외가 없으면 위젯이 `streaming`("AI 응답 중")에 계속 멈춘다. 사용자 조작이 없는 구간이라 명령 `410` 으로 뒤늦게 알아챌 길도 없다. 같은 판정을 세션을 복원할 때도 적용한다. 종료로 확정되면 SSE 를 다시 열지 않고 토큰 갱신도 예약하지 않는다. 무효 토큰 스트림과 종료된 위젯 세션이 되살아나지 않게 하려는 것이다. 회귀 테스트는 `use-widget-eager-start.test.ts` 의 "버퍼 만료 재동기화" 와 "복원된 세션이 이미 terminal" 이다.
+> **스냅샷이 이미 종료 상태면 종료로 확정한다.** 버퍼 공백 동안 실행이 `completed`·`failed`·`cancelled` 로 바뀌었다면 그 종료 이벤트도 버퍼와 함께 사라져 다시 오지 않는다. 서버는 신호를 보낸 뒤 연결만 유지하고 재전송하지 않는다. 이 경우 위젯은 표면을 시드하지 않고 위젯 세션을 정리해 `[ended]` 로 바꾸며 호스트에 `conversationEnded` 를 알린다. 이 예외가 없으면 위젯이 `streaming`("AI 응답 중")에 계속 멈춘다. 사용자 조작이 없는 구간이라 명령 `410` 으로 뒤늦게 알아챌 길도 없다. 세션을 복원할 때 스냅샷이 이미 종료 상태인 경우는 [새로고침 복원 화면](#새로고침-복원-화면)에 있다. 회귀 테스트는 `use-widget-eager-start.test.ts` 의 "버퍼 만료 재동기화" 와 "복원된 세션이 이미 terminal" 이다.
 
 ### 가시성·profile 갱신·차단
 
@@ -242,11 +256,12 @@ iframe 이 일시 중지되거나 네트워크가 잠깐 끊겨 SSE 가 끊기�
 
 부팅 때 한 번 정해 위젯 전체에 고정한다. 위젯 안에서 언어를 바꾸는 토글은 비목표다. `locale` 을 바꾸려면 `wc:boot` 재전송이 아니라 iframe 을 다시 마운트해야 한다([웹채팅 SDK](CLE-WEBCHAT-SDK.md), [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)). 이 `locale` 은 위젯 UI 언어이며 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)의 안내 문구 언어(`languageLocale`)와 다르다.
 
-**번역 대상은 위젯 고유 문구다.** 전체 목록과 키 표는 구현 계획 문서에 있다.
+**번역 대상은 위젯 고유 문구다.** 전체 목록과 키는 위젯 문구 catalog(`codebase/channel-web-chat/src/lib/i18n/catalog.ts`)에 있다.
 
 - 대화 컨트롤("새 대화"·"대화 종료"·닫기·"새 대화 시작"), 2단계 확인 문구, 입력창 placeholder, 전송·"AI 응답 중" aria-label, 상태·에러(`GENERIC_ERROR_MESSAGE`, 명령 실패 안내), form "선택"·"제출", carousel 이전·다음, chart 범례, table·carousel 잘림 배너("총 N개 중 일부만 표시돼요.", table 무개수 "일부 행만 표시돼요.", carousel 무개수 "일부 항목만 표시돼요."), 런처 "채팅 열기"·안 읽음 배지.
 - 경계 규칙 (1): 위젯에 하드코딩한 기본값(예: `headerTitle` 이 없을 때 쓰는 "AI 어시스턴트")은 위젯 고유 문구라 번역한다. 운영자가 넣은 값은 번역하지 않는다.
 - 경계 규칙 (2): 이미 영어인 위젯 고유 문구(chart aria-label `pie chart` 등)도 ko 키를 새로 만들어 parity 를 맞춘다.
+- 경계 규칙 (3): Form 검증 실패 문구(`details[].message`)는 백엔드 페이로드라 번역 대상도 ko·en parity 대상도 아니다([명령 실패](#명령-실패)).
 
 **비대상**: 운영자 제공 콘텐츠(`headerTitle`·`welcome`·`launcher.suggestions`·`disclaimer`), 백엔드가 보낸 페이로드(표시물·form 의 `label`), AI 생성 본문. 위젯은 입력 언어 그대로 그린다.
 
@@ -266,7 +281,7 @@ iframe 이 일시 중지되거나 네트워크가 잠깐 끊겨 SSE 가 끊기�
 
 ### Next.js CSR 전용으로 만든다 (Vite SPA·SSR 기각)
 
-위젯은 iframe 안 SPA 라 SSR 의 이점(SEO·TTFB)이 없다. 정적 export 가 CDN 호스팅과 iframe 임베드에 가장 맞다. CSR 강제는 정적 export, 모든 컴포넌트 `'use client'`, 채팅 화면 `dynamic(ssr:false)`, route handler·server action 미사용으로 한다. Vite SPA 가 더 가볍지만 조직 표준(프론트엔드가 Next.js)과 사용자 요구에 맞춰 Next.js 를 쓴다. 정적 export 라 사실상 SPA 와 같다.
+위젯은 iframe 안 SPA 라 SSR 의 이점(SEO·TTFB)이 없다. 정적 export 가 정적 파일 호스팅(동봉 배포나 CDN)과 iframe 임베드에 가장 맞다. CSR 강제는 정적 export, 모든 컴포넌트 `'use client'`, 채팅 화면 `dynamic(ssr:false)`, route handler·server action 미사용으로 한다. Vite SPA 가 더 가볍지만 조직 표준(프론트엔드가 Next.js)과 사용자 요구에 맞춰 Next.js 를 쓴다. 정적 export 라 사실상 SPA 와 같다.
 
 ### 가시성과 패널을 두 축으로 나누고 updateProfile 은 소급하지 않는다
 
@@ -327,3 +342,5 @@ v1 위젯은 한국어 전용이라 `locale` 을 예약 필드로만 두었다([
 - **낙관적으로 그린 말풍선을 거둔다**: `400`·`409`·`429`·`503` 같은 거부 응답은 서버가 그 입력을 받지 않았다는 뜻이다. 말풍선을 남기면 대화 기록에 없는 메시지가 화면에만 남고 사용자는 다시 보내야 하는지 알 수 없다. 보낸 글은 입력창에 되돌려 다시 입력하지 않고 보낼 수 있게 한다. 네트워크 에러처럼 처리 여부를 알 수 없는 실패도 같이 거둔다. 실패 전에 SSE 로 새 응답이나 대기 표면이 왔으면 서버가 처리한 것이므로 거두지 않는다.
 - **자동으로 다시 보내지 않는다**: 위젯은 명령에 `Idempotency-Key` 를 붙이지 않는다. 네트워크 에러나 5xx 만으로는 서버가 명령을 처리했는지 알 수 없어서 자동 재전송은 같은 입력을 두 번 넣을 수 있다. 다시 보낼지는 화면을 본 사용자가 정한다.
 - **Form 검증 실패는 입력값을 남긴다**: `400 VALIDATION_ERROR` 뒤에도 실행은 입력 대기로 남는다([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)). 값을 지우면 사용자가 처음부터 다시 채워야 한다.
+
+Form 검증 실패 문구(`details[].message`)는 서버 원문을 보이지 않는다는 원칙의 예외로 두고 받은 그대로 보인다. 2026-11-12 사람 결정(NERV 질문 `01a1d025-512d-70ef-9fcf-94334d80d79e`)이다. 기각한 대안은 `details[].code` 로 catalog 문구를 고르는 것이다. 서버는 검증 규칙마다 다른 문장을 보내지만 `details[].code` 는 늘 `INVALID_FIELD` 하나다. 그래서 이 대안을 쓰면 "입력값을 확인해 주세요" 같은 일반 문구 하나만 남아 어떤 규칙에 걸렸는지와 문장에 적힌 한도를 잃는다.

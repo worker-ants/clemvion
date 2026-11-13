@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SECURITY"
 title: "웹채팅 보안"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-WCSEC-001", "REQ-WCSEC-002", "REQ-WCSEC-003", "REQ-WCSEC-004", "REQ-WCSEC-005", "REQ-WCSEC-006", "REQ-WCSEC-007", "REQ-WCSEC-008", "REQ-WCSEC-009", "REQ-WCSEC-010", "REQ-WCSEC-011", "REQ-WCSEC-012", "REQ-WCSEC-013", "REQ-WCSEC-014", "REQ-WCSEC-015", "REQ-WCSEC-016", "REQ-WCSEC-017", "REQ-WCSEC-018", "REQ-WCSEC-019", "REQ-WCSEC-020", "REQ-WCSEC-021", "REQ-WCSEC-022", "REQ-WCSEC-023", "REQ-WCSEC-024", "REQ-WCSEC-025", "REQ-WCSEC-026", "REQ-WCSEC-027", "REQ-WCSEC-028", "REQ-WCSEC-029", "REQ-WCSEC-030", "REQ-WCSEC-031"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "b11a2cf8fe0aa82afc030253a89c7a041037be630a913db3fc6365f1d521424b"
+content_hash: "c90f0ab2196b23ef9c7f3d5b53982ff50c0f450c93ec423efe03977a3f695c2a"
 read_as: "approved_fallback"
-task: "CLE-T-79PFHB"
+task: "CLE-T-7MSJJR"
 source_paths: ["spec/7-channel-web-chat/4-security.md"]
-mirror_sha256: "a2a5d410bf8d3b5d4def0c4da707d79073cab4c411f1d3eba89294fec328529b"
-etag: "sha256-d38faf2f9b14dc4714d610851733de80d06f14f10773c15bf6ed42c2cc3375cc"
+mirror_sha256: "f04cc3ec2904a60ad59a47267d738dd3729fb3f07a6373a27df719ca7e9555e0"
+etag: "sha256-90f01691713f2c67acea54f4c60829e5900295d80f78c900e451c79894b6abbd"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/4-security.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -41,19 +41,19 @@ etag: "sha256-d38faf2f9b14dc4714d610851733de80d06f14f10773c15bf6ed42c2cc3375cc"
 - REQ-WCSEC-011 IF 호스트 origin 을 알아낼 수 없으면 THE SYSTEM SHALL 임베드 검증을 통과시킨다.
 - REQ-WCSEC-012 WHEN 존재하지 않는 경로·DB 에러·인증 웹훅에 대한 embed-config 조회가 오면 THE SYSTEM SHALL 모두 `200` 과 `{ data: { allowlist: [], enforce: false } }` 로 똑같이 응답한다.
 - REQ-WCSEC-013 WHEN embed-config 에 응답하면 THE SYSTEM SHALL `Cache-Control: public, max-age=300` 을 붙인다.
-- REQ-WCSEC-014 WHEN 공개 웹훅에 대화 시작 요청이 오면 THE SYSTEM SHALL IP 마다 분당 10건의 시작 한도를 적용한다.
-- REQ-WCSEC-015 WHEN 공개 웹훅에 대화 시작 요청이 오면 THE SYSTEM SHALL IP 마다 시간당 신규 20건의 누적 상한을 적용한다.
+- REQ-WCSEC-014 WHEN 채팅 채널 트리거가 아닌 공개 웹훅에 대화 시작 요청이 오면 THE SYSTEM SHALL IP 마다 분당 10건의 시작 한도를 적용하고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT` 로 거부한다.
+- REQ-WCSEC-015 WHEN 채팅 채널 트리거가 아닌 공개 웹훅에 대화 시작 요청이 오면 THE SYSTEM SHALL IP 마다 시간당 신규 20건의 누적 상한을 적용하고 넘으면 `429 PUBLIC_WEBHOOK_HOURLY_LIMIT` 로 거부한다.
 - REQ-WCSEC-016 IF 클라이언트 IP 를 헤더(`X-Forwarded-For`, 신뢰할 때 `CF-Connecting-IP`)로 알아내지 못하면 THE SYSTEM SHALL 식별하지 못한 요청 전체를 공유 버킷 하나에 묶어 같은 한도를 적용한다.
 - REQ-WCSEC-017 WHEN 클라이언트 IP 를 정하면 THE SYSTEM SHALL `req.ip`·`req.socket.remoteAddress` 로 대신하지 않는다.
-- REQ-WCSEC-018 IF 공개 웹훅 요청 본문이 32KB 를 넘으면 THE SYSTEM SHALL 요청을 거부한다.
+- REQ-WCSEC-018 IF 채팅 채널 트리거가 아닌 공개 웹훅 요청 본문이 32KB 를 넘으면 THE SYSTEM SHALL 요청을 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 로 거부한다.
 - REQ-WCSEC-019 IF Redis 를 쓸 수 없거나 가드의 트리거 DB 조회가 실패하면 THE SYSTEM SHALL 요청을 통과시킨다(fail-open).
 - REQ-WCSEC-020 IF 가드의 트리거 DB 조회가 실패하면 THE SYSTEM SHALL `error` 레벨로 로그를 남긴다.
-- REQ-WCSEC-021 WHEN 인증 웹훅 요청이 오면 THE SYSTEM SHALL 공개 웹훅 호출 수 제한과 32KB 본문 한도를 적용하지 않는다.
+- REQ-WCSEC-021 WHEN 인증 웹훅이나 채팅 채널 트리거에 요청이 오면 THE SYSTEM SHALL 공개 웹훅 호출 수 제한과 32KB 본문 한도를 적용하지 않는다.
 - REQ-WCSEC-022 WHEN 위젯이 AI 메시지와 표시물을 그리면 THE SYSTEM SHALL `marked` + `DOMPurify` 의 허용 목록(`ALLOWED_TAGS`·`ALLOWED_ATTR`)으로 sanitize 한다.
 - REQ-WCSEC-023 WHEN 위젯이 링크를 그리면 THE SYSTEM SHALL URL 스킴을 http(s)·mailto·상대 경로·앵커로 제한하고 `target=_blank` 와 `rel="noopener noreferrer nofollow"` 를 붙인다.
 - REQ-WCSEC-024 WHEN 메인 앱 AI 어시스턴트 패널이 메시지를 그리면 THE SYSTEM SHALL `rehype-raw` 없이 raw HTML 을 텍스트로 escape 하고 `javascript:`·`data:` 같은 위험 스킴을 막는다.
 - REQ-WCSEC-025 IF sanitize 입력이 비었거나 공백뿐이면 THE SYSTEM SHALL 예외 없이 안전한 문자열을 돌려준다.
-- REQ-WCSEC-026 IF 서버나 예외에서 에러가 나면 THE SYSTEM SHALL 위젯 화면에 원문 대신 일반화 문구(`GENERIC_ERROR_MESSAGE`, catalog `error.generic`, 명령 실패는 `error.commandFailed`)만 보이고 원문은 `console.warn` 으로만 남긴다.
+- REQ-WCSEC-026 IF 서버나 예외에서 에러가 나면 THE SYSTEM SHALL 위젯 화면에 원문 대신 일반화 문구(`GENERIC_ERROR_MESSAGE`, catalog `error.generic`, 명령 실패는 `error.commandFailed`)만 보이고 원문은 `console.warn` 으로만 남긴다. 단 Form 검증 실패(`400 VALIDATION_ERROR`)의 `details[].message` 는 예외로 받은 그대로 보인다.
 - REQ-WCSEC-027 WHEN `apiBase` 를 iframe 쿼리나 `wc:boot` 로 받으면 THE SYSTEM SHALL 두 경로 모두 http(s) 스킴만 받아들인다.
 - REQ-WCSEC-028 IF `apiBase` 가 http(s) 스킴이 아니면 THE SYSTEM SHALL 그 필드만 버리고 `console.warn` 을 남기며 부팅은 계속한다.
 - REQ-WCSEC-029 WHEN 로더가 iframe 을 만들면 THE SYSTEM SHALL `sandbox="allow-scripts allow-forms allow-same-origin"` 을 붙인다.
@@ -71,7 +71,7 @@ etag: "sha256-d38faf2f9b14dc4714d610851733de80d06f14f10773c15bf6ed42c2cc3375cc"
 | iframe sandbox | `sandbox="allow-scripts allow-forms allow-same-origin"`(필요한 최소). `allow-same-origin` 은 위젯이 자기 쿠키·storage 에 접근하고 postMessage origin 고정을 유지하는 데 필요하다. 이 속성이 없으면 iframe 문서가 opaque origin 으로 강등된다. 트레이드오프는 same-origin 동봉 배포에서 같은 origin 의 악성 스크립트가 sandbox 를 벗어날 수 있다는 점이다. 동봉 위젯은 제품과 같은 릴리스로 나가 공급망 무결성이 보장되므로 허용한다. 외부 CDN(`NEXT_PUBLIC_WIDGET_CDN_BASE`)을 쓰는 환경은 cross-origin 이라 이 속성이 있어도 sandbox 탈출 위협이 없다 |
 | postMessage | 양방향 `event.origin` 검증. 방향별 방식은 [웹채팅 SDK](CLE-WEBCHAT-SDK.md). 토큰과 대화 내용은 호스트 페이지로 보내지 않는다 |
 | 토큰 노출 | 실행 단위 토큰만 쓰므로 클라이언트에 오래 사는 비밀이 없다. 단명 토큰은 sessionStorage 에 두어 탭을 닫으면 지워진다(다층 방어, [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md)) |
-| 에러 메시지 노출 | 임베드 위젯은 다른 사이트에서 돌므로 서버·예외 원문을 화면에 보이지 않는다. 일반화 문구(`GENERIC_ERROR_MESSAGE`)만 보이고 진단 원문은 `console.warn` 으로만 남긴다. 내부 구현과 인프라 정보가 드러나는 것을 줄인다. 에러 뒤의 상태 전이([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md). 시작·복원 실패는 `[ended]` + "새 대화 시작", 명령 실패는 현재 표면 유지)는 그대로 두고 표시 문구만 일반화한다. Form 검증 실패의 `details[].message` 는 EIA 가 사용자에게 보이려고 만든 필드 문구라 일반화하지 않는다. 표시 문구는 위젯 로컬 catalog(`error.generic`·`error.commandFailed`)를 `panel` 이 `t()` 로 그 언어에 맞게 그린다. 코드 기준은 `use-widget.ts` 의 `errMessage` |
+| 에러 메시지 노출 | 임베드 위젯은 다른 사이트에서 돌므로 서버·예외 원문을 화면에 보이지 않는다. 일반화 문구(`GENERIC_ERROR_MESSAGE`)만 보이고 진단 원문은 `console.warn` 으로만 남긴다. 내부 구현과 인프라 정보가 드러나는 것을 줄인다. 에러 뒤의 상태 전이([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md). 시작·복원 실패는 `[ended]` + "새 대화 시작", 명령 실패는 현재 표면 유지)는 그대로 두고 표시 문구만 일반화한다. Form 검증 실패의 `details[].message` 는 EIA 가 사용자에게 보이려고 만든 필드라 원문 그대로 보인다. 이 문구는 폼 노드의 검증 규칙에서 만든 문장이라 사용자가 넣은 값은 담지 않는다. 문장에 담길 수 있는 값은 폼 설정의 한도(최소 길이·최댓값·파일 크기 등)뿐이다. 한도는 그 폼을 쓰는 방문자에게 이미 보이는 설정이라 드러나도 위험이 없다. 자세한 동작은 [웹채팅 위젯 「명령 실패」](CLE-WEBCHAT-WIDGET.md#명령-실패)에 있다. 근거는 2026-11-12 사람 결정(NERV 질문 `01a1d025-512d-70ef-9fcf-94334d80d79e`)이다. 표시 문구는 위젯 로컬 catalog(`error.generic`·`error.commandFailed`)를 `panel` 이 `t()` 로 그 언어에 맞게 그린다. 코드 기준은 `use-widget.ts` 의 `errMessage` |
 | `apiBase` 입력 검증 | 두 입력 경로 모두 `apiBase` 를 http(s) 스킴만 받는다(`safeApiBase`). `javascript:`·`data:`·상대 경로를 fetch 기준 주소로 쓰지 않게 거른다. 맞지 않으면 그 필드만 무시하고 `console.warn` 을 남기며 부팅은 막지 않는다. 두 경로는 정상 임베드에서 차례로 모두 쓰인다. SDK 의 `resolveIframeTarget` 이 같은 `apiBase` 를 iframe `src` 쿼리에 실어 위젯이 마운트될 때 그 값으로 먼저 부팅을 시도하고 이어서 `wc:boot` postMessage 가 도착해 세대 판정으로 대체한다. 쿼리 경로를 "호스트 없는 직접 로드·샘플 전용" 으로 보고 없애면 모든 정상 임베드의 부트스트랩이 깨진다. 코드 기준은 `use-widget.ts` 의 `safeApiBase`·`configFromQuery`·`mergeBootConfig` |
 | 위젯 세션의 발급 주소 바인딩 | 저장된 위젯 세션(실행 ID + 토큰)은 발급할 때의 `apiBase` 에 묶인다. 재전송이 `apiBase` 를 바꾸면 옛 주소가 발급한 토큰을 새 주소로 보내지 않고 버린 뒤 다시 시작한다(`loadSession(path, apiBase)` 가 다르면 버린다). 이 축이 없으면 호스트가 `apiBase` 만 바꾼 재전송으로 A 주소의 자격을 B 주소에 흘릴 수 있다. 판정할 수 없으면 버린다(fail-closed). 근거는 [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) |
 | 호출 수 제한·남용 | EIA 자체 한도([External Interaction API](../CLE-IX/CLE-EIA.md)) + 공개 웹훅 남용 방어([아래](#공개-웹훅-남용-방어)) |
@@ -128,7 +128,7 @@ AI 메시지와 표시물을 마크다운·HTML 로 그리는 표면은 위젯�
 
 ## 공개 웹훅 남용 방어
 
-공개 AI 챗봇의 실제 위험은 인프라 부하와 LLM 토큰 비용이다. 인증 대신 여러 층으로 막는다. 이 방어는 웹채팅만이 아니라 인증 없는 모든 공개 웹훅에 걸린다. 설정 키, 에러 코드, Redis 키, 구현 파일 구조는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)에 있다. 이 절과 웹훅 문서 가운데 어느 쪽이 정책의 기준인지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+공개 AI 챗봇의 실제 위험은 인프라 부하와 LLM 토큰 비용이다. 인증 대신 여러 층으로 막는다. 이 방어는 웹채팅만이 아니라 인증 없는 모든 공개 웹훅에 걸린다. 채팅 채널 트리거는 해당 없다. 채팅 채널 트리거의 본문 한도와 방어는 [웹훅 「요청 제한과 남용 방어」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#요청-제한과-남용-방어)가 정한다. 설정 키, 에러 코드, Redis 키, 구현 파일 구조는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)에 있다. 정책·수치·응답 코드·설정 키의 기준은 [웹훅 「요청 제한과 남용 방어」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#요청-제한과-남용-방어)(REQ-WEBHOOK-019·041, [오류 표](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#수신-api))다. 이 절은 웹채팅 위협 모델에서 본 같은 방어를 적는다. REQ-WCSEC-014·015·018·021 의 수치와 코드는 웹훅 문서와 같아야 하고 다르면 웹훅 문서를 따른다.
 
 **v1 기본 적용**
 
@@ -141,7 +141,7 @@ AI 메시지와 표시물을 마크다운·HTML 로 그리는 표면은 위젯�
 - EIA 자체 호출 수 제한은 [External Interaction API](../CLE-IX/CLE-EIA.md)가 단일 기준이다. 이 문서는 값과 구현 상태를 옮겨 적지 않는다.
 - **워크플로우 쪽 비용 가드**: AI 노드의 대화당 최대 턴, 워크스페이스 일일 토큰·비용 예산을 두고 넘으면 우아하게 끝내는 방식이다. LLM 비용은 공개 챗봇의 핵심 위험이지만 이 가드는 실행 엔진·AI 노드 쪽 설계가 먼저 있어야 해서 현 시점 비목표다. 필요해지면 해당 영역 계획으로 시작한다.
 
-> **호출 수 제한 구현 특성(v1)**: Redis fixed-window 카운터를 쓴다. 윈도우 경계에서 최대 2배까지 몰릴 수 있다. 이 제한은 인증을 대신하지 않는 best-effort 다층 방어다. Redis 를 쓸 수 없을 때, 그리고 가드의 트리거 DB 조회가 실패할 때도 fail-open(정당한 웹훅 보호)이다. 다만 트리거 조회 실패 fail-open 은 공개 웹훅 보호를 잠시 무력화하므로 `error` 레벨로 기록해, 긴 DB 장애로 보호가 계속 빠지는 것을 모니터링이 일찍 잡게 한다. 더 강한 보장이 필요하면 sliding-window 로 바꾸는 것이 후속 후보다. 공개 트리거(`auth_config_id IS NULL`)에만 적용하고 인증 웹훅(서버 간 호출)은 그대로 통과한다. 이것은 호출 수 제한과 공개 32KB 본문 한도에만 해당하고 인증 웹훅의 본문 크기는 `/api/hooks/*` 라우트 범위 1MB body-parser 가 따로 막는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)).
+> **호출 수 제한 구현 특성(v1)**: Redis fixed-window 카운터를 쓴다. 윈도우 경계에서 최대 2배까지 몰릴 수 있다. 이 제한은 인증을 대신하지 않는 best-effort 다층 방어다. Redis 를 쓸 수 없을 때, 그리고 가드의 트리거 DB 조회가 실패할 때도 fail-open(정당한 웹훅 보호)이다. 다만 트리거 조회 실패 fail-open 은 공개 웹훅 보호를 잠시 무력화하므로 `error` 레벨로 기록해, 긴 DB 장애로 보호가 계속 빠지는 것을 모니터링이 일찍 잡게 한다. 더 강한 보장이 필요하면 sliding-window 로 바꾸는 것이 후속 후보다. 공개 웹훅(인증 설정이 없고 채팅 채널 트리거가 아닌 웹훅)에만 적용하고 인증 웹훅(서버 간 호출)과 채팅 채널 트리거는 그대로 통과한다. 이것은 호출 수 제한과 공개 32KB 본문 한도에만 해당하고 인증 웹훅과 채팅 채널 트리거의 본문 크기는 `/api/hooks/*` 라우트 범위 1MB body-parser 가 따로 막는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)).
 
 > **IP 식별과 인프라 권고**: IP 단위 한도의 실효성은 신뢰할 수 있는 프록시(Cloudflare·LB)가 `X-Forwarded-For`(또는 신뢰할 때 `CF-Connecting-IP`)를 채운다는 전제에 달려 있다. 헤더가 없으면 앱은 식별하지 못한 요청을 공유 버킷 하나로 완화 처리한다. managed 배포는 CF·WAF·Ingress 에서 XFF 를 강제하고 헤더 없는 외부 직접 요청을 막아 IP 단위 정확도를 확보할 것을 권고한다. self-host 도 앱 수준 공유 버킷으로 기본 보호되므로 인프라 통제가 없어도 무제한 우회는 생기지 않는다.
 
@@ -162,7 +162,7 @@ WCAG AA(키보드 내비게이션·ARIA·스크린리더)를 지향한다. 지�
 
 ## 미결 사항
 
-- **공개 웹훅 남용 방어의 기준 문서**: 원문의 이 문서는 "이 문서가 기준인 것은 공개 웹훅 남용 방어(IP 단위·본문 크기 가드)뿐" 이라며 정책 수치의 기준을 자처하고 트리거 조회 실패 fail-open 규칙의 기준은 웹훅 문서라고 가리킨다. [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 원문은 "정책 수치 출처는 웹채팅 보안, 설정 키·에러 코드 적용 기준은 웹훅" 이라며 이 문서를 가리킨다. 두 문서가 서로를 기준으로 가리킨다. 현재 값(분당 10·시간당 20·32KB·공유 버킷)은 두 문서가 같다. 이 방어는 웹채팅만이 아니라 모든 공개 웹훅에 걸리므로 웹훅 문서로 정책 전체를 옮기고 이 문서는 웹채팅 관점(왜 공개 챗봇에 필요한가)만 남길지, 지금처럼 수치는 이 문서·설정은 웹훅 문서로 나눌지 결정 필요.
+현재 없다. 공개 웹훅 남용 방어의 기준 문서는 [Rationale 「공개 웹훅 남용 방어의 기준은 웹훅 문서다」](#공개-웹훅-남용-방어의-기준은-웹훅-문서다)에서 정했다.
 
 ## 구현 위치
 
@@ -191,6 +191,16 @@ WCAG AA(키보드 내비게이션·ARIA·스크린리더)를 지향한다. 지�
 **인증 웹훅은 embed-config 에서 뺀다**: 임베드 제어는 공개 봇 전용이다. 인증 웹훅(`authConfigId` NOT NULL)은 브라우저 임베드가 아닌 서버 간 채널이라 임베드 통제 대상이 아니다. `/embed-config` 는 이들에게 `{ data: { allowlist: [], enforce: false } }` 로 응답하고 존재 여부도 드러내지 않는다.
 
 **빈 목록이 층마다 다르게 동작하는 것은 의도다**: `interactionAllowedOrigins` 가 비었을 때 CORS 층은 위젯 배포 주소만 허용하고(기본이 안전한 상태), 임베드 검증 층은 모두 허용한다(`enforce=false` fail-open). 두 층의 목적이 다르기 때문이다. CORS 는 토큰 표면(`/api/external/*`)을 지키는 경계라 설정이 없으면 닫고 임베드 검증은 가벼운 오남용만 막는 soft 컨트롤이라 설정이 없으면 정당한 사용자를 막지 않도록 연다.
+
+### 공개 웹훅 남용 방어의 기준은 웹훅 문서다
+
+원문의 이 문서는 공개 웹훅 남용 방어(IP 단위·본문 크기 가드)의 정책 수치 기준을 자처했다. [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 원문은 정책 수치의 출처로 이 문서를 가리키고 설정 키·에러 코드의 기준만 웹훅 문서라고 했다. 두 문서가 서로를 기준으로 가리켜 이 문서의 미결 사항에 올렸다. 그 미결을 웹훅 문서를 기준으로 정해 닫았다(NERV Task `CLE-T-MCYDVV`).
+
+- 이 방어는 웹채팅만이 아니라 채팅 채널 트리거를 뺀 모든 공개 웹훅에 걸린다.
+- 가드 구현·설정 키·에러 코드·Redis 키가 모두 웹훅 쪽에 있다.
+- 웹훅 문서에 이미 수치 요구사항(REQ-WEBHOOK-019·041)이 있다. 두 문서가 서로를 기준으로 가리키면 한쪽만 고쳤을 때 값이 어긋난다.
+
+기각한 대안: 원문처럼 이 문서를 수치의 기준으로 두는 안. 웹훅 요구사항도 같은 수치를 정하므로 기준이 둘이 된다.
 
 ### 남용 방어 호출 수 제한은 fixed-window 와 fail-open 이다
 
