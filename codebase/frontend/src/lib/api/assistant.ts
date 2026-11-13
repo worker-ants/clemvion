@@ -228,6 +228,18 @@ export type AssistantSseEvent =
         max: number;
       };
     }
+  | {
+      /**
+       * 지정한 모델 설정이 삭제됐거나 워크스페이스 밖이라 서버가 워크스페이스 기본
+       * 설정으로 대신했다는 알림(REQ-ASSIST-009). 턴의 첫 이벤트로 한 번만 온다.
+       */
+      event: "config_fallback";
+      data: {
+        requestedConfigId: string;
+        configId: string;
+        configName: string;
+      };
+    }
   | { event: "done"; data: { finishReason: string } }
   | { event: "error"; data: { code: string; message: string } };
 

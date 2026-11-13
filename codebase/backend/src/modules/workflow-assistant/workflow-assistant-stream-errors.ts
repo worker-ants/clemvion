@@ -72,12 +72,6 @@ export const ASSISTANT_STREAM_ERROR_MESSAGES = {
 export const ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE =
   'The LLM stream failed. Please try again.';
 
-/**
- * `ASSISTANT_NO_LLM_CONFIG` 의 두 갈래 중 설정을 읽지 못한 쪽의 문구. 설정이 없거나
- * 쓸 수 없으면 표의 문구를 보낸다.
- */
-const NO_LLM_CONFIG_RESOLVE_FAILED_MESSAGE = 'Failed to resolve LLM config.';
-
 /** 빌더 결과에만 붙는 타입 표지. 런타임 값에는 없다. */
 declare const builtByAssistantStreamError: unique symbol;
 
@@ -102,21 +96,21 @@ function build(
 /** SSE `error` 이벤트의 `{ code, message }` 빌더. */
 export const assistantStreamError = {
   /**
-   * 설정을 고르지 못했다. 설정이 없거나 쓸 수 없어 서비스가
-   * `BadRequestException` 을 받으면(`configUnavailable`) 표의 문구를, 그 밖의
-   * 예외로 설정을 읽지 못하면 별도 문구를 보낸다. 예외 원문은 어느 쪽에서도
-   * 싣지 않는다.
+   * 쓸 모델 설정이 없다. 지정한 설정을 찾지 못해 워크스페이스 기본 설정으로
+   * 대신하려 했는데 기본 설정도 없는 경우다. 설정 조회 자체가 실패한 경우(DB 장애
+   * 등)는 `streamFailed` 를 쓴다.
    */
-  noLlmConfig(configUnavailable: boolean): AssistantStreamError {
+  noLlmConfig(): AssistantStreamError {
     return build(
       'ASSISTANT_NO_LLM_CONFIG',
-      configUnavailable
-        ? ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG
-        : NO_LLM_CONFIG_RESOLVE_FAILED_MESSAGE,
+      ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
     );
   },
 
-  /** 스트림을 열기 전 실패와 턴 처리 중 내부 실패. 프로바이더 탓으로 쓰지 않는다. */
+  /**
+   * 스트림을 열기 전 실패, 모델 설정 조회 실패, 턴 처리 중 내부 실패. 프로바이더
+   * 탓으로 쓰지 않는다.
+   */
   streamFailed(): AssistantStreamError {
     return build(
       'ASSISTANT_STREAM_FAILED',

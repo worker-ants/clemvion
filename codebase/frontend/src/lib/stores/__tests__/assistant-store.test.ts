@@ -1,6 +1,13 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const toastInfo = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({
+  toast: { info: toastInfo, error: vi.fn(), success: vi.fn() },
+}));
+
 import {
   applyAutoResumeEvent,
+  applyConfigFallbackEvent,
   handleSseEvent,
   hydrateMessage,
   summarizePlanState,
@@ -185,6 +192,56 @@ describe("assistant-store", () => {
 
       const msg = useAssistantStore.getState().messages[0];
       expect(msg.systemHint).toBeUndefined();
+    });
+  });
+
+  // REQ-ASSIST-009: 지정한 모델 설정이 삭제됐거나 워크스페이스 밖이라 서버가
+  // 워크스페이스 기본 설정으로 대신하면 `config_fallback` 이벤트가 온다. 토스트로
+  // 알리고 선택 값을 비워 다음 턴부터 없는 id 를 보내지 않는다.
+  describe("applyConfigFallbackEvent", () => {
+    const fallbackEvent: Extract<
+      AssistantSseEvent,
+      { event: "config_fallback" }
+    > = {
+      event: "config_fallback",
+      data: {
+        requestedConfigId: "cfg-deleted",
+        configId: "cfg-default",
+        configName: "Workspace GPT",
+      },
+    };
+
+    beforeEach(() => toastInfo.mockClear());
+
+    it("clears the selected config and shows a localized toast", () => {
+      useAssistantStore.setState({ llmConfigId: "cfg-deleted" });
+
+      applyConfigFallbackEvent(useAssistantStore.setState, fallbackEvent);
+
+      expect(useAssistantStore.getState().llmConfigId).toBeNull();
+      expect(toastInfo).toHaveBeenCalledTimes(1);
+      expect(toastInfo.mock.calls[0][0]).toBe(
+        "선택한 모델 설정을 찾지 못해 워크스페이스 기본 설정(Workspace GPT)으로 답해요.",
+      );
+    });
+
+    it("uses the English dictionary when the locale is en", () => {
+      useLocaleStore.setState({ locale: "en" });
+
+      applyConfigFallbackEvent(useAssistantStore.setState, fallbackEvent);
+
+      expect(toastInfo.mock.calls[0][0]).toBe(
+        "The selected model config wasn't found, so the workspace default (Workspace GPT) will answer.",
+      );
+    });
+
+    it("leaves the chat messages untouched", () => {
+      seedAssistant({ content: "partial" });
+      const before = useAssistantStore.getState().messages;
+
+      applyConfigFallbackEvent(useAssistantStore.setState, fallbackEvent);
+
+      expect(useAssistantStore.getState().messages).toBe(before);
     });
   });
 

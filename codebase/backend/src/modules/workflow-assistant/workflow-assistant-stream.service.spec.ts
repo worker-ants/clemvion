@@ -1,4 +1,4 @@
-import { BadRequestException, Logger } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import {
   WorkflowAssistantStreamService,
   toRuntimePortDescriptor,
@@ -3013,20 +3013,242 @@ describe('WorkflowAssistantStreamService', () => {
     });
   });
 
-  it('returns ASSISTANT_NO_LLM_CONFIG error when config resolution fails', async () => {
+  it('returns ASSISTANT_NO_LLM_CONFIG error when no usable config exists', async () => {
     const { service, mocks } = makeService();
-    mocks.llmService.resolveConfig.mockRejectedValue(new Error('no config'));
-
-    const events = await collect(
-      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    mocks.llmService.resolveConfig.mockRejectedValue(
+      new BadRequestException('no default config'),
     );
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      event: 'error',
-      data: expect.objectContaining({ code: 'ASSISTANT_NO_LLM_CONFIG' }),
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    try {
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        event: 'error',
+        data: expect.objectContaining({ code: 'ASSISTANT_NO_LLM_CONFIG' }),
+      });
+      // No message persistence when config missing.
+      expect(mocks.sessionService.appendMessage).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  // REQ-ASSIST-009: 지정한 모델 설정이 삭제됐거나 워크스페이스 밖이면(조회가
+  // NotFoundException) 워크스페이스 기본 설정으로 대신하고 턴 맨 앞의
+  // `config_fallback` 이벤트로 알린다. 기본 설정도 없을 때만
+  // ASSISTANT_NO_LLM_CONFIG 이고, 설정 조회 자체가 실패하면(DB 장애 등)
+  // ASSISTANT_STREAM_FAILED 다.
+  describe('model config fallback (REQ-ASSIST-009)', () => {
+    const MISSING_ID = '00000000-0000-4000-8000-000000000001';
+    const DEFAULT_CONFIG = {
+      id: 'cfg-default',
+      workspaceId: 'ws-1',
+      name: 'Workspace default',
+      provider: 'openai',
+      defaultModel: 'gpt-4o-mini',
+    };
+    const dtoWithMissingId = { ...baseDto, llmConfigId: MISSING_ID };
+
+    let warn: jest.SpyInstance;
+    let error: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
     });
-    // No message persistence when config missing.
-    expect(mocks.sessionService.appendMessage).not.toHaveBeenCalled();
+    afterEach(() => {
+      warn.mockRestore();
+      error.mockRestore();
+    });
+
+    const notFound = () =>
+      new NotFoundException({
+        code: 'MODEL_CONFIG_NOT_FOUND',
+        message: 'Model config not found',
+      });
+
+    it('falls back to the workspace default and announces it first', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockImplementation(
+        (id: string | undefined) =>
+          id ? Promise.reject(notFound()) : Promise.resolve(DEFAULT_CONFIG),
+      );
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          { type: 'text_delta', delta: 'hi' },
+          {
+            type: 'done',
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            model: 'gpt-4o-mini',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage(
+          'sess-1',
+          'ws-1',
+          'u-1',
+          dtoWithMissingId as never,
+        ),
+      );
+
+      expect(events[0]).toEqual({
+        event: 'config_fallback',
+        data: {
+          requestedConfigId: MISSING_ID,
+          configId: 'cfg-default',
+          configName: 'Workspace default',
+        },
+      });
+      expect(mocks.llmService.resolveConfig.mock.calls).toEqual([
+        [MISSING_ID, 'ws-1'],
+        [undefined, 'ws-1'],
+      ]);
+      // 대체한 설정으로 턴을 처리한다.
+      expect(mocks.llmService.chatStream.mock.calls[0][0]).toBe(DEFAULT_CONFIG);
+      expect(events.some((e) => e.event === 'error')).toBe(false);
+      expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+        MISSING_ID,
+      );
+    });
+
+    it('sends no config_fallback event when the requested config resolves', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() =>
+        asyncIter<ChatStreamEvent>([
+          {
+            type: 'done',
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          },
+        ]),
+      );
+
+      const events = await collect(
+        service.streamMessage(
+          'sess-1',
+          'ws-1',
+          'u-1',
+          dtoWithMissingId as never,
+        ),
+      );
+
+      expect(events.some((e) => e.event === 'config_fallback')).toBe(false);
+      expect(mocks.llmService.resolveConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it('ends with ASSISTANT_NO_LLM_CONFIG when the workspace has no default either', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockImplementation(
+        (id: string | undefined) =>
+          Promise.reject(
+            id ? notFound() : new BadRequestException('no default config'),
+          ),
+      );
+
+      const events = await collect(
+        service.streamMessage(
+          'sess-1',
+          'ws-1',
+          'u-1',
+          dtoWithMissingId as never,
+        ),
+      );
+
+      expect(events).toEqual([
+        {
+          event: 'error',
+          data: {
+            code: 'ASSISTANT_NO_LLM_CONFIG',
+            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
+          },
+        },
+      ]);
+      expect(error).not.toHaveBeenCalled();
+    });
+
+    it('ends with ASSISTANT_STREAM_FAILED without a fallback when the lookup itself fails', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockRejectedValue(
+        new Error('connection terminated unexpectedly'),
+      );
+
+      const events = await collect(
+        service.streamMessage(
+          'sess-1',
+          'ws-1',
+          'u-1',
+          dtoWithMissingId as never,
+        ),
+      );
+
+      expect(events).toEqual([
+        {
+          event: 'error',
+          data: {
+            code: 'ASSISTANT_STREAM_FAILED',
+            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+          },
+        },
+      ]);
+      expect(mocks.llmService.resolveConfig).toHaveBeenCalledTimes(1);
+      expect(error.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+        'connection terminated unexpectedly',
+      );
+    });
+
+    it('ends with ASSISTANT_STREAM_FAILED when the default lookup fails after a not-found', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockImplementation(
+        (id: string | undefined) =>
+          Promise.reject(id ? notFound() : new Error('pool exhausted')),
+      );
+
+      const events = await collect(
+        service.streamMessage(
+          'sess-1',
+          'ws-1',
+          'u-1',
+          dtoWithMissingId as never,
+        ),
+      );
+
+      expect(events).toEqual([
+        {
+          event: 'error',
+          data: {
+            code: 'ASSISTANT_STREAM_FAILED',
+            message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+          },
+        },
+      ]);
+    });
+
+    it('does not try a fallback when no config was requested', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockRejectedValue(
+        new BadRequestException('no default config'),
+      );
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(events.map((e) => e.event)).toEqual(['error']);
+      expect(mocks.llmService.resolveConfig.mock.calls).toEqual([
+        [undefined, 'ws-1'],
+      ]);
+    });
   });
 
   // REQ-ASSIST-048: 스트림이 실패하면 턴을 끝내고 SSE `error` 이벤트에 코드와
@@ -3209,7 +3431,7 @@ describe('WorkflowAssistantStreamService', () => {
       expect(loggedText()).toContain(clientMessage);
     });
 
-    it('does not forward the config resolution error text for ASSISTANT_NO_LLM_CONFIG', async () => {
+    it('does not forward the config lookup error text when the lookup fails', async () => {
       const { service, mocks } = makeService();
       mocks.llmService.resolveConfig.mockRejectedValue(new Error(RAW));
 
@@ -3218,8 +3440,8 @@ describe('WorkflowAssistantStreamService', () => {
       );
 
       expect(errorEventOf(events)).toEqual({
-        code: 'ASSISTANT_NO_LLM_CONFIG',
-        message: 'Failed to resolve LLM config.',
+        code: 'ASSISTANT_STREAM_FAILED',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
       });
       expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
       expect(loggedText()).toContain(RAW);

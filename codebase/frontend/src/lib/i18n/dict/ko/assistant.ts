@@ -37,6 +37,8 @@ export const assistant = {
   errorNoLlmConfig:
     "사용할 모델 설정이 없어요. 모델 설정 화면에서 Chat 모델을 먼저 등록해 주세요.",
   errorNoLlmConfigLink: "모델 설정으로 이동",
+  configFallbackToast:
+    "선택한 모델 설정을 찾지 못해 워크스페이스 기본 설정({{name}})으로 답해요.",
   errorStreamFailed:
     "응답을 끝내지 못했어요. 요청 한도를 넘었거나 응답이 늦어졌을 수 있어요. 잠시 후 같은 메시지를 다시 보내 주세요.",
   errorRateLimit:
