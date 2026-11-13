@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN"
 title: "재실행"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
-requirements: ["REQ-RERUN-001", "REQ-RERUN-002", "REQ-RERUN-003", "REQ-RERUN-004", "REQ-RERUN-005", "REQ-RERUN-006", "REQ-RERUN-007", "REQ-RERUN-008", "REQ-RERUN-009", "REQ-RERUN-010", "REQ-RERUN-011", "REQ-RERUN-012", "REQ-RERUN-013", "REQ-RERUN-014", "REQ-RERUN-015", "REQ-RERUN-016", "REQ-RERUN-017", "REQ-RERUN-018", "REQ-RERUN-019", "REQ-RERUN-020", "REQ-RERUN-021", "REQ-RERUN-022", "REQ-RERUN-023", "REQ-RERUN-024", "REQ-RERUN-025", "REQ-RERUN-026", "REQ-RERUN-027", "REQ-RERUN-028", "REQ-RERUN-029", "REQ-RERUN-030", "REQ-RERUN-031", "REQ-RERUN-032", "REQ-RERUN-033", "REQ-RERUN-034", "REQ-RERUN-035", "REQ-RERUN-036", "REQ-RERUN-037", "REQ-RERUN-038", "REQ-RERUN-039", "REQ-RERUN-040", "REQ-RERUN-041", "REQ-RERUN-042", "REQ-RERUN-047", "REQ-RERUN-048", "REQ-RERUN-049", "REQ-RERUN-050", "REQ-RERUN-051", "REQ-RERUN-052", "REQ-RERUN-053"]
+requirements: ["REQ-RERUN-001", "REQ-RERUN-002", "REQ-RERUN-003", "REQ-RERUN-004", "REQ-RERUN-005", "REQ-RERUN-006", "REQ-RERUN-007", "REQ-RERUN-008", "REQ-RERUN-009", "REQ-RERUN-010", "REQ-RERUN-011", "REQ-RERUN-012", "REQ-RERUN-013", "REQ-RERUN-014", "REQ-RERUN-015", "REQ-RERUN-016", "REQ-RERUN-017", "REQ-RERUN-018", "REQ-RERUN-019", "REQ-RERUN-020", "REQ-RERUN-021", "REQ-RERUN-022", "REQ-RERUN-023", "REQ-RERUN-024", "REQ-RERUN-025", "REQ-RERUN-026", "REQ-RERUN-027", "REQ-RERUN-028", "REQ-RERUN-029", "REQ-RERUN-030", "REQ-RERUN-031", "REQ-RERUN-032", "REQ-RERUN-033", "REQ-RERUN-034", "REQ-RERUN-035", "REQ-RERUN-036", "REQ-RERUN-037", "REQ-RERUN-038", "REQ-RERUN-039", "REQ-RERUN-040", "REQ-RERUN-041", "REQ-RERUN-042", "REQ-RERUN-047", "REQ-RERUN-048", "REQ-RERUN-049", "REQ-RERUN-050", "REQ-RERUN-051", "REQ-RERUN-052", "REQ-RERUN-053", "REQ-RERUN-054", "REQ-RERUN-055"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "90a230c16611a9ecd232b4a5214be3aa8e544966dfeb03b8ec8c1182fee8fb08"
+content_hash: "7df15b501df2c48ae5c45fa62df7913efe31a8ad528db09af4a51f10d979d708"
 read_as: "approved_fallback"
-task: "CLE-T-G62XJS"
+task: "CLE-T-Y2F1NG"
 source_paths: ["spec/5-system/13-replay-rerun.md"]
-mirror_sha256: "76a48016e189cd4be6a6eb6e98da432df1e33c9034c3540fa8d705cf6f5542e7"
-etag: "sha256-d8b242d502358db75cd4ca3617d652a873602bb26d0aa5d536abc665ec296de2"
+mirror_sha256: "317ce4e08d4bdbb3ca4a13056cf304936b952d1c5c6c9f899a0f10d86b6b1d40"
+etag: "sha256-e944ab375bc771c970cb25cc9a272626ef6a5a164eda9c6412a82ee81e1ea07f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -66,7 +66,7 @@ etag: "sha256-d8b242d502358db75cd4ca3617d652a873602bb26d0aa5d536abc665ec296de2"
 - REQ-RERUN-022 WHEN dry-run 실행의 컨텍스트를 만들면 THE SYSTEM SHALL 첫 노드 실행 전에 `variables.__dryRun = true` 를 넣는다.
 - REQ-RERUN-023 WHEN 입력 대기 뒤 rehydration 하면 THE SYSTEM SHALL `Execution.dry_run` 으로 `variables.__dryRun` 을 복원한다.
 - REQ-RERUN-024 WHEN 부수효과 노드가 dry-run 으로 실행되면 THE SYSTEM SHALL 외부 호출 없이 `_dryRun: true` 모의 출력을 저장하고 노드 실행을 `completed` 로 끝낸다.
-- REQ-RERUN-025 IF dry-run 요청인데 워크플로우에 `supportsDryRun` 이 true 가 아닌 부수효과 노드가 있으면 THE SYSTEM SHALL `400 RERUN_DRY_RUN_NOT_APPLICABLE` 로 재실행 전체를 거부한다.
+- REQ-RERUN-025 IF dry-run 요청인데 워크플로우나 그 워크플로우가 서브 워크플로우로 부르는 워크플로우(동기 · 비동기, 아래 단계 포함)에 `supportsDryRun` 이 true 가 아닌 부수효과 노드가 있으면 THE SYSTEM SHALL `400 RERUN_DRY_RUN_NOT_APPLICABLE` 로 재실행 전체를 거부한다.
 - REQ-RERUN-026 IF 워크플로우에 dry-run 을 지원하지 않는 노드가 있으면 THE SYSTEM SHALL 모달의 dry-run 토글을 비활성화하고 툴팁으로 안내한다.
 - REQ-RERUN-027 WHILE dry-run 모드인 동안 THE SYSTEM SHALL AI 노드의 LLM 호출은 그대로 한다.
 - REQ-RERUN-028 WHILE dry-run 모드인 동안 THE SYSTEM SHALL AI 에이전트가 부르는 부수효과 도구에 모의 응답을 돌려준다.
@@ -91,6 +91,8 @@ etag: "sha256-d8b242d502358db75cd4ca3617d652a873602bb26d0aa5d536abc665ec296de2"
 - REQ-RERUN-051 WHILE dry-run 모드인 동안 THE SYSTEM SHALL AI 에이전트의 MCP 메타 도구(`list_resources` · `read_resource` · `list_prompts` · `get_prompt`)와 내장 `kb_*` · `render_*` · `cond_*` 도구는 그대로 실행한다.
 - REQ-RERUN-052 WHEN dry-run 실행의 AI 에이전트가 멀티턴 재개 턴이나 마지막 턴 재시도로 다시 들어가면 THE SYSTEM SHALL AI 재개 체크포인트(`_resumeCheckpoint`)가 아닌 실행 컨텍스트의 `variables.__dryRun` 에서 dry-run 여부를 다시 구해 REQ-RERUN-048 ~ REQ-RERUN-050 을 이어 적용한다.
 - REQ-RERUN-053 WHEN dry-run 이 부수효과 노드의 호출을 모의 출력으로, 부수효과 도구의 호출을 모의 응답으로 대신하면 THE SYSTEM SHALL 통합 활동 로그를 남기지 않고, 도구 호출이면 `mcpDiagnostics.errors[]` 도 남기지 않는다.
+- REQ-RERUN-054 WHEN dry-run 실행이 비동기 서브 워크플로우를 시작하면 THE SYSTEM SHALL 자식 실행 행의 `dry_run` 을 true 로 남기고 자식 실행도 dry-run 으로 실행한다.
+- REQ-RERUN-055 WHEN dry-run 실행이 동기 서브 워크플로우나 Background 본문을 실행하면 THE SYSTEM SHALL 부모의 `variables.__dryRun` 을 이어받아 그 안의 노드도 dry-run 으로 실행한다.
 
 2026-10-10 임시 가드의 요구사항 네 개(REQ-RERUN-043 ~ REQ-RERUN-046)는 2026-10-23 에 폐기했고 번호를 다시 쓰지 않는다. REQ-RERUN-048 ~ REQ-RERUN-053 이 그 자리를 대신한다. 근거는 [Rationale](#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다.
 
@@ -209,7 +211,7 @@ AI 어시스턴트의 읽기 전용 도구(`get_workflow_executions`, `get_execu
 
 AI 에이전트 노드 자체는 그대로 실행한다. 이 노드가 부르는 도구는 [부수효과 판정](#부수효과-판정) 기준으로 모의 응답을 받거나 그대로 호출된다([LLM 호출](#llm-호출)).
 
-분류 기준은 노드 메타 `category`([노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md))와 노드별 boolean 메타 `supportsDryRun` 이다. 모든 부수효과 노드는 v1 에서 `supportsDryRun: true` 를 기본으로 제공한다. 각 핸들러가 모의 출력을 돌려줄 수 있어야 한다. `supportsDryRun` 은 노드가 모의 출력을 낼 수 있는지를 나타내는 노드 단위 값이다(노드 스키마 필드, `nodes/core/node-component.interface.ts`). AI 에이전트 도구의 부수효과 판정은 호출마다 따로 하고 이 값을 보지 않는다. 사전 점검(`assertDryRunSupported`)과 모달 집계도 도구 판정을 보지 않는다. 모달의 "외부 호출 노드 N개" 집계도 이 메타로 센다. AI 에이전트의 도구는 이 집계에 들지 않는다([미결 사항](#미결-사항)). 위 표의 노드 목록은 이 메타에서 나온다. 현재 구현에서 `supportsDryRun: true` 를 선언한 노드 스키마는 위 다섯 노드뿐이다(각 노드의 `*.schema.ts`). 부수효과 노드를 새로 더하면 이 표도 함께 고친다.
+분류 기준은 노드 메타 `category`([노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md))와 노드별 boolean 메타 `supportsDryRun` 이다. 모든 부수효과 노드는 v1 에서 `supportsDryRun: true` 를 기본으로 제공한다. 각 핸들러가 모의 출력을 돌려줄 수 있어야 한다. `supportsDryRun` 은 노드가 모의 출력을 낼 수 있는지를 나타내는 노드 단위 값이다(노드 스키마 필드, `nodes/core/node-component.interface.ts`). AI 에이전트 도구의 부수효과 판정은 호출마다 따로 하고 이 값을 보지 않는다. 사전 점검(`assertDryRunSupported`)과 모달 집계도 도구 판정을 보지 않는다. 모달의 부수효과 노드 수(화면 문구 "외부 호출 노드 N개")도 이 메타로 센다. AI 에이전트의 도구는 이 집계에 들지 않는다([미결 사항](#미결-사항)). 위 표의 노드 목록은 이 메타에서 나온다. 현재 구현에서 `supportsDryRun: true` 를 선언한 노드 스키마는 위 다섯 노드뿐이다(각 노드의 `*.schema.ts`). 부수효과 노드를 새로 더하면 이 표도 함께 고친다.
 
 ### 부수효과 판정
 
@@ -255,7 +257,25 @@ dry-run 이 모의 출력 · 응답으로 대신할 호출을 고르는 기준�
     ```
 
   - 노드 실행 상태는 `completed` 다(건너뜀이 아니다, 흐름은 정상으로 진행). 노드 실행 행의 `outputData.output` 에 이 모의 객체를 그대로 저장한다. 그래서 판정 키는 `outputData.output._dryRun` 이다.
-- 부수효과 노드인데 `supportsDryRun !== true` 인 노드가 워크플로우에 하나라도 있으면 재실행 서비스가 들어가기 전 사전 점검(`assertDryRunSupported`)에서 `RERUN_DRY_RUN_NOT_APPLICABLE`(400)로 재실행 전체를 거부한다. 권장 UX 는 모달 단계에서 미리 찾아 dry-run 토글을 비활성화하고 툴팁으로 안내하는 것이다. v1 의 부수효과 노드는 모두 `supportsDryRun: true` 라 정상 워크플로우는 통과한다.
+- 부수효과 노드인데 `supportsDryRun !== true` 인 노드가 워크플로우나 그 워크플로우가 부르는 서브 워크플로우에 하나라도 있으면 재실행 서비스가 들어가기 전 사전 점검(`assertDryRunSupported`)에서 `RERUN_DRY_RUN_NOT_APPLICABLE`(400)로 재실행 전체를 거부한다. 권장 UX 는 모달 단계에서 미리 찾아 dry-run 토글을 비활성화하고 툴팁으로 안내하는 것이다. v1 의 부수효과 노드는 모두 `supportsDryRun: true` 라 정상 워크플로우는 통과한다.
+  - 사전 점검은 재실행할 워크플로우에서 시작한다. 워크플로우 호출 노드(동기 · 비동기 모두)가 가리키는 워크플로우를 너비 우선으로 따라가며 모든 노드를 본다. 서브 워크플로우 자식 실행도 dry-run 을 이어받기 때문이다([서브 워크플로우와 Background 본문](#서브-워크플로우와-background-본문)).
+  - 이미 본 워크플로우는 다시 보지 않는다(순환 가드). 깊이 한도는 서브 워크플로우 재귀 한도와 같은 10 이다. 그보다 깊은 호출은 실행 때 재귀 한도로 실패한다.
+  - 대상 `workflowId` 가 표현식이면 실행 전에는 대상을 알 수 없어 보지 않는다. 다른 워크스페이스의 워크플로우도 보지 않는다. 그런 호출은 엔진이 실행 때 막는다.
+  - 모달의 토글 판정(REQ-RERUN-026)은 재실행할 워크플로우의 노드만 본다. 서브 워크플로우에만 있는 미지원 노드는 재실행을 요청할 때 서버가 거부한다.
+
+### 서브 워크플로우와 Background 본문
+
+dry-run 실행이 시작한 서브 워크플로우와 Background 본문도 dry-run 으로 실행한다(REQ-RERUN-054, REQ-RERUN-055). 부모가 dry-run 이 아니면 이 경로들도 dry-run 이 아니다.
+
+| 경로 | dry-run 을 이어받는 방법 |
+| --- | --- |
+| 비동기 서브 워크플로우(`executeAsync`) | [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 가 `dryRun: isDryRun(context)` 를 엔진에 넘긴다. 엔진은 이 값을 자식 실행 행의 `dry_run` 에 남긴다. 자식 실행은 [동작](#동작) 의 규칙대로 이 컬럼에서 `variables.__dryRun` 을 만든다. 입력 대기 뒤 rehydration 에서도 같다 |
+| 동기 서브 워크플로우(`executeInline`) | 부모 실행 컨텍스트를 같이 쓰므로 `variables.__dryRun` 이 그대로 있다 |
+| Background 본문 | 본문을 큐에 넣을 때 `context.variables` 를 통째로 복사하므로 `__dryRun` 도 함께 실린다 |
+
+그래서 자식 실행 안에서도 부수효과 노드는 모의 출력을 내고 AI 에이전트의 부수효과 도구는 모의 응답을 받는다. 판정 기준은 부모와 같은 [부수효과 판정](#부수효과-판정) 이다. 비동기 자식 실행은 자기 실행 행에 `dry_run` 이 남으므로 실행 상세 화면에서도 dry-run 배지가 붙는다([결과 표시](#결과-표시)).
+
+사전 점검(`assertDryRunSupported`)도 같은 범위를 본다([동작](#동작)). 자식 실행이 dry-run 으로 돌기 때문에 자식 워크플로우에도 모의 출력을 낼 수 없는 부수효과 노드가 없어야 한다.
 
 ### LLM 호출
 
@@ -273,7 +293,7 @@ AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([
 - 도구 이름 · 인자 검증 실패(`INVALID_TOOL_ARGUMENTS`, `CAFE24_MISSING_FIELDS` 등)와 알 수 없는 도구(`MCP_UNKNOWN_TOOL`, `CAFE24_UNKNOWN_OPERATION` 등)는 dry-run 확인보다 먼저 판정해 평소대로 보고한다. LLM 이 고칠 수 있는 인자 에러를 dry-run 에서도 똑같이 돌려주려는 것이다. Cafe24 · MakeShop 노드 핸들러는 반대로 dry-run 확인을 필수 필드 검증보다 먼저 해서 필수 필드가 빠진 쓰기 operation 도 모의 출력으로 끝난다. 두 순서는 일부러 다르게 뒀다([Rationale](#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)). 외부 MCP 도구의 인자 검증은 JSON 파싱뿐이다(`inputSchema` 검증 미구현, [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#미결-사항) 의 미결 사항).
 - MCP 메타 도구(`list_resources` · `read_resource` · `list_prompts` · `get_prompt`)는 읽기 전용이라 그대로 보낸다. 내장 `kb_*`(지식 저장소 검색)와 `render_*`(표시) 도구도 외부 시스템 상태를 바꾸지 않아 그대로 실행한다.
 - 도구 목록 구성(`buildTools`) 단계는 dry-run 에서도 평소처럼 돈다. 모의 응답 판정은 도구 실행(`execute`) 단계에만 있다. 이 단계에서 나가는 외부 호출은 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 이 다룬다([미결 사항](#미결-사항)).
-- 모의 응답 판정은 같은 실행 컨텍스트 안에서만 동작한다. 비동기 서브 워크플로우로 시작한 자식 실행은 dry-run 을 물려받지 않는다([미결 사항](#미결-사항)).
+- 모의 응답 판정은 서브 워크플로우 자식 실행에서도 똑같이 동작한다. 비동기 서브 워크플로우로 시작한 자식 실행은 부모의 dry-run 을 이어받아 자식 실행 행의 `dry_run` 에 남긴다(REQ-RERUN-054). 동기 서브 워크플로우와 Background 본문은 부모의 `variables.__dryRun` 을 그대로 이어받는다([서브 워크플로우와 Background 본문](#서브-워크플로우와-background-본문)).
 
 **dry-run 여부를 넘기는 길**: 도구 프로바이더 실행 문맥(`ProviderExecCtx`)의 `dryRun` 으로 넘긴다. 값은 턴마다 다음에서 구한다.
 
@@ -355,7 +375,7 @@ API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에�
 | 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 가 없거나 다른 워크스페이스의 실행 |
 | 404 | `RERUN_WORKFLOW_DELETED` | 원본 실행의 워크플로우가 삭제됨(재실행의 전제인 현재 워크플로우 정의가 없다). 방어용이다. 데이터 모델에서 `Execution.workflow_id` 는 워크플로우 삭제 시 CASCADE 라([실행 데이터와 흐름 §삭제와 보존](CLE-EXEC-DATA.md#삭제와-보존)) 원본 실행도 함께 지워진다. 그래서 정상 경로에서는 `RERUN_EXECUTION_NOT_FOUND` 가 먼저 나고 이 코드에는 도달하지 않는다 |
 | 409 | `RERUN_CHAIN_DEPTH_EXCEEDED` | RR-PL-05 체인 깊이 32 초과 |
-| 400 | `RERUN_DRY_RUN_NOT_APPLICABLE` | dry-run 요청인데 워크플로우에 `supportsDryRun: false` 노드가 있음 |
+| 400 | `RERUN_DRY_RUN_NOT_APPLICABLE` | dry-run 요청인데 워크플로우나 그 워크플로우가 부르는 서브 워크플로우에 `supportsDryRun: false` 노드가 있음 |
 | 400 | `INVALID_TRIGGER_PARAMETERS` | `inputOverride` 가 수동 트리거 parameters 스키마와 맞지 않음(`resolveTriggerParameters` 가 던지는 것과 같은 에러), **또는 마스킹된 값을 그대로 다시 보냄**([마스킹된 입력 처리](#마스킹된-입력-처리)). 필드별 사유는 `error.details[]` 에 싣고 항목 코드는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 카탈로그를 따른다(`MISSING_REQUIRED_FIELD`, `TYPE_COERCION_FAILED`, `INVALID_SCHEMA`, `MASKED_VALUE_RESUBMITTED`) |
 
 `INVALID_TRIGGER_PARAMETERS` 만 `RERUN_` 접두가 없는 이유는 [Rationale](#rationale) 에 있다.
@@ -424,7 +444,7 @@ flowchart LR
 ### dry-run 표시
 
 - **노드 실행**: dry-run 으로 실행된 노드 실행은 `outputData.output._dryRun === true` 로 알아본다. 모의 객체가 노드 출력의 `output` 값이기 때문이다. 화면은 이 키로 배지를 단다. 화면의 판정(`result-detail.tsx` 의 `isDryRunOutput`)은 최상위 `_dryRun` 도 보지만 모의 객체가 실리는 곳은 `output` 이다.
-- **실행**: 부모 실행 행에는 `dry_run: boolean` 컬럼이 있다(V068, `NOT NULL DEFAULT false`).
+- **실행**: 실행 행에는 `dry_run: boolean` 컬럼이 있다(V068, `NOT NULL DEFAULT false`). dry-run 실행이 시작한 비동기 서브 워크플로우의 자식 실행 행에도 true 가 남는다(REQ-RERUN-054).
 
 두 표시는 역할이 다르다. 노드 실행의 `_dryRun` 은 결과 표시용이고 실행의 `dry_run` 은 실행 제어용(엔진 주입과 복원)이다. 다만 **실행 상세 화면 배지**는 `Execution.dry_run` 을 표시 목적으로도 쓴다. `_dryRun` 표시가 없는 비부수효과 노드도 dry-run 실행에 속하면 배지를 달기 위해서다. 실행 상세에서는 제어와 표시를 겸하고 에디터 드로어는 노드 표시만 쓴다. 구현과 테스트는 `result-detail.tsx`, `execution-detail-waiting.test.tsx` 에 있다.
 
@@ -452,7 +472,7 @@ flowchart LR
 | 요소 | 기본값 | 동작 |
 | --- | --- | --- |
 | 원본 실행 머리 | 없음 | 원본 ID, 시작 시각, 최종 상태를 표시한다. ID 를 누르면 **새 탭**에서 원본 상세를 연다. 실행 상세 화면의 체인 배지 원본 링크는 **같은 탭**이다([실행 내역](CLE-EXEC-HISTORY.md)). 모달은 편집 맥락을 벗어나지 않으려고 새 탭, 체인 배지는 내비게이션이라 같은 탭이다(의도한 구분) |
-| 외부 호출 노드 안내 | 없음 | 워크플로우의 `supportsDryRun: true` 노드 수를 노드 유형별로 모아 보여 준다(`grouped by node.type`) |
+| 부수효과 노드 안내 | 없음 | 워크플로우의 `supportsDryRun: true` 노드 수를 노드 유형별로 모아 보여 준다(`grouped by node.type`) |
 | 입력 데이터 폼 | 원본의 `inputData.parameters` | 수동 트리거 parameters 스키마 기반 동적 폼. 필드 라벨과 타입은 워크플로우의 수동 트리거 노드 설정에서 가져온다. **스키마가 없으면**(수동 트리거 노드를 지운 경우 등) 원본 `inputData.parameters` 키를 타입 없는 텍스트 필드로 보여 줘 데이터가 숨지 않게 한다. 타입별 위젯은 string 텍스트, number 숫자, boolean 체크박스, object·array JSON 이다 |
 | "원본 입력 그대로 사용" 토글 | 꺼짐(편집 가능) | 켜면 폼이 읽기 전용이 되고 "재실행" 버튼 한 번으로 끝난다. 화면은 토글 상태로 `useOriginalInput` 을 늘 명시해서 보낸다 |
 | "dry-run 모드" 토글 | 꺼짐 | 워크플로우에 `supportsDryRun: false` 노드가 있으면 비활성화하고 툴팁 "이 워크플로는 dry-run 미지원 노드를 포함합니다 (RR-PL-01)" 를 단다 |
@@ -585,20 +605,19 @@ C3(single-node debug, 단일 노드만 실행)는 2026-06-15 에 재실행 체�
 | 감사 로그 | `execution.re_run` 이벤트([감사 로그](#감사-로그)) |
 | rate limit | [rate limit](#rate-limit) 절(REQ-RERUN-038) |
 | 관측 | 노드 실행의 dry-run 표시와 체인 배지로 재실행 트래픽을 일반 수동 실행과 구분할 수 있다 |
-| 회귀 방지 | 단위·통합·e2e 테스트가 다음을 지킨다. 입력 같음·수정·dry-run 경우, 재실행 권한 거부(`NOT_A_MEMBER`, `EDITOR_REQUIRED`, `RERUN_PERMISSION_DENIED`), 체인 조회의 뷰어 허용(남이 시작한 실행도 200), 삭제된 워크플로우(`RERUN_WORKFLOW_DELETED`), 체인 깊이 32 초과(`RERUN_CHAIN_DEPTH_EXCEEDED`), 멀티턴 노드 새 세션(RR-PL-04), AI 어시스턴트 비트리거(RR-PL-07), dry-run 에서 AI 에이전트의 부수효과 도구는 모의 응답을 받고 읽기 도구는 실제로 호출됨(단일 턴 · 재개 턴 · 마지막 턴 재시도 재진입), 상태를 바꾸는 GET 예외 목록의 누락 감지 |
+| 회귀 방지 | 단위·통합·e2e 테스트가 다음을 지킨다. 입력 같음·수정·dry-run 경우, 재실행 권한 거부(`NOT_A_MEMBER`, `EDITOR_REQUIRED`, `RERUN_PERMISSION_DENIED`), 체인 조회의 뷰어 허용(남이 시작한 실행도 200), 삭제된 워크플로우(`RERUN_WORKFLOW_DELETED`), 체인 깊이 32 초과(`RERUN_CHAIN_DEPTH_EXCEEDED`), 멀티턴 노드 새 세션(RR-PL-04), AI 어시스턴트 비트리거(RR-PL-07), dry-run 에서 AI 에이전트의 부수효과 도구는 모의 응답을 받고 읽기 도구는 실제로 호출됨(단일 턴 · 재개 턴 · 마지막 턴 재시도 재진입), 상태를 바꾸는 GET 예외 목록의 누락 감지, 서브 워크플로우와 Background 본문의 dry-run 상속(REQ-RERUN-054 · REQ-RERUN-055), 서브 워크플로우까지 보는 사전 점검 |
 
 ## 미결 사항
 
 - **도구 목록 구성 단계의 외부 호출**: 모의 응답 판정은 도구 실행(`execute`) 단계에만 있다. 도구 목록 구성(`buildTools`) 단계는 dry-run 재실행에서도 평소대로 돈다. 이 단계에서 나가는 외부 호출과 그 결과로 바뀌는 상태는 [MCP 클라이언트 미결 사항](../CLE-INT/CLE-INT-MCP.md#미결-사항) 의 「dry-run 재실행의 도구 목록 구성 단계」가 정본이다. `execute` 단계에서 실제로 부른 GET 읽기 호출의 인증 실패도 평소처럼 통합 상태를 바꾼다(401 이면 토큰 갱신, 403 이면 `error(auth_failed)` 전환, [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#인증-실패-상태-전환)). 노드 dry-run 의 GET 에는 원래 있던 동작이고 도구 경로에는 2026-10-23 에 생겼다. 이것도 같은 Task 에서 함께 본다. 담당 Task 는 CLE-T-8B66BK 다.
-- **비동기 서브 워크플로우 자식 실행의 dry-run 상속**: dry-run 여부는 실행 컨텍스트의 `variables.__dryRun` 과 실행 행의 `dry_run` 으로만 전해진다. 비동기 서브 워크플로우로 시작한 자식 실행은 이 값을 물려받지 않는다. 그래서 dry-run 재실행이어도 자식 실행의 부수효과 노드와 AI 에이전트 도구는 외부를 그대로 부른다. 2026-10-10 임시 가드 이전부터 있던 차이다. 동기 서브 워크플로우가 값을 물려받는지는 확인 필요다. Background 노드 본문 실행도 같은 갭이 있는지 확인이 필요하다. 자식 실행에 dry-run 을 넘길지, REQ-RERUN-025 의 원칙(안전하게 dry-run 할 수 없으면 재실행 전체를 거부한다)대로 서브 워크플로우가 있는 워크플로우의 dry-run 을 거부할지 결정이 필요하다. 담당 Task 는 CLE-T-Y2F1NG 다.
-- **재실행 모달의 외부 호출 집계와 MCP 도구**: 모달의 "외부 호출 노드 N개" 는 `supportsDryRun: true` 인 노드만 센다(`rerun-modal.tsx`). AI 에이전트에 연결된 MCP 서버와 Cafe24 · MakeShop 도구는 세지 않는다. 그래서 dry-run 을 끈 일반 재실행에서 AI 에이전트가 외부 데이터를 바꿀 수 있어도 모달 안내에는 드러나지 않는다. 안내에 MCP 도구를 넣을지 결정이 필요하다. [부수효과 판정](#부수효과-판정) 은 실행 중 도구 호출 단위라서 모달이 미리 셀 수 있는 단위(노드 · 연결된 MCP 지원 통합)와 다르다. 담당 Task 는 CLE-T-5WK8QA 다.
+- **재실행 모달의 외부 호출 집계와 MCP 도구**: 모달의 부수효과 노드 수(화면 문구 "외부 호출 노드 N개")는 `supportsDryRun: true` 인 노드만 센다(`rerun-modal.tsx`). AI 에이전트에 연결된 MCP 서버와 Cafe24 · MakeShop 도구는 세지 않는다. 그래서 dry-run 을 끈 일반 재실행에서 AI 에이전트가 외부 데이터를 바꿀 수 있어도 모달 안내에는 드러나지 않는다. 안내에 MCP 도구를 넣을지 결정이 필요하다. [부수효과 판정](#부수효과-판정) 은 실행 중 도구 호출 단위라서 모달이 미리 셀 수 있는 단위(노드 · 연결된 MCP 지원 통합)와 다르다. 담당 Task 는 CLE-T-5WK8QA 다.
 - **dry-run 재실행의 메모리 추출**: 메모리 전략이 `persistent` 인 AI 에이전트 · 정보 추출기는 추출한 메모리를 `agent_memory` 에 쓴다([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)). dry-run 재실행에서도 `agent_memory` 에 저장한다. 메모리 관리 코드(`ai-memory-manager.ts`, `agent-memory-extraction` 큐)에 dry-run 분기가 없다. dry-run 에서 이 저장을 막을지 결정이 필요하다. 담당 Task 는 CLE-T-C9GF9F 다.
 - **활동 로그를 정하는 문서의 dry-run 예외**: 모의 출력 · 응답으로 대신한 호출이 활동 로그를 남기지 않는다는 규칙(REQ-RERUN-053)의 기준은 이 문서다. 활동 로그를 정하는 문서들은 아직 «호출마다» · «성공·실패와 관계없이 1건» 으로만 적고 dry-run 예외를 적지 않는다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 6단계와 규칙 7, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 REQ-INTMGMT-021 과 활동 로그 기록 시점 표, [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md) 의 활동 로그와 `last_used_at`, [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) · [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) · [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 의 활동 로그 요구사항이 그렇다. 그 문장들은 실제로 나간 호출을 말하는 것으로 읽는다. 세 노드는 처음부터 활동 로그 단계 전에 모의 출력을 돌려줬다. 그 문서들에 예외를 적는 일은 CLE-T-M6W7RE 가 맡는다. [용어 사전 — 실행](../CLE-GLOSSARY-EXEC.md) 의 「dry-run」 · 「부수효과 노드」 정의를 도구까지 넓히고 「부수효과 도구」 · 「모의 응답」 을 더하는 일도 같은 Task 다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/executions/executions.controller.ts` (`POST :id/re-run`, `GET :id/chain` 의 getChain. 체인 조회 라우트는 `@Roles` 없이 멤버 전원이 조회한다)
-- `codebase/backend/src/modules/executions/executions.service.ts` (reRun 과 재실행 권한, getChain, `computeChainDepth`, `assertDryRunSupported`)
+- `codebase/backend/src/modules/executions/executions.service.ts` (reRun 과 재실행 권한, getChain, `computeChainDepth`, `assertDryRunSupported`. 사전 점검은 서브 워크플로우까지 너비 우선으로 본다)
 - `codebase/backend/src/modules/executions/dto/re-run.dto.ts`
 - `codebase/backend/migrations/V067__execution_re_run_chain.sql`
 - `codebase/backend/migrations/V068__execution_dry_run.sql`
@@ -612,8 +631,11 @@ C3(single-node debug, 단일 노드만 실행)는 2026-06-15 에 재실행 체�
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (MakeShop 브리지 도구의 dry-run 판정)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-guard-classification.spec.ts` (도구 프로바이더의 dry-run 분류 등록부)
 - `codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts` (턴마다 `dryRun` 을 도구 프로바이더에 넘긴다)
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`buildRetryReentryState` 의 `dryRun` 재유도)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`buildRetryReentryState` 의 `dryRun` 재유도, `executeAsync` 가 자식 실행 행에 남기는 `dry_run`)
 - `codebase/backend/src/modules/execution-engine/utils/resume-state.schema.ts` (`CREDENTIAL_CONTEXT_FIELDS` 의 `dryRun`)
+- `codebase/backend/src/nodes/flow/workflow/workflow.handler.ts` (비동기 호출에 `dryRun: isDryRun(context)` 를 넘긴다)
+- `codebase/backend/src/nodes/core/workflow-executor.interface.ts` (`executeAsync` 옵션의 `dryRun`)
+- `codebase/backend/test/re-run.e2e-spec.ts` (dry-run 재실행이 시작한 비동기 서브 워크플로우 자식 실행 행의 `dry_run`)
 - `codebase/frontend/src/components/executions/rerun-modal.tsx`
 - `codebase/frontend/src/lib/executions/can-rerun.ts` (`canReRun`, 재실행 버튼 판정)
 
@@ -684,7 +706,7 @@ AI 어시스턴트의 읽기 전용 정책([AI 어시스턴트 도구](../CLE-WF
 | 2 | dry-run 에서 MCP 도구 호출을 막는다 | 1 이 들어갈 때까지 쓰는 임시 가드로 먼저 넣었다(CLE-T-8BX1HK). 2026-10-23 에 1 로 바꾸면서 걷었다 |
 | 3 | 문서만 실제 동작에 맞추고 경고한다 | 실제 쇼핑몰 데이터가 바뀌는 위험이 그대로 남아 2026-10-10 결정 때 기각했다 |
 
-**가드 범위**: 가드는 같은 실행 컨텍스트에서 LLM 이 고른 도구 호출의 실행(`execute`) 단계를 막는다. 업무 데이터를 외부 시스템에 쓰는 위험이 가장 큰 경로라서 이 단계를 막는다. 가드 밖에 남은 경로는 셋이고 [미결 사항](#미결-사항) 과 Task 로 추적한다. (a) 비동기 서브 워크플로우로 시작한 자식 실행은 dry-run 을 물려받지 않는다(CLE-T-Y2F1NG). (b) 도구 목록 구성(`buildTools`) 단계의 목록 조회와 `expired` 통합의 토큰 갱신(CLE-T-8B66BK). (c) `persistent` 메모리 추출의 저장(CLE-T-C9GF9F). 이 셋을 남긴 것은 선택지 3 을 기각한 판단과 어긋나지 않는다. 세 경로는 가드 이전부터 있던 갭이다. (b) · (c) 는 외부 업무 데이터를 쓰지 않는다. 다만 토큰 갱신은 통합 상태를 바꾸고 `agent_memory` 기록은 이후 실행이 회수한다(2026-10-23 에 덧붙였다). (a) 는 특정 구성에서만 생긴다. 그래서 이번 가드에 넣지 않고 Task 로 추적한다. 2026-10-23 의 모의 응답도 같은 범위에서 동작한다.
+**가드 범위**: 가드는 같은 실행 컨텍스트에서 LLM 이 고른 도구 호출의 실행(`execute`) 단계를 막는다. 업무 데이터를 외부 시스템에 쓰는 위험이 가장 큰 경로라서 이 단계를 막는다. 가드 밖에 남은 경로는 셋(지금은 둘)이고 [미결 사항](#미결-사항) 과 Task 로 추적한다. (a) 비동기 서브 워크플로우로 시작한 자식 실행은 dry-run 을 물려받지 않는다(CLE-T-Y2F1NG). 2026-11-12 에 해소했다([Rationale](#비동기-서브-워크플로우-자식도-dry-run-을-이어받는다-2026-11-12-cle-t-y2f1ng)). (b) 도구 목록 구성(`buildTools`) 단계의 목록 조회와 `expired` 통합의 토큰 갱신(CLE-T-8B66BK). (c) `persistent` 메모리 추출의 저장(CLE-T-C9GF9F). 이 셋을 남긴 것은 선택지 3 을 기각한 판단과 어긋나지 않는다. 세 경로는 가드 이전부터 있던 갭이다. (b) · (c) 는 외부 업무 데이터를 쓰지 않는다. 다만 토큰 갱신은 통합 상태를 바꾸고 `agent_memory` 기록은 이후 실행이 회수한다(2026-10-23 에 덧붙였다). (a) 는 특정 구성에서만 생긴다. 그래서 이번 가드에 넣지 않고 Task 로 추적한다. 2026-10-23 의 모의 응답도 같은 범위에서 동작한다.
 
 **GET 도 막는다**: 임시 가드에는 도구마다 읽기와 쓰기를 가르는 분류가 아직 없다. 그래서 MCP 도구를 모두 막고 브리지의 GET operation 도 함께 막힌다. 노드 dry-run 은 Cafe24 · MakeShop 의 GET 을 그대로 부르므로 노드와 도구의 동작이 다르다. 안전을 위해 재현 충실도(GET 도 실제로 부르지 않음)를 일시적으로 낮춘 것이다. CLE-T-G62XJS 가 부수효과 분류와 모의 응답을 넣으면 이 넓은 차단을 풀고 충실도를 되돌린다. 2026-10-23 에 부수효과 판정이 들어가 이 넓은 차단을 풀었다. 브리지의 GET operation 은 다시 실제로 호출된다.
 
@@ -728,3 +750,25 @@ AI 어시스턴트의 읽기 전용 정책([AI 어시스턴트 도구](../CLE-WF
 **채택**: 체인 조회 권한을 실행 상세 조회(`GET /api/executions/:id`)와 같게 둔다. 워크스페이스 멤버면 역할과 원본 실행의 시작자와 상관없이 조회할 수 있다. 체인의 항목은 멤버가 실행 상세에서 이미 하나씩 열 수 있는 실행이다. 체인 조회는 그 목록을 한 번에 돌려줄 뿐이라 새로 드러나는 정보가 없다. RR-PL-06 이 dry-run 에도 권한을 거는 근거(다른 사용자의 실행 흐름을 자동으로 재현하면 정보가 드러난다)는 재실행에만 해당한다. 체인 조회는 흐름을 재현하지 않는다.
 
 **전제**: 응답 마스킹은 `toResponseExecution` 관문이 역할과 무관하게 적용한다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md)). 이 전제가 바뀌면 체인 조회 권한도 다시 본다. 재실행 권한(RR-PL-06)은 이 결정으로 바뀌지 않는다.
+
+### 비동기 서브 워크플로우 자식도 dry-run 을 이어받는다 (2026-11-12, CLE-T-Y2F1NG)
+
+**문제**: dry-run 여부는 실행 컨텍스트의 `variables.__dryRun` 과 실행 행의 `dry_run` 으로만 전해졌다. 비동기 서브 워크플로우로 시작한 자식 실행은 별도 실행 행이라 이 값을 받지 못했다. 그래서 dry-run 재실행이어도 자식 실행 안의 부수효과 노드와 AI 에이전트 도구가 외부를 그대로 불렀다. 2026-10-10 임시 가드 이전부터 있던 차이이고 이전 판의 미결 사항이 추적했다. 동기 서브 워크플로우와 Background 본문이 값을 물려받는지도 확인되지 않았다.
+
+**결정**: 2026-11-12 에 사람이 아래 셋 가운데 A 를 골랐다(NERV 질문 `01a1d022-4046-7267-af17-2519fc2b6cc1`).
+
+| 선택지 | 내용 | 결정 |
+| --- | --- | --- |
+| A | 비동기 자식에 dry-run 을 넘겨 실행 행에 남기고 사전 점검을 서브 워크플로우(동기 · 비동기, 재귀 · 순환 가드)까지 넓힌다 | 채택 |
+| B | dry-run 에서는 비동기 자식을 시작하지 않고 모의 출력으로 대신한다 | 기각. 자식 워크플로우의 흐름을 검증할 수 없다 |
+| C | 지금처럼 자식은 실제로 실행한다 | 기각. dry-run 인데 실제 부수효과가 난다 |
+
+**A 를 고른 이유**: dry-run 은 외부 호출 없이 흐름만 보려고 켜는 안전장치다. 자식 실행도 부모와 같은 규칙으로 모의 출력 · 응답을 받으면 흐름 전체를 검증하면서 외부 상태는 바꾸지 않는다. 값은 자식 실행 행의 `dry_run` 에 남긴다. 부모 실행과 같은 경로(`createContext` 와 rehydration)로 `__dryRun` 을 만들므로 자식이 입력 대기에 들어가도 dry-run 이 유지된다. 실행 상세 화면도 이 컬럼으로 자식 실행에 배지를 단다.
+
+**사전 점검을 넓힌 이유**: 자식 실행이 dry-run 으로 돌면 자식 워크플로우의 부수효과 노드도 모의 출력을 낼 수 있어야 한다. 그래서 REQ-RERUN-025 의 원칙(안전하게 dry-run 할 수 없으면 재실행 전체를 거부한다)을 서브 워크플로우까지 적용했다. 동기 서브 워크플로우는 원래 부모 컨텍스트를 같이 써서 dry-run 이 이어졌는데 사전 점검은 그 대상을 보지 않았다. 이번에 동기 · 비동기를 함께 본다. 서브 워크플로우는 자기 자신이나 앞 워크플로우를 다시 부를 수 있어 이미 본 워크플로우는 건너뛴다. 깊이는 서브 워크플로우 재귀 한도 10 에서 멈춘다. 그보다 깊은 호출은 실행 때 재귀 한도로 실패하므로 볼 필요가 없다.
+
+**확인만 한 경로**: 동기 서브 워크플로우와 Background 본문은 원래 dry-run 을 이어받았다. 동기 서브 워크플로우는 부모 실행 컨텍스트를 같이 쓰고 Background 본문은 큐에 넣을 때 `context.variables` 를 통째로 복사한다. 이번에 테스트로 고정했고 동작은 바꾸지 않았다(REQ-RERUN-055).
+
+**남은 한계**: 대상 `workflowId` 가 표현식인 호출은 사전 점검이 따라가지 못한다. 재실행할 워크플로우의 모달 판정(REQ-RERUN-026)도 서브 워크플로우를 보지 않는다. v1 의 부수효과 노드는 모두 `supportsDryRun: true` 라 지금은 이 한계로 실제 호출이 나가지 않는다. `supportsDryRun` 이 true 가 아닌 부수효과 노드가 생기면 이 한계를 다시 본다.
+
+**기존 워크플로우 영향**: dry-run 재실행이 비동기 서브 워크플로우를 부르면 이제 자식 실행이 외부를 부르지 않는다. 일반 실행과 dry-run 을 끈 재실행은 바뀌지 않는다.
