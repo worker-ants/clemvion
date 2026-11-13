@@ -97,6 +97,17 @@ export function isSignedChatChannelTrigger(config: unknown): boolean {
   const { chatChannel } = config as {
     chatChannel: { inboundSigningRef?: unknown };
   };
+  return hasInboundSigningRef(chatChannel);
+}
+
+/**
+ * 채팅 채널 설정에 서명 참조가 있는지 본다. 인바운드 인증기가 서명 검증을 건너뛸지 정하는 조건이고
+ * {@link isSignedChatChannelTrigger} 도 같은 함수로 판정한다. 한쪽만 바뀌어 면제됐는데 검증이 없는
+ * 트리거가 생기는 것을 막는다.
+ */
+export function hasInboundSigningRef(chatChannel: {
+  inboundSigningRef?: unknown;
+}): boolean {
   return Boolean(chatChannel.inboundSigningRef);
 }
 

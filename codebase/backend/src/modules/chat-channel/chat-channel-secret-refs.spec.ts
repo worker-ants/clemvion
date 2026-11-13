@@ -1,3 +1,5 @@
+import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenticator';
+import type { SecretResolverService } from '../secret-store/secret-resolver.service';
 import {
   chatChannelSecretRef,
   isSignedChatChannelTrigger,
@@ -223,4 +225,50 @@ describe('readTriggerChatChannelConfig', () => {
     expect(stored.botTokenRef).toBe(`secret://triggers/${OTHER}/bot-token`);
     expect(logger.error).toHaveBeenCalledTimes(1);
   });
+});
+
+// 근거: CLE-T-ZC34Y0. 전역 한도 면제(`isSignedChatChannelTrigger`)와 인증기의 서명 검증 여부는 같아야 한다.
+// 어긋나면 면제됐는데 검증이 없는 트리거가 생겨 IP 단위 한도가 하나도 걸리지 않는다.
+describe('isSignedChatChannelTrigger 와 인바운드 인증기의 서명 검증 여부', () => {
+  const refs: Array<[string, unknown]> = [
+    ['없음', undefined],
+    ['null', null],
+    ['빈 문자열', ''],
+    ['0', 0],
+    ['숫자 7', 7],
+    ['객체', { x: 1 }],
+    ['참조 문자열', 'secret://triggers/t/inbound-signing'],
+  ];
+  const providers = ['telegram', 'slack', 'discord'] as const;
+  const cases = providers.flatMap((provider) =>
+    refs.map(([label, ref]) => [provider, label, ref] as const),
+  );
+
+  it.each(cases)(
+    '%s 서명 참조가 %s 일 때 면제 판정과 시크릿 조회가 같다',
+    async (provider, _label, ref) => {
+      const resolve = jest.fn(async () => 'v');
+      const authenticator = new ChatChannelInboundAuthenticator({
+        resolve,
+      } as unknown as SecretResolverService);
+      const stored = {
+        chatChannel: {
+          provider,
+          botTokenRef: chatChannelSecretRef('t', 'botTokenRef'),
+          inboundSigningRef: ref,
+        },
+      };
+      const config = readTriggerChatChannelConfig(
+        { id: 't', config: stored },
+        makeLogger(),
+        'test',
+      ) as ChatChannelConfig;
+
+      await authenticator.verify('t', config, {}, '').catch(() => undefined);
+
+      expect(resolve.mock.calls.length > 0).toBe(
+        isSignedChatChannelTrigger(stored),
+      );
+    },
+  );
 });

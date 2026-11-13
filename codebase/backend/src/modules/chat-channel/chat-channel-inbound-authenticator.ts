@@ -3,6 +3,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { verifyDiscordSignature } from './providers/discord/discord-signing';
 import { verifySlackSignature } from './providers/slack/slack-signing';
+import { hasInboundSigningRef } from './chat-channel-secret-refs';
 import { ChatChannelConfig } from './types';
 
 /**
@@ -61,7 +62,7 @@ export class ChatChannelInboundAuthenticator {
     headers: Record<string, string>,
     rawBody: string,
   ): Promise<void> {
-    if (!config.inboundSigningRef) return;
+    if (!hasInboundSigningRef(config)) return;
     const signature = headers['x-signature-ed25519'] ?? '';
     const timestamp = headers['x-signature-timestamp'] ?? '';
     let publicKeyHex: string;
@@ -90,7 +91,7 @@ export class ChatChannelInboundAuthenticator {
     headers: Record<string, string>,
   ): Promise<void> {
     // inboundSigningRef 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
-    if (!config.inboundSigningRef) return;
+    if (!hasInboundSigningRef(config)) return;
 
     const headerToken = headers['x-telegram-bot-api-secret-token'] ?? '';
     let expected: string;
@@ -126,7 +127,7 @@ export class ChatChannelInboundAuthenticator {
     headers: Record<string, string>,
     rawBody: string,
   ): Promise<void> {
-    if (!config.inboundSigningRef) return;
+    if (!hasInboundSigningRef(config)) return;
     const signature = headers['x-slack-signature'] ?? '';
     const timestamp = headers['x-slack-request-timestamp'] ?? '';
     let secret: string;
