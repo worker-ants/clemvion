@@ -52,6 +52,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { hasSessionHint } from "@/lib/auth/session-hint";
 import { stubLocationHref } from "@/test/stub-location-href";
 import { REGISTERED_EMAIL_CHECK_TIMEOUT_MS } from "@/lib/auth/registered-email";
+import { OAUTH_REDIRECT_STORAGE_KEY } from "@/lib/auth/post-login-redirect";
 
 const VALID_TOKEN = "a".repeat(64);
 
@@ -517,7 +518,7 @@ describe("RegisterForm — OAuth 가입 시작", () => {
   });
 
   it("OAuth 가입을 시작하면 남아 있던 로그인 복귀 경로를 지운다", async () => {
-    window.sessionStorage.setItem("clemvion.postLoginRedirect", "/workflows?stale=1");
+    window.sessionStorage.setItem(OAUTH_REDIRECT_STORAGE_KEY, "/workflows?stale=1");
     const hrefStub = stubLocationHref();
     try {
       render(<RegisterForm enabledProviders={["google"]} />);
@@ -526,7 +527,7 @@ describe("RegisterForm — OAuth 가입 시작", () => {
       expect(hrefStub.assign).toHaveBeenCalledWith(
         expect.stringContaining("/auth/oauth/google?mode=register"),
       );
-      expect(window.sessionStorage.getItem("clemvion.postLoginRedirect")).toBeNull();
+      expect(window.sessionStorage.getItem(OAUTH_REDIRECT_STORAGE_KEY)).toBeNull();
     } finally {
       hrefStub.restore();
     }

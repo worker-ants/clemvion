@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
 content_hash: "f67979ce0ecc0d90cd5a5a25b4df58ae0cf03b535cdd313eef2ceca59d087bfa"
 read_as: "approved_fallback"
-task: "CLE-T-7WZKFB"
+task: "CLE-T-2NQ857"
 source_paths: ["spec/2-navigation/11-error-empty-states.md"]
-mirror_sha256: "b65935a282abde3fcda2b49b1c82490cf62e86da2a48a158ae288275dfef0ab5"
-etag: "sha256-062b9a4f90d59bf350c16ee78091e5f8cdc9096a911ffd5204005f4c8222c224"
+mirror_sha256: "6e4a6a7026a5ce20773828968a6189af90a535519980c1dcc531626f66a45f07"
+etag: "sha256-e247da007fd249a314af97dad357043dda4f794c85a7004db8b500a442af2240"
 ---
 > 구현 상태: 부분 구현 (세션 만료 변형의 쿼리 복귀는 미구현) · 원문: `spec/2-navigation/11-error-empty-states.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

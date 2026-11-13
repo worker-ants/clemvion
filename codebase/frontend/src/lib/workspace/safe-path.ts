@@ -3,7 +3,7 @@
  *
  * WHATWG URL 파서는 특수 스킴에서 `/`·`\`·tab/CR/LF 를 동등 취급하므로, 선두 슬래시/백슬래시를
  * 하나로 접고 제어문자를 제거해 protocol-relative(`//host`, `\\host`, `/\host`, `/<tab>/host`)
- * 우회를 차단한다. `buildWorkspaceHref`(링크 생성)와 `isSafeRedirectPath`(redirect 대상 검증)가
+ * 우회를 차단한다. `buildWorkspaceHref`(링크 생성)와 `resolvePostLoginRedirect`(redirect 대상 검증)가
  * 모두 이 규칙을 공유해 방어 강도가 비대칭이 되지 않게 한다.
  */
 export function toSafeInternalPath(path: string): string {

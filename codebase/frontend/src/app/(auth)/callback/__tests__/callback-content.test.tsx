@@ -27,8 +27,8 @@ vi.mock("@/lib/api/users", () => ({
 
 import { CallbackContent } from "../callback-content";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { OAUTH_REDIRECT_STORAGE_KEY as REDIRECT_KEY } from "@/lib/auth/post-login-redirect";
 
-const REDIRECT_KEY = "clemvion.postLoginRedirect";
 const USER = { id: "u1", email: "a@b.com", name: "A", locale: "ko", theme: "light" };
 
 describe("CallbackContent (decision A — refresh-cookie reuse)", () => {

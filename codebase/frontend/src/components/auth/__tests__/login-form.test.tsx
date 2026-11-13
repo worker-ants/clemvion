@@ -44,6 +44,7 @@ import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { usersApi } from "@/lib/api/users";
 import { hasSessionHint } from "@/lib/auth/session-hint";
+import { OAUTH_REDIRECT_STORAGE_KEY } from "@/lib/auth/post-login-redirect";
 import { stubLocationHref } from "@/test/stub-location-href";
 
 async function submitPassword() {
@@ -150,7 +151,7 @@ describe("LoginForm — 로그인 뒤 돌아갈 경로", () => {
       expect(hrefStub.assign).toHaveBeenCalledWith(
         expect.stringContaining("/auth/oauth/google?mode=login"),
       );
-      expect(window.sessionStorage.getItem("clemvion.postLoginRedirect")).toBe(
+      expect(window.sessionStorage.getItem(OAUTH_REDIRECT_STORAGE_KEY)).toBe(
         "/invitations/accept?token=abc",
       );
     } finally {
@@ -161,7 +162,7 @@ describe("LoginForm — 로그인 뒤 돌아갈 경로", () => {
   // 로그인 화면에서 OAuth 를 시작했다 그만둔 값이 남으면 다음 콜백의 목적지가 된다. redirect 가 없는
   // 시작은 남은 값을 지워야 한다.
   it("redirect 없이 OAuth 로그인을 시작하면 남아 있던 복귀 경로를 지운다", async () => {
-    window.sessionStorage.setItem("clemvion.postLoginRedirect", "/workflows?stale=1");
+    window.sessionStorage.setItem(OAUTH_REDIRECT_STORAGE_KEY, "/workflows?stale=1");
     const hrefStub = stubLocationHref();
     try {
       render(<LoginForm enabledProviders={["google"]} />);
@@ -170,7 +171,7 @@ describe("LoginForm — 로그인 뒤 돌아갈 경로", () => {
       expect(hrefStub.assign).toHaveBeenCalledWith(
         expect.stringContaining("/auth/oauth/google?mode=login"),
       );
-      expect(window.sessionStorage.getItem("clemvion.postLoginRedirect")).toBeNull();
+      expect(window.sessionStorage.getItem(OAUTH_REDIRECT_STORAGE_KEY)).toBeNull();
     } finally {
       hrefStub.restore();
     }

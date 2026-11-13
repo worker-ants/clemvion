@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import MainError from "../error";
+import { buildLoginHref } from "@/lib/auth/post-login-redirect";
 
 const mockReplace = vi.fn();
 let mockPathname = "/workflows/abc";
-// ErrorPage / error.tsx 가 usePathname 으로 loginHref·redirect 대상을 구성하므로 mock 한다.
+let mockSearch = "";
+// error.tsx 가 지금 화면의 경로와 쿼리로 로그인 화면 경로를 만들므로 mock 한다.
 vi.mock("next/navigation", () => ({
   useParams: () => ({}),
   useRouter: () => ({ replace: mockReplace }),
   usePathname: () => mockPathname,
+  useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 
 function httpError(status: number): Error & { digest?: string } {
@@ -20,29 +23,39 @@ function httpError(status: number): Error & { digest?: string } {
 beforeEach(() => {
   mockReplace.mockClear();
   mockPathname = "/workflows/abc";
+  mockSearch = "";
 });
 
 describe("(main)/error.tsx", () => {
-  it("redirects 401 to /login (사이드바 없는 경로) — spec §1.3", async () => {
+  it("redirects 401 to /login (사이드바 없는 경로) — REQ-ERRPAGE-005", async () => {
     const { container } = render(
       <MainError error={httpError(401)} reset={vi.fn()} />,
     );
     await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith(
-        "/login?redirect=" + encodeURIComponent("/workflows/abc"),
-      ),
+      expect(mockReplace).toHaveBeenCalledWith(buildLoginHref("/workflows/abc")),
     );
     // redirect 중에는 (main) 사이드바와 함께 렌더하지 않는다.
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("401 redirect 의 redirect 대상은 unsafe pathname 이면 /dashboard 로 폴백 (open-redirect 방지)", async () => {
-    mockPathname = "//evil.com";
+  // 쿼리가 화면을 정하는 경로(초대 수락 페이지의 `?token=`)는 쿼리가 빠지면 로그인 뒤 다른 화면이 된다.
+  it("401 redirect 는 경로와 쿼리를 함께 복귀 경로로 담는다", async () => {
+    mockPathname = "/invitations/accept";
+    mockSearch = "token=abc%2B1";
     render(<MainError error={httpError(401)} reset={vi.fn()} />);
     await waitFor(() =>
       expect(mockReplace).toHaveBeenCalledWith(
-        "/login?redirect=" + encodeURIComponent("/dashboard"),
+        buildLoginHref("/invitations/accept?token=abc%2B1"),
       ),
+    );
+  });
+
+  it("401 redirect 의 redirect 대상은 unsafe pathname 이면 /dashboard 로 폴백 (open-redirect 방지)", async () => {
+    mockPathname = "//evil.com";
+    mockSearch = "q=1";
+    render(<MainError error={httpError(401)} reset={vi.fn()} />);
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(buildLoginHref("/dashboard")),
     );
   });
 

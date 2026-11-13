@@ -1,23 +1,19 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ErrorPage, errorToVariant, isSafeRedirectPath } from "../error-page";
+import { ErrorPage, errorToVariant } from "../error-page";
+import { buildLoginHref } from "@/lib/auth/post-login-redirect";
 
+let mockPathname = "/workflows/abc";
+let mockSearch = "";
 vi.mock("next/navigation", () => ({
   useParams: () => ({}),
-  usePathname: () => "/workflows/abc",
+  usePathname: () => mockPathname,
+  useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 
-describe("isSafeRedirectPath", () => {
-  it("accepts in-app absolute paths", () => {
-    expect(isSafeRedirectPath("/dashboard")).toBe(true);
-    expect(isSafeRedirectPath("/workflows/abc")).toBe(true);
-  });
-  it("rejects protocol-relative / external / empty / null paths (open-redirect)", () => {
-    expect(isSafeRedirectPath("//evil.com")).toBe(false);
-    expect(isSafeRedirectPath("https://evil.com")).toBe(false);
-    expect(isSafeRedirectPath("")).toBe(false);
-    expect(isSafeRedirectPath(null)).toBe(false);
-  });
+beforeEach(() => {
+  mockPathname = "/workflows/abc";
+  mockSearch = "";
 });
 
 describe("errorToVariant", () => {
@@ -57,9 +53,27 @@ describe("ErrorPage", () => {
     render(<ErrorPage variant="sessionExpired" />);
     expect(screen.getByText("세션이 만료되었습니다")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "다시 로그인" });
-    expect(link).toHaveAttribute(
+    expect(link).toHaveAttribute("href", buildLoginHref("/workflows/abc"));
+  });
+
+  // REQ-ERRPAGE-004 · 014 — «다시 로그인» 도 경로와 쿼리를 함께 복귀 경로로 담는다.
+  it("session-expired 의 «다시 로그인» 링크는 쿼리까지 복귀 경로로 담는다", () => {
+    mockPathname = "/invitations/accept";
+    mockSearch = "token=abc%2B1";
+    render(<ErrorPage variant="sessionExpired" />);
+    expect(screen.getByRole("link", { name: "다시 로그인" })).toHaveAttribute(
       "href",
-      "/login?redirect=" + encodeURIComponent("/workflows/abc"),
+      buildLoginHref("/invitations/accept?token=abc%2B1"),
+    );
+  });
+
+  it("session-expired 링크는 안전하지 않은 경로면 /dashboard 를 담는다 (open-redirect 방지)", () => {
+    mockPathname = "//evil.com";
+    mockSearch = "q=1";
+    render(<ErrorPage variant="sessionExpired" />);
+    expect(screen.getByRole("link", { name: "다시 로그인" })).toHaveAttribute(
+      "href",
+      buildLoginHref("/dashboard"),
     );
   });
 

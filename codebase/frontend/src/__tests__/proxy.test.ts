@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
 import { proxy } from "../proxy";
+import { buildLoginHref } from "@/lib/auth/post-login-redirect";
 
 /**
  * proxy(미들웨어) 인증 게이트 — `/_widget/**` 동봉 위젯 번들 회귀 가드.
@@ -58,6 +59,17 @@ describe("proxy — 인증 보호 회귀(여전히 동작)", () => {
     );
     // 원래 쿼리가 /login 의 파라미터로 새지 않는다.
     expect(url.searchParams.get("token")).toBeNull();
+  });
+
+  // 로그인 화면 경로는 `buildLoginHref` 한 곳에서 만든다. 오류 화면 · 인증 프로바이더와 인코딩이 같다.
+  // `(` `)` `!` `~` 는 encodeURIComponent 가 그대로 두고 URLSearchParams 는 인코딩하는 글자라
+  // 다른 방식으로 조립하면 이 단언이 깨진다.
+  it("로그인 화면 경로를 buildLoginHref 와 같은 형식으로 만든다", () => {
+    const loc = redirectLocation(proxy(req("/w/team-a/workflows?q=(a)!~&tab=runs")));
+    const url = new URL(loc!);
+    expect(`${url.pathname}${url.search}`).toBe(
+      buildLoginHref("/w/team-a/workflows?q=(a)!~&tab=runs"),
+    );
   });
 
   it("보호 경로도 세션 있으면 통과", () => {
