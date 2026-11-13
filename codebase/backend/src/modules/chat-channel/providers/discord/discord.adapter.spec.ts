@@ -270,28 +270,156 @@ describe('DiscordAdapter', () => {
     );
   });
 
+  /**
+   * 저장된 `botIdentity.botId` 는 application id 의 32비트 해시라 Discord id 로 쓸 수 없다.
+   * teardown 은 `GET /applications/@me` 로 실제 id 를 다시 읽어 명령을 지운다(NERV Task `CLE-T-Z9J25Z`).
+   * 해시만 저장된 기존 행도 같은 방식으로 지운다.
+   */
   describe('teardownChannel', () => {
-    it('putApplicationCommands ok=false → throw 하지 않고 경고만 남긴다(best-effort)', async () => {
-      const client = new DiscordClient();
-      jest.spyOn(client, 'putApplicationCommands').mockResolvedValue({
-        ok: false,
-        message: 'Discord PUT HTTP 503',
-      });
-      const adapter = new DiscordAdapter(client, makeSecretsMock());
-      const warn = jest
+    const REAL_APP_ID = '123456789012345678';
+    // setupChannel 이 저장하는 값과 같은 모양(실제 id 의 해시 정수). id 로 쓰면 안 된다.
+    const STORED_CONFIG: ChatChannelConfig = {
+      ...DISCORD_CONFIG,
+      botIdentity: { botId: 987654321, username: 'workflow-bot' },
+    };
+
+    function spyWarn(adapter: DiscordAdapter): jest.SpyInstance {
+      return jest
         .spyOn(
           (adapter as unknown as { logger: { warn: (m: string) => void } })
             .logger,
           'warn',
         )
         .mockImplementation(() => undefined);
+    }
+
+    it('@me 의 실제 application id 로 명령을 지운다(저장된 해시 botId 는 쓰지 않는다)', async () => {
+      const client = new DiscordClient();
+      const meSpy = jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        id: REAL_APP_ID,
+        name: 'workflow-bot',
+      });
+      const putSpy = jest
+        .spyOn(client, 'putApplicationCommands')
+        .mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const warn = spyWarn(adapter);
+
       await expect(
-        adapter.teardownChannel({
-          ...DISCORD_CONFIG,
-          botIdentity: { botId: 123, username: 'workflow-bot' },
-        }),
+        adapter.teardownChannel(STORED_CONFIG),
+      ).resolves.toBeUndefined();
+
+      expect(meSpy).toHaveBeenCalledWith('bot-token-discord');
+      expect(putSpy).toHaveBeenCalledTimes(1);
+      expect(putSpy).toHaveBeenCalledWith('bot-token-discord', REAL_APP_ID, []);
+      expect(putSpy).not.toHaveBeenCalledWith(
+        expect.anything(),
+        '987654321',
+        expect.anything(),
+      );
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('getApplicationMe ok=false → 명령 해제를 건너뛰고 경고만 남긴다(best-effort)', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        ok: false,
+        status: 401,
+        message: 'Discord GET /applications/@me HTTP 401',
+      });
+      const putSpy = jest
+        .spyOn(client, 'putApplicationCommands')
+        .mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const warn = spyWarn(adapter);
+
+      await expect(
+        adapter.teardownChannel(STORED_CONFIG),
+      ).resolves.toBeUndefined();
+
+      expect(putSpy).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('getApplicationMe'),
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('HTTP 401'));
+    });
+
+    it('getApplicationMe 가 reject → 명령 해제를 건너뛰고 경고만 남긴다(best-effort)', async () => {
+      const client = new DiscordClient();
+      jest
+        .spyOn(client, 'getApplicationMe')
+        .mockRejectedValue(new Error('socket hang up'));
+      const putSpy = jest
+        .spyOn(client, 'putApplicationCommands')
+        .mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const warn = spyWarn(adapter);
+
+      await expect(
+        adapter.teardownChannel(STORED_CONFIG),
+      ).resolves.toBeUndefined();
+
+      expect(putSpy).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('socket hang up'),
+      );
+    });
+
+    it('getApplicationMe 응답에 id 가 없으면 명령 해제를 건너뛰고 경고만 남긴다', async () => {
+      const client = new DiscordClient();
+      jest
+        .spyOn(client, 'getApplicationMe')
+        .mockResolvedValue({ id: '', name: 'workflow-bot' });
+      const putSpy = jest
+        .spyOn(client, 'putApplicationCommands')
+        .mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const warn = spyWarn(adapter);
+
+      await expect(
+        adapter.teardownChannel(STORED_CONFIG),
+      ).resolves.toBeUndefined();
+
+      expect(putSpy).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('id'));
+    });
+
+    it('putApplicationCommands ok=false → throw 하지 않고 경고만 남긴다(best-effort)', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        id: REAL_APP_ID,
+        name: 'workflow-bot',
+      });
+      jest.spyOn(client, 'putApplicationCommands').mockResolvedValue({
+        ok: false,
+        message: 'Discord PUT HTTP 503',
+      });
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const warn = spyWarn(adapter);
+      await expect(
+        adapter.teardownChannel(STORED_CONFIG),
       ).resolves.toBeUndefined();
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('HTTP 503'));
+    });
+
+    it('botIdentity 가 없으면(setup 미완료) Discord 를 부르지 않는다', async () => {
+      const client = new DiscordClient();
+      // 가드가 빠져도 실제 네트워크로 나가지 않게 mock 해 둔다.
+      const meSpy = jest
+        .spyOn(client, 'getApplicationMe')
+        .mockResolvedValue({ id: REAL_APP_ID, name: 'workflow-bot' });
+      const putSpy = jest
+        .spyOn(client, 'putApplicationCommands')
+        .mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+
+      await expect(
+        adapter.teardownChannel(DISCORD_CONFIG),
+      ).resolves.toBeUndefined();
+
+      expect(meSpy).not.toHaveBeenCalled();
+      expect(putSpy).not.toHaveBeenCalled();
     });
   });
 

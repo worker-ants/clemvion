@@ -185,16 +185,37 @@ export class DiscordAdapter implements NativeFormAdapter {
   /**
    * Spec §3.2 — slash command bulk overwrite 를 빈 배열로 호출 → 등록 해제. best-effort.
    * Interactions Endpoint URL 자체는 사용자가 Portal 에서 직접 비워야 함.
+   *
+   * application id 는 `GET /applications/@me` 로 다시 읽는다. 저장된 `botIdentity.botId` 는
+   * id 의 32비트 해시라 Discord 경로에 넣으면 PUT 이 늘 실패했다(NERV Task `CLE-T-Z9J25Z`).
+   * 해시만 저장된 기존 행도 같은 방식으로 지운다. `@me` 조회가 실패하면 경고만 남기고 명령 해제를 건너뛴다.
    */
   async teardownChannel(config: ChatChannelConfig): Promise<void> {
     try {
+      // botIdentity 가 없으면 setup 이 끝나지 않은 채널이라 지울 명령이 없다.
+      if (config.botIdentity?.botId == null) return;
       const botToken = await this.resolveBotToken(config);
-      const appId = String(config.botIdentity?.botId ?? '');
-      if (!appId) return;
-      const res = await this.client.putApplicationCommands(botToken, appId, []);
+      const app = await this.client.getApplicationMe(botToken);
+      if (isDiscordApiError(app)) {
+        this.logger.warn(
+          `DiscordAdapter.teardownChannel best-effort 실패: getApplicationMe ${app.message ?? 'unknown'} (application id 를 몰라 명령 해제를 건너뜀)`,
+        );
+        return;
+      }
+      if (!app.id) {
+        this.logger.warn(
+          'DiscordAdapter.teardownChannel best-effort 실패: getApplicationMe 응답에 id 가 없어 명령 해제를 건너뜀',
+        );
+        return;
+      }
+      const res = await this.client.putApplicationCommands(
+        botToken,
+        app.id,
+        [],
+      );
       if (isDiscordApiError(res)) {
         this.logger.warn(
-          `DiscordAdapter.teardownChannel best-effort 실패: ${res.message ?? 'unknown'}`,
+          `DiscordAdapter.teardownChannel best-effort 실패: putApplicationCommands ${res.message ?? 'unknown'}`,
         );
       }
     } catch (err) {
