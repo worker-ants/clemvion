@@ -149,7 +149,8 @@ export class HooksController {
       '웹훅 접수 및 워크플로우 실행 시작. 전역 TransformInterceptor 에 의해 `{ data: ... }` 로 래핑되어 반환됩니다.',
   })
   @ApiUnauthorizedResponse({
-    description: '웹훅 서명/시크릿 검증 실패',
+    description:
+      '웹훅 서명/시크릿 검증 실패. 서명 참조가 있는 채팅 채널 트리거는 같은 IP 에서 서명 검증에 분당 20회를 넘게 실패하면 한동안 서명이 맞아도 검증 없이 같은 401(`AUTH_FAILED`)로 답한다(429 가 아니다).',
   })
   @ApiNotFoundResponse({
     description: '등록된 트리거(endpointPath)를 찾을 수 없음',

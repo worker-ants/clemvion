@@ -2127,6 +2127,32 @@ describe('HooksService', () => {
           );
         },
       );
+
+      // 버리는 단계(수신 확인)가 동기로 던져도 오류가 5xx 로 새지 않는다. catch 안에서 던지면 202 계약이 깨진다.
+      // `/start` 취소 실패의 원래 에러 전파는 아래 `/start` describe 의 503 · 400 케이스가 본다.
+      it('버리는 단계의 수신 확인이 동기로 던져도 202 ignored 로 답한다', async () => {
+        Object.assign(mockAdapter, {
+          ackDroppedUpdate: jest.fn(() => {
+            throw new Error('ack sync boom');
+          }),
+        });
+        mockAdapter.parseUpdate.mockRejectedValueOnce(new Error('parse boom'));
+        const warnSpy = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+
+        try {
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('ack sync boom'),
+          );
+        } finally {
+          warnSpy.mockRestore();
+          Reflect.deleteProperty(mockAdapter, 'ackDroppedUpdate');
+        }
+      });
     });
 
     it('chatChannel 경로도 민감 헤더를 execute inputData 에 [REDACTED] 로 마스킹 (spec 12-webhook §5.3)', async () => {
