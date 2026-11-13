@@ -334,26 +334,36 @@ describe('OpenAIClient.stream', () => {
       });
       afterEach(() => warn.mockRestore());
 
-      it('classifies an SDK parse failure with harmony tokens as LLM_OUTPUT_MALFORMED with a fixed English message', async () => {
-        const rawSdkMessage =
-          'Failed to parse input at pos 0: <|channel|>final<|message|>설문 폼에 **오류 처리 템플릿** 추가';
-        const client = new OpenAIClient('sk-test', 'gpt-oss-120b');
-        // @ts-expect-error — inject a stream that throws a harmony-tagged parse
-        // error during iteration, mimicking the OpenAI SDK behavior on a
-        // malformed local-server SSE response.
-        client.client = {
+      /**
+       * 반복 도중 `error` 를 던지는 SDK 스트림을 넣은 클라이언트를 만든다.
+       * SDK 클라이언트 타입 전체를 흉내 내지 않고 `chat.completions.create` 만
+       * 바꾸므로 private 필드 대입을 `unknown` 으로 넓혀서 한다.
+       */
+      const clientThrowingMidStream = (model: string, error: Error) => {
+        const client = new OpenAIClient('sk-test', model);
+        (client as unknown as { client: unknown }).client = {
           chat: {
             completions: {
               create: jest.fn().mockResolvedValue({
                 [Symbol.asyncIterator]() {
-                  return {
-                    next: () => Promise.reject(new Error(rawSdkMessage)),
-                  };
+                  return { next: () => Promise.reject(error) };
                 },
               }),
             },
           },
         };
+        return client;
+      };
+
+      it('classifies an SDK parse failure with harmony tokens as LLM_OUTPUT_MALFORMED with a fixed English message', async () => {
+        const rawSdkMessage =
+          'Failed to parse input at pos 0: <|channel|>final<|message|>설문 폼에 **오류 처리 템플릿** 추가';
+        // OpenAI SDK 가 로컬 서버의 깨진 SSE 응답을 파싱하다 harmony 토큰이 섞인
+        // 오류를 던지는 경우를 흉내 낸다.
+        const client = clientThrowingMidStream(
+          'gpt-oss-120b',
+          new Error(rawSdkMessage),
+        );
 
         const events = await collect(
           client.stream({
@@ -378,22 +388,10 @@ describe('OpenAIClient.stream', () => {
       });
 
       it('keeps the SDK message on LLM_CONNECTION_ERROR without a harmony warn log', async () => {
-        const client = new OpenAIClient('sk-test', 'gpt-4o');
-        // @ts-expect-error — inject a stream that fails mid-iteration with a
-        // non-harmony error.
-        client.client = {
-          chat: {
-            completions: {
-              create: jest.fn().mockResolvedValue({
-                [Symbol.asyncIterator]() {
-                  return {
-                    next: () => Promise.reject(new Error('socket hang up')),
-                  };
-                },
-              }),
-            },
-          },
-        };
+        const client = clientThrowingMidStream(
+          'gpt-4o',
+          new Error('socket hang up'),
+        );
 
         const events = await collect(
           client.stream({
