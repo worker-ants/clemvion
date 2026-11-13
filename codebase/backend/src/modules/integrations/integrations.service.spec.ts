@@ -143,7 +143,6 @@ describe('IntegrationsService', () => {
         .fn()
         .mockImplementation((entity) => Promise.resolve(entity as Integration)),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
-      remove: jest.fn().mockResolvedValue(undefined),
       // 삭제는 `delete` 로 한다 — 그 `affected` 가 «내가 지웠는가» 의 판별자다(동시 DELETE 의 진 쪽은
       // 0행이라 404 로 끝나야 한다).
       delete: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
@@ -521,7 +520,7 @@ describe('IntegrationsService', () => {
     // 응답 DTO 전용 derived 필드. `ServiceDefinition.supportsTokenAutoRefresh`
     // 에서 매 응답 시점에 계산되며 DB 컬럼이 아니다.
     // -----------------------------------------------------------------
-    // CLE-T-NNENG8 — 재설치 요청 표시는 24시간 동안만 유효하다(`isReinstallRequestActive`). 응답은 유효할 때만 값을 싣고
+    // CLE-T-NNENG8 — 재설치 대기 표시는 24시간 동안만 유효하다(`isReinstallRequestActive`). 응답은 유효할 때만 값을 싣고
     // 만료됐으면 `null` 이다 — 상세 화면의 안내 배너는 이 값만 보므로 판정을 서버 한곳에서 한다.
     describe('reinstallRequestedAt', () => {
       const HOUR = 60 * 60 * 1000;
@@ -1172,7 +1171,7 @@ describe('IntegrationsService', () => {
     });
 
     /**
-     * CLE-T-NNENG8 — Cafe24 Private 은 우리 서버가 OAuth 를 시작하지 못한다. 재인증은 재설치 요청 표시를 남기고
+     * CLE-T-NNENG8 — Cafe24 Private 은 우리 서버가 OAuth 를 시작하지 못한다. 재인증은 재설치 대기 표시를 남기고
      * App URL 을 돌려준다. 사용자가 Cafe24 에서 「테스트 실행」을 누르면 App URL 이 표시를 보고 OAuth 로 보낸다.
      */
     describe('Cafe24 Private', () => {
@@ -1200,7 +1199,7 @@ describe('IntegrationsService', () => {
         ['error', 'auth_failed'],
         ['expired', 'token_expired'],
       ] as const)(
-        'status=%s — begin 을 부르지 않고 재설치 요청 표시를 남긴 뒤 cafe24_private_pending 을 돌려준다',
+        'status=%s — begin 을 부르지 않고 재설치 대기 표시를 남긴 뒤 cafe24_private_pending 을 돌려준다',
         async (status, statusReason) => {
           integrationRepo.findOne.mockResolvedValue(
             makeIntegration({
@@ -2057,7 +2056,7 @@ describe('IntegrationsService', () => {
       );
     });
 
-    // 설치 토큰이 없는 Private 행(설치 시간 초과 등)은 재설치 요청 표시를 남길 곳도 begin 으로 갈 길도 없다.
+    // 설치 토큰이 없는 Private 행(설치 시간 초과 등)은 재설치 대기 표시를 남길 곳도 begin 으로 갈 길도 없다.
     // begin 을 부르지 않고 서비스가 거절한다(Task CLE-T-WB7JPC).
     it('cafe24 Private 에 install_token 이 없으면 begin 을 부르지 않고 CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING 으로 거절한다', async () => {
       integrationRepo.findOne.mockResolvedValue(
@@ -2157,7 +2156,7 @@ describe('IntegrationsService', () => {
         expect(creds.scopes).toEqual(['mall.read_product', 'mall.read_store']);
         // 합치지 않는 자격 증명 필드는 그대로 싣는다.
         expect(creds.refresh_token).toBe('r');
-        // CLE-T-NNENG8 — 재설치 요청 표시를 함께 남겨 App URL 이 OAuth 로 보내게 한다. 상태 · 사유는 건드리지 않는다.
+        // CLE-T-NNENG8 — 재설치 대기 표시를 함께 남겨 App URL 이 OAuth 로 보내게 한다. 상태 · 사유는 건드리지 않는다.
         expect(changes.reinstallRequestedAt).toBeInstanceOf(Date);
         expect(
           (changes.reinstallRequestedAt as Date).getTime(),
@@ -2201,7 +2200,7 @@ describe('IntegrationsService', () => {
       }
     });
 
-    it('cafe24 Private 설치 대기 행 — scope 만 합치고 재설치 요청 표시는 남기지 않는다(App URL 이 이미 OAuth 로 보낸다)', async () => {
+    it('cafe24 Private 설치 대기 행 — scope 만 합치고 재설치 대기 표시는 남기지 않는다(App URL 이 이미 OAuth 로 보낸다)', async () => {
       const original = process.env.APP_URL;
       process.env.APP_URL = 'https://app.example.com';
       integrationRepo.findOne.mockResolvedValue(

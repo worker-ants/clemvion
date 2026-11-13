@@ -18,7 +18,7 @@ import {
  *
  * 보호 대상 invariants:
  *   - 남의 personal 은 목록에서 빠지고, `:id` 경로는 **없는 id 와 같은** `404 RESOURCE_NOT_FOUND` 다 — Owner 도 예외가 아니다
- *   - Organization 통합의 수정 · 삭제 · 재인증은 Editor 에게 `403 ADMIN_REQUIRED` 다. Viewer 는 편집자 이상 라우트 가드가 먼저 `403 EDITOR_REQUIRED` 로 거절한다
+ *   - Organization 통합의 수정 · 삭제 · 자격 증명 교체 · 재인증은 Editor 에게 `403 ADMIN_REQUIRED` 다. Viewer 는 편집자 이상 라우트 가드가 먼저 `403 EDITOR_REQUIRED` 로 거절한다
  *   - `oauth/begin` 의 reauthorize 모드(`integrationId` 지정)도 같은 판정을 받는다 — `:id/reauthorize` 우회 입구가 아니다
  *   - 생성자는 자기 personal 을 바꾸고 지운다
  *
@@ -246,15 +246,30 @@ describe('Integration personal-owner enforcement (e2e)', () => {
     expect(read.status).toBe(200);
   });
 
-  // **반드시 마지막** — `beforeAll` 이 만든 `personalId` 를 지운다. 앞의 케이스들이 그 행을 전제로 한다.
+  // rotate 는 새 값으로 연결 테스트를 먼저 돌린다. 이 HTTP 통합은 base_url 이 없어 테스터가 외부를 부르지 않고 통과한다.
+  it('Organization 통합 — Editor 의 자격 증명 교체(rotate)는 403 ADMIN_REQUIRED, Admin 은 200', async () => {
+    const rotate = (actor: Actor) =>
+      as(actor).post(`/api/integrations/${orgId}/rotate`, {
+        credentials: { token: `e2e-ipo-rotated-${actor.userId}` },
+      });
+    expect(answerOf(await rotate(editor))).toBe('403 ADMIN_REQUIRED');
+    const byAdmin = await rotate(admin);
+    expect(byAdmin.status).toBe(200);
+    expect((byAdmin.body.data as { id: string }).id).toBe(orgId);
+  });
+
+  // 삭제할 통합을 이 케이스가 직접 만든다. `beforeAll` 의 `personalId` 는 지우지 않으므로 케이스 순서에 기대지 않는다.
   it('생성자는 자기 personal 을 읽고 · 이름을 바꾸고 · 지운다', async () => {
-    const read = await as(editor).get(`/api/integrations/${personalId}`);
+    const mineId = await createHttp(editor, 'personal');
+    const read = await as(editor).get(`/api/integrations/${mineId}`);
     expect(read.status).toBe(200);
-    const rename = await as(editor).patch(`/api/integrations/${personalId}`, {
+    const rename = await as(editor).patch(`/api/integrations/${mineId}`, {
       name: uniqueName('mine'),
     });
     expect(rename.status).toBe(200);
-    const del = await as(editor).delete(`/api/integrations/${personalId}`);
+    const del = await as(editor).delete(`/api/integrations/${mineId}`);
     expect(del.status).toBe(204);
+    const gone = await as(editor).get(`/api/integrations/${mineId}`);
+    expect(answerOf(gone)).toBe('404 RESOURCE_NOT_FOUND');
   });
 });

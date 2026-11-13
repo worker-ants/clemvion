@@ -1,19 +1,20 @@
 import { describe, it, expect } from '@jest/globals';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { PENDING_INSTALL_TTL_HOURS } from './integrations.constants';
 import {
-  assertPendingReusable,
   makeshopPendingLockKey,
   MAKESHOP_PENDING_LOCK_PREFIX,
-  PENDING_INSTALL_TTL_HOURS,
   pendingInstallConflict,
   pendingInstallExpiresAt,
   pendingReuseVerdict,
   pickPendingToReuse,
+  resolvePendingReuse,
 } from './pending-install-reuse';
 
 /*
  * 설치 대기 행 재사용의 판정 — NERV CLE-INT-OAUTH 「설치 대기 행 재사용의 권한」(REQ-INTOAUTH-058~062 · 066).
- * 잠금과 쓰기는 서비스 테스트(`integration-oauth.service.{cafe24,makeshop}.spec.ts`)와 e2e 가 본다.
+ * 잠금과 쓰기는 `pending-install-writer.spec.ts` · 서비스 테스트(`integration-oauth.service.{cafe24,makeshop}.spec.ts`)와 e2e 가
+ * 본다.
  */
 
 const OWNER = 'u-owner';
@@ -162,7 +163,7 @@ describe('pendingInstallConflict', () => {
   );
 });
 
-describe('assertPendingReusable', () => {
+describe('resolvePendingReuse', () => {
   const stamp = {
     installTokenIssuedAt: new Date('2026-10-05T12:00:00.000Z'),
     createdAt: new Date('2026-10-01T00:00:00.000Z'),
@@ -174,15 +175,15 @@ describe('assertPendingReusable', () => {
   ) => ({ ...row(scope, createdBy, id), ...stamp });
 
   it('고른 행이 없으면 null — 새 행을 만든다', () => {
-    expect(assertPendingReusable(null, 'cafe24')).toBeNull();
-    expect(assertPendingReusable(null, 'makeshop')).toBeNull();
+    expect(resolvePendingReuse(null, 'cafe24')).toBeNull();
+    expect(resolvePendingReuse(null, 'makeshop')).toBeNull();
   });
 
   it('다시 쓸 행이면 그 행을 돌려준다', () => {
     const mine = target('personal', OWNER, 'mine');
-    expect(
-      assertPendingReusable({ row: mine, verdict: 'reuse' }, 'cafe24'),
-    ).toBe(mine);
+    expect(resolvePendingReuse({ row: mine, verdict: 'reuse' }, 'cafe24')).toBe(
+      mine,
+    );
   });
 
   it.each([
@@ -194,7 +195,7 @@ describe('assertPendingReusable', () => {
       const others = target('personal', OTHER, 'others');
       let thrown: unknown;
       try {
-        assertPendingReusable(
+        resolvePendingReuse(
           { row: others, verdict: 'owned_by_other' },
           service,
         );
@@ -219,7 +220,7 @@ describe('assertPendingReusable', () => {
       const org = target('organization', OTHER, 'org');
       let thrown: unknown;
       try {
-        assertPendingReusable({ row: org, verdict: 'admin_required' }, service);
+        resolvePendingReuse({ row: org, verdict: 'admin_required' }, service);
       } catch (err) {
         thrown = err;
       }

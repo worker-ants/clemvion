@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 5
+version: 6
 status: "approved"
-requirements: []
+requirements: ["REQ-HANDLER-001", "REQ-HANDLER-002", "REQ-HANDLER-003", "REQ-HANDLER-004"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "ec871c5ea17d5105474a17521a2c120879fb376bc0fadd6315070e36ce9ee253"
+content_hash: "a28cad4c1e3e9641caf3178f53d42756c1163ba7de6bc840056f04510b7f0283"
 read_as: "approved_fallback"
-task: "CLE-T-PTC4SF"
+task: "CLE-T-VQX844"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "1623cb963d8baebdd451b4cc4e825f9757dcefb656632d76b11ac48d830fe56f"
-etag: "sha256-2c25ac8687ee00758a9475b6999dbb374a9890305be41312f7d6a2dab85c53fe"
+mirror_sha256: "cc896e3b3fe0de4b4691c6e2703c0d3761734586cf1d3727827cb770a1bf5985"
+etag: "sha256-2d6d121a97b7ecf44120a26034ff7bfe40da164ab09fbff646f7435076d0b74a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -84,12 +84,12 @@ interface NodeHandlerOutput {
 
 엔진은 표현식(`{{ ... }}`)의 평가 전과 평가 후 두 값을 핸들러가 모두 쓸 수 있게 넘긴다. 설정 에코는 원본(평가 전), `output.*` 는 평가 결과라는 직교성을 지키기 위한 요구다.
 
-| ID | 요구 | 우선순위 | 상태 |
-| --- | --- | --- | --- |
-| ENG-RC-01 | 엔진은 `node.config` 에 표현식이 들어 있으면 평가 전 원본을 따로 보존해 핸들러가 읽을 수 있게 노출한다(`ExecutionContext.rawConfig`) | 필수 | ✅ |
-| ENG-RC-02 | 핸들러는 `NodeHandlerOutput.config` 에 원본 설정(`rawConfig`)을 에코하고 표현식 평가 결과는 `output.*` 에 둔다 | 필수 | ✅ |
-| ENG-RC-03 | 평가 전(`context.rawConfig`)과 평가 후(`config` 인자)를 모두 핸들러 인자로 넘겨 핸들러가 에코와 실제 동작에 쓸 값을 분명히 나눌 수 있게 한다 | 필수 | ✅ |
-| ENG-RC-04 | 이행은 한 번에 바꾼다. 모든 핸들러가 같은 방식을 따른다. 표현식이 없는 필드(예: `mode`, `chartType`)는 원본과 평가 결과가 같아 영향이 없고 표현식을 쓰는 필드(템플릿·표현식 위젯)만 뜻이 바뀐다 | 필수 | ✅ |
+- REQ-HANDLER-001 WHEN 엔진이 노드 핸들러를 부르면 THE SYSTEM SHALL 표현식을 평가하기 전 원본 설정을 따로 보존해 `ExecutionContext.rawConfig` 로 노출한다. (원본: ENG-RC-01)
+- REQ-HANDLER-002 WHEN 핸들러가 노드 출력을 만들면 THE SYSTEM SHALL `NodeHandlerOutput.config` 에 원본 설정(`rawConfig`)을 에코하고 표현식 평가 결과는 `output.*` 에 둔다. (원본: ENG-RC-02)
+- REQ-HANDLER-003 WHEN 엔진이 핸들러의 `execute` 를 부르면 THE SYSTEM SHALL 평가 후 설정을 `config` 인자로, 평가 전 원본을 `context.rawConfig` 로 함께 넘겨 핸들러가 에코할 값과 동작에 쓸 값을 나눌 수 있게 한다. (원본: ENG-RC-03)
+- REQ-HANDLER-004 WHEN 원본 설정 에코 방식을 도입하면 THE SYSTEM SHALL 모든 핸들러에 한 번에 같은 방식을 적용한다. (원본: ENG-RC-04)
+
+엔진은 표현식이 있는지와 관계없이 모든 호출에 `node.config` 의 얕은 복사본을 얼려 `rawConfig` 로 넣는다. 표현식이 없는 필드(예: `mode`, `chartType`)는 원본과 평가 결과가 같아 영향이 없다. 표현식을 쓰는 필드(템플릿·표현식 위젯)만 뜻이 바뀐다. 옛 레이블 `ENG-RC-01`~`04` 와 새 번호의 대응은 [Rationale](#원본-설정-노출-요구를-요구사항-줄로-옮겼다-2026-11-13) 에 있다.
 
 영향 범위:
 
@@ -148,7 +148,7 @@ interface NodeHandlerRegistry {
 
 - 시스템이 시작할 때 모든 기본 노드 핸들러를 레지스트리에 등록한다.
 - 마켓플레이스로 설치한 사용자 정의 플러그인 노드를 같은 레지스트리에 등록하는 것은 **Planned** 다. [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 의 마켓플레이스 로드맵과 같은 단계다.
-- 등록되지 않은 `nodeType` 을 찾으면 `UNKNOWN_NODE_TYPE` 에러다.
+- 등록되지 않은 `nodeType` 을 찾으면 `get` 이 메시지가 `UNKNOWN_NODE_TYPE: ` 로 시작하는 일반 에러를 던진다(`No handler registered for node type "<유형>"`). `INVALID_NODE_CONFIG: ` 와 같은 메시지 접두이고 구조화된 `error.code` 는 없다. 노드 실행 중에 나면 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다([노드 실행 흐름](#노드-실행-흐름) 2단계). AI 어시스턴트 도구가 도구 결과에 싣는 `error: 'UNKNOWN_NODE_TYPE'` 은 이름만 같은 다른 값이다.
 
 ### 노드 유형 메타데이터 기반 dispatch
 
@@ -206,24 +206,29 @@ interface NodeHandlerRegistry {
 이 흐름은 세그먼트 안에서 dispatch 루프가 노드마다 같은 프로세스에서 직접 돈다(in-process dispatch). 노드마다 큐 작업을 만들지 않는다([큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md)). 노드 단위 큐를 기각한 근거는 [큐 워커와 동시 실행 제한 §노드 단위 큐 대신 실행 단위 시작 큐](CLE-EXEC-WORKER.md#노드-단위-큐-대신-실행-단위-시작-큐-2026-06-04-결정-pr1) 에 있다.
 
 1. dispatch 루프가 포인터를 옮겨 다음 노드를 고른다.
-2. `registry.get(nodeType)` 으로 핸들러를 찾는다.
-3. `handler.validate(rawConfig)` 가 실패하면 바로 실패한다(`INVALID_NODE_CONFIG`).
+2. `registry.get(nodeType)` 으로 핸들러를 찾는다. 등록되지 않은 유형이면 메시지가 `UNKNOWN_NODE_TYPE: ` 로 시작하는 에러를 던진다.
+3. `handler.validate(rawConfig)` 가 실패하면 메시지가 `INVALID_NODE_CONFIG: ` 로 시작하고 검증 메시지를 이어 붙인 에러를 던진다. 이 이름은 메시지 접두이고 구조화된 `error.code` 는 없다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.5).
 4. `ExpressionResolver.resolveConfig(rawConfig)` 로 `resolvedConfig` 를 만든다.
 5. `handler.execute(input, resolvedConfig, { ...context, rawConfig })` 로 출력을 받는다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 이 단계를 되풀이한다.
 6. 출력이 JSON 으로 직렬화되는지 확인한다.
 7. 노드 실행 행에 입력·출력·상태를 기록한다.
 8. 그래프 순회에 따라 포인터를 옮긴다.
 
+2단계와 3단계의 에러는 노드 실행 행을 실행 중으로 만든 뒤에 나고 `executeNode` 의 catch 로 간다. 그래서 다른 실행 실패와 같이 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다. 5단계의 노드 재시도는 이 두 에러를 되풀이하지 않는다.
+
 ```mermaid
 flowchart TD
-  A["다음 노드 선택"] --> B["레지스트리에서 핸들러 찾기"]
-  B --> C{"validate(rawConfig) 통과?"}
-  C -- "아니오" --> X["INVALID_NODE_CONFIG 로 실패"]
+  A["다음 노드 선택"] --> B{"레지스트리에 핸들러가 있나?"}
+  B -- "아니오" --> Y["UNKNOWN_NODE_TYPE: 접두 에러"]
+  B -- "예" --> C{"validate(rawConfig) 통과?"}
+  C -- "아니오" --> X["INVALID_NODE_CONFIG: 접두 에러"]
   C -- "예" --> D["resolveConfig 로 평가된 설정 만들기"]
   D --> E["execute(input, resolvedConfig, context)"]
   E --> F["출력 직렬화 확인"]
   F --> G["노드 실행 행 기록"]
   G --> H["포인터 이동"]
+  X --> P["노드 에러 처리 정책"]
+  Y --> P
 ```
 
 ### 핸들러용 실행 컨텍스트는 노드 실행마다 하나다
@@ -296,3 +301,17 @@ Code 노드가 `null` 을 돌려주거나 아무것도 돌려주지 않을 때 `
 - 모든 `null` 출력을 감싸는 안은 기각했다. 입력 대기 노드는 `output` 을 `null` 로 두고 대기 선언을 설정 쪽에 싣는다. 엔진이 이 선언을 최상위에서 읽으므로 펼친 모양을 유지한다. 다른 `status` 값과 재개 상태(`_resumeState`)를 실은 출력도 엔진이 최상위 키로 읽어서 그대로 둔다.
 - Parallel 의 분기 선언(포트 배열)은 포트 하나를 고르는 출력이 아니어서 이 규칙에서 뺐다.
 - 핸들러마다 `null` 출력을 고치는 안도 기각했다. `output: input` 으로 입력을 넘기는 분기 노드(If/Else · Switch · Background)도 앞 노드가 `null` 을 내면 같은 결함이 있다. 엔진 한 곳에서 고쳐야 빠지는 노드가 없다.
+
+### 원본 설정 노출 요구를 요구사항 줄로 옮겼다 (2026-11-13)
+
+NERV Task `CLE-T-VQX844` 에서 [원본 설정 노출 요구](#원본-설정-노출-요구) 의 표를 요구사항 줄 형식으로 옮겼다. 표의 옛 레이블은 `ENG-RC-01` → REQ-HANDLER-001, `ENG-RC-02` → REQ-HANDLER-002, `ENG-RC-03` → REQ-HANDLER-003, `ENG-RC-04` → REQ-HANDLER-004 로 대응한다. 다른 문서와 코드 주석이 옛 레이블을 인용하므로 각 줄 끝에 원본 레이블을 남겼다.
+
+- `ENG-RC-01` 은 «`node.config` 에 표현식이 들어 있으면» 원본을 보존한다고 적었다. 엔진은 표현식이 있는지 보지 않고 모든 호출에 원본의 얕은 복사본을 얼려 넣는다. 2026-11-13 에 그 조건을 빼고 구현에 맞췄다.
+- 표의 우선순위 칸(모두 필수)과 상태 칸(모두 구현)은 옮기지 않았다. 요구사항 줄에 미구현 표시가 없으면 구현된 요구다.
+
+### 엔진 에러 이름을 메시지 접두로 적는다 (2026-11-13)
+
+이전 판은 [노드 실행 흐름](#노드-실행-흐름) 에서 `INVALID_NODE_CONFIG` 를 실패 코드처럼 적었고, 레지스트리 절은 `UNKNOWN_NODE_TYPE` 을 에러 이름으로만 적었다. 두 이름 모두 엔진이 일반 `Error` 메시지 앞에 붙이는 접두이고 `error.code` 로 실리지 않는다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.5 도 `INVALID_NODE_CONFIG` 를 행이 없는 메시지 접두로 둔다. 2026-11-13 에 두 이름을 메시지 접두로 고쳐 적었다.
+
+- 구조화 코드로 등록하는 안은 이 문서에서 다루지 않았다. 동작을 바꾸는 일이고 카탈로그 소유 문서가 정한다.
+- AI 어시스턴트 도구 결과의 `error: 'UNKNOWN_NODE_TYPE'` 은 도구 응답 값이라 이 접두와 따로 둔다. 카탈로그가 `CONTAINER_INVALID_CHILD` 에 대해 같은 구분을 적는다.

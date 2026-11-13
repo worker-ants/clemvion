@@ -8,8 +8,8 @@
  *
  * Referenced from:
  * - `integrations.service.ts#throwIfUniqueViolation` (name comparison)
- * - `integration-oauth.service.ts` race-backstop catch blocks (cafe24 private
- *   begin, makeshop install)
+ * - `pending-install-writer.ts` (cafe24 private begin race-backstop) and
+ *   `integration-oauth.service.ts` (makeshop install race-backstop)
  *
  * Changing the index name requires a migration and must be updated here.
  * See `spec/1-data-model.md §3` for the full index table.
@@ -51,9 +51,22 @@ export const INTEGRATION_INSTALL_EXPIRED = {
 };
 
 /**
+ * 설치 대기 행의 설치 기한(시간). 만료 스캐너(`IntegrationExpiryScannerService.expirePendingInstalls`)의 cutoff 와 409
+ * `details.pendingInstallExpiresAt`(`pendingInstallExpiresAt`)이 이 값을 쓴다. 두 식이 같은 시각을 가리키는지는 스캐너
+ * 단위 테스트가 본다.
+ */
+export const PENDING_INSTALL_TTL_HOURS = 24;
+
+/**
+ * Cafe24 Private 재설치 대기 표시(`reinstall_requested_at`)의 유효 시간. 설치 대기 기한과 같은 값이다. 두 흐름이 «App URL 이
+ * OAuth 로 보내는 창» 의 길이를 맞춘다.
+ */
+export const REINSTALL_REQUEST_TTL_HOURS = PENDING_INSTALL_TTL_HOURS;
+
+/**
  * Per-service "store identifier already connected" error mapping — used by
- * `throwIfUniqueViolation` in `integrations.service.ts` and by the
- * race-backstop catch blocks in `integration-oauth.service.ts` to translate a
+ * `throwIfUniqueViolation` in `integrations.service.ts` and by
+ * `toAlreadyConnectedConflict` in `begin-policy.ts` to translate a
  * unified-UNIQUE-index violation (`STORE_IDENTIFIER_UNIQUE_CONSTRAINT`) into
  * the per-service 409 error code/message.
  *

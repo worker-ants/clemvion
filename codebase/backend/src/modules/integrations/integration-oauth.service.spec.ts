@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,6 +12,7 @@ import {
   sanitizeLastErrorMessage,
 } from './integration-oauth.service';
 import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
+import { integrationNotFoundError } from './integration-visibility';
 
 type Mock = jest.Mock;
 
@@ -128,6 +130,74 @@ describe('IntegrationOAuthService', () => {
       expect(result.authUrl).toContain('https');
       expect(result.state).toHaveLength(48);
       expect(stateRepo.save).toHaveBeenCalled();
+    });
+
+    // REQ-INTOAUTH-064 — `new` 는 통합 생성과 같은 인가를 받는다. 컨트롤러가 먼저 보지만 서비스도 다시 본다(Task
+    // CLE-T-JDQYT8). 역할이 없으면 관리자 미만으로 본다.
+    describe('new 모드의 생성 인가', () => {
+      const params = (
+        overrides: Partial<Parameters<IntegrationOAuthService['begin']>[0]>,
+      ) => ({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'google',
+        scopes: ['https://www.googleapis.com/auth/drive'],
+        mode: 'new' as const,
+        ...overrides,
+      });
+
+      it.each([
+        ['역할이 없으면', undefined],
+        ['역할이 null 이면', null],
+        ['편집자면', 'editor'],
+      ])(
+        '%s 조직 범위는 403 ADMIN_REQUIRED 이고 state 를 만들지 않는다',
+        async (_label, requesterRole) => {
+          oauthMock.env.google.clientId = 'cid-123';
+          const error = (await service
+            .begin(params({ scope: 'organization', requesterRole }))
+            .catch((err: unknown) => err)) as ForbiddenException;
+          expect(error).toBeInstanceOf(ForbiddenException);
+          expect(error.getResponse()).toMatchObject({ code: 'ADMIN_REQUIRED' });
+          expect(stateRepo.save).not.toHaveBeenCalled();
+          expect(dataSource.transaction).not.toHaveBeenCalled();
+        },
+      );
+
+      it('관리자는 조직 범위로 시작한다', async () => {
+        oauthMock.env.google.clientId = 'cid-123';
+        await service.begin(
+          params({ scope: 'organization', requesterRole: 'admin' }),
+        );
+        expect(stateRepo.save).toHaveBeenCalled();
+      });
+
+      it('개인 범위와 범위 생략은 역할 없이도 막지 않는다', async () => {
+        oauthMock.env.google.clientId = 'cid-123';
+        await service.begin(params({ scope: 'personal' }));
+        await service.begin(params({}));
+        expect(stateRepo.save).toHaveBeenCalledTimes(2);
+      });
+
+      it('Cafe24 Private 조직 범위도 역할이 없으면 설치 대기 행을 쓰기 전에 거절한다', async () => {
+        const error = (await service
+          .begin(
+            params({
+              service: 'cafe24',
+              scopes: ['mall.read_product'],
+              scope: 'organization',
+              providerMeta: {
+                mall_id: 'priv-shop',
+                app_type: 'private',
+                client_id: 'cid',
+                client_secret: 'csec',
+              },
+            }),
+          )
+          .catch((err: unknown) => err)) as ForbiddenException;
+        expect(error.getResponse()).toMatchObject({ code: 'ADMIN_REQUIRED' });
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+      });
     });
 
     // REQ-INTOAUTH-071 — `new` 가 아닌 모드는 본문의 서비스가 대상 통합의 서비스 유형과 같아야 state 를 만든다. 다르면
@@ -621,6 +691,152 @@ describe('IntegrationOAuthService', () => {
           ]);
         },
       );
+
+      it('신호 없는 404 는 기록한다 — 기록을 건너뛰는 판정은 오류 코드가 아니라 `recordable: false` 다', async () => {
+        const svc = serviceWithRole('owner');
+        const mark = jest
+          .spyOn(svc, 'markIntegrationCallbackError')
+          .mockResolvedValue(undefined);
+        jest.spyOn(svc, 'handleCallback').mockRejectedValue(
+          attachCallbackContext(integrationNotFoundError(), {
+            integrationId: 'int-1',
+            workspaceId: 'ws-1',
+            mode: 'reauthorize',
+          }),
+        );
+        const err: unknown = await svc
+          .handleCallbackWithErrorCapture('google', {
+            code: 'code',
+            state: 'abc',
+          })
+          .catch((err_: unknown) => err_);
+        expect(err).toMatchObject({
+          response: { code: 'RESOURCE_NOT_FOUND' },
+        });
+        expect([...mark.mock.calls]).toEqual([
+          [
+            'int-1',
+            'ws-1',
+            'RESOURCE_NOT_FOUND',
+            expect.any(String),
+            undefined,
+          ],
+        ]);
+      });
+    });
+
+    /**
+     * 콜백 트랜잭션의 첫 단계만 떼어 본다. state 소비 · 코드 교환을 거치지 않고 거절의 종류와, 그 거절을 행에 남길지 정하는
+     * 신호(`CallbackContext.recordable`)를 확인한다.
+     */
+    describe('lockAndRejudgeCallbackTarget — 잠근 행의 재판정', () => {
+      type Rejudge = {
+        lockAndRejudgeCallbackTarget(
+          manager: unknown,
+          record: { workspaceId: string; userId: string; mode: string },
+          context: { integrationId: string; workspaceId: string; mode: string },
+        ): Promise<unknown>;
+      };
+      const record = {
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        mode: 'reauthorize',
+      };
+      const context = {
+        integrationId: 'int-1',
+        workspaceId: 'ws-1',
+        mode: 'reauthorize',
+      };
+      const rejudge = (role: string | null): Promise<unknown> =>
+        (
+          serviceWithRole(role) as unknown as Rejudge
+        ).lockAndRejudgeCallbackTarget(
+          { getRepository: jest.fn().mockReturnValue(integrationRepo) },
+          record,
+          context,
+        );
+      const rejectionOf = (role: string | null): Promise<unknown> =>
+        rejudge(role).then(
+          () => {
+            throw new Error('재판정이 거절하지 않았다');
+          },
+          (err: unknown) => err,
+        );
+
+      it('통과하면 행 락으로 읽은 그 행을 돌려준다', async () => {
+        const row = rowOf({});
+        integrationRepo.findOne.mockResolvedValue(row);
+
+        await expect(rejudge('admin')).resolves.toBe(row);
+        expect(integrationRepo.findOne).toHaveBeenCalledWith({
+          where: { id: 'int-1', workspaceId: 'ws-1' },
+          lock: { mode: 'pessimistic_write' },
+        });
+      });
+
+      it('행이 없으면 404 이고 그 거절은 기록하지 않는다고 표시한다', async () => {
+        integrationRepo.findOne.mockResolvedValue(null);
+
+        const err = await rejectionOf('owner');
+
+        expect(err).toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        expect(callbackContextOf(err)).toEqual({
+          ...context,
+          recordable: false,
+        });
+      });
+
+      it('남의 personal 이 됐으면 404 이고 그 거절은 기록하지 않는다고 표시한다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({ scope: 'personal', createdBy: 'u-2' }),
+        );
+
+        const err = await rejectionOf('owner');
+
+        expect(err).toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        expect(callbackContextOf(err)).toEqual({
+          ...context,
+          recordable: false,
+        });
+      });
+
+      it('보이는 행의 역할 거절에는 표시를 붙이지 않는다 — 기록 여부는 바깥 컨텍스트가 정한다', async () => {
+        integrationRepo.findOne.mockResolvedValue(rowOf({}));
+
+        const err = await rejectionOf('editor');
+
+        expect(err).toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+        expect(callbackContextOf(err)).toBeUndefined();
+      });
+
+      it('설치 기한이 지나 만료된 행은 INTEGRATION_INSTALL_EXPIRED 로 끝낸다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({ status: 'expired', statusReason: 'install_timeout' }),
+        );
+
+        const err = await rejectionOf('owner');
+
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err).toMatchObject({
+          response: { code: 'INTEGRATION_INSTALL_EXPIRED' },
+        });
+        expect(callbackContextOf(err)).toBeUndefined();
+      });
+
+      it('만료 판정은 요청자 판정 뒤다 — 볼 수 없는 만료 행은 404 를 받는다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({
+            scope: 'personal',
+            createdBy: 'u-2',
+            status: 'expired',
+            statusReason: 'install_timeout',
+          }),
+        );
+
+        const err = await rejectionOf('owner');
+
+        expect(err).toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+      });
     });
 
     it('pending_install 행(설치 흐름)은 재판정하지 않는다 — state 의 userId 가 요청자가 아니라 생성자다', async () => {
@@ -636,9 +852,9 @@ describe('IntegrationOAuthService', () => {
       expect(integrationRepo.save).toHaveBeenCalledTimes(1);
     });
 
-    // CLE-T-NNENG8 — 재설치 요청 표시로 재판정을 건너뛰는 것은 Cafe24 Private 행뿐이고 표시가 유효한 24시간 동안만이다.
+    // CLE-T-NNENG8 — 재설치 대기 표시로 재판정을 건너뛰는 것은 Cafe24 Private 행뿐이고 표시가 유효한 24시간 동안만이다.
     // 표시를 남기는 입구가 Cafe24 Private 뿐이라 다른 행에 표시가 있으면 우회 시도로 보고 다시 본다.
-    describe('재설치 요청 표시 — Cafe24 Private 행에 한정하고 24시간 안에서만 건너뛴다', () => {
+    describe('재설치 대기 표시 — Cafe24 Private 행에 한정하고 24시간 안에서만 건너뛴다', () => {
       type Allowed = {
         assertRequesterStillAllowed(
           integration: unknown,
@@ -1173,9 +1389,9 @@ describe('IntegrationOAuthService', () => {
       expect(saved.statusReason).toBe('auth_failed');
     });
 
-    // CLE-T-NNENG8 — 재설치 요청 표시가 있는 행은 기존 토큰이 아직 살아 있다. 새 코드 교환이 실패해도 상태와 표시를
+    // CLE-T-NNENG8 — 재설치 대기 표시가 있는 행은 기존 토큰이 아직 살아 있다. 새 코드 교환이 실패해도 상태와 표시를
     // 보존해 사용자가 App URL 로 다시 시도하게 한다.
-    it('재설치 요청 표시가 있는 connected 행은 OAUTH_TOKEN_EXCHANGE_FAILED 에도 상태와 표시를 보존한다', async () => {
+    it('재설치 대기 표시가 있는 connected 행은 OAUTH_TOKEN_EXCHANGE_FAILED 에도 상태와 표시를 보존한다', async () => {
       const requestedAt = new Date(Date.now() - 60 * 60 * 1000);
       integrationRepo.findOne.mockResolvedValue({
         id: 'int-2',
@@ -1203,7 +1419,7 @@ describe('IntegrationOAuthService', () => {
       );
     });
 
-    it('24시간이 지난 재설치 요청 표시는 없는 것으로 본다 — connected 행이 OAUTH_TOKEN_EXCHANGE_FAILED 로 error(auth_failed) 가 된다', async () => {
+    it('24시간이 지난 재설치 대기 표시는 없는 것으로 본다 — connected 행이 OAUTH_TOKEN_EXCHANGE_FAILED 로 error(auth_failed) 가 된다', async () => {
       integrationRepo.findOne.mockResolvedValue({
         id: 'int-2',
         workspaceId: 'ws-1',

@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "e446167ec3c9ade8440afa35bcb11806d35b6cf5f9222583f5aaad47ed1f6ae1"
+content_hash: "8db555fdd708ec7e4ccd20727a36f0c4d87834a23d5c576fc501272cddce73fe"
 read_as: "approved_fallback"
-task: "CLE-T-B4WH9N"
+task: "CLE-T-10N47M"
 source_paths: []
-mirror_sha256: "2b0b28db3ad1b9362be074dcf3d5668f65cf5cb8a44f7665b9ab6870fc113bd6"
-etag: "sha256-4b71856a7bb494d7b20e98a8d03d344a07a55ae8062fd535b658d9b8e5127ed9"
+mirror_sha256: "005283160aabeede8811ca37b56380ca8f91dda08dd074598fcad3951e55947e"
+etag: "sha256-f7430af7707b4f8089d07946e938299c204616ef81e8531ca7dccb55311c82bb"
 ---
 ## 개요
 
@@ -62,7 +62,7 @@ etag: "sha256-4b71856a7bb494d7b20e98a8d03d344a07a55ae8062fd535b658d9b8e5127ed9"
 | 설치 시간 초과 | `install_timeout` | 정한 기한 안에 설치가 끝나지 않아 만료된 사유. Cafe24 Private 앱과 MakeShop 에 모두 적용한다. | 없음 | [통합 상태와 만료 알림](CLE-INT/CLE-INT-STATUS.md) |
 | Cafe24 앱 유형 | `app_type`: public, private | Public 앱은 서버가 가진 공용 클라이언트를, Private 앱은 사용자가 입력한 클라이언트를 쓴다. | 미심사 앱, 비공개 앱, 앱스토어 등록 앱 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | 테스트 실행(Cafe24) | Test run | Cafe24 개발자 센터에서 Private 앱 설치를 시작하는 버튼. 에디터의 실행과 다르다. | 없음 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
-| 재설치 대기 표시 | reinstall request mark, `reinstall_requested_at` | 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청을 하면 남기는 시각 값. 표시가 유효한 동안 App URL 이 OAuth 인가로 보낸다. 정한 기간이 지나면 없는 것으로 본다. 통합 상태 값이 아니고 설치 대기(`pending_install`)와 다르다. | 없음 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
+| 재설치 대기 표시 | reinstall request mark, `reinstall_requested_at` | 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청을 하면 남기는 시각 값. 표시가 유효한 동안 App URL 이 OAuth 인가로 보낸다. 정한 기간이 지나면 없는 것으로 본다. 통합 상태 값이 아니고 설치 대기(`pending_install`)와 다르다. | 재설치 요청 표시 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | 상점 식별자 | store identifier, `mall_id` | 외부 쇼핑몰의 상점 ID. Cafe24 는 `mall_id`, MakeShop 은 `shop_uid` 값을 같은 `mall_id` 컬럼에 둔다. | store-identifier, 매장 식별자 | [통합 데이터와 흐름](CLE-INT/CLE-INT-DATA.md) |
 | 중복 사전 감지 | precheck | 상점 식별자를 입력할 때 같은 상점 통합이 이미 있는지 미리 알려 주는 조회. | 없음 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
 | 통합 선택기 | `IntegrationSelector` | 노드 설정 패널의 통합 선택 드롭다운. | Integration 선택 드롭다운 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
@@ -157,3 +157,10 @@ NERV Task `CLE-T-B4WH9N` 가 고쳤다. 개인 통합의 노드 사용 기준을
 - 옛 「공개 범위」 정의는 개인 통합을 «만든 사람만» 쓴다고 적었다. [통합 관리 「개인 통합 사용 판정」](CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정) 은 노드가 개인 통합을 쓸 수 있는지를 실행한 사람이 아니라 워크플로우 작성자로 가린다. 옛 정의로는 통합 소유자가 실행하기만 하면 쓸 수 있다고 읽힌다. 정의에는 개인 통합이 누구의 것인지만 적고 사용 조건은 그 절을 가리킨다. 판정 규칙을 정의 칸에 옮기지 않는 이유는 「용어 추가 (2026-10-24)」 와 같다.
 - 「설치 대기 행」 을 더했다. 설치 대기(`pending_install`)는 통합 상태 값이다. `oauth/begin` 의 409 `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` 도 이름에 «설치 대기» 가 들어 있어 상태 값으로 읽히기 쉽다. 두 코드는 `oauth/begin` 이 다시 쓸 설치 대기 행이 남의 개인 통합일 때 내는 거절 코드다. 그래서 정의에 상태 값이 아니라고 적었다.
 - `oauth/begin` 이 설치 대기 행을 다시 쓰는 규칙과 두 409 코드가 나는 조건은 정의에 적지 않았다. 기준 문서 칸이 그 규칙을 정한 [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) 을 가리킨다.
+
+### 「재설치 대기 표시」 의 쓰지 않는 표기에 「재설치 요청 표시」 를 올렸다 (2026-11-13)
+
+NERV Task `CLE-T-10N47M` 가 고쳤다. 백엔드 코드의 주석과 테스트 이름, 마이그레이션 V151 은 같은 값을 «재설치 요청 표시» · «재설치 요청 시각» 으로 불렀다. 이 사전의 표준 용어는 「재설치 대기 표시」 다. 한 값을 두 이름으로 부르면 서로 다른 값으로 읽힌다. 그래서 «재설치 요청 표시» 를 쓰지 않는 표기에 올렸다.
+
+- 백엔드 주석과 테스트 이름은 같은 Task 의 코드 변경에서 「재설치 대기 표시」 로 맞춘다.
+- 예외: 이미 적용된 마이그레이션 V151(`V151__integration_reinstall_requested_at.sql`)의 컬럼 COMMENT «Cafe24 Private 재설치 요청 시각» 은 고치지 않는다. 적용이 끝난 마이그레이션 파일을 고쳐도 이미 적용한 DB 의 COMMENT 는 바뀌지 않아 파일과 DB 가 어긋난다. COMMENT 만 바꾸는 새 마이그레이션도 두지 않는다(2026-11-13 사용자 결정).

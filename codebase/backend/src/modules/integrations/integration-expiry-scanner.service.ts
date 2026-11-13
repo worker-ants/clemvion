@@ -13,7 +13,7 @@ import {
   Repository,
 } from 'typeorm';
 import { Integration } from './entities/integration.entity';
-import { PENDING_INSTALL_TTL_HOURS } from './pending-install-reuse';
+import { PENDING_INSTALL_TTL_HOURS } from './integrations.constants';
 import {
   IntegrationExpiryDispatch,
   ExpiryThreshold,

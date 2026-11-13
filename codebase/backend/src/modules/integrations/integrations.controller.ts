@@ -48,10 +48,8 @@ import {
   OperationCatalogDto,
   TestConnectionResultDto,
 } from './dto/responses/integration-response.dto';
-import {
-  IntegrationsService,
-  type IntegrationModifyAction,
-} from './integrations.service';
+import { IntegrationsService } from './integrations.service';
+import type { IntegrationModifyAction } from './integration-visibility';
 import { ROLE_REQUIRED } from '../../common/constants/workspace-roles';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
@@ -288,6 +286,9 @@ export class IntegrationsController {
     @CurrentUser() user: JwtPayload,
     @Body() body: OAuthBeginDto,
   ) {
+    // `request_scopes` 와 `request-scopes` 표기: state · DB 의 모드 값과 서비스 인자는 밑줄(`request_scopes`)이고, URL 경로
+    // (`:id/request-scopes`)와 인가 판정의 동작 이름(`IntegrationModifyAction`)은 하이픈이다. begin 본문은 둘 다 받아 여기서
+    // 밑줄로 맞춘다. 모드에서 동작 이름으로 넘어갈 때는 하이픈으로 바꾼다(`modifyActionOfBeginMode`, 콜백 재판정).
     const mode = body.mode === 'request-scopes' ? 'request_scopes' : body.mode;
     // `integrationId` 를 지정한 재인증 · scope 추가는 그 통합의 자격 증명을 덮어쓴다 — `:id/reauthorize` ·
     // `:id/request-scopes` 와 같은 판정을 받아야 한다(없으면 그 두 경로를 우회하는 입구가 된다, spec §8).
@@ -619,7 +620,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({
     description:
-      '코드마다 처방이 다릅니다. CAFE24_PRIVATE_APP_USE_TEST_RUN(설치 대기 Cafe24 Private 통합)은 Cafe24 개발자 센터에서 「테스트 실행」을 누릅니다. CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING(설치 토큰이 없는 Cafe24 Private 통합)과 CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE(상점 · 앱 유형이 없는 옛 Cafe24 통합)은 삭제 후 다시 등록합니다. MakeShop 통합도 삭제 후 다시 등록하며, 지금은 MAKESHOP_CREDENTIALS_REQUIRED 로 거절되지만 이 코드는 고정 계약이 아니어서 바뀔 수 있습니다.',
+      '코드마다 처방이 다릅니다. CAFE24_PRIVATE_APP_USE_TEST_RUN(설치 대기 Cafe24 Private 통합)은 Cafe24 개발자 센터에서 「테스트 실행」을 누릅니다. CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING(설치 토큰이 없는 Cafe24 Private 통합)과 CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE(상점 · 앱 유형이 없는 옛 Cafe24 통합)은 삭제 후 다시 등록합니다. MakeShop 통합은 MAKESHOP_CREDENTIALS_REQUIRED 로 거절되며 역시 삭제 후 다시 등록합니다.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_EDITOR_OR_ORG_ADMIN })
@@ -652,7 +653,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({
     description:
-      '입력값 검증 실패, OAuth 기반 통합이 아님(INTEGRATION_SCOPE_UNSUPPORTED). CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING(설치 토큰이 없는 Cafe24 Private 통합)과 CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE(상점 · 앱 유형이 없는 옛 Cafe24 통합)은 삭제 후 다시 등록합니다. MakeShop 통합도 삭제 후 다시 등록하며, 지금은 MAKESHOP_CREDENTIALS_REQUIRED 로 거절되지만 이 코드는 고정 계약이 아니어서 바뀔 수 있습니다.',
+      '입력값 검증 실패, OAuth 기반 통합이 아님(INTEGRATION_SCOPE_UNSUPPORTED). CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING(설치 토큰이 없는 Cafe24 Private 통합)과 CAFE24_INVALID_MALL_ID · CAFE24_INVALID_APP_TYPE(상점 · 앱 유형이 없는 옛 Cafe24 통합)은 삭제 후 다시 등록합니다. MakeShop 통합은 MAKESHOP_CREDENTIALS_REQUIRED 로 거절되며 역시 삭제 후 다시 등록합니다.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_EDITOR_OR_ORG_ADMIN })

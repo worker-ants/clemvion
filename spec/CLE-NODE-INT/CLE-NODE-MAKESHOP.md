@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAKESHOP"
 title: "MakeShop 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-MKSNODE-001", "REQ-MKSNODE-002", "REQ-MKSNODE-003", "REQ-MKSNODE-004", "REQ-MKSNODE-005", "REQ-MKSNODE-006", "REQ-MKSNODE-007", "REQ-MKSNODE-008", "REQ-MKSNODE-009", "REQ-MKSNODE-010", "REQ-MKSNODE-011", "REQ-MKSNODE-012", "REQ-MKSNODE-013", "REQ-MKSNODE-014", "REQ-MKSNODE-015", "REQ-MKSNODE-016", "REQ-MKSNODE-017", "REQ-MKSNODE-018", "REQ-MKSNODE-019", "REQ-MKSNODE-020", "REQ-MKSNODE-021", "REQ-MKSNODE-022", "REQ-MKSNODE-023", "REQ-MKSNODE-024", "REQ-MKSNODE-025", "REQ-MKSNODE-026", "REQ-MKSNODE-027", "REQ-MKSNODE-028", "REQ-MKSNODE-029", "REQ-MKSNODE-030", "REQ-MKSNODE-031", "REQ-MKSNODE-032", "REQ-MKSNODE-033", "REQ-MKSNODE-034", "REQ-MKSNODE-035", "REQ-MKSNODE-036", "REQ-MKSNODE-037", "REQ-MKSNODE-038", "REQ-MKSNODE-039", "REQ-MKSNODE-040", "REQ-MKSNODE-041", "REQ-MKSNODE-042", "REQ-MKSNODE-043", "REQ-MKSNODE-044", "REQ-MKSNODE-045", "REQ-MKSNODE-046", "REQ-MKSNODE-047"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "df0b3c776740d1a7819a14d0a31ec296d4ccd9c040dfc9254ec5bbf7a9d90af0"
+content_hash: "948ec8282dc360c35136212e2c2081360a243e8279d1256eec9125aa93fc9353"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-VQX844"
 source_paths: ["spec/4-nodes/4-integration/5-makeshop.md"]
-mirror_sha256: "5621f4473f35c5aa0606627d1b1d1c5adf61c1eea61180ee5cfb94ec205fbeea"
-etag: "sha256-fd35e805ca902e44eca62b29b019007e4a3d53507ccf47667b333bff4d883a72"
+mirror_sha256: "1f7fda30c063e6008032094e530703d4293146459e6dd2ee66886fd24a383cb6"
+etag: "sha256-83076f0ae31bd45d1d0456690593918f0240046ca672074e67126be7b79556d3"
 ---
 > 구현 상태: 부분 구현 (일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -294,7 +294,7 @@ Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeSh
 | `output.error.details.{resource, operation}` | 핸들러 반환 | 늘 있다 |
 | `output.error.details.shopUid?` | 핸들러 반환 | 호출 대상 상점. 통합을 얻어 `shop_uid` 를 읽은 뒤의 실패에만 있다. `MAKESHOP_INVALID_PAGINATION` 처럼 통합을 얻기 전에 거른 에러에는 없다 |
 | `output.error.details.statusCode?` | 핸들러 반환 | HTTP 상태. `MAKESHOP_4XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_5XX` · `MAKESHOP_AUTH_FAILED` 에만 있다. `MAKESHOP_RATE_LIMITED` 에는 없다 |
-| `output.error.details.{makeshopErrorCode?, makeshopMessage?}` | 핸들러 반환 | `MAKESHOP_4XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_5XX` 응답 본문에서 읽은 MakeShop 오류 코드와 메시지. 본문에 그 값이 있을 때만 싣는다 |
+| `output.error.details.{makeshopErrorCode?, makeshopMessage?}` | 핸들러 반환 | `MAKESHOP_4XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_5XX` 응답 본문에서 읽은 MakeShop 에러 코드와 메시지. 본문에 그 값이 있을 때만 싣는다 |
 | `output.error.details.{retries?, lastRetryAfterSec?}` | 핸들러 반환 | `MAKESHOP_RATE_LIMITED` 에만 있다. 재시도 횟수와 마지막 `Retry-After` 값이다 |
 | `meta.statusCode` | 핸들러 반환 | HTTP 상태(`MAKESHOP_RATE_LIMITED` 는 429). 전송 실패와 외부 호출 전에 거른 에러는 `0` |
 | `port` | 핸들러 반환 | `'error'` |
@@ -327,7 +327,8 @@ Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeSh
 
 격하된 MakeShop 통합은 통합을 삭제하고 다시 등록해야 복구된다.
 
-- 통합 재인증과 추가 권한 요청은 둘 다 막혀 있다. 통합 화면은 두 버튼을 비활성으로 두고 그 사유를 보여 준다. 서버도 인가 시작(begin) 요청 가운데 `mode` 가 `new` 가 아닌 것(`reauthorize` · `request_scopes`)을 400 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절한다. 코드 이름은 호환을 위해 그대로 둔다.
+- 통합 재인증과 추가 권한 요청은 둘 다 막혀 있다. 통합 화면은 두 버튼을 비활성으로 두고 그 사유를 보여 준다. 서버는 MakeShop 통합의 `:id/reauthorize` · `:id/request-scopes` 를 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절하고 이 응답을 계약으로 둔다. 두 경로는 자격 증명(`client_id` · `client_secret`) 없이 인가 시작(begin)을 부르고, MakeShop begin 은 모드보다 자격 증명을 먼저 확인한다.
+- 인가 시작(begin) 요청이 본문에 `client_id` · `client_secret` 을 갖췄는데 `mode` 가 `new` 가 아니면(`reauthorize` · `request_scopes`) 400 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절한다. [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md)의 [REQ-INTOAUTH-043](../CLE-INT/CLE-INT-OAUTH.md) 과 같은 조건이다. 코드 이름은 호환을 위해 그대로 둔다.
 - ShopStore 에서 앱을 다시 설치해도 기존 행은 되살아나지 않는다. 설치 대기가 아닌 행(`connected` · `error`)이면 App URL 이 그 행의 상세 화면으로 간다. 설치 대기 중 `install_timeout` 으로 만료된 행은 설치 토큰이 없어 App URL 이 404 가 된다. 설치 대기(`pending_install`) 행만 예전처럼 ShopStore 설치로 이어진다.
 - 통합을 쓰는 노드가 있으면 삭제가 409 `INTEGRATION_IN_USE` 로 막힌다. 노드의 통합 참조를 먼저 바꾼 뒤 삭제한다.
 
@@ -364,7 +365,7 @@ Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeSh
 ## 미결 사항
 
 - **페이지네이션 실측 미완**: [페이지네이션 변환](#페이지네이션-변환)은 저장소 API 카탈로그를 근거로 정했다. 실제 MakeShop API 를 불러 `offset` 이 무시되고 `page` 로만 조회되는지는 테스트 상점이 없어 실측하지 못했다(2026-10-10 기준, 추적: CLE-T-XVS8H7). 실측에서 `offset` 이 먹으면 변환의 근거가 사라지므로 설정 모양과 변환을 다시 검토한다(Rationale «페이지네이션 방식»).
-- **색인 · 에러 코드 카탈로그 등재**: `MAKESHOP_INVALID_PAGINATION` 색인 등재와 `MAKESHOP_USE_SHOPSTORE_INSTALL` 이름 예외 등록은 CLE-T-7BNDT8 이 맡는다.
+- **노드별 코드 색인 등재**: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에는 `MAKESHOP_INVALID_PAGINATION` 과 `MAKESHOP_USE_SHOPSTORE_INSTALL`(이름 예외 포함)이 이미 올라 있다. [통합 노드 공통 「노드별 코드 색인」](CLE-NODE-INT-COMMON.md#노드별-코드-색인)의 MakeShop 행에 `MAKESHOP_INVALID_PAGINATION` 을 더하는 일만 남았다(2026-11-13 확인, 추적: CLE-T-7BNDT8).
 - **지원 예정 operation 표시**: 이 노드 원문과 [MakeShop API 카탈로그](CLE-MKS-CATALOG)는 planned 행을 Cafe24 처럼 비활성·"지원 예정" 으로 드롭다운에 보인다고 적는다. [MakeShop operation 메타데이터](CLE-MKS-META)와 현재 구현(`public-meta.ts`)은 planned 단계를 내보내는 경로가 없다고 적는다. 카탈로그 동기 검사는 planned 상태를 허용하므로 planned 행을 더해도 화면에는 나타나지 않는다. 지금은 planned 행이 0개라 드러나지 않았을 뿐이다. planned 경로를 만들지, 카탈로그의 화면 표시 문구를 지울지 결정 필요.
 - **권한 범위 구성**: 이 노드 원문은 권한 범위를 카탈로그의 `x-scope`(주문·상품·회원·상점 설정·게시판·적립금·쿠폰) × read·write 로 만든다고 적는다. 카탈로그 openapi 의 `x-scope` 는 operation 마다 다르다(예: benefit 섹션 일부가 회원, shop 섹션 일부가 주문). 현재 구현(`metadata/index.ts` 의 `SECTION_SCOPE`)은 섹션마다 대표 그룹 하나만 쓰고 "나중에 정교화" 주석과 `VERIFY` 표시를 남겼다. 권한 범위 부족 판정과 권장 프리셋이 어느 기준을 따를지 MakeShop OAuth 문서로 확정한 뒤 [MakeShop operation 메타데이터](CLE-MKS-META)에 매핑 규칙을 적어야 한다.
 
@@ -432,8 +433,9 @@ Task CLE-T-XVS8H7 에서 다음 두 안 가운데 (2) 를 택했다.
 
 ### 인증 실패 뒤 복구는 삭제 후 재등록
 
-이 문서의 이전 원문은 격하된 통합을 통합 재인증(`Reauthorize`)으로 되돌리고 오래 쓰지 않은 통합도 통합 재인증으로 복구한다고 적었다. 서버는 그때도 MakeShop 통합의 통합 재인증 · 추가 권한 요청을 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절했다. 통합 화면의 버튼만 활성이었다. ShopStore 재설치로 기존 행이 복구되는지도 정해져 있지 않았다. Task CLE-T-NNENG8 에서 복구 경로를 통합 삭제 후 재등록 하나로 정했고 화면 버튼도 막았다.
+이 문서의 이전 원문은 격하된 통합을 통합 재인증(`Reauthorize`)으로 되돌리고 오래 쓰지 않은 통합도 통합 재인증으로 복구한다고 적었다. 서버는 그때도 MakeShop 통합의 통합 재인증 · 추가 권한 요청을 거절했다. 통합 화면의 버튼만 활성이었다. ShopStore 재설치로 기존 행이 복구되는지도 정해져 있지 않았다. Task CLE-T-NNENG8 에서 복구 경로를 통합 삭제 후 재등록 하나로 정했고 화면 버튼도 막았다.
 
+- 거절 코드: 이 절은 원래 그 거절을 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 적었다. 실제로 `:id/reauthorize` · `:id/request-scopes` 는 자격 증명 없이 인가 시작(begin)을 부르고 MakeShop begin 이 모드보다 자격 증명을 먼저 확인해서 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 끝났다. 2026-11-13 에 사람이 이 응답을 계약으로 정했고(Task CLE-T-10N47M) 이 문서의 서술을 그 코드로 바꿨다. `MAKESHOP_USE_SHOPSTORE_INSTALL` 은 자격 증명을 갖춘 begin 요청이 `new` 가 아닌 모드로 올 때만 나온다([인증 실패 처리](#인증-실패-처리)).
 - 기각한 안(ShopStore 재설치로 기존 행 되살리기): 설치 토큰과 HMAC 검증으로 이어지는 설치 흐름은 설치 대기 행 전용이다. App URL 은 설치가 끝난 행을 상세 화면으로 보낸다. 그래서 재설치는 기존 행을 되살리는 경로가 되지 못한다.
 - 택한 안의 비용: 통합을 쓰는 노드가 있으면 삭제가 409 `INTEGRATION_IN_USE` 로 막힌다. 사용자는 노드의 통합 참조를 바꾸고 통합을 삭제한 뒤 다시 등록하는 순서를 밟아야 한다.
 

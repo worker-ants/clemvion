@@ -44,8 +44,8 @@ describe('통합 행 생성 · 공개 범위 변경 지점의 쓰기 잠금', ()
       expect.arrayContaining([
         'codebase/backend/src/modules/integrations/integrations.service.ts::create',
         'codebase/backend/src/modules/integrations/integrations.service.ts::switchToPersonalLocked',
-        'codebase/backend/src/modules/integrations/integration-oauth.service.ts::writePrivatePending',
-        'codebase/backend/src/modules/integrations/integration-oauth.service.ts::writeMakeshopPendingTx',
+        'codebase/backend/src/modules/integrations/pending-install-writer.ts::writeCafe24PrivateTx',
+        'codebase/backend/src/modules/integrations/pending-install-writer.ts::writeMakeshopTx',
       ]),
     );
   });
@@ -71,6 +71,10 @@ describe('findIntegrationOwnerWrites', () => {
     [
       'getRepository(Integration) 에 바로 이은 scope update',
       `async function a(manager) { await manager.getRepository(Integration).update({ id }, { scope: 'personal' }); }`,
+    ],
+    [
+      '판정한 행 갱신 도우미(this.updateJudgedOrNotFound)의 scope 변경',
+      `class S { async a(row: Integration) { await this.updateJudgedOrNotFound(row, { scope: 'personal' }, repo); } }`,
     ],
     [
       '쿼리 빌더 insert().into(Integration)',
@@ -149,6 +153,10 @@ describe('findIntegrationOwnerWrites', () => {
          await integrations.save(entity);
          await integrations.delete({ id });
        }`,
+    ],
+    [
+      '판정한 행 갱신 도우미의 scope 아닌 변경',
+      `class S { async a(row: Integration) { await this.updateJudgedOrNotFound(row, { status: 'connected' }); } }`,
     ],
     [
       'integration_usage_log 원시 SQL',

@@ -10,21 +10,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  DataSource,
-  EntityManager,
-  FindOptionsWhere,
-  In,
-  IsNull,
-  LessThan,
-  Not,
-  Or,
-  Repository,
-} from 'typeorm';
+import { DataSource, EntityManager, LessThan, Repository } from 'typeorm';
 import { emptyOAuthEnvConfig, type OAuthEnvConfig } from '../../common/config';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
-  INSTALL_TOKEN_BYTES,
   MAKESHOP_SHOP_UID_PATTERN,
   buildCafe24InstallUrl,
   buildMakeshopInstallUrl,
@@ -34,7 +23,6 @@ import { Integration } from './entities/integration.entity';
 import {
   assertOrgScopeModifiable,
   assertPersonalWriteRole,
-  INTEGRATION_NOT_FOUND_CODE,
   integrationNotFoundError,
   isIntegrationVisibleTo,
 } from './integration-visibility';
@@ -44,10 +32,18 @@ import {
   isReinstallRequestActive,
 } from './reinstall-request';
 import {
-  assertPendingReusable,
-  makeshopPendingLockKey,
-  pickPendingToReuse,
-} from './pending-install-reuse';
+  findAllCafe24RowsForMall,
+  hasReleasedStoreSlot,
+} from './cafe24-store-rows';
+import {
+  isStoreIdentifierConflict,
+  resolveBeginScope,
+  toAlreadyConnectedConflict,
+} from './begin-policy';
+import {
+  PendingInstallWriter,
+  type Cafe24PrivateBeginMeta,
+} from './pending-install-writer';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import {
   IntegrationOAuthState,
@@ -56,21 +52,7 @@ import {
 import { IntegrationOAuthPreview } from './entities/integration-oauth-preview.entity';
 import { findService } from './services/service-registry';
 import { decryptJson } from './services/credentials-transformer';
-import {
-  isPostgresUniqueViolation,
-  pgErrorConstraint,
-} from '../../common/db/pg-error';
-import {
-  STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
-  ALREADY_CONNECTED_BY_SERVICE,
-  WORKSPACE_NAME_UNIQUE_CONSTRAINT,
-  INTEGRATION_NAME_TAKEN,
-  INTEGRATION_INSTALL_EXPIRED,
-} from './integrations.constants';
-import {
-  lockForIntegrationWrite,
-  throwUnlessIntegrationCreateLocked,
-} from './integration-owner-write-lock';
+import { INTEGRATION_INSTALL_EXPIRED } from './integrations.constants';
 import { normalizeStatusReason } from './integration-status-reason';
 import { pickRestrictedApprovalScopes } from '../../nodes/integration/cafe24/metadata/restricted-approval';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
@@ -155,106 +137,6 @@ export type BeginResult =
       scope: string;
     };
 
-/** 검증을 마친 Cafe24 Private `oauth/begin` 메타. 상점과 자격 증명이 다 있다. */
-type Cafe24PrivateBeginMeta = Required<
-  Pick<Cafe24BeginMeta, 'mall_id' | 'client_id' | 'client_secret'>
-> &
-  Cafe24BeginMeta;
-
-/** 설치 대기 행을 쓴 결과. 응답의 App URL 은 저장된 설치 토큰으로 만든다. */
-interface PendingInstallWrite {
-  saved: Integration;
-  installToken: string;
-}
-
-/** 상점 식별자 UNIQUE(V072) 위반인가. 같은 상점의 행을 다른 요청이 먼저 썼다. */
-function isStoreIdentifierConflict(err: unknown): boolean {
-  return (
-    isPostgresUniqueViolation(err) &&
-    pgErrorConstraint(err) === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
-  );
-}
-
-/** 워크스페이스 안 통합 이름 UNIQUE 위반인가. 다른 통합이 그 이름을 쓴다. */
-function isNameConflict(err: unknown): boolean {
-  return (
-    isPostgresUniqueViolation(err) &&
-    pgErrorConstraint(err) === WORKSPACE_NAME_UNIQUE_CONSTRAINT
-  );
-}
-
-/**
- * begin 이 새로 만드는 설치 대기 행의 공개 범위. 요청에 없으면 개인이다. 멤버십을 잠글지 정하는 판정
- * ({@link lockForPendingWrite})과 행을 넣는 INSERT 가 이 함수 하나로 같은 값을 쓴다. 한쪽의 기본값이 따로 바뀌면 멤버십
- * 잠금 없이 개인 행이 생긴다.
- */
-function resolveBeginScope(
-  params: Pick<BeginParams, 'scope'>,
-): 'personal' | 'organization' {
-  return params.scope ?? 'personal';
-}
-
-/**
- * 설치 대기 행 쓰기의 잠금(REQ-INTMGMT-066). 트랜잭션의 첫 문장이다. 워크스페이스는 공개 범위와 관계없이 잡고 멤버십은
- * 요청 공개 범위가 개인일 때만 잡는다. 다시 쓰는 행의 공개 범위는 아직 모르지만, 개인 행을 다시 쓰는 사람은 그 행의 통합
- * 소유자라 요청 범위가 조직이어도 새 개인 행은 생기지 않는다. 기존 행은 나가기 · 제거의 통합 DELETE 가 행 잠금을 기다린 뒤
- * 지운다.
- */
-async function lockForPendingWrite(
-  manager: EntityManager,
-  params: Pick<BeginParams, 'workspaceId' | 'userId' | 'scope'>,
-): Promise<void> {
-  throwUnlessIntegrationCreateLocked(
-    await lockForIntegrationWrite(manager, {
-      workspaceId: params.workspaceId,
-      personalOwnerId:
-        resolveBeginScope(params) === 'personal' ? params.userId : null,
-    }),
-  );
-}
-
-/**
- * 같은 상점 판정의 후보가 아닌 행인가. 설치 기한이 지나 만료된 행은 상점 자리를 놓는다(REQ-INTOAUTH-068). 만료할 때
- * `mall_id` 컬럼을 비우므로 컬럼으로 찾으면 저절로 빠지지만, 컬럼이 빈 옛 행을 `credentials.mall_id` 로 맞추는 대체
- * 경로는 이 판정 없이는 만료 행을 다시 찾는다. 같은 상점의 행을 찾는 곳은 모두 이 함수를 거친다.
- * 상점을 찾지 않는 두 곳도 같은 술어를 쓴다. 콜백 트랜잭션의 되살림 차단 가드(`handleCallback`)와, 그 거절을 만료 행에
- * 기록하지 않고 건너뛰는 `markIntegrationCallbackError` 다.
- * 근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
- */
-function hasReleasedStoreSlot(
-  row: Pick<Integration, 'status' | 'statusReason'>,
-): boolean {
-  return row.status === 'expired' && row.statusReason === 'install_timeout';
-}
-
-/**
- * {@link hasReleasedStoreSlot} 가 거짓인 행만 고르는 SQL 조건(`NOT (status = 'expired' AND status_reason =
- * 'install_timeout')`). `status` 는 NOT NULL 이지만 `status_reason` 은 NULL 일 수 있고, 사유가 NULL 인 만료 행은 상점 자리를
- * 놓지 않은 행이다. `status_reason <> 'install_timeout'` 만 쓰면 NULL 행이 빠지므로 NULL 을 따로 받는다. `where` 는 배열로 넘긴
- * 갈래의 합집합(OR)이라 호출자의 공통 조건에 이 두 갈래를 각각 펼쳐 넣는다.
- */
-function keptStoreSlotBranches(): Array<
-  Pick<FindOptionsWhere<Integration>, 'status' | 'statusReason'>
-> {
-  return [
-    { status: Not('expired') },
-    { status: 'expired', statusReason: Or(IsNull(), Not('install_timeout')) },
-  ];
-}
-
-/**
- * 설치 대기 행 INSERT 가 동시에 들어온 begin 과 부딪혔을 수 있는가. 같은 화면에서 온 두 begin 은 이름도 같아서
- * 이름 UNIQUE 가 상점 식별자 UNIQUE 보다 먼저 걸리기도 한다. 그래서 둘 다 다시 판정할 이유로 본다.
- */
-function isPendingInsertRace(err: unknown): boolean {
-  if (!isPostgresUniqueViolation(err)) return false;
-  const constraint = pgErrorConstraint(err);
-  return (
-    constraint === STORE_IDENTIFIER_UNIQUE_CONSTRAINT ||
-    constraint === WORKSPACE_NAME_UNIQUE_CONSTRAINT
-  );
-}
-
 /**
  * MakeShop ShopStore install redirect query (App URL 호출 시 MakeShop 이 전송).
  *
@@ -319,6 +201,12 @@ export interface CallbackContext {
    * spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
    */
   requiresCafe24Approval?: string[];
+  /**
+   * `false` 면 `handleCallbackWithErrorCapture` 가 이 행에 오류를 기록하지 않는다. 커밋 직전 재판정이 «요청자가 볼 수
+   * 없는 행»(행이 없거나 남의 personal 이 됐다)으로 404 를 낼 때만 붙는다. 그 행의 소유자가 모르는 오류를 남기지 않기
+   * 위해서다. 응답 코드 문자열로 가리지 않고 거절하는 자리에서 이 신호를 붙인다. 값이 없으면 기록한다.
+   */
+  recordable?: false;
 }
 
 export function attachCallbackContext<E extends Error>(
@@ -341,6 +229,89 @@ export function callbackContextOf(err: unknown): CallbackContext | undefined {
     return (err as { context?: CallbackContext }).context;
   }
   return undefined;
+}
+
+/**
+ * 커밋 직전 재판정이 «요청자가 볼 수 없는 행» 을 만났을 때의 거절. 응답은 없는 통합 · 남의 personal 과 같은 404 이고,
+ * 컨텍스트에 `recordable: false` 를 붙여 콜백 오류 수집이 그 행에 쓰지 않게 한다.
+ * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
+ */
+function hiddenCallbackTargetRejection(
+  context: CallbackContext,
+): NotFoundException {
+  return attachCallbackContext(integrationNotFoundError(), {
+    ...context,
+    recordable: false,
+  });
+}
+
+/**
+ * 콜백이 받은 자격 증명으로 행의 자격 증명을 바꾼다. 통합 재인증과 설치 대기 행은 통째로 바꾸고, 추가 권한 요청은
+ * 기존 값 위에 덮되 `scopes` 는 교환 결과로 둔다.
+ */
+function replaceCallbackCredentials(
+  integration: Integration,
+  mode: OAuthStateMode,
+  credentials: Record<string, unknown>,
+  scopes: string[],
+): void {
+  if (mode === 'reauthorize' || integration.status === 'pending_install') {
+    integration.credentials = credentials;
+    return;
+  }
+  integration.credentials = {
+    ...integration.credentials,
+    ...credentials,
+    scopes,
+  };
+}
+
+/**
+ * 콜백이 성공한 행을 연결됨으로 돌리고, 상점 식별자 평문 컬럼이 비었으면 채운다.
+ */
+function markCallbackConnected(
+  integration: Integration,
+  provider: OAuthProvider,
+  credentials: Record<string, unknown>,
+  tokenExpiresAt: Date | null,
+): void {
+  integration.status = 'connected';
+  integration.statusReason = null;
+  integration.lastError = null;
+  integration.tokenExpiresAt = tokenExpiresAt;
+  integration.lastRotatedAt = new Date();
+  // 재설치 대기 표시는 콜백이 성공해야 지운다 — 이후 App URL 재호출(「앱으로 가기」)은 다시 상세 화면으로 간다.
+  // 표시를 읽는 판정과 24시간 유효 기간은 `reinstall-request.ts` 한 곳이 정한다. 만료된 표시를 따로 지우지는
+  // 않는다(값이 남아도 술어가 무시한다).
+  integration.reinstallRequestedAt = null;
+  // install_token 은 callback 성공 시 **보존** — Cafe24 의 "앱으로
+  // 가기" 등 post-install navigation 이 같은 App URL 을 재호출하므로
+  // 통합 lifetime 동안 유효한 persistent 식별자로 유지한다.
+  // NULL 처리는 24h TTL 만료 (status='expired', status_reason=
+  // 'install_timeout') 와 통합 삭제(row 자체 소멸) 두 경로에서만 발생.
+  // 자세한 근거는 spec/2-navigation/4-integration.md ## Rationale
+  // "Cafe24 App URL 재호출 흐름 — install_token persistent 격상" 항.
+  // Backfill plain `mall_id` column for cafe24 rows if it's still
+  // NULL — pre-V045 rows pass through this connected path on next
+  // re-auth and get the plain projection set. New rows already have
+  // it set by createPrivatePendingIntegration / public-flow begin.
+  if (
+    provider === 'cafe24' &&
+    !integration.mallId &&
+    typeof credentials.mall_id === 'string'
+  ) {
+    integration.mallId = credentials.mall_id;
+  }
+  // MakeShop: project shop_uid onto the mall_id column (V071 partial
+  // UNIQUE). Normally already set by handleMakeshopInstall, but backfill
+  // defensively if still NULL.
+  if (
+    provider === 'makeshop' &&
+    !integration.mallId &&
+    typeof credentials.shop_uid === 'string'
+  ) {
+    integration.mallId = credentials.shop_uid;
+  }
 }
 
 function readErrorCode(err: unknown): string {
@@ -507,6 +478,8 @@ function pickPrecheckConflict(
 @Injectable()
 export class IntegrationOAuthService {
   private readonly logger = new Logger(IntegrationOAuthService.name);
+  /** Cafe24 Private · MakeShop 설치 대기 행 쓰기(후보 조회 → 잠금 → 재사용 판정 → 쓰기 → 경합 재시도). */
+  private readonly pendingInstallWriter: PendingInstallWriter;
 
   constructor(
     @InjectRepository(Integration)
@@ -530,7 +503,46 @@ export class IntegrationOAuthService {
     // 테스트 호환일 뿐이다 — 없으면 역할을 모르므로 재판정은 거부한다(fail-closed, `assertRequesterStillAllowed`).
     @Optional()
     private readonly workspacesService?: WorkspacesService,
-  ) {}
+  ) {
+    this.pendingInstallWriter = new PendingInstallWriter(dataSource);
+  }
+
+  /**
+   * 콜백 트랜잭션의 첫 단계 — 대상 행을 잠그고 커밋 직전 판정을 다시 한다. 통과하면 잠근 행을 돌려준다.
+   *
+   * CONC H-3 (2026-05-16): `SELECT ... FOR UPDATE` 로 행 락을 잡아 동시 통합 재인증 콜백의 lost update 를 막는다. READ
+   * COMMITTED 에서 두 트랜잭션이 같은 행을 동시에 읽고 저장하면 나중 쓰기가 이겨 한쪽 토큰이 사라지고, Cafe24 의
+   * refresh_token 회전 정책 때문에 살아남은 토큰도 무효일 수 있다. `pessimistic_write` 가 두 번째 트랜잭션을 첫 커밋까지
+   * 기다리게 한다.
+   *
+   * 거절은 세 가지다.
+   * - 행이 없거나 요청자가 볼 수 없다: 404 이고 그 행에 기록하지 않는다(`recordable: false`).
+   * - 요청자의 역할이 모자라다: 403(`assertRequesterStillAllowed`).
+   * - 설치 기한이 지나 만료된 행이다: `INTEGRATION_INSTALL_EXPIRED`. 만료 직전에 App URL 이 만든 state 의 콜백이 만료 뒤에
+   *   도착해도 여기서 끝낸다. 되살리면 만료 때 비운 상점 식별자를 다시 채워 그 사이 같은 상점을 등록한 행과 부딪힌다.
+   *   요청자 판정 뒤에 둔다. 볼 수 없는 요청자는 404, 역할을 잃은 요청자는 403 을 그대로 받는다. 앞에 두면 만료 응답
+   *   하나로 볼 수 없는 행이 있다는 것까지 알려 준다.
+   *   근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
+   */
+  private async lockAndRejudgeCallbackTarget(
+    manager: EntityManager,
+    record: Pick<IntegrationOAuthState, 'workspaceId' | 'userId' | 'mode'>,
+    context: CallbackContext,
+  ): Promise<Integration> {
+    const integration = await manager.getRepository(Integration).findOne({
+      where: { id: context.integrationId, workspaceId: context.workspaceId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!integration) {
+      throw hiddenCallbackTargetRejection(context);
+    }
+    // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
+    await this.assertRequesterStillAllowed(integration, record, manager);
+    if (hasReleasedStoreSlot(integration)) {
+      throw new BadRequestException({ ...INTEGRATION_INSTALL_EXPIRED });
+    }
+    return integration;
+  }
 
   /**
    * 사용자가 시작한 재인증 · scope 추가는 **커밋 직전에** 인가를 다시 본다 — begin 과 콜백 사이(state TTL)에 요청자가
@@ -538,16 +550,18 @@ export class IntegrationOAuthService {
    * 모자란다(REQ-INTOAUTH-026 — `:id/reauthorize` · `oauth/begin` 이 이미 본 것과 같은 판정: 보이는가 → Organization 이면
    * Admin, Personal 이면 편집자 이상. 요청 경로의 편집자 하한은 라우트 가드가 보지만 콜백에는 가드가 없다).
    *
-   * `pending_install` 행과, 유효한 재설치 요청 표시(`reinstallRequestedAt`)가 있는 **Cafe24 Private** 행은 보지 않는다 —
+   * `pending_install` 행과, 유효한 재설치 대기 표시(`reinstallRequestedAt`)가 있는 **Cafe24 Private** 행은 보지 않는다 —
    * 설치 흐름(App URL 의 install_token + HMAC 이 인가)이 만든 state 라 `userId` 가 요청자가 아니라 생성자다
    * (`persistReauthorizeState`). 표시를 남긴 요청자의 인가는 표시를 남길 때(`:id/reauthorize` · `:id/request-scopes`) 이미
    * 봤다. 표시에는 24시간 유효 기간이 있다(`isReinstallRequestActive`) — 그 뒤에는 요청자가 강등됐을 수 있어 다시 본다.
    * Public · MakeShop 행은 표시가 있어도 다시 본다(표시를 남기는 입구가 Cafe24 Private 뿐이다). 사용자가 이런 행에
    * 재인증을 시작하는 입구는 begin 이 막는다(cafe24 private · makeshop 은 `mode: 'new'` 만).
+   *
+   * 요청자가 볼 수 없는 행이면 404 를 내고 그 행에 기록하지 않는다(`hiddenCallbackTargetRejection`).
    */
   private async assertRequesterStillAllowed(
     integration: Integration,
-    record: { workspaceId: string; userId: string; mode: string },
+    record: Pick<IntegrationOAuthState, 'workspaceId' | 'userId' | 'mode'>,
     manager: EntityManager,
   ): Promise<void> {
     if (integration.status === 'pending_install') return;
@@ -557,7 +571,11 @@ export class IntegrationOAuthService {
     )
       return;
     if (!isIntegrationVisibleTo(integration, record.userId)) {
-      throw integrationNotFoundError();
+      throw hiddenCallbackTargetRejection({
+        integrationId: integration.id,
+        workspaceId: integration.workspaceId,
+        mode: record.mode,
+      });
     }
     const role = this.workspacesService
       ? await this.workspacesService.getMemberRole(
@@ -607,6 +625,16 @@ export class IntegrationOAuthService {
   }
 
   async begin(params: BeginParams): Promise<BeginResult> {
+    // `new` 는 통합을 새로 만드는 흐름이라 통합 생성과 같은 인가를 받는다. Organization 은 Admin 이상이다(REQ-INTOAUTH-064).
+    // 컨트롤러가 먼저 보지만, 컨트롤러를 거치지 않는 호출자도 역할 없이 조직 통합을 만들지 못하게 여기서 다시 본다. 역할이
+    // 없으면 관리자 미만으로 본다.
+    if (params.mode === 'new') {
+      assertOrgScopeModifiable(
+        { scope: resolveBeginScope(params) },
+        params.requesterRole ?? null,
+        'create',
+      );
+    }
     const service = findService(params.service);
     if (!service?.oauthProvider) {
       throw new BadRequestException({
@@ -894,8 +922,11 @@ export class IntegrationOAuthService {
           mode: record.mode,
         }
       : undefined;
+    // 이미 컨텍스트가 붙은 오류(재판정의 `recordable: false` 거절)는 그대로 둔다.
     const withContext = <E extends Error>(err: E): E =>
-      context ? attachCallbackContext(err, context) : err;
+      context && !callbackContextOf(err)
+        ? attachCallbackContext(err, context)
+        : err;
 
     if (record.provider !== provider) {
       throw withContext(
@@ -989,7 +1020,7 @@ export class IntegrationOAuthService {
       return { mode: 'new', provider, previewToken };
     }
 
-    if (!record.integrationId) {
+    if (!record.integrationId || !context) {
       throw withContext(
         new BadRequestException({
           code: 'OAUTH_STATE_INVALID',
@@ -1000,80 +1031,24 @@ export class IntegrationOAuthService {
 
     try {
       await this.dataSource.transaction(async (manager) => {
-        const repo = manager.getRepository(Integration);
-        // CONC H-3 (2026-05-16): `SELECT ... FOR UPDATE` 로 row lock 을 잡아
-        // 동시 reauthorize callback 의 lost update 를 차단. PostgreSQL READ
-        // COMMITTED 에서 두 트랜잭션이 같은 row 를 동시 read → save 하면
-        // last-write-wins 로 한쪽 토큰이 사라지고, Cafe24 의 refresh_token
-        // rotation 정책 상 살아남은 토큰도 무효일 수 있다. pessimistic_write
-        // lock 이 두 번째 트랜잭션을 첫 commit 까지 대기시켜 serial 보장.
-        const integration = await repo.findOne({
-          where: { id: record.integrationId!, workspaceId: record.workspaceId },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (!integration) {
-          throw integrationNotFoundError();
-        }
-        // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
-        await this.assertRequesterStillAllowed(integration, record, manager);
-        // 설치 기한이 지나 만료된 행은 되살리지 않는다. 만료 직전에 App URL 이 만든 state 의 콜백이 만료 뒤에 도착해도
-        // 여기서 끝낸다. 되살리면 만료 때 비운 상점 식별자를 다시 채워 그 사이 같은 상점을 등록한 행과 부딪힌다.
-        // 요청자 판정 뒤에 둔다 — 볼 수 없는 요청자는 404 · 역할을 잃은 요청자는 403 을 그대로 받는다. 앞에 두면 만료 응답
-        // 하나로 볼 수 없는 행이 있다는 것까지 알려 준다.
-        // 근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
-        if (hasReleasedStoreSlot(integration)) {
-          throw new BadRequestException({ ...INTEGRATION_INSTALL_EXPIRED });
-        }
-        if (
-          record.mode === 'reauthorize' ||
-          integration.status === 'pending_install'
-        ) {
-          integration.credentials = credentials;
-        } else {
-          integration.credentials = {
-            ...integration.credentials,
-            ...credentials,
-            scopes: exchange.scopes,
-          };
-        }
-        integration.status = 'connected';
-        integration.statusReason = null;
-        integration.lastError = null;
-        integration.tokenExpiresAt = exchange.tokenExpiresAt;
-        integration.lastRotatedAt = new Date();
-        // 재설치 요청 표시는 콜백이 성공해야 지운다 — 이후 App URL 재호출(「앱으로 가기」)은 다시 상세 화면으로 간다.
-        // 표시를 읽는 판정과 24시간 유효 기간은 `reinstall-request.ts` 한 곳이 정한다. 만료된 표시를 따로 지우지는
-        // 않는다(값이 남아도 술어가 무시한다).
-        integration.reinstallRequestedAt = null;
-        // install_token 은 callback 성공 시 **보존** — Cafe24 의 "앱으로
-        // 가기" 등 post-install navigation 이 같은 App URL 을 재호출하므로
-        // 통합 lifetime 동안 유효한 persistent 식별자로 유지한다.
-        // NULL 처리는 24h TTL 만료 (status='expired', status_reason=
-        // 'install_timeout') 와 통합 삭제(row 자체 소멸) 두 경로에서만 발생.
-        // 자세한 근거는 spec/2-navigation/4-integration.md ## Rationale
-        // "Cafe24 App URL 재호출 흐름 — install_token persistent 격상" 항.
-        // Backfill plain `mall_id` column for cafe24 rows if it's still
-        // NULL — pre-V045 rows pass through this connected path on next
-        // re-auth and get the plain projection set. New rows already have
-        // it set by createPrivatePendingIntegration / public-flow begin.
-        if (
-          provider === 'cafe24' &&
-          !integration.mallId &&
-          typeof credentials.mall_id === 'string'
-        ) {
-          integration.mallId = credentials.mall_id;
-        }
-        // MakeShop: project shop_uid onto the mall_id column (V071 partial
-        // UNIQUE). Normally already set by handleMakeshopInstall, but backfill
-        // defensively if still NULL.
-        if (
-          provider === 'makeshop' &&
-          !integration.mallId &&
-          typeof credentials.shop_uid === 'string'
-        ) {
-          integration.mallId = credentials.shop_uid;
-        }
-        await repo.save(integration);
+        const integration = await this.lockAndRejudgeCallbackTarget(
+          manager,
+          record,
+          context,
+        );
+        replaceCallbackCredentials(
+          integration,
+          record.mode,
+          credentials,
+          exchange.scopes,
+        );
+        markCallbackConnected(
+          integration,
+          provider,
+          credentials,
+          exchange.tokenExpiresAt,
+        );
+        await manager.getRepository(Integration).save(integration);
       });
     } catch (err) {
       throw withContext(err as Error);
@@ -1163,12 +1138,8 @@ export class IntegrationOAuthService {
       const ctx = callbackContextOf(err);
       const errorCode = readErrorCode(err);
       // 요청자가 볼 수 없는 행(남의 personal 이 됐거나 지워졌다 — 재판정의 404)에는 기록하지 않는다. 그 행의 소유자가 모르는
-      // 오류를 남기게 된다. 거절은 요청자의 응답으로만 알린다.
-      if (
-        ctx?.integrationId &&
-        ctx.workspaceId &&
-        errorCode !== INTEGRATION_NOT_FOUND_CODE
-      ) {
+      // 오류를 남기게 된다. 거절은 요청자의 응답으로만 알린다. 판정은 거절한 자리가 붙인 `recordable: false` 로 한다.
+      if (ctx?.integrationId && ctx.workspaceId && ctx.recordable !== false) {
         const message = readErrorMessage(err);
         // Cafe24 invalid_scope 콜백은 context 에 별도 승인 명단을 실어 보낸다 —
         // last_error.details.requiresCafe24Approval 로 기록 (§10.4).
@@ -1263,7 +1234,7 @@ export class IntegrationOAuthService {
         !isReinstallRequestActive(integration)
       ) {
         // §10.4: reauthorize code-exchange failure on a connected row.
-        // 유효한 재설치 요청 표시가 있는 행은 제외한다 — 기존 토큰은 아직 살아 있고, 상태와 표시를 남겨 두면 사용자가
+        // 유효한 재설치 대기 표시가 있는 행은 제외한다 — 기존 토큰은 아직 살아 있고, 상태와 표시를 남겨 두면 사용자가
         // App URL 로 다시 시도할 수 있다(CLE-T-NNENG8). 만료된 표시는 없는 것으로 본다.
         integration.status = 'error';
         integration.statusReason = 'auth_failed';
@@ -1477,32 +1448,10 @@ export class IntegrationOAuthService {
     meta: Cafe24PrivateBeginMeta,
   ): Promise<BeginResult> {
     const appUrl = getAppBaseUrl();
-
-    // 같은 상점의 설치 대기 행을 두 begin 이 동시에 만들면 늦은 쪽의 INSERT 가 23505 로 막힌다. 걸리는 제약은 상점 식별자
-    // UNIQUE(V072 — STORE_IDENTIFIER_UNIQUE_CONSTRAINT)이거나, 두 요청의 이름이 같으면 먼저 검사되는 이름 UNIQUE 다.
-    // 늦은 쪽은 한 번만 다시 판정한다. 그때는 앞선 begin 이 만든 행이 보여서 재사용이나 409 로 끝난다. 다시 판정해도
-    // 상점 식별자 UNIQUE 에 걸리면 begin 이 다시 쓰지 않는 같은 상점의 행(만료됨 · 오류)이 있는 것이다. 그 경우는
-    // ALREADY_CONNECTED_BY_SERVICE 의 409 로 바꾼다(throwIfUniqueViolation 과 같은 코드 · 문구). 이름 UNIQUE 에 또 걸리면
-    // 다른 통합이 그 이름을 쓰는 것이라 생성과 같은 409 INTEGRATION_NAME_TAKEN 으로 바꾼다(REQ-INTMGMT-005).
-    let written: PendingInstallWrite;
-    try {
-      written = await this.writePrivatePending(params, meta);
-    } catch (err) {
-      if (!isPendingInsertRace(err)) throw err;
-      try {
-        written = await this.writePrivatePending(params, meta);
-      } catch (retryErr) {
-        if (isNameConflict(retryErr)) {
-          throw new ConflictException({ ...INTEGRATION_NAME_TAKEN });
-        }
-        if (!isStoreIdentifierConflict(retryErr)) throw retryErr;
-        const mapped = ALREADY_CONNECTED_BY_SERVICE['cafe24'];
-        throw new ConflictException({
-          code: mapped.code,
-          message: mapped.message,
-        });
-      }
-    }
+    const written = await this.pendingInstallWriter.writeCafe24Private(
+      params,
+      meta,
+    );
     // install_token 이 path segment 로 들어가 cafe24 Developers "테스트
     // 실행" 시 단일 row 조회를 가능하게 한다. spec/2-navigation/4-integration.md
     // §9.2 + Rationale "install_token 을 App URL path 식별 키로 승격".
@@ -1513,137 +1462,6 @@ export class IntegrationOAuthService {
       callbackUrl: buildOauthCallbackUrl(appUrl, 'cafe24'),
       scope: written.saved.scope,
     };
-  }
-
-  /**
-   * Cafe24 Private 설치 대기 행을 한 트랜잭션에서 고르고 잠그고 판정한 뒤 쓴다(REQ-INTOAUTH-058 · 062 · 066).
-   * 근거: [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](CLE-INT-OAUTH#설치-대기-행-재사용의-권한)
-   */
-  private writePrivatePending(
-    params: BeginParams,
-    meta: Cafe24PrivateBeginMeta,
-  ): Promise<PendingInstallWrite> {
-    return this.dataSource.transaction(async (manager) => {
-      // 통합 행을 읽거나 잠그기 전에 워크스페이스 → 멤버십 순으로 잠근다(REQ-INTMGMT-066).
-      await lockForPendingWrite(manager, params);
-      const repo = manager.getRepository(Integration);
-      // Duplicate-prevention — shared helper (also used by public-flow begin
-      // and the precheck endpoint). 동일 (workspaceId, mall_id) 의 `connected`
-      // cafe24 row 가 있으면 즉시 409 로 거부. spec §9.2 "app_type 무관".
-      // 겹친 행의 통합 ID 는 싣지 않는다. 남의 개인 통합일 수 있다(REQ-INTOAUTH-065).
-      const allSameMall = await this.findAllCafe24RowsForMall(
-        params.workspaceId,
-        meta.mall_id,
-        repo,
-      );
-      if (allSameMall.some((row) => row.status === 'connected')) {
-        throw new ConflictException({
-          code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-          message: `A Cafe24 integration for mall_id "${meta.mall_id}" already exists and is connected. Use the existing integration or delete it first.`,
-        });
-      }
-      // 기존 pending_install 재사용은 private app 끼리만 의미가 있다.
-      // (public app 의 pending 행은 OAuth 흐름 자체가 다름.) 잠근 뒤에도 같은 조건으로 다시 거른다.
-      const isReusable = (row: Integration) =>
-        row.status === 'pending_install' &&
-        row.credentials?.app_type === 'private' &&
-        (row.mallId ?? row.credentials?.mall_id) === meta.mall_id;
-      const locked = (
-        await this.lockPendingRows(
-          repo,
-          allSameMall.filter(isReusable).map((row) => row.id),
-        )
-      ).filter(isReusable);
-      const reusable = assertPendingReusable(
-        pickPendingToReuse(locked, params.userId, params.requesterRole ?? null),
-        'cafe24',
-      );
-
-      // 16바이트 base64url (22자, 128-bit) — INSTALL_TOKEN_BYTES 상수에서
-      // 길이 정의. spec/2-navigation/4-integration.md §9.2 Rationale "Cafe24
-      // App URL 100자 한도 대응" 참조.
-      const installToken =
-        randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
-      const installTokenIssuedAt = new Date();
-      let target: Integration;
-      if (reusable) {
-        // Reuse the existing row instead of accumulating duplicate pending
-        // rows for the same mall. **install_token 보존 (idempotent begin)**:
-        // 같은 mall_id 에 대해 begin 을 여러 번 호출해도 사용자가 처음
-        // Cafe24 Developers 에 등록한 URL 이 계속 유효하도록 기존 토큰을
-        // 유지한다. 토큰이 없거나 (legacy / null) credentials 가 변경된
-        // 경우에만 새 토큰을 발급. installTokenIssuedAt 도 토큰을 새로
-        // 발급할 때만 갱신 — 보존 시 기존 TTL 그대로.
-        //
-        // 옛 동작 (매 호출 토큰 재발급) 은 "Connect 버튼 두 번 누르면 첫 번째
-        // URL 이 갑자기 무효화" UX 버그를 일으켰다 (2026-05-15 운영 보고).
-        // 공개 범위와 통합 소유자(`created_by`)는 바꾸지 않는다.
-        const existingPending = reusable;
-        const credsChanged =
-          existingPending.credentials?.mall_id !== meta.mall_id ||
-          existingPending.credentials?.client_id !== meta.client_id ||
-          existingPending.credentials?.client_secret !== meta.client_secret;
-        const needNewToken = !existingPending.installToken || credsChanged;
-        if (needNewToken) {
-          existingPending.installToken = installToken;
-          existingPending.installTokenIssuedAt = installTokenIssuedAt;
-        }
-        existingPending.mallId = meta.mall_id; // backfill plain column if still NULL
-        existingPending.credentials = {
-          ...existingPending.credentials,
-          mall_id: meta.mall_id,
-          app_type: 'private',
-          client_id: meta.client_id,
-          client_secret: meta.client_secret,
-          scopes: params.scopes,
-        };
-        existingPending.statusReason = null;
-        existingPending.lastError = null;
-        target = existingPending;
-      } else {
-        target = repo.create({
-          workspaceId: params.workspaceId,
-          createdBy: params.userId,
-          serviceType: 'cafe24',
-          authType: 'oauth2',
-          name: params.integrationName || `${meta.mall_id} (Cafe24 Private)`,
-          scope: resolveBeginScope(params),
-          status: 'pending_install',
-          installToken,
-          installTokenIssuedAt,
-          mallId: meta.mall_id,
-          credentials: {
-            mall_id: meta.mall_id,
-            app_type: 'private',
-            client_id: meta.client_id,
-            client_secret: meta.client_secret,
-            scopes: params.scopes,
-          },
-        });
-      }
-      const saved = await repo.save(target);
-      // 재사용 분기에서는 기존 token 을 보존할 수 있으므로 DB 에 실제 저장된
-      // `saved.installToken` 을 쓴다 (방금 발급한 installToken 변수가 아니라).
-      return { saved, installToken: saved.installToken ?? installToken };
-    });
-  }
-
-  /**
-   * 다시 쓸 후보 행을 `FOR UPDATE` 로 잠그고 아직 설치 대기인 행만 `created_at` · `id` 순으로 돌려준다. 잠금을 기다리는
-   * 동안 다른 요청이 설치를 마치거나 만료시킨 행은 Postgres 가 잠근 뒤 WHERE 를 다시 평가해 뺀다(READ COMMITTED).
-   * 남은 행이 없으면 호출자는 새 행을 만든다. 다시 고르는 일은 이 한 번뿐이다.
-   */
-  private async lockPendingRows(
-    repo: Repository<Integration>,
-    ids: readonly string[],
-  ): Promise<Integration[]> {
-    const unique = [...new Set(ids)];
-    if (unique.length === 0) return [];
-    return repo.find({
-      where: { id: In(unique), status: 'pending_install' },
-      order: { createdAt: 'ASC', id: 'ASC' },
-      lock: { mode: 'pessimistic_write' },
-    });
   }
 
   // ---------------------------------------------------------------------
@@ -1882,11 +1700,11 @@ export class IntegrationOAuthService {
         'Request (mall_id, timestamp, hmac) tuple has been seen within the 10-minute window — refusing replay.',
     });
 
-    // status 분기 — pending_install 과 유효한 재설치 요청 표시(24시간)가 있는 행만 OAuth authorize 로 진입.
+    // status 분기 — pending_install 과 유효한 재설치 대기 표시(24시간)가 있는 행만 OAuth authorize 로 진입.
     // 그 밖의 connected/error/expired 는 post-install navigation 으로 간주 (카페24
     // 쇼핑몰 관리자의 "앱으로 가기" 버튼 등). HMAC 이 통과했다는 건
     // Cafe24 가 호출한 정당한 요청임을 의미하므로 우리 frontend 의 통합
-    // 상세 페이지로 안내. 재설치 요청 표시는 권한 추가 · 재인증이 남긴다(CLE-T-NNENG8).
+    // 상세 페이지로 안내. 재설치 대기 표시는 권한 추가 · 재인증이 남긴다(CLE-T-NNENG8).
     // 근거: NERV CLE-INT-OAUTH Rationale "Cafe24 App URL 재호출 흐름".
     if (!isInstallFlowRow(target)) {
       const redirectUrl = this.buildIntegrationDetailRedirectUrl(target.id);
@@ -1947,8 +1765,8 @@ export class IntegrationOAuthService {
    * (workspaceId, client_id) to keep begin idempotent and avoid accumulating
    * dangling pending rows on repeated "Connect" clicks.
    *
-   * 재사용은 요청자가 그 행을 바꿀 수 있을 때만 한다. 판정과 덮어쓰기는 한 트랜잭션에서 한다(REQ-INTOAUTH-059 · 060 ·
-   * 062 · 066). 근거: [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](CLE-INT-OAUTH#설치-대기-행-재사용의-권한)
+   * 재사용은 요청자가 그 행을 바꿀 수 있을 때만 한다. 판정과 덮어쓰기는 `PendingInstallWriter` 가 한 트랜잭션에서 한다
+   * (REQ-INTOAUTH-059 · 060 · 062 · 066). 근거: [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](CLE-INT-OAUTH#설치-대기-행-재사용의-권한)
    *
    * spec/2-navigation/4-integration.md §5.9, makeshop node §9.1/§9.3.
    */
@@ -1958,10 +1776,8 @@ export class IntegrationOAuthService {
   ): Promise<BeginResult> {
     const appUrl = getAppBaseUrl();
 
-    const { saved, installToken } = await this.writeMakeshopPending(
-      params,
-      meta,
-    );
+    const { saved, installToken } =
+      await this.pendingInstallWriter.writeMakeshop(params, meta);
 
     return {
       mode: 'makeshop_pending_install',
@@ -1970,132 +1786,6 @@ export class IntegrationOAuthService {
       callbackUrl: buildOauthCallbackUrl(appUrl, 'makeshop'),
       scope: saved.scope,
     };
-  }
-
-  /**
-   * MakeShop 설치 대기 행을 한 트랜잭션에서 고르고 잠그고 판정한 뒤 쓴다. 이름 UNIQUE 에 걸리면 생성과 같은 409
-   * `INTEGRATION_NAME_TAKEN` 이다(REQ-INTMGMT-005). 같은 `client_id` 의 begin 은 advisory lock 으로 줄 세우므로
-   * Cafe24 Private 처럼 다시 판정할 경쟁이 없다.
-   */
-  private async writeMakeshopPending(
-    params: BeginParams,
-    meta: Required<MakeshopBeginMeta>,
-  ): Promise<PendingInstallWrite> {
-    try {
-      return await this.writeMakeshopPendingTx(params, meta);
-    } catch (err) {
-      if (isNameConflict(err)) {
-        throw new ConflictException({ ...INTEGRATION_NAME_TAKEN });
-      }
-      throw err;
-    }
-  }
-
-  private writeMakeshopPendingTx(
-    params: BeginParams,
-    meta: Required<MakeshopBeginMeta>,
-  ): Promise<PendingInstallWrite> {
-    return this.dataSource.transaction(
-      async (manager): Promise<PendingInstallWrite> => {
-        // advisory lock 보다 먼저 워크스페이스 → 멤버십 순으로 잠근다(REQ-INTMGMT-066).
-        await lockForPendingWrite(manager, params);
-        // 같은 `(workspace_id, client_id)` 의 begin 을 줄 세운다. MakeShop 설치 대기 행은 `mall_id` 가 비어 있어
-        // 상점 식별자 UNIQUE 가 막지 못한다. 이 잠금이 없으면 동시에 들어온 두 begin 이 모두 다시 쓸 행이 없다고 보고
-        // 설치 대기 행을 둘 만든다.
-        await manager.query(
-          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-          [makeshopPendingLockKey(params.workspaceId, meta.client_id)],
-        );
-        const repo = manager.getRepository(Integration);
-        // shop_uid is not yet known, so we cannot dedup by mall_id here.
-        const sameClient = (row: Integration) =>
-          row.credentials?.client_id === meta.client_id;
-        const candidates = await this.findMakeshopPendingByClient(
-          params.workspaceId,
-          meta.client_id,
-          repo,
-        );
-        const locked = (
-          await this.lockPendingRows(
-            repo,
-            candidates.map((row) => row.id),
-          )
-        ).filter(sameClient);
-        // 같은 client_id 의 설치 대기 행이 여럿이면 바꿀 수 있는 행을 먼저 고른다.
-        const reusable = assertPendingReusable(
-          pickPendingToReuse(
-            locked,
-            params.userId,
-            params.requesterRole ?? null,
-          ),
-          'makeshop',
-        );
-
-        const newToken = randomBytes(INSTALL_TOKEN_BYTES).toString('base64url');
-        let target: Integration;
-        if (reusable) {
-          // 설치 토큰은 없을 때만 새로 발급한다. client_secret 이 바뀌어도 그대로 둔다(Cafe24 Private 과 다르다).
-          // 공개 범위와 통합 소유자(`created_by`)는 바꾸지 않는다.
-          const existingPending = reusable;
-          if (!existingPending.installToken) {
-            existingPending.installToken = newToken;
-            existingPending.installTokenIssuedAt = new Date();
-          }
-          existingPending.credentials = {
-            ...existingPending.credentials,
-            client_id: meta.client_id,
-            client_secret: meta.client_secret,
-            scopes: params.scopes,
-          };
-          existingPending.statusReason = null;
-          existingPending.lastError = null;
-          target = existingPending;
-        } else {
-          target = repo.create({
-            workspaceId: params.workspaceId,
-            createdBy: params.userId,
-            serviceType: 'makeshop',
-            authType: 'oauth2',
-            name: params.integrationName || 'MakeShop',
-            scope: resolveBeginScope(params),
-            status: 'pending_install',
-            installToken: newToken,
-            installTokenIssuedAt: new Date(),
-            // mallId (=shop_uid projection) stays NULL until install callback.
-            credentials: {
-              client_id: meta.client_id,
-              client_secret: meta.client_secret,
-              scopes: params.scopes,
-            },
-          });
-        }
-        const written = await repo.save(target);
-        return {
-          saved: written,
-          installToken: written.installToken ?? newToken,
-        };
-      },
-    );
-  }
-
-  /**
-   * `(workspaceId, client_id)` 의 `pending_install` makeshop 행을 `created_at` · `id` 순으로 모두 찾는다. begin 이
-   * 다시 쓸 행을 고를 때 쓴다. `client_id` 는 암호화한 자격 증명 안에 있어 복호화한 뒤 비교한다.
-   */
-  private async findMakeshopPendingByClient(
-    workspaceId: string,
-    clientId: string,
-    repo: Repository<Integration> = this.integrationRepository,
-  ): Promise<Integration[]> {
-    const rows = await repo.find({
-      where: {
-        workspaceId,
-        serviceType: 'makeshop',
-        status: 'pending_install',
-      },
-      order: { createdAt: 'ASC', id: 'ASC' },
-    });
-    return rows.filter((r) => r.credentials?.client_id === clientId);
   }
 
   /**
@@ -2241,11 +1931,7 @@ export class IntegrationOAuthService {
       // Uses the shared ALREADY_CONNECTED_BY_SERVICE registry so the error
       // code/message stays in sync with throwIfUniqueViolation.
       if (isStoreIdentifierConflict(err)) {
-        const mapped = ALREADY_CONNECTED_BY_SERVICE['makeshop'];
-        throw new ConflictException({
-          code: mapped.code,
-          message: mapped.message,
-        });
+        throw toAlreadyConnectedConflict('makeshop');
       }
       throw err;
     }
@@ -2464,57 +2150,6 @@ export class IntegrationOAuthService {
   // ---------------------------------------------------------------------
 
   /**
-   * Return all cafe24 Integration rows for `(workspaceId, mallId)`.
-   *
-   * Primary path: SQL filter on the V045 plain `mall_id` column (O(1) rows).
-   * Legacy fallback: rows from before V045 still have `mall_id IS NULL` —
-   * match them via the encrypted `credentials.mall_id` JSONB field.
-   *
-   * **Legacy fallback 제거 조건** (2026-05-16 기준): V045 backfill 마이그레이션
-   * (마이그레이션 추적 plan `plan/in-progress/cafe24-mall-dup-ux.md` 참조) 이
-   * 완료되어 모든 cafe24 row 의 `mall_id` plain 컬럼이 NOT NULL 임을 확인한
-   * 뒤 legacy 쿼리 + filter 블록을 삭제. 동시에 V046 partial UNIQUE 의
-   * `mall_id IS NOT NULL` 조건도 검토 (NOT NULL constraint 로 강화 가능).
-   *
-   * Shared by `writePrivatePending` (begin private guard + pending_install
-   * reuse, inside its transaction via `repo`), the public-flow begin guard, and
-   * `precheckCafe24Mall` (frontend pre-detection endpoint).
-   *
-   * 설치 기한이 지나 만료된 행은 두 경로 모두에서 뺀다({@link hasReleasedStoreSlot}, REQ-INTOAUTH-068). 컬럼 경로는
-   * 만료 때 `mall_id` 를 비워 저절로 빠진다. 대체 경로는 `credentials.mall_id` 가 남아 있어 만료 행이 걸리므로
-   * SQL 조건({@link keptStoreSlotBranches})으로 먼저 빼 `credentials` 를 읽고 복호화하지 않는다. 읽은 뒤의 판정은 방어선이다.
-   *
-   * 두 쿼리는 `Promise.all` 로 함께 낸다. 기본 저장소(연결 풀)에서는 두 쿼리가 서로 다른 연결에서 함께 돌아 기다리는
-   * 시간이 준다. 트랜잭션 저장소(`repo`)는 연결 하나를 쓰므로 두 쿼리가 차례로 돌고 기다리는 시간은 줄지 않는다.
-   * legacy 쿼리는 backfill 완료 후 제거 예정이며 그 시점에 단일 쿼리로 회귀.
-   */
-  private async findAllCafe24RowsForMall(
-    workspaceId: string,
-    mallId: string,
-    repo: Repository<Integration> = this.integrationRepository,
-  ): Promise<Integration[]> {
-    const [direct, legacyRaw] = await Promise.all([
-      repo.find({
-        where: { workspaceId, serviceType: 'cafe24', mallId },
-      }),
-      // 만료로 `mall_id` 가 비워진 install_timeout 행이 시간이 지날수록 이 집합에 쌓인다. 그 행은 어차피 아래에서 빠지므로
-      // SQL 에서 먼저 빼 `credentials` 를 읽고 복호화하는 비용을 내지 않는다. 아래 `hasReleasedStoreSlot` 필터는 방어선으로 남긴다.
-      repo.find({
-        where: keptStoreSlotBranches().map((branch) => ({
-          workspaceId,
-          serviceType: 'cafe24',
-          mallId: IsNull(),
-          ...branch,
-        })),
-      }),
-    ]);
-    const legacy = legacyRaw.filter(
-      (row) => row.credentials?.mall_id === mallId,
-    );
-    return [...direct, ...legacy].filter((row) => !hasReleasedStoreSlot(row));
-  }
-
-  /**
    * Return the first `connected` cafe24 row for `(workspaceId, mallId)`,
    * or null if none exists. Used by the public-flow begin pre-check to
    * block duplicate adds before any OAuth round-trip. `excludeIntegrationId`
@@ -2525,7 +2160,11 @@ export class IntegrationOAuthService {
     mallId: string,
     excludeIntegrationId?: string,
   ): Promise<Integration | null> {
-    const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
+    const all = await findAllCafe24RowsForMall(
+      this.integrationRepository,
+      workspaceId,
+      mallId,
+    );
     return (
       all.find(
         (row) => row.status === 'connected' && row.id !== excludeIntegrationId,
@@ -2550,7 +2189,11 @@ export class IntegrationOAuthService {
     mallId: string,
     userId: string,
   ): Promise<PrecheckResult> {
-    const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
+    const all = await findAllCafe24RowsForMall(
+      this.integrationRepository,
+      workspaceId,
+      mallId,
+    );
     return pickPrecheckConflict(all, userId);
   }
 
