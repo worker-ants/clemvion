@@ -1757,13 +1757,17 @@ describe('HooksService', () => {
         });
       });
 
-      it('처리 중 에러는 기본 응답으로 삼키지 않는다', async () => {
+      // REQ-CHAT-056 · 080 — 처리 중 예상하지 못한 오류도 5xx 가 아니라 기본 응답으로 답한다.
+      it('처리 중 예상하지 못한 오류도 기본 응답으로 답한다', async () => {
         mockAdapter.parseUpdate.mockResolvedValue(updateOf(buttonCallback));
         engine.execute.mockRejectedValue(new Error('engine down'));
 
-        await expect(
-          service.handleWebhook('abc', interactionInput(3)),
-        ).rejects.toThrow('engine down');
+        const res = await service.handleWebhook('abc', interactionInput(3));
+
+        expect(res).toEqual({
+          executionId: 'ignored',
+          interactionHttpResponse: DEFERRED_UPDATE,
+        });
       });
     });
 
@@ -2028,18 +2032,92 @@ describe('HooksService', () => {
         expect(triggerRepo.update).toHaveBeenCalledTimes(1);
       });
 
-      it('다른 실행 에러는 ignored 로 삼키지 않는다', async () => {
+      // REQ-CHAT-056 — 다른 실행 에러는 202 ignored 로 답하되 degraded 원인으로 남기지 않는다.
+      it('다른 실행 에러는 202 ignored 로 답하고 건강도를 바꾸지 않는다', async () => {
         triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
         mockAdapter.parseUpdate.mockResolvedValue(startUpdate);
         conversationService.lookup.mockResolvedValue(null);
-        const boom = new Error('queue down');
-        engine.execute.mockRejectedValue(boom);
+        engine.execute.mockRejectedValue(new Error('queue down'));
 
-        await expect(service.handleWebhook('abc', chatInput)).rejects.toBe(
-          boom,
-        );
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
         expect(triggerRepo.update).not.toHaveBeenCalled();
       });
+    });
+
+    // 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약) REQ-CHAT-056.
+    // 서명을 통과한 update 의 처리 중 예상하지 못한 오류(DB · Redis 장애 등)는 5xx 로 내지 않는다. 5xx 는
+    // 프로바이더의 재전송과 웹훅 자동 비활성화를 부른다. 에러 로그를 남기고 202 ignored 로 답한다. 예외는
+    // `/start` 의 기존 실행 취소 실패(REQ-CHAT-064) 하나이고 아래 `/start` describe 가 그 전파를 본다.
+    describe('처리 중 예상하지 못한 오류 (REQ-CHAT-056)', () => {
+      const textUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'hello' },
+        idempotencyKey: '3101',
+        receivedAt: new Date().toISOString(),
+      };
+      let errorSpy: jest.SpyInstance;
+
+      beforeEach(() => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(textUpdate);
+        errorSpy = jest
+          .spyOn(Logger.prototype, 'error')
+          .mockImplementation(() => undefined);
+      });
+
+      afterEach(() => {
+        errorSpy.mockRestore();
+      });
+
+      it.each<[string, () => void]>([
+        [
+          'parseUpdate',
+          () =>
+            mockAdapter.parseUpdate.mockRejectedValueOnce(
+              new Error('parse boom'),
+            ),
+        ],
+        [
+          '중복 제거 선점(Redis)',
+          () =>
+            (
+              moduleRef.get(ChatChannelDedupService) as { claim: jest.Mock }
+            ).claim.mockRejectedValueOnce(new Error('redis down')),
+        ],
+        [
+          '대화 단위 분당 한도(Redis)',
+          () =>
+            (
+              moduleRef.get(ChatChannelRateLimiterService) as {
+                consume: jest.Mock;
+              }
+            ).consume.mockRejectedValueOnce(new Error('redis down')),
+        ],
+        [
+          '채널 대화 상태 조회(DB)',
+          () =>
+            conversationService.lookup.mockRejectedValueOnce(
+              new Error('db down'),
+            ),
+        ],
+      ])(
+        '%s 가 실패해도 202 ignored 로 답하고 에러 로그를 남긴다',
+        async (_label, arrange) => {
+          arrange();
+
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expect(engine.execute).not.toHaveBeenCalled();
+          expect(errorSpy).toHaveBeenCalledWith(
+            expect.stringContaining('REQ-CHAT-056'),
+            expect.anything(),
+          );
+        },
+      );
     });
 
     it('chatChannel 경로도 민감 헤더를 execute inputData 에 [REDACTED] 로 마스킹 (spec 12-webhook §5.3)', async () => {
@@ -2429,12 +2507,14 @@ describe('HooksService', () => {
         }),
       );
 
-      await expect(
-        service.handleWebhook('abc', chatInput),
-      ).rejects.toBeInstanceOf(ConflictException);
+      // STATE_MISMATCH 처럼 표면 불일치 안내를 보내지 않는다. 응답은 REQ-CHAT-056 대로 202 다.
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toEqual({ executionId: 'ignored' });
+      expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
     });
 
-    it('표면 불일치 외의 예외는 그대로 전파 (삼키지 않음)', async () => {
+    it('표면 불일치 외의 예외는 안내 없이 202 ignored 로 답한다', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       mockAdapter.parseUpdate.mockResolvedValue({
         conversationKey: 'chat-123',
@@ -2462,9 +2542,10 @@ describe('HooksService', () => {
         new Error('redis down'),
       );
 
-      await expect(service.handleWebhook('abc', chatInput)).rejects.toThrow(
-        'redis down',
-      );
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toEqual({ executionId: 'ignored' });
+      expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
     });
 
     it('CCH-SE-02 — 동일 update 재도착은 처리 생략(202 ignored) + rate-limit 쿼터 미소비', async () => {
@@ -3407,15 +3488,19 @@ describe('HooksService', () => {
         ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
       });
 
-      it('그 밖의 오류는 삼키지 않는다', async () => {
+      // REQ-CHAT-056 — `/start` 의 취소 실패(REQ-CHAT-064)와 달리 202 다. 매핑과 건강도는 그대로 둔다.
+      it('그 밖의 오류도 202 ignored 로 답하고 매핑 · 건강도를 바꾸지 않는다', async () => {
         executions.stop.mockRejectedValue(
           new BadRequestException({ code: 'VALIDATION_ERROR', message: 'x' }),
         );
 
-        await expect(
-          service.handleWebhook('abc', chatInput),
-        ).rejects.toBeInstanceOf(BadRequestException);
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
         expect(triggerRepo.update).not.toHaveBeenCalled();
+        expect(
+          conversationService.clearExecutionIdIfMatches,
+        ).not.toHaveBeenCalled();
       });
     });
 

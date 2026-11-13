@@ -412,15 +412,32 @@ export class HooksService {
       return { executionId: 'ignored', discordPing: true };
     }
 
-    const result = await this.dispatchChatChannelUpdate(
-      trigger,
-      config,
-      input,
-      adapter,
-      defaultResponse
-        ? INTERACTION_RESPONSE_CODE
-        : WEBHOOK_ACCEPTED_RESPONSE_CODE,
-    );
+    let result: ChatChannelWebhookResult;
+    try {
+      result = await this.dispatchChatChannelUpdate(
+        trigger,
+        config,
+        input,
+        adapter,
+        defaultResponse
+          ? INTERACTION_RESPONSE_CODE
+          : WEBHOOK_ACCEPTED_RESPONSE_CODE,
+      );
+    } catch (err) {
+      // `/start` 의 기존 실행 취소 실패는 그 에러로 답한다(REQ-CHAT-064). 인터랙션이어도 같다.
+      if (err instanceof ChatChannelErrorResponse) throw err.cause;
+      // 그 밖의 예상하지 못한 오류(DB · Redis 장애 등)는 5xx 로 내지 않는다. 5xx 는 프로바이더의 재전송과
+      // 웹훅 자동 비활성화를 부른다(R-CC-12). 에러 로그를 남기고 버린 update 로 끝낸다(REQ-CHAT-056).
+      // 채널 건강도는 바꾸지 않는다. `degraded` 의 원인은 스펙이 정한 넷뿐이다.
+      this.logger.error(
+        `chat-channel update 처리 중 예상하지 못한 오류. 202 로 답하고 버린다 ` +
+          `(REQ-CHAT-056, trigger=${trigger.id} provider=${config.provider}): ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      result = await this.dropChatChannelUpdate(input, config, adapter);
+    }
     return withDefaultInteractionResponse(result, defaultResponse);
   }
 
@@ -900,7 +917,8 @@ export class HooksService {
    * /start 로 다시 시작하기 전에 대화의 기존 실행을 취소한다(NERV Task `CLE-T-V4WVF2`).
    *
    * 상태를 읽은 뒤 실행이 먼저 끝났거나(`INVALID_STATE`) 지워졌으면(404) 취소할 것이 없으므로
-   * 그대로 새로 시작한다. 그 밖의 실패(취소를 큐에 넣지 못한 503 등)는 전파한다. 옛 실행을 남긴 채
+   * 그대로 새로 시작한다. 그 밖의 실패(취소를 큐에 넣지 못한 503 등)는 {@link ChatChannelErrorResponse} 로
+   * 감싸 전파하고 `handleChatChannelWebhook` 이 원래 에러로 답한다(REQ-CHAT-064). 옛 실행을 남긴 채
    * 새 실행을 시작하면 대기 실행이 쌓인다.
    *
    * 프로바이더는 non-2xx 를 받으면 같은 update 를 다시 보낸다. 그 재전송이 되살아나도록 오류를 전파하기
@@ -923,7 +941,7 @@ export class HooksService {
         return;
       }
       await this.chatChannelDedup.release(triggerId, idempotencyKey);
-      throw err;
+      throw new ChatChannelErrorResponse(err);
     }
   }
 
@@ -933,7 +951,8 @@ export class HooksService {
    * 실행이 그사이 끝났거나(`INVALID_STATE`) 지워졌으면(404) 취소할 것이 없으므로 끝난 것으로 본다.
    * 취소를 재개 큐에 넣지 못했으면(503 `EXECUTION_ENQUEUE_FAILED`) 프로바이더에 5xx 를 내지 않는다.
    * 채널 건강도를 `degraded` 로 남기고 `false` 를 돌린다. 실행은 입력 대기에 그대로 있다. `/start` 의
-   * 같은 실패는 전파한다(`stopForRestart`). 그 밖의 실패도 전파한다.
+   * 같은 실패는 전파한다(`stopForRestart`). 그 밖의 실패도 전파하고 `handleChatChannelWebhook` 이 202 로
+   * 답한다(REQ-CHAT-056).
    * 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약), NERV Task `CLE-T-EQDYC1`.
    */
   private async stopForCancelCommand(
@@ -1520,6 +1539,18 @@ function isSlackUrlVerification(body: unknown): boolean {
  * 경로가 따로 정한 인터랙션 응답이 없을 때 어댑터의 기본 응답을 붙인다. 기본 응답의 `body` 가 없으면
  * 200 빈 본문(`interactionEmptyResponse`)이다. 기본 응답이 없으면 결과를 그대로 돌려준다(202).
  */
+/**
+ * 채팅 채널 인바운드가 `202` 로 바꾸지 않고 원래 에러로 답할 실패를 감싼다. `handleChatChannelWebhook` 은 처리
+ * 중 오류를 모두 `202` 로 끝내는데(REQ-CHAT-056), 이 표지가 붙은 오류만 `cause` 를 다시 던진다. 지금은 `/start`
+ * 의 기존 실행 취소 실패(REQ-CHAT-064) 하나다. 프로바이더가 그 update 를 다시 보내게 하려는 예외다.
+ */
+class ChatChannelErrorResponse extends Error {
+  constructor(readonly cause: unknown) {
+    super('chat-channel error response passthrough');
+    this.name = 'ChatChannelErrorResponse';
+  }
+}
+
 function withDefaultInteractionResponse(
   result: ChatChannelWebhookResult,
   fallback: InboundInteractionResponse | undefined,
