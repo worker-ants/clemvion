@@ -83,8 +83,13 @@ import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
 import { EngineErrorCode } from '../../nodes/core/error-codes';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
-import { collectParallelBranchMembership } from './graph/parallel-branch-membership';
-import { collectBackgroundOnlyNodeIds } from './graph/background-body-membership';
+import { pickContainerInternalEdges } from './graph/container-internal-edges';
+import {
+  PARALLEL_BRANCH_COUNT_MAX,
+  ParallelPrecheck,
+  parallelDepthOf,
+  type ParallelBranchPlan,
+} from './graph/parallel-precheck';
 import { identifyBackEdges } from './graph/back-edge-identifier';
 import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
@@ -246,49 +251,16 @@ interface ContainerBodyPlan {
 }
 
 /**
- * 컨테이너 본문 안 연결선(양 끝이 모두 `childIds` 에 있는 연결선)을 고른다.
- * 컨테이너 실행 계획과 Parallel 사전 검사가 함께 쓴다.
- */
-function pickContainerInternalEdges(
-  childIds: ReadonlySet<string>,
-  allEdges: readonly GraphEdge[],
-): GraphEdge[] {
-  return allEdges
-    .filter((e) => childIds.has(e.sourceNodeId) && childIds.has(e.targetNodeId))
-    .map((e) => ({
-      sourceNodeId: e.sourceNodeId,
-      sourcePort: e.sourcePort,
-      targetNodeId: e.targetNodeId,
-      targetPort: e.targetPort,
-    }));
-}
-
-/**
  * Bounds for Parallel node config fields. `branchCount` is min 2 (single-
  * branch Parallel makes no sense) and max 16 (sane upper bound on
  * concurrent branch fan-out). `maxConcurrency` allows 0 as "unbounded
  * within branchCount" (the executor maps 0 → branchCount internally).
+ * 상한 {@link PARALLEL_BRANCH_COUNT_MAX} 는 안쪽 Parallel 사전 검사도 읽어서
+ * `graph/parallel-precheck.ts` 에 둔다.
  */
 const PARALLEL_BRANCH_COUNT_MIN = 2;
-const PARALLEL_BRANCH_COUNT_MAX = 16;
 const PARALLEL_MAX_CONCURRENCY_MIN = 0;
 const PARALLEL_MAX_CONCURRENCY_MAX = 16;
-
-/**
- * Parallel 중첩 깊이 한도(REQ-PARALLEL-024). 맨 바깥 Parallel 이 1, 그 병렬 분기 안의
- * Parallel 이 2 다. 한도 안의 Parallel 본문에 또 Parallel 이 있으면 실행 시
- * `PARALLEL_NESTED_DEPTH_EXCEEDED` 로 막는다({@link ExecutionEngineService.planParallelBody}).
- * 저장 시 규칙 `parallel:nested-depth-exceeded`(`@workflow/graph-warning-rules`)는 같은
- * 한도를 "자식 · 손자" 두 단계 탐색으로 표현하므로 이 상수를 읽지 않는다.
- */
-const PARALLEL_MAX_NESTED_DEPTH = 2;
-
-/**
- * Background 본문에 둔 Parallel 의 중첩 깊이. 워커가 본문을 새 컨텍스트에서 실행하므로
- * 큐에 넣은 쪽의 깊이를 이어받지 않는다(REQ-PARALLEL-036). 컨테이너 본문 사전 검사가
- * 컨테이너 안 Background 본문을 셀 때 쓴다(CLE-T-BTR4ZA).
- */
-const BACKGROUND_BODY_PARALLEL_DEPTH = 1;
 
 // C-1 step2 — 추출된 AiTurnOrchestrator 의 emit 메서드가 동일 union 을 타입
 // 주석으로 참조하므로 export (interaction-type-registry.md §1.1 의 정의 자체는
@@ -326,37 +298,6 @@ function extractChatChannelFromInput(
     return undefined;
   }
   return raw as ChatChannelRoutingInfo;
-}
-
-/**
- * Per-branch subgraph plan for the Parallel logic node.
- *
- * `bodyNodeIds` — nodes exclusive to this branch (reachable from this
- *   `branch_N` target but not from any other `branch_M`). Shared downstream
- *   nodes (typical Merge join points) live in {@link ParallelPlan.joinNodeIds}.
- * `sortedNodeIds` — forward-edge topological order of `bodyNodeIds`.
- * `entryNodeIds` — direct targets of `branch_N` edges; seed the reachability
- *   set for the sequential body traversal.
- * `exitNodeIds` — body nodes that have at least one outgoing edge to a node
- *   outside the body (join nodes or unrelated downstream). After the branch
- *   completes, propagation from these nodes re-activates the main loop's
- *   `reachable` set.
- */
-interface ParallelBranchPlan {
-  branchIndex: number;
-  branchPort: string;
-  bodyNodeIds: Set<string>;
-  sortedNodeIds: string[];
-  entryNodeIds: Set<string>;
-  exitNodeIds: Set<string>;
-  internalEdges: GraphEdge[];
-  outgoingEdgeMap: Map<string, GraphEdge[]>;
-}
-
-interface ParallelPlan {
-  branches: ParallelBranchPlan[];
-  joinNodeIds: Set<string>;
-  allBodyNodeIds: Set<string>;
 }
 
 /**
@@ -431,17 +372,6 @@ interface ParallelBranchBodyOptions {
   executedNodes: Set<string>;
   executionMeta: { startedAt?: string; mode?: string };
   branchInput: unknown;
-}
-
-/**
- * Parallel 사전 검사가 읽는 워크플로우 그래프. 실행 그래프(`buildGraph`)에는 컨테이너
- * 본문 노드가 없으므로 컨테이너 본문은 원본 노드 · 연결선에서 찾는다.
- */
-interface ParallelCheckGraph {
-  nodeMap: ReadonlyMap<string, Node>;
-  /** 컨테이너 ID → 그 컨테이너 본문 노드(`containerId` 가 그 컨테이너인 노드). */
-  childrenByContainer: ReadonlyMap<string, Node[]>;
-  allEdges: readonly Edge[];
 }
 
 /**
@@ -764,20 +694,12 @@ export class ExecutionEngineService
    */
   private readonly containerCancelCheckedAtMs = new Map<string, number>();
   /**
-   * 노드 배열 참조 → Parallel 사전 검사 그래프. 컨테이너 본문 안 Parallel 이 회차마다
-   * `runParallel` 을 불러도 그래프는 한 번만 만든다. 배열이 GC 되면 같이 사라진다.
-   *
-   * 전제: 키로 쓰는 노드 배열과 연결선 배열은 실행 중 제자리에서 바뀌지 않는다.
-   * 두 배열은 실행 · 재개 · 서브 워크플로우 시작 때 `findBy` 로 한 번 읽은 값이고
-   * (`nodes` / `edges` / `subNodes` / `subEdges`), `runParallel` 을 부르는 곳들과
-   * `planContainerBody` 의 `plan.allNodes` / `plan.allEdges` 는 그 참조를 그대로 넘기며
-   * push · splice 같은 제자리 변경을 하지 않는다. 연결선 배열은 적중 때 참조까지 비교해
-   * 다른 배열이 오면 다시 만든다.
+   * Parallel 사전 검사와 병렬 분기 계획(CLE-T-8PAPKV). 노드 종류는 핸들러 레지스트리에
+   * 묻는다. 람다라서 호출 때 `handlerRegistry` 를 읽으므로 필드 초기화 순서와 상관없다.
    */
-  private readonly parallelCheckGraphCache = new WeakMap<
-    readonly Node[],
-    { allEdges: readonly Edge[]; graph: ParallelCheckGraph }
-  >();
+  private readonly parallelPrecheck = new ParallelPrecheck(
+    (type) => this.handlerRegistry.getMetadata(type).kind,
+  );
 
   /**
    * 병렬 분기 컨텍스트의 `nodeOutputCache`(분기 전용 얕은 복사본) → 이번 분기 실행에서
@@ -7827,347 +7749,13 @@ export class ExecutionEngineService
   }
 
   /**
-   * Compute per-branch subgraph plans for a Parallel node.
-   *
-   * Strategy: for each `branch_N` port of the Parallel node, BFS forward
-   * across `forwardEdges` to collect reachable nodes. A node reached from
-   * multiple branches is a join (Merge) and excluded from every branch
-   * body; a node reached from exactly one branch is in that branch's body
-   * ({@link collectParallelBranchMembership}).
-   *
-   * Fails fast with `PARALLEL_INVALID_CHILD` / `PARALLEL_BACK_EDGE` /
-   * `PARALLEL_NESTED_DEPTH_EXCEEDED` so the user sees a named error at
-   * dispatch time instead of a mid-flight surprise.
-   *
-   * `currentDepth` 는 이 Parallel 의 중첩 깊이다(parallel-p2 결정 #3). 맨 바깥이면 1,
-   * 바깥 병렬 분기 안에서 실행되는 안쪽 Parallel 이면 2 다. 병렬 분기 본문 노드 검사는
-   * {@link assertParallelBranchChildrenAllowed} 가 맡는다. 한도
-   * ({@link PARALLEL_MAX_NESTED_DEPTH}) 안의 안쪽 Parallel 과 병렬 분기 안 컨테이너 본문의
-   * Parallel 은 그 본문까지 지금 검사하므로 깊이 위반은 바깥 Parallel 이 병렬 분기를
-   * 시작하기 전에 드러난다(CLE-T-GGZSC2 · CLE-T-0DGHGF). 안쪽 Parallel 은
-   * {@link executeParallelBranchBody} · {@link executeContainerBody} 가
-   * {@link runParallel} 로 넘길 때 다시 계획된다. `runParallel` 은 context 가
-   * `ParallelBranchContext` 인지로 자기 깊이를 판별한다({@link parallelDepthOf}).
-   */
-  private planParallelBody(
-    parallelNode: Node,
-    graph: ParallelCheckGraph,
-    forwardEdges: GraphEdge[],
-    backEdges: GraphEdge[],
-    branchCount: number,
-    currentDepth: number,
-  ): ParallelPlan {
-    const {
-      forwardAdj,
-      branchEntries,
-      bodyNodeIdsPerBranch,
-      joinNodeIds,
-      allBodyNodeIds,
-    } = collectParallelBranchMembership(
-      parallelNode.id,
-      forwardEdges,
-      branchCount,
-    );
-
-    // Back-edges inside any branch body are rejected to keep semantics
-    // consistent with the Container pattern (which also forbids cyclic bodies).
-    for (const edge of backEdges) {
-      if (
-        allBodyNodeIds.has(edge.sourceNodeId) ||
-        allBodyNodeIds.has(edge.targetNodeId)
-      ) {
-        throw new Error(
-          `PARALLEL_BACK_EDGE: Parallel node "${parallelNode.label ?? parallelNode.type}" body contains back-edges, which are not supported.`,
-        );
-      }
-    }
-
-    const branches: ParallelBranchPlan[] = [];
-    for (let i = 0; i < branchCount; i++) {
-      const bodyNodeIds = bodyNodeIdsPerBranch[i];
-      const internalEdges = pickContainerInternalEdges(
-        bodyNodeIds,
-        forwardEdges,
-      );
-      this.assertParallelBranchChildrenAllowed(
-        parallelNode,
-        bodyNodeIds,
-        internalEdges,
-        graph,
-        currentDepth,
-      );
-
-      const graphNodes = Array.from(bodyNodeIds).map((id) => ({ id }));
-      const sortedNodeIds = topologicalSort(graphNodes, internalEdges);
-
-      const outgoingEdgeMap = new Map<string, GraphEdge[]>();
-      for (const edge of internalEdges) {
-        const list = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
-        list.push(edge);
-        outgoingEdgeMap.set(edge.sourceNodeId, list);
-      }
-
-      // Exit nodes: body nodes whose outgoing edges leave the body (typically
-      // into a join node such as a Merge). Used after dispatch to propagate
-      // reachability into the main loop's `reachable` set.
-      const exitNodeIds = new Set<string>();
-      for (const id of bodyNodeIds) {
-        const out = forwardAdj.get(id) ?? [];
-        for (const edge of out) {
-          if (!bodyNodeIds.has(edge.targetNodeId)) {
-            exitNodeIds.add(id);
-            break;
-          }
-        }
-        // A body node with no outgoing edges at all is still a terminal leaf;
-        // no propagation needed, so we don't add it to exitNodeIds.
-      }
-
-      branches.push({
-        branchIndex: i,
-        branchPort: `branch_${i}`,
-        bodyNodeIds,
-        sortedNodeIds,
-        entryNodeIds: branchEntries[i],
-        exitNodeIds,
-        internalEdges,
-        outgoingEdgeMap,
-      });
-    }
-
-    return { branches, joinNodeIds, allBodyNodeIds };
-  }
-
-  /**
-   * 병렬 분기 본문 노드 가운데 실행할 수 없는 노드를 막는다.
-   *
-   * - Parallel: `currentDepth` 가 {@link PARALLEL_MAX_NESTED_DEPTH} 이상이면
-   *   `PARALLEL_NESTED_DEPTH_EXCEEDED` 를 던진다(REQ-PARALLEL-024). 한도 안이면 그 본문을
-   *   {@link assertNestedParallelBodyAllowed} 로 지금 검사한다.
-   * - 컨테이너: 본문 안 Parallel 은 이 병렬 분기 컨텍스트에서 실행되어 한 단계 깊다.
-   *   {@link assertContainerBodyParallelsAllowed} 로 지금 검사한다(CLE-T-0DGHGF).
-   * - 블로킹 노드: `PARALLEL_INVALID_CHILD` 를 던진다. 메타데이터만 보므로 buttons ·
-   *   ai_conversation 처럼 실행해야 대기 여부가 정해지는 노드는
-   *   {@link executeParallelBranchBody} 의 런타임 가드가 막는다(PR-G, CRIT #3).
-   */
-  private assertParallelBranchChildrenAllowed(
-    parallelNode: Node,
-    bodyNodeIds: ReadonlySet<string>,
-    internalEdges: GraphEdge[],
-    graph: ParallelCheckGraph,
-    currentDepth: number,
-  ): void {
-    for (const id of bodyNodeIds) {
-      const node = graph.nodeMap.get(id);
-      if (!node) continue;
-      const childKind = this.handlerRegistry.getMetadata(node.type).kind;
-      if (childKind === 'parallel') {
-        if (currentDepth >= PARALLEL_MAX_NESTED_DEPTH) {
-          throw new Error(
-            `PARALLEL_NESTED_DEPTH_EXCEEDED: Nested Parallel node "${parallelNode.label ?? parallelNode.type}" body contains another Parallel node "${node.label ?? node.type}". Parallel nesting depth > ${PARALLEL_MAX_NESTED_DEPTH} is not supported.`,
-          );
-        }
-        this.assertNestedParallelBodyAllowed(
-          node,
-          internalEdges,
-          graph,
-          currentDepth + 1,
-        );
-      }
-      if (childKind === 'container') {
-        this.assertContainerBodyParallelsAllowed(node, graph, currentDepth + 1);
-      }
-      if (childKind === 'blocking') {
-        throw new Error(
-          `PARALLEL_INVALID_CHILD: Blocking node "${node.label ?? node.type}" inside Parallel node "${parallelNode.label ?? parallelNode.type}" is not supported.`,
-        );
-      }
-    }
-  }
-
-  /**
-   * 바깥 병렬 분기 본문에 있는 안쪽 Parallel 의 본문을 계획을 만들지 않고 검사만 한다
-   * (CLE-T-GGZSC2). 안쪽 Parallel 이 실행될 때 검사하면 깊이 위반이 바깥 병렬 분기 하나의
-   * 실패가 되어 바깥 항목 에러 정책(`continue`)에 묻힌다. REQ-PARALLEL-024 는 실행을
-   * 실패시키므로 바깥 병렬 분기를 시작하기 전에 던진다.
-   *
-   * 안쪽 병렬 분기 수는 표현식일 수 있어 아직 모르므로 {@link PARALLEL_BRANCH_COUNT_MAX}
-   * 로 잡는다. 그래서 설정한 병렬 분기 수 밖의 `branch_N` 아래 Parallel 도 깊이 위반으로
-   * 본다. `forwardEdges` 는 안쪽 Parallel 을 둘러싼 본문(바깥 병렬 분기 본문이나 컨테이너
-   * 본문) 안의 연결선이다.
-   *
-   * 블로킹 노드 검사는 바깥 검사와 겹친다. 안쪽 본문은 바깥 병렬 분기 본문 안의 연결선만
-   * 따라가므로 늘 바깥 본문에 들어 있고, 바깥 {@link assertParallelBranchChildrenAllowed}
-   * 도 같은 노드를 본다. 노드를 보는 순서에 따라 어느 쪽이 먼저 던지는지만 다르다.
-   *
-   * 저장 시 규칙 `parallel:nested-depth-exceeded` 와는 판정 범위가 달라 함수를 나누지
-   * 않는다. 저장 시 규칙은 `branch_N` 입구에서 모든 연결선(합류 노드, 컨테이너 본문 연결선
-   * 포함)을 따라가고 병렬 분기 수는 보지 않는다. 실행 시 검사는 맨 바깥 Parallel 의 병렬
-   * 분기 수를 따르고 합류 노드를 뺀다. 컨테이너 본문은 `containerId` 로 찾아 들어간다
-   * ({@link assertContainerBodyParallelsAllowed}).
-   */
-  private assertNestedParallelBodyAllowed(
-    parallelNode: Node,
-    forwardEdges: GraphEdge[],
-    graph: ParallelCheckGraph,
-    depth: number,
-  ): void {
-    const { bodyNodeIdsPerBranch } = collectParallelBranchMembership(
-      parallelNode.id,
-      forwardEdges,
-      PARALLEL_BRANCH_COUNT_MAX,
-    );
-    for (const bodyNodeIds of bodyNodeIdsPerBranch) {
-      // 본문이 빈 병렬 분기(설정한 병렬 분기 수 밖의 `branch_N`)는 검사할 노드가 없다.
-      if (bodyNodeIds.size === 0) continue;
-      const internalEdges = pickContainerInternalEdges(
-        bodyNodeIds,
-        forwardEdges,
-      );
-      this.assertParallelBranchChildrenAllowed(
-        parallelNode,
-        bodyNodeIds,
-        internalEdges,
-        graph,
-        depth,
-      );
-    }
-  }
-
-  /**
-   * 컨테이너 본문에 둔 Parallel 의 깊이와 본문을 회차를 시작하기 전에 검사한다
-   * (CLE-T-0DGHGF). 본문 안 Parallel 은 컨테이너가 받은 컨텍스트에서 실행되므로
-   * 컨테이너를 둘러싼 깊이를 이어받는다. `parallelDepth` 는 본문 안 Parallel 이 실행될
-   * 깊이다. 맨 바깥 컨테이너면 1, 병렬 분기 안 컨테이너면 그 병렬 분기 Parallel 깊이 + 1
-   * 이다.
-   *
-   * 회차 안에서 처음 검사하면 위반이 그 회차 하나의 실패가 되어 컨테이너 `errorPolicy`
-   * (`skip` · `continue`)에 묻힌다. 바깥 병렬 분기 안이면 바깥 항목 에러 정책에도 묻힌다.
-   * REQ-PARALLEL-022 · 024 는 실행을 실패시키므로 병렬 분기 계획
-   * ({@link assertParallelBranchChildrenAllowed})과 컨테이너 시작
-   * ({@link runContainerInner})에서 부른다.
-   *
-   * 본문 안 컨테이너는 Parallel 깊이를 늘리지 않고 그 본문까지 내려간다. `containerId`
-   * 가 돌고 도는 그래프는 `visited` 로 멈춘다(그런 컨테이너는 실행할 때
-   * `CONTAINER_CYCLE` 로 실패한다).
-   *
-   * 본문 안 Background 의 `background` 포트로만 닿는 노드도 같은 `containerId` 를 가진다.
-   * 그 노드는 워커가 새 컨텍스트에서 실행하므로 깊이를 1 부터 센다
-   * ({@link collectBackgroundOnlyNodeIds}, CLE-T-BTR4ZA). 회차 본문에서도 닿는 노드는
-   * 회차 루프에서 실행되므로 컨테이너 깊이로 센다. 본문 Parallel 의 병렬 분기 안에 둔
-   * Background 의 본문은 그 병렬 분기 본문으로도 잡혀 바깥 깊이를 이어서 센다
-   * ({@link assertNestedParallelBodyAllowed}). 병렬 분기 안 Background 본문을 이렇게
-   * 엄격하게 세는 동작은 CLE-NODE-PARALLEL 「미결 사항」에 남아 있다.
-   */
-  private assertContainerBodyParallelsAllowed(
-    containerNode: Node,
-    graph: ParallelCheckGraph,
-    parallelDepth: number,
-    visited: Set<string> = new Set(),
-  ): void {
-    if (visited.has(containerNode.id)) return;
-    visited.add(containerNode.id);
-    const children = graph.childrenByContainer.get(containerNode.id) ?? [];
-    let bodyEdges: GraphEdge[] | undefined;
-    let backgroundOnlyIds: ReadonlySet<string> | undefined;
-    const bodyEdgesOf = () =>
-      (bodyEdges ??= pickContainerInternalEdges(
-        new Set(children.map((c) => c.id)),
-        graph.allEdges,
-      ));
-    // Background 본문 노드는 워커가 새 컨텍스트에서 실행하므로 깊이 1 이다.
-    const depthOf = (child: Node): number => {
-      backgroundOnlyIds ??= collectBackgroundOnlyNodeIds(
-        graph.allEdges
-          .filter(
-            (e) =>
-              e.sourceNodeId === containerNode.id && e.sourcePort === 'body',
-          )
-          .map((e) => e.targetNodeId),
-        bodyEdgesOf(),
-        (id) => {
-          const node = graph.nodeMap.get(id);
-          return (
-            node !== undefined &&
-            this.handlerRegistry.getMetadata(node.type).kind === 'background'
-          );
-        },
-      );
-      return backgroundOnlyIds.has(child.id)
-        ? BACKGROUND_BODY_PARALLEL_DEPTH
-        : parallelDepth;
-    };
-    for (const child of children) {
-      const childKind = this.handlerRegistry.getMetadata(child.type).kind;
-      if (childKind === 'parallel') {
-        const childDepth = depthOf(child);
-        if (childDepth > PARALLEL_MAX_NESTED_DEPTH) {
-          throw new Error(
-            `PARALLEL_NESTED_DEPTH_EXCEEDED: Parallel node "${child.label ?? child.type}" in the body of container "${containerNode.label ?? containerNode.type}" would run at nesting depth ${childDepth}. Parallel nesting depth > ${PARALLEL_MAX_NESTED_DEPTH} is not supported.`,
-          );
-        }
-        this.assertNestedParallelBodyAllowed(
-          child,
-          bodyEdgesOf(),
-          graph,
-          childDepth,
-        );
-      }
-      if (childKind === 'container') {
-        this.assertContainerBodyParallelsAllowed(
-          child,
-          graph,
-          depthOf(child),
-          visited,
-        );
-      }
-    }
-  }
-
-  /** {@link ParallelCheckGraph} 를 만든다. */
-  private buildParallelCheckGraph(
-    allNodes: readonly Node[],
-    allEdges: readonly Edge[],
-  ): ParallelCheckGraph {
-    // 컨테이너 회차마다 같은 노드 · 연결선 배열로 불리므로 배열 참조 기준으로 1회만 만든다.
-    const cached = this.parallelCheckGraphCache.get(allNodes);
-    if (cached && cached.allEdges === allEdges) return cached.graph;
-    const nodeMap = new Map<string, Node>();
-    const childrenByContainer = new Map<string, Node[]>();
-    for (const node of allNodes) {
-      nodeMap.set(node.id, node);
-      if (!node.containerId) continue;
-      const siblings = childrenByContainer.get(node.containerId) ?? [];
-      siblings.push(node);
-      childrenByContainer.set(node.containerId, siblings);
-    }
-    const graph: ParallelCheckGraph = {
-      nodeMap,
-      childrenByContainer,
-      allEdges,
-    };
-    this.parallelCheckGraphCache.set(allNodes, { allEdges, graph });
-    return graph;
-  }
-
-  /**
-   * `context` 에서 실행되는 Parallel 의 중첩 깊이. 바깥 Parallel 이 병렬 분기 컨텍스트
-   * (`ParallelBranchContext`)에 `parentParallelConcurrency` 를 넣으므로 그 필드가 있으면
-   * 2, 없으면 1 이다(parallel-p2 결정 #3). `parentParallelConcurrency` 는
-   * `ExecutionContext` 공통 필드가 아니라서 `in` 으로 확인한다.
-   */
-  private parallelDepthOf(context: ExecutionContext): number {
-    return 'parentParallelConcurrency' in context ? 2 : 1;
-  }
-
-  /**
    * Execute a single branch's body subgraph sequentially — the engine runs
    * branches *between* each other in parallel (via ParallelExecutor), but
    * each branch's own nodes remain in topological order inside the branch.
    *
    * Mirrors {@link executeContainerBody}: seeds reachability with the branch
    * entry nodes, routes by port, and rejects any blocking node encountered
-   * mid-flight (validation in {@link planParallelBody} covers statically-
+   * mid-flight (validation in {@link ParallelPrecheck.planParallelBody} covers statically-
    * declared blocking nodes; this guards against ones emitted via
    * `waiting_for_input` at runtime).
    *
@@ -8567,13 +8155,13 @@ export class ExecutionEngineService
         ? (context as ParallelBranchContext).parentParallelConcurrency
         : undefined;
 
-    const plan = this.planParallelBody(
+    const plan = this.parallelPrecheck.planParallelBody(
       parallelNode,
-      this.buildParallelCheckGraph(allNodes, allEdges),
+      this.parallelPrecheck.buildParallelCheckGraph(allNodes, allEdges),
       forwardEdges,
       backEdges,
       branchCount,
-      this.parallelDepthOf(context),
+      parallelDepthOf(context),
     );
 
     // Resolve the Parallel node's current NodeExecution row so branch
@@ -8867,10 +8455,10 @@ export class ExecutionEngineService
     // CLE-T-0DGHGF — 본문 안 Parallel 의 깊이 · 자식 검사도 회차 전에 한다. 회차 안에서
     // 처음 던지면 컨테이너 `errorPolicy`(`skip` · `continue`)가 그 실패를 흡수한다.
     if (this.resolveParallelEngineFlag() === 'v1') {
-      this.assertContainerBodyParallelsAllowed(
+      this.parallelPrecheck.assertContainerBodyParallelsAllowed(
         containerNode,
-        this.buildParallelCheckGraph(allNodes, allEdges),
-        this.parallelDepthOf(context),
+        this.parallelPrecheck.buildParallelCheckGraph(allNodes, allEdges),
+        parallelDepthOf(context),
       );
     }
 
