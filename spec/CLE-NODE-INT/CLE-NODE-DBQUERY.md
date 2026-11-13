@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "e81d74c9044a3ace09660a90e61eadad340f8664af3af186872340cf9be612d8"
+content_hash: "a4cfd1f85100aba63e135c10d82363436af90ace3ac288002467af13fa15b194"
 read_as: "approved_fallback"
-task: "CLE-T-PTC4SF"
+task: "CLE-T-VQX844"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "940c44646af7492cc5aef5fb5a403442badb979dcca730b2f8d4ac1c784907bb"
-etag: "sha256-66cb65df0d430a4f30ae580e5f5ae23009c7790f85c87409e76d47a7316572a7"
+mirror_sha256: "a7d21fe8660671496f7185ec2df3ff660cb9b44f6a1dcb9edfb8c8ec0ef1e6a1"
+etag: "sha256-4935b0a30ccbc76d3f2b93ae65961f338c62d2ba9850e54e19d3b4d8aa45a8f4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,8 +38,8 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 - REQ-DBQ-010 IF `parameters` 가 배열도 JSON 배열 문자열도 아니면 THE SYSTEM SHALL `INVALID_PARAMETERS` 로 에러 포트에 내보낸다.
 - REQ-DBQ-011 WHEN 같은 통합과 같은 자격 증명으로 쿼리하면 THE SYSTEM SHALL 인스턴스 안의 연결 풀을 재사용한다.
 - REQ-DBQ-012 WHEN 자격 증명 해시가 캐시된 풀과 다르면 THE SYSTEM SHALL 옛 풀을 버리고 새 풀을 만든다.
-- REQ-DBQ-013 WHEN 통합의 자격 증명이 교체(`rotate`)되거나 통합이 삭제(`remove`)되면 THE SYSTEM SHALL 그 통합 id 를 `integration:cache:invalidate` 채널로 방송해 모든 인스턴스가 해당 풀을 즉시 버리게 한다.
-- REQ-DBQ-014 IF 캐시 무효화 방송이 실패하면 THE SYSTEM SHALL 경고 로그만 남기고 다음 실행의 자격 증명 해시 비교로 옛 풀을 교체한다.
+- REQ-DBQ-013 WHEN 통합의 자격 증명이 교체(`rotate`)되거나 통합이 삭제되면 THE SYSTEM SHALL 모든 인스턴스가 캐시한 그 통합의 풀을 바로 버리게 한다. 무효화 방송의 채널과 발행 시점은 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 가 정한다.
+- REQ-DBQ-014 IF 무효화 방송이 실패하거나 이 인스턴스에 닿지 않으면 THE SYSTEM SHALL 다음 실행에서 자격 증명 해시를 비교해 옛 풀을 교체한다. 방송 실패를 기록하는 방식은 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 가 정한다.
 - REQ-DBQ-015 WHEN `credentials.ssl` 이 `require` 나 `verify-full` 이면 THE SYSTEM SHALL 인증서 검증을 강제한다.
 - REQ-DBQ-016 WHEN 풀에 연결하기 전이면 THE SYSTEM SHALL `credentials.host` 에 사설망 차단을 적용한다.
 - REQ-DBQ-017 IF `credentials.host` 가 사설망 대역으로 해석되면 THE SYSTEM SHALL `DB_HOST_BLOCKED` 와 호스트를 드러내지 않는 메시지로 에러 포트에 내보낸다.
@@ -112,7 +112,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
    | `verify-full` | `ssl: { rejectUnauthorized: true }` | `ssl: { rejectUnauthorized: true }` |
 
    `require` 도 인증서 검증을 강제한다(MITM 방어). self-signed 인증서를 쓰려면 별도 `require-trust` 모드를 새로 도입해야 한다.
-8. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 `logUsage` 를 부른다(인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
+8. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 `logUsage` 를 부른다(인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](../CLE-INT/CLE-INT-DATA.md#호출-api-식별-채우기-규칙)).
    - `api_label` = NULL. 임의 SQL 을 부르므로 엔드포인트 카탈로그가 없다.
    - `api_method` = SQL 동사(`SELECT`·`INSERT`·`UPDATE`·`DELETE`). `config.queryType` 을 대문자로 그대로 쓴다. `queryType='raw'` 이면 평가된 SQL 의 첫 토큰을 대문자로 뽑는다. 뽑지 못하면 NULL 이다.
    - `api_path` = 드라이버 토큰(`postgres`·`mysql`). SQL 본문 파싱을 피하고 개인정보가 직접 드러나지 않게 한다. 드라이버가 늘면 같은 토큰 목록을 넓힌다.
@@ -120,13 +120,12 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 ### 풀 캐시 무효화
 
-풀 캐시는 인스턴스마다 따로 있는 메모리 캐시다. 자격 증명이 교체(`IntegrationsService.rotate`)되거나 통합이 삭제(`remove`)되면 작업한 인스턴스는 자기 캐시만 고칠 수 있다. 다른 인스턴스의 풀에는 교체 전 자격 증명으로 맺은 유휴 연결이 남는다. 침해 대응(교체한 자격 증명을 즉시 막기)에서는 이 잔존 시간이 MTTR 공백이다.
+풀 캐시는 인스턴스마다 따로 있는 메모리 캐시다. 자격 증명을 교체하거나 통합을 지운 인스턴스가 아니면 그 풀에 교체 전 자격 증명으로 맺은 유휴 연결이 남는다. 침해 대응(교체한 자격 증명을 즉시 막기)에서는 이 잔존 시간이 MTTR 공백이다. 그래서 이 노드는 자격 증명 캐시 무효화 방송을 구독한다. 채널, 발행 시점, 페이로드, 방송 실패 처리는 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 가 정한다. 이 절은 풀이 방송을 받았을 때 하는 일만 정한다.
 
-- `IntegrationsService` 는 해당 integrationId 를 Redis pub/sub 채널 `integration:cache:invalidate` 로 방송한다. 모든 인스턴스의 구독자가 그 풀을 즉시 버리고, 다음 쿼리는 새 자격 증명으로 풀을 다시 만든다.
-- 방송 트리거는 `rotate` 와 `remove` 두 동기 경로뿐이다. `update` 는 이름만 바꾸므로 자격 증명이 그대로다. OAuth 토큰 갱신과 통합 재인증은 DB·이메일처럼 풀 캐시를 쓰는 노드가 OAuth 자격 증명을 쓰지 않으므로(구독자가 없음) 방송하지 않는다.
-- 방송은 즉시성을 보강하는 best-effort 층이다. Redis 가 잠시 끊겨도 자격 증명 해시 비교가 다음 실행에서 옛 풀을 교체하므로 안전하게 저하된다. 방송 실패는 경고 로그만 남기고 삼킨다.
-- 채널 페이로드는 integrationId 평문 문자열이다. 채널은 특정 노드에 묶이지 않아서 인스턴스마다 자격 증명을 캐시하는 다른 소비자(예: Send Email transport)도 같은 방식으로 구독할 수 있다.
-- 공유 Redis 연결은 명령 전용(SUBSCRIBE 미사용)이라 그대로 두고 구독은 전용 복제 연결로 분리한다. PUBLISH 는 일반 명령이라 공유 연결로 보낸다.
+- 핸들러는 생성될 때 무효화 버스(`IntegrationCacheBus`)에 처리 함수 하나를 등록한다.
+- 방송으로 통합 ID 를 받으면 그 통합의 풀을 캐시에서 빼고 닫는다(`invalidatePool`). 캐시에 그 통합의 풀이 없으면 아무것도 하지 않는다. 풀을 닫다가 난 오류는 무시한다.
+- 다음 쿼리는 새 자격 증명으로 풀을 다시 만든다.
+- 방송을 받지 못해도 2단계의 자격 증명 해시 비교가 다음 실행에서 옛 풀을 교체한다(REQ-DBQ-012 · 014). 무효화 버스를 주입받지 못한 핸들러(테스트 fixture 등)는 이 비교로만 풀을 교체한다.
 
 ### dry-run
 
@@ -368,13 +367,13 @@ INSERT(MySQL `ResultSetHeader`):
 
 - `codebase/backend/src/nodes/integration/database-query/database-query.handler.ts`
 - `codebase/backend/src/nodes/integration/database-query/database-query.schema.ts`
-- `codebase/backend/src/common/redis/integration-cache-bus.service.ts` (풀 캐시 무효화 pub/sub)
+- `codebase/backend/src/common/redis/integration-cache-bus.service.ts` (무효화 버스. 이 노드는 처리 함수를 등록해 구독한다. 채널 정의는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화))
 
 ## Rationale
 
 ### `DB_HOST_BLOCKED` 전용 차단 코드 (2026-06-12, refactor 04 C-3 후속)
 
-이전에는 DB 호스트 차단이 공용 가드의 일반 `Error` 로 던져져 `mapDbError` fallback 인 `INTEGRATION_CALL_FAILED` 로 나왔다. HTTP Request(`HTTP_BLOCKED`)와 Send Email(`EMAIL_HOST_BLOCKED`)은 각자 전용 코드가 있어서 비대칭이었다. 그래서 워크플로우 작성자가 "사설망 차단" 을 다른 통합 실패와 구분해 분기할 수 없었다. 세 노드의 차단 동작을 일관되게 드러내려고 전용 코드 `DB_HOST_BLOCKED` 를 새로 만들었다. 핸들러가 공용 가드의 일반 에러를 잡아 `IntegrationError('DB_HOST_BLOCKED')` 로 올린다(`EMAIL_HOST_BLOCKED` 패턴과 대칭).
+이전에는 DB 호스트 차단이 공용 가드의 일반 `Error` 로 던져져 `mapDbError` fallback 인 `INTEGRATION_CALL_FAILED` 로 나왔다. HTTP Request(`HTTP_BLOCKED`)와 Send Email(`EMAIL_HOST_BLOCKED`)은 각자 전용 코드가 있어서 비대칭이었다. 그래서 워크플로우 작성자가 "사설망 차단" 을 다른 통합 실패와 구분해 분기할 수 없었다. 세 노드의 차단 동작을 일관되게 드러내려고 전용 코드 `DB_HOST_BLOCKED` 를 새로 만들었다. 처음에는 핸들러가 공용 가드가 던진 일반 에러를 잡아 `IntegrationError('DB_HOST_BLOCKED')` 로 올렸다(`EMAIL_HOST_BLOCKED` 패턴과 대칭). 지금 핸들러는 가드가 차단을 판정할 때 던지는 `SsrfBlockedError` 만 `DB_HOST_BLOCKED` 로 올리고, 그 밖의 오류(가드 고장)는 경고 로그를 남긴 뒤 `INTEGRATION_CALL_FAILED` 로 내보낸다(REQ-DBQ-018, [통합 노드 공통 「차단 코드를 판정에만 쓰는 이유」](CLE-NODE-INT-COMMON.md#차단-코드를-판정에만-쓰는-이유)). 2026-11-13 에 이 문단을 지금 분기에 맞춰 고쳤다(NERV Task `CLE-T-VQX844`).
 
 - 메시지 일반화: 클라이언트에 나가는 메시지에는 차단된 호스트·IP 를 넣지 않는다(정찰 면 축소). Send Email 과 같은 원칙이다. HTTP Request 도 2026-07-05 에 같은 일반화를 마쳤다.
 - 해제 플래그 재사용: 별도 플래그를 만들지 않고 `ALLOW_PRIVATE_HOST_TARGETS` 를 재사용한다. 통합 노드 전체의 보안 자세(기본 차단, 셀프 호스팅만 해제)를 일관되게 유지하기 위해서다.
@@ -391,9 +390,18 @@ INSERT(MySQL `ResultSetHeader`):
 
 실행 엔진은 유실되면 실행이 멈추는 재개 신호를 옛 Redis pub/sub 에서 BullMQ 영속 큐로 옮겼다([실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) Rationale). 이 채널은 그 결정과 부딪히지 않는다. 재개 신호는 내구성이 필요해 큐가 맞고, 캐시 무효화는 유실돼도 해시 비교로 정합성이 보장되는 best-effort 라 가벼운 pub/sub 가 맞다. 목적과 허용 의미(at-most-once 대 at-least-once)가 다르다.
 
+2026-11-13 에 채널 정의를 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 로 옮겼다(아래 「풀 캐시 무효화 채널의 정본을 통합 데이터와 흐름으로 옮겼다」). 이 절의 채택 근거는 그대로 둔다.
+
 ### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
 
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다(REQ-INTMGMT-053).
 
 - 요구사항 변경: REQ-DBQ-027 은 «실행이 끝나면» 에서 «통합을 얻은 뒤 실행이 끝나면» 으로 범위를 좁혔다.
 
+### 풀 캐시 무효화 채널의 정본을 통합 데이터와 흐름으로 옮겼다 (2026-11-13)
+
+NERV Task `CLE-T-VQX844` 에서 사람이 정했다(2026-11-13). `integration:cache:invalidate` 채널은 이 노드만의 것이 아니고 통합 모듈이 발행한다. 그런데 발행 시점, 페이로드, 연결 분리, 방송 실패 처리를 이 문서가 적고 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md) 은 «상세는 Database Query 노드» 로 이 문서를 가리켰다. 채널을 구독하는 노드가 늘면 노드마다 같은 사실을 다시 적게 된다. 그래서 채널 정의를 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 로 옮기고 이 문서의 「풀 캐시 무효화」 에는 풀이 방송을 받았을 때 하는 일만 남겼다.
+
+- 옮기면서 코드와 맞지 않던 서술을 고쳤다. 이 문서는 방송 트리거를 `rotate` 와 `remove` 두 경로로 적었다. 삭제 쪽 발행은 삭제 뒤 후처리가 하므로 멤버가 나가거나 제거될 때의 개인 통합 삭제도 방송한다. Send Email transport 같은 다른 소비자도 같은 방식으로 구독할 수 있다고도 적었는데, 지금 구독하는 것은 이 노드의 풀뿐이다.
+- 요구사항 변경: REQ-DBQ-013 은 «그 통합 id 를 `integration:cache:invalidate` 채널로 방송해 모든 인스턴스가 해당 풀을 즉시 버리게 한다» 에서 결과(모든 인스턴스가 그 통합의 풀을 버린다)만 남기고 채널은 통합 데이터와 흐름을 가리키게 했다. 트리거의 «통합이 삭제(`remove`)되면» 은 «통합이 삭제되면» 으로 넓혔다. REQ-DBQ-014 는 «캐시 무효화 방송이 실패하면 경고 로그만 남기고» 에서 «무효화 방송이 실패하거나 이 인스턴스에 닿지 않으면» 으로 고쳤다. 경고 로그와 실패 계수는 발행하는 쪽의 동작이라 통합 데이터와 흐름이 정한다. 동작은 바뀌지 않았다.
+- 「실행 로직」 8단계는 통합별 `api_*` 전체 표를 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05 로 가리켰다. 그 표는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](../CLE-INT/CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 에 있어 링크를 고쳤다.

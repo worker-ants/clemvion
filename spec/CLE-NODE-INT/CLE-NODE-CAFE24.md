@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "6dba232e97940254d9dc20a01db62cb747efff7fd5c68941772f4411bcbfbc89"
+content_hash: "f5104af325665493a8a4826d5fb2179f8babd1bfe3054965e4752fd907bc07ad"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-VQX844"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "43cd2cb41c72461a6bd4436d77abb259f4bd3f82214c2ab99c81c9e8027a2fe6"
-etag: "sha256-2c34416c44c1ecfd93d60f85a3db9d17c4b47f5641c9d6d76615bf96bb42126a"
+mirror_sha256: "79b3b325d11bb35363c6ff36c05591ed980960b6cdb71b256085bcddae5ae4dc"
+etag: "sha256-8f754c75b40293f92e68c68f1e73ef1cb3db2bcfb822aa5854f39a6c42c8eeab"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -356,7 +356,7 @@ Cafe24 API 4xx·5xx 응답:
 
 ### 런타임 에러 (`port: 'error'`)
 
-`execute()` 안의 모든 실패는 에러 포트로 간다(D4). 활동 로그에는 통합을 얻은 뒤의 실패를 `status: 'failed'` 와 `error: {code, message}` 로 기록한다(11단계).
+`execute()` 안의 실패는 에러 포트로 간다(D4). 예외는 상위 취소 신호(`context.abortSignal`) 때문에 생긴 `AbortError` 하나다. 이 예외는 에러 포트로 바꾸지 않고 다시 던지므로 노드 실행이 `cancelled` 로 분류된다(9단계, [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). 활동 로그에는 통합을 얻은 뒤의 실패를 `status: 'failed'` 와 `error: {code, message}` 로 기록한다(11단계).
 
 | 코드 | 조건 | `output.response` | `meta.statusCode` |
 |------|------|-------------------|-------------------|

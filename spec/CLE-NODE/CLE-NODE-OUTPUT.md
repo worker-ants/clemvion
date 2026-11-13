@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "f20089e31aad5496449bc4b20e84e278b202e4e2a7d03426e677ac343cefb539"
+content_hash: "f963182194d321bae5835dcc6f81bf262a94dc44c726843760c739ef5fae2328"
 read_as: "approved_fallback"
-task: "CLE-T-TBJ863"
+task: "CLE-T-VQX844"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "304f82a2d6169f143671f3ab3b2c9bc062e39b8b718c6329485f08da80e80958"
-etag: "sha256-fd51a7da03bd42a46213dc8fde982d6c486807c8d7027112432d5bd58fa0955d"
+mirror_sha256: "f05fe560310177ecc9956c5929b3006bccbe1f7df484942d69ec1cfd6985cc23"
+etag: "sha256-42e1112429738b86abcdf8f9b6b7a13218db49f75d355d4f40035c45e93511ec"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -110,7 +110,7 @@ etag: "sha256-fd51a7da03bd42a46213dc8fde982d6c486807c8d7027112432d5bd58fa0955d"
 
 | 분류 | 필수·권장 필드 |
 | --- | --- |
-| 공통 | `meta.durationMs: number`(Loop·ForEach·Map·Parallel 의 완료 출력은 제외). 이 값을 누가 채우는지는 노드 문서가 정한다. 제외한 네 노드의 `node_execution.duration_ms` 에는 지금 핸들러 실행 시간만 있고 반복 회차 · 병렬 분기 시간은 없다. 노드 전체 실행 시간을 어디에 둘지는 아직 정하지 않았고 이 제외도 그때까지 잠정이다([Rationale](#컨테이너와-parallel-의-완료-출력에-durationms-를-싣지-않는다-잠정-2026-10-24)). 이 실행 시간 문제와 노드 문서의 표기가 코드와 다른 곳은 [미결 사항](#미결-사항) 에 있다 |
+| 공통 | `meta.durationMs: number`(Loop·ForEach·Map·Parallel 의 완료 출력은 제외). 이 값을 누가 채우는지는 노드 문서가 정한다. 제외한 네 노드의 `node_execution.duration_ms` 에는 지금 핸들러 실행 시간만 있고 반복 회차 · 병렬 분기 시간은 없다. 노드 전체 실행 시간을 어디에 둘지는 아직 정하지 않았고 이 제외도 그때까지 잠정이다([Rationale](#컨테이너와-parallel-의-완료-출력에-durationms-를-싣지-않는다-잠정-2026-10-24)). 이 실행 시간 문제와 노드 문서의 표기가 코드와 다른 곳은 [미결 사항](#미결-사항) 에 있다. Send Email 노드의 dry-run 출력에는 `meta.durationMs` 가 없다([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) Rationale). 이 값을 채우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다 |
 | AI 노드 | 아래 목록 |
 | HTTP | `meta.statusCode`, `meta.durationMs` |
 | DB | `meta.durationMs`, `meta.rowCount` |
@@ -138,7 +138,7 @@ AI 노드의 `meta` 필드는 다음과 같다.
 | 런타임 에러(runtime error): 외부 API 실패, 쿼리 실패, 사설망 차단(SSRF), 통합 자격 증명 해석 실패 등 | `port: 'error'` 와 `output.error` |
 | 예상 가능한 비즈니스 실패: 매칭 없음, 빈 결과 등 | 정상 `port` 를 유지하고 결과가 비었음을 드러낸다. |
 
-통합 노드(HTTP Request·Database Query·Send Email)의 사설망 차단(`HTTP_BLOCKED`)과 자격 증명 해석 실패(`INTEGRATION_INCOMPLETE` 등)는 사전 검증 throw 가 아니라 런타임 에러 포트로 보낸다(결정 D4). 설정 형식 자체의 오류(`handler.validate` 실패)만 throw 로 남는다. 자세한 규칙은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)에 있다.
+통합 노드(HTTP Request·Database Query·Send Email)의 사설망 차단(`HTTP_BLOCKED`)과 자격 증명 해석 실패(`INTEGRATION_INCOMPLETE` 등)는 사전 검증 throw 가 아니라 런타임 에러 포트로 보낸다([Rationale](#사설망-차단과-자격-증명-해석-실패를-에러-포트로-보낸다-2026-05-17)). 설정 형식 자체의 오류(`handler.validate` 실패)만 throw 로 남는다. 자세한 규칙은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)에 있다.
 
 #### 3.2 `output.error` 표준 형태
 
@@ -173,8 +173,8 @@ AI 노드의 `meta` 필드는 다음과 같다.
 3.2.1 공통 필드 밖의 추가 메타는 각 노드 문서의 `output.error.details` 표가 정한다.
 
 - AI 에이전트: `provider`, `statusCode` 등. LLM 에러 객체의 `details` 에 있을 때만 들어간다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md))
-- HTTP Request: `responseHeaders`, `responseBody` 일부
-- Database Query: `pgErrorCode`, `query`
+- HTTP Request: `statusCode`·`statusText`·`url`·`method`. 응답이 없는 에러는 `url`·`method` 만([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#에러-코드))
+- Database Query: `driverCode`. 드라이버가 에러 코드를 줄 때만 들어간다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md))
 
 AI 노드가 아닌 노드에서 `retryable`·`retryAfterSec` 는 선택이다. 쓰는 경우 이 절의 뜻을 따른다.
 
@@ -361,7 +361,7 @@ egress 값 마스킹이 이 금지를 한 번 더 막는다. 위 금지는 핸�
 1. 엔진은 `Object.freeze` 를 적용한 얕은 스냅샷을 넘긴다. 최상위 필드를 바꾸면 strict 모드에서 TypeError 가 난다.
 2. 얕은 동결이다. `rawConfig.headers.foo = '...'` 같은 중첩 객체 변경은 막지 못한다. 핸들러는 rawConfig 를 읽기 전용으로 다루고, 바꿔야 하면 `structuredClone` 으로 복제한다.
 
-설정 에코는 키를 하나씩 나열해서 만든다(결정 D1).
+설정 에코는 키를 하나씩 나열해서 만든다.
 
 1. 권장 방식은 비민감 필드를 하나씩 적는 것이다.
 
@@ -377,7 +377,7 @@ egress 값 마스킹이 이 금지를 한 번 더 막는다. 위 금지는 핸�
    };
    ```
 
-2. spread 로 싣지 않는다. `{ ...context.rawConfig }` 나 `{ ...rawConfig, ...overrides }` 형태를 금지한다. 이유는 [Rationale](#설정-에코를-명시-나열로-만드는-이유-결정-d1)에 있다.
+2. spread 로 싣지 않는다. `{ ...context.rawConfig }` 나 `{ ...rawConfig, ...overrides }` 형태를 금지한다. 이유는 [Rationale](#설정-에코를-명시-나열로-만드는-이유)에 있다.
 3. 기준 구현은 `background.handler.ts` 의 명시 나열 블록(`notes`, `notifyOnFailure`, `maxDurationMs` 만 나열)이다. `background.handler.spec.ts` 의 자격 증명 누출 방지 테스트가 이를 강제한다. 이 테스트는 rawConfig 에 가상의 `apiKey` 를 넣어도 에코에 새지 않는지 확인한다.
 4. 모든 노드 핸들러는 스키마의 비민감 필드를 항상 싣는다. 값이 `undefined` 여도 키를 둔다. 이런 키는 출력을 JSON 으로 저장하거나 내보낼 때 빠지므로 저장된 출력과 API 응답에는 보이지 않는다. 표현식으로 읽으면 `undefined` 다. 설정하지 않은 필드에 핸들러가 기본값을 채우는지, 채우지 않으면 동작이 어떤 값일 때와 같은지는 노드 문서의 출력 필드 표에 필드마다 적는다. 이런 필드는 선택 필드라 표에 `?` 를 붙인다([Principle 11](#principle-11-출력-예시-작성-규칙) 규칙 2). 이 규칙과 다르게 적은 노드 문서가 있다. [미결 사항](#미결-사항) 참조.
 
@@ -566,7 +566,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 
 wire 전용 키 8개는 핸들러가 아니라 전송 조립 계층이 만든다. 계약에 넣으면 모든 핸들러가 지켜야 할 것처럼 읽힌다. 갈래 라벨은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 허용 목록 표와 같은 문구를 쓴다. 코드 JSDoc 은 접미어 없는 축약형(`wire 전용 (위젯)`, `(chat-channel)`)이라 글자가 완전히 같지는 않다. 첫 서술의 "그 상수의 주석과 같은 문구" 는 이후 검토(16_41_05 W3)에서 바로잡았다. 키 배열은 정확히 같으므로 기능 위험은 없다. 라벨 통일은 남은 개발 작업이다.
 
-### 사설망 차단과 자격 증명 해석 실패를 에러 포트로 보낸다 (결정 D4, 2026-05-17)
+### 사설망 차단과 자격 증명 해석 실패를 에러 포트로 보낸다 (2026-05-17)
 
 통합 노드의 사설망 차단과 자격 증명 해석 실패를 사전 검증 throw 가 아니라 런타임 에러 포트로 보낸다. 사용자가 `error` 포트로 분기해 복구할 수 있게 하려는 것이다. 설정 형식 오류만 throw 로 남긴다.
 
@@ -574,7 +574,7 @@ wire 전용 키 8개는 핸들러가 아니라 전송 조립 계층이 만든다
 
 "절대 싣지 않는다" 목록은 핸들러의 의무다. 하지만 핸들러가 놓치거나 자유 텍스트 필드 안에 자격 증명 리터럴이 박혀 있으면 이 의무만으로는 막지 못한다. 그래서 나가는 경로에서 값 패턴을 한 번 더 가린다. 새 예외를 만든 것이 아니라 같은 금지를 다른 층에서 한 번 더 지키는 것이다.
 
-### 설정 에코를 명시 나열로 만드는 이유 (결정 D1)
+### 설정 에코를 명시 나열로 만드는 이유
 
 spread 로 싣지 않는 이유는 세 가지다.
 
@@ -644,3 +644,11 @@ NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 실패 회차 `error
 ### AI 대화 노드의 재개 출력을 규약에 올린다 (2026-11-12)
 
 AI 대화 경로가 재개 스냅샷을 내고 노드 실행 행에 저장하게 됐다(NERV Task `CLE-T-TBJ863`). 그래서 4.5 의 `message_received` 행에서 미구현 문장을 지우고 4.1 의 재개 규칙에 AI 대화 노드가 다른 점 두 가지를 적었다. 사용자 메시지를 `output.result.messages` 에 더하면 저장된 스냅샷만 보고도 이번 턴에 받은 발화를 알 수 있다. `meta.interactionType` 을 고정하는 것은 읽기 쪽 대기 판정이 이 값으로 form · buttons 의 `resumed` 와 AI 재개 스냅샷을 가르기 때문이다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md#rationale) Rationale 의 2026-11-12 항목). 결정과 기각한 대안은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md#rationale) Rationale 의 2026-11-12 항목에 있다.
+
+### 작업 레이블을 지우고 에러 `details` 예를 구현에 맞춘다 (2026-11-13)
+
+2026-11-13 에 서술만 고쳤다. 동작은 바뀌지 않는다.
+
+- 3.1 과 Principle 7 의 «결정 D4» · «결정 D1» 표기를 지우고 두 Rationale 절 제목에서도 뺐다. 이 번호는 한 작업 안에서 쓰던 레이블이라 다른 문서에서는 뜻을 알 수 없다. 3.1 은 표기 대신 해당 Rationale 절을 링크로 가리킨다.
+- 3.2.2 의 HTTP Request 예를 핸들러(`http-request.handler.ts`)가 싣는 필드에 맞췄다. 응답을 받은 에러는 `statusCode`·`statusText`·`url`·`method` 를 싣고 응답이 없는 에러는 `url`·`method` 만 싣는다. 옛 예에 있던 응답 헤더와 응답 본문은 `details` 가 아니라 `output.responseHeaders` 와 `output.response` 에 있다. 짝이 되는 개정은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#rationale) Rationale 의 2026-11-13 항목에 있다.
+- 3.2.2 의 Database Query 예를 핸들러(`database-query.handler.ts` 의 `mapDbError`)에 맞췄다. `details` 에는 드라이버가 준 에러 코드 `driverCode` 하나만 있다. 드라이버가 코드를 주지 않으면 `details` 를 싣지 않는다. 옛 예의 `pgErrorCode` · `query` 는 구현이 싣지 않는 필드였다.

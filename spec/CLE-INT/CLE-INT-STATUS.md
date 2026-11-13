@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "ce8c160c7371158692de48f83abb80d7c17b3eefd3d5de14f63faf7495b699bb"
+content_hash: "164f48c0a25ff1dbde6a4d46acd69b65569e9701a8a4718b054c34daa3b1fc52"
 read_as: "approved_fallback"
-task: "CLE-T-B4WH9N"
+task: "CLE-T-VQX844"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "446f99c3c2cac7fee64e6e2972e3e783dc620d04dd9cf4a22c231dc89c2f6157"
-etag: "sha256-32b2bd05db7f23207e4b9667f4458b5267e48b0c93653a5a92bd3126fa8ac35a"
+mirror_sha256: "5143a9dc0e16dbeeef916e809b8ec626235535a83e039dce8c5fa693c25a55fd"
+etag: "sha256-3e790a56c84fa378cff0a002cbcce98610fdb63f87ca1c96246e9c1d9813255f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,7 +53,7 @@ etag: "sha256-32b2bd05db7f23207e4b9667f4458b5267e48b0c93653a5a92bd3126fa8ac35a"
 - REQ-INTSTAT-012 WHEN 통합 재인증이나 자격 증명 교체가 성공하면 THE SYSTEM SHALL `expired`·`error` 통합을 `connected` 로 되돌린다.
 - REQ-INTSTAT-013 WHEN OAuth 가 아닌 통합에 통합 재인증을 요청하면 THE SYSTEM SHALL OAuth 왕복 없이 바로 `connected` 로 되돌린다.
 - REQ-INTSTAT-014 IF 사용자가 삭제 동작을 하지 않았으면 THE SYSTEM SHALL 통합을 자동으로 삭제하지 않는다. 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거될 때 그 개인 통합을 지우는 것(REQ-INTMGMT-065)은 예외다.
-- REQ-INTSTAT-015 WHILE 통합이 `connected` 가 아닌 동안 THE SYSTEM SHALL 그 통합을 쓰는 통합 노드 실행을 `INTEGRATION_NOT_CONNECTED` 로 실패시킨다.
+- REQ-INTSTAT-015 WHILE 통합이 `connected` 가 아닌 동안 THE SYSTEM SHALL 그 통합을 쓰는 통합 노드를 외부 호출 없이 `INTEGRATION_NOT_CONNECTED` 로 에러 포트에 보낸다.
 - REQ-INTSTAT-016 WHILE 통합이 `connected` 가 아닌 동안 THE SYSTEM SHALL AI 에이전트에 그 통합의 MCP 도구를 노출하지 않는다.
 - REQ-INTSTAT-017 WHEN 사용자가 통합 목록이나 상세를 보면 THE SYSTEM SHALL 연결됨·만료 임박·만료됨·오류·설치 대기 상태를 아이콘과 문구로 표시한다. (원본: NAV-IN-05)
 - REQ-INTSTAT-018 WHILE 자동 갱신 표시(`autoRefresh`)가 true 인 통합이 `connected` 인 동안 THE SYSTEM SHALL 만료가 가까워도 `Connected` 를 유지하고 `Auto-renews` 보조 라벨을 보인다.
@@ -89,7 +89,7 @@ etag: "sha256-32b2bd05db7f23207e4b9667f4458b5267e48b0c93653a5a92bd3126fa8ac35a"
 | `error` | 오류. 사유를 반드시 남긴다 | 오류, `Error` |
 | `pending_install` | 설치 대기. Cafe24 Private 앱과 MakeShop ShopStore 설치 우선 흐름에서 설치가 끝나기 전 상태 | `Pending install`(배지), 필터 없음 |
 
-설치 대기 통합은 노드와 AI 에이전트가 쓸 수 없다. 직결 노드는 `assertUsable` 의 상태 검사(`status !== 'connected'`)에서 `INTEGRATION_NOT_CONNECTED` 로 바로 실패하고([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md)), AI 에이전트는 내부 MCP 브리지가 연결되지 않은 통합의 도구를 노출하지 않아 호출도 에러 코드도 없다. 연결 테스트 endpoint 는 따로 `INTEGRATION_INCOMPLETE` 를 돌려준다([통합 관리](CLE-INT-MANAGE.md)). Cafe24 Private 은 사용자가 Cafe24 에서 «테스트 실행» 을 끝내야, MakeShop 은 상점에서 ShopStore 앱 설치가 끝나야 연결됨이 된다.
+설치 대기 통합은 노드와 AI 에이전트가 쓸 수 없다. 직결 노드는 `assertUsable` 의 상태 검사(`status !== 'connected'`)에 걸려 외부 호출 없이 `INTEGRATION_NOT_CONNECTED` 로 에러 포트에 가고([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md)), AI 에이전트는 내부 MCP 브리지가 연결되지 않은 통합의 도구를 노출하지 않아 호출도 에러 코드도 없다. 연결 테스트 endpoint 는 따로 `INTEGRATION_INCOMPLETE` 를 돌려준다([통합 관리](CLE-INT-MANAGE.md)). Cafe24 Private 은 사용자가 Cafe24 에서 «테스트 실행» 을 끝내야, MakeShop 은 상점에서 ShopStore 앱 설치가 끝나야 연결됨이 된다.
 
 상태 사유 허용값은 코드 union `INTEGRATION_STATUS_REASONS`(`integration-status-reason.ts`) 한 곳이 기준이다. union 밖의 문자열은 `normalizeStatusReason` 이 `unknown_error` 로 바꾼다. 값은 모두 snake_case 이고 64자 이내다(`VARCHAR(64)`, V008).
 
@@ -98,12 +98,12 @@ etag: "sha256-32b2bd05db7f23207e4b9667f4458b5267e48b0c93653a5a92bd3126fa8ac35a"
 | `error` | `auth_failed`(401·403, 또는 토큰 갱신 `invalid_grant`), `insufficient_scope`(403 + 권한 부족 신호), `network`(transport 3회 연속 실패, `consecutive_network_failures` 카운터), `unknown_error`(분류 불가 대비값, 운영 알람 신호) |
 | `expired` | `install_timeout`(설치 대기 24시간 초과, Cafe24 Private·MakeShop 공통), `token_expired`(refresh token 이 없는 통합의 만료 스캐너 당일 격하. 갱신 가능 통합은 격하하지 않는다) |
 | `pending_install` | 콜백 실패 진단 단서(상태는 보존): `oauth_token_exchange_failed`, `oauth_state_invalid`, `oauth_state_mismatch`, `oauth_state_expired`, `oauth_provider_error`, `oauth_invalid_scope`(Cafe24 가 권한 범위를 거부, `last_error.details.requiresCafe24Approval` 동반. [Cafe24 별도 승인 scope](CLE-C24-SCOPES)), `oauth_preview_invalid`, `oauth_preview_expired`(union 예약값. 미리보기 토큰 소비 실패의 API 에러 코드와 같은 어휘) |
-| `connected` | NULL |
+| `connected` | NULL. 예외는 하나다. 통합 재인증이나 추가 권한 요청의 OAuth 콜백에서 Cafe24 가 권한 범위를 거부하면 상태는 그대로 두고 `oauth_invalid_scope` 를 남긴다(`last_error.details.requiresCafe24Approval` 동반). 다음 콜백이 성공하면 NULL 로 돌아간다 |
 
 - DB 저장값은 snake_case 이고, 같은 뜻의 API 에러 코드는 `OAUTH_*` UPPER_SNAKE_CASE 다. 대응은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑 표에 있다. 설치 기한이 지나 만료된 행에 늦게 온 콜백의 `INTEGRATION_INSTALL_EXPIRED` 는 행에 사유를 남기지 않아 짝이 되는 저장값이 없다.
 - `resource_not_found` 는 행 자체가 사라진 경우라 DB 를 갱신할 수 없어 허용값에 없다.
 - `token_expired` 는 이 컬럼 전용이다. JWT 만료 REST 에러 `TOKEN_EXPIRED`, WebSocket 이벤트 `auth.token_expired` 와 표기가 비슷하지만 이름공간이 다르다.
-- MakeShop 설치 안내 화면이 매핑하는 `hmac_verification_failed` 는 union 에 없다. [미결 사항](#미결-사항) 참조.
+- `hmac_verification_failed` 는 상태 사유가 아니다. union 에 없고 서버에는 이 값을 쓰는 경로가 없다. MakeShop 설치 요청의 HMAC 검증이 실패하면 서버는 행을 쓰지 않고 403 `MAKESHOP_INSTALL_INVALID_HMAC` 으로 거절한다. MakeShop 설치 안내 화면의 프런트엔드 훅만 이 값을 문구에 매핑하고 그 분기는 닿지 않는다([HMAC 검증 실패는 상태 사유로 남기지 않는다 (2026-11-13)](#hmac-검증-실패는-상태-사유로-남기지-않는다-2026-11-13)).
 - 재설치 대기 표시는 상태 사유가 아니다. 표시 때문에 union 에 값을 더하지 않는다([재설치 대기 표시](#재설치-대기-표시)).
 
 응답 전용 값 `credentials_unreadable`: 자격 증명을 복호화할 수 없는 행(암호화 키 교체 등)은 DB 를 바꾸지 않는다. API 응답을 만들 때(`toPublic`)만 `status='error'`, `statusReason='credentials_unreadable'`, `credentialsStatus='needs_reauth'` 로 보인다. union 에 없고 DB 에 저장하는 값이 아니다.
@@ -117,7 +117,8 @@ stateDiagram-v2
   pending_install --> connected: 설치 콜백 성공
   pending_install --> expired: 24시간 초과 (install_timeout)
   pending_install --> pending_install: 콜백 실패 (사유만 갱신)
-  connected --> error: 인증 실패, 권한 부족, 네트워크 3회
+  connected --> connected: 콜백 실패 (사유만 기록)
+  connected --> error: 인증 실패, 권한 부족, 네트워크 3회, 콜백 코드 교환 실패
   connected --> expired: 만료 스캐너 당일 (token_expired)
   error --> connected: 통합 재인증, 자격 증명 교체
   expired --> connected: 통합 재인증, 자격 증명 교체
@@ -132,7 +133,8 @@ stateDiagram-v2
 | `pending_install` → `connected` | 설치 흐름의 HMAC 검증과 OAuth 콜백이 성공했다. 설치 토큰은 보존한다(App URL 재호출의 식별 키. [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)) |
 | `pending_install` → `expired` | 설치 토큰 발급 뒤 24시간 안에 콜백이 성공하지 않았다. `pending-install-ttl` 작업이 `status='expired'`, `status_reason='install_timeout'`, `install_token=NULL`, `mall_id=NULL` 로 바꾼다(`mall_id` 는 REQ-INTSTAT-040). 설치 토큰이 지워져 App URL 이 없으므로 Cafe24 Private·MakeShop 모두 통합 재인증으로 되살릴 수 없다. 상점 식별자를 비우므로 사용자는 이 행을 지우지 않고 같은 상점을 새로 등록한다. 이름은 그대로라 같은 이름이면 409 `INTEGRATION_NAME_TAKEN` 이고 다른 이름으로 등록한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)). 화면은 통합 재인증 버튼을 막는다 |
 | `pending_install` → `pending_install` | OAuth 콜백 처리 중 토큰 교환 실패, state 불일치·만료 등이 났다. 상태와 설치 토큰은 보존하고 `last_error` 와 사유(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`·`oauth_invalid_scope` 등)만 갱신한다. 사용자가 Cafe24 쪽 설정을 고치고 «테스트 실행» 을 다시 누르면 새 OAuth state 로 다시 시도한다 |
-| `connected` → `error(auth_failed)` | 토큰 갱신에서 refresh token 자체가 무효(`invalid_grant`)다. 외부 MCP 서버 호출이 인증 실패다. Cafe24·MakeShop 클라이언트가 401 뒤 토큰 갱신과 1회 재시도에도 401 을 받았거나 403 을 받았다(`markAuthFailed`). 그 밖의 서비스(HTTP·Database·Email) 노드 실행 중 401·403 이 상태를 바꾸는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
+| `connected` → `connected`(사유 기록) | 통합 재인증이나 추가 권한 요청의 OAuth 콜백 처리가 실패했고 아래 `error(auth_failed)` 조건에는 들지 않는다. 상태와 토큰은 그대로 두고 `last_error` 를 남긴다. Cafe24 가 권한 범위를 거부했으면(`OAUTH_INVALID_SCOPE`) 사유를 `oauth_invalid_scope` 로 남기고 그 밖의 코드는 사유를 바꾸지 않는다. 유효한 재설치 대기 표시가 있는 행의 코드 교환 실패(`OAUTH_TOKEN_EXCHANGE_FAILED`)도 이 행이다. 규칙 전체는 [재설치 대기 표시](#재설치-대기-표시) 의 콜백 실패 항목에 있다 |
+| `connected` → `error(auth_failed)` | 토큰 갱신에서 refresh token 자체가 무효(`invalid_grant`)다. 외부 MCP 서버 호출이 인증 실패다. 통합 재인증이나 추가 권한 요청의 OAuth 콜백에서 코드 교환이 실패했고(`OAUTH_TOKEN_EXCHANGE_FAILED`) 유효한 재설치 대기 표시가 없다(`markIntegrationCallbackError`). Cafe24·MakeShop 클라이언트가 401 뒤 토큰 갱신과 1회 재시도에도 401 을 받았거나 403 을 받았다(`markAuthFailed`). 그 밖의 서비스(HTTP·Database·Email) 노드 실행 중 401·403 이 상태를 바꾸는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
 | `connected` → `error(insufficient_scope)` | 노드 실행 중 403 과 서비스별 권한 부족 신호를 받았다. 현재 이 신호를 감지해 전이하는 실행 경로는 Cafe24(`cafe24-api.client.ts`, `cafe24-mcp-tool-provider.ts`)뿐이다. HTTP·Database·Email 핸들러로 넓히는 일은 미구현이다 |
 | `connected` → `error(network)` | 노드 실행이나 토큰 갱신 중 transport 실패가 3회 연속 났다(`consecutive_network_failures`, V049). Cafe24·MakeShop 클라이언트의 `recordNetworkFailure` 가 판정한다 |
 | `connected` → `expired(token_expired)` | refresh token 이 없는 통합의 토큰 만료 시각이 지나 만료 스캐너가 당일 임계에서 격하했다 |
@@ -147,7 +149,13 @@ stateDiagram-v2
 
 - **상태와 따로 둔다**: 표시는 통합 상태도 상태 사유도 아니다. 표시를 남겨도 상태·상태 사유·토큰은 그대로다. 연결됨 행은 계속 연결됨이라 노드와 AI 에이전트가 기존 토큰으로 계속 쓴다. 오류·만료됨 행은 표시가 있어도 «테스트 실행» 으로 콜백이 성공하기 전까지 노드 실행이 막힌다(REQ-INTSTAT-015). 상태 사유 union(`INTEGRATION_STATUS_REASONS`)에 값을 더하지 않는다.
 - **설치 대기와 다르다**: 설치 대기(`pending_install`)는 아직 한 번도 연결되지 않은 행의 상태다. 재설치 대기 표시는 설치를 마친 행(연결됨·오류·만료됨)에 붙는다. 설치 대기 행에는 표시를 남기지 않는다.
-- **지우는 경로는 둘이다**: 콜백 성공과 통합 삭제다. 콜백이 성공하면 자격 증명 교체와 같은 트랜잭션에서 표시를 지우고 상태는 `connected`, 사유는 NULL 이 된다. 콜백이 실패하면 표시를 지우지 않는다. 표시가 유효한 동안에는 연결됨 행의 코드 교환이 실패해도 `error(auth_failed)` 로 바꾸지 않는다. 설치 대기의 콜백 실패가 상태를 보존하는 것과 같은 원칙이다(아래 Rationale).
+- **지우는 경로는 둘이다**: 콜백 성공과 통합 삭제다. 콜백이 성공하면 자격 증명 교체와 같은 트랜잭션에서 표시를 지우고 상태는 `connected`, 사유와 `last_error` 는 NULL 이 된다. 콜백이 실패하면 표시를 지우지 않는다.
+- **콜백 실패는 행의 상태와 에러 코드에 따라 기록한다**: OAuth 콜백 처리가 실패하면 `markIntegrationCallbackError` 가 `last_error` 를 남기고 상태와 상태 사유를 아래처럼 다룬다. 기록 결과에 표시가 영향을 주는 경우는 연결됨 행의 코드 교환 실패 하나다.
+  - 연결됨 행의 코드 교환 실패(`OAUTH_TOKEN_EXCHANGE_FAILED`): 유효한 재설치 대기 표시가 없을 때만 `error(auth_failed)` 로 바꾼다. 표시가 유효하면 상태와 사유를 그대로 둔다. 설치 대기의 콜백 실패가 상태를 보존하는 것과 같은 원칙이다(아래 Rationale).
+  - 연결됨 행의 권한 범위 거부(`OAUTH_INVALID_SCOPE`): 표시와 상관없이 상태는 그대로 두고 사유만 `oauth_invalid_scope` 로 남긴다. 주의 필요 판정은 상태만 보므로 이 행은 주의 필요에 들어가지 않는다.
+  - 설치 대기 행: 상태는 그대로 두고 에러 코드를 소문자 snake_case 로 바꾼 값을 사유로 남긴다. union 밖의 값은 `unknown_error` 가 된다(REQ-INTSTAT-006).
+  - 그 밖의 경우(연결됨 행의 다른 코드, 오류·만료됨 행): `last_error` 만 남긴다.
+  - 기록하지 않는 경우: 설치 기한이 지나 만료된 행(`install_timeout`)과 콜백 재판정에서 요청자가 볼 수 없는 행이라 404 로 거절한 콜백은 행에 아무것도 쓰지 않는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
 - **24시간 동안만 유효하다**: 서버는 표시를 남긴 시각부터 24시간이 지나면 표시가 없는 것으로 본다. 설치 대기의 24시간과 같은 값이다. 그 뒤 App URL 은 그 행을 상세 화면으로 보내고, 콜백은 요청자 인가를 다시 판정하며, 콜백 실패도 상태를 보존하지 않는다. 응답의 `reinstallRequestedAt` 은 `null` 이다. 지난 값을 지우는 작업은 없고 컬럼에 값이 남아도 판정에서 무시한다. 표시를 취소하는 경로도 따로 없다. 사용자가 통합 재인증이나 추가 권한 요청을 다시 하면 새 시각으로 다시 남긴다.
 - **주의 필요와 알림에 넣지 않는다**: 주의 필요 술어(`attention`·`expiring`), 사이드바 배지, 만료 알림, 조치 필요 알림은 표시를 보지 않는다. 표시가 있는 오류·만료됨 행은 상태 때문에 주의 필요에 들어가고 표시가 있는 연결됨 행은 들어가지 않는다. 화면은 상세 머리 아래의 재설치 대기 안내로만 알린다([통합 관리](CLE-INT-MANAGE.md#상세-페이지)).
 
@@ -254,7 +262,7 @@ flowchart TD
 
 - 발사 조건: refresh token 이 없는 통합의 토큰 만료(`status_reason='token_expired'` 경로)에서 위 7일·3일·당일 임계에만 보낸다. 갱신 가능 통합에는 보내지 않는다.
 - 중복 방지: `integration_expiry_dispatch` 의 `UNIQUE (integration_id, threshold, token_expires_at)`(V009)로 임계마다 같은 만료 시각에 한 번만 보낸다. 통합 재인증으로 `token_expires_at` 이 바뀌면 새 만료 시각의 임계를 다시 보낸다. 발사 전에 `INSERT … ON CONFLICT DO NOTHING` 으로 선점하고 충돌하면 그 임계를 건너뛴다.
-- 통합 재인증 실패 행은 요구사항(INT-ST-04)과 표에는 있지만 발사하는 코드가 없다. 현재 구현은 7일·3일·당일 세 제목만 보낸다.
+- 통합 재인증 실패 행은 요구사항(REQ-INTSTAT-034)과 표에는 있지만 발사하는 코드가 없다. 현재 구현은 7일·3일·당일 세 제목만 보낸다.
 
 ### 조치 필요 알림 (`integration_action_required`)
 
@@ -285,8 +293,7 @@ flowchart TD
 - **노드 실행 중 401·403 이 통합 상태를 바꾸는 범위**: 통합 화면 정의는 노드 실행 중 401 을 받으면 Cafe24 는 토큰 갱신과 1회 재시도 뒤에도 401 일 때, 그 밖의 서비스는 즉시 `error(auth_failed)` 로 바꾸고, 403 은 즉시 바꾼다고 적는다. 같은 정의의 노드 실행 연동 절은 핸들러 실패 때 `Integration.status`·`last_error` 가 함께 갱신된다고 적는다. 데이터 흐름 정의는 `logUsage` 가 `last_error` 만 갱신하고 상태는 외부 MCP 서버 `AUTH_FAILED` 일 때만 바꾸며, Cafe24·MakeShop 은 각 클라이언트의 `markAuthFailed` 가 바꾼다고 적는다. [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)·[Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)·[Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) 는 상태 전이를 언급하지 않는다. 현재 구현(`integrations.service.ts`)은 데이터 흐름 정의와 같다. 화면 정의대로 구현하면 HTTP·Database·SMTP 노드의 401 한 번으로 통합이 오류가 되어 이후 모든 실행이 `INTEGRATION_NOT_CONNECTED` 로 막힌다. 일반 서비스의 401·403 격하를 제품 요구로 둘지 결정이 필요하다.
 - **`expired` 가 된 Cafe24 통합의 자동 복구**: [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 는 AI 에이전트 도구 구성(`buildTools`)이 `expired` 이고 refresh token 이 있는 행에 큐 갱신을 걸면 워커가 갱신 뒤 `connected` 로 되돌린다고 적는다. 데이터 흐름 정의의 상태도도 «내부 MCP 브리지의 refresh token 자가 회복» 으로 `expired → connected` 를 그린다. 그런데 같은 정의의 주석은 갱신 워커가 source 와 상관없이 `status !== 'connected'` 행을 건너뛴다고 적는다. 현재 구현(`cafe24-token-refresh.processor.ts` 의 상태 가드)은 주석과 같다(MakeShop 도 `MakeshopMcpToolProvider` 가 `makeshop-token-refresh` 큐로 같은 자가 회복을 건다). 자동 복구를 없앨지, 워커 가드에 예외를 둘지 결정이 필요하다.
 - **조치 필요 알림 중복 방지 규칙**: 통합 화면 정의는 `(integration_id, status_reason)` 으로 유니크를 판정해 같은 사유는 통합마다 최대 한 번 보내고, 사용자가 다시 연결해 `connected` 가 되면 키를 되돌린다고 적는다. 같은 절의 주석, 데이터 흐름 정의(같은 통합·사유 24시간), [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 정의(`(workspace, type, resourceId, title)` 24시간)는 `hasRecentByResource` 의 24시간 창으로 적는다. 현재 구현(`integration-action-required-notifier.service.ts`, `withinMs` 24시간)은 24시간 창이다. 두 규칙은 «24시간 뒤 같은 사유 재발» 과 «24시간 안에 회복 후 재발» 에서 발사 여부가 반대다. 장애가 24시간 넘게 이어질 때 다시 알릴지 결정이 필요하다.
-- **Google 의 자동 갱신 표시와 스캐너 판정**: Google 은 서비스 레지스트리에서 `supportsTokenAutoRefresh=true` 라 화면에 `Auto-renews` 로 보이고 만료 임박·주의 필요에서 빠진다. 그런데 갱신 가능 통합 판정에는 없어 만료 스캐너가 7일·3일 알림을 보내고 당일에 `expired` 로 바꾼다. 갱신 경로도 구현돼 있지 않다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)). 요구사항 INT-SV-06([통합 관리](CLE-INT-MANAGE.md))은 «토큰 자동 갱신 지원» 이라 적는다. 화면 신호와 스캐너 동작이 반대다. Google 을 자동 갱신 표시에서 뺄지, 갱신 경로를 만들고 갱신 가능 통합에 넣을지 결정이 필요하다.
-- **`hmac_verification_failed` 상태 사유**: MakeShop 설치 안내 화면은 알려진 사유 다섯 개(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`·`oauth_invalid_scope`·`hmac_verification_failed`)를 i18n 문구로 매핑한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)). `hmac_verification_failed` 는 union 에 없어 저장되면 `unknown_error` 로 바뀐다. 프런트엔드 훅만 이 값을 매핑한다. union 에 더할지 프런트엔드에서 뺄지 결정이 필요하다.
+- **Google 의 자동 갱신 표시와 스캐너 판정**: Google 은 서비스 레지스트리에서 `supportsTokenAutoRefresh=true` 라 화면에 `Auto-renews` 로 보이고 만료 임박·주의 필요에서 빠진다. 그런데 갱신 가능 통합 판정에는 없어 만료 스캐너가 7일·3일 알림을 보내고 당일에 `expired` 로 바꾼다. 갱신 경로도 구현돼 있지 않다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)). 원문 통합 정의의 Google 서비스 요구사항은 «토큰 자동 갱신 지원» 이라 적었고 그 서비스 목록은 [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-027 이 이어받았다. 화면 신호와 스캐너 동작이 반대다. Google 을 자동 갱신 표시에서 뺄지, 갱신 경로를 만들고 갱신 가능 통합에 넣을지 결정이 필요하다.
 - **조치 필요 알림 문구의 Cafe24 고정**: 표의 메시지에는 «Cafe24» 가 들어 있다. 데이터 흐름 정의는 MakeShop 클라이언트도 같은 알림 경로를 쓴다고 적고, 현재 구현도 MakeShop 실패에 같은 문구를 보낸다. 문구를 서비스 중립으로 바꿀지, 서비스 유형별 문구를 둘지 결정이 필요하다.
 
 ## 구현 위치
@@ -296,7 +303,8 @@ flowchart TD
 - `codebase/backend/src/modules/integrations/integration-status-reason.ts` (상태 사유 union)
 - `codebase/backend/migrations/V151__integration_reinstall_requested_at.sql`, `codebase/backend/src/modules/integrations/entities/integration.entity.ts` (재설치 대기 표시 `reinstallRequestedAt`)
 - `codebase/backend/migrations/V154__integration_install_timeout_release_mall_id.sql` (이미 `install_timeout` 으로 만료된 행의 `mall_id` 를 한 번 비운다)
-- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (`markIntegrationCallbackError`: 콜백 실패의 상태 보존)
+- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (`markIntegrationCallbackError`: 콜백 실패의 상태 보존과 사유 기록)
+- `codebase/backend/src/modules/integrations/cafe24-store-rows.ts` (`hasReleasedStoreSlot`: 설치 기한이 지나 만료된 행 판정. 콜백 실패를 기록하지 않는 조건)
 - `codebase/backend/src/nodes/integration/cafe24/`, `codebase/backend/src/nodes/integration/makeshop/` (`markAuthFailed`·`recordNetworkFailure`)
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx` (목록·배너·칩)
 - `codebase/frontend/src/lib/integrations/*.ts`
@@ -319,7 +327,7 @@ flowchart TD
 
 - **파생 값인 이유**: `autoRefresh` 는 DB 컬럼이 아니라 서비스 레지스트리의 `supportsTokenAutoRefresh` 에서 응답마다 계산한다(현재 `cafe24`·`google`·`makeshop` 이 true). 서비스 추가와 정책 변경이 잦은 영역이라 영속화하지 않고 코드 한 곳에서 정한다. 술어 SQL 에 `service_type IN ('cafe24', 'google')` 같은 하드코딩을 두는 안도 검토했다. 새 OAuth 제공자를 더할 때마다 SQL 을 고쳐야 하고, «왜 이 서비스를 빼는가» 라는 의도가 SQL 에 묻혀 기각했다.
 - **실패 신호는 남는다**: 자동 갱신이 실패해 `error(auth_failed)`·`error(network)` 가 되면 상태가 `error` 라 이 술어와 상관없이 주의 필요에 들어간다. 조치 필요 알림도 따로 나간다.
-- **통합 재인증 버튼은 막지 않는다**: 자동 갱신 통합에서도 개요의 통합 재인증은 활성으로 두고 hover 안내만 붙인다. 권한 범위 정리나 자격 증명 재발급처럼 사용자가 의도해 누를 가치가 있다. 설치 대기와 `install_timeout` 의 비활성(외부 흐름 진행 중, 진입점 없음)과는 이유가 다르다. 주의 필요 술어에서는 빼되 사용자의 명시 동작은 막지 않는다. 이 원칙은 서버가 재인증을 시작할 수 있는 서비스에 한한다. MakeShop 은 재인증 경로가 없어 버튼을 막고 삭제 후 재등록을 안내한다. App URL 이 없는 Cafe24 Private 행도 같은 이유로 막는다(2026-10-10, Task CLE-T-NNENG8).
+- **통합 재인증 버튼은 막지 않는다**: 자동 갱신 통합에서도 개요의 통합 재인증은 활성으로 두고 hover 안내만 붙인다. 권한 범위 정리나 자격 증명 재발급처럼 사용자가 의도해 누를 가치가 있다. 설치 대기와 `install_timeout` 의 비활성(외부 흐름 진행 중, 진입점 없음)과는 이유가 다르다. 주의 필요 술어에서는 빼되 사용자의 명시 동작은 막지 않는다. 이 원칙은 서버가 통합 재인증을 시작할 수 있는 서비스에 한한다. MakeShop 은 통합 재인증 경로가 없어 버튼을 막고 삭제 후 재등록을 안내한다. App URL 이 없는 Cafe24 Private 행도 같은 이유로 막는다(2026-10-10, Task CLE-T-NNENG8).
 - **기존 결정과의 관계**: «DB enum 은 넓히지 않고 영속 상태와 화면 술어를 나눈다» 는 원칙은 그대로다. `autoRefresh` 는 영속 상태가 아닌 파생 값이라 같은 원칙 안에서 술어를 합성한다. 설치 대기를 빼는 것도 같은 생각이다.
 
 ### 설치 대기는 필터 칩에 넣지 않는다
@@ -348,10 +356,10 @@ Cafe24 개발자 센터 앱 등록부터 «테스트 실행» 까지의 사용�
 
 ### 재설치 대기 표시는 상태와 따로 둔 컬럼이다
 
-2026-10-10(Task CLE-T-NNENG8)에 Cafe24 Private 의 재인증과 추가 권한을 «테스트 실행» 으로 마치게 하면서 «이 행은 App URL 이 OAuth 로 보내야 한다» 는 사실을 어디에 둘지 정해야 했다. 상태 기계를 건드리지 않는 nullable 시각 컬럼 `reinstall_requested_at` 을 택했다. 시각이라 화면이 «요청 시각» 을 보일 수 있고 서버가 유효 기간을 판정할 수 있다. 기각한 안은 셋이다.
+2026-10-10(Task CLE-T-NNENG8)에 Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실행» 으로 마치게 하면서 «이 행은 App URL 이 OAuth 로 보내야 한다» 는 사실을 어디에 둘지 정해야 했다. 상태 기계를 건드리지 않는 nullable 시각 컬럼 `reinstall_requested_at` 을 택했다. 시각이라 화면이 «요청 시각» 을 보일 수 있고 서버가 유효 기간을 판정할 수 있다. 기각한 안은 셋이다.
 
 - **`status='pending_install'` 재사용**: `pending-install-ttl` 작업이 24시간 뒤 `install_timeout` 으로 바꾸고 설치 토큰을 지운다. REQ-INTSTAT-015·016 대로 노드 실행과 AI 에이전트 도구가 막혀 기존 토큰으로 돌던 실행이 끊긴다. 상태 전이 표에도 연결됨에서 설치 대기로 가는 전이가 없다.
-- **연결됨에 새 상태 사유**: `connected` 의 사유는 NULL 이라는 상태 사유 표와 닫힌 union `INTEGRATION_STATUS_REASONS` 를 넓혀야 한다. 오류·만료됨 행에 같은 방식을 쓰면 기존 사유(`auth_failed` 등)를 덮어 진단 단서가 사라진다.
+- **연결됨에 새 상태 사유**: `connected` 의 사유는 NULL 이라는 상태 사유 표와 닫힌 union `INTEGRATION_STATUS_REASONS` 를 넓혀야 한다. 오류·만료됨 행에 같은 방식을 쓰면 기존 사유(`auth_failed` 등)를 덮어 진단 단서가 사라진다. 이 안을 기각할 때 상태 사유 표는 연결됨 행의 사유를 NULL 로만 적었다. 2026-11-13 에 연결됨 행도 콜백 진단 사유 `oauth_invalid_scope` 를 가질 수 있다고 표를 고쳤지만 이 기각은 그대로다([연결됨 행의 콜백 실패는 사유만 남긴다 (2026-11-13)](#연결됨-행의-콜백-실패는-사유만-남긴다-2026-11-13)).
 - **새 상태 값**: «DB 상태 enum 은 넓히지 않는다» 는 위 «주의 필요를 가상 필터 값 하나로 노출한다» 의 원칙과 맞지 않는다. 주의 필요 술어, 만료 스캐너, 노드 실행 가드처럼 상태로 나뉘는 분기를 모두 다시 따져야 한다.
 
 표시는 남긴 시각부터 24시간 동안만 유효하다. 요청만 하고 «테스트 실행» 을 하지 않은 행이 App URL 을 계속 동의 화면으로 보내거나 상세 화면의 안내를 계속 띄우지 않게 하려는 것이다. 표시가 유효한 동안 콜백이 요청자 인가 재판정을 건너뛰므로 그 창을 설치 대기와 같은 24시간 경계로 묶는다. 처음 초안은 표시에 만료를 두지 않았으나 코드 리뷰에서 이 두 문제가 드러나 24시간으로 바꿨다(2026-10-10, Task CLE-T-NNENG8). 지난 값을 스캐너로 지우지 않고 판정에서 무시하는 것은 Task CLE-T-NNENG8 결정이다.
@@ -362,15 +370,15 @@ Cafe24 개발자 센터 앱 등록부터 «테스트 실행» 까지의 사용�
 
 ### 토큰 갱신 실패는 `error(auth_failed)` 로 통일한다
 
-예전 정의는 «connected → expired (refresh fail)» 로 적었지만 구현은 `error(auth_failed)` 로 바꿨다. 화면 분기, 재인증 안내 문구, 알림 발사 정책이 어긋났다. `error(auth_failed)` 로 정하고 `expired (refresh_failed)` 분기는 없앴다. 이 변경은 refresh token 을 가진 서비스의 갱신 실패 경로에만 영향을 주고, `connected-expiry` 스캐너의 토큰 만료 처리는 그대로다.
+예전 정의는 «connected → expired (refresh fail)» 로 적었지만 구현은 `error(auth_failed)` 로 바꿨다. 화면 분기, 통합 재인증 안내 문구, 알림 발사 정책이 어긋났다. `error(auth_failed)` 로 정하고 `expired (refresh_failed)` 분기는 없앴다. 이 변경은 refresh token 을 가진 서비스의 갱신 실패 경로에만 영향을 주고, `connected-expiry` 스캐너의 토큰 만료 처리는 그대로다.
 
-- 화면이 통합 재인증을 권하기에 `error` 가 자연스럽다. `expired` 는 «자동 재발급을 해 보고 만료» 라는 뜻이 강해 사용자 재인증이 필요한 refresh token 만료와 어긋난다.
+- 화면이 통합 재인증을 권하기에 `error` 가 자연스럽다. `expired` 는 «자동 재발급을 해 보고 만료» 라는 뜻이 강해 사용자의 통합 재인증이 필요한 refresh token 만료와 어긋난다.
 - refresh token 자체의 만료(사용자 조치 필요)와 access token 만료(갱신으로 복구 가능)를 뜻으로 구분해 둔다. 앞쪽은 `error(auth_failed)`, 뒤쪽은 refresh token 이 없는 일반 OAuth 서비스의 `expired` 다.
 - transport 3회 실패 `error(network)` 와 같은 `error(*)` 영역에서 일관되게 분류된다.
 
 데이터 모델은 바뀌지 않고 사유 값 정의만 바뀌었다. `expired` 사유에서 `refresh_failed` 를 빼고 `error` 사유에 `auth_failed`·`insufficient_scope`·`network` 를 두며, `token_expired` 는 refresh token 이 없는 서비스의 `expired` 용으로 남긴다. 알림은 수동성과 능동성으로 나눈다. `expired` 중 `token_expired` 경로에만 만료 알림을 보내고, `error(*)` 전이에는 조치 필요 알림을 보낸다. `install_timeout` 도 `expired` 전이지만 아래 결정으로 알림을 보내지 않는다.
 
-«화면이 통합 재인증을 권한다» 는 서버가 재인증을 시작할 수 있는 서비스에 한한다. MakeShop 은 `error(auth_failed)` 가 되면 삭제 후 재등록으로 복구하고 화면도 그렇게 안내한다. Cafe24 Private 은 설치 토큰이 있으면 재설치 대기 표시를 거친 통합 재인증으로 복구한다(2026-10-10, Task CLE-T-NNENG8). 사유 값은 그대로 `auth_failed` 다.
+«화면이 통합 재인증을 권한다» 는 서버가 통합 재인증을 시작할 수 있는 서비스에 한한다. MakeShop 은 `error(auth_failed)` 가 되면 삭제 후 재등록으로 복구하고 화면도 그렇게 안내한다. Cafe24 Private 은 설치 토큰이 있으면 재설치 대기 표시를 거친 통합 재인증으로 복구한다(2026-10-10, Task CLE-T-NNENG8). 사유 값은 그대로 `auth_failed` 다.
 
 ### 갱신 가능 통합 판정에 MakeShop 을 넣는다
 
@@ -380,7 +388,7 @@ Cafe24 개발자 센터 앱 등록부터 «테스트 실행» 까지의 사용�
 - **MakeShop 은 배경 큐가 필요 없다**: Cafe24 는 당일 임계에서 갱신 큐로 안전망 갱신을 걸지만, MakeShop 은 호출 직전 갱신과 401 뒤 갱신으로 충분하다(refresh token 수명 30~90일).
 - **기각한 안**: MakeShop 을 Cafe24 와 다르게 취급해 `expired` 격하를 유지하는 안은 정상 통합에 거짓 만료 알림과 재연결 요청을 부르므로 기각했다.
 
-한때 데이터 흐름 정의에 «스캐너의 갱신 가능 판정이 `isCafe24RefreshCapable` 로 Cafe24 한정이라 쓰지 않는 MakeShop 행이 당일에 잘못 격하된다» 와 «`token_expired` 사유 미구현» 이라는 구현 갭이 적혀 있었다. 2026-06-10 수정(V-01·V-07)으로 둘 다 해소됐다.
+한때 데이터 흐름 정의에 «스캐너의 갱신 가능 판정이 `isCafe24RefreshCapable` 로 Cafe24 한정이라 쓰지 않는 MakeShop 행이 당일에 잘못 격하된다» 와 «`token_expired` 사유 미구현» 이라는 구현 갭이 적혀 있었다. 2026-06-10 수정으로 둘 다 해소됐다.
 
 ### `install_timeout` 에는 알림을 보내지 않는다
 
@@ -413,3 +421,24 @@ Cafe24 refresh token 은 14일 유효하고 갱신할 때마다 새 refresh toke
 ### 설치 기한이 지나 만료된 행은 지우지 않고 다시 등록하라고 안내한다 (2026-10-30)
 
 MakeShop 복구 안내 요구사항(REQ-INTSTAT-038)은 MakeShop 통합이 오류나 만료됨이 되면 삭제 후 재등록을 안내한다고 정했다. 2026-10-29 부터 설치 기한이 지나 만료된 행은 상점 자리를 놓으므로(REQ-INTSTAT-040) 지우지 않아도 같은 상점을 새로 등록할 수 있다. 2026-10-30 에 화면 안내를 이 동작에 맞추면서(NERV Task `CLE-T-395HK2`) REQ-INTSTAT-038 의 안내를 두 경우로 나눴다. 오류나 다른 사유로 만료된 MakeShop 행은 상점 자리를 잡고 있어 그대로 삭제 후 재등록이다. 화면은 설치 기한 만료를 MakeShop 여부보다 먼저 판정한다. 결정과 비용(지우지 않은 만료 행이 주의 필요에 남는 것)은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29) 의 2026-10-30 번복에 있다. 같은 날 상태 전이 표의 `pending_install` → `expired` 행과 「주의 필요 판정」 의 설명도 맞췄다. 결정이 없던 「구현 반영 (2026-10-30)」 절은 내용을 「설치 대기는 24시간 뒤 만료된다」 와 「개인 통합 소유자의 나가기·제거는 자동 삭제의 예외다」 로 옮기고 뺐다.
+
+### 연결됨 행의 콜백 실패는 사유만 남긴다 (2026-11-13)
+
+상태 사유 표는 연결됨 행의 사유를 NULL 로만 적었고 상태 전이 표에는 연결됨 행의 콜백 실패가 없었다. 코드 교환 실패의 `error(auth_failed)` 는 재설치 대기 표시 절에만 있었다. 구현(`markIntegrationCallbackError`)은 통합 재인증이나 추가 권한 요청의 콜백에서 Cafe24 가 권한 범위를 거부하면(`OAUTH_INVALID_SCOPE`) 상태를 그대로 두고 사유를 `oauth_invalid_scope` 로 남긴다. 2026-11-13 에 NERV Task `CLE-T-10N47M` 이 이 동작을 상태 사유 표, 상태 전이 표(`connected` → `connected` 행과 `error(auth_failed)` 행), 재설치 대기 표시 절에 적었다. 동작은 바꾸지 않았다.
+
+- **상태를 바꾸지 않는 이유**: 권한 범위 거부는 Cafe24 의 별도 승인이 필요한 권한 범위를 요청했다는 뜻이고 기존 토큰은 그대로 살아 있다. 노드 실행을 막을 까닭이 없다. 상세 화면은 이 사유와 `last_error.details.requiresCafe24Approval` 로 별도 승인 안내를 보이고 사용자는 승인을 받은 뒤 다시 시도한다([Cafe24 별도 승인 scope](CLE-C24-SCOPES)).
+- **코드 교환 실패와의 차이**: 코드 교환 실패를 `error(auth_failed)` 로 바꾸는 것은 원문 통합 화면 정의의 콜백 실패 규칙을 따른 것이다. 유효한 재설치 대기 표시가 있는 행을 빼는 것은 «설치 대기의 콜백 실패는 상태를 보존한다» 의 2026-10-10 단락이 정했다.
+- **기각한 안과의 관계**: «재설치 대기 표시는 상태와 따로 둔 컬럼이다» 에서 기각한 «연결됨에 새 상태 사유» 는 재설치 대기를 사유로 나타내려고 union 을 넓히는 안이었다. `oauth_invalid_scope` 는 이미 union 에 있는 콜백 진단 값이고 재설치 대기를 뜻하지 않으므로 그 기각과 어긋나지 않는다.
+- **주의 필요와 알림**: 주의 필요 판정은 상태만 보므로 이 행은 주의 필요에 들어가지 않고 알림도 나가지 않는다. 다음 콜백이 성공하면 사유와 `last_error` 가 NULL 로 돌아간다.
+
+### 통합 노드 차단은 에러 포트로 보낸다 (2026-11-13)
+
+통합 노드 차단 요구사항(REQ-INTSTAT-015)은 연결되지 않은 통합을 쓰는 통합 노드 «실행을 `INTEGRATION_NOT_CONNECTED` 로 실패시킨다» 고 적었다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 은 `execute()` 안의 실패를 에러 포트로 보낸다고 정했고 구현도 다섯 직결 노드(HTTP Request·Database Query·Send Email·Cafe24·MakeShop) 모두 `assertUsable` 이 던진 `INTEGRATION_NOT_CONNECTED` 를 잡아 에러 포트로 내보낸다. 2026-11-13 에 NERV Task `CLE-T-VQX844` 가 요구사항과 「상태 값과 상태 사유」 의 서술을 구현과 공통 규칙에 맞췄다. 동작은 바꾸지 않았다.
+
+같은 Task 에서 본문에 남아 있던 작업 라벨(원문 요구사항 번호와 수정 묶음 번호)을 이 문서의 요구사항 번호나 원문 설명으로 바꾸거나 지웠다. 요구사항 줄 끝의 «(원본: …)» 표지는 출처 표기라 그대로 둔다.
+
+### HMAC 검증 실패는 상태 사유로 남기지 않는다 (2026-11-13)
+
+MakeShop 설치 안내 화면의 프런트엔드 훅(`use-makeshop-pending-polling.ts`)은 `hmac_verification_failed` 를 i18n 문구로 매핑하지만 이 값은 union `INTEGRATION_STATUS_REASONS` 에 없다. 미결 사항에는 union 에 더할지 프런트엔드에서 뺄지 결정이 필요하다고 적었다. 2026-11-13 에 NERV Task `CLE-T-VQX844` 가 서버 동작을 확인해 이 항목을 닫았다. MakeShop 설치 요청의 HMAC 검증이 실패하면 서버는 행을 쓰지 않고 403 `MAKESHOP_INSTALL_INVALID_HMAC` 으로 거절한다. 그래서 이 값을 상태 사유로 저장하는 경로가 없고 union 에 더해도 쓰는 곳이 없다. 스펙은 union 과 `normalizeStatusReason` 을 기준으로 두고 이 값을 상태 사유로 적지 않는다.
+
+- 고치지 않은 이유 · 후속 Task 가 맡는다: 프런트엔드 훅의 `hmac_verification_failed` 매핑은 서버가 이 값을 내보내지 않아 닿지 않는 분기라 지워도 동작이 바뀌지 않는다. 이번 Task 는 스펙만 구현에 맞추므로 코드를 건드리지 않았고 매핑을 지우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다.
