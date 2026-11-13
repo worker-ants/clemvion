@@ -106,7 +106,11 @@ describe('SlackAdapter', () => {
     it.each([
       ['Events API', { type: 'event_callback', event: { type: 'message' } }],
       ['url_verification', { type: 'url_verification', challenge: 'c' }],
-      ['슬래시 명령', { command: '/workflow', text: 'start' }],
+      [
+        'command 가 있는 Events API',
+        { type: 'event_callback', command: '/workflow', text: 'start' },
+      ],
+      ['text 가 없는 슬래시 명령', { command: '/workflow' }],
       ['payload 가 문자열이 아님', { payload: { type: 'block_actions' } }],
       ['null', null],
       ['문자열 본문', 'payload=x'],
@@ -114,6 +118,112 @@ describe('SlackAdapter', () => {
       expect(
         adapter.defaultInteractionResponse(raw, SLACK_CONFIG),
       ).toBeUndefined();
+    });
+  });
+
+  // 근거: [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK) · Slack 공식 문서(Slash commands) — 슬래시
+  // 명령은 3초 안에 HTTP 200 을 받아야 사용자에게 오류가 보이지 않는다. 응답 모양은 Discord 슬래시 명령
+  // 선례(2026-11-12, NERV Task `CLE-T-TSEP9G`)를 따른다. 본인에게만 보이는 메시지로 help 는 도움말,
+  // 나머지는 공통 수신 문구다. NERV Task `CLE-T-MGZRRP`.
+  describe('defaultInteractionResponse (슬래시 명령 3초 응답)', () => {
+    const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+    const slash = (
+      text: string,
+      command = '/workflow',
+    ): Record<string, unknown> => ({
+      command,
+      text,
+      user_id: 'U1',
+      channel_id: 'D1',
+      team_id: 'T1',
+      trigger_id: 'trg.001',
+    });
+    const ephemeral = (text: string) => ({
+      body: { response_type: 'ephemeral', text },
+    });
+    const DEFAULT_HELP_KO = [
+      '/workflow start - 새 대화 시작',
+      '/workflow cancel - 진행 중인 대화 취소',
+      '/workflow reply - 진행 중인 대화에 답장',
+      '/workflow help - 도움말',
+    ].join('\n');
+
+    it.each(['help', '  help  ', 'help me'])(
+      '"%s" 는 본인에게만 보이는 기본 도움말이다',
+      (text) => {
+        expect(
+          adapter.defaultInteractionResponse(slash(text), SLACK_CONFIG),
+        ).toEqual(ephemeral(DEFAULT_HELP_KO));
+      },
+    );
+
+    it('기본 도움말은 요청에 담긴 명령 이름과 en locale 을 따른다', () => {
+      expect(
+        adapter.defaultInteractionResponse(slash('help', '/bot'), {
+          ...SLACK_CONFIG,
+          languageLocale: 'en',
+        }),
+      ).toEqual(
+        ephemeral(
+          [
+            '/bot start - Start a new conversation',
+            '/bot cancel - Cancel the active conversation',
+            '/bot reply - Reply to the active conversation',
+            '/bot help - Show help',
+          ].join('\n'),
+        ),
+      );
+    });
+
+    it('languageHints.help 가 있으면 그 문구다', () => {
+      expect(
+        adapter.defaultInteractionResponse(slash('help'), {
+          ...SLACK_CONFIG,
+          languageHints: { help: '도움말 문구' },
+        }),
+      ).toEqual(ephemeral('도움말 문구'));
+    });
+
+    it('빈 languageHints.help 는 무시하고 기본 도움말을 쓴다', () => {
+      expect(
+        adapter.defaultInteractionResponse(slash('help'), {
+          ...SLACK_CONFIG,
+          languageHints: { help: '' },
+        }),
+      ).toEqual(ephemeral(DEFAULT_HELP_KO));
+    });
+
+    it('문구의 mrkdwn 제어 문자(& < >)는 escape 한다', () => {
+      expect(
+        adapter.defaultInteractionResponse(slash('help'), {
+          ...SLACK_CONFIG,
+          languageHints: { help: 'a & <b>' },
+        }),
+      ).toEqual(ephemeral('a &amp; &lt;b&gt;'));
+    });
+
+    it.each(['', 'start', 'cancel', 'reply hello', 'hi there', 'Help'])(
+      '"%s" 는 본인에게만 보이는 수신 문구다',
+      (text) => {
+        expect(
+          adapter.defaultInteractionResponse(slash(text), SLACK_CONFIG),
+        ).toEqual(ephemeral('요청을 받았습니다.'));
+      },
+    );
+
+    it('languageHints.commandReceived 와 en locale 을 따른다', () => {
+      expect(
+        adapter.defaultInteractionResponse(slash('start'), {
+          ...SLACK_CONFIG,
+          languageHints: { commandReceived: '접수했어요' },
+        }),
+      ).toEqual(ephemeral('접수했어요'));
+      expect(
+        adapter.defaultInteractionResponse(slash('cancel'), {
+          ...SLACK_CONFIG,
+          languageLocale: 'en',
+        }),
+      ).toEqual(ephemeral('Request received.'));
     });
   });
 

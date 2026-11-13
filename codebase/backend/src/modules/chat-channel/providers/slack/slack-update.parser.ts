@@ -6,7 +6,8 @@ import type { ChannelUpdate } from '../../types';
  * Spec [providers/slack §4]:
  *   - 4.1 Events API (envelope.type === 'event_callback'): DM message / file_shared
  *   - 4.2 Interactivity (`payload` field 가 JSON string): block_actions / view_submission
- *   - 4.3 Slash Commands (form parsed `command` + `text`): start / cancel / text_message
+ *   - 4.3 Slash Commands (form parsed `command` + `text`): start / cancel / text_message.
+ *     `help` 는 null (도움말은 어댑터의 슬래시 명령 기본 응답이 싣는다)
  *   - url_verification (envelope.type === 'url_verification') → null (caller 가 challenge 응답)
  *   - DM 외 채널 (channel_type !== 'im') → null (호출자가 groupChatRefusal 안내)
  *   - bot_id 존재 / subtype === 'bot_message' → null (봇 무시)
@@ -41,11 +42,70 @@ export function parseSlackUpdate(raw: unknown): ChannelUpdate | null {
   }
 
   // 3) Slash Commands — form-urlencoded parsed object.
-  if (typeof body.command === 'string' && typeof body.text === 'string') {
+  if (isSlashCommandBody(body)) {
     return parseSlashCommand(body, receivedAt);
   }
 
   return null;
+}
+
+/** 슬래시 명령의 하위 명령 가운데 실행으로 보내지 않고 도움말로 답하는 값. */
+export const SLACK_SLASH_HELP_SUBCOMMAND = 'help';
+
+/** {@link readSlackSlashInvocation} 의 결과. */
+export interface SlackSlashInvocation {
+  /** Slack 이 보낸 명령 이름. 앞의 `/` 를 포함한다(예: `/workflow`). */
+  command: string;
+  /** `text` 의 첫 토큰. text 가 비어 있으면 빈 문자열이다. */
+  subCommand: string;
+}
+
+/**
+ * 본문이 슬래시 명령이면 명령 이름과 하위 명령을 돌려준다. 아니면 `undefined` 다.
+ *
+ * 슬래시 명령인지와 하위 명령을 {@link parseSlackUpdate} 와 같은 규칙으로 정한다. 그래서
+ * 어댑터의 기본 응답(`defaultInteractionResponse`)이 고르는 문구와 파서가 만드는 명령이 어긋나지
+ * 않는다. 대소문자는 구분한다(`start` · `cancel` 과 같다). pure.
+ */
+export function readSlackSlashInvocation(
+  raw: unknown,
+): SlackSlashInvocation | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const body = raw as Record<string, unknown>;
+  if (!isSlashCommandBody(body)) return undefined;
+  return {
+    command: body.command,
+    subCommand: splitSlashText(body.text).subCommand,
+  };
+}
+
+/**
+ * {@link parseSlackUpdate} 가 슬래시 명령으로 보는 본문인지 판정한다. Events API · url_verification ·
+ * Interactivity 를 먼저 거르는 순서까지 같게 둔다.
+ */
+function isSlashCommandBody(
+  body: Record<string, unknown>,
+): body is Record<string, unknown> & { command: string; text: string } {
+  return (
+    body.type !== 'event_callback' &&
+    body.type !== 'url_verification' &&
+    typeof body.payload !== 'string' &&
+    typeof body.command === 'string' &&
+    typeof body.text === 'string'
+  );
+}
+
+/** 슬래시 명령 text 를 앞뒤 공백을 뺀 전체 · 첫 토큰(하위 명령) · 나머지로 나눈다. */
+function splitSlashText(text: string): {
+  trimmed: string;
+  subCommand: string;
+  rest: string;
+} {
+  const trimmed = text.trim();
+  const firstSpace = trimmed.indexOf(' ');
+  const subCommand = firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace);
+  const rest = firstSpace === -1 ? '' : trimmed.slice(firstSpace + 1).trim();
+  return { trimmed, subCommand, rest };
 }
 
 // ---------- Events API ----------
@@ -281,11 +341,8 @@ function parseSlashCommand(
   if (typeof triggerId !== 'string' || triggerId.length === 0) return null;
 
   const idempotencyKey = triggerId;
-  // text 의 첫 token 으로 sub-command 분기 (start / cancel / 일반 text).
-  const trimmed = text.trim();
-  const firstSpace = trimmed.indexOf(' ');
-  const subCommand = firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace);
-  const rest = firstSpace === -1 ? '' : trimmed.slice(firstSpace + 1).trim();
+  // text 의 첫 token 으로 sub-command 분기 (start / cancel / help / 일반 text).
+  const { trimmed, subCommand, rest } = splitSlashText(text);
 
   if (trimmed === '' || subCommand === 'start') {
     return {
@@ -305,6 +362,9 @@ function parseSlashCommand(
       receivedAt,
     };
   }
+  // help 는 실행으로 보내지 않는다. 도움말은 슬래시 명령의 HTTP 응답에 싣는다
+  // (SlackAdapter.defaultInteractionResponse). Discord 의 `/workflow help` 와 같다.
+  if (subCommand === SLACK_SLASH_HELP_SUBCOMMAND) return null;
   // 그 외 text 는 일반 메시지 (reply / 자유 입력).
   // sub-command 가 'reply' 등 reserved 였다면 rest 만 메시지로, 그 외엔 trimmed 전체.
   const messageText = subCommand === 'reply' ? rest : trimmed;

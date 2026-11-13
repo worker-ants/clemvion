@@ -113,7 +113,7 @@ export interface ChatChannelConfig {
    * 채널별 안내 문구 override. 알려진 키(일부): `executionStarted`·`executionCompleted`·
    * `executionCancelled`·`sessionExpired`·`groupChatRefusal`·`help`·`slashPrefix`·
    * `replyButtonLabel`·`replyModalTitle`·`replyModalLabel`·`formModalTitle`(§3.3 form modal 제목,
-   * default `'양식'`)·`commandReceived`(Discord 슬래시 명령의 수신 응답). 미설정 키는 provider
+   * default `'양식'`)·`commandReceived`(Discord · Slack 슬래시 명령의 수신 응답). 미설정 키는 provider
    * default(§4.1.1) fallback.
    */
   languageHints?: Record<string, string>;
@@ -634,7 +634,8 @@ export interface ChatChannelAdapter {
   /**
    * (옵션) 서명 검증을 통과한 인바운드 요청이 프로바이더가 3초 안 `200` 응답을 요구하는 인터랙션이면
    * 그 기본 응답을 돌려준다. Discord 컴포넌트 클릭 · 모달 제출은 `{ type: 6 }`, 슬래시 명령은 본인에게만
-   * 보이는 `{ type: 4 }`, Slack Interactivity 는 빈 본문이다. 핸드셰이크 · 일반 메시지처럼 `202` 로
+   * 보이는 `{ type: 4 }`, Slack Interactivity 는 빈 본문, Slack 슬래시 명령은 본인에게만 보이는
+   * `{ response_type: 'ephemeral', text }` 다. 핸드셰이크 · 일반 메시지처럼 `202` 로
    * 답할 요청이면 `undefined` 다. 처리 경로가 따로 정한 응답(모달 열기 · 폼 제출 결과)이 있으면 그
    * 응답이 우선한다. 트리거가 꺼져 있어도 부른다. pure — 외부 호출 없음.
    * SoT: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER), [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE).

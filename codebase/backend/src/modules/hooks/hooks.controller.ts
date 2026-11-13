@@ -206,7 +206,8 @@ export class HooksController {
 
     // 채팅 채널 인터랙션 응답 — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
     // (Discord modal `{ type: 9 }` open / `{ type: 4 }` 폼 제출 결과 · 슬래시 명령 수신 응답 /
-    // 컴포넌트 · 모달 제출 기본 ack `{ type: 6 }` / Slack `{ response_action }`).
+    // 컴포넌트 · 모달 제출 기본 ack `{ type: 6 }` / Slack `{ response_action }` · 슬래시 명령
+    // 수신 응답 `{ response_type: 'ephemeral' }`).
     // TransformInterceptor 래핑 우회 — res.json 으로 직접 전송. Spec CLE-CHAT-ADAPTER.
     const interactionHttpResponse = (
       result as unknown as { interactionHttpResponse?: unknown }
