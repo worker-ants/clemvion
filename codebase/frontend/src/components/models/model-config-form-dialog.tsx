@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { Loader2 } from "lucide-react";
 import {
   modelConfigsApi,
@@ -66,6 +66,11 @@ export function ModelConfigFormDialog({
     showDimension && editConfig?.dimension != null;
   // rerank: API Key 는 cohere 만 필수. tei(self-hosted) 는 불필요.
   const showApiKey = kind !== "rerank" || form.provider === "cohere";
+  // Anthropic 클라이언트는 temperature 를 보내지 않는다(REQ-MODELS-007). 입력을 잠그고
+  // 이유를 보인다. 저장된 값은 지우지 않아 프로바이더를 바꿔도 남는다.
+  const temperatureSupported = form.provider !== "anthropic";
+  const temperatureId = useId();
+  const temperatureHintId = useId();
   const freeInputModel = kind === "rerank";
   const providers = PROVIDERS_BY_KIND[kind];
 
@@ -174,15 +179,28 @@ export function ModelConfigFormDialog({
           {showParams && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>{t("models.temperature")}</Label>
+                <Label htmlFor={temperatureId}>{t("models.temperature")}</Label>
                 <Input
+                  id={temperatureId}
                   type="number"
                   step="0.1"
                   min="0"
                   max="2"
                   value={form.temperature}
                   onChange={(e) => form.setTemperature(e.target.value)}
+                  disabled={!temperatureSupported}
+                  aria-describedby={
+                    temperatureSupported ? undefined : temperatureHintId
+                  }
                 />
+                {!temperatureSupported && (
+                  <p
+                    id={temperatureHintId}
+                    className="mt-1 text-xs text-[hsl(var(--muted-foreground))]"
+                  >
+                    {t("models.temperatureAnthropicHint")}
+                  </p>
+                )}
               </div>
               <div>
                 <Label>{t("models.maxTokens")}</Label>

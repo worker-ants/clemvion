@@ -53,15 +53,14 @@ Token-level streaming in the Workflow AI Assistant and AI Agent works with every
 
 ### Default model parameters
 
-Provider-level defaults are inherited as initial values by every AI node. Each node can override them independently.
+The Chat config form saves Temperature and Max Tokens as default parameters. For now they are only stored; AI node and workflow assistant calls don't use them yet. AI nodes use the values in their own settings panel.
 
 <FieldTable rows={[
-  { name: "temperature", type: "number (0.0–2.0)", required: "Optional", description: "Response creativity. Default 0.7. Not sent to Anthropic models." },
-  { name: "max_tokens", type: "integer", required: "Required for Anthropic", description: "Max output tokens. Default 4096." },
-  { name: "top_p", type: "number (0.0–1.0)", required: "Optional", description: "Cumulative-probability sampling. Default 1.0. Not sent to Anthropic models." },
-  { name: "frequency_penalty", type: "number", required: "Optional", description: "Suppress repeated tokens. Default 0.0." },
-  { name: "presence_penalty", type: "number", required: "Optional", description: "Encourage new tokens. Default 0.0." }
+  { name: "Temperature", type: "number (0.0–2.0)", required: "Optional", description: "Response creativity. Default 0.7. When the provider is Anthropic, the input is locked and shows \"Anthropic models don't receive Temperature.\" The saved value is kept, so it is still there if you switch to another provider." },
+  { name: "Max Tokens", type: "integer", required: "Optional", description: "Max output tokens. Default 4096." }
 ]} />
+
+<Callout type="note">The Anthropic client doesn't send temperature or top_p, because the Anthropic API doesn't accept them. The form has no top_p input.</Callout>
 
 ### Connection test and failure messages
 

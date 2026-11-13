@@ -22,6 +22,7 @@ export const models = {
   dimensionAutoHint: "Auto-detected during connection test.",
   dimensionManualHint: "Auto-detect via connection test, or enter manually.",
   temperature: "Temperature",
+  temperatureAnthropicHint: "Anthropic models don't receive Temperature.",
   maxTokens: "Max Tokens",
   updateBtn: "Update",
 

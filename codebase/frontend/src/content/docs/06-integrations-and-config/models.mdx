@@ -70,15 +70,14 @@ Workflow AI Assistant 와 AI Agent 의 토큰 단위 스트리밍 응답은 모�
 
 ### 기본 모델 파라미터
 
-프로바이더 단위로 기본 파라미터를 저장해 두면, AI 노드가 이 값을 초깃값으로 상속받아요. 노드의 설정 패널에서 개별적으로 덮어쓸 수 있어요.
+Chat 설정 폼에서 Temperature 와 Max Tokens 를 기본 파라미터로 저장해요. 지금은 저장만 하고 AI 노드 · 워크플로우 어시스턴트 호출에는 아직 쓰지 않아요. AI 노드는 노드 설정 패널의 값을 써요.
 
 <FieldTable rows={[
-  { name: "temperature", type: "number (0.0 ~ 2.0)", required: "선택", description: "응답 창의성. 기본 0.7. Anthropic 모델에는 보내지 않아요." },
-  { name: "max_tokens", type: "integer", required: "Anthropic 필수", description: "최대 출력 토큰 수. 기본 4096." },
-  { name: "top_p", type: "number (0.0 ~ 1.0)", required: "선택", description: "누적 확률 기반 샘플링. 기본 1.0. Anthropic 모델에는 보내지 않아요." },
-  { name: "frequency_penalty", type: "number", required: "선택", description: "반복 토큰 억제. 기본 0.0." },
-  { name: "presence_penalty", type: "number", required: "선택", description: "새 토큰 유도. 기본 0.0." }
+  { name: "Temperature", type: "number (0.0 ~ 2.0)", required: "선택", description: "응답 창의성. 기본 0.7. 프로바이더가 Anthropic 이면 입력이 잠기고 «Anthropic 모델에는 Temperature 를 보내지 않습니다.» 안내가 떠요. 저장된 값은 지우지 않아서 다른 프로바이더로 바꾸면 그대로 남아 있어요." },
+  { name: "Max Tokens", type: "integer", required: "선택", description: "최대 출력 토큰 수. 기본 4096." }
 ]} />
+
+<Callout type="note">Anthropic 클라이언트는 temperature · top_p 를 보내지 않아요. Anthropic API 가 두 값을 받지 않기 때문이에요. top_p 는 폼에 입력란이 없어요.</Callout>
 
 ### 연결 테스트와 실패 메시지
 
