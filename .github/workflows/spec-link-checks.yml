@@ -174,3 +174,9 @@ jobs:
       - name: spec mirror integrity (pull.py --check)
         if: needs.changes.outputs.relevant != 'false'
         run: python3 .claude/tools/nerv-mirror/pull.py --check
+
+      # 문서 한 편의 본문 20,000자 한도(래칫). 기준선은 도입 시점에 넘던 문서이고 줄어들기만 한다.
+      # 근거와 판정은 `size_check.py` docstring, 나누는 방법은 project-planner SKILL 「문서 크기 한도」.
+      - name: spec body size ratchet (size_check.py)
+        if: needs.changes.outputs.relevant != 'false'
+        run: python3 .claude/tools/nerv-mirror/size_check.py

@@ -64,6 +64,15 @@
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_review_before_push.py\""
           }
         ]
+      },
+      {
+        "matcher": "mcp__nerv__nerv_spec_draft_upsert|mcp__plugin_nerv_nerv__nerv_spec_draft_upsert",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test ! -f \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_spec_body_size.py\" || python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_spec_body_size.py\""
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
