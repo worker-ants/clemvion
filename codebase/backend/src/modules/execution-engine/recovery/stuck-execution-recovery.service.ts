@@ -28,7 +28,7 @@ import {
  * 다중 인스턴스 환경에서 다른 인스턴스가 활발히 처리 중인 정상 RUNNING 을
  * 잘못 FAIL 시키지 않도록 보수적 가드 (heartbeat 간격 5초의 360배).
  *
- * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.4 Recovery.
+ * SoT: `CLE-EXEC-RECOVERY` 「부팅 복구 스캔」.
  */
 export const STUCK_RECOVERY_STALE_MS = 30 * 60 * 1000;
 
@@ -110,7 +110,7 @@ export class StuckExecutionRecoveryService {
    *   3. 종결된 실행 아래 남은 노드 실행 행 정리(`closeOrphanRunningNodeExecutions`, CLE-T-CCEQEC).
    *      실행이 먼저 끝나고 노드 행만 `running` 으로 남은 경우를 `failed` 로 닫는다.
    *
-   * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.2 / §7.4 / §7.5, CLE-T-CCEQEC.
+   * SoT: `CLE-EXEC-RECOVERY` 「부팅 복구 스캔」 · 「종결된 실행 아래 남은 노드 실행 행」, CLE-T-CCEQEC.
    *
    * @param engine 재구동 · 세그먼트 기록 · 대기 초과 취소를 맡을 엔진 동작
    */
@@ -218,7 +218,7 @@ export class StuckExecutionRecoveryService {
    * (낮은 확률 엣지·boot-only 트리거 — best-effort). `markQueueWaitTimeout` 은 조건부
    * UPDATE(`WHERE status='pending'`)라 동시 admit/cancel 과의 race 에 멱등이다.
    *
-   * SoT: spec/5-system/4-execution-engine.md §8 / §7.4.
+   * SoT: `CLE-EXEC-RECOVERY` 「부팅 복구 스캔」, `CLE-EXEC-WORKER` 동시 실행 제한 절.
    */
   private async recoverOrphanPendingExecutions(
     engine: StuckRecoveryEnginePort,
