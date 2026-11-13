@@ -36,10 +36,12 @@ import {
   hasReleasedStoreSlot,
 } from './cafe24-store-rows';
 import {
-  PendingInstallWriter,
   isStoreIdentifierConflict,
   resolveBeginScope,
   toAlreadyConnectedConflict,
+} from './begin-policy';
+import {
+  PendingInstallWriter,
   type Cafe24PrivateBeginMeta,
 } from './pending-install-writer';
 import { WorkspacesService } from '../workspaces/workspaces.service';

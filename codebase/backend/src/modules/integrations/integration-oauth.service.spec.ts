@@ -12,6 +12,7 @@ import {
   sanitizeLastErrorMessage,
 } from './integration-oauth.service';
 import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
+import { integrationNotFoundError } from './integration-visibility';
 
 type Mock = jest.Mock;
 
@@ -690,6 +691,38 @@ describe('IntegrationOAuthService', () => {
           ]);
         },
       );
+
+      it('신호 없는 404 는 기록한다 — 기록을 건너뛰는 판정은 오류 코드가 아니라 `recordable: false` 다', async () => {
+        const svc = serviceWithRole('owner');
+        const mark = jest
+          .spyOn(svc, 'markIntegrationCallbackError')
+          .mockResolvedValue(undefined);
+        jest.spyOn(svc, 'handleCallback').mockRejectedValue(
+          attachCallbackContext(integrationNotFoundError(), {
+            integrationId: 'int-1',
+            workspaceId: 'ws-1',
+            mode: 'reauthorize',
+          }),
+        );
+        const err: unknown = await svc
+          .handleCallbackWithErrorCapture('google', {
+            code: 'code',
+            state: 'abc',
+          })
+          .catch((e: unknown) => e);
+        expect(err).toMatchObject({
+          response: { code: 'RESOURCE_NOT_FOUND' },
+        });
+        expect([...mark.mock.calls]).toEqual([
+          [
+            'int-1',
+            'ws-1',
+            'RESOURCE_NOT_FOUND',
+            expect.any(String),
+            undefined,
+          ],
+        ]);
+      });
     });
 
     /**

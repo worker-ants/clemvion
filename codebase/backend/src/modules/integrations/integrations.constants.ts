@@ -66,7 +66,7 @@ export const REINSTALL_REQUEST_TTL_HOURS = PENDING_INSTALL_TTL_HOURS;
 /**
  * Per-service "store identifier already connected" error mapping — used by
  * `throwIfUniqueViolation` in `integrations.service.ts` and by
- * `toAlreadyConnectedConflict` in `pending-install-writer.ts` to translate a
+ * `toAlreadyConnectedConflict` in `begin-policy.ts` to translate a
  * unified-UNIQUE-index violation (`STORE_IDENTIFIER_UNIQUE_CONSTRAINT`) into
  * the per-service 409 error code/message.
  *

@@ -43,8 +43,7 @@ function keptStoreSlotBranches(): Array<
  * match them via the encrypted `credentials.mall_id` JSONB field.
  *
  * **Legacy fallback 제거 조건** (2026-05-16 기준): V045 backfill 마이그레이션
- * (마이그레이션 추적 plan `plan/in-progress/cafe24-mall-dup-ux.md` 참조) 이
- * 완료되어 모든 cafe24 row 의 `mall_id` plain 컬럼이 NOT NULL 임을 확인한
+ * (`mall_id` 컬럼 규칙: NERV `CLE-INT-DATA`) 이 완료되어 모든 cafe24 row 의 `mall_id` plain 컬럼이 NOT NULL 임을 확인한
  * 뒤 legacy 쿼리 + filter 블록을 삭제. 동시에 V046 partial UNIQUE 의
  * `mall_id IS NOT NULL` 조건도 검토 (NOT NULL constraint 로 강화 가능).
  *

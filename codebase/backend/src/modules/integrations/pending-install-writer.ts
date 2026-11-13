@@ -6,15 +6,18 @@ import {
   pgErrorConstraint,
 } from '../../common/db/pg-error';
 import { Integration } from './entities/integration.entity';
+import {
+  isStoreIdentifierConflict,
+  resolveBeginScope,
+  toAlreadyConnectedConflict,
+} from './begin-policy';
 import { findAllCafe24RowsForMall } from './cafe24-store-rows';
 import {
   lockForIntegrationWrite,
   throwUnlessIntegrationCreateLocked,
 } from './integration-owner-write-lock';
 import {
-  ALREADY_CONNECTED_BY_SERVICE,
   INTEGRATION_NAME_TAKEN,
-  STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
   WORKSPACE_NAME_UNIQUE_CONSTRAINT,
 } from './integrations.constants';
 import {
@@ -59,25 +62,6 @@ export interface PendingInstallWrite {
   installToken: string;
 }
 
-/**
- * begin 이 새로 만드는 설치 대기 행의 공개 범위. 요청에 없으면 개인이다. 멤버십을 잠글지 정하는 판정
- * ({@link lockForPendingWrite}), 행을 넣는 INSERT, 서비스 `begin` 의 생성 인가가 이 함수 하나로 같은 값을 쓴다. 한쪽의
- * 기본값이 따로 바뀌면 멤버십 잠금 없이 개인 행이 생긴다.
- */
-export function resolveBeginScope(
-  request: Pick<PendingInstallRequest, 'scope'>,
-): 'personal' | 'organization' {
-  return request.scope ?? 'personal';
-}
-
-/** 상점 식별자 UNIQUE(V072) 위반인가. 같은 상점의 행을 다른 요청이 먼저 썼다. */
-export function isStoreIdentifierConflict(err: unknown): boolean {
-  return (
-    isPostgresUniqueViolation(err) &&
-    pgErrorConstraint(err) === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
-  );
-}
-
 /** 워크스페이스 안 통합 이름 UNIQUE 위반인가. 다른 통합이 그 이름을 쓴다. */
 function isNameConflict(err: unknown): boolean {
   return (
@@ -97,17 +81,6 @@ function isPendingInsertRace(err: unknown): boolean {
 /** 이름 UNIQUE 위반의 응답. 통합 생성 · 별칭 수정과 같은 409 `INTEGRATION_NAME_TAKEN` 이다(REQ-INTMGMT-005). */
 function toNameTakenConflict(): ConflictException {
   return new ConflictException({ ...INTEGRATION_NAME_TAKEN });
-}
-
-/**
- * 상점 식별자 UNIQUE 위반의 응답. `ALREADY_CONNECTED_BY_SERVICE` 의 409 라 통합 생성의 `throwIfUniqueViolation` 과 코드 ·
- * 문구가 같다. Cafe24 Private begin 의 재시도와 MakeShop 설치 엔드포인트가 쓴다.
- */
-export function toAlreadyConnectedConflict(
-  service: keyof typeof ALREADY_CONNECTED_BY_SERVICE,
-): ConflictException {
-  const mapped = ALREADY_CONNECTED_BY_SERVICE[service];
-  return new ConflictException({ code: mapped.code, message: mapped.message });
 }
 
 /**
