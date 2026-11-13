@@ -11,7 +11,8 @@ exit 0 → 허용, exit 2 → 차단(stderr 가 이유), 그 밖 → 런타임 �
 
 막지 않는 것:
 - 카탈로그 사본(`CLE-C24-*` · `CLE-MKS-*`). codebase 정본에서 생성하므로 크기는 생성기가 정한다.
-  같은 접두의 NERV 정본 규약 문서(`_lib/spec_size.py` 의 `NOT_EXEMPT_KEYS`)는 막는다.
+  같은 접두의 NERV 정본 규약 문서(`_lib/spec_size.py` 의 `NOT_EXEMPT_KEYS`)는 막는다(이 문서들은 미러에
+  오지 않아 CI 래칫은 보지 않고 이 훅만 막는다).
   키는 `spec_id`(기존 문서) 또는 `key`(새 문서)로 본다. UUID 로 부른 카탈로그 문서는 가려내지 못해
   한도를 적용한다(카탈로그 사본은 `codebase/api-catalogs/README.md` 절차가 키로 저장한다).
 - 본문이 없는 호출(되돌리기 `revert_to_version`, 메타만 고치는 호출).
@@ -35,6 +36,7 @@ from _lib.spec_size import LIMIT, TARGET, is_exempt  # noqa: E402
 
 BODY_FIELDS = ("body_markdown", "body_md")
 # 본문이 아닌 필드. 알려진 본문 필드가 없을 때 나머지 문자열 중 가장 긴 값을 본문으로 본다.
+# NERV 도구 스키마의 메타 필드와 맞춰야 한다. 새 메타 필드가 생기면 여기에 더한다(긴 값이 본문으로 잡혀 오차단된다).
 META_FIELDS = ("spec_id", "key", "base_hash", "change_summary", "title", "area", "type")
 
 

@@ -18,6 +18,7 @@
 나눈 초안이 승인되고 구현 세션이 `pull.py` 로 받으면 한도 안에 들어온다. 기준선은 줄어들기만 한다.
 
 카탈로그 사본(`CLE-C24-*` · `CLE-MKS-*`)은 미러에 없으므로(`pull.py` 의 `is_excluded`) 보지 않는다.
+같은 접두의 규약 문서(`CLE-C24-META` 등)도 미러에 오지 않아 이 래칫은 보지 않는다. 그 문서는 초안 훅만 막는다.
 
 usage: size_check.py [--root ROOT] [--update-baseline] [--report]
 """

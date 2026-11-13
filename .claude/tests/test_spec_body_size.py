@@ -166,6 +166,22 @@ class SizeCheckTest(unittest.TestCase):
             "spec_id": "CLE-API-CONV", "base_hash": "x", "content": "x" * (hook.LIMIT + 1)}}
         self.assertEqual(run_hook(payload).returncode, 2)
 
+    def test_meta_fields_not_mistaken_for_body(self):
+        payload = {"tool_name": TOOL_NAME, "tool_input": {
+            "spec_id": "CLE-API-CONV", "base_hash": "x", "change_summary": "x" * (hook.LIMIT + 1)}}
+        self.assertEqual(run_hook(payload).returncode, 0)
+
+    def test_fallback_uses_longest_field(self):
+        long_, short = "x" * (hook.LIMIT + 1), "y" * 10
+        for fields in ({"content": long_, "notes": short}, {"content": short, "notes": long_}):
+            payload = {"tool_name": TOOL_NAME, "tool_input": {"spec_id": "CLE-API-CONV", **fields}}
+            self.assertEqual(run_hook(payload).returncode, 2)
+
+    def test_fallback_within_limit_passes(self):
+        payload = {"tool_name": TOOL_NAME, "tool_input": {
+            "spec_id": "CLE-API-CONV", "content": "x" * hook.LIMIT}}
+        self.assertEqual(run_hook(payload).returncode, 0)
+
     def test_main_cli(self):
         with tempfile.TemporaryDirectory() as d:
             spec = Path(d, "spec", "CLE-T")
@@ -242,6 +258,7 @@ class WorkflowTest(unittest.TestCase):
         """CI 잡이 받는 경로만 있는 트리에서 size_check.py 가 import 오류 없이 돈다."""
         paths = self._sparse_paths()
         self.assertIn(".claude/tools/nerv-mirror", paths)
+        self.assertIn(".claude/hooks/_lib", paths, "size_check.py 가 _lib/spec_size.py 를 import 한다")
         with tempfile.TemporaryDirectory() as d:
             for rel in paths:
                 if rel == "spec":
