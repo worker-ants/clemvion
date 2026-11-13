@@ -105,9 +105,9 @@ export function isSignedChatChannelTrigger(config: unknown): boolean {
  * {@link isSignedChatChannelTrigger} 도 같은 함수로 판정한다. 한쪽만 바뀌어 면제됐는데 검증이 없는
  * 트리거가 생기는 것을 막는다.
  */
-export function hasInboundSigningRef(chatChannel: {
-  inboundSigningRef?: unknown;
-}): boolean {
+export function hasInboundSigningRef<T extends { inboundSigningRef?: unknown }>(
+  chatChannel: T,
+): chatChannel is T & { inboundSigningRef: NonNullable<unknown> } {
   return Boolean(chatChannel.inboundSigningRef);
 }
 
