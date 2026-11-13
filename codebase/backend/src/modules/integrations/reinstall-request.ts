@@ -2,7 +2,7 @@ import type { Integration } from './entities/integration.entity';
 import { REINSTALL_REQUEST_TTL_HOURS } from './integrations.constants';
 
 /*
- * Cafe24 Private 재설치 요청 표시(`integration.reinstall_requested_at`, V151)를 읽는 판정 — NERV CLE-INT-OAUTH ·
+ * Cafe24 Private 재설치 대기 표시(`integration.reinstall_requested_at`, V151)를 읽는 판정 — NERV CLE-INT-OAUTH ·
  * CLE-INT-DATA, Task CLE-T-NNENG8.
  *
  * 표시는 `:id/reauthorize` · `:id/request-scopes` 가 남기고 OAuth 콜백 성공이 지운다. 표시가 있는 행은 설치 흐름의
@@ -29,7 +29,7 @@ export function isReinstallRequestActive(
 }
 
 /**
- * Cafe24 App URL 이 OAuth authorize 로 보내는 행인가 — 설치 대기이거나 유효한 재설치 요청 표시가 있다. 그 밖의
+ * Cafe24 App URL 이 OAuth authorize 로 보내는 행인가 — 설치 대기이거나 유효한 재설치 대기 표시가 있다. 그 밖의
  * connected · error · expired 행은 App URL 을 post-install navigation(상세 화면 302)으로 본다.
  */
 export function isInstallFlowRow(
@@ -40,7 +40,7 @@ export function isInstallFlowRow(
 }
 
 /**
- * Cafe24 Private 행인가. 재설치 요청 표시를 남기는 행은 이것뿐이라, 표시를 근거로 인가 재판정을 건너뛰는 곳은 이 조건을
+ * Cafe24 Private 행인가. 재설치 대기 표시를 남기는 행은 이것뿐이라, 표시를 근거로 인가 재판정을 건너뛰는 곳은 이 조건을
  * 함께 본다 — Public · MakeShop 행에 표시가 우연히 있어도 재판정한다(`assertRequesterStillAllowed`).
  * 설치 토큰은 보지 않는다. 토큰이 있어야 한다는 조건까지 필요하면 `isCafe24PrivateWithInstallToken`(`integrations.service.ts`)을
  * 쓴다.

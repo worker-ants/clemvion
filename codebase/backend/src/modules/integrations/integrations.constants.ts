@@ -58,7 +58,7 @@ export const INTEGRATION_INSTALL_EXPIRED = {
 export const PENDING_INSTALL_TTL_HOURS = 24;
 
 /**
- * Cafe24 Private 재설치 요청 표시(`reinstall_requested_at`)의 유효 시간. 설치 대기 기한과 같은 값이다. 두 흐름이 «App URL 이
+ * Cafe24 Private 재설치 대기 표시(`reinstall_requested_at`)의 유효 시간. 설치 대기 기한과 같은 값이다. 두 흐름이 «App URL 이
  * OAuth 로 보내는 창» 의 길이를 맞춘다.
  */
 export const REINSTALL_REQUEST_TTL_HOURS = PENDING_INSTALL_TTL_HOURS;

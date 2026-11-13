@@ -548,7 +548,7 @@ export class IntegrationOAuthService {
    * 모자란다(REQ-INTOAUTH-026 — `:id/reauthorize` · `oauth/begin` 이 이미 본 것과 같은 판정: 보이는가 → Organization 이면
    * Admin, Personal 이면 편집자 이상. 요청 경로의 편집자 하한은 라우트 가드가 보지만 콜백에는 가드가 없다).
    *
-   * `pending_install` 행과, 유효한 재설치 요청 표시(`reinstallRequestedAt`)가 있는 **Cafe24 Private** 행은 보지 않는다 —
+   * `pending_install` 행과, 유효한 재설치 대기 표시(`reinstallRequestedAt`)가 있는 **Cafe24 Private** 행은 보지 않는다 —
    * 설치 흐름(App URL 의 install_token + HMAC 이 인가)이 만든 state 라 `userId` 가 요청자가 아니라 생성자다
    * (`persistReauthorizeState`). 표시를 남긴 요청자의 인가는 표시를 남길 때(`:id/reauthorize` · `:id/request-scopes`) 이미
    * 봤다. 표시에는 24시간 유효 기간이 있다(`isReinstallRequestActive`) — 그 뒤에는 요청자가 강등됐을 수 있어 다시 본다.
@@ -1232,7 +1232,7 @@ export class IntegrationOAuthService {
         !isReinstallRequestActive(integration)
       ) {
         // §10.4: reauthorize code-exchange failure on a connected row.
-        // 유효한 재설치 요청 표시가 있는 행은 제외한다 — 기존 토큰은 아직 살아 있고, 상태와 표시를 남겨 두면 사용자가
+        // 유효한 재설치 대기 표시가 있는 행은 제외한다 — 기존 토큰은 아직 살아 있고, 상태와 표시를 남겨 두면 사용자가
         // App URL 로 다시 시도할 수 있다(CLE-T-NNENG8). 만료된 표시는 없는 것으로 본다.
         integration.status = 'error';
         integration.statusReason = 'auth_failed';
@@ -1698,11 +1698,11 @@ export class IntegrationOAuthService {
         'Request (mall_id, timestamp, hmac) tuple has been seen within the 10-minute window — refusing replay.',
     });
 
-    // status 분기 — pending_install 과 유효한 재설치 요청 표시(24시간)가 있는 행만 OAuth authorize 로 진입.
+    // status 분기 — pending_install 과 유효한 재설치 대기 표시(24시간)가 있는 행만 OAuth authorize 로 진입.
     // 그 밖의 connected/error/expired 는 post-install navigation 으로 간주 (카페24
     // 쇼핑몰 관리자의 "앱으로 가기" 버튼 등). HMAC 이 통과했다는 건
     // Cafe24 가 호출한 정당한 요청임을 의미하므로 우리 frontend 의 통합
-    // 상세 페이지로 안내. 재설치 요청 표시는 권한 추가 · 재인증이 남긴다(CLE-T-NNENG8).
+    // 상세 페이지로 안내. 재설치 대기 표시는 권한 추가 · 재인증이 남긴다(CLE-T-NNENG8).
     // 근거: NERV CLE-INT-OAUTH Rationale "Cafe24 App URL 재호출 흐름".
     if (!isInstallFlowRow(target)) {
       const redirectUrl = this.buildIntegrationDetailRedirectUrl(target.id);

@@ -819,9 +819,9 @@ describe('IntegrationOAuthService', () => {
       expect(integrationRepo.save).toHaveBeenCalledTimes(1);
     });
 
-    // CLE-T-NNENG8 — 재설치 요청 표시로 재판정을 건너뛰는 것은 Cafe24 Private 행뿐이고 표시가 유효한 24시간 동안만이다.
+    // CLE-T-NNENG8 — 재설치 대기 표시로 재판정을 건너뛰는 것은 Cafe24 Private 행뿐이고 표시가 유효한 24시간 동안만이다.
     // 표시를 남기는 입구가 Cafe24 Private 뿐이라 다른 행에 표시가 있으면 우회 시도로 보고 다시 본다.
-    describe('재설치 요청 표시 — Cafe24 Private 행에 한정하고 24시간 안에서만 건너뛴다', () => {
+    describe('재설치 대기 표시 — Cafe24 Private 행에 한정하고 24시간 안에서만 건너뛴다', () => {
       type Allowed = {
         assertRequesterStillAllowed(
           integration: unknown,
@@ -1356,9 +1356,9 @@ describe('IntegrationOAuthService', () => {
       expect(saved.statusReason).toBe('auth_failed');
     });
 
-    // CLE-T-NNENG8 — 재설치 요청 표시가 있는 행은 기존 토큰이 아직 살아 있다. 새 코드 교환이 실패해도 상태와 표시를
+    // CLE-T-NNENG8 — 재설치 대기 표시가 있는 행은 기존 토큰이 아직 살아 있다. 새 코드 교환이 실패해도 상태와 표시를
     // 보존해 사용자가 App URL 로 다시 시도하게 한다.
-    it('재설치 요청 표시가 있는 connected 행은 OAUTH_TOKEN_EXCHANGE_FAILED 에도 상태와 표시를 보존한다', async () => {
+    it('재설치 대기 표시가 있는 connected 행은 OAUTH_TOKEN_EXCHANGE_FAILED 에도 상태와 표시를 보존한다', async () => {
       const requestedAt = new Date(Date.now() - 60 * 60 * 1000);
       integrationRepo.findOne.mockResolvedValue({
         id: 'int-2',
@@ -1386,7 +1386,7 @@ describe('IntegrationOAuthService', () => {
       );
     });
 
-    it('24시간이 지난 재설치 요청 표시는 없는 것으로 본다 — connected 행이 OAUTH_TOKEN_EXCHANGE_FAILED 로 error(auth_failed) 가 된다', async () => {
+    it('24시간이 지난 재설치 대기 표시는 없는 것으로 본다 — connected 행이 OAUTH_TOKEN_EXCHANGE_FAILED 로 error(auth_failed) 가 된다', async () => {
       integrationRepo.findOne.mockResolvedValue({
         id: 'int-2',
         workspaceId: 'ws-1',

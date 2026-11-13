@@ -201,6 +201,26 @@ describe('IntegrationOAuthService — MakeShop', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // `:id/reauthorize` · `:id/request-scopes` 는 MakeShop 행에 providerMeta 를 싣지 않는다(`buildCafe24BeginMeta` 는
+    // Cafe24 행에만 값을 낸다). 그래서 두 경로의 400 은 자격 증명 검사의 MAKESHOP_CREDENTIALS_REQUIRED 다. 이 코드는
+    // 계약이다(CLE-INT-OAUTH, NERV Task CLE-T-10N47M). 모드 검사보다 먼저 나므로 순서를 바꾸면 응답 코드가 바뀐다.
+    it.each(['reauthorize', 'request_scopes'] as const)(
+      'providerMeta 없는 %s 는 400 MAKESHOP_CREDENTIALS_REQUIRED 다',
+      async (mode) => {
+        await expect(
+          service.begin({
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            service: 'makeshop',
+            scopes: ['store.read'],
+            mode,
+          }),
+        ).rejects.toMatchObject({
+          response: { code: 'MAKESHOP_CREDENTIALS_REQUIRED' },
+        });
+      },
+    );
+
     // CLE-T-NNENG8 — ShopStore 재설치는 기존 행을 되살리지 않는다(App URL 이 설치 대기가 아닌 행을 상세 화면으로
     // 보낸다). 그래서 거부 문구는 재설치가 아니라 삭제 후 재등록을 안내한다.
     it.each(['reauthorize', 'request_scopes'] as const)(
@@ -881,7 +901,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
     });
 
     // CLE-T-NNENG8 — ShopStore 에서 앱을 다시 설치해도 설치 대기가 아닌 행은 OAuth 를 다시 타지 않는다. 오류가 된
-    // 행도 상세 화면으로 갈 뿐 되살아나지 않으므로 복구 경로는 삭제 후 재등록이다. 재설치 요청 표시도 보지 않는다.
+    // 행도 상세 화면으로 갈 뿐 되살아나지 않으므로 복구 경로는 삭제 후 재등록이다. 재설치 대기 표시도 보지 않는다.
     it.each(['error', 'expired'] as const)(
       'status=%s 행도 ShopStore 재설치로 되살아나지 않는다 — state 를 만들지 않고 상세 화면으로 보낸다',
       async (status) => {

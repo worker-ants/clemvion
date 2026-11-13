@@ -782,7 +782,7 @@ export class IntegrationsService {
   }
 
   /**
-   * Cafe24 Private 의 재설치 요청 표시를 남긴다 — `:id/reauthorize` · `:id/request-scopes` 가 같은 방식으로 쓴다.
+   * Cafe24 Private 의 재설치 대기 표시를 남긴다 — `:id/reauthorize` · `:id/request-scopes` 가 같은 방식으로 쓴다.
    *
    * 판정한 행에만 · 바꾸는 컬럼만 `update` 한다(`judgedRow`). 엔티티 전체를 `save` 하면 읽은 뒤 다른 요청이 바꾼 컬럼을
    * 옛 값으로 되돌린다(`logUsage` 의 `lastUsedAt`, 콜백이 회전한 `credentials`). Cafe24 는 refresh_token 을 회전하므로
@@ -1559,7 +1559,7 @@ export class IntegrationsService {
     // (Private 은 우리 서버가 OAuth 를 시작 못 함). 대신 기존 install_token
     // 을 그대로 두고 `credentials.scopes` 만 merge 갱신한 뒤,
     // 사용자에게 Cafe24 Developers 에서 권한 추가 후 "테스트 실행" 재호출
-    // 안내. 설치 대기가 아닌 행에는 재설치 요청 표시를 함께 남긴다 — App URL 이
+    // 안내. 설치 대기가 아닌 행에는 재설치 대기 표시를 함께 남긴다 — App URL 이
     // 그 표시를 보고 OAuth 로 보낸다(설치 대기 행은 표시 없이도 OAuth 로 간다).
     // NERV CLE-INT-OAUTH Rationale, Task CLE-T-NNENG8.
     if (isCafe24PrivateWithInstallToken(entity)) {
@@ -1687,7 +1687,7 @@ export class IntegrationsService {
       return { authUrl: '', state: '' };
     }
 
-    // Cafe24 Private — 우리 서버가 OAuth 를 시작하지 못한다. 재설치 요청 표시를 남기고 App URL 을 돌려준다. 사용자가
+    // Cafe24 Private — 우리 서버가 OAuth 를 시작하지 못한다. 재설치 대기 표시를 남기고 App URL 을 돌려준다. 사용자가
     // Cafe24 에서 「테스트 실행」을 누르면 App URL 이 표시를 보고 OAuth 로 보낸다. 설치 대기 행과 install_token 이 없는 행
     // (설치 시간 초과)은 아래 `rejectCafe24PrivateRowBeforeBegin` 호출이 begin 전에 거절한다. 상태 · 사유는 그대로 둔다 — connected 행은 기존 토큰으로 계속
     // 실행되고 error · expired 행은 OAuth 가 끝날 때까지 실행되지 않는다(`INTEGRATION_NOT_CONNECTED`). 표시는 24시간
@@ -1893,7 +1893,7 @@ export class IntegrationsService {
     void _installToken;
     void _installTokenIssuedAt;
     const appUrl = derived.appUrl;
-    // 재설치 요청 표시는 유효할 때만 싣는다(24시간 — `isReinstallRequestActive`). 만료된 표시는 값이 DB 에 남아 있어도
+    // 재설치 대기 표시는 유효할 때만 싣는다(24시간 — `isReinstallRequestActive`). 만료된 표시는 값이 DB 에 남아 있어도
     // `null` 이다 — 상세 화면의 안내 배너는 이 값만 보므로 판정을 서버 한곳에서 한다.
     const reinstallRequestedAt = isReinstallRequestActive(entity)
       ? entity.reinstallRequestedAt

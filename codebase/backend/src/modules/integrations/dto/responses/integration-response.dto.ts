@@ -151,7 +151,7 @@ export class IntegrationDto {
   lastRotatedAt: string | null;
 
   /**
-   * Cafe24 Private 재설치 요청 시각 — 권한 추가 · 재인증이 남기고 App URL 로 OAuth 를 마치면 `null` 로 돌아간다.
+   * Cafe24 Private 재설치 대기 표시(시각 값). 권한 추가 · 재인증이 남기고 App URL 로 OAuth 를 마치면 `null` 로 돌아간다.
    * 값이 있으면 상세 화면이 Cafe24 에서 「테스트 실행」을 누르라고 안내한다. 표시는 남긴 뒤 24시간 동안만 유효하다 —
    * 그 뒤에는 서버가 `null` 로 내려 준다(DB 값은 남는다). 그 외 통합은 늘 `null`.
    */

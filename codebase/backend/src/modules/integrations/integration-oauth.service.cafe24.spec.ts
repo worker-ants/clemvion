@@ -2549,11 +2549,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
     );
 
     /**
-     * CLE-T-NNENG8 — 권한 추가 · 재인증이 남긴 재설치 요청 표시(`reinstall_requested_at`)가 있으면 설치 대기가
+     * CLE-T-NNENG8 — 권한 추가 · 재인증이 남긴 재설치 대기 표시(`reinstall_requested_at`)가 있으면 설치 대기가
      * 아닌 행도 App URL 이 OAuth authorize 로 보낸다. 표시가 없는 행은 위 테스트처럼 상세 화면으로 간다.
      */
     it.each(['connected', 'error', 'expired'] as const)(
-      'status=%s 라도 재설치 요청 표시가 있으면 상세 화면 대신 Cafe24 authorize 로 보낸다',
+      'status=%s 라도 재설치 대기 표시가 있으면 상세 화면 대신 Cafe24 authorize 로 보낸다',
       async (status) => {
         integrationRepo.findOne.mockResolvedValue(
           makePendingRow({
@@ -2592,7 +2592,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
      * 표시에는 24시간 유효 기간이 있다(`reinstall-request.ts`) — 설치 대기 TTL 과 같은 창이다. 경계 안(23시간 59분)은
      * OAuth 로, 넘으면 표시가 없는 것과 같이 상세 화면으로 보낸다. 값은 DB 에 남아 있어도 읽는 쪽이 무시한다.
      */
-    it('재설치 요청 표시가 23시간 59분 지났으면 아직 Cafe24 authorize 로 보낸다', async () => {
+    it('재설치 대기 표시가 23시간 59분 지났으면 아직 Cafe24 authorize 로 보낸다', async () => {
       integrationRepo.findOne.mockResolvedValue(
         makePendingRow({
           status: 'connected',
@@ -2620,7 +2620,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
     });
 
     it.each(['connected', 'error', 'expired'] as const)(
-      'status=%s — 재설치 요청 표시가 24시간을 넘었으면 없는 것으로 보고 상세 화면으로 보낸다(state 를 만들지 않는다)',
+      'status=%s — 재설치 대기 표시가 24시간을 넘었으면 없는 것으로 보고 상세 화면으로 보낸다(state 를 만들지 않는다)',
       async (status) => {
         integrationRepo.findOne.mockResolvedValue(
           makePendingRow({
@@ -2647,7 +2647,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       },
     );
 
-    it('재설치 요청 표시가 있어도 HMAC 이 틀리면 거부한다', async () => {
+    it('재설치 대기 표시가 있어도 HMAC 이 틀리면 거부한다', async () => {
       integrationRepo.findOne.mockResolvedValue(
         makePendingRow({
           status: 'connected',
@@ -3188,7 +3188,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       });
     });
 
-    it('재설치 요청 표시가 있는 connected 행 — 콜백 성공이 자격 증명을 바꾸고 표시를 지운다', async () => {
+    it('재설치 대기 표시가 있는 connected 행 — 콜백 성공이 자격 증명을 바꾸고 표시를 지운다', async () => {
       const markedRow = {
         id: 'marked-int-id',
         workspaceId: 'ws-1',
