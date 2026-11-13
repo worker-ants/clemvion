@@ -233,8 +233,8 @@ describe('Workflow Assistant sessions (e2e)', () => {
     expect(create.status).toBe(201);
     const sessionId = create.body.data.id as string;
 
-    // 없는 LLM Config 를 지정해 config 해석에서 끝나게 한다 — 외부 LLM 호출 없이 스트림이 error 이벤트
-    // 하나로 닫힌다. 보려는 것은 상태 줄이다: 핸들러는 `@Res()` 로 헤더만 쓰고 `res.status()` 를 부르지
+    // 없는 모델 설정을 지정해 config 해석에서 끝나게 한다. 이 워크스페이스에는 기본 설정이 없어 대체도
+    // 못 하므로(REQ-ASSIST-009 · 010) 외부 LLM 호출 없이 스트림이 error 이벤트 하나로 닫힌다. 보려는 것은 상태 줄이다: 핸들러는 `@Res()` 로 헤더만 쓰고 `res.status()` 를 부르지
     // 않으므로 Nest 가 핸들러 전에 싣는 값이 그대로 나간다(`@HttpCode(HttpStatus.OK)` 전에는 201 이었다).
     const res = await request(BASE_URL)
       .post(`/api/workflow-assistant/sessions/${sessionId}/messages`)
@@ -248,6 +248,7 @@ describe('Workflow Assistant sessions (e2e)', () => {
     expect(res.headers['content-type']).toContain('text/event-stream');
     // 스트림 본문까지 확인해 «4xx 가 아니라 SSE 로 응답했다» 를 가른다 — 상태만 보면 JSON 200 과 구별되지 않는다.
     expect(res.text).toContain('ASSISTANT_NO_LLM_CONFIG');
+    expect(res.text).not.toContain('event: config_fallback');
   });
 
   it('H. 세션 상세 — 메시지(도구 호출 · 계획 · 사용량)까지 응답 DTO 와 맞는다', async () => {
@@ -407,6 +408,65 @@ describe('Workflow Assistant sessions (e2e)', () => {
       .set(authHeaders());
     await request(BASE_URL)
       .delete(`/api/model-configs/${llmConfigId}`)
+      .set(authHeaders());
+  }, 60_000);
+
+  it('J. 지정한 모델 설정이 없으면 워크스페이스 기본 설정으로 대신하고 config_fallback 으로 알린다 (REQ-ASSIST-009)', async () => {
+    // 이 파일의 워크스페이스에 기본 chat 설정을 하나 만든다. G 는 기본 설정이 없는 상태를 보므로 J 는
+    // 파일 끝에 둔다. stub 모드라 대체한 설정으로 스트림을 열면 I 와 같은 스트리밍 미지원 예외로 끝난다.
+    const config = await request(BASE_URL)
+      .post('/api/model-configs')
+      .set(authHeaders())
+      .send({
+        kind: 'chat',
+        provider: 'local',
+        name: uniqueName('asst-default'),
+        baseUrl: 'http://127.0.0.1:9/v1',
+        defaultModel: 'stub-model',
+        defaultParams: {},
+        isDefault: true,
+      });
+    expect(config.status).toBe(201);
+    const defaultConfigId = config.body.data.id as string;
+    const defaultConfigName = config.body.data.name as string;
+
+    const create = await request(BASE_URL)
+      .post('/api/workflow-assistant/sessions')
+      .set(authHeaders())
+      .send({ workflowId, title: 'Config fallback' });
+    expect(create.status).toBe(201);
+    const sessionId = create.body.data.id as string;
+
+    const missingConfigId = randomUUID();
+    const res = await request(BASE_URL)
+      .post(`/api/workflow-assistant/sessions/${sessionId}/messages`)
+      .set(authHeaders())
+      .send({
+        content: 'hello',
+        currentWorkflow: { nodes: [], edges: [] },
+        llmConfigId: missingConfigId,
+      });
+    expect(res.status).toBe(200);
+
+    // 대체 알림은 턴의 첫 이벤트다.
+    const first = /^event: (\S+)\ndata: (.+)\n/.exec(res.text);
+    expect(first).not.toBeNull();
+    expect(first![1]).toBe('config_fallback');
+    expect(JSON.parse(first![2])).toEqual({
+      requestedConfigId: missingConfigId,
+      configId: defaultConfigId,
+      configName: defaultConfigName,
+    });
+    // 대체한 설정으로 턴을 이어 갔다는 증거: 설정 단계의 ASSISTANT_NO_LLM_CONFIG 가 아니라 스트림을 여는
+    // 단계의 ASSISTANT_STREAM_FAILED 로 끝난다(stub 클라이언트에 stream 이 없다).
+    expect(res.text).not.toContain('ASSISTANT_NO_LLM_CONFIG');
+    expect(res.text).toContain('ASSISTANT_STREAM_FAILED');
+
+    await request(BASE_URL)
+      .delete(`/api/workflow-assistant/sessions/${sessionId}`)
+      .set(authHeaders());
+    await request(BASE_URL)
+      .delete(`/api/model-configs/${defaultConfigId}`)
       .set(authHeaders());
   }, 60_000);
 });

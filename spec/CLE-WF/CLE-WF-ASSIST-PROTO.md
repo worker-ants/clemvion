@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-PROTO"
 title: "AI 어시스턴트 스트리밍과 세션 API"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "6b14a487ec5eb210de409fce76c6055b4eddfe6622ecd68b86c1880d714db445"
+content_hash: "72efefaacf948ae79357250097ed07989d9d286fcd4a101bbb2e0a864de4ca91"
 read_as: "approved_fallback"
-task: "CLE-T-MX8PSE"
+task: "CLE-T-1K2BM4"
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "4d040aa126bac74fc436c2bde7096143c23334fe4e5a95a287f35cfd27637e6d"
-etag: "sha256-5653cf47e9c65487d21b1b3b4022323d224b5b8cdd563388a50e81e06f77960a"
+mirror_sha256: "9072895467865af1577f15e8c8c1eb84ca977557143f71c99c63bf66297e7814"
+etag: "sha256-a01b4d9615ba03206534df5e23f07e9a0f657fe64c187ec041c5967741fbd9f5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -93,6 +93,9 @@ sequenceDiagram
 탐색·편집 도구 호출은 모두 `tool_call` 이벤트 하나로 발행한다. 프론트엔드는 `data.kind`(`explore` 또는 `edit`)로 후처리를 나눈다. `propose_plan` 만은 화면 카드 전용이라 `plan` 이벤트로 따로 발행한다.
 
 ```text
+event: config_fallback
+data: {"requestedConfigId": "...", "configId": "...", "configName": "Default GPT"}
+
 event: text
 data: {"delta": "안녕하세요..."}
 
@@ -123,13 +126,14 @@ data: {"code": "LLM_RATE_LIMIT", "message": "The LLM provider rate limit was rea
 
 | 이벤트 | 뜻 | 프론트엔드 동작 |
 |--------|----|-----------------|
+| `config_fallback` | 요청이나 세션이 지정한 모델 설정을 찾지 못해(삭제됐거나 워크스페이스 밖이거나 Chat 종류가 아님) 워크스페이스 기본 설정으로 대신했다는 알림(REQ-ASSIST-009). 데이터는 `{requestedConfigId, configId, configName}` 이다. 대신했을 때만 턴의 첫 이벤트로 한 번 온다 | `assistant.configFallbackToast` 토스트에 `configName` 을 넣어 알리고 선택한 모델 설정 값을 비운다. 다음 턴부터는 기본 설정을 쓴다([워크플로우 AI 어시스턴트 §모델 설정](CLE-WF-ASSIST.md#모델-설정)) |
 | `text` | 어시스턴트 텍스트 조각(delta) | 현재 어시스턴트 버블에 덧붙인다 |
 | `tool_call` | 탐색·편집 도구 호출 결과. `data.kind` 로 후처리를 나눈다 | [`data.kind` 별 동작](#tool_call-데이터) |
 | `plan` | `propose_plan` 결과 | 메시지에 계획 카드를 더한다 |
 | `auto_resume` | 서버가 자동 이어서 진행에 들어갔다는 알림 | 현재 버블을 `streaming=false` 로 확정하고 `autoResume={reason, attempt, max}` 메타를 단 새 어시스턴트 버블을 추가한다. 뒤이은 `text`·`tool_call` 은 새 버블로 간다. 새 버블 앞에는 자동 이어서 진행 구분선을 그린다 |
 | `usage` | 토큰 사용량. 데이터는 `{inputTokens, outputTokens, totalTokens, thinkingTokens?, model}` 이고 메시지 행의 `usage` 와 모양이 같다 | 화면 표시는 선택 |
 | `done` | 어시스턴트 턴 종료 | 스트리밍 표시를 끝내고 입력창을 다시 쓸 수 있게 한다 |
-| `error` | 실패. 데이터는 `{code, message}` 다. `message` 는 코드별로 정한 고정 영문이고 한도 숫자처럼 값이 들어가는 자리만 바뀐다. 한 코드에 문구 갈래가 둘인 것도 있다(`ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_TOO_MANY_TOOL_CALLS`). 그래서 소비자는 `message` 로 분기하지 않고 `code` 로 분기한다. 어시스턴트 모듈이 SSE `error` 이벤트로 보내는 모든 `message` 는 백엔드 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트가 쓴 안내문(`LLM_OUTPUT_MALFORMED` 의 안내문 등)은 싣지 않는다. 둘 다 서버 로그에만 남는다 | 에러 코드로 사전 문구를 골라 에러 버블에 보인다. 문구가 없는 코드는 `message` 로 폴백한다. 코드별 안내는 [워크플로우 AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)가 정한다. 코드로 사전 키를 고르는 규칙은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 5 를 따른다 |
+| `error` | 실패. 데이터는 `{code, message}` 다. `message` 는 코드별로 정한 고정 영문이고 한도 숫자처럼 값이 들어가는 자리만 바뀐다. `ASSISTANT_TOO_MANY_TOOL_CALLS` 는 문구 갈래가 둘이다(라운드 상한, 도구 호출 한도). 그래서 소비자는 `message` 로 분기하지 않고 `code` 로 분기한다. 어시스턴트 모듈이 SSE `error` 이벤트로 보내는 모든 `message` 는 백엔드 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트 스트림 `error` 의 `message`(진단 문구)는 싣지 않는다. 둘 다 서버 로그에만 남는다. 코드 목록은 [에러 코드 규약과 카탈로그 §6.25](../CLE-API/CLE-API-ERRCODES.md#625-ai-어시스턴트-스트림-도메인-문서-참조) 에 있다 | 에러 코드로 사전 문구를 골라 에러 버블에 보인다. 문구가 없는 코드는 `message` 로 폴백한다. 코드별 안내는 [워크플로우 AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)가 정한다. 코드로 사전 키를 고르는 규칙은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 5 를 따른다 |
 
 ### `tool_call` 데이터
 
@@ -180,7 +184,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "The LLM provider rate limit was rea
 | `DELETE` | `/api/workflow-assistant/sessions/{id}` | 세션 삭제. 메시지는 cascade 로 함께 지워진다 |
 | `POST` | `/api/workflow-assistant/sessions/{id}/messages` | SSE 스트림. 사용자 메시지를 보내고 응답을 받는다([메시지 스트림 엔드포인트](#메시지-스트림-엔드포인트)) |
 
-- 모든 엔드포인트는 편집자(`editor`) 이상 역할이 필요하다. `workspace_id` 는 JWT 에서 넣는다.
+- 쓰기(세션 생성 · 수정 · 삭제와 메시지 스트림)는 편집자(`editor`) 이상 역할이 필요하다. 조회(`list` · `latest` · `findOne`, 곧 `GET /sessions` · `GET /sessions/latest` · `GET /sessions/{id}`)는 워크스페이스 멤버면 된다. 조회해도 요청자 자신의 세션만 나온다(아래 403 · 404). `workspace_id` 는 JWT 에서 넣는다.
 - 세션이 없거나 요청의 워크스페이스 세션이 아니면 404 `ASSISTANT_SESSION_NOT_FOUND`, 같은 워크스페이스의 다른 사용자 세션이면 403 `ASSISTANT_SESSION_NOT_YOURS` 다. 다른 워크스페이스의 세션을 없는 세션과 구분하지 않는다. 사용자 안내는 [워크플로우 AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)에서 정한다. 세션 REST API 오류 응답의 `message` 는 HTTP 에러 응답 층이라 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다.
 - 보관 전용 `/archive` 엔드포인트는 없다. 보관은 일반 세션 수정으로 `status` 를 바꾼다.
 - 생성 본문의 `workflowId` 와 목록 조회(`GET /sessions?workflowId`)의 `workflowId` 는 같은 워크스페이스의 워크플로우만 받는다. 아니면 404 `WORKFLOW_NOT_FOUND` 다. 없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 예외 3). `GET /sessions/latest` 는 이 검사 없이 요청의 워크스페이스로 세션을 찾으므로 다른 워크스페이스의 워크플로우면 세션이 없을 때와 같은 `null` 이다.
@@ -355,10 +359,22 @@ yield { event: 'auto_resume', data: { reason, attempt, max } };
 - **근거 규칙.** [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 는 HTTP 에러 응답에 라이브러리 예외 원문을 싣지 않는다고 정한다. SSE 이벤트는 그 층이 아니지만 막으려는 노출(CWE-209)이 같다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 은 백엔드 응답을 영문 원문으로 두고 한국어를 넣지 않는다고 정한다.
 - **기각: `message` 필드를 뺀다.** 사전 문구가 없는 코드의 폴백이 사라진다. 그래서 필드를 두고 원문 대신 고정 영문을 싣는다.
 - **기각: LLM 클라이언트가 쓴 안내문을 코드별 허용 목록으로 통과시킨다.** 허용 목록이 `LLM_OUTPUT_MALFORMED` 의 한국어 안내문을 그대로 내보내 규칙 3 과 어긋났다.
-- **LLM 클라이언트 쪽 정정은 따로 한다.** LLM 클라이언트가 쓰는 `LLM_OUTPUT_MALFORMED` 한국어 안내문과 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) · [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 해당 서술은 NERV Task `CLE-T-V73FFA` 가 고친다. 어시스턴트 SSE 는 그 문장을 서버 로그에만 남긴다.
+- **LLM 클라이언트 쪽 정정은 따로 했다.** LLM 클라이언트가 쓰던 `LLM_OUTPUT_MALFORMED` 한국어 안내문과 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) · [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 해당 서술은 NERV Task `CLE-T-V73FFA` 가 2026-11-13 에 고쳤다. 지금 클라이언트는 고정 영문 진단 문장을 싣고 어시스턴트 SSE 는 그 문장도 서버 로그에만 남긴다.
 - **함께 승인한다.** 이 문서와 [워크플로우 AI 어시스턴트](CLE-WF-ASSIST.md) · [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 의 개정판은 NERV Task `CLE-T-MX8PSE` 의 한 변경이라 함께 승인한다.
+
+### `error` 이벤트 데이터를 HTTP 에러 봉투로 감싸지 않는다 (2026-11-13)
+
+SSE `error` 이벤트의 데이터는 `{code, message}` 평면 객체다. HTTP 에러 응답 봉투(`{error: {code, message, requestId, details}}`)와 모양이 다르다. 봉투는 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 HTTP 에러 응답에 정한 형식이고, `error` 이벤트는 열린 스트림 안의 이벤트라 그 층이 아니다. 선례는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md#이벤트-종류) 다. EIA 도 REST 에러 응답은 봉투를 따르고 SSE 이벤트는 봉투 없는 평면 객체로 보낸다. 이 스트림의 다른 이벤트(`text` · `tool_call` · `usage` 등)도 모두 평면 객체라 소비자는 이벤트마다 `data` 를 같은 방식으로 읽는다.
+
+- **기각: 봉투를 그대로 싣는다.** 이벤트 이름이 이미 `error` 인데 데이터 안에 `error` 키로 한 번 더 감싸게 된다. 소비자가 이 이벤트만 다르게 풀어야 한다.
+- **`requestId` · `details` 는 지금 두지 않는다.** 이 이벤트로 나가는 코드 가운데 세부 사유를 실어야 하는 코드가 없다. 필요해지면 필드를 더한다. 필드를 더해도 소비자는 깨지지 않는다.
+
+### 모델 설정 대체를 `config_fallback` 이벤트로 알린다 (2026-11-13)
+
+지정한 모델 설정을 찾지 못해 기본 설정으로 대신할 때 턴을 끝내지 않고 이벤트 하나로 알린다. 근거와 기각한 대안(별도 에러 코드, 알리지 않는 대체)은 [워크플로우 AI 어시스턴트 「모델 설정을 찾지 못하면 기본 설정으로 대신한다 (2026-11-13)」](CLE-WF-ASSIST.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다-2026-11-13) 에 있다. 이 문서는 이벤트 계약만 정한다. 이벤트 타입은 백엔드 `AssistantStreamEvent` 와 프론트엔드 `AssistantSseEvent` 두 union 에 함께 더했다. `requestedConfigId` 는 어느 설정을 찾지 못했는지 알리려고 싣는다. 지금 프론트엔드는 이 값을 쓰지 않고 `configName` 만 토스트 문구에 넣는다.
 
 ### 유지보수 점검
 
 - `auto_resume` 이벤트 형태를 바꾸면 backend `AssistantStreamEvent` union 과 frontend `AssistantSseEvent` union 을 함께 고친다. 컨트롤러는 단순히 `JSON.stringify` 하므로 별도 DTO 가 없다. i18n `assistant.autoResumedHint` 의 자리표시자(`{{attempt}}/{{max}}`)가 페이로드 키 이름에 묶여 있어 키 이름을 바꾸면 함께 고친다.
+- `config_fallback` 이벤트 형태를 바꾸면 backend `AssistantStreamEvent` union, frontend `AssistantSseEvent` union, `assistant.configFallbackToast` 의 자리표시자(`{{name}}`)를 함께 고친다.
 - 어시스턴트 메시지에 필드를 더하면 마이그레이션 SQL 과 엔티티의 nullable·기본값을 맞춘다(`autoResumed` 기본 false, 나머지 null). `appendMessage` 는 `Partial<WorkflowAssistantMessage>` 를 받지만 엔티티를 만들 때 필드를 골라 담는다. 새 필드는 그 목록에도 더해야 저장된다([어시스턴트 메시지](#어시스턴트-메시지)).

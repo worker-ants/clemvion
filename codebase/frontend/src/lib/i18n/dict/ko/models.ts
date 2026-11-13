@@ -22,6 +22,7 @@ export const models = {
   dimensionAutoHint: "연결 테스트 시 자동 감지된 차원입니다.",
   dimensionManualHint: "연결 테스트로 자동 감지하거나 직접 입력하세요.",
   temperature: "Temperature",
+  temperatureAnthropicHint: "Anthropic 모델에는 Temperature 를 보내지 않아요.",
   maxTokens: "Max Tokens",
   updateBtn: "수정",
 

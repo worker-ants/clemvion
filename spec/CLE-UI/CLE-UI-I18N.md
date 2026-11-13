@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N"
 title: "다국어와 화면 문구"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "7a739ad3d68435333fe4ab5d7b3e17734e028ef0a78c5377c91006617210823b"
+content_hash: "daa4bdeb566f7ec1946c58dc6e2fea4ab5103fa89e4b2767a38cca8ef3c2ea42"
 read_as: "approved_fallback"
-task: "CLE-T-GNTWP9"
+task: "CLE-T-YFDSY7"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "b5deb98f73a2bdbff71406d407df5189217b8198cab4a5d4bfb6aa5935dd5b43"
-etag: "sha256-4a8d5a1479ea8ecfcdc4c6ee173fd528b1729a40d2d203a82de17308676c5a44"
+mirror_sha256: "c89652d06493d327d80171869b19cf942d42c78932d8ff460a237934d0a1dcbc"
+etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,6 +52,7 @@ etag: "sha256-4a8d5a1479ea8ecfcdc4c6ee173fd528b1729a40d2d203a82de17308676c5a44"
    - 금지: JSX 텍스트, 속성(`label`, `placeholder`, `title`, `aria-label`, `alt` 등), 문자열 리터럴에 한국어를 직접 쓰는 것.
    - 허용: 주석(`//`, `/** */`)·JSDoc·테스트 fixture·스토리북 데모·하위 호환용 영문 폴백. 폴백도 되도록 키로 옮긴다.
    - 영문 폴백이나 접근성 전용 문자열도 사전 경유를 먼저 쓴다.
+   - **알려진 예외: 어시스턴트 도구 호출 배지 요약**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#i18n-키) 의 도구 호출 배지 요약(`tool-call-badge.tsx` 의 `summarize()`)은 사전 키를 거치지 않는 영문 고정 문자열이라 한국어 로케일에서도 영문으로 보인다. 재시도 후 성공 표시만 `assistant.toolCallBadgeRetryRecovered` 를 쓴다. 이 문자열은 프론트엔드가 만들므로 백엔드 영문을 매핑하는 규칙 3 의 대상도 아니다. 한국어가 아니어서 규칙 1 의 하드코딩 한국어 가드에도 걸리지 않는다. 그래서 이 항목으로 예외를 적어 둔다. 사전 키로 옮기는 일은 NERV Task `CLE-T-F9QEJC` 가 맡고, 옮기면 이 항목을 지운다.
 
    위반 예:
 
@@ -98,7 +99,7 @@ etag: "sha256-4a8d5a1479ea8ecfcdc4c6ee173fd528b1729a40d2d203a82de17308676c5a44"
    | --- | --- | --- | --- |
    | API 에러 응답 봉투 코드(`GRAPH_VALIDATION_FAILED` 등), 노드 `output.error.code`(`ErrorCode` enum) | 에러 코드(UPPER_SNAKE) | `ERROR_KO` | `translateBackendError(code, params, locale, fallback)` |
    | `graphWarningRules[].message`(노드를 넘는 동적 경고) | 규칙 ID(`ruleId`, 예: `parallel:nested-depth-exceeded`) | `GRAPH_WARNING_KO` | `translateGraphWarning(result, locale)` |
-   | AI 어시스턴트 SSE `error` 이벤트의 `code`: `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_STREAM_FAILED` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)) | 에러 코드(UPPER_SNAKE) | 어시스턴트 패널 모듈의 `ERROR_MESSAGE_KEYS`(`ReadonlyMap`, 코드 → `assistant.*` 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `t(key)` |
+   | AI 어시스턴트 SSE `error` 이벤트의 `code`: `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_STREAM_FAILED` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`([에러 코드 규약과 카탈로그 §6.25](../CLE-API/CLE-API-ERRCODES.md#625-ai-어시스턴트-스트림-도메인-문서-참조)) | 에러 코드(UPPER_SNAKE) | 어시스턴트 패널 모듈의 `ERROR_MESSAGE_KEYS`(`ReadonlyMap`, 코드 → `assistant.*` 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `t(key)` |
    | 통합 화면 에러 응답 코드(REST 봉투): `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` · `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `INTEGRATION_NAME_TAKEN` · `INTEGRATION_OWNER_NOT_MEMBER`([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)) | 에러 코드(UPPER_SNAKE) | `integration-error-codes.ts` 의 `INTEGRATION_ERROR_CODE_TO_I18N`(코드 → `integrations.*` 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `formatIntegrationErrorToast(err, t, fallbackKey)` |
 
    - **끼워 넣기 계약**: 1행 · 2행의 백엔드는 영문 `message`(원문이자 폴백)와 함께 동적 값을 `params: Record<string, string | number>` 로 보낸다. 그래프 경고는 `GraphWarningRule.evaluate` 의 반환 타입 `{ message, params? }` 가 그 계약이다([그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md)). 프론트엔드 템플릿은 기존 `core.ts` 의 `interpolate()` 와 `{{name}}` 이중 중괄호를 그대로 쓴다. 새 끼워 넣기 문법을 만들지 않는다. `ERROR_KO` · `GRAPH_WARNING_KO` 에 매핑이 없거나 한국어가 아닌 로케일이면 영문 `message` 로 폴백한다. 3행(어시스턴트)은 `params` 를 쓰지 않는다. 3행에서는 표에 없는 코드만 서버가 보낸 영문 `message` 로 폴백한다. 그 `message` 는 백엔드 문구 표에 있는 코드면 코드별 고정 영문이고 없는 코드면 공통 폴백 문구다([워크플로우 AI 어시스턴트 §에러 처리](../CLE-WF/CLE-WF-ASSIST.md#에러-처리)). 4행(통합 화면)도 `params` 를 쓰지 않는다. 4행이 끼워 넣는 값은 설치 대기 409 의 `details.pendingInstallExpiresAt` 하나다. 그 값이 있으면 화면 시각으로 바꿔 `integrations.retryAfterPendingInstallExpiry` 문구의 `{{expiresAt}}` 에 넣고 사전 문구 뒤에 붙인다. 4행은 표에 있는 코드면 사전 문구 뒤 괄호에 서버 `message` 를 붙이고 표에 없는 코드면 서버 `message` 로 폴백한다.
@@ -242,7 +243,7 @@ MDX 주석(`{/* … */}`)과 HTML 주석은 예전부터 본문 검사 밖에 �
 - **대조의 남은 한계.** 백엔드 테스트는 프론트엔드 소스를 문자열로 읽는다. `export const ERROR_MESSAGE_KEYS` 선언 줄에서 시작하는 `new Map([["CODE", "assistant.key"], ...])` 리터럴에서만 코드를 뽑는다. 표 모양을 바꾸면(다른 파일로 옮기기, 객체 리터럴로 바꾸기 등) 추출식도 같은 변경에서 고쳐야 한다. 선언을 못 찾거나 코드를 하나도 뽑지 못하면 테스트는 통과하지 않고 지켜야 할 리터럴 모양을 적어 실패한다. 프론트엔드 테스트의 코드 목록은 여전히 사람이 적고 `ERROR_MESSAGE_KEYS` 와만 맞춘다.
 - **기각: 두 패키지가 함께 쓰는 상수 패키지(`codebase/packages/*`)에 코드 집합을 둔다(2026-11-12).** 2026-10-24 구현은 공유 상수를 만들지 않았지만 그 이유를 남기지 않았다. NERV Task `CLE-T-GXCJAB` 에서 다시 따졌다. 공유 패키지가 줄 수 있는 것은 코드 집합 하나다. 문구 표는 양쪽에 그대로 남는다(백엔드는 코드별 고정 영문, 프론트엔드는 사전 키). 코드 가운데 셋(`LLM_*`)은 백엔드 LLM 클라이언트 층의 스트림 에러 코드다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)). 공유 패키지로 옮기면 그 층의 코드 정의가 백엔드 밖으로 나가거나 두 곳에 적힌다. 백엔드 테스트가 이미 한쪽만 바뀐 변경을 잡으므로 그 비용을 들이지 않았다. 대조의 한계가 실제 누락으로 이어지면 다시 본다.
 - **규칙 3 과의 관계.** 서버는 코드별 고정 영문만 보내고 한국어 문구는 프론트엔드가 코드로 고른 `assistant.*` 사전 키에서 온다. `LLM_OUTPUT_MALFORMED` · `ASSISTANT_TOO_MANY_TOOL_CALLS` 도 다른 코드와 같이 고정 영문을 보낸다. 서버 `message` 의 문구는 [워크플로우 AI 어시스턴트 §에러 처리](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) 가 정한다. LLM 클라이언트 안내문을 코드별 허용 목록으로 통과시키는 안은 기각했다. 그 목록이 `LLM_OUTPUT_MALFORMED` 의 한국어 안내문을 그대로 내보내 규칙 3 과 어긋났기 때문이다.
-- **LLM 클라이언트 쪽 정정은 따로 한다.** LLM 클라이언트가 쓰는 `LLM_OUTPUT_MALFORMED` 한국어 안내문과 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) · [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 해당 서술은 NERV Task `CLE-T-V73FFA` 가 고친다. 어시스턴트 SSE 는 그 문장을 서버 로그에만 남긴다.
+- **LLM 클라이언트 쪽 정정은 따로 했다.** LLM 클라이언트가 쓰던 `LLM_OUTPUT_MALFORMED` 한국어 안내문과 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) · [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 해당 서술은 NERV Task `CLE-T-V73FFA` 가 2026-11-13 에 고쳤다. 지금 클라이언트는 고정 영문 진단 문장을 싣고 어시스턴트 SSE 는 그 문장도 서버 로그에만 남긴다. 백엔드 응답의 한국어가 하나 줄어 규칙 3 과도 맞는다.
 - **함께 승인한다.** 이 개정판과 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) · [AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md) 의 개정판은 NERV Task `CLE-T-MX8PSE` 의 한 변경이라 함께 승인한다.
 
 ### 통합 화면 에러 코드를 통합 화면 모듈의 표로 매핑하는 이유 (2026-10-30)

@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "ecaf7d88538d4622c718ed6d61d9fbc0954ce748241fdd51e46421c5c405bc30"
+content_hash: "20dafd2a14bb0dcb4a1599c917f7934cbc40e047fecfcc2a5417e980c9c038f3"
 read_as: "approved_fallback"
-task: "CLE-T-GKZPKY"
+task: "CLE-T-7KYH1X"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "cccc1dd163d68c9e0157bbf6a48317f32f292808b975392358831d9a07e0bee6"
-etag: "sha256-42285d8e2bc0ef4435a3c156fbb0ade48dbbb08cc5173601b10bc5971d1acafb"
+mirror_sha256: "0dc8a713ae52584c51e0ead0c30205a4b65214b4e48aa548f45eb232ec525ab9"
+etag: "sha256-82334eda6549ad46aa57eb477ef4193bdc444cfa7e54e833767a5334a003ee0f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -370,7 +370,7 @@ Gemini Developer API 버전은 SDK 기본값을 따르지 않고 `v1beta` 로 �
 |----------|----------|------|
 | 속도 제한 | 429 | `LLM_RATE_LIMIT`. `chat` 은 지수 백오프로 최대 3회 재시도(`withRetry`). `chatStream` 은 [호출 신뢰성 계약](#호출-신뢰성-계약) 참조 |
 | 네트워크·기타 실패 | - | `LLM_CONNECTION_ERROR`. 위 분기에 들지 않는 모든 클라이언트 호출 실패의 기본값이다(인증 실패·모델 없음·컨텍스트 초과 포함) |
-| 출력 오염 | - | `LLM_OUTPUT_MALFORMED`. gpt-oss 계열 harmony 제어 토큰이 드러날 때(OpenAI 스트리밍 경로). 사용자에게는 안내문으로 바꿔 보여 준다([harmony 제어 토큰 거르기](#harmony-제어-토큰-거르기)) |
+| 출력 오염 | - | `LLM_OUTPUT_MALFORMED`. gpt-oss 계열 harmony 제어 토큰이 드러날 때(OpenAI 스트리밍 경로). `message` 는 고정 영문 진단 문장이고, 화면 문구는 호출하는 쪽이 코드로 고른다([harmony 제어 토큰 거르기](#harmony-제어-토큰-거르기)) |
 | 자격 증명 누락 | 400 | `LLM_CREDENTIALS_REQUIRED`. 미리보기 요청에서 local 이 아닌 프로바이더의 `apiKey` 가 없을 때 |
 | 프로바이더 설정 에러 | 400 | `MODEL_CONFIG_INVALID`. 팩토리 생성 실패(azure·local 의 `baseUrl` 누락, 알 수 없는 프로바이더) 또는 SSRF 차단 |
 | 모델 목록 조회 실패 | 400 | `LLM_MODEL_LIST_FAILED`. 미리보기·`:id/models` 호출 중 프로바이더 응답이 실패할 때. sanitize 한 메시지를 싣는다 |
@@ -387,7 +387,7 @@ gpt-oss 계열 모델(예: gpt-oss-120b)은 `<|channel|>final<|message|>...` 같
 1. 스트리밍 중에 `delta.content` 와 tool_call 인자에서 제어 토큰을 지운다(`stripHarmonyTokens`). 패턴은 두 개다.
    - `HARMONY_CHANNEL_PREAMBLE_REGEX = /<\|channel\|>[\s\S]*?<\|message\|>/g`: 채널 이름을 포함한 preamble 전체를 한 번에 지운다.
    - `HARMONY_STANDALONE_TOKEN_REGEX = /<\|(channel|start|end|message|return|constrain|...)\|>/g`: 남은 단독 토큰을 지운다.
-2. catch 블록에서 에러 메시지가 harmony 패턴과 맞으면 `LLM_OUTPUT_MALFORMED` 로 분류하고 사용자용 한국어 안내문으로 바꾼다. 원시 메시지는 화면에 내보내지 않고 로그에만 남긴다.
+2. catch 블록에서 에러 메시지가 harmony 패턴과 맞으면 `LLM_OUTPUT_MALFORMED` 로 분류한다. 스트림 `error` 이벤트의 `message` 에는 원시 메시지 대신 고정 영문 진단 문장(`HARMONY_OUTPUT_MALFORMED_MESSAGE`)을 싣고, 원시 메시지는 경고 로그에만 남긴다. 사용자에게 보일 문구는 클라이언트가 정하지 않는다. 호출하는 쪽이 `code` 로 고르고, 워크플로우 AI 어시스턴트는 코드별 고정 문구를 보낸다([워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md)).
 
 새 제어 토큰이 관찰되면 `HARMONY_STANDALONE_TOKEN_REGEX` 의 선택지에 더한다. 어시스턴트 화면에서 렌더 직전에 한 번 더 거르는 규칙(`sanitizeAssistantText`)과 이 대응을 들인 경위는 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 에서 다룬다.
 
@@ -420,7 +420,9 @@ type ChatStreamEvent =
       signature?: string }   // 완성된 tool call 전체를 싣는다. signature 는 ToolCall.signature 와 같다
   | { type: 'done'; usage: TokenUsage; model: string;
       finishReason: ChatResponse['finishReason'] | 'aborted' }   // 'aborted' = 클라이언트 취소
-  | { type: 'error'; code: string; message: string };
+  | { type: 'error'; code: LlmStreamErrorCode; message: string };   // message 는 서버 로그용 진단 문구
+
+type LlmStreamErrorCode = 'LLM_RATE_LIMIT' | 'LLM_CONNECTION_ERROR' | 'LLM_OUTPUT_MALFORMED';
 ```
 
 | 이벤트 | 의미 |
@@ -429,7 +431,7 @@ type ChatStreamEvent =
 | `tool_call_delta` | tool_call 인자의 부분 증분. 같은 `id` 로 여러 번 나온 뒤 `tool_call_end` 로 끝난다 |
 | `tool_call_end` | tool_call 한 건 완성. 완성된 `name`·`arguments`(+`signature?`)를 싣는다. 호출하는 쪽이 shadow 실행·검증을 시작할 시점이다 |
 | `done` | 스트림 전체 종료. usage 는 LLM 응답에 들어 있을 때만 정확하고, 없으면 `0` 으로 보고한다 |
-| `error` | 스트림 중단 사유. 클라이언트는 이후 이벤트를 받지 않는다 |
+| `error` | 스트림 중단 사유. `code` 는 `LlmStreamErrorCode` 세 값 중 하나다. `message` 는 서버 로그용 진단 문구라 화면에 그대로 보이지 않는다. 대개 프로바이더나 SDK 의 원문이라 요청 내용이나 모델 출력이 섞일 수 있고, `LLM_OUTPUT_MALFORMED` 만 고정 영문 문장이다. 호출하는 쪽은 사용자에게 보일 문구를 `code` 로 고른다. 클라이언트는 이후 이벤트를 받지 않는다 |
 
 ### 프로바이더별 구현
 
@@ -639,6 +641,10 @@ Anthropic 클라이언트의 `chat()`·`stream()` 은 `ChatParams` 의 `temperat
 - **옛 API 버전 헤더를 고정해 이전 모델에 계속 보내는 안은 기각했다.** SDK 1.x 요청 타입에 세 필드가 없어서 타입을 우회해야 한다. 클라이언트도 옛 API 버전에 묶인다. 사용자가 제거를 택했다(2026-11-12).
 
 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 설정 화면의 Temperature 필드 힌트(`ai-agent.schema.ts`)와 유저 가이드의 AI 노드 문서에 Anthropic 모델에는 이 값이 적용되지 않는다고 적었다.
+
+### 스트림 오류 `message` 는 진단용으로 둔다 (2026-11-13)
+
+harmony 제어 토큰이 드러나면 `openai.client.ts` 는 처음에 `LLM_OUTPUT_MALFORMED` 의 `message` 에 사용자용 한국어 안내문을 실었다. 그런데 이 문구를 쓰는 유일한 소비자인 워크플로우 AI 어시스턴트는 클라이언트 `message` 를 로그에만 남기고 화면에는 코드별 고정 문구를 보낸다. 한국어 문장은 화면에 나가지 않은 채 다국어 규약의 하드코딩 한국어 점검에만 걸렸다. 그래서 클라이언트 계층은 사용자 문구를 정하지 않고, 스트림 `error` 의 `message` 는 어느 코드든 진단용으로 둔다. `LLM_OUTPUT_MALFORMED` 는 SDK 원문에 모델 출력이 섞일 수 있어 고정 영문 문장을 싣고 원문은 경고 로그에만 남긴다. 사용자에게 보일 문구를 클라이언트에서 정하는 안은 소비자마다 화면 언어와 안내 내용이 달라 택하지 않았다.
 
 ### Gemini API 버전을 v1beta 로 고정한다 (2026-11-12)
 

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import {
   LLMClient,
@@ -28,7 +29,9 @@ import {
  *     → 다운스트림 (assistant SSE · 프론트 뷰) 에 노출되지 않게 한다.
  *  2) OpenAI SDK 가 SSE chunk 자체를 파싱하지 못해 throw 하는 경우 (이미 늦은
  *     시점), catch 블록에서 에러 메세지를 sniff 해 `LLM_OUTPUT_MALFORMED` 로
- *     분류하고 사용자 친화적 메세지로 치환한다.
+ *     분류한다. 스트림 `error` 이벤트의 `message` 는 고정 영문
+ *     `HARMONY_OUTPUT_MALFORMED_MESSAGE` 이고 SDK 원문은 warn 로그로만 남긴다.
+ *     화면 문구는 소비자가 코드로 고른다 (어시스턴트는 `assistant.*` 사전 키).
  */
 // 채널 preamble 전체: `<|channel|>channel_name<|message|>` 을 한 번에 제거 —
 // channel_name 자체가 delimiter 밖에 bare text 로 나오기 때문에 단순 delimiter
@@ -59,7 +62,17 @@ function isHarmonyParseError(message: string): boolean {
   return /<\|(channel|start|message|end|return)\|>/.test(message);
 }
 
+/**
+ * `LLM_OUTPUT_MALFORMED` 스트림 `error` 이벤트의 `message`. 서버 로그용 고정
+ * 영문이다. SDK 원문에는 제어 토큰과 모델 출력이 섞여 있어 이 문장으로 바꾸고
+ * 원문은 warn 로그로 남긴다.
+ */
+export const HARMONY_OUTPUT_MALFORMED_MESSAGE =
+  'The model output contained harmony control tokens, so the stream was stopped. ' +
+  'The model server chat template (e.g. for gpt-oss) may be misconfigured.';
+
 export class OpenAIClient implements LLMClient {
+  private readonly logger = new Logger(OpenAIClient.name);
   protected client: OpenAI;
 
   constructor(
@@ -403,15 +416,18 @@ export class OpenAIClient implements LLMClient {
           : isHarmonyParseError(message)
             ? 'LLM_OUTPUT_MALFORMED'
             : 'LLM_CONNECTION_ERROR';
-        // harmony 토큰 오염 케이스는 사용자에게 원본 메세지를 그대로 보여주면
-        // 혼란스럽다 (내부 제어 토큰이 그대로 노출되어 깨진 텍스트처럼 보임).
-        // 사용자는 "서비스/설정 문제" 로 인식할 수 있는 톤의 안내문으로 치환한다.
-        // raw 메세지는 서버 로그에만 남긴다 (throw 위치에서 이미 기록됨).
-        const userMessage =
-          code === 'LLM_OUTPUT_MALFORMED'
-            ? '모델이 내부 harmony 제어 토큰을 응답에 노출해 처리를 중단했어요. 오픈소스 모델(gpt-oss 계열) 의 chat template 설정 문제일 수 있습니다. 다른 모델(OpenAI / Anthropic / Google) 로 전환하거나 서빙 설정을 확인해 주세요.'
-            : message;
-        yield { type: 'error', code, message: userMessage };
+        // harmony 토큰 오염이면 SDK 원문(제어 토큰 · 모델 출력)을 warn 로그로
+        // 남기고 `message` 는 고정 영문으로 바꾼다. 다른 코드는 SDK 원문을
+        // 그대로 싣는다. 어느 쪽이든 `message` 는 화면용이 아니다
+        // (`ChatStreamEvent` 의 `error` 변형 주석).
+        let eventMessage = message;
+        if (code === 'LLM_OUTPUT_MALFORMED') {
+          this.logger.warn(
+            `Harmony control tokens broke the stream parse: ${message}`,
+          );
+          eventMessage = HARMONY_OUTPUT_MALFORMED_MESSAGE;
+        }
+        yield { type: 'error', code, message: eventMessage };
         return;
       }
     }

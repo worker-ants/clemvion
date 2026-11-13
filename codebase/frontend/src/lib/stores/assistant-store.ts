@@ -365,6 +365,10 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
           llmConfigId: state.llmConfigId ?? undefined,
         },
         (event) => {
+          if (event.event === "config_fallback") {
+            applyConfigFallbackEvent(set, event);
+            return;
+          }
           if (event.event === "auto_resume") {
             currentAssistantId = applyAutoResumeEvent(
               set,
@@ -518,6 +522,27 @@ export function applyAutoResumeEvent(
     streamingMessageId: nextId,
   }));
   return nextId;
+}
+
+/**
+ * 서버의 `config_fallback` SSE 이벤트를 처리한다(REQ-ASSIST-009). 지정한 모델
+ * 설정이 삭제됐거나 워크스페이스 밖이라 서버가 워크스페이스 기본 설정으로
+ * 대신했다. 토스트로 알리고 선택 값을 비워 다음 턴부터 없는 id 를 보내지 않는다.
+ * 메시지 버블과 무관한 스토어 상태라 `handleSseEvent` 밖에서 처리한다.
+ *
+ * Exported for unit testing — production callers go through `sendMessage`.
+ */
+export function applyConfigFallbackEvent(
+  set: (partial: Partial<AssistantState>) => void,
+  event: Extract<AssistantSseEvent, { event: "config_fallback" }>,
+): void {
+  set({ llmConfigId: null });
+  const locale = useLocaleStore.getState().locale;
+  toast.info(
+    translate(locale, "assistant.configFallbackToast", {
+      name: event.data.configName,
+    }),
+  );
 }
 
 /**

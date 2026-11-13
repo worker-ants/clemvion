@@ -1,4 +1,4 @@
-import { BadRequestException, Logger } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import {
   WorkflowAssistantStreamService,
   toRuntimePortDescriptor,
@@ -14,6 +14,7 @@ import type {
   ChatStreamEvent,
   LlmStreamErrorCode,
 } from '../llm/interfaces/llm-client.interface';
+import { HARMONY_OUTPUT_MALFORMED_MESSAGE } from '../llm/clients/openai.client';
 import { z } from 'zod';
 import { carouselNodeMetadata } from '../../nodes/presentation/carousel/carousel.schema';
 import { evaluateMetadataBlockingErrors } from '../../nodes/core/metadata-validation';
@@ -3012,20 +3013,237 @@ describe('WorkflowAssistantStreamService', () => {
     });
   });
 
-  it('returns ASSISTANT_NO_LLM_CONFIG error when config resolution fails', async () => {
+  it('returns ASSISTANT_NO_LLM_CONFIG error when no usable config exists', async () => {
     const { service, mocks } = makeService();
-    mocks.llmService.resolveConfig.mockRejectedValue(new Error('no config'));
-
-    const events = await collect(
-      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    mocks.llmService.resolveConfig.mockRejectedValue(
+      new BadRequestException('no default config'),
     );
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      event: 'error',
-      data: expect.objectContaining({ code: 'ASSISTANT_NO_LLM_CONFIG' }),
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    try {
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        event: 'error',
+        data: expect.objectContaining({ code: 'ASSISTANT_NO_LLM_CONFIG' }),
+      });
+      // No message persistence when config missing.
+      expect(mocks.sessionService.appendMessage).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  // REQ-ASSIST-009: 지정한 모델 설정이 삭제됐거나 워크스페이스 밖이면(조회가
+  // NotFoundException) 워크스페이스 기본 설정으로 대신하고 턴 맨 앞의
+  // `config_fallback` 이벤트로 알린다. 기본 설정도 없을 때만
+  // ASSISTANT_NO_LLM_CONFIG 이고, 설정 조회 자체가 실패하면(DB 장애 등)
+  // ASSISTANT_STREAM_FAILED 다.
+  describe('model config fallback (REQ-ASSIST-009)', () => {
+    const MISSING_ID = '00000000-0000-4000-8000-000000000001';
+    const DEFAULT_CONFIG = {
+      id: 'cfg-default',
+      workspaceId: 'ws-1',
+      name: 'Workspace default',
+      provider: 'openai',
+      defaultModel: 'gpt-4o-mini',
+    };
+    const dtoWithMissingId = { ...baseDto, llmConfigId: MISSING_ID };
+
+    let warn: jest.SpyInstance;
+    let error: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
     });
-    // No message persistence when config missing.
-    expect(mocks.sessionService.appendMessage).not.toHaveBeenCalled();
+    afterEach(() => {
+      warn.mockRestore();
+      error.mockRestore();
+    });
+
+    const notFound = () =>
+      new NotFoundException({
+        code: 'MODEL_CONFIG_NOT_FOUND',
+        message: 'Model config not found',
+      });
+
+    // 지정한 id 로 조회하면 requestedErr, 기본 설정 조회(id 없음)면 defaultResult
+    // (Error 면 reject, 아니면 resolve)를 돌려준다.
+    const rejectByRequest = (
+      mocks: ReturnType<typeof makeService>['mocks'],
+      requestedErr: Error,
+      defaultResult: Error | typeof DEFAULT_CONFIG,
+    ) => {
+      mocks.llmService.resolveConfig.mockImplementation(
+        (id: string | undefined) => {
+          if (id) return Promise.reject(requestedErr);
+          return defaultResult instanceof Error
+            ? Promise.reject(defaultResult)
+            : Promise.resolve(defaultResult);
+        },
+      );
+    };
+
+    const runTurn = (
+      service: ReturnType<typeof makeService>['service'],
+      dto: unknown = dtoWithMissingId,
+    ) => collect(service.streamMessage('sess-1', 'ws-1', 'u-1', dto as never));
+
+    const expectedError = (
+      code: keyof typeof ASSISTANT_STREAM_ERROR_MESSAGES,
+    ) => ({
+      event: 'error',
+      data: { code, message: ASSISTANT_STREAM_ERROR_MESSAGES[code] },
+    });
+
+    const doneStream = (model: string) => () =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model,
+          finishReason: 'stop',
+        },
+      ]);
+
+    it('falls back to the workspace default and announces it first', async () => {
+      const { service, mocks } = makeService();
+      rejectByRequest(mocks, notFound(), DEFAULT_CONFIG);
+      mocks.llmService.chatStream.mockImplementation(doneStream('gpt-4o-mini'));
+
+      const events = await runTurn(service);
+
+      expect(events[0]).toEqual({
+        event: 'config_fallback',
+        data: {
+          requestedConfigId: MISSING_ID,
+          configId: 'cfg-default',
+          configName: 'Workspace default',
+        },
+      });
+      expect(mocks.llmService.resolveConfig.mock.calls).toEqual([
+        [MISSING_ID, 'ws-1'],
+        [undefined, 'ws-1'],
+      ]);
+      // 대체한 설정으로 턴을 처리한다.
+      expect(mocks.llmService.chatStream.mock.calls[0][0]).toBe(DEFAULT_CONFIG);
+      expect(events.some((e) => e.event === 'error')).toBe(false);
+      expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+        MISSING_ID,
+      );
+    });
+
+    it('falls back when only the session holds the missing config id', async () => {
+      const { service, mocks } = makeService();
+      mocks.sessionService.findOneForUser.mockResolvedValue({
+        id: 'sess-1',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        workflowId: 'wf-1',
+        title: null,
+        llmConfigId: MISSING_ID,
+      });
+      rejectByRequest(mocks, notFound(), DEFAULT_CONFIG);
+      mocks.llmService.chatStream.mockImplementation(doneStream('gpt-4o-mini'));
+
+      // dto 에는 llmConfigId 가 없다. 세션에 저장된 값으로 조회한다.
+      const events = await runTurn(service, baseDto);
+
+      expect(events[0]).toEqual({
+        event: 'config_fallback',
+        data: {
+          requestedConfigId: MISSING_ID,
+          configId: 'cfg-default',
+          configName: 'Workspace default',
+        },
+      });
+      expect(mocks.llmService.resolveConfig.mock.calls).toEqual([
+        [MISSING_ID, 'ws-1'],
+        [undefined, 'ws-1'],
+      ]);
+    });
+
+    it('sends no config_fallback event when the requested config resolves', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(doneStream('gpt-4o'));
+
+      const events = await runTurn(service);
+
+      expect(events.some((e) => e.event === 'config_fallback')).toBe(false);
+      expect(mocks.llmService.resolveConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it('ends with ASSISTANT_NO_LLM_CONFIG when the workspace has no default either', async () => {
+      const { service, mocks } = makeService();
+      rejectByRequest(
+        mocks,
+        notFound(),
+        new BadRequestException('no default config'),
+      );
+
+      const events = await runTurn(service);
+
+      expect(events).toEqual([expectedError('ASSISTANT_NO_LLM_CONFIG')]);
+      expect(error).not.toHaveBeenCalled();
+    });
+
+    it('ends with ASSISTANT_STREAM_FAILED without a fallback when the lookup itself fails', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockRejectedValue(
+        new Error('connection terminated unexpectedly'),
+      );
+
+      const events = await runTurn(service);
+
+      expect(events).toEqual([expectedError('ASSISTANT_STREAM_FAILED')]);
+      expect(mocks.llmService.resolveConfig).toHaveBeenCalledTimes(1);
+      expect(error.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+        'connection terminated unexpectedly',
+      );
+    });
+
+    it('ends with ASSISTANT_STREAM_FAILED when the default lookup fails after a not-found', async () => {
+      const { service, mocks } = makeService();
+      rejectByRequest(mocks, notFound(), new Error('pool exhausted'));
+
+      const events = await runTurn(service);
+
+      expect(events).toEqual([expectedError('ASSISTANT_STREAM_FAILED')]);
+    });
+
+    it('ends with ASSISTANT_STREAM_FAILED, not NO_LLM_CONFIG, when the default lookup throws NotFoundException', async () => {
+      const { service, mocks } = makeService();
+      // 실제 resolveConfig(undefined) 는 findDefault 가 null 이면 BadRequest 를
+      // 던지고 NotFound 는 던지지 않는다. 그래도 NotFound 가 나오면 "기본 설정
+      // 없음" 이 아니라 조회 실패로 본다.
+      rejectByRequest(mocks, notFound(), notFound());
+
+      const events = await runTurn(service);
+
+      expect(events).toEqual([expectedError('ASSISTANT_STREAM_FAILED')]);
+      expect(mocks.llmService.resolveConfig).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not try a fallback when no config was requested', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.resolveConfig.mockRejectedValue(
+        new BadRequestException('no default config'),
+      );
+
+      const events = await runTurn(service, baseDto);
+
+      expect(events.map((e) => e.event)).toEqual(['error']);
+      expect(mocks.llmService.resolveConfig.mock.calls).toEqual([
+        [undefined, 'ws-1'],
+      ]);
+    });
   });
 
   // REQ-ASSIST-048: 스트림이 실패하면 턴을 끝내고 SSE `error` 이벤트에 코드와
@@ -3181,14 +3399,18 @@ describe('WorkflowAssistantStreamService', () => {
       expect(loggedText()).toContain(RAW);
     });
 
-    it('does not forward the guidance the LLM client writes for LLM_OUTPUT_MALFORMED', async () => {
+    it('does not forward the LLM client message for LLM_OUTPUT_MALFORMED', async () => {
       const { service, mocks } = makeService();
-      // 클라이언트(openai.client.ts)가 사용자용으로 쓴 안내문도 화면으로 보내지
-      // 않는다. 서버는 코드별 고정 영문만 보내고 안내문은 로그에만 남는다.
-      const guidance = '모델이 harmony 제어 토큰을 응답에 노출했어요';
+      // 클라이언트(openai.client.ts)의 `message` 는 진단용이라 화면으로 보내지
+      // 않는다. 서버는 코드별 고정 영문만 보내고 클라이언트 문장은 로그에만 남는다.
+      const clientMessage = HARMONY_OUTPUT_MALFORMED_MESSAGE;
       mocks.llmService.chatStream.mockImplementation(() =>
         asyncIter<ChatStreamEvent>([
-          { type: 'error', code: 'LLM_OUTPUT_MALFORMED', message: guidance },
+          {
+            type: 'error',
+            code: 'LLM_OUTPUT_MALFORMED',
+            message: clientMessage,
+          },
         ]),
       );
 
@@ -3200,11 +3422,11 @@ describe('WorkflowAssistantStreamService', () => {
         code: 'LLM_OUTPUT_MALFORMED',
         message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_OUTPUT_MALFORMED,
       });
-      expect(JSON.stringify(events)).not.toContain(guidance);
-      expect(loggedText()).toContain(guidance);
+      expect(JSON.stringify(events)).not.toContain(clientMessage);
+      expect(loggedText()).toContain(clientMessage);
     });
 
-    it('does not forward the config resolution error text for ASSISTANT_NO_LLM_CONFIG', async () => {
+    it('does not forward the config lookup error text when the lookup fails', async () => {
       const { service, mocks } = makeService();
       mocks.llmService.resolveConfig.mockRejectedValue(new Error(RAW));
 
@@ -3213,8 +3435,8 @@ describe('WorkflowAssistantStreamService', () => {
       );
 
       expect(errorEventOf(events)).toEqual({
-        code: 'ASSISTANT_NO_LLM_CONFIG',
-        message: 'Failed to resolve LLM config.',
+        code: 'ASSISTANT_STREAM_FAILED',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
       });
       expect(JSON.stringify(events)).not.toContain('sk-raw-secret');
       expect(loggedText()).toContain(RAW);

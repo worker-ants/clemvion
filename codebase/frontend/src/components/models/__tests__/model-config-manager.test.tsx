@@ -239,6 +239,43 @@ describe("ModelConfigManager — kind-based render branches", () => {
     expect(screen.queryByText("Dimension")).toBeNull();
   });
 
+  it("chat kind — anthropic provider: Temperature disabled with a hint, value kept (REQ-MODELS-007)", async () => {
+    getAllMock.mockResolvedValue(EMPTY_PAGE);
+
+    await act(async () => {
+      render(<ModelConfigManager kind="chat" />, { wrapper: createWrapper() });
+    });
+
+    fireEvent.click(screen.getByText("Add Model"));
+
+    const temperatureInput = screen.getByLabelText("Temperature");
+    expect(temperatureInput).not.toBeDisabled();
+    expect(screen.queryByText("Anthropic models don't receive Temperature.")).toBeNull();
+
+    fireEvent.change(temperatureInput, { target: { value: "0.3" } });
+    const providerSelect = screen.getByDisplayValue("Select a provider");
+    fireEvent.change(providerSelect, { target: { value: "anthropic" } });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Temperature")).toBeDisabled();
+    });
+    const hint = screen.getByText("Anthropic models don't receive Temperature.");
+    expect(screen.getByLabelText("Temperature")).toHaveAttribute(
+      "aria-describedby",
+      hint.id,
+    );
+    expect(screen.getByLabelText("Temperature")).toHaveValue(0.3);
+
+    fireEvent.change(screen.getByDisplayValue("Anthropic"), {
+      target: { value: "openai" },
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText("Temperature")).not.toBeDisabled();
+    });
+    expect(screen.getByLabelText("Temperature")).toHaveValue(0.3);
+    expect(screen.queryByText("Anthropic models don't receive Temperature.")).toBeNull();
+  });
+
   it("embedding kind shows Dimension field, not Temperature/MaxTokens", async () => {
     getAllMock.mockResolvedValue(EMPTY_PAGE);
 

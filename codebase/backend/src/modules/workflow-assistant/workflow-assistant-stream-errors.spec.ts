@@ -219,21 +219,10 @@ describe('assistantStreamError', () => {
 
   describe('noLlmConfig', () => {
     it('uses the table message when no usable config exists', () => {
-      expect(assistantStreamError.noLlmConfig(true)).toEqual({
+      expect(assistantStreamError.noLlmConfig()).toEqual({
         code: 'ASSISTANT_NO_LLM_CONFIG',
         message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_NO_LLM_CONFIG,
       });
-    });
-
-    it('uses a separate fixed message when resolving the config failed', () => {
-      const event = assistantStreamError.noLlmConfig(false);
-      expect(event).toEqual({
-        code: 'ASSISTANT_NO_LLM_CONFIG',
-        message: 'Failed to resolve LLM config.',
-      });
-      expect(event.message).not.toBe(
-        assistantStreamError.noLlmConfig(true).message,
-      );
     });
   });
 
@@ -267,7 +256,7 @@ describe('assistantStreamError', () => {
   // 빌더 결과는 SSE `data` 로 그대로 직렬화된다. 타입 표지는 런타임 값에 없다.
   it.each([
     ['fromLlm', () => assistantStreamError.fromLlm('LLM_RATE_LIMIT')],
-    ['noLlmConfig', () => assistantStreamError.noLlmConfig(false)],
+    ['noLlmConfig', () => assistantStreamError.noLlmConfig()],
     ['streamFailed', () => assistantStreamError.streamFailed()],
     [
       'tooManyToolCalls',

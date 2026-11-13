@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { LlmService } from '../llm/llm.service';
 import { ChatMessage } from '../llm/interfaces/llm-client.interface';
@@ -121,8 +126,26 @@ export type AssistantStreamEvent =
         max: number;
       };
     }
+  | {
+      /**
+       * 지정한 모델 설정(요청 본문이나 세션의 값)이 삭제됐거나 워크스페이스 밖이라
+       * 워크스페이스 기본 설정으로 대신했다는 알림 (REQ-ASSIST-009). 턴의 첫
+       * 이벤트로 한 번만 온다. 프론트는 토스트로 알리고 선택 값을 비운다.
+       */
+      event: 'config_fallback';
+      data: {
+        requestedConfigId: string;
+        configId: string;
+        configName: string;
+      };
+    }
   | { event: 'done'; data: { finishReason: string } }
   | { event: 'error'; data: AssistantStreamError };
+
+/** `resolveTurnConfig` 의 결과. 실패면 턴을 끝낼 `error` 이벤트 데이터를 싣는다. */
+type TurnConfigResolution =
+  | { ok: true; config: ModelConfig; fallbackFrom?: string }
+  | { ok: false; error: AssistantStreamError };
 
 // 한 turn 안에서 허용할 tool call 총합은 활성 plan 의 규모에 따라 동적으로
 // 결정된다 (`computeToolCallsBudget`). 기본 48, plan 이 크면 그에 비례해
@@ -190,6 +213,59 @@ export class WorkflowAssistantStreamService {
     private readonly turnPersistence: AssistantTurnPersistenceService,
   ) {}
 
+  /**
+   * 이번 턴에 쓸 모델 설정을 고른다 (REQ-ASSIST-008 · 009 · 010).
+   *
+   * - 지정한 설정을 찾지 못하면(`NotFoundException`: 삭제됐거나 워크스페이스
+   *   밖이거나 chat 종류가 아님) 워크스페이스 기본 설정으로 대신하고
+   *   `fallbackFrom` 에 지정한 id 를 싣는다.
+   * - 기본 설정도 없으면(`BadRequestException`) `ASSISTANT_NO_LLM_CONFIG` 다.
+   * - 그 밖의 예외(DB 장애 등)는 설정이 없다는 안내가 맞지 않아
+   *   `ASSISTANT_STREAM_FAILED` 로 보낸다.
+   *
+   * 예외 원문은 화면에 보내지 않고 로그에만 남긴다 (REQ-ASSIST-048). `LlmService.
+   * resolveConfig` 는 AI 노드도 쓰므로 대체 판단은 여기서 한다.
+   */
+  private async resolveTurnConfig(
+    requestedId: string | undefined,
+    workspaceId: string,
+  ): Promise<TurnConfigResolution> {
+    if (requestedId) {
+      try {
+        return {
+          ok: true,
+          config: await this.llmService.resolveConfig(requestedId, workspaceId),
+        };
+      } catch (err) {
+        if (!(err instanceof NotFoundException)) {
+          return this.configLookupFailed(err);
+        }
+        this.logger.warn(
+          `Assistant model config ${requestedId} not found; falling back to the workspace default`,
+        );
+      }
+    }
+    try {
+      const config = await this.llmService.resolveConfig(
+        undefined,
+        workspaceId,
+      );
+      return { ok: true, config, fallbackFrom: requestedId };
+    } catch (err) {
+      if (!(err instanceof BadRequestException)) {
+        return this.configLookupFailed(err);
+      }
+      this.logger.warn(`Assistant LLM config unavailable: ${err.message}`);
+      return { ok: false, error: assistantStreamError.noLlmConfig() };
+    }
+  }
+
+  private configLookupFailed(err: unknown): TurnConfigResolution {
+    const reason = err instanceof Error ? err.message : 'Unknown error';
+    this.logger.error(`Assistant LLM config resolve failed: ${reason}`);
+    return { ok: false, error: assistantStreamError.streamFailed() };
+  }
+
   async *streamMessage(
     sessionId: string,
     workspaceId: string,
@@ -205,27 +281,24 @@ export class WorkflowAssistantStreamService {
 
     const configIdOverride =
       dto.llmConfigId ?? session.llmConfigId ?? undefined;
-    let llmConfig: ModelConfig;
-    try {
-      llmConfig = await this.llmService.resolveConfig(
-        configIdOverride,
-        workspaceId,
-      );
-    } catch (err) {
-      // 예외 원문은 화면에 보내지 않고 로그에만 남긴다 (REQ-ASSIST-048). 설정이
-      // 없거나 쓸 수 없는 경우는 warn, 그 밖의 예외(DB 장애 등)는 error 다.
-      const configUnavailable = err instanceof BadRequestException;
-      const reason = err instanceof Error ? err.message : 'Unknown error';
-      if (configUnavailable) {
-        this.logger.warn(`Assistant LLM config unavailable: ${reason}`);
-      } else {
-        this.logger.error(`Assistant LLM config resolve failed: ${reason}`);
-      }
-      yield {
-        event: 'error',
-        data: assistantStreamError.noLlmConfig(configUnavailable),
-      };
+    const resolution = await this.resolveTurnConfig(
+      configIdOverride,
+      workspaceId,
+    );
+    if (!resolution.ok) {
+      yield { event: 'error', data: resolution.error };
       return;
+    }
+    const llmConfig = resolution.config;
+    if (resolution.fallbackFrom) {
+      yield {
+        event: 'config_fallback',
+        data: {
+          requestedConfigId: resolution.fallbackFrom,
+          configId: llmConfig.id,
+          configName: llmConfig.name,
+        },
+      };
     }
 
     // history + shadow
@@ -723,9 +796,9 @@ export class WorkflowAssistantStreamService {
               },
             };
           } else if (ev.type === 'error') {
-            // 클라이언트 `message` 는 SDK 예외 원문이거나 클라이언트가 쓴 안내문
-            // 이다. 어느 쪽이든 로그에만 남기고 화면에는 코드별 고정 영문을
-            // 보낸다 (REQ-ASSIST-048).
+            // 클라이언트 `message` 는 진단용이다. SDK 예외 원문이거나
+            // `LLM_OUTPUT_MALFORMED` 의 고정 영문 문장이다. 어느 쪽이든 로그에만
+            // 남기고 화면에는 코드별 고정 영문을 보낸다 (REQ-ASSIST-048).
             this.logger.error(
               `Assistant LLM stream error (${ev.code}): ${ev.message}`,
             );

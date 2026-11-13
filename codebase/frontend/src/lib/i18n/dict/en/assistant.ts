@@ -39,6 +39,8 @@ export const assistant: Dict["assistant"] = {
   errorNoLlmConfig:
     "No model config is available. Register a Chat model in Model settings first.",
   errorNoLlmConfigLink: "Open Model settings",
+  configFallbackToast:
+    "The selected model config wasn't found, so the workspace default ({{name}}) will answer.",
   errorStreamFailed:
     "Couldn't finish the response. A rate limit may have been reached or the response may have taken too long. Send your message again in a moment.",
   errorRateLimit:
