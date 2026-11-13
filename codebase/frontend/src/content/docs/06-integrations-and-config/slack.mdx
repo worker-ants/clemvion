@@ -100,6 +100,16 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 - `/workflow` (또는 prefix) — DM 첫 메시지와 동일하게 새 execution 시작
 - `/workflow cancel` — 진행 중인 execution 취소
 - `/workflow reply <message>` — AI Multi Turn 진행 중 자유 텍스트 reply (DM 메시지 대체)
+- `/workflow help` — 도움말
+
+slash command 를 보내면 3초 안에 본인에게만 보이는 짧은 응답이 와요. 그래서 Slack 화면에 오류 표시가 뜨지 않아요. 워크플로우의 실제 결과는 이 응답과 별도로 채널에 메시지로 도착해요.
+
+| 명령 | 본인에게 보이는 응답 | 문구를 바꾸는 키 |
+|---|---|---|
+| `help` | 명령 목록 (`/workflow start - 새 대화 시작` · `/workflow cancel - 진행 중인 대화 취소` · `/workflow reply - 진행 중인 대화에 답장` · `/workflow help - 도움말`) | `languageHints.help` |
+| 그 밖의 명령 (`start` · `cancel` · `reply` 등) | 수신 문구 (기본값 `요청을 받았습니다.`) | `languageHints.commandReceived` |
+
+`help` 는 별도 메시지 없이 이 응답으로만 도움말이 보여요. `languageHints.help` 를 넣으면 그 문구를 그대로 보여 줘요. 명령 목록의 `workflow` 에는 Slack 앱에 등록한 명령 이름이 들어가요. Slack 은 명령 이름을 앱에서 정하므로 Discord 용 `languageHints.slashPrefix` 는 Slack 에서 쓰지 않아요. 트리거나 워크플로우를 꺼 두어도 같은 수신 문구가 보여요. 이때 실행은 시작하지 않아요.
 
 ### 4.3 Button / Form
 
