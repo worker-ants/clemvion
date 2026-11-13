@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA"
 title: "EIA 데이터와 흐름"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "b47e2392f14932e303123d762f66c3a4b2d00850406aac6d40ad1e9167307d77"
+content_hash: "91ea85fb1d1ee63e017bfe76e038dadd22c7cf1b8f72dac19b632a095acd5533"
 read_as: "approved_fallback"
-task: "CLE-T-VRBS51"
+task: "CLE-T-GNTWP9"
 source_paths: ["spec/1-data-model.md", "spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "cd2b80c64a5bd2fc499d5901dc998dd7edb9222abc7a46c5c7ede58de9ef118c"
-etag: "sha256-6bca8af06e2da096c2a8d3ee7750aaa94ae0daaf7c385a0214aef879b3fc464f"
+mirror_sha256: "a2f61ccd92278d5e46034df10e7de7c6a87350450ba808507ab9c23cf6877a46"
+etag: "sha256-c87243cec979f6086ef156fac7b1ac1b5bb8ad494b9bc931168fa55ca9163e11"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/14-external-interaction-api.md` (§7), `spec/data-flow/15-external-interaction.md`, `spec/1-data-model.md` (§2.13.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -304,7 +304,7 @@ sequenceDiagram
   Fan->>Fan: triggerId 없으면 건너뜀(수동 실행), events 구독 확인
   Fan->>Disp: enqueue(알림 웹훅 요청 본문), 커밋 뒤 시점
   Disp->>Proc: notification-webhook 큐 jobId=deliveryId, attempts = retry.maxAttempts(기본 5), base-4 backoff 간격 상한 1시간
-  Proc->>PG: 트리거 다시 조회(삭제됐으면 건너뜀), SSRF 검사, 낡은 알림 검사
+  Proc->>PG: 트리거 다시 조회(삭제됐으면 건너뜀), SSRF 검사, 낡은 알림 웹훅 검사
   Proc->>Proc: 시크릿 가져오기(secretRef, v2 보조) 후 HMAC 서명
   Proc->>Ext: HTTP POST 10초 제한, X-Clemvion-* 헤더와 서명
   alt 2xx
@@ -322,7 +322,7 @@ sequenceDiagram
 단계별 사실(`notification-fanout.service.ts`·`notification-webhook.processor.ts`):
 
 - **fanout 대상 이벤트 다섯 가지**: `execution.waiting_for_input`·`completed`·`failed`·`cancelled`·`ai_message`. 종료 때의 jti 폐기는 EIA 알림 웹훅 설정(`config.notification`) 유무와 관계없다. 인터랙션만 켠 트리거도 종료 때 토큰이 무효가 된다.
-- **낡은 알림 차단**: 진행 중 성격의 `waiting_for_input`·`ai_message` 는 보내기 직전 실행 상태를 다시 확인해 이미 종료면 건너뛴다(재시도해도 의미 없음).
+- **낡은 알림 웹훅 차단**: 진행 중 성격의 `waiting_for_input`·`ai_message` 는 보내기 직전 실행 상태를 다시 확인해 이미 종료면 건너뛴다(재시도해도 의미 없음).
 - **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`checkSsrfSafeUrl`) 두 번 검증한다. 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 발송 직전에 호스트 이름을 DNS 로 풀어 보는 검사(DNS rebinding 가드)는 운영 환경(`NODE_ENV=production`)에서 기본으로 켜져 있고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 이면 꺼진다. 운영 밖에서는 기본으로 꺼져 있고 `1` 이면 켜진다. 범위는 [EIA 알림 웹훅 「SSRF 방지」](CLE-EIA-NOTIFY.md#ssrf-방지) 가 정한다.
 - **서명**: `X-Clemvion-Signature: t=<unix>,v1=<hex>[,v1=<v2hex>]`(`notification-signature.util.ts`). 정규형 `{timestamp}.{rawBody}`, 알고리즘 `hmac-sha256`(기본)·`hmac-sha512`. 시크릿이 없거나 가져오지 못하면 서명 없이 보내지 않는다. 이때 발송 건강도를 `degraded`(저하됨)로 바꾼다. 주 시크릿이 없으면 v2 가 있어도 같다. v2 는 주 시크릿이 있을 때 보조 서명으로만 쓴다. 교체 유예 중에는 `notification_secret_v2` 로도 서명해 `v1=` 를 두 개 싣는다.
 - **주 시크릿 읽기**: 발송 처리기(`resolveSigningSecret`)는 저장된 `signing.secretRef` 값으로 시크릿을 읽지 않는다. 참조(`secret://` 형식의 문자열)가 있으면 트리거 id 로 다시 만든 정식 참조(`notificationSigningSecretRef`)로 시크릿 저장소에서 읽는다. 저장값이 다시 만든 참조와 다르면 에러 로그를 남긴다. 참조가 있는데 시크릿 저장소에서 읽지 못하면 옛 평문 `signing.secret` 으로 내려가지 않는다. 그 알림 웹훅은 보내지 않고 발송 건강도를 `degraded` 로 바꾼다. 옛 평문은 참조가 없을 때만 주 시크릿으로 쓴다. 기준은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24 다.
@@ -616,3 +616,7 @@ NERV Task `CLE-T-AB21M6` 의 변경이다. [인프라 장애에는 fail-open 한
 ### 공백만 있는 옛 평문은 옮기지 않는다 (2026-11-06)
 
 NERV Task `CLE-T-94Z6A5` 의 변경이다. 「저장 형태」 의 알림 서명 시크릿 항목에 빈 문자열이나 공백만 있는 `signing.secret` 의 처리를 더했다. 결정과 근거는 [EIA 알림 웹훅 「공백만 있는 옛 평문도 없는 것으로 본다」](CLE-EIA-NOTIFY.md#공백만-있는-옛-평문도-없는-것으로-본다-2026-11-06) 에 있다.
+
+### «낡은 알림 웹훅 차단» 으로 이름을 맞췄다 (2026-11-12)
+
+용어 사전 기준(EIA 알림 웹훅을 단독 «알림» 으로 쓰지 않는다)에 맞춰 단계 이름 «낡은 알림 차단» 과 시퀀스 그림의 «낡은 알림 검사» 를 [EIA 알림 웹훅](CLE-EIA-NOTIFY.md) 과 같은 용어로 바꿨다. 뜻은 바뀌지 않았다(NERV Task `CLE-T-GNTWP9`).

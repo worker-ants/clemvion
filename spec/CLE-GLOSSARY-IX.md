@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-IX"
 title: "용어 사전 — 외부 상호작용과 채널"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "48fb2705bc6b027f015af1d85fe1b63ce9ce0d4941a520448edc0961a373b90c"
+content_hash: "5ce4aeea7df679e3df4ce8da3da81f7b145d1c990aff09d60705e93b0101ad87"
 read_as: "approved_fallback"
-task: "CLE-T-6YY7KY"
+task: "CLE-T-GNTWP9"
 source_paths: []
-mirror_sha256: "341cac7fae02e5db26ac99943d81407f9d5dade9ab0edd085108fc0b55dbfc32"
-etag: "sha256-02ee891bb13c289efbb928b695bea80186f79d344695fbf3861414d41e18de53"
+mirror_sha256: "0db1bfd7a4ebf19d1e386f0d6df8220becbc0388c6d993d770627d2ece0e69a1"
+etag: "sha256-e6fd654cae9d4d9314889fc8b124617875e8fdfd71eb516353e007302ac75a12"
 ---
 ## 개요
 
@@ -51,16 +51,16 @@ etag: "sha256-02ee891bb13c289efbb928b695bea80186f79d344695fbf3861414d41e18de53"
 | 사용자 입력 마커 | `[user-input]` | 사용자 텍스트를 감싸 프롬프트 주입을 막는 표시. 화면에서는 지운다. | 마커(단독) | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
 | 출처 접두 | `[from <nodeLabel>]` | LLM 에 보낼 때만 붙이는 노드 출처 표시. | 없음 | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
 | 채팅 채널 | Chat Channel, `config.chatChannel` | Telegram·Slack·Discord 봇을 웹훅 트리거에 연결해 워크플로우를 대화로 돌리는 기능. 새 트리거 유형이 아니라 웹훅 트리거 설정이다. 화면 라벨은 "Chat Channel" 이다. | 챗 채널, chat channel(본문), Chat Channel(본문), 채널(단독) | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
-| 채널 프로바이더 | `provider` | 채팅 채널이 붙는 외부 메신저. 만든 뒤 바꿀 수 없다. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | provider(본문 단독) | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
+| 채널 프로바이더 | `provider` | 채팅 채널이 붙는 외부 메신저. 만든 뒤 바꿀 수 없다. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. 채팅 채널 영역 문서는 개요에서 단독 「프로바이더」 를 이 뜻으로 정의하면 그렇게 줄여 쓸 수 있다. | provider(본문 단독) | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 채널 어댑터 | `ChatChannelAdapter` | 채널 프로바이더마다 있는 변환·발송 구현. 진입 어댑터·SSE 어댑터와 다르다. | 어댑터(단독), provider 어댑터 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 봇 토큰 | bot token, `botToken`, `botTokenRef` | 채널 봇의 외부 API 자격 증명. 평문은 시크릿 저장소에만 두고 트리거 설정에는 참조만 둔다. | Bot Token(본문), bot token(본문) | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 봇 토큰 재발급 | `rotate-bot-token` | 봇 토큰을 바꾸는 유일한 경로. 24시간 유예 동안 옛 토큰도 받는다. | 봇 토큰 회전 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 인바운드 서명 자료 | `inboundSigning` | 메신저 요청의 출처를 확인하는 자료. Telegram 은 서버가 발급하고 Slack·Discord 는 사용자가 입력한다. | signing secret(단독) | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | UI 매핑 | `uiMapping` | 노드 출력을 채널 메시지로 바꾸는 옵션 묶음(폼 모드, 시각형 노드 표시, 버튼 배치). | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 폼 모드 | `uiMapping.formMode` | 채널에서 Form 을 받는 방식. 값과 본문 표기는 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 다단계 텍스트 시퀀스, 다단계 prompt 시퀀스 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
-| 안내 문구 | `languageHints`, `languageLocale` | 봇이 스스로 보내는 안내 메시지와 그 기본 언어. 웹채팅 위젯 언어(`locale`)와 다르다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
+| 안내 문구 | `languageHints`, `languageLocale` | 봇이 스스로 보내는 안내 메시지와 그 기본 언어. 웹채팅 위젯 언어(`locale`)와 다르다. | 없음 | [채팅 채널 데이터와 흐름](CLE-CHAT/CLE-CHAT-DATA.md) |
 | 채널 건강도 | `chat_channel_health` | 채팅 채널의 동작 상태. 저하돼도 트리거를 끄지 않는다. 저하 원인은 [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) 이 정한다. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
-| 채널 대화 상태 | `ChannelConversation` | 채팅방과 진행 중인 실행을 잇는 만료가 있는 Redis 값. 대화 스레드와 다르다. | conversation thread(이 뜻으로), 대화 상태(단독) | [채팅 채널 데이터와 흐름](CLE-CHAT/CLE-CHAT-DATA.md) |
+| 채널 대화 상태 | `ChannelConversation`(개념 이름), `ChannelConversationState`(타입), `ChannelConversationService`(서비스) | 채팅방과 진행 중인 실행을 잇는 만료가 있는 Redis 값. 대화 스레드와 다르다. | conversation thread(이 뜻으로), 대화 상태(단독) | [채팅 채널 데이터와 흐름](CLE-CHAT/CLE-CHAT-DATA.md) |
 | 대화 키·채널 사용자 키 | `conversationKey`, `channelUserKey` | 채널 안의 대화와 사용자를 구분하는 키. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 채널 업데이트·채널 메시지 | `ChannelUpdate`, `ChannelMessage` | 어댑터의 입력과 출력을 공통 형태로 정한 타입. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 중복 제거 키 | `idempotencyKey` | 메신저가 같은 update 를 다시 보낼 때 짧은 기간 안에 다시 온 것을 거르는 키. EIA 멱등 키와 다르다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
@@ -98,6 +98,14 @@ etag: "sha256-02ee891bb13c289efbb928b695bea80186f79d344695fbf3861414d41e18de53"
 ## Rationale
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「외부 상호작용과 채널」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
+
+### 「안내 문구」 · 「채널 대화 상태」 · 「채널 프로바이더」 행을 고쳤다 (2026-11-12)
+
+NERV Task `CLE-T-GNTWP9` 에서 고쳤다.
+
+- 「안내 문구」: 기준 문서를 [채팅 채널 데이터와 흐름](CLE-CHAT/CLE-CHAT-DATA.md) 으로 바꿨다. `languageHints` · `languageLocale` 필드와 안내 문구 기본값을 그 문서가 정한다. 이 용어가 그 문서의 필드 절과 「안내 문구 기본값」 절에 걸쳐 있어 절 앵커는 걸지 않았다.
+- 「채널 대화 상태」: 코드 식별자에 타입 `ChannelConversationState` 와 서비스 `ChannelConversationService` 를 더했다. `ChannelConversation` 은 [채팅 채널 데이터와 흐름 「채널 대화 상태」](CLE-CHAT/CLE-CHAT-DATA.md#채널-대화-상태) 가 쓰는 개념 이름이고 코드에 이 이름의 타입은 없다.
+- 「채널 프로바이더」: 채팅 채널 영역 문서가 개요에서 정의하면 단독 「프로바이더」 로 줄여 쓸 수 있다는 문장을 정의 칸에 더했다. [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) 이 개요에서 그렇게 정의하고 단독 「프로바이더」 를 쓴다. 쓰는 조건이라 쓰지 않는 표기 칸 대신 정의 칸에 적었다. 「시크릿 교체」 행도 쓰는 조건을 정의 칸에 둔다. 쓰지 않는 표기 칸의 «provider(본문 단독)» 는 영문 단독 표기라 이 허용과 겹치지 않는다. [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 의 「provider」 행에도 같은 조건을 적었다.
 
 ### 「시크릿 교체」 정의를 넓혔다 (2026-10-17)
 

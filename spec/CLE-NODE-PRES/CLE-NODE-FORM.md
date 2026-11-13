@@ -2,19 +2,19 @@
 id: "CLE-NODE-FORM"
 title: "Form 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-FORM-001", "REQ-FORM-002", "REQ-FORM-003", "REQ-FORM-004", "REQ-FORM-005", "REQ-FORM-006", "REQ-FORM-007", "REQ-FORM-008", "REQ-FORM-009", "REQ-FORM-010", "REQ-FORM-011", "REQ-FORM-012", "REQ-FORM-013", "REQ-FORM-014", "REQ-FORM-015", "REQ-FORM-016", "REQ-FORM-017", "REQ-FORM-018", "REQ-FORM-019", "REQ-FORM-020", "REQ-FORM-021", "REQ-FORM-022", "REQ-FORM-023"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "4ee6b627910904251daacc8e6c40aecb08f6982e50df623d07f65e08981e9a33"
+content_hash: "5654315528dc03057ce5d413ffa348aa6a20f689ec18ead944650f427720ae77"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-GNTWP9"
 source_paths: ["spec/4-nodes/6-presentation/4-form.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "9bf2aafde079022dc6f2b7f54f915ca82f11c0b5eb66309b139bff438640c43a"
-etag: "sha256-2dff1513b19af41265a94015cf7241f239a4844b63686b4d6be4b98ff480c4af"
+mirror_sha256: "b8540ebea61c1461efde6b1482cfd60ef9c16b3fc35c42da1a339fe70749e711"
+etag: "sha256-60d4534ab275c599da65326e3cd0344594091469fbfe1af1fecfed416c340c6f"
 ---
 > 구현 상태: 구현됨 (검증 preset 카탈로그와 캔버스 설정 요약은 미구현) · 원문: `spec/4-nodes/6-presentation/4-form.md`, `spec/4-nodes/_product-overview.md` (§9.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -111,7 +111,7 @@ Form 노드는 버튼 정의(`ButtonDef`)를 쓰지 않고 자체 폼 필드(`Fo
 
 | preset | 적용 유형 | 의도 | 서버 검증 정규식 | 어댑터 UI 힌트 |
 |---|---|---|---|---|
-| `phone` | `text` | 전화번호. 국제 형식 허용(`+`, 숫자, 공백, `-`, `()`) | `^\+?[\d\s\-()]+$`(1자 이상) | Telegram: `request_contact: true`(연락처 공유 버튼). Slack·Discord: 텍스트 입력과 어댑터 형식 검증(연락처 공유 없음). 지원하지 않는 provider: 일반 텍스트 입력 |
+| `phone` | `text` | 전화번호. 국제 형식 허용(`+`, 숫자, 공백, `-`, `()`) | `^\+?[\d\s\-()]+$`(1자 이상) | Telegram: `request_contact: true`(연락처 공유 버튼). Slack·Discord: 텍스트 입력과 어댑터 형식 검증(연락처 공유 없음). 지원하지 않는 채널 프로바이더: 일반 텍스트 입력 |
 
 계획상 v1 카탈로그는 1종이다. URL·datetime 같은 다음 preset 은 쓰임이 생기면 더한다. 계획상 `preset` 과 `pattern` 이 함께 있으면 `preset` 을 먼저 쓴다. `message` 가 없으면 preset 별 기본 메시지를 쓴다(`phone` → "전화번호 형식이 올바르지 않습니다.").
 
@@ -181,7 +181,7 @@ URL 검증 preset 도 없다. Discord 채널은 v1 에서 파일 업로드를 �
 
 `maxFiles == 1` 이어도 프런트엔드는 객체 하나가 아니라 **길이 1 배열**로 보낸다. 백엔드와 LLM 쪽에서 `formData[fieldName]` 은 늘 배열이다. 아무것도 고르지 않으면 `[]` 다. `required: true` 인 필드가 빈 배열이면 "필수 필드 미입력" 검증 실패다.
 
-**어댑터마다 다른 파일 payload 모양**: 위 `{name, size, type, lastModified}` 는 워크스페이스 UI(`DynamicFormUI`) 경로의 형식이다. 채팅 채널 어댑터를 거친 파일 입력은 provider 마다 다른 모양으로 같은 자리(`formData[fieldName]` → `output.interaction.data.<fieldName>`)에 들어온다. 예를 들어 Slack 은 `{ fileId, filename, mimeType, urlPrivate }` 다([Slack 어댑터](../CLE-CHAT/CLE-CHAT-SLACK.md)). 파일 필드는 네이티브 모달에 넣지 않으므로(`isFieldModalCompatible` 에서 제외, [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)) 서버 파일 검증(`validateFileField`)은 이 메타데이터 경로(`size`·`type`)를 대상으로 한다. `size`·`type` 이 없는 다른 모양(Slack 등)은 그 검사를 건너뛴다.
+**어댑터마다 다른 파일 payload 모양**: 위 `{name, size, type, lastModified}` 는 워크스페이스 UI(`DynamicFormUI`) 경로의 형식이다. 채팅 채널 어댑터를 거친 파일 입력은 채널 프로바이더마다 다른 모양으로 같은 자리(`formData[fieldName]` → `output.interaction.data.<fieldName>`)에 들어온다. 예를 들어 Slack 은 `{ fileId, filename, mimeType, urlPrivate }` 다([Slack 어댑터](../CLE-CHAT/CLE-CHAT-SLACK.md)). 파일 필드는 네이티브 모달에 넣지 않으므로(`isFieldModalCompatible` 에서 제외, [채팅 채널 어댑터 규약 「Form 입력 흐름」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#form-입력-흐름)) 서버 파일 검증(`validateFileField`)은 이 메타데이터 경로(`size`·`type`)를 대상으로 한다. `size`·`type` 이 없는 다른 모양(Slack 등)은 그 검사를 건너뛴다.
 
 **재개 출력의 `output.interaction.data.<fieldName>`**: 위 메타데이터 배열이 그대로 `output.interaction.data.<fieldName>` 에 들어간다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `form_submitted` payload 는 value 자리에 어떤 값이든 받는다. AI 에이전트 `render_form` 의 도구 결과 content(`{ok:true, type:'form_submitted', data:{…}, message:'<재호출 금지 안내문>'}`)에도 같은 메타데이터 배열이 `data` 안에 직렬화되어 LLM 에 돌아간다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)).
 
@@ -407,6 +407,10 @@ Form 은 **런타임 에러 포트가 없다**. 모든 검증 실패는 다음 �
 
 숫자 범위와 정규식 검증은 공유 일반 필드 validator 를 넓히는 것만으로 세 경로에 자동으로 적용돼 파일과 독립적으로 먼저 구현됐다. `type: 'file'` 검증은 따로 **묶음**으로 뒤따랐다. 함수 하나가 아니라 공유 기본값 상수(MIME 14종, 10MB·50MB, 개수 5), 서버 검사(`validateFileField`), 프런트엔드 거부, 재대기 흐름이 함께 와야 의미가 있기 때문이다. 파일은 메타데이터만 보내므로(바이너리를 보내지 않음) 검증 대상도 메타데이터 필드(`size`·`type`)와 개수로 한정된다.
 
-파일 검증은 일반 필드 묶음 검증(`validateFormSubmission`)이 아니라 `assertFormSubmissionValid` 의 한 번 훑기 안에서 `validateFileField` 로 한다. 일반 필드 검증과 달리 **채팅 채널 모달 경로에는 적용하지 않는다**. 파일 필드는 네이티브 모달에 넣지 않아(`isFieldModalCompatible` 에서 제외) 모달 검증(`hooks.service` 의 `validateFormSubmission`)에 닿지 않기 때문이다. 그래서 파일 검증의 단일 기준 지점은 publisher `assertFormSubmissionValid` 이고 대상은 워크스페이스 UI 의 메타데이터 payload 다. 채팅 채널 어댑터(Slack 등)의 다른 파일 모양은 `size`·`type` 이 없어 건너뛴다.
+파일 검증은 일반 필드 묶음 검증(`validateFormSubmission`)이 아니라 `assertFormSubmissionValid` 의 한 번 훑기 안에서 `validateFileField` 로 한다. 일반 필드 검증과 달리 **채팅 채널 모달 경로에는 적용하지 않는다**. 파일 필드는 네이티브 모달에 넣지 않아(`isFieldModalCompatible` 에서 제외, [채팅 채널 어댑터 규약 「Form 입력 흐름」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#form-입력-흐름)) 모달 검증(`hooks.service` 의 `validateFormSubmission`)에 닿지 않기 때문이다. 그래서 파일 검증의 단일 기준 지점은 publisher `assertFormSubmissionValid` 이고 대상은 워크스페이스 UI 의 메타데이터 payload 다. 채팅 채널 어댑터(Slack 등)의 다른 파일 모양은 `size`·`type` 이 없어 건너뛴다.
 
 일반·파일 필드를 한 번에 훑게 되면서 EIA·WebSocket 의 타입 있는 값을 한꺼번에 문자열로 바꾸던 `coerceFormSubmission` 은 없애고 필드별 `coerceFormValue`(일반 필드 전용)로 바꿨다. 파일은 원래 메타데이터 배열을 그대로 `validateFileField` 에 넘겨야 하므로 한꺼번에 문자열로 바꾸는 방식이 더는 단일 진입점이 될 수 없다.
+
+### `isFieldModalCompatible` 언급을 링크하고 「채널 프로바이더」 로 고쳤다 (2026-11-12)
+
+이 문서의 `isFieldModalCompatible` 언급 두 곳에 그 판정 함수를 정의한 [채팅 채널 어댑터 규약 「Form 입력 흐름」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#form-입력-흐름) 링크를 걸었고 문장 뜻은 바꾸지 않았다(NERV Task `CLE-T-GNTWP9`). 같은 단락과 「ValidationPreset 카탈로그」 표 `phone` 행의 영문 단독 «provider» 는 [용어 사전 — 외부 상호작용과 채널](../CLE-GLOSSARY-IX.md) 의 표준 용어 「채널 프로바이더」 로 고쳤다.

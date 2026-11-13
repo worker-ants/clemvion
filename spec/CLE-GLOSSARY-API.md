@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-API"
 title: "용어 사전 — API 와 개발 규약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "5bd3756d5f1fe8d4b61bab1b16f9808c324b4cebb8567cb2859f6854f7705cde"
+content_hash: "32e9544743c7bf1e5e8d45be1d8b581430eb4bba93795e16b53ef68c8a7c361b"
 read_as: "approved_fallback"
-task: "CLE-T-KQ37NJ"
+task: "CLE-T-GNTWP9"
 source_paths: []
-mirror_sha256: "ae95f18a0fcc4958c682454ea3a9c3c972f527ef11e521142ffdf726c543b1b8"
-etag: "sha256-6d790ba1a8e4f23414c2682a475951889937a96bc136977e7b21095b44286f27"
+mirror_sha256: "a64f1e82a2484431cd496058aa4151adb7ff94cc740911f9027e7e6142c33ee5"
+etag: "sha256-a238973870e136c0e56aeda3e97fa2b01f75b6e5d2fe8ab91daee19d6177b10b"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ etag: "sha256-6d790ba1a8e4f23414c2682a475951889937a96bc136977e7b21095b44286f27"
 | 부재 표현 | absence representation | 값이 없음을 응답에서 나타내는 방식. 기본은 null 이고, 정한 경우에만 키를 뺀다. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
 | PATCH 삼중 상태 | tri-state | PATCH 요청에서 키 생략·null·값이 각각 다른 뜻인 규칙. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
 | 워크스페이스 스코핑 | workspace scoping | API 가 현재 워크스페이스 안의 리소스만 다루게 하는 규칙. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
-| 요청 빈도 제한 | rate limit, `RATE_LIMITED` | 정한 시간 안의 요청 수나 동시 연결 수에 거는 상한. 세는 단위는 범위마다 다르다(사용자 · IP · 실행 · 채팅방 · WebSocket 소켓). 넘으면 HTTP 는 429 를 돌려준다. 채팅 채널 인바운드는 202 로 받고 건너뛴다. WebSocket 명령은 `RATE_LIMITED` 예외 이벤트로 알린다. 범위와 한도는 기준 문서의 표에 있다. | throttle(본문), Rate Limiting, 요청 제한 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
+| 요청 빈도 제한 | rate limit, `RATE_LIMITED` | 정한 시간 안의 요청 수나 동시 연결 수에 거는 상한. 세는 단위는 범위마다 다르다(사용자 · IP · 실행 · 채팅방 · WebSocket 소켓). 넘으면 HTTP 는 429 를 돌려준다. 채팅 채널 인바운드는 전역 한도 대상이 아니다. 채팅방 단위 한도를 넘으면 202 로 받고 건너뛴다. WebSocket 명령은 `RATE_LIMITED` 예외 이벤트로 알린다. 범위와 한도는 기준 문서의 표에 있다. | throttle(본문), Rate Limiting, 요청 제한 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
 | 클라이언트 IP 추출 | client IP extraction | 세션·감사 기록과 공개 웹훅 한도·IP 화이트리스트가 요청자 IP 를 읽는 규칙. 용도에 따라 폴백 순서가 둘이다. | 없음 | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 에러 코드 | error code, `error.code` | 클라이언트가 분기에 쓰는 UPPER_SNAKE_CASE 문자열. 이름을 바꾸면 호환성이 깨진다. | wire 코드, errorCode(본문) | [에러 코드 규약과 카탈로그](CLE-API/CLE-API-ERRCODES.md) |
 | 예외 등록 코드 | historical artifact | 명명 규칙을 어기지만 호환 때문에 유지하는 코드(초대 모듈의 소문자 코드 등). | historical-artifact 예외 | [에러 코드 규약과 카탈로그](CLE-API/CLE-API-ERRCODES.md) |
@@ -74,6 +74,12 @@ etag: "sha256-6d790ba1a8e4f23414c2682a475951889937a96bc136977e7b21095b44286f27"
 ## Rationale
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「API 와 개발 규약」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다. 리뷰 용어 네 행(「리뷰 산출물 인용」 고침, 「리뷰 라운드」 · 「리뷰 발견」 · 「처분」 추가)은 옮기면서 고쳤다. 이유는 그 문서의 Rationale 「리뷰 용어를 NERV 레코드 기준으로 고친 이유」 에 있다.
+
+### 채팅 채널 인바운드 한도 결정으로 고친 행 (2026-11-12)
+
+NERV Task `CLE-T-GNTWP9` 에서 사람 결정(NERV 질문 `01a1d025-94b3-7448-b9dc-4165d0b6ed5f`)을 반영했다.
+
+- 「요청 빈도 제한」: 채팅 채널 인바운드의 202 는 채팅방 단위 한도를 넘었을 때의 응답이라고 고쳤다. 채팅 채널 인바운드는 전역 한도 대상이 아니다. 기준 문서 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 같은 날 개정과 맞췄다. 코드는 아직 채팅 채널 인바운드에도 전역 한도를 건다. NERV Task `CLE-T-ZC34Y0` 이 고친다.
 
 ### 정의 보정 (2026-10-03)
 
