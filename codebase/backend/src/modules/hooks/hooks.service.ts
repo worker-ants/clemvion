@@ -7,6 +7,7 @@ import {
   ConflictException,
   HttpException,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -37,6 +38,7 @@ import {
   CHAT_RATE_LIMIT_DEFAULT_PER_MIN,
 } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
+import { ChatChannelSignatureFailureLimiterService } from '../chat-channel/chat-channel-signature-failure-limiter.service';
 import { isDiscordPing } from '../chat-channel/providers/discord/discord-update.parser';
 import {
   ChannelUpdate,
@@ -67,7 +69,7 @@ export interface WebhookInput {
  * 생성되지 않으므로, 호출 이력에 남는 webhook 행의 response_code 는 이 값이다.
  * execution.response_code 컬럼(§A.3 호출 이력, WH-MG-05)에 영속된다.
  * 예외는 프로바이더가 3초 안 200 을 요구하는 채팅 채널 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 ·
- * 슬래시 명령, Slack Interactivity)이다. 그 응답은 200 이라 `INTERACTION_RESPONSE_CODE` 를 남긴다.
+ * 슬래시 명령, Slack Interactivity · 슬래시 명령)이다. 그 응답은 200 이라 `INTERACTION_RESPONSE_CODE` 를 남긴다.
  */
 const WEBHOOK_ACCEPTED_RESPONSE_CODE = String(HttpStatus.ACCEPTED);
 
@@ -88,7 +90,8 @@ interface ChatChannelWebhookResult {
    * provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON. HooksController 가 200 과 함께
    * res.json 으로 보낸다. Discord modal open `{ type: 9 }` · MODAL_SUBMIT 결과 `{ type: 4 }` ·
    * 컴포넌트 클릭 · 모달 제출의 기본 ack `{ type: 6 }` · 슬래시 명령의 수신 응답 `{ type: 4 }`,
-   * Slack view_submission `{ response_action: 'errors' }` 가 있다.
+   * Slack view_submission `{ response_action: 'errors' }` · 슬래시 명령의 수신 응답
+   * `{ response_type: 'ephemeral', text }` 가 있다.
    * SoT: CLE-CHAT-ADAPTER 「네이티브 모달 경로」 · 「인터랙션 기본 응답과 수신 확인」.
    */
   interactionHttpResponse?: unknown;
@@ -134,6 +137,7 @@ export class HooksService {
     private readonly executionsService: ExecutionsService,
     private readonly chatChannelInboundAuthenticator: ChatChannelInboundAuthenticator,
     private readonly authConfigsService: AuthConfigsService,
+    private readonly signatureFailureLimiter: ChatChannelSignatureFailureLimiterService,
   ) {}
 
   async handleWebhook(
@@ -328,10 +332,55 @@ export class HooksService {
   }
 
   /**
+   * 채팅 채널 인바운드의 서명을 검증한다. 실패하면 `UnauthorizedException` 을 던진다.
+   *
+   * 채팅 채널 트리거는 전역 요청 한도에서 빠지므로(REQ-CHAT-079) 위조 서명 요청이 시크릿 조회와 서명
+   * 계산을 한도 없이 일으킬 수 있다. 그래서 (트리거, 클라이언트 IP) 쌍의 실패를 세고, 한도에 닿은 쌍은
+   * 검증하지 않고 같은 401 로 답한다. 막힌 요청은 다시 세지 않는다. IP 는 공개 웹훅 IP 한도와 같은
+   * 규칙으로 헤더에서 읽고, 읽지 못하면 세지 않는다. 식별하지 못한 요청을 한 버킷에 모으면 그 버킷을
+   * 채운 쪽이 다른 요청까지 막는다.
+   * 근거: [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE#인바운드-관문-순서), NERV Task `CLE-T-ZC34Y0`.
+   */
+  private async verifyChatChannelSignature(
+    trigger: Trigger,
+    config: ChatChannelConfig,
+    input: WebhookInput,
+    rawBodyString: string,
+  ): Promise<void> {
+    const clientIp = extractClientIpFromHeaders(input.headers);
+    if (
+      clientIp &&
+      (await this.signatureFailureLimiter.isBlocked(trigger.id, clientIp))
+    ) {
+      this.logger.debug(
+        `chat-channel 서명 실패 한도에 닿아 검증 없이 401 로 답한다 (trigger=${trigger.id})`,
+      );
+      throw new UnauthorizedException({
+        code: 'AUTH_FAILED',
+        message: 'Too many failed signature checks',
+      });
+    }
+    try {
+      await this.chatChannelInboundAuthenticator.verify(
+        trigger.id,
+        config,
+        input.headers,
+        rawBodyString,
+      );
+    } catch (err) {
+      if (clientIp && err instanceof UnauthorizedException) {
+        await this.signatureFailureLimiter.recordFailure(trigger.id, clientIp);
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Chat Channel inbound 처리 — Spec §3.1 / CCH-AD-04 / CCH-AD-06.
    *
    * 1. provider 별 adapter 조회
-   * 2. provider 별 inbound 서명 검증 (Telegram secret token · Slack signing secret · Discord Ed25519)
+   * 2. provider 별 inbound 서명 검증 (Telegram secret token · Slack signing secret · Discord Ed25519).
+   *    (트리거, 클라이언트 IP) 쌍의 실패가 분당 한도에 닿았으면 검증 없이 401 로 답한다
    * 3. 꺼진 트리거면 ignored. 인터랙션에는 아래 10 의 기본 응답으로, 나머지는 202 로 답한다.
    *    트리거가 켜져 있으면 Slack url_verification · Discord PING handshake 에 답한다.
    * 4. adapter.parseUpdate(rawBody) — null 이면 202 ignored 즉시 반환
@@ -369,10 +418,10 @@ export class HooksService {
     }
 
     // Provider 별 inbound 인증 (Guard 패턴) — 단일 책임 분리. Slack 은 rawBody string 필요.
-    await this.chatChannelInboundAuthenticator.verify(
-      trigger.id,
+    await this.verifyChatChannelSignature(
+      trigger,
       config,
-      input.headers,
+      input,
       rawBodyString,
     );
 
@@ -725,13 +774,18 @@ export class HooksService {
             triggerId: trigger.id,
             scope: 'in_process_trusted',
           };
-          await this.interactReportingEnqueueFailure(
+          const queued = await this.interactReportingEnqueueFailure(
             ctx,
             { command: 'submit_form', nodeId, data: filteredFields },
             trigger,
             state.executionId!,
           );
-          // pendingFormModal clear. 큐에 넣지 못한 경우도 지금까지처럼 비운다.
+          if (!queued) {
+            // 입력이 실행에 닿지 않았다. 모달 대기를 남기고 버튼을 다시 보내 같은 양식을 다시 내게 한다.
+            // 성공 응답 대신 기본 응답으로 모달만 닫는다(REQ-CHAT-076, NERV Task `CLE-T-6ZTPZ8` 2번).
+            await this.reNoiseFormModal(update, state, config, adapter);
+            return { executionId: state.executionId! };
+          }
           state.pendingFormModal = undefined;
           state.lastUpdateAt = new Date().toISOString();
           await this.channelConversationService.upsert(
@@ -985,13 +1039,15 @@ export class HooksService {
    * 대기 실행으로 명령을 보내고, 재개 큐에 넣지 못했다고 알리면 {@link markChatChannelEnqueueFailed} 로 남긴다.
    * 내부 신뢰 호출은 적재 실패를 던지지 않고 `accepted:false` 로 알리므로 호출마다 응답을 검사해야 한다. 그 검사를
    * 여기 한 곳에 둔다. `interact` 가 던지는 오류는 그대로 전파한다.
+   *
+   * @returns 큐에 넣었으면 `true`. 적재 실패를 알렸을 때만 `false` 다.
    */
   private async interactReportingEnqueueFailure(
     ctx: InternalInteractionRequestContext,
     dto: InteractDto,
     trigger: Trigger,
     executionId: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const ack = await this.interactionService.interact(ctx, dto);
     if (wasNotQueued(ack)) {
       await this.markChatChannelEnqueueFailed(
@@ -999,7 +1055,9 @@ export class HooksService {
         executionId,
         dto.command,
       );
+      return false;
     }
+    return true;
   }
 
   /**

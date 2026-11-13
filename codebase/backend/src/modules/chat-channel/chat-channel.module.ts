@@ -9,6 +9,7 @@ import { ChannelListenerBus } from './channel-listener.bus';
 import { ChannelListenerRestorer } from './channel-listener.restorer';
 import { ChannelConversationService } from './channel-conversation.service';
 import { ChatChannelRateLimiterService } from './chat-channel-rate-limiter.service';
+import { ChatChannelSignatureFailureLimiterService } from './chat-channel-signature-failure-limiter.service';
 import { ChatChannelDedupService } from './chat-channel-dedup.service';
 import { ChatChannelDispatcher } from './chat-channel.dispatcher';
 import { TelegramAdapter } from './providers/telegram/telegram.adapter';
@@ -29,8 +30,8 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
  *   - ChannelListenerRestorer: 부팅과 listener 재구독 때 레지스트리를 DB 에서 복원
  *   - ChannelConversationService: Redis ChannelConversation CRUD
  *   - ChatChannelDispatcher: WebsocketService.executionEvents$ subscribe → adapter.sendMessage
- *   - ChatChannelInboundAuthenticator · ChatChannelDedupService · ChatChannelRateLimiterService:
- *     인바운드 서명 검증 · 중복 제거 · 분당 한도
+ *   - ChatChannelInboundAuthenticator · ChatChannelSignatureFailureLimiterService · ChatChannelDedupService ·
+ *     ChatChannelRateLimiterService: 인바운드 서명 검증 · 서명 실패 한도 · 중복 제거 · 분당 한도
  *
  * `external-interaction` 과 동등한 facade 계층 — 둘 다 엔진 외부.
  */
@@ -49,6 +50,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
     ChannelListenerRestorer,
     ChannelConversationService,
     ChatChannelRateLimiterService,
+    ChatChannelSignatureFailureLimiterService,
     ChatChannelDedupService,
     ChatChannelDispatcher,
     ChatChannelInboundAuthenticator,
@@ -64,6 +66,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
     ChannelListenerRegistry,
     ChannelConversationService,
     ChatChannelRateLimiterService,
+    ChatChannelSignatureFailureLimiterService,
     ChatChannelDedupService,
     ChatChannelInboundAuthenticator,
   ],
