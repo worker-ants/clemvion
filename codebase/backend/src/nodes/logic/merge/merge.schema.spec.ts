@@ -143,7 +143,8 @@ describe('mergeNodeConfigSchema.timeout', () => {
   });
 });
 
-// fan-in barrier 를 무기한 미뤘으므로(CLE-NODE-MERGE Rationale, 2026-07-17)
+// fan-in barrier 를 무기한 미뤘으므로(CLE-NODE-MERGE Rationale «비동기 fan-in barrier
+// 활성화를 재검토 과제로 미룬다 (2026-07-17)»)
 // 경고 문구가 나중 단계에서 값이 반영된다고 안내하지 않는다.
 describe('merge dormant warning messages', () => {
   const message = (id: string) =>

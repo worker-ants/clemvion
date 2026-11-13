@@ -418,7 +418,7 @@ export const WARNING_KO: Record<string, string> = {
   "Integration must be selected when using Integration auth.": "Integration 인증을 사용하려면 integration 을 선택해야 합니다.",
   "LLM provider or model must be selected (auto-handled by the canvas when a workspace default provider is configured).":
     "LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).",
-  "Merge strategy must be selected.": "Merge strategy 를 선택해야 합니다.",
+  "Merge strategy must be selected.": "Merge strategy 를 선택해 주세요.",
   "Merge partialOnTimeout has no effect — Merge never times out, so there are no partial inputs to merge. Turn it off.":
     "Merge partialOnTimeout 은 동작하지 않아요. Merge 에는 타임아웃이 없어서 일부만 병합할 입력도 없어요. 이 설정을 꺼 주세요.",
   "Merge timeout has no effect — Merge runs only after every connected input has finished, so there is nothing to wait for. Set it to 0.":

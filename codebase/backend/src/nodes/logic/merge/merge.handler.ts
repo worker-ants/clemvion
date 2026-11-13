@@ -83,8 +83,9 @@ export class MergeHandler implements NodeHandler {
     } = config as unknown as MergeConfig;
 
     // The engine runs Merge only after every predecessor has resolved, and
-    // the fan-in barrier is deferred indefinitely (CLE-NODE-MERGE Rationale,
-    // 2026-07-17), so `timeout` / `partialOnTimeout` are dormant. validate()
+    // the fan-in barrier is deferred indefinitely (CLE-NODE-MERGE Rationale
+    // «비동기 fan-in barrier 활성화를 재검토 과제로 미룬다 (2026-07-17)»), so
+    // `timeout` / `partialOnTimeout` are dormant. validate()
     // blocks them through the warning rules; this log covers callers that
     // reach execute() without validating.
     if (typeof timeout === 'number' && timeout > 0) {
@@ -118,7 +119,8 @@ export class MergeHandler implements NodeHandler {
     //    other formats) so consumers don't need conditional guards.
     //  - dormantFields: dormant config fields (`timeout` > 0,
     //    `partialOnTimeout=true`) that were configured but have no runtime
-    //    effect (no fan-in barrier, CLE-NODE-MERGE Rationale). Mirrors the
+    //    effect (no fan-in barrier, CLE-NODE-MERGE Rationale «비동기 fan-in
+    //    barrier 활성화를 재검토 과제로 미룬다 (2026-07-17)»). Mirrors the
     //    warn log.
     //    Always present (empty array when none) for consumer simplicity.
     // `meta.durationMs` is injected by the engine, not here.
