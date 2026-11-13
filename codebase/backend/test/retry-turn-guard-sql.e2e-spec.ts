@@ -34,6 +34,10 @@ import { LoopExecutor } from '../src/modules/execution-engine/containers/loop-ex
 import { ParallelExecutor } from '../src/modules/execution-engine/containers/parallel-executor';
 import { ExecutionContextService } from '../src/modules/execution-engine/context/execution-context.service';
 import { ContinuationBusService } from '../src/modules/execution-engine/continuation/continuation-bus.service';
+import {
+  STUCK_RECOVERY_STALE_MS,
+  StuckExecutionRecoveryService,
+} from '../src/modules/execution-engine/recovery/stuck-execution-recovery.service';
 import type { RetryEngineDriver } from '../src/modules/execution-engine/engine-driver.interface';
 import { ExecutionNodeLog } from '../src/modules/execution-engine/entities/execution-node-log.entity';
 import { ErrorPolicyHandler } from '../src/modules/execution-engine/error/error-policy.handler';
@@ -415,6 +419,7 @@ describe('마지막 턴 재시도 · 종결 가드의 조건부 UPDATE (실제 P
         { provide: getQueueToken(BACKGROUND_EXECUTION_QUEUE), useValue: {} },
         { provide: getQueueToken(EXECUTION_RUN_QUEUE), useValue: {} },
         { provide: ContinuationBusService, useValue: {} },
+        { provide: StuckExecutionRecoveryService, useValue: {} },
         { provide: ShutdownStateService, useValue: {} },
         { provide: AiTurnOrchestrator, useValue: {} },
         { provide: FormInteractionService, useValue: {} },
@@ -801,6 +806,132 @@ describe('마지막 턴 재시도 · 종결 가드의 조건부 UPDATE (실제 P
       expect(metrics.recordExecutionTerminal).toHaveBeenCalledWith(
         ExecutionStatus.FAILED,
       );
+    });
+  });
+
+  // CLE-T-S03WEV — 재시도 재진입 턴은 실행이 `failed` 인 채로 돈다. 턴이 30분을 넘기면 다른 인스턴스의 부팅 스캔
+  // 「종결된 실행 아래 남은 노드 실행 행」 정리 단계가 그 행을 `failed` 로 닫는다. 그 뒤 턴이 끝나면
+  // `finalizeAiNode` 가 노드 행 상태를 명시적으로 다시 저장한다. 그 결과를 실제 Postgres 에서 고정한다.
+  describe('G5 · 부팅 스캔이 닫은 노드 행을 재시도 턴 마감이 만난다', () => {
+    const BOOT_SCAN_CLOSE_MESSAGE =
+      'Node run left running under a finished execution; closed by boot recovery scan';
+
+    interface RecoveryPrivates {
+      closeOrphanRunningNodeExecutions(staleThreshold: Date): Promise<void>;
+    }
+
+    /** 30분 넘게 도는 재진입 턴. 살아 있는 워커가 들고 있는 엔티티(`live`)도 함께 돌려준다. */
+    async function seedLongRetryTurn(): Promise<{
+      executionId: string;
+      live: NodeExecution;
+    }> {
+      const executionId = await insertExecution(ExecutionStatus.FAILED, {
+        finishedAt: new Date(Date.now() - 60_000),
+        durationMs: 540_000,
+        error: { message: 'previous attempt failed' },
+      });
+      const spawnedId = await insertNodeExecution(
+        executionId,
+        NodeExecutionStatus.RUNNING,
+        { startedAt: new Date(Date.now() - STUCK_RECOVERY_STALE_MS - 60_000) },
+      );
+      const live = await repo(NodeExecution).findOneByOrFail({
+        id: spawnedId,
+      });
+      return { executionId, live };
+    }
+
+    /** 부팅 스캔의 정리 단계만 실제 SQL 로 돌린다. 잠금 · 재구동 단계는 이 검증과 무관하다. */
+    async function runBootScanCloseStep(): Promise<void> {
+      const recovery = new StuckExecutionRecoveryService(
+        repo(Execution),
+        repo(NodeExecution),
+        {} as ContinuationBusService,
+      ) as unknown as RecoveryPrivates;
+      await recovery.closeOrphanRunningNodeExecutions(
+        new Date(Date.now() - STUCK_RECOVERY_STALE_MS),
+      );
+    }
+
+    async function readNodeRow(id: string) {
+      const res = await db.query<{
+        status: string;
+        error: Record<string, unknown> | null;
+      }>('SELECT status, error FROM node_execution WHERE id = $1', [id]);
+      return res.rows[0];
+    }
+
+    async function seedClosedByBootScan() {
+      const seeded = await seedLongRetryTurn();
+      await runBootScanCloseStep();
+      // 전제: 스캔이 실제로 행을 닫았다. 닫지 못했다면 아래 단언은 스캔과 무관하게 초록이 된다.
+      expect(await readNodeRow(seeded.live.id)).toEqual({
+        status: NodeExecutionStatus.FAILED,
+        error: { message: BOOT_SCAN_CLOSE_MESSAGE },
+      });
+      return seeded;
+    }
+
+    it('정상 완료 마감(짝 전이 failed → running)은 행을 completed 로 되돌리고 스캔의 error 를 지운다', async () => {
+      const { executionId, live } = await seedClosedByBootScan();
+      live.status = NodeExecutionStatus.COMPLETED;
+      live.outputData = { output: { text: 'done' } };
+      live.finishedAt = new Date();
+      const execution = await repo(Execution).findOneByOrFail({
+        id: executionId,
+      });
+
+      const applied = await engine.updateExecutionStatus(
+        execution,
+        ExecutionStatus.RUNNING,
+        live,
+        { allowRetryReentry: true },
+      );
+
+      expect(applied).toBe(true);
+      expect(await readNodeRow(live.id)).toEqual({
+        status: NodeExecutionStatus.COMPLETED,
+        error: null,
+      });
+      expect((await readExecution(executionId)).status).toBe(
+        ExecutionStatus.RUNNING,
+      );
+    });
+
+    it('재실패 마감(행 잠금 저장)은 스캔의 error 를 턴의 error 로 덮는다', async () => {
+      const { executionId, live } = await seedClosedByBootScan();
+      live.status = NodeExecutionStatus.FAILED;
+      live.error = { message: 'rate limited' };
+      live.finishedAt = new Date();
+
+      const applied = await engine.tryLockActiveExecutionAndSaveNodeExec(
+        executionId,
+        live,
+        { allowRetryReentry: true },
+      );
+
+      expect(applied).toBe(true);
+      expect(await readNodeRow(live.id)).toEqual({
+        status: NodeExecutionStatus.FAILED,
+        error: { message: 'rate limited' },
+      });
+    });
+
+    it('[대조] 재진입 opt-in 이 없으면 잠금이 0행이라 스캔이 닫은 행을 그대로 둔다', async () => {
+      const { executionId, live } = await seedClosedByBootScan();
+      live.status = NodeExecutionStatus.COMPLETED;
+      live.finishedAt = new Date();
+
+      const applied = await engine.tryLockActiveExecutionAndSaveNodeExec(
+        executionId,
+        live,
+      );
+
+      expect(applied).toBe(false);
+      expect(await readNodeRow(live.id)).toEqual({
+        status: NodeExecutionStatus.FAILED,
+        error: { message: BOOT_SCAN_CLOSE_MESSAGE },
+      });
     });
   });
 });

@@ -39,6 +39,7 @@ import { EXECUTION_RUN_QUEUE } from './queues/execution-run.queue';
 import { ExecutionRunProcessor } from './queues/execution-run.processor';
 import { CONTINUATION_EXECUTION_QUEUE } from './queues/continuation-execution.queue';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
+import { StuckExecutionRecoveryService } from './recovery/stuck-execution-recovery.service';
 import { ContinuationExecutionProcessor } from './continuation/continuation-execution.processor';
 import { ContinuationDlqMonitorService } from './continuation/continuation-dlq-monitor.service';
 import {
@@ -120,6 +121,8 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     // PR1 — execution intake worker. execute() 발행 job 을 work-stealing 소비.
     ExecutionRunProcessor,
     ContinuationBusService,
+    // CLE-T-S03WEV — 부팅 복구 스캔. 엔진이 주입받아 onApplicationBootstrap 에서 부른다.
+    StuckExecutionRecoveryService,
     // Phase 2 — BullMQ Worker. 옛 ContinuationBusService.registerContinuationHandlers
     // 의 in-process dispatch 대체.
     ContinuationExecutionProcessor,
