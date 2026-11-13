@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030", "REQ-SUBWF-031"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "47319a9bd1fa64adda16ecbf71cd7ccb8b87d324d4525c5501308b0e477fcfab"
+content_hash: "1b09a52da38f938b729c7441beed504924e519b2523dfaf0c1de52fef5d29d22"
 read_as: "approved_fallback"
-task: "CLE-T-0DGHGF"
+task: "CLE-T-Y2F1NG"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e8b0526b26ba2ab70d7b355e9ef0702abb6b813121054e2f7182b1226b4ee7ed"
-etag: "sha256-aee27a6b45b6324a31bbd96ee9ca5a4977d66e347ac8a691fae1466ec8d291c1"
+mirror_sha256: "6177d71f07f116ac5bc67fe0964de0124a45f9792942d5188e60486a2f1bf0a4"
+etag: "sha256-043a1c17f498e2b18f01c05c1d66dbb02d3fbed93b37fb386893f92319580e00"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -149,8 +149,8 @@ flowchart TD
    - 동기 호출에서 `context._executedNodes` 가 없으면 `Inline execution requires _executedNodes in context` 를 throw 한다.
 2. 서브 워크플로우 입력을 만든다. `inputMapping` 이 하나 이상이면 `{ [paramName]: 평가한 expression }` 객체를 쓴다. 비어 있으면 부모 `input` 을 그대로 넘긴다.
 3. 호출 방식에 따라 나뉜다.
-   - 동기 호출: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId, invokerNodeId })` 를 부른다. 돌아온 값을 `output: { result: <inlineResult> }` 로 한 겹 감싼다([동기 호출 성공](#동기-호출-성공-port-out)). 돌아온 값이 서브 워크플로우의 최종 노드 출력이고 아래 [최종 노드 출력](#최종-노드-출력) 이 정한다. `invokerNodeId` 는 이 노드 자신의 `Node.id` 다. 서브 워크플로우 안의 블로킹 노드가 park 하면 이 값이 호출 스택(`resume_call_stack`) 프레임 키로 저장된다. rehydration 은 부모 그래프에서 이 노드까지 나아간 뒤 다시 들어온다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)).
-   - 비동기 호출: `executionEngine.executeAsync(workflowId, effectiveInput, { parentExecutionId, recursionDepth: depth+1 })` 를 부른다. `output: { executionId, workflowId, status: 'started' }` 와 최상위 `status: 'started'` 를 바로 돌려준다([비동기 호출 성공](#비동기-호출-성공-port-out)).
+   - 동기 호출: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId, invokerNodeId })` 를 부른다. 돌아온 값을 `output: { result: <inlineResult> }` 로 한 겹 감싼다([동기 호출 성공](#동기-호출-성공-port-out)). 돌아온 값이 서브 워크플로우의 최종 노드 출력이고 아래 [최종 노드 출력](#최종-노드-출력) 이 정한다. `invokerNodeId` 는 이 노드 자신의 `Node.id` 다. 서브 워크플로우 안의 블로킹 노드가 park 하면 이 값이 호출 스택(`resume_call_stack`) 프레임 키로 저장된다. rehydration 은 부모 그래프에서 이 노드까지 나아간 뒤 다시 들어온다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 동기 호출은 부모 실행 컨텍스트를 같이 쓰므로 부모가 dry-run 이면 서브 워크플로우도 dry-run 으로 돈다.
+   - 비동기 호출: `executionEngine.executeAsync(workflowId, effectiveInput, { parentExecutionId, recursionDepth: depth+1, dryRun })` 를 부른다. `output: { executionId, workflowId, status: 'started' }` 와 최상위 `status: 'started'` 를 바로 돌려준다([비동기 호출 성공](#비동기-호출-성공-port-out)). `dryRun` 은 부모 실행이 dry-run 이면 true 다(`isDryRun(context)`). 엔진은 이 값을 서브 실행 행의 `dry_run` 에 남기고 서브 실행도 dry-run 으로 돈다. 기준 규칙은 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#서브-워크플로우와-background-본문) 의 「서브 워크플로우와 Background 본문」 절이다.
 4. 런타임 에러를 처리한다.
    - `executeInline`·`executeAsync` 가 throw 하면 `output.error.{code, message, details: {workflowId, mode}}` 와 `port: 'error'` 를 돌려준다([런타임 에러](#런타임-에러-port-error)). `code` 는 실행기 에러(typed error 또는 메시지)에 따라 정한다([에러 코드](#에러-코드)).
    - 예외: `ParkReleaseSignal`(서브 워크플로우 안 블로킹 노드의 park 신호)은 런타임 실패가 아니다. 에러 포트로 보내지 않고 그대로 다시 던진다. 엔진이 세그먼트를 끝내고 rehydration 으로 재개한다.

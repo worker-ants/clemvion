@@ -122,7 +122,10 @@ import {
   ParallelBranchContext,
   ResumableMessageSource,
 } from '../../nodes/core/node-handler.interface';
-import { NODE_TYPES } from '../../nodes/core/node-types.constants';
+import {
+  NODE_TYPES,
+  SUB_WORKFLOW_MAX_RECURSION_DEPTH,
+} from '../../nodes/core/node-types.constants';
 import { isDryRun } from '../../nodes/core/dry-run.util';
 import {
   type ChatChannelRoutingInfo,
@@ -917,7 +920,8 @@ export class ExecutionEngineService
    * 명시 한도가 없으므로 보수적으로 10. executeSync / executeAsync / 인라인
    * 실행 경로 진입 시 검증.
    */
-  private static readonly MAX_RECURSION_DEPTH = 10;
+  private static readonly MAX_RECURSION_DEPTH =
+    SUB_WORKFLOW_MAX_RECURSION_DEPTH;
 
   /**
    * Sub-workflow 진입점에서 호출자-피호출자 workspace 격리를 강제한다 (W-6).
@@ -3293,6 +3297,58 @@ export class ExecutionEngineService
   private static readonly RECOVERY_LOCK_TTL_SECONDS = 60;
 
   /**
+   * 부팅 스캔의 「종결된 실행 아래 남은 노드 실행 행」 정리 단계(`closeOrphanRunningNodeExecutions`)가 `parent_node_execution_id` 를
+   * 따라 올라가는 깊이 한도. 부모 체인은 서브 워크플로우 호출(재귀 한도 10)과 컨테이너 ·
+   * Background 중첩으로만 길어지므로 넉넉히 잡는다. 체인이 깨져 순환하더라도 재귀가 끝나게 한다.
+   */
+  private static readonly ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH = 64;
+
+  /**
+   * 「종결된 실행 아래 남은 노드 실행 행」 정리 단계가 닫을 노드 실행 행의 id 를 고르는 하위 질의. 외부 UPDATE 의 `id IN (…)` 에 들어간다.
+   *
+   * - `candidate`: 종결된 실행(`:...orphanTerminalStatuses`) 아래 `running` 이고 `started_at` 이
+   *   임계보다 오래된 행. `status IN ('waiting_for_input','running')` 부분 인덱스
+   *   (`idx_node_execution_exec_status_active`)를 탄다.
+   * - `ancestor`: 후보마다 부모 체인을 위로 따라간다. 후보 수만큼만 걷는다.
+   * - Background 노드 행이 체인에 있는 후보는 뺀다. 본문은 부모 실행이 끝난 뒤에도 같은
+   *   executionId 로 돈다.
+   *
+   * 테이블 이름은 큰따옴표로 감싼다. UpdateQueryBuilder 는 별칭 접두사 없이 쓴 낱말 가운데
+   * `NodeExecution` 의 속성 이름과 같은 것을 컬럼 이름으로 바꿔 쓴다. 그래서 따옴표 없이 쓰면
+   * `execution` 이 `execution_id` 로, `node` 가 `node_id` 로 바뀌어 질의가 실패한다.
+   */
+  private static readonly ORPHAN_RUNNING_NODE_EXECUTION_IDS_SQL = `
+    WITH RECURSIVE candidate AS (
+      SELECT ne.id, ne.parent_node_execution_id AS parent_id
+        FROM "node_execution" ne
+        JOIN "execution" e ON e.id = ne.execution_id
+       WHERE ne.status = :running
+         AND ne.started_at < :orphanThreshold
+         AND e.status IN (:...orphanTerminalStatuses)
+    ),
+    ancestor (candidate_id, ancestor_id, depth) AS (
+      SELECT c.id, c.parent_id, 1
+        FROM candidate c
+       WHERE c.parent_id IS NOT NULL
+      UNION ALL
+      SELECT a.candidate_id, p.parent_node_execution_id, a.depth + 1
+        FROM ancestor a
+        JOIN "node_execution" p ON p.id = a.ancestor_id
+       WHERE p.parent_node_execution_id IS NOT NULL
+         AND a.depth < :orphanMaxDepth
+    )
+    SELECT c.id
+      FROM candidate c
+     WHERE NOT EXISTS (
+       SELECT 1
+         FROM ancestor a
+         JOIN "node_execution" pn ON pn.id = a.ancestor_id
+         JOIN "node" n ON n.id = pn.node_id
+        WHERE a.candidate_id = c.id
+          AND n.type = :orphanBackgroundType
+     )`;
+
+  /**
    * On server restart, **re-drive** stale RUNNING executions **and cancel orphan
    * PENDING** executions (§7.1/§7.2 point 3 / §7.4 / §7.5 case B / §8 — PR3
    * 2026-07-04, orphan pending backstop 2026-07-04).
@@ -3323,7 +3379,13 @@ export class ExecutionEngineService
    * KB `stuck-document-recovery` 와 동형). boot-only 트리거라 poison 세그먼트 re-drive
    * 는 부팅당 최대 1회로 자연 rate-limit 된다.
    *
-   * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.2 / §7.4 / §7.5.
+   * **단계** (이 순서로 돈다):
+   *   1. stale RUNNING 원자 re-claim 과 재구동(위 (a)(b)(c) 는 stalled 이 놓치는 원인 목록이다).
+   *   2. orphan pending 회수(`recoverOrphanPendingExecutions`).
+   *   3. 종결된 실행 아래 남은 노드 실행 행 정리(`closeOrphanRunningNodeExecutions`, CLE-T-CCEQEC).
+   *      실행이 먼저 끝나고 노드 행만 `running` 으로 남은 경우를 `failed` 로 닫는다.
+   *
+   * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.2 / §7.4 / §7.5, CLE-T-CCEQEC.
    */
   private async recoverStuckExecutions(): Promise<void> {
     const acquired = await this.continuationBus.acquireLock(
@@ -3340,7 +3402,7 @@ export class ExecutionEngineService
       const staleThreshold = new Date(
         Date.now() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
       );
-      // (a) stale RUNNING 을 원자 re-claim(started_at 조건부 UPDATE … RETURNING).
+      // 단계 1: stale RUNNING 을 원자 re-claim(started_at 조건부 UPDATE … RETURNING).
       //     affected rows = 본 인스턴스가 소유권을 획득한 재구동 대상.
       const reclaimedIds =
         await this.reclaimStuckRunningExecution(staleThreshold);
@@ -3348,7 +3410,7 @@ export class ExecutionEngineService
         this.logger.warn(
           `Re-claimed ${reclaimedIds.length} stale RUNNING execution(s) (>30min) for crash re-drive (§7.5 case B)`,
         );
-        // (b) 각 재구동은 fire-and-forget — 부팅을 그래프 실행으로 막지 않는다.
+        // 각 재구동은 fire-and-forget — 부팅을 그래프 실행으로 막지 않는다.
         //     redriveStuckExecution 이 내부 try/catch/finally 로 단말 상태를
         //     자기 마킹하므로 reject 하지 않으나, 방어적 .catch 로 unhandled
         //     rejection 을 차단한다. 각 row 는 이미 started_at 이 갱신돼 다른
@@ -3363,10 +3425,14 @@ export class ExecutionEngineService
           });
         }
       }
-      // (c) orphan pending backstop (§8) — admission 재큐 job 이 소실돼(예: Redis
+      // 단계 2: orphan pending backstop (§8) — admission 재큐 job 이 소실돼(예: Redis
       //     비영속·job 유실) 다시 pick up 되지 않는 pending row 를 회수한다. running
       //     재점유 유무와 무관하게 항상 스캔한다(위 early-return 제거).
       await this.recoverOrphanPendingExecutions();
+      // 단계 3: 종결된 실행 아래 남은 노드 실행 행 정리 (CLE-T-CCEQEC). 이미 끝난 실행 아래
+      //     running 으로 남은 행을 닫는다. 단계 1 의 재구동은 실행이 running 일 때만 옛 행을 닫으므로(failOrphanRunningNodeExecutions)
+      //     이 행들은 여기서만 닫힌다. 실패해도 부팅을 막지 않는다.
+      await this.closeOrphanRunningNodeExecutions(staleThreshold);
     } finally {
       // 작업 완료 후 lock 을 명시 해제 — TTL 60초 만료 대기 없이 다음
       // 인스턴스가 즉시 처리할 수 있다. owner 검증이 들어가 있어 이미
@@ -3446,6 +3512,84 @@ export class ExecutionEngineService
     );
     for (const { id } of orphans) {
       await this.markQueueWaitTimeout(id);
+    }
+  }
+
+  /**
+   * CLE-T-CCEQEC — 부팅 스캔의 「종결된 실행 아래 남은 노드 실행 행」 정리 단계(단계 3). 종결된 실행(`completed` · `failed` · `cancelled`) 아래
+   * `running` 으로 남은 노드 실행 행을 `failed` 로 닫는다.
+   *
+   * case B 재구동의 {@link failOrphanRunningNodeExecutions} 는 실행이 `running` 일 때만 돈다.
+   * 실행이 먼저 끝나고 노드 행만 `running` 으로 남는 아래 경로는 그 마감에 닿지 않는다.
+   *   1. `retry_last_turn` 2차 claim(`claimSpawnedRetryRow`)이 버린 새 행. 실행은 `failed` 다.
+   *   2. 2차 claim 이 성공한 뒤 try 에 들어가기 전의 예외 · 크래시. 재배달은 claim 에 실패해
+   *      1 로 끝난다.
+   *   3. 짝 전이가 실행을 `cancelled` 로 커밋한 뒤 `markNodeCancelled` 가 끝나기 전의 크래시.
+   * 셋 다 "종결된 실행 + `running` 노드 행" 이라 한 조건으로 닫는다. `retryLastTurn` 이 행을
+   * 만든 뒤 재진입 작업을 잃은 경우도 같은 모양이라 함께 닫힌다.
+   *
+   * 살아 있는 작업은 아래 조건으로 뺀다.
+   *   - 노드 행 `started_at` 이 {@link STUCK_RECOVERY_STALE_MS}(30분)보다 오래돼야 한다. 재시도
+   *     재진입 턴(실행은 `failed`, 새 행은 `running`)과 취소 커밋 뒤 노드 마감 전의 짧은 창이 빠진다.
+   *   - 부모 체인에 Background 노드 행이 있는 본문 행은 뺀다. 본문은 부모 실행이 끝난 뒤에도
+   *     같은 executionId 로 돌고 `maxDurationMs=0` 이면 끝이 없다. 크래시로 남은 본문 행도
+   *     그래서 이 단계가 닫지 않는다.
+   *   - 조건부 UPDATE(`status='running'`)라 고른 뒤 그 사이 닫힌 행은 그대로 둔다.
+   *
+   * 운영 DB 영향: 배포 후 첫 부팅에서는 누적된 고아 행이 한 번에 `failed` 로 닫혀 타임라인 ·
+   * 진행률 집계가 바뀔 수 있다. 배치(LIMIT)는 두지 않았다. UPDATE 가 `status='running'` 조건부라
+   * recovery lock TTL 을 넘겨 두 인스턴스가 함께 돌아도 같은 행을 두 번 바꾸지 않고, 고른 행은
+   * 30분 넘게 종결된 실행 아래 남은 것뿐이다. 첫 배포 때는 `[recovery] 종결된 실행 아래 …` 로그의
+   * 건수로 영향 행 수를 확인한다.
+   *
+   * 노드 이벤트는 내지 않는다. 실행이 이미 끝나 구독자가 기다리는 진행이 없고, 형제
+   * {@link failOrphanRunningNodeExecutions} 와 같다. 실패해도 부팅을 막지 않고 error 로그만
+   * 남긴다. 다음 부팅 스캔이 같은 행을 다시 본다.
+   */
+  private async closeOrphanRunningNodeExecutions(
+    staleThreshold: Date,
+  ): Promise<void> {
+    try {
+      const result = await this.nodeExecutionRepository
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({
+          status: NodeExecutionStatus.FAILED,
+          error: {
+            message:
+              'Node run left running under a finished execution; closed by boot recovery scan',
+          },
+          finishedAt: new Date(),
+        })
+        .where('status = :running', { running: NodeExecutionStatus.RUNNING })
+        .andWhere(
+          `id IN (${ExecutionEngineService.ORPHAN_RUNNING_NODE_EXECUTION_IDS_SQL})`,
+          {
+            orphanThreshold: staleThreshold,
+            orphanTerminalStatuses: [
+              ExecutionStatus.COMPLETED,
+              ExecutionStatus.FAILED,
+              ExecutionStatus.CANCELLED,
+            ],
+            orphanBackgroundType: NODE_TYPES.BACKGROUND,
+            orphanMaxDepth:
+              ExecutionEngineService.ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH,
+          },
+        )
+        .returning('id')
+        .execute();
+      const closed = (result.raw as unknown[] | undefined)?.length ?? 0;
+      if (closed > 0) {
+        this.logger.warn(
+          `[recovery] 종결된 실행 아래 running 노드 실행 ${closed}건을 failed 로 닫음 (CLE-T-CCEQEC)`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `[recovery] 종결된 실행 아래 running 노드 실행 정리 실패: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
@@ -4584,6 +4728,10 @@ export class ExecutionEngineService
       inputData: (input as Record<string, unknown>) ?? {},
       parentExecutionId: options?.parentExecutionId ?? undefined,
       recursionDepth: depth,
+      // CLE-T-Y2F1NG — 부모가 dry-run 이면 자식 실행 행에도 남긴다. runExecution 과
+      // rehydrateContext 가 이 컬럼으로 `__dryRun` 을 만들어 자식 안 부수효과 노드가
+      // 모의 출력으로 돈다.
+      dryRun: options?.dryRun === true,
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;

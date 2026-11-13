@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'crypto';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -291,6 +292,98 @@ describe('Execution Re-run (e2e)', () => {
       const root = it.chainId ?? it.id;
       expect(root).toBe(executionId);
     }
+  }, 60_000);
+
+  // CLE-T-Y2F1NG — 비동기 서브 워크플로우 자식은 별도 실행이라 부모 context 를 같이
+  // 쓰지 않는다. dry-run 재실행의 자식 실행 행에도 dry_run 이 남아야 자식 안 부수효과
+  // 노드가 모의 출력으로 돈다. 일반 실행의 자식은 그대로 dry_run=false 다.
+  it('G. dryRun=true 재실행 → 비동기 서브 워크플로우 자식 실행 행에도 dry_run=true 가 남는다', async () => {
+    // 자식: 생성 직후의 워크플로(Manual Trigger 1개).
+    const childWorkflowId = await createWorkflow();
+    // 부모: Manual Trigger → Workflow(async → 자식).
+    const parentWorkflowId = await createWorkflow();
+    const triggerId = randomUUID();
+    const callId = randomUUID();
+    const save = await request(BASE_URL)
+      .post(`/api/workflows/${parentWorkflowId}/save`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        nodes: [
+          {
+            id: triggerId,
+            type: 'manual_trigger',
+            category: 'trigger',
+            label: 'Start',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            id: callId,
+            type: 'workflow',
+            category: 'flow',
+            label: 'Call Async',
+            positionX: 240,
+            positionY: 0,
+            config: { workflowId: childWorkflowId, mode: 'async' },
+          },
+        ],
+        edges: [
+          {
+            sourceNodeId: triggerId,
+            sourcePort: 'out',
+            targetNodeId: callId,
+            targetPort: 'in',
+          },
+        ],
+      });
+    expect(save.status).toBe(200);
+
+    const childOf = async (parentExecutionId: string) => {
+      const start = Date.now();
+      while (Date.now() - start < 15_000) {
+        const r = await db.query<{ id: string; dry_run: boolean }>(
+          'SELECT id, dry_run FROM execution WHERE parent_execution_id = $1',
+          [parentExecutionId],
+        );
+        if (r.rows.length > 0) return r.rows;
+        await new Promise((res) => setTimeout(res, 200));
+      }
+      throw new Error(`child execution not found for ${parentExecutionId}`);
+    };
+
+    // 1. 일반 실행 — 자식은 dry_run=false.
+    const exec = await request(BASE_URL)
+      .post(`/api/workflows/${parentWorkflowId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(exec.status).toBe(202);
+    const originalId = (exec.body.data as { executionId: string }).executionId;
+    await pollExecution(originalId, ownerToken, workspaceId, isTerminal);
+    const originalChildren = await childOf(originalId);
+    expect(originalChildren).toHaveLength(1);
+    expect(originalChildren[0].dry_run).toBe(false);
+
+    // 2. dry-run 재실행 — 사전 검사가 자식 워크플로우까지 보고 통과하고, 자식 실행
+    //    행에 dry_run=true 가 남는다.
+    const res = await request(BASE_URL)
+      .post(`/api/executions/${originalId}/re-run`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ dryRun: true });
+    expect(res.status).toBe(201);
+    const rerunId = (res.body.data as { id: string }).id;
+    await pollExecution(rerunId, ownerToken, workspaceId, isTerminal);
+    const rerunChildren = await childOf(rerunId);
+    expect(rerunChildren).toHaveLength(1);
+    expect(rerunChildren[0].dry_run).toBe(true);
+    await pollExecution(
+      rerunChildren[0].id,
+      ownerToken,
+      workspaceId,
+      isTerminal,
+    );
   }, 60_000);
 
   it('E. cross-workspace re-run → 404 RERUN_EXECUTION_NOT_FOUND (IDOR 차단)', async () => {

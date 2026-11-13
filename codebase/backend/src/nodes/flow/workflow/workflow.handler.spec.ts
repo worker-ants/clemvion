@@ -262,9 +262,33 @@ describe('WorkflowHandler', () => {
         {
           parentExecutionId: 'parent-exec-1',
           recursionDepth: 1,
+          dryRun: false,
         },
       );
     });
+
+    // CLE-T-Y2F1NG — 비동기 자식은 별도 실행이라 부모 context 를 같이 쓰지 않는다.
+    // 부모의 `__dryRun` 을 옵션으로 넘겨야 자식 실행 행에 남는다.
+    it.each([
+      ['true', true, true],
+      ['false', false, false],
+      ['미지정', undefined, false],
+    ])(
+      '부모 __dryRun=%s 이면 executeAsync 에 dryRun 을 넘긴다',
+      async (_label, parentDryRun, expected) => {
+        mockExecutor.executeAsync.mockResolvedValue('sub-exec-async-1');
+        context.variables =
+          parentDryRun === undefined ? {} : { __dryRun: parentDryRun };
+
+        await handler.execute({ data: 'test' }, asyncConfig, context);
+
+        expect(mockExecutor.executeAsync).toHaveBeenCalledWith(
+          'sub-wf-1',
+          { data: 'test' },
+          expect.objectContaining({ dryRun: expected }),
+        );
+      },
+    );
 
     it('should not call executeInline for async mode', async () => {
       mockExecutor.executeAsync.mockResolvedValue('sub-exec-async-1');
