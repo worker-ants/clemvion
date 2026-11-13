@@ -8,7 +8,12 @@ import {
 
 type Where = Record<string, unknown>;
 
-const row = (overrides: Partial<Integration>): Integration =>
+/** legacy 행은 `credentials` 가 NULL 일 수 있어 엔티티 타입보다 넓게 받는다. */
+type RowOverrides = Partial<Omit<Integration, 'credentials'>> & {
+  credentials?: Integration['credentials'] | null;
+};
+
+const row = (overrides: RowOverrides): Integration =>
   ({
     id: 'int-1',
     status: 'connected',
