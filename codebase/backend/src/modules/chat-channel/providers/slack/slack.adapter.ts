@@ -8,6 +8,7 @@ import type {
   EiaEvent,
   FormModalField,
   FormSubmissionResult,
+  InboundInteractionResponse,
   NativeFormAdapter,
   OpenFormModalParams,
   OpenFormModalResult,
@@ -253,8 +254,8 @@ export class SlackAdapter implements NativeFormAdapter {
   }
 
   /**
-   * Spec §4.2 — Slack Interactivity 3초 ack 는 HooksController 가 HTTP 200 으로 즉시 반환.
-   * 본 함수는 비동기 후속 갱신: button_callback 의 response_url 로 replace_original POST
+   * Spec §4.2 — Slack Interactivity 의 3초 ack(HTTP 200 빈 본문)는 {@link defaultInteractionResponse}
+   * 를 HooksService 가 응답에 싣는다. 본 함수는 비동기 후속 갱신: button_callback 의 response_url 로 replace_original POST
    * 하여 메시지를 "선택 완료" 로 갱신한다 (1시간 유효, response_url 자체가 인증된 URL —
    * botToken 불필요). responseUrl 부재 / button 외 command 면 noop.
    */
@@ -387,6 +388,28 @@ export class SlackAdapter implements NativeFormAdapter {
     } catch {
       // best-effort — caller 가 swallow 보장하지만 방어적으로도 swallow.
     }
+  }
+
+  /**
+   * Interactivity(block_actions · view_submission)의 기본 응답 — 3초 안 `200` 빈 본문
+   * (Spec CLE-CHAT-SLACK 「인바운드 응답」). Interactivity 는 form `payload=<JSON>` 으로 오므로
+   * `payload` 문자열 필드로 가른다(`parseSlackUpdate` 와 같은 판정). 처리 결과와 무관하게
+   * 받았다는 것만 알리고 메시지 갱신은 {@link ackInteraction} 이 `response_url` 로 따로 한다.
+   * view_submission 의 검증 실패 응답(`response_action: errors`)은 경로별 응답이 이 값보다 앞선다.
+   * Events API · 슬래시 명령은 `undefined` 라 지금처럼 `202` 다. pure.
+   */
+  defaultInteractionResponse(
+    raw: unknown,
+    _config: ChatChannelConfig,
+  ): InboundInteractionResponse | undefined {
+    if (
+      raw &&
+      typeof raw === 'object' &&
+      typeof (raw as { payload?: unknown }).payload === 'string'
+    ) {
+      return {};
+    }
+    return undefined;
   }
 }
 

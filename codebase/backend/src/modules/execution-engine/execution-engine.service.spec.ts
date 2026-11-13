@@ -12,6 +12,7 @@ import {
 } from './queues/execution-run.queue';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionEngineService } from './execution-engine.service';
+import { SUB_WORKFLOW_MAX_RECURSION_DEPTH } from '../../nodes/core/node-types.constants';
 import {
   nonTerminalStatuses,
   type TransitionOptions,
@@ -40,6 +41,7 @@ import {
 import { resolveWaitingSurface } from './waiting-surface-guard';
 import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
+import { isDryRun } from '../../nodes/core/dry-run.util';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
 import { FormInteractionService } from './form-interaction.service';
@@ -116,6 +118,13 @@ function flushPromises(): Promise<void> {
 function flushResumeDrive(ms = 200): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// 부팅 스캔의 stale 임계(서비스 private 상수). 테스트가 숫자를 복제하지 않고 서비스 값을 읽는다.
+const STALE_MS = (
+  ExecutionEngineService as unknown as { STUCK_RECOVERY_STALE_MS: number }
+).STUCK_RECOVERY_STALE_MS;
+// 임계 시각 비교의 시계 허용 오차(테스트 실행 중 흐른 시간).
+const CLOCK_TOLERANCE_MS = 5_000;
 
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
@@ -1776,8 +1785,8 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ threshold: expect.any(Date) }),
       );
       const arg = (andWhere.mock.calls[0][1] as { threshold: Date }).threshold;
-      expect(Math.abs(arg.getTime() - (before - 30 * 60 * 1000))).toBeLessThan(
-        5_000,
+      expect(Math.abs(arg.getTime() - (before - STALE_MS))).toBeLessThan(
+        CLOCK_TOLERANCE_MS,
       );
       // 재점유된 각 id 를 re-drive + segment tracking baseline 기록.
       expect(redriveSpy).toHaveBeenCalledTimes(2);
@@ -1859,6 +1868,144 @@ describe('ExecutionEngineService', () => {
         ).recoverStuckExecutions(),
       ).rejects.toThrow('db down');
       expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+    });
+  });
+
+  // CLE-T-CCEQEC — 종결된 실행 아래 running 으로 남은 노드 실행 행을 부팅 스캔이 거둔다.
+  // SQL 의미(부모 체인 · Background 제외)는 실제 DB 가 있는 e2e
+  // (test/execution-crash-redrive.e2e-spec.ts)가 확인한다. 여기서는 스캔에 붙는 위치,
+  // 조건부 UPDATE 모양, 넘기는 임계값과 상태 목록, 실패가 부팅을 막지 않는 것을 고정한다.
+  describe('closeOrphanRunningNodeExecutions (CLE-T-CCEQEC 부팅 스캔 백스톱)', () => {
+    let mockBus: { acquireLock: jest.Mock; releaseLock: jest.Mock };
+    let nodeExecute: jest.Mock;
+    let nodeReturning: jest.Mock;
+    let nodeAndWhere: jest.Mock;
+    let nodeWhere: jest.Mock;
+    let nodeSet: jest.Mock;
+    let nodeUpdate: jest.Mock;
+    let execExecute: jest.Mock;
+
+    beforeEach(() => {
+      // reclaimStuckRunningExecution — 재점유 0건(재구동 없음).
+      execExecute = jest.fn().mockResolvedValue({ affected: 0, raw: [] });
+      const execReturning = jest.fn().mockReturnValue({ execute: execExecute });
+      const execAndWhere = jest
+        .fn()
+        .mockReturnValue({ returning: execReturning });
+      const execWhere = jest.fn().mockReturnValue({ andWhere: execAndWhere });
+      const execSet = jest.fn().mockReturnValue({ where: execWhere });
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({ set: execSet }),
+      });
+      // recoverOrphanPendingExecutions — 대상 없음.
+      mockExecutionRepo.find = jest.fn().mockResolvedValue([]);
+      // 이 단계의 UPDATE … RETURNING id — 기본 2건 마감.
+      nodeExecute = jest
+        .fn()
+        .mockResolvedValue({ affected: 2, raw: [{ id: 'n1' }, { id: 'n2' }] });
+      nodeReturning = jest.fn().mockReturnValue({ execute: nodeExecute });
+      nodeAndWhere = jest.fn().mockReturnValue({ returning: nodeReturning });
+      nodeWhere = jest.fn().mockReturnValue({ andWhere: nodeAndWhere });
+      nodeSet = jest.fn().mockReturnValue({ where: nodeWhere });
+      nodeUpdate = jest.fn().mockReturnValue({ set: nodeSet });
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue({ update: nodeUpdate });
+      mockBus = (service as unknown as { continuationBus: typeof mockBus })
+        .continuationBus;
+      mockBus.acquireLock.mockResolvedValue(true);
+      mockBus.releaseLock.mockResolvedValue(true);
+    });
+
+    const runScan = () =>
+      (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+
+    it('재점유할 실행이 없어도 종결된 실행 아래 30분 넘은 running 노드 행을 failed 로 마감한다', async () => {
+      const before = Date.now();
+      await runScan();
+
+      expect(nodeUpdate).toHaveBeenCalledWith(NodeExecution);
+      const setArg = nodeSet.mock.calls[0][0] as {
+        status: unknown;
+        error: { message: string };
+        finishedAt: unknown;
+      };
+      expect(setArg.status).toBe(NodeExecutionStatus.FAILED);
+      expect(setArg.error.message).toContain('boot recovery scan');
+      expect(setArg.finishedAt).toBeInstanceOf(Date);
+      // 조건부 UPDATE — 그 사이 마감된 행은 건드리지 않는다.
+      expect(nodeWhere).toHaveBeenCalledWith('status = :running', {
+        running: NodeExecutionStatus.RUNNING,
+      });
+      expect(nodeReturning).toHaveBeenCalledWith('id');
+
+      const [subquery, params] = nodeAndWhere.mock.calls[0] as [
+        string,
+        {
+          orphanThreshold: Date;
+          orphanTerminalStatuses: string[];
+          orphanBackgroundType: string;
+          orphanMaxDepth: number;
+        },
+      ];
+      // 노드 행 started_at 30분(STUCK_RECOVERY_STALE_MS 재사용).
+      expect(subquery).toContain('ne.started_at < :orphanThreshold');
+      expect(
+        Math.abs(params.orphanThreshold.getTime() - (before - STALE_MS)),
+      ).toBeLessThan(CLOCK_TOLERANCE_MS);
+      // 부모 실행이 종결 상태일 때만. 대기 · 실행 중 · 대기열 실행은 빠진다.
+      expect(subquery).toContain('e.status IN (:...orphanTerminalStatuses)');
+      expect([...params.orphanTerminalStatuses].sort()).toEqual(
+        [
+          ExecutionStatus.CANCELLED,
+          ExecutionStatus.COMPLETED,
+          ExecutionStatus.FAILED,
+        ].sort(),
+      );
+      // 부모 체인에 Background 노드 행이 있는 본문 행은 뺀다.
+      expect(subquery).toContain('parent_node_execution_id');
+      expect(subquery).toContain('n.type = :orphanBackgroundType');
+      expect(params.orphanBackgroundType).toBe('background');
+      // 부모 체인 깊이 한도는 서브 워크플로우 재귀 한도보다 커야 정상 체인이 잘리지 않는다.
+      expect(params.orphanMaxDepth).toBeGreaterThan(
+        SUB_WORKFLOW_MAX_RECURSION_DEPTH,
+      );
+      // UpdateQueryBuilder 는 접두사 없는 낱말 중 NodeExecution 속성 이름(execution · node)을
+      // 컬럼 이름(execution_id · node_id)으로 바꿔 쓴다. 테이블 이름은 모두 따옴표로 감싸야 한다.
+      const tableRefs = [...subquery.matchAll(/\b(?:FROM|JOIN)\s+(\S+)/g)].map(
+        (m) => m[1],
+      );
+      expect(tableRefs.length).toBeGreaterThan(0);
+      for (const ref of tableRefs) {
+        if (ref === 'candidate' || ref === 'ancestor') continue; // CTE 이름
+        expect(ref).toMatch(/^"[a-z_]+"$/);
+      }
+      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+    });
+
+    it('마감 단계가 실패해도 부팅 스캔은 throw 하지 않고 lock 을 해제한다 (오류는 error 로그)', async () => {
+      nodeExecute.mockRejectedValueOnce(new Error('db hiccup'));
+      const logger = (
+        service as unknown as { logger: { error: (m: string) => void } }
+      ).logger;
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
+      try {
+        await expect(runScan()).resolves.toBeUndefined();
+        expect(
+          errorSpy.mock.calls.some((c) => String(c[0]).includes('db hiccup')),
+        ).toBe(true);
+        expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    it('lock 을 얻지 못하면 마감 단계도 돌지 않는다', async () => {
+      mockBus.acquireLock.mockResolvedValueOnce(false);
+      await runScan();
+      expect(nodeUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -3911,6 +4058,60 @@ describe('ExecutionEngineService', () => {
         expect(result).toBe(executionId);
       });
 
+      // CLE-T-Y2F1NG — 비동기 자식 실행은 부모의 dry-run 을 실행 행에 남기고 그 값으로
+      // `__dryRun` 을 만든다. 끊기면 dry-run 재실행의 자식 안 부수효과 노드가 실제로 돈다.
+      it.each([
+        ['true', true, true],
+        ['false', false, false],
+        ['미지정', undefined, false],
+      ])(
+        'dryRun=%s → 자식 실행 행의 dryRun 과 자식 노드 context 의 __dryRun 이 같은 값이다',
+        async (_label, dryRun, expected) => {
+          // 이 describe 는 노드 0개로 줄여 두었다. 자식 노드 context 를 보려고 기본
+          // 그래프(test_node)로 되돌린다.
+          mockNodeRepo.findBy.mockResolvedValue(mockNodes);
+          mockEdgeRepo.findBy.mockResolvedValue(mockEdges);
+          const base = mockExecutionRepo.create() as Partial<Execution>;
+          mockExecutionRepo.create.mockClear();
+          mockExecutionRepo.create.mockImplementationOnce(
+            (entity: Partial<Execution>) => ({ ...base, ...entity }),
+          );
+          const seenContexts: ExecutionContext[] = [];
+          (mockHandler.execute as jest.Mock).mockImplementation(
+            async (
+              input: unknown,
+              _config: unknown,
+              context: ExecutionContext,
+            ) => {
+              seenContexts.push(context);
+              return mockOutput({ processed: true, input });
+            },
+          );
+
+          await service.executeAsync(
+            workflowId,
+            { foo: 'bar' },
+            {
+              parentWorkspaceId: 'ws-1',
+              parentExecutionId: 'parent-1',
+              dryRun,
+            },
+          );
+          await flushPromises();
+
+          expect(mockExecutionRepo.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+              parentExecutionId: 'parent-1',
+              dryRun: expected,
+            }),
+          );
+          expect(seenContexts.length).toBeGreaterThan(0);
+          for (const ctx of seenContexts) {
+            expect(ctx.variables['__dryRun']).toBe(expected);
+          }
+        },
+      );
+
       // W-6 fail-closed — executeAsync 도 parentWorkspaceId 없으면 차단.
       it('throws WORKFLOW_FORBIDDEN_WORKSPACE when parentWorkspaceId is absent (fail-closed)', async () => {
         await expect(
@@ -4094,6 +4295,34 @@ describe('ExecutionEngineService', () => {
       expect(contextService.getContext(bgKey)).toBeUndefined();
       inlineSpy.mockRestore();
     });
+
+    // CLE-T-Y2F1NG — 워커가 작업 스냅샷의 `__dryRun` 을 본문 context 로 그대로 옮긴다.
+    // 본문 노드의 부수효과 가드(`isDryRun`)가 이 값을 읽는다.
+    it.each([
+      ['true', true],
+      ['false', false],
+    ])(
+      '작업 스냅샷의 __dryRun=%s 이 본문 context 로 이어진다',
+      async (_label, dryRun) => {
+        let captured: boolean | undefined;
+        const inlineSpy = jest
+          .spyOn(service, 'executeInline')
+          .mockImplementation((_w, _i, options) => {
+            captured = isDryRun(options.context);
+            return Promise.resolve(undefined);
+          });
+
+        await service.executeBackgroundSubgraph(
+          makeBgJob({
+            backgroundRunId: `bg-run-dry-${dryRun}`,
+            variables: { __dryRun: dryRun },
+          }),
+        );
+
+        expect(captured).toBe(dryRun);
+        inlineSpy.mockRestore();
+      },
+    );
 
     it('cleans up the bgKey context even when the body throws', async () => {
       const contextService = (
@@ -15267,6 +15496,55 @@ describe('ExecutionEngineService', () => {
         // Loop 밖이라 $loop 는 싣지 않는다.
         expect(jobs.every((job) => !('loopContext' in job))).toBe(true);
       });
+
+      // CLE-T-Y2F1NG — dry-run 실행의 Background 본문도 dry-run 으로 돈다. 큐 작업
+      // 스냅샷이 `context.variables` 를 통째로 복사하므로 `__dryRun` 이 실린다. 이 연결이
+      // 끊기면 본문 안 부수효과 노드가 dry-run 실행에서 실제로 돈다.
+      it.each([
+        ['true', true],
+        ['false', false],
+      ])(
+        'dry-run=%s 실행의 Background 는 작업 스냅샷 variables 에 같은 __dryRun 을 싣는다',
+        async (_label, dryRun) => {
+          handlerRegistry.register('background', new BackgroundHandler(), {
+            kind: 'background',
+          });
+          recordingHandler('test_node', () => ({ v: 1 }));
+          recordingHandler('after_node', (input) => input);
+          recordingHandler('bg_body_node', (input) => input);
+          backgroundQueueAdd().mockClear();
+          // 기본 create mock 은 입력과 무관한 고정 row 를 돌려준다. dryRun 이 row 에
+          // 실려야 runExecution 이 그 값을 `__dryRun` 으로 읽는다.
+          const base = mockExecutionRepo.create() as Partial<Execution>;
+          mockExecutionRepo.create.mockImplementationOnce(
+            (entity: Partial<Execution>) => ({ ...base, ...entity }),
+          );
+          mockNodeRepo.findBy.mockResolvedValue([
+            cNode('src', 'test_node', null),
+            cNode('bg', 'background', null),
+            cNode('after', 'after_node', null),
+            cNode('bgBody', 'bg_body_node', null),
+          ]);
+          mockEdgeRepo.findBy.mockResolvedValue([
+            cEdge('src', 'out', 'bg'),
+            cEdge('bg', 'main', 'after'),
+            cEdge('bg', 'background', 'bgBody'),
+          ]);
+
+          await service.execute(
+            workflowId,
+            {},
+            { workspaceId: 'ws-1', dryRun },
+          );
+          await flushPromises();
+
+          const jobs = backgroundQueueAdd().mock.calls.map(
+            (call: unknown[]) => call[1] as BackgroundExecutionJob,
+          );
+          expect(jobs).toHaveLength(1);
+          expect(jobs[0].variables['__dryRun']).toBe(dryRun);
+        },
+      );
 
       it('ForEach 본문 안 Loop 본문의 Background 는 바깥 $item 과 안쪽 $loop 를 함께 싣는다', async () => {
         handlerRegistry.register('background', new BackgroundHandler(), {

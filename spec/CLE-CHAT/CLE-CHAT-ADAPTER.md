@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "4c8e4f6189d6761cb20e1d420d25d5bb1fdcac5f2e2d0bfe048b77b04f5d5bb7"
+content_hash: "3baf56997136a8b2a82b4153cb3d659b1392debd1030f62a415883d3c57fcef8"
 read_as: "approved_fallback"
-task: "CLE-T-7XWVC5"
+task: "CLE-T-TSEP9G"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "30e6881af6a2375bd7ab0007d3c22e43794869548dadc0782fc4f11a2d21a7f6"
-etag: "sha256-16d3a18d3bddfde1146c01abecc16420eee3b4fe9409f4f280eeae153e2e431a"
+mirror_sha256: "ec88811a39431a02826a298fe9d7a973bc8643229501180093e3ee2311b45462"
+etag: "sha256-80dc83e3c81dd3c25ad22887cf83475f965cdeb53d5e4eb330b6cf97e9d8f606"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -28,8 +28,8 @@ etag: "sha256-16d3a18d3bddfde1146c01abecc16420eee3b4fe9409f4f280eeae153e2e431a"
 
 ## 규칙
 
-1. 모든 채널 어댑터는 [채널 어댑터 인터페이스](#채널-어댑터-인터페이스) 의 필수 함수를 구현한다. 선택 함수(`revokeBotToken?`, `enrichInbound?`, `openFormModal?`, `buildFormSubmissionResponse?`)는 프로바이더가 해당 기능을 지원할 때만 구현한다.
-2. `parseUpdate`, `renderNode`, `escapeControlText`, `buildFormSubmissionResponse` 는 순수 함수다. DB 에 접근하지 않고 외부 API 를 부르지 않는다. 부수 효과는 `setupChannel`, `teardownChannel`, `sendMessage`, `ackInteraction`, `revokeBotToken`, `enrichInbound`, `openFormModal` 이 맡는다. 외부 API 로 알아내야 하는 update 정보는 `parseUpdate` 뒤에 `enrichInbound` 가 채운다.
+1. 모든 채널 어댑터는 [채널 어댑터 인터페이스](#채널-어댑터-인터페이스) 의 필수 함수를 구현한다. 선택 함수(`revokeBotToken?`, `enrichInbound?`, `defaultInteractionResponse?`, `ackDroppedUpdate?`, `openFormModal?`, `buildFormSubmissionResponse?`)는 프로바이더가 해당 기능을 지원할 때만 구현한다.
+2. `parseUpdate`, `renderNode`, `escapeControlText`, `defaultInteractionResponse`, `buildFormSubmissionResponse` 는 순수 함수다. DB 에 접근하지 않고 외부 API 를 부르지 않는다. 부수 효과는 `setupChannel`, `teardownChannel`, `sendMessage`, `ackInteraction`, `ackDroppedUpdate`, `revokeBotToken`, `enrichInbound`, `openFormModal` 이 맡는다. 외부 API 로 알아내야 하는 update 정보는 `parseUpdate` 뒤에 `enrichInbound` 가 채운다.
 3. `parseUpdate` 는 해석할 수 없거나 무시할 update 에 `null` 을 돌려준다. `null` 의 뜻은 "채널 어댑터가 해석하지 않음" 하나뿐이다. 안내 메시지를 보낼지는 호출자(`HooksService`)가 raw body 의 프로바이더 메타(예: Telegram `chat.type`, `from.is_bot`)를 보고 정한다.
 4. `setupChannel` 은 같은 설정으로 다시 불러도 등록이 깨지지 않아야 한다(멱등). 이 멱등은 발급 시크릿 값이 그대로라는 뜻이 아니다([setupChannel 멱등의 뜻](#setupchannel-멱등의-뜻)).
 5. `setupChannel`·`teardownChannel` 이 자격 증명 거부로 실패하면 던지는 `Error` 에 `code: 'BOT_TOKEN_INVALID'` 를 싣는다. 호출자는 `err.code === 'BOT_TOKEN_INVALID'` 정확 일치로만 분류하고 `message` 를 해석하지 않는다([setupChannel 실패 판별](#setupchannel-실패-판별)).
@@ -90,9 +90,10 @@ interface ChatChannelAdapter {
 
   /**
    * 인터랙션 후처리. HooksService 가 인바운드 명령 처리(interact 호출, /cancel, 새 실행 시작)를 마친 뒤 부른다.
-   * Telegram 은 answerCallbackQuery(버튼 탭 수신 확인 의무)를 부르고 원본 메시지의 인라인 키보드를 지운다.
+   * Telegram 은 처리한 버튼 탭에 answerCallbackQuery(버튼 탭 수신 확인 의무)를 부르고 원본 메시지의 인라인 키보드를 지운다.
    * Slack 은 response_url 로 원본 메시지를 "선택 완료" 문구로 바꾼다.
-   * Slack·Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답이 맡고 이 함수는 하지 않는다.
+   * 버린 update 에는 부르지 않는다. 버린 버튼 탭의 수신 확인은 ackDroppedUpdate 가 하고 키보드는 남긴다.
+   * Slack·Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답(defaultInteractionResponse)이 맡고 이 함수는 하지 않는다.
    * 할 일이 없으면 빈 구현이어도 된다(Discord).
    */
   ackInteraction(update: ChannelUpdate, config: ChatChannelConfig): Promise<void>;
@@ -129,6 +130,27 @@ interface ChatChannelAdapter {
   enrichInbound?(update: ChannelUpdate, config: ChatChannelConfig): Promise<ChannelUpdate>;
 
   /**
+   * (선택) 인터랙션에 3초 안에 200 으로 돌려줄 기본 응답을 만든다. 순수 함수.
+   * Discord 는 컴포넌트·모달 제출에 { type: 6 }, 슬래시 명령에 본인에게만 보이는 { type: 4 } 를 돌려준다.
+   * Slack 은 Interactivity payload 에 빈 본문({})을 돌려준다.
+   * 인터랙션이 아니면 undefined 이고 웹훅 응답은 202 다.
+   * HooksService 가 서명 검증 직후, 트리거 활성 관문보다 먼저 부른다. 그래서 트리거가 비활성이어도 이 응답으로 답한다.
+   * 경로가 따로 만든 응답 본문(openFormModal 의 httpResponse, buildFormSubmissionResponse)이 있으면 그것이 먼저다.
+   * parseUpdate 보다 먼저 불리고 버린 update 에도 답해야 해서 raw body 를 받는다(R-CCA-14).
+   */
+  defaultInteractionResponse?(raw: unknown, config: ChatChannelConfig): InboundInteractionResponse | undefined;
+
+  /**
+   * (선택) 버린 update 의 수신 확인. 순수 함수가 아니다.
+   * HooksService 가 update 를 버리는 여섯 경로(파싱 실패, 중복, 분당 한도 초과, 입력 대기가 아닌 실행 중,
+   * 워크플로우 비활성, 워크플로우 없음)에서 부른다. 트리거가 비활성일 때는 부르지 않는다.
+   * Telegram 은 본문이 callback_query 면 answerCallbackQuery 만 보내고 인라인 키보드는 남긴다.
+   * 실패는 HooksService 가 경고 로그만 남기고 삼키며 웹훅 HTTP 응답은 바뀌지 않는다.
+   * 파싱하지 못한 update 에도 불러야 해서 raw body 를 받는다(R-CCA-14).
+   */
+  ackDroppedUpdate?(raw: unknown, config: ChatChannelConfig): Promise<void>;
+
+  /**
    * (선택, supportsNativeForm=true 만) 네이티브 모달을 연다. 타입은 네이티브 모달 타입 절.
    * open_form_modal 명령이 오면 HooksService 가 부른다. modalKind 가 "form"(기본)이면 채널 대화 상태의
    * pendingFormModal(fields, nodeId, title)과 openContext(trigger_id·interaction token)로 모달을 만든다.
@@ -159,12 +181,30 @@ interface ChatChannelAdapter {
 | `parseUpdate` | raw body → `ChannelUpdate \| null`. `null` 은 "해석하지 않음" 하나의 뜻이다. 안내 발송 여부는 호출자가 정한다 | 없음 | 순수 |
 | `renderNode` | `EiaEvent \| ChatChannelInternalEvent` → `ChannelMessage[]` | 없음 | 순수 |
 | `sendMessage` | 외부 API 호출. API 호출 재시도·rate limit 책임 | 외부 API 호출 | 옛 규약은 "중복 제거는 호출자가 EIA `seq` 와 `X-Clemvion-Delivery` 로 한다" 고 적었다. 정의가 갈린다([미결 사항](#미결-사항)) |
-| `ackInteraction` | 인바운드 명령 처리 뒤의 인터랙션 후처리(Telegram `answerCallbackQuery` 와 인라인 키보드 제거, Slack `response_url` 메시지 갱신). Slack·Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답이 맡고 이 함수는 하지 않는다. 함수는 필수지만 빈 구현이어도 된다(Discord) | 프로바이더에 따라 외부 API 호출 | 멱등 |
+| `ackInteraction` | 인바운드 명령을 처리한 뒤의 인터랙션 후처리. 처리한 Telegram 버튼 탭에는 `answerCallbackQuery` 를 보내고 인라인 키보드를 지운다. Slack 은 `response_url` 로 메시지를 갱신한다. 버린 update 에는 부르지 않는다(버린 탭은 `ackDroppedUpdate?`). Slack·Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답(`defaultInteractionResponse?`)이 맡고 이 함수는 하지 않는다. 함수는 필수지만 빈 구현이어도 된다(Discord) | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `escapeControlText` | 제어 안내 텍스트를 프로바이더 표면에 맞게 escape | 없음 | 순수 |
 | `revokeBotToken?` | 이전 봇 토큰의 외부 revoke(Slack `auth.revoke`). API 가 없으면 구현하지 않는다. 실패는 흡수한다. 24시간 유예가 끝난 정리 작업(`cleanupRotatedChatChannelTokens`)이 부르고 재발급 시점에는 부르지 않는다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `enrichInbound?` | `parseUpdate` 결과를 외부 API 로 보강한다(Slack `files.info` 로 파일 이름·MIME·다운로드 URL). 호출자는 `HooksService` 이고 인바운드 중복 제거와 분당 한도 검사 뒤에 부른다. 보강할 정보가 없으면 구현하지 않는다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
+| `defaultInteractionResponse?` | 인터랙션의 3초 안 기본 응답 본문을 raw body 로 만든다(Discord `{ type: 6 }`·`{ type: 4 }` ephemeral, Slack 빈 본문). `undefined` 면 `202` 다. 서명 검증 직후, 트리거 활성 관문보다 먼저 불려 비활성 트리거에도 쓴다. 경로가 만든 응답 본문이 있으면 그것이 먼저다([인터랙션 기본 응답과 수신 확인](#인터랙션-기본-응답과-수신-확인)) | 없음 | 순수 |
+| `ackDroppedUpdate?` | 버린 update 의 수신 확인을 raw body 로 보낸다(Telegram 버린 버튼 탭에 `answerCallbackQuery` 만, 키보드는 남긴다). 버리는 여섯 경로에서 부르고 비활성 트리거에서는 부르지 않는다. 실패는 호출자가 삼키고 웹훅 HTTP 응답은 바뀌지 않는다 | 프로바이더에 따라 외부 API 호출 | 요구하지 않는다(실패해도 결과에 영향이 없다) |
 | `openFormModal?` | `form_modal` 버튼 클릭(`open_form_modal` 명령) 때 모달을 연다. Slack 은 `views.open(trigger_id, view)`, Discord 는 웹훅 응답 본문 `{ type: 9 }`. 모달 합성에 채널 대화 상태의 `pendingFormModal.fields` 가 필요해 호출자는 `HooksService` 다. Discord 의 AI 답장 모달(`modalKind: "reply"`)도 이 함수로 열고, 이때는 `pendingFormModal` 없이 부른다 | 외부 API 호출 또는 HTTP 응답 본문 합성 | 멱등 |
 | `buildFormSubmissionResponse?` | 모달 제출(`form_submission`)의 HTTP 응답 합성. ack(Slack 빈 200, Discord `{ type: 4 }` ephemeral)나 검증 실패 재표시(Slack `response_action: errors`)만 만든다 | 없음 | 순수 |
+
+### 인터랙션 기본 응답과 수신 확인
+
+인터랙션의 웹훅 HTTP 응답과 수신 확인은 세 함수가 나눠 맡는다. `defaultInteractionResponse?` 는 3초 안에 돌려줄 응답 본문을 만들고, `ackInteraction` 은 처리한 인터랙션의 후처리를, `ackDroppedUpdate?` 는 버린 update 의 수신 확인을 한다.
+
+| 프로바이더 | `defaultInteractionResponse?` | `ackInteraction`(처리한 인터랙션) | `ackDroppedUpdate?`(버린 update) |
+|---|---|---|---|
+| Telegram | 구현하지 않는다. 웹훅 응답은 늘 `202` 다 | 처리한 버튼 탭에 `answerCallbackQuery` 를 보내고 원본 메시지의 인라인 키보드를 지운다 | 본문에 `callback_query.id`(비어 있지 않은 문자열)가 있으면 `answerCallbackQuery` 만 보낸다. 인라인 키보드는 남겨 잠시 뒤 다시 누를 수 있다. 그 밖의 update 에는 아무것도 하지 않는다 |
+| Slack | 본문에 문자열 `payload` 필드가 있으면(Interactivity: `block_actions`·`view_submission`) `{}` 를 돌려줘 `200` 빈 본문으로 답한다. Events API, URL Verification, 슬래시 명령은 `undefined`(`202`)다. 슬래시 명령의 3초 응답은 NERV Task `CLE-T-MGZRRP` 가 다룬다 | `response_url` 이 있으면 원본 메시지를 "선택 완료" 문구로 바꾼다 | 구현하지 않는다. 3초 응답이 수신 확인이다 |
+| Discord | 컴포넌트·모달 제출은 `{ type: 6 }`, 슬래시 명령은 본인에게만 보이는 `{ type: 4 }`(도움말이나 수신 문구)다. PING, 자동완성, 알 수 없는 `type` 은 `undefined` 다 | 빈 구현 | 구현하지 않는다. 3초 응답이 수신 확인이다 |
+
+- 웹훅 HTTP 응답은 이 순서로 정한다. (1) 경로가 만든 응답 본문(`openFormModal` 의 `httpResponse`, `buildFormSubmissionResponse`), (2) `defaultInteractionResponse?` 의 기본 응답, (3) 그 밖은 `202` 와 `{ data: { executionId } }`. 기본 응답에 `body` 가 있으면 `200` 과 그 본문을 `{ data }` 봉투 없이 보내고, `body` 가 없으면 `200` 빈 본문을 보낸다.
+- 트리거가 비활성이면 `HooksService` 는 실행을 시작하지 않고 외부 API 도 부르지 않는다. `defaultInteractionResponse?` 는 외부 호출이 없어 이때도 쓰고, `ackDroppedUpdate?` 는 부르지 않는다.
+- 핸드셰이크(Slack URL Verification, Discord PING)는 이 함수들이 아니라 `HooksService` 가 트리거 활성 관문 뒤에서 답한다. 그래서 트리거가 비활성이면 핸드셰이크는 `202` 다.
+- 기본 응답이 있는 update 로 새 실행을 시작하면 그 실행의 `response_code` 는 실제로 보낸 응답 코드인 `'200'` 이고, 없으면 `'202'` 다.
+- 응답 코드 계약은 [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 프로바이더별 응답 본문은 각 프로바이더 문서가 정한다. Discord 는 [Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD.md#인바운드-응답) 이다.
 
 ### setupChannel 멱등의 뜻
 
@@ -394,6 +434,11 @@ interface ChatChannelConfig {
    * 이 조회는 채널 어댑터 책임이다. classifyExecutionFailure 는 key 만 정한다.
    */
   languageLocale?: "ko" | "en";
+  /**
+   * 안내 문구 덮어쓰기. 키와 기본 문구는 채팅 채널 데이터와 흐름의 안내 문구 기본값이 정한다.
+   * 메시지로 보내는 문구 말고 웹훅 HTTP 응답 본문에 싣는 문구도 있다
+   * (defaultInteractionResponse 가 쓰는 Discord 슬래시 명령의 commandReceived·help).
+   */
   languageHints?: Record<string, string>;
 }
 ```
@@ -407,6 +452,8 @@ interface ChatChannelConfig {
 | Discord | ed25519 application public key | Discord Developer Portal 발급, 사용자가 직접 입력 | `X-Signature-Ed25519` ed25519 검증(raw body + timestamp) |
 
 1차 범위의 세 채널 프로바이더는 규약상 모두 서명 자료가 필수다. 그러나 지금 구현은 저장된 `inboundSigningRef` 가 없는 행(옛 행 등)에서 인바운드 서명 검증을 건너뛴다. 규약과 구현이 어긋난 알려진 상태이고 `CLE-T-AAGZRW` 가 정할 때까지의 임시 동작이다([미결 사항](#미결-사항)). 그런 행이 생기는 길은 [채팅 채널 데이터와 흐름 §인바운드 서명 자료 참조가 없는 행](CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 에 적었다.
+
+`languageHints` 의 키 가운데 웹훅 HTTP 응답 본문에 싣는 문구(`commandReceived`, Discord `help`)는 `sendMessage` 로 보내지 않으므로 `escapeControlText` 를 거치지 않는다. 기본값과 찾는 순서는 다른 키와 같다([채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값)).
 
 ### SetupResult와 SendResult
 
@@ -476,6 +523,20 @@ interface OpenFormModalResult {
 interface FormSubmissionResult {
   /** 웹훅 HTTP 응답 본문(Slack response_action: errors, Discord ack). 비우면 일반 ack 다. */
   httpResponse?: unknown;
+}
+```
+
+### 인터랙션 기본 응답 타입
+
+`defaultInteractionResponse?` 가 돌려주는 타입이다.
+
+```typescript
+interface InboundInteractionResponse {
+  /**
+   * 웹훅 HTTP 응답 본문. 있으면 200 과 이 본문을 { data } 봉투 없이 보낸다(Discord { type: 6 } 등).
+   * 없으면 200 빈 본문이다(Slack Interactivity).
+   */
+  body?: unknown;
 }
 ```
 
@@ -675,8 +736,11 @@ interface ChannelAdapterRegistry {
 ## 구현 위치
 
 - `codebase/backend/src/modules/chat-channel/**`
+- `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터 인터페이스와 데이터 타입(`InboundInteractionResponse` 포함)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: 인터랙션 기본 응답 적용(`withDefaultInteractionResponse`), 버린 update 의 수신 확인(`dropChatChannelUpdate`), 처리한 인터랙션의 `ackInteraction` 호출
+- `codebase/backend/src/modules/hooks/hooks.controller.ts`: 인터랙션 응답 본문과 빈 본문의 `200` 전송
 
-관련 후속 계획(미구현): 401/403 message fallback 제거 판정(NERV Task `CLE-T-PDWFV8`), Discord Gateway, Slack Socket Mode, 시각형 SSR PNG.
+관련 후속 계획(미구현): 401/403 message fallback 제거 판정(NERV Task `CLE-T-PDWFV8`), Slack 슬래시 명령의 3초 응답(NERV Task `CLE-T-MGZRRP`), Discord Gateway, Slack Socket Mode, 시각형 SSR PNG.
 
 ## Rationale
 
@@ -688,11 +752,11 @@ interface ChannelAdapterRegistry {
 
 인터페이스 함수는 최소로 둔다. 함수를 하나 더하면 모든 프로바이더의 계약이 바뀌기 때문이다. 프로바이더 본질이라 공용 순수 helper 로 나누지 못하고 함수 안쪽 분기로도 흡수하지 못하는 동작만 함수로 둔다. 일부 프로바이더만 지원하는 기능은 선택(`?`) 함수로 두어 기존 필수 계약을 바꾸지 않는다(R-CCA-8 (b)).
 
-인터랙션 후처리는 프로바이더마다 다르다(Telegram 은 `callback_query` 에 `answerCallbackQuery` 가 의무, Slack 은 `response_url` 로 원본 메시지를 갱신, Discord 는 할 일이 없다). Slack · Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답이 맡으므로 이 함수의 일이 아니다. `ackInteraction` 을 따로 두면 프로바이더가 구체 동작을 드러낼 수 있고 빈 구현도 된다. `sendMessage` 에 흡수하면 채널 어댑터마다 `sendMessage` 책임이 늘고, 옵션 플래그로 처리하면 시그니처가 여러 관심사를 섞는다.
+인터랙션 후처리는 프로바이더마다 다르다(Telegram 은 `callback_query` 에 `answerCallbackQuery` 가 의무, Slack 은 `response_url` 로 원본 메시지를 갱신, Discord 는 할 일이 없다). Slack · Discord 의 3초 안 수신 확인은 웹훅 HTTP 응답이 맡으므로 이 함수의 일이 아니다. 그 응답 본문은 선택 함수 `defaultInteractionResponse?` 가 만든다(R-CCA-14). `ackInteraction` 을 따로 두면 프로바이더가 구체 동작을 드러낼 수 있고 빈 구현도 된다. `sendMessage` 에 흡수하면 채널 어댑터마다 `sendMessage` 책임이 늘고, 옵션 플래그로 처리하면 시그니처가 여러 관심사를 섞는다.
 
 `escapeControlText` 도 같은 이유로 따로 둔 순수 함수다. 제어 안내(`/help`, Form 검증 실패, 표면 불일치 등)는 `renderNode` 를 건너뛰고 raw 텍스트를 바로 `sendMessage` 로 보내는데, escape 규칙(Telegram MarkdownV2, Slack mrkdwn, Discord 평문)이 프로바이더마다 달라 발송 직전 escape 가 필요하다. `sendMessage` 에 넣으면 `renderNode` 가 이미 escape 한 출력을 다시 escape 해 이중 escape 가 된다("`renderNode` 출력은 `sendMessage` 가 escape 하지 않는다" 는 계약과 부딪친다). `renderNode` 에 넣으면 그것을 거치지 않는 제어 안내 경로가 escape 를 받지 못한다. 그래서 "발송 직전 raw 텍스트 escape" 만 하는 순수 함수를 인터페이스에 두고 우회 경로 호출자(`hooks.service`)가 명시적으로 쓴다. 위 최소주의의 정당한 예외다. escape 규칙이 프로바이더 본질이라 공용 순수 helper 로 나눌 수 없고, 함수 안쪽 분기로도 흡수할 수 없다.
 
-선택 함수 `enrichInbound?` 도 이 최소주의를 지킨다. Slack 파일 첨부는 `files.info` 외부 호출로 보강해야 하는데, 그 호출을 `parseUpdate` 에 넣으면 순수 함수 계약(규칙 2)이 깨진다. 그래서 외부 API 보강만 떼어 선택 함수로 두었다. 지금은 Slack 만 구현하고, 다른 프로바이더의 필수 계약은 바뀌지 않는다(R-CCA-8 (b)).
+선택 함수 `enrichInbound?` 도 이 최소주의를 지킨다. Slack 파일 첨부는 `files.info` 외부 호출로 보강해야 하는데, 그 호출을 `parseUpdate` 에 넣으면 순수 함수 계약(규칙 2)이 깨진다. 그래서 외부 API 보강만 떼어 선택 함수로 두었다. 지금은 Slack 만 구현하고, 다른 프로바이더의 필수 계약은 바뀌지 않는다(R-CCA-8 (b)). 선택 함수 `defaultInteractionResponse?`·`ackDroppedUpdate?` 도 같은 방식으로 더했다(R-CCA-14).
 
 ### R3 EiaEvent 를 별도 타입으로 정의하지 않고 EIA 에 맡긴다
 
@@ -796,3 +860,21 @@ AI 에이전트 핸들러가 빈 `ai_message` 를 내지 못하게 막는 안은
 - (c) 이 임시 텍스트는 AI 에이전트 `render_form` 표시물(표시 도구 턴) 표면이다. 모달 격상은 블로킹 Form 노드(`execution.waiting_for_input` form) 표면이라 경로가 다르다. 블로킹 Form 노드는 폼 모드 분기(모달 또는 다단계)를 타고, `render_form` 표시물은 이 임시 텍스트를 유지한다. `ai_message` 표시물 경로의 네이티브 UI 격상은 후속 작업이다.
 
 [채팅 채널](CLE-CHAT-CORE.md) 의 Rationale 에도 이 결정을 가리키는 항목이 있고, 근거는 이 절에 둔다.
+
+### R-CCA-14 인터랙션 기본 응답과 버린 update 의 수신 확인은 선택 함수 둘로 둔다
+
+2026-11-12 사람 결정 두 건을 구현하면서 정했다. 하나는 트리거가 비활성이어도 인터랙션에는 인터랙션 응답으로 답하고 외부 호출은 하지 않는다는 결정이다(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f`). 다른 하나는 버린 Telegram 버튼 탭에 `answerCallbackQuery` 만 보내고 인라인 키보드는 남긴다는 결정이다(NERV 질문 `01a1d025-92b9-7782-8c6e-09705b4a117f`). 출처는 NERV Task `CLE-T-TSEP9G` · `CLE-T-FCBG91` · `CLE-T-K8Z2W0` 이다.
+
+Slack · Discord 는 인터랙션에 3초 안에 정해진 모양으로 답해야 한다. 그 모양이 아니면 사용자 화면에 실패가 뜬다. 모양은 프로바이더마다 달라 공용 helper 로 나눌 수 없다(R2). 이 응답은 인터랙션을 버린 경로와 트리거가 비활성인 경우에도 같아야 한다. 그래서 `parseUpdate` 결과가 아니라 raw body 만 보고 외부 호출 없이 만드는 순수 함수 `defaultInteractionResponse?` 로 둔다. `HooksService` 는 서명 검증 직후, 트리거 활성 관문보다 먼저 이 값을 구한다. 외부 호출이 없으므로 비활성 트리거에서 외부 호출을 하지 않는다는 결정과 맞는다.
+
+Telegram 은 웹훅 응답과 별개로 버튼 탭마다 `answerCallbackQuery` 를 보내야 버튼의 로딩 표시가 사라진다. 버린 탭에도 보내야 하는데 `ackInteraction` 은 처리를 마친 update(`ChannelUpdate`)를 받으므로 파싱하지 못한 update 에는 부를 수 없다. 그래서 버린 경로에서만 부르는 `ackDroppedUpdate?` 를 따로 둔다. 키보드를 남기는 이유는 분당 한도 초과나 실행 중이라 버린 탭을 잠시 뒤 다시 누를 수 있어야 하기 때문이다. 이 함수의 실패는 호출자가 삼키고 웹훅 HTTP 응답은 바꾸지 않는다. 비활성 트리거에서는 부르지 않는다.
+
+두 함수 모두 선택(`?`)이라 다른 프로바이더의 필수 계약은 바뀌지 않는다(R-CCA-8 (b)). 지금은 Slack · Discord 가 `defaultInteractionResponse?` 를, Telegram 이 `ackDroppedUpdate?` 를 구현한다.
+
+기각한 대안은 다섯이다.
+
+- Discord 응답 판단을 `HooksService` 의 프로바이더 분기(`discordDeferredUpdateAck`)로 두는 안: 프로바이더 본질이 호출자로 새고 프로바이더를 더할 때마다 분기가 는다. 지금 구현은 이 분기를 지웠다.
+- `ackInteraction` 이 응답 본문을 돌려주게 하는 안: 이 함수는 처리를 마친 뒤 부르므로 버린 경로와 비활성 트리거에서는 불리지 않는다. 필수 함수의 시그니처도 모든 프로바이더에서 바뀐다.
+- 버린 탭에도 `ackInteraction` 을 부르는 안: Telegram 구현이 키보드를 지운다. 파싱하지 못한 update 에는 `ChannelUpdate` 도 없다.
+- 버린 Telegram 탭의 키보드도 지우는 안: 잠시 뒤 다시 누를 수 없다.
+- 비활성 트리거에서도 버린 탭에 `answerCallbackQuery` 를 보내는 안: 비활성 트리거에서는 수신 확인을 포함해 외부 호출을 하지 않는다는 결정과 어긋난다.

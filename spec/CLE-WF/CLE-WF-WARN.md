@@ -2,19 +2,19 @@
 id: "CLE-WF-WARN"
 title: "그래프 경고 규칙"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "5e6649c17b6de73eb16f1826c548e7cc28e96fb451f5537374f74abebb20e72f"
+content_hash: "960b71e370f8a8b393b520a5cc8db9c37aa2a8a9e14131891659e9b7b2db5bd0"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-D6C9HJ"
 source_paths: ["spec/conventions/cross-node-warning-rules.md"]
-mirror_sha256: "e92c50ce247df332e81ba01ac0b9656d7b4d759e34fb25bd215370b8c4b88bec"
-etag: "sha256-0d3ea9bbb518045545bf98ce02edffacf178d238faf63d72e7380f4fd92cb6eb"
+mirror_sha256: "dad77e4a329b7ff89e7513b3b9dcd676643a7a03eb13347ec431a26fe9898893"
+etag: "sha256-04caf00e40f119079212ecc64e9f19d6a26c73d9b9447b62bd8f091f7032dd87"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/cross-node-warning-rules.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -26,7 +26,7 @@ etag: "sha256-0d3ea9bbb518045545bf98ce02edffacf178d238faf63d72e7380f4fd92cb6eb"
 
 범위 밖:
 
-- 노드 하나의 설정만 보는 노드 경고 규칙과 캔버스의 미설정 경고 표시는 [워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md) 와 각 노드 문서가 정한다.
+- 노드 하나의 설정만 보는 노드 경고 규칙과 캔버스의 미설정 경고 표시는 [워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md) 와 각 노드 문서가 정한다. 다만 두 메커니즘을 견주려고 노드 경고 규칙의 심각도와 `advisory` 노드 경고 규칙 목록은 이 문서에 둔다([노드 경고 규칙의 심각도](#노드-경고-규칙의-심각도)).
 - 탈출 불가 순환 경고의 에디터 판정 규칙은 [연결선](CLE-WF-EDGE.md) 이 정한다.
 - Parallel 의 제한 값과 근거는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md), 도구 정의 크기 예산은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 가 정한다.
 - 경고 문구의 한국어 매핑 의무와 자동 가드는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 가 정한다.
@@ -39,8 +39,8 @@ etag: "sha256-0d3ea9bbb518045545bf98ce02edffacf178d238faf63d72e7380f4fd92cb6eb"
 4. 결과의 `message` 는 영문이 기준이자 대체 문구다. 노드 레이블이나 수치처럼 동적인 값은 `params` 로 분리해 내보낸다. 새 그래프 경고 규칙을 추가할 때는 `params` 노출과 한국어 템플릿(`GRAPH_WARNING_KO`) 매핑을 같은 PR 에서 한다.
 5. 특정 노드 유형에 속한 규칙은 `NodeComponentMetadata.graphWarningRules` 에 두고 패키지의 `GRAPH_WARNING_RULES_BY_TYPE` 맵에 올린다.
 6. 특정 노드 유형에 속하지 않고 그래프 전체를 한 번 돌아 평가하는 그래프 수준 규칙은 독립 함수 `(GraphRuleGraph) => GraphWarningRuleResult[]` 로 내보낸다. 호출하는 쪽이 유형별 결과 배열과 펼쳐 합쳐 같은 `GraphWarningRuleResult[]` 로 내보낸다. 이 규칙은 `GRAPH_WARNING_RULES_BY_TYPE` 밖에 있으므로 다국어 가드(P3-C-1)가 그 `ruleId` 를 따로 열거해 매핑을 강제한다.
-7. 심각도 `error` 규칙은 저장 요청을 거부하고 캔버스에서 저장 버튼을 막는다. `warning` 규칙은 저장을 통과시키고 캔버스에 노란 배지만 붙인다([심각도 정책](#심각도-정책)).
-8. 심각도 `error` 규칙이 지키는 불변식은 저장 요청, 프론트엔드 캔버스, 실행 세 시점에서 모두 지킨다([평가 시점과 3중 가드](#평가-시점과-3중-가드)).
+7. 그래프 경고 규칙 중 심각도 `error` 규칙은 저장 요청을 거부하고 캔버스에서 저장 버튼을 막는다. `warning` 규칙은 저장을 통과시키고 캔버스에 노란 배지만 붙인다([심각도 정책](#심각도-정책)). 노드 경고 규칙의 `blocking` · `advisory` 는 [노드 경고 규칙의 심각도](#노드-경고-규칙의-심각도) 가 정한다.
+8. 그래프 경고 규칙 중 심각도 `error` 규칙이 지키는 불변식은 저장 요청, 프론트엔드 캔버스, 실행 세 시점에서 모두 지킨다([평가 시점과 3중 가드](#평가-시점과-3중-가드)).
 9. 평가에 비동기 외부 조회가 필요한 규칙은 공유 패키지에 넣지 않고 백엔드 전용 규칙으로 둔다. 이때 캔버스 사전 평가는 생략하고 저장 요청 가드와 강한 실행 시 가드를 반드시 함께 둔다.
 10. 평가 유틸은 같은 그래프에 늘 같은 결과를 내는 순수 함수다. debounce 와 memoization 은 호출하는 쪽이 책임진다.
 11. 메타데이터 API 로 규칙 함수를 직렬화해 프론트엔드에서 eval 하지 않는다(보안).
@@ -52,7 +52,7 @@ etag: "sha256-0d3ea9bbb518045545bf98ce02edffacf178d238faf63d72e7380f4fd92cb6eb"
 | 입력 | `config`(노드 하나) | `(node, { nodes, edges })`(그래프 전체) |
 | 표현 | mini-DSL 문자열(`branchCount < 2`) | JS 함수(`evaluate: (node, graph) => result \| null`) |
 | 평가 위치 | 프론트엔드 캔버스와 백엔드 `handler.validate`(`@workflow/node-summary` 가 기준) | 워크플로우 저장 요청, 프론트엔드 캔버스, 실행 시(의무) |
-| 심각도 | `blocking`, `advisory` | `error`, `warning` |
+| 심각도 | `blocking`(기본값), `advisory`. 뜻은 [노드 경고 규칙의 심각도](#노드-경고-규칙의-심각도) | `error`, `warning`. 뜻은 [심각도 정책](#심각도-정책) |
 | 쓰는 곳 | 노드 하나의 설정 위반. 가장 흔한 경우이고 모든 노드의 기본 경로다. | 부모·자식이나 형제 노드 관계 위반(그래프 수준 규칙) |
 
 ## 타입 정의
@@ -103,10 +103,23 @@ export interface GraphWarningRuleResult {
 
 ## 심각도 정책
 
+그래프 경고 규칙(`graphWarningRules`)의 심각도는 다음 두 가지다.
+
 | 심각도 | 워크플로우 저장 요청 | 프론트엔드 캔버스 | 쓰는 경우 |
 | --- | --- | --- | --- |
 | `error` | 저장 거부(400, 응답에 규칙 메시지 포함) | 빨간 배지, 저장 버튼 비활성 | 깊이 위반(`parallel:nested-depth-exceeded`), 명백한 불변식 위반. 그래프 수준 탈출 불가 순환(`graph:unescapable-cycle`)은 `error` 가 아니라 `warning` 이다([연결선](CLE-WF-EDGE.md)의 경고만 하고 막지 않는 결정). |
 | `warning` | 저장 통과(로그를 남기고 응답에 포함) | 노란 배지, 저장 가능 | 운영 위험은 있지만 실행 시 안전장치가 있는 경우(예: 동시성 상한을 말없이 낮추는 조정) |
+
+### 노드 경고 규칙의 심각도
+
+노드 경고 규칙(`warningRules`)은 심각도로 `blocking` 과 `advisory` 를 쓴다. 규칙에 `severity` 를 적지 않으면 `blocking` 이다([노드 아키텍처 §노드 정의 속성](../CLE-NODE/CLE-NODE-ARCH.md#노드-정의-속성)).
+
+| 심각도 | 캔버스 | `handler.validate` | 쓰는 경우 |
+| --- | --- | --- | --- |
+| `blocking` | 설정 요약 줄 대신 노드 헤더에 경고 아이콘을 띄우고 툴팁에 문구를 보인다(미설정 경고) | 오류 목록에 들어간다(`evaluateMetadataBlockingErrors`) | 필수 설정이 비었거나 고치지 않으면 노드가 동작하지 않는 경우 |
+| `advisory` | 설정 요약 줄은 그대로 두고 노드 헤더에 경고 아이콘만 띄운다. `blocking` 경고가 함께 있으면 숨긴다 | 오류 목록에 들어가지 않는다. 그래서 실행을 막지 않는다 | 값은 유효하지만 이름과 동작이 달라 오해하기 쉬운 경우(예: Merge `strategy` 의 `first` · `append`) |
+
+캔버스 표시의 세부 규칙은 [워크플로우 에디터와 캔버스 §미설정 경고와 경고 배지](CLE-WF-EDITOR.md#미설정-경고와-경고-배지) 가 정한다. `advisory` 규칙을 쓰는 노드는 아래 [등록된 규칙](#등록된-규칙) 의 노드 경고 규칙 표에 적는다.
 
 ## 평가 시점과 3중 가드
 
@@ -160,12 +173,21 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 
 ## 등록된 규칙
 
+그래프 경고 규칙은 다음과 같다.
+
 | 노드 | 규칙 id | 심각도 | 뜻 |
 | --- | --- | --- | --- |
 | Parallel | `parallel:nested-depth-exceeded` | `error` | 바깥 Parallel 의 병렬 분기 본문에 안쪽 Parallel 이 있고 그 분기 본문에 또 Parallel 이 있으면 깊이 3이라 거부한다(Parallel 후속 결정 3). |
 | Parallel | `parallel:nested-concurrency-cap` | `warning` | 바깥 유효 동시성 × 안쪽 유효 동시성이 32를 넘으면 경고한다. 실행 시 말없이 상한을 낮추는 조정이 안전망이다(Parallel 후속 결정 3, D). |
 | 그래프 수준 | `graph:unescapable-cycle` | `warning` | 분기 노드 없이 탈출할 수 없는 순환(통과형 노드에서 되돌아가는 연결선)을 그 출발 노드에 경고한다. 컨테이너가 모으는 연결선(`targetHandle==='emit'`)과 컨테이너 진입 연결선(`sourceHandle==='body'`)은 예외다. 에디터는 경고만 하고 막지 않는다([연결선](CLE-WF-EDGE.md)). |
 | AI 에이전트 노드(**백엔드 전용**, 예외 규칙) | `ai_agent:tool-payload-budget` | `warning`. `AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 면 hard 초과분을 `error` 로 올린다. | 노드의 도구 정의(스키마) payload 가 예산(`AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES`, `_HARD_BYTES`)을 넘는다. 통합 권한 범위를 비동기로 조회해야 해서 백엔드 전용으로 평가한다(가드 ② 생략, 실행 시 `TOOL_DEFINITION_PAYLOAD_EXCEEDED` 가 안전망). `WorkflowsService` 가 `getGraphWarnings`(조회) 결과에 덧붙이고 `saveCanvas`(저장)는 심각도가 `error` 면 막는다. 기준은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 다. |
+
+심각도가 `advisory` 인 노드 경고 규칙은 다음과 같다. `blocking` 노드 경고 규칙은 노드가 많아 이 표에 적지 않고 각 노드 문서의 에러 절이 적는다.
+
+| 노드 | 규칙 id | 심각도 | 뜻 |
+| --- | --- | --- | --- |
+| Merge | `merge:strategy-first-not-arrival-order` | `advisory` | `strategy` 가 `first` 면 먼저 도착한 입력이 아니라 ID 순으로 첫 선행 노드의 입력을 남긴다고 알린다([Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) REQ-MERGE-018). |
+| Merge | `merge:strategy-append-same-as-wait-all` | `advisory` | `strategy` 가 `append` 면 `wait_all` 과 결과가 같다고 알린다([Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) REQ-MERGE-018). |
 
 ## 향후 확장
 

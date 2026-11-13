@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "df3e0160f624c3717ff12cdb9d32880a040f3d22ff726322bca0f9bd929c65c7"
+content_hash: "d77eab60c9206bde1b75a4c944c21b34118d7cd3a3b17ba028cbe86a692dd497"
 read_as: "approved_fallback"
-task: "CLE-T-TBJ863"
+task: "CLE-T-9WQMDE"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "502bfded8030c123568a9f9b95a608a0e039b59d680349e088b313dfd8f652c2"
-etag: "sha256-153ea126f01cda8f6eb42156cad79d263fbb58e8a5737d18eff8077b358120b9"
+mirror_sha256: "9ed2758f4665133f026e0121fa89886271aaa31a543f166cc22709f3f1eb2938"
+etag: "sha256-43417acca903f9b9e50cb2ddd925badbb2d86bc7ebf087be515843be00bba1ed"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -279,7 +279,7 @@ LLM 요청에 싣는 도구 정의(스키마) 전체의 직렬화 크기를 예�
 | `AI_AGENT_TOOL_COUNT_MAX` | 128 | 2차 점검. 넘으면 hard 와 같게 다룬다 |
 | `AI_AGENT_TOOL_BUDGET_STRICT_SAVE` | false | 저장 시 hard 초과를 `error` 로 올려 `GRAPH_VALIDATION_FAILED` 로 막는 opt-in |
 
-**대형 카탈로그는 노출 도구 목록이 사실상 필수다 (2026-07-17)**: 내부 MCP 브리지 카탈로그는 기본값 128 을 늘 넘는다. 2026-07-17 실측으로 Cafe24 는 485 operation, MakeShop 은 161 REST operation 이다. 전체 수의 단일 기준은 [Cafe24 API 카탈로그 §5 Coverage Matrix](CLE-C24-CATALOG#5-coverage-matrix) 와 [MakeShop API 카탈로그 §5 Coverage Matrix](CLE-MKS-CATALOG#5-coverage-matrix) 다. `mcpServers[].enabledTools`([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)) 없이 연결하면 정상 설정처럼 보여도 개수 상한과 bytes hard 예산 양쪽에서 실패한다. 필요한 operation 만 노출하는 것이 정상 사용법이며, 도구 수백 개를 한 번에 주는 것은 도구 선택 정확도에도 좋지 않다. 기본값 128 은 bytes 팽창 사고의 2차 점검 값이고 대형 카탈로그 전량 노출을 상정하지 않았다. 기본값의 타당성은 별건이다.
+**대형 카탈로그는 노출 도구 목록이 사실상 필수다 (2026-07-17)**: 내부 MCP 브리지 카탈로그는 기본값 128 을 늘 넘는다. 2026-07-17 실측으로 Cafe24 는 485 operation, MakeShop 은 161 REST operation 이다. 전체 수의 단일 기준은 저장소 `codebase/api-catalogs/cafe24/_overview.md` 와 `codebase/api-catalogs/makeshop/_overview.md` 의 §5 다. NERV 사본은 [Cafe24 API 카탈로그 §5 Coverage Matrix](CLE-C24-CATALOG#5-coverage-matrix) 와 [MakeShop API 카탈로그 §5 Coverage Matrix](CLE-MKS-CATALOG#5-coverage-matrix) 다. `mcpServers[].enabledTools`([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)) 없이 연결하면 정상 설정처럼 보여도 개수 상한과 bytes hard 예산 양쪽에서 실패한다. 필요한 operation 만 노출하는 것이 정상 사용법이며, 도구 수백 개를 한 번에 주는 것은 도구 선택 정확도에도 좋지 않다. 기본값 128 은 bytes 팽창 사고의 2차 점검 값이고 대형 카탈로그 전량 노출을 상정하지 않았다. 기본값의 타당성은 별건이다.
 
 **실행 판정**: `AiTurnExecutor.buildTools` 직후(단일 턴·멀티턴 재개 공통 헬퍼)에 판정한다. hard 나 개수 상한을 넘으면 LLM 을 부르기 전에 `TOOL_DEFINITION_PAYLOAD_EXCEEDED` 를 던져 `error` 포트로 보낸다(`details` 구조화). soft 초과는 로그만 남긴다. 멀티턴은 이 예외를 오케스트레이터까지 올려 `extractAiTurnErrorPayload` 가 `output.error` 를 만든다. 단일 턴은 `buildSingleTurnToolsOrError` 가 try/catch 로 받아 에러 출력을 직접 돌려준다. 이 return·throw 차이는 `AiTurnExecutor` JSDoc 에 적혀 있고 통일은 후속이다.
 

@@ -104,6 +104,7 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 ### 4.3 Button / Form
 
 - Button Presentation 노드의 버튼은 Slack Block Kit `actions block` 으로 자동 변환
+- 버튼 클릭과 modal 제출은 어떤 경우에도 3초 안에 HTTP 200 빈 본문으로 응답해요. 트리거를 꺼 두어도 같아서 Slack 화면에 경고 아이콘이 뜨지 않아요.
 - Form 노드는 **native modal** 방식으로 동작해요 — "양식 작성하기" 버튼 클릭 시 Slack Modal (`views.open`) 이 열리고 사용자가 모든 필드를 한 번에 입력해요.
 
 #### Form 모드 (`formMode`)

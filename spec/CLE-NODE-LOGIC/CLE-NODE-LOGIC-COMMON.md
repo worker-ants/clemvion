@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "8e66b6dc15b3174d101416bcad705019c4075de970f81e91d6340a139217b61f"
+content_hash: "2db5e5ecad0a4b1a594ea9c3de5b390aa620dbc7e78345a6c0ad9e51dc05d368"
 read_as: "approved_fallback"
-task: "CLE-T-FZ6N7A"
+task: "CLE-T-X3YE55"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ba7602d35fe49c89417d7d49d17c69e53d85b6dead56bfa29b422f013d86e7a8"
-etag: "sha256-c14622cce140d969f3252b9d1fc4b9258fc1e65bb39f92ba1d1f6b40f82bffe1"
+mirror_sha256: "0c8a1880c24bbf21dbed6603f149cdeffd16d9dbaf05bc5e38892812f98a945c"
+etag: "sha256-88e271bcc6d8473bc8f1eaab5d694fade6997c2f5dc5ca0ddafb2dc24b24983f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -97,7 +97,7 @@ Logic 노드(Logic nodes)는 데이터 흐름의 경로 선택·반복·변수 �
 4. 실행 중에는 컨테이너 헤더에 현재 진행 인덱스를 표시한다(예: "Iteration 3/10", "Item 2/5"). 이 표시의 구현 여부는 [미결 사항](#미결-사항) 에 적었다.
 5. 컨테이너가 중첩될 때의 스코프 규칙은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 이 정한다.
 6. Parallel 노드는 컨테이너가 아니다. 다만 엔진 덮어쓰기를 받는 노드(엔진 덮어쓰기 대상 노드)라서 [엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 을 함께 따른다.
-7. Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰지 않고 `background` 출력 포트의 연결선으로 이어진 노드를 본문 진입점으로 본다. 그 진입점에서 앞으로 도달할 수 있는 노드 전체가 Background 본문이다. Background 본문은 fire-and-forget 으로 실행하고 결과가 메인 흐름으로 돌아오지 않는다. 자세한 동작은 [Background 노드](CLE-NODE-BACKGROUND.md) 가 정한다.
+7. Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰지 않고 `background` 출력 포트의 연결선으로 이어진 노드를 본문 진입점으로 본다. 그 진입점에서 앞으로 도달할 수 있는 노드 전체가 Background 본문이다. Background 본문은 fire-and-forget 으로 실행하고 결과가 메인 흐름으로 돌아오지 않는다. 자세한 동작은 [Background 노드](CLE-NODE-BACKGROUND.md) 가 정한다. 단서가 하나 있다. 컨테이너 본문 안 Background 의 본문 노드에도 에디터의 연결선 체인 규칙에 따라 그 컨테이너의 `containerId` 가 붙는다. 이 값은 위치 속성일 뿐이고 본문 범위는 여전히 `background` 포트 연결선으로 정한다. 워커는 그 컨테이너 단계 그래프로 본문을 실행한다([컨테이너 실행 §컨테이너 본문 안 Background](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)).
 
 ### 항목 에러 정책
 

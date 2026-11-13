@@ -9,7 +9,11 @@ import {
   SESSION_EXPIRED_DEFAULTS,
   resolveSurfaceMismatchMessage,
   SURFACE_MISMATCH_DEFAULTS,
+  resolveCommandReceivedMessage,
+  COMMAND_RECEIVED_DEFAULTS,
   makeLocaleResolver,
+  pickLocaleDefault,
+  readLanguageHintOverride,
   type LanguageLocale,
 } from './language-hint-defaults';
 // canonical MarkdownV2 escaper 를 재사용 — 특수문자 집합을 손으로 재선언하면 telegram
@@ -31,6 +35,28 @@ describe('makeLocaleResolver (F-4 3-level lookup factory)', () => {
   });
   it('다른 키의 override 는 영향 없음', () => {
     expect(resolve({ otherKey: 'x' }, 'en')).toBe('english');
+  });
+});
+
+describe('readLanguageHintOverride · pickLocaleDefault', () => {
+  it('비어 있지 않은 문자열 override 만 돌려준다', () => {
+    expect(readLanguageHintOverride({ k: '값' }, 'k')).toBe('값');
+    expect(readLanguageHintOverride({ k: '' }, 'k')).toBeUndefined();
+    expect(readLanguageHintOverride(undefined, 'k')).toBeUndefined();
+    expect(readLanguageHintOverride({ other: 'x' }, 'k')).toBeUndefined();
+    expect(
+      readLanguageHintOverride(
+        { k: 3 } as unknown as Record<string, string>,
+        'k',
+      ),
+    ).toBeUndefined();
+  });
+  it('en 이면 en, 그 밖은 ko 기본값이다', () => {
+    const defaults = { ko: '한글', en: 'english' };
+    expect(pickLocaleDefault(defaults, 'en')).toBe('english');
+    expect(pickLocaleDefault(defaults, 'ko')).toBe('한글');
+    expect(pickLocaleDefault(defaults, undefined)).toBe('한글');
+    expect(pickLocaleDefault(defaults, 'de' as LanguageLocale)).toBe('한글');
   });
 });
 
@@ -274,5 +300,34 @@ describe('applyPlaceholders ({statusCode} 치환)', () => {
       statusCode: 500,
     });
     expect(text).toBe('fail in {nodeId} (500)');
+  });
+});
+
+// 근거: NERV 질문 `01a1d025-899f-7709-b759-4f7bf6c16ef5`(2026-11-12) — 슬래시 명령의 수신 응답은 새
+// `languageHints` 키 하나에 합쇼체 기본값을 둔다. NERV Task `CLE-T-TSEP9G`.
+describe('resolveCommandReceivedMessage (슬래시 명령 수신 응답)', () => {
+  it('기본 문구는 KO 합쇼체 · EN 이다', () => {
+    expect(resolveCommandReceivedMessage(undefined, 'ko')).toBe(
+      '요청을 받았습니다.',
+    );
+    expect(resolveCommandReceivedMessage(undefined, 'en')).toBe(
+      'Request received.',
+    );
+    expect(COMMAND_RECEIVED_DEFAULTS.ko).toBe('요청을 받았습니다.');
+  });
+  it('locale 이 없으면 ko 문구다', () => {
+    expect(resolveCommandReceivedMessage(undefined, undefined)).toBe(
+      COMMAND_RECEIVED_DEFAULTS.ko,
+    );
+  });
+  it('languageHints.commandReceived 가 있으면 그 문구다', () => {
+    expect(
+      resolveCommandReceivedMessage({ commandReceived: '접수했어요' }, 'en'),
+    ).toBe('접수했어요');
+  });
+  it('빈 문자열 override 는 무시한다', () => {
+    expect(resolveCommandReceivedMessage({ commandReceived: '' }, 'en')).toBe(
+      COMMAND_RECEIVED_DEFAULTS.en,
+    );
   });
 });

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY"
 title: "장애 복구와 안전 종료"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "198642d16be89442f2b3017c2be953e0f18a17879e5bd7c8338510c45a3d17e3"
+content_hash: "4e8543c63b1dff2eda5ffc112bd84ffba2e2a77e71c839c69af401cde5dded23"
 read_as: "approved_fallback"
-task: "CLE-T-EMB0YG"
+task: "CLE-T-4196DR"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "ed84aa54cce6118ce8351adb4558cf7fe4d90f1898787f512386debbb7e7d6a1"
-etag: "sha256-692456f4095a8301b48a02c543feb78e9846b0eea0b87c9ff68e244ac5c0a71f"
+mirror_sha256: "4240e764327d5769e9b96ab4e78003ae62988885e133ddaf7f02addde821943b"
+etag: "sha256-1026e66a28d82bd12ce27a1985c9eb2716c020689281fa70125c2e91bb21069a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -42,6 +42,7 @@ etag: "sha256-692456f4095a8301b48a02c543feb78e9846b0eea0b87c9ff68e244ac5c0a71f"
 | 운영 중 워커 크래시 | stalled 재배달(PR4) | stall 된 세그먼트 작업의 실행(아직 `running`) | 같은 jobId 로 1회 재배달 → case B 재구동 | 재배달 소진: `failed` + `WORKER_HEARTBEAT_TIMEOUT` |
 | 전체 재시작, Redis 비영속, 작업 유실 | 부팅 복구 스캔(PR3) | `running` 이고 `started_at` 이 30분보다 오래된 실행 | row 단위 원자 re-claim → case B 재구동 | 재구동 불가: `RESUME_CHECKPOINT_MISSING` |
 | 작업을 잃은 대기 중 실행 | 같은 부팅 복구 스캔 | `pending` 이고 `queued_at` 이 큐 대기 한도(5분)보다 오래된 실행 | `cancelled` + `EXECUTION_QUEUE_WAIT_TIMEOUT` | 없음 |
+| 종결된 실행 아래 남은 노드 실행 행 | 같은 부팅 복구 스캔 | 실행이 종결(`completed` · `failed` · `cancelled`)됐고 `running` 이며 `started_at` 이 30분보다 오래된 노드 실행 행. Background 본문 행은 뺀다 | 노드 실행 행만 `failed` 로 닫고 실행 상태는 그대로 둔다([종결된 실행 아래 남은 노드 실행 행](#종결된-실행-아래-남은-노드-실행-행)) | 없음 |
 | 입력 대기 중 재시작 | 사용자 입력 도착 | 입력 대기 실행 | case A rehydration 재개 | `cancelled` + `RESUME_*` |
 | 배포·정상 종료 | SIGTERM | 이 인스턴스의 진행 중 노드 실행 | 유예 시간 동안 완료 대기 | `failed` + `SERVER_INTERRUPTED` |
 
@@ -54,13 +55,14 @@ flowchart TD
   S --> CB["case B 재구동"]
   R --> CB
   R --> PC["방치된 대기 중 실행 취소"]
+  R --> ON["종결된 실행 아래 남은 노드 실행 행 닫기"]
   U["입력 대기 실행에 사용자 입력 도착"] --> CA["case A 재개"]
   CB --> H["rehydration"]
   CA --> H
   H --> F["마지막 완료 노드 뒤부터 그래프 진행"]
 ```
 
-그림은 복구 트리거가 rehydration 한 경로로 모이는 모습이다. case A 와 case B 는 도착 입력의 유무만 다르다.
+그림은 복구 트리거가 rehydration 한 경로로 모이는 모습이다. case A 와 case B 는 도착 입력의 유무만 다르다. 부팅 복구 스캔의 두 정리 단계(방치된 대기 중 실행 취소, 남은 노드 실행 행 닫기)는 rehydration 을 거치지 않는다. 노드 실행 행을 닫는 규칙은 [종결된 실행 아래 남은 노드 실행 행](#종결된-실행-아래-남은-노드-실행-행) 에 있다.
 
 ## 크래시 재구동
 
@@ -119,10 +121,18 @@ flowchart TD
 - **명시적 해제**: 작업이 끝나면 주인을 확인하는 Lua script 로 lock 을 바로 푼다. TTL 만료를 기다리지 않고 다음 인스턴스가 처리할 수 있다. 주인이 다르면(이미 만료돼 다른 인스턴스가 잡은 lock) 절대 지우지 않는다.
 - **두 겹의 보호**: 전역 부팅 lock 은 스캔이 동시에 시작되는 것을 막는다. 행 단위 `started_at` 조건부 re-claim 은 그 안의 추가 방어다. 늦은 부팅 스캔이나 lock 만료 경합으로 스캔이 겹쳐도 한 행이 두 번 재구동되지 않는다. 두 장치는 층이 달라 함께 둔다.
 
+lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
+
+- (a) 오래 멈춘 `running` 실행을 행 단위로 re-claim 한다.
+- (b) re-claim 한 실행을 case B 로 재구동한다. 재구동은 기다리지 않고 띄워 둔다(fire-and-forget).
+- (c) 작업을 잃은 대기 중 실행을 취소한다(`recoverOrphanPendingExecutions`).
+- (d) 종결된 실행 아래 `running` 으로 남은 노드 실행 행을 닫는다(`closeOrphanRunningNodeExecutions`). 규칙은 [종결된 실행 아래 남은 노드 실행 행](#종결된-실행-아래-남은-노드-실행-행) 에 있다.
+
 | 상태 | 임계 | 기준 컬럼 | 처리 |
 | --- | --- | --- | --- |
 | `running` | `STUCK_RECOVERY_STALE_MS`(30분) | `started_at` | row 단위 re-claim 뒤 case B 재구동. 부분 완료 노드라는 진행 흔적이 있다. |
 | `pending`(작업을 잃은 것) | `EXECUTION_QUEUE_WAIT_TIMEOUT_MS`(5분) | `queued_at` | `recoverOrphanPendingExecutions` 가 `markQueueWaitTimeout`(조건부 UPDATE `WHERE status='pending'`)으로 `cancelled` 마감. `error.code='EXECUTION_QUEUE_WAIT_TIMEOUT'`, `cancelledBy='timeout'`, `releaseExecutionRouting`. 작업을 가져갈 때의 큐 대기 한도 처리와 같다. |
+| 노드 실행 `running`(실행은 종결) | `STUCK_RECOVERY_STALE_MS`(30분) | 노드 실행 `started_at` | `closeOrphanRunningNodeExecutions` 가 노드 실행 행을 `failed` 로 닫는다. 실행 상태는 바꾸지 않는다. Background 본문 행은 뺀다. |
 | `waiting_for_input` | 없음 | 없음 | 무시한다. 기한 없이 보존하고 입력이 오면 rehydration 으로 재개한다. |
 
 - 작업을 잃은 대기 중 실행은 동시 실행 제한에 걸려 지연 재발행된 작업이 Redis 비영속이나 eviction 으로 사라진 경우다. 큐 대기 한도는 작업을 가져갈 때만 검사하므로 이런 실행은 그 검사를 받지 못한다. 규칙 전체는 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 의 동시 실행 제한 절에 있다.
@@ -130,6 +140,25 @@ flowchart TD
 - 스캔 시점에 아직 한도 안쪽인 작업 없는 대기 중 실행은 다음 부팅 스캔에서 한도를 넘었으면 회수한다. 드문 경우이고 부팅 때만 도는 best-effort 다.
 - 동시에 소비자가 그 실행을 `running` 으로 들이거나 취소해도 affected=0 으로 끝나 결과가 같다. `pending → running` 과 `pending → cancelled` 는 서로 배타적인 전이라 두 번 처리되지 않는다.
 - 공개 웹채팅 위젯의 익명 토큰 영구 만료로 생긴 입력 대기 실행의 회수는 이 스캔이 아니라 EIA 계층의 반복 sweep 이 맡는다. 규칙은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 EIA-RL-07 에 있다. 기한 없는 보존이 지키는 정상 대기(입력이 실제로 올 실행)는 바뀌지 않는다.
+
+### 종결된 실행 아래 남은 노드 실행 행
+
+2026-11-12 에 구현됐다(NERV Task `CLE-T-CCEQEC`). 스캔의 (d) 단계(`closeOrphanRunningNodeExecutions`)는 실행이 이미 끝났는데 노드 실행 행만 `running` 으로 남은 경우를 닫는다. case B 의 옛 행 마감(`failOrphanRunningNodeExecutions`)은 실행이 `running` 일 때만 돌아서 이 행에 닿지 않는다([멱등성 계약](#멱등성-계약)).
+
+- **대상**: 부모 실행이 종결 상태(`completed` · `failed` · `cancelled`)이고 노드 실행 행이 `running` 인 행이다. 그 행의 `started_at` 이 `STUCK_RECOVERY_STALE_MS`(30분)보다 오래돼야 한다.
+- **제외**: 부모 체인에 Background 노드(타입 `background`) 행이 있는 행은 닫지 않는다. 부모 체인은 `parent_node_execution_id` 를 위로 따라가고 깊이 한도는 64 다. Background 본문은 부모 실행이 끝난 뒤에도 같은 executionId 로 돈다. `maxDurationMs` 가 0 이면 시간 한도도 없다. 그래서 본문 안 컨테이너 행이 30분 넘게 살아 있을 수 있다. 크래시로 남은 본문 행도 이 단계는 닫지 않는다.
+- **건드리지 않는 행**:
+  - `started_at` 이 30분 안쪽인 행. 마지막 턴 재시도 재진입 턴의 살아 있는 새 행이 여기 든다. 그 턴 동안 실행은 `failed` 이고 새 행은 `running` 이다. 취소 커밋 뒤 노드 마감 전의 짧은 창에 있는 행도 여기 든다.
+  - `waiting_for_input` 노드 실행 행.
+  - 비종결 실행(`running` · `pending` · `waiting_for_input`) 아래의 행.
+- **처리**: 조건부 UPDATE(`status='running'` 인 행만)로 행을 `failed` 로 바꾼다. `finished_at` 은 지금 시각이고 `error.message` 는 `Node run left running under a finished execution; closed by boot recovery scan` 이다. 고른 뒤 그 사이 닫힌 행은 조건에 걸리지 않아 덮지 않는다. 실행 상태는 바꾸지 않는다. 실행이 이미 끝났으므로 이벤트를 내지 않는다. 닫은 건수는 warn 로그로 남긴다.
+- **best-effort**: 이 단계가 실패해도 부팅을 막지 않는다. 예외는 error 로그로만 남기고 다음 부팅 스캔이 같은 행을 다시 본다. lock 을 잡지 못한 인스턴스는 이 단계도 건너뛴다.
+- **덮는 출처**: 아래 세 경우는 모두 「부모 실행 종결 + 노드 실행 행 `running`」 이라 한 조건으로 닫힌다.
+  1. 마지막 턴 재시도(`retry_last_turn`)의 2차 claim(`claimSpawnedRetryRow`)이 재배달을 버려서 남은 `running` 새 행. 실행은 `failed` 다.
+  2. 2차 claim 이 성공한 뒤 턴에 들어가기 전에 난 예외나 크래시로 남은 새 행. 그 뒤의 재배달은 claim 에 실패해 1 과 같이 끝난다.
+  3. 취소의 짝 전이가 실행을 `cancelled` 로 커밋한 뒤 `markNodeCancelled` 가 끝나기 전에 크래시해 남은 행.
+  - `retryLastTurn` 이 새 행을 만든 뒤 재진입 작업을 잃은 경우도 모양이 같아 함께 닫힌다.
+- **대가**: 이 단계는 부팅 때만 돈다. 그래서 다음 부팅 스캔 전까지 그 행은 타임라인과 진행률 집계에 `running` 으로 보인다. 재부팅이 없으면 계속 남는다. 마지막 턴 재시도가 claim 에 실패한 배달을 버리는 결정은 그대로다. 결정 근거는 [Rationale](#종결된-실행-아래-남은-running-노드-행은-부팅-스캔이-닫는다-2026-11-12-cle-t-cceqec) 에 있다.
 
 ## 체크포인트와 멱등성
 
@@ -165,7 +194,7 @@ flowchart TD
 - **완료 노드 미재실행(엔진 보장, exactly-once)**: 재개나 재구동 때 노드 실행 순서 로그와 완료 노드 출력으로 되살린 `_executedNodes` 로 완료 노드를 건너뛴다. 추가로 dispatch 직전 대상 노드 실행이 이미 `completed` 면 건너뛴다(메모리 Set 과 겹치는 DB 재확인 방어).
 - **크래시 시점 미완료 노드는 at-least-once**: 크래시 때 아직 `completed` 가 아니던 노드는 재구동 때 **다시 실행된다.** 그 노드의 외부 부수효과(`send_email`, HTTP POST 같은 통합 쓰기)가 이미 일어났는지 엔진은 알 수 없다. 그래서 exactly-once 를 보장하지 않는다. 외부 API 를 부르는 통합 노드의 멱등성은 노드 설정에서 관리한다(idempotency key 등). 엔진 보장은 "완료 노드 미재실행" 까지다. 분산 트랜잭션 없이 무손실로 이어 가려면 피할 수 없는 대가다.
   - **남은 행 마감**: 다시 실행은 **새 노드 실행 행**으로 한다. 크래시 때의 옛 `running` 노드 실행 행은 case B 재구동에 들어갈 때 `failed` 로 마감한다(`failOrphanRunningNodeExecutions`). 완료 노드는 `completed` 라 대상이 아니다. 이 마감은 부모 실행이 끝난 뒤에도 `running` 노드가 타임라인과 진행률 집계에 남지 않게 한다.
-  - **적용 범위**: 이 마감은 **case B 재구동에 들어가는 시점에만** 돈다. 마지막 턴 재시도(`retry_last_turn`)의 2차 claim 이 버려서 남는 행은 대상이 아니다. 그때 실행은 이미 `failed` 로 끝나 있기 때문이다. 자세한 내용은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) Rationale 의 "마지막 턴 재시도에 배달 단위 claim 을 둔다" 에 있다.
+  - **적용 범위**: 이 마감은 **case B 재구동에 들어가는 시점에만** 돈다. 대상은 아직 `running` 인 실행 아래의 행이다. 실행이 이미 끝났는데 노드 실행 행만 `running` 으로 남은 경우는 이 마감에 닿지 않는다. 마지막 턴 재시도(`retry_last_turn`)의 2차 claim 이 버린 새 행이 그 예다. 그때 실행은 이미 `failed` 로 끝나 있다. 이런 행은 부팅 복구 스캔의 (d) 단계가 닫는다([종결된 실행 아래 남은 노드 실행 행](#종결된-실행-아래-남은-노드-실행-행)). 마지막 턴 재시도 claim 의 결정 경위는 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) Rationale 의 "마지막 턴 재시도에 배달 단위 claim 을 둔다" 에 있다.
 
 ## rehydration
 
@@ -218,7 +247,7 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 - claim 을 얻은 **뒤**의 실패는 두 가지로 나뉜다.
   - **rehydration 과정 실패**(체크포인트 없음·손상, 시도 소진 등): [rehydration 실패](#rehydration-실패) 의 `RESUME_*` 종결(실행 `cancelled` + 노드 실행 `failed`)로 원자 마감한다.
   - **턴 처리 실패**(재개한 턴의 LLM throw: 429, timeout, connection): 노드 실행을 `running → failed` 로 끝낸다. claim 으로 이미 `running` 이므로 직접 `waiting_for_input → failed` 가 아니다.
-- 두 경우 모두 `running` 을 남기지 않는다. claim 뒤 워커 크래시로 예외적으로 남은 `running` 행은 부팅 복구 스캔이 회수한다. 정상 흐름에서는 claim 바로 뒤에 rehydration 이 이어지므로 30분 stale 창에 노출되는 것은 비정상 경우뿐이다.
+- 두 경우 모두 `running` 을 남기지 않는다. claim 뒤 워커 크래시로 예외적으로 남은 `running` 은 부팅 복구 스캔이 회수한다. 실행이 아직 `running` 이면 (a) 단계가 re-claim 해 case B 로 재구동하고 그때 옛 노드 실행 행을 마감한다. 실행이 이미 종결됐는데 노드 실행 행만 `running` 이면 (d) 단계가 그 행을 `failed` 로 닫는다([종결된 실행 아래 남은 노드 실행 행](#종결된-실행-아래-남은-노드-실행-행)). 정상 흐름에서는 claim 바로 뒤에 rehydration 이 이어지므로 30분 stale 창에 노출되는 것은 비정상 경우뿐이다.
 - **case B 원자 re-claim**: 위 claim 은 입력 대기 재개를 전제로 한다. 크래시 재구동은 대상이 이미 `running` 이므로 부팅 복구 스캔이 **`running → running` `started_at` 조건부 re-claim**(`UPDATE … SET started_at=now() WHERE status='running' AND started_at < :threshold RETURNING`)으로 소유권을 얻는다. 두 인스턴스(예: 늦은 부팅 스캔이 전역 lock 만료와 겹침)가 같은 stale 행을 동시에 잡아도 affected=1 인 쪽만 재구동한다. 상태 값이 바뀌는 것이 아니라 소유권(`started_at`)이 옮겨 가는 것이라 상태 전이표는 바뀌지 않는다. claim 뒤 재구동 실패는 case A 와 같이 `RESUME_*` 종결로 원자 마감한다(**claim 뒤 `running` 잔류 금지**). 남은 zombie race 는 [남은 zombie race](#남은-zombie-race) 에 있다.
 - 재개 큐 작업 옵션(`removeOnComplete: true`, `removeOnFail: false`, `attempts: RESUME_BULLMQ_ATTEMPTS`)과 DLQ 처리는 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다. 모든 시도가 실패하면 실행을 `cancelled` + `error.code='RESUME_FAILED'` 로 표시한다. 실패 작업을 남기므로 DLQ 적재량을 관측할 수 있다.
 
@@ -284,7 +313,7 @@ SIGTERM 종료를 `failed` 로 볼지 `cancelled` 로 볼지는 정의가 갈린
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/execution-engine/**` (`recoverStuckExecutions`, `recoverOrphanPendingExecutions`, `rehydrateContext`, `redriveStuckExecution`, `driveCallStackResume`, `finalizeStalledExhausted`)
+- `codebase/backend/src/modules/execution-engine/**` (`recoverStuckExecutions`, `recoverOrphanPendingExecutions`, `closeOrphanRunningNodeExecutions`, `rehydrateContext`, `redriveStuckExecution`, `driveCallStackResume`, `finalizeStalledExhausted`)
 - `codebase/backend/src/modules/execution-engine/queues/execution-run.processor.ts` (stalled 재배달 설정과 소진 처리)
 - `codebase/backend/src/modules/execution-engine/continuation/continuation-execution.processor.ts` (재개 큐 소비자, 취소 경로)
 - `codebase/backend/src/modules/execution-engine/resume-turn-dispatch.ts` (재개 turn 분기)
@@ -354,6 +383,21 @@ rehydration 은 "재확인 가드가 정상 경로 race 까지 막는다"(불변
 ### 마지막 턴 재시도에도 원자 claim 을 둔다 (2026-07-28)
 
 재개 claim 은 `waiting_for_input → running` 조건부 전이로 race 를 판정하지만 마지막 턴 재시도(`retry_last_turn`)는 대상이 이미 `running` 인 새 행이라 그 전이가 성립하지 않는다. 그래서 `applyRetryLastTurn` 이 새 행의 `inputData._retryState` 키를 조건부 UPDATE 로 원자 소비하는 배달 단위 claim 을 따로 둔다. 결정 경위, 대가(크래시 재배달 차단과 남는 `running` 행), 열린 범위는 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) Rationale 의 "마지막 턴 재시도에 배달 단위 claim 을 둔다" 에 있다.
+
+2026-11-12 갱신: 남는 `running` 행과 열린 범위(claim 과 턴 진입 사이의 일반 예외)는 부팅 복구 스캔의 (d) 단계가 닫는다([종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다](#종결된-실행-아래-남은-running-노드-행은-부팅-스캔이-닫는다-2026-11-12-cle-t-cceqec)).
+
+### 종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다 (2026-11-12, CLE-T-CCEQEC)
+
+실행이 이미 끝났는데 노드 실행 행만 `running` 으로 남는 경로가 셋 있었다. 마지막 턴 재시도의 2차 claim 이 버린 새 행, 2차 claim 뒤 턴 진입 전의 예외 · 크래시로 남은 새 행, 취소 커밋 뒤 노드 마감 전의 크래시로 남은 행이다. case B 의 옛 행 마감(`failOrphanRunningNodeExecutions`)은 실행이 `running` 일 때만 돌아서 이 셋에 닿지 않았다. 그래서 이 행들은 타임라인과 진행률 집계에 계속 `running` 으로 보였다. 사람 결정(2026-11-12, 질문 `01a1d022-3e40-73d0-8e98-624fd8f2033e`)으로 부팅 복구 스캔에 (d) 단계를 더했다. 규칙은 본문 [종결된 실행 아래 남은 노드 실행 행](#종결된-실행-아래-남은-노드-실행-행) 에 있다.
+
+- **한 조건으로 닫는다**: 세 경로는 모두 「부모 실행 종결 + 노드 실행 행 `running`」 이다. 경로마다 정리 코드를 두지 않고 이 조건 하나로 닫는다.
+- **임계는 30분이다**: 실행 단위 stale 판정의 `STUCK_RECOVERY_STALE_MS` 를 다시 쓴다. 새 설정 값은 두지 않는다. 이 임계는 실행이 이미 종결된 노드 실행 행에만 적용한다. 그래서 [2026-06-04 결정](#워커-크래시-복구를-stalled-재배달로-일원화-2026-06-04-결정) 이 지적한 오탐(정상적으로 오래 도는 실행, 입력 대기 실행)과 대상이 겹치지 않는다.
+- **Background 본문 행은 뺀다**: Background 본문은 부모 실행이 끝난 뒤에도 같은 executionId 로 돈다. `maxDurationMs` 가 0 이면 끝나는 시각도 없다. 그래서 30분 임계로는 살아 있는 본문 행을 가를 수 없다. 부모 체인에 Background 노드 행이 있으면 닫지 않는다. 대가로 크래시로 남은 본문 행은 이 단계가 닫지 못한다.
+- **상태는 `failed` 다**: 사용자가 취소한 것이 아니고 서버 쪽 비정상 종료다. case B 의 옛 행 마감도 `failed` 로 닫으므로 그와 맞췄다.
+- **마지막 턴 재시도의 버림 결정은 그대로 둔다**: claim 에 실패한 배달은 계속 버린다. 이전 방식은 claim 앞에서 `_retryState` 가 없으면 손상으로 보고 행을 `failed` 로 표시했다. 그 방식은 다른 배달이 처리 중인 살아 있는 행까지 `failed` 로 만들었다. 남은 행은 버림을 되돌리지 않고 이 단계가 나중에 닫는다.
+- **기각: 주기 스윕**: 재부팅 없이도 행이 닫힌다는 이점이 있다. 대신 새 BullMQ 반복 작업과 Redis 키 등재가 필요해 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 까지 바뀐다. 이점에 비해 바뀌는 표면이 커서 택하지 않았다.
+- **기각: 30분보다 짧은 임계**: 마지막 턴 재시도의 재진입 턴은 실행이 `failed` 인 채 새 행이 `running` 으로 돈다. 남은 행과 모양이 같다. 임계를 줄이면 살아 있는 재진입 턴의 행을 닫을 위험이 커진다.
+- **대가**: 이 단계는 부팅 때만 돈다. 다음 부팅 스캔 전까지 그 행은 타임라인과 진행률 집계에 `running` 으로 보인다. 재부팅이 없으면 계속 남는다. 재진입 턴이 예외로 끝나는 경우는 `closeSpawnedRowIfRunning` 이 바로 닫는다. 그래서 이 대가는 크래시와 턴 진입 전 예외에만 남는다.
 
 ### park 즉시 해제와 rehydration 단일 경로 (Phase B)
 

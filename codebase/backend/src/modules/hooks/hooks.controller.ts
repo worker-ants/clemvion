@@ -100,7 +100,7 @@ export class HooksController {
   @ApiOperation({
     summary: '웹훅 수신',
     description:
-      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다(spec 7-channel-web-chat/4-security §4). 채팅 채널 트리거는 프로바이더 서명으로 인증하므로 이 제한을 받지 않습니다. 채팅 채널의 handshake(Slack url_verification · Discord PING)와 Discord 컴포넌트 클릭 · 모달 제출은 `{ data }` 래핑 없이 200 과 프로바이더가 정한 본문으로 답합니다.',
+      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다(spec 7-channel-web-chat/4-security §4). 채팅 채널 트리거는 프로바이더 서명으로 인증하므로 이 제한을 받지 않습니다. 채팅 채널의 handshake(Slack url_verification · Discord PING)와 프로바이더가 3초 안 응답을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)은 `{ data }` 래핑 없이 200 과 프로바이더가 정한 본문으로 답합니다. Slack Interactivity 의 기본 응답은 빈 본문입니다.',
   })
   @ApiTooManyRequestsResponse({
     description: '공개 webhook IP 시작 한도 초과(분당/시간당)',
@@ -199,15 +199,24 @@ export class HooksController {
       return;
     }
 
-    // §4.1 native modal — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
-    // (Discord modal `{ type: 9 }` open / `{ type: 4 }` 폼 제출 결과 / 컴포넌트 · 모달 제출 기본 ack
-    // `{ type: 6 }` / Slack `{ response_action }`).
-    // TransformInterceptor 래핑 우회 — res.json 으로 직접 전송. Spec [chat-channel-adapter §4.1].
+    // 채팅 채널 인터랙션 응답 — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
+    // (Discord modal `{ type: 9 }` open / `{ type: 4 }` 폼 제출 결과 · 슬래시 명령 수신 응답 /
+    // 컴포넌트 · 모달 제출 기본 ack `{ type: 6 }` / Slack `{ response_action }`).
+    // TransformInterceptor 래핑 우회 — res.json 으로 직접 전송. Spec CLE-CHAT-ADAPTER.
     const interactionHttpResponse = (
       result as unknown as { interactionHttpResponse?: unknown }
     ).interactionHttpResponse;
     if (interactionHttpResponse !== undefined) {
       res.status(HttpStatus.OK).json(interactionHttpResponse);
+      return;
+    }
+
+    // Slack Interactivity 기본 ack — 3초 안 200 빈 본문. 같은 우회 패턴. Spec CLE-CHAT-SLACK.
+    const interactionEmptyResponse = (
+      result as unknown as { interactionEmptyResponse?: boolean }
+    ).interactionEmptyResponse;
+    if (interactionEmptyResponse === true) {
+      res.status(HttpStatus.OK).end();
       return;
     }
 

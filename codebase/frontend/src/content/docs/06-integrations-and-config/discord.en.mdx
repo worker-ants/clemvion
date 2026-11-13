@@ -23,6 +23,7 @@ In the **General Information** page:
 
 - **Interactions Endpoint URL** = `https://<your-clemvion-domain>/api/hooks/<endpointPath>`
 - On save, Discord sends a PING (type=1). clemvion responds automatically with `{ type: 1 }` 200
+- The trigger must be turned on for this check to pass
 - "Validation Failed" → public key mismatch or endpoint unreachable
 
 ## 3. Bot permissions + invite
@@ -67,6 +68,15 @@ Copy the endpoint URL using the 📋 button on the trigger list. Slash command a
 - `/workflow cancel` — cancel active
 - `/workflow help` — help
 - `/workflow reply <message>` — reply during active AI Multi Turn
+
+Every slash command gets an ephemeral reply (visible only to the sender) within 3 seconds, so no "The application did not respond" failure indicator appears. The workflow's actual result arrives separately as a message.
+
+| Command | Reply shown to the sender | Key to change the text |
+|---|---|---|
+| `help` | Command list (`/workflow start - Start a new conversation` · `/workflow cancel - Cancel the active conversation` · `/workflow reply - Reply to the active conversation` · `/workflow help - Show help`) | `languageHints.help` |
+| `start` · `cancel` · `reply` | Receipt text (default `Request received.`) | `languageHints.commandReceived` |
+
+The `workflow` in the command list follows `languageHints.slashPrefix`. Slash commands sent in a guild channel get the same receipt text, but are only processed in DMs. Even when the trigger is turned off, button clicks, modal submissions, and slash commands are still answered, so no failure indicator appears. No execution is started in that case.
 
 ### 5.2 Buttons / Modals
 
@@ -192,4 +202,5 @@ executionFailedInternal       → The service is temporarily unavailable. Please
 | Discord Portal "Validation Failed" | Public Key mismatch or endpoint can't respond `{ type: 1 }` 200. Check `chat_channel_health` |
 | Slash commands not visible | bulk-overwrite cache propagation ≤ 1h; or missing `applications.commands` scope |
 | `401 Unauthorized` | Bot Token rotated — use **Rotate Bot Token** in clemvion (24h grace) |
+| "The application did not respond" after a slash command | Slash commands now get an ephemeral reply within 3 seconds. If it still appears, check that the Interactions Endpoint URL is reachable and review backend latency |
 | Modal "Reply" doesn't open | 3-second ack missed — backend latency (degraded health) |

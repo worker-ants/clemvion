@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "cae9b2090c0d8a0f5a2f763a997402db1eaf3f86d2daaab2d4306dd613c956a3"
+content_hash: "e7152fb647ff7dd46cbb085254e7fc89e3bcfad657dfd4e8c556f9016ef19bf1"
 read_as: "approved_fallback"
-task: "CLE-T-TBJ863"
+task: "CLE-T-CCEQEC"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "914fc072b619d4828dcb90b2057ec7570e65b0ec5e82bb3edb84f1d924935f6d"
-etag: "sha256-3ebdd3a4df08aa85878c41d29d29bfb8ac0af2e24278f6b29dca624a08bcdcb3"
+mirror_sha256: "07db4702464fa840d652e1964762f32572060a015d7eaf16318e4f1e3d410b8e"
+etag: "sha256-54948b07ea976a16c6ad2722cda53118fc01772f4335f18d325e2589432d932a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -96,7 +96,7 @@ stateDiagram-v2
 1. `running ↔ waiting_for_input` 전이는 짝이 되는 노드 실행 상태 변경(`waiting_for_input` 또는 `completed`)과 **한 DB 트랜잭션**으로 묶어 함께 커밋하거나 함께 되돌린다. 두 저장 사이에 서버가 죽어도 실행과 노드 실행의 상태가 어긋나지 않는다(구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 인자). WebSocket 이벤트는 커밋 뒤에 발행한다.
 2. `waiting_for_input → failed` 도 같은 원자성을 따른다. 노드 실행 `FAILED` 저장과 실행 `FAILED` 저장을 한 트랜잭션으로 묶고 이벤트는 `NODE_FAILED` → `EXECUTION_FAILED` 순서로 낸다.
 3. 재개 진입의 `waiting_for_input → running` claim 도 이 원자성에 들어간다. 조건부 UPDATE 가 실행과 노드 실행의 짝 상태를 한 트랜잭션으로 바꾼다. affected=0 이면 어느 쪽도 바꾸지 않고 작업을 받은 뒤 버린다. claim 뒤 rehydration 이 실패하면 `RESUME_*` 종결로 원자 마감해 `running` 이 남지 않게 한다. 절차는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
-4. 짝 없이 `running`·`completed`·`failed`·`cancelled` 로 바로 마감하는 경로(else 분기)의 조건부 UPDATE 도 `dataSource.transaction` 안에서 돈다. 짝 전이와 목적이 다르다. 결과 모양 가드가 예외를 던질 때 그 UPDATE 도 함께 되돌리려는 것이다. 되돌리지 않으면 행은 종결 상태로 커밋된 채 종결 이벤트만 사라지고 비종결 상태만 살피는 부팅 복구 스캔에도 걸리지 않는다.
+4. 짝 없이 `running`·`completed`·`failed`·`cancelled` 로 바로 마감하는 경로(else 분기)의 조건부 UPDATE 도 `dataSource.transaction` 안에서 돈다. 짝 전이와 목적이 다르다. 결과 모양 가드가 예외를 던질 때 그 UPDATE 도 함께 되돌리려는 것이다. 되돌리지 않으면 실행 행은 종결 상태로 커밋된 채 종결 이벤트만 사라진다. 부팅 복구 스캔에서 실행 행을 고르는 단계는 비종결 실행만 보므로 이 행을 고르지 않는다. 같은 스캔의 [종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 는 노드 실행 행만 닫고 이벤트를 내지 않아 사라진 종결 이벤트를 되살리지 못한다.
 5. 짝 전이는 방향과 상관없이 아무것도 하지 않고 끝날 수 있다. 재개 방향 claim 뿐 아니라 park 방향(`running → waiting_for_input`)도 대상 행이 이미 종결 상태면 적용하지 않는다. 짝 전이는 같은 트랜잭션 안에서 실행 행을 `SELECT … FOR UPDATE` 로 잠그고 비종결 상태를 확인한 뒤에만 두 행을 저장한다. 선점이 보이면 아무것도 쓰지 않고 `false` 를 돌려준다. 호출자는 이때 park·종결 이벤트 발행을 건너뛰고 짝 노드 실행을 `cancelled` 로 표시한 뒤 취소 전파 경로로 넘긴다.
 6. 마지막 턴 재시도 재진입은 예외다. 위 "비종결 확인" 의 종결 정의가 `allowRetryReentry` opt-in 에 따라 바뀐다. 재진입에 한해 DB 가드(짝 전이의 `FOR UPDATE` 잠금과 else 분기 조건부 UPDATE)가 `failed` 행도 대상에 넣는다(`NON_TERMINAL_OR_FAILED_STATUSES_SQL`). opt-in 을 상태 머신(`canTransition`)에만 반영하고 DB 가드에 전달하지 않으면 재진입 짝 전이가 늘 0행이 돼 기능이 동작하지 않는다. opt-in 이어도 `completed`·`cancelled` 는 대상에서 빠지므로 실제 동시 취소는 계속 막힌다.
 7. 이 가드가 없으면 park·재개 경로가 실행을 다시 읽지 않아 메모리의 엔티티가 낡은 상태에서 전체 엔티티 저장이 동시에 도착한 취소를 덮어쓴다. 그러면 사용자의 실행 중지가 그대로 사라진다. 같은 이유로 `finalizeFailedExecution` 등 종결 마감 경로도 조건부 UPDATE(`status IN (비종결)`)를 거친다. 가드의 근거는 [노드 취소](CLE-EXEC-CANCEL.md) 에 있다.
@@ -289,7 +289,7 @@ sequenceDiagram
    ```
 
    두 조건이 모두 필요하다. `jsonb_exists` 가 경쟁을 가른다. `status = 'running'` 이 없으면 이미 끝난 턴을 다시 돌린다. `inputData` 에 쓰는 지점은 행을 만들 때뿐이라 턴이 `completed` 로 끝나도 키가 남기 때문이다.
-5. claim 은 크래시로 중단된 턴의 BullMQ 재배달도 막는다. 이 claim 에서 버려진 새 행은 `running` 으로 남을 수 있다. 버려지는 시점의 실행은 이미 `failed` 라 부팅 복구 스캔의 재구동 대상(오래 멈춘 `running` 실행)이 아니기 때문이다. 이 남은 행의 정리는 후속 과제다(NERV Task `CLE-T-CCEQEC`). "크래시로 중단된 턴" 에 claim 과 턴 진입 사이의 일반 예외까지 들어가는지도 같은 Task 에서 정한다.
+5. claim 은 크래시로 중단된 턴의 BullMQ 재배달도 막는다. 이 claim 에서 버려진 새 행은 `running` 으로 남을 수 있다. 버려지는 시점의 실행은 이미 `failed` 라 부팅 복구 스캔의 재구동 대상(오래 멈춘 `running` 실행)이 아니기 때문이다. claim 이 성공한 뒤 턴에 들어가기 전에 예외나 크래시가 나도 새 행이 `running` 으로 남는다. 크래시뿐 아니라 일반 예외도 여기에 든다. 그 뒤의 재배달은 claim 에 실패해 버려지기 때문이다. 두 경우의 남은 행은 [부팅 복구 스캔의 종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 가 닫는다. 행의 `started_at` 이 30분을 넘으면 `failed` 로 바꾼다. 재진입 턴이 `finalizeAiNode` 의 마감 전에 예외를 던지면 `closeSpawnedRowIfRunning` 이 새 행을 바로 닫는다([재시도 전제와 재진입 시작](#재시도-전제와-재진입-시작)). 부팅 스캔은 이 마감이 닿지 않는 크래시와 턴 진입 전 예외를 맡는다.
 6. **재진입 때 설정 표현식 재평가**: 재진입은 노드 설정의 `{{ }}` 표현식을 가능한 만큼 다시 평가해 조작 필드(`llmConfigId`·`maxTurns` 등)를 일반 dispatch 와 맞춘다. `_retryState` 는 턴 직전 `_resumeState` 스냅샷에서 나와 원래 노드 입력이 없으므로 `$input.*` 는 풀리지 않는다. 되살린 컨텍스트에서 `$node`·`$var`·`$thread`·`$execution`·`$now` 만 풀린다. 재평가에 실패하면 원본 설정으로 돌아가므로 정적 설정은 영향이 없다. `output.config` 설정 에코는 항상 원본(`rawConfig` 고정 스냅샷)이고 재평가 값은 실행에만 쓴다.
 7. 재진입한 노드 이후의 그래프 진행은 일반 `completed` 노드와 같다. 순환 안이면 순환에 다시 들어간다([실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md)).
 
@@ -444,13 +444,15 @@ R1 의 마지막 턴 재시도가 실제로 실행될 때의 전이다. 재시�
 
 행을 만드는 단계의 원자성만으로는 모자란다. `retryLastTurn` 은 원본 행의 `outputData._retryState` 를 JSONB `-` 로 원자 소비하며 행을 만들므로 행은 한 번만 생긴다. 하지만 재개 큐로 넘기는 순간부터 작업 배달 횟수는 별개 축이다. 작업 ID 가 `${executionId}:${nodeExecutionId}:${seq}` 로 발행마다 달라 BullMQ 중복 제거도 걸리지 않는다. "한 번만 만들었다" 와 "그 행을 한 번만 구동한다" 는 서로 다른 보장이고 뒤쪽에는 별도 claim 이 필요하다.
 
-**대가(의도한 교환, 2026-07-30 서술 정정)**: 크래시로 멈춘 턴의 BullMQ 재배달까지 막힌다. 형제 재개 명령 네 가지도 재개 진입 claim(`claimResumeEntry`)으로 같은 성질을 받아들이고 그 복구는 부팅 복구 스캔(오래 멈춘 `running` 실행의 re-claim, case B)이 맡는다. 그러나 이 2차 claim(`claimSpawnedRetryRow`) 경로에는 그 스캔이 닿지 않는다. claim 실패로 버리는 시점에 대상 실행은 이미 `failed` 로 끝나 있어 스캔의 재구동 대상이 아니다(실측 확인). 그래서 버린 새 행 자체가 `running` 으로 남을 수 있다. [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md#멱등성-계약) 의 "남은 행 마감" 은 case B 재구동에 들어갈 때의 옛 `running` 행을 다루므로 이 경로는 대상이 아니다. 두 서술은 범위가 달라 모순이 아니다. 후속은 NERV Task `CLE-T-CCEQEC` 다.
+**대가(의도한 교환, 2026-07-30 서술 정정)**: 크래시로 멈춘 턴의 BullMQ 재배달까지 막힌다. 형제 재개 명령 네 가지도 재개 진입 claim(`claimResumeEntry`)으로 같은 성질을 받아들이고 그 복구는 부팅 복구 스캔(오래 멈춘 `running` 실행의 re-claim, case B)이 맡는다. 그러나 이 2차 claim(`claimSpawnedRetryRow`) 경로에는 그 스캔이 닿지 않는다. claim 실패로 버리는 시점에 대상 실행은 이미 `failed` 로 끝나 있어 스캔의 재구동 대상이 아니다(실측 확인). 그래서 버린 새 행 자체가 `running` 으로 남을 수 있다. [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md#멱등성-계약) 의 "남은 행 마감" 은 case B 재구동에 들어갈 때의 옛 `running` 행을 다루므로 이 경로는 대상이 아니다. 두 서술은 범위가 달라 모순이 아니다. 후속은 NERV Task `CLE-T-CCEQEC` 다(아래 2026-11-12 갱신으로 해소).
 
 그래도 버리는 편이 옳다. 살아 있는 작업을 두 번 돌리는 것(claim 도입 전 결함)이 이론상의 남은 행보다 늘 더 나쁘다. 마지막 턴 재시도만 claim 을 만들지 않으면 "중복 실행 0" 보장이 그 유형에서만 거짓이 된다. 그 자기모순이 2026-07-28 까지 실제로 남아 있었다. 이것은 claim 을 두느냐의 문제이고 위의 남은 행 문제와는 다른 사안이다.
 
-"크래시로 멈춘 턴" 의 범위(프로세스 크래시뿐 아니라 claim 과 턴 진입 사이의 일반 예외까지 드는지)는 따로 열려 있고 같은 Task `CLE-T-CCEQEC` 에서 정한다.
+"크래시로 멈춘 턴" 의 범위(프로세스 크래시뿐 아니라 claim 과 턴 진입 사이의 일반 예외까지 드는지)는 따로 열려 있고 같은 Task `CLE-T-CCEQEC` 에서 정한다(아래 2026-11-12 갱신으로 해소).
 
 이전 구현 판정(`exec-intake-queue-impl`, 2026-06-06 통과)은 이 축을 검증한 적이 없다. 재개 진입 claim 자체가 2026-07-03(`44f956e9c`)에 들어왔으므로 그보다 앞선 판정이다. 무효가 된 것이 아니라 검증 범위 밖이었다.
+
+2026-11-12 갱신: 버린 새 행과 claim 뒤 턴 진입 전 예외 · 크래시로 남은 행은 [부팅 복구 스캔의 종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 가 30분 뒤 `failed` 로 닫는다. 이 30분은 노드 실행 행의 `started_at` 으로 잰다. 실행이 이미 종결된 행에만 적용하므로 PR3(2026-07-04)에서 폐기한 실행 단위 30분 일괄 실패와 대상이 다르다. 위의 열린 범위(일반 예외)도 같은 정리가 덮는다. 버림 결정은 그대로다. 결정 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) Rationale 의 "종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다" 에 있다(NERV Task `CLE-T-CCEQEC`).
 
 ### 재시도 전에 실행 `failed` 를 두 번 확인한다 (2026-11-06)
 

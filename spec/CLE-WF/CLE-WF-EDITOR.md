@@ -2,19 +2,19 @@
 id: "CLE-WF-EDITOR"
 title: "워크플로우 에디터와 캔버스"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-EDITOR-001", "REQ-EDITOR-002", "REQ-EDITOR-003", "REQ-EDITOR-004", "REQ-EDITOR-005", "REQ-EDITOR-006", "REQ-EDITOR-007", "REQ-EDITOR-008", "REQ-EDITOR-009", "REQ-EDITOR-010", "REQ-EDITOR-011", "REQ-EDITOR-012", "REQ-EDITOR-013", "REQ-EDITOR-014", "REQ-EDITOR-015", "REQ-EDITOR-016", "REQ-EDITOR-017", "REQ-EDITOR-018", "REQ-EDITOR-019", "REQ-EDITOR-020", "REQ-EDITOR-021", "REQ-EDITOR-022", "REQ-EDITOR-023", "REQ-EDITOR-024", "REQ-EDITOR-025", "REQ-EDITOR-026", "REQ-EDITOR-027", "REQ-EDITOR-028", "REQ-EDITOR-029", "REQ-EDITOR-030", "REQ-EDITOR-031", "REQ-EDITOR-032", "REQ-EDITOR-033", "REQ-EDITOR-034", "REQ-EDITOR-035", "REQ-EDITOR-036", "REQ-EDITOR-037", "REQ-EDITOR-038", "REQ-EDITOR-039", "REQ-EDITOR-040", "REQ-EDITOR-041", "REQ-EDITOR-042", "REQ-EDITOR-043", "REQ-EDITOR-044", "REQ-EDITOR-045", "REQ-EDITOR-046", "REQ-EDITOR-047", "REQ-EDITOR-048", "REQ-EDITOR-049", "REQ-EDITOR-050", "REQ-EDITOR-051", "REQ-EDITOR-052", "REQ-EDITOR-053", "REQ-EDITOR-054", "REQ-EDITOR-055", "REQ-EDITOR-056", "REQ-EDITOR-057", "REQ-EDITOR-058", "REQ-EDITOR-059"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "c911510d7de867cb3c53b2cb31fc8938cd4259bad0daa999190cbf2cad70ef36"
+content_hash: "26ce1d895cada23b57d9b3e0bc2996d9fb5469b881ecb875135e9373baf7838c"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-D6C9HJ"
 source_paths: ["spec/3-workflow-editor/0-canvas.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "b58de71b0e37baf48473c085c2af45ae41851a35cc9311903225a2ff9c20390f"
-etag: "sha256-a8ef0283ad17566c116af0d8c158232be063bf7f03db671bc9c4c0c7bc9234e0"
+mirror_sha256: "705ed30cc6ea54c68f72bf6c3c015d03853a4062cb4ba5f5cb5ffe11ea59ded7"
+etag: "sha256-94eaf8e2e725f75d49a9242ad102e3bc7c0d7a59b602a418409cc0f83518018a"
 ---
 > 구현 상태: 부분 구현 (팔레트 Installed 섹션, AI 에이전트 · 정보 추출기 · 수동 트리거 노드의 설정 요약, Undo/Redo 를 줌 오버레이로 합치기는 미구현. 그리드 스냅은 미결 사항) · 원문: `spec/3-workflow-editor/_product-overview.md` (§1~§4, §6 ED-SV-01·02, §9), `spec/3-workflow-editor/0-canvas.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -314,7 +314,7 @@ etag: "sha256-a8ef0283ad17566c116af0d8c158232be063bf7f03db671bc9c4c0c7bc9234e0"
 
 ### 미설정 경고와 경고 배지
 
-미설정 경고(not-configured badge)는 필수 설정이 비었을 때 노드에 붙는 경고다.
+미설정 경고(not-configured badge)는 필수 설정이 비었을 때 노드에 붙는 경고다. 심각도가 `advisory` 인 노드 경고 규칙은 같은 헤더 아이콘으로 따로 보인다(아래 표의 advisory 행). 두 심각도의 뜻은 [그래프 경고 규칙 §노드 경고 규칙의 심각도](CLE-WF-WARN.md#노드-경고-규칙의-심각도) 가 정한다.
 
 | 항목 | 설명 |
 | --- | --- |
@@ -322,8 +322,11 @@ etag: "sha256-a8ef0283ad17566c116af0d8c158232be063bf7f03db671bc9c4c0c7bc9234e0"
 | 조건 | 노드의 필수 설정 필드가 하나라도 비었을 때 |
 | 예외 | 수동 트리거 노드는 미설정 경고를 표시하지 않는다. |
 | 선택 필드만 있는 노드 | 모든 필드가 선택 항목이면 정상 요약을 표시한다(일반 노드는 본체, 컨테이너는 헤더 텍스트). |
+| advisory 노드 경고 | 심각도가 `advisory` 인 노드 경고 규칙이 발화하면 설정 요약 줄은 그대로 두고 노드 헤더에 같은 `AlertTriangle` 아이콘(`text-white/70`, `aria-label="advisory warning"`)을 띄운다. 툴팁에는 발화한 advisory 문구를 줄마다 `⚠ ` 를 붙여 모두 보여 준다. 실행과 저장을 막지 않는다. |
+| blocking 우선 | 미설정 경고(`blocking`)가 함께 있으면 미설정 경고 아이콘만 보이고 advisory 아이콘은 숨긴다. |
+| 줌 | 줌 50% 미만이면 설정 요약처럼 두 아이콘 모두 숨긴다. |
 
-툴팁에 나오는 노드별 누락 메시지는 각 노드 스키마의 노드 경고 규칙(`warningRules`)이 정한다. 이 문서는 노드별 문구 표를 따로 두지 않는다. 문구의 영문 원문은 각 노드 문서가 인용한다. 대개 그 문서의 "에러 코드" 절에 있다(예: [Table 노드 §에러 코드](../CLE-NODE-PRES/CLE-NODE-TABLE.md#에러-코드) 의 `warningRules.table:no-columns`). 노드 사이 관계를 보는 그래프 경고 규칙의 배지(심각도 `error` 는 빨강이고 저장 버튼을 막는다, `warning` 은 노랑)는 [그래프 경고 규칙](CLE-WF-WARN.md) 이 정한다.
+툴팁에 나오는 노드별 누락 메시지는 각 노드 스키마의 노드 경고 규칙(`warningRules`)이 정한다. 이 문서는 노드별 문구 표를 따로 두지 않는다. 문구의 영문 원문은 각 노드 문서가 인용한다. 대개 그 문서의 "에러 코드" 절에 있다(예: [Table 노드 §에러 코드](../CLE-NODE-PRES/CLE-NODE-TABLE.md#에러-코드) 의 `warningRules.table:no-columns`). 노드 사이 관계를 보는 그래프 경고 규칙의 배지(심각도 `error` 는 빨강이고 저장 버튼을 막는다, `warning` 은 노랑)는 [그래프 경고 규칙](CLE-WF-WARN.md) 이 정한다. advisory 표시를 이렇게 정한 근거는 [Merge 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md#first-와-append-를-지금-의미로-정하고-advisory-경고로-알린다-2026-11-12) 의 「캔버스 표시」 문단에 있다.
 
 ### 삭제 버튼
 
@@ -471,6 +474,8 @@ flowchart LR
 1. **Body 포트(강제)**: `컨테이너.body → X` 연결선을 만들면 X 의 `containerId` 를 그 컨테이너로 **강제로 정한다**. X 가 이미 **다른** 컨테이너에 속해 있으면 연결선을 만들지 않고 토스트로 경고한다. 예: `Cannot connect: "Code" is already a body child of "Loop". Detach it from "Loop" first.`
 2. **Emit 포트(강제)**: `Y → 컨테이너.emit` 연결선도 같은 규칙이다. Y 가 다른 컨테이너 소속이면 거부하고 경고한다.
 3. **체인 전파**: 컨테이너 자식 A 에서 `A → B` 연결선을 만들 때 B 의 `containerId` 가 비어 있으면 같은 컨테이너로 전파한다. 양 끝이 서로 다른 컨테이너 소속이면 충돌을 피하려고 아무것도 바꾸지 않는다. 이렇게 경계를 넘는 연결선을 허용할지는 정의가 갈린다. [연결선의 미결 사항](CLE-WF-EDGE.md#미결-사항) 과 [실행 엔진 개요와 그래프 순회의 미결 사항](../CLE-EXEC/CLE-EXEC-ENGINE.md#미결-사항) 에서 다룬다.
+
+체인 전파는 Background 의 `background` 포트 연결선에도 적용된다. 그래서 컨테이너 본문 안 Background 의 본문 노드도 그 컨테이너의 `containerId` 를 받는다. 이 값은 위치 속성일 뿐이고 Background 본문의 범위는 `background` 포트 연결선으로 정한다. 워커는 그 컨테이너 단계 그래프로 본문을 실행한다([컨테이너 실행 §컨테이너 본문 안 Background](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)).
 
 **지울 때 자동 해제**
 

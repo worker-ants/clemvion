@@ -15,6 +15,16 @@ export const NODE_TYPES = {
    * 동작하도록). 본 동작은 template-only 특수 처리 — 다른 노드는 영향 없음.
    */
   TEMPLATE: 'template',
+  /** 서브 워크플로우 노드. 재실행 dry-run 사전 검사가 자식 워크플로우를 따라갈 때 쓴다. */
+  WORKFLOW: 'workflow',
+  /** Background 노드. 부팅 복구 스캔이 Background 본문 행을 가려낼 때 쓴다. */
+  BACKGROUND: 'background',
 } as const;
+
+/**
+ * 서브 워크플로우 재귀 깊이 한도. `WorkflowHandler` · `ExecutionEngineService` 의 실행 때 검사와
+ * `ExecutionsService` 의 dry-run 사전 검사가 같은 값을 쓴다.
+ */
+export const SUB_WORKFLOW_MAX_RECURSION_DEPTH = 10;
 
 export type WellKnownNodeType = (typeof NODE_TYPES)[keyof typeof NODE_TYPES];

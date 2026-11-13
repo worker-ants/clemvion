@@ -2,19 +2,19 @@
 id: "CLE-WF-NODEPANEL"
 title: "노드 포트와 설정 패널"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-NODEUI-001", "REQ-NODEUI-002", "REQ-NODEUI-003", "REQ-NODEUI-004", "REQ-NODEUI-005", "REQ-NODEUI-006", "REQ-NODEUI-007", "REQ-NODEUI-008", "REQ-NODEUI-009", "REQ-NODEUI-010", "REQ-NODEUI-011", "REQ-NODEUI-012", "REQ-NODEUI-013", "REQ-NODEUI-014", "REQ-NODEUI-015", "REQ-NODEUI-016", "REQ-NODEUI-017", "REQ-NODEUI-018", "REQ-NODEUI-019", "REQ-NODEUI-020", "REQ-NODEUI-021", "REQ-NODEUI-022", "REQ-NODEUI-023", "REQ-NODEUI-024", "REQ-NODEUI-025", "REQ-NODEUI-026", "REQ-NODEUI-027", "REQ-NODEUI-028", "REQ-NODEUI-029", "REQ-NODEUI-030", "REQ-NODEUI-031", "REQ-NODEUI-032", "REQ-NODEUI-033", "REQ-NODEUI-034", "REQ-NODEUI-035", "REQ-NODEUI-036", "REQ-NODEUI-037", "REQ-NODEUI-038", "REQ-NODEUI-039", "REQ-NODEUI-040", "REQ-NODEUI-041"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "f8a39cec27a3d6507358db3a2709110ed8b9eef0dbacfb63c3ec1559753405e7"
+content_hash: "de54c131b4309af8ca35f77107ea5cbda2cf491fa5e09983045ccda3f3a113bb"
 read_as: "approved_fallback"
-task: "CLE-T-GGZSC2"
+task: "CLE-T-D6C9HJ"
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "31b87ac8c16a58280aff4bb7e39357aca8949d62bb3d2943fa7881fc3be9b70e"
-etag: "sha256-550e10bc2f704df25c9e561235a3335d8fc0f853ebd629280033108805b8d9e2"
+mirror_sha256: "e329da38b51bcbe6eb4094032b4df0ef215c552ed49dacd48ed62345a2ade490"
+etag: "sha256-e5ffa6959d10d9493ce30e7017dd6fc8ab5476373d7b479d478d33feb25e636c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -26,7 +26,7 @@ etag: "sha256-550e10bc2f704df25c9e561235a3335d8fc0f853ebd629280033108805b8d9e2"
 
 범위 밖:
 
-- 캔버스 위 노드 모양, 설정 요약, 미설정 경고는 [워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md) 가 정한다.
+- 캔버스 위 노드 모양, 설정 요약, 미설정 경고와 `advisory` 노드 경고 아이콘은 [워크플로우 에디터와 캔버스 §미설정 경고와 경고 배지](CLE-WF-EDITOR.md#미설정-경고와-경고-배지) 가 정한다.
 - 연결선의 생성·유효성·색은 [연결선](CLE-WF-EDGE.md) 이 정한다.
 - 설정 필드 안의 `{{ }}` 표현식 문법·자동완성·검증은 [표현식 언어](CLE-WF-EXPR.md) 가 정한다.
 - 에러 처리 정책이 실행될 때의 동작(재시도 백오프, 에러 포트 폴백, 노드 실행 상태)은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 정한다.

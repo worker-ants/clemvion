@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WF"
 title: "용어 사전 — 워크플로우 작성"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "04c7850cc4ef23e30f59ee1d035678fd72dc7d00fa12d1be8ab25f505eab6dcd"
+content_hash: "413b1af8d50450f6a47a84042a8611401bcfa20e18157d72fff2c408a02819fb"
 read_as: "approved_fallback"
-task: "CLE-T-XRWFMJ"
+task: "CLE-T-D6C9HJ"
 source_paths: []
-mirror_sha256: "b7e4b679699920c1f9ad5147a14093532cff57faf3b3c09428eca24c74360386"
-etag: "sha256-a8396db17ced92eecb0e6dfd756924912cc06c677728ca774922371dc72bad6f"
+mirror_sha256: "b775e3c7401ce83eec6cefad9806bac0c0a13c6c11089310fe61054312cd9821"
+etag: "sha256-3d61e700e09a671dcc8fc029b8d3b44522425ee5e9c5d46ef52be06b8331ce18"
 ---
 ## 개요
 
@@ -43,8 +43,8 @@ etag: "sha256-a8396db17ced92eecb0e6dfd756924912cc06c677728ca774922371dc72bad6f"
 | 노드 메모 | notes, `config.notes` | 노드에 붙이는 자유 메모. 설정 패널은 `config.notes` 에 저장한다(`Node.description` 과의 관계는 결정 항목 D48). | 메모/설명 | [노드 포트와 설정 패널](CLE-WF/CLE-WF-NODEPANEL.md) |
 | 노드 비활성화 | disable node, `isDisabled` | 실행할 때 건너뛰도록 표시한 노드 상태. 워크플로우 비활성과 다르다. | Disable(본문) | [워크플로우 에디터와 캔버스](CLE-WF/CLE-WF-EDITOR.md) |
 | 설정 요약 | configuration summary, `summaryTemplate` | 노드 설정을 템플릿으로 줄여 캔버스 노드 셋째 줄에 보여 주는 문구. | 캔버스 요약, Configuration Summary(본문) | [워크플로우 에디터와 캔버스](CLE-WF/CLE-WF-EDITOR.md) |
-| 노드 경고 규칙 | `warningRules` | 노드 하나의 설정만 보고 누락이나 오류를 알리는 선언형 규칙. 심각도는 `blocking` 과 `advisory` 다. | warningRule(본문) | [워크플로우 에디터와 캔버스](CLE-WF/CLE-WF-EDITOR.md) |
-| 미설정 경고 | not-configured badge | 필수 설정이 비었을 때 캔버스 노드에 붙는 경고 배지. 노드 경고 규칙의 결과다. | Not configured(본문) | [워크플로우 에디터와 캔버스](CLE-WF/CLE-WF-EDITOR.md) |
+| 노드 경고 규칙 | `warningRules` | 노드 하나의 설정만 보고 누락이나 오류를 알리는 선언형 규칙. 심각도는 `blocking`(기본값)과 `advisory` 다. `advisory` 는 실행을 막지 않고 캔버스 노드 헤더에 경고 아이콘만 띄운다. | warningRule(본문) | [워크플로우 에디터와 캔버스](CLE-WF/CLE-WF-EDITOR.md) |
+| 미설정 경고 | not-configured badge | 필수 설정이 비었을 때 캔버스 노드에 붙는 경고 배지. 노드 경고 규칙 중 `blocking` 규칙의 결과다. | Not configured(본문) | [워크플로우 에디터와 캔버스](CLE-WF/CLE-WF-EDITOR.md) |
 | 그래프 경고 규칙 | `graphWarningRules` | 노드 사이 관계를 보고 판단하는 경고 규칙. 심각도가 `error` 면 저장을 막는다. | cross-node warningRule, graph-warning | [그래프 경고 규칙](CLE-WF/CLE-WF-WARN.md) |
 | 탈출 불가 순환 경고 | `graph:unescapable-cycle` | 분기 노드가 아닌 노드에서 되돌아가는 연결선이 만든 순환에 붙는 경고. 에디터는 순환 자체를 막지 않는다. | 글로벌 DAG 사이클 검사 | [그래프 경고 규칙](CLE-WF/CLE-WF-WARN.md) |
 | 저장 | save, `saveCanvas` | 캔버스 내용을 서버에 쓰는 동작. 수동 저장과 실행 직전 저장 두 경로만 있고 타이머 자동 저장은 없다. | 자동 저장(실행 직전 저장 뜻으로), 캔버스 bulk save | [워크플로우 에디터와 캔버스](CLE-WF/CLE-WF-EDITOR.md) |

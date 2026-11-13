@@ -37,10 +37,12 @@ import {
   CHAT_RATE_LIMIT_DEFAULT_PER_MIN,
 } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
+import { isDiscordPing } from '../chat-channel/providers/discord/discord-update.parser';
 import {
   ChannelUpdate,
   ChatChannelAdapter,
   ChatChannelConfig,
+  InboundInteractionResponse,
   isNativeFormAdapter,
 } from '../chat-channel/types';
 import { validateFormSubmission } from '../chat-channel/shared/form-mode';
@@ -64,18 +66,17 @@ export interface WebhookInput {
  * 검증 실패(400)·비활성(410) 은 execute() 호출 전에 throw 되어 Execution row 자체가
  * 생성되지 않으므로, 호출 이력에 남는 webhook 행의 response_code 는 이 값이다.
  * execution.response_code 컬럼(§A.3 호출 이력, WH-MG-05)에 영속된다.
- * 예외는 Discord 컴포넌트 클릭 · 모달 제출이다. 그 응답은 200 이라 `INTERACTION_RESPONSE_CODE` 를 남긴다.
+ * 예외는 프로바이더가 3초 안 200 을 요구하는 채팅 채널 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 ·
+ * 슬래시 명령, Slack Interactivity)이다. 그 응답은 200 이라 `INTERACTION_RESPONSE_CODE` 를 남긴다.
  */
 const WEBHOOK_ACCEPTED_RESPONSE_CODE = String(HttpStatus.ACCEPTED);
 
 /**
- * Discord 컴포넌트 클릭 · 모달 제출에 답하는 HTTP 응답 코드. HooksController 는
- * `interactionHttpResponse` 가 있으면 200 으로 그 본문을 보낸다.
+ * 채팅 채널 인터랙션에 답하는 HTTP 응답 코드. 채널 어댑터의 `defaultInteractionResponse` 가 응답을
+ * 돌려준 update 다. HooksController 는 `interactionHttpResponse` 가 있으면 200 으로 그 본문을,
+ * `interactionEmptyResponse` 면 200 빈 본문을 보낸다.
  */
 const INTERACTION_RESPONSE_CODE = String(HttpStatus.OK);
-
-/** Discord interaction callback type 6 — DEFERRED_UPDATE_MESSAGE. */
-const DISCORD_DEFERRED_UPDATE_MESSAGE = 6;
 
 /** 채팅 채널 인바운드 처리 결과. HooksController 가 이 값으로 응답 형태를 고른다. */
 interface ChatChannelWebhookResult {
@@ -86,10 +87,16 @@ interface ChatChannelWebhookResult {
   /**
    * provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON. HooksController 가 200 과 함께
    * res.json 으로 보낸다. Discord modal open `{ type: 9 }` · MODAL_SUBMIT 결과 `{ type: 4 }` ·
-   * 컴포넌트 클릭 · 모달 제출의 기본 ack `{ type: 6 }`, Slack view_submission
-   * `{ response_action: 'errors' }` 가 있다. SoT: spec/conventions/chat-channel-adapter.md §4.1.
+   * 컴포넌트 클릭 · 모달 제출의 기본 ack `{ type: 6 }` · 슬래시 명령의 수신 응답 `{ type: 4 }`,
+   * Slack view_submission `{ response_action: 'errors' }` 가 있다.
+   * SoT: CLE-CHAT-ADAPTER 「네이티브 모달 경로」 · 「인터랙션 기본 응답과 수신 확인」.
    */
   interactionHttpResponse?: unknown;
+  /**
+   * 200 빈 본문으로 답한다(Slack Interactivity 의 기본 ack). `interactionHttpResponse` 가 있으면
+   * 그 본문이 앞선다.
+   */
+  interactionEmptyResponse?: boolean;
 }
 
 /**
@@ -325,19 +332,23 @@ export class HooksService {
    *
    * 1. provider 별 adapter 조회
    * 2. provider 별 inbound 서명 검증 (Telegram secret token · Slack signing secret · Discord Ed25519)
-   * 3. 꺼진 트리거면 202 ignored. Slack url_verification · Discord PING handshake 는 답한다.
+   * 3. 꺼진 트리거면 ignored. 인터랙션에는 아래 10 의 기본 응답으로, 나머지는 202 로 답한다.
+   *    트리거가 켜져 있으면 Slack url_verification · Discord PING handshake 에 답한다.
    * 4. adapter.parseUpdate(rawBody) — null 이면 202 ignored 즉시 반환
    * 5. 재도착 억제(CCH-SE-02) · 분당 rate limit(CCH-NF-03), `/help` 안내
    * 6. ChannelConversation 조회 — `/cancel` 처리, 폼 모달 명령, 활성 execution 이 있을 때의 입력
    *    (CCH-CV-03): (a) waiting_for_input → interact() in-process 호출, (b) running/pending →
    *    executionStillRunning 안내 + ignored (대기 큐 미적재, R9)
-   * 7. **워크플로우가 꺼져 있으면 202 ignored** — 새 실행을 시작하는 입력만 막는다. 위 4~6 의 처리는
+   * 7. **워크플로우가 꺼져 있으면 ignored** — 새 실행을 시작하는 입력만 막는다. 위 4~6 의 처리는
    *    워크플로우가 꺼져 있어도 한다(NERV Task `CLE-T-XRWFMJ`). 그래서 꺼진 워크플로우로 오는 새 시작
    *    입력도 미지원 update 안내 · dedup · rate limit · `enrichInbound` 를 거친 뒤 여기서 끝난다.
    * 8. `/start` 이고 활성 execution 이 있으면 취소(NERV Task `CLE-T-V4WVF2`)
    * 9. 새 execution 시작 (start 또는 활성 없음 / terminal 상태), ackInteraction
-   * 10. Discord 컴포넌트 클릭 · 모달 제출은 따로 정한 응답이 없으면 `{ type: 6 }` 으로 답한다
+   * 10. 프로바이더가 3초 안 200 을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령,
+   *     Slack Interactivity)은 따로 정한 응답이 없으면 어댑터의 `defaultInteractionResponse` 로 답한다
    *
+   * 버린 update(ignored)에는 어댑터의 `ackDroppedUpdate` 를 부른다(Telegram `answerCallbackQuery`).
+   * 꺼진 트리거는 외부 호출을 하지 않으므로 부르지 않는다.
    * 4~9 단계는 `dispatchChatChannelUpdate` 가 한다.
    * 본 메서드는 200ms 안에 202 Accepted 응답해야 함 (WH-NF-01). 무거운 작업은 fire-and-forget.
    */
@@ -365,11 +376,25 @@ export class HooksService {
       rawBodyString,
     );
 
-    // 서명 검증을 통과한 뒤에야 비활성 트리거를 202 { executionId: 'ignored' } 로
-    // 무시한다 (R-CC-12(d) / §5.5). 인증은 활성/비활성 무관하게 수행하되, 비활성이면
-    // adapter·execution 을 호출하지 않는다. (verify 실패 시 위에서 이미 401 throw.)
+    // 프로바이더는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)마다
+    // 3초 안에 200 을 받아야 하고, 받지 못하면 클라이언트에 실패 표시를 띄운다(NERV Task
+    // `CLE-T-7XWVC5` · `CLE-T-TSEP9G` · `CLE-T-FCBG91`). 아래 처리가 무시 · 전달 · 새 실행 중 어느 쪽으로
+    // 끝나도, 트리거가 꺼져 있어도 같다(2026-11-12 사람 결정). 모달 열기(type 9) · 폼 제출 결과처럼 경로가
+    // 따로 정한 응답이 있으면 그것을 보낸다. 기본 응답은 pure 라 외부 호출이 없다.
+    const defaultResponse = adapter.defaultInteractionResponse?.(
+      input.body,
+      config,
+    );
+
+    // 서명 검증을 통과한 뒤에야 비활성 트리거를 { executionId: 'ignored' } 로 무시한다
+    // (R-CC-12(d) / §5.5). 인증은 활성/비활성 무관하게 수행하되, 비활성이면 parse · 외부 호출 ·
+    // execution 을 하지 않는다. 인터랙션에는 위의 기본 응답으로, 나머지는 202 로 답한다.
+    // (verify 실패 시 위에서 이미 401 throw.)
     if (!trigger.isActive) {
-      return { executionId: 'ignored' };
+      return withDefaultInteractionResponse(
+        { executionId: 'ignored' },
+        defaultResponse,
+      );
     }
 
     // Slack url_verification handshake (Spec providers/slack §3.1) — Slack 이 Request URL 등록 시
@@ -387,25 +412,44 @@ export class HooksService {
       return { executionId: 'ignored', discordPing: true };
     }
 
-    // Discord 는 컴포넌트 클릭 · 모달 제출마다 3초 안에 200 과 콜백 응답을 받아야 하고, 받지 못하면
-    // 클라이언트에 실패 표시를 띄운다(Spec providers/discord, NERV Task `CLE-T-7XWVC5`). 아래 처리가
-    // 무시 · 전달 · 새 실행 중 어느 쪽으로 끝나도 같다. 모달 열기(type 9) · 폼 제출 결과(type 4)처럼
-    // 따로 정한 응답이 있으면 그것을 보낸다. 슬래시 명령(type 2)은 type 6 을 받지 않아 지금처럼 202 다.
-    const discordAck =
-      config.provider === 'discord'
-        ? discordDeferredUpdateAck(input.body)
-        : undefined;
     const result = await this.dispatchChatChannelUpdate(
       trigger,
       config,
       input,
       adapter,
-      discordAck ? INTERACTION_RESPONSE_CODE : WEBHOOK_ACCEPTED_RESPONSE_CODE,
+      defaultResponse
+        ? INTERACTION_RESPONSE_CODE
+        : WEBHOOK_ACCEPTED_RESPONSE_CODE,
     );
-    if (discordAck && result.interactionHttpResponse === undefined) {
-      return { ...result, interactionHttpResponse: discordAck };
+    return withDefaultInteractionResponse(result, defaultResponse);
+  }
+
+  /**
+   * 버린 update 를 `{ executionId: 'ignored' }` 로 끝낸다. 그 전에 프로바이더가 요구하는 수신 확인을
+   * 보낸다(Telegram 버튼 클릭의 `answerCallbackQuery`, 키보드는 남긴다). 수신 확인은 응답을 기다리게
+   * 하지 않는다(WH-NF-01, Task `CLE-T-K8Z2W0` 경계). 보내기만 하고 끝나기를 기다리지 않으며, 실패는
+   * 경고 로그만 남기고 삼킨다. 근거: CLE-CHAT-TELEGRAM REQ-TGRAM-011.
+   */
+  private dropChatChannelUpdate(
+    input: WebhookInput,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<ChatChannelWebhookResult> {
+    if (adapter.ackDroppedUpdate) {
+      const warn = (err: unknown): void => {
+        this.logger.warn(
+          `chat-channel 버린 update 의 수신 확인 실패(무시, provider=${config.provider}): ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      };
+      try {
+        void adapter.ackDroppedUpdate(input.body, config).catch(warn);
+      } catch (err) {
+        warn(err);
+      }
     }
-    return result;
+    return Promise.resolve({ executionId: 'ignored' });
   }
 
   /**
@@ -429,7 +473,7 @@ export class HooksService {
       // 무시 대상 (group/bot/unsupported) — parseUpdate 의 pure 계약 (I-6) 에 따라 호출자가 안내 발송.
       // raw body 의 chat 정보가 있으면 안내 sendMessage. 봇 메시지나 chat 정보 없으면 silent skip.
       await this.maybeNotifyIgnored(input.body, config, adapter);
-      return { executionId: 'ignored' };
+      return this.dropChatChannelUpdate(input, config, adapter);
     }
 
     // CCH-SE-02 — 동일 update 30초 재도착 억제. provider 는 2xx 를 못 받으면 같은 update 를
@@ -448,7 +492,7 @@ export class HooksService {
       this.logger.warn(
         `chat-channel update 재도착 무시 (CCH-SE-02, trigger=${trigger.id})`,
       );
-      return { executionId: 'ignored' };
+      return this.dropChatChannelUpdate(input, config, adapter);
     }
 
     // CCH-NF-03 — per-chat 분당 inbound rate-limit. parseUpdate 직후(conversationKey
@@ -465,7 +509,7 @@ export class HooksService {
     );
     if (!withinRateLimit) {
       await this.markChatChannelRateLimited(trigger, rateLimitPerMinute);
-      return { executionId: 'ignored' };
+      return this.dropChatChannelUpdate(input, config, adapter);
     }
 
     // parseUpdate 직후 provider 별 비동기 보강 (Slack file_upload → files.info 로
@@ -735,7 +779,7 @@ export class HooksService {
       // waiting_for_input 에 도달한 경우에만 수행한다 (input-sequence 충돌 방지).
       if (activeStatus !== ExecutionStatus.WAITING_FOR_INPUT) {
         await this.sendExecutionStillRunningNotice(update, config, adapter);
-        return { executionId: 'ignored' };
+        return this.dropChatChannelUpdate(input, config, adapter);
       }
       // Form 다단계 시퀀스 진행 중이면 dispatcher 의 form handler 로 라우팅.
       if (
@@ -765,6 +809,7 @@ export class HooksService {
     // ignored 다. 활성 실행이 있는 대화의 `/start` 도 여기서 끝나므로 기존 실행을 취소하지 않는다.
     // handshake(Slack url_verification · Discord PING)는 위에서 이미 답했다. 워크플로우를 꺼 둔 채
     // 채널을 연결해도 프로바이더의 URL 등록이 실패하지 않게 하려는 것이다(사용자 결정 2026-10-10).
+    // 인터랙션에는 기본 응답(200)으로, 나머지는 202 로 답한다. 버린 클릭의 수신 확인은 보낸다.
     // dedup claim 은 풀지 않는다. rate limit 으로 ignored 가 되는 경로와 같다.
     // 이 관문이 뒤에 있어서 꺼진 워크플로우로 오는 새 시작 입력도 위의 미지원 update 안내 · dedup ·
     // rate limit(한도를 넘으면 트리거 health 를 degraded 로 쓴다) · `enrichInbound`(Slack `files.info`
@@ -776,7 +821,7 @@ export class HooksService {
         trigger.workspaceId,
       )
     ) {
-      return { executionId: 'ignored' };
+      return this.dropChatChannelUpdate(input, config, adapter);
     }
 
     // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).
@@ -814,7 +859,7 @@ export class HooksService {
           // 엔진은 이 워크스페이스의 워크플로우만 실행한다(NERV Task `CLE-T-XYR067`).
           workspaceId: trigger.workspaceId,
           triggerType: 'webhook', // priority 3-tier(§4.3) — chat-channel 도 webhook 발화
-          // §A.3 호출 이력 — chat-channel inbound 가 실제로 답하는 코드(202, Discord 컴포넌트 · 모달 제출은 200).
+          // §A.3 호출 이력 — chat-channel inbound 가 실제로 답하는 코드(202, 인터랙션 기본 응답이 있으면 200).
           sourceIp: clientIp,
           responseCode,
         },
@@ -828,7 +873,7 @@ export class HooksService {
           trigger,
           CHAT_CHANNEL_WORKFLOW_MISSING_ERROR,
         );
-        return { executionId: 'ignored' };
+        return this.dropChatChannelUpdate(input, config, adapter);
       }
       throw err;
     }
@@ -1472,28 +1517,23 @@ function isSlackUrlVerification(body: unknown): boolean {
 }
 
 /**
- * Discord Interactions Webhook PING (type=1) envelope 여부 — controller 가 `{ type: 1 }`
- * 200 응답으로 handshake 처리하기 위한 분기. Spec [providers/discord §3.1].
+ * 경로가 따로 정한 인터랙션 응답이 없을 때 어댑터의 기본 응답을 붙인다. 기본 응답의 `body` 가 없으면
+ * 200 빈 본문(`interactionEmptyResponse`)이다. 기본 응답이 없으면 결과를 그대로 돌려준다(202).
  */
-function isDiscordPing(body: unknown): boolean {
-  if (!body || typeof body !== 'object') return false;
-  return (body as { type?: unknown }).type === 1;
-}
-
-/**
- * Discord 컴포넌트 클릭(type 3 MESSAGE_COMPONENT) · 모달 제출(type 5 MODAL_SUBMIT)의 기본 응답
- * `{ type: 6 }`(DEFERRED_UPDATE_MESSAGE). 메시지를 바꾸지 않고 받았다는 것만 알린다. 모달 제출에도
- * 쓸 수 있는 것은 이 제품의 모달이 모두 메시지의 버튼에서 열리기 때문이다(버튼에서 연 모달의 제출만
- * type 6 을 받는다). 그 밖의 type 은 undefined 다. Spec [providers/discord §인바운드 응답].
- */
-function discordDeferredUpdateAck(
-  body: unknown,
-): { type: typeof DISCORD_DEFERRED_UPDATE_MESSAGE } | undefined {
-  if (!body || typeof body !== 'object') return undefined;
-  const type = (body as { type?: unknown }).type;
-  return type === 3 || type === 5
-    ? { type: DISCORD_DEFERRED_UPDATE_MESSAGE }
-    : undefined;
+function withDefaultInteractionResponse(
+  result: ChatChannelWebhookResult,
+  fallback: InboundInteractionResponse | undefined,
+): ChatChannelWebhookResult {
+  if (
+    !fallback ||
+    result.interactionHttpResponse !== undefined ||
+    result.interactionEmptyResponse
+  ) {
+    return result;
+  }
+  return fallback.body === undefined
+    ? { ...result, interactionEmptyResponse: true }
+    : { ...result, interactionHttpResponse: fallback.body };
 }
 
 /**

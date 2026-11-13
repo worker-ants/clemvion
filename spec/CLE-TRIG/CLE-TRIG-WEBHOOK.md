@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052", "REQ-WEBHOOK-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "6f70044a968cdec514926460293bc3b33539cb281f93e055321b31617a2de3ec"
+content_hash: "79a08e78cc15334efb19fb17a6ae48cdcdfbdf83d0195802094d29d6a463cd26"
 read_as: "approved_fallback"
-task: "CLE-T-QKJ2TZ"
+task: "CLE-T-TSEP9G"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "18746a2dc916471b626b29839e69c2d2ed6a0392e5cc47fa8d9bd9c0b4525604"
-etag: "sha256-e0a6e91866a51c631206949d8c18b52826d9ffec33495ca97d063640ae82d5be"
+mirror_sha256: "2f90a08a01d7195c8d3310cfa58e2453f5f451b7421334c8bd23f59f848209db"
+etag: "sha256-d62eb482091215513420a348bfac40be27f470b59b9c2d14fa38515a7b043436"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,11 +53,11 @@ etag: "sha256-e0a6e91866a51c631206949d8c18b52826d9ffec33495ca97d063640ae82d5be"
 - REQ-WEBHOOK-007 IF required 파라미터가 없거나 타입 강제 변환이 실패하면 THE SYSTEM SHALL 실행을 만들지 않고 `400 INVALID_WEBHOOK_PAYLOAD` 로 응답하며 필드별 사유를 `error.details[]` 에 싣는다. (원본: WH-EP-05-2)
 - REQ-WEBHOOK-008 WHEN 웹훅이 실행을 시작하면 THE SYSTEM SHALL `headers`·`method`·`query` 를 메타데이터로 넘기고 민감 헤더 값은 저장 전에 `[REDACTED]` 로 가린다. (원본: WH-EP-06)
 - REQ-WEBHOOK-009 IF 비활성 트리거로 요청이 오면 THE SYSTEM SHALL `410 Gone`(`TRIGGER_INACTIVE`)으로 응답한다. (원본: WH-EP-07)
-- REQ-WEBHOOK-010 IF 채팅 채널이 설정된 트리거가 비활성이면 THE SYSTEM SHALL provider inbound 서명 검증을 먼저 하고 통과하면 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답한다. (원본: WH-EP-07)
+- REQ-WEBHOOK-010 IF 채팅 채널이 설정된 트리거가 비활성이면 THE SYSTEM SHALL provider inbound 서명 검증을 먼저 하고 통과한 요청으로는 실행을 시작하지 않는다. 응답은 인터랙션 요청(Discord 컴포넌트 · 모달 제출 · 슬래시 명령, Slack Interactivity)이면 `200 OK` 와 기본 인터랙션 응답이고 그 밖의 요청(Discord PING, Slack `url_verification` · Events API 메시지 · 슬래시 명령, Telegram update)이면 `202 Accepted` 와 `{ executionId: 'ignored' }` 다. 버린 버튼 클릭의 수신 확인을 포함해 프로바이더 API 는 부르지 않는다([채팅 채널 분기](#채팅-채널-분기)). (원본: WH-EP-07)
 - REQ-WEBHOOK-048 IF 채팅 채널이 아닌 웹훅 트리거의 워크플로우가 비활성이면(`workflow.is_active=false`) THE SYSTEM SHALL 인증과 파라미터 검증 전에 `410 Gone`(`WORKFLOW_INACTIVE`)으로 응답하고 실행 행을 만들지 않으며 `last_triggered_at` 을 갱신하지 않는다.
-- REQ-WEBHOOK-049 IF 채팅 채널이 설정된 트리거의 워크플로우가 비활성일 때 새 실행을 시작할 update 가 오면 THE SYSTEM SHALL 일반 웹훅의 `410 Gone`(`WORKFLOW_INACTIVE`) 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답하고 새 실행을 만들지 않는다. Discord 컴포넌트 · 모달 제출이면 `202` 대신 `200 OK` 와 `{ type: 6 }` 으로 응답한다([채팅 채널 분기](#채팅-채널-분기)). 막는 update 는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 확인 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
+- REQ-WEBHOOK-049 IF 채팅 채널이 설정된 트리거의 워크플로우가 비활성일 때 새 실행을 시작할 update 가 오면 THE SYSTEM SHALL 일반 웹훅의 `410 Gone`(`WORKFLOW_INACTIVE`) 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답하고 새 실행을 만들지 않는다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 응답한다([채팅 채널 분기](#채팅-채널-분기)). 막는 update 는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 확인 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
 - REQ-WEBHOOK-050 WHEN 활성 채팅 채널 트리거로 Slack `url_verification` 이나 Discord PING(type 1) handshake 가 오면 THE SYSTEM SHALL 워크플로우가 비활성이어도 서명 검증 뒤 handshake 에 답한다.
-- REQ-WEBHOOK-051 WHEN 워크플로우 활성 상태를 확인하면 THE SYSTEM SHALL 트리거의 워크스페이스 안에서만 워크플로우를 찾고 거기에 없으면 확인을 통과시켜 워크플로우가 그 워크스페이스에 없을 때의 응답(REQ-WEBHOOK-047, 채팅 채널은 `202` ignored)을 따른다. 채팅 채널의 Discord 컴포넌트 · 모달 제출이면 그 응답은 `200 OK` 와 `{ type: 6 }` 이다([채팅 채널 분기](#채팅-채널-분기)).
+- REQ-WEBHOOK-051 WHEN 워크플로우 활성 상태를 확인하면 THE SYSTEM SHALL 트리거의 워크스페이스 안에서만 워크플로우를 찾고 거기에 없으면 확인을 통과시켜 워크플로우가 그 워크스페이스에 없을 때의 응답(REQ-WEBHOOK-047, 채팅 채널은 `202` ignored)을 따른다. 채팅 채널의 인터랙션 요청이면 그 응답은 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](#채팅-채널-분기)).
 - REQ-WEBHOOK-052 WHILE 활성 채팅 채널 트리거의 워크플로우가 비활성인 동안 THE SYSTEM SHALL 진행 중인 대화의 update 를 워크플로우가 활성일 때와 같이 처리하고 일반 웹훅의 `410 Gone`(`WORKFLOW_INACTIVE`)이나 새 실행을 막을 때 쓰는 `202` ignored 로 응답하지 않는다. 대상 update 는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
 - REQ-WEBHOOK-011 WHEN 트리거에 인증 설정이 연결되지 않았으면 THE SYSTEM SHALL 인증 없이 요청을 받는다. (원본: WH-SC-01)
 - REQ-WEBHOOK-012 WHEN 클라이언트가 엔드포인트 경로를 만들면 THE SYSTEM SHALL CSPRNG 로 발급한 v4 UUID(`crypto.randomUUID()`)를 쓰고 약한 난수나 고정값을 쓰지 않는다. (원본: WH-SC-01)
@@ -76,7 +76,7 @@ etag: "sha256-e0a6e91866a51c631206949d8c18b52826d9ffec33495ca97d063640ae82d5be"
 - REQ-WEBHOOK-025 IF 인증 설정에 `ip_whitelist` 가 있는데 클라이언트 IP 가 목록에 없거나 IP 를 알 수 없으면 THE SYSTEM SHALL `401 AUTH_FAILED` 로 거부한다. (원본: WH-SC-09)
 - REQ-WEBHOOK-026 IF 연결된 인증 설정이 비활성(`is_active=false`)이면 THE SYSTEM SHALL 곧바로 `401 AUTH_FAILED` 로 거부한다.
 - REQ-WEBHOOK-053 WHEN 연결된 인증 설정의 기대값(`api_key` 의 `config.key`, `bearer_token` 의 `config.token`, `basic_auth` 의 `config.username`·`config.password`, `hmac` 의 `config.secret`)이 비었거나 문자열이 아니거나, 헤더 이름(`api_key` 의 `config.headerName`, `hmac` 의 `config.header`)이 있는데 문자열이 아니거나, 인증 설정이 복호화 불가 표식으로 읽히면 THE SYSTEM SHALL 요청 값과 상관없이 `401 AUTH_FAILED` 로 거부한다. 복호화 불가 표식은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 가 정한다.
-- REQ-WEBHOOK-027 WHEN 웹훅 요청이 실행을 시작하면 THE SYSTEM SHALL 실행을 기다리지 않고 `202 Accepted` 와 `executionId` 를 응답한다. (원본: WH-RS-01)
+- REQ-WEBHOOK-027 WHEN 웹훅 요청이 실행을 시작하면 THE SYSTEM SHALL 실행을 기다리지 않고 `202 Accepted` 와 `executionId` 를 응답한다. 채팅 채널의 인터랙션 요청이면 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](#채팅-채널-분기)). (원본: WH-RS-01)
 - REQ-WEBHOOK-028 IF 엔드포인트 경로에 맞는 웹훅 트리거가 없으면 THE SYSTEM SHALL `404 TRIGGER_NOT_FOUND` 로 응답한다. (원본: WH-RS-02)
 - REQ-WEBHOOK-029 IF 요청 본문 파싱이 실패하면 THE SYSTEM SHALL `400 Bad Request` 로 응답한다. (원본: WH-RS-03)
 - REQ-WEBHOOK-030 WHEN 트리거가 `config.interaction.enabled=true` 이면 THE SYSTEM SHALL 202 응답에 `status: "pending"` 과 `interaction.endpoints` 를 싣고 `tokenStrategy="per_execution"` 이면 `interaction.token`·`interaction.expiresAt` 도 함께 싣는다. `tokenStrategy="per_trigger"` 면 토큰을 싣지 않는다. 싣지 않는 `token`·`expiresAt` 은 `null` 없이 키를 생략한다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)). (원본: WH-RS-04)
@@ -95,7 +95,7 @@ etag: "sha256-e0a6e91866a51c631206949d8c18b52826d9ffec33495ca97d063640ae82d5be"
 - REQ-WEBHOOK-043 WHEN 웹훅 요청이 동시에 여러 건 오면 THE SYSTEM SHALL 요청마다 독립된 실행을 만들어 병렬로 처리한다. (원본: WH-NF-03)
 - REQ-WEBHOOK-044 IF 공개 웹훅 가드가 트리거 조회에 실패하거나 Redis 를 쓸 수 없으면 THE SYSTEM SHALL 요청을 통과시키고 조회 실패는 `error` 레벨로 로그를 남긴다.
 - REQ-WEBHOOK-045 WHEN 요청이 `/api/hooks/*` 로 오면 THE SYSTEM SHALL JWT 인증을 요구하지 않는다.
-- REQ-WEBHOOK-046 WHEN 웹훅이 실행을 시작하면 THE SYSTEM SHALL 실행에 `trigger_id`·`source_ip`·`response_code`(실제 응답 코드. 일반 웹훅은 `'202'`)를 기록하고 트리거의 `last_triggered_at` 을 갱신한다. 채팅 채널의 Discord 컴포넌트 · 모달 제출이면 `response_code` 는 `'200'` 이다([채팅 채널 분기](#채팅-채널-분기)).
+- REQ-WEBHOOK-046 WHEN 웹훅이 실행을 시작하면 THE SYSTEM SHALL 실행에 `trigger_id`·`source_ip`·`response_code`(실제 응답 코드. 일반 웹훅은 `'202'`)를 기록하고 트리거의 `last_triggered_at` 을 갱신한다. 채팅 채널의 인터랙션 요청(Discord 슬래시 명령의 `start` 등)으로 시작한 실행이면 `response_code` 는 `'200'` 이다([채팅 채널 분기](#채팅-채널-분기)).
 - REQ-WEBHOOK-047 IF 채팅 채널이 아닌 웹훅 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 엔드포인트 경로에 맞는 트리거가 없을 때와 같은 `404 TRIGGER_NOT_FOUND` 로 응답한다.
 
 ## 처리 구조
@@ -217,10 +217,10 @@ POST /api/hooks/:endpointPath
 | `400 Bad Request` | | 요청 본문 파싱 실패 |
 | `400 Bad Request` | `INVALID_WEBHOOK_PAYLOAD` | required 트리거 파라미터 누락, 타입 강제 변환 실패([400 응답 형식](#400-응답-형식)) |
 | `401 Unauthorized` | `AUTH_FAILED` | 인증 실패. 비활성 인증 설정, 트리거의 워크스페이스에 없는 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치, 기대값이 비었거나 문자열이 아닌 인증 설정, 복호화 불가 표식으로 읽히는 인증 설정(REQ-WEBHOOK-053) 모두 같은 코드다 |
-| `404 Not Found` | `TRIGGER_NOT_FOUND` | 엔드포인트 경로에 맞는 웹훅 트리거가 없다. 예약만 있고 트리거가 없는 경로도 404 다. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 본문이다(REQ-WEBHOOK-047). 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다(REQ-CHAT-059). Discord 컴포넌트 · 모달 제출이면 `200 OK` 와 `{ type: 6 }` 이다([채팅 채널 분기](#채팅-채널-분기)) |
+| `404 Not Found` | `TRIGGER_NOT_FOUND` | 엔드포인트 경로에 맞는 웹훅 트리거가 없다. 예약만 있고 트리거가 없는 경로도 404 다. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 본문이다(REQ-WEBHOOK-047). 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다(REQ-CHAT-059). 인터랙션 요청이면 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](#채팅-채널-분기)) |
 | `405 Method Not Allowed` | | POST 가 아닌 메서드([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
-| `410 Gone` | `TRIGGER_INACTIVE` | 트리거가 비활성이다. 채팅 채널 트리거는 예외로 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다 |
-| `410 Gone` | `WORKFLOW_INACTIVE` | 트리거는 활성이고 트리거의 워크플로우가 비활성이다(`workflow.is_active=false`). 메시지는 `Workflow of this webhook trigger is inactive` 다. 인증보다 먼저 확인한다(REQ-WEBHOOK-048). 채팅 채널 트리거는 예외로 새 실행을 시작할 update 에만 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려주고 진행 중인 대화는 그대로 처리한다(REQ-WEBHOOK-049, REQ-WEBHOOK-052). Discord 컴포넌트 · 모달 제출이면 `202` 대신 `200 OK` 와 `{ type: 6 }` 이다([채팅 채널 분기](#채팅-채널-분기)) |
+| `410 Gone` | `TRIGGER_INACTIVE` | 트리거가 비활성이다. 채팅 채널 트리거는 예외로 서명 검증 뒤 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려준다. 인터랙션 요청이면 `200 OK` 와 기본 인터랙션 응답이다(REQ-WEBHOOK-010) |
+| `410 Gone` | `WORKFLOW_INACTIVE` | 트리거는 활성이고 트리거의 워크플로우가 비활성이다(`workflow.is_active=false`). 메시지는 `Workflow of this webhook trigger is inactive` 다. 인증보다 먼저 확인한다(REQ-WEBHOOK-048). 채팅 채널 트리거는 예외로 새 실행을 시작할 update 에만 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려주고 진행 중인 대화는 그대로 처리한다(REQ-WEBHOOK-049, REQ-WEBHOOK-052). 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](#채팅-채널-분기)) |
 | `413 Payload Too Large` | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 공개 웹훅 본문이 32KB 초과 |
 | `413 Payload Too Large` | `PAYLOAD_TOO_LARGE` | 인증 웹훅 본문이 라우트 한도(기본 1MB) 초과 |
 | `429 Too Many Requests` | `PUBLIC_WEBHOOK_RATE_LIMIT` | 공개 웹훅 IP 단위 분당 시작 한도 초과 |
@@ -324,7 +324,7 @@ required 파라미터 누락이나 타입 강제 변환 실패가 나면 `hooks.
 
 ## 요청 제한과 남용 방어
 
-공개 웹훅은 무차별 대입과 DoS 의 표면이라 인증 웹훅보다 제한을 더 건다. 이 절의 한도는 웹채팅을 포함한 공개 웹훅에 똑같이 적용된다. 채팅 채널 트리거만 뺀다(아래 문단). 이 절은 설정 키, 에러 코드, Redis 키, 구현 위치를 적는다. 같은 방어를 공개 챗봇 관점에서 설명하는 절이 [웹채팅 보안 §공개 웹훅 남용 방어](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#공개-웹훅-남용-방어) 에 있다. 두 문서 가운데 어느 쪽이 정책 수치의 기준인지는 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#미결-사항) 의 미결 사항에서 정한다. 그때까지 두 문서의 값(분당 10·시간당 20·32KB·공유 버킷)은 같게 유지한다.
+공개 웹훅은 무차별 대입과 DoS 의 표면이라 인증 웹훅보다 제한을 더 건다. 이 절의 한도는 웹채팅을 포함한 공개 웹훅에 똑같이 적용된다. 채팅 채널 트리거만 뺀다(아래 문단). 이 절은 설정 키, 에러 코드, Redis 키, 구현 위치를 적는다. 공개 웹훅 남용 방어의 정책 수치(분당 10·시간당 20·32KB·공유 버킷)와 응답 코드는 이 절과 [요구사항](#요구사항)(REQ-WEBHOOK-019 · 020 · 041), [수신 API](#수신-api) 의 에러 표가 기준이다. [웹채팅 보안 §공개 웹훅 남용 방어](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#공개-웹훅-남용-방어) 는 같은 방어를 공개 챗봇 관점에서 다시 적고 값이 다르면 이 문서를 따른다. 근거는 [Rationale 「공개 웹훅 남용 방어의 기준을 이 문서로 둔다」](#공개-웹훅-남용-방어의-기준을-이-문서로-둔다) 에 있다.
 
 채팅 채널 트리거(`config.chatChannel.provider` 가 빈 문자열이 아닌 문자열인 트리거)는 `auth_config_id` 가 없어도 이 절의 공개 웹훅 한도(IP 단위 시작 한도 · 시간당 누적 신규 상한 · 본문 32KB)를 받지 않는다. 프로바이더 서명으로 인증하고 응답 계약은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 전역 throttler 는 그대로 걸린다. 가드는 트리거 행의 `config.chatChannel.provider` 가 비어 있지 않은 문자열이면 채팅 채널 트리거로 본다. `HooksService` 가 채팅 채널 분기를 고르는 기준과 같다. `config.chatChannel` 이 객체가 아니거나 `provider` 가 없거나 빈 문자열이면 공개 웹훅으로 보고 한도를 건다. 이렇게 정한 이유는 [본문 크기를 공개와 인증으로 나눈 이유](#본문-크기를-공개와-인증으로-나눈-이유) 의 채팅 채널 트리거 항목에 있다.
 
@@ -391,11 +391,12 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 `config.chatChannel.provider` 가 빈 문자열이 아닌 문자열인 트리거는 5단계에서 채팅 채널 분기(`handleChatChannelWebhook`)로 간다. 이 분기는 일반 흐름의 활성 확인(410), 인증 설정 인증, 트리거 파라미터 검증을 거치지 않는다.
 
 - 인증은 인증 설정이 아니라 provider 별 inbound 서명 검증(`chatChannelInboundAuthenticator.verify`)으로 한다. Telegram 은 `X-Telegram-Bot-Api-Secret-Token`, Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 를 쓴다. 검증에 실패하면 401 이다.
-- 트리거가 비활성이어도 서명 검증은 먼저 한다. 통과하면 update 를 무시하고 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답한다. 비활성인데 410 이 아니라 202 인 이유는 Telegram 같은 provider 가 2xx 가 아닌 응답을 받으면 웹훅을 자동으로 끄거나 재시도를 쏟아내기 때문이다. 비활성이어도 인증을 하는 이유는 인증에 실패한 요청에 조용한 202 를 주면 공격자가 트리거 활성 여부를 추측할 수 있고 운영자는 인증 실패를 401 로 봐야 디버깅할 수 있기 때문이다.
-- 워크플로우가 비활성이면(`workflow.is_active=false`) 새 실행을 시작하는 경우만 막고 비활성 트리거와 같이 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답한다(REQ-WEBHOOK-049). Discord 컴포넌트 · 모달 제출이면 `202` 대신 `200 OK` 와 `{ type: 6 }` 으로 답한다. handshake 에는 답하고(REQ-WEBHOOK-050) 진행 중인 대화는 이어진다(REQ-WEBHOOK-052). 막는 update 와 비활성 트리거와의 차이는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 확인 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
-- 새 대화면 일반 경로와 같이 `execute(workflowId, input, { triggerId, workspaceId, sourceIp, responseCode })` 로 실행을 시작한다. 입력은 provider update 를 바꾼 값이다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 Discord 컴포넌트(type 3) · 모달 제출(type 5)은 `'200'` 이다. 워크플로우가 트리거의 워크스페이스에 없으면 404 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 답하고 `chat_channel_health` 를 `degraded` 로 남긴다. Discord 컴포넌트 · 모달 제출이면 `202` 대신 `200 OK` 와 `{ type: 6 }` 으로 답한다([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)).
-- 일부 provider 의 handshake·interactivity 응답(Slack `url_verification`·Interactivity, Discord PING·Interactivity, native modal)은 `200 OK` 와 감싸지 않은 JSON 으로 직접 응답한다(`TransformInterceptor` 우회). Discord 컴포넌트 · 모달 제출은 서명 검증을 통과했고 트리거가 활성이면 늘 이 방식으로 답한다. update 를 무시하거나 새 실행을 막을 때도 같다. 모달을 열면 `{ type: 9 }`, Form 모달 제출 결과는 `{ type: 4 }` 이고 그 밖에는 `{ type: 6 }` 이다. 비활성 트리거는 위와 같이 `202 Accepted` 와 `{ executionId: 'ignored' }` 다. Discord 슬래시 명령(type 2)은 지금 `202 Accepted` 와 `{ data }` 봉투로 답한다. 슬래시 명령 응답은 NERV Task `CLE-T-TSEP9G` 가 다룬다.
-- update 파싱, 무시 대상 판정, 진행 중인 실행에 인터랙션 전달, 대화 기록은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 이 정한다. 비활성 `202` 와 서명 실패 `401` 을 포함한 응답 계약의 기준은 [채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이다. 사용자에게 메시지를 보내는 outbound 응답은 이 수신 흐름 안에서 일어나지 않고 채팅 채널 쪽 비동기 경로로 처리된다.
+- 인터랙션 요청은 프로바이더가 3초 안에 `200 OK` 와 정해진 본문을 받아야 하는 요청이다. Discord 컴포넌트(type 3) · 모달 제출(type 5) · 슬래시 명령(type 2)과 Slack Interactivity(`block_actions` · `view_submission` 등)가 해당한다. 서명 검증 직후 채널 어댑터 훅 `defaultInteractionResponse` 가 요청 본문만 보고 기본 인터랙션 응답을 정한다. 외부 호출이 없는 계산이다. Discord 컴포넌트 · 모달 제출은 `{ type: 6 }`, Discord 슬래시 명령은 본인에게만 보이는 수신 문구나 도움말을 담은 `{ type: 4 }`, Slack Interactivity 는 빈 본문이다. 인터랙션 요청이 아니면 기본 인터랙션 응답이 없고 아래 규칙대로 `202` 나 handshake 응답으로 답한다. Discord PING · 자동 완성, Slack `url_verification` · Events API 메시지 · 슬래시 명령, Telegram update 가 여기에 든다. Slack 슬래시 명령의 3초 응답은 NERV Task `CLE-T-MGZRRP` 가 다룬다. 프로바이더별 본문과 문구는 [Discord 어댑터 「인바운드 응답」](../CLE-CHAT/CLE-CHAT-DISCORD.md#인바운드-응답) 과 [Slack 어댑터 「인바운드 응답」](../CLE-CHAT/CLE-CHAT-SLACK.md#인바운드-응답) 이 정한다.
+- 트리거가 비활성이어도 서명 검증은 먼저 한다. 통과하면 update 를 무시하고 실행을 시작하지 않는다. 버린 버튼 클릭의 수신 확인을 포함해 프로바이더 API 도 부르지 않는다. 응답은 인터랙션 요청이면 `200 OK` 와 기본 인터랙션 응답이고 그 밖에는 `202 Accepted` 와 `{ executionId: 'ignored' }` 다(REQ-WEBHOOK-010). handshake 도 그 밖에 들어 `202` 다. 비활성인데 410 이 아니라 2xx 인 이유는 Telegram 같은 provider 가 2xx 가 아닌 응답을 받으면 웹훅을 자동으로 끄거나 재시도를 쏟아내기 때문이다. 인터랙션 요청에 `200` 으로 답하는 이유는 [Rationale 「꺼진 트리거도 인터랙션 요청에는 200 으로 답한다」](#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다-2026-11-12) 에 있다. 비활성이어도 인증을 하는 이유는 인증에 실패한 요청에 조용한 202 를 주면 공격자가 트리거 활성 여부를 추측할 수 있고 운영자는 인증 실패를 401 로 봐야 디버깅할 수 있기 때문이다.
+- 워크플로우가 비활성이면(`workflow.is_active=false`) 새 실행을 시작하는 경우만 막고 비활성 트리거와 같이 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답한다(REQ-WEBHOOK-049). 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다. handshake 에는 답하고(REQ-WEBHOOK-050) 진행 중인 대화는 이어진다(REQ-WEBHOOK-052). 막는 update 와 비활성 트리거와의 차이는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 확인 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
+- 새 대화면 일반 경로와 같이 `execute(workflowId, input, { triggerId, workspaceId, sourceIp, responseCode })` 로 실행을 시작한다. 입력은 provider update 를 바꾼 값이다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 인터랙션 요청이면 `'200'` 이다. 워크플로우가 트리거의 워크스페이스에 없으면 404 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 답하고 `chat_channel_health` 를 `degraded` 로 남긴다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)).
+- handshake 와 인터랙션 요청의 응답은 `200 OK` 로 직접 보내고 `{ data }` 봉투로 감싸지 않는다(`TransformInterceptor` 우회). handshake 는 Slack `url_verification` 의 `{ challenge }` 와 Discord PING 의 `{ type: 1 }` 이고 트리거가 활성일 때만 답한다. 인터랙션 요청은 서명 검증을 통과하면 트리거 활성 여부와 처리 결과(무시, 대기 실행에 전달, 새 실행, 새 실행 차단)에 상관없이 이 방식으로 답한다. 처리 경로가 따로 정한 응답이 있으면 그것을 기본 인터랙션 응답보다 먼저 쓴다. Discord 모달을 열면 `{ type: 9 }`, Form 모달 제출 결과는 `{ type: 4 }` 다. 응답 본문이 없으면(Slack Interactivity) 빈 본문을 보낸다.
+- update 파싱, 무시 대상 판정, 진행 중인 실행에 인터랙션 전달, 대화 기록은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 이 정한다. 비활성 트리거의 응답과 서명 실패 `401` 을 포함한 응답 계약의 기준은 [채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이다. 사용자에게 보내는 메시지와 버린 update 의 수신 확인 같은 프로바이더 API 호출도 채팅 채널 쪽이 정한다. Discord 슬래시 명령의 수신 문구와 도움말은 HTTP 응답 본문(`{ type: 4 }`)에 실린다.
 
 ## 보안 고려사항
 
@@ -415,8 +416,8 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 | 상황 | 처리 |
 |------|------|
 | 워크플로우가 지워짐 | 트리거의 `workflow_id` FK CASCADE 로 트리거도 지워져 404 가 된다 |
-| 워크플로우가 비활성 | 트리거 활성 확인 바로 뒤, 인증 전에 `410 Gone`(`WORKFLOW_INACTIVE`)으로 답하고 실행을 만들지 않는다(REQ-WEBHOOK-048). 채팅 채널 트리거는 새 실행을 시작할 update 에만 `202` ignored 로 답하고 진행 중인 대화는 이어진다(REQ-WEBHOOK-049, REQ-WEBHOOK-052). Discord 컴포넌트 · 모달 제출이면 `202` 대신 `200 OK` 와 `{ type: 6 }` 이다([채팅 채널 분기](#채팅-채널-분기)) |
-| 트리거의 워크플로우가 다른 워크스페이스에 있음 | 저장 경계 이전에 남은 행이다. 엔드포인트가 없을 때와 같은 `404 TRIGGER_NOT_FOUND` 이고 실행을 만들지 않는다(REQ-WEBHOOK-047). 활성 확인과 인증을 통과한 뒤의 응답이다. 채팅 채널 트리거는 `202` ignored 다(REQ-CHAT-059). Discord 컴포넌트 · 모달 제출이면 `200 OK` 와 `{ type: 6 }` 이다([채팅 채널 분기](#채팅-채널-분기)) |
+| 워크플로우가 비활성 | 트리거 활성 확인 바로 뒤, 인증 전에 `410 Gone`(`WORKFLOW_INACTIVE`)으로 답하고 실행을 만들지 않는다(REQ-WEBHOOK-048). 채팅 채널 트리거는 새 실행을 시작할 update 에만 `202` ignored 로 답하고 진행 중인 대화는 이어진다(REQ-WEBHOOK-049, REQ-WEBHOOK-052). 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](#채팅-채널-분기)) |
+| 트리거의 워크플로우가 다른 워크스페이스에 있음 | 저장 경계 이전에 남은 행이다. 엔드포인트가 없을 때와 같은 `404 TRIGGER_NOT_FOUND` 이고 실행을 만들지 않는다(REQ-WEBHOOK-047). 활성 확인과 인증을 통과한 뒤의 응답이다. 채팅 채널 트리거는 `202` ignored 다(REQ-CHAT-059). 인터랙션 요청이면 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](#채팅-채널-분기)) |
 | 실행 엔진 에러 | 500 Internal Server Error 를 응답하고 에러를 로그에 남긴다 |
 | 동시 다발 요청 | 요청마다 독립된 실행을 만들어 병렬로 실행한다 |
 
@@ -433,13 +434,13 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 - **WH-MG-05 가 말하는 호출 이력 화면**: WH-MG-05 는 호출 이력에서 요청 시각·상태·응답 코드를 본다고 요구한다. 트리거 화면의 호출 이력 대화상자는 시각과 상태만 보여 준다([트리거 관리](CLE-TRIG-MANAGE.md)). 응답 코드는 인증 설정 사용 내역에만 있다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)). 그래서 공개 웹훅(인증 설정 없음)은 응답 코드를 볼 화면이 없다. 인증 실패(401)·검증 실패(400)·비활성(410)처럼 실행 전에 끝난 호출은 실행 행이 생기지 않아 어느 화면에도 남지 않는다. WH-MG-05 를 이행할 화면과 실패 호출 기록이 필요한지 결정해야 한다.
 - **채팅 채널 경로의 트리거 파라미터 처리**: [트리거 노드 공통](../CLE-NODE-TRIG/CLE-NODE-TRIG-COMMON.md) 은 웹훅이면 body 에서 파라미터를 추출·검증하고 누락되면 400 이라고 정한다. 현재 채팅 채널 분기는 `resolveTriggerParameters` 를 거치지 않고 `parameters: {}` 와 `chatChannel` 키를 넣어 실행한다. 그래서 required 파라미터가 있는 워크플로우도 채널 경로에서는 검증 없이 빈 값으로 시작한다. 채널 경로의 파라미터 정책(무시, 기본값 적용, 거부)을 정해 트리거 공통 계약에 적어야 한다.
 - **웹채팅 경로 공개와 경로 노출 정책**: 이 문서는 인증 없는 일반 웹훅의 엔드포인트 경로를 사실상 비밀 키로 본다. 웹채팅 문서([웹채팅 SDK](../CLE-WEBCHAT/CLE-WEBCHAT-SDK.md), [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md))는 같은 값을 "비밀 아님" 으로 보고 그 근거로 뷰어에게 설치 스크립트 전체를 보여 준다. 웹채팅 트리거의 경로가 공개된다는 사실은 [비밀성](#비밀성)에 적었다. WH-SC-01(REQ-WEBHOOK-011·012)에 «웹채팅(공개 설치 스크립트) 트리거의 경로는 공개된다» 는 예외를 명시할지, 뷰어에게 경로를 보여 주는 정책이 일반 웹훅에도 번지는지 결정해야 한다. 같은 미결이 [웹채팅 세션](../CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md#미결-사항) 에 있어 함께 정한다.
-- **공개 웹훅 남용 방어의 기준 문서**: 이 문서와 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) 이 서로를 정책 수치의 기준으로 가리켰다. 결정은 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#미결-사항) 의 같은 미결에서 하고, 이 문서는 [요청 제한과 남용 방어](#요청-제한과-남용-방어) 절의 안내를 그 결과에 맞춘다.
 - **채팅 채널 트리거의 서명 검증 전 본문 상한**: 채팅 채널 트리거는 공개 웹훅의 32KB 를 받지 않아 서명 검증 전에 hooks 파서 상한(1MB)까지 본문을 받는다. 프로바이더 update 크기에 맞춘 전용 상한을 둘지는 정하지 않았다. 배경은 [본문 크기를 공개와 인증으로 나눈 이유](#본문-크기를-공개와-인증으로-나눈-이유) 의 채팅 채널 트리거 항목이다.
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/hooks/hooks.controller.ts` (`POST /api/hooks/:endpointPath`)
-- `codebase/backend/src/modules/hooks/hooks.service.ts` (트리거 조회, 워크플로우 활성 확인, 인증 검증 호출, 파라미터 추출, 실행 시작. 채팅 채널 분기 `handleChatChannelWebhook` 은 새 실행을 시작하기 직전에 워크플로우 활성 상태를 확인한다)
+- `codebase/backend/src/modules/hooks/hooks.controller.ts` (`POST /api/hooks/:endpointPath`. 채팅 채널 결과에 `interactionHttpResponse` 가 있으면 `200` 과 그 본문, `interactionEmptyResponse` 면 `200` 과 빈 본문, 그 밖에는 `202` 와 `{ data }` 봉투로 응답한다)
+- `codebase/backend/src/modules/hooks/hooks.service.ts` (트리거 조회, 워크플로우 활성 확인, 인증 검증 호출, 파라미터 추출, 실행 시작. 채팅 채널 분기 `handleChatChannelWebhook` 은 서명 검증 뒤 채널 어댑터의 `defaultInteractionResponse` 를 먼저 구해 비활성 트리거 응답과 처리 결과에 덧씌우고(`withDefaultInteractionResponse`) 새 실행을 시작하기 직전에 워크플로우 활성 상태를 확인한다)
+- `codebase/backend/src/modules/chat-channel/types.ts` (채널 어댑터 훅 `defaultInteractionResponse` 의 계약. 프로바이더별 구현은 채팅 채널 문서가 정한다)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문 `isWorkflowInactive`. 부르는 곳은 일반 웹훅, 채팅 채널, 스케줄 processor 세 곳이다)
 - `codebase/backend/src/modules/hooks/hooks.module.ts`
 - `codebase/backend/src/modules/hooks/dto/responses/webhook-response.dto.ts`
@@ -449,6 +450,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 - `codebase/backend/src/modules/auth-configs/auth-configs.service.ts`
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (`findByEndpointPath()` 재사용)
 - `codebase/backend/src/modules/hooks/hooks.service.spec.ts`, `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts` (워크플로우가 비활성일 때: 일반 웹훅 410 `WORKFLOW_INACTIVE`, 채팅 채널 202 ignored, Discord PING 응답)
+- `codebase/backend/src/modules/hooks/hooks.controller.spec.ts`, `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `codebase/backend/test/chat-channel-slack.e2e-spec.ts` (인터랙션 요청의 `200` 응답. 비활성 트리거의 Discord 버튼 클릭 · 슬래시 명령과 Slack `block_actions` 는 `200` 이고 실행이 없다. 비활성 트리거의 Discord PING 과 Slack Events API 메시지는 `202` 다)
 
 ## Rationale
 
@@ -537,7 +539,7 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 
 - 일반 웹훅은 비활성 트리거와 같은 `410 Gone` 이고 코드는 새로 둔 `WORKFLOW_INACTIVE` 다(사용자 결정). 코드가 다르면 호출자와 운영자가 트리거와 워크플로우 가운데 무엇을 활성으로 바꿔야 하는지 응답만 보고 안다.
 - 확인 자리는 비활성 트리거 확인 바로 뒤, 인증 앞이다. 두 비활성 응답이 같은 자리에서 나간다. 경로를 아는 호출자는 지금도 인증 없이 410 으로 트리거가 비활성임을 안다. 새 코드로 더 알 수 있는 것은 비활성인 쪽이 워크플로우라는 사실뿐이다.
-- 채팅 채널은 비활성 트리거와 같은 `202` ignored 다. provider 가 2xx 가 아닌 응답을 받으면 웹훅을 끄거나 재시도를 쏟아내는 사정([채팅 채널 분기](#채팅-채널-분기))이 그대로 적용된다. 다만 Discord 컴포넌트 · 모달 제출은 `200 OK` 와 `{ type: 6 }` 이다([채팅 채널 분기](#채팅-채널-분기)).
+- 채팅 채널은 비활성 트리거와 같은 `202` ignored 다. provider 가 2xx 가 아닌 응답을 받으면 웹훅을 끄거나 재시도를 쏟아내는 사정([채팅 채널 분기](#채팅-채널-분기))이 그대로 적용된다. 다만 인터랙션 요청은 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](#채팅-채널-분기)).
 
 ### 빈 기대값과 복호화 불가 인증 설정을 거부한다 (2026-10-31)
 
@@ -556,3 +558,25 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 - 생성 API 는 Basic Auth 의 문자열이 아닌 사용자 이름·비밀번호를 400 으로 막는다([외부 호출 인증 설정 「Basic Auth」](CLE-TRIG-AUTHCFG.md#basic-auth)). 그래도 그 검증 전에 저장된 행이 남아 있을 수 있다. 다른 유형의 기대값은 제품이 발급하는 문자열이지만 비밀이 아닌 config 의 형식은 저장 때 검사하지 않는다. 그래서 인증 단계가 마지막 방어선이다.
 - 500 대신 401 로 거부하는 이유는 두 가지다. 문자열이 아닌 기대값으로는 어떤 요청도 인증될 수 없으므로 빈 기대값과 결과가 같다. 그리고 인증 실패를 유형·원인과 상관없이 401 하나로 응답하는 규칙([인증](#인증))을 지킨다. 500 은 설정이 잘못됐다는 것을 외부 호출자에게 드러낸다.
 - 헤더 이름이 없을 때 기본 헤더를 쓰는 동작은 그대로다. 문자열이 아닌 헤더 이름을 기본 헤더로 바꿔 비교하지 않는다. 관리자가 정한 헤더와 다른 헤더로 인증이 통과하면 안 되기 때문이다.
+
+### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다 (2026-11-12)
+
+채팅 채널 트리거가 비활성이어도 서명 검증을 통과한 인터랙션 요청에는 `200 OK` 와 기본 인터랙션 응답으로 답한다. 실행은 시작하지 않는다(REQ-WEBHOOK-010). 사람 결정 Q2(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f`, 2026-11-12)이고 구현은 NERV Task `CLE-T-TSEP9G` · `CLE-T-FCBG91` 이 했다. 상세 규칙은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다.
+
+- 이 결정 전에는 비활성 트리거가 모든 프로바이더에 `202` 와 `{ executionId: 'ignored' }` 로 답했다. Discord 와 Slack 은 인터랙션마다 3초 안에 `200` 과 정해진 본문을 받아야 하고 받지 못하면 사용자 화면에 실패 표시를 띄운다. 그래서 트리거를 끈 동안 사용자가 이전 메시지의 버튼을 누르거나 슬래시 명령을 쓰면 매번 실패 표시가 떴다.
+- 기본 인터랙션 응답은 요청 본문만 보고 만들고 외부 호출이 없다. 실행도 만들지 않으므로 트리거를 끈 뜻과 어긋나지 않는다.
+- 같은 결정으로 비활성 트리거는 수신 확인을 포함해 프로바이더 API 를 부르지 않는다. Telegram 의 버린 버튼 클릭 수신 확인(`answerCallbackQuery`)은 API 호출이라 트리거가 활성일 때만 보낸다.
+- Discord 슬래시 명령도 인터랙션 요청이다. 응답 모양은 사람 결정 Q1(NERV 질문 `01a1d025-899f-7709-b759-4f7bf6c16ef5`)대로 본인에게만 보이는 `{ type: 4 }` 메시지다. 그래서 슬래시 명령으로 새 실행을 시작하면 `response_code` 가 `'202'` 에서 `'200'` 으로 바뀌었다(REQ-WEBHOOK-046).
+- handshake(Discord PING · Slack `url_verification`)는 인터랙션 요청이 아니라 이 결정에 들지 않는다. 비활성 트리거는 지금처럼 `202` 로 답하고 그동안 URL 등록은 실패한다. 비활성 트리거가 handshake 에 답할지는 [트리거 데이터와 흐름 「미결 사항」](CLE-TRIG-DATA.md#미결-사항) 에 남아 있다.
+- 판단 자리: 무엇이 인터랙션 요청이고 기본 응답이 무엇인지는 채널 어댑터 훅 `defaultInteractionResponse` 가 정한다. `HooksService` 는 프로바이더를 가리지 않고 그 값을 비활성 트리거 응답과 처리 결과에 덧씌운다. 전에는 `HooksService` 가 Discord 컴포넌트 · 모달 제출만 직접 판정했다.
+- 기각한 대안: 비활성 트리거는 인터랙션 요청에도 `202` 를 유지하는 안. 응답 규칙은 단순하지만 위의 실패 표시가 그대로 남는다.
+- 기각한 대안: Discord 슬래시 명령에 `{ type: 5 }`(지연 응답)로 답하는 안. 지연 응답 뒤에는 프로바이더 API 로 후속 메시지를 보내야 한다. 비활성 트리거와 버린 명령에서는 보낼 메시지가 없어 Discord 화면에 응답 대기 표시가 남는다.
+- 기각한 대안: 비활성 트리거에서도 버린 버튼 클릭에 수신 확인 API 를 부르는 안. Telegram 클라이언트의 로딩 표시는 사라지지만 트리거를 끈 뒤에도 외부 호출이 나간다. Q2 는 외부 호출을 하지 않는 쪽을 골랐다.
+
+### 공개 웹훅 남용 방어의 기준을 이 문서로 둔다
+
+공개 웹훅 남용 방어의 정책 수치와 응답 코드는 [요청 제한과 남용 방어](#요청-제한과-남용-방어), REQ-WEBHOOK-019 · 020 · 041, [수신 API](#수신-api) 의 에러 표가 기준이다. 전에는 이 문서와 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) 이 서로를 정책 수치의 기준으로 가리켜 미결 사항에 올라 있었다. 결정은 NERV Task `CLE-T-MCYDVV` 에서 했고 웹채팅 쪽 경위는 [웹채팅 보안 「공개 웹훅 남용 방어의 기준은 웹훅 문서다」](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#공개-웹훅-남용-방어의-기준은-웹훅-문서다) 에 있다.
+
+- 가드 구현, 설정 키, 에러 코드, Redis 키, 구현 위치를 모두 이 문서가 적는다.
+- 이 방어는 채팅 채널 트리거를 뺀 모든 공개 웹훅에 걸리고 웹채팅은 그 가운데 하나다.
+- 두 문서가 서로를 기준으로 가리키면 한쪽만 고쳤을 때 값이 어긋난다. 웹채팅 보안은 같은 방어를 공개 챗봇 관점에서 다시 적고 값이 다르면 이 문서를 따른다.
