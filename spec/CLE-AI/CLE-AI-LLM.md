@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "92aff412772d6a2d3f138480ae4d6cd09612cd5e384da3f1aac4b67d157b42da"
+content_hash: "79ce942febdf0d0146f85d597d0cfee78d1c1d2e0af8f52c9139b0f9399ab97d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GG3WPZ"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "3535ebb3ece3ab2a60d7aa985755368f5e0d63b30b070a20de7f0f5cc79dc1e0"
-etag: "sha256-093a3c50b7928750e61d72c7e9f875c42385b6c23d1d0a3b3035ab5e87ed227a"
+mirror_sha256: "69ff3b625f251ac944dba758405c12ef125e9884110b26fe5fed15a05227118e"
+etag: "sha256-94779d4c889b5bb14e0bdc773b04c0ce0eff3c57035ab775ff5f54a7dc34c703"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -74,7 +74,7 @@ flowchart LR
 
 - [LLM 클라이언트 — 인터페이스와 프로바이더 매핑](CLE-AI-LLM-IFACE.md): `LLMClient`·`ChatParams`·`embed`·`ToolDef`·`ModelInfo`·`RerankClient` 인터페이스, 두 팩토리와 리랭커 설정 에러 코드 층, 프로바이더별 API 매핑
 - [LLM 클라이언트 — 에러 처리와 스트리밍](CLE-AI-LLM-STREAM.md): 클라이언트 계층 에러 코드, harmony 제어 토큰 거르기, 스트림 이벤트와 스트리밍 에러 매핑
-- [LLM 클라이언트 — 서비스 계층과 모델 목록](CLE-AI-LLM-SERVICE.md): `LlmService` 호출 신뢰성 계약 · 설정 해석과 캐시 · testConnection, 모델 목록 미리보기
+- [LLM 클라이언트 — 서비스 계층과 모델 목록](CLE-AI-LLM-SERVICE.md): `LlmService` 호출 신뢰성 계약 · 설정 해석과 캐시 · 모델 설정 기본 파라미터 채우기 · testConnection, 모델 목록 미리보기
 
 ## SSRF 가드
 
@@ -135,7 +135,6 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 
 - **스트림 열기 실패의 프로바이더별 분기**: OpenAI 계열(OpenAI·Azure·Local) `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던지고 Anthropic·Google 은 `error` 이벤트로 보낸다([스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)). 그래서 호출하는 쪽이 같은 실패를 프로바이더에 따라 다르게 받는다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 낸다. 프로바이더 차이를 클라이언트 계층에 가두는 원칙([모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유))과 맞지 않는다. 표의 분기는 현행 구현을 적은 것이다. `error` 이벤트로 통일할지 결정 필요. NERV Task `CLE-T-0R5SYN`.
 - **공통 기본값**: 클라이언트 계층은 호출하는 쪽이 준 `timeoutMs` 만 건다. `LlmService` 에 공통 기본값을 둘지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 이 함께 정한다(NERV Task `CLE-T-0R5SYN`). 120초 하향안을 기각한 이력은 [그 문서의 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10) 에 있다.
-- **없는 설정의 연결 테스트 응답**: [testConnection](CLE-AI-LLM-SERVICE.md#testconnection) 은 설정이 없거나 다른 워크스페이스의 설정이어도 200 실패 결과를 돌려준다. 그런데 `POST /api/model-configs/:id/test` 의 Swagger(`llm-model-config.controller.ts`)는 404 응답을 선언한다. 같은 컨트롤러의 `:id/models` 는 설정 조회가 `try` 밖이라 없는 설정을 404 로 거절한다. 통합의 `:id/test` 도 없는 통합을 404 로 거절한다. 조회를 `try` 밖으로 빼 404 로 맞출지, Swagger 에서 404 를 지울지 정해야 한다. 담당 NERV Task `CLE-T-RH45H8`.
 - **Gemini `v1` 이전**: Google 클라이언트는 지금 `v1beta` 로 고정돼 있다. `v1` 로 옮길지는 [Rationale](CLE-AI-LLM-IFACE.md#gemini-api-버전을-v1beta-로-고정한다-2026-11-12) 에 적은 기능이 `v1` 에서 되는지 실제 키로 확인한 뒤 정한다. 담당 NERV Task `CLE-T-752NN3`.
 
 ## 구현 위치
@@ -144,6 +143,7 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 - `codebase/backend/src/modules/llm/llm-client.factory.ts`
 - `codebase/backend/src/modules/llm/interfaces/llm-client.interface.ts`
 - `codebase/backend/src/modules/llm/llm.service.ts`
+- `codebase/backend/src/modules/llm/model-default-params.ts`
 - `codebase/backend/src/modules/llm/embedding-input-type.ts`
 - `codebase/backend/src/modules/llm/llm-preview.service.ts`
 - `codebase/backend/src/modules/llm/llm-model-config.controller.ts`
