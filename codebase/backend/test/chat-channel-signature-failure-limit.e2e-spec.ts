@@ -114,10 +114,11 @@ describe('채팅 채널 서명 실패 한도 (e2e)', () => {
       expect(res.body.error.message).toBe(INVALID_TOKEN);
     }
 
-    // 첫 값을 바꿔도 같은 버킷이다. 검증 없이 한도 응답을 받는다.
+    // 첫 값을 바꿔도 같은 버킷이다. 검증 없이 한도 응답을 받는다. `error` 에는 요청마다 다른
+    // `requestId` 도 붙으므로 코드와 메시지만 맞춰 본다.
     const spoofed = await postUpdate(`198.51.100.99, ${PROXY_SEEN}`);
     expect(spoofed.status).toBe(401);
-    expect(spoofed.body.error).toEqual({
+    expect(spoofed.body.error).toMatchObject({
       code: 'AUTH_FAILED',
       message: TOO_MANY,
     });
