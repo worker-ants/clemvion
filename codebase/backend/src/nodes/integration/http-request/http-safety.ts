@@ -17,6 +17,9 @@
  * 2. {@link assertSafeOutboundHostResolved} — async DNS-aware check.
  *    Resolves the hostname and re-checks the resulting IPs. Use this before
  *    making a network call when DNS rebinding is a concern.
+ * 3. {@link safeOutboundDispatcher} — 연결 시점 판정. `fetch` 의 `dispatcher` 로 넘기면 실제 연결이 쓰는 주소
+ *    조회에 같은 대역표를 적용한다. 2 와 연결 사이에 DNS 응답이 바뀌어도 판정을 거치지 않은 주소로는 연결하지
+ *    않는다(NERV Task `CLE-T-BS1WD1`). 지금은 HTTP Request 노드만 쓴다.
  *
  * **Self-hosted opt-in**: `ALLOW_PRIVATE_HOST_TARGETS=true` disables both
  * layers — required when the deployment legitimately needs to reach private
@@ -28,6 +31,8 @@
  * 함께 바꿔야 해서 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 항목으로 둔다.
  */
 import { lookup } from 'node:dns/promises';
+import type { Dispatcher } from 'undici';
+import { createGuardedLookupDispatcher } from '../../../common/utils/guarded-lookup-dispatcher.js';
 
 /**
  * SSRF 가드가 요청을 막았을 때의 클라이언트 문구 — 차단된 host/IP 를 싣지 않는다(정찰 면 축소, CWE-209). 원본 상세
@@ -179,9 +184,9 @@ export function assertSafeOutboundUrl(url: string): URL {
  * private/loopback/link-local block list. Defeats DNS rebinding where a
  * public hostname returns an internal address.
  *
- * **Race window**: a sufficiently fast attacker can flip DNS between this
- * check and the subsequent `fetch`/`connect`. For defense in depth, pair
- * with an egress firewall.
+ * 이 검사와 뒤따르는 `fetch` 의 연결은 DNS 를 따로 조회한다. 그 사이에 응답이 바뀌는 경우는
+ * {@link safeOutboundDispatcher} 가 연결할 때 다시 판정해서 막는다. 이 함수를 `fetch` 없이 쓰는 호출자
+ * (DB Query · Send Email 등)에는 그 판정이 없으므로 egress 방화벽을 함께 둔다.
  */
 export async function assertSafeOutboundHostResolved(
   hostname: string,
@@ -212,4 +217,29 @@ export async function assertSafeOutboundHostResolved(
       );
     }
   }
+}
+
+let connectGuardDispatcher: Dispatcher | undefined;
+
+/**
+ * 연결 시점 판정 dispatcher. `fetch(url, { dispatcher })` 로 넘기면 연결할 때 푼 주소를 {@link isBlockedHostname}
+ * 대역표로 다시 판정하고, 통과한 주소로만 연결한다. 막히면 `fetch` 가 `TypeError('fetch failed')` 로 끝나고
+ * 그 `cause` 에 {@link SsrfBlockedError} 가 있다(`findCause` 로 찾는다).
+ *
+ * - `ALLOW_PRIVATE_HOST_TARGETS=true` 면 `undefined` 다. 앞의 두 검사와 함께 꺼지고 요청은 전역 dispatcher 를 쓴다.
+ * - 프로세스에 하나만 만들어 나눠 쓴다. 연결 풀(keep-alive)을 요청마다 새로 열지 않기 위해서다.
+ * - IP 리터럴 호스트는 연결 때 조회하지 않으므로 {@link assertSafeOutboundUrl} 이 맡는다.
+ * - 해석 실패는 판정하지 않고 전송 오류로 둔다. {@link assertSafeOutboundHostResolved} 의 fail-open 과 같다.
+ */
+export function safeOutboundDispatcher(): Dispatcher | undefined {
+  if (isPrivateHostsAllowed()) return undefined;
+  connectGuardDispatcher ??= createGuardedLookupDispatcher(
+    ({ address }, hostname) =>
+      isBlockedHostname(address)
+        ? new SsrfBlockedError(
+            `hostname "${hostname}" resolved to restricted IP "${address}" at connect time`,
+          )
+        : null,
+  );
+  return connectGuardDispatcher;
 }

@@ -2,7 +2,12 @@ import type { LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
 import { Logger } from '@nestjs/common';
 import { HttpRequestHandler, extractApiPath } from './http-request.handler.js';
-import { assertSafeOutboundUrl } from './http-safety.js';
+import {
+  SSRF_BLOCKED_CLIENT_MESSAGE,
+  SsrfBlockedError,
+  assertSafeOutboundUrl,
+  safeOutboundDispatcher,
+} from './http-safety.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -1784,6 +1789,172 @@ describe('HttpRequestHandler', () => {
           }),
         }),
       );
+    });
+
+    describe('connect-time address guard (CLE-T-BS1WD1)', () => {
+      const RESOLVED_INTERNAL = '10.0.0.7';
+      type BlockResult = {
+        port: string;
+        output: {
+          error: { code: string; message: string; details: { url: string } };
+        };
+      };
+
+      function connectTimeBlock(): TypeError {
+        return new TypeError('fetch failed', {
+          cause: new SsrfBlockedError(
+            `hostname "api.example.com" resolved to restricted IP "${RESOLVED_INTERNAL}" at connect time`,
+          ),
+        });
+      }
+
+      function fetchOptionsOf(call: number) {
+        return (global.fetch as jest.Mock).mock.calls[
+          call
+        ][1] as RequestInit & {
+          dispatcher?: unknown;
+        };
+      }
+
+      it('passes the guard dispatcher to the first request and to each redirect hop', async () => {
+        global.fetch = jest
+          .fn()
+          .mockResolvedValueOnce({
+            ok: false,
+            status: 302,
+            headers: {
+              get: (h: string) =>
+                h.toLowerCase() === 'location'
+                  ? 'https://api.example.com/next'
+                  : null,
+            },
+            text: jest.fn(),
+            json: jest.fn(),
+          })
+          .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: jest.fn().mockResolvedValue({ ok: true }),
+          });
+        const { service } = makeService('bearer_token', { token: 'abc' });
+        const handler = new HttpRequestHandler(service as never);
+
+        await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'https://api.example.com/start',
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        );
+
+        const guard = safeOutboundDispatcher();
+        expect(guard).toBeDefined();
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(fetchOptionsOf(0).dispatcher).toBe(guard);
+        expect(fetchOptionsOf(1).dispatcher).toBe(guard);
+      });
+
+      it('leaves the global dispatcher in place when ALLOW_PRIVATE_HOST_TARGETS=true', async () => {
+        const previous = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+        process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+        try {
+          await new HttpRequestHandler().execute(
+            null,
+            { method: 'GET', url: 'https://api.example.com/x' },
+            context,
+          );
+
+          expect(fetchOptionsOf(0)).not.toHaveProperty('dispatcher');
+        } finally {
+          if (previous === undefined) {
+            delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+          } else {
+            process.env.ALLOW_PRIVATE_HOST_TARGETS = previous;
+          }
+        }
+      });
+
+      it('reports a connect-time block as HTTP_BLOCKED and keeps the address out of output and usage log', async () => {
+        global.fetch = jest.fn().mockRejectedValue(connectTimeBlock());
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        const { service, logUsage } = makeService('api_key', {
+          location: 'query',
+          key_name: 'key',
+          value: 'K3Y-S3CR3T',
+        });
+        const handler = new HttpRequestHandler(service as never);
+
+        try {
+          const result = (await handler.execute(
+            null,
+            {
+              method: 'GET',
+              url: 'https://api.example.com/x',
+              authentication: 'integration',
+              integrationId: 'int-1',
+            },
+            contextWithWorkspace,
+          )) as unknown as BlockResult;
+
+          expect(result.port).toBe('error');
+          expect(result.output.error.code).toBe('HTTP_BLOCKED');
+          expect(result.output.error.message).toBe(SSRF_BLOCKED_CLIENT_MESSAGE);
+          expect(JSON.stringify(result)).not.toContain(RESOLVED_INTERNAL);
+          expect(JSON.stringify(result)).not.toContain('K3Y-S3CR3T');
+          expect(logUsage).toHaveBeenCalledTimes(1);
+          expect(logUsage.mock.calls[0][1]).toEqual(
+            expect.objectContaining({
+              status: 'failed',
+              error: {
+                code: 'HTTP_BLOCKED',
+                message: SSRF_BLOCKED_CLIENT_MESSAGE,
+              },
+            }),
+          );
+          expect(warn).toHaveBeenCalledWith(
+            expect.stringContaining(RESOLVED_INTERNAL),
+          );
+        } finally {
+          warn.mockRestore();
+        }
+      });
+
+      it('reports a connect-time block as HTTP_BLOCKED without an integration too', async () => {
+        global.fetch = jest.fn().mockRejectedValue(connectTimeBlock());
+
+        const result = (await new HttpRequestHandler().execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/x' },
+          context,
+        )) as unknown as BlockResult;
+
+        expect(result.port).toBe('error');
+        expect(result.output.error.code).toBe('HTTP_BLOCKED');
+        expect(JSON.stringify(result)).not.toContain(RESOLVED_INTERNAL);
+      });
+
+      it('keeps other connection failures as HTTP_TRANSPORT_FAILED', async () => {
+        global.fetch = jest.fn().mockRejectedValue(
+          new TypeError('fetch failed', {
+            cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), {
+              code: 'ENOTFOUND',
+            }),
+          }),
+        );
+
+        const result = (await new HttpRequestHandler().execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/x' },
+          context,
+        )) as unknown as BlockResult;
+
+        expect(result.output.error.code).toBe('HTTP_TRANSPORT_FAILED');
+      });
     });
   });
 

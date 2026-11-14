@@ -29,22 +29,19 @@
  * 테스트 격리 용도.
  */
 import { Agent, setGlobalDispatcher } from 'undici';
-
-const DEFAULT_ATTEMPT_TIMEOUT_MS = 300;
+import { autoSelectFamilyAgentOptions } from '../common/utils/guarded-lookup-dispatcher';
 
 let applied = false;
 
 export function applyAutoSelectFamilyDispatcher(): void {
   if (applied) return;
-  if (process.env.DISABLE_UNDICI_AUTO_SELECT_FAMILY === '1') {
+  // 옵션은 연결 시점 판정 dispatcher(`createGuardedLookupDispatcher`)와 같은 정의를 쓴다.
+  const options = autoSelectFamilyAgentOptions();
+  if (!options.autoSelectFamily) {
     applied = true;
     return;
   }
-  const agent = new Agent({
-    autoSelectFamily: true,
-    autoSelectFamilyAttemptTimeout: DEFAULT_ATTEMPT_TIMEOUT_MS,
-  });
-  setGlobalDispatcher(agent);
+  setGlobalDispatcher(new Agent(options));
   applied = true;
 }
 

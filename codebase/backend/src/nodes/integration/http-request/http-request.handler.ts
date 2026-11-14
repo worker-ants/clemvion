@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import type { Dispatcher } from 'undici';
 import {
   ExecutionContext,
   NodeHandler,
@@ -26,7 +27,9 @@ import {
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
+  safeOutboundDispatcher,
 } from './http-safety.js';
+import { findCause } from '../../../common/utils/guarded-lookup-dispatcher.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
 import {
   HttpCredentials,
@@ -331,7 +334,11 @@ export class HttpRequestHandler
       ...(credentials.headers ?? {}),
     };
 
-    const fetchOptions: RequestInit = { method, headers: mergedHeaders };
+    // `dispatcher` 는 Node fetch(undici) 확장이라 DOM 의 `RequestInit` 타입에 없다.
+    const fetchOptions: RequestInit & { dispatcher?: Dispatcher } = {
+      method,
+      headers: mergedHeaders,
+    };
 
     if (body !== undefined && !['GET', 'HEAD'].includes(method)) {
       if (bodyType === 'json') {
@@ -398,6 +405,7 @@ export class HttpRequestHandler
     // Two-layer 검증: 호스트 리터럴 (IP 직접 지정 차단) → DNS resolve 후 IP
     // 재검사 (DNS rebinding 차단). hostname literal 검사만으로는 공격자가 통제하는
     // DNS 가 공개 hostname 을 내부 IP 로 resolve 하는 DNS rebinding 시나리오에 무방어다.
+    // 이 검사와 실제 연결 사이에 DNS 응답이 바뀌는 경우는 아래 fetch 의 dispatcher 가 연결할 때 다시 판정한다.
     try {
       const parsed = assertSafeOutboundUrl(url);
       await assertSafeOutboundHostResolved(parsed.hostname);
@@ -484,6 +492,10 @@ export class HttpRequestHandler
     // integration connection test). It also drops the integration credentials
     // (headers and query) on hops whose origin differs from the first request.
     fetchOptions.redirect = 'manual';
+    // 연결할 때 푼 주소를 같은 대역표로 다시 판정한다(CLE-T-BS1WD1). 리다이렉트 홉도 이 옵션을 물려받는다.
+    // `ALLOW_PRIVATE_HOST_TARGETS=true` 면 없어서 전역 dispatcher 를 쓴다.
+    const connectGuard = safeOutboundDispatcher();
+    if (connectGuard) fetchOptions.dispatcher = connectGuard;
 
     try {
       let res = await fetch(url, fetchOptions);
@@ -584,19 +596,33 @@ export class HttpRequestHandler
       // HTTP_TRANSPORT_FAILED 로 간다.
       if (isUpstreamAbort(err, upstream)) throw err;
       const durationMs = Date.now() - start;
+      // 연결 시점 판정이 막으면 fetch 는 `TypeError('fetch failed')` 로 끝나고 판정은 `cause` 에 있다. 사전 검사
+      // 차단과 같은 HTTP_BLOCKED 로 보낸다. 원본 host/IP 는 서버 로그에만 남긴다.
+      const connectBlock = findCause(err, SsrfBlockedError);
+      if (connectBlock) {
+        logger.warn(
+          `SSRF block (http-request connect): ${connectBlock.message}`,
+        );
+      }
+      const failure = connectBlock
+        ? new IntegrationError(
+            ErrorCode.HTTP_BLOCKED,
+            SSRF_BLOCKED_CLIENT_MESSAGE,
+          )
+        : err;
       // redirect hop 의 SSRF 차단은 IntegrationError(HTTP_BLOCKED)로 승격돼 이 catch
       // 에 도달한다 — transport 실패로 오분류하지 말고 그 code/message(일반화)를 보존.
-      if (err instanceof IntegrationError) {
+      if (failure instanceof IntegrationError) {
         if (integration) {
           await this.logUsage(integration, context, {
             status: 'failed',
             durationMs,
-            error: { code: err.code, message: err.message },
+            error: { code: failure.code, message: failure.message },
             api: { method, path: extractApiPath(url) },
           }).catch(() => {});
         }
         return buildPreflightErrorOutput(
-          err,
+          failure,
           configEcho,
           cappedRequestBody,
           bodyType,
