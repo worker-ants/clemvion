@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  Optional,
   NotFoundException,
   GoneException,
   BadRequestException,
@@ -54,6 +55,7 @@ import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-in
 import { readTriggerChatChannelConfig } from '../chat-channel/chat-channel-secret-refs';
 import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 export interface WebhookInput {
   body: unknown;
@@ -150,6 +152,7 @@ export class HooksService {
     private readonly executionsService: ExecutionsService,
     private readonly chatChannelInboundAuthenticator: ChatChannelInboundAuthenticator,
     private readonly authConfigsService: AuthConfigsService,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {}
 
   async handleWebhook(
@@ -431,7 +434,9 @@ export class HooksService {
       if (err instanceof ChatChannelErrorResponse) throw err.cause;
       // 그 밖의 예상하지 못한 오류(DB · Redis 장애 등)는 5xx 로 내지 않는다. 5xx 는 프로바이더의 재전송과
       // 웹훅 자동 비활성화를 부른다(R-CC-12). 에러 로그를 남기고 버린 update 로 끝낸다(REQ-CHAT-056).
-      // 채널 건강도는 바꾸지 않는다. `degraded` 의 원인은 스펙이 정한 넷뿐이다.
+      // 채널 건강도는 바꾸지 않는다. `degraded` 의 원인은 스펙이 정한 넷뿐이다. 오류를 숨기는 대신 지표로
+      // 센다(NERV Task `CLE-T-5GVB9N`). 에러 로그만으로는 비율 · 추세로 경보를 걸 수 없다.
+      this.metrics?.recordChatChannelInboundErrorAbsorbed(config.provider);
       this.logger.error(
         `chat-channel update 처리 중 예상하지 못한 오류. 202 로 답하고 버린다 ` +
           `(REQ-CHAT-056, trigger=${trigger.id} provider=${config.provider}): ${

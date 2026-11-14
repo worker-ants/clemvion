@@ -7,19 +7,20 @@ import { UnauthorizedException } from '@nestjs/common';
 import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenticator';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import type { ChatChannelSignatureFailureLimiterService } from './chat-channel-signature-failure-limiter.service';
+import type { BusinessMetricsService } from '../metrics/business-metrics.service';
 import { ChatChannelConfig } from './types';
 
 type LimiterMock = {
   isBlocked: jest.Mock<Promise<boolean>, [string, string]>;
-  recordFailure: jest.Mock<Promise<void>, [string, string]>;
+  recordFailure: jest.Mock<Promise<boolean>, [string, string]>;
 };
 
 /** 실패 한도 mock. 기본은 한도에 닿지 않은 상태다. */
 function makeLimiterMock(): LimiterMock {
   return {
     isBlocked: jest.fn<Promise<boolean>, [string, string]>(async () => false),
-    recordFailure: jest.fn<Promise<void>, [string, string]>(
-      async () => undefined,
+    recordFailure: jest.fn<Promise<boolean>, [string, string]>(
+      async () => false,
     ),
   };
 }
@@ -34,8 +35,19 @@ function asLimiter(
 function makeAuthenticator(
   secrets: SecretResolverService,
   limiter: LimiterMock = makeLimiterMock(),
+  metrics?: MetricsMock,
 ): ChatChannelInboundAuthenticator {
-  return new ChatChannelInboundAuthenticator(secrets, asLimiter(limiter));
+  return new ChatChannelInboundAuthenticator(
+    secrets,
+    asLimiter(limiter),
+    metrics as unknown as BusinessMetricsService | undefined,
+  );
+}
+
+type MetricsMock = { recordChatChannelSignatureFailureLimit: jest.Mock };
+
+function makeMetricsMock(): MetricsMock {
+  return { recordChatChannelSignatureFailureLimit: jest.fn() };
 }
 
 function makeSecretsMock(
@@ -321,6 +333,7 @@ describe('ChatChannelInboundAuthenticator', () => {
     let envSnapshot: NodeJS.ProcessEnv;
     let secrets: jest.Mocked<SecretResolverService>;
     let limiter: LimiterMock;
+    let metrics: MetricsMock;
     let authenticator: ChatChannelInboundAuthenticator;
 
     beforeEach(() => {
@@ -328,7 +341,8 @@ describe('ChatChannelInboundAuthenticator', () => {
       delete process.env.TRUST_CF_CONNECTING_IP;
       secrets = makeSecretsMock(async () => 'expected-token');
       limiter = makeLimiterMock();
-      authenticator = makeAuthenticator(secrets, limiter);
+      metrics = makeMetricsMock();
+      authenticator = makeAuthenticator(secrets, limiter, metrics);
     });
     afterEach(() => {
       process.env = envSnapshot;
@@ -350,6 +364,60 @@ describe('ChatChannelInboundAuthenticator', () => {
       expect(secrets.resolve).not.toHaveBeenCalled();
       // 막힌 요청을 세면 창이 끝나도 계속 막힐 수 있다.
       expect(limiter.recordFailure).not.toHaveBeenCalled();
+    });
+
+    // 근거: NERV Task `CLE-T-5GVB9N`. 한도로 거절한 요청 수와 한도에 닿은 횟수를 지표로 센다.
+    describe('지표', () => {
+      it('한도로 거절한 요청마다 rejected 를 하나 센다', async () => {
+        limiter.isBlocked.mockResolvedValueOnce(true);
+
+        await expect(
+          authenticator.verify('t1', SLACK_CONFIG_WITH_SECRET, {}, '', IP),
+        ).rejects.toBeInstanceOf(UnauthorizedException);
+
+        expect(
+          metrics.recordChatChannelSignatureFailureLimit,
+        ).toHaveBeenCalledTimes(1);
+        expect(
+          metrics.recordChatChannelSignatureFailureLimit,
+        ).toHaveBeenCalledWith('slack', 'rejected');
+      });
+
+      it('이 실패로 한도에 닿았을 때만 reached 를 하나 센다', async () => {
+        limiter.recordFailure
+          .mockResolvedValueOnce(false)
+          .mockResolvedValueOnce(true);
+
+        for (let i = 0; i < 2; i += 1) {
+          await expect(
+            authenticator.verify('t1', TELEGRAM_CONFIG, BAD_HEADERS, '', IP),
+          ).rejects.toBeInstanceOf(UnauthorizedException);
+        }
+
+        expect(
+          metrics.recordChatChannelSignatureFailureLimit,
+        ).toHaveBeenCalledTimes(1);
+        expect(
+          metrics.recordChatChannelSignatureFailureLimit,
+        ).toHaveBeenCalledWith('telegram', 'reached');
+      });
+
+      it('서명이 맞으면 세지 않는다', async () => {
+        await authenticator.verify('t1', TELEGRAM_CONFIG, GOOD_HEADERS, '', IP);
+
+        expect(
+          metrics.recordChatChannelSignatureFailureLimit,
+        ).not.toHaveBeenCalled();
+      });
+
+      it('지표 서비스가 없어도 검증 결과는 같다', async () => {
+        limiter.recordFailure.mockResolvedValueOnce(true);
+        const plain = makeAuthenticator(secrets, limiter);
+
+        await expect(
+          plain.verify('t1', TELEGRAM_CONFIG, BAD_HEADERS, '', IP),
+        ).rejects.toMatchObject({ status: 401 });
+      });
     });
 
     it('서명 검증이 실패하면 그 쌍의 실패를 하나 세고 같은 401 을 던진다', async () => {
