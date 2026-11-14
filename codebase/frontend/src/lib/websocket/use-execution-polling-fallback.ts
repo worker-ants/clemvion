@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { executionsApi } from "../api/executions";
 import {
   selectAwaitingLastTurnRetry,
-  selectStoreExecutionFinished,
+  selectShouldPoll,
   useExecutionStore,
 } from "../stores/execution-store";
 import {
@@ -55,7 +55,11 @@ function describePollFailure(err: unknown): PollFailure {
     typeof e?.response?.status === "number" ? e.response.status : undefined;
   const message =
     typeof e?.message === "string" && e.message ? e.message : String(err);
-  return { status, message, retryAfterMs: readRetryAfterMs(e?.response?.headers) };
+  return {
+    status,
+    message,
+    retryAfterMs: readRetryAfterMs(e?.response?.headers),
+  };
 }
 
 /** `Retry-After: <초>` 만 읽는다. 날짜 형식과 음수 · 비정상 값은 무시한다. */
@@ -142,11 +146,7 @@ export function decidePollResponse(
   current: PollStoreView,
   executionId: string,
 ): PollResponseDecision {
-  if (
-    current.executionId !== executionId ||
-    (selectStoreExecutionFinished(current) &&
-      !selectAwaitingLastTurnRetry(current))
-  ) {
+  if (current.executionId !== executionId || !selectShouldPoll(current)) {
     return "stop";
   }
   const changedSinceSent =
@@ -207,10 +207,8 @@ export function useExecutionPollingFallback({
   executionId,
   enabled,
 }: UseExecutionPollingFallbackOptions): void {
-  const storeFinished = useExecutionStore(selectStoreExecutionFinished);
-  const awaitingRetry = useExecutionStore(selectAwaitingLastTurnRetry);
-  const active =
-    enabled && !!executionId && (!storeFinished || awaitingRetry);
+  const shouldPoll = useExecutionStore(selectShouldPoll);
+  const active = enabled && !!executionId && shouldPoll;
 
   useEffect(() => {
     if (!active || !executionId) return;

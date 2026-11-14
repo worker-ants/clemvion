@@ -415,6 +415,13 @@ interface ExecutionState {
    * 가 아니면 아무것도 하지 않는다. 재시도 턴이 이미 상태를 바꾼 뒤 늦게 온 ack 다.
    */
   markLastTurnRetryPending: (nodeExecutionId: string) => void;
+  /** 마지막 턴 재시도 대기 표시만 지운다(`pendingLastTurnRetry`). 재시도 턴이 입력 대기로 park 했을 때 쓴다. */
+  clearLastTurnRetryPending: () => void;
+  /**
+   * 재시도 턴이 끝나 그래프를 이어 갈 때 쓴다. 실행 상태를 `running` 으로 돌리고 대기 표시와
+   * 응답 대기 표시를 함께 끈다.
+   */
+  resumeFromLastTurnRetry: () => void;
   selectResultNode: (nodeId: string | null) => void;
   selectConversationItem: (index: number | null) => void;
   /** §10.12 — 드로어 본문 펼침 상태 설정/토글 (Ctrl+Shift+R + 헤더 셰브론 공유). */
@@ -1018,6 +1025,15 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
         : state,
     ),
 
+  clearLastTurnRetryPending: () => set({ pendingLastTurnRetry: null }),
+
+  resumeFromLastTurnRetry: () =>
+    set({
+      status: "running",
+      pendingLastTurnRetry: null,
+      isWaitingAiResponse: false,
+    }),
+
   selectResultNode: (nodeId: string | null) =>
     set({ selectedResultNodeId: nodeId, selectedConversationItemIndex: null }),
 
@@ -1067,6 +1083,18 @@ export function selectAwaitingLastTurnRetry(
   state: Pick<ExecutionState, "status" | "pendingLastTurnRetry">,
 ): boolean {
   return state.status === "failed" && state.pendingLastTurnRetry !== null;
+}
+
+/**
+ * REST 폴링 대체 경로가 계속 받아야 하는지. 끝나지 않은 실행이거나, 끝난 실행이어도 마지막 턴
+ * 재시도 턴을 기다리는 중이면 참이다. 폴링 훅의 활성 판정과 응답 처리가 이 한 곳을 쓴다.
+ */
+export function selectShouldPoll(
+  state: Pick<ExecutionState, "status" | "pendingLastTurnRetry">,
+): boolean {
+  return (
+    !selectStoreExecutionFinished(state) || selectAwaitingLastTurnRetry(state)
+  );
 }
 
 /**

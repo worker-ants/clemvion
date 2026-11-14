@@ -42,7 +42,7 @@ function makeBaseProps() {
     isLive: true,
     isWaitingAiResponse: false,
     conversationConfig: { turnCount: 1, maxTurns: 5 },
-    onSendMessage: vi.fn(),
+    onSendMessage: vi.fn(() => true),
     onEndConversation: vi.fn(),
   };
 }

@@ -1581,6 +1581,39 @@ describe("applyExecutionSnapshot — 마지막 턴 재시도를 따라간다", (
     ]);
   });
 
+  it("시각 표기가 달라도 시각 순서로 새 행을 가린다(밀리초가 붙은 표기)", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        error: null,
+        nodeExecutions: [
+          retriedRow({ startedAt: "2026-04-01T00:00:01Z" }),
+          // 문자열로 비교하면 "…01.500Z" < "…01Z" 라 앞서 보이지만 시각으로는 0.5초 뒤다.
+          spawnedRow("running", null, { startedAt: "2026-04-01T00:00:01.500Z" }),
+        ],
+      }) as unknown as ExecutionData,
+    );
+    // 새 행이 아직 도는 중이라 기다린다.
+    expect(useExecutionStore.getState().pendingLastTurnRetry).toEqual({
+      nodeExecutionId: RETRIED,
+    });
+  });
+
+  it("새 행의 시작 시각을 파싱하지 못하면 새 행으로 보지 않고 실패로 마감한다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        nodeExecutions: [
+          retriedRow(),
+          spawnedRow("running", null, { startedAt: "not-a-date" }),
+        ],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("failed");
+    expect(state.pendingLastTurnRetry).toBeNull();
+  });
+
   it("새 행이 끝났어도 실행이 아직 failed 면(턴 끝 전이 직전) 계속 기다린다", () => {
     applyExecutionSnapshot(
       createExec({

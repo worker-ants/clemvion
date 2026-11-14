@@ -36,9 +36,7 @@ export const CONTINUE_BUTTON_ID = "__continue__";
  * - `submitForm`: presentation_user turn 을 추가하므로 user + presentation 모두
  *   카운트해야 correct turnIndex 를 부여할 수 있다.
  */
-function isUserInitiatedTurn(
-  m: { type: string },
-): m is { type: "user" } {
+function isUserInitiatedTurn(m: { type: string }): m is { type: "user" } {
   return m.type === "user";
 }
 
@@ -164,6 +162,20 @@ function ensureRealtime(ws: WsClient, t: TFunction): boolean {
 }
 
 /**
+ * 실행 ID 가 있고 소켓이 이어져 있을 때만 소켓 클라이언트를 돌려준다. 버튼 · 대화 · 재시도
+ * 명령의 공통 가드다. 실행 ID 가 없으면 조용히 `null`, 소켓이 끊겼으면 안내 토스트와 `null` 이다.
+ * 반환값만으로는 TypeScript 가 `executionId` 를 좁히지 못해 호출부가 `!executionId` 도 함께 본다.
+ */
+function requireRealtime(
+  executionId: string | null | undefined,
+  t: TFunction,
+): WsClient | null {
+  if (!executionId) return null;
+  const ws = getWsClient();
+  return ensureRealtime(ws, t) ? ws : null;
+}
+
+/**
  * Emit a command and listen for its ack event exactly once. The gateway
  * replies with `{ event, data: { success, ... } }` — NestJS surfaces this
  * to the client as `socket.on(event, data)`, not as a Socket.IO ack callback,
@@ -279,11 +291,8 @@ export function useExecutionInteractionCommands(
       // W9 (SUMMARY): sendMessage 는 `const { conversationMessages }` 만 구조
       // 분해하지만, submitForm 은 waitingNodeId + nodeResults 도 필요 (form 노드
       // 메타를 presentation turn 에 채우기 위해). 의도적 패턴 차이 — 불일치 아님.
-      const {
-        conversationMessages,
-        waitingNodeId,
-        nodeResults,
-      } = useExecutionStore.getState();
+      const { conversationMessages, waitingNodeId, nodeResults } =
+        useExecutionStore.getState();
       const waitingNode = waitingNodeId
         ? nodeResults.find((n) => n.nodeId === waitingNodeId)
         : undefined;
@@ -332,9 +341,8 @@ export function useExecutionInteractionCommands(
 
   const clickButton = useCallback(
     (buttonId: string) => {
-      if (!executionId) return false;
-      const ws = getWsClient();
-      if (!ensureRealtime(ws, t)) return false;
+      const ws = requireRealtime(executionId, t);
+      if (!ws || !executionId) return false;
       emitWithAck(
         ws,
         "execution.click_button",
@@ -348,9 +356,8 @@ export function useExecutionInteractionCommands(
   );
 
   const clickContinue = useCallback(() => {
-    if (!executionId) return false;
-    const ws = getWsClient();
-    if (!ensureRealtime(ws, t)) return false;
+    const ws = requireRealtime(executionId, t);
+    if (!ws || !executionId) return false;
     emitWithAck(
       ws,
       "execution.click_button",
@@ -363,17 +370,15 @@ export function useExecutionInteractionCommands(
 
   const sendMessage = useCallback(
     (nodeId: string, message: string) => {
-      if (!executionId) return false;
-      const ws = getWsClient();
-      if (!ensureRealtime(ws, t)) return false;
+      const ws = requireRealtime(executionId, t);
+      if (!ws || !executionId) return false;
       const { conversationMessages } = useExecutionStore.getState();
       addConversationMessage({
         type: "user",
         content: message,
         // W10: user 타입만 카운트 (isUserInitiatedTurn). submitForm 의
         // user|presentation 필터와 의도적 비대칭 — 주석 참고.
-        turnIndex:
-          conversationMessages.filter(isUserInitiatedTurn).length + 1,
+        turnIndex: conversationMessages.filter(isUserInitiatedTurn).length + 1,
         timestamp: new Date().toISOString(),
         // 이 로컬 optimistic 버블은 backend 의 `execution.user_message` echo
         // (서버 receivedAt) 와 dedup 키가 다르다. 플래그로 표시해 echo 핸들러
@@ -402,9 +407,8 @@ export function useExecutionInteractionCommands(
 
   const endConversation = useCallback(
     (nodeId: string) => {
-      if (!executionId) return false;
-      const ws = getWsClient();
-      if (!ensureRealtime(ws, t)) return false;
+      const ws = requireRealtime(executionId, t);
+      if (!ws || !executionId) return false;
       emitWithAck(
         ws,
         "execution.end_conversation",
@@ -419,9 +423,8 @@ export function useExecutionInteractionCommands(
 
   const retryLastTurn = useCallback(
     (nodeExecutionId: string) => {
-      if (!executionId) return false;
-      const ws = getWsClient();
-      if (!ensureRealtime(ws, t)) return false;
+      const ws = requireRealtime(executionId, t);
+      if (!ws || !executionId) return false;
       // optimistic — user 가 [다시 시도] 를 누르는 순간 spinner 노출.
       // ack 실패 시 release.
       setWaitingAiResponse(true);

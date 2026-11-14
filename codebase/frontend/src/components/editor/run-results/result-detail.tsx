@@ -1129,7 +1129,7 @@ export function ResultDetail({
       isLive={false}
       isWaitingAiResponse={false}
       conversationConfig={null}
-      onSendMessage={() => {}}
+      onSendMessage={() => false}
       onEndConversation={() => {}}
       onSelectMessage={handleSelectMessage}
       onBackToConversation={handleBackToConversation}

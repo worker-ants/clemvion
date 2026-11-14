@@ -3,6 +3,7 @@ import {
   useExecutionStore,
   findReconcilableOptimisticIdx,
   selectAwaitingLastTurnRetry,
+  selectShouldPoll,
   selectSortedNodeResults,
   selectStoreExecutionFinished,
 } from "../execution-store";
@@ -1130,5 +1131,40 @@ describe("마지막 턴 재시도 대기 표시", () => {
         pendingLastTurnRetry: { nodeExecutionId: "ne-r" },
       }),
     ).toBe(false);
+  });
+
+  it("clearLastTurnRetryPending 은 표시만 지우고 실행 상태는 그대로 둔다", () => {
+    useExecutionStore.getState().failExecution("LLM 429");
+    useExecutionStore.getState().markLastTurnRetryPending("ne-r");
+    useExecutionStore.getState().clearLastTurnRetryPending();
+    const state = useExecutionStore.getState();
+    expect(state.pendingLastTurnRetry).toBeNull();
+    expect(state.status).toBe("failed");
+  });
+
+  it("resumeFromLastTurnRetry 는 running 으로 돌리고 표시와 응답 대기를 함께 끈다", () => {
+    useExecutionStore.getState().failExecution("LLM 429");
+    useExecutionStore.getState().setWaitingAiResponse(true);
+    useExecutionStore.getState().markLastTurnRetryPending("ne-r");
+    useExecutionStore.getState().resumeFromLastTurnRetry();
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("running");
+    expect(state.pendingLastTurnRetry).toBeNull();
+    expect(state.isWaitingAiResponse).toBe(false);
+  });
+});
+
+describe("selectShouldPoll", () => {
+  it.each([
+    ["idle", null, true],
+    ["running", null, true],
+    ["waiting_for_input", null, true],
+    ["completed", null, false],
+    ["failed", null, false],
+    ["failed", { nodeExecutionId: "ne-r" }, true],
+  ] as const)("%s · 재시도 표시 %j 이면 %s", (status, pending, expected) => {
+    expect(
+      selectShouldPoll({ status, pendingLastTurnRetry: pending }),
+    ).toBe(expected);
   });
 });

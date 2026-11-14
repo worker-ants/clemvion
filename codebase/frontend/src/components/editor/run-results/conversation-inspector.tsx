@@ -155,10 +155,10 @@ interface ConversationInspectorProps {
   isWaitingAiResponse: boolean;
   conversationConfig: unknown;
   /**
-   * 대화 입력창의 전송. `false` 를 돌려주면 보내지 못한 것이라 입력창이 글을 지우지 않는다
+   * 대화 입력창의 전송. `false` 를 돌려주면 보내지 못한 것이라(`void` 는 허용하지 않는다) 입력창이 글을 지우지 않는다
    * (소켓이 끊겨 명령을 보낼 수 없을 때, CLE-T-5P1ADY).
    */
-  onSendMessage: (message: string) => boolean | void;
+  onSendMessage: (message: string) => boolean;
   onEndConversation: () => void;
   /**
    * Called when the user picks a message inside SummaryView. Parent relays
@@ -1328,7 +1328,7 @@ function MessageInput({
   onEnd,
 }: {
   isDisabled: boolean;
-  onSend: (message: string) => boolean | void;
+  onSend: (message: string) => boolean;
   onEnd: () => void;
 }) {
   const t = useT();
@@ -1344,7 +1344,7 @@ function MessageInput({
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
     if (!trimmed || isDisabled) return;
-    if (onSend(trimmed) === false) return;
+    if (!onSend(trimmed)) return;
     setText("");
   }, [text, isDisabled, onSend]);
 
