@@ -5,7 +5,7 @@ import { setLocalLockTimeout } from '../triggers/trigger-config-lock';
 
 /**
  * 사용자 행 잠금의 대기 상한. 같은 사용자의 Passkey 등록 저장 · 삭제 · 복구 코드 재발급 · 복구 코드 사용 ·
- * Passkey 인증이 이 잠금에서 줄을 선다. 잠금을 쥔 쪽은 외부 호출 없이 몇 문장만 돌고 끝나서 짧다.
+ * Passkey 인증이 이 잠금에서 줄을 선다. 잠금을 잡은 쪽은 외부 호출 없이 몇 문장만 돌고 끝나서 짧다.
  * 넘기면 `55P03` 으로 아무것도 바꾸지 않고 실패한다(500).
  */
 export const USER_ROW_LOCK_TIMEOUT_MS = 5_000;
@@ -14,7 +14,7 @@ export const USER_ROW_LOCK_TIMEOUT_MS = 5_000;
  * 사용자 행을 `SELECT … FOR NO KEY UPDATE` 로 잠근다. 트랜잭션 안에서만 부른다.
  *
  * `user.webauthn_recovery_codes` 를 읽고 쓰는 경로와 그 판단에 쓰는 `webauthn_credential` 개수를 바꾸는
- * 경로가 같은 사용자끼리 이 잠금에서 차례로 돈다([Passkey 등록과 관리 「Passkey 삭제」](CLE-ACCT-SIGNIN-PASSKEY#passkey-삭제)).
+ * 경로가 같은 사용자끼리 이 잠금에서 차례로 돈다([Passkey 기능과 등록 「Passkey 삭제」](CLE-ACCT-SIGNIN-PASSKEY#passkey-삭제)).
  * credential 행도 잠그는 경로는 이 잠금을 먼저 잡는다(사용자 행 → credential). 순서가 뒤집히면 삭제와 교착한다.
  *
  * `FOR UPDATE` 는 `webauthn_credential` INSERT 의 외래 키 검사(`FOR KEY SHARE`)까지 막는다.
