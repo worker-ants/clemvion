@@ -548,11 +548,12 @@ export class IntegrationsController {
     );
   }
 
+  // 근거: [통합 관리 「연결 테스트의 탐색 위험을 받아들인다」](CLE-INT-MANAGE-RUN#연결-테스트의-탐색-위험을-받아들인다-2026-11-14)
+  // (CLE-T-SG4GRQ). 사용자가 적은 공개 host 에 실제로 접속하고 실패 원인을 구분해 돌려주므로 탐색에
+  // 쓰일 수 있다. 위험은 받아들이고 `preview-test` 와 같은 한도로 빈도만 묶는다.
   /**
-   * Connection test with the stored credentials. Same limit as `preview-test`:
-   * it also reaches the user-supplied host and tells failure causes apart, so
-   * it could be used to probe public hosts (risk accepted, rate bounded —
-   * CLE-INT-MANAGE-RUN Rationale, CLE-T-SG4GRQ).
+   * Connection test with the stored credentials. Throttled like `preview-test`
+   * because it makes a real outbound connection to the configured host.
    */
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post(':id/test')
