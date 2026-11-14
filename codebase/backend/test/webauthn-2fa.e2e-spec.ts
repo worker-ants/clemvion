@@ -32,6 +32,9 @@ import { raceUnderHeldLock } from './helpers/concurrency';
  * Passkey 인증 챌린지 1회 사용(케이스 Q · R · S)은 cover 하지 못한다 — 본 suite 가 그 갭을
  * 메운다.
  *
+ * 동시 요청 케이스: T(첫 등록 두 건) · U(같은 인증기 두 건) · V(다른 사용자의 같은 credential ID) ·
+ * X(마지막 삭제 × 첫 등록). W 는 삭제의 비밀번호 재확인이다.
+ *
  * spec: CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 · 「sign counter 역행과 동시성」.
  * 활성 전제: docker-compose.e2e.yml backend-e2e 가 WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN 을
  *   설정해 기능을 켜둔다(미설정 시 503). helper 의 RP_ID/RP_ORIGIN 과 반드시 일치.
@@ -977,7 +980,7 @@ describe('WebAuthn 2FA (e2e)', () => {
     expect(rows[0].counter).toBe('0');
   });
 
-  // 등록 저장은 사용자 행을 잠근 한 트랜잭션이다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 등록·인증 흐름」,
+  // 등록 저장은 사용자 행을 잠근 한 트랜잭션이다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 등록 흐름」,
   // CLE-T-9KCQ7Y). 테스트가 사용자 행을 쥐면 두 요청이 모두 그 잠금(고치기 전 코드는 credential
   // INSERT 의 외래 키 확인)에서 기다린다. 고치기 전 코드는 둘 다 0개를 읽은 뒤라 둘 다 복구 코드를 받았다.
   it('T. 같은 사용자의 첫 등록 두 건이 겹쳐도 복구 코드 묶음은 하나다', async () => {
@@ -1082,6 +1085,50 @@ describe('WebAuthn 2FA (e2e)', () => {
     ]);
     expect(await credentialRows(userId)).toHaveLength(0);
     expect(await recoveryCodes(userId)).toBeNull();
+  });
+
+  // 마지막 credential 삭제와 첫 등록이 겹쳐도 credential 이 남았는데 복구 코드가 NULL 인 상태가
+  // 생기지 않는다. 사용자 행을 쥔 채 둘을 함께 보내 어느 순서로 끝나도 불변식만 단언한다
+  // (삭제가 먼저면 등록이 첫 등록이 되고, 등록이 먼저면 삭제 뒤에도 credential 이 남는다).
+  // 잠금이 없던 코드는 삭제가 남은 수 0 을 센 뒤 등록이 저장하면 복구 코드만 NULL 이 됐다.
+  it('X. 마지막 credential 삭제와 첫 등록이 겹쳐도 credential 이 있으면 복구 코드가 남는다', async () => {
+    const { userId, accessToken } = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-x'),
+      db,
+    );
+    const first = await registerDevice(
+      BASE_URL,
+      accessToken,
+      new SoftWebAuthnDevice(),
+    );
+    const fireRegister = await prepareRegisterVerify(
+      accessToken,
+      new SoftWebAuthnDevice(),
+    );
+    const fireDelete = () =>
+      deleteCredential(accessToken, first.credentialUuid, {
+        password: TEST_PASSWORD,
+      }).then(
+        (res) => ({ status: res.status, body: res.body }),
+        () => ({ status: -1, body: undefined }),
+      );
+
+    const results = await raceUnderHeldLock(
+      locker,
+      {
+        sql: 'SELECT id FROM "user" WHERE id = $1 FOR UPDATE',
+        params: [userId],
+      },
+      [fireDelete, fireRegister],
+    );
+
+    expect(results.map((r) => r.status)).toEqual([204, 200]);
+    const credentials = await credentialRows(userId);
+    const codes = await recoveryCodes(userId);
+    // 삭제가 먼저면 등록이 첫 등록이라 1개, 등록이 먼저면 삭제 뒤 1개가 남는다.
+    expect(credentials).toHaveLength(1);
+    expect(codes).not.toBeNull();
   });
 
   // 로그인 세션만으로는 Passkey 를 지우지 못한다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-Q6E11N).
