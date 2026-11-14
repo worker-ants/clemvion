@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { getNodeDefinition } from "@/lib/node-definitions";
+import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import { NodeConfigRenderer } from "./node-configs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,8 @@ const LEGACY_POLICY_MAP: Record<string, string> = {
  * 지우지도 않는다. 값 편집은 각 노드 설정 폼(`logic-configs.tsx`)이 맡는다.
  */
 const ITEM_ERROR_POLICY_NODE_TYPES = new Set(["foreach", "map", "parallel"]);
+
+const ERROR_PORT_ID = "error";
 
 export function NodeSettingsPanel() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
@@ -240,31 +243,55 @@ function SettingsTab({
     }
     setDefaultOutputError(null);
 
+    // Drop the legacy flat `errorPolicy` key in favour of `errorHandling`,
+    // but keep it on nodes that use it as the item error policy.
+    const restConfig: Record<string, unknown> = { ...nodeConfig };
+    if (!usesItemErrorPolicy) delete restConfig.errorPolicy;
+    const nextConfig = { ...restConfig, notes, errorHandling };
+
+    // 고정 `error` 포트가 없는 노드는 정책이 「에러 포트로 라우팅」일 때만 동적 에러 포트가
+    // 있다. 저장한 설정에 `error` 포트가 없으면 그 포트의 연결선을 같은 undo 체크포인트에서
+    // 지운다([노드 포트와 설정 패널 「에러 처리 정책 설정」](CLE-WF-NODEPANEL#에러-처리-정책-설정)).
+    // 노드 정의를 아직 받지 못했으면 포트를 알 수 없으므로 지우지 않는다(`dropStaleEdges` 와 같다).
+    const definition = getNodeDefinition(nodeData.type);
+    const dropsErrorPort =
+      definition !== undefined &&
+      !resolveDynamicPorts(nodeData.type, nextConfig, definition).some(
+        (p) => p.id === ERROR_PORT_ID,
+      );
+    const isOrphanErrorEdge = (e: {
+      source: string;
+      sourceHandle?: string | null;
+    }) =>
+      dropsErrorPort && e.source === nodeId && e.sourceHandle === ERROR_PORT_ID;
+    const removedEdgeCount = useEditorStore
+      .getState()
+      .edges.filter(isOrphanErrorEdge).length;
+
     useEditorStore.getState().pushUndo();
 
     useEditorStore.setState((state) => ({
-      nodes: state.nodes.map((n) => {
-        if (n.id !== nodeId) return n;
-        // Drop the legacy flat `errorPolicy` key in favour of `errorHandling`,
-        // but keep it on nodes that use it as the item error policy.
-        const restConfig: Record<string, unknown> = { ...nodeConfig };
-        if (!usesItemErrorPolicy) delete restConfig.errorPolicy;
-        return {
-          ...n,
-          data: {
-            ...n.data,
-            label,
-            isDisabled,
-            config: { ...restConfig, notes, errorHandling },
-          },
-        };
-      }),
+      nodes: state.nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, label, isDisabled, config: nextConfig } }
+          : n,
+      ),
+      edges:
+        removedEdgeCount > 0
+          ? state.edges.filter((e) => !isOrphanErrorEdge(e))
+          : state.edges,
       isDirty: true,
     }));
 
     toast.success(t("editor.settingsSavedToast"));
+    if (removedEdgeCount > 0) {
+      toast.warning(
+        t("editor.errorPortEdgesRemovedToast", { count: removedEdgeCount }),
+      );
+    }
   }, [
     nodeId,
+    nodeData.type,
     label,
     isDuplicateLabel,
     isDisabled,

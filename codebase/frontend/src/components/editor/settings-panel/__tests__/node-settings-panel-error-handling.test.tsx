@@ -1,9 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NodeSettingsPanel } from "../node-settings-panel";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import type { NodeDefinition } from "@/lib/node-definitions";
 
 /**
  * 티어2 ③ — Error Handling 패널이 엔진의 nested `errorHandling` 계약
@@ -107,6 +117,166 @@ describe("NodeSettingsPanel — error handling", () => {
     expect(savedConfig().errorHandling).toEqual({
       policy: "use_default_output",
       defaultOutput: { fallback: true },
+    });
+  });
+
+  /**
+   * 고정 `error` 포트가 없는 노드에서 정책을 「에러 포트로 라우팅」에서 다른 정책으로 바꿔
+   * 저장하면 동적 에러 포트가 사라진다. 그 포트의 연결선은 저장할 때 바로 지우고, 되돌리기
+   * 한 번으로 정책과 연결선이 함께 돌아온다([노드 포트와 설정 패널 「에러 처리 정책 설정」](CLE-WF-NODEPANEL#에러-처리-정책-설정)).
+   */
+  describe("dynamic error port edges on policy change", () => {
+    const def = (
+      type: string,
+      outputs: NodeDefinition["outputs"],
+    ): NodeDefinition => ({
+      type,
+      category: "data",
+      label: type,
+      description: "",
+      icon: "Box",
+      color: "#000",
+      inputs: [{ id: "in", label: "In", type: "data" }],
+      outputs,
+      defaultConfig: {},
+      configSchema: {},
+    });
+    let snapshot: ReturnType<typeof useNodeDefinitionsStore.getState>;
+    beforeAll(() => {
+      snapshot = useNodeDefinitionsStore.getState();
+      useNodeDefinitionsStore.setState({
+        status: "ready",
+        error: null,
+        order: [...snapshot.order, "code", "http_request"],
+        definitions: {
+          ...snapshot.definitions,
+          code: def("code", [{ id: "out", label: "Out", type: "data" }]),
+          http_request: def("http_request", [
+            { id: "success", label: "Success", type: "data" },
+            { id: "error", label: "Error", type: "error" },
+          ]),
+        },
+      });
+    });
+    afterAll(() => {
+      useNodeDefinitionsStore.setState(snapshot);
+    });
+
+    function seedWithEdges(
+      config: Record<string, unknown>,
+      node: { type: string; label: string; category: string } = {
+        type: "code",
+        label: "Code",
+        category: "data",
+      },
+    ) {
+      useEditorStore.setState({
+        nodes: [
+          {
+            id: "n1",
+            type: "default",
+            position: { x: 0, y: 0 },
+            data: { ...node, config },
+          },
+          {
+            id: "n2",
+            type: "default",
+            position: { x: 0, y: 100 },
+            data: { type: "code", label: "Next", category: "data", config: {} },
+          },
+          {
+            id: "n3",
+            type: "default",
+            position: { x: 0, y: 200 },
+            data: {
+              type: "code",
+              label: "Handler",
+              category: "data",
+              config: {},
+            },
+          },
+        ] as never,
+        edges: [
+          {
+            id: "e-out",
+            source: "n1",
+            sourceHandle: "out",
+            target: "n2",
+            targetHandle: "in",
+          },
+          {
+            id: "e-err",
+            source: "n1",
+            sourceHandle: "error",
+            target: "n3",
+            targetHandle: "in",
+          },
+        ] as never,
+        selectedNodeId: "n1",
+        undoStack: [],
+        redoStack: [],
+      });
+    }
+    const edgeIds = () => useEditorStore.getState().edges.map((e) => e.id);
+
+    it("removes the error edge when the policy leaves route_to_error_port", async () => {
+      const user = userEvent.setup();
+      seedWithEdges({ errorHandling: { policy: "route_to_error_port" } });
+      render(<NodeSettingsPanel />);
+
+      await user.selectOptions(
+        screen.getByDisplayValue("Route to Error Port"),
+        "skip_node",
+      );
+      await user.click(screen.getByText("Save Changes"));
+
+      expect(edgeIds()).toEqual(["e-out"]);
+      expect(savedConfig().errorHandling).toEqual({ policy: "skip_node" });
+    });
+
+    it("restores the policy and the error edge with one undo", async () => {
+      const user = userEvent.setup();
+      seedWithEdges({ errorHandling: { policy: "route_to_error_port" } });
+      render(<NodeSettingsPanel />);
+
+      await user.selectOptions(
+        screen.getByDisplayValue("Route to Error Port"),
+        "stop_workflow",
+      );
+      await user.click(screen.getByText("Save Changes"));
+      useEditorStore.getState().undo();
+
+      expect(edgeIds()).toEqual(["e-out", "e-err"]);
+      expect(savedConfig().errorHandling).toEqual({
+        policy: "route_to_error_port",
+      });
+    });
+
+    it("keeps the error edge while the policy stays route_to_error_port", async () => {
+      const user = userEvent.setup();
+      seedWithEdges({ errorHandling: { policy: "route_to_error_port" } });
+      render(<NodeSettingsPanel />);
+
+      await user.click(screen.getByText("Save Changes"));
+
+      expect(edgeIds()).toEqual(["e-out", "e-err"]);
+    });
+
+    it("keeps the fixed error port edge on a node that has one", async () => {
+      const user = userEvent.setup();
+      seedWithEdges(
+        { errorHandling: { policy: "route_to_error_port" } },
+        { type: "http_request", label: "HTTP", category: "integration" },
+      );
+      render(<NodeSettingsPanel />);
+
+      await user.selectOptions(
+        screen.getByDisplayValue("Route to Error Port"),
+        "stop_workflow",
+      );
+      await user.click(screen.getByText("Save Changes"));
+
+      expect(edgeIds()).toContain("e-err");
     });
   });
 
