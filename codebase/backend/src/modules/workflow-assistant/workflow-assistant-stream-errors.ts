@@ -1,4 +1,9 @@
-import type { LlmStreamErrorCode } from '../llm/interfaces/llm-client.interface';
+import { isLlmStreamingUnsupported } from '../llm/llm.service';
+import {
+  LLM_STREAMING_UNSUPPORTED,
+  type LlmStreamErrorCode,
+  type LlmStreamingUnsupportedCode,
+} from '../llm/interfaces/llm-client.interface';
 
 /**
  * 어시스턴트 SSE `error` 이벤트의 `{ code, message }` 를 만드는 단일 출처 (REQ-ASSIST-048).
@@ -32,11 +37,14 @@ type AssistantOwnStreamErrorCode =
   | 'ASSISTANT_TOO_MANY_TOOL_CALLS';
 
 /**
- * SSE `error` 이벤트의 코드. LLM 클라이언트의 스트림 `error` 코드는 그대로 넘긴다.
- * 이 유니온 밖의 코드는 타입 검사에서 막힌다.
+ * SSE `error` 이벤트의 코드. LLM 클라이언트의 스트림 `error` 코드와 `LlmService.chatStream`
+ * 이 던지는 스트리밍 미지원 코드(`LLM_STREAMING_UNSUPPORTED`, REQ-ASSIST-012)는 그대로
+ * 넘긴다. 이 유니온 밖의 코드는 타입 검사에서 막힌다.
  */
 export type AssistantStreamErrorCode =
-  AssistantOwnStreamErrorCode | LlmStreamErrorCode;
+  | AssistantOwnStreamErrorCode
+  | LlmStreamErrorCode
+  | LlmStreamingUnsupportedCode;
 
 /**
  * 문구를 표로 정하는 코드. `ASSISTANT_TOO_MANY_TOOL_CALLS` 는 한도 숫자가 문구에
@@ -62,6 +70,8 @@ export const ASSISTANT_STREAM_ERROR_MESSAGES = {
     'The connection to the LLM provider failed. Please try again.',
   LLM_OUTPUT_MALFORMED:
     "The model exposed internal control tokens in its response, so the reply was stopped. Switch to another model or check the model's serving settings.",
+  LLM_STREAMING_UNSUPPORTED:
+    "The selected model config's provider does not support streaming, so the assistant cannot use it. Choose another model config.",
 } as const satisfies Record<TableStreamErrorCode, string>;
 
 /**
@@ -133,6 +143,22 @@ export const assistantStreamError = {
         ? `Per-turn LLM round limit (${limit}) exceeded. Send a follow-up message to continue executing the remaining plan steps.`
         : `Per-turn tool-call budget (${limit}) exhausted. Send a follow-up message to continue executing the remaining plan steps.`,
     );
+  },
+
+  /**
+   * 스트림을 열거나 읽다가 던져진 예외. `LlmService.chatStream` 이 던지는 스트리밍
+   * 미지원(`LLM_STREAMING_UNSUPPORTED`) 예외만 코드를 그대로 넘기고(REQ-ASSIST-012),
+   * 나머지는 원인을 나누지 않고 `streamFailed` 다. 예외의 `message`(프로바이더 이름
+   * 포함)는 화면으로 보내지 않는다. 호출자가 서버 로그에 남긴다.
+   */
+  fromStreamException(err: unknown): AssistantStreamError {
+    if (isLlmStreamingUnsupported(err)) {
+      return build(
+        LLM_STREAMING_UNSUPPORTED,
+        ASSISTANT_STREAM_ERROR_MESSAGES.LLM_STREAMING_UNSUPPORTED,
+      );
+    }
+    return assistantStreamError.streamFailed();
   },
 
   /**

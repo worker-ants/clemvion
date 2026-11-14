@@ -607,9 +607,8 @@ describe('Workspace RBAC (e2e)', () => {
 
     // 존재하지 않는 설정 UUID — RolesGuard 는 핸들러보다 먼저 실행되므로 viewer 는
     // 설정 존재 여부와 무관하게 403 으로 차단되고, editor 는 가드를 통과한다. 실
-    // provider 호출 없이 역할 게이트만 검증한다. (핸들러 도달 후 상태는 엔드포인트별
-    // 상이: testConnection 은 best-effort 라 미존재도 200{success:false}, listModels 는
-    // findEntity NotFound 가 전파돼 404 — 본 케이스의 관심사는 가드 통과/차단이다.)
+    // provider 호출 없이 역할 게이트를 검증한다. 핸들러에 닿으면 testConnection ·
+    // listModels 둘 다 findEntity 의 NotFound 를 전파해 404 다(CLE-T-RH45H8).
     const missingId = '00000000-0000-4000-8000-000000000000';
 
     // viewer → 403 (Editor+ 게이트, 과금 action-POST). RolesGuard 는 body 검증 pipe
@@ -630,14 +629,14 @@ describe('Workspace RBAC (e2e)', () => {
       .send({ provider: 'openai', apiKey: 'sk-test' });
     expect(viewerPreview.status).toBe(403);
 
-    // editor → Editor+ 게이트 통과 → 403 이 아니다. 핸들러 도달 후 상태(testConnection
-    // 은 best-effort 라 미존재 설정도 200{success:false} 반환)는 본 인가 테스트의
-    // 관심사가 아니므로 단언하지 않는다 — 구현 변경에 테스트가 결합되지 않게 한다.
+    // editor → Editor+ 게이트 통과 → 핸들러에 닿는다. 없는 설정은 프로바이더 probe
+    // 실패가 아니라 404 MODEL_CONFIG_NOT_FOUND 다(Swagger 선언과 같다, CLE-T-RH45H8).
     const editorTest = await request(BASE_URL)
       .post(`/api/model-configs/${missingId}/test`)
       .set('Authorization', `Bearer ${editor.accessToken}`)
       .set('X-Workspace-Id', ws);
-    expect(editorTest.status).not.toBe(403);
+    expect(editorTest.status).toBe(404);
+    expect(editorTest.body.error.code).toBe('MODEL_CONFIG_NOT_FOUND');
 
     // GET :id/models 는 Viewer+ 유지 — viewer 도 가드 통과(403 아님). listModels 는
     // findEntity NotFound 를 (catch 밖이라) 전파하므로 미존재 설정엔 404 — 이 안정

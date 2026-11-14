@@ -7,6 +7,7 @@ import {
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { resolveStablePortId } from '../../core/port-id.util';
 import { LlmService, isLlmRateLimit } from '../../../modules/llm/llm.service';
+import { APPLY_MODEL_DEFAULTS } from '../../../modules/llm/model-default-params';
 import { extractRetryAfterMs } from '../../../shared/utils/retry-after';
 import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
 import { truncateForErrorDetails } from '../../core/error-codes';
@@ -207,6 +208,7 @@ export class TextClassifierHandler implements NodeHandler {
         },
         {
           signal: context.abortSignal,
+          ...APPLY_MODEL_DEFAULTS,
         },
       );
     } catch (err) {

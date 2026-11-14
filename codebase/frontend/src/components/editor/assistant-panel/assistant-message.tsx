@@ -129,6 +129,7 @@ export const ERROR_MESSAGE_KEYS: ReadonlyMap<string, TranslationKey> = new Map([
   ["LLM_RATE_LIMIT", "assistant.errorRateLimit"],
   ["LLM_CONNECTION_ERROR", "assistant.errorConnection"],
   ["LLM_OUTPUT_MALFORMED", "assistant.errorOutputMalformed"],
+  ["LLM_STREAMING_UNSUPPORTED", "assistant.errorStreamingUnsupported"],
 ]);
 
 export function AssistantMessageView({

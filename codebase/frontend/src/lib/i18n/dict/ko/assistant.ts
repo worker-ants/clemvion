@@ -58,4 +58,23 @@ export const assistant = {
   exploreExecutionsList: "실행 이력 {{count}}건 조회",
   exploreExecutionDetails: "실행 상세 조회 — {{nodeCount}}개 노드",
   executionNotInScope: "이 실행은 현재 워크플로우의 것이 아니에요.",
+  sessionCreateFailedToast:
+    "새 대화를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
+  responseFailedToast: "응답을 받지 못했어요. 같은 메시지를 다시 보내 주세요.",
+  toolBadgeNode: "노드",
+  toolBadgeRemoveNode: "− 노드",
+  toolBadgeAddEdge: "→ 연결선",
+  toolBadgeRemoveEdge: "− 연결선",
+  toolBadgeIntegrations: "통합 목록",
+  toolBadgeWorkflows: "워크플로우 목록",
+  toolBadgeWorkflowRef: "워크플로우 참조",
+  toolBadgeNodeSchema: "스키마: {{type}}",
+  toolBadgeKnowledgeBases: "지식 저장소 목록",
+  toolBadgeExecutions: "실행 내역",
+  toolBadgeExecutionsFiltered: "실행 내역 ({{status}})",
+  toolBadgeWithCount: "{{label}}: {{count}}건",
+  toolBadgeExecutionDetail: "실행 상세",
+  toolBadgeExecutionDetailNodes: "실행 상세: 노드 {{count}}개",
+  errorStreamingUnsupported:
+    "선택한 모델 설정의 프로바이더는 스트리밍 응답을 지원하지 않아 어시스턴트에서 쓸 수 없어요. 다른 모델 설정을 골라 주세요.",
 } as const;

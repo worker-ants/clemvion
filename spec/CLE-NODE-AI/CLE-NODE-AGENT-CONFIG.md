@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-CONFIG"
 title: "AI 에이전트 노드 — 설정과 포트"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT"]
 area: "CLE-NODE-AI"
-content_hash: "9c43b1d53593e50ac37f6e544b7ecd380634722a725f1b81ad870f134c88561e"
+content_hash: "742087c29942ce44fdb3863ada43995889be03673559155ec468b6e186b1c31d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GG3WPZ"
 source_paths: []
-mirror_sha256: "20d9a792b0cbc3d7c6e4be826a2d542823e50dee2fb8f1427f7b200a6f88befe"
-etag: "sha256-b5e70a6681249cf36bbcd37344a270ac4aaa089fc2976dc7a2fbc9d483ecd473"
+mirror_sha256: "233767ca338a2a8b7a80612584a685f2c0731ba9a1eeddf59cedb14119e7690d"
+etag: "sha256-2e7a958d6ef79f5b8f0c06714ddeee6cb8a5ea4ed76c91dbbbeed74a347f5eb9"
 ---
 ## 개요
 
@@ -58,7 +58,7 @@ etag: "sha256-b5e70a6681249cf36bbcd37344a270ac4aaa089fc2976dc7a2fbc9d483ecd473"
 | `conditions` | ConditionDef[] | | `[]` | 조건 목록. 조건마다 `{condition.id}` 포트 |
 | `presentationTools` | PresentationToolDef[] | | `[]` | 표시 도구 등록 목록. 비어 있으면 꺼짐 |
 
-현재 구현은 모델 설정에 저장한 기본 파라미터(`defaultParams`)를 LLM 호출에 넣지 않는다. `temperature`·`maxTokens` 를 비우면 값 없이 부르고, Anthropic 클라이언트만 `max_tokens` 를 4096 으로 채운다. 나머지 프로바이더는 자체 기본값을 쓴다. Anthropic 클라이언트는 `temperature` 를 지정해도 보내지 않는다([LLM 클라이언트 「Anthropic」](../CLE-AI/CLE-AI-LLM.md#anthropic)).
+`temperature`·`maxTokens` 를 비우면 모델 설정에 저장한 기본 파라미터(`defaultParams`)를 쓴다. 모델 설정에도 값이 없으면 값 없이 부른다. 이때 Anthropic 클라이언트만 `max_tokens` 를 4096 으로 채우고 나머지 프로바이더는 자체 기본값을 쓴다. Anthropic 클라이언트는 `temperature` 를 지정해도 보내지 않는다([LLM 클라이언트 「Anthropic」](../CLE-AI/CLE-AI-LLM.md#anthropic)). 기본 파라미터는 `LlmService` 가 채운다. 그래서 디버그 기록 `meta.llmCalls[].requestPayload` 에는 노드 설정 값이 그대로 남는다. 병합 규칙은 [LLM 클라이언트 「모델 설정 기본 파라미터 채우기」](../CLE-AI/CLE-AI-LLM-SERVICE.md#모델-설정-기본-파라미터-채우기) 가 정한다.
 
 세 모델 설정 선택 필드는 노드 `llmConfigId` 와 독립이며, 고른 설정 자신의 provider·credential·defaultModel 로 부른다. 설정 스키마의 단일 기준은 `ai-agent.schema.ts` 의 `aiAgentNodeConfigSchema` 다. 스키마는 `.passthrough()` 라 DB 에 남은 옛 키는 조용히 통과하지만 핸들러는 읽지 않는다.
 

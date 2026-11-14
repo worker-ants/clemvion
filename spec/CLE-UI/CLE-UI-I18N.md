@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N"
 title: "다국어와 화면 문구"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "235949b59b08f6fe5385b1ec33b8c35d56611cc9d43c1eee18a6f99bd02570e1"
+content_hash: "eadde53e225502e90331280f5ccb78e9152568f098f35a28ab413951b9182811"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-F9QEJC"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "26a0e5f5dec3b0ce9cdde425e308bfc726b2d0996dafa5b93f39269ac7452a43"
-etag: "sha256-3693dc2eff53cbe5c778322d2be524950bde752984577397d55d6277c5e868cc"
+mirror_sha256: "9e798acc1a62d2cb6ab34db17b5cceb5d3078887378cfe44cd07fe9d55b7d259"
+etag: "sha256-b6040cb9cde0c1e1608690818d5213815bdc7955d03ceead157c9001a0e28f4b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -56,7 +56,6 @@ etag: "sha256-3693dc2eff53cbe5c778322d2be524950bde752984577397d55d6277c5e868cc"
    - 금지: JSX 텍스트, 속성(`label`, `placeholder`, `title`, `aria-label`, `alt` 등), 문자열 리터럴에 한국어를 직접 쓰는 것.
    - 허용: 주석(`//`, `/** */`)·JSDoc·테스트 fixture·스토리북 데모·하위 호환용 영문 폴백. 폴백도 되도록 키로 옮긴다.
    - 영문 폴백이나 접근성 전용 문자열도 사전 경유를 먼저 쓴다.
-   - **알려진 예외: 어시스턴트 도구 호출 배지 요약**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#i18n-키) 의 도구 호출 배지 요약(`tool-call-badge.tsx` 의 `summarize()`)은 사전 키를 거치지 않는 영문 고정 문자열이라 한국어 로케일에서도 영문으로 보인다. 재시도 후 성공 표시만 `assistant.toolCallBadgeRetryRecovered` 를 쓴다. 프론트엔드가 만드는 문자열이라 규칙 3 의 대상이 아니고, 한국어가 아니라 하드코딩 한국어 가드에도 걸리지 않아 여기에 예외로 적는다. 사전 키로 옮기는 일은 NERV Task `CLE-T-F9QEJC` 가 맡고, 옮기면 이 항목을 지운다.
 
    위반 예:
 

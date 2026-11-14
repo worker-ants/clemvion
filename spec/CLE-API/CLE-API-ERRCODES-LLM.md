@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-LLM"
 title: "에러 코드 카탈로그 — LLM 클라이언트 · AI 어시스턴트"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "51c133a19c00ae85d5037b0f5bbbb8619327a44e3e2dce4458b2a4df5c842d0c"
+content_hash: "eeb12d1209f8fa70e3dfa2b23ac40f4fe197106a072f5537e84fabf556ba44e7"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-EK4DMX"
 source_paths: []
-mirror_sha256: "61aed27ae9e99c4957da0b14a4512edd47e4f1a824f58cef97b8d2b541b6f58c"
-etag: "sha256-5b43bb2baa1a6c39c31ea4dc13823c511733b1e462a1ebe186d0a9d8378f8572"
+mirror_sha256: "7e7463554be08f4f1b22a114e85cd26d63f372f3f5be702a69243625da902d95"
+etag: "sha256-d0e6eab42a4f350fca7936888f6871c8738d38bcd95074cb6981758ca97750e3"
 ---
 ## 개요
 
@@ -31,7 +31,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `LLM_OUTPUT_MALFORMED` | 없음 | gpt-oss 계열 harmony 제어 토큰 노출(OpenAI 스트리밍 경로). `message` 는 고정 영문 진단 문장이다. 사용자에게 보일 문구는 호출하는 쪽이 코드로 고른다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_CREDENTIALS_REQUIRED` | 400 | 미리보기 요청에서 local 이 아닌 프로바이더의 apiKey 누락 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_MODEL_LIST_FAILED` | 400 | 미리보기나 `:id/models` 호출 중 프로바이더 응답 실패. 정리한 메시지를 보인다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
-| `LLM_STREAMING_UNSUPPORTED` | 없음 | 스트리밍을 지원하지 않는 프로바이더에 `stream()` 호출 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_STREAMING_UNSUPPORTED` | 없음 | 클라이언트에 `stream()` 이 없을 때 `LlmService.chatStream` 이 스트림을 열기 전에 던지는 예외의 코드. 예외는 `BadRequestException` 이고 응답 본문의 `code` 에 이 코드가 실린다. `chatStream` 을 부르는 곳이 어시스턴트 스트림뿐이라 HTTP 응답으로 나가지 않고 SSE `error` 이벤트로 나간다(§6.25) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 
 세분화 코드 `LLM_AUTH_ERROR`(401), `LLM_MODEL_NOT_FOUND`(404), `LLM_CONTEXT_EXCEEDED`(400)는 계획이며 미구현이다. 지금은 `LLM_CONNECTION_ERROR` 로 모인다.
 
@@ -55,7 +55,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `ASSISTANT_STREAM_FAILED` | 스트림을 열기 전 실패(OpenAI 계열의 429 · SDK 요청 타임아웃 포함), 모델 설정 조회 실패(DB 장애 등), 턴 처리 중 서비스 내부 실패. 원인을 나누지 않는다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) |
 | `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 LLM 호출 라운드 상한이나 도구 호출 예산을 넘음. `message` 에 한도 숫자가 들어간다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#어시스턴트-도구-호출-한도) |
 
-LLM 클라이언트 스트림의 `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`(§6.17)도 같은 이벤트에 코드 그대로 실린다. 다만 `message` 는 클라이언트의 진단 문구가 아니라 어시스턴트의 코드별 고정 영문이다. 정의는 §6.17 행이라 이 표에 다시 두지 않는다. 스트리밍을 지원하지 않는 프로바이더의 `LLM_STREAMING_UNSUPPORTED`(§6.17)도 그대로 넘기기로 정했지만 아직 구현하지 않았다(미구현, NERV Task `CLE-T-EK4DMX`). 지금은 `ASSISTANT_STREAM_FAILED` 로 나가고, 다섯 프로바이더가 모두 스트리밍을 지원해 발동 경로는 없다.
+LLM 클라이언트 스트림의 `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`(§6.17)도 같은 이벤트에 코드 그대로 실린다. 다만 `message` 는 클라이언트의 진단 문구가 아니라 어시스턴트의 코드별 고정 영문이다. 정의는 §6.17 행이라 이 표에 다시 두지 않는다. 스트리밍을 지원하지 않는 프로바이더의 `LLM_STREAMING_UNSUPPORTED`(§6.17)는 LLM 클라이언트의 스트림 `error` 이벤트로 오지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던진 예외에 실려 오고, 어시스턴트는 그 예외를 SSE `error` 이벤트로 바꿀 때 이 코드를 그대로 싣는다. `message` 는 이 코드도 어시스턴트의 고정 영문이다. 다섯 프로바이더가 모두 스트리밍을 지원해 운영 환경의 발동 경로는 없다. e2e 의 LLM 스텁에는 `stream()` 이 없어 어시스턴트 e2e 에서는 이 코드가 나간다.
 
 편집 도구 실패는 에러 코드가 아니다. `tool_call` 이벤트의 `result.ok: false` 로 오고 턴은 이어진다. 설계 단계에 있던 `ASSISTANT_TOOL_FAILED` · `ASSISTANT_LLM_CONFIG_INVALID` · `ASSISTANT_STREAMING_UNSUPPORTED` 는 발행된 적이 없어 등재하지 않는다(규칙 9).
 
@@ -74,4 +74,12 @@ NERV Task `CLE-T-YFDSY7` 이다. 어시스턴트 메시지 스트림의 SSE `err
 
 - **§6.1~6.24 는 그대로 두고 §6.25 를 더했다.** §6.19 에 합치는 안은 택하지 않았다. §6.19 의 코드는 HTTP 에러 응답으로, §6.25 의 코드는 SSE 이벤트로 나가 나가는 곳이 다르다. 번호를 다시 매기면 절 앵커와 링크가 깨진다.
 - **LLM 클라이언트 코드는 행을 두 번 두지 않았다.** 스트림이 그대로 넘기는 세 코드의 정의는 §6.17 행이다. §6.25 는 넘긴다는 사실과 `message` 가 바뀐다는 점만 적는다.
-- **발행된 적 없는 세 코드는 등재하지 않았다(규칙 9).** `ASSISTANT_LLM_CONFIG_INVALID` 자리는 기본 설정으로 대신하고 `config_fallback` 이벤트로 알리는 동작이 맡는다(사람 결정, 2026-11-13. 구현은 NERV Task `CLE-T-1K2BM4`). `ASSISTANT_STREAMING_UNSUPPORTED` 자리는 LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 그대로 넘기는 것으로 정했다(사람 결정, 2026-11-13). 같은 뜻의 코드를 하나 더 두지 않기 위해서다. `ASSISTANT_TOOL_FAILED` 는 편집 도구 실패가 `tool_call` 결과로 오므로 코드가 아니다.
+- **발행된 적 없는 세 코드는 등재하지 않았다(규칙 9).** `ASSISTANT_LLM_CONFIG_INVALID` 자리는 기본 설정으로 대신하고 `config_fallback` 이벤트로 알리는 동작이 맡는다(사람 결정, 2026-11-13. 구현은 NERV Task `CLE-T-1K2BM4`). `ASSISTANT_STREAMING_UNSUPPORTED` 자리는 LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 그대로 넘기는 것으로 정했다(사람 결정, 2026-11-13. 구현은 NERV Task `CLE-T-EK4DMX`). 같은 뜻의 코드를 하나 더 두지 않기 위해서다. `ASSISTANT_TOOL_FAILED` 는 편집 도구 실패가 `tool_call` 결과로 오므로 코드가 아니다.
+
+### 스트리밍 미지원 코드 전달을 현재 동작으로 적었다 (2026-11-14)
+
+NERV Task `CLE-T-EK4DMX` 가 2026-11-13 결정대로 `LLM_STREAMING_UNSUPPORTED` 를 어시스턴트 SSE `error` 이벤트에 그대로 싣게 구현했다. 이전 판 §6.25 는 이 전달을 아직 구현하지 않았다고 적었다. 구현에 맞춰 §6.25 를 현재 동작으로 고쳤다.
+
+- **§6.25 표에 행을 더하지 않았다.** 정의는 §6.17 행이고 §6.25 는 넘긴다는 사실만 적는다는 2026-11-13 원칙을 그대로 따랐다.
+- **예외로 오는 경로를 따로 적었다.** 같은 문단의 다른 LLM 코드는 클라이언트의 스트림 `error` 이벤트로 오고 이 코드만 스트림을 열기 전 예외로 온다. 둘을 한 문장으로 묶으면 이 코드도 스트림 이벤트로 오는 것처럼 읽혀 나눠 적었다. 이 코드를 스트림 에러 코드 유니온(`LlmStreamErrorCode`)에 넣지 않은 이유는 [에러 처리와 모델 설정](../CLE-WF/CLE-WF-ASSIST-ERROR.md#스트리밍-미지원-코드를-스트림-에러-유니온-밖에-둔다-2026-11-14) 이 정본이다.
+- **§6.17 행의 설명을 던지는 곳에 맞췄다.** 이전 판은 「스트리밍을 지원하지 않는 프로바이더에 `stream()` 호출」이라 적어 클라이언트의 `stream()` 이 던지는 것처럼 읽혔다. 실제로는 `LlmService.chatStream` 이 클라이언트에 `stream()` 이 없는 것을 보고 스트림을 열기 전에 던진다. HTTP 칸은 「없음」으로 두었다. 예외 종류는 `BadRequestException` 이지만 `chatStream` 을 부르는 곳이 어시스턴트 스트림뿐이라 HTTP 응답으로 나가지 않는다.

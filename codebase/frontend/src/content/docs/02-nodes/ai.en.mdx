@@ -23,8 +23,8 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "ragThreshold", required: false, type: "float", description: "RAG similarity threshold (0–1).", default: "0.7"},
   {name: "mcpServers", required: false, type: "McpServerRef[]", description: "MCP (Model Context Protocol) servers to expose to the agent. Each entry takes a required `integrationId` plus optional `enabledTools`, `includeResources`, `includePrompts`, and `toolOverrides`. Tools from the registered servers become callable by the LLM automatically.", default: "[]"},
   {name: "conditions", required: false, type: "ConditionDef[]", description: "Conditions. Each has `id`, `label`, and `prompt`, and each condition gets its own dynamic output port.", default: "[]"},
-  {name: "temperature", required: false, type: "float", description: "Overrides the LLMConfig default. Not sent to Anthropic models, so it has no effect there.", default: "-"},
-  {name: "maxTokens", required: false, type: "integer", description: "Max tokens.", default: "-"},
+  {name: "temperature", required: false, type: "float", description: "Response creativity (0-2). When empty, the Temperature saved in the model config is used. Not sent to Anthropic models, so it has no effect there.", default: "-"},
+  {name: "maxTokens", required: false, type: "integer", description: "Max output tokens. When empty, the Max Tokens saved in the model config is used.", default: "-"},
   {name: "maxToolCalls", required: false, type: "integer", description: "Max tool calls.", default: "10"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Automatic Conversation Thread injection scope. `none` sends only system+user, `thread` injects the full workflow thread, and `lastN` injects only the most recent N turns.", default: "none"},
   {name: "contextScopeN", required: false, type: "integer", description: "Number of most recent turns to inject when `contextScope=lastN`.", default: "20"},
@@ -180,7 +180,7 @@ In Multi Turn mode, user responses are **awaited indefinitely**. No timeout fire
 ### Fields
 
 <FieldTable rows={[
-  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration.", default: "-"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration. The Temperature and Max Tokens saved in this config are used as defaults.", default: "-"},
   {name: "model", required: false, type: "string", description: "Model ID.", default: "-"},
   {name: "inputField", required: false, type: "expression", description: "Expression for the text field to classify.", default: "-"},
   {name: "categories", required: true, type: "CategoryDef[]", description: "Categories to classify into. Each has `name`, `description`, and `examples`.", default: "[]"},
@@ -235,7 +235,7 @@ In Multi Turn mode, user responses are **awaited indefinitely**. No timeout fire
 ### Fields
 
 <FieldTable rows={[
-  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration.", default: "-"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "LLM provider configuration. The Temperature and Max Tokens saved in this config are used as defaults.", default: "-"},
   {name: "model", required: false, type: "string", description: "Model ID.", default: "-"},
   {name: "inputField", required: false, type: "expression", description: "Text field to extract from. Hidden in the settings UI when `multi_turn`.", default: "-"},
   {name: "outputSchema", required: true, type: "FieldDef[]", description: "Array of fields to extract. Each has `name`, `type`, `description`, `required`, `enumValues`.", default: "[]"},

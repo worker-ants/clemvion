@@ -259,6 +259,32 @@ describe('WorkflowAssistantStreamService', () => {
     );
   });
 
+  // CLE-T-GG3WPZ — 어시스턴트는 모델 설정 기본 파라미터를 켜고 chatStream 을 부른다.
+  // 값을 채우는 일은 LlmService 가 하고 어시스턴트는 temperature · maxTokens 를 정하지 않는다.
+  it('opts in to model config default params on chatStream', async () => {
+    const { service, mocks } = makeService();
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    const [, params, , , opts] = mocks.llmService.chatStream.mock.calls[0];
+    expect(opts).toEqual({ applyModelDefaults: true });
+    expect(params).not.toHaveProperty('temperature');
+    expect(params).not.toHaveProperty('maxTokens');
+  });
+
   it('emits a `plan` SSE event for propose_plan tool calls and persists the plan snapshot', async () => {
     const { service, mocks } = makeService();
     const planArgs = JSON.stringify({
@@ -3292,6 +3318,39 @@ describe('WorkflowAssistantStreamService', () => {
         data: { finishReason: 'error' },
       });
       expect(assistantPersist(mocks)?.finishReason).toBe('error');
+    });
+
+    // REQ-ASSIST-012: 실제 `chatStream` 은 async generator 라서 스트리밍 미지원 예외는
+    // 첫 `next()` 에서 나온다. 코드를 그대로 넘기고 문구는 고정 영문이다.
+    it('forwards LLM_STREAMING_UNSUPPORTED when the provider cannot stream', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () =>
+            Promise.reject(
+              new BadRequestException({
+                code: 'LLM_STREAMING_UNSUPPORTED',
+                message:
+                  "Provider 'acme' does not support streaming in this release.",
+              }),
+            ),
+        }),
+      }));
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(errorEventOf(events)).toEqual({
+        code: 'LLM_STREAMING_UNSUPPORTED',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_STREAMING_UNSUPPORTED,
+      });
+      expect(events[events.length - 1]).toEqual({
+        event: 'done',
+        data: { finishReason: 'error' },
+      });
+      expect(assistantPersist(mocks)?.finishReason).toBe('error');
+      expect(loggedText()).toContain('does not support streaming');
     });
 
     // 특성화 테스트다. 실제 `chatStream` 은 async generator 라서 OpenAI 계열 클라이언트가

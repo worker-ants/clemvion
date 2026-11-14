@@ -90,6 +90,15 @@ export type LlmStreamErrorCode =
   'LLM_RATE_LIMIT' | 'LLM_CONNECTION_ERROR' | 'LLM_OUTPUT_MALFORMED';
 
 /**
+ * Code `LlmService.chatStream` throws (in a `BadRequestException` body) when the
+ * provider client has no `stream()`. It is an exception, not a streaming `error`
+ * event, so it is not part of `LlmStreamErrorCode`. The workflow assistant
+ * forwards it on its SSE `error` event as is (REQ-ASSIST-012).
+ */
+export const LLM_STREAMING_UNSUPPORTED = 'LLM_STREAMING_UNSUPPORTED';
+export type LlmStreamingUnsupportedCode = typeof LLM_STREAMING_UNSUPPORTED;
+
+/**
  * Streaming event emitted by `LLMClient.stream()`.
  *
  * Providers accumulate `tool_call_delta` events for each tool call until the

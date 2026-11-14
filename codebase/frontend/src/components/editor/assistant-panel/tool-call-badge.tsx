@@ -9,7 +9,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import type { AssistantToolCallRecord } from "@/lib/api/assistant";
-import { useT } from "@/lib/i18n";
+import { useT, type TFunction } from "@/lib/i18n";
 
 /**
  * `mergeRecoveryGroups` 가 "실패 → 같은 대상 성공" 을 1건으로 축약할지 판정
@@ -51,7 +51,7 @@ export function ToolCallBadge({
   const t = useT();
   const ok = (call.result as { ok?: boolean } | null)?.ok ?? true;
   const failed = ok === false;
-  const base = summarize(call);
+  const base = summarize(call, t);
   // review I-3: retried 아닐 땐 i18n 함수 호출을 생략해 불필요한 lookup 회피.
   const retrySuffixText = retried
     ? t("assistant.toolCallBadgeRetryRecovered")
@@ -261,24 +261,37 @@ function signatureOf(call: AssistantToolCallRecord): string {
   return `${call.name}${suffix}`;
 }
 
-function summarize(call: AssistantToolCallRecord): string {
+/**
+ * 배지 요약 문구. 고정 단어는 `assistant.toolBadge*` 사전 키로 그린다(CLE-UI-I18N
+ * 규칙 1). 노드 라벨 · 타입 · 설정 키 · 상태 값 · 도구 이름처럼 도구 인자와 결과에서
+ * 온 값은 번역하지 않고 그대로 싣는다.
+ */
+function summarize(call: AssistantToolCallRecord, t: TFunction): string {
   const args = call.arguments;
   if (call.name === "add_node") {
-    return `+ ${String(args.label ?? args.type ?? "node")}`;
+    return `+ ${String(args.label ?? args.type ?? t("assistant.toolBadgeNode"))}`;
   }
   if (call.name === "update_node") {
     const patch = (args.patch as Record<string, unknown> | undefined) ?? {};
     const keys = Object.keys(patch).join(", ");
-    return `✎ ${keys || "node"}`;
+    return `✎ ${keys || t("assistant.toolBadgeNode")}`;
   }
-  if (call.name === "remove_node") return "− node";
-  if (call.name === "add_edge") return "→ edge";
-  if (call.name === "remove_edge") return "− edge";
-  if (call.name === "list_integrations") return "integrations";
-  if (call.name === "list_workflows") return "workflows";
-  if (call.name === "get_workflow") return "workflow ref";
-  if (call.name === "get_node_schema") return `schema: ${String(args.type ?? "")}`;
-  if (call.name === "list_knowledge_bases") return "knowledge bases";
+  if (call.name === "remove_node") return t("assistant.toolBadgeRemoveNode");
+  if (call.name === "add_edge") return t("assistant.toolBadgeAddEdge");
+  if (call.name === "remove_edge") return t("assistant.toolBadgeRemoveEdge");
+  if (call.name === "list_integrations") {
+    return t("assistant.toolBadgeIntegrations");
+  }
+  if (call.name === "list_workflows") return t("assistant.toolBadgeWorkflows");
+  if (call.name === "get_workflow") return t("assistant.toolBadgeWorkflowRef");
+  if (call.name === "get_node_schema") {
+    return t("assistant.toolBadgeNodeSchema", {
+      type: String(args.type ?? ""),
+    });
+  }
+  if (call.name === "list_knowledge_bases") {
+    return t("assistant.toolBadgeKnowledgeBases");
+  }
   if (call.name === "get_workflow_executions") {
     // 요약 라벨에 "상태 필터 유무" 와 "돌려받은 건수" 를 동시에 담아 사용자가
     // 배지만 보고 어시스턴트가 어떤 의도로 리스트를 뒤졌는지 파악할 수 있다.
@@ -286,16 +299,20 @@ function summarize(call: AssistantToolCallRecord): string {
     const items =
       (call.result as { items?: unknown[] } | null)?.items;
     const count = Array.isArray(items) ? items.length : undefined;
-    const prefix = status ? `executions (${status})` : "executions";
-    return count !== undefined ? `${prefix}: ${count}` : prefix;
+    const prefix = status
+      ? t("assistant.toolBadgeExecutionsFiltered", { status })
+      : t("assistant.toolBadgeExecutions");
+    return count !== undefined
+      ? t("assistant.toolBadgeWithCount", { label: prefix, count })
+      : prefix;
   }
   if (call.name === "get_execution_details") {
     const timeline =
       (call.result as { timeline?: unknown[] } | null)?.timeline;
     const count = Array.isArray(timeline) ? timeline.length : undefined;
     return count !== undefined
-      ? `execution detail: ${count} nodes`
-      : "execution detail";
+      ? t("assistant.toolBadgeExecutionDetailNodes", { count })
+      : t("assistant.toolBadgeExecutionDetail");
   }
   return call.name;
 }

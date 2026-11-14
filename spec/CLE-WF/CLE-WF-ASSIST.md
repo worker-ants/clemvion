@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061", "REQ-ASSIST-062"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "49b8b2f31604f998065b9c1c8804e4fdfd481b2d0e2317f25c4fa907c1a19245"
+content_hash: "2c2a5b791511544edefbeafdfc29e7dd342effec93601b16dcc4646ae324c24c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-EK4DMX"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "92d8bb4ac4c6c2a0b656d1428f242fb81a3e518a194b533479f7388add23f6d4"
-etag: "sha256-2037dd3c4385d055d57e30d6485e46d0ea3dbbaf148befb407e85f6f3b8a05e9"
+mirror_sha256: "3fc21885d6f8c986f4bdc51cc2bf3301faca129d26b0724e56a6c0be569e6e22"
+etag: "sha256-c84af78a2d59465a7b483cc79ba25a3c756a8ca216cbb049d40cbecf46715844"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현 · 부분 구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -60,7 +60,7 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 - REQ-ASSIST-009 IF 요청이나 세션이 지정한 모델 설정이 삭제됐거나 워크스페이스 밖이면 THE SYSTEM SHALL 워크스페이스 기본 설정으로 대신하고 토스트로 알린다.
 - REQ-ASSIST-010 IF 모델 설정도 워크스페이스 기본 설정도 없으면 THE SYSTEM SHALL `ASSISTANT_NO_LLM_CONFIG` 안내와 설정 화면 딥링크를 보인다. (원본: ED-AI-08)
 - REQ-ASSIST-011 WHEN 어시스턴트 턴을 처리하면 THE SYSTEM SHALL OpenAI·Anthropic·Google·Azure OpenAI·Local 프로바이더 모두 스트리밍으로 응답한다. (원본: ED-AI-09)
-- REQ-ASSIST-012 IF 스트리밍을 지원하지 않는 프로바이더가 선택되면 THE SYSTEM SHALL LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 SSE `error` 이벤트로 그대로 보낸다. (원본: ED-AI-09) (미구현: 지금은 이 예외가 `ASSISTANT_STREAM_FAILED` 로 나간다. 다섯 프로바이더가 모두 스트리밍을 지원해 발동 경로는 없다. NERV Task `CLE-T-EK4DMX`)
+- REQ-ASSIST-012 IF 스트리밍을 지원하지 않는 프로바이더가 선택되면 THE SYSTEM SHALL LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 SSE `error` 이벤트로 그대로 보낸다. (원본: ED-AI-09)
 - REQ-ASSIST-013 WHILE 한 대화 창을 쓰는 동안 THE SYSTEM SHALL 모드 전환 없이 탐색·계획·편집 단계를 오가게 한다. (원본: ED-AI-10)
 - REQ-ASSIST-014 WHEN 요청이 모호하면 THE SYSTEM SHALL 먼저 질문하거나 계획 카드로 계획을 제시한다. (원본: ED-AI-11)
 - REQ-ASSIST-015 WHEN 계획 카드를 제시하면 THE SYSTEM SHALL 단계별 체크리스트와 미답변 질문(`openQuestions`)을 함께 표시한다. (원본: ED-AI-12)
@@ -222,7 +222,7 @@ AI 어시스턴트 스펙을 쓸 때 사용자와 합의한 결정이다.
 |------|------|------|
 | 제품 명칭 | Workflow AI Assistant / 워크플로우 AI 어시스턴트 | 스펙·가이드·i18n 전 영역에서 같은 이름을 쓴다 |
 | 변경 적용 방식 | 즉시 반영과 되돌리기(에디터 스토어 재사용) | 기존 저장 흐름(`Ctrl+S`, 실행 직전 저장)과 맞춘다. DB 영구 기록은 사용자의 저장으로만 한다 |
-| v1 스트리밍 프로바이더 | OpenAI, Anthropic, Google, Azure OpenAI, Local 다섯 모두 | 미지원 프로바이더에는 LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 그대로 보낸다(REQ-ASSIST-012). 처음 설계한 어시스턴트 전용 `ASSISTANT_STREAMING_UNSUPPORTED` 는 같은 뜻의 코드를 하나 더 만드는 것이라 두지 않는다(2026-11-13). 다섯 프로바이더가 모두 스트리밍을 지원해 발동 경로가 없고 전달도 아직 구현하지 않았다 |
+| v1 스트리밍 프로바이더 | OpenAI, Anthropic, Google, Azure OpenAI, Local 다섯 모두 | 미지원 프로바이더에는 LLM 클라이언트의 `LLM_STREAMING_UNSUPPORTED` 를 그대로 보낸다(REQ-ASSIST-012). 처음 설계한 어시스턴트 전용 `ASSISTANT_STREAMING_UNSUPPORTED` 는 같은 뜻의 코드를 하나 더 만드는 것이라 두지 않는다(2026-11-13). 다섯 프로바이더가 모두 스트리밍을 지원해 운영 환경의 발동 경로는 없다 |
 | 설정 패널과 동시에 열기 | 서로 배타적 | MVP 단순화. 사용자 피드백에 따라 나중에 나란히 둘 수 있다 |
 | 편집 권한 | 편집자(`editor`) 이상 | 기존 RBAC 규약을 재사용한다 |
 

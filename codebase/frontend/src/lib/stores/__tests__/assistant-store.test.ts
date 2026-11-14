@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const toastInfo = vi.hoisted(() => vi.fn());
+const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({
-  toast: { info: toastInfo, error: vi.fn(), success: vi.fn() },
+  toast: { info: toastInfo, error: toastError, success: vi.fn() },
 }));
 
 import {
@@ -19,6 +20,7 @@ import type {
   AssistantMessageData,
   AssistantSseEvent,
 } from "@/lib/api/assistant";
+import { assistantApi } from "@/lib/api/assistant";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 /**
@@ -243,6 +245,67 @@ describe("assistant-store", () => {
 
       expect(useAssistantStore.getState().messages).toBe(before);
     });
+  });
+
+  // 실패 토스트는 영어 하드코딩이 아니라 현재 로케일의 사전 문구로 띄운다
+  // (CLE-UI-I18N).
+  describe("failure toasts", () => {
+    beforeEach(() => {
+      toastError.mockClear();
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      useAssistantStore.setState({
+        currentWorkflowId: "wf-1",
+        sessionId: null,
+        llmConfigId: null,
+      });
+      // 스트림이 끝난 뒤 세션 목록을 다시 읽는다. 네트워크로 나가지 않게 막는다.
+      vi.spyOn(assistantApi, "listSessions").mockResolvedValue([]);
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it.each([
+      ["ko", "새 대화를 시작하지 못했어요. 잠시 후 다시 시도해 주세요."],
+      ["en", "Couldn't start a new conversation. Try again in a moment."],
+    ] as const)(
+      "shows the %s session-create failure toast",
+      async (locale, expected) => {
+        useLocaleStore.setState({ locale });
+        vi.spyOn(assistantApi, "createSession").mockRejectedValue(
+          new Error("boom"),
+        );
+
+        await useAssistantStore.getState().newSession();
+
+        expect(toastError).toHaveBeenCalledTimes(1);
+        expect(toastError.mock.calls[0][0]).toBe(expected);
+      },
+    );
+
+    it.each([
+      ["ko", "응답을 받지 못했어요. 같은 메시지를 다시 보내 주세요."],
+      ["en", "Couldn't get a response. Send your message again."],
+    ] as const)(
+      "shows the %s stream failure toast",
+      async (locale, expected) => {
+        useLocaleStore.setState({ locale });
+        useAssistantStore.setState({ sessionId: "sess-1" });
+        vi.spyOn(assistantApi, "streamMessage").mockRejectedValue(
+          new Error("network down"),
+        );
+
+        await useAssistantStore.getState().sendMessage("hello", {
+          nodes: [],
+          edges: [],
+        } as never);
+
+        expect(useAssistantStore.getState().error).toBe(
+          "ASSISTANT_STREAM_FAILED",
+        );
+        expect(toastError).toHaveBeenCalledTimes(1);
+        expect(toastError.mock.calls[0][0]).toBe(expected);
+      },
+    );
   });
 
   describe("applyAutoResumeEvent", () => {

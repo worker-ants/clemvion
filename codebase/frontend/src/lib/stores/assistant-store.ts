@@ -267,7 +267,12 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
       await get().refreshSessions();
     } catch (error) {
       console.error("Failed to create assistant session", error);
-      toast.error("Failed to start a new assistant session.");
+      toast.error(
+        translate(
+          useLocaleStore.getState().locale,
+          "assistant.sessionCreateFailedToast",
+        ),
+      );
     }
   },
 
@@ -391,7 +396,12 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
           ),
           error: "ASSISTANT_STREAM_FAILED",
         }));
-        toast.error("Assistant response failed. Please retry.");
+        toast.error(
+          translate(
+            useLocaleStore.getState().locale,
+            "assistant.responseFailedToast",
+          ),
+        );
       }
       // abort 이든 일반 에러든 아래 공통 cleanup 에서 streaming flag 을 정리.
     }

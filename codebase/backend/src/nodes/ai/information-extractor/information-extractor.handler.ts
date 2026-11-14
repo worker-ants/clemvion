@@ -1950,6 +1950,7 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
     const startedAt = Date.now();
     const result = await this.llmService.chat(llmConfig, params, llmContext, {
       signal,
+      applyModelDefaults: true,
     });
     return {
       result,

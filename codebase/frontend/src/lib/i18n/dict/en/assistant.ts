@@ -61,4 +61,23 @@ export const assistant: Dict["assistant"] = {
   exploreExecutionDetails: "Execution detail — {{nodeCount}} nodes",
   executionNotInScope:
     "This execution does not belong to the current workflow.",
+  sessionCreateFailedToast:
+    "Couldn't start a new conversation. Try again in a moment.",
+  responseFailedToast: "Couldn't get a response. Send your message again.",
+  toolBadgeNode: "node",
+  toolBadgeRemoveNode: "− node",
+  toolBadgeAddEdge: "→ edge",
+  toolBadgeRemoveEdge: "− edge",
+  toolBadgeIntegrations: "integrations",
+  toolBadgeWorkflows: "workflows",
+  toolBadgeWorkflowRef: "workflow ref",
+  toolBadgeNodeSchema: "schema: {{type}}",
+  toolBadgeKnowledgeBases: "knowledge bases",
+  toolBadgeExecutions: "executions",
+  toolBadgeExecutionsFiltered: "executions ({{status}})",
+  toolBadgeWithCount: "{{label}}: {{count}}",
+  toolBadgeExecutionDetail: "execution detail",
+  toolBadgeExecutionDetailNodes: "execution detail: {{count}} nodes",
+  errorStreamingUnsupported:
+    "The selected model config's provider doesn't support streaming responses, so the assistant can't use it. Choose another model config.",
 };

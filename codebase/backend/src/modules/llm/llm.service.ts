@@ -1,4 +1,5 @@
 import {
+  HttpException,
   Injectable,
   Logger,
   BadRequestException,
@@ -15,6 +16,7 @@ import {
   ChatResult,
   ChatStreamEvent,
   ModelInfo,
+  LLM_STREAMING_UNSUPPORTED,
 } from './interfaces/llm-client.interface';
 import type { EmbedInputType } from './embedding-input-type';
 import { extractRetryAfterMs } from '../../shared/utils/retry-after';
@@ -23,6 +25,7 @@ import { StubLlmClient } from './clients/stub.client';
 import { sanitizeLlmErrorMessage } from './utils/sanitize-error.util';
 import { withTimeout } from './utils/with-timeout.util';
 import { capModelList } from './list-models-cap';
+import { applyModelDefaultParams } from './model-default-params';
 import type { ModelTypeFilter } from '../model-config/dto/model-type';
 
 const LIST_MODELS_TIMEOUT_MS = 30_000;
@@ -63,6 +66,26 @@ export interface LlmCallOptions {
    * 효과가 노드 단계까지 도달. SoT: spec/conventions/node-cancellation.md.
    */
   signal?: AbortSignal;
+  /**
+   * 모델 설정 기본 파라미터(`defaultParams`)를 호출 값이 빈 자리에 채운다(CLE-T-GG3WPZ).
+   * 사람이 모델 설정을 고르는 호출(AI 노드 · 워크플로우 어시스턴트)만 켠다. KB · 메모리
+   * 내부 호출은 값을 직접 정하고 켜지 않는다. 병합 규칙은 `applyModelDefaultParams`.
+   */
+  applyModelDefaults?: boolean;
+}
+
+/**
+ * `LlmService.chatStream` 이 던지는 스트리밍 미지원 예외인지. 응답 본문의 `code` 로 본다.
+ * 던지는 쪽(`chatStream`)과 읽는 쪽(어시스턴트)이 문자열 계약을 따로 들고 있지 않게 한다.
+ */
+export function isLlmStreamingUnsupported(err: unknown): boolean {
+  if (!(err instanceof HttpException)) return false;
+  const body = err.getResponse();
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    (body as { code?: unknown }).code === LLM_STREAMING_UNSUPPORTED
+  );
 }
 
 @Injectable()
@@ -151,6 +174,17 @@ export class LlmService implements OnModuleInit {
     }
   }
 
+  /** `applyModelDefaults` 가 켜졌을 때만 모델 설정 기본 파라미터를 채운다. */
+  private resolveParams(
+    config: ModelConfig,
+    params: ChatParams,
+    opts?: Pick<LlmCallOptions, 'applyModelDefaults'>,
+  ): ChatParams {
+    return opts?.applyModelDefaults
+      ? applyModelDefaultParams(config, params)
+      : params;
+  }
+
   async chat(
     config: ModelConfig,
     params: ChatParams,
@@ -158,14 +192,15 @@ export class LlmService implements OnModuleInit {
     opts?: LlmCallOptions,
   ): Promise<ChatResult> {
     const client = this.createClient(config);
+    const effective = this.resolveParams(config, params, opts);
     // Strip `source` (WebSocket emit metadata per
     // spec/5-system/6-websocket-protocol.md §4.4.6) before forwarding to the
     // provider client — LLM APIs only see the canonical
     // {role, content, toolCalls?, toolCallId?} shape. The handler keeps the
     // marker on its in-memory `messages` array so emit paths preserve it.
     const sanitized: ChatParams = {
-      ...params,
-      messages: params.messages.map(({ source: _source, ...rest }) => rest),
+      ...effective,
+      messages: effective.messages.map(({ source: _source, ...rest }) => rest),
     };
     // disableInnerRetry: 호출자가 외부에서 retryWithBackoff 같은 자체 재시도 layer 를 가진 경우
     // 내부 rate-limit 재시도 (withRetry) 와 겹쳐 호출 횟수가 비선형 증폭되는 것을 막는다.
@@ -212,11 +247,12 @@ export class LlmService implements OnModuleInit {
     params: ChatParams,
     context?: LlmCallContext,
     signal?: AbortSignal,
+    opts?: Pick<LlmCallOptions, 'applyModelDefaults'>,
   ): AsyncIterable<ChatStreamEvent> {
     const client = this.createClient(config);
     if (!client.stream) {
       throw new BadRequestException({
-        code: 'LLM_STREAMING_UNSUPPORTED',
+        code: LLM_STREAMING_UNSUPPORTED,
         message: `Provider '${config.provider}' does not support streaming in this release.`,
       });
     }
@@ -227,8 +263,9 @@ export class LlmService implements OnModuleInit {
       thinkingTokens?: number;
     } | null = null;
     let lastModel: string = config.defaultModel;
+    const effective = this.resolveParams(config, params, opts);
     try {
-      for await (const event of client.stream(params, signal)) {
+      for await (const event of client.stream(effective, signal)) {
         if (event.type === 'done') {
           lastUsage = event.usage;
           lastModel = event.model;
@@ -319,19 +356,23 @@ export class LlmService implements OnModuleInit {
    * @returns 성공 시 `{ success: true }`, kind=embedding 이고 probe 가 차원을 감지하면
    *   `{ success: true, dimension }`. 실패 시 `{ success: false, message }` — `message` 는
    *   `sanitizeLlmErrorMessage` 의 8갈래 고정 문장 중 하나이며 provider 원문이 아니다.
+   * @throws {NotFoundException} MODEL_CONFIG_NOT_FOUND — 설정이 없거나 다른 워크스페이스의
+   *   설정일 때. 결과 객체로 삼키지 않는다.
    */
   async testConnection(
     configId: string,
     workspaceId: string,
   ): Promise<{ success: boolean; message?: string; dimension?: number }> {
+    // kind 무관 조회 — /models 통합 관리 UI 는 chat/embedding/rerank 어떤
+    // 설정이든 테스트한다. kind='chat' 고정 조회는 embedding 설정을
+    // MODEL_CONFIG_NOT_FOUND 로 거부했다(회귀).
+    // 조회는 try 밖이다. 없는 설정 · 다른 워크스페이스 설정은 probe 실패가 아니라
+    // 404 MODEL_CONFIG_NOT_FOUND 로 거절한다(`listModels` 와 같다).
+    const config = await this.modelConfigService.findEntity(
+      configId,
+      workspaceId,
+    );
     try {
-      // kind 무관 조회 — /models 통합 관리 UI 는 chat/embedding/rerank 어떤
-      // 설정이든 테스트한다. kind='chat' 고정 조회는 embedding 설정을
-      // MODEL_CONFIG_NOT_FOUND 로 거부했다(회귀).
-      const config = await this.modelConfigService.findEntity(
-        configId,
-        workspaceId,
-      );
       const client = this.createClient(config);
       if (config.kind === 'embedding') {
         // 임베딩은 probe embed 로 연결을 검증하고, 반환 벡터 길이로 차원을 감지한다.
@@ -418,9 +459,11 @@ export class LlmService implements OnModuleInit {
         code: 'MODEL_CONFIG_DEFAULT_MISSING',
         // workspace 어긋남 / 기본값 미설정 / context 누락 을 사용자가 직접
         // 식별할 수 있도록 workspaceId 를 메시지·payload 에 포함한다.
+        // 백엔드는 영문 고정 문구만 보낸다(CLE-UI-I18N). 화면 이름은 지금 메뉴
+        // 이름인 Model settings 로 적는다.
         message: workspaceId
-          ? `워크스페이스(${workspaceId}) 에 기본 LLM 이 설정되어 있지 않습니다. LLM 설정 페이지에서 기본 제공자를 지정하거나 노드에서 직접 LLM 을 선택해 주세요.`
-          : '실행 컨텍스트에 워크스페이스 정보가 없어 기본 LLM 을 찾을 수 없습니다. 노드에서 LLM 을 직접 선택해 주세요.',
+          ? `No default chat model config is set for workspace (${workspaceId}). Set a default Chat model in Model settings, or select a model config on the node.`
+          : 'The execution context has no workspace, so the default chat model config cannot be resolved. Select a model config on the node.',
         workspaceId,
       });
     }

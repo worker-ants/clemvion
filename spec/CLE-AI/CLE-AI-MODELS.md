@@ -2,19 +2,19 @@
 id: "CLE-AI-MODELS"
 title: "모델 설정"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-MODELS-001", "REQ-MODELS-002", "REQ-MODELS-003", "REQ-MODELS-004", "REQ-MODELS-005", "REQ-MODELS-006", "REQ-MODELS-007", "REQ-MODELS-008", "REQ-MODELS-009", "REQ-MODELS-010", "REQ-MODELS-011", "REQ-MODELS-012", "REQ-MODELS-013", "REQ-MODELS-014", "REQ-MODELS-015", "REQ-MODELS-016", "REQ-MODELS-017", "REQ-MODELS-018", "REQ-MODELS-019", "REQ-MODELS-020", "REQ-MODELS-021", "REQ-MODELS-022", "REQ-MODELS-023", "REQ-MODELS-024", "REQ-MODELS-025", "REQ-MODELS-026", "REQ-MODELS-027", "REQ-MODELS-028", "REQ-MODELS-029", "REQ-MODELS-030", "REQ-MODELS-031", "REQ-MODELS-032", "REQ-MODELS-033", "REQ-MODELS-034", "REQ-MODELS-035", "REQ-MODELS-036", "REQ-MODELS-037", "REQ-MODELS-038"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "74a82c8806a9e0a09a0193147fda8484743395f5457818d443e7483e4e1af393"
+content_hash: "8ea09a05a2666b7c679b140f667bf61ed97337ddefb204389b133ce9cd1c7d19"
 read_as: "approved_fallback"
-task: "CLE-T-7KYH1X"
+task: "CLE-T-GG3WPZ"
 source_paths: ["spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "911218d29c6fccbe265b409f2ec7584ae057fe53122b741312b9e421b832d86f"
-etag: "sha256-56bb5d3c162983fd80e657c785e5d4ef40171596ba97edf9cfc41e74a71d89aa"
+mirror_sha256: "a477f538b7884c405a3945e6751a68fa3d3c6b8b9614610fe1b5140bd53a2742"
+etag: "sha256-d4f5524e86c310b9344fb8e0928a7bb9d8301f91764d17939dcb7297e156adb4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Part B, §3 API 의 모델 설정 표, R-1·R-3·R-4·R-5·R-7), `spec/2-navigation/_product-overview.md` (§3.7), `spec/4-nodes/3-ai/_product-overview.md` (§3.1, §4 API 키 암호화, §5 NF-AI-04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -114,9 +114,9 @@ etag: "sha256-56bb5d3c162983fd80e657c785e5d4ef40171596ba97edf9cfc41e74a71d89aa"
 | temperature | 응답의 창의성·무작위성. Anthropic 모델에는 보내지 않는다 | 0.7 |
 | max_tokens | 최대 출력 토큰 수 | 4096 |
 
-폼에는 이 두 값만 있다. top_p · frequency_penalty · presence_penalty 입력은 없다. Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트 「Anthropic 에 샘플링 파라미터를 보내지 않는다」](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)).
+폼에는 이 두 값만 있다. top_p · frequency_penalty · presence_penalty 입력은 없다. Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트 「Anthropic 에 샘플링 파라미터를 보내지 않는다」](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)). 폼은 temperature 가 0~2 의 숫자면 0 도 그대로 저장하고 아니면 0.7 을 저장한다. max_tokens 가 양의 정수가 아니면 4096 을 저장한다.
 
-(미구현) 저장한 기본 파라미터는 아직 어떤 호출에도 쓰이지 않는다. 백엔드는 `defaultParams` 를 저장하고 응답에 싣기만 한다. AI 노드는 노드 설정의 Temperature · Max Tokens 를 쓰고([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)), 워크플로우 AI 어시스턴트와 에이전트 메모리 호출도 이 값을 읽지 않는다. 호출 쪽 설정이 비어 있을 때 이 값을 기본으로 넣는 일은 후속 작업 CLE-T-GG3WPZ 가 맡는다.
+AI 노드 셋(AI 에이전트 · 정보 추출기 · 텍스트 분류기)과 워크플로우 AI 어시스턴트는 호출 쪽에서 temperature · max_tokens 를 정하지 않으면 이 값을 쓴다. 둘 다 없으면 보내지 않는다. 지식 저장소와 에이전트 메모리의 내부 호출은 이 값을 쓰지 않는다. 규칙은 [LLM 클라이언트 「모델 설정 기본 파라미터 채우기」](CLE-AI-LLM-SERVICE.md#모델-설정-기본-파라미터-채우기) 가 정한다.
 
 ## 연결 테스트
 
@@ -205,7 +205,6 @@ Chat·Embedding·Rerank 를 한 엔드포인트에서 `kind` 로 구분해 관�
 
 ## 미결 사항
 
-- **기본 파라미터의 런타임 반영**: 저장한 `defaultParams` 를 어느 호출 경로에, 노드 설정과 어떤 우선순위로 넣을지 정해야 한다([기본 파라미터 기본값](#기본-파라미터-기본값)). 후속 작업 CLE-T-GG3WPZ 에서 정한다.
 - **Embedding 차원 변경 가드의 강제 지점**: Embedding 탭 규칙은 벡터를 적재한 지식 저장소가 참조하는 모델의 차원을 나중에 바꿀 수 없다고 적는다. 같은 문서의 연결 테스트 규칙은 감지한 차원이 저장값과 다르면 `PATCH` 로 자동 저장한다. 현재 구현은 모델 설정 수정(`ModelConfigService.update`)에 차원 변경을 막는 검사가 없고 Embedding 종류이면 `dimension` 을 그대로 바꾼다. 실제 보호가 지식 저장소 쪽 저장 청크 차원(`embedding_dimension`) 초기화와 검색 불가 처리([문서 임베딩](../CLE-KB/CLE-KB-EMBED.md))로 대신되는지, 모델 설정 층에 가드를 둘지 결정 필요. 저장 청크 차원의 정의([지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md#미결-사항))와 함께 정해야 한다([문서 임베딩](../CLE-KB/CLE-KB-EMBED.md#미결-사항)).
 
 ## 구현 위치
@@ -252,7 +251,7 @@ Chat·Embedding·Rerank 를 한 엔드포인트에서 `kind` 로 구분해 관�
 
 ### max_tokens 기본값을 4096 으로 둔 이유
 
-예전 스펙은 `max_tokens` 기본값을 2048 로 적었지만 구현에 적용된 적이 없다. 옛 `/llm-configs` 폼과 지금의 `/models` 폼(`ModelConfigManager`) 모두 처음부터 4096 을 기본값으로 썼다. 코드가 먼저 4096 으로 자리 잡고 스펙 표기만 낡아 있었으므로 스펙을 실제 동작에 맞췄다. 요즘 LLM 은 4096 출력 토큰을 안전하게 지원하므로 잘림을 덜 겪고 쓰기에 더 실용적이다. AI 에이전트 노드 설정 예시의 `maxTokens` 도 4096 으로 맞췄다. 노드 `maxTokens` 가 모델 설정 기본값을 이어받는 동작은 아직 없다([기본 파라미터 기본값](#기본-파라미터-기본값)).
+예전 스펙은 `max_tokens` 기본값을 2048 로 적었지만 구현에 적용된 적이 없다. 옛 `/llm-configs` 폼과 지금의 `/models` 폼(`ModelConfigManager`) 모두 처음부터 4096 을 기본값으로 썼다. 코드가 먼저 4096 으로 자리 잡고 스펙 표기만 낡아 있었으므로 스펙을 실제 동작에 맞췄다. 요즘 LLM 은 4096 출력 토큰을 안전하게 지원하므로 잘림을 덜 겪고 쓰기에 더 실용적이다. AI 에이전트 노드 설정 예시의 `maxTokens` 도 4096 으로 맞췄다. 노드 `maxTokens` 를 비우면 모델 설정의 `max_tokens` 를 쓴다([기본 파라미터 기본값](#기본-파라미터-기본값)).
 
 ### Anthropic 에서 Temperature 입력을 잠근다 (2026-11-13)
 

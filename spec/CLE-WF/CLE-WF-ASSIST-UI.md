@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-UI"
 title: "워크플로우 AI 어시스턴트 — 패널 화면"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
-content_hash: "96a789921ca2a66fdc115d2877220b794f3446f33f2175b34ea715cd092b0805"
+content_hash: "25e7842a962721b4b48958d5250c9bc73e3b9e44ff9104b4bb748e64ff326d4b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-F9QEJC"
 source_paths: []
-mirror_sha256: "34f0337d2981af14fadc130e8522f352e6c28546405e9e45cd22d6227f5e39ef"
-etag: "sha256-c25368d534f7ec9c9985119a6e32de5181d49b1b1931a19a87dc65addbe7047e"
+mirror_sha256: "54490a09fc727d4ee48da5823d8895996ac59ef3c3e187cd16e11605dbd5e1b6"
+etag: "sha256-f1c1cc558cf670a9ca164f9f135755bc8e1f7a64103428121d7e979a7a919e7b"
 ---
 ## 개요
 
@@ -37,7 +37,7 @@ etag: "sha256-c25368d534f7ec9c9985119a6e32de5181d49b1b1931a19a87dc65addbe7047e"
 |------|------|---------------|------|
 | 헤더 | 맨 위 | 제목 "AI 어시스턴트", 닫기(✕) | 닫아도 어시스턴트 세션은 서버에 남는다 |
 | 모델 줄 | 헤더 아래 | 모델 설정 선택기, 새 대화(⟳) 버튼 | 아래 요소 표 참고 |
-| 메시지 목록 | 가운데 | 사용자·어시스턴트 메시지, 탐색 배지(예: `list_integrations() → 3 entries`), 계획 카드(제목, 번호 붙은 단계 체크박스, "계획대로 진행" 버튼), 편집 배지(예: `add_node HTTP Request`, `add_edge Manual → HTTP`), 안내 박스, 에러 버블 | 시간순으로 쌓인다 |
+| 메시지 목록 | 가운데 | 사용자·어시스턴트 메시지, 탐색 배지(예: `통합 목록`, `실행 내역: 3건`), 계획 카드(제목, 번호 붙은 단계 체크박스, "계획대로 진행" 버튼), 편집 배지(예: `+ HTTP Request`, `→ 연결선`), 안내 박스, 에러 버블 | 시간순으로 쌓인다 |
 | 입력 영역 | 맨 아래 | 입력창("요청을 입력하세요..."), 안내 "Enter: 전송 · Shift+Enter: 줄바꿈", 응답 중단(Stop) 버튼 | 응답 중단 버튼은 스트리밍 중에만 보인다 |
 
 ### 요소별 동작
@@ -97,7 +97,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 
 ## i18n 키
 
-도구 호출 배지의 요약 문구는 지금 영문 고정 문자열이다(`tool-call-badge.tsx` 의 `summarize()`). 재시도 후 성공 표시만 `assistant.toolCallBadgeRetryRecovered` 를 쓴다. 이 영문 고정은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 1 의 알려진 예외로 적어 둔다. 아래 `assistant.exploreLookup`·`assistant.exploreExecutionsList`·`assistant.exploreExecutionDetails` 등 탐색 계열 키는 에디터의 다른 화면(안내, 에러 버블)에서 쓰기 위한 약속이다. 배지 요약을 사전 키로 옮기는 일은 NERV Task `CLE-T-F9QEJC` 가 맡는다. 다국어 규약은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md)를 따른다.
+도구 호출 배지의 요약 문구(`tool-call-badge.tsx` 의 `summarize()`)는 고정 단어를 `assistant.toolBadge*` 사전 키로 그린다. 도구 인자 · 결과에서 온 값은 번역하지 않고 그대로 싣는다. 노드 라벨 · 타입, 설정 키 이름, 실행 상태 값, 알 수 없는 도구의 이름이 그런 값이다. 재시도 후 성공 표시는 `assistant.toolCallBadgeRetryRecovered` 를 쓴다. 아래 `assistant.exploreLookup`·`assistant.exploreExecutionsList`·`assistant.exploreExecutionDetails` 등 탐색 계열 키는 에디터의 다른 화면(안내, 에러 버블)에서 쓰기 위한 약속이다. 다국어 규약은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md)를 따른다.
 
 | 키 | 한국어 | 영어 |
 |----|--------|------|
@@ -107,6 +107,8 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 | `assistant.modelLabel` | 모델 | Model |
 | `assistant.modelDefault` | 기본 Provider | Default provider |
 | `assistant.configFallbackToast` | 선택한 모델 설정을 찾지 못해 워크스페이스 기본 설정({{name}})으로 답해요. | The selected model config wasn't found, so the workspace default ({{name}}) will answer. |
+| `assistant.sessionCreateFailedToast` | 새 대화를 시작하지 못했어요. 잠시 후 다시 시도해 주세요. | Couldn't start a new conversation. Try again in a moment. |
+| `assistant.responseFailedToast` | 응답을 받지 못했어요. 같은 메시지를 다시 보내 주세요. | Couldn't get a response. Send your message again. |
 | `assistant.placeholder` | 요청을 입력하세요... | Describe what you want to build... |
 | `assistant.sendButton` | 전송 | Send |
 | `assistant.stopButton` | 중단 | Stop |
@@ -126,6 +128,20 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 | `assistant.candidatePickerEmpty` | 사용 가능한 {{label}} 이(가) 없어요. Settings 에서 먼저 등록해 주세요. | No {{label}} available yet. Register one in Settings first. |
 | `assistant.candidatePickerEmptyLink` | 설정 화면으로 이동 | Open Settings |
 | `assistant.toolCallBadgeRetryRecovered` | 재시도 후 성공 | Retried and succeeded |
+| `assistant.toolBadgeNode` | 노드 | node |
+| `assistant.toolBadgeRemoveNode` | − 노드 | − node |
+| `assistant.toolBadgeAddEdge` | → 연결선 | → edge |
+| `assistant.toolBadgeRemoveEdge` | − 연결선 | − edge |
+| `assistant.toolBadgeIntegrations` | 통합 목록 | integrations |
+| `assistant.toolBadgeWorkflows` | 워크플로우 목록 | workflows |
+| `assistant.toolBadgeWorkflowRef` | 워크플로우 참조 | workflow ref |
+| `assistant.toolBadgeNodeSchema` | 스키마: {{type}} | schema: {{type}} |
+| `assistant.toolBadgeKnowledgeBases` | 지식 저장소 목록 | knowledge bases |
+| `assistant.toolBadgeExecutions` | 실행 내역 | executions |
+| `assistant.toolBadgeExecutionsFiltered` | 실행 내역 ({{status}}) | executions ({{status}}) |
+| `assistant.toolBadgeWithCount` | {{label}}: {{count}}건 | {{label}}: {{count}} |
+| `assistant.toolBadgeExecutionDetail` | 실행 상세 | execution detail |
+| `assistant.toolBadgeExecutionDetailNodes` | 실행 상세: 노드 {{count}}개 | execution detail: {{count}} nodes |
 | `assistant.errorBubbleTitle` | 요청 처리 중 문제가 발생했어요 | Something went wrong with this turn |
 | `assistant.emptyTitle` | 무엇을 도와드릴까요? | How can I help? |
 | `assistant.emptySubtitle` | 자연어로 원하는 워크플로우를 설명하면 함께 만들어드려요. | Describe the workflow you want and I'll build it with you. |
@@ -139,6 +155,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 | `assistant.errorRateLimit` | AI 모델의 요청 한도를 넘었어요. 잠시 후 같은 메시지를 다시 보내 주세요. | The AI model's rate limit was reached. Send your message again in a moment. |
 | `assistant.errorConnection` | AI 모델과 통신하다가 오류가 났어요. 잠시 후 같은 메시지를 다시 보내 주세요. | Something went wrong while talking to the AI model. Send your message again in a moment. |
 | `assistant.errorOutputMalformed` | 모델이 응답에 내부 제어 토큰을 드러내 처리를 멈췄어요. 다른 모델로 바꾸거나 모델 서빙 설정을 확인해 주세요. | The model leaked internal control tokens into its response, so processing was stopped. Switch to another model or check the model's serving settings. |
+| `assistant.errorStreamingUnsupported` | 선택한 모델 설정의 프로바이더는 스트리밍 응답을 지원하지 않아 어시스턴트에서 쓸 수 없어요. 다른 모델 설정을 골라 주세요. | The selected model config's provider doesn't support streaming responses, so the assistant can't use it. Choose another model config. |
 | `assistant.errorTooManyToolCalls` | 이번 턴에 쓸 수 있는 도구 호출을 다 썼어요. "이어서 진행" 버튼을 누르면 남은 단계를 이어서 해요. | This turn used up all of its available tool calls. Press "Continue" to carry on with the remaining steps. |
 | `assistant.continueAfterBudgetButton` | 이어서 진행 | Continue |
 | `assistant.continueAfterBudget` | 이어서 진행해줘. | Continue. |
@@ -155,6 +172,10 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 `assistant.planApproveConfirm` 은 안내 상자로는 쓰지 않는다. "계획대로 진행" 버튼(`approveActivePlan`)이 사용자 메시지로 보낼 때 쓴다.
 
 `assistant.continueAfterBudgetButton` 은 에러 버블의 "이어서 진행" 버튼 라벨이다. 버튼을 누르면 `continueAfterBudget` 동작이 현재 언어의 `assistant.continueAfterBudget` 문구를 사용자 메시지로 보낸다.
+
+`assistant.toolBadgeNode` 는 라벨 · 타입이 없는 `add_node` 와 설정 키가 없는 `update_node` 의 배지에 쓴다. `assistant.toolBadgeWithCount` 의 `{{label}}` 에는 `assistant.toolBadgeExecutions` 나 `assistant.toolBadgeExecutionsFiltered` 문구가 들어간다.
+
+`assistant.sessionCreateFailedToast` 는 새 대화의 세션을 만들지 못했을 때 토스트로 띄운다. `assistant.responseFailedToast` 는 응답 스트림 요청 자체가 실패했을 때 토스트로 띄운다. 사용자가 응답을 중단한 경우에는 띄우지 않는다.
 
 ## 구현 위치
 
@@ -206,3 +227,11 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 - 에러 상자 스타일을 바꾸면 안내 상자와 일관되게 둔다(밝은·어두운 모드 모두 950/50 대비).
 - `RESUMABLE_ERROR_CODES` 에 코드를 더하면 (1) 백엔드가 그 코드를 실제로 내는지, (2) "이어서 진행해줘" 가 의미 있는 복구인지, (3) `continueAfterBudget` 대신 별도 재개 동작이 필요한지 확인한다.
 - `RESUMABLE_ERROR_CODES` 를 바꾸면 `assistant.errorTooManyToolCalls` 문구도 함께 본다. 이 문구가 «"이어서 진행" 버튼» 을 가리키기 때문이다. 에러 버블 테스트(`assistant-message-error.test.tsx`)가 이 문구에 버튼 문구(`assistant.continueAfterBudgetButton`)가 들어 있는지 확인한다.
+
+### 도구 호출 배지 요약과 실패 토스트를 사전 키로 옮겼다 (2026-11-14)
+
+도구 호출 배지 요약은 영문 고정 문자열이라 한국어 로케일에서도 영문으로 보였다. 이 문구는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 1 의 알려진 예외로 적혀 있었다. NERV Task `CLE-T-F9QEJC` 가 고정 단어를 `assistant.toolBadge*` 사전 키로 옮겼다. 규칙 1 의 예외 항목은 같은 변경에서 지운다.
+
+- **도구 인자 · 결과에서 온 값은 번역하지 않는다.** 노드 라벨은 워크플로우에 들어가는 이름이다. 노드 타입 · 설정 키 · 실행 상태 값 · 도구 이름은 코드 식별자다. 둘 다 사전에 둘 화면 문구가 아니어서 그대로 싣는다.
+- **배지 모양은 바꾸지 않았다.** 아이콘, `× N` 묶음, 재시도 후 성공 표시, `tool_call` 데이터 모양은 그대로다. 바뀐 것은 고정 단어를 가져오는 곳뿐이다.
+- **실패 토스트도 사전 키로 옮겼다.** 세션 생성 실패와 응답 실패 토스트는 NERV Task `CLE-T-9T5MNG` 가 `assistant.sessionCreateFailedToast` · `assistant.responseFailedToast` 로 옮겼다.

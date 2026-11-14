@@ -299,10 +299,92 @@ describe("useModelConfigForm — handleSave create payload", () => {
       }),
     );
   });
+  // CLE-T-GG3WPZ — temperature 0 은 값이다. 기본값(0.7)으로 바꿔 저장하지 않는다.
+  it("keeps a temperature of 0 instead of falling back to the default", async () => {
+    createMock.mockResolvedValue({ id: "new-4" });
+
+    const { result } = renderHook(
+      () =>
+        useModelConfigForm({ kind: "chat", editConfig: null, onClose: vi.fn() }),
+      { wrapper },
+    );
+
+    act(() => result.current.openFor(null));
+    act(() => {
+      result.current.setProvider("openai");
+      result.current.setName("Deterministic");
+      result.current.setApiKey("test-key-1234");
+      result.current.setModel("gpt-4o");
+      result.current.setTemperature("0");
+    });
+
+    await act(async () => result.current.handleSave());
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultParams: { temperature: 0, max_tokens: DEFAULT_MAX_TOKENS },
+      }),
+    );
+  });
+
+  it.each([
+    ["a temperature above 2", "2.5", "4096", { temperature: DEFAULT_TEMPERATURE, max_tokens: 4096 }],
+    ["a negative temperature", "-0.1", "4096", { temperature: DEFAULT_TEMPERATURE, max_tokens: 4096 }],
+    ["a zero max_tokens", "0.5", "0", { temperature: 0.5, max_tokens: DEFAULT_MAX_TOKENS }],
+    ["a negative max_tokens", "0.5", "-5", { temperature: 0.5, max_tokens: DEFAULT_MAX_TOKENS }],
+  ])("falls back to the default for %s", async (_title, temp, tokens, expected) => {
+    createMock.mockResolvedValue({ id: "new-5" });
+
+    const { result } = renderHook(
+      () =>
+        useModelConfigForm({ kind: "chat", editConfig: null, onClose: vi.fn() }),
+      { wrapper },
+    );
+
+    act(() => result.current.openFor(null));
+    act(() => {
+      result.current.setProvider("openai");
+      result.current.setName("Out of range");
+      result.current.setApiKey("test-key-1234");
+      result.current.setModel("gpt-4o");
+      result.current.setTemperature(temp);
+      result.current.setMaxTokens(tokens);
+    });
+
+    await act(async () => result.current.handleSave());
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultParams: expected }),
+    );
+  });
 });
 
 describe("useModelConfigForm — handleSave update payload", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  // CLE-T-GG3WPZ — 저장된 temperature 0 을 고치지 않고 다시 저장해도 0 이 남는다.
+  it("keeps a stored temperature of 0 when saving an edit", async () => {
+    updateMock.mockResolvedValue({});
+
+    const config = makeConfig({
+      defaultParams: { temperature: 0, max_tokens: 2048 },
+    });
+    const { result } = renderHook(
+      () =>
+        useModelConfigForm({ kind: "chat", editConfig: config, onClose: vi.fn() }),
+      { wrapper },
+    );
+
+    act(() => result.current.openFor(config));
+    act(() => result.current.setName("Renamed"));
+
+    await act(async () => result.current.handleSave());
+
+    expect(updateMock.mock.calls[0][1].defaultParams).toEqual({
+      temperature: 0,
+      max_tokens: 2048,
+    });
+  });
 
   it("assembles update payload without apiKey when apiKey is empty (keep existing)", async () => {
     updateMock.mockResolvedValue({});

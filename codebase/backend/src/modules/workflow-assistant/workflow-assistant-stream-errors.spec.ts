@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { LlmStreamErrorCode } from '../llm/interfaces/llm-client.interface';
+import { BadRequestException } from '@nestjs/common';
+import {
+  LLM_STREAMING_UNSUPPORTED,
+  type LlmStreamErrorCode,
+} from '../llm/interfaces/llm-client.interface';
 import {
   ASSISTANT_STREAM_ERROR_FALLBACK_MESSAGE,
   ASSISTANT_STREAM_ERROR_MESSAGES,
@@ -26,6 +30,7 @@ const TABLE_CODES = [
   'LLM_CONNECTION_ERROR',
   'LLM_OUTPUT_MALFORMED',
   'LLM_RATE_LIMIT',
+  'LLM_STREAMING_UNSUPPORTED',
 ];
 /** 한도 숫자가 문구에 들어가 표 대신 `assistantStreamError.tooManyToolCalls` 가 문구를 만드는 코드. */
 const FUNCTION_CODES = ['ASSISTANT_TOO_MANY_TOOL_CALLS'];
@@ -232,6 +237,52 @@ describe('assistantStreamError', () => {
         code: 'ASSISTANT_STREAM_FAILED',
         message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
       });
+    });
+  });
+
+  // REQ-ASSIST-012: `LlmService.chatStream` 이 던지는 `LLM_STREAMING_UNSUPPORTED` 는
+  // 코드를 그대로 넘긴다. 나머지 예외는 원인을 나누지 않고 `ASSISTANT_STREAM_FAILED` 다.
+  describe('fromStreamException', () => {
+    it('forwards LLM_STREAMING_UNSUPPORTED with the table message', () => {
+      const err = new BadRequestException({
+        code: LLM_STREAMING_UNSUPPORTED,
+        message: "Provider 'acme' does not support streaming in this release.",
+      });
+      expect(assistantStreamError.fromStreamException(err)).toEqual({
+        code: 'LLM_STREAMING_UNSUPPORTED',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_STREAMING_UNSUPPORTED,
+      });
+    });
+
+    it('does not echo the provider name from the exception message', () => {
+      const err = new BadRequestException({
+        code: LLM_STREAMING_UNSUPPORTED,
+        message: "Provider 'acme-secret' does not support streaming.",
+      });
+      expect(
+        JSON.stringify(assistantStreamError.fromStreamException(err)),
+      ).not.toContain('acme-secret');
+    });
+
+    it.each([
+      ['a plain Error', new Error('LLM_STREAMING_UNSUPPORTED')],
+      [
+        'an HttpException with another code',
+        new BadRequestException({ code: 'LLM_CONNECTION_ERROR', message: 'x' }),
+      ],
+      ['an HttpException with a string body', new BadRequestException('nope')],
+      [
+        'a non-HttpException carrying the code',
+        Object.assign(new Error('x'), {
+          response: { code: LLM_STREAMING_UNSUPPORTED },
+        }),
+      ],
+      ['a thrown string', 'LLM_STREAMING_UNSUPPORTED'],
+      ['undefined', undefined],
+    ])('maps %s to ASSISTANT_STREAM_FAILED', (_title, err) => {
+      expect(assistantStreamError.fromStreamException(err)).toEqual(
+        assistantStreamError.streamFailed(),
+      );
     });
   });
 

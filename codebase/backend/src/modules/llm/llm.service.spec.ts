@@ -119,6 +119,50 @@ describe('LlmService', () => {
       expect(result.content).toBe('response');
     });
 
+    // CLE-T-GG3WPZ: 기본 파라미터는 호출 쪽이 옵션으로 고를 때만 채운다.
+    describe('applyModelDefaults option', () => {
+      const chatConfig = {
+        id: 'config-1',
+        kind: 'chat',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+        defaultParams: { temperature: 0.2, max_tokens: 1024 },
+      } as never;
+      const bare = {
+        model: 'gpt-4o',
+        messages: [{ role: 'user' as const, content: 'Hello' }],
+      };
+
+      it('fills empty temperature · maxTokens from defaultParams when opted in', async () => {
+        await service.chat(chatConfig, bare, undefined, {
+          applyModelDefaults: true,
+        });
+        expect(mockClient.chat).toHaveBeenCalledWith(
+          { ...bare, temperature: 0.2, maxTokens: 1024 },
+          undefined,
+        );
+      });
+
+      it('keeps the caller values when opted in', async () => {
+        await service.chat(
+          chatConfig,
+          { ...bare, temperature: 0.9, maxTokens: 10 },
+          undefined,
+          { applyModelDefaults: true },
+        );
+        expect(mockClient.chat).toHaveBeenCalledWith(
+          { ...bare, temperature: 0.9, maxTokens: 10 },
+          undefined,
+        );
+      });
+
+      it('does not read defaultParams without the option', async () => {
+        await service.chat(chatConfig, bare);
+        expect(mockClient.chat).toHaveBeenCalledWith(bare, undefined);
+      });
+    });
+
     it('forwards opts.signal to client.chat (node-cancellation 컨벤션, parallel-p2 followups §1)', async () => {
       const config = {
         id: 'config-1',
@@ -359,6 +403,30 @@ describe('LlmService', () => {
       return seen;
     }
 
+    // CLE-T-GG3WPZ: 어시스턴트처럼 옵션을 고른 호출만 기본 파라미터를 받는다.
+    it('fills empty params from defaultParams only when opted in', async () => {
+      const chatConfig = {
+        ...(config as object),
+        kind: 'chat',
+        defaultParams: { temperature: 0.4, max_tokens: 2048 },
+      } as never;
+      mockClient.stream = streamOf([]);
+
+      await drain(
+        service.chatStream(chatConfig, params, undefined, undefined, {
+          applyModelDefaults: true,
+        }),
+      );
+      await drain(service.chatStream(chatConfig, params));
+
+      expect((mockClient.stream as jest.Mock).mock.calls[0][0]).toEqual({
+        ...params,
+        temperature: 0.4,
+        maxTokens: 2048,
+      });
+      expect((mockClient.stream as jest.Mock).mock.calls[1][0]).toEqual(params);
+    });
+
     it('429 error 이벤트를 받으면 다시 열지 않고 그 이벤트를 넘긴다', async () => {
       const rateLimited: ChatStreamEvent = {
         type: 'error',
@@ -568,6 +636,21 @@ describe('LlmService', () => {
   });
 
   describe('testConnection', () => {
+    // 없는 설정 · 다른 워크스페이스 설정은 프로바이더 probe 실패가 아니다. 200 결과
+    // 객체로 삼키지 않고 404 MODEL_CONFIG_NOT_FOUND 로 거절한다(`:id/models` 와 같다).
+    it('rejects a missing or other-workspace config with MODEL_CONFIG_NOT_FOUND', async () => {
+      const notFound = new NotFoundException({
+        code: 'MODEL_CONFIG_NOT_FOUND',
+        message: 'Model config not found',
+      });
+      mockModelConfigService.findEntity.mockRejectedValueOnce(notFound);
+
+      await expect(
+        service.testConnection('config-missing', 'ws-1'),
+      ).rejects.toBe(notFound);
+      expect(mockClient.testConnection).not.toHaveBeenCalled();
+    });
+
     it('should return success on successful connection', async () => {
       const result = await service.testConnection('config-1', 'ws-1');
       expect(result).toEqual({ success: true });
@@ -773,10 +856,31 @@ describe('LlmService', () => {
         response: {
           code: 'MODEL_CONFIG_DEFAULT_MISSING',
           workspaceId: '',
-          message: expect.stringContaining('워크스페이스 정보가 없어'),
+          message: expect.stringContaining('no workspace'),
         },
       });
     });
+
+    // 백엔드는 영문 고정 문구만 보낸다(CLE-UI-I18N). 화면 이름은 지금 쓰는
+    // 「Model settings」로 적는다(옛 「LLM 설정 페이지」 금지).
+    it.each([
+      ['ws-42', 'workspace id present'],
+      ['', 'workspace id missing'],
+    ])(
+      'should send an English message without Hangul (%s, %s)',
+      async (workspaceId) => {
+        mockModelConfigService.findDefault.mockResolvedValue(null);
+
+        const err = await service
+          .resolveConfig(undefined, workspaceId)
+          .catch((err_: unknown) => err_);
+        const response = (err as BadRequestException).getResponse() as {
+          message: string;
+        };
+        expect(response.message).not.toMatch(/[\uAC00-\uD7A3]/);
+        expect(response.message).not.toMatch(/LLM settings/i);
+      },
+    );
   });
 
   describe('resolveEmbedding', () => {

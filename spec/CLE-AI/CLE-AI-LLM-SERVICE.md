@@ -2,23 +2,23 @@
 id: "CLE-AI-LLM-SERVICE"
 title: "LLM 클라이언트 — 서비스 계층과 모델 목록"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-LLM"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-LLM"]
 area: "CLE-AI"
-content_hash: "f81a1d37fbc368b6d6d706a4e4d950e79d509c109da8a704ac6bd674b6b5db5e"
+content_hash: "10406ad598098258f4d3426bdba7adeed39247b2dc2f37c664565849719b7213"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GG3WPZ"
 source_paths: []
-mirror_sha256: "76cbd17e20a09d0d0283c2508afc5bc035e98b3f3247b216eb23cdbbc50b0747"
-etag: "sha256-5f9c32743de65409632b13573c771b327988c3fd680f1afaf2bd5d70da8df4f4"
+mirror_sha256: "8d147808be9d2434eb2b73f86d05ae565fbe9bcf6c910a46cc8aaf55ecf16b75"
+etag: "sha256-61ffaf2450dcf6f8639f5458ec28fef7633dcd316649e4819243b307a2f1c46c"
 ---
 ## 개요
 
-이 문서는 [LLM 클라이언트](CLE-AI-LLM.md) 의 하위 문서로 서비스 계층(`LlmService`)의 호출 계약 · 설정 해석 · 연결 테스트와 저장 전 모델 목록 미리보기 방식을 정한다.
+이 문서는 [LLM 클라이언트](CLE-AI-LLM.md) 의 하위 문서로 서비스 계층(`LlmService`)의 호출 계약 · 설정 해석 · 모델 설정 기본 파라미터 채우기 · 연결 테스트와 저장 전 모델 목록 미리보기 방식을 정한다.
 
 ## 서비스 계층
 
@@ -39,17 +39,19 @@ class LlmService {
     inputType?: 'query' | 'document',   // 생략하면 'document'
   ): Promise<number[][]>;
 
-  /** 스트리밍 chat. client.stream 에 넘기고, done 이벤트에서 llmUsageLogService.record() 를 fire-and-forget 으로 부른다 */
+  /** 스트리밍 chat. client.stream 에 넘기고, done 이벤트에서 llmUsageLogService.record() 를 fire-and-forget 으로 부른다.
+   *  opts.applyModelDefaults 가 참이면 넘기기 전에 모델 설정 기본 파라미터를 채운다. */
   chatStream(
     config: LlmConfig,
     params: ChatParams,
     context?: LlmCallContext,
     signal?: AbortSignal,
+    opts?: Pick<LlmCallOptions, 'applyModelDefaults'>,
   ): AsyncIterable<ChatStreamEvent>;
 }
 ```
 
-- `LlmCallOptions`(`timeoutMs`·`disableInnerRetry`·`signal`)는 코드(`llm.service.ts`)가 기준이다. `embed` 는 그중 `timeoutMs`·`disableInnerRetry` 만 받는다.
+- `LlmCallOptions`(`timeoutMs`·`disableInnerRetry`·`signal`·`applyModelDefaults`)는 코드(`llm.service.ts`)가 기준이다. `chat` 은 넷을 모두 받는다. `embed` 는 그중 `timeoutMs`·`disableInnerRetry` 만 받는다. `chatStream` 은 `applyModelDefaults` 만 받고 취소 신호는 네 번째 인자 `signal` 로 받는다.
 - 호출 예: `opts` 없이 query 임베딩만 원하면 네 번째 인자에 `undefined` 를 명시한다. `embed(config, texts, model, undefined, 'query')`. 위치 인자라서 `inputType` 만 넘길 때는 `opts` 자리를 비워야 한다.
 
 ### 호출 신뢰성 계약
@@ -73,22 +75,49 @@ class LlmService {
 - `listModels` 결과는 설정마다 5분 캐시한다(키 `${workspaceId}|${configId}`). 호출 타임아웃은 30초다.
 - 모델 설정을 고치거나 지우면 `ModelConfigService` 가 `notifyInvalidated(id)` 로 통지한다. `LlmService` 는 `onModuleInit` 에서 `onConfigInvalidated` 를 구독해 두었다가 `clearClientCache(id)` 로 클라이언트 캐시와 `listModels` 캐시를 함께 지운다.
 
+### 모델 설정 기본 파라미터 채우기
+
+모델 설정의 기본 파라미터(`defaultParams`)는 호출 옵션 `applyModelDefaults` 를 켠 호출에만 들어간다. `chat` 은 `opts.applyModelDefaults` 가 참이면, `chatStream` 은 다섯 번째 인자 `opts.applyModelDefaults` 가 참이면 프로바이더 클라이언트에 넘기기 전에 값을 채운다. 채우는 함수는 `applyModelDefaultParams(config, params)`(`llm/model-default-params.ts`)다. 옵션이 없으면 호출 값만 보낸다.
+
+병합 규칙은 `applyModelDefaultParams` 한 곳에 있다.
+
+- 우선순위는 호출 쪽 값, 모델 설정 `defaultParams`, 보내지 않음 순서다. 호출 쪽 `null` · `undefined` 를 빈 값으로 본다. temperature 0 은 값이다.
+- 대상은 `temperature` · `maxTokens` 둘뿐이다.
+- 저장 키는 모델 설정 폼이 쓰는 `max_tokens` 다. API 로 `maxTokens` 를 저장한 설정도 읽는다. 둘 다 있으면 `max_tokens` 를 쓴다.
+- temperature 는 0~2 의 유한수만 쓰고 max_tokens 는 양의 정수만 쓴다. 그 밖의 값은 없는 것으로 본다. `defaultParams` 가 객체가 아니어도 없는 것으로 본다.
+- Chat 종류 설정만 읽는다.
+- 프로바이더 매핑은 그대로다. Anthropic 클라이언트는 채운 temperature 도 보내지 않는다([인터페이스와 프로바이더 매핑 「Anthropic」](CLE-AI-LLM-IFACE.md#anthropic)).
+
+옵션은 사용자가 모델 설정을 골라 쓰는 호출에서 켠다. 내부 호출은 필요한 값을 직접 정하므로 켜지 않는다([Rationale](#모델-설정-기본-파라미터는-호출-옵션을-켠-곳에만-채운다-2026-11-14)).
+
+| 호출 | `applyModelDefaults` |
+|------|----------------------|
+| [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 의 chat 네 곳(단일 턴 · 도구 반복 · 멀티턴 재개 · 재개 뒤 도구 반복) | 켠다 |
+| [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 의 모든 chat(`traceChat`) | 켠다 |
+| [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 의 chat | 켠다 |
+| [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 `chatStream` | 켠다 |
+| 지식 저장소 검색의 LLM 채점 리랭킹([RAG 검색](../CLE-KB/CLE-KB-SEARCH.md)) | 켜지 않는다 |
+| 메모리 추출 · 롤링 요약([에이전트 메모리](CLE-AI-MEMORY.md)), 지식 저장소 그래프 추출 | 켜지 않는다 |
+
+노드 디버그 기록 `meta.llmCalls[].requestPayload` 에는 채우기 전의 호출 값이 남는다. 채우기는 노드 핸들러가 아니라 `LlmService` 안에서 하기 때문이다.
+
 ### testConnection
 
-`LlmService.testConnection(configId, workspaceId)` 는 저장된 설정으로 연결을 확인한다. 설정은 `ModelConfigService.findEntity(configId, workspaceId)` 로 종류와 상관없이 찾는다([Rationale](#종류와-상관없이-설정을-찾는-이유)).
+`LlmService.testConnection(configId, workspaceId)` 는 저장된 설정으로 연결을 확인한다. 설정은 `ModelConfigService.findEntity(configId, workspaceId)` 로 종류와 상관없이 찾는다([Rationale](#종류와-상관없이-설정을-찾는-이유)). 설정 조회는 `try` 밖에서 하고, 클라이언트 생성과 probe 만 `try` 안에 있다.
 
 | 종류 | probe | 반환 |
 |------|-------|------|
 | chat | `client.testConnection()` (모델 목록 조회 같은 가벼운 호출) | `{ success: true }` |
 | embedding | `client.embed(['connection test'], defaultModel)`. 실제 임베딩으로 연결과 모델 유효성을 함께 확인한다 | `{ success: true, dimension? }`. 반환 배열 첫 요소 길이(`vectors[0].length`)를 `dimension` 에 싣는다(0 이면 뺀다) |
-| 실패(종류 무관) | 설정 조회 · 클라이언트 생성 · 위 probe 가운데 하나가 던졌다 | `{ success: false, message }` |
+| 실패(종류 무관) | 클라이언트 생성 · 위 probe 가운데 하나가 던졌다 | `{ success: false, message }` |
 
 실패 응답 형식:
 
-- 실패해도 예외를 던지지 않는다. HTTP 200 과 성공 봉투 `{ data: { success: false, message } }` 로 돌려준다. 원본 에러는 서버 로그(warn)에만 남긴다.
+- 클라이언트 생성이나 probe 가 실패해도 예외를 던지지 않는다. HTTP 200 과 성공 봉투 `{ data: { success: false, message } }` 로 돌려준다. 원본 에러는 서버 로그(warn)에만 남긴다.
 - `message` 는 `sanitizeLlmErrorMessage`(`utils/sanitize-error.util.ts`)가 원본 에러 문구를 보고 고른 고정 문구 여덟 개 가운데 하나다. 갈래는 인증 실패(401), 접근 거부(403), 모델이나 엔드포인트 없음(404), 속도 제한(429), 시간 초과, 연결 거부, 호스트 이름 해석 실패, 그 밖의 실패다. 프로바이더 원문 · 키 · 엔드포인트는 싣지 않는다.
 - 결과 객체에 `code` 는 없다. 통합 연결 테스트의 `IntegrationTestResult` 와 다르다([통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트)). 클라이언트 계층이 실패를 `LLM_RATE_LIMIT` 와 `LLM_CONNECTION_ERROR` 두 갈래로만 나누고 세분화 코드는 미구현이라([에러 처리](CLE-AI-LLM-STREAM.md#에러-처리)), 코드를 실어도 거의 늘 `LLM_CONNECTION_ERROR` 다. 원인 갈래는 `message` 의 고정 문구가 이미 나눠 보여 준다.
-- 설정이 없거나 다른 워크스페이스의 설정이어도 404 가 아니라 같은 실패 모양이다. 설정 조회도 같은 `try` 안에 있어서 `MODEL_CONFIG_NOT_FOUND` 가 결과 객체로 바뀌고 `message` 는 «모델이나 엔드포인트 없음» 문구다. rerank 설정을 API 로 직접 부를 때도 클라이언트 생성이 실패해 같은 모양이다.
+- 설정이 없거나 다른 워크스페이스의 설정이면 404 `MODEL_CONFIG_NOT_FOUND` 에러 봉투로 거절한다. 설정 조회가 `try` 밖에 있어서 같은 컨트롤러의 `:id/models` 와 같은 응답이 나온다([Rationale](#없는-설정의-연결-테스트는-404-로-거절한다-2026-11-14)).
+- rerank 설정을 API 로 직접 부르면 설정 조회는 성공하고 클라이언트 생성이 `try` 안에서 실패한다. 그래서 200 실패 모양이다.
 - 역할 거부(403)와 요청 빈도 초과(429)는 핸들러 앞의 가드가 내므로 에러 봉투다.
 
 - `LLMClient.testConnection(): Promise<boolean>` 인터페이스는 바꾸지 않는다. 차원 추출은 서비스 계층 전용이다([Rationale](#testconnection-의-차원-추출이-embedresponse-와-따로-가는-이유)).
@@ -148,3 +177,29 @@ AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리�
 - 200 결과 객체의 필드 이름은 에러 봉투와 겹치지 않게 둔다. 결과 객체는 성공 봉투의 `data` 안에 있고 `error` 키를 쓰지 않는다. 클라이언트는 먼저 상태 코드로 가른다. 2xx 면 `data.success` 를 본다. 2xx 가 아니면 에러 봉투의 `error.code` 를 본다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 결과 객체에 `error` 를 두면 두 경로를 한 필드 이름으로 읽게 되어 클라이언트가 섞어 처리하기 쉽다.
 - 저장을 함께 하는 요청은 다르다. 통합 자격 증명 교체는 안에서 연결 테스트를 하지만 실패하면 저장을 거절하므로 에러 봉투로 돌려준다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
 - `code` 를 두지 않은 이유는 「testConnection」 에 적었다. 세분화 코드(`LLM_AUTH_ERROR` 등)를 구현하면 결과 객체에 `code` 를 더하는 것을 다시 본다.
+
+### 모델 설정 기본 파라미터는 호출 옵션을 켠 곳에만 채운다 (2026-11-14)
+
+모델 설정 폼은 Chat 설정을 저장할 때 `defaultParams` 를 늘 함께 저장한다. 사용자가 손대지 않아도 `{ temperature: 0.7, max_tokens: 4096 }` 이 들어간다. 그런데 이 값은 어떤 호출에도 쓰이지 않았다. 2026-11-14 에 사람이 다음과 같이 정했다(NERV Task `CLE-T-GG3WPZ`, 질문 `01a1d82b-58be-772f-8828-a39da92c4fcf` 의 1번 답).
+
+- 우선순위는 호출 쪽 값, 모델 설정 값, 보내지 않음 순서다.
+- 병합은 `LlmService` 한 곳에서 한다. 적용 여부는 호출하는 쪽이 옵션으로 고른다.
+- 적용 대상은 AI 노드 셋과 워크플로우 AI 어시스턴트다. 사용자가 모델 설정을 골라 쓰는 곳이다.
+- 지식 저장소와 메모리의 내부 호출은 뺀다. 이 호출들은 필요한 값을 직접 정한다. LLM 채점 리랭킹이 폼 기본값 0.7 을 받으면 점수가 흔들린다.
+- 모델 설정 폼이 temperature 0 을 0.7 로 바꿔 저장하던 버그(`parseFloat(temp) || 0.7`)도 함께 고쳤다. 고치지 않으면 0 을 고른 설정이 호출에 0.7 로 들어간다.
+
+기각한 대안은 둘이다.
+
+- **모든 호출에 적용**: 폼이 늘 값을 저장하므로 값을 보내지 않던 모든 호출이 바뀐다. 내부 호출까지 0.7 과 4096 을 받는다.
+- **노드 핸들러마다 병합**: AI 노드 셋과 어시스턴트가 같은 규칙을 따로 가진다. 한 곳만 고치면 규칙이 갈라진다.
+
+알고 받아들인 영향도 있다. OpenAI · Google 은 max_tokens 를 보내지 않으면 모델 상한까지 출력한다. 이제 설정의 max_tokens(폼 기본값 4096)가 들어가므로 그보다 긴 출력은 잘릴 수 있다. 사람이 이 점을 알고 이 안을 골랐다. 긴 출력이 필요하면 노드의 Max Tokens 나 모델 설정의 값을 올린다.
+
+### 없는 설정의 연결 테스트는 404 로 거절한다 (2026-11-14)
+
+[「연결 테스트 실패는 200 결과 객체로 돌려준다」](#연결-테스트-실패는-200-결과-객체로-돌려준다-2026-11-12) 의 200 은 시험한 결과에 쓴다. 시험할 설정이 없는 요청은 시험 결과가 아니라 요청 오류다. 그래서 설정 조회를 `try` 밖으로 옮기고 없는 설정 · 다른 워크스페이스의 설정을 404 `MODEL_CONFIG_NOT_FOUND` 로 거절한다. 2026-11-14 에 사람이 정했다(NERV Task `CLE-T-RH45H8`, 질문 `01a1d82b-5ad6-7383-af58-c0166d277038` 의 1번 답).
+
+- 같은 컨트롤러의 `:id/models` 는 없는 설정을 404 로 거절한다. 통합의 `:id/test` 도 없는 통합을 404 로 거절한다.
+- `POST /api/model-configs/:id/test` 의 Swagger 도 404 를 선언한다.
+- 기각한 대안은 Swagger 에서 404 를 지우고 200 실패 모양을 두는 것이다. 이 안을 고르면 같은 컨트롤러 안에서 없는 설정의 응답이 엔드포인트마다 다르다.
+- 연결 테스트 버튼은 저장된 설정에서만 보인다. 그래서 바뀐 응답은 API 를 직접 부를 때만 드러난다.

@@ -34,8 +34,8 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
   {name: "ragThreshold", required: false, type: "float", description: "RAG 유사도 임계값이에요 (0~1).", default: "0.7"},
   {name: "mcpServers", required: false, type: "McpServerRef[]", description: "AI Agent에 연결할 MCP(Model Context Protocol) 서버 목록이에요. 각 항목은 `integrationId`(필수)와 `enabledTools`·`includeResources`·`includePrompts`·`toolOverrides` 옵션을 포함해요. 등록한 서버의 도구가 LLM에게 자동 노출돼요.", default: "[]"},
   {name: "conditions", required: false, type: "ConditionDef[]", description: "조건 목록이에요. 각 조건은 `id`, `label`, `prompt`를 가지며, 각 조건마다 동적 출력 포트가 생겨요.", default: "[]"},
-  {name: "temperature", required: false, type: "float", description: "LLMConfig 기본값을 재정의해요. Anthropic 모델에는 보내지 않아서 적용되지 않아요.", default: "-"},
-  {name: "maxTokens", required: false, type: "integer", description: "최대 토큰 수예요.", default: "-"},
+  {name: "temperature", required: false, type: "float", description: "응답 창의성이에요(0~2). 비우면 모델 설정에 저장한 Temperature 를 써요. Anthropic 모델에는 보내지 않아서 적용되지 않아요.", default: "-"},
+  {name: "maxTokens", required: false, type: "integer", description: "최대 출력 토큰 수예요. 비우면 모델 설정에 저장한 Max Tokens 를 써요.", default: "-"},
   {name: "maxToolCalls", required: false, type: "integer", description: "최대 도구 호출 횟수예요.", default: "10"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Conversation Thread 자동 주입 범위예요. `none`은 system+user 만 보내고, `thread`는 워크플로우 thread 전체를, `lastN`은 가장 최근 N turn 만 LLM에 함께 보내요.", default: "none"},
   {name: "contextScopeN", required: false, type: "integer", description: "`contextScope=lastN`일 때 주입할 최근 turn 수예요.", default: "20"},
@@ -191,7 +191,7 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
 ### 필드
 
 <FieldTable rows={[
-  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요.", default: "-"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요. 이 설정에 저장한 Temperature · Max Tokens 를 기본값으로 써요.", default: "-"},
   {name: "model", required: false, type: "string", description: "모델 ID예요.", default: "-"},
   {name: "inputField", required: false, type: "expression", description: "분류할 텍스트 필드 표현식이에요.", default: "-"},
   {name: "categories", required: true, type: "CategoryDef[]", description: "분류 카테고리 목록이에요. 각 항목은 `name`, `description`, `examples`를 포함해요.", default: "[]"},
@@ -246,7 +246,7 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
 ### 필드
 
 <FieldTable rows={[
-  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요.", default: "-"},
+  {name: "llmConfigId", required: false, type: "UUID", description: "사용할 LLM 프로바이더 설정이에요. 이 설정에 저장한 Temperature · Max Tokens 를 기본값으로 써요.", default: "-"},
   {name: "model", required: false, type: "string", description: "모델 ID예요.", default: "-"},
   {name: "inputField", required: false, type: "expression", description: "추출 대상 텍스트 필드예요. `multi_turn`일 때는 설정 UI에서 숨겨져요.", default: "-"},
   {name: "outputSchema", required: true, type: "FieldDef[]", description: "추출할 필드 정의 배열이에요. 각 항목은 `name`, `type`, `description`, `required`, `enumValues`를 포함해요.", default: "[]"},
