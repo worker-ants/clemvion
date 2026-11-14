@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-ERROR"
 title: "통합 노드 공통 — 에러 코드와 사설망 차단"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "2e6869816ad2ef120f05e1fe4171c56704a82262ea90c25ed44a7a99d81872ab"
+content_hash: "b176664de07113c9e483f4042940f59318b41bd2f76b36354e89c3ed03448f52"
 read_as: "approved_fallback"
-task: "CLE-T-NESSYD"
+task: "CLE-T-43KCNP"
 source_paths: []
-mirror_sha256: "02579df69858eb6b0c399417748ba9f7666155f0a3b034b11b35508f237987e5"
-etag: "sha256-d545a52a2fa0b48973dafcbe9408082d74904a39f6dbf27c045e38f928f0eaaf"
+mirror_sha256: "49b28c769c780d2063b938f29a5d7c7a623f9b323f68119e2ddaf347504a609f"
+etag: "sha256-0fc8bf586717211aec4a260276c59e8748399703ef1f576d654bd4cf64f772e9"
 ---
 ## 개요
 
@@ -72,7 +72,7 @@ etag: "sha256-d545a52a2fa0b48973dafcbe9408082d74904a39f6dbf27c045e38f928f0eaaf"
 - 세 노드는 이 플래그 하나를 함께 쓴다. AI 에이전트의 외부 MCP 서버는 별도 정책(`MCP_ALLOW_INSECURE_URL`)을 따른다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)에서 정한다.
 - MakeShop 노드는 호출 호스트가 `connect.makeshop.co.kr` 하나로 고정돼 사용자 입력이 호스트를 정하지 않는다. 그래서 이 가드를 쓰지 않고 `shop_uid` 형식 검증으로 경로 주입을 막는다([MakeShop 노드](CLE-NODE-MAKESHOP.md)).
 - 차단 코드는 차단 판정(`SsrfBlockedError`)에만 쓴다. 가드가 판정이 아닌 오류를 던지면(예: DNS 해석기가 낸 예기치 않은 예외) `INTEGRATION_CALL_FAILED` 로 내보낸다. HTTP Request 의 리다이렉트 홉에서 같은 고장이 나면 `HTTP_TRANSPORT_FAILED` 가 된다. 두 시점의 코드를 통일할지는 [HTTP Request 노드](CLE-NODE-HTTP.md)의 미결 사항이다. Send Email 노드는 `IntegrationError` 가 아닌 실패를 모두 `EMAIL_SEND_FAILED` 로 흡수하므로 `INTEGRATION_CALL_FAILED` 를 출력하지 않는다.
-- 위 규칙의 예외가 하나 있다. HTTP Request 노드는 통합 인증에서 리다이렉트를 5홉 넘게 따라가야 하면 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 메시지는 차단 판정과 같은 일반화 문구다. 지금 동작과 고치지 않은 이유는 [HTTP Request 노드](CLE-NODE-HTTP.md) Rationale 「리다이렉트 한도 초과와 3xx 응답의 출력 코드」 에 있다.
+- 위 규칙의 예외가 하나 있다. HTTP Request 노드는 통합 인증에서 리다이렉트를 5홉 넘게 따라가야 하면 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 메시지는 차단 판정과 같은 일반화 문구다. 사람이 2026-11-14 에 이 예외를 받아들이기로 정했다. 이 예외는 그 경우에만 쓰고 다른 실패로 넓히지 않는다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md) Rationale 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」 에 있다.
 - 클라이언트에 나가는 `output.error.message` 에는 차단된 호스트나 IP 를 넣지 않는다. 일반화된 문구만 쓴다(내부망 정찰 방지, CWE-209). 원본 상세를 어디에 남기는지는 정의가 갈린다. [미결 사항](CLE-NODE-INT-COMMON.md#미결-사항) 참조.
 
 ## Rationale
@@ -85,7 +85,7 @@ HTTP Request·Database Query·Send Email 노드는 노드별 플래그를 새로
 
 막힌 적 없는 요청을 "막혔다" 고 보고하면 없는 사실을 사용자에게 알리고 활동 로그에도 남기게 된다. 그래서 가드 자체의 고장은 차단 코드가 아니라 분류되지 않은 실패(`INTEGRATION_CALL_FAILED`)로 내보낸다.
 
-HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외로 남아 있다. 판정 없이 `HTTP_BLOCKED` 를 낸다. 2026-11-13 에 지금 동작을 그대로 적었고 고칠지는 NERV Task `CLE-T-43KCNP` 가 맡는다. 근거는 [HTTP Request 노드](CLE-NODE-HTTP.md) Rationale 「리다이렉트 한도 초과와 3xx 응답의 출력 코드」 에 있다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `HTTP_BLOCKED` 행에 이 예외를 적는 일은 NERV Task `CLE-T-6G3084` 가 맡는다.
+HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외다. 판정 없이 `HTTP_BLOCKED` 를 낸다. 2026-11-13 에 지금 동작을 그대로 적었고, 2026-11-14 에 NERV Task `CLE-T-43KCNP` 에서 사람이 전용 코드를 만들지 않고 받아들인 예외로 두기로 정했다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) Rationale 에 있다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `HTTP_BLOCKED` 행에는 NERV Task `CLE-T-6G3084` 가 이 예외를 적었다.
 
 ### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다 (2026-11-14)
 

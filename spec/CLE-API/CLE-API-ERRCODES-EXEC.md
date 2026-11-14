@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXEC"
 title: "에러 코드 카탈로그 — 워크플로우 실행"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "b1dae301487b4b3c174c972dadfc8f66cac427192170be2a18629843b2c57367"
+content_hash: "1b240b21a628d14a6525ee5ea1458419bbb19b8619c8fa0944ec6481c699b90b"
 read_as: "approved_fallback"
-task: "CLE-T-14VQC2"
+task: "CLE-T-43KCNP"
 source_paths: []
-mirror_sha256: "7f434a6e79d9d75c96652a825035ec21f7c15e2528e5f922bbea46685330bfeb"
-etag: "sha256-c6279007fac6a2fec87b6b657be55ef5cddd76c993e48c77329cd282049aaa56"
+mirror_sha256: "fed9cd275d185034dedca84b8cb72ded01c747ff9ec2cbe432e860071ff4a70d"
+etag: "sha256-be4c12fd6a557000c52107b4032f83d00f956efa90b966f2692f637894df1b33"
 ---
 ## 개요
 
@@ -57,7 +57,7 @@ etag: "sha256-c6279007fac6a2fec87b6b657be55ef5cddd76c993e48c77329cd282049aaa56"
 
 | 부류 | 코드 | 정의 문서 |
 |----------|------|-----------|
-| HTTP | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_TIMEOUT`(발행하지 않음, 아래) · `HTTP_BLOCKED`(사설망 차단, 모든 인증 방식 공통. `integration` 인증의 리다이렉트 한도 초과도 이 코드다, 아래) | [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) |
+| HTTP | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX`(따라가지 않은 3xx 포함, 아래) · `HTTP_5XX` · `HTTP_TIMEOUT`(발행하지 않음, 아래) · `HTTP_BLOCKED`(사설망 차단, 모든 인증 방식 공통. `integration` 인증의 리다이렉트 한도 초과도 이 코드다, 아래) | [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) |
 | Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` · `DB_HOST_BLOCKED`(host 가 사설·loopback 이라 사설망 차단. 기본 켬, `ALLOW_PRIVATE_HOST_TARGETS` 로 끔) · `INVALID_PARAMETERS`(`parameters` 가 배열도 JSON 배열 문자열도 아님) | [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) |
 | Email | `EMAIL_SEND_FAILED`(`IntegrationError` 가 아닌 예외. `details.integrationCode` 는 넣지 않는다) · `EMAIL_HOST_BLOCKED`(host 가 사설·loopback 이라 사설망 차단. 기본 켬, `ALLOW_PRIVATE_HOST_TARGETS` 로 끔) · `EMAIL_NO_RECIPIENTS`(정규화한 수신자 `to` 가 비어 보낼 곳이 없음). `IntegrationError` 의 코드(`INTEGRATION_*` · `EMAIL_HOST_BLOCKED` · `EMAIL_NO_RECIPIENTS`)는 그대로 `output.error.code` 로 나오고 `details.integrationCode` 에도 같은 값이 들어간다 | [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) |
 | LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT`(발행하지 않음, 아래) · `MAX_COLLECTION_RETRIES_EXCEEDED` · `TOOL_DEFINITION_PAYLOAD_EXCEEDED`(AI 에이전트 도구 정의가 크기 · 개수 상한을 넘음). LLM 클라이언트 층 코드는 §6.17 | [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md), [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) |
@@ -68,7 +68,8 @@ etag: "sha256-c6279007fac6a2fec87b6b657be55ef5cddd76c993e48c77329cd282049aaa56"
 | 반복 · 병렬 실패 회차 · 에러 포트 라우팅 | `UNKNOWN_ERROR`(`errorPolicy='continue'` 의 `skipped[].error.code` · Map `mapped[i].error.code` 대체값. 핸들러가 throw 한 실패를 `route_to_error_port` 로 보낼 때의 `output.error.code` 대체값, 아래) | [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조), [노드 에러 처리 정책 「2. 에러 포트로 라우팅」](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) |
 
 - **`HTTP_TIMEOUT` 은 발행하지 않는다.** enum 에는 있지만 HTTP Request 핸들러는 타임아웃 때 `AbortController.abort()` 로 fetch 를 멈추고 그 reject 를 다른 전송 에러와 함께 `HTTP_TRANSPORT_FAILED` 로 발행한다(`http-request.handler.ts`). 그래서 `output.error.code` 로 `HTTP_TIMEOUT` 이 보이는 경로는 없다. 앞으로 세분화할 여지와 방어적 매핑을 위해 enum 과 분류 표에 코드를 남긴다.
-- **`HTTP_BLOCKED` 는 리다이렉트 한도 초과에도 나간다.** `integration` 인증의 HTTP Request 노드는 리다이렉트를 직접 따라간다. 5홉을 따라간 뒤에도 `Location` 이 있는 3xx 가 오면 사설망 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. `output.error.message` 도 사설망 차단과 같은 `Request blocked by SSRF policy.` 다. 차단 코드를 판정에만 쓴다는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 규칙 9 의 예외다. 새 조건에 기존 코드를 쓰므로 카탈로그 규칙 6 과도 맞지 않는다. 규칙 6 의 예외로 정한 것은 아니고 지금 동작을 적었다. 전용 코드로 나눌지는 NERV Task `CLE-T-43KCNP` 가 정한다([HTTP Request 노드 — 출력과 에러 「리다이렉트 한도 초과와 3xx 응답의 출력 코드」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#리다이렉트-한도-초과와-3xx-응답의-출력-코드-2026-11-13)).
+- **`HTTP_4XX` 에는 따라가지 않은 3xx 도 든다.** HTTP Request 핸들러는 상태가 500 이상이면 `HTTP_5XX`, 그 밖의 2xx 아닌 응답은 `HTTP_4XX` 를 낸다. 3xx 와 4xx 는 `output.error.details.statusCode` 로 가른다. 이름이 이 범위를 다 담지 못해 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 올렸다(아래 Rationale).
+- **`HTTP_BLOCKED` 는 리다이렉트 한도 초과에도 나간다.** `integration` 인증의 HTTP Request 노드는 리다이렉트를 직접 따라간다. 5홉을 따라간 뒤에도 `Location` 이 있는 3xx 가 오면 사설망 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. `output.error.message` 도 사설망 차단과 같은 `Request blocked by SSRF policy.` 다. 차단 코드를 판정에만 쓴다는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 규칙 9 의 예외이고, 새 조건에 기존 코드를 쓰므로 카탈로그 규칙 6 의 예외다. 2026-11-14 에 사람이 전용 코드를 만들지 않고 이 예외를 받아들였다(아래 Rationale).
 - **HTTP Request 노드의 활동 로그 `error.code` 는 상태 코드별 `HTTP_{status}` 다.** `integration` 인증일 때 노드는 호출마다 통합 활동 로그를 남긴다. 응답이 2xx 가 아니면(3xx · 4xx · 5xx) `HTTP_404` · `HTTP_502` 처럼 상태 번호를 붙인 값을 싣고 통합의 `last_error.code` 에도 같은 값이 남는다. 노드 출력의 `output.error.code` 는 위 표의 `HTTP_4XX` · `HTTP_5XX` 다. 이름이 규칙 1 을 따르지 않아 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 올렸다. 정의는 [HTTP Request 노드 — 실행 로직 「활동 로그」](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#활동-로그) 다.
 - **`LLM_TIMEOUT` 도 발행하지 않는다.** enum 에는 있지만 어느 LLM 호출 경로도 이 코드를 내지 않는다(2026-10-10 결정). LLM 타임아웃은 `LLM_CALL_FAILED` 나 스트림 에러 코드로 온다. 단일 턴 AI 에이전트의 롤링 요약 호출에는 앱 타임아웃이 없어 `LLM_TIMEOUT` 이 나오지 않는다. 이 호출이 실패하면 첫 호출과 같은 분류로 `error` 포트에 나간다. LLM 클라이언트의 `withTimeout` 도 전용 코드로 옮기지 않는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). 호출 경로별 결과는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 이 모아 적는다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 실패 분류 표는 `HTTP_TIMEOUT` 처럼 이 코드를 «발행 안 됨» 으로 표시해 남긴다. 등재를 지울지는 [미결 사항](CLE-API-ERRCODES.md#미결-사항)이다.
 - 옛 코드 `NODE_EXECUTION_FAILED`·`INTEGRATION_ERROR`·`LLM_ERROR` 는 노드 출력에 더 이상 쓰지 않는다. 노드 실패가 Stop Workflow 로 격상된 엔진 수준에서만 `NodeExecution.error.message` 맥락으로 남는다.
@@ -146,5 +147,12 @@ NERV Task `CLE-T-14VQC2` 다. 핸들러가 throw 한 실패를 `route_to_error_p
 
 NERV Task `CLE-T-6G3084` 다. 두 경우 모두 동작은 그대로 두고 카탈로그를 지금 동작에 맞췄다.
 
-- **`HTTP_BLOCKED` 의 리다이렉트 한도 초과**: HTTP 행은 이 코드를 사설망 차단으로만 적었다. 실제로는 한도를 넘긴 리다이렉트에도 판정 없이 같은 코드가 나간다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 규칙 9 와 [HTTP Request 노드 — 출력과 에러](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md) 에는 이 예외가 이미 있고 이 카탈로그에만 없었다. 새 조건에 기존 코드를 쓰는 것이라 규칙 6 과 맞지 않는다. 규칙 6 의 예외로 정한 결정이 없어서 예외로 적지 않았다. 전용 코드를 새로 만들지는 NERV Task `CLE-T-43KCNP` 가 정한다. 이번에는 지금 동작만 적었다.
+- **`HTTP_BLOCKED` 의 리다이렉트 한도 초과**: HTTP 행은 이 코드를 사설망 차단으로만 적었다. 실제로는 한도를 넘긴 리다이렉트에도 판정 없이 같은 코드가 나간다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 규칙 9 와 [HTTP Request 노드 — 출력과 에러](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md) 에는 이 예외가 이미 있고 이 카탈로그에만 없었다. 새 조건에 기존 코드를 쓰는 것이라 규칙 6 과 맞지 않는다. 규칙 6 의 예외로 정한 결정이 없어서 예외로 적지 않았다. 전용 코드를 새로 만들지는 NERV Task `CLE-T-43KCNP` 에 넘겼고, 같은 날 만들지 않기로 정했다(아래 절).
 - **활동 로그의 `HTTP_{status}`**: 통합 활동 로그와 통합 `last_error.code` 로 나가는 코드인데 카탈로그에 없었다(규칙 8). 이름이 조건의 뜻 대신 상태 번호를 적어 규칙 1 을 어기므로 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 행을 두고 이 절에는 그 행을 가리키는 설명만 두었다. `CAFE24_404` 등이 §6.22 와 §3 에 함께 있는 것과 같은 배치다.
+
+### HTTP Request 노드의 3xx 와 리다이렉트 한도 초과에 새 코드를 만들지 않았다 (2026-11-14)
+
+NERV Task `CLE-T-43KCNP` 에서 사람이 정했다. 근거와 기각한 대안의 정본은 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) 다.
+
+- **리다이렉트 한도 초과**: `HTTP_BLOCKED` 를 규칙 6 의 받아들인 예외로 둔다. 기존 코드를 다시 쓰는 결정이라 §3 에는 올리지 않는다(부모 문서 Rationale 「규칙 7 의 「규칙」 을 이름 규칙으로 좁혔다」). 부모 문서 규칙 6 의 예외 목록에 이 경우를 더하는 일은 NERV Task `CLE-T-J6M2JG` 가 맡는다.
+- **`HTTP_4XX` 의 3xx**: 2xx 도 5xx 도 아닌 응답이라는 같은 조건이라 새 조건으로 보지 않았다. 그래도 이름이 4xx 만 말하고 조건의 뜻 대신 상태 범주를 적어 규칙 1 과 맞지 않는다. 그래서 `CAFE24_4XX` 처럼 `HTTP_4XX` · `HTTP_5XX` 를 §3 에 올렸다.
