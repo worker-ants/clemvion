@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N"
 title: "다국어와 화면 문구"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "eadde53e225502e90331280f5ccb78e9152568f098f35a28ab413951b9182811"
+content_hash: "a819d7b740d1ab687055aa8e4e3168d23fbe01f61a320b9e9925c2cb4ccd2638"
 read_as: "approved_fallback"
-task: "CLE-T-F9QEJC"
+task: "CLE-T-B7YTQX"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "9e798acc1a62d2cb6ab34db17b5cceb5d3078887378cfe44cd07fe9d55b7d259"
-etag: "sha256-b6040cb9cde0c1e1608690818d5213815bdc7955d03ceead157c9001a0e28f4b"
+mirror_sha256: "72c9c677e30925a9391840ffd82b8fdd41998546dbc2d4e4098c4ec11501671c"
+etag: "sha256-ac3474c34642011b435a58da8a7adbd034325a14aee72e095f2f6abb2a954b68"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -91,6 +91,7 @@ etag: "sha256-b6040cb9cde0c1e1608690818d5213815bdc7955d03ceead157c9001a0e28f4b"
 
 7. **용어와 문체(원본: Principle 6).** 사용자 가이드 본문(`codebase/frontend/src/content/docs/**`)과 화면에 보이는 한국어 문자열은 가이드 용어집(`codebase/frontend/src/content/docs/_glossary.md`)의 표기·문체·금지어를 따른다.
    - 해요체로 통일한다. "~합니다", "~한다" 는 쓰지 않는다.
+   - 예외: 누르면 그 문구를 사용자 메시지로 바로 보내는 예시 · 요청문(어시스턴트 예시 칩, "이어서 진행" 버튼)은 사용자 발화라서 사용자가 실제로 칠 말투를 따른다. 근거는 [사용자 발화 예시를 해요체에서 빼는 이유](#사용자-발화-예시를-해요체에서-빼는-이유-2026-11-14) 에 있다.
    - 금지어를 쓰지 않는다. 예: "엣지" → "연결선", "작업 흐름" → "워크플로우", "아웃풋" → "결과·출력".
    - 영문 고유명사는 화면 표기와 맞춘다. 예: `Manual Trigger` → "수동 트리거".
    - 이 문체 규칙의 대상은 화면 문구와 사용자 가이드다. OpenAPI 설명의 문체는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 정한다.
@@ -128,15 +129,15 @@ etag: "sha256-b6040cb9cde0c1e1608690818d5213815bdc7955d03ceead157c9001a0e28f4b"
 | 1(화면 문자열 하드코딩) | `hardcoded-korean-ratchet.test.ts` 의 baseline ratchet(`hardcoded-korean-baseline.json`) | ratchet. 파일별 한국어 수가 baseline 을 넘거나 새 파일에 한국어 줄이 생기면 실패한다 |
 | 2(ko/en 동등성) | `i18n.test.ts` 의 `dict parity (ko ↔ en)` | 빌드 실패 |
 | 2(위젯 화면 틀 ko/en 동등성) | 위젯 로컬 카탈로그 동등성 테스트(`catalog.test.ts`, [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md)) | 빌드 실패 |
-| 3(백엔드 라벨 매핑) | `backend-labels.test.ts` 의 `backend-labels parity`(P1-B). 백엔드 `*.schema.ts` 에서 정적으로 뽑은 `warningRules[].message`·`NodeMetadata.label`·`NodeMetadata.description` 과 매핑 표 키의 차집합을 본다. 정적 파싱이라 동적 메시지(`` `${...}` ``), 명령형 `validateConfig` 반환, import 한 상수는 보지 못한다 | 빌드 실패 |
-| 4(`ui.*` 메타 매핑) | `ui-label-parity.test.ts`(P3-B-1). 백엔드 `*.schema.ts` 를 문자열로 읽어 정규식으로 `label`·`hint`·`group`·`itemLabel` 리터럴을 뽑고(`z.toJSONSchema` 런타임 덤프가 아니라 정적 파싱이라 `label: someConst` 같은 동적 표현은 보지 못한다), `LABEL_KO`·`OPTION_LABEL_KO`·`NODE_LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO` 에 있는지 본다. [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 와 같은 "갱신 위치 여럿을 함께 바꾼다" 원칙이다 | ratchet. `KNOWN_MISSES` baseline 을 넘으면 빌드 실패 |
-| 5(코드·동적 메시지 매핑) | `backend-labels.test.ts` 의 그래프 경고 규칙 ID 동등성(P3-C-1: `GRAPH_WARNING_RULES_BY_TYPE` 의 규칙, 그래프 수준 규칙(`UNESCAPABLE_CYCLE_RULE_ID`), 테스트의 백엔드 전용 목록에 등록한 규칙의 `ruleId` 가 모두 `GRAPH_WARNING_KO` 에 있는가. 백엔드 전용 규칙은 그 목록에 등록해야 가드가 본다. [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md) 참고)과 등록 에러 코드 동등성(P3-C-2: 사용자 노출용으로 등록한 코드, 처음은 `GRAPH_VALIDATION_FAILED`, 이 `ERROR_KO` 에 있는가). 어시스턴트 SSE `error` 코드는 위 등록 코드 집합에 들어가지 않는다. 백엔드 문구 표와 프론트엔드 `ERROR_MESSAGE_KEYS` 의 코드 집합은 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 프론트엔드 소스의 `ERROR_MESSAGE_KEYS` 리터럴을 읽어 맞춘다. `backend-checks` 의 경로 목록에 그 프론트엔드 파일이 있어 프론트엔드만 바꾼 변경에서도 이 테스트가 돈다. 코드마다 사전 문구가 나오는지는 프론트엔드 테스트(`assistant-message-error.test.tsx`)가 따로 본다. 통합 화면 에러 코드는 `integration-error-codes.test.ts` 가 코드마다 사전 키를 단언하고 매핑 값의 타입(`TranslationKey`)이 사전에 없는 키를 타입 검사에서 막는다 | 빌드 실패 |
+| 3(백엔드 라벨 매핑) | `backend-labels.test.ts` 의 `backend-labels parity`. 백엔드 `*.schema.ts` 에서 정적으로 뽑은 `warningRules[].message`·`NodeMetadata.label`·`NodeMetadata.description` 과 매핑 표 키의 차집합을 본다. 정적 파싱이라 동적 메시지(`` `${...}` ``), 명령형 `validateConfig` 반환, import 한 상수는 보지 못한다 | 빌드 실패 |
+| 4(`ui.*` 메타 매핑) | `ui-label-parity.test.ts`. 백엔드 `*.schema.ts` 를 문자열로 읽어 정규식으로 `label`·`hint`·`group`·`itemLabel` 리터럴을 뽑고(`z.toJSONSchema` 런타임 덤프가 아니라 정적 파싱이라 `label: someConst` 같은 동적 표현은 보지 못한다), `LABEL_KO`·`OPTION_LABEL_KO`·`NODE_LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO` 에 있는지 본다. [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 와 같은 "갱신 위치 여럿을 함께 바꾼다" 원칙이다 | ratchet. `KNOWN_MISSES` baseline 을 넘으면 빌드 실패 |
+| 5(코드·동적 메시지 매핑) | `backend-labels.test.ts` 의 그래프 경고 규칙 ID 동등성(`GRAPH_WARNING_RULES_BY_TYPE` 의 규칙, 그래프 수준 규칙(`UNESCAPABLE_CYCLE_RULE_ID`), 테스트의 백엔드 전용 목록에 등록한 규칙의 `ruleId` 가 모두 `GRAPH_WARNING_KO` 에 있는가. 백엔드 전용 규칙은 그 목록에 등록해야 가드가 본다. [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md) 참고)과 등록 에러 코드 동등성(사용자 노출용으로 등록한 코드, 처음은 `GRAPH_VALIDATION_FAILED`, 이 `ERROR_KO` 에 있는가). 어시스턴트 SSE `error` 코드는 위 등록 코드 집합에 들어가지 않는다. 백엔드 문구 표와 프론트엔드 `ERROR_MESSAGE_KEYS` 의 코드 집합은 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 프론트엔드 소스의 `ERROR_MESSAGE_KEYS` 리터럴을 읽어 맞춘다. `backend-checks` 의 경로 목록에 그 프론트엔드 파일이 있어 프론트엔드만 바꾼 변경에서도 이 테스트가 돈다. 코드마다 사전 문구가 나오는지는 프론트엔드 테스트(`assistant-message-error.test.tsx`)가 따로 본다. 통합 화면 에러 코드는 `integration-error-codes.test.ts` 가 코드마다 사전 키를 단언하고 매핑 값의 타입(`TranslationKey`)이 사전에 없는 키를 타입 검사에서 막는다 | 빌드 실패 |
 | 5(원천 표 4행인 통합 화면 에러 토스트의 괄호에 붙는 서버 `message`, [백엔드 문구 매핑 §코드와 동적 메시지 매핑 (규칙 5)](CLE-UI-I18N-BACKEND.md#코드와-동적-메시지-매핑-규칙-5)) | 없음 | 사람 검수. 표에 코드를 더하는 리뷰에서 확인한다 |
 | 6(섹션 라벨) | `locale.test.ts` 의 `SECTION_LABELS_BY_LOCALE coverage` | 빌드 실패 |
 | 6(영어 형제 파일은 본문만) | `registry.test.ts` 의 영어 형제 파일 프론트매터 검사 | 빌드 실패 |
 | 7(용어와 문체) | 없음 | 사람 검수 |
 | 8(내부 기준 문서 노출) | `no-internal-refs.test.ts` 의 본문 패턴 가드 | 결정적인 패턴만 빌드 실패. 로드맵 문구는 자동 검출이 어려워 `user-guide-writer` 에이전트와 사람 검수가 맡는다. 나머지는 `documentation-reviewer`(사후)나 사람 검수 |
-| 동반 갱신 2(노드 가이드) | `nodes-coverage.test.ts`(P1-C). 백엔드 노드 디렉터리 집합과 `02-nodes/<cat>.mdx` 본문의 노드 항목 차집합을 본다 | 빌드 실패 |
+| 동반 갱신 2(노드 가이드) | `nodes-coverage.test.ts`. 백엔드 노드 디렉터리 집합과 `02-nodes/<cat>.mdx` 본문의 노드 항목 차집합을 본다 | 빌드 실패 |
 | 동반 갱신 3(가이드 낡음) | 통합 · 트리거 가이드의 GUI 흐름 절에 앵커가 있는가: `integrations-coverage.test.ts`, `triggers-coverage.test.ts`. 가이드에 둔 앵커의 심볼이 코드에 있는가: `impl-anchor-existence.test.ts`([사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md)). 개념 설명 절과 그 밖의 페이지: 없음 | 앵커 의무와 심볼 실재는 빌드 실패, 나머지는 사람 검수 |
 
 ## 구현 위치
@@ -183,7 +184,7 @@ etag: "sha256-b6040cb9cde0c1e1608690818d5213815bdc7955d03ceead157c9001a0e28f4b"
 
 ### 가이드 본문에서 NERV 키와 요구사항 ID 를 막는 이유
 
-스펙이 NERV 로 옮겨 가면서 가이드 작성자가 다루는 내부 식별자가 옛 경로에서 NERV 키(`CLE-...`)와 서버가 발급하는 요구사항 ID(`REQ-...`)로 바뀌었다. 둘 다 사용자가 열어 볼 수 없는 내부 문서를 가리키므로 옛 경로와 같은 이유로 본문에 쓰지 않는다. 옛 가드의 앵커 ID 패턴(`CCH-…`, `R-…`)은 `REQ-SESSION-001` 같은 모양을 잡지 못해서 패턴을 따로 더했다(2026-10-02, NERV 정본 전환 단계 4b).
+스펙이 NERV 로 옮겨 가면서 가이드 작성자가 다루는 내부 식별자가 옛 경로에서 NERV 키(`CLE-...`)와 서버가 발급하는 요구사항 ID(`REQ-...`)로 바뀌었다. 둘 다 사용자가 열어 볼 수 없는 내부 문서를 가리키므로 옛 경로와 같은 이유로 본문에 쓰지 않는다. 옛 가드의 앵커 ID 패턴(`CCH-…`, `R-…`)은 `REQ-SESSION-001` 같은 모양을 잡지 못해서 패턴을 따로 더했다(2026-10-02, NERV 정본 전환 Task `CLE-T-BDRZVX`).
 
 MDX 주석(`{/* … */}`)과 HTML 주석은 예전부터 본문 검사 밖에 있었다. 작성자가 문장의 근거 문서를 키로 적어 둘 자리라서 예외를 이 규칙에 함께 적는다. 주석은 렌더에서 빠지므로 사용자에게 보이지 않는다.
 
@@ -193,4 +194,8 @@ MDX 주석(`{/* … */}`)과 HTML 주석은 예전부터 본문 검사 밖에 �
 
 ### 메신저 봇 안내 문구를 규칙 7 밖에 두는 이유 (2026-11-12)
 
-채팅 채널의 봇 안내 문구는 메신저로 나가는 봇 메시지다. 제품 화면 문구나 사용자 가이드가 아니어서 규칙 7 의 해요체를 따르지 않는다. 한국어 기본 문구의 문체와 띄어쓰기는 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](../CLE-CHAT/CLE-CHAT-DATA.md#안내-문구-기본값) 한 곳이 정하고 합쇼체로 쓴다. 사람 결정(2026-11-12, 발견 F48)이고 반영 작업은 NERV Task `CLE-T-GNTWP9` 다.
+채팅 채널의 봇 안내 문구는 메신저로 나가는 봇 메시지다. 제품 화면 문구나 사용자 가이드가 아니어서 규칙 7 의 해요체를 따르지 않는다. 한국어 기본 문구의 문체와 띄어쓰기는 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](../CLE-CHAT/CLE-CHAT-DATA.md#안내-문구-기본값) 한 곳이 정하고 합쇼체로 쓴다. 사람 결정(2026-11-12)이고 반영 작업은 NERV Task `CLE-T-GNTWP9` 다.
+
+### 사용자 발화 예시를 해요체에서 빼는 이유 (2026-11-14)
+
+어시스턴트 예시 칩과 "이어서 진행" 버튼은 누르면 그 문구를 사용자 메시지로 그대로 보낸다. 이 문구는 사용자가 어시스턴트에게 하는 말이어서 사용자가 실제로 칠 말투를 따른다. 대상 키는 `assistant.exampleAddCancelFlow` · `assistant.exampleAddHeader` · `assistant.exampleReview` · `assistant.exampleArrange` · `assistant.continueAfterBudget` 이다([워크플로우 AI 어시스턴트 — 패널 화면 §i18n 키](../CLE-WF/CLE-WF-ASSIST-UI.md#i18n-키)). `assistant.planApproveConfirm` 도 사용자 메시지로 보내지만 이미 해요체라 그대로 둔다. 문구를 해요체로 바꾸는 안은 택하지 않았다. 사용자 발화 예시를 시스템 말투로 바꾸면 사용자가 실제로 칠 문장과 멀어지기 때문이다. 사람 결정(2026-11-14)이고 반영 작업은 NERV Task `CLE-T-B7YTQX` 다.

@@ -2,21 +2,21 @@
 id: "CLE-AI-MODELS"
 title: "모델 설정"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-MODELS-001", "REQ-MODELS-002", "REQ-MODELS-003", "REQ-MODELS-004", "REQ-MODELS-005", "REQ-MODELS-006", "REQ-MODELS-007", "REQ-MODELS-008", "REQ-MODELS-009", "REQ-MODELS-010", "REQ-MODELS-011", "REQ-MODELS-012", "REQ-MODELS-013", "REQ-MODELS-014", "REQ-MODELS-015", "REQ-MODELS-016", "REQ-MODELS-017", "REQ-MODELS-018", "REQ-MODELS-019", "REQ-MODELS-020", "REQ-MODELS-021", "REQ-MODELS-022", "REQ-MODELS-023", "REQ-MODELS-024", "REQ-MODELS-025", "REQ-MODELS-026", "REQ-MODELS-027", "REQ-MODELS-028", "REQ-MODELS-029", "REQ-MODELS-030", "REQ-MODELS-031", "REQ-MODELS-032", "REQ-MODELS-033", "REQ-MODELS-034", "REQ-MODELS-035", "REQ-MODELS-036", "REQ-MODELS-037", "REQ-MODELS-038"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "8ea09a05a2666b7c679b140f667bf61ed97337ddefb204389b133ce9cd1c7d19"
+content_hash: "d68083c42b031fe23d585f7e156c2b3831060fdd621f88269f5fa2d0b5d08473"
 read_as: "approved_fallback"
-task: "CLE-T-GG3WPZ"
+task: "CLE-T-B7YTQX"
 source_paths: ["spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "a477f538b7884c405a3945e6751a68fa3d3c6b8b9614610fe1b5140bd53a2742"
-etag: "sha256-d4f5524e86c310b9344fb8e0928a7bb9d8301f91764d17939dcb7297e156adb4"
+mirror_sha256: "0e2316b4cef584e7821e33dc08b3e02e3e1633aee30be856d1eff5059ea58776"
+etag: "sha256-3a0aea53dd0e406c20d81e4cf1688a628034b5acec76792e506436de7da902b5"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Part B, §3 API 의 모델 설정 표, R-1·R-3·R-4·R-5·R-7), `spec/2-navigation/_product-overview.md` (§3.7), `spec/4-nodes/3-ai/_product-overview.md` (§3.1, §4 API 키 암호화, §5 NF-AI-04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Part B, §3 API 의 모델 설정 표), `spec/2-navigation/_product-overview.md` (§3.7), `spec/4-nodes/3-ai/_product-overview.md` (§3.1, §4 API 키 암호화, §5 비기능 요구) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -247,7 +247,7 @@ Chat·Embedding·Rerank 를 한 엔드포인트에서 `kind` 로 구분해 관�
 
 ### API 키를 AES-256-GCM 으로 암호화하는 이유
 
-모델 설정의 API 키는 저장할 때 AES-256-GCM 으로 암호화한다. 새 암호화 경로를 만들지 않고 기존 `encrypt`/`decrypt` 유틸리티를 재사용하려는 AI 제품 요구사항의 기술 결정이다. 비기능 요구 NF-AI-04 도 API 키 저장 시 암호화를 필수로 둔다. 암호화 키 환경 변수와 복호화 시점은 [LLM 클라이언트](CLE-AI-LLM.md) 와 [LLM 사용량 기록](CLE-AI-USAGE.md) 에서 정한다.
+모델 설정의 API 키는 저장할 때 AES-256-GCM 으로 암호화한다. 새 암호화 경로를 만들지 않고 기존 `encrypt`/`decrypt` 유틸리티를 재사용하려는 AI 제품 요구사항의 기술 결정이다. AI 제품의 비기능 요구도 API 키를 저장할 때 암호화를 필수로 둔다. 암호화 키 환경 변수와 복호화 시점은 [LLM 클라이언트](CLE-AI-LLM.md) 와 [LLM 사용량 기록](CLE-AI-USAGE.md) 에서 정한다.
 
 ### max_tokens 기본값을 4096 으로 둔 이유
 
