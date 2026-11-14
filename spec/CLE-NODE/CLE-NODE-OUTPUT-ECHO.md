@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-ECHO"
 title: "노드 출력 규약 — 설정 에코"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "8caf635d9c33155cab6470002d54e297d8938b5ec48b2a70e932c59809b93981"
+content_hash: "4957f90a2f5f85730a65cfd6ac279751f98711f30b5c5793652939c309f27431"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-V462FA"
 source_paths: []
-mirror_sha256: "3ab25cdd2ed5a1d15fd3dcbfd02af86ed377ee81f2b2d6808f376aea5170f9ad"
-etag: "sha256-482a66acbc079e1e915bedec1c5a65acb89d22717fa44da14c1cc153971f7d7b"
+mirror_sha256: "6a7fdcb55e89a420c666652463a8c5dffb13e66839dcb1822b5ba332f8f4318c"
+etag: "sha256-09e77f220e2e6746116fcc1e2e2d494b9a3d52331677191bbaf1a379b21637fa"
 ---
 ## 개요
 
@@ -33,15 +33,17 @@ etag: "sha256-482a66acbc079e1e915bedec1c5a65acb89d22717fa44da14c1cc153971f7d7b"
 
 1. 마스킹은 나가는 곳(egress)에서만 한다. 표현식은 원문을 읽는다. `config` 는 `NodeExecution.outputData` 에 원문으로 저장하고, REST 응답(`redactStoredDataForResponse`)과 WebSocket 전송(`maskWireEnvelope`)에서만 가린다. 두 경로 모두 공용 `deepRedactSecrets*` 를 쓴다. 방식은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md)이 정한다.
 2. 그래서 핸들러가 `config` 에 시크릿 평문을 싣지 않는 것이 상시 불변식이다. egress 가 가리는 것은 키 이름으로 알아보는 값뿐이고, DB 와 표현식은 원문을 본다.
-3. `config` 와 `output` 이 겹치지 않는 것은 [Principle 1.1](CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다)의 핵심 전제다. 핸들러가 `context.rawConfig` 를 다시 싣는 방식으로 이를 지킨다. 엔진 쪽 요구 `ENG-RC-*` 는 [노드 핸들러 계약 §원본 설정 노출 요구](../CLE-EXEC/CLE-EXEC-HANDLER.md#원본-설정-노출-요구)에 있고 인터페이스도 같은 문서에 있다.
+3. `config` 와 `output` 이 겹치지 않는 것은 [Principle 1.1](CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다)의 핵심 전제다. 핸들러가 `context.rawConfig` 를 다시 싣는 방식으로 이를 지킨다. 엔진 쪽 요구사항(옛 레이블 `ENG-RC-01`~`04`)은 [노드 핸들러 계약 §원본 설정 노출 요구](../CLE-EXEC/CLE-EXEC-HANDLER.md#원본-설정-노출-요구)에 있고 인터페이스도 같은 문서에 있다.
 
 ### 싣는 값
 
 항상 싣는 값은 사용자가 화면에서 설정한 비민감 값이다. 원본 형태로 싣는다.
 
-- `method`, `url`(자격 증명을 뺀 원본), `queryType`, `mode`, `model`, `systemPrompt`(원본, `{{ }}` 포함 가능), `userPrompt`(원본), `subject`(원본), `body`(원본), `code`(원본 사용자 코드 본문, `code.config.code`), `fields`, `title`, `submitLabel`, `layout`, `items`, `columns`, `chartType`, `conditions`, `categories`, `iterationLimit`, `branchCount`, `maxTurns`, `maxCollectionRetries`, `outputFormat` 등.
+- `method`, `url`(자격 증명을 뺀 원본), `queryType`, `mode`, `model`, `systemPrompt`(원본, `{{ }}` 포함 가능), `userPrompt`(원본), `subject`(원본), `body`(원본), `code`(원본 사용자 코드 본문, `code.config.code`), `breakCondition`(원본 식, `loop.config.breakCondition`), `fields`, `title`, `submitLabel`, `layout`, `items`, `columns`, `chartType`, `conditions`, `categories`, `iterationLimit`, `branchCount`, `maxTurns`, `maxCollectionRetries`, `outputFormat` 등.
 
 `code.config.code` 는 `systemPrompt`·`userPrompt`·`body` 와 같은 부류인 사용자가 쓴 원본 텍스트다. `config.code` 에 그대로 싣는다(디버깅과 다음 노드 참조용, 비민감). 코드가 `expression-exclusions` 에 올라 있는 것은 표현식 평가 대상에서 뺀다는 뜻일 뿐이다. 싣지 않는다는 뜻이 아니다. 기준은 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md)다.
+
+Loop `breakCondition` 도 같다. 엔진은 이 식을 회차마다 다시 평가하므로 미리 평가하지 않는다. 핸들러는 원본 식을 `config.breakCondition` 에 그대로 싣는다. 기준은 [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md)다. [표현식 제외 키](../CLE-WF/CLE-WF-EXPR-ENGINE.md#표현식-제외-키)에 오른 키는 모두 평가에서만 빠지고 에코에서는 빠지지 않는다.
 
 크기가 큰 값도 싣는다.
 
@@ -111,7 +113,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 
 ## 미결 사항
 
-- **정보 추출기의 설정 에코 키 이름(Principle 7)**: 이 규약은 비민감 스키마 필드를 모두 항상 싣는다고 정한다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)는 `outputSchema` 를 `schema` 키로 싣고 이를 미뤄 둔 알려진 결함으로 적는다. 결정 필요: 이 이름을 예외로 인정할지, 노드를 규약에 맞출지. Loop `breakCondition` 은 2026-11-12 에 싣기로 정했다(결정 NERV Task `CLE-T-QV1NFT`, 구현 `CLE-T-CYCGST`). ForEach `errorPolicy` 는 핸들러가 이미 싣고 [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md) 출력 표 정리는 NERV Task `CLE-T-W0377J` 가 맡는다.
+- **정보 추출기의 설정 에코 키 이름(Principle 7)**: 이 규약은 비민감 스키마 필드를 모두 항상 싣는다고 정한다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)는 `outputSchema` 를 `schema` 키로 싣고 이를 미뤄 둔 알려진 결함으로 적는다. 결정 필요: 이 이름을 예외로 인정할지, 노드를 규약에 맞출지. Loop `breakCondition` 은 2026-11-12 에 싣기로 정했고 구현됐다(결정 NERV Task `CLE-T-QV1NFT`, 구현 `CLE-T-CYCGST`, `loop.handler.ts`). ForEach `errorPolicy` 는 핸들러가 이미 싣고 [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md) 출력 표 정리는 NERV Task `CLE-T-W0377J` 가 맡는다.
 
 ## Rationale
 
@@ -133,6 +135,8 @@ spread 로 싣지 않는 이유는 세 가지다.
 
 규칙 4 에 처음 적어 둔 보강 대상 필드(`switch.hasDefault`, `if-else.strictComparison`, `map.errorPolicy`, `foreach.errorPolicy`, `carousel.maxItems`, `chart.dataField` · `groupBy` · `colors`, `template.helpers`, `table.pagination`, `variable-modification.recordValues`)는 2026-11-07 에 코드와 대조하니 핸들러가 모두 싣고 있어서 목록을 지웠다(NERV Task `CLE-T-ETAZAT`). If/Else · Switch · 변수 수정 문서의 출력 예시와 필드 표는 같은 날 맞췄다(NERV Task `CLE-T-FZ6N7A`). 미설정 필드가 JSON 에서 빠진다는 점도 같은 날 규칙 4 와 Principle 11 규칙 2 에 적었다. Map · ForEach · Table · Carousel · Template 문서의 출력 필드 표를 이 형식에 맞추는 일은 NERV Task `CLE-T-W0377J` 가 맡는다.
 
-2026-11-12 에 규칙 4 에 예외 목록(노드 · 필드 · 이유)을 두는 안을 검토하고 기각했다. [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 는 엔진이 `breakCondition` 을 직접 평가한다는 이유로 이 필드를 싣지 않는다고 적어 두었다. 표현식 평가에서 빼는 것과 에코에서 빼는 것은 다른 일이라서 Code `code` 처럼 싣기로 했다. 예외를 두면 다음 노드가 노드마다 어떤 필드가 빠지는지 따로 알아야 한다. 결정은 NERV Task `CLE-T-QV1NFT`, 구현은 `CLE-T-CYCGST` 가 맡는다.
+2026-11-12 에 규칙 4 에 예외 목록(노드 · 필드 · 이유)을 두는 안을 검토하고 기각했다. [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 는 엔진이 `breakCondition` 을 직접 평가한다는 이유로 이 필드를 싣지 않는다고 적어 두었다. 표현식 평가에서 빼는 것과 에코에서 빼는 것은 다른 일이라서 Code `code` 처럼 싣기로 했다. 예외를 두면 다음 노드가 노드마다 어떤 필드가 빠지는지 따로 알아야 한다. 결정은 NERV Task `CLE-T-QV1NFT` 이고 구현은 `CLE-T-CYCGST` 에서 했다.
+
+2026-11-14 에 [싣는 값](#싣는-값)에 Loop `breakCondition` 을 Code `code` 와 같은 경우로 적었다. 제외 목록만 보고 에코에서도 빠진다고 읽지 않도록 [표현식 제외 키](../CLE-WF/CLE-WF-EXPR-ENGINE.md#표현식-제외-키)와 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#표현식-컨텍스트-구성)의 제외 목록에도 같은 설명을 한 줄씩 더했다(NERV Task `CLE-T-V462FA`). 동작은 바뀌지 않는다.
 
 2026-11-13 에 Principle 7 의 작업 레이블 표기를 지웠다. 한 작업 안에서 쓰던 레이블이라 다른 문서에서는 뜻을 알 수 없다. 동작은 바뀌지 않는다.

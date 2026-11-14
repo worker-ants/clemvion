@@ -1532,6 +1532,12 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
       state.partialResult,
       state.outputSchema,
     );
+    // CONVENTIONS Principle 7 — 대기 출력도 종결 출력(multiTurnConfigEcho)처럼
+    // 엔진이 운반한 원본 설정(`{{ … }}` 보존)을 에코한다. `state.outputSchema` 는
+    // 평가된 값이라 LLM 호출 · 누락 판정에만 쓴다. rawConfig 가 없는 옛 상태 행은
+    // 평가된 상태 값으로 대신한다(NERV Task CLE-T-3G40VQ).
+    const raw = (state.rawConfig ??
+      {}) as RawInformationExtractorMultiTurnConfig;
 
     return {
       // Echo node config so the UI's Config tab renders during waiting state
@@ -1539,9 +1545,10 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
       // frontend's `unwrapNodeOutput` treats a waiting payload as legacy and
       // shows "no config recorded".
       config: {
-        schema: state.outputSchema,
+        schema: raw.outputSchema ?? state.outputSchema,
         mode: 'multi_turn',
-        maxCollectionRetries: state.maxCollectionRetries,
+        maxCollectionRetries:
+          raw.maxCollectionRetries ?? state.maxCollectionRetries,
       },
       // CONVENTIONS §4.3 — waiting payload. D6 (2026-05-17) — multi-turn
       // 대화 상태(`messages` / `message` / `turnCount`) 를 종결 시점

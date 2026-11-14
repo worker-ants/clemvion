@@ -6227,19 +6227,29 @@ export class ExecutionEngineService
           executedNodes.add(node.id);
           break;
 
-        case 'route_error':
-          this.commitNodeOutput(context, node.id, result.output);
-          nodeExecution.status = NodeExecutionStatus.FAILED;
-          nodeExecution.error = {
-            message: err instanceof Error ? err.message : String(err),
+        case 'route_error': {
+          // 핸들러가 throw 한 실패도 `port: 'error'` 출력과 같이 error 포트를 고른다
+          // (NERV Task CLE-T-0R8F99). 고른 포트가 없으면 출력 연결선이 포트와
+          // 상관없이 모두 열려 정상 경로의 다음 노드까지 실행된다. 노드 마감 ·
+          // NODE_FAILED · error 연결선이 없을 때의 ERROR_PORT_FALLBACK 은 port 경로와
+          // 같은 finalizeErrorPortNode 가 맡는다.
+          const routedOutput = {
+            ...(result.output as Record<string, unknown>),
+            _selectedPort: 'error',
           };
-          nodeExecution.finishedAt = new Date();
-          nodeExecution.durationMs =
-            nodeExecution.finishedAt.getTime() -
-            nodeExecution.startedAt.getTime();
-          await this.nodeExecutionRepository.save(nodeExecution);
+          this.commitNodeOutput(context, node.id, routedOutput);
           executedNodes.add(node.id);
+          errorPortFallbackMessage = await this.finalizeErrorPortNode(
+            executionId,
+            node,
+            nodeExecution,
+            context,
+            result.output,
+            routedOutput,
+            outgoingEdgeMap,
+          );
           break;
+        }
 
         case 'stop':
         default:
@@ -6291,7 +6301,8 @@ export class ExecutionEngineService
 
   /**
    * spec/5-system/3-error-handling.md §3.2 — 핸들러가 `port: 'error'` 로 라우팅한
-   * 노드를 FAILED 로 finalize 하고 NODE_FAILED 를 emit 한다.
+   * 노드와, 핸들러가 throw 한 실패를 `route_to_error_port` 정책으로 라우팅한 노드
+   * (`case 'route_error'`)를 FAILED 로 finalize 하고 NODE_FAILED 를 emit 한다.
    *
    * @returns error 포트에 연결된 엣지가 없으면 Stop Workflow 폴백을 트리거할
    *   메시지(호출부가 finally 이후 ErrorPortFallbackError 로 throw), 연결돼 있으면

@@ -7669,6 +7669,157 @@ describe('ExecutionEngineService', () => {
         ]),
       );
     });
+
+    // 핸들러가 throw 한 실패에 「에러 포트로 라우팅」이 걸린 경우도 `port: 'error'`
+    // 출력과 같이 error 포트를 고른다. 회귀 전에는 출력에 고른 포트가 없어서 `out`
+    // 연결선까지 함께 열렸고, error 연결선이 없어도 멈추지 않았고, NODE_FAILED 도
+    // 내지 않았다(NERV Task CLE-T-0R8F99).
+    describe('handler throw with route_to_error_port', () => {
+      const throwerNode: Partial<Node> = {
+        id: 'n-throw',
+        workflowId,
+        type: 'throw_node',
+        category: NodeCategory.LOGIC,
+        label: 'Thrower',
+        config: { errorHandling: { policy: 'route_to_error_port' } },
+        isDisabled: false,
+      };
+      const sinkNode = (id: string, type: string): Partial<Node> => ({
+        id,
+        workflowId,
+        type,
+        category: NodeCategory.LOGIC,
+        label: id,
+        config: {},
+        isDisabled: false,
+      });
+      const throwerEdge = (
+        id: string,
+        sourcePort: string,
+        targetNodeId: string,
+      ): Partial<Edge> => ({
+        id,
+        workflowId,
+        sourceNodeId: 'n-throw',
+        sourcePort,
+        targetNodeId,
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      });
+      const routedError = { code: 'UNKNOWN_ERROR', message: 'boom' };
+      let normalExecute: jest.Mock;
+      let errorSinkExecute: jest.Mock;
+
+      beforeEach(() => {
+        handlerRegistry.register('throw_node', {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(async () => {
+            throw new Error('boom');
+          }),
+        });
+        normalExecute = jest.fn(async () => mockOutput({ normal: true }));
+        errorSinkExecute = jest.fn(async () => mockOutput({ handled: true }));
+        handlerRegistry.register('normal_node', {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: normalExecute,
+        });
+        handlerRegistry.register('error_sink_node', {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: errorSinkExecute,
+        });
+      });
+
+      it('opens only the error edge, marks the node FAILED and emits NODE_FAILED', async () => {
+        mockNodeRepo.findBy.mockResolvedValue([
+          throwerNode,
+          sinkNode('n-normal', 'normal_node'),
+          sinkNode('n-handle', 'error_sink_node'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          throwerEdge('e-out', 'out', 'n-normal'),
+          throwerEdge('e-err', 'error', 'n-handle'),
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+
+        // 정상 경로(out)의 다음 노드는 실행하지 않는다.
+        expect(normalExecute).not.toHaveBeenCalled();
+        // error 경로의 다음 노드는 라우팅 표지 없이 에러 데이터만 입력으로 받는다.
+        expect(errorSinkExecute).toHaveBeenCalledTimes(1);
+        expect(errorSinkExecute.mock.calls[0][0]).toEqual({
+          error: routedError,
+        });
+
+        const throwNe = lastNodeExecSave('n-throw');
+        expect(throwNe?.status).toBe(NodeExecutionStatus.FAILED);
+        expect(throwNe?.error).toEqual(routedError);
+        expect(throwNe?.outputData).toEqual({ error: routedError });
+        expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+          executionId,
+          'n-throw',
+          'execution.node.failed',
+          expect.objectContaining({
+            status: 'failed',
+            error: 'boom',
+            output: { error: routedError },
+          }),
+        );
+        // error 연결선이 있으므로 실행은 계속되고 성공으로 끝난다.
+        expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+          expect.stringMatching(/UPDATE execution/),
+          expect.arrayContaining([ExecutionStatus.COMPLETED]),
+        );
+      });
+
+      it('stops the workflow (ERROR_PORT_FALLBACK) when no error edge is connected', async () => {
+        mockNodeRepo.findBy.mockResolvedValue([
+          throwerNode,
+          sinkNode('n-normal', 'normal_node'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          throwerEdge('e-out', 'out', 'n-normal'),
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+
+        expect(normalExecute).not.toHaveBeenCalled();
+        expect(lastNodeExecSave('n-throw')?.status).toBe(
+          NodeExecutionStatus.FAILED,
+        );
+        expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+          executionId,
+          'n-throw',
+          'execution.node.failed',
+          expect.objectContaining({ status: 'failed' }),
+        );
+        expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+          expect.stringMatching(/UPDATE execution/),
+          expect.arrayContaining([
+            ExecutionStatus.FAILED,
+            expect.stringContaining('ERROR_PORT_FALLBACK'),
+          ]),
+        );
+        expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+          executionId,
+          'execution.failed',
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({
+              code: 'ERROR_PORT_FALLBACK',
+            }) as unknown,
+          }),
+        );
+        expect(
+          mockWebsocketService.emitExecutionEvent,
+        ).not.toHaveBeenCalledWith(
+          executionId,
+          'execution.completed',
+          expect.anything(),
+        );
+      });
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────────

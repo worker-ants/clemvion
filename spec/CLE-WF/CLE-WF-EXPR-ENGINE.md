@@ -2,19 +2,19 @@
 id: "CLE-WF-EXPR-ENGINE"
 title: "표현식 언어 — 에디터와 실행 엔진 통합"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-EXPR"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-EXPR"]
 area: "CLE-WF"
-content_hash: "2183086ee8f0651e08112770533281209a516e0980ba9f5a22101a1a8b00c0f4"
+content_hash: "dcf3804277033866416e9e8edb6c4a72c2d1abfb6187cae42940786e375cbf7c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-V462FA"
 source_paths: []
-mirror_sha256: "3585b4cadfe69509160b0237ad0a0a6c4c4aa999014f87b96a8885ec8db0025d"
-etag: "sha256-e3b8177a2992251048bfa12b5f068aa7fb7df38e85e6378976568f8d8180fa14"
+mirror_sha256: "4a97026e0516ca1c84b9720cd7cd0070d2ff73e841bc68ab427e30bfbcc92573"
+etag: "sha256-5d288937af781e0470a2c4c463108c52c5fa79a71de50bd93c6d458a2ce05b23"
 ---
 ## 개요
 
@@ -134,6 +134,8 @@ buildExpressionContext(input, executionContext, nodeMap) → resolveConfig(confi
 | `loop` | `breakCondition` | 반복마다 다시 평가해야 한다(`$loop`·`$var`·`$node[...]` 참조). 노드를 시작할 때 미리 평가하면 i=0 값으로 굳고, 첫 반복 전에는 `$loop` 가 `undefined` 라 에러가 난다. |
 
 그 밖의 모든 노드의 설정 문자열 필드는 평가 대상이다. `template` 노드의 `template` 필드도 따로 제외하지 않는다. 제외 규칙의 기준은 `codebase/backend/src/modules/execution-engine/expression/expression-exclusions.ts` 의 `EXPRESSION_EXCLUSIONS` 다.
+
+제외 키는 엔진이 미리 평가하지 않는다는 뜻일 뿐이고 설정 에코에서 빠지지 않는다. 핸들러는 이 키들의 원본 값도 `config` 에 싣는다([설정 에코 원칙](../CLE-NODE/CLE-NODE-OUTPUT-ECHO.md#principle-7-설정-에코-원칙)).
 
 ## 구현 위치
 

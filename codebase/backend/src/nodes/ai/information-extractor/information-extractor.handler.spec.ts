@@ -701,6 +701,66 @@ describe('InformationExtractorHandler', () => {
       expect(state.partialResult).toEqual({});
     });
 
+    it('waiting output echoes the raw outputSchema / maxCollectionRetries (templates preserved)', async () => {
+      // REQ-HANDLER-002 · 004 (CLE-T-3G40VQ · CLE-T-5W95FT) — 입력 대기 출력의
+      // `config` 도 종결 출력처럼 원본 설정을 에코한다. 엔진이 평가한 `config`
+      // 대신 `context.rawConfig` 의 템플릿이 그대로 나와야 한다.
+      mockLlmService.chat.mockResolvedValue(
+        contentOnly('주문번호를 알려주세요'),
+      );
+      const rawSchema = [
+        {
+          name: 'senderName',
+          type: 'string',
+          description: '{{ vars.senderDesc }}',
+          required: true,
+        },
+        {
+          name: 'orderNumber',
+          type: 'string',
+          description: 'Order number',
+          required: true,
+        },
+      ];
+      const evaluatedSchema = [
+        { ...rawSchema[0], description: 'Sender name' },
+        rawSchema[1],
+      ];
+
+      const result = await handler.execute(
+        {},
+        {
+          mode: 'multi_turn',
+          inputField: 'John 입니다',
+          outputSchema: evaluatedSchema,
+          maxTurns: 5,
+          maxCollectionRetries: 2,
+        },
+        {
+          ...context,
+          rawConfig: {
+            mode: 'multi_turn',
+            inputField: '{{ $node["Chat"].output.message }}',
+            outputSchema: rawSchema,
+            maxTurns: 5,
+            maxCollectionRetries: '{{ vars.retries }}',
+          },
+        },
+      );
+
+      const output = result as unknown as Record<string, unknown>;
+      expect(output.status).toBe('waiting_for_input');
+      expect(output.config).toEqual({
+        schema: rawSchema,
+        mode: 'multi_turn',
+        maxCollectionRetries: '{{ vars.retries }}',
+      });
+      // 다음 턴의 LLM 호출은 평가된 스키마를 쓴다(원본 에코와 무관).
+      const state = output._resumeState as Record<string, unknown>;
+      expect(state.outputSchema).toEqual(evaluatedSchema);
+      expect(state.maxCollectionRetries).toBe(2);
+    });
+
     it('canonical waiting shape passes adaptHandlerReturn under NODE_ENV=production', async () => {
       // Regression: pre-migration the handler returned a bare object that
       // failed the production-strict validation in adaptHandlerReturn.
@@ -982,6 +1042,44 @@ describe('InformationExtractorHandler', () => {
       >;
       expect(conv.message).toBe('다시 주문번호를 알려주세요');
       expect(conv.turnCount).toBe(2);
+      // rawConfig 가 없는 옛 상태 행은 평가된 상태 값으로 에코한다.
+      expect(output.config).toEqual({
+        schema: multiTurnSchema,
+        mode: 'multi_turn',
+        maxCollectionRetries: 3,
+      });
+    });
+
+    it('resumed waiting output echoes the raw config carried in state.rawConfig', async () => {
+      // REQ-HANDLER-002 · 004 — 재개 턴의 입력 대기 출력도 엔진이 운반한
+      // `state.rawConfig` 의 원본을 에코한다.
+      mockLlmService.chat.mockResolvedValue(
+        contentOnly('다시 주문번호를 알려주세요'),
+      );
+      const rawSchema = [
+        { ...multiTurnSchema[0], description: '{{ vars.senderDesc }}' },
+        multiTurnSchema[1],
+      ];
+
+      const result = await handler.processMultiTurnMessage(
+        '음 모르겠어요',
+        buildState({
+          maxCollectionRetries: 2,
+          rawConfig: {
+            mode: 'multi_turn',
+            outputSchema: rawSchema,
+            maxCollectionRetries: '{{ vars.retries }}',
+          },
+        }),
+      );
+
+      const output = result as Record<string, unknown>;
+      expect(output.status).toBe('waiting_for_input');
+      expect(output.config).toEqual({
+        schema: rawSchema,
+        mode: 'multi_turn',
+        maxCollectionRetries: '{{ vars.retries }}',
+      });
     });
 
     it('returns max_turns endReason when turnCount reaches maxTurns', async () => {
