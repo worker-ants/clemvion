@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-SHUTDOWN"
 title: "장애 복구와 안전 종료 — 안전 종료와 영속 재개 큐"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "78a331a7c75ac2d4de0f83cf17e5c8179d62ffc28234ec0f33f46449cc3ebf5b"
+content_hash: "efc9f9305714a1f682c54389d457265cb9fd314068dd25874d2c1d23bd30a545"
 read_as: "approved_fallback"
 task: "CLE-T-9YHJSD"
 source_paths: []
-mirror_sha256: "4ee2d29d55b5472103b96c64ecfda4afe53d247de7c5de0e83a4a1c4d4cf4e9d"
-etag: "sha256-199ab96df6f61f7f2505b34246a6c8e01cfd92e24b451b2fe5e3ceb378d76e82"
+mirror_sha256: "d8744a222d853fbc5f2bfc21a95c1da797e36f54639281154bd5504b6f63141d"
+etag: "sha256-deb35cbad4d8a1568adeb4567441c280c2a278b47a4b99f2d785afb8711cf868"
 ---
 ## 개요
 
@@ -35,11 +35,13 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
    - 완료하지 못하면 그 노드 실행과 실행을 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다. 노드 에러 처리 정책은 보지 않는다. 실행이 `failed` 로 끝나므로 다른 인스턴스가 이어받지 않는다. 다시 돌리려면 재실행한다.
 5. `SIGTERM_GRACE_MS` 가 지나면 강제로 끝낸다.
 
-**구현**: `ShutdownStateService.onApplicationShutdown` 이 종료를 처리한다.
+**구현**: `ShutdownStateService` 가 Nest 의 `onModuleDestroy` 에서 종료를 시작한다. Nest 는 전역 모듈의 `onModuleDestroy` 를 마지막에 부르므로 `@nestjs/bullmq` 가 워커를 close 하기 전에 시작한다. `onApplicationShutdown` 은 같은 작업이 끝나기를 기다리기만 한다. 유예 시간은 종료를 시작한 시각부터 한 번만 센다.
 
+- 첫 동작으로 종료 표시를 켠다. 그 뒤로 수동 실행 진입점은 503 + `Retry-After` 로 거부한다. HTTP 서버는 워커를 기다리는 동안 열려 있다.
+- 이 인스턴스의 BullMQ 워커를 실행 큐 세 개만이 아니라 **모두** `pause` 한다. 워커 단위 pause 라 다른 인스턴스는 같은 큐에서 계속 작업을 가져간다. 진행 중 작업이 모두 끝나고 추적 중인 노드 실행이 없으면 유예 시간을 다 기다리지 않고 끝낸다. 모든 워커를 멈추는 이유는 이 문서 Rationale 「종료는 워커 close 보다 먼저 시작한다」에 있다.
 - 노드 실행은 실행 시작 때 `ShutdownStateService.registerInFlight` 로 등록되고 끝날 때 해제된다(try 첫 줄과 finally).
-- 종료 때는 **이 인스턴스가 추적 중인** 노드 실행과 실행만 대상으로 한다(`WHERE id IN (...)`). 유예 시간 동안 drain 을 기다리고 남은 것을 노드 실행과 실행 각각 원자 UPDATE 로 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다.
-- 종료 중 수동 실행 진입점으로 들어온 요청은 503 + `Retry-After` 로 거부한다.
+- 유예 시간이 지나면 **이 인스턴스가 추적 중인** 노드 실행과 실행만 대상으로(`WHERE id IN (...)`) 각각 원자 UPDATE 로 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다. 그다음 진행 중 작업이 하나라도 남았으면 이 인스턴스의 워커를 모두 강제 close 한다. 그래서 `@nestjs/bullmq` 의 워커 close 도 유예 시간 안에 끝난다. 강제 close 한 실행 큐 작업은 잠금이 만료되면 stalled 로 다른 워커에 재배달될 수 있고, 실행이 `failed` 라 버려진다.
+- 노드와 노드 사이(한 노드를 해제하고 다음 노드를 등록하기 전)에 유예 시간이 끝나면 표시할 노드 실행이 없다. 실행은 `running` 으로 남고 강제 close 한 작업은 워커 크래시처럼 [운영 중 stalled 재배달](CLE-EXEC-RECOVERY-REDRIVE.md#운영-중-stalled-재배달) 로 재구동한다.
 - 노드 경계의 취소 확인(`assertExecutionNotCancelled`)은 `cancelled` 만 본다. 그래서 유예 시간이 지나 실행을 `failed` 로 표시한 뒤에도 프로세스가 끝날 때까지 dispatch 반복문이 다음 노드를 돌릴 수 있다. 이 틈은 NERV Task `CLE-T-6WSCPE` 가 맡는다.
 
 끊긴 노드 실행과 실행은 `cancelled` 가 아니라 `failed` 다. 안전 종료를 노드 취소 신호로 이어도(NERV Task `CLE-T-6WSCPE`) 같은 상태로 기록한다. 규칙은 [노드 취소](CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 23 에 있고 결정 근거는 이 문서 Rationale 「끊긴 노드는 정책과 상관없이 `failed` 로 끝낸다」에 있다.
@@ -99,6 +101,31 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 - **다른 인스턴스는 이어받지 않는다**: 실행을 `failed` 로 표시한 뒤 프로세스가 끝나면 그 실행의 `execution-run` 작업이 stalled 로 다른 워커에 재배달될 수 있다. 재배달을 받은 워커는 실행 상태가 `pending` 도 `running` 도 아니면 작업을 버린다. 그래서 같은 실행에 새 세그먼트가 시작되지 않고 [크래시 재구동과 부팅 복구 스캔](CLE-EXEC-RECOVERY-REDRIVE.md#남은-zombie-race) 의 세그먼트 직렬화 불변식과 부딪치지 않는다. 표시한 뒤에도 같은 프로세스의 dispatch 반복문이 다음 노드를 돌릴 수 있는 틈(「안전 종료」 구현 항목, NERV Task `CLE-T-6WSCPE`)은 그 프로세스 안의 일이고 새 세그먼트를 만들지 않는다.
 - **기각: `continue` 를 노드 에러 처리 정책으로 정의하기**: 끊긴 노드 뒤를 이어 돌리려면 인스턴스 사이에서 세그먼트를 넘겨받는 재개 경로를 새로 만들어야 한다. 그렇게 해도 반쯤 끝난 부수효과 문제는 남는다. 이 방향을 맡던 NERV Task `CLE-T-FTBSKJ` 는 닫았다.
 - **기각: `cancelled` 로 바꾸기**: 이미 구현하고 테스트한 `failed` + `SERVER_INTERRUPTED` 계약을 바꿔야 한다. [실행 데이터와 흐름](CLE-EXEC-DATA.md) 의 상태별 에러 코드 표와 [에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md) 도 함께 바뀐다. 실패 목록에서 서버 중단이 빠지는 것에 비해 얻는 것이 없다.
+
+### 종료는 워커 close 보다 먼저 시작한다 (2026-11-14, CLE-T-9YHJSD)
+
+**실측**: 원래 구현은 `onApplicationShutdown` 에서 종료 표시를 켜고 유예 시간을 셌다. Nest 는 SIGTERM 을 받으면 모든 모듈의 `onModuleDestroy` 를 먼저 부르고 HTTP 서버를 닫은 뒤에야 `onApplicationShutdown` 을 부른다. `@nestjs/bullmq` 는 `onModuleDestroy` 에서 워커를 close 하고, BullMQ 의 기본 close 는 진행 중 작업이 끝날 때까지 기다린다. 2026-11-14 e2e 이미지로 잰 결과(Nest 12.4.0 · `@nestjs/bullmq` 12.0.1 · BullMQ 6.7.2)는 다음과 같았다.
+
+- 노드 10초 시나리오: 워커 close 에 9.45초가 걸렸다. 그동안 수동 실행 요청 58건이 503 이 아니라 202 를 받았다.
+- 노드 60초 시나리오(35초에 SIGKILL): 유예 시간이 시작되기 전에 SIGKILL 을 받아 실행과 노드 실행 행이 `running` 으로 남았다. `SERVER_INTERRUPTED` 표시도 없었다.
+
+1단계(503), 4단계(표시), 5단계(유예 시간 뒤 강제 종료)가 지켜지지 않았다.
+
+**결정**(사람 결정 2026-11-14, 질문 `01a1d93d-db04-7382-8461-0fad66c41fe1`): 종료 표시 · 워커 pause · 유예 시간을 모두 `onModuleDestroy` 로 옮긴다. 유예 시간이 끝나면 표시한 뒤 워커를 강제 close 해 `@nestjs/bullmq` 의 close 가 유예 시간을 넘기지 않게 한다. 유예 시간은 한 번만 센다.
+
+**고친 뒤 실측**(같은 방법, 2026-11-14):
+
+- 노드 10초 시나리오: SIGTERM 뒤 첫 요청(171ms)부터 수동 실행 요청 44건이 모두 503 + `Retry-After: 30` 을 받았고 202 는 없었다. 작업은 9.5초에 끝났고 워커 close 는 15ms 걸렸다. 실행은 `completed` 로 끝났다.
+- 노드 60초 시나리오: 30초 동안 요청 187건이 모두 503 이었다. 30초에 노드 실행과 실행이 `failed` + `SERVER_INTERRUPTED` 로 표시됐고 워커 close 는 1ms 걸렸다.
+
+결정의 세부:
+
+- **실행 큐 세 개가 아니라 모든 워커를 멈춘다**: 질문의 선택지 문안은 실행 큐 워커 세 개(`execution-run` · `execution-continuation` · `background-execution`)를 멈춘다고 적었다. 그런데 `@nestjs/bullmq` 는 다른 큐의 워커도 같은 `onModuleDestroy` 에서 close 하고, 그 close 도 진행 중 작업을 한도 없이 기다린다. 세 개만 멈추면 다른 큐의 긴 작업 때문에 종료가 유예 시간을 넘긴다. 그래서 이 인스턴스의 워커를 모두 멈추고 유예 시간이 지나도 진행 중 작업이 남았으면 워커를 모두 강제 close 한다. 실행 큐가 아닌 작업에는 노드 실행이 없어 `SERVER_INTERRUPTED` 로 표시하지 않는다. 강제 close 된 뒤에는 그 큐의 stalled 처리를 따른다.
+- **워커 단위로 멈춘다**: 큐 단위 pause 는 Redis 의 큐 상태를 바꿔 다른 인스턴스도 멈춘다. 워커 단위 pause 는 이 프로세스만 멈춘다.
+- **세그먼트 시간은 여전히 flush 하지 않는다**: 종료를 `onModuleDestroy` 로 옮겼지만 세그먼트 경과 시간을 저장하는 훅은 더하지 않았다. 위 「안전 종료 때 세그먼트 시간이 덜 세어지는 것을 허용한다」 결정은 그대로다.
+- **남은 틈**: 노드와 노드 사이에 유예 시간이 끝나면 표시할 노드 실행이 없어 실행이 `running` 으로 남고 stalled 재배달이 거둔다(「안전 종료」 구현 항목). Makeshop · Cafe24 모듈의 `queueEvents.close()` 가 워커 close 뒤 종료를 31초 더 끄는 문제는 이 결정과 별개이고 NERV Task `CLE-T-7H7VET` 가 맡는다.
+- **기각: 종료 표시만 앞당기기**: 503 은 바로 나가지만 워커 close 가 진행 중 작업을 한도 없이 기다리는 문제가 남는다. 긴 노드는 여전히 SIGKILL 로 끝나 `SERVER_INTERRUPTED` 표시를 놓친다.
+- **기각: 워커 close 대기에만 유예 시간 한도를 걸기**: 표시는 지켜지지만 종료 표시가 여전히 HTTP 서버를 닫은 뒤에 켜져 워커를 기다리는 동안 수동 실행 진입점이 계속 202 를 준다.
 
 ## 구현 위치
 
