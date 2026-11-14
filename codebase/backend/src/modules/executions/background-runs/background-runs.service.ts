@@ -32,7 +32,7 @@ interface CursorPayload {
 /**
  * Background 본문 실행 모니터링 read-only API 서비스.
  *
- * spec/4-nodes/1-logic/12-background.md §8 의 조회 키 `meta.backgroundRunId`
+ * [Background 노드 — 본문 실행 모니터링](CLE-NODE-BACKGROUND-RUNS) 의 조회 키 `meta.backgroundRunId`
  * 를 받아 본문 서브그래프의 NodeExecution 들을 cursor 페이지네이션으로 반환한다.
  * 메인 흐름의 격리 컨트랙트(§4)에 영향을 주지 않는 순수 read.
  *

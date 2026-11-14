@@ -36,7 +36,8 @@ export function createWsClient(): WsClient {
 
     socket = io(`${WS_BASE_URL}/ws`, {
       auth: { token },
-      transports: ["websocket", "polling"],
+      // 서버는 websocket 전송만 받는다(CLE-API-WS-CONN §2.1).
+      transports: ["websocket"],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,

@@ -1,6 +1,6 @@
 /**
  * NodeExecution.outputData JSONB 에서 `meta.backgroundRunId` 를 안전하게
- * 추출. handler 가 발급한 UUID v4 — 모니터링 API (spec/4-nodes/1-logic/12-background.md §8)
+ * 추출. handler 가 발급한 UUID v4 — 모니터링 API([Background 노드 — 본문 실행 모니터링](CLE-NODE-BACKGROUND-RUNS))
  * 의 조회 키이자 WebSocket `background:run:<id>` 채널 식별자.
  *
  * 다음 경우는 모두 빈 문자열로 통일 — `BackgroundExecutionJob.backgroundRunId`

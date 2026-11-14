@@ -79,6 +79,15 @@ describe("ws-client", () => {
       expect(callArgs.query).toBeUndefined();
     });
 
+    // 서버는 websocket 전송만 받는다(CLE-API-WS-CONN §2.1). polling 을 목록에 두면
+    // websocket 이 실패한 뒤 서버가 거절할 요청을 보낸다.
+    it("connects with the websocket transport only", () => {
+      const client = createWsClient();
+      client.connect("test-token");
+      const callArgs = mockIo.mock.calls[0][1] as Record<string, unknown>;
+      expect(callArgs.transports).toEqual(["websocket"]);
+    });
+
     it("skips connect if already connected", () => {
       const client = createWsClient();
       client.connect("token1");

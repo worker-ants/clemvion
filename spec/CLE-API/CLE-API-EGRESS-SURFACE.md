@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS-SURFACE"
 title: "응답 자격 증명 마스킹 — 실행 표면"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "8e496c734cab1740aa14f8ac5c5e895fb3f09e3d9099f8b8fb5a027638079f76"
+content_hash: "8cd4b5e64dff5fd8f75e6176d2d40210753b9ab289169ed91595e458342d93bf"
 read_as: "approved_fallback"
-task: "CLE-T-TTE3RS"
+task: "CLE-T-CYTWVC"
 source_paths: []
-mirror_sha256: "dbe0b48ef85a1060d88b26a111b4aa40dd92c8b7e3de4dd61ce84ae9ad6119fe"
-etag: "sha256-f53a66a81e5dae290d545ba9073c48ebdc36d4a52eeba18c25472b1dc3d23033"
+mirror_sha256: "c3672307cbbf03677fc1a08518aa678102e7f2c7176707170d26cbe768b2c099"
+etag: "sha256-f55b0121abad6af8e942446f8c703c72b580289aea201a1764f89eefcca25160"
 ---
 ## 개요
 
@@ -163,7 +163,7 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 | 구독 채널 | 발행 관문 | 이벤트 정의 |
 |---|---|---|
 | `kb:<documentId>` | `WebsocketService.emitKbEvent` | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 지식 저장소 문서 이벤트 절, [지식 저장소 데이터](../CLE-KB/CLE-KB-DATA.md) |
-| `background:run:<id>` | `WebsocketService.emitBackgroundRunEvent` | [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 실시간 갱신 절 |
+| `background:run:<id>` | `WebsocketService.emitBackgroundRunEvent` | [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](CLE-API-WS-EVENTS-CHANNELS.md#8-background-본문-실행-이벤트-server--client) |
 
 - **수신 인구**: 구독 인가가 역할을 보지 않아 뷰어도 받는다. `execution:<id>` 와 같다(§2.1).
 - **처방**: 그래서 `execution:` wire 와 같은 `maskWireEnvelope` 를 건다. 값 패턴과 키 이름을 함께 본다. 키 이름 마스킹(`sanitizePayloadForWs`) 뒤에 건다.

@@ -5,6 +5,8 @@ import { WebsocketGateway } from './websocket.gateway';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { WsErrorCode } from './ws-error-codes';
+import { WsRedisAdapterProvider } from './ws-redis-adapter';
+import { GATEWAY_OPTIONS } from '@nestjs/websockets/constants';
 import { MSG_AUTH_TOKEN_EXPIRING } from './websocket-events.types';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { RetryTurnService } from '../execution-engine/retry-turn.service';
@@ -140,6 +142,11 @@ describe('WebsocketGateway', () => {
         // 실 authorizer 클래스들을 위 서비스 mock 위에 wiring + useFactory 로 집계(prod
         // websocket.module 과 동일 구조)하면 기존 subscribe 인가 동작 테스트
         // (verifyOwnership/findById 호출 검증)가 그대로 유효하며 DI 역전도 함께 검증된다.
+        {
+          // CLE-API-WS-MSG §4.6 — 기본은 Redis 미설정(null). afterInit 테스트가 override.
+          provide: WsRedisAdapterProvider,
+          useValue: { createAdapter: jest.fn().mockReturnValue(null) },
+        },
         ExecutionChannelAuthorizer,
         BackgroundRunChannelAuthorizer,
         WorkflowChannelAuthorizer,
@@ -208,6 +215,56 @@ describe('WebsocketGateway', () => {
       expect(result.data.success).toBe(false);
       expect(result.data.error).toBe('Not authorized for this channel');
       expect(join).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('여러 서버 인스턴스 전달 (CLE-API-WS-MSG §4.6)', () => {
+    function namespaceStub(): {
+      nsp: Parameters<WebsocketGateway['afterInit']>[0];
+      adapter: jest.Mock;
+    } {
+      const adapter = jest.fn();
+      return {
+        nsp: { server: { adapter } } as unknown as Parameters<
+          WebsocketGateway['afterInit']
+        >[0],
+        adapter,
+      };
+    }
+
+    it('afterInit 이 Redis adapter 생성자를 namespace 의 서버에 건다', () => {
+      const factory = jest.fn();
+      const provider = module.get(WsRedisAdapterProvider);
+      (provider.createAdapter as jest.Mock).mockReturnValue(factory);
+      const { nsp, adapter } = namespaceStub();
+
+      gateway.afterInit(nsp);
+
+      expect(adapter).toHaveBeenCalledWith(factory);
+    });
+
+    it('Redis 가 없으면(null) adapter 를 바꾸지 않아 메모리 adapter 로 남는다', () => {
+      const { nsp, adapter } = namespaceStub();
+
+      gateway.afterInit(nsp);
+
+      expect(
+        module.get(WsRedisAdapterProvider).createAdapter,
+      ).toHaveBeenCalled();
+      expect(adapter).not.toHaveBeenCalled();
+    });
+
+    it('전송을 websocket 하나로 좁힌다 (CLE-API-WS-CONN §2.1)', () => {
+      const options = Reflect.getMetadata(
+        GATEWAY_OPTIONS,
+        WebsocketGateway,
+      ) as {
+        transports?: string[];
+        namespace?: string;
+      };
+
+      expect(options.transports).toEqual(['websocket']);
+      expect(options.namespace).toBe('/ws');
     });
   });
 

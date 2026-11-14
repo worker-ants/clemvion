@@ -52,7 +52,10 @@ overrides:
   express-rate-limit: ^8.5.1
   protobufjs: ^7.6.5
   fast-uri: ^3.1.8
-  hono: ^4.13.5
+  # 2026-11-14(NERV Task `CLE-T-JVNZ30`): GHSA-4m76-xfj5-7975 · GHSA-h7mg-cq63-vhpq ·
+  # GHSA-46wx-v44x-9hh2 · GHSA-4h7h-rv7c-7m2v (moderate). 패치가 `>=4.13.16` 이라 바닥을 4.13.16 으로
+  # 올렸다. 경로는 backend > `@modelcontextprotocol/sdk` 이고 sdk 선언이 `^4.11.4` 라 부모 범위 안이다.
+  hono: ^4.13.16
   # socket.io@4.8.3 이 `socket.io-parser: ~4.2.4` 를 요구한다 — 이 저장소의 다른 override 와
   # 달리 `^` 가 아니라 `~` 인 이유다. `^4.2.7` 로 두면 4.3.x 가 나왔을 때 override 가 부모의
   # 범위 계약을 깨고 강제 해소한다. GHSA-2m8v-j782-fhvr(high) 은 4.2.7 에서 패치됐다.
@@ -88,7 +91,9 @@ overrides:
   # 8.1.6 으로 올렸다. 경로는 frontend · channel-web-chat > `@vitejs/plugin-react` · vitest > vite 다.
   vite: ^8.1.6
   "@babel/core": ^7.29.7
-  "@hono/node-server": ^2.0.5
+  # 2026-11-14(NERV Task `CLE-T-JVNZ30`): GHSA-qv5m-9pm6-hqp3 · GHSA-jpvv-r467-5p4w (moderate).
+  # 패치가 `>=2.1.6` 이다. 경로는 hono 와 같고 sdk 선언 `^1.19.9 || ^2.0.5` 안이다.
+  "@hono/node-server": ^2.1.6
   # GHSA-4mjr-xmp4-gh2g · GHSA-x5fp-wj9c-mxmx (moderate) — `qs` 6.15.2 가 두 경로로
   # 해소되고 있었다. 한쪽은 **프로덕션**이라 수용(`auditConfig.ignoreCves`) 대상이 아니다:
   #   codebase/backend > express@5.2.1 > qs        (prod)
