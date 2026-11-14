@@ -74,6 +74,12 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * ## 무엇을 stub 으로 두나
  *
  * DB 를 쓰는 부분(리포지토리 · DataSource)은 진짜다. 이벤트 발행 · 컨텍스트 정리 · 메트릭 · 알림은 stub 이다.
+ *
+ * ## REST 중지 뒤 실행 시간 (CLE-T-ES1J1E)
+ *
+ * 같은 준비로 실제 REST 중지(`POST /api/executions/:id/stop`) 뒤 엔진이 경계에서 중지를 알아챌 때 마지막 RUNNING 구간을
+ * `active_running_ms` 에 더하는지도 본다. 더하는 UPDATE 의 시각 계산(`finished_at` 과의 비교 · 반올림)은 실제 Postgres 에서만
+ * 확인된다.
  */
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
@@ -92,6 +98,11 @@ interface EnginePrivates {
       | 'RESUME_INCOMPATIBLE_STATE',
   ): Promise<void>;
   markQueueWaitTimeout(executionId: string): Promise<void>;
+  finalizeCancelledExecution(
+    savedExecution: Execution,
+    logContext: string,
+  ): Promise<void>;
+  readonly segmentStartMs: Map<string, number>;
 }
 
 interface ExecutionRow {
@@ -118,6 +129,8 @@ describe('엔진 마감 경로의 RETURNING 이 duration_ms 를 종결 이벤트
   let enginePrivates: EnginePrivates;
   let workflowId: string;
   let nodeId: string;
+  let accessToken: string;
+  let workspaceId: string;
 
   const emitter = {
     emitTerminalExecution: jest.fn<AsyncFn>().mockResolvedValue(undefined),
@@ -191,7 +204,8 @@ describe('엔진 마감 경로의 RETURNING 이 duration_ms 를 종결 이벤트
       uniqueEmail('cancel-duration'),
       db,
     );
-    const workspaceId = await createTeamWorkspace(
+    accessToken = owner.accessToken;
+    workspaceId = await createTeamWorkspace(
       BASE_URL,
       owner.accessToken,
       uniqueName('CANCELDUR'),
@@ -335,4 +349,155 @@ describe('엔진 마감 경로의 RETURNING 이 duration_ms 를 종결 이벤트
       expect(payload.durationMs).toBe(row.duration_ms);
     },
   );
+
+  // REST 중지는 행만 `cancelled` 로 마감하고 돌고 있는 엔진에 신호를 보내지 않는다. 엔진은 다음 경계에서야 중지를
+  // 알아채고 구간을 닫는데, 그 상태 전이는 종결 가드에 막혀 0행이다. 종전에는 구간도 함께 버려져 실행 시간에서
+  // 마지막 구간이 빠졌다.
+  describe('REST 중지 뒤 엔진이 마지막 실행 구간을 더한다 (CLE-T-ES1J1E)', () => {
+    /** 엔진이 이 실행의 RUNNING 구간을 연 시각을 중지보다 이만큼 앞에 둔다. */
+    const SEGMENT_BEFORE_STOP_MS = 3_000;
+    /** 앞선 구간들에서 이미 쌓인 실행 시간. 더하기가 덮어쓰기가 아님을 보이려고 0 이 아닌 값을 둔다. */
+    const PRIOR_ACTIVE_MS = 1_200;
+
+    interface TimingRow {
+      status: string;
+      active_running_ms: number;
+      duration_ms: number | null;
+      finished_ms: string | null;
+    }
+
+    async function readTiming(id: string): Promise<TimingRow> {
+      const res = await db.query<TimingRow>(
+        `SELECT status, active_running_ms, duration_ms,
+                (EXTRACT(EPOCH FROM finished_at) * 1000)::bigint AS finished_ms
+           FROM execution WHERE id = $1`,
+        [id],
+      );
+      return res.rows[0];
+    }
+
+    function restStop(id: string) {
+      return request(BASE_URL)
+        .post(`/api/executions/${id}/stop`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('X-Workspace-Id', workspaceId);
+    }
+
+    it('실행 중에 중지되면 중지 시각까지의 구간이 실행 시간에 더해지고 종결 컬럼은 그대로다', async () => {
+      const executionId = await insertExecution(ExecutionStatus.RUNNING);
+      await db.query(
+        'UPDATE execution SET active_running_ms = $2 WHERE id = $1',
+        [executionId, PRIOR_ACTIVE_MS],
+      );
+      // 엔진이 이 실행을 돌리고 있다. 메모리의 엔티티는 REST 중지를 모르므로 RUNNING 그대로다.
+      const segStart = Date.now() - SEGMENT_BEFORE_STOP_MS;
+      enginePrivates.segmentStartMs.set(executionId, segStart);
+      const stale = await repo(Execution).findOneByOrFail({ id: executionId });
+
+      const stopped = await restStop(executionId);
+      expect(stopped.status).toBe(200);
+      // 중지 응답은 엔진이 마지막 구간을 더하기 전에 조립한다. 끝난 구간만 실린다.
+      expect(stopped.body.data.activeRunningMs).toBe(PRIOR_ACTIVE_MS);
+      const afterStop = await readTiming(executionId);
+      expect(afterStop.status).toBe(ExecutionStatus.CANCELLED);
+      expect(afterStop.active_running_ms).toBe(PRIOR_ACTIVE_MS);
+
+      // 엔진이 다음 경계에서 중지를 알아채는 자리(`assertExecutionNotCancelled` 의 catch)다.
+      await enginePrivates.finalizeCancelledExecution(stale, 'e2e');
+
+      const after = await readTiming(executionId);
+      // 구간 끝은 중지 시각(finished_at)이다. 엔진이 알아채기까지 걸린 시간은 들어가지 않는다.
+      // segStart 는 테스트 프로세스의 시계, finished_at 은 백엔드가 DB 에 쓴 시각이다. 같은 호스트의 시계라는
+      // 전제로 `SEGMENT_BEFORE_STOP_MS` 이상이라고 단언한다.
+      const expectedSegment = Number(after.finished_ms) - segStart;
+      expect(expectedSegment).toBeGreaterThanOrEqual(SEGMENT_BEFORE_STOP_MS);
+      expect(
+        Math.abs(after.active_running_ms - (PRIOR_ACTIVE_MS + expectedSegment)),
+      ).toBeLessThanOrEqual(1);
+      expect(after.active_running_ms).toBeLessThanOrEqual(
+        after.duration_ms ?? Number.POSITIVE_INFINITY,
+      );
+      // 종결 행의 다른 컬럼은 REST 중지가 쓴 값 그대로다.
+      expect(after.status).toBe(afterStop.status);
+      expect(after.finished_ms).toBe(afterStop.finished_ms);
+      expect(after.duration_ms).toBe(afterStop.duration_ms);
+      expect(enginePrivates.segmentStartMs.has(executionId)).toBe(false);
+
+      // 종결 알림은 그대로 한 번 나간다.
+      expect(terminalPayloadOf(executionId)).toMatchObject({
+        type: 'cancelled',
+        durationMs: after.duration_ms,
+      });
+
+      // 실행 응답도 더해진 값을 싣는다.
+      const detail = await request(BASE_URL)
+        .get(`/api/executions/${executionId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('X-Workspace-Id', workspaceId);
+      expect(detail.status).toBe(200);
+      expect(detail.body.data.activeRunningMs).toBe(after.active_running_ms);
+    });
+
+    it('구간 시작이 중지 시각보다 미래면(시계 어긋남) 더하는 값은 0 이다', async () => {
+      const executionId = await insertExecution(ExecutionStatus.RUNNING);
+      await db.query(
+        'UPDATE execution SET active_running_ms = $2 WHERE id = $1',
+        [executionId, PRIOR_ACTIVE_MS],
+      );
+      const stale = await repo(Execution).findOneByOrFail({ id: executionId });
+      expect((await restStop(executionId)).status).toBe(200);
+      const stopped = await readTiming(executionId);
+      // 중지 시각 기준 시작을 한 시간 뒤로 둔다. 증가분이 음수가 되면 0 으로 잘려야 한다.
+      enginePrivates.segmentStartMs.set(
+        executionId,
+        Number(stopped.finished_ms) + 3_600_000,
+      );
+
+      await enginePrivates.finalizeCancelledExecution(stale, 'e2e');
+
+      const after = await readTiming(executionId);
+      expect(after.active_running_ms).toBe(PRIOR_ACTIVE_MS);
+    });
+
+    it('합이 int4 상한을 넘으면 상한에서 멈춘다', async () => {
+      const executionId = await insertExecution(ExecutionStatus.RUNNING);
+      await db.query(
+        'UPDATE execution SET active_running_ms = $2 WHERE id = $1',
+        [executionId, 2_147_483_000],
+      );
+      enginePrivates.segmentStartMs.set(
+        executionId,
+        Date.now() - SEGMENT_BEFORE_STOP_MS,
+      );
+      const stale = await repo(Execution).findOneByOrFail({ id: executionId });
+      expect((await restStop(executionId)).status).toBe(200);
+
+      await enginePrivates.finalizeCancelledExecution(stale, 'e2e');
+
+      const after = await readTiming(executionId);
+      expect(after.active_running_ms).toBe(2_147_483_647);
+    });
+
+    it('입력 대기 중에 취소되면 대기 시간은 실행 시간에 들어가지 않는다', async () => {
+      const executionId = await insertExecution(
+        ExecutionStatus.WAITING_FOR_INPUT,
+      );
+      await insertNodeExecution(
+        executionId,
+        NodeExecutionStatus.WAITING_FOR_INPUT,
+      );
+      await db.query(
+        'UPDATE execution SET active_running_ms = $2 WHERE id = $1',
+        [executionId, PRIOR_ACTIVE_MS],
+      );
+
+      // REST 중지의 입력 대기 경로가 재개 큐를 거쳐 부르는 엔진 취소다.
+      await engine.applyCancellation(executionId);
+
+      const after = await readTiming(executionId);
+      expect(after.status).toBe(ExecutionStatus.CANCELLED);
+      // 대기 시작부터 취소까지 10분이 지났지만 실행 시간은 앞선 구간 값 그대로다.
+      expect(after.active_running_ms).toBe(PRIOR_ACTIVE_MS);
+    });
+  });
 });

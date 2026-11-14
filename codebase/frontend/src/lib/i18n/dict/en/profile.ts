@@ -260,7 +260,7 @@ export const profile: Dict["profile"] = {
     columnWindow: "Window",
     columnStatus: "Status",
     typeFailureRate: "Failure rate (%)",
-    typeDuration: "Avg execution time (ms)",
+    typeDuration: "Avg total elapsed (ms)",
     typeLlmCost: "LLM cost (USD/day)",
     statusEnabled: "enabled",
     statusDisabled: "disabled",

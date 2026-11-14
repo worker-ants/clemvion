@@ -2,27 +2,27 @@
 id: "CLE-OBS-STATS"
 title: "통계"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-STATS-001", "REQ-STATS-002", "REQ-STATS-003", "REQ-STATS-004", "REQ-STATS-005", "REQ-STATS-006", "REQ-STATS-007", "REQ-STATS-008", "REQ-STATS-009", "REQ-STATS-010", "REQ-STATS-011", "REQ-STATS-012", "REQ-STATS-013", "REQ-STATS-014", "REQ-STATS-015", "REQ-STATS-016", "REQ-STATS-017", "REQ-STATS-018", "REQ-STATS-019", "REQ-STATS-020", "REQ-STATS-021"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "34280c00ed4dedb37f5d9cccae74a3d448927166feeed76ca1f0d0279607c008"
+content_hash: "be271c160d83b3ddd15be26bf5ac495304eb29547bff035db3f47e19108ab4a2"
 read_as: "approved_fallback"
-task: "CLE-T-SHNJPQ"
+task: "CLE-T-7704WC"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "942fd1a021a5393020e746534dc0d72e226f0d103702652e01788762b3880e64"
-etag: "sha256-503029215d7ffadfecc1fb32a984dd77c9e499cf38e3bf148edb82d2019026c5"
+mirror_sha256: "b644c1faf685c36443531bad3a6b247041e0e394d8978f96b4d10e65d9986a83"
+etag: "sha256-0e66f9b11e150e30e6193e958087f0118cc83af693c82ae9281de4343965f57e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-통계(Statistics) 화면은 현재 워크스페이스의 워크플로우 실행을 기간과 워크플로우로 걸러 집계해 보여 준다. 경로는 `/statistics` 이고 실제 URL 은 `/w/<slug>/statistics` 다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)). 실행 횟수·성공률·실패율·평균 실행 시간 요약, 실행 추이·오류 분포·상위 워크플로우 차트, 노드 통계, LLM 토큰 사용량을 보여 주고 내보내기를 제공한다.
+통계(Statistics) 화면은 현재 워크스페이스의 워크플로우 실행을 기간과 워크플로우로 걸러 집계해 보여 준다. 경로는 `/statistics` 이고 실제 URL 은 `/w/<slug>/statistics` 다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)). 실행 횟수·성공률·실패율·평균 전체 경과 요약, 실행 추이·오류 분포·상위 워크플로우 차트, 노드 통계, LLM 토큰 사용량을 보여 주고 내보내기를 제공한다.
 
-이 문서는 대시보드와 통계가 함께 쓰는 실행 지표(성공률, 평균 실행 시간, 증감률)의 정의도 정한다.
+이 문서는 대시보드와 통계가 함께 쓰는 실행 지표(성공률, 평균 전체 경과, 증감률)의 정의도 정한다.
 
 범위 밖:
 
@@ -40,8 +40,8 @@ etag: "sha256-503029215d7ffadfecc1fb32a984dd77c9e499cf38e3bf148edb82d2019026c5"
 - REQ-STATS-004 WHEN 사용자가 기간을 고르지 않으면 THE SYSTEM SHALL 최근 7일을 기본으로 집계한다. (원본: 7-statistics §2.1)
 - REQ-STATS-005 WHEN 사용자가 워크플로우 필터에서 특정 워크플로우를 고르면 THE SYSTEM SHALL 집계를 그 워크플로우로 좁힌다. (원본: 7-statistics §2.1)
 - REQ-STATS-006 WHEN 요약을 보여 주면 THE SYSTEM SHALL 총 실행 횟수와 직전 같은 길이 기간 대비 증감률을 함께 보인다. (원본: 7-statistics §2.2)
-- REQ-STATS-007 WHEN 평균 실행 시간을 계산하면 THE SYSTEM SHALL 상태가 `completed` 인 실행만 넣는다. (원본: 7-statistics R-0)
-- REQ-STATS-008 WHEN 통계를 보여 주면 THE SYSTEM SHALL 워크플로우별 평균 실행 시간을 제공한다. (원본: NAV-ST-03)
+- REQ-STATS-007 WHEN 평균 전체 경과를 계산하면 THE SYSTEM SHALL 상태가 `completed` 인 실행만 넣는다. (원본: 7-statistics R-0)
+- REQ-STATS-008 WHEN 통계를 보여 주면 THE SYSTEM SHALL 워크플로우별 평균 전체 경과를 제공한다. (원본: NAV-ST-03)
 - REQ-STATS-009 WHEN 실행 추이 차트를 보이면 THE SYSTEM SHALL 기간 안 일자별 실행 횟수를 성공과 실패로 나눈 스택 막대로 보인다. (원본: 7-statistics §2.3)
 - REQ-STATS-010 WHEN 오류 분포 차트를 보이면 THE SYSTEM SHALL 실패 실행을 워크플로우별로 나눈 비율을 파이 또는 도넛 차트로 보인다. (원본: NAV-ST-04)
 - REQ-STATS-011 WHEN 오류 분포 API 를 부르면 THE SYSTEM SHALL 실패 건수 내림차순으로 상위 20개 워크플로우를 돌려준다. (원본: 7-statistics §3)
@@ -64,11 +64,11 @@ etag: "sha256-503029215d7ffadfecc1fb32a984dd77c9e499cf38e3bf148edb82d2019026c5"
 | --- | --- | --- |
 | 성공률(success rate, `successRate`) | 완료(`completed`) 실행 수 ÷ 기간 안 전체 실행 수 × 100. 분모에는 상태와 상관없이 기간 안의 모든 실행이 들어간다(실행 중·대기 중·취소됨 포함) | 대시보드 성공률 카드(최근 7일), 통계 요약 |
 | 실패율 | 기간 안 실행 중 실패 비율(%) | 통계 요약 |
-| 평균 실행 시간(average duration) | 완료(`completed`) 실행의 `duration_ms` 평균. 단위는 밀리초다. 실행이 없으면 0 이다 | 대시보드 요약 응답(`avgExecutionTime`), 통계 요약(`avgDurationMs`), 상위 워크플로우 집계 |
+| 평균 전체 경과(average total elapsed) | 완료(`completed`) 실행의 `duration_ms`(전체 경과) 평균. 입력 대기 시간이 들어간다. 단위는 밀리초다. 실행이 없으면 0 이다 | 대시보드 요약 응답(`avgExecutionTime`), 통계 요약(`avgDurationMs`), 상위 워크플로우 집계 |
 | 증감률 | 직전 같은 길이 구간 대비 총 실행 수의 변화율(%). 직전 구간이 0건이면 값이 없다(`null`) | 대시보드 `runs7dChangePercent`, 통계 `totalExecutionsChangeRate` |
 
 - 성공률 정의는 대시보드 원문이 정했다. 통계 요약도 현재 구현이 같은 식을 쓴다(`statistics.service.ts` 의 `buildSummary`).
-- 평균 실행 시간의 `completed` 한정은 요약과 상위 워크플로우(워크플로우별) 두 집계에 걸린다. 노드별 통계의 노드 평균 실행 시간은 `completed` 한정이 아니다. 현재 구현은 `node_execution.duration_ms` 가 있는 행을 모두 평균한다.
+- 평균 전체 경과의 `completed` 한정은 요약과 상위 워크플로우(워크플로우별) 두 집계에 걸린다. 노드별 통계의 노드 평균 실행 시간은 `completed` 한정이 아니다. 현재 구현은 `node_execution.duration_ms` 가 있는 행을 모두 평균한다.
 - 증감률의 `null` 규칙은 대시보드 원문(`runs7dChangePercent`)이 정했다. 통계의 `totalExecutionsChangeRate` 도 현재 구현이 같은 규칙과 반올림(소수 둘째 자리)을 쓴다.
 
 ## 화면
@@ -76,7 +76,7 @@ etag: "sha256-503029215d7ffadfecc1fb32a984dd77c9e499cf38e3bf148edb82d2019026c5"
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 | --- | --- | --- | --- |
 | 머리 | 맨 위 | 제목, 기간 필터, 워크플로우 필터 | 필터를 바꾸면 모든 집계를 다시 불러온다 |
-| 요약 카드 | 머리 아래, 가로 4개 | 총 실행(Total Runs), 성공률(Success Rate), 실패율(Failure Rate), 평균 실행 시간(Avg Duration) | 읽기 전용 |
+| 요약 카드 | 머리 아래, 가로 4개 | 총 실행(Total Runs), 성공률(Success Rate), 실패율(Failure Rate), 평균 전체 경과(Avg Total Elapsed) | 읽기 전용 |
 | 실행 추이 | 요약 아래, 전체 폭 | 일자별 스택 막대 차트 | 읽기 전용 |
 | 오류 분포 · 상위 워크플로우 | 실행 추이 아래, 2열 | 왼쪽 파이·도넛 차트, 오른쪽 수평 막대 차트 | 읽기 전용 |
 | LLM 토큰 사용량 | 맨 아래, 전체 폭 | 프로바이더·모델·토큰·예상 비용 표, 일별 추이 차트, 내보내기 메뉴 | 내보내기 형식 선택 |
@@ -96,7 +96,7 @@ etag: "sha256-503029215d7ffadfecc1fb32a984dd77c9e499cf38e3bf148edb82d2019026c5"
 | Total Runs | 선택 기간의 총 실행 횟수. 직전 같은 길이 기간 대비 증감률(`totalExecutionsChangeRate`)을 함께 보인다(`StatisticsSummaryDto` 필드를 프런트엔드 카드가 그린다) |
 | Success Rate | 성공률(%). 정의는 [지표 정의](#지표-정의) |
 | Failure Rate | 실패율(%) |
-| Avg Duration | 평균 실행 시간. 정의는 [지표 정의](#지표-정의) |
+| Avg Total Elapsed | 평균 전체 경과. 정의는 [지표 정의](#지표-정의) |
 
 ### 차트
 
@@ -104,7 +104,7 @@ etag: "sha256-503029215d7ffadfecc1fb32a984dd77c9e499cf38e3bf148edb82d2019026c5"
 | --- | --- |
 | 실행 추이(Executions Over Time) | 기간 안 일자별 실행 횟수. 성공(초록)과 실패(빨강)의 스택 막대 차트 |
 | 오류 분포(Error Distribution) | 실패 건수의 **워크플로우별** 비율(파이·도넛 차트). `GET /api/statistics/errors` 가 실패 실행을 워크플로우별로 집계(`workflowId`·`workflowName`·`errorCount`·`lastErrorAt`)하고 차트는 `workflowName` 을 분류 키로 쓴다. 에러 유형이나 에러 코드별 분류가 아니다 |
-| 상위 워크플로우(Top Workflows) | 실행 횟수 기준 상위 워크플로우(수평 막대 차트). 현재 구현의 API 응답에는 워크플로우별 성공률과 평균 실행 시간도 들어 있다 |
+| 상위 워크플로우(Top Workflows) | 실행 횟수 기준 상위 워크플로우(수평 막대 차트). 현재 구현의 API 응답에는 워크플로우별 성공률과 평균 전체 경과도 들어 있다 |
 
 ### 노드별 통계
 
@@ -155,7 +155,7 @@ etag: "sha256-503029215d7ffadfecc1fb32a984dd77c9e499cf38e3bf148edb82d2019026c5"
 
 | 원천 테이블 | 집계 |
 | --- | --- |
-| `execution` | 전체 실행 수, 실패 수, 성공률, 평균 실행 시간 |
+| `execution` | 전체 실행 수, 실패 수, 성공률, 평균 전체 경과 |
 | `node_execution` | 노드별 실행 횟수·평균 시간·에러율 |
 | `llm_usage_log` | 모델·기간별 토큰과 비용([LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)) |
 | `workflow` | 워크스페이스 범위 필터와 워크플로우 이름 join |
@@ -182,6 +182,12 @@ etag: "sha256-503029215d7ffadfecc1fb32a984dd77c9e499cf38e3bf148edb82d2019026c5"
 부수 효과로 지표 정의가 좁아졌다. 예전에 들어가던 정상 실패와 사용자 중단(stop) 취소의 실제 소요 시간이 평균에서 빠진다. 사용자에게 보이는 숫자가 바뀌는 변경이다(PR #1171).
 
 원문 통계 명세는 이 한정이 "요약과 워크플로우별(§2.4)" 두 집계에 걸린다고 적었다. §2.4 는 노드별 통계라 번호가 틀렸다. 한정이 걸리는 워크플로우별 집계는 상위 워크플로우(§2.3)다. 이 문서는 바로잡은 쪽으로 적는다.
+
+### 평균은 「전체 경과」로 부른다 (2026-11-14)
+
+- 2026-11-14 부터 실행 화면의 「실행 시간」은 입력 대기를 뺀 순수 실행 시간(`activeRunningMs`)이고 「전체 경과」는 `duration_ms` 다([실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md#api)). 이 문서의 평균은 `duration_ms` 평균인데 이름이 「평균 실행 시간」이라 새 용어와 기준이 갈렸다.
+- 값은 그대로 두고 이름과 라벨만 「평균 전체 경과」로 바꿨다. 완료(`completed`) 실행만 넣으므로 입력 대기 중 취소 · 시간 초과의 긴 대기는 이미 빠져 있고 기존 수치의 뜻이 그대로 이어진다. 응답 필드 이름(`avgExecutionTime` · `avgDurationMs`)도 그대로다.
+- 기각한 대안: 값을 순수 실행 시간(`active_running_ms`) 평균으로 바꾸고 「평균 실행 시간」을 유지한다. 사용자에게 보이는 수치가 바뀌고, 측정되지 않은 0(V083 이전 실행 등)을 평균에서 빼는 규칙을 새로 정해야 한다.
 
 ### 성공률 분모는 기간 안 전체 실행 수다
 

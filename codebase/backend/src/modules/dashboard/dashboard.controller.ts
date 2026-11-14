@@ -29,7 +29,7 @@ export class DashboardController {
   @ApiOperation({
     summary: '대시보드 요약 통계',
     description:
-      '현재 워크스페이스의 총/활성 워크플로우 수, 최근 7일 실행 건수(전주 대비 증감 포함), 성공률, 평균 실행 시간을 반환합니다.',
+      '현재 워크스페이스의 총/활성 워크플로우 수, 최근 7일 실행 건수(전주 대비 증감 포함), 성공률, 평균 전체 경과(완료 실행의 duration_ms 평균)를 반환합니다.',
   })
   @ApiOkWrappedResponse(DashboardSummaryDto, {
     description: '대시보드 요약 지표',

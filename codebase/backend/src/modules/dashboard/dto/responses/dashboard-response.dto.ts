@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ExecutionStatus } from '../../../executions/entities/execution.entity';
 import {
   EXECUTION_TRIGGER_SOURCES,
   type ExecutionTriggerSource,
@@ -24,8 +25,12 @@ export class DashboardSummaryDto {
   @ApiProperty({ example: 92.75 })
   successRate: number;
 
-  /** 평균 실행 시간(ms) */
-  @ApiProperty({ example: 1820 })
+  /** 최근 7일 평균 전체 경과(ms). 입력 대기를 뺀 실행 시간(`activeRunningMs`) 평균이 아니다. */
+  @ApiProperty({
+    example: 1820,
+    description:
+      '최근 7일 평균 전체 경과(ms). 완료(completed) 실행의 duration_ms 평균을 정수로 반올림한다. 실행이 없으면 0',
+  })
   avgExecutionTime: number;
 }
 
@@ -55,11 +60,15 @@ export class RecentExecutionDto {
   @ApiProperty({ example: '이메일 알림 플로우' })
   workflowName: string;
 
+  // enum 을 손으로 적지 않고 실행 응답(`ExecutionDto.status`)과 같은 `ExecutionStatus` 스키마를 쓴다.
+  // 손으로 적은 목록은 `waiting_for_input` 이 빠진 채 실행 상태와 갈렸다.
+  /** 실행 상태. 실행 응답의 `status` 와 같은 값이다. */
   @ApiProperty({
-    enum: ['pending', 'running', 'completed', 'failed', 'cancelled'],
-    example: 'completed',
+    enum: ExecutionStatus,
+    enumName: 'ExecutionStatus',
+    example: ExecutionStatus.COMPLETED,
   })
-  status: string;
+  status: ExecutionStatus;
 
   /** 전체 경과(ms). 입력 대기 시간이 들어간다. 끝나지 않았으면 null */
   @ApiProperty({ type: Number, nullable: true, example: 1540 })

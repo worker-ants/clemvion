@@ -147,7 +147,7 @@ export class ExecutionsController {
   ) {
     // CRIT #1 — IDOR 차단. 실행 소유 workspace 검증.
     await this.executionsService.verifyOwnership(id, workspaceId);
-    return this.executionsService.stop(id);
+    return this.executionsService.stopWithResponse(id);
   }
 
   @Post(':id/continue')

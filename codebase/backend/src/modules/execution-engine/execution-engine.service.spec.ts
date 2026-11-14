@@ -74,6 +74,8 @@ import {
   Execution,
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
+import { ADD_STOPPED_SEGMENT_SQL } from '../executions/utils';
+import { PG_INT4_MAX } from '../../shared/utils/terminal-duration';
 import {
   NodeExecution,
   NodeExecutionStatus,
@@ -6024,6 +6026,141 @@ describe('ExecutionEngineService', () => {
           ExecutionStatus.COMPLETED,
         );
         expect(applied).toBe(false);
+      });
+
+      // CLE-T-ES1J1E — REST 중지는 행을 `cancelled` 로 마감할 뿐 돌고 있는 엔진에 신호를 보내지
+      // 않는다. 엔진이 다음 경계에서 구간을 닫을 때 상태 전이는 가드에 막혀 0행이고, 종전에는
+      // 구간 합산도 함께 버려져 중지된 실행의 실행 시간에서 마지막 구간이 빠졌다.
+      describe('REST 중지로 이미 cancelled 인 행에 마지막 구간을 더한다', () => {
+        const ADD_SEGMENT_SQL = /SET active_running_ms = LEAST\(/;
+        const addSegmentCalls = () =>
+          mockExecutionRepo.query.mock.calls.filter((c: unknown[]) =>
+            ADD_SEGMENT_SQL.test(String(c[0])),
+          );
+
+        it('else 분기가 0행이면 닫은 구간만큼 cancelled 행의 active_running_ms 에 더한다', async () => {
+          const segStart = Date.now() - 500;
+          priv().segmentStartMs.set(executionId, segStart);
+          mockExecutionRepo.query.mockResolvedValueOnce([]); // guarded UPDATE 0행
+          const exec = {
+            id: executionId,
+            status: ExecutionStatus.RUNNING,
+            activeRunningMs: 100,
+          } as unknown as Execution;
+
+          const applied = await priv().updateExecutionStatus(
+            exec,
+            ExecutionStatus.CANCELLED,
+          );
+
+          expect(applied).toBe(false);
+          const calls = addSegmentCalls();
+          expect(calls).toHaveLength(1);
+          const [sql, params] = calls[0] as [string, unknown[]];
+          const [id, elapsedMs, startMs, status] = params;
+          expect(id).toBe(executionId);
+          expect(elapsedMs).toBeGreaterThanOrEqual(500);
+          expect(startMs).toBe(segStart);
+          expect(status).toBe(ExecutionStatus.CANCELLED);
+          // 실행 시간 컬럼 하나만 더하고 종결 행의 다른 컬럼은 건드리지 않는다.
+          expect(sql).toMatch(/WHERE id = \$1\s+AND status = \$4/);
+          const setClause = sql.slice(sql.indexOf('SET'), sql.indexOf('WHERE'));
+          expect(setClause).not.toMatch(
+            /\b(status|finished_at|duration_ms|output_data|error)\s*=/i,
+          );
+          // 구간 끝(중지 시각과 지금 중 이른 쪽) · 음수 0 · int4 상한은 SQL 이 정한다. mock 의 query 는 SQL 을
+          // 실행하지 않아 여기서는 헬퍼 상수를 쓰는지만 보고, 계산 결과는 engine-cancel-duration e2e 가
+          // 실제 Postgres 로 검증한다.
+          expect(sql).toBe(ADD_STOPPED_SEGMENT_SQL);
+          expect(priv().segmentStartMs.has(executionId)).toBe(false);
+        });
+
+        it('AI 재-park 짝 전이가 cancelled 행에 막혀도 닫은 구간을 더한다', async () => {
+          priv().segmentStartMs.set(executionId, Date.now() - 500);
+          dbExecutionStatus = ExecutionStatus.CANCELLED;
+          const exec = {
+            id: executionId,
+            status: ExecutionStatus.RUNNING,
+            activeRunningMs: 0,
+          } as unknown as Execution;
+          const nodeExec = { id: 'ne-repark' } as unknown as NodeExecution;
+
+          const persisted = await priv().updateExecutionStatus(
+            exec,
+            ExecutionStatus.WAITING_FOR_INPUT,
+            nodeExec,
+          );
+
+          expect(persisted).toBe(false);
+          expect(addSegmentCalls()).toHaveLength(1);
+        });
+
+        it('전이가 적용되면 구간은 그 UPDATE 에 실리므로 따로 더하지 않는다', async () => {
+          priv().segmentStartMs.set(executionId, Date.now() - 500);
+          mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+          const exec = {
+            id: executionId,
+            status: ExecutionStatus.RUNNING,
+            activeRunningMs: 0,
+          } as unknown as Execution;
+
+          await priv().updateExecutionStatus(exec, ExecutionStatus.CANCELLED);
+
+          expect(addSegmentCalls()).toHaveLength(0);
+        });
+
+        it('입력 대기에서 중지된 실행은 열린 구간이 없으므로 대기 시간을 더하지 않는다', async () => {
+          // 대기 중에는 구간이 없다. 남아 있더라도 RUNNING 이탈이 아니면 쓰지 않는다는 것을 보이려고 둔다.
+          priv().segmentStartMs.set(executionId, Date.now() - 500);
+          mockExecutionRepo.query.mockResolvedValueOnce([]); // guarded UPDATE 0행
+          const exec = {
+            id: executionId,
+            status: ExecutionStatus.WAITING_FOR_INPUT,
+            activeRunningMs: 0,
+          } as unknown as Execution;
+
+          await priv().updateExecutionStatus(exec, ExecutionStatus.CANCELLED);
+
+          expect(addSegmentCalls()).toHaveLength(0);
+          priv().segmentStartMs.delete(executionId);
+        });
+
+        it('더하는 UPDATE 가 실패해도 던지지 않는다 (호출부가 종결 처리 catch 블록 안이다)', async () => {
+          priv().segmentStartMs.set(executionId, Date.now() - 500);
+          mockExecutionRepo.query
+            .mockResolvedValueOnce([]) // guarded UPDATE 0행
+            .mockRejectedValueOnce(new Error('db down')); // 구간 더하기 실패
+          const exec = {
+            id: executionId,
+            status: ExecutionStatus.RUNNING,
+            activeRunningMs: 0,
+          } as unknown as Execution;
+
+          await expect(
+            priv().updateExecutionStatus(exec, ExecutionStatus.CANCELLED),
+          ).resolves.toBe(false);
+          expect(addSegmentCalls()).toHaveLength(1);
+        });
+      });
+
+      // 컬럼이 int4 라 합이 상한을 넘으면 상태 전이 UPDATE 가 파라미터 단계에서 실패한다. 그러면 행이
+      // 0행인지 가리기 전에 던져서 위 「마지막 구간 더하기」까지 가지 못한다.
+      it('RUNNING 을 떠나며 더한 실행 시간이 int4 상한을 넘으면 상한에서 멈춘다', async () => {
+        priv().segmentStartMs.set(executionId, Date.now() - 500);
+        mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: PG_INT4_MAX - 100,
+        } as unknown as Execution;
+
+        await priv().updateExecutionStatus(exec, ExecutionStatus.CANCELLED);
+
+        expect(exec.activeRunningMs).toBe(PG_INT4_MAX);
+        const transition = mockExecutionRepo.query.mock.calls.find(
+          (c: unknown[]) => /SET status = \$2/.test(String(c[0])),
+        ) as [string, unknown[]] | undefined;
+        expect(transition?.[1][2]).toBe(PG_INT4_MAX);
       });
 
       // #6 — PENDING → RUNNING 동시 선점 케이스: 다른 워커가 먼저 상태를 바꿨을 때

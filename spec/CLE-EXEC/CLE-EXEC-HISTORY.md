@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY"
 title: "실행 내역"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-EXHIST-001", "REQ-EXHIST-002", "REQ-EXHIST-003", "REQ-EXHIST-004", "REQ-EXHIST-005", "REQ-EXHIST-006", "REQ-EXHIST-007", "REQ-EXHIST-008", "REQ-EXHIST-009", "REQ-EXHIST-010", "REQ-EXHIST-011", "REQ-EXHIST-012", "REQ-EXHIST-013", "REQ-EXHIST-014", "REQ-EXHIST-015", "REQ-EXHIST-016", "REQ-EXHIST-017", "REQ-EXHIST-018", "REQ-EXHIST-019", "REQ-EXHIST-020", "REQ-EXHIST-021", "REQ-EXHIST-022", "REQ-EXHIST-023", "REQ-EXHIST-024", "REQ-EXHIST-025", "REQ-EXHIST-026", "REQ-EXHIST-027", "REQ-EXHIST-028", "REQ-EXHIST-029", "REQ-EXHIST-030", "REQ-EXHIST-031", "REQ-EXHIST-032", "REQ-EXHIST-033", "REQ-EXHIST-034", "REQ-EXHIST-035", "REQ-EXHIST-036", "REQ-EXHIST-037", "REQ-EXHIST-038", "REQ-EXHIST-039", "REQ-EXHIST-040", "REQ-EXHIST-041", "REQ-EXHIST-042", "REQ-EXHIST-043", "REQ-EXHIST-044", "REQ-EXHIST-045"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "d0d2f85ac65894152d220dedd7b9c13581bf79cda1a107aa359d8cd0fe79353c"
+content_hash: "fc88d1360008606ed9bab93191d202e3c99f51ff3ff31d41db1c8c91d6f98301"
 read_as: "approved_fallback"
 task: "CLE-T-ES1J1E"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "d43a98fb261db56e245d6f3665c75f93b1ff3cf613d19d722c918692c2dfed5c"
-etag: "sha256-856db03ab7b1d4b93273e1df9fbcb90302d9ea9b059a4512f1bc6a8379338c50"
+mirror_sha256: "177ed5824c01300c16dbdf4eedd89d7e493560b5c4fe04a35c42f99dd08e1686"
+etag: "sha256-e00f04328bfc8a92908bad8c382cd8450d093bbd06c3ee294457ef6c63393b44"
 ---
 > 구현 상태: 구현됨 (EH-DETAIL-12 여러 노드 대화 재구성 보기만 v2 미구현) · 원문: `spec/2-navigation/14-execution-history.md`, `spec/2-navigation/_product-overview.md` (§3.15 Execution History) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -181,7 +181,8 @@ etag: "sha256-856db03ab7b1d4b93273e1df9fbcb90302d9ea9b059a4512f1bc6a8379338c50"
 - `durationMs` 는 전체 경과(ms)다. 시작부터 종료까지의 벽시계 시간이라 입력 대기 시간이 들어간다. 끝나지 않은 실행은 `null` 이다.
 - `activeRunningMs` 는 실행 시간(ms)이다. 입력 대기를 뺀 순수 실행 시간이다. 저장 값의 정의와 작게 기록되는 경우는 [실행 데이터와 흐름 — 데이터 모델](CLE-EXEC-DATA-MODEL.md) 의 `active_running_ms` 가 정한다. 아래 경우에는 `null` 이다.
   - 실행이 끝나지 않았다(`pending` · `running` · `waiting_for_input`).
-  - 측정되지 않았다. 저장된 값이 0 인데 `durationMs` 가 0 보다 크면 측정되지 않은 것으로 본다(마이그레이션 V083 이전 실행 등). 노드 진행 구간이 1ms 에 못 미쳐 0 으로 저장된 아주 짧은 실행도 같은 판정을 받아 `null` 이 될 수 있다.
+  - 측정되지 않았다. 저장된 값이 0 인데 `durationMs` 가 0 보다 크면 측정되지 않은 것으로 본다(마이그레이션 V083 이전 실행, 엔진이 마지막 구간을 더하기 전에 멈춘 중지 실행 등). 노드 진행 구간이 1ms 에 못 미쳐 0 으로 저장된 아주 짧은 실행도 같은 판정을 받아 `null` 이 될 수 있다.
+- 실행 중(`running`)에 중지한 실행은 중지 응답의 `activeRunningMs` 에 마지막 구간이 아직 들어 있지 않다. 엔진이 다음 경계에서 그 구간을 더하므로 이후 조회에서 값이 늘어난다. 구간이 하나뿐이면 중지 응답에서는 `null` 이다.
 
 **상세 API 응답의 `nodeExecutions` 항목 예시**
 
@@ -214,7 +215,6 @@ etag: "sha256-856db03ab7b1d4b93273e1df9fbcb90302d9ea9b059a4512f1bc6a8379338c50"
 ## 미결 사항
 
 - **수동 실행 보조 라벨의 이메일 폴백**: 원문의 판정 표는 `User.name` 이 없으면 `email` 을 쓴다고 적는다. 현재 구현(`execution-trigger.ts` 의 `deriveExecutionTrigger`)은 `User.name` 만 쓰고 이름이 비었거나 공백이면 `triggerLabel` 을 null 로 둔다. 코드 주석은 이메일 같은 개인정보를 라벨에 싣지 않으려는 보안 결정이라고 적는다. 원문을 코드에 맞출지, 폴백을 구현할지 결정 필요.
-- **REST 중지로 끝난 실행의 실행 시간**: 실행 중(`running`)에 REST 중지로 끝난 실행은 마지막 실행 구간이 `active_running_ms` 에 들어가지 않아 실행 시간이 실제보다 작게 보인다(구간이 하나뿐이면 측정되지 않은 것으로 보여 `—`). 엔진을 고치는 후속 작업은 CLE-T-ES1J1E 다.
 
 ## 구현 위치
 
@@ -254,6 +254,7 @@ etag: "sha256-856db03ab7b1d4b93273e1df9fbcb90302d9ea9b059a4512f1bc6a8379338c50"
 - 기각한 대안: 네 곳 모두 두 값 표시. 목록 열이 좁아 읽기 어렵다.
 - 기각한 대안: `duration_ms` 를 유지하고 상세에만 실행 시간을 더하기. 목록에서 대기 시간이 실행 시간처럼 보이는 문제가 남는다.
 - `activeRunningMs` 의 측정되지 않은 경우를 `null` 로 내보내는 이유: 컬럼이 `NOT NULL DEFAULT 0` 이라 V083 이전 실행이 0 으로 남아 있다. 0 을 그대로 보이면 실제로 0ms 걸린 것처럼 읽힌다. 판정은 서버 한 곳에서 해서 화면 네 곳과 API 소비자가 같은 값을 받게 한다.
+- 2026-11-14 엔진이 REST 중지 실행에 마지막 구간을 더하게 된 뒤에도 이 판정을 유지했다(CLE-T-ES1J1E). V083 이전 실행과 엔진이 구간을 더하기 전에 멈춘 실행은 여전히 0 이고, 새 컬럼 없이는 이 0 을 실제 0ms 와 가를 표지가 없다. 기각한 대안: 판정을 없애고 저장 값을 그대로 낸다. V083 이전 실행이 0ms 로 보인다.
 
 ### 실행 응답은 한 DTO 로 싣고 노드는 참조 세 필드만 싣는다 (2026-11-14)
 

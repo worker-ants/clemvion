@@ -846,37 +846,57 @@ export class ExecutionsService {
   }
 
   /**
-   * 실행 중지 — **응답 마스킹 관문**.
+   * 실행 중지 — 응답을 조립하지 않는 내부 경로. 반환값을 버리는 호출자가 쓴다.
+   * - 채팅 채널 웹훅 `/start` · `/cancel` (`hooks.service.ts` 의 `stopForRestart` · `stopForCancelCommand`)
+   * - 외부 인터랙션 `cancel` 명령 (`interaction.service.ts`)
    *
-   * > 동시성 계약(TOCTOU 방지 원자 UPDATE)은 본체 {@link ExecutionsService.stopInternal}
-   * > 의 JSDoc 에 있다. 리팩터로 로직이 그쪽으로 내려갔으므로 설명도 함께 옮겼다 —
-   * > 얇은 wrapper 에 남겨 두면 *"불변식이 여기 있다"* 로 잘못 읽힌다
-   * > (`17_35_49` documentation W2).
+   * 중지를 커밋한 뒤에는 아무것도 읽지 않는다. 그래서 응답 조립(재조회 · 출처 판정 · 노드 집계)이
+   * 실패해도 호출자에게 닿지 않는다. 종전에는 REST 응답과 같은 경로를 써서, 커밋된 중지를 호출자가
+   * 실패로 읽었다(`/start` 는 dedup 선점을 풀고 오류로 답했다. CLE-T-1E8NP5).
    *
-   * **응답 마스킹은 여기 한 자리에서 건다.** `stopInternal` 은 `return` 문이 **셋**이고
-   * (waiting 경로 · `affected=0` 재조회 · 정상 재조회) 각각 `?? execution` 폴백을 가져
-   * 실제로 나갈 수 있는 객체는 **여섯 가지**다. 호출부마다 마스킹을 걸면 네 번째 반환이
-   * 추가될 때 조용히 빠진다. 함수를 하나 더 두어 **모든 반환이 같은 문을 통과**하게 한다.
-   *
-   * > 읽기 표면 전체 목록과 그 근거는 {@link ExecutionsService.toResponseExecution} 의
-   * > 표가 정본이다 — 여기에 개수를 다시 적지 않는다(적으면 표면이 늘 때 갈린다).
+   * 커밋 전 실패는 그대로 던진다. 404 `RESOURCE_NOT_FOUND` · 400 `INVALID_STATE` ·
+   * 503 `EXECUTION_ENQUEUE_FAILED` 이고 호출자가 이 코드로 분기한다. 동시성 계약은
+   * {@link ExecutionsService.stopInternal} 에 있다.
+   */
+  async stop(id: string): Promise<void> {
+    await this.stopInternal(id);
+  }
+
+  /**
+   * 실행 중지 — REST `POST /api/executions/:id/stop` 의 **응답 마스킹 관문**. 반환값이 필요 없는
+   * 호출자는 {@link ExecutionsService.stop} 을 쓴다.
    *
    * **반환 계약**: 목록 · 체인과 같은 {@link ExecutionDto} 다(2026-11-14). 종전에는 재조회한
    * 엔티티를 펼쳐 돌려줘서 선언한 `triggerSource` · `triggerLabel` · 노드 집계가 빠지고
-   * 선언하지 않은 컬럼이 실렸다. 내부 소비자(`interaction.service.ts` · `hooks.service.ts`)는
-   * 반환값을 버리므로 영향은 HTTP 응답 표면 하나뿐이다.
+   * 선언하지 않은 컬럼이 실렸다.
+   *
+   * 중지가 끝난 뒤 응답용으로 한 번 다시 읽고, 그 행 하나를 {@link ExecutionsService.toExecutionDtos}
+   * 에 넘긴다. 중지가 끝나는 경로는 셋(입력 대기 취소 · 가드 UPDATE 성공 · 다른 요청이 먼저 바꿔
+   * `affected=0`)이지만 재조회와 마스킹은 여기 한 자리에서 한다. 경로마다 따로 두면 경로가 늘 때 한 곳씩
+   * 빠진다.
+   *
+   * **재조회가 `null` 일 때**: 재조회 직전에 행이 지워진 경우(동시 삭제)다. 세 경로 모두 중지 전에
+   * 읽은 행(`stopInternal` 의 반환)으로 응답을 조립한다. 그 행은 관계를 읽지 않아 trigger · executor
+   * 이름이 비므로 출처 라벨이 `null` 로 나간다(`source` 는 id 컬럼으로 정해지는 만큼만 채워진다).
+   * 지워진 실행의 라벨을 다시 읽을 방법이 없으므로 이를 허용한다.
+   *
+   * > 읽기 표면 전체 목록과 그 근거는 {@link ExecutionsService.toResponseExecution} 의
+   * > 표가 정본이다. 여기에 개수를 다시 적지 않는다(적으면 표면이 늘 때 갈린다).
    */
-  async stop(id: string): Promise<ExecutionDto> {
-    const [dto] = await this.toExecutionDtos([await this.stopInternal(id)]);
+  async stopWithResponse(id: string): Promise<ExecutionDto> {
+    const before = await this.stopInternal(id);
+    const refreshed = await this.findOneForResponse(id);
+    const [dto] = await this.toExecutionDtos([refreshed ?? before]);
     return dto;
   }
 
   /**
-   * {@link ExecutionsService.stop} 의 본체. 반환은 **마스킹 전** 엔티티다 — 감싸는 쪽이 관문이다.
+   * {@link ExecutionsService.stop} · {@link ExecutionsService.stopWithResponse} 의 본체. 중지를
+   * 커밋하고 **중지 전에 읽은 행**을 돌려준다(응답용 재조회가 `null` 일 때의 폴백 재료다).
    *
    * **동시성 계약**: 동시 stop 요청에 대한 TOCTOU 경쟁을 막기 위해, 최종 상태 전환은
    * 단일 원자 UPDATE(`status WHERE status IN [전이 가능 상태]`)로 수행한다. `affected=0`
-   * 은 다른 요청이 먼저 전이시켰다는 뜻이라 최신 상태로 재조회해 돌려준다.
+   * 은 다른 요청이 먼저 전이시켰다는 뜻이라 따로 처리하지 않는다(응답 쪽이 최신 상태를 다시 읽는다).
    * `WAITING_FOR_INPUT` 은 별도 경로로, 엔진의 `cancelWaitingExecution` 이 continuation
    * bus 로 fan-out 하며 enqueue 실패(`queued=false`)는 503 으로 surface 한다.
    */
@@ -918,8 +938,7 @@ export class ExecutionsService {
             'Cancel could not be queued (continuation bus unavailable). Please retry.',
         });
       }
-      const updated = await this.findOneForResponse(id);
-      return updated ?? execution;
+      return execution;
     }
 
     const finishedAt = new Date();
@@ -934,7 +953,7 @@ export class ExecutionsService {
         finishedAt,
       }) ?? 0;
 
-    const updateResult = await this.executionRepository
+    await this.executionRepository
       .createQueryBuilder()
       .update(Execution)
       .set({
@@ -948,22 +967,11 @@ export class ExecutionsService {
       })
       .execute();
 
-    if (updateResult.affected === 0) {
-      // 다른 요청이 먼저 상태를 바꿨을 가능성. 최신 상태로 재조회 후 반환한다.
-      const refreshed = await this.findOneForResponse(id);
-      this.invalidateSnapshotCache(id);
-      return refreshed ?? execution;
-    }
-    // 상태 전이가 일어난 이상 캐시된 snapshot 은 stale.
+    // `affected=0` 이면 다른 요청이 먼저 상태를 바꿨다. 어느 쪽이든 상태가 바뀌었으므로 캐시된
+    // snapshot 은 stale 이다. 최신 상태는 응답을 조립하는 쪽(`stopWithResponse`)이 다시 읽는다.
     this.invalidateSnapshotCache(id);
-
-    const refreshed = await this.findOneForResponse(id);
-    return refreshed ?? execution;
+    return execution;
   }
-  // 위 세 곳의 `?? execution` 은 재조회 직전에 행이 지워진 경우(동시 삭제)에만 탄다. 이때
-  // `execution` 은 관계를 읽지 않은 첫 조회 행이라 trigger · executor 이름이 비어
-  // 출처 라벨이 `null` 로 나가고(`source` 는 id 컬럼으로 정해지는 만큼만 채워진다), 응답은
-  // 그대로 조립된다. 지워진 실행의 라벨을 다시 읽을 방법이 없으므로 이를 허용한다.
 
   /**
    * 응답 조립용 단건 재조회 — 실행 출처 판정에 쓰는 관계 두 개를 함께 읽는다.
@@ -1033,7 +1041,7 @@ export class ExecutionsService {
    * |---|---|---|
    * | 1 | `findById` (`GET /executions/:id` · WS `execution.snapshot` · 재실행 응답) | 이 함수 |
    * | 2 | `getChain` | {@link toExecutionDtos} → 이 함수 |
-   * | 3 | `stop` | {@link toExecutionDtos} → 이 함수 |
+   * | 3 | `stopWithResponse` (REST 중지 응답) | {@link toExecutionDtos} → 이 함수 |
    * | 4 | `findByWorkflow` (목록) | {@link toExecutionDtos} → 이 함수 |
    * | 5 | `findById` 의 `nodeExecutions[]` | 행 단위 {@link toNodeExecutionSummary} |
    * | 6 | `BackgroundRunsService.toNodeExecutionDto` (본문 노드) | 다른 서비스의 자매 |

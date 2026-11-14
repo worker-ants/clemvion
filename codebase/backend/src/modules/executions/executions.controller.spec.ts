@@ -21,7 +21,9 @@ describe('ExecutionsController', () => {
         .fn()
         .mockResolvedValue({ id: 'exec-1', status: 'running' }),
       findByWorkflow: jest.fn().mockResolvedValue({ data: [], totalItems: 0 }),
-      stop: jest.fn().mockResolvedValue({ id: 'exec-1', status: 'stopped' }),
+      stopWithResponse: jest
+        .fn()
+        .mockResolvedValue({ id: 'exec-1', status: 'stopped' }),
       // CRIT #1 — IDOR 차단을 위해 controller 가 verifyOwnership 호출.
       verifyOwnership: jest.fn().mockResolvedValue(undefined),
       reRun: jest.fn().mockResolvedValue({ id: 'new-exec', reRunOf: 'exec-1' }),
@@ -281,7 +283,9 @@ describe('ExecutionsController', () => {
         'exec-1',
         'workspace-1',
       );
-      expect(mockExecutionsService.stop).toHaveBeenCalledWith('exec-1');
+      expect(mockExecutionsService.stopWithResponse).toHaveBeenCalledWith(
+        'exec-1',
+      );
       expect(result).toEqual({ id: 'exec-1', status: 'stopped' });
     });
 
@@ -293,7 +297,7 @@ describe('ExecutionsController', () => {
       await expect(
         controller.stop('exec-victim', 'workspace-attacker'),
       ).rejects.toThrow('Execution not found');
-      expect(mockExecutionsService.stop).not.toHaveBeenCalled();
+      expect(mockExecutionsService.stopWithResponse).not.toHaveBeenCalled();
     });
   });
 

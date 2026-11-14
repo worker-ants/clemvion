@@ -1,4 +1,9 @@
-import { Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import {
   ExecutionsService,
@@ -960,7 +965,7 @@ describe('ExecutionsService', () => {
         ]),
       );
 
-      const result = await service.stop('eS1');
+      const result = await service.stopWithResponse('eS1');
 
       expect(Object.keys(result).sort()).toEqual(EXECUTION_DTO_KEYS);
       expect(result).toMatchObject({
@@ -1019,7 +1024,7 @@ describe('ExecutionsService', () => {
 
   /**
    * 실행 시간(`activeRunningMs`)과 전체 경과(`durationMs`)는 다른 값이다. 입력 대기가 길었던
-   * 실행은 전체 경과만 커지고, 실행 중에 REST 중지로 끝나 구간이 기록되지 않은 실행은
+   * 실행은 전체 경과만 커지고, 실행 중에 REST 중지로 끝나 아직 구간이 더해지지 않은 실행은
    * 실행 시간이 `null`(측정되지 않음)이다. 판정 규칙 자체는 `active-running-ms.spec.ts` 가
    * 고정하고, 여기서는 응답 조립이 그 값을 싣는지 본다.
    */
@@ -1043,7 +1048,7 @@ describe('ExecutionsService', () => {
       });
     });
 
-    it('실행 중 stop() 으로 취소돼 구간이 기록되지 않은 실행은 실행 시간이 null 이다', async () => {
+    it('실행 중 중지 직후 엔진이 아직 마지막 구간을 더하지 않은 실행은 실행 시간이 null 이다', async () => {
       const running = baseFake({ id: 'eA2', status: ExecutionStatus.RUNNING });
       const cancelled = baseFake({
         id: 'eA2',
@@ -1056,7 +1061,7 @@ describe('ExecutionsService', () => {
         buildStopQB(cancelled) as unknown,
       );
 
-      const result = await service.stop('eA2');
+      const result = await service.stopWithResponse('eA2');
 
       expect(result.durationMs).toBe(5_000);
       expect(result.activeRunningMs).toBeNull();
@@ -1097,7 +1102,7 @@ describe('ExecutionsService', () => {
       );
       // engine.cancelWaitingExecution 기본 mock = { queued: true } (beforeEach).
 
-      const result = await service.stop('eW-ok');
+      const result = await service.stopWithResponse('eW-ok');
       expect(engine.cancelWaitingExecution).toHaveBeenCalledWith('eW-ok');
       // 종전엔 `toBe(afterCancel)` 였다. `stop` 이 응답 마스킹 관문
       // (`toResponseExecution`)을 거치면서 **복사본**을 돌려주므로 참조 동일성은 더 이상
@@ -1157,26 +1162,119 @@ describe('ExecutionsService', () => {
     });
   });
 
-  describe('stop — 재조회 직전에 행이 지워진 경우', () => {
-    it('재조회가 null 이어도 첫 조회 행으로 응답을 조립하고 라벨은 null 이다', async () => {
-      const running = baseFake({
-        id: 'e-del',
-        status: ExecutionStatus.RUNNING,
-        executedBy: 'u1',
-      });
-      executionRepo.findOne.mockResolvedValueOnce(running as unknown);
-      executionRepo.createQueryBuilder.mockReturnValue(
-        buildStopQB(null) as unknown,
+  // 응답용 재조회가 null 이면(동시 삭제) 중지 전에 읽은 행으로 응답을 조립한다. 중지가 끝나는 세 경로가
+  // 모두 이 폴백을 지난다(CLE-T-1E8NP5).
+  describe('stopWithResponse — 재조회 직전에 행이 지워진 경우', () => {
+    it.each([
+      ['가드 UPDATE 성공', ExecutionStatus.RUNNING, 1],
+      ['affected=0 (다른 요청이 먼저 바꿈)', ExecutionStatus.RUNNING, 0],
+      ['입력 대기 취소', ExecutionStatus.WAITING_FOR_INPUT, 1],
+    ] as const)(
+      '%s: 재조회가 null 이어도 첫 조회 행으로 응답을 조립하고 라벨은 null 이다',
+      async (_path, status, affected) => {
+        const first = baseFake({ id: 'e-del', status, executedBy: 'u1' });
+        executionRepo.findOne.mockResolvedValueOnce(first as unknown);
+        const qb = buildStopQB(null, affected);
+        executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+
+        const result = await service.stopWithResponse('e-del');
+
+        // 폴백은 재조회가 실제로 null 을 돌려준 뒤에만 탄다.
+        expect(qb.getOne).toHaveBeenCalledTimes(1);
+        expect(qb.execute).toHaveBeenCalledTimes(
+          status === ExecutionStatus.WAITING_FOR_INPUT ? 0 : 1,
+        );
+        expect(result).toMatchObject({
+          id: 'e-del',
+          status,
+          triggerSource: 'manual',
+          triggerLabel: null,
+        });
+      },
+    );
+  });
+
+  // 내부 호출자(웹훅 `/start` · `/cancel`, 외부 인터랙션 `cancel`)는 반환값을 버린다. 그래서 중지가
+  // 커밋된 뒤의 응답 조립 실패가 그 호출자에게 실패로 닿으면 안 된다(CLE-T-1E8NP5). 커밋 전 실패는 호출자가
+  // 코드로 분기하므로 그대로 던진다.
+  describe('stop — 응답을 조립하지 않는 내부 경로', () => {
+    it.each([
+      [
+        '재조회',
+        (qb: Record<string, jest.Mock>) => {
+          qb.getOne = jest.fn().mockRejectedValue(new Error('assembly failed'));
+        },
+      ],
+      [
+        '노드 집계',
+        () => {
+          nodeExecutionRepo.createQueryBuilder.mockImplementation(() => {
+            throw new Error('assembly failed');
+          });
+        },
+      ],
+    ])(
+      '중지를 커밋한 뒤 %s 단계가 실패해도 호출자에게 닿지 않는다',
+      async (_step, failAssembly) => {
+        const running = baseFake({
+          id: 'eI1',
+          status: ExecutionStatus.RUNNING,
+        });
+        executionRepo.findOne.mockResolvedValue(running as unknown);
+        const qb = buildStopQB(running);
+        failAssembly(qb);
+        executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+
+        await expect(service.stop('eI1')).resolves.toBeUndefined();
+        expect(qb.execute).toHaveBeenCalledTimes(1);
+        expect(qb.set).toHaveBeenCalledWith(
+          expect.objectContaining({ status: ExecutionStatus.CANCELLED }),
+        );
+
+        // 같은 실패가 REST 경로에서는 그대로 난다. 위 통과가 실패 주입이 빠져서가 아님을 보인다.
+        await expect(service.stopWithResponse('eI1')).rejects.toThrow(
+          'assembly failed',
+        );
+      },
+    );
+
+    it('입력 대기 실행은 취소를 큐에 넣고 응답용으로 다시 읽지 않는다', async () => {
+      executionRepo.findOne.mockResolvedValueOnce(
+        baseFake({
+          id: 'eI2',
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+        }) as unknown,
       );
 
-      const result = await service.stop('e-del');
+      await expect(service.stop('eI2')).resolves.toBeUndefined();
 
-      expect(result.id).toBe('e-del');
-      expect(result).toMatchObject({
-        triggerSource: 'manual',
-        triggerLabel: null,
-      });
+      expect(engine.cancelWaitingExecution).toHaveBeenCalledWith('eI2');
+      expect(executionRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ['없는 실행', null, 'RESOURCE_NOT_FOUND', NotFoundException],
+      [
+        '이미 끝난 실행',
+        ExecutionStatus.COMPLETED,
+        'INVALID_STATE',
+        BadRequestException,
+      ],
+    ] as const)(
+      '%s 은 커밋 전에 실패하므로 그대로 던진다 (%s)',
+      async (_case, status, code, type) => {
+        executionRepo.findOne.mockResolvedValueOnce(
+          status ? (baseFake({ id: 'eI3', status }) as unknown) : null,
+        );
+
+        const err = await service.stop('eI3').catch((err_: unknown) => err_);
+
+        expect(err).toBeInstanceOf(type);
+        expect((err as NotFoundException).getResponse()).toMatchObject({
+          code,
+        });
+      },
+    );
   });
 
   describe('getStatusById', () => {
@@ -1311,11 +1409,11 @@ describe('ExecutionsService', () => {
         buildStopQB(cancelled) as unknown,
       );
 
-      const result = await service.stop('eM4');
+      const result = await service.stopWithResponse('eM4');
       expect(result.error).toEqual(MASKED);
     });
 
-    it('④-b stop 의 `affected=0` 분기도 같은 관문을 지난다 (`return` 문이 셋이다)', async () => {
+    it('④-b stop 의 `affected=0` 분기도 같은 관문을 지난다 (재조회는 세 경로가 함께 쓴다)', async () => {
       const running = baseFake({
         id: 'eM4b',
         status: ExecutionStatus.RUNNING,
@@ -1333,7 +1431,7 @@ describe('ExecutionsService', () => {
         buildStopQB(raced, 0) as unknown,
       );
 
-      const result = await service.stop('eM4b');
+      const result = await service.stopWithResponse('eM4b');
       expect(result.error).toEqual(MASKED);
     });
 
@@ -1617,7 +1715,7 @@ describe('ExecutionsService', () => {
         buildStopQB(cancelled) as unknown,
       );
 
-      const result = await service.stop('eD4');
+      const result = await service.stopWithResponse('eD4');
       expect(JSON.stringify(result.outputData)).not.toContain('sk-live-abc123');
     });
 
@@ -1823,7 +1921,7 @@ describe('ExecutionsService', () => {
         buildStopQB(cancelled) as unknown,
       );
 
-      const result = await service.stop('eD8b');
+      const result = await service.stopWithResponse('eD8b');
       const in8b = JSON.stringify(result.inputData);
       expect(in8b).not.toContain('admin:pw');
       expect(in8b).toContain('***'); // 음성 단독은 필드 소실에도 통과한다

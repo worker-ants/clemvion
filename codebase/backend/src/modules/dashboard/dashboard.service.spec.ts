@@ -77,7 +77,7 @@ describe('DashboardService.getSummary', () => {
   //
   // mock 이 SQL 을 실행하지 않으므로 이 테스트가 보증하는 것은 **집계식에 상태 조건이
   // 들어 있다는 것뿐**이다(값이 맞는지가 아니다). 그래도 필터를 지우는 편집은 잡는다.
-  it('7일 평균 실행 시간 집계는 completed 만 센다 (대기 시간 오염 방지)', async () => {
+  it('7일 평균 전체 경과 집계는 completed 실행의 duration_ms 만 센다 (대기 시간 오염 방지)', async () => {
     setup({}, { total7d: 3, prev7d: 1, success7d: 2, avg7d: 1500 });
     await service.getSummary('ws-1');
 
@@ -86,6 +86,9 @@ describe('DashboardService.getSummary', () => {
     );
     expect(avgSelect).toBeDefined();
     expect(avgSelect![0]).toContain('e.status = :completedStatus');
+    // 「평균 전체 경과」라 기준은 duration_ms 다. 실행 시간(active_running_ms) 평균이 아니다.
+    expect(avgSelect![0]).toContain('AVG(e.duration_ms)');
+    expect(avgSelect![0]).not.toContain('active_running_ms');
   });
 
   it('workflow 1 + execution 1 — 총 2회 왕복으로 모든 summary 필드를 산출한다', async () => {

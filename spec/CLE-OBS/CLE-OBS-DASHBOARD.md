@@ -2,19 +2,19 @@
 id: "CLE-OBS-DASHBOARD"
 title: "대시보드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-DASH-001", "REQ-DASH-002", "REQ-DASH-003", "REQ-DASH-004", "REQ-DASH-005", "REQ-DASH-006", "REQ-DASH-007", "REQ-DASH-008", "REQ-DASH-009", "REQ-DASH-010", "REQ-DASH-011", "REQ-DASH-012", "REQ-DASH-013", "REQ-DASH-014", "REQ-DASH-015", "REQ-DASH-016", "REQ-DASH-017", "REQ-DASH-018"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "fdcc54f64691ead38bea065c3b994ed7374a8a20ff5633249ea71f2814fbdf54"
+content_hash: "f6965435e0ee3c936b19f65fe9fda942efec5c0b3187531b23ce1edc50a43bc0"
 read_as: "approved_fallback"
-task: "CLE-T-51KBTG"
+task: "CLE-T-7704WC"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "d49e39f6abe4280edbf8efb5120711ee196db962925adc35a3eae5dbfeeae74c"
-etag: "sha256-93e5134ed10964d2da790c30bcaf1fc657a14d08bbf437900869d2f15782cb48"
+mirror_sha256: "b60dec1569bbede06b2711664396d39b2282239daaee52c4b6b6a8a2e167cf95"
+etag: "sha256-641d5e6fa20aea4d87f88a286e8ec1939e92b23e2b9de4dd1eb24dc42e13f849"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/0-dashboard.md`, `spec/data-flow/9-observability.md` (§1.2 의 대시보드 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -26,7 +26,7 @@ etag: "sha256-93e5134ed10964d2da790c30bcaf1fc657a14d08bbf437900869d2f15782cb48"
 
 범위 밖:
 
-- 성공률·평균 실행 시간·증감률의 정의: [통계](CLE-OBS-STATS.md)
+- 성공률·평균 전체 경과·증감률의 정의: [통계](CLE-OBS-STATS.md)
 - 실행 상세 화면과 실행 출처 분류 규칙: [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md)
 - 빈 상태 안내 문구와 공통 빈 상태 컴포넌트: [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md)
 - 워크플로우 목록 화면: [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md)
@@ -39,7 +39,7 @@ etag: "sha256-93e5134ed10964d2da790c30bcaf1fc657a14d08bbf437900869d2f15782cb48"
 - REQ-DASH-003 WHEN 최근 7일 실행 수 카드를 보이면 THE SYSTEM SHALL 직전 7일 대비 증감률을 카드 아래에 함께 보인다. (원본: 0-dashboard §3)
 - REQ-DASH-004 IF 직전 7일 실행이 0건이면 THE SYSTEM SHALL 증감률을 보이지 않는다. (원본: 0-dashboard §3)
 - REQ-DASH-005 WHEN 성공률 카드를 보이면 THE SYSTEM SHALL 최근 7일 성공률을 정수로 반올림해 보인다. (원본: 0-dashboard §3)
-- REQ-DASH-006 WHEN 요약 카드를 그리면 THE SYSTEM SHALL 평균 실행 시간 카드를 두지 않는다. (원본: 0-dashboard §3)
+- REQ-DASH-006 WHEN 요약 카드를 그리면 THE SYSTEM SHALL 평균 전체 경과 카드를 두지 않는다. (원본: 0-dashboard §3)
 - REQ-DASH-007 WHEN 대시보드를 열면 THE SYSTEM SHALL 최근 수정 순(`updatedAt` 내림차순) 상위 5개 워크플로우를 보인다. (원본: 0-dashboard §4)
 - REQ-DASH-008 WHEN 사용자가 최근 워크플로우 항목을 누르면 THE SYSTEM SHALL 그 워크플로우의 에디터로 이동한다. (원본: 0-dashboard §4)
 - REQ-DASH-009 WHEN 사용자가 "View All" 링크를 누르면 THE SYSTEM SHALL 워크플로우 목록으로 이동한다. (원본: 0-dashboard §4)
@@ -71,7 +71,7 @@ etag: "sha256-93e5134ed10964d2da790c30bcaf1fc657a14d08bbf437900869d2f15782cb48"
 | Runs (7d) | 최근 7일 실행 수 | 직전 7일 대비 증감률(`runs7dChangePercent`)을 카드 아래에 함께 보인다. 직전 7일 실행이 0건이면 증감률을 보이지 않는다 |
 | Success Rate | 최근 7일 성공률(%) | 성공률 정의는 [통계 §지표 정의](CLE-OBS-STATS.md#지표-정의) 를 따른다. 분모는 상태와 상관없는 최근 7일 전체 실행 수다(실행 중·대기 중·취소됨 포함). 카드에는 정수로 반올림해 보인다 |
 
-평균 실행 시간(`avgExecutionTime`)은 요약 응답에 들어 있지만 카드로 보이지 않는다.
+평균 전체 경과(`avgExecutionTime`)는 요약 응답에 들어 있지만 카드로 보이지 않는다.
 
 ## 최근 워크플로우
 
@@ -110,7 +110,7 @@ etag: "sha256-93e5134ed10964d2da790c30bcaf1fc657a14d08bbf437900869d2f15782cb48"
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| GET | `/api/dashboard/summary` | 요약 지표. 전체·활성 워크플로우 수, 최근 7일 실행 수와 직전 7일 대비 증감률, 성공률, 평균 실행 시간 |
+| GET | `/api/dashboard/summary` | 요약 지표. 전체·활성 워크플로우 수, 최근 7일 실행 수와 직전 7일 대비 증감률, 성공률, 평균 전체 경과 |
 | GET | `/api/dashboard/recent-workflows` | 최근 수정 워크플로우 5건(`updatedAt` 내림차순) |
 | GET | `/api/dashboard/recent-executions` | 최근 실행 10건(`startedAt` 내림차순) |
 
@@ -140,7 +140,7 @@ etag: "sha256-93e5134ed10964d2da790c30bcaf1fc657a14d08bbf437900869d2f15782cb48"
 | `runs7dPrevious` | 직전 7일(14일 전부터 7일 전까지) 실행 수 |
 | `runs7dChangePercent` | 직전 7일 대비 증감률(%). 직전 7일 실행이 0건이면 `null` |
 | `successRate` | 최근 7일 성공률(%) = `completed` 수 ÷ `runs7d` × 100 |
-| `avgExecutionTime` | 최근 7일 평균 실행 시간. 단위는 **밀리초**다. 완료(`completed`) 실행의 `duration_ms` 평균을 정수로 반올림한다. 실행 데이터가 없으면 0 |
+| `avgExecutionTime` | 최근 7일 평균 전체 경과. 단위는 **밀리초**다. 완료(`completed`) 실행의 `duration_ms`(전체 경과) 평균을 정수로 반올림한다. 필드 이름과 달리 입력 대기를 뺀 실행 시간(`activeRunningMs`)의 평균이 아니다. 실행 데이터가 없으면 0 |
 
 ## 읽는 데이터
 
@@ -157,13 +157,13 @@ etag: "sha256-93e5134ed10964d2da790c30bcaf1fc657a14d08bbf437900869d2f15782cb48"
 
 ### 요약 카드에 평균 실행 시간을 두지 않는다
 
-요약 카드는 Total, Active, Runs(7d), Success 네 가지다. 초기 초안에 있던 평균 실행 시간 카드는 보이지 않는다(`dashboard/page.tsx`). 평균 실행 시간은 요약 응답(`avgExecutionTime`, 밀리초)에 들어 있지만 따로 카드로 그리지 않는 현재 구현을 따른다.
+요약 카드는 Total, Active, Runs(7d), Success 네 가지다. 초기 초안에 있던 평균 실행 시간 카드는 보이지 않는다(`dashboard/page.tsx`). 평균 전체 경과는 요약 응답(`avgExecutionTime`, 밀리초)에 들어 있지만 따로 카드로 그리지 않는 현재 구현을 따른다.
 
 이 절과 아래 지표 관련 결정은 2026-06-03 명세와 코드 동기화 때 코드 현실에 맞춰 정정한 근거다. 대안을 비교한 결정 기록이 아니라 코드 동기화 근거다.
 
 ### 지표 정의를 통계 문서에 모은다
 
-성공률 분모를 최근 7일 전체 실행 수로 둔 결정과 평균 실행 시간을 완료된 실행만으로 집계하는 결정(2026-08-15)은 처음에 이 화면의 명세에 적혀 있었다. 같은 결정이 통계의 `avgDurationMs` 집계에도 걸리고 통계 명세가 이 절을 가리키고 있었다. 두 화면이 같은 정의를 쓰므로 정의와 근거를 [통계](CLE-OBS-STATS.md) 의 지표 정의 한 곳에 모았다.
+성공률 분모를 최근 7일 전체 실행 수로 둔 결정과 평균 실행 시간을 완료된 실행만으로 집계하는 결정(2026-08-15)은 처음에 이 화면의 명세에 적혀 있었다. 같은 결정이 통계의 `avgDurationMs` 집계에도 걸리고 통계 명세가 이 절을 가리키고 있었다. 두 화면이 같은 정의를 쓰므로 정의와 근거를 [통계](CLE-OBS-STATS.md) 의 지표 정의 한 곳에 모았다. 2026-11-14 에 이 평균의 이름을 「평균 전체 경과」로 바꾼 근거도 그 문서에 있다.
 
 ### 최근 실행은 시작 시각 순으로 보인다
 

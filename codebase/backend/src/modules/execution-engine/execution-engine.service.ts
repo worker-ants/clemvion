@@ -222,6 +222,10 @@ import {
   CALL_STACK_SCHEMA_VERSION,
   ResumeCallStack,
 } from '../../shared/execution-resume/resume-call-stack.types';
+import {
+  ADD_STOPPED_SEGMENT_SQL,
+  addRunningSegmentMs,
+} from '../executions/utils';
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
@@ -231,6 +235,12 @@ import {
   TERMINAL_FINISHED_AT_PARAM,
   toFiniteNumber,
 } from '../../shared/utils/terminal-duration';
+
+/** RUNNING 을 벗어나며 닫은 구간. 두 값 모두 이 인스턴스의 `Date.now()`(ms) 다. */
+interface ClosedRunningSegment {
+  startMs: number;
+  endMs: number;
+}
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -8734,14 +8744,20 @@ export class ExecutionEngineService
     // 누적되는 in-memory 누수였다(DB 오염은 없음, 자원 회계 문제).
     const enteringRunning =
       newStatus === ExecutionStatus.RUNNING && prevStatus !== newStatus;
+    // 전이가 0행이면 이 구간을 REST 중지로 마감된 행에 따로 더한다(`finishStatusTransition`).
+    let closedSegment: ClosedRunningSegment | undefined;
     if (
       prevStatus === ExecutionStatus.RUNNING &&
       newStatus !== ExecutionStatus.RUNNING
     ) {
       const segStart = this.segmentStartMs.get(execution.id);
       if (segStart !== undefined) {
-        execution.activeRunningMs =
-          (execution.activeRunningMs ?? 0) + (Date.now() - segStart);
+        const endMs = Date.now();
+        closedSegment = { startMs: segStart, endMs };
+        execution.activeRunningMs = addRunningSegmentMs(
+          execution.activeRunningMs ?? 0,
+          endMs - segStart,
+        );
         this.segmentStartMs.delete(execution.id);
       }
     }
@@ -8797,6 +8813,7 @@ export class ExecutionEngineService
         newStatus,
         enteringRunning,
         persisted,
+        closedSegment,
       );
     }
 
@@ -8874,6 +8891,7 @@ export class ExecutionEngineService
       newStatus,
       enteringRunning,
       persisted,
+      closedSegment,
     );
   }
 
@@ -8890,18 +8908,64 @@ export class ExecutionEngineService
    * 한다. 예전엔 가드보다 먼저 무조건 기록해, 거부된(no-op) RUNNING 재claim 에도
    * in-memory `segmentStartMs` 유령 항목이 남았다 — 그 executionId 는 실제로 RUNNING 이
    * 된 적이 없어 "이탈" 분기가 결코 오지 않으므로 정리 기회 없이 누적되는 누수였다.
+   *
+   * **닫은 구간 (CLE-T-ES1J1E)**: RUNNING 을 벗어나며 닫은 구간은 전이 UPDATE 에 실린다. 전이가 0행이면
+   * 그 구간이 버려지므로 {@link addSegmentToStoppedExecution} 이 REST 중지로 마감된 행에 따로 더한다.
    */
-  private finishStatusTransition(
+  private async finishStatusTransition(
     execution: Execution,
     newStatus: ExecutionStatus,
     enteringRunning: boolean,
     persisted: boolean,
-  ): boolean {
+    closedSegment: ClosedRunningSegment | undefined,
+  ): Promise<boolean> {
     if (enteringRunning && persisted) {
       this.recordRunningSegmentStart(execution.id);
     }
+    if (!persisted && closedSegment) {
+      await this.addSegmentToStoppedExecution(execution.id, closedSegment);
+    }
     this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
     return persisted;
+  }
+
+  /**
+   * REST 중지(`POST /api/executions/:id/stop`)로 이미 `cancelled` 가 된 행에 엔진이 닫은 마지막 RUNNING
+   * 구간을 더한다(CLE-T-ES1J1E).
+   *
+   * REST 중지는 돌고 있는 엔진에 신호를 보내지 않고 행만 `cancelled` 로 마감한다. 엔진은 다음 노드 ·
+   * 아이템 · AI 턴 경계에서야 중지를 알아채고 구간을 닫는다. 그때 상태 전이는 종결 가드에 막혀 0행이라,
+   * 종전에는 구간 합산도 함께 버려져 중지된 실행의 실행 시간에서 마지막 구간이 빠졌다.
+   *
+   * - 쓰는 컬럼은 `active_running_ms` 하나다. status · finished_at · duration_ms · output 은 쓰지 않는다.
+   *   종결 행을 덮지 않는다는 가드의 뜻은 그대로다.
+   * - `status = 'cancelled'` 인 행에만 더한다. 다른 종결자가 completed · failed 로 마감한 행은 그쪽 값이
+   *   정본이다.
+   * - 구간 끝은 중지 시각(`finished_at`)과 지금 중 이른 쪽이다. 중지 뒤 엔진이 경계에 닿기까지 돈 시간은
+   *   넣지 않으므로 실행 시간이 전체 경과(`duration_ms`)를 넘지 않는다. 음수 · int4 상한 처리를 포함한
+   *   SQL 은 `ADD_STOPPED_SEGMENT_SQL`(`executions/utils/active-running-ms.ts`)이 정한다.
+   * - 입력 대기(`waiting_for_input`)에서 중지된 실행은 열린 구간이 없어 여기 오지 않는다. 대기 시간은
+   *   실행 시간에 들어가지 않는다.
+   * - 실패해도 던지지 않는다. 호출부 일부가 종결 처리 catch 블록 안이라(`finalizeCancelledExecution`)
+   *   던지면 종결 알림이 깨진다. 실행 시간이 짧게 남는 쪽은 §8 이 이미 허용한다(under-count).
+   */
+  private async addSegmentToStoppedExecution(
+    executionId: string,
+    segment: ClosedRunningSegment,
+  ): Promise<void> {
+    try {
+      await this.executionRepository.query(ADD_STOPPED_SEGMENT_SQL, [
+        executionId,
+        segment.endMs - segment.startMs,
+        segment.startMs,
+        ExecutionStatus.CANCELLED,
+      ]);
+    } catch (err) {
+      this.logger.warn(
+        `addSegmentToStoppedExecution(${executionId}): 중지된 실행에 마지막 구간을 더하지 못했다 ` +
+          `(실행 시간이 짧게 남는다): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /**
