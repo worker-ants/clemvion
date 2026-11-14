@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  selectAwaitingLastTurnRetry,
   useExecutionStore,
   type NodeExecutionStatus,
 } from "../stores/execution-store";
@@ -47,6 +48,8 @@ export function nextExecutionRefetchInterval(
  *  - `execution.nodeExecutions` 를 startedAt 으로 정렬 후 store 의
  *    `nodeStatuses` / `nodeResults` 갱신 (status downgrade 차단).
  *  - `execution.status` 분기:
+ *    - 마지막 턴 재시도를 기다리는 store(`selectAwaitingLastTurnRetry`)면 먼저
+ *      `followLastTurnRetry` 가 재시도 턴의 진행을 가른다(CLE-T-GKVH1B).
  *    - completed / failed / cancelled → 종료 setter 호출
  *    - running ↔ waiting_for_input 전이 reconcile
  *    - waiting_for_input → 5단계 fallback 으로 interactionType 추출 후
@@ -153,6 +156,13 @@ export function applyExecutionSnapshot(
   const effectiveExecutionStatus = reconcileToWaiting
     ? ("waiting_for_input" as const)
     : execution.status;
+
+  if (
+    selectAwaitingLastTurnRetry(useExecutionStore.getState()) &&
+    followLastTurnRetry(execution, effectiveExecutionStatus)
+  ) {
+    return;
+  }
 
   if (execution.status === "completed") {
     completeExecution();
@@ -307,6 +317,85 @@ export function applyExecutionSnapshot(
       }
     }
   }
+}
+
+/**
+ * 마지막 턴 재시도를 기다리는 store 에 응답을 반영한다(CLE-T-GKVH1B). 여기서 끝까지
+ * 처리했으면 `true`, 아래의 일반 분기로 넘길 응답이면 `false` 다. 재시도 ack 가 성공해도
+ * 실행은 재시도 턴이 끝날 때까지 `failed` 이고 턴 끝에서 `running`(그래프를 이어 감) ·
+ * `waiting_for_input`(park) 으로 간다(CLE-EXEC-STATE-RETRY 재진입 흐름).
+ *
+ * - `failed` 응답: 재시도 턴이 아직 끝나지 않았으면(`isLastTurnRetryRunning`) 실행 상태를
+ *   그대로 두고 기다린다(`true`). 다시 실패했거나 판단할 행이 없으면 일반 분기의
+ *   `failExecution` 이 실패로 마감하고 표시를 지운다(`false`).
+ * - 입력 대기(`waiting_for_input`, 또는 `running` 인데 대기 행이 있는 응답): 재시도 턴이
+ *   park 했다. 표시를 지우고 대기 노드의 상태를 대기로 바꾼 뒤 일반 대기 분기로 넘긴다
+ *   (`false`). 노드 상태는 `failed` 에서 대기로 내려가므로 노드 행 루프의 낮추지 않는 규칙
+ *   (`shouldUpdateStatus`)에 막힌다. WS `execution.waiting_for_input` 처리처럼 직접 바꾼다.
+ * - `running`: 재시도 턴이 끝나고 그래프를 이어 간다. 실행 중으로 돌리고 응답 대기 표시를
+ *   끈다(`true`).
+ * - 그 밖(`completed` · `cancelled`): 일반 분기가 종결로 마감하며 표시를 지운다(`false`).
+ */
+function followLastTurnRetry(
+  execution: ExecutionData,
+  effectiveStatus: ExecutionData["status"],
+): boolean {
+  const pending = useExecutionStore.getState().pendingLastTurnRetry;
+  if (!pending) return false;
+  if (execution.status === "failed") {
+    return isLastTurnRetryRunning(
+      execution.nodeExecutions ?? [],
+      pending.nodeExecutionId,
+    );
+  }
+  if (effectiveStatus === "waiting_for_input") {
+    const waitingNode = execution.nodeExecutions?.find(isNodeWaitingForInput);
+    if (waitingNode) {
+      useExecutionStore
+        .getState()
+        .updateNodeStatus(waitingNode.nodeId, { status: "waiting_for_input" });
+    }
+    useExecutionStore.setState({ pendingLastTurnRetry: null });
+    return false;
+  }
+  if (execution.status === "running") {
+    useExecutionStore.setState({
+      status: "running",
+      pendingLastTurnRetry: null,
+      isWaitingAiResponse: false,
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 재시도 턴이 아직 끝나지 않았는지. 재시도는 같은 노드에 새 노드 실행 행을 만들어 마지막
+ * 턴을 다시 돌린다. 재시도한 행보다 늦게 시작한 같은 노드의 행 중 가장 늦은 행이 새 행이다.
+ * 새 행이 `failed` · `cancelled` 가 아니면 아직 도는 중이거나 턴 끝 전이 직전이다.
+ *
+ * 재시도한 행이나 새 행을 찾지 못하면 `false` 다. 새 행은 ack 전에 만들어지므로 보통은
+ * 보인다. 보이지 않는 응답에서 기다리면 끝나지 않는 폴링이 될 수 있어 실패로 마감한다.
+ */
+function isLastTurnRetryRunning(
+  rows: NodeExecutionData[],
+  retriedNodeExecutionId: string,
+): boolean {
+  const retried = rows.find((ne) => ne.id === retriedNodeExecutionId);
+  if (!retried) return false;
+  const retriedStartedAt = retried.startedAt ?? "";
+  let spawned: NodeExecutionData | undefined;
+  for (const ne of rows) {
+    if (ne.nodeId !== retried.nodeId || ne.id === retried.id) continue;
+    const startedAt = ne.startedAt ?? "";
+    if (startedAt <= retriedStartedAt) continue;
+    if (!spawned || startedAt > (spawned.startedAt ?? "")) spawned = ne;
+  }
+  return (
+    spawned !== undefined &&
+    spawned.status !== "failed" &&
+    spawned.status !== "cancelled"
+  );
 }
 
 /**

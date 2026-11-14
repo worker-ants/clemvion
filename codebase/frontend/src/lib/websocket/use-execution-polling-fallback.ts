@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { executionsApi } from "../api/executions";
 import {
+  selectAwaitingLastTurnRetry,
   selectStoreExecutionFinished,
   useExecutionStore,
 } from "../stores/execution-store";
@@ -109,7 +110,11 @@ export function nextRetryDelayMs(
 /** 응답 폐기 판정에 쓰는 store 값. 요청을 보낼 때와 응답이 왔을 때 두 번 읽는다. */
 export type PollStoreView = Pick<
   ReturnType<typeof useExecutionStore.getState>,
-  "executionId" | "status" | "nodeStatuses" | "nodeResults"
+  | "executionId"
+  | "status"
+  | "nodeStatuses"
+  | "nodeResults"
+  | "pendingLastTurnRetry"
 >;
 
 /**
@@ -125,7 +130,8 @@ export type PollResponseDecision = "apply" | "discard" | "stop";
  * store 다.
  *
  * - store 의 실행 ID 가 이 폴링의 것과 다르거나(드로어를 닫아 `reset` 됐거나 새 실행이
- *   시작됨) store 가 이미 끝난 실행이면 `stop`.
+ *   시작됨) store 가 이미 끝난 실행이면 `stop`. 끝난 실행이어도 마지막 턴 재시도를
+ *   기다리는 중이면(`selectAwaitingLastTurnRetry`) 멈추지 않는다.
  * - 요청을 보낸 뒤 다른 경로(WS 이벤트 · 사용자의 대기 응답)가 노드 상태 · 노드 결과 ·
  *   실행 상태를 바꿨으면 `discard`. 노드 상태와 노드 결과는 참조로 가른다. store 는 두
  *   필드를 쓸 때마다 새 참조를 만든다(`execution-store.ts` 의 필드 설명과 계약 테스트).
@@ -138,7 +144,8 @@ export function decidePollResponse(
 ): PollResponseDecision {
   if (
     current.executionId !== executionId ||
-    selectStoreExecutionFinished(current)
+    (selectStoreExecutionFinished(current) &&
+      !selectAwaitingLastTurnRetry(current))
   ) {
     return "stop";
   }
@@ -162,6 +169,12 @@ interface UseExecutionPollingFallbackOptions {
  * `applyExecutionSnapshot` 으로 WS 스냅샷과 같은 store 자리를 채운다. WS 가 살아나
  * `enabled` 가 꺼지거나, 응답 · store 가 끝난 실행(completed · failed · cancelled)이면
  * 멈춘다. 실행 상세 페이지는 상시 폴링을 따로 하므로 이 훅을 쓰지 않는다.
+ *
+ * 마지막 턴 재시도 ack 가 성공하면 실행은 재시도 턴이 끝날 때까지 `failed` 다. store 가
+ * 재시도를 기다리는 동안(`selectAwaitingLastTurnRetry`)은 끝난 실행이어도 폴링을 다시 켜고
+ * `failed` 응답에서도 멈추지 않는다. 재시도 턴이 park 하거나 그래프를 이어 가면
+ * `applyExecutionSnapshot` 이 대기 · 실행 중으로 돌리고, 다시 실패하면 실패로 마감해
+ * 멈춘다(CLE-T-GKVH1B).
  *
  * 요청이 실패하면 상태 코드로 나눈다. 400 · 401 · 403 · 404 는 다시 보내도 같으므로
  * 경고를 한 번 남기고 멈춘다. 429 · 5xx · 네트워크 오류는 2초에서 시작해 두 배씩 늘려
@@ -195,7 +208,9 @@ export function useExecutionPollingFallback({
   enabled,
 }: UseExecutionPollingFallbackOptions): void {
   const storeFinished = useExecutionStore(selectStoreExecutionFinished);
-  const active = enabled && !!executionId && !storeFinished;
+  const awaitingRetry = useExecutionStore(selectAwaitingLastTurnRetry);
+  const active =
+    enabled && !!executionId && (!storeFinished || awaitingRetry);
 
   useEffect(() => {
     if (!active || !executionId) return;
@@ -223,7 +238,13 @@ export function useExecutionPollingFallback({
         if (decision === "stop") return;
         if (decision === "apply") {
           applyExecutionSnapshot(execution, () => disposed);
-          if (isTerminalServerExecutionStatus(execution.status)) return;
+          // 재시도 턴을 기다리는 중의 `failed` 응답은 아직 끝난 실행이 아니다.
+          if (
+            isTerminalServerExecutionStatus(execution.status) &&
+            !selectAwaitingLastTurnRetry(useExecutionStore.getState())
+          ) {
+            return;
+          }
         }
       } catch (err) {
         if (disposed) return;

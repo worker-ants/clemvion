@@ -221,6 +221,12 @@ export interface ConversationItem {
   };
 }
 
+/** 마지막 턴 재시도를 기다리는 중일 때의 표시(`ExecutionState.pendingLastTurnRetry`). */
+export interface PendingLastTurnRetry {
+  /** 재시도한(실패한) 노드 실행 행 ID. 응답에서 같은 노드의 새 행을 찾는 기준이다. */
+  nodeExecutionId: string;
+}
+
 interface ExecutionState {
   executionId: string | null;
   status: ExecutionStatus;
@@ -274,6 +280,18 @@ interface ExecutionState {
   waitingConversationConfig: unknown;
   conversationMessages: ConversationItem[];
   isWaitingAiResponse: boolean;
+  /**
+   * 마지막 턴 재시도(`execution.retry_last_turn`) ack 가 성공한 뒤 재시도 턴이 끝나기를
+   * 기다리는 중이면 재시도한 노드 실행 ID. 실행은 재시도 턴이 끝날 때까지 `failed` 라서
+   * (CLE-EXEC-STATE-RETRY 재진입 흐름) REST 폴링 대체 경로는 이 값을 보고 멈춘 폴링을 다시
+   * 켜고 `applyExecutionSnapshot` 은 그동안의 `failed` 응답을 다시 적용하지 않는다.
+   *
+   * 실패한 실행에서만 남는다(`markLastTurnRetryPending`). `CLEAR_INPUT_AFFORDANCE` 를 쓰는
+   * 액션(실패 · 완료 · 재개 · 새 실행 · reset)이 지운다. 입력 대기로 넘어가는 `pauseFor*` 는
+   * 지우지 않지만 `selectAwaitingLastTurnRetry` 가 `failed` 일 때만 보므로 남은 값은 쓰이지
+   * 않고 다음 실패(`failExecution`)에서 지워진다.
+   */
+  pendingLastTurnRetry: PendingLastTurnRetry | null;
 
   /** Selected node in result timeline */
   selectedResultNodeId: string | null;
@@ -392,6 +410,11 @@ interface ExecutionState {
   flushPendingToolItemsAsError: (reason: string) => void;
   updateConversationConfig: (config: unknown) => void;
   setWaitingAiResponse: (value: boolean) => void;
+  /**
+   * 마지막 턴 재시도 ack 가 성공했을 때 부른다(`pendingLastTurnRetry`). store 가 `failed`
+   * 가 아니면 아무것도 하지 않는다. 재시도 턴이 이미 상태를 바꾼 뒤 늦게 온 ack 다.
+   */
+  markLastTurnRetryPending: (nodeExecutionId: string) => void;
   selectResultNode: (nodeId: string | null) => void;
   selectConversationItem: (index: number | null) => void;
   /** §10.12 — 드로어 본문 펼침 상태 설정/토글 (Ctrl+Shift+R + 헤더 셰브론 공유). */
@@ -515,6 +538,8 @@ const CLEAR_INPUT_AFFORDANCE = {
   waitingConversationConfig: null,
   isWaitingAiResponse: false,
   selectedConversationItemIndex: null,
+  // 재시도 턴 대기도 응답 대기 표시(`isWaitingAiResponse`)와 같이 지운다(CLE-T-GKVH1B).
+  pendingLastTurnRetry: null as PendingLastTurnRetry | null,
 };
 
 const CLEAR_CONVERSATION_SNAPSHOT = {
@@ -537,6 +562,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   waitingConversationConfig: null,
   conversationMessages: [],
   isWaitingAiResponse: false,
+  pendingLastTurnRetry: null,
   selectedResultNodeId: null,
   selectedConversationItemIndex: null,
   // UI 선호값 — 드로어는 기본 펼친 상태로 시작 (옛 RunResultsDrawer 로컬 useState(true) 와 동일).
@@ -985,6 +1011,13 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   setWaitingAiResponse: (value: boolean) =>
     set({ isWaitingAiResponse: value }),
 
+  markLastTurnRetryPending: (nodeExecutionId: string) =>
+    set((state) =>
+      state.status === "failed"
+        ? { pendingLastTurnRetry: { nodeExecutionId } }
+        : state,
+    ),
+
   selectResultNode: (nodeId: string | null) =>
     set({ selectedResultNodeId: nodeId, selectedConversationItemIndex: null }),
 
@@ -1024,6 +1057,16 @@ export function selectStoreExecutionFinished(
   state: Pick<ExecutionState, "status">,
 ): boolean {
   return state.status === "completed" || state.status === "failed";
+}
+
+/**
+ * 실패한 실행에서 마지막 턴 재시도 턴이 끝나기를 기다리는 중인지(`pendingLastTurnRetry`).
+ * REST 폴링 대체 경로는 store 가 끝난 실행이어도 이 값이 참이면 계속 받는다(CLE-T-GKVH1B).
+ */
+export function selectAwaitingLastTurnRetry(
+  state: Pick<ExecutionState, "status" | "pendingLastTurnRetry">,
+): boolean {
+  return state.status === "failed" && state.pendingLastTurnRetry !== null;
 }
 
 /**

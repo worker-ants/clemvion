@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   useExecutionStore,
   findReconcilableOptimisticIdx,
+  selectAwaitingLastTurnRetry,
   selectSortedNodeResults,
   selectStoreExecutionFinished,
 } from "../execution-store";
@@ -1077,5 +1078,57 @@ describe("nodeStatuses · nodeResults 쓰기마다 새 참조 (폴링 응답 폐
     expect(before).toHaveLength(1);
     expect(before[0]).toBe(beforeRow);
     expect(beforeRow.status).toBe("running");
+  });
+});
+
+// CLE-T-GKVH1B — 마지막 턴 재시도 ack 가 성공한 뒤 실행이 아직 `failed` 인 동안 REST 폴링
+// 대체 경로가 재시도 턴을 따라가도록 store 에 남기는 표시. 실패한 실행에서만 남고 실행이
+// 다른 상태로 넘어가거나 새로 시작하면 지운다.
+describe("마지막 턴 재시도 대기 표시", () => {
+  beforeEach(() => {
+    useExecutionStore.getState().reset();
+    useExecutionStore.getState().startExecution("exec-1");
+  });
+
+  it("실패한 실행에서 표시하면 재시도 대기로 본다", () => {
+    useExecutionStore.getState().failExecution("LLM 429");
+    useExecutionStore.getState().markLastTurnRetryPending("ne-r");
+    const state = useExecutionStore.getState();
+    expect(state.pendingLastTurnRetry).toEqual({ nodeExecutionId: "ne-r" });
+    expect(selectAwaitingLastTurnRetry(state)).toBe(true);
+  });
+
+  it.each(["running", "waiting_for_input", "completed", "idle"] as const)(
+    "실행이 %s 면 표시하지 않는다(재시도 턴이 이미 상태를 바꾼 뒤 늦게 온 ack)",
+    (status) => {
+      useExecutionStore.setState({ status });
+      useExecutionStore.getState().markLastTurnRetryPending("ne-r");
+      const state = useExecutionStore.getState();
+      expect(state.pendingLastTurnRetry).toBeNull();
+      expect(selectAwaitingLastTurnRetry(state)).toBe(false);
+    },
+  );
+
+  it.each([
+    ["failExecution", () => useExecutionStore.getState().failExecution("again")],
+    ["completeExecution", () => useExecutionStore.getState().completeExecution()],
+    ["resumeFromConversation", () => useExecutionStore.getState().resumeFromConversation()],
+    ["startExecution", () => useExecutionStore.getState().startExecution("exec-2")],
+    ["startHistoryView", () => useExecutionStore.getState().startHistoryView("exec-2", null)],
+    ["reset", () => useExecutionStore.getState().reset()],
+  ] as const)("%s 가 표시를 지운다", (_name, act) => {
+    useExecutionStore.getState().failExecution("LLM 429");
+    useExecutionStore.getState().markLastTurnRetryPending("ne-r");
+    act();
+    expect(useExecutionStore.getState().pendingLastTurnRetry).toBeNull();
+  });
+
+  it("실행이 failed 가 아니면 표시가 남아 있어도 재시도 대기로 보지 않는다", () => {
+    expect(
+      selectAwaitingLastTurnRetry({
+        status: "waiting_for_input",
+        pendingLastTurnRetry: { nodeExecutionId: "ne-r" },
+      }),
+    ).toBe(false);
   });
 });

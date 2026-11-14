@@ -64,8 +64,8 @@ export interface RetryLastTurnAck {
 }
 
 /**
- * ack 이벤트 이름 → ack payload 타입. `emitWithAck` 가 이 표로 `onFailure` 인자 타입을
- * 정하므로 호출부가 ack 형태를 잘못 고를 수 없다.
+ * ack 이벤트 이름 → ack payload 타입. `emitWithAck` 가 이 표로 `onFailure` · `onSuccess`
+ * 인자 타입을 정하므로 호출부가 ack 형태를 잘못 고를 수 없다.
  */
 interface AckByEvent {
   "execution.form_submitted": ContinuationAck;
@@ -113,6 +113,8 @@ function localizeRetryAckError(t: TFunction, ack: RetryLastTurnAck): string {
  * Each interaction command is gated by the user (one in-flight at a time —
  * the UI disables further input until the AI response arrives), so a single
  * one-shot ack listener is enough to match the latest emit.
+ *
+ * `onSuccess` 는 `success: true` ack 에서만 부른다. 지금은 마지막 턴 재시도만 쓴다.
  */
 function emitWithAck<E extends keyof AckByEvent>(
   ws: WsClient,
@@ -120,11 +122,14 @@ function emitWithAck<E extends keyof AckByEvent>(
   data: unknown,
   ackEvent: E,
   onFailure: (ack: AckByEvent[E]) => void,
+  onSuccess?: (ack: AckByEvent[E]) => void,
 ): void {
   ws.once(ackEvent, (...args: unknown[]) => {
     const response = args[0] as AckByEvent[E] | undefined;
     if (response && response.success === false) {
       onFailure(response);
+    } else if (response?.success === true) {
+      onSuccess?.(response);
     }
   });
   ws.emit(event, data);
@@ -165,6 +170,10 @@ export interface ExecutionInteractionCommands {
    * in the `CLE-API-WS-EVENTS` retry table map to localized toasts, an unmapped
    * code falls back to the backend `message`, then to a generic "retry failed"
    * string.
+   *
+   * 성공 ack 면 store 에 재시도 대기를 남긴다(`markLastTurnRetryPending`). 실행은 재시도
+   * 턴이 끝날 때까지 `failed` 라서 REST 폴링 대체 경로가 이 표시를 보고 폴링을 다시 켠다
+   * (CLE-T-GKVH1B). ack 전에 store 가 다른 실행으로 바뀌었으면 남기지 않는다.
    */
   retryLastTurn: (nodeExecutionId: string) => void;
 }
@@ -332,6 +341,11 @@ export function useExecutionInteractionCommands(
         (ack) => {
           setWaitingAiResponse(false);
           toast.error(localizeRetryAckError(t, ack));
+        },
+        () => {
+          const store = useExecutionStore.getState();
+          if (store.executionId !== executionId) return;
+          store.markLastTurnRetryPending(nodeExecutionId);
         },
       );
     },
