@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD-INBOUND"
 title: "Discord 어댑터 — 인바운드 처리와 응답"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DISCORD"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
-content_hash: "9f756ff3c4539e79df3c2184e76bf5de4ed69f5e4e2268625476df6fe1cb559b"
+content_hash: "6b7162ca43da1076e49e53f3a5f88ff8ec4dea1feb25045c24f23d25bd198d1c"
 read_as: "approved_fallback"
-task: "CLE-T-NMTWSN"
+task: "CLE-T-E90KGZ"
 source_paths: []
-mirror_sha256: "bbb24a7fd52371c3227b3d80732540f7f20ce3ebdea82329cd6a952a78a62222"
-etag: "sha256-3b9b03af164c46287669107d67ff0861c962639cac8f8db5af15b6c0839aa6cb"
+mirror_sha256: "eea8f9ad25931b44c36ddc654e386073b6cc03492e39949b6f1a3e3a46393f37"
+etag: "sha256-1674efb9352b6f930e06559a03cb86deb1c797a3c8f0cf6ab221b2ecc1531034"
 ---
 ## 개요
 
@@ -83,7 +83,7 @@ Discord Interactions 는 3초 안에 interaction response 객체로 답해야 �
 
 ### PING 핸드셰이크
 
-PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 번, 그 뒤 주기적으로 보낸다. 어댑터의 선택 함수 `handshakeResponse`([채팅 채널 어댑터 규약 「채널 어댑터 인터페이스」](CLE-CHAT-ADAPTER.md#채널-어댑터-인터페이스))가 `{ type: 1 }` 본문을 만들고 `HooksService` 가 그 본문을 `200 OK` 로 답한다. 이때 `parseUpdate` 는 부르지 않는다. Discord 는 PING 에 `200 + { type: 1 }` 만 성공으로 보므로 [채팅 채널](CLE-CHAT-CORE.md) 인바운드 응답 계약의 `202` 고정 정책에 대한 명시적 예외다(R-D-8).
+PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 번, 그 뒤 주기적으로 보낸다. 어댑터의 선택 함수 `handshakeResponse`([채팅 채널 어댑터 규약 「채널 어댑터 인터페이스」](CLE-CHAT-ADAPTER-IFACE.md#채널-어댑터-인터페이스))가 `{ type: 1 }` 본문을 만들고 `HooksService` 가 그 본문을 `200 OK` 로 답한다. 이때 `parseUpdate` 는 부르지 않는다. Discord 는 PING 에 `200 + { type: 1 }` 만 성공으로 보므로 [채팅 채널](CLE-CHAT-CORE.md) 인바운드 응답 계약의 `202` 고정 정책에 대한 명시적 예외다(R-D-8).
 
 트리거가 활성이면 워크플로우가 비활성이어도 답한다(2026-10-10 사용자 결정). 워크플로우가 비활성인 채로 Interactions Endpoint URL 을 등록해도 실패하지 않게 하려는 것이다. 관문은 트리거 활성 관문, 핸드셰이크 응답, …, 워크플로우 활성 관문 순서로 놓이므로 핸드셰이크 응답 단계에서는 워크플로우 상태를 확인하지 않는다. 순서의 기준은 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 다.
 
@@ -98,7 +98,7 @@ PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 �
 
 ### 응답을 정하는 위치
 
-기본 응답은 어댑터의 선택 함수 `defaultInteractionResponse`([채팅 채널 어댑터 규약 「채널 어댑터 인터페이스」](CLE-CHAT-ADAPTER.md#채널-어댑터-인터페이스))가 만든다. Discord 구현은 `discord-interaction-response.ts` 의 `buildDiscordDefaultInteractionResponse` 다. 원본 본문의 `type` 과 하위 명령 이름만 보고 외부 호출 없이 응답을 만든다. `HooksService` 는 서명 검증 직후, 트리거 활성 관문보다 먼저 이 값을 구하고 경로가 따로 만든 응답이 없을 때 붙인다.
+기본 응답은 어댑터의 선택 함수 `defaultInteractionResponse`([채팅 채널 어댑터 규약 「채널 어댑터 인터페이스」](CLE-CHAT-ADAPTER-IFACE.md#채널-어댑터-인터페이스))가 만든다. Discord 구현은 `discord-interaction-response.ts` 의 `buildDiscordDefaultInteractionResponse` 다. 원본 본문의 `type` 과 하위 명령 이름만 보고 외부 호출 없이 응답을 만든다. `HooksService` 는 서명 검증 직후, 트리거 활성 관문보다 먼저 이 값을 구하고 경로가 따로 만든 응답이 없을 때 붙인다.
 
 `HooksService` 에는 Discord 인터랙션 응답을 고르는 분기가 없다. PING 핸드셰이크 판정도 `DiscordAdapter.handshakeResponse` 가 하므로 `HooksService` 에는 Discord 전용 분기가 없다.
 

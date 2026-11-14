@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-API"
 title: "웹훅 — 엔드포인트와 수신 API"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "2a12bf293a15ffe2027cd0f409cb2f7c57b4cbb45f24541492a5bdd2742296a1"
+content_hash: "07dd055926de52dadf7393395871387ac1ab1fd467ded7f6fe5c3c016896492b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E90KGZ"
 source_paths: []
-mirror_sha256: "198ce1e0521db22964b5f398cfb66705666eb856b7fc699eeb1a640b7ee6ad86"
-etag: "sha256-7c6b0ebefb52373549590e1a29cfddba944fd657d2373e6774953067a70d1160"
+mirror_sha256: "a1a3bb179031236667b19f3a09ad872b50518a06f52a0c572a7b3a9951b84110"
+etag: "sha256-47d0d705dbaf9ae8f27bd6b8265a3d1e65ecb65f99a7157674142f183669da74"
 ---
 ## 개요
 
@@ -113,12 +113,14 @@ POST /api/hooks/:endpointPath
 
 에러 응답은 다음과 같다. 코드 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 등재한다. 표의 "채팅 채널 예외" 에서 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](CLE-TRIG-WEBHOOK-FLOW.md#채팅-채널-분기)).
 
+채팅 채널 트리거(`config.chatChannel`)는 응답 규칙이 따로 있고 표의 "채팅 채널 예외" 가 그 차이다. `401 AUTH_FAILED` 는 채팅 채널 트리거에도 그대로 나가고 서명 검증 실패 한도 초과도 같은 401 이다. 공개 웹훅의 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 와 `429 PUBLIC_WEBHOOK_RATE_LIMIT` · `PUBLIC_WEBHOOK_HOURLY_LIMIT` 는 채팅 채널 트리거에 걸리지 않는다. 표에 없는 채팅 채널 응답과 규칙 전체는 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE-RESPONSE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 가 정한다.
+
 | 상태 | 코드 | 조건 |
 |------|------|------|
 | `400 Bad Request` | | 요청 본문 파싱 실패 |
 | `400 Bad Request` | `INVALID_WEBHOOK_PAYLOAD` | required 트리거 파라미터 누락, 타입 강제 변환 실패([400 응답 형식](CLE-TRIG-WEBHOOK-AUTH.md#400-응답-형식)) |
 | `401 Unauthorized` | `AUTH_FAILED` | 인증 실패. 비활성 인증 설정, 트리거의 워크스페이스에 없는 인증 설정, 서명·토큰 불일치, `ip_whitelist` 불일치, 기대값이 비었거나 문자열이 아닌 인증 설정, 복호화 불가 표식으로 읽히는 인증 설정 모두 같은 코드다 |
-| `404 Not Found` | `TRIGGER_NOT_FOUND` | 엔드포인트 경로에 맞는 웹훅 트리거가 없다. 예약만 있고 트리거가 없는 경로도 404 다. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 본문이다. 채팅 채널 예외: `202 Accepted` 와 `{ executionId: 'ignored' }`([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)) |
+| `404 Not Found` | `TRIGGER_NOT_FOUND` | 엔드포인트 경로에 맞는 웹훅 트리거가 없다. 예약만 있고 트리거가 없는 경로도 404 다. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 본문이다. 채팅 채널 예외: 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때만 `202 Accepted` 와 `{ executionId: 'ignored' }` 다([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약), [채팅 채널 「R-CC-25」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다)) |
 | `405 Method Not Allowed` | | POST 가 아닌 메서드([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
 | `410 Gone` | `TRIGGER_INACTIVE` | 트리거가 비활성이다. 채팅 채널 예외: 서명 검증 뒤 `202 Accepted` 와 `{ executionId: 'ignored' }` |
 | `410 Gone` | `WORKFLOW_INACTIVE` | 트리거는 활성이고 트리거의 워크플로우가 비활성이다(`workflow.is_active=false`). 메시지는 `Workflow of this webhook trigger is inactive` 다. 인증보다 먼저 확인한다. 채팅 채널 예외: 새 실행을 시작할 update 에만 `202 Accepted` 와 `{ executionId: 'ignored' }` 를 돌려주고 진행 중인 대화는 그대로 처리한다 |
@@ -126,6 +128,7 @@ POST /api/hooks/:endpointPath
 | `413 Payload Too Large` | `PAYLOAD_TOO_LARGE` | 인증 웹훅 본문이 라우트 한도(기본 1MB) 초과 |
 | `429 Too Many Requests` | `PUBLIC_WEBHOOK_RATE_LIMIT` | 공개 웹훅 IP 단위 분당 시작 한도 초과 |
 | `429 Too Many Requests` | `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 공개 웹훅 IP 단위 시간당 누적 신규 상한 초과 |
+| `429 Too Many Requests` | `RATE_LIMITED` | 전역 요청 빈도 제한(IP 단위 분당 100건) 초과. 일반 웹훅과 서명 참조(`config.chatChannel.inboundSigningRef`)가 없는 채팅 채널 트리거의 요청을 센다. 서명 참조가 있는 채팅 채널 트리거는 세지 않는다([요청 제한과 남용 방어 「호출 빈도 제한」](CLE-TRIG-WEBHOOK-LIMIT.md#호출-빈도-제한)) |
 
 트리거 CRUD 는 기존 `/api/triggers` 를 그대로 쓴다([트리거 관리](CLE-TRIG-MANAGE.md)).
 

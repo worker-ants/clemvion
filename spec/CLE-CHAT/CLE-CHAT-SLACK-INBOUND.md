@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK-INBOUND"
 title: "Slack 어댑터 — 인바운드 파싱과 명령"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-SLACK"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-SLACK"]
 area: "CLE-CHAT"
-content_hash: "d6c862c782d9cffc9f1156a8ac89ed1388cf3dd5b2e51775325585ca1e37359d"
+content_hash: "27566a1ef8b653436e622b484be945cf4b162ee131c4ff5f16335ea1a4cc0e90"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E90KGZ"
 source_paths: []
-mirror_sha256: "e2d926d805ef91b056d5220fb36b907ea860bdde6ee9ed697df145d691a0d8b9"
-etag: "sha256-c4f21ed6c2c3ad2d4b70a776d8e403243dbaca6e3bc08d6d73e9f7e615e7a36f"
+mirror_sha256: "13142c38ee596d08c2cd92809a153a0c8471a932020ff38e4d3568b5bcc2de2b"
+etag: "sha256-643a8e85207bc34f644725c0fcf699aa2c336b71fcfb843f8478ff054f5f1237"
 ---
 ## 개요
 
@@ -36,7 +36,7 @@ Slack 인바운드는 세 가지 envelope(Events API, Interactivity, Slash Comma
 | `event.type === "message"`, `event.channel_type ∈ ('channel', 'group', 'mpim')` | `null`. 호출자가 `groupChatRefusal` 안내 |
 | `event.type === "message"`, `bot_id` 있음 또는 `subtype === "bot_message"` | `null`. 봇·자기 메시지 무시 |
 | 그 밖의 event(`reaction_added`, `team_join` 등) | `null`. 1차 범위에서 처리하지 않는다 |
-| envelope `type === "url_verification"` | `null`. 호출자가 `{ challenge }` 로 200 응답 |
+| envelope `type === "url_verification"` | `null`. 이 경로에서는 `parseUpdate` 를 부르지 않는다. 어댑터의 `handshakeResponse` 가 `{ challenge }` 를 정하고 호출자가 update 를 처리하지 않고 그 본문을 200 으로 보낸다 |
 
 `file_shared` 의 보강은 채널 어댑터의 `enrichInbound`(HooksService 가 부른다)가 `SlackClient.filesInfo` 로 한다. 진행 중인 다단계 질문에서는 `handleFormStep` 이 `file_upload` 를 폼 필드 값으로 쌓아 `submit_form` 을 부른다(`hooks.service.ts`, 구현됨). Form `file` 필드의 MIME 검증은 다단계 질문이 필드 제약을 상태에 저장하지 않는 `formState` 의 1차 범위 한계에 걸려 Planned 다.
 

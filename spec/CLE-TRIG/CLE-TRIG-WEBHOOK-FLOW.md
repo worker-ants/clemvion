@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-FLOW"
 title: "웹훅 — 처리 흐름"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "5c4a74c9acda025dbe720f057b6d8396785baffc9118fae8fe5c260440a3b124"
+content_hash: "fab16a8581ab0bb6975152b9c32fa64075e710b4f052045faffdf39626136a1d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E90KGZ"
 source_paths: []
-mirror_sha256: "be3cbca81807a9f9f27954919c8aab699f35316516c9c19025e2279c234cdf7a"
-etag: "sha256-7a55084c1cd38ab49bed147aa80c0348daae1678655583ba2287593cde872a53"
+mirror_sha256: "cbd722498cd7e16c20da2daea15d40c13992bb60a1a7c14288a7725390588084"
+etag: "sha256-55b384fb21b35ca2e69b8699e9bf5ad72845dcd929cb55120033c3023e5fbaba"
 ---
 ## 개요
 
@@ -78,7 +78,7 @@ etag: "sha256-7a55084c1cd38ab49bed147aa80c0348daae1678655583ba2287593cde872a53"
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/hooks/hooks.controller.ts` (`POST /api/hooks/:endpointPath`. 채팅 채널 결과에 `interactionHttpResponse` 가 있으면 `200` 과 그 본문, `interactionEmptyResponse` 면 `200` 과 빈 본문, 그 밖에는 `202` 와 `{ data }` 봉투로 응답한다)
+- `codebase/backend/src/modules/hooks/hooks.controller.ts` (`POST /api/hooks/:endpointPath`. 채팅 채널 결과에 `providerResponse` 가 있으면 `200` 과 그 본문(`body` 가 없으면 빈 본문), 그 밖에는 `202` 와 `{ data }` 봉투로 응답한다)
 - `codebase/backend/src/modules/hooks/hooks.service.ts` (트리거 조회, 워크플로우 활성 확인, 인증 검증 호출, 파라미터 추출, 실행 시작. 채팅 채널 분기 `handleChatChannelWebhook` 은 서명 검증 뒤 채널 어댑터의 `defaultInteractionResponse` 를 먼저 구해 비활성 트리거 응답과 처리 결과에 덧씌우고(`withDefaultInteractionResponse`) 새 실행을 시작하기 직전에 워크플로우 활성 상태를 확인한다)
 - `codebase/backend/src/modules/chat-channel/types.ts` (채널 어댑터 훅 `defaultInteractionResponse` 의 계약. 프로바이더별 구현은 채팅 채널 문서가 정한다)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문 `isWorkflowInactive`. 부르는 곳은 일반 웹훅, 채팅 채널, 스케줄 processor 세 곳이다)

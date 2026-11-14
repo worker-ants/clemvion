@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA-FLOW"
 title: "트리거 데이터와 흐름 — 진입 흐름과 저장소"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-DATA"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-DATA"]
 area: "CLE-TRIG"
-content_hash: "276071186920c676a167e981b8eacf6d033b320bdae81dbf6dd9e6ddac063cc4"
+content_hash: "042ae7bcae9946e96ea1dd59edfde9eb0ee462c40b5f1c48897f7099619e8ff4"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E90KGZ"
 source_paths: []
-mirror_sha256: "fb4309de94387550fe1b97763dfd2626fd1e334d828b73a8eb0c331d4c3bc4bc"
-etag: "sha256-9745d68eac8f053234b557eea46260b32db2aa008b7b91018b59a08ae538a0c2"
+mirror_sha256: "affcb1e3eebc6c64f5ea239353933e7e17c49a9c48efe8fc2a4eecaaa2a62ba4"
+etag: "sha256-45581c593be341065985dcf9f7e0b929b8f2e9b1b718b805a64d948e90663c2a"
 ---
 ## 개요
 
@@ -147,7 +147,7 @@ sequenceDiagram
 | 트리거 활성 확인 | 트리거가 비활성이면 `{ executionId: 'ignored' }`. 인터랙션 요청이면 기본 인터랙션 응답이다. handshake 를 포함해 아래 단계를 하나도 하지 않고 프로바이더 API 도 부르지 않는다 |
 | handshake | Slack `url_verification` 은 challenge 응답, Discord PING(type=1)은 `{ type: 1 }` 응답. 둘 다 실행 없이 바로 돌려준다 |
 | `parseUpdate` 가 null | 그룹·봇·지원하지 않는 update. `maybeNotifyIgnored` 로 안내한 뒤 무시(`{ executionId: 'ignored' }`) |
-| native modal | `open_form_modal` / `form_submission` 이면 어댑터가 modal 응답 JSON 을 돌려준다(`interactionHttpResponse`, 컨트롤러가 `res.json`) |
+| native modal | `open_form_modal` / `form_submission` 이면 어댑터가 modal 응답 JSON 을 돌려준다(`providerResponse`, 컨트롤러가 `res.json`) |
 | 진행 중인 실행 + 인터랙션 | `interactionService.interact` 로 같은 프로세스 안에서 전달(`text_message` → submit_message, `button_callback` → click_button) |
 | 워크플로우 활성 확인 | 새 실행을 시작하기 직전에 확인한다. 워크플로우가 비활성이면 `{ executionId: 'ignored' }` 로 답하고 실행을 만들지 않는다. `/start` 의 기존 실행 취소보다 앞이다. 막는 update 와 응답은 [워크플로우 활성 관문](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다 |
 | 새 대화 | `execute(workflowId, { __triggerSource:'webhook', chatChannel:{ provider, conversationKey, channelUserKey }, ... }, { triggerId, workspaceId, ..., responseCode })` 와 `ChannelConversation` upsert. `responseCode` 는 인터랙션 요청이면 `'200'` 이고 그 밖에는 `'202'` 다. 활성 실행이 있을 때 온 `/start` 면 기존 실행을 먼저 취소한다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `{ executionId: 'ignored' }` 와 `degraded`([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)) |
