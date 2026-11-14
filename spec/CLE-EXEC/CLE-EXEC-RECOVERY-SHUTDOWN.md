@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
 content_hash: "78a331a7c75ac2d4de0f83cf17e5c8179d62ffc28234ec0f33f46449cc3ebf5b"
 read_as: "approved_fallback"
-task: "CLE-T-EC9VFJ"
+task: "CLE-T-9YHJSD"
 source_paths: []
-mirror_sha256: "f2a4021d051304a60b03c82d10a9d5f27b6c071c5ae6b88959ab3bc63f6ffa21"
-etag: "sha256-493de921817088a4440bf8306a23f41565922acda8833a4687082f462bdd8bf8"
+mirror_sha256: "4ee2d29d55b5472103b96c64ecfda4afe53d247de7c5de0e83a4a1c4d4cf4e9d"
+etag: "sha256-199ab96df6f61f7f2505b34246a6c8e01cfd92e24b451b2fe5e3ceb378d76e82"
 ---
 ## 개요
 

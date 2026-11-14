@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "9e0ff67535ffba5cc4e84e5a02ebf3b9c9ca2d6ab36c59d25ad597507860f32a"
 read_as: "approved_fallback"
-task: "CLE-T-64EQ5V"
+task: "CLE-T-9YHJSD"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "7e345cf3641a2edd3c1b28b3177893faae9581535becce5c90b0ef9dbdcf5635"
-etag: "sha256-3873ad0f6cc08e85bee1ce058fa042090dc6572017382234d3d57694004cee51"
+mirror_sha256: "936d2f7563dc0ae5b6b6acc7f70b833211688419f85ad9cabbd99ad9f29033ee"
+etag: "sha256-1a29acadf815659cb334131d8c0e4ffbe27b08660872b76b2b2ba2a34baa66ed"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

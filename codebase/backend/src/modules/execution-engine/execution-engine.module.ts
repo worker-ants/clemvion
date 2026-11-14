@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { DiscoveryModule } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { Execution } from '../executions/entities/execution.entity';
@@ -62,6 +63,8 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
 @Module({
   imports: [
     ConfigModule,
+    // ShutdownStateService 가 종료 때 모든 BullMQ 워커를 찾아 pause 한다(CLE-EXEC-RECOVERY-SHUTDOWN 「안전 종료」).
+    DiscoveryModule,
     // M-5 레이어1 — 노드 컴포넌트 `NODE_COMPONENT` DI 토큰(단일 `useValue` 카탈로그)
     // 등록 모듈. NodeBootstrapService 가 `@Inject(NODE_COMPONENT)` 로 주입받아 부팅
     // 등록한다 (옛 `ALL_NODE_COMPONENTS` 정적 import 대체).
