@@ -6,6 +6,10 @@ import {
   type ObservableGauge,
   type ObservableResult,
 } from '@opentelemetry/api';
+import {
+  CHAT_CHANNEL_PROVIDERS,
+  type ChatChannelProvider,
+} from '../triggers/dto/chat-channel-config.dto';
 
 /**
  * 한 큐의 깊이 스냅샷 (BullMQ `getJobCounts` 결과의 축약).
@@ -91,6 +95,25 @@ export type RedisFailOpenReason<
 > = RedisFailOpenReasonMap[C];
 
 /**
+ * 채팅 채널 지표의 `provider` 라벨. 트리거 설정의 `provider` 는 `string` 으로 저장되므로 v1 프로바이더
+ * 목록(`CHAT_CHANNEL_PROVIDERS`) 밖의 값은 `other` 하나로 접는다. 저장된 값을 그대로 라벨에 넣지 않는다.
+ */
+export type ChatChannelMetricProvider = ChatChannelProvider | 'other';
+
+/** `clemvion.chat_channel.signature_failure_limit` 의 `event` 라벨. */
+export type ChatChannelSignatureFailureLimitEvent =
+  /** (트리거, 클라이언트 IP) 쌍의 실패가 이번 창에서 한도에 닿았다. 창마다 한 번이다. */
+  | 'reached'
+  /** 한도에 닿은 쌍의 요청을 서명 검증 없이 401 로 돌려보냈다. 요청마다 한 번이다. */
+  | 'rejected';
+
+function chatChannelProviderLabel(provider: string): ChatChannelMetricProvider {
+  return (CHAT_CHANNEL_PROVIDERS as readonly string[]).includes(provider)
+    ? (provider as ChatChannelProvider)
+    : 'other';
+}
+
+/**
  * Prometheus 라벨 값의 상한. 초과분은 잘라 낸다.
  *
  * 라벨 cardinality 가 터지는 것을 막는 방어선이라 **값 자체가 계약**이다. 종전에는 `64` 가
@@ -125,6 +148,8 @@ export class BusinessMetricsService {
   private readonly nodeDuration: Histogram;
   private readonly redisFailOpen: Counter;
   private readonly auditWriteFailed: Counter;
+  private readonly chatChannelSignatureFailureLimit: Counter;
+  private readonly chatChannelInboundErrorAbsorbed: Counter;
   private readonly queueDepth: ObservableGauge;
   /** 큐 깊이 provider 목록 — 각 모듈(execution-engine·continuation)이 자기 큐를 등록. */
   private readonly queueProviders: QueueDepthProvider[] = [];
@@ -153,6 +178,22 @@ export class BusinessMetricsService {
         '감사 로그 적재가 실패해 조용히 삼켜진 횟수 (resource_type 별)',
       unit: '{event}',
     });
+    this.chatChannelSignatureFailureLimit = meter.createCounter(
+      'clemvion.chat_channel.signature_failure_limit',
+      {
+        description:
+          '채팅 채널 인바운드 서명 검증 실패 한도에 닿은 횟수와 한도로 거절한 요청 수 (provider·event 별)',
+        unit: '{event}',
+      },
+    );
+    this.chatChannelInboundErrorAbsorbed = meter.createCounter(
+      'clemvion.chat_channel.inbound_error_absorbed',
+      {
+        description:
+          '채팅 채널 인바운드 처리 중 예상하지 못한 오류를 202 로 답하고 흡수한 횟수 (provider 별)',
+        unit: '{event}',
+      },
+    );
     this.nodeDuration = meter.createHistogram('clemvion.node.duration', {
       description: '노드 실행 지연',
       unit: 'ms',
@@ -229,6 +270,35 @@ export class BusinessMetricsService {
    */
   recordAuditWriteFailed(resourceType: string): void {
     this.auditWriteFailed.add(1, { resource_type: clampLabel(resourceType) });
+  }
+
+  /**
+   * 채팅 채널 인바운드의 서명 검증 실패 한도 사건을 센다(NERV Task `CLE-T-5GVB9N`).
+   *
+   * 한도는 (트리거, 클라이언트 IP) 쌍마다 걸리지만 두 값은 라벨에 넣지 않는다. 가짓수가 끝없이 늘고 IP 는
+   * 남기지 않기로 했다(CHAT-CORE-GATE 「서명 검증 실패 한도」). 어느 트리거인지는 같은 시각의 경고 로그로 찾는다.
+   * 경보 예: `rate(clemvion_chat_channel_signature_failure_limit{event="reached"}[5m]) > 0`.
+   */
+  recordChatChannelSignatureFailureLimit(
+    provider: string,
+    event: ChatChannelSignatureFailureLimitEvent,
+  ): void {
+    this.chatChannelSignatureFailureLimit.add(1, {
+      provider: chatChannelProviderLabel(provider),
+      event,
+    });
+  }
+
+  /**
+   * 채팅 채널 인바운드가 처리 중 예상하지 못한 오류(DB · Redis 장애 등)를 `202` 로 답하고 흡수한 사건을
+   * 센다(REQ-CHAT-056, NERV Task `CLE-T-5GVB9N`). 5xx 는 프로바이더의 재전송과 웹훅 자동 비활성화를 부르므로
+   * 오류를 숨기는데, 에러 로그만으로는 비율 · 추세로 경보를 걸 수 없다.
+   * 경보 예: `rate(clemvion_chat_channel_inbound_error_absorbed[5m]) > 0`.
+   */
+  recordChatChannelInboundErrorAbsorbed(provider: string): void {
+    this.chatChannelInboundErrorAbsorbed.add(1, {
+      provider: chatChannelProviderLabel(provider),
+    });
   }
 
   /** LLM 호출의 토큰 사용량을 type 별로 누적 (model 라벨). 0 은 건너뛴다. */

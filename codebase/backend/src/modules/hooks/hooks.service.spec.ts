@@ -28,6 +28,7 @@ import { ChatChannelAdapter } from '../chat-channel/types';
 import { SURFACE_MISMATCH_DEFAULTS } from '../chat-channel/shared/language-hint-defaults';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import { TriggerParameterErrorDetail } from '../execution-engine/types/trigger-parameter.types';
 
 describe('HooksService', () => {
@@ -140,6 +141,10 @@ describe('HooksService', () => {
         {
           provide: AuthConfigsService,
           useValue: { verifyWebhookRequest: jest.fn() },
+        },
+        {
+          provide: BusinessMetricsService,
+          useValue: { recordChatChannelInboundErrorAbsorbed: jest.fn() },
         },
       ],
     }).compile();
@@ -1948,6 +1953,48 @@ describe('HooksService', () => {
         expectDroppedAck();
       });
 
+      // REQ-CHAT-081 의 「처리 중 예상하지 못한 오류」 경우(NERV Task `CLE-T-B6J3YD` 재검증).
+      it('처리 중 예상하지 못한 오류로 버린 클릭에 수신 확인을 보낸다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(callbackUpdate);
+        conversationService.lookup.mockRejectedValueOnce(new Error('db down'));
+        const errorSpy = jest
+          .spyOn(Logger.prototype, 'error')
+          .mockImplementation(() => undefined);
+
+        try {
+          const res = await service.handleWebhook('abc', callbackInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expectDroppedAck();
+          expect(mockAdapter.ackInteraction).not.toHaveBeenCalled();
+        } finally {
+          errorSpy.mockRestore();
+        }
+      });
+
+      // REQ-CHAT-081 의 「실행 소유자가 아닌 사람의 `/start`·`/cancel`」 경우(NERV Task `CLE-T-B6J3YD` 재검증).
+      // 명령 종류 · 실행 상태 조합은 아래 「실행 소유자가 아닌 사람의 /start · /cancel」 describe 가 본다.
+      // 여기서는 그 경로도 다른 버린 update 와 같은 수신 확인 함수를 지나는지를 같은 입력으로 본다.
+      it.each(['start', 'cancel'] as const)(
+        '실행 소유자가 아닌 사람의 /%s 에 수신 확인을 보낸다',
+        async (kind) => {
+          mockAdapter.parseUpdate.mockResolvedValue({
+            ...callbackUpdate,
+            channelUserKey: 'member-999',
+            command: { kind },
+          });
+          conversationService.lookup.mockResolvedValue(activeState);
+          markExecutionStatus('waiting_for_input');
+
+          const res = await service.handleWebhook('abc', callbackInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expectDroppedAck();
+          expect(ackDroppedUpdate).toHaveBeenCalledTimes(1);
+          expect(mockAdapter.ackInteraction).not.toHaveBeenCalled();
+        },
+      );
+
       it('수신 확인이 끝나지 않아도 ignored 로 바로 답한다', async () => {
         mockAdapter.parseUpdate.mockResolvedValue(callbackUpdate);
         (
@@ -2138,6 +2185,12 @@ describe('HooksService', () => {
         receivedAt: new Date().toISOString(),
       };
       let errorSpy: jest.SpyInstance;
+      const absorbedMetric = (): jest.Mock =>
+        (
+          moduleRef.get(BusinessMetricsService) as {
+            recordChatChannelInboundErrorAbsorbed: jest.Mock;
+          }
+        ).recordChatChannelInboundErrorAbsorbed;
 
       beforeEach(() => {
         triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
@@ -2195,8 +2248,19 @@ describe('HooksService', () => {
             expect.stringContaining('REQ-CHAT-056'),
             expect.anything(),
           );
+          // NERV Task `CLE-T-5GVB9N` — 202 로 흡수한 오류를 provider 라벨로 센다.
+          expect(absorbedMetric()).toHaveBeenCalledTimes(1);
+          expect(absorbedMetric()).toHaveBeenCalledWith('telegram');
         },
       );
+
+      it('오류 없이 처리한 update 는 흡수 지표에 세지 않는다', async () => {
+        engine.execute.mockResolvedValue('exec-ok');
+
+        await service.handleWebhook('abc', chatInput);
+
+        expect(absorbedMetric()).not.toHaveBeenCalled();
+      });
 
       // 버리는 단계(수신 확인)가 동기로 던져도 오류가 5xx 로 새지 않는다. catch 안에서 던지면 202 계약이 깨진다.
       // `/start` 취소 실패의 원래 에러 전파는 아래 `/start` describe 의 503 · 400 케이스가 본다.

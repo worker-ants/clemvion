@@ -1,5 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { extractUnspoofableClientIp } from '../auth/utils/client-ip';
 import { verifyDiscordSignature } from './providers/discord/discord-signing';
@@ -24,6 +30,8 @@ import { ChatChannelConfig } from './types';
  *   - IP 를 알 수 없으면 한도를 보지도 세지도 않는다. 모든 요청이 한 버킷을 함께 쓰면 공격자 한 명이
  *     정상 update 까지 막을 수 있어서다.
  *   - 401 만 센다. 그 밖의 오류는 서명이 틀렸다는 뜻이 아니다.
+ *   - 한도에 닿은 횟수와 한도로 거절한 요청 수를 `clemvion.chat_channel.signature_failure_limit` 지표로 센다
+ *     (NERV Task `CLE-T-5GVB9N`). 라벨은 provider 와 event 뿐이다. 트리거 · IP 는 넣지 않는다.
  *
  * provider 별 서명 검증:
  *   - Telegram: `X-Telegram-Bot-Api-Secret-Token` 헤더 ↔ `config.inboundSigningRef` resolve 비교.
@@ -38,6 +46,7 @@ export class ChatChannelInboundAuthenticator {
   constructor(
     private readonly secrets: SecretResolverService,
     private readonly failureLimiter: ChatChannelSignatureFailureLimiterService,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {}
 
   /**
@@ -64,6 +73,10 @@ export class ChatChannelInboundAuthenticator {
       this.logger.debug(
         `chat-channel 서명 실패 한도에 닿아 검증 없이 401 로 답한다 (trigger=${triggerId})`,
       );
+      this.metrics?.recordChatChannelSignatureFailureLimit(
+        config.provider,
+        'rejected',
+      );
       throw new UnauthorizedException({
         code: 'AUTH_FAILED',
         message: 'Too many failed signature checks',
@@ -72,8 +85,15 @@ export class ChatChannelInboundAuthenticator {
     try {
       await this.verifySignature(triggerId, config, headers, rawBody);
     } catch (err) {
-      if (err instanceof UnauthorizedException && clientIp) {
-        await this.failureLimiter.recordFailure(triggerId, clientIp);
+      if (
+        err instanceof UnauthorizedException &&
+        clientIp &&
+        (await this.failureLimiter.recordFailure(triggerId, clientIp))
+      ) {
+        this.metrics?.recordChatChannelSignatureFailureLimit(
+          config.provider,
+          'reached',
+        );
       }
       throw err;
     }

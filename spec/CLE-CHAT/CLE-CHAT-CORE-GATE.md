@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-GATE"
 title: "채팅 채널 — 인바운드 관문"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "b4a10df2972bf6c0c53ab8bebfccff2d71cdb678c8905acfc9d10494eded420b"
+content_hash: "240b0f15414d6c29f864693fe58ce0dedf2b8771a40efdef23a1a21440a0bb37"
 read_as: "approved_fallback"
-task: "CLE-T-G2JRMF"
+task: "CLE-T-5GVB9N"
 source_paths: []
-mirror_sha256: "36b7cb19a4371d2f26cda2a4d6fe463353da6f4ab405115513560d6c8ac67030"
-etag: "sha256-564963cad1b5297a21edce70d1f1fbec0fadfd3103d60b3bfd40f66304b7931d"
+mirror_sha256: "05b50fa62c3c5739210b4b6cb818453dae94816420c48d6db0d7116dc598075c"
+etag: "sha256-b5bb851f84e815f987228cecf5ffe3472525b36657b5550fcfb37bfe3e9252d3"
 ---
 ## 개요
 
@@ -80,7 +80,7 @@ flowchart TD
 
 4번부터 9번까지의 관문에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 분당 한도 초과, 실행 소유자가 아닌 사람의 `/start`·`/cancel`, 실행 중 안내, 워크플로우 비활성, 워크플로우 없음) 채널 어댑터의 `ackDroppedUpdate` 로 수신 확인을 보낸다([버린 update 의 수신 확인](CLE-CHAT-CORE-INTERACT.md#버린-update-의-수신-확인)). 5번의 도움말 경로는 수신 확인을 보내지 않는다.
 
-4번부터 9번까지에서 예상하지 못한 오류(DB · Redis 장애 등)가 나면 에러 로그를 남기고 버린 update 로 끝낸다. 응답은 `202`·`{ executionId: 'ignored' }` 이고 인터랙션이면 `200` 과 기본 응답이다. 수신 확인도 보낸다. 채널 건강도는 바꾸지 않는다. `/start` 의 기존 실행 취소 실패는 이 처리에 들지 않고 그 에러로 답한다.
+4번부터 9번까지에서 예상하지 못한 오류(DB · Redis 장애 등)가 나면 에러 로그를 남기고 버린 update 로 끝낸다. 응답은 `202`·`{ executionId: 'ignored' }` 이고 인터랙션이면 `200` 과 기본 응답이다. 수신 확인도 보낸다. 채널 건강도는 바꾸지 않는다. `/start` 의 기존 실행 취소 실패는 이 처리에 들지 않고 그 에러로 답한다. 이렇게 흡수한 오류는 `clemvion.chat_channel.inbound_error_absorbed` 로 센다([비즈니스 메트릭 카탈로그](../CLE-OBS/CLE-OBS-LOGGING-METRICS.md#비즈니스-메트릭-카탈로그)).
 
 ### 비활성 트리거와 비활성 워크플로우
 
@@ -105,6 +105,7 @@ flowchart TD
 - 트리거 조회는 이 판정보다 먼저 끝나 있다. 그래서 한도에 닿은 요청에서 아끼는 것은 시크릿 조회와 서명 계산이다.
 - 카운터는 Redis 고정 창이고 키는 `cc:sigfail:<triggerId>:<ip>` 다. 실패를 세는 일과 TTL 확인은 Lua 스크립트 하나로 한 번에 실행한다. 첫 실패이거나 키에 TTL 이 없으면 60초 TTL 을 건다. 이미 TTL 이 있으면 늘리지 않는다. 그래서 TTL 없이 남은 키도 다음 실패에서 TTL 을 다시 얻는다. 한 쌍이 한도에 닿으면 그 창에서 경고 로그를 한 번 남긴다. 이 로그에는 트리거 id 만 적고 클라이언트 IP 는 적지 않는다. Redis 가 없으면 세지도 막지도 않는다. Redis 오류면 막지 않고 경고 로그를 남긴다.
 - 응답은 서명이 틀린 요청과 같은 `401`(`AUTH_FAILED`)이고 `429` 로 바꾸지 않는다.
+- 한도에 닿은 횟수와 한도로 거절한 요청 수는 `clemvion.chat_channel.signature_failure_limit` 으로 센다([비즈니스 메트릭 카탈로그](../CLE-OBS/CLE-OBS-LOGGING-METRICS.md#비즈니스-메트릭-카탈로그)).
 
 근거와 알려진 한계는 [R-CC-34](#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다) 에 있다.
 
