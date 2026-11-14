@@ -26,7 +26,7 @@ export class CreateAlertRuleDto {
 
   /** 트리거 임계값 — type 에 따라 단위가 달라집니다 */
   @ApiProperty({
-    description: '실패율 % / 평균 duration ms / LLM 비용 USD',
+    description: '실패율 % / 평균 전체 경과 ms / LLM 비용 USD',
     example: 10,
     minimum: 0,
   })
