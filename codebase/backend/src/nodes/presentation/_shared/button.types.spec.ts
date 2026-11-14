@@ -192,4 +192,40 @@ describe('button.types', () => {
       ).toBe(true);
     });
   });
+
+  describe('reserved error port id (REQ-NODEUI-042)', () => {
+    // CLE-NODE-OUTPUT-FLOW Principle 6 의 4번 — 엔진은 `_selectedPort === 'error'`
+    // 와 연결선 `sourcePort === 'error'` 를 문자열로 비교하므로 버튼 id `error` 는
+    // 에러 포트와 구분되지 않는다.
+    it('rejects a global button whose id is exactly "error"', () => {
+      const errors = validateButtons({
+        buttons: [{ id: 'error', label: 'Error', type: 'port' }],
+      });
+      expect(errors).toContain(
+        'buttons[0].id "error" is reserved for the error port',
+      );
+    });
+
+    it('allows ids that only resemble "error" (exact match only)', () => {
+      const errors = validateButtons({
+        buttons: [
+          { id: 'Error', label: 'A', type: 'port' },
+          { id: 'error_1', label: 'B', type: 'port' },
+          { id: 'errors', label: 'C', type: 'port' },
+        ],
+      });
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects "error" on link buttons too (id is still a port key)', () => {
+      const errors = validateButtons({
+        buttons: [
+          { id: 'error', label: 'Help', type: 'link', url: 'https://x.com' },
+        ],
+      });
+      expect(errors).toContain(
+        'buttons[0].id "error" is reserved for the error port',
+      );
+    });
+  });
 });

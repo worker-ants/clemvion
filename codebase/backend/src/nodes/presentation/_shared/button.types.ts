@@ -1,3 +1,5 @@
+import { RESERVED_ERROR_PORT_ID } from '../../core/button-slug.util';
+
 export interface ButtonDef {
   id: string;
   label: string;
@@ -35,6 +37,15 @@ export function hasPortButtons(buttons: ButtonDef[]): boolean {
 
 export function hasOnlyLinkButtons(buttons: ButtonDef[]): boolean {
   return buttons.length > 0 && buttons.every((b) => b.type === 'link');
+}
+
+/**
+ * 버튼 id 가 예약 id `error` 일 때의 검증 메시지. 전역 버튼(`validateButtons`)과
+ * carousel 항목 버튼(`validateCarouselItemButtons`)이 같은 문구를 쓴다.
+ * 정확 일치만 거부한다(엔진 비교가 정확 일치라서. REQ-NODEUI-042).
+ */
+export function reservedErrorIdMessage(path: string): string {
+  return `${path}.id "${RESERVED_ERROR_PORT_ID}" is reserved for the error port`;
 }
 
 export interface ButtonValidationResult {
@@ -80,6 +91,8 @@ export function validateButtons(config: Record<string, unknown>): string[] {
       errors.push(
         `buttons[${i}].id must not contain reserved separator "__item_"`,
       );
+    } else if (btn.id === RESERVED_ERROR_PORT_ID) {
+      errors.push(reservedErrorIdMessage(`buttons[${i}]`));
     } else if (ids.has(btn.id)) {
       errors.push(`buttons[${i}].id must be unique (duplicate: ${btn.id})`);
     } else {

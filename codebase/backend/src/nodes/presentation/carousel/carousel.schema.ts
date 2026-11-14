@@ -3,7 +3,12 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
-import { MAX_BUTTONS_PER_NODE, validateButtons } from '../_shared/button.types';
+import { RESERVED_ERROR_PORT_ID } from '../../core/button-slug.util';
+import {
+  MAX_BUTTONS_PER_NODE,
+  reservedErrorIdMessage,
+  validateButtons,
+} from '../_shared/button.types';
 
 // Mirror: ButtonDef in _shared/button.types.ts — keep fields in sync.
 const buttonDefSchema = z
@@ -350,6 +355,10 @@ function validateCarouselItemButtons(
       errors.push(
         `${prefix}.buttons[${j}].id must not contain reserved separator "__item_"`,
       );
+    } else if (btn.id === RESERVED_ERROR_PORT_ID) {
+      // 엔진이 항목 포트의 `__item_\d+$` 를 떼므로 항목 버튼 `error` 도 에러
+      // 포트와 겹친다(REQ-NODEUI-042).
+      errors.push(reservedErrorIdMessage(`${prefix}.buttons[${j}]`));
     } else if (ids.has(btn.id)) {
       errors.push(
         `${prefix}.buttons[${j}].id must be unique (duplicate: ${btn.id})`,
