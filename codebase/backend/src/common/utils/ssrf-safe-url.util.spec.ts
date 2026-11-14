@@ -9,6 +9,8 @@ import {
   isPrivateIpv4,
   isPrivateIpv6,
   normalizeIpv6Literal,
+  notificationWebhookDispatcher,
+  resolvedAddressBlockReason,
   shouldWarnNotificationDnsGuardOff,
 } from './ssrf-safe-url.util';
 
@@ -812,5 +814,48 @@ describe('checkResolvedHostIp — 조회 타임아웃', () => {
     const r = await checkResolvedHostIp('example.com');
     expect(r.ok).toBe(true);
     expect(jest.getTimerCount()).toBe(0);
+  });
+});
+
+// 발송 직전 검사와 연결 시점 판정(CLE-T-GAQCF9)이 같은 판정과 사유 문구를 쓴다. 차단 사유 문구에 기대는 degraded 메시지
+// (`DNS rebinding 차단: …`)가 어느 쪽에서 막혀도 같은 모양이 되게 한다.
+describe('resolvedAddressBlockReason', () => {
+  it.each([
+    [
+      '10.0.0.5',
+      'resolved IPv4 10.0.0.5 falls in a private/loopback/metadata range',
+    ],
+    [
+      '169.254.169.254',
+      'resolved IPv4 169.254.169.254 falls in a private/loopback/metadata range',
+    ],
+    ['::1', 'resolved IPv6 ::1 falls in a private range'],
+    ['::ffff:7f00:1', 'resolved IPv6 ::ffff:7f00:1 falls in a private range'],
+  ])('막힌 대역 %s 는 사유를 돌려준다', (address, reason) => {
+    expect(resolvedAddressBlockReason(address)).toBe(reason);
+  });
+
+  it.each(['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'])(
+    '공인 주소 %s 는 null 이다',
+    (address) => {
+      expect(resolvedAddressBlockReason(address)).toBeNull();
+    },
+  );
+
+  it('checkResolvedHostIp 의 거부 사유와 같은 문구다', async () => {
+    mockedLookup.mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }]);
+
+    await expect(checkResolvedHostIp('hook.example.com')).resolves.toEqual({
+      ok: false,
+      reason: resolvedAddressBlockReason('10.0.0.5'),
+    });
+  });
+});
+
+describe('notificationWebhookDispatcher', () => {
+  it('프로세스에 하나만 만들어 나눠 쓴다', () => {
+    expect(notificationWebhookDispatcher()).toBe(
+      notificationWebhookDispatcher(),
+    );
   });
 });

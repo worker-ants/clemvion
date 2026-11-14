@@ -18,11 +18,15 @@ import {
   computeHmacSignature,
   SupportedHmacAlgorithm,
 } from './notification-signature.util';
+import type { Dispatcher } from 'undici';
 import {
+  ResolvedHostBlockedError,
   checkResolvedHostIp,
   checkSsrfSafeUrl,
   isNotificationDnsGuardEnabled,
+  notificationWebhookDispatcher,
 } from '../../common/utils/ssrf-safe-url.util';
+import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { readStoredSigningSecret } from '../triggers/notification-signing-secret';
 import { notificationSigningSecretRef } from '../triggers/notification-signing-secret-ref';
@@ -180,9 +184,11 @@ export class NotificationWebhookProcessor extends WorkerHost {
 
     // DNS rebinding 방어 (CLE-EIA-NOTIFY 「SSRF」, CLE-T-M1P83C) — 발송 직전 호스트를 OS 해석기로 풀어 사설 대역이면
     // 보내지 않는다. 운영은 기본으로 켜고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 으로만 끈다. 운영 밖은 `=1` 일 때만
-    // 켠다. 해석 실패와 조회 시간 초과는 통과시킨다(fail-open). 검사한 주소를 fetch 에 고정하지 않아 검사와 연결 사이의 응답 변경은 남는다.
+    // 켠다. 해석 실패와 조회 시간 초과는 통과시킨다(fail-open). 검사와 연결 사이에 응답이 바뀌는 경우는 아래 발송 fetch 의
+    // dispatcher 가 연결할 때 다시 판정해서 막는다(CLE-T-GAQCF9).
     // 운영에서 끈 채로 기동하면 `main.ts` 가 경고를 남긴다(`shouldWarnNotificationDnsGuardOff`).
-    if (isNotificationDnsGuardEnabled(process.env)) {
+    const dnsGuardEnabled = isNotificationDnsGuardEnabled(process.env);
+    if (dnsGuardEnabled) {
       let hostname: string;
       try {
         hostname = new URL(url).hostname;
@@ -192,11 +198,9 @@ export class NotificationWebhookProcessor extends WorkerHost {
       }
       const dnsCheck = await checkResolvedHostIp(hostname);
       if (!dnsCheck.ok) {
-        // 이 접두어(`DNS rebinding 차단:`)에 k8s/README.md 운영 쿼리가 기댄다. notification-webhook.processor.spec.ts 가 접두어를 고정한다.
-        const reason = `DNS rebinding 차단: ${dnsCheck.reason ?? 'private resolved IP'}`;
-        await this.markDegraded(triggerId, reason);
-        this.logger.warn(
-          `notification skip — ${reason} (triggerId=${triggerId})`,
+        await this.skipForDnsRebinding(
+          triggerId,
+          dnsCheck.reason ?? 'private resolved IP',
         );
         return;
       }
@@ -273,9 +277,14 @@ export class NotificationWebhookProcessor extends WorkerHost {
     // HTTP POST
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
+    // `dispatcher` 는 Node fetch(undici) 확장이라 DOM 의 `RequestInit` 타입에 없다.
+    const connectGuard: { dispatcher?: Dispatcher } = dnsGuardEnabled
+      ? { dispatcher: notificationWebhookDispatcher() }
+      : {};
     let res: Response;
     try {
       res = await fetch(url, {
+        ...connectGuard,
         method: 'POST',
         // 리다이렉트를 따라가지 않는다. 위 SSRF · DNS rebinding 검사는 등록 URL 의 호스트만 본다. 따라가면 공개 호스트가
         // 3xx 로 사설 · loopback · 메타데이터 주소를 가리켜 그 검사를 지나고, 307 · 308 이면 서명한 본문까지 그리로 간다.
@@ -297,6 +306,12 @@ export class NotificationWebhookProcessor extends WorkerHost {
       });
     } catch (err) {
       clearTimeout(timer);
+      // 연결 시점 판정이 막았으면 재시도해도 같은 결과다. 발송 직전 검사의 차단과 같이 degraded 로 두고 끝낸다.
+      const connectBlock = findCause(err, ResolvedHostBlockedError);
+      if (connectBlock) {
+        await this.skipForDnsRebinding(triggerId, connectBlock.reason);
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       // 마지막 attempt 라면 health 갱신 (BullMQ 가 retry 를 어떻게 처리하는지에 따라 다름).
       await this.maybeMarkDegradedOnFinalAttempt(
@@ -335,6 +350,19 @@ export class NotificationWebhookProcessor extends WorkerHost {
     await this.maybeMarkDegradedOnFinalAttempt(job, triggerId, errMsg);
     // BullMQ 재시도를 트리거하기 위해 throw.
     throw new Error(errMsg);
+  }
+
+  /**
+   * 해석된 주소가 막힌 대역이라 보내지 않는다. 발송 직전 검사와 연결 시점 판정이 함께 쓴다. 재시도하지 않는다.
+   * 이 접두어(`DNS rebinding 차단:`)에 k8s/README.md 운영 쿼리가 기댄다. notification-webhook.processor.spec.ts 가 접두어를 고정한다.
+   */
+  private async skipForDnsRebinding(
+    triggerId: string,
+    detail: string,
+  ): Promise<void> {
+    const reason = `DNS rebinding 차단: ${detail}`;
+    await this.markDegraded(triggerId, reason);
+    this.logger.warn(`notification skip — ${reason} (triggerId=${triggerId})`);
   }
 
   private resolveAlgorithm(raw: unknown): SupportedHmacAlgorithm {
