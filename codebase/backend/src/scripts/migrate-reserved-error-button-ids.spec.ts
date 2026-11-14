@@ -2,7 +2,7 @@ import type { DataSource } from 'typeorm';
 import {
   planReservedErrorButtonRenames,
   renameReservedErrorButtonIds,
-  routesToErrorPort,
+  routesToErrorPortOrLegacy,
   runReservedErrorButtonMigration,
 } from './migrate-reserved-error-button-ids';
 
@@ -95,19 +95,21 @@ describe('renameReservedErrorButtonIds', () => {
   });
 });
 
-describe('routesToErrorPort', () => {
+describe('routesToErrorPortOrLegacy', () => {
   it('errorHandling.policy 가 route_to_error_port 면 true', () => {
     expect(
-      routesToErrorPort({ errorHandling: { policy: 'route_to_error_port' } }),
+      routesToErrorPortOrLegacy({
+        errorHandling: { policy: 'route_to_error_port' },
+      }),
     ).toBe(true);
-    expect(routesToErrorPort({ errorHandling: { policy: 'skip_node' } })).toBe(
-      false,
-    );
+    expect(
+      routesToErrorPortOrLegacy({ errorHandling: { policy: 'skip_node' } }),
+    ).toBe(false);
   });
 
   it('레거시 평면 키 error_port 도 같은 정책으로 본다', () => {
-    expect(routesToErrorPort({ errorPolicy: 'error_port' })).toBe(true);
-    expect(routesToErrorPort({})).toBe(false);
+    expect(routesToErrorPortOrLegacy({ errorPolicy: 'error_port' })).toBe(true);
+    expect(routesToErrorPortOrLegacy({})).toBe(false);
   });
 });
 
@@ -223,6 +225,65 @@ describe('runReservedErrorButtonMigration', () => {
       edgesPlanned: 2,
       edgesUpdated: 2,
     });
+  });
+
+  it('apply 는 여러 노드를 노드별 새 id 로 바꾸고 audit_log 는 한 번만 남긴다', async () => {
+    const multi = [
+      ...rows,
+      {
+        workflow_id: 'w1',
+        id: 'n2',
+        type: 'carousel',
+        config: { buttons: [{ id: 'error', label: 'E2' }] },
+      },
+    ];
+    const { ds, calls } = fakeDataSource(multi, [
+      { source_node_id: 'n1', n: 2 },
+      { source_node_id: 'n2', n: 1 },
+    ]);
+    await runReservedErrorButtonMigration(
+      ds,
+      { dryRun: false, workspaceId: 'ws', userId: 'u' },
+      () => undefined,
+    );
+    const nodeUpdates = calls.filter((c) => c.sql.includes('UPDATE node'));
+    const edgeUpdates = calls.filter((c) => c.sql.includes('UPDATE edge'));
+    expect(nodeUpdates.map((c) => c.params[1])).toEqual(['n1', 'n2']);
+    expect(edgeUpdates.map((c) => c.params)).toEqual([
+      ['error_1', 'n1', 'error'],
+      ['error_1', 'n2', 'error'],
+    ]);
+    expect(
+      calls.filter((c) => c.sql.includes('INSERT INTO audit_log')),
+    ).toHaveLength(1);
+  });
+
+  it('트랜잭션 중간에 실패하면 audit_log 를 남기지 않고 오류를 그대로 던진다', async () => {
+    const { ds, calls } = fakeDataSource(rows, [
+      { source_node_id: 'n1', n: 2 },
+    ]);
+    const tx = (ds as unknown as { transaction: jest.Mock }).transaction;
+    tx.mockImplementationOnce(
+      async (fn: (m: { query: jest.Mock }) => Promise<void>) =>
+        fn({
+          query: jest.fn(async (sql: string) => {
+            calls.push({ sql, params: [] });
+            if (sql.includes('UPDATE edge'))
+              throw new Error('edge update failed');
+            return [];
+          }),
+        }),
+    );
+    await expect(
+      runReservedErrorButtonMigration(
+        ds,
+        { dryRun: false, workspaceId: 'ws', userId: 'u' },
+        () => undefined,
+      ),
+    ).rejects.toThrow('edge update failed');
+    expect(calls.some((c) => c.sql.includes('INSERT INTO audit_log'))).toBe(
+      false,
+    );
   });
 
   it('apply 에 workspace/user id 가 없으면 아무것도 읽기 전에 거부한다', async () => {

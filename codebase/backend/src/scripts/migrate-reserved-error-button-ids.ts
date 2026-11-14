@@ -195,8 +195,12 @@ export function renameReservedErrorButtonIds(
  * 노드의 에러 처리 정책이 「에러 포트로 라우팅」인지. 이 경우 `error` 연결선이
  * 버튼 연결선인지 에러 연결선인지 데이터만으로는 가를 수 없다.
  * 레거시 평면 키(`errorPolicy: 'error_port'`)도 같은 정책으로 본다.
+ *
+ * 프런트 `resolve-dynamic-ports.ts` 의 `routesToErrorPortOrLegacy` 는 엔진이 읽는
+ * `errorHandling.policy` 만 본다. 이 스크립트는 아직 옮기지 못한 저장 데이터를
+ * 읽으므로 레거시 키까지 보고, 그래서 이름을 달리했다.
  */
-export function routesToErrorPort(config: NodeConfigLike): boolean {
+export function routesToErrorPortOrLegacy(config: NodeConfigLike): boolean {
   const handling = config?.errorHandling as { policy?: unknown } | undefined;
   if (handling && typeof handling === 'object') {
     return handling.policy === 'route_to_error_port';
@@ -235,7 +239,7 @@ export function planReservedErrorButtonRenames(rows: NodeRow[]): PlannedNode[] {
       newId: result.newId,
       locations: result.locations,
       newConfig: result.config,
-      routesToErrorPort: routesToErrorPort(row.config),
+      routesToErrorPort: routesToErrorPortOrLegacy(row.config),
     });
   }
   return planned;
