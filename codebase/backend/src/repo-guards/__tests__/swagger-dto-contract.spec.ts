@@ -17,7 +17,7 @@
  *
  * `tsc` 는 데코레이터 인자를 타입으로 읽지 않는다. lint 규칙도 없다. e2e 는 실제 응답만
  * 보므로 **문서와 타입이 함께 틀려도 초록**이다. 규약(`spec/5-system/2-api-convention.md`
- * §5.4)이 문장으로만 있고 강제자가 없었다.
+ * §5.5)이 문장으로만 있고 강제자가 없었다.
  *
  * ## 이 가드가 `.claude/tests/` 가 아니라 여기 있는 이유
  *
@@ -256,7 +256,7 @@ describe('Swagger DTO 선언 vs TS 타입', () => {
  * "가드가 그렇다고 가정한 값" 만 재확인할 뿐, 그 가정 자체를 라이브러리에 물어본 적이 없다.
  *
  * 이 캐너리는 **실제 `@nestjs/swagger` 데코레이터를 호출**해 `Reflect` 메타데이터를 읽는다 —
- * 별칭을 없앨 수는 없다(§5.4 규약과 이 가드 판정의 토대이므로). 대신 그 가정이 깨지는 순간
+ * 별칭을 없앨 수는 없다(§5.5 규약과 이 가드 판정의 토대이므로). 대신 그 가정이 깨지는 순간
  * 여기서 먼저 RED 가 된다: 라이브러리를 업그레이드했는데 이 테스트가 실패하면, 원인은
  * `swagger-dto-contract-guard.ts` 가 아니라 `ApiPropertyOptional` 의 별칭 구현이 바뀐 것이다.
  */
@@ -343,7 +343,7 @@ describe('옵션 리더는 리터럴을 만날 때까지 훑는다', () => {
   });
 });
 
-/** 양성 대조군 fixture — 일부러 §5.4 를 어긴다. 스캔 범위(`src/modules`) 밖에 둔다. */
+/** 양성 대조군 fixture — 일부러 §5.5 를 어긴다. 스캔 범위(`src/modules`) 밖에 둔다. */
 const RATCHET_FIXTURE = path.join(
   __dirname,
   'fixtures',
@@ -360,21 +360,22 @@ const RATCHET_FIXTURE = path.join(
 const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [];
 
 /**
- * §5.4 금지 조합(`required:false` + `nullable:true`)의 **래칫**.
+ * §5.5 금지 조합(`required:false` + `nullable:true`)의 **래칫**.
  *
- * 목록은 "고쳐야 할 빚" 이지 허용목록이 아니다. 새 필드가 이 형태로 들어오면 목록에 없어
- * 실패하고, 빚을 갚아 줄이면 목록에서 빼야 통과한다 — 양방향으로 조인다.
+ * 목록은 알려진 위반을 적는 자리이고 허용목록이 아니다. 지금은 비어 있다. 새 필드가 이 형태로
+ * 들어오면 목록에 없어 실패하고, 목록에 적은 필드를 고치면 목록에서 빼야 통과한다 —
+ * 양방향으로 조인다.
  *
  * 이 목록은 응답 DTO **전수**를 덮는다. 종전에는 `execution-response.dto.spec.ts` 가
  * `ExecutionDto` 10건을 부분집합으로 따로 고정했고 두 목록을 함께 줄여야 했다
  * (`review/consistency/2026/09/05/19_08_19` W5). 2026-11-14 에 둘 다 비었고 그쪽은 이제
  * 이 스캐너가 그 파일에서 0건을 보는지를 단언한다.
  *
- * 실제로 조용히 넓어진 적이 있다: 2026-09-05 §5.4 스윕 커밋이 17개 필드를 이 형태로 새로
+ * 실제로 조용히 넓어진 적이 있다: 2026-09-05 §5.5 스윕 커밋이 17개 필드를 이 형태로 새로
  * 선언했고, **두 검증자 어느 쪽도 잡지 못했다**(`response-contract.ts` 는 값을 보고,
  * presence/null 축은 선언과 타입이 서로 맞는지만 본다). 그 사건이 이 가드의 존재 이유다.
  */
-describe('§5.4 금지 조합 래칫 — 응답 DTO 의 required:false + nullable:true', () => {
+describe('§5.5 금지 조합 래칫 — 응답 DTO 의 required:false + nullable:true', () => {
   // 스캔 범위는 `src/modules` 다 — 실제 응답 DTO 36개 파일이 전부 그 아래에 있고(실측),
   // 그래야 아래 양성 대조군 fixture(`repo-guards/__tests__/fixtures/dto/responses/`)가
   // 프로덕션 베이스라인을 오염시키지 않는다.
@@ -413,7 +414,7 @@ describe('§5.4 금지 조합 래칫 — 응답 DTO 의 required:false + nullabl
     );
   });
 
-  it('[대조군] 요청 DTO 는 대상이 아니다 — §5.4 가 명시적으로 제외한다', () => {
+  it('[대조군] 요청 DTO 는 대상이 아니다 — §5.5 가 명시적으로 제외한다', () => {
     expect(isResponseDtoFile('/x/src/modules/a/dto/update-a.dto.ts')).toBe(
       false,
     );

@@ -960,6 +960,10 @@ export class ExecutionsService {
     const refreshed = await this.findOneForResponse(id);
     return refreshed ?? execution;
   }
+  // 위 세 곳의 `?? execution` 은 재조회 직전에 행이 지워진 경우(동시 삭제)에만 탄다. 이때
+  // `execution` 은 관계를 읽지 않은 첫 조회 행이라 trigger · executor 이름이 비어
+  // 출처 라벨이 `null` 로 나가고(`source` 는 id 컬럼으로 정해지는 만큼만 채워진다), 응답은
+  // 그대로 조립된다. 지워진 실행의 라벨을 다시 읽을 방법이 없으므로 이를 허용한다.
 
   /**
    * 응답 조립용 단건 재조회 — 실행 출처 판정에 쓰는 관계 두 개를 함께 읽는다.

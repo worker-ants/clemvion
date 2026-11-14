@@ -1157,6 +1157,28 @@ describe('ExecutionsService', () => {
     });
   });
 
+  describe('stop — 재조회 직전에 행이 지워진 경우', () => {
+    it('재조회가 null 이어도 첫 조회 행으로 응답을 조립하고 라벨은 null 이다', async () => {
+      const running = baseFake({
+        id: 'e-del',
+        status: ExecutionStatus.RUNNING,
+        executedBy: 'u1',
+      });
+      executionRepo.findOne.mockResolvedValueOnce(running as unknown);
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildStopQB(null) as unknown,
+      );
+
+      const result = await service.stop('e-del');
+
+      expect(result.id).toBe('e-del');
+      expect(result).toMatchObject({
+        triggerSource: 'manual',
+        triggerLabel: null,
+      });
+    });
+  });
+
   describe('getStatusById', () => {
     it('정상 조회 → status 반환 (id 로 조회)', async () => {
       executionRepo.findOne.mockResolvedValueOnce({

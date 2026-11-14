@@ -76,11 +76,10 @@ export function redactStoredDataForResponse(
 /**
  * 세 컬럼(`inputData` · `outputData` · `error`)을 **한 번에** 마스킹한다.
  *
- * ## 왜 존재하나 — 자매가 갈리는 걸 사람이 막고 있었다
+ * ## 왜 한 함수인가
  *
- * 이 조합은 응답 조립부 **네 곳**(목록 매퍼 · `toResponseExecution` · 노드 레벨 루프 ·
- * `background-runs.service.ts`)에서 각자 손으로 반복됐고, 유일한 동기화 장치가 **사람이 읽는
- * 주석 표**였다. 그 상태에서 실제로 자매 갱신이 빠지는 CRITICAL 이 났다(`14_08_45` C2).
+ * 이 조합을 호출부마다 손으로 반복하면 자매 갱신이 빠진다(`14_08_45` C2 에서 CRITICAL 로
+ * 났다). 그래서 세 컬럼의 마스킹을 이 함수 한 곳에 모았다.
  *
  * ## 쓰는 곳 (2026-11-14)
  *
