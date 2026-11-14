@@ -44,7 +44,7 @@ describe('WebAuthnService', () => {
   let credentialRepo: jest.Mocked<any>;
   let refreshTokenRepo: jest.Mocked<any>;
   // 트랜잭션 안의 `manager.getRepository(User)`. 등록 저장 · 삭제가 사용자 행을 잠그고
-  // 복구 코드를 같은 트랜잭션에서 쓴다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 등록·인증 흐름」).
+  // 복구 코드를 같은 트랜잭션에서 쓴다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 등록 흐름」).
   let userRepo: { findOne: jest.Mock; update: jest.Mock };
   let usersService: jest.Mocked<any>;
   let jwtService: jest.Mocked<JwtService>;
@@ -280,7 +280,7 @@ describe('WebAuthnService', () => {
       expect(userRepo.findOne).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: userId },
-          lock: { mode: 'pessimistic_write' },
+          lock: { mode: 'for_no_key_update' },
         }),
       );
       const lockOrder = userRepo.findOne.mock.invocationCallOrder[0];
@@ -295,18 +295,43 @@ describe('WebAuthnService', () => {
       );
     });
 
+    // REQ-SIGNIN-095: 첫 등록의 복구 코드를 저장하지 못하면 credential 저장도 되돌린다.
+    // 목 트랜잭션이 예외 때 트랜잭션 안의 저장분을 버리는 모델로 바꿔서 판별한다.
+    // save 가 트랜잭션 밖(`this.credentialRepo`)으로 빠지면 곧바로 커밋분에 남아 RED 가 된다.
     it('does not keep the credential when saving the recovery codes fails', async () => {
       credentialRepo.count.mockResolvedValue(0);
       userRepo.update.mockRejectedValueOnce(new Error('db down'));
-      // 목 트랜잭션은 콜백의 오류를 그대로 돌려준다. 실제 롤백은 e2e 가 본다.
+      const committed: unknown[] = [];
+      const pending: unknown[] = [];
+      // 트랜잭션 밖 저장소(`this.credentialRepo`)의 save 는 바로 커밋분이 된다.
+      credentialRepo.save.mockImplementation((d: unknown) => {
+        committed.push(d);
+        return Promise.resolve(d);
+      });
+      // 트랜잭션 안 저장소의 save 는 콜백이 끝나야 커밋분이 되고, 예외면 버려진다.
+      const txCredentialRepo = {
+        ...credentialRepo,
+        save: jest.fn().mockImplementation((d: unknown) => {
+          pending.push(d);
+          return Promise.resolve(d);
+        }),
+      };
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: unknown) => Promise<unknown>) => {
+          const out = await cb({
+            getRepository: (entity: unknown) =>
+              entity === User ? userRepo : txCredentialRepo,
+          });
+          committed.push(...pending);
+          return out;
+        },
+      );
+
       await expect(
         service.verifyRegistration(userId, 'opts.tok', validResponse as never),
       ).rejects.toThrow('db down');
-      expect(credentialRepo.save).toHaveBeenCalledTimes(1);
-      expect(userRepo.update).toHaveBeenCalledTimes(1);
-      expect(credentialRepo.save.mock.invocationCallOrder[0]).toBeLessThan(
-        userRepo.update.mock.invocationCallOrder[0],
-      );
+      expect(pending).toHaveLength(1);
+      expect(committed).toHaveLength(0);
     });
 
     it('verifies against the same pinned algorithm list as the options', async () => {
@@ -901,7 +926,7 @@ describe('WebAuthnService', () => {
       expect(userRepo.findOne).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: userId },
-          lock: { mode: 'pessimistic_write' },
+          lock: { mode: 'for_no_key_update' },
         }),
       );
       const lockOrder = userRepo.findOne.mock.invocationCallOrder[0];

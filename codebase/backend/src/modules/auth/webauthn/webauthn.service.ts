@@ -98,6 +98,14 @@ function registrationVerifyFailed(): BadRequestException {
   });
 }
 
+/** 서명 실패 · 챌린지 재사용 · 인증 대상 credential 부재가 모두 같은 401 로 답하는 예외. */
+function webauthnInvalid(): UnauthorizedException {
+  return new UnauthorizedException({
+    code: 'WEBAUTHN_INVALID',
+    message: 'WebAuthn 인증에 실패했어요.',
+  });
+}
+
 /** `webauthn_credential.credential_id` 의 UNIQUE 제약 이름(V057 마이그레이션). */
 const CREDENTIAL_ID_UNIQUE_CONSTRAINT = 'uq_webauthn_credential_credential_id';
 
@@ -303,9 +311,39 @@ export class WebAuthnService {
     // 한 트랜잭션으로 한다. 잠금이 없으면 같은 사용자의 첫 등록 두 건이 둘 다 0개를 읽어
     // 복구 코드 묶음을 서로 덮어쓴다. 복구 코드를 쓰지 못하면 credential 도 남지 않는다.
     // 근거는 CLE-ACCT-SIGNIN-PASSKEY Rationale 「Passkey 등록 저장을 한 트랜잭션으로 묶는다」.
-    let result: { credentialUuid: string; recoveryPlain: string[] };
+    const result = await this.saveRegistration({
+      userId,
+      credentialId,
+      publicKey,
+      counter,
+      transports,
+      aaguid: aaguid ?? null,
+      deviceName: deviceName?.trim() || null,
+    });
+
+    return {
+      verified: true,
+      credentialUuid: result.credentialUuid,
+      webauthnRecoveryCodes: result.recoveryPlain,
+    };
+  }
+
+  /**
+   * 등록 저장 트랜잭션과 credential ID UNIQUE 위반의 409 매핑. 트랜잭션 구성과 근거는
+   * `verifyRegistration` 의 호출부 주석을 따른다.
+   */
+  private async saveRegistration(input: {
+    userId: string;
+    credentialId: string;
+    publicKey: Buffer;
+    counter: string;
+    transports: string[];
+    aaguid: string | null;
+    deviceName: string | null;
+  }): Promise<{ credentialUuid: string; recoveryPlain: string[] }> {
+    const { userId, credentialId, publicKey, counter, transports } = input;
     try {
-      result = await this.dataSource.transaction(async (manager) => {
+      return await this.dataSource.transaction(async (manager) => {
         await this.lockUserRow(manager.getRepository(User), userId);
         const credRepo = manager.getRepository(WebAuthnCredential);
 
@@ -320,8 +358,8 @@ export class WebAuthnService {
             publicKey,
             counter,
             transports,
-            aaguid: aaguid ?? null,
-            deviceName: deviceName?.trim() || null,
+            aaguid: input.aaguid,
+            deviceName: input.deviceName,
           }),
         );
 
@@ -347,17 +385,11 @@ export class WebAuthnService {
       }
       throw err;
     }
-
-    return {
-      verified: true,
-      credentialUuid: result.credentialUuid,
-      webauthnRecoveryCodes: result.recoveryPlain,
-    };
   }
 
   /**
    * 같은 사용자의 Passkey 등록 저장과 삭제를 차례로 세우는 사용자 행 잠금
-   * (`SELECT … FOR UPDATE`). 트랜잭션 안에서만 부른다. 행이 없으면(탈퇴 중) 잠글 것이 없다.
+   * (`SELECT … FOR NO KEY UPDATE`). 트랜잭션 안에서만 부른다. 행이 없으면(탈퇴 중) 잠글 것이 없다.
    * 그때 등록 저장은 외래 키 제약이 막고, 삭제는 credential 이 이미 함께 지워져(ON DELETE
    * CASCADE) 404 다.
    */
@@ -368,7 +400,9 @@ export class WebAuthnService {
     await userRepo.findOne({
       where: { id: userId },
       select: { id: true },
-      lock: { mode: 'pessimistic_write' },
+      // FOR UPDATE 는 `webauthn_credential` INSERT 의 FK 검사(FOR KEY SHARE)까지 막는다.
+      // FOR NO KEY UPDATE 는 같은 사용자끼리만 줄을 세우고 자식 행 INSERT 는 막지 않는다.
+      lock: { mode: 'for_no_key_update' },
     });
   }
 
@@ -525,10 +559,7 @@ export class WebAuthnService {
       // 서명 실패와 같은 401 `WEBAUTHN_INVALID` 로 답한다. 이름 변경 · 삭제의 404
       // `WEBAUTHN_CREDENTIAL_NOT_FOUND` 와 뜻이 달라 나눴다(CLE-API-ERRCODES 규칙 6).
       // `rejectInvalidAuthentication` 과 달리 로그인 이력은 남기지 않는다(이전과 같다).
-      throw new UnauthorizedException({
-        code: 'WEBAUTHN_INVALID',
-        message: 'WebAuthn 인증에 실패했어요.',
-      });
+      throw webauthnInvalid();
     }
     if (outcome.kind === 'counter_regression') {
       const email =
@@ -616,10 +647,7 @@ export class WebAuthnService {
     this.logger.warn(
       `WebAuthn auth verify failed for user ${userId}: ${reason}`,
     );
-    throw new UnauthorizedException({
-      code: 'WEBAUTHN_INVALID',
-      message: 'WebAuthn 인증에 실패했어요.',
-    });
+    throw webauthnInvalid();
   }
 
   /**
@@ -702,9 +730,10 @@ export class WebAuthnService {
    * (WebAuthnController)가 `remaining === 0` 일 때 2FA 가 완전히 해제됐음을
    * `user.2fa_disabled` 감사 로그 details 에 표기하는 데 사용한다 (§Rationale 4.1.B).
    *
-   * 조회부터 복구 코드 비우기까지 등록 저장과 같은 사용자 행 잠금 안에서 한다. 마지막
-   * credential 삭제와 첫 등록이 겹쳐도 credential 이 남았는데 복구 코드가 NULL 인 상태가
-   * 생기지 않는다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」). 비밀번호 재확인은 컨트롤러가 한다.
+   * 조회부터 복구 코드 비우기까지 등록 저장과 같은 사용자 행 잠금 안에서 한다. 등록 저장과
+   * 삭제 사이에서는 마지막 credential 삭제와 첫 등록이 겹쳐도 credential 이 남았는데 복구
+   * 코드가 NULL 인 상태가 생기지 않는다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」). 재발급 ·
+   * 복구 코드 사용 · counter 역행 경로는 이 잠금을 거치지 않는다(후속 CLE-T-HQQNEA). 비밀번호 재확인은 컨트롤러가 한다.
    *
    * @throws {NotFoundException} WEBAUTHN_CREDENTIAL_NOT_FOUND — 존재하지 않거나 본인
    *   소유가 아닐 때, 또는 동시 삭제 두 건이 겹쳐 진 쪽이 이미 지워진 행을 찾을 때(404).
