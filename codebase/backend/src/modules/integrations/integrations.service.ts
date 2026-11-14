@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, Not, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { createTransport } from 'nodemailer';
 import pLimit from 'p-limit';
 import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
@@ -1331,8 +1331,9 @@ export class IntegrationsService {
    * the editor surfaces a "needs reauthorization" badge. Other failure codes
    * only update `lastError`; transient errors do not transition status.
    *
-   * MCP 인증 실패 전이는 `status <> 'error'` 조건부 UPDATE 다. 영향 행이 있을 때만 실제 전이로 보고 조치 필요 알림
-   * (`mcp_call` 계기)을 보낸다(CLE-T-184JJD). 이미 `error` 인 행은 상태 · 사유를 덮지 않고 사용 시각 · 마지막 오류만 고친다.
+   * MCP 인증 실패 전이는 "이미 `error(auth_failed)` 가 아닌 행" 조건부 UPDATE 다. 다른 사유의 `error` 도 `auth_failed`
+   * 로 바꾼다(REQ-INTSTAT-011, Cafe24 · MakeShop `markAuthFailed` 와 같은 기준). 영향 행이 있을 때만 실제 전이로 보고 조치
+   * 필요 알림(`mcp_call` 계기)을 보낸다(CLE-T-184JJD). 이미 `error(auth_failed)` 인 행은 사용 시각 · 마지막 오류만 고친다.
    * 그래서 동시에 들어온 두 호출이 같은 통합을 바꿔도 알림은 한 번이다.
    *
    * **Never throws** — DB failures and notifier failures are swallowed with a
@@ -1391,15 +1392,28 @@ export class IntegrationsService {
         params.status === 'failed' &&
         params.error?.code === MCP_ERROR_CODES.AUTH_FAILED
       ) {
-        const transition = await this.integrationRepository.update(
-          { id: integration.id, status: Not('error') },
-          { ...patch, status: 'error', statusReason: 'auth_failed' },
-        );
+        // 다른 사유의 `error` 도 `auth_failed` 로 바꾼다(REQ-INTSTAT-011). 이미 `error(auth_failed)` 인 행만 조건에서
+        // 빠진다. 판정을 UPDATE 조건에 두어 동시에 들어온 호출 중 한 건만 영향 행을 얻는다.
+        const transition = await this.integrationRepository
+          .createQueryBuilder()
+          .update()
+          .set({ ...patch, status: 'error', statusReason: 'auth_failed' })
+          .where('id = :id', { id: integration.id })
+          .andWhere(
+            new Brackets((qb) => {
+              qb.where('status <> :errorStatus', {
+                errorStatus: 'error',
+              }).orWhere('status_reason IS DISTINCT FROM :authFailed', {
+                authFailed: 'auth_failed',
+              });
+            }),
+          )
+          .execute();
         if ((transition.affected ?? 0) > 0) {
           await this.notifyMcpAuthFailed(integration);
           return;
         }
-        // 이미 `error` 였다. 먼저 기록된 사유를 덮지 않고 알림도 보내지 않는다.
+        // 이미 `error(auth_failed)` 였다. 사용 시각 · 마지막 오류만 고치고 알림은 보내지 않는다.
       }
       await this.integrationRepository.update({ id: integration.id }, patch);
     } catch (err) {

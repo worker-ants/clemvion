@@ -54,6 +54,45 @@ function isThisMember(expr: ts.Expression, name: string): boolean {
   );
 }
 
+/** 쿼리 빌더를 쓰기 빌더로 바꾸는 호출. 저장소의 `update` · `delete` 처럼 행을 돌려주지 않는다. */
+const QUERY_BUILDER_WRITES = new Set([
+  'update',
+  'delete',
+  'insert',
+  'softDelete',
+  'restore',
+]);
+
+/**
+ * `createQueryBuilder()` 바로 뒤가 쓰기 빌더(`.update()` 등)이고 사슬에 `.returning(…)` 이 없는가. 그러면 저장소의
+ * `update` 와 같은 쓰기라 행 읽기로 세지 않는다. `.returning` 이 붙으면 쓴 행을 돌려받으므로 읽기로 본다.
+ */
+function isWriteOnlyBuilder(call: ts.CallExpression): boolean {
+  const access = call.parent;
+  if (
+    !ts.isPropertyAccessExpression(access) ||
+    access.expression !== call ||
+    !QUERY_BUILDER_WRITES.has(access.name.text)
+  ) {
+    return false;
+  }
+  let node: ts.Node = access;
+  for (;;) {
+    const parent = node.parent;
+    const chained =
+      (ts.isPropertyAccessExpression(parent) || ts.isCallExpression(parent)) &&
+      parent.expression === node;
+    if (!chained) return true;
+    if (
+      ts.isPropertyAccessExpression(parent) &&
+      parent.name.text === 'returning'
+    ) {
+      return false;
+    }
+    node = parent;
+  }
+}
+
 function readsIntegrationRows(call: ts.CallExpression): boolean {
   const callee = call.expression;
   if (!ts.isPropertyAccessExpression(callee)) return false;
@@ -62,7 +101,7 @@ function readsIntegrationRows(call: ts.CallExpression): boolean {
     REPOSITORY_READS.has(method) &&
     isThisMember(callee.expression, 'integrationRepository')
   ) {
-    return true;
+    return !(method === 'createQueryBuilder' && isWriteOnlyBuilder(call));
   }
   const [first] = call.arguments;
   return (

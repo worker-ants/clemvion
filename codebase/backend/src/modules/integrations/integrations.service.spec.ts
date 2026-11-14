@@ -4,7 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { Not } from 'typeorm';
+import type { Brackets } from 'typeorm';
 import {
   CONNECTION_TEST_MAX_CONCURRENCY,
   IntegrationsService,
@@ -4359,6 +4359,37 @@ describe('IntegrationsService', () => {
       credentials: { access_token: 'plain-secret' },
     } as unknown as Integration;
 
+    // MCP 인증 실패 전이는 조건부 UPDATE 쿼리 빌더로 한다. 그 밖의 기록은 `integrationRepository.update` 다.
+    let transitionQb: Record<string, Mock>;
+    beforeEach(() => {
+      transitionQb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
+      };
+      integrationRepo.createQueryBuilder.mockReturnValue(transitionQb);
+    });
+
+    /** 전이 UPDATE 의 `andWhere(new Brackets(...))` 를 풀어 괄호 안 조건 · 바인딩 값을 순서대로 돌려준다. */
+    function transitionGuard(): Array<[string, string, unknown]> {
+      const brackets = transitionQb.andWhere.mock.calls[0][0] as Brackets;
+      const clauses: Array<[string, string, unknown]> = [];
+      const inner = {
+        where: jest.fn((sql: string, params: unknown) => {
+          clauses.push(['where', sql, params]);
+          return inner;
+        }),
+        orWhere: jest.fn((sql: string, params: unknown) => {
+          clauses.push(['orWhere', sql, params]);
+          return inner;
+        }),
+      };
+      brackets.whereFactory(inner as never);
+      return clauses;
+    }
+
     it('얻은 통합의 id 로 기록하고 필요한 컬럼만 UPDATE 한다 — 받은 엔티티를 저장하지 않는다 (REQ-INTMGMT-062)', async () => {
       await service.logUsage(usedIntegration, {
         nodeExecutionId: 'nex-1',
@@ -4371,12 +4402,15 @@ describe('IntegrationsService', () => {
         expect.objectContaining({ integrationId: 'int-1' }),
       );
       expect(integrationRepo.save).not.toHaveBeenCalled();
-      expect(integrationRepo.update).toHaveBeenCalledTimes(1);
-      const [criteria, patch] = integrationRepo.update.mock.calls[0] as [
-        unknown,
-        Record<string, unknown>,
-      ];
-      expect(criteria).toEqual({ id: 'int-1', status: Not('error') });
+      expect(integrationRepo.update).not.toHaveBeenCalled();
+      expect(transitionQb.execute).toHaveBeenCalledTimes(1);
+      expect(transitionQb.where).toHaveBeenCalledWith('id = :id', {
+        id: 'int-1',
+      });
+      const patch = transitionQb.set.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
       expect(Object.keys(patch).sort()).toEqual(
         ['lastError', 'lastUsedAt', 'status', 'statusReason'].sort(),
       );
@@ -4432,13 +4466,33 @@ describe('IntegrationsService', () => {
         durationMs: 50,
         error: { code: 'MCP_AUTH_FAILED', message: '401' },
       });
-      expect(integrationRepo.update).toHaveBeenCalledWith(
-        { id: 'int-1', status: Not('error') },
+      expect(transitionQb.set).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'error',
           statusReason: 'auth_failed',
         }),
       );
+    });
+
+    // REQ-INTSTAT-011 — MCP 인증 실패는 다른 사유의 `error` 도 `auth_failed` 로 바꾼다. 조건에서 빠지는 것은 이미
+    // `error(auth_failed)` 인 행뿐이다(Cafe24 · MakeShop `markAuthFailed` 와 같은 기준). 실제 행 판정은 e2e 가 본다.
+    it('전이 조건은 이미 error(auth_failed) 인 행만 뺀다', async () => {
+      await service.logUsage(usedIntegration, {
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'failed',
+        durationMs: 50,
+        error: { code: 'MCP_AUTH_FAILED', message: '401' },
+      });
+      expect(transitionQb.andWhere).toHaveBeenCalledTimes(1);
+      expect(transitionGuard()).toEqual([
+        ['where', 'status <> :errorStatus', { errorStatus: 'error' }],
+        [
+          'orWhere',
+          'status_reason IS DISTINCT FROM :authFailed',
+          { authFailed: 'auth_failed' },
+        ],
+      ]);
     });
 
     it('does NOT flip status for non-auth failures', async () => {
@@ -4455,11 +4509,13 @@ describe('IntegrationsService', () => {
       )[1] as Record<string, unknown>;
       expect(patch.status).toBeUndefined();
       expect(patch.statusReason).toBeUndefined();
+      expect(transitionQb.execute).not.toHaveBeenCalled();
       expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
     });
 
     // CLE-T-184JJD — MCP 인증 실패로 통합이 실제로 `error(auth_failed)` 로 바뀐 경우에만 조치 필요 알림을 보낸다. 실제 전이는
-    // 조건부 UPDATE(`status <> 'error'`)의 영향 행 수로 판정한다. 동시에 들어온 두 호출이 같은 통합을 바꿔도 한 번만 보낸다.
+    // 조건부 UPDATE(이미 `error(auth_failed)` 인 행 제외)의 영향 행 수로 판정한다. 동시에 들어온 두 호출이 같은 통합을 바꿔도
+    // 한 번만 보낸다.
     describe('MCP 인증 실패 조치 필요 알림 (CLE-T-184JJD)', () => {
       const authFailed = {
         nodeExecutionId: 'nex-1',
@@ -4469,8 +4525,9 @@ describe('IntegrationsService', () => {
         error: { code: 'MCP_AUTH_FAILED', message: '401' },
       };
 
-      it('error 가 아니던 통합이 바뀌면 mcp_call 계기로 auth_failed 알림을 보낸다', async () => {
+      it('통합이 error(auth_failed) 로 바뀌면 mcp_call 계기로 auth_failed 알림을 보낸다', async () => {
         await service.logUsage(usedIntegration, authFailed);
+        expect(integrationRepo.update).not.toHaveBeenCalled();
         expect(actionRequiredNotifier.notify).toHaveBeenCalledTimes(1);
         expect(actionRequiredNotifier.notify).toHaveBeenCalledWith(
           usedIntegration,
@@ -4479,13 +4536,13 @@ describe('IntegrationsService', () => {
         );
       });
 
-      it('이미 error 인 통합은 상태 · 사유를 다시 쓰지 않고 알림도 보내지 않는다', async () => {
-        integrationRepo.update.mockResolvedValueOnce({ affected: 0 });
+      it('이미 error(auth_failed) 인 통합은 상태 · 사유를 다시 쓰지 않고 알림도 보내지 않는다', async () => {
+        transitionQb.execute.mockResolvedValueOnce({ affected: 0, raw: [] });
         await service.logUsage(usedIntegration, authFailed);
         expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
-        // 조건에 걸리지 않은 행은 사용 시각 · 마지막 오류만 고친다. 먼저 들어온 오류 사유를 덮지 않는다.
-        expect(integrationRepo.update).toHaveBeenCalledTimes(2);
-        const [criteria, patch] = integrationRepo.update.mock.calls[1] as [
+        // 조건에 걸리지 않은 행은 사용 시각 · 마지막 오류만 고친다.
+        expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+        const [criteria, patch] = integrationRepo.update.mock.calls[0] as [
           unknown,
           Record<string, unknown>,
         ];

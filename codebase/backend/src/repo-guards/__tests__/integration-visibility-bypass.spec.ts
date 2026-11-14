@@ -100,4 +100,24 @@ describe('findUnguardedRowReaders', () => {
       ),
     ).toEqual([]);
   });
+
+  // 저장소의 `update` 를 세지 않으므로 같은 일을 하는 UPDATE 쿼리 빌더도 세지 않는다. 쓴 행을 돌려받는 `.returning` 과
+  // 쓰기 빌더가 아닌 사슬은 그대로 읽기다.
+  it('쓴 행을 돌려받지 않는 쓰기 쿼리 빌더는 읽기로 세지 않는다', () => {
+    expect(
+      findUnguardedRowReaders(
+        wrap(`
+          async touch(id) {
+            return this.integrationRepository.createQueryBuilder().update().set({}).where('id = :id', { id }).execute();
+          }
+          async drop(id) { return this.integrationRepository.createQueryBuilder().delete().where('id = :id', { id }).execute(); }
+          async touchReturning(id) {
+            return this.integrationRepository.createQueryBuilder().update().set({}).returning('*').execute();
+          }
+          async select(id) { return this.integrationRepository.createQueryBuilder('i').where('i.id = :id', { id }).getOne(); }
+        `),
+        'S',
+      ),
+    ).toEqual(['select', 'touchReturning']);
+  });
 });

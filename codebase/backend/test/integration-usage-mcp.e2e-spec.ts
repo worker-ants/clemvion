@@ -22,10 +22,11 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *
  * MCP 도구 호출의 인증 실패 기록(CLE-T-184JJD)도 여기서 본다. e2e 에는 LLM 과 MCP 모의 서버가 없어서 실행 엔진의 MCP 도구
  * 프로바이더가 넘기는 값과 같은 기록을 test-hook(`POST /integrations/:id/_test/mcp-auth-failure`, NODE_ENV=test ·
- * E2E_TEST_HOOKS=1 일 때만 열린다)으로 남긴다. 단위 테스트는 저장소 mock 이라 조건부 UPDATE(`status <> 'error'`)의 영향 행
- * 수와 알림 행 저장을 실제로 돌리지 못한다:
+ * E2E_TEST_HOOKS=1 일 때만 열린다)으로 남긴다. 단위 테스트는 저장소 mock 이라 조건부 UPDATE(이미 `error(auth_failed)` 인
+ * 행 제외)의 영향 행 수와 알림 행 저장을 실제로 돌리지 못한다:
  *   - 연결됨 통합이 바뀌면 `error(auth_failed)` 가 되고 조치 필요 알림이 한 건 생긴다
- *   - 이미 `error` 인 통합은 사유를 덮지 않고 알림도 만들지 않는다. 마지막 오류만 고친다
+ *   - 다른 사유로 `error` 인 통합도 `auth_failed` 로 바뀌고 알림이 한 건 생긴다(REQ-INTSTAT-011)
+ *   - 이미 `error(auth_failed)` 인 통합은 알림을 만들지 않는다. 마지막 오류만 고친다
  *   - 같은 통합에 두 기록이 동시에 들어와도 알림은 한 건이다
  */
 
@@ -324,9 +325,9 @@ describe('Integration usage tracking — direct ∪ MCP (e2e)', () => {
       ]);
     }, 30_000);
 
-    it('E. 이미 error 인 통합은 사유를 덮지 않고 알림을 만들지 않는다', async () => {
-      const intId = await createIntegration(uniqueName('mcpauth-already'));
-      // 다른 사유로 먼저 error 가 된 통합. 제목이 다른 알림이라 24시간 중복 방지와 섞이지 않는다.
+    it('E. 다른 사유로 error 인 통합도 auth_failed 로 바뀌고 알림이 한 건 간다 (REQ-INTSTAT-011)', async () => {
+      const intId = await createIntegration(uniqueName('mcpauth-reason'));
+      // 네트워크 실패로 먼저 error 가 된 통합. 그 전이 알림은 제목이 달라 24시간 중복 방지와 섞이지 않는다.
       await db.query(
         `UPDATE integration SET status = 'error', status_reason = 'network' WHERE id = $1`,
         [intId],
@@ -338,7 +339,25 @@ describe('Integration usage tracking — direct ∪ MCP (e2e)', () => {
 
       const state = await stateOf(intId);
       expect(state.status).toBe('error');
-      expect(state.statusReason).toBe('network');
+      expect(state.statusReason).toBe('auth_failed');
+      expect(state.lastError?.code).toBe('MCP_AUTH_FAILED');
+      expect(await actionRequiredCount(intId)).toBe(1);
+    }, 30_000);
+
+    it('E2. 이미 error(auth_failed) 인 통합은 알림을 만들지 않고 마지막 오류만 고친다', async () => {
+      const intId = await createIntegration(uniqueName('mcpauth-already'));
+      await db.query(
+        `UPDATE integration SET status = 'error', status_reason = 'auth_failed' WHERE id = $1`,
+        [intId],
+      );
+      const ids = await insertNodeExecution();
+
+      const res = await reportMcpAuthFailure(intId, ids);
+      expect(res.status).toBe(202);
+
+      const state = await stateOf(intId);
+      expect(state.status).toBe('error');
+      expect(state.statusReason).toBe('auth_failed');
       expect(state.lastError?.code).toBe('MCP_AUTH_FAILED');
       expect(await actionRequiredCount(intId)).toBe(0);
     }, 30_000);
