@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-PKAUTH"
 title: "가입과 로그인 — Passkey 로그인 인증과 counter 역행"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "6a5d64c0c30ba7088f39429a8c7970503741d8b41ba36c40c48159ea49d6c4c7"
+content_hash: "729bd54133ce79c46ee06b81c7da6c42289f47d52d67caeebb18ce6d8a783e29"
 read_as: "approved_fallback"
-task: "CLE-T-ZPPWK4"
+task: "CLE-T-GWC9M3"
 source_paths: []
-mirror_sha256: "0ed85cc2614dd0d6ae906843880dfb620ba565682d9bbda19e882abdd6edaec2"
-etag: "sha256-ab709049f230ec606a6995e90bc6a8ee28c541dfde913fe0ecf3bac628bf0ad4"
+mirror_sha256: "8d5c199a525a02e1b5d49d971a1e9b036de740764e7a5730c1f7a5c43fa390bc"
+etag: "sha256-84004b7850fcc4a4b9da283609231c97f56c1a565024ecdc0eace372c314aaa6"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-ab709049f230ec606a6995e90bc6a8ee28c541dfde913fe0ecf3bac628bf0ad4"
 2. 클라이언트가 `navigator.credentials.get(options)` 를 호출한다.
 3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버는 챌린지 토큰과 옵션 토큰을 검증한 뒤 그 Passkey 인증 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로 거부한다. 이어서 응답의 credential 을 그 사용자의 credential 에서 찾는다. 없으면 401 `WEBAUTHN_INVALID` 로 거부하고 로그인 이력을 남기지 않는다. 찾으면 `verifyAuthenticationResponse` 로 서명을 검증한다. 서명이 맞으면 counter 역행을 판정하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
 
-복구 코드로 통과할 때는 `POST /api/auth/2fa/webauthn/recovery { challengeToken, code }` 를 부른다. 서버는 `webauthn_recovery_codes` 해시와 비교해 맞으면 그 항목을 지우고 JWT 를 발급한다.
+복구 코드로 통과할 때는 `POST /api/auth/2fa/webauthn/recovery { challengeToken, code }` 를 부른다. 서버는 `webauthn_recovery_codes` 해시와 비교해 맞으면 그 항목을 지우고 JWT 를 발급한다. 비교와 지우기는 사용자 행 잠금 안에서 해서 같은 코드를 동시에 두 번 보내면 한 번만 통과한다([Passkey 기능과 등록 「사용자 행 잠금」](CLE-ACCT-SIGNIN-PASSKEY.md#사용자-행-잠금)).
 
 챌린지는 stateless JWT(`optionsToken`)로 발급한다. payload 는 `{ kind, sub, challenge, exp(5분) }` 이다. 발급할 때는 별도 테이블에 두지 않는다. 로그인에서 쓴 Passkey 인증 챌린지는 아래 규칙대로 기록한다.
 
@@ -60,9 +60,9 @@ etag: "sha256-ab709049f230ec606a6995e90bc6a8ee28c541dfde913fe0ecf3bac628bf0ad4"
 
 이 문서에서 서명 검증을 통과했다는 것은 `verifyAuthenticationResponse` 가 `verified: true` 를 돌려줬다는 뜻이다. 라이브러리는 그 안에서 challenge · origin · rpID · 사용자 확인 플래그(UV)를 확인하고 저장된 공개 키로 서명을 검증한다. 라이브러리도 counter 를 비교하지만 서명보다 먼저 비교해서 서명이 틀린 응답도 역행 에러로 끝낸다. 그래서 서비스는 라이브러리에 저장 counter 대신 0 을 넘겨 그 비교를 끄고, `verified: true` 를 받은 뒤에 위 규칙으로 직접 비교한다. 라이브러리가 검증 중에 에러를 던지거나 `verified: false` 를 돌려주면 모두 401 `WEBAUTHN_INVALID` 다.
 
-`verifyAuthentication` 은 credential 조회·검증·counter 갱신·역행 시 삭제·리프레시 토큰 무효화를 한 트랜잭션에서 처리한다. credential 행은 `SELECT ... FOR UPDATE` 로 잠근다. 같은 assertion 의 두 요청은 같은 챌린지를 쓰므로 챌린지 기록에서 한쪽만 이 트랜잭션에 들어가고 다른 쪽은 401 `WEBAUTHN_INVALID` 를 받는다. 다른 챌린지로 같은 credential 의 요청이 동시에 오면 한쪽이 잠금을 기다렸다가 갱신된 counter 를 읽는다. 그 요청의 응답 counter 가 갱신된 값 이하이면 역행으로 판정된다. 다른 챌린지로 온 정상 응답 두 개의 순서가 뒤바뀌어도 이렇게 판정되고 그 처분은 [미결 사항](#미결-사항) 에서 정한다. 로그인 이력 기록은 트랜잭션 밖에서 호출해 기록 실패가 credential 삭제와 토큰 무효화 커밋을 막지 않게 한다.
+`verifyAuthentication` 은 credential 조회·검증·counter 갱신·역행 시 삭제·리프레시 토큰 무효화를 한 트랜잭션에서 처리한다. 트랜잭션 첫머리에 사용자 행을 잠그고([Passkey 기능과 등록 「사용자 행 잠금」](CLE-ACCT-SIGNIN-PASSKEY.md#사용자-행-잠금)) 그 뒤에 credential 행을 `SELECT ... FOR UPDATE` 로 잠근다. 같은 assertion 의 두 요청은 같은 챌린지를 쓰므로 챌린지 기록에서 한쪽만 이 트랜잭션에 들어가고 다른 쪽은 401 `WEBAUTHN_INVALID` 를 받는다. 다른 챌린지로 같은 credential 의 요청이 동시에 오면 한쪽이 잠금을 기다렸다가 갱신된 counter 를 읽는다. 그 요청의 응답 counter 가 갱신된 값 이하이면 역행으로 판정된다. 다른 챌린지로 온 정상 응답 두 개의 순서가 뒤바뀌어도 이렇게 판정되고 그 처분은 [미결 사항](#미결-사항) 에서 정한다. 로그인 이력 기록은 트랜잭션 밖에서 호출해 기록 실패가 credential 삭제와 토큰 무효화 커밋을 막지 않게 한다.
 
-counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드는 비우지 않는다. 사용자가 마지막 credential 을 지울 때는 비운다([복구 코드](CLE-ACCT-SIGNIN-TOTP.md#복구-코드)).
+counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드는 비우지 않는다. 사용자가 마지막 credential 을 지울 때는 비운다([복구 코드](CLE-ACCT-SIGNIN-TOTP.md#복구-코드)). 역행 삭제도 사용자 행 잠금 안에서 하므로 겹친 사용자 삭제는 역행 삭제가 커밋된 뒤의 개수로 마지막인지 판단한다.
 
 ## 미결 사항
 
@@ -71,7 +71,7 @@ counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드
 ## 구현 위치
 
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts` (Passkey 인증 챌린지 기록)
-- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 서명이 틀린 응답의 거부, counter 가 늘 0 인 인증기, 같은 응답의 재전송(차례로 · 동시에, counter 가 늘 0 인 인증기 포함), 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름, 그 사용자의 것이 아닌 credential 로 온 인증 응답)
+- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 사용자 행 잠금 아래의 역행 삭제 · 복구 코드 사용, 서명이 틀린 응답의 거부, counter 가 늘 0 인 인증기, 같은 응답의 재전송(차례로 · 동시에, counter 가 늘 0 인 인증기 포함), 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름, 그 사용자의 것이 아닌 credential 로 온 인증 응답)
 
 ## Rationale
 
@@ -128,4 +128,8 @@ NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했고 2026-11-14 에 NERV Task `CL
 - **기각: 로그인 쪽에 새 코드를 만든다.** 클라이언트가 그 코드로 따로 할 일이 없다.
 - **기각: 그대로 둔다.** 같은 이름이 404 와 401 로 나가면 클라이언트가 상태와 코드 가운데 무엇으로 분기할지 정할 수 없다.
 - **로그인 이력은 바꾸지 않는다.** 지금 이 경로는 로그인 이력을 남기지 않고, 남길지는 이번 결정에 들지 않았다.
-- **이 코드를 이번에 에러 코드 표에 올렸다.** 「미결 사항」 의 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이다. 나머지 둘은 NERV Task `CLE-T-9KCQ7Y` 에 남긴다. 그 둘도 2026-11-14 에 등재했다.
+- **이 코드를 이번에 에러 코드 표에 올렸다.** 당시(2026-11-12) 「미결 사항」 에 있던 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이었다. 나머지 둘은 NERV Task `CLE-T-9KCQ7Y` 에 남겼고 2026-11-14 에 등재해 그 미결 항목도 없어졌다.
+
+### 인증 검증도 사용자 행 잠금을 먼저 잡는다 (2026-11-14)
+
+NERV Task `CLE-T-HQQNEA`. counter 역행 삭제가 사용자의 마지막 credential 삭제와 겹치면 삭제 쪽은 아직 커밋되지 않은 역행 삭제를 보지 못하고 credential 을 하나 더 센다. 그래서 credential 없이 복구 코드가 남을 수 있었다. 이제 `verifyAuthentication` 도 사용자 행을 먼저 잠그고 credential 행을 그 뒤에 잠근다. 역행 삭제가 복구 코드를 비우지 않는 2026-10-17 결정은 그대로다. 잠금을 거치는 경로 · 대기 상한 · 기각한 대안의 정본은 [Passkey 기능과 등록 「복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다 (2026-11-14)」](CLE-ACCT-SIGNIN-PASSKEY.md#복구-코드를-읽고-쓰는-경로도-사용자-행-잠금-아래-둔다-2026-11-14) 다.

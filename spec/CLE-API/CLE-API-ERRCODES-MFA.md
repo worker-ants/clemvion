@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
 content_hash: "885c97ef305860f5be4933258106fb216a6736b6998f788fd3c1f597aaab0751"
 read_as: "approved_fallback"
-task: "CLE-T-Q6E11N"
+task: "CLE-T-GWC9M3"
 source_paths: []
-mirror_sha256: "42e8f119e405f50fa42793e36e97db5e836b272a029d5a5306407ad5e8ee26fe"
-etag: "sha256-fe18642a93577522b015d2d8420d3b5b06b14f8476055a3989484b695ea71c29"
+mirror_sha256: "e15dae7acb5826524179bbc83b40d3adc72ae05c0d965eba2170b88406e62de6"
+etag: "sha256-b08bf7e6350fc8e4a41b65dc69a28de2c9122bb1e236e538efd161d4939501df"
 ---
 ## 개요
 
