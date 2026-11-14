@@ -26,6 +26,9 @@ import { decideFormMode, extractFormFields } from '../../shared/form-mode';
  *   - completed / failed / cancelled → text (languageHints 또는 default)
  *
  * Slack mrkdwn escape: `<`, `>`, `&` 만 (Slack 권장 — `&` → `&amp;` 등).
+ * Template 본문과 `execution.ai_message` 본문은 이 escape 를 거쳐 보낸다. `{{ }}` 로 들어온 사용자 입력의
+ * `<!channel>` · `<!here>` · `<@U…>` 가 알림을 울리지 않게 하려는 것이다(REQ-SLACK-018, NERV Task
+ * `CLE-T-FQTQ7K`). 작성자가 넣은 멘션 · `<url|라벨>` 링크도 글자로 보이는 대가를 받아들였다.
  * ChannelMessage.conversationKey 는 dispatcher 가 보정하므로 본 renderer 는 빈 string 으로 채움
  * (Telegram renderer 와 동일 패턴).
  */
@@ -86,7 +89,9 @@ function renderAiMessage(
   event: Extract<EiaEvent, { type: 'execution.ai_message' }>,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
-  const out: ChannelMessage[] = [...chunkText(event.message)];
+  const out: ChannelMessage[] = [
+    ...chunkText(escapeSlackMrkdwn(event.message)),
+  ];
   const presentations = event.presentations;
   if (Array.isArray(presentations) && presentations.length > 0) {
     for (const p of presentations) {
@@ -197,7 +202,8 @@ function renderPresentationByType(
   if (type === 'template') {
     const rendered = extractRendered(nodeOutput);
     if (rendered === null) return [];
-    return chunkText(rendered);
+    // 멘션 무력화(NERV Task `CLE-T-FQTQ7K`). 위 헤더 주석 참조.
+    return chunkText(escapeSlackMrkdwn(rendered));
   }
   const payload = extractVisualPayload(type, nodeOutput);
   const text = renderVisualFallback(type, payload);
@@ -474,16 +480,35 @@ function chunkText(text: string): ChannelMessage[] {
   const chunks: string[] = [];
   let cursor = 0;
   while (cursor < text.length) {
-    const isLast = cursor + SLACK_TEXT_LIMIT >= text.length;
-    const slice = text.slice(cursor, cursor + SLACK_TEXT_LIMIT);
+    const end = chunkEnd(text, cursor);
+    const isLast = end >= text.length;
     const suffix = isLast ? '' : CONTINUED_SUFFIX;
-    chunks.push(slice + suffix);
-    cursor += SLACK_TEXT_LIMIT;
+    chunks.push(text.slice(cursor, end) + suffix);
+    cursor = end;
   }
   return chunks.map((c) => ({
     conversationKey: '',
     body: { kind: 'text', text: c, chunked: true } as const,
   }));
+}
+
+/** escape 엔티티. 조각 경계가 이 가운데를 지나면 엔티티 앞에서 자른다. */
+const SLACK_ENTITY = /^&(?:amp|lt|gt);/;
+
+/**
+ * `start` 에서 시작하는 조각의 끝 위치. 3500자 경계가 escape 결과(`&amp;` `&lt;` `&gt;`)의 가운데를
+ * 지나면 그 엔티티 앞으로 당긴다. 잘린 엔티티는 Slack 에서 `&l` · `t;` 같은 글자로 보인다.
+ */
+function chunkEnd(text: string, start: number): number {
+  const end = start + SLACK_TEXT_LIMIT;
+  if (end >= text.length) return text.length;
+  // 가장 긴 엔티티 `&amp;` 는 5자라 경계 앞 4자 안의 `&` 만 경계를 넘을 수 있다.
+  const amp = text.lastIndexOf('&', end - 1);
+  if (amp > start && amp >= end - 4) {
+    const entity = SLACK_ENTITY.exec(text.slice(amp, amp + 5));
+    if (entity && amp + entity[0].length > end) return amp;
+  }
+  return end;
 }
 
 function textMessage(text: string): ChannelMessage {

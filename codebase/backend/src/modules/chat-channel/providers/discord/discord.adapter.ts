@@ -20,6 +20,7 @@ import { DiscordClient } from './discord-client';
 import {
   DISCORD_INTERACTION_CALLBACK_TYPE,
   DISCORD_MESSAGE_FLAG_EPHEMERAL,
+  DISCORD_ALLOWED_MENTIONS_NONE,
   isDiscordApiError,
   type DiscordApiError,
   type DiscordMessage,
@@ -431,6 +432,7 @@ export class DiscordAdapter implements NativeFormAdapter {
           data: {
             content: `⚠️ ${params.validationError.message}`,
             flags: DISCORD_MESSAGE_FLAG_EPHEMERAL,
+            allowed_mentions: DISCORD_ALLOWED_MENTIONS_NONE,
           },
         },
       };
@@ -441,6 +443,7 @@ export class DiscordAdapter implements NativeFormAdapter {
         data: {
           content: '✅ 제출되었습니다.',
           flags: DISCORD_MESSAGE_FLAG_EPHEMERAL,
+          allowed_mentions: DISCORD_ALLOWED_MENTIONS_NONE,
         },
       },
     };
@@ -449,7 +452,8 @@ export class DiscordAdapter implements NativeFormAdapter {
   /**
    * control-plane 안내 escape — discord 는 텍스트를 그대로(discord markdown) 렌더하며, 렌더러
    * (`renderDiscordEvent`)도 별도 escape 를 하지 않는다. control-plane 발송도 같은 규칙으로
-   * 평문 그대로 보낸다 (마침표·하이픈 등은 안전; 일관성 위해 identity 유지).
+   * 평문 그대로 보낸다 (마침표·하이픈 등은 안전; 일관성 위해 identity 유지). 멘션 알림은
+   * `DiscordClient.postChannelMessage` 의 `allowed_mentions` 가 끈다(NERV Task `CLE-T-FQTQ7K`).
    */
   escapeControlText(text: string): string {
     return text;

@@ -36,7 +36,14 @@ describe('buildDiscordDefaultInteractionResponse', () => {
       expect(
         buildDiscordDefaultInteractionResponse(slash(subCommand), config),
       ).toEqual({
-        body: { type: 4, data: { content: '요청을 받았습니다.', flags: 64 } },
+        body: {
+          type: 4,
+          data: {
+            content: '요청을 받았습니다.',
+            flags: 64,
+            allowed_mentions: { parse: [] },
+          },
+        },
       });
     },
   );
@@ -50,7 +57,14 @@ describe('buildDiscordDefaultInteractionResponse', () => {
         config,
       ),
     ).toEqual({
-      body: { type: 4, data: { content: '요청을 받았습니다.', flags: 64 } },
+      body: {
+        type: 4,
+        data: {
+          content: '요청을 받았습니다.',
+          flags: 64,
+          allowed_mentions: { parse: [] },
+        },
+      },
     });
   });
 
@@ -68,6 +82,7 @@ describe('buildDiscordDefaultInteractionResponse', () => {
             '/workflow help - 도움말',
           ].join('\n'),
           flags: 64,
+          allowed_mentions: { parse: [] },
         },
       },
     });
@@ -99,12 +114,26 @@ describe('buildDiscordDefaultInteractionResponse', () => {
     expect(
       buildDiscordDefaultInteractionResponse(slash('help'), hinted),
     ).toEqual({
-      body: { type: 4, data: { content: '도움말 문구', flags: 64 } },
+      body: {
+        type: 4,
+        data: {
+          content: '도움말 문구',
+          flags: 64,
+          allowed_mentions: { parse: [] },
+        },
+      },
     });
     expect(
       buildDiscordDefaultInteractionResponse(slash('start'), hinted),
     ).toEqual({
-      body: { type: 4, data: { content: '접수했어요', flags: 64 } },
+      body: {
+        type: 4,
+        data: {
+          content: '접수했어요',
+          flags: 64,
+          allowed_mentions: { parse: [] },
+        },
+      },
     });
   });
 
@@ -146,7 +175,14 @@ describe('buildDiscordDefaultInteractionResponse', () => {
         languageLocale: 'en',
       }),
     ).toEqual({
-      body: { type: 4, data: { content: 'Request received.', flags: 64 } },
+      body: {
+        type: 4,
+        data: {
+          content: 'Request received.',
+          flags: 64,
+          allowed_mentions: { parse: [] },
+        },
+      },
     });
   });
 
@@ -159,5 +195,41 @@ describe('buildDiscordDefaultInteractionResponse', () => {
     ['문자열 본문', 'payload'],
   ])('%s 에는 기본 응답이 없다', (_label, raw) => {
     expect(buildDiscordDefaultInteractionResponse(raw, config)).toBeUndefined();
+  });
+});
+
+/**
+ * 멘션 무력화(NERV Task `CLE-T-FQTQ7K`). 슬래시 명령 응답(type 4)도 채널 메시지라
+ * `allowed_mentions: {parse: []}` 를 붙인다. `languageHints` 문구에 멘션이 있어도 알림이 없다.
+ */
+describe('buildDiscordDefaultInteractionResponse — 멘션 알림을 끈다', () => {
+  it.each(['start', 'help'])(
+    '슬래시 명령 %s 응답 data 에 allowed_mentions 가 있다',
+    (name) => {
+      const res = buildDiscordDefaultInteractionResponse(
+        { type: 2, data: { name: 'workflow', options: [{ name }] } },
+        {
+          provider: 'discord',
+          botTokenRef: 'secret://triggers/t1/bot-token',
+          languageHints: {
+            help: '@everyone 도움말',
+            commandReceived: '@here 접수',
+          },
+        },
+      ) as { body: { data: Record<string, unknown> } };
+      expect(res.body.data.allowed_mentions).toEqual({ parse: [] });
+    },
+  );
+
+  it('컴포넌트 · 모달 응답(type 6)은 메시지가 없어 붙이지 않는다', () => {
+    expect(
+      buildDiscordDefaultInteractionResponse(
+        { type: 3 },
+        {
+          provider: 'discord',
+          botTokenRef: 'secret://triggers/t1/bot-token',
+        },
+      ),
+    ).toEqual({ body: { type: 6 } });
   });
 });
