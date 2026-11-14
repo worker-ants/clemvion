@@ -6,7 +6,13 @@ import { ConfigService } from '@nestjs/config';
 import pLimit, { LimitFunction } from 'p-limit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
+import type { Dispatcher } from 'undici';
 import { TimeoutError, withTimeout } from '../../common/utils/with-timeout';
+import {
+  createGuardedLookupDispatcher,
+  findCause,
+} from '../../common/utils/guarded-lookup-dispatcher';
 import {
   embeddedIpv4FromIpv6,
   normalizeIpv6Literal,
@@ -239,6 +245,8 @@ export class McpClientService {
   private readonly logger = new Logger(McpClientService.name);
   private readonly limit: LimitFunction;
   private readonly connectTimeoutMs: number;
+  /** {@link guardedFetch} 가 나눠 쓰는 연결 시점 판정 dispatcher. 처음 쓸 때 만든다. */
+  private connectGuardDispatcher: Dispatcher | undefined;
 
   // refactor M-6: MCP_MAX_CONCURRENT_CONNECTIONS / MCP_CONNECT_TIMEOUT_MS 직접 접근을
   // ConfigService(`mcp.*`, number|undefined 로 파싱됨)로 이전. `@Optional()` — 수동 생성
@@ -290,6 +298,7 @@ export class McpClientService {
 
     const transport = new StreamableHTTPClientTransport(url, {
       requestInit: { headers, signal: abort.signal },
+      fetch: this.guardedFetch(),
     });
 
     const client = new Client({
@@ -303,7 +312,8 @@ export class McpClientService {
       if (timedOut) {
         throw new TimeoutError(`connect ${url.host}`, this.connectTimeoutMs);
       }
-      throw err;
+      // 연결 시점 판정이 막으면 fetch 오류의 `cause` 에 판정 오류가 있다. 사전 검사 차단과 같은 오류로 올린다.
+      throw findCause(err, McpHttpsRequiredError) ?? err;
     } finally {
       clearTimeout(timer);
     }
@@ -380,8 +390,8 @@ export class McpClientService {
    * - 해석에는 connect 타임아웃(`mcp.connectTimeoutMs`)과 같은 상한을 둔다. 시간 초과는 `TimeoutError` 로 던져
    *   `MCP_TIMEOUT` 으로 분류된다(검사를 건너뛰지 않는다).
    * - 시간 초과가 아닌 DNS 해석 실패는 막지 않는다(fail-open). 같은 이름은 SDK 의 fetch 에서도 풀리지 않아 연결 실패로 드러난다.
-   * - 검사와 SDK 의 실제 연결은 각자 해석하므로, 그 사이 DNS 응답이 바뀌는 rebinding 창은 남는다. HTTP Request 노드의
-   *   해석 검사(`assertSafeOutboundHostResolved`)와 같은 한계다.
+   * - 검사와 SDK 의 실제 연결은 각자 해석한다. 그 사이 DNS 응답이 바뀌는 경우는 {@link guardedFetch} 가 연결할 때 다시
+   *   판정해서 막는다(NERV Task `CLE-T-BS1WD1`). 이 검사는 차단을 연결 전에 같은 오류로 알리려고 남긴다.
    */
   private async requireSafeResolvedHost(url: URL): Promise<void> {
     if (this.allowInsecureUrl) return;
@@ -412,6 +422,34 @@ export class McpClientService {
         `MCP server host is blocked by SSRF policy (host=${host})`,
       );
     }
+  }
+
+  /**
+   * SDK transport 에 넘기는 fetch. 실제 연결이 쓰는 주소 조회에 {@link isBlockedHost} 판정을 넣은 dispatcher 를 붙인다.
+   * 연결할 때 푼 주소가 막힌 대역이면 연결하지 않고, `fetch` 오류의 `cause` 에 {@link McpHttpsRequiredError} 를 싣는다.
+   *
+   * - 메시지는 사전 검사와 같이 사용자가 적은 호스트 이름만 싣는다. 해석된 주소는 서버 로그에만 남긴다.
+   * - `MCP_ALLOW_INSECURE_URL` 이 켜져 있으면 `undefined` 다. SDK 는 전역 fetch 를 쓴다.
+   * - SDK 의 요청(초기화 · 알림 스트림 · 인증 탐색)이 모두 이 fetch 를 쓰므로 같은 판정을 받는다.
+   * - IP 리터럴 호스트는 연결 때 조회하지 않으므로 {@link requireSafeHttpsUrl} 이 맡는다.
+   */
+  private guardedFetch(): FetchLike | undefined {
+    if (this.allowInsecureUrl) return undefined;
+    this.connectGuardDispatcher ??= createGuardedLookupDispatcher(
+      ({ address }, hostname) => {
+        if (!this.isBlockedHost(address.toLowerCase())) return null;
+        this.logger.warn(
+          `[mcp] SSRF block at connect: host ${hostname} resolved to ${address}`,
+        );
+        return new McpHttpsRequiredError(
+          `MCP server host is blocked by SSRF policy (host=${hostname})`,
+        );
+      },
+    );
+    const dispatcher = this.connectGuardDispatcher;
+    // `dispatcher` 는 Node fetch(undici) 확장이라 DOM 의 `RequestInit` 타입에 없다.
+    return (input, init) =>
+      fetch(input, { ...init, dispatcher } as RequestInit);
   }
 
   /**

@@ -1,6 +1,11 @@
 import type { LookupAddress } from 'node:dns';
+import { lookup as connectLookup } from 'node:dns';
 import { lookup } from 'node:dns/promises';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { Logger } from '@nestjs/common';
+import { fetch as undiciFetch } from 'undici';
+import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
 import {
   McpClientService,
   McpHttpsRequiredError,
@@ -75,6 +80,21 @@ const mockedLookup = lookup as unknown as jest.MockedFunction<
   ) => Promise<LookupAddress[]>
 >;
 const PUBLIC_ADDRESS: LookupAddress = { address: '93.184.216.34', family: 4 };
+
+// 연결 시점 판정(`guardedFetch`)의 주소 조회는 콜백형 `node:dns` 의 `lookup` 을 쓴다. 사전 검사와 따로 답하게 해서
+// 검사 뒤에 DNS 응답이 바뀌는 경우(rebinding)를 만든다(NERV Task `CLE-T-BS1WD1`).
+jest.mock('node:dns', () => ({
+  ...jest.requireActual('node:dns'),
+  lookup: jest.fn(),
+}));
+const mockedConnectLookup = connectLookup as unknown as jest.Mock<
+  void,
+  [
+    string,
+    { all: true },
+    (err: Error | null, addresses: LookupAddress[]) => void,
+  ]
+>;
 
 describe('McpClientService', () => {
   let service: McpClientService;
@@ -407,6 +427,145 @@ describe('McpClientService', () => {
         if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
         else process.env.ALLOW_PRIVATE_HOST_TARGETS = orig;
       }
+    });
+  });
+
+  describe('connect — connect-time address guard (CLE-T-BS1WD1)', () => {
+    type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
+
+    async function connectAndTakeFetch(): Promise<GuardedFetch | undefined> {
+      await service.connect({
+        url: 'https://mcp.example.com/mcp',
+        authType: 'none',
+      });
+      return mockTransportInstances.at(-1)?.options.fetch as
+        GuardedFetch | undefined;
+    }
+
+    it('hands the transport a fetch that keeps the init and adds one shared guard dispatcher', async () => {
+      const originalFetch = global.fetch;
+      const fetchSpy = jest.fn().mockResolvedValue(new Response('ok'));
+      global.fetch = fetchSpy;
+      try {
+        const first = await connectAndTakeFetch();
+        const second = await connectAndTakeFetch();
+        expect(first).toEqual(expect.any(Function));
+
+        await first!('https://mcp.example.com/mcp', {
+          method: 'POST',
+          headers: { 'x-test': '1' },
+        });
+        await second!('https://mcp.example.com/mcp');
+
+        const [url, init] = fetchSpy.mock.calls[0] as [
+          string,
+          RequestInit & { dispatcher?: unknown },
+        ];
+        expect(url).toBe('https://mcp.example.com/mcp');
+        expect(init).toEqual(
+          expect.objectContaining({
+            method: 'POST',
+            headers: { 'x-test': '1' },
+            dispatcher: expect.any(Object),
+          }),
+        );
+        const secondInit = fetchSpy.mock.calls[1][1] as {
+          dispatcher?: unknown;
+        };
+        expect(secondInit.dispatcher).toBe(init.dispatcher);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('allowInsecureUrl=true 면 SDK 기본 fetch 를 쓴다', async () => {
+      allowInsecure = true;
+
+      expect(await connectAndTakeFetch()).toBeUndefined();
+    });
+
+    it('연결 단계 오류의 cause 에 있는 SSRF 판정을 그대로 던진다', async () => {
+      const blocked = new McpHttpsRequiredError(
+        'MCP server host is blocked by SSRF policy (host=mcp.example.com)',
+      );
+      jest.mocked(Client).mockImplementationOnce(
+        () =>
+          ({
+            connect: jest
+              .fn()
+              .mockRejectedValue(
+                new TypeError('fetch failed', { cause: blocked }),
+              ),
+          }) as never,
+      );
+
+      await expect(
+        service.connect({
+          url: 'https://mcp.example.com/mcp',
+          authType: 'none',
+        }),
+      ).rejects.toBe(blocked);
+    });
+
+    describe('against a local server (real fetch)', () => {
+      let server: Server;
+      let port: number;
+      let requests = 0;
+      let originalFetch: typeof global.fetch;
+
+      beforeAll(async () => {
+        server = createServer((_req, res) => {
+          requests++;
+          res.end('internal');
+        });
+        await new Promise<void>((resolve) =>
+          server.listen(0, '127.0.0.1', resolve),
+        );
+        port = (server.address() as AddressInfo).port;
+      });
+
+      afterAll(async () => {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      });
+
+      beforeEach(() => {
+        // jest 에서는 판정 오류가 테스트 realm 에서 만들어져 Node 내장 fetch 가 `cause` 의 클래스를 지운다. 같은 realm 의
+        // npm undici fetch 로 바꿔 운영과 같은 `cause` 를 받는다.
+        originalFetch = global.fetch;
+        global.fetch = undiciFetch as unknown as typeof global.fetch;
+        mockedConnectLookup.mockReset();
+      });
+
+      afterEach(() => {
+        global.fetch = originalFetch;
+      });
+
+      it('연결할 때 사설 주소로 풀리면 연결하지 않고 호스트 이름만 담은 판정을 낸다', async () => {
+        mockedConnectLookup.mockImplementation((_host, _opts, cb) =>
+          cb(null, [{ address: '127.0.0.1', family: 4 }]),
+        );
+        const warnSpy = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        const before = requests;
+        try {
+          const guardedFetch = await connectAndTakeFetch();
+          const failure = await guardedFetch!(
+            `http://rebind.test:${port}/mcp`,
+          ).catch((err: unknown) => err);
+
+          const blocked = findCause(failure, McpHttpsRequiredError);
+          expect(blocked?.message).toBe(
+            'MCP server host is blocked by SSRF policy (host=rebind.test)',
+          );
+          expect(requests).toBe(before);
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('resolved to 127.0.0.1'),
+          );
+        } finally {
+          warnSpy.mockRestore();
+        }
+      });
     });
   });
 
