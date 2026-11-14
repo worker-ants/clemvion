@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-BEGIN"
 title: "OAuth 연결과 토큰 갱신 — 연결 시작(begin)"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "90c8dc4c8735da89b224e4930ee7bc1bbb0e3a9850e0d560b439e6b29176ccbf"
+content_hash: "6e6276a77a33c3e5b13a1b9f370a88ac844790d79244f572ddfe577b4486677a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZCEZ46"
 source_paths: []
-mirror_sha256: "0625a5682eedbde94d27ab09c7a8e612db3ec60e368b35abf8565f6301f6ca6a"
-etag: "sha256-1a83814f8a29e78653d0eb0c2542b659e7a9bdacaef3df3e7ba535e99cc51c7a"
+mirror_sha256: "06abdcd6ccd02422572cabb75835bf53f6bcbffdfd5b50614b2716f66f93afee"
+etag: "sha256-8d09f95f0f5d1d09a73c79b07db864555f07476ef6338c3f5b3c1914ff0a934a"
 ---
 ## 개요
 
@@ -26,9 +26,13 @@ etag: "sha256-1a83814f8a29e78653d0eb0c2542b659e7a9bdacaef3df3e7ba535e99cc51c7a"
 
 | 진입점 | mode | 설명 |
 | --- | --- | --- |
-| `POST /api/integrations/oauth/begin` | 본문의 `mode` 를 그대로 쓴다. `request-scopes` 표기는 `request_scopes` 로 바꾼다 | Cafe24 Private 과 MakeShop 은 `mode='new'` 만 받는다. 본문에 `client_id`·`client_secret` 을 갖춘 요청의 그 밖의 모드는 Cafe24 Private 이 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN`, MakeShop 이 400 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절한다. 외부 마켓이 흐름을 시작하기 때문이다. Cafe24 Private 의 통합 재인증과 추가 권한 요청은 아래 두 진입점이 [재설치 대기 표시](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)로 처리한다. MakeShop 은 통합 재인증과 추가 권한 요청 경로가 없고 삭제 후 재등록으로 복구한다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)). `new` 가 아닌 모드는 본문이 `integrationId` 의 대상 통합과 맞지 않으면 400 `OAUTH_TARGET_MISMATCH` 로 거절한다 |
+| `POST /api/integrations/oauth/begin` | 본문의 `mode` 를 그대로 쓴다. `request-scopes` 표기는 `request_scopes` 로 바꾼다 | Cafe24 Private 과 MakeShop 은 `mode='new'` 만 받는다(그 밖의 모드 거절은 표 아래). MakeShop 은 통합 재인증과 추가 권한 요청을 지원하지 않는다(아래 두 진입점은 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절한다. [REQ-INTOAUTH-072](CLE-INT-OAUTH.md#요구사항)). `new` 가 아닌 모드는 본문이 `integrationId` 의 대상 통합과 맞지 않으면 400 `OAUTH_TARGET_MISMATCH` 로 거절한다 |
 | `POST /api/integrations/:id/reauthorize` | `reauthorize` | 안에서 `begin(mode='reauthorize', integrationId)` 를 부른다. Cafe24 Public 통합은 행의 `credentials.mall_id`·`credentials.app_type` 을 begin 에 넘긴다. OAuth 가 아닌 통합, Cafe24 Private, MakeShop 의 처리는 [통합 재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) 이 정한다 |
 | `POST /api/integrations/:id/request-scopes` | `request_scopes` | 기존 권한 범위와 새 권한 범위를 합친 뒤 begin 을 부른다. Cafe24 Public 은 통합 재인증과 같게 행의 `mall_id`·`app_type` 을 넘긴다. Cafe24 Private·MakeShop 의 처리는 [통합 재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) 이 정한다 |
+
+- **`oauth/begin` 의 모드 거절**: 본문에 `client_id`·`client_secret` 을 갖춘 요청의 `new` 가 아닌 모드는 Cafe24 Private 이 400 `CAFE24_PRIVATE_APP_USE_TEST_RUN`, MakeShop 이 400 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절한다. 외부 마켓이 흐름을 시작하기 때문이다.
+- Cafe24 Private 의 통합 재인증과 추가 권한 요청은 `:id/reauthorize`·`:id/request-scopes` 가 [재설치 대기 표시](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)로 처리한다.
+- MakeShop 은 삭제 후 재등록으로 복구한다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)).
 
 설치 우선 흐름에서는 App URL 이 `mode='reauthorize'` state 를 만든다. 설치 대기 행과 유효한 재설치 대기 표시가 있는 Cafe24 행이 그 대상이다([설치 엔드포인트](CLE-INT-OAUTH-INSTALL.md#설치-엔드포인트-app-url)).
 

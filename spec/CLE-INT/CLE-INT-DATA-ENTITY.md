@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-ENTITY"
 title: "통합 데이터와 흐름 — 엔티티와 인덱스"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "83d6b4e5ac5a03ae4aef0d61273460201a19660a40a9f349f3c964ee0ed2c96d"
+content_hash: "74767f73819576732b2c80b1ec10ccab6eabf9ee2fec639beb257ac555ef2618"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZCEZ46"
 source_paths: []
-mirror_sha256: "e7faa82afd9403478f508d71c152b91d4fbe60f8e01b7fffe76c386dd674c873"
-etag: "sha256-a52c35e3551c769f03249f1b6bfe30ef6404a2a33ba3b25d6de9d975d5abbdcd"
+mirror_sha256: "286df4c8e24b884ca81a57a6b9f6aad10b42ba0182870275a5e0910cb66c5b1f"
+etag: "sha256-d5b148ca8ec6fec82b6f6d0d1880bc775b0b01dc778efb9720089306196e6402"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -35,16 +35,16 @@ etag: "sha256-a52c35e3551c769f03249f1b6bfe30ef6404a2a33ba3b25d6de9d975d5abbdcd"
 | auth_type | Enum | 통합 인증 유형(`auth_type`). `oauth2` / `api_key` / `bearer_token` / `basic` / `connection_string` / `smtp` / `webhook_outbound` / `none`. `none` 은 인증 없는 공용 MCP 서버 등에 쓴다 |
 | credentials | JSONB (encrypted) | 자격 증명. 암호화해 저장한다([암호화](CLE-INT-DATA.md#암호화)). OAuth 통합은 권한 범위(`scopes: string[]`)를 포함한다 |
 | scope | Enum | 공개 범위(`Integration.scope`). `personal` / `organization` |
-| status | Enum | 통합 상태. `connected` / `expired` / `error` / `pending_install`. 전이 규칙은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) |
+| status | Enum | 통합 상태. `connected` / `expired` / `error` / `pending_install`. 전이 규칙은 [상태 모델 「상태 전이」](CLE-INT-STATUS-MODEL.md#상태-전이) |
 | install_token | String? | 설치 토큰. Cafe24 Private 앱과 MakeShop ShopStore 설치 우선 흐름에서 설치 대기 통합을 가리키는 식별 키다. 그 밖의 서비스 유형은 NULL 이다. 발급 시 16바이트를 base64url(패딩 없음, 22자)로 인코딩한다. 통합이 살아 있는 동안 보존한다(App URL 경로 식별 키). 예외로 `oauth/begin` 이 설치 대기 행을 다시 쓰면서 새로 발급할 때가 있다. 그 조건은 [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](CLE-INT-OAUTH.md#oauthbegin-요청과-응답) 이 정한다. 연결 성공 콜백에서도 보존하고, 설치 대기 24시간 만료 또는 통합 삭제에서만 NULL 로 지운다. `varchar(64)`, V042 |
 | install_token_issued_at | Timestamp? | 설치 토큰 발급 시각. 설치 대기 만료 판정의 기준이다. 설치 토큰을 새로 발급할 때만 갱신한다. 설치 대기 행을 다시 써도 설치 토큰을 보존하면 그대로 두고 연결 성공 콜백에서도 보존한다. 만료·삭제 경로에서만 NULL 로 지운다. V044 이전 행은 NULL 이며 스캐너가 `created_at` 으로 대신 판정한다. Cafe24 Private 과 MakeShop 모두 적용한다. V044 |
 | mall_id | String? | 상점 식별자(`mall_id`)의 평문 투영. Cafe24 는 `credentials.mall_id`, MakeShop 은 `credentials.shop_uid` 를 이 컬럼에 복제한다. Cafe24·MakeShop 외 서비스 유형은 항상 NULL 이다. NULL 인 경우는 셋이다. V045 이전 행은 다음 저장(콜백·재인증)에서 채운다. MakeShop 설치 대기 행은 App URL 을 거쳐 `shop_uid` 를 받을 때 채운다. 설치 대기 행이 설치 기한을 넘겨 만료(`install_timeout`)되면 NULL 로 비운다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)). 이 규칙 전에 만료된 행은 V154 가 한 번 비웠다. 만료 행은 다시 채우지 않는다. 콜백, begin 의 행 재사용, App URL 은 설치 대기 행만 다룬다. NULL 이 세 뜻이라 같은 상점을 찾을 때 NULL 로 가르지 않는다(아래 상점 식별자 유일성의 조회 함수). Cafe24·MakeShop 행에서도 NOT NULL 로 강화하지 않는다. V045 |
-| status_reason | String? | 상태 사유. snake_case 코드이고 허용값은 코드 union `INTEGRATION_STATUS_REASONS` 한 곳에서 정한다. 상태별 허용값은 [통합 상태와 만료 알림](CLE-INT-STATUS.md). 연결됨 행에도 사유가 남을 수 있다. 통합 재인증이나 추가 권한 요청의 콜백에서 Cafe24 가 권한 범위를 거부하면 상태는 그대로 두고 `oauth_invalid_scope` 를 남긴다([통합 상태와 만료 알림 「상태 값과 상태 사유」](CLE-INT-STATUS.md#상태-값과-상태-사유)). `VARCHAR(64)`, V008 |
+| status_reason | String? | 상태 사유. snake_case 코드이고 허용값은 코드 union `INTEGRATION_STATUS_REASONS` 한 곳에서 정한다. 상태별 허용값은 [상태 모델 「상태 값과 상태 사유」](CLE-INT-STATUS-MODEL.md#상태-값과-상태-사유). 연결됨 행에도 `oauth_invalid_scope` 가 남을 수 있다([상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)). `VARCHAR(64)`, V008 |
 | consecutive_network_failures | int | 연속 네트워크 실패 횟수. 노드 실행이나 토큰 갱신 중 transport 실패가 나면 늘고, 성공하면 0 으로 되돌린다. 3 에 닿으면 상태를 `error(network)` 로 바꾸고 0 으로 되돌린다. NOT NULL DEFAULT 0. V049 |
 | token_expires_at | Timestamp? | OAuth 토큰 만료 시각 |
 | last_used_at | Timestamp? | 마지막으로 노드 실행에서 쓴 시각(캐시) |
 | last_rotated_at | Timestamp? | 자격 증명을 마지막으로 바꾼 시각(OAuth 통합 재인증, 자격 증명 교체, 토큰 자동 갱신) |
-| reinstall_requested_at | Timestamp? | 재설치 대기 표시(reinstall request mark). 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청이 들어온 시각이고 사용자가 Cafe24 «테스트 실행» 으로 OAuth 를 마치기를 기다린다는 뜻이다. App URL 이 이 값을 보고 OAuth 로 보낸다. 상태·상태 사유와 따로 둔 컬럼이라 표시를 남겨도 상태·상태 사유·자격 증명은 바뀌지 않는다. 남긴 시각부터 24시간 동안만 유효하고 그 뒤에는 서버가 표시가 없는 것으로 본다. 콜백이 성공할 때만 NULL 로 지운다(자격 증명 교체와 같은 트랜잭션). 24시간이 지난 값은 지우지 않고 판정에서 무시한다. 다시 요청하면 새 시각으로 덮어쓴다. 설치 대기 행과 그 밖의 서비스 유형은 늘 NULL 이다. 상태 모델과의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md#재설치-대기-표시), 남기고 지우는 규칙은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#재설치-대기-표시). `TIMESTAMPTZ NULL`, V151 |
+| reinstall_requested_at | Timestamp? | 재설치 대기 표시(reinstall request mark). 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청이 들어온 시각이다. 설치 대기 행과 그 밖의 서비스 유형은 늘 NULL 이다. 24시간 유효 기간과 상태와의 관계는 [상태 모델 「재설치 대기 표시」](CLE-INT-STATUS-MODEL.md#재설치-대기-표시), 남기는 엔드포인트와 App URL 분기는 [재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)이 정한다. `TIMESTAMPTZ NULL`, V151 |
 | last_error | JSONB? (encrypted) | 최근 호출 실패 요약 `{ code, message, at, details? }`. 암호화해 저장한다([암호화](CLE-INT-DATA.md#암호화)). `details` 는 사유별 추가 맥락을 담는 `Record<string, unknown>` 이다. 현재 정의된 키는 `oauth_invalid_scope` 의 `details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합) 하나다. 새 사유가 키를 쓰면 이 행에 정의를 더한다. 이 컬럼은 저장만 책임지고 응답 노출은 각 API 정의가 통제한다 |
 | created_by | UUID | FK → User (NO ACTION). 통합 소유자(`created_by`). 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 행을 지운다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)) |
 | created_at | Timestamp | 생성 시각 |
@@ -246,7 +246,7 @@ etag: "sha256-a52c35e3551c769f03249f1b6bfe30ef6404a2a33ba3b25d6de9d975d5abbdcd"
 
 ### 재설치 대기 표시를 상태와 따로 둔 시각 컬럼으로 둔다 (2026-10-10)
 
-Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실행» 으로 마치게 하면서 «이 행은 App URL 이 OAuth 로 보내야 한다» 는 사실을 저장할 자리가 필요했다. `status`·`status_reason` 과 따로 둔 nullable 시각 컬럼 `reinstall_requested_at`(V151)을 택했다. 시각이라 화면이 요청 시각을 보이고 서버가 24시간 유효 기간을 판정할 수 있다. 상태 컬럼을 쓰지 않으므로 만료 스캐너, 주의 필요 술어, 노드 실행 가드가 바뀌지 않는다. 지난 값은 지우지 않고 판정할 때 시각을 비교하므로 정리 작업도 없다. 설치 대기 재사용, 연결됨의 새 상태 사유, 새 상태 값을 기각한 이유와 24시간 유효 기간을 둔 이유는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 Rationale «재설치 대기 표시는 상태와 따로 둔 컬럼이다» 에 있다.
+Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실행» 으로 마치게 하면서 «이 행은 App URL 이 OAuth 로 보내야 한다» 는 사실을 저장할 자리가 필요했다. `status`·`status_reason` 과 따로 둔 nullable 시각 컬럼 `reinstall_requested_at`(V151)을 택했다. 시각이라 화면이 요청 시각을 보이고 서버가 24시간 유효 기간을 판정할 수 있다. 상태 컬럼을 쓰지 않으므로 만료 스캐너, 주의 필요 술어, 노드 실행 가드가 바뀌지 않는다. 지난 값은 지우지 않고 판정할 때 시각을 비교하므로 정리 작업도 없다. 설치 대기 재사용, 연결됨의 새 상태 사유, 새 상태 값을 기각한 이유와 24시간 유효 기간을 둔 이유는 [상태 모델 「재설치 대기 표시는 상태와 따로 둔 컬럼이다」](CLE-INT-STATUS-MODEL.md#재설치-대기-표시는-상태와-따로-둔-컬럼이다) 에 있다.
 
 ### `api_*` 채우기 표를 정본으로 확인하고 외부 MCP 행을 더했다 (2026-11-13)
 

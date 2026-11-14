@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-DETAIL"
 title: "통합 관리 — 상세 화면"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "b5c2651be8cdbdb07788a26a4c1e4a35ebee7c01a0d07fc47057315ffe5cb115"
+content_hash: "c8e46b372e34b5e545f330d3a617f418c10ae4916c5bcefc93536caa04914e3c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZCEZ46"
 source_paths: []
-mirror_sha256: "3780b99f143b5aa4d1a83a50b8d169fe39790c63c72c919d84e2c5febb972cd7"
-etag: "sha256-2d6c8f7416392df63747f6560f87380ba3523ec5188f429b6e7e218688ddefac"
+mirror_sha256: "45b6a7cd9fb298ff03a03e23a972eef40d655c14917a8d46173322bcc9aa6124"
+etag: "sha256-53cdc45e8724bec31b5448aacdba6a4966b02cd60f97a5d134eb7953826bb3f6"
 ---
 ## 개요
 
@@ -35,13 +35,13 @@ etag: "sha256-2d6c8f7416392df63747f6560f87380ba3523ec5188f429b6e7e218688ddefac"
 
 ### 재설치 대기 안내
 
-통합에 재설치 대기 표시(`IntegrationDto.reinstallRequestedAt`)가 있으면 머리와 탭 사이에 인라인 안내를 보인다. 지금 표시가 생기는 통합은 Cafe24 Private 뿐이다. 표시의 뜻과 상태와의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md#재설치-대기-표시), 남기고 지우는 규칙은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#재설치-대기-표시) 이 정한다.
+통합에 재설치 대기 표시(`IntegrationDto.reinstallRequestedAt`)가 있으면 머리와 탭 사이에 인라인 안내를 보인다. 지금 표시가 생기는 통합은 Cafe24 Private 뿐이다. 표시의 뜻과 상태와의 관계, 유효 기간은 [상태 모델 「재설치 대기 표시」](CLE-INT-STATUS-MODEL.md#재설치-대기-표시), 남기고 지우는 규칙은 [재인증과 추가 권한 요청 「재설치 대기 표시」](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시) 가 정한다.
 
 - 톤은 info(파랑)다. 표시는 상태가 아니라 다음에 할 일을 알리는 안내라서 상태 배지와 따로 둔다. 오류·만료됨 같은 상태 문제는 상태 배지가 경고 톤으로 따로 보인다.
 - 제목: "Cafe24 Developers 에서 '테스트 실행'을 눌러 주세요" / `Click "Test run" in Cafe24 Developers`
 - 설명: "재설치를 요청했어요. Cafe24 Developers 의 앱 화면에서 '테스트 실행'을 누르면 동의 화면이 열려요. 동의하면 새 토큰으로 바뀌어요. 요청은 24시간 동안 유효해요." / `Reinstall requested. Click "Test run" on your app in Cafe24 Developers to open the consent screen; once you approve, the integration switches to the new token. The request stays valid for 24 hours.` 그 전까지 지금 토큰으로 실행된다는 문장은 넣지 않는다. 오류·만료됨 행은 콜백이 성공하기 전까지 노드 실행이 계속 막힌다.
 - 요청 시각: "요청 시각: <시각>" / "Requested at: <시각>". 시각은 `formatDate(…, "datetime")` 로 보인다.
-- 콜백이 성공하면 표시가 지워져 다음 조회부터 안내가 사라진다. 표시는 남긴 시각부터 24시간 동안만 유효하다. 24시간 안에 «테스트 실행» 을 하지 않으면 응답의 `reinstallRequestedAt` 이 `null` 이 되어 안내도 사라진다. 다시 하려면 통합 재인증이나 추가 권한 요청을 다시 누른다.
+- 콜백이 성공하면 표시가 지워져 다음 조회부터 안내가 사라진다. 24시간 안에 «테스트 실행» 을 하지 않으면 응답의 `reinstallRequestedAt` 이 `null` 이 되어 안내도 사라진다. 다시 하려면 통합 재인증이나 추가 권한 요청을 다시 누른다.
 - 안내 영역은 `role="status"` 다. 탭 위에 있어 어느 탭을 열어도 보인다.
 
 ### 개요 탭
@@ -72,12 +72,12 @@ etag: "sha256-2d6c8f7416392df63747f6560f87380ba3523ec5188f429b6e7e218688ddefac"
 | `makeshop` | MakeShop 통합 | 서버가 통합 재인증을 시작할 수 없고 ShopStore 재설치도 기존 통합을 되살리지 않는다. 삭제 후 재등록한다 | "MakeShop 통합은 재인증할 수 없어요. 문제가 생기면 통합을 삭제한 뒤 다시 등록해 주세요. 상점에서 앱을 다시 설치해도 기존 통합은 복구되지 않아요." |
 | `no_app_url` | App URL(`appUrl`)이 없는 Cafe24 Private 통합 | 설치 토큰이 없어 «테스트 실행» 이 이 행으로 돌아올 수 없다. 삭제 후 재등록한다 | "App URL 이 없어 재설치를 요청할 수 없어요. 통합을 삭제한 뒤 다시 등록해 주세요." |
 
-- 설치를 마치고 App URL 이 있는 Cafe24 Private 통합은 버튼이 활성이다. 서버는 재설치 대기 표시만 남기고 사용자가 «테스트 실행» 을 누르면 App URL 이 OAuth 로 보낸다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#재설치-대기-표시)). 표시가 남아 있어도 버튼은 활성이고 다시 누르면 새 시각으로 표시를 다시 남긴다.
-- 화면에서 막는 것과 별개로 서버도 거절한다. 설치 대기이거나 설치 토큰이 없는 Cafe24 Private 통합과 MakeShop 통합의 `:id/reauthorize` 는 400 이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)). 가시성과 관리자 판정(404·403)을 통과한 요청만 이 400 에 닿는다. Cafe24 Private 의 코드는 [에러 코드](CLE-INT-MANAGE-API.md#에러-코드) 표의 `CAFE24_PRIVATE_APP_USE_TEST_RUN`(설치 대기)과 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING`(설치 토큰 없음)이다. MakeShop 통합의 코드는 `MAKESHOP_CREDENTIALS_REQUIRED` 다.
+- 설치를 마치고 App URL 이 있는 Cafe24 Private 통합은 버튼이 활성이다. 서버는 재설치 대기 표시만 남기고 사용자가 «테스트 실행» 을 누르면 App URL 이 OAuth 로 보낸다([재인증과 추가 권한 요청 「재설치 대기 표시」](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)). 표시가 남아 있어도 버튼은 활성이고 다시 누르면 새 시각으로 표시를 다시 남긴다.
+- 화면에서 막는 것과 별개로 서버도 `:id/reauthorize` 를 400 으로 거절한다. 거절하는 통합과 코드는 [재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) 이 정한다. MakeShop 통합은 `MAKESHOP_CREDENTIALS_REQUIRED` 다([REQ-INTOAUTH-072](CLE-INT-OAUTH.md#요구사항), [MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)). 가시성과 역할 판정(404·403)을 통과한 요청만 이 400 에 닿는다.
 
 ### 권한 탭
 
-OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다. 설치 기한이 지나 만료된 통합, MakeShop 통합, App URL 이 없는 Cafe24 Private 통합은 권한 요청 버튼도 막고 이유별 안내를 보인다(`requestScopesDisabledReason`). 이유는 `install_timeout`·`makeshop`·`no_app_url` 순서로 판정하고 통합 재인증 비활성 이유와 같은 순서다. 설치 기한 만료는 이 통합을 지우지 않고 필요한 권한으로 같은 상점을 새로 등록하라고 안내하고 나머지 둘은 삭제 후 재등록을 안내한다. 이유별 문구는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 권한 탭 요소 표가 정한다. 추가 권한 요청이 `cafe24_private_pending` 으로 끝나면 통합을 다시 조회하므로 재설치 대기 표시가 남은 경우 [재설치 대기 안내](#재설치-대기-안내)가 바로 나온다.
+OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는 [재인증과 추가 권한 요청 「권한 탭」](CLE-INT-OAUTH-REAUTH.md#권한-탭-oauth-통합만) 이 정한다. 설치 기한이 지나 만료된 통합, MakeShop 통합, App URL 이 없는 Cafe24 Private 통합은 권한 요청 버튼도 막고 이유별 안내를 보인다(`requestScopesDisabledReason`). 이유는 `install_timeout`·`makeshop`·`no_app_url` 순서로 판정하고 통합 재인증 비활성 이유와 같은 순서다. 설치 기한 만료는 이 통합을 지우지 않고 필요한 권한으로 같은 상점을 새로 등록하라고 안내하고 나머지 둘은 삭제 후 재등록을 안내한다. 이유별 문구도 같은 절의 요소 표가 정한다. 추가 권한 요청이 `cafe24_private_pending` 으로 끝나면 통합을 다시 조회하므로 재설치 대기 표시가 남은 경우 [재설치 대기 안내](#재설치-대기-안내)가 바로 나온다.
 
 ### 사용 탭
 
@@ -157,7 +157,7 @@ API 는 `PATCH /api/integrations/:id/scope`(관리자만)이고 전환 뒤 감�
 이전에는 Cafe24 Private 통합의 통합 재인증 버튼을 모든 경우에 막았다. 우리 서버가 OAuth 를 시작할 수 없어서다. MakeShop 은 버튼을 둘지와 오류 뒤 복구 경로가 미결이었다. 2026-10-10 에 사용자가 두 서비스를 다르게 정했다.
 
 - **Cafe24 Private 은 App URL 이 남아 있으면 버튼을 연다.** 서버가 재설치 대기 표시를 남기고 사용자가 «테스트 실행» 을 누르면 App URL 이 OAuth 로 보낸다. 응답에 `authUrl` 이 없어 열 팝업이 없으므로 화면은 토스트와 재설치 대기 안내로 다음 할 일을 알린다.
-- **MakeShop 은 버튼을 막는다.** ShopStore 재설치가 설치를 마친 통합을 되살리지 않아 복구 경로가 삭제 후 재등록뿐이다. 이유와 기각한 선택지는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다) 에 있다.
+- **MakeShop 은 버튼을 막는다.** ShopStore 재설치가 설치를 마친 통합을 되살리지 않아 복구 경로가 삭제 후 재등록뿐이다. 이유와 기각한 선택지는 [재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다) 에 있다.
 - **비활성 안내는 이유마다 따로 보인다.** 이유마다 사용자가 할 일이 다르다. 설치 대기는 설치를 마치면 된다. 설치 기한이 지난 행은 지우지 않고 같은 상점을 새로 등록하면 되고(2026-10-30 부터. 그 전에는 삭제 후 재등록으로 안내했다) App URL 이 없는 행은 삭제한 뒤 다시 등록해야 한다. App URL 이 없는 행이 모두 설치 기한이 지난 행은 아니어서 «설치 시간이 지나 만료» 라는 문구를 함께 쓸 수 없다. MakeShop 은 상점에서 앱을 다시 설치해도 복구되지 않는다는 점까지 알아야 한다.
 - **재설치 대기 안내는 상태 배지와 따로 info 톤으로 둔다.** 표시는 상태가 아니라서 상태 배지로 보일 수 없다. 안내는 다음에 할 일을 알리는 것이고 오류·만료됨 같은 상태 문제는 상태 배지가 이미 경고 톤으로 보인다. 그래서 안내에 경고 톤을 겹치지 않는다. «표시가 있어도 지금 토큰으로 실행이 계속된다» 는 문장은 넣지 않는다. 오류·만료됨 행은 콜백이 성공할 때까지 노드 실행이 막힌다. 권한 탭의 인라인 안내는 요청 직후 그 탭에만 보이고 다음 요청 때 초기화된다. 표시는 콜백이 성공하거나 24시간이 지날 때까지 남으므로 탭 위에 따로 둔다.
 
