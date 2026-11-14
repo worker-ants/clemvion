@@ -94,9 +94,7 @@ async function renderPage() {
 }
 
 function summaryCalls() {
-  return apiGetMock.mock.calls.filter(
-    ([url]) => url === "/statistics/summary",
-  );
+  return apiGetMock.mock.calls.filter(([url]) => url === "/statistics/summary");
 }
 
 describe("StatisticsPage", () => {
@@ -116,6 +114,27 @@ describe("StatisticsPage", () => {
     // +20% delta vs previous period.
     expect(screen.getByText(/\+20%/)).toBeInTheDocument();
   });
+
+  // 요약의 평균은 완료 실행의 duration_ms(전체 경과) 평균이다. 실행 화면의 「실행 시간」
+  // (입력 대기를 뺀 activeRunningMs)과 헷갈리지 않게 「평균 전체 경과」로 부른다(CLE-T-7704WC).
+  it.each([
+    ["ko", "평균 전체 경과"],
+    ["en", "Avg Total Elapsed"],
+  ] as const)(
+    "labels the average card as total elapsed (%s)",
+    async (locale, label) => {
+      useLocaleStore.setState({ locale });
+      mockApi();
+      await renderPage();
+
+      await waitFor(() => {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      });
+      expect(screen.getByText("1.2s")).toBeInTheDocument();
+      expect(screen.queryByText("평균 실행 시간")).not.toBeInTheDocument();
+      expect(screen.queryByText("Avg Duration")).not.toBeInTheDocument();
+    },
+  );
 
   it("omits the change indicator when change rate is null", async () => {
     mockApi({ ...SUMMARY, totalExecutionsChangeRate: null });

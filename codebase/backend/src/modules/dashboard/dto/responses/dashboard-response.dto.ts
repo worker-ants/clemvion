@@ -25,8 +25,12 @@ export class DashboardSummaryDto {
   @ApiProperty({ example: 92.75 })
   successRate: number;
 
-  /** 평균 실행 시간(ms) */
-  @ApiProperty({ example: 1820 })
+  /** 최근 7일 평균 전체 경과(ms). 입력 대기를 뺀 실행 시간(`activeRunningMs`) 평균이 아니다. */
+  @ApiProperty({
+    example: 1820,
+    description:
+      '최근 7일 평균 전체 경과(ms). 완료(completed) 실행의 duration_ms 평균을 정수로 반올림한다. 실행이 없으면 0',
+  })
   avgExecutionTime: number;
 }
 

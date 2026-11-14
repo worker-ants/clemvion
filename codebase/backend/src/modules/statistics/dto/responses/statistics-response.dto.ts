@@ -17,7 +17,11 @@ export class StatisticsSummaryDto {
   @ApiProperty({ example: 91.3 })
   successRate: number;
 
-  @ApiProperty({ example: 1320 })
+  @ApiProperty({
+    example: 1320,
+    description:
+      '평균 전체 경과(ms). 완료(completed) 실행의 duration_ms 평균이라 입력 대기 시간이 들어간다. 실행이 없으면 0',
+  })
   avgDurationMs: number;
 
   @ApiProperty({
@@ -77,7 +81,11 @@ export class TopWorkflowDto {
   @ApiProperty({ example: 97.65 })
   successRate: number;
 
-  @ApiProperty({ example: 980 })
+  @ApiProperty({
+    example: 980,
+    description:
+      '이 워크플로우의 평균 전체 경과(ms). 완료(completed) 실행의 duration_ms 평균',
+  })
   avgDurationMs: number;
 }
 

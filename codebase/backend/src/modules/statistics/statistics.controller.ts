@@ -38,7 +38,7 @@ export class StatisticsController {
   @ApiOperation({
     summary: '실행 통계 요약',
     description:
-      '선택된 기간·워크플로우 기준으로 총 실행 건수, 상태별(성공/실패/취소) 건수, 성공률, 평균 실행 시간을 집계하여 반환합니다.',
+      '선택된 기간·워크플로우 기준으로 총 실행 건수, 상태별(성공/실패/취소) 건수, 성공률, 평균 전체 경과(완료 실행의 duration_ms 평균)를 집계하여 반환합니다.',
   })
   @ApiOkWrappedResponse(StatisticsSummaryDto, { description: '실행 통계 요약' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
@@ -90,7 +90,7 @@ export class StatisticsController {
   @ApiOperation({
     summary: '상위 워크플로우 통계',
     description:
-      '선택된 기간 동안 실행 횟수 기준 상위 10개의 워크플로우와 성공률·평균 실행 시간을 반환합니다.',
+      '선택된 기간 동안 실행 횟수 기준 상위 10개의 워크플로우와 성공률·평균 전체 경과(완료 실행의 duration_ms 평균)를 반환합니다.',
   })
   @ApiOkWrappedArrayResponse(TopWorkflowDto, {
     description: '상위 워크플로우 목록',

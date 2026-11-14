@@ -256,7 +256,7 @@ export const profile = {
     columnWindow: "윈도우",
     columnStatus: "상태",
     typeFailureRate: "실패율 (%)",
-    typeDuration: "평균 실행 시간 (ms)",
+    typeDuration: "평균 전체 경과 (ms)",
     typeLlmCost: "LLM 비용 (USD/일)",
     statusEnabled: "활성",
     statusDisabled: "비활성",

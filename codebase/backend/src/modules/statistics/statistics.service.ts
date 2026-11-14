@@ -93,7 +93,7 @@ export class StatisticsService {
         'COUNT(*) FILTER (WHERE e.status = \'failed\')::int AS "failedCount"',
         'COUNT(*) FILTER (WHERE e.status = \'cancelled\')::int AS "cancelledCount"',
         // `duration_ms` 는 이제 취소·타임아웃 경로에서도 채워진다(대기 경과 시간).
-        // 평균 '실행' 시간이므로 완료된 것만 센다 — 종전엔 값이 NULL 이라 우연히 빠졌다.
+        // 평균 전체 경과(완료 실행의 duration_ms 평균)라 완료된 것만 센다 — 종전엔 값이 NULL 이라 우연히 빠졌다.
         'COALESCE(AVG(e.duration_ms) FILTER (WHERE e.duration_ms IS NOT NULL AND e.status = \'completed\'), 0)::float AS "avgDurationMs"',
       ])
       .where('w.workspace_id = :workspaceId', { workspaceId })
@@ -221,7 +221,7 @@ export class StatisticsService {
         'COUNT(*)::int AS "executionCount"',
         'CASE WHEN COUNT(*) > 0 THEN ROUND(COUNT(*) FILTER (WHERE e.status = \'completed\')::numeric / COUNT(*)::numeric * 100, 2)::float ELSE 0 END AS "successRate"',
         // `duration_ms` 는 이제 취소·타임아웃 경로에서도 채워진다(대기 경과 시간).
-        // 평균 '실행' 시간이므로 완료된 것만 센다 — 종전엔 값이 NULL 이라 우연히 빠졌다.
+        // 평균 전체 경과(완료 실행의 duration_ms 평균)라 완료된 것만 센다 — 종전엔 값이 NULL 이라 우연히 빠졌다.
         'COALESCE(AVG(e.duration_ms) FILTER (WHERE e.duration_ms IS NOT NULL AND e.status = \'completed\'), 0)::float AS "avgDurationMs"',
       ])
       .where('w.workspace_id = :workspaceId', { workspaceId })
