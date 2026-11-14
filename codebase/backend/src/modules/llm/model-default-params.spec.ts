@@ -1,5 +1,6 @@
 import { applyModelDefaultParams } from './model-default-params';
 import type { ModelConfig } from '../model-config/entities/model-config.entity';
+import type { ChatParams } from './interfaces/llm-client.interface';
 
 /**
  * CLE-T-GG3WPZ — 모델 설정 기본 파라미터(`defaultParams`)를 호출 값이 빈 자리에 채운다.
@@ -12,12 +13,18 @@ function config(
   return { kind, defaultParams } as unknown as ModelConfig;
 }
 
+/** 샘플링 값 말고 다른 호출 값도 그대로 지나가는지 보려고 `model` 을 싣는다. */
+function callParams(params: Partial<ChatParams>): Partial<ChatParams> {
+  return params;
+}
+
 describe('applyModelDefaultParams', () => {
   it('fills temperature and max_tokens when the caller leaves them empty', () => {
     expect(
-      applyModelDefaultParams(config({ temperature: 0.2, max_tokens: 1024 }), {
-        model: 'm',
-      }),
+      applyModelDefaultParams(
+        config({ temperature: 0.2, max_tokens: 1024 }),
+        callParams({ model: 'm' }),
+      ),
     ).toEqual({ model: 'm', temperature: 0.2, maxTokens: 1024 });
   });
 
@@ -104,13 +111,16 @@ describe('applyModelDefaultParams', () => {
   });
 
   it('does not mutate the caller params', () => {
-    const params = { model: 'm' };
+    const params = callParams({ model: 'm' });
     applyModelDefaultParams(config({ temperature: 0.5 }), params);
     expect(params).toEqual({ model: 'm' });
   });
 
   it('does not add keys whose value stays empty', () => {
-    const result = applyModelDefaultParams(config({}), { model: 'm' });
+    const result = applyModelDefaultParams(
+      config({}),
+      callParams({ model: 'm' }),
+    );
     expect(result).toEqual({ model: 'm' });
     expect(result).not.toHaveProperty('temperature');
     expect(result).not.toHaveProperty('maxTokens');
