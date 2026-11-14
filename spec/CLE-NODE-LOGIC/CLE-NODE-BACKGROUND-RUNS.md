@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND-RUNS"
 title: "Background 노드 — 본문 실행 모니터링"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-BACKGROUND"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-BACKGROUND"]
 area: "CLE-NODE-LOGIC"
-content_hash: "62811909bcbd507535f2e821922b255db3b4a222eed719ecaaef24f34d5e758c"
+content_hash: "505d9a5a264d578b0ca1f10d9a86351c04beecc3d8650b1e2f1a6dbcd5428509"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-QVRQQ1"
 source_paths: []
-mirror_sha256: "9a491084ab086904b131482425055ec8344251390d53a07494d4068b794924cf"
-etag: "sha256-068a6d578a04c91a3f828ecb7e37934a9c719c265b99ff465ea5ad215e99866f"
+mirror_sha256: "9babc6111efed5a366242cfc4a9a106df67b578584f61e2aace753705b393fe5"
+etag: "sha256-00105cca7e625978186d9b21ed54ae9087e9f7907f33d92a15da2a8ece0910b2"
 ---
 > 구현 상태: 부분 구현 (AI 어시스턴트 조회 도구는 미구현) · 상위 문서: [Background 노드](CLE-NODE-BACKGROUND.md)
 
@@ -92,7 +92,7 @@ URL 은 중첩 구조(`executions/:id/background-runs/:id`)를 쓴다. 이유는
 
 ## 실시간 갱신 (WebSocket 구독 채널)
 
-본문 진행을 실시간으로 받으려면 별도 구독 채널 `background:run:<backgroundRunId>` 를 구독한다. 이 채널은 `execution.background_run.started` 와 `execution.background_run.completed` 두 이벤트를 보낸다. 이벤트별 payload 와 봉투 필드(`backgroundRunId`·`timestamp`, `seq` 없음)의 정본은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) §8 이다. 이 절은 채널의 동작 규칙을 정한다.
+본문 진행을 실시간으로 받으려면 별도 구독 채널 `background:run:<backgroundRunId>` 를 구독한다. 이 채널은 `execution.background_run.started` 와 `execution.background_run.completed` 두 이벤트를 보낸다. 이벤트별 payload 와 봉투 필드(`backgroundRunId`·`timestamp`, `seq` 없음)의 정본은 [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](../CLE-API/CLE-API-WS-EVENTS-CHANNELS.md#8-background-본문-실행-이벤트-server--client) 이다. 이 절은 채널의 동작 규칙을 정한다.
 
 1. 본문 안의 노드 이벤트(`execution.node.started` 등)는 기존 `execution:<id>` 구독 채널에 그대로 보낸다. 본문 노드의 `parentNodeExecutionId` 가 Background 노드의 `NodeExecution.id` 와 같으므로 클라이언트가 그 키로 걸러 본문 카드 안 타임라인을 갱신한다.
 2. `background:run:<id>` 채널은 본문 실행 수명 주기 이벤트만 보낸다. 채널 책임을 좁혀 메인 채널과 데이터가 겹치지 않게 한다.

@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-CHANNELS"
 title: "WebSocket 이벤트와 명령 — 채널별 부가 이벤트"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "da97af190db6954e0409985aa75b9ab9eebe14f57fbb524565f68d209c3c966d"
+content_hash: "7630b4cc27fc99251d72ec806ea784786966665f76e7ebbe6614b9e9656c19e7"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-QVRQQ1"
 source_paths: []
-mirror_sha256: "6e8aaad2c376dd7746a12559bbc0be1f6ca7e330f80c9e6bd1301c3b85bc6bdb"
-etag: "sha256-1101cdb5dd0c038cfcae927f178754b24d0f0e540408791c3b3b39a6e2f217d6"
+mirror_sha256: "b8ab35454248b3f0fead95bec17e959cb918ef1c99cabec0d9a8efffc99bf141"
+etag: "sha256-1ab5a7f677516cd2f95a34ee92ee39bf77ea5fa498784e68940437cd865d5176"
 ---
 > 구현 상태: 구현됨 (`system.maintenance`·`auth.refreshed` 는 비채택) · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -59,14 +59,14 @@ etag: "sha256-1101cdb5dd0c038cfcae927f178754b24d0f0e540408791c3b3b39a6e2f217d6"
 
 | 이벤트 | payload | 설명 |
 |-------------|---------|------|
-| `auth.token_expired` | `{ message, expiresAt }` | 토큰 만료 **사전 통지**. 만료 60초 전에 1회 보내고 `exp` 에 서버가 `disconnect()` 한다([WebSocket 연결과 채널 구독](CLE-API-WS.md)). `expiresAt` 은 ISO 8601 문자열이고 **이 소켓이 강제로 끊기는 시각**이다. `_retryState.expiresAt`(마지막 턴 재시도 TTL, [마지막 턴 재시도](CLE-API-WS-EVENTS-COMMANDS.md#24-마지막-턴-재시도-executionretry_last_turn))·`auth.refreshed.expiresAt`(비채택)과 **별개**다. 에러 코드 `TOKEN_EXPIRED` 는 REST·JWT 검증 코드일 뿐 이 이벤트와 다르다 |
-| `system.maintenance` _(비채택)_ | `{ message, scheduledAt }` | 예정된 유지보수 알림. **발화 주체가 없다.** 유지보수를 선언하는 관리자 API·설정·스케줄이 없고 계획에도 없다. `scheduledAt` 은 사람이 미래 시점을 선언해야 성립해 그 표면은 새 제품 기능이다(근거: [WebSocket 연결과 채널 구독](CLE-API-WS.md) 의 Rationale). 다시 들일 때를 대비해 payload 형태를 남긴다 |
-| `error` | 인증 실패 `{ message }`. 등록되지 않은 이벤트 `{ code: 'UNKNOWN_TYPE', message }` | 두 경로가 같은 이벤트 이름을 쓴다. 핸드셰이크에서 토큰이 없거나 무효면 `handleConnection` 이 `{ message }` 를 보내고 연결을 끊는다. 연결된 소켓이 등록되지 않은 이벤트를 보내면 게이트웨이 `onAny` 가 `{ code: 'UNKNOWN_TYPE', message }` 를 보내고 연결은 유지된다. 이 경로도 소켓의 빈도 제한 예산을 쓰고 예산을 넘은 이벤트에는 보내지 않는다. 규칙은 [WebSocket 연결과 채널 구독 「에러 처리」](CLE-API-WS.md#7-에러-처리) |
-| `exception` | `{ code: 'RATE_LIMITED', message }` | 소켓당 명령 빈도 제한([HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한)) 초과. `WsRateLimitGuard` 가 `WsException` 을 던지면 NestJS 가 보내는 이벤트이고 그 명령의 핸들러는 실행되지 않는다. HTTP 429 의 `RATE_LIMITED` 와 같은 이름의 별개 발행이다(카탈로그는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)). 처리되지 않은 서버 예외도 같은 이름으로 나가고 `code` 가 없을 수 있다. 규칙은 [WebSocket 연결과 채널 구독 「에러 처리」](CLE-API-WS.md#7-에러-처리) |
+| `auth.token_expired` | `{ message, expiresAt }` | 토큰 만료 **사전 통지**. 만료 60초 전에 1회 보내고 `exp` 에 서버가 `disconnect()` 한다([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「2.2 인증」](CLE-API-WS-CONN.md#22-인증)). `expiresAt` 은 ISO 8601 문자열이고 **이 소켓이 강제로 끊기는 시각**이다. `_retryState.expiresAt`(마지막 턴 재시도 TTL, [마지막 턴 재시도](CLE-API-WS-EVENTS-COMMANDS.md#24-마지막-턴-재시도-executionretry_last_turn))·`auth.refreshed.expiresAt`(비채택)과 **별개**다. 에러 코드 `TOKEN_EXPIRED` 는 REST·JWT 검증 코드일 뿐 이 이벤트와 다르다 |
+| `system.maintenance` _(비채택)_ | `{ message, scheduledAt }` | 예정된 유지보수 알림. **발화 주체가 없다.** 유지보수를 선언하는 관리자 API·설정·스케줄이 없고 계획에도 없다. `scheduledAt` 은 사람이 미래 시점을 선언해야 성립해 그 표면은 새 제품 기능이다(근거: [WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결](CLE-API-WS-CONN.md#systemmaintenance-발행과-서버-발신-app-ping-비채택-2026-09-02) 의 Rationale). 다시 들일 때를 대비해 payload 형태를 남긴다 |
+| `error` | 인증 실패 `{ message }`. 등록되지 않은 이벤트 `{ code: 'UNKNOWN_TYPE', message }` | 두 경로가 같은 이벤트 이름을 쓴다. 핸드셰이크에서 토큰이 없거나 무효면 `handleConnection` 이 `{ message }` 를 보내고 연결을 끊는다. 연결된 소켓이 등록되지 않은 이벤트를 보내면 게이트웨이 `onAny` 가 `{ code: 'UNKNOWN_TYPE', message }` 를 보내고 연결은 유지된다. 이 경로도 소켓의 빈도 제한 예산을 쓰고 예산을 넘은 이벤트에는 보내지 않는다. 규칙은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「7. 에러 처리」](CLE-API-WS-MSG.md#7-에러-처리) |
+| `exception` | `{ code: 'RATE_LIMITED', message }` | 소켓당 명령 빈도 제한([HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한)) 초과. `WsRateLimitGuard` 가 `WsException` 을 던지면 NestJS 가 보내는 이벤트이고 그 명령의 핸들러는 실행되지 않는다. HTTP 429 의 `RATE_LIMITED` 와 같은 이름의 별개 발행이다(카탈로그는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)). 처리되지 않은 서버 예외도 같은 이름으로 나가고 `code` 가 없을 수 있다. 규칙은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「7. 에러 처리」](CLE-API-WS-MSG.md#7-에러-처리) |
 
 ## 8. Background 본문 실행 이벤트 (Server → Client)
 
-구독 채널: `background:run:{backgroundRunId}`. 키는 Background 본문 실행 하나의 ID(`backgroundRunId`)다. 이 절이 이 채널의 이벤트, payload, 봉투 필드의 정본이다. 채널 격리, 본문이 끝난 뒤의 조회, 종결 `status` 의 뜻 같은 동작 규칙은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 「실시간 갱신」 이 정하고 구독 인가는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) §4.4 가 정한다.
+구독 채널: `background:run:{backgroundRunId}`. 키는 Background 본문 실행 하나의 ID(`backgroundRunId`)다. 이 절이 이 채널의 이벤트, payload, 봉투 필드의 정본이다. 채널 격리, 본문이 끝난 뒤의 조회, 종결 `status` 의 뜻 같은 동작 규칙은 [Background 노드 — 본문 실행 모니터링 「실시간 갱신 (WebSocket 구독 채널)」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND-RUNS.md#실시간-갱신-websocket-구독-채널) 이 정하고 구독 인가는 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러](CLE-API-WS-MSG.md#44-구독-인가) §4.4 가 정한다.
 
 백엔드 권위 정의는 `websocket-events.types.ts` 의 `BackgroundRunEventType` enum(2개)이다. Background 큐 워커(`BackgroundExecutionProcessor`)가 `WebsocketService.emitBackgroundRunEvent` 로 보낸다. 본문 안 노드의 이벤트(`execution.node.*`)는 이 채널이 아니라 메인 실행의 `execution:{executionId}` 채널로 간다([실행 이벤트](CLE-API-WS-EVENTS.md#1-실행-이벤트-server--client)).
 
@@ -80,7 +80,7 @@ etag: "sha256-1101cdb5dd0c038cfcae927f178754b24d0f0e540408791c3b3b39a6e2f217d6"
 - `startedAt`·`completedAt` 은 ISO 8601 이다. `durationMs` 는 큐 워커가 본문 실행을 받은 때부터 끝날 때까지의 시간(ms)이다.
 - `errorMessage` 는 `sanitizeErrorMessage` 로 정제한 문구다.
 
-**봉투 필드**: 이 채널은 실행 이벤트 봉투([WebSocket 연결과 채널 구독](CLE-API-WS.md) §3.2)를 쓰지 않는다. 발행 관문 `emitBackgroundRunEvent` 가 payload 최상위에 아래 필드를 더해 평면 객체 하나로 보낸다.
+**봉투 필드**: 이 채널은 실행 이벤트 봉투([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러](CLE-API-WS-MSG.md#32-서버--클라이언트-이벤트-봉투) §3.2)를 쓰지 않는다. 발행 관문 `emitBackgroundRunEvent` 가 payload 최상위에 아래 필드를 더해 평면 객체 하나로 보낸다.
 
 | 필드 | 값 |
 |------|----|
