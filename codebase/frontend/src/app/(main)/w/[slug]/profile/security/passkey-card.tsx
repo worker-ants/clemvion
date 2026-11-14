@@ -28,6 +28,7 @@ import {
 import { authApi } from "@/lib/api/auth";
 import type { WebAuthnCredentialSummary } from "@/lib/api/auth";
 import { useT } from "@/lib/i18n";
+import { MIN_ACCOUNT_PASSWORD_LENGTH } from "@/lib/utils/password";
 import { formatDate } from "@/lib/utils/date";
 import { passwordRecheckErrorKey } from "./security-errors";
 
@@ -192,7 +193,7 @@ export function PasskeyCard() {
             className="flex flex-col gap-2 sm:flex-row sm:items-end"
             onSubmit={(e) => {
               e.preventDefault();
-              if (registerPassword.length < 8) {
+              if (registerPassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
                 toast.error(t("profile.security.passwordRequired"));
                 return;
               }
@@ -308,7 +309,7 @@ export function PasskeyCard() {
             className="flex flex-col gap-2 sm:flex-row sm:items-end border-t border-[hsl(var(--border))] pt-4"
             onSubmit={(e) => {
               e.preventDefault();
-              if (regenPassword.length < 8) {
+              if (regenPassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
                 toast.error(t("profile.security.passwordRequired"));
                 return;
               }
@@ -352,7 +353,7 @@ export function PasskeyCard() {
             onSubmit={(e) => {
               e.preventDefault();
               if (deleteTargetId === null) return;
-              if (deletePassword.length < 8) {
+              if (deletePassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
                 toast.error(t("profile.security.passwordRequired"));
                 return;
               }
