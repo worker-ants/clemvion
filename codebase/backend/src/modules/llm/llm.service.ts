@@ -320,19 +320,23 @@ export class LlmService implements OnModuleInit {
    * @returns 성공 시 `{ success: true }`, kind=embedding 이고 probe 가 차원을 감지하면
    *   `{ success: true, dimension }`. 실패 시 `{ success: false, message }` — `message` 는
    *   `sanitizeLlmErrorMessage` 의 8갈래 고정 문장 중 하나이며 provider 원문이 아니다.
+   * @throws {NotFoundException} MODEL_CONFIG_NOT_FOUND — 설정이 없거나 다른 워크스페이스의
+   *   설정일 때. 결과 객체로 삼키지 않는다.
    */
   async testConnection(
     configId: string,
     workspaceId: string,
   ): Promise<{ success: boolean; message?: string; dimension?: number }> {
+    // kind 무관 조회 — /models 통합 관리 UI 는 chat/embedding/rerank 어떤
+    // 설정이든 테스트한다. kind='chat' 고정 조회는 embedding 설정을
+    // MODEL_CONFIG_NOT_FOUND 로 거부했다(회귀).
+    // 조회는 try 밖이다. 없는 설정 · 다른 워크스페이스 설정은 probe 실패가 아니라
+    // 404 MODEL_CONFIG_NOT_FOUND 로 거절한다(`listModels` 와 같다).
+    const config = await this.modelConfigService.findEntity(
+      configId,
+      workspaceId,
+    );
     try {
-      // kind 무관 조회 — /models 통합 관리 UI 는 chat/embedding/rerank 어떤
-      // 설정이든 테스트한다. kind='chat' 고정 조회는 embedding 설정을
-      // MODEL_CONFIG_NOT_FOUND 로 거부했다(회귀).
-      const config = await this.modelConfigService.findEntity(
-        configId,
-        workspaceId,
-      );
       const client = this.createClient(config);
       if (config.kind === 'embedding') {
         // 임베딩은 probe embed 로 연결을 검증하고, 반환 벡터 길이로 차원을 감지한다.

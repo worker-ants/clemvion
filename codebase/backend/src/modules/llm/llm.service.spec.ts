@@ -568,6 +568,21 @@ describe('LlmService', () => {
   });
 
   describe('testConnection', () => {
+    // 없는 설정 · 다른 워크스페이스 설정은 프로바이더 probe 실패가 아니다. 200 결과
+    // 객체로 삼키지 않고 404 MODEL_CONFIG_NOT_FOUND 로 거절한다(`:id/models` 와 같다).
+    it('rejects a missing or other-workspace config with MODEL_CONFIG_NOT_FOUND', async () => {
+      const notFound = new NotFoundException({
+        code: 'MODEL_CONFIG_NOT_FOUND',
+        message: 'Model config not found',
+      });
+      mockModelConfigService.findEntity.mockRejectedValueOnce(notFound);
+
+      await expect(
+        service.testConnection('config-missing', 'ws-1'),
+      ).rejects.toBe(notFound);
+      expect(mockClient.testConnection).not.toHaveBeenCalled();
+    });
+
     it('should return success on successful connection', async () => {
       const result = await service.testConnection('config-1', 'ws-1');
       expect(result).toEqual({ success: true });
