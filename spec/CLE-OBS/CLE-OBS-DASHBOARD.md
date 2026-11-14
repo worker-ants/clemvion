@@ -2,19 +2,19 @@
 id: "CLE-OBS-DASHBOARD"
 title: "대시보드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-DASH-001", "REQ-DASH-002", "REQ-DASH-003", "REQ-DASH-004", "REQ-DASH-005", "REQ-DASH-006", "REQ-DASH-007", "REQ-DASH-008", "REQ-DASH-009", "REQ-DASH-010", "REQ-DASH-011", "REQ-DASH-012", "REQ-DASH-013", "REQ-DASH-014", "REQ-DASH-015", "REQ-DASH-016", "REQ-DASH-017", "REQ-DASH-018"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "bdbe192fd3f2755531d947edf8051a0096ef2ad82f0ab2b3b1fab563cf054eef"
+content_hash: "fdcc54f64691ead38bea065c3b994ed7374a8a20ff5633249ea71f2814fbdf54"
 read_as: "approved_fallback"
-task: "CLE-T-SHNJPQ"
+task: "CLE-T-51KBTG"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "b112972ad7204b3e3414974a2aeedeb558ca75ed4d255de122deee5eaf5ab92f"
-etag: "sha256-6cff5de25d016b5684fdbb31df42771239b91410387498a09a71be026a19b2ef"
+mirror_sha256: "d49e39f6abe4280edbf8efb5120711ee196db962925adc35a3eae5dbfeeae74c"
+etag: "sha256-93e5134ed10964d2da790c30bcaf1fc657a14d08bbf437900869d2f15782cb48"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/0-dashboard.md`, `spec/data-flow/9-observability.md` (§1.2 의 대시보드 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -60,7 +60,7 @@ etag: "sha256-6cff5de25d016b5684fdbb31df42771239b91410387498a09a71be026a19b2ef"
 | 머리 | 맨 위 | 제목 "Dashboard", 오른쪽에 [+ New Workflow] 버튼 | 버튼을 누르면 새 워크플로우를 만들고 에디터로 이동 |
 | 요약 카드 | 머리 아래, 가로 4개 | Total WF, Active, Runs(7d), Success | 읽기 전용 |
 | 최근 워크플로우 | 요약 아래 왼쪽 | 최근 수정 워크플로우 5개, [View All →] 링크 | 항목을 누르면 에디터로, 링크를 누르면 목록으로 이동 |
-| 최근 실행 | 요약 아래 오른쪽 | 최근 실행 10건(상태 아이콘, 워크플로우 이름, 실행 출처, 소요 시간, 시각) | 행을 누르면 실행 상세로 이동 |
+| 최근 실행 | 요약 아래 오른쪽 | 최근 실행 10건(상태 아이콘, 워크플로우 이름, 실행 출처, 실행 시간, 시각) | 행을 누르면 실행 상세로 이동 |
 
 ## 요약 카드
 
@@ -92,7 +92,7 @@ etag: "sha256-6cff5de25d016b5684fdbb31df42771239b91410387498a09a71be026a19b2ef"
 | 상태 | 실행 상태별 아이콘. ✅ `completed`, ❌ `failed`, ⏳ `running`·`pending`, ⛔ `cancelled`, ✋ `waiting_for_input`. 매핑에 없는 값은 ❓ 로 보인다. DTO 의 상태 값은 이 6종이다(기준: [실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md)) |
 | 워크플로우 이름 | 실행된 워크플로우 이름 |
 | 트리거 | 실행 출처(`subworkflow`·`manual`·`schedule`·`webhook`·`unknown`) 아이콘과 라벨. 분류 규칙과 보조 라벨은 [실행 내역 §실행 출처 분류](../CLE-EXEC/CLE-EXEC-HISTORY.md#실행-출처-분류) 를 따른다 |
-| 소요 시간 | 실행 소요 시간(초 또는 분) |
+| 실행 시간 | 입력 대기를 뺀 순수 실행 시간(초 또는 분, `activeRunningMs`). 값이 `null` 이면 `—` |
 | 시각 | 실행 시작 시각(`startedAt`)을 상대 시간으로 보인다 |
 
 | 동작 | 설명 |
@@ -113,6 +113,8 @@ etag: "sha256-6cff5de25d016b5684fdbb31df42771239b91410387498a09a71be026a19b2ef"
 | GET | `/api/dashboard/summary` | 요약 지표. 전체·활성 워크플로우 수, 최근 7일 실행 수와 직전 7일 대비 증감률, 성공률, 평균 실행 시간 |
 | GET | `/api/dashboard/recent-workflows` | 최근 수정 워크플로우 5건(`updatedAt` 내림차순) |
 | GET | `/api/dashboard/recent-executions` | 최근 실행 10건(`startedAt` 내림차순) |
+
+`GET /api/dashboard/recent-executions` 항목은 `durationMs`(전체 경과)와 `activeRunningMs`(실행 시간)를 함께 싣는다. 두 값의 뜻과 `null` 규칙은 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md) 의 API 절과 같다.
 
 응답 본문은 공통 응답 봉투(`{ "data": ... }`)로 감싼다. 아래 예시는 `data` 안쪽이다.
 

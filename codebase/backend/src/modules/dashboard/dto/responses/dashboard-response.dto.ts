@@ -61,8 +61,16 @@ export class RecentExecutionDto {
   })
   status: string;
 
+  /** 전체 경과(ms). 입력 대기 시간이 들어간다. 끝나지 않았으면 null */
   @ApiProperty({ type: Number, nullable: true, example: 1540 })
   durationMs: number | null;
+
+  /**
+   * 실행 시간(ms). 입력 대기를 뺀 순수 실행 시간이다. 끝나지 않았거나 측정되지 않은
+   * 실행은 null 이다. 판정 규칙은 실행 응답(`ExecutionDto.activeRunningMs`)과 같다.
+   */
+  @ApiProperty({ type: Number, nullable: true, example: 1320 })
+  activeRunningMs: number | null;
 
   @ApiProperty({ format: 'date-time' })
   startedAt: string;

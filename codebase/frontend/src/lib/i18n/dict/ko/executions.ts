@@ -36,7 +36,7 @@ export const executions = {
   filterCancelled: "취소됨",
   filterWaiting: "대기",
   columnStartedAt: "시작 시각",
-  columnDuration: "소요 시간",
+  columnDuration: "실행 시간",
   columnNodes: "노드",
   columnTrigger: "트리거",
   triggerSource: {
@@ -56,7 +56,8 @@ export const executions = {
   executionNotFound: "실행을 찾을 수 없어요.",
   summaryStarted: "시작",
   summaryFinished: "종료",
-  summaryDuration: "소요 시간",
+  summaryDuration: "실행 시간",
+  summaryElapsed: "전체 경과",
   summaryNodes: "노드",
   completedSummary: "{{completed}}/{{total}} 완료",
   failedSuffix: ", {{count}}개 실패",

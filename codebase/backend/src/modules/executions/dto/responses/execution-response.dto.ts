@@ -53,6 +53,13 @@ export class ExecutionDto {
   @ApiProperty({ type: Number, nullable: true, example: 1820 })
   durationMs: number | null;
 
+  /**
+   * 실행 시간(ms). 입력 대기를 뺀 순수 실행 시간(`active_running_ms`)이다. 끝나지 않은
+   * 실행과 측정되지 않은 실행(저장 값 0, `durationMs` > 0)은 null 이다.
+   */
+  @ApiProperty({ type: Number, nullable: true, example: 1640 })
+  activeRunningMs: number | null;
+
   // 근거: [응답 자격 증명 마스킹 「inputData 는 두 수준 모두 가린다」](CLE-API-EGRESS-PIPELINE#41-inputdata-는-두-수준-모두-가린다-2026-08-20)
   /**
    * 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context).

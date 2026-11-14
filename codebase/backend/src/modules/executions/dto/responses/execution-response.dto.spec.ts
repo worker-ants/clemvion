@@ -68,6 +68,7 @@ const REQUIRED_NON_NULLABLE = [
  * 키를 빠짐없이 조립하게 되면서 기본형으로 갚았다(CLE-T-GA8ZXQ).
  */
 const REQUIRED_NULLABLE = [
+  'activeRunningMs',
   'chainId',
   'durationMs',
   'error',

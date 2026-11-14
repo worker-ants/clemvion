@@ -9,6 +9,7 @@ import {
 import {
   deriveExecutionTrigger,
   loadParentWorkflowNames,
+  toActiveRunningMsForResponse,
   type ExecutionTriggerSource,
 } from '../executions/utils';
 
@@ -34,8 +35,13 @@ export interface RecentExecution {
   workflowId: string;
   workflowName: string;
   status: ExecutionStatus;
-  /** 실행 소요 시간(ms). 실행 중이거나 미기록인 경우 null */
+  /** 전체 경과(ms). 입력 대기 시간이 들어간다. 실행 중이거나 미기록인 경우 null */
   durationMs: number | null;
+  /**
+   * 실행 시간(ms). 입력 대기를 뺀 순수 실행 시간이다. 끝나지 않았거나 측정되지 않은
+   * 실행은 null 이다. 판정은 실행 응답과 같은 `toActiveRunningMsForResponse` 가 한다.
+   */
+  activeRunningMs: number | null;
   startedAt: Date;
   /** 출처 분류 — manual/schedule/webhook/subworkflow/unknown */
   triggerSource: ExecutionTriggerSource;
@@ -197,6 +203,7 @@ export class DashboardService {
         workflowName: e.workflow.name,
         status: e.status,
         durationMs: e.durationMs,
+        activeRunningMs: toActiveRunningMsForResponse(e),
         startedAt: e.startedAt,
         triggerSource: trigger.source,
         triggerLabel: trigger.label,

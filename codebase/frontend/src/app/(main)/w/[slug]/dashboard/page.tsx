@@ -305,7 +305,7 @@ export default function DashboardPage() {
                       />
                     </td>
                     <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
-                      {execution.durationMs != null ? formatDuration(execution.durationMs) : "—"}
+                      {execution.activeRunningMs != null ? formatDuration(execution.activeRunningMs) : "—"}
                     </td>
                     <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
                       {timeAgo(execution.startedAt)}

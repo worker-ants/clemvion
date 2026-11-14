@@ -45,6 +45,7 @@ import {
   ExecutionDto,
   NodeExecutionSummaryDto,
 } from './dto/responses/execution-response.dto';
+import { toActiveRunningMsForResponse } from './utils/active-running-ms';
 import { deriveExecutionTrigger } from './utils/execution-trigger';
 import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 import { redactStoredFieldsForResponse } from '../../shared/utils/redact-stored-error';
@@ -1060,6 +1061,7 @@ export class ExecutionsService {
         ? this.toIso(execution.finishedAt)
         : null,
       durationMs: execution.durationMs ?? null,
+      activeRunningMs: toActiveRunningMsForResponse(execution),
       inputData,
       outputData,
       error,
@@ -1127,6 +1129,7 @@ export class ExecutionsService {
       finished_at: 'finishedAt',
       status: 'status',
       duration_ms: 'durationMs',
+      active_running_ms: 'activeRunningMs',
     };
     return pickSortColumn(allowed, sort, 'startedAt');
   }

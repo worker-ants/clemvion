@@ -241,12 +241,57 @@ describe('Workflow Execution (e2e)', () => {
       status: string;
       triggerSource: string;
       totalNodeCount: number;
+      durationMs: number | null;
+      activeRunningMs: number | null;
     };
     expect(body.status).toBe('cancelled');
     // 종전 중지 응답은 엔티티를 펼쳐 이 두 값이 빠졌다.
     expect(body.triggerSource).toBeDefined();
     expect(body.totalNodeCount).toBe(0);
+    // 실행 중에 REST 로 중지하면 마지막 구간이 기록되지 않아 저장 값이 0 이다. 전체
+    // 경과는 남으므로 실행 시간은 「측정되지 않음」(null)으로 나간다(CLE-EXEC-HISTORY 「실행 응답 필드」).
+    expect(body.durationMs).toBeGreaterThan(0);
+    expect(body.activeRunningMs).toBeNull();
     assertMatchesContract(body, executionContract);
+  }, 30_000);
+
+  it('D-3. 목록은 실행 시간(activeRunningMs)을 싣고 active_running_ms 로 정렬한다 — 입력 대기 취소와 중지 취소를 가른다', async () => {
+    // 저장 값을 정해 둔 종료 행 셋을 직접 만든다. 엔진을 거치면 구간 값이 실행마다 달라
+    // 정렬 순서를 단언할 수 없다.
+    //   waited    : 입력을 한 시간 기다리다 취소됨. 전체 경과는 길고 실행 시간은 짧다.
+    //   stopped   : 실행 중 REST 중지. 저장 값 0, 전체 경과 > 0 → 측정되지 않음(null).
+    //   completed : 입력 대기 없이 끝남.
+    const workflowId = await createWorkflow();
+    const waitedId = randomUUID();
+    const stoppedId = randomUUID();
+    const completedId = randomUUID();
+    await db.query(
+      `INSERT INTO execution
+         (id, workflow_id, status, started_at, finished_at, duration_ms, active_running_ms)
+       VALUES
+         ($1, $4, 'cancelled', NOW() - INTERVAL '1 hour', NOW(), 3600000, 1200),
+         ($2, $4, 'cancelled', NOW() - INTERVAL '5 seconds', NOW(), 5000, 0),
+         ($3, $4, 'completed', NOW() - INTERVAL '4 seconds', NOW(), 3200, 3100)`,
+      [waitedId, stoppedId, completedId, workflowId],
+    );
+
+    const list = await request(BASE_URL)
+      .get(`/api/executions/workflow/${workflowId}`)
+      .query({ sort: 'active_running_ms', order: 'desc' })
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(list.status).toBe(200);
+    const items = list.body.data as Array<{
+      id: string;
+      durationMs: number | null;
+      activeRunningMs: number | null;
+    }>;
+    expect(items.map((i) => [i.id, i.durationMs, i.activeRunningMs])).toEqual([
+      [completedId, 3200, 3100],
+      [waitedId, 3_600_000, 1200],
+      [stoppedId, 5000, null],
+    ]);
+    for (const item of items) assertMatchesContract(item, executionContract);
   }, 30_000);
 
   it('E. 같은 워크플로우 동시 execute — 둘 다 독립 executionId 발급', async () => {

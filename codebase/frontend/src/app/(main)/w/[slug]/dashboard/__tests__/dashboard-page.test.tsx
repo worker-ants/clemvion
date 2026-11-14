@@ -60,6 +60,7 @@ const RECENT_EXECUTION = {
   workflowName: "My Workflow",
   status: "completed",
   durationMs: 3200,
+  activeRunningMs: 3200,
   startedAt: "2024-01-15T14:02:30Z",
   triggerSource: "manual" as const,
   triggerLabel: "Alice",
@@ -103,6 +104,55 @@ describe("DashboardPage — recent executions row navigation", () => {
     expect(mockPush).toHaveBeenCalledWith(
       "/workflows/wf-1/executions/exec-1",
     );
+  });
+});
+
+describe("DashboardPage — recent executions run time", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
+    getSummary.mockResolvedValue(SUMMARY);
+    getRecentWorkflows.mockResolvedValue([]);
+    getRecentExecutions.mockResolvedValue([
+      // 입력을 한 시간 기다리다 취소된 실행: 전체 경과 1시간, 실행 시간 1.2초
+      {
+        ...RECENT_EXECUTION,
+        id: "exec-wait",
+        workflowName: "Waited Workflow",
+        status: "cancelled",
+        durationMs: 3_600_000,
+        activeRunningMs: 1_200,
+      },
+      // 측정되지 않은 실행: 실행 시간이 null 이다
+      {
+        ...RECENT_EXECUTION,
+        id: "exec-unmeasured",
+        workflowName: "Unmeasured Workflow",
+        durationMs: 5_000,
+        activeRunningMs: null,
+      },
+    ]);
+  });
+
+  /** 행의 열 순서: Status · Workflow · Trigger · Duration · Time */
+  async function durationCell(workflowName: string): Promise<string | null> {
+    const row = (await screen.findByText(workflowName)).closest("tr")!;
+    return row.querySelectorAll("td")[3].textContent;
+  }
+
+  it("Duration 열은 전체 경과가 아니라 실행 시간(activeRunningMs)을 보인다", async () => {
+    await renderPage();
+    expect(await durationCell("Waited Workflow")).toBe("1s");
+  });
+
+  it("실행 시간이 null 이면 전체 경과로 대신하지 않고 — 를 보인다", async () => {
+    await renderPage();
+    expect(await durationCell("Unmeasured Workflow")).toBe("\u2014");
   });
 });
 

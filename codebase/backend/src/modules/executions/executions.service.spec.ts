@@ -23,6 +23,7 @@ type FakeExec = {
   startedAt: Date;
   finishedAt: Date | null;
   durationMs: number | null;
+  activeRunningMs: number;
   inputData: Record<string, unknown> | null;
   outputData: Record<string, unknown> | null;
   error: Record<string, unknown> | null;
@@ -43,6 +44,7 @@ const baseFake = (overrides: Partial<FakeExec>): FakeExec => ({
   startedAt: new Date('2026-05-04T10:00:00.000Z'),
   finishedAt: new Date('2026-05-04T10:00:01.000Z'),
   durationMs: 1000,
+  activeRunningMs: 800,
   inputData: null,
   outputData: null,
   error: null,
@@ -419,6 +421,15 @@ describe('ExecutionsService', () => {
         order: 'desc',
       });
       expect(listQB3.orderBy).toHaveBeenCalledWith('e.finishedAt', 'DESC');
+
+      // 실행 목록의 실행 시간 열은 `active_running_ms` 로 정렬한다(CLE-T-51KBTG).
+      const listQB4 = buildListQB([row]);
+      executionRepo.createQueryBuilder.mockReturnValueOnce(listQB4 as unknown);
+      await service.findByWorkflow('w1', {
+        sort: 'active_running_ms',
+        order: 'desc',
+      });
+      expect(listQB4.orderBy).toHaveBeenCalledWith('e.activeRunningMs', 'DESC');
     });
 
     // CLE-T-FXJ9CF: DTO 정규식을 통과하는 Object 내장 이름이다. 평범한 객체 조회는 이 값에서 내장 함수를
@@ -861,6 +872,7 @@ describe('ExecutionsService', () => {
       'startedAt',
       'finishedAt',
       'durationMs',
+      'activeRunningMs',
       'inputData',
       'outputData',
       'error',
@@ -879,7 +891,6 @@ describe('ExecutionsService', () => {
     /** 엔티티에는 있지만 응답에 싣지 않는 값들. 한 행에 몰아 둔다. */
     const withUndeclaredColumns = (overrides: Partial<FakeExec>) =>
       Object.assign(baseFake(overrides), {
-        activeRunningMs: 900,
         sourceIp: '203.0.113.7',
         userVariables: { secret: 'v' },
         resumeCallStack: [{ frame: 1 }],
@@ -1003,6 +1014,70 @@ describe('ExecutionsService', () => {
 
       const result = await service.findByWorkflow('w1', {});
       expect(Object.keys(result.data[0]).sort()).toEqual(EXECUTION_DTO_KEYS);
+    });
+  });
+
+  /**
+   * 실행 시간(`activeRunningMs`)과 전체 경과(`durationMs`)는 다른 값이다. 입력 대기가 길었던
+   * 실행은 전체 경과만 커지고, 실행 중에 REST 중지로 끝나 구간이 기록되지 않은 실행은
+   * 실행 시간이 `null`(측정되지 않음)이다. 판정 규칙 자체는 `active-running-ms.spec.ts` 가
+   * 고정하고, 여기서는 응답 조립이 그 값을 싣는지 본다.
+   */
+  describe('실행 시간(activeRunningMs) 응답 값', () => {
+    it('입력 대기 뒤 취소된 실행은 전체 경과와 따로 실행 시간을 싣는다', async () => {
+      const row = baseFake({
+        id: 'eA1',
+        status: ExecutionStatus.CANCELLED,
+        durationMs: 3_600_000,
+        activeRunningMs: 1_200,
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const result = await service.findByWorkflow('w1', {});
+
+      expect(result.data[0]).toMatchObject({
+        durationMs: 3_600_000,
+        activeRunningMs: 1_200,
+      });
+    });
+
+    it('실행 중 stop() 으로 취소돼 구간이 기록되지 않은 실행은 실행 시간이 null 이다', async () => {
+      const running = baseFake({ id: 'eA2', status: ExecutionStatus.RUNNING });
+      const cancelled = baseFake({
+        id: 'eA2',
+        status: ExecutionStatus.CANCELLED,
+        durationMs: 5_000,
+        activeRunningMs: 0,
+      });
+      executionRepo.findOne.mockResolvedValueOnce(running as unknown);
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildStopQB(cancelled) as unknown,
+      );
+
+      const result = await service.stop('eA2');
+
+      expect(result.durationMs).toBe(5_000);
+      expect(result.activeRunningMs).toBeNull();
+    });
+
+    it('입력을 기다리는 실행은 저장 값이 있어도 실행 시간이 null 이다', async () => {
+      const row = baseFake({
+        id: 'eA3',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        finishedAt: null,
+        durationMs: null,
+        activeRunningMs: 700,
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+
+      const result = await service.findById('eA3');
+
+      expect(result.activeRunningMs).toBeNull();
     });
   });
 

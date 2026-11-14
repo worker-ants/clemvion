@@ -59,6 +59,7 @@ export const executions: Dict["executions"] = {
   summaryStarted: "Started",
   summaryFinished: "Finished",
   summaryDuration: "Duration",
+  summaryElapsed: "Total elapsed",
   summaryNodes: "Nodes",
   completedSummary: "{{completed}}/{{total}} completed",
   failedSuffix: ", {{count}} failed",

@@ -155,7 +155,7 @@ export function ExecutionHistoryPanel({
                         />
                       </span>
                       <span className="w-14 shrink-0 text-[hsl(var(--muted-foreground))]">
-                        {formatDuration(ex.durationMs, locale)}
+                        {formatDuration(ex.activeRunningMs, locale)}
                       </span>
                       <span className="w-24 shrink-0 text-[hsl(var(--muted-foreground))]">
                         {completed}/{total}

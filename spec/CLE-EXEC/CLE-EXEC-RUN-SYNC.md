@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-SYNC"
 title: "에디터 실행과 디버깅 — 실시간 수신·내역·Background"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "59a21460fe0e2ffc70d537e7908cb2ea02c7df91b2e0a2bea9e839bd6fa1e7bc"
+content_hash: "e01b7a486b4ea9c62c5a7531791e2b3a6557286e53f402acd9eb6cc1297ac371"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-51KBTG"
 source_paths: []
-mirror_sha256: "ef1bc95824b25cd1fce931f377f175d1dcbc1313e9c56bc5b25176cfafec0c9b"
-etag: "sha256-7c9b2f97b3e86d6d49d331696e22231a754f2f04eab8c7c0e169db4a25b2ab68"
+mirror_sha256: "9cdc997f8696f6c0ac2349ba8427abe8ff6d3bf77443d22491737de6e35088f6"
+etag: "sha256-d802fa8a36e91bd848500d2b3b3d468d9a23e7dcf4ebe33ba25e3761f7f13f84"
 ---
 ## 개요
 
@@ -64,7 +64,7 @@ etag: "sha256-7c9b2f97b3e86d6d49d331696e22231a754f2f04eab8c7c0e169db4a25b2ab68"
 | 머리 | 위 | 제목 "Execution History", "전체 실행" 링크, 닫기 `[✕]` | "전체 실행" 은 실행 내역 화면으로 이동한다 |
 | 목록 | 가운데 | 최근 실행 20건(시작 시각 내림차순) | 항목을 누르면 아래처럼 그 실행을 불러온다 |
 
-각 항목에는 상태 아이콘, 실행 출처(아이콘과 라벨, [실행 내역](CLE-EXEC-HISTORY.md) 의 실행 출처 분류와 같다), 소요 시간, 노드 카운트(`완료/전체`, 실패가 있으면 `(N failed)`), 상대 시각이 표시된다.
+각 항목에는 상태 아이콘, 실행 출처(아이콘과 라벨, [실행 내역](CLE-EXEC-HISTORY.md) 의 실행 출처 분류와 같다), 실행 시간(입력 대기를 뺀 순수 실행 시간, 끝나지 않았거나 측정되지 않았으면 `—`), 노드 카운트(`완료/전체`, 실패가 있으면 `(N failed)`), 상대 시각이 표시된다.
 
 항목을 누르면 다음처럼 동작한다.
 

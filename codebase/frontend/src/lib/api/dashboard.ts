@@ -36,7 +36,10 @@ export interface RecentExecution {
   workflowId: string;
   workflowName: string;
   status: string;
+  /** 전체 경과(ms). 입력 대기 시간이 들어간다. 끝나지 않았으면 null. */
   durationMs: number | null;
+  /** 실행 시간(ms). 입력 대기를 뺀 순수 실행 시간이다. 끝나지 않았거나 측정되지 않았으면 null. */
+  activeRunningMs: number | null;
   startedAt: string;
   triggerSource: ExecutionTriggerSource;
   triggerLabel: string | null;
