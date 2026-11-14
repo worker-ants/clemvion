@@ -4003,7 +4003,8 @@ describe('ExecutionEngineService', () => {
 
     // race 회귀 차단: 본문 context 는 부모 executionId 가 아닌 bgKey 로 등록돼야
     // 하고(격리), executeBackgroundSubgraph 가 자체 finally 로 정리해야 한다
-    // (spec/4-nodes/1-logic/12-background.md §4 / execution-context.md 원칙 4).
+    // (근거: [Background 노드 「격리 계약」](CLE-NODE-BACKGROUND#격리-계약) ·
+    // [실행 컨텍스트 「규칙」](CLE-EXEC-CONTEXT#규칙) 의 4번).
     const makeBgJob = (over: Record<string, unknown> = {}) => ({
       executionId,
       parentNodeExecutionId: 'parent-1',

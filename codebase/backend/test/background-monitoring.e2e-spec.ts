@@ -13,7 +13,7 @@ import { NotificationDto } from '../src/modules/notifications/dto/responses/noti
 
 /**
  * e2e: Background 본문 모니터링 API + WebSocket 채널 + 알림 attribution
- * (spec/4-nodes/1-logic/12-background.md §8).
+ * (근거: [Background 노드 — 본문 실행 모니터링](CLE-NODE-BACKGROUND-RUNS)).
  *
  * 검증 영역:
  *   1) V047 / V048 인덱스의 `pg_index.indisvalid = true` 운영 안전성

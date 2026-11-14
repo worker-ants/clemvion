@@ -7376,7 +7376,8 @@ export class ExecutionEngineService
   async executeBackgroundSubgraph(job: BackgroundExecutionJob): Promise<void> {
     // 본문은 메인과 동일한 executionId 를 NodeExecution 그룹핑·WS 채널용으로
     // 공유하되, in-memory context 는 별도 Map 키(bgKey)로 등록해 부모와 격리한다
-    // (spec/4-nodes/1-logic/12-background.md §4 / execution-context.md 원칙 4).
+    // (근거: [Background 노드 「격리 계약」](CLE-NODE-BACKGROUND#격리-계약) ·
+    // [실행 컨텍스트 「규칙」](CLE-EXEC-CONTEXT#규칙) 의 4번).
     // 이로써 부모 runExecution finally 의 deleteContext(executionId) 가 fire-and-forget
     // 본문이 쓰던 context 를 삭제하던 race ("Execution context not found") 를 차단.
     // backgroundRunId 가 모니터링 전역 유일 키(UUID v4, spec §5.1)이므로 1차 사용.

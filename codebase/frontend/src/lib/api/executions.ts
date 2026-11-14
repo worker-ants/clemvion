@@ -242,7 +242,7 @@ export const executionsApi = {
 
 // ---------------------------------------------------------------------------
 // Background run monitoring API
-// spec/4-nodes/1-logic/12-background.md §8
+// 근거: [Background 노드 — 본문 실행 모니터링](CLE-NODE-BACKGROUND-RUNS)
 // ---------------------------------------------------------------------------
 
 /**
