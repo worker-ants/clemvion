@@ -10,6 +10,7 @@ import { Workspace } from '../workspaces/entities/workspace.entity';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { encryptJson } from './services/credentials-transformer';
 import { makeFakeJwt } from './__test-utils__/make-fake-jwt';
+import { createIntegrationOAuthService } from './__test-utils__/integration-oauth-service.factory';
 import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
 
 type Mock = jest.Mock;
@@ -142,6 +143,15 @@ describe('IntegrationOAuthService — Cafe24', () => {
   // review W2: OAUTH_STUB_MODE 초기값 보존 — suite 진입 전 값을 afterEach 에서 원복.
   let savedOAuthStub: string | undefined;
 
+  /** 이 spec 의 대역으로 서비스를 만든다. 바꿀 협력 객체만 덮어 넘긴다(`createIntegrationOAuthService`). */
+  const serviceDeps = () => ({
+    integrationRepo,
+    stateRepo,
+    previewRepo,
+    dataSource,
+    configService: oauthMock.configService,
+  });
+
   beforeEach(() => {
     integrationRepo = makeRepo();
     stateRepo = makeRepo();
@@ -178,13 +188,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
       },
     });
 
-    service = new IntegrationOAuthService(
-      integrationRepo as never,
-      stateRepo as never,
-      previewRepo as never,
-      dataSource as never,
-      oauthMock.configService as never,
-    );
+    service = createIntegrationOAuthService(serviceDeps());
   });
 
   afterEach(() => {
@@ -2085,14 +2089,10 @@ describe('IntegrationOAuthService — Cafe24', () => {
       // installNonceCache is an @Optional() ctor dep — inject a mock that
       // reports a replay and assert cafe24 passes `mall_id` as the identifier.
       const isReplay = jest.fn().mockResolvedValue(true);
-      const svc = new IntegrationOAuthService(
-        integrationRepo as never,
-        stateRepo as never,
-        previewRepo as never,
-        dataSource as never,
-        oauthMock.configService as never,
-        { isReplay } as never,
-      );
+      const svc = createIntegrationOAuthService({
+        ...serviceDeps(),
+        installNonceCache: { isReplay },
+      });
       integrationRepo.findOne.mockResolvedValue(makePendingRow());
 
       const validTs = Math.floor(Date.now() / 1000);
@@ -3019,15 +3019,10 @@ describe('IntegrationOAuthService — Cafe24', () => {
       // 400 을 만드는 요인이 되게 한다.
       function serviceWithRole(role: string | null): IntegrationOAuthService {
         getMemberRole = jest.fn().mockResolvedValue(role);
-        return new IntegrationOAuthService(
-          integrationRepo as never,
-          stateRepo as never,
-          previewRepo as never,
-          dataSource as never,
-          oauthMock.configService as never,
-          undefined,
-          { getMemberRole } as never,
-        );
+        return createIntegrationOAuthService({
+          ...serviceDeps(),
+          workspacesService: { getMemberRole },
+        });
       }
 
       function expiredRow(

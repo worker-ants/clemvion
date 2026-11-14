@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
 content_hash: "95015b750ad588e7f052a3c5b77fdf15b4ec3ba7fc2529a47a9903a688bbb608"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-MQSRDS"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "a0dc3a376fde477596dd3f89164a46699d457fa614e48684e1fad764800e5f35"
-etag: "sha256-f7524dc30c40220daae06b0ebf676665b7e9d879e63fd528b49c95be4efeac30"
+mirror_sha256: "217848fe9063430458e0491ce94e1e711490ddd9f1021b5b69c223b71edbeebe"
+etag: "sha256-e4819f9d4596f938ee8b5329b956499646006b2d10f3660829088aa934032abc"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

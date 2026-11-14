@@ -11,6 +11,7 @@ import {
   generatePkcePair,
   type MakeshopInstallQuery,
 } from './integration-oauth.service';
+import { createIntegrationOAuthService } from './__test-utils__/integration-oauth-service.factory';
 import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
 import { makeshopPendingLockKey } from './pending-install-reuse';
 
@@ -115,6 +116,15 @@ describe('IntegrationOAuthService — MakeShop', () => {
   // review W2: OAUTH_STUB_MODE 초기값 보존 — suite 진입 전 값을 afterEach 에서 원복.
   let savedOAuthStub: string | undefined;
 
+  /** 이 spec 의 대역으로 서비스를 만든다. 바꿀 협력 객체만 덮어 넘긴다(`createIntegrationOAuthService`). */
+  const serviceDeps = () => ({
+    integrationRepo,
+    stateRepo,
+    previewRepo,
+    dataSource,
+    configService: oauthMock.configService,
+  });
+
   beforeEach(() => {
     integrationRepo = makeRepo();
     stateRepo = makeRepo();
@@ -147,13 +157,7 @@ describe('IntegrationOAuthService — MakeShop', () => {
     // refactor M-6: FRONTEND_URL 등 redirect base 는 `oauth` namespace 로 이전 — config mock 으로 제공.
     oauthMock = makeOAuthConfigMock();
 
-    service = new IntegrationOAuthService(
-      integrationRepo as never,
-      stateRepo as never,
-      previewRepo as never,
-      dataSource as never,
-      oauthMock.configService as never,
-    );
+    service = createIntegrationOAuthService(serviceDeps());
   });
 
   afterEach(() => {
@@ -785,14 +789,10 @@ describe('IntegrationOAuthService — MakeShop', () => {
       // installNonceCache is an @Optional() ctor dep — inject a mock that
       // reports a replay and assert makeshop passes `shop_uid` as the identifier.
       const isReplay = jest.fn().mockResolvedValue(true);
-      const svc = new IntegrationOAuthService(
-        integrationRepo as never,
-        stateRepo as never,
-        previewRepo as never,
-        dataSource as never,
-        oauthMock.configService as never,
-        { isReplay } as never,
-      );
+      const svc = createIntegrationOAuthService({
+        ...serviceDeps(),
+        installNonceCache: { isReplay },
+      });
       const row = buildFakeMakeshopIntegration({ mallId: null });
       integrationRepo.findOne = jest.fn().mockResolvedValue(row);
 
@@ -1125,15 +1125,10 @@ describe('IntegrationOAuthService — MakeShop', () => {
     // 만드는 요인이 되게 한다.
     function serviceWithRole(role: string | null): IntegrationOAuthService {
       getMemberRole = jest.fn().mockResolvedValue(role);
-      return new IntegrationOAuthService(
-        integrationRepo as never,
-        stateRepo as never,
-        previewRepo as never,
-        dataSource as never,
-        oauthMock.configService as never,
-        undefined,
-        { getMemberRole } as never,
-      );
+      return createIntegrationOAuthService({
+        ...serviceDeps(),
+        workspacesService: { getMemberRole },
+      });
     }
 
     function expiredRow(

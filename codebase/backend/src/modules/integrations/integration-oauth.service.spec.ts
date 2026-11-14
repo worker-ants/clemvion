@@ -11,6 +11,7 @@ import {
   callbackContextOf,
   sanitizeLastErrorMessage,
 } from './integration-oauth.service';
+import { createIntegrationOAuthService } from './__test-utils__/integration-oauth-service.factory';
 import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
 import { integrationNotFoundError } from './integration-visibility';
 
@@ -39,11 +40,23 @@ describe('IntegrationOAuthService', () => {
     query: Mock;
     transaction: Mock;
   };
+  let actionRequiredNotifier: { notify: Mock };
+
+  /** 이 spec 의 대역으로 서비스를 만든다. 바꿀 협력 객체만 덮어 넘긴다(`createIntegrationOAuthService`). */
+  const serviceDeps = () => ({
+    integrationRepo,
+    stateRepo,
+    previewRepo,
+    dataSource,
+    actionRequiredNotifier,
+    configService: oauthMock.configService,
+  });
 
   beforeEach(() => {
     integrationRepo = makeRepo();
     stateRepo = makeRepo();
     previewRepo = makeRepo();
+    actionRequiredNotifier = { notify: jest.fn().mockResolvedValue(undefined) };
     dataSource = {
       query: jest.fn().mockResolvedValue([]),
       transaction: jest
@@ -62,26 +75,15 @@ describe('IntegrationOAuthService', () => {
     // refactor M-6: provider 자격증명은 `oauth` namespace 로 이전 — config mock 으로 제공.
     oauthMock = makeOAuthConfigMock();
 
-    service = new IntegrationOAuthService(
-      integrationRepo as never,
-      stateRepo as never,
-      previewRepo as never,
-      dataSource as never,
-      oauthMock.configService as never,
-    );
+    service = createIntegrationOAuthService(serviceDeps());
   });
 
   /** 콜백의 커밋 직전 재판정을 통과하는 요청자(편집자) — 재인증 · scope 추가 콜백의 성공 경로가 쓴다. */
   const serviceAsEditor = () =>
-    new IntegrationOAuthService(
-      integrationRepo as never,
-      stateRepo as never,
-      previewRepo as never,
-      dataSource as never,
-      oauthMock.configService as never,
-      undefined,
-      { getMemberRole: jest.fn(async () => 'editor') } as never,
-    );
+    createIntegrationOAuthService({
+      ...serviceDeps(),
+      workspacesService: { getMemberRole: jest.fn(async () => 'editor') },
+    });
 
   afterEach(() => {
     if (savedOAuthStub === undefined) delete process.env.OAUTH_STUB_MODE;
@@ -511,15 +513,10 @@ describe('IntegrationOAuthService', () => {
     let getMemberRole: Mock;
     const serviceWithRole = (role: string | null) => {
       getMemberRole = jest.fn(async () => role);
-      return new IntegrationOAuthService(
-        integrationRepo as never,
-        stateRepo as never,
-        previewRepo as never,
-        dataSource as never,
-        oauthMock.configService as never,
-        undefined,
-        { getMemberRole } as never,
-      );
+      return createIntegrationOAuthService({
+        ...serviceDeps(),
+        workspacesService: { getMemberRole },
+      });
     };
 
     it.each(['reauthorize', 'request_scopes'])(
@@ -1522,6 +1519,119 @@ describe('IntegrationOAuthService', () => {
           'msg',
         ),
       ).resolves.toBeUndefined();
+    });
+
+    // CLE-T-MQSRDS · REQ-INTSTAT-030 — 콜백의 코드 교환 실패로 연결됨 통합이 오류가 되면 전이한 그 자리에서 조치 필요
+    // 알림을 보낸다. 상태를 바꾸지 않는 기록(설치 대기 · 재설치 대기 표시 · 권한 거부 · 그 밖의 코드)에는 보내지 않는다.
+    describe('조치 필요 알림 (connected → error(auth_failed))', () => {
+      const connectedRow = (overrides: Record<string, unknown> = {}) => ({
+        id: 'int-n',
+        workspaceId: 'ws-1',
+        name: 'My Shop',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+        ...overrides,
+      });
+
+      it('저장한 행으로 auth_failed · oauth_callback 알림을 한 번 보낸다', async () => {
+        integrationRepo.findOne.mockResolvedValue(connectedRow());
+        // save 대역 안의 단언은 던져도 구현의 try/catch 가 삼키므로, 저장 시점의 호출 수를 기록해 뒤에서 단언한다.
+        let notifyCallsAtSave = -1;
+        integrationRepo.save.mockImplementation(async (row: unknown) => {
+          notifyCallsAtSave = actionRequiredNotifier.notify.mock.calls.length;
+          return row;
+        });
+        await service.markIntegrationCallbackError(
+          'int-n',
+          'ws-1',
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+          'denied',
+        );
+        // 저장 시점에 알림이 아직 나가지 않았어야 한다(저장이 실패하면 알리지 않는다).
+        expect(notifyCallsAtSave).toBe(0);
+        expect(actionRequiredNotifier.notify).toHaveBeenCalledTimes(1);
+        const [notified, reason, trigger] =
+          actionRequiredNotifier.notify.mock.calls[0];
+        expect(notified).toBe(integrationRepo.save.mock.calls[0][0]);
+        expect(notified).toMatchObject({
+          status: 'error',
+          statusReason: 'auth_failed',
+        });
+        expect(reason).toBe('auth_failed');
+        expect(trigger).toBe('oauth_callback');
+      });
+
+      it.each([
+        [
+          '설치 대기 행',
+          { status: 'pending_install' },
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        ],
+        [
+          '유효한 재설치 대기 표시가 있는 연결됨 행',
+          { reinstallRequestedAt: new Date(Date.now() - 60 * 60 * 1000) },
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        ],
+        [
+          '이미 오류인 행',
+          { status: 'error', statusReason: 'network' },
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        ],
+        ['연결됨 행의 권한 거부', {}, 'OAUTH_INVALID_SCOPE'],
+        ['연결됨 행의 state 만료', {}, 'OAUTH_STATE_EXPIRED'],
+        [
+          '상점 자리를 놓은 만료 행',
+          { status: 'expired', statusReason: 'install_timeout' },
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        ],
+      ])(
+        '%s 은 상태를 오류로 바꾸지 않으므로 알리지 않는다',
+        async (_label, overrides, errorCode) => {
+          integrationRepo.findOne.mockResolvedValue(connectedRow(overrides));
+          await service.markIntegrationCallbackError(
+            'int-n',
+            'ws-1',
+            errorCode,
+            'msg',
+          );
+          expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+        },
+      );
+
+      it('만료된 재설치 대기 표시가 있는 연결됨 행은 오류로 바꾸고 알린다', async () => {
+        // 표시는 24시간만 유효하다(`isReinstallRequestActive`). 25시간 전 표시는 무효라 일반 연결됨 행처럼 전이한다.
+        integrationRepo.findOne.mockResolvedValue(
+          connectedRow({
+            reinstallRequestedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+          }),
+        );
+        await service.markIntegrationCallbackError(
+          'int-n',
+          'ws-1',
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+          'denied',
+        );
+        expect(actionRequiredNotifier.notify).toHaveBeenCalledTimes(1);
+        expect(actionRequiredNotifier.notify.mock.calls[0][0]).toMatchObject({
+          status: 'error',
+          statusReason: 'auth_failed',
+        });
+      });
+
+      it('저장이 실패하면 알리지 않는다', async () => {
+        integrationRepo.findOne.mockResolvedValue(connectedRow());
+        integrationRepo.save.mockRejectedValue(new Error('db down'));
+        await expect(
+          service.markIntegrationCallbackError(
+            'int-n',
+            'ws-1',
+            'OAUTH_TOKEN_EXCHANGE_FAILED',
+            'msg',
+          ),
+        ).resolves.toBeUndefined();
+        expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+      });
     });
   });
 

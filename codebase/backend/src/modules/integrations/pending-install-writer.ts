@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import {
@@ -261,9 +261,10 @@ async function findMakeshopPendingByClient(
 }
 
 /**
- * Cafe24 Private · MakeShop 설치 대기 행을 쓰는 협력 클래스. `IntegrationOAuthService` 가 생성자에서 만들어 begin 에서
- * 부른다. 상태가 없어 요청마다 새로 만들지 않는다.
+ * Cafe24 Private · MakeShop 설치 대기 행을 쓰는 협력 클래스. `IntegrationsModule` 의 provider 이고 `IntegrationOAuthService`
+ * 가 생성자 주입으로 받아 begin 에서 부른다. 상태가 없어 싱글턴 하나를 함께 쓴다.
  */
+@Injectable()
 export class PendingInstallWriter {
   constructor(private readonly dataSource: DataSource) {}
 

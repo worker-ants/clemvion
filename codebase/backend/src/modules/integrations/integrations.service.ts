@@ -1538,6 +1538,9 @@ export class IntegrationsService {
     body: RequestScopesDto,
   ): Promise<BeginResult> {
     const entity = await this.requireVisible(id, workspaceId, userId);
+    // 404 → 403 → 400 순서다(REQ-INTMGMT-031). 역할 거부를 인증 유형 거부보다 먼저 본다. 그래야 관리자 미만이 OAuth2 가
+    // 아닌 조직 통합에 요청해도 다른 조직 통합 변경과 같이 403 을 받는다.
+    this.assertCanModify(entity, userRole, 'request-scopes');
 
     if (entity.authType !== 'oauth2') {
       throw new BadRequestException({
@@ -1545,7 +1548,6 @@ export class IntegrationsService {
         message: 'Scope requests are only supported for OAuth integrations',
       });
     }
-    this.assertCanModify(entity, userRole, 'request-scopes');
 
     const existingScopes = Array.isArray(entity.credentials.scopes)
       ? (entity.credentials.scopes as string[])

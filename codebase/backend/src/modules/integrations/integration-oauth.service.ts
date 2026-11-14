@@ -56,6 +56,7 @@ import { INTEGRATION_INSTALL_EXPIRED } from './integrations.constants';
 import { normalizeStatusReason } from './integration-status-reason';
 import { pickRestrictedApprovalScopes } from '../../nodes/integration/cafe24/metadata/restricted-approval';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
+import { IntegrationActionRequiredNotifier } from './integration-action-required-notifier.service';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
 import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
@@ -478,9 +479,9 @@ function pickPrecheckConflict(
 @Injectable()
 export class IntegrationOAuthService {
   private readonly logger = new Logger(IntegrationOAuthService.name);
-  /** Cafe24 Private · MakeShop 설치 대기 행 쓰기(후보 조회 → 잠금 → 재사용 판정 → 쓰기 → 경합 재시도). */
-  private readonly pendingInstallWriter: PendingInstallWriter;
 
+  // 단위 spec 은 이 생성자를 직접 부르지 않고 `__test-utils__/integration-oauth-service.factory.ts` 로 만든다. 인자를 바꾸면
+  // 그 팩토리도 함께 고친다.
   constructor(
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
@@ -489,6 +490,10 @@ export class IntegrationOAuthService {
     @InjectRepository(IntegrationOAuthPreview)
     private readonly previewRepository: Repository<IntegrationOAuthPreview>,
     private readonly dataSource: DataSource,
+    /** Cafe24 Private · MakeShop 설치 대기 행 쓰기(후보 조회 → 잠금 → 재사용 판정 → 쓰기 → 경합 재시도). */
+    private readonly pendingInstallWriter: PendingInstallWriter,
+    /** 콜백 실패로 연결됨 통합이 `error(auth_failed)` 가 될 때 조치 필요 알림을 보낸다(`markIntegrationCallbackError`). */
+    private readonly actionRequiredNotifier: IntegrationActionRequiredNotifier,
     // refactor M-6: provider 자격증명·redirect URL·OAUTH_STUB_MODE 직접 접근을
     // ConfigService(`oauth.*`)로 이전. `@Optional()` — 수동 생성 테스트가 config mock
     // 미주입 시 `oauthEnv` 기본 빈값으로 폴백(기존 env 미설정 = OAUTH_CONFIG_MISSING throw 보존).
@@ -503,9 +508,7 @@ export class IntegrationOAuthService {
     // 테스트 호환일 뿐이다 — 없으면 역할을 모르므로 재판정은 거부한다(fail-closed, `assertRequesterStillAllowed`).
     @Optional()
     private readonly workspacesService?: WorkspacesService,
-  ) {
-    this.pendingInstallWriter = new PendingInstallWriter(dataSource);
-  }
+  ) {}
 
   /**
    * 콜백 트랜잭션의 첫 단계 — 대상 행을 잠그고 커밋 직전 판정을 다시 한다. 통과하면 잠근 행을 돌려준다.
@@ -1173,13 +1176,12 @@ export class IntegrationOAuthService {
    * - `pending_install` rows keep their status; the caller can retry "테스트
    *   실행" on Cafe24 after fixing credentials.
    * - `connected` rows with code-exchange failure (OAUTH_TOKEN_EXCHANGE_FAILED)
-   *   transition to `error(auth_failed)` per the existing §10.4 policy.
+   *   transition to `error(auth_failed)` per the existing §10.4 policy, then
+   *   send the action-required notification (REQ-INTSTAT-030). Rows with an
+   *   active reinstall request keep their status and get no notification.
    * - All other `connected` failures (state mismatch / expired / not found)
    *   leave status alone and only update `last_error`.
    * - A vanished row (resource_not_found) is silently skipped.
-   */
-  /**
-   * Record a callback failure onto the Integration row.
    *
    * @param extra Provider-specific structured context attached to
    *   `last_error.details`. For Cafe24 `invalid_scope` callbacks the
@@ -1220,6 +1222,8 @@ export class IntegrationOAuthService {
         ...(detailsObj ? { details: detailsObj } : {}),
       };
       integration.lastError = lastError;
+      // 이 기록이 연결됨 통합을 `error(auth_failed)` 로 바꾸는지. 바꾸면 저장한 뒤 조치 필요 알림을 보낸다(REQ-INTSTAT-030).
+      let becameAuthFailed = false;
       if (integration.status === 'pending_install') {
         // status preserved — user can retry via cafe24 "테스트 실행"
         // B-3-4: errorCode.toLowerCase() 를 union 화이트리스트로 정규화.
@@ -1238,6 +1242,7 @@ export class IntegrationOAuthService {
         // App URL 로 다시 시도할 수 있다(CLE-T-NNENG8). 만료된 표시는 없는 것으로 본다.
         integration.status = 'error';
         integration.statusReason = 'auth_failed';
+        becameAuthFailed = true;
       } else if (
         integration.status === 'connected' &&
         errorCode === 'OAUTH_INVALID_SCOPE'
@@ -1248,6 +1253,15 @@ export class IntegrationOAuthService {
       }
       // Otherwise (connected + non-token error): last_error only.
       await this.integrationRepository.save(integration);
+      // 전이한 그 자리에서 알린다. 저장이 실패하면 위에서 catch 로 빠지므로 알리지 않는다. 알림 실패는 notifier 가 삼킨다.
+      // 제목이 클라이언트의 `markAuthFailed` 알림과 같아 24시간 안에는 한 번만 나간다.
+      if (becameAuthFailed) {
+        await this.actionRequiredNotifier.notify(
+          integration,
+          'auth_failed',
+          'oauth_callback',
+        );
+      }
     } catch (err) {
       this.logger.warn(
         `markIntegrationCallbackError(${integrationId}) failed: ${err instanceof Error ? err.message : String(err)}`,

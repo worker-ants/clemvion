@@ -68,6 +68,35 @@ describe('IntegrationActionRequiredNotifier', () => {
     ]);
   });
 
+  // CLE-T-MQSRDS — 콜백의 코드 교환 실패는 API 가 토큰을 거부한 것과 원인이 달라 문구를 나눈다. 제목은 같아서 클라이언트의
+  // `markAuthFailed` 알림과 24시간 중복 방지를 함께 쓴다.
+  describe('oauth_callback 계기', () => {
+    it('auth_failed 는 같은 제목에 코드 교환 실패 문구를 쓰고 특정 서비스를 적지 않는다', async () => {
+      await notifier.notify(
+        makeIntegration({ name: 'My Shop' }),
+        'auth_failed',
+        'oauth_callback',
+      );
+      const entry = notificationsService.createMany.mock.calls[0][0][0];
+      expect(entry.title).toBe('Integration disconnected');
+      expect(entry.message).toBe(
+        '"My Shop" needs reauthorization — the authorization code could not be exchanged for an access token. Reconnect to resume.',
+      );
+      expect(notificationsService.hasRecentByResource).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'integration_action_required',
+          title: 'Integration disconnected',
+        }),
+      );
+    });
+
+    it('계기를 넘기지 않으면 API 호출 문구를 그대로 쓴다', async () => {
+      await notifier.notify(makeIntegration(), 'auth_failed');
+      const entry = notificationsService.createMany.mock.calls[0][0][0];
+      expect(entry.message).toContain('rejected the access token');
+    });
+  });
+
   it('emits insufficient_scope with distinct title', async () => {
     await notifier.notify(makeIntegration(), 'insufficient_scope');
     const entry = notificationsService.createMany.mock.calls[0][0][0];
