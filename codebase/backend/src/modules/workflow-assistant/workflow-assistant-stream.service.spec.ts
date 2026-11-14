@@ -259,6 +259,32 @@ describe('WorkflowAssistantStreamService', () => {
     );
   });
 
+  // CLE-T-GG3WPZ — 어시스턴트는 모델 설정 기본 파라미터를 켜고 chatStream 을 부른다.
+  // 값을 채우는 일은 LlmService 가 하고 어시스턴트는 temperature · maxTokens 를 정하지 않는다.
+  it('opts in to model config default params on chatStream', async () => {
+    const { service, mocks } = makeService();
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    const [, params, , , opts] = mocks.llmService.chatStream.mock.calls[0];
+    expect(opts).toEqual({ applyModelDefaults: true });
+    expect(params).not.toHaveProperty('temperature');
+    expect(params).not.toHaveProperty('maxTokens');
+  });
+
   it('emits a `plan` SSE event for propose_plan tool calls and persists the plan snapshot', async () => {
     const { service, mocks } = makeService();
     const planArgs = JSON.stringify({

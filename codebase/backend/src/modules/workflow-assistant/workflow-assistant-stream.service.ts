@@ -485,6 +485,8 @@ export class WorkflowAssistantStreamService {
           },
           { workflowId: session.workflowId },
           signal,
+          // CLE-T-GG3WPZ — 모델 설정의 temperature · max_tokens 기본값을 쓴다.
+          { applyModelDefaults: true },
         )) {
           if (ev.type === 'text_delta') {
             assistantText += ev.delta;

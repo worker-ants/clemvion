@@ -24,6 +24,7 @@ import { StubLlmClient } from './clients/stub.client';
 import { sanitizeLlmErrorMessage } from './utils/sanitize-error.util';
 import { withTimeout } from './utils/with-timeout.util';
 import { capModelList } from './list-models-cap';
+import { applyModelDefaultParams } from './model-default-params';
 import type { ModelTypeFilter } from '../model-config/dto/model-type';
 
 const LIST_MODELS_TIMEOUT_MS = 30_000;
@@ -64,6 +65,12 @@ export interface LlmCallOptions {
    * 효과가 노드 단계까지 도달. SoT: spec/conventions/node-cancellation.md.
    */
   signal?: AbortSignal;
+  /**
+   * 모델 설정 기본 파라미터(`defaultParams`)를 호출 값이 빈 자리에 채운다(CLE-T-GG3WPZ).
+   * 사람이 모델 설정을 고르는 호출(AI 노드 · 워크플로우 어시스턴트)만 켠다. KB · 메모리
+   * 내부 호출은 값을 직접 정하고 켜지 않는다. 병합 규칙은 `applyModelDefaultParams`.
+   */
+  applyModelDefaults?: boolean;
 }
 
 @Injectable()
@@ -159,14 +166,17 @@ export class LlmService implements OnModuleInit {
     opts?: LlmCallOptions,
   ): Promise<ChatResult> {
     const client = this.createClient(config);
+    const effective = opts?.applyModelDefaults
+      ? applyModelDefaultParams(config, params)
+      : params;
     // Strip `source` (WebSocket emit metadata per
     // spec/5-system/6-websocket-protocol.md §4.4.6) before forwarding to the
     // provider client — LLM APIs only see the canonical
     // {role, content, toolCalls?, toolCallId?} shape. The handler keeps the
     // marker on its in-memory `messages` array so emit paths preserve it.
     const sanitized: ChatParams = {
-      ...params,
-      messages: params.messages.map(({ source: _source, ...rest }) => rest),
+      ...effective,
+      messages: effective.messages.map(({ source: _source, ...rest }) => rest),
     };
     // disableInnerRetry: 호출자가 외부에서 retryWithBackoff 같은 자체 재시도 layer 를 가진 경우
     // 내부 rate-limit 재시도 (withRetry) 와 겹쳐 호출 횟수가 비선형 증폭되는 것을 막는다.
@@ -213,6 +223,7 @@ export class LlmService implements OnModuleInit {
     params: ChatParams,
     context?: LlmCallContext,
     signal?: AbortSignal,
+    opts?: Pick<LlmCallOptions, 'applyModelDefaults'>,
   ): AsyncIterable<ChatStreamEvent> {
     const client = this.createClient(config);
     if (!client.stream) {
@@ -228,8 +239,11 @@ export class LlmService implements OnModuleInit {
       thinkingTokens?: number;
     } | null = null;
     let lastModel: string = config.defaultModel;
+    const effective = opts?.applyModelDefaults
+      ? applyModelDefaultParams(config, params)
+      : params;
     try {
-      for await (const event of client.stream(params, signal)) {
+      for await (const event of client.stream(effective, signal)) {
         if (event.type === 'done') {
           lastUsage = event.usage;
           lastModel = event.model;

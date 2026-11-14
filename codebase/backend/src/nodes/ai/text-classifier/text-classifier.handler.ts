@@ -207,6 +207,7 @@ export class TextClassifierHandler implements NodeHandler {
         },
         {
           signal: context.abortSignal,
+          applyModelDefaults: true,
         },
       );
     } catch (err) {

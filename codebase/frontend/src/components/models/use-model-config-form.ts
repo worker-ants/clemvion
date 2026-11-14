@@ -107,14 +107,23 @@ export function useModelConfigForm({
     queryClient.invalidateQueries({ queryKey: ["model-configs", kind] });
   }
 
-  /** Shared helper: parse temperature + maxTokens strings into a defaultParams object. */
+  /**
+   * Shared helper: parse temperature + maxTokens strings into a defaultParams object.
+   * temperature 0 은 값이다(CLE-T-GG3WPZ). 숫자가 아니거나 0~2 밖이면 기본값을 쓴다.
+   * max_tokens 는 양의 정수만 쓴다. 백엔드가 호출 기본값으로 읽는 범위와 같다.
+   */
   function buildParams(
     temp: string,
     tokens: string,
   ): { temperature: number; max_tokens: number } {
+    const parsedTemp = parseFloat(temp);
+    const parsedTokens = parseInt(tokens, 10);
     return {
-      temperature: parseFloat(temp) || DEFAULT_TEMPERATURE,
-      max_tokens: parseInt(tokens) || DEFAULT_MAX_TOKENS,
+      temperature:
+        Number.isFinite(parsedTemp) && parsedTemp >= 0 && parsedTemp <= 2
+          ? parsedTemp
+          : DEFAULT_TEMPERATURE,
+      max_tokens: parsedTokens > 0 ? parsedTokens : DEFAULT_MAX_TOKENS,
     };
   }
 

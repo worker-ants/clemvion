@@ -110,10 +110,13 @@ describe('AiTurnExecutor', () => {
         const opts = mockLlmService.chat.mock.calls[0][3] as {
           timeoutMs?: number;
           signal?: unknown;
+          applyModelDefaults?: boolean;
         };
         expect(opts.timeoutMs).toBe(600000);
         // tautology 가 아니라 실제 context.abortSignal 이 전파돼야 한다.
         expect(opts.signal).toBe(controller.signal);
+        // CLE-T-GG3WPZ — AI 에이전트는 모델 설정 기본 파라미터를 켜고 부른다.
+        expect(opts.applyModelDefaults).toBe(true);
       } finally {
         if (prev === undefined) delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
         else process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = prev;
@@ -1002,9 +1005,12 @@ describe('AiTurnExecutor', () => {
       };
       const secondOpts = mockLlmService.chat.mock.calls[1][3] as {
         timeoutMs?: number;
+        applyModelDefaults?: boolean;
       };
       expect(typeof secondOpts.timeoutMs).toBe('number');
       expect(secondOpts.timeoutMs).toBe(firstOpts.timeoutMs);
+      // CLE-T-GG3WPZ — 도구 루프 재호출도 기본 파라미터를 켠다.
+      expect(secondOpts.applyModelDefaults).toBe(true);
     });
 
     it('emits structured meta.mcpDiagnostics (serverSummaries + 종류별 counters) — spec §6.2', async () => {
@@ -1254,10 +1260,13 @@ describe('AiTurnExecutor', () => {
         const opts = mockLlmService.chat.mock.calls[0][3] as {
           timeoutMs?: number;
           signal?: unknown;
+          applyModelDefaults?: boolean;
         };
         expect(opts.timeoutMs).toBe(600000);
         // options.signal 배선 — 소스 미도입이라 undefined 이나 키는 전달.
         expect('signal' in opts).toBe(true);
+        // CLE-T-GG3WPZ — 멀티턴 재개 호출도 기본 파라미터를 켠다.
+        expect(opts.applyModelDefaults).toBe(true);
       } finally {
         if (prev === undefined) delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
         else process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = prev;
@@ -1360,8 +1369,11 @@ describe('AiTurnExecutor', () => {
       // 대칭 전달(배선 대칭)한다.
       const secondOpts = mockLlmService.chat.mock.calls[1][3] as {
         timeoutMs?: number;
+        applyModelDefaults?: boolean;
       };
       expect(typeof secondOpts.timeoutMs).toBe('number');
+      // CLE-T-GG3WPZ — 재개 도구 루프 재호출도 기본 파라미터를 켠다.
+      expect(secondOpts.applyModelDefaults).toBe(true);
     });
 
     it('multi-turn: max_turns 종결 output 에 구조화 meta.mcpDiagnostics(카운터 포함) emit — spec §6.2', async () => {

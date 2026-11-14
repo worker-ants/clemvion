@@ -89,10 +89,11 @@ export class CreateModelConfigDto {
 
   /** 기본 호출 파라미터 (chat 전용) */
   @ApiPropertyOptional({
-    description: 'chat 전용 기본 호출 파라미터 (temperature, maxTokens 등).',
+    description:
+      'chat 전용 기본 호출 파라미터. AI 노드와 워크플로우 어시스턴트가 호출 값을 정하지 않으면 temperature(0~2) · max_tokens(양의 정수)를 쓴다. 다른 키는 저장만 한다.',
     type: 'object',
     additionalProperties: true,
-    example: { temperature: 0.7, maxTokens: 2000 },
+    example: { temperature: 0.7, max_tokens: 4096 },
   })
   @IsOptional()
   @IsObject()

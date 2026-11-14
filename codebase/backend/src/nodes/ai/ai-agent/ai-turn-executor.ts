@@ -1968,7 +1968,11 @@ export class AiTurnExecutor {
           nodeExecutionId: context.nodeExecutionId,
         },
         // §12.16 defense-in-depth — chat 호출당 app-level 타임아웃(무기한 hang 백스톱).
-        { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
+        {
+          signal: context.abortSignal,
+          timeoutMs: aiAgentLlmCallTimeoutMs(),
+          applyModelDefaults: true,
+        },
       );
     } catch (err) {
       // 노드 취소는 error 포트로 보내지 않고 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
@@ -2097,7 +2101,11 @@ export class AiTurnExecutor {
           },
           undefined,
           // §12.16 defense-in-depth — chat 호출당 app-level 타임아웃.
-          { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
+          {
+            signal: context.abortSignal,
+            timeoutMs: aiAgentLlmCallTimeoutMs(),
+            applyModelDefaults: true,
+          },
         );
       } catch (err) {
         // 노드 취소는 error 포트로 보내지 않고 AbortError 로 엔진에 넘긴다(노드 취소 규칙 3).
@@ -3043,7 +3051,11 @@ export class AiTurnExecutor {
       // 이 호출과 아래 도구 반복 호출에는 `rethrowIfNodeCancelled` catch 가 없다. 신호
       // 소스를 만들 때 두 호출의 catch 와 orchestrator `handleAiMessageTurn` 의 AbortError
       // 처리를 함께 건다(노드 취소 규칙 3).
-      { signal: options?.signal, timeoutMs: aiAgentLlmCallTimeoutMs() },
+      {
+        signal: options?.signal,
+        timeoutMs: aiAgentLlmCallTimeoutMs(),
+        applyModelDefaults: true,
+      },
     );
     llmCalls.push({
       requestPayload: chatParams,
@@ -3190,7 +3202,11 @@ export class AiTurnExecutor {
         llmContext,
         // §12.16 defense-in-depth — 후속 chat 도 app-level 타임아웃 대칭 적용.
         // 취소 catch 가 없는 이유는 첫 resume chat 호출의 주석과 같다.
-        { signal: options?.signal, timeoutMs: aiAgentLlmCallTimeoutMs() },
+        {
+          signal: options?.signal,
+          timeoutMs: aiAgentLlmCallTimeoutMs(),
+          applyModelDefaults: true,
+        },
       );
       llmCalls.push({
         requestPayload: loopReq,
