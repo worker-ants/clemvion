@@ -181,7 +181,7 @@ export class ShutdownStateService
     });
 
     this.logger.log(
-      `Graceful shutdown started (signal=${signal ?? 'unknown'}); paused ${workers.length} worker(s), ` +
+      `Graceful shutdown started${signal ? ` (signal=${signal})` : ''}; paused ${workers.length} worker(s), ` +
         `waiting up to ${this.graceMs}ms for their active jobs and ${this.inFlightCount} in-flight node execution(s)`,
     );
 
