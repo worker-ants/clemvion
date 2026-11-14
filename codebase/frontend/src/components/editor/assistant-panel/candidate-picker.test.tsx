@@ -36,10 +36,10 @@ describe("CandidatePicker", () => {
         settingsHref="/integrations"
       />,
     );
-    // "사용 가능한 Integration 이(가) 없어요. Settings 에서 먼저 등록해 주세요." 문구.
+    // 스키마의 영문 라벨 "Integration" 은 backend-labels 로 옮겨 "통합" 으로 보인다.
     expect(screen.getByRole("note")).toBeDefined();
     expect(
-      screen.getByText(/사용 가능한 Integration 이\(가\) 없어요/),
+      screen.getByText(/사용 가능한 통합 이\(가\) 없어요/),
     ).toBeDefined();
     expect(
       screen.getByRole("link", { name: /설정 화면으로 이동/ }),
@@ -66,7 +66,7 @@ describe("CandidatePicker", () => {
     );
 
     const select = screen.getByRole("combobox", {
-      name: "Integration",
+      name: "통합",
     }) as HTMLSelectElement;
     expect(select).toBeDefined();
 
@@ -107,7 +107,7 @@ describe("CandidatePicker", () => {
 
     // 사용자가 드롭다운에서 only-1 을 직접 선택해야 활성.
     const select = screen.getByRole("combobox", {
-      name: "Integration",
+      name: "통합",
     }) as HTMLSelectElement;
     await user.selectOptions(select, "only-1");
     expect(confirmBtn.disabled).toBe(false);
@@ -354,5 +354,125 @@ describe("CandidatePicker", () => {
       />,
     );
     expect(screen.getByRole("link")).toBeDefined();
+  });
+
+  // REQ-ASSIST-005: 필드 라벨은 노드 스키마의 영문 ui.label 이다. 설정 패널과 같이
+  // translateBackendLabel 로 현재 언어 문구를 고르고, 매핑이 없으면 원문을 둔다.
+  describe("field label localisation", () => {
+    it.each([
+      ["integration-selector", "Integration", "통합"],
+      ["llm-config-selector", "LLM Provider", "LLM 제공자"],
+      ["workflow-selector", "Target Workflow", "대상 워크플로우"],
+    ])(
+      "shows the Korean label for %s (%s)",
+      (widget, label, ko) => {
+        render(
+          <CandidatePicker
+            field={{
+              field: "f",
+              widget: widget as "integration-selector",
+              label,
+              candidates: [{ id: "c-1", label: "Item" }],
+            }}
+            currentValue=""
+            onConfirm={vi.fn()}
+          />,
+        );
+        expect(screen.getByRole("group", { name: `${ko} 선택` })).toBeDefined();
+        expect(screen.getByRole("combobox", { name: ko })).toBeDefined();
+        expect(screen.queryByText(new RegExp(label))).toBeNull();
+      },
+    );
+
+    it.each([
+      ["kb-selector", "Knowledge Bases", "지식 베이스"],
+      ["mcp-server-selector", "MCP Servers", "MCP 서버"],
+    ])("shows the Korean label for multi %s (%s)", (widget, label, ko) => {
+      render(
+        <CandidatePicker
+          field={{
+            field: "f",
+            widget: widget as "kb-selector",
+            label,
+            selectionMode: "multi",
+            candidates: [{ id: "c-1", label: "Item" }],
+          }}
+          currentValue={[]}
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("group", { name: `${ko} 선택` })).toBeDefined();
+    });
+
+    it("uses the localised label in the confirmed and empty states", () => {
+      const { rerender } = render(
+        <CandidatePicker
+          field={{
+            field: "integrationId",
+            widget: "integration-selector",
+            label: "Integration",
+            candidates: [{ id: "int-1", label: "Gmail SMTP" }],
+          }}
+          currentValue="int-1"
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("status").textContent).toContain(
+        "통합: Gmail SMTP",
+      );
+      rerender(
+        <CandidatePicker
+          field={{
+            field: "integrationId",
+            widget: "integration-selector",
+            label: "Integration",
+            candidates: [],
+          }}
+          currentValue=""
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("note").getAttribute("aria-label")).toContain(
+        "사용 가능한 통합",
+      );
+    });
+
+    it("keeps the English schema label in the en locale", () => {
+      useLocaleStore.setState({ locale: "en" });
+      render(
+        <CandidatePicker
+          field={{
+            field: "integrationId",
+            widget: "integration-selector",
+            label: "Integration",
+            candidates: [{ id: "int-1", label: "Gmail SMTP" }],
+          }}
+          currentValue=""
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole("group", { name: "Select Integration" }),
+      ).toBeDefined();
+    });
+  });
+
+  // 서버가 후보 이름을 못 찾으면 빈 라벨을 보낸다. 영문 고정 문구 대신 사전 문구로 채운다.
+  it("shows the dictionary placeholder for a candidate without a label", () => {
+    render(
+      <CandidatePicker
+        field={{
+          field: "workflowId",
+          widget: "workflow-selector",
+          label: "Target Workflow",
+          candidates: [{ id: "wf-1", label: "" }],
+        }}
+        currentValue=""
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("option", { name: "(이름 없음)" }),
+    ).toBeDefined();
   });
 });

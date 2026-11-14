@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Check, ChevronRight } from "lucide-react";
-import { useT } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
+import { translateBackendLabel } from "@/lib/i18n/backend-labels";
 import type {
   CandidateEntry,
   PendingUserConfigField,
@@ -109,6 +110,15 @@ export function CandidatePicker({
   settingsHref,
 }: CandidatePickerProps) {
   const t = useT();
+  const locale = useLocale();
+  // 필드 라벨은 노드 스키마의 영문 `ui.label` 이다. 설정 패널과 같이
+  // `translateBackendLabel` 로 현재 언어 문구를 고른다(REQ-ASSIST-005).
+  const fieldLabel = translateBackendLabel(field.label, locale) ?? field.label;
+  // 후보 이름이 비면 서버가 빈 라벨을 보낸다. 사전 문구로 채운다.
+  const candidateText = (c: CandidateEntry): string => {
+    const label = c.label || t("assistant.candidateUnnamed");
+    return c.sublabel ? `${label} (${c.sublabel})` : label;
+  };
   // legacy DB row (selectionMode 누락) 는 'single' 로 fallback.
   const mode: "single" | "multi" = field.selectionMode ?? "single";
   // review W-1: legacy row 또는 SSE 스트림 오류로 candidates 가 missing 일
@@ -136,19 +146,20 @@ export function CandidatePicker({
       if (mode === "multi") {
         const ids = extractSelectedIds(field.widget, currentValue);
         const labels = ids.map(
-          (id) => candidates.find((c) => c.id === id)?.label ?? id,
+          (id) => {
+            const c = candidates.find((entry) => entry.id === id);
+            return c ? c.label || t("assistant.candidateUnnamed") : id;
+          },
         );
-        return labels.length > 0 ? labels.join(", ") : field.label;
+        return labels.length > 0 ? labels.join(", ") : fieldLabel;
       }
-      const matchedLabel = candidates.find(
+      const matched = candidates.find(
         (c) =>
           c.id === selectedId ||
           (typeof currentValue === "string" && c.id === currentValue),
-      )?.label;
-      return (
-        matchedLabel ??
-        (typeof currentValue === "string" ? currentValue : field.label)
       );
+      if (matched) return matched.label || t("assistant.candidateUnnamed");
+      return typeof currentValue === "string" ? currentValue : fieldLabel;
     })();
 
     return (
@@ -159,7 +170,7 @@ export function CandidatePicker({
         <Check size={12} className="mt-[2px] shrink-0" aria-hidden="true" />
         <span>
           {t("assistant.candidatePickerSelected", {
-            label: field.label,
+            label: fieldLabel,
             selected: selectedLabel,
           })}
         </span>
@@ -173,12 +184,12 @@ export function CandidatePicker({
       <div
         role="note"
         aria-label={t("assistant.candidatePickerEmpty", {
-          label: field.label,
+          label: fieldLabel,
         })}
         className="flex flex-col gap-1 rounded-md border border-amber-400/70 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-950 dark:border-amber-500/60 dark:bg-amber-950/70 dark:text-amber-50"
       >
         <span>
-          {t("assistant.candidatePickerEmpty", { label: field.label })}
+          {t("assistant.candidatePickerEmpty", { label: fieldLabel })}
         </span>
         {safeSettingsHref && (
           <a
@@ -213,11 +224,11 @@ export function CandidatePicker({
     return (
       <div
         role="group"
-        aria-label={t("assistant.candidatePickerTitle", { label: field.label })}
+        aria-label={t("assistant.candidatePickerTitle", { label: fieldLabel })}
         className="flex flex-col gap-1.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] px-2.5 py-1.5"
       >
         <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
-          {t("assistant.candidatePickerTitle", { label: field.label })}
+          {t("assistant.candidatePickerTitle", { label: fieldLabel })}
         </span>
         <div className="flex max-h-40 flex-col gap-0.5 overflow-y-auto">
           {candidates.map((c: CandidateEntry) => (
@@ -227,13 +238,13 @@ export function CandidatePicker({
             >
               <input
                 type="checkbox"
-                aria-label={c.label}
+                aria-label={c.label || t("assistant.candidateUnnamed")}
                 checked={selectedIds.includes(c.id)}
                 onChange={() => onToggle(c.id)}
                 className="h-3 w-3 rounded"
               />
               <span className="truncate">
-                {c.sublabel ? `${c.label} (${c.sublabel})` : c.label}
+                {candidateText(c)}
               </span>
             </label>
           ))}
@@ -261,15 +272,15 @@ export function CandidatePicker({
   return (
     <div
       role="group"
-      aria-label={t("assistant.candidatePickerTitle", { label: field.label })}
+      aria-label={t("assistant.candidatePickerTitle", { label: fieldLabel })}
       className="flex flex-col gap-1.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] px-2.5 py-1.5"
     >
       <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
-        {t("assistant.candidatePickerTitle", { label: field.label })}
+        {t("assistant.candidatePickerTitle", { label: fieldLabel })}
       </span>
       <div className="flex items-center gap-1.5">
         <select
-          aria-label={field.label}
+          aria-label={fieldLabel}
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
           className="min-w-0 flex-1 rounded-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-1.5 py-0.5 text-[11px] text-[hsl(var(--foreground))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--primary))]"
@@ -277,7 +288,7 @@ export function CandidatePicker({
           <option value="">—</option>
           {candidates.map((c: CandidateEntry) => (
             <option key={c.id} value={c.id}>
-              {c.sublabel ? `${c.label} (${c.sublabel})` : c.label}
+              {candidateText(c)}
             </option>
           ))}
         </select>

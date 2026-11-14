@@ -92,6 +92,26 @@ describe("assistant-store", () => {
     useLocaleStore.setState({ locale: "ko" });
   });
 
+  describe("error event", () => {
+    // REQ-ASSIST-005: 스토어는 영문 폴백 문구를 만들지 않는다. 서버 message 가 비면
+    // 빈 문자열로 두고 에러 버블이 사전 문구(assistant.errorUnknown)로 채운다.
+    it("keeps an empty message instead of an English fallback when the server sends none", () => {
+      seedAssistant();
+      handleSseEvent(
+        useAssistantStore.setState,
+        useAssistantStore.getState,
+        ASSISTANT_ID,
+        {
+          event: "error",
+          data: { code: "LLM_SOMETHING_NEW", message: "" },
+        } as AssistantSseEvent,
+      );
+      const msg = useAssistantStore.getState().messages[0];
+      expect(msg.error).toEqual({ code: "LLM_SOMETHING_NEW", message: "" });
+      expect(msg.streaming).toBe(false);
+    });
+  });
+
   describe("done event → systemHint injection", () => {
     it("does NOT inject any hint on a plan-only turn (plan card's '계획대로 진행' button covers the UX)", () => {
       // 2026-04-23 UX 피드백: plan card 가 렌더되면 이미 "계획대로 진행" 버튼이

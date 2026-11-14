@@ -676,7 +676,9 @@ export function handleSseEvent(
               streaming: false,
               error: {
                 code: event.data.code,
-                message: event.data.message || "Assistant error",
+                // 영문 고정 폴백을 두지 않는다. 빈 문자열이면 에러 버블이
+                // 사전 문구(assistant.errorUnknown)로 채운다(REQ-ASSIST-005).
+                message: event.data.message ?? "",
               },
             }
           : m,

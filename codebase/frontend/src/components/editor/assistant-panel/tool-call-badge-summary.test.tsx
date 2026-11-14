@@ -142,10 +142,36 @@ const CASES: Array<{
     en: "execution detail: 2 nodes",
   },
   {
-    title: "unknown tool falls back to the tool name",
-    call: call("propose_plan"),
-    ko: "propose_plan",
-    en: "propose_plan",
+    title: "get_current_workflow",
+    call: call("get_current_workflow"),
+    ko: "현재 워크플로우",
+    en: "current workflow",
+  },
+  {
+    title: "verify_workflow",
+    call: call("verify_workflow"),
+    ko: "워크플로우 검증",
+    en: "verify workflow",
+  },
+  {
+    // 라이브 SSE 는 plan 종류 호출을 tool_call 로 보내지 않지만 저장된 메시지를
+    // 새로 고침으로 다시 그리면 toolCalls 에 함께 들어 있다.
+    title: "propose_plan restored from a saved message",
+    call: { ...call("propose_plan"), kind: "plan" } as AssistantToolCallRecord,
+    ko: "계획 제안",
+    en: "propose plan",
+  },
+  {
+    title: "clear_plan restored from a saved message",
+    call: { ...call("clear_plan"), kind: "plan" } as AssistantToolCallRecord,
+    ko: "계획 지우기",
+    en: "clear plan",
+  },
+  {
+    title: "unknown tool keeps the tool name inside a dictionary template",
+    call: call("future_tool"),
+    ko: "도구: future_tool",
+    en: "tool: future_tool",
   },
 ];
 

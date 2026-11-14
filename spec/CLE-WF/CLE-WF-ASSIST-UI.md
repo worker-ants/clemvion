@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
 content_hash: "25e7842a962721b4b48958d5250c9bc73e3b9e44ff9104b4bb748e64ff326d4b"
 read_as: "approved_fallback"
-task: "CLE-T-F9QEJC"
+task: "CLE-T-66PJNN"
 source_paths: []
-mirror_sha256: "54490a09fc727d4ee48da5823d8895996ac59ef3c3e187cd16e11605dbd5e1b6"
-etag: "sha256-f1c1cc558cf670a9ca164f9f135755bc8e1f7a64103428121d7e979a7a919e7b"
+mirror_sha256: "a29eee22fb60ca9b54219b9768ea7348a77750a60f02b23ada0c07459455fb26"
+etag: "sha256-34fae8bc7a8a3ba64503821d5827f9def960b67dcd88dd799c89f5dcfb488b32"
 ---
 ## 개요
 

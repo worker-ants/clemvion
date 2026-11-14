@@ -144,6 +144,7 @@ const LABEL_KO: Record<string, string> = {
   "Submit Label": "제출 버튼 라벨",
   "Switch Value": "스위치 값",
   "System Prompt": "시스템 프롬프트",
+  "Target Workflow": "대상 워크플로우",
   Template: "템플릿",
   "Timeout (ms)": "타임아웃(ms)",
   "Timeout (sec)": "타임아웃(초)",

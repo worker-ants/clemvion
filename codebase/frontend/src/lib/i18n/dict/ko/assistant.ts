@@ -77,4 +77,11 @@ export const assistant = {
   toolBadgeExecutionDetailNodes: "실행 상세: 노드 {{count}}개",
   errorStreamingUnsupported:
     "선택한 모델 설정의 프로바이더는 스트리밍 응답을 지원하지 않아 어시스턴트에서 쓸 수 없어요. 다른 모델 설정을 골라 주세요.",
+  toolBadgeCurrentWorkflow: "현재 워크플로우",
+  toolBadgeVerifyWorkflow: "워크플로우 검증",
+  toolBadgeProposePlan: "계획 제안",
+  toolBadgeClearPlan: "계획 지우기",
+  toolBadgeOther: "도구: {{name}}",
+  errorUnknown: "잠시 후 같은 메시지를 다시 보내 주세요.",
+  candidateUnnamed: "(이름 없음)",
 } as const;

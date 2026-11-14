@@ -182,12 +182,14 @@ export class CandidateLookupService {
       // ModelConfigService.findAll 의 row 타입이 `Record<string, unknown>` 로
       // 선언되어 있어 필드를 안전하게 해석한다.
       const id = typeof cfg.id === 'string' ? cfg.id : '';
+      // 이름도 프로바이더도 없으면 빈 라벨을 보낸다. 프런트 선택기가 사전
+      // 문구로 채운다(REQ-ASSIST-005).
       const label =
         typeof cfg.name === 'string'
           ? cfg.name
           : typeof cfg.provider === 'string'
             ? cfg.provider
-            : 'LLM Config';
+            : '';
       const sublabel =
         typeof cfg.defaultModel === 'string'
           ? cfg.defaultModel
@@ -258,7 +260,8 @@ export class CandidateLookupService {
     const items = extractWorkflowItems(raw);
     return items.slice(0, MAX_CANDIDATES).map((wf) => ({
       id: typeof wf.id === 'string' ? wf.id : '',
-      label: typeof wf.name === 'string' ? wf.name : 'Workflow',
+      // 이름이 없으면 빈 라벨. 프런트 선택기가 사전 문구로 채운다.
+      label: typeof wf.name === 'string' ? wf.name : '',
       sublabel:
         typeof wf.description === 'string' && wf.description.length > 0
           ? wf.description.slice(0, 60)
