@@ -28,8 +28,9 @@ const AI_AGENT_LLM_CALL_TIMEOUT_MS_DEFAULT = 600000;
  *
  * **기본값 근거**: 단일 LLM turn(1 request/response)이 정상적으로 10분을 넘는 경우는
  * 극히 드물어(대형 output + extended thinking 도 대개 수 분), 정상 장기 생성 regression
- * 없이 무기한 hang 만 상한한다. 주요 provider SDK 의 기본 request timeout(~10분)과도
- * 정합. 환경별로 env 로 조정(예: `0` 비활성, 더 긴 값).
+ * 없이 무기한 hang 만 상한한다. OpenAI · Anthropic SDK 는 요청마다 120초를 걸고 재전송
+ * 2회를 더해 약 6분에 먼저 끊으므로, 이 값은 실제로 Google 호출과 SDK 가 멈춘 경우에 걸린다.
+ * 120초로 낮추면 Google 의 긴 생성이 끊긴다. 환경별로 env 로 조정(예: `0` 비활성, 더 긴 값).
  */
 export function aiAgentLlmCallTimeoutMs(): number {
   const raw = process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
