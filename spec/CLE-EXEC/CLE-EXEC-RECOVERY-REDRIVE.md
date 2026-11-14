@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REDRIVE"
 title: "장애 복구와 안전 종료 — 크래시 재구동과 부팅 복구 스캔"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "ba2b2a90a3d703a569167213bc61ef07224546d0f7be5ab3d891da0112154e7a"
+content_hash: "78292f9883b83e7a53206ddb7d344a37e1f840ad426ce46f714f2411572aa4aa"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-EC9VFJ"
 source_paths: []
-mirror_sha256: "97c9256da4a125c235ebb1c9321aae9acdf45767c8ff3c668c28b045108fea9b"
-etag: "sha256-e5fa8de3cb4bc0bf34233d0caa52c0623bc74404203f6f7ae3bf7170c6359d2c"
+mirror_sha256: "c7eff802460e62d1f0e0565bcfb7dc8b8437d6548330816886cd749100d8d802"
+etag: "sha256-7812bafcc798c212a56da5f20531fc04dce06a19ce565eb6148f55d3bda80d73"
 ---
 ## 개요
 
@@ -97,7 +97,7 @@ lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
 2026-11-12 에 구현됐다. 스캔의 (d) 단계(`closeOrphanRunningNodeExecutions`)는 실행이 이미 끝났는데 노드 실행 행만 `running` 으로 남은 경우를 닫는다. case B 의 옛 행 마감(`failOrphanRunningNodeExecutions`)은 실행이 `running` 일 때만 돌아서 이 행에 닿지 않는다([멱등성 계약](CLE-EXEC-RECOVERY-REHYDRATE.md#멱등성-계약)).
 
 - **대상**: 부모 실행이 종결 상태(`completed` · `failed` · `cancelled`)이고 노드 실행 행이 `running` 인 행이다. 그 행의 `started_at` 이 `STUCK_RECOVERY_STALE_MS`(30분)보다 오래돼야 한다.
-- **제외**: 부모 체인에 Background 노드(타입 `background`) 행이 있는 행은 닫지 않는다. 부모 체인은 `parent_node_execution_id` 를 위로 따라가고 깊이 한도는 64 다. Background 본문은 부모 실행이 끝난 뒤에도 같은 executionId 로 돈다. `maxDurationMs` 가 0 이면 시간 한도도 없다. 그래서 본문 안 컨테이너 행이 30분 넘게 살아 있을 수 있다. 크래시로 남은 본문 행도 이 단계는 닫지 않는다.
+- **제외**: 부모 체인에 Background 노드(타입 `background`) 행이 있는 행은 닫지 않는다. 부모 체인은 `parent_node_execution_id` 를 위로 따라가고 깊이 한도는 64 다. 한도 안에서 최상위 행(부모가 없는 행)에 닿지 못한 행도 닫지 않는다. 그런 행은 Background 조상이 없다고 확인할 수 없다. Background 본문은 부모 실행이 끝난 뒤에도 같은 executionId 로 돈다. `maxDurationMs` 가 0 이면 시간 한도도 없다. 그래서 본문 안 컨테이너 행이 30분 넘게 살아 있을 수 있다. 크래시로 남은 본문 행도 이 단계는 닫지 않는다.
 - **건드리지 않는 행**:
   - `started_at` 이 30분 안쪽인 행. 마지막 턴 재시도 재진입 턴의 살아 있는 새 행이 여기 든다. 그 턴 동안 실행은 `failed` 이고 새 행은 `running` 이다. 취소 커밋 뒤 노드 마감 전의 짧은 창에 있는 행도 여기 든다.
   - `waiting_for_input` 노드 실행 행.
@@ -132,7 +132,7 @@ lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
 - **종결 경계(무한 재구동 방지)**: 1차 경계는 실행 시간 한도가 아니라 **트리거 자체**다. 부팅 때 한 번 도는 스캔이므로 poison 세그먼트는 부팅마다 최대 1회만 재구동된다. 빠른 반복이 아니며 배포가 버그를 고칠 수도 있다. 실행 시간 한도(`active_running_ms` 누적)는 크래시 때 시간이 덜 세어지므로 **best-effort 2차** 경계로만 작동한다. rehydration 자체가 불가하면 `RESUME_CHECKPOINT_MISSING` 으로 끝낸다.
 - **새 마이그레이션 없음**: re-claim 은 기존 `started_at`(부팅 복구 스캔 stale 판정과 같은 컬럼) 조건부 UPDATE 다. 완료 노드 건너뛰기는 기존 노드 실행 순서 로그(V035/V036), 2차 경계는 기존 `active_running_ms`(V083)를 쓴다.
 - **at-least-once 경계**: 엔진은 완료 노드 미재실행(exactly-once)만 보장하고 크래시 시점 미완료 노드는 at-least-once 로 다시 실행한다. 통합 노드의 멱등을 노드 설정에 맡기는 기존 모델과 맞는다.
-- **에러 처리 정책 `continue` 세그먼트 재개는 미룬다**: `execution-engine-residual-gaps.md` G2 의 세 장애물(에러 처리 정책 스키마 노출 선행 미충족, spec 의 `continue` 용어가 실제 enum 에 없음, 인스턴스 간 재개 인프라)은 크래시 재구동 인프라와 관계가 없다. PR3 는 토대(멱등 재구동)를 주지만 G2 자체는 별건이다.
+- **에러 처리 정책 `continue` 세그먼트 재개는 하지 않는다**: PR3 당시 안전 종료 절차의 `continue` 분기에는 장애물이 셋 있었다(에러 처리 정책 스키마 노출 선행 미충족, `continue` 가 실제 enum 에 없음, 인스턴스 사이 재개 인프라 부재). 셋 다 크래시 재구동과 관계가 없어 PR3 는 이 분기를 따로 미뤘다. 2026-11-14 결정(CLE-T-GQ7WHS)으로 그 약속 자체를 거뒀다([안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료)).
 - **기각한 대안**: (a) 새 owner·heartbeat 컬럼으로 정확히 크래시를 검출: 마이그레이션과 heartbeat 인프라 비용이 크고 BullMQ stalled 가 같은 역할을 표준으로 주므로 PR4 로 흡수했다. (b) 복구 반복문에 주기 스캔 추가: 부팅 트리거로 재시작 재개는 성립하고 운영 중 크래시는 PR4 stalled 가 본래 담당이라 범위 밖이다.
 
 ### 운영 중 stalled 자동 재배달은 한 번만 (PR4, 2026-07-04)
@@ -170,6 +170,17 @@ PR3 로 멱등 재구동 메커니즘을 검증한 뒤 운영 중 워커 크래�
 - **기각: 주기 스윕**: 재부팅 없이도 행이 닫힌다는 이점이 있다. 대신 새 BullMQ 반복 작업과 Redis 키 등재가 필요해 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 까지 바뀐다. 이점에 비해 바뀌는 표면이 커서 택하지 않았다.
 - **기각: 30분보다 짧은 임계**: 마지막 턴 재시도의 재진입 턴은 실행이 `failed` 인 채 새 행이 `running` 으로 돈다. 남은 행과 모양이 같다. 임계를 줄이면 살아 있는 재진입 턴의 행을 닫을 위험이 커진다.
 - **대가**: 부팅 때만 돌므로 다음 부팅 스캔 전까지 그 행은 `running` 으로 보이고 재부팅이 없으면 계속 남는다. 재진입 턴이 예외로 끝나는 경우는 `closeSpawnedRowIfRunning` 이 바로 닫는다. 그래서 이 대가는 크래시와 턴 진입 전 예외에만 남는다.
+
+### 최상위 행에 닿은 체인의 행만 닫는다 (2026-11-14, CLE-T-EC9VFJ)
+
+(d) 단계는 Background 조상이 있는 행을 빼려고 부모 체인을 깊이 64까지 따라간다. 처음 구현은 한도 안에서 Background 행을 찾지 못하면 그 행을 닫았다. 그래서 Background 행이 65번째 이후 조상이면 살아 있는 본문 행도 닫힐 수 있었다.
+
+- **최상위 도달을 확인한 행만 닫는다**: 부모가 없는 행, 또는 한도 안의 조상 가운데 부모가 없는 행이 있는 행만 닫는다. 한도를 넘는 체인, 순환하는 체인, 없는 행을 가리키는 부모 포인터는 모두 닫지 않는다. 체인이 한도 안에 드는 행은 결과가 바뀌지 않는다.
+- **대가**: 체인은 서브 워크플로우 호출(재귀 한도 10)과 컨테이너 · Background 중첩으로 길어진다. 컨테이너 중첩에는 한도가 없어 64 를 넘는 체인도 만들 수는 있다. 그런 체인 끝에 크래시로 남은 행은 이 단계가 닫지 못하고 다음 부팅에도 `running` 으로 남는다. 살아 있는 본문 행을 닫는 쪽보다 남기는 쪽을 골랐다.
+- **부모 행이 지워진 체인은 가르지 못한다**: `parent_node_execution_id` 는 `ON DELETE SET NULL` 이다(V012). 실행 중에 워크플로우 저장이나 노드 삭제로 서브 워크플로우 · 컨테이너 · Background 노드가 지워지면 `node_execution.node_id` 의 `ON DELETE CASCADE` 로 그 노드의 실행 행도 지워지고 자식 행의 부모 포인터는 NULL 이 된다. 이 행은 DB 에서 진짜 최상위 행과 구별되지 않는다. 노드의 `container_id` 도 `ON DELETE SET NULL` 이라 노드 그래프로도 원래 부모를 찾을 수 없다. 그래서 이런 행이 30분 넘게 `running` 이면 이 단계가 닫는다. 닫히는 것은 실행 내역의 행 표시뿐이고 돌고 있는 본문은 멈추지 않는다. 노드가 끝나면 엔진이 그 행을 다시 저장해 표시가 돌아온다. 인스턴스가 하나면 부팅 전에 본문도 이미 멈췄다.
+- **기각: FK 를 RESTRICT 나 CASCADE 로 바꾸기**: RESTRICT 는 실행 이력이 있는 노드를 지우지 못하게 해 워크플로우 편집이 막힌다. CASCADE 는 실행 이력의 자식 행까지 지운다. V012 가 SET NULL 을 고른 이유(부모 행이 지워져도 자식 기록을 남긴다)와도 어긋난다.
+- **기각: 노드 그래프 대조**: 지워진 노드는 그래프에 남지 않고 `container_id` 도 NULL 이 돼 원래 부모를 되찾을 수 없다.
+- **기각: 실행 중 노드 삭제 막기**: 워크플로우 편집 규칙을 바꾸는 큰 변경이고 얻는 것은 표시 한 줄이다.
 
 ## 구현 위치
 
