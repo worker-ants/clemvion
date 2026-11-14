@@ -494,6 +494,13 @@ function chunkText(text: string): ChannelMessage[] {
 
 /** escape 엔티티. 조각 경계가 이 가운데를 지나면 엔티티 앞에서 자른다. */
 const SLACK_ENTITY = /^&(?:amp|lt|gt);/;
+/** 가장 긴 escape 엔티티 `&amp;` 의 길이. */
+const SLACK_ENTITY_MAX_LENGTH = '&amp;'.length;
+/**
+ * 경계를 넘을 수 있는 `&` 를 찾는 구간 길이. 엔티티가 경계를 넘으려면 `&` 가 경계 앞
+ * `SLACK_ENTITY_MAX_LENGTH - 1` 글자 안에 있어야 한다.
+ */
+const SLACK_ENTITY_LOOKBACK = SLACK_ENTITY_MAX_LENGTH - 1;
 
 /**
  * `start` 에서 시작하는 조각의 끝 위치. 3500자 경계가 escape 결과(`&amp;` `&lt;` `&gt;`)의 가운데를
@@ -502,13 +509,14 @@ const SLACK_ENTITY = /^&(?:amp|lt|gt);/;
 function chunkEnd(text: string, start: number): number {
   const end = start + SLACK_TEXT_LIMIT;
   if (end >= text.length) return text.length;
-  // 가장 긴 엔티티 `&amp;` 는 5자라 경계 앞 4자 안의 `&` 만 경계를 넘을 수 있다.
-  const amp = text.lastIndexOf('&', end - 1);
-  if (amp > start && amp >= end - 4) {
-    const entity = SLACK_ENTITY.exec(text.slice(amp, amp + 5));
-    if (entity && amp + entity[0].length > end) return amp;
-  }
-  return end;
+  const windowStart = Math.max(start + 1, end - SLACK_ENTITY_LOOKBACK);
+  const offset = text.slice(windowStart, end).lastIndexOf('&');
+  if (offset < 0) return end;
+  const amp = windowStart + offset;
+  const entity = SLACK_ENTITY.exec(
+    text.slice(amp, amp + SLACK_ENTITY_MAX_LENGTH),
+  );
+  return entity && amp + entity[0].length > end ? amp : end;
 }
 
 function textMessage(text: string): ChannelMessage {

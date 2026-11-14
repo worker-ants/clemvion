@@ -648,6 +648,41 @@ describe('renderSlackEvent — 멘션 무력화 (CLE-T-FQTQ7K)', () => {
     expect(textsOf(msgs)).toEqual([text]);
   });
 
+  // NERV Task CLE-T-VE7QVM — 엔티티 3종 × 경계 오프셋. 엔티티가 3500자 경계에 걸치는 모든 자리와
+  // 경계 바로 앞 · 뒤에 놓이는 자리를 함께 본다.
+  describe.each([
+    ['&', '&amp;'],
+    ['<', '&lt;'],
+    ['>', '&gt;'],
+  ])('엔티티 %s → %s', (raw, entity) => {
+    const LIMIT = 3500;
+    const SUFFIX = '\n_(continued…)_';
+    const offsets = Array.from(
+      { length: entity.length + 2 },
+      (_, i) => LIMIT - entity.length + i - 1,
+    );
+    it.each(offsets)(
+      '엔티티가 escape 결과의 %i 번째 글자에서 시작하면 가운데를 자르지 않는다',
+      (offset) => {
+        const message = `${'a'.repeat(offset)}${raw}${'b'.repeat(LIMIT)}`;
+        const escaped = escapeSlackMrkdwn(message);
+        const texts = textsOf(
+          renderSlackEvent({ ...BASE, message, turnCount: 1 }, CONFIG),
+        ) as string[];
+        expect(texts.length).toBeGreaterThan(1);
+        const bodies = texts.map((t, i) =>
+          i < texts.length - 1 ? t.slice(0, -SUFFIX.length) : t,
+        );
+        for (const body of bodies) {
+          expect(body.length).toBeLessThanOrEqual(LIMIT);
+          expect(body).not.toMatch(/&[a-z]{0,3}$/);
+          expect(body).not.toMatch(/^[a-z]{1,3};/);
+        }
+        expect(bodies.join('')).toBe(escaped);
+      },
+    );
+  });
+
   it('3500자로 나눌 때 escape 결과(&amp; &lt; &gt;)의 중간에서 자르지 않는다', () => {
     const SUFFIX = '\n_(continued…)_';
     // escape 뒤 `&lt;` 가 3498~3501 번째 글자에 놓여 3500자 경계가 그 가운데를 지난다.
