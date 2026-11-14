@@ -275,16 +275,19 @@ describe("PasskeyCard 삭제", () => {
 
   it("삭제 버튼은 브라우저 confirm 대신 비밀번호를 받는 대화상자를 연다", async () => {
     const confirmSpy = vi.spyOn(window, "confirm");
-    renderCard();
-    await openDeleteDialog();
+    try {
+      renderCard();
+      await openDeleteDialog();
 
-    expect(
-      screen.getByRole("dialog", { name: webauthn.deleteDialogTitle }),
-    ).toBeTruthy();
-    expect(screen.getByText(webauthn.deleteConfirm)).toBeTruthy();
-    expect(confirmSpy).not.toHaveBeenCalled();
-    expect(post).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
+      expect(
+        screen.getByRole("dialog", { name: webauthn.deleteDialogTitle }),
+      ).toBeTruthy();
+      expect(screen.getByText(webauthn.deleteConfirm)).toBeTruthy();
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    } finally {
+      confirmSpy.mockRestore();
+    }
   });
 
   it("입력한 비밀번호를 POST …/delete 로 보내고 성공하면 대화상자를 닫는다", async () => {

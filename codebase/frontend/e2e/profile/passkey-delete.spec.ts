@@ -6,7 +6,8 @@ import { mockAuth, PAGE_READY_TIMEOUT } from "../helpers/mock-auth";
  *
  * 삭제도 계정 비밀번호를 다시 확인한다. 브라우저 confirm 대신 비밀번호를 받는 대화상자를 열고,
  * 비밀번호를 본문으로 보내야 해서 DELETE 대신 `POST …/credentials/:id/delete` 를 부른다.
- * 백엔드 동작(401 PASSWORD_* · 503 먼저 · 분당 10회)은 backend e2e `webauthn-2fa` W 가 맡는다.
+ * 백엔드 동작 중 401 PASSWORD_* 는 backend e2e `webauthn-2fa` W 가, 503 먼저는 `webauthn.controller.spec`
+ * 이, 분당 10회는 `password-recheck-throttle.spec` 이 맡는다.
  */
 
 const CREDENTIAL = {
