@@ -164,21 +164,7 @@ export class ShutdownStateService
     const deadline = Date.now() + this.graceMs;
 
     const workers = this.collectWorkers();
-    let workersIdle = workers.length === 0;
-    // 인자 없는 pause() 는 새 작업을 멈추고 진행 중 작업이 끝날 때까지 기다린다(이 인스턴스의 워커만).
-    // 작업이 끝나면 BullMQ 가 차단 연결을 다시 연다. 강제 close 뒤에 작업이 끝나도 마찬가지인데, 그때는 종료 훅이
-    // 끝나 프로세스가 곧 끝나므로 연결이 남지 않는다.
-    void Promise.allSettled(
-      workers.map((worker) =>
-        worker.pause().catch((err: unknown) => {
-          this.logger.warn(
-            `Graceful shutdown: pausing worker "${worker.name}" failed — ${errorMessage(err)}`,
-          );
-        }),
-      ),
-    ).then(() => {
-      workersIdle = true;
-    });
+    const pause = this.pauseWorkers(workers);
 
     this.logger.log(
       `Graceful shutdown started${signal ? ` (signal=${signal})` : ''}; paused ${workers.length} worker(s), ` +
@@ -187,7 +173,7 @@ export class ShutdownStateService
 
     const drained = await this.waitUntil(
       deadline,
-      () => workersIdle && this.inFlightCount === 0,
+      () => pause.isSettled() && this.inFlightCount === 0,
     );
     if (drained) {
       this.logger.log(
@@ -205,20 +191,51 @@ export class ShutdownStateService
     this.logger.warn(
       `Grace period elapsed; marking ${remainingNodeExecutionIds.length} node execution(s) + ` +
         `${remainingExecutionIds.length} execution(s) as SERVER_INTERRUPTED` +
-        (workersIdle ? '' : ' and force-closing workers with active jobs'),
+        (pause.isSettled()
+          ? ''
+          : ' and force-closing workers with active jobs'),
     );
     await this.markRemainingAsInterrupted(
       remainingNodeExecutionIds,
       remainingExecutionIds,
     );
-    if (!workersIdle) {
+    if (!pause.isSettled()) {
       await this.forceCloseWorkers(workers);
     }
   }
 
+  /**
+   * 모든 워커를 pause 한다. 인자 없는 pause() 는 새 작업을 멈추고 진행 중 작업이 끝날 때까지 기다린다(이 인스턴스의
+   * 워커만). 작업이 끝나면 BullMQ 가 차단 연결을 다시 연다. 강제 close 뒤에 작업이 끝나도 마찬가지인데, 그때는 종료
+   * 훅이 끝나 프로세스가 곧 끝나므로 연결이 남지 않는다. `isSettled()` 는 모든 pause 가 끝났는지(워커가 없으면 즉시
+   * true) 알려 준다.
+   */
+  private pauseWorkers(workers: DrainableWorker[]): {
+    isSettled: () => boolean;
+  } {
+    let settled = workers.length === 0;
+    void Promise.allSettled(
+      workers.map((worker) =>
+        worker.pause().catch((err: unknown) => {
+          this.logger.warn(
+            `Graceful shutdown: pausing worker "${worker.name}" failed — ${errorMessage(err)}`,
+          );
+        }),
+      ),
+    ).then(() => {
+      settled = true;
+    });
+    return { isSettled: () => settled };
+  }
+
   /** `@Processor` 로 등록된 워커 전부. 초기화되지 않은 WorkerHost 는 건너뛴다. */
   private collectWorkers(): DrainableWorker[] {
-    if (!this.discovery) return [];
+    if (!this.discovery) {
+      this.logger.warn(
+        'Graceful shutdown: DiscoveryService is not wired; BullMQ workers will not be paused or force-closed',
+      );
+      return [];
+    }
     const workers: DrainableWorker[] = [];
     for (const wrapper of this.discovery.getProviders()) {
       const instance: unknown = wrapper.instance;
