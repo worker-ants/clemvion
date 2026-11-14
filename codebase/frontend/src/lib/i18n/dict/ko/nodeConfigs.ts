@@ -442,7 +442,7 @@ export const nodeConfigs = {
     label: "LLM 제공자",
     defaultOption: "기본 제공자",
     defaultOptionWithResolved: "기본 제공자 (현재: {{name}})",
-    noDefaultHint: "워크스페이스 기본 LLM 이 설정되어 있지 않아요. LLM 설정에서 기본 제공자를 지정하거나 노드에서 직접 선택하세요.",
+    noDefaultHint: "워크스페이스 기본 Chat 모델이 설정되어 있지 않아요. 모델 설정에서 기본 Chat 모델을 지정하거나 노드에서 직접 선택하세요.",
   },
   kbSelector: {
     label: "지식 저장소",
