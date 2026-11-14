@@ -362,21 +362,22 @@ describe('Integration usage tracking — direct ∪ MCP (e2e)', () => {
       expect(await actionRequiredCount(intId)).toBe(0);
     }, 30_000);
 
-    it('F. 같은 통합에 두 기록이 동시에 들어와도 알림은 한 건이다', async () => {
+    it('F. 같은 통합에 기록이 동시에 여러 건 들어와도 알림은 한 건이다', async () => {
+      // 24시간 중복 방지(`hasRecentByResource`)는 조회 뒤 삽입이라 그 자체로는 경합을 못 막는다. 요청이 많을수록 조건부 UPDATE
+      // (`affected` 판정)를 일반 update 로 되돌렸을 때 알림이 둘 이상 생겨 이 케이스가 실패한다.
+      const CONCURRENT = 12;
+      const idList = await Promise.all(
+        Array.from({ length: CONCURRENT }, () => insertNodeExecution()),
+      );
       const intId = await createIntegration(uniqueName('mcpauth-race'));
-      const [a, b] = await Promise.all([
-        insertNodeExecution(),
-        insertNodeExecution(),
-      ]);
 
-      const [resA, resB] = await Promise.all([
-        reportMcpAuthFailure(intId, a),
-        reportMcpAuthFailure(intId, b),
-      ]);
-      expect([resA.status, resB.status]).toEqual([202, 202]);
+      const results = await Promise.all(
+        idList.map((ids) => reportMcpAuthFailure(intId, ids)),
+      );
+      expect(results.map((r) => r.status)).toEqual(Array(CONCURRENT).fill(202));
 
       expect((await stateOf(intId)).statusReason).toBe('auth_failed');
       expect(await actionRequiredCount(intId)).toBe(1);
-    }, 30_000);
+    }, 60_000);
   });
 });

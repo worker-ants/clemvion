@@ -1,4 +1,11 @@
+import 'reflect-metadata';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  HTTP_CODE_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
+import { ROLES_KEY } from '../../common/guards/roles.guard';
 import { IntegrationsTestHooksController } from './integrations-test-hooks.controller';
 
 /**
@@ -88,5 +95,19 @@ describe('IntegrationsTestHooksController', () => {
       controller.recordMcpAuthFailureForTest(INTEGRATION_ID, 'ws-1', input),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(integrationsService.logUsage).not.toHaveBeenCalled();
+  });
+
+  it('라우트 메타데이터: owner 전용 · 202 · POST :id/_test/mcp-auth-failure 다', () => {
+    const handler =
+      IntegrationsTestHooksController.prototype.recordMcpAuthFailureForTest;
+    expect(Reflect.getMetadata(ROLES_KEY, handler)).toEqual(['owner']);
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(202);
+    expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(
+      ':id/_test/mcp-auth-failure',
+    );
+    expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(1); // RequestMethod.POST
+    expect(
+      Reflect.getMetadata(PATH_METADATA, IntegrationsTestHooksController),
+    ).toBe('integrations');
   });
 });

@@ -56,8 +56,11 @@ import { CAFE24_REFRESH_QUEUE } from './cafe24-token-refresh.constants';
   controllers: [
     IntegrationsController,
     ThirdPartyOAuthController,
-    // e2e 전용 훅. NODE_ENV=test · E2E_TEST_HOOKS=1 이 아니면 404 다.
-    IntegrationsTestHooksController,
+    // e2e 전용 훅. NODE_ENV=test · E2E_TEST_HOOKS=1 일 때만 등록해 운영에는 라우트 자체가 없다.
+    // 핸들러 안의 같은 게이트는 방어선으로 남는다.
+    ...(process.env.NODE_ENV === 'test' && process.env.E2E_TEST_HOOKS === '1'
+      ? [IntegrationsTestHooksController]
+      : []),
   ],
   providers: [
     IntegrationsService,

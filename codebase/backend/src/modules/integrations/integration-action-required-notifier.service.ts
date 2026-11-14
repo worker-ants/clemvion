@@ -48,6 +48,7 @@ export class IntegrationActionRequiredNotifier {
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  /** 발사 실패는 내부 catch 가 삼키므로 이 메서드는 예외를 던지지 않는다. 호출부가 따로 감쌀 필요가 없다. */
   async notify(
     integration: Integration,
     statusReason: 'auth_failed' | 'insufficient_scope' | 'network',

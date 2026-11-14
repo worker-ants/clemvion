@@ -1425,8 +1425,8 @@ export class IntegrationsService {
   }
 
   /**
-   * MCP 인증 실패로 바뀐 통합의 조치 필요 알림. 알림기는 자체 오류를 삼키지만 `logUsage` 가 던지지 않는다는 약속을 이 자리에서도
-   * 지키려고 한 번 더 감싼다. 바깥 catch 에 맡기면 사용 기록 실패로 잘못 남는다.
+   * MCP 인증 실패로 바뀐 통합의 조치 필요 알림. 알림기는 자체 오류를 삼키지만(`notify` 는 던지지 않는 계약) 바깥 catch 에
+   * 맡기면 알림 실패가 사용 기록 실패로 잘못 남아서, 계약이 깨질 때를 대비해 이 자리에서 한 번 더 감싼다.
    */
   private async notifyMcpAuthFailed(integration: Integration): Promise<void> {
     try {
