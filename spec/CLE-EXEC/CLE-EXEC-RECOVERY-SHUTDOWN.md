@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-SHUTDOWN"
 title: "장애 복구와 안전 종료 — 안전 종료와 영속 재개 큐"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "efc9f9305714a1f682c54389d457265cb9fd314068dd25874d2c1d23bd30a545"
+content_hash: "75caa65474fe7cfc52f0ce510a9fcd303071c3f81231fa47009192c6549243d1"
 read_as: "approved_fallback"
-task: "CLE-T-9YHJSD"
+task: "CLE-T-CPZBVH"
 source_paths: []
-mirror_sha256: "d8744a222d853fbc5f2bfc21a95c1da797e36f54639281154bd5504b6f63141d"
-etag: "sha256-deb35cbad4d8a1568adeb4567441c280c2a278b47a4b99f2d785afb8711cf868"
+mirror_sha256: "541b93606065edee6f864a34dd73d9bbad3e2c4debf67882de6bdcbb763e0c79"
+etag: "sha256-2fc6e8f3638aba6ddd66010d790138266a904b0195937fb61b329ffb6896c9dc"
 ---
 ## 개요
 
@@ -27,7 +27,7 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 1. **수동 실행 진입점은 새 실행을 거부한다.** 수동 실행 진입점 두 곳(`POST /api/workflows/:id/execute`, 단일 노드 실행 `POST /api/workflows/:id/nodes/:nodeId/execute`)이 **503 Service Unavailable** 로 응답한다. 본문은 표준 에러 응답 봉투(`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`)이고 `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더를 함께 싣는다. 에러 응답 봉투의 기준은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 다. 로드 밸런서 drain 동안 트래픽은 다른 인스턴스로 간다.
    - 다른 시작 경로는 거부하지 않는다. 웹훅, 채팅 채널 인바운드, 스케줄 정기 실행, 스케줄 「지금 실행」, 실행 재실행은 실행 행을 `pending` 으로 저장하고 영속 시작 큐 `execution-run` 에 넣기만 한다. 큐 작업은 Redis 에 남아 다른 인스턴스나 다시 뜬 인스턴스의 워커가 시작한다.
    - WebSocket `execution.start` 는 비채택(won't-do)으로 끝났다(REST 로 대체, 핸들러 없음). 근거는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다.
-2. `execution-run` / `execution-continuation` / `background-execution` 의 진행 중 작업을 처리하는 워커는 현재 세그먼트(노드)를 완료까지 진행한다. 새 작업은 가져가지 않는다. 한 세그먼트 안의 노드 dispatch 는 큐를 거치지 않는 in-process 반복문이다.
+2. **이 인스턴스의 BullMQ 워커를 모두 멈춘다.** 실행 큐 세 개(`execution-run` · `execution-continuation` · `background-execution`)의 워커도 여기에 든다. 멈춘 워커는 새 작업을 가져가지 않는다. 워커는 진행 중 작업이 끝날 때까지 기다린다. 실행 큐 워커의 진행 중 작업은 현재 세그먼트를 완료까지 진행한다. 한 세그먼트 안의 노드 dispatch 는 큐를 거치지 않는 in-process 반복문이라 세그먼트의 다음 노드도 계속 시작된다.
 3. **입력 대기 실행은 건드리지 않는다.** DB 상태를 그대로 둔다. park 에서 이미 메모리를 비웠으므로 잃는 것이 없다. 사용자 입력이 오면 rehydration 으로 재개한다.
 4. **실행 중 노드**는 다음과 같이 처리한다.
    - `SIGTERM_GRACE_MS`(기본 30초)까지 완료를 기다린다.
@@ -39,6 +39,7 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 
 - 첫 동작으로 종료 표시를 켠다. 그 뒤로 수동 실행 진입점은 503 + `Retry-After` 로 거부한다. HTTP 서버는 워커를 기다리는 동안 열려 있다.
 - 이 인스턴스의 BullMQ 워커를 실행 큐 세 개만이 아니라 **모두** `pause` 한다. 워커 단위 pause 라 다른 인스턴스는 같은 큐에서 계속 작업을 가져간다. 진행 중 작업이 모두 끝나고 추적 중인 노드 실행이 없으면 유예 시간을 다 기다리지 않고 끝낸다. 모든 워커를 멈추는 이유는 이 문서 Rationale 「종료는 워커 close 보다 먼저 시작한다」에 있다.
+- 멈출 워커는 `DiscoveryService` 로 찾는다. `@Processor` 로 등록된 이 인스턴스의 워커가 대상이다. `DiscoveryService` 가 배선되지 않으면 경고만 남기고 워커 pause 와 강제 close 를 건너뛴다. 그래서 운영 모듈 `ExecutionEngineModule` 은 `DiscoveryModule` 을 import 한다. pause 가 실패한 워커는 경고를 남기고 끝난 것으로 센다.
 - 노드 실행은 실행 시작 때 `ShutdownStateService.registerInFlight` 로 등록되고 끝날 때 해제된다(try 첫 줄과 finally).
 - 유예 시간이 지나면 **이 인스턴스가 추적 중인** 노드 실행과 실행만 대상으로(`WHERE id IN (...)`) 각각 원자 UPDATE 로 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다. 그다음 진행 중 작업이 하나라도 남았으면 이 인스턴스의 워커를 모두 강제 close 한다. 그래서 `@nestjs/bullmq` 의 워커 close 도 유예 시간 안에 끝난다. 강제 close 한 실행 큐 작업은 잠금이 만료되면 stalled 로 다른 워커에 재배달될 수 있고, 실행이 `failed` 라 버려진다.
 - 노드와 노드 사이(한 노드를 해제하고 다음 노드를 등록하기 전)에 유예 시간이 끝나면 표시할 노드 실행이 없다. 실행은 `running` 으로 남고 강제 close 한 작업은 워커 크래시처럼 [운영 중 stalled 재배달](CLE-EXEC-RECOVERY-REDRIVE.md#운영-중-stalled-재배달) 로 재구동한다.
@@ -127,7 +128,18 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 - **기각: 종료 표시만 앞당기기**: 503 은 바로 나가지만 워커 close 가 진행 중 작업을 한도 없이 기다리는 문제가 남는다. 긴 노드는 여전히 SIGKILL 로 끝나 `SERVER_INTERRUPTED` 표시를 놓친다.
 - **기각: 워커 close 대기에만 유예 시간 한도를 걸기**: 표시는 지켜지지만 종료 표시가 여전히 HTTP 서버를 닫은 뒤에 켜져 워커를 기다리는 동안 수동 실행 진입점이 계속 202 를 준다.
 
+### 2단계 문안을 구현에 맞췄다 (2026-11-14, CLE-T-CPZBVH)
+
+2단계는 실행 큐 워커 세 개만 적었다. 구현과 「구현」 항목은 이 인스턴스의 BullMQ 워커를 모두 멈춘다. 그래서 2단계를 이 인스턴스의 워커 전체로 고쳤다. 동작은 바꾸지 않았다. 모든 워커를 멈추는 이유는 위 「종료는 워커 close 보다 먼저 시작한다」에 있다.
+
+pause 가 실패하거나 `DiscoveryService` 가 배선되지 않아도 경고만 남기고 종료를 이어 간다. 종료 훅이 막히면 프로세스가 오케스트레이터의 강제 종료(SIGKILL)까지 남아 결과가 더 나쁘다. pause 가 실패한 워커는 끝난 것으로 세어 4 · 5단계(유예 시간과 강제 close)로 넘어간다.
+
 ## 구현 위치
 
 - `codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.ts` (안전 종료)
 - `codebase/backend/src/modules/workflows/workflows.controller.ts` (수동 실행 진입점 두 곳의 `SERVER_SHUTTING_DOWN` 503 거부)
+- `codebase/backend/src/modules/execution-engine/execution-engine.module.ts` (`DiscoveryModule` import. 종료 때 멈출 워커를 찾는 데 쓴다)
+- `codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.spec.ts` (안전 종료 단위 테스트)
+- `codebase/backend/src/modules/execution-engine/shutdown/shutdown-lifecycle.spec.ts` (종료 훅 순서 테스트)
+- `codebase/backend/src/modules/execution-engine/shutdown/shutdown-module-wiring.spec.ts` (`DiscoveryModule` 배선 테스트)
+- `codebase/backend/test/execution-shutdown-order.e2e-spec.ts` (종료 순서 e2e)
