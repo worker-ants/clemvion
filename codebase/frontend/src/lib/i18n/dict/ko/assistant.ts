@@ -22,7 +22,7 @@ export const assistant = {
   candidatePickerConfirm: "이 항목으로 설정",
   candidatePickerSelected: "✓ {{label}}: {{selected}} 로 설정됨",
   candidatePickerEmpty:
-    "사용 가능한 {{label}} 이(가) 없어요. Settings 에서 먼저 등록해 주세요.",
+    "사용 가능한 {{label}} 이(가) 없어요. 설정 화면에서 먼저 등록해 주세요.",
   candidatePickerEmptyLink: "설정 화면으로 이동",
   toolCallBadgeRetryRecovered: "재시도 후 성공",
   errorBubbleTitle: "요청 처리 중 문제가 발생했어요",
