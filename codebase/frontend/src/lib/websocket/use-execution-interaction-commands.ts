@@ -1,10 +1,17 @@
 "use client";
 
 import { useCallback } from "react";
+import axios from "axios";
 import { toast } from "sonner";
 import { getWsClient } from "./ws-client";
 import type { WsClient } from "./ws-client";
 import { useExecutionStore } from "../stores/execution-store";
+import { executionsApi } from "../api/executions";
+import {
+  extractApiCode,
+  extractApiMessage,
+  type ApiErrorBody,
+} from "../api/errors";
 import { useT, type TFunction } from "@/lib/i18n";
 import {
   getExecutionInteractionErrorI18nKey,
@@ -29,9 +36,7 @@ export const CONTINUE_BUTTON_ID = "__continue__";
  * - `submitForm`: presentation_user turn 을 추가하므로 user + presentation 모두
  *   카운트해야 correct turnIndex 를 부여할 수 있다.
  */
-function isUserInitiatedTurn(
-  m: { type: string },
-): m is { type: "user" } {
+function isUserInitiatedTurn(m: { type: string }): m is { type: "user" } {
   return m.type === "user";
 }
 
@@ -64,8 +69,8 @@ export interface RetryLastTurnAck {
 }
 
 /**
- * ack 이벤트 이름 → ack payload 타입. `emitWithAck` 가 이 표로 `onFailure` 인자 타입을
- * 정하므로 호출부가 ack 형태를 잘못 고를 수 없다.
+ * ack 이벤트 이름 → ack payload 타입. `emitWithAck` 가 이 표로 `onFailure` · `onSuccess`
+ * 인자 타입을 정하므로 호출부가 ack 형태를 잘못 고를 수 없다.
  */
 interface AckByEvent {
   "execution.form_submitted": ContinuationAck;
@@ -104,6 +109,73 @@ function localizeRetryAckError(t: TFunction, ack: RetryLastTurnAck): string {
 }
 
 /**
+ * REST `POST /executions/:id/continue` 실패를 토스트 문구로 바꾼다(CLE-T-5P1ADY).
+ * 422 `INVALID_STATE` 는 WS `INVALID_EXECUTION_STATE` 와 같은 뜻이라 같은 지역화 문구를 쓴다.
+ * 400 `VALIDATION_ERROR` 는 서버가 준 필드 검증 문구를 그대로 쓴다. 다시 고쳐 낼 수 있는
+ * 오류라 어느 필드가 틀렸는지 알려야 한다. 그 밖(네트워크 · 5xx · 401/403/404)은 일반 실패 문구다.
+ */
+function localizeContinueRestError(t: TFunction, err: unknown): string {
+  if (axios.isAxiosError<ApiErrorBody>(err)) {
+    const code = extractApiCode(err);
+    if (code === "INVALID_STATE") {
+      return t("executions.interactionError.invalidState");
+    }
+    if (code === "VALIDATION_ERROR") {
+      const message: unknown = extractApiMessage(err);
+      if (typeof message === "string" && message.trim() !== "") return message;
+    }
+  }
+  return t("executions.interactionError.internalError");
+}
+
+/**
+ * 실시간 연결이 끊긴 동안 폼 값을 REST 로 보낸다(CLE-T-5P1ADY). 성공 응답은 접수만 뜻하므로
+ * store 는 건드리지 않는다. 이어 진행된 상태는 폴링 응답이 `applyExecutionSnapshot` 으로 넣는다.
+ * 실패하면 WS ack 실패처럼 응답 대기 표시를 끄고 토스트를 띄운다. 그 사이 store 가 다른
+ * 실행으로 바뀌었으면 그 실행의 응답 대기 표시는 건드리지 않는다.
+ */
+function submitFormOverRest(
+  t: TFunction,
+  executionId: string,
+  formData: Record<string, unknown>,
+): void {
+  executionsApi
+    .continueExecution(executionId, formData)
+    .catch((err: unknown) => {
+      const store = useExecutionStore.getState();
+      if (store.executionId === executionId) {
+        store.setWaitingAiResponse(false);
+      }
+      toast.error(localizeContinueRestError(t, err));
+    });
+}
+
+/**
+ * 버튼 · 대화 · 재시도 명령을 보낼 수 있는지. 소켓이 끊겨 있으면 안내 토스트를 띄우고
+ * `false` 다(CLE-T-5P1ADY). 이 명령들에는 REST 경로가 없다. 끊긴 채 보내면 Socket.IO 가
+ * 재연결까지 버퍼에 쌓아 두므로 사용자는 보냈는지 알 수 없다.
+ */
+function ensureRealtime(ws: WsClient, t: TFunction): boolean {
+  if (ws.isConnected()) return true;
+  toast.error(t("executions.realtimeRequiredForInput"));
+  return false;
+}
+
+/**
+ * 실행 ID 가 있고 소켓이 이어져 있을 때만 소켓 클라이언트를 돌려준다. 버튼 · 대화 · 재시도
+ * 명령의 공통 가드다. 실행 ID 가 없으면 조용히 `null`, 소켓이 끊겼으면 안내 토스트와 `null` 이다.
+ * 반환값만으로는 TypeScript 가 `executionId` 를 좁히지 못해 호출부가 `!executionId` 도 함께 본다.
+ */
+function requireRealtime(
+  executionId: string | null | undefined,
+  t: TFunction,
+): WsClient | null {
+  if (!executionId) return null;
+  const ws = getWsClient();
+  return ensureRealtime(ws, t) ? ws : null;
+}
+
+/**
  * Emit a command and listen for its ack event exactly once. The gateway
  * replies with `{ event, data: { success, ... } }` — NestJS surfaces this
  * to the client as `socket.on(event, data)`, not as a Socket.IO ack callback,
@@ -113,6 +185,8 @@ function localizeRetryAckError(t: TFunction, ack: RetryLastTurnAck): string {
  * Each interaction command is gated by the user (one in-flight at a time —
  * the UI disables further input until the AI response arrives), so a single
  * one-shot ack listener is enough to match the latest emit.
+ *
+ * `onSuccess` 는 `success: true` ack 에서만 부른다. 지금은 마지막 턴 재시도만 쓴다.
  */
 function emitWithAck<E extends keyof AckByEvent>(
   ws: WsClient,
@@ -120,11 +194,14 @@ function emitWithAck<E extends keyof AckByEvent>(
   data: unknown,
   ackEvent: E,
   onFailure: (ack: AckByEvent[E]) => void,
+  onSuccess?: (ack: AckByEvent[E]) => void,
 ): void {
   ws.once(ackEvent, (...args: unknown[]) => {
     const response = args[0] as AckByEvent[E] | undefined;
     if (response && response.success === false) {
       onFailure(response);
+    } else if (response?.success === true) {
+      onSuccess?.(response);
     }
   });
   ws.emit(event, data);
@@ -142,16 +219,28 @@ export interface ExecutionInteractionCommands {
    *    `setWaitingAiResponse(false)` 로 해제 (spinner 만 해제, optimistic turn 유지).
    * 3. WS emit `execution.submit_form` → ack event `execution.form_submitted`.
    *    ack 실패 시 `localizeContinuationAckError` 로 지역화한 문구를 `toast.error` 로 표시.
+   *
+   * 소켓이 끊겨 있으면 3 대신 REST `POST /executions/:id/continue` 로 보낸다(CLE-T-5P1ADY,
+   * `submitFormOverRest`). 1 · 2 는 같다.
+   *
+   * 보냈으면 `true`, 실행 ID 가 없어 보내지 않았으면 `false` 다.
    */
-  submitForm: (formData: Record<string, unknown>) => void;
-  /** Click a specific port-type button in a waiting buttons node. */
-  clickButton: (buttonId: string) => void;
+  submitForm: (formData: Record<string, unknown>) => boolean;
+  /**
+   * Click a specific port-type button in a waiting buttons node.
+   * 아래 넷과 같이 소켓이 끊겨 있으면 보내지 않고 안내 토스트를 띄운다(`ensureRealtime`).
+   * 보냈으면 `true` 다. 호출자는 `false` 면 입력 대기 표시를 풀지 않는다.
+   */
+  clickButton: (buttonId: string) => boolean;
   /** Bypass a buttons-waiting node using the `__continue__` sentinel. */
-  clickContinue: () => void;
-  /** Append a user message and emit it to a live AI conversation node. */
-  sendMessage: (nodeId: string, message: string) => void;
+  clickContinue: () => boolean;
+  /**
+   * Append a user message and emit it to a live AI conversation node.
+   * 보내지 않았으면(`false`) 메시지 항목도 응답 대기 표시도 남기지 않는다. 입력창은 글을 지우지 않는다.
+   */
+  sendMessage: (nodeId: string, message: string) => boolean;
   /** Gracefully terminate a live AI conversation node. */
-  endConversation: (nodeId: string) => void;
+  endConversation: (nodeId: string) => boolean;
   /**
    * Re-enter a multi-turn AI Agent node that ended with retryable error by
    * spawning a new NodeExecution row from the persisted `_retryState`.
@@ -165,8 +254,12 @@ export interface ExecutionInteractionCommands {
    * in the `CLE-API-WS-EVENTS` retry table map to localized toasts, an unmapped
    * code falls back to the backend `message`, then to a generic "retry failed"
    * string.
+   *
+   * 성공 ack 면 store 에 재시도 대기를 남긴다(`markLastTurnRetryPending`). 실행은 재시도
+   * 턴이 끝날 때까지 `failed` 라서 REST 폴링 대체 경로가 이 표시를 보고 폴링을 다시 켠다
+   * (CLE-T-GKVH1B). ack 전에 store 가 다른 실행으로 바뀌었으면 남기지 않는다.
    */
-  retryLastTurn: (nodeExecutionId: string) => void;
+  retryLastTurn: (nodeExecutionId: string) => boolean;
 }
 
 /**
@@ -185,7 +278,7 @@ export function useExecutionInteractionCommands(
 
   const submitForm = useCallback(
     (formData: Record<string, unknown>) => {
-      if (!executionId) return;
+      if (!executionId) return false;
       // 사용자 보고 (2026-05-23): "form submit 후 정상 동작 안 함" — root cause
       // 한 갈래는 `sendMessage` 와 달리 submitForm 이 optimistic UI 를 갱신하지
       // 않아 form 만 사라지고 0 frame visual feedback 이 없는 점. spec/4-nodes/
@@ -198,11 +291,8 @@ export function useExecutionInteractionCommands(
       // W9 (SUMMARY): sendMessage 는 `const { conversationMessages }` 만 구조
       // 분해하지만, submitForm 은 waitingNodeId + nodeResults 도 필요 (form 노드
       // 메타를 presentation turn 에 채우기 위해). 의도적 패턴 차이 — 불일치 아님.
-      const {
-        conversationMessages,
-        waitingNodeId,
-        nodeResults,
-      } = useExecutionStore.getState();
+      const { conversationMessages, waitingNodeId, nodeResults } =
+        useExecutionStore.getState();
       const waitingNode = waitingNodeId
         ? nodeResults.find((n) => n.nodeId === waitingNodeId)
         : undefined;
@@ -226,8 +316,13 @@ export function useExecutionInteractionCommands(
         timestamp: new Date().toISOString(),
       });
       setWaitingAiResponse(true);
+      const ws = getWsClient();
+      if (!ws.isConnected()) {
+        submitFormOverRest(t, executionId, formData);
+        return true;
+      }
       emitWithAck(
-        getWsClient(),
+        ws,
         "execution.submit_form",
         { executionId, formData },
         "execution.form_submitted",
@@ -239,46 +334,51 @@ export function useExecutionInteractionCommands(
           toast.error(localizeContinuationAckError(t, ack));
         },
       );
+      return true;
     },
     [executionId, addConversationMessage, setWaitingAiResponse, t],
   );
 
   const clickButton = useCallback(
     (buttonId: string) => {
-      if (!executionId) return;
+      const ws = requireRealtime(executionId, t);
+      if (!ws || !executionId) return false;
       emitWithAck(
-        getWsClient(),
+        ws,
         "execution.click_button",
         { executionId, buttonId },
         "execution.click_button.ack",
         (ack) => toast.error(localizeContinuationAckError(t, ack)),
       );
+      return true;
     },
     [executionId, t],
   );
 
   const clickContinue = useCallback(() => {
-    if (!executionId) return;
+    const ws = requireRealtime(executionId, t);
+    if (!ws || !executionId) return false;
     emitWithAck(
-      getWsClient(),
+      ws,
       "execution.click_button",
       { executionId, buttonId: CONTINUE_BUTTON_ID },
       "execution.click_button.ack",
       (ack) => toast.error(localizeContinuationAckError(t, ack)),
     );
+    return true;
   }, [executionId, t]);
 
   const sendMessage = useCallback(
     (nodeId: string, message: string) => {
-      if (!executionId) return;
+      const ws = requireRealtime(executionId, t);
+      if (!ws || !executionId) return false;
       const { conversationMessages } = useExecutionStore.getState();
       addConversationMessage({
         type: "user",
         content: message,
         // W10: user 타입만 카운트 (isUserInitiatedTurn). submitForm 의
         // user|presentation 필터와 의도적 비대칭 — 주석 참고.
-        turnIndex:
-          conversationMessages.filter(isUserInitiatedTurn).length + 1,
+        turnIndex: conversationMessages.filter(isUserInitiatedTurn).length + 1,
         timestamp: new Date().toISOString(),
         // 이 로컬 optimistic 버블은 backend 의 `execution.user_message` echo
         // (서버 receivedAt) 와 dedup 키가 다르다. 플래그로 표시해 echo 핸들러
@@ -288,7 +388,7 @@ export function useExecutionInteractionCommands(
       });
       setWaitingAiResponse(true);
       emitWithAck(
-        getWsClient(),
+        ws,
         "execution.submit_message",
         { executionId, nodeId, message },
         "execution.submit_message.ack",
@@ -300,32 +400,36 @@ export function useExecutionInteractionCommands(
           toast.error(localizeContinuationAckError(t, ack));
         },
       );
+      return true;
     },
     [executionId, addConversationMessage, setWaitingAiResponse, t],
   );
 
   const endConversation = useCallback(
     (nodeId: string) => {
-      if (!executionId) return;
+      const ws = requireRealtime(executionId, t);
+      if (!ws || !executionId) return false;
       emitWithAck(
-        getWsClient(),
+        ws,
         "execution.end_conversation",
         { executionId, nodeId },
         "execution.end_conversation.ack",
         (ack) => toast.error(localizeContinuationAckError(t, ack)),
       );
+      return true;
     },
     [executionId, t],
   );
 
   const retryLastTurn = useCallback(
     (nodeExecutionId: string) => {
-      if (!executionId) return;
+      const ws = requireRealtime(executionId, t);
+      if (!ws || !executionId) return false;
       // optimistic — user 가 [다시 시도] 를 누르는 순간 spinner 노출.
       // ack 실패 시 release.
       setWaitingAiResponse(true);
       emitWithAck(
-        getWsClient(),
+        ws,
         "execution.retry_last_turn",
         { executionId, nodeExecutionId },
         "execution.retry_last_turn.ack",
@@ -333,7 +437,13 @@ export function useExecutionInteractionCommands(
           setWaitingAiResponse(false);
           toast.error(localizeRetryAckError(t, ack));
         },
+        () => {
+          const store = useExecutionStore.getState();
+          if (store.executionId !== executionId) return;
+          store.markLastTurnRetryPending(nodeExecutionId);
+        },
       );
+      return true;
     },
     [executionId, setWaitingAiResponse, t],
   );

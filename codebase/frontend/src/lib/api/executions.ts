@@ -225,6 +225,19 @@ export const executionsApi = {
     const { data } = await apiClient.post(`/executions/${id}/stop`);
     return unwrap<ExecutionData>(data);
   },
+
+  /**
+   * 폼 입력을 기다리는 실행에 값을 보내 이어 진행한다. `POST /executions/:id/continue`.
+   * 실시간 연결이 끊겨 WS `execution.submit_form` 을 보낼 수 없을 때 쓴다(CLE-T-5P1ADY).
+   * 입력 대기가 아니면 422 `INVALID_STATE`, 필드 검증에 실패하면 400 `VALIDATION_ERROR` 다.
+   * 성공 응답은 접수만 뜻한다. 실제로 이어 진행됐는지는 실행 조회로 확인한다.
+   */
+  continueExecution: async (
+    id: string,
+    formData: Record<string, unknown>,
+  ): Promise<void> => {
+    await apiClient.post(`/executions/${id}/continue`, { formData });
+  },
 };
 
 // ---------------------------------------------------------------------------

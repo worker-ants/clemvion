@@ -82,6 +82,9 @@ export const executions = {
     statusPending: "대기",
   },
   realtimeFallback: "실시간 업데이트 연결이 지연되고 있어요. 폴링으로 진행됩니다.",
+  // 실시간 연결이 끊겨 버튼 · 대화 · 재시도 명령을 보낼 수 없을 때(CLE-T-5P1ADY). 폼은 REST 로 보낸다.
+  realtimeRequiredForInput:
+    "실시간 연결이 끊겨 있어 지금은 이 입력을 보낼 수 없어요. 연결이 돌아오면 다시 시도해 주세요.",
   // continuation ack 의 errorCode → localized 메시지 (spec §7.5.2, execution-error-codes.ts).
   interactionError: {
     invalidState:

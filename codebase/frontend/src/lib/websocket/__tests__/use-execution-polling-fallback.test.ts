@@ -718,6 +718,201 @@ describe("useExecutionPollingFallback", () => {
 
 });
 
+// CLE-T-GKVH1B — 폴링 대체 경로 중 마지막 턴 재시도. 실패 응답으로 멈춘 폴링을 재시도 ack 가
+// 다시 켜고, 재시도 턴이 끝날 때까지(실행이 failed 인 동안) 계속 받는다.
+describe("useExecutionPollingFallback — 마지막 턴 재시도 뒤", () => {
+  const RETRIED_ID = "22222222-2222-4222-8222-222222222222";
+  const SPAWNED_ID = "33333333-3333-4333-8333-333333333333";
+  const aiNode = { id: "ai-1", type: "ai_agent", label: "AI" };
+
+  const retriedRow = {
+    id: RETRIED_ID,
+    executionId: "exec-1",
+    nodeId: "ai-1",
+    status: "failed",
+    startedAt: "2026-10-22T00:00:01.000Z",
+    finishedAt: "2026-10-22T00:00:02.000Z",
+    durationMs: 1000,
+    inputData: {},
+    outputData: null,
+    error: { message: "LLM 429" },
+    retryCount: 0,
+    parentNodeExecutionId: null,
+    node: aiNode,
+  };
+
+  const waitingOutput = {
+    config: { mode: "multi_turn" },
+    output: {
+      result: {
+        messages: [
+          { role: "user", content: "날씨 알려줘" },
+          { role: "assistant", content: "맑음입니다" },
+        ],
+      },
+    },
+    status: "waiting_for_input",
+    meta: { interactionType: "ai_conversation" },
+  };
+
+  function spawnedRow(status: string, outputData: unknown = null) {
+    return {
+      ...retriedRow,
+      id: SPAWNED_ID,
+      status,
+      startedAt: "2026-10-22T00:00:10.000Z",
+      finishedAt: null,
+      durationMs: null,
+      error: status === "failed" ? { message: "LLM 500" } : null,
+      outputData,
+    };
+  }
+
+  /** 실패 응답을 받아 폴링이 멈춘 뒤 [다시 시도] ack 가 성공한 상태까지 만든다. */
+  async function failThenAcceptRetry() {
+    renderHook(() =>
+      useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+    );
+    await flush();
+    expect(getById).toHaveBeenCalledTimes(1);
+    expect(useExecutionStore.getState().status).toBe("failed");
+    act(() => {
+      vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS * 3);
+    });
+    await flush();
+    expect(getById).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      useExecutionStore.getState().setWaitingAiResponse(true);
+      useExecutionStore.getState().markLastTurnRetryPending(RETRIED_ID);
+    });
+    await flush();
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    getById.mockReset();
+    useExecutionStore.getState().reset();
+    useExecutionStore.getState().startExecution("exec-1");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("재시도 ack 가 성공하면 바로 다시 받고, 재시도 턴이 park 하면 입력 대기를 반영한다", async () => {
+    getById
+      .mockResolvedValueOnce(
+        makeExecution({
+          status: "failed",
+          error: { message: "LLM 429" },
+          nodeExecutions: [retriedRow],
+        }),
+      )
+      .mockResolvedValueOnce(
+        makeExecution({
+          status: "failed",
+          nodeExecutions: [retriedRow, spawnedRow("running")],
+        }),
+      )
+      .mockResolvedValue(
+        makeExecution({
+          status: "waiting_for_input",
+          nodeExecutions: [
+            retriedRow,
+            spawnedRow("waiting_for_input", waitingOutput),
+          ],
+        }),
+      );
+
+    await failThenAcceptRetry();
+    // ack 직후 바로 한 번 받는다. 재시도 턴이 도는 중이라 failed 를 유지하고 기다린다.
+    expect(getById).toHaveBeenCalledTimes(2);
+    expect(useExecutionStore.getState().status).toBe("failed");
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS);
+    });
+    await flush();
+    expect(getById).toHaveBeenCalledTimes(3);
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe("ai-1");
+    expect(state.pendingLastTurnRetry).toBeNull();
+
+    // 입력 대기 동안에도 같은 간격으로 받는다.
+    act(() => {
+      vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS);
+    });
+    await flush();
+    expect(getById).toHaveBeenCalledTimes(4);
+  });
+
+  it("재시도 턴이 그래프를 이어 가면 running 으로 돌리고 계속 받는다", async () => {
+    getById
+      .mockResolvedValueOnce(
+        makeExecution({ status: "failed", nodeExecutions: [retriedRow] }),
+      )
+      .mockResolvedValue(
+        makeExecution({
+          status: "running",
+          nodeExecutions: [retriedRow, spawnedRow("completed")],
+        }),
+      );
+
+    await failThenAcceptRetry();
+    expect(getById).toHaveBeenCalledTimes(2);
+    expect(useExecutionStore.getState().status).toBe("running");
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS);
+    });
+    await flush();
+    expect(getById).toHaveBeenCalledTimes(3);
+  });
+
+  it("재시도 턴이 다시 실패하면 실패로 마감하고 멈춘다", async () => {
+    getById
+      .mockResolvedValueOnce(
+        makeExecution({ status: "failed", nodeExecutions: [retriedRow] }),
+      )
+      .mockResolvedValue(
+        makeExecution({
+          status: "failed",
+          error: { message: "LLM 500" },
+          nodeExecutions: [retriedRow, spawnedRow("failed")],
+        }),
+      );
+
+    await failThenAcceptRetry();
+    expect(getById).toHaveBeenCalledTimes(2);
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("failed");
+    expect(state.pendingLastTurnRetry).toBeNull();
+    expect(state.isWaitingAiResponse).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(EXECUTION_POLL_INTERVAL_MS * 5);
+    });
+    await flush();
+    expect(getById).toHaveBeenCalledTimes(2);
+  });
+
+  it("폴링이 꺼져 있으면(WS 수신 중) 재시도 ack 가 와도 REST 를 부르지 않는다", async () => {
+    renderHook(() =>
+      useExecutionPollingFallback({ executionId: "exec-1", enabled: false }),
+    );
+    act(() => {
+      useExecutionStore.getState().failExecution("LLM 429");
+      useExecutionStore.getState().markLastTurnRetryPending(RETRIED_ID);
+    });
+    await flush();
+    expect(getById).not.toHaveBeenCalled();
+  });
+});
+
 // CLE-T-TP2T6Q — `poll()` 에서 뺀 순수 함수. 훅 테스트가 타이머와 store 로 확인하는 판정을
 // 입력 · 출력만으로 고정한다.
 describe("decidePollResponse — 응답을 넣을지 가르는 판정", () => {
@@ -729,9 +924,32 @@ describe("decidePollResponse — 응답을 넣을지 가르는 판정", () => {
       status: "running",
       nodeStatuses: new Map(),
       nodeResults: [],
+      pendingLastTurnRetry: null,
       ...overrides,
     };
   }
+
+  it("store 가 failed 여도 마지막 턴 재시도를 기다리는 중이면 넣는다", () => {
+    const sent = view({
+      status: "failed",
+      pendingLastTurnRetry: { nodeExecutionId: "ne-r" },
+    });
+    expect(decidePollResponse(sent, { ...sent }, "exec-1")).toBe("apply");
+  });
+
+  it("요청 뒤 재시도 기다림이 끝나 store 가 failed 로 남으면 멈춘다", () => {
+    const sent = view({
+      status: "failed",
+      pendingLastTurnRetry: { nodeExecutionId: "ne-r" },
+    });
+    expect(
+      decidePollResponse(
+        sent,
+        { ...sent, pendingLastTurnRetry: null },
+        "exec-1",
+      ),
+    ).toBe("stop");
+  });
 
   it("요청 뒤 store 가 그대로면 넣는다", () => {
     const sent = view();
@@ -830,3 +1048,92 @@ describe("nextRetryDelayMs — 실패한 요청 뒤의 대기 시간", () => {
     expect(nextRetryDelayMs(failure(503, 600_000), 1)).toBe(60_000);
   });
 });
+
+// CLE-T-5P1ADY — 폴링 대체 경로는 실행 이벤트를 받지 못하므로 AI 대화 타임라인을
+// 저장된 메시지로 갱신한다(`applyExecutionSnapshot` 의 `refreshConversation`).
+describe("useExecutionPollingFallback — AI 대화 갱신", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    getById.mockReset();
+    useExecutionStore.getState().reset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("park 한 대화 노드의 저장된 메시지로 타임라인을 갱신하고 응답 대기 표시를 끈다", async () => {
+    useExecutionStore.setState({
+      executionId: "exec-1",
+      status: "waiting_for_input",
+      waitingNodeId: "ai-1",
+      waitingInteractionType: "ai_conversation",
+      waitingConversationConfig: { mode: "multi_turn" },
+      conversationMessages: [
+        { type: "user", content: "안녕", turnIndex: 1 },
+        { type: "assistant", content: "안녕하세요", turnIndex: 1 },
+        {
+          type: "user",
+          content: "날씨 알려줘",
+          turnIndex: 2,
+          timestamp: "2026-10-22T00:00:05.000Z",
+          optimisticPending: true,
+        },
+      ],
+      isWaitingAiResponse: true,
+    });
+    getById.mockResolvedValue(
+      makeExecution({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            executionId: "exec-1",
+            nodeId: "ai-1",
+            status: "waiting_for_input",
+            startedAt: "2026-10-22T00:00:01.000Z",
+            finishedAt: null,
+            durationMs: null,
+            inputData: {},
+            outputData: {
+              config: { mode: "multi_turn" },
+              output: {
+                result: {
+                  messages: [
+                    { role: "user", content: "안녕" },
+                    { role: "assistant", content: "안녕하세요" },
+                    { role: "user", content: "날씨 알려줘" },
+                    { role: "assistant", content: "맑아요" },
+                  ],
+                  turnCount: 2,
+                  maxTurns: 10,
+                },
+              },
+              status: "waiting_for_input",
+              meta: { interactionType: "ai_conversation" },
+            },
+            error: null,
+            retryCount: 0,
+            parentNodeExecutionId: null,
+            node: { id: "ai-1", type: "ai_agent", label: "Agent" },
+          },
+        ],
+      }),
+    );
+
+    renderHook(() =>
+      useExecutionPollingFallback({ executionId: "exec-1", enabled: true }),
+    );
+    await flush();
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages.map((m) => m.content)).toEqual([
+      "안녕",
+      "안녕하세요",
+      "날씨 알려줘",
+      "맑아요",
+    ]);
+    expect(state.isWaitingAiResponse).toBe(false);
+  });
+});
+

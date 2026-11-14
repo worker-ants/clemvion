@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN"
 title: "에디터 실행과 디버깅"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
-requirements: ["REQ-EXECRUN-001", "REQ-EXECRUN-002", "REQ-EXECRUN-003", "REQ-EXECRUN-004", "REQ-EXECRUN-005", "REQ-EXECRUN-006", "REQ-EXECRUN-007", "REQ-EXECRUN-008", "REQ-EXECRUN-009", "REQ-EXECRUN-010", "REQ-EXECRUN-011", "REQ-EXECRUN-012", "REQ-EXECRUN-013", "REQ-EXECRUN-014", "REQ-EXECRUN-015", "REQ-EXECRUN-016", "REQ-EXECRUN-017", "REQ-EXECRUN-018", "REQ-EXECRUN-019", "REQ-EXECRUN-020", "REQ-EXECRUN-021", "REQ-EXECRUN-022", "REQ-EXECRUN-023", "REQ-EXECRUN-024", "REQ-EXECRUN-025", "REQ-EXECRUN-026", "REQ-EXECRUN-027", "REQ-EXECRUN-028", "REQ-EXECRUN-029", "REQ-EXECRUN-030", "REQ-EXECRUN-031", "REQ-EXECRUN-032", "REQ-EXECRUN-033", "REQ-EXECRUN-034", "REQ-EXECRUN-035", "REQ-EXECRUN-036", "REQ-EXECRUN-037", "REQ-EXECRUN-038", "REQ-EXECRUN-039", "REQ-EXECRUN-040", "REQ-EXECRUN-041", "REQ-EXECRUN-042", "REQ-EXECRUN-043", "REQ-EXECRUN-044", "REQ-EXECRUN-045", "REQ-EXECRUN-046", "REQ-EXECRUN-047", "REQ-EXECRUN-048", "REQ-EXECRUN-049", "REQ-EXECRUN-050", "REQ-EXECRUN-051", "REQ-EXECRUN-052", "REQ-EXECRUN-053", "REQ-EXECRUN-054", "REQ-EXECRUN-055", "REQ-EXECRUN-056"]
+requirements: ["REQ-EXECRUN-001", "REQ-EXECRUN-002", "REQ-EXECRUN-003", "REQ-EXECRUN-004", "REQ-EXECRUN-005", "REQ-EXECRUN-006", "REQ-EXECRUN-007", "REQ-EXECRUN-008", "REQ-EXECRUN-009", "REQ-EXECRUN-010", "REQ-EXECRUN-011", "REQ-EXECRUN-012", "REQ-EXECRUN-013", "REQ-EXECRUN-014", "REQ-EXECRUN-015", "REQ-EXECRUN-016", "REQ-EXECRUN-017", "REQ-EXECRUN-018", "REQ-EXECRUN-019", "REQ-EXECRUN-020", "REQ-EXECRUN-021", "REQ-EXECRUN-022", "REQ-EXECRUN-023", "REQ-EXECRUN-024", "REQ-EXECRUN-025", "REQ-EXECRUN-026", "REQ-EXECRUN-027", "REQ-EXECRUN-028", "REQ-EXECRUN-029", "REQ-EXECRUN-030", "REQ-EXECRUN-031", "REQ-EXECRUN-032", "REQ-EXECRUN-033", "REQ-EXECRUN-034", "REQ-EXECRUN-035", "REQ-EXECRUN-036", "REQ-EXECRUN-037", "REQ-EXECRUN-038", "REQ-EXECRUN-039", "REQ-EXECRUN-040", "REQ-EXECRUN-041", "REQ-EXECRUN-042", "REQ-EXECRUN-043", "REQ-EXECRUN-044", "REQ-EXECRUN-045", "REQ-EXECRUN-046", "REQ-EXECRUN-047", "REQ-EXECRUN-048", "REQ-EXECRUN-049", "REQ-EXECRUN-050", "REQ-EXECRUN-051", "REQ-EXECRUN-052", "REQ-EXECRUN-053", "REQ-EXECRUN-054", "REQ-EXECRUN-055", "REQ-EXECRUN-056", "REQ-EXECRUN-057", "REQ-EXECRUN-058", "REQ-EXECRUN-059"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "b02c3953634ce6c555ab71ed8e64598711cfe8f03f4b4691f4e67529714472ab"
+content_hash: "a7d66448c028666cb139f9115361147db5c4ade3452fc52f93de26808f205c41"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-5P1ADY"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/3-workflow-editor/3-execution.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "28ca222f4d494e0d700aefcda31545f17ff7e27b92c7c646a307b22e47a34f00"
-etag: "sha256-439c65420d01f0afa3e6989d6b16625e13103bf08834c356b8dc4940a8e809e4"
+mirror_sha256: "13ae1f16e7e9869433f4b54fc73562d1c809038b803c344d5ec9bd9e66f59786"
+etag: "sha256-3cac8a93f88cad258daeb69113505cd6be648c2c5dfb78bc00f3aaca25896dbe"
 ---
 > 구현 상태: 구현됨 (브레이크포인트만 미구현 로드맵) · 원문: `spec/3-workflow-editor/3-execution.md`, `spec/3-workflow-editor/_product-overview.md` (§7 워크플로우 실행, §8 실행 디버깅), `spec/2-navigation/14-execution-history.md` (§3.4.1·§3.4.2 AI 탭 설명과 R-3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -70,11 +70,11 @@ etag: "sha256-439c65420d01f0afa3e6989d6b16625e13103bf08834c356b8dc4940a8e809e4"
 - REQ-EXECRUN-036 WHEN 사용자가 노드에 브레이크포인트를 설정하면 THE SYSTEM SHALL 그 노드 실행 직전에 실행을 일시 정지한다. (원본: ED-DB-05) (미구현)
 - REQ-EXECRUN-037 WHEN 컨테이너 본문 노드가 여러 반복 회차에서 실행되면 THE SYSTEM SHALL 회차마다 실행 트리 항목을 따로 만들고 라벨에 `(iter N)` 을 붙인다.
 - REQ-EXECRUN-038 WHEN 블로킹 노드가 입력 대기에 들어가면 THE SYSTEM SHALL 드로어에서 그 노드를 자동으로 고르고 미리보기 탭에 입력 UI 를 표시한다.
-- REQ-EXECRUN-039 WHEN 사용자가 입력 대기 중인 Form 노드의 폼을 제출하면 THE SYSTEM SHALL `execution.submit_form` 명령을 보내고 실행이 재개되면 상태 바를 실행 중으로 바꾼다.
+- REQ-EXECRUN-039 WHEN 사용자가 입력 대기 중인 Form 노드의 폼을 제출하면 THE SYSTEM SHALL `execution.submit_form` 명령을 보내고 실행이 재개되면 상태 바를 실행 중으로 바꾼다. 소켓 연결이 끊겨 있으면 REQ-EXECRUN-058 을 따른다.
 - REQ-EXECRUN-040 WHEN 사용자가 버튼 대기 노드의 port 버튼을 누르면 THE SYSTEM SHALL `execution.click_button` 명령을 보내 그 포트로 실행을 재개한다.
 - REQ-EXECRUN-041 WHEN 사용자가 버튼 대기 노드의 link 버튼을 누르면 THE SYSTEM SHALL 새 탭에서 URL 을 열고 실행 상태를 바꾸지 않는다.
 - REQ-EXECRUN-042 IF 대화 스레드의 마지막 항목이 `retryable === true` 인 `system_error` 면 THE SYSTEM SHALL 메시지 입력란 자리에 [다시 시도] 버튼과 `retryAfterSec` 카운트다운을 표시한다.
-- REQ-EXECRUN-043 WHEN 사용자가 [다시 시도] 를 누르면 THE SYSTEM SHALL `execution.retry_last_turn` 명령을 보내고 노드 상태를 `running` 으로 바꾼다. WebSocket 이벤트로 `system_error` 를 받은 뒤 REST 폴링 대체 경로로 넘어간 경우에는 노드 상태가 `failed` 에 머문다(REQ-EXECRUN-056).
+- REQ-EXECRUN-043 WHEN 사용자가 [다시 시도] 를 누르면 THE SYSTEM SHALL `execution.retry_last_turn` 명령을 보내고 노드 상태를 `running` 으로 바꾼다. REST 폴링 대체 경로 중이면 재시도 결과를 폴링 응답으로 따라간다(REQ-EXECRUN-057).
 - REQ-EXECRUN-044 WHEN 새 실행이 시작되면 THE SYSTEM SHALL 이전 실행 트리와 대화 스냅샷을 비운다.
 - REQ-EXECRUN-045 WHEN 실행이 완료되거나 실패하면 THE SYSTEM SHALL 드로어와 대화 스냅샷을 그대로 유지한다.
 - REQ-EXECRUN-046 WHEN 사용자가 드로어의 닫기 버튼을 누르면 THE SYSTEM SHALL 드로어를 숨기고 실행 상태를 초기화한다.
@@ -87,13 +87,16 @@ etag: "sha256-439c65420d01f0afa3e6989d6b16625e13103bf08834c356b8dc4940a8e809e4"
 - REQ-EXECRUN-053 WHEN 드로어에 포커스가 있을 때 사용자가 Escape 를 누르면 THE SYSTEM SHALL 포커스를 캔버스로 돌린다.
 - REQ-EXECRUN-054 IF Escape 를 누를 때 드로어 안 편집 가능한 필드에 포커스가 있으면 THE SYSTEM SHALL 그 필드가 Escape 를 처리하게 둔다.
 - REQ-EXECRUN-055 WHEN 에디터에서 실행 구독 채널(`execution:{executionId}`) 구독이 실패하거나 구독 뒤 10초 동안 그 실행의 `execution.snapshot` 이나 실행 이벤트가 하나도 오지 않으면 THE SYSTEM SHALL 그 시점부터 `GET /api/executions/:id` 를 2초 간격으로 받아 캔버스 노드 상태와 실행 결과 드로어를 채운다.
-- REQ-EXECRUN-056 WHEN REST 폴링 대체 경로가 켜진 뒤 그 실행의 `execution.snapshot` 이나 실행 이벤트가 다시 오거나 실행이 종결 상태가 되면 THE SYSTEM SHALL 폴링을 멈추고 멈춘 뒤 도착한 응답을 반영하지 않는다. 마지막 턴 재시도로 `failed` 에서 다시 `running` 이 되는 실행은 따라가지 못한다([노드 결과 수집](#노드-결과-수집) 의 「따라가지 못하는 경우」, NERV Task `CLE-T-GKVH1B`).
+- REQ-EXECRUN-056 WHEN REST 폴링 대체 경로가 켜진 뒤 그 실행의 `execution.snapshot` 이나 실행 이벤트가 다시 오거나 실행이 종결 상태가 되면 THE SYSTEM SHALL 폴링을 멈추고 멈춘 뒤 도착한 응답을 반영하지 않는다. 마지막 턴 재시도를 기다리는 동안은 REQ-EXECRUN-057 을 따른다.
+- REQ-EXECRUN-057 WHEN REST 폴링 대체 경로 중에 마지막 턴 재시도(`execution.retry_last_turn`)의 ack 가 성공하면 THE SYSTEM SHALL 실행이 `failed` 여도 폴링을 이어 가고, 재시도 턴이 도는 동안 받은 `failed` 응답으로 실패를 확정하지 않으며, 재시도 결과(입력 대기 · 실행 중 · 다시 실패 · 종결)를 화면에 반영한다.
+- REQ-EXECRUN-058 IF 사용자가 입력 대기에 응답할 때 소켓 연결이 끊겨 있으면 THE SYSTEM SHALL Form 제출은 REST `POST /api/executions/:id/continue` 로 보내고, 버튼 클릭 · 멀티턴 메시지 · 대화 종료 · [다시 시도] 는 보내지 않은 채 입력 대기를 유지하고 연결이 돌아온 뒤 다시 하라는 안내를 표시한다.
+- REQ-EXECRUN-059 WHEN REST 폴링 대체 경로가 AI 대화 입력 대기 응답을 받으면 THE SYSTEM SHALL 응답의 대기 노드 실행 출력(`outputData`)에 저장된 대화의 확정된 사용자 · AI 메시지가 화면보다 많을 때 대화 타임라인을 저장된 대화로 바꾼다.
 
 ## 하위 문서
 
 - [에디터 실행과 디버깅 — 실행 시작·중지와 캔버스 표시](CLE-EXEC-RUN-START.md): 실행 방식 세 가지, 테스트 입력과 테스트 데이터셋, 캔버스 실행 표시, 실행 중지, 노드 결과 조회, API, 브레이크포인트 로드맵. 요구사항 REQ-EXECRUN-001~012, REQ-EXECRUN-015~023, REQ-EXECRUN-033~036.
 - [에디터 실행과 디버깅 — 실행 결과 드로어](CLE-EXEC-RUN-DRAWER.md): 드로어 레이아웃·헤더·실행 트리·결과 상세 탭·라이프사이클·단축키. 요구사항 REQ-EXECRUN-024~032, REQ-EXECRUN-037~046, REQ-EXECRUN-052~054.
-- [에디터 실행과 디버깅 — 실시간 수신·내역·Background](CLE-EXEC-RUN-SYNC.md): 노드 결과 수집과 REST 폴링 대체 경로, 실행 이벤트와 명령, 에디터 안 실행 내역 패널, 재실행 진입점, Background 본문 결과. 요구사항 REQ-EXECRUN-013~014, REQ-EXECRUN-047~051, REQ-EXECRUN-055~056.
+- [에디터 실행과 디버깅 — 실시간 수신·내역·Background](CLE-EXEC-RUN-SYNC.md): 노드 결과 수집과 REST 폴링 대체 경로, 실행 이벤트와 명령, 에디터 안 실행 내역 패널, 재실행 진입점, Background 본문 결과. 요구사항 REQ-EXECRUN-013~014, REQ-EXECRUN-047~051, REQ-EXECRUN-055~059.
 
 ## 노드 결과 수집
 

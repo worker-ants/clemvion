@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  selectAwaitingLastTurnRetry,
   useExecutionStore,
   type NodeExecutionStatus,
 } from "../stores/execution-store";
@@ -47,6 +48,8 @@ export function nextExecutionRefetchInterval(
  *  - `execution.nodeExecutions` 를 startedAt 으로 정렬 후 store 의
  *    `nodeStatuses` / `nodeResults` 갱신 (status downgrade 차단).
  *  - `execution.status` 분기:
+ *    - 마지막 턴 재시도를 기다리는 store(`selectAwaitingLastTurnRetry`)면 먼저
+ *      `followLastTurnRetry` 가 재시도 턴의 진행을 가른다(CLE-T-GKVH1B).
  *    - completed / failed / cancelled → 종료 setter 호출
  *    - running ↔ waiting_for_input 전이 reconcile
  *    - waiting_for_input → 5단계 fallback 으로 interactionType 추출 후
@@ -59,6 +62,8 @@ export function nextExecutionRefetchInterval(
  *    하면 `parseHistoryMessages` 로 시드. 페이지 재진입 시 WS 이벤트가
  *    도착하기 전 REST 만으로도 대화 timeline 이 그려지도록 한다.
  *    WS 가 먼저 채운 경우엔 덮어쓰지 않아 timeline 보호.
+ *    에디터 REST 폴링 대체 경로는 `refreshConversation` 을 켜서 저장된 대화가 store 보다
+ *    앞서 있으면 바꾼다(`refreshAiConversation`, CLE-T-5P1ADY).
  *
  * Hook 외부에서 호출 가능 (Zustand 의 `useExecutionStore.getState()` 패턴).
  *
@@ -66,13 +71,16 @@ export function nextExecutionRefetchInterval(
  *   event 의 `execution` 필드.
  * @param isCancelled — 호출자가 unmount 된 경우 작업 skip. WS handler 와 에디터의
  *   REST 폴링 대체 경로는 각자 effect 실행의 해제 표시(`disposed`)를 넘긴다.
+ * @param options — `ApplyExecutionSnapshotOptions`. 에디터 REST 폴링 대체 경로만 넘긴다.
  */
 export function applyExecutionSnapshot(
   execution: ExecutionData | null | undefined,
   isCancelled?: () => boolean,
+  options?: ApplyExecutionSnapshotOptions,
 ): void {
   if (!execution) return;
   if (isCancelled?.()) return;
+  const refreshConversation = options?.refreshConversation === true;
 
   const store = useExecutionStore.getState();
   const {
@@ -83,7 +91,6 @@ export function applyExecutionSnapshot(
     pauseForForm,
     pauseForButtons,
     pauseForConversation,
-    setConversationMessages,
     resumeFromForm,
     resumeFromButtons,
     resumeFromConversation,
@@ -133,6 +140,10 @@ export function applyExecutionSnapshot(
   }
 
   const { status: prevStatus } = useExecutionStore.getState();
+  // 폴링 대체 경로(`refreshConversation`)는 저장된 대화가 앞서 있으면 바꾸고, 그 밖에는 시드만 한다.
+  const syncConversation = refreshConversation
+    ? refreshAiConversation
+    : seedAiConversation;
 
   // ── Inconsistent-snapshot reconciliation (양방향 defense) ────────────────
   // Backend 의 status 업데이트 트랜잭션 commit 과 snapshot publish 사이의 race
@@ -153,6 +164,13 @@ export function applyExecutionSnapshot(
   const effectiveExecutionStatus = reconcileToWaiting
     ? ("waiting_for_input" as const)
     : execution.status;
+
+  if (
+    selectAwaitingLastTurnRetry(useExecutionStore.getState()) &&
+    followLastTurnRetry(execution, effectiveExecutionStatus) === "handled"
+  ) {
+    return;
+  }
 
   if (execution.status === "completed") {
     completeExecution();
@@ -175,9 +193,16 @@ export function applyExecutionSnapshot(
     // 그 경우 local state 가 실제 backend 상태와 일치하므로 resume 분기를
     // skip — 그렇지 않으면 buttons/form/AI 의 waiting UI 가 wipe 되어
     // disabled stuck 회귀 (이 분기가 root cause).
-    const hasWaitingNode =
-      execution.nodeExecutions?.some(isNodeWaitingForInput);
-    if (hasWaitingNode) {
+    // AI 재개 턴(`resumed` 봉투)도 이 모양으로 온다. 폴링 대체 경로면 같은 노드의 저장된
+    // 대화로 타임라인을 맞춘다(CLE-T-5P1ADY).
+    const waitingRow = execution.nodeExecutions?.find(isNodeWaitingForInput);
+    if (waitingRow) {
+      if (
+        refreshConversation &&
+        waitingRow.nodeId === useExecutionStore.getState().waitingNodeId
+      ) {
+        refreshAiConversation(waitingRow);
+      }
       return;
     }
     // Execution already resumed before we joined — reconcile local state.
@@ -216,7 +241,7 @@ export function applyExecutionSnapshot(
       // 페이지 재진입·재구독 후 store 가 비어있는 경우 backend 영속
       // outputData 에서 안전망 재시드가 필요하다 (이 early return 으로
       // 건너뛰면 영구히 빈 채로 남던 회귀가 있었음).
-      maybeSeedAiConversationMessages(waitingNode);
+      syncConversation(waitingNode);
       return;
     }
     if (waitingNode?.outputData) {
@@ -288,12 +313,8 @@ export function applyExecutionSnapshot(
         // outputData 에 메시지가 영속되어 있으면 시드한다. WS 경로
         // (`use-execution-events.ts:handleWaitingForInput`) 와 동등.
         // 비어있지 않은 경우엔 덮어쓰지 않아 WS 가 먼저 채운 timeline 보호.
-        if (useExecutionStore.getState().conversationMessages.length === 0) {
-          const items = parseHistoryMessages(raw);
-          if (items.length > 0) {
-            setConversationMessages(items);
-          }
-        }
+        // 폴링 대체 경로(`refreshConversation`)는 저장된 대화가 앞서 있으면 바꾼다.
+        syncConversation(waitingNode);
       } else if (interactionType === "buttons") {
         const btnConfig = isStructured
           ? (raw.config as Record<string, unknown> | undefined)
@@ -307,6 +328,94 @@ export function applyExecutionSnapshot(
       }
     }
   }
+}
+
+/**
+ * 마지막 턴 재시도를 기다리는 store 에 응답을 반영한다(CLE-T-GKVH1B). 여기서 끝까지
+ * 처리했으면 `"handled"`, 아래의 일반 분기로 넘길 응답이면 `"fallthrough"` 다. 재시도 ack 가 성공해도
+ * 실행은 재시도 턴이 끝날 때까지 `failed` 이고 턴 끝에서 `running`(그래프를 이어 감) ·
+ * `waiting_for_input`(park) 으로 간다(CLE-EXEC-STATE-RETRY 재진입 흐름).
+ *
+ * - `failed` 응답: 재시도 턴이 아직 끝나지 않았으면(`isLastTurnRetryRunning`) 실행 상태를
+ *   그대로 두고 기다린다(`"handled"`). 다시 실패했거나 판단할 행이 없으면 일반 분기의
+ *   `failExecution` 이 실패로 마감하고 표시를 지운다(`"fallthrough"`).
+ * - 입력 대기(`waiting_for_input`, 또는 `running` 인데 대기 행이 있는 응답): 재시도 턴이
+ *   park 했다. 표시를 지우고 대기 노드의 상태를 대기로 바꾼 뒤 일반 대기 분기로 넘긴다
+ *   (`"fallthrough"`). 노드 상태는 `failed` 에서 대기로 내려가므로 노드 행 루프의 낮추지 않는 규칙
+ *   (`shouldUpdateStatus`)에 막힌다. WS `execution.waiting_for_input` 처리처럼 직접 바꾼다.
+ * - `running`: 재시도 턴이 끝나고 그래프를 이어 간다. 실행 중으로 돌리고 응답 대기 표시를
+ *   끈다(`"handled"`).
+ * - 그 밖(`completed` · `cancelled`): 일반 분기가 종결로 마감하며 표시를 지운다(`"fallthrough"`).
+ */
+function followLastTurnRetry(
+  execution: ExecutionData,
+  effectiveStatus: ExecutionData["status"],
+): "handled" | "fallthrough" {
+  const store = useExecutionStore.getState();
+  const pending = store.pendingLastTurnRetry;
+  if (!pending) return "fallthrough";
+  if (execution.status === "failed") {
+    return isLastTurnRetryRunning(
+      execution.nodeExecutions ?? [],
+      pending.nodeExecutionId,
+    )
+      ? "handled"
+      : "fallthrough";
+  }
+  if (effectiveStatus === "waiting_for_input") {
+    const waitingNode = execution.nodeExecutions?.find(isNodeWaitingForInput);
+    if (waitingNode) {
+      store.updateNodeStatus(waitingNode.nodeId, {
+        status: "waiting_for_input",
+      });
+    }
+    store.clearLastTurnRetryPending();
+    return "fallthrough";
+  }
+  if (execution.status === "running") {
+    store.resumeFromLastTurnRetry();
+    return "handled";
+  }
+  return "fallthrough";
+}
+
+/**
+ * 노드 실행의 `startedAt`(ISO 8601)을 밀리초로 바꾼다. 없거나 파싱하지 못하면(`NaN`) 가장
+ * 이른 값(`-Infinity`)으로 둔다. 시각을 알 수 없는 행은 "재시도한 행보다 늦게 시작한 행"이
+ * 될 수 없고, 이전의 빈 문자열 비교와 같은 결과다.
+ */
+function startedAtMs(startedAt: string | null | undefined): number {
+  const ms = startedAt ? Date.parse(startedAt) : NaN;
+  return Number.isNaN(ms) ? Number.NEGATIVE_INFINITY : ms;
+}
+
+/**
+ * 재시도 턴이 아직 끝나지 않았는지. 재시도는 같은 노드에 새 노드 실행 행을 만들어 마지막
+ * 턴을 다시 돌린다. 재시도한 행보다 늦게 시작한 같은 노드의 행 중 가장 늦은 행이 새 행이다.
+ * 새 행이 `failed` · `cancelled` 가 아니면 아직 도는 중이거나 턴 끝 전이 직전이다.
+ *
+ * 재시도한 행이나 새 행을 찾지 못하면 `false` 다. 새 행은 ack 전에 만들어지므로 보통은
+ * 보인다. 보이지 않는 응답에서 기다리면 끝나지 않는 폴링이 될 수 있어 실패로 마감한다.
+ */
+function isLastTurnRetryRunning(
+  rows: NodeExecutionData[],
+  retriedNodeExecutionId: string,
+): boolean {
+  const retried = rows.find((ne) => ne.id === retriedNodeExecutionId);
+  if (!retried) return false;
+  const retriedStartedAt = startedAtMs(retried.startedAt);
+  let spawned: NodeExecutionData | undefined;
+  for (const ne of rows) {
+    if (ne.nodeId !== retried.nodeId || ne.id === retried.id) continue;
+    const startedAt = startedAtMs(ne.startedAt);
+    if (startedAt <= retriedStartedAt) continue;
+    if (!spawned || startedAt > startedAtMs(spawned.startedAt)) spawned = ne;
+  }
+  return (
+    spawned !== undefined &&
+    spawned.status !== "failed" &&
+    spawned.status !== "cancelled"
+  );
 }
 
 /**
@@ -330,33 +439,91 @@ export function loadHistoricalExecution(execution: ExecutionData): void {
   applyExecutionSnapshot(execution);
 }
 
+/** `applyExecutionSnapshot` 의 선택 동작. */
+export interface ApplyExecutionSnapshotOptions {
+  /**
+   * AI 대화 대기 노드의 저장된 메시지가 store 보다 앞서 있으면 store 의 대화를 바꾼다
+   * (`refreshAiConversation`, CLE-T-5P1ADY). 실행 이벤트를 받지 못하는 에디터 REST 폴링
+   * 대체 경로만 켠다. WS 스냅샷 · 실행 상세 화면 · 내역 보기는 이벤트가 채운 더 자세한
+   * 타임라인을 덮지 않도록 끈 채로 부른다.
+   */
+  refreshConversation?: boolean;
+}
+
 /**
- * 같은 waiting 노드 reconcile (early return) 경로에서도 AI 대화 메시지
- * 안전망은 유지한다. store 가 비어있고 영속 outputData 에 messages 가
- * 있으면 시드해, SPA 재진입·WS 재구독 후 store 와 backend 가 어긋난
- * 상태로 timeline 이 영구히 비어 보이는 회귀를 차단한다. form/buttons 는
- * `waitingFormConfig` / `waitingButtonConfig` 단일 객체로 store 가
- * 보존되어 같은 안전망이 필요 없다.
+ * store 의 대화가 비어 있으면 저장된 메시지(`outputData`)로 시드한다. 비어 있지 않으면 덮어쓰지
+ * 않는다. 같은 waiting 노드 reconcile(early return) 경로에서도 이 안전망을 유지해, SPA
+ * 재진입 · WS 재구독 후 store 와 backend 가 어긋난 상태로 timeline 이 영구히 비어 보이는
+ * 회귀를 막는다. form/buttons 는 `waitingFormConfig` / `waitingButtonConfig` 단일 객체로
+ * store 가 보존되어 같은 안전망이 필요 없다.
  */
-function maybeSeedAiConversationMessages(
+function seedAiConversation(waitingNode: NodeExecutionData | undefined): void {
+  if (!isAiConversationWaiting(waitingNode)) return;
+  if (useExecutionStore.getState().conversationMessages.length > 0) return;
+  const items = parseHistoryMessages(waitingNode.outputData);
+  if (items.length === 0) return;
+  useExecutionStore.getState().setConversationMessages(items);
+}
+
+/**
+ * 시드에 더해, 저장된 대화의 사용자 · AI 메시지 수가 store 의 확정된 메시지 수(보낸 뒤 서버
+ * 확인을 기다리는 `optimisticPending` 항목은 빼고)보다 많을 때 저장된 대화로 바꾼다. 보낸
+ * 메시지 항목도 저장된 대화에 들어 있으므로 함께 바뀐다. 노드가 park 한 행이면 그 턴의
+ * 응답이 끝난 것이라 응답 대기 표시를 끈다. AI 재개 턴 행(`resumed` 봉투)은 응답이 아직 오는
+ * 중이라 표시를 둔다.
+ */
+function refreshAiConversation(
   waitingNode: NodeExecutionData | undefined,
 ): void {
-  if (!waitingNode?.outputData) return;
-  const { waitingInteractionType, conversationMessages, setConversationMessages } =
-    useExecutionStore.getState();
-  // ai_conversation (chat) 와 ai_form_render (chat + form input overlay) 둘 다
-  // multi-turn timeline 을 가진다 — 둘 다 seed 대상.
+  if (!isAiConversationWaiting(waitingNode)) return;
+  const {
+    conversationMessages,
+    setConversationMessages,
+    setWaitingAiResponse,
+  } = useExecutionStore.getState();
+  const items = parseHistoryMessages(waitingNode.outputData);
+  if (items.length === 0) return;
+  if (conversationMessages.length === 0) {
+    setConversationMessages(items);
+    return;
+  }
   if (
-    waitingInteractionType !== "ai_conversation" &&
-    waitingInteractionType !== "ai_form_render"
+    countSettledMessages(items) <= countSettledMessages(conversationMessages)
   ) {
     return;
   }
-  if (conversationMessages.length > 0) return;
-  const items = parseHistoryMessages(waitingNode.outputData);
-  if (items.length > 0) {
-    setConversationMessages(items);
+  setConversationMessages(items);
+  if (!isAiResumedWaitingEnvelope(waitingNode.outputData)) {
+    setWaitingAiResponse(false);
   }
+}
+
+/**
+ * 저장된 메시지가 있는 AI 대화 대기 노드이고 store 도 AI 대화 대기 상태인지. ai_conversation
+ * (chat) 와 ai_form_render (chat + form input overlay) 둘 다 multi-turn timeline 을 가진다.
+ */
+function isAiConversationWaiting(
+  waitingNode: NodeExecutionData | undefined,
+): waitingNode is NodeExecutionData & {
+  outputData: NonNullable<NodeExecutionData["outputData"]>;
+} {
+  if (!waitingNode?.outputData) return false;
+  const { waitingInteractionType } = useExecutionStore.getState();
+  return (
+    waitingInteractionType === "ai_conversation" ||
+    waitingInteractionType === "ai_form_render"
+  );
+}
+
+/** 대화 항목 중 사용자 · AI 메시지 수. 서버 확인을 기다리는 보낸 메시지 항목은 세지 않는다. */
+function countSettledMessages(
+  items: ReadonlyArray<{ type: string; optimisticPending?: boolean }>,
+): number {
+  return items.filter(
+    (item) =>
+      (item.type === "user" || item.type === "assistant") &&
+      item.optimisticPending !== true,
+  ).length;
 }
 
 /**

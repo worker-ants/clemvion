@@ -7,10 +7,12 @@ const { emitMock, onceMock, toastErrorMock } = vi.hoisted(() => ({
   toastErrorMock: vi.fn(),
 }));
 
+// 연결된 소켓. 끊긴 소켓의 동작은 use-execution-interaction-commands-disconnected.test.ts 가 본다.
 vi.mock("../ws-client", () => ({
   getWsClient: () => ({
     emit: emitMock,
     once: onceMock,
+    isConnected: () => true,
   }),
 }));
 
@@ -642,6 +644,71 @@ describe("useExecutionInteractionCommands", () => {
       // @ts-expect-error 중첩 error 객체는 toast.error 의 인자 타입(ReactNode)이 아니다.
       const toastArg: Parameters<typeof toast.error>[0] = ack.error;
       expect(toastArg).toEqual({ code: "RETRY_TOO_EARLY", message: "m" });
+    });
+
+    // CLE-T-GKVH1B — 성공 ack 뒤 실행은 재시도 턴이 끝날 때까지 failed 라서 폴링 대체 경로가
+    // 이 표시를 보고 폴링을 다시 켠다.
+    describe("성공 ack 뒤 재시도 대기 표시", () => {
+      function ackRetry(ack: Record<string, unknown>) {
+        const ackHandler = onceMock.mock.calls.find(
+          ([event]) => event === "execution.retry_last_turn.ack",
+        )![1] as (resp: unknown) => void;
+        act(() => {
+          ackHandler(ack);
+        });
+      }
+
+      beforeEach(() => {
+        useExecutionStore.getState().startExecution("exec-1");
+        useExecutionStore.getState().failExecution("LLM 429");
+      });
+
+      it("성공 ack 면 재시도한 노드 실행 ID 를 store 에 남긴다", () => {
+        const { result } = renderHook(() =>
+          useExecutionInteractionCommands("exec-1"),
+        );
+        act(() => {
+          result.current.retryLastTurn("node-exec-abc");
+        });
+        ackRetry({
+          success: true,
+          executionId: "exec-1",
+          nodeExecutionId: "node-exec-abc",
+          resumed: true,
+        });
+        expect(useExecutionStore.getState().pendingLastTurnRetry).toEqual({
+          nodeExecutionId: "node-exec-abc",
+        });
+      });
+
+      it("실패 ack 면 남기지 않는다", () => {
+        const { result } = renderHook(() =>
+          useExecutionInteractionCommands("exec-1"),
+        );
+        act(() => {
+          result.current.retryLastTurn("node-exec-abc");
+        });
+        ackRetry({
+          success: false,
+          error: { code: "RETRY_TOO_EARLY", message: "m" },
+        });
+        expect(useExecutionStore.getState().pendingLastTurnRetry).toBeNull();
+      });
+
+      it("ack 전에 store 가 다른 실행으로 바뀌었으면 남기지 않는다", () => {
+        const { result } = renderHook(() =>
+          useExecutionInteractionCommands("exec-1"),
+        );
+        act(() => {
+          result.current.retryLastTurn("node-exec-abc");
+        });
+        act(() => {
+          useExecutionStore.getState().startExecution("exec-2");
+          useExecutionStore.getState().failExecution("other");
+        });
+        ackRetry({ success: true, nodeExecutionId: "node-exec-abc" });
+        expect(useExecutionStore.getState().pendingLastTurnRetry).toBeNull();
+      });
     });
 
     it("no-ops when executionId is null", () => {

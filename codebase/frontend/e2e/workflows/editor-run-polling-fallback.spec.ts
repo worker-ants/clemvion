@@ -8,6 +8,12 @@ import { mockAuth, PAGE_READY_TIMEOUT, WORKSPACE } from "../helpers/mock-auth";
  * Socket.IO 의 두 전송(websocket · HTTP long-polling)을 모두 막아 구독이 실패하게
  * 하고, 실행 조회 응답만으로 드로어에 노드 목록과 최종 상태가 표시되는지 본다.
  * mock 응답으로 구성하며 실제 backend 에 연결하지 않는다.
+ *
+ * 입력 대기(CLE-T-5P1ADY): 소켓이 끊겨 있으면 폼은 REST `POST /executions/:id/continue`
+ * 로 보내고, 버튼 · 대화 · 재시도는 보내지 않고 안내한다.
+ * 마지막 턴 재시도를 폴링으로 따라가는 경로(CLE-T-GKVH1B)는 이 파일에서 다루지 않는다.
+ * 재시도 명령은 소켓 연결이 있어야 보내지고, 소켓을 막으면 재시도 버튼부터 보낼 수 없다.
+ * 그 경로는 단위 테스트(apply-execution-snapshot · use-execution-polling-fallback)가 맡는다.
  */
 
 const WORKFLOW_ID = "wf-run-fallback";
@@ -56,6 +62,70 @@ function execution(status: "running" | "completed") {
   };
 }
 
+/** 입력 대기 노드의 드로어 분류(presentation)를 정하는 최소 노드 정의. */
+function presentationDefinition(type: string, label: string) {
+  return {
+    metadata: {
+      type,
+      category: "presentation",
+      label,
+      description: "",
+      icon: "layout",
+      color: "#6366f1",
+    },
+    ports: {
+      inputs: [{ id: "in", label: "In", type: "data" }],
+      outputs: [{ id: "out", label: "Out", type: "data" }],
+    },
+    configSchema: { type: "object", properties: {} },
+    defaultConfig: {},
+  };
+}
+
+const WAITING_NODE_ID = "node-waiting-1";
+
+/** 트리거는 끝났고 두 번째 노드가 입력을 기다리는(또는 그 뒤 끝난) 실행. */
+function inputWaitExecution(
+  waitingNode: {
+    type: "form" | "template";
+    label: string;
+    config: Record<string, unknown>;
+    interactionType: "form" | "buttons";
+  },
+  status: "waiting_for_input" | "completed",
+) {
+  const done = status === "completed";
+  const waitingRow = {
+    id: "7e2a3b4c-5d6e-4f70-8b81-a2c3d4e5f607",
+    executionId: EXECUTION_ID,
+    nodeId: WAITING_NODE_ID,
+    status,
+    startedAt: "2026-10-22T03:00:00.200Z",
+    finishedAt: done ? "2026-10-22T03:00:05.000Z" : null,
+    durationMs: done ? 4800 : null,
+    inputData: {},
+    outputData: done
+      ? { config: waitingNode.config, output: { comment: "승인합니다" }, status: "completed" }
+      : {
+          config: waitingNode.config,
+          output: {},
+          status: "waiting_for_input",
+          meta: { interactionType: waitingNode.interactionType },
+        },
+    error: null,
+    retryCount: 0,
+    parentNodeExecutionId: null,
+    node: { id: WAITING_NODE_ID, type: waitingNode.type, label: waitingNode.label },
+  };
+  return {
+    ...execution("completed"),
+    status,
+    finishedAt: done ? "2026-10-22T03:00:05.100Z" : null,
+    durationMs: done ? 5100 : null,
+    nodeExecutions: [nodeExecution("completed"), waitingRow],
+  };
+}
+
 /** Socket.IO 연결을 전송 방식과 무관하게 모두 실패시킨다. */
 async function blockRealtime(page: Page) {
   await page.routeWebSocket(/\/socket\.io\//, (ws) => ws.close());
@@ -93,6 +163,8 @@ async function mockEditor(page: Page) {
     route.fulfill(
       json({
         definitions: [
+          presentationDefinition("form", "Form"),
+          presentationDefinition("template", "Template"),
           {
             metadata: {
               type: "manual_trigger",
@@ -149,5 +221,104 @@ test.describe("에디터 실행 패널 — WebSocket 이 막혔을 때 REST 폴�
     await expect(drawer.getByRole("status")).toHaveText("완료");
     await expect(drawer.getByText("1/1 노드")).toBeVisible();
     expect(executionCalls).toBeGreaterThanOrEqual(2);
+  });
+});
+
+test.describe("에디터 실행 패널 — 소켓이 끊긴 채 입력을 기다릴 때", () => {
+  /** 실행을 시작하고 10초 무수신 타이머를 넘겨 폴링이 입력 대기를 채우게 한다. */
+  async function runUntilWaiting(page: Page) {
+    await page.clock.install();
+    await page.goto(`/w/${WORKSPACE.slug}/workflows/${WORKFLOW_ID}`);
+    const runButton = page.getByRole("button", { name: "실행", exact: true });
+    await expect(runButton).toBeEnabled({ timeout: PAGE_READY_TIMEOUT });
+    await runButton.click();
+
+    const drawer = page.locator("[data-run-results-drawer]");
+    await expect(drawer.getByRole("status")).toHaveText("실행 중...");
+    await page.clock.fastForward(10_000);
+    await expect(drawer.getByRole("status")).toHaveText("입력 대기 중...");
+    return drawer;
+  }
+
+  test("폼은 REST 로 제출하고 이어 진행된 결과를 폴링으로 받는다", async ({ page }) => {
+    await mockAuth(page);
+    await blockRealtime(page);
+    await mockEditor(page);
+
+    const form = {
+      type: "form" as const,
+      label: "승인 요청",
+      interactionType: "form" as const,
+      config: {
+        title: "승인 요청",
+        fields: [{ name: "comment", type: "text", label: "의견" }],
+        submitLabel: "제출",
+      },
+    };
+    const continueBodies: unknown[] = [];
+    await page.route(`**/api/executions/${EXECUTION_ID}/continue`, (route) => {
+      continueBodies.push(route.request().postDataJSON());
+      return route.fulfill(json({ success: true }));
+    });
+    // 제출이 접수된 뒤의 조회는 완료로 바뀐다(워커가 곧바로 이어 진행한 것으로 본다).
+    await page.route(`**/api/executions/${EXECUTION_ID}`, (route) =>
+      route.fulfill(
+        json(
+          inputWaitExecution(
+            form,
+            continueBodies.length > 0 ? "completed" : "waiting_for_input",
+          ),
+        ),
+      ),
+    );
+
+    const drawer = await runUntilWaiting(page);
+    await drawer.getByLabel("의견").fill("승인합니다");
+    await drawer.getByRole("button", { name: "제출" }).click();
+
+    await expect.poll(() => continueBodies).toEqual([
+      { formData: { comment: "승인합니다" } },
+    ]);
+    await expect(drawer.getByRole("status")).toHaveText("완료");
+    await expect(drawer.getByText("2/2 노드")).toBeVisible();
+  });
+
+  test("버튼은 보내지 않고 연결이 돌아온 뒤 다시 하라고 안내한다", async ({ page }) => {
+    await mockAuth(page);
+    await blockRealtime(page);
+    await mockEditor(page);
+
+    const buttons = {
+      type: "template" as const,
+      label: "결재 선택",
+      interactionType: "buttons" as const,
+      config: {
+        outputFormat: "text",
+        buttonConfig: {
+          buttons: [{ id: "approve", label: "승인", type: "port" }],
+        },
+      },
+    };
+    let continueCalls = 0;
+    await page.route(`**/api/executions/${EXECUTION_ID}/continue`, (route) => {
+      continueCalls += 1;
+      return route.fulfill(json({ success: true }));
+    });
+    await page.route(`**/api/executions/${EXECUTION_ID}`, (route) =>
+      route.fulfill(json(inputWaitExecution(buttons, "waiting_for_input"))),
+    );
+
+    const drawer = await runUntilWaiting(page);
+    await drawer.getByRole("button", { name: "승인", exact: true }).click();
+
+    await expect(
+      page.getByText(
+        "실시간 연결이 끊겨 있어 지금은 이 입력을 보낼 수 없어요. 연결이 돌아오면 다시 시도해 주세요.",
+      ),
+    ).toBeVisible();
+    // 보내지 않았으니 입력 대기도 그대로이고 버튼도 남아 있다.
+    await expect(drawer.getByRole("status")).toHaveText("입력 대기 중...");
+    await expect(drawer.getByRole("button", { name: "승인", exact: true })).toBeVisible();
+    expect(continueCalls).toBe(0);
   });
 });

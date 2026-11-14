@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-SYNC"
 title: "에디터 실행과 디버깅 — 실시간 수신·내역·Background"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "e01b7a486b4ea9c62c5a7531791e2b3a6557286e53f402acd9eb6cc1297ac371"
+content_hash: "7e6c8c14b0075ffa1c05c263d071020be9de0ad05cf0cd7d48955bf7077fdc7e"
 read_as: "approved_fallback"
-task: "CLE-T-51KBTG"
+task: "CLE-T-GKVH1B"
 source_paths: []
-mirror_sha256: "9cdc997f8696f6c0ac2349ba8427abe8ff6d3bf77443d22491737de6e35088f6"
-etag: "sha256-d802fa8a36e91bd848500d2b3b3d468d9a23e7dcf4ebe33ba25e3761f7f13f84"
+mirror_sha256: "65b65bc1363dda4ad54172747723e663492bd50f0b8afe24bd7d3fb9a273e4f5"
+etag: "sha256-4d1a71d3af0b85e2e1e31b0986f9975ea817280dcffb44d433af2f96af0e0e1a"
 ---
 ## 개요
 
@@ -36,7 +36,8 @@ etag: "sha256-d802fa8a36e91bd848500d2b3b3d468d9a23e7dcf4ebe33ba25e3761f7f13f84"
 | store 채우기 | 응답은 실행 스냅샷 이벤트(`execution.snapshot`)와 같은 진입점(`applyExecutionSnapshot`)으로 같은 store 자리에 넣는다. 노드 출력 필드를 복원하는 규칙은 [실행 화면 복원 규약](CLE-EXEC-HYDRATION.md) 을 따른다. 내역 보기 경로(`loadHistoricalExecution`)는 쓰지 않으므로 라이브 대화 상태가 비지 않는다 |
 | 멈추는 경우 | 이 실행의 `execution.snapshot` 이나 실행 이벤트가 다시 올 때(WebSocket 복구), 응답 상태가 종결 상태(`completed`·`failed`·`cancelled`, [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md))일 때, store 가 이미 끝난 실행일 때, 위의 회복할 수 없는 에러를 받았을 때. store 는 `cancelled` 를 `failed` 로 담으므로 store 쪽 판정은 `completed`·`failed` 두 값이다. 멈춘 뒤 도착한 응답은 버린다. 응답을 넣기 직전에도 store 의 실행 ID 가 이 실행과 같고 store 가 끝나지 않았는지 확인해 아니면 버린다. 요청을 보낸 뒤 응답이 오기 전에 실행 이벤트나 사용자의 대기 응답으로 store 의 노드 상태·노드 결과·실행 상태가 바뀌었으면 그 응답만 버리고 다음 요청은 그대로 보낸다 |
 | 다시 판단하는 경우 | 실행 ID 가 바뀌면 새 실행 기준으로 처음부터 판단한다. 연결이 끊기면 이 실행의 실시간 데이터를 받았다는 표시를 지우고 10초를 다시 잰다 |
-| 따라가지 못하는 경우 | 대체 경로 중에 마지막 턴 재시도(`failed → running`, [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md))를 하면 화면은 `failed` 에 머문다. store 를 `running` 으로 돌리는 것은 WebSocket 이벤트뿐이고 구독이 실패한 클라이언트에는 그 이벤트가 오지 않는다. `applyExecutionSnapshot` 도 `failed` 다음의 `running` 응답을 반영하지 않는다. [다시 시도] 버튼은 `nodeExecutionId` 가 있는 `system_error` 에만 보이고 그 값은 실시간 이벤트로 만든 항목에만 있다([대화 미리보기](CLE-EXEC-PREVIEW.md) 의 「[다시 시도] 버튼 조건」). 그래서 이 경우는 WebSocket 으로 `system_error` 를 받은 뒤 대체 경로로 넘어갔을 때만 생기고 처음부터 대체 경로로 받은 실행에서는 버튼이 숨는다. NERV Task `CLE-T-GKVH1B` 가 다룬다 |
+| 마지막 턴 재시도 | 대체 경로 중에 [다시 시도] 명령(`execution.retry_last_turn`)의 ack 가 성공하면 store 에 재시도 대기 표시(`pendingLastTurnRetry`, 재시도한 노드 실행 ID)를 남긴다. 이 표시가 있는 동안은 store 가 `failed` 여도 폴링을 다시 켜고 종결 응답으로 멈추지 않는다. 재시도는 실행 상태를 바로 바꾸지 않고 같은 노드에 새 노드 실행 행을 만들어 마지막 턴을 다시 돌린다([실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md)). 그래서 `failed` 응답에서는 재시도한 행보다 늦게 시작한 같은 노드의 가장 늦은 행을 본다. 그 행이 `failed`·`cancelled` 가 아니면 실행 상태를 그대로 두고 다음 응답을 기다린다. 그 행이 실패했거나 찾지 못하면 실패로 마감한다. 입력 대기 응답이면 대기 노드를 대기로 되돌리고 입력 대기 UI 를 채운다. `running` 응답이면 실행 중으로 돌리고 응답 대기 표시를 끈다. `completed`·`cancelled` 응답은 종결로 마감한다. 마감하거나 실행이 재개·종결·초기화되면 표시를 지운다. [다시 시도] 버튼은 `nodeExecutionId` 가 있는 `system_error` 에만 보이고 그 값은 실시간 이벤트로 만든 항목에만 있다([대화 미리보기](CLE-EXEC-PREVIEW.md) 의 「[다시 시도] 버튼 조건」). 그래서 처음부터 대체 경로로 받은 실행에서는 버튼이 숨는다 |
+| 입력 대기 | 응답이 입력 대기면 실시간 경로와 같이 폼·버튼·AI 대화 입력 UI 를 채운다. AI 대화(`ai_conversation`·`ai_form_render`)는 응답마다 노드 출력에 저장된 대화(`outputData`)를 다시 읽는다(`refreshConversation`). 확정된 사용자·AI 메시지 수가 화면보다 많을 때만 타임라인을 저장된 대화로 바꾸고, 노드가 다시 입력을 기다리는 응답이면 AI 응답 대기 표시도 끈다. 앞서지 않으면 낙관적으로 넣은 사용자 메시지와 응답 대기 표시를 그대로 둔다. 같은 노드가 다음 턴을 처리하는 중인 응답(실행은 `running`, 노드 출력은 `resumed`)도 같은 규칙으로 타임라인만 바꾼다. 복원 규칙은 [실행 화면 복원 규약](CLE-EXEC-HYDRATION.md) 이 정한다. 사용자의 입력을 보내는 방식은 [실행 이벤트와 명령](#실행-이벤트와-명령) 의 「소켓이 끊겼을 때」 가 정한다 |
 
 현재 구현에서 실행 상세 화면(`executions/[executionId]/page.tsx`)의 상시 폴링과 Background 본문 결과(`use-background-run.ts`)의 폴링은 이 대체 경로와 관계없이 그대로다. 근거는 [Rationale](#rationale) 의 "에디터의 REST 폴링은 실시간 경로가 막혔을 때만 켠다" 항목에 있다.
 
@@ -54,6 +55,13 @@ etag: "sha256-d802fa8a36e91bd848500d2b3b3d468d9a23e7dcf4ebe33ba25e3761f7f13f84"
 | 멀티턴 메시지 전송 | `execution.submit_message` |
 | 멀티턴 대화 종료 | `execution.end_conversation` |
 | `system_error` 의 [다시 시도] | `execution.retry_last_turn` |
+
+**소켓이 끊겼을 때**: 입력 대기 명령은 보내는 시점에 소켓이 연결돼 있는지 본다. 대체 경로가 구독 실패 응답이나 10초 무수신으로 켜졌으면 소켓은 연결된 채라 위 표대로 WebSocket 명령을 보낸다. 소켓 연결이 끊겨 있으면 아래처럼 한다. 실행 상세 화면도 같은 명령 훅(`use-execution-interaction-commands.ts`)을 쓰므로 같게 동작한다.
+
+| 사용자 동작 | 소켓이 끊겨 있을 때 |
+| --- | --- |
+| Form 폼 제출 | REST `POST /api/executions/:id/continue`(본문 `{ formData }`)로 보낸다. 제출 항목과 응답 대기 표시는 WebSocket 경로처럼 바로 넣는다. 성공 응답은 접수만 뜻하므로 이어 진행된 결과는 폴링 응답으로 반영한다. 실패하면 응답 대기 표시를 끄고 토스트를 띄운다. 422 `INVALID_STATE` 는 입력 대기가 아니라는 문구, 400 `VALIDATION_ERROR` 는 서버가 준 검증 문구, 그 밖의 실패는 일반 실패 문구다 |
+| 버튼 클릭(port 버튼·`__continue__`), 멀티턴 메시지 전송, 멀티턴 대화 종료, [다시 시도] | 보내지 않는다. "실시간 연결이 끊겨 있어 지금은 이 입력을 보낼 수 없어요. 연결이 돌아오면 다시 시도해 주세요." 토스트를 띄우고 입력 대기를 그대로 둔다. 보낸 메시지 항목과 응답 대기 표시를 넣지 않고 입력란의 글도 지우지 않는다 |
 
 ## 에디터 안 실행 내역 패널
 
@@ -129,11 +137,21 @@ etag: "sha256-d802fa8a36e91bd848500d2b3b3d468d9a23e7dcf4ebe33ba25e3761f7f13f84"
 - **요청 빈도**: 폴링은 실행 하나에 분당 30건이다. 일반 API 요청 빈도 한도(사용자 기준 100 req/min, [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7)의 약 30% 다. 실시간 경로가 막혔을 때만 켜지므로 이 비용을 받아들인다. `waiting_for_input` 동안에도 같은 간격으로 받는다. 여러 탭에서 막힌 실행을 동시에 보면 한도에 닿을 수 있어서 실패한 요청은 간격을 늘려 다시 받고 회복할 수 없는 에러에서는 멈춘다. 401 마다 토큰 갱신을 되풀이하거나 429 를 받고도 같은 간격으로 보내 사용자 요청 한도를 스스로 쓰지 않게 하려는 것이다. `Retry-After` 의 날짜 형식은 읽지 않고 늘리는 간격으로 대신한다. 사용자가 일으킨 요청이 아니므로 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) §4.1 의 토스트 · 404 페이지 처리를 따르지 않는다. 폴링 훅이 에러를 직접 처리하므로 [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 에러 바운더리도 타지 않는다. 실패에 토스트를 띄우지 않는 것은 화면 뒤에서 2초마다 도는 요청이라 실패할 때마다 토스트가 쌓이기 때문이다. `Retry-After` 를 2초~60초로 자르는 것은 잘못된 헤더 값 하나로 폴링이 사실상 멈추지 않게 하려는 것이다.
 - **실시간 수신 신호에 실행 이벤트도 센다**: `execution.snapshot` 은 소켓의 첫 구독에서만 한 번 온다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) §6.2). 같은 소켓이 이미 구독한 채널을 다시 구독하면 `execution.snapshot` 없이 실행 이벤트만 온다. 그래서 이 실행의 실행 이벤트가 와도 실시간 경로가 살아 있다고 본다.
 - **실패 응답으로는 구독 채널을 가리지 않는다**: `subscribed` 실패 응답에는 `channel` 필드가 없다. 같은 소켓의 다른 구독(Background 본문 결과 등)이 실패해도 이 실행의 `execution.snapshot` 이나 실행 이벤트가 오기 전이면 폴링이 켜진다. `execution.snapshot` 이나 실행 이벤트가 오면 바로 꺼지므로 그 비용을 받아들였다. 실패 응답에 `channel` 을 더하는 계약 변경(추가 필드라 옛 클라이언트에는 영향이 없다)은 이 결정에서 하지 않았고 NERV Task `CLE-T-7MBBA7` 에서 정한다.
-- **마지막 턴 재시도는 이번에 다루지 않는다**: 대체 경로 중 재시도를 따라가려면 재시도 뒤 폴링을 다시 켜는 신호와 `applyExecutionSnapshot` 의 `failed → running` 분기가 함께 필요하다. `applyExecutionSnapshot` 은 실행 상세 화면의 상시 폴링도 쓰는 진입점이라 그 화면의 동작까지 다시 따져야 한다. 구독 실패와 AI 턴 실패가 겹칠 때만 생기므로 후속 Task `CLE-T-GKVH1B` 로 넘겼다.
+- **마지막 턴 재시도를 대체 경로에서 따라간다** (2026-11-14, NERV Task `CLE-T-GKVH1B`): 처음에는 재시도 뒤 폴링을 다시 켜는 신호와 `applyExecutionSnapshot` 의 `failed → running` 분기가 함께 필요해서 뒤로 미뤘다. 재시도 ack 가 성공한 시점에 실행은 아직 `failed` 이고 같은 노드에 새 노드 실행 행만 생긴다. 실행 상태는 워커가 재시도 턴을 끝낼 때 바뀐다. 그래서 `failed` 응답이 재시도가 아직 도는 중인지 다시 실패했는지는 새 행의 상태로 가린다. 새 행이 보이지 않는 응답에서 기다리면 끝나지 않는 폴링이 될 수 있어 실패로 마감한다. 실행 상세 화면도 같은 명령 훅이라 재시도 대기 표시를 남기지만 그 화면의 폴링은 종결 응답에서 멈추므로 재시도 뒤 갱신은 지금처럼 WebSocket 이벤트가 맡는다. `execution.retry_last_turn` 의 메시지 형식은 바꾸지 않았다.
 - **기각 (a) 에디터도 실행 상세 화면처럼 늘 폴링한다**: WebSocket 으로 받는 동안에도 실행 하나에 2초마다 REST 요청이 더 나간다(분당 30건). WebSocket 으로 이미 앞선 store 를 옛 REST 응답이 덮을 수도 있다. `running` 응답이 이전 `waiting_for_input` 상태와 만나면 `applyExecutionSnapshot` 의 재개 분기가 입력 대기 UI 를 지운다.
 - **기각 (b) React Query `refetchInterval` 로 켜고 끈다**: 꺼진 뒤 도착한 응답이 store 에 들어가고, 다시 켤 때 캐시에 남은 옛 응답도 store 에 들어간다. (a) 의 덮어쓰기와 같은 문제가 생긴다. 그래서 effect 안에서 응답을 받은 뒤 다음 요청을 예약하고, 꺼지면 도착한 응답을 버린다.
 - **기각 (c) 토스트 문구에서 "폴링으로 진행" 만 지운다**: 문구와 동작은 맞아지지만 구독이 막히면 드로어가 계속 빈다. 2026-10-22 장애(`CLE-T-A3W8B8`)가 바로 그 상황이었다.
 - (b) · (c) 는 구현하면서 비교한 안이다.
+
+### 소켓이 끊긴 입력 대기는 폼만 REST 로 보낸다 (2026-11-14)
+
+REST 폴링 대체 경로 중 입력 대기 응답을 어떻게 보낼지 정하지 않아, 에디터는 소켓이 끊겨도 WebSocket 명령을 보냈고 폴링 중 AI 응답은 화면에 나오지 않았다. 이 결정은 NERV Task `CLE-T-5P1ADY` 에서 사람이 골랐다.
+
+- **고른 안**: 입력 대기 명령을 소켓 연결 여부로 나눈다. 대체 경로가 켜지는 경우 대부분(구독 실패 응답·10초 무수신)은 소켓이 연결된 채라 WebSocket 명령이 게이트웨이에 닿고 ack 도 온다. 명령이 가지 않는 것은 소켓 연결이 끊긴 경우뿐이다. Socket.IO 는 끊긴 동안 보낸 명령을 버퍼에 두었다가 다시 연결되면 보내므로, 막지 않으면 사용자는 입력이 간 줄 알고 기다린다. 폼은 이미 있는 REST 재개 진입점(`POST /executions/:id/continue`, [실행 데이터와 흐름 — 흐름과 저장소 매핑](CLE-EXEC-DATA-FLOW.md))으로 보낼 수 있어 그대로 쓴다. 버튼·멀티턴 메시지·대화 종료·재시도는 REST 진입점이 없어서 보내지 않고 안내한다. 백엔드는 바꾸지 않는다.
+- **AI 대화는 저장된 대화가 앞설 때만 바꾼다**: 대체 경로에서는 `execution.ai_message` 가 오지 않으므로 폴링 응답의 저장된 대화가 AI 응답을 보여 줄 유일한 길이다. 응답마다 덮으면 사용자가 방금 보낸 낙관적 메시지가 사라졌다가 다시 나타난다. 그래서 확정된 사용자·AI 메시지 수를 견줘 저장된 대화가 앞설 때만 바꾼다. 이 갱신은 에디터 대체 경로에서만 켠다. 실시간 경로와 실행 상세 화면은 WebSocket 이 대화를 채우므로 지금처럼 비어 있을 때만 채운다.
+- **알려진 한계**: REST 성공 응답은 접수만 뜻한다. 워커가 이어 받기 전에 폴링 응답이 오면 실행은 아직 입력 대기라 같은 폼이 잠깐 다시 보인다. 다음 응답에서 바로잡힌다. 실행 상세 화면의 상시 폴링에도 있는 같은 종류의 깜빡임이라 이번에 따로 막지 않았다.
+- **기각 (a) 모든 입력을 REST 로 보낸다**: 버튼·메시지·대화 종료·재시도용 REST 엔드포인트를 새로 만들어야 한다. [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 2026-07-08 REST 대체 비채택이 막은 중복 경로다.
+- **기각 (b) 소켓이 끊겨도 WebSocket 명령을 그대로 보낸다**: 버퍼에 쌓인 명령이 언제 갈지 알 수 없고 그동안 화면은 응답 대기로 멈춘다.
 
 ### 에디터 안 실행 내역 패널은 프런트만으로 만들고 기존 API 를 다시 쓴다 (2026-06-16)
 

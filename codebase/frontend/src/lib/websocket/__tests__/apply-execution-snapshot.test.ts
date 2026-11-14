@@ -1454,3 +1454,481 @@ describe("nextExecutionRefetchInterval", () => {
     },
   );
 });
+
+// CLE-T-GKVH1B — 마지막 턴 재시도 ack 가 성공하면 실행은 재시도 턴이 끝날 때까지 `failed` 다
+// (CLE-EXEC-STATE-RETRY 재진입 흐름). 그동안 받은 `failed` 응답이 「아직 재시도 중」인지
+// 「다시 실패」인지 새 노드 실행 행으로 가르고, 턴이 끝난 뒤의 `running` · `waiting_for_input`
+// 응답은 store 에 반영한다.
+describe("applyExecutionSnapshot — 마지막 턴 재시도를 따라간다", () => {
+  const AI_NODE = "ai-agent-node";
+  const RETRIED = "ne-retried";
+  const SPAWNED = "ne-spawned";
+
+  const failedOutput = {
+    config: { mode: "multi_turn" },
+    output: {
+      result: {
+        messages: [
+          { role: "user", content: "안녕" },
+          { role: "assistant", content: "안녕하세요" },
+          { role: "user", content: "날씨 알려줘" },
+        ],
+      },
+      error: {
+        code: "LLM_RATE_LIMITED",
+        message: "LLM 429",
+        details: { retryable: true },
+      },
+    },
+    status: "failed",
+    meta: { interactionType: "ai_conversation" },
+  };
+
+  function retriedRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: RETRIED,
+      executionId: "exec-1",
+      nodeId: AI_NODE,
+      nodeType: "ai_agent",
+      status: "failed",
+      startedAt: "2026-04-01T00:00:01Z",
+      error: { message: "LLM 429" },
+      outputData: failedOutput,
+      ...overrides,
+    };
+  }
+
+  function spawnedRow(
+    status: string,
+    outputData: unknown = null,
+    overrides: Record<string, unknown> = {},
+  ) {
+    return {
+      id: SPAWNED,
+      executionId: "exec-1",
+      nodeId: AI_NODE,
+      nodeType: "ai_agent",
+      status,
+      startedAt: "2026-04-01T00:00:10Z",
+      outputData,
+      ...overrides,
+    };
+  }
+
+  const waitingOutput = {
+    config: { mode: "multi_turn", maxTurns: 10 },
+    output: {
+      result: {
+        messages: [
+          { role: "user", content: "안녕" },
+          { role: "assistant", content: "안녕하세요" },
+          { role: "user", content: "날씨 알려줘" },
+          { role: "assistant", content: "맑음입니다" },
+        ],
+        turnCount: 2,
+      },
+    },
+    status: "waiting_for_input",
+    meta: { interactionType: "ai_conversation" },
+  };
+
+  /** WS 로 대화와 실패를 받은 뒤 [다시 시도] 를 눌러 ack 가 성공한 store. */
+  function arrangeRetryAccepted() {
+    const store = useExecutionStore.getState();
+    store.reset();
+    store.startExecution("exec-1");
+    store.addNodeResult({
+      nodeExecutionId: RETRIED,
+      nodeId: AI_NODE,
+      nodeLabel: "AI Agent",
+      nodeType: "ai_agent",
+      nodeCategory: "ai",
+      status: "failed",
+      outputData: failedOutput,
+      startedAt: "2026-04-01T00:00:01Z",
+    });
+    store.updateNodeStatus(AI_NODE, { status: "failed", error: "LLM 429" });
+    store.setConversationMessages([
+      { type: "user", content: "안녕", turnIndex: 1 },
+      { type: "assistant", content: "안녕하세요", turnIndex: 1 },
+      { type: "user", content: "날씨 알려줘", turnIndex: 2 },
+    ]);
+    store.failExecution("LLM 429");
+    store.setWaitingAiResponse(true);
+    store.markLastTurnRetryPending(RETRIED);
+  }
+
+  beforeEach(() => {
+    arrangeRetryAccepted();
+  });
+
+  it("재시도 턴이 도는 동안(실행 failed · 새 행 running)은 failed 를 다시 적용하지 않고 기다린다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        error: null,
+        nodeExecutions: [retriedRow(), spawnedRow("running")],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("failed");
+    expect(state.pendingLastTurnRetry).toEqual({ nodeExecutionId: RETRIED });
+    expect(state.isWaitingAiResponse).toBe(true);
+    // 새 행은 타임라인에 들어간다.
+    expect(state.nodeResults.map((r) => r.nodeExecutionId)).toEqual([
+      RETRIED,
+      SPAWNED,
+    ]);
+  });
+
+  it("시각 표기가 달라도 시각 순서로 새 행을 가린다(밀리초가 붙은 표기)", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        error: null,
+        nodeExecutions: [
+          retriedRow({ startedAt: "2026-04-01T00:00:01Z" }),
+          // 문자열로 비교하면 "…01.500Z" < "…01Z" 라 앞서 보이지만 시각으로는 0.5초 뒤다.
+          spawnedRow("running", null, { startedAt: "2026-04-01T00:00:01.500Z" }),
+        ],
+      }) as unknown as ExecutionData,
+    );
+    // 새 행이 아직 도는 중이라 기다린다.
+    expect(useExecutionStore.getState().pendingLastTurnRetry).toEqual({
+      nodeExecutionId: RETRIED,
+    });
+  });
+
+  it("새 행의 시작 시각을 파싱하지 못하면 새 행으로 보지 않고 실패로 마감한다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        nodeExecutions: [
+          retriedRow(),
+          spawnedRow("running", null, { startedAt: "not-a-date" }),
+        ],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("failed");
+    expect(state.pendingLastTurnRetry).toBeNull();
+  });
+
+  it("새 행이 끝났어도 실행이 아직 failed 면(턴 끝 전이 직전) 계속 기다린다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        nodeExecutions: [retriedRow(), spawnedRow("completed", waitingOutput)],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.pendingLastTurnRetry).toEqual({ nodeExecutionId: RETRIED });
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+
+  it("재시도 턴이 park 하면(waiting_for_input) 입력 대기로 넘어가고 노드 상태도 대기로 바꾼다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          retriedRow(),
+          spawnedRow("waiting_for_input", waitingOutput),
+        ],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe(AI_NODE);
+    expect(state.waitingInteractionType).toBe("ai_conversation");
+    // WS 의 `execution.waiting_for_input` 처리와 같이 failed 노드 상태를 대기로 바꾼다.
+    expect(state.nodeStatuses.get(AI_NODE)?.status).toBe("waiting_for_input");
+    expect(state.pendingLastTurnRetry).toBeNull();
+    expect(state.isWaitingAiResponse).toBe(false);
+  });
+
+  it("재시도 턴이 그래프를 이어 가면(running) 실행 중으로 돌리고 응답 대기 표시를 끈다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "running",
+        nodeExecutions: [retriedRow(), spawnedRow("completed", waitingOutput)],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("running");
+    expect(state.pendingLastTurnRetry).toBeNull();
+    expect(state.isWaitingAiResponse).toBe(false);
+    expect(state.nodeStatuses.get(AI_NODE)?.status).toBe("completed");
+  });
+
+  it("재시도 턴이 다시 실패하면 실패로 마감하고 기다림을 끝낸다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        error: { message: "LLM 500" },
+        nodeExecutions: [
+          retriedRow(),
+          spawnedRow("failed", failedOutput, { error: { message: "LLM 500" } }),
+        ],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("failed");
+    expect(state.pendingLastTurnRetry).toBeNull();
+    expect(state.isWaitingAiResponse).toBe(false);
+    expect(state.nodeStatuses.get("__execution__")?.error).toBe("LLM 500");
+  });
+
+  it("completed 응답이면 완료로 마감한다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "completed",
+        nodeExecutions: [retriedRow(), spawnedRow("completed", waitingOutput)],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("completed");
+    expect(state.pendingLastTurnRetry).toBeNull();
+  });
+
+  it("cancelled 응답이면 실패로 마감한다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "cancelled",
+        nodeExecutions: [retriedRow(), spawnedRow("cancelled")],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("failed");
+    expect(state.pendingLastTurnRetry).toBeNull();
+  });
+
+  it("재시도한 행을 응답에서 찾지 못하면 기다리지 않고 실패로 마감한다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        error: { message: "LLM 429" },
+        nodeExecutions: [spawnedRow("running")],
+      }) as unknown as ExecutionData,
+    );
+    expect(useExecutionStore.getState().pendingLastTurnRetry).toBeNull();
+  });
+
+  it("새 행이 아직 보이지 않으면 기다리지 않고 실패로 마감한다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        error: { message: "LLM 429" },
+        nodeExecutions: [retriedRow()],
+      }) as unknown as ExecutionData,
+    );
+    const state = useExecutionStore.getState();
+    expect(state.pendingLastTurnRetry).toBeNull();
+    expect(state.isWaitingAiResponse).toBe(false);
+  });
+
+  it("같은 노드의 앞선 반복 행은 새 행으로 보지 않는다", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "failed",
+        error: { message: "LLM 429" },
+        nodeExecutions: [
+          spawnedRow("running", null, {
+            id: "ne-earlier",
+            startedAt: "2026-04-01T00:00:00Z",
+          }),
+          retriedRow(),
+        ],
+      }) as unknown as ExecutionData,
+    );
+    expect(useExecutionStore.getState().pendingLastTurnRetry).toBeNull();
+  });
+
+  it("재시도를 보내지 않은 failed store 는 running 응답을 반영하지 않는다(실행 상세 화면의 기존 동작)", () => {
+    useExecutionStore.setState({ pendingLastTurnRetry: null });
+    applyExecutionSnapshot(
+      createExec({
+        status: "running",
+        nodeExecutions: [retriedRow(), spawnedRow("running")],
+      }) as unknown as ExecutionData,
+    );
+    expect(useExecutionStore.getState().status).toBe("failed");
+  });
+});
+
+// CLE-T-5P1ADY — 에디터 REST 폴링 대체 경로는 실행 이벤트를 받지 못하므로 AI 대화
+// 타임라인을 저장된 메시지로 갱신한다(`refreshConversation`). 다른 호출자(WS 스냅샷 ·
+// 실행 상세 화면 · 내역 보기)는 옵션 없이 부르고 지금처럼 빈 store 에만 시드한다.
+describe("applyExecutionSnapshot — 폴링 대체 경로의 AI 대화 갱신", () => {
+  const AI_NODE_ID = "ai-agent-node";
+
+  const settledTurn1 = [
+    { type: "user" as const, content: "안녕", turnIndex: 1 },
+    { type: "assistant" as const, content: "안녕하세요", turnIndex: 1 },
+  ];
+  const optimisticTurn2 = {
+    type: "user" as const,
+    content: "날씨 알려줘",
+    turnIndex: 2,
+    timestamp: "2026-04-01T00:00:05Z",
+    optimisticPending: true,
+  };
+
+  function persistedMessages(turns: number): Array<{ role: string; content: string }> {
+    const all = [
+      { role: "user", content: "안녕" },
+      { role: "assistant", content: "안녕하세요" },
+      { role: "user", content: "날씨 알려줘" },
+      { role: "assistant", content: "맑아요" },
+    ];
+    return all.slice(0, turns * 2);
+  }
+
+  function aiRow(
+    messages: Array<{ role: string; content: string }>,
+    phase: "parked" | "resumed",
+  ): Record<string, unknown> {
+    return {
+      id: "ne-ai-1",
+      executionId: "exec-1",
+      nodeId: AI_NODE_ID,
+      nodeType: "ai_agent",
+      status: phase === "parked" ? "waiting_for_input" : "running",
+      startedAt: "2026-04-01T00:00:00Z",
+      outputData: {
+        config: { mode: "multi_turn" },
+        output: { result: { messages, turnCount: messages.length / 2, maxTurns: 10 } },
+        status: phase === "parked" ? "waiting_for_input" : "resumed",
+        meta: { interactionType: "ai_conversation" },
+      },
+    };
+  }
+
+  function waitingSnapshot(
+    rowMessages: Array<{ role: string; content: string }>,
+    phase: "parked" | "resumed" = "parked",
+  ): ExecutionData {
+    return createExec({
+      status: phase === "parked" ? "waiting_for_input" : "running",
+      nodeExecutions: [aiRow(rowMessages, phase)],
+    }) as unknown as ExecutionData;
+  }
+
+  beforeEach(() => {
+    useExecutionStore.getState().reset();
+    useExecutionStore.setState({
+      executionId: "exec-1",
+      status: "waiting_for_input",
+      startedAt: "2026-04-01T00:00:00Z",
+      waitingNodeId: AI_NODE_ID,
+      waitingInteractionType: "ai_conversation",
+      waitingConversationConfig: { mode: "multi_turn" },
+      conversationMessages: [...settledTurn1, optimisticTurn2],
+      isWaitingAiResponse: true,
+    });
+  });
+
+  it("park 한 노드의 저장된 대화가 store 보다 앞서 있으면 바꾸고 응답 대기 표시를 끈다", () => {
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(2)), undefined, {
+      refreshConversation: true,
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages.map((m) => m.content)).toEqual([
+      "안녕",
+      "안녕하세요",
+      "날씨 알려줘",
+      "맑아요",
+    ]);
+    expect(state.conversationMessages.some((m) => m.optimisticPending)).toBe(false);
+    expect(state.isWaitingAiResponse).toBe(false);
+    expect(state.waitingNodeId).toBe(AI_NODE_ID);
+  });
+
+  it("옵션이 없으면 비어 있지 않은 store 의 대화를 바꾸지 않는다", () => {
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(2)));
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages).toHaveLength(3);
+    expect(state.conversationMessages[2]).toMatchObject({ optimisticPending: true });
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+
+  it("저장된 대화가 앞서 있지 않으면 보낸 메시지 항목과 응답 대기 표시를 둔다", () => {
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(1)), undefined, {
+      refreshConversation: true,
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages).toHaveLength(3);
+    expect(state.conversationMessages[2]).toMatchObject({ optimisticPending: true });
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+
+  it("재개 턴 중(resumed 봉투)이면 대화는 바꾸되 응답 대기 표시는 둔다", () => {
+    const rowMessages = [
+      ...persistedMessages(1),
+      { role: "user", content: "날씨 알려줘" },
+    ];
+    applyExecutionSnapshot(waitingSnapshot(rowMessages, "resumed"), undefined, {
+      refreshConversation: true,
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages.map((m) => m.content)).toEqual([
+      "안녕",
+      "안녕하세요",
+      "날씨 알려줘",
+    ]);
+    expect(state.conversationMessages.some((m) => m.optimisticPending)).toBe(false);
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+
+  it("store 가 실행 중으로 넘어간 뒤 같은 노드가 다시 대기하면 저장된 대화로 바꾼다", () => {
+    // 폴링이 턴 사이의 running 응답을 받아 `resumeFromConversation` 으로 대기 표시를 지운 뒤다.
+    useExecutionStore.getState().resumeFromConversation();
+    expect(useExecutionStore.getState().conversationMessages).toHaveLength(3);
+
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(2)), undefined, {
+      refreshConversation: true,
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe(AI_NODE_ID);
+    expect(state.conversationMessages).toHaveLength(4);
+    expect(state.conversationMessages[3]?.content).toBe("맑아요");
+  });
+
+  it("옵션이 없으면 다시 대기해도 비어 있지 않은 대화를 그대로 둔다", () => {
+    useExecutionStore.getState().resumeFromConversation();
+
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(2)));
+
+    expect(useExecutionStore.getState().conversationMessages).toHaveLength(3);
+  });
+
+  it("form 대기에는 대화 갱신을 하지 않는다", () => {
+    useExecutionStore.setState({
+      waitingInteractionType: "form",
+      conversationMessages: [...settledTurn1],
+    });
+    const snapshot = createExec({
+      status: "waiting_for_input",
+      nodeExecutions: [
+        {
+          ...aiRow(persistedMessages(2), "parked"),
+          outputData: {
+            config: {},
+            output: { result: { messages: persistedMessages(2) } },
+            status: "waiting_for_input",
+            meta: { interactionType: "form" },
+          },
+        },
+      ],
+    }) as unknown as ExecutionData;
+
+    applyExecutionSnapshot(snapshot, undefined, { refreshConversation: true });
+
+    expect(useExecutionStore.getState().conversationMessages).toHaveLength(2);
+  });
+});

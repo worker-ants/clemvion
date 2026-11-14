@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HYDRATION"
 title: "실행 화면 복원 규약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "1d8ecf643795442f311cdc970a17a9648831ea3b809a22ea93f3e1dae874aad2"
+content_hash: "cbb9ec0dfa2a4b18479b670af861b7c1523b2a8d64e1a2d079bf801168bb34c6"
 read_as: "approved_fallback"
-task: "CLE-T-TBJ863"
+task: "CLE-T-5P1ADY"
 source_paths: ["spec/conventions/data-hydration-surfaces.md"]
-mirror_sha256: "d054d289cc02d0b18c0ccf980a879bb9b5d7df370e214296b269c3c6443e1897"
-etag: "sha256-14a1fce98a2b86ab30279ed4e838442d1219f808a0e2d22ed3d9560bb6c78399"
+mirror_sha256: "fd0adb7da5d225601b8ff353a6c258b3adeb913f3101205cc4d1847840fe41d8"
+etag: "sha256-55f1bec3f643b14e80358968739d8483ce43eab7498d6b5f0c6f34459ae974ea"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/data-hydration-surfaces.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -85,7 +85,8 @@ etag: "sha256-14a1fce98a2b86ab30279ed4e838442d1219f808a0e2d22ed3d9560bb6c78399"
 
 | 트리거 | 함수 |
 | --- | --- |
-| REST `/executions/:id` 응답 | `applyExecutionSnapshot` 대기 분기 → `maybeSeedAiConversationMessages` 와 `pauseForConversation` |
+| REST `/executions/:id` 응답 | `applyExecutionSnapshot` 대기 분기 → `seedAiConversation` 과 `pauseForConversation`. store 의 대화가 비어 있을 때만 채운다 |
+| 에디터 REST 폴링 대체 경로의 `/executions/:id` 응답 | `applyExecutionSnapshot`(`refreshConversation: true`) 대기 분기 → `refreshAiConversation`. 저장된 대화의 확정된 사용자·AI 메시지 수가 store 보다 많으면 store 의 대화를 바꾸고, 노드가 다시 입력을 기다리는 출력이면 AI 응답 대기 표시를 끈다. 같은 노드가 다음 턴을 처리하는 중인 출력(`running` 실행의 `resumed` 행)도 같은 규칙으로 대화를 바꾸되, 응답이 아직 오는 중이라 AI 응답 대기 표시는 그대로 둔다([에디터 실행과 디버깅 — 실시간 수신·내역·Background](CLE-EXEC-RUN-SYNC.md#노드-결과-수집) 의 「입력 대기」) |
 | `execution.snapshot` 이벤트 | 위와 같다 |
 
 ### 완료 내역 (실행 내역 화면)
@@ -114,3 +115,7 @@ etag: "sha256-14a1fce98a2b86ab30279ed4e838442d1219f808a0e2d22ed3d9560bb6c78399"
 "실행 내역 화면에서 presentations 가 안 보인다" 는 회귀의 원인은 단순했다. 백엔드가 presentations 를 대화 기록 항목(`ConversationTurn.presentations`)에만 저장했고 실행 내역 화면은 스레드 스냅샷을 가져오지 않아 프런트가 볼 수 없었다.
 
 근본 원인은 같은 데이터가 화면마다 다른 복원 경로를 거치는데 새 필드를 더할 때 "어느 경로에서 어떻게 보여야 하는지" 가 스펙에 없었던 것이다. 그래서 개발자가 한 화면만 고치고 다른 화면을 빠뜨렸다. 이 규약은 매트릭스와 가드로 N개 화면을 함께 고치게 강제한다. `output.result.presentations` 행이 첫 적용 사례다.
+
+### 에디터 폴링 대체 경로는 저장된 대화가 앞설 때만 바꾼다 (2026-11-14)
+
+대체 경로에서는 `execution.ai_message` 가 오지 않으므로 폴링 응답의 저장된 대화가 AI 응답을 보여 줄 유일한 길이다. 비어 있을 때만 채우는 기존 규칙으로는 첫 응답 뒤로 대화가 멈춘다. 응답마다 덮으면 사용자가 방금 보낸 낙관적 메시지가 사라졌다가 다시 나타난다. 그래서 확정된 사용자·AI 메시지 수가 앞설 때만 바꾼다. 실시간 경로와 실행 상세 화면은 WebSocket 이 대화를 채우므로 기존 규칙(비어 있을 때만 채운다)을 그대로 둔다. 이 결정은 NERV Task `CLE-T-5P1ADY` 에서 내렸다.
