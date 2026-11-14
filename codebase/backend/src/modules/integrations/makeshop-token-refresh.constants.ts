@@ -34,8 +34,9 @@ export const MAKESHOP_REFRESH_JOB = 'refresh-makeshop-token';
 export const MAKESHOP_REFRESH_JOB_WAIT_TIMEOUT_MS = 30_000;
 
 /**
- * MakeshopModule 의 onApplicationShutdown 에서 in-flight `waitUntilFinished`
- * listener 가 자연 해소될 때까지 기다리는 최대 시간. cafe24 와 동일 정책.
+ * MakeshopModule 의 onApplicationShutdown 이 `queueEvents.close()` 가 끝나기를 기다리는 상한. close 는
+ * 진행 중인 `waitUntilFinished` 를 기다리지 않고 바로 연결을 끊으므로 보통 몇 ms 안에 끝난다. 이 값은
+ * close 가 멈췄을 때만 쓰인다. cafe24 와 같은 정책이다. 타이머 정리는 `closeQueueEventsWithinGrace` 가 맡는다.
  */
 export const MAKESHOP_MODULE_SHUTDOWN_GRACE_MS =
   MAKESHOP_REFRESH_JOB_WAIT_TIMEOUT_MS + 1_000;

@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXEC"
 title: "에러 코드 카탈로그 — 워크플로우 실행"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "1b240b21a628d14a6525ee5ea1458419bbb19b8619c8fa0944ec6481c699b90b"
+content_hash: "6805c10cb5f070cb773c369fce738ed1c3ea383840b330665c36c69b170e97af"
 read_as: "approved_fallback"
-task: "CLE-T-43KCNP"
+task: "CLE-T-CPZBVH"
 source_paths: []
-mirror_sha256: "fed9cd275d185034dedca84b8cb72ded01c747ff9ec2cbe432e860071ff4a70d"
-etag: "sha256-be4c12fd6a557000c52107b4032f83d00f956efa90b966f2692f637894df1b33"
+mirror_sha256: "9f9af47d4e375019f8144b18b287800f0c639f8c82c95f5db2ba10ad1a1c8c89"
+etag: "sha256-0ef373821d93699337c6cb33d0ad954ad7bd591f3db16a26574f629a676b1abd"
 ---
 ## 개요
 
@@ -38,7 +38,7 @@ etag: "sha256-be4c12fd6a557000c52107b4032f83d00f956efa90b966f2692f637894df1b33"
 | `VARIABLE_NOT_FOUND` | 없음 | 참조한 변수가 없음 | [표현식 언어](../CLE-WF/CLE-WF-EXPR.md) |
 | `TYPE_MISMATCH` | 없음 | 데이터 타입 불일치 | [표현식 언어](../CLE-WF/CLE-WF-EXPR.md) |
 | `ERROR_PORT_FALLBACK` | 클래스 `readonly code` | 에러 포트로 보내려 했으나 연결된 연결선이 없어 Stop Workflow 로 폴백 | [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) |
-| `SERVER_INTERRUPTED` | `EngineErrorCode` | 서버가 안전 종료(SIGTERM)할 때 유예 시간(`SIGTERM_GRACE_MS`, 기본 30초)이 지나도 이 인스턴스가 맡은 노드 실행과 실행이 `running` 이면 `failed` 로 닫는다. 입력 대기 중인 실행은 건드리지 않는다 | [장애 복구와 안전 종료 「안전 종료」](../CLE-EXEC/CLE-EXEC-RECOVERY.md#안전-종료) |
+| `SERVER_INTERRUPTED` | `EngineErrorCode` | 서버가 안전 종료(SIGTERM)할 때 유예 시간(`SIGTERM_GRACE_MS`, 기본 30초)이 지나도 이 인스턴스가 맡은 노드 실행과 실행이 `running` 이면 `failed` 로 닫는다. 입력 대기 중인 실행은 건드리지 않는다 | [안전 종료와 영속 재개 큐 「안전 종료」](../CLE-EXEC/CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료) |
 
 **`INVALID_NODE_CONFIG` 는 행이 없다.** 엔진은 노드를 실행하기 전에 노드 설정을 검사한다(`handler.validate`). 검사에 실패하면 메시지가 `INVALID_NODE_CONFIG: ` 로 시작하는 에러를 던진다. 구조화된 `error.code` 는 없고 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다. 코드가 아니라 메시지 접두라서 행을 두지 않는다. 이 접두로 분기하지 않는다(규칙 4).
 

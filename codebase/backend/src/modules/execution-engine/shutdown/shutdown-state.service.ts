@@ -20,7 +20,10 @@ import {
   NodeExecution,
   NodeExecutionStatus,
 } from '../../node-executions/entities/node-execution.entity';
-import { DEFAULT_GRACE_MS } from './shutdown.constants';
+import {
+  DEFAULT_GRACE_MS,
+  DISCOVERY_NOT_WIRED_WARNING,
+} from './shutdown.constants';
 
 /** 종료 처리가 부르는 BullMQ `Worker` 메서드. 테스트가 가짜 워커를 넣을 수 있게 좁혀 둔다. */
 type DrainableWorker = Pick<WorkerHost['worker'], 'name' | 'pause' | 'close'>;
@@ -42,6 +45,7 @@ type DrainableWorker = Pick<WorkerHost['worker'], 'name' | 'pause' | 'close'>;
  * 2. 모든 BullMQ 워커를 `pause()` 한다. 이 인스턴스만 새 작업을 가져가지 않고(큐 전체 pause 가 아니다) 진행 중
  *    작업이 끝나기를 기다린다. 큐를 거치지 않는 노드 실행은 `inFlightNodeExecutions` 로 따로 기다린다.
  *    shutdown 진입 뒤 같은 세그먼트가 시작하는 다음 노드도 등록 대상이다(세그먼트 완료 보장).
+ *    DiscoveryService 가 배선되지 않으면 워커 pause 와 강제 close 를 건너뛰고 경고만 남긴다.
  * 3. 둘 다 끝나면 반환한다. 워커의 정상 close 는 BullExplorer 가 이어서 한다.
  * 4. `SIGTERM_GRACE_MS` 가 지나면 남은 노드 실행과 실행을 원자 UPDATE 로 `FAILED` +
  *    `error.code='SERVER_INTERRUPTED'` 로 표시하고 워커를 `close(true)` 로 강제 close 한다. BullMQ 는 첫 close
@@ -123,10 +127,10 @@ export class ShutdownStateService
    * NodeExecution 시작 직전 호출. 본 인스턴스가 처리 중인 row 식별.
    *
    * M-2 (06-concurrency) — shutdown 중에도 등록한다 (옛 `if (shuttingDown) return`
-   * early-return 제거). §11.2 가 "현재 세그먼트를 완료까지 진행" 을 약속하고 세그먼트
-   * 내부 노드는 큐 미경유 in-process while-loop 로 dispatch 되므로(§4.2), shutdown
-   * 진입 후에도 같은 세그먼트의 다음 노드가 계속 시작된다. 이를 등록하지 않으면 grace
-   * 만료 시 마킹 대상에서 누락돼 §11.4 "미완료 RUNNING → failed + SERVER_INTERRUPTED"
+   * early-return 제거). CLE-EXEC-RECOVERY-SHUTDOWN 「안전 종료」 2단계가 "현재 세그먼트를 완료까지 진행" 을
+   * 약속하고 세그먼트 내부 노드는 큐 미경유 in-process 반복문으로 dispatch 되므로(CLE-EXEC-ENGINE 「세그먼트 안의
+   * 노드는 같은 프로세스가 직접 dispatch 한다」), shutdown 진입 후에도 같은 세그먼트의 다음 노드가 계속 시작된다. 이를 등록하지 않으면 grace
+   * 만료 시 마킹 대상에서 누락돼 「안전 종료」 4 · 5단계의 "미완료 RUNNING → failed + SERVER_INTERRUPTED"
    * 약속이 깨지고 zombie RUNNING row 가 남는다. 신규 세그먼트 job consume 중단은
    * 종료 시작 때 이 서비스가 워커마다 거는 `worker.pause()` 가 맡는다. 이 인스턴스의 워커만 멈추므로
    * 큐 전체 플래그인 `queue.pause()` 처럼 다른 인스턴스를 세우지 않는다.
@@ -235,9 +239,7 @@ export class ShutdownStateService
    */
   private collectWorkers(): DrainableWorker[] {
     if (!this.discovery) {
-      this.logger.warn(
-        'Graceful shutdown: DiscoveryService is not wired; BullMQ workers will not be paused or force-closed',
-      );
+      this.logger.warn(DISCOVERY_NOT_WIRED_WARNING);
       return [];
     }
     const workers: DrainableWorker[] = [];

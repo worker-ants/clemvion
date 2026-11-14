@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-START"
 title: "에디터 실행과 디버깅 — 실행 시작·중지와 캔버스 표시"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "d41e3c87da699c9427e51dba3bdedf60e43c8f408d8a74e65fc6ae9e1e7f5c0a"
+content_hash: "3ec36e1f17fcf8b28476ef263b03af943ae91574bd2f5d12885a3ee7d3c6096f"
 read_as: "approved_fallback"
-task: "CLE-T-5P1ADY"
+task: "CLE-T-VXPW7G"
 source_paths: []
-mirror_sha256: "af38a5e0f128bacbc2692706f3342af98564e1238494cfa6daf8bc9db3328620"
-etag: "sha256-6e7d8ad63eca2bc0d417904730472f484c9005eb3527844b7f724fc5cc0a4c71"
+mirror_sha256: "6d792cc89fbecba462409f76f0df11d857cd9d9e9651ae582840fb7ccf7999da"
+etag: "sha256-c319bd2b1f4114ffe25c38dc8b25f3ace3c989dda344d7edf207922b958c5b19"
 ---
 ## 개요
 
@@ -171,9 +171,9 @@ Presentation 노드 결과는 실행 결과 드로어와 설정 패널 Info 탭 
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| POST | `/api/workflows/:id/execute` | 워크플로우 실행. 선택 노드부터 실행은 본문 `input.fromNodeId` 로 시작 노드를 정한다. 단일 노드 실행은 아래 전용 경로를 쓴다 |
-| POST | `/api/workflows/:id/nodes/:nodeId/execute` | 단일 노드 실행. 대상 노드만 실행하고 하류로 진행하지 않는다. 본문 `{ previousExecutionId?, input? }`. `previousExecutionId` 는 상류 출력을 가져올 실행, `input` 은 수동 입력이다. 대상 노드가 워크플로우에 없거나 `previousExecutionId` 가 다른 워크플로우의 실행이면 400. 결과는 `GET /api/executions/:id`. 편집자 이상 |
-| POST | `/api/executions/:id/continue` | 입력 대기(`waiting_for_input`) 실행을 폼 데이터로 이어 간다. `/continue` 는 폼 제출 전용이다. 실행이 입력 대기가 아니거나 대기 노드가 Form 표면이 아니면 422 `INVALID_STATE` (보내는 쪽 사전 검증, [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 의 표면 매트릭스) |
+| POST | `/api/workflows/:id/execute` | 워크플로우 실행. 선택 노드부터 실행은 본문 `input.fromNodeId` 로 시작 노드를 정한다. 단일 노드 실행은 아래 전용 경로를 쓴다. 서버가 종료 중이면 503 `SERVER_SHUTTING_DOWN` 이고 `Retry-After` 헤더(초)를 싣는다([안전 종료](CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료)) |
+| POST | `/api/workflows/:id/nodes/:nodeId/execute` | 단일 노드 실행. 대상 노드만 실행하고 하류로 진행하지 않는다. 본문 `{ previousExecutionId?, input? }`. `previousExecutionId` 는 상류 출력을 가져올 실행, `input` 은 수동 입력이다. 대상 노드가 워크플로우에 없거나 `previousExecutionId` 가 다른 워크플로우의 실행이면 400. 서버가 종료 중이면 503 `SERVER_SHUTTING_DOWN` 이고 `Retry-After` 헤더(초)를 싣는다([안전 종료](CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료)). 결과는 `GET /api/executions/:id`. 편집자 이상 |
+| POST | `/api/executions/:id/continue` | 입력 대기(`waiting_for_input`) 실행을 폼 데이터로 이어 간다. 본문 `{ formData? }`. `/continue` 는 폼 제출 전용이다. 실행이 입력 대기가 아니거나 대기 노드가 Form 표면이 아니면 422 `INVALID_STATE` (보내는 쪽 사전 검증, [큐 워커 — 재개 큐와 사전 검증](CLE-EXEC-WORKER-RESUME.md#발행-전-사전-검증) 의 대기 표면 검사). 폼 필드 검증에 실패하면 400 `VALIDATION_ERROR` 이고 입력 대기는 그대로라 다시 보낼 수 있다. 성공 응답은 접수만 뜻한다. 에디터가 이 경로를 쓰는 경우와 실패 문구는 [실행 이벤트와 명령](CLE-EXEC-RUN-SYNC.md#실행-이벤트와-명령) 의 「소켓이 끊겼을 때」 가 정한다 |
 | POST | `/api/executions/:id/stop` | 실행 중지. 편집자 이상 |
 | GET | `/api/workflows/:workflowId/test-datasets` | 데이터셋 목록(내 것과 워크스페이스 공유본, 최근 갱신순). 항목에 `isOwner` 포함. 편집자 이상 |
 | POST | `/api/workflows/:workflowId/test-datasets` | 데이터셋 저장. 본문 `{ name, input, visibility? }`(`input` 은 테스트 입력 JSON, `visibility` 기본 `private`). 같은 이름이면 409 `DUPLICATE_NAME`. 편집자 이상 |

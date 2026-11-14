@@ -2,6 +2,7 @@ import { WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { DiscoveryService } from '@nestjs/core';
 import { ShutdownStateService } from './shutdown-state.service';
+import { DISCOVERY_NOT_WIRED_WARNING } from './shutdown.constants';
 import {
   Execution,
   ExecutionStatus,
@@ -54,6 +55,18 @@ function discoveryOf(instances: unknown[]): DiscoveryService {
   return {
     getProviders: () => instances.map((instance) => ({ instance })),
   } as unknown as DiscoveryService;
+}
+
+/** `Logger.prototype.warn` 을 조용히 가로챈다. 테스트가 끝나면 `mockRestore()` 로 되돌린다. */
+function spyOnWarn(): jest.SpyInstance {
+  return jest
+    .spyOn(Logger.prototype, 'warn')
+    .mockImplementation(() => undefined);
+}
+
+/** 가로챈 경고 가운데 `text` 를 담은 것. */
+function warningsContaining(spy: jest.SpyInstance, text: string): unknown[][] {
+  return spy.mock.calls.filter(([message]) => String(message).includes(text));
 }
 
 describe('ShutdownStateService', () => {
@@ -449,13 +462,33 @@ describe('ShutdownStateService', () => {
       expect(run.worker.pause).toHaveBeenCalledTimes(1);
     });
 
-    it('pause 가 실패해도 종료를 막지 않는다', async () => {
-      const run = makeWorker('execution-run', false);
-      run.worker.pause.mockRejectedValueOnce(new Error('Connection is closed'));
-      service = buildService(1_000, 10, discoveryOf([hostFor(run.worker)]));
+    it('pause 가 실패해도 종료를 막지 않는다 — 경고를 남기고 끝난 워커로 센다', async () => {
+      const warnSpy = spyOnWarn();
+      try {
+        const run = makeWorker('execution-run', false);
+        run.worker.pause.mockRejectedValueOnce(
+          new Error('Connection is closed'),
+        );
+        service = buildService(5_000, 10, discoveryOf([hostFor(run.worker)]));
 
-      await expect(service.onModuleDestroy()).resolves.toBeUndefined();
-      expect(service.isShuttingDown).toBe(true);
+        const startedAt = Date.now();
+        await expect(service.onModuleDestroy()).resolves.toBeUndefined();
+
+        expect(service.isShuttingDown).toBe(true);
+        // 실패한 pause 도 끝난 것으로 세므로 유예 시간을 채우지 않는다.
+        expect(Date.now() - startedAt).toBeLessThan(2_000);
+        // 유예 시간 만료 경로(강제 close · 표시)로 가지 않는다.
+        expect(run.worker.close).not.toHaveBeenCalled();
+        expect(nodeExecutionUpdateMock).not.toHaveBeenCalled();
+        expect(
+          warningsContaining(
+            warnSpy,
+            'pausing worker "execution-run" failed — Connection is closed',
+          ),
+        ).toHaveLength(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it('강제 close 가 실패해도 종료를 막지 않는다', async () => {
@@ -468,9 +501,7 @@ describe('ShutdownStateService', () => {
     });
 
     it('DiscoveryService 가 없으면 노드 실행 추적만 기다리고 미배선 경고를 남긴다', async () => {
-      const warnSpy = jest
-        .spyOn(Logger.prototype, 'warn')
-        .mockImplementation(() => undefined);
+      const warnSpy = spyOnWarn();
       try {
         service = buildService(5_000, 10);
         service.registerInFlight('ne-1', 'exec-1');
@@ -480,8 +511,9 @@ describe('ShutdownStateService', () => {
 
         expect(service.isShuttingDown).toBe(true);
         expect(nodeExecutionUpdateMock).not.toHaveBeenCalled();
-        const wiringWarnings = warnSpy.mock.calls.filter(([message]) =>
-          String(message).includes('DiscoveryService is not wired'),
+        const wiringWarnings = warningsContaining(
+          warnSpy,
+          DISCOVERY_NOT_WIRED_WARNING,
         );
         expect(wiringWarnings).toHaveLength(1);
       } finally {
@@ -490,16 +522,15 @@ describe('ShutdownStateService', () => {
     });
 
     it('DiscoveryService 가 있으면 미배선 경고를 남기지 않는다', async () => {
-      const warnSpy = jest
-        .spyOn(Logger.prototype, 'warn')
-        .mockImplementation(() => undefined);
+      const warnSpy = spyOnWarn();
       try {
         service = buildService(5_000, 10, discoveryOf([]));
 
         await service.onModuleDestroy();
 
-        const wiringWarnings = warnSpy.mock.calls.filter(([message]) =>
-          String(message).includes('DiscoveryService is not wired'),
+        const wiringWarnings = warningsContaining(
+          warnSpy,
+          DISCOVERY_NOT_WIRED_WARNING,
         );
         expect(wiringWarnings).toHaveLength(0);
       } finally {

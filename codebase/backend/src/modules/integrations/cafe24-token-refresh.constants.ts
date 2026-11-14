@@ -47,12 +47,12 @@ export const REFRESH_PROACTIVE_THRESHOLD_DAYS = 7;
 export const REFRESH_JOB_WAIT_TIMEOUT_MS = 30_000;
 
 /**
- * Cafe24Module 의 onApplicationShutdown 에서 in-flight `waitUntilFinished`
- * listener 가 자연 해소될 때까지 기다리는 최대 시간. REFRESH_JOB_WAIT_TIMEOUT_MS
- * (단일 호출자가 기다리는 상한) 과 약간의 여유 (1s) 를 더해 normal-path
- * 완료를 한 cycle 안에 흡수한다. 이 시간을 넘기면 강제 close — 진행 중인
- * `waitUntilFinished` 는 stream close error 를 받지만 worker job 자체는
- * Redis 가 다음 부트에서 이어 받는다 (job dedup = jobId = integrationId).
+ * Cafe24Module 의 onApplicationShutdown 이 `queueEvents.close()` 가 끝나기를 기다리는 상한.
+ * REFRESH_JOB_WAIT_TIMEOUT_MS(단일 호출자가 기다리는 상한)에 여유 1초를 더했다. close 는 진행 중인
+ * `waitUntilFinished` 를 기다리지 않고 바로 연결을 끊으므로 보통 몇 ms 안에 끝난다. 이 값은 close 가
+ * 멈췄을 때만 쓰인다. 진행 중인 `waitUntilFinished` 는 stream close error 를 받지만 worker job 자체는
+ * Redis 가 다음 부트에서 이어 받는다 (job dedup = jobId = integrationId). 타이머 정리는
+ * `closeQueueEventsWithinGrace` 가 맡는다.
  */
 export const CAFE24_MODULE_SHUTDOWN_GRACE_MS =
   REFRESH_JOB_WAIT_TIMEOUT_MS + 1_000;

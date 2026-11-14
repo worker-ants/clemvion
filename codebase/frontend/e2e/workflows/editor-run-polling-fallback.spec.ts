@@ -20,6 +20,8 @@ const WORKFLOW_ID = "wf-run-fallback";
 const EXECUTION_ID = "exec-run-fallback";
 const NODE_ID = "node-trigger-1";
 const NODE_LABEL = "Manual Trigger";
+/** 폴링 대체 경로의 요청 간격(`use-execution-polling-fallback.ts` 의 `EXECUTION_POLL_INTERVAL_MS`). */
+const EXECUTION_POLL_INTERVAL_MS = 2_000;
 
 const json = (data: unknown) => ({
   status: 200,
@@ -217,7 +219,9 @@ test.describe("에디터 실행 패널 — WebSocket 이 막혔을 때 REST 폴�
     await expect(drawer.getByRole("status")).toHaveText("실행 중...");
     await page.clock.fastForward(10_000);
 
+    // 첫 폴링 응답(실행 중)이 반영된 뒤 폴링 간격만큼 건너뛰어 다음 요청(완료)을 바로 보낸다.
     await expect(drawer.getByText(NODE_LABEL).first()).toBeVisible();
+    await page.clock.fastForward(EXECUTION_POLL_INTERVAL_MS);
     await expect(drawer.getByRole("status")).toHaveText("완료");
     await expect(drawer.getByText("1/1 노드")).toBeVisible();
     expect(executionCalls).toBeGreaterThanOrEqual(2);
@@ -279,6 +283,8 @@ test.describe("에디터 실행 패널 — 소켓이 끊긴 채 입력을 기다
     await expect.poll(() => continueBodies).toEqual([
       { formData: { comment: "승인합니다" } },
     ]);
+    // 제출이 접수된 뒤 폴링 간격만큼 건너뛰어 다음 조회(완료)를 바로 보낸다.
+    await page.clock.fastForward(EXECUTION_POLL_INTERVAL_MS);
     await expect(drawer.getByRole("status")).toHaveText("완료");
     await expect(drawer.getByText("2/2 노드")).toBeVisible();
   });
