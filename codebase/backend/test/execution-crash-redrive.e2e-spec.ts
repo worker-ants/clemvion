@@ -4,6 +4,7 @@ import { sign } from 'jsonwebtoken';
 import { Client } from 'pg';
 import request from 'supertest';
 
+import { ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH } from '../src/modules/execution-engine/recovery/orphan-running-node-executions.sql';
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
@@ -628,7 +629,31 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
     return id;
   }
 
-  it('종결된 실행 아래 30분 넘게 running 으로 남은 노드 실행 행을 부팅 스캔이 failed 로 닫고, 살아 있을 수 있는 행은 그대로 둔다 (CLE-T-CCEQEC)', async () => {
+  /**
+   * CLE-T-EC9VFJ — `completed` 행 `length` 개를 부모 체인으로 잇는다. 첫 행의 부모는
+   * `topParentId`(없으면 최상위 행)이고 마지막 행의 id 를 돌려준다.
+   */
+  async function insertChain(row: {
+    executionId: string;
+    nodeId: string;
+    topParentId: string | null;
+    length: number;
+  }): Promise<string> {
+    let parentId = row.topParentId;
+    for (let i = 0; i < row.length; i += 1) {
+      parentId = await insertNodeRow({
+        executionId: row.executionId,
+        nodeId: row.nodeId,
+        status: 'completed',
+        startedAgo: '40 minutes',
+        parentId,
+      });
+    }
+    if (parentId === null) throw new Error('insertChain: length must be > 0');
+    return parentId;
+  }
+
+  it('종결된 실행 아래 30분 넘게 running 으로 남은 노드 실행 행을 부팅 스캔이 failed 로 닫고, 살아 있을 수 있는 행은 그대로 둔다 (CLE-T-CCEQEC · CLE-T-EC9VFJ)', async () => {
     // 1. trigger → Background(main → codeMain, background → codeBody). 실제 Background
     //    노드 행을 부모 체인의 조상으로 쓰려고 한 번씩 정상 실행한다.
     const workflowId = await createWorkflow();
@@ -779,6 +804,20 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
       startedAgo: '31 minutes',
       parentId: plainParent,
     });
+    // CLE-T-EC9VFJ: 조상이 깊이 한도와 같은 `ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH` 개이고 맨 위가 최상위 행이면 닫힌다.
+    // 한도 경계에서 최상위 도달을 확인할 수 있다.
+    const deepRootedRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+      parentId: await insertChain({
+        executionId: failedExecId,
+        nodeId: codeMain.id,
+        topParentId: null,
+        length: ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH,
+      }),
+    });
 
     // 그대로 둬야 하는 행
     // 30분이 안 된 행: 재시도 재진입 턴 · 취소 커밋 직후의 창.
@@ -811,6 +850,53 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
       startedAgo: '31 minutes',
       parentId: bodyMid,
     });
+    // CLE-T-EC9VFJ: Background 가 깊이 한도 바깥(65번째 조상)에 있는 본문 행. 한도 안에서
+    // 최상위 행에 닿지 못한 후보는 Background 여부를 확인할 수 없으므로 닫지 않는다.
+    const beyondDepthBodyRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeBody.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+      parentId: await insertChain({
+        executionId: failedExecId,
+        nodeId: codeBody.id,
+        topParentId: bgRowId,
+        length: ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH,
+      }),
+    });
+    // CLE-T-EC9VFJ: 조상이 한도보다 1개 많고(65) 맨 위가 최상위 행이며 Background 는 없다.
+    // 한도 안에서 최상위에 닿지 못하므로 닫지 않는다. Background 제외와 따로 확인한다.
+    const beyondDepthRootedRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+      parentId: await insertChain({
+        executionId: failedExecId,
+        nodeId: codeMain.id,
+        topParentId: null,
+        length: ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH + 1,
+      }),
+    });
+    // CLE-T-EC9VFJ: 부모 체인이 순환하는 후보는 최상위 행에 닿지 못하므로 닫지 않는다.
+    // 부모 FK 때문에 두 행을 만든 뒤 UPDATE 로 서로를 가리키게 한다.
+    const cycleTop = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'completed',
+      startedAgo: '40 minutes',
+    });
+    const cycleRow = await insertNodeRow({
+      executionId: failedExecId,
+      nodeId: codeMain.id,
+      status: 'running',
+      startedAgo: '31 minutes',
+      parentId: cycleTop,
+    });
+    await db.query(
+      `UPDATE node_execution SET parent_node_execution_id = $1 WHERE id = $2`,
+      [cycleRow, cycleTop],
+    );
     // running 이 아닌 행.
     const waitingNodeRow = await insertNodeRow({
       executionId: failedExecId,
@@ -842,9 +928,13 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
           retryUnclaimedRow,
           cancelWindowRow,
           plainChildRow,
+          deepRootedRow,
           freshRow,
           bodyRow,
           nestedBodyRow,
+          beyondDepthBodyRow,
+          beyondDepthRootedRow,
+          cycleRow,
           waitingNodeRow,
           liveExecRow,
         ],
@@ -866,6 +956,7 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
       retryUnclaimedRow,
       cancelWindowRow,
       plainChildRow,
+      deepRootedRow,
     ]) {
       const r = byId.get(closedId);
       expect(r?.status).toBe('failed');
@@ -875,6 +966,9 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
     expect(byId.get(freshRow)?.status).toBe('running');
     expect(byId.get(bodyRow)?.status).toBe('running');
     expect(byId.get(nestedBodyRow)?.status).toBe('running');
+    expect(byId.get(beyondDepthBodyRow)?.status).toBe('running');
+    expect(byId.get(beyondDepthRootedRow)?.status).toBe('running');
+    expect(byId.get(cycleRow)?.status).toBe('running');
     expect(byId.get(waitingNodeRow)?.status).toBe('waiting_for_input');
     expect(byId.get(liveExecRow)?.status).toBe('running');
 

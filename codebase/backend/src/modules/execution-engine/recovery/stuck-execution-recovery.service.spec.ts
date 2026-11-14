@@ -282,6 +282,9 @@ describe('StuckExecutionRecoveryService', () => {
       expect(subquery).toContain('parent_node_execution_id');
       expect(subquery).toContain('n.type = :orphanBackgroundType');
       expect(params.orphanBackgroundType).toBe('background');
+      // 깊이 한도 안에서 최상위 행에 닿은 후보만 닫는다(CLE-T-EC9VFJ). 의미는 e2e 가 확인한다.
+      expect(subquery).toContain('c.parent_id IS NULL');
+      expect(subquery).toContain('r.parent_node_execution_id IS NULL');
       // 부모 체인 깊이 한도는 서브 워크플로우 재귀 한도보다 커야 정상 체인이 잘리지 않는다.
       expect(params.orphanMaxDepth).toBeGreaterThan(
         SUB_WORKFLOW_MAX_RECURSION_DEPTH,

@@ -1,8 +1,9 @@
 /**
  * 부팅 스캔의 「종결된 실행 아래 남은 노드 실행 행」 정리 단계가 `parent_node_execution_id` 를
  * 따라 올라가는 깊이 한도. 부모 체인은 서브 워크플로우 호출(재귀 한도
- * `SUB_WORKFLOW_MAX_RECURSION_DEPTH`, `nodes/core/node-types.constants`)과 컨테이너 · Background 중첩으로만 길어지므로
- * 넉넉히 잡는다. 체인이 깨져 순환하더라도 재귀가 끝나게 한다.
+ * `SUB_WORKFLOW_MAX_RECURSION_DEPTH`, `nodes/core/node-types.constants`)과 컨테이너 · Background 중첩으로 길어지므로
+ * 넉넉히 잡는다. 체인이 깨져 순환하더라도 재귀가 끝나게 한다. 이 한도 안에서 최상위 행에 닿지
+ * 못한 후보는 닫지 않는다(CLE-T-EC9VFJ).
  */
 export const ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH = 64;
 
@@ -16,6 +17,11 @@ export const ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH = 64;
  * - `ancestor`: 후보마다 부모 체인을 위로 따라간다. 후보 수만큼만 걷는다.
  * - Background 노드 행이 체인에 있는 후보는 뺀다. 본문은 부모 실행이 끝난 뒤에도 같은
  *   executionId 로 돈다.
+ * - 최상위 행(부모가 없는 행)에 닿은 후보만 닫는다. 후보 자신이 최상위이거나, 걸은 조상
+ *   가운데 부모가 없는 행이 있어야 한다. 체인이 깊이 한도보다 길거나 순환하거나 없는 행을
+ *   가리키면 Background 조상이 없다고 확인할 수 없으므로 닫지 않는다(CLE-T-EC9VFJ). 부모 행이
+ *   지워져 포인터가 NULL 이 된 체인(`ON DELETE SET NULL`)은 최상위 행과 구별할 수 없다. 그 경우의
+ *   판단은 스펙 `CLE-EXEC-RECOVERY-REDRIVE` 의 Rationale 「최상위 행에 닿은 체인의 행만 닫는다」 에 있다.
  *
  * 테이블 이름은 큰따옴표로 감싼다. UpdateQueryBuilder 는 별칭 접두사 없이 쓴 낱말 가운데
  * `NodeExecution` 의 속성 이름과 같은 것을 컬럼 이름으로 바꿔 쓴다. 그래서 따옴표 없이 쓰면
@@ -55,4 +61,14 @@ export const ORPHAN_RUNNING_NODE_EXECUTION_IDS_SQL = `
          JOIN "node" n ON n.id = pn.node_id
         WHERE a.candidate_id = c.id
           AND n.type = :orphanBackgroundType
-     )`;
+     )
+       AND (
+         c.parent_id IS NULL
+         OR EXISTS (
+           SELECT 1
+             FROM ancestor a
+             JOIN "node_execution" r ON r.id = a.ancestor_id
+            WHERE a.candidate_id = c.id
+              AND r.parent_node_execution_id IS NULL
+         )
+       )`;

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL"
 title: "노드 취소"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "96727d9340410823c905766c17c17f755c62214c918bb9861356b6c8a7fd19b9"
+content_hash: "efa87a9a10bf9946caa9105557a4dd8c797f304962de692f97a9b07b756d3267"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-64EQ5V"
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "ca066233bba335447950757b56cdd8c668b7669e3b23064f7b8b66edab183dd7"
-etag: "sha256-6b93c4398b09776f934261d910873bb9d501aa4f0c521c4c92fb5c28f8238da5"
+mirror_sha256: "dea4339297b473de64787a2afa8d4c721b5c6256d68bd3ce61ba6c495f2817c8"
+etag: "sha256-5d9fd377b9ac7ee1071943b437c2615a62244ed904a112a483eaaee2c10b1116"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,7 +38,7 @@ etag: "sha256-6b93c4398b09776f934261d910873bb9d501aa4f0c521c4c92fb5c28f8238da5"
 
 ## 하위 문서
 
-규칙 번호(1~22)는 하위 문서와 이어서 매긴다.
+규칙 번호(1~23)는 하위 문서와 이어서 매긴다.
 
 - [노드 취소 — DB 관측 취소 가드](CLE-EXEC-CANCEL-DBGUARD.md): 사용자 실행 중지를 엔진이 노드 경계 · 턴 경계 · 짝 전이 · 종결 경로에서 알아채는 규칙 10~17, 가드의 구현 현황과 그 Rationale. 맡는 요구사항: 없음.
 - [노드 취소 — 노드별 적용과 구현 현황](CLE-EXEC-CANCEL-NODES.md): fetch 연쇄 패턴, 노드별 신호 전파 · 취소 에러 분류의 구현 현황, HTTP Request · AI 노드의 취소 판정 결정과 이웃 문서 정합 과제. 맡는 요구사항: 없음.
@@ -67,9 +67,9 @@ etag: "sha256-6b93c4398b09776f934261d910873bb9d501aa4f0c521c4c92fb5c28f8238da5"
 ### 신호를 만드는 쪽
 
 5. **`ParallelExecutor`**(구현됨): `errorPolicy === 'cancel-others-on-fail'` 이면 내부 `AbortController` 를 만들고 첫 분기가 실패하면 `controller.abort()` 를 부르며 각 `branchContext.abortSignal` 에 넣는다. 위쪽 `context.abortSignal` 이 있으면 그 취소도 그룹 controller 로 이어 준다(`parallel-executor.ts`).
-6. **워크플로우 시간 한도**: **입력 대기 시간을 뺀 누적 실행 시간 한도**로 구현했다. 벽시계 타이머와 취소 신호는 쓰지 않는다. dispatch 루프가 노드 사이마다 `assertActiveTimeWithinLimit` 를 불러 한도를 넘으면 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 끝낸다. 판정 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다. 진행 중 노드의 외부 I/O 를 바로 끊는 신호 연동은 미구현(Planned)이고 지금은 다음 노드 경계에서 판정한다.
+6. **워크플로우 시간 한도**: **입력 대기 시간을 뺀 누적 실행 시간 한도**로 구현했다. 벽시계 타이머와 취소 신호는 쓰지 않는다. dispatch 루프가 노드 사이마다 `assertActiveTimeWithinLimit` 를 불러 한도를 넘으면 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 끝낸다. 판정 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다. 진행 중 노드의 외부 I/O 를 바로 끊는 신호 연동은 미구현(Planned)이고 지금은 다음 노드 경계에서 판정한다. 신호를 이으면 끊긴 노드의 상태는 규칙 23 을 따른다.
 7. **사용자 실행 중지**(구현됨 2026-05-31): REST `POST /api/executions/:id/stop` 이 실행을 멈춘다. `running`·`pending` 은 `cancelled` 로, `waiting_for_input` 은 재개 취소로 처리한다. 에디터 툴바 Stop 버튼이 진입점이고 **편집자 이상**만 쓸 수 있다. 뷰어에게는 버튼이 보이지 않고(프론트엔드 `canEdit` 가드) 서버도 `@Roles('editor')` 로 403 을 낸다. **이 경로는 `AbortController` 를 만들지 않고 실행 행만 UPDATE 한다**. 진행 중 dispatch 를 실제로 멈추는 일은 [DB 관측 취소 가드](CLE-EXEC-CANCEL-DBGUARD.md#db-관측-취소-가드) 가 맡는다.
-8. **안전 종료**: 지금은 grace 시간을 넘긴 노드를 `failed` 와 `SERVER_INTERRUPTED` 로 마감한다([장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)). 안전 종료를 취소 신호 생산자로 통합하는 것은 예정 과제다. 마감 상태를 `failed` 와 `SERVER_INTERRUPTED` 로 둘지 `cancelled` 로 바꿀지는 정의가 갈린다. 안전 종료 절차가 쓰는 에러 처리 정책 값 `continue` 가 무엇을 뜻하는지도 정해지지 않았다. 두 문제는 [장애 복구와 안전 종료 §미결 사항](CLE-EXEC-RECOVERY.md#미결-사항) 에서 다룬다.
+8. **안전 종료**: grace 시간을 넘긴 노드 실행과 실행을 `failed` 와 `SERVER_INTERRUPTED` 로 마감한다. 노드 에러 처리 정책은 보지 않는다([안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료)). 안전 종료를 취소 신호 생산자로 통합하는 것은 예정 과제다. 통합해도 마감 상태는 그대로이고 규칙 23 의 생산자 태그로 사용자 취소와 가른다.
 9. `context.abortSignal` 을 채우는 생산자는 `ParallelExecutor` 하나뿐이다. HTTP 노드의 자체 타임아웃이나 AI 에이전트의 `withTimeout` 도 `AbortController` 를 만들지만 이들은 자기 호출 안에서만 쓰고 `context.abortSignal` 을 채우지 않는다. 그래서 선형 경로와 재개 경로에서 `context.abortSignal` 은 늘 `undefined` 다. HTTP 노드의 자체 타임아웃이 낸 `AbortError` 는 노드 취소로 분류되지 않는다. HTTP 노드는 이 에러를 `HTTP_TRANSPORT_FAILED` 로 에러 포트에 보낸다([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)).
 
 ### 신호 전파 흐름
@@ -102,12 +102,13 @@ flowchart LR
     - 여기의 `continue` 는 Parallel 항목 에러 정책의 값이다. 노드 에러 처리 정책에는 `continue` 가 없다. 두 정책의 층 구분은 [Logic 노드 공통 §항목 에러 정책](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 이 정한다.
 21. **`ExecutionCancelledError` 는 에러 정책을 따르지 않는다**. 위 흐름 규칙은 핸들러가 던진 `AbortError` 에만 적용된다. 엔진이 던진 `ExecutionCancelledError` 는 정책과 상관없이 늘 다시 던진다. `ForEachExecutor`·`ParallelExecutor` 는 항목 에러 정책을 판정하기 **전에** 이 sentinel 을 다시 던지므로 항목 에러 정책이 `skip`·`continue` 여도 계속하지 않는다. 사용자 실행 중지가 `continue` 정책 때문에 조용히 무시되면 안 되기 때문이다.
 22. **rehydration 실패는 노드 취소 신호 경로가 아니다**. 재개 인프라 실패(`RESUME_*`)에서 노드 실행은 실패(`failed`)로 끝난다. 실행은 취소됨(`cancelled`)으로 끝난다([실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md)).
+23. **노드를 돌리던 중에 서버가 끊으면 `failed` 로 기록한다**. 안전 종료와 워크플로우 시간 한도가 그 경우다. 둘 다 아직 신호를 만들지 않는다(규칙 6 · 8). 신호를 이으면 생산자는 `controller.abort(reason)` 의 `reason` 에 생산자 태그를 싣는다(미구현, Planned). 엔진은 취소 에러를 분류할 때 규칙 18 · 19 보다 먼저 이 태그를 본다. 태그가 있으면 노드 실행과 실행을 `cancelled` 가 아니라 `failed` 로 기록하고 에러 코드는 태그가 정한다(안전 종료 `SERVER_INTERRUPTED`, 시간 한도 `EXECUTION_TIME_LIMIT_EXCEEDED`). 노드 에러 처리 정책은 쓰지 않는다(규칙 20 과 같다). `ParallelExecutor` 가 위쪽 취소를 그룹 controller 로 이을 때(규칙 5)도 태그를 그대로 넘긴다. 안전 종료의 일괄 UPDATE 와 abort 경로가 같은 상태를 쓰므로 어느 쪽이 먼저 와도 결과가 같다. 노드를 시작하기 전에 회수하는 큐 대기 초과(`EXECUTION_QUEUE_WAIT_TIMEOUT`)와 재개 인프라 실패(규칙 22)는 이 규칙에 들지 않고 실행을 `cancelled` 로 끝낸다. 태그의 값과 형식은 신호 연동 Task(`CLE-T-6WSCPE`)가 정한다.
 
 ## 미결 사항
 
 - **에디터의 강제 중단(Force)**: [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 은 Stop 버튼을 3초 이상 누르면 진행 중인 노드를 바로 멈추는 Force 모드를 약속한다. 이 규약에서 사용자 실행 중지는 신호를 만들지 않고 실행 행만 UPDATE 하며 다음 노드·턴 경계에서만 관측된다. Force 에 대응하는 생산자가 없고 현재 코드(`editor-toolbar.tsx`·`executions.controller.ts`)에도 Force 경로가 없다. External Interaction API 도 force 옵션을 지원하지 않는다고 적는다. Force 를 만들지(그러면 이 규약에 생산자를 더해야 한다), 에디터 문서에서 지우거나 미구현으로 둘지 결정해야 한다.
 
-- **시간 한도·안전 종료의 노드 신호 연동**(미구현, Planned): 규칙 6 · 8 의 신호 연동은 NERV Task `CLE-T-6WSCPE` 가 맡는다. 시간 한도 자체는 노드 경계 판정으로 구현됐다([큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md)).
+- **시간 한도·안전 종료의 노드 신호 연동**(미구현, Planned): 규칙 6 · 8 의 신호 연동은 NERV Task `CLE-T-6WSCPE` 가 맡는다. 시간 한도 자체는 노드 경계 판정으로 구현됐다([큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md)). 연동한 신호로 끊긴 노드의 상태는 규칙 23 이 정한다.
 
 ## 구현 위치
 
@@ -156,3 +157,11 @@ flowchart LR
 그래서 구현을 바꾸지 않고 규칙 19 의 문구를 구현에 맞췄다. `meta.success` 는 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 전용 편의 필드라 취소에 쓸 근거가 없다. 구현에 `meta.success` 를 더하는 대안은 이 이유로 기각했다.
 
 이 기록 위치에서도 사용자는 취소 에러를 본다. 실행 결과 패널의 오류 탭은 노드 결과에 `error` 가 있을 때만 보인다(`codebase/frontend/src/components/editor/run-results/result-detail.tsx`). 실행 기록 화면에서는 그 값이 노드 실행의 `error.message` 에서 온다(`executions/[executionId]/page.tsx` 의 `toNodeResult`). 실시간 화면에서는 `execution.node.cancelled` 이벤트의 `error.message` 에서 온다(`codebase/frontend/src/lib/websocket/use-execution-events.ts`). [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 규칙 1 과 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §3·§6.6 머리말을 이 기록 위치에 맞추는 일은 NERV Task `CLE-T-GZRYQ3` 가 맡는다.
+
+### 서버 쪽 중단은 생산자 태그로 `failed` 를 지킨다 (2026-11-14, CLE-T-GQ7WHS)
+
+안전 종료와 시간 한도를 취소 신호 생산자로 이으면 끊긴 노드는 규칙 18 · 19 에 따라 `cancelled` 로 끝난다. 안전 종료의 일괄 UPDATE 는 같은 행을 `failed` 로 쓰므로 어느 쪽이 먼저 오느냐에 따라 상태가 갈린다. 사람 결정(2026-11-14, 질문 `01a1d831-1847-7708-9d89-32bc5322ea64`)으로 서버 쪽 중단은 `failed` 로 기록하고 생산자 태그로 사용자 취소와 가르기로 했다(규칙 23).
+
+- **노드를 돌리던 중에 끊긴 서버 쪽 중단만 `failed` 다**: 사용자 실행 중지와 cancel-others-on-fail 은 그대로 `cancelled` 다. 서버 쪽 사유라도 노드를 시작하기 전에 회수하는 큐 대기 초과(`EXECUTION_QUEUE_WAIT_TIMEOUT`)와 재개 인프라 실패(`RESUME_*`, 규칙 22)는 실행을 `cancelled` 로 끝낸다. 규칙 23 은 노드를 돌리는 도중에 서버가 끊어 외부 호출이나 부수효과가 반쯤 남았을 수 있는 경우만 다룬다. 이런 중단은 사용자가 원한 멈춤이 아니고 결과를 확인해야 하므로 실패로 기록한다. 상태를 고른 근거는 [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md) Rationale 에 있다.
+- **두 경로가 같은 상태를 쓴다**: 일괄 UPDATE 와 abort 경로가 모두 `failed` 와 같은 에러 코드를 쓰므로 순서와 상관없이 결과가 같다.
+- **태그 형식은 여기서 정하지 않는다**: `reason` 에 무엇을 실을지는 신호를 실제로 잇는 Task(`CLE-T-6WSCPE`)가 코드와 함께 정한다.

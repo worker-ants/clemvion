@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY"
 title: "장애 복구와 안전 종료"
 type: "design"
-version: 5
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "f774b0e7cbb310919029db83a6bbdc8d5158021f7e2b2bbd80c8f4116884e019"
+content_hash: "9e0ff67535ffba5cc4e84e5a02ebf3b9c9ca2d6ab36c59d25ad597507860f32a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-64EQ5V"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "c45f7c6cd939a7dff0be944b668a823ed3e6f378ec07d05cfc75629e3b74a63f"
-etag: "sha256-097b7a3a94b0d14b33888258314846d0a0ff01df2d2acea470e41cdfa1851deb"
+mirror_sha256: "7e345cf3641a2edd3c1b28b3177893faae9581535becce5c90b0ef9dbdcf5635"
+etag: "sha256-3873ad0f6cc08e85bee1ce058fa042090dc6572017382234d3d57694004cee51"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -41,7 +41,7 @@ etag: "sha256-097b7a3a94b0d14b33888258314846d0a0ff01df2d2acea470e41cdfa1851deb"
 | --- | --- | --- |
 | [크래시 재구동과 부팅 복구 스캔](CLE-EXEC-RECOVERY-REDRIVE.md) | 운영 중 stalled 재배달, 부팅 복구 스캔의 lock과 네 단계, 작업을 잃은 대기 중 실행 취소, 종결된 실행 아래 남은 노드 실행 행 마감, zombie race, 그 결정 근거 | 없음 |
 | [체크포인트와 rehydration](CLE-EXEC-RECOVERY-REHYDRATE.md) | 체크포인트, 재구동 절차, 멱등성 계약, rehydration 두 진입 경우와 재개 절차, 중첩 서브 워크플로우 재개, 재개 진입 원자 claim, rehydration 실패, 재시도 층의 합산, park 즉시 해제(Phase B) 결정 | 없음 |
-| [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md) | SIGTERM 안전 종료 절차와 `SIGTERM_GRACE_MS`, 영속 재개 큐 채택 · 시간 과소 계산 허용 · DLQ 경고 결정 | 없음 |
+| [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md) | SIGTERM 안전 종료 절차와 `SIGTERM_GRACE_MS`, 끊긴 노드를 정책과 상관없이 `failed` 로 끝내는 결정, 영속 재개 큐 채택 · 시간 과소 계산 허용 · DLQ 경고 결정 | 없음 |
 
 이 문서에는 요구사항 줄이 없다.
 
@@ -49,10 +49,10 @@ etag: "sha256-097b7a3a94b0d14b33888258314846d0a0ff01df2d2acea470e41cdfa1851deb"
 
 | 상황 | 트리거 | 대상 | 처리 | 끝내지 못할 때 |
 | --- | --- | --- | --- | --- |
-| 운영 중 워커 크래시 | stalled 재배달(PR4) | stall 된 세그먼트 작업의 실행(아직 `running`) | 같은 jobId 로 1회 재배달 → case B 재구동 | 재배달 소진: `failed` + `WORKER_HEARTBEAT_TIMEOUT` |
-| 전체 재시작, Redis 비영속, 작업 유실 | 부팅 복구 스캔(PR3) | `running` 이고 `started_at` 이 30분보다 오래된 실행 | row 단위 원자 re-claim → case B 재구동 | 재구동 불가: `RESUME_CHECKPOINT_MISSING` |
+| 운영 중 워커 크래시 | stalled 재배달 | stall 된 세그먼트 작업의 실행(아직 `running`) | 같은 jobId 로 1회 재배달 → case B 재구동 | 재배달 소진: `failed` + `WORKER_HEARTBEAT_TIMEOUT` |
+| 전체 재시작, Redis 비영속, 작업 유실 | 부팅 복구 스캔 | `running` 이고 `started_at` 이 30분보다 오래된 실행 | row 단위 원자 re-claim → case B 재구동 | 재구동 불가: `RESUME_CHECKPOINT_MISSING` |
 | 작업을 잃은 대기 중 실행 | 같은 부팅 복구 스캔 | `pending` 이고 `queued_at` 이 큐 대기 한도(5분)보다 오래된 실행 | `cancelled` + `EXECUTION_QUEUE_WAIT_TIMEOUT` | 없음 |
-| 종결된 실행 아래 남은 노드 실행 행 | 같은 부팅 복구 스캔 | 실행이 종결(`completed` · `failed` · `cancelled`)됐고 `running` 이며 `started_at` 이 30분보다 오래된 노드 실행 행. Background 본문 행은 뺀다 | 노드 실행 행만 `failed` 로 닫고 실행 상태는 그대로 둔다([종결된 실행 아래 남은 노드 실행 행](CLE-EXEC-RECOVERY-REDRIVE.md#종결된-실행-아래-남은-노드-실행-행)) | 없음 |
+| 종결된 실행 아래 남은 노드 실행 행 | 같은 부팅 복구 스캔 | 실행이 종결(`completed` · `failed` · `cancelled`)됐고 `running` 이며 `started_at` 이 30분보다 오래된 노드 실행 행. Background 본문 행과 깊이 한도 안에서 최상위 행에 닿지 못한 행은 뺀다 | 노드 실행 행만 `failed` 로 닫고 실행 상태는 그대로 둔다([종결된 실행 아래 남은 노드 실행 행](CLE-EXEC-RECOVERY-REDRIVE.md#종결된-실행-아래-남은-노드-실행-행)) | 없음 |
 | 입력 대기 중 재시작 | 사용자 입력 도착 | 입력 대기 실행 | case A rehydration 재개 | `cancelled` + `RESUME_*` |
 | 배포·정상 종료 | SIGTERM | 이 인스턴스의 진행 중 노드 실행 | 유예 시간 동안 완료 대기 | `failed` + `SERVER_INTERRUPTED` |
 
@@ -132,9 +132,15 @@ flowchart TD
 
 ## 미결 사항
 
-- **SIGTERM 종료 상태 분류**: 엔진 원문 안전 종료 절은 유예 시간을 넘긴 노드 실행과 실행을 `failed` + `SERVER_INTERRUPTED` 로 마감하는 것을 확정 계약으로 적는다. 데이터 흐름 원문은 이것이 현재 구현일 뿐이고 `cancelled` 로 다시 정할지는 `plan/in-progress/spec-update-node-cancellation-shutdown-classification.md` 의 (a)/(b) 택일 결정에 달렸다고 적는다. 노드 취소 규약은 안전 종료를 `abortSignal` 생산자로 도입할 계획이라고 적는다. 그렇게 되면 노드가 `cancelled` 로 분류된다(관련: [노드 취소](CLE-EXEC-CANCEL.md), [실행 데이터와 흐름](CLE-EXEC-DATA.md)). 함께 추적 중인 실측 틈이 있다. 취소 확인 `assertExecutionNotCancelled` 가 `FAILED` / `SERVER_INTERRUPTED` 를 보지 못해 안전 종료가 표시한 상태를 dispatch 반복문이 바로 반영하지 못할 수 있다(`plan/in-progress/node-cancellation-residual-signal-propagation.md`). 결정이 `cancelled` 쪽으로 가면 이 틈의 처리도 바뀐다. 현재 구현은 `failed` + `SERVER_INTERRUPTED` 다. 결정 필요.
-- **안전 종료의 `continue` 에러 처리 정책**: 안전 종료 절차는 노드 에러 처리 정책 값으로 `stop` / `continue` 를 쓴다. 노드 공통 정책 enum 은 `stop_workflow` / `skip_node` / `use_default_output` / `retry` / `route_to_error_port` 이고 `continue` 가 없다(관련: [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md), [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md)). 컨테이너 에러 처리 정책(`config.errorPolicy`)과도 이름이 겹친다. PR3 Rationale 도 "spec 의 'continue' 용어가 실제 enum 에 없다" 고 인정한다. 현재 구현은 정책 분기 없이 모두 `stop` 으로 처리한다. 어느 정책을 뜻했는지 정해야 한다.
 - **rehydration 실패를 `cancelled` 로 두는 결정의 유지 여부**: 원문 근거 "재실행 UI 가 `cancelled` 상태에서 활성화된다" 는 재실행 문서와 맞지 않아 빠졌다. 남은 근거로 이분 결정을 유지할지는 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md#미결-사항) 에서 다룬다.
+
+## Rationale
+
+이 문서는 복구 하위 문서 세 편의 색인이고 결정은 하위 문서에서 내린다. 결정 근거는 각 문서의 Rationale 에 있다.
+
+- [크래시 재구동과 부팅 복구 스캔](CLE-EXEC-RECOVERY-REDRIVE.md#rationale)
+- [체크포인트와 rehydration](CLE-EXEC-RECOVERY-REHYDRATE.md#rationale)
+- [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#rationale)
 
 ## 구현 위치
 

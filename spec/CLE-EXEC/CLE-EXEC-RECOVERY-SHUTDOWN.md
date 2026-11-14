@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-SHUTDOWN"
 title: "장애 복구와 안전 종료 — 안전 종료와 영속 재개 큐"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "a3b36bc02cbde579c9b58c1765a50ba11d35bd6746def5c7fe353e4c6460f80d"
+content_hash: "78a331a7c75ac2d4de0f83cf17e5c8179d62ffc28234ec0f33f46449cc3ebf5b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-EC9VFJ"
 source_paths: []
-mirror_sha256: "e73327891e4a9960b3420729bc8c2a671d0cac4b42e0acf75bbbf2a32cac5199"
-etag: "sha256-0ac324521131e097e307348f2f4af54bbc5e02bdc0268fdf88e57fded044556e"
+mirror_sha256: "f2a4021d051304a60b03c82d10a9d5f27b6c071c5ae6b88959ab3bc63f6ffa21"
+etag: "sha256-493de921817088a4440bf8306a23f41565922acda8833a4687082f462bdd8bf8"
 ---
 ## 개요
 
@@ -24,24 +24,25 @@ etag: "sha256-0ac324521131e097e307348f2f4af54bbc5e02bdc0268fdf88e57fded044556e"
 
 SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker compose down` 등 모든 정상 종료에 적용한다.
 
-1. **새 실행 시작을 거부한다.** 새 실행을 시작하는 HTTP 진입점(`POST /api/workflows/:id/execute`, 단일 노드 실행 `POST /api/workflows/:id/nodes/:nodeId/execute`)이 **503 Service Unavailable** 로 응답한다. 본문은 표준 에러 응답 봉투(`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`)이고 `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더를 함께 싣는다. 에러 응답 봉투의 기준은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 다. 로드 밸런서 drain 동안 트래픽은 다른 인스턴스로 간다.
-   - 실행 시작은 REST 로만 하므로 이 두 진입점 거부로 완결된다. WebSocket `execution.start` 는 비채택(won't-do)으로 끝났다(REST 로 대체, 핸들러 없음). 근거는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다.
+1. **수동 실행 진입점은 새 실행을 거부한다.** 수동 실행 진입점 두 곳(`POST /api/workflows/:id/execute`, 단일 노드 실행 `POST /api/workflows/:id/nodes/:nodeId/execute`)이 **503 Service Unavailable** 로 응답한다. 본문은 표준 에러 응답 봉투(`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`)이고 `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더를 함께 싣는다. 에러 응답 봉투의 기준은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 다. 로드 밸런서 drain 동안 트래픽은 다른 인스턴스로 간다.
+   - 다른 시작 경로는 거부하지 않는다. 웹훅, 채팅 채널 인바운드, 스케줄 정기 실행, 스케줄 「지금 실행」, 실행 재실행은 실행 행을 `pending` 으로 저장하고 영속 시작 큐 `execution-run` 에 넣기만 한다. 큐 작업은 Redis 에 남아 다른 인스턴스나 다시 뜬 인스턴스의 워커가 시작한다.
+   - WebSocket `execution.start` 는 비채택(won't-do)으로 끝났다(REST 로 대체, 핸들러 없음). 근거는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다.
 2. `execution-run` / `execution-continuation` / `background-execution` 의 진행 중 작업을 처리하는 워커는 현재 세그먼트(노드)를 완료까지 진행한다. 새 작업은 가져가지 않는다. 한 세그먼트 안의 노드 dispatch 는 큐를 거치지 않는 in-process 반복문이다.
 3. **입력 대기 실행은 건드리지 않는다.** DB 상태를 그대로 둔다. park 에서 이미 메모리를 비웠으므로 잃는 것이 없다. 사용자 입력이 오면 rehydration 으로 재개한다.
 4. **실행 중 노드**는 다음과 같이 처리한다.
    - `SIGTERM_GRACE_MS`(기본 30초)까지 완료를 기다린다.
    - 완료하면 평상시 흐름대로 다음 노드로 진행한다. 재개 큐가 영속이므로 이후 재개는 다른 인스턴스가 가져간다.
-   - 완료하지 못하면 그 노드 실행을 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다. 실행은 노드의 에러 처리 정책에 따라 처리한다(원문: `stop` 이면 실행 `failed`, `continue` 면 다음 노드로 진행). 체크포인트 기반 재개로 다른 인스턴스가 미완료 세그먼트를 이어받을 수도 있다.
-   - **현재 구현**: 정책 분기 없이 모두 `stop` 과 같이 처리한다(노드 실행과 실행 모두 `failed`). `continue` 분기는 미구현이다. `continue` 값의 정의가 갈린다. [미결 사항](CLE-EXEC-RECOVERY.md#미결-사항) 참조.
+   - 완료하지 못하면 그 노드 실행과 실행을 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다. 노드 에러 처리 정책은 보지 않는다. 실행이 `failed` 로 끝나므로 다른 인스턴스가 이어받지 않는다. 다시 돌리려면 재실행한다.
 5. `SIGTERM_GRACE_MS` 가 지나면 강제로 끝낸다.
 
 **구현**: `ShutdownStateService.onApplicationShutdown` 이 종료를 처리한다.
 
 - 노드 실행은 실행 시작 때 `ShutdownStateService.registerInFlight` 로 등록되고 끝날 때 해제된다(try 첫 줄과 finally).
 - 종료 때는 **이 인스턴스가 추적 중인** 노드 실행과 실행만 대상으로 한다(`WHERE id IN (...)`). 유예 시간 동안 drain 을 기다리고 남은 것을 노드 실행과 실행 각각 원자 UPDATE 로 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다.
-- 종료 중 들어온 새 실행은 503 + `Retry-After` 로 거부한다.
+- 종료 중 수동 실행 진입점으로 들어온 요청은 503 + `Retry-After` 로 거부한다.
+- 노드 경계의 취소 확인(`assertExecutionNotCancelled`)은 `cancelled` 만 본다. 그래서 유예 시간이 지나 실행을 `failed` 로 표시한 뒤에도 프로세스가 끝날 때까지 dispatch 반복문이 다음 노드를 돌릴 수 있다. 이 틈은 NERV Task `CLE-T-6WSCPE` 가 맡는다.
 
-SIGTERM 종료를 `failed` 로 볼지 `cancelled` 로 볼지는 정의가 갈린다. [미결 사항](CLE-EXEC-RECOVERY.md#미결-사항) 참조.
+끊긴 노드 실행과 실행은 `cancelled` 가 아니라 `failed` 다. 안전 종료를 노드 취소 신호로 이어도(NERV Task `CLE-T-6WSCPE`) 같은 상태로 기록한다. 규칙은 [노드 취소](CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 23 에 있고 결정 근거는 이 문서 Rationale 「끊긴 노드는 정책과 상관없이 `failed` 로 끝낸다」에 있다.
 
 | 환경 변수 | 기본값 | 설명 |
 | --- | --- | --- |
@@ -89,6 +90,17 @@ SIGTERM 종료를 `failed` 로 볼지 `cancelled` 로 볼지는 정의가 갈린
 - `/health` 엔드포인트에 DLQ 적재량을 싣지 않는다. readiness probe 가 DLQ 누적으로 unhealthy 가 되면 정상 트래픽까지 막힌다. 적재량은 gauge 관측과 경고의 대상이지 readiness 대상이 아니다.
 - DLQ 모니터 환경 변수 4종(`CONTINUATION_DLQ_*`)은 안전 종료 유예 시간과 같은 `useFactory` 주입 방식을 따른다. 서비스가 `process.env` 를 직접 읽지 않는다. 안전 종료 쪽의 DI 토큰 이름은 `SHUTDOWN_GRACE_MS` 이고 그 값을 주는 환경 변수는 `SIGTERM_GRACE_MS` 다.
 
+### 끊긴 노드는 정책과 상관없이 `failed` 로 끝낸다 (2026-11-14, CLE-T-GQ7WHS)
+
+원래 4단계는 유예 시간을 넘긴 노드의 실행을 노드 에러 처리 정책대로 처리한다고 적었다. `stop` 이면 실행이 `failed` 로 끝나고 `continue` 면 다음 노드로 진행하며 다른 인스턴스가 미완료 세그먼트를 이어받을 수도 있다는 약속이었다. 노드 에러 처리 정책 enum 에는 `continue` 가 없고 구현은 늘 노드 실행과 실행을 `failed` 로 끝냈다. 사람 결정(2026-11-14, 질문 `01a1d831-1847-7708-9d89-32bc5322ea64` · `01a1d831-1cd9-77a3-bff3-024ba0abd51b`)으로 약속을 거두고 구현을 계약으로 삼았다.
+
+- **에러 처리 정책을 보지 않는다**: 끊긴 노드는 외부 호출이나 부수효과를 반쯤 끝낸 상태일 수 있다. 그 출력으로 다음 노드를 돌리면 결과를 예측할 수 없다. 실행 전체를 `failed` 로 끝내고 사용자가 재실행하는 쪽이 결과를 읽기 쉽다. 취소된 노드에 노드 에러 처리 정책을 쓰지 않는 것([노드 취소](CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 20)과 같은 이유다.
+- **상태는 `cancelled` 가 아니라 `failed` 다**: 노드를 돌리던 중에 서버가 끊은 중단은 사용자가 의도한 멈춤이 아니고 부수효과가 반쯤 남았을 수 있다. 노드를 시작하기 전에 회수하는 큐 대기 초과(`EXECUTION_QUEUE_WAIT_TIMEOUT`)나 재개 인프라 실패(`RESUME_*`)가 실행을 `cancelled` 로 끝내는 것과는 경우가 다르다. 부팅 복구 스캔이 크래시로 남은 행을 닫을 때도 `failed` 를 쓴다([크래시 재구동과 부팅 복구 스캔](CLE-EXEC-RECOVERY-REDRIVE.md)). 안전 종료를 노드 취소 신호로 이어도 상태가 바뀌지 않도록 [노드 취소](CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 23 이 생산자 태그로 가른다.
+- **다른 인스턴스는 이어받지 않는다**: 실행을 `failed` 로 표시한 뒤 프로세스가 끝나면 그 실행의 `execution-run` 작업이 stalled 로 다른 워커에 재배달될 수 있다. 재배달을 받은 워커는 실행 상태가 `pending` 도 `running` 도 아니면 작업을 버린다. 그래서 같은 실행에 새 세그먼트가 시작되지 않고 [크래시 재구동과 부팅 복구 스캔](CLE-EXEC-RECOVERY-REDRIVE.md#남은-zombie-race) 의 세그먼트 직렬화 불변식과 부딪치지 않는다. 표시한 뒤에도 같은 프로세스의 dispatch 반복문이 다음 노드를 돌릴 수 있는 틈(「안전 종료」 구현 항목, NERV Task `CLE-T-6WSCPE`)은 그 프로세스 안의 일이고 새 세그먼트를 만들지 않는다.
+- **기각: `continue` 를 노드 에러 처리 정책으로 정의하기**: 끊긴 노드 뒤를 이어 돌리려면 인스턴스 사이에서 세그먼트를 넘겨받는 재개 경로를 새로 만들어야 한다. 그렇게 해도 반쯤 끝난 부수효과 문제는 남는다. 이 방향을 맡던 NERV Task `CLE-T-FTBSKJ` 는 닫았다.
+- **기각: `cancelled` 로 바꾸기**: 이미 구현하고 테스트한 `failed` + `SERVER_INTERRUPTED` 계약을 바꿔야 한다. [실행 데이터와 흐름](CLE-EXEC-DATA.md) 의 상태별 에러 코드 표와 [에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md) 도 함께 바뀐다. 실패 목록에서 서버 중단이 빠지는 것에 비해 얻는 것이 없다.
+
 ## 구현 위치
 
 - `codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.ts` (안전 종료)
+- `codebase/backend/src/modules/workflows/workflows.controller.ts` (수동 실행 진입점 두 곳의 `SERVER_SHUTTING_DOWN` 503 거부)

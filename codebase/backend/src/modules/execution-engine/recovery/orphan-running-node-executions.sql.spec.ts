@@ -56,7 +56,7 @@ describe('ORPHAN_RUNNING_NODE_EXECUTION_IDS_SQL — 엔티티 메타데이터 �
 
   it('테이블 별칭으로 쓴 컬럼은 모두 그 엔티티의 컬럼이다', () => {
     expect([...aliasToTable.keys()].sort()).toEqual(
-      ['e', 'n', 'ne', 'p', 'pn'].sort(),
+      ['e', 'n', 'ne', 'p', 'pn', 'r'].sort(),
     );
     const refs = [
       ...ORPHAN_RUNNING_NODE_EXECUTION_IDS_SQL.matchAll(
