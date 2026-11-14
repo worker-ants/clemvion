@@ -115,8 +115,10 @@ export function CandidatePicker({
   // `translateBackendLabel` 로 현재 언어 문구를 고른다(REQ-ASSIST-005).
   const fieldLabel = translateBackendLabel(field.label, locale) ?? field.label;
   // 후보 이름이 비면 서버가 빈 라벨을 보낸다. 사전 문구로 채운다.
+  const candidateName = (c: CandidateEntry): string =>
+    c.label || t("assistant.candidateUnnamed");
   const candidateText = (c: CandidateEntry): string => {
-    const label = c.label || t("assistant.candidateUnnamed");
+    const label = candidateName(c);
     return c.sublabel ? `${label} (${c.sublabel})` : label;
   };
   // legacy DB row (selectionMode 누락) 는 'single' 로 fallback.
@@ -148,7 +150,7 @@ export function CandidatePicker({
         const labels = ids.map(
           (id) => {
             const c = candidates.find((entry) => entry.id === id);
-            return c ? c.label || t("assistant.candidateUnnamed") : id;
+            return c ? candidateName(c) : id;
           },
         );
         return labels.length > 0 ? labels.join(", ") : fieldLabel;
@@ -158,7 +160,7 @@ export function CandidatePicker({
           c.id === selectedId ||
           (typeof currentValue === "string" && c.id === currentValue),
       );
-      if (matched) return matched.label || t("assistant.candidateUnnamed");
+      if (matched) return candidateName(matched);
       return typeof currentValue === "string" ? currentValue : fieldLabel;
     })();
 
@@ -238,7 +240,7 @@ export function CandidatePicker({
             >
               <input
                 type="checkbox"
-                aria-label={c.label || t("assistant.candidateUnnamed")}
+                aria-label={candidateName(c)}
                 checked={selectedIds.includes(c.id)}
                 onChange={() => onToggle(c.id)}
                 className="h-3 w-3 rounded"

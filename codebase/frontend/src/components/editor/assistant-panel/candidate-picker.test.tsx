@@ -3,6 +3,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CandidatePicker } from "./candidate-picker";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { ko } from "@/lib/i18n/dict/ko";
+import { en } from "@/lib/i18n/dict/en";
 
 /**
  * Spec ED-AI-39 (§3.2 / §3.3) — candidate picker 의 UX 경계를 고정:
@@ -474,5 +476,102 @@ describe("CandidatePicker", () => {
     expect(
       screen.getByRole("option", { name: "(이름 없음)" }),
     ).toBeDefined();
+  });
+
+  describe("candidate without a label (dictionary placeholder)", () => {
+    const unnamed = ko.assistant.candidateUnnamed;
+
+    it("uses the placeholder as the aria-label and text of a multi checkbox", () => {
+      render(
+        <CandidatePicker
+          field={{
+            field: "kb",
+            widget: "kb-selector",
+            label: "Knowledge Bases",
+            selectionMode: "multi",
+            candidates: [{ id: "kb-1", label: "" }],
+          }}
+          currentValue={[]}
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("checkbox", { name: unnamed })).toBeDefined();
+      expect(screen.getByText(unnamed)).toBeDefined();
+    });
+
+    it("appends the sublabel after the placeholder", () => {
+      render(
+        <CandidatePicker
+          field={{
+            field: "wf",
+            widget: "workflow-selector",
+            label: "Target Workflow",
+            candidates: [{ id: "wf-1", label: "", sublabel: "draft" }],
+          }}
+          currentValue=""
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole("option", { name: `${unnamed} (draft)` }),
+      ).toBeDefined();
+    });
+
+    it("shows the placeholder in the confirmed state (single)", () => {
+      render(
+        <CandidatePicker
+          field={{
+            field: "wf",
+            widget: "workflow-selector",
+            label: "Target Workflow",
+            candidates: [{ id: "wf-1", label: "" }],
+          }}
+          currentValue="wf-1"
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("status").textContent).toContain(unnamed);
+    });
+
+    it("shows the placeholder in the confirmed state (multi)", () => {
+      render(
+        <CandidatePicker
+          field={{
+            field: "kb",
+            widget: "kb-selector",
+            label: "Knowledge Bases",
+            selectionMode: "multi",
+            candidates: [
+              { id: "kb-1", label: "" },
+              { id: "kb-2", label: "Docs" },
+            ],
+          }}
+          currentValue={["kb-1", "kb-2"]}
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("status").textContent).toContain(
+        `${unnamed}, Docs`,
+      );
+    });
+
+    it("uses the English placeholder in the en locale", () => {
+      useLocaleStore.setState({ locale: "en" });
+      render(
+        <CandidatePicker
+          field={{
+            field: "wf",
+            widget: "workflow-selector",
+            label: "Target Workflow",
+            candidates: [{ id: "wf-1", label: "" }],
+          }}
+          currentValue=""
+          onConfirm={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole("option", { name: en.assistant.candidateUnnamed }),
+      ).toBeDefined();
+    });
   });
 });
