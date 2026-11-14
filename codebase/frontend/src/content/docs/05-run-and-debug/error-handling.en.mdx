@@ -89,6 +89,7 @@ If every retry fails, falls back to **Stop Workflow**.
 Sends the error payload out the node's **error port**, letting a connected downstream node pick up recovery from there.
 
 - On a node that has no error port of its own, selecting this policy adds a red **error port** at the bottom right of the node. Connect the error branch there.
+- If you switch such a node to another policy and save, the error port goes away and its edges are removed too. A notification shows how many were removed, and a single **Ctrl+Z** brings back both the policy and the edges.
 - Nodes that **already have an error port**, such as HTTP Request, Database Query, and Send Email, get no extra port and use the one they have.
 - When a node throws a failure, **only the edge on the error port** opens. Edges on other output ports such as `out` stay closed, so only the error branch runs.
 - When the node succeeds, the edge on the error port stays closed. Only edges on the other output ports open.
