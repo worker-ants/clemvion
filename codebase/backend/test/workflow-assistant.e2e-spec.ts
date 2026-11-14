@@ -401,7 +401,7 @@ describe('Workflow Assistant sessions (e2e)', () => {
     });
     // 스트리밍 미지원 예외의 원문 조각(프로바이더 이름 포함)이 이벤트에 실리지 않는다
     // (CWE-209). 원문 문구는 `LlmService.chatStream` 이 정한다.
-    expect(res.text).not.toContain('does not support streaming');
+    expect(res.text).not.toContain('in this release');
     expect(res.text).toContain('"finishReason":"error"');
 
     await request(BASE_URL)
