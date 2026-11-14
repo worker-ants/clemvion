@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-MFA"
 title: "에러 코드 카탈로그 — 2FA · Passkey · 재인증"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "885c97ef305860f5be4933258106fb216a6736b6998f788fd3c1f597aaab0751"
+content_hash: "bed1b679aa34bc920239c53ff51dd3cbc77d41468f3039066f1441948413e0c1"
 read_as: "approved_fallback"
 task: "CLE-T-GWC9M3"
 source_paths: []
-mirror_sha256: "e15dae7acb5826524179bbc83b40d3adc72ae05c0d965eba2170b88406e62de6"
-etag: "sha256-b08bf7e6350fc8e4a41b65dc69a28de2c9122bb1e236e538efd161d4939501df"
+mirror_sha256: "8f4d3daea1dd53febefca4c7ab6436dc691f56a6eaae685a8dc4c91d53a83de3"
+etag: "sha256-9156dc0bf2e2baca433dc234cbaec9fb8d539a21dcc3eaaae5622ff17e954e82"
 ---
 ## 개요
 
@@ -52,6 +52,11 @@ etag: "sha256-b08bf7e6350fc8e4a41b65dc69a28de2c9122bb1e236e538efd161d4939501df"
 - **비슷한 이름 주의**: 비밀번호 재확인 계열 에러 코드는 셋이다(`PASSWORD_INVALID`, `PASSWORD_REQUIRED`, `REAUTH_REQUIRED`). 옛 `INVALID_PASSWORD` 는 2026-09-02 에 은퇴해 응답에 나가지 않는다(§5). 접미사가 같은 `WEBAUTHN_REQUIRED`(§6.3)는 이 계열이 아니다. 입력이 빠진 것이 아니라 TOTP 와 Passkey 가 모두 있는 계정의 TOTP 로그인을 막는 코드다. 로그인의 `EMAIL_VERIFICATION_REQUIRED`(§6.2)는 응답 에러 코드다. `EMAIL_NOT_VERIFIED` 는 같은 경우에 로그인 이력 `failure_reason` 에 남는 사유값이고 응답에는 나가지 않는다.
 - **비슷한 이름 주의(TOTP 상태 코드)**: TOTP 상태 때문에 거부하는 코드는 셋이고 클라이언트가 할 일이 서로 다르다. `TOTP_ALREADY_ENABLED`(409)는 TOTP 가 이미 켜진 계정의 TOTP 설정 시작 · 활성화 검증이다. 클라이언트는 입력을 고치지 않고 켜진 상태를 다시 읽는다. `TOTP_NOT_ENABLED`(401)는 로그인 2단계 TOTP 검증 전용이고 클라이언트는 다시 로그인하게 안내한다. `TOTP_NOT_INITIALIZED`(400)는 대기 secret 없이(설정 시작 전이거나 10분이 지나 버림) 활성화 검증을 부른 경우이고 클라이언트는 설정 시작 단계로 돌아간다. 코드 불일치는 셋 가운데 어느 것도 아니고 `TOTP_INVALID`(401)다.
 - **2FA 비활성화**: `POST /api/auth/2fa/disable` 의 인증 코드 실패는 새 코드 없이 `TOTP_INVALID`(401)를 쓴다. 확인 순서, 복구 코드 소비, 로그인 이력에 남기지 않는 규칙은 [가입과 로그인 「TOTP 끄기」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#totp-끄기) 가 정한다.
+
+## 미결 사항
+
+- **`WEBAUTHN_NOT_REGISTERED` 의 상태 코드 통일은 호환 때문에 보류한다.** 로그인 2단계 Passkey 옵션은 400, Passkey 복구 코드 재발급은 비밀번호 확인 뒤 403 을 낸다. 403 은 [HTTP API 규약 — 응답 형식과 상태 코드 §6](CLE-API-CONV-RESP.md#6-http-상태-코드) 의 「권한 없음」 과 뜻이 맞지 않는다. 한쪽으로 맞추면 이미 내던 응답이 바뀌므로 두 값을 그대로 둔다.
+- **Passkey 경로의 서버 `message` 는 한국어다.** `WEBAUTHN_*` · `INVALID_OPTIONS_TOKEN` 같은 Passkey 경로의 에러 응답은 「WebAuthn 인증에 실패했어요.」 · 「이미 등록된 인증기예요.」 같은 기존 한국어 문구를 `message` 로 낸다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 · 5 에 어긋나고 [백엔드 문구 매핑 「코드와 동적 메시지 매핑 (규칙 5)」](../CLE-UI/CLE-UI-I18N-BACKEND.md#코드와-동적-메시지-매핑-규칙-5) 의 알려진 예외에도 없다. 이 문서와 도메인 문서가 인용한 한국어 문구는 기존 문구를 옮긴 것이고 규범이 아니다. 영문 전환은 인증 모듈 전체의 서버 문구를 영문으로 바꾸는 NERV Task `CLE-T-MNX9KP` 가 맡는다.
 
 ## Rationale
 
@@ -106,3 +111,12 @@ NERV Task `CLE-T-ZPPWK4` · `CLE-T-9KCQ7Y` · `CLE-T-Q6E11N` 에서 구현과 �
 - **발행 중이던 두 코드를 등재했다(규칙 8).** `WEBAUTHN_CREDENTIAL_EXISTS`(409)와 `WEBAUTHN_NOT_REGISTERED`(400 · 403)다. 이름과 상태 코드는 내던 그대로다(규칙 5). 같은 credential 의 동시 등록이 UNIQUE 제약에 걸릴 때 나던 409 `RESOURCE_CONFLICT` 는 `WEBAUTHN_CREDENTIAL_EXISTS` 로 맞췄다. 순차 중복과 뜻이 같다. [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 「미결 사항」 의 같은 항목은 지웠다.
 - **`WEBAUTHN_NOT_REGISTERED` 는 상태 코드가 둘이어도 한 행에 둔다.** 두 발행처 모두 등록한 Passkey 가 없다는 뜻이라 규칙 6 으로 나누지 않는다. 상태 코드는 이미 내던 값이라 바꾸지 않았다.
 - **Passkey 삭제에도 비밀번호를 다시 받는다.** 그래서 `PASSWORD_INVALID` · `PASSWORD_REQUIRED` 의 발행처가 하나 늘었다. 다른 민감 동작의 재확인과 뜻이 같아 새 코드는 만들지 않았다. 결정은 [Passkey 기능과 등록](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제에도-비밀번호-재확인을-둔다-2026-11-14) 에 있다.
+
+### `WEBAUTHN_NOT_REGISTERED` 상태 통일과 Passkey 서버 문구의 영문 전환을 미결로 둔다 (2026-11-14)
+
+NERV Task `CLE-T-GWC9M3` 에서 사람이 정했다(NERV 질문 `01a1d933-b270-707e-96ab-2dcf9d9204a3`). 14차 7번 묶음의 구현 완료 일관성 검토가 두 가지를 짚었다. `WEBAUTHN_NOT_REGISTERED` 의 403 이 [HTTP API 규약 — 응답 형식과 상태 코드 §6](CLE-API-CONV-RESP.md#6-http-상태-코드) 의 403 정의와 맞지 않는다는 것과 Passkey 경로의 서버 `message` 가 한국어라는 것이다. 이 Task 는 코드 · 에러 코드 이름 · 상태 코드를 바꾸지 않으므로 둘 다 「미결 사항」 에 남겼다.
+
+- **규칙 5 와의 관계**: 규칙 5 는 이름 바꾸기를 막는다. 상태 코드를 바꾸는 것도 이미 내던 응답을 바꾸는 호환성 변경이라 같은 이유로 바꾸지 않는다. 2026-11-02 의 「상태 코드는 기존 400 을 따른다」 와 같은 판단이다.
+- **규칙 6 과의 관계**: 두 발행처의 뜻이 같아 코드를 나누지 않는다는 2026-11-14 판단(위 「Passkey 코드를 구현에 맞춰 고쳤다」)은 그대로다. 상태 코드가 다르다고 새 조건이 생기지는 않는다.
+- **다른 안**: 이 Task 본문은 [응답 형식과 상태 코드 §6](CLE-API-CONV-RESP.md#6-http-상태-코드) 에 이 403 을 예외로 적는 안도 올렸다. 사람이 미결로 보류하는 안을 골랐다.
+- **한국어 문구를 알려진 예외에 올리지 않았다.** 인증 모듈 서버 문구를 영문으로 바꾸는 NERV Task `CLE-T-MNX9KP` 가 이미 있다. 그 Task 는 인증 모듈을 「알려진 예외」 에 올리지 않는 것을 목표로 둔다.
