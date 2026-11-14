@@ -78,9 +78,8 @@ function isMaxTokens(value: unknown): value is number {
 }
 
 /**
- * 기본 파라미터를 채우는 호출이 `LlmService.chat` · `chatStream` 옵션에 펼쳐 넣는 값이다.
- * AI 에이전트 · 텍스트 분류 · 워크플로우 어시스턴트가 쓴다. 정보 추출 핸들러는 같은 값을
- * `applyModelDefaults: true` 리터럴로 넘긴다. KB · 메모리 내부 호출은 쓰지 않는다.
- * 적용 지점은 `applyModelDefaults` 로 grep 하면 모두 나온다.
+ * 기본 파라미터를 채우는 호출이 `LlmService.chat` · `chatStream` 옵션에 넘기는 값이다.
+ * 이 상수를 넘기는 호출과 `applyModelDefaults: true` 를 직접 적는 호출이 함께 있다.
+ * 적용 지점을 찾을 때는 `APPLY_MODEL_DEFAULTS` 와 `applyModelDefaults` 를 둘 다 grep 한다.
  */
 export const APPLY_MODEL_DEFAULTS = { applyModelDefaults: true } as const;

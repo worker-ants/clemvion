@@ -1,5 +1,5 @@
-import { isLlmStreamingUnsupported } from '../llm/llm.service';
 import {
+  isLlmStreamingUnsupported,
   LLM_STREAMING_UNSUPPORTED,
   type LlmStreamErrorCode,
   type LlmStreamingUnsupportedCode,

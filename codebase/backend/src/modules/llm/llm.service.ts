@@ -1,5 +1,4 @@
 import {
-  HttpException,
   Injectable,
   Logger,
   BadRequestException,
@@ -72,20 +71,6 @@ export interface LlmCallOptions {
    * 내부 호출은 값을 직접 정하고 켜지 않는다. 병합 규칙은 `applyModelDefaultParams`.
    */
   applyModelDefaults?: boolean;
-}
-
-/**
- * `LlmService.chatStream` 이 던지는 스트리밍 미지원 예외인지. 응답 본문의 `code` 로 본다.
- * 던지는 쪽(`chatStream`)과 읽는 쪽(어시스턴트)이 문자열 계약을 따로 들고 있지 않게 한다.
- */
-export function isLlmStreamingUnsupported(err: unknown): boolean {
-  if (!(err instanceof HttpException)) return false;
-  const body = err.getResponse();
-  return (
-    typeof body === 'object' &&
-    body !== null &&
-    (body as { code?: unknown }).code === LLM_STREAMING_UNSUPPORTED
-  );
 }
 
 @Injectable()

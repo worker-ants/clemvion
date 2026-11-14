@@ -7,7 +7,11 @@ import {
   contractForDto,
 } from '../../shared/testing/response-contract';
 import { ModelTestConnectionResultDto } from '../model-config/dto/responses/model-config-response.dto';
-import type { ChatStreamEvent } from './interfaces/llm-client.interface';
+import {
+  isLlmStreamingUnsupported,
+  type ChatStreamEvent,
+} from './interfaces/llm-client.interface';
+import { APPLY_MODEL_DEFAULTS } from './model-default-params';
 
 // ─── Shared test fixtures ────────────────────────────────────────────────────
 
@@ -160,6 +164,18 @@ describe('LlmService', () => {
       it('does not read defaultParams without the option', async () => {
         await service.chat(chatConfig, bare);
         expect(mockClient.chat).toHaveBeenCalledWith(bare, undefined);
+      });
+
+      // CLE-T-AM7JS0: 호출 쪽이 넘기는 상수가 옵션 이름 · 값과 어긋나면 기본값이 조용히 빠진다.
+      it('APPLY_MODEL_DEFAULTS is the opt-in option itself', async () => {
+        expect(APPLY_MODEL_DEFAULTS).toEqual({ applyModelDefaults: true });
+
+        await service.chat(chatConfig, bare, undefined, APPLY_MODEL_DEFAULTS);
+
+        expect(mockClient.chat).toHaveBeenCalledWith(
+          { ...bare, temperature: 0.2, maxTokens: 1024 },
+          undefined,
+        );
       });
     });
 
@@ -510,6 +526,65 @@ describe('LlmService', () => {
       }
 
       expect(recordMock()).not.toHaveBeenCalled();
+    });
+
+    // CLE-T-AM7JS0: 어시스턴트는 이 판정으로 스트리밍 미지원 코드를 그대로 넘긴다
+    // (REQ-ASSIST-012). 판정 기준을 `chatStream` 이 실제로 던지는 예외로 고정한다.
+    describe('isLlmStreamingUnsupported', () => {
+      async function thrownBy(
+        stream: AsyncIterable<ChatStreamEvent>,
+      ): Promise<unknown> {
+        try {
+          await drain(stream);
+        } catch (err) {
+          return err;
+        }
+        throw new Error('chatStream did not throw');
+      }
+
+      it('stream() 이 없는 클라이언트에 chatStream 이 던진 예외는 true', async () => {
+        const err = await thrownBy(service.chatStream(config, params));
+
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(isLlmStreamingUnsupported(err)).toBe(true);
+        // e2e(`workflow-assistant.e2e-spec.ts`)는 이 원문의 조각이 어시스턴트 이벤트에
+        // 실리지 않는지 본다. 원문을 바꾸면 그쪽 조각도 고친다.
+        expect((err as BadRequestException).getResponse()).toEqual({
+          code: 'LLM_STREAMING_UNSUPPORTED',
+          message:
+            "Provider 'openai' does not support streaming in this release.",
+        });
+      });
+
+      it('스트림을 열다 난 chatStream 예외는 false', async () => {
+        mockClient.stream = jest.fn(() => ({
+          [Symbol.asyncIterator]: () => ({
+            next: () => Promise.reject(new Error('socket hang up')),
+          }),
+        }));
+
+        const err = await thrownBy(service.chatStream(config, params));
+
+        expect(isLlmStreamingUnsupported(err)).toBe(false);
+      });
+
+      it.each([
+        [
+          '다른 code 의 BadRequestException',
+          new BadRequestException({ code: 'VALIDATION_FAILED' }),
+        ],
+        [
+          '본문이 문자열인 BadRequestException',
+          new BadRequestException('LLM_STREAMING_UNSUPPORTED'),
+        ],
+        [
+          'HttpException 이 아닌 객체',
+          { response: { code: 'LLM_STREAMING_UNSUPPORTED' } },
+        ],
+        ['undefined', undefined],
+      ])('%s 는 false', (_label, err) => {
+        expect(isLlmStreamingUnsupported(err)).toBe(false);
+      });
     });
 
     it('취소로 온 done(aborted) 의 사용량이 0 이면 기록하지 않는다', async () => {

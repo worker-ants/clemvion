@@ -399,8 +399,11 @@ describe('Workflow Assistant sessions (e2e)', () => {
       code: 'LLM_STREAMING_UNSUPPORTED',
       message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_STREAMING_UNSUPPORTED,
     });
-    // 스트리밍 미지원 예외의 원문 조각(프로바이더 이름 포함)이 이벤트에 실리지 않는다
-    // (CWE-209). 원문 문구는 `LlmService.chatStream` 이 정한다.
+    // 스트리밍 미지원 예외의 원문이 이벤트에 실리지 않는다(CWE-209). 원문은
+    // `LlmService.chatStream` 이 정하고 단위 테스트(`llm.service.spec.ts`)가 고정한다.
+    // 고정 문구에도 "does not support streaming" 이 있으므로 원문에만 있는 조각 둘을 본다.
+    // 프로바이더 이름을 붙인 머리와 끝 구절이다.
+    expect(res.text).not.toContain("Provider 'local'");
     expect(res.text).not.toContain('in this release');
     expect(res.text).toContain('"finishReason":"error"');
 
