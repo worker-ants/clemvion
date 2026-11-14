@@ -21,7 +21,7 @@ export const ORPHAN_NODE_PARENT_CHAIN_MAX_DEPTH = 64;
  *   가운데 부모가 없는 행이 있어야 한다. 체인이 깊이 한도보다 길거나 순환하거나 없는 행을
  *   가리키면 Background 조상이 없다고 확인할 수 없으므로 닫지 않는다(CLE-T-EC9VFJ). 부모 행이
  *   지워져 포인터가 NULL 이 된 체인(`ON DELETE SET NULL`)은 최상위 행과 구별할 수 없다. 그 경우의
- *   판단은 스펙 Rationale 에 있다.
+ *   판단은 스펙 `CLE-EXEC-RECOVERY-REDRIVE` 의 Rationale 「최상위 행에 닿은 체인의 행만 닫는다」 에 있다.
  *
  * 테이블 이름은 큰따옴표로 감싼다. UpdateQueryBuilder 는 별칭 접두사 없이 쓴 낱말 가운데
  * `NodeExecution` 의 속성 이름과 같은 것을 컬럼 이름으로 바꿔 쓴다. 그래서 따옴표 없이 쓰면
