@@ -32,6 +32,8 @@ export const NODE_ROW_WRITERS: Readonly<Record<string, string>> = {
     '일회성 이관. 버튼 id 만 채우고 통합 참조 자리는 그대로 둔다',
   'codebase/backend/src/scripts/migrate-node-output-refs.ts::main':
     '일회성 이관. 표현식 문자열 안의 노드 출력 참조만 고친다. 표현식 참조는 저장 판정 대상이 아니고 실행 시점에 판정한다',
+  'codebase/backend/src/scripts/migrate-reserved-error-button-ids.ts::runReservedErrorButtonMigration':
+    '일회성 이관. 예약 id `error` 인 버튼 id 만 바꾸고 통합 참조 자리는 그대로 둔다',
 };
 
 const WRITE_METHODS = new Set(['save', 'insert', 'update', 'upsert']);

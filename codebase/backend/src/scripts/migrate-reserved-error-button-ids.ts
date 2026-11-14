@@ -50,6 +50,7 @@ import {
   RESERVED_ERROR_PORT_ID,
 } from '../nodes/core/button-slug.util';
 import { parseCliFlag } from './cli-utils';
+import { updateReturningRows } from '../common/utils/update-returning-rows';
 
 const LOG_PREFIX = '[migrate-reserved-error-button-ids]';
 
@@ -319,7 +320,10 @@ export async function runReservedErrorButtonMigration(
           RETURNING id`,
         [p.newId, p.nodeId, RESERVED_ERROR_PORT_ID],
       )) as unknown;
-      edgesUpdated += countUpdatedRows(result);
+      edgesUpdated += updateReturningRows<{ id: string }>(
+        result,
+        `migrate-reserved-error-button-ids edge node=${p.nodeId}`,
+      ).length;
     }
     await manager.query(
       `INSERT INTO audit_log (workspace_id, user_id, action, resource_type, resource_id, details)
@@ -340,22 +344,6 @@ export async function runReservedErrorButtonMigration(
     `${LOG_PREFIX} APPLIED: ${planned.length} nodes, ${edgesUpdated} edges updated.`,
   );
   return { nodesUpdated: planned.length, edgesUpdated };
-}
-
-/**
- * `UPDATE … RETURNING` 결과에서 바뀐 행 수를 센다. TypeORM postgres 드라이버는
- * `[rows, affected]` 를 돌려주고, 행 배열만 돌려주는 드라이버도 있다.
- */
-function countUpdatedRows(result: unknown): number {
-  if (!Array.isArray(result)) return 0;
-  if (
-    result.length === 2 &&
-    Array.isArray(result[0]) &&
-    typeof result[1] === 'number'
-  ) {
-    return result[1];
-  }
-  return result.length;
 }
 
 async function main(): Promise<void> {
