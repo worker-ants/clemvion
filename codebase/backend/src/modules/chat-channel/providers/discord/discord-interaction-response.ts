@@ -28,7 +28,7 @@ export const DISCORD_DEFAULT_SLASH_PREFIX = 'workflow';
  * - 슬래시 명령(type 2): 본인에게만 보이는 `{ type: 4 }`. `help` 는 도움말
  *   (`languageHints.help` 나 기본 문구), 나머지는 수신 문구(`languageHints.commandReceived` 나 기본
  *   문구)다. type 6 은 슬래시 명령에 쓸 수 없다. 2026-11-12 사람 결정(NERV Task `CLE-T-TSEP9G`).
- * - PING(type 1)은 핸드셰이크라 호출자가 따로 답한다. AUTOCOMPLETE(type 4)와 알 수 없는 type 은
+ * - PING(type 1)은 핸드셰이크라 `DiscordAdapter.handshakeResponse` 가 따로 답한다. AUTOCOMPLETE(type 4)와 알 수 없는 type 은
  *   `undefined` 라 지금처럼 `202` 다.
  *
  * pure — 외부 호출 없음. 트리거가 꺼져 있어도 HooksService 가 이 응답으로 답한다.

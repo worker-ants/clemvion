@@ -25,6 +25,7 @@ import {
 import { SlackClient } from './slack-client';
 import { renderSlackEvent, escapeSlackMrkdwn } from './slack-message.renderer';
 import {
+  extractSlackChallenge,
   parseSlackUpdate,
   readSlackSlashInvocation,
   SLACK_SLASH_HELP_SUBCOMMAND,
@@ -146,7 +147,7 @@ export class SlackAdapter implements NativeFormAdapter {
   /**
    * Spec §4 — Events API / Interactivity / Slash Commands 3종 envelope 분기.
    * 본 함수는 pure — DB 미접근, 외부 API 미호출 (Convention §1.1).
-   * url_verification 케이스는 null 반환 + caller (HooksService) 가 `{ challenge }` 200 응답.
+   * url_verification 케이스는 null 이다. `{ challenge }` 200 응답은 {@link handshakeResponse} 가 정한다.
    * file_shared 의 mimeType 은 placeholder 로 반환, caller 가 files.info 보강 (R-S-7).
    */
   parseUpdate(
@@ -398,6 +399,19 @@ export class SlackAdapter implements NativeFormAdapter {
     } catch {
       // best-effort — caller 가 swallow 보장하지만 방어적으로도 swallow.
     }
+  }
+
+  /**
+   * Request URL 을 등록할 때 오는 url_verification 에 challenge 를 그대로 돌려준다(Spec CLE-CHAT-SLACK).
+   * challenge 가 비어 있지 않은 문자열일 때만 답한다. 그 밖의 본문은 `undefined` 라 update 처리로 간다.
+   * pure — 외부 호출 없음.
+   */
+  handshakeResponse(
+    raw: unknown,
+    _config: ChatChannelConfig,
+  ): InboundInteractionResponse | undefined {
+    const challenge = extractSlackChallenge(raw);
+    return challenge === null ? undefined : { body: { challenge } };
   }
 
   /**

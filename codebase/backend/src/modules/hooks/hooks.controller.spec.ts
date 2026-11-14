@@ -1,8 +1,8 @@
 /**
  * HooksController unit test — SUMMARY#9 (testing review)
  *
- * Covers the interactionHttpResponse relay branch that bypasses TransformInterceptor
- * and sends res.json directly. Standard return path is also covered for contrast.
+ * 채팅 채널의 `providerResponse` 를 TransformInterceptor 를 거치지 않고 res 로 직접 보내는 분기와,
+ * 그것이 없을 때의 일반 반환 경로를 함께 본다.
  */
 import { HooksController } from './hooks.controller';
 import { HooksService } from './hooks.service';
@@ -62,91 +62,107 @@ describe('HooksController', () => {
     expect(embedConfigService.resolve).toHaveBeenCalledWith('abc');
   });
 
-  it('interactionHttpResponse 있을 때 res.status(200).json(interactionHttpResponse) 직접 전송', async () => {
-    const payload = { type: 9, data: { custom_id: 'clemvion_form' } };
-    hooksService.handleWebhook.mockResolvedValue({
-      executionId: 'exec-1',
-      interactionHttpResponse: payload,
-    } as unknown as Awaited<ReturnType<HooksService['handleWebhook']>>);
+  // 근거: CLE-CHAT-ADAPTER 「인터랙션 기본 응답과 수신 확인」. 응답 형태는 `providerResponse` 하나로
+  // 가른다(NERV Task `CLE-T-0JEQRY` · `CLE-T-NMTWSN`).
+  describe('채팅 채널 providerResponse', () => {
+    const callReceive = (res: ReturnType<typeof makeRes>, ip?: string) =>
+      controller.receiveWebhook(
+        'abc',
+        {},
+        {},
+        makeReq(ip ? { ip } : undefined),
+        res as unknown as import('express').Response,
+      );
 
-    const res = makeRes();
-    const result = await controller.receiveWebhook(
-      'abc',
-      {},
-      {},
-      makeReq(),
-      res as unknown as import('express').Response,
+    it.each([
+      ['Discord 모달 열기', { type: 9, data: { custom_id: 'clemvion_form' } }],
+      ['Slack url_verification 핸드셰이크', { challenge: 'abc123' }],
+      ['Discord PING 핸드셰이크', { type: 1 }],
+      [
+        'Slack view_submission 오류',
+        { response_action: 'errors', errors: { a: 'b' } },
+      ],
+    ])(
+      '%s 본문은 { data } 래핑 없이 200 으로 그대로 보낸다',
+      async (_label, body) => {
+        hooksService.handleWebhook.mockResolvedValue({
+          executionId: 'exec-1',
+          providerResponse: { body },
+        });
+
+        const res = makeRes();
+        const result = await callReceive(res);
+
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(body);
+        expect(res.end).not.toHaveBeenCalled();
+        // res 로 직접 보냈으므로 TransformInterceptor 에 넘길 값이 없다.
+        expect(result).toBeUndefined();
+      },
     );
 
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(payload);
-    // receiveWebhook returns undefined (early return) in this path.
-    expect(result).toBeUndefined();
-  });
+    // 근거: CLE-CHAT-SLACK 「인바운드 응답」 — Interactivity 는 3초 안 200 빈 본문. NERV Task `CLE-T-FCBG91`.
+    it('body 가 없으면 200 빈 본문으로 답한다', async () => {
+      hooksService.handleWebhook.mockResolvedValue({
+        executionId: 'ignored',
+        providerResponse: {},
+      });
 
-  // 근거: CLE-CHAT-SLACK 「인바운드 응답」 — Interactivity 는 3초 안 200 빈 본문. NERV Task `CLE-T-FCBG91`.
-  it('interactionEmptyResponse 면 res.status(200).end() 로 빈 본문을 보낸다', async () => {
-    hooksService.handleWebhook.mockResolvedValue({
-      executionId: 'ignored',
-      interactionEmptyResponse: true,
-    } as unknown as Awaited<ReturnType<HooksService['handleWebhook']>>);
+      const res = makeRes();
+      const result = await callReceive(res);
 
-    const res = makeRes();
-    const result = await controller.receiveWebhook(
-      'abc',
-      {},
-      {},
-      makeReq(),
-      res as unknown as import('express').Response,
-    );
-
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.end).toHaveBeenCalledWith();
-    expect(res.json).not.toHaveBeenCalled();
-    expect(result).toBeUndefined();
-  });
-
-  it('interactionHttpResponse 가 interactionEmptyResponse 보다 앞선다', async () => {
-    const payload = { response_action: 'errors', errors: { a: 'b' } };
-    hooksService.handleWebhook.mockResolvedValue({
-      executionId: 'exec-3',
-      interactionHttpResponse: payload,
-      interactionEmptyResponse: true,
-    } as unknown as Awaited<ReturnType<HooksService['handleWebhook']>>);
-
-    const res = makeRes();
-    await controller.receiveWebhook(
-      'abc',
-      {},
-      {},
-      makeReq(),
-      res as unknown as import('express').Response,
-    );
-
-    expect(res.json).toHaveBeenCalledWith(payload);
-    expect(res.end).not.toHaveBeenCalled();
-  });
-
-  it('interactionHttpResponse 없으면 일반 return (TransformInterceptor 경로)', async () => {
-    hooksService.handleWebhook.mockResolvedValue({
-      executionId: 'exec-2',
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.end).toHaveBeenCalledWith();
+      expect(res.json).not.toHaveBeenCalled();
+      expect(result).toBeUndefined();
     });
 
-    const res = makeRes();
-    const result = await controller.receiveWebhook(
-      'abc',
-      {},
-      {},
-      makeReq(),
-      res as unknown as import('express').Response,
-    );
+    it('body 가 null 이면 빈 본문이 아니라 null JSON 으로 보낸다', async () => {
+      hooksService.handleWebhook.mockResolvedValue({
+        executionId: 'exec-4',
+        providerResponse: { body: null },
+      });
 
-    // res.json · res.end 미호출 — TransformInterceptor 에 위임.
-    expect(res.json).not.toHaveBeenCalled();
-    expect(res.end).not.toHaveBeenCalled();
-    expect(result).toMatchObject({
-      executionId: 'exec-2',
-      message: expect.stringContaining('Webhook'),
+      const res = makeRes();
+      await callReceive(res);
+
+      expect(res.json).toHaveBeenCalledWith(null);
+      expect(res.end).not.toHaveBeenCalled();
+    });
+
+    it('providerResponse 가 없으면 202 본문(TransformInterceptor 경로)을 돌려주고 그 키를 싣지 않는다', async () => {
+      hooksService.handleWebhook.mockResolvedValue({
+        executionId: 'exec-2',
+        providerResponse: undefined,
+      });
+
+      const res = makeRes();
+      const result = await callReceive(res);
+
+      // res.json · res.end 미호출 — TransformInterceptor 에 위임.
+      expect(res.status).not.toHaveBeenCalled();
+      expect(res.json).not.toHaveBeenCalled();
+      expect(res.end).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        executionId: 'exec-2',
+        message: 'Webhook received, workflow execution started',
+      });
+      expect(result).not.toHaveProperty('providerResponse');
+    });
+
+    // 근거: NERV Task `CLE-T-CC3GPN` — 서명 실패 한도 키의 IP 는 `req.ip`(trust proxy 적용 값)다.
+    it('req.ip 를 handleWebhook 의 다섯 번째 인자로 넘긴다', async () => {
+      hooksService.handleWebhook.mockResolvedValue({ executionId: 'exec-5' });
+
+      await callReceive(makeRes(), '203.0.113.7');
+
+      expect(hooksService.handleWebhook).toHaveBeenCalledWith(
+        'abc',
+        expect.objectContaining({ method: 'POST' }),
+        undefined,
+        undefined,
+        '203.0.113.7',
+      );
     });
   });
 });

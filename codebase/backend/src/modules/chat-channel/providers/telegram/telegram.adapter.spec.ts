@@ -6,7 +6,11 @@
  * CCH-SE-02: inboundSigning 발급 및 저장 검증.
  * Secret store 통합: botTokenRef → SecretResolverService.resolve() 경유 (SUMMARY#25).
  */
-import { TelegramAdapter } from './telegram.adapter';
+import {
+  TELEGRAM_ANSWERED_CALLBACK_MAX,
+  TELEGRAM_ANSWERED_CALLBACK_TTL_MS,
+  TelegramAdapter,
+} from './telegram.adapter';
 import {
   TelegramClient,
   TelegramApiResponse,
@@ -534,6 +538,162 @@ describe('TelegramAdapter', () => {
       ).rejects.toThrow('botTokenRef');
       expect(client.answerCallbackQuery).not.toHaveBeenCalled();
     });
+  });
+
+  // 근거: NERV Task `CLE-T-0JEQRY` 1번 · CLE-CHAT-TELEGRAM REQ-TGRAM-011 — 버린 클릭에도 답하되, 같은 클릭이
+  // 다시 와도(재전송 · 중복 · 처리한 클릭의 재도착) answerCallbackQuery 를 한 번만 부른다. 다른 클릭에는 각각
+  // 답한다(2026-11-12 사람 결정을 뒤집지 않는다). 봇 토큰 조회도 그만큼 줄어든다.
+  describe('같은 클릭에는 한 번만 답한다', () => {
+    const callbackUpdate = (id: string): Record<string, unknown> => ({
+      update_id: 601,
+      callback_query: {
+        id,
+        data: 'btn-id-1',
+        from: { id: 888 },
+        message: { message_id: 4242, chat: { id: 777 } },
+      },
+    });
+    const buttonUpdate = (id: string): ChannelUpdate => ({
+      conversationKey: '9999',
+      channelUserKey: '888',
+      command: {
+        kind: 'button_callback',
+        callbackData: 'btn-id-1',
+        callbackQueryId: id,
+      },
+      idempotencyKey: '601',
+      receivedAt: new Date().toISOString(),
+    });
+
+    beforeEach(() => {
+      client.answerCallbackQuery.mockResolvedValue(okResult(true));
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('같은 클릭을 두 번 버리면 answerCallbackQuery 와 토큰 조회는 한 번이다', async () => {
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-dup'), baseConfig);
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-dup'), baseConfig);
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+      expect(secrets.resolve).toHaveBeenCalledTimes(1);
+    });
+
+    it('처리하며 답한 클릭이 다시 와서 버려지면 다시 답하지 않는다', async () => {
+      await adapter.ackInteraction(buttonUpdate('cq-done'), baseConfig);
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-done'), baseConfig);
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+    });
+
+    it('이미 답한 클릭을 처리할 때는 답하지 않고 키보드만 지운다', async () => {
+      client.editMessageReplyMarkup.mockResolvedValue(
+        okResult({ message_id: 4242, date: 0, chat: { id: 9999 } }),
+      );
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-late'), baseConfig);
+      await adapter.ackInteraction(
+        {
+          ...buttonUpdate('cq-late'),
+          command: {
+            kind: 'button_callback',
+            callbackData: 'btn-id-1',
+            callbackQueryId: 'cq-late',
+            messageId: '4242',
+          },
+        },
+        baseConfig,
+      );
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+      expect(client.editMessageReplyMarkup).toHaveBeenCalledTimes(1);
+    });
+
+    it('다른 클릭에는 각각 답한다', async () => {
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-a'), baseConfig);
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-b'), baseConfig);
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(2);
+    });
+
+    it('기억 시간이 지나면 같은 클릭에도 다시 답한다', async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-old'), baseConfig);
+      now.mockReturnValue(1_000_000 + TELEGRAM_ANSWERED_CALLBACK_TTL_MS - 1);
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-old'), baseConfig);
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+
+      now.mockReturnValue(1_000_000 + TELEGRAM_ANSWERED_CALLBACK_TTL_MS);
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-old'), baseConfig);
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(2);
+    });
+
+    it('기억하는 클릭 수가 상한을 넘으면 가장 오래된 클릭부터 잊는다', async () => {
+      for (let i = 0; i <= TELEGRAM_ANSWERED_CALLBACK_MAX; i += 1) {
+        await adapter.ackDroppedUpdate(callbackUpdate(`cq-${i}`), baseConfig);
+      }
+      client.answerCallbackQuery.mockClear();
+
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-1'), baseConfig);
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-0'), baseConfig);
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+      expect(client.answerCallbackQuery).toHaveBeenCalledWith(BOT_TOKEN_PLAIN, {
+        callback_query_id: 'cq-0',
+      });
+    });
+
+    it('같은 클릭이 동시에 와도 answerCallbackQuery 와 토큰 조회는 한 번이다', async () => {
+      await Promise.all([
+        adapter.ackDroppedUpdate(callbackUpdate('cq-race'), baseConfig),
+        adapter.ackDroppedUpdate(callbackUpdate('cq-race'), baseConfig),
+      ]);
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+      expect(secrets.resolve).toHaveBeenCalledTimes(1);
+    });
+
+    // 알려진 한계: 기억은 답하기 전에 하므로 첫 호출이 실패해 forget 하기 전에 온 동시 호출은 이미 건너뛴다.
+    // 그 클릭은 이번 시도에서 답을 받지 못하고, 같은 클릭이 다시 와야 답을 시도한다. 이 동작을 고정해 둔다.
+    it('동시에 온 첫 호출이 실패하면 둘째는 건너뛰어 답이 가지 않는다(한계)', async () => {
+      secrets.resolve.mockRejectedValueOnce(new Error('secret store down'));
+
+      const results = await Promise.allSettled([
+        adapter.ackDroppedUpdate(callbackUpdate('cq-race-fail'), baseConfig),
+        adapter.ackDroppedUpdate(callbackUpdate('cq-race-fail'), baseConfig),
+      ]);
+
+      expect(results[0].status).toBe('rejected');
+      expect(results[1].status).toBe('fulfilled');
+      expect(client.answerCallbackQuery).not.toHaveBeenCalled();
+
+      // 실패한 클릭은 잊었으므로 다시 오면 답을 시도한다.
+      await adapter.ackDroppedUpdate(
+        callbackUpdate('cq-race-fail'),
+        baseConfig,
+      );
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+    });
+
+    it('토큰 조회가 실패한 클릭은 기억하지 않아 다시 오면 답을 시도한다', async () => {
+      secrets.resolve.mockRejectedValueOnce(new Error('secret store down'));
+      await expect(
+        adapter.ackDroppedUpdate(callbackUpdate('cq-retry'), baseConfig),
+      ).rejects.toThrow('secret store down');
+
+      await adapter.ackDroppedUpdate(callbackUpdate('cq-retry'), baseConfig);
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Telegram 에는 엔드포인트 확인 핸드셰이크가 없다. NERV Task `CLE-T-NMTWSN`.
+  it('handshakeResponse 를 두지 않는다', () => {
+    expect(
+      (adapter as { handshakeResponse?: unknown }).handshakeResponse,
+    ).toBeUndefined();
   });
 
   // SUMMARY#9 — Telegram exhaustiveness guard + supportsNativeForm assertion.

@@ -121,6 +121,36 @@ describe('SlackAdapter', () => {
     });
   });
 
+  // 근거: [Slack 어댑터](CLE-CHAT-SLACK) · Slack 공식 문서(url_verification) — Request URL 을 등록할 때 온
+  // challenge 를 그대로 돌려줘야 한다. 판별은 어댑터가 하고 HooksService 는 어댑터 훅만 부른다.
+  // NERV Task `CLE-T-NMTWSN` · `CLE-T-0JEQRY` 2번.
+  describe('handshakeResponse (url_verification)', () => {
+    const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+
+    it('url_verification 에는 challenge 를 그대로 돌려준다', () => {
+      expect(
+        adapter.handshakeResponse(
+          { type: 'url_verification', challenge: 'ch-1' },
+          SLACK_CONFIG,
+        ),
+      ).toEqual({ body: { challenge: 'ch-1' } });
+    });
+
+    it.each([
+      ['challenge 가 빈 문자열', { type: 'url_verification', challenge: '' }],
+      [
+        'challenge 가 문자열이 아님',
+        { type: 'url_verification', challenge: 1 },
+      ],
+      ['challenge 가 없음', { type: 'url_verification' }],
+      ['Events API', { type: 'event_callback', challenge: 'c' }],
+      ['Interactivity', { payload: JSON.stringify({ type: 'block_actions' }) }],
+      ['null', null],
+    ])('%s 는 핸드셰이크가 아니다', (_label, raw) => {
+      expect(adapter.handshakeResponse(raw, SLACK_CONFIG)).toBeUndefined();
+    });
+  });
+
   // 근거: [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK) · Slack 공식 문서(Slash commands) — 슬래시
   // 명령은 3초 안에 HTTP 200 을 받아야 사용자에게 오류가 보이지 않는다. 응답 모양은 Discord 슬래시 명령
   // 선례(2026-11-12, NERV Task `CLE-T-TSEP9G`)를 따른다. 본인에게만 보이는 메시지로 help 는 도움말,

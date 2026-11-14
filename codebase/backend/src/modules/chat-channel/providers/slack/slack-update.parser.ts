@@ -8,7 +8,7 @@ import type { ChannelUpdate } from '../../types';
  *   - 4.2 Interactivity (`payload` field 가 JSON string): block_actions / view_submission
  *   - 4.3 Slash Commands (form parsed `command` + `text`): start / cancel / text_message.
  *     `help` 는 null (도움말은 어댑터의 슬래시 명령 기본 응답이 싣는다)
- *   - url_verification (envelope.type === 'url_verification') → null (caller 가 challenge 응답)
+ *   - url_verification (envelope.type === 'url_verification') → null (어댑터 `handshakeResponse` 가 challenge 응답)
  *   - DM 외 채널 (channel_type !== 'im') → null (호출자가 groupChatRefusal 안내)
  *   - bot_id 존재 / subtype === 'bot_message' → null (봇 무시)
  *
@@ -33,7 +33,7 @@ export function parseSlackUpdate(raw: unknown): ChannelUpdate | null {
   if (body.type === 'event_callback') {
     return parseEventsApi(body, receivedAt);
   }
-  // url_verification 은 caller (HooksService) 가 challenge 응답 — 본 함수는 null.
+  // url_verification 은 어댑터 `handshakeResponse` 가 challenge 로 답한다. 본 함수는 null.
   if (body.type === 'url_verification') return null;
 
   // 2) Interactivity — body 에 `payload` 필드 (JSON string).
@@ -381,8 +381,8 @@ function parseSlashCommand(
 /**
  * url_verification handshake 응답을 위한 challenge 값 추출.
  *
- * HooksService 가 envelope.type === 'url_verification' 케이스에서 `{ challenge }` JSON 으로
- * 200 OK 응답하기 위해 사용. parseSlackUpdate 가 null 반환 후 caller 가 본 함수로 challenge 추출.
+ * `SlackAdapter.handshakeResponse` 가 envelope.type === 'url_verification' 케이스에서 `{ challenge }`
+ * JSON 으로 200 OK 응답하기 위해 사용. parseSlackUpdate 는 이 본문에 null 을 돌려준다.
  *
  * @returns string | null — null 이면 url_verification 이 아니거나 challenge 필드 부재.
  */

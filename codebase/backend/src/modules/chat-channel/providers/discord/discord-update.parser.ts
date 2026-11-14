@@ -9,7 +9,7 @@ import type { DiscordInteraction } from './discord.types';
  * Discord Interactions Webhook payload → ChannelUpdate 변환 (pure, side-effect free).
  *
  * Spec [providers/discord §4]:
- *   - type=1 (PING) → null (caller 가 { type: 1 } 200 응답)
+ *   - type=1 (PING) → null (어댑터 `handshakeResponse` 가 { type: 1 } 200 응답)
  *   - type=2 (APPLICATION_COMMAND): start / cancel / help / reply 분기
  *   - type=3 (MESSAGE_COMPONENT button/select) → button_callback
  *   - type=5 (MODAL_SUBMIT) → text_message (Reply modal 의 TEXT_INPUT 결과)
@@ -25,7 +25,7 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
   const receivedAt = new Date().toISOString();
   const idempotencyKey = i.id;
 
-  // type=1 PING — caller 가 handshake 응답.
+  // type=1 PING — 어댑터 `handshakeResponse` 가 handshake 응답.
   if (i.type === DISCORD_INTERACTION_TYPE.PING) return null;
 
   // bot 무시.
@@ -183,7 +183,7 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
 
 /**
  * Discord PING handshake — Interactions endpoint 등록 시 1회 + 주기적.
- * Caller (HooksService) 가 type=1 응답을 위해 사용.
+ * `DiscordAdapter.handshakeResponse` 가 type=1 응답을 고를 때 쓴다.
  */
 export function isDiscordPing(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false;

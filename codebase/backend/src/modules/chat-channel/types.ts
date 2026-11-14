@@ -306,8 +306,8 @@ export interface FormSubmissionResult {
 }
 
 /**
- * 인터랙션 요청에 `{ data }` 봉투 없이 200 으로 돌려줄 기본 응답. `body` 가 없으면 빈 본문이다
- * (Slack Interactivity). `ChatChannelAdapter.defaultInteractionResponse` 가 돌려준다.
+ * 프로바이더 요청에 `{ data }` 봉투 없이 200 으로 돌려줄 응답. `body` 가 없으면 빈 본문이다
+ * (Slack Interactivity). `ChatChannelAdapter.defaultInteractionResponse` · `handshakeResponse` 가 돌려준다.
  */
 export interface InboundInteractionResponse {
   body?: unknown;
@@ -645,6 +645,18 @@ export interface ChatChannelAdapter {
    * SoT: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER), [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE).
    */
   defaultInteractionResponse?(
+    raw: unknown,
+    config: ChatChannelConfig,
+  ): InboundInteractionResponse | undefined;
+
+  /**
+   * (옵션) 프로바이더가 엔드포인트를 확인하려고 보내는 핸드셰이크 요청이면 그 응답을 돌려준다. Slack
+   * url_verification 은 `{ challenge }`, Discord PING 은 `{ type: 1 }` 이다. 핸드셰이크가 아니면 `undefined`
+   * 다. HooksService 가 서명 검증과 트리거 활성 검사 뒤, update 처리 전에 부른다. 응답이 있으면 update 를
+   * 처리하지 않고 그 응답을 200 으로 보낸다. 핸드셰이크가 없는 프로바이더(Telegram)는 구현하지 않는다.
+   * pure — 외부 호출 없음. SoT: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER).
+   */
+  handshakeResponse?(
     raw: unknown,
     config: ChatChannelConfig,
   ): InboundInteractionResponse | undefined;
