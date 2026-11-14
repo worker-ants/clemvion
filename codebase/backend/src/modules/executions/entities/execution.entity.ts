@@ -67,6 +67,9 @@ export class Execution {
    * 합. `waiting_for_input` park 시간은 제외(§8 active-running 타임아웃 기준).
    * 엔진이 RUNNING 진입/이탈마다 누적하며, 세그먼트 시작 시 한도(기본 30분) 초과면
    * `EXECUTION_TIME_LIMIT_EXCEEDED` 로 failed. wall-clock 총 소요는 `durationMs` 별도.
+   * 실행 중에 REST 중지로 끝나면 엔진이 다음 경계에서 중지 시각까지의 마지막 구간을 더한다
+   * (CLE-T-ES1J1E). 응답에서는 0 → `null` 규칙을 실행 내역 API 절이 정한다
+   * ([실행 내역 「API」](CLE-EXEC-HISTORY#api)).
    */
   @Column({ name: 'active_running_ms', type: 'int', default: 0 })
   activeRunningMs: number;

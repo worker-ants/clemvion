@@ -13,8 +13,9 @@ const FINISHED_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
  * `null` 을 돌려주는 경우는 둘이다.
  * - 실행이 끝나지 않았다(`pending` · `running` · `waiting_for_input`). 이때 저장 값에는 끝난
  *   구간만 들어 있다.
- * - 측정되지 않았다. 컬럼이 `NOT NULL DEFAULT 0` 이라 V083 이전 실행이 0 으로 남아 있고,
- *   실행 중에 REST 중지로 끝난 실행은 마지막 구간이 빠져 0 일 수 있다(후속 CLE-T-ES1J1E).
+ * - 측정되지 않았다. 컬럼이 `NOT NULL DEFAULT 0` 이라 V083 이전 실행이 0 으로 남아 있다.
+ *   실행 중에 REST 중지로 끝난 실행은 엔진이 다음 상태 전이에서 마지막 구간을 더하기 전까지
+ *   0 일 수 있고, 그 전에 프로세스가 끝나면 0 으로 남는다(CLE-T-ES1J1E).
  *   저장 값이 0 인데 전체 경과(`durationMs`)가 0 보다 크면 이 경우로 본다.
  *
  * 0 을 그대로 내보내면 실제로 0ms 걸린 것처럼 읽힌다. 판정을 이 함수 한 곳에서 해서 실행

@@ -1024,7 +1024,7 @@ describe('ExecutionsService', () => {
 
   /**
    * 실행 시간(`activeRunningMs`)과 전체 경과(`durationMs`)는 다른 값이다. 입력 대기가 길었던
-   * 실행은 전체 경과만 커지고, 실행 중에 REST 중지로 끝나 구간이 기록되지 않은 실행은
+   * 실행은 전체 경과만 커지고, 실행 중에 REST 중지로 끝나 아직 구간이 더해지지 않은 실행은
    * 실행 시간이 `null`(측정되지 않음)이다. 판정 규칙 자체는 `active-running-ms.spec.ts` 가
    * 고정하고, 여기서는 응답 조립이 그 값을 싣는지 본다.
    */
@@ -1048,7 +1048,7 @@ describe('ExecutionsService', () => {
       });
     });
 
-    it('실행 중 stop() 으로 취소돼 구간이 기록되지 않은 실행은 실행 시간이 null 이다', async () => {
+    it('실행 중 중지 직후 엔진이 아직 마지막 구간을 더하지 않은 실행은 실행 시간이 null 이다', async () => {
       const running = baseFake({ id: 'eA2', status: ExecutionStatus.RUNNING });
       const cancelled = baseFake({
         id: 'eA2',
