@@ -796,7 +796,7 @@ describe('External Interaction API (e2e)', () => {
     expect(wire).toContain('msg');
   }, 30_000);
 
-  it('I-2. getStatus wire — buttons 노드는 buttonConfig variant, thread 부재 시 키 생략 (EIA §5.3 / API 규약 §5.4)', async () => {
+  it('I-2. getStatus wire — buttons 노드는 buttonConfig variant, thread 부재 시 키 생략 (EIA §5.3 / API 규약 §5.5)', async () => {
     // context 는 판별자 없는 닫힌 2-variant union 이다. 실 HTTP + DB round-trip 으로
     // (a) buttons + buttonConfig → buttonConfig variant 가 선택되고 nodeOutput 키가 없는지,
     // (b) durable thread 가 없으면 conversationThread 가 `null` 이 아니라 **키 자체 부재**인지 확인.

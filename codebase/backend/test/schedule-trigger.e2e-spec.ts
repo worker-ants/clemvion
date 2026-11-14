@@ -164,7 +164,7 @@ describe('Schedule trigger (e2e)', () => {
       await contractForDto(ScheduleDto),
     );
     // 상세와 **같은 양성 대조**를 목록에도 건다. 계약 대조만으로는 좁히기 로직이 통째로
-    // 사라져 `workflow` 가 안 실려도 통과한다 — §5.4 키 생략형은 부재를 위반으로 보지
+    // 사라져 `workflow` 가 안 실려도 통과한다 — §5.5 키 생략형은 부재를 위반으로 보지
     // 않기 때문이다 (`review/code/2026/09/06/00_24_34` W2).
     expect(Object.keys(listed).includes('trigger')).toBe(true);
     expectNarrowedScheduleTriggerRef(
@@ -270,7 +270,7 @@ describe('Schedule trigger (e2e)', () => {
     // 여기서 걸리는 것: `notificationSecretV2`·`chatChannelTokenV2` 가 다시 실리면
     // `TriggerDto` 미선언 키로 잡힌다.
     assertMatchesContract(row, await contractForDto(TriggerDto));
-    // `TriggerDto.workflow` 는 §5.4 **키 생략형**이라 계약 대조가 부재를 위반으로 보지
+    // `TriggerDto.workflow` 는 §5.5 **키 생략형**이라 계약 대조가 부재를 위반으로 보지
     // 않는다 — 관계 로딩이 통째로 사라져도 위 줄은 통과한다. 이 파일이 이미 고정하는
     // `ScheduleDto.trigger.workflow`(`expectNarrowedScheduleTriggerRef`, 양성 3 + 음성 1)
     // 와는 **다른 표면**이고, 이쪽엔 양성이 한 건도 없었다.

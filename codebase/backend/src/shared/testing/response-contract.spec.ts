@@ -28,7 +28,7 @@ class NestedDto {
 }
 
 /**
- * `spec/5-system/2-api-convention.md` §5.4 의 선언 형태를 한 DTO 에 모아 둔 픽스처.
+ * `spec/5-system/2-api-convention.md` §5.5 의 선언 형태를 한 DTO 에 모아 둔 픽스처.
  *
  * **네 축이 한 클래스에 다 있어야** 각 규칙을 독립적으로 물 수 있다 — 축이 빠지면 그
  * 규칙의 캐너리가 다른 축의 통과에 묻힌다. 중첩·배열 축도 같은 이유로 여기 있다.
@@ -42,7 +42,7 @@ class ProbeDto {
   @ApiProperty({ nullable: true })
   label: string | null;
 
-  /** 키 생략형 — 없어도 되지만 있으면 null 이 아니어야 한다 (§5.4) */
+  /** 키 생략형 — 없어도 되지만 있으면 null 이 아니어야 한다 (§5.5) */
   @ApiPropertyOptional()
   note?: string;
 
@@ -106,7 +106,7 @@ const VALID = {
 const kinds = (v: readonly ContractViolation[]) =>
   v.map((x) => `${x.property}:${x.kind}`);
 
-describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
+describe('response-contract — 실제 응답 vs DTO 선언 (§5.5)', () => {
   let contract: DtoContract;
 
   beforeAll(async () => {
@@ -166,7 +166,7 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
       ).toEqual(['id:null']);
     });
 
-    it('nullable 인 required 는 null 이어도 통과 — 이게 §5.4 의 기본형', () => {
+    it('nullable 인 required 는 null 이어도 통과 — 이게 §5.5 의 기본형', () => {
       expect(
         findContractViolations({ ...VALID, label: null }, contract),
       ).toEqual([]);
@@ -177,7 +177,7 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
       expect(findContractViolations(rest, contract)).toEqual([]);
     });
 
-    it('키 생략형이 null 로 오면 위반 — §5.4 가 그 조합을 금지한다', () => {
+    it('키 생략형이 null 로 오면 위반 — §5.5 가 그 조합을 금지한다', () => {
       expect(
         kinds(findContractViolations({ ...VALID, note: null }, contract)),
       ).toEqual(['note:null']);
