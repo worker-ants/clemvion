@@ -7,8 +7,19 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
 /**
- * `integration_action_required` 알림을 발사하는 단일 진입점. Cafe24ApiClient
- * 의 `markAuthFailed` / `recordNetworkFailure` 에서 status 가 `error` 로
+ * 조치 필요 알림을 부른 자리. 같은 상태 사유라도 원인이 달라 메시지를 나눈다. 제목은 같아서 24시간 중복 방지를 함께 쓴다.
+ *
+ * - `api_call`: Cafe24 · MakeShop 클라이언트가 API 호출 결과로 상태를 바꿨다(`markAuthFailed` · `recordNetworkFailure`).
+ * - `oauth_callback`: 통합 재인증 · 추가 권한 요청의 OAuth 콜백이 코드 교환에 실패해 연결됨 통합을 `error(auth_failed)` 로
+ *   바꿨다(`IntegrationOAuthService.markIntegrationCallbackError`). 서비스 유형을 가리지 않는 경로라 문구에 서비스 이름을 넣지
+ *   않는다.
+ */
+export type ActionRequiredTrigger = 'api_call' | 'oauth_callback';
+
+/**
+ * `integration_action_required` 알림을 발사하는 단일 진입점. Cafe24 · MakeShop
+ * 클라이언트의 `markAuthFailed` / `recordNetworkFailure` 와 OAuth 콜백 실패 기록
+ * (`IntegrationOAuthService.markIntegrationCallbackError`)에서 status 가 `error` 로
  * 전이하는 순간 본 헬퍼가 호출된다.
  *
  * Spec: spec/2-navigation/4-integration.md §11.2 (분리 원칙 — passive
@@ -38,9 +49,14 @@ export class IntegrationActionRequiredNotifier {
   async notify(
     integration: Integration,
     statusReason: 'auth_failed' | 'insufficient_scope' | 'network',
+    trigger: ActionRequiredTrigger = 'api_call',
   ): Promise<void> {
     try {
-      const { title, message } = this.composeMessage(integration, statusReason);
+      const { title, message } = this.composeMessage(
+        integration,
+        statusReason,
+        trigger,
+      );
 
       // 24h 안에 같은 (workspace, type, resourceId, title) 조합으로 발사된
       // 적이 있으면 skip. title 이 statusReason 별로 다르므로 reason 별 dedup.
@@ -104,13 +120,17 @@ export class IntegrationActionRequiredNotifier {
   private composeMessage(
     integration: Integration,
     statusReason: 'auth_failed' | 'insufficient_scope' | 'network',
+    trigger: ActionRequiredTrigger,
   ): { title: string; message: string } {
     const name = integration.name;
     switch (statusReason) {
       case 'auth_failed':
         return {
           title: 'Integration disconnected',
-          message: `"${name}" needs reauthorization — Cafe24 rejected the access token. Reconnect to resume.`,
+          message:
+            trigger === 'oauth_callback'
+              ? `"${name}" needs reauthorization — the authorization code could not be exchanged for an access token. Reconnect to resume.`
+              : `"${name}" needs reauthorization — Cafe24 rejected the access token. Reconnect to resume.`,
         };
       case 'insufficient_scope':
         return {

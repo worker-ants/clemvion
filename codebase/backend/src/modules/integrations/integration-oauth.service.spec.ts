@@ -40,6 +40,7 @@ describe('IntegrationOAuthService', () => {
     query: Mock;
     transaction: Mock;
   };
+  let actionRequiredNotifier: { notify: Mock };
 
   /** 이 spec 의 대역으로 서비스를 만든다. 바꿀 협력 객체만 덮어 넘긴다(`createIntegrationOAuthService`). */
   const serviceDeps = () => ({
@@ -47,6 +48,7 @@ describe('IntegrationOAuthService', () => {
     stateRepo,
     previewRepo,
     dataSource,
+    actionRequiredNotifier,
     configService: oauthMock.configService,
   });
 
@@ -54,6 +56,7 @@ describe('IntegrationOAuthService', () => {
     integrationRepo = makeRepo();
     stateRepo = makeRepo();
     previewRepo = makeRepo();
+    actionRequiredNotifier = { notify: jest.fn().mockResolvedValue(undefined) };
     dataSource = {
       query: jest.fn().mockResolvedValue([]),
       transaction: jest
@@ -1516,6 +1519,96 @@ describe('IntegrationOAuthService', () => {
           'msg',
         ),
       ).resolves.toBeUndefined();
+    });
+
+    // CLE-T-MQSRDS · REQ-INTSTAT-030 — 콜백의 코드 교환 실패로 연결됨 통합이 오류가 되면 전이한 그 자리에서 조치 필요
+    // 알림을 보낸다. 상태를 바꾸지 않는 기록(설치 대기 · 재설치 대기 표시 · 권한 거부 · 그 밖의 코드)에는 보내지 않는다.
+    describe('조치 필요 알림 (connected → error(auth_failed))', () => {
+      const connectedRow = (overrides: Record<string, unknown> = {}) => ({
+        id: 'int-n',
+        workspaceId: 'ws-1',
+        name: 'My Shop',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+        ...overrides,
+      });
+
+      it('저장한 행으로 auth_failed · oauth_callback 알림을 한 번 보낸다', async () => {
+        integrationRepo.findOne.mockResolvedValue(connectedRow());
+        integrationRepo.save.mockImplementation(async (row: unknown) => {
+          // 저장 시점에 알림이 아직 나가지 않았어야 한다(저장이 실패하면 알리지 않는다).
+          expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+          return row;
+        });
+        await service.markIntegrationCallbackError(
+          'int-n',
+          'ws-1',
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+          'denied',
+        );
+        expect(actionRequiredNotifier.notify).toHaveBeenCalledTimes(1);
+        const [notified, reason, trigger] =
+          actionRequiredNotifier.notify.mock.calls[0];
+        expect(notified).toBe(integrationRepo.save.mock.calls[0][0]);
+        expect(notified).toMatchObject({
+          status: 'error',
+          statusReason: 'auth_failed',
+        });
+        expect(reason).toBe('auth_failed');
+        expect(trigger).toBe('oauth_callback');
+      });
+
+      it.each([
+        [
+          '설치 대기 행',
+          { status: 'pending_install' },
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        ],
+        [
+          '유효한 재설치 대기 표시가 있는 연결됨 행',
+          { reinstallRequestedAt: new Date(Date.now() - 60 * 60 * 1000) },
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        ],
+        [
+          '이미 오류인 행',
+          { status: 'error', statusReason: 'network' },
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        ],
+        ['연결됨 행의 권한 거부', {}, 'OAUTH_INVALID_SCOPE'],
+        ['연결됨 행의 state 만료', {}, 'OAUTH_STATE_EXPIRED'],
+        [
+          '상점 자리를 놓은 만료 행',
+          { status: 'expired', statusReason: 'install_timeout' },
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        ],
+      ])(
+        '%s 은 상태를 오류로 바꾸지 않으므로 알리지 않는다',
+        async (_label, overrides, errorCode) => {
+          integrationRepo.findOne.mockResolvedValue(connectedRow(overrides));
+          await service.markIntegrationCallbackError(
+            'int-n',
+            'ws-1',
+            errorCode,
+            'msg',
+          );
+          expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+        },
+      );
+
+      it('저장이 실패하면 알리지 않는다', async () => {
+        integrationRepo.findOne.mockResolvedValue(connectedRow());
+        integrationRepo.save.mockRejectedValue(new Error('db down'));
+        await expect(
+          service.markIntegrationCallbackError(
+            'int-n',
+            'ws-1',
+            'OAUTH_TOKEN_EXCHANGE_FAILED',
+            'msg',
+          ),
+        ).resolves.toBeUndefined();
+        expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+      });
     });
   });
 

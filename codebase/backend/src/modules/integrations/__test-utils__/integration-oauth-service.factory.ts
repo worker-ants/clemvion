@@ -9,6 +9,7 @@ import { PendingInstallWriter } from '../pending-install-writer';
  *
  * - `pendingInstallWriter`: 넘긴 `dataSource` 로 만든 실제 `PendingInstallWriter`. Nest 가 주입하는 것과 같은 클래스라
  *   begin 의 설치 대기 행 쓰기를 `dataSource.transaction` 대역 그대로 시험한다.
+ * - `actionRequiredNotifier`: 아무것도 하지 않는 `notify`. 콜백 실패 알림을 보는 spec 은 jest 대역을 넘긴다.
  * - `configService` · `installNonceCache` · `workspacesService`: 없음. 생성자의 `@Optional()` 인자라 없을 때의 폴백
  *   동작(빈 oauth 설정, 재생 검사 생략, 콜백 재판정 거부)을 그대로 따른다.
  *
@@ -21,6 +22,7 @@ export interface IntegrationOAuthServiceDeps {
   previewRepo: unknown;
   dataSource: unknown;
   pendingInstallWriter?: unknown;
+  actionRequiredNotifier?: unknown;
   configService?: unknown;
   installNonceCache?: unknown;
   workspacesService?: unknown;
@@ -32,12 +34,16 @@ export function createIntegrationOAuthService(
   const pendingInstallWriter =
     deps.pendingInstallWriter ??
     new PendingInstallWriter(deps.dataSource as never);
+  const actionRequiredNotifier = deps.actionRequiredNotifier ?? {
+    notify: () => Promise.resolve(),
+  };
   return new IntegrationOAuthService(
     deps.integrationRepo as never,
     deps.stateRepo as never,
     deps.previewRepo as never,
     deps.dataSource as never,
     pendingInstallWriter as never,
+    actionRequiredNotifier as never,
     deps.configService as never,
     deps.installNonceCache as never,
     deps.workspacesService as never,
