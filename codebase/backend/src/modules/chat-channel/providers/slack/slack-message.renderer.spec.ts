@@ -176,9 +176,37 @@ describe('renderSlackEvent — basic event types', () => {
   });
 });
 
+// NERV Task CLE-T-ZEWGJP — 3500자 안에서 줄바꿈 → 공백 → 고정 길이 순으로 자를 자리를 고른다(REQ-SLACK-018).
 describe('renderSlackEvent — chunking (3500자)', () => {
+  const LIMIT = 3500;
+  const SUFFIX = '\n_(continued…)_';
+
+  /** 자리마다 글자가 다르고 공백 · escape 대상이 없는 문자열. */
+  function distinct(length: number, seed = 0): string {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let out = '';
+    for (let i = 0; i < length; i += 1)
+      out += alphabet[(i * 7 + seed) % alphabet.length];
+    return out;
+  }
+
+  function bodiesOf(message: string): string[] {
+    const msgs = renderSlackEvent({ ...BASE, message, turnCount: 1 }, CONFIG);
+    const texts = msgs.map((m) => (m.body as { text: string }).text);
+    for (let i = 0; i < msgs.length - 1; i += 1) {
+      expect(texts[i].endsWith(SUFFIX)).toBe(true);
+      expect((msgs[i].body as { chunked: boolean }).chunked).toBe(true);
+    }
+    expect(texts[texts.length - 1].endsWith(SUFFIX)).toBe(false);
+    const bodies = texts.map((t, i) =>
+      i < texts.length - 1 ? t.slice(0, -SUFFIX.length) : t,
+    );
+    for (const b of bodies) expect(b.length).toBeLessThanOrEqual(LIMIT);
+    return bodies;
+  }
+
   it('3500자 이하 → 1 chunk', () => {
-    const text = 'a'.repeat(3499);
+    const text = distinct(3500);
     const msgs = renderSlackEvent(
       { ...BASE, message: text, turnCount: 1 },
       CONFIG,
@@ -187,18 +215,40 @@ describe('renderSlackEvent — chunking (3500자)', () => {
     expect((msgs[0].body as { text: string }).text).toBe(text);
   });
 
-  it('3500자 초과 → 분할 + continued suffix', () => {
-    const text = 'a'.repeat(7000);
-    const msgs = renderSlackEvent(
-      { ...BASE, message: text, turnCount: 1 },
-      CONFIG,
-    );
-    expect(msgs.length).toBeGreaterThan(1);
-    // 마지막 외 chunk 에 continued suffix
-    for (let i = 0; i < msgs.length - 1; i += 1) {
-      expect((msgs[i].body as { text: string }).text).toContain('(continued');
-      expect((msgs[i].body as { chunked: boolean }).chunked).toBe(true);
-    }
+  it('경계 없는 7001자 → 3500자씩 고정 길이로 나누고 이으면 원문', () => {
+    const text = distinct(7001, 5);
+    const bodies = bodiesOf(text);
+    expect(bodies.map((b) => b.length)).toEqual([3500, 3500, 1]);
+    expect(bodies.join('')).toBe(text);
+  });
+
+  it('3500자 안의 마지막 줄바꿈 바로 뒤에서 자른다', () => {
+    const first = `${distinct(2000)}\n${distinct(1000, 1)} ${distinct(300, 2)}`;
+    const text = `${first}\n${distinct(2000, 3)}`;
+    const bodies = bodiesOf(text);
+    expect(bodies[0]).toBe(`${first}\n`);
+    expect(bodies.join('')).toBe(text);
+  });
+
+  it('줄바꿈이 없으면 3500자 안의 마지막 공백 바로 뒤에서 자른다', () => {
+    const text = `${distinct(2000)} ${distinct(1400, 1)} ${distinct(900, 2)}`;
+    const bodies = bodiesOf(text);
+    expect(bodies[0]).toBe(`${distinct(2000)} ${distinct(1400, 1)} `);
+    expect(bodies.join('')).toBe(text);
+  });
+
+  it('경계에서 자르면 조각이 1750자보다 짧아질 때 고정 길이로 자른다', () => {
+    const text = `${distinct(1000)} ${distinct(5000, 1)}`;
+    const bodies = bodiesOf(text);
+    expect(bodies[0]).toHaveLength(LIMIT);
+    expect(bodies.join('')).toBe(text);
+  });
+
+  it('줄바꿈 경계 앞뒤에 escape 엔티티가 있어도 escape 결과를 그대로 잇는다', () => {
+    const raw = `${distinct(3000)}<&>\n${distinct(2000, 1)}`;
+    const bodies = bodiesOf(raw);
+    expect(bodies[0]).toBe(`${distinct(3000)}&lt;&amp;&gt;\n`);
+    expect(bodies.join('')).toBe(escapeSlackMrkdwn(raw));
   });
 });
 

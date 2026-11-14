@@ -443,9 +443,20 @@ describe('renderDiscordEvent — form §4.1 native modal 게이팅', () => {
 });
 
 // NERV Task CLE-T-ZGF71P — continued 접미사를 붙여도 조각마다 Discord `content` 한도 2000자 이하.
-describe('renderDiscordEvent — 2000자 조각 한도 (REQ-DISCORD-010)', () => {
+// NERV Task CLE-T-ZEWGJP — 그 한도 안에서 줄바꿈 → 공백 → 고정 길이 순으로 자를 자리를 고른다.
+describe('renderDiscordEvent — 2000자 조각 한도와 경계 (REQ-DISCORD-010)', () => {
   const DISCORD_LIMIT = 2000;
   const SUFFIX = '\n_(continued…)_';
+  const BODY_LIMIT = DISCORD_LIMIT - SUFFIX.length;
+
+  /** 자리마다 글자가 다르고 공백이 없는 문자열. 위치가 어긋나면 이은 결과가 원문과 달라진다. */
+  function distinct(length: number, seed = 0): string {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let out = '';
+    for (let i = 0; i < length; i += 1)
+      out += alphabet[(i * 7 + seed) % alphabet.length];
+    return out;
+  }
 
   function renderTemplate(rendered: string): string[] {
     const msgs = renderDiscordEvent(
@@ -463,47 +474,89 @@ describe('renderDiscordEvent — 2000자 조각 한도 (REQ-DISCORD-010)', () =>
     });
   }
 
+  function bodiesOf(chunks: string[]): string[] {
+    chunks.slice(0, -1).forEach((c) => expect(c.endsWith(SUFFIX)).toBe(true));
+    expect(chunks[chunks.length - 1].endsWith(SUFFIX)).toBe(false);
+    return chunks.map((c, i) =>
+      i < chunks.length - 1 ? c.slice(0, -SUFFIX.length) : c,
+    );
+  }
+
   it.each([2000, 2001, 1985, 1986, 3970, 3971, 4000, 10_000])(
-    '길이 %i 인 본문 — 조각마다 접미사 포함 2000자 이하이고 이으면 원문',
+    '경계 없는 길이 %i 본문 — 조각마다 접미사 포함 2000자 이하이고 이으면 원문',
     (length) => {
-      const text = 'a'.repeat(length);
+      const text = distinct(length, length);
       const chunks = renderTemplate(text);
       for (const c of chunks)
         expect(c.length).toBeLessThanOrEqual(DISCORD_LIMIT);
-      chunks.slice(0, -1).forEach((c) => expect(c.endsWith(SUFFIX)).toBe(true));
-      expect(chunks[chunks.length - 1].endsWith(SUFFIX)).toBe(false);
-      const joined = chunks
-        .map((c, i) => (i < chunks.length - 1 ? c.slice(0, -SUFFIX.length) : c))
-        .join('');
-      expect(joined).toBe(text);
+      expect(bodiesOf(chunks).join('')).toBe(text);
     },
   );
 
   it('2000자 본문은 나누지 않는다', () => {
-    expect(renderTemplate('a'.repeat(2000))).toHaveLength(1);
+    expect(renderTemplate(distinct(2000))).toHaveLength(1);
   });
 
-  it('2001자 본문은 두 조각이고 첫 조각은 정확히 2000자다', () => {
-    const chunks = renderTemplate('a'.repeat(2001));
+  it('경계 없는 2001자 본문은 두 조각이고 첫 조각은 정확히 2000자다', () => {
+    const chunks = renderTemplate(distinct(2001));
     expect(chunks).toHaveLength(2);
     expect(chunks[0]).toHaveLength(DISCORD_LIMIT);
   });
 
-  it('AI 응답 — 마지막 조각(버튼 메시지)까지 2000자 이하', () => {
+  it('본문 한도 안의 마지막 줄바꿈 바로 뒤에서 자른다', () => {
+    const first = `${distinct(1200)}\n${distinct(300, 1)} ${distinct(200, 2)}`;
+    const text = `${first}\n${distinct(1000, 3)}`;
+    // 첫 줄바꿈(1200) 뒤와 공백(1501) 뒤가 본문 한도(1985) 안에 있다. 다음 줄바꿈(1702)이 가장 뒤다.
+    const bodies = bodiesOf(renderTemplate(text));
+    expect(bodies[0]).toBe(`${first}\n`);
+    expect(bodies.join('')).toBe(text);
+  });
+
+  it('줄바꿈이 없으면 본문 한도 안의 마지막 공백 바로 뒤에서 자른다', () => {
+    const text = `${distinct(1000)} ${distinct(900, 1)} ${distinct(500, 2)}`;
+    const bodies = bodiesOf(renderTemplate(text));
+    expect(bodies[0]).toBe(`${distinct(1000)} ${distinct(900, 1)} `);
+    expect(bodies.join('')).toBe(text);
+  });
+
+  it('경계에서 자르면 본문이 한도 절반보다 짧아질 때 고정 길이로 자른다', () => {
+    const text = `${distinct(500)} ${distinct(3000, 1)}`;
+    const bodies = bodiesOf(renderTemplate(text));
+    expect(bodies[0]).toHaveLength(BODY_LIMIT);
+    expect(bodies.join('')).toBe(text);
+  });
+
+  it('여러 문단 본문 — 조각마다 2000자 이하이고 첫 조각 뒤로는 줄바꿈 뒤에서 시작한다', () => {
+    const paragraphs = Array.from({ length: 20 }, (_, i) =>
+      distinct(150 + i * 13, i),
+    );
+    const text = paragraphs.join('\n');
+    const chunks = renderTemplate(text);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const c of chunks) expect(c.length).toBeLessThanOrEqual(DISCORD_LIMIT);
+    const bodies = bodiesOf(chunks);
+    bodies.slice(0, -1).forEach((b) => expect(b.endsWith('\n')).toBe(true));
+    expect(bodies.join('')).toBe(text);
+  });
+
+  it('AI 응답 — 마지막 조각(버튼 메시지)까지 2000자 이하이고 이으면 원문', () => {
+    const message = Array.from({ length: 60 }, (_, i) => distinct(70, i)).join(
+      ' ',
+    );
     const msgs = renderDiscordEvent(
       {
         ...BASE,
         type: 'execution.ai_message',
-        message: 'b'.repeat(4500),
+        message,
         turnCount: 1,
       } as Extract<EiaEvent, { type: 'execution.ai_message' }>,
       CONFIG,
     );
     expect(msgs.length).toBeGreaterThan(1);
-    for (const m of msgs) {
-      const text =
-        m.body.kind === 'text' || m.body.kind === 'buttons' ? m.body.text : '';
-      expect(text.length).toBeLessThanOrEqual(DISCORD_LIMIT);
-    }
+    const texts = msgs.map((m) =>
+      m.body.kind === 'text' || m.body.kind === 'buttons' ? m.body.text : '',
+    );
+    for (const t of texts) expect(t.length).toBeLessThanOrEqual(DISCORD_LIMIT);
+    expect(bodiesOf(texts).join('')).toBe(message);
   });
 });
