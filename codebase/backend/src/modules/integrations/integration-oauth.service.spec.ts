@@ -1536,9 +1536,10 @@ describe('IntegrationOAuthService', () => {
 
       it('저장한 행으로 auth_failed · oauth_callback 알림을 한 번 보낸다', async () => {
         integrationRepo.findOne.mockResolvedValue(connectedRow());
+        // save 대역 안의 단언은 던져도 구현의 try/catch 가 삼키므로, 저장 시점의 호출 수를 기록해 뒤에서 단언한다.
+        let notifyCallsAtSave = -1;
         integrationRepo.save.mockImplementation(async (row: unknown) => {
-          // 저장 시점에 알림이 아직 나가지 않았어야 한다(저장이 실패하면 알리지 않는다).
-          expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+          notifyCallsAtSave = actionRequiredNotifier.notify.mock.calls.length;
           return row;
         });
         await service.markIntegrationCallbackError(
@@ -1547,6 +1548,8 @@ describe('IntegrationOAuthService', () => {
           'OAUTH_TOKEN_EXCHANGE_FAILED',
           'denied',
         );
+        // 저장 시점에 알림이 아직 나가지 않았어야 한다(저장이 실패하면 알리지 않는다).
+        expect(notifyCallsAtSave).toBe(0);
         expect(actionRequiredNotifier.notify).toHaveBeenCalledTimes(1);
         const [notified, reason, trigger] =
           actionRequiredNotifier.notify.mock.calls[0];
@@ -1595,6 +1598,26 @@ describe('IntegrationOAuthService', () => {
           expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
         },
       );
+
+      it('만료된 재설치 대기 표시가 있는 연결됨 행은 오류로 바꾸고 알린다', async () => {
+        // 표시는 24시간만 유효하다(`isReinstallRequestActive`). 25시간 전 표시는 무효라 일반 연결됨 행처럼 전이한다.
+        integrationRepo.findOne.mockResolvedValue(
+          connectedRow({
+            reinstallRequestedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+          }),
+        );
+        await service.markIntegrationCallbackError(
+          'int-n',
+          'ws-1',
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+          'denied',
+        );
+        expect(actionRequiredNotifier.notify).toHaveBeenCalledTimes(1);
+        expect(actionRequiredNotifier.notify.mock.calls[0][0]).toMatchObject({
+          status: 'error',
+          statusReason: 'auth_failed',
+        });
+      });
 
       it('저장이 실패하면 알리지 않는다', async () => {
         integrationRepo.findOne.mockResolvedValue(connectedRow());
