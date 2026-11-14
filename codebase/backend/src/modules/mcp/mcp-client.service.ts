@@ -7,10 +7,10 @@ import pLimit, { LimitFunction } from 'p-limit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { Dispatcher } from 'undici';
 import { TimeoutError, withTimeout } from '../../common/utils/with-timeout';
 import {
   createGuardedLookupDispatcher,
+  createLazyGuardedDispatcher,
   findCause,
 } from '../../common/utils/guarded-lookup-dispatcher';
 import {
@@ -246,7 +246,17 @@ export class McpClientService {
   private readonly limit: LimitFunction;
   private readonly connectTimeoutMs: number;
   /** {@link guardedFetch} 가 나눠 쓰는 연결 시점 판정 dispatcher. 처음 쓸 때 만든다. */
-  private connectGuardDispatcher: Dispatcher | undefined;
+  private readonly connectGuardDispatcher = createLazyGuardedDispatcher(() =>
+    createGuardedLookupDispatcher(({ address }, hostname) => {
+      if (!this.isBlockedHost(address.toLowerCase())) return null;
+      this.logger.warn(
+        `[mcp] SSRF block at connect: host ${hostname} resolved to ${address}`,
+      );
+      return new McpHttpsRequiredError(
+        `MCP server host is blocked by SSRF policy (host=${hostname})`,
+      );
+    }),
+  );
 
   // refactor M-6: MCP_MAX_CONCURRENT_CONNECTIONS / MCP_CONNECT_TIMEOUT_MS 직접 접근을
   // ConfigService(`mcp.*`, number|undefined 로 파싱됨)로 이전. `@Optional()` — 수동 생성
@@ -435,18 +445,7 @@ export class McpClientService {
    */
   private guardedFetch(): FetchLike | undefined {
     if (this.allowInsecureUrl) return undefined;
-    this.connectGuardDispatcher ??= createGuardedLookupDispatcher(
-      ({ address }, hostname) => {
-        if (!this.isBlockedHost(address.toLowerCase())) return null;
-        this.logger.warn(
-          `[mcp] SSRF block at connect: host ${hostname} resolved to ${address}`,
-        );
-        return new McpHttpsRequiredError(
-          `MCP server host is blocked by SSRF policy (host=${hostname})`,
-        );
-      },
-    );
-    const dispatcher = this.connectGuardDispatcher;
+    const dispatcher = this.connectGuardDispatcher.get();
     // `dispatcher` 는 Node fetch(undici) 확장이라 DOM 의 `RequestInit` 타입에 없다.
     return (input, init) =>
       fetch(input, { ...init, dispatcher } as RequestInit);

@@ -9,7 +9,6 @@ import {
   isPrivateIpv4,
   isPrivateIpv6,
   normalizeIpv6Literal,
-  notificationWebhookDispatcher,
   resolvedAddressBlockReason,
   shouldWarnNotificationDnsGuardOff,
 } from './ssrf-safe-url.util';
@@ -849,13 +848,5 @@ describe('resolvedAddressBlockReason', () => {
       ok: false,
       reason: resolvedAddressBlockReason('10.0.0.5'),
     });
-  });
-});
-
-describe('notificationWebhookDispatcher', () => {
-  it('프로세스에 하나만 만들어 나눠 쓴다', () => {
-    expect(notificationWebhookDispatcher()).toBe(
-      notificationWebhookDispatcher(),
-    );
   });
 });

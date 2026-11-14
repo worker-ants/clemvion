@@ -22,6 +22,11 @@ import {
 } from './notification-signature.util';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import * as ssrfSafeUrl from '../../common/utils/ssrf-safe-url.util';
+import {
+  ResolvedHostBlockedError,
+  notificationWebhookDispatcher,
+  resetNotificationWebhookDispatcherForTesting,
+} from './notification-webhook-dispatcher';
 import { fetch as undiciFetch } from 'undici';
 
 // 발송 직전 DNS 결과 검사(`checkResolvedHostIp`)가 부르는 OS 해석기. 검사는 운영 기본 또는 opt-in 때만 돌아서 다른
@@ -1065,9 +1070,7 @@ describe('NotificationWebhookProcessor — 발송 직전 DNS 결과 검사', () 
 
       await processor.process(makeJob({ eventType: 'execution.completed' }));
 
-      expect(fetchInit().dispatcher).toBe(
-        ssrfSafeUrl.notificationWebhookDispatcher(),
-      );
+      expect(fetchInit().dispatcher).toBe(notificationWebhookDispatcher());
       expect(fetchInit()).toEqual(
         expect.objectContaining({ method: 'POST', redirect: 'manual' }),
       );
@@ -1091,7 +1094,7 @@ describe('NotificationWebhookProcessor — 발송 직전 DNS 결과 검사', () 
         'resolved IPv4 10.0.0.9 falls in a private/loopback/metadata range';
       fetchSpy.mockRejectedValue(
         new TypeError('fetch failed', {
-          cause: new ssrfSafeUrl.ResolvedHostBlockedError(reason),
+          cause: new ResolvedHostBlockedError(reason),
         }),
       );
       jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
@@ -1150,6 +1153,8 @@ describe('NotificationWebhookProcessor — 발송 직전 DNS 결과 검사', () 
 
       afterAll(async () => {
         await close(server);
+        // keep-alive 소켓이 jest 프로세스에 남지 않게 판정 dispatcher 를 닫는다.
+        await resetNotificationWebhookDispatcherForTesting();
       });
 
       beforeEach(() => {
@@ -1162,6 +1167,9 @@ describe('NotificationWebhookProcessor — 발송 직전 DNS 결과 검사', () 
       });
 
       afterEach(() => {
+        // 이 describe 가 바꾼 전역 fetch 를 원래대로 되돌린다.
+        (globalThis as unknown as { fetch: typeof realFetch }).fetch =
+          realFetch;
         if (savedAllowHttp === undefined) delete process.env.ALLOW_HTTP_HOOKS;
         else process.env.ALLOW_HTTP_HOOKS = savedAllowHttp;
       });

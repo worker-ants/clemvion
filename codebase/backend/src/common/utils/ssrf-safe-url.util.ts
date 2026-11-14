@@ -1,6 +1,4 @@
 import { lookup } from 'node:dns/promises';
-import type { Dispatcher } from 'undici';
-import { createGuardedLookupDispatcher } from './guarded-lookup-dispatcher';
 
 /**
  * SSRF (Server-Side Request Forgery) 방지 — outbound HTTP 호출 대상 URL 의 register-time
@@ -295,7 +293,7 @@ export const DNS_LOOKUP_TIMEOUT_MS = 3000;
  * - `lookup` 은 fetch 가 연결할 때 쓰는 해석기와 같아서 `/etc/hosts` · 검색 도메인으로 푸는 주소도 본다.
  *   네트워크 DNS 만 묻는 `resolve4` · `resolve6` 은 그 주소를 놓친다(CLE-EIA-NOTIFY Rationale 의 실측).
  * - 해석에 실패하면 통과시킨다(fail-open). 풀리지 않는 이름은 fetch 도 연결하지 못한다.
- * - 검사와 발송 연결은 DNS 를 각자 조회한다. 그 사이 응답이 바뀌는 경우는 {@link notificationWebhookDispatcher} 가
+ * - 검사와 발송 연결은 DNS 를 각자 조회한다. 그 사이 응답이 바뀌는 경우는 `notificationWebhookDispatcher` 가
  *   연결할 때 같은 대역표로 다시 판정해서 막는다(CLE-T-GAQCF9). 이 검사는 서명 · 발송 전에 막아 재시도 없이
  *   degraded 로 두려고 남긴다.
  * - 해석이 `DNS_LOOKUP_TIMEOUT_MS` 안에 끝나지 않으면 해석 실패와 똑같이 통과시킨다(fail-open). 시간을 넘긴
@@ -355,7 +353,7 @@ export async function checkResolvedHostIp(
 
 /**
  * 해석기가 돌려준 주소 하나가 사설 · loopback · metadata 대역이면 거부 사유를, 아니면 `null` 을 돌려준다.
- * {@link checkResolvedHostIp} 와 {@link notificationWebhookDispatcher} 가 같은 판정과 사유 문구를 쓴다.
+ * {@link checkResolvedHostIp} 와 `notificationWebhookDispatcher` 가 같은 판정과 사유 문구를 쓴다.
  */
 export function resolvedAddressBlockReason(address: string): string | null {
   if (address.includes(':')) {
@@ -366,34 +364,4 @@ export function resolvedAddressBlockReason(address: string): string | null {
   return isPrivateIpv4(address)
     ? `resolved IPv4 ${address} falls in a private/loopback/metadata range`
     : null;
-}
-
-/**
- * 알림 웹훅 연결 시점 판정이 연결을 막았다. `reason` 은 {@link checkResolvedHostIp} 의 거부 사유와 같은 문구다.
- * `fetch` 는 `TypeError('fetch failed')` 로 끝나고 이 오류는 그 `cause` 에 있다.
- */
-export class ResolvedHostBlockedError extends Error {
-  constructor(readonly reason: string) {
-    super(`blocked at connect: ${reason}`);
-    this.name = 'ResolvedHostBlockedError';
-  }
-}
-
-let notificationDispatcher: Dispatcher | undefined;
-
-/**
- * 알림 웹훅 발송 `fetch` 의 `dispatcher`(CLE-T-GAQCF9). 연결할 때 푼 주소를 {@link resolvedAddressBlockReason} 으로
- * 판정하고, 통과한 주소로만 연결한다. 막히면 {@link ResolvedHostBlockedError} 로 연결을 끝낸다.
- *
- * - 발송 직전 DNS 검사를 켤 때만 쓴다(`isNotificationDnsGuardEnabled`). 끄면 전역 dispatcher 로 보낸다.
- * - 프로세스에 하나만 만들어 나눠 쓴다. 발송마다 연결 풀을 새로 열지 않기 위해서다.
- * - 해석 실패는 판정하지 않고 전송 오류로 둔다. {@link checkResolvedHostIp} 의 fail-open 과 같다.
- * - TLS 의 SNI 와 인증서 검증은 URL 의 호스트 이름으로 한다.
- */
-export function notificationWebhookDispatcher(): Dispatcher {
-  notificationDispatcher ??= createGuardedLookupDispatcher(({ address }) => {
-    const reason = resolvedAddressBlockReason(address);
-    return reason ? new ResolvedHostBlockedError(reason) : null;
-  });
-  return notificationDispatcher;
 }

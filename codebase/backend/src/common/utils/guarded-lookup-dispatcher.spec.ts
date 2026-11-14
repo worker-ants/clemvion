@@ -7,6 +7,7 @@ import {
   autoSelectFamilyAgentOptions,
   createGuardedLookup,
   createGuardedLookupDispatcher,
+  createLazyGuardedDispatcher,
   findCause,
 } from './guarded-lookup-dispatcher';
 
@@ -106,6 +107,30 @@ describe('createGuardedLookup', () => {
 
     expect(err).toBe(notFound);
     expect(guardFn).not.toHaveBeenCalled();
+  });
+
+  it('fails with ENOTFOUND when the resolver returns no address', async () => {
+    answer([]);
+    const guardFn = jest.fn(() => null);
+
+    const { err } = await callLookup(guardFn, { all: true });
+
+    expect((err as NodeJS.ErrnoException).code).toBe('ENOTFOUND');
+    expect(guardFn).not.toHaveBeenCalled();
+  });
+
+  it('hands a throwing guard to the callback as an error', async () => {
+    answer([{ address: '93.184.216.34', family: 4 }]);
+    const boom = new Error('guard exploded');
+
+    const { err } = await callLookup(
+      () => {
+        throw boom;
+      },
+      { all: true },
+    );
+
+    expect(err).toBe(boom);
   });
 });
 
@@ -216,5 +241,25 @@ describe('autoSelectFamilyAgentOptions', () => {
     expect(
       autoSelectFamilyAgentOptions({ DISABLE_UNDICI_AUTO_SELECT_FAMILY: '1' }),
     ).toEqual({});
+  });
+});
+
+describe('createLazyGuardedDispatcher', () => {
+  it('builds once and reuses, then rebuilds after reset (closing the old one)', async () => {
+    const close = jest.fn().mockResolvedValue(undefined);
+    const factory = jest.fn(() => ({ close }) as never);
+    const lazy = createLazyGuardedDispatcher(factory);
+
+    expect(factory).not.toHaveBeenCalled();
+    const first = lazy.get();
+    expect(lazy.get()).toBe(first);
+    expect(factory).toHaveBeenCalledTimes(1);
+
+    await lazy.reset();
+    expect(close).toHaveBeenCalledTimes(1);
+    await lazy.reset();
+    expect(close).toHaveBeenCalledTimes(1);
+    lazy.get();
+    expect(factory).toHaveBeenCalledTimes(2);
   });
 });

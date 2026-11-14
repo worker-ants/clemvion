@@ -1,6 +1,6 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import type { LookupFunction } from 'node:net';
-import { Agent } from 'undici';
+import { Agent, type Dispatcher } from 'undici';
 
 /**
  * 연결할 때 푼 주소 하나를 판정한다. 막으면 사유를 담은 오류를, 통과면 `null` 을 돌려준다.
@@ -55,8 +55,29 @@ export function createGuardedLookup(
         callback(err, '', 0);
         return;
       }
+      if (addresses.length === 0) {
+        // 주소가 하나도 없으면 연결할 곳이 없다. 해석 실패와 같은 오류로 끝낸다.
+        const notFound: NodeJS.ErrnoException & { hostname?: string } =
+          new Error(`getaddrinfo ENOTFOUND ${hostname}`);
+        notFound.code = 'ENOTFOUND';
+        notFound.syscall = 'getaddrinfo';
+        notFound.hostname = hostname;
+        callback(notFound, '', 0);
+        return;
+      }
       for (const resolved of addresses) {
-        const blocked = guard(resolved, hostname);
+        let blocked: Error | null;
+        try {
+          blocked = guard(resolved, hostname);
+        } catch (guardErr) {
+          // 판정이 던져도 통과시키지 않는다. 연결 오류로 끝낸다.
+          callback(
+            guardErr instanceof Error ? guardErr : new Error(String(guardErr)),
+            '',
+            0,
+          );
+          return;
+        }
         if (blocked) {
           callback(blocked, '', 0);
           return;
@@ -85,6 +106,37 @@ export function createGuardedLookupDispatcher(
     ...autoSelectFamilyAgentOptions(),
     connect: { lookup: createGuardedLookup(guard) },
   });
+}
+
+/** {@link createLazyGuardedDispatcher} 가 돌려주는 지연 싱글턴 핸들. */
+export interface LazyGuardedDispatcher {
+  /** 처음 부를 때 만들고 이후에는 같은 dispatcher 를 돌려준다. */
+  get(): Dispatcher;
+  /** 테스트용. 만들어 둔 dispatcher 를 닫고 캐시를 비운다. 다음 `get()` 이 새로 만든다. */
+  reset(): Promise<void>;
+}
+
+/**
+ * 연결 시점 판정 dispatcher 를 처음 부를 때 한 번 만들어 나눠 쓰는 지연 싱글턴.
+ *
+ * 알림 웹훅 · MCP · HTTP Request 세 호출처가 같은 방식으로 쓴다. 판정 기준이 같은 경로끼리 하나를 나눠 써야
+ * undici 연결 풀(keep-alive)이 요청마다 새로 열리지 않는다. 끄는 조건(환경 변수)은 호출처가 `get()` 을 부르기
+ * 전에 정한다.
+ *
+ * @param factory dispatcher 를 만드는 함수. 보통 {@link createGuardedLookupDispatcher} 를 부른다.
+ */
+export function createLazyGuardedDispatcher(
+  factory: () => Dispatcher,
+): LazyGuardedDispatcher {
+  let instance: Dispatcher | undefined;
+  return {
+    get: () => (instance ??= factory()),
+    reset: async () => {
+      const current = instance;
+      instance = undefined;
+      await current?.close();
+    },
+  };
 }
 
 /** {@link findCause} 가 거슬러 올라가는 `cause` 의 최대 깊이. 순환 참조로 멈추지 않게 둔다. */

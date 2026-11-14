@@ -32,7 +32,10 @@
  */
 import { lookup } from 'node:dns/promises';
 import type { Dispatcher } from 'undici';
-import { createGuardedLookupDispatcher } from '../../../common/utils/guarded-lookup-dispatcher.js';
+import {
+  createGuardedLookupDispatcher,
+  createLazyGuardedDispatcher,
+} from '../../../common/utils/guarded-lookup-dispatcher.js';
 
 /**
  * SSRF 가드가 요청을 막았을 때의 클라이언트 문구 — 차단된 host/IP 를 싣지 않는다(정찰 면 축소, CWE-209). 원본 상세
@@ -219,7 +222,15 @@ export async function assertSafeOutboundHostResolved(
   }
 }
 
-let connectGuardDispatcher: Dispatcher | undefined;
+const connectGuardDispatcher = createLazyGuardedDispatcher(() =>
+  createGuardedLookupDispatcher(({ address }, hostname) =>
+    isBlockedHostname(address)
+      ? new SsrfBlockedError(
+          `hostname "${hostname}" resolved to restricted IP "${address}" at connect time`,
+        )
+      : null,
+  ),
+);
 
 /**
  * 연결 시점 판정 dispatcher. `fetch(url, { dispatcher })` 로 넘기면 연결할 때 푼 주소를 {@link isBlockedHostname}
@@ -233,13 +244,10 @@ let connectGuardDispatcher: Dispatcher | undefined;
  */
 export function safeOutboundDispatcher(): Dispatcher | undefined {
   if (isPrivateHostsAllowed()) return undefined;
-  connectGuardDispatcher ??= createGuardedLookupDispatcher(
-    ({ address }, hostname) =>
-      isBlockedHostname(address)
-        ? new SsrfBlockedError(
-            `hostname "${hostname}" resolved to restricted IP "${address}" at connect time`,
-          )
-        : null,
-  );
-  return connectGuardDispatcher;
+  return connectGuardDispatcher.get();
+}
+
+/** 테스트용. 만들어 둔 dispatcher 를 닫고 다음 호출이 새로 만들게 한다. */
+export function resetSafeOutboundDispatcherForTesting(): Promise<void> {
+  return connectGuardDispatcher.reset();
 }

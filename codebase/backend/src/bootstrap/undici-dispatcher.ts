@@ -6,8 +6,9 @@
  * 이 broken (ISP / 컨테이너 네트워크 / VPN 등에서 흔함) 이면 약 30초 후 syscall
  * `ETIMEDOUT` 으로 fail. 자동 IPv4 retry 없음.
  *
- * 해결: process boot 시 1회 `setGlobalDispatcher(new Agent({ autoSelectFamily: true,
- * autoSelectFamilyAttemptTimeout: 300 }))` 로 교체. 모든 outbound fetch (TelegramClient
+ * 해결: process boot 시 1회 `setGlobalDispatcher(new Agent(autoSelectFamilyAgentOptions()))` 로 교체
+ * (옵션은 `autoSelectFamily: true`, `autoSelectFamilyAttemptTimeout: 300` 이고 정의는
+ * `common/utils/guarded-lookup-dispatcher.ts` 의 `autoSelectFamilyAgentOptions` 에 있다). 모든 outbound fetch (TelegramClient
  * / SlackClient / DiscordClient / LLM clients / HTTP node handler / cafe24 client 등)
  * 가 자동 영향 — 어댑터별 dispatcher 주입 불필요.
  *

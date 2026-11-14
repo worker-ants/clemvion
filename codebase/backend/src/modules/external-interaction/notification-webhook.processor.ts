@@ -20,12 +20,14 @@ import {
 } from './notification-signature.util';
 import type { Dispatcher } from 'undici';
 import {
-  ResolvedHostBlockedError,
   checkResolvedHostIp,
   checkSsrfSafeUrl,
   isNotificationDnsGuardEnabled,
-  notificationWebhookDispatcher,
 } from '../../common/utils/ssrf-safe-url.util';
+import {
+  ResolvedHostBlockedError,
+  notificationWebhookDispatcher,
+} from './notification-webhook-dispatcher';
 import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { readStoredSigningSecret } from '../triggers/notification-signing-secret';
