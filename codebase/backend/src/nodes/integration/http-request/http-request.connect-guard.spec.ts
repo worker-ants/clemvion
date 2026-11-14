@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { Logger } from '@nestjs/common';
 import { fetch as undiciFetch } from 'undici';
 import { HttpRequestHandler } from './http-request.handler.js';
+import { resetSafeOutboundDispatcherForTesting } from './http-safety.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -59,6 +60,8 @@ describe('HTTP Request — connect-time guard against DNS rebinding (real fetch)
   });
 
   afterAll(async () => {
+    // 공용 dispatcher 의 keep-alive 연결을 먼저 닫아야 서버가 바로 닫힌다.
+    await resetSafeOutboundDispatcherForTesting();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 

@@ -4,6 +4,8 @@ import {
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
   isBlockedHostname,
+  resetSafeOutboundDispatcherForTesting,
+  safeOutboundDispatcher,
   SsrfBlockedError,
 } from './http-safety';
 
@@ -249,5 +251,53 @@ describe('http-safety — IPv4-mapped IPv6 가 두 층을 모두 지나지 못�
     await expect(
       assertSafeOutboundHostResolved('mapped.example.com'),
     ).rejects.toThrow(/SSRF_BLOCKED/);
+  });
+});
+
+describe('http-safety — safeOutboundDispatcher (연결 시점 판정 dispatcher)', () => {
+  const previous = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+
+  afterEach(async () => {
+    if (previous === undefined) {
+      delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+    } else {
+      process.env.ALLOW_PRIVATE_HOST_TARGETS = previous;
+    }
+    await resetSafeOutboundDispatcherForTesting();
+  });
+
+  it('프로세스에 하나만 만들어 같은 인스턴스를 돌려준다', () => {
+    delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+
+    const first = safeOutboundDispatcher();
+
+    expect(first).toBeDefined();
+    expect(safeOutboundDispatcher()).toBe(first);
+  });
+
+  it('ALLOW_PRIVATE_HOST_TARGETS=true 면 undefined 를 돌려줘 전역 dispatcher 를 쓰게 한다', () => {
+    process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+
+    expect(safeOutboundDispatcher()).toBeUndefined();
+  });
+
+  it.each(['false', '1', 'TRUE'])(
+    'ALLOW_PRIVATE_HOST_TARGETS=%s 는 우회로 보지 않고 dispatcher 를 돌려준다',
+    (value) => {
+      process.env.ALLOW_PRIVATE_HOST_TARGETS = value;
+
+      expect(safeOutboundDispatcher()).toBeDefined();
+    },
+  );
+
+  it('reset 뒤 다음 호출은 새 인스턴스를 만든다', async () => {
+    delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+    const first = safeOutboundDispatcher();
+
+    await resetSafeOutboundDispatcherForTesting();
+    const second = safeOutboundDispatcher();
+
+    expect(second).toBeDefined();
+    expect(second).not.toBe(first);
   });
 });

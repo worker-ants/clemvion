@@ -43,6 +43,8 @@ export function autoSelectFamilyAgentOptions(
  * - `net.connect` 는 `autoSelectFamily` 가 켜져 있으면 `{ all: true }` 로 주소 목록을, 꺼져 있으면 주소 하나를 받는다.
  *   두 모양을 모두 지원한다. 주소 하나를 원할 때는 해석기가 돌려준 첫 주소를 준다(`dns.lookup` 기본 동작과 같다).
  * - 해석 실패는 해석기의 오류를 그대로 넘긴다. 연결은 `ENOTFOUND` 같은 전송 오류로 끝난다.
+ * - 해석기가 오류 없이 빈 목록을 돌려주면 연결할 주소가 없으므로 `ENOTFOUND` 오류로 끝낸다.
+ * - `guard` 가 예외를 던지면 그 주소를 통과시키지 않고 그 예외를 연결 오류로 넘긴다.
  * - IP 리터럴 호스트에는 `net.connect` 가 조회를 부르지 않는다. 리터럴 판정은 호출자의 사전 검사가 맡는다.
  * - TLS 의 SNI 와 인증서 검증은 undici 가 URL 의 호스트 이름으로 한다. 이 함수는 연결할 IP 만 정한다.
  */

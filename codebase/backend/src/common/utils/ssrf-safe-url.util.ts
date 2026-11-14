@@ -293,7 +293,8 @@ export const DNS_LOOKUP_TIMEOUT_MS = 3000;
  * - `lookup` 은 fetch 가 연결할 때 쓰는 해석기와 같아서 `/etc/hosts` · 검색 도메인으로 푸는 주소도 본다.
  *   네트워크 DNS 만 묻는 `resolve4` · `resolve6` 은 그 주소를 놓친다(CLE-EIA-NOTIFY Rationale 의 실측).
  * - 해석에 실패하면 통과시킨다(fail-open). 풀리지 않는 이름은 fetch 도 연결하지 못한다.
- * - 검사와 발송 연결은 DNS 를 각자 조회한다. 그 사이 응답이 바뀌는 경우는 `notificationWebhookDispatcher` 가
+ * - 검사와 발송 연결은 DNS 를 각자 조회한다. 그 사이 응답이 바뀌는 경우는
+ *   `notificationWebhookDispatcher`(`modules/external-interaction/notification-webhook-dispatcher.ts`)가
  *   연결할 때 같은 대역표로 다시 판정해서 막는다(CLE-T-GAQCF9). 이 검사는 서명 · 발송 전에 막아 재시도 없이
  *   degraded 로 두려고 남긴다.
  * - 해석이 `DNS_LOOKUP_TIMEOUT_MS` 안에 끝나지 않으면 해석 실패와 똑같이 통과시킨다(fail-open). 시간을 넘긴
@@ -353,7 +354,8 @@ export async function checkResolvedHostIp(
 
 /**
  * 해석기가 돌려준 주소 하나가 사설 · loopback · metadata 대역이면 거부 사유를, 아니면 `null` 을 돌려준다.
- * {@link checkResolvedHostIp} 와 `notificationWebhookDispatcher` 가 같은 판정과 사유 문구를 쓴다.
+ * {@link checkResolvedHostIp} 와 `notificationWebhookDispatcher`(`modules/external-interaction/notification-webhook-dispatcher.ts`)가
+ * 같은 판정과 사유 문구를 쓴다.
  */
 export function resolvedAddressBlockReason(address: string): string | null {
   if (address.includes(':')) {
