@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-HANDLER"
 title: "통합 노드 공통 — 핸들러 실행 계약"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "fb0a372c4393106d1017808e13986fccb9471277456f4d9da550aae0f760d9d1"
+content_hash: "53b0006ac925640e37127ab6d2c1c1410229a6ade994ab908a241159f1317234"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-BDPE71"
 source_paths: []
-mirror_sha256: "1187e2a576c25e55e8ef307633d0ab800835d9189fa332d52924f1e884441e02"
-etag: "sha256-e16b332dfd3e5436149eff4d09a069129c4f821c986fb15dd51d9a78967a08c4"
+mirror_sha256: "f3b7e08afef072cc4bc8c4bdec93273da0088c7a70c6d933b1f07f8d95d3f26a"
+etag: "sha256-037ca202a003fc2f9886b38c5b03e5f2f43644485420e08f27e2b44b2eca5e77"
 ---
 ## 개요
 
@@ -85,7 +85,7 @@ class IntegrationsService {
 - 재개·재시도 턴의 서버별 표현식 여부는 첫 턴에 저장한 배열 `mcpServerFromExpression` 을 쓴다. 저장 규칙과 배열이 없는 옛 체크포인트의 처리는 [실행 상태 머신과 대기·재개 「보존 예외 `_resumeCheckpoint`」](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint) 가 정한다.
 - 노드 ID 와 표현식 여부는 `variables` 에서 읽지 않는다. Code 노드가 `__*` 를 포함한 `context.variables` 를 덮어쓸 수 있어서다([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 규칙 5).
 
-`logUsage` 는 best-effort 다. 내부 예외를 삼키므로 실행 흐름을 멈추지 않는다. `logUsage` 가 갱신하는 통합 컬럼은 `last_used_at` 과 `last_error` 다. MCP `AUTH_FAILED` 로 실패하면 `status`·`status_reason` 도 바꾼다([통합 데이터와 흐름 「노드 실행의 통합 사용」](../CLE-INT/CLE-INT-DATA.md#노드-실행의-통합-사용)). 받은 통합에서는 `id` 만 읽어 활동 로그 행의 `integration_id` 와 통합 행 UPDATE 의 조건으로 쓴다. 통합 행은 필요한 컬럼만 고치는 UPDATE 한 번으로 고치고 받은 엔티티를 저장하지 않는다. 노드 실행 결과로 통합 상태가 바뀌는 범위는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)에서 정한다.
+`logUsage` 는 best-effort 다. 내부 예외를 삼키므로 실행 흐름을 멈추지 않는다. `logUsage` 가 갱신하는 통합 컬럼은 `last_used_at` 과 `last_error` 다. MCP `AUTH_FAILED` 로 실패하면 `status`·`status_reason` 도 `error(auth_failed)` 로 바꾸고, 행이 바뀐 호출만 조치 필요 알림을 보낸다([통합 데이터와 흐름 — 데이터 흐름 「노드 실행의 통합 사용」](../CLE-INT/CLE-INT-DATA-RUN.md#노드-실행의-통합-사용), [MCP 클라이언트 — 에러 처리 「인증 실패 상태 전환」](../CLE-INT/CLE-INT-MCP-ERROR.md#인증-실패-상태-전환)). 받은 통합에서는 `id` 만 읽어 활동 로그 행의 `integration_id` 와 통합 행 UPDATE 의 조건으로 쓴다. 통합 행은 필요한 컬럼만 고치는 UPDATE 한 번으로 고치고 받은 엔티티를 저장하지 않는다. 노드 실행 결과로 통합 상태가 바뀌는 범위는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)에서 정한다.
 
 ### IntegrationHandlerBase
 

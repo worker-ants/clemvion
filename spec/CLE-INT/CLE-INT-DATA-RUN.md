@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-RUN"
 title: "통합 데이터와 흐름 — 실행과 정리 흐름"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "cd16bc51f6759245a267c1b505f37ab94c27ed6580b0805d82888631bf3016b0"
+content_hash: "eba414243b87e2bd85741c8b4f6d925feb668dbe6267d0de760d512e10a50e16"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-BDPE71"
 source_paths: []
-mirror_sha256: "389acf93771e812aa1389f61e33939a32c4b0ca81af81766ec2ebf6e7c28d1ab"
-etag: "sha256-db9452bfb8f81d73dd5407a81fafaa41b6cad1a1b63a6b62d48ea7a801292ae9"
+mirror_sha256: "d29ab14d213a617f6e17990738d8a2a10aee5d7c79a350c47bf40b5cce862ed1"
+etag: "sha256-b46887e0cd59702230d2269ec79c6cdcce63ce33721c80f4faa0f4a6d40be64f"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -50,6 +50,9 @@ sequenceDiagram
     Svc->>PG: UPDATE integration last_used_at (성공·실패 공통, 한 번의 UPDATE)
     opt 실패
       Svc->>PG: last_error 기록, 에러 코드가 MCP AUTH_FAILED 면 status error, status_reason auth_failed
+      opt MCP AUTH_FAILED 로 행이 바뀜
+        Svc->>Svc: 조치 필요 알림 (계기 mcp_call)
+      end
     end
   end
 ```
@@ -60,6 +63,7 @@ sequenceDiagram
 - `IntegrationsService.logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다. 활동 로그 행의 `integration_id` 와 통합 행 UPDATE 는 그 통합의 `id` 로 하고 받은 엔티티를 저장하지 않는다. 통합을 얻기 전에 끝난 실행은 넘길 통합이 없어 기록하지 않는다. 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)도 `getForExecution` 이 통합을 돌려주지 않으므로 기록하지 않는다([통합 노드 공통 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05)). 얻기 전에 끝나는 실패의 목록은 [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) 의 «통합을 얻기 전에 끝난 실행의 기록» 이 정본이다. 서명은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 에 있다.
 - 서비스 유형과 연결 상태는 서비스가 아니라 핸들러 기반 클래스가 3단계에서 검증한다(`integration-handler-base.ts`, [통합 노드 공통 「IntegrationHandlerBase」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationhandlerbase)). 연결 상태 실패의 메시지에는 상태와 사유를 싣는다. 통합을 얻은 뒤의 실패라 그 통합에 활동 로그를 남긴다.
 - `logUsage` 는 예외를 던지지 않는다. 기록 실패가 노드 실행을 깨지 않도록 삼킨다. `nodeExecutionId` 가 없으면 행을 쓰지 않는다.
+- MCP 도구 호출이 `MCP_AUTH_FAILED` 로 실패하면 `logUsage` 가 조건부 UPDATE 한 번으로 통합을 `error(auth_failed)` 로 바꾼다. 다른 사유의 `error` 도 바뀌고, 이미 `error(auth_failed)` 면 바뀌지 않는다. UPDATE 가 행을 바꾼 호출만 조치 필요 알림(계기 `mcp_call`)을 보낸다. 규칙의 정본은 [MCP 클라이언트 — 에러 처리 「인증 실패 상태 전환」](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환) 이고 문구는 [통합 상태와 만료 알림 — 만료 스캐너와 알림 「조치 필요 알림」](CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) 이 정한다.
 - Cafe24·MakeShop 의 인증 실패와 네트워크 실패로 인한 오류 전이는 `logUsage` 가 아니라 각 클라이언트의 `markAuthFailed`·`recordNetworkFailure` 가 한다. 노드 실행 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
 - 재설치 대기 표시는 실행 경로가 보지 않는다. 표시가 있는 연결됨 행은 기존 토큰으로 계속 실행된다. 표시가 있는 오류·만료됨 행은 위 상태 검사에서 막힌다.
 
@@ -129,6 +133,10 @@ Redis pub/sub 을 고른 근거와 기각한 대안(유휴 타임아웃 단축)�
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/` (AI 에이전트 도구 프로바이더의 활동 로그 기록. 내부 MCP 브리지 `Cafe24McpToolProvider` · `MakeshopMcpToolProvider` 와 외부 MCP `McpToolProvider`)
 
 ## Rationale
+
+### MCP 인증 실패의 알림을 노드 실행 흐름에 적었다 (2026-11-14)
+
+`logUsage` 의 시퀀스는 MCP `AUTH_FAILED` 의 상태 전이만 그리고 그 뒤의 조치 필요 알림을 그리지 않았다. 정본인 [MCP 클라이언트 — 에러 처리 「인증 실패 상태 전환」](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환) 은 행이 바뀐 호출만 알림을 보낸다고 적는다. NERV Task `CLE-T-BDPE71` 에서 시퀀스와 본문에 그 단계를 더했다. 동작은 바뀌지 않았다.
 
 ### 나간 멤버의 개인 통합 삭제 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
 
