@@ -22,7 +22,7 @@ export const assistant = {
   candidatePickerConfirm: "이 항목으로 설정",
   candidatePickerSelected: "✓ {{label}}: {{selected}} 로 설정됨",
   candidatePickerEmpty:
-    "사용 가능한 {{label}} 이(가) 없어요. Settings 에서 먼저 등록해 주세요.",
+    "사용 가능한 {{label}} 이(가) 없어요. 설정 화면에서 먼저 등록해 주세요.",
   candidatePickerEmptyLink: "설정 화면으로 이동",
   toolCallBadgeRetryRecovered: "재시도 후 성공",
   errorBubbleTitle: "요청 처리 중 문제가 발생했어요",
@@ -77,4 +77,11 @@ export const assistant = {
   toolBadgeExecutionDetailNodes: "실행 상세: 노드 {{count}}개",
   errorStreamingUnsupported:
     "선택한 모델 설정의 프로바이더는 스트리밍 응답을 지원하지 않아 어시스턴트에서 쓸 수 없어요. 다른 모델 설정을 골라 주세요.",
+  toolBadgeCurrentWorkflow: "현재 워크플로우",
+  toolBadgeVerifyWorkflow: "워크플로우 검증",
+  toolBadgeProposePlan: "계획 제안",
+  toolBadgeClearPlan: "계획 지우기",
+  toolBadgeOther: "도구: {{name}}",
+  errorUnknown: "잠시 후 같은 메시지를 다시 보내 주세요.",
+  candidateUnnamed: "(이름 없음)",
 } as const;

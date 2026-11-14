@@ -80,4 +80,11 @@ export const assistant: Dict["assistant"] = {
   toolBadgeExecutionDetailNodes: "execution detail: {{count}} nodes",
   errorStreamingUnsupported:
     "The selected model config's provider doesn't support streaming responses, so the assistant can't use it. Choose another model config.",
+  toolBadgeCurrentWorkflow: "current workflow",
+  toolBadgeVerifyWorkflow: "verify workflow",
+  toolBadgeProposePlan: "propose plan",
+  toolBadgeClearPlan: "clear plan",
+  toolBadgeOther: "tool: {{name}}",
+  errorUnknown: "Send your message again in a moment.",
+  candidateUnnamed: "(untitled)",
 };

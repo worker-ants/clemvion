@@ -18,9 +18,12 @@ export function PlanCard({ plan, onApprove, canApprove }: PlanCardProps) {
       <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
         {t("assistant.planCardTitle")}
       </div>
-      <div className="mb-1 text-sm font-semibold text-[hsl(var(--foreground))]">
-        {plan.title}
-      </div>
+      {/* 제목은 LLM 이 정한다. 비었으면 위 카드 제목(assistant.planCardTitle)만 둔다. */}
+      {plan.title && (
+        <div className="mb-1 text-sm font-semibold text-[hsl(var(--foreground))]">
+          {plan.title}
+        </div>
+      )}
       {plan.summary && (
         <p className="mb-2 whitespace-pre-wrap text-[hsl(var(--muted-foreground))]">
           {plan.summary}
