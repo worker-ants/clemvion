@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-START"
 title: "에디터 실행과 디버깅 — 실행 시작·중지와 캔버스 표시"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "b54e8c3c0afe4c6ea8ce3672e4396f2ac13b61ea703ec6e5a8271449eecd6738"
+content_hash: "d41e3c87da699c9427e51dba3bdedf60e43c8f408d8a74e65fc6ae9e1e7f5c0a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-5P1ADY"
 source_paths: []
-mirror_sha256: "41c04d236ad711d18d93c1a8d1e9985e4a623fb3191bac2375ea5bb342c8b4f3"
-etag: "sha256-34f742233a42bf032b389429d5695b5b814ce89bc686a48840092e87a6f7d79d"
+mirror_sha256: "af38a5e0f128bacbc2692706f3342af98564e1238494cfa6daf8bc9db3328620"
+etag: "sha256-6e7d8ad63eca2bc0d417904730472f484c9005eb3527844b7f724fc5cc0a4c71"
 ---
 ## 개요
 
@@ -139,6 +139,8 @@ AI 에이전트 노드가 멀티턴으로 입력을 기다리면 다음처럼 �
 6. 종료를 누르면 대화가 끝나고 실행이 재개된다. 상태 바는 "▶ Running..." 으로 바뀐다.
 
 버튼이 설정된 Presentation 노드(Carousel·Table·Chart·Template)도 입력 대기로 멈춘다. 이때도 드로어가 펼쳐지고 그 노드가 선택되며 미리보기 탭에 렌더된 콘텐츠와 버튼 바가 표시된다. port 버튼을 누르면 그 포트로 실행이 재개된다. 버튼별 동작은 [라이프사이클](CLE-EXEC-RUN-DRAWER.md#라이프사이클) 의 버튼 행을 따른다.
+
+실시간 연결이 막혀 REST 폴링 대체 경로로 받는 동안에도 입력 대기 UI 는 같다. AI 대화 타임라인은 폴링 응답의 저장된 대화로 갱신한다([노드 결과 수집](CLE-EXEC-RUN-SYNC.md#노드-결과-수집) 의 「입력 대기」). 소켓 연결이 끊겨 있으면 폼 제출만 REST 로 보내고, 버튼·멀티턴 메시지·대화 종료·[다시 시도] 는 보내지 않고 안내한다([실행 이벤트와 명령](CLE-EXEC-RUN-SYNC.md#실행-이벤트와-명령) 의 「소켓이 끊겼을 때」).
 
 ## 실행 중지
 

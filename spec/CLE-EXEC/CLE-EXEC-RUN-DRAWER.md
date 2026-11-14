@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-DRAWER"
 title: "에디터 실행과 디버깅 — 실행 결과 드로어"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "55d36aeb9f432387a4d84ce5ac181ed2359244742d806c743d5284e217338e88"
+content_hash: "c51ec704e23a19171623ac79c1e735821122ee7a4624bad23f0c3241254c48c4"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-5P1ADY"
 source_paths: []
-mirror_sha256: "6f06fc7f40aa7ebe988527fc4b77aafdbb5267b925baa074e76148ae55f62c16"
-etag: "sha256-47e32dff12739513fe4a4d3a58907db1b9fe573b6af6f9097de237041a76a0f4"
+mirror_sha256: "6297ed09a69e729e2168b0712134d22e2ccfefedbe58bdd92b749cff37e158e1"
+etag: "sha256-b4261ed6e91afa2f1291cba409c97b52ba3a9c7f911b83e6bd87deabb5d3ce14"
 ---
 ## 개요
 
@@ -263,6 +263,8 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 | 새 실행 시작 | 이전 기록을 지우고 드로어를 초기화한다. **대화 스냅샷도 지운다.** 이 초기화는 `startExecution` 에만 적용된다 |
 | 드로어 닫기(`[✕]`) | 실행 상태를 초기화한다 |
 | 노드 없는 실행 | "No nodes executed" 를 표시한다 |
+
+위 표의 명령은 소켓이 연결돼 있을 때의 동작이다. 소켓 연결이 끊겨 있으면 폼 제출은 REST 로 보내고 버튼 클릭·Continue·멀티턴 메시지·대화 종료·[다시 시도] 는 보내지 않고 안내한다([실행 이벤트와 명령](CLE-EXEC-RUN-SYNC.md#실행-이벤트와-명령) 의 「소켓이 끊겼을 때」).
 
 멀티턴 관련 행(`tool_call_started`·`tool_call_completed`·`ai_message`·`waiting_for_input`)이 대화 UI 에서 store 의 `conversationMessages` 를 어떻게 바꾸는지(UPSERT·UPDATE·REPLACE 와 carry-over), 실행 단계별 store 초기화 정책은 [대화 미리보기](CLE-EXEC-PREVIEW.md) 가 한 곳에서 정한다. 위 표의 "다시 만든다" 는 그 계약을 따른다.
 
