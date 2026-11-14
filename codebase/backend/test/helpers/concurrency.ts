@@ -7,6 +7,7 @@ import {
 } from '../../src/shared/testing/overlap-preconditions';
 import { TRIGGER_DELETE_LOCK_TIMEOUT_MS } from '../../src/modules/triggers/trigger-config-lock';
 import { MEMBER_DEPARTURE_LOCK_TIMEOUT_MS } from '../../src/modules/workspaces/workspaces.service';
+import { USER_ROW_LOCK_TIMEOUT_MS } from '../../src/modules/users/user-row-lock';
 
 /**
  * 아래 검사가 비교하는 상한들. **여기 있는 것만 검사된다.**
@@ -17,6 +18,7 @@ import { MEMBER_DEPARTURE_LOCK_TIMEOUT_MS } from '../../src/modules/workspaces/w
 const KNOWN_LOCK_TIMEOUTS_MS: ReadonlyArray<readonly [string, number]> = [
   ['TRIGGER_DELETE_LOCK_TIMEOUT_MS', TRIGGER_DELETE_LOCK_TIMEOUT_MS],
   ['MEMBER_DEPARTURE_LOCK_TIMEOUT_MS', MEMBER_DEPARTURE_LOCK_TIMEOUT_MS],
+  ['USER_ROW_LOCK_TIMEOUT_MS', USER_ROW_LOCK_TIMEOUT_MS],
 ];
 
 /**

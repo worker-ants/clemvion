@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-WSEIA"
 title: "에러 코드 카탈로그 — WebSocket · EIA · Background Runs"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "440bde26e3d6824e20aa46249755d2d357b427f076e55cdfd442a744059abedb"
+content_hash: "8f4b2b38d6638589609b9a1373b9f5ce7c9038b55233bf80fd9719e8cc332ba9"
 read_as: "approved_fallback"
-task: "CLE-T-64EQ5V"
+task: "CLE-T-1325JE"
 source_paths: []
-mirror_sha256: "1a97660a3b13c37a33a54c03e0bf87471ae733536b10d98f531ea6acda19e5f7"
-etag: "sha256-f5a4d8fb4875bd3629ce5fc2086694d4693c02808dec48d11a7737fd09c2b308"
+mirror_sha256: "4cf422486f1feced8960d01818eed30aafe11000264a3cfa743e351f2db5f2c9"
+etag: "sha256-1ae55821e9148964e279233855d3a9c91d3f9d78dbedb2bb46b919a4a17db2e6"
 ---
 ## 개요
 
@@ -113,5 +113,5 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 
 - **규칙 6 의 새 조건으로 보지 않았다.** 정의 문서는 이 401 도 부재(실행이 없거나 트리거가 지워짐)를 뜻한다고 적는다. 뜻은 404 와 같고 상태만 다르다. 워크스페이스 · 범위 경계 위반은 먼저 `TOKEN_SCOPE_MISMATCH`(401)가 되므로 이 코드에 들지 않는다.
 - **[예외 · 내부 분류 · 은퇴 코드](CLE-API-ERRCODES-EXCEPT.md#모델-설정-코드-분리-model_config_not_found404와-model_config_default_missing400) 의 「모델 설정 코드 분리」 선례와 다르다.** 그 선례에서는 같은 코드가 두 상태를 가져 코드를 나눴다. 두 상태가 서로 다른 뜻(지정한 설정 없음, 기본값 미설정)을 담았기 때문이다. 이번에는 뜻이 하나다. 두 상태는 판정하는 자리만 다르다. 트리거 단위 토큰 경로에서는 핸들러가 아니라 가드가 부재를 판정한다.
-- **`WORKSPACE_NOT_FOUND` 의 두 상태와도 다르다.** 그 코드의 404 와 401 은 뜻이 달라 「미결 사항」 에 올렸다(2026-11-12 에 401 을 새 코드로 나누기로 정했다). 이 코드의 두 상태는 뜻이 같아 미결로 올리지 않았다.
+- **`WORKSPACE_NOT_FOUND` 의 두 상태와도 다르다.** 그 코드의 404 와 401 은 뜻이 달라 401 을 새 코드 `NO_WORKSPACE_AVAILABLE`([§6.4](CLE-API-ERRCODES-SYSVAL.md#64-유효성-검증))로 나눴다(2026-11-12 결정, 2026-11-14 구현). 이 코드의 두 상태는 뜻이 같아 나누지 않았다.
 - **상태를 하나로 맞출지는 정의 문서가 정한다.** 카탈로그는 정의 문서를 따른다(규칙 8). 그래서 정의 문서의 401 을 그대로 적었다.

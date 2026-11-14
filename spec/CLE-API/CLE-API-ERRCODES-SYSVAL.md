@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-SYSVAL"
 title: "에러 코드 카탈로그 — 시스템 · 유효성 검증"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "c4b196e91d3103aae56b82a9215805dd33d9c9edd2af574936bdce5a03ac9220"
+content_hash: "8158765bd0700b4c4acd77d8fc82c71f116d16606d53952a05bad8d8cfba515a"
 read_as: "approved_fallback"
-task: "CLE-T-KCZGP6"
+task: "CLE-T-GWC9M3"
 source_paths: []
-mirror_sha256: "25561823af2e5559de120a9479b1383d2f2a6c76a420b761290d4ee9ba345f6f"
-etag: "sha256-a670ac6d284022cde723b2f234541f2bf455292b7e65d530dce1f587e7ab2a47"
+mirror_sha256: "c161c33b1626b610764f00c0c63bbfd2be0da49131ee0555387895cdaf5d600d"
+etag: "sha256-d8c44a83ed45a8f55730bf4e44761b7f49b8441c1c9204e1479641f866c93e1f"
 ---
 ## 개요
 
@@ -108,4 +108,4 @@ NERV Task `CLE-T-8MQMGQ` 이다. 이전 판은 multipart 업로드 413 의 `mess
 
 ### 테스트 데이터셋 이름 중복 `DUPLICATE_NAME` 을 등재했다 (2026-11-14)
 
-NERV Task `CLE-T-KCZGP6` 에서 행만 더했다. 백엔드가 409 로 내는데 §6.4 에 없어 규칙 8 을 어겼다. 이름과 상태 코드는 그대로다. 노드 라벨 중복의 `DUPLICATE_NODE_LABEL` 처럼 `RESOURCE_CONFLICT` 의 특화 코드로 적었다.
+NERV Task `CLE-T-KCZGP6` 에서 행만 더했다. 백엔드가 409 로 내는데 §6.4 에 없어 규칙 8 을 어겼다. 이름과 상태 코드는 그대로다. 노드 라벨 중복의 `DUPLICATE_NODE_LABEL` 처럼 `RESOURCE_CONFLICT` 의 특화 코드로 적었다. 이름에 도메인 범주(`<DOMAIN>_`)가 없지만 규칙 3 은 권장이라 §3 예외 등록부에 올리지 않고, 규칙 5 에 따라 이름을 그대로 둔다(NERV Task `CLE-T-GWC9M3`).

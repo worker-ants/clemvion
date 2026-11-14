@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-API"
 title: "가입과 로그인 — API 와 에러 코드"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "1306a13e647bdc02932e4fe5b42da01033d2c1f567594e15adf116499447db98"
+content_hash: "b9f07fb36ed791c0a0399ceaf7e6bd264faf32c4b2f743c14911c2c752e1e9c2"
 read_as: "approved_fallback"
-task: "CLE-T-Q6E11N"
+task: "CLE-T-GWC9M3"
 source_paths: []
-mirror_sha256: "3909b0e853a08b1d39546c254c2568d81d0d7e4ab285bd049477d144bcf5d958"
-etag: "sha256-7a35ee0e5896a55518695619f35d922a90ae1f01ce0a97a8098e1cb6db2e4784"
+mirror_sha256: "45422fbf4f82f6d8716de1d1018e34f34eb2928783d5f6421cc2e8bc9834d784"
+etag: "sha256-e3791bcbc4bfe4785e4a9aeb0164e25e480c67839b277e83c1dea923598a5c1c"
 ---
 ## 개요
 
@@ -54,8 +54,8 @@ etag: "sha256-7a35ee0e5896a55518695619f35d922a90ae1f01ce0a97a8098e1cb6db2e4784"
 | POST | `/api/auth/2fa/webauthn/recovery` | Passkey 복구 코드로 2단계 통과. 인증 불요(`@Public`). 본문 `{ challengeToken, code }`. 실패 401 `RECOVERY_CODE_INVALID`. 챌린지 토큰 실패는 options 와 같다 |
 | GET | `/api/auth/2fa/webauthn/credentials` | 내 Passkey 목록. 인증 필수(JWT). 응답 `{ items: [{ id, deviceName, transports, lastUsedAt, createdAt }] }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). `publicKey`·`counter` 는 싣지 않는다. Passkey 기능이 꺼져 있으면 저장된 credential 이 있어도 200 `{ items: [] }` 다 |
 | PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 없거나 내 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지). 이름이 비었거나 공백 문자로만 돼 있거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록 흐름](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록-흐름)) |
-| POST | `/api/auth/2fa/webauthn/credentials/:id/delete` | credential 삭제. 인증 필수(JWT), 사용자당 분당 10회. `:id` 는 UUID. 본문 `{ password }`(8자 이상). 본문 누락·형식 에러 400 `VALIDATION_ERROR`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`(credential 을 지우지 않는다). 없거나 내 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지). 성공 204. 마지막 credential 을 지우면 같은 트랜잭션에서 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 순서와 규칙은 [Passkey 삭제](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제) |
-| POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 사용자당 분당 10회, 본문 `password` 로 비밀번호 재확인. 기존 미사용 코드를 버리고 10개를 새로 발급한다. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`. 비밀번호 확인 뒤 등록한 Passkey 가 없으면 403 `WEBAUTHN_NOT_REGISTERED`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
+| POST | `/api/auth/2fa/webauthn/credentials/:id/delete` | credential 삭제. 인증 필수(JWT), 사용자당 분당 10회. `:id` 는 UUID. 본문 `{ password }`(8자 이상). 본문 누락·형식 에러와 `:id` 형식 에러 400 `VALIDATION_ERROR`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`(credential 을 지우지 않는다). 없거나 내 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지). 성공 204. 마지막 credential 을 지우면 같은 트랜잭션에서 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 순서와 규칙은 [Passkey 삭제](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제) |
+| POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 사용자당 분당 10회, 본문 `{ password }`(8자 이상)로 비밀번호 재확인. 본문 누락·형식 에러 400 `VALIDATION_ERROR`. 기존 미사용 코드를 버리고 10개를 새로 발급한다. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`. 비밀번호 확인 뒤 등록한 Passkey 가 없으면 403 `WEBAUTHN_NOT_REGISTERED`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
 
 2단계 인증 활성화 API 는 `/api/auth/2fa/*` 만 있다. `/api/users/me/enable-2fa`·`/api/users/me/confirm-2fa` 같은 별칭 경로는 없다.
 
@@ -87,7 +87,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | `LOGIN_FAILED` | 401 | 로그인 실패. 없는 이메일, 비밀번호가 없는 계정(OAuth 전용), 비밀번호 불일치를 같은 코드와 같은 메시지로 거부한다. 이메일로 계정을 하나로 정할 수 없는 경우([이메일 비교 규칙](CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙))도 없는 이메일과 같다. 로그인 이력 `failure_reason` 에는 각각 `USER_NOT_FOUND` · `PASSWORD_NOT_SET` · `INVALID_PASSWORD` 가 남는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md)). 비밀번호가 맞는 이메일 인증 전 계정은 `EMAIL_VERIFICATION_REQUIRED` 다 |
 | `EMAIL_VERIFICATION_REQUIRED` | 401 | 비밀번호는 맞지만 이메일 인증을 마치지 않은 계정의 로그인. 비밀번호가 틀리면 `LOGIN_FAILED` 다. 로그인 이력 `failure_reason` 은 `EMAIL_NOT_VERIFIED` 다. 비밀번호가 맞았으므로 실패 횟수(`login_attempts`)는 0 으로 되돌린다. 화면은 이 코드로 이메일 인증 안내를 고른다([로그인 처리](CLE-ACCT-SIGNIN-LOGIN.md#로그인-처리)) |
 | `ACCOUNT_LOCKED` | 401 | 잠긴 계정으로 로그인 |
-| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 에러·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 설정 시작 본문의 `password` 누락이나 형식 에러, TOTP 활성화 검증 본문의 `code` 형식 에러, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 에러, Passkey 등록 옵션 본문의 `password` 누락이나 형식 에러, Passkey 표시 이름 형식 에러(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
+| `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 에러·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 설정 시작 본문의 `password` 누락이나 형식 에러, TOTP 활성화 검증 본문의 `code` 형식 에러, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 에러, Passkey 등록 옵션 · 삭제 · 복구 코드 재발급 본문의 `password` 누락이나 형식 에러, Passkey credential 수정 · 삭제 경로의 `:id` 형식 에러(UUID 아님), Passkey 표시 이름 형식 에러(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
 | `RESOURCE_CONFLICT` | 409 | 가입 이메일 중복, 새 이메일 선점 |
 | `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 등록에 비밀번호 재확인이 생기기 전에 Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경. 서버 메시지는 비밀번호를 설정하거나 TOTP 를 켜라고 안내한다. Passkey 만 등록한 계정도 같은 메시지를 받는다. 지금 구현의 문구는 한국어라 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 에 어긋나는 기존 문구다. 영문 전환은 NERV Task `CLE-T-1K5CWP` 가 맡는다 |
 | `PASSWORD_REQUIRED`, `PASSWORD_INVALID` | 401 | TOTP 설정 시작·2단계 인증 끄기·Passkey 등록 옵션·Passkey 복구 코드 재발급·Passkey 삭제의 비밀번호 재확인 실패. 이때 Passkey 등록 옵션은 등록 옵션과 `optionsToken` 을 만들지 않고 Passkey 삭제는 credential 을 지우지 않는다. 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) |
@@ -141,3 +141,4 @@ NERV Task `CLE-T-ZPPWK4` · `CLE-T-9KCQ7Y` · `CLE-T-Q6E11N` 에서 구현과 �
 - 로그인 2단계 Passkey 검증에서 credential 을 찾지 못하면 401 `WEBAUTHN_INVALID` 다. [2026-11-12 결정](CLE-ACCT-SIGNIN-PKAUTH.md#로그인-검증에서-credential-을-찾지-못하면-webauthn_invalid-로-거부하기로-했다-2026-11-12)을 구현했고 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 404 하나만 남았다.
 - 발행 중인데 표에 없던 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_NOT_REGISTERED` 를 더했다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 8).
 - Passkey 삭제가 비밀번호를 받으므로 `DELETE` 를 없애고 `POST …/credentials/:id/delete` 로 옮겼다. 근거는 [Passkey 삭제에도 비밀번호 재확인을 둔다](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제에도-비밀번호-재확인을-둔다-2026-11-14) 에 있다.
+- 이미 400 `VALIDATION_ERROR` 를 내던 Passkey 삭제 · 복구 코드 재발급 본문과 credential `:id` 의 형식 에러를 에러 코드 표의 열거에 더했다(NERV Task `CLE-T-GWC9M3`). 동작은 그대로다.

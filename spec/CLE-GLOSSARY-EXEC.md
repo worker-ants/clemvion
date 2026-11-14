@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-EXEC"
 title: "용어 사전 — 실행"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "f51ebb67223b1de4e814d9d44c91ca57431d433871081474add8babd9072e193"
+content_hash: "2be1fb45929296f2f7291e0f8ef5ae22d272eb79c5fe0e3dab4411dbd297ee3c"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-3XMYGA"
 source_paths: []
-mirror_sha256: "348cf8a31642185107ba9b1008eb2d12f71bdd977f6dc322dd17e6e0b5bcbe05"
-etag: "sha256-4c730e66ebf3fa19041e60370ddd75848d69045b76da557bd62eb51deadfd57c"
+mirror_sha256: "c7a3c07a9fe0297f633bf4485e8a5323a95aa113e57d972e0c512f7be2ebc2d8"
+etag: "sha256-6aa237d0ae16fea1efea229846d3c72e16be5989dc0cb59e72d5ca2506abe7c0"
 ---
 ## 개요
 
@@ -43,7 +43,7 @@ etag: "sha256-4c730e66ebf3fa19041e60370ddd75848d69045b76da557bd62eb51deadfd57c"
 | 실행 시간 한도 | `EXECUTION_MAX_ACTIVE_RUNNING_MS` | 입력 대기 시간을 뺀 세그먼트 누적 시간의 상한. 넘으면 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 실패한다. | Workflow timeout, Workflow 단위 timeout | [실행 상태 머신과 대기·재개](CLE-EXEC/CLE-EXEC-STATE.md) |
 | stalled 재배달 | stalled redelivery | 워커가 죽어 잠금이 풀린 시작 큐 작업을 BullMQ 가 한 번 더 배달하는 동작. | 없음 | [장애 복구와 안전 종료](CLE-EXEC/CLE-EXEC-RECOVERY.md) |
 | 부팅 복구 스캔 | `recoverStuckExecutions` | 서버가 뜰 때 오래 멈춘 실행 중 실행을 재구동하고 방치된 대기 중 실행을 취소하는 스캔. | 부팅 backstop, stuck recovery | [장애 복구와 안전 종료](CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| 안전 종료 | graceful shutdown | SIGTERM 을 받으면 새 실행을 거부하고 진행 중 세그먼트를 기다렸다가 끝내는 절차. | Graceful Shutdown(본문) | [장애 복구와 안전 종료](CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| 안전 종료 | graceful shutdown | SIGTERM 을 받으면 수동 실행 진입점의 새 실행을 거부하고 진행 중 세그먼트를 기다렸다가 끝내는 절차. 웹훅 · 스케줄처럼 실행을 영속 큐에 넣는 시작 경로는 거부하지 않는다. | Graceful Shutdown(본문) | [안전 종료와 영속 재개 큐 「안전 종료」](CLE-EXEC/CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료) |
 | DLQ | dead-letter queue | 재시도를 다 쓴 큐 작업이 쌓이는 곳. 쌓인 양이 임계를 넘으면 경고 로그를 남긴다. | 없음 | [비동기 큐와 Redis 키 목록](CLE-PLAT/CLE-PLAT-QUEUE.md) |
 | 실행 중지 | stop execution, `POST /api/executions/:id/stop` | 사용자가 진행 중인 실행을 멈추는 동작. 결과 상태는 취소됨이다. | 실행 중단(버튼 이름으로), 실행 취소(버튼 이름으로) | [에디터 실행과 디버깅](CLE-EXEC/CLE-EXEC-RUN.md) |
 | 취소 주체 | `result.cancelledBy` | 취소 원인을 나누는 값. 값과 본문 표기는 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 없음 | [실행 상태 머신과 대기·재개](CLE-EXEC/CLE-EXEC-STATE.md) |
