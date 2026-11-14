@@ -1403,6 +1403,191 @@ describe('HttpRequestHandler', () => {
       });
     });
 
+    // 자격 증명 query 의 이름(`key_name`)은 사용자가 정한다. 이름 목록(`QUERY_PARAM_BLACKLIST`)에 없는 이름이어도
+    // 에러 출력의 `details.url` 에 값이 남으면 안 된다(NERV Task `CLE-T-6H2AKH`). `key` 는 목록에 없는 이름이다.
+    describe('credential query masking in error details (CLE-T-6H2AKH)', () => {
+      const SECRET = 'K3Y-S3CR3T';
+      type ErrorResult = {
+        port: string;
+        output: {
+          error: { code: string; details: { url: string } };
+        };
+      };
+
+      function apiKeyQueryService(keyName = 'key') {
+        return makeService('api_key', {
+          location: 'query',
+          key_name: keyName,
+          value: SECRET,
+        });
+      }
+
+      async function run(
+        service: unknown,
+        url = 'https://api.example.com/x',
+      ): Promise<ErrorResult> {
+        const handler = new HttpRequestHandler(service as never);
+        return (await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url,
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        )) as unknown as ErrorResult;
+      }
+
+      function expectMasked(
+        result: ErrorResult,
+        code: string,
+        keyName = 'key',
+      ) {
+        expect(result.port).toBe('error');
+        expect(result.output.error.code).toBe(code);
+        const detailsUrl = result.output.error.details.url;
+        expect(detailsUrl).not.toContain(SECRET);
+        expect(new URL(detailsUrl).searchParams.get(keyName)).toBe(
+          '[REDACTED]',
+        );
+      }
+
+      it.each([
+        [401, 'HTTP_4XX'],
+        [503, 'HTTP_5XX'],
+      ])(
+        'masks the credential query in details.url on HTTP %d',
+        async (status, code) => {
+          global.fetch = jest.fn().mockResolvedValue({
+            ok: false,
+            status,
+            statusText: 'Failed',
+            json: jest.fn().mockResolvedValue({}),
+          });
+          const { service, logUsage } = apiKeyQueryService();
+
+          const result = await run(service);
+
+          // 요청에는 키가 실렸다 — 가림은 출력에만 적용한다.
+          const sent = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+          expect(sent).toContain(`key=${SECRET}`);
+          expectMasked(result, code);
+          // 첫 인자는 통합 자체라 자격 증명을 원래 품는다. 활동 로그로 남는 것은 두 번째 인자다.
+          expect(
+            JSON.stringify(logUsage.mock.calls.map((call) => call[1])),
+          ).not.toContain(SECRET);
+        },
+      );
+
+      it('masks the credential query in details.url on transport failure', async () => {
+        global.fetch = jest.fn().mockRejectedValue(new Error('ECONNRESET'));
+        const { service, logUsage } = apiKeyQueryService();
+
+        const result = await run(service);
+
+        expectMasked(result, 'HTTP_TRANSPORT_FAILED');
+        // 첫 인자는 통합 자체라 자격 증명을 원래 품는다. 활동 로그로 남는 것은 두 번째 인자다.
+        expect(
+          JSON.stringify(logUsage.mock.calls.map((call) => call[1])),
+        ).not.toContain(SECRET);
+      });
+
+      it('masks the credential query in details.url when the preflight guard blocks', async () => {
+        global.fetch = jest.fn();
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service, 'https://10.0.0.5/x');
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expectMasked(result, 'HTTP_BLOCKED');
+      });
+
+      it('masks the credential query in details.url when the preflight guard breaks', async () => {
+        global.fetch = jest.fn();
+        jest.mocked(assertSafeOutboundUrl).mockImplementationOnce(() => {
+          throw new Error('guard exploded');
+        });
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service);
+
+        expectMasked(result, 'INTEGRATION_CALL_FAILED');
+      });
+
+      it('masks the credential query echoed into the last redirect hop URL', async () => {
+        global.fetch = jest
+          .fn()
+          .mockResolvedValueOnce({
+            ok: false,
+            status: 302,
+            headers: {
+              get: (h: string) =>
+                h.toLowerCase() === 'location'
+                  ? `https://api.example.com/v2/x?key=${SECRET}`
+                  : null,
+            },
+            text: jest.fn(),
+            json: jest.fn(),
+          })
+          .mockResolvedValueOnce({
+            ok: false,
+            status: 404,
+            statusText: 'Not Found',
+            json: jest.fn().mockResolvedValue({}),
+          });
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service);
+
+        expectMasked(result, 'HTTP_4XX');
+        expect(result.output.error.details.url).toContain('/v2/x');
+      });
+
+      it('masks a credential query name case-insensitively', async () => {
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: false,
+          status: 403,
+          statusText: 'Forbidden',
+          json: jest.fn().mockResolvedValue({}),
+        });
+        const { service } = apiKeyQueryService('X-Client-Key');
+
+        const result = await run(service);
+
+        expectMasked(result, 'HTTP_4XX', 'X-Client-Key');
+      });
+
+      it('masks the credential query even when the request URL cannot be parsed', async () => {
+        global.fetch = jest.fn();
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service, 'not a url');
+
+        expect(result.port).toBe('error');
+        expect(result.output.error.code).toBe('HTTP_BLOCKED');
+        expect(result.output.error.details.url).not.toContain(SECRET);
+        expect(result.output.error.details.url).toContain('key=%5BREDACTED%5D');
+      });
+
+      it('keeps non-credential query values in details.url', async () => {
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          json: jest.fn().mockResolvedValue({}),
+        });
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service, 'https://api.example.com/x?page=2');
+
+        expectMasked(result, 'HTTP_4XX');
+        expect(
+          new URL(result.output.error.details.url).searchParams.get('page'),
+        ).toBe('2');
+      });
+    });
+
     it('allows custom-auth private targets when ALLOW_PRIVATE_HOST_TARGETS=true (opt-out)', async () => {
       const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
       process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
