@@ -1,4 +1,5 @@
 import type { LookupAddress } from 'node:dns';
+import { lookup as connectLookup } from 'node:dns';
 import { lookup } from 'node:dns/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -21,6 +22,12 @@ import {
 } from './notification-signature.util';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import * as ssrfSafeUrl from '../../common/utils/ssrf-safe-url.util';
+import {
+  ResolvedHostBlockedError,
+  notificationWebhookDispatcher,
+  resetNotificationWebhookDispatcherForTesting,
+} from './notification-webhook-dispatcher';
+import { fetch as undiciFetch } from 'undici';
 
 // 발송 직전 DNS 결과 검사(`checkResolvedHostIp`)가 부르는 OS 해석기. 검사는 운영 기본 또는 opt-in 때만 돌아서 다른
 // 테스트는 이 가짜에 닿지 않는다. 닿으면 공인 주소 하나로 답한다(실제 DNS 를 묻지 않게).
@@ -29,6 +36,21 @@ jest.mock('node:dns/promises', () => ({
 }));
 const mockedLookup = lookup as unknown as jest.MockedFunction<
   (hostname: string, options: { all: true }) => Promise<LookupAddress[]>
+>;
+
+// 발송 연결의 주소 조회(`notificationWebhookDispatcher`)는 콜백형 `node:dns` 의 `lookup` 을 쓴다. 발송 직전 검사와 따로
+// 답하게 해서 검사 뒤에 DNS 응답이 바뀌는 경우(rebinding)를 만든다(CLE-T-GAQCF9).
+jest.mock('node:dns', () => ({
+  ...jest.requireActual('node:dns'),
+  lookup: jest.fn(),
+}));
+const mockedConnectLookup = connectLookup as unknown as jest.Mock<
+  void,
+  [
+    string,
+    { all: true },
+    (err: Error | null, addresses: LookupAddress[]) => void,
+  ]
 >;
 
 type Mock = jest.Mock;
@@ -1035,5 +1057,161 @@ describe('NotificationWebhookProcessor — 발송 직전 DNS 결과 검사', () 
       'trg-1',
       expect.objectContaining({ notificationHealth: 'degraded' }),
     );
+  });
+
+  describe('연결 시점 판정 (CLE-T-GAQCF9)', () => {
+    const fetchInit = (): RequestInit & { dispatcher?: unknown } =>
+      fetchSpy.mock.calls[0][1] as RequestInit & { dispatcher?: unknown };
+
+    it('검사를 켜면 발송 fetch 에 연결 시점 판정 dispatcher 를 붙인다', async () => {
+      setEnv('production', undefined);
+      const processor = makeProcessor();
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+
+      await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+      expect(fetchInit().dispatcher).toBe(notificationWebhookDispatcher());
+      expect(fetchInit()).toEqual(
+        expect.objectContaining({ method: 'POST', redirect: 'manual' }),
+      );
+    });
+
+    it('검사를 끄면 dispatcher 를 붙이지 않는다', async () => {
+      setEnv('production', '0');
+      const processor = makeProcessor();
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+
+      await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+      expect(fetchInit()).not.toHaveProperty('dispatcher');
+    });
+
+    it('연결 때 막히면 재시도하지 않고 같은 접두어로 degraded 로 둔다', async () => {
+      setEnv('production', undefined);
+      const processor = makeProcessor();
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      const reason =
+        'resolved IPv4 10.0.0.9 falls in a private/loopback/metadata range';
+      fetchSpy.mockRejectedValue(
+        new TypeError('fetch failed', {
+          cause: new ResolvedHostBlockedError(reason),
+        }),
+      );
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      // 첫 시도라도 던지지 않는다. 던지면 BullMQ 가 재시도한다.
+      await expect(
+        processor.process(
+          makeJob(
+            { eventType: 'execution.completed' },
+            { attempts: 5, attemptsMade: 0 },
+          ),
+        ),
+      ).resolves.toBeUndefined();
+      expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+        notificationHealth: 'degraded',
+        notificationLastError: `DNS rebinding 차단: ${reason}`,
+      });
+    });
+
+    it('다른 연결 오류는 지금처럼 던져서 재시도한다', async () => {
+      setEnv('production', undefined);
+      const processor = makeProcessor();
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      fetchSpy.mockRejectedValue(
+        new TypeError('fetch failed', {
+          cause: Object.assign(new Error('connect ECONNREFUSED'), {
+            code: 'ECONNREFUSED',
+          }),
+        }),
+      );
+
+      await expect(
+        processor.process(
+          makeJob(
+            { eventType: 'execution.completed' },
+            { attempts: 5, attemptsMade: 0 },
+          ),
+        ),
+      ).rejects.toThrow('fetch failed');
+      expect(triggerRepo.update).not.toHaveBeenCalled();
+    });
+
+    describe('로컬 서버에 실제로 보낸다', () => {
+      let server: Server;
+      let port: number;
+      let requests = 0;
+      let savedAllowHttp: string | undefined;
+
+      beforeAll(async () => {
+        server = createServer((_req, res) => {
+          requests++;
+          res.end('ok');
+        });
+        port = Number(new URL(await listen(server)).port);
+      });
+
+      afterAll(async () => {
+        await close(server);
+        // keep-alive 소켓이 jest 프로세스에 남지 않게 판정 dispatcher 를 닫는다.
+        await resetNotificationWebhookDispatcherForTesting();
+      });
+
+      beforeEach(() => {
+        savedAllowHttp = process.env.ALLOW_HTTP_HOOKS;
+        process.env.ALLOW_HTTP_HOOKS = '1';
+        // jest 에서는 판정 오류가 테스트 realm 에서 만들어져 Node 내장 fetch 가 `cause` 의 클래스를 지운다. 같은 realm 의
+        // npm undici fetch 로 바꿔 운영과 같은 `cause` 를 받는다.
+        (globalThis as unknown as { fetch: unknown }).fetch = undiciFetch;
+        mockedConnectLookup.mockReset();
+      });
+
+      afterEach(() => {
+        // 이 describe 가 바꾼 전역 fetch 를 원래대로 되돌린다.
+        (globalThis as unknown as { fetch: typeof realFetch }).fetch =
+          realFetch;
+        if (savedAllowHttp === undefined) delete process.env.ALLOW_HTTP_HOOKS;
+        else process.env.ALLOW_HTTP_HOOKS = savedAllowHttp;
+      });
+
+      it('검사 때는 공인 주소, 연결 때는 loopback 으로 풀리면 보내지 않는다', async () => {
+        setEnv('production', undefined);
+        const processor = makeProcessor();
+        triggerRepo.findOne.mockResolvedValue(
+          makeTrigger({
+            config: {
+              notification: {
+                url: `http://rebind.test:${port}/hook`,
+                events: ['execution.completed'],
+                signing: { algorithm: 'hmac-sha256', secret: SECRET },
+              },
+            },
+          } as Partial<Trigger>),
+        );
+        mockedConnectLookup.mockImplementation((_host, _opts, cb) =>
+          cb(null, [{ address: '127.0.0.1', family: 4 }]),
+        );
+        jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        const before = requests;
+
+        await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+        expect(mockedLookup).toHaveBeenCalledWith('rebind.test', { all: true });
+        expect(mockedConnectLookup).toHaveBeenCalledWith(
+          'rebind.test',
+          expect.objectContaining({ all: true }),
+          expect.any(Function),
+        );
+        expect(requests).toBe(before);
+        expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+          notificationHealth: 'degraded',
+          notificationLastError: expect.stringMatching(
+            /^DNS rebinding 차단: resolved IPv4 127\.0\.0\.1 /,
+          ),
+        });
+      });
+    });
   });
 });

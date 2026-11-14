@@ -6,8 +6,9 @@
  * 이 broken (ISP / 컨테이너 네트워크 / VPN 등에서 흔함) 이면 약 30초 후 syscall
  * `ETIMEDOUT` 으로 fail. 자동 IPv4 retry 없음.
  *
- * 해결: process boot 시 1회 `setGlobalDispatcher(new Agent({ autoSelectFamily: true,
- * autoSelectFamilyAttemptTimeout: 300 }))` 로 교체. 모든 outbound fetch (TelegramClient
+ * 해결: process boot 시 1회 `setGlobalDispatcher(new Agent(autoSelectFamilyAgentOptions()))` 로 교체
+ * (옵션은 `autoSelectFamily: true`, `autoSelectFamilyAttemptTimeout: 300` 이고 정의는
+ * `common/utils/guarded-lookup-dispatcher.ts` 의 `autoSelectFamilyAgentOptions` 에 있다). 모든 outbound fetch (TelegramClient
  * / SlackClient / DiscordClient / LLM clients / HTTP node handler / cafe24 client 등)
  * 가 자동 영향 — 어댑터별 dispatcher 주입 불필요.
  *
@@ -29,22 +30,19 @@
  * 테스트 격리 용도.
  */
 import { Agent, setGlobalDispatcher } from 'undici';
-
-const DEFAULT_ATTEMPT_TIMEOUT_MS = 300;
+import { autoSelectFamilyAgentOptions } from '../common/utils/guarded-lookup-dispatcher';
 
 let applied = false;
 
 export function applyAutoSelectFamilyDispatcher(): void {
   if (applied) return;
-  if (process.env.DISABLE_UNDICI_AUTO_SELECT_FAMILY === '1') {
+  // 옵션은 연결 시점 판정 dispatcher(`createGuardedLookupDispatcher`)와 같은 정의를 쓴다.
+  const options = autoSelectFamilyAgentOptions();
+  if (!options.autoSelectFamily) {
     applied = true;
     return;
   }
-  const agent = new Agent({
-    autoSelectFamily: true,
-    autoSelectFamilyAttemptTimeout: DEFAULT_ATTEMPT_TIMEOUT_MS,
-  });
-  setGlobalDispatcher(agent);
+  setGlobalDispatcher(new Agent(options));
   applied = true;
 }
 

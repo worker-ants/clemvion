@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "923002abf930e51271f402d8d38f0f81476dae0b9e34f102a1146fc9bd204b73"
+content_hash: "6744b1c666a0589e5b87adeef8dcadd7f8a698cccc17d29d6f3886686a4c4758"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-BS1WD1"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "78f7d3679c235a25a6fd2cf153fc61970363237a5cbeca79f24894eb33c0d367"
-etag: "sha256-c5f332d2cb2479baf94d1a8d0f898b9e56bbf4a5b2d13a1120e6b77e32c1615e"
+mirror_sha256: "5a3e7dfb6522288db87867145851f39ef41bc13be4e2c49918e6928312496f25"
+etag: "sha256-26d06a021f7ec1eba344eee7670f033aced1a04ecb4f4ad4bca87634a243bc7b"
 ---
 > 구현 상태: 부분 구현 (워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -210,6 +210,10 @@ Database Query 의 "쿼리 첫 줄" 과 Send Email 의 "to: {수신자} +N" 은 
 ### 차단 코드를 판정에만 쓰는 이유
 
 → [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#차단-코드를-판정에만-쓰는-이유)
+
+### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다 (2026-11-14)
+
+→ [에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#연결-시점-판정은-대역표와-우회-플래그를-호출자가-정한다-2026-11-14)
 
 ### 남의 개인 통합 조회는 없는 통합과 같게 실패한다 (2026-10-24)
 

@@ -2,7 +2,12 @@ import type { LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
 import { Logger } from '@nestjs/common';
 import { HttpRequestHandler, extractApiPath } from './http-request.handler.js';
-import { assertSafeOutboundUrl } from './http-safety.js';
+import {
+  SSRF_BLOCKED_CLIENT_MESSAGE,
+  SsrfBlockedError,
+  assertSafeOutboundUrl,
+  safeOutboundDispatcher,
+} from './http-safety.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -1403,6 +1408,191 @@ describe('HttpRequestHandler', () => {
       });
     });
 
+    // 자격 증명 query 의 이름(`key_name`)은 사용자가 정한다. 이름 목록(`QUERY_PARAM_BLACKLIST`)에 없는 이름이어도
+    // 에러 출력의 `details.url` 에 값이 남으면 안 된다(NERV Task `CLE-T-6H2AKH`). `key` 는 목록에 없는 이름이다.
+    describe('credential query masking in error details (CLE-T-6H2AKH)', () => {
+      const SECRET = 'K3Y-S3CR3T';
+      type ErrorResult = {
+        port: string;
+        output: {
+          error: { code: string; details: { url: string } };
+        };
+      };
+
+      function apiKeyQueryService(keyName = 'key') {
+        return makeService('api_key', {
+          location: 'query',
+          key_name: keyName,
+          value: SECRET,
+        });
+      }
+
+      async function run(
+        service: unknown,
+        url = 'https://api.example.com/x',
+      ): Promise<ErrorResult> {
+        const handler = new HttpRequestHandler(service as never);
+        return (await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url,
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        )) as unknown as ErrorResult;
+      }
+
+      function expectMasked(
+        result: ErrorResult,
+        code: string,
+        keyName = 'key',
+      ) {
+        expect(result.port).toBe('error');
+        expect(result.output.error.code).toBe(code);
+        const detailsUrl = result.output.error.details.url;
+        expect(detailsUrl).not.toContain(SECRET);
+        expect(new URL(detailsUrl).searchParams.get(keyName)).toBe(
+          '[REDACTED]',
+        );
+      }
+
+      it.each([
+        [401, 'HTTP_4XX'],
+        [503, 'HTTP_5XX'],
+      ])(
+        'masks the credential query in details.url on HTTP %d',
+        async (status, code) => {
+          global.fetch = jest.fn().mockResolvedValue({
+            ok: false,
+            status,
+            statusText: 'Failed',
+            json: jest.fn().mockResolvedValue({}),
+          });
+          const { service, logUsage } = apiKeyQueryService();
+
+          const result = await run(service);
+
+          // 요청에는 키가 실렸다 — 가림은 출력에만 적용한다.
+          const sent = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+          expect(sent).toContain(`key=${SECRET}`);
+          expectMasked(result, code);
+          // 첫 인자는 통합 자체라 자격 증명을 원래 품는다. 활동 로그로 남는 것은 두 번째 인자다.
+          expect(
+            JSON.stringify(logUsage.mock.calls.map((call) => call[1])),
+          ).not.toContain(SECRET);
+        },
+      );
+
+      it('masks the credential query in details.url on transport failure', async () => {
+        global.fetch = jest.fn().mockRejectedValue(new Error('ECONNRESET'));
+        const { service, logUsage } = apiKeyQueryService();
+
+        const result = await run(service);
+
+        expectMasked(result, 'HTTP_TRANSPORT_FAILED');
+        // 첫 인자는 통합 자체라 자격 증명을 원래 품는다. 활동 로그로 남는 것은 두 번째 인자다.
+        expect(
+          JSON.stringify(logUsage.mock.calls.map((call) => call[1])),
+        ).not.toContain(SECRET);
+      });
+
+      it('masks the credential query in details.url when the preflight guard blocks', async () => {
+        global.fetch = jest.fn();
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service, 'https://10.0.0.5/x');
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expectMasked(result, 'HTTP_BLOCKED');
+      });
+
+      it('masks the credential query in details.url when the preflight guard breaks', async () => {
+        global.fetch = jest.fn();
+        jest.mocked(assertSafeOutboundUrl).mockImplementationOnce(() => {
+          throw new Error('guard exploded');
+        });
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service);
+
+        expectMasked(result, 'INTEGRATION_CALL_FAILED');
+      });
+
+      it('masks the credential query echoed into the last redirect hop URL', async () => {
+        global.fetch = jest
+          .fn()
+          .mockResolvedValueOnce({
+            ok: false,
+            status: 302,
+            headers: {
+              get: (h: string) =>
+                h.toLowerCase() === 'location'
+                  ? `https://api.example.com/v2/x?key=${SECRET}`
+                  : null,
+            },
+            text: jest.fn(),
+            json: jest.fn(),
+          })
+          .mockResolvedValueOnce({
+            ok: false,
+            status: 404,
+            statusText: 'Not Found',
+            json: jest.fn().mockResolvedValue({}),
+          });
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service);
+
+        expectMasked(result, 'HTTP_4XX');
+        expect(result.output.error.details.url).toContain('/v2/x');
+      });
+
+      it('masks a credential query name case-insensitively', async () => {
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: false,
+          status: 403,
+          statusText: 'Forbidden',
+          json: jest.fn().mockResolvedValue({}),
+        });
+        const { service } = apiKeyQueryService('X-Client-Key');
+
+        const result = await run(service);
+
+        expectMasked(result, 'HTTP_4XX', 'X-Client-Key');
+      });
+
+      it('masks the credential query even when the request URL cannot be parsed', async () => {
+        global.fetch = jest.fn();
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service, 'not a url');
+
+        expect(result.port).toBe('error');
+        expect(result.output.error.code).toBe('HTTP_BLOCKED');
+        expect(result.output.error.details.url).not.toContain(SECRET);
+        expect(result.output.error.details.url).toContain('key=%5BREDACTED%5D');
+      });
+
+      it('keeps non-credential query values in details.url', async () => {
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          json: jest.fn().mockResolvedValue({}),
+        });
+        const { service } = apiKeyQueryService();
+
+        const result = await run(service, 'https://api.example.com/x?page=2');
+
+        expectMasked(result, 'HTTP_4XX');
+        expect(
+          new URL(result.output.error.details.url).searchParams.get('page'),
+        ).toBe('2');
+      });
+    });
+
     it('allows custom-auth private targets when ALLOW_PRIVATE_HOST_TARGETS=true (opt-out)', async () => {
       const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
       process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
@@ -1599,6 +1789,172 @@ describe('HttpRequestHandler', () => {
           }),
         }),
       );
+    });
+
+    describe('connect-time address guard (CLE-T-BS1WD1)', () => {
+      const RESOLVED_INTERNAL = '10.0.0.7';
+      type BlockResult = {
+        port: string;
+        output: {
+          error: { code: string; message: string; details: { url: string } };
+        };
+      };
+
+      function connectTimeBlock(): TypeError {
+        return new TypeError('fetch failed', {
+          cause: new SsrfBlockedError(
+            `hostname "api.example.com" resolved to restricted IP "${RESOLVED_INTERNAL}" at connect time`,
+          ),
+        });
+      }
+
+      function fetchOptionsOf(call: number) {
+        return (global.fetch as jest.Mock).mock.calls[
+          call
+        ][1] as RequestInit & {
+          dispatcher?: unknown;
+        };
+      }
+
+      it('passes the guard dispatcher to the first request and to each redirect hop', async () => {
+        global.fetch = jest
+          .fn()
+          .mockResolvedValueOnce({
+            ok: false,
+            status: 302,
+            headers: {
+              get: (h: string) =>
+                h.toLowerCase() === 'location'
+                  ? 'https://api.example.com/next'
+                  : null,
+            },
+            text: jest.fn(),
+            json: jest.fn(),
+          })
+          .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: jest.fn().mockResolvedValue({ ok: true }),
+          });
+        const { service } = makeService('bearer_token', { token: 'abc' });
+        const handler = new HttpRequestHandler(service as never);
+
+        await handler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'https://api.example.com/start',
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          contextWithWorkspace,
+        );
+
+        const guard = safeOutboundDispatcher();
+        expect(guard).toBeDefined();
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(fetchOptionsOf(0).dispatcher).toBe(guard);
+        expect(fetchOptionsOf(1).dispatcher).toBe(guard);
+      });
+
+      it('leaves the global dispatcher in place when ALLOW_PRIVATE_HOST_TARGETS=true', async () => {
+        const previous = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+        process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+        try {
+          await new HttpRequestHandler().execute(
+            null,
+            { method: 'GET', url: 'https://api.example.com/x' },
+            context,
+          );
+
+          expect(fetchOptionsOf(0)).not.toHaveProperty('dispatcher');
+        } finally {
+          if (previous === undefined) {
+            delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+          } else {
+            process.env.ALLOW_PRIVATE_HOST_TARGETS = previous;
+          }
+        }
+      });
+
+      it('reports a connect-time block as HTTP_BLOCKED and keeps the address out of output and usage log', async () => {
+        global.fetch = jest.fn().mockRejectedValue(connectTimeBlock());
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        const { service, logUsage } = makeService('api_key', {
+          location: 'query',
+          key_name: 'key',
+          value: 'K3Y-S3CR3T',
+        });
+        const handler = new HttpRequestHandler(service as never);
+
+        try {
+          const result = (await handler.execute(
+            null,
+            {
+              method: 'GET',
+              url: 'https://api.example.com/x',
+              authentication: 'integration',
+              integrationId: 'int-1',
+            },
+            contextWithWorkspace,
+          )) as unknown as BlockResult;
+
+          expect(result.port).toBe('error');
+          expect(result.output.error.code).toBe('HTTP_BLOCKED');
+          expect(result.output.error.message).toBe(SSRF_BLOCKED_CLIENT_MESSAGE);
+          expect(JSON.stringify(result)).not.toContain(RESOLVED_INTERNAL);
+          expect(JSON.stringify(result)).not.toContain('K3Y-S3CR3T');
+          expect(logUsage).toHaveBeenCalledTimes(1);
+          expect(logUsage.mock.calls[0][1]).toEqual(
+            expect.objectContaining({
+              status: 'failed',
+              error: {
+                code: 'HTTP_BLOCKED',
+                message: SSRF_BLOCKED_CLIENT_MESSAGE,
+              },
+            }),
+          );
+          expect(warn).toHaveBeenCalledWith(
+            expect.stringContaining(RESOLVED_INTERNAL),
+          );
+        } finally {
+          warn.mockRestore();
+        }
+      });
+
+      it('reports a connect-time block as HTTP_BLOCKED without an integration too', async () => {
+        global.fetch = jest.fn().mockRejectedValue(connectTimeBlock());
+
+        const result = (await new HttpRequestHandler().execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/x' },
+          context,
+        )) as unknown as BlockResult;
+
+        expect(result.port).toBe('error');
+        expect(result.output.error.code).toBe('HTTP_BLOCKED');
+        expect(JSON.stringify(result)).not.toContain(RESOLVED_INTERNAL);
+      });
+
+      it('keeps other connection failures as HTTP_TRANSPORT_FAILED', async () => {
+        global.fetch = jest.fn().mockRejectedValue(
+          new TypeError('fetch failed', {
+            cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), {
+              code: 'ENOTFOUND',
+            }),
+          }),
+        );
+
+        const result = (await new HttpRequestHandler().execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/x' },
+          context,
+        )) as unknown as BlockResult;
+
+        expect(result.output.error.code).toBe('HTTP_TRANSPORT_FAILED');
+      });
     });
   });
 

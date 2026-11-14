@@ -293,10 +293,13 @@ export const DNS_LOOKUP_TIMEOUT_MS = 3000;
  * - `lookup` 은 fetch 가 연결할 때 쓰는 해석기와 같아서 `/etc/hosts` · 검색 도메인으로 푸는 주소도 본다.
  *   네트워크 DNS 만 묻는 `resolve4` · `resolve6` 은 그 주소를 놓친다(CLE-EIA-NOTIFY Rationale 의 실측).
  * - 해석에 실패하면 통과시킨다(fail-open). 풀리지 않는 이름은 fetch 도 연결하지 못한다.
- * - 검사한 주소를 fetch 에 고정하지 않는다. 검사와 연결 사이에 DNS 응답이 바뀌는 경우는 남는다.
+ * - 검사와 발송 연결은 DNS 를 각자 조회한다. 그 사이 응답이 바뀌는 경우는
+ *   `notificationWebhookDispatcher`(`modules/external-interaction/notification-webhook-dispatcher.ts`)가
+ *   연결할 때 같은 대역표로 다시 판정해서 막는다(CLE-T-GAQCF9). 이 검사는 서명 · 발송 전에 막아 재시도 없이
+ *   degraded 로 두려고 남긴다.
  * - 해석이 `DNS_LOOKUP_TIMEOUT_MS` 안에 끝나지 않으면 해석 실패와 똑같이 통과시킨다(fail-open). 시간을 넘긴
- *   `getaddrinfo` 는 libuv 스레드풀을 계속 점유한다. 그 점유는 여기서 풀지 않고, 주소 고정을 도입하는
- *   후속 작업(CLE-T-GAQCF9)이 발송 쪽 조회와 합칠 때 다룬다.
+ *   `getaddrinfo` 는 끝날 때까지 libuv 스레드풀을 점유한다. 발송 연결의 조회는 이 검사와 합치지 않았으므로
+ *   그 점유는 바뀌지 않는다. 합치지 않은 이유는 CLE-EIA-NOTIFY-SSRF Rationale 에 있다.
  *
  * @param hostname `new URL(url).hostname` (IPv6 리터럴은 괄호를 포함한다).
  * @returns 통과면 `{ ok: true }`, 거부면 `{ ok: false, reason }`. 조회 시간 초과만 `{ ok: true, reason }` 이다
@@ -343,19 +346,24 @@ export async function checkResolvedHostIp(
     if (timer) clearTimeout(timer);
   }
   for (const { address } of addresses) {
-    if (address.includes(':')) {
-      if (isPrivateIpv6(address)) {
-        return {
-          ok: false,
-          reason: `resolved IPv6 ${address} falls in a private range`,
-        };
-      }
-    } else if (isPrivateIpv4(address)) {
-      return {
-        ok: false,
-        reason: `resolved IPv4 ${address} falls in a private/loopback/metadata range`,
-      };
-    }
+    const reason = resolvedAddressBlockReason(address);
+    if (reason) return { ok: false, reason };
   }
   return { ok: true };
+}
+
+/**
+ * 해석기가 돌려준 주소 하나가 사설 · loopback · metadata 대역이면 거부 사유를, 아니면 `null` 을 돌려준다.
+ * {@link checkResolvedHostIp} 와 `notificationWebhookDispatcher`(`modules/external-interaction/notification-webhook-dispatcher.ts`)가
+ * 같은 판정과 사유 문구를 쓴다.
+ */
+export function resolvedAddressBlockReason(address: string): string | null {
+  if (address.includes(':')) {
+    return isPrivateIpv6(address)
+      ? `resolved IPv6 ${address} falls in a private range`
+      : null;
+  }
+  return isPrivateIpv4(address)
+    ? `resolved IPv4 ${address} falls in a private/loopback/metadata range`
+    : null;
 }

@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP"
 title: "HTTP Request 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-HTTP-001", "REQ-HTTP-002", "REQ-HTTP-003", "REQ-HTTP-004", "REQ-HTTP-005", "REQ-HTTP-006", "REQ-HTTP-007", "REQ-HTTP-008", "REQ-HTTP-009", "REQ-HTTP-010", "REQ-HTTP-011", "REQ-HTTP-012", "REQ-HTTP-013", "REQ-HTTP-014", "REQ-HTTP-015", "REQ-HTTP-016", "REQ-HTTP-017", "REQ-HTTP-018", "REQ-HTTP-019", "REQ-HTTP-020", "REQ-HTTP-021", "REQ-HTTP-022", "REQ-HTTP-023", "REQ-HTTP-024", "REQ-HTTP-025", "REQ-HTTP-026", "REQ-HTTP-027", "REQ-HTTP-028", "REQ-HTTP-029", "REQ-HTTP-030", "REQ-HTTP-031", "REQ-HTTP-032", "REQ-HTTP-033", "REQ-HTTP-034", "REQ-HTTP-035", "REQ-HTTP-036", "REQ-HTTP-037"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "b4c62e8e3b6208e1d0b4bb22f9c8a4190dcf96a8796702653fe767997a07d9dc"
+content_hash: "0631b95cb05fe7311d67838324b069a667018d730ccc2ed15de3fd5471786666"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-6H2AKH"
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "626bbaa4f32d5b8edc8e62b59c784a711046c09dfc6f5790261654d5c4b8e8e4"
-etag: "sha256-10b7c32c0308adef48f3ffa3e60367cbdeba6722ff59990b7b50390868ac3cc6"
+mirror_sha256: "619bb77e022fcbfed6e50453ce70c8b5e47b64cf4c26acf3c742859f7f022b2f"
+etag: "sha256-0b08decc5e57b4d96d73afe1877db8f2a1065a9e47d8a9bde4177d24ea750cfa"
 ---
 > 구현 상태: 부분 구현 (바이너리 처리·리다이렉트 토글·SSL 검증 토글은 미구현) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -133,7 +133,8 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 
 - `codebase/backend/src/nodes/integration/http-request/http-request.handler.ts` (실행 흐름은 [실행 로직](CLE-NODE-HTTP-EXEC.md), 출력은 [출력과 에러](CLE-NODE-HTTP-OUTPUT.md))
 - `codebase/backend/src/nodes/integration/http-request/http-request.schema.ts`
-- `codebase/backend/src/nodes/integration/http-request/http-safety.ts` (사설망 차단 가드)
+- `codebase/backend/src/nodes/integration/http-request/http-safety.ts` (사설망 차단 가드, 연결 시점 주소 판정 dispatcher `safeOutboundDispatcher`)
+- `codebase/backend/src/common/utils/guarded-lookup-dispatcher.ts` (연결할 때 푼 주소를 판정하는 undici dispatcher, MCP · 알림 웹훅과 공용)
 - `codebase/backend/src/nodes/integration/http-request/http-redirect.ts` (리다이렉트 직접 추적, 출처가 바뀐 홉의 자격 증명 제거, 리다이렉트 method 규칙)
 - `codebase/backend/src/nodes/integration/http-request/http-credentials.ts` (`auth_type` 별 자격 증명)
 - `codebase/backend/src/nodes/integration/_base/sanitize-response-headers.util.ts` (응답 헤더 가림)

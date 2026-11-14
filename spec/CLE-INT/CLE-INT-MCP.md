@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "0bebf1ed5c846d72248cb1c4f66ef287076d9a3c2aad9237f358430c56826593"
+content_hash: "db6f83869551fabdf5bb4c76a214a708f8464e76d16737c35ec52876c02d7e9e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-BS1WD1"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "fc7eef409c820fa0e7d4964a8d8f2436093f867c09cfccb07ba3527fdf343164"
-etag: "sha256-14916cc76e4f1e32316f904d720f9ea76693515d5b7f9a606a31c93a430d69e6"
+mirror_sha256: "452118a2299913e2265e9726030a9f36c0418e7d256cc84f17a22a29cf17d543"
+etag: "sha256-a3d6a5f1bc3b1883b56970ac5bbaabfd17223a928d933d7e097b2711de8d91f8"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -188,11 +188,11 @@ MCP 서버는 새 노드가 아니라 기존 통합 엔티티의 새 `service_ty
 - MCP 통합의 개인 공개 범위 허용 여부는 [통합 관리](CLE-INT-MANAGE.md#미결-사항) 의 미결 사항에서 다룬다. 이 문서 원문은 «기본 `organization`, 개인 등록 미지원» 쪽이다.
 - **`<sid>` 길이 규칙과 현재 구현의 차이**: 이 문서 원문은 `<sid>` 를 `Integration.id` 앞 8자로 두고 워크스페이스 안에서 겹치면 12자로 늘린다고 적는다. 현재 구현은 외부 `McpToolProvider` 가 한 노드의 `mcpServers` 안에서만 겹침을 보고 8 → 12 → 32자 순으로 늘리며(`assignSids`, `buildTools` 시점), 내부 MCP 브리지 프로바이더는 늘 앞 16자를 쓴다(`sanitizeSid`). 문서를 구현에 맞출지, 구현을 문서에 맞출지 정해야 한다. 결정 필요.
 - **외부 MCP 도구 인자의 `inputSchema` 검증**: [격리 원칙](CLE-INT-MCP-ERROR.md#격리-원칙) 표와 [에러 코드](CLE-INT-MCP-ERROR.md#에러-코드)의 `INVALID_TOOL_ARGUMENTS` 는 인자가 `inputSchema` 를 어기면 호출하지 않는다고 적는다. 현재 `McpToolProvider.execute` 는 일반 도구 인자의 JSON 파싱만 확인하고 `inputSchema` 검증은 하지 않는다. 메타 도구는 `uri`·`name` 같은 필수 인자만 확인한다. 그래서 dry-run 재실행에서는 형식이 틀린 인자도 건너뛴 호출의 결과를 받는다. 검증을 구현할지, 문서를 서버 쪽 검증에 맡기는 쪽으로 고칠지 결정 필요. 담당 NERV Task `CLE-T-RBMJP0`.
-- **연결 직전 해석 주소의 DNS rebinding**: [자격 증명과 URL 검증](CLE-INT-MCP-CONN.md#자격-증명과-url-검증) 3항은 connect 직전에 해석한 주소를 검사하지만, SDK 의 fetch 는 연결할 때 DNS 를 다시 푼다. 그 사이에 응답이 바뀌면 사설 주소에 닿을 수 있다. HTTP Request 노드도 같은 한계가 있다. 검사한 주소로 연결을 고정할지 결정 필요. 담당 NERV Task `CLE-T-BS1WD1`.
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/mcp/mcp-client.service.ts` (Streamable HTTP 클라이언트, URL 검증, connect 직전 해석 주소 검사 `requireSafeResolvedHost`)
+- `codebase/backend/src/modules/mcp/mcp-client.service.ts` (Streamable HTTP 클라이언트, URL 검증, connect 직전 해석 주소 검사 `requireSafeResolvedHost`, 연결 시점 주소 판정 fetch `guardedFetch`)
+- `codebase/backend/src/common/utils/guarded-lookup-dispatcher.ts` (연결할 때 푼 주소를 판정하는 undici dispatcher, HTTP Request 노드 · 알림 웹훅과 공용)
 - `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (URL 검증이 쓰는 IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`)
 - `codebase/backend/src/modules/mcp/mcp-test-connection.service.ts` (연결 테스트)
 - `codebase/backend/src/modules/mcp/mcp-error-codes.ts` (`MCP_ERROR_CODES`, `sanitizeMcpErrorMessage`)

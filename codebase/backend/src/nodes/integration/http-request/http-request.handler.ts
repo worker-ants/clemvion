@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import type { Dispatcher } from 'undici';
 import {
   ExecutionContext,
   NodeHandler,
@@ -26,7 +27,9 @@ import {
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
+  safeOutboundDispatcher,
 } from './http-safety.js';
+import { findCause } from '../../../common/utils/guarded-lookup-dispatcher.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
 import {
   HttpCredentials,
@@ -68,7 +71,46 @@ const QUERY_PARAM_BLACKLIST = new Set<string>([
   'x-amz-signature',
 ]);
 
-function sanitizeUrlCredentials(raw: string): string {
+const REDACTED = '[REDACTED]';
+
+/**
+ * `params` 에서 이름(대소문자 무시)이 {@link QUERY_PARAM_BLACKLIST} 나 `credentialNames`(소문자) 에 든 항목의 값을
+ * {@link REDACTED} 로 바꾼다. 하나라도 바꿨으면 `true`.
+ */
+function redactSensitiveParams(
+  params: URLSearchParams,
+  credentialNames: ReadonlySet<string>,
+): boolean {
+  // Mutating searchParams during iteration is awkward; collect the
+  // sensitive keys first.
+  const sensitive = new Set<string>();
+  for (const key of params.keys()) {
+    const lower = key.toLowerCase();
+    if (QUERY_PARAM_BLACKLIST.has(lower) || credentialNames.has(lower)) {
+      sensitive.add(key);
+    }
+  }
+  for (const key of sensitive) params.set(key, REDACTED);
+  return sensitive.size > 0;
+}
+
+/**
+ * 출력 · 미리보기에 싣는 URL 에서 자격 증명을 가린다. `user:pass@` 를 지우고, 이름이
+ * {@link QUERY_PARAM_BLACKLIST} 에 든 query 와 `credentialQueryNames` 에 든 query 의 값을 `[REDACTED]` 로 바꾼다.
+ *
+ * `credentialQueryNames` 는 이번 호출에 붙인 통합 자격 증명 query 의 이름이다(`api_key` + `location=query` 의
+ * `key_name`). 사용자가 정한 이름이라 목록으로는 다 막을 수 없어서 따로 받는다(NERV Task `CLE-T-6H2AKH`).
+ * 이름은 대소문자를 가리지 않고 비교한다.
+ *
+ * URL 로 파싱되지 않는 값(base_url 없는 상대 경로 등)도 `?` 뒤를 query 로 읽어 같은 규칙으로 가린다.
+ */
+function sanitizeUrlCredentials(
+  raw: string,
+  credentialQueryNames: readonly string[] = [],
+): string {
+  const credentialNames = new Set(
+    credentialQueryNames.map((name) => name.toLowerCase()),
+  );
   try {
     const parsed = new URL(raw);
     if (parsed.username || parsed.password) {
@@ -76,19 +118,20 @@ function sanitizeUrlCredentials(raw: string): string {
       parsed.password = '';
     }
     if (parsed.searchParams.size > 0) {
-      // Mutating searchParams during iteration is awkward; collect the
-      // sensitive keys first.
-      const sensitive: string[] = [];
-      for (const key of parsed.searchParams.keys()) {
-        if (QUERY_PARAM_BLACKLIST.has(key.toLowerCase())) sensitive.push(key);
-      }
-      for (const key of sensitive) {
-        parsed.searchParams.set(key, '[REDACTED]');
-      }
+      redactSensitiveParams(parsed.searchParams, credentialNames);
     }
     return parsed.toString();
   } catch {
-    return raw.replace(/^([a-zA-Z][\w+\-.]*:\/\/)[^/@]*@/, '$1');
+    const stripped = raw.replace(/^([a-zA-Z][\w+\-.]*:\/\/)[^/@]*@/, '$1');
+    const queryStart = stripped.indexOf('?');
+    if (queryStart === -1) return stripped;
+    const hashStart = stripped.indexOf('#', queryStart);
+    const queryEnd = hashStart === -1 ? stripped.length : hashStart;
+    const params = new URLSearchParams(
+      stripped.slice(queryStart + 1, queryEnd),
+    );
+    if (!redactSensitiveParams(params, credentialNames)) return stripped;
+    return `${stripped.slice(0, queryStart + 1)}${params.toString()}${stripped.slice(queryEnd)}`;
   }
 }
 
@@ -277,6 +320,10 @@ export class HttpRequestHandler
     // Apply integration-provided query params (api_key in query mode) — shared
     // with the integration connection test so both build the same URL.
     url = appendQueryParams(url, credentials.queryParams);
+    // 이 뒤로 출력에 싣는 URL 은 붙인 자격 증명 query 의 이름까지 가린다. `key_name` 은 사용자가 정해서
+    // `QUERY_PARAM_BLACKLIST` 로는 다 막을 수 없다(NERV Task `CLE-T-6H2AKH`). 리다이렉트로 바뀐 URL 에 같은 이름이
+    // 다시 실려 와도 가린다.
+    const credentialQueryNames = Object.keys(credentials.queryParams ?? {});
 
     // Credential headers must take precedence over user-supplied headers to
     // prevent a workflow author from silently overwriting an integration's
@@ -287,7 +334,11 @@ export class HttpRequestHandler
       ...(credentials.headers ?? {}),
     };
 
-    const fetchOptions: RequestInit = { method, headers: mergedHeaders };
+    // `dispatcher` 는 Node fetch(undici) 확장이라 DOM 의 `RequestInit` 타입에 없다.
+    const fetchOptions: RequestInit & { dispatcher?: Dispatcher } = {
+      method,
+      headers: mergedHeaders,
+    };
 
     if (body !== undefined && !['GET', 'HEAD'].includes(method)) {
       if (bodyType === 'json') {
@@ -354,6 +405,7 @@ export class HttpRequestHandler
     // Two-layer 검증: 호스트 리터럴 (IP 직접 지정 차단) → DNS resolve 후 IP
     // 재검사 (DNS rebinding 차단). hostname literal 검사만으로는 공격자가 통제하는
     // DNS 가 공개 hostname 을 내부 IP 로 resolve 하는 DNS rebinding 시나리오에 무방어다.
+    // 이 검사와 실제 연결 사이에 DNS 응답이 바뀌는 경우는 아래 fetch 의 dispatcher 가 연결할 때 다시 판정한다.
     try {
       const parsed = assertSafeOutboundUrl(url);
       await assertSafeOutboundHostResolved(parsed.hostname);
@@ -388,6 +440,7 @@ export class HttpRequestHandler
           method,
           url,
           Date.now() - start,
+          credentialQueryNames,
         );
       }
       logger.warn(`SSRF block (http-request): ${detail}`);
@@ -419,6 +472,7 @@ export class HttpRequestHandler
         method,
         url,
         Date.now() - start,
+        credentialQueryNames,
       );
     }
 
@@ -438,6 +492,10 @@ export class HttpRequestHandler
     // integration connection test). It also drops the integration credentials
     // (headers and query) on hops whose origin differs from the first request.
     fetchOptions.redirect = 'manual';
+    // 연결할 때 푼 주소를 같은 대역표로 다시 판정한다(CLE-T-BS1WD1). 리다이렉트 홉도 이 옵션을 물려받는다.
+    // `ALLOW_PRIVATE_HOST_TARGETS=true` 면 없어서 전역 dispatcher 를 쓴다.
+    const connectGuard = safeOutboundDispatcher();
+    if (connectGuard) fetchOptions.dispatcher = connectGuard;
 
     try {
       let res = await fetch(url, fetchOptions);
@@ -509,7 +567,8 @@ export class HttpRequestHandler
       // inspection AND the standardized runtime-error envelope required by
       // CONVENTIONS §3.2. Sanitize embedded credentials before echoing the
       // URL into `details` so workflow authors reading `output.error` can't
-      // accidentally persist Basic Auth secrets.
+      // accidentally persist Basic Auth secrets or the integration's query
+      // API key (whatever `key_name` the user chose).
       return {
         config: configEcho,
         output: {
@@ -521,7 +580,7 @@ export class HttpRequestHandler
             details: {
               statusCode: res.status,
               statusText: res.statusText,
-              url: sanitizeUrlCredentials(url),
+              url: sanitizeUrlCredentials(url, credentialQueryNames),
               method,
             },
           },
@@ -537,25 +596,40 @@ export class HttpRequestHandler
       // HTTP_TRANSPORT_FAILED 로 간다.
       if (isUpstreamAbort(err, upstream)) throw err;
       const durationMs = Date.now() - start;
+      // 연결 시점 판정이 막으면 fetch 는 `TypeError('fetch failed')` 로 끝나고 판정은 `cause` 에 있다. 사전 검사
+      // 차단과 같은 HTTP_BLOCKED 로 보낸다. 원본 host/IP 는 서버 로그에만 남긴다.
+      const connectBlock = findCause(err, SsrfBlockedError);
+      if (connectBlock) {
+        logger.warn(
+          `SSRF block (http-request connect): ${connectBlock.message}`,
+        );
+      }
+      const failure = connectBlock
+        ? new IntegrationError(
+            ErrorCode.HTTP_BLOCKED,
+            SSRF_BLOCKED_CLIENT_MESSAGE,
+          )
+        : err;
       // redirect hop 의 SSRF 차단은 IntegrationError(HTTP_BLOCKED)로 승격돼 이 catch
       // 에 도달한다 — transport 실패로 오분류하지 말고 그 code/message(일반화)를 보존.
-      if (err instanceof IntegrationError) {
+      if (failure instanceof IntegrationError) {
         if (integration) {
           await this.logUsage(integration, context, {
             status: 'failed',
             durationMs,
-            error: { code: err.code, message: err.message },
+            error: { code: failure.code, message: failure.message },
             api: { method, path: extractApiPath(url) },
           }).catch(() => {});
         }
         return buildPreflightErrorOutput(
-          err,
+          failure,
           configEcho,
           cappedRequestBody,
           bodyType,
           method,
           url,
           durationMs,
+          credentialQueryNames,
         );
       }
       // 마스킹해서 내보낸다 — 이 자리로 오는 것은 `fetch` 전송 오류만이 아니라, 리다이렉트 **홉** 검사에서
@@ -583,7 +657,10 @@ export class HttpRequestHandler
           error: {
             code: 'HTTP_TRANSPORT_FAILED',
             message,
-            details: { url: sanitizeUrlCredentials(url), method },
+            details: {
+              url: sanitizeUrlCredentials(url, credentialQueryNames),
+              method,
+            },
           },
         },
         meta: { statusCode: 0, durationMs },
@@ -630,6 +707,7 @@ function buildPreflightErrorOutput(
   method: string,
   url: string,
   durationMs: number,
+  credentialQueryNames: readonly string[] = [],
 ): NodeHandlerOutput {
   const code =
     err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED';
@@ -642,7 +720,10 @@ function buildPreflightErrorOutput(
       error: {
         code,
         message,
-        details: { url: sanitizeUrlCredentials(url), method },
+        details: {
+          url: sanitizeUrlCredentials(url, credentialQueryNames),
+          method,
+        },
       },
     },
     meta: { statusCode: 0, durationMs },

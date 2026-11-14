@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-OUTPUT"
 title: "HTTP Request 노드 — 출력과 에러"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "4a8300915bdd0bfa93199573d129930f20b0b47ef6e4f314e6e0cba1a06d2351"
+content_hash: "e9674c509f6c2bf41d4285eafa9bc9848ba04ed0fc30925f9ddeb2e6ce2a6a43"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-6H2AKH"
 source_paths: []
-mirror_sha256: "52ca332c8e472f636d8470f6b918af1e1630df151cca89a5699c5d1633b525d2"
-etag: "sha256-20f94569ed9f0c4b1baf785c14893ebe49df8edc14e687be68c918c134873184"
+mirror_sha256: "820da9b44b0a2b9402856f284f7a7671747269f55c09767e4c8d3259e58fe196"
+etag: "sha256-dcffef1bde4cb4e6df510eaed6281eaf438c653e9ece24bff8c9c587911b20b7"
 ---
 ## 개요
 
@@ -130,7 +130,7 @@ etag: "sha256-20f94569ed9f0c4b1baf785c14893ebe49df8edc14e687be68c918c134873184"
 | `output.error.message` | string | 핸들러 반환 | `HTTP {status} {statusText}` |
 | `output.error.details.statusCode` | number | 핸들러 반환 | HTTP 응답 상태. 3xx 일 수 있다 |
 | `output.error.details.statusText` | string | 핸들러 반환 | HTTP 응답 상태 텍스트 |
-| `output.error.details.url` | string | 핸들러 반환 | 이 응답을 받은 요청의 URL. 리다이렉트를 따라갔으면 마지막 홉의 URL 이다. `sanitizeUrlCredentials` 로 `user:pass@` 를 지우고 이름 목록에 든 쿼리 키(`api_key`·`token`·`signature` 등)의 값을 `[REDACTED]` 로 바꾼다. 통합 자격 증명 쿼리의 이름이 이 목록에 없으면 값이 남는다([Rationale](#에러-details-를-구현에-맞춰-적는다-2026-11-13)) |
+| `output.error.details.url` | string | 핸들러 반환 | 이 응답을 받은 요청의 URL. 리다이렉트를 따라갔으면 마지막 홉의 URL 이다. `sanitizeUrlCredentials` 로 `user:pass@` 를 지우고, 이름 목록에 든 쿼리 키(`api_key`·`token`·`signature` 등)와 이번 호출에 붙인 통합 자격 증명 쿼리(`key_name`)의 값을 `[REDACTED]` 로 바꾼다. 쿼리 이름은 대소문자를 가리지 않는다([Rationale](#붙인-자격-증명-쿼리를-이름으로-가린다-2026-11-14)) |
 | `output.error.details.method` | string | 핸들러 반환 | 요청 method |
 | `meta.statusCode` | number | 핸들러 반환 | HTTP 응답 상태 |
 | `meta.durationMs` | number | 핸들러 반환 | 요청 ms |
@@ -206,7 +206,7 @@ etag: "sha256-20f94569ed9f0c4b1baf785c14893ebe49df8edc14e687be68c918c134873184"
 | `HTTP_4XX` | `300 ≤ statusCode < 500`. 3xx 는 `none`·`custom` 인증의 3xx 와 `integration` 인증에서 `Location` 이 없는 3xx 다 | `statusCode`·`statusText`·`url`·`method` | 서버 본문 보존 | 응답 헤더(가림 적용) | 응답 상태 |
 | `HTTP_5XX` | `500 ≤ statusCode < 600` | `statusCode`·`statusText`·`url`·`method` | 서버 본문 보존 | 응답 헤더(가림 적용) | 응답 상태 |
 | `HTTP_TRANSPORT_FAILED` | 요청 reject(DNS·연결 거부·소켓·노드 자체 타임아웃). 리다이렉트 홉에서 사설망 차단 가드가 판정이 아닌 오류를 던진 경우도 여기로 합류한다 | `url`·`method` | `{ error: <message> }` (옛 호환) | — | `0` |
-| `HTTP_BLOCKED` | 사설망 차단 판정(`SsrfBlockedError`: 호스트 검사·DNS rebinding·리다이렉트 대상 재검사·http(s) 가 아닌 프로토콜), 또는 판정이 아닌 리다이렉트 한도 초과(5홉을 따라간 뒤에도 `Location` 이 있는 3xx). 두 경우 모두 `output.error.message` 는 `Request blocked by SSRF policy.` | `url`·`method` | — | — | `0` |
+| `HTTP_BLOCKED` | 사설망 차단 판정(`SsrfBlockedError`: 호스트 검사·DNS rebinding·연결 시점 주소 판정·리다이렉트 대상 재검사·http(s) 가 아닌 프로토콜), 또는 판정이 아닌 리다이렉트 한도 초과(5홉을 따라간 뒤에도 `Location` 이 있는 3xx). 두 경우 모두 `output.error.message` 는 `Request blocked by SSRF policy.` | `url`·`method` | — | — | `0` |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 실패([통합 노드 공통](CLE-NODE-INT-COMMON.md)) | `url`·`method` | — | — | `0` |
 | `INTEGRATION_AUTH_UNSUPPORTED` | 지원하지 않는 `auth_type` | `url`·`method` | — | — | `0` |
 | `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback), 또는 preflight 사설망 차단 가드의 고장 | `url`·`method` | — | — | `0` |
@@ -215,7 +215,7 @@ etag: "sha256-20f94569ed9f0c4b1baf785c14893ebe49df8edc14e687be68c918c134873184"
 `output.error.details` 의 `url` 은 실패한 시점에 따라 다르다. 모든 `url` 에 4xx·5xx 응답과 같은 `sanitizeUrlCredentials` 가림을 적용한다.
 
 - 통합 해소 단계([실행 로직](CLE-NODE-HTTP-EXEC.md#실행-로직) 3단계)에서 끝난 실패(`INTEGRATION_*`, 통합 조회 실패의 `INTEGRATION_CALL_FAILED`)는 `base_url` 을 합치기 전 설정의 `url` 이다.
-- 그 뒤의 실패는 `base_url` 과 쿼리(통합 자격 증명 쿼리 포함)를 붙인 요청 URL 이다. preflight 의 `HTTP_BLOCKED`·`INTEGRATION_CALL_FAILED` 가 여기에 든다.
+- 그 뒤의 실패는 `base_url` 과 쿼리(통합 자격 증명 쿼리 포함)를 붙인 요청 URL 이다. 붙인 자격 증명 쿼리의 값은 가린다. preflight 의 `HTTP_BLOCKED`·`INTEGRATION_CALL_FAILED` 가 여기에 든다.
 - 리다이렉트를 따라가는 중에 난 `HTTP_BLOCKED` 와 `HTTP_TRANSPORT_FAILED` 는 첫 요청 URL 이다. 리다이렉트를 따라간 뒤 받은 응답의 `HTTP_4XX`·`HTTP_5XX` 는 마지막 홉의 URL 이다.
 
 ## Rationale
@@ -237,5 +237,14 @@ etag: "sha256-20f94569ed9f0c4b1baf785c14893ebe49df8edc14e687be68c918c134873184"
 2026-11-13 에 에러 케이스마다 `output.error.details` 의 필드를 코드에 맞춰 적었다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.2.2 의 HTTP Request 예도 같은 날 같은 필드로 고쳤다.
 
 - 응답을 받은 `HTTP_4XX`·`HTTP_5XX` 만 `statusCode`·`statusText` 를 싣는다. 나머지 에러는 `url`·`method` 만 싣는다.
-- `details.url` 의 가림은 `sanitizeUrlCredentials` 하나뿐이다. 이 함수는 `user:pass@` 와 이름 목록에 든 쿼리 키만 가린다. 통합 자격 증명이 쿼리(`api_key` + `location=query`)이고 그 이름(`key_name`)이 목록에 없으면 값이 `details.url` 에 그대로 남는다. `details` 는 노드 실행 기록과 표현식 캐시에도 남는다. dry-run 미리보기는 자격 증명 쿼리를 붙이기 전 URL 을 써서 이 문제가 없다.
-- **고치지 않은 이유**: 고치려면 핸들러가 `details.url` 에 자격 증명 쿼리를 붙이기 전 URL 을 쓰거나 붙인 쿼리 이름을 가려야 한다. 출력이 바뀌는 일이라 서술을 맞추는 이번 개정에서 고치지 않았다. NERV Task `CLE-T-6H2AKH` 가 맡는다.
+- 그때 `details.url` 의 가림은 `user:pass@` 와 이름 목록에 든 쿼리 키만 가렸다. 통합 자격 증명이 쿼리(`api_key` + `location=query`)이고 그 이름(`key_name`)이 목록에 없으면 값이 `details.url` 에 그대로 남았다. `details` 는 노드 실행 기록과 표현식 캐시에도 남는다. dry-run 미리보기는 자격 증명 쿼리를 붙이기 전 URL 을 써서 이 문제가 없었다.
+- 출력이 바뀌는 일이라 서술을 맞추는 그 개정에서는 고치지 않았다. NERV Task `CLE-T-6H2AKH` 가 2026-11-14 에 고쳤다([붙인 자격 증명 쿼리를 이름으로 가린다](#붙인-자격-증명-쿼리를-이름으로-가린다-2026-11-14)).
+
+### 붙인 자격 증명 쿼리를 이름으로 가린다 (2026-11-14)
+
+NERV Task `CLE-T-6H2AKH` 에서 `details.url` 에 통합 자격 증명 쿼리의 값이 남던 문제를 고쳤다. 핸들러는 이번 호출에 붙인 자격 증명 쿼리의 이름을 `sanitizeUrlCredentials` 에 넘긴다. 이 함수는 이름 목록에 든 쿼리 키와 함께 넘겨받은 이름의 값을 `[REDACTED]` 로 바꾼다. 4xx·5xx · 전송 실패 · preflight 차단 · 리다이렉트를 따라간 뒤의 URL 에 모두 같은 규칙을 쓴다.
+
+- **이름 목록을 늘리지 않았다.** `key_name` 은 사용자가 정하는 이름이라 목록을 늘려도 다 막을 수 없다. 이번 호출에 붙인 이름은 핸들러가 정확히 안다.
+- **자격 증명을 붙이기 전 URL 을 쓰지 않았다.** `details.url` 은 실제로 보낸 요청의 URL 이라 디버깅할 때 `base_url` · 경로 · 사용자 쿼리를 그대로 보여 준다. 붙이기 전 URL 을 쓰면 실제 요청과 달라진다. 리다이렉트를 따라간 뒤의 URL 은 서버가 준 `Location` 이라 붙이기 전 URL 이 따로 없다. 이름으로 가리면 쿼리 자리는 남고 값만 가려진다.
+- 사용자가 같은 이름의 쿼리를 직접 넣었으면 그 값도 가린다. 같은 이름이면 대상 서버가 자격 증명으로 읽는 값이다.
+- 이름은 대소문자를 가리지 않고 비교한다. URL 로 파싱되지 않는 값(`base_url` 없는 상대 경로 등)도 `?` 뒤를 쿼리로 읽어 같은 규칙으로 가린다.
