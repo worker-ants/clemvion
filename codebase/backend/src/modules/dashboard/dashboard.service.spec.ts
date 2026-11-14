@@ -8,6 +8,7 @@ type FakeExec = {
   status: ExecutionStatus;
   startedAt: Date;
   durationMs: number | null;
+  activeRunningMs: number;
   triggerId: string | null;
   executedBy: string | null;
   parentExecutionId: string | null;
@@ -22,6 +23,7 @@ const baseFake = (overrides: Partial<FakeExec>): FakeExec => ({
   status: ExecutionStatus.COMPLETED,
   startedAt: new Date('2026-05-04T10:00:00.000Z'),
   durationMs: 1000,
+  activeRunningMs: 800,
   triggerId: null,
   executedBy: null,
   parentExecutionId: null,
@@ -236,6 +238,40 @@ describe('DashboardService.getRecentExecutions', () => {
       triggerLabel: 'Stripe payment hook',
     });
     expect(JSON.stringify(result)).not.toMatch(/@/);
+  });
+
+  // CLE-T-51KBTG: 최근 실행은 실행 시간(입력 대기를 뺀 순수 실행 시간)을 보인다.
+  // 판정은 실행 응답과 같은 `toActiveRunningMsForResponse` 라 두 화면 값이 갈리지 않는다.
+  it('실행 시간(activeRunningMs)을 전체 경과와 따로 싣고 끝나지 않았거나 측정되지 않았으면 null 이다', async () => {
+    const waitedLong = baseFake({
+      id: 'eT1',
+      status: ExecutionStatus.CANCELLED,
+      durationMs: 3_600_000,
+      activeRunningMs: 1_200,
+    });
+    const stoppedWhileRunning = baseFake({
+      id: 'eT2',
+      status: ExecutionStatus.CANCELLED,
+      durationMs: 5_000,
+      activeRunningMs: 0,
+    });
+    const waiting = baseFake({
+      id: 'eT3',
+      status: ExecutionStatus.WAITING_FOR_INPUT,
+      durationMs: null,
+      activeRunningMs: 700,
+    });
+    executionRepo.createQueryBuilder.mockReturnValueOnce(
+      buildListQB([waitedLong, stoppedWhileRunning, waiting]) as unknown,
+    );
+
+    const result = await service.getRecentExecutions('ws-1');
+
+    expect(result.map((r) => [r.id, r.durationMs, r.activeRunningMs])).toEqual([
+      ['eT1', 3_600_000, 1_200],
+      ['eT2', 5_000, null],
+      ['eT3', null, null],
+    ]);
   });
 
   it('subworkflow rows: batch-loads parent workflow.name once and uses it as label', async () => {

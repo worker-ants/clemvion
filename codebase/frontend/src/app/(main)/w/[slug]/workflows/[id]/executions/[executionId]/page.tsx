@@ -374,7 +374,7 @@ export default function ExecutionDetailPage({
             {getStatusLabel(execution.status)}
           </Badge>
         </div>
-        <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3 lg:grid-cols-5">
           <div>
             <span className="text-[hsl(var(--muted-foreground))]">{t("executions.summaryStarted")}</span>
             <p className="font-medium">{formatDate(execution.startedAt, "datetime")}</p>
@@ -389,6 +389,10 @@ export default function ExecutionDetailPage({
           </div>
           <div>
             <span className="text-[hsl(var(--muted-foreground))]">{t("executions.summaryDuration")}</span>
+            <p className="font-medium">{formatDuration(execution.activeRunningMs)}</p>
+          </div>
+          <div>
+            <span className="text-[hsl(var(--muted-foreground))]">{t("executions.summaryElapsed")}</span>
             <p className="font-medium">{formatDuration(execution.durationMs)}</p>
           </div>
           <div>

@@ -9,6 +9,15 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+  type DtoContract,
+} from '../src/shared/testing/response-contract';
+import {
+  ExecutionDetailDto,
+  ExecutionDto,
+} from '../src/modules/executions/dto/responses/execution-response.dto';
 
 /**
  * e2e: spec/5-system/13-replay-rerun.md §8 (Re-run) — 실 인프라(BullMQ 워커 + Postgres)
@@ -88,8 +97,12 @@ describe('Execution Re-run (e2e)', () => {
   let db: Client;
   let ownerToken: string;
   let workspaceId: string;
+  let executionContract: DtoContract;
+  let executionDetailContract: DtoContract;
 
   beforeAll(async () => {
+    executionContract = await contractForDto(ExecutionDto);
+    executionDetailContract = await contractForDto(ExecutionDetailDto);
     db = createDbClient();
     await db.connect();
     const owner = await registerAndLogin(BASE_URL, uniqueEmail('rerun'), db);
@@ -158,6 +171,8 @@ describe('Execution Re-run (e2e)', () => {
     // 원본이 chain root 이므로 chainId 는 원본 id 와 동일.
     expect(body.chainId).toBe(executionId);
     expect(body.dryRun).toBe(false);
+    // 재실행 응답은 실행 상세 응답과 같은 모양이다(선언에 없는 키도 걸린다).
+    assertMatchesContract(res.body.data, executionDetailContract);
 
     // 새 실행이 실제 DB 에 별도 row 로 존재하고 re_run_of 가 영속됐는지 확인.
     const row = await db.query<{
@@ -291,6 +306,12 @@ describe('Execution Re-run (e2e)', () => {
     for (const it of items) {
       const root = it.chainId ?? it.id;
       expect(root).toBe(executionId);
+    }
+
+    // 체인 항목은 목록 항목과 같은 `ExecutionDto` 다. 종전에는 엔티티를 펼쳐 선언한
+    // `triggerSource` · `triggerLabel` · 노드 집계가 빠지고 미선언 컬럼이 실렸다.
+    for (const it of items) {
+      assertMatchesContract(it, executionContract);
     }
   }, 60_000);
 

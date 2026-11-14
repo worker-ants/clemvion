@@ -48,6 +48,7 @@ function makeExecution(overrides: Record<string, unknown> = {}) {
     startedAt: "2024-01-15T14:02:30Z",
     finishedAt: "2024-01-15T14:02:33Z",
     durationMs: 3200,
+    activeRunningMs: 1640,
     inputData: { key: "value" },
     outputData: { result: "success" },
     error: null,
@@ -159,9 +160,28 @@ describe("ExecutionDetailPage", () => {
     expect(await screen.findByText("Completed")).toBeDefined();
   });
 
-  it("renders duration in summary", async () => {
+  /** 요약 카드에서 라벨 바로 다음 값 칸의 글자를 읽는다. */
+  async function summaryValue(label: string): Promise<string | null> {
+    const labels = await screen.findAllByText(label);
+    const summaryLabel = labels.find(
+      (el) => el.tagName === "SPAN" && el.nextElementSibling?.tagName === "P",
+    );
+    return summaryLabel?.nextElementSibling?.textContent ?? null;
+  }
+
+  it("요약 카드는 실행 시간(activeRunningMs)과 전체 경과(durationMs)를 함께 보인다", async () => {
     await renderPage();
-    expect(await screen.findByText("3.2s")).toBeDefined();
+    expect(await summaryValue("Duration")).toBe("1.6s");
+    expect(await summaryValue("Total elapsed")).toBe("3.2s");
+  });
+
+  it("실행 시간이 측정되지 않았으면(null) 실행 시간은 —, 전체 경과는 값 그대로 보인다", async () => {
+    mockGetById.mockResolvedValue(
+      makeExecution({ executedBy: "user-me", activeRunningMs: null, durationMs: 5000 }),
+    );
+    await renderPage();
+    expect(await summaryValue("Duration")).toBe("\u2014");
+    expect(await summaryValue("Total elapsed")).toBe("5s");
   });
 
   it("renders node count summary", async () => {

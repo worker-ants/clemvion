@@ -36,7 +36,7 @@ import { buildEditorHref, buildExecutionHref } from "@/lib/workspace/href";
 
 const PAGE_SIZE = 20;
 
-type SortField = "started_at" | "duration_ms" | "status";
+type SortField = "started_at" | "active_running_ms" | "status";
 
 function SortIcon({
   field,
@@ -239,10 +239,10 @@ export default function ExecutionListPage({
                     <button
                       type="button"
                       className="inline-flex items-center hover:text-[hsl(var(--foreground))]"
-                      onClick={() => handleSort("duration_ms")}
+                      onClick={() => handleSort("active_running_ms")}
                     >
                       {t("executions.columnDuration")}
-                      <SortIcon field="duration_ms" currentField={sortField} currentOrder={sortOrder} />
+                      <SortIcon field="active_running_ms" currentField={sortField} currentOrder={sortOrder} />
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left font-medium">
@@ -289,7 +289,7 @@ export default function ExecutionListPage({
                         {formatDate(execution.startedAt, "datetime")}
                       </td>
                       <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
-                        {formatDuration(execution.durationMs)}
+                        {formatDuration(execution.activeRunningMs)}
                       </td>
                       <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
                         {totalNodes > 0 ? (

@@ -55,7 +55,13 @@ export interface ExecutionData {
   error: { message?: string } | null;
   startedAt: string;
   finishedAt: string | null;
+  /** 전체 경과(ms). 시작부터 종료까지의 시간이라 입력 대기 시간이 들어간다. 끝나지 않았으면 null. */
   durationMs: number | null;
+  /**
+   * 실행 시간(ms). 입력 대기를 뺀 순수 실행 시간이다. 끝나지 않았거나 측정되지 않은 실행은 null 이다
+   * (CLE-EXEC-HISTORY 「실행 응답 필드」).
+   */
+  activeRunningMs: number | null;
   triggerSource: ExecutionTriggerSource;
   triggerLabel: string | null;
   nodeExecutions: NodeExecutionData[];
@@ -87,7 +93,7 @@ export interface ExecutionData {
 export interface ExecutionListParams {
   page?: number;
   limit?: number;
-  sort?: "started_at" | "finished_at" | "status" | "duration_ms";
+  sort?: "started_at" | "finished_at" | "status" | "duration_ms" | "active_running_ms";
   order?: "asc" | "desc";
   status?: ExecutionStatus;
 }

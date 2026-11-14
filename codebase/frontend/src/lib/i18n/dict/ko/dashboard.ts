@@ -20,7 +20,7 @@ export const dashboard = {
   lastUpdated: "최근 수정",
   workflow: "워크플로우",
   status: "상태",
-  duration: "소요 시간",
+  duration: "실행 시간",
   time: "시간",
   changeVsPrev: "지난주 대비",
   newWorkflow: "새 워크플로우",

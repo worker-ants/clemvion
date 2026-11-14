@@ -1,5 +1,4 @@
 import {
-  redactNodeExecutionRowForResponse,
   redactStoredDataForResponse,
   redactStoredErrorForResponse,
   redactStoredFieldsForResponse,
@@ -229,93 +228,5 @@ describe('redactStoredFieldsForResponse', () => {
     expect(
       redactStoredFieldsForResponse({ outputData: plain }).outputData,
     ).toEqual(plain);
-  });
-});
-
-/**
- * 자매 헬퍼 — `nodeExecutions[]` 행용. 위 스위트와 **부재 처리·참조 처리가 반대**라서
- * 따로 고정한다.
- *
- * `undefined → null` 정규화를 하면 (a) 응답 shape 이 바뀌고 (b) 값이 없어 아무것도 안 바뀐
- * 행까지 참조가 달라져 copy-on-change 가 깨진다. 그 조회에는 `take` 상한이 없어 대규모
- * ForEach 실행에서 shallow-copy 가 행 수만큼 쌓인다.
- */
-describe('redactNodeExecutionRowForResponse', () => {
-  const CRED = 'Bearer sk-live-abc123def456';
-  const row = (over: Record<string, unknown> = {}) => ({
-    id: 'ne-1',
-    inputData: {},
-    outputData: {},
-    error: {},
-    ...over,
-  });
-
-  it('세 컬럼을 마스킹하고 나머지 필드는 보존한다', () => {
-    const out = redactNodeExecutionRowForResponse(
-      row({
-        inputData: { h: CRED },
-        outputData: { o: CRED },
-        error: { m: CRED },
-      }),
-    );
-    expect(out).toEqual({
-      id: 'ne-1',
-      inputData: { h: '***' },
-      outputData: { o: '***' },
-      error: { m: '***' },
-    });
-  });
-
-  it('세 컬럼 다 무변화면 **같은 참조**를 돌려준다 (무조건 spread 회귀 차단)', () => {
-    const input = row({ outputData: { step: 3 } });
-    expect(redactNodeExecutionRowForResponse(input)).toBe(input);
-  });
-
-  // 세 컬럼 **각각**이 복제를 유발할 수 있어야 한다 — 한 컬럼만 보면 나머지 둘이
-  // copy-on-change 판정에서 빠져도 통과한다.
-  it.each([
-    ['inputData' as const],
-    ['outputData' as const],
-    ['error' as const],
-  ])('%s 만 바뀌어도 복제된다', (column) => {
-    const input = row({ [column]: { leak: CRED } });
-    const out = redactNodeExecutionRowForResponse(input);
-    expect(out).not.toBe(input);
-    expect(out[column]).toEqual({ leak: '***' });
-    // 원본은 변이되지 않는다.
-    expect(input[column]).toEqual({ leak: CRED });
-  });
-
-  // 부재를 `null` 로 정규화하지 **않는다** — 자매 헬퍼와 반대되는 계약.
-  // 두 부재 형태를 **각각** 겨눈다: `undefined` 만 넣으면 `null` 쪽 절반이 검증에서
-  // 빠진다(`14_46_46` testing W2). 컬럼도 셋 다 도는데, 한 컬럼만 보면 나머지 둘이
-  // 정규화로 갈려도 통과하기 때문이다(같은 라운드 INFO #5 의 대칭 갭).
-  //
-  // ~~타입상 두 컬럼은 non-null 이라 **정적으로는** 도달 불가다. 캐스트로 TypeORM 이
-  // 런타임에 줄 수 있는 형태를 재현한다.~~ — 두 가지가 틀렸다(2026-09-03, entity nullable
-  // 배치 2, 리뷰 W4):
-  //
-  //  1. **캐스트는 애초에 불필요했다.** `row` 의 파라미터가 `Record<string, unknown>` 이라
-  //     `{ [column]: absent }` 를 그대로 받는다 — 이 자리에서 컬럼 타입이 강제된 적이 없다.
-  //     (제거하고 `tsc --noEmit` 실측: 오류 0.)
-  //  2. **`outputData`/`error` 는 이제 정적으로도 `null` 이 온다.** 두 컬럼을 `| null` 로
-  //     넓혔다. `inputData` 만 여전히 non-null 이다(`default: {}`, `nullable` 아님).
-  //
-  // `undefined` 분기는 여전히 어느 컬럼에서도 정적으로 오지 않는다 — TypeORM 런타임 경로에
-  // 대한 방어라는 원래 취지는 그쪽에 그대로 남는다.
-  describe.each([
-    ['undefined', undefined],
-    ['null', null],
-  ] as const)('부재가 %s 일 때', (_label, absent) => {
-    it.each([
-      ['inputData' as const],
-      ['outputData' as const],
-      ['error' as const],
-    ])('%s 를 그대로 보존하고 행 참조도 유지한다', (column) => {
-      const input = row({ [column]: absent });
-      const out = redactNodeExecutionRowForResponse(input);
-      expect(out).toBe(input);
-      expect(out[column]).toBe(absent);
-    });
   });
 });

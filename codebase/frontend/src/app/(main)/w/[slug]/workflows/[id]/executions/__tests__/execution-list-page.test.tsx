@@ -36,7 +36,9 @@ vi.mock("@/lib/api/executions", () => ({
               status: "completed",
               startedAt: "2024-01-15T14:02:30Z",
               finishedAt: "2024-01-15T14:02:33Z",
+              // 입력 대기가 들어간 전체 경과(3.2s)와 순수 실행 시간(1.2s)이 다르다.
               durationMs: 3200,
+              activeRunningMs: 1200,
               inputData: {},
               outputData: {},
               error: null,
@@ -55,7 +57,9 @@ vi.mock("@/lib/api/executions", () => ({
               status: "failed",
               startedAt: "2024-01-15T13:55:10Z",
               finishedAt: "2024-01-15T13:55:11Z",
+              // 측정되지 않은 실행(V083 이전 등)은 서버가 null 로 보낸다.
               durationMs: 1000,
+              activeRunningMs: null,
               inputData: {},
               outputData: null,
               error: { message: "Connection timeout" },
@@ -80,6 +84,7 @@ vi.mock("@/lib/api/executions", () => ({
 }));
 
 import ExecutionListPage from "../page";
+import { executionsApi } from "@/lib/api/executions";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -137,8 +142,36 @@ describe("ExecutionListPage", () => {
     });
     // "Failed" 도 filter 버튼 + row badge — 1개 이상 매칭만 확인.
     expect(screen.getAllByText("Failed").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("3.2s")).toBeDefined();
-    expect(screen.getByText("1s")).toBeDefined();
+  });
+
+  it("Duration 열은 전체 경과가 아니라 실행 시간(activeRunningMs)을 보인다", async () => {
+    await renderPage();
+    await waitFor(() => {
+      expect(document.querySelectorAll("tbody tr").length).toBe(2);
+    });
+    const rows = document.querySelectorAll("tbody tr");
+    // 열 순서: Status · Trigger · Started At · Duration · Nodes
+    expect(rows[0].querySelectorAll("td")[3].textContent).toBe("1.2s");
+    // 실행 시간이 null 이면 전체 경과(1s)로 대신하지 않고 — 를 보인다.
+    expect(rows[1].querySelectorAll("td")[3].textContent).toBe("\u2014");
+    expect(screen.queryByText("3.2s")).toBeNull();
+    expect(screen.queryByText("1s")).toBeNull();
+  });
+
+  it("Duration 열 머리를 누르면 active_running_ms 로 정렬해 다시 조회한다", async () => {
+    await renderPage();
+    await waitFor(() => {
+      expect(document.querySelectorAll("tbody tr").length).toBe(2);
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Duration/ }));
+    });
+    await waitFor(() => {
+      expect(vi.mocked(executionsApi.getByWorkflow)).toHaveBeenLastCalledWith(
+        "wf-1",
+        expect.objectContaining({ sort: "active_running_ms", order: "desc" }),
+      );
+    });
   });
 
   it("renders filter buttons", async () => {

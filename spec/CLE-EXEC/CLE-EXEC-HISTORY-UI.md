@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY-UI"
 title: "실행 내역 — 화면 구성"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-HISTORY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-HISTORY"]
 area: "CLE-EXEC"
-content_hash: "2c27ccd77e0c7a9790c8fead0d248fc732e6e3866f42f75d18ae67416cf7e98a"
+content_hash: "2821b0a59793da473b06ed9ed36efcb700f84c679ea471572ed25da89e776e1d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-51KBTG"
 source_paths: []
-mirror_sha256: "3e5e6f0ca813484e627b41d8d9e131ea6ca586bad8243752eac2edd1dfed4e40"
-etag: "sha256-8738b88a5e40d4127f1ad0385bd410daf00044c0f3df88c36510561433a2b314"
+mirror_sha256: "5ed576bba003d3a4d5f660cd67bd0ec58868d92474ac629813a19e1923e56c13"
+etag: "sha256-c27505b92c2d8061c21d55a3b743182f23aa30e840ca76ee0ff2dcf5698271e4"
 ---
 ## 개요
 
@@ -77,7 +77,7 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 | Status | 상태 아이콘과 텍스트(`✅ Completed`, `❌ Failed`, `⏳ Running`, `⛔ Cancelled`, `🙋 Waiting`) | 가능 |
 | Trigger | 실행 출처. 아이콘, 출처 라벨, 보조 라벨(트리거 이름·실행한 사람·부모 워크플로우 이름). 분류는 [실행 출처 분류](CLE-EXEC-HISTORY.md#실행-출처-분류) | 없음 |
 | Started At | 실행 시작 시각(`YYYY-MM-DD HH:mm:ss`) | 가능(기본 내림차순) |
-| Duration | 소요 시간(초·분 자동 전환). 실행 중이면 `—` | 가능 |
+| Duration | 실행 시간(`activeRunningMs`, 입력 대기를 뺀 순수 실행 시간). 초·분 자동 전환. 값이 `null` 이면(끝나지 않았거나 측정되지 않은 실행) `—`. 정렬 키는 `active_running_ms` | 가능 |
 | Nodes | 노드 실행 현황(`완료 수/전체 수`, 실패가 있으면 `(N failed)`) | 없음 |
 
 **Nodes 열**: 화면은 목록 API `ExecutionDto` 의 배치 집계 필드 `totalNodeCount`·`completedNodeCount`·`failedNodeCount` 로 그린다. 노드 실행 본문(`nodeExecutions`)은 목록 응답에 넣지 않는다([실행 내역](CLE-EXEC-HISTORY.md#목록-api-는-노드-실행을-빼고-배치-집계-세-값만-싣는다)).
@@ -104,7 +104,7 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 | 영역 | 위치 | 들어가는 요소 | 동작 |
 | --- | --- | --- | --- |
 | 머리 | 위 | "← Executions", 재실행 버튼, `[← Prev] [Next →]` | 목록으로 돌아가기, 재실행 모달, 이전·다음 실행 이동 |
-| 요약 카드 | 머리 아래 | 상태, 시작·종료 시각, 소요 시간, 노드 현황, 실패 시 에러, 재실행 체인 배지 | [요약 카드](#요약-카드), [재실행과 체인 표시](#재실행과-체인-표시) |
+| 요약 카드 | 머리 아래 | 상태, 시작·종료 시각, 실행 시간, 전체 경과, 노드 현황, 실패 시 에러, 재실행 체인 배지 | [요약 카드](#요약-카드), [재실행과 체인 표시](#재실행과-체인-표시) |
 | 노드 목록 | 왼쪽 | 실행된 노드와 상태 아이콘(skipped 제외) | 고른 노드를 강조하고 오른쪽에 상세를 표시 |
 | 노드 상세 | 오른쪽 | 노드 이름, 유형 배지, 상태, 소요 시간, 결과 상세 탭 | [노드 결과 패널](#노드-결과-패널) |
 
@@ -115,7 +115,8 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 | 상태 | 아이콘과 텍스트(배지 스타일) |
 | 시작 시각 | `YYYY-MM-DD HH:mm:ss` |
 | 종료 시각 | `HH:mm:ss`(같은 날이면 시간만) 또는 `—`(끝나지 않음) |
-| 소요 시간 | 초·분 자동 전환 |
+| 실행 시간 | 입력 대기를 뺀 순수 실행 시간(`activeRunningMs`). 초·분 자동 전환. 값이 `null` 이면 `—` |
+| 전체 경과 | 시작부터 종료까지의 시간(`durationMs`). 입력 대기 시간이 들어간다. 끝나지 않았으면 `—` |
 | 노드 실행 현황 | `완료 수 / 전체 수 completed`(실패가 있으면 `N failed` 추가) |
 
 실패 상태면 요약 카드에 에러 메시지(예: `Error: Connection timeout on "API Call" node`)를 더 표시한다.
@@ -160,7 +161,7 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 | 영역 | 위치 | 들어가는 요소 |
 | --- | --- | --- |
 | 머리 | 위 | "← Executions", `[⟳ Re-run]`, `[← Prev] [Next →]` |
-| 요약 | 가운데 | 상태, 시작 시각과 소요 시간, 노드 현황 |
+| 요약 | 가운데 | 상태, 시작 시각과 실행 시간, 노드 현황 |
 | 체인 줄 | 요약 아래 | `📎 #3-th re-run · dry-run · 원본: #1234` 와 `[View chain (4) ▼]` |
 
 | 요소 | 표시 조건 | 동작 |

@@ -186,7 +186,7 @@
     "codebase/backend/src/modules/executions/dto/continue-execution.dto.ts": 1,
     "codebase/backend/src/modules/executions/entities/execution.entity.ts": 1,
     "codebase/backend/src/modules/executions/executions.service.spec.ts": 1,
-    "codebase/backend/src/modules/executions/executions.service.ts": 7,
+    "codebase/backend/src/modules/executions/executions.service.ts": 6,
     "codebase/backend/src/modules/external-interaction/idempotency.interceptor.spec.ts": 1,
     "codebase/backend/src/modules/external-interaction/idempotency.interceptor.ts": 2,
     "codebase/backend/src/modules/hooks/hooks-webhook-body.spec.ts": 1,

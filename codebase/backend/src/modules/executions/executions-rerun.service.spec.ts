@@ -38,6 +38,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     for (const m of [
       'leftJoinAndSelect',
       'leftJoin',
+      'addSelect',
       'select',
       'where',
       'andWhere',
@@ -80,9 +81,16 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     audit = { record: jest.fn().mockResolvedValue(undefined) };
     // RR-PL-06 — 대상 워크스페이스 role 조회. 기본은 editor(owner/admin 아님).
     workspaces = { getMemberRole: jest.fn().mockResolvedValue('editor') };
+    // getChain 응답 조립(`toExecutionDtos`)이 노드 실행 집계를 한 번 읽는다. 집계 행이
+    // 없으면 세 값은 0 이다.
+    const nodeCountQb: Record<string, unknown> = {};
+    for (const m of ['select', 'addSelect', 'where', 'groupBy']) {
+      nodeCountQb[m] = jest.fn(() => nodeCountQb);
+    }
+    nodeCountQb.getRawMany = jest.fn(() => Promise.resolve([]));
     service = new ExecutionsService(
       execRepo as never,
-      {} as never,
+      { createQueryBuilder: jest.fn(() => nodeCountQb) } as never,
       {} as never,
       nodeRepo as never,
       engine as never,

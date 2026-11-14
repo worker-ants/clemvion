@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY"
 title: "실행 내역"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-EXHIST-001", "REQ-EXHIST-002", "REQ-EXHIST-003", "REQ-EXHIST-004", "REQ-EXHIST-005", "REQ-EXHIST-006", "REQ-EXHIST-007", "REQ-EXHIST-008", "REQ-EXHIST-009", "REQ-EXHIST-010", "REQ-EXHIST-011", "REQ-EXHIST-012", "REQ-EXHIST-013", "REQ-EXHIST-014", "REQ-EXHIST-015", "REQ-EXHIST-016", "REQ-EXHIST-017", "REQ-EXHIST-018", "REQ-EXHIST-019", "REQ-EXHIST-020", "REQ-EXHIST-021", "REQ-EXHIST-022", "REQ-EXHIST-023", "REQ-EXHIST-024", "REQ-EXHIST-025", "REQ-EXHIST-026", "REQ-EXHIST-027", "REQ-EXHIST-028", "REQ-EXHIST-029", "REQ-EXHIST-030", "REQ-EXHIST-031", "REQ-EXHIST-032", "REQ-EXHIST-033", "REQ-EXHIST-034", "REQ-EXHIST-035", "REQ-EXHIST-036", "REQ-EXHIST-037", "REQ-EXHIST-038", "REQ-EXHIST-039", "REQ-EXHIST-040", "REQ-EXHIST-041", "REQ-EXHIST-042", "REQ-EXHIST-043", "REQ-EXHIST-044", "REQ-EXHIST-045"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "c0525c2e2918f50e86abd0b016b33c4cd44bbcfc9eba92befa7935f5218afe76"
+content_hash: "d0d2f85ac65894152d220dedd7b9c13581bf79cda1a107aa359d8cd0fe79353c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ES1J1E"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "632dc6ed6048bc3ae26f8a749408c85a9761fb2d762dfd7366a46b48b17a1de0"
-etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
+mirror_sha256: "d43a98fb261db56e245d6f3665c75f93b1ff3cf613d19d722c918692c2dfed5c"
+etag: "sha256-856db03ab7b1d4b93273e1df9fbcb90302d9ea9b059a4512f1bc6a8379338c50"
 ---
 > 구현 상태: 구현됨 (EH-DETAIL-12 여러 노드 대화 재구성 보기만 v2 미구현) · 원문: `spec/2-navigation/14-execution-history.md`, `spec/2-navigation/_product-overview.md` (§3.15 Execution History) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -34,7 +34,7 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
 ## 요구사항
 
 - REQ-EXHIST-001 WHEN 사용자가 워크플로우의 실행 목록 화면을 열면 THE SYSTEM SHALL 그 워크플로우의 모든 실행을 테이블로 표시한다. (원본: EH-LIST-01)
-- REQ-EXHIST-002 WHEN 실행 목록을 표시하면 THE SYSTEM SHALL 행마다 상태·실행 출처·시작 시각·소요 시간·노드 실행 현황을 표시한다. (원본: EH-LIST-02)
+- REQ-EXHIST-002 WHEN 실행 목록을 표시하면 THE SYSTEM SHALL 행마다 상태·실행 출처·시작 시각·실행 시간·노드 실행 현황을 표시한다. (원본: EH-LIST-02)
 - REQ-EXHIST-003 WHEN 사용자가 상태 필터 버튼을 누르면 THE SYSTEM SHALL All·Completed·Failed·Running·Cancelled·Waiting 가운데 고른 상태의 실행만 표시한다. (원본: EH-LIST-03)
 - REQ-EXHIST-004 IF 실행 상태가 `pending` 이면 THE SYSTEM SHALL 상태 필터에는 두지 않고 All 필터에서만 표시한다.
 - REQ-EXHIST-005 WHEN 사용자가 정렬할 수 있는 열 머리를 누르면 THE SYSTEM SHALL 그 열의 오름차순과 내림차순을 토글하고 화살표를 표시한다. (원본: EH-LIST-04)
@@ -48,7 +48,7 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
 - REQ-EXHIST-013 WHEN 백엔드가 실행을 응답하면 THE SYSTEM SHALL 실행 출처 판정 표의 우선순위대로 `triggerSource` 와 `triggerLabel` 을 채운다.
 - REQ-EXHIST-014 WHEN 백엔드가 실행 목록을 응답하면 THE SYSTEM SHALL 노드 실행 본문을 싣지 않고 `totalNodeCount`·`completedNodeCount`·`failedNodeCount` 를 배치 집계로 싣는다.
 - REQ-EXHIST-015 WHEN 백엔드가 실행 목록을 응답하면 THE SYSTEM SHALL `executionPath` 를 항상 빈 배열로 싣는다.
-- REQ-EXHIST-016 WHEN 사용자가 실행 상세 화면을 열면 THE SYSTEM SHALL 상태·시작 시각·종료 시각·소요 시간·노드 실행 현황을 담은 요약 카드를 표시한다. (원본: EH-DETAIL-01)
+- REQ-EXHIST-016 WHEN 사용자가 실행 상세 화면을 열면 THE SYSTEM SHALL 상태·시작 시각·종료 시각·실행 시간·전체 경과·노드 실행 현황을 담은 요약 카드를 표시한다. (원본: EH-DETAIL-01)
 - REQ-EXHIST-017 IF 실행이 실패했으면 THE SYSTEM SHALL 요약 카드에 에러 메시지를 더 표시한다.
 - REQ-EXHIST-018 WHEN 실행 상세 화면을 열면 THE SYSTEM SHALL 왼쪽 노드 목록과 오른쪽 노드 상세로 나뉜 결과 패널을 표시한다. (원본: EH-DETAIL-02)
 - REQ-EXHIST-019 WHEN 사용자가 노드 목록에서 노드를 고르면 THE SYSTEM SHALL 에디터 실행 결과 드로어와 같은 결과 상세 탭을 표시한다. (원본: EH-DETAIL-03)
@@ -113,7 +113,7 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
 | 메서드 | 경로 | 설명 | 비고 |
 | --- | --- | --- | --- |
 | GET | `/api/executions/workflow/:workflowId` | 워크플로우별 실행 목록 | 페이지네이션·상태 필터·정렬 지원. 응답 형식은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 목록 응답을 따른다. **노드 실행은 싣지 않는다**(N+1 회피, [Rationale](#목록-api-는-노드-실행을-빼고-배치-집계-세-값만-싣는다)) |
-| GET | `/api/executions/:id` | 실행 상세 | `nodeExecutions` 배열 포함 |
+| GET | `/api/executions/:id` | 실행 상세 | `nodeExecutions` 배열 포함. 실리는 필드는 아래 「실행 응답 필드」 |
 | POST | `/api/executions/:executionId/re-run` | 원본 실행을 바탕으로 새 실행 시작 | EH-DETAIL-10. 명세는 [재실행](CLE-EXEC-RERUN.md) |
 | GET | `/api/executions/:executionId/chain` | 같은 체인의 모든 실행을 시간순으로 반환 | EH-DETAIL-11. 명세는 [재실행](CLE-EXEC-RERUN.md) |
 
@@ -127,7 +127,7 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
 | --- | --- | --- | --- |
 | `page` | number | 1 | 페이지 번호 |
 | `limit` | number | 20 | 페이지당 건수(최대 100) |
-| `sort` | string | `started_at` | 정렬 기준(`started_at`, `finished_at`, `status`, `duration_ms`). API 규약 예시(`created_at`)와 다른 것은 의도한 도메인 예외다. 실행 기록의 정렬 축은 시작 시각이다 |
+| `sort` | string | `started_at` | 정렬 기준(`started_at`, `finished_at`, `status`, `duration_ms`, `active_running_ms`). API 규약 예시(`created_at`)와 다른 것은 의도한 도메인 예외다. 실행 기록의 정렬 축은 시작 시각이다. 실행 시간 열은 `active_running_ms` 로 정렬한다 |
 | `order` | string | `desc` | 정렬 순서(`asc`, `desc`) |
 | `status` | string | 없음 | 상태 필터 |
 
@@ -143,6 +143,7 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
       "startedAt": "2024-01-15T14:02:30Z",
       "finishedAt": "2024-01-15T14:02:33Z",
       "durationMs": 3200,
+      "activeRunningMs": 3100,
       "inputData": {},
       "outputData": {},
       "error": null,
@@ -172,6 +173,16 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
 
 `reRunOf`·`chainId`·`dryRun` 은 기본 실행 응답 필드다. 목록 응답의 `executionPath` 는 늘 빈 배열이다. 단건 조회만 따로 채운다([Rationale](#rationale)).
 
+**실행 응답 필드**
+
+- 목록 · 상세 · 중지(`POST /api/executions/:id/stop`) · 체인 · 재실행 응답의 실행 객체는 **같은 필드 집합**(`ExecutionDto`)을 싣는다. 체인 항목도 `triggerSource` · `triggerLabel` · 노드 집계 세 값을 싣는다. `ExecutionDto` 의 필드는 모두 키가 늘 있고 값이 없으면 `null` 이다([HTTP API 규약 — 응답](../CLE-API/CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 의 「부재 표현: `null` 과 키 생략」 기본값).
+- 상세와 재실행 응답은 여기에 `nodeExecutions` 를 더하고 `executionPath` 를 채운다. 목록 · 중지 · 체인 응답의 `executionPath` 는 빈 배열이다. `executionPathTruncated`(boolean)는 경로 행이 읽기 상한에서 잘렸을 수 있으면 `true` 다. 재실행 응답은 상세 응답과 같은 모양이다. `nodeExecutions` · `executionPathTruncated` 두 키는 상세 · 재실행 응답에만 있다.
+- 선언하지 않은 실행 컬럼(`sourceIp` · `userVariables` · `resumeCallStack` · `conversationThread` · `queuedAt` · `singleNodeId` · `previousExecutionId` · `responseCode` 등)과 부모 `workflow` 객체는 싣지 않는다. 응답은 DTO 로 조립하고 엔티티를 펼쳐 내보내지 않는다. 근거는 [Rationale](#rationale) 의 「실행 응답은 한 DTO 로 싣고 노드는 참조 세 필드만 싣는다」.
+- `durationMs` 는 전체 경과(ms)다. 시작부터 종료까지의 벽시계 시간이라 입력 대기 시간이 들어간다. 끝나지 않은 실행은 `null` 이다.
+- `activeRunningMs` 는 실행 시간(ms)이다. 입력 대기를 뺀 순수 실행 시간이다. 저장 값의 정의와 작게 기록되는 경우는 [실행 데이터와 흐름 — 데이터 모델](CLE-EXEC-DATA-MODEL.md) 의 `active_running_ms` 가 정한다. 아래 경우에는 `null` 이다.
+  - 실행이 끝나지 않았다(`pending` · `running` · `waiting_for_input`).
+  - 측정되지 않았다. 저장된 값이 0 인데 `durationMs` 가 0 보다 크면 측정되지 않은 것으로 본다(마이그레이션 V083 이전 실행 등). 노드 진행 구간이 1ms 에 못 미쳐 0 으로 저장된 아주 짧은 실행도 같은 판정을 받아 `null` 이 될 수 있다.
+
 **상세 API 응답의 `nodeExecutions` 항목 예시**
 
 ```json
@@ -187,6 +198,7 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
   "outputData": { "result": "..." },
   "error": null,
   "retryCount": 0,
+  "parentNodeExecutionId": null,
   "node": {
     "id": "node-1",
     "type": "transform",
@@ -195,9 +207,14 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
 }
 ```
 
+- `node` 는 노드 참조 `{ id, type, label }` 세 필드만 싣는다. 노드 설정(`config`) · 좌표 같은 다른 노드 컬럼은 싣지 않는다.
+- `parentNodeExecutionId` 는 인라인 서브 워크플로우 안에서 실행된 노드면 그 서브 워크플로우 노드 실행의 id 이고 아니면 `null` 이다. 실행 결과 타임라인에서 자식 노드를 묶을 때 쓴다.
+- 사용자 행동 기록(`interactionData`)은 싣지 않는다.
+
 ## 미결 사항
 
 - **수동 실행 보조 라벨의 이메일 폴백**: 원문의 판정 표는 `User.name` 이 없으면 `email` 을 쓴다고 적는다. 현재 구현(`execution-trigger.ts` 의 `deriveExecutionTrigger`)은 `User.name` 만 쓰고 이름이 비었거나 공백이면 `triggerLabel` 을 null 로 둔다. 코드 주석은 이메일 같은 개인정보를 라벨에 싣지 않으려는 보안 결정이라고 적는다. 원문을 코드에 맞출지, 폴백을 구현할지 결정 필요.
+- **REST 중지로 끝난 실행의 실행 시간**: 실행 중(`running`)에 REST 중지로 끝난 실행은 마지막 실행 구간이 `active_running_ms` 에 들어가지 않아 실행 시간이 실제보다 작게 보인다(구간이 하나뿐이면 측정되지 않은 것으로 보여 `—`). 엔진을 고치는 후속 작업은 CLE-T-ES1J1E 다.
 
 ## 구현 위치
 
@@ -228,3 +245,20 @@ etag: "sha256-4578ce2732c17c761b4455a15cc862f581e4ebedca6d0b91ef1798b079fa6d1f"
 - 이 변경의 대가(같은 워크스페이스 안 노드 사이 자격 증명 전달, 생성 시점 한 곳의 안전에서 출구마다 지켜야 하는 안전으로 바뀐 점)와, 그 문제가 실제로 남는 표면이 HTTP Request 노드의 `authentication='custom'` 뿐이라는 분석은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 다룬다. 새 출구를 여는 사람은 그 문서를 읽어야 한다.
 
 같은 전제 위에 체인 조회도 뷰어에게 열려 있다([재실행](CLE-EXEC-RERUN.md#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 의 Rationale 참조).
+
+### 실행 목록은 실행 시간을, 요약 카드는 실행 시간과 전체 경과를 보인다 (2026-11-14)
+
+- `duration_ms` 는 시작부터 종료까지라 폼 입력 · 위젯 응답을 기다린 시간이 들어간다. 입력 대기 중 취소 · 시간 초과로 끝난 실행은 기다린 시간 전체가 소요 시간으로 보였다. 대기 회수는 기본 유예가 1시간이고 park 취소는 기한이 없다.
+- 목록 · 대시보드 최근 실행 · 에디터 실행 내역 패널은 한 값만 보일 자리라 실행 시간을 보인다. 요약 카드는 자리가 있어 두 값을 함께 보인다.
+- 기각한 대안: 상태(`cancelled`)로 `duration_ms` 를 숨기기. REST 중지도 `cancelled` 인데 그 값은 실제 실행 시간이라 정상 값까지 지운다.
+- 기각한 대안: 네 곳 모두 두 값 표시. 목록 열이 좁아 읽기 어렵다.
+- 기각한 대안: `duration_ms` 를 유지하고 상세에만 실행 시간을 더하기. 목록에서 대기 시간이 실행 시간처럼 보이는 문제가 남는다.
+- `activeRunningMs` 의 측정되지 않은 경우를 `null` 로 내보내는 이유: 컬럼이 `NOT NULL DEFAULT 0` 이라 V083 이전 실행이 0 으로 남아 있다. 0 을 그대로 보이면 실제로 0ms 걸린 것처럼 읽힌다. 판정은 서버 한 곳에서 해서 화면 네 곳과 API 소비자가 같은 값을 받게 한다.
+
+### 실행 응답은 한 DTO 로 싣고 노드는 참조 세 필드만 싣는다 (2026-11-14)
+
+- 목록만 `ExecutionDto` 로 조립하고 상세 · 중지 · 체인 · 재실행은 엔티티를 펼쳐 내보냈다. 그래서 선언과 실제가 달랐다. 부모 `workflow` 전 컬럼, 노드 설정 원문(`node.config`, 응답 마스킹을 거치지 않는다), 웹훅 호출자 IP(`sourceIp`), 엔진 내부 상태(`resumeCallStack`)가 선언 없이 나갔고 체인 항목에는 선언한 `triggerSource` · `triggerLabel` 이 빠졌다.
+- 웹 앱은 `node` 에서 `label` · `type` 만 읽고 위 미선언 컬럼은 읽지 않는다. 웹채팅 위젯은 EIA 응답을 쓴다.
+- 기각한 대안 (a): `node` 를 빼고 `nodeLabel` · `nodeType` 평면 필드를 싣기. 프런트 타입과 실행 상세 · WS 스냅샷 소비처를 함께 바꿔야 하는데 얻는 것이 없다.
+- 기각한 대안 (c): 지금 실리는 값을 모두 DTO 에 선언하기. 노드 설정 원문 · 호출자 IP · 엔진 내부 상태를 계약으로 굳힌다.
+- 체인 · 중지 응답의 노드 집계도 목록처럼 실행 id 묶음에 대한 배치 집계 한 번으로 센다. 항목마다 따로 세지 않는다.

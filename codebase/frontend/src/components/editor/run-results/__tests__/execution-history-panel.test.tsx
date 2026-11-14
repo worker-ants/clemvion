@@ -58,7 +58,9 @@ const SAMPLE = {
   status: "completed",
   startedAt: "2026-06-15T10:00:00.000Z",
   finishedAt: "2026-06-15T10:00:03.000Z",
+  // 입력 대기가 들어간 전체 경과(3.2s)와 순수 실행 시간(1.4s)이 다르다.
   durationMs: 3200,
+  activeRunningMs: 1400,
   triggerSource: "manual",
   triggerLabel: "Gehrig",
   totalNodeCount: 5,
@@ -113,7 +115,7 @@ describe("ExecutionHistoryPanel (§7)", () => {
     expect(screen.getByText(/1 failed/)).toBeInTheDocument();
   });
 
-  it("목록(§7.2)을 조회해 트리거·소요시간·노드수와 함께 렌더한다", async () => {
+  it("목록(§7.2)을 조회해 트리거·실행 시간·노드수와 함께 렌더한다", async () => {
     getByWorkflowMock.mockResolvedValue({
       data: [SAMPLE],
       pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
@@ -127,10 +129,22 @@ describe("ExecutionHistoryPanel (§7)", () => {
         order: "desc",
       }),
     );
-    // 트리거 출처 라벨 + 소요시간 + 노드 카운트
+    // 트리거 출처 라벨 + 실행 시간(전체 경과가 아니다) + 노드 카운트
     expect(await screen.findByText(/Manual/)).toBeInTheDocument();
-    expect(screen.getByText("3.2s")).toBeInTheDocument();
+    expect(screen.getByText("1.4s")).toBeInTheDocument();
+    expect(screen.queryByText("3.2s")).not.toBeInTheDocument();
     expect(screen.getByText(/5\/5/)).toBeInTheDocument();
+  });
+
+  it("실행 시간이 null 이면 전체 경과로 대신하지 않고 — 를 보인다", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [{ ...SAMPLE, activeRunningMs: null }],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    renderPanel();
+    expect(await screen.findByText(/Manual/)).toBeInTheDocument();
+    expect(screen.getByText("\u2014")).toBeInTheDocument();
+    expect(screen.queryByText("3.2s")).not.toBeInTheDocument();
   });
 
   it("항목 클릭(§7.3) → 상세 조회 후 loadHistoricalExecution 적재 + 패널 닫기", async () => {
