@@ -15,7 +15,10 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { McpModule } from '../mcp/mcp.module';
 import { IntegrationsController } from './integrations.controller';
 import { ThirdPartyOAuthController } from './third-party-oauth.controller';
-import { IntegrationsTestHooksController } from './integrations-test-hooks.controller';
+import {
+  IntegrationsTestHooksController,
+  isE2eTestHooksEnabled,
+} from './integrations-test-hooks.controller';
 import { IntegrationsService } from './integrations.service';
 import { MemberPersonalIntegrationsPurgerService } from './member-personal-integrations-purger.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
@@ -56,11 +59,9 @@ import { CAFE24_REFRESH_QUEUE } from './cafe24-token-refresh.constants';
   controllers: [
     IntegrationsController,
     ThirdPartyOAuthController,
-    // e2e 전용 훅. NODE_ENV=test · E2E_TEST_HOOKS=1 일 때만 등록해 운영에는 라우트 자체가 없다.
-    // 핸들러 안의 같은 게이트는 방어선으로 남는다.
-    ...(process.env.NODE_ENV === 'test' && process.env.E2E_TEST_HOOKS === '1'
-      ? [IntegrationsTestHooksController]
-      : []),
+    // e2e 전용 훅. NODE_ENV=test · E2E_TEST_HOOKS=1 일 때만 등록해 운영에는 라우트 자체가 없다. 이 판정은 모듈을
+    // 불러올 때 한 번 하므로 두 변수는 서버 기동 전에 있어야 한다. 핸들러 안의 같은 게이트는 방어선으로 남는다.
+    ...(isE2eTestHooksEnabled() ? [IntegrationsTestHooksController] : []),
   ],
   providers: [
     IntegrationsService,

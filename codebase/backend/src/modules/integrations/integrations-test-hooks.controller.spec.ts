@@ -1,12 +1,19 @@
 import 'reflect-metadata';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  RequestMethod,
+} from '@nestjs/common';
 import {
   HTTP_CODE_METADATA,
   METHOD_METADATA,
   PATH_METADATA,
 } from '@nestjs/common/constants';
 import { ROLES_KEY } from '../../common/guards/roles.guard';
-import { IntegrationsTestHooksController } from './integrations-test-hooks.controller';
+import {
+  IntegrationsTestHooksController,
+  isE2eTestHooksEnabled,
+} from './integrations-test-hooks.controller';
 
 /**
  * e2e 전용 훅의 게이트(CLE-T-184JJD). 실행 컨트롤러의 `_test/*` 훅과 같이 `NODE_ENV==='test'` 와 `E2E_TEST_HOOKS==='1'`
@@ -105,9 +112,23 @@ describe('IntegrationsTestHooksController', () => {
     expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(
       ':id/_test/mcp-auth-failure',
     );
-    expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(1); // RequestMethod.POST
+    expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(
+      RequestMethod.POST,
+    );
     expect(
       Reflect.getMetadata(PATH_METADATA, IntegrationsTestHooksController),
     ).toBe('integrations');
+  });
+});
+
+describe('isE2eTestHooksEnabled', () => {
+  it.each([
+    [{ NODE_ENV: 'test', E2E_TEST_HOOKS: '1' }, true],
+    [{ NODE_ENV: 'production', E2E_TEST_HOOKS: '1' }, false],
+    [{ NODE_ENV: 'test' }, false],
+    [{ NODE_ENV: 'test', E2E_TEST_HOOKS: 'true' }, false],
+    [{ E2E_TEST_HOOKS: '1' }, false],
+  ])('%j → %s', (env, expected) => {
+    expect(isE2eTestHooksEnabled(env)).toBe(expected);
   });
 });

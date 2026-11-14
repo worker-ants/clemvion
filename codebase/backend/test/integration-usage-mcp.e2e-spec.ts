@@ -27,7 +27,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *   - 연결됨 통합이 바뀌면 `error(auth_failed)` 가 되고 조치 필요 알림이 한 건 생긴다
  *   - 다른 사유로 `error` 인 통합도 `auth_failed` 로 바뀌고 알림이 한 건 생긴다(REQ-INTSTAT-011)
  *   - 이미 `error(auth_failed)` 인 통합은 알림을 만들지 않는다. 마지막 오류만 고친다
- *   - 같은 통합에 두 기록이 동시에 들어와도 알림은 한 건이다
+ *   - 같은 통합에 기록이 동시에 여러 건 들어와도 알림은 한 건이다
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -365,6 +365,7 @@ describe('Integration usage tracking — direct ∪ MCP (e2e)', () => {
     it('F. 같은 통합에 기록이 동시에 여러 건 들어와도 알림은 한 건이다', async () => {
       // 24시간 중복 방지(`hasRecentByResource`)는 조회 뒤 삽입이라 그 자체로는 경합을 못 막는다. 요청이 많을수록 조건부 UPDATE
       // (`affected` 판정)를 일반 update 로 되돌렸을 때 알림이 둘 이상 생겨 이 케이스가 실패한다.
+      // 12건은 백엔드 DB 풀(기본 10)보다 많아 요청이 실제로 겹치게 하는 값이다. 제한 시간은 12건 직렬 처리 여유를 둔 값이다.
       const CONCURRENT = 12;
       const idList = await Promise.all(
         Array.from({ length: CONCURRENT }, () => insertNodeExecution()),

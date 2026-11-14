@@ -27,6 +27,18 @@ import { IntegrationsService } from './integrations.service';
 
 // 이 훅을 들인 작업: CLE-T-184JJD (MCP 인증 실패 조치 필요 알림).
 /**
+ * e2e 전용 훅을 열지 정하는 게이트. `NODE_ENV==='test'` 와 `E2E_TEST_HOOKS==='1'` 이 둘 다일 때만 참이다.
+ *
+ * `IntegrationsModule` 은 모듈을 불러올 때 이 값으로 컨트롤러 등록 여부를 한 번 정한다. 그래서 e2e 서버는 기동 전에 두 변수를
+ * 받아야 한다(`docker-compose.e2e.yml` 의 backend 환경). 핸들러는 요청마다 같은 함수로 다시 확인한다.
+ */
+export function isE2eTestHooksEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.NODE_ENV === 'test' && env.E2E_TEST_HOOKS === '1';
+}
+
+/**
  * 통합 모듈의 **e2e 전용 test-hook 이다. 프로덕션 표면이 아니다.**
  *
  * MCP 도구 호출의 인증 실패(`MCP_AUTH_FAILED`)는 AI 에이전트가 LLM 응답에 따라 외부 MCP 서버를 부를 때만 생긴다. e2e
@@ -37,6 +49,7 @@ import { IntegrationsService } from './integrations.service';
  * 게이트는 실행 컨트롤러의 `_test/*` 훅과 같다. (1) `NODE_ENV==='test'` 와 (2) `E2E_TEST_HOOKS==='1'` 이 둘 다일 때만
  * 동작하고, 아니면 라우트가 없는 것처럼 404 를 준다. 프로덕션 이미지는 `NODE_ENV=production` 이고 플래그도 없다. (3)
  * `@Roles('owner')` 라 게이트가 뚫려도 워크스페이스 소유자만 부를 수 있다. 통합은 요청 워크스페이스 안에서만 찾는다.
+ * 모듈은 같은 게이트(`isE2eTestHooksEnabled`)로 이 컨트롤러를 등록할지 정한다.
  */
 @ApiTags('Integrations')
 @ApiBearerAuth('access-token')
@@ -62,9 +75,7 @@ export class IntegrationsTestHooksController {
     @WorkspaceId() workspaceId: string,
     @Body() body: Record<string, unknown> | undefined,
   ): Promise<{ success: true }> {
-    if (process.env.NODE_ENV !== 'test' || process.env.E2E_TEST_HOOKS !== '1') {
-      throw new NotFoundException();
-    }
+    if (!isE2eTestHooksEnabled()) throw new NotFoundException();
     const nodeExecutionId = body?.nodeExecutionId;
     const workflowId = body?.workflowId;
     if (
