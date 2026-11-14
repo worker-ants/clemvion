@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AnthropicClient } from './anthropic.client';
 import type { ChatStreamEvent } from '../interfaces/llm-client.interface';
+import { LLM_SDK_MAX_RETRIES } from './sdk-options';
 
 function asyncIter<T>(items: T[]): AsyncIterable<T> {
   return {
@@ -269,11 +270,9 @@ describe('AnthropicClient.stream', () => {
     });
   });
 
-  // 특성화 테스트다. 지금 동작을 그대로 고정한다.
-  // [LLM 클라이언트](CLE-AI-LLM) 「스트리밍 에러 매핑」: Anthropic 은 스트림을 열기 전의
-  // 429 와 SDK 요청 타임아웃을 예외 대신 `error` 이벤트 하나로 보내고 끝낸다. OpenAI 계열은
-  // 같은 실패를 예외로 던진다(`openai.client.spec.ts`). 두 갈래를 하나로 맞추기로 하면
-  // NERV Task `CLE-T-0R5SYN` 이 이 테스트도 함께 고친다.
+  // [LLM 클라이언트](CLE-AI-LLM) 「스트리밍 에러 매핑」: 스트림을 열기 전의 실패도 예외 대신
+  // `error` 이벤트 하나로 보내고 끝낸다. OpenAI 계열과 같은 계약이다(`openai.client.spec.ts`,
+  // CLE-T-0R5SYN). 앱은 다시 열지 않는다.
   it.each([
     [
       '429',
@@ -294,6 +293,7 @@ describe('AnthropicClient.stream', () => {
       () => new Anthropic.APIConnectionTimeoutError(),
       'LLM_CONNECTION_ERROR',
     ],
+    ['그 밖의 실패', () => new Error('socket hang up'), 'LLM_CONNECTION_ERROR'],
   ] as const)(
     '스트림을 열기 전 %s 이면 예외 대신 error 이벤트 하나로 끝낸다',
     async (_label, makeError, code) => {
@@ -319,6 +319,37 @@ describe('AnthropicClient.stream', () => {
       expect(create).toHaveBeenCalledTimes(1);
     },
   );
+
+  // 열기 중 취소는 연결 실패가 아니다. 스트림 도중 취소처럼 `done(aborted)` 로 끝낸다(CLE-T-0R5SYN).
+  it('스트림을 열기 전에 취소되면 error 대신 done(aborted) 하나로 끝낸다', async () => {
+    const controller = new AbortController();
+    const create = jest.fn().mockImplementation(() => {
+      controller.abort();
+      return Promise.reject(new Anthropic.APIUserAbortError());
+    });
+    const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
+    // @ts-expect-error — stub
+    client.client = { messages: { create } };
+
+    const events = await collect(
+      client.stream(
+        {
+          model: 'claude-haiku-4-5-20251001',
+          messages: [{ role: 'user', content: 'x' }],
+        },
+        controller.signal,
+      ),
+    );
+
+    expect(events).toEqual([
+      {
+        type: 'done',
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        model: 'claude-haiku-4-5-20251001',
+        finishReason: 'aborted',
+      },
+    ]);
+  });
 
   // 어시스턴트 시스템 프롬프트는 LLM 에게 독립 edit 을 단일 메시지에 batch 로
   // 내도록 지시한다. Anthropic SDK 기본은 허용이지만, 명시적으로
@@ -575,4 +606,20 @@ describe('AnthropicClient — sampling parameters are not sent', () => {
       }
     },
   );
+});
+
+// SDK 재전송 횟수를 생성자에 적는다. 기본값과 같은 2 다(CLE-T-0R5SYN, `openai.client.spec.ts`).
+// 적지 않아도 `maxRetries` 필드는 2 라서 SDK 가 받은 옵션 `_options` 를 본다.
+describe('AnthropicClient — SDK 재전송 횟수', () => {
+  it('SDK 클라이언트 생성자에 maxRetries 를 적는다', () => {
+    const sdk = (
+      new AnthropicClient(
+        'sk-test',
+        'claude-haiku-4-5-20251001',
+      ) as unknown as {
+        client: { _options: { maxRetries?: number } };
+      }
+    ).client;
+    expect(sdk._options.maxRetries).toBe(LLM_SDK_MAX_RETRIES);
+  });
 });

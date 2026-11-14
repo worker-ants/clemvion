@@ -7,6 +7,7 @@
  * no meta.memory).
  */
 import { AiAgentHandler } from './ai-agent.handler';
+import { aiAgentLlmCallTimeoutMs } from './llm-call-timeout';
 import { ConversationThreadService } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 import { ExecutionContext } from '../../core/node-handler.interface';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
@@ -525,6 +526,94 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(
         conversationThreadService.getThread(context).runningSummary,
       ).toBeUndefined();
+    });
+
+    // CLE-T-0R5SYN: 롤링 요약 chat 도 노드 취소 신호와 턴 응답 호출의 앱 타임아웃을 받는다.
+    // 단일 턴은 `context.abortSignal`, 멀티턴 재개는 `options.signal` 이 신호다.
+    describe('롤링 요약 chat 의 취소 신호 · 타임아웃', () => {
+      const summaryThenAnswer = () =>
+        mockLlmService.chat
+          .mockResolvedValueOnce({
+            content: 'ROLLING SUMMARY',
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          })
+          .mockResolvedValueOnce({
+            content: 'answer',
+            usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+            model: 'gpt-4o',
+            finishReason: 'stop',
+          });
+      const seedBigTurns = (context: ExecutionContext) => {
+        for (let i = 0; i < 6; i++) {
+          conversationThreadService.appendAiAssistantMessage(context, {
+            node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+            content: 'w'.repeat(600),
+          });
+        }
+      };
+
+      it('단일 턴: 요약 chat 이 context.abortSignal 과 턴 타임아웃을 받는다', async () => {
+        const controller = new AbortController();
+        const context = makeContext({ abortSignal: controller.signal });
+        seedBigTurns(context);
+        summaryThenAnswer();
+
+        await buildHandler().execute(
+          undefined,
+          {
+            mode: 'single_turn',
+            model: 'gpt-4o',
+            systemPrompt: 'Sys',
+            userPrompt: 'Hi',
+            responseFormat: 'text',
+            maxToolCalls: 10,
+            memoryStrategy: 'summary_buffer',
+            memoryTokenBudget: 300,
+          },
+          context,
+        );
+
+        expect(mockLlmService.chat.mock.calls[0][3]).toEqual({
+          signal: controller.signal,
+          timeoutMs: aiAgentLlmCallTimeoutMs(),
+        });
+      });
+
+      it('멀티턴 재개: 요약 chat 이 options.signal 과 턴 타임아웃을 받는다', async () => {
+        const context = makeContext();
+        seedBigTurns(context);
+        const handler = buildHandler();
+        const first = await handler.execute(
+          undefined,
+          {
+            mode: 'multi_turn',
+            model: 'gpt-4o',
+            llmConfigId: 'cfg-1',
+            systemPrompt: 'You are helpful',
+            maxToolCalls: 10,
+            maxTurns: 50,
+            memoryStrategy: 'summary_buffer',
+            memoryTokenBudget: 200,
+          },
+          context,
+        );
+        const state = (first as { _resumeState: Record<string, unknown> })
+          ._resumeState;
+        mockLlmService.chat.mockClear();
+        summaryThenAnswer();
+        const controller = new AbortController();
+
+        await handler.processMultiTurnMessage('질문', state, {
+          signal: controller.signal,
+        });
+
+        expect(mockLlmService.chat.mock.calls[0][3]).toEqual({
+          signal: controller.signal,
+          timeoutMs: aiAgentLlmCallTimeoutMs(),
+        });
+      });
     });
 
     it('compresses oldest turns + sets runningSummary when over budget', async () => {

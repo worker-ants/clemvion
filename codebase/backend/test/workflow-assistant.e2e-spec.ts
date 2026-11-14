@@ -356,8 +356,9 @@ describe('Workflow Assistant sessions (e2e)', () => {
     // 이 없어서 `LlmService.chatStream` 이 스트림을 열기 전에 BadRequestException
     // ("Provider '<p>' does not support streaming in this release.")을 던지고, 서비스의
     // catch 가 코드를 그대로 넘긴다. 외부 LLM 호출 없이 그 catch 경로를 탄다. 다른 예외의
-    // ASSISTANT_STREAM_FAILED 와 SDK 연결 오류 경로(LLM_CONNECTION_ERROR)는 서비스 단위
-    // 테스트가 덮는다.
+    // ASSISTANT_STREAM_FAILED 와 `error` 이벤트 경로(LLM_RATE_LIMIT · LLM_CONNECTION_ERROR)는
+    // 서비스 단위 테스트가, 스트림을 열 때의 실패를 `error` 이벤트로 바꾸는 일은 클라이언트
+    // 단위 테스트가 덮는다.
     // baseUrl 은 local 프로바이더 설정에 채우는 값이고(loopback 은 local 만 받는다) stub
     // 모드라 호출하지 않는다.
     const config = await request(BASE_URL)

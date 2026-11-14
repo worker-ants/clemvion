@@ -3353,11 +3353,10 @@ describe('WorkflowAssistantStreamService', () => {
       expect(loggedText()).toContain('does not support streaming');
     });
 
-    // 특성화 테스트다. 실제 `chatStream` 은 async generator 라서 OpenAI 계열 클라이언트가
-    // 스트림을 열 때 던진 예외(429 포함)는 호출 시점이 아니라 첫 `next()` 에서 나온다.
-    // 그 예외도 ASSISTANT_STREAM_FAILED 로 바뀐다. Anthropic · Google 의 같은 429 는
-    // `error` 이벤트라 LLM_RATE_LIMIT 로 온다(아래 it.each). [LLM 클라이언트](CLE-AI-LLM)
-    // 「미결 사항」 의 프로바이더 분기이고, 맞추기로 하면 NERV Task `CLE-T-0R5SYN` 이 고친다.
+    // 실제 `chatStream` 은 async generator 라서 그 안에서 난 예외는 호출 시점이 아니라 첫
+    // `next()` 에서 나온다. 세 클라이언트는 스트림을 열 때의 실패(429 포함)를 `error` 이벤트로
+    // 보내므로(429 → LLM_RATE_LIMIT, 아래 it.each) 여기까지 오는 예외는 그 밖의 실패다. 그런
+    // 예외는 ASSISTANT_STREAM_FAILED 로 바뀐다. [LLM 클라이언트](CLE-AI-LLM) 「스트리밍 에러 매핑」.
     it('ends the turn with ASSISTANT_STREAM_FAILED when the stream rejects on its first read', async () => {
       const { service, mocks } = makeService();
       mocks.llmService.chatStream.mockImplementation(() => ({

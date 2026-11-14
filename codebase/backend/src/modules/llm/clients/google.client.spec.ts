@@ -413,6 +413,38 @@ describe('GoogleClient.stream', () => {
     });
   });
 
+  // 열기 중 취소는 연결 실패가 아니다. 스트림 도중 취소처럼 `done(aborted)` 로 끝낸다
+  // (CLE-T-0R5SYN, OpenAI 계열 · Anthropic 과 같은 계약).
+  it('yields done(aborted) instead of an error when aborted while opening the stream', async () => {
+    const abort = new AbortController();
+    const { client, generateContentStream } = makeStubs();
+    generateContentStream.mockImplementation(() => {
+      abort.abort();
+      return Promise.reject(
+        new DOMException('The operation was aborted.', 'AbortError'),
+      );
+    });
+
+    const events = await collect(
+      client.stream(
+        {
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'x' }],
+        },
+        abort.signal,
+      ),
+    );
+
+    expect(events).toEqual([
+      {
+        type: 'done',
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        model: 'gemini-2.5-flash',
+        finishReason: 'aborted',
+      },
+    ]);
+  });
+
   it('classifies 429 errors as LLM_RATE_LIMIT', async () => {
     const { client } = makeStubs({
       streamRejects: new Error('429 Too Many Requests'),

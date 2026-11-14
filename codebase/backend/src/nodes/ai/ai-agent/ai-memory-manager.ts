@@ -26,6 +26,7 @@ import {
 } from '../../../shared/conversation-thread/thread-renderer';
 import type { ConversationTurn } from '../../../shared/conversation-thread/conversation-thread.types';
 import type { ThreadHolder } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
+import { aiAgentLlmCallTimeoutMs } from './llm-call-timeout';
 
 /**
  * AI Agent 노드의 자동 메모리 전략 (`summary_buffer` / `persistent`) 관리 —
@@ -124,6 +125,11 @@ export class AiMemoryManager {
      * `buildSummaryBufferUpdate` 와 동일한 `LlmCallContext` 추상화를 그대로 forward.
      */
     llmContext?: LlmCallContext;
+    /**
+     * 노드 취소 신호. 롤링 요약 chat 에 넘겨 노드가 취소되면 요약 요청도 끊는다.
+     * single-turn 은 `context.abortSignal`, multi-turn resume 은 `options.signal`(CLE-T-0R5SYN).
+     */
+    signal?: AbortSignal;
     /** 회수 쿼리 텍스트 (현재 사용자 메시지 / 최근 컨텍스트). */
     queryText: string;
     /**
@@ -249,6 +255,9 @@ export class AiMemoryManager {
       // [Spec 7-llm-usage §1.3] caller 가 조립한 llmContext 를 그대로 forward
       // (single-turn=context.*, multi-turn resume=state.*).
       llmContext: args.llmContext,
+      // 요약 chat 도 턴 응답 호출과 같은 취소 신호 · 앱 타임아웃을 받는다(CLE-T-0R5SYN).
+      signal: args.signal,
+      timeoutMs: aiAgentLlmCallTimeoutMs(),
     });
 
     // 갱신된 요약을 in-memory thread 에 반영 (다음 turn 재사용 — Redis 직렬화로

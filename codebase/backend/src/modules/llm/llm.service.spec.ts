@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { LlmService } from './llm.service';
+import { LLM_CHAT_DEFAULT_TIMEOUT_MS, LlmService } from './llm.service';
 import { StubLlmClient } from './clients/stub.client';
 import { MAX_MODEL_LIST_SIZE } from './list-models-cap';
 import {
@@ -118,8 +118,11 @@ describe('LlmService', () => {
         defaultModel: 'gpt-4o',
         baseUrl: undefined,
       });
-      // signal 인자는 미전달 케이스라 undefined — chat(params, undefined)
-      expect(mockClient.chat).toHaveBeenCalledWith(params, undefined);
+      // 호출 쪽 신호가 없어도 기본 타임아웃의 신호가 넘어간다(CLE-T-0R5SYN).
+      expect(mockClient.chat).toHaveBeenCalledWith(
+        params,
+        expect.any(AbortSignal),
+      );
       expect(result.content).toBe('response');
     });
 
@@ -144,7 +147,7 @@ describe('LlmService', () => {
         });
         expect(mockClient.chat).toHaveBeenCalledWith(
           { ...bare, temperature: 0.2, maxTokens: 1024 },
-          undefined,
+          expect.any(AbortSignal),
         );
       });
 
@@ -157,13 +160,16 @@ describe('LlmService', () => {
         );
         expect(mockClient.chat).toHaveBeenCalledWith(
           { ...bare, temperature: 0.9, maxTokens: 10 },
-          undefined,
+          expect.any(AbortSignal),
         );
       });
 
       it('does not read defaultParams without the option', async () => {
         await service.chat(chatConfig, bare);
-        expect(mockClient.chat).toHaveBeenCalledWith(bare, undefined);
+        expect(mockClient.chat).toHaveBeenCalledWith(
+          bare,
+          expect.any(AbortSignal),
+        );
       });
 
       // CLE-T-AM7JS0: 호출 쪽이 넘기는 상수가 옵션 이름 · 값과 어긋나면 기본값이 조용히 빠진다.
@@ -174,12 +180,12 @@ describe('LlmService', () => {
 
         expect(mockClient.chat).toHaveBeenCalledWith(
           { ...bare, temperature: 0.2, maxTokens: 1024 },
-          undefined,
+          expect.any(AbortSignal),
         );
       });
     });
 
-    it('forwards opts.signal to client.chat (node-cancellation 컨벤션, parallel-p2 followups §1)', async () => {
+    it('forwards opts.signal to client.chat as-is when timeoutMs is 0 (node-cancellation 컨벤션, parallel-p2 followups §1)', async () => {
       const config = {
         id: 'config-1',
         provider: 'openai',
@@ -191,8 +197,91 @@ describe('LlmService', () => {
       const params = { model: 'gpt-4o', messages: [] as never[] };
       await service.chat(config, params as never, undefined, {
         signal: controller.signal,
+        timeoutMs: 0,
       });
       expect(mockClient.chat).toHaveBeenCalledWith(params, controller.signal);
+    });
+
+    // CLE-T-0R5SYN: timeoutMs 를 넘기지 않은 호출도 10분이 지나면 끊는다. `0` 은 끈다.
+    describe('기본 타임아웃', () => {
+      const config = {
+        id: 'config-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as never;
+      const params = { model: 'gpt-4o', messages: [] as never[] };
+
+      it('기본값은 10분이다', () => {
+        expect(LLM_CHAT_DEFAULT_TIMEOUT_MS).toBe(600_000);
+      });
+
+      it('timeoutMs 를 넘기지 않으면 10분 뒤 요청을 끊고 타임아웃 오류를 던진다', async () => {
+        jest.useFakeTimers();
+        try {
+          let captured: AbortSignal | undefined;
+          mockClient.chat.mockImplementation(
+            (_p: unknown, signal?: AbortSignal) => {
+              captured = signal;
+              return new Promise<never>(() => {});
+            },
+          );
+          const pending = service
+            .chat(config, params as never, undefined, {
+              disableInnerRetry: true,
+            })
+            .catch((err_: unknown) => err_);
+
+          await jest.advanceTimersByTimeAsync(LLM_CHAT_DEFAULT_TIMEOUT_MS - 1);
+          expect(captured?.aborted).toBe(false);
+
+          await jest.advanceTimersByTimeAsync(1);
+          const err = await pending;
+          expect(err).toBeInstanceOf(Error);
+          expect((err as Error).message).toBe(
+            `Request timed out after ${LLM_CHAT_DEFAULT_TIMEOUT_MS}ms`,
+          );
+          expect(captured?.aborted).toBe(true);
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+
+      it('기본값에서도 호출 쪽 신호를 합쳐 넘겨 실행 취소가 요청까지 닿는다', async () => {
+        let captured: AbortSignal | undefined;
+        mockClient.chat.mockImplementation(
+          (_p: unknown, signal?: AbortSignal) =>
+            new Promise<never>((_, reject) => {
+              captured = signal;
+              signal?.addEventListener('abort', () =>
+                reject(
+                  Object.assign(new Error('aborted'), { name: 'AbortError' }),
+                ),
+              );
+            }),
+        );
+        const controller = new AbortController();
+        const call = service.chat(config, params as never, undefined, {
+          signal: controller.signal,
+          disableInnerRetry: true,
+        });
+        await new Promise((r) => setImmediate(r));
+        expect(captured).not.toBe(controller.signal);
+        expect(captured?.aborted).toBe(false);
+
+        controller.abort();
+
+        await expect(call).rejects.toThrow('aborted');
+        expect(captured?.aborted).toBe(true);
+      });
+
+      it('timeoutMs 가 0 이면 타임아웃 없이 신호 없는 호출 그대로 보낸다', async () => {
+        mockClient.chat.mockResolvedValue({ content: 'ok' } as never);
+        await service.chat(config, params as never, undefined, {
+          timeoutMs: 0,
+        });
+        expect(mockClient.chat).toHaveBeenCalledWith(params, undefined);
+      });
     });
 
     // 회귀: withTimeout 콜백이 넘기는 timeout signal 이 실제로 client.chat 에
@@ -384,9 +473,10 @@ describe('LlmService', () => {
     });
   });
 
-  // 특성화 테스트다. 지금 동작을 그대로 고정한다.
   // [LLM 클라이언트](CLE-AI-LLM) 「호출 신뢰성 계약」: `chatStream` 은 `withRetry` 를 거치지
-  // 않아 스트림을 열 때도 도중에도 다시 시도하지 않는다. 사용량은 `done` 이벤트에서만 기록한다.
+  // 않아 스트림을 열 때도 도중에도 다시 열지 않는다. 열기 실패는 클라이언트가 `error` 이벤트로
+  // 바꾸고 SDK 재전송(`LLM_SDK_MAX_RETRIES`)만 있다(CLE-T-0R5SYN). 앱 타임아웃도 걸지 않는다.
+  // 사용량은 `done` 이벤트에서만 기록한다.
   describe('chatStream', () => {
     const config = {
       id: 'config-1',
@@ -1144,6 +1234,10 @@ describe('LlmService', () => {
   });
 
   describe('withRetry', () => {
+    // 이 블록은 재시도 백오프만 본다. 기본 앱 타임아웃(CLE-T-0R5SYN)의 타이머가 setTimeout
+    // 호출 순서에 끼지 않게 끈다. 기본 타임아웃은 위 「기본 타임아웃」 블록이 본다.
+    const NO_APP_TIMEOUT = { timeoutMs: 0 } as const;
+
     it('should retry on 429 errors', async () => {
       let callCount = 0;
       mockClient.chat.mockImplementation(() => {
@@ -1165,10 +1259,15 @@ describe('LlmService', () => {
         apiKey: 'encrypted',
       } as any;
 
-      const result = await service.chat(config, {
-        model: 'gpt-4o',
-        messages: [{ role: 'user', content: 'test' }],
-      });
+      const result = await service.chat(
+        config,
+        {
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'test' }],
+        },
+        undefined,
+        NO_APP_TIMEOUT,
+      );
 
       expect(callCount).toBe(3);
       expect(result.content).toBe('success');
@@ -1230,7 +1329,12 @@ describe('LlmService', () => {
           return makeSuccessResponse();
         });
 
-        const promise = service.chat(retryConfig, retryParams);
+        const promise = service.chat(
+          retryConfig,
+          retryParams,
+          undefined,
+          NO_APP_TIMEOUT,
+        );
         await jest.advanceTimersByTimeAsync(2_000);
         const result = await promise;
 
@@ -1257,7 +1361,12 @@ describe('LlmService', () => {
           return makeSuccessResponse();
         });
 
-        const promise = service.chat(retryConfig, retryParams);
+        const promise = service.chat(
+          retryConfig,
+          retryParams,
+          undefined,
+          NO_APP_TIMEOUT,
+        );
         await jest.advanceTimersByTimeAsync(1_000);
         const result = await promise;
 
@@ -1282,7 +1391,12 @@ describe('LlmService', () => {
           return makeSuccessResponse();
         });
 
-        const promise = service.chat(retryConfig, retryParams);
+        const promise = service.chat(
+          retryConfig,
+          retryParams,
+          undefined,
+          NO_APP_TIMEOUT,
+        );
         await jest.advanceTimersByTimeAsync(60_000);
         const result = await promise;
 
@@ -1309,7 +1423,12 @@ describe('LlmService', () => {
           return makeSuccessResponse();
         });
 
-        const promise = service.chat(retryConfig, retryParams);
+        const promise = service.chat(
+          retryConfig,
+          retryParams,
+          undefined,
+          NO_APP_TIMEOUT,
+        );
         await jest.advanceTimersByTimeAsync(59_000);
         const result = await promise;
 
@@ -1333,7 +1452,12 @@ describe('LlmService', () => {
           return makeSuccessResponse();
         });
 
-        const promise = service.chat(retryConfig, retryParams);
+        const promise = service.chat(
+          retryConfig,
+          retryParams,
+          undefined,
+          NO_APP_TIMEOUT,
+        );
         await jest.advanceTimersByTimeAsync(60_000);
         const result = await promise;
 
@@ -1360,7 +1484,12 @@ describe('LlmService', () => {
           return makeSuccessResponse();
         });
 
-        const promise = service.chat(retryConfig, retryParams);
+        const promise = service.chat(
+          retryConfig,
+          retryParams,
+          undefined,
+          NO_APP_TIMEOUT,
+        );
         await jest.advanceTimersByTimeAsync(1_000);
         const result = await promise;
 
@@ -1384,7 +1513,7 @@ describe('LlmService', () => {
         });
 
         const promise = service
-          .chat(retryConfig, retryParams)
+          .chat(retryConfig, retryParams, undefined, NO_APP_TIMEOUT)
           .catch((err_) => err_);
         // retry 3회 × Retry-After=0 → 각 0ms backoff. runAllTimersAsync 가 큐에
         // 들어가는 setTimeout(0) 들을 모두 소진할 때까지 반복 실행.
@@ -1404,9 +1533,9 @@ describe('LlmService', () => {
           throw new Error('500 Internal Server Error');
         });
 
-        await expect(service.chat(retryConfig, retryParams)).rejects.toThrow(
-          /500/,
-        );
+        await expect(
+          service.chat(retryConfig, retryParams, undefined, NO_APP_TIMEOUT),
+        ).rejects.toThrow(/500/);
 
         expect(callCount).toBe(1);
         // backoff setTimeout 이 호출되지 않아야 함 (즉시 throw).
