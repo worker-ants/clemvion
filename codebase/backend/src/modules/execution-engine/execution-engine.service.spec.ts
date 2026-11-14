@@ -7811,7 +7811,9 @@ describe('ExecutionEngineService', () => {
             }) as unknown,
           }),
         );
-        expect(mockWebsocketService.emitExecutionEvent).not.toHaveBeenCalledWith(
+        expect(
+          mockWebsocketService.emitExecutionEvent,
+        ).not.toHaveBeenCalledWith(
           executionId,
           'execution.completed',
           expect.anything(),
