@@ -11,7 +11,7 @@ import {
   ServiceUnavailableException,
   type INestApplication,
 } from '@nestjs/common';
-import { DiscoveryModule } from '@nestjs/core';
+import { DiscoveryModule, type NestApplicationContext } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import type { Response } from 'express';
@@ -30,6 +30,17 @@ import { ShutdownStateService } from './shutdown-state.service';
  * 가짜 explorer 를 두고 워커는 BullMQ `Worker` 의 close · pause 의미를 흉내 낸 가짜로 바꾼다. 실제 BullMQ ·
  * Redis 와 함께 도는 검증은 e2e `test/execution-shutdown-order.e2e-spec.ts` 가 맡는다.
  */
+
+/**
+ * `INestApplication.close()` 타입에는 신호 인자가 없지만 구현 `NestApplicationContext.close(signal?)` 는 받는다.
+ * 신호 처리기와 같은 `shutdown(signal)` 을 타도록 구현 타입으로 불러 신호를 넘긴다.
+ */
+function closeWithSignal(
+  app: INestApplication,
+  signal: NodeJS.Signals,
+): Promise<void> {
+  return (app as unknown as NestApplicationContext).close(signal);
+}
 
 const GRACE_MS = 5_000;
 
@@ -199,7 +210,7 @@ describe('안전 종료 훅 순서 (Nest 생명주기)', () => {
     await boot(GRACE_MS);
     expect((await getProbe(port)).status).toBe(HttpStatus.OK);
 
-    const closing = app.close('SIGTERM');
+    const closing = closeWithSignal(app, 'SIGTERM');
     await waitFor(() => events.some((e) => e.kind === 'pause'));
 
     // 진행 중 작업을 기다리는 동안이다. HTTP 서버는 아직 열려 있고 종료 표시는 이미 켜졌다.
@@ -227,7 +238,7 @@ describe('안전 종료 훅 순서 (Nest 생명주기)', () => {
     await boot(200);
 
     const startedAt = Date.now();
-    await app.close('SIGTERM');
+    await closeWithSignal(app, 'SIGTERM');
     const elapsed = Date.now() - startedAt;
 
     expect(elapsed).toBeGreaterThanOrEqual(190);

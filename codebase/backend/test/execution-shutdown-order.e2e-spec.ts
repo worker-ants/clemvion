@@ -21,7 +21,7 @@ import {
   ServiceUnavailableException,
   type INestApplication,
 } from '@nestjs/common';
-import { DiscoveryModule } from '@nestjs/core';
+import { DiscoveryModule, type NestApplicationContext } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Job, Queue } from 'bullmq';
@@ -75,6 +75,17 @@ import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
  * 종료 표시는 그 뒤 `onApplicationShutdown` 에서야 켜졌다. 그 서비스 코드로 이 파일을 돌리면 첫 케이스는 1초 안에
  * 종료 표시가 켜지지 않아(`waitFor timed out`), 둘째 케이스는 close 가 끝나지 않아 30초 시간 초과로 실패한다.
  */
+/**
+ * `INestApplication.close()` 타입에는 신호 인자가 없지만 구현 `NestApplicationContext.close(signal?)` 는 받는다.
+ * 신호 처리기와 같은 `shutdown(signal)` 을 타도록 구현 타입으로 불러 신호를 넘긴다.
+ */
+function closeWithSignal(
+  app: INestApplication,
+  signal: NodeJS.Signals,
+): Promise<void> {
+  return (app as unknown as NestApplicationContext).close(signal);
+}
+
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
 const connection = {
@@ -356,7 +367,7 @@ describe('SIGTERM 안전 종료 순서 (실제 BullMQ · Redis · Postgres)', ()
     const held = await startHoldingJob(b, 2_000);
 
     const startedAt = Date.now();
-    const closing = b.app.close('SIGTERM').then(() => {
+    const closing = closeWithSignal(b.app, 'SIGTERM').then(() => {
       b.closed = true;
     });
 
@@ -393,7 +404,7 @@ describe('SIGTERM 안전 종료 순서 (실제 BullMQ · Redis · Postgres)', ()
     const held = await startHoldingJob(b, null);
 
     const startedAt = Date.now();
-    await b.app.close('SIGTERM');
+    await closeWithSignal(b.app, 'SIGTERM');
     b.closed = true;
     const elapsed = Date.now() - startedAt;
 
