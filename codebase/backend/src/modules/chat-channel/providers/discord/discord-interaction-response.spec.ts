@@ -41,6 +41,19 @@ describe('buildDiscordDefaultInteractionResponse', () => {
     },
   );
 
+  // 본문에 `data` 가 없는 슬래시 명령도 하위 명령이 없는 것으로 보고 수신 문구로 답한다. 3초 응답을 놓치지
+  // 않는 것이 우선이다. NERV Task `CLE-T-0JEQRY` 5번.
+  it('data 가 없는 슬래시 명령도 type 4 수신 문구다', () => {
+    expect(
+      buildDiscordDefaultInteractionResponse(
+        { id: 'I1', type: 2, token: 'tok' },
+        config,
+      ),
+    ).toEqual({
+      body: { type: 4, data: { content: '요청을 받았습니다.', flags: 64 } },
+    });
+  });
+
   it('슬래시 명령 help 는 등록한 prefix 를 넣은 기본 도움말이다', () => {
     expect(
       buildDiscordDefaultInteractionResponse(slash('help'), config),

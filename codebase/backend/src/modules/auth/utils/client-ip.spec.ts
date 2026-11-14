@@ -2,6 +2,7 @@ import { Request } from 'express';
 import {
   extractClientIp,
   extractClientIpFromHeaders,
+  extractUnspoofableClientIp,
   shouldTrustCfConnectingIp,
 } from './client-ip';
 
@@ -63,6 +64,65 @@ describe('extractClientIpFromHeaders (shared core)', () => {
       extractClientIpFromHeaders({ 'x-forwarded-for': '   ' }),
     ).toBeUndefined();
   });
+});
+
+// 근거: NERV Task `CLE-T-CC3GPN`(2026-11-14 답 A). 채팅 채널 서명 실패 한도의 키는 보내는 쪽이 정할 수 없는
+// 출처로만 고른다. XFF 첫 값을 쓰면 남이 프로바이더 IP 를 적어 그 쌍을 막을 수 있다.
+describe('extractUnspoofableClientIp', () => {
+  let envSnapshot: NodeJS.ProcessEnv;
+  beforeEach(() => {
+    envSnapshot = { ...process.env };
+    delete process.env.TRUST_CF_CONNECTING_IP;
+  });
+  afterEach(() => {
+    process.env = envSnapshot;
+  });
+
+  it('XFF 첫 값은 쓰지 않고 req.ip 를 쓴다', () => {
+    expect(
+      extractUnspoofableClientIp(
+        { 'x-forwarded-for': '198.51.100.9, 203.0.113.4' },
+        '203.0.113.4',
+      ),
+    ).toBe('203.0.113.4');
+  });
+
+  it('CF 신뢰 설정이 켜져 있으면 CF-Connecting-IP 가 req.ip 보다 앞선다', () => {
+    process.env.TRUST_CF_CONNECTING_IP = 'true';
+    expect(
+      extractUnspoofableClientIp(
+        { 'cf-connecting-ip': '198.51.100.7' },
+        '10.0.0.1',
+      ),
+    ).toBe('198.51.100.7');
+  });
+
+  it('CF 신뢰 설정이 꺼져 있으면 CF-Connecting-IP 를 무시한다', () => {
+    expect(
+      extractUnspoofableClientIp(
+        { 'cf-connecting-ip': '198.51.100.7' },
+        '203.0.113.4',
+      ),
+    ).toBe('203.0.113.4');
+  });
+
+  it('IPv6-mapped IPv4 req.ip 는 IPv4 로 바꾼다', () => {
+    expect(extractUnspoofableClientIp({}, '::ffff:203.0.113.4')).toBe(
+      '203.0.113.4',
+    );
+  });
+
+  it.each([undefined, '', '   '])(
+    'req.ip 가 %p 이고 CF 값이 없으면 undefined 다',
+    (requestIp) => {
+      expect(
+        extractUnspoofableClientIp(
+          { 'x-forwarded-for': '198.51.100.9' },
+          requestIp,
+        ),
+      ).toBeUndefined();
+    },
+  );
 });
 
 // 04 m-3 — env-injection 직접 단위 테스트 (isFlagOn/isSwaggerEnabled 등과 일관).

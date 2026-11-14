@@ -65,12 +65,57 @@ function telegramApiError(
     : new Error(message);
 }
 
+/**
+ * 답한 `callback_query_id` 를 기억하는 시간(ms). 이 시간 안에 같은 클릭이 다시 오면(재전송 · 중복 · 처리한
+ * 클릭의 재도착) `answerCallbackQuery` 를 다시 부르지 않는다. 재도착 억제 창(30초)보다 길게 잡는다.
+ */
+export const TELEGRAM_ANSWERED_CALLBACK_TTL_MS = 60_000;
+
+/** 기억하는 `callback_query_id` 수의 상한. 넘치면 가장 오래 기억한 것부터 잊는다. */
+export const TELEGRAM_ANSWERED_CALLBACK_MAX = 10_000;
+
+/**
+ * 답한 `callback_query_id` 를 파드 메모리에 잠시 기억한다. 같은 클릭에 두 번 답하지 않게 해서
+ * `answerCallbackQuery` 호출과 봇 토큰 조회를 클릭 하나에 한 번으로 묶는다(NERV Task `CLE-T-0JEQRY`).
+ * 파드마다 따로 기억하므로 여러 파드에 나뉘어 온 재전송에는 파드 수만큼까지 답할 수 있다.
+ */
+class AnsweredCallbackIds {
+  private readonly expiresAt = new Map<string, number>();
+
+  /** 처음 보는 id 면 기억하고 `true`, 이미 기억하는 id 면 `false` 를 돌려준다. */
+  remember(id: string): boolean {
+    const now = Date.now();
+    this.evictExpired(now);
+    if (this.expiresAt.has(id)) return false;
+    this.expiresAt.set(id, now + TELEGRAM_ANSWERED_CALLBACK_TTL_MS);
+    if (this.expiresAt.size > TELEGRAM_ANSWERED_CALLBACK_MAX) {
+      // Map 은 넣은 순서를 지키므로 첫 키가 가장 오래된 id 다.
+      const [oldest] = this.expiresAt.keys();
+      this.expiresAt.delete(oldest);
+    }
+    return true;
+  }
+
+  forget(id: string): void {
+    this.expiresAt.delete(id);
+  }
+
+  /** 기억 시간이 모두 같아 넣은 순서가 곧 만료 순서다. 앞에서부터 만료된 것만 지운다. */
+  private evictExpired(now: number): void {
+    for (const [id, expiresAt] of this.expiresAt) {
+      if (expiresAt > now) break;
+      this.expiresAt.delete(id);
+    }
+  }
+}
+
 @Injectable()
 export class TelegramAdapter implements ChatChannelAdapter {
   readonly provider = 'telegram';
   /** Telegram 은 native form modal 미지원 (Mini App 격상은 별도 작업) — 항상 §4.2 다단계. */
   readonly supportsNativeForm = false;
   private readonly logger = new Logger(TelegramAdapter.name);
+  private readonly answeredCallbacks = new AnsweredCallbackIds();
 
   constructor(
     private readonly client: TelegramClient,
@@ -278,11 +323,12 @@ export class TelegramAdapter implements ChatChannelAdapter {
     config: ChatChannelConfig,
   ): Promise<void> {
     // PR-B — button_callback 도착 시 answerCallbackQuery (텔레그램 의무 — 안 하면 모바일 로딩 indicator 지속).
+    // 이미 답한 클릭이면 다시 답하지 않는다.
     if (update.command.kind !== 'button_callback') return;
-    const botToken = await this.resolveBotToken(config);
-    await this.client.answerCallbackQuery(botToken, {
-      callback_query_id: update.command.callbackQueryId,
-    });
+    const answeredWith = await this.answerCallbackOnce(
+      update.command.callbackQueryId,
+      config,
+    );
     // §5.2(3) — ack 후 원본 메시지의 inline_keyboard 제거(중복 클릭 차단). best-effort:
     // 메시지가 오래됐거나(48h) 이미 편집됐으면 실패할 수 있으나, 이는 ack 흐름을 막지 않는다.
     const messageId = update.command.messageId;
@@ -290,6 +336,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
       const numericId = Number(messageId);
       // Telegram message_id 는 양의 정수. NaN/음수/0 은 무효 → editMessage skip.
       if (Number.isInteger(numericId) && numericId > 0) {
+        const botToken = answeredWith ?? (await this.resolveBotToken(config));
         try {
           await this.client.editMessageReplyMarkup(botToken, {
             chat_id: update.conversationKey,
@@ -312,7 +359,8 @@ export class TelegramAdapter implements ChatChannelAdapter {
    * 중복 · 대화 단위 분당 한도 초과 · 실행 중 · 워크플로우 비활성처럼 처리하지 않은 클릭도 클라이언트의
    * 진행 표시를 지워야 한다. 키보드는 남긴다. 잠시 뒤 다시 누를 수 있어야 해서다(2026-11-12 사람 결정,
    * NERV 질문 `01a1d025-92b9-7782-8c6e-09705b4a117f`). `callback_query` 가 아닌 update 는 아무것도
-   * 하지 않는다. 실패는 호출자(HooksService)가 로그만 남긴다.
+   * 하지 않는다. 같은 클릭에는 한 번만 답한다(재전송 · 중복으로 버려진 클릭, 처리하며 이미 답한 클릭).
+   * 실패는 호출자(HooksService)가 로그만 남긴다.
    */
   async ackDroppedUpdate(
     raw: unknown,
@@ -320,10 +368,33 @@ export class TelegramAdapter implements ChatChannelAdapter {
   ): Promise<void> {
     const callbackQueryId = readCallbackQueryId(raw);
     if (callbackQueryId === undefined) return;
-    const botToken = await this.resolveBotToken(config);
-    await this.client.answerCallbackQuery(botToken, {
-      callback_query_id: callbackQueryId,
-    });
+    await this.answerCallbackOnce(callbackQueryId, config);
+  }
+
+  /**
+   * 아직 답하지 않은 클릭이면 `answerCallbackQuery` 를 보낸다. 이미 답한 클릭이면 봇 토큰도 조회하지 않는다.
+   * 봇 토큰 조회나 호출이 던지면 기억을 지운다. 같은 클릭이 다시 오면 다시 답을 시도한다.
+   *
+   * 봇 토큰은 캐시하지 않는다. 평문 토큰을 메모리에 두면 토큰 교체 · 폐기 뒤에도 옛 토큰을 쓰고, 같은 클릭의
+   * 반복 조회는 이 메서드가 이미 없앤다(NERV Task `CLE-T-0JEQRY` 1번 결정).
+   *
+   * @returns 답을 보냈으면 그때 조회한 봇 토큰, 이미 답한 클릭이면 `undefined`.
+   */
+  private async answerCallbackOnce(
+    callbackQueryId: string,
+    config: ChatChannelConfig,
+  ): Promise<string | undefined> {
+    if (!this.answeredCallbacks.remember(callbackQueryId)) return undefined;
+    try {
+      const botToken = await this.resolveBotToken(config);
+      await this.client.answerCallbackQuery(botToken, {
+        callback_query_id: callbackQueryId,
+      });
+      return botToken;
+    } catch (err) {
+      this.answeredCallbacks.forget(callbackQueryId);
+      throw err;
+    }
   }
 
   /**

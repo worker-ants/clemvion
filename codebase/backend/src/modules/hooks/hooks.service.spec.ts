@@ -24,7 +24,6 @@ import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
-import { ChatChannelSignatureFailureLimiterService } from '../chat-channel/chat-channel-signature-failure-limiter.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
 import { SURFACE_MISMATCH_DEFAULTS } from '../chat-channel/shared/language-hint-defaults';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
@@ -98,14 +97,6 @@ describe('HooksService', () => {
           provide: ChatChannelRateLimiterService,
           // default: 한도 이내(true) — rate-limit 케이스 테스트에서 override.
           useValue: { consume: jest.fn().mockResolvedValue(true) },
-        },
-        {
-          provide: ChatChannelSignatureFailureLimiterService,
-          // default: 한도에 닿지 않음 — 서명 실패 한도 케이스에서 override.
-          useValue: {
-            isBlocked: jest.fn().mockResolvedValue(false),
-            recordFailure: jest.fn().mockResolvedValue(undefined),
-          },
         },
         {
           provide: ChatChannelDedupService,
@@ -875,6 +866,7 @@ describe('HooksService', () => {
         expect.objectContaining(own),
         expect.anything(),
         expect.anything(),
+        undefined,
       );
       expect(mockAdapter.parseUpdate).toHaveBeenCalledWith(
         expect.anything(),
@@ -1006,6 +998,23 @@ describe('HooksService', () => {
         'signature invalid',
       );
       expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    // 꺼진 트리거는 핸드셰이크에도 답하지 않는다. 핸드셰이크는 트리거 활성 검사 뒤다(R-CC-12).
+    it('비활성 chatChannel 트리거는 핸드셰이크 훅을 부르지 않고 ignored 로 답한다', async () => {
+      triggerRepo.findOne.mockResolvedValue({
+        ...chatChannelTrigger,
+        isActive: false,
+      } as Trigger);
+      const handshakeResponse = jest
+        .fn()
+        .mockReturnValue({ body: { challenge: 'ch-1' } });
+      Object.assign(mockAdapter, { handshakeResponse });
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toEqual({ executionId: 'ignored' });
+      expect(handshakeResponse).not.toHaveBeenCalled();
     });
 
     // 근거: NERV Task `CLE-T-XRWFMJ`. 꺼진 워크플로우는 채팅 채널로 실행되지 않는다. 응답은 꺼진
@@ -1200,29 +1209,38 @@ describe('HooksService', () => {
         expect(workflowRepo.findOne).not.toHaveBeenCalled();
       });
 
-      it('Slack url_verification 에는 challenge 로 답한다', async () => {
-        triggerRepo.findOne.mockResolvedValue(providerTrigger('slack'));
+      // 핸드셰이크 판별은 어댑터의 `handshakeResponse` 가 한다(NERV Task `CLE-T-NMTWSN`). 여기서는 그 응답을
+      // update 처리 없이 그대로 돌려주는지 본다. 판별 자체는 각 어댑터 spec 이 본다.
+      it.each([
+        [
+          'slack',
+          { type: 'url_verification', challenge: 'ch-1' },
+          { challenge: 'ch-1' },
+        ],
+        ['discord', { type: 1 }, { type: 1 }],
+      ])(
+        '%s 핸드셰이크에는 어댑터가 고른 응답으로 답한다',
+        async (provider, body, reply) => {
+          triggerRepo.findOne.mockResolvedValue(providerTrigger(provider));
+          const handshakeResponse = jest.fn().mockReturnValue({ body: reply });
+          Object.assign(mockAdapter, { handshakeResponse });
 
-        const res = await service.handleWebhook('abc', {
-          ...chatInput,
-          body: { type: 'url_verification', challenge: 'ch-1' },
-        });
+          const res = await service.handleWebhook('abc', {
+            ...chatInput,
+            body,
+          });
 
-        expect(res).toEqual({ executionId: 'ignored', challenge: 'ch-1' });
-        expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
-      });
-
-      it('Discord PING 에는 PONG 으로 답한다', async () => {
-        triggerRepo.findOne.mockResolvedValue(providerTrigger('discord'));
-
-        const res = await service.handleWebhook('abc', {
-          ...chatInput,
-          body: { type: 1 },
-        });
-
-        expect(res).toEqual({ executionId: 'ignored', discordPing: true });
-        expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
-      });
+          expect(res).toEqual({
+            executionId: 'ignored',
+            providerResponse: { body: reply },
+          });
+          expect(handshakeResponse).toHaveBeenCalledWith(
+            body,
+            expect.objectContaining({ provider }),
+          );
+          expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
+        },
+      );
 
       it('handshake 가 아닌 Slack · Discord 요청은 ignored 로 답한다', async () => {
         mockAdapter.parseUpdate.mockResolvedValue(
@@ -1398,7 +1416,7 @@ describe('HooksService', () => {
         expect(res).toEqual({
           executionId: 'exec-new',
           status: 'pending',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
         expect(defaultInteractionResponse).toHaveBeenCalledWith(
           input.body,
@@ -1421,7 +1439,7 @@ describe('HooksService', () => {
         expect(interactionService.interact).toHaveBeenCalled();
         expect(res).toEqual({
           executionId: 'exec-active',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
         expect(engine.execute).not.toHaveBeenCalled();
       });
@@ -1437,7 +1455,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'exec-active',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
       });
 
@@ -1450,7 +1468,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
         expect(interactionService.interact).not.toHaveBeenCalled();
       });
@@ -1462,7 +1480,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
       });
 
@@ -1476,7 +1494,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
       });
 
@@ -1490,7 +1508,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
         expect(engine.execute).not.toHaveBeenCalled();
       });
@@ -1506,7 +1524,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
         expect(engine.execute).not.toHaveBeenCalled();
       });
@@ -1519,7 +1537,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
       });
 
@@ -1549,7 +1567,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'exec-active',
-          interactionHttpResponse: modal,
+          providerResponse: { body: modal },
         });
       });
 
@@ -1582,7 +1600,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'exec-active',
-          interactionHttpResponse: submitted,
+          providerResponse: { body: submitted },
         });
       });
 
@@ -1596,7 +1614,7 @@ describe('HooksService', () => {
         expect(res).toEqual({
           executionId: 'exec-cmd',
           status: 'pending',
-          interactionHttpResponse: COMMAND_RECEIVED,
+          providerResponse: { body: COMMAND_RECEIVED },
         });
         expect(engine.execute).toHaveBeenCalledWith(
           'wf1',
@@ -1615,7 +1633,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'exec-active',
-          interactionHttpResponse: COMMAND_RECEIVED,
+          providerResponse: { body: COMMAND_RECEIVED },
         });
         expect(mockAdapter.ackInteraction).toHaveBeenCalled();
       });
@@ -1658,7 +1676,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionHttpResponse: COMMAND_RECEIVED,
+          providerResponse: { body: COMMAND_RECEIVED },
         });
         expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
         expect(engine.execute).not.toHaveBeenCalled();
@@ -1677,7 +1695,7 @@ describe('HooksService', () => {
         expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
       });
 
-      it('본문 없는 기본 응답(Slack Interactivity)은 interactionEmptyResponse 로 답한다', async () => {
+      it('본문 없는 기본 응답(Slack Interactivity)은 본문 없는 providerResponse 로 답한다', async () => {
         triggerRepo.findOne.mockResolvedValue(discordTrigger('slack'));
         mockAdapter.provider = 'slack';
         defaultInteractionResponse.mockReturnValue({});
@@ -1692,7 +1710,7 @@ describe('HooksService', () => {
         expect(res).toEqual({
           executionId: 'exec-slack',
           status: 'pending',
-          interactionEmptyResponse: true,
+          providerResponse: {},
         });
         expect(engine.execute).toHaveBeenCalledWith(
           'wf1',
@@ -1716,7 +1734,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionEmptyResponse: true,
+          providerResponse: {},
         });
       });
 
@@ -1762,7 +1780,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'exec-active',
-          interactionHttpResponse: errors,
+          providerResponse: { body: errors },
         });
       });
 
@@ -1775,7 +1793,7 @@ describe('HooksService', () => {
 
         expect(res).toEqual({
           executionId: 'ignored',
-          interactionHttpResponse: DEFERRED_UPDATE,
+          providerResponse: { body: DEFERRED_UPDATE },
         });
       });
     });
@@ -1954,6 +1972,29 @@ describe('HooksService', () => {
 
         expect(ackDroppedUpdate).not.toHaveBeenCalled();
         expect(mockAdapter.ackInteraction).toHaveBeenCalledTimes(1);
+      });
+
+      // ackDroppedUpdate 는 선택 메서드다. HTTP 응답이 수신 확인인 프로바이더(Slack · Discord)는 구현하지
+      // 않는다. 그런 어댑터의 버린 경로도 같은 202 ignored 다. NERV Task `CLE-T-0JEQRY` 5번.
+      it('ackDroppedUpdate 를 구현하지 않은 어댑터도 버린 update 에 202 ignored 로 답한다', async () => {
+        Reflect.deleteProperty(mockAdapter, 'ackDroppedUpdate');
+        mockAdapter.parseUpdate.mockResolvedValue(callbackUpdate);
+        (
+          moduleRef.get(ChatChannelDedupService) as { claim: jest.Mock }
+        ).claim.mockResolvedValue(false);
+        const warnSpy = jest.spyOn(Logger.prototype, 'warn');
+
+        try {
+          const res = await service.handleWebhook('abc', callbackInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expect(ackDroppedUpdate).not.toHaveBeenCalled();
+          expect(warnSpy).not.toHaveBeenCalledWith(
+            expect.stringContaining('수신 확인 실패'),
+          );
+        } finally {
+          warnSpy.mockRestore();
+        }
       });
 
       it('꺼진 트리거에는 외부 호출을 하지 않으므로 부르지 않는다', async () => {
@@ -2861,7 +2902,7 @@ describe('HooksService', () => {
       expect(result).toEqual({ executionId: 'ignored' });
     });
 
-    it('§4.1 open_form_modal → adapter.openFormModal 호출 + interactionHttpResponse 반환 (discord-style)', async () => {
+    it('§4.1 open_form_modal → adapter.openFormModal 호출 + providerResponse 반환 (discord-style)', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       const channelUpdate = {
         conversationKey: 'chat-123',
@@ -2904,9 +2945,11 @@ describe('HooksService', () => {
         }),
       );
       expect(res).toMatchObject({
-        interactionHttpResponse: {
-          type: 9,
-          data: { custom_id: 'clemvion_form' },
+        providerResponse: {
+          body: {
+            type: 9,
+            data: { custom_id: 'clemvion_form' },
+          },
         },
       });
       expect(engine.execute).not.toHaveBeenCalled();
@@ -2953,9 +2996,11 @@ describe('HooksService', () => {
         expect.objectContaining({ modalKind: 'reply', fields: [] }),
       );
       expect(res).toMatchObject({
-        interactionHttpResponse: {
-          type: 9,
-          data: { custom_id: 'clemvion_reply' },
+        providerResponse: {
+          body: {
+            type: 9,
+            data: { custom_id: 'clemvion_reply' },
+          },
         },
       });
     });
@@ -3080,11 +3125,13 @@ describe('HooksService', () => {
           validationError: { message: '입력값을 다시 확인해주세요.' },
         }),
       );
-      // interactionHttpResponse 가 반환돼야 함.
+      // providerResponse 가 반환돼야 함.
       expect(res).toMatchObject({
-        interactionHttpResponse: {
-          type: 4,
-          data: { content: '⚠️ 입력값을 다시 확인해주세요.', flags: 64 },
+        providerResponse: {
+          body: {
+            type: 4,
+            data: { content: '⚠️ 입력값을 다시 확인해주세요.', flags: 64 },
+          },
         },
       });
       // re-noise: sendMessage 로 form_modal 버튼 재발송해야 함.
@@ -3333,9 +3380,11 @@ describe('HooksService', () => {
       );
       expect(conversationService.releaseLock).toHaveBeenCalled();
       expect(res).toMatchObject({
-        interactionHttpResponse: {
-          type: 4,
-          data: { content: '⚠️ 형식 오류', flags: 64 },
+        providerResponse: {
+          body: {
+            type: 4,
+            data: { content: '⚠️ 형식 오류', flags: 64 },
+          },
         },
       });
     });
@@ -4056,89 +4105,32 @@ describe('HooksService', () => {
         expect.objectContaining({ provider: 'telegram' }),
         chatInput.headers,
         expect.any(String),
+        undefined,
       );
     });
 
-    // 근거: NERV Task `CLE-T-ZC34Y0`(2026-11-13 답 A). 채팅 채널 트리거는 전역 요청 한도에서 빠지므로
-    // (트리거, 클라이언트 IP) 쌍의 서명 검증 실패를 분당 세고, 한도에 닿으면 검증 없이 401 로 답한다.
-    describe('서명 검증 실패 한도', () => {
-      const IP = '203.0.113.50';
-      const withIp: WebhookInput = {
-        ...chatInput,
-        headers: { ...chatInput.headers, 'x-forwarded-for': `${IP}, 10.0.0.1` },
-      };
-      let limiter: { isBlocked: jest.Mock; recordFailure: jest.Mock };
+    // 근거: NERV Task `CLE-T-A5T8D6` · `CLE-T-CC3GPN`. 서명 실패 한도는 인증기 안에 있다
+    // (`chat-channel-inbound-authenticator.spec.ts` 「서명 검증 실패 한도」). 여기서는 한도 키의 IP 로
+    // 쓸 `req.ip` 를 인증기까지 넘기는지만 본다.
+    it('요청 IP(req.ip)를 인증기의 다섯 번째 인자로 넘긴다', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
 
-      beforeEach(() => {
-        limiter = moduleRef.get(ChatChannelSignatureFailureLimiterService);
-        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
-        mockAdapter.parseUpdate.mockResolvedValue(null);
-      });
+      await service.handleWebhook(
+        'abc',
+        chatInput,
+        undefined,
+        undefined,
+        '203.0.113.50',
+      );
 
-      it('한도에 닿은 쌍은 서명을 검증하지 않고 401 로 답한다', async () => {
-        limiter.isBlocked.mockResolvedValueOnce(true);
-
-        await expect(
-          service.handleWebhook('abc', withIp),
-        ).rejects.toMatchObject({ status: 401 });
-
-        expect(limiter.isBlocked).toHaveBeenCalledWith(
-          chatChannelTrigger.id,
-          IP,
-        );
-        expect(authenticator.verify).not.toHaveBeenCalled();
-        expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
-        // 막힌 요청은 다시 세지 않는다. 세면 창이 끝나도 계속 막힐 수 있다.
-        expect(limiter.recordFailure).not.toHaveBeenCalled();
-      });
-
-      it('서명 검증이 실패하면 그 쌍의 실패를 하나 세고 401 을 그대로 던진다', async () => {
-        const rejection = new UnauthorizedException({
-          code: 'AUTH_FAILED',
-          message: 'Invalid Telegram secret token',
-        });
-        authenticator.verify.mockRejectedValueOnce(rejection);
-
-        await expect(service.handleWebhook('abc', withIp)).rejects.toBe(
-          rejection,
-        );
-
-        expect(limiter.recordFailure).toHaveBeenCalledTimes(1);
-        expect(limiter.recordFailure).toHaveBeenCalledWith(
-          chatChannelTrigger.id,
-          IP,
-        );
-      });
-
-      it('서명 검증을 통과하면 세지 않는다', async () => {
-        await service.handleWebhook('abc', withIp);
-
-        expect(authenticator.verify).toHaveBeenCalled();
-        expect(limiter.recordFailure).not.toHaveBeenCalled();
-      });
-
-      it('401 이 아닌 오류는 세지 않는다', async () => {
-        authenticator.verify.mockRejectedValueOnce(new Error('unexpected'));
-
-        await expect(service.handleWebhook('abc', withIp)).rejects.toThrow(
-          'unexpected',
-        );
-
-        expect(limiter.recordFailure).not.toHaveBeenCalled();
-      });
-
-      it('클라이언트 IP 를 알 수 없으면 한도를 보지도 세지도 않는다 — 한 버킷을 함께 쓰지 않는다', async () => {
-        authenticator.verify.mockRejectedValueOnce(
-          new UnauthorizedException({ code: 'AUTH_FAILED', message: 'x' }),
-        );
-
-        await expect(
-          service.handleWebhook('abc', chatInput),
-        ).rejects.toMatchObject({ status: 401 });
-
-        expect(limiter.isBlocked).not.toHaveBeenCalled();
-        expect(limiter.recordFailure).not.toHaveBeenCalled();
-      });
+      expect(authenticator.verify).toHaveBeenCalledWith(
+        chatChannelTrigger.id,
+        expect.objectContaining({ provider: 'telegram' }),
+        chatInput.headers,
+        '',
+        '203.0.113.50',
+      );
     });
   });
 });

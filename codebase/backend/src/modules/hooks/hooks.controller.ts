@@ -57,10 +57,11 @@ export class HooksController {
 
   @Public()
   @Get(':endpointPath/embed-config')
+  // 근거: [웹채팅 보안 — CORS와 임베드 검증 「임베드 검증」](CLE-WEBCHAT-SECURITY-ORIGIN#임베드-검증).
   @ApiOperation({
     summary: '위젯 임베드 설정(공개)',
     description:
-      '공개 웹챗 위젯이 부팅 시 조회하는 임베드 allowlist(캐시 가능). 워크스페이스 `interactionAllowedOrigins` 를 반환하며, 비어 있으면 제한 없음(allow-all). 위젯은 enforce=true 이고 호스트 origin 이 allowlist 에 없으면 렌더/시작을 거부한다. spec 7-channel-web-chat/4-security §3-①.\n\n**fail-open 정책**: DB 조회 실패·trigger 미존재 시 `{ allowlist: [], enforce: false }` (HTTP 200) 를 반환 — 위젯을 깨지 않는 soft 검증. 인증 webhook(authConfigId NOT NULL)도 동일하게 allow-all 반환(allowlist 노출 방지).\n\n**캐싱**: 응답에 `Cache-Control: ' +
+      '공개 웹챗 위젯이 부팅 시 조회하는 임베드 allowlist(캐시 가능). 워크스페이스 `interactionAllowedOrigins` 를 반환하며, 비어 있으면 제한 없음(allow-all). 위젯은 enforce=true 이고 호스트 origin 이 allowlist 에 없으면 렌더/시작을 거부한다.\n\n**fail-open 정책**: DB 조회 실패·trigger 미존재 시 `{ allowlist: [], enforce: false }` (HTTP 200) 를 반환 — 위젯을 깨지 않는 soft 검증. 인증 webhook(authConfigId NOT NULL)도 동일하게 allow-all 반환(allowlist 노출 방지).\n\n**캐싱**: 응답에 `Cache-Control: ' +
       EMBED_CONFIG_CACHE_CONTROL +
       '` 헤더가 포함된다. 워크스페이스 allowlist 변경 후 최대 ' +
       EMBED_CONFIG_CACHE_MAX_MINUTES +
@@ -102,10 +103,12 @@ export class HooksController {
   @UseGuards(PublicWebhookThrottleGuard, HookTriggerThrottlerGuard)
   @Post(':endpointPath')
   @HttpCode(HttpStatus.ACCEPTED)
+  // 근거: 공개 트리거의 시작 한도 · body 크기 제한은 [웹채팅 보안 「공개 웹훅 남용 방어」](CLE-WEBCHAT-SECURITY#공개-웹훅-남용-방어),
+  // 채팅 채널의 핸드셰이크 · 인터랙션 응답은 CLE-CHAT-ADAPTER 「인터랙션 기본 응답과 수신 확인」.
   @ApiOperation({
     summary: '웹훅 수신',
     description:
-      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다(spec 7-channel-web-chat/4-security §4). 채팅 채널 트리거는 프로바이더 서명으로 인증하므로 이 제한을 받지 않습니다. 전역 요청 한도(클라이언트당 분당 100건)는 트리거를 조회한 뒤 걸고, 채팅 채널 트리거에는 걸지 않습니다. 채팅 채널의 handshake(Slack url_verification · Discord PING)와 프로바이더가 3초 안 응답을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)은 `{ data }` 래핑 없이 200 과 프로바이더가 정한 본문으로 답합니다. Slack Interactivity 의 기본 응답은 빈 본문입니다.',
+      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다. 채팅 채널 트리거는 프로바이더 서명으로 인증하므로 이 제한을 받지 않습니다. 전역 요청 한도(클라이언트당 분당 100건)는 트리거를 조회한 뒤 걸고, 채팅 채널 트리거에는 걸지 않습니다. 채팅 채널의 handshake(Slack url_verification · Discord PING)와 프로바이더가 3초 안 응답을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)은 `{ data }` 래핑 없이 200 과 프로바이더가 정한 본문으로 답합니다. Slack Interactivity 의 기본 응답은 빈 본문입니다.',
   })
   @ApiTooManyRequestsResponse({
     description: '공개 webhook IP 시작 한도 초과(분당/시간당)',
@@ -164,6 +167,8 @@ export class HooksController {
       headers: Record<string, unknown>;
       method: string;
       rawBody?: Buffer;
+      // Express `trust proxy` 를 적용한 클라이언트 IP. 채팅 채널 서명 실패 한도 키로 쓴다.
+      ip?: string;
     } & PublicWebhookReqExtension,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -185,50 +190,27 @@ export class HooksController {
       req.rawBody,
       // Guard 가 이미 조회해 첨부한 trigger 재사용 — 중복 DB 왕복 제거 (W14).
       req.__publicWebhookTrigger,
+      req.ip,
     );
 
-    // Slack url_verification handshake — root-level `{ challenge }` JSON + 200 OK 응답이 필수.
-    // TransformInterceptor 의 `{ data: ... }` 래핑을 우회하기 위해 res.json 으로 직접 전송.
-    // Spec [providers/slack §3.1 / 5-system/15-chat-channel.md §5.5].
-    const challenge = (result as unknown as { challenge?: string }).challenge;
-    if (typeof challenge === 'string' && challenge.length > 0) {
-      res.status(HttpStatus.OK).json({ challenge });
-      return;
-    }
-
-    // Discord PING handshake — `{ type: 1 }` JSON + 200 OK. 동일 우회 패턴.
-    // Spec [providers/discord §3.1].
-    const discordPing = (result as unknown as { discordPing?: boolean })
-      .discordPing;
-    if (discordPing === true) {
-      res.status(HttpStatus.OK).json({ type: 1 });
-      return;
-    }
-
-    // 채팅 채널 인터랙션 응답 — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
-    // (Discord modal `{ type: 9 }` open / `{ type: 4 }` 폼 제출 결과 · 슬래시 명령 수신 응답 /
-    // 컴포넌트 · 모달 제출 기본 ack `{ type: 6 }` / Slack `{ response_action }` · 슬래시 명령
-    // 수신 응답 `{ response_type: 'ephemeral' }`).
-    // TransformInterceptor 래핑 우회 — res.json 으로 직접 전송. Spec CLE-CHAT-ADAPTER.
-    const interactionHttpResponse = (
-      result as unknown as { interactionHttpResponse?: unknown }
-    ).interactionHttpResponse;
-    if (interactionHttpResponse !== undefined) {
-      res.status(HttpStatus.OK).json(interactionHttpResponse);
-      return;
-    }
-
-    // Slack Interactivity 기본 ack — 3초 안 200 빈 본문. 같은 우회 패턴. Spec CLE-CHAT-SLACK.
-    const interactionEmptyResponse = (
-      result as unknown as { interactionEmptyResponse?: boolean }
-    ).interactionEmptyResponse;
-    if (interactionEmptyResponse === true) {
-      res.status(HttpStatus.OK).end();
+    // 채팅 채널이 프로바이더에 직접 돌려줄 응답이다. 핸드셰이크(Slack url_verification `{ challenge }` ·
+    // Discord PING `{ type: 1 }`)와 3초 안 200 을 요구하는 인터랙션 응답(Discord `{ type: 9 }` ·
+    // `{ type: 4 }` · `{ type: 6 }`, Slack `{ response_action }` · `{ response_type: 'ephemeral' }` ·
+    // Interactivity 빈 본문)이 여기로 온다. 프로바이더가 정한 본문을 그대로 받아야 하므로
+    // TransformInterceptor 의 `{ data }` 래핑을 거치지 않게 res 로 직접 보낸다.
+    const { providerResponse, ...accepted } = result;
+    if (providerResponse) {
+      res.status(HttpStatus.OK);
+      if (providerResponse.body === undefined) {
+        res.end();
+      } else {
+        res.json(providerResponse.body);
+      }
       return;
     }
 
     return {
-      ...result,
+      ...accepted,
       message: 'Webhook received, workflow execution started',
     };
   }

@@ -54,6 +54,26 @@ describe('DiscordAdapter', () => {
     ).toBeUndefined();
   });
 
+  // 근거: [Discord 인바운드](CLE-CHAT-DISCORD-INBOUND) · Discord 공식 문서(Receiving and Responding) —
+  // Interactions Endpoint URL 을 확인하는 PING(type 1)에는 PONG(type 1)으로 답해야 한다. 판별은 어댑터가
+  // 하고 HooksService 는 어댑터 훅만 부른다. NERV Task `CLE-T-NMTWSN` · `CLE-T-0JEQRY` 2번.
+  it('handshakeResponse — PING 에만 PONG { type: 1 } 으로 답한다', () => {
+    const adapter = new DiscordAdapter(new DiscordClient(), makeSecretsMock());
+    expect(
+      adapter.handshakeResponse({ id: 'I1', type: 1 }, DISCORD_CONFIG),
+    ).toEqual({ body: { type: 1 } });
+    for (const raw of [
+      { type: 2 },
+      { type: 3 },
+      { type: '1' },
+      {},
+      null,
+      'x',
+    ]) {
+      expect(adapter.handshakeResponse(raw, DISCORD_CONFIG)).toBeUndefined();
+    }
+  });
+
   it('escapeControlText — discord 는 평문 그대로 (renderNode 와 동일, identity)', () => {
     const adapter = new DiscordAdapter(new DiscordClient(), makeSecretsMock());
     expect(adapter.escapeControlText('받을 수 없어요.')).toBe(

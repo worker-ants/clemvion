@@ -26,7 +26,7 @@ import {
   DISCORD_COMPONENT_TYPE,
 } from './discord.types';
 import { renderDiscordEvent } from './discord-message.renderer';
-import { parseDiscordUpdate } from './discord-update.parser';
+import { isDiscordPing, parseDiscordUpdate } from './discord-update.parser';
 import {
   buildDiscordDefaultInteractionResponse,
   DISCORD_DEFAULT_SLASH_PREFIX,
@@ -227,7 +227,7 @@ export class DiscordAdapter implements NativeFormAdapter {
 
   /**
    * Spec §4 — Interactions Webhook envelope 분기 (PING / APPLICATION_COMMAND / MESSAGE_COMPONENT
-   * / MODAL_SUBMIT). PING 케이스는 null → caller (HooksService) 가 { type: 1 } 200 응답.
+   * / MODAL_SUBMIT). PING 케이스는 null 이다. { type: 1 } 200 응답은 {@link handshakeResponse} 가 정한다.
    */
   parseUpdate(
     raw: unknown,
@@ -453,6 +453,19 @@ export class DiscordAdapter implements NativeFormAdapter {
    */
   escapeControlText(text: string): string {
     return text;
+  }
+
+  /**
+   * Interactions Endpoint URL 을 확인하는 PING(type 1)에 PONG(`{ type: 1 }`)으로 답한다(Spec
+   * CLE-CHAT-DISCORD-INBOUND). 그 밖의 interaction 은 `undefined` 다. pure — 외부 호출 없음.
+   */
+  handshakeResponse(
+    raw: unknown,
+    _config: ChatChannelConfig,
+  ): InboundInteractionResponse | undefined {
+    return isDiscordPing(raw)
+      ? { body: { type: DISCORD_INTERACTION_CALLBACK_TYPE.PONG } }
+      : undefined;
   }
 
   /**

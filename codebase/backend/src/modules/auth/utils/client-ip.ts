@@ -82,6 +82,32 @@ export function extractClientIpFromHeaders(
   return undefined;
 }
 
+/**
+ * 보내는 쪽이 정할 수 없는 출처만으로 클라이언트 IP 를 고른다. `CF-Connecting-IP`(`TRUST_CF_CONNECTING_IP`
+ * 가 켜진 배포만) → `requestIp` 순서다. `requestIp` 는 Express `req.ip` 이고, `trust proxy` 가 믿는 프록시
+ * 한 단계가 덧붙인 값이라 위조할 수 없다(`main.ts`). `X-Forwarded-For` 첫 값은 쓰지 않는다. 클라이언트가
+ * 그 값을 정할 수 있어서다.
+ *
+ * 채팅 채널 서명 실패 한도(`cc:sigfail`)가 쓴다. 남이 키의 IP 를 골라 정상 요청을 막지 못하게 하려는 것이다
+ * (NERV Task `CLE-T-CC3GPN`). 공개 웹훅 IP 한도 · `ip_whitelist` 는 {@link extractClientIpFromHeaders} 를
+ * 그대로 쓴다.
+ *
+ * @param headers 소문자 키 요청 헤더.
+ * @param requestIp Express `req.ip`. 없으면 CF 헤더만 본다.
+ * @returns 고른 IP. 고를 출처가 없으면 `undefined`.
+ */
+export function extractUnspoofableClientIp(
+  headers: Record<string, string | string[] | undefined>,
+  requestIp?: string,
+): string | undefined {
+  if (shouldTrustCfConnectingIp()) {
+    const cf = pickFirst(headers['cf-connecting-ip']);
+    if (cf) return normalize(cf);
+  }
+  const ip = requestIp?.trim();
+  return ip ? normalize(ip) : undefined;
+}
+
 function pickFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) {
     const found = value.find((v) => typeof v === 'string' && v.trim() !== '');

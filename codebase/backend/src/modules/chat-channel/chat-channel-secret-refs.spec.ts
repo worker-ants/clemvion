@@ -1,4 +1,5 @@
 import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenticator';
+import type { ChatChannelSignatureFailureLimiterService } from './chat-channel-signature-failure-limiter.service';
 import type { SecretResolverService } from '../secret-store/secret-resolver.service';
 import {
   chatChannelSecretRef,
@@ -248,9 +249,13 @@ describe('isSignedChatChannelTrigger 와 인바운드 인증기의 서명 검증
     '%s 서명 참조가 %s 일 때 면제 판정과 시크릿 조회가 같다',
     async (provider, _label, ref) => {
       const resolve = jest.fn(async () => 'v');
-      const authenticator = new ChatChannelInboundAuthenticator({
-        resolve,
-      } as unknown as SecretResolverService);
+      const authenticator = new ChatChannelInboundAuthenticator(
+        { resolve } as unknown as SecretResolverService,
+        {
+          isBlocked: async () => false,
+          recordFailure: async () => undefined,
+        } as unknown as ChatChannelSignatureFailureLimiterService,
+      );
       const stored = {
         chatChannel: {
           provider,

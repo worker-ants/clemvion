@@ -7,7 +7,6 @@ import {
   ConflictException,
   HttpException,
   HttpStatus,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -38,8 +37,6 @@ import {
   CHAT_RATE_LIMIT_DEFAULT_PER_MIN,
 } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
-import { ChatChannelSignatureFailureLimiterService } from '../chat-channel/chat-channel-signature-failure-limiter.service';
-import { isDiscordPing } from '../chat-channel/providers/discord/discord-update.parser';
 import {
   ChannelUpdate,
   ChatChannelAdapter,
@@ -78,8 +75,8 @@ const WEBHOOK_ACCEPTED_RESPONSE_CODE = String(HttpStatus.ACCEPTED);
 
 /**
  * 채팅 채널 인터랙션에 답하는 HTTP 응답 코드. 채널 어댑터의 `defaultInteractionResponse` 가 응답을
- * 돌려준 update 다. HooksController 는 `interactionHttpResponse` 가 있으면 200 으로 그 본문을,
- * `interactionEmptyResponse` 면 200 빈 본문을 보낸다.
+ * 돌려준 update 다. HooksController 는 결과에 `providerResponse` 가 있으면 200 으로 그 본문을 보낸다
+ * (`body` 가 없으면 빈 본문).
  */
 const INTERACTION_RESPONSE_CODE = String(HttpStatus.OK);
 
@@ -87,22 +84,35 @@ const INTERACTION_RESPONSE_CODE = String(HttpStatus.OK);
 interface ChatChannelWebhookResult {
   executionId: string;
   status?: 'pending';
-  challenge?: string;
-  discordPing?: boolean;
   /**
-   * provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON. HooksController 가 200 과 함께
-   * res.json 으로 보낸다. Discord modal open `{ type: 9 }` · MODAL_SUBMIT 결과 `{ type: 4 }` ·
-   * 컴포넌트 클릭 · 모달 제출의 기본 ack `{ type: 6 }` · 슬래시 명령의 수신 응답 `{ type: 4 }`,
-   * Slack view_submission `{ response_action: 'errors' }` · 슬래시 명령의 수신 응답
-   * `{ response_type: 'ephemeral', text }` 가 있다.
+   * 프로바이더에 200 으로 직접 돌려줄 응답. 있으면 HooksController 가 TransformInterceptor 의
+   * `{ data }` 래핑을 거치지 않고 `body` 를 그대로 보낸다. `body` 가 없으면 200 빈 본문이다.
+   * 응답 형태를 이 필드 하나로 가른다(NERV Task `CLE-T-0JEQRY` · `CLE-T-NMTWSN`).
+   *   - 핸드셰이크: Slack url_verification `{ challenge }` · Discord PING `{ type: 1 }`
+   *     (어댑터의 `handshakeResponse`)
+   *   - 경로가 정한 응답: Discord modal open `{ type: 9 }` · MODAL_SUBMIT 결과 `{ type: 4 }`,
+   *     Slack view_submission `{ response_action: 'errors' }`
+   *   - 어댑터의 기본 응답: Discord 컴포넌트 클릭 · 모달 제출 ack `{ type: 6 }` · 슬래시 명령 수신 응답
+   *     `{ type: 4 }`, Slack 슬래시 명령 수신 응답 `{ response_type: 'ephemeral', text }` ·
+   *     Interactivity 기본 ack(빈 본문)
    * SoT: CLE-CHAT-ADAPTER 「네이티브 모달 경로」 · 「인터랙션 기본 응답과 수신 확인」.
    */
-  interactionHttpResponse?: unknown;
-  /**
-   * 200 빈 본문으로 답한다(Slack Interactivity 의 기본 ack). `interactionHttpResponse` 가 있으면
-   * 그 본문이 앞선다.
-   */
-  interactionEmptyResponse?: boolean;
+  providerResponse?: InboundInteractionResponse;
+}
+
+/** `HooksService.handleWebhook` 의 결과. 일반 웹훅은 `interaction`, 채팅 채널은 `providerResponse` 를 쓴다. */
+export interface WebhookHandleResult extends ChatChannelWebhookResult {
+  interaction?: {
+    token?: string;
+    expiresAt?: string;
+    endpoints: {
+      stream: string;
+      submit: string;
+      status: string;
+      cancel: string;
+      refresh: string;
+    };
+  };
 }
 
 /**
@@ -140,7 +150,6 @@ export class HooksService {
     private readonly executionsService: ExecutionsService,
     private readonly chatChannelInboundAuthenticator: ChatChannelInboundAuthenticator,
     private readonly authConfigsService: AuthConfigsService,
-    private readonly signatureFailureLimiter: ChatChannelSignatureFailureLimiterService,
   ) {}
 
   async handleWebhook(
@@ -151,21 +160,10 @@ export class HooksService {
     // (W14 — 중복 DB 왕복 제거). 미전달(undefined)이면 직접 조회로 폴백. 가드의 조회 쿼리와
     // 동일(`{ endpointPath, type: 'webhook' }` full entity)하므로 안전하게 재사용한다.
     preloadedTrigger?: Trigger | null,
-  ): Promise<{
-    executionId: string;
-    status?: 'pending';
-    interaction?: {
-      token?: string;
-      expiresAt?: string;
-      endpoints: {
-        stream: string;
-        submit: string;
-        status: string;
-        cancel: string;
-        refresh: string;
-      };
-    };
-  }> {
+    // Express `req.ip`(`trust proxy` 적용 값). 채팅 채널 서명 실패 한도 키의 IP 로만 쓴다
+    // (NERV Task `CLE-T-CC3GPN`). 일반 웹훅 경로가 `input` 을 실행 입력에 펼치므로 `input` 에 넣지 않는다.
+    requestIp?: string,
+  ): Promise<WebhookHandleResult> {
     // 1. Find trigger by endpoint path (no workspace filter — external call).
     //    Guard 가 첨부한 trigger 를 재사용(W14) — 미전달 시에만 직접 조회.
     const trigger =
@@ -203,6 +201,7 @@ export class HooksService {
         chatChannelCfg,
         input,
         rawBody?.toString('utf8') ?? '',
+        requestIp,
       );
     }
 
@@ -335,50 +334,6 @@ export class HooksService {
   }
 
   /**
-   * 채팅 채널 인바운드의 서명을 검증한다. 실패하면 `UnauthorizedException` 을 던진다.
-   *
-   * 채팅 채널 트리거는 전역 요청 한도에서 빠지므로(REQ-CHAT-079) 위조 서명 요청이 시크릿 조회와 서명
-   * 계산을 한도 없이 일으킬 수 있다. 그래서 (트리거, 클라이언트 IP) 쌍의 실패를 세고, 한도에 닿은 쌍은
-   * 검증하지 않고 같은 401 로 답한다. 막힌 요청은 다시 세지 않는다. IP 는 공개 웹훅 IP 한도와 같은
-   * 규칙으로 헤더에서 읽고, 읽지 못하면 세지 않는다. 식별하지 못한 요청을 한 버킷에 모으면 그 버킷을
-   * 채운 쪽이 다른 요청까지 막는다.
-   * 근거: [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE#인바운드-관문-순서), NERV Task `CLE-T-ZC34Y0`.
-   */
-  private async verifyChatChannelSignature(
-    trigger: Trigger,
-    config: ChatChannelConfig,
-    input: WebhookInput,
-    rawBodyString: string,
-  ): Promise<void> {
-    const clientIp = extractClientIpFromHeaders(input.headers);
-    if (
-      clientIp &&
-      (await this.signatureFailureLimiter.isBlocked(trigger.id, clientIp))
-    ) {
-      this.logger.debug(
-        `chat-channel 서명 실패 한도에 닿아 검증 없이 401 로 답한다 (trigger=${trigger.id})`,
-      );
-      throw new UnauthorizedException({
-        code: 'AUTH_FAILED',
-        message: 'Too many failed signature checks',
-      });
-    }
-    try {
-      await this.chatChannelInboundAuthenticator.verify(
-        trigger.id,
-        config,
-        input.headers,
-        rawBodyString,
-      );
-    } catch (err) {
-      if (clientIp && err instanceof UnauthorizedException) {
-        await this.signatureFailureLimiter.recordFailure(trigger.id, clientIp);
-      }
-      throw err;
-    }
-  }
-
-  /**
    * Chat Channel inbound 처리 — Spec §3.1 / CCH-AD-04 / CCH-AD-06.
    *
    * 1. provider 별 adapter 조회
@@ -409,6 +364,7 @@ export class HooksService {
     config: ChatChannelConfig,
     input: WebhookInput,
     rawBodyString = '',
+    requestIp?: string,
   ): Promise<ChatChannelWebhookResult> {
     let adapter: ChatChannelAdapter;
     try {
@@ -420,12 +376,14 @@ export class HooksService {
       });
     }
 
-    // Provider 별 inbound 인증 (Guard 패턴) — 단일 책임 분리. Slack 은 rawBody string 필요.
-    await this.verifyChatChannelSignature(
-      trigger,
+    // 서명 검증과 서명 실패 한도는 인증기 한 곳에 있다(NERV Task `CLE-T-A5T8D6`). 실패하면 401 을 던진다.
+    // Slack · Discord 는 rawBody string 이 필요하다.
+    await this.chatChannelInboundAuthenticator.verify(
+      trigger.id,
       config,
-      input,
+      input.headers,
       rawBodyString,
+      requestIp,
     );
 
     // 프로바이더는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)마다
@@ -449,19 +407,12 @@ export class HooksService {
       );
     }
 
-    // Slack url_verification handshake (Spec providers/slack §3.1) — Slack 이 Request URL 등록 시
-    // 1회 발송. parser 가 null 반환 후 challenge 추출하여 controller 에 전달.
-    if (config.provider === 'slack' && isSlackUrlVerification(input.body)) {
-      const challenge = (input.body as { challenge?: unknown }).challenge;
-      if (typeof challenge === 'string' && challenge.length > 0) {
-        return { executionId: 'ignored', challenge };
-      }
-    }
-
-    // Discord PING handshake (Spec providers/discord §3.1) — Interactions Endpoint URL
-    // 등록 시 1회 + 주기적. type=1 → { type: 1 } 200 응답.
-    if (config.provider === 'discord' && isDiscordPing(input.body)) {
-      return { executionId: 'ignored', discordPing: true };
+    // 프로바이더가 URL 등록 · 확인 때 보내는 핸드셰이크(Slack url_verification, Discord PING)에는
+    // 어댑터가 정한 본문으로 200 을 답하고 update 처리를 하지 않는다. 판별은 어댑터가 한다
+    // (CLE-CHAT-ADAPTER 「인터페이스」, NERV Task `CLE-T-NMTWSN`).
+    const handshake = adapter.handshakeResponse?.(input.body, config);
+    if (handshake) {
+      return { executionId: 'ignored', providerResponse: handshake };
     }
 
     let result: ChatChannelWebhookResult;
@@ -488,7 +439,7 @@ export class HooksService {
           }`,
         err instanceof Error ? err.stack : undefined,
       );
-      result = await this.dropChatChannelUpdate(input, config, adapter);
+      result = await this.ackDroppedUpdateAndIgnore(input, config, adapter);
     }
     return withDefaultInteractionResponse(result, defaultResponse);
   }
@@ -498,8 +449,14 @@ export class HooksService {
    * 보낸다(Telegram 버튼 클릭의 `answerCallbackQuery`, 키보드는 남긴다). 수신 확인은 응답을 기다리게
    * 하지 않는다(WH-NF-01, Task `CLE-T-K8Z2W0` 경계). 보내기만 하고 끝나기를 기다리지 않으며, 실패는
    * 경고 로그만 남기고 삼킨다. 근거: CLE-CHAT-TELEGRAM REQ-TGRAM-011.
+   *
+   * 실패를 두 군데서 받는다. `.catch` 는 돌려받은 Promise 의 거부만 받는다. 어댑터가 Promise 를 만들기
+   * 전에 동기로 던지면 `.catch` 까지 가지 못하므로 try/catch 로 받는다. 그 throw 가 새면 이 async 함수가
+   * 거부되고, 호출자의 await 를 거쳐 202 대신 5xx 로 답하게 된다(REQ-CHAT-056).
+   * 기다릴 것이 없어도 async 로 둔다. 이 함수 안에서 무엇이 던져지든 호출자에게는 거부로만 간다.
    */
-  private dropChatChannelUpdate(
+  // eslint-disable-next-line @typescript-eslint/require-await -- 동기 throw 를 거부로 바꾸려고 async 로 둔다.
+  private async ackDroppedUpdateAndIgnore(
     input: WebhookInput,
     config: ChatChannelConfig,
     adapter: ChatChannelAdapter,
@@ -518,7 +475,7 @@ export class HooksService {
         warn(err);
       }
     }
-    return Promise.resolve({ executionId: 'ignored' });
+    return { executionId: 'ignored' };
   }
 
   /**
@@ -542,7 +499,7 @@ export class HooksService {
       // 무시 대상 (group/bot/unsupported) — parseUpdate 의 pure 계약 (I-6) 에 따라 호출자가 안내 발송.
       // raw body 의 chat 정보가 있으면 안내 sendMessage. 봇 메시지나 chat 정보 없으면 silent skip.
       await this.maybeNotifyIgnored(input.body, config, adapter);
-      return this.dropChatChannelUpdate(input, config, adapter);
+      return this.ackDroppedUpdateAndIgnore(input, config, adapter);
     }
 
     // CCH-SE-02 — 동일 update 30초 재도착 억제. provider 는 2xx 를 못 받으면 같은 update 를
@@ -561,7 +518,7 @@ export class HooksService {
       this.logger.warn(
         `chat-channel update 재도착 무시 (CCH-SE-02, trigger=${trigger.id})`,
       );
-      return this.dropChatChannelUpdate(input, config, adapter);
+      return this.ackDroppedUpdateAndIgnore(input, config, adapter);
     }
 
     // CCH-NF-03 — per-chat 분당 inbound rate-limit. parseUpdate 직후(conversationKey
@@ -578,7 +535,7 @@ export class HooksService {
     );
     if (!withinRateLimit) {
       await this.markChatChannelRateLimited(trigger, rateLimitPerMinute);
-      return this.dropChatChannelUpdate(input, config, adapter);
+      return this.ackDroppedUpdateAndIgnore(input, config, adapter);
     }
 
     // parseUpdate 직후 provider 별 비동기 보강 (Slack file_upload → files.info 로
@@ -667,7 +624,7 @@ export class HooksService {
           if (result.httpResponse !== undefined) {
             return {
               executionId: state?.executionId ?? 'ignored',
-              interactionHttpResponse: result.httpResponse,
+              providerResponse: { body: result.httpResponse },
             };
           }
         } else {
@@ -692,7 +649,7 @@ export class HooksService {
         if (result.httpResponse !== undefined) {
           return {
             executionId: state.executionId ?? 'ignored',
-            interactionHttpResponse: result.httpResponse,
+            providerResponse: { body: result.httpResponse },
           };
         }
       } else {
@@ -766,7 +723,7 @@ export class HooksService {
             if (r?.httpResponse !== undefined) {
               return {
                 executionId: state.executionId!,
-                interactionHttpResponse: r.httpResponse,
+                providerResponse: { body: r.httpResponse },
               };
             }
             return { executionId: state.executionId! };
@@ -801,7 +758,7 @@ export class HooksService {
             if (r.httpResponse !== undefined) {
               return {
                 executionId: state.executionId!,
-                interactionHttpResponse: r.httpResponse,
+                providerResponse: { body: r.httpResponse },
               };
             }
           }
@@ -823,7 +780,7 @@ export class HooksService {
           if (r?.httpResponse !== undefined) {
             return {
               executionId: state.executionId ?? 'ignored',
-              interactionHttpResponse: r.httpResponse,
+              providerResponse: { body: r.httpResponse },
             };
           }
           return { executionId: state.executionId ?? 'ignored' };
@@ -853,7 +810,7 @@ export class HooksService {
       // waiting_for_input 에 도달한 경우에만 수행한다 (input-sequence 충돌 방지).
       if (activeStatus !== ExecutionStatus.WAITING_FOR_INPUT) {
         await this.sendExecutionStillRunningNotice(update, config, adapter);
-        return this.dropChatChannelUpdate(input, config, adapter);
+        return this.ackDroppedUpdateAndIgnore(input, config, adapter);
       }
       // Form 다단계 시퀀스 진행 중이면 dispatcher 의 form handler 로 라우팅.
       if (
@@ -895,7 +852,7 @@ export class HooksService {
         trigger.workspaceId,
       )
     ) {
-      return this.dropChatChannelUpdate(input, config, adapter);
+      return this.ackDroppedUpdateAndIgnore(input, config, adapter);
     }
 
     // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).
@@ -947,7 +904,7 @@ export class HooksService {
           trigger,
           CHAT_CHANNEL_WORKFLOW_MISSING_ERROR,
         );
-        return this.dropChatChannelUpdate(input, config, adapter);
+        return this.ackDroppedUpdateAndIgnore(input, config, adapter);
       }
       throw err;
     }
@@ -1590,15 +1547,6 @@ function isEnqueueFailedError(err: unknown): boolean {
 }
 
 /**
- * Slack Events API url_verification envelope 여부 — controller 가 challenge 응답을 200 OK 로
- * 반환하기 위한 분기. Spec [providers/slack §3.1].
- */
-function isSlackUrlVerification(body: unknown): boolean {
-  if (!body || typeof body !== 'object') return false;
-  return (body as { type?: unknown }).type === 'url_verification';
-}
-
-/**
  * 채팅 채널 인바운드가 `202` 로 바꾸지 않고 원래 에러로 답할 실패를 감싼다. `handleChatChannelWebhook` 은 처리
  * 중 오류를 모두 `202` 로 끝내는데(REQ-CHAT-056), 이 표지가 붙은 오류만 `cause` 를 다시 던진다. 지금은 `/start`
  * 의 기존 실행 취소 실패(REQ-CHAT-064) 하나다. 프로바이더가 그 update 를 다시 보내게 하려는 예외다.
@@ -1612,22 +1560,14 @@ class ChatChannelErrorResponse extends Error {
 
 /**
  * 경로가 따로 정한 인터랙션 응답이 없을 때 어댑터의 기본 응답을 붙인다. 기본 응답의 `body` 가 없으면
- * 200 빈 본문(`interactionEmptyResponse`)이다. 기본 응답이 없으면 결과를 그대로 돌려준다(202).
+ * 200 빈 본문이다. 기본 응답이 없으면 결과를 그대로 돌려준다(202).
  */
 function withDefaultInteractionResponse(
   result: ChatChannelWebhookResult,
   fallback: InboundInteractionResponse | undefined,
 ): ChatChannelWebhookResult {
-  if (
-    !fallback ||
-    result.interactionHttpResponse !== undefined ||
-    result.interactionEmptyResponse
-  ) {
-    return result;
-  }
-  return fallback.body === undefined
-    ? { ...result, interactionEmptyResponse: true }
-    : { ...result, interactionHttpResponse: fallback.body };
+  if (!fallback || result.providerResponse) return result;
+  return { ...result, providerResponse: fallback };
 }
 
 /**
