@@ -396,6 +396,8 @@ describe('엔진 마감 경로의 RETURNING 이 duration_ms 를 종결 이벤트
 
       const stopped = await restStop(executionId);
       expect(stopped.status).toBe(200);
+      // 중지 응답은 엔진이 마지막 구간을 더하기 전에 조립한다. 끝난 구간만 실린다.
+      expect(stopped.body.data.activeRunningMs).toBe(PRIOR_ACTIVE_MS);
       const afterStop = await readTiming(executionId);
       expect(afterStop.status).toBe(ExecutionStatus.CANCELLED);
       expect(afterStop.active_running_ms).toBe(PRIOR_ACTIVE_MS);
