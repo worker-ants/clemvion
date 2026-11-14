@@ -237,7 +237,7 @@ export enum NodeEventType {
  * 본 채널은 **run 의 시작/종료** 같은 수명주기 이벤트만 받는다.
  *
  * 채널: `background:run:<backgroundRunId>` — execution:<id> 와 격리.
- * spec/4-nodes/1-logic/12-background.md §8.5 참조.
+ * 근거: [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](CLE-API-WS-EVENTS-CHANNELS#8-background-본문-실행-이벤트-server--client)
  */
 export enum BackgroundRunEventType {
   BACKGROUND_RUN_STARTED = 'execution.background_run.started',

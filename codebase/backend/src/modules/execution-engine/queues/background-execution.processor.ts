@@ -28,7 +28,7 @@ import { sanitizeErrorMessage } from '../sanitize-error-message';
  *  - `execution.background_run.completed` — 본문 종료 (success / failed) 시
  *
  * 본문 안 NodeExecution 의 개별 이벤트는 기존 `execution:<id>` 채널로
- * 발행되므로 본 채널과 별개. 모니터링 spec/4-nodes/1-logic/12-background.md §8.5 참조.
+ * 발행되므로 본 채널과 별개. 근거: [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](CLE-API-WS-EVENTS-CHANNELS#8-background-본문-실행-이벤트-server--client)
  */
 @Processor(BACKGROUND_EXECUTION_QUEUE)
 export class BackgroundExecutionProcessor extends WorkerHost {
