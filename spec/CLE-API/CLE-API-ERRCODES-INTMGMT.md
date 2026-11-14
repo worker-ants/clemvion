@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-INTMGMT"
 title: "에러 코드 카탈로그 — 통합 관리 · OAuth"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "ab07743e7f641d9733404f037a7fd3cec115d2e38c3908da9f7730f6caf02649"
+content_hash: "8eb618afa7dcabadf74f99418f63feefd11f3f3c2a807896d4a58df2710e9027"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-NFNMZG"
 source_paths: []
-mirror_sha256: "902d8383a8a1ba7371e1c5c724fbf281c7861257f9ca560d7cb6664362117aaa"
-etag: "sha256-cde8c7b12f36d7afa7d76038e14f90e6d46b0140b43a52539e9f51dab7471f23"
+mirror_sha256: "c329a46d8fd9ac00574b45dc7b35671d7a44133a4e8a815c1877d55e256265a2"
+etag: "sha256-8e1305807f82e5830b5adbf768f095cc4e0244e20932d38dc8aaeb51e3c09905"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-cde8c7b12f36d7afa7d76038e14f90e6d46b0140b43a52539e9f51dab7471f23"
 
 - **설치 엔드포인트도 표준 봉투 `{ error: { code, message, requestId } }` 로 답한다.** 전역 예외 필터를 거치지 않으므로 컨트롤러가 본문을 직접 조립하고 `requestId` 를 응답마다 새로 발급한다. 빈도 제한 · 토큰 형식 · 필수 query 검사는 늘 JSON 으로 답한다. 그 뒤 서비스가 거절하면 `Accept` 에 `text/html` 이 있을 때 코드 · 메시지 · `requestId` 를 담은 HTML 페이지로 답한다.
 - **콜백 코드는 HTTP 봉투에 실리지 않는다.** 서비스가 거절하면 콜백은 상태 200 의 HTML 페이지를 그린다. 페이지에는 메시지만 있고 코드는 없다. 콜백이 대상 통합을 알면 코드를 그 통합의 `last_error.code` 에 남긴다. state 를 소비하지 못한 실패, `new` 모드(아직 통합 행이 없다), 상점 자리를 놓은 만료 설치 대기 행, 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 남기지 않는다. 그래서 아래 표는 콜백 코드의 HTTP 칸을 「없음 (통합 `last_error.code`)」 와 「없음 (콜백 HTML)」 로 나눠 적는다. `last_error.code` 에는 노드와 도구 호출의 실패 코드도 들어온다(§6.22).
-- **소셜 로그인 콜백**(`GET /api/auth/oauth/:provider/callback`)의 내부 코드는 행을 두지 않는다. 실패는 모두 §3 의 소문자 URL 값(`invalid_state` · `token_exchange_failed` · `email_required` · `server_error`)으로 바뀐다. 소셜 로그인 시작(`GET /api/auth/oauth/:provider`)은 OAuth 앱 설정이 없으면 표준 봉투로 `OAUTH_CONFIG_MISSING`(500)을 낸다.
+- **소셜 로그인 콜백**(`GET /api/auth/oauth/:provider/callback`)의 내부 코드는 행을 두지 않는다. 실패는 모두 §3 의 소문자 URL 값(`invalid_state` · `token_exchange_failed` · `email_required` · `server_error`)으로 바뀐다. 연결할 계정을 하나로 정하지 못한 경우의 `OAUTH_ACCOUNT_AMBIGUOUS` 도 새 값 없이 `server_error` 로 바뀐다([가입과 로그인 — 로그인과 소셜 로그인 「에러 처리」](../CLE-ACCT/CLE-ACCT-SIGNIN-LOGIN.md#에러-처리)). 소셜 로그인 시작(`GET /api/auth/oauth/:provider`)은 OAuth 앱 설정이 없으면 표준 봉투로 `OAUTH_CONFIG_MISSING`(500)을 낸다.
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
@@ -43,15 +43,15 @@ etag: "sha256-cde8c7b12f36d7afa7d76038e14f90e6d46b0140b43a52539e9f51dab7471f23"
 | `CAFE24_PRIVATE_APP_USE_TEST_RUN` | 400 | Cafe24 Private 앱은 이 요청으로 OAuth 를 시작하지 않음. `oauth/begin` 이 `new` 가 아닌 모드로 오거나 설치 대기 중인 Private 통합에 재인증을 요청함. 이름의 경위는 §3 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` | 400 | 설치 토큰(App URL)이 없는 Cafe24 Private 통합에 재인증(`POST /api/integrations/:id/reauthorize`)이나 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)을 보냄. 복구는 통합을 지우고 다시 등록하는 것이다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 `mall_id` 의 Cafe24 통합이 이미 있음. `oauth/begin` 의 사전 검사, Private 설치 대기 행 쓰기, 통합 저장의 상점 식별자 UNIQUE 경합에서 난다. 응답에 기존 통합의 ID 를 싣지 않는다. 이름의 경위는 §3 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「`CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 이름을 유지한다」](../CLE-INT/CLE-INT-OAUTH.md#cafe24_private_app_already_connected-이름을-유지한다) |
-| `MAKESHOP_CREDENTIALS_REQUIRED` | 400 · 없음 (통합 `last_error.code`) | MakeShop `oauth/begin` 에 `client_id` · `client_secret` 이 없음. 본문 없이 begin 을 다시 부르는 MakeShop 재인증도 이 코드로 끝난다. 콜백의 토큰 교환에서 state 에 자격 증명이 없어도 나고 이때는 통합의 `last_error.code` 에 남는다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
+| `MAKESHOP_CREDENTIALS_REQUIRED` | 400 · 없음 (통합 `last_error.code`) | MakeShop `oauth/begin` 에 `client_id` · `client_secret` 이 없음. begin 은 모드보다 자격 증명을 먼저 보므로 자격 증명이 없으면 모드와 관계없이 이 코드다. 그래서 본문 없이 begin 을 다시 부르는 MakeShop 재인증도 이 코드로 끝난다. MakeShop 통합의 통합 재인증(`POST /api/integrations/:id/reauthorize`)과 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)도 자격 증명 없이 begin 을 불러 이 코드로 거절된다. 이 거절은 규칙 6 의 예외다(Rationale). 부모 문서 규칙 6 의 예외 문장에는 아직 없고 NERV Task `CLE-T-H5NJZ3` 가 더한다. 콜백의 토큰 교환에서 state 에 자격 증명이 없어도 나고 이때는 통합의 `last_error.code` 에 남는다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「통합 재인증과 추가 권한 요청」](../CLE-INT/CLE-INT-OAUTH.md#통합-재인증과-추가-권한-요청) |
 | `MAKESHOP_USE_SHOPSTORE_INSTALL` | 400 | 본문에 자격 증명을 실은 MakeShop `oauth/begin` 이 `new` 가 아닌 모드로 옴. 이름의 경위는 §3 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` | 409 | `oauth/begin`(`new`)이 같은 상점의 설치 대기 행을 다시 쓰려는데 그 행이 남의 개인 통합임. `details` 에는 `pendingInstallExpiresAt` 만 싣는다. 조직 통합의 설치 대기 행이고 요청자가 관리자 미만이면 `ADMIN_REQUIRED`(§6.2)다. 이름의 경위는 §3 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) |
 | `INTEGRATION_NAME_TAKEN` | 409 | 통합 생성 · 수정이나 `oauth/begin` 의 설치 대기 행 쓰기에서 같은 워크스페이스에 같은 이름의 통합이 있음 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `INTEGRATION_OWNER_NOT_MEMBER` | 409 | 통합 범위 변경(`PATCH /api/integrations/:id/scope`)으로 조직 통합을 개인 통합으로 바꾸려는데 통합을 만든 사람이 워크스페이스 멤버가 아님 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `INTEGRATION_IN_USE` | 409 | 워크플로우 노드가 아직 참조하는 통합을 지우려 함(`DELETE /api/integrations/:id`). 서비스는 예외에 사용처 목록(`usages`)을 함께 넣지만 전역 예외 필터가 `code` · `message` · `details` 만 남겨 응답에는 실리지 않는다 | [통합 관리 「사용처 추적과 삭제 차단」](../CLE-INT/CLE-INT-MANAGE.md#사용처-추적과-삭제-차단), [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `INTEGRATION_ROTATE_UNSUPPORTED` | 400 | OAuth2 통합에 자격 증명 교체(`POST /api/integrations/:id/rotate`)를 요청함. OAuth2 통합은 재인증을 쓴다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
-| `INTEGRATION_TEST_FAILED` | 400 | 자격 증명 교체가 새 자격 증명으로 연결 테스트를 했는데 실패함. 상태는 400 이다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)). `message` 는 연결 테스트 결과의 메시지다. 결과에 `code` 가 있으면 `details: { testCode }` 로 싣는다. 이 값은 에러 코드가 아니라 연결 테스트 결과의 코드다. 지금 구현은 `testCode` 를 싣지 않는다(NERV Task `CLE-T-XCMNP6`) | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
-| `INTEGRATION_SCOPE_UNSUPPORTED` | 400 | OAuth2 가 아닌 통합에 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)을 보냄 | [OAuth 연결과 토큰 갱신 「통합 재인증과 추가 권한 요청」](../CLE-INT/CLE-INT-OAUTH.md#통합-재인증과-추가-권한-요청) |
+| `INTEGRATION_TEST_FAILED` | 400 | 자격 증명 교체가 새 자격 증명으로 연결 테스트를 했는데 실패함. 상태는 400 이다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)). `message` 는 연결 테스트 결과의 메시지다. 결과에 `code` 가 있으면 `details: { testCode }` 로 싣고 없으면 `details` 를 싣지 않는다. 이 값은 에러 코드가 아니라 연결 테스트 결과의 코드다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
+| `INTEGRATION_SCOPE_UNSUPPORTED` | 400 | OAuth2 가 아닌 통합에 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)을 보냄 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「통합 재인증과 추가 권한 요청」](../CLE-INT/CLE-INT-OAUTH.md#통합-재인증과-추가-권한-요청) |
 | `CAFE24_INSTALL_RATE_LIMITED` · `MAKESHOP_INSTALL_RATE_LIMITED` | 429 | 설치 엔드포인트에서 같은 IP 의 실패가 쌓여 잠김. `details` 와 `Retry-After` 는 없다. 노드의 `CAFE24_RATE_LIMITED` · `MAKESHOP_RATE_LIMITED`(§6.22)와 다른 코드다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `CAFE24_INSTALL_INVALID_TOKEN` · `MAKESHOP_INSTALL_INVALID_TOKEN` | 404 | 설치 토큰의 형식이 틀렸거나 그 토큰의 통합이 없음. IP 실패로 센다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `CAFE24_INSTALL_MISSING_PARAMS` · `MAKESHOP_INSTALL_MISSING_PARAMS` | 400 | 설치 요청에 필수 query 가 없음. Cafe24 는 `mall_id` · `timestamp` · `hmac`, MakeShop 은 `shop_uid` · `timestamp` · `hmac` 이다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
@@ -104,3 +104,20 @@ NERV Task `CLE-T-9J6W7H` 다. `oauth/begin` 을 `new` 가 아닌 모드로 부�
 - **`INTEGRATION_TEST_FAILED` 의 상태는 400 이다.** 이 카탈로그는 통합 관리가 상태를 미결로 둔다고 적었다. 그 미결이 400 으로 닫혀서 행의 문장을 결정으로 바꿨다. 이름과 상태는 그대로라 새 코드가 아니다.
 - **테스트 결과 코드는 `details.testCode` 에 싣는다.** 값은 연결 테스트 결과의 이름공간이라 이 카탈로그에 등재하지 않는다. `details.code` 로 두지 않은 이유는 [에러 응답과 클라이언트 처리 2.5](CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다-2026-09-11) 에 적었다. 구현은 NERV Task `CLE-T-XCMNP6` 이다.
 - **`MAKESHOP_AUTH_FAILED` 행(§6.22)에 연결 테스트와 노드의 차이를 적었다.** 연결 테스트의 403 은 통합 상태를 바꾸지 않는다. 노드에서는 같은 이름이 다른 결과를 낸다. 이 차이를 행에 한 문장으로 드러내고 통합 관리의 정의 자리를 링크했다.
+
+### MakeShop 통합 재인증 · 추가 권한 요청의 거절을 `MAKESHOP_CREDENTIALS_REQUIRED` 행에 더했다 (2026-11-14)
+
+NERV Task `CLE-T-6G3084` 다. 행은 begin 의 자격 증명 누락과 본문 없는 MakeShop 재인증만 적었다. 2026-11-13 에 사용자가 MakeShop 통합의 `:id/reauthorize` · `:id/request-scopes` 를 이 코드로 거절한다고 정했다([OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청 「MakeShop 통합 재인증과 추가 권한 요청의 거절 코드를 정했다」](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13)). 그래서 두 경로를 행에 더하고 정의 문서에 그 요청 흐름을 적은 절을 더했다.
+
+- **규칙 6 의 예외다.** 두 요청이 거절되는 실제 조건은 MakeShop 통합에 통합 재인증과 추가 권한 요청 경로가 없다는 것이다. 이름이 말하는 「begin 에 자격 증명이 없음」과 다른 조건이라 규칙 6 대로면 새 코드를 만들어야 한다. 사용자는 전용 코드를 새로 만드는 안을 고르지 않고 클라이언트가 이미 받는 지금 코드를 계약으로 정했다.
+- **§3 에는 올리지 않았다.** 이름이 규칙 1~3 을 어긴 것이 아니라 기존 코드를 다시 쓰는 결정이다. [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 첫 문단에 따라 등록부에 넣지 않는다.
+- **규칙 6 의 예외 문장은 이번에 고치지 않았다.** [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 규칙 6 은 예외를 웹훅 인증의 `AUTH_FAILED` 하나로 적는다. 그 문장에 이 예외를 더하는 일은 NERV Task `CLE-T-H5NJZ3` 가 맡는다.
+- 행에 begin 의 검사 순서를 적었다. 자격 증명을 실은 begin 이 `new` 가 아닌 모드로 오면 모드 검사에 닿아 `MAKESHOP_USE_SHOPSTORE_INSTALL`(§3)이 나간다. 두 코드가 갈리는 지점이 이 순서다.
+
+### 정의 문서와 구현 서술을 맞췄다 (2026-11-14)
+
+NERV Task `CLE-T-6G3084` · `CLE-T-NFNMZG` 다.
+
+- **`INTEGRATION_SCOPE_UNSUPPORTED`**: 통합 관리 「에러 코드」 표에도 이 코드 행이 있어 정의 문서에 두 문서를 함께 적었다. 통합 관리 쪽은 판정 순서를, OAuth 연결 쪽은 요청 흐름을 적는다.
+- **`INTEGRATION_TEST_FAILED`**: NERV Task `CLE-T-XCMNP6` 의 구현으로 결과에 `code` 가 있으면 `details.testCode` 를 싣는다. 「지금 구현은 싣지 않는다」 문장을 지우고 `code` 가 없을 때의 모양을 적었다.
+- **소셜 로그인 콜백의 `OAUTH_ACCOUNT_AMBIGUOUS`**: 연결할 계정을 정하지 못한 실패도 다른 내부 코드처럼 행 없이 `server_error` 로 바뀐다고 적었다. 새 `error=` 값을 두지 않은 이유는 [가입과 로그인 — 가입 · 재설정 · 이메일 변경 Rationale 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05) 에 있다.
