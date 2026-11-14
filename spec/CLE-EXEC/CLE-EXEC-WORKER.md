@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER"
 title: "큐 워커와 동시 실행 제한"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "62ae80a33e797e780e4f91bb570251d5a0b8b2a2ff5d090a158c82504ec801bd"
+content_hash: "09c4eb117fa4d227b898cfe69467b2dbb6936827c1980894e14c04659053ed15"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-4YT18G"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "989db28a6f4cbed0b7987f957cf6e32782e810688887a5ffcbe273639a42c174"
-etag: "sha256-920da59dacd6fd8198959b8763719faf165940d4dc5a2c4975cc9f45c3579593"
+mirror_sha256: "f292527610927002306cc6ab01342577d2915e1769b57350ac45314dce1dcac3"
+etag: "sha256-ed5f658828b3a9d392e17ca3e95743b465ad9e6f3a51b6ef434852b915b83471"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -161,7 +161,7 @@ flowchart LR
 
 **결정**: 실행 엔진의 외부 이벤트(`NODE_STARTED` / `NODE_COMPLETED` / `EXECUTION_*` / `AI_MESSAGE` 등) 발행 대상은 `WebsocketService` 하나다. `IExecutionEventEmitter` 같은 인터페이스나 Nest `EventEmitter2` 같은 별도 추상화를 두지 않는다.
 
-- 인스턴스 사이 fan-out 은 재개 큐가 맡는다(옛 Redis pub/sub 채널 `execution:continuation` 은 폐기). 이벤트 발행 방식과 분산 동작은 서로 관계가 없다.
+- 재개 신호의 인스턴스 사이 전달은 재개 큐가 맡는다(옛 Redis pub/sub 채널 `execution:continuation` 은 폐기). 실행 이벤트를 다른 인스턴스의 WebSocket 구독자에게 보내는 일은 `WebsocketService` 뒤의 게이트웨이(Socket.IO Redis adapter)가 맡는다([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달)). 엔진은 그대로 `WebsocketService` 하나에만 발행하고 인스턴스 사이 전달을 알지 못한다.
 - `ExecutionEventEmitter` 는 발행 호출 지점을 한데 모은 **같은 모양의 얇은 래퍼**다. 이 절이 금지하는 외부 이벤트 발행 추상화 인터페이스가 아니므로 단일 발행 정책의 예외가 아니다. 이 래퍼가 생긴 배경(엔진 클래스 분할)은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 의 Rationale 에 있다.
 - External Interaction API 의 EIA 알림 웹훅(Outbound Notification Webhook)과 외부 SSE 어댑터가 생긴 뒤에도 엔진 수준 단일 발행 정책은 유지한다. NotificationDispatcher 와 SSE 어댑터(Redis 로 인스턴스 사이 fan-out 하는 부분 포함, [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md))는 모두 엔진 밖 facade 층에 둔다. 엔진 코드는 외부 발행 대상의 종류를 알 필요가 없다. 기준은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R10 이다.
 - 외부 발행 대상(웹훅 콜백, 텔레메트리 export 등)이 실제로 더해지면 이 결정을 다시 검토한다.
@@ -208,7 +208,7 @@ flowchart LR
 ### 실행 이벤트 발행 대상을 하나로 둔다
 
 - 이 시스템의 외부 이벤트 소비자는 WebSocket 클라이언트 한 종류뿐이다. 발행 대상이 여럿으로 드러나기 전까지 추상화는 YAGNI 다.
-- 분산은 재개 큐가 맡으므로 이벤트 발행 추상화와 관계가 없다.
+- 분산은 재개 큐(재개 신호)와 게이트웨이의 Redis adapter(이벤트 전달)가 맡으므로 이벤트 발행 추상화와 관계가 없다.
 - 테스트에서는 `Partial<WebsocketService>` mock 으로 충분하다. 추상화 인터페이스용 noop 구현체가 필요 없다.
 
 ### 재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다 (2026-10-17)
