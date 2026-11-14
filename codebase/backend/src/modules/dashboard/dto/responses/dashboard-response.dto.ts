@@ -60,10 +60,9 @@ export class RecentExecutionDto {
   @ApiProperty({ example: '이메일 알림 플로우' })
   workflowName: string;
 
-  /**
-   * 실행 상태. 실행 행의 값을 그대로 싣는다. enum 은 실행 응답(`ExecutionDto.status`)과 같은
-   * `ExecutionStatus` 스키마를 쓴다. 손으로 적은 목록은 `waiting_for_input` 이 빠진 채 갈렸다.
-   */
+  // enum 을 손으로 적지 않고 실행 응답(`ExecutionDto.status`)과 같은 `ExecutionStatus` 스키마를 쓴다.
+  // 손으로 적은 목록은 `waiting_for_input` 이 빠진 채 실행 상태와 갈렸다.
+  /** 실행 상태. 실행 응답의 `status` 와 같은 값이다. */
   @ApiProperty({
     enum: ExecutionStatus,
     enumName: 'ExecutionStatus',
