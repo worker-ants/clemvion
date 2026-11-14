@@ -1428,6 +1428,9 @@ export class IntegrationsService {
     body: RotateCredentialsDto,
   ): Promise<PublicIntegration> {
     const entity = await this.requireVisible(id, workspaceId, userId);
+    // 404 → 403 → 400 순서다(REQ-INTMGMT-031, `requestScopes` 와 같다). 역할 거부를 인증 유형 거부보다 먼저 본다. 그래야
+    // 관리자 미만이 OAuth2 조직 통합에 교체를 요청해도 다른 조직 통합 변경과 같이 403 을 받는다.
+    this.assertCanModify(entity, userRole, 'rotate');
 
     if (entity.authType === 'oauth2') {
       throw new BadRequestException({
@@ -1435,7 +1438,6 @@ export class IntegrationsService {
         message: 'Use the reauthorize endpoint to rotate OAuth credentials',
       });
     }
-    this.assertCanModify(entity, userRole, 'rotate');
 
     const merged = this.mergeAndValidateCredentials(entity, body.credentials);
 
