@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-RATE"
 title: "HTTP API 규약 — 요청 빈도 제한"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "d0646ad5f14cb08a4773ac5240f369b9ed7d3df50335a7e3d37a4ac6851e8d11"
+content_hash: "edab36ac0c1d1acc5541dfab81a70eec59f785f0efbaf8afeff382f579e41796"
 read_as: "approved_fallback"
-task: "CLE-T-Q6E11N"
+task: "CLE-T-SG4GRQ"
 source_paths: []
-mirror_sha256: "cbada48433e3e14a9db05ae42fe54d4a78099162fd4f15c15e4b9d35cfabc173"
-etag: "sha256-5c6e418a7b9edee9d1faf26d9462d9d6030caa678308d6691bb6c9a50f7a4eb5"
+mirror_sha256: "aff8eed8fbf272a80ab8ef6cf35eb0157b4b5c755b56b7f1e51d7a2c7eefdaf8"
+etag: "sha256-1b50b125efd516049a989d3ec8bffb91065a9bccac9f115778b13ab168bc9c78"
 ---
 ## 개요
 
@@ -51,7 +51,7 @@ etag: "sha256-5c6e418a7b9edee9d1faf26d9462d9d6030caa678308d6691bb6c9a50f7a4eb5"
 | 지식 저장소 그래프 재추출 (`POST /api/knowledge-bases/:id/re-extract`, `POST /api/knowledge-bases/:id/documents/:docId/re-extract`) | 3 req/min, 10 req/min (순서대로, 사용자 기준). `@Throttle`, 편집자 이상. 동작 정의는 [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) | 같음 |
 | 재실행 (`POST /api/executions/:id/re-run`) | 10 req/min (사용자 기준). `@Throttle`(60초에 10회). 넘으면 `429 RATE_LIMITED`. 동작 정의는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) | 같음 |
 | 초대 발송·재발송 (`POST /api/workspaces/:id/invitations`, `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준). 메일 폭탄을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`)을 쓴다(표 아래) | 같음 |
-| 저장 전 연결 테스트 (`POST /api/integrations/preview-test`) | 20 req/min (사용자 기준). 저장하지 않은 자격 증명으로 외부 연결(Email · MCP · HTTP · Database)을 거듭 여는 것을 막는 `@Throttle` 이다. 동작 정의는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), 서비스마다 실제로 접속하는지는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) | 같음 |
+| 연결 테스트 (`POST /api/integrations/preview-test`, `POST /api/integrations/:id/test`) | 20 req/min (사용자 기준, 라우트마다 센다). 외부 연결을 거듭 여는 것을 막는 `@Throttle` 이다. 동작 정의와 근거는 [통합 관리 — 연결 테스트](../CLE-INT/CLE-INT-MANAGE-RUN.md#연결-테스트) | 같음 |
 | 쇼핑몰 중복 사전 감지 (`GET /api/integrations/cafe24/precheck`, `GET /api/integrations/makeshop/precheck`) | 60 req/min (사용자 기준). 이 엔드포인트 전용 `@Throttle` 이고 일반 API 한도 대신 적용한다. 동작 정의는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) | 같음 |
 | 쇼핑몰 앱 설치 진입점 (`GET /api/3rd-party/cafe24/install/:installToken`, `GET /api/3rd-party/makeshop/install/:installToken`) | 30 req/min (공개 라우트라 IP 기준). 설치 토큰이 URL 에 드러나서 거는 `@Throttle` 이다. 그 위에 도메인 전용 실패 잠금이 있다. 설치 토큰 조회·HMAC 검증 실패가 쌓인 IP 는 `429 CAFE24_INSTALL_RATE_LIMITED`·`MAKESHOP_INSTALL_RATE_LIMITED` 로 거절한다(두 진입점이 `Cafe24InstallRateLimitService` 를 함께 쓴다). `MAKESHOP_INSTALL_RATE_LIMITED` 는 MakeShop 노드의 API 한도 초과 코드 `MAKESHOP_RATE_LIMITED` 와 다른 코드다. 동작 정의는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) · [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) | 같음 (실패 잠금은 `Retry-After` 없음) |
 | 통합 OAuth 콜백 (`GET /api/3rd-party/:provider/callback`) | 60 req/min (공개 라우트라 IP 기준). OAuth code 교환은 외부를 부르므로 그 비용을 줄이려고 거는 `@Throttle` 이다. 사용자 소셜 로그인 콜백 `/api/auth/oauth/:provider/callback` 과는 다른 경로다. 동작 정의는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) | 같음 |
@@ -150,6 +150,10 @@ NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 정본은 [가입과 로그인
 ### 「일반 API」 행의 집계 키와 헤더 칸을 고쳤다 (2026-11-12)
 
 NERV Task `CLE-T-GNTWP9` 의 초안에서 고쳤다. 「일반 API」 행에 로그인 없는 요청은 IP 로 센다는 사실을 더했다. 헤더 칸은 통과한 응답과 거부 응답으로 나눴다. `@nestjs/throttler` 는 통과한 응답에 `X-RateLimit-Limit` · `X-RateLimit-Remaining` · `X-RateLimit-Reset` 을 싣고 `429` 로 거부할 때는 `Retry-After` 만 싣는다. 전에는 거부 응답에도 `X-RateLimit-*` 이 실리는 것처럼 읽혔다.
+
+### 연결 테스트 행에 `:id/test` 를 더했다 (2026-11-14)
+
+근거는 [통합 관리 Rationale](../CLE-INT/CLE-INT-MANAGE-RUN.md#연결-테스트의-탐색-위험을-받아들인다-2026-11-14) 이다(NERV Task `CLE-T-SG4GRQ`).
 
 ### 웹훅 수신 한도와 채팅 채널 트리거 면제의 근거
 
