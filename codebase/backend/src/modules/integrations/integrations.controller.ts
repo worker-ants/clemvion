@@ -548,12 +548,19 @@ export class IntegrationsController {
     );
   }
 
+  /**
+   * Connection test with the stored credentials. Same limit as `preview-test`:
+   * it also reaches the user-supplied host and tells failure causes apart, so
+   * it could be used to probe public hosts (risk accepted, rate bounded —
+   * CLE-INT-MANAGE-RUN Rationale, CLE-T-SG4GRQ).
+   */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post(':id/test')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '통합 연결 테스트',
     description:
-      '저장된 자격 증명을 사용해 실제 외부 서비스에 테스트 호출을 수행합니다.',
+      '저장된 자격 증명을 사용해 실제 외부 서비스에 테스트 호출을 수행합니다. 남용 방지를 위해 분당 20회로 제한됩니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(TestConnectionResultDto, {
@@ -563,6 +570,7 @@ export class IntegrationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
+  @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 20회)' })
   async testConnection(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
