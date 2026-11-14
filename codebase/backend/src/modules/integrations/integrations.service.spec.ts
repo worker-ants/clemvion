@@ -2676,6 +2676,56 @@ describe('IntegrationsService', () => {
       },
     );
 
+    /**
+     * CLE-T-RW69WZ · REQ-INTMGMT-031 — 추가 권한 요청은 가시성(404) → 역할(403) → 인증 유형(400) 순서로 판정한다.
+     * OAuth2 가 아닌 조직 통합에도 관리자 미만은 역할 거부를 받는다. 남의 개인 통합의 404 는 위 `byId` 표가 본다.
+     */
+    describe('requestScopes 판정 순서 (404 → 403 → 400)', () => {
+      const requestScopesAs = (requester: string, role: string) =>
+        errorOf(
+          service.requestScopes('int-1', 'ws-1', requester, role, {
+            scopes: ['s'],
+          }),
+        );
+
+      it.each(['editor', 'viewer'])(
+        'OAuth2 가 아닌 조직 통합도 %s 에게는 403 ADMIN_REQUIRED 다',
+        async (role) => {
+          integrationRepo.findOne.mockResolvedValue(httpOf('organization'));
+          const err = await requestScopesAs(OTHER, role);
+          expect(err).toBeInstanceOf(ForbiddenException);
+          expect(err.getResponse?.()).toMatchObject({ code: 'ADMIN_REQUIRED' });
+          expectNoSideEffects();
+        },
+      );
+
+      it.each(['owner', 'admin'])(
+        '역할을 통과한 %s 는 OAuth2 가 아닌 조직 통합에 400 INTEGRATION_SCOPE_UNSUPPORTED 를 받는다',
+        async (role) => {
+          integrationRepo.findOne.mockResolvedValue(httpOf('organization'));
+          const err = await requestScopesAs(OTHER, role);
+          expect(err).toBeInstanceOf(BadRequestException);
+          expect(err.getResponse?.()).toMatchObject({
+            code: 'INTEGRATION_SCOPE_UNSUPPORTED',
+          });
+          expectNoSideEffects();
+        },
+      );
+
+      it.each(ROLES)(
+        'OAuth2 가 아닌 본인 개인 통합은 %s 에게 400 INTEGRATION_SCOPE_UNSUPPORTED 다',
+        async (role) => {
+          integrationRepo.findOne.mockResolvedValue(httpOf('personal'));
+          const err = await requestScopesAs('user-1', role);
+          expect(err).toBeInstanceOf(BadRequestException);
+          expect(err.getResponse?.()).toMatchObject({
+            code: 'INTEGRATION_SCOPE_UNSUPPORTED',
+          });
+          expectNoSideEffects();
+        },
+      );
+    });
+
     /** 본인 personal — 역할과 무관하게 바꾼다(Admin 불요 — 라우트 가드 floor 는 컨트롤러의 몫이다). */
     const ownMutations: Array<
       [

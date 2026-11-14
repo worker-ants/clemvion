@@ -20,6 +20,8 @@ import {
  *   - 뷰어는 개인 통합을 만들거나 바꾸지 못한다. 생성 · 별칭 수정 · 교체 · 재인증 · 추가 권한 요청 · 저장 전 연결 테스트 ·
  *     `oauth/begin` 의 `new` 모드가 대상과 상관없이 `403 EDITOR_REQUIRED` 다
  *   - 공개 범위 전환은 관리자 이상이다. 뷰어와 편집자 모두 `403 ADMIN_REQUIRED` 다
+ *   - 추가 권한 요청은 역할(403)을 인증 유형(400)보다 먼저 본다. 편집자가 OAuth2 가 아닌 조직 통합에 요청하면
+ *     `403 ADMIN_REQUIRED` 이고 관리자 이상만 `400 INTEGRATION_SCOPE_UNSUPPORTED` 에 닿는다 (CLE-T-RW69WZ)
  *   - 편집자가 `oauth/begin` 의 `new` 모드로 조직 공개 범위를 고르면 `403 ADMIN_REQUIRED` 이고 설치 대기 행이 생기지 않는다
  *   - 뷰어가 조직 통합을 지우면 `403 ADMIN_REQUIRED` 이고 행은 남는다. 자기 개인 통합은 지운다
  *   - 재인증을 시작한 뒤 뷰어로 강등된 요청자의 콜백은 커밋 직전 재판정에서 롤백된다
@@ -336,6 +338,24 @@ describe('Integration route role floors (e2e)', () => {
         { scope: 'organization' },
       );
       expect(answerOf(res)).toBe('403 ADMIN_REQUIRED');
+    },
+  );
+
+  it.each([
+    ['편집자', () => editor, '403 ADMIN_REQUIRED'],
+    [
+      '소유자(위 거절의 대조군)',
+      () => owner,
+      '400 INTEGRATION_SCOPE_UNSUPPORTED',
+    ],
+  ])(
+    '추가 권한 요청 — %s 가 OAuth2 가 아닌 조직 통합에 요청하면 %s',
+    async (_label, actorOf, answer) => {
+      const res = await as(actorOf()).post(
+        `/api/integrations/${orgId}/request-scopes`,
+        { scopes: ['e2e.irf.scope'] },
+      );
+      expect(answerOf(res)).toBe(answer);
     },
   );
 
