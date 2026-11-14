@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-EXEC"
 title: "HTTP Request 노드 — 실행 로직"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "bbdc9edc01ef6a8c99ade30facc1ce2cc1c0f0ac1b727dc972119f1abaeab30b"
+content_hash: "65ddabb013e3a5763fa3cc92b73c1bd1271c13f11a66361b79b8f5eb68a8e39c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-BS1WD1"
 source_paths: []
-mirror_sha256: "cdbfd6bcd2c608b439fad92261b8cc385a2953a873620491caef7a763e79b99b"
-etag: "sha256-738e804c8c18389dac0494b1497a4690211342c0c27a8f8bb0031b45afbc5493"
+mirror_sha256: "31d7549968b3941ce53e3ba5324a6284ec4f7e890e735318456ce04168db48bb"
+etag: "sha256-beb143b218d8d816565e6b4997eb190833be86517eb691ae9fcd6c1fa4a84934"
 ---
 ## 개요
 
@@ -34,7 +34,7 @@ etag: "sha256-738e804c8c18389dac0494b1497a4690211342c0c27a8f8bb0031b45afbc5493"
 5. **쿼리 병합**: 노드 `queryParams` 를 URL 에 붙인다. 그 뒤 `auth_type='api_key'` 이고 `location='query'` 인 자격 증명을 붙인다.
 6. **헤더 병합**(뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 통합 자격 증명 헤더가 사용자 입력을 덮어쓴다. 사용자가 `Authorization` 을 위조해 자격 증명을 무력화하는 경로를 막는다.
 7. **본문 직렬화**: `GET`·`HEAD` 가 아니면 `bodyType` 에 따라 직렬화한다. `form-data` 는 multipart boundary 를 자동으로 붙인다(Content-Type 을 지정하지 않는다).
-8. **사설망 차단**(모든 인증 방식 공통): `assertSafeOutboundUrl(url)` 로 호스트 리터럴을 검사하고, 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS 를 해석한 IP 를 다시 검사한다. 차단되면 `HTTP_BLOCKED` 로 에러 포트에 보낸다. 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지면 `INTEGRATION_CALL_FAILED` 로 보낸다. 대역·플래그·메시지 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 사설망 차단 절이 정한다. dry-run 실행([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md))은 실제 요청이 없으므로 이 가드 전에 mock 을 반환하고 가드를 건너뛴다.
+8. **사설망 차단**(모든 인증 방식 공통): `assertSafeOutboundUrl(url)` 로 호스트 리터럴을 검사하고, 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS 를 해석한 IP 를 다시 검사한다. 차단되면 `HTTP_BLOCKED` 로 에러 포트에 보낸다. 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지면 `INTEGRATION_CALL_FAILED` 로 보낸다. 9단계의 요청(리다이렉트 홉 포함)은 연결 시점 주소 판정 dispatcher(`safeOutboundDispatcher`)로 보낸다. 연결할 때 호스트 이름을 다시 풀어 나온 주소가 하나라도 같은 대역에 들면 연결하지 않고 `HTTP_BLOCKED` 로 끝낸다. 판정을 통과한 주소로만 연결하므로 검사와 연결 사이에 DNS 응답이 바뀌어도(DNS rebinding) 막힌 대역에 닿지 않는다. 연결할 때 이름이 풀리지 않으면 `HTTP_TRANSPORT_FAILED` 다. `ALLOW_PRIVATE_HOST_TARGETS=true` 면 이 판정도 하지 않는다([Rationale](#연결할-때-푼-주소를-다시-판정한다-2026-11-14)). 대역·플래그·메시지 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 사설망 차단 절이 정한다. dry-run 실행([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md))은 실제 요청이 없으므로 이 가드 전에 mock 을 반환하고 가드를 건너뛴다.
 9. **요청 보내기**: `AbortController` 로 `timeout` 을 걸고 `redirect: 'manual'` 로 보낸다. 노드 취소 신호(`context.abortSignal`)는 공용 헬퍼 `linkUpstreamAbort` 로 같은 controller 에 잇는다. 신호가 이미 취소됐으면 `controller.abort()` 를 바로 부른다. `integration` 인증이면 `Location` 헤더가 있는 3xx 를 최대 5홉까지 직접 따라가며 홉마다 사설망 차단을 다시 검사한다. 5홉을 따라간 뒤에도 `Location` 이 있는 3xx 가 오면 차단 판정 없이 `HTTP_BLOCKED` 로 끝낸다. 메시지는 사설망 차단과 같은 일반화 문구다([Rationale](CLE-NODE-HTTP-OUTPUT.md#리다이렉트-한도-초과와-3xx-응답의-출력-코드-2026-11-13)). 홉 대상의 출처가 첫 요청과 다르면 그 홉부터 자격 증명을 싣지 않고, 303 과 301·302 의 `POST` 는 본문 없는 `GET` 으로 바꾼다(아래 [리다이렉트 홉의 자격 증명과 method](#리다이렉트-홉의-자격-증명과-method)). 리다이렉트 홉(`followRedirectsSafely`)도 같은 controller 의 신호를 쓴다. `none`·`custom` 인증은 3xx 를 따라가지 않고 그대로 에러 케이스로 반환한다. `followRedirects`·`verifySsl` 은 반영하지 않는다(Planned). 3단계의 통합 조회와 8단계의 사설망 차단 검사·DNS 해석은 노드 취소 신호를 잇기 전에 돈다. 신호가 이미 취소된 노드는 엔진이 dispatch 직전에 거르므로([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 19) 이 틈은 좁다. 이 틈에서 신호가 취소돼도 대상이 차단 호스트면 `HTTP_BLOCKED` 가 먼저 나온다. 진입할 때 신호를 따로 확인하지 않는 이유는 [Rationale](#진입할-때-노드-취소-신호를-따로-확인하지-않는다-2026-10-10) 에 있다.
 10. **응답 파싱**: `responseType='json'` 이면 `res.json()`(실패하면 `null`), 그 밖(`text`·`binary`)은 `res.text()` 다. 본문을 읽다가 노드 취소 신호가 취소되면 `null` 로 삼키지 않고 `AbortError` 를 다시 던진다.
 11. **활동 로그 기록**: `integration` 인증일 때만 `success`·`failed` 를 남긴다(아래 "활동 로그"). 노드 취소 신호로 끝난 호출과 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)).
@@ -144,6 +144,17 @@ API 식별 정보는 다음처럼 채운다. 통합별 채우기 정책의 전�
 
 - `none` 전용 호스트 허용 목록 환경 변수: 플래그가 둘로 나뉘고 근거 없는 새 표면이 생기며 Database Query·Send Email 과 보안 자세가 계속 갈린다.
 - 현상 유지 + "none 은 의도적으로 가드 없음" 명문화: 클라우드 메타데이터·내부망 공격 면이 그대로 열리고, 그 용도는 이미 opt-out 으로 충족되므로 예외를 둘 이유가 없다.
+
+### 연결할 때 푼 주소를 다시 판정한다 (2026-11-14)
+
+8단계 검사는 요청 전에 DNS 를 풀어 판정하지만 `fetch` 는 연결할 때 이름을 다시 푼다. 그 사이에 응답이 바뀌면(TTL 0 rebinding) 검사를 통과한 이름이 내부 주소로 연결될 수 있었다. 권한 DNS 를 쥔 공격자가 검사 때는 조회 실패를, 연결 때는 내부 주소를 돌려주는 변형도 있었다. NERV Task `CLE-T-BS1WD1` 에서 연결에 쓰는 주소 조회(undici `Agent` 의 `connect.lookup`)에 8단계와 같은 대역 판정을 넣었다.
+
+- **검사 결과로 고정하지 않고 연결할 때 다시 판정한다.** 판정한 주소와 연결하는 주소가 같은 조회 결과라서 판정을 거치지 않은 주소로는 연결하지 않는다. 검사 결과를 그대로 쓰려면 요청마다 dispatcher 를 만들어야 해서 keep-alive 연결을 다시 쓰지 못하고 dispatcher 수명도 따로 관리해야 한다. 판정 dispatcher 는 프로세스에 하나라서 연결을 다시 쓴다. 다시 쓰는 연결은 맺을 때 판정을 거쳤다.
+- **8단계 검사는 남겼다.** 차단이 통합 해소 뒤 · 요청 전에 나오는 순서와 차단 코드를 그대로 두려는 것이다. 연결 시점 차단도 같은 `HTTP_BLOCKED` 와 일반화 문구로 내고 원래 주소는 서버 로그에만 남긴다.
+- 연결 시점 조회가 `fetch` 의 원래 조회를 대신하므로 요청 하나의 조회 횟수는 전과 같다.
+- 해석 실패는 전처럼 통과시킨다(사람 결정, 2026-11-14). 연결할 때도 풀리지 않으면 요청이 `HTTP_TRANSPORT_FAILED` 로 끝난다. 검사 때 실패하고 연결 때 내부 주소로 풀리는 변형은 연결 시점 판정이 막는다.
+- TLS 의 SNI 와 인증서 검증은 undici 가 URL 의 호스트 이름으로 하므로 바뀌지 않는다. IP 리터럴 호스트는 조회를 거치지 않으므로 8단계의 리터럴 검사가 맡는다.
+- 이 판정 밖에 남은 경로가 있다. HTTP 통합 연결 테스트는 `followRedirectsSafely` 를 함께 쓰지만 이 dispatcher 를 넘기지 않는다. Database Query · Send Email 은 `fetch` 를 쓰지 않아 사전 검사만 한다.
 
 ### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
 

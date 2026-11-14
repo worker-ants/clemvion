@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-CONN"
 title: "MCP 클라이언트 — 연결과 URL 검증"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "d501bcbde75521214a3e5677986dc32051ae97601dd19b33d982f8c647af0418"
+content_hash: "dd8618df775ab3dc8201c5da2aecde0ce91537f8ad81605257019d09edb479d4"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-BS1WD1"
 source_paths: []
-mirror_sha256: "f71e890270a9e8053a832a11394483499fd1a95316a030098ec05aa459e3e2fd"
-etag: "sha256-f2c6485c33d601f903019b6675aee353bf86e0e71fd11d9a866141fced1c0dad"
+mirror_sha256: "bf69fc892fe5c31d33f6cd28bc1a64ce96030f8f1c7b9e1555c243b0500edae4"
+etag: "sha256-959df33c0e71892c1554738c9e50bf05bc0535e733bcfead661e2627319d6e4c"
 ---
 ## 개요
 
@@ -49,8 +49,8 @@ URL 검증과 SSRF 차단은 외부 HTTP transport 에만 적용한다. 내부 M
    - 에러 message 에는 호스트 이름만 싣고 해석된 주소는 싣지 않는다. 주소는 서버 경고 로그에만 남긴다.
    - DNS 해석에는 connect 와 같은 타임아웃(`MCP_CONNECT_TIMEOUT_MS`, 기본 10s)을 따로 둔다. 그 안에 끝나지 않으면 검사를 건너뛰지 않고 `TimeoutError` 로 끝낸다. 연결 테스트와 노드 실행 모두 `MCP_TIMEOUT` 이다.
    - 시간 초과가 아닌 DNS 해석 실패(해석기가 던지는 그 밖의 예외 모두)는 막지 않고 넘긴다. 해석되지 않는 호스트에는 SDK 의 fetch 도 닿지 못하므로 connect 실패로 끝난다.
-   - `MCP_ALLOW_INSECURE_URL=true` 이면 이 검사도 건너뛴다. `ALLOW_PRIVATE_HOST_TARGETS` 는 읽지 않는다.
-   - 검사한 뒤 실제 연결 전에 DNS 응답이 바뀌면(DNS rebinding) 막지 못한다([미결 사항](CLE-INT-MCP.md#미결-사항)).
+   - 실제 연결도 같은 판정을 거친다. transport 에 판정 fetch 를 넘겨, 연결할 때 푼 주소를 모두 2항과 같은 판정으로 다시 검사한다. 하나라도 막히면 연결하지 않고 같은 코드(`MCP_HTTPS_REQUIRED`)로 막는다. 판정을 통과한 주소로만 연결하므로 검사와 연결 사이에 DNS 응답이 바뀌어도(DNS rebinding) 막힌 대역에 닿지 않는다. SDK 가 따라가는 같은 출처 리다이렉트도 이 fetch 로 나간다. TLS 의 SNI 와 인증서 검증은 URL 의 호스트 이름으로 한다. message 와 로그 규칙은 위와 같다([Rationale](#연결할-때-푼-주소를-다시-판정한다-2026-11-14)).
+   - `MCP_ALLOW_INSECURE_URL=true` 이면 이 검사와 연결 시점 판정을 모두 건너뛴다. `ALLOW_PRIVATE_HOST_TARGETS` 는 읽지 않는다.
 4. 이 규칙은 등록 전 연결 테스트와 노드 실행의 connect 에 똑같이 적용한다. 다른 아웃바운드 경로의 SSRF 가드는 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#실행-로직)와 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#ssrf-가드)에 있다.
 
 **로컬 개발용 우회 플래그**: 환경 변수 `MCP_ALLOW_INSECURE_URL=true` 가 켜지면 다음이 바뀐다.
@@ -168,8 +168,19 @@ AI 에이전트 노드 실행 1회가 MCP 세션 1회다. 노드 실행이 시�
 - 차단 message 는 리터럴 차단과 같게 호스트 이름만 싣는다. 연결 테스트는 `MCP_HTTPS_REQUIRED` 의 message 를 그대로 화면에 돌려주므로, 해석된 주소를 실으면 등록 화면이 내부 DNS 를 알아보는 통로가 된다. 호스트 이름은 등록하는 사람이 직접 넣은 값이라 돌려줘도 새로 드러나는 정보가 없다. HTTP Request 노드가 차단 message 를 한 문장으로 일반화한 결정(CLE-NODE-HTTP Rationale 「사설망 차단 메시지 일반화 (2026-07-05)」)과 다른 이유다. 그 결정이 가리려던 것은 해석된 IP 와 차단 사유다.
 - DNS 해석 실패는 막지 않고 넘긴다(fail-open). 해석되지 않는 호스트에는 연결도 되지 않으므로 SSRF 가 성립하지 않고, 실패는 connect 실패로 드러난다. HTTP Request 노드 가드의 구현(`assertSafeOutboundHostResolved`)도 해석 실패를 넘긴다.
 - 해석 시간 초과는 넘기지 않는다. 해석은 connect 의 AbortController 타임아웃보다 앞에서 돌아서, 상한이 없으면 connect 를 따로 감싸지 않는 연결 테스트 요청은 해석이 끝날 때까지 응답 없이 기다린다. 시간 초과를 넘기는 쪽으로 정하면 DNS 응답을 늦추는 것만으로 검사를 건너뛸 수 있다. 그래서 해석에 connect 와 같은 상한을 두고, 넘기면 connect 시간 초과와 같은 `MCP_TIMEOUT` 으로 끝낸다.
-- 검사와 연결 사이의 DNS rebinding 은 막지 못한다. 해석한 주소로 연결을 고정하려면 SDK 의 fetch 를 바꿔 끼워야 해서 미뤘다([미결 사항](CLE-INT-MCP.md#미결-사항)).
+- 그때는 검사와 연결 사이의 DNS rebinding 을 막지 못했다. 해석한 주소로 연결을 고정하려면 SDK 의 fetch 를 바꿔 끼워야 해서 미뤘다. 2026-11-14 에 연결 시점 판정으로 닫았다([연결할 때 푼 주소를 다시 판정한다](#연결할-때-푼-주소를-다시-판정한다-2026-11-14)).
 - 리다이렉트로 다른 호스트에 닿는 경로는 없다. `@modelcontextprotocol/sdk` 1.32 의 Streamable HTTP transport 는 `redirectPolicy` 를 주지 않으면 호스트가 같은 리다이렉트만 따라가고(같은 scheme · 포트, 또는 기본 포트의 `http` → `https`), 이 클라이언트는 그 옵션을 주지 않는다. HTTP Request 노드의 리다이렉트 홉 처리(`followRedirectsSafely`, CLE-T-FC2BWA)는 MCP transport 에 쓰지 않는다.
+
+### 연결할 때 푼 주소를 다시 판정한다 (2026-11-14)
+
+NERV Task `CLE-T-BS1WD1` 에서 transport 의 `fetch` 옵션으로 판정 fetch 를 넘겼다. 이 fetch 는 연결에 쓰는 주소 조회(undici `Agent` 의 `connect.lookup`)에 2항의 판정을 넣은 dispatcher 로 요청을 보낸다.
+
+- **검사 결과로 고정하지 않고 연결할 때 다시 판정한다.** 판정한 주소와 연결하는 주소가 같은 조회 결과라서 판정을 거치지 않은 주소로는 연결하지 않는다. 요청마다 dispatcher 를 만들지 않아도 되고 keep-alive 연결을 다시 쓴다. HTTP Request 노드도 같은 방식이다([HTTP Request 노드 — 실행 로직](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」).
+- **판정 함수는 2항의 MCP 가드다.** 공용 헬퍼(`createGuardedLookupDispatcher`)는 판정 함수를 받기만 하고 환경 변수를 읽지 않는다. 그래서 2026-11-05 에 HTTP Request 노드 가드를 쓰지 않기로 한 이유(우회 수단이 둘이 되고 판정 범위가 좁다)가 그대로 지켜진다. 우회 수단은 `MCP_ALLOW_INSECURE_URL` 하나다.
+- **connect 직전 검사(3항)는 남겼다.** 해석에 상한을 두고 넘기면 `MCP_TIMEOUT` 으로 끝내는 규칙이 거기에 있다. 연결 시점 판정만 두면 DNS 응답을 늦추는 공격이 connect 타임아웃까지 연결 테스트를 붙잡는다.
+- 연결 시점 차단은 SDK 와 fetch 가 감싼 오류의 `cause` 에서 판정 오류를 꺼내 사전 검사와 같은 `MCP_HTTPS_REQUIRED` 로 던진다. message 에는 호스트 이름만 싣고 해석된 주소는 서버 경고 로그에만 남긴다. 이 코드 이름이 주소 차단의 뜻과 맞지 않는 문제는 NERV Task `CLE-T-DDN3MS` 가 코드를 가를 때 함께 다룬다.
+- 해석 실패는 전처럼 통과시킨다(사람 결정, 2026-11-14). 연결할 때도 풀리지 않으면 connect 실패로 끝난다. 검사 때 실패하고 연결 때 내부 주소로 풀리는 변형은 연결 시점 판정이 막는다.
+- `@modelcontextprotocol/sdk` 1.32.2 는 리다이렉트를 `redirect: 'manual'` 로 받아 같은 출처일 때만 넘겨준 fetch 로 다시 보낸다. 그래서 리다이렉트 홉의 연결도 같은 판정을 거친다.
 
 ### capabilities 캐시를 채택하지 않는다 (R-wontdo-cached-capabilities)
 
