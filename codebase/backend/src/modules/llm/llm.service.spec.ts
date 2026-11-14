@@ -773,10 +773,31 @@ describe('LlmService', () => {
         response: {
           code: 'MODEL_CONFIG_DEFAULT_MISSING',
           workspaceId: '',
-          message: expect.stringContaining('워크스페이스 정보가 없어'),
+          message: expect.stringContaining('no workspace'),
         },
       });
     });
+
+    // 백엔드는 영문 고정 문구만 보낸다(CLE-UI-I18N). 화면 이름은 지금 쓰는
+    // 「Model settings」로 적는다(옛 「LLM 설정 페이지」 금지).
+    it.each([
+      ['ws-42', 'workspace id present'],
+      ['', 'workspace id missing'],
+    ])(
+      'should send an English message without Hangul (%s, %s)',
+      async (workspaceId) => {
+        mockModelConfigService.findDefault.mockResolvedValue(null);
+
+        const err = await service
+          .resolveConfig(undefined, workspaceId)
+          .catch((e: unknown) => e);
+        const response = (err as BadRequestException).getResponse() as {
+          message: string;
+        };
+        expect(response.message).not.toMatch(/[\uAC00-\uD7A3]/);
+        expect(response.message).not.toMatch(/LLM settings/i);
+      },
+    );
   });
 
   describe('resolveEmbedding', () => {

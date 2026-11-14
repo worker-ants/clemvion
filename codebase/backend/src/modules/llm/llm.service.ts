@@ -418,9 +418,11 @@ export class LlmService implements OnModuleInit {
         code: 'MODEL_CONFIG_DEFAULT_MISSING',
         // workspace 어긋남 / 기본값 미설정 / context 누락 을 사용자가 직접
         // 식별할 수 있도록 workspaceId 를 메시지·payload 에 포함한다.
+        // 백엔드는 영문 고정 문구만 보낸다(CLE-UI-I18N). 화면 이름은 지금 메뉴
+        // 이름인 Model settings 로 적는다.
         message: workspaceId
-          ? `워크스페이스(${workspaceId}) 에 기본 LLM 이 설정되어 있지 않습니다. LLM 설정 페이지에서 기본 제공자를 지정하거나 노드에서 직접 LLM 을 선택해 주세요.`
-          : '실행 컨텍스트에 워크스페이스 정보가 없어 기본 LLM 을 찾을 수 없습니다. 노드에서 LLM 을 직접 선택해 주세요.',
+          ? `No default chat model config is set for workspace (${workspaceId}). Set a default Chat model in Model settings, or select a model config on the node.`
+          : 'The execution context has no workspace, so the default chat model config cannot be resolved. Select a model config on the node.',
         workspaceId,
       });
     }

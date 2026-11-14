@@ -58,4 +58,7 @@ export const assistant = {
   exploreExecutionsList: "실행 이력 {{count}}건 조회",
   exploreExecutionDetails: "실행 상세 조회 — {{nodeCount}}개 노드",
   executionNotInScope: "이 실행은 현재 워크플로우의 것이 아니에요.",
+  sessionCreateFailedToast:
+    "새 대화를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
+  responseFailedToast: "응답을 받지 못했어요. 같은 메시지를 다시 보내 주세요.",
 } as const;

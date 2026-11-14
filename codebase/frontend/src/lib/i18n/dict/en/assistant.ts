@@ -61,4 +61,7 @@ export const assistant: Dict["assistant"] = {
   exploreExecutionDetails: "Execution detail — {{nodeCount}} nodes",
   executionNotInScope:
     "This execution does not belong to the current workflow.",
+  sessionCreateFailedToast:
+    "Couldn't start a new conversation. Try again in a moment.",
+  responseFailedToast: "Couldn't get a response. Send your message again.",
 };
