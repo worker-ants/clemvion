@@ -8,7 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Execution, ExecutionStatus } from './entities/execution.entity';
 import {
   NodeExecution,
@@ -40,16 +40,14 @@ import type { JwtPayload } from '../../common/decorators/current-user.decorator'
 import { ReRunRequestDto } from './dto/re-run.dto';
 import { QueryExecutionDto } from './dto/query-execution.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
-import { ExecutionDto } from './dto/responses/execution-response.dto';
 import {
-  deriveExecutionTrigger,
-  type ExecutionTriggerSource,
-} from './utils/execution-trigger';
+  ExecutionDetailDto,
+  ExecutionDto,
+  NodeExecutionSummaryDto,
+} from './dto/responses/execution-response.dto';
+import { deriveExecutionTrigger } from './utils/execution-trigger';
 import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
-import {
-  redactStoredFieldsForResponse,
-  redactNodeExecutionRowForResponse,
-} from '../../shared/utils/redact-stored-error';
+import { redactStoredFieldsForResponse } from '../../shared/utils/redact-stored-error';
 
 // execution_node_log 행 수 상한. ForEach 같은 컨테이너에서 행 수가 폭증하는 경우
 // 메모리 적재량을 묶어두기 위한 안전망 — UI timeline 은 정렬된 nodeId prefix 만
@@ -77,70 +75,30 @@ const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
  */
 export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
 
-/**
- * 응답으로 나가는 Execution — 엔티티와 **마스킹 대상 세 컬럼의 null 가능성만** 다르다
- * (`error` · `inputData` · `outputData`).
- *
- * 엔티티는 `inputData`/`outputData` 를 `Record<string, unknown>` 로 `| null` 없이
- * 선언하지만, egress 마스킹 관문({@link ExecutionsService.toResponseExecution})은
- * 값이 없을 때 정직하게 `null` 을 돌려준다. 그 차이를 `as Execution` 로 덮으면 이후
- * 소비자가 그 필드를 null-check 없이 만져도 컴파일러가 침묵한다 — 이 작업이 고치는
- * 결함 클래스(자매 표면 누락)를 타입이 잡아줄 기회를 줄이는 셈이라 명시 타입으로 남긴다.
- *
- * > **`error` 는 이제 엔티티도 `| null` 이다** (2026-09-01, C-4) — DB 컬럼이 처음부터
- * > `nullable: true` 였는데 타입만 그것을 안 적고 있었다(성공 종결에서 `error = null` 을
- * > 쓸 수 없어 드러났다). 그래서 `error` 에 한해 이 타입은 **엔티티와 같고**, 넓히는
- * > 것은 나머지 둘뿐이다. 아래 서술은 그 정정 이전 이력이다.
- * >
- * > `outputData` 를 여기 넣은 것은 2026-08-16 이다. 그전엔 `error` 만 넓어져 있었고,
- * > 같은 관문을 걸자 **빌드가 타입 오류로 잡았다** — 유닛 테스트는 통과했는데
- * > `nest build` 만 잡은 자리다.
- * > **`inputData` 도 여기 있다** (2026-08-20) — 재제출 카브아웃이 닫히면서 마스킹 대상이
- * > 됐다. 프런트 마커 가드가 프리필·제출을 막는다 (EIA §R17).
- */
-export type ResponseExecution = Omit<
-  Execution,
-  'error' | 'inputData' | 'outputData' | 'trigger' | 'executor'
-> & {
-  error: Record<string, unknown> | null;
-  // 2026-08-20 — `inputData` 가 마스킹 대상이 되면서 여기로 들어왔다. 마스커는
-  // `| null` 을 돌려주므로 엔티티 타입 그대로 두면 대입이 안 된다(build 가 잡았다).
-  inputData: Record<string, unknown> | null;
-  outputData: Record<string, unknown> | null;
+/** 실행 한 건의 노드 실행 집계 (목록 Nodes 열 · 응답의 `*NodeCount` 세 값). */
+type NodeExecutionCounts = { total: number; completed: number; failed: number };
+
+const EMPTY_NODE_EXECUTION_COUNTS: NodeExecutionCounts = {
+  total: 0,
+  completed: 0,
+  failed: 0,
 };
 
 /**
- * 응답으로 나가는 NodeExecution — {@link ResponseExecution} 과 **같은 이유**로 존재한다.
- *
- * 자매를 하나만 고치는 것이 이 작업이 고치는 결함 클래스 그 자체라, `Execution` 쪽만
- * 좁히고 여기 `as NodeExecution` 를 남겨 두면 같은 실수를 한 함수 안에서 반복하게 된다
- * (ai-review `17_35_49` maintainability W1).
+ * {@link ExecutionsService.toResponseExecution} 이 엔티티 밖에서 받는 값.
+ * 부모 워크플로 이름과 노드 집계는 경로마다 구하는 방법이 달라서(목록은 배치 조회, 상세는
+ * 이미 읽은 노드 실행 배열) 호출부가 구해 넘긴다.
  */
-export type ResponseNodeExecution = Omit<
-  NodeExecution,
-  'error' | 'inputData' | 'outputData'
-> & {
-  error: Record<string, unknown> | null;
-  inputData: Record<string, unknown> | null;
-  outputData: Record<string, unknown> | null;
-};
+interface ExecutionResponseContext {
+  parentWorkflowName: string | null;
+  counts: NodeExecutionCounts;
+}
 
-/**
- * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
- * triggerSource/triggerLabel 두 필드를 추가한 shape. `executionPath` 는
- * `execution_node_log` 의 (execution_id, id) 정렬 결과로 채워진다 — entity
- * 컬럼이 사라졌으므로 service 가 외부 API 호환성을 위해 별도 채움.
- *
- * `executionPathTruncated` 는 `executionPath.length === MAX_EXECUTION_PATH_ROWS`
- * 인 상황에서 추가 행이 잘렸을 수 있음을 알린다 — 프론트엔드 UI 가 "이 이후 일부
- * 로그가 표시되지 않습니다" 배너를 띄울 수 있도록.
- */
-export type ExecutionDetailWithTrigger = ResponseExecution & {
-  nodeExecutions: ResponseNodeExecution[];
-  triggerSource: ExecutionTriggerSource;
-  triggerLabel: string | null;
-  executionPath: string[];
-  executionPathTruncated: boolean;
+/** 재실행 응답 — 상세 응답에 체인 메타 세 값을 확정한 모양. */
+export type ReRunResponse = ExecutionDetailDto & {
+  reRunOf: string;
+  chainId: string;
+  dryRun: boolean;
 };
 
 /**
@@ -219,15 +177,28 @@ function isWaitingEnvelope(outputData: unknown): boolean {
   return isAiResumedWaitingEnvelope(outputData);
 }
 
+/**
+ * 이미 읽은 노드 실행 행으로 집계 세 값을 센다. 목록 경로의
+ * `loadNodeExecutionCounts`(SQL `COUNT … FILTER`)와 같은 기준이다.
+ */
+function countNodeExecutions(
+  nodeExecutions: readonly NodeExecution[],
+): NodeExecutionCounts {
+  let completed = 0;
+  let failed = 0;
+  for (const ne of nodeExecutions) {
+    if (ne.status === NodeExecutionStatus.COMPLETED) completed += 1;
+    else if (ne.status === NodeExecutionStatus.FAILED) failed += 1;
+  }
+  return { total: nodeExecutions.length, completed, failed };
+}
+
 @Injectable()
 export class ExecutionsService {
   // 종결 상태 execution detail 의 인스턴스 LRU 캐시 (W-27).
   // 삽입 순서 = LRU — Map iteration 이 삽입 순서를 보장하므로 별도 자료구조 없이
   // size 초과 시 첫 키 (가장 오래된 진입) 를 evict.
-  private readonly snapshotCache = new Map<
-    string,
-    ExecutionDetailWithTrigger
-  >();
+  private readonly snapshotCache = new Map<string, ExecutionDetailDto>();
 
   private readonly logger = new Logger(ExecutionsService.name);
 
@@ -246,9 +217,7 @@ export class ExecutionsService {
     private readonly workspacesService: WorkspacesService,
   ) {}
 
-  private readSnapshotCache(
-    id: string,
-  ): ExecutionDetailWithTrigger | undefined {
+  private readSnapshotCache(id: string): ExecutionDetailDto | undefined {
     const cached = this.snapshotCache.get(id);
     if (cached !== undefined) {
       // LRU: 최근 사용으로 갱신.
@@ -258,10 +227,7 @@ export class ExecutionsService {
     return cached;
   }
 
-  private writeSnapshotCache(
-    id: string,
-    snapshot: ExecutionDetailWithTrigger,
-  ): void {
+  private writeSnapshotCache(id: string, snapshot: ExecutionDetailDto): void {
     // 진행 중 상태는 절대 캐시 금지 (stale 위험).
     if (
       snapshot.status !== ExecutionStatus.COMPLETED &&
@@ -424,13 +390,7 @@ export class ExecutionsService {
     workspaceId: string,
     user: JwtPayload,
     dto: ReRunRequestDto,
-  ): Promise<
-    ExecutionDetailWithTrigger & {
-      reRunOf: string;
-      chainId: string;
-      dryRun: boolean;
-    }
-  > {
+  ): Promise<ReRunResponse> {
     const original = await this.executionRepository
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.workflow', 'workflow')
@@ -676,7 +636,7 @@ export class ExecutionsService {
   async getChain(
     executionId: string,
     workspaceId: string,
-  ): Promise<ResponseExecution[]> {
+  ): Promise<ExecutionDto[]> {
     const exec = await this.executionRepository
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.workflow', 'workflow')
@@ -689,15 +649,16 @@ export class ExecutionsService {
       });
     }
     const rootId = exec.chainId ?? exec.id;
-    const rows = await this.executionRepository
-      .createQueryBuilder('e')
+    const rows = await this.withTriggerSourceRelations(
+      this.executionRepository.createQueryBuilder('e'),
+    )
       .where('e.id = :rootId OR e.chainId = :rootId', { rootId })
       .orderBy('e.startedAt', 'ASC')
       .getMany();
-    return rows.map((e) => this.toResponseExecution(e));
+    return this.toExecutionDtos(rows);
   }
 
-  async findById(id: string): Promise<ExecutionDetailWithTrigger> {
+  async findById(id: string): Promise<ExecutionDetailDto> {
     // W-27 — 종결 상태 execution snapshot 은 불변. 인스턴스 LRU 캐시에서 즉시 회신.
     const cached = this.readSnapshotCache(id);
     if (cached) return cached;
@@ -714,16 +675,10 @@ export class ExecutionsService {
     // 의 일관된 데이터만 응답한다. 단순 read 라 deadlock 위험 없음.
     const snapshot = await this.executionRepository.manager.transaction(
       'REPEATABLE READ',
-      async (manager): Promise<ExecutionDetailWithTrigger> => {
-        // 안전 컬럼만 선택적으로 join — User.passwordHash 등 민감 필드 노출
-        // 방지. executor.email 도 라벨 산출에 불필요하므로 제외 (PII 최소화).
-        const execution = await manager
-          .createQueryBuilder(Execution, 'e')
-          .leftJoinAndSelect('e.workflow', 'workflow')
-          .leftJoin('e.trigger', 'trigger')
-          .addSelect(['trigger.id', 'trigger.type', 'trigger.name'])
-          .leftJoin('e.executor', 'executor')
-          .addSelect(['executor.id', 'executor.name'])
+      async (manager): Promise<ExecutionDetailDto> => {
+        const execution = await this.withTriggerSourceRelations(
+          manager.createQueryBuilder(Execution, 'e'),
+        )
           .where('e.id = :id', { id })
           .getOne();
         if (!execution) {
@@ -754,52 +709,36 @@ export class ExecutionsService {
             take: MAX_EXECUTION_PATH_ROWS,
           }),
         ]);
-        // `NodeExecution.error` 도 같이 마스킹한다. **형제 필드로 우회되기 때문**이다 —
-        // `spec/1-data-model.md` §2.14 는 `Execution.error` 를 *"최초 failed
-        // NodeExecution 의 에러 정보를 **복사**"* 로 정의한다. 즉 위에서 마스킹한 값과
-        // **같은 문자열**이 이 배열 안에 원문으로 들어 있고, 둘이 같은 응답으로 나간다.
-        // 최상위만 가리면 방어가 아니라 방어처럼 보이는 것이 된다
-        // (`16_32_42` cross_spec CRITICAL).
-        //
-        // **copy-on-change 를 지킨다** — `error` 가 없는 행(정상 종료 행 = 절대다수)은
-        // 원본 참조를 그대로 돌려준다. 무조건 spread 하면 자매 함수
-        // `reconcilePreParkWaitingStatus` 가 지키는 관례를 이 배열 위에서만 깨고,
-        // 이 조회에는 `take` 상한이 없어(자매 `ExecutionNodeLog` 조회와 달리) 대규모
-        // ForEach 실행에서 불필요한 shallow-copy 가 행 수만큼 쌓인다. 게다가 진행 중
-        // 실행은 `writeSnapshotCache` 대상이 아니라 폴링·WS 재연결마다 재계산된다
-        // (`17_12_34` performance W1).
-        const reconciledNodeExecutions = reconcilePreParkWaitingStatus(
+        // 노드 실행 행도 DTO 로 조립한다. 세 컬럼 마스킹은 `toNodeExecutionSummary` 가
+        // `redactStoredFieldsForResponse` 로 건다(상위 실행과 같은 헬퍼다).
+        // `Execution.error` 는 최초 실패 노드 실행의 에러를 복사한 값이라 노드 수준을 빼면
+        // 같은 문자열이 원문으로 남는다(`16_32_42` cross_spec CRITICAL).
+        const nodeExecutionDtos = reconcilePreParkWaitingStatus(
           nodeExecutions,
-        ).map<ResponseNodeExecution>((ne) => {
-          // 세 컬럼 마스킹 + copy-on-change 는 헬퍼가 소유한다 — 위 주석의 이유가 그
-          // docstring 에 있다. **`inputData` 도 마스킹한다**(2026-08-20 부터 두 레벨이 같은
-          // 규칙): 노드 레벨은 애초에 재제출 소비처가 없었고, 안 걸면 WS emit 과 REST 가
-          // 같은 store 슬롯에서 flip-flop 한다.
-          return redactNodeExecutionRowForResponse(ne);
-        });
+        ).map((ne) => this.toNodeExecutionSummary(ne));
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
         // UI 는 이 플래그로 배너를 띄우거나 후속 페이지 요청을 결정한다.
         const executionPathTruncated =
           pathRows.length >= MAX_EXECUTION_PATH_ROWS;
 
-        const parentName = execution.parentExecutionId
-          ? (
+        const parentWorkflowName = execution.parentExecutionId
+          ? ((
               await loadParentWorkflowNames(this.executionRepository, [
                 execution,
               ])
-            ).get(execution.parentExecutionId)
+            ).get(execution.parentExecutionId) ?? null)
           : null;
-        const trigger = deriveExecutionTrigger(execution, parentName);
 
-        // 응답 직전 trigger/executor 관계 객체를 제거 (User 등 민감 정보 누출
-        // 방지).
         return {
-          ...this.toResponseExecution(execution),
-          nodeExecutions: reconciledNodeExecutions,
-          triggerSource: trigger.source,
-          triggerLabel: trigger.label,
+          ...this.toResponseExecution(execution, {
+            parentWorkflowName,
+            // 목록의 집계 쿼리와 같은 기준이다. 대기 보정(`reconcilePreParkWaitingStatus`)은
+            // running · pending 만 바꾸므로 completed · failed 수에 영향이 없다.
+            counts: countNodeExecutions(nodeExecutions),
+          }),
           executionPath,
+          nodeExecutions: nodeExecutionDtos,
           executionPathTruncated,
         };
       },
@@ -824,13 +763,9 @@ export class ExecutionsService {
       status,
     } = query;
 
-    const qb = this.executionRepository
-      .createQueryBuilder('e')
-      .leftJoin('e.trigger', 'trigger')
-      .addSelect(['trigger.id', 'trigger.type', 'trigger.name'])
-      .leftJoin('e.executor', 'executor')
-      .addSelect(['executor.id', 'executor.name'])
-      .where('e.workflow_id = :workflowId', { workflowId });
+    const qb = this.withTriggerSourceRelations(
+      this.executionRepository.createQueryBuilder('e'),
+    ).where('e.workflow_id = :workflowId', { workflowId });
 
     if (status) {
       qb.andWhere('e.status = :status', { status });
@@ -844,16 +779,7 @@ export class ExecutionsService {
       .take(limit)
       .getManyAndCount();
 
-    const parentNameMap = await loadParentWorkflowNames(
-      this.executionRepository,
-      data,
-    );
-    const nodeCountMap = await this.loadNodeExecutionCounts(
-      data.map((e) => e.id),
-    );
-    const dtoList = data.map((e) =>
-      this.toExecutionDto(e, parentNameMap, nodeCountMap),
-    );
+    const dtoList = await this.toExecutionDtos(data);
     return PaginatedResponseDto.create(dtoList, totalItems, page, limit);
   }
 
@@ -864,13 +790,8 @@ export class ExecutionsService {
    */
   private async loadNodeExecutionCounts(
     executionIds: string[],
-  ): Promise<
-    Map<string, { total: number; completed: number; failed: number }>
-  > {
-    const map = new Map<
-      string,
-      { total: number; completed: number; failed: number }
-    >();
+  ): Promise<Map<string, NodeExecutionCounts>> {
+    const map = new Map<string, NodeExecutionCounts>();
     if (executionIds.length === 0) return map;
 
     const rows = await this.nodeExecutionRepository
@@ -939,16 +860,14 @@ export class ExecutionsService {
    * > 읽기 표면 전체 목록과 그 근거는 {@link ExecutionsService.toResponseExecution} 의
    * > 표가 정본이다 — 여기에 개수를 다시 적지 않는다(적으면 표면이 늘 때 갈린다).
    *
-   * **반환 계약(2026-08-16 변경)**: 종전에는 재조회한 **엔티티 참조를 그대로** 돌려줬다 —
-   * `findById`/`getChain` 과 달리 strip 관문을 타지 않던 유일한 공개 경로였다. 이제
-   * `error` 가 마스킹된 **복사본**이고 타입이 {@link ResponseExecution} 이다.
-   * `trigger`/`executor` 는 이 경로의 `findOne` 이 `relations` 를 주지 않고 두 관계 모두
-   * `eager` 가 아니라 **애초에 로드되지 않으므로** 응답에서 사라지는 값은 없다(타입에서만
-   * 제거). 내부 소비자(`interaction.service.ts` · `hooks.service.ts`)는 반환값을 버리므로
-   * 영향은 HTTP 응답 표면 하나뿐이다.
+   * **반환 계약**: 목록 · 체인과 같은 {@link ExecutionDto} 다(2026-11-14). 종전에는 재조회한
+   * 엔티티를 펼쳐 돌려줘서 선언한 `triggerSource` · `triggerLabel` · 노드 집계가 빠지고
+   * 선언하지 않은 컬럼이 실렸다. 내부 소비자(`interaction.service.ts` · `hooks.service.ts`)는
+   * 반환값을 버리므로 영향은 HTTP 응답 표면 하나뿐이다.
    */
-  async stop(id: string): Promise<ResponseExecution> {
-    return this.toResponseExecution(await this.stopInternal(id));
+  async stop(id: string): Promise<ExecutionDto> {
+    const [dto] = await this.toExecutionDtos([await this.stopInternal(id)]);
+    return dto;
   }
 
   /**
@@ -998,7 +917,7 @@ export class ExecutionsService {
             'Cancel could not be queued (continuation bus unavailable). Please retry.',
         });
       }
-      const updated = await this.executionRepository.findOne({ where: { id } });
+      const updated = await this.findOneForResponse(id);
       return updated ?? execution;
     }
 
@@ -1030,36 +949,105 @@ export class ExecutionsService {
 
     if (updateResult.affected === 0) {
       // 다른 요청이 먼저 상태를 바꿨을 가능성. 최신 상태로 재조회 후 반환한다.
-      const refreshed = await this.executionRepository.findOne({
-        where: { id },
-      });
+      const refreshed = await this.findOneForResponse(id);
       this.invalidateSnapshotCache(id);
       return refreshed ?? execution;
     }
     // 상태 전이가 일어난 이상 캐시된 snapshot 은 stale.
     this.invalidateSnapshotCache(id);
 
-    const refreshed = await this.executionRepository.findOne({ where: { id } });
+    const refreshed = await this.findOneForResponse(id);
     return refreshed ?? execution;
   }
 
-  private toExecutionDto(
+  /**
+   * 응답 조립용 단건 재조회 — 실행 출처 판정에 쓰는 관계 두 개를 함께 읽는다.
+   * 행이 없으면(동시 삭제) `null`.
+   */
+  private findOneForResponse(id: string): Promise<Execution | null> {
+    return this.withTriggerSourceRelations(
+      this.executionRepository.createQueryBuilder('e'),
+    )
+      .where('e.id = :id', { id })
+      .getOne();
+  }
+
+  /**
+   * 실행 출처 판정(`deriveExecutionTrigger`)에 필요한 관계를 안전 컬럼만 골라 join 한다.
+   * `User.passwordHash` 같은 민감 컬럼은 읽지 않고, 라벨 산출에 쓰지 않는 `executor.email`
+   * 도 뺀다(PII 최소화). 별칭은 `e` 여야 한다.
+   */
+  private withTriggerSourceRelations(
+    qb: SelectQueryBuilder<Execution>,
+  ): SelectQueryBuilder<Execution> {
+    return qb
+      .leftJoin('e.trigger', 'trigger')
+      .addSelect(['trigger.id', 'trigger.type', 'trigger.name'])
+      .leftJoin('e.executor', 'executor')
+      .addSelect(['executor.id', 'executor.name']);
+  }
+
+  /**
+   * 실행 행 여러 개를 {@link ExecutionDto} 로 조립한다 — 목록 · 체인 · 중지 경로.
+   *
+   * 부모 워크플로 이름과 노드 집계를 행마다 묻지 않고 한 번씩 묶어 읽는다(N+1 회피).
+   * 행은 {@link withTriggerSourceRelations} 로 읽은 것이어야 실행 출처 라벨이 채워진다.
+   */
+  private async toExecutionDtos(rows: Execution[]): Promise<ExecutionDto[]> {
+    if (rows.length === 0) return [];
+    const [parentNameMap, nodeCountMap] = await Promise.all([
+      loadParentWorkflowNames(this.executionRepository, rows),
+      this.loadNodeExecutionCounts(rows.map((e) => e.id)),
+    ]);
+    return rows.map((e) =>
+      this.toResponseExecution(e, {
+        parentWorkflowName: e.parentExecutionId
+          ? (parentNameMap.get(e.parentExecutionId) ?? null)
+          : null,
+        counts: nodeCountMap.get(e.id) ?? EMPTY_NODE_EXECUTION_COUNTS,
+      }),
+    );
+  }
+
+  /**
+   * 실행 응답의 **유일한 조립 함수이자 마스킹 관문**이다. 목록 · 상세 · 중지 · 체인 · 재실행이
+   * 모두 여기서 {@link ExecutionDto} 를 받는다.
+   *
+   * 1. 키를 하나씩 채운다. 엔티티를 펼치지 않으므로 선언하지 않은 컬럼(`sourceIp` ·
+   *    `resumeCallStack` · `userVariables` 등)과 관계 객체(`workflow` · `trigger` ·
+   *    `executor`)는 나가지 않는다. 값이 없는 필드도 키는 늘 있고 값이 `null` 이다.
+   * 2. 세 컬럼(`inputData` · `outputData` · `error`)은 `redactStoredFieldsForResponse` 로
+   *    가린다.
+   *
+   * ## 읽기 표면 목록 — **이 주석이 정본이다** (수치를 여기 한 곳에만 둔다)
+   *
+   * 마스킹을 호출부마다 손으로 걸면 **한 곳씩 빠진다** — 이 저장소의 반복 실패 형태다.
+   * 그래서 표면을 이름으로 열거하고 어느 관문을 지나는지 적는다.
+   *
+   * | # | 표면 | 관문 |
+   * |---|---|---|
+   * | 1 | `findById` (`GET /executions/:id` · WS `execution.snapshot` · 재실행 응답) | 이 함수 |
+   * | 2 | `getChain` | {@link toExecutionDtos} → 이 함수 |
+   * | 3 | `stop` | {@link toExecutionDtos} → 이 함수 |
+   * | 4 | `findByWorkflow` (목록) | {@link toExecutionDtos} → 이 함수 |
+   * | 5 | `findById` 의 `nodeExecutions[]` | 행 단위 {@link toNodeExecutionSummary} |
+   * | 6 | `BackgroundRunsService.toNodeExecutionDto` (본문 노드) | 다른 서비스의 자매 |
+   *
+   * > 2026-11-14 전에는 목록만 `toExecutionDto` 로 조립하고 나머지는 엔티티를 펼쳤다. 그래서
+   * > 체인 · 중지 응답에 선언한 `triggerSource` 가 빠지고 상세 응답에 부모 `workflow` 전
+   * > 컬럼과 노드 설정 원문이 실렸다. 지금은 한 함수가 모두 조립한다.
+   */
+  private toResponseExecution(
     execution: Execution,
-    parentNameMap: Map<string, string | null>,
-    nodeCountMap?: Map<
-      string,
-      { total: number; completed: number; failed: number }
-    >,
+    context: ExecutionResponseContext,
   ): ExecutionDto {
-    const parentName = execution.parentExecutionId
-      ? (parentNameMap.get(execution.parentExecutionId) ?? null)
-      : null;
-    const trigger = deriveExecutionTrigger(execution, parentName);
-    const counts = nodeCountMap?.get(execution.id) ?? {
-      total: 0,
-      completed: 0,
-      failed: 0,
-    };
+    const trigger = deriveExecutionTrigger(
+      execution,
+      context.parentWorkflowName,
+    );
+    // 마스킹 결과를 먼저 받아 아래에서 키를 하나씩 둔다(spread 로 섞지 않는다).
+    const { inputData, outputData, error } =
+      redactStoredFieldsForResponse(execution);
     return {
       id: execution.id,
       workflowId: execution.workflowId,
@@ -1072,78 +1060,48 @@ export class ExecutionsService {
         ? this.toIso(execution.finishedAt)
         : null,
       durationMs: execution.durationMs ?? null,
-      // 목록 경로의 마스킹 자리. 나머지 세 표면은 `toResponseExecution` 이 덮는다
-      // (여기는 엔티티가 아니라 DTO 조립이라 그 관문을 지나지 않는다).
-      //
-      // `inputData` 도 마스킹한다 (2026-08-20, 카브아웃 폐지 — EIA §R17).
-      ...redactStoredFieldsForResponse(execution),
+      inputData,
+      outputData,
+      error,
       executedBy: execution.executedBy ?? null,
       parentExecutionId: execution.parentExecutionId ?? null,
       recursionDepth: execution.recursionDepth ?? 0,
-      // list 응답에서는 N+1 회피를 위해 빈 배열로 유지. 단건 조회 (`findById`)
-      // 는 별도 경로로 execution_node_log 를 채워서 응답한다.
+      // 목록 · 체인 · 중지는 빈 배열이다(N+1 회피). 상세 · 재실행은 `findById` 가
+      // execution_node_log 로 채워 덮어쓴다.
       executionPath: [],
-      // Re-run chain 메타 — chain badge / View chain (spec §10.3) 가 사용.
+      // Re-run chain 메타 — chain badge / View chain 이 쓴다.
       reRunOf: execution.reRunOf ?? null,
       chainId: execution.chainId ?? null,
       dryRun: execution.dryRun ?? false,
-      totalNodeCount: counts.total,
-      completedNodeCount: counts.completed,
-      failedNodeCount: counts.failed,
+      totalNodeCount: context.counts.total,
+      completedNodeCount: context.counts.completed,
+      failedNodeCount: context.counts.failed,
     };
   }
 
   /**
-   * 응답 직전, **엔티티를 그대로 내보내면 안 되는 것**을 두 가지 처리한다:
+   * 노드 실행 행 하나를 {@link NodeExecutionSummaryDto} 로 조립한다.
    *
-   * 1. 관계 객체 제거 — `trigger`/`executor` (User 등 민감 정보).
-   *    `deriveExecutionTrigger` 산출 후에는 더 이상 필요하지 않다.
-   * 2. 세 컬럼(`inputData`·`outputData`·`error`) 값 마스킹 —
-   *    `redactStoredFieldsForResponse` 한 번. 종전엔 컬럼마다 손으로 부르고 자매
-   *    호출부 넷을 이 주석 표가 동기화했다.
-   *
-   * ## 읽기 표면 목록 — **이 주석이 정본이다** (수치를 여기 한 곳에만 둔다)
-   *
-   * 종전 이름은 `stripPrivateRelations` 였고 (1) 만 했다. 마스킹을 호출부마다 손으로
-   * 걸면 **한 곳씩 빠진다** — 이 저장소의 반복 실패 형태다. 실제로 이 결함을 등재한
-   * 트래커 항목도 `toExecutionDto` **한 줄만** 지목했는데, 실측하니 그건 목록 경로
-   * 전용이고 상세·chain·stop 이 각자 다른 자리에서 같은 컬럼을 싣고 있었다.
-   *
-   * | # | 표면 | 관문 |
-   * |---|---|---|
-   * | 1 | `findById` (`GET /executions/:id` · WS `execution.snapshot`) | 이 함수 |
-   * | 2 | `getChain` | 이 함수 |
-   * | 3 | `stop` | 이 함수 |
-   * | 4 | `toExecutionDto` (목록) | 엔티티가 아니라 DTO 조립이라 **거기서 직접** 부른다 |
-   * | 5 | `findById` 의 `nodeExecutions[]` | 행 단위 `redactNodeExecutionRowForResponse` |
-   * | 6 | `BackgroundRunsService.toNodeExecutionDto` (본문 노드) | 다른 서비스의 자매 |
-   *
-   * > **수치를 여기 한 곳에 모은 이유**: 종전엔 *"자매 넷 중 하나만"* 이라는 **숫자가
-   * > 소스 세 곳**(이 파일 `stop` JSDoc · `background-runs.service` · 두 `.spec.ts`)에
-   * > 흩어져 있었다. 표면이 늘면 세 곳이 갈린다 — 실제로 이번에 `inputData`/`outputData`
-   * > 가 더해지며 "넷" 이 낡았다. 다른 지점은 이 표를 `{@link}` 로 가리키기만 한다.
-   *
-   * ## 반환 타입이 `Execution` 이 아닌 이유
-   *
-   * `redactStoredFieldsForResponse` 는 입력이 없으면 정직하게 `null` 을 돌려주는데,
-   * 종전엔 엔티티가 `error: Record<string, unknown>` 로 **`| null` 없이** 선언돼 있어
-   * 그 차이가 캐스트로 지워졌다. (엔티티 쪽 타입은 2026-09-01 에 `| null` 로 정정됐다 —
-   * DB 는 처음부터 `nullable: true` 였다. `inputData`/`outputData` 는 여전히 아니라
-   * 아래 논지는 그대로 유효하다.)
-   * 종전에는 `as Execution` 로 그 `null` 가능성을 캐스트 뒤에 지웠는데, 그러면 이후
-   * 이 결과를 다루는 코드가 `.error` 를 null-check 없이 만져도 컴파일러가 침묵한다 —
-   * *"자매 표면 하나를 빠뜨린다"* 는 이 PR 이 고치는 결함 클래스를 타입 시스템이
-   * 잡아줄 기회를 스스로 줄이는 셈이다 (`17_12_34` maintainability W1).
-   * 그래서 `error` 만 넓힌 명시 타입을 돌려주고 무단 단언을 제거한다.
+   * 세 컬럼 마스킹은 상위 실행과 같은 `redactStoredFieldsForResponse` 가 맡는다(부재는
+   * `null` 로 맞춘다). `node` 는 참조 세 필드만 싣고 노드 설정(`config`) 원문은 싣지
+   * 않는다. 사용자 행동 기록(`interactionData`)도 싣지 않는다.
    */
-  private toResponseExecution(execution: Execution): ResponseExecution {
-    const { trigger: _t, executor: _e, ...rest } = execution;
+  private toNodeExecutionSummary(ne: NodeExecution): NodeExecutionSummaryDto {
+    const { inputData, outputData, error } = redactStoredFieldsForResponse(ne);
     return {
-      ...rest,
-      // `...rest` 는 엔티티를 통째로 펼치므로 여기서 덮지 않으면 원문이 나간다
-      // (`error` 만 가리던 자리였다). 2026-08-20 부터 `inputData` 도 포함한다 —
-      // 프런트 마커 가드(프리필 스킵·제출 차단)가 서면서 재제출 카브아웃이 닫혔다.
-      ...redactStoredFieldsForResponse(rest),
+      id: ne.id,
+      executionId: ne.executionId,
+      nodeId: ne.nodeId,
+      node: { id: ne.node.id, type: ne.node.type, label: ne.node.label },
+      status: ne.status,
+      startedAt: this.toIso(ne.startedAt),
+      finishedAt: ne.finishedAt ? this.toIso(ne.finishedAt) : null,
+      durationMs: ne.durationMs ?? null,
+      inputData,
+      outputData,
+      error,
+      retryCount: ne.retryCount ?? 0,
+      parentNodeExecutionId: ne.parentNodeExecutionId ?? null,
     };
   }
 

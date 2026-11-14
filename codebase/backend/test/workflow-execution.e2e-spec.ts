@@ -5,11 +5,15 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import {
+  assertMatchesContract,
   contractForDto,
   pickMatchingContract,
   type DtoContract,
 } from '../src/shared/testing/response-contract';
-import { ExecutionDto } from '../src/modules/executions/dto/responses/execution-response.dto';
+import {
+  ExecutionDetailDto,
+  ExecutionDto,
+} from '../src/modules/executions/dto/responses/execution-response.dto';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 /**
@@ -61,11 +65,13 @@ async function pollExecution(
 describe('Workflow Execution (e2e)', () => {
   let db: Client;
   let executionContract: DtoContract;
+  let executionDetailContract: DtoContract;
   let ownerToken: string;
   let workspaceId: string;
 
   beforeAll(async () => {
     executionContract = await contractForDto(ExecutionDto);
+    executionDetailContract = await contractForDto(ExecutionDetailDto);
     db = createDbClient();
     await db.connect();
     const owner = await registerAndLogin(BASE_URL, uniqueEmail('wfexec'), db);
@@ -111,6 +117,13 @@ describe('Workflow Execution (e2e)', () => {
       15_000,
     );
     expect(TERMINAL_STATUSES).toContain(final.status);
+
+    // 상세 응답 전체를 `ExecutionDetailDto` 스키마와 맞춘다. 선언에 없는 키(부모
+    // `workflow` · `sourceIp` 같은 미선언 컬럼 · `node.config` · `interactionData`)가 실리면
+    // 여기서 걸린다. Manual Trigger 노드 실행 1건이 `nodeExecutions[]` 항목 계약도 문다.
+    const detail = (final.body as { data: { nodeExecutions: unknown[] } }).data;
+    expect(detail.nodeExecutions.length).toBeGreaterThan(0);
+    assertMatchesContract(detail, executionDetailContract);
   }, 30_000);
 
   it('B. GET /api/executions/workflow/:workflowId 가 해당 실행을 페이지네이션으로 반환', async () => {
@@ -142,14 +155,10 @@ describe('Workflow Execution (e2e)', () => {
     expect(Array.isArray(items)).toBe(true);
     expect(items.some((i) => i.id === executionId)).toBe(true);
 
-    // §5.4 — 이 엔드포인트는 컨트롤러가 엔티티를 그대로 내보내는 경로라 `tsc` 가
-    // `ExecutionDto` 와 대조할 지점이 없다. 실제 응답 1건을 **생성된 OpenAPI 스키마**와
-    // 통째로 맞춘다 (개별 단언을 필드 수만큼 쓰지 않는 이유).
-    //
-    // 커버리지를 과장하지 않기 위해 적어 둔다: `ExecutionDto` 22필드 중 **required 12개**
-    // 는 존재와 non-null 까지 엄격히 물지만, 나머지 10개(키 생략형)는 **있을 때만** 검사
-    // 대상이고 그중 nullable 선언이 붙은 것은 null 도 허용된다. 반대 방향(선언에 없는 키가
-    // 응답에 있다)은 22필드와 무관하게 전부 잡는다.
+    // 실제 응답 1건을 **생성된 OpenAPI 스키마**와 통째로 맞춘다 (개별 단언을 필드 수만큼
+    // 쓰지 않는 이유). 2026-11-14 부터 `ExecutionDto` 의 모든 필드가 required 라 키가
+    // 빠져도 걸리고, nullable 선언이 없는 필드는 null 도 걸린다. 반대 방향(선언에 없는
+    // 키가 응답에 있다)도 잡는다.
     pickMatchingContract(items, (i) => i.id === executionId, executionContract);
   }, 30_000);
 
@@ -209,6 +218,35 @@ describe('Workflow Execution (e2e)', () => {
     // 이미 terminal 인 execution 은 stop 불가 — 구현에 따라 400 (bad transition)
     // 또는 404 (재조회 시 stop-able 후보가 아님) 로 모두 거부 가능.
     expect([400, 404]).toContain(stop.status);
+  }, 30_000);
+
+  it('D-2. 실행 중(running) 실행 stop → 200 + 응답이 ExecutionDto 계약과 맞는다', async () => {
+    // 큐를 거치지 않은 running 행을 직접 만든다. 실제 실행은 Manual Trigger 하나라 금방
+    // 끝나서 stop 성공 경로를 안정적으로 밟을 수 없다. 이 행에는 잡이 없으므로 엔진이
+    // 손대지 않는다.
+    const workflowId = await createWorkflow();
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'running', NOW())`,
+      [executionId, workflowId],
+    );
+
+    const stop = await request(BASE_URL)
+      .post(`/api/executions/${executionId}/stop`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(stop.status).toBe(200);
+    const body = stop.body.data as {
+      status: string;
+      triggerSource: string;
+      totalNodeCount: number;
+    };
+    expect(body.status).toBe('cancelled');
+    // 종전 중지 응답은 엔티티를 펼쳐 이 두 값이 빠졌다.
+    expect(body.triggerSource).toBeDefined();
+    expect(body.totalNodeCount).toBe(0);
+    assertMatchesContract(body, executionContract);
   }, 30_000);
 
   it('E. 같은 워크플로우 동시 execute — 둘 다 독립 executionId 발급', async () => {

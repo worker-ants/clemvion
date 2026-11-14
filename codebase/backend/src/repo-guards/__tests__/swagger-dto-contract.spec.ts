@@ -352,23 +352,12 @@ const RATCHET_FIXTURE = path.join(
   'optional-nullable.fixture.ts',
 );
 
-const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [
-  'execution-response.dto.ts:ExecutionDto.chainId',
-  'execution-response.dto.ts:ExecutionDto.durationMs',
-  'execution-response.dto.ts:ExecutionDto.error',
-  'execution-response.dto.ts:ExecutionDto.executedBy',
-  'execution-response.dto.ts:ExecutionDto.finishedAt',
-  'execution-response.dto.ts:ExecutionDto.inputData',
-  'execution-response.dto.ts:ExecutionDto.outputData',
-  'execution-response.dto.ts:ExecutionDto.parentExecutionId',
-  'execution-response.dto.ts:ExecutionDto.reRunOf',
-  'execution-response.dto.ts:ExecutionDto.triggerId',
-  'execution-response.dto.ts:NodeExecutionSummaryDto.durationMs',
-  'execution-response.dto.ts:NodeExecutionSummaryDto.error',
-  'execution-response.dto.ts:NodeExecutionSummaryDto.finishedAt',
-  'execution-response.dto.ts:NodeExecutionSummaryDto.inputData',
-  'execution-response.dto.ts:NodeExecutionSummaryDto.outputData',
-];
+/**
+ * 2026-11-14 에 마지막 15건(`execution-response.dto.ts` 의 `ExecutionDto` 10건 ·
+ * `NodeExecutionSummaryDto` 5건)을 갚아 비었다(CLE-T-GA8ZXQ). 목록은 비어도 래칫은 남는다 —
+ * 새 필드가 이 형태로 들어오면 아래 단언이 실패한다.
+ */
+const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [];
 
 /**
  * §5.4 금지 조합(`required:false` + `nullable:true`)의 **래칫**.
@@ -376,10 +365,10 @@ const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [
  * 목록은 "고쳐야 할 빚" 이지 허용목록이 아니다. 새 필드가 이 형태로 들어오면 목록에 없어
  * 실패하고, 빚을 갚아 줄이면 목록에서 빼야 통과한다 — 양방향으로 조인다.
  *
- * 이 목록은 응답 DTO **전수**를 덮는다. `execution-response.dto.spec.ts` 의
- * `OPTIONAL_NULLABLE_DRIFT`(`ExecutionDto` 10건)는 그 **부분집합**이고, 그쪽은 키뿐 아니라
- * required/nullable 의 정확한 형태까지 단언한다 — 한쪽만 상환하면 다른 쪽이 낡으니
- * **함께 줄인다** (`review/consistency/2026/09/05/19_08_19` W5).
+ * 이 목록은 응답 DTO **전수**를 덮는다. 종전에는 `execution-response.dto.spec.ts` 가
+ * `ExecutionDto` 10건을 부분집합으로 따로 고정했고 두 목록을 함께 줄여야 했다
+ * (`review/consistency/2026/09/05/19_08_19` W5). 2026-11-14 에 둘 다 비었고 그쪽은 이제
+ * 이 스캐너가 그 파일에서 0건을 보는지를 단언한다.
  *
  * 실제로 조용히 넓어진 적이 있다: 2026-09-05 §5.4 스윕 커밋이 17개 필드를 이 형태로 새로
  * 선언했고, **두 검증자 어느 쪽도 잡지 못했다**(`response-contract.ts` 는 값을 보고,
@@ -393,6 +382,30 @@ describe('§5.4 금지 조합 래칫 — 응답 DTO 의 required:false + nullabl
     collectTsFiles(path.join(SRC_ROOT, 'modules')),
     SRC_ROOT,
   );
+
+  /**
+   * 목록이 비었으므로 아래 "정확히 일치" 는 `[]` 끼리의 비교다. 스캔 범위가 깨져 아무
+   * 파일도 보지 않아도 같은 결과가 나온다. 그래서 스캔이 실제 응답 DTO 파일을 집었는지를
+   * 따로 묻는다.
+   */
+  it('[전제] 스캔 범위에 실제 응답 DTO 파일이 들어 있다', () => {
+    const responseDtoFiles = collectTsFiles(
+      path.join(SRC_ROOT, 'modules'),
+    ).filter((f) => isResponseDtoFile(f));
+    expect(responseDtoFiles.length).toBeGreaterThan(30);
+    expect(
+      responseDtoFiles.some((f) =>
+        f.endsWith(
+          path.join(
+            'executions',
+            'dto',
+            'responses',
+            'execution-response.dto.ts',
+          ),
+        ),
+      ),
+    ).toBe(true);
+  });
 
   it('알려진 목록과 정확히 일치한다 (새로 생겨도, 남몰래 줄어도 실패)', () => {
     expect(offenders.map((o) => o.key).sort()).toEqual(

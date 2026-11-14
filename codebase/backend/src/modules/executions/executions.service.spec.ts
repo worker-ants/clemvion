@@ -99,6 +99,22 @@ describe('ExecutionsService', () => {
     return qb;
   };
 
+  // `stop` 의 QueryBuilder 스텁. 가드 UPDATE 체인(`update → set → where → andWhere →
+  // execute`)과 응답용 재조회 체인(`leftJoin → addSelect → where → getOne`)이 같은
+  // `createQueryBuilder` 를 쓰므로 한 객체에 둘 다 둔다. `getOne` 은 재조회 결과다.
+  const buildStopQB = (refetched: FakeExec | null, affected = 1) => {
+    const qb: Record<string, jest.Mock> = {};
+    qb.update = jest.fn().mockReturnValue(qb);
+    qb.set = jest.fn().mockReturnValue(qb);
+    qb.where = jest.fn().mockReturnValue(qb);
+    qb.andWhere = jest.fn().mockReturnValue(qb);
+    qb.execute = jest.fn().mockResolvedValue({ affected });
+    qb.leftJoin = jest.fn().mockReturnValue(qb);
+    qb.addSelect = jest.fn().mockReturnValue(qb);
+    qb.getOne = jest.fn().mockResolvedValue(refetched);
+    return qb;
+  };
+
   // C-7: node_execution status 집계 (Nodes 열). loadNodeExecutionCounts 가
   // 호출하는 nodeExecutionRepository.createQueryBuilder 의 그룹 쿼리 mock.
   type NodeCountRow = {
@@ -136,7 +152,25 @@ describe('ExecutionsService', () => {
           if (ctor?.name === 'ExecutionNodeLog') {
             return executionNodeLogRepo.find(opts);
           }
-          return nodeExecutionRepo.find(opts);
+          // `node_execution.node_id` 는 FK NOT NULL + cascade 라 `relations: ['node']`
+          // 조회의 `node` 는 늘 채워진다. 노드 참조를 신경 쓰지 않는 테스트의 픽스처가
+          // 이를 생략해도 되도록 여기서 nodeId 로 채운다(픽스처가 준 `node` 는 그대로 쓴다).
+          return Promise.resolve(nodeExecutionRepo.find(opts)).then(
+            (rows: unknown) =>
+              Array.isArray(rows)
+                ? rows.map((r: Record<string, unknown>) =>
+                    r.node
+                      ? r
+                      : Object.assign(r, {
+                          node: {
+                            id: r.nodeId,
+                            type: 'test',
+                            label: `label-${String(r.nodeId)}`,
+                          },
+                        }),
+                  )
+                : rows,
+          );
         },
       };
       return cb(manager);
@@ -810,6 +844,168 @@ describe('ExecutionsService', () => {
 
   // C-1 (06-concurrency) — WAITING 실행 stop 은 cancelWaitingExecution 의 publish
   // 결과를 동기 surface 한다. queued=false (Redis 장애) 면 503 으로 재시도 유도.
+  /**
+   * 다섯 응답(목록 · 상세 · 중지 · 체인 · 재실행)의 실행 객체는 한 DTO(`ExecutionDto`)다
+   * (CLE-T-GA8ZXQ). 종전에는 목록만 DTO 로 조립하고 나머지는 엔티티를 펼쳐 내보내서
+   * 미선언 컬럼(`sourceIp` · `resumeCallStack` 등)과 부모 `workflow` 가 실렸고, 체인 · 중지
+   * 항목에는 선언한 `triggerSource` · `triggerLabel` · 노드 집계가 빠졌다.
+   */
+  describe('실행 응답은 한 DTO 로 조립한다', () => {
+    const EXECUTION_DTO_KEYS = [
+      'id',
+      'workflowId',
+      'triggerId',
+      'triggerSource',
+      'triggerLabel',
+      'status',
+      'startedAt',
+      'finishedAt',
+      'durationMs',
+      'inputData',
+      'outputData',
+      'error',
+      'executedBy',
+      'parentExecutionId',
+      'recursionDepth',
+      'executionPath',
+      'reRunOf',
+      'chainId',
+      'dryRun',
+      'totalNodeCount',
+      'completedNodeCount',
+      'failedNodeCount',
+    ].sort();
+
+    /** 엔티티에는 있지만 응답에 싣지 않는 값들. 한 행에 몰아 둔다. */
+    const withUndeclaredColumns = (overrides: Partial<FakeExec>) =>
+      Object.assign(baseFake(overrides), {
+        activeRunningMs: 900,
+        sourceIp: '203.0.113.7',
+        userVariables: { secret: 'v' },
+        resumeCallStack: [{ frame: 1 }],
+        conversationThread: [{ role: 'user' }],
+        queuedAt: new Date('2026-05-04T09:59:59.000Z'),
+        singleNodeId: null,
+        previousExecutionId: null,
+        responseCode: 200,
+        workflow: { id: 'w1', workspaceId: 'ws1', settings: { a: 1 } },
+      });
+
+    it('getChain 항목은 실행 출처 · 노드 집계를 싣고 미선언 컬럼은 싣지 않는다', async () => {
+      const root = withUndeclaredColumns({
+        id: 'eC1',
+        triggerId: 't1',
+        trigger: { id: 't1', type: 'schedule', name: '매일 보고서' },
+      });
+      const chainQB: Record<string, jest.Mock> = {};
+      chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.leftJoin = jest.fn().mockReturnValue(chainQB);
+      chainQB.addSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.where = jest.fn().mockReturnValue(chainQB);
+      chainQB.orderBy = jest.fn().mockReturnValue(chainQB);
+      chainQB.getOne = jest.fn().mockResolvedValue(root);
+      chainQB.getMany = jest.fn().mockResolvedValue([root]);
+      executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
+      nodeExecutionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildNodeCountQB([
+          { executionId: 'eC1', total: '4', completed: '3', failed: '1' },
+        ]),
+      );
+
+      const [item] = await service.getChain('eC1', 'ws1');
+
+      expect(Object.keys(item).sort()).toEqual(EXECUTION_DTO_KEYS);
+      expect(item).toMatchObject({
+        triggerSource: 'schedule',
+        triggerLabel: '매일 보고서',
+        totalNodeCount: 4,
+        completedNodeCount: 3,
+        failedNodeCount: 1,
+        startedAt: '2026-05-04T10:00:00.000Z',
+        executionPath: [],
+      });
+      // 출처 판정용 관계는 안전 컬럼만 고른다(`executor.email` 등은 읽지 않는다).
+      expect(chainQB.addSelect).toHaveBeenCalledWith([
+        'executor.id',
+        'executor.name',
+      ]);
+    });
+
+    it('stop 응답도 같은 키 집합이고 재조회 행의 출처 · 집계를 싣는다', async () => {
+      const running = baseFake({ id: 'eS1', status: ExecutionStatus.RUNNING });
+      const cancelled = withUndeclaredColumns({
+        id: 'eS1',
+        status: ExecutionStatus.CANCELLED,
+        executedBy: 'u1',
+        executor: { id: 'u1', name: '홍길동' },
+      });
+      executionRepo.findOne.mockResolvedValueOnce(running as unknown);
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildStopQB(cancelled) as unknown,
+      );
+      nodeExecutionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildNodeCountQB([
+          { executionId: 'eS1', total: '2', completed: '1', failed: '0' },
+        ]),
+      );
+
+      const result = await service.stop('eS1');
+
+      expect(Object.keys(result).sort()).toEqual(EXECUTION_DTO_KEYS);
+      expect(result).toMatchObject({
+        status: ExecutionStatus.CANCELLED,
+        triggerSource: 'manual',
+        triggerLabel: '홍길동',
+        totalNodeCount: 2,
+        completedNodeCount: 1,
+        failedNodeCount: 0,
+      });
+    });
+
+    it('findById 는 ExecutionDto 키에 상세 필드만 더하고 workflow · 미선언 컬럼을 싣지 않는다', async () => {
+      const row = withUndeclaredColumns({ id: 'eD1' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        { id: 'ne1', executionId: 'eD1', nodeId: 'n1', status: 'completed' },
+        { id: 'ne2', executionId: 'eD1', nodeId: 'n2', status: 'failed' },
+        { id: 'ne3', executionId: 'eD1', nodeId: 'n3', status: 'skipped' },
+      ]);
+
+      const result = await service.findById('eD1');
+
+      expect(Object.keys(result).sort()).toEqual(
+        [
+          ...EXECUTION_DTO_KEYS,
+          'executionPathTruncated',
+          'nodeExecutions',
+        ].sort(),
+      );
+      // 노드 집계는 이미 읽은 노드 실행 행으로 센다(별도 집계 쿼리 없음).
+      expect(result).toMatchObject({
+        totalNodeCount: 3,
+        completedNodeCount: 1,
+        failedNodeCount: 1,
+      });
+      expect(nodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      // 원본 엔티티는 그대로다.
+      expect((row as unknown as { sourceIp: string }).sourceIp).toBe(
+        '203.0.113.7',
+      );
+    });
+
+    it('목록 항목도 같은 키 집합이다', async () => {
+      const row = withUndeclaredColumns({ id: 'eL1' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const result = await service.findByWorkflow('w1', {});
+      expect(Object.keys(result.data[0]).sort()).toEqual(EXECUTION_DTO_KEYS);
+    });
+  });
+
   describe('stop — WAITING_FOR_INPUT cancel (C-1)', () => {
     it('queued=true 면 cancel 후 갱신된 execution 을 반환 (throw 없음)', async () => {
       const waiting = baseFake({
@@ -820,9 +1016,10 @@ describe('ExecutionsService', () => {
         id: 'eW-ok',
         status: ExecutionStatus.RUNNING,
       });
-      executionRepo.findOne
-        .mockResolvedValueOnce(waiting as unknown) // 최초 lookup
-        .mockResolvedValueOnce(afterCancel as unknown); // cancel 후 re-fetch
+      executionRepo.findOne.mockResolvedValueOnce(waiting as unknown); // 최초 lookup
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(afterCancel) as unknown, // cancel 후 re-fetch
+      );
       // engine.cancelWaitingExecution 기본 mock = { queued: true } (beforeEach).
 
       const result = await service.stop('eW-ok');
@@ -874,22 +1071,13 @@ describe('ExecutionsService', () => {
         finishedAt: null,
         durationMs: null,
       });
-      executionRepo.findOne
-        .mockResolvedValueOnce(ancient as unknown)
-        .mockResolvedValueOnce(ancient as unknown);
-
-      const set = jest.fn();
-      const qb: Record<string, jest.Mock> = { set };
-      qb.update = jest.fn().mockReturnValue(qb);
-      set.mockReturnValue(qb);
-      qb.where = jest.fn().mockReturnValue(qb);
-      qb.andWhere = jest.fn().mockReturnValue(qb);
-      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
+      executionRepo.findOne.mockResolvedValueOnce(ancient as unknown);
+      const qb = buildStopQB(ancient);
       executionRepo.createQueryBuilder.mockReturnValue(qb);
 
       await service.stop('e-old');
 
-      const written = set.mock.calls[0][0] as { durationMs: number };
+      const written = qb.set.mock.calls[0][0] as { durationMs: number };
       expect(written.durationMs).toBe(PG_INT4_MAX);
     });
   });
@@ -980,7 +1168,7 @@ describe('ExecutionsService', () => {
       expect(cached.error).toEqual(MASKED);
     });
 
-    it('② findByWorkflow — 목록 (toExecutionDto)', async () => {
+    it('② findByWorkflow — 목록', async () => {
       const row = baseFake({ id: 'eM2', error: { ...LEAKY } });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
         buildListQB([row]) as unknown,
@@ -994,6 +1182,8 @@ describe('ExecutionsService', () => {
       const root = baseFake({ id: 'eM3', error: { ...LEAKY } });
       const chainQB: Record<string, jest.Mock> = {};
       chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.leftJoin = jest.fn().mockReturnValue(chainQB);
+      chainQB.addSelect = jest.fn().mockReturnValue(chainQB);
       chainQB.where = jest.fn().mockReturnValue(chainQB);
       chainQB.orderBy = jest.fn().mockReturnValue(chainQB);
       chainQB.getOne = jest.fn().mockResolvedValue({
@@ -1018,17 +1208,11 @@ describe('ExecutionsService', () => {
         status: ExecutionStatus.CANCELLED,
         error: { ...LEAKY },
       });
-      executionRepo.findOne
-        .mockResolvedValueOnce(running as unknown)
-        .mockResolvedValueOnce(cancelled as unknown);
+      executionRepo.findOne.mockResolvedValueOnce(running as unknown);
 
-      const qb: Record<string, jest.Mock> = {};
-      qb.update = jest.fn().mockReturnValue(qb);
-      qb.set = jest.fn().mockReturnValue(qb);
-      qb.where = jest.fn().mockReturnValue(qb);
-      qb.andWhere = jest.fn().mockReturnValue(qb);
-      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
-      executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildStopQB(cancelled) as unknown,
+      );
 
       const result = await service.stop('eM4');
       expect(result.error).toEqual(MASKED);
@@ -1045,18 +1229,12 @@ describe('ExecutionsService', () => {
         status: ExecutionStatus.CANCELLED,
         error: { ...LEAKY },
       });
-      executionRepo.findOne
-        .mockResolvedValueOnce(running as unknown)
-        .mockResolvedValueOnce(raced as unknown);
+      executionRepo.findOne.mockResolvedValueOnce(running as unknown);
 
-      const qb: Record<string, jest.Mock> = {};
-      qb.update = jest.fn().mockReturnValue(qb);
-      qb.set = jest.fn().mockReturnValue(qb);
-      qb.where = jest.fn().mockReturnValue(qb);
-      qb.andWhere = jest.fn().mockReturnValue(qb);
       // 다른 요청이 먼저 상태를 바꾼 경우 — 별도 return 지점.
-      qb.execute = jest.fn().mockResolvedValue({ affected: 0 });
-      executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildStopQB(raced, 0) as unknown,
+      );
 
       const result = await service.stop('eM4b');
       expect(result.error).toEqual(MASKED);
@@ -1132,14 +1310,15 @@ describe('ExecutionsService', () => {
     });
 
     /**
-     * **copy-on-change 를 참조 동일성으로 고정한다** (`17_35_49` testing W1).
+     * 노드 실행 항목은 **선언 필드만 새 객체로 조립한다** (CLE-T-GA8ZXQ · CLE-T-TTE3RS).
      *
-     * 위 `⑤-b` 는 **값**만 비교하므로, 삼항을 지우고 다시 무조건 spread 로 되돌려도
-     * 필드 값이 같아 **GREEN 이다** — 즉 최적화가 실제로 적용되는지 아무도 안 보고 있었다.
-     * 그 최적화 자체가 직전 라운드(`17_12_34` performance W1)의 조치라 회귀 위험이 크다.
-     * 참조가 같은지를 물어야 그 회귀가 RED 로 잡힌다.
+     * 종전에는 행을 그대로 내보내고 `error` 가 있는 행만 복제했다(copy-on-change, 참조
+     * 동일성으로 고정한 테스트가 여기 있었다). 그 방식은 엔티티의 미선언 컬럼
+     * (`interactionData`)과 `node` 전 컬럼(`config` 원문 · 좌표)까지 응답에 실었다.
+     * 이제 `toNodeExecutionSummary` 가 늘 새 객체를 만든다. 그래서 여기서는 키 집합이
+     * 정확히 선언과 같은지, 원본 행이 변하지 않는지, 마스킹이 걸리는지를 본다.
      */
-    it('⑤-c `error` 가 없는 행은 **원본 참조 그대로** 돌려준다 (무조건 spread 회귀 차단)', async () => {
+    it('⑤-c 노드 실행 항목은 선언 필드만 싣고 원본 행은 바꾸지 않는다', async () => {
       const row = baseFake({ id: 'eM8c' });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
         buildSingleQB(row) as unknown,
@@ -1147,28 +1326,70 @@ describe('ExecutionsService', () => {
       const clean = {
         id: 'ne-clean',
         executionId: 'eM8c',
+        nodeId: 'n1',
         status: 'completed',
+        startedAt: new Date('2026-05-04T10:00:00.000Z'),
+        finishedAt: new Date('2026-05-04T10:00:00.500Z'),
+        durationMs: 500,
+        inputData: null,
+        outputData: { ok: true },
         error: null,
+        retryCount: 0,
+        parentNodeExecutionId: null,
+        interactionData: { clicked: 'yes' },
+        node: {
+          id: 'n1',
+          type: 'http_request',
+          label: 'Call API',
+          config: { headers: { authorization: 'Bearer sk-live-CONFIG' } },
+          positionX: 10,
+          positionY: 20,
+        },
       };
       const failed = {
+        ...clean,
         id: 'ne-failed',
-        executionId: 'eM8c',
         status: 'failed',
+        outputData: null,
         error: { ...LEAKY },
       };
       nodeExecutionRepo.find.mockResolvedValue([clean, failed]);
 
-      const result = (await service.findById('eM8c')) as unknown as {
-        nodeExecutions: unknown[];
-      };
-      // `error` 없는 행 → 복제하지 않는다(참조 동일).
-      expect(result.nodeExecutions[0]).toBe(clean);
-      // `error` 있는 행 → 복제한다(원본 불변 + 마스킹된 새 객체).
-      expect(result.nodeExecutions[1]).not.toBe(failed);
-      expect(failed.error).toEqual(LEAKY);
-      expect((result.nodeExecutions[1] as { error: unknown }).error).toEqual(
-        MASKED,
+      const result = await service.findById('eM8c');
+      const [first, second] = result.nodeExecutions;
+
+      expect(Object.keys(first).sort()).toEqual(
+        [
+          'id',
+          'executionId',
+          'nodeId',
+          'node',
+          'status',
+          'startedAt',
+          'finishedAt',
+          'durationMs',
+          'inputData',
+          'outputData',
+          'error',
+          'retryCount',
+          'parentNodeExecutionId',
+        ].sort(),
       );
+      expect(first.node).toEqual({
+        id: 'n1',
+        type: 'http_request',
+        label: 'Call API',
+      });
+      expect(first).not.toHaveProperty('interactionData');
+      expect(first.startedAt).toBe('2026-05-04T10:00:00.000Z');
+      expect(first.outputData).toEqual({ ok: true });
+      // `error` 있는 행 → 마스킹된 값, 원본 행은 그대로.
+      expect(second.error).toEqual(MASKED);
+      expect(failed.error).toEqual(LEAKY);
+      expect(failed.node.config.headers.authorization).toBe(
+        'Bearer sk-live-CONFIG',
+      );
+      expect(clean.interactionData).toEqual({ clicked: 'yes' });
     });
 
     it('error 가 null 이면 null 그대로 (형태 변경 없음)', async () => {
@@ -1240,7 +1461,7 @@ describe('ExecutionsService', () => {
       expect(result.inputData.note).toContain('***');
     });
 
-    it('② findByWorkflow — 목록 (toExecutionDto)', async () => {
+    it('② findByWorkflow — 목록', async () => {
       const row = baseFake({
         id: 'eD2',
         inputData: { ...LEAKY_IN },
@@ -1265,6 +1486,8 @@ describe('ExecutionsService', () => {
       const root = baseFake({ id: 'eD3', outputData: { ...LEAKY_OUT } });
       const chainQB: Record<string, jest.Mock> = {};
       chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.leftJoin = jest.fn().mockReturnValue(chainQB);
+      chainQB.addSelect = jest.fn().mockReturnValue(chainQB);
       chainQB.where = jest.fn().mockReturnValue(chainQB);
       chainQB.orderBy = jest.fn().mockReturnValue(chainQB);
       chainQB.getOne = jest
@@ -1291,17 +1514,11 @@ describe('ExecutionsService', () => {
         error: null,
         outputData: { ...LEAKY_OUT },
       });
-      executionRepo.findOne
-        .mockResolvedValueOnce(running as unknown)
-        .mockResolvedValueOnce(cancelled as unknown);
+      executionRepo.findOne.mockResolvedValueOnce(running as unknown);
 
-      const qb: Record<string, jest.Mock> = {};
-      qb.update = jest.fn().mockReturnValue(qb);
-      qb.set = jest.fn().mockReturnValue(qb);
-      qb.where = jest.fn().mockReturnValue(qb);
-      qb.andWhere = jest.fn().mockReturnValue(qb);
-      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
-      executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildStopQB(cancelled) as unknown,
+      );
 
       const result = await service.stop('eD4');
       expect(JSON.stringify(result.outputData)).not.toContain('sk-live-abc123');
@@ -1384,17 +1601,15 @@ describe('ExecutionsService', () => {
     });
 
     /**
-     * **copy-on-change 를 필드별로 가른다** (`23_08_19` testing W5).
-     *
-     * 판정이 `error` 단일 필드에서 두 필드 AND 비교로 넓어졌다. 값만 비교하는 테스트는
-     * `outputData === ne.outputData` 항이 빠져도 GREEN 이다 — 참조 동일성으로 물어야
-     * 그 뮤턴트가 RED 가 된다.
-     *
-     * **노드 레벨은 세 컬럼 전부 대상**이다 — 2026-08-20 부터 Execution 레벨도 같아졌고,
-     * `inputData` 만 leaky 한 행도 복제되어야 한다. 이 방향을 고정해야 "노드 레벨까지
+     * **노드 레벨은 세 컬럼 전부 마스킹 대상이다** — 2026-08-20 부터 Execution 레벨도 같다.
+     * `inputData` 만 leaky 한 행도 가려져야 한다. 이 방향을 고정해야 "노드 레벨까지
      * 카브아웃" 회귀(WS↔REST flip-flop)가 RED 로 잡힌다.
+     *
+     * 종전에는 copy-on-change(바뀐 행만 복제)를 참조 동일성으로 고정했다. 노드 실행
+     * 항목을 늘 새 객체로 조립하게 되면서(`toNodeExecutionSummary`, CLE-T-GA8ZXQ) 참조
+     * 단언은 뜻이 없어졌다. 값 단언과 원본 불변만 남긴다.
      */
-    it('⑥-b copy-on-change — 노드 레벨은 세 컬럼 전부가 복제를 유발한다', async () => {
+    it('⑥-b 노드 레벨은 `inputData` · `outputData` 를 각각 마스킹하고 원본 행은 그대로다', async () => {
       const row = baseFake({ id: 'eD6b' });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
         buildSingleQB(row) as unknown,
@@ -1426,27 +1641,20 @@ describe('ExecutionsService', () => {
         outputLeaky,
       ]);
 
-      const result = (await service.findById('eD6b')) as unknown as {
-        nodeExecutions: unknown[];
-      };
-      // 세 컬럼이 전부 무변화 → 복제하지 않는다.
-      expect(result.nodeExecutions[0]).toBe(clean);
-      // **`inputData` 만 leaky 해도 복제된다** — 노드 레벨은 그 컬럼도 마스킹 대상이다.
+      const result = await service.findById('eD6b');
+      // 정상 행은 값이 그대로다.
+      expect(result.nodeExecutions[0].inputData).toEqual({ orderId: 'A-1' });
+      expect(result.nodeExecutions[0].outputData).toEqual({ ok: true });
+      // **`inputData` 만 leaky 해도 가린다** — 노드 레벨은 그 컬럼도 마스킹 대상이다.
       // 여기가 RED 면 카브아웃이 노드 레벨까지 번졌다는 뜻이다(flip-flop 회귀 캐너리).
-      expect(result.nodeExecutions[1]).not.toBe(inputLeaky);
-      expect(
-        JSON.stringify(
-          (result.nodeExecutions[1] as { inputData: unknown }).inputData,
-        ),
-      ).not.toContain('sk-live-IN');
-      // `outputData` 가 바뀌면 복제된다 (그 비교 항이 살아있다는 증거).
-      expect(result.nodeExecutions[2]).not.toBe(outputLeaky);
-      expect(
-        JSON.stringify(
-          (result.nodeExecutions[2] as { outputData: unknown }).outputData,
-        ),
-      ).not.toContain('sk-live-OUT');
+      const in1 = JSON.stringify(result.nodeExecutions[1].inputData);
+      expect(in1).not.toContain('sk-live-IN');
+      expect(in1).toContain('***'); // 음성 단독은 필드 소실에도 통과한다
+      const out2 = JSON.stringify(result.nodeExecutions[2].outputData);
+      expect(out2).not.toContain('sk-live-OUT');
+      expect(out2).toContain('***');
       // 원본 엔티티는 불변 (egress-only).
+      expect(inputLeaky.inputData.note).toBe('Bearer sk-live-IN');
       expect(outputLeaky.outputData.note).toBe('Bearer sk-live-OUT');
     });
 
@@ -1484,6 +1692,8 @@ describe('ExecutionsService', () => {
       const root = baseFake({ id: 'eD8', inputData: { ...LEAKY_IN } });
       const chainQB: Record<string, jest.Mock> = {};
       chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.leftJoin = jest.fn().mockReturnValue(chainQB);
+      chainQB.addSelect = jest.fn().mockReturnValue(chainQB);
       chainQB.where = jest.fn().mockReturnValue(chainQB);
       chainQB.orderBy = jest.fn().mockReturnValue(chainQB);
       chainQB.getOne = jest
@@ -1510,17 +1720,11 @@ describe('ExecutionsService', () => {
         error: null,
         inputData: { ...LEAKY_IN },
       });
-      executionRepo.findOne
-        .mockResolvedValueOnce(running as unknown)
-        .mockResolvedValueOnce(cancelled as unknown);
+      executionRepo.findOne.mockResolvedValueOnce(running as unknown);
 
-      const qb: Record<string, jest.Mock> = {};
-      qb.update = jest.fn().mockReturnValue(qb);
-      qb.set = jest.fn().mockReturnValue(qb);
-      qb.where = jest.fn().mockReturnValue(qb);
-      qb.andWhere = jest.fn().mockReturnValue(qb);
-      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
-      executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildStopQB(cancelled) as unknown,
+      );
 
       const result = await service.stop('eD8b');
       const in8b = JSON.stringify(result.inputData);

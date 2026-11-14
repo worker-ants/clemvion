@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS-SURFACE"
 title: "응답 자격 증명 마스킹 — 실행 표면"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "1b8ce785443669a4f113fc1e912e2408adeeaa0d63ce6cc0d524df40788dc880"
+content_hash: "8e496c734cab1740aa14f8ac5c5e895fb3f09e3d9099f8b8fb5a027638079f76"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-TTE3RS"
 source_paths: []
-mirror_sha256: "ef506ec439ddad7441a9b44c2662c1a85b7025c507c6622a78402445abe79a44"
-etag: "sha256-d0816432cf546c5ee0b02305d8703c7f04d712f1ff6feadadcdf13edd86a2442"
+mirror_sha256: "dbe0b48ef85a1060d88b26a111b4aa40dd92c8b7e3de4dd61ce84ae9ad6119fe"
+etag: "sha256-f53a66a81e5dae290d545ba9073c48ebdc36d4a52eeba18c25472b1dc3d23033"
 ---
 ## 개요
 
@@ -65,7 +65,7 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
   1. `findById`
   2. `getChain`
   3. `stop`
-  4. `toExecutionDto`(목록)
+  4. `findByWorkflow`(목록)
   5. `findById` 의 `nodeExecutions[]`
   6. `BackgroundRunsService.toNodeExecutionDto`(Background 본문 노드, [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md))
 - `POST /executions/:id/re-run` 과 WebSocket `execution.snapshot` 은 `findById` 를 다시 쓰므로 함께 덮인다.
