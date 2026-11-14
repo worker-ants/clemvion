@@ -9,7 +9,7 @@ export class AccessTokenDto {
 
 // 근거:
 //   - [가입과 로그인 「2단계 인증 방식 선택」](CLE-ACCT-SIGNIN#2단계-인증-방식-선택)
-//   - [가입과 로그인 「로그인에서 TOTP 로 자동 전환하지 않는다」](CLE-ACCT-SIGNIN#로그인에서-totp-로-자동-전환하지-않는다)
+//   - [가입과 로그인 「로그인에서 TOTP 로 자동 전환하지 않는다」](CLE-ACCT-SIGNIN-LOGIN#로그인에서-totp-로-자동-전환하지-않는다)
 /**
  * 2FA challenge 필요 응답.
  *

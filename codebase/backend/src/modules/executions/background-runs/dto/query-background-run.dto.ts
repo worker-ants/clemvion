@@ -2,7 +2,7 @@ import { IsOptional, IsInt, IsString, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-// 근거: [Background 노드 「페이지네이션」](CLE-NODE-BACKGROUND#페이지네이션)
+// 근거: [Background 노드 「페이지네이션」](CLE-NODE-BACKGROUND-RUNS#페이지네이션)
 /**
  * Background 본문 모니터링 API 의 cursor 페이지네이션 쿼리.
  *

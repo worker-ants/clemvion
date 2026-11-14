@@ -43,7 +43,7 @@ export class CreateAuthConfigDto {
   @IsIn(AUTH_CONFIG_TYPES)
   type: AuthConfigType;
 
-  // 근거: [트리거 데이터와 흐름 「config JSONB 스키마」](CLE-TRIG-DATA#config-jsonb-스키마)
+  // 근거: [트리거 데이터와 흐름 「config JSONB 스키마」](CLE-TRIG-DATA-MODEL#config-jsonb-스키마)
   /**
    * 인증 상세 설정. type에 따라 필수 필드가 달라지며 key/token 값은 생성 시 미지정 시 자동 발급됩니다.
    */

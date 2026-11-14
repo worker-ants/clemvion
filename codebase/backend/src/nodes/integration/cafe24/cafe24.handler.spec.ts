@@ -743,7 +743,7 @@ describe('Cafe24Handler', () => {
     });
   });
 
-  // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — the handler is the only place that knows the
+  // [노드 취소](CLE-EXEC-CANCEL-NODES#fetch-자체-타임아웃과의-연쇄) — the handler is the only place that knows the
   // execution's abortSignal; if it stops forwarding it, the client's cascade
   // becomes dead code and nothing else fails. Pinned here for that reason.
   describe('abortSignal forwarding (CLE-EXEC-CANCEL 「fetch 자체 타임아웃과의 연쇄」)', () => {

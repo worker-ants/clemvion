@@ -234,7 +234,7 @@ export function callbackContextOf(err: unknown): CallbackContext | undefined {
 /**
  * 커밋 직전 재판정이 «요청자가 볼 수 없는 행» 을 만났을 때의 거절. 응답은 없는 통합 · 남의 personal 과 같은 404 이고,
  * 컨텍스트에 `recordable: false` 를 붙여 콜백 오류 수집이 그 행에 쓰지 않게 한다.
- * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
+ * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH-CALLBACK#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
  */
 function hiddenCallbackTargetRejection(
   context: CallbackContext,
@@ -709,7 +709,7 @@ export class IntegrationOAuthService {
         // spec line 725 가 이미 "app_type 무관" 으로 정의해 의미상 정합.
         // `new` 가 아닌 모드(통합 재인증 · 추가 권한 요청)는 대상 통합 자신을 빼고 본다 — 연결됨 통합의 재인증이 자기
         // 자신과 맞아 409 가 나던 결함(Task CLE-T-WB7JPC).
-        // 근거: [OAuth 연결과 토큰 갱신 「Cafe24 Public 흐름에도 begin 사전 검사를 둔다」](CLE-INT-OAUTH#cafe24-public-흐름에도-begin-사전-검사를-둔다)
+        // 근거: [OAuth 연결과 토큰 갱신 「Cafe24 Public 흐름에도 begin 사전 검사를 둔다」](CLE-INT-OAUTH-BEGIN#cafe24-public-흐름에도-begin-사전-검사를-둔다)
         const existingConnected = await this.findConnectedCafe24MallIntegration(
           params.workspaceId,
           meta.mall_id,

@@ -14,7 +14,7 @@ export class NotificationDto {
   @ApiProperty({ format: 'uuid' })
   userId: string;
 
-  // 근거: [알림 「Notification」](CLE-OBS-NOTIFY#notification)
+  // 근거: [알림 「Notification」](CLE-OBS-NOTIFY-INBOX#notification)
   /** 알림 타입 (snake_case enum) */
   @ApiProperty({ example: 'execution_failed' })
   type: string;
@@ -27,7 +27,7 @@ export class NotificationDto {
   @ApiProperty()
   message: string;
 
-  // 근거: [알림 「딥링크」](CLE-OBS-NOTIFY#딥링크)
+  // 근거: [알림 「딥링크」](CLE-OBS-NOTIFY-INBOX#딥링크)
   /**
    * 관련 리소스 타입 — 팝오버 딥링크 계약의 라우팅 키.
    * 알림 유형에 따라 `workflow` (실행/스케줄/Background 실패 — `/workflows/<resourceId>`),
@@ -60,7 +60,7 @@ export class NotificationDto {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   emailSentAt: string | null;
 
-  // 근거: [알림 「읽음과 닫기」](CLE-OBS-NOTIFY#읽음과-닫기)
+  // 근거: [알림 「읽음과 닫기」](CLE-OBS-NOTIFY-INBOX#읽음과-닫기)
   /**
    * dismiss 시각 (soft delete) — `null` 이면 visible, 채워지면 사용자가 닫은 상태.
    * 목록·미읽음 카운트는 `dismissed_at IS NULL` 만 반환하므로 본 응답에 나타나는

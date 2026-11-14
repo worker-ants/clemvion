@@ -2,29 +2,29 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 22
+version: 23
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "512c0d64b34b7068e761d4d6b8544770330e03ad22ce4846c4aad61555e31a81"
+content_hash: "cdd12f8f1d0cf7e9ec11903d4d05b774fdc5f3d6ed438df5d088b850826d8c53"
 read_as: "approved_fallback"
-task: "CLE-T-ZC34Y0"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "b3216a885335dd958648060a9f591fbe9e2c7b554bc16cbafbfb6f2339b1c4fe"
-etag: "sha256-ba3b1f941345fdc19a6da8e87b6d8695295e3a2d310b3a627d4e0d940ee899df"
+mirror_sha256: "d8cd38a69f86761c6de50240da8665263ca25b0d7945f3d24e67cfa281629c4a"
+etag: "sha256-eb95eca1011c25ff9285a1f5b70e16b9d74583f608cdaf7ed255a1d55e84c49b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 계정과 워크스페이스 영역의 엔티티와 데이터 흐름을 정한다. 사용자(User, `user`), 워크스페이스, 워크스페이스 멤버, 워크스페이스 초대, 리프레시 토큰, 로그인 이력, Passkey credential, 소셜 로그인 state 의 컬럼과 제약, 그리고 가입·로그인·토큰 회전·초대·전환 같은 동작이 어느 테이블을 어떤 순서로 읽고 쓰는지가 범위다.
+이 문서는 계정과 워크스페이스 영역의 엔티티와 데이터 흐름의 입구다. 사용자(User, `user`), 워크스페이스, 워크스페이스 멤버, 워크스페이스 초대, 리프레시 토큰, 로그인 이력, Passkey credential, 소셜 로그인 state 의 컬럼과 제약, 그리고 가입·로그인·토큰 회전·초대·전환 같은 동작이 어느 테이블을 어떤 순서로 읽고 쓰는지가 범위다.
 
 이 영역은 사용자 신원 확인과 세션 발급을 맡는다. 로컬 이메일·비밀번호, 소셜 로그인, 2단계 인증(Passkey 가 있으면 Passkey, 없으면 TOTP. Passkey 기능이 꺼진 경우는 [가입과 로그인](CLE-ACCT-SIGNIN.md#2단계-인증-방식-선택) 참조), 초대 토큰 가입을 한 진입점에서 처리한다. JWT 액세스 토큰과 회전하는 리프레시 토큰(`family_id` 단위 로그인 세션) 모델을 쓰고, 인증 이벤트 7종은 `login_history` 에 시간순으로 남는다. 워크스페이스는 모든 리소스의 격리 단위이고, 사용자는 개인 워크스페이스 1개와 팀 워크스페이스 여러 개에 멤버로 속한다. 멤버십은 `workspace_member` join 테이블이 N:M 으로 나타내고, 새 멤버 초대는 토큰 기반 일회용 링크로 한다.
 
-동작 규칙과 화면은 기능 문서가 정한다. 이 문서는 그 규칙을 데이터 관점에서 풀어 쓴다.
+동작 규칙과 화면은 기능 문서가 정하고 이 문서와 하위 문서는 그 규칙을 데이터 관점에서 풀어 쓴다. 이 문서가 정하지 않는 것은 아래와 같다.
 
 - 가입·로그인·2단계 인증·소셜 로그인·비밀번호 재설정·이메일 변경 규칙: [가입과 로그인](CLE-ACCT-SIGNIN.md)
 - 토큰 수명·쿠키·세션 정책·재인증 코드: [세션과 토큰](CLE-ACCT-SESSION.md)
@@ -47,685 +47,48 @@ erDiagram
 
 `auth_oauth_state` 는 다른 테이블과 FK 관계가 없는 단명 행이다. `workspace_invitation` 은 워크스페이스를 가리키지만 코드 엔티티(`WorkspaceInvitation`)에 관계가 선언되지 않아 워크스페이스 삭제 때 명시적으로 지운다. DB 에는 마이그레이션 V017 이 만든 FK(`workspace_id → workspace(id) ON DELETE CASCADE`)가 있다.
 
+## 하위 문서
+
+이 문서에는 요구사항 줄이 없어서 하위 문서마다 맡는 요구사항 번호도 없다.
+
+- [사용자 · 인증 엔티티](CLE-ACCT-DATA-MODEL.md): User, RefreshToken, LoginHistory, WebAuthnCredential, AuthOauthState 의 컬럼 · 제약 · 인덱스, 응답에 싣지 않는 민감 컬럼, 이메일 정규화, 스키마 마이그레이션 결정
+- [인증 흐름](CLE-ACCT-DATA-AUTH.md): 가입 · 로그인과 2단계 인증 · 소셜 로그인 · 토큰 회전 · 세션 강제 종료 · 비밀번호 재설정 · 이메일 변경의 읽기 · 쓰기 순서와 리프레시 토큰 · 계정 잠금 · TOTP 대기 secret · OAuth state 의 상태 전이
+- [워크스페이스 데이터와 흐름](CLE-ACCT-DATA-WS.md): Workspace, WorkspaceMember, WorkspaceInvitation 엔티티와 팀 생성 · 초대 · 전환 · 설정 변경 · 멤버 변경 · 삭제와 나가기 흐름, 초대 상태 전이
+- [테이블 쓰기 · 배치 · 외부 의존](CLE-ACCT-DATA-OPS.md): 흐름별 테이블 쓰기 컬럼 매핑, BullMQ 배치 · Redis 키 · 요청 빈도 제한, SMTP · OAuth 제공자 · 감사 로그 의존
+
 ## 엔티티
 
 ### User
 
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| email | String | 고유, 로그인 식별자 |
-| password_hash | String? | 비밀번호 bcrypt 해시. OAuth 전용 계정은 NULL |
-| name | String | 표시 이름 |
-| avatar_url | String? | 프로필 이미지 URL. 외부 URL(OAuth 제공자 사진 등) 또는 직접 올린 아바타의 공개 URL. 직접 올렸는지는 `avatars/{userId}/` 접두로 판별한다 |
-| locale | String | 언어 설정 (기본 `"ko"`) |
-| email_verified | Boolean | 이메일 인증 완료 여부 (기본 false, 인증 전 로그인 제한) |
-| email_verify_token | String? | 이메일 인증 토큰 SHA-256 해시 (24시간 유효). 인증하면 NULL |
-| email_verify_expires_at | Timestamp? | 이메일 인증 토큰 만료 시각 |
-| pending_email | String? | 확인 대기 중인 새 이메일. 확정(email 로 승격)이나 취소 때 NULL |
-| email_change_token | String? | 이메일 변경 확인 토큰 SHA-256 해시 (1시간 유효). 확인·취소·만료 때 NULL |
-| email_change_expires_at | Timestamp? | 이메일 변경 확인 토큰 만료 시각 |
-| password_reset_token | String? | 비밀번호 재설정 토큰 SHA-256 해시 (30분 유효). 사용·만료 때 NULL |
-| password_reset_expires_at | Timestamp? | 재설정 토큰 만료 시각 |
-| login_attempts | Integer | 연속 로그인 실패 횟수 (기본 0, 5회면 잠금) |
-| locked_until | Timestamp? | 로그인 잠금 해제 시각 (10분 잠금) |
-| oauth_provider | String? | OAuth 가입·연결 제공자 (예: `google`). 연결 안 했으면 NULL |
-| oauth_provider_id | String? | 제공자 쪽 사용자 식별자 |
-| notification_preferences | JSONB | 사용자 알림 환경설정 (기본 `{}`). 키는 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) |
-| theme | Enum | `light` / `dark` / `system` (기본 `light`). CHECK `chk_user_theme`. `system` 을 화면에 적용하는 방식은 [내 프로필](CLE-ACCT-PROFILE.md) 이 정한다 |
-| two_factor_enabled | Boolean | TOTP 사용 여부. Passkey 등록과는 독립이라 Passkey 만 등록한 사용자는 false |
-| two_factor_secret | String? | TOTP secret (base32, RFC 6238). 활성화 검증 전에는 값이 있어도 `two_factor_enabled = false`. TOTP 가 켜진 동안에는 설정 시작이 거부돼 바뀌지 않는다. 활성화 검증 전의 대기 secret([가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기))은 설정 시작 뒤 10분이 지나면 만료되고 활성화 검증이 비운다(`two_factor_setup_started_at`). 끄면 NULL |
-| two_factor_setup_started_at | Timestamp? | TOTP 설정 시작 시각. 설정 시작이 `two_factor_secret` 과 같은 조건부 UPDATE 로 쓴다. 활성화 검증이 성공하거나 TOTP 를 끄면 NULL 이다. 값이 없거나 10분이 지났으면 활성화 검증이 대기 secret 을 만료로 보고 secret 과 함께 비운다. 응답에 싣지 않는다 |
-| totp_recovery_codes | String[]? | TOTP 활성화 때 발급한 복구 코드 10개의 SHA-256 해시 배열. 쓰면 항목 제거 |
-| webauthn_recovery_codes | String[]? | 첫 Passkey 등록 때 발급한 복구 코드 10개의 SHA-256 해시 배열. 사용자가 마지막 credential 을 지우면 NULL. 이 NULL 처리는 DB 트리거가 아니라 애플리케이션(`WebAuthnService.deleteCredential`) 책임이다. counter 역행으로 서버가 지운 경우는 비우지 않는다([가입과 로그인 「복구 코드」](CLE-ACCT-SIGNIN.md#복구-코드)). 사용자가 재발급해도 갱신 |
-| created_at | Timestamp | 생성 시각 |
-| updated_at | Timestamp | 수정 시각 |
-
-- 제약: `email UNIQUE`(V001). 이 제약은 대소문자를 구분한다. `LOWER(email)` 인덱스(V101)는 조회용이고 유니크 인덱스가 아니다.
-- 새로 저장하는 이메일은 앞뒤 공백을 지우고 소문자로 저장한다(`normalizeEmail`). 일반 가입 · 초대 가입 · OAuth 새 계정 · 이메일 변경의 `pending_email` 이 이 규칙을 따른다. 이메일 변경을 확정하면 정규화한 `pending_email` 값이 `email` 이 된다.
-- 조회와 중복 확인은 `LOWER(email)` 로 비교한다(V101 인덱스). 로그인 · 비밀번호 재설정 요청 · 인증 메일 재발송 · OAuth 이메일 연결 · 워크스페이스 멤버 직접 추가와 초대는 `UsersService.lookupByEmail` 로 계정을 찾는다. 가입 중복 확인과 `check-email` 은 `emailExists`, 이메일 변경의 중복 확인은 `emailTakenByOther` 를 쓴다. 대소문자만 다른 계정이 여럿 맞을 때의 처리를 포함한 규칙의 정본은 [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙) 이다.
-- 정규화 전에 생긴 "대소문자만 다른 계정 묶음" 이 남아 있을 수 있다. `email UNIQUE` 가 대소문자를 구분해서 이런 묶음을 막지 못했다. 기존 값은 바꾸지 않고 묶음을 합치거나 지우지도 않는다(2026-11-05 사람 결정). 묶음이 0 이 되면 `LOWER(email)` 유니크 인덱스를 건다. 이 일은 NERV Task `CLE-T-6QZCYD` 가 맡는다. 운영자는 아래 쿼리로 묶음을 찾는다.
-
-  ```sql
-  SELECT LOWER(email) AS email_key, COUNT(*) AS accounts,
-         array_agg(id ORDER BY created_at) AS user_ids
-    FROM "user"
-   GROUP BY LOWER(email)
-  HAVING COUNT(*) > 1;
-  ```
-
-- `theme` 의 CHECK 는 `chk_user_theme` 이고 `light`·`dark`·`system` 을 받는다. V001 이 인라인 CHECK 로 만든 자동 이름 제약 `user_theme_check`(`light`·`dark`)를 대신한다. 마이그레이션은 두 파일이다. `codebase/backend/migrations/V149__user_theme_allow_system.sql` 이 새 제약을 `NOT VALID` 로 걸고 `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` 이 검증한 뒤 옛 제약을 지운다. 바꾼 방식과 이유는 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 에 있다.
-- `two_factor_setup_started_at` 은 `codebase/backend/migrations/V*__user_two_factor_setup_started_at.sql` 이 더한다. 이 마이그레이션은 기존 행을 바꾸지 않는다. 그래서 컬럼을 더하기 전에 설정 시작한 대기 secret 은 시각이 NULL 이고 활성화 검증이 만료로 본다.
-- Passkey credential 은 별도 엔티티 [WebAuthnCredential](#webauthncredential) 에 둔다. User 행에는 `webauthn_recovery_codes` 와 간접적으로 credential 개수만 영향을 준다.
+→ [사용자 · 인증 엔티티](CLE-ACCT-DATA-MODEL.md#user)
 
 #### 응답에 싣지 않는 민감 컬럼 7개
 
-아래는 API 응답과 엔티티 프로퍼티의 camelCase 이름이다. 위 표의 snake_case 컬럼과 1:1 로 대응한다(`password_hash` ↔ `passwordHash`). 시행 코드(`USER_SECRET_KEYS`)가 camelCase 를 쓰므로 대조하기 쉽게 그 이름을 쓴다.
-
-`passwordHash`, `twoFactorSecret`, `totpRecoveryCodes`, `webauthnRecoveryCodes`, `emailVerifyToken`, `passwordResetToken`, `emailChangeToken` 은 어떤 API 응답에도 싣지 않는다. 해시나 토큰이라 평문은 아니지만 오프라인 크래킹, 재설정 토큰 탈취, 2단계 인증 우회의 입력이 된다. 응답 DTO 에 선언돼서도 안 되고 본문에 실려서도 안 된다.
-
-- 컬럼 수준 `select: false` 는 쓰지 않는다. 이 7컬럼을 읽는 내부 경로(로그인 검증, 토큰 소비, 복구 코드 대조)가 값을 직접 쓰므로, 끄면 예외 없이 `undefined` 를 받아 조용히 오작동한다. 응답 경계에서 지운다. 같은 근거를 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 가 트리거 계열에 대해 적고 있다.
-- 시행 축은 두 개다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 검증 층 표에 있는 구조 축(`User` 를 투영 없이 관계로 싣는 자리)과 이름 축(응답 본문에 그 이름이 있는가)이다. 목록의 기준은 코드(`shared/testing/user-secret-absence.ts` 의 `USER_SECRET_KEYS`)다. 엔티티에 민감 컬럼을 더하면 이 배열에도 넣는다. 이름 축은 이름으로만 걸리므로 새 이름을 저절로 알지 못한다.
-- [WebAuthnCredential](#webauthncredential) 의 `public_key`·`counter` 는 이 목록에 없다. 공개 키는 설계상 노출해도 된다. 목록을 "인증 관련 전부" 로 넓히지 않는 경계다.
-- `two_factor_enabled` 도 이 목록에 없다. TOTP 를 켰는지만 뜻하는 상태 플래그라서 내 프로필 응답에 `twoFactorEnabled` 로 싣는다([내 프로필](CLE-ACCT-PROFILE.md) REQ-PROFILE-027).
-- `two_factor_setup_started_at` 은 프로필 응답 DTO 에 선언하지 않는다. 선언하지 않은 키가 응답에 실리면 `response-contract` 검증에 걸린다. 비밀이 아니라서 이름 축 목록(`USER_SECRET_KEYS`)에는 넣지 않았다.
-
-### Workspace
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| name | String | 워크스페이스 이름 |
-| type | Enum | `personal` / `team` |
-| owner_id | UUID | FK → User (CASCADE) |
-| slug | String | URL 슬러그. `UNIQUE`(V001). 만든 뒤 바꾸지 않는다 |
-| settings | JSONB | 워크스페이스 설정. 알려진 키 `timezone`, `interactionAllowedOrigins`, `maxConcurrentExecutions` 의 뜻과 편집 경로는 [워크스페이스와 멤버](CLE-ACCT-WS.md) |
-| created_at | Timestamp | 생성 시각 |
-| updated_at | Timestamp | 수정 시각 |
-
-개인 워크스페이스는 owner 당 하나다. 부분 유니크 인덱스 `uq_workspace_personal_owner ON workspace (owner_id) WHERE type='personal'`(V109, V108 사전 검증 가드가 먼저)로 DB 에서 강제하고 앱의 `findOrCreatePersonalWorkspace` 가 함께 막는다. 팀 워크스페이스는 한 사용자가 여러 개 소유할 수 있어 `(owner_id, type)` 전체 UNIQUE 는 두지 않는다.
-
-### WorkspaceMember
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK. 멤버 ID. 멤버 API 와 소유자 이양이 받는 식별자이고 사용자 ID 와 다르다 |
-| workspace_id | UUID | FK → Workspace (CASCADE) |
-| user_id | UUID | FK → User (CASCADE) |
-| role | Enum | `owner` / `admin` / `editor` / `viewer` |
-| invited_at | Timestamp | 초대 시각 |
-| joined_at | Timestamp? | 합류 시각 |
-
-제약과 인덱스: `(workspace_id, user_id) UNIQUE`, `(user_id)`(V129, 사용자별 워크스페이스 목록과 FK 조회).
-
-### WorkspaceInvitation
-
-코드 엔티티가 있지만 옛 데이터 모델 문서에는 정의가 없었다. 컬럼은 흐름 문서가 읽고 쓰는 컬럼이다. 타입·NULL 허용·FK·CHECK 는 현재 구현(마이그레이션 `V017__workspace_invitations.sql`)을 따른다.
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK. 재발송·취소 API 의 `:invitationId` 이고 수락의 조건부 UPDATE 대상이다 |
-| workspace_id | UUID | 초대한 팀 워크스페이스. DB FK → Workspace (CASCADE). 코드 엔티티에는 관계가 선언돼 있지 않다 |
-| email | String(255) | 초대 대상 이메일 |
-| role | String(20) | `admin` / `editor` / `viewer`. `CHECK (role IN ('admin', 'editor', 'viewer'))`. 소유자는 초대 역할로 줄 수 없다. `admin` 초대는 소유자만 발급한다([초대 발급](#초대-발급)) |
-| token | String(64) | 64자 base64url 초대 토큰. 원래 값으로 저장한다. `UNIQUE`(V017) |
-| invited_by | UUID? | 초대한 사용자. FK → User (SET NULL). 재발송·재초대 때 갱신 |
-| expires_at | Timestamp | 발급 시점 + 7일. 재발송·재초대 때 다시 잡는다 |
-| accepted_at | Timestamp? | 수락 시각. NULL 이면 대기 중 |
-| accepted_by | UUID? | 수락한 사용자. FK → User (SET NULL) |
-| created_at | Timestamp | 생성 시각 |
-
-인덱스: `token UNIQUE`(V017), `idx_workspace_invitation_email (email)`, `idx_workspace_invitation_workspace (workspace_id)`, 부분 UNIQUE `idx_workspace_invitation_pending_unique (workspace_id, email) WHERE accepted_at IS NULL`(대기 초대 중복 방지).
-
-### RefreshToken
-
-세션 단위는 `family_id` 다. 토큰 회전 때 행이 새로 생기지만 같은 `family_id` 는 하나의 로그인 세션이다. 사용자에게 보이는 활성 세션은 `is_revoked = false` 인 같은 `family_id` 의 가장 최신 행 메타데이터다.
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| user_id | UUID | FK → User (CASCADE) |
-| token_hash | String | SHA-256(리프레시 토큰), UNIQUE |
-| family_id | UUID | 로그인 세션 식별자 (회전 뒤에도 유지) |
-| is_revoked | Boolean | 강제·자연 만료 여부 |
-| expires_at | Timestamp | 만료 시각. 발급하거나 회전한 시점부터 로그인 유지(`remember_me`)면 30일, 아니면 7일 |
-| remember_me | Boolean | 로그인 유지 여부 (NOT NULL, 기본 `false`). 로그인 · 소셜 로그인 · Passkey 로그인 · TOTP 2단계 로그인 · 초대 가입이 발급할 때 정한다. 갱신으로 회전하면 새 행이 옛 행 값을 이어받는다. 토큰 수명과 갱신 쿠키 `maxAge` 를 정하는 정본이다([세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지), REQ-SESSION-047). V156 이 더했다 |
-| device_label | String? | UA 에서 만든 표시 라벨 ("Chrome on macOS") |
-| user_agent | String? | 발급 시점 원래 UA |
-| ip_address | String? | 발급 시점 클라이언트 IP. IP 추출 순서는 [세션과 토큰](CLE-ACCT-SESSION.md) |
-| last_used_at | Timestamp? | 갱신 때마다 갱신 |
-| last_used_ip | String? | 마지막 활동 IP |
-| created_at | Timestamp | 발급 시각 |
-
-인덱스: `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false`(V040 메타데이터).
-
-`remember_me` 는 `codebase/backend/migrations/V156__refresh_token_remember_me.sql` 이 더했다. 같은 마이그레이션이 배포 시점에 `is_revoked = false AND expires_at > now() AND expires_at - created_at > interval '8 days'` 인 행만 `true` 로 채운다. 발급 수명이 7일인 행과 30일인 행을 8일로 가른다. 이미 한 번 회전한 행은 7일로 발급돼 로그인 유지 여부를 알 수 없으므로 `false` 로 남는다. 그 사용자는 다음 로그인부터 30일을 받는다. 이유는 Rationale 「리프레시 토큰 행에 로그인 유지 여부를 둔다 (2026-11-05)」 에 있다.
-
-### LoginHistory
-
-인증 이벤트를 사용자 단위로 시간순 기록한다. 이벤트의 뜻과 조회 API, 보존 정책은 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다.
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| user_id | UUID? | FK → User (CASCADE). 로그인 실패에서 맞는 사용자가 없으면 NULL |
-| email | String | 시도된 이메일 (열거 추적용) |
-| event | Enum | `login_success` / `login_failed` / `totp_failed` / `webauthn_failed` / `logout` / `session_revoked` / `token_reuse_detected` |
-| ip_address | String? | 클라이언트 IP |
-| user_agent | String? | 원래 UA |
-| device_label | String? | UA 에서 만든 표시 라벨 |
-| family_id | UUID? | 관련 로그인 세션 (해당할 때). 일괄 무효화는 NULL |
-| failure_reason | String? | `USER_NOT_FOUND` / `EMAIL_NOT_VERIFIED` / `PASSWORD_NOT_SET` / `INVALID_PASSWORD` / `ACCOUNT_LOCKED` / `TOTP_INVALID` / `WEBAUTHN_INVALID` / `WEBAUTHN_COUNTER_REGRESSION` 등. 기록용 사유값이다. 응답 에러 코드와는 별개 층이고 `TOTP_INVALID` 처럼 이름이 같은 값도 있다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.3). `USER_NOT_FOUND` 는 같은 이름의 404 에러 코드와 뜻이 같지만 로그인에서는 응답 코드로 나가지 않고 `LOGIN_FAILED` 로 나간다. 로그인 실패 사유가 어떤 응답 코드로 나가는지는 [가입과 로그인 「에러 코드」](CLE-ACCT-SIGNIN.md#에러-코드) 에 있다 |
-| created_at | Timestamp | 발생 시각 |
-
-- CHECK 제약 이름은 `chk_login_history_event` 다(V040 도입). `webauthn_failed` 는 V058 에서 DROP CONSTRAINT 와 ADD CONSTRAINT 로 더했다.
-- 인덱스: `(user_id, created_at DESC)`, `(email, created_at DESC)`(V040). 보존 배치용 인덱스는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 에 있다.
-- 180일이 지난 행은 매일 배치로 지운다([Redis 와 배치](#redis-와-배치)).
-
-### WebAuthnCredential
-
-사용자가 등록한 Passkey·보안 키 인증기다. 사용자당 여러 개를 등록할 수 있다. 등록·인증·삭제 흐름은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 을 따른다.
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| user_id | UUID | FK → User (CASCADE 삭제) |
-| credential_id | String | UNIQUE. WebAuthn 표준 credential ID (base64url). 길이가 가변이라 TEXT |
-| public_key | Bytes | CBOR-COSE 로 직렬화한 공개 키 (BYTEA) |
-| counter | BigInt | 재전송 방어용 sign counter. 인증마다 갱신한다. 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 역행하면(응답 값이 저장값 이하. 둘 다 0 이면 역행이 아니다) 그 행을 바로 지우고(suspend 컬럼은 두지 않는다) 로그인 이력에 `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`)를 남긴다 |
-| transports | String[] | 등록 때 클라이언트가 보낸 transport 문자열 목록. 서버는 문자열 배열인지와 NUL 문자가 없는지만 확인하고 값은 바꾸지 않는다. 필드가 없으면 빈 배열로 저장한다. `null` 은 문자열 배열이 아니므로 등록 검증이 거부한다. 표준 값과 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」 이 정한다. 개수와 길이 상한은 없고 요청 본문 한도(100KB)만 걸린다 |
-| aaguid | UUID? | 인증기 모델 식별자 (선택) |
-| device_name | String? | 사용자가 붙인 표시 이름. 유니코드 코드 포인트 100개까지 받는다(`varchar(100)`). 길이는 앞뒤 공백을 지우기 전의 값으로 센다. NUL 문자는 저장할 수 없어서 받지 않는다. 앞뒤 공백 문자를 지워 저장하고 빈 문자열은 저장하지 않는다. DB CHECK 제약은 없고 등록 검증과 이름 변경이 이 규칙을 지킨다. 이름이 없으면 NULL 이고 UI 가 transport 와 등록일로 표시한다. 형식 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 「Passkey 등록·인증 흐름」, 결정 근거는 같은 문서 Rationale 「Passkey 표시 이름은 요청 DTO 에서 코드 포인트 수와 NUL 문자를 확인한다」 와 「Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다」 |
-| last_used_at | Timestamp? | 마지막 인증 성공 시각 |
-| created_at | Timestamp | 등록 시각 |
-
-인덱스: `credential_id UNIQUE`, `(user_id)`.
-
-- **옵션 토큰**: 등록·인증 옵션 토큰(`optionsToken`)의 챌린지는 stateless JWT 로 발급한다. 만료 5분, payload `{ kind: 'webauthn_register'|'webauthn_auth', sub, challenge, exp }` 다. 발급할 때는 테이블에 두지 않는다. 로그인에서 쓴 Passkey 인증 챌린지는 바로 아래 「Passkey 인증 챌린지 기록」 대로 남긴다.
-- **Passkey 인증 챌린지 기록**: Passkey 인증 챌린지(`webauthn_auth` 의 `challenge` 값)는 한 번만 쓰므로 서버가 쓴 값을 기록한다. 챌린지 토큰(`challengeToken`)은 기록하지 않는다. 이 기록의 보존 기간과 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다. 기록은 테이블이 아니라 Redis 키에 둔다([Redis 와 배치](#redis-와-배치)).
-
-### AuthOauthState
-
-소셜 로그인 state 를 담는 단명 테이블 `auth_oauth_state` 다. 코드 엔티티가 있지만 옛 데이터 모델 문서에는 정의가 없었다. 컬럼은 흐름 문서가 읽고 쓰는 컬럼이다. 타입·제약은 현재 구현(마이그레이션 `V013__auth_oauth_state.sql`)을 따른다. 다른 테이블을 가리키는 FK 는 없다.
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| state | String(64) | 서버가 만든 state 값. `UNIQUE`(V013) |
-| provider | String(32) | OAuth 제공자 (`google`, `github`) |
-| mode | String(16) | 시작 요청의 모드. `CHECK (mode IN ('login', 'register'))` |
-| remember_me | Boolean | 시작 요청의 로그인 유지 여부. 기본 `false`. 시작 요청의 값을 콜백까지 나르는 컬럼이고 로그인 세션 수명의 정본은 `refresh_token.remember_me` 다 |
-| expires_at | Timestamp | `now + 10분` |
-| created_at | Timestamp | 생성 시각 |
-
-인덱스: `state UNIQUE`(V013), `idx_auth_oauth_state_expires (expires_at)`.
+→ [사용자 · 인증 엔티티](CLE-ACCT-DATA-MODEL.md#응답에-싣지-않는-민감-컬럼-7개)
 
 ## 인증 데이터 흐름
 
-### 회원가입 (로컬)
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트
-  participant Ctl as AuthController
-  participant Svc as AuthService
-  participant PG as Postgres
-  participant Mail as MailService
-  C->>Ctl: POST /api/auth/register {email, password, name}
-  Ctl->>Svc: register()
-  Svc->>PG: SELECT user WHERE email (중복 검사)
-  Svc->>Svc: 비밀번호 강도 검증, bcrypt 해시
-  Svc->>PG: INSERT user (email_verify_token, 만료 now+24h, email_verified=false)
-  Svc->>Mail: 인증 메일 발송
-  Svc-->>Ctl: { message }
-  Ctl-->>C: 201 (토큰·쿠키·개인 워크스페이스 없음)
-```
-
-- 로컬 가입은 두 단계다. `register` 는 사용자 행과 인증 메일만 만들고 토큰을 발급하지 않는다. 개인 워크스페이스 생성과 토큰·`Set-Cookie` 는 `POST /api/auth/verify-email` 단계에서 한다. `auth.service.ts` 의 `verifyEmail` 트랜잭션이 `createPersonalWorkspace` 를 부르고 `generateTokens` 로 토큰을 만든다.
-- 예외: `invitationToken` 을 담은 가입은 인증 메일 없이 한 트랜잭션에서 사용자와 초대받은 팀의 `workspace_member` 를 만들고 바로 로그인한다. 응답은 `{ message, accessToken }` 과 리프레시 쿠키이고 개인 워크스페이스는 만들지 않는다([초대 가입](#초대-가입-미가입자)).
-
-### 로그인과 2단계 인증
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트
-  participant Svc as AuthService
-  participant PG as Postgres
-  participant Hist as LoginHistoryService
-  C->>Svc: POST /api/auth/login {email, password, rememberMe}
-  Svc->>PG: SELECT user WHERE email
-  alt 사용자 없음
-    Svc->>Hist: login_failed, USER_NOT_FOUND
-    Svc-->>C: 401 LOGIN_FAILED
-  end
-  alt locked_until > now
-    Svc->>Hist: login_failed, ACCOUNT_LOCKED
-    Svc-->>C: 401 ACCOUNT_LOCKED
-  end
-  alt password_hash 없음(OAuth 전용)
-    Svc->>Hist: login_failed, PASSWORD_NOT_SET
-    Svc-->>C: 401 LOGIN_FAILED
-  end
-  Svc->>Svc: bcrypt.compare
-  alt 비밀번호 불일치
-    Svc->>PG: login_attempts 증가, 한도면 잠금
-    Svc->>Hist: login_failed, INVALID_PASSWORD
-    Svc-->>C: 401 LOGIN_FAILED
-  end
-  Svc->>PG: login_attempts=0
-  alt 이메일 인증 전
-    Svc->>Hist: login_failed, EMAIL_NOT_VERIFIED
-    Svc-->>C: 401 EMAIL_VERIFICATION_REQUIRED
-  end
-  alt Passkey 기능 꺼짐, credential 1개 이상, TOTP 꺼짐
-    Svc-->>C: 503 WEBAUTHN_DISABLED (로그인 이력 없음, 서버 경고 로그)
-  end
-  alt Passkey 기능 켜짐, credential 1개 이상
-    Svc-->>C: 200 {requires2fa, methods: webauthn, challengeToken}
-    C->>Svc: authenticate/options, authenticate/verify
-    Svc->>Svc: Passkey 인증 챌린지 기록, verifyAuthenticationResponse(서명), counter 역행 판정과 갱신
-  else TOTP 켜짐
-    Svc-->>C: 200 {requires2fa, methods: totp, challengeToken}
-    C->>Svc: POST /api/auth/login/totp {challengeToken, code}
-    Svc->>Svc: TOTP 코드 또는 TOTP 복구 코드 검증
-  end
-  Svc->>PG: INSERT refresh_token (새 family_id, token_hash, remember_me, ip, ua, device_label)
-  Svc->>Hist: login_success
-  Svc-->>C: { accessToken } + 리프레시 쿠키
-```
-
-- 2단계 검증에서 인증에 실패하면 Passkey 는 `webauthn_failed`, TOTP 는 `totp_failed` 를 기록하고 401 을 준다. Passkey 인증 챌린지를 기록하지 못해 판정까지 가지 못한 503 은 이 규칙 밖이다(아래 503 불릿).
-- 성공 응답 본문은 `{ accessToken }` 뿐이다. 리프레시 토큰은 httpOnly 쿠키로만 내려가고 `user` 객체는 없다(`auth.controller.ts` 의 `login`).
-- Passkey 를 쓸 수 없는 사용자는 `POST /api/auth/2fa/webauthn/recovery` 로 등록 때 받은 복구 코드를 내 2단계를 통과한다(`webauthn/webauthn.controller.ts`).
-- 이메일 인증 여부는 비밀번호 확인 뒤에 본다. 비밀번호가 틀린 인증 전 계정은 `INVALID_PASSWORD` 로 기록된다. 비밀번호가 맞으면 `EMAIL_NOT_VERIFIED` 로 기록하고 401 `EMAIL_VERIFICATION_REQUIRED` 를 준다. Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정은 토큰 없이 503 `WEBAUTHN_DISABLED` 를 받는다. 이 503 은 로그인 이력을 남기지 않고 서버 경고 로그만 남긴다. 두 경우 모두 비밀번호가 맞았으므로 `login_attempts` 는 0 으로 되돌린다. 규칙은 [가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리) 에 있다.
-- 이미 쓴 Passkey 인증 챌린지로 온 요청과 서명이 틀린 응답은 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 다. 로그인 이력에 `webauthn_failed`(`failure_reason='WEBAUTHN_INVALID'`)를 남긴다. 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다. 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) · [「sign counter 역행과 동시성」](CLE-ACCT-SIGNIN.md#sign-counter-역행과-동시성) 에 있다.
-- Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE` 이다. credential · 리프레시 토큰 · 로그인 이력을 바꾸지 않는다. 기록하지 못하는 조건과 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다.
-- 처음 쓰는 챌린지로 온 응답이 서명 검증을 통과했는데 counter 역행(복제 징후)이 감지되면 `webauthn/webauthn.service.ts` 의 `verifyAuthentication` 이 한 트랜잭션에서 그 credential 행을 지우고 사용자의 활성 리프레시 토큰을 모두 무효화한다. 응답은 401 `WEBAUTHN_COUNTER_REGRESSION` 이다. `login_history.event=webauthn_failed` 는 트랜잭션 밖에서 남긴다. 마지막 credential 이 지워져도 `webauthn_recovery_codes` 는 비우지 않는다. 이유는 [가입과 로그인 「counter 역행이면 credential 을 지운다」](CLE-ACCT-SIGNIN.md#counter-역행이면-credential-을-지운다-suspend-기각) 에 있다.
-
-### 소셜 로그인
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트
-  participant Svc as AuthOauthService
-  participant PG as Postgres
-  participant Prov as OAuth 제공자
-  C->>Svc: GET /api/auth/oauth/:provider?mode&rememberMe
-  Svc->>PG: DELETE 만료 auth_oauth_state (기회적 정리, fire-and-forget)
-  Svc->>PG: INSERT auth_oauth_state (state, provider, mode, remember_me, 만료 now+10m)
-  Svc-->>C: 302 제공자 인증 URL
-  Prov-->>C: 302 /api/auth/oauth/:provider/callback?code&state
-  C->>Svc: callback
-  Svc->>PG: DELETE auth_oauth_state WHERE state AND expires_at > now RETURNING (원자적 1회 소비)
-  Svc->>Prov: 코드 교환, userinfo 조회
-  alt oauth_provider와 oauth_provider_id로 사용자 있음
-    Svc->>PG: SELECT user
-  else 이메일로 사용자 있음
-    Svc->>PG: UPDATE user SET oauth_provider, oauth_provider_id, email_verified=true WHERE oauth_provider IS NULL
-  else 신규 사용자
-    Svc->>PG: INSERT user (password_hash=NULL)
-    Svc->>PG: INSERT workspace와 workspace_member (개인)
-  end
-  Svc->>PG: INSERT refresh_token (새 family_id)
-  Svc-->>C: 리프레시 쿠키 + 302 /callback?success=true
-```
-
-- state 행이 없으면(없음·만료·이미 소비) 서비스는 400 `OAUTH_STATE_MISMATCH` 예외를 던진다. 행의 `provider` 가 경로의 `:provider` 와 달라도 거부한다. 현재 구현은 컨트롤러가 이 예외를 `{frontendUrl}/callback?error=invalid_state` 리다이렉트로 바꾼다. 다른 실패도 `{frontendUrl}/callback?error={code}` 로 보낸다.
-- 콜백은 액세스 토큰을 URL 에 싣지 않는다. 리프레시 토큰만 쿠키로 설정하고 프론트 `/callback` 페이지가 `POST /api/auth/refresh` 로 액세스 토큰을 받는다.
-- 이메일 매칭 연결은 `oauth_provider IS NULL` 조건부 UPDATE 라 이미 다른 제공자에 묶인 계정을 덮어쓰지 않는다. 연결할 때 `email_verified=true` 와 아바타 URL 도 함께 설정한다(`auth-oauth.service.ts` 의 `resolveUser`).
-- 신규 사용자 경로에서 첫 콜백이 동시에 와 unique index 충돌(23505)이 나면 이긴 쪽이 만든 행을 다시 조회해 복구한다.
-- `OAUTH_STUB_MODE` 는 개발·테스트에서만 제공자 토큰·userinfo 호출을 stub 으로 바꾼다. 운영에서 켜면 부팅을 거부한다([세션과 토큰](CLE-ACCT-SESSION.md)).
-
-### 토큰 회전
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트
-  participant Svc as AuthService
-  participant PG as Postgres
-  participant Hist as LoginHistoryService
-  C->>Svc: POST /api/auth/refresh (리프레시 쿠키, 본문 없음)
-  Note over Svc: 쿠키가 없으면 401
-  Svc->>PG: SELECT refresh_token WHERE token_hash = sha256(쿠키)
-  alt is_revoked (재사용 감지)
-    Svc->>PG: UPDATE 같은 family_id 전체 is_revoked=true
-    Svc->>Hist: token_reuse_detected, family_id
-    Svc-->>C: 401 TOKEN_INVALID
-  else expires_at < now
-    Svc-->>C: 401 TOKEN_EXPIRED (세션 무효화·이력 없음)
-  end
-  Note over Svc,PG: 한 트랜잭션 (무효화 + INSERT)
-  Svc->>PG: UPDATE refresh_token SET is_revoked=true, last_used_at=now WHERE id AND is_revoked=false AND expires_at > now
-  Note over Svc: 영향 행이 0이면 동시 회전 경합으로 보고 401 TOKEN_INVALID
-  Svc->>PG: INSERT refresh_token (같은 family_id, 새 token_hash, 옛 행의 remember_me, expires_at = now + 30일 또는 7일)
-  Svc-->>C: { accessToken } + 새 리프레시 쿠키 (maxAge 30일 또는 7일)
-```
-
-- 재사용 감지(같은 `family_id` 전체 무효화와 `token_reuse_detected` 기록)는 `is_revoked=true` 인 토큰이 다시 쓰일 때만 동작한다. 단순 만료는 부작용 없이 401 `TOKEN_EXPIRED` 만 준다(`auth.service.ts` 의 `refresh`). 현재 구현에서 워크스페이스 JWT 층의 `TOKEN_EXPIRED` 발행처는 이 갱신 경로 하나다. 만료된 액세스 토큰에 전용 코드를 줄지는 별도 제품 결정이다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#token_expired-설명을-리프레시-토큰-만료로-맞춘-이유) 의 Rationale 「`TOKEN_EXPIRED` 설명을 리프레시 토큰 만료로 맞춘 이유」).
-- 재사용 분기의 전체 무효화는 단일 UPDATE 라 그 자체로 원자적이다. 로그인 이력 기록은 트랜잭션 밖에 둔다.
-- 정상 회전은 로그인 이력에 남기지 않는다.
-- 새 행은 옛 행의 `remember_me` 를 이어받는다. `expires_at` 은 회전한 시점부터 다시 잡는다. 로그인 유지면 30일이고 아니면 7일이다. 갱신 응답의 리프레시 쿠키 `maxAge` 도 같은 값이다. 규칙은 [세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지)(REQ-SESSION-047)가 정한다.
+→ [인증 흐름](CLE-ACCT-DATA-AUTH.md)
 
 ### 세션 강제 종료
 
-```mermaid
-sequenceDiagram
-  participant C as 클라이언트
-  participant Svc as SessionsService
-  participant PG as Postgres
-  C->>Svc: POST /api/auth/sessions/:familyId/revoke {비밀번호 또는 TOTP}
-  Svc->>PG: UPDATE refresh_token SET is_revoked=true WHERE user_id=me AND family_id
-  Svc->>PG: INSERT login_history (session_revoked, family_id)
-  Svc-->>C: 200 { items: 갱신된 세션 목록 }
-```
-
-- 세션 라우트 세 개(목록, 개별 종료, 일괄 종료)는 `/api/auth/sessions` 아래에 있다. 현재 로그인 세션은 요청의 리프레시 쿠키로 가리는데 그 쿠키의 Path 가 `/api/auth` 라서 그 아래 경로에만 쿠키가 실린다(`sessions.controller.ts`). 경로를 옮긴 이유는 Rationale 「세션 API 를 리프레시 쿠키 경로 아래로 옮겼다」 에 있다.
-- 응답은 204 가 아니라 200 과 갱신된 세션 목록이다. 같은 컨트롤러에 일괄 종료 `POST /api/auth/sessions/revoke-others` 가 있다. 일괄 종료는 요청의 리프레시 쿠키가 없거나 그 쿠키로 현재 로그인 세션을 찾지 못하면 400 `CURRENT_SESSION_REQUIRED` 로 거부한다(현재 구현 `sessions.controller.ts`·`sessions.service.ts`).
-- 세부 규칙(`sessions.service.ts`): 현재 요청의 리프레시 쿠키와 맞는 로그인 세션은 스스로 종료할 수 없다(400 `CANNOT_REVOKE_CURRENT_SESSION`, 로그아웃을 쓰게 한다). 계정 재인증 수단이 없는 사용자(비밀번호도 TOTP 도 없음. Passkey 만 등록한 계정 포함)는 403 `REAUTH_NOT_AVAILABLE`. 다른 사용자의 로그인 세션과 없는 로그인 세션은 똑같이 404 다(정보 누출 방지).
-- 읽기 경로 `GET /api/auth/sessions` 는 활성 세션을 로그인 세션 단위로 돌려주고 요청 쿠키와 맞는 세션에 `isCurrent=true` 를 표시한다.
-- 로그인 이력 조회 `GET /api/users/me/login-history` 는 쿠키가 필요 없어 `/api/users/me` 아래에 그대로 둔다. 같은 컨트롤러가 받는다.
-- 로그아웃은 요청 쿠키의 `family_id` 전체를 무효화하고 `login_history.event=logout` 을 남긴다. 절차는 [세션과 토큰](CLE-ACCT-SESSION.md).
-
-### 비밀번호 재설정과 이메일 보조 엔드포인트
-
-`auth.controller.ts`·`auth.service.ts` 의 `forgotPassword`·`resetPassword`·`resendVerification`·`checkEmail` 이다.
-
-1. `POST /api/auth/forgot-password`(IP 당 분당 5회): 사용자가 있으면 30분짜리 재설정 토큰을 만들어 `password_reset_token`(SHA-256 해시)으로 저장하고 SMTP 로 보낸다. DB·메일 에러를 포함한 모든 실패를 드러내지 않고 존재 여부와 상관없이 같은 응답을 준다.
-2. `POST /api/auth/reset-password`: 토큰과 비밀번호 강도를 검증한 뒤 `password_hash` 를 바꾸고 재설정 토큰 필드를 지운다. 그 사용자의 `refresh_token` 을 모두 무효화한다.
-3. `POST /api/auth/resend-verification`(IP 당 분당 5회): 미인증 계정에 24시간짜리 인증 토큰을 다시 발급해 보낸다. 재설정 요청과 같은 방식으로 항상 같은 응답을 준다.
-4. `POST /api/auth/check-email`(IP 당 분당 5회): 가입 전 이메일 사용 가능 여부 `{ available }` 을 돌려준다.
-
-### 이메일 변경
-
-모두 JWT 인증이 필요하다. `users.controller.ts` 가 받아 `AuthService` 로 넘긴다. 규칙과 이유는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 에 있다.
-
-1. `POST .../request { newEmail, password? | totpCode? }`(request·resend 사용자당 분당 5회): `SessionsService.reauthenticate`(내부 `verifyReauth`)로 비밀번호 또는 TOTP 로 계정 재인증을 하고 새 이메일을 검증(현재와 같음, 중복)한다. `pending_email` 과 `email_change_token`(SHA-256, 1시간)을 저장하고 새 이메일로 확인 메일을 보낸다. 발송이 실패하면 대기 필드 3개를 되돌리고(`clearPendingEmailChange`) 에러를 전파한다.
-2. `POST .../verify { token }`(로그인한 본인 세션): 토큰 SHA-256 이 `email_change_token` 과 같고 만료되지 않았는지 확인한다. 트랜잭션에서 선점을 다시 검사하고 `email = pending_email`, `email_verified=true`, 대기 필드 3개 NULL 로 바꾼다. 이어서 모든 로그인 세션을 무효화(`revokeAllFamilies`)하고 현재 기기에 다시 발급한다(`{ accessToken }` 과 리프레시 쿠키 회전). 옛 이메일 통지(best-effort, 실패하면 `logger.warn`), 감사 로그 `user.email_changed`, `login_history` `session_revoked`(일괄, `family_id=null`)가 뒤따른다.
-3. `POST .../resend`: 토큰을 다시 발급한다. 발송이 실패해도 토큰을 유지하고 재시도로 복구한다.
-4. `POST .../cancel`: 대기 필드 3개를 NULL 로 지운다. 재인증이 필요 없고 멱등이다.
+→ [인증 흐름](CLE-ACCT-DATA-AUTH.md#세션-강제-종료)
 
 ## 워크스페이스 데이터 흐름
 
-코드 진입점은 `workspaces.service.ts`(워크스페이스 CRUD·멤버 관리), `workspace-invitations.service.ts`(초대 발급·수락·재발송·취소), `workspaces.controller.ts`(`@Controller('workspaces')`), `invitations.controller.ts`(`@Controller('invitations')`, 공개 토큰 메타 조회)다. 규칙과 에러 코드는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
-
-### 팀 워크스페이스 생성
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트
-  participant Svc as WorkspacesService
-  participant PG as Postgres
-  C->>Svc: POST /api/workspaces {name}
-  Note over Svc: type=team 서버 고정, slug=team-uuid 앞 8자 (createTeam)
-  Svc->>PG: INSERT workspace (name, type=team, owner_id=me, slug, settings={})
-  Svc->>PG: INSERT workspace_member (role=owner, joined_at=now)
-  Svc-->>C: 201 { workspace }
-```
+→ [워크스페이스 데이터와 흐름](CLE-ACCT-DATA-WS.md#흐름)
 
 ### 초대 발급
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트 (소유자·관리자)
-  participant Svc as WorkspaceInvitationsService
-  participant PG as Postgres
-  participant Mail as MailService
-  C->>Svc: POST /api/workspaces/:id/invitations {email, role}
-  Svc->>PG: SELECT workspace_member (역할 검사)
-  Note over Svc: 팀 워크스페이스만 (개인은 403 workspace_type_mismatch)
-  alt role=admin 인데 요청자가 소유자가 아님
-    Svc-->>C: 403 OWNER_REQUIRED
-  end
-  alt 이메일이 이미 멤버
-    Svc-->>C: 409 already_a_member
-  end
-  Svc->>Svc: token = randomBytes(48) base64url
-  alt 같은 워크스페이스·이메일의 대기 초대 있음
-    Note over Svc: 대기 초대의 역할이 admin 인데 요청자가 소유자가 아니면 403 OWNER_REQUIRED
-    Svc->>PG: UPDATE workspace_invitation SET token, role, invited_by, expires_at=now+7d
-  else
-    Svc->>PG: INSERT workspace_invitation (workspace_id, email, role, token, invited_by, expires_at=now+7d)
-  end
-  Svc->>Mail: 초대 메일 (토큰 링크)
-  Svc-->>C: 201 { invitation }
-```
-
-- 조회와 쓰기는 한 트랜잭션이다. 부분 UNIQUE 경합은 500 대신 409 `invitation_already_pending` 으로 바꾼다(`workspace-invitations.service.ts` 의 `invite`).
-- 관리자 역할 초대와 대기 중인 관리자 초대를 덮어쓰는 재초대는 소유자만 한다. 소유자가 아니면 403 `OWNER_REQUIRED` 이고 메시지는 «관리자 역할은 소유자만 주거나 뺄 수 있습니다.» 다(`common/constants/workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`). 대기 초대 검사는 트랜잭션 안에서 행을 읽은 뒤에 한다. 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
-- 초대 재발송과 취소는 초대 역할을 보지 않는다. 관리자 이상이면 할 수 있다.
-- 메일 발송이 실패해도 초대 행을 되돌리지 않고 에러 로그만 남긴다. 관리자가 재발송할 수 있다(`MailService.sendWorkspaceInvitationEmail`).
-
-### 초대 수락 (가입자)
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트 (수락자, 로그인)
-  participant Svc as WorkspaceInvitationsService
-  participant PG as Postgres
-  C->>Svc: POST /api/workspaces/invitations/accept {token}
-  Svc->>PG: SELECT workspace_invitation WHERE token
-  Note over Svc: assertTokenUsable: 없음 404, 사용됨 410, 만료 410
-  alt 초대 이메일과 내 이메일이 다름
-    Svc-->>C: 400 invitation_email_mismatch
-  end
-  Svc->>PG: BEGIN
-  Svc->>PG: UPDATE workspace_invitation SET accepted_at, accepted_by WHERE id AND accepted_at IS NULL
-  Note over Svc: 영향 행이 0이면 동시 수락 경합이라 410
-  Svc->>PG: INSERT workspace_member (role=초대 역할) 이미 멤버면 건너뜀
-  Svc->>PG: COMMIT
-  Svc-->>C: 200 { workspace }
-```
-
-수락은 초대 행의 `role` 만 읽고 발급자의 지금 역할을 다시 보지 않는다. 초대 가입도 같다.
-
-### 초대 가입 (미가입자)
-
-`auth.service.registerWithInvitation()` 이 한 트랜잭션에서 다음을 한다.
-
-1. `INSERT INTO "user"`. 초대 메일을 받은 주소로 가입하므로 `email_verified=true` 로 만든다.
-2. `invitationsService.consumeForRegistration()` 이 초대받은 팀의 `workspace_member`(`role=invitation.role`)를 넣고 초대 수락(`accepted_at`, `accepted_by`)을 함께 처리한다.
-
-이 경로에서는 개인 워크스페이스를 만들지 않는다. 초대받은 팀 워크스페이스가 가입 때 현재 워크스페이스의 기준이고, JWT `activeWorkspaceId` 도 그 팀으로 발급한다(`auth.service.ts` 의 `resolveTokenWorkspaceContext`).
-
-### 워크스페이스 전환
-
-```mermaid
-sequenceDiagram
-  participant C as 클라이언트
-  participant Svc as AuthService
-  participant PG as Postgres
-  C->>Svc: POST /api/auth/workspaces/:id/switch
-  Svc->>PG: SELECT workspace_member WHERE workspace_id AND user_id=me
-  alt 멤버 아님
-    Svc-->>C: 403 NOT_A_MEMBER
-  end
-  Svc->>Svc: activeWorkspaceId=:id 로 액세스 토큰 서명 (리프레시 무회전)
-  Svc-->>C: { accessToken } (리프레시 쿠키 그대로)
-```
-
-### 설정 변경
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트 (소유자·관리자)
-  participant Svc as WorkspacesService
-  participant PG as Postgres
-  C->>Svc: PATCH /api/workspaces/:id/settings
-  Svc->>PG: SELECT workspace_member (assertAdmin)
-  alt 역할이 소유자·관리자가 아님
-    Svc-->>C: 403 ADMIN_REQUIRED
-  end
-  Svc->>PG: SELECT workspace WHERE id
-  Svc->>Svc: settings = 기존 settings + 보낸 키 (부분 병합)
-  Svc->>PG: UPDATE workspace SET settings, updated_at=now
-  Svc-->>C: 200 { data: workspace }
-```
-
-설정 변경은 `UPDATE workspace SET settings = settings || :patch` 형태의 부분 병합이다. origin 은 형식 검증 뒤 끝 슬래시를 정규화한다.
+→ [워크스페이스 데이터와 흐름](CLE-ACCT-DATA-WS.md#초대-발급)
 
 ### 멤버 변경과 직접 추가
 
-| 동작 | 테이블 쓰기 | 거부 (현재 구현) |
-| --- | --- | --- |
-| 역할 변경 `PATCH .../members/:memberId` | `UPDATE workspace_member.role` | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이나 새 역할이 소유자면 403 `OWNER_ROLE_PROTECTED`. 대상의 지금 역할이나 새 역할이 관리자인데 요청자가 소유자가 아니면 403 `OWNER_REQUIRED`. 관리자가 자기 역할을 바꾸는 요청도 여기에 걸린다 |
-| 소유자 이양 `POST .../transfer-ownership` | 한 트랜잭션에서 현재 소유자 `role='admin'`, 대상 `role='owner'`, `workspace.owner_id = 대상 userId` | 소유자가 아닌 요청 403 `OWNER_REQUIRED`, 개인 워크스페이스 403 `CANNOT_TRANSFER_PERSONAL`, 자기 자신 400 `TARGET_IS_SELF`, 대상 없음 404 `MEMBER_NOT_FOUND`, 대상이 이미 소유자 409 `TARGET_ALREADY_OWNER` |
-| 멤버 제거 `DELETE .../members/:memberId` | 한 트랜잭션에서 `DELETE workspace_member`(소유자가 아닌 행)를 하고 1행을 지웠을 때만 그 멤버의 개인 통합을 지운다(조건은 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)). 자기 자신은 나가기로 넘긴다 | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이 소유자면 403 `CANNOT_REMOVE_OWNER`. 대상이 관리자여도 소유자 확인은 하지 않는다 |
-| 직접 추가 `POST .../members`(`addMemberByEmail`) | 메일 없이 `INSERT workspace_member` | 새 역할이 소유자면 403 `CANNOT_ASSIGN_OWNER`. 새 역할이 관리자인데 요청자가 소유자가 아니면 403 `OWNER_REQUIRED`. 나머지는 [워크스페이스와 멤버 §직접 추가](CLE-ACCT-WS.md#직접-추가) |
-| 초대 재발송 | 새 `token`, `expires_at = now+7d`, `invited_by` 갱신과 메일 재발송(`resend`) | [워크스페이스와 멤버 §초대 에러 코드](CLE-ACCT-WS.md#초대-에러-코드). 초대 역할은 보지 않는다 |
-| 초대 취소 | 대기 초대 행 물리 삭제(`revoke`, repository `remove`) | 초대 재발송과 같다 |
-
-거부 열의 상태 코드 가운데 `TARGET_IS_SELF`·`TARGET_ALREADY_OWNER` 말고는 원문에 상태 코드가 없어 현재 구현(`workspaces.service.ts`)에서 옮겼다. `OWNER_REQUIRED` 는 소유자 이양 가드가 쓰던 코드를 다시 쓴 것이고 정의는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다. 가드 층의 역할 부족·비멤버 거부는 [워크스페이스와 멤버 §가드 거부 에러 코드](CLE-ACCT-WS.md#가드-거부-에러-코드) 에 있다.
+→ [워크스페이스 데이터와 흐름](CLE-ACCT-DATA-WS.md#멤버-변경과-직접-추가)
 
 ### 워크스페이스 삭제와 나가기
 
-워크스페이스 삭제(`DELETE /api/workspaces/:id`, `deleteWorkspace`)는 이 순서로 한다.
-
-1. 권한 검사(소유자, 팀 워크스페이스)를 트랜잭션 밖에서 먼저 한다. 거부될 요청이 트리거 외부 자원부터 뜯지 않게 하기 위해서다.
-2. 워크스페이스 트리거의 외부 자원(스케줄 job, 채팅 채널 해제, 리스너 레지스트리)을 해제한다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)).
-3. 한 트랜잭션에서 잠금 대기 상한(5초)을 건다. 워크스페이스 행을 비관적 잠금(`pessimistic_write`)으로 잡고 트리거를 열거한다. 워크스페이스, 멤버십 순으로 잠근 채 권한을 다시 검사한다.
-4. 코드 엔티티에 관계가 선언되지 않은 `workspace_invitation` 을 명시적으로 DELETE 하고, `workspace_member` 를 DELETE 한 뒤, `workspace` 를 지운다. 트리거는 FK CASCADE 로 지워진다.
-5. 커밋 뒤, 트랜잭션 안에서 열거한 트리거마다 `secret_store` 비밀을 지운다(`ref LIKE 'secret://triggers/<id>/%'`, `deleteByPrefix`). `secret_store` 는 FK 가 없어(V063) `workspace_id` 로 지우지 않는다. 그래서 참조가 다른 워크스페이스 트리거의 prefix 아래에 있는데 `workspace_id` 가 삭제한 워크스페이스인 행(교차 행)은 이 단계에서 지워지지 않는다. 그 행은 참조의 트리거가 삭제될 때 함께 지워진다. 그 전에 지우려면 사람이 일회성 운영 SQL 을 돌린다. 이 SQL 은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 13 의 대상이 아니다. 점검과 정리 순서는 [시크릿 저장소 「교차 행 점검과 정리」](../CLE-INT/CLE-INT-SECRET.md#교차-행-점검과-정리) 에 있다. 이어서 그 트리거들의 트리거 단위 토큰(`itk_*`)으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다(best-effort). 순서와 이유는 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](../CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다.
-6. 트랜잭션이 실패하면(재검사 거부 포함) 외부 해제가 이미 끝났다는 사실을 서버 로그에 남긴다.
-
-잠금 순서(워크스페이스, 멤버십)는 소유자 이양과 같다. 둘이 겹칠 때 교착하지 않게 하기 위해서다.
-
-나가기(`POST /api/workspaces/:id/leave`, `leaveWorkspace`)는 유일 소유자 판정과 멤버십 DELETE 를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다. 같은 트랜잭션에서 멤버십 DELETE 다음 그 멤버의 개인 통합을 지운다.
-
-나가기와 멤버 제거(`DELETE /api/workspaces/:id/members/:memberId`)는 트랜잭션을 열자마자 잠금 대기 상한을 5초로 건다(`SET LOCAL lock_timeout`, 코드 상수 `MEMBER_DEPARTURE_LOCK_TIMEOUT_MS`). 이 상한은 멤버십 행 잠금과 개인 통합 DELETE, 그 통합의 CASCADE 자식 행 잠금에 모두 걸린다. 토큰 갱신 같은 짧은 쓰기와 겹쳐 5초 안에 잠금을 잡지 못하면 트랜잭션을 롤백하고 에러로 끝낸다(PostgreSQL `55P03`). 이 에러는 따로 매핑하지 않아 응답은 일반 500(`INTERNAL_ERROR`)이다. 롤백이라 멤버십과 개인 통합은 그대로이고 감사 로그도 남지 않는다. 커밋 뒤 정리(통합 삭제 감사와 자격 증명 캐시 무효화)도 일어나지 않는다. 사용자는 다시 시도하면 된다. 워크스페이스 삭제와 워크플로우 삭제도 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 넘기면 에러로 끝난다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). 그 에러에도 따로 정한 코드가 없어 응답은 같은 일반 500 이다. 따로 매핑하지 않는 이유는 Rationale 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」 에 있다.
-
-통합을 만들거나 개인으로 바꾸는 트랜잭션은 워크스페이스, 멤버십, 통합 순으로 잠근다. 멤버십은 개인 통합일 때만 잠근다. 잠금 방식과 범위는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다. 멤버 제거와 나가기는 워크스페이스 행을 잠그지 않는다. 멤버십을 지운 다음 개인 통합을 지우므로 이 순서를 어기지 않는다. 삭제 조건은 [통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때) 가 정한다.
-
-## 테이블 쓰기 매핑
-
-흐름에서 읽고 쓰는 컬럼만 모았다.
-
-| 테이블 | 흐름 | 읽기·쓰기 컬럼 | 인덱스·제약 |
-| --- | --- | --- | --- |
-| `user` | 가입 | INSERT `email, password_hash, name, locale, theme, email_verify_token, email_verify_expires_at, created_at` | `email UNIQUE`(V001) |
-| `user` | 프로필 수정 | UPDATE `name, avatar_url, locale, theme`. `theme` 이 `light`·`dark`·`system` 밖이면 API 가 먼저 400 `VALIDATION_ERROR` 로 막는다 | `chk_user_theme` |
-| `user` | 로그인 실패 | UPDATE `login_attempts, locked_until` | 없음 |
-| `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id` | 없음 |
-| `user` | TOTP 켜기·끄기 | UPDATE `two_factor_enabled, two_factor_secret, two_factor_setup_started_at, totp_recovery_codes`. 설정 시작은 비밀번호를 확인한 뒤 `two_factor_secret` 과 `two_factor_setup_started_at = now` 를 한 UPDATE 로 쓴다. 활성화 검증은 `two_factor_enabled=true` 와 `totp_recovery_codes` 를 쓰고 `two_factor_setup_started_at` 을 NULL 로 비운다. 두 쓰기는 조건부 UPDATE 다. 설정 시작은 `two_factor_enabled = false` 일 때만 쓰고, 활성화 검증은 그에 더해 `two_factor_secret` 이 코드를 확인한 secret 과 같을 때만 쓴다. TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED` 이고 컬럼은 그대로다. 활성화 검증에서 그 사이 secret 이 바뀌었으면 401 `TOTP_INVALID` 다. 활성화 검증은 `two_factor_setup_started_at` 이 NULL 이거나 10분이 지났으면 코드를 확인하지 않고 `two_factor_secret` 과 `two_factor_setup_started_at` 을 NULL 로 비운 뒤 400 `TOTP_NOT_INITIALIZED` 다. 이 비우기는 `two_factor_enabled = false` 이고 `two_factor_secret` 이 읽은 값 그대로일 때만 쓰는 조건부 UPDATE 다. 끄기는 비밀번호와 코드(6자리 TOTP 코드나 TOTP 복구 코드)를 모두 확인한 뒤 `two_factor_enabled` 를 `false` 로, 나머지 세 컬럼을 NULL 로 바꾼다. 코드가 틀리면 401 `TOTP_INVALID` 이고 컬럼은 그대로다. 코드 확인 실패는 로그인 이력에 쓰지 않는다 | 없음 |
-| `user` | Passkey 복구 코드 발급·소진·재발급 | UPDATE `webauthn_recovery_codes` | 없음 |
-| `user` | 이메일 변경 | UPDATE `pending_email, email_change_token, email_change_expires_at`, 확정 때 `email, email_verified`. `pending_email` 은 앞뒤 공백을 지운 소문자로 저장하고 확정 때 그 값을 `email` 로 옮긴다 | `email UNIQUE`, `LOWER(email)`(V101) |
-| `webauthn_credential` | 등록·이름 변경·삭제·인증 | INSERT(등록 검증), UPDATE `counter, last_used_at, device_name`, DELETE(개별 삭제, 서명 검증을 통과한 응답의 counter 역행) | `credential_id UNIQUE`, `(user_id)` |
-| `refresh_token` | 로그인·갱신 | INSERT `user_id, token_hash, family_id, is_revoked=false, expires_at, remember_me, device_label, user_agent, ip_address` | `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false`(V040) |
-| `refresh_token` | 토큰 회전 | 옛 행 UPDATE `is_revoked=true, last_used_at, last_used_ip`, 새 행 INSERT(옛 행의 `remember_me` 를 이어받는다) | 없음 |
-| `refresh_token` | 재사용 감지 | 같은 `family_id` 전체 UPDATE `is_revoked=true` | 없음 |
-| `auth_oauth_state` | OAuth 시작 | INSERT `state, provider, mode, remember_me, expires_at = now+10m` | `state UNIQUE`(V013) |
-| `auth_oauth_state` | OAuth 콜백 | DELETE `WHERE state=? AND expires_at > now RETURNING`(원자적 1회 소비) | 없음 |
-| `login_history` | 모든 이벤트 | INSERT `user_id, email, event, ip_address, user_agent, device_label, family_id, failure_reason, created_at` | `(user_id, created_at DESC)`, `(email, created_at DESC)`(V040) |
-| `workspace` | 가입(이메일 인증 단계)·팀 생성 | INSERT `name, type, owner_id, slug, settings={}, created_at` | `slug UNIQUE`(V001), `uq_workspace_personal_owner`(V109) |
-| `workspace` | 소유자 이양 | UPDATE `owner_id` | 없음 |
-| `workspace` | 설정 변경 | UPDATE `settings`(부분 병합), `updated_at` | 없음 |
-| `workspace` | 삭제 | DELETE(같은 트랜잭션에서 `workspace_invitation`·`workspace_member` 를 먼저 명시 삭제) | 없음 |
-| `secret_store` | 워크스페이스 삭제 | 커밋 뒤 트리거마다 DELETE `ref LIKE 'secret://triggers/<id>/%'` | FK 없음(V063) |
-| `workspace_member` | 가입·초대 수락·직접 추가 | INSERT `workspace_id, user_id, role, invited_at, joined_at` | `(workspace_id, user_id) UNIQUE`, `(user_id)`(V129) |
-| `workspace_member` | 역할 변경 | UPDATE `role` | 없음 |
-| `workspace_member` | 멤버 제거·나가기 | DELETE | 없음 |
-| `integration` | 멤버 제거·나가기 | 멤버십 DELETE 와 같은 트랜잭션에서 그 멤버의 개인 통합을 DELETE(조건은 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)) | 없음 |
-| `workspace_invitation` | 발급 | INSERT `workspace_id, email, role, token, invited_by, expires_at, created_at`. 대기 초대가 있으면 그 행 UPDATE | `token UNIQUE`(V017), `(email)`, `(workspace_id)`, 부분 UNIQUE `(workspace_id, email) WHERE accepted_at IS NULL` |
-| `workspace_invitation` | 재발송 | UPDATE `token, invited_by, expires_at` | 없음 |
-| `workspace_invitation` | 수락 | UPDATE `accepted_at, accepted_by`(`WHERE accepted_at IS NULL`) | 없음 |
-| `workspace_invitation` | 취소·만료 정리 | DELETE(취소 물리 삭제, `pruneExpired`) | 없음 |
-
-## Redis 와 배치
-
-이 영역은 BullMQ 반복 작업 큐 두 개를 등록한다. 큐 전체 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다.
-
-| 큐 | 일정 | 동작 |
-| --- | --- | --- |
-| `login-history-pruner` | 매일 03:00 Asia/Seoul(`upsertJobScheduler` pattern `0 3 * * *`, 명시적 tz) | 180일이 지난 `login_history` 행을 배치 루프로 지운다(`login-history.service.ts` 의 `pruneOlderThanRetention`, `RETENTION_DAYS=180`). `auth.module.ts` 의 `BullModule.registerQueue`, `jobs/login-history-pruner.service.ts` |
-| `workspace-invitations-pruner` | 매일 04:00 Asia/Seoul | 만료되고(`expires_at < now`) 수락되지 않은(`accepted_at IS NULL`) 초대 행을 지운다(`WorkspaceInvitationsPrunerService`, 비즈니스 로직은 `WorkspaceInvitationsService.pruneExpired(now)`). `MONITORED_QUEUES` 에 등재 |
-
-두 큐 모두 멀티 인스턴스에서도 전역 1회만 돈다.
-
-BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 인증 챌린지 기록 `auth:webauthn-auth-challenge:<challenge>` 가 있다. 챌린지 기록은 TTL 로 사라지므로 정리 배치가 없다. 이 기록의 보존 기간 · 용도 · 실패 정책은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다. 이 영역이 만드는 키의 목록은 [비동기 큐와 Redis 키 목록 「다른 모듈의 키」](../CLE-PLAT/CLE-PLAT-QUEUE.md#다른-모듈의-키) 가 정본이다.
-
-요청 빈도 제한은 Redis 가 아니라 `@nestjs/throttler` 의 in-memory 카운터로 구현했다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 HTTP 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
-
-서명 참조가 있는 채팅 채널 트리거 요청은 전역 한도로 세지 않는다. 이런 요청은 `POST /api/hooks/:endpointPath` 가운데 트리거 설정에 채팅 채널 프로바이더(`config.chatChannel.provider`)와 서명 참조(`config.chatChannel.inboundSigningRef`)가 모두 있는 요청이다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거나 채널을 연결하기 전의 트리거)로 온 요청은 전처럼 전역 한도로 센다. 이 라우트에는 `@DeferGlobalThrottle()` 이 붙어 있어 전역 가드 `UserThrottlerGuard` 가 세지 않고 넘긴다. 이 라우트의 전역 한도는 라우트 가드 `HookTriggerThrottlerGuard` 가 센다. 이 가드는 `PublicWebhookThrottleGuard` 뒤에서 돌고 그 가드가 조회한 트리거로 면제 여부를 판정한다(`isSignedChatChannelTrigger`). 한도 · 저장소 · 집계 키는 전역 가드와 같다. 그래서 면제되지 않는 웹훅 요청은 전과 같은 버킷을 같은 한도로 쓴다. 트리거가 없거나 조회에 실패한 요청도 센다. 이 예외의 정책과 근거는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 와 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
-
-한도 수치는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 의 사본이다. 이 표는 집계 키와 구현 위치의 정본이다.
-
-| 범위 | 한도 | 집계 키 | 위치 |
-| --- | --- | --- | --- |
-| 전역 (모든 HTTP API) | 분당 100회 | 인증 요청은 사용자, `@Public` 라우트는 IP | `app.module.ts` 의 `ThrottlerModule.forRoot`, `common/guards/user-throttler.guard.ts`(`UserThrottlerGuard`, `@DeferGlobalThrottle()`), `common/utils/http-context.ts`, `common/utils/throttler-skip.ts`(`shouldSkipThrottle`). `POST /api/hooks/:endpointPath` 는 `modules/hooks/hook-trigger-throttler.guard.ts`(`HookTriggerThrottlerGuard`)와 면제 판정 `modules/chat-channel/chat-channel-secret-refs.ts`(`isSignedChatChannelTrigger`) |
-| `register`·`login` | 분당 10회 | IP | `auth.controller.ts` 의 `@Throttle` |
-| `forgot-password`·`resend-verification`·`check-email` | 분당 5회 | IP | `auth.controller.ts` |
-| `2fa/setup` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| `2fa/verify` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| `2fa/disable` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| `2fa/webauthn/register/options`·`2fa/webauthn/recovery-codes/regenerate` | 분당 10회 | 사용자 | `webauthn/webauthn.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| 이메일 변경 `request`·`resend` | 분당 5회 | 사용자 | `users.controller.ts` |
-| `auth/sessions/:familyId/revoke`·`auth/sessions/revoke-others` | 분당 10회·5회 | 사용자 | `sessions.controller.ts` |
-| 초대 발급·재발송 | 분당 10건 | 사용자 | `workspaces.controller.ts`(`INVITATION_THROTTLE`, 값은 `SENSITIVE_ACTION_THROTTLE`) |
-| 공개 초대 메타 조회 | 분당 30건 | IP | `invitations.controller.ts` |
-
-전역 한도를 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
-
-초대 발송 · provider probe · 2단계 인증 설정 시작 · 활성화 검증 · 끄기 · Passkey 등록 옵션 · Passkey 복구 코드 재발급은 `SENSITIVE_ACTION_THROTTLE` 상수를 공유하고 카운터는 라우트마다 따로 센다. `verifyPasswordForUser` 로 계정 비밀번호를 다시 확인하는 라우트(2단계 인증 설정 시작 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급)에 이 상수가 모두 걸려 있는지는 단위 테스트로 고정한다. 검사 대상은 테스트에 적어 둔 라우트 목록뿐이라 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
-
-`register`·`login` 의 IP 단위 요청 빈도 제한은 계정 잠금(5회 실패, 10분)과 별개의 이중 방어다. 한 IP 가 여러 계정을 도는 credential stuffing 은 요청 빈도 제한이 먼저 막는다. 여러 IP 에서 한 계정을 노리는 공격은 계정 잠금이 막는다.
-
-## 외부 의존
-
-| 의존 | 방향 | 쓰임 |
-| --- | --- | --- |
-| SMTP (`MailService`, `codebase/backend/src/modules/mail/mail.service.ts`, 전송기 `mail.transporter.ts`) | 내부에서 외부로 | 이메일 인증, 비밀번호 재설정, 초대 메일, 이메일 변경 확인(새 주소), 변경 통지(옛 주소). 알림 메일은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 같은 `MailService` 로 보낸다. 시스템 전역 SMTP 만 쓴다. `MAIL_TRANSPORT` 가 `console` 이 아니면(보통 `smtp`) `MailService` 가 보내는 모든 메일을 암호화한 연결로만 보낸다(`MAIL_SECURE` 가 `true` 가 아니면 STARTTLS 를 강제하고 `MAIL_REQUIRE_TLS=false` 로만 끈다). 워크스페이스 SMTP 통합(Send Email 노드)은 이 설정과 무관하고 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) 의 `secure` 를 따른다 |
-| OAuth 제공자 (Google, GitHub) | 외부에서 내부로(콜백) | authorize, token, userinfo(`auth-oauth.service.ts`). 셀프 호스팅용 LDAP·SAML 은 미구현(Planned)이다([가입과 로그인](CLE-ACCT-SIGNIN.md)) |
-| 감사 로그 | 내부 참조 | 워크스페이스 컨텍스트가 있는 동작은 `audit_log`, 사용자 인증 이벤트는 `login_history`. 워크스페이스·멤버 액션(`workspace.transfer_ownership`, `workspace.created`, `workspace.updated`, `member.invited`, `member.role_changed`, `member.removed`)은 `workspaces.service.ts` 와 `workspace-invitations.service.ts` 가 남긴다. [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
-
-## 상태 전이
-
-### `refresh_token.is_revoked`
-
-```mermaid
-stateDiagram-v2
-  [*] --> Active: 로그인·회전 INSERT
-  Active --> Revoked: 회전 (옛 행)
-  Active --> Revoked: 로그아웃·세션 강제 종료
-  Active --> Revoked: 재사용 감지로 family 전체
-  Active --> Revoked: 비밀번호 재설정·변경, 이메일 변경, Passkey counter 역행
-  Active --> Expired: now > expires_at (사용 시 거부)
-  Revoked --> [*]
-  Expired --> [*]
-```
-
-### `user.locked_until` (계정 잠금)
-
-| 조건 | 동작 |
-| --- | --- |
-| 연속 로그인 실패 5회(`login_attempts >= 5`) | `locked_until = now + 10분` (`users.service.ts`) |
-| `locked_until > now` 인 상태에서 로그인 | 401(`UnauthorizedException`) `ACCOUNT_LOCKED`, `login_history.event=login_failed`, `failure_reason=ACCOUNT_LOCKED` |
-| 로그인 성공 | `login_attempts = 0`, `locked_until = NULL` |
-
-### TOTP 대기 secret (`user.two_factor_setup_started_at`)
-
-대기 secret 은 TOTP 설정 시작이 `two_factor_secret` 에 쓰고 활성화 검증 전까지 남아 있는 값이다. 뜻은 [가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기) 가 정한다. 수명은 `two_factor_setup_started_at` 으로 잰다.
-
-| 상태 | 요청 | 결과 |
-| --- | --- | --- |
-| 없음 (`two_factor_enabled = false`, `two_factor_secret` NULL) | 설정 시작 | 대기. `two_factor_secret` 과 `two_factor_setup_started_at = now` 를 한 조건부 UPDATE 로 쓴다 |
-| 대기 | 설정 시작 | 대기. 새 secret 과 시각으로 덮어쓴다 |
-| 대기 | 설정 시작 뒤 10분 안에 활성화 검증 성공 | 켜짐. `two_factor_enabled=true` 와 `totp_recovery_codes` 를 쓰고 `two_factor_setup_started_at` 을 NULL 로 비운다 |
-| 대기 | 시각이 NULL 이거나 10분이 지난 뒤 활성화 검증 | 없음. 코드를 확인하지 않고 `two_factor_secret` 과 `two_factor_setup_started_at` 을 NULL 로 비운 뒤 400 `TOTP_NOT_INITIALIZED` |
-| 켜짐 | 설정 시작 · 활성화 검증 | 켜짐 그대로. 409 `TOTP_ALREADY_ENABLED` 이고 컬럼을 쓰지 않는다 |
-| 켜짐 | TOTP 끄기 | 없음. `two_factor_enabled` 를 `false` 로, 나머지 세 컬럼을 NULL 로 바꾼다 |
-
-만료된 대기 secret 을 비우는 정기 배치는 없다. 다음 활성화 검증이 비우거나 다음 설정 시작이 덮어쓴다. 비우기는 `two_factor_enabled = false` 이고 `two_factor_secret` 이 읽은 값 그대로일 때만 쓰는 조건부 UPDATE 다.
-
-### OAuth state 수명
-
-| 단계 | 동작 |
-| --- | --- |
-| 시작 | INSERT `expires_at = now + 10분`. 한 번만 쓴다. 호출마다 만료 행을 fire-and-forget `purgeExpired()` 로 기회적으로 지운다 |
-| 콜백 | 단일 원자 쿼리 `DELETE ... WHERE state=? AND expires_at > now RETURNING *`. 만료·이미 소비된 state 는 같은 쿼리에서 거부되고 동시 콜백은 한쪽만 행을 얻는다 |
-| 수명 경과 | 별도 정기 배치는 없다. 다음 시작의 기회적 정리나 콜백 때 거부로 정리된다 |
-
-### `workspace_invitation.accepted_at`
-
-```mermaid
-stateDiagram-v2
-  [*] --> Pending: INSERT (token, expires_at = now+7d)
-  Pending --> Pending: 재초대·재발송 (token·expires_at 갱신, 옛 토큰 무효)
-  Pending --> Accepted: 수락 (accepted_at, accepted_by)
-  Pending --> Expired: now > expires_at (조회 때 410)
-  Pending --> Revoked: 취소 (행 물리 삭제)
-  Accepted --> [*]
-  Expired --> [*]
-  Revoked --> [*]
-```
-
-만료는 조회 시점 판정(`assertTokenUsable` 이 410 `invitation_expired`)일 뿐 바로 지우지 않는다. 만료되고 수락되지 않은 행은 `workspace-invitations-pruner` 가 주기적으로 지운다. 감사 보존이 필요하면 별도 감사 기록으로 다루고, 이 정리는 운영 위생 목적이다.
+→ [워크스페이스 데이터와 흐름](CLE-ACCT-DATA-WS.md#워크스페이스-삭제와-나가기)
 
 ## 인가
 
@@ -733,9 +96,9 @@ stateDiagram-v2
 
 ## 미결 사항
 
-- **잠금 대기 초과의 응답 코드**: 나가기 · 멤버 제거와 워크스페이스 삭제 · 워크플로우 삭제는 잠금 대기 상한 5초를 넘기면(PostgreSQL `55P03`) 롤백하고 일반 500 으로 끝난다([워크스페이스 삭제와 나가기](#워크스페이스-삭제와-나가기)). 트리거 · 스케줄 화면 삭제도 같다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). 다시 시도하면 대개 통과하는 일시적 실패인데 500 이라 [HTTP API 규약 §6](../CLE-API/CLE-API-CONV.md#6-http-상태-코드) 의 500 · 503 구분과 잘 맞지 않는다. 이 경로들의 응답 코드는 NERV Task `CLE-T-1C2JE0` 가 함께 정한다. 지금 따로 매핑하지 않는 이유는 Rationale 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」 에 있다.
+- **잠금 대기 초과의 응답 코드**: 나가기 · 멤버 제거와 워크스페이스 삭제 · 워크플로우 삭제는 잠금 대기 상한 5초를 넘기면(PostgreSQL `55P03`) 롤백하고 일반 500 으로 끝난다([워크스페이스 삭제와 나가기](CLE-ACCT-DATA-WS.md#워크스페이스-삭제와-나가기)). 트리거 · 스케줄 화면 삭제도 같다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). 다시 시도하면 대개 통과하는 일시적 실패인데 500 이라 [HTTP API 규약 §6](../CLE-API/CLE-API-CONV.md#6-http-상태-코드) 의 500 · 503 구분과 잘 맞지 않는다. 이 경로들의 응답 코드는 NERV Task `CLE-T-1C2JE0` 가 함께 정한다. 지금 따로 매핑하지 않는 이유는 [워크스페이스 데이터와 흐름 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」](CLE-ACCT-DATA-WS.md#나가기와-멤버-제거의-잠금-대기-초과는-따로-매핑하지-않는다-2026-10-30) 에 있다.
 
-2026-10-10 에 «`User.theme` 에 `system` 을 둘 수 있는가» 와 «전역 요청 한도의 집계 기준» 을 닫았다. 결정은 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 와 「요청 한도의 집계 기준을 코드에 맞췄다」 에 있다. 로그인 유지 30일이 첫 토큰 회전 뒤 이어지지 않던 문제는 2026-11-05 에 고쳤다(NERV Task `CLE-T-BYCGF1`). 규칙은 [세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지) 에 있다.
+2026-10-10 에 «`User.theme` 에 `system` 을 둘 수 있는가» 와 «전역 요청 한도의 집계 기준» 을 닫았다. 결정은 [사용자 · 인증 엔티티 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」](CLE-ACCT-DATA-MODEL.md#usertheme-check-확장은-두-단계-마이그레이션으로-했다) 와 [테이블 쓰기 · 배치 · 외부 의존 「요청 한도의 집계 기준을 코드에 맞췄다」](CLE-ACCT-DATA-OPS.md#요청-한도의-집계-기준을-코드에-맞췄다) 에 있다.
 
 ## 구현 위치
 
@@ -774,224 +137,12 @@ stateDiagram-v2
 
 ## Rationale
 
-### 토큰 회전은 트랜잭션과 조건부 UPDATE 로 원자화한다
-
-회전(정상 분기)은 옛 토큰 무효화와 새 토큰 INSERT 를 한 DB 트랜잭션으로 묶는다. 옛 구현은 무효화 뒤 따로 INSERT 해서, 그 사이에 크래시가 나면 옛 토큰만 무효가 되고 새 토큰이 없어 세션이 통째로 사라졌다. 트랜잭션으로 묶으면 중간 실패 때 둘 다 되돌아가 옛 토큰이 `is_revoked=false` 로 남는다. 가입 인증 `verifyEmail` 트랜잭션(사용자, 개인 워크스페이스, 토큰 발급을 한 번에)과 같은 원자성 정책이다.
-
-무효화는 단순 `WHERE id` UPDATE 가 아니라 조건부 UPDATE(`is_revoked=false AND expires_at>now`)다. 조회, 검증, UPDATE 사이에는 TOCTOU 창이 있어 같은 토큰으로 동시에 온 두 갱신 요청이 모두 회전하려 할 수 있다. 조건부 UPDATE 의 영향 행이 0이면 다른 요청이 먼저 회전한 것이라 새 토큰을 주지 않고 `TOKEN_INVALID` 로 거부해 이중 회전을 막는다. 경합 판정을 DB 단일 UPDATE 의 원자성에 맡기는 것이다.
-
-JWT 서명은 DB I/O 가 없는 순수 연산이라 트랜잭션의 커밋·롤백에 참여하지 않는다. 트랜잭션 범위를 무효화와 INSERT 로 좁게 두려는 개념상 분리다. 로그인 이력 기록도 회전 원자성과 무관해 트랜잭션 밖에 둔다. 정상 회전은 보안 이벤트가 아니라서 재사용 분기와 달리 기록하지 않는다.
-
-### `login_history` 와 `audit_log` 를 나눈다
-
-`audit_log` 는 워크스페이스 컨텍스트가 있는 변경을 기록한다. 로그인·로그아웃·2단계 인증 실패는 워크스페이스 없이도 일어나므로 별도 `login_history` 에 두고 사용자 본인이 직접 조회한다(180일 보존). 비밀번호 변경·2단계 인증 켜기와 끄기·이메일 변경처럼 로그인한 세션에서 일어나는 사용자 보안 동작은 그 세션의 현재 워크스페이스에 귀속해 `audit_log` 에 남긴다. 귀속 규칙은 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다.
+결정 항목은 주제마다 하위 문서 끝 `## Rationale` 에 있다. 다른 문서가 링크하는 항목은 아래에서 옮겨 간 곳을 가리킨다.
 
 ### OAuth state 를 한 번의 DELETE 로 소비한다
 
-CSRF 와 재전송을 막기 위해 `auth_oauth_state` 는 콜백 한 번에 소비한다. 조회와 삭제 두 쿼리 트랜잭션이 아니라 단일 원자 쿼리(`DELETE ... RETURNING`)를 쓰는 이유는 동시 콜백 경합에서도 정확히 한 요청만 state 를 얻게 하기 위해서다. 별도 정기 배치를 두지 않는 이유는 행 수가 아주 적고(10분 수명 × 동시 OAuth 시도 수) 매 시작의 기회적 정리만으로 충분하기 때문이다.
-
-이 설계는 맞았지만 구현이 한동안 보장을 지키지 못했다. `DELETE … RETURNING` 의 결과는 행 배열이 아니라 `[rows, affectedCount]` 튜플인데 코드가 행 배열로 다뤄 소비한 state 를 한 번도 읽지 못했고 정상 콜백까지 모두 `OAUTH_STATE_MISMATCH` 로 실패했다. 튜플을 풀고 나서는 `rememberMe`(camelCase)를 읽었는데 raw 행의 실제 키는 `remember_me` 라 로그인 유지가 통째로 무시됐다. 두 결함 모두 고쳤고, 두 불변식은 이제 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 이 정하고 발견형 가드가 집행한다.
-
-### 보존 배치를 BullMQ 반복 작업으로 돌린다
-
-예전 `@Cron` 인메모리 타이머는 replica 마다 따로 돌아 중복 실행됐다. 그래서 BullMQ Redis 중앙 스케줄로 옮겨 멀티 인스턴스에서도 전역 1회만 돌게 했다. 초대 정리 배치도 같은 패턴이다.
+→ [인증 흐름](CLE-ACCT-DATA-AUTH.md#oauth-state-를-한-번의-delete-로-소비한다)
 
 ### 개인 워크스페이스 유일성은 부분 유니크 인덱스로 강제한다
 
-지키려는 불변식은 "한 사용자가 개인 워크스페이스를 두 개 이상 가질 수 없다" 뿐이다. 팀 워크스페이스는 여러 개 소유할 수 있다. 과거의 `@Unique(['ownerId', 'type'])` 엔티티 데코레이터는 뜻이 틀렸다. `(owner_id, type)` 전체 UNIQUE 는 팀 다중 소유까지 막는다. 대응 마이그레이션도 없어(엔티티 synchronize 비활성) DB 에서 강제되지도 않았다. 이 데코레이터는 지웠다.
-
-개인 유일성은 부분 유니크 인덱스 `uq_workspace_personal_owner ON workspace (owner_id) WHERE type='personal'`(V109)로 DB 에서 강제하고, 앱 계층 `WorkspacesService.findOrCreatePersonalWorkspace`(find-or-create 와 충돌 시 재조회 폴백)가 함께 막는다. 무결성 불변식이라 앱 단독 방어보다 DB 이중 방어가 맞다고 판단했다(2026-07-07 결정).
-
-마이그레이션 안전: 인덱스는 `CREATE UNIQUE INDEX CONCURRENTLY`(트랜잭션 밖, V109 `.conf` 의 `executeInTransaction=false`)로 만든다. `.conf` 가 실제로 적용되는지는 NERV Task `CLE-T-NYFE78` 결과에 따라 고친다. 그 직전 V108 은 사전 검증 가드다. 소유자 당 개인 워크스페이스가 중복이면 `RAISE EXCEPTION` 으로 배포를 바로 멈출 뿐 어떤 행도 자동으로 지우거나 옮기지 않는다. 중복이 나오면 운영자가 안내된 `array_agg` 조회로 확인해 손으로 병합하거나 지운 뒤 다시 배포해야 V109 인덱스가 만들어진다. 자동 정리를 뺀 이유는 `workspace(id)` 를 참조하는 `ON DELETE CASCADE` FK 가 약 20개 테이블에 걸쳐 있기 때문이다. 중복 개인 워크스페이스를 자동으로 지우면 하위 데이터가 함께 사라지고, 모든 자식 행을 남길 워크스페이스로 옮기는 것은 테이블 열거 누락이나 멤버십 중복 같은 새 위험을 만든다. 중복은 애초에 앱이 막는 불변식 위반이므로 자동 파괴보다 운영자 수동 처리가 안전하다.
-
-### `workspace.deleted` 는 감사하지 않는다
-
-감사 확대 결정은 워크스페이스 CRUD 전체를 감사하려 했지만 `workspace.deleted` 는 일부러 기록하지 않는다. `audit_log.workspace_id` 는 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)라, 삭제 감사 행은 (a) 삭제 전에 쓰면 워크스페이스와 함께 cascade 로 지워지고 (b) 삭제 뒤에 쓰면 FK 대상이 없어 INSERT 가 실패한다. 어느 쪽이든 남길 수 없다. 워크스페이스 범위로 쌓이고 워크스페이스와 함께 사라지는 현재 감사 모델의 구조적 결과다. 그 모델에서는 `workspace.created`·`workspace.updated` 감사도 워크스페이스가 지워지면 함께 사라진다. 감사는 워크스페이스가 살아 있는 동안의 포렌식이다. 삭제 이력 자체를 남기려면 워크스페이스에 매이지 않는 별도 저장소가 필요하고, 이것은 이 결정 범위 밖이다. 자동 정리 대신 V108 사전 검증 가드를 택한 이유와 같은 계열의 제약이다.
-
-### `User` 민감 컬럼은 응답 경계에서 지운다
-
-2026-09-06 결정이다. `GET /api/audit-logs` 가 필드 3개를 광고하면서 `User` 엔티티를 통째로 내보내고 있었고, 같은 형태가 워크플로우 버전 상세에서도 났다. 세 안을 견줬다.
-
-| 안 | 채택·기각 이유 |
-| --- | --- |
-| 컬럼 `select: false` | 기각. 조용히 실패한다. 민감 7컬럼은 내부 경로가 값을 직접 쓴다(로그인 검증, 토큰 소비, 복구 코드 대조). 컬럼 수준에서 끄면 그 경로가 예외 없이 `undefined` 를 받는다. 실측: `user.entity.ts` 에 `select: false`·`@Exclude()` 가 0건이었다 |
-| 응답 DTO 를 손으로 좁히기 (단독) | 기각. 다음 자리가 열린다. 유출은 최상위가 아니라 중첩(`data.items[].user.…`)에서 났고 새 엔드포인트마다 같은 판단을 되풀이해야 한다 |
-| 응답 경계 투영과 검출 2축 | 채택. 구조 축은 "엔티티를 통째로 실었다" 를, 이름 축은 "그 이름이 응답에 있다" 를 본다 |
-
-두 축을 모두 세운 이유는 계약 검증기(`response-contract.ts`)가 배선된 엔드포인트에서만 동작하고 배선이 아직 전 엔드포인트에 닿지 않았기 때문이다. 이름 축은 선언·배선과 독립이라 실수로 `passwordHash` 를 DTO 에 선언까지 한 경우도 잡는다.
-
-채택안이 코드에서 갖는 형태는 쿼리 범위 `select` 투영이다. 위 표 첫 줄이 기각한 것과 이름이 닮아 구분해 둔다. 실제 코드는 `select: { creator: { id, name, email } }` 처럼 그 쿼리 하나의 컬럼을 좁힌다. 첫 줄이 기각한 것은 엔티티 선언의 `@Column({ select: false })` 이고 성질이 반대다.
-
-| | 첫 줄 (기각) | 채택안의 구현 형태 |
-| --- | --- | --- |
-| 적용 범위 | 엔티티 컬럼 선언, 모든 쿼리 | `find`·`findOne` 옵션, 그 쿼리 하나 |
-| 값을 읽는 다른 내부 경로 | `undefined` 를 받는다 | 건드리지 않는다 |
-
-사례는 `WorkflowVersionsService.findOne`(`CREATOR_PROJECTION`)과 `WorkspacesService.listMembers` 다. 후자는 전환하자 `user-entity-exposure-guard` 의 화이트리스트에서 빠졌다. 그 래칫은 양방향이라 목록에 남겨 두면 실패하므로 항목이 사라지는 것 자체가 전환의 기계적 증거다. 이 구분을 적는 이유는 표만 읽은 검토자가 `select: { … }` 를 첫 줄이 기각한 대안의 재도입으로 오판할 수 있어서다. 구현 완료 검토가 이 위험을 세 라운드 연달아 지적했다.
-
-`select: false` 기각은 이 저장소의 일반 규칙이 아니다. 컬럼별 소비 패턴이 가른다. [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 의 `Notification.background_run_id` 는 `select: false` 로 선언돼 있고(V107) 그것이 맞다. 유일한 내부 소비자(`findByBackgroundRun`)가 WHERE 절에만 쓰고 값을 읽지 않기 때문이다.
-
-| 내부 소비 패턴 | 처분 | 사례 |
-| --- | --- | --- |
-| 값을 읽는다 | 응답 경계에서 지운다(`select: false` 금지) | `User` 민감 7컬럼, `Trigger.notification_secret_v2`(교체 스윕이 승격에 쓴다) |
-| WHERE 절에만 쓴다 | `select: false` 유효 | `Notification.background_run_id` |
-
-이 결정을 "`select: false` 를 쓰지 마라" 의 선례로 인용하려면 그 컬럼의 소비 패턴이 앞쪽임을 먼저 보여야 한다. 조건 없이 인용하는 것이 이 결정의 실패 모드다.
-
-### 로그인 이력 CHECK 변경을 한 문장 마이그레이션으로 했다
-
-V058(`chk_login_history_event` 에 `webauthn_failed` 추가)은 `DROP/ADD CONSTRAINT` 한 문장으로 썼다. 마이그레이션 기본 규약은 NOT VALID 와 VALIDATE 두 단계지만([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)), 이 건은 다음 조건을 모두 만족해 한 문장이 안전하다고 판단했다.
-
-1. append-only 테이블이다. `login_history` 는 INSERT 만 한다(보존 배치의 DELETE 만 예외). 오래 도는 쓰기 트랜잭션이 ACCESS EXCLUSIVE 잠금과 부딪칠 가능성이 낮다.
-2. enum 확장이다. 새 값(`webauthn_failed`)은 기존 행에 없으므로 NOT VALID 의 "기존 행 검증 건너뛰기" 이득이 없다. 전체 검증을 해도 위반은 0건이다.
-3. 테이블이 아직 작다. 잠금 영향을 무시할 수 있는 규모다. 다만 커지면 다음 사후 점검을 권한다. 100만 행에 이르면 다음 CHECK 변경부터 NOT VALID 와 VALIDATE 로 나누는 것을 의무로 하고, 180일 보존 배치(`login-history-pruner`)가 제대로 도는지 모니터링한다.
-
-이미 적용한 제약을 NOT VALID 로 다시 선언하는 것은 뜻이 없다(제약 이름이 같으면 `ERROR: relation already exists`). DROP, NOT VALID ADD, VALIDATE 세 단계로 우회하면 한 문장보다 잠금 창이 길어진다(ACCESS EXCLUSIVE 잠금 3회). 앞으로 같은 형태의 변경은 위 조건을 점검한 뒤 고르고, append-only 테이블도 100만 행 이후에는 두 단계를 권한다.
-
-### 시스템 SMTP 는 STARTTLS 를 기본으로 강제한다
-
-2026-10-04 결정이다(NERV Task `CLE-T-67BNAZ`). 진행 중에 아래 세 안을 사람에게 제시했고 첫 안이 선택됐다. 시스템 SMTP 로 나가는 메일에는 이메일 인증, 비밀번호 재설정, 초대 링크가 들어 있고 연결에는 SMTP 자격 증명이 실린다. 예전 전송기는 `MAIL_SECURE` 가 `true` 가 아닐 때(기본 포트 587) 서버가 STARTTLS 를 알릴 때만 암호화했다. 그래서 능동 중간자가 EHLO 응답에서 STARTTLS 를 지우면 링크와 자격 증명이 평문으로 나갔다. `@nestjs-modules/mailer` 를 쓰던 때도 같았다.
-
-| 안 | 채택·기각 이유 |
-| --- | --- |
-| 기본 강제, 설정으로 끄기 | 채택. `MAIL_SECURE` 가 `true` 가 아니면 nodemailer `requireTLS` 를 켠다. STARTTLS 를 지원하지 않는 서버를 쓰는 운영자만 `MAIL_REQUIRE_TLS=false` 로 끈다. 값이 `false` 가 아니면(빈 값 포함) 강제한다 |
-| 설정만 더하고 기본은 끄기 | 기각. 운영자가 켜지 않으면 보호가 없고 지금 배포의 기본 동작이 그대로 남는다 |
-| 지금 동작 유지 | 기각. 위험을 문서로만 알리고 막지 않는다 |
-
-이 결정은 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 전송 구간 암호화 요구(TLS 1.2 이상)를 시스템 메일에 적용한 것이다. Node 의 기본 최소 TLS 버전이 1.2 라 STARTTLS 업그레이드도 그 하한을 지킨다. `MAIL_REQUIRE_TLS=false` 는 STARTTLS 를 지원하지 않는 서버를 쓰는 셀프 호스팅 운영자 몫의 예외다.
-
-범위는 시스템 메일(`MailService`)뿐이다. 워크스페이스 SMTP 통합의 `secure`(`none`, `starttls`, `tls`)는 통합마다 사용자가 고르고 이 결정이 바꾸지 않는다.
-
-`MAIL_REQUIRE_TLS=false` 는 정당한 용도가 있는 완화 플래그라 부팅을 거부하지 않는다. 운영(`NODE_ENV=production`)에서 SMTP 전송인데 강제를 끄고 부팅하면 경고만 남긴다. [세션과 토큰](CLE-ACCT-SESSION.md) 의 운영 환경 가드 기준(정당한 용도가 있으면 throw 가 아니라 warn)과 같다.
-
-STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 뒤 발송이 실패하므로 `MAIL_REQUIRE_TLS=false` 를 명시해야 한다. 이 실패(nodemailer 코드 `ETLS`)는 일시적인 실패가 아니라 설정을 고칠 때까지 모든 발송에서 난다. 실패가 드러나는 방식은 메일마다 다르고 기존 발송 실패 규칙을 그대로 따른다.
-
-- 가입 인증 메일과 이메일 변경 확인 메일은 요청이 에러로 끝난다. 가입은 미인증 사용자 행이 남아 인증 메일 재발송으로 복구한다. 이메일 변경은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한 대로 대기 중 변경 정보를 지운다.
-- 비밀번호 재설정, 초대, 이메일 변경 통지, 알림 메일은 사용자에게 드러나지 않고 서버 로그에만 남는다. 알림 메일은 `email_sent_at` 이 비어 있다.
-
-배포 뒤에는 `Failed to send … email` 로그의 stack 에 `Error upgrading connection with STARTTLS` 가 있는지 본다. `ETLS` 는 에러 객체의 코드라 로그 문자열에는 나오지 않는다. `console` 전송(로컬, e2e)은 SMTP 를 쓰지 않아 영향이 없다.
-
-### `user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다
-
-2026-10-10 결정이다(NERV Task `CLE-T-E7MF3Q`, 리뷰 발견 `01a0e542-19bb-75af-9f64-5529605f2b98`). 프로필 수정 API(`UpdateMeDto.USER_THEMES`)와 환경설정 화면은 테마로 `light`·`dark`·`system` 을 받았다. 그런데 V001 의 CHECK 는 `light`·`dark` 만 허용해서 `system` 을 저장하면 제약 위반으로 500 이 났다. 여섯 안을 견줬다.
-
-| 안 | 채택·기각 이유 |
-| --- | --- |
-| DTO 와 화면에서 `system` 을 빼기 | 기각. 화면에 System 선택지가 이미 있었고 저장만 막혀 있었다. 값을 빼면 OS 색상 모드를 따르는 선택지를 잃는다 |
-| V001 의 CHECK 를 직접 고치기 | 기각. 이미 적용한 마이그레이션은 고치지 않는다([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)) |
-| 새 마이그레이션에서 한 문장으로 DROP·ADD | 기각. 앞의 「로그인 이력 CHECK 변경을 한 문장 마이그레이션으로 했다」 의 첫 조건(append-only)을 만족하지 않는다. `user` 는 로그인할 때마다 `login_attempts` 를 고치고 프로필 수정도 받는 테이블이다 |
-| 한 파일에서 새 제약을 NOT VALID 로 걸고 바로 VALIDATE 하기 | 기각. 처음 구현이 이 형태였다. ADD 가 잡은 ACCESS EXCLUSIVE 잠금이 파일 끝까지 남아서 VALIDATE 가 기존 행을 모두 검사하는 동안 `user` 접근이 막힌다. 아래 문단에 자세히 적었다 |
-| 같은 파일에 두고 같은 이름 `.conf`(`V149__user_theme_allow_system.conf`)로 트랜잭션을 끄기 | 기각. 근거는 규약 기본 절차(`migrations/README.md` §1 의 NOT VALID 와 VALIDATE 두 단계)와 V141~V147 선례다. 같은 이름 `.conf` 에 대한 관찰은 아래 문단에 적었다 |
-| 이름 있는 새 제약을 NOT VALID 로 걸고(V149) 다음 파일에서 VALIDATE 한 뒤 옛 제약을 지우기(V150) | 채택. 마이그레이션 기본 절차(`migrations/README.md` §1)를 따른다. 잠금이 강한 단계와 검사가 오래 걸리는 단계를 다른 트랜잭션에 둔다 |
-
-새 제약 이름은 `chk_user_theme` 이다. V001 의 인라인 CHECK 에는 PostgreSQL 이 붙인 자동 이름 `user_theme_check` 가 있어서 V150 이 `DROP CONSTRAINT IF EXISTS` 로 지운다. 새 제약이 옛 제약보다 넓으므로 기존 행은 위반할 수 없다. 되돌리기는 두 파일의 역순이다. 먼저 V150 의 `-- DOWN:` 대로 `system` 행을 `light` 로 바꾸고 옛 제약을 다시 건다. 이어서 V149 의 `-- DOWN:` 대로 새 제약을 지운다. 두 `-- DOWN:` 은 각 파일 끝에 있다.
-
-두 파일로 나눈 이유는 잠금이다. Flyway 는 파일 하나를 트랜잭션 하나로 돌린다. `ADD CONSTRAINT … NOT VALID` 가 잡은 ACCESS EXCLUSIVE 잠금은 그 트랜잭션이 커밋할 때까지 남는다. 같은 파일에서 VALIDATE 하면 기존 행을 모두 검사하는 동안 `user` 의 읽기와 쓰기가 막힌다. V149 는 메타데이터만 바꾸므로 금방 커밋된다. V150 의 VALIDATE 는 SHARE UPDATE EXCLUSIVE 만 잡아서 검사하는 동안에도 읽기와 쓰기를 막지 않는다. 마지막 DROP 은 ACCESS EXCLUSIVE 를 잡지만 검사가 끝난 뒤에 잡고 곧바로 커밋된다.
-
-두 파일 모두 `lock_timeout` 을 3초로 둔다(V036 과 같은 방식). 오래 열린 트랜잭션이 `user` 테이블 잠금을 잡고 있으면 ALTER 가 잠금을 기다린다. 그 뒤에 오는 `user` 접근도 로그인을 포함해 모두 함께 기다린다. 3초 안에 잠금을 잡지 못하면 그 파일이 롤백되고 Flyway 이력에 실패 행이 남지 않으므로 다시 배포하면 된다.
-
-트랜잭션을 끄는 설정 파일(같은 이름 `.conf` 나 `.sql.conf`)은 쓰지 않았다. 구현 중 같은 이름 `.conf` 가 적용되지 않은 것처럼 보인 관찰이 있었다(재현 전, NERV Task `CLE-T-NYFE78` 에서 확인). 설정 파일 이름 규칙은 확인 전이라 이 건에서는 쓰지 않는다. 두 파일로 나누는 방식은 파일마다 트랜잭션 하나라는 Flyway 기본 동작만으로 NOT VALID 와 VALIDATE 의 잠금을 나눈다. V141~V146 이 `NOT VALID` 로 건 외래 키를 V147 이 따로 검증한 것과 같은 방식이다.
-
-### 세션 API 를 리프레시 쿠키 경로 아래로 옮겼다
-
-2026-10-10 결정이다(NERV Task `CLE-T-ERAJ7P`). 세션 목록과 종료는 요청의 리프레시 쿠키로 현재 로그인 세션을 가린다. 그런데 쿠키의 Path 가 `/api/auth` 라서 브라우저는 예전 경로 `/api/users/me/sessions*` 에 쿠키를 싣지 않았다. 그 결과 목록의 `isCurrent` 는 늘 false 였고 다른 세션 일괄 종료는 늘 400 `CURRENT_SESSION_REQUIRED` 였다. 현재 세션을 스스로 종료하지 못하게 막는 검사도 동작하지 않았다.
-
-| 안 | 채택·기각 이유 |
-| --- | --- |
-| 쿠키 Path 를 `/api` 로 넓히기 | 기각. 리프레시 토큰이 모든 API 요청에 실려 노출 범위가 넓어진다 |
-| 예전 경로를 별칭으로 남기기 | 기각. 별칭 경로에는 여전히 쿠키가 실리지 않아 같은 결함이 남는다. 핸들러를 따로 두면 요청 빈도 제한 카운터도 경로마다 갈린다 |
-| 컨트롤러 접두를 통째로 `auth` 로 바꾸기 | 기각. 쿠키가 필요 없는 로그인 이력까지 함께 옮겨진다 |
-| 세션 라우트 세 개만 `/api/auth/sessions` 아래로 옮기기 | 채택 |
-
-로그인 이력 `GET /api/users/me/login-history` 는 그대로 둔다. 쿠키 정책과 현재 세션 식별 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정하고, 경로 명명 규칙의 예외는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 이 정한다.
-
-### 요청 한도의 집계 기준을 코드에 맞췄다
-
-2026-10-10 정리다(NERV Task `CLE-T-ERAJ7P`, 리뷰 발견 `01a12313-21b0-73a9-850d-2250d86e87e8`). 이 문서는 세션 종료 한도와 전역 한도를 «IP 당» 으로 적었다. 코드의 `UserThrottlerGuard` 는 인증한 요청을 사용자(`user:<sub>`)로 세고 IP 는 인증 없는 `@Public` 라우트에만 쓴다. 세션 종료 두 라우트는 JWT 인증 라우트라서 사용자 기준이다. 전역 한도도 같은 가드를 지나므로 인증 요청은 사용자 기준이다. 표를 코드대로 고치고 집계 키 열을 더했다. 이것으로 미결 «전역 요청 한도의 집계 기준» 을 닫았다.
-
-코드를 예전 문서에 맞춰 모든 요청을 IP 로 세는 안은 기각했다. 사무실처럼 한 IP 를 여러 사용자가 함께 쓰면 서로의 한도를 깎는다. 한 사용자가 IP 를 바꿔 가며 한도를 피할 수도 있다. `register`·`login` 처럼 인증 전 라우트는 사용자를 알 수 없어 IP 로 센다.
-
-### 관리자 역할을 주고 빼는 일은 소유자만 한다
-
-2026-10-10 결정이다(NERV Task `CLE-T-0W7CA7`). 규칙과 권한 매트릭스는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다. 이 문서는 어느 쓰기가 막히는지만 적는다. 막는 쓰기는 네 가지다.
-
-1. 역할 변경에서 대상의 지금 역할이나 새 역할이 관리자인 경우. 관리자가 자기 역할을 바꾸는 요청도 포함한다.
-2. 직접 추가의 `role=admin`.
-3. 초대 발급의 `role=admin`.
-4. 대기 중인 관리자 초대를 다른 역할로 덮어쓰는 재초대.
-
-거부 코드는 `OWNER_REQUIRED` 다. 가드의 소유자 역할 미달과 같은 코드를 서비스 계층에서도 쓴다. 뜻이 같아서(소유자 역할이 필요하다) 새 코드를 만들지 않았다. 메시지는 이 규칙에 맞는 문구를 따로 둔다([초대 발급](#초대-발급)). 이 코드로 갈리는 프론트엔드 분기는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 Rationale 에서 확인했다.
-
-멤버 제거와 초대 재발송·취소는 바꾸지 않았다. 관리자 이상이면 할 수 있다. [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 Rationale 「멤버 관리에서 관리자는 삭제(D)까지 할 수 있다」 를 그대로 따른다.
-
-관리자가 다른 관리자를 제거한 뒤 낮은 역할로 다시 추가하거나 초대하면 결과는 강등과 같다. 제거는 멤버 목록에서 사라지고 감사 로그(`member.removed`)에 남아 소유자가 알아챌 수 있으므로 이 경로는 2026-07-28 결정(관리자도 멤버를 제거할 수 있다)대로 둔다.
-
-이 검사는 쓰기 시점에만 돈다. 규칙 전에 생긴 관리자 멤버십과 대기 중인 관리자 초대는 그대로 남는다. 수락 경로는 초대 행의 `role` 만 읽으므로 그런 초대를 수락하면 관리자로 합류한다. [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 소급하지 않기로 정했다.
-
-### 2단계 인증 끄기에 코드 확인을 더했다
-
-2026-10-10 변경이다(NERV Task `CLE-T-75TDTN`). `POST /api/auth/2fa/disable` 은 예전에 비밀번호만 받았다. 이제 `{ password, code }` 를 받고 둘 다 맞아야 `two_factor_enabled`·`two_factor_secret`·`totp_recovery_codes` 를 지운다. `code` 는 6자리 TOTP 코드나 TOTP 복구 코드이고 로그인 2단계와 같은 검증을 쓴다(`TotpService.verifyForDisable`). 틀리면 401 `TOTP_INVALID` 다.
-
-비밀번호만 받던 방식은 비밀번호와 로그인 세션을 함께 빼앗기면 2단계 인증까지 꺼질 수 있어 바꿨다. 이 변경 때는 켜진 계정에서도 setup/verify 로 secret 을 바꿀 수 있어서 효과가 부분적이었다. 2026-11-01 에 NERV Task `CLE-T-94FTMV` 가 그 길을 닫았다([TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다](#totp-켜기-쓰기를-조건부-update-로-바꾸고-설정-시작에-요청-한도를-걸었다-2026-11-01)). 복구 코드를 받지 않는 안은 기각했다. 기기를 잃고 복구 코드로 로그인한 사용자가 2단계 인증을 끌 방법이 없어진다. 규칙의 정본은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이다.
-
-### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)
-
-NERV Task `CLE-T-A3W8B8` 에서 고쳤다. NestJS 12 부터 전역 가드가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard` 하나가 맡는다. 그래서 요청 빈도 제한 표의 전역 행에 범위가 HTTP API 라는 것을 밝히고 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 으로 넘겼다. 표 위 문단의 집계 키 설명도 HTTP 요청 기준으로 고쳤다.
-
-2026-10-10 [「요청 한도의 집계 기준을 코드에 맞췄다」](#요청-한도의-집계-기준을-코드에-맞췄다) 의 집계 기준은 HTTP 요청에 그대로 유효하다. 기각한 대안은 [HTTP API 규약 「전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)」](../CLE-API/CLE-API-CONV.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다-2026-10-22) 에 있다. 경위는 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」 에 있다.
-
-### 멤버 제거와 나가기가 개인 통합도 지운다 (2026-10-29)
-
-NERV Task `CLE-T-TGZGM9` 에서 정했다. 멤버십을 지우는 트랜잭션이 그 멤버의 개인 통합도 지운다. 규칙과 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가, 테이블 쓰기는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때) 가 정한다. 이 문서에는 멤버 제거를 한 트랜잭션으로 묶는 것만 적고 잠금 순서와 삭제 조건은 링크한다. 머리 줄 구현 상태의 미구현 목록에 이 삭제를 더했다.
-
-2026-10-29 에 잠금 순서를 고쳤다(NERV Task `CLE-T-G56XCH`). 처음에는 «멤버십, 통합 순이라 교착하지 않는다» 고 적었다. 그런데 멤버십만 먼저 잠그는 개인 통합 생성은 통합 INSERT 의 외래 키 확인이 워크스페이스 행을 그 뒤에 잠근다. 워크스페이스, 멤버십 순으로 잠그는 워크스페이스 삭제·소유자 이양과 순서가 엇갈려 교착할 수 있었다. 그래서 워크스페이스, 멤버십, 통합의 전역 순서로 고쳤다.
-
-2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 이 삭제와 통합 쓰기의 잠금을 구현했다. 그래서 머리 줄 미구현 목록에서 두 항목을 빼고 본문의 미구현 표시를 걷었다. 같은 날 사용자가 NERV Task `CLE-T-G56XCH` 리뷰 후속으로 잠금 규칙을 통합 행을 만들 수 있는 쓰기 전체(조직 공개 범위의 begin 포함)로 넓혔다. 기각한 안은 [통합 관리 「나간 멤버의 개인 통합은 나갈 때 지운다」](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 에 있다. 잠금 방식은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 한 곳에만 두고 「워크스페이스 삭제와 나가기」 에는 순서만 남겼다. 그 절에 멤버 제거와 나가기가 워크스페이스 행을 잠그지 않는다는 문장도 더했다.
-
-### 나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)
-
-NERV Task `CLE-T-PS7JQY` 의 코드 리뷰가 나가기와 멤버 제거의 잠금 대기 상한을 새 실패 경로로 짚었다. 상한을 넘긴 요청은 매핑되지 않은 500 으로 끝나는데 스펙에 그 동작과 재시도 안내가 없었다. 같은 날 이 에러에 응답 코드를 따로 두지 않고 동작을 스펙에 적기로 정했다. 한도를 넘기면 트랜잭션이 롤백되므로 데이터가 상하지 않는다. 겹칠 상대가 짧은 쓰기라 다시 시도하면 대개 통과한다. 워크스페이스 삭제와 워크플로우 삭제도 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 걸고 이 에러를 따로 매핑하지 않는다. 나가기와 멤버 제거만 503 이나 409 로 바꾸면 같은 원인의 실패가 엔드포인트마다 다른 코드로 나간다. 그래서 한도 초과의 응답 코드는 이 동작들을 함께 다룰 때 정한다. 두 엔드포인트의 API 문서 설명에도 잠금 대기가 5초를 넘으면 롤백되니 다시 시도하라는 안내를 넣었다. 잠금 대기 상한을 거는 경로들의 응답 코드를 함께 정하는 일은 NERV Task `CLE-T-1C2JE0` 가 맡는다([미결 사항](#미결-사항)).
-
-### Passkey 인증 챌린지 기록을 Redis 키에 둔다 (2026-10-30)
-
-NERV Task `CLE-T-GK9J2B` 에서 Passkey 인증 챌린지 기록을 테이블이 아니라 Redis 키에 두기로 정했다. 근거와 기각한 안은 [가입과 로그인 「Passkey 인증 챌린지는 한 번만 쓴다」](CLE-ACCT-SIGNIN.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17) 에 있다. 같은 문서의 [OAuth state 를 한 번의 DELETE 로 소비한다](#oauth-state-를-한-번의-delete-로-소비한다) 와 저장소가 다른 것은 OAuth state 는 시작할 때 만든 행을 콜백에서 지워 소비하지만 이 기록은 검증할 때마다 새로 쓰고 TTL 로 사라지기만 하면 되기 때문이다.
-
-### TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다 (2026-11-01)
-
-NERV Task `CLE-T-94FTMV` 에서 바꿨다. 규칙과 근거, 기각한 안은 [가입과 로그인 「TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다」](CLE-ACCT-SIGNIN.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다-2026-11-01) 에 있다. 이 문서에는 테이블 쓰기와 요청 한도만 적는다.
-
-- 그 전에는 TOTP 가 켜진 계정에서도 설정 시작이 `two_factor_secret` 을 새 값으로 바꿨고 활성화 검증이 `totp_recovery_codes` 를 다시 발급했다. 이제 둘 다 켜진 계정을 409 `TOTP_ALREADY_ENABLED` 로 거부하고 컬럼을 쓰지 않는다.
-- 켜짐 여부를 읽은 뒤 저장하기 전에 다른 요청이 TOTP 를 켤 수 있다. 조건 없이 쓰는 `UsersService.update` 로 쓰면 막 켜진 계정의 secret 과 복구 코드를 덮어쓴다. 그래서 두 쓰기를 조건부 UPDATE 로 바꾸고 `TotpService` 가 `User` 저장소로 직접 쓴다. 판정을 DB 단일 UPDATE 의 원자성에 맡기는 것은 「토큰 회전은 트랜잭션과 조건부 UPDATE 로 원자화한다」 와 같다.
-- 설정 시작의 조건은 `two_factor_enabled = false` 하나라서 영향 행이 0 이면 바로 409 다. 활성화 검증은 `two_factor_secret` 도 조건에 넣는다. 확인한 코드가 그 사이 다른 설정 시작이 바꾼 secret 과 맞지 않을 수 있기 때문이다. 영향 행이 0 이면 다시 읽어 켜져 있으면 409, 아니면 401 `TOTP_INVALID` 로 가른다.
-- 끄기는 바꾸지 않았다. 비밀번호와 코드를 확인한 뒤 조건 없이 세 컬럼을 비운다. 2026-11-02 부터는 `two_factor_setup_started_at` 도 함께 비운다.
-- 설정 시작은 계정 비밀번호를 bcrypt 로 대조하는 경로가 됐다. 그래서 TOTP 끄기와 같은 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 그때 활성화 검증에는 전용 한도를 두지 않았다. 비밀번호 재확인 라우트들의 한도를 맞추는 일은 [가입과 로그인](CLE-ACCT-SIGNIN.md#미결-사항) 의 미결 사항으로 남겼다(NERV Task `CLE-T-FRCRF7`). 2026-11-02 에 사람 결정으로 정해 미결을 닫았다. 결정은 [가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 에 있고 이 문서의 쓰기와 한도는 아래 「TOTP 대기 secret 에 10분 수명을 두고 2단계 인증 라우트의 요청 빈도 제한을 맞췄다 (2026-11-02)」 에 있다.
-
-### TOTP 대기 secret 에 10분 수명을 두고 2단계 인증 라우트의 요청 빈도 제한을 맞췄다 (2026-11-02)
-
-NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거, 기각한 안은 [가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 에 있다. 이 문서에는 컬럼과 테이블 쓰기, 요청 빈도 제한만 적는다.
-
-- 그 전에는 대기 secret 에 수명이 없었다. 수명을 재려고 `user.two_factor_setup_started_at`(timestamptz, NULL 허용)을 더했다. 설정 시작이 secret 과 같은 조건부 UPDATE 로 쓰므로 secret 과 시각이 따로 바뀌지 않는다. 켜기와 끄기는 시각을 비운다.
-- 만료된 대기 secret 을 비우는 UPDATE 는 `two_factor_enabled = false` 이고 `two_factor_secret` 이 읽은 값 그대로일 때만 쓴다. 그 사이 다른 설정 시작이 쓴 새 secret 과 시각을 지우지 않기 위해서다. 판정을 DB 단일 UPDATE 에 맡기는 방식은 「TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다 (2026-11-01)」 와 같다.
-- 마이그레이션은 기존 행을 바꾸지 않는다. 컬럼을 더하기 전에 설정 시작한 대기 secret 은 시각이 NULL 이라 활성화 검증이 만료로 보고 비운다. 사용자는 설정 시작부터 다시 하면 된다.
-- 이 컬럼은 응답에 싣지 않는다. 비밀이 아니라서 「응답에 싣지 않는 민감 컬럼 7개」 에는 넣지 않았다.
-- 활성화 검증, Passkey 등록 옵션, Passkey 복구 코드 재발급에 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 세 라우트 모두 로그인한 사용자만 부르므로 사용자 기준으로 센다. 수치의 정본은 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이다.
-
-### 리프레시 토큰 행에 로그인 유지 여부를 둔다 (2026-11-05)
-
-NERV Task `CLE-T-BYCGF1` 에서 바꿨다. 규칙과 근거, 기각한 안은 [세션과 토큰 「토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)」](CLE-ACCT-SESSION.md#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05) 에 있다. 이 문서에는 컬럼 정의와 백필 근거만 적는다.
-
-- 그 전에는 토큰 행에 로그인 유지 여부가 없어서 갱신이 토큰을 회전할 때 늘 `false` 로 넘겼다. 그래서 30일로 로그인한 세션도 첫 회전 뒤에는 7일 만료가 됐다. 회전이 이어받을 값을 남기려고 `refresh_token.remember_me`(NOT NULL, 기본 `false`)를 더했다.
-- `auth_oauth_state.remember_me` 는 그대로 둔다. 소셜 로그인 시작부터 콜백까지 값을 나르는 단명 행이고 콜백이 소비하면 사라진다. 콜백이 발급한 리프레시 토큰의 `remember_me` 가 그 값을 받는다.
-- 백필은 `expires_at - created_at` 으로 발급 수명을 가른다. 7일 행은 차이가 7일이고 30일 행은 30일이라 8일을 경계로 둔다. 이미 한 번 회전한 행은 고치기 전 규칙대로 7일로 발급돼 원래 로그인 유지 여부를 알 수 없다. 그래서 `false` 로 남긴다. 그 사용자는 다음 로그인부터 30일을 받는다.
-- **기각: 기존 행을 모두 `false` 로 두기.** 배포 시점에 30일로 로그인해 아직 한 번도 회전하지 않은 세션도 다음 회전부터 7일이 된다. 이런 행은 발급 수명으로 판별할 수 있으므로 살린다.
-- **기각: 살아 있는 행을 모두 `true` 로 채우기.** 로그인 유지를 끄고 로그인한 세션까지 30일로 늘어난다.
-- 상수 기본값이 있는 NOT NULL 컬럼 추가는 PostgreSQL 11 이상에서 메타데이터만 바꾼다. 다만 ACCESS EXCLUSIVE 잠금을 잡으므로 V149 와 같이 `lock_timeout` 을 3초로 둔다. 잡지 못하면 그 파일이 롤백되므로 다시 배포하면 된다.
-
-### 새로 저장하는 이메일을 소문자로 정규화하고 기존 행은 바꾸지 않는다 (2026-11-05)
-
-NERV Task `CLE-T-SFWX84` 에서 바꿨다. 기존 계정을 다루는 방식은 사람 결정이다(NERV 질문 `01a1ac05-8931-7309-acc4-ae26e35086a2`). 비교 규칙과 근거, 기각한 안은 [가입과 로그인 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다 (2026-11-05)」](CLE-ACCT-SIGNIN.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05) 에 있다. 이 문서에는 데이터 쪽만 적는다.
-
-- 그 전에는 이메일을 입력한 대소문자 그대로 저장했다. 로그인 · 가입 중복 확인 · `check-email` · OAuth 이메일 연결도 대소문자를 구분해 비교했다. `LOWER(email)` 로 비교한 곳은 이메일 변경의 중복 확인(`emailTakenByOther`)뿐이었다.
-- 정규화는 새로 쓰는 값에만 건다. 기존 행을 소문자로 바꾸는 마이그레이션은 기각했다. 대소문자만 다른 묶음이 있으면 `email UNIQUE` 에 걸리고 어느 계정을 남길지 사람이 정해야 한다.
-- 비교는 `LOWER(email)` 로 하고 V101 인덱스를 쓴다. 새 인덱스는 더하지 않았다.
-- `LOWER(email)` 유니크 인덱스는 지금 걸 수 없다. 묶음이 남아 있으면 인덱스를 만들지 못한다. 운영자가 [User](#user) 의 쿼리로 묶음을 찾아 정리한 뒤 NERV Task `CLE-T-6QZCYD` 가 건다.
+→ [워크스페이스 데이터와 흐름](CLE-ACCT-DATA-WS.md#개인-워크스페이스-유일성은-부분-유니크-인덱스로-강제한다)

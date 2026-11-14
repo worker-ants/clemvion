@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "51b861d91781229fd86e6178c803b6dfcccb36e3654edb60cdb0eac4b3bbeafb"
+content_hash: "416a82cea955cc16417e071e2ad6b1acd3d1e5c03df5ded99a1a958b4a7f9c1e"
 read_as: "approved_fallback"
-task: "CLE-T-9WQMDE"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0a184c37755ba1396db0d1ef2b71c14e225b85a7068bad07433e45e4688edc7c"
-etag: "sha256-450097533c444eabdc4f448b54f33cd10d57991c06d37e9dfa5d94df28eca9bd"
+mirror_sha256: "9257bf91e28d45733fedd603e116bc4b6be091ecb20cc093930ca9c5de9ffea3"
+etag: "sha256-2bc9ae6e0cb1dea0560e64b97e6fa5b811b95cba79c782433f77c32d6c856f4f"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-450097533c444eabdc4f448b54f33cd10d57991c06d37e9dfa5d94df28eca9bd"
 
 AI 노드(AI nodes)는 LLM 을 부르는 세 노드다. [AI 에이전트 노드](CLE-NODE-AGENT.md)(AI Agent, `ai_agent`), [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md)(Text Classifier, `text_classifier`), [정보 추출기 노드](CLE-NODE-EXTRACTOR.md)(Information Extractor, `information_extractor`)가 여기에 속한다. 이 문서는 세 노드가 함께 따르는 규약을 정한다. 노드별 설정과 동작은 각 노드 문서가 정한다.
 
-이 문서가 정하는 것은 다음과 같다. 모델 선택 필드, AI 에이전트 전용인 지식 저장소·MCP 연결 필드, 멀티턴 차단 모드의 공통 동작, 출력 형태와 에러 계약, 토큰 회계와 진단 누적, 캔버스 요약 형식, 출력 구조 색인, 대화 맥락 설정과 메모리 전략, 시스템 컨텍스트 접두, AI 영역의 기술 결정과 비기능 기준이다.
+이 문서는 공통 규칙, 모델 선택 필드, AI 에이전트 전용인 지식 저장소·MCP 연결 필드, 멀티턴 차단 모드의 공통 동작, AI 영역의 기술 결정과 비기능 기준을 직접 정한다. 출력 · 에러 · 토큰 회계와 대화 맥락 · 메모리 · 시스템 컨텍스트 접두는 [하위 문서](#하위-문서)가 정한다.
 
 다음 주제는 다른 문서가 정한다.
 
@@ -44,14 +44,21 @@ AI 노드(AI nodes)는 LLM 을 부르는 세 노드다. [AI 에이전트 노드]
 6. 도메인 결과는 `output.result.*`, 에러는 `output.error.{code, message, details?}`, 사용자 입력 기록은 `output.interaction.*` 에 둔다.
 7. AI 노드의 에러는 `details.retryable: boolean` 을 반드시 싣는다. `details.retryAfterSec` 은 `retryable === true` 일 때만 싣는다.
 8. 멀티턴이 에러로 끝나도 부분 결과(`output.result`)를 `output.error` 와 함께 남긴다. 에러인지는 `output.error` 가 있는지로 판단한다.
-9. LLM 호출 결과의 `meta` 에는 `model`·`inputTokens`·`outputTokens`·`totalTokens`·`durationMs` 를 싣는다. `thinkingTokens` 와 `turnDebug` 는 있을 때만 싣는다. 단 AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력은 `meta.thinkingTokens` 를 늘 싣고 보고가 없으면 `0` 으로 채운다([토큰 회계](#토큰-회계)).
+9. LLM 호출 결과의 `meta` 에는 `model`·`inputTokens`·`outputTokens`·`totalTokens`·`durationMs` 를 싣는다. `thinkingTokens` 와 `turnDebug` 는 있을 때만 싣는다. 단 AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력은 `meta.thinkingTokens` 를 늘 싣고 보고가 없으면 `0` 으로 채운다([토큰 회계](CLE-NODE-AI-COMMON-OUTPUT.md#토큰-회계)).
 10. provider 도구를 부른 노드는 `meta.ragSources`·`meta.ragDiagnostics`·`meta.mcpDiagnostics` 누적치를 싣는다. 멀티턴에서는 턴별 delta 의 합이 누적치와 같아야 한다.
 11. 대화 맥락 설정의 기본값은 `contextScope: 'none'` 이다. 사용자가 명시적으로 켤 때만 주입한다.
 12. 메모리 전략이 자동(`summary_buffer`·`persistent`)이면 범위 필드 4개(`contextScope`·`contextScopeN`·`contextInjectionMode`·`includeToolTurns`)는 무효다.
 13. 시스템 컨텍스트 접두는 기본으로 켜져 있고(`includeSystemContext: true`), 항상 시스템 프롬프트 맨 앞에 붙는다.
 14. 접두의 시간대는 워크스페이스 설정 → 서버 `process.env.TZ` → `UTC` 순서로 정한다.
-15. 시스템 프롬프트 조립 순서의 단일 기준은 이 문서의 "시스템 프롬프트 조립 순서" 절이다.
+15. 시스템 프롬프트 조립 순서의 단일 기준은 [AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](CLE-NODE-AI-COMMON-CONTEXT.md#시스템-프롬프트-조립-순서) 절이다.
 16. `includeSystemContext`·`systemContextSections` 는 기본값과 같으면 설정 에코에서 뺀다.
+
+## 하위 문서
+
+이 문서에는 요구사항 줄이 없다. 위 「규칙」 번호 기준으로 하위 문서가 맡는 범위를 적는다.
+
+- [AI 노드 공통 — 출력 · 에러 · 토큰 회계](CLE-NODE-AI-COMMON-OUTPUT.md): 출력 형태, 에러 계약, 토큰 회계, 진단 누적, 출력 구조 색인, 캔버스 요약. 규칙 6~10 을 자세히 정한다.
+- [AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](CLE-NODE-AI-COMMON-CONTEXT.md): 대화 맥락 설정, 메모리 전략, 시스템 컨텍스트 접두(설정 필드 · 섹션 · 시간대 결정 순서 · 시스템 프롬프트 조립 순서 · 토큰 비용 · 설정 에코). 규칙 11~16 을 자세히 정한다.
 
 ## 모델 선택
 
@@ -76,7 +83,7 @@ AI 에이전트 노드는 다음 필드로 지식 저장소 검색을 켠다. �
 
 LLM 은 도구 호출 인자로 `ragTopK`·`ragThreshold` 를 덮어쓸 수 있다. 두 값의 의미, 동적 점수 컷, 리랭킹 해석, 도구 인터페이스와 이름 규칙은 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 에서 정한다.
 
-엔진은 LLM 호출 전에 지식 저장소를 자동으로 검색하지 않는다. 검색은 LLM 이 지식 저장소 도구를 부를 때만 일어난다. 대화 미리보기의 🔎 `rag` 행은 그 턴의 도구 호출이 가져온 청크를 모아 보여 준다([대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)).
+검색 시점은 규칙 3 을 따른다. 대화 미리보기의 🔎 `rag` 행은 그 턴의 도구 호출이 가져온 청크를 모아 보여 준다([대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)).
 
 ## MCP 서버 연결 (AI 에이전트 전용)
 
@@ -92,14 +99,14 @@ AI 에이전트 노드는 워크스페이스에 등록된 MCP 지원 통합(MCP-
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `integrationId` | UUID | 통합 FK(`service_type ∈ ('mcp', 'cafe24', 'makeshop')`). 외부 HTTP MCP 서버 또는 내부 MCP 브리지를 쓰는 first-party 통합 |
-| `enabledTools` | String[]? | 노출 도구 목록(bare operation id 배열). `['*']` 이거나 비우면 전체를 노출한다. 메타도구(resources·prompts)에는 영향이 없다. Cafe24 는 도구가 많아(2026-07-17 실측 485개, 전체 수의 단일 기준은 저장소 `codebase/api-catalogs/cafe24/_overview.md` §5 이고 NERV 사본은 [Cafe24 API 카탈로그 §5 Coverage Matrix](CLE-C24-CATALOG#5-coverage-matrix) 다) 화면에서 Resource 단위로 묶어 보여 준다. 대형 카탈로그는 비워 두면 `AI_AGENT_TOOL_COUNT_MAX`(128)를 늘 넘으므로 목록 지정이 사실상 필수다([AI 에이전트 노드](CLE-NODE-AGENT.md) 의 도구 정의 크기 예산) |
+| `enabledTools` | String[]? | 노출 도구 목록(bare operation id 배열). `['*']` 이거나 비우면 전체를 노출한다. 메타도구(resources·prompts)에는 영향이 없다. Cafe24 는 도구가 많아(2026-07-17 실측 485개, 전체 수의 기준은 [Cafe24 API 카탈로그 §5 Coverage Matrix](CLE-C24-CATALOG#5-coverage-matrix)) 화면에서 Resource 단위로 묶어 보여 준다. 대형 카탈로그는 비워 두면 `AI_AGENT_TOOL_COUNT_MAX`(128)를 늘 넘으므로 목록 지정이 사실상 필수다([AI 에이전트 노드](CLE-NODE-AGENT.md) 의 도구 정의 크기 예산) |
 | `includeResources` | Boolean? | 서버가 `resources` capability 를 보고할 때 메타도구를 노출할지. 기본 `true`. Cafe24 내부 브리지는 `resources` 를 보고하지 않아 영향이 없다 |
 | `includePrompts` | Boolean? | 서버가 `prompts` capability 를 보고할 때 메타도구를 노출할지. 기본 `true`. Cafe24 도 같다 |
 | `toolOverrides` | `{ toolName: string; description?: string }[]`? | 도구별 description 덮어쓰기. 이름은 바꿀 수 없다 |
 
 도구 이름·메타도구·실행 모델·에러 격리 정책의 단일 기준은 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 다. 이 표는 노드 설정 쪽 요약이다.
 
-**실행 중에 정하는 표현식 여부**: McpServerRef 항목에는 위 표의 설정 필드만 싣는다. AI 에이전트 핸들러는 첫 턴에 항목마다 `integrationId` 가 평가 전 원본에서 표현식이었는지 계산해 항목 밖의 불리언 배열 `mcpServerFromExpression`(i 번째 값이 i 번째 항목의 값)에 담는다. 사용자 설정의 항목에 `fromExpression` 키가 있으면 지우고 판정에 쓰지 않는다. 읽는 쪽은 배열의 값이 `false` 일 때만 리터럴로 보고, 배열이 없거나 길이가 항목 수와 다르면 모든 항목을 표현식으로 본다. 이 값은 개인 통합 판정([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용))에 쓰인다. 재개·재시도 턴으로 이어지는 규칙과 옛 체크포인트의 항목 값을 옮기는 규칙은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint) 가 정한다. 표현식 여부를 항목 밖 배열로 옮긴 이유와 기각한 대안은 [실행 상태 머신과 대기·재개 Rationale](../CLE-EXEC/CLE-EXEC-STATE.md#표현식-여부를-서버-항목-밖-배열로-옮긴다-2026-11-07) 에 있다.
+**실행 중에 정하는 표현식 여부**: McpServerRef 항목에는 위 표의 설정 필드만 싣는다. AI 에이전트 핸들러는 첫 턴에 항목마다 `integrationId` 가 평가 전 원본에서 표현식이었는지 계산해 항목 밖의 불리언 배열 `mcpServerFromExpression`(i 번째 값이 i 번째 항목의 값)에 담는다. 사용자 설정의 항목에 `fromExpression` 키가 있으면 지우고 판정에 쓰지 않는다. 배열 값이 `false` 인 항목만 리터럴이고, 배열이 없거나 길이가 항목 수와 다르면 모든 항목이 표현식이다. 이 값은 개인 통합 판정([통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용))에 쓰인다. 재개·재시도 턴으로 이어지는 규칙과 옛 체크포인트의 항목 값을 옮기는 규칙은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md#보존-예외-_resumecheckpoint) 가 정한다. 표현식 여부를 항목 밖 배열로 옮긴 이유와 기각한 대안은 [실행 상태 머신과 대기·재개 Rationale](../CLE-EXEC/CLE-EXEC-STATE.md#표현식-여부를-서버-항목-밖-배열로-옮긴다-2026-11-07) 에 있다.
 
 ## 멀티턴 차단 모드
 
@@ -112,236 +119,17 @@ AI 에이전트와 정보 추출기의 멀티턴 모드는 워크플로우 실�
 
 종료 사유별 출력 포트는 각 노드 문서의 포트 절이 정한다. park 와 rehydration 은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 에서 정한다.
 
-## 출력 형태
-
-AI 노드는 `output.result.*`·`output.error.*`·`output.interaction.*` 세 묶음을 함께 쓴다. 근거는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 1.1(설정·출력 직교), 3.2(에러 계약), 4.4~4.5(interaction 존재와 payload 형태), 8.2(result·category 1차 이름)다. Principle 11 은 출력 예시 문서화 서식 규칙이라 이 계약의 근거가 아니다.
-
-| 묶음 | 용도 |
-|------|------|
-| `output.result.*` | 성공 시 도메인 결과(`extracted`, `response`, `category` 등) |
-| `output.error.{code, message, details?}` | LLM 호출 실패, JSON 파싱 실패, 재시도 소진 등. `details.retryable: boolean` 필수, `details.retryAfterSec?: number` 선택 |
-| `output.interaction.{type, data, receivedAt}` | 멀티턴 재개 직후 한 번 내는 사용자 입력 기록 |
-
-멀티턴이 `max_retries` 같은 사유로 끝나면 `output.error` 와 `output.result` 가 함께 있을 수 있다. 후속 노드가 부분 결과를 쓸 수 있도록 둘 다 남긴다. 에러인지 정상인지는 `output.error` 가 있는지로 판단한다.
-
-## 에러 계약
-
-- AI 노드의 `output.error.details` 에는 재시도 가능 여부(`retryable: boolean`)가 반드시 있다. `retryAfterSec` 은 `retryable === true` 일 때만 싣는다. 이 필드의 의미와 분류 원칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 에서 정한다.
-- 에러 코드 등록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 맡는다. 노드별 코드 표는 각 노드 문서에 있다.
-- 인증 실패(HTTP 401·403)를 재시도 가능으로 볼지는 노드마다 정의가 갈린다. [미결 사항](#미결-사항) 참조.
-- 에러 출력에 싣는 `meta` 는 노드마다 다르다. [미결 사항](#미결-사항) 참조.
-
-| 노드 | 쓰는 코드 |
-|------|-----------|
-| AI 에이전트 | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, `LLM_RESPONSE_INVALID`, `TOOL_DEFINITION_PAYLOAD_EXCEEDED`, 예약 코드 `TOOL_EXECUTION_FAILED`·`MAX_TOOL_CALLS_EXCEEDED` |
-| 텍스트 분류기 | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, 예약 코드 `LLM_RESPONSE_INVALID` |
-| 정보 추출기 | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, `LLM_RESPONSE_INVALID`, `MAX_COLLECTION_RETRIES_EXCEEDED` |
-
 ## 토큰 회계
 
-모든 AI 노드의 LLM 호출 결과 `meta` 에는 다음 필드가 들어간다.
-
-| 필드 | 필수 여부 | 설명 |
-|------|-----------|------|
-| `meta.model` | 필수 | 실제로 부른 모델 ID |
-| `meta.inputTokens` | 필수 | 입력 토큰 수 |
-| `meta.outputTokens` | 필수 | 출력 토큰 수 |
-| `meta.totalTokens` | 필수 | 입력과 출력의 합 |
-| `meta.thinkingTokens` | 선택 | 모델이 thinking 토큰을 보고할 때. AI 에이전트 단일 턴은 LLM 호출 단계까지 간 출력에 늘 싣고 보고가 없으면 `0` 이다 |
-| `meta.durationMs` | 필수 | 실행 소요 시간 |
-| `meta.turnDebug` | 선택 | 턴별 LLM 호출 기록. `[{ turnIndex, llmCalls, totalDurationMs, toolCalls?, ragSources?, ragDiagnostics?, mcpDiagnostics? }, ...]` |
-
-텍스트 분류기는 `turnDebug` 대신 평면 배열 `meta.llmCalls` 에 호출 기록을 싣는다. 에러 출력의 `meta` 규칙은 노드마다 다르다. [미결 사항](#미결-사항) 참조.
-
-AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력(정상 완료 `out`, 조건 분기 `<조건 id>`, LLM 호출 실패 `error`)은 `meta.inputTokens` · `meta.outputTokens` · `meta.totalTokens` · `meta.thinkingTokens` 네 값을 늘 싣는다. 보고가 없는 값은 `0` 이다. 그래서 단일 턴의 `thinkingTokens` 가 `0` 이면 모델이 0 을 보고했는지 보고하지 않았는지 가르지 않는다. 출력 경로와 상관없이 같은 키를 싣도록 구현이 `0` 으로 채운다. 네 값은 그 턴에서 성공한 LLM 호출 usage 의 합이다. 도구 루프로 LLM 을 여러 번 부르면 앞선 호출도 모두 더한다. 정상 완료와 조건 분기는 마지막 호출까지 더한다. LLM 호출 실패는 실패 전에 성공한 호출만 더한다. 성공한 호출이 없으면 네 값은 모두 `0` 이다. 롤링 요약 호출의 사용량은 `meta` 토큰에 넣지 않는다. 그래서 롤링 요약 호출이 실패하거나 요약 모델 설정(`summaryModelConfigId`)을 조회하지 못해 나온 `error` 출력은 네 값을 싣되 모두 `0` 이다([AI 에이전트 노드 §출력 포트](CLE-NODE-AGENT.md#출력-포트)). 도구 정의 크기 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 을 부르기 전에 끝나므로 토큰 필드 없이 `model` · `durationMs` 만 싣는다([미결 사항](#미결-사항)).
-
-**공통 타입의 단일 기준**: `LlmCallRecord` 와 `TurnDebugEntry` 의 타입 정의는 `codebase/backend/src/shared/llm-tracing/llm-call-record.ts` 하나다. AI 에이전트와 정보 추출기가 함께 쓴다.
-
-- `LlmCallRecord` 는 필드가 모두 선택인 상위 집합이다. `requestPayload?`·`responsePayload?`·`durationMs?`·`startedAt?`·`finishedAt?` 를 갖고, `startedAt`·`finishedAt` 은 ISO 8601 wall-clock 시각이다.
-- `TurnDebugEntry` 의 기본형은 `{ turnIndex, llmCalls?, totalDurationMs? }` 다. AI 에이전트는 실행 중 여기에 턴별 진단 delta(`toolCalls?`·`ragSources?`·`ragDiagnostics?`·`mcpDiagnostics?`)를 더해 싣는다. 공유 타입은 기본형이고, 진단 필드는 AI 노드 런타임의 확장이다.
-
-필드 의미는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 에서 정한다.
-
-## 진단 누적
-
-지식 저장소·MCP·일반 provider 도구 호출이 일어난 노드는 `meta.ragSources`·`meta.ragDiagnostics`·`meta.mcpDiagnostics` 누적치를 싣는다. 멀티턴에서는 턴 단위 delta 도 `meta.turnDebug[i].{ragSources, ragDiagnostics, mcpDiagnostics}` 에 따로 싣고, delta 의 합은 전체 누적과 같다. `mcpDiagnostics.serverSummaries[]` 는 도구 목록을 만든 결과의 정적 스냅샷이다. 노드 실행마다 한 번 정해지고 턴 delta 와 무관하다.
-
-필드 의미는 다음 문서에서 정한다.
-
-- RAG 진단(`ragSources`·`ragDiagnostics`): [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md)
-- MCP 진단(`mcpDiagnostics`, `serverSummaries[].skipReason` 어휘 포함): [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)
-
-필드마다 어느 조건에서 싣는지는 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 진단 메타 절에서 정한다.
-
-## 캔버스 요약
-
-> 구현 현황: 캔버스 요약은 `getConfigSummary`(`node-config-summary.ts`)가 노드 메타데이터의 `summaryTemplate`(mustache)을 렌더해 만든다. 지금은 텍스트 분류기만 `summaryTemplate` 을 갖는다. AI 에이전트와 정보 추출기는 요약이 표시되지 않는다(미구현). 아래 두 노드의 형식은 목표 계약이다. 조건부 세그먼트(`· {N} KB` 등)와 `Multi Turn` 접두어 조합은 현재 `summaryTemplate` DSL 로 표현할 수 없어, 전용 요약 빌더나 DSL 확장을 후속으로 남긴다.
-
-| 노드 | 요약 형식 | 예시 |
-|------|-----------|------|
-| AI 에이전트 | 미구현. 목표는 `{mode} · {model}`. 지식 저장소를 연결하면 `· {N} KB`, MCP 지원 통합이 있으면 `· {N} MCP`, 조건이 있으면 `· {N} cond` 를 덧붙인다. 멀티턴이면 `Multi Turn` 을 표기한다. MCP 수는 외부 MCP 서버와 내부 브리지 통합을 합산한다 | (목표) `gpt-4o · 1 KB · 1 MCP · 3 cond` (단일 턴), `Multi Turn · gpt-4o · 1 KB · 2 MCP · 2 cond` (멀티턴) |
-| 텍스트 분류기 | 구현됨(`summaryTemplate`). `{model} · {N} categories` | `gpt-4o-mini · 3 categories` |
-| 정보 추출기 | 미구현. 목표는 `{model} · {N} fields`(출력 스키마 필드 수). 멀티턴이면 앞에 `Multi Turn` 을 붙인다 | (목표) `claude-sonnet · 4 fields`, `Multi Turn · claude-sonnet · 4 fields` |
-
-MCP 수를 합산하는 이유는 사용자 입장에서 외부 MCP 서버와 내부 브리지가 모두 "AI 가 부르는 외부 도구 출처" 이기 때문이다. AI 에이전트 요약에 표시 도구 수 세그먼트를 넣을지는 [미결 사항](#미결-사항) 참조.
-
-## 출력 구조 색인
-
-AI 노드는 정상·분기·에러·입력 대기·재개·종결로 출력 케이스가 가장 다양하다. 모든 케이스는 이 문서의 "출력 형태" 절을 따른다.
-
-| 노드 | 정상 | 분기 | 에러 | 입력 대기 / 재개 | 종결 |
-|------|------|------|------|------------------|------|
-| [AI 에이전트 단일 턴](CLE-NODE-AGENT-OUTPUT.md) | `out` | `<조건 id>` | `error` | 없음 | 없음 |
-| [AI 에이전트 멀티턴](CLE-NODE-AGENT-OUTPUT.md) | 없음 | `<조건 id>` | `error` | `waiting_for_input` / `resumed`(일시) | `user_ended` / `max_turns` |
-| [텍스트 분류기](CLE-NODE-CLASSIFIER.md) | 단일 레이블 `<카테고리 포트>` 또는 `fallback` | 다중 레이블 포트 배열(fan-out) 또는 `fallback` | `error` | 없음 | 없음 |
-| [정보 추출기 단일 턴](CLE-NODE-EXTRACTOR.md) | `out` | 없음 | `error` | 없음 | 없음 |
-| [정보 추출기 멀티턴](CLE-NODE-EXTRACTOR.md) | 없음 | 없음 | `error` | `waiting_for_input` / `resumed`(일시) | `completed` / `user_ended` / `max_turns` / `max_retries`(`error` 포트) |
-
-## 대화 맥락 설정
-
-세 AI 노드는 모두 대화 스레드(`ConversationThread`)에 최종 assistant 응답을 누적(push)하고, 대화 맥락 설정(Conversation Context, `contextScope`)에 따라 스레드를 LLM 입력에 자동 주입(inject)한다. 누적은 핸들러의 `pushClassifierTurn`·`pushExtractorTurn` 등이, 주입은 공유 유틸 `shared/conversation-context-injection.ts` 가 맡는다. 누적과 주입의 적용 범위 차이, 노드별 최종 assistant 텍스트 변환 규칙은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 에서 정한다.
-
-| 필드 | 타입 | 필수 | 기본값 | 설명 |
-|---|---|---|---|---|
-| `contextScope` | `none` / `thread` / `lastN` | ✓ | `none` | 자동 주입할 스레드 범위 |
-| `contextScopeN` | Integer | `lastN` 일 때 | `20` | `lastN` 일 때 최근 N개 턴 |
-| `contextInjectionMode` | `messages` / `system_text` | 범위가 `none` 이 아닐 때 | `messages` | 주입 형식. LLM messages 배열 앞에 붙이거나 시스템 프롬프트 텍스트에 붙인다 |
-| `includeToolTurns` | Boolean | | `false` | `ai_tool` 턴(지식 저장소·MCP·조건 결과)도 스레드에 누적할지. 자동 메모리 전략이면 주입 쪽에서는 무효지만 누적은 전략과 무관하게 유지한다 |
-| `excludeFromConversationThread` | Boolean | | `false` | 이 노드의 user·assistant 턴을 스레드에서 뺀다(opt-out) |
-
-- 기본값 `contextScope: 'none'` 이라 기존 워크플로우는 영향이 없다. 명시적으로 켤 때만 자동 주입한다.
-- 위 5필드는 세 노드가 같은 인터페이스로 갖는다. 스키마는 공유 조각 `buildConversationContextSchemaFields()`(`shared/conversation-context-schema.ts`), 주입은 공유 유틸 `injectConversationContext()` 를 쓴다.
-- 주입 시점은 노드마다 다르다. AI 에이전트 멀티턴은 매 턴 다시 주입한다. 정보 추출기 멀티턴은 첫 진입 때 한 번 주입하고 이후 턴은 `_resumeState.messages` 로 운반한다. 텍스트 분류기는 분류 LLM 호출 직전에 주입한다.
-- 주입 위치·messages 매핑·길이 상한·영속화·로드맵은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 가 단일 기준이다.
-
-## 메모리 전략
-
-메모리 전략(`memoryStrategy`)은 대화 맥락을 어떻게 관리할지 정한다. 대화 맥락 설정이 "어느 범위를 넣을지" 라면 메모리 전략은 "어떻게 관리할지" 다.
-
-| 노드 | 값 | 기본값 |
-|------|----|--------|
-| AI 에이전트 | `manual` / `summary_buffer` / `persistent` | `manual` |
-| 정보 추출기 | `manual` / `persistent` | `manual` |
-| 텍스트 분류기 | 필드 없음. 늘 `manual` 처럼 대화 맥락 설정만 적용 | 없음 |
-
-- `manual` 은 대화 맥락 설정 필드를 그대로 쓴다.
-- `summary_buffer` 는 한 실행 안에서 토큰 예산을 넘으면 오래된 턴을 롤링 요약(`runningSummary`)으로 줄인다. AI 에이전트만 쓴다. 정보 추출기는 짧은 수집 대화라 요약 이득이 없어 이 값이 없다.
-- `persistent` 는 AI 에이전트에서 롤링 요약에 에이전트 메모리 회수·추출을 더한다. 정보 추출기에서는 회수와 추출만 쓴다. 정보 추출기와 AI 에이전트는 같은 메모리 범위 키 규칙을 써서 같은 키면 메모리를 공유한다.
-- 텍스트 분류기는 단일 턴이고 상태가 없어 자동 메모리 대상이 아니다.
-
-범위 필드 4개(`contextScope`·`contextScopeN`·`contextInjectionMode`·`includeToolTurns`)는 `manual` 일 때만 유효하다. 자동 전략이면 자동 전략이 맥락 구성을 대신해 이 4필드는 무효다. `excludeFromConversationThread` 는 스레드 누적 opt-out 이라 전략과 무관하게 유효하다. 설정 화면에서는 `gateOnManualMemoryStrategy` 가드로 자동 전략일 때 대화 맥락 필드 5개를 모두 숨긴다. 이 때문에 자동 전략에서 opt-out 을 설정할 방법이 없다. [미결 사항](#미결-사항) 참조.
-
-노드별 메모리 필드는 다음과 같다. 값의 의미와 기본값은 각 노드 문서가 정한다.
-
-| 필드 | AI 에이전트 | 정보 추출기 |
-|------|:---:|:---:|
-| `memoryTokenBudget` | ✓ | |
-| `memoryKey` | ✓ | ✓ |
-| `memoryTopK` | ✓ | ✓ |
-| `memoryThreshold` | ✓ | ✓ |
-| `memoryTtlDays` | ✓ | ✓ |
-| `embeddingModelConfigId` | ✓ | ✓ |
-| `summaryModelConfigId` | ✓ | |
-| `extractionModelConfigId` | ✓ | ✓ |
-
-롤링 요약 동작과 실행 단계 배치는 [AI 에이전트 노드](CLE-NODE-AGENT.md), 정보 추출기의 회수·추출 시점은 [정보 추출기 노드](CLE-NODE-EXTRACTOR.md), 에이전트 메모리의 저장·범위 키·추출·회수는 [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 가 정한다.
+→ [AI 노드 공통 — 출력 · 에러 · 토큰 회계](CLE-NODE-AI-COMMON-OUTPUT.md#토큰-회계)
 
 ## 시스템 컨텍스트 접두
 
-세 AI 노드는 시스템 프롬프트 앞에 현재 시각과 시간대 같은 실행 환경 정보를 자동으로 붙인다. 이를 시스템 컨텍스트 접두(`includeSystemContext`)라 부른다. LLM 이 "최근 7일", "오늘 자정", "어제 미발송" 같은 시각 추론을 할 때 시간대가 모호해 9시간 틀리는 회귀를 미리 막는다.
-
-대화 맥락 설정과는 뜻이 다르다. 대화 맥락 설정은 과거 턴의 user·assistant 메시지를 messages 배열이나 시스템 프롬프트 끝에 붙인다. 시스템 컨텍스트 접두는 지금 시각과 시간대를 시스템 프롬프트 앞에 한 묶음으로 붙인다.
-
-### 설정 필드
-
-| 필드 | 타입 | 필수 | 기본값 | 설명 |
-|---|---|---|---|---|
-| `includeSystemContext` | Boolean | | `true` | 접두를 켤지. `false` 면 사용자 시스템 프롬프트만 LLM 에 보낸다 |
-| `systemContextSections` | String[] | | `['time', 'timezone']` | 접두에 넣을 섹션. 허용 값은 `time`·`timezone`·`workspace`·`node`. 빈 배열은 `includeSystemContext: false` 와 같다 |
-
-- 기본값이 켜짐이라 기존 워크플로우의 LLM 호출에도 시각·시간대 줄이 붙는다. 토큰 비용은 약 30토큰이다. 응답이 달라질까 걱정되는 워크플로우는 명시적으로 `false` 로 끄거나 섹션을 줄인다.
-- 기존 행 해석: 이 필드가 생기기 전에 저장한 워크플로우는 설정에 두 필드가 없다. 백엔드는 두 필드가 없으면 기본값(`true`, `['time', 'timezone']`)으로 해석한다. DB 마이그레이션으로 `false` 를 박지 않는다. 회귀가 걱정되는 워크플로우만 사용자가 알고 끈다.
-
-### 섹션별 내용
-
-| 섹션 | 출력 한 줄 | 데이터 출처 |
-|---|---|---|
-| `time` | `Current time: <ISO8601 with TZ>` | `$now`(실행 단위로 고정, UTC). 접두 본문은 아래 시간대로 바꾼 ISO 값 |
-| `timezone` | `Timezone: <IANA name> (UTC<offset>)` | 아래 "시간대 결정 순서" |
-| `workspace` | `Workspace: <name> (id: <uuid>)` | `context.workspace.{id, name}` |
-| `node` | `Node: <nodeLabel> (type: <nodeType>, id: <nodeId>)` | `context.currentNode.{id, label, type}` |
-
-기본 섹션으로 KST 워크스페이스에서 만든 접두 예시:
-
-```text
-## System Context
-- Current time: 2026-05-18T12:45:12+09:00
-- Timezone: Asia/Seoul (UTC+9)
-```
-
-UTC 워크스페이스의 접두 예시:
-
-```text
-## System Context
-- Current time: 2026-05-18T03:45:12Z
-- Timezone: UTC
-```
-
-### 시간대 결정 순서
-
-접두의 시간대는 다음 순서로 정한다.
-
-1. 워크스페이스 설정 `Workspace.settings.timezone`(IANA). 워크스페이스 설정의 필수 항목이다(원본: NAV-SC-06, [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)).
-2. 서버 기본값 `process.env.TZ`(배포 환경 변수).
-3. `UTC`.
-
-각 단계의 IANA 이름은 `Intl.DateTimeFormat(...).resolvedOptions().timeZone` 으로 검증한다. 검증에 실패하면 다음 단계로 넘어간다. UTC offset 은 `$now` 시점 기준이다. DST 가 있는 시간대는 실행 시점의 offset 을 쓴다.
-
-스케줄의 시간대는 cron 발화 기준이며 이 접두와 별개로 정한다([스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md)). AI 에이전트가 스케줄 트리거로 실행돼도 접두의 시간대는 워크스페이스 설정을 따른다.
-
-### 시스템 프롬프트 조립 순서
-
-시스템 프롬프트의 최종 본문은 다음 순서로 조립한다. 이 순서의 단일 기준은 이 절이다. 대화 스레드 주입의 책임은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md), 노드별 실행 단계는 각 노드 문서가 다룬다.
-
-1. 시스템 컨텍스트 접두 (이 절)
-2. 사용자 시스템 프롬프트
-3. 지식 저장소 도구 안내 `KB_TOOL_GUIDANCE` (지식 저장소가 있을 때)
-4. 조건 suffix (조건이 있을 때)
-5. 메모리·스레드 주입 (안정 프리픽스)
-    - 5a. 에이전트 메모리 회수 블록 (`memoryStrategy='persistent'` 일 때. `agent_memory` top-k 회수 결과)
-    - 5b. 롤링 요약 블록 (`memoryStrategy ∈ {summary_buffer, persistent}` 일 때. `runningSummary`)
-    - 5c. `manual` 스레드 주입 (`memoryStrategy='manual'`, `contextScope ≠ 'none'`, `contextInjectionMode='system_text'` 일 때만)
-6. (휘발성 꼬리) 압축하지 않은 최근 원문 턴. 안정 프리픽스 1~5 보다 뒤에 둔다
-
-- 5a·5b 는 안정 프리픽스다. 휘발성 최근 턴(6)보다 앞에 둔다. 요약·회수 블록은 임계치에 닿을 때만 갱신해 prompt cache 접두사 안정성을 지킨다. messages 모드에서는 최근 원문 턴(6)만 messages 배열 앞에 붙이고, 5a·5b 는 여전히 system_text 안정 프리픽스에 둔다.
-- messages 모드의 `manual` 스레드 주입은 시스템 프롬프트가 아니라 messages 배열 앞에 붙이므로 5c 가 적용되지 않는다.
-- `includeSystemContext: false` 면 1단계만 건너뛰고 나머지 순서는 유지한다.
-- 1단계는 늘 맨 앞이다. 사용자 시스템 프롬프트가 시각 정보를 덮어쓰지 못하게 하기 위해서다. 시각을 다르게 넣고 싶으면 접두 뒤 본문에서 명시한다.
-- 멀티턴 후속 턴에서도 접두는 시스템 프롬프트 앞에 유지한다. `$now` 가 실행 단위로 고정이라 턴마다 다시 계산해도 값이 같다.
-- 현재 구현은 조건 suffix(4) 뒤에 표시 도구 안내 `PRESENTATION_TOOLS_GUIDANCE` 를 붙인다(표시 도구가 있을 때). 이 순서는 위 목록에 정식으로 올라 있지 않다.
-
-### 토큰 비용
-
-- 기본(`['time', 'timezone']`): 약 30토큰
-- 전체(`['time', 'timezone', 'workspace', 'node']`): 약 60~80토큰
-- `meta.inputTokens` 에 그대로 더한다. 별도 회계 필드는 없다.
-
-### Cafe24 등 MCP 도구와의 관계
-
-이 접두와 Cafe24 도구 description 자동 suffix([Cafe24 operation 메타데이터](CLE-C24-META))는 서로 보완한다.
-
-- 시스템 프롬프트 접두: "어제 자정" 같은 일반 시각 추론의 기준
-- 도구 description suffix: 특정 도구 인자(예: `since` 필드)가 어느 시간대인지
-
-두 채널이 맞으면 LLM 은 `$now`(UTC), 접두(워크스페이스 시간대), Cafe24 도구(KST) 사이 변환을 정확히 한다. 한 채널만 있어도 동작은 하지만 두 채널을 함께 노출하는 편이 회귀 위험이 가장 작다.
-
-### 설정 에코
-
-두 필드(`includeSystemContext`·`systemContextSections`)는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 7 의 설정 에코 대상이다. 단 기본값과 같으면 뺀다. 사용자가 명시적으로 바꾼 경우에만 `config` 에 나온다. 각 노드의 출력 구조 표가 이를 따른다.
+→ [AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](CLE-NODE-AI-COMMON-CONTEXT.md#시스템-컨텍스트-접두)
 
 ## AI 영역 기술 결정과 비기능 기준
 
-AI 제품 정의에 있던 기술 결정과 비기능 요구사항이다. 항목마다 자세한 규칙은 소유 문서가 정한다.
+AI 영역의 기술 결정과 비기능 요구사항이다. 자세한 규칙은 소유 문서가 정한다.
 
 | 항목 | 결정 | 근거 | 소유 문서 |
 |------|------|------|-----------|
@@ -384,71 +172,25 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 
 - **인증 실패(401·403)의 재시도 가능 분류**: [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 [AI 에이전트 노드](CLE-NODE-AGENT.md)·[텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 문서는 인증 실패를 `retryable: false` 로 정한다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 고정한다. 코드도 갈린다. 정보 추출기 핸들러(`retryabilityDetails`)는 코드 기준이라 늘 `true` 이고, 텍스트 분류기 핸들러(`text-classifier.handler.ts` 234~241행)는 자기 문서와 달리 `LLM_CALL_FAILED` 를 늘 `true` 로 채운다. 같은 인증 실패에서 노드마다 [다시 시도] 버튼 노출이 달라진다. HTTP status 기준 분류로 통일할지, 정보 추출기의 코드 기준 예외를 규약에 적을지 결정 필요.
 - **자동 메모리 전략에서 opt-out 필드 노출**: 이 문서는 자동 전략에서 `excludeFromConversationThread` 가 유효하다고 정한다. 설정 화면은 자동 전략일 때 대화 맥락 필드 5개를 모두 숨긴다(`gateOnManualMemoryStrategy`). 원문 AI 에이전트 문서의 `memoryStrategy` 행과 원본 ND-AG-27 은 "`manual` 외 선택 시 5필드 무효" 라고 적었다. 자동 전략에서 opt-out 필드를 화면에 보일지 결정 필요.
-- **에러 출력의 `meta` 필수 여부**: 토큰 회계 표는 `model`·토큰 필드를 필수로 둔다. 정보 추출기 에러는 `meta.model` 을 선택(호출이 일부라도 성공했을 때만)으로 두고 토큰을 생략한다. 텍스트 분류기 에러는 토큰을 `0` 으로 채운다. 텍스트 분류기는 `turnDebug` 대신 `meta.llmCalls` 평면 구조를 쓰는데 공통 규약에 없는 형태다. AI 에이전트 단일 턴의 LLM 호출 실패 에러는 실패 전에 성공한 호출의 usage 를 더해 토큰으로 싣는다. 첫 호출이 실패하면 토큰은 `0` 이다. 이 에러는 `turnDebug` 를 늘 싣는다. 같은 노드의 도구 정의 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 호출 전에 나므로 `meta` 에 `model` · `durationMs` 만 싣는다. 에러 케이스 규칙(0 채움 여부)과 `llmCalls` 형태를 공통 규약에 적을지 결정 필요.
+- **에러 출력의 `meta` 필수 여부**: [토큰 회계](CLE-NODE-AI-COMMON-OUTPUT.md#토큰-회계) 표는 `model`·토큰 필드를 필수로 둔다. 정보 추출기 에러는 `meta.model` 을 선택(호출이 일부라도 성공했을 때만)으로 두고 토큰을 생략한다. 텍스트 분류기 에러는 토큰을 `0` 으로 채운다. 텍스트 분류기는 `turnDebug` 대신 `meta.llmCalls` 평면 구조를 쓰는데 공통 규약에 없는 형태다. AI 에이전트 단일 턴의 LLM 호출 실패 에러는 실패 전에 성공한 호출의 usage 를 더해 토큰으로 싣는다. 첫 호출이 실패하면 토큰은 `0` 이다. 이 에러는 `turnDebug` 를 늘 싣는다. 같은 노드의 도구 정의 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 호출 전에 나므로 `meta` 에 `model` · `durationMs` 만 싣는다. 에러 케이스 규칙(0 채움 여부)과 `llmCalls` 형태를 공통 규약에 적을지 결정 필요.
 - **포트 type 표기**: [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 의 포트 정의 `type` enum 은 `data`·`control`·`error` 세 값이다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 는 시스템 포트에 `system` 을 쓴다. [AI 에이전트 노드](CLE-NODE-AGENT.md) 는 시스템 포트와 에러 포트를 `data` 로 적는다. [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 는 에러 포트를 `error` 로 적는다. 현재 프런트엔드 `resolve-dynamic-ports.ts` 는 `DynamicPortType` 에 `system` 을 두고 AI 에이전트 시스템 포트에도 `system` 을 쓴다. enum 에 `system` 을 더할지, 노드 포트 표를 어느 값으로 맞출지 결정 필요.
 - **앱 타임아웃이 없는 호출의 상한**: [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표에서 앱 타임아웃이 「없음」 인 경로 가운데 다음은 상한을 정한 결정이 없다. 2026-10-10 결정은 문서를 코드에 맞추는 데까지였다([Rationale](#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10), 120초 하향안 기각 이력 포함). 결정 필요. NERV Task `CLE-T-0R5SYN`.
   - 롤링 요약 호출: 타임아웃도 취소 신호도 없고 실패하면 턴이 실패한다. 신호를 넘기지 않는 것은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 2 의 구현 공백이다.
   - Google 비스트리밍 호출: SDK 요청 타임아웃이 없어서 `timeoutMs` 를 주지 않는 텍스트 분류기·정보 추출기·메모리 호출에는 상한이 없다.
   - 스트림 유휴: 응답 헤더가 온 뒤 토큰이 멈추면 어느 프로바이더에서도 잡지 못한다([워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md)).
   - 공통 기본값: `LlmService` 에 공통 기본값을 둘지, 지금처럼 호출하는 쪽이 각자 `timeoutMs` 를 넘길지([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#미결-사항)).
-- **AI 에이전트 캔버스 요약의 표시 도구 세그먼트**: 원문 AI 에이전트 문서는 목표 형식에 표시 도구 수(`· {N} render`, 예: `Multi Turn · gpt-4o · 1 KB · 2 MCP · 2 cond · 3 render`)를 넣었다. 이 문서의 목표 형식에는 없다. 아직 구현 전이라 영향은 작다. 어느 쪽으로 맞출지 결정 필요.
+- **AI 에이전트 캔버스 요약의 표시 도구 세그먼트**: 원문 AI 에이전트 문서는 목표 형식에 표시 도구 수(`· {N} render`, 예: `Multi Turn · gpt-4o · 1 KB · 2 MCP · 2 cond · 3 render`)를 넣었다. [캔버스 요약](CLE-NODE-AI-COMMON-OUTPUT.md#캔버스-요약) 의 목표 형식에는 없다. 아직 구현 전이라 영향은 작다. 어느 쪽으로 맞출지 결정 필요.
 
 ## 구현 위치
 
-- `codebase/backend/src/nodes/ai/shared/system-context-prefix.ts` (시스템 컨텍스트 접두)
-- `codebase/backend/src/nodes/ai/shared/conversation-context-injection.ts` (대화 맥락 주입 공유 유틸)
-- `codebase/backend/src/nodes/ai/shared/conversation-context-schema.ts` (대화 맥락 설정 공유 스키마 조각)
 - `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`
 - `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (MCP 서버의 표현식 여부 배열을 정하고 읽는다)
 - `codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts`
 - `codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts`
-- `codebase/backend/src/shared/llm-tracing/llm-call-record.ts` (`LlmCallRecord`·`TurnDebugEntry` 공통 타입)
+
+출력 공통 타입과 대화 맥락 · 시스템 컨텍스트 공유 모듈의 위치는 각 하위 문서의 구현 위치 절에 있다.
 
 ## Rationale
-
-### 시스템 컨텍스트 접두를 기본으로 켠 이유
-
-**문제**: 세 AI 노드 어디에도 LLM 에게 지금 시각과 시간대를 자동으로 알려 주는 경로가 없었다. 사용자는 시스템 프롬프트에 `"오늘은 {{ $now }}"` 같은 표현식을 직접 넣어야 했다. 그마저 `$now` 가 UTC ISO8601 이라([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md)) KST 사용자가 모르는 사이 9시간 어긋난 추론을 받을 수 있었다.
-
-**결정**: 시스템 프롬프트 앞에 `Current time` 과 `Timezone` 을 자동으로 붙인다. 기본으로 켜고, 섹션 단위로 끌 수 있게 하고, 세 노드 공통 규약으로 둔다.
-
-- 기본 섹션은 `['time', 'timezone']` 로 최소한만 넣는다. 워크스페이스·노드 정보는 디버깅 용도라 opt-in 이다.
-- 시각 정보는 LLM 추론의 일반적인 접두 패턴이고 비용도 약 30토큰으로 작다. 그래서 opt-in 이 아니라 기본 켜짐으로 두어 시각 정보 누락 회귀가 쌓이지 않게 한다.
-- suffix 가 아니라 prefix 인 이유는 사용자 시스템 프롬프트의 마지막 지시(`"답변은 JSON 으로"` 등)가 묻히지 않게 하기 위해서다.
-- 노드별 필드가 아니라 공통 규약 한 곳에 정의한 이유는 세 노드가 같은 맥락을 필요로 해 정의가 어긋나는 것을 막기 위해서다.
-- Cafe24 도구 description 자동 suffix([Cafe24 operation 메타데이터](CLE-C24-META))와 한 묶음으로 결정했다. 두 채널이 함께 노출돼야 LLM 이 `$now`(UTC), 접두(워크스페이스 시간대), Cafe24 도구(KST) 사이를 정확히 변환한다.
-- 기존 워크플로우는 설정에 필드가 없으면 기본값으로 해석한다. DB 마이그레이션으로 `false` 를 박지 않고, 회귀가 걱정되는 워크플로우만 사용자가 알고 끈다.
-
-### 대화 스레드를 1급 객체로 들이고 자동 주입한 이유
-
-**문제**: AI 에이전트는 두 가지 맥락 격리에 갇혀 있었다.
-
-1. Presentation 노드의 사용자 입력을 자동으로 알지 못했다. 사용자는 매번 `{{ $node["Form1"].output.interaction.data.email }}` 같은 식을 시스템 프롬프트에 직접 적어야 했다.
-2. AI 에이전트 뒤에 또 AI 에이전트가 있으면 두 번째 노드가 첫 번째 노드의 멀티턴 messages 를 보지 못했다. `stripControlFields()` 가 `_resumeState` 를 지워 최종 응답 텍스트만 넘어갔다.
-
-**결정**: 대화 스레드 모델을 1급 객체로 들인다. Presentation 입력과 AI 대화 턴을 한 스레드로 합치고, 노드 설정으로 자동 주입하며, messages·system_text 형식을 고르게 한다. 표현식 설탕(`$conversation`)이나 messages 노출 뒤 명시 주입하는 방식은 사용자가 매번 표현식으로 결합해야 하고, 텍스트로 요약하면 구조가 사라진다. 대화 스레드 모델은 실제 대화 흐름을 보존하고 자동으로 주입한다.
-
-처음(v1) 경계는 단일 스레드, 문자 기반 길이 상한, 메모리 + NodeExecution 분산 저장(실행 내역) + `Execution.conversation_thread` durable park 스냅샷이었다. 자동 주입은 AI 에이전트만 했고 누적은 세 노드 모두 했다. 이후 텍스트 분류기와 정보 추출기 자동 주입이 채택돼 지금은 세 노드 모두 주입한다. 다중 스레드와 실행 내역 화면의 노드 간 스레드 뷰 재구성은 로드맵으로 남아 있다. 자세한 로드맵은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 에서 정한다.
-
-### `conversationHistory` 필드를 지운 이유
-
-옛 `conversationHistory: 'none' | 'last_n' | 'full'` 과 `historyCount` 필드는 스키마와 문서 표에 정의돼 있었지만 핸들러가 한 번도 읽지 않았다. 의도한 동작("이전 N개 대화 이력 보관")은 멀티턴 자체 messages 배열로 늘 누적됐으므로 사실상 아무 일도 하지 않았다. 대화 스레드를 들이면서 `contextScope`·`contextScopeN` 으로 완전히 바꿨고, 스키마·UI 메타·기본값 초기화 로직까지 모두 지웠다. 스키마가 `.passthrough()` 라 DB 의 옛 워크플로우 데이터에 두 키가 남아 있어도 조용히 통과한다.
-
-### 메모리 전략을 `contextScope` 확장이 아니라 별도 필드로 둔 이유
-
-**문제**: 자동 메모리(`summary_buffer`·`persistent`)를 들일 때 기존 `contextScope` enum 에 `auto` 값을 끼워 넣는 안이 자연스러워 보였다. 드롭다운 하나만 늘리면 되기 때문이다.
-
-**결정**: 별도 1급 필드 `memoryStrategy` 를 둔다. `contextScope` 는 어느 범위의 스레드 턴을 넣을지(범위)이고, `memoryStrategy` 는 메모리를 어떻게 관리할지(관리)라 뜻이 다르다. enum 에 `auto` 를 섞으면 세 가지 문제가 생긴다. 한 필드에 두 뜻이 얽혀 설정 에코와 화면 `visibleWhen` 규칙이 서로 의존하게 된다. `auto` 일 때 `contextScopeN`·`contextInjectionMode`·`includeToolTurns` 의 뜻이 모호해진다. 하위 호환 에코가 복잡해진다. 별도 필드면 `manual`(기본) 경로가 기존 동작을 그대로 보존해 하위 호환 위험이 없고, 자동 전략은 직교 축으로 더해지며, `visibleWhen` 은 전략 값만 보면 된다. `manual` 이라는 단어가 `Trigger.type: 'manual'` 과 겉보기로 겹치지만 이름공간이 달라 뜻이 분명한 쪽을 택했다.
-
-### 요약·회수 블록을 안정 프리픽스에 두는 순서
-
-**문제**: 롤링 요약 블록과 에이전트 메모리 회수 블록을 LLM 입력 어디에 둘지 정해야 했다. messages 배열 안(휘발성 영역)과 시스템 프롬프트 안정 프리픽스 중 하나다.
-
-**결정**: 둘 다 system_text 안정 프리픽스에 두고, 압축하지 않은 최근 원문 턴만 휘발성 꼬리로 둔다. prompt cache 는 접두사가 안정해야 맞는다. 매 턴 바뀌는 최근 원문이 앞에 오면 캐시가 매번 깨진다. 요약·회수 블록을 안정 프리픽스에 두고 임계치에 닿을 때만 갱신하면(매 턴 재요약·재회수 금지) 프리픽스가 오래 유지돼 캐시 적중이 가장 커진다. 원래 순서는 "접두 → 사용자 시스템 프롬프트 → 지식 저장소·조건 suffix → 스레드 주입" 이었다. 이 결정은 스레드 주입 단계 안에 "요약·회수 블록(안정) → 최근 원문 턴(휘발성)" 의 하위 순서를 더했다.
-
-### 캔버스 요약의 `· {N} tools` 세그먼트 폐기
-
-AI 에이전트 요약의 옛 `· {N} tools` 세그먼트는 도구 영역(Tool Area)을 제거하면서 폐기했다.
 
 ### LLM 호출 타임아웃을 호출 경로별 현행 값으로 적는다 (2026-10-10)
 
@@ -462,16 +204,3 @@ AI 에이전트 요약의 옛 `· {N} tools` 세그먼트는 도구 영역(Tool 
 ### 임베딩 처리를 in-process 에서 큐로 바꾼 이력
 
 AI 제품 정의는 처음에 임베딩을 in-process 비동기로 처리하기로 했다(초기 단순화, 나중에 BullMQ 로 바꿀 수 있음). 지금은 BullMQ `document-embedding` 큐로 처리한다. 자세한 결정은 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) 에 있다.
-
-### 단일 턴 토큰 기준의 정본을 이 문서에 둔다 (2026-11-05)
-
-AI 에이전트 단일 턴 `meta` 토큰 기준을 [AI 에이전트 노드](CLE-NODE-AGENT.md) · [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) · 이 문서가 따로 적고 있었다. 정본을 [토큰 회계](#토큰-회계) 한 곳으로 정하고 두 문서는 링크와 한 줄 요약만 둔다(NERV Task `CLE-T-KPDDKB`). 반대로 롤링 요약 · 요약 모델 설정 조회 실패의 처리는 AI 에이전트 노드 문서가 정하고 [LLM 호출 경로별 타임아웃](#llm-호출-경로별-타임아웃) 표는 결과만 적는다. 토큰 기준을 맞추는 일(`CLE-T-9VRXGD`)이 끝나면 이 문서만 고치면 된다.
-
-### 단일 턴 토큰을 성공한 호출의 합으로 맞춘다 (2026-11-12)
-
-AI 에이전트 단일 턴의 정상 완료와 조건 분기는 마지막 LLM 호출 하나의 usage 만 `meta` 토큰에 실었다. LLM 호출 실패는 실패 전에 성공한 호출의 합을 실었다. 그래서 도구 루프로 LLM 을 여러 번 부르면 정상 완료 값이 실제 사용량보다 작았고 같은 노드의 출력끼리 기준이 달랐다. 세 출력 모두 성공한 호출의 합으로 맞췄다(NERV Task `CLE-T-9VRXGD`).
-
-- 기각: 실패 출력도 마지막 호출 하나로 맞추는 안. 실패 전에 성공한 호출의 비용을 버리게 되어 [AI 에이전트 노드](CLE-NODE-AGENT.md) Rationale 의 «부분 결과를 `meta` 에 남긴다» 결정과 어긋난다.
-- 기각: 정상 완료를 그대로 두고 차이를 문서로만 알리는 안. 사용자는 `meta` 토큰을 노드의 사용량으로 읽고 실행 결과의 LLM 사용량 탭도 이 값을 먼저 보여 준다. 과소 집계가 그대로 남는다.
-- 사용량 통계와 비용 집계는 호출마다 남기는 LLM 사용 기록을 쓰므로 이 변경과 관계없다.
-- 2026-11-05 결정은 기준을 맞출 때 이 문서만 고치면 된다고 적었다. 실제로는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 의 오류 포트 표와 [AI 에이전트 노드](CLE-NODE-AGENT.md) 의 미결 사항도 기준 차이를 적고 있어서 함께 고쳤다.

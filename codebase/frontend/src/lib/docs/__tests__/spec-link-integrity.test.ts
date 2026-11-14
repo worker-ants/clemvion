@@ -16,7 +16,7 @@ import {
 // Guard: in-repo markdown links must resolve.
 //   - DEAD: the relative `[..](path)` target file does not exist.
 //   - ANCHOR: the `#fragment` does not match any heading slug in the target.
-// Scopes (numbers kept as CLE-ENG-SPECEVIDENCE cites them):
+// Scopes (numbers kept as CLE-ENG-SPECEVIDENCE-INTEGRITY cites them):
 //   1. (gone) `spec/**.md` narrative docs. It went with the old spec tree in NERV
 //      cutover stage 5 (NERV Task `CLE-T-7M4C4X`). `spec/` holds only the NERV
 //      mirror now: NERV reads its body links as references and `pull.py --check`
@@ -35,7 +35,8 @@ import {
 //      links are checked by path; key links are checked against the mirror too.
 // Scope (2) looks only at key links and `spec/**.md` path links. Scope (3) has no
 // exemption — governance docs are live.
-// SoT: CLE-ENG-SPECEVIDENCE 「빌드 가드 — 스펙 문서 저장소 무결성」 (R-14 for key links).
+// SoT: CLE-ENG-SPECEVIDENCE 「빌드 가드 — 스펙 문서 저장소 무결성」 and its child
+// CLE-ENG-SPECEVIDENCE-INTEGRITY (R-14 for key links).
 
 function fmt(violations: LinkViolation[]): string {
   const count = (kind: LinkViolation["kind"]): number =>

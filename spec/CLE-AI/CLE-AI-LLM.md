@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "20dafd2a14bb0dcb4a1599c917f7934cbc40e047fecfcc2a5417e980c9c038f3"
+content_hash: "92aff412772d6a2d3f138480ae4d6cd09612cd5e384da3f1aac4b67d157b42da"
 read_as: "approved_fallback"
-task: "CLE-T-7KYH1X"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "0dc8a713ae52584c51e0ead0c30205a4b65214b4e48aa548f45eb232ec525ab9"
-etag: "sha256-82334eda6549ad46aa57eb477ef4193bdc444cfa7e54e833767a5334a003ee0f"
+mirror_sha256: "3535ebb3ece3ab2a60d7aa985755368f5e0d63b30b070a20de7f0f5cc79dc1e0"
+etag: "sha256-093a3c50b7928750e61d72c7e9f875c42385b6c23d1d0a3b3035ab5e87ed227a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-82334eda6549ad46aa57eb477ef4193bdc444cfa7e54e833767a5334a003ee0f"
 
 LLM 클라이언트(`LLMClient`, `LlmService`)는 여러 모델 프로바이더(model provider, `provider`)를 한 인터페이스로 부르는 계층이다. AI 에이전트 노드·텍스트 분류기 노드·정보 추출기 노드, 지식 저장소(Knowledge Base, `KnowledgeBase`)의 임베딩과 그래프 추출, 에이전트 메모리, 워크플로우 AI 어시스턴트가 모두 이 계층으로 모델을 부른다. 호출하는 쪽은 `chat`·`chatStream`·`embed` 세 가지 표면만 알면 되고, 프로바이더별 차이는 팩토리 한 곳에서 흡수한다.
 
-이 문서는 인터페이스, 클라이언트 팩토리, 프로바이더별 API 매핑, 저장 전 모델 목록 미리보기 경로, SSRF 가드, 에러 매핑, API 키 보안, LLM 스텁 모드, 스트리밍, 서비스 계층(`LlmService`)의 호출 계약을 정한다. 리랭킹용 클라이언트(`RerankClient`)도 여기서 다룬다.
+이 문서는 지원 프로바이더, SSRF 가드, API 키 보안, LLM 스텁 모드를 정하고 인터페이스 · 팩토리 · 프로바이더별 매핑, 에러 매핑 · 스트리밍, 서비스 계층(`LlmService`) · 모델 목록 미리보기는 [하위 문서](#하위-문서) 에서 정한다. 리랭킹용 클라이언트(`RerankClient`)도 이 문서 묶음에서 다룬다.
 
 범위 밖 문서는 다음과 같다.
 
@@ -66,289 +66,15 @@ flowchart LR
 | TEI (자가호스팅) | 구현됨 | 없음 (선택) | HuggingFace Text-Embeddings-Inference 가 서빙하는 `bge-reranker-v2-m3` / `dragonkue/bge-reranker-v2-m3-ko`. 자가호스팅 우선 경로 |
 | Cohere | 구현됨 | API Key | `rerank-3.5` 등. 외부 API 경로 |
 
-지원 범위는 `tei` 와 `cohere` 두 가지로 끝낸다. `jina`·`voyage`·`local`·`builtin` 은 지원하지 않는다(2026-06-05 결정, [Rationale](#리랭커-프로바이더를-두-가지로-끝낸-이유)). 리랭커 모델 설정 엔티티는 [LLM 사용량 기록](CLE-AI-USAGE.md), 리랭킹 적용은 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 에서 정한다.
+지원 범위는 `tei` 와 `cohere` 두 가지로 끝낸다. `jina`·`voyage`·`local`·`builtin` 은 지원하지 않는다(2026-06-05 결정, [Rationale](CLE-AI-LLM-IFACE.md#리랭커-프로바이더를-두-가지로-끝낸-이유)). 리랭커 모델 설정 엔티티는 [LLM 사용량 기록](CLE-AI-USAGE.md), 리랭킹 적용은 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 에서 정한다.
 
-## 인터페이스
+## 하위 문서
 
-### LLMClient
+요구사항 줄은 이 문서에 없으므로 하위 문서가 맡는 요구사항 번호도 없다. 프로바이더 관리 제품 요구사항은 [모델 설정](CLE-AI-MODELS.md) 이 가진다.
 
-```typescript
-interface LLMClient {
-  /**
-   * 채팅 완료 (Chat Completion).
-   * `signal` 은 진행 중인 HTTP 요청을 abort 한다
-   * (cancel-others-on-fail / 워크플로우 타임아웃 / 사용자 취소 정리).
-   */
-  chat(params: ChatParams, signal?: AbortSignal): Promise<ChatResult>;
-
-  /** 텍스트 임베딩 생성. 입력 텍스트 배열 → 벡터 배열만 반환 (메타데이터 없음).
-   *  `inputType` 은 비대칭 임베딩 모델에서 query/document 를 구분한다 */
-  embed(
-    texts: string[],
-    model?: string,
-    inputType?: "query" | "document",
-  ): Promise<number[][]>;
-
-  /** 사용 가능한 모델 목록 (`signal` 로 abort 가능) */
-  listModels(signal?: AbortSignal): Promise<ModelInfo[]>;
-
-  /** 연결 테스트 (모델 목록 조회 등 가벼운 API 호출) */
-  testConnection(): Promise<boolean>;
-
-  /**
-   * 채팅 스트리밍 (선택). 지원하지 않는 프로바이더는 호출 즉시
-   * `LLM_STREAMING_UNSUPPORTED` 를 throw 한다. 상세는 스트리밍 절.
-   */
-  stream?(params: ChatParams, signal?: AbortSignal): AsyncIterable<ChatStreamEvent>;
-}
-```
-
-코드의 응답 타입 이름은 `ChatResult` 이고 아래 `ChatResponse` 와 구조가 같다. `Message` 인터페이스는 코드에서 `ChatMessage` 다. 취소 신호 전파 규약은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 에서 정한다.
-
-### ChatParams / ChatResponse
-
-```typescript
-interface ChatParams {
-  model: string;
-  messages: Message[];
-  temperature?: number;       // 0.0 ~ 2.0
-  maxTokens?: number;
-  topP?: number;              // 0.0 ~ 1.0
-  responseFormat?: 'text' | 'json';
-  jsonSchema?: object;        // responseFormat=json 일 때 스키마
-  tools?: ToolDef[];          // function calling 도구 정의
-  toolChoice?: 'auto' | 'required' | 'none';
-}
-
-interface Message {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
-  toolCallId?: string;        // role=tool 일 때 참조할 tool_call ID
-  toolCalls?: ToolCall[];     // role=assistant 일 때 도구 호출 요청
-}
-
-interface ChatResponse {
-  content: string | null;
-  toolCalls?: ToolCall[];
-  usage: TokenUsage;
-  model: string;
-  finishReason: 'stop' | 'tool_calls' | 'length' | 'content_filter';
-}
-
-interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  thinkingTokens?: number;    // reasoning/thought 토큰. OpenAI reasoning 모델·Gemini 2.5 에서만 채워진다
-}
-```
-
-`temperature`·`topP` 를 프로바이더 요청에 어떻게 옮기는지는 [프로바이더별 매핑](#프로바이더별-매핑) 에서 정하고 Anthropic 에는 보내지 않는다.
-
-### embed 시그니처
-
-임베딩은 파라미터·응답 객체를 쓰지 않는 평탄한 시그니처를 쓴다. `inputType?` 처럼 선택적 스칼라 위치 인자를 더하는 것은 이 원칙 안이다. 원칙이 막는 것은 `EmbedParams`·`EmbedResponse` 같은 감싸는 객체다([Rationale](#embed-에-위치-인자를-더한-이유)). 서비스 계층 `LlmService.embed` 의 배치·옵션 래퍼는 [서비스 계층](#서비스-계층) 에서 정한다.
-
-```typescript
-// embed(texts, model?, inputType?: 'query' | 'document'): Promise<number[][]>
-//   texts     : 임베딩할 입력 배열 (배치)
-//   model     : 모델 ID. 생략하면 클라이언트별 기본 임베딩 모델
-//   inputType : 비대칭 검색 모델용 힌트. 생략하면 'document'(적재 경로 기본값).
-//               검색 query 경로만 'query' 를 명시한다. 대칭 모델은 무시한다.
-//   반환      : 입력 순서대로의 벡터 배열. usage·dimensions 같은 메타데이터는 반환하지 않는다
-```
-
-입력 유형(`inputType`)을 빠뜨리면 색인은 되지만 검색 품질이 조용히 떨어진다. 모델별 적용 규칙은 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) 에서 정하고, 매핑 순수 함수는 `codebase/backend/src/modules/llm/embedding-input-type.ts` 에 있다. 요약하면 다음과 같다.
-
-- e5 계열(multilingual-e5, e5-{small,base,large}): 입력 텍스트에 `query: ` / `passage: ` 접두사를 붙인다. OpenAI 호환 경로에서 처리한다.
-- Google Gemini: `embedContent` 의 `taskType`(RETRIEVAL_QUERY / RETRIEVAL_DOCUMENT)으로 넘긴다. 텍스트는 바꾸지 않는다.
-- 대칭 모델(OpenAI text-embedding-3, bge-m3 등)과 매칭되지 않는 모델: 아무것도 하지 않는다.
-
-토큰 사용량·차원 메타데이터를 함께 돌려주는 `EmbedResponse` 는 미구현(Planned)이다. 임베딩 호출의 사용량은 현재 기록하지 않는다([LLM 사용량 기록](CLE-AI-USAGE.md)).
-
-### ToolDef / ToolCall
-
-```typescript
-interface ToolDef {
-  name: string;
-  description: string;
-  parameters: object;          // JSON Schema
-}
-
-interface ToolCall {
-  id: string;
-  name: string;
-  arguments: string;           // JSON string
-  signature?: string;          // 프로바이더 불투명 값 (Gemini 2.5+/3.x thought_signature). 다음 대화 기록 턴에 그대로 되돌려 보내야 한다
-}
-```
-
-### ModelInfo
-
-모델 목록 항목(`ModelInfo`)은 프로바이더 `listModels` 응답의 한 항목(DTO)이다. 저장된 프로바이더 설정 엔티티인 모델 설정(`ModelConfig`)과 접두어만 같고 다른 개념이다.
-
-```typescript
-interface ModelInfo {
-  id: string;                  // 모델 식별자 (예: "gpt-4o")
-  name: string;                // 표시 이름
-  type: 'chat' | 'embedding';  // 용도
-}
-```
-
-### RerankClient
-
-cross-encoder 리랭킹은 Chat·Embedding 과 API 모양이 달라 `LLMClient` 에 넣지 않고 별도 인터페이스로 둔다. [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 의 리랭킹 단계가 부른다.
-
-```typescript
-interface RerankClient {
-  /**
-   * (query, document) 쌍을 cross-encoder 로 점수화해 관련도 순 index+score 를 반환한다.
-   * documents 순서와 상관없이 score 내림차순으로 정렬된 결과다.
-   */
-  rerank(query: string, documents: string[], model?: string,
-         opts?: { topK?: number }): Promise<{ index: number; score: number }[]>;
-}
-```
-
-`RerankService` 는 `rerank()` 를 부를 때 `topK = candidates.length` 로 후보 전체를 다시 점수화한다. 작은 `topK` 로 미리 줄이면 뒤따르는 동적 점수 컷이 의미가 없어지기 때문이다. 최종 주입 청크 수는 `RerankService` 의 동적 점수 컷(`applyDynamicCut`)이 정한다([RAG 검색](../CLE-KB/CLE-KB-SEARCH.md)). 따라서 `opts.topK` 는 클라이언트 수준 상한일 뿐이고 생성 주입 컷의 단일 기준이 아니다.
-
-## 클라이언트 팩토리
-
-설정은 한 테이블(`ModelConfig`)에 `kind` 로 구분해 두지만 팩토리는 `kind` 로 나뉜다. `kind='chat'|'embedding'` 은 `LLMClientFactory`, `kind='rerank'` 는 `RerankClientFactory` 가 맡는다. 리랭킹 호출의 `(query, docs[])` 입력, 점수 배열 출력, 스트리밍 없음 같은 모양 차이는 팩토리 층에서 흡수한다.
-
-### LLMClientFactory
-
-`LLMClientFactory` 는 Chat 종류 모델 설정에서 평탄하게 뽑은 옵션(`LLMClientCreateOptions`)으로 알맞은 `LLMClient` 구현체를 만든다. 엔티티 전체가 아니라 `{ provider, apiKey, defaultModel, baseUrl? }` 만 받아 클라이언트 클래스마다 필요한 인자로 옮긴다.
-
-```typescript
-interface LLMClientCreateOptions {
-  provider: string;
-  apiKey: string;
-  defaultModel: string;
-  baseUrl?: string;
-}
-
-class LLMClientFactory {
-  create(options: LLMClientCreateOptions): LLMClient {
-    switch (options.provider) {
-      case 'openai':    return new OpenAIClient(options.apiKey, options.defaultModel, options.baseUrl);
-      case 'anthropic': return new AnthropicClient(options.apiKey, options.defaultModel);
-      case 'google':    return new GoogleClient(options.apiKey, options.defaultModel);
-      case 'azure':     // baseUrl 필수. 없으면 throw
-                        return new AzureOpenAIClient(options.apiKey, options.defaultModel, options.baseUrl!);
-      case 'local':     // baseUrl 필수. 없으면 throw. OpenAI 호환
-                        return new LocalClient(options.defaultModel, options.baseUrl!, options.apiKey);
-      default:          throw new Error(`Unsupported LLM provider: ${options.provider}`);
-    }
-  }
-}
-```
-
-- Google 클래스 이름은 코드에서 `GoogleClient` 다.
-- 팩토리는 `provider` 만 검증한다. `azure`·`local` 의 `baseUrl` 이 없으면 `Error` 를 던지고, 미리보기 경로는 이를 `MODEL_CONFIG_INVALID` 로 감싼다.
-
-### RerankClientFactory
-
-리랭커는 별도 팩토리로 떼어 `LLMClientFactory` 의 Chat·Embedding 프로바이더 분기를 섞지 않는다. Rerank 종류 모델 설정에서 `{ provider, apiKey?, defaultModel, baseUrl? }` 를 받아 `RerankClient` 구현체를 만든다.
-
-```typescript
-class RerankClientFactory {
-  create(options: { provider: string; apiKey?: string; defaultModel: string; baseUrl?: string }): RerankClient {
-    switch (options.provider) {
-      // tei 의 baseUrl, cohere 의 apiKey 가 없으면 팩토리가 명시적으로 Error 를 던진다
-      case 'tei':    // baseUrl 필수 (자가호스팅 HF TEI)
-                     return new TeiRerankClient(options.baseUrl!, options.defaultModel, options.apiKey);
-      case 'cohere': // baseUrl 선택. 생략하면 기본 `https://api.cohere.com` (프록시·테스트 override 용)
-                     return new CohereRerankClient(options.apiKey!, options.defaultModel, options.baseUrl);
-      default:       throw new Error(`Unsupported rerank provider: ${options.provider}`);
-    }
-  }
-}
-```
-
-지원하지 않는 프로바이더 구성은 구성 시점 검증 실패로 보고 `MODEL_CONFIG_INVALID` 계열로 감싼다. 클라이언트 계층에는 리랭킹 전용 런타임 에러 코드를 새로 두지 않는다. SSRF 가드는 [SSRF 가드](#ssrf-가드) 규칙을 그대로 쓴다.
-
-리랭커 설정 에러 코드는 층마다 다르다.
-
-| 층 | 코드 | 쓰는 때 |
-|----|------|--------|
-| 설정 CRUD(`/api/model-configs`) | `MODEL_CONFIG_INVALID`, `MODEL_CONFIG_NOT_FOUND` | 미지원 프로바이더·SSRF 차단 같은 구성 검증 실패, 없는 설정 |
-| 검색 실행(리랭킹 호출) | `RERANK_CONFIG_INVALID` | 검색 중 Rerank 종류 설정이 없거나 프로바이더를 쓸 수 없을 때. 에러를 던지지 않고 그 지식 저장소를 코사인 경로로 강등한 뒤 검색 진단에 남긴다 |
-
-`RERANK_CONFIG_INVALID` 는 검색 층 전용이고 `MODEL_CONFIG_*` 는 설정 CRUD 층 전용이다. 강등 규칙과 검색 진단 필드는 [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md) 에서 정한다.
-
-## 프로바이더별 매핑
-
-### OpenAI
-
-| 인터페이스 | OpenAI API |
-|-----------|-----------|
-| `chat()` | `POST /v1/chat/completions` |
-| `embed()` | `POST /v1/embeddings`. e5 계열 모델(OpenAI 호환 자가호스팅)이면 입력에 `query:`/`passage:` 접두사를 붙이고, native 모델은 그대로 둔다 |
-| `listModels()` | `GET /v1/models` |
-| `responseFormat: 'json'` | `response_format: { type: "json_schema", json_schema }` |
-| `tools` | `tools` 파라미터로 바로 옮긴다 |
-
-### Anthropic
-
-| 인터페이스 | Anthropic API |
-|-----------|-------------|
-| `chat()` | `POST /v1/messages` |
-| `embed()` | ❌ 지원하지 않는다 (임베딩은 다른 프로바이더 모델을 써야 한다) |
-| `listModels()` | `client.models.list()`. Anthropic 모델 조회 API 를 실시간으로 부른다 |
-| `messages[].role` | `system` 은 별도 `system` 파라미터로 뺀다 |
-| `tools` | Anthropic tool_use 형식으로 바꾼다 |
-| `maxTokens` | `max_tokens` (필수 파라미터) |
-| `temperature`·`topP` | 보내지 않는다. 값을 받아도 버리고 API 기본값(temperature 1.0)으로 샘플링한다. `top_k` 도 보내지 않는다([Rationale](#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)) |
-
-### Google AI
-
-| 인터페이스 | Google API |
-|-----------|-----------|
-| `chat()` | `ai.models.generateContent()` (`@google/genai` SDK) |
-| `embed()` | `ai.models.embedContent()` 배치 지원. `config.taskType` = RETRIEVAL_QUERY / RETRIEVAL_DOCUMENT (`inputType` 매핑) |
-| `listModels()` | `ai.models.list()`. Gemini 모델 조회 API 를 실시간으로 부른다. `supportedActions` 에 `generateContent` 가 있으면 chat, `embedContent` 가 있으면 embedding 으로 나눈다 |
-| `stream()` | `ai.models.generateContentStream()` (새 SDK 는 평탄한 AsyncGenerator 를 돌려준다) |
-| `tools` | `functionDeclarations` 로 옮기고, 스키마는 OpenAPI 3.0 서브셋으로 정리한다 |
-
-Gemini Developer API 버전은 SDK 기본값을 따르지 않고 `v1beta` 로 고정한다. `GoogleGenAI` 를 만들 때 `apiVersion` 인자로 넘긴다([Rationale](#gemini-api-버전을-v1beta-로-고정한다-2026-11-12)).
-
-### Local (Ollama/vLLM)
-
-- OpenAI 호환 API 를 쓴다(`base_url` + OpenAI 클라이언트).
-- `api_key` 는 선택이다. 없으면 빈 문자열을 쓴다.
-- 모델 목록은 `GET {base_url}/v1/models` 또는 Ollama `GET /api/tags` 로 가져온다.
-
-### 리랭커
-
-| 프로바이더 | `rerank()` 엔드포인트 | 상태 |
-|----------|--------------------|------|
-| TEI | `POST {base_url}/rerank` (HF Text-Embeddings-Inference). 모델은 서버에 고정 로드돼 있어 본문에 싣지 않는다(`defaultModel` 은 식별·로깅 용도). `opts.topK` 를 지원하지 않아 호출하는 쪽이 정렬한 뒤 자른다 | 구현됨 |
-| Cohere | `POST {base_url}/v2/rerank` (`{ model, query, documents, top_n }` → `{ results: [{ index, relevance_score }] }`). `base_url` 을 생략하면 `https://api.cohere.com` | 구현됨 |
-
-## 모델 목록 미리보기
-
-모델 설정 화면에서 기본 모델을 고르려면 아직 저장하지 않은 자격 증명으로 `listModels` 를 불러야 한다. 이 경로는 저장된 설정을 쓰는 `LlmService` 와 떨어진 전용 서비스 `LlmPreviewService.previewModels` 가 맡는다. 엔드포인트(`POST /api/model-configs/preview-models`)·권한·rate limit 은 [모델 설정](CLE-AI-MODELS.md) 에서 정한다.
-
-- 요청 본문 `{ provider, apiKey, baseUrl? }` 로 `LLMClientFactory` 가 임시 클라이언트를 만들고 `client.listModels(signal)` 을 한 번 부른다.
-- 반환 값은 저장된 설정용 `GET /api/model-configs/:id/models` 와 같은 `ModelInfo[]` 다. 보안 계약도 같다.
-- 임시 클라이언트는 설정별 캐시에 넣지 않고 요청 범위에서만 쓴다.
-- 타임아웃은 30초다.
-- `local` 이 아닌 프로바이더에서 `apiKey` 가 비어 있으면 `LLM_CREDENTIALS_REQUIRED` 로 거부한다.
-- 프로바이더 원본 에러는 [에러 처리](#에러-처리) 의 sanitize 규칙대로 가공해 400 `LLM_MODEL_LIST_FAILED` 로 돌려준다. 키와 엔드포인트 원문은 드러내지 않는다.
-- 저장 전 `baseUrl` 은 [SSRF 가드](#ssrf-가드) 를 거친다.
-
-### 모델 목록 결과 수 상한
-
-프로바이더가 돌려준 모델 수는 방어적 상한 **500**(`MAX_MODEL_LIST_SIZE`, `llm/list-models-cap.ts`)에서 자른다. 미리보기와 저장된 설정의 `GET :id/models` 에 똑같이 적용한다. 정상 프로바이더(수십 개)에는 닿지 않는 값이다. 사용자가 지정한 `baseUrl`·local 처럼 비정상적으로 큰 응답에서 메모리와 페이로드를 지키려는 장치다. 넘치면 앞 500개만 남기고(프로바이더 순서 유지, 다시 정렬하지 않음) 경고 로그를 남긴다. 응답 계약(`ModelInfo[]`)은 바뀌지 않는다.
-
-### API 키 로깅 금지
-
-`apiKey` 는 로그·응답·캐시 어디에도 기록하지 않는다.
-
-- 미리보기 엔드포인트는 `apiKey` 를 요청 본문으로 받는다. 운영 계약상 요청 본문은 로거·APM·에러 트래커가 캡처하면 안 된다.
-- 나중에 요청 본문 로깅을 도입하면 `common/utils/mask-sensitive-fields.util.ts` 의 `maskSensitiveFields` 로 감싸 `apiKey`·`password`·`token` 계열 필드를 자동으로 가려야 한다.
-- 키를 본문 대신 전용 헤더로 보내고 TTL 이 있는 임시 설정 프록시를 두는 완전한 분리는 별도 작업 범위다. 지금은 "본문에는 있지만 어느 경로에도 기록하지 않는다" 를 지킨다.
+- [LLM 클라이언트 — 인터페이스와 프로바이더 매핑](CLE-AI-LLM-IFACE.md): `LLMClient`·`ChatParams`·`embed`·`ToolDef`·`ModelInfo`·`RerankClient` 인터페이스, 두 팩토리와 리랭커 설정 에러 코드 층, 프로바이더별 API 매핑
+- [LLM 클라이언트 — 에러 처리와 스트리밍](CLE-AI-LLM-STREAM.md): 클라이언트 계층 에러 코드, harmony 제어 토큰 거르기, 스트림 이벤트와 스트리밍 에러 매핑
+- [LLM 클라이언트 — 서비스 계층과 모델 목록](CLE-AI-LLM-SERVICE.md): `LlmService` 호출 신뢰성 계약 · 설정 해석과 캐시 · testConnection, 모델 목록 미리보기
 
 ## SSRF 가드
 
@@ -361,35 +87,6 @@ Gemini Developer API 버전은 SDK 기본값을 따르지 않고 `v1beta` 로 �
 - 한계: TTL 이 지난 뒤 다시 해석하는 DNS rebinding 2차 공격은 연결 시점에 개입해야 막을 수 있어 지금은 차단하지 않는다. 실제 차단이 필요하면 나가는 트래픽을 막는 방화벽이나 클라우드 네트워크 정책으로 보완한다.
 
 현재 구현은 `LlmPreviewService` 의 `isPrivateHost`·`resolvesToPrivate` 와 `ModelConfigService` 의 생성·수정 경로가 이 가드를 적용한다.
-
-## 에러 처리
-
-클라이언트 계층(`*.client.ts`)은 프로바이더 원본 에러를 아래 코드로 좁혀 옮긴다. 현재 구현은 429 를 `LLM_RATE_LIMIT`, 그 밖의 실패를 `LLM_CONNECTION_ERROR` 로 나누는 두 갈래가 기본이다. OpenAI 계열 스트리밍에서 harmony 토큰이 섞여 나오면 `LLM_OUTPUT_MALFORMED` 로 따로 나눈다.
-
-| 에러 유형 | HTTP 상태 | 코드와 처리 |
-|----------|----------|------|
-| 속도 제한 | 429 | `LLM_RATE_LIMIT`. `chat` 은 지수 백오프로 최대 3회 재시도(`withRetry`). `chatStream` 은 [호출 신뢰성 계약](#호출-신뢰성-계약) 참조 |
-| 네트워크·기타 실패 | - | `LLM_CONNECTION_ERROR`. 위 분기에 들지 않는 모든 클라이언트 호출 실패의 기본값이다(인증 실패·모델 없음·컨텍스트 초과 포함) |
-| 출력 오염 | - | `LLM_OUTPUT_MALFORMED`. gpt-oss 계열 harmony 제어 토큰이 드러날 때(OpenAI 스트리밍 경로). `message` 는 고정 영문 진단 문장이고, 화면 문구는 호출하는 쪽이 코드로 고른다([harmony 제어 토큰 거르기](#harmony-제어-토큰-거르기)) |
-| 자격 증명 누락 | 400 | `LLM_CREDENTIALS_REQUIRED`. 미리보기 요청에서 local 이 아닌 프로바이더의 `apiKey` 가 없을 때 |
-| 프로바이더 설정 에러 | 400 | `MODEL_CONFIG_INVALID`. 팩토리 생성 실패(azure·local 의 `baseUrl` 누락, 알 수 없는 프로바이더) 또는 SSRF 차단 |
-| 모델 목록 조회 실패 | 400 | `LLM_MODEL_LIST_FAILED`. 미리보기·`:id/models` 호출 중 프로바이더 응답이 실패할 때. sanitize 한 메시지를 싣는다 |
-| 스트리밍 미지원 | - | `LLM_STREAMING_UNSUPPORTED`. 지원하지 않는 프로바이더에 `stream()` 을 부를 때 |
-
-- 세분화 코드 `LLM_AUTH_ERROR`(401), `LLM_MODEL_NOT_FOUND`(404), `LLM_CONTEXT_EXCEEDED`(400)는 미구현(Planned)이다. 지금은 모두 `LLM_CONNECTION_ERROR` 로 모인다.
-- 타임아웃은 `withTimeout` 이 `AbortController` 로 진행 중인 요청을 취소하고 "Request timed out after {ms}ms" 에러를 던진다. 전용 `LLM_TIMEOUT` 코드로 옮기지 않는다. 노드 실행 계층(`nodes/core/error-codes.ts`)의 `LLM_TIMEOUT` 은 어느 호출 경로도 내지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 호출 경로별 타임아웃 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
-- 노드 계층 에러 분류와 이 표의 대응은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 과 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에서 다룬다.
-
-### harmony 제어 토큰 거르기
-
-gpt-oss 계열 모델(예: gpt-oss-120b)은 `<|channel|>final<|message|>...` 같은 harmony 제어 토큰을 응답에 드러낼 수 있다. 그대로 두면 OpenAI SDK 의 SSE 파서가 이 토큰을 파싱하다 "Failed to parse input at pos 0: ..." 예외를 던진다. 그러면 사용자에게 원시 `LLM_CONNECTION_ERROR` 가 보인다. `openai.client.ts` 는 이를 두 층으로 막는다.
-
-1. 스트리밍 중에 `delta.content` 와 tool_call 인자에서 제어 토큰을 지운다(`stripHarmonyTokens`). 패턴은 두 개다.
-   - `HARMONY_CHANNEL_PREAMBLE_REGEX = /<\|channel\|>[\s\S]*?<\|message\|>/g`: 채널 이름을 포함한 preamble 전체를 한 번에 지운다.
-   - `HARMONY_STANDALONE_TOKEN_REGEX = /<\|(channel|start|end|message|return|constrain|...)\|>/g`: 남은 단독 토큰을 지운다.
-2. catch 블록에서 에러 메시지가 harmony 패턴과 맞으면 `LLM_OUTPUT_MALFORMED` 로 분류한다. 스트림 `error` 이벤트의 `message` 에는 원시 메시지 대신 고정 영문 진단 문장(`HARMONY_OUTPUT_MALFORMED_MESSAGE`)을 싣고, 원시 메시지는 경고 로그에만 남긴다. 사용자에게 보일 문구는 클라이언트가 정하지 않는다. 호출하는 쪽이 `code` 로 고르고, 워크플로우 AI 어시스턴트는 코드별 고정 문구를 보낸다([워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md)).
-
-새 제어 토큰이 관찰되면 `HARMONY_STANDALONE_TOKEN_REGEX` 의 선택지에 더한다. 어시스턴트 화면에서 렌더 직전에 한 번 더 거르는 규칙(`sanitizeAssistantText`)과 이 대응을 들인 경위는 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 에서 다룬다.
 
 ## API 키 보안
 
@@ -406,145 +103,40 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 - 운영 차단: `NODE_ENV=production` 에서 `LLM_STUB_MODE` 가 켜져 있으면 운영 환경 가드가 fail-closed 로 throw 한다. 그래서 운영 환경에서는 절대 켜지지 않는다. 가드는 `main.ts` 가 부르는 `assertProductionConfig`(`common/config/production-guards.ts`)에 있다. 이 함수가 검사하는 대상의 전체 목록과 플래그를 켜진 것으로 보는 값은 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 에 있다.
 - 스텁 응답 계약(`StubLlmClient`, `codebase/backend/src/modules/llm/clients/stub.client.ts`): `chat` 은 마지막 user 메시지를 `[stub] received: <msg>` 로 되돌려 주고 도구 호출을 만들지 않는다. 멀티턴 AI 노드가 응답을 내보낸 뒤 다시 park 하므로 매 턴의 cold rehydration 경로를 반복해서 검증할 수 있다. `embed` 는 0 벡터, `listModels` 는 `stub-model` 1건을 돌려준다.
 
-## 스트리밍
+## 하위 문서로 옮긴 절
 
-워크플로우 AI 어시스턴트처럼 턴 지연이 사용 경험에 중요한 기능을 위해 `LLMClient` 는 선택적 `stream()` 메서드를 둔다. 시그니처는 [LLMClient](#llmclient) 절과 같다. `chat()` 과 독립적으로 구현하고, 스트리밍을 지원하지 않는 프로바이더는 호출 시 명시적 에러를 던진다.
+다른 문서가 링크하는 절의 위치다.
 
-### 스트림 이벤트
+### ToolDef / ToolCall
 
-```typescript
-type ChatStreamEvent =
-  | { type: 'text_delta'; delta: string }
-  | { type: 'tool_call_delta'; id: string; name?: string; argumentsDelta: string }
-  | { type: 'tool_call_end'; id: string; name: string; arguments: string;
-      signature?: string }   // 완성된 tool call 전체를 싣는다. signature 는 ToolCall.signature 와 같다
-  | { type: 'done'; usage: TokenUsage; model: string;
-      finishReason: ChatResponse['finishReason'] | 'aborted' }   // 'aborted' = 클라이언트 취소
-  | { type: 'error'; code: LlmStreamErrorCode; message: string };   // message 는 서버 로그용 진단 문구
+→ [LLM 클라이언트 — 인터페이스와 프로바이더 매핑](CLE-AI-LLM-IFACE.md#tooldef--toolcall)
 
-type LlmStreamErrorCode = 'LLM_RATE_LIMIT' | 'LLM_CONNECTION_ERROR' | 'LLM_OUTPUT_MALFORMED';
-```
+### RerankClientFactory
 
-| 이벤트 | 의미 |
-|--------|------|
-| `text_delta` | assistant 텍스트의 부분 증분 |
-| `tool_call_delta` | tool_call 인자의 부분 증분. 같은 `id` 로 여러 번 나온 뒤 `tool_call_end` 로 끝난다 |
-| `tool_call_end` | tool_call 한 건 완성. 완성된 `name`·`arguments`(+`signature?`)를 싣는다. 호출하는 쪽이 shadow 실행·검증을 시작할 시점이다 |
-| `done` | 스트림 전체 종료. usage 는 LLM 응답에 들어 있을 때만 정확하고, 없으면 `0` 으로 보고한다 |
-| `error` | 스트림 중단 사유. `code` 는 `LlmStreamErrorCode` 세 값 중 하나다. `message` 는 서버 로그용 진단 문구라 화면에 그대로 보이지 않는다. 대개 프로바이더나 SDK 의 원문이라 요청 내용이나 모델 출력이 섞일 수 있고, `LLM_OUTPUT_MALFORMED` 만 고정 영문 문장이다. 호출하는 쪽은 사용자에게 보일 문구를 `code` 로 고른다. 클라이언트는 이후 이벤트를 받지 않는다 |
+→ [LLM 클라이언트 — 인터페이스와 프로바이더 매핑](CLE-AI-LLM-IFACE.md#rerankclientfactory)
 
-### 프로바이더별 구현
+### Anthropic
 
-| 프로바이더 | 지원 | 내부 매핑 |
-|-----------|------|-----------|
-| OpenAI | ✅ | `chat.completions.create({stream: true})`. `choices[0].delta.content` → `text_delta`, `choices[0].delta.tool_calls[].function.arguments` → `tool_call_delta`, `choices[0].finish_reason` → `done` |
-| Anthropic | ✅ | `messages.stream()`. `content_block_delta`(text_delta/input_json_delta), `content_block_start`/`content_block_stop` 으로 `tool_call_end` 를 판정하고, `message_delta` 에서 usage 를 모은다 |
-| Google AI | ✅ | 새 `@google/genai` SDK 의 `ai.models.generateContentStream()` 한 경로만 쓴다(별도 `ChatSession`·`GenerativeModel` 객체 없음). 스트림 조각마다 `candidates[].content.parts` 를 돌며 `text` part 는 `text_delta` 로 보낸다. `functionCall` part 는 인자가 완결된 JSON 으로 한 번에 오므로 `tool_call_delta` 와 `tool_call_end` 를 같은 자리에서 바로 보낸다(OpenAI 처럼 `arguments` 조각을 모으는 단계가 없다). usage 는 `usageMetadata` 에서 한 번 모은다 |
-| Azure OpenAI | ✅ | OpenAI 호환 SDK 의 스트리밍 SSE 를 그대로 쓴다. `AzureOpenAIClient` 가 `OpenAIClient.stream` 을 상속하고 deployment name 과 `api-version` 만 base URL·헤더에 옮긴다 |
-| Local (Ollama/vLLM) | ✅ | OpenAI 호환 엔드포인트로 같은 코드 경로(`LocalClient extends OpenAIClient`)를 쓴다. Ollama 11434, vLLM OpenAI 호환 모드에서 스트리밍을 검증했다 |
-
-### 스트리밍 에러 매핑
-
-| 경우 | 이벤트 | 비고 |
-|--------|--------|------|
-| 429 rate limit (스트리밍 시작 전) | Anthropic·Google 은 `error` (code=`LLM_RATE_LIMIT`). OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열기 전에 예외를 던진다 | `chatStream` 은 앱 수준 재시도(`withRetry`)를 거치지 않는다([호출 신뢰성 계약](#호출-신뢰성-계약)). 프로바이더 분기는 [미결 사항](#미결-사항) |
-| 그 밖의 실패 (스트리밍 시작 전, 429 아님) | Anthropic·Google 은 `error` (code=`LLM_CONNECTION_ERROR`). OpenAI 계열은 스트림을 열기 전에 예외를 던진다 | 인증 실패나 모델 없음 같은 실패가 여기 든다 |
-| 시작 뒤 네트워크 단절 | `error` (code=`LLM_CONNECTION_ERROR`) | 클라이언트가 다시 시작하도록 안내한다 |
-| 클라이언트 취소 (사용자 Stop) | `done` (finishReason=`aborted`) | 서버는 usage 가 확인되는 만큼만 기록한다 |
-| 지원하지 않는 프로바이더에 stream 요청 | 스트림 시작 전 `LLM_STREAMING_UNSUPPORTED` throw | 호출하는 쪽이 non-streaming 대체 경로를 쓸지 정한다 |
-| 응답 헤더가 오기 전 SDK 요청 타임아웃 | Anthropic 은 `error` (code=`LLM_CONNECTION_ERROR`). OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열기 전에 예외를 던진다 | Google 은 SDK 타임아웃이 없다. `stream()` 에는 앱 타임아웃(`timeoutMs`)이 없어서 헤더가 온 뒤 토큰이 멈추면 어느 프로바이더에서도 잡지 못한다 |
-
-### chat() 과의 관계
-
-- `chat()` 은 모든 프로바이더가 반드시 구현한다. 어시스턴트 밖의 AI 노드·임베딩·연결 테스트는 계속 `chat()` 을 쓴다.
-- `stream()` 은 워크플로우 AI 어시스턴트 전용이다. AI 에이전트 노드의 스트리밍 응답 요구사항(`ND-AG-09`)이 필수가 되면 그때 넓혀 적용한다.
-
-## 서비스 계층
-
-`LlmService` 는 모든 LLM 호출이 지나는 단일 창구다. 설정 해석(`resolveConfig`)·`chat`·`chatStream`·`embed`·`listModels`·`testConnection` 을 제공한다.
-
-```typescript
-class LlmService {
-  // chat / embed / resolveConfig 유지. testConnection 은 kind 별 probe 분기(아래 표).
-
-  /** 배치 임베딩. 20개 단위로 나눠 보내고 내부 재시도를 한다. LLMClient.embed 의 래퍼.
-   *  opts(timeoutMs/disableInnerRetry)는 서비스 래퍼 전용이라 LLMClient 인터페이스에는 없다.
-   *  inputType 기본값은 'document'(적재), 검색 query 만 'query'. */
-  embed(
-    config: LlmConfig,
-    texts: string[],
-    model?: string,
-    opts?: Pick<LlmCallOptions, 'timeoutMs' | 'disableInnerRetry'>,
-    inputType?: 'query' | 'document',   // 생략하면 'document'
-  ): Promise<number[][]>;
-
-  /** 스트리밍 chat. client.stream 에 넘기고, done 이벤트에서 llmUsageLogService.record() 를 fire-and-forget 으로 부른다 */
-  chatStream(
-    config: LlmConfig,
-    params: ChatParams,
-    context?: LlmCallContext,
-    signal?: AbortSignal,
-  ): AsyncIterable<ChatStreamEvent>;
-}
-```
-
-- `LlmCallOptions`(`timeoutMs`·`disableInnerRetry`·`signal`)는 코드(`llm.service.ts`)가 기준이다. `embed` 는 그중 `timeoutMs`·`disableInnerRetry` 만 받는다.
-- 호출 예: `opts` 없이 query 임베딩만 원하면 네 번째 인자에 `undefined` 를 명시한다. `embed(config, texts, model, undefined, 'query')`. 위치 인자라서 `inputType` 만 넘길 때는 `opts` 자리를 비워야 한다.
+→ [LLM 클라이언트 — 인터페이스와 프로바이더 매핑](CLE-AI-LLM-IFACE.md#anthropic)
 
 ### 호출 신뢰성 계약
 
-`chat` 호출은 `LlmCallOptions` 로 다음을 제어한다.
+→ [LLM 클라이언트 — 서비스 계층과 모델 목록](CLE-AI-LLM-SERVICE.md#호출-신뢰성-계약)
 
-- `timeoutMs`: 0 이거나 없으면 타임아웃을 걸지 않는다. 값이 있으면 `withTimeout` race 로 건다.
-- 프로바이더 SDK 에도 요청 타임아웃이 따로 있다. OpenAI·Anthropic·Azure OpenAI·Local(OpenAI 계열) 클라이언트는 SDK 를 만들 때 약 120초 요청 타임아웃이 들어간다. `timeoutMs` 는 이 SDK 타임아웃과 나란히 걸리고 먼저 발화하는 쪽이 실제 상한이다. 앱 레벨 값을 1차 상한으로 쓰려면 SDK 타임아웃보다 낮게 준다. Google 클라이언트는 SDK 를 만들 때 요청 타임아웃을 주지 않아(`new GoogleGenAI({ apiKey, apiVersion })`) SDK 타임아웃이 없다. SDK 요청 타이머는 응답 헤더가 오면 멈추고, OpenAI·Anthropic SDK 는 타임아웃 난 요청도 기본 2회(`maxRetries`) 다시 보낸다. 그래서 한 호출이 SDK 타임아웃만으로 끝나기까지는 120초보다 길 수 있다. 노드별 앱 레벨 기본값(예: `AI_AGENT_LLM_CALL_TIMEOUT_MS`)은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다. 모든 호출에 거는 공통 앱 타임아웃은 없다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
-- `withTimeout` 은 콜백에 넘기는 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 프로바이더 HTTP 요청도 취소되므로 소켓이 남지 않는다(`listModels` 와 같은 방식). Google 클라이언트는 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 `client.embed` 가 signal 을 받지 않아 이 배선 밖이다.
-- `signal`: [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규약을 따른다. 취소되면 SDK 가 바로 throw 하고 재시도 대상이 아니다.
-- `disableInnerRetry`: 호출하는 쪽에 자체 재시도 층(예: 지식 저장소의 `retryWithBackoff`)이 있으면 내부 재시도를 꺼서 호출이 불어나지 않게 한다.
-- 내부 `withRetry` 는 rate limit(HTTP 429 또는 "rate limit") 에만 최대 3회 재시도한다. RFC 7231 `Retry-After` 헤더(delta-seconds 또는 HTTP-date)가 있으면 그 값을 따르되 상한은 60초다. 없으면 지수 백오프를 쓴다.
-- `chatStream` 은 `withRetry` 를 거치지 않는다. 스트림을 열 때도 도중에도 앱이 다시 시도하지 않고 실패를 호출하는 쪽에 그대로 넘긴다.
-- 호출하는 쪽이 메시지에 붙인 `source` 마커(WebSocket emit 메타)는 프로바이더로 보내기 전에 떼어 낸다.
-- chat 계열 호출은 끝난 뒤 사용량을 fire-and-forget 으로 기록한다. `chatStream` 은 `done` 이벤트에서만 기록한다. 적재 규칙은 [LLM 사용량 기록](CLE-AI-USAGE.md) 에서 정한다.
+### 스트리밍
 
-### 설정 해석과 캐시
+→ [LLM 클라이언트 — 에러 처리와 스트리밍](CLE-AI-LLM-STREAM.md#스트리밍)
 
-- `resolveConfig(llmConfigId?, workspaceId)` 는 지정한 모델 설정을 찾고, 없으면 워크스페이스의 Chat 종류 기본 설정을 찾는다. 돌려주는 엔티티의 `api_key` 는 암호문 그대로다.
-- `createClient` 가 클라이언트를 만들기 직전에 `getDecryptedApiKey` 로 복호화하고, 만든 클라이언트는 설정별로 캐시한다.
-- `listModels` 결과는 설정마다 5분 캐시한다(키 `${workspaceId}|${configId}`). 호출 타임아웃은 30초다.
-- 모델 설정을 고치거나 지우면 `ModelConfigService` 가 `notifyInvalidated(id)` 로 통지한다. `LlmService` 는 `onModuleInit` 에서 `onConfigInvalidated` 를 구독해 두었다가 `clearClientCache(id)` 로 클라이언트 캐시와 `listModels` 캐시를 함께 지운다.
+### 스트리밍 에러 매핑
 
-### testConnection
-
-`LlmService.testConnection(configId, workspaceId)` 는 저장된 설정으로 연결을 확인한다. 설정은 `ModelConfigService.findEntity(configId, workspaceId)` 로 종류와 상관없이 찾는다([Rationale](#종류와-상관없이-설정을-찾는-이유)).
-
-| 종류 | probe | 반환 |
-|------|-------|------|
-| chat | `client.testConnection()` (모델 목록 조회 같은 가벼운 호출) | `{ success: true }` |
-| embedding | `client.embed(['connection test'], defaultModel)`. 실제 임베딩으로 연결과 모델 유효성을 함께 확인한다 | `{ success: true, dimension? }`. 반환 배열 첫 요소 길이(`vectors[0].length`)를 `dimension` 에 싣는다(0 이면 뺀다) |
-| 실패(종류 무관) | 설정 조회 · 클라이언트 생성 · 위 probe 가운데 하나가 던졌다 | `{ success: false, message }` |
-
-실패 응답 형식:
-
-- 실패해도 예외를 던지지 않는다. HTTP 200 과 성공 봉투 `{ data: { success: false, message } }` 로 돌려준다. 원본 에러는 서버 로그(warn)에만 남긴다.
-- `message` 는 `sanitizeLlmErrorMessage`(`utils/sanitize-error.util.ts`)가 원본 에러 문구를 보고 고른 고정 문구 여덟 개 가운데 하나다. 갈래는 인증 실패(401), 접근 거부(403), 모델이나 엔드포인트 없음(404), 속도 제한(429), 시간 초과, 연결 거부, 호스트 이름 해석 실패, 그 밖의 실패다. 프로바이더 원문 · 키 · 엔드포인트는 싣지 않는다.
-- 결과 객체에 `code` 는 없다. 통합 연결 테스트의 `IntegrationTestResult` 와 다르다([통합 관리 「연결 테스트」](../CLE-INT/CLE-INT-MANAGE.md#연결-테스트)). 클라이언트 계층이 실패를 `LLM_RATE_LIMIT` 와 `LLM_CONNECTION_ERROR` 두 갈래로만 나누고 세분화 코드는 미구현이라([에러 처리](#에러-처리)), 코드를 실어도 거의 늘 `LLM_CONNECTION_ERROR` 다. 원인 갈래는 `message` 의 고정 문구가 이미 나눠 보여 준다.
-- 설정이 없거나 다른 워크스페이스의 설정이어도 404 가 아니라 같은 실패 모양이다. 설정 조회도 같은 `try` 안에 있어서 `MODEL_CONFIG_NOT_FOUND` 가 결과 객체로 바뀌고 `message` 는 «모델이나 엔드포인트 없음» 문구다. rerank 설정을 API 로 직접 부를 때도 클라이언트 생성이 실패해 같은 모양이다.
-- 역할 거부(403)와 요청 빈도 초과(429)는 핸들러 앞의 가드가 내므로 에러 봉투다.
-
-- `LLMClient.testConnection(): Promise<boolean>` 인터페이스는 바꾸지 않는다. 차원 추출은 서비스 계층 전용이며 `EmbedResponse`(미구현, `dimensions` 복수) 작업과 따로 간다.
-- 감지한 `dimension` 의 자동 저장과 폼의 읽기 전용 표시는 [모델 설정](CLE-AI-MODELS.md) 에서 정한다.
-- `rerank` 는 표준 테스트 API 가 없어 연결 테스트를 제공하지 않는다.
-- `POST /api/model-configs/:id/test` 는 편집자 이상만 부를 수 있다. 컨트롤러 `LlmModelConfigController.testConnection` 의 `@Roles('editor')` 가 강제한다. 근거는 [모델 설정](CLE-AI-MODELS.md) 의 Rationale 에 있다.
-
-모듈 의존은 `LlmModule → ModelConfigModule` 한 방향이다. 모델 설정 부속 엔드포인트(`preview-models`·`:id/test`·`:id/models`)는 llm 모듈의 `LlmModelConfigController`(`@Controller('model-configs')`, 공개 경로는 그대로)가 맡는다. CRUD 는 `model-config.controller.ts` 에 남는다.
+→ [LLM 클라이언트 — 에러 처리와 스트리밍](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)
 
 ## 미결 사항
 
-- **스트림 열기 실패의 프로바이더별 분기**: OpenAI 계열(OpenAI·Azure·Local) `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던지고 Anthropic·Google 은 `error` 이벤트로 보낸다([스트리밍 에러 매핑](#스트리밍-에러-매핑)). 그래서 호출하는 쪽이 같은 실패를 프로바이더에 따라 다르게 받는다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 낸다. 프로바이더 차이를 클라이언트 계층에 가두는 원칙([모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유))과 맞지 않는다. 표의 분기는 현행 구현을 적은 것이다. `error` 이벤트로 통일할지 결정 필요. NERV Task `CLE-T-0R5SYN`.
+- **스트림 열기 실패의 프로바이더별 분기**: OpenAI 계열(OpenAI·Azure·Local) `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던지고 Anthropic·Google 은 `error` 이벤트로 보낸다([스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)). 그래서 호출하는 쪽이 같은 실패를 프로바이더에 따라 다르게 받는다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 낸다. 프로바이더 차이를 클라이언트 계층에 가두는 원칙([모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유))과 맞지 않는다. 표의 분기는 현행 구현을 적은 것이다. `error` 이벤트로 통일할지 결정 필요. NERV Task `CLE-T-0R5SYN`.
 - **공통 기본값**: 클라이언트 계층은 호출하는 쪽이 준 `timeoutMs` 만 건다. `LlmService` 에 공통 기본값을 둘지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 이 함께 정한다(NERV Task `CLE-T-0R5SYN`). 120초 하향안을 기각한 이력은 [그 문서의 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10) 에 있다.
-- **없는 설정의 연결 테스트 응답**: [testConnection](#testconnection) 은 설정이 없거나 다른 워크스페이스의 설정이어도 200 실패 결과를 돌려준다. 그런데 `POST /api/model-configs/:id/test` 의 Swagger(`llm-model-config.controller.ts`)는 404 응답을 선언한다. 같은 컨트롤러의 `:id/models` 는 설정 조회가 `try` 밖이라 없는 설정을 404 로 거절한다. 통합의 `:id/test` 도 없는 통합을 404 로 거절한다. 조회를 `try` 밖으로 빼 404 로 맞출지, Swagger 에서 404 를 지울지 정해야 한다. 담당 NERV Task `CLE-T-RH45H8`.
-- **Gemini `v1` 이전**: Google 클라이언트는 지금 `v1beta` 로 고정돼 있다. `v1` 로 옮길지는 [Rationale](#gemini-api-버전을-v1beta-로-고정한다-2026-11-12) 에 적은 기능이 `v1` 에서 되는지 실제 키로 확인한 뒤 정한다. 담당 NERV Task `CLE-T-752NN3`.
-
-2026-10-10 에 «LLM 호출 타임아웃 기준» 의 문서와 코드 정합을 닫았다. 결정은 Rationale 「LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)」 에 있다. 공통 기본값은 위 항목대로 열려 있다.
+- **없는 설정의 연결 테스트 응답**: [testConnection](CLE-AI-LLM-SERVICE.md#testconnection) 은 설정이 없거나 다른 워크스페이스의 설정이어도 200 실패 결과를 돌려준다. 그런데 `POST /api/model-configs/:id/test` 의 Swagger(`llm-model-config.controller.ts`)는 404 응답을 선언한다. 같은 컨트롤러의 `:id/models` 는 설정 조회가 `try` 밖이라 없는 설정을 404 로 거절한다. 통합의 `:id/test` 도 없는 통합을 404 로 거절한다. 조회를 `try` 밖으로 빼 404 로 맞출지, Swagger 에서 404 를 지울지 정해야 한다. 담당 NERV Task `CLE-T-RH45H8`.
+- **Gemini `v1` 이전**: Google 클라이언트는 지금 `v1beta` 로 고정돼 있다. `v1` 로 옮길지는 [Rationale](CLE-AI-LLM-IFACE.md#gemini-api-버전을-v1beta-로-고정한다-2026-11-12) 에 적은 기능이 `v1` 에서 되는지 실제 키로 확인한 뒤 정한다. 담당 NERV Task `CLE-T-752NN3`.
 
 ## 구현 위치
 
@@ -569,99 +161,18 @@ class LlmService {
 
 프로바이더마다 SDK 와 API 규격이 다르지만 호출하는 쪽(노드·지식 저장소·어시스턴트)은 같은 표면(`chat`, `chatStream`, `embed`)만 알면 된다. 프로바이더 분기는 `LLMClientFactory` 한 곳에 모이므로 새 프로바이더를 더해도 호출하는 쪽은 바뀌지 않는다.
 
-### embed 에 위치 인자를 더한 이유
-
-`LLMClient.embed` 인터페이스는 파라미터·응답 객체가 없는 평탄한 시그니처를 지킨다. 그런데 서비스 계층 `LlmService.embed` 는 배치 분할·타임아웃·재시도를 감싼 계층이라서 운영 옵션(`timeoutMs`·`disableInnerRetry`)이 필요하다. 비대칭 검색 모델(e5·Gemini)을 위한 `inputType('query'|'document')` 힌트도 필요하다. 이를 옵션·응답 객체(`EmbedOptions`·`EmbedResponse`)로 묶지 않고 위치 인자로 더한 이유는 두 가지다.
-
-- `EmbedResponse`(usage·dimensions 반환)가 아직 미구현이라 지금 객체로 바꾸면 리팩터링을 두 번 하게 된다.
-- `inputType` 을 생략하면 `'document'` 가 되므로 기존 호출부가 그대로 동작하고 변경 범위가 가장 작다.
-
-`EmbedOptions` 객체 통합은 `EmbedResponse` 를 도입할 때 함께 검토한다. 대가로 `opts` 없이 `inputType` 만 넘길 때 네 번째 자리에 `undefined` 를 적어야 한다. 호출부가 조금 불편해지지만 두 번 리팩터링하지 않고 하위 호환을 지키는 쪽이 낫다고 판단했다. `inputType` 의 프로바이더별 적용과 재임베딩 정합성은 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) 에서 정한다.
-
-### RerankClient 를 별도 인터페이스로 둔 이유
-
-리랭커 API 모양은 chat·embed 와 근본적으로 다르다. `rerank(query, documents[])` 는 점수 배열을 돌려주고, 스트리밍·system prompt·tool call 같은 chat 개념이 없다. `supportsReranking?: boolean` 같은 기능 플래그로 `LLMClient` 에 넣으면 문제가 세 가지 생긴다.
-
-- 타입 안전성이 떨어진다.
-- 구현하지 않은 프로바이더의 런타임 throw 처리가 복잡해진다.
-- 프로바이더 분기 하나가 리랭킹·chat·embed 를 함께 다뤄 단일 책임을 어긴다.
-
-별도 인터페이스와 별도 팩토리가 더 명확하다.
-
-### 설정 테이블을 합친 뒤에도 팩토리를 나눠 둔 이유
-
-모델 설정은 한 테이블로 합쳤지만 리랭킹 호출은 입력 `(query, docs[])`·출력 점수 배열·스트리밍 없음이라는 점에서 chat·embedding 과 API 모양이 다르다. 그래서 `RerankClientFactory` 는 따로 두고 `ModelConfig.kind` 로 팩토리를 고른다. 테이블을 합친 이유는 [LLM 사용량 기록](CLE-AI-USAGE.md) 에 있다.
-
 ### SSRF 가드를 재사용하는 이유
 
 자가호스팅 `tei` 리랭커는 사설망 엔드포인트를 받으므로 LLM 과 같은 SSRF 공격 면이 있다. Chat·Embedding 의 `local` 에 쓰는 사설망 예외 규칙을 그대로 적용해 인프라를 두 번 만들지 않는다. 시크릿 암호화 인프라도 같은 이유로 공유한다.
 
-### 리랭커 프로바이더를 두 가지로 끝낸 이유
-
-2026-06-05 사용자 결정이다. 1차 구현인 `tei`(자가호스팅)와 `cohere`(외부 API)가 자가호스팅과 외부 API 두 사용 경로를 이미 덮는다. 추가 프로바이더(`jina`·`voyage`·`local`·`builtin`)는 수요가 확인되지 않은 채 인증·에러 매핑·SSRF 예외 규칙 같은 유지보수 표면만 늘린다. 예전 "Planned" 표기는 미래 약속으로 읽혀 결정과 어긋났으므로 지원 안 함으로 정리했다. 수요가 생기면 같은 `/rerank` HTTP 호출 패턴(builtin 은 Transformers.js 인프로세스 추론)이라 다시 시작하는 비용은 낮다. 이 결정은 구조 변경이 아니라 범위를 닫은 것이다.
-
-### testConnection 의 차원 추출이 EmbedResponse 와 따로 가는 이유
-
-`EmbedResponse`(usage·`dimensions` 메타데이터 반환)는 아직 미구현이다. 그러나 Embedding 연결 테스트의 `dimension` 은 서비스 계층(`LlmService.testConnection`)이 평범한 `embed()` 반환 벡터의 길이(`vectors[0].length`)에서 뽑는다. 따라서 `LLMClient.embed`·`testConnection` 인터페이스를 바꾸지 않고 두 작업은 서로 독립이다. 단수 `dimension`(설정 한 건의 출력 차원)과 복수 `dimensions`(미구현 `EmbedResponse` 메타데이터)의 이름 차이는 의도한 것이다.
-
-### LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)
-
-AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구했다. 이 문서의 클라이언트 계층은 `timeoutMs` 를 받지 않으면 앱 타임아웃을 걸지 않고, 120초는 일부 SDK 의 요청 타임아웃으로만 걸린다. 호출하는 쪽도 제각각이었다. AI 에이전트는 10분을 걸고, 어시스턴트 문서는 이 문서를 근거로 스트리밍 턴에 120초와 `LLM_TIMEOUT` 을 적었다.
-
-2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 클라이언트 계층은 지금처럼 호출자가 주는 `timeoutMs` 만 걸고 공통 기본값을 두지 않는다. 이것은 현행 구조를 적은 것이고 공통 기본값을 둘지는 이 결정에서 따지지 않았다(2026-10-23 정정, [미결 사항](#미결-사항)). 승인본은 «공통 기본값을 두지 않는다» 를 결정처럼 적었지만 2026-10-10 결정은 문서를 코드에 맞추는 데까지였다. 타임아웃을 `LLM_TIMEOUT` 으로 옮기지도 않는다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 스트리밍에 타임아웃을 두는 안을 기각한 근거도 그 문서의 Rationale 에 있다.
-
-### 종류와 상관없이 설정을 찾는 이유
-
-모델 설정 화면은 chat·embedding·rerank 어느 설정이든 테스트하고 모델을 불러온다. Chat 종류만 찾는 경로를 거치면 embedding·rerank 설정이 `MODEL_CONFIG_NOT_FOUND` 로 거부돼 연결 테스트와 모델 불러오기가 깨진다. 실제로 그런 회귀가 있었다. 그래서 `testConnection`·`listModels` 는 `ModelConfigService.findEntity`(종류 무관)를 바로 쓴다.
-
-모듈 순환도 같은 작업에서 정리했다. 예전에는 모델 설정 컨트롤러가 부속 엔드포인트를 위해 `LlmService`·`LlmPreviewService` 를 주입하고, 수정·삭제에서 `LlmService.clearClientCache` 를 직접 불러 `LlmModule` 과 `ModelConfigModule` 이 서로 forwardRef 로 물려 있었다. 부속 엔드포인트를 llm 모듈의 `LlmModelConfigController` 로 옮기고(공개 경로는 그대로), 캐시 무효화를 `ModelConfigService.onConfigInvalidated` 옵저버로 뒤집어 한 방향 의존으로 만들었다.
-
 ### 운영 환경 가드 대상은 세션과 토큰 문서를 가리킨다 (2026-10-31)
 
-LLM 스텁 모드 절은 운영 환경 가드가 검사하는 대상을 열거했었다. 가드가 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)도 검사하게 된 뒤에도 이 열거는 바뀌지 않았다. 가드 대상이 늘 때마다 다른 문서에 둔 사본은 낡는다. 그래서 이 문서에는 스텁 모드를 막는 사실과 가드 위치만 적고 전체 목록은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 목록을 가리킨다. NERV Task `CLE-T-KQ37NJ` 에서 정했다.
-
-그 목록은 처음에 세션과 토큰의 Rationale 「운영 환경 가드」 절에 있었다. 2026-10-31 NERV Task `CLE-T-NAT45Z` 가 목록을 본문 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 절로 옮겨 링크도 그 절을 가리키게 고쳤다. 옛 문장은 `LLM_STUB_MODE=true` 만 적었지만 가드는 `true` 와 `1` 을 모두 켜짐으로 본다. 그래서 켜짐 판정은 링크한 절을 따른다고 적었다. 스텁을 실제로 켜는 설정(`llm.config.ts` 의 `stubMode`)은 `true` 만 본다. 가드가 막는 값이 더 넓어서 운영 환경에서 스텁이 켜진 채 기동하는 일은 없다. 같은 Task 에서 「API 키 보안」 의 암호화 키를 용어 사전의 «마스터키» 로 적었다. 이 키가 무엇을 암호화하는지는 [시크릿 저장소 「마스터키」](../CLE-INT/CLE-INT-SECRET.md#마스터키) 가 정한다.
-
-### 연결 테스트 실패는 200 결과 객체로 돌려준다 (2026-11-12)
-
-「testConnection」 에 실패 응답 형식을 적었다. 그전에는 성공 반환만 적혀 있어 실패 모양을 정하는 문서가 없었다. 그사이 사용자 가이드가 없는 에러 코드 다섯 개를 실패 결과로 적었고 PR #1330 이 걷어 냈다. 적은 내용은 현행 구현이다. NERV Task `CLE-T-J6TZGK` 에서 정했다.
-
-- 연결 테스트는 시험해 보고 결과를 알려 주는 요청이다. 외부 프로바이더의 거절은 시험 결과이고 요청 오류로 보지 않는다. 그래서 HTTP 200 결과 객체로 돌려준다. 통합의 연결 테스트(`:id/test`)도 같은 이유로 200 과 `IntegrationTestResult` 를 쓴다([통합 관리 「설치 대기 연결 테스트는 200 과 `success:false` 로 거절한다」](../CLE-INT/CLE-INT-MANAGE.md#설치-대기-연결-테스트는-200-과-successfalse-로-거절한다)).
-- 200 결과 객체의 필드 이름은 에러 봉투와 겹치지 않게 둔다. 결과 객체는 성공 봉투의 `data` 안에 있고 `error` 키를 쓰지 않는다. 클라이언트는 먼저 상태 코드로 가른다. 2xx 면 `data.success` 를 본다. 2xx 가 아니면 에러 봉투의 `error.code` 를 본다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 결과 객체에 `error` 를 두면 두 경로를 한 필드 이름으로 읽게 되어 클라이언트가 섞어 처리하기 쉽다.
-- 저장을 함께 하는 요청은 다르다. 통합 자격 증명 교체는 안에서 연결 테스트를 하지만 실패하면 저장을 거절하므로 에러 봉투로 돌려준다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
-- `code` 를 두지 않은 이유는 「testConnection」 에 적었다. 세분화 코드(`LLM_AUTH_ERROR` 등)를 구현하면 결과 객체에 `code` 를 더하는 것을 다시 본다.
+가드 대상이 늘 때마다(예: 통합 암호화 키 `INTEGRATION_ENCRYPTION_KEY`) 다른 문서에 둔 사본은 낡는다. 그래서 이 문서에는 스텁 모드를 막는 사실과 가드 위치만 적고 전체 목록은 세션과 토큰 문서를 가리킨다(NERV Task `CLE-T-KQ37NJ`). 목록은 [세션과 토큰 「운영 환경 가드」](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드) 절에 있다(NERV Task `CLE-T-NAT45Z`). 가드는 `LLM_STUB_MODE` 의 `true` 와 `1` 을 모두 켜짐으로 본다. 켜짐 판정은 그 절을 따른다. 스텁을 실제로 켜는 설정(`llm.config.ts` 의 `stubMode`)은 `true` 만 본다. 가드가 막는 값이 더 넓어서 운영 환경에서 스텁이 켜진 채 기동하는 일은 없다.
 
 ### Anthropic 에 샘플링 파라미터를 보내지 않는다 (2026-11-12)
 
-Anthropic 클라이언트의 `chat()`·`stream()` 은 `ChatParams` 의 `temperature`·`topP` 를 받아도 요청에 넣지 않는다. `top_k` 는 원래 보내지 않았다. 요청은 API 기본값(temperature 1.0)으로 샘플링한다. 다른 프로바이더(OpenAI · Google AI · Azure OpenAI · Local)의 요청은 바뀌지 않는다. NERV Task `CLE-T-GKZPKY` 에서 정했다.
-
-- **API 버전 `2026-10-21` 이 세 필드를 거절한다.** 이 버전은 Messages 요청에 `temperature`·`top_p`·`top_k` 가 있으면 값이 기본값이어도 모든 모델에서 400 을 낸다. `@anthropic-ai/sdk` 1.0 부터 이 버전을 기본으로 보내고 SDK 1.x 요청 타입에서도 세 필드가 빠졌다. 그래서 SDK 를 1.x 로 올리려면 클라이언트가 이 필드를 보내지 않아야 한다. 근거는 [Anthropic API 마이그레이션 안내](https://platform.claude.com/docs/en/api/migration-2026-10-21) 에 있다.
-- **이전 모델에서는 temperature 로 맞추던 일관성을 잃는다.** Claude 4.7 이후 모델은 원래 기본값만 받아서 달라지는 것이 없다. Sonnet 4.6 · Haiku 4.5 같은 이전 모델에서는 temperature 를 낮춰 얻던 일관성이 사라진다. 이를 대신할 설정은 없다.
-- **2026-11-12 사용자가 temperature 제거를 정했다.** 이전 모델에서 temperature 0 의 효과가 사라지는 것도 받아들였다.
-- **옛 API 버전 헤더를 고정해 이전 모델에 계속 보내는 안은 기각했다.** SDK 1.x 요청 타입에 세 필드가 없어서 타입을 우회해야 한다. 클라이언트도 옛 API 버전에 묶인다. 사용자가 제거를 택했다(2026-11-12).
-
-[AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 설정 화면의 Temperature 필드 힌트(`ai-agent.schema.ts`)와 유저 가이드의 AI 노드 문서에 Anthropic 모델에는 이 값이 적용되지 않는다고 적었다.
+→ [LLM 클라이언트 — 인터페이스와 프로바이더 매핑](CLE-AI-LLM-IFACE.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)
 
 ### 스트림 오류 `message` 는 진단용으로 둔다 (2026-11-13)
 
-harmony 제어 토큰이 드러나면 `openai.client.ts` 는 처음에 `LLM_OUTPUT_MALFORMED` 의 `message` 에 사용자용 한국어 안내문을 실었다. 그런데 이 문구를 쓰는 유일한 소비자인 워크플로우 AI 어시스턴트는 클라이언트 `message` 를 로그에만 남기고 화면에는 코드별 고정 문구를 보낸다. 한국어 문장은 화면에 나가지 않은 채 다국어 규약의 하드코딩 한국어 점검에만 걸렸다. 그래서 클라이언트 계층은 사용자 문구를 정하지 않고, 스트림 `error` 의 `message` 는 어느 코드든 진단용으로 둔다. `LLM_OUTPUT_MALFORMED` 는 SDK 원문에 모델 출력이 섞일 수 있어 고정 영문 문장을 싣고 원문은 경고 로그에만 남긴다. 사용자에게 보일 문구를 클라이언트에서 정하는 안은 소비자마다 화면 언어와 안내 내용이 달라 택하지 않았다.
-
-### Gemini API 버전을 v1beta 로 고정한다 (2026-11-12)
-
-`@google/genai` 3.0.0 에서 Gemini Developer API 의 기본 버전이 `v1beta` 에서 `v1` 로 바뀌었다. SDK 상수 `GOOGLE_AI_API_DEFAULT_VERSION` 은 2.32.0 에서 `'v1beta'` 이고 3.0.0 에서 `'v1'` 이다. 그래서 클라이언트 코드를 그대로 두고 SDK 만 3.0 으로 올려도 Google 클라이언트가 부르는 엔드포인트가 `v1` 로 바뀐다. SDK 를 3.0 으로 올리는 dependabot PR 이 이미 올라와 있다.
-
-아래 기능이 `v1` 에서 되는지는 아직 확인하지 않았다.
-
-- `embedContent` 의 `taskType` (기본 임베딩 모델 `text-embedding-004`)
-- thoughtSignature 를 다음 턴에 그대로 되돌려 보내기 (`ToolCall.signature`)
-- `functionCall.id` 와 `functionResponse.id` 왕복
-- `*-latest` 별칭 모델 (`v1` 에는 없다고 알려져 있다)
-
-단위 테스트는 SDK 를 mock 하거나 fetch 를 가로채므로 `v1` 지원 여부를 증명하지 못한다. 그래서 실제 키로 확인하기 전까지 API 버전을 `v1beta` 로 고정한다. `google.client.ts` 의 모듈 상수 `GEMINI_API_VERSION` 을 `new GoogleGenAI({ apiKey, apiVersion })` 의 `apiVersion` 으로 넘긴다. SDK 2.32 와 3.0 모두 최상위 옵션 `GoogleGenAIOptions.apiVersion` 을 받는다. 3.0 에서는 이 옵션이 `GOOGLE_GENAI_API_VERSION` 환경 변수보다 우선한다. NERV Task `CLE-T-FPVQPM` 에서 정했다.
-
-기각한 대안은 두 가지다.
-
-- SDK 기본값(`v1`)을 따른다. 위 기능이 `v1` 에서 되지 않으면 임베딩 품질이 조용히 떨어지거나 도구 호출 왕복이 깨질 수 있다. 단위 테스트로는 이를 잡지 못해서 기각했다.
-- 환경 변수 `GOOGLE_GENAI_API_VERSION` 으로 정한다. SDK 2.32 는 이 변수를 읽지 않는다. 그러면 어느 API 버전을 부를지가 SDK 버전과 배포 설정에 달린다. 코드에 고정하면 SDK 2.32 와 3.0 어느 쪽에서도 같은 엔드포인트를 부른다. 그래서 기각했다.
-
-`v1` 로 옮길지는 실제 키로 위 기능을 확인한 뒤 정한다. 확인은 NERV Task `CLE-T-752NN3` 에서 한다([미결 사항](#미결-사항)).
+→ [LLM 클라이언트 — 에러 처리와 스트리밍](CLE-AI-LLM-STREAM.md#스트림-오류-message-는-진단용으로-둔다-2026-11-13)

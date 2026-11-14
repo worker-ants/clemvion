@@ -189,8 +189,8 @@ export class IntegrationsController {
   // `cafe24/precheck` 와 동일 패턴.
   @Get('services/:type/catalog')
   // 근거:
-  //   - [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE#사용처와-활동-api)
-  //   - [통합 관리 「활동 탭의 API 라벨은 카탈로그 엔드포인트와 프런트엔드 i18n 으로 그린다」](CLE-INT-MANAGE#활동-탭의-api-라벨은-카탈로그-엔드포인트와-프런트엔드-i18n-으로-그린다)
+  //   - [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE-API#사용처와-활동-api)
+  //   - [통합 관리 「활동 탭의 API 라벨은 카탈로그 엔드포인트와 프런트엔드 i18n 으로 그린다」](CLE-INT-MANAGE-DETAIL#활동-탭의-api-라벨은-카탈로그-엔드포인트와-프런트엔드-i18n-으로-그린다)
   @ApiOperation({
     summary: '통합별 API operation 카탈로그',
     description:
@@ -349,7 +349,7 @@ export class IntegrationsController {
   // 본 controller 는 사용자가 호출하는 통합 관리 API 전용. 3rd-party
   // 가 호출하는 endpoints (Cafe24 install + OAuth callback) 는
   // `ThirdPartyOAuthController` (`/api/3rd-party/...`) 가 담당.
-  // 근거: [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한)
+  // 근거: [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE-API#인증교체권한)
 
   // ※ 라우트 선언 순서 주의: `cafe24/precheck` 는 동적 경로
   // `@Get(':id')` / `@Get(':id/usages')` / `@Get(':id/activity')` 보다
@@ -360,8 +360,8 @@ export class IntegrationsController {
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get('cafe24/precheck')
   // 근거:
-  //   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한)
-  //   - [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다)
+  //   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE-API#인증교체권한)
+  //   - [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE-LIST#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다)
   @ApiOperation({
     summary: 'Cafe24 mall_id 중복 사전 감지',
     description:
@@ -392,7 +392,7 @@ export class IntegrationsController {
   // 라우트 선언 순서 주의: `:id` 동적 경로보다 앞 (cafe24/precheck 와 동일 사유).
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get('makeshop/precheck')
-  // 근거: [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한)
+  // 근거: [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE-API#인증교체권한)
   @ApiOperation({
     summary: 'MakeShop shop_uid 중복 사전 감지',
     description:

@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026", "REQ-BGRUN-027", "REQ-BGRUN-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "565c5e65b531c4be3e78f24c5c0dd09b11c017c1d347240936e837f0c2e0eece"
+content_hash: "481731d7fb5f19e2341483d165ab4a5f0970cbeec3ba62f237443b6cebfddaa0"
 read_as: "approved_fallback"
-task: "CLE-T-FKKDGT"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "956aa2af475cf9e00c94f17bc832a6b1957fb398ac7b3438e728db6ee269fea1"
-etag: "sha256-e12970b84c8886e8f519458c3753d3bdc21e17c3bc8a19f67175c6721b088817"
+mirror_sha256: "6d8c08a66640027e1bb0d93d35a0a0b4382f0041a6bdfd0734658baaf63f2b9b"
+etag: "sha256-70f34638f7d9c97b614d44b8267ddf1eba3f65e8881dc59691fc8ec3b2cd7074"
 ---
 > 구현 상태: 부분 구현 (REQ-BGRUN-026 AI 어시스턴트 조회 도구는 미구현) · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,11 +22,11 @@ etag: "sha256-e12970b84c8886e8f519458c3753d3bdc21e17c3bc8a19f67175c6721b088817"
 
 Background 노드(Background, `background`)는 `background` 출력 포트에 연결된 노드 묶음을 BullMQ 큐로 떼어 내 비동기로 실행하고 메인 흐름은 `main` 포트로 곧바로 넘기는 fire-and-forget 노드다. Background 본문(background body)의 결과와 실패는 메인 흐름에 영향을 주지 않는다(격리).
 
-Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰지 않고 `background` 출력 포트의 연결선으로 이어진 노드를 본문 진입점으로 본다. 그 진입점에서 앞으로 도달할 수 있는 노드 전체가 Background 본문이다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴)). 컨테이너 본문 안에 둔 Background 라면 본문 노드에도 `containerId` 가 있다. 이 값은 에디터 연결선 체인 규칙이 준 위치 속성이고 Background 가 놓인 컨테이너를 가리킬 뿐이다. 본문 범위는 `background` 포트에서 연결선으로 닿는 노드로 정하고 워커는 그 컨테이너 단계의 노드로 그래프를 만든다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). 핸들러 자체는 단순한 패스스루다. 본문 enqueue 는 핸들러가 끝난 직후 `ExecutionEngineService.scheduleBackgroundBody()` 가 따로 하고 핸들러는 큐를 모른다.
+Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰지 않고 `background` 출력 포트의 연결선으로 이어진 노드를 본문 진입점으로 본다. 그 진입점에서 앞으로 도달할 수 있는 노드 전체가 Background 본문이다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴)). 컨테이너 본문 안에 둔 Background 라면 본문 노드에도 `containerId` 가 있다. 이 값은 에디터 연결선 체인 규칙이 준 위치 속성이고 Background 가 놓인 컨테이너를 가리킬 뿐이다. 본문 범위는 `background` 포트에서 연결선으로 닿는 노드로 정하고 워커는 그 컨테이너 단계의 노드로 그래프를 만든다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). 핸들러는 패스스루이고 큐를 모른다. 본문 enqueue 는 엔진이 따로 한다([실행 로직](#실행-로직)).
 
-**구현 상태**: 노드 정의·핸들러·BullMQ 큐(`background-execution`)·워커가 모두 `ExecutionEngineService` 에 들어가 있다. 핸들러 실행 직후 `scheduleBackgroundBody()` 가 컨텍스트 스냅샷과 함께 본문 진입점을 enqueue 하고 워커는 `executeBackgroundSubgraph()` 로 진입점에서 앞으로 도달할 수 있는 노드 묶음을 격리된 컨텍스트에서 실행한다.
+**구현 상태**: 노드 정의·핸들러·BullMQ 큐(`background-execution`)·워커가 모두 `ExecutionEngineService` 에 들어가 있다.
 
-이 문서는 Background 노드의 설정, 포트, 실행 로직, 격리 계약, 출력 구조, 에러, Background 본문 실행(background run, `backgroundRunId`) 모니터링 API 와 구독 채널을 정한다. 본문 실행 결과를 보여 주는 화면은 [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md), 엔진의 큐·컨텍스트 키 격리는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md), 알림 속성은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md), WebSocket 이벤트 카탈로그는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 정한다.
+이 문서는 Background 노드의 설정, 포트, 실행 로직, 격리 계약, 출력 구조, 에러, 설정 요약을 정한다. Background 본문 실행(background run, `backgroundRunId`) 모니터링 API 와 구독 채널은 하위 문서 [본문 실행 모니터링](CLE-NODE-BACKGROUND-RUNS.md) 이 정한다. 본문 실행 결과를 보여 주는 화면은 [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md), 엔진의 큐·컨텍스트 키 격리는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md), 알림 속성은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md), WebSocket 이벤트 카탈로그는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 정한다.
 
 ## 요구사항
 
@@ -59,6 +59,12 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
 - REQ-BGRUN-027 WHEN Background 가 Loop · ForEach · Map 본문 안에서 실행되면 THE SYSTEM SHALL 회차마다 본문을 큐에 넣고 작업에 그 컨테이너 ID 를 실어 워커가 그 컨테이너의 본문 노드로 그래프를 만들게 한다.
 - REQ-BGRUN-028 WHEN Background 가 컨테이너 본문 안이나 그 안의 병렬 분기에서 본문을 큐에 넣으면 THE SYSTEM SHALL 그 회차의 반복 변수(`itemContext` · `loopContext`)를 작업 스냅샷에 복사해 싣고 워커가 본문 실행 컨텍스트에 되살려 본문 노드가 그 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽게 한다.
 
+## 하위 문서
+
+- [Background 노드 — 본문 실행 모니터링](CLE-NODE-BACKGROUND-RUNS.md): `backgroundRunId` 조회 API(응답 · 페이지네이션 · 권한 · 에러 코드), `background:run:<id>` 구독 채널, AI 어시스턴트 도구 노출 계획. 맡는 요구사항: REQ-BGRUN-017, REQ-BGRUN-018, REQ-BGRUN-019, REQ-BGRUN-020, REQ-BGRUN-021, REQ-BGRUN-022, REQ-BGRUN-023, REQ-BGRUN-024, REQ-BGRUN-025, REQ-BGRUN-026
+
+요구사항 줄의 정본은 모두 이 문서 「요구사항」에 있다. 하위 문서는 위 요구사항의 상세 설계를 정하고 요구사항 줄을 다시 적지 않는다. 그 밖의 요구사항은 이 문서가 맡는다.
+
 ## 설정
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
@@ -88,7 +94,7 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
 | 출력 | `background` | Background | data | false | 본문 진입점. **핸들러가 활성화하지 않는다**. `ExecutionEngineService` 가 enqueue 한 뒤 별도 실행 컨텍스트에서 활성화한다 |
 
 1. `background` 포트는 `main` 과 비대칭이다. 핸들러는 `port: 'main'` 만 반환하고 `background` 결과는 메인 흐름에 절대 합류하지 않는다(fire-and-forget).
-2. 캔버스에서는 컨테이너 박스로 그리지 않고 일반 다중 출력 포트 노드로 그린다. 본문은 `background` 포트 연결선으로 명시적으로 이어지므로 시각적으로도 갈림이 분명하다. 본문이 메인과 같은 캔버스 그래프 안에 평평하게 있다는 뜻을 더 직접 드러낸다.
+2. 캔버스에서는 컨테이너 박스로 그리지 않고 일반 다중 출력 포트 노드로 그린다. 본문이 `background` 포트 연결선으로 이어져 갈림이 분명하고, 본문이 메인과 같은 캔버스 그래프 안에 평평하게 있다는 뜻이 드러난다.
 
 ## 실행 로직
 
@@ -106,10 +112,10 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
    - 작업에 반복 변수가 있으면 본문 실행 컨텍스트에 되살린다. 본문 노드의 식은 큐에 넣은 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽는다. 반복 변수가 없는 작업(맨 바깥 Background, 필드를 넣기 전에 큐에 들어간 작업)은 본문에서 반복 변수가 비어 있다.
    - `executeInline(workflowId, input, { entryNodeIds, containerScopeId, ... })` 으로 진입점에서 앞으로 도달할 수 있는 노드만 실행한다. `containerScopeId` 가 있으면 그 컨테이너의 본문 노드만으로 그래프를 만든다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). 큐에 넣은 뒤 그 컨테이너가 워크플로우에서 지워졌으면 워커가 만든 그래프가 비어 본문을 실행하지 않고 오류 없이 끝난다.
    - `maxDurationMs > 0` 이면 `Promise.race` 로 시간 제한을 건다.
-   - 본문 안의 블로킹 노드(form / buttons / ai_conversation)가 입력 대기로 멈추면 `executeInline` 이 `ParkReleaseSignal` 을 던지고 `executeBackgroundSubgraph` 가 이를 잡아 본문을 그 지점에서 곧바로 조용히 끝낸다. fire-and-forget 이라 바깥에서 `continueExecution` 으로 재개할 경로가 없어 입력 대기를 유지할 뜻이 없다. 실패로 세지 않고 `notifyOnFailure` 알림도 보내지 않는다([에러](#에러)).
+   - 본문 안의 블로킹 노드(form / buttons / ai_conversation)가 입력 대기로 멈추면 `executeInline` 이 `ParkReleaseSignal` 을 던지고 `executeBackgroundSubgraph` 가 이를 잡아 본문을 그 지점에서 곧바로 조용히 끝낸다. 실패로 세지 않고 `notifyOnFailure` 알림도 보내지 않는다([에러](#에러), [Rationale](#본문의-블로킹-노드가-입력-대기로-멈추면-곧바로-조용히-끝낸다)).
 4. 본문 노드의 노드 실행 기록은 정상으로 만들고 `parentNodeExecutionId` 에 Background 노드 자신의 노드 실행 ID 를 넣는다. 타임라인에서 Background 묶음 아래에 모여 보인다.
 5. 본문 실패는 메인 실행 상태에 영향이 없다. `notifyOnFailure: true` 면 관리자에게 인앱 알림을 보낸다.
-6. 서버가 다시 시작되면 큐에 남은 작업은 BullMQ 기본 정책으로 큐 재시도한다. 컨텍스트가 사라진 상태라 본문이 실패할 수 있으므로 본문을 멱등하게 만들기를 권한다.
+6. 서버가 다시 시작되면 큐에 남은 작업은 BullMQ 기본 정책으로 재시도한다. 컨텍스트가 사라져 본문이 실패할 수 있으므로 본문을 멱등하게 만들기를 권한다.
 
 ```mermaid
 sequenceDiagram
@@ -136,7 +142,7 @@ sequenceDiagram
 
 ## 출력 구조
 
-Background 는 경로 선택 노드처럼 출력 포트가 두 개지만 핸들러는 `main` 만 반환한다. `background` 포트는 엔진이 별도 실행 컨텍스트에서 활성화하므로 메인 흐름의 `$node["X"]` 로 본문 진입점 결과를 볼 수 없다. JSON 예시는 `undefined` 필드를 생략했고 5필드 밖의 최상위 키는 쓰지 않는다.
+출력 포트는 두 개지만 핸들러는 `main` 만 반환한다. 메인 흐름의 `$node["X"]` 로 본문 진입점 결과를 볼 수 없다. JSON 예시는 `undefined` 필드를 생략했고 5필드 밖의 최상위 키는 쓰지 않는다.
 
 ### 메인 통과 (`port: 'main'`, 패스스루)
 
@@ -166,11 +172,11 @@ Background 는 경로 선택 노드처럼 출력 포트가 두 개지만 핸들�
 | `config.maxDurationMs` | number | 설정 에코 | 본문 최대 실행 시간 ms(기본 `300000`, `0` 은 제한 없음) |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로(변형 없음) |
 | `meta.durationMs` | number | 런타임, 핸들러 측정 | 핸들러 자체의 처리 시간(ms). fire-and-forget 이라 보통 0~수 ms. 본문 실행 시간이 아니다 |
-| `meta.backgroundRunId` | string (UUID v4) | 런타임, 핸들러 발급 | 실행 안에서 Background 본문 실행을 구별하는 값. [모니터링 API](#모니터링-api) 의 조회 키 |
+| `meta.backgroundRunId` | string (UUID v4) | 런타임, 핸들러 발급 | 실행 안에서 Background 본문 실행을 구별하는 값. [모니터링 API](CLE-NODE-BACKGROUND-RUNS.md) 의 조회 키 |
 | `meta.forkedAt` | ISO8601 string | 런타임, 핸들러 측정 | 갈라진 시각(핸들러 진입 시각). enqueue 직후와 거의 같다 |
 | `port` | `'main'` | 핸들러 반환 | 항상 `main` (핸들러는 `background` 포트를 활성화하지 않는다) |
 
-`meta.jobId` (실제 BullMQ job ID)는 지금 핸들러 출력에 없다. 핸들러는 큐를 모르므로 발급하지 않는다. `ExecutionEngineService.scheduleBackgroundBody()` 가 큐에 넣은 뒤 노드 실행 기록의 `outputData` 에 기록하는 것은 앞으로 넓힐 지점이다.
+`meta.jobId` (BullMQ job ID)는 핸들러가 큐를 모르므로 출력에 없다. `scheduleBackgroundBody()` 가 큐에 넣은 뒤 노드 실행 기록의 `outputData` 에 기록하는 것은 앞으로 넓힐 지점이다.
 
 표현식 접근 예:
 
@@ -183,7 +189,7 @@ Background 는 경로 선택 노드처럼 출력 포트가 두 개지만 핸들�
 
 ### 본문 진입 (`background` 포트, fire-and-forget)
 
-핸들러가 활성화하지 않는다. 엔진이 별도 실행 컨텍스트에서 `background` 포트 연결선을 따라 본문 진입점 노드를 활성화한다. 이 흐름은 메인 워크플로우의 `$node["X"]` 로 볼 수 없다. 메인 흐름에 `port: 'background'` 인 노드 출력은 없다.
+엔진이 별도 실행 컨텍스트에서 `background` 포트 연결선을 따라 본문 진입점 노드를 활성화한다. 메인 흐름에 `port: 'background'` 인 노드 출력은 없다.
 
 본문 컨텍스트에서 진입점 노드의 입력은 다음과 같다.
 
@@ -200,16 +206,12 @@ Background 는 경로 선택 노드처럼 출력 포트가 두 개지만 핸들�
 | `context.nodeOutputCache` | enqueue 시점 스냅샷 | 본문에서는 enqueue 시점까지의 메인 노드 출력을 참조할 수 있다 |
 | `context.expressionContext` | enqueue 시점 스냅샷 | 표현식 평가용 |
 | `context.conversationThread` | enqueue 시점 스냅샷(`turns` 배열까지 새로 복사) | 본문에서 쌓인 턴은 메인 스레드에 들어가지 않고 반대도 같다. 필드가 없는 옛 큐 작업은 빈 스레드로 시작한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md), [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#background-본문-실행)) |
-| 반복 변수 | enqueue 시점 스냅샷(`itemContext` · `loopContext` 복사본) | 컨테이너 본문 안(또는 그 안 병렬 분기)에서 큐에 넣었으면 본문 노드는 그 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽는다. 맨 바깥 Background 의 작업과 필드를 넣기 전에 큐에 들어간 작업은 본문에서 반복 변수가 비어 있다 |
+| 반복 변수 | enqueue 시점 스냅샷(`itemContext` · `loopContext` 복사본) | 컨테이너 본문 안(또는 그 안 병렬 분기)에서 큐에 넣은 작업만 있다. 되살리는 규칙은 [실행 로직](#실행-로직) 3 |
 | `parentNodeExecutionId` | Background 노드의 노드 실행 ID | 본문 노드 실행 기록에 넣는다 |
 
-메인 흐름에서는 본문 결과를 읽을 수 없다.
+메인 흐름에서는 본문 결과를 읽을 수 없다([격리 계약](#격리-계약) 4). `$node["X"].output` 은 `main` 케이스의 입력 패스스루이고 `$node["<본문 노드>"].output` 은 참조할 수 없다. 메인의 뒤 노드에서 본문 상태를 보려면 `meta.backgroundRunId` 를 키로 [모니터링 API](CLE-NODE-BACKGROUND-RUNS.md) 를 따로 부른다.
 
-- `$node["X"].output` 은 `main` 케이스의 입력 패스스루다. 본문 마지막 노드의 결과가 아니다.
-- `$node["<본문 노드>"].output` 은 메인 흐름 표현식에서 참조할 수 없다(별도 실행 컨텍스트).
-- 메인의 뒤 노드에서 본문 상태를 보려면 `meta.backgroundRunId` 를 키로 [모니터링 API](#모니터링-api) 를 따로 부른다.
-
-기다려야 하는 갈림에는 Parallel 을 쓴다. Background 는 fire-and-forget 전용이다. 결과를 메인 흐름에 합쳐야 하면 [Parallel 노드](CLE-NODE-PARALLEL.md) 의 `branches` 를 쓴다.
+Background 는 fire-and-forget 전용이다. 결과를 기다려 메인 흐름에 합쳐야 하면 [Parallel 노드](CLE-NODE-PARALLEL.md) 의 `branches` 를 쓴다.
 
 ## 에러
 
@@ -236,125 +238,28 @@ Background 본문 실패는 메인의 에러 코드가 되지 않는다. 본문 
 - 형식: `notifyOnFailure` / `maxDurationMs` 요약. 알림이 꺼져 있으면 시간만 표시한다.
 - 예: `notify on fail · 5m`
 - 현재 구현은 `background.schema.ts` 에 `summaryTemplate` 이 없어 캔버스에 이 요약을 표시하지 않는다. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항) 참조.
-- 옛 캔버스 문서는 알림 채널을 보이는 다른 형식(예 `notify: in_app, email`)을 적었다. 이 노드에는 알림 채널 설정이 없고 인앱 알림만 보낸다. 형식은 정의가 갈린다. [Logic 노드 공통 미결 사항](CLE-NODE-LOGIC-COMMON.md#미결-사항) 참조.
+- 이 노드에는 알림 채널 설정이 없고 인앱 알림만 보낸다. 알림 채널을 보이는 다른 형식(예 `notify: in_app, email`)과는 정의가 갈린다([Logic 노드 공통 미결 사항](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
 
 ## 모니터링 API
 
-핸들러가 [메인 통과](#메인-통과-port-main-패스스루) 케이스에서 발급한 `meta.backgroundRunId` 를 키로, 메인 흐름의 뒤 노드나 실행 결과 화면이 Background 본문 실행 상태를 조회한다. 격리 계약은 그대로 유지한다. 이 API 는 읽기 전용이고 본문 결과를 메인 흐름에 합류시키지 않는다.
-
-### 엔드포인트
-
-```
-GET /api/executions/:executionId/background-runs/:backgroundRunId
-```
-
-| 파라미터 | 위치 | 타입 | 설명 |
-|----------|------|------|------|
-| `executionId` | path | UUID | 메인 워크플로우 실행 ID. 권한 확인의 1차 키(워크스페이스 소속 확인) |
-| `backgroundRunId` | path | UUID v4 | `meta.backgroundRunId`. 그 실행 안에서 Background 노드의 본문 실행 식별자 |
-| `cursor` | query | string | `nodeExecutions` 페이지네이션 cursor(불투명 값). 없으면 첫 페이지 |
-| `limit` | query | int (1~200) | 페이지 크기(기본 50). `nodeExecutions` 만 페이지네이션 대상 |
-
-URL 은 중첩 구조(`executions/:id/background-runs/:id`)를 쓴다. 이유는 [Rationale](#rationale) 에 있다.
-
-### 응답
-
-```json
-{
-  "backgroundRunId": "8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234",
-  "executionId": "5d8e7f2a-...",
-  "parentNodeExecutionId": "a1b2c3d4-...",
-  "status": "running",
-  "startedAt": "2026-05-15T05:04:37.123Z",
-  "completedAt": null,
-  "durationMs": null,
-  "nodeExecutions": {
-    "data": [ /* NodeExecution[] */ ],
-    "nextCursor": "eyJpZCI6IjEyMyJ9",
-    "hasMore": true
-  },
-  "notifications": [ /* Notification[] */ ]
-}
-```
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `backgroundRunId` | string (UUID v4) | 요청 값 |
-| `executionId` | string (UUID) | 메인 실행 ID |
-| `parentNodeExecutionId` | string (UUID) | Background 노드 자신의 `NodeExecution.id`. 본문 노드들이 이 ID 를 `parentNodeExecutionId` 로 받는다 |
-| `status` | `'pending' \| 'running' \| 'completed' \| 'failed'` | 본문 집계 상태. `pending` 은 본문 노드가 아직 실행 전, `running` 은 일부 본문 노드가 진행 중이거나 기다리는 중, `completed` 는 모든 본문 노드가 completed / skipped, `failed` 는 하나 이상 failed (메인 상태와 무관). `cancelled` 상태는 내지 않는다. 원문은 메인 실행 취소가 본문 실행으로 전파되는 흐름이 없기 때문이라고 적지만 현재 구현은 다르다([미결 사항](#미결-사항)) |
-| `startedAt` | ISO8601 | 본문 enqueue 시각(`meta.forkedAt` 과 같은 기준) |
-| `completedAt` | ISO8601 \| null | 본문 종료 시각. `status` 가 `running` / `pending` 이면 null |
-| `durationMs` | number \| null | `completedAt - startedAt` (서버 계산). 진행 중이면 null |
-| `nodeExecutions.data` | NodeExecution[] | 본문 노드들의 노드 실행 기록. `parentNodeExecutionId = <Background 노드의 NodeExecution.id>` 로 거른다. 모양은 [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md) 의 노드별 입출력 데이터와 같다. `error` · `outputData` · `inputData` 는 응답에서 값 패턴 마스킹을 거친다(자격 증명 모양 부분 문자열 → `***`, DB 에는 원문 보존). 실행 상세(`GET /api/executions/:id`)의 `nodeExecutions[]` 와 같은 관문이고 기준은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이다. 여기서 `inputData` 도 마스킹 대상이다. 지금은 실행 수준과 노드 수준 모두 마스킹한다 |
-| `nodeExecutions.nextCursor` | string \| null | 다음 페이지 cursor. `hasMore: false` 면 null |
-| `nodeExecutions.hasMore` | boolean | 다음 페이지가 있는지 |
-| `notifications` | Notification[] | 이 본문 실행과 관련된 알림. `type: background_failed` (`config.notifyOnFailure: true` 면 발행. 노드 실패와 `maxDurationMs` 시간 초과를 모두 포함). 관련 여부는 알림의 `background_run_id` 컬럼(본문 실행별 귀속 전용)으로 조회한다. 딥링크용 `resource_type` / `resource_id` (워크플로우)와 따로 둔다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)) |
-
-### 페이지네이션
-
-`nodeExecutions` 만 cursor 페이지네이션 대상이다. `notifications` 는 본문 실행마다 보통 0~몇 건이라 전부 반환한다.
-
-1. 정렬 키는 `NodeExecution.startedAt ASC, id ASC` 다(안정 순서. 노드 실행 엔티티에 `createdAt` 컬럼이 없어 `startedAt` 을 쓴다).
-2. cursor 는 불투명한 base64 값이다. 클라이언트는 해석하지 않고 응답의 `nextCursor` 를 다음 요청에 그대로 넘긴다.
-3. `limit` 기본값은 50, 최대 200 이다.
-4. 빈 페이지는 `data: [], nextCursor: null, hasMore: false` 다.
-
-### 권한
-
-1. `executionId` 가 가리키는 메인 실행의 워크스페이스 멤버만 조회할 수 있다.
-2. 멤버가 아니거나 `executionId` 가 없으면 404 로 응답한다. 403 으로 응답하면 공격자가 ID 존재 여부를 추론할 수 있어 IDOR 차단을 위해 404 로 통일한다(`ExecutionsController.findOne` 과 같은 방식).
-3. `backgroundRunId` 가 그 실행 안에 없으면 404 다.
-4. 역할 기반 추가 제한(뷰어 차단 등)은 지금 두지 않는다. 기존 `ExecutionsController` 단건 조회도 워크스페이스 멤버면 허용하므로 맞춘다. 역할 기반 차단이 필요해지면 두 엔드포인트에 `RolesGuard` 를 함께 적용한다. 권한 매트릭스는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 가 정한다.
-5. [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md#background-본문-결과) 의 Background 본문 결과 섹션도 이 권한 규칙을 따른다.
-
-### 실시간 갱신 (WebSocket 구독 채널)
-
-본문 진행을 실시간으로 받으려면 별도 구독 채널 `background:run:<backgroundRunId>` 를 구독한다. 이 채널은 `execution.background_run.started` 와 `execution.background_run.completed` 두 이벤트를 보낸다. 이벤트별 payload 와 봉투 필드(`backgroundRunId`·`timestamp`, `seq` 없음)의 정본은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) §8 이다. 이 절은 채널의 동작 규칙을 정한다.
-
-1. 본문 안의 노드 이벤트(`execution.node.started` 등)는 기존 `execution:<id>` 구독 채널에 그대로 보낸다. 본문 노드의 `parentNodeExecutionId` 가 Background 노드의 `NodeExecution.id` 와 같으므로 클라이언트가 그 키로 걸러 본문 카드 안 타임라인을 갱신한다.
-2. `background:run:<id>` 채널은 본문 실행 수명 주기 이벤트만 보낸다. 채널 책임을 좁혀 메인 채널과 데이터가 겹치지 않게 한다.
-3. 이 채널은 기존 `execution:<id>` 와 격리된다. 메인 흐름 구독자에게 본문 실행 수준 이벤트가 가지 않고 반대도 같다(격리 계약의 사용자 가시 표현).
-4. 구독 권한은 [권한](#권한) 과 같다. `backgroundRunId` 로 `executionId` 를 역조회해 워크스페이스를 확인한다.
-5. 본문이 끝나면 채널은 더 이벤트를 보내지 않는다. 다시 구독해도 서버가 마지막 상태 스냅샷을 보내지 않으므로 REST GET 으로 조회한다.
-6. `execution.background_run.completed` 의 `status` 는 `completed` 와 `failed` 두 값이다. `cancelled` 값은 보내지 않는다. 현재 구현(`background-execution.processor.ts`)은 본문 실행 함수가 정상 반환하면 `completed`, 예외로 끝나면 `failed` 를 보낸다. 입력 대기로 조용히 끝난 본문과 메인 실행 중지를 알아채고 멈춘 본문은 모두 `completed` 로 보낸다. 본문 취소를 어떻게 표시할지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
-7. 이 채널의 발행에는 `execution:` wire 와 같은 값 마스킹을 건다. 구독 인가가 역할을 보지 않아 뷰어도 받으므로 수신 인구가 `execution:` 과 같기 때문이다. 규칙은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) §3.11 에 있다.
-
-### AI 어시스턴트 도구 노출 (계획)
-
-AI 어시스턴트의 읽기 전용 실행 조회 도구(`ED-AI-35~38`)가 이 API 로 Background 본문 실행도 조회하게 하는 계획(Planned)이다. 에디터 PRD 의 "직계 자식 실행(서브 워크플로우 1단계)" 정책을 Background 에 적용해, 어시스턴트가 "왜 background 가 실패했나" 같은 질문에 답할 수 있게 한다.
-
-| 도구(가칭) | 대응 |
-|-------------|------|
-| `get_background_run(executionId, backgroundRunId)` | 위 GET 단건 조회. cursor 페이지네이션 옵션 |
-| `list_background_runs(executionId)` | 실행의 모든 Background 노드 노드 실행 기록을 돌며 `meta.backgroundRunId` 목록 반환. `ED-AI-35` 직계 자식 확장 |
-
-도구 상세는 [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md) 가 정하기로 했지만 그 문서의 탐색 도구 목록과 에디터 요구사항 `ED-AI-35` 에 두 도구가 없고 현재 구현(`TOOL_KIND_BY_NAME`)에도 없다. 도입이 결정되기 전까지 이 절은 계획이다. [AI 어시스턴트 도구 미결 사항](../CLE-WF/CLE-WF-ASSIST-TOOLS.md#미결-사항) 참조.
+`meta.backgroundRunId` 를 키로 Background 본문 실행 상태를 조회하는 읽기 전용 API 와 `background:run:<backgroundRunId>` 구독 채널은 하위 문서가 정한다.
 
 ### API 에러 코드
 
-| HTTP | 코드 | 발생 조건 |
-|------|------|-----------|
-| 400 | `INVALID_CURSOR` | cursor 디코딩 실패 |
-| 400 | `INVALID_LIMIT` | `limit` 이 1 미만 또는 200 초과 |
-| 401 | (인증 미들웨어) | 토큰 없음 / 만료 |
-| 404 | `EXECUTION_NOT_FOUND` | `executionId` 없음 또는 워크스페이스 불일치(IDOR 차단. 403 으로 새지 않는다) |
-| 404 | `BACKGROUND_RUN_NOT_FOUND` | `backgroundRunId` 가 그 실행에 없음 |
-
-이 API 는 외부 부수 효과가 없으므로 5xx 는 표준 NestJS 핸들러에 맡긴다(DB 장애 등).
+모니터링 API 는 400 `INVALID_CURSOR` · `INVALID_LIMIT`, 404 `EXECUTION_NOT_FOUND` · `BACKGROUND_RUN_NOT_FOUND` 를 낸다. 발생 조건은 [본문 실행 모니터링 §API 에러 코드](CLE-NODE-BACKGROUND-RUNS.md#api-에러-코드) 의 표가 정한다.
 
 ## 미결 사항
 
-- **AI 어시스턴트 조회 도구의 도입 여부** (warning): 이 문서는 `get_background_run` · `list_background_runs` 를 어시스턴트가 쓸 수 있고 상세는 어시스턴트 문서가 정한다고 적었다. [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md) 와 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 탐색 도구 목록에는 두 도구가 없고 에디터 PRD `ED-AI-35` 는 도구 2종만 정의한다. 현재 구현(`TOOL_KIND_BY_NAME`)에도 없다. 결정 전까지 이 문서는 해당 절을 계획으로 둔다. 결정은 [AI 어시스턴트 도구 미결 사항](../CLE-WF/CLE-WF-ASSIST-TOOLS.md#미결-사항) 에서 한다.
-- **본문 취소를 종결 상태로 표시할지** (warning): 이 문서의 원문은 본문 실행 종결 상태를 `completed` · `failed` 로만 정하고, 메인 실행 취소가 본문으로 전파되지 않아 `cancelled` 를 보내지 않는다고 적는다. 에디터 실행 원문은 `execution.background_run.completed` 를 받으면 카드 배지를 `completed` · `failed` · `cancelled` 가운데 최종 상태로 바꾼다고 적었다. [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md#background-본문-결과) 은 이 문서의 이벤트 정의를 따르도록 값 나열을 지웠다. 현재 구현은 원문과 달리 메인 실행 중지를 본문도 알아챈다. 본문이 메인과 같은 `executionId` 를 쓰므로 [노드 취소 §DB 관측 취소 가드](../CLE-EXEC/CLE-EXEC-CANCEL.md#db-관측-취소-가드) 가 본문 안에서도 중지를 관측하고 `ExecutionCancelledError` 로 본문을 멈춘다. `executeBackgroundSubgraph` 는 이 에러를 입력 대기 종료처럼 조용히 삼킨다. 그래서 이벤트는 `completed` 로 가고 실패 알림과 큐 재시도는 없다(`execution-engine.service.ts`). REST 응답 타입(`BackgroundRunStatus`)에도 `cancelled` 가 없다. 중지로 멈춘 본문을 `completed` 로 둘지, REST `status` 와 이벤트 `status` 에 `cancelled` 를 더할지 결정 필요.
+두 항목의 본문은 [본문 실행 모니터링 §미결 사항](CLE-NODE-BACKGROUND-RUNS.md#미결-사항) 에 있다.
+
+- **AI 어시스턴트 조회 도구의 도입 여부** (warning): `get_background_run` · `list_background_runs` 는 어시스턴트 도구 목록 · 에디터 PRD · 현재 구현 어디에도 없다. 이 문서는 REQ-BGRUN-026 을 미구현으로 둔다. 결정은 [AI 어시스턴트 도구 미결 사항](../CLE-WF/CLE-WF-ASSIST-TOOLS.md#미결-사항) 에서 한다.
+- **본문 취소를 종결 상태로 표시할지** (warning): 메인 실행 중지로 멈춘 본문의 종결 상태 문제다.
 
 ## 구현 위치
 
 - `codebase/backend/src/nodes/logic/background/background.*.ts`
-- `codebase/backend/src/modules/executions/background-runs/**` (모니터링 API)
+- 모니터링 API · 구독 채널: [하위 문서 구현 위치](CLE-NODE-BACKGROUND-RUNS.md#구현-위치)
 - `codebase/backend/src/modules/execution-engine/**` (`scheduleBackgroundBody`, 노드 종류별 디스패치 `dispatchByNodeKind`, `executeBackgroundSubgraph`, `BackgroundExecutionProcessor`)
-- `codebase/frontend/src/lib/websocket/use-background-run.ts` (구독 채널 클라이언트)
-- `codebase/backend/src/shared/utils/redact-stored-error.ts` (응답 `error` 마스킹)
 
 ## Rationale
 
@@ -362,42 +267,7 @@ AI 어시스턴트의 읽기 전용 실행 조회 도구(`ED-AI-35~38`)가 이 A
 
 Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행된다. 예전에는 부모와 같은 `executionId` 를 메모리 안 컨텍스트 Map 키로 함께 썼다. 부모 실행이 (보통 본문보다 먼저) 끝나며 `deleteContext(executionId)` 를 부르면 본문이 쓰던 컨텍스트가 같은 키로 지워졌고 뒤이은 `setNodeOutput` 이 "Execution context not found" 로 실패했다.
 
-해결: 본문은 별도 Map 키 `bg:<executionId>:<backgroundRunId>` 를 쓰고 `executeBackgroundSubgraph` 의 자체 finally 로 정리한다. `executionId` 는 노드 실행 묶음·WebSocket 구독 채널(`execution:<id>`)·권한의 1차 키라서 그대로 두고 메모리 안 Map 키만 나눴다. 기존 격리 계약(변수·캐시 스냅샷 격리)을 키 수준으로 넓힌 것이다. 필드 분류와 `_contextKey` 결정의 기준은 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 에 있다.
-
-### URL 을 중첩 구조로 둔다
-
-`GET /api/executions/:executionId/background-runs/:backgroundRunId` 로 중첩한 이유는 다음과 같다.
-
-- `backgroundRunId` 는 UUID v4 라 전역에서 유일하므로 `GET /api/background-runs/:backgroundRunId` 같은 평평한 URL 도 기술적으로는 가능하다.
-- 그러나 `meta.backgroundRunId` 는 별도 컬럼이 아니라 `NodeExecution.outputData` JSONB 안에 있다. 평평한 URL 로 따로 조회하면 JSONB 전체 스캔 위험이 있다. `executionId` 범위 안에서 조회해 검색 범위를 좁힌다.
-- 권한 확인이 단순해진다. `executionId` 1차 키로 워크스페이스를 확인한 뒤 `backgroundRunId` 를 확인한다. 평평한 URL 은 backgroundRunId → NodeExecution → executionId → 워크스페이스 사슬이 필요하다.
-- REST 의미로도 본문 실행은 실행에 딸린 자원이다.
-
-조회 성능은 `NodeExecution.outputData` JSONB 의 `meta.backgroundRunId` 경로에 대한 부분 식 B-tree 인덱스(`output_data #>> '{meta,backgroundRunId}'`, `WHERE ... IS NOT NULL`)로 보강한다. Background 노드의 노드 실행 행만 색인해 크기를 줄인다(`migrations/V047__node_execution_background_run_id_index.sql`). 조회는 `executionId` 범위와 이 식 인덱스를 함께 쓴다.
-
-### 페이지네이션을 처음부터 둔다
-
-`nodeExecutions` 에 처음부터 cursor 페이지네이션을 넣었다.
-
-- 본문이 수십 노드 이하면 단순 응답으로도 충분하다. 그러나 본문에 Loop · ForEach 가 있으면 노드 실행 기록이 수백 건으로 늘 수 있다.
-- 나중에 `?limit=` 만 더하는 것은 호환을 깨지 않는다. 하지만 클라이언트가 `data: [...]` 단순 배열을 가정하면 응답 모양을 바꿀 때 호환이 깨진다. 그래서 처음부터 `{ data, nextCursor, hasMore }` 로 고정했다.
-- 정렬 키 `(startedAt ASC, id ASC)` 는 안정 순서라 같은 시각에 시작한 노드의 순서가 흔들리지 않는다.
-
-### 본문 실행 수명 주기 이벤트를 별도 구독 채널로 나눈다
-
-`background:run:<id>` 채널을 `execution:<id>` 와 따로 운영한다.
-
-- 본문 실행 수준 이벤트(시작·종료)를 메인 흐름 구독자에게 보내면 클라이언트의 이벤트 라우팅과 카운터가 오염된다. 격리 계약의 사용자 가시 표현이다. 본문 노드 이벤트는 `parentNodeExecutionId` 로 거를 수 있어 메인 채널에 그대로 둔다.
-- 메인 실행이 끝나도 Background 구독이 살아 있을 수 있다(메인 뒤 노드가 `backgroundRunId` 만 받고 실시간 관찰을 시작하는 경우). 본문이 끝나면 채널은 더 이벤트를 보내지 않는다.
-- 사용자가 `backgroundRunId` 를 알아야 구독할 수 있다. 메인 실행자만 알 수 있는 키라서 권한이 더 드러날 위험이 없다.
-
-### AI 어시스턴트에 읽기 전용 도구로만 노출한다 (계획)
-
-이 절은 도구를 도입할 때의 설계 방향이다. 도입 여부는 [AI 어시스턴트 도구 미결 사항](../CLE-WF/CLE-WF-ASSIST-TOOLS.md#미결-사항) 에서 정한다. 에디터 PRD 의 "직계 자식 실행(서브 워크플로우 1단계)" 정책을 Background 본문 실행에 적용한다.
-
-- Background 는 fire-and-forget 이지만 사용자에게는 "메인 실행의 비동기 자식" 이다. 어시스턴트가 "왜 background 가 실패했나" 에 답하려면 본문 노드 실행 기록을 읽어야 한다.
-- 읽기 전용 도구로만 노출한다. 어시스턴트가 Background 재실행이나 취소 같은 부수 효과를 일으킬 수 없다.
-- 깊이 1로 제한한다. Background 본문 안의 서브 워크플로우까지는 노출하지 않는다(토큰·권한 폭증 차단).
+그래서 본문은 별도 Map 키 `bg:<executionId>:<backgroundRunId>` 를 쓰고 `executeBackgroundSubgraph` 의 자체 finally 로 정리한다. `executionId` 는 노드 실행 묶음·WebSocket 구독 채널(`execution:<id>`)·권한의 1차 키라서 그대로 두고 메모리 안 Map 키만 나눴다. 기존 격리 계약(변수·캐시 스냅샷 격리)을 키 수준으로 넓힌 것이다. 필드 분류와 `_contextKey` 결정의 기준은 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 에 있다.
 
 ### 본문의 블로킹 노드가 입력 대기로 멈추면 곧바로 조용히 끝낸다
 
@@ -429,6 +299,7 @@ Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행
 - 앞에 다른 노드가 있는 Background: 전에는 실행 원본 입력이 들어갔고 이제는 바로 앞 노드의 출력이 들어간다.
 - 입력 대기 뒤 재개하고 나서 실행한 Background: 전에는 빈 객체가 들어갔고 이제는 바로 앞 노드의 출력이 들어간다.
 - 병렬 분기 안 Background: 전에는 Parallel 이 받은 입력이 들어갔고 이제는 분기 안에서 Background 바로 앞 노드의 출력이 들어간다.
+- 서브 워크플로우 · Background 본문 안 Background(`executeInline` 경로): 전에는 그 실행의 원본 입력이 들어갔고 이제는 바로 앞 노드의 출력이 들어간다.
 
 기각한 대안은 다음과 같다.
 

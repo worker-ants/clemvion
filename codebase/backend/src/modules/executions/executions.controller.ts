@@ -268,7 +268,7 @@ export class ExecutionsController {
   // Rate limit — 사용자당 분당 10회 (spec §12). UserThrottlerGuard 가 user.sub
   // 로 키를 만들어 사용자 단위로 카운트한다 (429 TOO_MANY_REQUESTS).
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
-  // 근거: [재실행 「POST /api/executions/:executionId/re-run」](CLE-EXEC-RERUN#post-apiexecutionsexecutionidre-run)
+  // 근거: [재실행 「POST /api/executions/:executionId/re-run」](CLE-EXEC-RERUN-API#post-apiexecutionsexecutionidre-run)
   @ApiOperation({
     summary: '실행 재실행 (Re-run)',
     description:
@@ -304,7 +304,7 @@ export class ExecutionsController {
   }
 
   @Get(':id/chain')
-  // 근거: [재실행 「GET /api/executions/:executionId/chain」](CLE-EXEC-RERUN#get-apiexecutionsexecutionidchain)
+  // 근거: [재실행 「GET /api/executions/:executionId/chain」](CLE-EXEC-RERUN-API#get-apiexecutionsexecutionidchain)
   @ApiOperation({
     summary: '실행 chain 조회',
     description:

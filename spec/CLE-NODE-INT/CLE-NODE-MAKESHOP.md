@@ -2,25 +2,25 @@
 id: "CLE-NODE-MAKESHOP"
 title: "MakeShop 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-MKSNODE-001", "REQ-MKSNODE-002", "REQ-MKSNODE-003", "REQ-MKSNODE-004", "REQ-MKSNODE-005", "REQ-MKSNODE-006", "REQ-MKSNODE-007", "REQ-MKSNODE-008", "REQ-MKSNODE-009", "REQ-MKSNODE-010", "REQ-MKSNODE-011", "REQ-MKSNODE-012", "REQ-MKSNODE-013", "REQ-MKSNODE-014", "REQ-MKSNODE-015", "REQ-MKSNODE-016", "REQ-MKSNODE-017", "REQ-MKSNODE-018", "REQ-MKSNODE-019", "REQ-MKSNODE-020", "REQ-MKSNODE-021", "REQ-MKSNODE-022", "REQ-MKSNODE-023", "REQ-MKSNODE-024", "REQ-MKSNODE-025", "REQ-MKSNODE-026", "REQ-MKSNODE-027", "REQ-MKSNODE-028", "REQ-MKSNODE-029", "REQ-MKSNODE-030", "REQ-MKSNODE-031", "REQ-MKSNODE-032", "REQ-MKSNODE-033", "REQ-MKSNODE-034", "REQ-MKSNODE-035", "REQ-MKSNODE-036", "REQ-MKSNODE-037", "REQ-MKSNODE-038", "REQ-MKSNODE-039", "REQ-MKSNODE-040", "REQ-MKSNODE-041", "REQ-MKSNODE-042", "REQ-MKSNODE-043", "REQ-MKSNODE-044", "REQ-MKSNODE-045", "REQ-MKSNODE-046", "REQ-MKSNODE-047"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "948ec8282dc360c35136212e2c2081360a243e8279d1256eec9125aa93fc9353"
+content_hash: "e9a59dc19c9bb952a0fc52716c0f7dd458ba83f448b876955fc64b35563208a1"
 read_as: "approved_fallback"
-task: "CLE-T-VQX844"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/4-nodes/4-integration/5-makeshop.md"]
-mirror_sha256: "1f7fda30c063e6008032094e530703d4293146459e6dd2ee66886fd24a383cb6"
-etag: "sha256-83076f0ae31bd45d1d0456690593918f0240046ca672074e67126be7b79556d3"
+mirror_sha256: "d7cfd07449f49401f9853f878732d5b4bddc76f70759b361da898fa871c67880"
+etag: "sha256-88478a015394508b7b5408ec52de968a2914beb764fa5666f55b75623cc7cd90"
 ---
 > 구현 상태: 부분 구현 (일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://developer.makeshop.co.kr/docs/api/shop/상점-설정-정보) 의 신형 Shop API(`connect.makeshop.co.kr/api/v1/{shopId}`, OAuth 2.1)를 부르는 서비스 특화 통합 노드다. 같은 통합을 AI 에이전트에 도구로 붙이면 LLM 도 같은 API 를 부를 수 있다.
+MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://developer.makeshop.co.kr/docs/api/shop/상점-설정-정보) 의 신형 Shop API(`connect.makeshop.co.kr/api/v1/{shopId}`, OAuth 2.1)를 부르는 서비스 특화 통합 노드다.
 
 - **사용자 가치**: 쇼핑몰 운영자가 상점 설정·상품·주문·회원·혜택·게시판 등 Shop API operation 을 워크플로우 노드 하나로 부른다. 같은 통합을 AI 에이전트에 도구로 주면 LLM 이 "어제 결제완료 주문 가져와줘" 같은 자연어 요청을 처리한다.
 - **지원 범위**: MakeShop Shop API 의 MakeShop 섹션(`MakeshopResource`) 7개(Shop·Product·Order·Member·Benefit·Board·CPIK)의 REST operation 이다. operation 목록과 수는 [MakeShop API 카탈로그](CLE-MKS-CATALOG)가 정한다. CPIK 섹션의 webhook 11개(이벤트 수신)는 이 노드 범위 밖이다(Rationale "CPIK webhook 범위 분리").
@@ -85,6 +85,15 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
 - REQ-MKSNODE-046 WHEN 사용자가 설정 화면에서 Offset 을 바꾸면 THE SYSTEM SHALL 화면에 보이는 Limit 값(비어 있으면 50)을 함께 저장한다.
 - REQ-MKSNODE-047 WHEN 노드 실행이 dry-run 으로 모의 출력을 돌려주면 THE SYSTEM SHALL 활동 로그를 남기지 않는다.
 
+## 하위 문서
+
+| 문서 | 맡는 내용 | 요구사항 |
+|------|-----------|----------|
+| [MakeShop 노드 — 실행 로직](CLE-NODE-MAKESHOP-EXEC.md) | 실행 단계(자격 증명 · 토큰 갱신 · URL · 요청 · 재시도 · 활동 로그), 페이지네이션 변환, dry-run, 시간대 | REQ-MKSNODE-001, 002, 005, 008~032, 038~045, 047 |
+| [MakeShop 노드 — 출력 구조와 에러](CLE-NODE-MAKESHOP-OUTPUT.md) | 성공 · 에러 출력 모양, 에러 코드 표, 인증 실패 처리와 복구 경로 | REQ-MKSNODE-019~021, 023~027 |
+
+설정 · 설정 화면 · 포트 · 캔버스 요약 · AI 에이전트 노출(REQ-MKSNODE-003, 004, 006, 007, 033~037, 046)은 이 문서에 둔다. REQ-MKSNODE-019~021 · 023~027 은 두 하위 문서에 함께 걸린다. 실행 로직은 언제 그 결과로 끝나는지를, 출력 구조와 에러는 그때 나가는 출력 모양과 코드를 정한다. 출력 구조와 에러 문서의 「인증 실패 처리」가 기대는 외부 요구사항은 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md)의 REQ-INTOAUTH-043(자격 증명을 갖춘 begin 이 `new` 가 아닌 모드면 `MAKESHOP_USE_SHOPSTORE_INSTALL`)과 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)의 REQ-INTSTAT-009(`insufficient_scope` 감지는 Cafe24 한정)다.
+
 ## 설정
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
@@ -93,11 +102,9 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
 | `resource` | Enum | ✓ | — | MakeShop 섹션. 아래 표의 7개 값 중 하나 |
 | `operation` | String | ✓ | — | 선택한 섹션의 operation 식별자. MakeShop operationId 를 그대로 쓴다(예: `get-information`, `get-product`, `post-cart-create`). 메타데이터 테이블([MakeShop operation 메타데이터](CLE-MKS-META))에 있는 값 중 하나 |
 | `fields` | Record<string, unknown> | — | `{}` | 선택한 operation 의 입력 필드(path 파라미터 + query + body). 표현식 가능. operation 별 필수·선택 필드는 메타데이터가 정한다 |
-| `pagination` | object? | — | — | 페이지네이션을 지원하는 operation(`paginated: true`)에만 쓴다. `{ limit?, offset? }` 모양이고 `fields` 와 따로 둔다. 모양은 [Cafe24 노드](CLE-NODE-CAFE24.md)와 같고 전송 방식은 다르다(Cafe24 는 `offset` 을 그대로 보낸다). MakeShop 목록 API 는 `page` · `limit` 으로 조회하므로 실행할 때 `limit` · `page` 로 바꿔 보낸다. `offset` 은 `limit` 의 배수여야 한다([페이지네이션 변환](#페이지네이션-변환)) |
+| `pagination` | object? | — | — | 페이지네이션을 지원하는 operation(`paginated: true`)에만 쓴다. `{ limit?, offset? }` 모양이고 `fields` 와 따로 둔다. 모양은 [Cafe24 노드](CLE-NODE-CAFE24.md)와 같고 전송 방식은 다르다(Cafe24 는 `offset` 을 그대로 보낸다). MakeShop 목록 API 는 `page` · `limit` 으로 조회하므로 실행할 때 `limit` · `page` 로 바꿔 보낸다. `offset` 은 `limit` 의 배수여야 한다([페이지네이션 변환](CLE-NODE-MAKESHOP-EXEC.md#페이지네이션-변환)) |
 
-표현식(`{{ }}`)은 `fields[*]` 와 `pagination.*` 의 모든 값에서 쓸 수 있다. `pagination` 은 숫자로 적었든 표현식이든 실행할 때 검사한다. 표현식은 풀린 값으로 검사한다. 설정 스키마의 단일 기준은 `codebase/backend/src/nodes/integration/makeshop/makeshop.schema.ts` 다.
-
-섹션 값과 operation 목록 문서:
+표현식(`{{ }}`)은 `fields[*]` 와 `pagination.*` 의 모든 값에서 쓸 수 있다. `pagination` 은 숫자로 적었든 표현식이든 실행할 때 풀린 값으로 검사한다. 설정 스키마의 단일 기준은 `codebase/backend/src/nodes/integration/makeshop/makeshop.schema.ts` 다.
 
 | `resource` | 뜻 | operation 목록 |
 |------------|----|----------------|
@@ -122,9 +129,9 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
 | 페이지네이션 | 맨 아래 | Limit · Offset 숫자 입력과 안내 문구 | `paginated: true` 인 operation 에만 보인다. 아래 "페이지네이션 입력" 참조 |
 
 - operation 라벨: 백엔드는 카탈로그 키(`labelKey`, `makeshop.<resource>.<operation>`)만 내려 주고 프론트엔드 i18n 사전이 사람이 읽는 라벨로 바꾼다. 사전에 키가 없으면 키 자체를 보인다([MakeShop operation 메타데이터](CLE-MKS-META)).
-- 별도 승인 라벨 없음: Cafe24 와 달리 MakeShop 에는 권한 범위·operation 단위의 별도 파트너 승인 단계가 없다(심사 때 일괄 검토만 한다). 그래서 ⚠ "별도 승인 필요" 라벨, `restrictedApproval` 메타데이터, MakeShop 용 별도 승인 명단 문서를 두지 않는다(Rationale "별도 승인 미도입").
-- 지원 예정 operation: 현재 MakeShop 메타데이터에는 planned 단계를 드롭다운에 내보내는 경로가 없다. 카탈로그 행은 모두 supported 다. planned 행을 Cafe24 처럼 비활성으로 보일지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
-- 페이지네이션 입력: 저장된 값이 없으면 Limit 칸에는 50, Offset 칸에는 0 이 보인다. Offset 을 바꾸면 화면에 보이는 Limit 값도 함께 저장한다. Offset 만 저장되면 화면에는 Limit 50 이 보이는데 실행은 `limit` 없는 `offset` 이라 거절되기 때문이다. 안내 문구에는 MakeShop 이 페이지 번호로 조회한다는 점과 Offset 이 Limit 의 배수여야 하고 `page = Offset / Limit + 1` 로 바뀐다는 점을 적는다.
+- 별도 승인 라벨 없음: ⚠ "별도 승인 필요" 라벨, `restrictedApproval` 메타데이터, MakeShop 용 별도 승인 명단 문서를 두지 않는다(Rationale "별도 승인 미도입").
+- 지원 예정 operation: 드롭다운에 planned 단계를 내보내는 경로가 없고 카탈로그 행은 모두 supported 다([미결 사항](#미결-사항)).
+- 페이지네이션 입력: 저장된 값이 없으면 Limit 칸에는 50, Offset 칸에는 0 이 보인다. Offset 을 바꾸면 화면에 보이는 Limit 값도 함께 저장한다. Offset 만 저장되면 화면엔 Limit 50 이 보이지만 실행은 `limit` 없는 `offset` 으로 거절되기 때문이다. 안내 문구에는 MakeShop 이 페이지 번호로 조회한다는 점과 Offset 이 Limit 의 배수여야 하고 `page = Offset / Limit + 1` 로 바뀐다는 점을 적는다.
 
 ## 포트
 
@@ -136,203 +143,35 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
 | 출력 | `success` | Success | data | false | MakeShop API 2xx 응답 |
 | 출력 | `error` | Error | error | false | MakeShop API 4xx·5xx, 전송 실패, 429 재시도 소진, 메타데이터·설정 검증 실패 |
 
-3xx 리다이렉트는 요청 라이브러리(`fetch`)가 자동으로 따라가므로 보통 나타나지 않는다. 남은 3xx 는 `MAKESHOP_4XX` 로 분류한다. `status` 는 비블로킹 노드이므로 항상 생략한다.
+3xx 리다이렉트는 요청 라이브러리(`fetch`)가 자동으로 따라가므로 보통 나타나지 않는다. 남은 3xx 의 분류는 [에러 코드](CLE-NODE-MAKESHOP-OUTPUT.md#에러-코드)에 있다. `status` 는 비블로킹 노드이므로 항상 생략한다.
 
 ## 실행 로직
 
-[통합 노드 공통](CLE-NODE-INT-COMMON.md)의 6단계 계약을 따른다. [Cafe24 노드](CLE-NODE-CAFE24.md) 실행 로직과 같은 모양이며 MakeShop 고유 분기는 다음과 같다.
-
-1. **설정 정규화**: `resource`·`operation` 으로 메타데이터 `{ method, path, requiredFields, optionalFields, paginated }` 를 찾는다. 없으면 `MAKESHOP_UNKNOWN_OPERATION` 으로 에러 포트에 보낸다.
-2. **설정 에코**: `integrationId`·`resource`·`operation`·`fields`·`pagination` 을 사용자가 넣은 원래 값으로 에코한다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙)). 표현식과 `pagination.offset` 도 그대로 싣는다. 자격 증명은 싣지 않는다.
-3. **통합 자격 증명 해소**: `getForExecution` 으로 통합을 읽고 `service_type='makeshop'` 과 `status='connected'` 를 확인한다. 넘기는 인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 이 정한다. 실패하면 공통 `INTEGRATION_*` 코드다. 통합이 없거나 다른 워크스페이스 소속이면 공통 규칙대로 `INTEGRATION_CALL_FAILED` 다.
-4. **자격 증명 충족 검증과 `shop_uid` 형식**: `shop_uid`·`access_token`·`refresh_token`·`client_id`·`client_secret` 중 하나라도 없으면 `INTEGRATION_INCOMPLETE` 다. `shop_uid` 가 형식 규약(영숫자·하이픈·언더스코어)을 어기면 `MAKESHOP_INVALID_SHOP_UID` 다. 이 검증이 base URL 경로 조각 주입을 막는 사설망 방어다. MakeShop OAuth 는 confidential client 모델이라 `client_id`·`client_secret` 이 언제나 필요하다. Cafe24 처럼 Public·Private 로 나뉘지 않는다. `shop_uid` 의 정확한 정규식은 코드에 잠정값과 `VERIFY` 표시로 두고 운영 전에 MakeShop 문서로 확정한다.
-5. **필수 필드·조건부 필수 제약 검증**: Cafe24 와 같다. 제약 형식은 [MakeShop operation 메타데이터](CLE-MKS-META)가 Cafe24 형식을 그대로 쓴다. 어기면 `MAKESHOP_MISSING_FIELDS` 다. 현재 구현은 이 검사와 8단계의 페이지네이션 검사를 3단계 통합 해소보다 먼저 한다.
-6. **토큰 만료 확인과 갱신**: `Integration.token_expires_at`([통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md))이 지났거나 60초 안이면 자동 갱신한다.
-   - 갱신 엔드포인트는 `https://auth.makeshop.com/oauth/token`(`grant_type=refresh_token`)이다.
-   - 리프레시 토큰은 한 번 쓰면 회전(rotation)하므로 새 리프레시 토큰을 반드시 저장한다. Cafe24 와 같은 특성이다. 액세스 토큰 TTL 은 1시간, 리프레시 토큰 TTL 은 기본 30일·최대 90일이다.
-   - 여러 인스턴스 사이 직렬화는 전용 `makeshop-token-refresh` BullMQ 큐(`jobId = integrationId` dedup)가 맡는다. 서비스마다 토큰 엔드포인트와 회전 정책이 달라 Cafe24 의 `cafe24-token-refresh` 큐와 공유하지 않는다.
-   - 갱신 실패 분기와 `reactive_401` 직렬화 정책은 Cafe24 와 같은 모양이며 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md)이 정한다.
-   - 배경 주기 갱신 잡은 두지 않는다. Cafe24 는 리프레시 토큰 TTL 이 14일로 짧아 6시간 주기 `cafe24-background-refresh` 잡으로 만기 전에 미리 갱신한다. MakeShop 은 리프레시 토큰 TTL 이 30~90일로 충분히 길어 호출 직전 갱신(`ensureFreshToken`)과 401 재시도로 충분하다. 오래 쓰지 않아 리프레시 토큰까지 만료된 통합은 더 갱신할 수 없다. 이런 통합은 통합을 삭제하고 다시 등록해서 복구한다([인증 실패 처리](#인증-실패-처리)).
-7. **URL 만들기**: `https://connect.makeshop.co.kr/api/v1/{shop_uid}/{operation.path}`. `{path}` 는 메타데이터 path 템플릿(예: `information`, `product`, `cart/create`)이고 path 파라미터는 `fields` 에서 채운다. Cafe24 의 `{mall_id}.cafe24api.com` 서브도메인 방식과 달리 호스트 하나에 `{shopId}` 경로 조각을 쓴다. 호스트가 고정돼 사용자 입력이 호스트를 정하지 않으므로 `assertSafeOutboundHostResolved` 사설망 차단은 필요 없다. 4단계의 `shop_uid` 형식 검증으로 충분하다.
-8. **query·본문 만들기**: 메타데이터 `fields[*].location`(path·query·body)대로 나눈다. operation 이 `paginated: true` 면 `pagination` 을 MakeShop query `limit` · `page` 로 바꿔 싣고 `offset` 은 싣지 않는다([페이지네이션 변환](#페이지네이션-변환)). `fields` 에 `limit` · `page` 를 넣었어도 `pagination` 에서 만든 값이 그 값을 덮는다. 변환 규칙을 어긴 `pagination` 은 통합을 읽거나 API 를 부르기 전에 `MAKESHOP_INVALID_PAGINATION` 으로 에러 포트에 보낸다. POST 본문은 평평한 JSON 그대로 보내고 Cafe24 의 `{request:{...}}` 요청 봉투를 쓰지 않는다. MakeShop Shop API 는 GET·POST 만 쓴다([MakeShop operation 메타데이터](CLE-MKS-META)). 봉투가 필요 없는지는 운영 전에 MakeShop 문서로 다시 확인한다(코드 `VERIFY`).
-9. **호출**: `MakeshopApiClient` 가 `Authorization: Bearer {access_token}` 을 붙여 보낸다.
-   - 401 을 받으면 토큰을 갱신하고 같은 요청을 한 번 재시도한다(Cafe24 와 같은 정책). 403 은 즉시 격하한다(아래 "인증 실패 처리").
-   - MakeShop 은 데이터 호출의 호출 제한 헤더·정책을 공개 문서로 밝히지 않았다. 429 를 받으면 `Retry-After` 헤더가 있으면 그 값만큼, 없으면 고정 간격만큼 기다려 최대 2회 재시도하고, 다 쓰면 `MAKESHOP_RATE_LIMITED` 다.
-   - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
-10. **응답 파싱**: JSON 본문을 `output.response` 에 둔다. `meta.statusCode`, `meta.durationMs` 를 채운다.
-11. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤) 끝난 실행마다 성공·실패 1건을 남긴다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). dry-run 모의 출력은 통합을 얻기 전(1단계 직후)에 끝나 이 단계에 닿지 않는다. 노드 취소 신호(`AbortError`)로 끝난 호출은 남기지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), 요구사항은 [REQ-INTMGMT-022](../CLE-INT/CLE-INT-MANAGE.md)).
-    - `api_label` = 카탈로그 키 `makeshop.<resource>.<operation>`(예: `makeshop.product.get-product`). 프론트엔드가 `GET /api/integrations/services/makeshop/catalog` 응답의 `labelKey` 와 i18n 사전으로 렌더한다.
-    - `api_method` = operation 의 `method`(`GET`·`POST`).
-    - `api_path` = operation 의 path 템플릿(placeholder 그대로).
-12. **반환**: 2xx 는 성공 케이스, 4xx·5xx 는 에러 케이스(아래 에러 코드), 전송 실패는 `MAKESHOP_TRANSPORT_FAILED`. 남은 3xx 는 `MAKESHOP_4XX` 로 분류한다. 별도 `MAKESHOP_3XX` 코드는 두지 않는다(Cafe24 와 같음).
+→ [MakeShop 노드 — 실행 로직](CLE-NODE-MAKESHOP-EXEC.md)
 
 ### 페이지네이션 변환
 
-노드 설정의 `pagination` 은 `{ limit?, offset? }` 이다. [MakeShop API 카탈로그](CLE-MKS-CATALOG) 기준으로 MakeShop 목록 API 에는 `offset` 파라미터가 없고 `page` · `limit` 으로 조회한다. 실제 호출로는 아직 확인하지 않았다([미결 사항](#미결-사항)). 그래서 operation 이 `paginated: true` 면 핸들러(`resolveMakeshopPagination`)가 `pagination` 을 MakeShop query `limit` · `page` 로 바꾼다. `offset` 은 MakeShop 에 보내지 않는다.
-
-| `pagination` | 보내는 query |
-|--------------|--------------|
-| 없음 | 아무것도 만들지 않는다. `fields` 에 `limit` · `page` 가 있으면 그 값이 그대로 간다 |
-| `offset` 없음 | `limit` 이 있으면 `limit` 만 보낸다. `page` 는 보내지 않으므로 MakeShop 기본 page 가 된다 |
-| `offset` 이 0 | `page=1`. `limit` 이 있으면 함께 보낸다 |
-| `offset` 이 0 보다 크고 `limit` 의 배수 | `limit` 과 `page = offset / limit + 1`(예: `limit` 50 · `offset` 100 이면 `page=3`) |
-| `limit` 없이 `offset` 이 0 보다 큼 | 거절 |
-| `offset` 이 `limit` 의 배수가 아님 | 거절(예: `limit` 50 · `offset` 30). 내림하지 않는다 |
-| `limit` 이 양의 정수가 아님, 또는 `offset` 이 음수이거나 정수가 아님 | 거절 |
-| 객체가 아님 | 거절 |
-
-- 값 읽기: 숫자와 정수 숫자 문자열(예: `"40"`)을 정수로 읽는다. 표현식이 풀린 값은 문자열일 수 있기 때문이다. 소수(`2.5`)와 숫자가 아닌 문자열은 정수가 아니다.
-- 거절: 모두 `MAKESHOP_INVALID_PAGINATION` 으로 에러 포트에 보낸다. 판정은 통합을 읽거나 API 를 부르기 전에 한다. 그래서 `output.error.details` 에는 `resource` · `operation` 만 있고 `shopUid` 는 없다. `meta.statusCode` 는 0 이다. 메시지는 원인과 받은 값 뒤에 `(for <resource>.<operationId>)` 를 붙인다. 통합을 얻기 전에 끝난 실패라 활동 로그를 남기지 않는다(11단계).
-- `fields` 와의 우선순위: `pagination` 에서 만든 `limit` · `page` 가 같은 이름의 `fields` 값을 덮는다. `pagination` 이 만들지 않은 키는 `fields` 값이 그대로 간다. 예를 들어 `pagination` 이 `{ limit: 20 }` 이고 `fields.page` 가 `"4"` 면 query 는 `{ limit: 20, page: "4" }` 다.
-- paginated 가 아닌 operation: 실행할 때 `pagination` 을 읽지 않는다.
-- 사전 검증: 실행 직전 노드 설정 사전 검증(`validate()`)은 `pagination` 을 보지 않는다. 숫자로 적은 값이든 표현식이든 규칙 위반은 실행할 때 외부 호출 전에 `MAKESHOP_INVALID_PAGINATION` 으로 에러 포트에 나간다. 그래서 페이지네이션 때문에 `INVALID_NODE_CONFIG` 로 노드가 실패하는 일은 없다.
-- 설정 에코: 출력 `config.pagination` 에는 사용자가 넣은 원래 값(`offset` 포함)이 실린다. 실제로 보낸 `page` 는 출력에 없다.
-- AI 에이전트 도구: 내부 MCP 브리지(REQ-MKSNODE-007)는 MakeShop API 처럼 `page` · `limit` 을 인자로 직접 받는다. 이 변환을 거치지 않는다.
-
-`limit` 50 · `offset` 30 을 넣은 예다.
-
-```json
-{
-  "config": {
-    "integrationId": "int_makeshop_myshop",
-    "resource": "product",
-    "operation": "get-product",
-    "fields": {},
-    "pagination": { "limit": 50, "offset": 30 }
-  },
-  "output": {
-    "error": {
-      "code": "MAKESHOP_INVALID_PAGINATION",
-      "message": "pagination.offset must be a multiple of pagination.limit (offset 30, limit 50) — MakeShop pages by page number (page = offset / limit + 1) (for product.get-product)",
-      "details": { "resource": "product", "operation": "get-product" }
-    }
-  },
-  "meta": { "statusCode": 0, "durationMs": 2 },
-  "port": "error"
-}
-```
+→ [MakeShop 노드 — 실행 로직](CLE-NODE-MAKESHOP-EXEC.md#페이지네이션-변환)
 
 ### dry-run
 
-[Cafe24 노드](CLE-NODE-CAFE24.md#dry-run)와 같은 규칙이고 판정 기준은 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)이다. operation `method` 가 GET 이 아니면 dry-run 에서 외부 상태 변경을 막으려고 모의 출력으로 끝낸다. MakeShop Shop API 는 GET · POST 만 쓰므로 POST 가 대상이다. 읽기 의도인 POST(예: `post-cpik_member-check` 회원 연동 확인)도 메서드로 판정해 모의 출력으로 끝난다. 메서드는 GET 인데 상태를 바꾸는 operation 은 예외 목록(`MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)에 올려 모의 출력으로 끝낸다. 지금은 `get-cart_free_config-update`(카트프리 설정 변경) 하나다. 나머지 GET 은 그대로 부른다.
-
-모의 출력은 실행 로직 1단계 직후, 필수 필드 · 페이지네이션 검증과 통합 자격 증명 해소보다 먼저 `success` 포트로 끝난다. `output` 에는 응답 대신 `_dryRun: true` · `skippedReason` · `wouldHaveCalled`(`kind: 'makeshop'` 와 `operation` · `method` · `resource`)가 들고 `meta` 는 `statusCode: 0` · `durationMs` 다. 포트 표와 출력 구조가 말하는 2xx 응답과 달리 `statusCode` 가 0 이다. 모의 출력으로 끝낸 경우에는 외부 호출이 없었으므로 활동 로그를 남기지 않는다. [통합 노드 공통](CLE-NODE-INT-COMMON.md) 6단계의 «성공·실패와 관계없이 `logUsage` 를 부른다» 는 외부 호출이 나간 경우를 말한다. 공통 문서에 이 예외를 적는 일은 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항)에 있다.
-
-AI 에이전트가 내부 MCP 브리지로 부르는 MakeShop 도구도 같은 기준으로 판정하고, 모의 응답으로 대신한 호출은 활동 로그를 남기지 않는다. 도구 경로는 필수 필드 검증(`MAKESHOP_MISSING_FIELDS`)을 dry-run 확인보다 먼저 한다는 점만 다르다([MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)).
+→ [MakeShop 노드 — 실행 로직](CLE-NODE-MAKESHOP-EXEC.md#dry-run)
 
 ### 시간대
 
-MakeShop API 날짜·시간 필드의 시간대 규약은 **확인되지 않았다**(코드 `VERIFY`). 운영 전에 MakeShop 공식 문서로 확정한다. KST 고정이면 Cafe24 처럼([Cafe24 operation 메타데이터](CLE-C24-META) 시간대 절) AI 에이전트 도구 설명에 시간대 안내를 붙인다.
+→ [MakeShop 노드 — 실행 로직](CLE-NODE-MAKESHOP-EXEC.md#시간대)
 
 ## 출력 구조
 
-노드 출력은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 11 형식을 따르며 [Cafe24 노드](CLE-NODE-CAFE24.md)와 같은 다섯 필드 구조다(`config`·`output`·`meta`·`port`, `status` 생략).
-
-### 2xx 성공 (`success`)
-
-```json
-{
-  "config": {
-    "integrationId": "int_makeshop_myshop",
-    "resource": "product",
-    "operation": "get-product",
-    "fields": { "product_id": "{{ $input.pid }}" }
-  },
-  "output": {
-    "response": { "list": { "product_id": "1001", "product_name": "샘플 상품" } }
-  },
-  "meta": { "statusCode": 200, "durationMs": 280 },
-  "port": "success"
-}
-```
-
-| 필드 | 타입 | 출처 | 설명 |
-|------|------|------|------|
-| `config.*` | object | 설정 에코 | 사용자 입력 원본(`{{ }}` 보존) |
-| `output.response` | unknown | 런타임 | MakeShop 응답 본문 그대로. 구조는 operation 마다 다르며 [MakeShop API 카탈로그](CLE-MKS-CATALOG)의 스키마를 본다 |
-| `meta.statusCode` | number | 핸들러 반환 | HTTP 상태(2xx) |
-| `meta.durationMs` | number | 핸들러 반환 | 요청부터 응답까지 ms |
-| `port` | `'success'` | 핸들러 반환 | 2xx 분기 |
-
-Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeShop 에 **없다**. MakeShop 이 호출 제한 헤더를 공개하지 않아 보일 메트릭이 없다.
-
-### API 에러 또는 전송 실패 (`error`)
-
-`output.error.{code, message, details?}`(Principle 3.2)를 쓴다. 4xx·5xx 면 서버 응답 본문을 `output.response` 에 둔다. 구조는 Cafe24 와 같고 `code` 는 `MAKESHOP_*` 다. `details` 에는 `resource`·`operation` 을 담고 통합을 얻어 `shop_uid` 를 읽은 뒤의 실패면 `shopUid` 도 담는다. 아래 표에서 `?` 가 붙은 필드는 경우에 따라 빠지며 빠지는 경우를 설명 칸에 적는다.
-
-```json
-{
-  "config": {
-    "integrationId": "int_makeshop_myshop",
-    "resource": "product",
-    "operation": "get-product",
-    "fields": { "product_id": "9999" }
-  },
-  "output": {
-    "response": { "error": { "code": "404", "message": "Not Found" } },
-    "error": {
-      "code": "MAKESHOP_404",
-      "message": "MakeShop API returned 404",
-      "details": {
-        "statusCode": 404,
-        "shopUid": "myshop",
-        "resource": "product",
-        "operation": "get-product"
-      }
-    }
-  },
-  "meta": { "statusCode": 404, "durationMs": 120 },
-  "port": "error"
-}
-```
-
-| 필드 | 출처 | 설명 |
-|------|------|------|
-| `output.response?` | 런타임 | `MAKESHOP_4XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_5XX` 면 MakeShop 응답 본문을 그대로 둔다. `MAKESHOP_AUTH_FAILED` 는 응답 본문이 있을 때만 둔다. 전송 실패 · `MAKESHOP_RATE_LIMITED` · 외부 호출 전에 거른 에러에는 없다 |
-| `output.error.code` | 핸들러 반환 | 아래 에러 코드 표의 값(`MAKESHOP_*`·`INTEGRATION_*`) |
-| `output.error.message` | 핸들러 반환 | `MAKESHOP_4XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_5XX` 면 `MakeShop API returned <status>` 다. statusText 는 넣지 않는다. 서버 쪽 사유는 `details` 의 MakeShop 응답 필드로 일부 보존한다. 그 밖의 에러는 원인을 적은 영문 메시지다 |
-| `output.error.details.{resource, operation}` | 핸들러 반환 | 늘 있다 |
-| `output.error.details.shopUid?` | 핸들러 반환 | 호출 대상 상점. 통합을 얻어 `shop_uid` 를 읽은 뒤의 실패에만 있다. `MAKESHOP_INVALID_PAGINATION` 처럼 통합을 얻기 전에 거른 에러에는 없다 |
-| `output.error.details.statusCode?` | 핸들러 반환 | HTTP 상태. `MAKESHOP_4XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_5XX` · `MAKESHOP_AUTH_FAILED` 에만 있다. `MAKESHOP_RATE_LIMITED` 에는 없다 |
-| `output.error.details.{makeshopErrorCode?, makeshopMessage?}` | 핸들러 반환 | `MAKESHOP_4XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_5XX` 응답 본문에서 읽은 MakeShop 에러 코드와 메시지. 본문에 그 값이 있을 때만 싣는다 |
-| `output.error.details.{retries?, lastRetryAfterSec?}` | 핸들러 반환 | `MAKESHOP_RATE_LIMITED` 에만 있다. 재시도 횟수와 마지막 `Retry-After` 값이다 |
-| `meta.statusCode` | 핸들러 반환 | HTTP 상태(`MAKESHOP_RATE_LIMITED` 는 429). 전송 실패와 외부 호출 전에 거른 에러는 `0` |
-| `port` | 핸들러 반환 | `'error'` |
+→ [MakeShop 노드 — 출력 구조와 에러](CLE-NODE-MAKESHOP-OUTPUT.md#출력-구조)
 
 ## 에러 코드
 
-런타임(`port: 'error'`) `output.error.code` 값이다. 실행 중 실패는 모두 에러 포트로 보낸다([통합 노드 공통](CLE-NODE-INT-COMMON.md)). 의미 기반 명명은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)를 따른다.
-
-| 코드 | 조건 |
-|------|------|
-| `MAKESHOP_4XX` / `MAKESHOP_404` / `MAKESHOP_422` | 4xx. 404·422 는 자주 분기해 따로 두고 그 밖은 `MAKESHOP_4XX`. 남은 3xx 도 `MAKESHOP_4XX` |
-| `MAKESHOP_AUTH_FAILED` | 401(토큰 갱신 후 1회 재시도에도 401) 또는 403(즉시). 통합 상태를 `error(auth_failed)` 로 한 번에 바꾼다. 복구는 통합 삭제 후 재등록이다([인증 실패 처리](#인증-실패-처리)) |
-| `MAKESHOP_RATE_LIMITED` | 429 와 재시도 소진 |
-| `MAKESHOP_5XX` | 5xx |
-| `MAKESHOP_TRANSPORT_FAILED` | 요청 reject(DNS·연결·타임아웃). `meta.statusCode=0` |
-| `MAKESHOP_UNKNOWN_OPERATION` | `operation` 이 메타데이터에 없음 |
-| `MAKESHOP_MISSING_FIELDS` | `requiredFields` 누락 또는 조건부 필수 제약 위반 |
-| `MAKESHOP_INVALID_PAGINATION` | 외부 호출 전에 거르는 런타임 에러. paginated operation 의 `pagination` 이 [페이지네이션 변환](#페이지네이션-변환) 규칙을 어김(`limit` 이 양의 정수가 아님, `offset` 이 0 이상의 정수가 아님, `limit` 없이 0 보다 큰 `offset`, `limit` 의 배수가 아닌 `offset`). 숫자로 적은 값과 표현식 값 모두 실행할 때 판정하고 통합을 읽거나 API 를 부르기 전에 거른다 |
-| `MAKESHOP_INVALID_SHOP_UID` | `shop_uid` 형식 위반 |
-| `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_CALL_FAILED` | 통합 해소·자격 증명 실패([통합 노드 공통](CLE-NODE-INT-COMMON.md)) |
-| `INTEGRATION_SERVICE_UNAVAILABLE` | `__workspaceId` 누락 또는 `MakeshopApiClient` 미주입(배포 구성 에러). Cafe24 와 **같은 공용 코드**를 쓴다. 같은 조건을 두 코드로 나누지 않으려고 서비스별 접두(`MAKESHOP_`)를 붙이지 않는다 |
-
-**경로 자리표시자가 남으면 `INTEGRATION_CALL_FAILED` 다.** operation 경로의 자리표시자(`{member_id}` 같은)가 요청을 보내기 직전까지 채워지지 않으면 외부 API 를 부르지 않고 실패한다. 메시지는 `MAKESHOP_UNRESOLVED_PATH_PARAM: operation '<id>' has unresolved path placeholder(s): <list>. Check that required fields are provided and field metadata location='path' is correct.` 다. 앞의 이름은 코드가 아니라 메시지 접두이고 출력 코드는 `INTEGRATION_CALL_FAILED` 다. 이 접두로 분기하지 않는다([에러 코드 규약과 카탈로그 「6.22」](../CLE-API/CLE-API-ERRCODES.md#622-통합-노드-도메인-문서-참조) · 규칙 4).
+→ [MakeShop 노드 — 출력 구조와 에러](CLE-NODE-MAKESHOP-OUTPUT.md#에러-코드)
 
 ### 인증 실패 처리
 
-[Cafe24 노드](CLE-NODE-CAFE24.md) 인증 실패 처리 정책을 그대로 쓴다. 401 은 토큰을 갱신하고 한 번 재시도하며 재시도도 401 이면 격하한다. 403 은 즉시 격하한다.
-
-현재 구현은 401·403 모두 `error(auth_failed)` 로 격하한다. Cafe24 의 `insufficient_scope` 세분 전이는 MakeShop 에 없다. MakeShop 은 권한 범위별 별도 승인 단계가 없어 403 을 권한 범위 부족으로 나눌 근거가 없고, `insufficient_scope` 감지는 Cafe24 에만 있다([통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)의 [REQ-INTSTAT-009](../CLE-INT/CLE-INT-STATUS.md)). 격하 조건과 사유 값은 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)이 정한다. 격하한 뒤 `error → connected` 로 자동으로 돌아가지 않는다.
-
-격하된 MakeShop 통합은 통합을 삭제하고 다시 등록해야 복구된다.
-
-- 통합 재인증과 추가 권한 요청은 둘 다 막혀 있다. 통합 화면은 두 버튼을 비활성으로 두고 그 사유를 보여 준다. 서버는 MakeShop 통합의 `:id/reauthorize` · `:id/request-scopes` 를 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절하고 이 응답을 계약으로 둔다. 두 경로는 자격 증명(`client_id` · `client_secret`) 없이 인가 시작(begin)을 부르고, MakeShop begin 은 모드보다 자격 증명을 먼저 확인한다.
-- 인가 시작(begin) 요청이 본문에 `client_id` · `client_secret` 을 갖췄는데 `mode` 가 `new` 가 아니면(`reauthorize` · `request_scopes`) 400 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 거절한다. [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md)의 [REQ-INTOAUTH-043](../CLE-INT/CLE-INT-OAUTH.md) 과 같은 조건이다. 코드 이름은 호환을 위해 그대로 둔다.
-- ShopStore 에서 앱을 다시 설치해도 기존 행은 되살아나지 않는다. 설치 대기가 아닌 행(`connected` · `error`)이면 App URL 이 그 행의 상세 화면으로 간다. 설치 대기 중 `install_timeout` 으로 만료된 행은 설치 토큰이 없어 App URL 이 404 가 된다. 설치 대기(`pending_install`) 행만 예전처럼 ShopStore 설치로 이어진다.
-- 통합을 쓰는 노드가 있으면 삭제가 409 `INTEGRATION_IN_USE` 로 막힌다. 노드의 통합 참조를 먼저 바꾼 뒤 삭제한다.
-
-이 복구 경로는 Task CLE-T-NNENG8 에서 정했다. 상세 근거는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) Rationale 에 있다.
+→ [MakeShop 노드 — 출력 구조와 에러](CLE-NODE-MAKESHOP-OUTPUT.md#인증-실패-처리)
 
 ## 캔버스 요약
 
@@ -340,7 +179,7 @@ Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeSh
 
 ## AI 에이전트 노출
 
-[Cafe24 노드](CLE-NODE-CAFE24.md) AI 에이전트 노출과 같은 모양이다. `MakeshopMcpToolProvider` 가 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)의 내부 MCP 브리지 패턴으로 이 노드와 같은 메타데이터에서 MCP 도구를 만든다.
+[Cafe24 노드](CLE-NODE-CAFE24.md) AI 에이전트 노출과 같은 모양이다. `MakeshopMcpToolProvider` 가 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)의 내부 MCP 브리지 패턴으로 이 노드와 같은 메타데이터에서 MCP 도구를 만든다. 도구 호출의 dry-run 판정은 [실행 로직 §dry-run](CLE-NODE-MAKESHOP-EXEC.md#dry-run)에 있다.
 
 ### 도구 이름
 
@@ -350,8 +189,9 @@ Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeSh
 | `resource='cpik'`, `operation='post-cart-create'` | `mcp_<8자>__post_cart_create` |
 
 - MakeShop operationId 는 `get-product`·`get-cart_free_config` 처럼 하이픈과 밑줄을 섞어 쓴다. MakeShop 공식 operationId 원형을 그대로 보존하기 때문이다(Cafe24 의 snake_case 통일과 다름). MCP 도구 이름 규칙은 영숫자·밑줄 밖의 문자를 sanitize 하므로 하이픈은 `_` 가 된다(`get-cart-free-config` → `get_cart_free_config`).
-- sanitize 충돌 방지: 한 섹션 안에서 sanitize 한 토큰이 겹치면(예: `get-a_b` 와 `get-a-b` 가 모두 `get_a_b`) 도구 이름이 겹친다. 그래서 섹션 안에서 sanitize 한 operationId 가 유일한지 테스트로 검증한다. 현재 구현은 메타데이터 테스트(`makeshop/metadata/metadata.spec.ts`)가 이 검사를 맡는다. 카탈로그 동기 검사(`catalog-sync.spec.ts`)는 sanitize 하기 전 id 가 섹션 파일 안에서 유일한지만 본다. 검사 위치의 기준은 [MakeShop operation 메타데이터 §7](CLE-MKS-META#7-내부-mcp-브리지와의-매핑)이다. 현재 카탈로그에는 충돌이 없고 이 검사로 고정돼 있다.
+- sanitize 충돌 방지: 한 섹션 안에서 sanitize 한 토큰이 겹치면(예: `get-a_b` 와 `get-a-b` 가 모두 `get_a_b`) 도구 이름이 겹친다. 그래서 섹션 안에서 sanitize 한 operationId 가 유일한지 테스트로 검증한다. 메타데이터 테스트(`makeshop/metadata/metadata.spec.ts`)가 이 검사를 맡고, 카탈로그 동기 검사(`catalog-sync.spec.ts`)는 sanitize 하기 전 id 의 섹션 안 유일성만 본다. 검사 위치의 기준은 [MakeShop operation 메타데이터 §7](CLE-MKS-META#7-내부-mcp-브리지와의-매핑)이다. 현재 카탈로그에는 충돌이 없고 이 검사로 고정돼 있다.
 - bare operationId(하이픈 원형)는 노출 도구 목록과 내부 MCP 브리지의 `execute(name, args)` 에서 그대로 쓴다. sanitize 와 접두어 부여를 어느 층이 맡는지는 [MakeShop operation 메타데이터](CLE-MKS-META) MCP 매핑 절과 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 도구 이름 규칙이 정한다.
+- 도구는 MakeShop API 처럼 `page` · `limit` 을 인자로 직접 받고 노드의 페이지네이션 변환을 거치지 않는다.
 
 ### 그 밖의 정책
 
@@ -364,35 +204,30 @@ Cafe24 의 `meta.callUsage`·`meta.callRemain`(leaky bucket 메트릭)은 MakeSh
 
 ## 미결 사항
 
-- **페이지네이션 실측 미완**: [페이지네이션 변환](#페이지네이션-변환)은 저장소 API 카탈로그를 근거로 정했다. 실제 MakeShop API 를 불러 `offset` 이 무시되고 `page` 로만 조회되는지는 테스트 상점이 없어 실측하지 못했다(2026-10-10 기준, 추적: CLE-T-XVS8H7). 실측에서 `offset` 이 먹으면 변환의 근거가 사라지므로 설정 모양과 변환을 다시 검토한다(Rationale «페이지네이션 방식»).
+- **페이지네이션 실측 미완**: [페이지네이션 변환](CLE-NODE-MAKESHOP-EXEC.md#페이지네이션-변환)은 저장소 API 카탈로그를 근거로 정했다. `offset` 이 무시되고 `page` 로만 조회되는지는 테스트 상점이 없어 실측하지 못했다(2026-10-10 기준, 추적: CLE-T-XVS8H7). 실측에서 `offset` 이 먹으면 설정 모양과 변환을 다시 검토한다([Rationale «페이지네이션 방식»](CLE-NODE-MAKESHOP-EXEC.md#페이지네이션-방식)).
 - **노드별 코드 색인 등재**: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에는 `MAKESHOP_INVALID_PAGINATION` 과 `MAKESHOP_USE_SHOPSTORE_INSTALL`(이름 예외 포함)이 이미 올라 있다. [통합 노드 공통 「노드별 코드 색인」](CLE-NODE-INT-COMMON.md#노드별-코드-색인)의 MakeShop 행에 `MAKESHOP_INVALID_PAGINATION` 을 더하는 일만 남았다(2026-11-13 확인, 추적: CLE-T-7BNDT8).
-- **지원 예정 operation 표시**: 이 노드 원문과 [MakeShop API 카탈로그](CLE-MKS-CATALOG)는 planned 행을 Cafe24 처럼 비활성·"지원 예정" 으로 드롭다운에 보인다고 적는다. [MakeShop operation 메타데이터](CLE-MKS-META)와 현재 구현(`public-meta.ts`)은 planned 단계를 내보내는 경로가 없다고 적는다. 카탈로그 동기 검사는 planned 상태를 허용하므로 planned 행을 더해도 화면에는 나타나지 않는다. 지금은 planned 행이 0개라 드러나지 않았을 뿐이다. planned 경로를 만들지, 카탈로그의 화면 표시 문구를 지울지 결정 필요.
-- **권한 범위 구성**: 이 노드 원문은 권한 범위를 카탈로그의 `x-scope`(주문·상품·회원·상점 설정·게시판·적립금·쿠폰) × read·write 로 만든다고 적는다. 카탈로그 openapi 의 `x-scope` 는 operation 마다 다르다(예: benefit 섹션 일부가 회원, shop 섹션 일부가 주문). 현재 구현(`metadata/index.ts` 의 `SECTION_SCOPE`)은 섹션마다 대표 그룹 하나만 쓰고 "나중에 정교화" 주석과 `VERIFY` 표시를 남겼다. 권한 범위 부족 판정과 권장 프리셋이 어느 기준을 따를지 MakeShop OAuth 문서로 확정한 뒤 [MakeShop operation 메타데이터](CLE-MKS-META)에 매핑 규칙을 적어야 한다.
+- **지원 예정 operation 표시**: 이 노드 원문과 [MakeShop API 카탈로그](CLE-MKS-CATALOG)는 planned 행을 Cafe24 처럼 비활성·"지원 예정" 으로 드롭다운에 보인다고 적는다. [MakeShop operation 메타데이터](CLE-MKS-META)와 현재 구현(`public-meta.ts`)에는 planned 단계를 내보내는 경로가 없다. 카탈로그 동기 검사는 planned 상태를 허용하므로 planned 행을 더해도 화면에는 나타나지 않는다. 지금은 planned 행이 0개라 드러나지 않았을 뿐이다. planned 경로를 만들지, 카탈로그의 화면 표시 문구를 지울지 결정 필요.
+- **권한 범위 구성**: 이 노드 원문은 권한 범위를 카탈로그의 `x-scope`(주문·상품·회원·상점 설정·게시판·적립금·쿠폰) × read·write 로 만든다고 적는다. 카탈로그 openapi 의 `x-scope` 는 operation 마다 다르다(예: benefit 섹션 일부가 회원, shop 섹션 일부가 주문). 현재 구현(`metadata/index.ts` 의 `SECTION_SCOPE`)은 섹션마다 대표 그룹 하나만 쓰고 "나중에 정교화" 주석과 `VERIFY` 표시를 남겼다. 권한 범위 부족 판정과 권장 프리셋의 기준을 MakeShop OAuth 문서로 확정한 뒤 [MakeShop operation 메타데이터](CLE-MKS-META)에 매핑 규칙을 적어야 한다.
 
 ## 구현 위치
 
-- `codebase/backend/src/nodes/integration/makeshop/makeshop.handler.ts` (`resolveMakeshopPagination` 페이지네이션 변환, `buildRequestParts` query·본문 만들기)
+실행 · 출력 쪽 구현 위치는 각 하위 문서에 있다.
+
 - `codebase/backend/src/nodes/integration/makeshop/makeshop.schema.ts` (설정 스키마)
 - `codebase/backend/src/nodes/integration/makeshop/makeshop.component.ts`
-- `codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts` (401 재시도·429 재시도)
-- `codebase/backend/src/nodes/integration/makeshop/makeshop-token-refresh.processor.ts` (토큰 갱신 worker)
 - `codebase/backend/src/nodes/integration/makeshop/makeshop.module.ts`
 - `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (operation 메타데이터, 상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
-- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 부수효과 판정 `isDryRunMockedOperation`)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (내부 MCP 브리지)
-- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (OAuth auth-code + PKCE, 통합 재인증 · 추가 권한 요청 거절, ShopStore 설치 처리 `handleMakeshopInstall`)
-- `codebase/backend/src/modules/integrations/integrations.service.ts`
-- `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (ShopStore 설치 HMAC)
 - `codebase/frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx` (`MakeshopConfig` 설정 화면과 페이지네이션 입력)
 - `codebase/frontend/src/components/integrations/makeshop-allowlist-editor.tsx` (노출 도구 목록 편집)
 
 ## Rationale
 
-공통 결정(노드 하나 + 메타데이터, 내부 MCP 브리지, 메타데이터 위치, 다섯 필드 규약, 필드 동적 폼)은 [Cafe24 노드](CLE-NODE-CAFE24.md) Rationale 과 근거가 같아 되풀이하지 않는다. 아래는 MakeShop 고유 분기다.
+공통 결정(노드 하나 + 메타데이터, 내부 MCP 브리지, 메타데이터 위치, 다섯 필드 규약, 필드 동적 폼)은 [Cafe24 노드](CLE-NODE-CAFE24.md) Rationale 과 근거가 같아 되풀이하지 않는다. 아래는 MakeShop 고유 분기다. 페이지네이션 · dry-run · 활동 로그 결정은 [실행 로직](CLE-NODE-MAKESHOP-EXEC.md#rationale), 인증 실패 복구 결정은 [출력 구조와 에러](CLE-NODE-MAKESHOP-OUTPUT.md#rationale)에 있다.
 
 ### 인증 흐름으로 Authorization-Code + refresh 선택
 
-MakeShop 신형 API 는 두 OAuth 흐름을 함께 제공한다. (a) Authorization-Code(OAuth 2.1 + PKCE, `auth.makeshop.com`, 리프레시 30~90일)와 (b) Client-Credentials(`connect.makeshop.co.kr`, `shop_uid`, 토큰 TTL 5분, 발급 분당 5회 제한)다. 이 통합은 (a) 를 택했다. 사용자가 "Cafe24 와 같게" 를 요구했고, 기존 OAuth 인프라(인가 시작·콜백·토큰 갱신 큐·설치 호출 제한·nonce)를 그대로 다시 쓸 수 있기 때문이다. (b) 는 사용자 리다이렉트와 리프레시 저장이 필요 없다는 단순함이 있지만, Cafe24 와 흐름이 달라 새 인프라가 필요하고 토큰 TTL·발급 제한이 있어서 택하지 않았다(나중에 다시 평가할 수 있다).
+MakeShop 신형 API 는 두 OAuth 흐름을 함께 제공한다. (a) Authorization-Code(OAuth 2.1 + PKCE, `auth.makeshop.com`, 리프레시 30~90일)와 (b) Client-Credentials(`connect.makeshop.co.kr`, `shop_uid`, 토큰 TTL 5분, 발급 분당 5회 제한)다. 이 통합은 (a) 를 택했다. 사용자가 "Cafe24 와 같게" 를 요구했고, 기존 OAuth 인프라(인가 시작·콜백·토큰 갱신 큐·설치 호출 제한·nonce)를 그대로 다시 쓸 수 있기 때문이다. (b) 는 리다이렉트와 리프레시 저장이 필요 없어 단순하지만, 흐름이 달라 새 인프라가 필요하고 토큰 TTL·발급 제한이 있어 택하지 않았다(나중에 다시 평가할 수 있다).
 
 ### OAuth 권한 범위를 공백으로 구분
 
@@ -408,68 +243,12 @@ Cafe24 POST·PUT 은 `{request:{...}}` 봉투가 필수지만 MakeShop 은 평�
 
 ### 별도 승인 미도입
 
-Cafe24 는 일부 권한 범위·operation 이 파트너 별도 승인 대상이라 `restrictedApproval` 메타데이터, [Cafe24 별도 승인 scope](CLE-C24-SCOPES) 명단, UI ⚠ 라벨을 둔다. MakeShop 에는 권한 범위·operation 단위 별도 승인 단계가 없다. 앱 심사(ShopStore 등록) 때 요청한 권한 범위 전체를 한꺼번에 검토할 뿐이다. 그래서 MakeShop 에는 `restrictedApproval` 메타데이터, 별도 승인 명단 문서, ⚠ 라벨을 두지 않는다. 심사 거절과 권한 범위 변경 재심사는 앱 등록 운영의 영역이며 노드 실행 스펙의 관심사가 아니다.
+Cafe24 는 일부 권한 범위·operation 이 파트너 별도 승인 대상이라 `restrictedApproval` 메타데이터, [Cafe24 별도 승인 scope](CLE-C24-SCOPES) 명단, UI ⚠ 라벨을 둔다. MakeShop 에는 권한 범위·operation 단위 별도 승인 단계가 없다. 앱 심사(ShopStore 등록) 때 요청한 권한 범위 전체를 한꺼번에 검토할 뿐이다. 그래서 MakeShop 에는 `restrictedApproval` 메타데이터, 별도 승인 명단 문서, ⚠ 라벨을 두지 않는다. 심사 거절과 권한 범위 변경 재심사는 앱 등록 운영의 영역이다.
 
 ### CPIK webhook 범위 분리
 
-CPIK 섹션의 webhook 11개(`event_code` 기반 상품·주문·배송·카테고리 변경 이벤트)는 호출형 REST 가 아니라 이벤트 수신(트리거) 정의다. 이 노드(호출형)와 내부 MCP 브리지(도구)의 범위 밖이며 워크플로우 트리거에 해당한다. Cafe24 에도 아직 수신 webhook 트리거가 없으므로, MakeShop CPIK webhook 과 Cafe24 webhook 을 함께 다루는 통합 공통 webhook·트리거를 별도 후속 과제로 나눴다. MakeShop 쪽 webhook **구독 등록 API** 는 아직 문서화되지 않았다. 후속 작업 전에 파트너센터 확인이 먼저다.
-
-### 페이지네이션 방식
-
-[MakeShop API 카탈로그](CLE-MKS-CATALOG)의 정본인 저장소 `codebase/api-catalogs/makeshop/` 에서 paginated operation 42개는 모두 `page` · `limit` 파라미터만 있고 `offset` 파라미터는 0개다. 그런데 이 노드의 원문은 `pagination` 을 `{ limit?, offset? }` 로 표준화하고 `offset` 을 query 에 그대로 실었다. 카탈로그가 맞다면 MakeShop 은 이 `offset` 을 무시하고 `offset` 과 상관없이 같은 page 를 돌려준다.
-
-Task CLE-T-XVS8H7 에서 다음 두 안 가운데 (2) 를 택했다.
-
-- (1) 설정 모양을 `{ page?, limit? }` 로 바꾼다. 필드 이름과 저장 형식이 바뀌므로 이미 저장된 노드 설정을 옮겨야 한다.
-- (2) 설정은 `{ limit?, offset? }` 그대로 두고 핸들러가 보낼 때 `page = offset / limit + 1` 로 바꾼다. 필드 이름과 저장 형식은 그대로다.
-
-`limit` 의 배수가 아닌 `offset` 은 거절한다. 내림(floor)으로 가까운 page 를 고르는 안은 기각했다. 조용히 내리면 조회 창이 사용자가 적은 위치보다 앞으로 밀린다. 그러면 앞뒤 page 와 행이 겹치거나 빠진다. `limit` 없이 0 보다 큰 `offset` 은 page 를 셀 수 없어 거절한다.
-
-실행 직전 사전 검증(`validate()`)은 `pagination` 을 보지 않는다. 사전 검증에서 거르면 숫자로 적은 값의 위반만 `INVALID_NODE_CONFIG` 로 노드 실행이 실패하고 표현식 값의 위반은 에러 포트로 간다. 같은 규칙 위반이 두 경로로 갈리지 않도록 실행 단계의 `MAKESHOP_INVALID_PAGINATION` 하나로 모았다.
-
-출력 `config` 에는 사용자가 넣은 `offset` 을 그대로 싣는다. `config` 에는 사용자가 설정한 원본 값을 싣는다는 [노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙)을 따른 것이다.
-
-이 결정은 카탈로그를 근거로 했다. 실제 MakeShop API 를 불러 `offset` 이 무시되는지 확인하는 실측은 아직 하지 못했다(2026-10-10 기준, [미결 사항](#미결-사항)). 실측에서 `offset` 이 먹으면 (2) 의 근거가 사라지므로 다시 검토한다. 요구사항이 어떻게 바뀌었는지는 «요구사항 변경 이력» 에 있다.
-
-### 인증 실패 뒤 복구는 삭제 후 재등록
-
-이 문서의 이전 원문은 격하된 통합을 통합 재인증(`Reauthorize`)으로 되돌리고 오래 쓰지 않은 통합도 통합 재인증으로 복구한다고 적었다. 서버는 그때도 MakeShop 통합의 통합 재인증 · 추가 권한 요청을 거절했다. 통합 화면의 버튼만 활성이었다. ShopStore 재설치로 기존 행이 복구되는지도 정해져 있지 않았다. Task CLE-T-NNENG8 에서 복구 경로를 통합 삭제 후 재등록 하나로 정했고 화면 버튼도 막았다.
-
-- 거절 코드: 이 절은 원래 그 거절을 `MAKESHOP_USE_SHOPSTORE_INSTALL` 로 적었다. 실제로 `:id/reauthorize` · `:id/request-scopes` 는 자격 증명 없이 인가 시작(begin)을 부르고 MakeShop begin 이 모드보다 자격 증명을 먼저 확인해서 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 끝났다. 2026-11-13 에 사람이 이 응답을 계약으로 정했고(Task CLE-T-10N47M) 이 문서의 서술을 그 코드로 바꿨다. `MAKESHOP_USE_SHOPSTORE_INSTALL` 은 자격 증명을 갖춘 begin 요청이 `new` 가 아닌 모드로 올 때만 나온다([인증 실패 처리](#인증-실패-처리)).
-- 기각한 안(ShopStore 재설치로 기존 행 되살리기): 설치 토큰과 HMAC 검증으로 이어지는 설치 흐름은 설치 대기 행 전용이다. App URL 은 설치가 끝난 행을 상세 화면으로 보낸다. 그래서 재설치는 기존 행을 되살리는 경로가 되지 못한다.
-- 택한 안의 비용: 통합을 쓰는 노드가 있으면 삭제가 409 `INTEGRATION_IN_USE` 로 막힌다. 사용자는 노드의 통합 참조를 바꾸고 통합을 삭제한 뒤 다시 등록하는 순서를 밟아야 한다.
-
-상세 근거는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) Rationale 에 있다.
-
-### 요구사항 변경 이력 (2026-10-10)
-
-- 페이지네이션 전송(REQ-MKSNODE-005, Task CLE-T-XVS8H7): 원래 "페이지네이션 입력을 보여 주고 그 값을 query 로 보낸다" 였다. 이제는 `limit` · `page` 로 바꿔 보내고 `offset` 은 보내지 않는다.
-- 설정 에코(REQ-MKSNODE-028, Task CLE-T-XVS8H7): 에코하는 값이 사용자가 넣은 원래 값(`offset` 포함)이라고 밝혔다.
-- 활동 로그(REQ-MKSNODE-029): 원래 "호출이 끝나면 성공·실패와 관계없이 활동 로그를 1건 남긴다" 였다. 통합을 해소한 뒤(당시 표현) 끝난 실행으로 범위를 좁히고 노드 취소 신호로 끝난 호출은 남기지 않는다고 더했다. 해소 전 실패의 기록은 알려진 결함(Task CLE-T-PTC4SF)이라 요구사항으로 굳히지 않는다. 2026-11-05 에 CLE-T-PTC4SF 가 고쳐 통합을 얻기 전에 끝난 실패는 남기지 않는다.
-- 페이지네이션 세부 규칙(REQ-MKSNODE-038 ~ REQ-MKSNODE-046, Task CLE-T-XVS8H7): 경계값 · 거절 · `fields` 와의 우선순위 · 사전 검증 · 설정 화면 동작을 새로 두었다.
-
-### dry-run 판정과 활동 로그 (2026-10-23)
-
-- dry-run 판정(REQ-MKSNODE-031 · REQ-MKSNODE-032): 원래 «POST 면 mock, GET 이면 실제 호출» 이었다. `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꿔서 메서드만으로는 dry-run 에서 설정이 실제로 바뀐다. 2026-10-23 에 두 카탈로그의 GET operation 을 모두 확인해 이 하나를 상태를 바꾸는 GET 예외 목록에 넣고 요구사항 문구를 «GET 이 아니거나 예외 목록에 있으면» 으로 바꿨다. 판정 기준과 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)에 있다.
-- 활동 로그(REQ-MKSNODE-047): 이전에는 «Cafe24 노드와 같은 규칙» 이라 노드 dry-run 모의 출력에도 활동 로그를 1건 남겼지만 이 문서에는 그 요구사항이 없었다. 2026-10-23 에 사람이 노드 경로와 AI 에이전트 도구 경로 모두 «남기지 않음» 을 골랐다. 활동 로그는 실제로 나간 외부 호출의 기록이라 나가지 않은 모의 출력은 적지 않는다. 옛 목적(모의 실행을 활동 탭에서 추적)은 실행 상세의 노드 출력 `_dryRun` 이 대신한다. «둘 다 1건 남김» 은 dry-run 표시가 없는 `success` 행이 남고 `lastUsedAt` 이 실제 호출 없이 바뀌어 기각했다. 노드 경로는 REQ-MKSNODE-047, 도구 경로는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)의 REQ-RERUN-053 이 정한다. 나머지 근거는 [Cafe24 노드](CLE-NODE-CAFE24.md)의 Rationale «dry-run 모의 출력에 활동 로그를 남기지 않는다» 와 같다.
-
-### 운영 전 확인할 항목
-
-노드와 MCP 도구는 구현이 끝났다. 아래는 MakeShop 공식 문서에서 확정하지 못한 부분으로, 코드에 `VERIFY` 주석을 달아 운영 전 확인 대상으로 둔다. 구현 표면이 덜 된 것이 아니다.
-
-- OAuth 인가·토큰 호스트 `auth.makeshop.com`(인가·토큰·갱신): 1차 출처는 MakeShop 가이드 페이지다. 공식 OAuth 문서로 호스트·엔드포인트·Basic 인증 방식을 다시 확인한다.
-- 데이터 호출 호출 제한: MakeShop 은 데이터 API 의 호출 제한 헤더·정책을 공개하지 않았다(문서의 분당 5회는 client_credentials **토큰 발급** 한정). 429 best-effort 대기로 시작하고 운영 관측 뒤 정책을 보강한다. Cafe24 의 leaky bucket 메트릭은 헤더가 없어 출력에 넣지 않는다.
-- 시간대: 날짜·시간 필드 시간대 미확인.
-- POST 봉투: 평평한 본문 가정. 운영 전 확인.
-- 페이지네이션 방식: 카탈로그를 근거로 `offset` 을 `page` 로 바꿔 보내기로 했다([페이지네이션 변환](#페이지네이션-변환), Rationale «페이지네이션 방식»). 실제 API 가 `offset` 을 무시하는지는 호출로 확인하지 못했다(2026-10-10 기준). cursor 방식은 Cafe24 처럼 쓰지 않는다.
+CPIK 섹션의 webhook 11개(`event_code` 기반 상품·주문·배송·카테고리 변경 이벤트)는 호출형 REST 가 아니라 이벤트 수신(트리거) 정의다. 이 노드(호출형)와 내부 MCP 브리지(도구)의 범위 밖이며 워크플로우 트리거에 해당한다. Cafe24 에도 아직 수신 webhook 트리거가 없어 둘을 함께 다루는 통합 공통 webhook·트리거를 별도 후속 과제로 나눴다. MakeShop 쪽 webhook **구독 등록 API** 는 아직 문서화되지 않았다. 후속 작업 전에 파트너센터 확인이 먼저다.
 
 ### 통합 파생 필드 계산을 서비스 레지스트리로 일반화
 
-MakeShop 은 Cafe24 에 이은 두 번째 OAuth 리프레시 통합이다. 그래서 Cafe24 전용으로 하드코딩돼 있던 `IntegrationDto` 파생 필드(`autoRefresh`·`appUrl`) 계산을 서비스 레지스트리 기반의 서비스별 계산으로 일반화하는 Cafe24 백로그 C-6 을 함께 풀었다. MakeShop 은 `autoRefresh=true`(auth-code + refresh)이며, ShopStore 설치 App URL 이 있으면 `appUrl` 도 레지스트리 함수로 계산한다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md), [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md)).
-
-### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
-
-규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다(REQ-INTMGMT-053).
-
-- 요구사항 변경: REQ-MKSNODE-029 는 «통합을 해소한 뒤» 에서 «통합을 얻은 뒤» 로 바꿨다. «해소» 는 3단계 전체(조회와 유형 · 연결 상태 확인)를 가리켜 유형 불일치와 미연결로 끝난 실행이 빠지는 것처럼 읽혔다. 두 실패는 통합을 얻은 뒤의 실패라 기록한다(통합 노드 공통과 같다).
-- 2026-10-10 이력은 해소 전 실패의 기록을 알려진 결함이라 요구사항으로 굳히지 않는다고 적었다. 이제 규칙은 통합 노드 공통에 있다.
+MakeShop 은 두 번째 OAuth 리프레시 통합이라 Cafe24 전용으로 하드코딩돼 있던 `IntegrationDto` 파생 필드(`autoRefresh`·`appUrl`) 계산을 서비스 레지스트리 기반의 서비스별 계산으로 일반화했다(Cafe24 백로그 C-6). MakeShop 은 `autoRefresh=true`(auth-code + refresh)이며, ShopStore 설치 App URL 이 있으면 `appUrl` 도 레지스트리 함수로 계산한다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md), [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md)).

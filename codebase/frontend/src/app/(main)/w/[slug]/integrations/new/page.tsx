@@ -143,7 +143,7 @@ function NewIntegrationWizard() {
 
   // Cafe24 mall_id 사전 중복 감지 — 350ms debounce + AbortController + state 묶음을
   // `useCafe24MallIdPrecheck` 훅으로 분리해 page.tsx 응집도 향상 (ai-review W9,
-  // 2026-05-16). [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다).
+  // 2026-05-16). [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE-LIST#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다).
   const isCafe24OAuth =
     variant?.authType === "oauth2" && serviceType === "cafe24";
   const cafe24MallIdInput = String(credentials.mall_id ?? "").trim();
@@ -225,7 +225,7 @@ function NewIntegrationWizard() {
       // MakeShop is confidential-client install-first — pass client_id /
       // client_secret at begin (shop_uid is learned at install, NOT here).
       // Backend reads body.clientId / body.clientSecret (same OAuthBeginDto
-      // fields cafe24 Private uses). [OAuth 연결과 토큰 갱신 「MakeShop」](CLE-INT-OAUTH#makeshop).
+      // fields cafe24 Private uses). [OAuth 연결과 토큰 갱신 「MakeShop」](CLE-INT-OAUTH-INSTALL#makeshop).
       const makeshopExtra =
         serviceType === "makeshop"
           ? {

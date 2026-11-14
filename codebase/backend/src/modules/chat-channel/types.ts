@@ -382,9 +382,9 @@ export interface EiaAiMessageEvent extends EiaEventBase {
   // 도달하지 않으므로 본 입력 계약에서 제외한다 (WS §4.4 strip-only 결정).
   /**
    * AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉.
-   * SoT: [채팅 채널 어댑터 규약 「EiaEvent」](CLE-CHAT-ADAPTER#eiaevent)
+   * SoT: [채팅 채널 어댑터 규약 「EiaEvent」](CLE-CHAT-ADAPTER-TYPES#eiaevent)
    *      / [AI 에이전트 노드 출력과 디버그 「표시물 페이로드 운반」](CLE-NODE-AGENT-OUTPUT#표시물-페이로드-운반)
-   *      / [EIA 알림 웹훅 「execution.ai_message」](CLE-EIA-NOTIFY#executionai_message).
+   *      / [EIA 알림 웹훅 「execution.ai_message」](CLE-EIA-NOTIFY-EVENTS#executionai_message).
    *
    * 4종 display-only (`carousel`/`table`/`chart`/`template`) 만 본 필드로 채널 발화 대상.
    * `render_form` (`type === 'form'`) 은 이 필드의 대상이 아니다(채널 네이티브 모달은 따로 다룬다).
@@ -452,7 +452,7 @@ export interface EiaCancelledEvent extends EiaEventBase {
  * 외 추가로 chat-channel adapter 가 구독하는 이벤트. 외부 SDK 미노출.
  *
  * SoT:
- *   - [채팅 채널 어댑터 규약 「ChatChannelInternalEvent」](CLE-CHAT-ADAPTER#chatchannelinternalevent)
+ *   - [채팅 채널 어댑터 규약 「ChatChannelInternalEvent」](CLE-CHAT-ADAPTER-TYPES#chatchannelinternalevent)
  *   - [채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클)
  *   - [채팅 채널 어댑터 규약 「R-CCA-7」](CLE-CHAT-ADAPTER#r-cca-7-rendernode-시그니처를-union-으로-넓혀-내부-이벤트를-받는다)
  *

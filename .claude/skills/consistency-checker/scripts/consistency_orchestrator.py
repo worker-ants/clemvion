@@ -552,7 +552,7 @@ def format_file_bundle(file_paths, root, label):
 
 
 # API 카탈로그의 필드 문서(`codebase/api-catalogs/<vendor>/<resource>/**/*.md`, 전환 4a 에서 옮겼다).
-# 생성기가 만드는 참조 덤프라 정식 스펙이 아니다(`CLE-ENG-SPECEVIDENCE` R-7). 최상위 색인
+# 생성기가 만드는 참조 덤프라 정식 스펙이 아니다(`CLE-ENG-SPECEVIDENCE-MIGRATION` R-7). 최상위 색인
 # `<vendor>/<resource>.md` 와 생성기 입력 데이터(MakeShop `openapi/*.openapi.json`)는 남긴다. 카탈로그를
 # 다시 생성한 PR 은 필드 문서 수백 개를 바꾸므로 구현 diff 에 실으면 그 예산을 다 쓴다. diff 에서 빼고
 # 실제로 뺀 수만 census 에 적는다.

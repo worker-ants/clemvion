@@ -46,7 +46,11 @@ const root = repoRoot();
 
 /**
  * 발행 축의 탈출구로 쓰는 에러 코드 카탈로그 — NERV `CLE-API-ERRCODES` 의 저장소 미러
- * (저장소 루트 기준). 이 문서의 「6. 카탈로그」 절만 탈출구로 쓴다(`catalogSection`).
+ * (저장소 루트 기준). 이 문서의 「6. 카탈로그」 절과 하위 문서(`CLE-API-ERRCODES-*`)의
+ * `## 6.N` 절만 탈출구로 쓴다(`catalogSection` · `childCatalogSections`).
+ *
+ * 크기 한도 정리(NERV Task `CLE-T-H8JK7M`)로 카탈로그 표는 하위 문서로 옮겼다. 부모의
+ * 「6. 카탈로그」 절에는 설명과 다른 문서가 가리키는 절 앵커만 남았다.
  *
  * 옛 스펙 트리의 `spec/5-system/3-error-handling.md` §1 을 읽었다. 그 트리는 전환 단계 5 에서
  * 지웠다. 미러는 손으로 고치지 않는다. 구현하는 PR 이
@@ -81,6 +85,74 @@ function readErrorCodeCatalogMirror(repo: string): string {
     );
   }
   return fs.readFileSync(abs, "utf8");
+}
+
+/** 카탈로그 하위 문서 미러의 위치와 파일 이름 접두. 부모와 같은 영역 폴더에 있다. */
+const ERROR_CODE_CATALOG_DIR = "spec/CLE-API";
+const ERROR_CODE_CATALOG_CHILD_PREFIX = "CLE-API-ERRCODES-";
+
+/** 하위 문서에서 탈출구로 인정하는 절 제목. `## 6.5 워크플로우 실행` 처럼 §6 의 소절 번호로 시작한다. */
+const CHILD_CATALOG_HEADING = /^## 6\.\d+ /;
+
+/**
+ * 카탈로그 하위 문서 미러를 모두 읽는다. 하나도 없으면 throw 한다.
+ *
+ * 목록을 손으로 적지 않고 파일 이름 접두로 찾는다. NERV 에 하위 문서가 늘어도 이 가드를 고칠
+ * 필요가 없다. 미러가 빠진 하위 문서는 탈출구만 좁히므로 거짓 GREEN 은 생기지 않는다.
+ */
+function readErrorCodeCatalogChildren(
+  repo: string,
+): { file: string; text: string }[] {
+  const dir = path.join(repo, ERROR_CODE_CATALOG_DIR);
+  const files = fs.existsSync(dir)
+    ? fs
+        .readdirSync(dir)
+        .filter(
+          (f) =>
+            f.startsWith(ERROR_CODE_CATALOG_CHILD_PREFIX) && f.endsWith(".md"),
+        )
+        .sort()
+    : [];
+  if (files.length === 0) {
+    throw new Error(
+      `에러 코드 카탈로그 하위 문서 미러(${ERROR_CODE_CATALOG_DIR}/${ERROR_CODE_CATALOG_CHILD_PREFIX}*.md)가 없다. ` +
+        `지웠다면 git restore ${ERROR_CODE_CATALOG_DIR} 로 되돌린다.`,
+    );
+  }
+  return files.map((f) => ({
+    file: f,
+    text: fs.readFileSync(path.join(dir, f), "utf8"),
+  }));
+}
+
+/**
+ * 하위 문서 본문에서 `## 6.N` 절만 모아 낸다. 각 절은 제목 줄부터 다음 `## ` 제목 직전까지다.
+ * 개요 · 예외 · 은퇴 코드 · Rationale 절은 읽지 않는다. 해당 절이 없는 문서는 빈 문자열이다.
+ */
+function childCatalogSections(childText: string): string {
+  const out: string[] = [];
+  let inSection = false;
+  for (const line of childText.split("\n")) {
+    if (line.startsWith("## ")) inSection = CHILD_CATALOG_HEADING.test(line);
+    if (inSection) out.push(line);
+  }
+  return out.join("\n");
+}
+
+/**
+ * 부모의 「6. 카탈로그」 절과 하위 문서의 `## 6.N` 절을 합친다. 하위 문서에 `## 6.N` 절이
+ * 하나도 없으면 throw 한다. 절 제목 형식이 바뀌면 빈 카탈로그가 되는 대신 멈춘다.
+ */
+function catalogSources(repo: string): string[] {
+  const childSections = readErrorCodeCatalogChildren(repo)
+    .map((c) => childCatalogSections(c.text))
+    .filter((t) => t.length > 0);
+  if (childSections.length === 0) {
+    throw new Error(
+      "에러 코드 카탈로그 하위 문서에 `## 6.N` 절이 없다. 절 제목이 바뀌었다면 CHILD_CATALOG_HEADING 을 맞춘다.",
+    );
+  }
+  return [catalogSection(readErrorCodeCatalogMirror(repo)), ...childSections];
 }
 
 /**
@@ -237,7 +309,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   // "따옴표가 토큰만 감쌌나 / 접두로만 붙나" 를 본다. 같은 `sourceTexts` 를 재사용한다.
   const quotedLiterals = collectQuotedLiterals(sourceTexts);
   const messagePrefixes = collectMessagePrefixes(sourceTexts);
-  const catalogCodes = collectCatalogCodes([catalogSection(readErrorCodeCatalogMirror(root))]);
+  const catalogCodes = collectCatalogCodes(catalogSources(root));
   const registeredNonEmitted = new Set(
     GUIDE_NON_EMITTED_VOCABULARY.map((e) => e.token),
   );
@@ -325,7 +397,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 셋 중 하나가 빈 집합이면 위 단언이 **아무것도 안 보고** 통과한다.
       expect(quotedLiterals.size).toBeGreaterThan(200); // 실측 다수
       expect(messagePrefixes.size).toBeGreaterThan(3);
-      expect(catalogCodes.size).toBeGreaterThan(100); // 실측 170 (「6. 카탈로그」 절, 2026-10-03)
+      expect(catalogCodes.size).toBeGreaterThan(100); // 실측 170 (「6. 카탈로그」 절, 2026-10-03). 하위 문서로 나눈 뒤에도 같은 규모다
     });
 
     it("카탈로그는 NERV `CLE-API-ERRCODES` 의 미러를 읽는다", () => {
@@ -370,6 +442,49 @@ describe("유저 가이드 식별자 실재성 가드", () => {
         "`AFTER_CATALOG`",
       ].join("\n");
       expect([...collectCatalogCodes([catalogSection(text)])]).toEqual(["IN_CATALOG"]);
+    });
+
+    it("하위 문서에서는 `## 6.N` 절만 걷는다", () => {
+      // 하위 문서의 개요 · 은퇴 코드 · Rationale 의 백틱 코드는 탈출구가 아니다.
+      const text = [
+        "---",
+        'id: "X"',
+        "---",
+        "## 개요",
+        "`IN_OVERVIEW`",
+        "## 6.5 워크플로우 실행",
+        "`IN_SECTION_A`",
+        "### 6.5.1 소절",
+        "`IN_SUBSECTION`",
+        "## 6.16 재실행 (도메인 문서 참조)",
+        "`IN_SECTION_B`",
+        "## Rationale",
+        "`IN_RATIONALE`",
+      ].join("\n");
+      expect(
+        [...collectCatalogCodes([childCatalogSections(text)])].sort(),
+      ).toEqual(["IN_SECTION_A", "IN_SECTION_B", "IN_SUBSECTION"]);
+    });
+
+    it("카탈로그 하위 문서 미러가 없으면 throw 한다", () => {
+      const tmp = fs.mkdtempSync(
+        path.join(os.tmpdir(), "guide-ident-catalog-child-"),
+      );
+      try {
+        expect(() => readErrorCodeCatalogChildren(tmp)).toThrow(
+          /CLE-API-ERRCODES-\*\.md/,
+        );
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it("하위 문서가 카탈로그 코드의 대부분을 낸다", () => {
+      // 부모 절만 읽는 옛 판으로 되돌아가면 이 단언이 RED 가 된다(부모 절에는 표 행이 없다).
+      const parentOnly = collectCatalogCodes([
+        catalogSection(readErrorCodeCatalogMirror(root)),
+      ]);
+      expect(catalogCodes.size - parentOnly.size).toBeGreaterThan(100);
     });
 
     it("「6. 카탈로그」 절이 없으면 throw 한다", () => {

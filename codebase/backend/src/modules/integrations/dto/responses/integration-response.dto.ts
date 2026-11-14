@@ -100,7 +100,7 @@ export class IntegrationDto {
   updatedAt: string;
 
   // 근거:
-  //   - [통합 관리 「목록과 CRUD」](CLE-INT-MANAGE#목록과-crud)
+  //   - [통합 관리 「목록과 CRUD」](CLE-INT-MANAGE-API#목록과-crud)
   //   - [통합 상태와 만료 알림 「자동 갱신 통합을 주의 필요에서 뺀다」](CLE-INT-STATUS#자동-갱신-통합을-주의-필요에서-뺀다)
   /**
    * 자동 갱신 가능 통합 식별자 (derived 가상 필드, DB 컬럼 아님).
@@ -128,7 +128,7 @@ export class IntegrationDto {
   // (첫 판은 키 생략형으로 적었다가 e2e 계약 대조가 `appUrl [null] 키 생략형인데 null 이
   //  왔다` 로 잡았다 — 검증자가 제 선언을 반증한 자리다.)
 
-  // 근거: [통합 관리 「목록과 CRUD」](CLE-INT-MANAGE#목록과-crud)
+  // 근거: [통합 관리 「목록과 CRUD」](CLE-INT-MANAGE-API#목록과-crud)
   /**
    * 설치용 App URL — `${APP_URL}/api/3rd-party/<provider>/install/:installToken`.
    *
@@ -196,8 +196,8 @@ export class ServiceCatalogDto {
 }
 
 // 근거:
-//   - [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE#사용처와-활동-api)
-//   - [통합 관리 「활동 탭의 API 라벨은 카탈로그 엔드포인트와 프런트엔드 i18n 으로 그린다」](CLE-INT-MANAGE#활동-탭의-api-라벨은-카탈로그-엔드포인트와-프런트엔드-i18n-으로-그린다)
+//   - [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE-API#사용처와-활동-api)
+//   - [통합 관리 「활동 탭의 API 라벨은 카탈로그 엔드포인트와 프런트엔드 i18n 으로 그린다」](CLE-INT-MANAGE-DETAIL#활동-탭의-api-라벨은-카탈로그-엔드포인트와-프런트엔드-i18n-으로-그린다)
 /**
  * 통합별 API operation 카탈로그 한 행.
  * `key` 는 활동 로그 `api_label` 의 join key (cafe24 의 경우
@@ -413,8 +413,8 @@ const PRECHECK_IDENTITY_MASKED =
   '— 다만 충돌 대상이 다른 멤버의 개인(personal) 통합이면 conflict=true 여도 생략한다(spec 통합 §8 · §9.2).';
 
 // 근거:
-//   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한) 중복 사전 감지(precheck)
-//   - [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다)
+//   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE-API#인증교체권한) 중복 사전 감지(precheck)
+//   - [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE-LIST#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다)
 //   - [통합 관리 「권한」](CLE-INT-MANAGE#권한) 남의 개인 통합 식별자 생략
 /**
  * Cafe24 mall_id 사전 중복 감지 응답.
@@ -506,7 +506,7 @@ export class IntegrationUsagesDto {
   usages: IntegrationUsageItemDto[];
 }
 
-// 근거: [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE#사용처와-활동-api)
+// 근거: [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE-API#사용처와-활동-api)
 // 서비스가 활동 로그 행(`IntegrationUsageLog`)을 그대로 싣는다. 컬럼이 NOT NULL 인 필드는 required, nullable 인 필드는
 // required + nullable 이다. 관계(`integration`)는 불러오지 않아 실리지 않는다.
 /** 최근 활동 로그 */

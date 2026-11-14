@@ -67,7 +67,7 @@ kind 마다 리포트가 다르다(전환 4e 에서 merge · spec_coverage 를 �
     보고서 `SUMMARY.md` 는 analyzer 리포트를 합친 것이라 내지 않는다.
   - spec_coverage: 감사기(`spec-impl-coverage-auditor`) 하나가 `SUMMARY.md` 를 쓴다. 후보마다 발견
     하나를 역할 `spec_coverage` 로 낸다. **심각도는 모두 info 다** — 이 감사는 NLP 휴리스틱의 후보이고
-    빌드를 막지 않는 보고형이다(`CLE-ENG-SPECEVIDENCE` R-9). 신뢰도는 태그 `confidence:<high|medium|low>`
+    빌드를 막지 않는 보고형이다(`CLE-ENG-SPECEVIDENCE-INTEGRITY` R-9). 신뢰도는 태그 `confidence:<high|medium|low>`
     로 싣는다. info 라서 라운드를 막지 않는다. main 은 후보를 Task 로 올리거나 처분한다.
 리포트 형식은 리뷰어 · checker 정의(`.claude/agents/*.md` §출력 형식)가 정본이다:
 `- **[CRITICAL|WARNING|INFO]** 제목` 아래 `위치:` · `상세:` · `제안:` 하위 항목, `### 요약`, `### 위험도`.

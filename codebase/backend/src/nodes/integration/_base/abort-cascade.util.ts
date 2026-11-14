@@ -2,7 +2,7 @@
  * Upstream cancellation wiring shared by the integration nodes that own a
  * per-request `AbortController` (HTTP Request · Cafe24 · MakeShop).
  *
- * [노드 취소 「fetch 자체 타임아웃과의 연쇄」](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄): the request keeps its own
+ * [노드 취소 「fetch 자체 타임아웃과의 연쇄」](CLE-EXEC-CANCEL-NODES#fetch-자체-타임아웃과의-연쇄): the request keeps its own
  * controller for its timeout and the execution's `context.abortSignal` is
  * linked into it, so either one stops the request. The listener on the
  * execution-wide signal must be removed when the request settles; a request

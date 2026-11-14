@@ -62,7 +62,7 @@ export class ChatChannelRotateBotIdentityDto {
   publicKey?: string;
 }
 
-// 근거: [채팅 채널 「봇 토큰 재발급 API」](CLE-CHAT-CORE#봇-토큰-재발급-api)
+// 근거: [채팅 채널 「봇 토큰 재발급 API」](CLE-CHAT-CORE-TOKEN#봇-토큰-재발급-api)
 /**
  * `POST /api/triggers/:id/chat-channel/rotate-bot-token` 200 응답 본문.
  *

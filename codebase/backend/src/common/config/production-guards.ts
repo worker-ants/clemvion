@@ -5,7 +5,7 @@
  * 부팅하려 하면 즉시 throw 해 기동을 거부한다. 기존 `OAUTH_STUB_MODE`/`LLM_STUB_MODE`
  * 인라인 가드(옛 main.ts)를 같은 블록으로 응집하고, 서명 비밀(`JWT_SECRET` · `INTERACTION_JWT_SECRET`)의
  * 예시 값 · 짧은 값도 여기서 막는다.
- * 정본: NERV 스펙 `CLE-ACCT-SESSION` 「운영 환경 가드」(미러 `spec/CLE-ACCT/CLE-ACCT-SESSION.md`) 표가 이
+ * 정본: NERV 스펙 `CLE-ACCT-SESSION-GUARD` 「운영 환경 가드」(미러 `spec/CLE-ACCT/CLE-ACCT-SESSION-GUARD.md`) 표가 이
  * 함수가 검사하는 대상의 전체 목록이다. 검사를 더하거나 빼면 표에도 행을 더하거나 뺀다 —
  * `production-guards.spec.ts` 가 이 함수가 읽는 환경 변수와 표의 첫 열을 대조한다.
  * `INTERACTION_JWT_SECRET` 의 서명 용도는 `CLE-EIA`(REQ-EIA-018)가 정하고, 이 함수가 무엇을 거부하는지는
@@ -255,7 +255,7 @@ export function assertProductionConfig(
   // 04 M-4 — ENCRYPTION_KEY 가 미설정이거나 공개 .env.example 예시 키면 secret store 가
   // 사실상 평문이므로 부팅 거부. (빈 값은 SecretResolver init 에서도 throw 되나, 여기서
   // 예시 키 케이스까지 부팅 초기에 일괄 차단한다.)
-  // 시크릿마다 공백 처리가 다른 것은 의도다(스펙 CLE-ACCT-SESSION 「운영 환경 가드」). JWT_SECRET 은 앞뒤 공백을 뗀
+  // 시크릿마다 공백 처리가 다른 것은 의도다(스펙 CLE-ACCT-SESSION-GUARD 「운영 환경 가드」). JWT_SECRET 은 앞뒤 공백을 뗀
   // 값으로 예시 대조와 길이 하한을 건다. ENCRYPTION_KEY · INTEGRATION_ENCRYPTION_KEY 는 원문과 `trim()` 한 값을
   // 모두 예시 목록과 대조하고 길이 하한은 없다(이미 그 키로 암호화한 행이 있어 값을 다듬어 쓰지 않는다).
   const encryptionKey = env.ENCRYPTION_KEY;

@@ -425,7 +425,7 @@ export class HttpRequestHandler
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     fetchOptions.signal = controller.signal;
-    // [노드 취소 「fetch 자체 타임아웃과의 연쇄」](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄): 노드 취소 신호(context.abortSignal)를
+    // [노드 취소 「fetch 자체 타임아웃과의 연쇄」](CLE-EXEC-CANCEL-NODES#fetch-자체-타임아웃과의-연쇄): 노드 취소 신호(context.abortSignal)를
     // 이 요청의 controller 에 잇는다. 지금 이 신호를 만드는 곳은 Parallel cancel-others-on-fail
     // 하나다(규칙 9). 사용자 실행 중지는 신호를 만들지 않아 진행 중인 fetch 를 끊지 않는다.
     // 리스너는 응답 본문까지 읽은 뒤 아래 finally 에서 뗀다. 성공한 요청은 controller 를

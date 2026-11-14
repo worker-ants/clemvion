@@ -2,25 +2,25 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 17
+version: 18
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047", "REQ-SESSION-048"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "813ec5f83cf8e7e030fc32f95c691153fb3e158fa8b84ae0f03b7c5d005a2ad8"
+content_hash: "14f96c3de3492f1a346d3d5480c8d1bd3f31868ccad209995dad70a9670f1ebe"
 read_as: "approved_fallback"
-task: "CLE-T-N2FM8W"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "c46bce4b0ac6eeffb77ca64d9ae2e797733758a62203e36e45ae3a24ecbf47de"
-etag: "sha256-d9b8d684c31b492fd15b8aa8de6196ae592df5008c6763ee4c96ae0ee978741a"
+mirror_sha256: "cfa2cf462f9eb467ac2af5ad2bd34e13d8152db3c2e82919a32a086ae3fe859e"
+etag: "sha256-f00403454f5fadb62c2c68f8d15caae7351355c2cb1747e9bc65751f6489ced1"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 로그인한 뒤 사용자가 로그인 상태를 어떻게 유지하고 끝내는지 정한다. 액세스 토큰(access token, `accessToken`)과 리프레시 토큰(refresh token, `refreshToken`)의 형태와 수명, 로그인 세션(login session, `family_id`) 단위의 토큰 회전(refresh token rotation)과 재사용 감지, 리프레시 쿠키 속성, 세션 목록과 세션 강제 종료(session revoke), 계정 재인증(reauthentication, `verifyReauth`)과 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드, 로그아웃, 프론트엔드 라우트 가드와 로그인 뒤 이동할 곳, 운영 환경 부팅 가드(`assertProductionConfig`)가 막는 설정과 그 가드의 암호화 키 검사 기준이 범위다.
+이 문서는 로그인한 뒤 사용자가 로그인 상태를 어떻게 유지하고 끝내는지 정한다. 액세스 토큰(access token, `accessToken`)과 리프레시 토큰(refresh token, `refreshToken`)의 형태와 수명, 로그인 세션(login session, `family_id`) 단위의 토큰 회전(refresh token rotation)과 재사용 감지, 리프레시 쿠키 속성, 세션 목록과 세션 강제 종료(session revoke), 계정 재인증(reauthentication, `verifyReauth`)과 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드, 로그아웃, 프론트엔드 라우트 가드와 로그인 뒤 이동할 곳, 운영 환경 부팅 가드(`assertProductionConfig`)가 막는 설정과 그 가드의 암호화 키 검사 기준이 범위다. 이 문서는 입구이고 주제별 본문은 [하위 문서](#하위-문서) 에 있다.
 
 범위 밖 주제는 다음 문서가 정한다.
 
@@ -81,315 +81,64 @@ etag: "sha256-d9b8d684c31b492fd15b8aa8de6196ae592df5008c6763ee4c96ae0ee978741a"
 - REQ-SESSION-047 WHEN 갱신으로 리프레시 토큰을 회전하면 THE SYSTEM SHALL 새 리프레시 토큰이 그 로그인 세션의 로그인 유지 여부를 이어받게 하고 새 리프레시 토큰과 갱신 응답의 리프레시 쿠키를 회전한 시점부터 로그인 유지를 켰으면 30일, 껐으면 7일 동안 유효하게 한다.
 - REQ-SESSION-048 WHEN 사용자가 초대 수락 페이지의 «다른 계정으로 로그인» 으로 로그아웃하면 THE SYSTEM SHALL `/login` 대신 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
 
-## 토큰
+REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않는다. 이유는 [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#30일-비활동-만료를-지우고-동시-세션-제한을-미구현으로-적는다) 에 있다.
 
-| 토큰 | 저장 위치 | 유효 기간 | 용도 |
-| --- | --- | --- | --- |
-| 액세스 토큰 | 메모리(JS 변수) | 15분 | API 요청 인증 |
-| 리프레시 토큰 | HttpOnly·Secure 쿠키. SameSite 와 Path 는 아래 [세션 정책](#세션-정책) | 7일. 로그인 유지를 켜면 30일 | 액세스 토큰 갱신 |
+## 하위 문서
 
-액세스 토큰은 `JWT_SECRET` 으로 서명한다. `NODE_ENV=production` 에서 `JWT_SECRET` 이 쓸 수 없는 값이면 부팅을 거부한다(REQ-SESSION-006). 무엇을 거부하는지는 [운영 환경 가드](#운영-환경-가드) 절에 있다. 개발·테스트·e2e(`NODE_ENV≠production`)는 개발용 기본값을 허용한다.
+| 하위 문서 | 맡는 내용 | 요구사항 |
+| --- | --- | --- |
+| [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md) | 토큰 종류와 수명, 로그인 유지, 액세스 토큰 payload, 토큰 갱신과 재사용 감지, 클라이언트 갱신 재시도, 로그아웃 | REQ-SESSION-001 ~ 005, 007 ~ 012, 030 ~ 032, 043, 044, 047, 048 |
+| [세션과 토큰 — 세션 정책과 세션 관리](CLE-ACCT-SESSION-POLICY.md) | 로그인 세션 정책, 리프레시 쿠키 속성, 클라이언트 IP, 본인 확인 에러 코드, 세션 화면, 세션 API | REQ-SESSION-013 ~ 029, 033, 039, 041, 042, 046 |
+| [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md) | 공개 경로와 두 층의 가드, 로그인 힌트 쿠키, 로그인 뒤 이동, 소셜 로그인의 복귀 경로 | REQ-SESSION-035 ~ 038, 040, 045 |
+| [세션과 토큰 — 운영 환경 가드](CLE-ACCT-SESSION-GUARD.md) | `assertProductionConfig` 가 막는 설정의 전체 목록, 암호화 키 검사, 가드에 넣는 기준 | REQ-SESSION-006 |
 
-리프레시 토큰은 워크스페이스와 무관한 opaque UUID 다. 클레임을 담지 않는다.
+하위 문서가 다루지만 다른 문서에 있는 요구도 있다. 동시 세션 제한의 근거는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-048(NF-SC-07)이다(토큰과 갱신 · 세션 정책). `INTERACTION_JWT_SECRET` 의 운영 환경 가드는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 REQ-EIA-018 이 맡는다(운영 환경 가드).
+
+다른 문서가 링크하던 절은 아래 이름 그대로 남기고 하위 문서로 잇는다.
 
 ### 로그인 유지
 
-로그인 유지(remember me, `rememberMe`)는 로그인 화면의 "Remember me" 체크박스다.
+→ [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#로그인-유지)
 
-| 체크 | 리프레시 토큰 유효 기간 |
-| --- | --- |
-| 체크 안 함 | 7일 (기본) |
-| 체크 | 30일 |
+### 로그아웃
 
-소셜 로그인은 시작 요청의 `rememberMe` 쿼리를 OAuth state 와 함께 저장해 같은 규칙을 적용한다.
+→ [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#로그아웃)
 
-로그인 유지 여부는 리프레시 토큰 행의 `refresh_token.remember_me` 칸(boolean, 기본 false)에 저장한다. 칸 정의의 정본은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 이다. 토큰을 새로 발급하는 경로(로그인 · 소셜 로그인 · Passkey 로그인 · 초대 가입)가 이 값을 정한다. 초대 가입의 자동 로그인과 비밀번호 변경 · 이메일 변경의 재발급은 false 로 발급하므로 7일이다. 비밀번호 변경과 이메일 변경이 직전 로그인 세션의 값을 이어받지 않는 이유는 [세션 정책](#세션-정책) 표에 있다.
+### 세션 정책
 
-갱신(`POST /api/auth/refresh`, `AuthService.refresh`)으로 토큰을 회전하면 새 토큰이 옛 행의 `remember_me` 를 이어받는다(REQ-SESSION-047). 유효 기간은 회전한 시점부터 다시 센다. 로그인 유지를 켰으면 30일이고 껐으면 7일이다. 갱신 응답의 리프레시 쿠키 `maxAge` 도 같은 값이다. 그래서 로그인 유지를 켠 로그인 세션은 마지막 갱신 뒤 30일 동안 쓰지 않으면 만료된다. 끈 로그인 세션은 7일이다. 첫 로그인 시각을 기준으로 한 고정 만료는 두지 않는다. 이유는 Rationale 「[토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)](#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05)」 에 있다.
+→ [세션과 토큰 — 세션 정책과 세션 관리](CLE-ACCT-SESSION-POLICY.md#세션-정책)
 
-한계가 하나 남는다. 비밀번호 변경과 이메일 변경 확인은 성공하면 모든 로그인 세션을 무효화하고 현재 기기에 새 로그인 세션을 발급한다. 이 새 로그인 세션은 로그인 유지 여부를 이어받지 않고 7일이다. 두 요청은 `/api/users/me/*` 경로라 리프레시 쿠키(`Path=/api/auth`)가 붙지 않는다. 액세스 토큰에도 로그인 세션(`family_id`) 식별자가 없다. 그래서 서버는 요청한 기기의 `remember_me` 를 알 수 없다. 이 동작은 2026-11-05 변경 전부터 있었다. 로그인 유지 여부를 잇는 방법은 NERV Task `CLE-T-XF3WMA` 가 정한다.
+### 본인 확인 에러 코드
 
-### 액세스 토큰 payload
-
-```json
-{
-  "sub": "user-uuid",
-  "email": "user@example.com",
-  "activeWorkspaceId": "workspace-uuid",
-  "role": "editor",
-  "iat": 1711406400,
-  "exp": 1711407300
-}
-```
-
-- 현재 워크스페이스(active workspace, `activeWorkspaceId`) 클레임은 토큰을 서명할 때 `activeWorkspaceId` 로만 발행한다(`auth.service.generateTokens`).
-- 읽는 쪽(`jwt.strategy`, `websocket.gateway`)은 `activeWorkspaceId ?? workspaceId` 로 옛 클레임 이름의 토큰도 받는다. 옛 토큰이 사라지는 기간은 액세스 토큰 수명인 15분이고, 그 뒤 별도 정리 작업에서 옛 이름 폴백을 없앤다.
-- 현재 워크스페이스를 바꾸는 `POST /api/auth/workspaces/:id/switch` 는 이 클레임만 바꾼 액세스 토큰을 재발급한다. 전환 규칙과 `X-Workspace-Id` 헤더 우선 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
-
-## 세션 정책
-
-| 항목 | 규칙 |
-| --- | --- |
-| 로그인 세션 단위 | `family_id`. 토큰 회전으로 행이 새로 생겨도 같은 `family_id` 는 하나의 로그인 세션이다 |
-| 동시 로그인 세션 | 기본 5개(관리자 설정 가능). 미구현이다. 한도 값과 설정 주체는 [미결 사항](#미결-사항) |
-| 초과 시 | 가장 오래된 로그인 세션을 자동 종료한다. 미구현이다 |
-| 세션 강제 종료 | 사용자가 활성 세션 목록에서 로그인 세션을 하나씩 끝낼 수 있다. 그 `family_id` 전체를 무효화한다 |
-| 강제 종료 재인증 | `SessionsService.verifyReauth` 로 본인을 확인한다. 비밀번호가 있는 계정은 비밀번호, 비밀번호가 없고 TOTP 가 켜진 계정은 등록된 TOTP 코드로 확인한다. 둘 다 있으면 비밀번호, TOTP 순으로 하나만 통과하면 된다. 복구 코드는 받지 않는다. 지금은 요청 DTO 의 `totpCode` 길이 제한(6~8자)이 복구 코드를 막는다. 비밀번호도 TOTP 도 없는 OAuth 전용 계정은 `REAUTH_NOT_AVAILABLE` 로 막는다. Passkey 만 등록한 계정도 여기에 든다. Passkey 와 이메일 OTP 로 하는 계정 재인증은 현재 지원하지 않는다. 이메일 변경과 일괄 종료도 같은 `verifyReauth` 를 쓴다 |
-| 비밀번호 변경 시 | `POST /api/users/me/change-password` 가 성공하면 사용자의 모든 활성 로그인 세션을 무효화하고 변경한 현재 기기에 새 로그인 세션(새 액세스 토큰과 리프레시 쿠키)을 바로 발급한다. 로그인 이력에 `session_revoked`(일괄, `familyId=null`) 1건을 남긴다. 새 로그인 세션은 표준 7일(`rememberMe=false`)이다. 이 요청은 `/api/users/me/*` 경로라 리프레시 쿠키가 붙지 않는다. 그래서 현재 로그인 세션을 식별할 수 없어 직전 로그인 세션의 로그인 유지 여부를 이어받지 않는다 |
-| 이메일 변경 시 | `POST /api/users/me/email-change/verify` 가 성공하면 비밀번호 변경과 같게 모든 로그인 세션을 무효화하고 현재 기기에 다시 발급한다. 이 요청은 `/api/users/me/*` 경로라 리프레시 쿠키가 붙지 않아 현재 로그인 세션을 식별할 수 없다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 기존 enum 값을 다시 쓰므로 DB CHECK·마이그레이션이 필요 없다 |
-| 현재 로그인 세션 식별 | 서버가 요청의 리프레시 쿠키 해시를 조회해 `isCurrent` 로 응답한다. 원래 토큰은 JS 에 노출하지 않는다. 브라우저가 쿠키를 보내도록 세션 API 는 쿠키 Path 아래 `/api/auth/sessions` 에 둔다. 쿠키가 없거나 맞는 로그인 세션이 없으면 모든 로그인 세션의 `isCurrent` 가 false 이고 일괄 종료는 400 `CURRENT_SESSION_REQUIRED` 로 거부한다 |
-| 메타데이터 | 발급 시점의 IP·User-Agent·기기 라벨과 마지막 사용 시각·IP 를 리프레시 토큰 행에 기록한다 |
-| 클라이언트 IP | `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 `true` 나 `1` 일 때만 1순위로 쓴다(기본 off, 위조 가능한 헤더). off 면 `X-Forwarded-For` 첫 IP, `req.ip`(trust proxy), `req.socket.remoteAddress` 순이다. 이 네 단계 순서는 로그인 세션·감사 IP 경로(`extractClientIp(req)`)에만 쓴다. 웹훅 요청 한도·`ip_whitelist` 경로는 헤더 기반(CF 허용 시 `CF-Connecting-IP`, 그다음 `X-Forwarded-For` 첫 IP)만 쓰고 `req.ip`·socket 폴백이 없다(`extractClientIpFromHeaders`). 헤더로 IP 를 알 수 없으면 공개 웹훅 요청 한도는 거부하지 않고 단일 공유 버킷의 완화 한도를 쓴다. `ip_whitelist` 는 반대로 거부한다. Cloudflare(Tunnel 포함) 뒤에 배포할 때만 켠다 |
-| 리프레시 쿠키 Domain | `FRONTEND_URL`·`APP_URL` hostname 에서 자동으로 정한다(`common/config/app.config.ts` 의 `computeCookieDomain`). 같은 host·localhost·IP 면 Domain 을 지정하지 않는다(백엔드 origin 한정). 공통 상위 도메인이 있으면(예: `api.x.com`·`app.x.com`) `.x.com` 이다. 공통 도메인이 없으면 지정하지 않고 cross-origin 은 `withCredentials` 에 맡긴다. 별도 환경 변수는 없다 |
-| 리프레시 쿠키 SameSite | `COOKIE_SAMESITE` 환경 변수. 기본 `none` 이다. 프론트와 API 의 사이트 경계(eTLD+1)가 다른 cross-site 배포를 지원하기 위해서다. `lax`·`strict` 면 그 배포에서 쿠키가 붙지 않아 로그인 세션이 끊긴다. 같은 사이트 배포는 `lax` 나 `strict` 로 조인다. 알 수 없는 값은 `none` 으로 처리한다 |
-| 리프레시 쿠키 Path | `/api/auth` 로 한정한다(`refresh-cookie.ts` 의 `REFRESH_COOKIE_PATH`). refresh·login·logout 같은 auth 엔드포인트와 세션 API(`/api/auth/sessions…`)에만 쿠키가 붙어 노출 표면이 줄어든다. 현재 로그인 세션을 쿠키로 가려야 하는 라우트는 Path 를 넓히지 않고 이 Path 아래에 둔다. 설정과 삭제는 같은 Path 를 써야 한다 |
-| 갱신 CSRF | `SameSite=none` 에서 cross-site 강제 갱신을 막기 위해 갱신 요청의 `Origin` 을 CORS 허용 목록(`isOriginAllowed`)과 비교한다. 목록 밖이거나 불투명(`'null'`)한 Origin 은 403 이다. Origin 이 없으면(같은 origin·브라우저 아닌 도구) 통과한다. 다른 엔드포인트는 Bearer 액세스 토큰 기반이라 쿠키 CSRF 와 무관하다. 예외는 로그아웃이다. 로그아웃은 Bearer 없이 쿠키만으로 동작하지만 새 토큰을 발급하지 않아 Origin 검증을 두지 않는다. 세션 API 는 쿠키를 읽지만 Bearer 액세스 토큰이 있어야 동작하고 쿠키는 현재 로그인 세션을 가리는 데만 쓴다. 그래서 Origin 검증을 두지 않는다 |
-
-2026-11-01 부터 TOTP 설정 시작이 비밀번호를 다시 확인하므로 비밀번호 없이 TOTP 가 켜진 상태는 그 전에 켠 계정에만 남는다([가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기)). 2026-11-02 부터는 Passkey 등록 옵션에도 비밀번호 재확인이 있다. 그래서 비밀번호 없이 Passkey 를 등록한 상태도 그 전에 등록한 계정에만 남는다([가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름)). 지금 비밀번호가 없는 계정이 계정 재인증 수단을 늘리려면 비밀번호 재설정으로 비밀번호를 먼저 만든다.
-
-## 본인 확인 에러 코드
-
-본인 확인은 세 헬퍼로 나뉜다. 에러 코드와 상태가 서로 다르다.
-
-| 헬퍼 | 쓰는 곳 | 에러 코드 |
-| --- | --- | --- |
-| 계정 재인증 `SessionsService.verifyReauth` | 세션 강제 종료, 일괄 종료, 이메일 변경 | 요청에 비밀번호·TOTP 어느 쪽도 없거나 충족 안 됨(비밀번호가 없는 계정에 비밀번호만 보낸 경우 포함) `REAUTH_REQUIRED`(400), 비밀번호 불일치 `PASSWORD_INVALID`(401), TOTP 불일치 `TOTP_INVALID`(401), 계정 재인증 수단 없음(계정에 비밀번호도 TOTP 도 없음. Passkey 만 등록한 계정 포함) `REAUTH_NOT_AVAILABLE`(403) |
-| 비밀번호 재확인 `AuthService.verifyPasswordForUser` | 2단계 인증 설정 시작(`/api/auth/2fa/setup`), 2단계 인증 끄기(`/api/auth/2fa/disable`), Passkey 등록 옵션(`/api/auth/2fa/webauthn/register/options`), Passkey 복구 코드 재발급 | 비밀번호 미설정(OAuth 전용)·미입력 `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401). 위 라우트에서는 본문 검증이 미입력을 먼저 400 `VALIDATION_ERROR` 로 거른다. 그래서 라우트가 내는 `PASSWORD_REQUIRED` 는 계정에 비밀번호가 없다는 뜻이다. 2단계 인증 설정 시작은 비밀번호 확인 뒤 TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED`. 2단계 인증 끄기는 비밀번호 확인 뒤 인증 코드를 확인하고 틀리면 401 `TOTP_INVALID`. Passkey 등록 옵션은 비밀번호 확인이 실패하면 등록 옵션과 `optionsToken` 을 만들지 않는다 |
-| 비밀번호 변경 `UsersService.changePassword` | `POST /api/users/me/change-password` 의 현재 비밀번호 확인 | 비밀번호 미설정(`passwordHash` 없음) `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401), 사용자 없음 `USER_NOT_FOUND`(404) |
-
-- `PASSWORD_INVALID` 는 세 헬퍼가 같은 코드를 쓴다. `TOTP_INVALID` 는 로그인 2단계 TOTP 검증, TOTP 활성화 검증, 2단계 인증 끄기에서도 같은 코드다.
-- 2단계 인증 끄기(`POST /api/auth/2fa/disable`)는 비밀번호를 먼저 확인한다. 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 다. 여기서 실패하면 인증 코드는 확인하지 않는다. 비밀번호가 맞으면 인증 코드를 확인한다(`TotpService.verifyForDisable`). 인증 코드는 로그인 2단계와 같이 인증 앱의 6자리 코드나 TOTP 복구 코드이고, 복구 코드로 통과하면 그 코드를 소비한다. 코드가 맞지 않으면 401 `TOTP_INVALID` 다. TOTP 가 켜져 있지 않을 때도 401 `TOTP_INVALID` 다. 순서와 끄기 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md#totp-끄기) 이 정한다.
-- 2단계 인증 설정 시작(`POST /api/auth/2fa/setup { password }`)도 비밀번호를 먼저 확인한다. 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 다. 이때는 TOTP secret 을 만들지 않는다. 그래서 OAuth 전용 계정은 비밀번호 재설정으로 비밀번호를 만들기 전에는 TOTP 를 켤 수 없다. 비밀번호 확인은 TOTP 가 켜져 있는지 보기 전에 한다. 비밀번호가 맞고 TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED` 이고 secret 을 바꾸지 않는다. 켜기 순서와 규칙은 [가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기) 이 정한다.
-- Passkey 등록 옵션(`POST /api/auth/2fa/webauthn/register/options { password }`)은 등록 옵션을 만들기 전에 비밀번호를 확인한다. 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 이고 등록 옵션과 `optionsToken` 을 만들지 않는다. 그래서 OAuth 전용 계정은 비밀번호 재설정으로 비밀번호를 만든 뒤 Passkey 를 등록한다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 거부한다. 복구 코드 재발급도 같다. 등록 순서와 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다. 비밀번호 재확인과 요청 빈도 제한을 둔 이유는 [가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 에 있다.
-- 비밀번호 재확인 헬퍼를 부르는 라우트는 모두 `SENSITIVE_ACTION_THROTTLE` 로 요청 빈도를 제한한다. 라우트 목록 · 한도 · 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) §7 이 정한다.
-- 비밀번호 변경은 비밀번호 재확인 헬퍼와 같은 두 코드를 쓰지만 헬퍼는 다르다. 이유는 [Rationale](#rationale) 에 있다.
-- OAuth 전용 계정이 비밀번호를 추가하려면 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 비밀번호 재설정 경로를 쓴다.
-- 로그인 이력 `failure_reason` 의 `INVALID_PASSWORD` 는 로그인 실패 기록값(`AuthService.login`)이라 층이 다르다. 같은 이름의 wire 에러 코드는 2026-09-02 에 은퇴했다.
-- 공용 에러 카탈로그 등재는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 한다.
-
-## 토큰 갱신
-
-```mermaid
-sequenceDiagram
-  participant C as 클라이언트
-  participant S as 서버
-  C->>S: API 요청
-  S-->>C: 401 (액세스 토큰 만료)
-  C->>S: POST /api/auth/refresh (리프레시 쿠키)
-  S->>S: 쿠키 해시로 토큰 행 조회
-  alt 이미 무효화된 토큰
-    S->>S: 같은 family_id 전체 무효화, token_reuse_detected 기록
-    S-->>C: 401 TOKEN_INVALID
-  else 만료된 토큰
-    S-->>C: 401 TOKEN_EXPIRED
-  else 정상
-    S->>S: 옛 토큰 무효화와 새 토큰 발급을 한 트랜잭션으로
-    S-->>C: 새 액세스 토큰 + 새 리프레시 쿠키
-  end
-```
-
-1. 클라이언트가 API 의 401 로 액세스 토큰 만료를 감지한다.
-2. 리프레시 쿠키로 `POST /api/auth/refresh` 를 호출한다. 본문은 없다. 쿠키가 없으면 401 이다.
-3. 서버가 새 액세스 토큰과 새 리프레시 토큰을 발급한다. 새 토큰은 같은 `family_id` 를 이어받는다.
-4. 옛 리프레시 토큰은 바로 무효가 된다.
-5. 무효화된 리프레시 토큰이 다시 쓰이면 탈취로 보고 그 로그인 세션 전체를 끝낸다.
-
-- 재사용 감지는 `is_revoked=true` 인 토큰이 다시 쓰일 때만 동작한다. 단순 만료는 부작용 없이 401 `TOKEN_EXPIRED` 만 준다.
-- 정상 회전은 조건부 UPDATE(`is_revoked=false AND expires_at>now`)로 옛 토큰을 무효화한다. 매칭 행이 0건이면 다른 요청이 먼저 회전한 것이라 새 토큰을 주지 않고 `TOKEN_INVALID` 로 거부한다.
-- 정상 회전은 보안 이벤트가 아니라서 로그인 이력에 남기지 않는다.
-- 현재 구현에서 인증 도메인의 `TOKEN_EXPIRED` 는 이 갱신 경로에서만 나온다. 만료된 액세스 토큰은 `JwtAuthGuard` 가 코드 없이 거부해 전역 필터 기본값 `AUTH_REQUIRED` 가 나간다. 에러 코드의 뜻은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 정한다.
-
-시퀀스와 트랜잭션 범위는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 에 있다.
-
-### 클라이언트 갱신 재시도
-
-클라이언트 axios 인터셉터(`lib/api/client.ts`)는 401 을 받으면 `POST /api/auth/refresh` 로 액세스 토큰을 갱신하고 원래 요청을 한 번 다시 보낸다. 여러 요청이 동시에 401 을 받아도 갱신은 한 번만 한다.
-
-- URL 에 `/auth/` 가 든 요청의 401 은 갱신하지 않는다(`skipsRefreshRetry`). 로그인이나 코드 확인의 401 은 자격 증명 실패라 갱신해도 결과가 같다. 갱신 요청 자신의 401 에서 다시 갱신하지 않기 위해서이기도 하다.
-- 예외는 `/auth/sessions` 와 그 하위 경로다. 세션 API 는 쿠키 Path 때문에 `/auth` 아래에 있을 뿐 일반 JWT API 라서 다른 API 처럼 갱신하고 다시 보낸다.
-- 세션 강제 종료의 재인증 실패(비밀번호·TOTP 불일치)도 401 이다. 이 경우는 갱신 뒤 한 번 더 보내고 같은 401 로 끝난다.
-- `/auth/` 아래 다른 JWT 라우트는 아직 갱신하지 않는다. [미결 사항](#미결-사항) 에 있다.
-
-## 로그아웃
-
-서버 동작(`auth.controller.ts` 의 `logout`, `auth.service.ts` 의 `logout`)은 다음과 같다.
-
-1. 요청의 리프레시 쿠키를 SHA-256 으로 조회한다. 쿠키가 없어도 200 이다(멱등).
-2. 행이 있으면 그 토큰 하나가 아니라 같은 `family_id` 전체를 무효화한다.
-3. 로그인 이력에 `logout`(`family_id` 포함)을 남긴다.
-4. 응답에서 리프레시 쿠키를 지운다(`clearRefreshTokenCookie`).
-
-로그아웃 라우트는 `@Public()` 이라 Bearer 액세스 토큰을 요구하지 않는다. 리프레시 쿠키만으로 그 로그인 세션 전체를 끊는다. 갱신과 달리 `Origin` 은 검사하지 않는다. 이유는 Rationale 「리프레시 쿠키를 읽는 라우트가 늘었다」 에 있다.
-
-클라이언트 동작은 다음과 같다.
-
-1. `POST /api/auth/logout` 을 호출한다.
-2. 메모리의 액세스 토큰을 지우고 쿠키를 지운다. 로그인 힌트 쿠키 `has_session` 도 지운다.
-3. `/login` 으로 이동한다. 사이드바의 로그아웃이 이 경우다.
-
-로그아웃 요청이 실패해도 2번과 3번을 그대로 한다. 사이드바의 로그아웃과 초대 수락 페이지의 «다른 계정으로 로그인» 이 같게 동작한다. 이유는 Rationale 「[로그아웃 요청이 실패해도 클라이언트를 정리하고 이동한다 (2026-10-18)](#로그아웃-요청이-실패해도-클라이언트를-정리하고-이동한다-2026-10-18)」 에 있다.
-
-복귀 경로를 지정한 로그아웃은 3번의 예외다. 초대 수락 페이지의 «다른 계정으로 로그인» 버튼은 로그아웃한 뒤 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다. 수락 페이지는 슬러그 경로(`/w/<slug>/invitations/accept`)에 있지만 복귀 경로에는 슬러그 없는 경로를 담는다. 다른 계정으로 로그인하면 같은 초대 수락 페이지로 돌아온다([워크스페이스와 멤버](CLE-ACCT-WS.md#이미-가입한-사용자의-수락-경로)).
-
-## 세션 화면
-
-로그인 세션 관리 화면은 `/profile/sessions` 다. 내 프로필의 보안 카드에서 링크로 들어온다.
-
-| 영역 | 들어가는 요소 | 동작 |
-| --- | --- | --- |
-| 활성 세션 탭 | 로그인된 기기·브라우저 목록(로그인 세션 단위), 기기 라벨·IP·마지막 사용 시각, "현재" 세션 배지 | 다른 세션을 하나씩 종료하거나 현재 세션을 뺀 나머지를 한꺼번에 종료한다. 종료 전 `RevokeConfirmDialog` 가 비밀번호 또는 TOTP 로 계정 재인증을 받는다 |
-| 로그인 이력 탭 | 성공·실패·강제 종료 같은 인증 이벤트를 시간 역순으로 표시 | 본인만 조회한다. 이벤트 종류·조회 API·180일 보존은 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다 |
-
-세션 종료 확인 창의 계정 재인증 입력은 다음 순서로 바뀐다. 요구사항은 REQ-SESSION-046 이다. 이유는 Rationale 「[세션 강제 종료의 계정 재인증은 비밀번호를 먼저 받고 서버 응답으로 입력을 바꾼다](#세션-강제-종료의-계정-재인증은-비밀번호를-먼저-받고-서버-응답으로-입력을-바꾼다-2026-11-02)」 에 있다.
-
-- 처음에는 늘 비밀번호 입력란을 보여 준다. TOTP 가 켜진 계정도 같다.
-- 종료 요청이 400 `REAUTH_REQUIRED` 로 끝나고 그 계정의 TOTP 가 켜져 있으면 TOTP 코드 입력란으로 바꾼다. 비밀번호만 보낸 요청에 이 응답이 오면 그 계정에 비밀번호가 없다는 뜻이다. TOTP 켜짐 여부는 `GET /api/users/me` 응답의 `twoFactorEnabled` 로 읽는다([내 프로필](CLE-ACCT-PROFILE.md#api)).
-- 종료 요청이 403 `REAUTH_NOT_AVAILABLE` 로 끝나면 계정 재인증을 할 수 없다고 안내한다.
-- 비밀번호가 틀린 경우(401 `PASSWORD_INVALID`)는 비밀번호 입력란을 그대로 둔다.
-
-이메일 변경 화면은 두 입력란을 함께 보여 주므로 이 전환 규칙을 쓰지 않는다([가입과 로그인 「이메일 변경 화면」](CLE-ACCT-SIGNIN.md#이메일-변경-화면)).
-
-## 라우트 가드
+→ [세션과 토큰 — 세션 정책과 세션 관리](CLE-ACCT-SESSION-POLICY.md#본인-확인-에러-코드)
 
 ### 공개 경로와 가드
 
-인증 페이지는 route group `(auth)` 로 묶여 실제 경로에 `/auth` 접두사가 없다.
-
-| 라우트 | 인증 필요 | 미인증일 때 |
-| --- | --- | --- |
-| `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password` 등 `(auth)` 그룹 | 아니요 | 없음 |
-| `/callback` (OAuth 콜백) | 아니요 | 없음 |
-| 그 밖의 모든 라우트 | 예 | 그 화면의 경로와 쿼리를 `redirect` 파라미터에 담아 `/login` 으로 보낸다 |
-
-초대 수락 페이지의 `?token=` 처럼 쿼리가 화면을 정하는 경로가 있다. 그래서 `redirect` 에는 경로와 쿼리를 함께 담는다.
-
-미인증 리다이렉트는 두 층으로 동작한다.
-
-| 층 | 구현 | 동작 |
-| --- | --- | --- |
-| 1. 서버 proxy | `codebase/frontend/src/proxy.ts` (Next 서버 미들웨어) | `has_session` 쿠키가 없으면 JS 를 내려보내기 전에 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다. 공개 경로(`/login`·`/register`·`/forgot-password`·`/reset-password`·`/verify-email`·`/callback`)와 `/_next`·`/api`·`/_widget`(동봉 배포한 웹채팅 위젯 정적 번들, [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md))·정적 자산은 제외한다. 공개 경로 판정과 `has_session` 검사보다 먼저 옛 초대 링크 경로 `/auth/register`(끝 슬래시 포함)를 쿼리를 그대로 둔 채 `/register` 로 리다이렉트한다. 이 경로는 프론트엔드 페이지 경로이고 백엔드 가입 API `POST /api/auth/register` 와 이름만 같다. 이 리다이렉트는 `has_session` 쿠키 유무와 상관없다. 이유는 [워크스페이스와 멤버](CLE-ACCT-WS.md#초대-메일-링크는-register-로-보내고-옛-경로는-리다이렉트한다) 의 Rationale 에 있다 |
-| 2. 클라이언트 AuthProvider | `codebase/frontend/src/components/auth/auth-provider.tsx` | 실제 토큰 검증 기준의 최종 가드. 로그인 상태 복원(리프레시와 `GET /api/users/me`)이 실패하면 `/login?redirect=<인코딩한 경로와 쿼리>` 로 보낸다. 담을 값이 안전한 같은 출처 경로가 아니면 `/dashboard` 를 담는다. 지금 경로가 `/login` 이면 보내지 않는다 |
+→ [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#공개-경로와-가드)
 
 ### 로그인 힌트 쿠키
 
-로그인 힌트 쿠키(`has_session`)는 인증 수단이 아니라 화면 전환을 위한 힌트다. API 가 cross-domain 이라 Next 서버 미들웨어가 백엔드 세션을 직접 알 수 없다. 그래서 로그인에 성공하면 프론트엔드 JS 가 non-httpOnly 쿠키 `has_session=1`(path=/, max-age 30일, SameSite=Lax)을 설정하고 로그아웃할 때 지운다. 쿠키 이름 · 속성과 심기 · 지우기 · 읽기는 `codebase/frontend/src/lib/auth/session-hint.ts` 한 곳에 있다. 심는 곳은 `codebase/frontend/src/lib/stores/auth-store.ts` 의 `markSessionIssued` · `setAuthenticated` 이고 지우는 곳은 `logout` 이다. 토큰을 받는 경로는 모두 `codebase/frontend/src/lib/auth/establish-session.ts` 의 `establishSession` 을 거친다. proxy 는 이 모듈의 쿠키 이름 `SESSION_HINT_COOKIE` 로 요청에 쿠키가 있는지만 본다. 가입 화면은 `hasSessionHint` 로 쿠키 값이 `1` 인지 본다. 실제 인가 판정은 항상 토큰(2층 가드와 API 401)이 한다.
-
-토큰을 받으면 `establishSession` 이 액세스 토큰과 이 쿠키를 먼저 두고 `GET /api/users/me` 를 읽는다. 조회 시간 상한은 부르는 쪽이 정하고 기본은 10초다. 로그인 상태 복원은 상한 없이 기다린다. 사용자 조회가 실패해도 토큰과 쿠키는 남기고 로그인 상태만 표시하지 않는다. 이 함수를 쓰는 경로는 다음과 같다.
-
-- 비밀번호 로그인, 2단계 인증(TOTP · Passkey), 복구 코드 로그인. 로그인 폼의 `completeLogin` 이 부른다.
-- 소셜 로그인 콜백([소셜 로그인의 복귀 경로](#소셜-로그인의-복귀-경로)).
-- 초대 토큰 가입의 자동 로그인.
-- 이메일 인증의 자동 로그인.
-- 로그인 상태 복원. AuthProvider 가 리프레시 뒤에 부른다. 리프레시나 사용자 조회가 실패하면 로그아웃해 이 쿠키를 지우고 로그인 화면으로 보낸다.
-
-`(auth)` 라우트 그룹에는 세션 하이드레이션(AuthProvider)이 없다. 그래서 가입 페이지가 이미 로그인한 사용자를 알아볼 때도 이 쿠키를 본다. 쿠키만 남고 리프레시 토큰이 만료된 경우에는 다음 화면의 라우트 가드가 로그인 화면으로 돌려보낸다. 이 분기는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 초대 절에 있다.
+→ [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#로그인-힌트-쿠키)
 
 ### 로그인 뒤 이동
 
-로그인 뒤 이동할 곳은 이 절이 한 곳에서 정한다. 비밀번호 로그인, 2단계 인증(TOTP · Passkey), 복구 코드 로그인, 소셜 로그인이 모두 같은 규칙을 따른다. 로그인 절차는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.
+→ [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#로그인-뒤-이동)
 
-복귀 경로는 로그인을 마친 뒤 돌아갈 화면의 경로와 쿼리다. 로그인 화면은 이 값을 `redirect` 쿼리로 받는다.
+### 소셜 로그인의 복귀 경로
 
-- 로그인에 성공하면 `redirect` 값이 안전한 같은 출처 경로일 때 그 경로로 간다. 쿼리와 해시는 그대로 둔다.
-- `redirect` 가 없거나 안전하지 않으면 `/dashboard` 로 간다.
-- `redirect` 가 여러 번 온 요청(`?redirect=/a&redirect=/b`)은 값을 하나로 정할 수 없다. 이때는 `redirect` 가 없는 것으로 본다(`(auth)/login/page.tsx`).
-- 슬러그 경로 `/w/<slug>/…` 는 그대로 간다. 슬러그 없는 옛 경로(예: `/invitations/accept?token=…`)는 옛 경로 흡수 라우트(catch-all route)가 받아 쿼리와 해시를 둔 채 현재 워크스페이스의 슬러그 경로로 넘긴다.
-- `/dashboard` 도 슬러그 없는 경로다. 로그인 폼은 슬러그를 알기 전이라 `/dashboard` 로 보내고, `(main)/[...rest]` 옛 경로 흡수 라우트가 워크스페이스 목록을 읽은 뒤 현재 워크스페이스의 `/w/<slug>/dashboard` 로 넘긴다. 리다이렉트만 하는 중간 경로라 화면 깜빡임을 허용한다. 슬러그 라우팅 규칙은 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 이 정한다.
+→ [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#소셜-로그인의-복귀-경로)
 
-안전한 같은 출처 경로의 기준은 다음 표다. 판정은 `isSafeInternalPath`(`lib/workspace/safe-path.ts`) 하나로 한다. 이 함수는 링크 생성(`buildWorkspaceHref`)과 같은 정규화 함수 `toSafeInternalPath` 를 쓴다. 이유는 Rationale 「[로그인 뒤 이동은 같은 출처 경로만 받는다 (2026-10-18)](#로그인-뒤-이동은-같은-출처-경로만-받는다-2026-10-18)」 에 있다.
+### 운영 환경 가드
 
-| `redirect` 값 | 판정 |
-| --- | --- |
-| `/` 하나로 시작하는 경로. 쿼리와 해시도 포함한다(예: `/invitations/accept?token=…`, `/w/team-alpha/workflows`) | 쓴다 |
-| 앞머리에 `/` · `\` 가 둘 이상 겹친 값(`//host`, `/\host`, `\\host`) | 거부 |
-| `/` 로 시작하지 않는 값(외부 URL `https://…`, `dashboard` 같은 상대 경로, 빈 값) | 거부 |
-| 탭 · 개행(CR · LF)이 든 값. 자리와 상관없다 | 거부 |
-
-- 판정은 정규화한 결과가 원래 값과 같은지만 본다. 위 표에 없는 값은 거르지 않는다. 예를 들어 앞머리가 아닌 자리의 백슬래시(`/a\b`)는 통과한다.
-- 판정하는 곳은 로그인 폼이다(`login-form.tsx` 가 `resolvePostLoginRedirect` 를 부른다). `redirect` 를 담아 보낸 쪽이 이미 검사했어도 다시 판정한다. 누구나 `/login?redirect=…` 링크를 만들 수 있어서다.
-- 비밀번호 로그인, 2단계 인증, 복구 코드 로그인은 같은 마무리 단계(`completeLogin`)에서 이동한다. 소셜 로그인은 아래 [소셜 로그인의 복귀 경로](#소셜-로그인의-복귀-경로) 를 따른다.
-- 서버 proxy, AuthProvider, 전체 화면 오류의 세션 만료 변형, 초대 흐름은 `redirect` 를 담아 로그인 화면으로 보낼 때 `/login?redirect=<인코딩한 경로와 쿼리>` 형식을 쓴다. 경로와 쿼리를 합친 값을 통째로 인코딩한다. 네 곳 모두 `buildLoginHref` 로 만든다.
-- 전체 화면 오류(`ErrorPage`, `app/(main)/error.tsx`)의 세션 만료 변형은 지금 화면의 경로와 쿼리를 담는다. 안전한 같은 출처 경로가 아니면 `/dashboard` 를 담는다([오류 화면과 빈 상태 「감지 규칙」](../CLE-UI/CLE-UI-ERRORS.md#감지-규칙)).
-- 초대 흐름은 세 곳에서 로그인 화면으로 보낸다. 가입 화면 아래 «로그인» 링크, 가입 화면의 기존 가입자 이동, 수락 페이지의 «다른 계정으로 로그인» 이다. 세 곳은 같은 헬퍼 `buildInvitationLoginHref` 로 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 을 만든다. 토큰이 없으면 `/login` 이다.
-- 복귀 경로가 초대 수락 페이지(`/invitations/accept` 나 `/w/<slug>/invitations/accept`)면 로그인 화면이 초대 안내 문구를 보여 준다. 문구는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 이 정한다. 초대 흐름은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 이 정한다.
-- 로그인 화면 아래 «계정 만들기» 링크(`/register`)는 복귀 경로를 넘기지 않는다. 동작과 이유는 [가입과 로그인 「로그인 화면」](CLE-ACCT-SIGNIN.md#로그인-화면) 이 정한다.
-- 복귀 경로는 이메일 인증을 넘어 이어지지 않는다. 이메일 인증을 마치지 않은 계정은 로그인이 막힌다. 인증 링크로 자동 로그인하면 늘 `/dashboard` 로 간다([가입과 로그인](CLE-ACCT-SIGNIN.md)).
-
-#### 소셜 로그인의 복귀 경로
-
-소셜 로그인은 백엔드와 OAuth 제공자를 거쳐 `/callback` 으로 돌아온다. 이번 범위는 백엔드 인증 API 를 바꾸지 않는다. 그래서 복귀 경로를 그 탭의 sessionStorage 로 넘긴다(`lib/auth/post-login-redirect.ts`). 이유는 Rationale 「[소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)](#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다-2026-10-18)」 에 있다.
-
-1. 로그인 화면은 소셜 로그인을 시작하기 전에 `redirect` 값을 그 탭의 sessionStorage 키 `clemvion.postLoginRedirect` 에 둔다. 값이 없거나 안전하지 않으면 남아 있던 값을 지운다.
-2. 가입 화면에서 시작하는 소셜 로그인(`mode=register`)은 남아 있던 값을 지운다.
-3. `/callback` 은 성공 · 실패와 관계없이 저장한 값을 한 번 꺼내 바로 지운다. 꺼낸 값도 위 기준으로 다시 검사한다. 값이 없거나 안전하지 않으면 `/dashboard` 를 쓴다.
-4. 성공(`?success=true`)이면 리프레시(`POST /api/auth/refresh`)로 액세스 토큰을 받는다. 이어서 `establishSession` 이 토큰과 로그인 힌트 쿠키(`has_session`)를 두고 `GET /api/users/me` 를 읽어 로그인 상태를 표시한다([로그인 힌트 쿠키](#로그인-힌트-쿠키)). 그 뒤 3번의 경로로 이동한다.
-5. 리프레시가 실패하면 실패 화면을 보여 준다. `GET /api/users/me` 조회만 실패하면 토큰과 힌트 쿠키를 둔 채 로그인 상태를 표시하지 않고 3번의 경로로 이동한다. 그 경로가 보호 경로면 AuthProvider 가 리프레시와 사용자 조회로 로그인 상태를 다시 복원한다. 복원도 실패하면 로그아웃해 힌트 쿠키를 지우고 `/login?redirect=…` 로 보낸다. 그래서 복귀 경로는 남는다.
-6. sessionStorage 를 쓸 수 없으면(사생활 보호 모드 등) 값을 두지 않고 넘어간다. 그러면 콜백은 `/dashboard` 로 간다.
-
-- 소셜 로그인은 같은 탭에서 이동한다. 팝업 창은 쓰지 않는다.
-- 복귀 경로는 같은 탭에서만 이어진다. 다른 탭에서 소셜 로그인을 마치면 `/dashboard` 로 간다.
-- 콜백 실패 화면의 «다시 시도» 버튼과 로그인 화면 링크는 `/login` 으로 간다. 그래서 실패한 뒤 다시 로그인하면 복귀 경로를 잃는다.
-- 백엔드의 로그인 OAuth state(`auth_oauth_state`)와 리프레시 쿠키는 복귀 경로를 담지 않는다. 소셜 로그인 시작 · 콜백 API 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.
-
-## API
-
-| 메서드 | 경로 | 설명 |
-| --- | --- | --- |
-| POST | `/api/auth/refresh` | 토큰 갱신. 리프레시 쿠키 사용, 본문 없음. 응답 `{ data: { accessToken } }` 과 새 리프레시 쿠키. 쿠키 없음 401, 재사용·동시 회전 401 `TOKEN_INVALID`, 단순 만료 401 `TOKEN_EXPIRED`, 허용 목록 밖 `Origin` 403 |
-| POST | `/api/auth/logout` | 로그아웃. `@Public()` 이라 Bearer 액세스 토큰 없이 리프레시 쿠키로 호출한 기기의 로그인 세션 전체를 무효화한다. 쿠키가 없어도 200. `Origin` 은 검사하지 않는다 |
-| GET | `/api/auth/sessions` | 활성 로그인 세션 목록. 로그인 세션 단위, `isCurrent` 포함. 응답 `{ data: { items: [...] } }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
-| POST | `/api/auth/sessions/:familyId/revoke` | 로그인 세션 하나 강제 종료. 그 `family_id` 전체를 무효화한다. 본문에 비밀번호 또는 TOTP 로 계정 재인증. 응답 200 과 `{ data: { items } }` 형태의 갱신된 세션 목록. 분당 10회. 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7 이 정한다. 현재 세션 400 `CANNOT_REVOKE_CURRENT_SESSION`, 남의 세션·없는 세션 404, 재인증 수단 없음 403 `REAUTH_NOT_AVAILABLE`. 일부 CDN·프록시가 DELETE 본문을 지우는 문제를 피하려고 DELETE 대신 POST `/revoke` 를 쓴다(`sessions.controller.ts`) |
-| POST | `/api/auth/sessions/revoke-others` | 현재 세션을 뺀 나머지 세션 일괄 종료. 비밀번호 또는 TOTP 로 계정 재인증. 응답 200 과 `{ data: { items } }` 형태의 갱신된 세션 목록. 현재 세션을 식별할 수 없으면 400 `CURRENT_SESSION_REQUIRED`. 분당 5회. 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7 이 정한다 |
-
-세 세션 라우트는 리프레시 쿠키 Path(`/api/auth`) 아래에 있어야 현재 세션을 식별할 수 있다. 옛 경로 `/api/users/me/sessions…` 는 별칭 없이 지웠고 지금은 404 다. 이유는 Rationale 의 「세션 API 를 리프레시 쿠키 Path 아래로 옮겼다」 절에 있다. URL 명명 규칙의 예외 등재는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 명명 규칙 절이 한다.
-
-로그인 이력 조회 `GET /api/users/me/login-history` 는 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다. 이 라우트는 쿠키가 필요 없어 `/api/users/me` 아래에 그대로 둔다. 세션 라우트 셋과 로그인 이력 조회는 같은 `SessionsController` 에 있다. 이 컨트롤러는 prefix 없이(`@Controller()`) 라우트마다 전체 경로를 적는다.
-
-## 운영 환경 가드
-
-`NODE_ENV=production` 에서 아래 설정 가운데 하나라도 안전하지 않으면 서버가 기동하지 않는다. `main.ts` 가 bootstrap 첫 단계에서 `assertProductionConfig`(`common/config/production-guards.ts`)를 부른다. 이 함수는 첫 위반에서 바로 예외를 던진다. 그래서 여러 설정이 함께 걸려도 메시지에는 코드가 먼저 검사한 하나만 나온다. 아래 표의 행 순서는 검사 순서가 아니다. 예외 메시지는 `production fail-closed 가드:` 로 시작한다. 개발·테스트·e2e(`NODE_ENV≠production`)에서는 검사하지 않는다.
-
-이 절이 `assertProductionConfig` 가 검사하는 대상의 전체 목록이다. 다른 문서는 목록을 옮겨 적지 않고 이 절을 링크한다. 검사를 더하거나 빼면 아래 표에도 행을 더하거나 뺀다. 단위 테스트 `production-guards.spec.ts` 가 `assertProductionConfig` 가 읽는 환경 변수와 표의 첫 열을 대조한다.
-
-| 설정 | 기동을 막는 값 | 막는 위험 |
-| --- | --- | --- |
-| `JWT_SECRET` | 없음, 공백뿐인 값, 기본 sentinel(`dev-jwt-secret`), 저장소에 커밋된 예시 값, 앞뒤 공백을 뗀 길이가 32자 미만 | 기본값이나 예측 가능한 비밀로 서명하면 누구나 액세스 토큰을 위조해 인증을 우회한다(CWE-521 약한 비밀) |
-| `INTERACTION_JWT_SECRET` | 설정했을 때만 검사한다. 빈 값, 공백뿐인 값, 저장소에 커밋된 예시 값(`JWT_SECRET` 의 예시 값 포함), 앞뒤 공백을 뗀 길이가 32자 미만. 설정하지 않으면 `JWT_SECRET` 으로 서명하므로 위 행이 대신 막는다 | 실행 단위 인터랙션 토큰(`iext_*`)의 서명 비밀이다. 예측 가능한 값이면 누구나 토큰을 위조해 남의 실행에 입력을 보내거나 실행을 취소한다([External Interaction API 「인터랙션 토큰」](../CLE-IX/CLE-EIA.md#인터랙션-토큰)) |
-| `ENCRYPTION_KEY`(마스터키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 시크릿 저장소 값과 모델 설정의 API 키가 사실상 평문이 된다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) |
-| `INTEGRATION_ENCRYPTION_KEY`(통합 암호화 키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 통합 자격 증명과 인증 설정이 평문으로 저장된다. 대상 컬럼은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 표에 있다 |
-| `MCP_ALLOW_INSECURE_URL` | 켜짐 | MCP 클라이언트의 SSRF 방어(https 만 허용, 호스트 차단 목록)를 통째로 우회한다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)) |
-| `OAUTH_STUB_MODE` | 켜짐 | 실제 OAuth 제공자 검증을 건너뛰어 소셜 로그인 인증이 무력해진다 |
-| `LLM_STUB_MODE` | 켜짐 | 실제 LLM 호출 대신 스텁 응답을 돌려준다([LLM 클라이언트 「LLM 스텁 모드」](../CLE-AI/CLE-AI-LLM.md#llm-스텁-모드)) |
-| `ALLOW_HTTP_HOOKS` | 켜짐 | 알림 웹훅 URL 에 `http://` 를 허용한다. 그러면 서명한 알림 본문과 `X-Clemvion-*` 헤더가 평문으로 나간다([EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지)) |
-
-이 가드는 플래그 값이 정확히 `true` 또는 `1` 이면 켜진 것으로 보고 기동을 막는다(`isFlagOn`). `TRUE` · `yes` · `on` · 빈 문자열은 꺼진 것으로 본다. 기능을 실제로 켜는 판정은 설정마다 따로 한다. `OAUTH_STUB_MODE` · `LLM_STUB_MODE` 는 `true` 일 때만, `MCP_ALLOW_INSECURE_URL` 은 `true` 나 `1` 일 때, `ALLOW_HTTP_HOOKS` 는 `1` 일 때만 켜진다. 가드가 막는 값이 켜지는 값을 모두 담으므로 운영 환경에서 이 기능이 켜진 채 기동하는 일은 없다. 단위 테스트가 설정마다 기능을 켜는 판정과 가드를 대조해 이 관계를 확인한다.
-
-`JWT_SECRET` 은 앞뒤 공백을 뗀 값으로 검사한다. 뗀 값이 비었으면 공백뿐인 값으로 보고 막는다. 예시 값 대조와 길이 하한도 뗀 값에 적용한다. 뗀 값은 검사에만 쓰고 토큰 서명에 쓰는 값은 바꾸지 않는다. 예시 값 목록의 정본은 `production-guards.ts` 의 `INSECURE_JWT_SECRETS` 다. 코드의 기본 sentinel 과 저장소에 커밋된 예시 값(`.env.example`, 배포 예시 Secret, 로컬 · e2e 설정, README)을 담는다. 이 문서에는 예시 값을 옮기지 않는다. 단위 테스트가 저장소의 예시 파일 값과 이 목록을 대조한다.
-
-`INTERACTION_JWT_SECRET` 도 같은 방식으로 검사한다. 다만 변수가 없으면 검사하지 않는다. 그때는 `JWT_SECRET` 으로 서명하기 때문이다. 빈 문자열은 «설정하지 않음» 으로 보지 않고 막는다. 서명 비밀을 고르는 코드가 빈 값을 `JWT_SECRET` 으로 대신하지 않기 때문이다. 예시 값 목록의 정본은 `production-guards.ts` 의 `INSECURE_INTERACTION_JWT_SECRETS` 다. 이 목록은 `INSECURE_JWT_SECRETS` 를 모두 담는다. 그래서 `JWT_SECRET` 의 예시 값을 이 자리에 넣어도 막는다.
+→ [세션과 토큰 — 운영 환경 가드](CLE-ACCT-SESSION-GUARD.md#운영-환경-가드)
 
 ### 암호화 키 검사
 
-마스터키와 통합 암호화 키는 같은 규칙으로 검사한다. 이 규칙의 정본은 이 절이다.
-
-- 값이 없거나 빈 문자열이면 막는다.
-- 공백뿐인 값을 막는다.
-- 저장소에 커밋된 예시 값을 막는다. `.env.example`, 배포 예시 Secret, 로컬 · e2e 설정, README 에 적힌 값이다.
-- 예시 값은 원래 값과 앞뒤 공백을 뗀 값을 모두 목록과 대조한다. 뗀 값은 대조에만 쓰고 키로 쓰는 값은 바꾸지 않는다.
-- 예시 값 목록의 정본은 `production-guards.ts` 의 두 상수다. 마스터키는 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` 와, 통합 암호화 키는 `INSECURE_INTEGRATION_ENCRYPTION_KEYS` 와 대조한다. 뒤 목록은 앞 목록을 모두 담는다. 그래서 마스터키 예시 값을 통합 암호화 키 자리에 넣어도 막는다. 통합 암호화 키에만 있는 예시 값을 마스터키 자리에 넣으면 막지 않는다.
-- 이 문서에는 예시 값을 옮기지 않는다. 단위 테스트 `production-guards.spec.ts` 가 저장소의 예시 파일 값과 두 목록을 대조한다.
-- 길이 하한은 두지 않는다. 키를 만드는 방식은 [시크릿 저장소 「마스터키」](../CLE-INT/CLE-INT-SECRET.md#마스터키) 와 [통합 데이터와 흐름 「키」](../CLE-INT/CLE-INT-DATA.md#키) 가 정한다.
-- 거부 메시지에 키 값을 싣지 않는다.
-
-이 가드 밖에서 키가 없을 때의 동작은 키마다 다르다. 마스터키가 없거나 빈 값이면 환경과 상관없이 `SecretResolver` 초기화가 부팅을 멈춘다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 17). 운영 환경 밖에서 통합 암호화 키가 없으면 transformer 가 경고를 남기고 평문으로 저장한다([통합 데이터와 흐름 「키가 없을 때」](../CLE-INT/CLE-INT-DATA.md#키가-없을-때)).
+→ [세션과 토큰 — 운영 환경 가드](CLE-ACCT-SESSION-GUARD.md#암호화-키-검사)
 
 ### 가드에 넣는 것과 넣지 않는 것
 
-`assertProductionConfig` 에는 환경 변수만으로 부팅 직전에 판정할 수 있고 정당한 용도가 없는 설정만 넣는다.
-
-- 모듈 안 컨텍스트가 필요한 부팅 검사는 그 모듈에 둔다. EIA 의 종료 토큰 폐기 스케줄러 등록 fail-fast 는 [External Interaction API](../CLE-IX/CLE-EIA.md) 에 있다. 워크스페이스 멤버십 가드의 부팅 자가 검증은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 에 있다.
-- `INTERACTION_JWT_SECRET` 은 환경 변수만으로 판정할 수 있어 이 함수가 검사한다. `InteractionTokenService` 생성자는 그와 별도로 두 서명 비밀이 모두 없으면 예외를 던진다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 「인터랙션 토큰」 절).
-- 정당한 용도가 있는 완화 플래그는 기동을 막지 않고 경고 로그만 남긴다. 이 판정은 `main.ts` 가 한다. 예를 들어 `ALLOW_PRIVATE_HOST_TARGETS` 의 뜻은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 이 정한다. 이 플래그가 기동을 막지 않고 경고만 남기는 이유는 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 에 있다. `MAIL_REQUIRE_TLS=false` 는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 이 정한다.
+→ [세션과 토큰 — 운영 환경 가드](CLE-ACCT-SESSION-GUARD.md#가드에-넣는-것과-넣지-않는-것)
 
 ## 미결 사항
 
@@ -398,36 +147,7 @@ sequenceDiagram
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/auth/auth.controller.ts`, `codebase/backend/src/modules/auth/auth.service.ts` (refresh, logout, 토큰 발급)
-- `codebase/backend/src/modules/auth/entities/refresh-token.entity.ts` (로그인 유지 여부 칸 `rememberMe`)
-- `codebase/backend/migrations/V156__refresh_token_remember_me.sql` (`remember_me` 칸 추가와 배포 시점 백필)
-- `codebase/backend/src/modules/auth/sessions.controller.ts`, `codebase/backend/src/modules/auth/sessions.service.ts` (세션 목록과 강제 종료 `/api/auth/sessions…`, 로그인 이력 `/api/users/me/login-history`, `verifyReauth`)
-- `codebase/backend/src/modules/auth/sessions.controller.spec.ts` (세션 라우트가 리프레시 쿠키 Path 안에 있는지)
-- `codebase/backend/src/modules/auth/utils/refresh-cookie.ts` (리프레시 쿠키 설정·삭제, Path 상수 `REFRESH_COOKIE_PATH`, 로그인 유지 여부에 맞춘 쿠키 `maxAge`)
-- `codebase/backend/src/modules/auth/utils/client-ip.ts` (`extractClientIp`)
-- `codebase/backend/src/common/config/app.config.ts` (`computeCookieDomain`)
-- `codebase/backend/src/common/config/production-guards.ts` (`assertProductionConfig`, 플래그 판정 `isFlagOn`, `JWT_SECRET` 예시 값 목록 `INSECURE_JWT_SECRETS`, 암호화 키 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` · `INSECURE_INTEGRATION_ENCRYPTION_KEYS`)
-- `codebase/backend/src/common/config/production-guards.spec.ts` (가드 분기, 저장소 예시 파일 값 대조, 설정마다 기능을 켜는 판정과 가드의 대조, 이 문서 「운영 환경 가드」 표와 검사 대상의 대조)
-- `codebase/backend/src/main.ts` (가드를 부르는 곳, 경고만 남기는 완화 플래그 판정)
-- `codebase/backend/src/common/guards/*.ts` (`JwtAuthGuard`)
-- `codebase/backend/test/session-revocation.e2e-spec.ts`, `codebase/backend/test/helpers/auth.ts` (쿠키를 Path 가 맞는 요청에만 붙이는 세션 e2e)
-- `codebase/frontend/src/proxy.ts`
-- `codebase/frontend/src/components/auth/auth-provider.tsx`
-- `codebase/frontend/src/lib/stores/auth-store.ts`
-- `codebase/frontend/src/lib/auth/session-hint.ts` (로그인 힌트 쿠키 `has_session` 의 이름 · 속성과 심기 · 지우기 · 읽기)
-- `codebase/frontend/src/lib/auth/__tests__/session-hint.test.ts` (쿠키 문자열과 읽기 판정)
-- `codebase/frontend/src/lib/api/client.ts`, `codebase/frontend/src/lib/api/sessions.ts` (갱신 재시도 규칙 `skipsRefreshRetry`, 세션 API 호출)
-- `codebase/frontend/src/lib/api/__tests__/client.test.ts` (`skipsRefreshRetry` 와 `/auth/sessions` 갱신 재시도)
-- `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (로그인 뒤 `/dashboard` 를 슬러그 경로로 넘긴다)
-- `codebase/frontend/src/app/(main)/w/[slug]/profile/sessions/**`
-- `codebase/frontend/src/app/(main)/w/[slug]/profile/sessions/reauth-mode.ts`, `codebase/frontend/src/app/(main)/w/[slug]/profile/sessions/sessions-panel.tsx` (세션 강제 종료 계정 재인증 입력 전환 `nextReauthMode`)
-- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동 판정 `resolvePostLoginRedirect`, 로그인 경로 `buildLoginHref` · `buildInvitationLoginHref`, 소셜 로그인 복귀 경로 저장 `clemvion.postLoginRedirect`)
-- `codebase/frontend/src/lib/auth/__tests__/post-login-redirect.test.ts` (이동 판정, 로그인 경로 생성, 복귀 경로 저장과 소비)
-- `codebase/frontend/src/lib/auth/use-current-login-href.ts` (전체 화면 오류의 세션 만료 변형이 담는 로그인 경로 `useCurrentLoginHref`)
-- `codebase/frontend/src/lib/workspace/safe-path.ts` (안전한 같은 출처 경로 판정 `isSafeInternalPath` 와 정규화 `toSafeInternalPath`)
-- `codebase/frontend/src/app/(auth)/login/page.tsx` (`redirect` 가 여러 번 오면 쓰지 않는다)
-- `codebase/frontend/src/components/auth/login-form.tsx` (로그인 뒤 이동, 소셜 로그인 시작 전 복귀 경로 저장, 초대 안내 문구)
-- `codebase/frontend/src/app/(auth)/callback/callback-content.tsx` (소셜 로그인 콜백의 복귀 경로 소비와 로그인 상태 표시)
+하위 문서마다 `## 구현 위치` 에 있다.
 
 ## Rationale
 
@@ -435,282 +155,32 @@ sequenceDiagram
 
 `refresh_token.family_id` 는 토큰 회전 뒤에도 유지돼 기기 하나의 로그인 상태를 가리킨다. 사용자에게 보이는 활성 세션 목록은 로그인 세션 단위로 가장 최신 행의 메타데이터를 보여 준다. 회전 중 재사용을 감지하면 그 `family_id` 전체를 무효화해 훔친 토큰의 피해 범위를 한 로그인 세션으로 한정한다.
 
-### 현재 워크스페이스 클레임 이름을 `activeWorkspaceId` 로 바꿨다
+### 구현 상태는 요구사항 줄과 머리 줄에 표시한다 (2026-10-22)
 
-2026-07-07 결정이다. 근거 계획의 권장안은 기존 이름 `workspaceId` 유지였다. 기존 코드와 문서가 모두 그 이름이라 이름을 바꾸는 이득은 문서로 메울 수 있고, 토큰 호환과 dual-read 과도기 비용은 실제로 든다는 이유였다. 사용자는 이름 변경을 명시적으로 골랐다. 전환이 곧 토큰 재발급인 모델에서는 "현재(active) 워크스페이스" 라는 뜻을 필드 이름이 바로 드러내는 편이 낫다고 판단했고, 과도기 비용은 dual-read 로 흡수한다. 읽는 곳은 정규화 지점인 `jwt.strategy` 와 독립적으로 디코드하는 `websocket.gateway` 두 곳이다.
-
-### 리프레시 쿠키 Domain 을 자동으로 정한다
-
-리프레시 쿠키 Domain 은 운영자 환경 변수가 아니라 `FRONTEND_URL`·`APP_URL` hostname 의 공통 상위 도메인에서 정한다. `api.x.com`·`app.x.com` 같은 서브도메인 분리 배포에서 별도 설정 없이 인증이 동작하게 하고, Domain 을 잘못 적어 쿠키가 전달되지 않는 운영 사고를 줄이기 위해서다. localhost·IP·공통 상위 도메인 없음이면 Domain 을 지정하지 않아 백엔드 origin 으로 좁힌다. 도메인이 완전히 다르면 쿠키를 공유할 수 없으므로 클라이언트의 `withCredentials` cross-origin 요청에 맡긴다.
-
-### 리프레시 쿠키 SameSite 기본값을 `none` 으로 둔다
-
-이 제품은 프론트와 API 의 사이트 경계(eTLD+1)가 다른 cross-site 배포를 지원한다. 이 배포에서 `lax`·`strict` 면 리프레시 쿠키가 cross-site 요청에 붙지 않아 세션이 끊긴다. 그래서 중단 없는 기본값은 `none` 이고, 같은 사이트 배포만 `lax`·`strict` 로 조인다. 웹채팅 위젯 같은 임베드는 Bearer EIA 토큰을 쓰고 리프레시 쿠키에 기대지 않으므로 `none` 이 필요한 주체가 아니다.
-
-기각한 대안은 "기본 `Lax`, cross-site 배포만 `none` 을 opt-in" 한 원안이다. eTLD+1 이 다른 배포가 실제로 쓰이고 있음을 확인했고, `Lax` 기본값은 그 배포에서 첫 갱신부터 세션을 끊는다. 중단 없는 운영을 우선해 `none` 을 기본으로 하고 CSRF 는 Origin 검증으로 보완했다.
-
-### `SameSite=none` 의 CSRF 는 Origin 검증으로 막는다
-
-`SameSite=none` 은 cross-site 요청에 쿠키를 자동으로 붙이므로 갱신 요청에 강제 갱신 CSRF 가 성립할 수 있다. 다만 리프레시 쿠키는 갱신 한 곳에서만 쓰이고 다른 엔드포인트는 모두 Bearer 액세스 토큰 기반이라 쿠키 CSRF 와 무관하다. 또 credentials CORS 허용 목록이 cross-site 출처의 응답 읽기를 이미 막는다. 그래서 double-submit 같은 CSRF 토큰 인프라를 새로 두지 않고, 갱신 요청이 `Origin` 을 기존 CORS 허용 목록과 비교해 목록 밖·불투명(`'null'`, sandbox iframe 등) Origin 을 403 으로 먼저 막는 방어를 더했다. Origin 이 없는 요청(같은 origin, 브라우저 아닌 도구)은 통과한다. 프론트 변경이나 토큰 발급 인프라가 필요 없다. 쿠키 Path 를 `/api/auth` 로 좁혀 쿠키가 붙는 표면도 줄였다.
-
-### 클라이언트 IP 는 명시적으로 신뢰할 때만 CF 헤더를 쓴다
-
-`CF-Connecting-IP` 는 클라이언트가 마음대로 보낼 수 있는 헤더다. Cloudflare 뒤가 아닌 배포에서 무조건 믿으면 요청 한도 우회, `ip_whitelist` 우회, 감사 로그 IP 오염이 가능하다. 그래서 `TRUST_CF_CONNECTING_IP=true`(정확히 `true` 나 `1`)로 명시한 배포에서만 1순위로 쓰고, 기본(off)에서는 무시하고 `X-Forwarded-For`·`req.ip` 로 폴백한다. Cloudflare(Tunnel 포함) 뒤에서는 `X-Forwarded-For` 첫 IP 도 같은 실제 클라이언트 IP 라 off 폴백이 안전하다. 이 신뢰 플래그는 IP 를 읽는 세 경로(세션·감사 IP 의 `extractClientIp`, 공개 웹훅 요청 한도와 `ip_whitelist` 검증의 `extractClientIpFromHeaders`)에 같게 적용한다. origin 직접 접근 차단(인프라·터널) 전제는 유지하고, 강제 IP 허용 목록은 터널 배포에 필요 없어 권고에서 뺐다.
-
-`ip_whitelist`·요청 한도의 IP 추출이 헤더 기반인 것은 의도한 결정이다. `req.ip`(Express `trust proxy 1`)를 우선하거나 대신 쓰자는 안은 기각했다. CF Tunnel 배포에서 `req.ip` 는 cloudflared·CF edge 주소라 실제 클라이언트가 아니어서 `ip_whitelist` 를 오히려 깨뜨린다. XFF 헤더 위조 방어는 인프라와 `trust proxy` 경계의 책임이다. 코드 리뷰가 "`req.ip` 폴백이 없다" 고 지적해도 이 절이 정한 의도된 설계다. 같은 이유로 공개 웹훅 요청 한도는 헤더로 IP 를 알 수 없을 때 `req.socket.remoteAddress` 폴백을 쓰지 않는다. trust proxy 뒤에서는 socket 피어가 프록시 주소라 모든 트래픽이 한 버킷으로 몰려 정상 사용자가 429 를 받기 때문이다. 대신 식별 못 한 요청을 단일 공유 버킷의 완화 한도로 처리한다. 무제한 통과가 아니다. 그 한도 규칙은 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) 이 정한다.
-
-### 비밀번호 변경은 모든 세션을 끊고 현재 기기에 다시 발급한다
-
-비밀번호 변경의 보안 목적은 유출된 비밀번호로 이미 발급된 세션을 무효화하는 것이다. 이상적으로는 현재 세션만 남기고 나머지를 끊는 것이다. 그런데 리프레시 쿠키 Path 가 `/api/auth` 로 한정돼 `/api/users/me/change-password` 요청에는 쿠키가 붙지 않아 현재 세션을 식별할 수 없다. 그래서 모두 끊고 다시 발급해 현재 기기를 유지하는 같은 경험을 주면서, 현재 세션의 옛 리프레시 토큰까지 바꿔 더 강하게 무효화한다. OWASP Session Management 권고(비밀번호 변경 시 세션 무효화)와 맞다. 변경 직전 `currentPassword` bcrypt 검증으로 본인 확인이 끝나므로 별도 재인증은 요구하지 않는다. 응답으로 새 액세스 토큰을 주고 리프레시 쿠키를 바꿔 변경한 본인은 로그아웃 없이 계속 쓴다.
-
-다시 발급하는 세션은 표준 7일이다. 현재 세션을 식별할 수 없어 직전 세션의 로그인 유지(30일) 여부를 이어받을 수 없다. 본인이 방금 한 동작이라 세션 수명이 줄어드는 것은 받아들일 만하다.
-
-로그인하지 않은 비밀번호 재설정과 위협 모델이 다르다. 재설정은 "비밀번호를 잃어 계정 통제를 잃었을 수 있는" 경우라 모든 세션을 끊고 다시 발급하지 않고 로그인 화면으로 보낸다. 비밀번호 변경은 "현재 비밀번호를 아는 본인이 스스로 바꾸는" 경우라 현재 세션을 믿고 다시 발급한다. 두 흐름 모두 모든 세션을 끊는다는 원칙은 같고 다시 발급하는지만 다르다.
-
-`session_revoked` enum 값은 그대로 다시 쓴다. 새 이벤트 종류가 아니라서 로그인 이력 스키마·DB CHECK·마이그레이션이 필요 없다.
-
-기각한 대안은 두 가지다. (a) 모든 세션을 끊고 다시 발급하지 않는 방식은 방금 비밀번호로 확인한 본인 세션을 끊어도 보안 이득이 없고 재로그인 비용만 든다. (b) 현재 세션만 빼고 끊는 방식은 위 쿠키 Path 제약으로 비밀번호 변경 컨트롤러가 현재 세션을 식별할 수 없어 구현할 수 없다.
-
-OAuth 전용 계정은 비밀번호가 없어 `POST /api/users/me/change-password` 자체가 `PASSWORD_REQUIRED`(401)로 막힌다. 이 정책은 비밀번호가 있는 사용자에게만 적용된다. 세션 무효화와 재발급이 실패해도 이미 커밋한 비밀번호 변경을 깨지 않도록 best-effort 로 처리하되, 실패는 서버 로그로 확인할 수 있어야 한다.
-
-### 계정 재인증은 비밀번호 또는 TOTP 로만 한다
-
-세션 강제 종료 재인증은 처음에 "OAuth 전용 계정은 TOTP·Passkey 또는 이메일 OTP 로 대체, Passkey 우선" 으로 적혀 있었다. 실제 구현(`SessionsService.verifyReauth`)과 이메일 변경 재인증 결정, 내 프로필 화면은 모두 비밀번호 또는 TOTP 만 지원한다. Passkey 로 하는 재인증은 challenge·response 흐름이 필요해 지원하지 않고, 이메일 OTP 는 코드에 없다. 그래서 세션 정책 표를 실제 지원 수단으로 고치고 Passkey·이메일 OTP 를 "현재 미지원" 으로 적었다. 새 결정이 아니라 벗어나 있던 서술을 이미 정한 이메일 변경 재인증 결정에 맞춘 것이다. 이 정정으로 세션 정책이 재인증 에러 코드(`REAUTH_REQUIRED`=400, `PASSWORD_INVALID`=401, `TOTP_INVALID`=401)의 기준이 됐다.
-
-복구 코드는 받지 않는다. 지금은 요청 DTO 의 `totpCode` 길이 제한(6~8자)이 복구 코드를 막는다.
-
-### 비밀번호 변경이 비밀번호 재확인 헬퍼를 재사용하지 않는 이유
-
-비밀번호 변경(`UsersService.changePassword`)은 비밀번호 재확인(`AuthService.verifyPasswordForUser`)과 같은 두 코드를 내지만 헬퍼를 재사용하지 않는다. 순환 의존 때문이 아니다. `UsersModule` 은 이미 `forwardRef(() => AuthModule)` 을 import 하고 `UsersController` 가 그 방식으로 `AuthService` 를 주입받으므로 주입은 가능하다. 재사용하지 않는 이유는 그 헬퍼가 사용자를 다시 조회하고 `!user` 를 `PASSWORD_REQUIRED` 로 접기 때문이다. 변경 경로는 이미 조회한 사용자를 쓰므로 같은 질의가 두 번 되고, 변경 경로는 사용자 없음을 `USER_NOT_FOUND`(404)로 유지해야 한다. 세션 강제 종료·이메일 변경 재인증(`verifyReauth`)과도 별도 헬퍼이고 상태와 코드가 다르다.
-
-### 운영 환경 가드를 한 함수에 모은다
-
-`NODE_ENV=production` 의 부팅 거부 검사를 `assertProductionConfig` 한 함수에 모았다. 같은 성격의 비밀·stub(`INTERACTION_JWT_SECRET`, `OAUTH_STUB_MODE`, `LLM_STUB_MODE`)에 production throw 표준이 이미 있었다. 위치(`main.ts` 부팅)와 패턴도 같았다. 한 함수로 모으면 비밀을 더할 때 빠뜨리는 일을 구조로 막는다. 환경 변수만으로 부팅 직전에 판정할 수 있는 절대 금지 항목만 넣는다. DI 나 요청 컨텍스트가 필요한 항목(예: `INTERACTION_JWT_SECRET` 생성자 throw)과 정당한 용도가 있는 항목(예: throw 가 아니라 warn 인 `ALLOW_PRIVATE_HOST_TARGETS`)은 일부러 뺐다. 설정이 없으면 기동을 거부하는 쪽이 안전하지 않은 부팅보다 낫다는 fail-closed 의도다. 개발·테스트·e2e 는 영향이 없다. 무엇을 막는지는 본문 [운영 환경 가드](#운영-환경-가드) 절에 있다. `INTERACTION_JWT_SECRET` 은 2026-11-06 에 이 함수로 옮겼다([`INTERACTION_JWT_SECRET` 을 운영 환경 가드에 더했다](#interaction_jwt_secret-을-운영-환경-가드에-더했다-2026-11-06)).
-
-`JWT_SECRET` 에는 32자 길이 하한을 두고 두 암호화 키에는 두지 않는다. `JWT_SECRET` 은 서명 키라 짧으면 무차별 대입에 약하다. 두 암호화 키는 이미 그 키로 암호화한 값이 있으면 키를 바꾸는 순간 그 값을 복호화하지 못한다. 그래서 짧아도 비밀인 키는 막지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다. 공백뿐인 값과 앞뒤 공백이 붙은 예시 값까지 막는 이유는 [시크릿 저장소 「R5」](../CLE-INT/CLE-INT-SECRET.md#r5-envexample-에는-형식-예시만-두고-production-에서-막는다) 에 있다. `JWT_SECRET` 은 처음에 앞뒤 공백을 떼지 않고 대조했다. 두 암호화 키의 공백 처리는 R5 가 정했고 `JWT_SECRET` 에는 같은 결정이 없었다. 2026-11-05 에 두 암호화 키처럼 뗀 값으로 검사하도록 바꿨다(아래 「`JWT_SECRET` 을 앞뒤 공백을 뗀 값으로 검사하고 알림 웹훅 http 허용 플래그를 가드에 더했다」).
-
-`INTEGRATION_ENCRYPTION_KEY` 항목은 2026-10-31 NERV Task `CLE-T-KQ37NJ` 에서 더했다. `CLE-T-2V7SBC` 의 후속이다. `assertProductionConfig` 는 이 키를 이미 검사했는데 그때 목록에는 빠져 있었다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 에는 부팅 가드 전체 목록이 그 절에 있다고 적혀 있다. 이 항목을 더해 목록이 `assertProductionConfig` 의 여섯 항목과 같아졌고 다시 전체 목록이 됐다. 범위 문장도 «인증 계열의 공통 부팅 가드» 에서 «`assertProductionConfig` 의 공통 부팅 가드» 로 바꿨다. 목록에는 원래 `MCP_ALLOW_INSECURE_URL` · `LLM_STUB_MODE` 같은 인증 밖 항목이 있어 «인증 계열» 이 사실과 맞지 않았다. 키가 없으면 통합 자격 증명과 인증 설정이 평문으로 저장되므로 운영 환경에서는 부팅을 거부한다. 결정 배경은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다. 이때 목록은 Rationale 「운영 환경 가드」 절에 있었다. 2026-10-31 NERV Task `CLE-T-NAT45Z` 가 본문 「운영 환경 가드」 절로 옮겼다(아래 「운영 환경 가드 목록을 본문으로 옮기고 암호화 키 검사 규칙을 한 곳에 모았다」).
-
-### 운영 환경 가드 목록을 본문으로 옮기고 암호화 키 검사 규칙을 한 곳에 모았다 (2026-10-31)
-
-NERV Task `CLE-T-NAT45Z` 의 변경이다. `CLE-T-KQ37NJ` 리뷰의 지적(finding `01a19169-d133-715b-81c5-50f4ba8f519c` · `01a1916a-27ba-716f-9163-ab93e85d5d22`)에서 나왔다. 앞의 일관성 지적은 기술 명세인 가드 목록이 Rationale 에 있다는 것이다. 뒤의 유지보수성 지적은 키 검사 규칙의 사본이 여러 문서에 있다는 것이다.
-
-- 가드 목록은 Rationale 「운영 환경 가드」 절에 있었다. 무엇이 기동을 막는지는 기술 명세라 본문 [운영 환경 가드](#운영-환경-가드) 절로 옮겼다. 제목을 그대로 두어 `#운영-환경-가드` 앵커를 링크하던 [External Interaction API](../CLE-IX/CLE-EIA.md) 와 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 는 고치지 않아도 본문 절을 가리킨다. Rationale 의 옛 절은 「운영 환경 가드를 한 함수에 모은다」 로 제목을 바꾸고 이유만 남겼다. 같은 제목이 둘이면 앵커가 갈리기 때문이다. «Rationale 「운영 환경 가드」» 라고 글로 가리키던 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 와 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 는 같은 묶음에서 고쳤다.
-- 암호화 키 검사 규칙(없음 · 공백뿐 · 공개 예시 값 · 앞뒤 공백을 뗀 값 대조)은 이 문서, [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 규칙 17 · 26 · 「마스터키」 · R5 · R13, [통합 데이터와 흐름 「키가 없을 때」](../CLE-INT/CLE-INT-DATA.md#키가-없을-때), [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 Rationale 에 사본으로 있었다. 가드 조건이 바뀌면 여러 문서를 함께 고쳐야 했다. 빠뜨려도 알려 주는 검사가 없었다. 그래서 규칙은 본문 [암호화 키 검사](#암호화-키-검사) 한 곳에 두고 나머지는 링크로 줄였다.
-- 정본을 이 문서에 둔 이유는 두 가지다. 가드 목록이 이미 여기 있다. 그리고 두 키를 같은 함수가 같은 규칙으로 검사한다. 키를 무엇에 쓰는지, 키를 어떻게 만드는지, 운영 환경 밖에서 키가 없으면 어떻게 되는지는 그대로 시크릿 저장소와 통합 데이터와 흐름이 정한다. 통합 데이터와 흐름 「암호화」 는 통합 암호화 키와 transformer 동작의 규범을 그 절 한 곳에 둔다고 적는다. 이번에 이 문서로 옮긴 것은 운영 환경 가드가 키를 거부하는 기준뿐이다.
-- 시크릿 저장소에 정본을 두는 안도 견줬다. 시크릿 저장소는 규약 문서라 규범을 두기에 맞다. 하지만 그러면 가드 목록 여섯 행 가운데 두 행의 기준만 다른 문서로 떨어져 목록을 읽을 때 두 문서를 오가야 한다. 그래서 택하지 않았다.
-- 날짜가 붙은 결정 기록(시크릿 저장소 R13 의 결정 목록, R5 의 2026-10-10 확장 단락 등)은 그때의 사실이라 문장을 그대로 두었다. 지금의 규칙을 말하는 문장만 링크로 바꿨다.
-- 같은 묶음에서 두 군데를 코드와 용어 사전에 맞췄다. 옛 목록은 플래그 셋을 «true 면 throw» 라고 적었지만 코드(`isFlagOn`)는 `true` 와 `1` 을 모두 켜짐으로 본다. 마스터키가 암호화하는 대상의 «LLM 프로바이더 API 키» 는 용어 사전의 «모델 설정의 API 키» 로 바꿨다.
-- 요구사항 줄은 더하지 않았다. 이번 변경은 문서 위치와 사본을 정리한 것이고 가드 동작은 그대로다. 요구사항 줄이 있는 항목은 `JWT_SECRET`(REQ-SESSION-006)뿐이다. 두 암호화 키와 세 플래그의 부팅 거부는 본문 [운영 환경 가드](#운영-환경-가드) 절이 정한다. 이 항목들을 요구사항 줄로 올리는 일은 새 요구 번호를 받아 따로 다룬다.
-
-### `JWT_SECRET` 을 앞뒤 공백을 뗀 값으로 검사하고 알림 웹훅 http 허용 플래그를 가드에 더했다 (2026-11-05)
-
-NERV Task `CLE-T-HD6SJ4` · `CLE-T-VSAXG6` 의 변경이다.
-
-- **`JWT_SECRET` 의 앞뒤 공백**: 예전 가드는 원래 값만 목록과 대조하고 길이를 쟀다. 그래서 공개 placeholder 뒤에 개행이 붙은 값(38자)이 운영 부팅을 통과했다. Kubernetes Secret 이나 `.env` 로 값을 옮기다 보면 개행이 붙기 쉽다. 공백만으로 된 32자 이상 값도 통과했다. 두 암호화 키는 [시크릿 저장소 「R5」](../CLE-INT/CLE-INT-SECRET.md#r5-envexample-에는-형식-예시만-두고-production-에서-막는다) 의 결정대로 이미 뗀 값으로도 대조했다. 같은 함수 안에서 키마다 공백 처리를 달리할 이유가 없어 `JWT_SECRET` 도 같은 방식으로 바꿨다. NERV Task `CLE-T-NAT45Z` 코드 리뷰의 지적(finding `01a19241-0a81-7615-896f-c2e16d71b5fc`)에서 나왔다.
-- **길이 하한도 뗀 값으로 잰다**: 앞뒤 공백은 비밀을 강하게 만들지 않는다. 31자 비밀 뒤에 개행을 붙여 32자를 채운 값은 31자 비밀과 같다. 그래서 운영 중인 배포라도 뗀 길이가 32자 미만이면 이제 부팅이 막힌다. 그 배포는 서명 키를 새로 만들어야 하고, 키를 바꾸면 이미 발급한 토큰이 무효가 되어 사용자가 다시 로그인한다.
-- **서명에 쓰는 값은 바꾸지 않는다**: `jwt.config.ts` 에서 값을 다듬어 서명에도 뗀 값을 쓰는 안을 견줬다. 그러면 앞뒤 공백이 붙은 키로 운영 중인 배포는 이 변경과 함께 서명 키가 바뀌어 발급한 토큰이 모두 무효가 된다. 가드의 목적은 약한 키로 기동하지 않게 하는 것이라 서명 동작은 그대로 두었다.
-- **커밋된 예시 값**: 로컬 overlay 와 e2e compose 의 `JWT_SECRET` 은 32자를 넘고 목록에 없어 운영 부팅을 통과했다. 두 암호화 키처럼 저장소에 커밋된 예시 값을 모두 목록에 넣고 단위 테스트가 예시 파일과 목록을 대조한다. 두 설정은 `NODE_ENV` 가 production 이 아니어서 지금 동작은 바뀌지 않는다.
-- **`ALLOW_HTTP_HOOKS`**: 개발용 플래그인데 가드 목록에 없었다. 운영에서 켜지면 `http://` 알림 URL 을 등록할 수 있고 서명한 본문과 헤더가 평문으로 나간다. `ALLOW_PRIVATE_HOST_TARGETS` 와 달리 운영에서 켤 정당한 용도가 없어서 경고가 아니라 기동 거부로 둔다. 이 플래그는 `1` 일 때만 기능을 켜지만 가드는 다른 플래그와 같은 `isFlagOn` 판정으로 `true` 도 막는다. 가드가 막는 값이 켜지는 값을 모두 담으면 충분하고, 플래그마다 판정을 따로 두면 오히려 빠뜨리기 쉽다. NERV Task `CLE-T-ZGYXSZ` 코드 리뷰의 security · documentation 지적에서 나왔다.
-- **표와 코드를 테스트로 잇는다**: 이 문서의 표와 `assertProductionConfig` 사이에 대조하는 장치가 없어서, 검사를 더하고 표를 고치지 않아도 알 수 없었다(finding `01a1923f-edc9-7070-8cec-ca96e5867baa`). 이제 단위 테스트가 함수가 읽는 환경 변수를 기록해 표의 첫 열과 견준다. 테스트는 저장소의 스펙 미러를 읽는다. 그래서 검사를 더한 코드는 표에 행을 더한 스펙이 승인되고 미러를 받기 전까지 단위 테스트를 통과하지 못한다. 스펙보다 코드가 먼저 머지되지 않게 하려는 의도다.
-
-### 세션 API 를 리프레시 쿠키 Path 아래로 옮겼다
-
-2026-10-10, Task CLE-T-ERAJ7P 의 결정이다.
-
-세션 API 가 `/api/users/me/sessions` 에 있을 때는 현재 세션에 걸린 약속 셋이 동작하지 않았다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저가 그 경로로 가는 요청에 쿠키를 붙이지 않았기 때문이다.
-
-- `isCurrent` 가 늘 false 였다.
-- 일괄 종료는 늘 400 `CURRENT_SESSION_REQUIRED` 로 끝났다.
-- 현재 세션 강제 종료를 막는 규칙(REQ-SESSION-023)이 걸리지 않았다.
-
-e2e 는 이 결함을 잡지 못했다. 테스트가 Cookie 헤더를 모든 요청에 손으로 붙였기 때문이다. 고치기 전에 브라우저처럼 Path 가 맞는 요청에만 쿠키를 붙이는 e2e 로 실패를 재현했다. 지금 `session-revocation.e2e-spec.ts` 는 `test/helpers/auth.ts` 의 `browserCookieFor` 로 그렇게 붙인다.
-
-그래서 세션 라우트 셋을 `/api/auth/sessions…` 로 옮겼다. 쿠키 Path 는 `/api/auth` 그대로다. 로그인 이력 조회는 쿠키가 필요 없어 `/api/users/me/login-history` 에 남겼다.
-
-기각한 대안은 세 가지다.
-
-- (a) 쿠키 Path 를 `/api` 로 넓히는 안. 모든 API 요청에 리프레시 쿠키가 붙는다. 「`SameSite=none` 의 CSRF 는 Origin 검증으로 막는다」 절이 쿠키 Path 를 좁혀 쿠키가 붙는 표면을 줄인 원칙과 어긋난다.
-- (b) 액세스 토큰에 로그인 세션(`family_id`) 클레임을 넣는 안. 토큰 구조가 바뀌고 액세스 토큰을 발급하는 경로마다 그 값을 채워야 한다. 쿠키로 이미 알 수 있는 사실을 위해 토큰 계약을 바꿀 까닭이 없다.
-- (c) 옛 경로를 별칭으로 남기는 안. 옛 경로에는 여전히 쿠키가 붙지 않는다. 그 경로로 오는 요청은 `isCurrent` 를 틀리게 보고하고 현재 세션 강제 종료를 막지 못한다. 경로마다 핸들러를 두면 요청 한도 버킷도 갈린다. 옛 경로를 부르던 곳은 이 저장소의 프런트엔드와 e2e 뿐이어서 별칭 없이 지웠다.
-
-URL 명명 규칙의 예외는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 명명 규칙 표에 따로 등재했다.
-
-### 리프레시 쿠키를 읽는 라우트가 늘었다
-
-2026-10-10, Task CLE-T-ERAJ7P 에서 바뀐 사실이다.
-
-「`SameSite=none` 의 CSRF 는 Origin 검증으로 막는다」 절은 리프레시 쿠키가 갱신 한 곳에서만 쓰인다고 적었다. 이 문장은 이제 사실과 다르다. 로그아웃은 원래 쿠키를 읽었고, 세션 라우트 셋도 쿠키를 읽는다. 그 절은 그대로 두고 바뀐 사실을 여기에 적는다.
-
-Origin 검증(REQ-SESSION-013)은 계속 갱신 요청에만 둔다.
-
-- 세션 API 는 Authorization 헤더의 Bearer 액세스 토큰이 있어야 동작한다. 액세스 토큰은 우리 프런트엔드의 JS 메모리에만 있어 다른 사이트의 페이지는 그 헤더를 붙일 수 없다.
-- 그래서 쿠키만으로는 아무 동작도 승인되지 않는다. 세션 API 에서 쿠키는 어느 로그인 세션이 현재인지 가리는 데만 쓴다.
-- 갱신은 다르다. 갱신은 쿠키 하나로 새 토큰을 발급하는 상태 변경이라 Origin 검증이 필요하다.
-- 로그아웃도 쿠키 하나로 동작한다. 라우트가 `@Public()` 이라 Bearer 액세스 토큰을 요구하지 않는다. 그래도 로그아웃은 Origin 검증을 두지 않는다. 새 토큰을 발급하지 않아 cross-site 요청으로 얻는 것이 강제 로그아웃뿐이라서다.
-
-비밀번호 변경과 이메일 변경은 `/api/users/me/*` 에 그대로 둔다. 두 흐름은 모든 세션을 끊고 현재 기기에 다시 발급하므로 현재 세션을 알 필요가 없다. 세션 정책 표와 「비밀번호 변경은 모든 세션을 끊고 현재 기기에 다시 발급한다」 절의 "쿠키가 붙지 않아 현재 세션을 식별할 수 없다" 는 이 두 요청에만 해당한다. 그 절이 기각한 (b) 현재 세션만 빼고 끊는 방식은 이제 경로를 옮기면 만들 수 있다. 그래도 바꾸지 않는다. 다시 발급하면 현재 세션의 옛 리프레시 토큰까지 바뀌어 더 강하게 무효화된다는 이유는 그대로다.
-
-### 클라이언트는 `/auth/sessions` 의 401 에서 갱신한다
-
-2026-10-10, Task CLE-T-ERAJ7P 의 결정이다.
-
-클라이언트는 URL 에 `/auth/` 가 든 요청의 401 에서 갱신과 재시도를 하지 않는다. 로그인이나 코드 확인의 401 은 자격 증명 실패라 갱신해도 결과가 같다. 갱신 요청 자신의 401 에서 다시 갱신해서도 안 된다.
-
-세션 API 를 `/auth/sessions` 로 옮기자 이 규칙에 걸렸다. 액세스 토큰(15분)이 만료된 뒤 세션 목록이나 강제 종료를 부르면 갱신 없이 401 로 끝났다. 그래서 `/auth/sessions` 와 그 하위 경로만 예외로 두었다(`skipsRefreshRetry`).
-
-제외 조건을 갱신이 필요 없는 라우트의 명시 목록으로 바꾸는 안도 있었다. 그 안은 `/auth/` 아래 다른 JWT 라우트의 동작까지 바꾼다. 이번 변경은 세션 API 로 범위를 좁혔고 나머지는 [미결 사항](#미결-사항) 에 남겼다.
-
-### 30일 비활동 만료를 지우고 동시 세션 제한을 미구현으로 적는다
-
-2026-10-10, Task CLE-T-ERAJ7P 의 결정이다.
-
-세션 정책 표는 동시 세션 기본 5개, 초과 시 가장 오래된 세션 종료, 30일 비활동 만료를 약속했다. 머리말에는 "구현 여부 미확인" 이라고 적었다. 코드(`auth.service.ts`, `sessions.service.ts`)를 확인한 결과 세 동작 모두 없다. "구현 여부 미확인" 은 표준 구현 상태 값이 아니어서 머리말을 부분 구현으로 고쳤다.
-
-30일 비활동 만료는 지운다. REQ-SESSION-034 도 함께 지우고 그 번호는 다시 쓰지 않는다.
-
-- 리프레시 토큰은 회전할 때마다 그 시점부터 수명을 다시 센다(`AuthService.generateTokens`). 그래서 어떤 리프레시 토큰도 마지막으로 쓴 뒤 30일 안에 만료된다. 로그인 유지 없이 발급했거나 회전한 토큰은 7일 안에 만료된다. 2026-11-05 부터는 회전한 토큰도 로그인 유지 여부를 이어받는다(「[토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)](#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05)」). 그래서 로그인 유지를 켠 로그인 세션은 회전한 뒤에도 30일이다. 어떤 토큰도 마지막으로 쓴 뒤 30일 안에 만료된다는 결론은 그대로다.
-- 30일 비활동 규칙이 토큰 만료보다 먼저 걸리는 경우가 없다. 구현해도 막는 것이 없다.
-
-동시 세션 제한은 지우지 않고 미구현으로 적는다.
-
-- [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 필수 요구 REQ-NFR-048(NF-SC-07)이라 약속을 거둘 수 없다.
-- 한도 값(지금 적힌 5개)과 설정 주체(운영자 환경 변수인지 워크스페이스 관리자인지)가 정해지지 않았다. 후속 Task CLE-T-VBQV4H 가 둘을 정하고 구현한다.
-
-기각한 대안은 두 가지다.
-
-- 두 항목을 "계획" 으로 표시하는 안. "계획" 은 구현 상태 어휘(구현됨·부분 구현·미구현)에 없다. 30일 비활동 만료처럼 효과가 없는 약속은 영구 계획 표기로 남는다.
-- 30일 비활동 만료를 미구현으로 남기는 안. 효과가 없는 요구가 미구현 목록에 남아 구현 대상처럼 보인다.
-
-### 계정 재인증 수단 없음의 조건을 TOTP 기준으로 적었다 (2026-10-17)
-
-NERV Task `CLE-T-D331TT` 에서 바로잡았다. 계정 재인증 요구사항과 세션 정책 표는 `REAUTH_NOT_AVAILABLE` 의 조건을 "비밀번호도 2단계 인증도 없는 계정" 으로 적었다. [가입과 로그인](CLE-ACCT-SIGNIN.md) 에서 2단계 인증은 TOTP 와 Passkey 를 함께 뜻한다. 구현(`SessionsService.verifyReauth`)은 `password_hash` 와 `two_factor_enabled` 만 본다. `two_factor_enabled` 는 TOTP 사용 여부만 뜻한다. 그래서 Passkey 만 등록하고 비밀번호와 TOTP 가 없는 계정도 403 `REAUTH_NOT_AVAILABLE` 이다. 문서를 이 조건으로 고쳤다. Passkey 로 하는 계정 재인증은 지원하지 않으므로 이 동작이 그 결정과 맞다. 동작은 바뀌지 않았다.
-
-### 로그인 뒤 이동은 같은 출처 경로만 받는다 (2026-10-18)
-
-2026-10-18, NERV Task `CLE-T-7WZKFB` 의 결정이다.
-
-`redirect` 는 누구나 만들 수 있는 링크의 쿼리다. 로그인 화면이 받은 값으로 아무 URL 이나 열면 오픈 리다이렉트가 된다. 공격자가 우리 로그인 화면을 거쳐 피싱 사이트로 보내는 링크를 만들 수 있다. 그래서 같은 출처의 경로만 받고 나머지는 `/dashboard` 로 보낸다.
-
-판정은 링크 생성(`buildWorkspaceHref`)이 쓰는 정규화 함수 `toSafeInternalPath` 하나에 기댄다. 브라우저 URL 파서에서는 앞머리의 `/` 와 `\` 가 같은 뜻이고 탭 · 개행은 지워진다. 그래서 `/\host` 나 `/<탭>/host` 같은 값이 다른 호스트로 읽힌다. 정규화는 앞머리를 `/` 하나로 접고 탭 · 개행을 지운다. `isSafeInternalPath` 는 정규화한 결과가 원래 값과 같을 때만 통과시킨다. 링크 생성과 이동 검사가 같은 함수를 쓰므로 두 곳의 방어 강도가 어긋나지 않는다.
-
-채택하지 않은 선택지는 두 가지다.
-
-- 임의 URL 을 허용한다: 오픈 리다이렉트가 된다.
-- 호스트 허용 목록을 둔다: 로그인 뒤 다른 출처로 보낼 화면이 없다. 목록을 관리하는 부담만 는다.
-
-`redirect` 가 여러 번 온 요청은 어느 값이 의도한 복귀 경로인지 알 수 없다. 그래서 `redirect` 가 없는 것으로 보고 `/dashboard` 로 보낸다. 첫 값을 쓰는 방식, 마지막 값을 쓰는 방식, 요청을 거부하는 방식은 채택하지 않은 선택지다.
-
-전체 화면 오류(`ErrorPage`)의 세션 만료 변형(`components/ui/error-page.tsx`, `app/(main)/error.tsx`)도 같은 판정을 쓴다. 이 화면은 처음에 경로만 담고 쿼리는 담지 않았다. 그래서 쿼리가 필요한 화면(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아왔다. 2026-11-13 에 NERV Task `CLE-T-2NQ857` 이 이 화면도 경로와 쿼리를 담게 했다([오류 화면과 빈 상태 「감지 규칙」](../CLE-UI/CLE-UI-ERRORS.md#감지-규칙)). 같은 Task 에서 서버 proxy 도 `buildLoginHref` 로 주소를 만들게 했다. 그래서 로그인 화면으로 보내는 네 곳이 한 헬퍼로 같은 인코딩을 쓴다.
-
-### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)
-
-2026-10-18, NERV Task `CLE-T-7WZKFB` 의 결정이다.
-
-소셜 로그인은 백엔드 시작 요청, OAuth 제공자, 백엔드 콜백을 거쳐 프론트엔드 `/callback` 으로 돌아온다. 이번 범위는 백엔드 인증 API 를 바꾸지 않는다. 그래서 로그인 화면이 복귀 경로를 같은 탭의 sessionStorage 에 두고 `/callback` 이 꺼낸다.
-
-시작 요청 값을 로그인 OAuth state(`auth_oauth_state`) 행에 실어 콜백까지 나르는 방식도 가능하다. `mode` 와 `rememberMe`(「[로그인 유지](#로그인-유지)」)가 이미 이 방식으로 콜백까지 간다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md#oauth-state-를-한-번의-delete-로-소비한다)). 이 방식은 state 행에 칸을 더하는 마이그레이션과 백엔드 인증 API 변경이 필요해 이번 범위 밖이다. 다른 탭에서 돌아오거나 팝업 로그인이 필요해지면 이 방식으로 옮긴다.
-
-지금 방식에는 비용이 있다. 소셜 로그인의 시작 값이 두 채널로 나뉜다. `mode` 와 `rememberMe` 는 state 행으로 가고 복귀 경로는 sessionStorage 로 간다. 시작 값을 더할 때마다 어느 채널에 둘지 정해야 한다. 두 채널은 수명도 다르다. state 행은 10분 뒤 만료되고 sessionStorage 값은 콜백이 꺼내거나 탭이 닫힐 때까지 남는다.
-
-백엔드 콜백이 쿼리로 되돌려 주는 방식은 채택하지 않은 선택지다. 백엔드가 시작 요청의 값을 받아 콜백 URL 에 붙여야 해서 같은 이유로 이번 범위 밖이다.
-
-고른 방식에는 한계가 있고 다음처럼 대응한다.
-
-- 같은 탭에서만 이어진다. 다른 탭에서 소셜 로그인을 마치면 `/dashboard` 로 간다.
-- 중간에 그만둔 소셜 로그인 시도의 값이 남을 수 있다. 남은 값이 다음 로그인의 목적지가 되지 않도록 `/callback` 은 성공 · 실패 모두에서 값을 한 번 꺼내 지운다. 가입 화면에서 시작하는 소셜 로그인도 남은 값을 지운다.
-- sessionStorage 는 같은 출처의 스크립트가 고칠 수 있다. 그래서 저장할 때 검사한 값도 꺼낼 때 다시 검사한다.
-
-콜백은 이동하기 전에 `GET /api/users/me` 를 읽어 비밀번호 로그인과 같게 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 쿠키 없이 보호 경로로 이동하면 proxy 가 JS 를 내려보내기 전에 다시 `/login` 으로 보낸다. 소셜 로그인을 마친 사용자가 복귀 경로 대신 로그인 화면을 보지 않게 하려는 것이다.
-
-### 로그아웃 요청이 실패해도 클라이언트를 정리하고 이동한다 (2026-10-18)
-
-2026-10-18, NERV Task `CLE-T-7WZKFB` 에서 기존 동작을 공통 규칙으로 적었다.
-
-사이드바의 로그아웃과 초대 수락 페이지의 «다른 계정으로 로그인» 은 로그아웃 요청이 실패해도 클라이언트의 액세스 토큰, 로그인 힌트 쿠키, 인증 상태를 지우고 이동한다. 사용자가 나가려는 의도를 막지 않으려는 것이다.
-
-비용이 있다. 요청이 서버에서 처리되지 않았으면 서버의 로그인 세션(리프레시 토큰 `family_id`)과 브라우저의 리프레시 쿠키가 만료될 때까지 남을 수 있다.
-
-완화 수단은 둘이다.
-
-- 로그인 힌트 쿠키가 지워진다. 그래서 보호 경로로 가면 proxy 가 로그인 화면으로 보낸다.
-- 남은 로그인 세션은 활성 세션 목록(`/profile/sessions`, [세션 화면](#세션-화면))에서 끊을 수 있다. 이 화면은 [내 프로필](CLE-ACCT-PROFILE.md) 의 보안 카드에서 들어간다.
-
-로그아웃 요청이 실패하면 이동하지 않고 에러를 보여 주는 방식은 채택하지 않은 선택지다.
-
-### 로그인 힌트 쿠키 규약을 한 모듈에 둔다 (2026-10-18)
-
-NERV Task `CLE-T-7WZKFB` 코드 리뷰 지적(finding `01a14e00-503b-7600-b273-1b57a6442019`)으로 정리했다. 쿠키 문자열은 `auth-store.ts` 에, 쿠키 이름은 proxy 와 가입 화면에 따로 적혀 있어 한 곳만 바꾸면 나머지가 어긋날 수 있었다. 그래서 쿠키 이름 · 속성과 심기 · 지우기 · 읽기를 `lib/auth/session-hint.ts` 한 곳에 모았다. 쿠키 이름 · 속성 · 심는 시점은 바뀌지 않았다.
-
-proxy(Next 서버 미들웨어)도 이 모듈을 import 한다. 그래서 이 모듈은 브라우저 전용 모듈을 import 하지 않는다. `document` 는 브라우저인지 확인한 뒤에만 쓴다.
-
-사용처마다 쿠키 문자열을 그대로 두는 방식은 택하지 않았다. 쿠키 이름이나 속성을 바꿀 때 세 곳을 함께 고쳐야 했다. 한 곳을 빠뜨려도 이를 잡는 테스트가 없었다.
-
-### 로그인 힌트 쿠키 요구를 부분 구현으로 표시했다 (2026-10-22)
-
-NERV Task `CLE-T-7WZKFB` 의 구현 완료 뒤 일관성 검토 지적(finding `01a16149-ffac-7340-9544-be525b61781a` · `01a1614a-524b-7063-96ec-aed408cf1382`)으로 고쳤다. 초대 토큰 가입과 이메일 인증의 자동 로그인이 로그인 힌트 쿠키를 심지 않는다는 어긋남은 미결 사항과 「로그인 힌트 쿠키」 절에만 있었다. 그래서 REQ-SESSION-037 과 머리 줄은 완전 구현으로 읽혔다. REQ-SESSION-037 에 부분 구현 표시를 달고 머리 줄 구현 상태에 더했다. 동작 규칙은 바뀌지 않았다. NERV Task `CLE-T-1X7DMR` 이 두 곳에 쿠키를 심으면 세 문서의 표시를 함께 지운다. 지울 곳은 이 문서의 REQ-SESSION-037 · 머리 줄 · 미결 사항 항목, [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 이메일 인증 자동 로그인 요구사항 줄 · 머리 줄 · 「가입 처리」 문장, [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 「초대 가입 화면」 9단계 · 「미가입자 가입 경로」 4단계 문장이다.
-
-미결 사항과 본문 절에만 적어 두는 방식은 택하지 않았다. 요구사항을 인용하는 다른 문서와 spec-coverage 감사는 요구사항 줄과 머리 줄을 기준으로 읽는다. 그래서 미결 사항에만 있는 갭은 놓친다.
-
-NERV Task `CLE-T-1X7DMR` 에서 `establishSession` 으로 진입점을 모으고 표시를 지웠다.
-
-### 세션 강제 종료의 계정 재인증은 비밀번호를 먼저 받고 서버 응답으로 입력을 바꾼다 (2026-11-02)
-
-NERV Task `CLE-T-KTZ9YV` 에서 정했다. 계정 재인증은 비밀번호가 있는 계정이면 TOTP 를 켰어도 비밀번호로 통과한다(REQ-SESSION-025). 인증 앱을 잃은 사용자도 비밀번호로 다른 세션을 끊을 수 있어야 한다. 그래서 세션 종료 확인 창은 처음에 늘 비밀번호를 받는다([세션 화면](#세션-화면), REQ-SESSION-046).
-
-- 화면에서는 그 계정에 비밀번호가 있는지 알 수 없다. `GET /api/users/me` 가 비밀번호 유무를 싣지 않기 때문이다. 그래서 서버 응답을 보고 입력을 바꾼다. 400 `REAUTH_REQUIRED` 는 자격 증명이 모자랄 때 나고 비밀번호만 보낸 요청에서는 그 계정에 비밀번호가 없다는 신호다. 그 계정의 TOTP 가 켜져 있으면 TOTP 코드 입력란으로 바꾼다.
-- 비용: 비밀번호 없이 TOTP 만 켠 계정은 첫 시도에서 실패 안내를 한 번 본 뒤 TOTP 코드를 넣는다. 2026-11-01 부터 TOTP 를 켜려면 비밀번호가 있어야 하므로 그 전에 TOTP 를 켠 OAuth 전용 계정만 이 경우다([가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기)).
-- 비밀번호와 TOTP 가 모두 있는 계정은 이 창에서 비밀번호로 확인한다. 이 계정은 비밀번호를 보내도 400 이 나지 않아 TOTP 코드 입력란이 나오지 않는다. 비밀번호를 잊었으면 비밀번호 재설정을 쓴다.
-- 세션 강제 종료 창은 원래 입력란 하나를 보여 주던 형태이고 이번에는 어떤 입력을 먼저 받을지만 고쳤다.
-- **기각: 내 프로필 응답에 비밀번호 유무(`hasPassword`)를 싣는다.** 처음부터 맞는 입력을 보여 줄 수 있다. 하지만 이득을 보는 계정이 위의 옛 OAuth 전용 TOTP 계정뿐이라 필드 추가에 견줘 이득이 작다. 그 계정이 치르는 비용은 실패 안내 한 번이다. 같은 날 [내 프로필 「`GET /api/users/me` 에 TOTP 켜짐 여부를 싣는다」](CLE-ACCT-PROFILE.md#get-apiusersme-에-totp-켜짐-여부를-싣는다) 는 `twoFactorEnabled` 를 더했다. 그 값이 없을 때는 TOTP 를 켠 계정 모두 화면에서 TOTP 를 끌 수 없었다.
-- **기각: TOTP 가 켜진 계정은 처음부터 TOTP 코드를 받는다.** 비밀번호가 있는데 인증 앱을 잃은 사용자가 세션을 끊지 못한다.
-
-### 토큰을 받은 경로를 한 진입점으로 모았다 (2026-11-05)
-
-NERV Task `CLE-T-1X7DMR` 에서 정리했다. 초대 토큰 가입과 이메일 인증의 자동 로그인은 액세스 토큰만 두고 로그인 힌트 쿠키를 심지 않았다. 그래서 보호 경로로 가면 proxy 가 로그인 화면으로 보냈다. 토큰을 받는 경로가 함께 쓰는 진입점 `establishSession`(`codebase/frontend/src/lib/auth/establish-session.ts`)을 두어 이 어긋남을 없앴다.
-
-- 다섯 경로가 이 함수를 쓴다. 비밀번호 · 2단계 인증 · 복구 코드 로그인, 소셜 로그인 콜백, 초대 토큰 가입, 이메일 인증, 로그인 상태 복원이다([로그인 힌트 쿠키](#로그인-힌트-쿠키)).
-- 이 함수는 액세스 토큰과 힌트 쿠키를 먼저 두고 `GET /api/users/me` 를 읽는다. 조회 시간 상한은 부르는 쪽이 `timeoutMs` 로 정하고 기본은 10초다.
-- **로그인 상태 복원은 조회 시간 상한을 두지 않는다.** AuthProvider 는 `NO_SESSION_TIMEOUT`(0)을 넘긴다. 복원은 조회가 실패하면 로그아웃하므로 느린 회선에서 상한을 넘긴 조회가 유효한 세션을 끊지 않게 한다. 다른 경로는 조회가 실패해도 토큰과 힌트 쿠키를 남기므로 기본 상한을 쓴다.
-- 조회가 실패하면 토큰과 힌트 쿠키를 둔 채 로그인 상태만 표시하지 않고 이동한다. 리프레시 쿠키는 서버가 이미 심었으므로 목적지의 AuthProvider 가 로그인 상태를 다시 복원할 수 있다. 복원도 실패하면 로그아웃해 힌트 쿠키를 지운다.
-- **기각: 조회가 성공한 뒤에만 힌트 쿠키를 심는다.** 조회가 잠깐 실패하면 리프레시 쿠키가 살아 있는데도 proxy 가 로그인 화면으로 보낸다.
-- **기각: 조회가 실패하면 토큰과 힌트 쿠키를 지우고 에러를 보인다.** 서버 쪽 리프레시 세션은 남으므로 화면과 서버 상태가 어긋난다.
-- **진입점은 워크스페이스를 다시 맞추지 않는다.** slug 없는 경로의 리다이렉트가 마지막 워크스페이스 slug 를 붙이고 `/w/<slug>` 경로의 레이아웃이 URL 에 맞춰 토큰을 바꾼다. slug 없는 경로의 로그인 상태 복원은 전처럼 AuthProvider 가 따로 맞춘다.
-
-### 토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)
-
-NERV Task `CLE-T-BYCGF1` 에서 정했다. 로그인 유지를 켜고 로그인하면 첫 리프레시 토큰과 쿠키만 30일이었다. 갱신(`AuthService.refresh`)으로 회전한 토큰과 쿠키는 로그인 유지 여부와 상관없이 7일이었다. `refresh_token` 행에 로그인 유지 여부를 담는 칸이 없어 회전할 때 이어받을 수 없었다. 액세스 토큰이 15분이라 첫 갱신은 곧 일어난다. 그래서 로그인 화면의 로그인 유지 체크박스는 사실상 효과가 없었다.
-
-- 로그인 유지 여부를 `refresh_token.remember_me` 칸에 저장하고 회전한 새 토큰이 이 값을 이어받게 했다([로그인 유지](#로그인-유지), REQ-SESSION-047).
-- 7일 세션은 이미 회전할 때마다 그 시점부터 수명을 다시 센다. 30일 세션도 같은 규칙을 쓴다. 두 세션이 같은 규칙을 쓰므로 만료는 늘 마지막 갱신 시각에서 센다.
-- 액세스 토큰 수명, 리프레시 쿠키 Path, 재사용 감지(로그인 세션 전체 무효화), 동시 세션 제한(NERV Task `CLE-T-VBQV4H`)은 바꾸지 않았다.
-- **기각: 지금 동작을 규칙으로 받아들이고 로그인 유지 요구(REQ-SESSION-003)를 고친다.** 로그인 화면의 "로그인 유지" 약속이 로그인한 뒤 첫 15분만 뜻하게 된다.
-- **기각: 첫 로그인 시각부터 30일 뒤에 끝나는 고정 만료를 둔다.** 로그인 시각을 따로 저장해야 한다. 쓰고 있는 세션도 30일째에 끊긴다. 7일 세션의 회전 규칙과도 갈린다. 위 「[30일 비활동 만료를 지우고 동시 세션 제한을 미구현으로 적는다](#30일-비활동-만료를-지우고-동시-세션-제한을-미구현으로-적는다)」 는 회전할 때마다 수명을 다시 센다는 전제로 비활동 만료를 지웠다. 고정 만료는 그 전제를 바꾼다.
-- **기각: 로그인 유지 여부를 클라이언트 쿠키나 액세스 토큰에 싣는다.** 클라이언트 쿠키는 클라이언트가 바꿀 수 있다. 그러면 클라이언트가 고른 값으로 서버 토큰 수명이 늘어난다. 갱신 요청은 리프레시 쿠키만으로 동작하고 그때 액세스 토큰은 이미 만료됐을 수 있다. 수명을 정하는 값은 서버의 토큰 행이 정본이어야 한다.
-- **배포 시점의 백필**: 마이그레이션 `V156__refresh_token_remember_me.sql` 이 칸을 NOT NULL, 기본 false 로 더한다. 이어서 배포 시점에 살아 있는 행 가운데 30일로 발급된 행을 `remember_me = true` 로 채운다. 조건은 `is_revoked = false AND expires_at > now() AND expires_at - created_at > interval '8 days'` 다. 이 조건에는 로그인 유지를 켜고 로그인한 뒤 아직 회전하지 않은 행만 든다.
-- **백필의 한계**: 이미 한 번 회전한 행은 7일로 발급됐다. 그래서 그 행만 보고는 로그인 유지 여부를 알 수 없고 false 로 남는다. 그 사용자는 다음 로그인부터 30일을 받는다.
-- **비밀번호 변경 · 이메일 변경의 재발급은 잇지 않는다**: 두 재발급은 로그인 유지 여부를 이어받지 않고 7일이다([로그인 유지](#로그인-유지)). 쿠키 Path 를 넓혀 두 요청이 현재 로그인 세션을 알게 하는 방법은 리프레시 쿠키가 붙는 인증 표면을 넓힌다. 그래서 이 작업에서 택하지 않았다. 잇는 방법은 NERV Task `CLE-T-XF3WMA` 가 정한다.
-
-### `INTERACTION_JWT_SECRET` 을 운영 환경 가드에 더했다 (2026-11-06)
-
-NERV Task `CLE-T-0VV3VR` 의 변경이다. [운영 환경 가드](#운영-환경-가드) 표에 행을 더하고 「가드에 넣는 것과 넣지 않는 것」 의 예시를 고쳤다. 요구사항 줄은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 REQ-EIA-018 을 고쳤다. 서명 비밀의 쓰임과 대체 순서를 정하는 문서가 그쪽이라 이 문서에 새 요구 번호를 받지 않았다.
-
-- **무엇이 빠져 있었나**: 예전 운영 가드는 `INTERACTION_JWT_SECRET` 과 `JWT_SECRET` 이 모두 없을 때만 부팅을 막았다(생성자 예외). `INTERACTION_JWT_SECRET` 을 설정했으면 값이 `.env.example` 의 예시 값이든 공백뿐이든 짧든 그 값으로 실행 단위 토큰(`iext_*`)에 서명했다. 이 토큰을 위조하면 남의 실행에 입력을 보내거나 실행을 취소할 수 있다. `JWT_SECRET` 과 위험의 성격이 같은데 규칙은 훨씬 느슨했다.
-- **결정을 바꾼 이유**: [운영 환경 가드를 한 함수에 모은다](#운영-환경-가드를-한-함수에-모은다) 는 이 항목을 DI 컨텍스트가 필요하다며 일부러 뺐다. 그 전제가 맞지 않았다. 서명 비밀은 환경 변수 둘로 정해진다. `INTERACTION_JWT_SECRET` 이 있으면 그 값이고, 없으면 `JWT_SECRET` 인데 그 값은 이 함수가 이미 검사한다. 그래서 「환경 변수만으로 부팅 직전에 판정할 수 있다」 는 이 함수의 기준을 만족한다. 같은 함수에 두면 `JWT_SECRET` 과 같은 규칙(앞뒤 공백을 뗀 값, 예시 값 목록, 32자 하한)을 함께 쓰고, 표와 코드를 대조하는 단위 테스트가 이 항목도 지킨다.
-- **변수가 없으면 검사하지 않는다**: 없으면 `JWT_SECRET` 으로 서명하므로 `JWT_SECRET` 행이 그 경우를 막는다. 같은 값을 두 번 검사하지 않는다.
-- **빈 문자열은 막는다**: 서명 비밀을 고르는 코드는 `??` 로 대체하므로 빈 문자열을 `JWT_SECRET` 으로 대신하지 않는다. 그래서 빈 값은 예전에도 생성자 예외로 운영 부팅이 막혔다. 이 가드도 같은 값을 막아 동작이 바뀌지 않는다.
-- **생성자 예외는 남긴다**: `main.ts` 를 거치지 않고 모듈을 띄우는 경로(테스트 · 스크립트)에서 서명 비밀 없이 운영 모드로 뜨지 않게 하는 마지막 방어다.
-- **배포 영향**: 운영에서 쓰던 `INTERACTION_JWT_SECRET` 이 이 가드에 걸리면 서버가 기동하지 않는다. 서명 비밀을 새로 만들어야 하고, 바꾸면 이미 발급한 `iext_*` 는 모두 검증에 실패한다.
-
-기각한 대안:
-
-- **생성자에 같은 검사를 더한다**: 규칙이 `assertProductionConfig` 와 생성자 두 곳으로 갈린다. 표와 코드를 대조하는 단위 테스트도 이 항목을 보지 못한다.
-- **빈 값을 `JWT_SECRET` 으로 대신 쓰게 바꾼다(`??` 를 `||` 로)**: 서명 비밀의 대체 순서를 바꾸는 일이라 이번 범위 밖이다. 이 Task 는 서명 방식과 대체 순서를 바꾸지 않는다.
+요구사항을 인용하는 다른 문서와 spec-coverage 감사는 요구사항 줄과 머리 줄을 기준으로 읽는다. 그래서 일부만 구현된 요구는 미결 사항이나 본문 절에만 적지 않고 요구사항 줄과 머리 줄 구현 상태에도 표시한다. 로그인 힌트 쿠키 요구에 이 표시를 달았다가 토큰을 받는 경로를 `establishSession` 으로 모은 뒤 지웠다([세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#토큰을-받은-경로를-한-진입점으로-모았다-2026-11-05)).
 
 ### 로그아웃 요구사항을 둘로 나누고 제목 날짜를 맞췄다 (2026-11-13)
 
-NERV Task `CLE-T-N2FM8W` 에서 표기만 고쳤다. 동작은 바뀌지 않았다.
+표기만 고쳤고 동작은 바뀌지 않았다.
 
-- 요구사항 REQ-SESSION-032 한 줄에 로그아웃과 복귀 경로를 지정한 로그아웃 두 동작이 있었다. 뒤의 동작을 REQ-SESSION-048 로 옮겼다. 담는 경로도 «그 화면의 경로와 쿼리» 에서 구현대로 슬러그 없는 `/invitations/accept?token=…` 으로 고쳤다. 앞의 표기는 수락 페이지의 슬러그 경로를 그대로 담는 것처럼 읽혔다.
+- 요구사항 REQ-SESSION-032 한 줄에 있던 복귀 경로를 지정한 로그아웃을 REQ-SESSION-048 로 옮겼다. 담는 경로도 구현대로 슬러그 없는 `/invitations/accept?token=…` 으로 고쳤다. 앞의 표기는 수락 페이지의 슬러그 경로를 그대로 담는 것처럼 읽혔다.
 - 요구사항 REQ-SESSION-037 의 주어를 «프론트엔드 JS» 에서 시스템으로 바꿨다. 쿠키를 심는 곳은 「[로그인 힌트 쿠키](#로그인-힌트-쿠키)」 가 적는다.
-- 2026-10-18 에 쓴 Rationale 제목 세 개에 날짜를 붙였다. 같은 문서의 다른 제목과 표기를 맞추려는 것이다. 제목이 바뀌어 앵커도 바뀌었고 이 문서와 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 링크를 함께 고쳤다.
+- 2026-10-18 에 쓴 Rationale 제목 세 개에 날짜를 붙여 다른 제목과 표기를 맞췄다.
+
+다른 문서가 링크하던 Rationale 절은 아래 이름 그대로 남기고 하위 문서로 잇는다.
+
+### 세션 API 를 리프레시 쿠키 Path 아래로 옮겼다
+
+→ [세션과 토큰 — 세션 정책과 세션 관리](CLE-ACCT-SESSION-POLICY.md#세션-api-를-리프레시-쿠키-path-아래로-옮겼다)
+
+### 토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)
+
+→ [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05)
+
+### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)
+
+→ [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다-2026-10-18)
+
+### 운영 환경 가드를 한 함수에 모은다
+
+→ [세션과 토큰 — 운영 환경 가드](CLE-ACCT-SESSION-GUARD.md#운영-환경-가드를-한-함수에-모은다)

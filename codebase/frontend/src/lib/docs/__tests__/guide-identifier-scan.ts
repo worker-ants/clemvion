@@ -2,7 +2,8 @@
 // 테스트는 `guide-identifier-existence.test.ts`.
 //
 // SoT: NERV `CLE-API-ERRCODES` (코드 명명·안정성·은퇴 이력 ·
-//      「6. 카탈로그」. 가드는 미러 spec/CLE-API/CLE-API-ERRCODES.md 를 읽는다)
+//      「6. 카탈로그」. 가드는 미러 spec/CLE-API/CLE-API-ERRCODES.md 와 카탈로그 표를 맡은
+//      하위 문서 미러 spec/CLE-API/CLE-API-ERRCODES-*.md 를 읽는다)
 // 가드 «가족» 규약은 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
 // 「빌드 가드」 표에 없다**(「빌드 가드 (3건)」 절의 표 아래 문단과 「미결 사항」 에만 나온다). `#1330` 이
 // 가족을 만든 시점부터 그랬고 소유 문서는 아직 미정이다(GUIDEEVIDENCE · ERRCODES 「미결 사항」,

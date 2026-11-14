@@ -161,7 +161,7 @@ export interface NodeOutputContext extends WaitingContextBase {
  * 은 sound 판별자가 아니다(`buttons` 가 buttonConfig 복원에 실패하면 `NodeOutputContext` 로
  * fallthrough 한다). backend `ExecutionStatusDto.context`(`ButtonsContextDto | NodeOutputContextDto`)
  * 미러. [EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회) ·
- * [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union).
+ * [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER-DTO#1-4-nested-enum-union).
  */
 export type WaitingContext = ButtonsContext | NodeOutputContext;
 

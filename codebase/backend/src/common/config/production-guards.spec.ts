@@ -249,7 +249,7 @@ describe('assertProductionConfig', () => {
         expect(message).not.toContain(bad);
       }
     });
-    // CLE-ACCT-SESSION 「암호화 키 검사」: 통합 키 목록은 마스터키 목록을 모두 담지만 반대는 아니다. 통합 키에만 있는
+    // CLE-ACCT-SESSION-GUARD 「암호화 키 검사」: 통합 키 목록은 마스터키 목록을 모두 담지만 반대는 아니다. 통합 키에만 있는
     // 예시 값을 마스터키 자리에 넣으면 막지 않는다. 지금의 비대칭을 고정한다 — 바꾸면 스펙도 함께 고친다.
     it('passes for an example value listed only for INTEGRATION_ENCRYPTION_KEY (documented asymmetry)', () => {
       const integrationOnly = [...INSECURE_INTEGRATION_ENCRYPTION_KEYS].filter(
@@ -495,7 +495,7 @@ describe('assertProductionConfig', () => {
 });
 
 // 가드가 막는 값 ⊇ 기능이 켜지는 값. 각 기능이 실제로 쓰는 판정(설정 모듈 · 헬퍼)을 불러 대조한다.
-// 켜지는 값이 스펙 CLE-ACCT-SESSION 「운영 환경 가드」 에 적혀 있어 `onValues` 로 고정한다 — 판정을 바꾸면 스펙도 고친다.
+// 켜지는 값이 스펙 CLE-ACCT-SESSION-GUARD 「운영 환경 가드」 에 적혀 있어 `onValues` 로 고정한다 — 판정을 바꾸면 스펙도 고친다.
 describe('flag guard covers every value that turns the feature on', () => {
   const CANDIDATES = [
     'true',
@@ -556,10 +556,13 @@ describe('flag guard covers every value that turns the feature on', () => {
   });
 });
 
-// 정본 가드 목록(CLE-ACCT-SESSION 「운영 환경 가드」 표)과 코드를 잇는다. 함수가 읽는 환경 변수를 기록해 표의 첫 열과
+// 정본 가드 목록(CLE-ACCT-SESSION-GUARD 「운영 환경 가드」 표)과 코드를 잇는다. 함수가 읽는 환경 변수를 기록해 표의 첫 열과
 // 견준다. 검사를 더하거나 빼면 표에 행을 더한 스펙이 승인되고 미러를 받을 때까지 이 테스트가 실패한다(의도).
-describe('production guard list matches CLE-ACCT-SESSION 「운영 환경 가드」', () => {
-  const SPEC_MIRROR = path.join(REPO_ROOT, 'spec/CLE-ACCT/CLE-ACCT-SESSION.md');
+describe('production guard list matches CLE-ACCT-SESSION-GUARD 「운영 환경 가드」', () => {
+  const SPEC_MIRROR = path.join(
+    REPO_ROOT,
+    'spec/CLE-ACCT/CLE-ACCT-SESSION-GUARD.md',
+  );
 
   function settingsInSpecTable(markdown: string): string[] {
     const start = markdown.indexOf('\n## 운영 환경 가드\n');

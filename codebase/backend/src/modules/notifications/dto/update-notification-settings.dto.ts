@@ -2,9 +2,9 @@ import { IsOptional, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 // 근거:
-//   - [알림 「이메일 수신 토글」](CLE-OBS-NOTIFY#이메일-수신-토글) 채널별 이메일 on/off
-//   - [알림 「알림 API」](CLE-OBS-NOTIFY#알림-api)
-//   - [통합 상태와 만료 알림 「채널과 이메일」](CLE-INT-STATUS#채널과-이메일) integrationExpiryEmail opt-in
+//   - [알림 「이메일 수신 토글」](CLE-OBS-NOTIFY-SETTINGS#이메일-수신-토글) 채널별 이메일 on/off
+//   - [알림 「알림 API」](CLE-OBS-NOTIFY-INBOX#알림-api)
+//   - [통합 상태와 만료 알림 「채널과 이메일」](CLE-INT-STATUS-SCAN#채널과-이메일) integrationExpiryEmail opt-in
 /**
  * `PATCH /api/notifications/settings` 본문 — 부분 수정(제공된 키만 머지).
  *

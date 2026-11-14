@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-// 근거: [웹채팅 보안 「임베드 검증」](CLE-WEBCHAT-SECURITY#임베드-검증)
+// 근거: [웹채팅 보안 「임베드 검증」](CLE-WEBCHAT-SECURITY-ORIGIN#임베드-검증)
 /**
  * 공개 위젯 임베드 soft 검증용 설정 — 위젯이 부팅 시 GET 으로 조회(캐시 가능).
  */

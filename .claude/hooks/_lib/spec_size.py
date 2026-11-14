@@ -9,7 +9,9 @@ LIMIT = 20000
 TARGET = 18000
 # 카탈로그 사본(`CLE-C24-CATALOG` · `CLE-MKS-CATALOG` 와 하위 문서)은 생성기가 크기를 정한다.
 EXEMPT_PREFIXES = ("CLE-C24-", "CLE-MKS-")
-# 같은 접두를 쓰지만 NERV 가 정본인 규약 문서다(SKILL 「트리 규칙」). 한도를 적용한다(초안 훅만. 미러에 오지 않아 CI 래칫은 보지 않는다).
+# 같은 접두를 쓰지만 NERV 가 정본인 규약 문서다(SKILL 「트리 규칙」). 한도를 적용한다.
+# 이 문서들은 미러에 오지 않는다(`pull.py` 의 `is_excluded`). 그래서 초안 훅만 막고 CI 미러 래칫
+# (`size_check.py`)은 보지 못한다. 훅 · 미러 검사의 docstring 은 이 설명을 가리키기만 한다.
 NOT_EXEMPT_KEYS = ("CLE-C24-META", "CLE-C24-SCOPES", "CLE-MKS-META")
 
 

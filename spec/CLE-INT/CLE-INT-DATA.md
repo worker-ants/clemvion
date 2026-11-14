@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA"
 title: "통합 데이터와 흐름"
 type: "design"
-version: 20
+version: 21
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "830b5cbe2b9a584ab888cc11fbc1ceac4805a372838c07c550000e905e1d4c9e"
+content_hash: "a2d536328fa79bd1c1e07673448536be2d100cdf37ad303532372cef930f4125"
 read_as: "approved_fallback"
-task: "CLE-T-VQX844"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "b19478f5a6c7df83383e3abf506698c75ed1628822613db506ccde692d70ead6"
-etag: "sha256-22ecb8d912ccfb91053e1a229f18f48b32534b14c192c15b06e14c68c83d9400"
+mirror_sha256: "bf2a2328d992147e9da83e0c7bbbfbdb21b17f960872c8a349b7384c6ff72138"
+etag: "sha256-a62ededc6eabe1826d86e37d31fc1219359dc7b1de0fe563f2577d0c1747c697"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-22ecb8d912ccfb91053e1a229f18f48b32534b14c192c15b06e14c68c83d9400"
 
 이 문서는 통합(Integration, `integration`) 도메인이 저장하는 엔티티와 그 데이터가 어디서 들어와 어디로 가는지를 정한다. 통합은 외부 SaaS(Google·GitHub·Cafe24·MakeShop 등)와 통신하는 데 필요한 자격 증명(credentials)과 연결 상태를 워크스페이스에 저장한다. 노드 실행 시점에 통합의 자격 증명을 꺼내 외부 API 를 부른다. 통합을 얻은 뒤의 호출 결과는 활동 로그(activity log, `IntegrationUsageLog`)에 한 행씩 남긴다. OAuth 토큰은 만료 스캐너가 주기적으로 점검한다. 갱신할 수 있는 통합은 전용 갱신 큐로 토큰을 새로 받고, 그렇지 않은 통합은 만료됨으로 바꾼다.
 
-다루는 엔티티는 통합, 활동 로그, 통합 연결 과정의 임시 테이블 세 개(통합 OAuth state, 미리보기 토큰, 만료 알림 발사 기록), 그리고 시크릿 저장소(`secret_store`) 테이블이다.
+다루는 엔티티는 통합, 활동 로그, 통합 연결 과정의 임시 테이블 세 개(통합 OAuth state, 미리보기 토큰, 만료 알림 발사 기록), 그리고 시크릿 저장소(`secret_store`) 테이블이다. 이 문서는 엔티티 관계도와 암호화 규칙을 정하고 나머지는 하위 문서가 정한다.
 
 범위 밖:
 
@@ -31,6 +31,27 @@ etag: "sha256-22ecb8d912ccfb91053e1a229f18f48b32534b14c192c15b06e14c68c83d9400"
 - 통합 화면과 관리 API 는 [통합 관리](CLE-INT-MANAGE.md), 서비스별 자격 증명 필드는 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md) 이 정한다.
 - 시크릿 참조 형식과 `SecretResolver` 호출 규약은 [시크릿 저장소](CLE-INT-SECRET.md) 가 정한다.
 - 엔티티 관계 전체 지도는 [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md), 큐 카탈로그 전체는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 정한다.
+
+## 하위 문서
+
+| 문서 | 맡는 내용 | 관련 요구사항(다른 문서 소유) |
+| --- | --- | --- |
+| [통합 데이터와 흐름 — 엔티티와 인덱스](CLE-INT-DATA-ENTITY.md) | 테이블별 필드 · 제약, 호출 API 식별 채우기 규칙, 인덱스 | REQ-INTOAUTH-068 |
+| [통합 데이터와 흐름 — 연결과 설치 흐름](CLE-INT-DATA-FLOW.md) | 통합 생성, OAuth 콜백, 자격 증명 교체, Cafe24 Private · MakeShop 설치 | REQ-INTMGMT-066, REQ-INTOAUTH-012, REQ-INTOAUTH-058, REQ-INTOAUTH-059, REQ-INTOAUTH-060 |
+| [통합 데이터와 흐름 — 실행과 정리 흐름](CLE-INT-DATA-RUN.md) | 노드 실행과 활동 로그 기록, 만료 스캐너, 멤버가 나갈 때의 개인 통합 삭제, 자격 증명 캐시 무효화, Redis 와 외부 대상 | REQ-INTMGMT-053, REQ-INTMGMT-062, REQ-INTMGMT-065, REQ-INTMGMT-058 |
+
+하위 문서의 규칙과 요구사항의 짝은 다음과 같다.
+
+| 요구사항 | 하위 문서의 규칙 |
+| --- | --- |
+| REQ-INTOAUTH-068 | 엔티티 「통합」 제약: 같은 상점 행 조회 함수가 만료 행을 거른다(`findAllCafe24RowsForMall` 대체 경로 포함) |
+| REQ-INTMGMT-066 | 「통합 생성」: 잠근 뒤 개인 통합 요청자의 멤버십이 없으면 403 `NOT_A_MEMBER` |
+| REQ-INTOAUTH-012 · REQ-INTOAUTH-058 | 「Cafe24 Private 앱 설치」: 요청자가 바꿀 수 있는 같은 설치 대기 행 재사용 |
+| REQ-INTOAUTH-059 · REQ-INTOAUTH-060 | 「MakeShop 설치」: 같은 (워크스페이스, client_id) 설치 대기 행 재사용 |
+| REQ-INTMGMT-053 | 「노드 실행의 통합 사용」: 통합을 얻지 못한 실행은 활동 로그 · `last_used_at` · `last_error` 를 바꾸지 않는다 |
+| REQ-INTMGMT-062 | 「노드 실행의 통합 사용」: `logUsage` 는 얻은 통합을 받고, 3단계 검증 실패도 그 통합에 기록한다 |
+| REQ-INTMGMT-065 | 「멤버가 나가거나 제거될 때」: 멤버십 삭제 트랜잭션 안에서 개인 통합을 지운다 |
+| REQ-INTMGMT-058 | 「멤버가 나가거나 제거될 때」: 캐시에 남은 지운 통합도 개인 통합 사용 판정에서 거절된다 |
 
 ## 엔티티
 
@@ -48,191 +69,39 @@ erDiagram
 
 ### 통합 (`integration`)
 
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| workspace_id | UUID | FK → Workspace (CASCADE) |
-| service_type | String | 서비스 유형(`service_type`). `google`, `github`, `http`, `database`, `email`, `webhook`, `mcp`, `cafe24`, `makeshop`. 서비스별 자격 증명 형식은 [서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md). `cafe24`·`makeshop` 통합은 워크플로우 노드와 AI 에이전트의 내부 MCP 브리지 양쪽에서 쓴다([MCP 클라이언트](CLE-INT-MCP.md)) |
-| name | String | 사용자가 정한 별칭 |
-| auth_type | Enum | 통합 인증 유형(`auth_type`). `oauth2` / `api_key` / `bearer_token` / `basic` / `connection_string` / `smtp` / `webhook_outbound` / `none`. `none` 은 인증 없는 공용 MCP 서버 등에 쓴다 |
-| credentials | JSONB (encrypted) | 자격 증명. 암호화해 저장한다([암호화](#암호화)). OAuth 통합은 권한 범위(`scopes: string[]`)를 포함한다 |
-| scope | Enum | 공개 범위(`Integration.scope`). `personal` / `organization` |
-| status | Enum | 통합 상태. `connected` / `expired` / `error` / `pending_install`. 전이 규칙은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) |
-| install_token | String? | 설치 토큰. Cafe24 Private 앱과 MakeShop ShopStore 설치 우선 흐름에서 설치 대기 통합을 가리키는 식별 키다. 그 밖의 서비스 유형은 NULL 이다. 발급 시 16바이트를 base64url(패딩 없음, 22자)로 인코딩한다. 통합이 살아 있는 동안 보존한다(App URL 경로 식별 키). 예외로 `oauth/begin` 이 설치 대기 행을 다시 쓰면서 새로 발급할 때가 있다. 그 조건은 [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](CLE-INT-OAUTH.md#oauthbegin-요청과-응답) 이 정한다. 연결 성공 콜백에서도 보존하고, 설치 대기 24시간 만료 또는 통합 삭제에서만 NULL 로 지운다. `varchar(64)`, V042 |
-| install_token_issued_at | Timestamp? | 설치 토큰 발급 시각. 설치 대기 만료 판정의 기준이다. 설치 토큰을 새로 발급할 때만 갱신한다. 설치 대기 행을 다시 써도 설치 토큰을 보존하면 그대로 두고 연결 성공 콜백에서도 보존한다. 만료·삭제 경로에서만 NULL 로 지운다. V044 이전 행은 NULL 이며 스캐너가 `created_at` 으로 대신 판정한다. Cafe24 Private 과 MakeShop 모두 적용한다. V044 |
-| mall_id | String? | 상점 식별자(`mall_id`)의 평문 투영. Cafe24 는 `credentials.mall_id`, MakeShop 은 `credentials.shop_uid` 를 이 컬럼에 복제한다. Cafe24·MakeShop 외 서비스 유형은 항상 NULL 이다. NULL 인 경우는 셋이다. V045 이전 행은 다음 저장(콜백·재인증)에서 채운다. MakeShop 설치 대기 행은 App URL 을 거쳐 `shop_uid` 를 받을 때 채운다. 설치 대기 행이 설치 기한을 넘겨 만료(`install_timeout`)되면 NULL 로 비운다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)). 이 규칙 전에 만료된 행은 V154 가 한 번 비웠다. 만료 행은 다시 채우지 않는다. 콜백, begin 의 행 재사용, App URL 은 설치 대기 행만 다룬다. NULL 이 세 뜻이라 같은 상점을 찾을 때 NULL 로 가르지 않는다(아래 상점 식별자 유일성의 조회 함수). Cafe24·MakeShop 행에서도 NOT NULL 로 강화하지 않는다. V045 |
-| status_reason | String? | 상태 사유. snake_case 코드이고 허용값은 코드 union `INTEGRATION_STATUS_REASONS` 한 곳에서 정한다. 상태별 허용값은 [통합 상태와 만료 알림](CLE-INT-STATUS.md). 연결됨 행에도 사유가 남을 수 있다. 통합 재인증이나 추가 권한 요청의 콜백에서 Cafe24 가 권한 범위를 거부하면 상태는 그대로 두고 `oauth_invalid_scope` 를 남긴다([통합 상태와 만료 알림 「상태 값과 상태 사유」](CLE-INT-STATUS.md#상태-값과-상태-사유)). `VARCHAR(64)`, V008 |
-| consecutive_network_failures | int | 연속 네트워크 실패 횟수. 노드 실행이나 토큰 갱신 중 transport 실패가 나면 늘고, 성공하면 0 으로 되돌린다. 3 에 닿으면 상태를 `error(network)` 로 바꾸고 0 으로 되돌린다. NOT NULL DEFAULT 0. V049 |
-| token_expires_at | Timestamp? | OAuth 토큰 만료 시각 |
-| last_used_at | Timestamp? | 마지막으로 노드 실행에서 쓴 시각(캐시) |
-| last_rotated_at | Timestamp? | 자격 증명을 마지막으로 바꾼 시각(OAuth 통합 재인증, 자격 증명 교체, 토큰 자동 갱신) |
-| reinstall_requested_at | Timestamp? | 재설치 대기 표시(reinstall request mark). 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청이 들어온 시각이고 사용자가 Cafe24 «테스트 실행» 으로 OAuth 를 마치기를 기다린다는 뜻이다. App URL 이 이 값을 보고 OAuth 로 보낸다. 상태·상태 사유와 따로 둔 컬럼이라 표시를 남겨도 상태·상태 사유·자격 증명은 바뀌지 않는다. 남긴 시각부터 24시간 동안만 유효하고 그 뒤에는 서버가 표시가 없는 것으로 본다. 콜백이 성공할 때만 NULL 로 지운다(자격 증명 교체와 같은 트랜잭션). 24시간이 지난 값은 지우지 않고 판정에서 무시한다. 다시 요청하면 새 시각으로 덮어쓴다. 설치 대기 행과 그 밖의 서비스 유형은 늘 NULL 이다. 상태 모델과의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md#재설치-대기-표시), 남기고 지우는 규칙은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#재설치-대기-표시). `TIMESTAMPTZ NULL`, V151 |
-| last_error | JSONB? (encrypted) | 최근 호출 실패 요약 `{ code, message, at, details? }`. 암호화해 저장한다([암호화](#암호화)). `details` 는 사유별 추가 맥락을 담는 `Record<string, unknown>` 이다. 현재 정의된 키는 `oauth_invalid_scope` 의 `details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합) 하나다. 새 사유가 키를 쓰면 이 행에 정의를 더한다. 이 컬럼은 저장만 책임지고 응답 노출은 각 API 정의가 통제한다 |
-| created_by | UUID | FK → User (NO ACTION). 통합 소유자(`created_by`). 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 행을 지운다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)) |
-| created_at | Timestamp | 생성 시각 |
-| updated_at | Timestamp | 수정 시각 |
-
-제약:
-
-- `UNIQUE(workspace_id, name)`: 워크스페이스 안에서 별칭은 하나뿐이다. 공개 범위와 상관없다.
-- 상점 식별자 유일성: 한 워크스페이스 안에서 같은 `(service_type, mall_id)` 의 통합은 최대 1행이다. Cafe24 는 앱 유형과 상관없다. 한 상점에 Public 앱 통합과 Private 앱 통합을 함께 두면 토큰과 웹훅 처리 주체가 갈려 사용자 혼란과 회계 충돌이 생기므로 금지한다. 서로 다른 서비스 유형이 같은 `mall_id` 값을 쓰는 것은 괜찮다. 설치 기한을 넘겨 만료된 행은 `mall_id` 를 비우므로 이 유일성에 들지 않는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
-  - 같은 상점의 행을 찾는 네 지점(중복 사전 감지, `oauth/begin`, 설치 엔드포인트, 설치 토큰 불일치 회복)은 조회 함수 하나를 거친다. 만료 행 제외는 그 함수가 한다. `mall_id` 컬럼이 빈 옛 행을 `credentials.mall_id` 로 맞추는 대체 경로(`findAllCafe24RowsForMall`)도 같은 함수 안에서 만료 행을 거른다(REQ-INTOAUTH-068).
-  - 만료 행은 상점 자리를 놓아도 이름은 그대로다. 같은 이름으로 다시 등록하면 409 `INTEGRATION_NAME_TAKEN` 이다.
-
-응답 전용 값: `IntegrationDto` 는 DB 컬럼이 아닌 두 값 `autoRefresh`·`appUrl` 을 응답 시점에 계산해 싣는다. 정의는 [통합 관리](CLE-INT-MANAGE.md) 의 API 절이 소유한다. 복호화에 실패한 행을 응답에서 `statusReason='credentials_unreadable'` 로 표시하는 규칙도 DB 저장값이 아니다([통합 상태와 만료 알림](CLE-INT-STATUS.md)). `reinstall_requested_at` 은 컬럼 값을 `reinstallRequestedAt`(ISO 8601 또는 `null`)으로 내보낸다. 남긴 지 24시간이 지난 값은 `null` 로 내보낸다.
+→ [엔티티와 인덱스 「통합 (`integration`)」](CLE-INT-DATA-ENTITY.md#통합-integration)
 
 ### 활동 로그 (`integration_usage_log`)
 
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| integration_id | UUID | FK → Integration (CASCADE) |
-| node_execution_id | UUID | FK → NodeExecution (CASCADE) |
-| workflow_id | UUID | FK → Workflow (CASCADE). 조회 최적화용 비정규화 |
-| status | Enum | `success` / `failed` |
-| error | JSONB? | 실패 요약 `{ code, message }` |
-| duration_ms | Integer | 호출 소요 시간 |
-| at | Timestamp | 호출 시각 |
-| api_label | varchar(128)? | 호출 API 라벨(`api_label`). 아래 채우기 규칙을 따른다 |
-| api_method | varchar(8)? | HTTP 메서드, SQL 동사, `SEND` 처럼 통합마다 뜻이 다르다 |
-| api_path | varchar(256)? | endpoint 경로, 드라이버 이름, SMTP host 처럼 통합마다 뜻이 다르다 |
-
-- 보존 기간은 90일이다. 만료 스캐너의 `usage-log-prune` 작업이 매일 정리한다([통합 상태와 만료 알림](CLE-INT-STATUS.md)).
-- `api_*` 세 컬럼은 길이 한도를 넘으면 끝에 `…` 를 붙여 잘라 저장한다(`clampMessage` 패턴).
-- `node_execution_id` 가 없으면 행을 쓰지 않는다(아래 [노드 실행의 통합 사용](#노드-실행의-통합-사용)). 그래서 저장된 행에는 항상 노드 실행이 있다.
+→ [엔티티와 인덱스 「활동 로그 (`integration_usage_log`)」](CLE-INT-DATA-ENTITY.md#활동-로그-integration_usage_log)
 
 #### 호출 API 식별 채우기 규칙
 
-활동 로그에 행을 쓰는 실행 경로는 `logUsage` 를 부를 때 `api` 식별 정보를 함께 넘긴다. 외부 MCP 서버의 도구 호출만 예외다(아래 적용 범위 3). 채우는 값은 통합마다 다르다. 이 표가 채우기 규칙의 단일 기준이고, 각 노드 문서의 «활동 로그» 절은 자기 행을 가리킨다. [통합 관리 「활동 탭」](CLE-INT-MANAGE.md#활동-탭) 은 세 값을 화면에 어떻게 보이는지만 정하고 채우기 규칙은 이 표를 가리킨다.
-
-| 통합 | `api_label` | `api_method` | `api_path` |
-| --- | --- | --- | --- |
-| cafe24 ([Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md)) | 카탈로그 키 `cafe24.<resource>.<operation>` ([Cafe24 operation 메타데이터](CLE-C24-META)) | operation 의 HTTP 메서드(`GET`/`POST`/…) | operation 의 경로 템플릿. 자리표시자를 그대로 둔다(`products/{product_no}`) |
-| makeshop ([MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md)) | 카탈로그 키 `makeshop.<resource>.<operation>` ([MakeShop operation 메타데이터](CLE-MKS-META)) | operation 의 HTTP 메서드(`GET`/`POST`) | operation 의 상대 경로(`product`, `cart/create`). MakeShop 경로에는 `{shopId}` 밖의 path 파라미터가 없어 자리표시자가 없다([MakeShop API 카탈로그](CLE-MKS-CATALOG)) |
-| http-request ([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)) | NULL | HTTP 메서드 | host + path. query string 은 뺀다. baseUrl 이 없으면 path 만 |
-| database-query ([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)) | NULL | SQL 동사(`SELECT`/`INSERT`/`UPDATE`/`DELETE`). `queryType='raw'` 이면 평가된 SQL 의 첫 토큰을 대문자로 뽑고, 뽑지 못하면 NULL 이다. 상세는 노드 문서 | 드라이버(`postgres` / `mysql`) |
-| send-email ([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md)) | NULL | `SEND` | SMTP host 또는 NULL |
-| mcp (외부 MCP 서버, [MCP 클라이언트](CLE-INT-MCP.md)) | NULL | NULL | NULL. 도구 호출을 기록하지만 `api` 를 넘기지 않는다 |
-
-적용 범위는 세 경로다. 앞의 두 경로가 `api` 를 넘긴다.
-
-1. 노드 핸들러 경로: cafe24·makeshop·http-request·database-query·send-email 노드는 `IntegrationHandlerBase.logUsage` 에 `api` 인자를 넘기고, 베이스 클래스가 `IntegrationsService.logUsage` 로 전달한다.
-2. 내부 MCP 브리지 경로: AI 에이전트 노드에 붙은 통합을 MCP 도구로 노출하는 도구 프로바이더(`Cafe24McpToolProvider`, `MakeshopMcpToolProvider`)는 노드 베이스 클래스를 거치지 않고 `IntegrationsService.logUsage` 를 직접 부른다. 도구 프로바이더는 도구 목록을 만들 때 얻은 통합을 들고 있다가 도구를 실행할 때 그 통합을 넘긴다. 이 경로도 노드 핸들러와 같은 카탈로그 키 형식으로 `api.label` 을 채운다. 이때 `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 메타 도구 호출은 기록하지 않는다.
-3. 외부 MCP 서버 경로: AI 에이전트 노드에 붙은 `mcp` 통합의 도구 호출(`McpToolProvider`)도 `IntegrationsService.logUsage` 를 직접 부른다. 이 경로는 `api` 를 넘기지 않아 세 컬럼이 NULL 이다.
-
-내부 MCP 브리지 경로는 노드 베이스 클래스를 거치지 않으므로 `api` 를 빠뜨려도 노드 핸들러 테스트는 통과한다. 새 노드 핸들러나 새 브리지 도구 프로바이더를 더할 때 `logUsage` 의 `api` 동반을 반드시 확인한다.
+→ [엔티티와 인덱스 「호출 API 식별 채우기 규칙」](CLE-INT-DATA-ENTITY.md#호출-api-식별-채우기-규칙)
 
 ### 통합 OAuth state (`integration_oauth_state`)
 
-통합 연결의 인가 요청과 콜백을 짝짓는 10분짜리 일회용 행이다(V009). 소셜 로그인의 `auth_oauth_state` 와 다른 테이블이다.
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| state | VARCHAR(64) | 인가 요청 식별값. `UNIQUE` |
-| workspace_id | UUID | 요청한 워크스페이스. FK → Workspace (CASCADE) |
-| user_id | UUID | 요청한 사용자. 설치 흐름(App URL)이 만든 행은 요청자가 아니라 통합 소유자(`created_by`)다. FK → User (CASCADE) |
-| provider | VARCHAR(32) | OAuth 제공자 |
-| service_type | VARCHAR(50) | 서비스 유형 |
-| mode | VARCHAR(32) | `new` / `reauthorize` / `request_scopes` (`OAuthStateMode`). DB CHECK 가 세 값만 받는다 |
-| integration_id | UUID? | 통합 재인증·추가 권한 요청·설치 흐름에서 채운다. `mode='new'` 면 NULL 이다. FK → Integration (CASCADE) |
-| requested_scopes | TEXT[] | 요청한 권한 범위. 기본값은 빈 배열 |
-| integration_name | VARCHAR(255)? | 통합 이름. 현재 구현은 `oauth/begin` 이 받은 이름을, 설치 흐름에서는 대상 통합의 이름을 담는다. 원문 흐름 정의에는 없는 컬럼이다 |
-| scope | VARCHAR(20)? | 공개 범위(`personal` / `organization`). 담는 방식은 `integration_name` 과 같다 |
-| provider_meta | JSONB? (encrypted) | V041. 콜백까지 들고 가야 하는 값을 담는다. Cafe24 는 `mall_id`·`client_id`·`client_secret`, MakeShop 은 `shop_uid`·클라이언트 자격 증명·PKCE `code_verifier` |
-| expires_at | Timestamp | 발급 시각 + 10분 |
-| created_at | Timestamp | 생성 시각 |
-
-콜백은 `DELETE … RETURNING` 으로 한 번만 소비한다. 콜백이 동시에 두 번 와도 한쪽만 이긴다.
+→ [엔티티와 인덱스 「통합 OAuth state (`integration_oauth_state`)」](CLE-INT-DATA-ENTITY.md#통합-oauth-state-integration_oauth_state)
 
 ### 미리보기 토큰 (`integration_oauth_preview`)
 
-새 OAuth 연결(`mode='new'`)이 통합 행을 만들기 전까지 토큰을 맡겨 두는 10분짜리 테이블이다(V009).
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| preview_token | VARCHAR(64) | PK. `'tmp_'` + hex 32자 |
-| workspace_id | UUID | 발급받은 워크스페이스. FK → Workspace (CASCADE) |
-| user_id | UUID | 발급받은 사용자. FK → User (CASCADE) |
-| service_type | VARCHAR(50) | 서비스 유형 |
-| credentials | JSONB (encrypted) | 콜백이 받은 토큰 |
-| token_expires_at | Timestamp? | 토큰 만료 시각 |
-| expires_at | Timestamp | 발급 시각 + 10분 |
-| created_at | Timestamp | 생성 시각 |
-
-`POST /api/integrations` 가 소유자 조건을 WHERE 에 넣은 `DELETE … RETURNING` 으로 한 번만 소비한다. 만료된 행은 다음 `oauth/begin` 이 비동기로 지운다.
+→ [엔티티와 인덱스 「미리보기 토큰 (`integration_oauth_preview`)」](CLE-INT-DATA-ENTITY.md#미리보기-토큰-integration_oauth_preview)
 
 ### 만료 알림 발사 기록 (`integration_expiry_dispatch`)
 
-만료 스캐너가 임계마다 알림을 한 번만 보내도록 선점(claim)하는 테이블이다(V009).
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| integration_id | UUID | FK → Integration (CASCADE) |
-| threshold | VARCHAR(16) | `'7d'` / `'3d'` / `'0d'`. DB CHECK 가 세 값만 받는다 |
-| token_expires_at | Timestamp | 발사 기준이 된 만료 시각 |
-| dispatched_at | Timestamp | 발사 시각. 기본값은 INSERT 시각 |
-
-`UNIQUE (integration_id, threshold, token_expires_at)` 로 같은 만료 시각에 대해 임계마다 한 번만 발사한다. 통합 재인증으로 `token_expires_at` 이 바뀌면 새 키가 되어 다시 발사할 수 있다. 선점은 `INSERT … ON CONFLICT DO NOTHING` 이고, 충돌하면 그 임계를 건너뛴다.
+→ [엔티티와 인덱스 「만료 알림 발사 기록 (`integration_expiry_dispatch`)」](CLE-INT-DATA-ENTITY.md#만료-알림-발사-기록-integration_expiry_dispatch)
 
 ### 일시 테이블의 FK 와 삭제 동작
 
-세 테이블의 FK 는 모두 `ON DELETE CASCADE` 다. 부모 행이 지워지면 함께 지워진다.
-
-| 테이블 | FK | 부모 |
-| --- | --- | --- |
-| `integration_oauth_state` | `workspace_id` | Workspace |
-| `integration_oauth_state` | `user_id` | User |
-| `integration_oauth_state` | `integration_id` (nullable) | Integration |
-| `integration_oauth_preview` | `workspace_id` | Workspace |
-| `integration_oauth_preview` | `user_id` | User |
-| `integration_expiry_dispatch` | `integration_id` | Integration |
-
-- 두 OAuth 일시 테이블에서 사용자를 가리키지 않는 FK 셋(`integration_oauth_state` 의 `workspace_id`·`integration_id`, `integration_oauth_preview` 의 `workspace_id`)에는 FK 인덱스를 두지 않는다. 10분 만료 일시 행이라 삭제 연쇄 비용이 호출당 0.1 ms 미만이다. 처분 근거는 [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) 의 Rationale «쓸 인덱스가 없는 FK 서른하나의 처분» 이다.
-- 사용자 FK 는 앱에 사용자 삭제 경로가 없어 실제로 연쇄가 일어나지 않는다([데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) 의 FK 삭제 동작).
+→ [엔티티와 인덱스 「일시 테이블의 FK 와 삭제 동작」](CLE-INT-DATA-ENTITY.md#일시-테이블의-fk-와-삭제-동작)
 
 ### 시크릿 저장소 (`secret_store`)
 
-워크스페이스 단위 비밀을 암호화해 보관하는 테이블이다. 참조 형식, 암호화 형식, 호출 규약은 [시크릿 저장소](CLE-INT-SECRET.md) 가 단일 기준이다.
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| ref | TEXT | PK. 시크릿 참조 `secret://<scope>/<resourceId>/<name>` (예: `secret://triggers/{triggerId}/bot-token`). 형식은 DB CHECK 로도 막는다(V063) |
-| workspace_id | UUID | 귀속 워크스페이스. 처음 저장한 값에서 바뀌지 않는다. `rotate` 는 다른 워크스페이스로 부르면 거부한다([시크릿 저장소](CLE-INT-SECRET.md) 규칙 25). FK 가 없다(애플리케이션 수준 정리). 애플리케이션에는 이 컬럼을 조건으로 지우는 경로가 없다. 트리거 단위 prefix 삭제(`deleteByPrefix`)로 정리한다. 다른 워크스페이스의 요청이 덮어쓴 행(교차 행)과 그 점검 · 정리를 걷은 경위는 [시크릿 저장소 「교차 행 점검과 정리」](CLE-INT-SECRET.md#교차-행-점검과-정리) 에 있다. 어느 경로가 언제 지우는지는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) |
-| encrypted | BYTEA | `[IV(12B) ‖ AES-256-GCM ciphertext ‖ authTag(16B)]`. AAD 는 `ref`. DB 는 암호문만 본다 |
-| created_at | Timestamp | 생성 시각 |
-| updated_at | Timestamp | 마지막 교체 시각 |
-
-현재 쓰는 참조:
-
-- `secret://triggers/{id}/bot-token`: 채팅 채널 봇 토큰(채널 프로바이더 공통). [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)
-- `secret://triggers/{id}/bot-token.v2`: 봇 토큰 24시간 유예용
-- `secret://triggers/{id}/inbound-signing`: 채팅 채널 인바운드 웹훅 출처 검증 자료(채널 프로바이더 공통 슬롯). [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)
-- `secret://triggers/{id}/notification-signing`: EIA 알림 웹훅 HMAC 서명 시크릿. [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md)
-
-`secret://triggers/{id}/notification-signing.v2` 는 예약만 된 참조다. 현재 구현은 이 참조를 쓰지 않고, 유예 기간의 새 서명 시크릿을 `Trigger.notification_secret_v2` 컬럼에 둔다([시크릿 저장소](CLE-INT-SECRET.md)).
+→ [엔티티와 인덱스 「시크릿 저장소 (`secret_store`)」](CLE-INT-DATA-ENTITY.md#시크릿-저장소-secret_store)
 
 ## 인덱스
 
-| 테이블 | 인덱스 | 용도 |
-| --- | --- | --- |
-| integration | `(workspace_id, name)` UNIQUE | 별칭 유일성 (V001/V008) |
-| integration | `(workspace_id, service_type)` | 서비스별 통합 조회 |
-| integration | `(workspace_id, status)` | 만료·오류 배지 카운트, 설치 대기 만료 스캔, 중복 조회 겸용 |
-| integration | `(token_expires_at)` | 만료 스캐너 배치 조회 (V009) |
-| integration | `(install_token) WHERE install_token IS NOT NULL` UNIQUE | App URL 로 설치 대기 통합 한 행을 찾는다. Cafe24 Private 과 MakeShop 공용. 유일성은 워크스페이스를 가리지 않는 전역이다 (V043) |
-| integration | `idx_integration_workspace_service_mall` `(workspace_id, service_type, mall_id) WHERE mall_id IS NOT NULL` UNIQUE | 상점 식별자 중복 방지. 서비스 유형을 키에 넣어 새 통합 서비스를 더할 때 인덱스와 마이그레이션이 필요 없다. 옛 서비스별 UNIQUE(V046 cafe24, V071 makeshop)를 대체한다. CONCURRENTLY 라 V045 컬럼 추가와 다른 마이그레이션이다 (V072) |
-| integration | `idx_integration_service_mall` `(service_type, mall_id) WHERE mall_id IS NOT NULL` | 복호화 없이 상점 식별자로 찾는다(Cafe24 설치 토큰 불일치 회복 등). 옛 cafe24 전용 `idx_integration_cafe24_mall_id_partial`(V051)을 대체한다 (V072) |
-| integration_usage_log | `(integration_id, at DESC)` | 통합별 최근 활동 로그 (V008) |
-| integration_usage_log | `(at)` | 보존 기간 정리 배치 |
-| integration_usage_log | `(node_execution_id)` | 노드 실행 삭제의 FK CASCADE. CONCURRENTLY (V113) |
-| integration_usage_log | `(workflow_id)` | 워크플로우 삭제의 FK CASCADE. CONCURRENTLY (V114) |
-| integration_oauth_state | `(expires_at)` | 만료 행 정리 (V009) |
-| integration_oauth_preview | `(expires_at)` | 만료 행 정리 (V009) |
-| secret_store | `idx_secret_store_workspace_id` `(workspace_id)` | 워크스페이스별 정리·조회용으로 만들었다. 지금은 이 컬럼으로 거르는 애플리케이션 조회가 없다 (V063) |
-
-`api_*` 컬럼에는 아직 인덱스가 없다. 메서드·경로별 필터(예: «5xx 응답만»)가 필요해질 때 더한다. `reinstall_requested_at` 에도 인덱스가 없다. App URL 은 설치 토큰으로 한 행을 찾은 뒤 이 값을 읽기만 하고 이 컬럼으로 거르는 조회가 없다.
+→ [엔티티와 인덱스 「인덱스」](CLE-INT-DATA-ENTITY.md#인덱스)
 
 ## 암호화
 
@@ -271,7 +140,7 @@ erDiagram
 
 | 컬럼 | 복호화하지 못한 행 |
 | --- | --- |
-| `integration.credentials` | 응답에서 `credentialsStatus='needs_reauth'`(`status='error'`, `statusReason='credentials_unreadable'`)로 드러난다. 노드 실행은 `IntegrationCredentialsUnreadableError` 로 멈춘다([노드 실행의 통합 사용](#노드-실행의-통합-사용)). 사용자가 통합을 다시 연결한다 |
+| `integration.credentials` | 응답에서 `credentialsStatus='needs_reauth'`(`status='error'`, `statusReason='credentials_unreadable'`)로 드러난다. 노드 실행은 `IntegrationCredentialsUnreadableError` 로 멈춘다([실행과 정리 흐름 「노드 실행의 통합 사용」](CLE-INT-DATA-RUN.md#노드-실행의-통합-사용)). 사용자가 통합을 다시 연결한다 |
 | `integration.last_error` | 응답의 `lastError` 가 `null` 이다(`integrations.service.ts` 의 `toPublic`) |
 | `auth_config.config` | `needs_reauth` 같은 표시가 없다. 인증 설정 응답에는 표식을 싣고 표식에 담긴 원래 저장값은 싣지 않는다([외부 호출 인증 설정 「마스킹 규칙」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#마스킹-규칙)). 그 설정을 쓰는 웹훅 인증은 요청을 401 `AUTH_FAILED` 로 거부한다. 복호화 불가 표식에는 기대값(`username` · `password` · `token` · `key` · `secret`)이 없다. 웹훅 인증의 판정은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다. 화면은 표식을 보고 행에 «읽을 수 없음» 을 표시한다. 복구하려면 원래 키를 되돌리거나 재생성한다. 재생성은 API Key · Bearer Token · HMAC 에서 표식을 버리고 새 config 를 만든다. Basic Auth 는 재생성이 없어 지우고 다시 만든다([외부 호출 인증 설정 「재생성」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#재생성)) |
 | `integration_oauth_state.provider_meta` · `integration_oauth_preview.credentials` | 짧게 쓰고 버리는 행이다. 진행 중인 연결 흐름이 실패하므로 사용자가 연결을 처음부터 다시 시작한다 |
@@ -286,233 +155,39 @@ erDiagram
 
 ### 통합 생성
 
-`POST /api/integrations` 는 두 입력을 받는다. 하나는 API Key 류처럼 사용자가 직접 넣은 자격 증명이고, 다른 하나는 새 OAuth 연결이 발급한 미리보기 토큰(`previewToken`)이다. 새 OAuth 연결의 통합 행은 콜백이 아니라 이 요청에서 생긴다.
-
-```mermaid
-sequenceDiagram
-  participant C as 클라이언트
-  participant Svc as IntegrationsService
-  participant PG as Postgres
-  C->>Svc: POST /api/integrations (서비스 유형, 인증 유형, 이름, 공개 범위, 자격 증명 또는 previewToken)
-  opt previewToken 있음
-    Svc->>PG: 미리보기 토큰 행을 소유자 조건으로 DELETE RETURNING
-    Note over Svc,PG: 없음·남의 것 400 OAUTH_PREVIEW_INVALID<br/>10분 경과 400 OAUTH_PREVIEW_EXPIRED<br/>서비스 유형 불일치 400 OAUTH_PREVIEW_MISMATCH
-    Svc->>Svc: 입력 자격 증명에 미리보기 자격 증명을 덮어쓰고 token_expires_at 을 가져온다
-  end
-  Svc->>Svc: 서비스 유형·인증 유형별 자격 증명 검증
-  Svc->>PG: INSERT integration (status connected, last_rotated_at 현재 시각, created_by)
-  Svc->>PG: 감사 로그 integration.created (실패해도 무시)
-  Svc-->>C: 201 (자격 증명은 가린다)
-```
-
-`last_rotated_at` 을 생성 시각으로 채우는 이유는 NULL 로 두면 Cafe24 백그라운드 갱신의 기준 시각 비교에서 계속 빠질 수 있어서다. 스캐너 조건에 `IS NULL` 분기도 따로 둔다.
-
-INSERT 는 트랜잭션 안에서 한다. 트랜잭션을 열면 먼저 워크스페이스, 멤버십 순으로 잠그고(`lockForIntegrationWrite`) 그다음 통합을 INSERT 한다. 멤버십은 개인 통합일 때만 잠근다. 개인 통합인데 요청자의 멤버십이 그 사이 없어졌으면 403 `NOT_A_MEMBER` 다(REQ-INTMGMT-066). 미리보기 토큰 소비와 자격 증명 검증은 잠그기 전에 끝낸다. 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다.
+→ [연결과 설치 흐름 「통합 생성」](CLE-INT-DATA-FLOW.md#통합-생성)
 
 ### OAuth 연결과 설치
 
-`integration_oauth_state.mode` 는 `new` / `reauthorize` / `request_scopes` 세 가지다. 진입점과 API 계약은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다. 여기서는 테이블에 무엇을 쓰는지만 적는다.
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as 클라이언트
-  participant Svc as IntegrationOauthService
-  participant PG as Postgres
-  participant Prov as OAuth 제공자
-  C->>Svc: POST /api/integrations/oauth/begin
-  Svc->>PG: 만료된 state·미리보기 행 삭제 (비동기)
-  Svc->>PG: INSERT integration_oauth_state (mode, 요청 권한 범위, provider_meta 암호화, 10분)
-  Svc-->>C: authUrl, state
-  C->>Prov: 인가 화면
-  Prov-->>Svc: 콜백 code, state
-  alt Cafe24 가 invalid_scope 로 거부
-    Svc->>PG: state 소비, status_reason oauth_invalid_scope 와 last_error.details 기록 (status 보존)
-  else 정상
-    Svc->>PG: state 를 DELETE RETURNING 으로 한 번만 소비
-    Svc->>Prov: 토큰 교환 (MakeShop 은 PKCE code_verifier 동봉)
-    alt mode new
-      Svc->>PG: INSERT integration_oauth_preview (tmp_ 토큰, 암호화 자격 증명, 10분)
-      Svc-->>C: previewToken (통합 행은 생성 요청이 만든다)
-    else mode reauthorize 또는 request_scopes
-      Svc->>PG: SELECT integration FOR UPDATE
-      Note over Svc,PG: 커밋 직전 인가 재판정 (설치 대기 행과 재설치 대기 표시가 유효한 Cafe24 Private 행 제외)<br/>실패하면 롤백
-      Svc->>PG: UPDATE credentials, status connected, status_reason·last_error·reinstall_requested_at NULL, token_expires_at, last_rotated_at
-    end
-  end
-```
-
-- 통합 재인증과 설치 대기 행은 자격 증명을 통째로 바꾸고, 추가 권한 요청은 기존 자격 증명에 합치고 권한 범위를 갱신한다. 콜백은 설치 토큰과 발급 시각을 보존한다. 설치 토큰을 새로 발급하는 것은 `oauth/begin` 이 설치 대기 행을 다시 쓸 때뿐이다(위 `install_token` 행). 재설치 대기 표시(`reinstall_requested_at`)는 같은 UPDATE 에서 지운다.
-- 콜백이 실패하면(토큰 교환 실패 등) state 를 소비한 뒤 식별된 행에 `markIntegrationCallbackError` 가 `status_reason`(`normalizeStatusReason` 으로 union 정규화)과 `last_error={code,message,at}` 을 기록한다. 상태를 바꾸는지는 실패 종류와 행의 현재 상태에 따라 다르다. 연결됨 행의 통합 재인증 토큰 교환 실패는 `error(auth_failed)` 로 바뀐다. 재설치 대기 표시가 유효한 행, 설치 대기 행, state 단계 실패는 상태를 보존한다. 표시를 남긴 지 24시간이 지났으면 표시가 없는 행과 같이 처리한다. 콜백 실패는 재설치 대기 표시를 지우지 않는다. 표는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 에러 매핑이 소유한다.
-- 커밋 직전 인가 재판정이 실패하면 트랜잭션을 롤백하고 상태는 보존한다. `EDITOR_REQUIRED`(개인 통합)와 `ADMIN_REQUIRED` 는 같은 수집 경로가 `last_error` 에 기록한다. `RESOURCE_NOT_FOUND` 는 요청자에게 그 행이 보이지 않게 된 경우(남의 개인 통합이 됐거나 지워짐)라 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑) 의 에러 매핑). 서비스 계층이 내는 이 `EDITOR_REQUIRED` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.2 「인증·인가」 의 `EDITOR_REQUIRED` 행에도 발행 자리로 적혀 있다.
-- 설치 대기 행과, 재설치 대기 표시가 유효한 Cafe24 Private 행은 커밋 직전 인가 재판정을 하지 않는다. 이 행의 state 는 App URL(설치 토큰과 HMAC 이 인가한다)이 만들어 `user_id` 가 요청자가 아니라 통합 소유자다. 표시를 남긴 요청자의 인가는 표시를 남길 때 이미 확인했다. 재판정하면 관리자가 요청한 조직 통합의 재설치가 통합 소유자 기준으로 `ADMIN_REQUIRED` 가 되어 실패한다. Cafe24 Public 행과 MakeShop 행은 표시 값과 관계없이 재판정하고 표시를 남긴 지 24시간이 지난 Cafe24 Private 행도 재판정한다.
-- 설치 토큰이 있는 Cafe24 Private 행의 통합 재인증과 추가 권한 요청은 `oauth/begin` 을 거치지 않고 state 도 만들지 않는다. 통합 재인증은 판정한 행 조건으로 `reinstall_requested_at` 만 현재 시각으로 UPDATE 하고 그 사이 행이 지워졌으면 404 `RESOURCE_NOT_FOUND` 다. 추가 권한 요청은 `credentials.scopes` 를 합쳐 저장하면서 설치 대기가 아니면 같은 값을 쓴다. 이미 표시가 있으면 새 시각으로 덮어써 24시간을 다시 센다. 상태·상태 사유·토큰은 그대로다. state 는 사용자가 «테스트 실행» 을 눌러 App URL 이 불릴 때 생긴다([Cafe24 Private 앱 설치](#cafe24-private-앱-설치)).
-- 자격 증명 교체(`POST /api/integrations/:id/rotate`)는 OAuth 흐름이 아니다. 연결 테스트를 통과하면 자격 증명을 합치고 `last_rotated_at` 을 갱신하며 연결됨으로 되돌린다.
-  - 연결 테스트는 요청 시점에 읽은 행에 새 값을 합친 자격 증명으로 트랜잭션 밖에서 돈다. 실패하면 행을 건드리지 않고 `INTEGRATION_TEST_FAILED` 로 거절한다(응답은 [통합 관리 「에러 코드」](CLE-INT-MANAGE.md#에러-코드)).
-  - 통과하면 트랜잭션을 열고 `SELECT integration FOR UPDATE`(`pessimistic_write`)로 행을 다시 읽는다. 다시 읽은 행으로 보기 권한과 수정 권한을 다시 판정한다. 조직 통합이면 요청자의 역할도 같은 트랜잭션에서 다시 읽는다. 행이 없거나 요청자에게 보이지 않게 됐으면 404 `RESOURCE_NOT_FOUND` 다.
-  - 새 값은 다시 읽은 행의 자격 증명 위에 다시 합치고 구조 검증을 한 번 더 한다. 그다음 바꾸는 컬럼(`credentials`·`last_rotated_at`·`status`·`status_reason`·`last_error`)만 UPDATE 한다. 테스트하는 몇 초 사이 먼저 커밋된 다른 교체를 요청 시점의 옛 값으로 되돌리지 않기 위해서다. 엔티티 전체를 저장하지 않으므로 그사이 활동 기록이 쓴 `last_used_at` 같은 컬럼도 되돌리지 않는다.
-  - 잠금 안에서는 외부를 부르지 않는다. 위 통합 재인증 콜백도 토큰을 교환한 뒤에 `FOR UPDATE` 로 행을 잡는다. 잠금을 쥔 채 HTTP 요청을 하면 DB 커넥션 점유가 길어지기 때문이다. 토큰 갱신이 advisory lock 을 뺀 이유도 같다([OAuth 연결과 토큰 갱신 「여러 인스턴스의 갱신 경쟁은 BullMQ `jobId` 중복 제거로 푼다」](CLE-INT-OAUTH.md#여러-인스턴스의-갱신-경쟁은-bullmq-jobid-중복-제거로-푼다)).
-  - 받아들인 잔여: 두 교체가 서로 다른 필드를 바꾸면 커밋된 조합은 테스트한 적이 없는 조합이다. 테스트는 옛 행 위에 합친 값으로 돌았고 커밋은 새 행 위에 합친 값이기 때문이다. 먼저 커밋된 필드가 옛 값으로 되돌아가는 것보다 낫다고 보고 받아들였다.
-- 자격 증명 교체와 통합 삭제가 끝나면 `IntegrationsService` 가 모든 인스턴스에 자격 증명 캐시 무효화를 방송한다. 채널, 발행 시점, 방송 실패 처리는 아래 [자격 증명 캐시 무효화](#자격-증명-캐시-무효화) 가 정한다.
+→ [연결과 설치 흐름 「OAuth 연결과 설치」](CLE-INT-DATA-FLOW.md#oauth-연결과-설치)
 
 #### Cafe24 Private 앱 설치
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant FE as 프런트엔드
-  participant Svc as IntegrationOauthService
-  participant PG as Postgres
-  participant CDev as Cafe24 개발자 센터
-  participant Prov as Cafe24 OAuth
-  FE->>Svc: POST /oauth/begin (Private, mode new)
-  Svc->>Svc: 설치 토큰 발급 (16바이트 base64url)
-  Svc->>PG: INSERT integration (pending_install, install_token, install_token_issued_at, mall_id, 암호화 자격 증명)<br/>요청자가 바꿀 수 있는 같은 설치 대기 행이 있으면 재사용(REQ-INTOAUTH-012·058)
-  Svc-->>FE: appUrl, callbackUrl
-  CDev->>Svc: GET /api/3rd-party/cafe24/install/:installToken (테스트 실행)
-  Svc->>PG: install_token 으로 한 행 조회 (상태 무관)
-  opt 조회 실패
-    Svc->>PG: 같은 mall_id 의 cafe24 행 최대 5개로 HMAC 대조, 정확히 1개면 그 행으로 진행
-  end
-  Svc->>Svc: HMAC 검증, nonce 재사용 검사 (Redis)
-  alt 설치 대기도 아니고 유효한 재설치 대기 표시도 없음 (24시간 지난 표시 포함)
-    Svc-->>CDev: 302 → /integrations/:id
-  else 설치 대기이거나 유효한 재설치 대기 표시가 있음
-    Svc->>PG: INSERT integration_oauth_state (mode reauthorize, integration_id, user_id 는 통합 소유자, provider_meta 암호화)
-    Svc-->>CDev: 302 → Cafe24 인가 URL
-    Prov-->>Svc: 콜백 code, state
-    Svc->>PG: state 소비, 토큰 교환, UPDATE integration (행 잠금)
-    Note over Svc,PG: 성공: connected, 설치 토큰 보존, reinstall_requested_at NULL<br/>실패: status_reason·last_error 기록, 설치 토큰·재설치 대기 표시 유지, 상태는 위 콜백 실패 규칙
-  end
-```
-
-설치를 마친 행은 재설치 대기 표시가 유효할 때만 App URL 이 OAuth 로 보낸다. 표시가 없거나 남긴 지 24시간이 지났으면 «앱으로 가기» 같은 App URL 재호출은 상세 화면으로 간다. 가드 순서와 에러 코드, rate limit 은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 설치 엔드포인트 절이 소유한다.
+→ [연결과 설치 흐름 「Cafe24 Private 앱 설치」](CLE-INT-DATA-FLOW.md#cafe24-private-앱-설치)
 
 #### MakeShop 설치
 
-MakeShop 은 Cafe24 Private 과 같은 설치 대기와 설치 토큰 모델을 쓴다. 다른 점은 이렇다. 클라이언트가 한 종류뿐이다. `shop_uid` 를 설치 redirect 때에야 알게 되므로 `oauth/begin` 에서 `mall_id` 투영과 중복 검사를 할 수 없다. 인가는 OAuth 2.1 로 PKCE S256 과 공백 구분 권한 범위를 쓴다.
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as 사용자
-  participant Svc as IntegrationOauthService
-  participant PG as Postgres
-  participant MS as MakeShop ShopStore
-  participant Prov as MakeShop OAuth
-  U->>Svc: POST /oauth/begin (makeshop, mode new, 클라이언트 자격 증명)
-  Svc->>PG: INSERT integration (makeshop, pending_install, install_token, mall_id NULL)<br/>요청자가 바꿀 수 있는 같은 (워크스페이스, client_id) 설치 대기 행이 있으면 재사용(REQ-INTOAUTH-059·060)
-  Svc-->>U: appUrl, callbackUrl
-  MS->>Svc: GET /api/3rd-party/makeshop/install/:installToken (shop_uid, timestamp, action_type, hmac)
-  Svc->>Svc: Cafe24 와 같은 가드 순서, shop_uid 형식 검사, HMAC, nonce
-  alt 설치 대기가 아님
-    Svc-->>MS: 302 → /integrations/:id
-  else 설치 대기
-    Svc->>PG: 같은 (워크스페이스, shop_uid) 연결됨 행이 있으면 409 MAKESHOP_ALREADY_CONNECTED
-    Svc->>PG: UPDATE mall_id = shop_uid, credentials.shop_uid
-    Svc->>PG: INSERT integration_oauth_state (mode reauthorize, provider_meta 에 shop_uid·클라이언트 자격 증명·code_verifier)
-    Svc-->>MS: 302 → 인가 URL (code_challenge S256)
-    Prov-->>Svc: 콜백 code, state
-    Svc->>PG: state 소비, 토큰 교환 (code_verifier 동봉, 자격 증명에는 저장 안 함), UPDATE integration connected
-  end
-```
-
-MakeShop 에는 설치 토큰 불일치 회복이 없다. 조회에 실패하면 바로 404 다.
-
-MakeShop 에는 재설치 대기 표시가 없다. 설치를 마친 행은 상점에서 ShopStore 앱을 다시 설치해도 상세 화면으로 갈 뿐 자격 증명이 바뀌지 않는다. 그래서 오류가 된 MakeShop 통합의 복구는 삭제 후 재등록이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)).
+→ [연결과 설치 흐름 「MakeShop 설치」](CLE-INT-DATA-FLOW.md#makeshop-설치)
 
 ### 노드 실행의 통합 사용
 
-통합 노드 핸들러의 공통 베이스는 `IntegrationHandlerBase` 다. 핸들러 계약과 에러 코드는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 이 정한다.
-
-```mermaid
-sequenceDiagram
-  participant H as 노드 핸들러
-  participant Svc as IntegrationsService
-  participant PG as Postgres
-  participant Ext as 외부 API
-  H->>Svc: getForExecution(integrationId, workspaceId, use)
-  Note over H,Svc: use 는 노드 ID 와 표현식 여부다. 개인 통합이면 사용 판정을 한다(통합 노드 공통)
-  Svc->>PG: SELECT integration (transformer 가 복호화)
-  alt 없음 · 다른 워크스페이스 · 개인 통합 사용 판정 거절
-    Svc-->>H: RESOURCE_NOT_FOUND (통합을 돌려주지 않는다)
-  else 복호화 불가
-    Svc-->>H: IntegrationCredentialsUnreadableError
-  else 조회됨
-    Svc-->>H: 통합
-    Note over H: 3단계 검증. 서비스 유형이 다르면 INTEGRATION_TYPE_MISMATCH, 연결됨이 아니면 INTEGRATION_NOT_CONNECTED
-    opt 3단계 검증 통과
-      H->>Ext: API 호출 (클라이언트 경유)
-    end
-    H->>Svc: logUsage(통합, status, durationMs, error, api)
-    Svc->>PG: INSERT integration_usage_log
-    Svc->>PG: UPDATE integration last_used_at (성공·실패 공통, 한 번의 UPDATE)
-    opt 실패
-      Svc->>PG: last_error 기록, 에러 코드가 MCP AUTH_FAILED 면 status error, status_reason auth_failed
-    end
-  end
-```
-
-통합을 얻지 못한 두 갈래(없음 · 다른 워크스페이스 · 사용 판정 거절, 복호화 불가)는 노드 에러로 끝난다. 활동 로그를 쓰지 않고 그 통합의 `last_used_at` · `last_error` 도 바꾸지 않는다(REQ-INTMGMT-053). 3단계 검증에서 끝난 실패는 통합을 얻은 뒤라 외부 호출 없이 활동 로그를 남긴다.
-
-- 토큰 만료가 가깝거나 지난 것은 조회 실패 조건이 아니다. Cafe24·MakeShop 클라이언트가 호출 직전에 토큰을 갱신하고, 401 을 받으면 갱신 뒤 다시 시도한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
-- `IntegrationsService.logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다(REQ-INTMGMT-062). 활동 로그 행의 `integration_id` 와 통합 행 UPDATE 는 그 통합의 `id` 로 하고 받은 엔티티를 저장하지 않는다. 통합을 얻기 전에 끝난 실행은 넘길 통합이 없어 기록하지 않는다. 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)도 `getForExecution` 이 통합을 돌려주지 않으므로 기록하지 않는다([통합 노드 공통 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05)). 얻기 전에 끝나는 실패의 목록은 [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) 의 «통합을 얻기 전에 끝난 실행의 기록» 이 정본이다. 서명은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 에 있다.
-- 서비스 유형과 연결 상태는 서비스가 아니라 핸들러 기반 클래스가 3단계에서 검증한다(`integration-handler-base.ts`, [통합 노드 공통 「IntegrationHandlerBase」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationhandlerbase)). 연결 상태 실패의 메시지에는 상태와 사유를 싣는다. 통합을 얻은 뒤의 실패라 그 통합에 활동 로그를 남긴다(REQ-INTMGMT-062).
-- `logUsage` 는 예외를 던지지 않는다. 기록 실패가 노드 실행을 깨지 않도록 삼킨다. `nodeExecutionId` 가 없으면 행을 쓰지 않는다.
-- Cafe24·MakeShop 의 인증 실패와 네트워크 실패로 인한 오류 전이는 `logUsage` 가 아니라 각 클라이언트의 `markAuthFailed`·`recordNetworkFailure` 가 한다. 노드 실행 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
-- 재설치 대기 표시는 실행 경로가 보지 않는다. 표시가 있는 연결됨 행은 기존 토큰으로 계속 실행된다. 표시가 있는 오류·만료됨 행은 위 상태 검사에서 막힌다.
+→ [실행과 정리 흐름 「노드 실행의 통합 사용」](CLE-INT-DATA-RUN.md#노드-실행의-통합-사용)
 
 ### 만료 스캐너
 
-만료 스캐너는 `integration-expiry-scanner` 큐 위의 네 작업으로 통합 상태와 알림, 활동 로그 보존, Cafe24 백그라운드 갱신을 처리한다. 대상 조건과 동작은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 이 소유한다. 쓰는 테이블은 `integration`(상태·사유·설치 토큰·상점 식별자 UPDATE), `integration_expiry_dispatch`(임계 선점 INSERT), `integration_usage_log`(90일 경과 DELETE), `notification`(인앱 알림 INSERT)이다. `reinstall_requested_at` 은 읽지도 쓰지도 않는다. 24시간이 지난 값도 지우지 않는다.
+→ [실행과 정리 흐름 「만료 스캐너」](CLE-INT-DATA-RUN.md#만료-스캐너)
 
 ### 멤버가 나가거나 제거될 때
 
-멤버 제거(`removeMember`)와 나가기(`leaveWorkspace`)는 멤버십을 지우는 트랜잭션 안에서 그 멤버의 개인 통합을 지운다(REQ-INTMGMT-065). 규칙과 근거, 잠금 순서는 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다. 이 절은 삭제 조건과 모듈 경계를 정한다. 다른 문서는 삭제 조건을 이 절에서 링크한다.
-
-- 멤버십 DELETE 와 통합 DELETE 를 한 트랜잭션에서 한다. 이 트랜잭션의 잠금 대기 상한과 그 상한을 넘겼을 때의 처리는 [계정과 워크스페이스 데이터 흐름 「워크스페이스 삭제와 나가기」](../CLE-ACCT/CLE-ACCT-DATA.md#워크스페이스-삭제와-나가기) 가 정한다.
-- 멤버십 DELETE 가 1행을 지웠을 때만 통합을 지운다. 0행이면 통합을 건드리지 않고 지금 판정(`MEMBER_NOT_FOUND`, `CANNOT_REMOVE_OWNER`)을 그대로 낸다. 멤버 제거는 지운 멤버의 사용자 ID 를 `RETURNING` 으로 받아 통합 삭제 조건과 감사 로그에 쓴다. 나가기는 요청자가 그 멤버다.
-- 통합 삭제는 `DELETE integration WHERE workspace_id = :ws AND created_by = :user AND scope = 'personal' RETURNING id, service_type, name` 이다. 상태와 사용처는 보지 않는다.
-- 통합 모듈이 이미 워크스페이스 모듈을 가져온다. 워크스페이스 서비스가 통합 서비스를 직접 부르면 순환 의존이 된다. 그래서 워크스페이스 모듈이 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER`(`workspaces/member-personal-integrations.port.ts`)를 정의하고 통합 모듈의 `MemberPersonalIntegrationsPurgerService` 가 구현한다.
-- 워크스페이스 서비스는 트랜잭션을 열기 전에 `ModuleRef.get(MEMBER_PERSONAL_INTEGRATIONS_PURGER, { strict: false })` 로 포트를 찾는다. 트리거 정리 포트(`TRIGGER_RESOURCE_RELEASER`)와 같은 방식이다. 찾지 못하면 에러를 던지므로 나가기와 제거가 실패하고 멤버십도 그대로 남는다. 조용히 넘어가면 나간 멤버의 개인 통합이 다시 남기 때문이다.
-- 포트에는 두 단계가 있다.
-  1. 트랜잭션 안 삭제 `purgeInTransaction(manager, { workspaceId, userId })`. 멤버십 DELETE 뒤에 호출자의 트랜잭션 매니저로 위 DELETE 를 하고 지운 행의 `id`·`serviceType`·`name` 을 돌려준다. 결과는 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 대로 `updateReturningRows` 로 읽고 `service_type` 을 `serviceType` 으로 바꾼다.
-  2. 커밋 뒤 후처리 `finishAfterCommit(purged, departure)`. 워크스페이스 서비스가 커밋 뒤에 `member.removed` 감사 로그를 남기고 이 단계를 부른다. 지운 통합이 없으면 부르지 않는다. 이 단계는 지운 통합마다 일반 삭제(`DELETE /api/integrations/:id`)와 같은 후처리 `IntegrationsService.finishIntegrationDeletion` 을 부른다. 그 후처리가 `integration.deleted` 감사 로그를 남기고([통합 관리](CLE-INT-MANAGE.md#감사-로그)) 모든 인스턴스에 자격 증명 캐시 무효화를 알린다([자격 증명 캐시 무효화](#자격-증명-캐시-무효화)). 감사의 행위자는 나가기면 나간 멤버이고 제거면 제거한 관리자다. 일반 삭제와 다른 것은 감사 `details` 의 `mode`(`left` 또는 `removed`)와 `memberUserId` 뿐이다. 이 단계는 던지지 않는다. 한 통합의 후처리가 실패해도 나머지를 이어 가고 에러 로그만 남긴다.
-- 일반 삭제는 판정(역할, 사용처 차단)을 거친 뒤 지우고 같은 후처리를 쓴다. 나가기와 제거의 삭제는 이 판정을 거치지 않는다.
-- 후처리가 실패하거나 커밋과 후처리 사이에 프로세스가 멈추면 캐시에 지운 통합이 남을 수 있다. 그래도 그 통합을 쓰는 노드는 통합 소유자가 멤버가 아니라서 REQ-INTMGMT-058 로 거절된다. 같은 창에서 `integration.deleted` 감사 행도 빠질 수 있다. 감사 기록 실패가 리소스 변경을 되돌리지 않는다는 계약([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md))과 같은 쪽이라 받아들인다.
+→ [실행과 정리 흐름 「멤버가 나가거나 제거될 때」](CLE-INT-DATA-RUN.md#멤버가-나가거나-제거될-때)
 
 ### 자격 증명 캐시 무효화
 
-노드 핸들러 가운데는 자격 증명으로 맺은 연결을 인스턴스 메모리에 캐시하는 것이 있다. 한 인스턴스에서 자격 증명을 바꾸거나 통합을 지워도 다른 인스턴스의 캐시에는 옛 자격 증명으로 맺은 연결이 남는다. 그래서 `IntegrationsService` 는 바뀐 통합의 ID 를 Redis pub/sub 채널 `integration:cache:invalidate` 로 모든 인스턴스에 알린다. 이 채널의 발행과 구독 규칙은 이 절이 정본이다. 방송을 받은 캐시가 무엇을 하는지는 구독하는 노드의 문서가 정한다.
-
-- 발행 시점은 두 곳이다. 발행은 무효화 버스(`IntegrationCacheBus.publish`)로 한다.
-  - 자격 증명 교체(`POST /api/integrations/:id/rotate`): 바꾼 컬럼을 커밋하고 감사 로그를 남긴 뒤 발행한다.
-  - 통합 삭제: 삭제 뒤 후처리 `finishIntegrationDeletion` 이 `integration.deleted` 감사 로그를 남긴 뒤 발행한다. 일반 삭제(`DELETE /api/integrations/:id`)와 멤버가 나가거나 제거될 때의 개인 통합 삭제가 이 후처리를 함께 쓴다([멤버가 나가거나 제거될 때](#멤버가-나가거나-제거될-때)).
-- 그 밖의 쓰기는 발행하지 않는다. 별칭 수정과 공개 범위 전환은 자격 증명을 바꾸지 않는다. OAuth 토큰 자동 갱신과 통합 재인증 · 추가 권한 요청 · 설치의 콜백도 발행하지 않는다. 지금 구독하는 캐시가 OAuth 자격 증명을 쓰지 않기 때문이다.
-- 페이로드는 통합 ID 평문 문자열 하나다.
-- 모든 인스턴스가 부팅할 때 채널을 구독한다. 발행한 인스턴스도 자기 메시지를 받는다. 메시지를 받으면 그 인스턴스의 무효화 버스에 등록된 처리 함수를 모두 부른다.
-- 지금 처리 함수를 등록한 것은 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md#풀-캐시-무효화) 의 연결 풀 하나다. Send Email 노드도 SMTP transport 를 인스턴스마다 캐시하지만 등록하지 않는다. 그래서 다른 인스턴스의 transport 는 다음 실행의 자격 증명 해시 비교로만 바뀐다.
-- 공유 Redis 연결은 명령 전용이라 SUBSCRIBE 를 보내지 않는다. SUBSCRIBE 를 보낸 연결은 구독 모드로 바뀌어 다른 명령을 보낼 수 없기 때문이다. 구독은 공유 연결을 복제한 전용 연결로 하고 PUBLISH 는 공유 연결로 보낸다.
-- 방송은 즉시성을 보강하는 best-effort 층이다. 발행은 예외를 던지지 않으므로 자격 증명 교체와 삭제는 방송 때문에 실패하지 않는다.
-  - Redis 가 설정되지 않았으면 발행을 조용히 건너뛴다. 구독은 부팅 때 경고 로그를 한 번 남기고 만들지 않는다.
-  - PUBLISH 가 실패하면 경고 로그를 남기고 카운터 `clemvion.redis.fail_open` 을 `component=integration_cache_bus`, `reason=publish_failed` 로 한 번 센다.
-  - SUBSCRIBE 가 실패하거나 구독 연결에 오류가 나면 로그를 남기고 같은 카운터를 `reason=subscribe_failed` 로 센다.
-  - 구독이 끝나기 전에 발행된 메시지는 잃을 수 있다.
-  - 처리 함수가 실패하면 경고 로그만 남기고 카운터는 세지 않는다.
-- 메시지를 잃어도 정합성은 깨지지 않는다. 구독하는 핸들러는 캐시에 자격 증명 해시를 함께 두고, 다음 실행에서 해시가 다르면 옛 연결을 버린다. 방송은 그 다음 실행까지의 공백을 줄인다.
-
-Redis pub/sub 을 고른 근거와 기각한 대안(유휴 타임아웃 단축)은 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 의 Rationale «풀 캐시 무효화에 Redis pub/sub 방송 채택» 에 있다.
+→ [실행과 정리 흐름 「자격 증명 캐시 무효화」](CLE-INT-DATA-RUN.md#자격-증명-캐시-무효화)
 
 ### Redis 와 외부 대상
 
-| 대상 | 쓰임 | 소유 문서 |
-| --- | --- | --- |
-| `integration-expiry-scanner` 큐 | 만료 스캐너 네 작업 | [통합 상태와 만료 알림](CLE-INT-STATUS.md) |
-| `cafe24-token-refresh`·`makeshop-token-refresh` 큐 | 토큰 자동 갱신 | [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) |
-| 설치 nonce 캐시·설치 실패 카운터 | Cafe24·MakeShop 설치 재사용 방어와 IP 잠금. Redis 가 없으면 조용히 건너뛴다 | [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) |
-| `integration:cache:invalidate` pub/sub | 자격 증명 캐시 무효화. Redis 가 없으면 조용히 건너뛴다 | 이 문서 「[자격 증명 캐시 무효화](#자격-증명-캐시-무효화)」 |
-| OAuth 제공자 | 인가·토큰 교환·갱신. Google·GitHub 는 고정 host, Cafe24 는 `{mall_id}.cafe24api.com`, MakeShop 은 `auth.makeshop.com`(데이터 호출 host 와 분리) | [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) |
-| 서비스 API | 노드 실행 본체 호출(Google API, GitHub API, HTTP, Cafe24 Admin API, MakeShop API 등) | 각 노드 문서 |
+→ [실행과 정리 흐름 「Redis 와 외부 대상」](CLE-INT-DATA-RUN.md#redis-와-외부-대상)
 
 ## 미결 사항
 
@@ -521,30 +196,13 @@ Redis pub/sub 을 고른 근거와 기각한 대안(유휴 타임아웃 단축)�
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/integrations/integrations.service.ts` (생성·미리보기 토큰 소비·활동 로그, `reauthorize`·`requestScopes` 의 재설치 대기 표시, `getForExecution` 의 개인 통합 사용 판정, 삭제 뒤 후처리 `finishIntegrationDeletion`, 자격 증명 캐시 무효화 발행 `broadcastCredentialChange`)
-- `codebase/backend/src/common/redis/integration-cache-bus.service.ts` (자격 증명 캐시 무효화 버스 `IntegrationCacheBus` 와 채널 상수 `INTEGRATION_CACHE_INVALIDATE_CHANNEL`)
-- `codebase/backend/src/modules/integrations/personal-integration-use.ts` · `personal-integration-use-facts.ts` (개인 통합 사용 판정 함수와 판정에 넘길 사실 읽기. 사실 읽기는 실행 경로와 저장 경로가 함께 쓴다)
-- `codebase/backend/src/modules/integrations/integration-owner-write-lock.ts` (통합 행을 만들거나 개인으로 바꾸는 쓰기의 잠금 도우미 `lockForIntegrationWrite` 와 생성 거절 `throwUnlessIntegrationCreateLocked`)
-- `codebase/backend/src/modules/workspaces/member-personal-integrations.port.ts` (멤버의 개인 통합을 지우는 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 와 지연 해석 `resolveMemberPersonalIntegrationsPurger`)
-- `codebase/backend/src/modules/integrations/member-personal-integrations-purger.service.ts` (그 포트의 구현 `MemberPersonalIntegrationsPurgerService`)
-- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (OAuth begin·콜백·설치, `handleInstall` 의 재설치 대기 분기, 콜백의 행 잠금과 커밋 직전 재판정 `lockAndRejudgeCallbackTarget` · `assertRequesterStillAllowed`, `markIntegrationCallbackError`)
-- `codebase/backend/src/modules/integrations/pending-install-writer.ts` (Cafe24 Private · MakeShop 설치 대기 행 쓰기 `PendingInstallWriter`. 후보 조회, 잠금, 재사용 판정, 쓰기, 경합 재시도)
-- `codebase/backend/src/modules/integrations/cafe24-store-rows.ts` (같은 상점의 Cafe24 행 조회 `findAllCafe24RowsForMall` 과 상점 자리를 놓은 만료 행 판정 `hasReleasedStoreSlot`)
-- `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (`/api/3rd-party/**` 설치·콜백 엔드포인트)
-- `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너. 설치 대기 만료 때 `mall_id` 비우기 포함)
-- `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림)
+암호화에 관한 위치만 둔다. 나머지는 각 하위 문서의 「구현 위치」 에 있다.
+
 - `codebase/backend/src/modules/integrations/services/credentials-transformer.ts` (자격 증명 컬럼 암호화)
 - `codebase/backend/src/modules/auth-configs/entities/auth-config.entity.ts` (같은 transformer 를 쓰는 인증 설정 엔티티)
 - `codebase/backend/src/common/config/production-guards.ts` (통합 암호화 키를 검사하는 운영 환경 가드 `assertProductionConfig` 와 공개 예시 값 목록 `INSECURE_INTEGRATION_ENCRYPTION_KEYS`)
 - `codebase/backend/src/main.ts` (운영 환경 가드를 부르는 곳)
 - `codebase/backend/src/scripts/encrypt-auth-config.ts` (`auth_config.config` 평문 행을 암호화하는 1회용 스크립트)
-- `codebase/backend/src/modules/integrations/entities/` (엔티티)
-- `codebase/backend/migrations/V151__integration_reinstall_requested_at.sql` (재설치 대기 표시 컬럼)
-- `codebase/backend/migrations/V153__purge_departed_member_personal_integrations.sql` (통합 소유자가 멤버가 아닌 개인 통합을 한 번 지운다)
-- `codebase/backend/migrations/V154__integration_install_timeout_release_mall_id.sql` (이미 설치 기한을 넘겨 만료된 행의 `mall_id` 를 한 번 비운다)
-- `codebase/backend/src/nodes/integration/cafe24/`, `codebase/backend/src/nodes/integration/makeshop/` (클라이언트의 토큰 갱신·상태 전이, 갱신 큐 워커)
-- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/` (AI 에이전트 도구 프로바이더의 활동 로그 기록. 내부 MCP 브리지 `Cafe24McpToolProvider` · `MakeshopMcpToolProvider` 와 외부 MCP `McpToolProvider`)
-- `codebase/backend/src/modules/secret-store/**` (시크릿 저장소)
 
 ## Rationale
 
@@ -556,82 +214,14 @@ Redis pub/sub 을 고른 근거와 기각한 대안(유휴 타임아웃 단축)�
 
 OAuth 응답 본문에 토큰 일부가 섞일 수 있다. 그래서 `last_error` 도 같은 transformer 로 암호화한다(`entities/integration.entity.ts`). 반면 `status_reason` 은 분류 코드만 담으므로 평문으로 둔다. 두 컬럼이 같은 코드를 중복해 담는 이유는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 Rationale 에 있다.
 
-### 호출 API 식별을 세 컬럼으로 나눈다
-
-활동 탭이 시간·상태·소요 시간·에러만 보여 주면 Cafe24 처럼 한 통합이 수십 endpoint 를 다루는 서비스에서 실패 행의 원인 API 를 알 수 없다. 그래서 `api_label`·`api_method`·`api_path` 세 컬럼을 둔다. 채우는 값이 통합마다 비대칭이라 한 컬럼으로는 같게 표현할 수 없었다. Cafe24·MakeShop 은 카탈로그 라벨이 있고 나머지는 endpoint 만 있다. 한 `api` 컬럼으로 합치면 Cafe24·MakeShop 의 라벨과 endpoint 두 줄 표시가 깨지고, 나중에 메서드·경로별 인덱스와 필터를 더할 여지도 사라진다. 비정규화 비용은 행당 최대 392바이트(128+8+256)로, 행 평균 200~500바이트인 에러 메시지·코드에 비하면 작다.
-
-- **http-request 는 query string 을 뺀다.** 같은 endpoint 호출을 묶어 보려면 query 차이를 무시해야 한다. query 에는 `api_key`·`token` 같은 자격 증명이 섞이기 쉬운데 활동 로그는 평문으로 저장한다.
-- **database-query 는 드라이버 이름만 남긴다.** SQL 본문은 길이가 가변이라 `varchar(256)` 을 자주 넘고, 파라미터를 인라인하면 개인정보가 그대로 드러나며, 파싱과 정규화 비용도 생긴다. 드라이버 이름만으로도 «어느 DB 였는지» 라는 진단 신호는 충분하다.
-- **send-email 은 수신자를 저장하지 않는다.** 수신자 이메일은 개인정보다. SMTP host 만 남겨 «어느 메일 서버였는지» 만 보인다. 가린 수신자 정보는 노드 출력의 `output.error.details.to` 가 따로 준다.
-
-카탈로그 라벨을 사람이 읽는 문구로 바꾸는 책임을 프런트엔드에 두는 이유는 [통합 관리](CLE-INT-MANAGE.md) 의 Rationale 에 있다.
-
-### 활동 로그는 90일만 보존한다
-
-상세 화면의 활동 탭은 최근 30~90일 데이터만 의미가 있다. 그보다 오래 쌓으면 행 수가 급격히 늘어 검색 성능이 떨어진다. 그래서 매일 배치로 정리한다.
-
-### 새 OAuth 연결은 콜백에서 통합 행을 만들지 않는다
-
-`mode='new'` 콜백 시점에는 통합의 최종 이름과 공개 범위가 정해지지 않았다. 사용자는 팝업이 닫힌 뒤 폼에서 마저 입력한다. 콜백에서 바로 행을 만들면 미완성 행이 목록에 보이고, 사용자가 폼을 떠나면 주인 없는 행이 남는다. 대신 토큰을 미리보기 토큰 테이블(10분, 암호화)에 맡기고 참조 토큰만 프런트엔드로 보낸다. `POST /api/integrations` 가 이 토큰을 한 번만 원자적으로 소비해 최종 행을 만든다. 폼을 떠나면 남는 것은 만료된 행뿐이고 다음 `oauth/begin` 이 지운다. 한때 «OAuth 콜백이 바로 통합을 INSERT/UPDATE 한다» 는 서술이 있었으나 이 설계로 대체됐다. 콜백의 직접 UPDATE 는 통합 재인증·추가 권한 요청·설치 후속 콜백에만 남는다.
-
-### 설치 토큰은 16바이트 base64url 이다
-
-32바이트 hex(64자)로는 Cafe24 개발자 센터의 App URL 입력 칸 100자 한도를 경로 prefix 단축만으로 맞출 수 없었다. 16바이트(128비트)는 capability 토큰으로 NIST·OWASP 권장치(96비트 이상)를 넉넉히 넘는다. 컬럼 `install_token` 은 `varchar(64)` 라 22자 토큰이 그대로 들어가므로 스키마를 바꾸지 않았다. 경로 단축 결정은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 Rationale 에 있다.
-
-### 상점 식별자를 평문 컬럼으로 복제하고 인덱스를 하나로 합쳤다
-
-`mall_id` 가 암호화 JSONB 안에만 있으면 SQL 로 거를 수 없어 중복 검사가 복호화 후 메모리 비교가 되고, 조회와 INSERT 사이의 경쟁도 막을 수 없다. 평문 컬럼(V045)과 부분 UNIQUE 인덱스를 두면 DB 가 중복을 거부한다. 처음에는 서비스별 인덱스(V046 cafe24, V071 makeshop)였으나 서비스 유형을 키에 넣은 인덱스 하나(V072)로 합쳤다. 새 서비스를 더할 때 인덱스와 마이그레이션이 필요 없다. 옛 행의 NULL 은 부분 인덱스 비교에서 빠지므로 새 행과 충돌하지 않고, 다음 저장 때 채워진다. 설치 기한이 지나 만료된 행이 `mall_id` 를 비워 상점 자리를 놓는 것도 이 성질을 쓴다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
-
-### 재설치 대기 표시를 상태와 따로 둔 시각 컬럼으로 둔다 (2026-10-10)
-
-Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실행» 으로 마치게 하면서(Task CLE-T-NNENG8) «이 행은 App URL 이 OAuth 로 보내야 한다» 는 사실을 저장할 자리가 필요했다. `status`·`status_reason` 과 따로 둔 nullable 시각 컬럼 `reinstall_requested_at`(V151)을 택했다. 시각이라 화면이 요청 시각을 보이고 서버가 24시간 유효 기간을 판정할 수 있다. 상태 컬럼을 쓰지 않으므로 만료 스캐너, 주의 필요 술어, 노드 실행 가드가 바뀌지 않는다. 지난 값은 지우지 않고 판정할 때 시각을 비교하므로 정리 작업도 없다. 설치 대기 재사용, 연결됨의 새 상태 사유, 새 상태 값을 기각한 이유와 24시간 유효 기간을 둔 이유는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 Rationale «재설치 대기 표시는 상태와 따로 둔 컬럼이다» 에 있다.
-
-### 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
-
-2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 나간 멤버의 개인 통합 삭제, 통합 쓰기의 잠금, 설치 기한 만료 때 `mall_id` 비우기를 구현했다. 그래서 머리 줄 미구현 목록에서 세 항목을 빼고 본문의 미구현 표시를 걷었다. 「멤버가 나가거나 제거될 때」 는 구현한 두 단계 포트에 맞춰 고쳤다. 일반 삭제 후처리에 적었던 «서비스 유형별 정리» 는 구현에 없어 뺐다. 같은 날 사용자가 NERV Task `CLE-T-G56XCH` 리뷰 후속으로 잠금 규칙을 통합 행을 만들 수 있는 쓰기 전체(조직 공개 범위의 begin 포함)로 넓혔다. 이 문서의 「통합 생성」 에는 잠금 순서만 적고 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 한 곳에 둔다.
-
 ### 운영 환경 가드의 키 거부 기준을 세션과 토큰으로 옮겼다 (2026-10-31)
 
-「키가 없을 때」 는 운영 환경 가드가 통합 암호화 키를 거부하는 기준(공백뿐인 값, 공개 예시 값, 앞뒤 공백을 뗀 값 대조)과 예시 값 목록의 정본을 직접 적었다. 같은 기준이 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [시크릿 저장소](CLE-INT-SECRET.md), [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 에도 사본으로 있었다. NERV Task `CLE-T-NAT45Z` 가 기준을 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 한 곳에 모으면서 이 절에는 링크만 남겼다. 마스터키와 통합 암호화 키를 같은 함수가 같은 규칙으로 검사하므로 가드 목록 옆에 둔다.
+운영 환경 가드가 통합 암호화 키를 거부하는 기준(공백뿐인 값, 공개 예시 값, 앞뒤 공백을 뗀 값 대조)과 예시 값 목록은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [시크릿 저장소](CLE-INT-SECRET.md), [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 과 이 문서에 사본으로 있었다. NERV Task `CLE-T-NAT45Z` 가 기준을 [세션과 토큰 「암호화 키 검사」](../CLE-ACCT/CLE-ACCT-SESSION.md#암호화-키-검사) 한 곳에 모았다. 마스터키와 통합 암호화 키를 같은 함수가 같은 규칙으로 검사하므로 가드 목록 옆에 둔다.
 
-「암호화」 머리의 «이 키와 transformer 동작의 규범은 이 절 한 곳에 둔다» 는 그대로 두고 가드 거부 기준만 예외로 적었다. 키를 만드는 방식, 적용 컬럼, 운영 환경 밖에서 키가 없을 때의 동작, 복호화 실패 처리는 계속 이 문서가 정한다. 옮긴 것은 운영 환경 가드의 거부 기준뿐이다.
+옮긴 것은 운영 환경 가드의 거부 기준뿐이다. 키를 만드는 방식, 적용 컬럼, 운영 환경 밖에서 키가 없을 때의 동작, 복호화 실패 처리는 계속 이 문서가 정한다.
 
 ### 복호화하지 못한 인증 설정의 복구를 미결에서 걷었다 (2026-11-05)
 
-「미결 사항」 의 «복호화하지 못한 인증 설정의 복구» 항목을 지웠다. 키가 바뀌어 복호화하지 못한 인증 설정은 재생성으로 고쳐지지 않았다. 재생성이 표식에 새 값을 넣어 저장했는데 표식을 저장하면 원래 저장값이 그대로 다시 저장되기 때문이었다. 편집 `PATCH` 로 보낸 비밀이 아닌 config 도 같은 이유로 저장되지 않았다. NERV Task `CLE-T-SAMVX8` 이 이 두 결함을 고쳤다. 재생성은 표식을 버리고 새 config 를 만들고, 편집은 표식에 config 를 병합하지 않는다. 정본은 [외부 호출 인증 설정 「재생성」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#재생성) 과 [「편집」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#편집) 이다.
+키가 바뀌어 복호화하지 못한 인증 설정은 재생성과 편집 `PATCH` 로 고쳐지지 않았다. 표식에 새 값을 넣어 저장하면 원래 저장값이 그대로 다시 저장되기 때문이었다. NERV Task `CLE-T-SAMVX8` 이 재생성은 표식을 버리고 새 config 를 만들고, 편집은 표식에 config 를 병합하지 않게 고쳐서 이 항목을 미결에서 걷었다. 정본은 [외부 호출 인증 설정 「재생성」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#재생성) 과 [「편집」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#편집) 이다.
 
-「암호화」 의 «복호화하지 못한 행» 표에서 `auth_config.config` 행의 복구 방법도 그에 맞게 고쳤다. transformer 의 동작은 바꾸지 않았다. 원래 저장값을 담은 표식은 다시 저장해도 원래 저장값이 그대로 저장된다. 응답 `config` 에 표식을 그대로 싣고 통합의 `credentialsStatus` 같은 상태 표시로 바꾸지 않는 결정은 [외부 호출 인증 설정 「복호화 불가 표식을 응답에 그대로 둔다」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#복호화-불가-표식을-응답에-그대로-둔다-2026-11-05) 에 있다. 그래서 이 문서의 표식 정의와 용어 사전 「복호화 불가 표식」 은 바꾸지 않았다.
-
-### 자격 증명 교체는 연결 테스트 뒤 잠근 행 위에 다시 합친다 (2026-11-12)
-
-「OAuth 연결과 설치」 의 자격 증명 교체 항목에 잠금 순서를 적었다. 형제 흐름인 통합 재인증 · 추가 권한 요청 콜백은 `SELECT … FOR UPDATE` 를 적는데 자격 증명 교체만 빠져 있었다(NERV Task `CLE-T-J6TZGK`). 코드는 2026-09-20(PR #1368)부터 이 순서로 동작한다(`IntegrationsService.rotate`).
-
-그 전에는 요청 시점에 읽은 행 위에 새 값을 합쳐 저장했다. 연결 테스트가 몇 초 걸리는 동안 같은 통합의 다른 교체가 먼저 커밋되면 그 값이 옛 값으로 되돌아갔다. 그래서 테스트를 마친 뒤 잠근 행을 다시 읽고 그 위에 다시 합치도록 고쳤다.
-
-뺀 안: 연결 테스트까지 잠금 안에 넣으면 두 교체가 차례로 돌아 테스트하지 않은 조합이 생기지 않는다. 대신 잠금을 쥔 채 외부를 불러 DB 커넥션 점유가 길어진다. 토큰 갱신이 advisory lock 을 뺀 이유와 같다. 테스트하지 않은 조합은 두 교체가 서로 다른 필드를 바꿀 때만 생겨서 받아들였다.
-
-### `secret_store` 인덱스 행과 참조 표기 정정 (2026-11-12)
-
-「인덱스」 표에 V063 이 만든 `secret_store` 의 `idx_secret_store_workspace_id` 행을 더했다(NERV Task `CLE-T-GNTWP9`). 「시크릿 저장소」 의 참조 목록에서 «provider» 와 «inbound» 를 용어 기준에 맞춰 «채널 프로바이더» 와 «인바운드» 로 고쳤다.
-
-### 자격 증명 캐시 무효화 채널의 정본을 이 문서로 모았다 (2026-11-13)
-
-`integration:cache:invalidate` 채널을 이 문서와 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 가 나눠 적었다. 이 문서는 「Redis 와 외부 대상」 표에서 채널의 소유 문서를 «이 문서» 로 적으면서 본문은 «상세는 Database Query 노드» 로 넘겼다. 발행 시점, 페이로드, 연결 분리, 방송 실패 처리는 그 노드 문서에만 있었다. 2026-11-13 에 사람이 이 문서를 채널의 정본으로 정했다(NERV Task `CLE-T-VQX844`). 그래서 「자격 증명 캐시 무효화」 절을 새로 두고 그 사실을 옮겼다. Database Query 노드에는 풀이 방송을 받았을 때 하는 일만 남는다.
-
-옮기면서 코드(`integration-cache-bus.service.ts`, `IntegrationsService`)와 다시 맞춘 것이 셋이다.
-
-- 삭제 쪽 발행은 후처리 `finishIntegrationDeletion` 에서 한다. 그래서 멤버가 나가거나 제거될 때의 개인 통합 삭제도 발행한다. 노드 문서는 `rotate` 와 `remove` 두 경로만 적었다.
-- 노드 문서는 Send Email transport 같은 다른 소비자도 같은 방식으로 구독할 수 있다고 적었다. 지금 처리 함수를 등록한 것은 Database Query 풀 하나다.
-- 방송 실패는 경고 로그와 함께 fail-open 카운터에도 센다. 노드 문서에는 카운터가 없었다.
-
-### `EDITOR_REQUIRED` 의 카탈로그 서술을 고쳤다 (2026-11-13)
-
-「OAuth 연결과 설치」 의 커밋 직전 재판정 항목은 «에러 코드 카탈로그가 아직 `EDITOR_REQUIRED` 를 가드 거부 코드로만 적는다. 서비스 계층이 내는 경우를 더하는 일은 NERV Task `CLE-T-5BZ3M2` 가 맡는다» 고 적었다. 2026-11-13 에 읽은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 최신 승인본(v34)은 §6.2 의 `EDITOR_REQUIRED` 행에 통합 OAuth 콜백의 커밋 직전 재판정(`assertPersonalWriteRole`)을 이미 적는다. 그래서 그 문장을 카탈로그를 가리키는 문장으로 바꿨다(NERV Task `CLE-T-VQX844`). 동작은 바뀌지 않았다.
-
-### `api_*` 채우기 표를 정본으로 확인하고 외부 MCP 행을 더했다 (2026-11-13)
-
-NERV Task `CLE-T-VQX844` 에서 `api_*` 채우기 표의 정본을 이 문서 한 곳으로 정했다. [통합 관리](CLE-INT-MANAGE.md) 에는 채우기 표가 없고 활동 탭과 활동 API 절이 이 표를 가리킨다. 그래서 표를 옮기지 않고 표 머리에 그 사실을 적었다. [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 의 실행 로직 8단계는 통합별 전체 표를 통합 관리로 가리켰는데 같은 날 이 표로 고쳤다.
-
-표를 코드와 다시 대조했다. 다섯 노드 핸들러와 두 내부 MCP 브리지 도구 프로바이더가 넘기는 값은 표와 같았다. 외부 MCP 서버의 도구 호출(`McpToolProvider`)은 활동 로그를 쓰면서 `api` 를 넘기지 않는데, 표에는 그 행이 없었고 머리 문장은 모든 경로가 `api` 를 넘긴다고 적었다. 지금 동작대로 `mcp` 행과 적용 범위 3 을 더하고 머리 문장을 고쳤다.
-
-- 고치지 않은 것: 외부 MCP 도구 호출의 `api_*` 를 채우는 일은 코드 변경이다. 이 Task 는 동작을 바꾸지 않고 스펙을 구현에 맞추는 일이라 고치지 않았다. NERV Task `CLE-T-22PSME` 가 맡는다.
+transformer 의 동작은 바꾸지 않았다. 원래 저장값을 담은 표식은 다시 저장해도 원래 저장값이 그대로 저장된다. 응답 `config` 에 표식을 그대로 싣고 통합의 `credentialsStatus` 같은 상태 표시로 바꾸지 않는 결정은 [외부 호출 인증 설정 「복호화 불가 표식을 응답에 그대로 둔다」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#복호화-불가-표식을-응답에-그대로-둔다-2026-11-05) 에 있다. 그래서 이 문서의 표식 정의와 용어 사전 「복호화 불가 표식」 은 바꾸지 않았다.

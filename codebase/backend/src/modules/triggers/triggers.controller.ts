@@ -286,9 +286,9 @@ export class TriggersController {
   // (C-2: ChatChannelController 에서 이전 — chat-channel↔triggers forwardRef 순환 해소.)
   //
   // 근거:
-  //   - [채팅 채널 「봇 토큰 재발급 API」](CLE-CHAT-CORE#봇-토큰-재발급-api)
+  //   - [채팅 채널 「봇 토큰 재발급 API」](CLE-CHAT-CORE-TOKEN#봇-토큰-재발급-api)
   //   - [Telegram 어댑터 「보안」](CLE-CHAT-TELEGRAM#보안)
-  //   - [채팅 채널 「R7 동사를 rotate-bot-token 으로 둔다」](CLE-CHAT-CORE#r7-동사를-rotate-bot-token-으로-둔다)
+  //   - [채팅 채널 「R7 동사를 rotate-bot-token 으로 둔다」](CLE-CHAT-CORE-TOKEN#r7-동사를-rotate-bot-token-으로-둔다)
   //   - [HTTP API 규약 「2.2 명명 규칙」](CLE-API-CONV#22-명명-규칙) RPC 형태 하위 채널 액션
   //   - [채팅 채널 데이터와 흐름 「봇 토큰 라이프사이클」](CLE-CHAT-DATA#봇-토큰-라이프사이클) grace 만료 뒤 v2 정리
   /**

@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAROUSEL"
 title: "Carousel 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-CAROUSEL-001", "REQ-CAROUSEL-002", "REQ-CAROUSEL-003", "REQ-CAROUSEL-004", "REQ-CAROUSEL-005", "REQ-CAROUSEL-006", "REQ-CAROUSEL-007", "REQ-CAROUSEL-008", "REQ-CAROUSEL-009", "REQ-CAROUSEL-010", "REQ-CAROUSEL-011", "REQ-CAROUSEL-012", "REQ-CAROUSEL-013", "REQ-CAROUSEL-014", "REQ-CAROUSEL-015", "REQ-CAROUSEL-016", "REQ-CAROUSEL-017", "REQ-CAROUSEL-018", "REQ-CAROUSEL-019", "REQ-CAROUSEL-020", "REQ-CAROUSEL-021", "REQ-CAROUSEL-022", "REQ-CAROUSEL-023", "REQ-CAROUSEL-024", "REQ-CAROUSEL-025", "REQ-CAROUSEL-026"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "cd9c6da368ce7b39ccbf17ae92ca8e5c31b498037261125e8051dc4f353adcd6"
+content_hash: "e392d1e1591afcb58349e83330e9a8505c16dd9205139960a46109a9cf9cdd15"
 read_as: "approved_fallback"
-task: "CLE-T-W0377J"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/4-nodes/6-presentation/1-carousel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c57a1d33733af77b5732d80a51551942a2d6057973ee3bef18e1e05a501e0d80"
-etag: "sha256-ff8bbf1be7b80d950223d78c38359b9cf9730930a5b82ffab4c8f43bc260fb8f"
+mirror_sha256: "cc199610bed04451256409e5db862a7409161eed832b46371fd185f7ef9a8db0"
+etag: "sha256-5d30112ea0fafe9d068a7f6388ee9afa3e52a7032891c7252edc31c091822e5e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/1-carousel.md`, `spec/4-nodes/_product-overview.md` (§9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -89,6 +89,10 @@ Carousel 노드(Carousel, `carousel`)는 데이터를 슬라이드 목록으로 
 | `buttons` | ButtonDef[] | ✗ | 항목 버튼. 최대 5개. 포트 버튼과 링크 버튼을 모두 쓸 수 있다. 포트 버튼을 누르면 `selectedItem` 이 사용자 입력 기록에 들어간다 |
 
 스키마 단일 기준은 `codebase/backend/src/nodes/presentation/carousel/carousel.schema.ts` 의 `carouselNodeConfigSchema` 다.
+
+## 하위 문서
+
+- [Carousel 노드 — 출력 구조](CLE-NODE-CAROUSEL-OUTPUT.md): 표시 전용 · 입력 대기(정적 · 동적 모드) · 재개(전역 버튼 · 항목 버튼 · Continue) 출력의 JSON 예시, 필드 출처, 표현식 접근 예. 맡는 요구사항: REQ-CAROUSEL-005, REQ-CAROUSEL-010, REQ-CAROUSEL-017, REQ-CAROUSEL-018, REQ-CAROUSEL-019, REQ-CAROUSEL-020, REQ-CAROUSEL-021
 
 ## 설정 화면
 
@@ -171,265 +175,7 @@ flowchart TD
 
 ## 출력 구조
 
-JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필드(`config`·`output`·`meta?`·`port?`·`status?`) 밖의 최상위 키는 쓰지 않는다. 경우는 표시 전용, 입력 대기(정적·동적 모드), 재개(전역 버튼·항목 버튼·Continue)로 나뉜다. 설정 검증 실패는 실행 전 검증에서 던진다.
-
-### 표시 전용(버튼 없음)
-
-```json
-{
-  "config": {
-    "mode": "dynamic",
-    "layout": "card",
-    "source": "{{ $input.items }}",
-    "titleField": "name",
-    "descriptionField": "summary",
-    "imageField": "thumb",
-    "maxItems": 10
-  },
-  "output": {
-    "items": [
-      { "title": "Alpha", "description": "First", "image": "http://a.png" },
-      { "title": "Beta",  "description": "Second", "image": "http://b.png" }
-    ]
-  }
-}
-```
-
-표시 전용 핸들러는 `{ config, output }` 만 돌려준다(`carousel.handler.ts`). `meta.durationMs` 는 핸들러가 아니라 엔진이 넣는다.
-
-| 필드 | 타입 | 출처 | 설명 |
-|------|------|------|------|
-| `config.mode` | `'static'` / `'dynamic'` | 설정 에코 | 사용자가 정한 모드. 설정하지 않았으면 핸들러가 `dynamic` 을 채운다 |
-| `config.layout` | `'card'` / `'image'` / `'minimal'` | 설정 에코 | 카드 레이아웃. 설정하지 않았으면 핸들러가 `card` 를 채운다 |
-| `config.source?` | String(원문) | 설정 에코 | 동적 모드 표현식. `{{ }}` 원문을 보존한다. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 입력 포트 데이터를 쓴다 |
-| `config.titleField?` / `config.descriptionField?` / `config.imageField?` | String | 설정 에코 | 매핑 필드 경로(동적 모드 전용). 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 슬라이드의 그 칸이 빈다 |
-| `config.items?` | ItemDef[] | 설정 에코 | 정적 모드 슬라이드 정의. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 슬라이드가 없을 때와 같다(동적 모드에서는 쓰지 않는다) |
-| `config.maxItems?` | number | 설정 에코 | 최대 슬라이드 수(동적 모드 전용). 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 개수를 자르지 않는다. 출력 크기 한도는 그대로 적용한다 |
-| `config.itemButtons?` | ButtonDef[] | 설정 에코 | 동적 모드 항목 공통 버튼 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 항목 버튼이 없을 때와 같다. 버튼이 없어 표시 전용으로 끝났으면 이 값은 빈 배열이거나 키가 빠진다 |
-| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 전역 버튼이 없을 때와 같다. 버튼이 없어 표시 전용으로 끝났으면 이 값은 빈 배열이거나 키가 빠진다 |
-| `output.items` | Array | 런타임(`source` 해석 + 필드 매핑, 동적 모드 전용) | 동적 모드 매핑 결과. 출력 크기 한도를 적용한다. **정적 모드는 이 필드를 싣지 않는다.** 슬라이드는 `config.items` 를 본다 |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms) |
-| `port` | `undefined` | 없음 | 단일 출력(`out`). `port` 를 두지 않는다 |
-
-정적 모드의 표시 전용 출력 값은 `{}` 다. 한도가 걸리면 `{ itemsTruncated, itemsTotalCount }` 다.
-
-표현식 접근 예(동적 모드):
-
-- `$node["C"].output.items[0].title` → `"Alpha"`
-- `$node["C"].config.layout` → `"card"`(리터럴 설정)
-
-### 입력 대기
-
-블로킹 모드에 들어가면 `status: 'waiting_for_input'` 과 `meta.interactionType: 'buttons'` 를 싣는다. 출력 값은 모드별로 다르다.
-
-**정적 모드:**
-
-```json
-{
-  "config": {
-    "mode": "static",
-    "layout": "card",
-    "items": [
-      {
-        "title": "Item A",
-        "description": "Desc A",
-        "image": "http://a.png",
-        "buttons": [ { "id": "act", "label": "Select", "type": "port", "style": "primary" } ]
-      },
-      { "title": "Item B", "description": "Desc B", "image": "http://b.png" }
-    ],
-    "buttons": [
-      { "id": "approve", "label": "Approve", "type": "port", "style": "primary" },
-      { "id": "reject",  "label": "Reject",  "type": "port", "style": "danger"  }
-    ],
-    "buttonConfig": {
-      "buttons": [
-        { "id": "approve", "label": "Approve", "type": "port", "style": "primary" },
-        { "id": "reject",  "label": "Reject",  "type": "port", "style": "danger" },
-        { "id": "act__item_0", "label": "Select", "type": "port", "style": "primary" }
-      ],
-      "buttonItemMap": { "act__item_0": 0 }
-    }
-  },
-  "output": {},
-  "meta": { "durationMs": 0, "interactionType": "buttons" },
-  "status": "waiting_for_input"
-}
-```
-
-| 필드 | 타입 | 출처 | 설명 |
-|------|------|------|------|
-| `config.items` | ItemDef[] | 설정 에코 | 사용자가 정의한 정적 슬라이드. 다음 노드는 `$node["C"].config.items` 로 읽는다 |
-| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. `label`·`url` 의 `{{ }}` 를 보존한다. 항목 버튼만으로 입력 대기에 들어왔고 전역 버튼을 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다 |
-| `config.*`(이 표에 따로 적지 않은 키) | 표시 전용과 같다 | 설정 에코 | 표시 전용 표의 키를 모두 싣는다. 키마다 `?` 표기와 미설정 때 동작은 표시 전용 표를 따른다 |
-| `config.buttonConfig.buttons` | ButtonDef[] | 런타임(전역 + 항목 합산) | 핸들러가 만든 통합 버튼 목록. 항목 버튼은 `<btn.id>__item_<idx>` 런타임 ID 다 |
-| `config.buttonConfig.buttonItemMap?` | `Record<string, number>` | 런타임 | 항목 버튼 런타임 ID → 한도 적용 후 `items` 인덱스. 비어 있으면 생략한다 |
-| `output` | `{}` | 없음 | 정적 모드는 런타임 계산값이 없다. 슬라이드는 `config.items` 를 본다 |
-| `meta.durationMs` | number | 엔진 주입 | |
-| `meta.interactionType` | `'buttons'` | 핸들러 반환 | 대기 표면 |
-| `status` | `'waiting_for_input'` | 핸들러 반환 | 블로킹 모드 진입 |
-
-**동적 모드:**
-
-```json
-{
-  "config": {
-    "mode": "dynamic",
-    "layout": "card",
-    "source": "{{ $node[\"Fetch\"].output.response.items }}",
-    "titleField": "name",
-    "descriptionField": "desc",
-    "imageField": "img",
-    "maxItems": 10,
-    "itemButtons": [ { "id": "act", "label": "Select", "type": "port" } ],
-    "buttons": [ { "id": "approve", "label": "Approve", "type": "port" } ],
-    "buttonConfig": {
-      "buttons": [
-        { "id": "approve", "label": "Approve", "type": "port" },
-        { "id": "act__item_0", "label": "Select", "type": "port" },
-        { "id": "act__item_1", "label": "Select", "type": "port" }
-      ],
-      "buttonItemMap": { "act__item_0": 0, "act__item_1": 1 }
-    }
-  },
-  "output": {
-    "items": [
-      { "title": "Alpha", "description": "First",  "image": "http://a.png" },
-      { "title": "Beta",  "description": "Second", "image": "http://b.png" }
-    ]
-  },
-  "meta": { "durationMs": 42, "interactionType": "buttons" },
-  "status": "waiting_for_input"
-}
-```
-
-| 필드 | 타입 | 출처 | 설명 |
-|------|------|------|------|
-| `config.*` | 표시 전용과 같다 | 설정 에코 | 표시 전용 표의 키를 모두 싣는다. 키마다 `?` 표기와 미설정 때 동작은 표시 전용 표를 따른다. 동적 모드 설정(`source` · `titleField` · `descriptionField` · `imageField` · `maxItems` · `itemButtons`)은 원문이다 |
-| `config.buttonConfig` | object | 런타임 | 정적 모드와 같다. 전역 버튼과 항목 버튼을 합치고 매핑한다 |
-| `output.items` | Array | 런타임(`source` 해석 + 필드 매핑 + `maxItems`·한도 적용) | 동적 모드 런타임 값. `config.items` 와 독립이다 |
-| `output.itemsTruncated?` | `true` | 런타임 | 한도로 뒤쪽 원소를 잘랐을 때만 싣는다 |
-| `output.itemsTotalCount?` | number | 런타임 | 한도 적용 전 원소 수. 한도로 잘랐을 때만 싣는다 |
-| `meta.durationMs` / `meta.interactionType` | 정적 모드와 같다 | | |
-| `status` | `'waiting_for_input'` | | |
-
-표현식 접근 예(동적 모드, 입력 대기):
-
-- `$node["C"].output.items[0].title` → `"Alpha"`(런타임 매핑 결과)
-- `$node["C"].config.layout` → `"card"`(리터럴 설정)
-- `$node["C"].status` → `"waiting_for_input"`
-
-### 재개
-
-입력 대기 시점의 출력 값을 바꾸지 않는 스냅샷으로 두고 `output.interaction` 을 더한다. `status: 'resumed'` 이고 `port` 는 누른 버튼의 원래 ID(항목 버튼은 접미사를 뗀 값)나 `'continue'` 다.
-
-**전역 포트 버튼 클릭:**
-
-```json
-{
-  "config": {
-    "mode": "static",
-    "layout": "card",
-    "items": [ /* 입력 대기와 같다 */ ],
-    "buttons": [ { "id": "approve", "label": "Approve", "type": "port" } ],
-    "buttonConfig": { /* 입력 대기와 같다 */ }
-  },
-  "output": {
-    "interaction": {
-      "type": "button_click",
-      "data": {
-        "buttonId": "approve",
-        "buttonLabel": "Approve"
-      },
-      "receivedAt": "2026-04-19T12:34:56.000Z"
-    }
-  },
-  "meta": { "durationMs": 12340, "interactionType": "buttons" },
-  "port": "approve",
-  "status": "resumed"
-}
-```
-
-| 필드 | 타입 | 출처 | 설명 |
-|------|------|------|------|
-| `output.interaction.type` | `'button_click'` | 엔진 주입(재개) | 사용자 행동 종류 |
-| `output.interaction.data.buttonId` | String | 엔진 | 누른 버튼의 원래 ID(항목 버튼은 접미사를 뗀 값) |
-| `output.interaction.data.buttonLabel` | String | 엔진 | 표현식을 해석한 버튼 라벨 |
-| `output.interaction.receivedAt` | ISO8601 | 엔진 | 클릭 시각 |
-| `port` | String | 엔진 | 누른 버튼의 원래 ID(`interaction.data.buttonId` 와 같다) |
-| `status` | `'resumed'` | 엔진 | 재개 상태 |
-
-동적 모드에서 전역 버튼을 누르면 입력 대기의 `output.items` 가 그대로 남고 `interaction` 만 더해진다.
-
-**항목 포트 버튼 클릭:**
-
-```json
-{
-  "output": {
-    "items": [
-      { "title": "Alpha", "description": "First",  "image": "http://a.png" },
-      { "title": "Beta",  "description": "Second", "image": "http://b.png" }
-    ],
-    "interaction": {
-      "type": "button_click",
-      "data": {
-        "buttonId": "act",
-        "buttonLabel": "Select",
-        "selectedItem": { "title": "Alpha", "description": "First", "image": "http://a.png" }
-      },
-      "receivedAt": "2026-04-19T12:34:56.000Z"
-    }
-  },
-  "meta": { "durationMs": 9876, "interactionType": "buttons" },
-  "port": "act",
-  "status": "resumed"
-}
-```
-
-| 필드 | 타입 | 출처 | 설명 |
-|------|------|------|------|
-| `output.items` | Array(동적 모드) | 입력 대기 스냅샷 | 동적 모드일 때만 싣는다. 정적 모드는 `output: { interaction }` 만 있고 슬라이드는 `config.items` 를 본다 |
-| `output.interaction.data.selectedItem` | object | 엔진 | 누른 항목의 슬라이드 데이터. 동적 모드는 `output.items[idx]`, 정적 모드는 `config.items[idx]` 와 같다 |
-| `port` | String | 엔진 | 항목 버튼의 **원래 ID**. 런타임 `<btn.id>__item_<idx>` 에서 접미사를 뗀다 |
-| 그 밖 | 전역 버튼 클릭과 같다 | | |
-
-엔진은 `__item_\d+$` 를 떼어 워크플로우 연결선의 출발 포트인 원래 ID(`act`)로 라우팅한다. 사용자가 정의한 `button.id` 에 `__item_` 이 있으면 스키마 검증(`validateCarouselItemButtons`)에서 거부한다.
-
-**링크 버튼만 있을 때 Continue 클릭:**
-
-링크 버튼만 있으면 자동으로 만든 계속 포트(`continue`)가 켜진다.
-
-```json
-{
-  "output": {
-    "interaction": {
-      "type": "button_continue",
-      "data": {
-        "buttonId": "more",
-        "buttonLabel": "More Info",
-        "url": "https://docs.example.com/more"
-      },
-      "receivedAt": "2026-04-19T12:34:56.000Z"
-    }
-  },
-  "meta": { "durationMs": 5432, "interactionType": "buttons" },
-  "port": "continue",
-  "status": "resumed"
-}
-```
-
-| 필드 | 타입 | 출처 | 설명 |
-|------|------|------|------|
-| `output.interaction.type` | `'button_continue'` | 엔진 | 링크 버튼만 있을 때 Continue 클릭 |
-| `output.interaction.data.url` | String | 엔진 | 해석한 외부 URL |
-| `port` | `'continue'` | 엔진 | 링크 버튼 전용 자동 포트 |
-
-표현식 접근 예:
-
-- `$node["C"].port` → `"approve"` / `"act"` / `"continue"`
-- `$node["C"].output.interaction.type` → `"button_click"` / `"button_continue"`
-- `$node["C"].output.interaction.data.selectedItem.title` → 항목 버튼을 눌렀을 때 슬라이드 제목
-- `$node["C"].config.items[0].title` → 정적 슬라이드 제목(입력 대기 때와 같다)
+노드 출력은 다섯 필드(`config`·`output`·`meta?`·`port?`·`status?`)만 쓴다. 정적 모드는 슬라이드를 `config.items` 에서 읽고 동적 모드는 `output.items` 에 싣는다. 경우별 JSON 예시와 필드 표는 [Carousel 노드 — 출력 구조](CLE-NODE-CAROUSEL-OUTPUT.md) 가 정한다.
 
 ## 에러 코드
 
@@ -475,14 +221,11 @@ Carousel 은 **런타임 에러 포트가 없다**. 모든 검증 실패는 실�
 
 ### 레이아웃 렌더 표면을 둘로 나눈다 (2026-07-07)
 
-`layout`(card / image / minimal)을 그리는 곳은 두 군데이고 목적이 달라 표현을 나눈다.
-
-- **인터랙티브 채널(웹채팅 위젯)**: 최종 사용자가 슬라이드를 넘기고 버튼을 누르는 실사용 화면이다. 여기서는 `layout` 에 따라 시각 레이아웃을 다시 만든다. 이미 구현돼 있다(`channel-web-chat` 의 `CarouselView`).
-- **실행 내역·실행 결과 드로어 미리보기(`CarouselContent`)**: 이미 끝난 실행의 스냅샷이라 **조작할 수 없다**. 세 CSS 레이아웃을 픽셀 단위로 재현해도 얻는 것이 적고 여러 이미지를 한꺼번에 불러오는 비용만 든다. 그래서 텍스트 위주 데이터 뷰(제목·설명·버튼 라벨 + `layout` 배지 + lazy 썸네일과 URL)로 그려 데이터·이미지 매핑 확인에 맞춘다.
+`layout` 을 그리는 두 표면([렌더 표면](#렌더-표면))은 목적이 달라 표현을 나눈다. 웹채팅 위젯은 최종 사용자가 조작하는 실사용 화면이라 시각 레이아웃을 다시 만든다. 실행 내역·드로어 미리보기는 끝난 실행의 스냅샷이라 **조작할 수 없다**. 세 CSS 레이아웃을 픽셀 단위로 재현해도 얻는 것이 적고 여러 이미지를 한꺼번에 불러오는 비용만 들어서 텍스트 위주 데이터 뷰로 그린다.
 
 **기각한 대안**:
 
 - 미리보기에 세 시각 레이아웃을 옮기는 안: 조작할 수 없는 디버그 화면에 시각 충실도를 들일 이유가 적다. 시각 표현은 이미 웹채팅에 있으므로 제품이 약속한 것을 잃지 않는다.
 - `image`·`minimal` 을 낮추거나 없애는 안: `layout` 은 웹채팅에서 실제로 쓰고 있어 없애면 인터랙티브 렌더가 깨진다.
 
-이전 명세는 미리보기에 좌우 화살표 슬라이드 이동·인디케이터·시각 레이아웃 재구성을 적었지만 실제 코드(가로 스크롤)와 달랐다. 이 결정으로 명세를 실제 동작(텍스트 위주 뷰)에 맞춘다.
+이전 명세의 미리보기 서술(좌우 화살표 · 인디케이터 · 시각 레이아웃)은 실제 코드(가로 스크롤)와 달라 실제 동작에 맞췄다.

@@ -326,7 +326,7 @@ export class MakeshopHandler
           path,
           query,
           body,
-          // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — let a cancelled execution stop the
+          // [노드 취소](CLE-EXEC-CANCEL-NODES#fetch-자체-타임아웃과의-연쇄) — let a cancelled execution stop the
           // in-flight HTTP call instead of waiting out the per-call timeout.
           signal: context.abortSignal,
         });

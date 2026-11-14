@@ -28,12 +28,12 @@ import {
 
 // 근거:
 //   - [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel)
-//   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER#chatchannelconfig)
-//   - [채팅 채널 「지원 프로바이더(v1)」](CLE-CHAT-CORE#지원-프로바이더v1)
+//   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER-TYPES#chatchannelconfig)
+//   - [채팅 채널 「지원 프로바이더(v1)」](CLE-CHAT-CORE-LISTENER#지원-프로바이더v1)
 //   - [Telegram 어댑터](CLE-CHAT-TELEGRAM)
 //   - [Slack 어댑터](CLE-CHAT-SLACK)
 //   - [Discord 어댑터](CLE-CHAT-DISCORD)
-//   - [시크릿 저장소 「채팅 채널 inbound 서명 자료 초기화」](CLE-INT-SECRET#채팅-채널-inbound-서명-자료-초기화) inboundSigningPlaintext 입력 분기
+//   - [시크릿 저장소 「채팅 채널 inbound 서명 자료 초기화」](CLE-INT-SECRET-USAGE#채팅-채널-inbound-서명-자료-초기화) inboundSigningPlaintext 입력 분기
 /**
  * Trigger.config.chatChannel — webhook 트리거에 외부 chat 플랫폼 어댑터를 부착하는 옵션.
  * v1 지원 provider 는 telegram / slack / discord 다.
@@ -48,8 +48,8 @@ export type ChatChannelProvider = (typeof CHAT_CHANNEL_PROVIDERS)[number];
 
 export class ChatChannelUiMappingDto {
   // 근거:
-  //   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER#chatchannelconfig)
-  //   - [채팅 채널 어댑터 규약 「네이티브 모달 경로」](CLE-CHAT-ADAPTER#네이티브-모달-경로)
+  //   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER-TYPES#chatchannelconfig)
+  //   - [채팅 채널 어댑터 규약 「네이티브 모달 경로」](CLE-CHAT-ADAPTER-FORM#네이티브-모달-경로)
   //   - [채팅 채널 어댑터 규약 「R-CCA-8」](CLE-CHAT-ADAPTER#r-cca-8-네이티브-폼-모달-예외-필드-5개-이하-모달-하나)
   @ApiPropertyOptional({
     description:
@@ -62,7 +62,7 @@ export class ChatChannelUiMappingDto {
   @IsIn(['multi_step', 'native_modal', 'auto'])
   formMode?: 'multi_step' | 'native_modal' | 'auto';
 
-  // 근거: [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER#chatchannelconfig)
+  // 근거: [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER-TYPES#chatchannelconfig)
   @ApiPropertyOptional({
     description:
       '시각형 노드 (Carousel/Chart/Table) 의 채널 표현 방식. ' +
@@ -132,7 +132,7 @@ function findFirstUnknownPlaceholder(
 }
 
 // 근거:
-//   - [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE#실행-실패-안내-1)
+//   - [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE-RENDER#실행-실패-안내)
 //   - [채팅 채널 「R-CC-15 실행 실패 안내의 입력과 자리표시자를 허용 목록으로 제한한다」](CLE-CHAT-CORE#r-cc-15-실행-실패-안내의-입력과-자리표시자를-허용-목록으로-제한한다)
 /**
  * 실행 실패 안내 6 키(`FAILURE_HINT_KEYS`)의 `languageHints` template 안에서
@@ -175,7 +175,7 @@ export class ChatChannelBotIdentityDto {
 }
 
 export class ChatChannelConfigDto {
-  // 근거: [채팅 채널 「지원 프로바이더(v1)」](CLE-CHAT-CORE#지원-프로바이더v1)
+  // 근거: [채팅 채널 「지원 프로바이더(v1)」](CLE-CHAT-CORE-LISTENER#지원-프로바이더v1)
   @ApiProperty({
     description: '어댑터 식별자. v1 supported: telegram / slack / discord.',
     enum: CHAT_CHANNEL_PROVIDERS,
@@ -273,12 +273,12 @@ export class ChatChannelConfigDto {
   inboundSigning?: string;
 
   // 근거:
-  //   - [시크릿 저장소 「채팅 채널 inbound 서명 자료 초기화」](CLE-INT-SECRET#채팅-채널-inbound-서명-자료-초기화) provider-issued plaintext 흐름
+  //   - [시크릿 저장소 「채팅 채널 inbound 서명 자료 초기화」](CLE-INT-SECRET-USAGE#채팅-채널-inbound-서명-자료-초기화) provider-issued plaintext 흐름
   //   - [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 평문은 config 에 남기지 않는다
-  //   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER#chatchannelconfig) inboundSigningRef 단일 슬롯
+  //   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER-TYPES#chatchannelconfig) inboundSigningRef 단일 슬롯
   //   - [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel) chatChannel 스키마
   //   - [Slack 어댑터 「R-S-1」](CLE-CHAT-SLACK#r-s-1-inboundsigningref-단일-슬롯을-함께-쓴다)
-  //   - [Discord 어댑터 「보안」](CLE-CHAT-DISCORD#보안)
+  //   - [Discord 어댑터 「보안」](CLE-CHAT-DISCORD-INBOUND#보안)
   /**
    * Provider-issued inbound webhook 인증 자료의 plaintext 입력 — Slack signing secret /
    * Discord ed25519 application public key. 사용자가 외부 portal 에서 발급된 값을 그대로 입력.
@@ -361,7 +361,7 @@ export class ChatChannelConfigDto {
 
   // 근거:
   //   - [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA#안내-문구-기본값)
-  //   - [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE#실행-실패-안내-1)
+  //   - [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE-RENDER#실행-실패-안내)
   @ApiPropertyOptional({
     description:
       '봇이 보내는 자체 안내 메시지 i18n (groupChatRefusal / executionStarted / executionCompleted / ' +
