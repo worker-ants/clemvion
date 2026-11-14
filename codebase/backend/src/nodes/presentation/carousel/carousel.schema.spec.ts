@@ -238,6 +238,44 @@ describe('validateCarouselConfig (imperative)', () => {
     );
   });
 
+  it('rejects per-item button id "error" in static mode (REQ-NODEUI-042)', () => {
+    // 엔진이 `__item_\d+$` 를 떼므로 항목 버튼 `error` 도 에러 포트와 겹친다.
+    const errors = validateCarouselConfig({
+      mode: 'static',
+      items: [
+        {
+          title: 'Slide',
+          buttons: [{ id: 'error', label: 'X', type: 'port' }],
+        },
+      ],
+    });
+    expect(errors).toContain(
+      'items[0].buttons[0].id "error" is reserved for the error port',
+    );
+  });
+
+  it('rejects itemButtons id "error" in dynamic mode (REQ-NODEUI-042)', () => {
+    const errors = validateCarouselConfig({
+      mode: 'dynamic',
+      titleField: 'name',
+      itemButtons: [{ id: 'error', label: 'X', type: 'port' }],
+    });
+    expect(errors).toContain(
+      'itemButtons.buttons[0].id "error" is reserved for the error port',
+    );
+  });
+
+  it('rejects global button id "error" on carousel (REQ-NODEUI-042)', () => {
+    const errors = validateCarouselConfig({
+      mode: 'dynamic',
+      titleField: 'name',
+      buttons: [{ id: 'error', label: 'X', type: 'port' }],
+    });
+    expect(errors).toContain(
+      'buttons[0].id "error" is reserved for the error port',
+    );
+  });
+
   it('rejects duplicate per-item button ids', () => {
     const errors = validateCarouselConfig({
       mode: 'static',

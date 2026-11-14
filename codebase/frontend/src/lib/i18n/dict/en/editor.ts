@@ -158,6 +158,7 @@ export const editor: Dict["editor"] = {
   labelField: "Label",
   duplicateLabelError: "A node with the same name already exists",
   settingsSavedToast: "Node settings saved",
+  errorPortEdgesRemovedToast: "Removed {{count}} edge(s) from the error port that no longer exists. Press Ctrl+Z to undo.",
   errorHandling: "Error Handling",
   errorStop: "Stop Workflow",
   errorSkip: "Skip Node",

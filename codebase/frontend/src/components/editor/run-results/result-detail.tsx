@@ -41,7 +41,7 @@ import { useT, type TFunction } from "@/lib/i18n";
 /**
  * `outputData.meta.backgroundRunId` 추출 — Background 핸들러가 발급한 UUID v4.
  * 부재 시 (옛 NodeExecution 또는 background 가 아닌 노드) null. 모니터링 API
- * 의 조회 키 (spec/4-nodes/1-logic/12-background.md §5.1 / §8).
+ * 의 조회 키 (근거: [Background 노드 「출력 구조」](CLE-NODE-BACKGROUND#출력-구조) · [Background 노드 — 본문 실행 모니터링](CLE-NODE-BACKGROUND-RUNS)).
  *
  * **Export 사유**: 단위 테스트(`extract-background-run-id.test.ts`) 가
  * 다양한 부재 케이스(null, 비-object, meta 누락, 비-string)를 잠그도록 외부
