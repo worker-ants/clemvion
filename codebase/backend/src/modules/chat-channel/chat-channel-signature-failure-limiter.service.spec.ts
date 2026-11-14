@@ -69,6 +69,50 @@ describe('ChatChannelSignatureFailureLimiterService', () => {
     });
   });
 
+  // 근거: NERV Task `CLE-T-WQ88BG`. 운영에서는 주입 토큰 없이 공용 Redis 연결을 받는다. 그 경로와
+  // 연결이 없을 때의 fail-open, 주입 토큰이 공용 연결보다 앞선다는 점을 본다.
+  describe('Redis 연결 선택', () => {
+    const connWith = (client: unknown) =>
+      ({ getClientOrNull: () => client }) as never;
+    const blockedGet = () =>
+      jest.fn().mockResolvedValue(String(SIGNATURE_FAILURE_LIMIT_PER_MIN));
+
+    it('주입 토큰이 없으면 공용 Redis 연결을 쓴다', async () => {
+      const get = blockedGet();
+      const limiter = new ChatChannelSignatureFailureLimiterService(
+        undefined,
+        connWith({ get }),
+      );
+
+      await expect(limiter.isBlocked(TRIGGER_ID, IP)).resolves.toBe(true);
+      expect(get).toHaveBeenCalledWith(KEY);
+    });
+
+    it('공용 연결이 클라이언트를 주지 않으면 막지 않고 세지 않는다', async () => {
+      const limiter = new ChatChannelSignatureFailureLimiterService(
+        undefined,
+        connWith(null),
+      );
+
+      await expect(limiter.isBlocked(TRIGGER_ID, IP)).resolves.toBe(false);
+      await expect(
+        limiter.recordFailure(TRIGGER_ID, IP),
+      ).resolves.toBeUndefined();
+    });
+
+    it('주입 토큰이 공용 연결보다 앞선다', async () => {
+      const injectedGet = blockedGet();
+      const sharedGet = jest.fn().mockResolvedValue(null);
+      const limiter = new ChatChannelSignatureFailureLimiterService(
+        { get: injectedGet } as never,
+        connWith({ get: sharedGet }),
+      );
+
+      await expect(limiter.isBlocked(TRIGGER_ID, IP)).resolves.toBe(true);
+      expect(sharedGet).not.toHaveBeenCalled();
+    });
+  });
+
   // 근거: NERV Task `CLE-T-CC3GPN`. INCR 과 TTL 을 한 Lua 스크립트로 실행해 TTL 없는 키가 남지 않게 한다.
   // 스크립트 자체의 동작(첫 실패 · TTL 이 빠진 키에 창 길이를 건다)은 실제 Redis 를 쓰는
   // `test/chat-channel-signature-failure-limit.e2e-spec.ts` 가 본다.

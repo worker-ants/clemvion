@@ -657,6 +657,7 @@ describe('TelegramAdapter', () => {
 
     // 알려진 한계: 기억은 답하기 전에 하므로 첫 호출이 실패해 forget 하기 전에 온 동시 호출은 이미 건너뛴다.
     // 그 클릭은 이번 시도에서 답을 받지 못하고, 같은 클릭이 다시 와야 답을 시도한다. 이 동작을 고정해 둔다.
+    // 한계로 받아들인 곳: NERV Task `CLE-T-CC3GPN` 리뷰 발견(동시 호출 시나리오). 고칠 Task 는 따로 없다.
     it('동시에 온 첫 호출이 실패하면 둘째는 건너뛰어 답이 가지 않는다(한계)', async () => {
       secrets.resolve.mockRejectedValueOnce(new Error('secret store down'));
 
