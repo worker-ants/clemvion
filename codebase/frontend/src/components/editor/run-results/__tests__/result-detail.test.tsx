@@ -15,6 +15,7 @@ vi.mock("@/lib/websocket/ws-client", () => ({
   getWsClient: () => ({
     emit: vi.fn(),
     once: vi.fn(),
+    isConnected: () => true,
   }),
 }));
 

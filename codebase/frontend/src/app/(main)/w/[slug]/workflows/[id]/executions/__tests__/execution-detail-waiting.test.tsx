@@ -18,11 +18,13 @@ vi.mock("@/lib/api/workflows", () => ({
 
 const mockGetById = vi.fn();
 const mockGetByWorkflow = vi.fn();
+const mockContinueExecution = vi.fn();
 
 vi.mock("@/lib/api/executions", () => ({
   executionsApi: {
     getById: (...args: unknown[]) => mockGetById(...args),
     getByWorkflow: (...args: unknown[]) => mockGetByWorkflow(...args),
+    continueExecution: (...args: unknown[]) => mockContinueExecution(...args),
   },
 }));
 
@@ -34,8 +36,13 @@ vi.mock("@/lib/websocket/use-execution-events", () => ({
 
 const emitMock = vi.fn();
 const onceMock = vi.fn();
+const isConnectedMock = vi.fn(() => true);
 vi.mock("@/lib/websocket/ws-client", () => ({
-  getWsClient: () => ({ emit: emitMock, once: onceMock }),
+  getWsClient: () => ({
+    emit: emitMock,
+    once: onceMock,
+    isConnected: () => isConnectedMock(),
+  }),
 }));
 
 vi.mock("@/lib/node-definitions", () => ({
@@ -151,6 +158,8 @@ describe("ExecutionDetailPage - waiting interaction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     emitMock.mockReset();
+    isConnectedMock.mockReturnValue(true);
+    mockContinueExecution.mockResolvedValue(undefined);
     useExecutionStore.getState().reset();
     mockGetByWorkflow.mockResolvedValue({
       data: [],
@@ -357,5 +366,111 @@ describe("ExecutionDetailPage - waiting interaction", () => {
         message: "Hello AI",
       }),
     );
+  });
+});
+
+// CLE-T-5P1ADY — 소켓이 끊겨 있으면 폼은 REST 로 보내고, 버튼 · 대화 명령은 보내지 않는다.
+// 보내지 못한 명령은 입력 대기 표시를 풀지 않고, 대화 입력창은 쓴 글을 지우지 않는다.
+describe("ExecutionDetailPage - 소켓이 끊겼을 때 입력 대기", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    emitMock.mockReset();
+    isConnectedMock.mockReturnValue(false);
+    mockContinueExecution.mockResolvedValue(undefined);
+    useExecutionStore.getState().reset();
+    mockGetByWorkflow.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 100, totalItems: 0, totalPages: 0 },
+    });
+  });
+
+  it("폼 제출은 REST 로 보내고 입력 대기를 푼다", async () => {
+    mockGetById.mockResolvedValue(makeWaitingExecution("form"));
+    await renderPage();
+    await screen.findByText("Approval");
+
+    act(() => {
+      useExecutionStore.getState().pauseForForm("n1", {
+        title: "Approval",
+        fields: [{ name: "comment", type: "text", label: "Comment" }],
+      });
+    });
+
+    fireEvent.click(await screen.findByText("Submit"));
+
+    expect(mockContinueExecution).toHaveBeenCalledWith(
+      "exec-w",
+      expect.any(Object),
+    );
+    expect(emitMock).not.toHaveBeenCalled();
+    expect(useExecutionStore.getState().status).toBe("running");
+  });
+
+  it("버튼은 보내지 않고 입력 대기를 그대로 둔다", async () => {
+    mockGetById.mockResolvedValue(makeWaitingExecution("buttons"));
+    await renderPage();
+    await screen.findByText("Choose");
+
+    act(() => {
+      useExecutionStore.getState().pauseForButtons("n1", {
+        buttons: [{ id: "btn-a", label: "Option A", type: "port" }],
+      });
+    });
+
+    fireEvent.click(await screen.findByText("Option A"));
+
+    expect(emitMock).not.toHaveBeenCalled();
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe("n1");
+  });
+
+  it("대화 종료는 보내지 않고 입력 대기를 그대로 둔다", async () => {
+    mockGetById.mockResolvedValue(makeWaitingExecution("ai_conversation"));
+    await renderPage();
+    await screen.findByText("Assistant");
+
+    act(() => {
+      useExecutionStore.getState().pauseForConversation("n1", {
+        message: "Hi",
+        messages: [{ role: "assistant", content: "Hi" }],
+        turnCount: 1,
+        maxTurns: 5,
+      });
+    });
+
+    const endBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.getAttribute("title") === "대화 종료");
+    if (!endBtn) throw new Error("End conversation button not found");
+    fireEvent.click(endBtn);
+
+    expect(emitMock).not.toHaveBeenCalled();
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe("n1");
+  });
+
+  it("메시지는 보내지 않고 입력창의 글을 남긴다", async () => {
+    mockGetById.mockResolvedValue(makeWaitingExecution("ai_conversation"));
+    await renderPage();
+    await screen.findByText("Assistant");
+
+    act(() => {
+      useExecutionStore.getState().pauseForConversation("n1", {
+        message: "Hi",
+        messages: [{ role: "assistant", content: "Hi" }],
+        turnCount: 1,
+        maxTurns: 5,
+      });
+    });
+
+    const textarea = (await screen.findByRole("textbox")) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "Hello AI" } });
+    fireEvent.keyDown(textarea, { key: "Enter", code: "Enter" });
+
+    expect(emitMock).not.toHaveBeenCalled();
+    expect(textarea.value).toBe("Hello AI");
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
   });
 });

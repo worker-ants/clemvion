@@ -62,6 +62,8 @@ export function nextExecutionRefetchInterval(
  *    하면 `parseHistoryMessages` 로 시드. 페이지 재진입 시 WS 이벤트가
  *    도착하기 전 REST 만으로도 대화 timeline 이 그려지도록 한다.
  *    WS 가 먼저 채운 경우엔 덮어쓰지 않아 timeline 보호.
+ *    에디터 REST 폴링 대체 경로는 `refreshConversation` 을 켜서 저장된 대화가 store 보다
+ *    앞서 있으면 바꾼다(`syncAiConversationMessages`, CLE-T-5P1ADY).
  *
  * Hook 외부에서 호출 가능 (Zustand 의 `useExecutionStore.getState()` 패턴).
  *
@@ -69,13 +71,16 @@ export function nextExecutionRefetchInterval(
  *   event 의 `execution` 필드.
  * @param isCancelled — 호출자가 unmount 된 경우 작업 skip. WS handler 와 에디터의
  *   REST 폴링 대체 경로는 각자 effect 실행의 해제 표시(`disposed`)를 넘긴다.
+ * @param options — `ApplyExecutionSnapshotOptions`. 에디터 REST 폴링 대체 경로만 넘긴다.
  */
 export function applyExecutionSnapshot(
   execution: ExecutionData | null | undefined,
   isCancelled?: () => boolean,
+  options?: ApplyExecutionSnapshotOptions,
 ): void {
   if (!execution) return;
   if (isCancelled?.()) return;
+  const refreshConversation = options?.refreshConversation === true;
 
   const store = useExecutionStore.getState();
   const {
@@ -86,7 +91,6 @@ export function applyExecutionSnapshot(
     pauseForForm,
     pauseForButtons,
     pauseForConversation,
-    setConversationMessages,
     resumeFromForm,
     resumeFromButtons,
     resumeFromConversation,
@@ -185,9 +189,16 @@ export function applyExecutionSnapshot(
     // 그 경우 local state 가 실제 backend 상태와 일치하므로 resume 분기를
     // skip — 그렇지 않으면 buttons/form/AI 의 waiting UI 가 wipe 되어
     // disabled stuck 회귀 (이 분기가 root cause).
-    const hasWaitingNode =
-      execution.nodeExecutions?.some(isNodeWaitingForInput);
-    if (hasWaitingNode) {
+    // AI 재개 턴(`resumed` 봉투)도 이 모양으로 온다. 폴링 대체 경로면 같은 노드의 저장된
+    // 대화로 타임라인을 맞춘다(CLE-T-5P1ADY).
+    const waitingRow = execution.nodeExecutions?.find(isNodeWaitingForInput);
+    if (waitingRow) {
+      if (
+        refreshConversation &&
+        waitingRow.nodeId === useExecutionStore.getState().waitingNodeId
+      ) {
+        syncAiConversationMessages(waitingRow, true);
+      }
       return;
     }
     // Execution already resumed before we joined — reconcile local state.
@@ -226,7 +237,7 @@ export function applyExecutionSnapshot(
       // 페이지 재진입·재구독 후 store 가 비어있는 경우 backend 영속
       // outputData 에서 안전망 재시드가 필요하다 (이 early return 으로
       // 건너뛰면 영구히 빈 채로 남던 회귀가 있었음).
-      maybeSeedAiConversationMessages(waitingNode);
+      syncAiConversationMessages(waitingNode, refreshConversation);
       return;
     }
     if (waitingNode?.outputData) {
@@ -298,12 +309,8 @@ export function applyExecutionSnapshot(
         // outputData 에 메시지가 영속되어 있으면 시드한다. WS 경로
         // (`use-execution-events.ts:handleWaitingForInput`) 와 동등.
         // 비어있지 않은 경우엔 덮어쓰지 않아 WS 가 먼저 채운 timeline 보호.
-        if (useExecutionStore.getState().conversationMessages.length === 0) {
-          const items = parseHistoryMessages(raw);
-          if (items.length > 0) {
-            setConversationMessages(items);
-          }
-        }
+        // 폴링 대체 경로(`refreshConversation`)는 저장된 대화가 앞서 있으면 바꾼다.
+        syncAiConversationMessages(waitingNode, refreshConversation);
       } else if (interactionType === "buttons") {
         const btnConfig = isStructured
           ? (raw.config as Record<string, unknown> | undefined)
@@ -419,16 +426,33 @@ export function loadHistoricalExecution(execution: ExecutionData): void {
   applyExecutionSnapshot(execution);
 }
 
+/** `applyExecutionSnapshot` 의 선택 동작. */
+export interface ApplyExecutionSnapshotOptions {
+  /**
+   * AI 대화 대기 노드의 저장된 메시지가 store 보다 앞서 있으면 store 의 대화를 바꾼다
+   * (`syncAiConversationMessages`, CLE-T-5P1ADY). 실행 이벤트를 받지 못하는 에디터 REST 폴링
+   * 대체 경로만 켠다. WS 스냅샷 · 실행 상세 화면 · 내역 보기는 이벤트가 채운 더 자세한
+   * 타임라인을 덮지 않도록 끈 채로 부른다.
+   */
+  refreshConversation?: boolean;
+}
+
 /**
- * 같은 waiting 노드 reconcile (early return) 경로에서도 AI 대화 메시지
- * 안전망은 유지한다. store 가 비어있고 영속 outputData 에 messages 가
- * 있으면 시드해, SPA 재진입·WS 재구독 후 store 와 backend 가 어긋난
- * 상태로 timeline 이 영구히 비어 보이는 회귀를 차단한다. form/buttons 는
- * `waitingFormConfig` / `waitingButtonConfig` 단일 객체로 store 가
- * 보존되어 같은 안전망이 필요 없다.
+ * AI 대화 대기 노드의 저장된 메시지(`outputData`)를 store 의 대화에 맞춘다.
+ *
+ * - store 의 대화가 비어 있으면 시드한다. 같은 waiting 노드 reconcile(early return) 경로에서도
+ *   이 안전망을 유지해, SPA 재진입·WS 재구독 후 store 와 backend 가 어긋난 상태로 timeline 이
+ *   영구히 비어 보이는 회귀를 막는다. form/buttons 는 `waitingFormConfig` /
+ *   `waitingButtonConfig` 단일 객체로 store 가 보존되어 같은 안전망이 필요 없다.
+ * - `refresh` 이면 저장된 대화의 사용자 · AI 메시지 수가 store 의 확정된 메시지 수(보낸 뒤
+ *   서버 확인을 기다리는 `optimisticPending` 항목은 빼고)보다 많을 때 저장된 대화로 바꾼다.
+ *   보낸 메시지 항목도 저장된 대화에 들어 있으므로 함께 바뀐다. 노드가 park 한 행이면 그
+ *   턴의 응답이 끝난 것이라 응답 대기 표시를 끈다. AI 재개 턴 행(`resumed` 봉투)은 응답이
+ *   아직 오는 중이라 표시를 둔다.
  */
-function maybeSeedAiConversationMessages(
+function syncAiConversationMessages(
   waitingNode: NodeExecutionData | undefined,
+  refresh: boolean,
 ): void {
   if (!waitingNode?.outputData) return;
   const { waitingInteractionType, conversationMessages, setConversationMessages } =
@@ -441,11 +465,31 @@ function maybeSeedAiConversationMessages(
   ) {
     return;
   }
-  if (conversationMessages.length > 0) return;
+  if (conversationMessages.length > 0 && !refresh) return;
   const items = parseHistoryMessages(waitingNode.outputData);
-  if (items.length > 0) {
+  if (items.length === 0) return;
+  if (conversationMessages.length === 0) {
     setConversationMessages(items);
+    return;
   }
+  if (countSettledMessages(items) <= countSettledMessages(conversationMessages)) {
+    return;
+  }
+  setConversationMessages(items);
+  if (!isAiResumedWaitingEnvelope(waitingNode.outputData)) {
+    useExecutionStore.setState({ isWaitingAiResponse: false });
+  }
+}
+
+/** 대화 항목 중 사용자 · AI 메시지 수. 서버 확인을 기다리는 보낸 메시지 항목은 세지 않는다. */
+function countSettledMessages(
+  items: ReadonlyArray<{ type: string; optimisticPending?: boolean }>,
+): number {
+  return items.filter(
+    (item) =>
+      (item.type === "user" || item.type === "assistant") &&
+      item.optimisticPending !== true,
+  ).length;
 }
 
 /**

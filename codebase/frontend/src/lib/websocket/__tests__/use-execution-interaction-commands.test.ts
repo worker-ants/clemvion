@@ -7,10 +7,12 @@ const { emitMock, onceMock, toastErrorMock } = vi.hoisted(() => ({
   toastErrorMock: vi.fn(),
 }));
 
+// 연결된 소켓. 끊긴 소켓의 동작은 use-execution-interaction-commands-disconnected.test.ts 가 본다.
 vi.mock("../ws-client", () => ({
   getWsClient: () => ({
     emit: emitMock,
     once: onceMock,
+    isConnected: () => true,
   }),
 }));
 

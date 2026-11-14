@@ -1721,3 +1721,181 @@ describe("applyExecutionSnapshot — 마지막 턴 재시도를 따라간다", (
     expect(useExecutionStore.getState().status).toBe("failed");
   });
 });
+
+// CLE-T-5P1ADY — 에디터 REST 폴링 대체 경로는 실행 이벤트를 받지 못하므로 AI 대화
+// 타임라인을 저장된 메시지로 갱신한다(`refreshConversation`). 다른 호출자(WS 스냅샷 ·
+// 실행 상세 화면 · 내역 보기)는 옵션 없이 부르고 지금처럼 빈 store 에만 시드한다.
+describe("applyExecutionSnapshot — 폴링 대체 경로의 AI 대화 갱신", () => {
+  const AI_NODE_ID = "ai-agent-node";
+
+  const settledTurn1 = [
+    { type: "user" as const, content: "안녕", turnIndex: 1 },
+    { type: "assistant" as const, content: "안녕하세요", turnIndex: 1 },
+  ];
+  const optimisticTurn2 = {
+    type: "user" as const,
+    content: "날씨 알려줘",
+    turnIndex: 2,
+    timestamp: "2026-04-01T00:00:05Z",
+    optimisticPending: true,
+  };
+
+  function persistedMessages(turns: number): Array<{ role: string; content: string }> {
+    const all = [
+      { role: "user", content: "안녕" },
+      { role: "assistant", content: "안녕하세요" },
+      { role: "user", content: "날씨 알려줘" },
+      { role: "assistant", content: "맑아요" },
+    ];
+    return all.slice(0, turns * 2);
+  }
+
+  function aiRow(
+    messages: Array<{ role: string; content: string }>,
+    phase: "parked" | "resumed",
+  ): Record<string, unknown> {
+    return {
+      id: "ne-ai-1",
+      executionId: "exec-1",
+      nodeId: AI_NODE_ID,
+      nodeType: "ai_agent",
+      status: phase === "parked" ? "waiting_for_input" : "running",
+      startedAt: "2026-04-01T00:00:00Z",
+      outputData: {
+        config: { mode: "multi_turn" },
+        output: { result: { messages, turnCount: messages.length / 2, maxTurns: 10 } },
+        status: phase === "parked" ? "waiting_for_input" : "resumed",
+        meta: { interactionType: "ai_conversation" },
+      },
+    };
+  }
+
+  function waitingSnapshot(
+    rowMessages: Array<{ role: string; content: string }>,
+    phase: "parked" | "resumed" = "parked",
+  ): ExecutionData {
+    return createExec({
+      status: phase === "parked" ? "waiting_for_input" : "running",
+      nodeExecutions: [aiRow(rowMessages, phase)],
+    }) as unknown as ExecutionData;
+  }
+
+  beforeEach(() => {
+    useExecutionStore.getState().reset();
+    useExecutionStore.setState({
+      executionId: "exec-1",
+      status: "waiting_for_input",
+      startedAt: "2026-04-01T00:00:00Z",
+      waitingNodeId: AI_NODE_ID,
+      waitingInteractionType: "ai_conversation",
+      waitingConversationConfig: { mode: "multi_turn" },
+      conversationMessages: [...settledTurn1, optimisticTurn2],
+      isWaitingAiResponse: true,
+    });
+  });
+
+  it("park 한 노드의 저장된 대화가 store 보다 앞서 있으면 바꾸고 응답 대기 표시를 끈다", () => {
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(2)), undefined, {
+      refreshConversation: true,
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages.map((m) => m.content)).toEqual([
+      "안녕",
+      "안녕하세요",
+      "날씨 알려줘",
+      "맑아요",
+    ]);
+    expect(state.conversationMessages.some((m) => m.optimisticPending)).toBe(false);
+    expect(state.isWaitingAiResponse).toBe(false);
+    expect(state.waitingNodeId).toBe(AI_NODE_ID);
+  });
+
+  it("옵션이 없으면 비어 있지 않은 store 의 대화를 바꾸지 않는다", () => {
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(2)));
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages).toHaveLength(3);
+    expect(state.conversationMessages[2]).toMatchObject({ optimisticPending: true });
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+
+  it("저장된 대화가 앞서 있지 않으면 보낸 메시지 항목과 응답 대기 표시를 둔다", () => {
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(1)), undefined, {
+      refreshConversation: true,
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages).toHaveLength(3);
+    expect(state.conversationMessages[2]).toMatchObject({ optimisticPending: true });
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+
+  it("재개 턴 중(resumed 봉투)이면 대화는 바꾸되 응답 대기 표시는 둔다", () => {
+    const rowMessages = [
+      ...persistedMessages(1),
+      { role: "user", content: "날씨 알려줘" },
+    ];
+    applyExecutionSnapshot(waitingSnapshot(rowMessages, "resumed"), undefined, {
+      refreshConversation: true,
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages.map((m) => m.content)).toEqual([
+      "안녕",
+      "안녕하세요",
+      "날씨 알려줘",
+    ]);
+    expect(state.conversationMessages.some((m) => m.optimisticPending)).toBe(false);
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+
+  it("store 가 실행 중으로 넘어간 뒤 같은 노드가 다시 대기하면 저장된 대화로 바꾼다", () => {
+    // 폴링이 턴 사이의 running 응답을 받아 `resumeFromConversation` 으로 대기 표시를 지운 뒤다.
+    useExecutionStore.getState().resumeFromConversation();
+    expect(useExecutionStore.getState().conversationMessages).toHaveLength(3);
+
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(2)), undefined, {
+      refreshConversation: true,
+    });
+
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.waitingNodeId).toBe(AI_NODE_ID);
+    expect(state.conversationMessages).toHaveLength(4);
+    expect(state.conversationMessages[3]?.content).toBe("맑아요");
+  });
+
+  it("옵션이 없으면 다시 대기해도 비어 있지 않은 대화를 그대로 둔다", () => {
+    useExecutionStore.getState().resumeFromConversation();
+
+    applyExecutionSnapshot(waitingSnapshot(persistedMessages(2)));
+
+    expect(useExecutionStore.getState().conversationMessages).toHaveLength(3);
+  });
+
+  it("form 대기에는 대화 갱신을 하지 않는다", () => {
+    useExecutionStore.setState({
+      waitingInteractionType: "form",
+      conversationMessages: [...settledTurn1],
+    });
+    const snapshot = createExec({
+      status: "waiting_for_input",
+      nodeExecutions: [
+        {
+          ...aiRow(persistedMessages(2), "parked"),
+          outputData: {
+            config: {},
+            output: { result: { messages: persistedMessages(2) } },
+            status: "waiting_for_input",
+            meta: { interactionType: "form" },
+          },
+        },
+      ],
+    }) as unknown as ExecutionData;
+
+    applyExecutionSnapshot(snapshot, undefined, { refreshConversation: true });
+
+    expect(useExecutionStore.getState().conversationMessages).toHaveLength(2);
+  });
+});

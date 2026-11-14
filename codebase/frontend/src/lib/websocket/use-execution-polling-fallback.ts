@@ -237,7 +237,10 @@ export function useExecutionPollingFallback({
         );
         if (decision === "stop") return;
         if (decision === "apply") {
-          applyExecutionSnapshot(execution, () => disposed);
+          // 실행 이벤트를 받지 못하므로 AI 대화도 저장된 메시지로 갱신한다(CLE-T-5P1ADY).
+          applyExecutionSnapshot(execution, () => disposed, {
+            refreshConversation: true,
+          });
           // 재시도 턴을 기다리는 중의 `failed` 응답은 아직 끝난 실행이 아니다.
           if (
             isTerminalServerExecutionStatus(execution.status) &&

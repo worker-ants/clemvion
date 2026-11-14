@@ -932,10 +932,12 @@ export function ResultDetail({
     [executionId, commands, onAiRenderFormSubmit],
   );
 
+  // 버튼 · 대화 명령은 소켓이 끊겨 있으면 보내지 않는다(CLE-T-5P1ADY). 보내지 못했으면
+  // 입력 대기 표시를 풀지 않아 사용자가 연결이 돌아온 뒤 다시 누를 수 있다.
   const handlePortButtonClick = useCallback(
     (buttonId: string) => {
       if (!executionId) return;
-      commands.clickButton(buttonId);
+      if (!commands.clickButton(buttonId)) return;
       onButtonClick();
     },
     [executionId, commands, onButtonClick],
@@ -943,7 +945,7 @@ export function ResultDetail({
 
   const handleContinueClick = useCallback(() => {
     if (!executionId) return;
-    commands.clickContinue();
+    if (!commands.clickContinue()) return;
     onButtonClick();
   }, [executionId, commands, onButtonClick]);
 
@@ -951,17 +953,18 @@ export function ResultDetail({
     openExternalLink(url);
   }, []);
 
+  // 보냈는지를 돌려줘 대화 입력창이 보내지 못한 글을 지우지 않게 한다(CLE-T-5P1ADY).
   const handleSendMessage = useCallback(
-    (message: string) => {
-      if (!executionId || !result) return;
-      commands.sendMessage(result.nodeId, message);
+    (message: string): boolean => {
+      if (!executionId || !result) return false;
+      return commands.sendMessage(result.nodeId, message);
     },
     [executionId, result, commands],
   );
 
   const handleEndConversation = useCallback(() => {
     if (!executionId || !result) return;
-    commands.endConversation(result.nodeId);
+    if (!commands.endConversation(result.nodeId)) return;
     onConversationEnd();
   }, [executionId, result, commands, onConversationEnd]);
 

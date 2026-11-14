@@ -84,6 +84,9 @@ export const executions: Dict["executions"] = {
     statusPending: "Pending",
   },
   realtimeFallback: "Realtime updates are delayed. Falling back to polling.",
+  // Buttons, chat and retry need the realtime connection (CLE-T-5P1ADY). Forms go over REST.
+  realtimeRequiredForInput:
+    "The realtime connection is down, so this input can't be sent right now. Try again once it's back.",
   // continuation ack errorCode → localized message (spec §7.5.2, execution-error-codes.ts).
   interactionError: {
     invalidState:
