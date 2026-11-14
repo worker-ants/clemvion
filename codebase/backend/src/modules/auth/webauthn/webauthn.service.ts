@@ -30,6 +30,7 @@ import { UsersService } from '../../users/users.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../../users/entities/user.entity';
+import { lockUserRow } from '../../users/user-row-lock';
 import { LoginHistoryService } from '../login-history.service';
 import { WebAuthnAuthChallengeService } from './webauthn-auth-challenge.service';
 import type { WebAuthnConfig } from '../../../common/config/webauthn.config';
@@ -344,7 +345,7 @@ export class WebAuthnService {
     const { userId, credentialId, publicKey, counter, transports } = input;
     try {
       return await this.dataSource.transaction(async (manager) => {
-        await this.lockUserRow(manager.getRepository(User), userId);
+        await lockUserRow(manager, userId);
         const credRepo = manager.getRepository(WebAuthnCredential);
 
         const dup = await credRepo.findOne({ where: { credentialId } });
@@ -385,25 +386,6 @@ export class WebAuthnService {
       }
       throw err;
     }
-  }
-
-  /**
-   * 같은 사용자의 Passkey 등록 저장과 삭제를 차례로 세우는 사용자 행 잠금
-   * (`SELECT … FOR NO KEY UPDATE`). 트랜잭션 안에서만 부른다. 행이 없으면(탈퇴 중) 잠글 것이 없다.
-   * 그때 등록 저장은 외래 키 제약이 막고, 삭제는 credential 이 이미 함께 지워져(ON DELETE
-   * CASCADE) 404 다.
-   */
-  private async lockUserRow(
-    userRepo: Repository<User>,
-    userId: string,
-  ): Promise<void> {
-    await userRepo.findOne({
-      where: { id: userId },
-      select: { id: true },
-      // FOR UPDATE 는 `webauthn_credential` INSERT 의 FK 검사(FOR KEY SHARE)까지 막는다.
-      // FOR NO KEY UPDATE 는 같은 사용자끼리만 줄을 세우고 자식 행 INSERT 는 막지 않는다.
-      lock: { mode: 'for_no_key_update' },
-    });
   }
 
   // ========== AUTHENTICATION ==========
@@ -462,6 +444,9 @@ export class WebAuthnService {
    * 같은 credential 의 동시 요청:
    *   SELECT FOR UPDATE 로 credential 행을 잠가 counter 읽기 · 쓰기를 직렬화한다. 다른
    *   챌린지로 온 두 요청은 한쪽이 잠금을 기다렸다가 갱신된 counter 를 읽는다.
+   *   그 전에 사용자 행을 잠근다(`lockUserRow`). 역행 삭제가 같은 사용자의 등록 저장 · 삭제 ·
+   *   복구 코드 재발급 · 사용과 차례로 돌게 하려는 것이다. 순서는 등록 · 삭제와 같은 사용자 행 →
+   *   credential 이다.
    *
    * 로그인 이력(`LoginHistory.record`)은 트랜잭션 *밖* 에서 호출한다. rollback 때 없는
    * 일을 기록하지 않고, 이력 기록이 실패해도 credential 삭제와 토큰 무효화 커밋이 막히지 않게
@@ -492,6 +477,7 @@ export class WebAuthnService {
 
     const outcome = await this.dataSource.transaction<Outcome>(
       async (manager) => {
+        await lockUserRow(manager, userId);
         const credRepo = manager.getRepository(WebAuthnCredential);
         const credential = await credRepo.findOne({
           where: { credentialId, userId },
@@ -655,29 +641,42 @@ export class WebAuthnService {
    *
    * 비교는 `crypto.timingSafeEqual` 로 모든 후보를 끝까지 순회해 타이밍 누설을 차단한다
    * (review I-5). 평균/최악 모두 동일 시간 소요.
+   *
+   * 읽기 · 비교 · 쓰기를 사용자 행 잠금(`lockUserRow`) 안에서 한다. 코드는 잠근 뒤에 읽어서 같은
+   * 일회용 코드를 동시에 두 번 보내도 뒤 요청은 앞 요청이 지운 목록을 보고 실패한다. 재발급 ·
+   * 마지막 credential 삭제와 겹쳐도 한쪽 쓰기가 사라지지 않는다.
    */
   async verifyRecoveryCode(userId: string, code: string): Promise<boolean> {
     this.assertEnabled();
-    const user = await this.usersService.findById(userId);
-    if (!user || !user.webauthnRecoveryCodes) return false;
     const candidate = Buffer.from(hashRecoveryCode(code.trim()), 'hex');
-    const codes = user.webauthnRecoveryCodes;
-    let matchIdx = -1;
-    for (let i = 0; i < codes.length; i++) {
-      const stored = Buffer.from(codes[i], 'hex');
-      if (
-        stored.length === candidate.length &&
-        timingSafeEqual(stored, candidate)
-      ) {
-        matchIdx = i;
-        // early-exit 하지 않고 끝까지 비교
+    const remaining = await this.dataSource.transaction(async (manager) => {
+      await lockUserRow(manager, userId);
+      const userRepo = manager.getRepository(User);
+      const user = await userRepo.findOne({
+        where: { id: userId },
+        select: { id: true, webauthnRecoveryCodes: true },
+      });
+      if (!user || !user.webauthnRecoveryCodes) return null;
+      const codes = user.webauthnRecoveryCodes;
+      let matchIdx = -1;
+      for (let i = 0; i < codes.length; i++) {
+        const stored = Buffer.from(codes[i], 'hex');
+        if (
+          stored.length === candidate.length &&
+          timingSafeEqual(stored, candidate)
+        ) {
+          matchIdx = i;
+          // early-exit 하지 않고 끝까지 비교
+        }
       }
-    }
-    if (matchIdx < 0) return false;
-    const remaining = codes.filter((_, i) => i !== matchIdx);
-    await this.usersService.update(userId, {
-      webauthnRecoveryCodes: remaining.length > 0 ? remaining : null,
+      if (matchIdx < 0) return null;
+      const left = codes.filter((_, i) => i !== matchIdx);
+      await userRepo.update(userId, {
+        webauthnRecoveryCodes: left.length > 0 ? left : null,
+      });
+      return left;
     });
+    if (remaining === null) return false;
     this.logger.log(
       `User ${userId} used a webauthn recovery code. ${remaining.length} remaining.`,
     );
@@ -730,10 +729,9 @@ export class WebAuthnService {
    * (WebAuthnController)가 `remaining === 0` 일 때 2FA 가 완전히 해제됐음을
    * `user.2fa_disabled` 감사 로그 details 에 표기하는 데 사용한다 (§Rationale 4.1.B).
    *
-   * 조회부터 복구 코드 비우기까지 등록 저장과 같은 사용자 행 잠금 안에서 한다. 등록 저장과
-   * 삭제 사이에서는 마지막 credential 삭제와 첫 등록이 겹쳐도 credential 이 남았는데 복구
-   * 코드가 NULL 인 상태가 생기지 않는다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」). 재발급 ·
-   * 복구 코드 사용 · counter 역행 경로는 이 잠금을 거치지 않는다(후속 CLE-T-HQQNEA). 비밀번호 재확인은 컨트롤러가 한다.
+   * 조회부터 복구 코드 비우기까지 사용자 행 잠금(`lockUserRow`) 안에서 한다. 등록 저장 · 복구 코드
+   * 재발급 · 복구 코드 사용 · counter 역행 삭제도 같은 잠금을 거쳐서, 마지막 credential 삭제가 이들과
+   * 겹쳐도 차례로 돈다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」). 비밀번호 재확인은 컨트롤러가 한다.
    *
    * @throws {NotFoundException} WEBAUTHN_CREDENTIAL_NOT_FOUND — 존재하지 않거나 본인
    *   소유가 아닐 때, 또는 동시 삭제 두 건이 겹쳐 진 쪽이 이미 지워진 행을 찾을 때(404).
@@ -744,7 +742,7 @@ export class WebAuthnService {
   ): Promise<{ remaining: number }> {
     this.assertEnabled();
     return this.dataSource.transaction(async (manager) => {
-      await this.lockUserRow(manager.getRepository(User), userId);
+      await lockUserRow(manager, userId);
       const credRepo = manager.getRepository(WebAuthnCredential);
 
       const credential = await credRepo.findOne({
@@ -754,7 +752,8 @@ export class WebAuthnService {
         this.throwCredentialNotFound();
       }
       // 같은 사용자의 동시 삭제는 사용자 행 잠금으로 차례로 돌고, 진 쪽은 위 조회에서 404 다.
-      // 잠금을 거치지 않는 삭제(인증 중 counter 역행)와 겹칠 때를 위해 `affected` 도 본다.
+      // credential 을 지우는 다른 경로(인증 중 counter 역행)도 같은 잠금을 거친다. 그래도 잠금을
+      // 거치지 않는 삭제가 새로 생겼을 때 감사가 두 번 남지 않도록 `affected` 를 함께 본다.
       // 판정은 `affected === 0` 명시 비교다. `null`·`undefined` 는 드라이버가 보고하지 않았다는
       // 뜻이라 0 과 같이 읽으면 정상 삭제를 404 로 뒤집는다(같은 규율:
       // `rewriteTriggerConfigLocked`). 조건절에 `userId` 를 함께 걸어 소유권을 DELETE 에도 둔다.
@@ -778,23 +777,33 @@ export class WebAuthnService {
     });
   }
 
-  /** 복구 코드 재발급 (호출 전 비밀번호 재확인은 컨트롤러에서). */
+  /**
+   * 복구 코드 재발급 (호출 전 비밀번호 재확인은 컨트롤러에서).
+   *
+   * credential 개수 확인과 쓰기를 사용자 행 잠금(`lockUserRow`) 안에서 한다. 마지막 credential
+   * 삭제와 겹쳐도 credential 0개에 복구 코드 10개가 남지 않는다.
+   */
   async regenerateRecoveryCodes(userId: string): Promise<string[]> {
     this.assertEnabled();
-    const count = await this.credentialRepo.count({ where: { userId } });
-    if (count === 0) {
-      throw new ForbiddenException({
-        code: 'WEBAUTHN_NOT_REGISTERED',
-        message: '등록된 WebAuthn 인증기가 없어요.',
+    return this.dataSource.transaction(async (manager) => {
+      await lockUserRow(manager, userId);
+      const count = await manager
+        .getRepository(WebAuthnCredential)
+        .count({ where: { userId } });
+      if (count === 0) {
+        throw new ForbiddenException({
+          code: 'WEBAUTHN_NOT_REGISTERED',
+          message: '등록된 WebAuthn 인증기가 없어요.',
+        });
+      }
+      const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
+        generateRecoveryCode(),
+      );
+      await manager.getRepository(User).update(userId, {
+        webauthnRecoveryCodes: codes.map(hashRecoveryCode),
       });
-    }
-    const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
-      generateRecoveryCode(),
-    );
-    await this.usersService.update(userId, {
-      webauthnRecoveryCodes: codes.map(hashRecoveryCode),
+      return codes;
     });
-    return codes;
   }
 
   // ========== OPTIONS TOKEN (stateless JWT) ==========

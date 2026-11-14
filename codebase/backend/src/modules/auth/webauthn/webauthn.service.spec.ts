@@ -51,6 +51,8 @@ describe('WebAuthnService', () => {
   let loginHistory: jest.Mocked<LoginHistoryService>;
   let authChallenges: { consume: jest.Mock };
   let dataSource: { transaction: jest.Mock };
+  // 트랜잭션 안의 `manager.query`. 사용자 행 잠금 헬퍼가 `SET LOCAL lock_timeout` 을 보낸다.
+  let managerQuery: jest.Mock;
 
   const userId = 'user-uuid-1';
   const mockUser = {
@@ -104,6 +106,8 @@ describe('WebAuthnService', () => {
 
     authChallenges = { consume: jest.fn().mockResolvedValue(true) };
 
+    managerQuery = jest.fn().mockResolvedValue(undefined);
+
     // 트랜잭션 콜백을 즉시 실행하고, manager.getRepository(Entity) 호출은
     // beforeEach 에서 만든 동일 mock 으로 라우팅한다. 행 잠금과 챌린지 기록의 동시성은
     // 실제 DB · Redis 로 도는 e2e(`test/webauthn-2fa.e2e-spec.ts`)가 검증한다.
@@ -113,10 +117,12 @@ describe('WebAuthnService', () => {
         .mockImplementation(
           (
             cb: (manager: {
+              query: jest.Mock;
               getRepository: (entity: unknown) => unknown;
             }) => Promise<unknown>,
           ) =>
             cb({
+              query: managerQuery,
               getRepository: (entity: unknown) => {
                 if (entity === WebAuthnCredential) return credentialRepo;
                 if (entity === RefreshToken) return refreshTokenRepo;
@@ -319,6 +325,7 @@ describe('WebAuthnService', () => {
       dataSource.transaction.mockImplementation(
         async (cb: (m: unknown) => Promise<unknown>) => {
           const out = await cb({
+            query: managerQuery,
             getRepository: (entity: unknown) =>
               entity === User ? userRepo : txCredentialRepo,
           });
@@ -613,6 +620,25 @@ describe('WebAuthnService', () => {
       expect(credentialRepo.delete).not.toHaveBeenCalled();
     });
 
+    // counter 역행 삭제가 사용자 행 잠금 밖이면 같은 사용자의 삭제 · 등록 · 재발급과 순서가 갈린다.
+    // credential 행 잠금보다 먼저 잡는다(사용자 행 → credential). 거꾸로 잡으면 삭제와 교착한다.
+    it('locks the user row before the credential row', async () => {
+      await service.verifyAuthentication(
+        userId,
+        'opts.tok',
+        validResponse as never,
+      );
+      expect(userRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: userId },
+          lock: { mode: 'for_no_key_update' },
+        }),
+      );
+      expect(userRepo.findOne.mock.invocationCallOrder[0]).toBeLessThan(
+        credentialRepo.findOne.mock.invocationCallOrder[0],
+      );
+    });
+
     describe('signature verified, counter compared by the service', () => {
       it.each([
         ['equal to stored (5 → 5)', '5', 5],
@@ -864,40 +890,84 @@ describe('WebAuthnService', () => {
   });
 
   describe('verifyRecoveryCode', () => {
+    function seedCodes(codes: string[] | null) {
+      userRepo.findOne.mockResolvedValue({
+        id: userId,
+        webauthnRecoveryCodes: codes,
+      });
+    }
+
     it('returns true and removes code on match', async () => {
       const code = 'aaaa-bbbb-cccc';
       const hash = createHash('sha256').update(code).digest('hex');
-      usersService.findById.mockResolvedValue({
-        ...mockUser,
-        webauthnRecoveryCodes: [hash, 'other-hash'],
-      });
+      seedCodes([hash, 'other-hash']);
       const ok = await service.verifyRecoveryCode(userId, code);
       expect(ok).toBe(true);
-      expect(usersService.update).toHaveBeenCalledWith(userId, {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         webauthnRecoveryCodes: ['other-hash'],
       });
+      expect(usersService.update).not.toHaveBeenCalled();
     });
 
     it('returns false on mismatch', async () => {
-      usersService.findById.mockResolvedValue({
-        ...mockUser,
-        webauthnRecoveryCodes: ['something-else'],
-      });
+      seedCodes(['something-else']);
       const ok = await service.verifyRecoveryCode(userId, 'nope');
       expect(ok).toBe(false);
+      expect(userRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('returns false when the user has no recovery codes or no row', async () => {
+      seedCodes(null);
+      await expect(service.verifyRecoveryCode(userId, 'any')).resolves.toBe(
+        false,
+      );
+      userRepo.findOne.mockResolvedValue(null);
+      await expect(service.verifyRecoveryCode(userId, 'any')).resolves.toBe(
+        false,
+      );
+      expect(userRepo.update).not.toHaveBeenCalled();
     });
 
     it('nulls out codes column when last code used', async () => {
       const code = 'last-code-aa';
       const hash = createHash('sha256').update(code).digest('hex');
-      usersService.findById.mockResolvedValue({
-        ...mockUser,
-        webauthnRecoveryCodes: [hash],
-      });
+      seedCodes([hash]);
       await service.verifyRecoveryCode(userId, code);
-      expect(usersService.update).toHaveBeenCalledWith(userId, {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         webauthnRecoveryCodes: null,
       });
+    });
+
+    // 읽기-수정-쓰기라 잠금 없이 같은 코드를 동시에 두 번 보내면 둘 다 통과한다. 재발급 · 마지막
+    // credential 삭제와 겹치면 한쪽 쓰기가 사라진다. 사용자 행을 잠근 뒤에 코드를 읽어야 앞 요청이
+    // 커밋한 값을 본다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」).
+    it('locks the user row, then reads and writes the codes in the same transaction', async () => {
+      const code = 'aaaa-bbbb-cccc';
+      const hash = createHash('sha256').update(code).digest('hex');
+      seedCodes([hash, 'other-hash']);
+
+      await service.verifyRecoveryCode(userId, code);
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(usersService.findById).not.toHaveBeenCalled();
+      expect(userRepo.findOne).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: { id: userId },
+          lock: { mode: 'for_no_key_update' },
+        }),
+      );
+      // 잠금 뒤의 조회가 코드를 읽는다. 잠금 전 값을 쓰면 앞 요청이 지운 코드가 다시 통과한다.
+      expect(userRepo.findOne).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: { id: userId },
+          select: expect.objectContaining({ webauthnRecoveryCodes: true }),
+        }),
+      );
+      expect(userRepo.findOne.mock.invocationCallOrder[1]).toBeLessThan(
+        userRepo.update.mock.invocationCallOrder[0],
+      );
     });
   });
 
@@ -1045,13 +1115,41 @@ describe('WebAuthnService', () => {
       credentialRepo.count.mockResolvedValue(1);
       const codes = await service.regenerateRecoveryCodes(userId);
       expect(codes).toHaveLength(10);
-      expect(usersService.update).toHaveBeenCalled();
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
+        webauthnRecoveryCodes: codes.map((c) =>
+          createHash('sha256').update(c).digest('hex'),
+        ),
+      });
+      expect(usersService.update).not.toHaveBeenCalled();
     });
 
     it('rejects when no credentials registered', async () => {
       credentialRepo.count.mockResolvedValue(0);
       await expect(service.regenerateRecoveryCodes(userId)).rejects.toThrow(
         ForbiddenException,
+      );
+      expect(userRepo.update).not.toHaveBeenCalled();
+    });
+
+    // 개수 확인과 쓰기 사이에 마지막 credential 삭제가 끼면 credential 0개 + 복구 코드 10개가 된다.
+    // 삭제와 같은 사용자 행 잠금을 먼저 잡고 같은 트랜잭션에서 세고 쓴다.
+    it('locks the user row before counting and writing, all in one transaction', async () => {
+      credentialRepo.count.mockResolvedValue(1);
+      await service.regenerateRecoveryCodes(userId);
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(userRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: userId },
+          lock: { mode: 'for_no_key_update' },
+        }),
+      );
+      const lockOrder = userRepo.findOne.mock.invocationCallOrder[0];
+      expect(lockOrder).toBeLessThan(
+        credentialRepo.count.mock.invocationCallOrder[0],
+      );
+      expect(credentialRepo.count.mock.invocationCallOrder[0]).toBeLessThan(
+        userRepo.update.mock.invocationCallOrder[0],
       );
     });
   });

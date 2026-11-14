@@ -22,7 +22,7 @@ import {
   fetchAuthOptions,
   fetchRegistrationOptions,
 } from './helpers/webauthn';
-import { raceUnderHeldLock } from './helpers/concurrency';
+import { raceUnderHeldLock, waitForLockWaiters } from './helpers/concurrency';
 
 /**
  * e2e: WebAuthn(Passkey · 보안 키) 2FA 의 HTTP → service → DB 전 구간을 실 인프라에서
@@ -33,7 +33,7 @@ import { raceUnderHeldLock } from './helpers/concurrency';
  * 메운다.
  *
  * 동시 요청 케이스: T(첫 등록 두 건) · U(같은 인증기 두 건) · V(다른 사용자의 같은 credential ID) ·
- * X(마지막 삭제 × 첫 등록). W 는 삭제의 비밀번호 재확인이다.
+ * X(마지막 삭제 × 첫 등록) · Y(복구 코드와 역행 삭제가 거치는 사용자 행 잠금). W 는 삭제의 비밀번호 재확인이다.
  *
  * spec: CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 · 「sign counter 역행과 동시성」.
  * 활성 전제: docker-compose.e2e.yml backend-e2e 가 WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN 을
@@ -60,14 +60,20 @@ interface CredentialRow {
 
 describe('WebAuthn 2FA (e2e)', () => {
   let db: Client;
-  /** 동시 요청 케이스(T · U · V)에서 락을 쥐는 쪽. 요청이 도는 동안 열려 있어야 해서 따로 둔다. */
+  /** 동시 요청 케이스(T · U · V · X · Y)에서 락을 쥐는 쪽. 요청이 도는 동안 열려 있어야 해서 따로 둔다. */
   let locker: Client;
+  /** `locker` 의 백엔드 pid. Y 가 `waitForLockWaiters` 로 대기 줄을 볼 때 쓴다. */
+  let lockerPid: number;
 
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
     locker = createDbClient();
     await locker.connect();
+    const pid = await locker.query<{ pid: number }>(
+      'SELECT pg_backend_pid() AS pid',
+    );
+    lockerPid = pid.rows[0].pid;
   }, 30_000);
 
   afterAll(async () => {
@@ -1129,6 +1135,266 @@ describe('WebAuthn 2FA (e2e)', () => {
     // 삭제가 먼저면 등록이 첫 등록이라 1개, 등록이 먼저면 삭제 뒤 1개가 남는다.
     expect(credentials).toHaveLength(1);
     expect(codes).not.toBeNull();
+  });
+
+  // 복구 코드를 읽고 쓰는 경로(재발급 · 사용)와 counter 역행 삭제도 등록 저장 · 삭제와 같은 사용자 행 잠금을
+  // 거친다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-HQQNEA). 잠금이 없던 코드는 아래 각 케이스의
+  // 주석대로 «credential 0개 + 복구 코드 있음» · «credential 있음 + 복구 코드 NULL» 을 남기거나 같은 코드를 두 번 받았다.
+  describe('Y. 복구 코드와 역행 삭제가 거치는 사용자 행 잠금', () => {
+    type Answer = { status: number; body: any };
+
+    function answer(req: PromiseLike<request.Response>): Promise<Answer> {
+      return Promise.resolve(req).then(
+        (res) => ({ status: res.status, body: res.body }),
+        () => ({ status: -1, body: undefined }),
+      );
+    }
+
+    const fireDelete = (accessToken: string, credentialUuid: string) => () =>
+      answer(
+        deleteCredential(accessToken, credentialUuid, {
+          password: TEST_PASSWORD,
+        }),
+      );
+
+    const fireRegenerate = (accessToken: string) => () =>
+      answer(
+        request(BASE_URL)
+          .post('/api/auth/2fa/webauthn/recovery-codes/regenerate')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ password: TEST_PASSWORD }),
+      );
+
+    const fireRecovery = (challengeToken: string, code: string) => () =>
+      answer(
+        request(BASE_URL)
+          .post('/api/auth/2fa/webauthn/recovery')
+          .send({ challengeToken, code }),
+      );
+
+    const lockUser = (userId: string) => ({
+      sql: 'SELECT id FROM "user" WHERE id = $1 FOR UPDATE',
+      params: [userId],
+    });
+
+    /**
+     * locker 가 `lock` 을 쥔 채 `first` 를 보내 그 대기를 보고, `second` 를 보낸 뒤 ROLLBACK 으로 푼다. 응답은 보낸 순서다.
+     *
+     * 고친 코드에서 `second` 는 `first` 뒤에서 사용자 행을 기다린다. 잠금을 거치지 않는 코드에서는 기다리지 않고 끝날 수
+     * 있어서 그 대기와 응답 중 먼저 오는 쪽을 보고 푼다. 먼저 끝났을 때 생긴 상태는 호출부의 단언이 잡는다.
+     * locker 는 `USER_ROW_LOCK_TIMEOUT_MS`(5초) 안에 풀어야 한다. 넘기면 기다리던 요청이 55P03 으로 500 이 된다.
+     */
+    async function interleave(
+      lock: { sql: string; params: unknown[] },
+      first: () => Promise<Answer>,
+      second: () => Promise<Answer>,
+    ): Promise<[Answer, Answer]> {
+      let firstRes: Promise<Answer> | undefined;
+      let secondRes: Promise<Answer> | undefined;
+      let secondQueued: Promise<void> | undefined;
+      await locker.query('BEGIN');
+      try {
+        await locker.query(lock.sql, lock.params);
+        firstRes = first();
+        await waitForLockWaiters(db, lockerPid, 1, 'first request');
+        secondRes = second();
+        secondQueued = waitForLockWaiters(db, lockerPid, 2, 'second request');
+        await Promise.race([secondRes, secondQueued]);
+        await locker.query('ROLLBACK');
+        return [await firstRes, await secondRes];
+      } finally {
+        // 정상 경로에서는 이미 ROLLBACK 했으므로 no-op 이다. 관측이 먼저 실패한 경우에만 실제로 잠금을 푼다.
+        await locker.query('ROLLBACK').catch(() => undefined);
+        await firstRes?.catch(() => undefined);
+        await secondRes?.catch(() => undefined);
+        // `second` 가 먼저 끝났으면 대기 관측은 시간 초과로 끝난다. 그 거부를 흡수한다.
+        await secondQueued?.catch(() => undefined);
+      }
+    }
+
+    // 잠금이 없던 재발급은 삭제가 커밋하기 전에 credential 1개를 세고, 삭제가 복구 코드를 비운 뒤 새 코드를 써서
+    // «credential 0개 + 복구 코드 있음» 을 남겼다.
+    it('마지막 credential 삭제 뒤에 줄을 선 재발급은 403 이고 복구 코드가 남지 않는다', async () => {
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-y1'),
+        db,
+      );
+      const reg = await registerDevice(
+        BASE_URL,
+        accessToken,
+        new SoftWebAuthnDevice(),
+      );
+
+      const [del, regen] = await interleave(
+        lockUser(userId),
+        fireDelete(accessToken, reg.credentialUuid),
+        fireRegenerate(accessToken),
+      );
+
+      expect(del.status).toBe(204);
+      expect(regen.status).toBe(403);
+      expect(regen.body.error.code).toBe('WEBAUTHN_NOT_REGISTERED');
+      expect(await credentialRows(userId)).toHaveLength(0);
+      expect(await recoveryCodes(userId)).toBeNull();
+    });
+
+    // 잠금이 없던 사용은 삭제가 커밋하기 전에 코드를 읽어 통과하고, 삭제가 복구 코드를 비운 뒤 남은 9개를 다시 써서
+    // «credential 0개 + 복구 코드 있음» 을 남겼다.
+    it('마지막 credential 삭제 뒤에 줄을 선 복구 코드 사용은 401 이고 복구 코드가 남지 않는다', async () => {
+      const email = uniqueEmail('webauthn-y2');
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        email,
+        db,
+      );
+      const reg = await registerDevice(
+        BASE_URL,
+        accessToken,
+        new SoftWebAuthnDevice(),
+      );
+      const challengeToken = await loginForWebauthnChallenge(
+        BASE_URL,
+        email,
+        TEST_PASSWORD,
+      );
+
+      const [del, recover] = await interleave(
+        lockUser(userId),
+        fireDelete(accessToken, reg.credentialUuid),
+        fireRecovery(challengeToken, reg.webauthnRecoveryCodes[0]),
+      );
+
+      expect(del.status).toBe(204);
+      expect(recover.status).toBe(401);
+      expect(recover.body.error.code).toBe('RECOVERY_CODE_INVALID');
+      expect(await credentialRows(userId)).toHaveLength(0);
+      expect(await recoveryCodes(userId)).toBeNull();
+    });
+
+    // 잠금이 없던 사용은 두 요청이 모두 소비 전 코드를 읽어 같은 일회용 코드로 둘 다 2FA 를 통과했다.
+    it('같은 복구 코드를 동시에 두 번 보내면 한 번만 통과한다', async () => {
+      const email = uniqueEmail('webauthn-y3');
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        email,
+        db,
+      );
+      const reg = await registerDevice(
+        BASE_URL,
+        accessToken,
+        new SoftWebAuthnDevice(),
+      );
+      const code = reg.webauthnRecoveryCodes[0];
+      const ct1 = await loginForWebauthnChallenge(
+        BASE_URL,
+        email,
+        TEST_PASSWORD,
+      );
+      const ct2 = await loginForWebauthnChallenge(
+        BASE_URL,
+        email,
+        TEST_PASSWORD,
+      );
+
+      const results = (
+        await raceUnderHeldLock(locker, lockUser(userId), [
+          fireRecovery(ct1, code),
+          fireRecovery(ct2, code),
+        ])
+      ).sort((a, b) => a.status - b.status);
+
+      expect(results.map((r) => r.status)).toEqual([200, 401]);
+      expect(results[1].body.error.code).toBe('RECOVERY_CODE_INVALID');
+      expect(await recoveryCodes(userId)).toHaveLength(9);
+    });
+
+    // 등록이 사용자 행을 잠그고 credential 수를 센 뒤 저장 중일 때 삭제가 오는 경우다. locker 가 다른 사용자 이름으로
+    // 같은 credential ID 를 커밋하지 않고 쥐면 등록의 INSERT 가 UNIQUE 검사에서 멈춘다. 그 뒤 ROLLBACK 하면 등록이
+    // 저장된다. 삭제가 사용자 행을 잠그지 않으면 아직 보이지 않는 새 credential 을 빼고 남은 수 0 을 세어
+    // «credential 있음 + 복구 코드 NULL» 을 남긴다.
+    it('저장 중인 등록 뒤에 줄을 선 마지막 credential 삭제는 새 credential 을 세어 복구 코드를 남긴다', async () => {
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-y4'),
+        db,
+      );
+      const other = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-y4b'),
+        db,
+      );
+      const first = await registerDevice(
+        BASE_URL,
+        accessToken,
+        new SoftWebAuthnDevice(),
+      );
+      const device = new SoftWebAuthnDevice();
+      const fireRegister = await prepareRegisterVerify(accessToken, device);
+
+      const [reg, del] = await interleave(
+        {
+          sql: `INSERT INTO webauthn_credential (user_id, credential_id, public_key)
+                     VALUES ($1, $2, '\\x00'::bytea)`,
+          params: [other.userId, device.credentialIdB64Url],
+        },
+        fireRegister,
+        fireDelete(accessToken, first.credentialUuid),
+      );
+
+      expect(reg.status).toBe(200);
+      expect(reg.body.data.webauthnRecoveryCodes).toHaveLength(0);
+      expect(del.status).toBe(204);
+      expect(await credentialRows(userId)).toHaveLength(1);
+      expect(await recoveryCodes(userId)).toHaveLength(10);
+    });
+
+    // 역행 삭제가 사용자 행을 잠그지 않으면 그 삭제가 커밋되기 전에 다른 credential 의 삭제가 지워질 A 를 남은 1개로 세어
+    // 복구 코드를 남긴다. 둘 다 지워져 «credential 0개 + 복구 코드 있음» 이 된다.
+    it('counter 역행 삭제 뒤에 줄을 선 마지막 credential 삭제는 복구 코드를 비운다', async () => {
+      const email = uniqueEmail('webauthn-y5');
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        email,
+        db,
+      );
+      const deviceA = new SoftWebAuthnDevice();
+      const a = await registerDevice(BASE_URL, accessToken, deviceA);
+      const b = await registerDevice(
+        BASE_URL,
+        accessToken,
+        new SoftWebAuthnDevice(),
+      );
+      // 저장된 counter 를 올려 두면 인증기가 보내는 다음 counter(1)가 역행이다.
+      await db.query(
+        'UPDATE webauthn_credential SET counter = 100 WHERE id = $1',
+        [a.credentialUuid],
+      );
+      const login = await startPasskeyLogin(email);
+
+      // locker 가 credential A 를 쥔다. 인증은 사용자 행을 먼저 잡은 채 A 에서 기다린다.
+      const [regress, del] = await interleave(
+        {
+          sql: 'SELECT id FROM webauthn_credential WHERE id = $1 FOR UPDATE',
+          params: [a.credentialUuid],
+        },
+        () =>
+          answer(
+            postPasskeyVerify({
+              challengeToken: login.challengeToken,
+              optionsToken: login.optionsToken,
+              response: deviceA.authenticationResponse(login.challenge),
+            }),
+          ),
+        fireDelete(accessToken, b.credentialUuid),
+      );
+
+      expect(regress.status).toBe(401);
+      expect(regress.body.error.code).toBe('WEBAUTHN_COUNTER_REGRESSION');
+      expect(del.status).toBe(204);
+      expect(await credentialRows(userId)).toHaveLength(0);
+      expect(await recoveryCodes(userId)).toBeNull();
+    });
   });
 
   // 로그인 세션만으로는 Passkey 를 지우지 못한다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-Q6E11N).

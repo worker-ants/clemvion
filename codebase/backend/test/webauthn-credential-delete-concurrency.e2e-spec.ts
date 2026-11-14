@@ -26,8 +26,9 @@ import { raceUnderHeldLock } from './helpers/concurrency';
  *
  * 겹침은 테스트가 만든다 — `webauthn_credential` 행 자체를 `SELECT … FOR UPDATE` 로 쥔다.
  * 현재 판정 경로는 이렇다. `deleteCredential` 은 사용자 행을 잠근 트랜잭션 안에서 대상을 다시
- * 조회하고, 지는 요청은 그 조회(`findOne`)에서 404 를 받는다. DELETE 의 `affected === 0` 은
- * 사용자 행 잠금을 거치지 않는 삭제(인증 중 counter 역행)와 겹칠 때를 위한 보조 판정이다.
+ * 조회하고, 지는 요청은 그 조회(`findOne`)에서 404 를 받는다. 인증 중 counter 역행 삭제도 같은
+ * 잠금을 거친다(CLE-T-HQQNEA). DELETE 의 `affected === 0` 은 잠금을 거치지 않는 삭제가 새로 생길 때를
+ * 대비한 보조 판정이다.
  *
  * 판별력: 잠금과 재조회가 없던 코드는 **둘 다 204** 를 돌려주고 감사 행이 **2** 가 된다.
  */

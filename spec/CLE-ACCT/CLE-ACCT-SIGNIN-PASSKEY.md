@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
 content_hash: "911932e68394b9d5a1aca780fbe7296ac6d2f5af03a8fc703f7570b913b6da21"
 read_as: "approved_fallback"
-task: "CLE-T-Q6E11N"
+task: "CLE-T-HQQNEA"
 source_paths: []
-mirror_sha256: "c4fec2138dd285b6ed4ec5aa6270eb3c0896f2d523c4f75e57aafaf9826ef0f5"
-etag: "sha256-2190dac18ae1de469afcc1b586824d8c44b909a9e83ca3a08e491df5bd407a81"
+mirror_sha256: "b350d27a4218444a8f4ccab8e33fb03ba441332e473409718f47148304818211"
+etag: "sha256-5a4004e1bce64e9ed9098e924cc974ce88f9af650ee48445ea87b5ce17650006"
 ---
 ## 개요
 
