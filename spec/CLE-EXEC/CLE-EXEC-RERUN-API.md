@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-API"
 title: "재실행 — API 와 데이터 모델"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "dfff65756bdc8caef87ff00658c9671b8bafbf814b64746479d4a1dd051b7967"
+content_hash: "5fbfd20ca53641f1c98e5fc44a29a898e8e2f17d6a04a3f6b97bfa6c9ca34bcf"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-PHTH9N"
 source_paths: []
-mirror_sha256: "4a835d75373d12e1b2fe9f25b12e40e375b59943228c4dd546337cf3faf538ee"
-etag: "sha256-5a7ae615015ced5ec737decf51bb1fc1ba7d7aa80e3642a00ff0807e83047d6e"
+mirror_sha256: "9d8bce304e2377c63087b61aead7d17f4cb184ed7641ab397f7eacf6f54f7c7c"
+etag: "sha256-3680ba1df3b2c2cd8ffa97d175c13539cd4cf4e4e0927bf0d4ae7a982db39e39"
 ---
 ## 개요
 
@@ -83,12 +83,13 @@ API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에�
 
 같은 체인의 모든 실행을 시간순으로 돌려준다. 실행 상세 화면의 체인 배지가 쓴다.
 
-**응답 200**: `{ data: Execution[] }`. 배열을 `data` 로 감싸는 모양은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md#5-2-공용-래퍼-헬퍼) 의 배열 응답 헬퍼(`ApiOkWrappedArrayResponse`)를 따른다. `data` 는 체인의 모든 행을 `started_at ASC` 로 정렬한 배열이다. 항목은 위 재실행 응답과 같은 필드를 담고 `nodeExecutions` 는 뺀다. 다만 체인 루트(원본) 실행도 항목에 들어가므로 `reRunOf` · `chainId` 는 null 일 수 있다. 항목은 실행 상세 응답과 같은 마스킹 관문(`toResponseExecution`)을 거친다.
+**응답 200**: `{ data: ExecutionDto[] }`. 배열을 `data` 로 감싸는 모양은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md#5-2-공용-래퍼-헬퍼) 의 배열 응답 헬퍼(`ApiOkWrappedArrayResponse`)를 따른다. `data` 는 체인의 모든 행을 `started_at ASC` 로 정렬한 배열이다. 항목은 실행 목록 항목과 같은 실행 응답(`ExecutionDto`)이고 필드는 [실행 내역](CLE-EXEC-HISTORY.md#api) 의 「실행 응답 필드」가 정한다. 그래서 상세 응답 모양인 위 재실행 응답과 달리 `nodeExecutions` · `executionPathTruncated` 키가 없고 `executionPath` 는 늘 빈 배열이다. 체인 루트(원본) 실행도 항목에 들어가므로 `reRunOf` · `chainId` 는 null 일 수 있다. 항목은 실행 상세 응답과 같은 마스킹 관문(`toResponseExecution`)을 거친다.
 
 ```typescript
 {
   data: Array<{
-    ...Execution,              // 기본 실행 응답(nodeExecutions 제외)
+    ...ExecutionDto,           // 실행 응답(목록 항목과 같은 모양). nodeExecutions · executionPathTruncated 키 없음
+    executionPath: [];         // 늘 빈 배열. 노드 실행 순서는 실행 상세 응답에만 있다
     reRunOf: string | null;    // 직계 부모 실행 ID. 체인 루트(원본)면 null
     chainId: string | null;    // 체인 루트 실행 ID. 체인 루트(원본)면 null
     dryRun: boolean;           // 이 실행이 dry-run 인지
