@@ -17,6 +17,14 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { authApi } from "@/lib/api/auth";
 import type { WebAuthnCredentialSummary } from "@/lib/api/auth";
 import { useT } from "@/lib/i18n";
@@ -36,6 +44,9 @@ export function PasskeyCard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [regenPassword, setRegenPassword] = useState("");
+  // 삭제 대화상자가 가리키는 인증기. null 이면 대화상자가 닫혀 있다.
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
 
   // 서버 env(WEBAUTHN_RP_ID + WEBAUTHN_ORIGIN) 미설정 시 기능 비활성 — 카드 자체를 숨긴다.
   const availabilityQuery = useQuery({
@@ -110,14 +121,34 @@ export function PasskeyCard() {
     onError: () => toast.error(t("profile.security.webauthn.renameFailed")),
   });
 
+  // 삭제도 계정 비밀번호를 다시 확인한다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-Q6E11N).
+  // 비밀번호가 없는 계정은 401 PASSWORD_REQUIRED 를 받고 비밀번호 재설정 안내(passwordNotSet)를 본다.
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => authApi.webauthnDeleteCredential(id),
+    mutationFn: ({ id, password }: { id: string; password: string }) =>
+      authApi.webauthnDeleteCredential(id, password),
     onSuccess: () => {
+      setDeleteTargetId(null);
+      setDeletePassword("");
       qc.invalidateQueries({ queryKey: QK_LIST });
       toast.success(t("profile.security.webauthn.deleteSuccess"));
     },
-    onError: () => toast.error(t("profile.security.webauthn.deleteFailed")),
+    onError: (err) =>
+      toast.error(
+        t(
+          passwordRecheckErrorKey(err, "profile.security.webauthn.deleteFailed"),
+        ),
+      ),
   });
+
+  const openDeleteDialog = (id: string) => {
+    setDeletePassword("");
+    setDeleteTargetId(id);
+  };
+  const closeDeleteDialog = () => {
+    if (deleteMutation.isPending) return;
+    setDeleteTargetId(null);
+    setDeletePassword("");
+  };
 
   const regenMutation = useMutation({
     mutationFn: (password: string) =>
@@ -226,13 +257,7 @@ export function PasskeyCard() {
                 onEditSubmit={() =>
                   renameMutation.mutate({ id: c.id, name: editingName })
                 }
-                onDelete={() => {
-                  if (
-                    confirm(t("profile.security.webauthn.deleteConfirm"))
-                  ) {
-                    deleteMutation.mutate(c.id);
-                  }
-                }}
+                onDelete={() => openDeleteDialog(c.id)}
                 pendingRename={renameMutation.isPending}
                 pendingDelete={deleteMutation.isPending}
               />
@@ -313,6 +338,74 @@ export function PasskeyCard() {
           </form>
         )}
       </CardContent>
+
+      {/* 삭제 확인: 계정 비밀번호를 받는다 */}
+      <Dialog
+        open={deleteTargetId !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteDialog();
+        }}
+      >
+        <DialogContent>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (deleteTargetId === null) return;
+              if (deletePassword.length < 8) {
+                toast.error(t("profile.security.passwordRequired"));
+                return;
+              }
+              deleteMutation.mutate({
+                id: deleteTargetId,
+                password: deletePassword,
+              });
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {t("profile.security.webauthn.deleteDialogTitle")}
+              </DialogTitle>
+              <DialogDescription>
+                {t("profile.security.webauthn.deleteConfirm")}
+              </DialogDescription>
+            </DialogHeader>
+            <div>
+              <Label htmlFor="webauthn-delete-pw">
+                {t("profile.security.webauthn.deletePasswordLabel")}
+              </Label>
+              <Input
+                id="webauthn-delete-pw"
+                type="password"
+                autoComplete="current-password"
+                placeholder={t("profile.security.accountPasswordPlaceholder")}
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeDeleteDialog}
+                disabled={deleteMutation.isPending}
+              >
+                {t("profile.security.webauthn.cancelName")}
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                {t("profile.security.webauthn.deleteButton")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

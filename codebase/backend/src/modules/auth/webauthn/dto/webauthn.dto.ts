@@ -146,3 +146,13 @@ export class WebAuthnRegenerateRecoveryDto {
   @MaxLength(128)
   password: string;
 }
+
+// 근거: [Passkey 기능과 등록 「Passkey 삭제」](CLE-ACCT-SIGNIN-PASSKEY#passkey-삭제) (CLE-T-Q6E11N)
+/** WebAuthn credential 삭제 (비밀번호 재확인). 로그인 세션만으로는 Passkey 를 지우지 못한다. */
+export class WebAuthnDeleteCredentialDto {
+  @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password: string;
+}

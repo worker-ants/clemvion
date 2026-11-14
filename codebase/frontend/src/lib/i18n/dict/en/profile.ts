@@ -168,6 +168,8 @@ export const profile: Dict["profile"] = {
       deleteConfirm: "Delete this authenticator? If it is your last one, recovery codes are also discarded.",
       deleteSuccess: "Authenticator deleted.",
       deleteFailed: "Failed to delete.",
+      deleteDialogTitle: "Delete authenticator",
+      deletePasswordLabel: "Confirm your account password",
       recoveryCodesTitle: "WebAuthn recovery codes (shown once — store securely)",
       recoveryCodesHint: "Use a code once each to sign in when your Passkey is unavailable.",
       dismissCodes: "Got it",

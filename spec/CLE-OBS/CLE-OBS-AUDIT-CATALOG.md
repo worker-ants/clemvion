@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT-CATALOG"
 title: "감사 로그 — 감사 액션 카탈로그"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "fc9ef0e3f3d49203ad6d4dcb9a130f9c8181c25cc4827800e4432811e6e01c4a"
+content_hash: "8c598ddc0a5a0781614507b9a038cb65f735710078aba55eb420ad008c3d3b40"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Q6E11N"
 source_paths: ["spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "ba9a27a301c340bf890549d1b3cb155d2a560489b644afa37520787b80d3f9c8"
-etag: "sha256-b0707b159c2b73cf7ab650e4e687e69b047c9d63d1efc3e07eea921297978ab1"
+mirror_sha256: "2ee124fc699ca2e6cc97d03f441aceed08ff6761150cd185bc7bb7de9f404afb"
+etag: "sha256-695dfe5f8ebe8f04b7fad00596dd67a947f14bd8e270fdd93263e1465f8b0678"
 ---
 > 구현 상태: 부분 구현(`workflow.executed` 미구현, `alerts` 모듈 커버리지 갭) · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/5-system/1-auth.md` (§4), `spec/data-flow/1-audit.md`, `spec/conventions/audit-actions.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,7 +52,7 @@ etag: "sha256-b0707b159c2b73cf7ab650e4e687e69b047c9d63d1efc3e07eea921297978ab1"
 | `user.2fa_enabled` | user | `auth/auth.controller.ts` | TOTP 켜기(`POST /auth/2fa/verify`). `details.method='totp'` | 구현됨 |
 | `user.2fa_disabled` | user | 〃 | TOTP 끄기(`POST /auth/2fa/disable`). `details.method='totp'` | 구현됨 |
 | `user.2fa_enabled` | user | `auth/webauthn/webauthn.controller.ts` | WebAuthn 등록(`POST …/webauthn/register/verify`). `details.method='webauthn'`·`credentialId`·`firstCredential` | 구현됨 |
-| `user.2fa_disabled` | user | 〃 | WebAuthn 삭제(`DELETE …/webauthn/credentials/:id`). `details.method='webauthn'`·`credentialId`·`remainingCredentials` | 구현됨 |
+| `user.2fa_disabled` | user | 〃 | WebAuthn 삭제(`POST …/webauthn/credentials/:id/delete`). `details.method='webauthn'`·`credentialId`·`remainingCredentials` | 구현됨 |
 | `workflow.created` | workflow | `workflows/workflows.service.ts` | 워크플로우 생성 | 구현됨 |
 | `workflow.updated` | workflow | 〃 | 워크플로우 수정 | 구현됨 |
 | `workflow.deleted` | workflow | 〃 | 워크플로우 삭제 | 구현됨 |

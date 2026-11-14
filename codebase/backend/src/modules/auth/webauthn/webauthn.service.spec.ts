@@ -15,6 +15,7 @@ import { createHash } from 'crypto';
 import { WebAuthnService } from './webauthn.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
+import { User } from '../../users/entities/user.entity';
 import { UsersService } from '../../users/users.service';
 import { LoginHistoryService } from '../login-history.service';
 import { WebAuthnAuthChallengeService } from './webauthn-auth-challenge.service';
@@ -42,6 +43,9 @@ describe('WebAuthnService', () => {
   let service: WebAuthnService;
   let credentialRepo: jest.Mocked<any>;
   let refreshTokenRepo: jest.Mocked<any>;
+  // 트랜잭션 안의 `manager.getRepository(User)`. 등록 저장 · 삭제가 사용자 행을 잠그고
+  // 복구 코드를 같은 트랜잭션에서 쓴다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 등록·인증 흐름」).
+  let userRepo: { findOne: jest.Mock; update: jest.Mock };
   let usersService: jest.Mocked<any>;
   let jwtService: jest.Mocked<JwtService>;
   let loginHistory: jest.Mocked<LoginHistoryService>;
@@ -73,6 +77,11 @@ describe('WebAuthnService', () => {
 
     refreshTokenRepo = {
       update: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
+
+    userRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: userId }),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     usersService = {
@@ -111,6 +120,7 @@ describe('WebAuthnService', () => {
               getRepository: (entity: unknown) => {
                 if (entity === WebAuthnCredential) return credentialRepo;
                 if (entity === RefreshToken) return refreshTokenRepo;
+                if (entity === User) return userRepo;
                 throw new Error(
                   `unexpected entity in mock manager.getRepository: ${String(entity)}`,
                 );
@@ -244,16 +254,59 @@ describe('WebAuthnService', () => {
       expect(result.verified).toBe(true);
       expect(result.credentialUuid).toBe('cred-uuid-1');
       expect(result.webauthnRecoveryCodes).toHaveLength(10);
-      expect(usersService.update).toHaveBeenCalledWith(
-        userId,
-        expect.objectContaining({
-          webauthnRecoveryCodes: expect.any(Array),
-        }),
-      );
-      const codes = (usersService.update as jest.Mock).mock.calls[0][1]
-        .webauthnRecoveryCodes;
+      // credential 과 같은 트랜잭션에서 쓴다. 트랜잭션 밖 `usersService.update` 로 쓰면
+      // credential 만 커밋되고 복구 코드가 빠질 수 있다.
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
+        webauthnRecoveryCodes: expect.any(Array),
+      });
+      expect(usersService.update).not.toHaveBeenCalled();
+      const codes = userRepo.update.mock.calls[0][1].webauthnRecoveryCodes;
       // Verify codes are hashed (64-char hex)
       expect(codes[0]).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    // 같은 사용자의 첫 등록이 동시에 오면 둘 다 credential 0개를 읽어 복구 코드 묶음을
+    // 서로 덮어썼다. 사용자 행을 먼저 잠그고 그 안에서 세고 저장해야 한 요청만 첫 등록이 된다.
+    // 실제 잠금 대기는 e2e(webauthn-2fa.e2e-spec.ts)가 본다.
+    it('locks the user row before counting and saving, all in one transaction', async () => {
+      credentialRepo.count.mockResolvedValue(0);
+      await service.verifyRegistration(
+        userId,
+        'opts.tok',
+        validResponse as never,
+      );
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(userRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: userId },
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      const lockOrder = userRepo.findOne.mock.invocationCallOrder[0];
+      expect(lockOrder).toBeLessThan(
+        credentialRepo.findOne.mock.invocationCallOrder[0],
+      );
+      expect(lockOrder).toBeLessThan(
+        credentialRepo.count.mock.invocationCallOrder[0],
+      );
+      expect(lockOrder).toBeLessThan(
+        credentialRepo.save.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not keep the credential when saving the recovery codes fails', async () => {
+      credentialRepo.count.mockResolvedValue(0);
+      userRepo.update.mockRejectedValueOnce(new Error('db down'));
+      // 목 트랜잭션은 콜백의 오류를 그대로 돌려준다. 실제 롤백은 e2e 가 본다.
+      await expect(
+        service.verifyRegistration(userId, 'opts.tok', validResponse as never),
+      ).rejects.toThrow('db down');
+      expect(credentialRepo.save).toHaveBeenCalledTimes(1);
+      expect(userRepo.update).toHaveBeenCalledTimes(1);
+      expect(credentialRepo.save.mock.invocationCallOrder[0]).toBeLessThan(
+        userRepo.update.mock.invocationCallOrder[0],
+      );
     });
 
     it('verifies against the same pinned algorithm list as the options', async () => {
@@ -276,6 +329,7 @@ describe('WebAuthnService', () => {
         validResponse as never,
       );
       expect(result.webauthnRecoveryCodes).toHaveLength(0);
+      expect(userRepo.update).not.toHaveBeenCalled();
       expect(usersService.update).not.toHaveBeenCalled();
     });
 
@@ -313,9 +367,65 @@ describe('WebAuthnService', () => {
         id: 'existing',
         credentialId: 'cred-base64url',
       });
+      const err: unknown = await service
+        .verifyRegistration(userId, 'opts.tok', validResponse as never)
+        .catch((err_: unknown) => err_);
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({
+        code: 'WEBAUTHN_CREDENTIAL_EXISTS',
+        message: '이미 등록된 인증기예요.',
+      });
+      expect(credentialRepo.save).not.toHaveBeenCalled();
+      expect(userRepo.update).not.toHaveBeenCalled();
+    });
+
+    // 사용자 행 잠금은 같은 사용자끼리만 줄을 세운다. 다른 사용자가 같은 credential ID 를 동시에
+    // 등록하면 중복 조회를 둘 다 통과하고 UNIQUE 제약이 막는다. 순차 중복과 같은 409 로 답한다.
+    it.each([
+      [
+        'on the error',
+        { code: '23505', constraint: 'uq_webauthn_credential_credential_id' },
+      ],
+      [
+        'on driverError',
+        {
+          driverError: {
+            code: '23505',
+            constraint: 'uq_webauthn_credential_credential_id',
+          },
+        },
+      ],
+    ])(
+      'maps a concurrent credential_id unique violation (%s) to 409 WEBAUTHN_CREDENTIAL_EXISTS',
+      async (_label, pgError) => {
+        credentialRepo.save.mockRejectedValueOnce(
+          Object.assign(new Error('duplicate key'), pgError),
+        );
+        const err: unknown = await service
+          .verifyRegistration(userId, 'opts.tok', validResponse as never)
+          .catch((err_: unknown) => err_);
+        expect(err).toBeInstanceOf(ConflictException);
+        expect((err as ConflictException).getResponse()).toEqual({
+          code: 'WEBAUTHN_CREDENTIAL_EXISTS',
+          message: '이미 등록된 인증기예요.',
+        });
+      },
+    );
+
+    // 다른 UNIQUE 위반까지 이 코드로 덮으면 원인이 가려진다. 그대로 올려 전역 매핑에 맡긴다.
+    it.each([
+      ['another constraint', { code: '23505', constraint: 'pk_other' }],
+      ['no constraint name', { code: '23505' }],
+      [
+        'another SQLSTATE',
+        { code: '23503', constraint: 'uq_webauthn_credential_credential_id' },
+      ],
+    ])('rethrows a save error with %s unchanged', async (_label, pgError) => {
+      const original = Object.assign(new Error('db error'), pgError);
+      credentialRepo.save.mockRejectedValueOnce(original);
       await expect(
         service.verifyRegistration(userId, 'opts.tok', validResponse as never),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toBe(original);
     });
 
     it('saves the client transports unchanged, including values outside the standard list', async () => {
@@ -394,6 +504,7 @@ describe('WebAuthnService', () => {
           code: 'WEBAUTHN_VERIFY_FAILED',
         });
         expect(credentialRepo.save).not.toHaveBeenCalled();
+        expect(userRepo.update).not.toHaveBeenCalled();
         expect(usersService.update).not.toHaveBeenCalled();
       },
     );
@@ -705,7 +816,10 @@ describe('WebAuthnService', () => {
       expect(credentialRepo.delete).not.toHaveBeenCalled();
     });
 
-    it('throws when credential not found', async () => {
+    // 로그인 2단계에서 credential 이 없을 때는 서명 실패와 같은 401 `WEBAUTHN_INVALID` 다.
+    // 이름 변경 · 삭제의 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 와 뜻이 달라 나눴다(규칙 6).
+    // 로그인 이력은 남기지 않는다(이전과 같다).
+    it('throws 401 WEBAUTHN_INVALID without login history when credential not found', async () => {
       credentialRepo.findOne.mockResolvedValue(null);
       await expect(
         service.verifyAuthentication(
@@ -713,7 +827,14 @@ describe('WebAuthnService', () => {
           'opts.tok',
           validResponse as never,
         ),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({
+        status: 401,
+        response: {
+          code: 'WEBAUTHN_INVALID',
+          message: 'WebAuthn 인증에 실패했어요.',
+        },
+      });
+      expect(loginHistory.record).not.toHaveBeenCalled();
     });
   });
 
@@ -760,17 +881,45 @@ describe('WebAuthnService', () => {
       credentialRepo.findOne.mockResolvedValue({ id: 'cred-1', userId });
       credentialRepo.count.mockResolvedValue(0); // after delete
       const result = await service.deleteCredential(userId, 'cred-1');
-      expect(usersService.update).toHaveBeenCalledWith(userId, {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         webauthnRecoveryCodes: null,
       });
+      expect(usersService.update).not.toHaveBeenCalled();
       // 호출자(controller)가 2fa_disabled 감사 details 에 쓰는 remaining count.
       expect(result).toEqual({ remaining: 0 });
+    });
+
+    // 마지막 credential 삭제와 첫 등록이 겹치면 credential 이 남았는데 복구 코드가 NULL 인
+    // 상태가 생길 수 있다. 등록 저장과 같은 사용자 행 잠금 안에서 조회 · 삭제 · 개수 확인 ·
+    // 복구 코드 비우기를 한다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」).
+    it('locks the user row before the lookup, delete and count, all in one transaction', async () => {
+      credentialRepo.findOne.mockResolvedValue({ id: 'cred-1', userId });
+      credentialRepo.count.mockResolvedValue(0);
+      await service.deleteCredential(userId, 'cred-1');
+
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      expect(userRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: userId },
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      const lockOrder = userRepo.findOne.mock.invocationCallOrder[0];
+      for (const call of [
+        credentialRepo.findOne,
+        credentialRepo.delete,
+        credentialRepo.count,
+        userRepo.update,
+      ]) {
+        expect(lockOrder).toBeLessThan(call.mock.invocationCallOrder[0]);
+      }
     });
 
     it('keeps recovery codes when other credentials remain', async () => {
       credentialRepo.findOne.mockResolvedValue({ id: 'cred-1', userId });
       credentialRepo.count.mockResolvedValue(1); // after delete
       const result = await service.deleteCredential(userId, 'cred-1');
+      expect(userRepo.update).not.toHaveBeenCalled();
       expect(usersService.update).not.toHaveBeenCalled();
       expect(result).toEqual({ remaining: 1 });
     });
@@ -817,6 +966,7 @@ describe('WebAuthnService', () => {
         });
         // 진 쪽이 여기까지 오면 `remaining === 0` 일 때 복구 코드를 한 번 더 NULL 화한다.
         expect(credentialRepo.count).not.toHaveBeenCalled();
+        expect(userRepo.update).not.toHaveBeenCalled();
         expect(usersService.update).not.toHaveBeenCalled();
       });
 

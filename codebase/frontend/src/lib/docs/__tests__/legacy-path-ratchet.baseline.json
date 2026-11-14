@@ -118,7 +118,6 @@
     "codebase/backend/src/modules/auth-configs/dto/is-ip-or-cidr.validator.ts": 2,
     "codebase/backend/src/modules/auth/auth.controller.ts": 1,
     "codebase/backend/src/modules/auth/auth.service.ts": 2,
-    "codebase/backend/src/modules/auth/webauthn/webauthn.service.ts": 1,
     "codebase/backend/src/modules/chat-channel/channel-adapter.registry.ts": 1,
     "codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts": 3,
     "codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts": 5,

@@ -110,7 +110,10 @@ If the server has the Passkey feature turned off (see "Self-hosting" below), reg
 ## Managing Passkeys
 
 - **Rename**: pencil icon → new name → **Save**.
-- **Delete**: trash icon → confirm. Deleting your last Passkey also discards the WebAuthn recovery codes.
+- **Delete**: trash icon → in the **Delete authenticator** dialog, enter your password in **Confirm your account password** and click **Delete**. Deleting your last Passkey also discards the WebAuthn recovery codes.
+  - A signed-in session alone cannot delete a Passkey, so the password is checked again. If it is wrong, "The password is incorrect." appears and the dialog stays open.
+  - An account created only through social sign-in has no password and shows "This account has no password. Set one first with password reset." Create a password with [Forgot password](/forgot-password), then try again.
+  - If you enter a wrong password too many times in a short period, you are asked to try again later. See "Request limits" below.
 - Each row shows **last used**, **registration date**, and **transports** (usb · nfc · ble · internal · hybrid) so you can identify suspicious authenticators.
 
 ## Request limits
@@ -118,6 +121,7 @@ If the server has the Passkey feature turned off (see "Self-hosting" below), reg
 The following actions are limited to 10 requests per minute per user.
 
 - Registering a Passkey
+- Deleting a Passkey
 - Regenerating Passkey recovery codes
 - Starting TOTP setup
 - Verifying a TOTP code

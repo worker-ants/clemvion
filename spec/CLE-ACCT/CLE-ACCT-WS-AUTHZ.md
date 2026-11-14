@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-AUTHZ"
 title: "워크스페이스와 멤버 — API 인가"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "b09eb5029cac8404560319b3aac5ff07340cc8170175dd1a2b8e32c7a321eca6"
+content_hash: "8ac5a587bc6c92847469c7bcc8d529080728e5e64983aaf55b54d644f4645759"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZPPWK4"
 source_paths: []
-mirror_sha256: "b3c2ab48be62736462087dec963afc9eb709a354b76fc52ff6f055d0d015db98"
-etag: "sha256-4a431ad9b3ec0e157f5dc874482ee6a2328629fc0b9b6fb8425ba7c74949209f"
+mirror_sha256: "4e0ac8a0bd84799b864846ef1d0eb6e592546f97186497078a3aa5ac8d66e091"
+etag: "sha256-8c4f7ced07cca2d40defcdaa1713ddd8633d74cb781c0e2267392c3252fbc1fc"
 ---
 ## 개요
 
@@ -64,17 +64,17 @@ etag: "sha256-4a431ad9b3ec0e157f5dc874482ee6a2328629fc0b9b6fb8425ba7c74949209f"
 
 ### 워크스페이스를 찾지 못할 때
 
-`WORKSPACE_NOT_FOUND` 는 두 자리에서 난다. 자리마다 상태 코드와 뜻이 다르다.
+워크스페이스를 찾지 못해 거부하는 자리는 둘이다. 자리마다 코드 · 상태 코드 · 뜻이 다르다.
 
-| 발행 자리 | 상태 | 조건 | 메시지 |
+| 발행 자리 | 코드 · 상태 | 조건 | 메시지 |
 | --- | --- | --- | --- |
-| 워크스페이스 관리 경로(`WorkspacesService`) | 404 | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행을 읽었는데 없다. 이름 변경, 설정 조회 · 변경, 삭제, 나가기, 소유자 이양, 직접 추가가 이렇게 검사한다 | `워크스페이스를 찾을 수 없습니다.` |
-| 액세스 토큰 검증(`jwt.strategy`) | 401 | 토큰은 유효한데 현재 워크스페이스로 쓸 곳이 없다. 클레임이 가리키는 워크스페이스의 멤버십, 개인 워크스페이스, 첫 멤버십이 모두 없다 | `No workspace found for user` |
+| 워크스페이스 관리 경로(`WorkspacesService`) | `WORKSPACE_NOT_FOUND` 404 | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행을 읽었는데 없다. 이름 변경, 설정 조회 · 변경, 삭제, 나가기, 소유자 이양, 직접 추가가 이렇게 검사한다 | `워크스페이스를 찾을 수 없습니다.` |
+| 액세스 토큰 검증(`jwt.strategy`) | `NO_WORKSPACE_AVAILABLE` 401 | 토큰은 유효한데 현재 워크스페이스로 쓸 곳이 없다. 클레임이 가리키는 워크스페이스의 멤버십, 개인 워크스페이스, 첫 멤버십이 모두 없다 | `No workspace found for user` |
 
 - 관리 경로는 인가를 먼저 한다. 비멤버와 없는 워크스페이스는 그 단계에서 둘을 구분하지 않고 403 `NOT_A_MEMBER` 로 거부된다([가드 거부 에러 코드](#가드-거부-에러-코드)). 워크스페이스를 지우면 멤버십도 함께 지워진다. 그래서 404 는 사실상 인가와 조회 사이에 다른 요청이 그 워크스페이스를 지운 경합에서만 난다.
 - 통합을 만드는 트랜잭션(통합 생성, Cafe24 Private·MakeShop `oauth/begin`)은 같은 경합에서 이 코드를 쓰지 않는다. 워크스페이스 자체가 아니라 그 안에 통합을 만드는 요청이라 가드와 같은 403 `NOT_A_MEMBER` 로 거부한다([가드 거부 에러 코드](#가드-거부-에러-코드)). 공개 범위 전환은 대상 통합도 워크스페이스와 함께 지워졌으므로 404 `RESOURCE_NOT_FOUND` 다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#위험-영역-탭)).
 - 토큰 검증의 401 은 액세스 토큰으로 인증하는 모든 요청에서 날 수 있다. 예를 들어 초대로 가입해 개인 워크스페이스가 없는 사용자가 유일한 팀 워크스페이스에서 나가면 그 뒤 요청은 이 401 이 된다. 토큰 클레임을 대신할 워크스페이스를 찾는 순서는 [전환 API 와 토큰](CLE-ACCT-WS-SPACE.md#전환-api-와-토큰) 과 같다.
-- 토큰 검증의 401 은 새 코드 `NO_WORKSPACE_AVAILABLE` 로 옮기기로 정했다(2026-11-12). 아직 구현하지 않아 지금은 `WORKSPACE_NOT_FOUND` 로 나간다. 구현은 NERV Task `CLE-T-ZPPWK4` 가 맡는다. 구현되면 `WORKSPACE_NOT_FOUND` 는 관리 경로의 404 하나만 남는다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
+- 토큰 검증의 401 은 2026-11-12 결정대로 2026-11-14 부터 `NO_WORKSPACE_AVAILABLE` 로 나간다(NERV Task `CLE-T-ZPPWK4`). 조건과 메시지는 바뀌지 않았다. `WORKSPACE_NOT_FOUND` 는 관리 경로의 404 하나만 남았다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
 
 ### `X-Workspace-Id` 형식 검사
 
@@ -95,7 +95,7 @@ etag: "sha256-4a431ad9b3ec0e157f5dc874482ee6a2328629fc0b9b6fb8425ba7c74949209f"
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/auth/strategies/jwt.strategy.ts` (토큰 클레임 해석과 대체 순서, 쓸 워크스페이스가 없을 때의 401 `WORKSPACE_NOT_FOUND`)
+- `codebase/backend/src/modules/auth/strategies/jwt.strategy.ts` (토큰 클레임 해석과 대체 순서, 쓸 워크스페이스가 없을 때의 401 `NO_WORKSPACE_AVAILABLE`)
 - `codebase/backend/src/common/guards/*.ts` (`RolesGuard`, `JwtAuthGuard`)
 - `codebase/backend/src/common/constants/workspace-roles.ts` (가드와 서비스가 함께 쓰는 거부 본문 `NOT_A_MEMBER` · `ROLE_REQUIRED` · `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`)
 - `codebase/backend/src/common/decorators/*.ts` (`@WorkspaceId()`, `@WorkspaceParam(...)`, `@Roles()`, `workspace-reflection-canary.ts`)
@@ -170,7 +170,7 @@ etag: "sha256-4a431ad9b3ec0e157f5dc874482ee6a2328629fc0b9b6fb8425ba7c74949209f"
 
 ### 토큰 검증의 401 에 새 코드 `NO_WORKSPACE_AVAILABLE` 을 주기로 했다 (2026-11-12)
 
-사람이 정했고 구현은 NERV Task `CLE-T-ZPPWK4` 가 맡는다. 그때까지 응답은 401 `WORKSPACE_NOT_FOUND` 이고 [워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때) 에 그 사실과 결정을 함께 적었다.
+사람이 정했고 2026-11-14 에 NERV Task `CLE-T-ZPPWK4` 가 구현했다. 조건과 메시지(`No workspace found for user`)는 그대로 두고 코드만 바꿨다.
 
 - **한 코드가 두 뜻으로 쓰였다.** 관리 경로의 404 는 대상 워크스페이스가 없다는 뜻이다. 토큰 검증의 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 은 뜻이 갈리면 코드를 나누라고 정한다. 404 는 그대로 두고 401 에 새 코드를 준다. 프런트엔드에 이 코드로 분기하는 곳이 없어서 옮겨도 깨지는 소비자가 없다.
 - **이름은 사용자의 상태를 적는다.** 토큰 검증은 클레임의 워크스페이스, 개인 워크스페이스, 첫 멤버십을 차례로 찾고 셋 다 없을 때 거부한다. 조건은 워크스페이스 하나가 아니라 이 사용자에게 쓸 곳이 없다는 것이다.

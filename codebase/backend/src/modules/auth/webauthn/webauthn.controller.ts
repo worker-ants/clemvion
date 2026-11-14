@@ -3,7 +3,6 @@ import {
   Post,
   Get,
   Patch,
-  Delete,
   Body,
   HttpCode,
   HttpStatus,
@@ -25,6 +24,7 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 
 import { ApiOkWrappedResponse } from '../../../common/swagger';
@@ -45,6 +45,7 @@ import { WebAuthnService } from './webauthn.service';
 import {
   WebAuthnAuthOptionsDto,
   WebAuthnAuthVerifyDto,
+  WebAuthnDeleteCredentialDto,
   WebAuthnRecoveryDto,
   WebAuthnRegenerateRecoveryDto,
   WebAuthnRegisterOptionsRequestDto,
@@ -349,22 +350,45 @@ export class WebAuthnController {
     return { data: this.mapCredential(credential) };
   }
 
-  @Delete('credentials/:id')
+  // 비밀번호를 본문으로 받으므로 DELETE 대신 POST 다. 일부 CDN · 프록시가 DELETE 본문을 지운다
+  // (CLE-API-CONV-URL 「본문을 받아야 하는 삭제」). 토큰만으로 지우던 DELETE 는 없앴다.
+  @Post('credentials/:id/delete')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
+  // 계정 비밀번호를 대조하는 경로라 비밀번호 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
+  @Throttle(SENSITIVE_ACTION_THROTTLE)
   @ApiOperation({
     summary: 'WebAuthn credential 삭제',
     description:
-      '사용자 본인의 인증기를 삭제합니다. 마지막 credential 삭제 시 `webauthn_recovery_codes` 도 NULL 화됩니다.',
+      '계정 비밀번호를 다시 확인한 뒤 사용자 본인의 인증기를 삭제합니다. 마지막 credential 삭제 시 `webauthn_recovery_codes` 도 NULL 화됩니다. 비밀번호 확인에 실패하면 지우지 않습니다.',
   })
   @ApiParam({ name: 'id', format: 'uuid', description: 'credential UUID' })
   @ApiNoContentResponse({ description: '삭제 완료' })
-  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiBadRequestResponse({
+    description:
+      '입력값 검증 실패 (비밀번호 누락 · 8자 미만, credential UUID 형식 포함)',
+  })
+  @ApiUnauthorizedResponse({
+    description:
+      '인증 실패, 토큰 만료, 비밀번호 불일치(PASSWORD_INVALID) 또는 비밀번호가 없는 계정(PASSWORD_REQUIRED)',
+  })
+  @ApiNotFoundResponse({
+    description:
+      '대상 credential 이 없거나 호출자의 것이 아님(WEBAUTHN_CREDENTIAL_NOT_FOUND)',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      'WebAuthn 기능 비활성(WEBAUTHN_DISABLED). 비밀번호를 확인하기 전에 거부한다',
+  })
   async webauthnDelete(
     @CurrentUser() user: JwtPayload,
     @Param('id', new ParseUUIDPipe()) credentialUuid: string,
+    @Body() dto: WebAuthnDeleteCredentialDto,
     @Req() req: Express.Request,
   ) {
+    // 기능 확인 → 비밀번호 확인 → 삭제 순서다. 로그인 세션만으로는 Passkey 를 지우지 못한다
+    // (CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-Q6E11N).
+    await this.verifyPasswordWhenEnabled(user.sub, dto.password);
     const { remaining } = await this.webauthnService.deleteCredential(
       user.sub,
       credentialUuid,

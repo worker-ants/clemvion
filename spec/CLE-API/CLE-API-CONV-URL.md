@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-URL"
 title: "HTTP API 규약 — URL 과 요청"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "47339aba5cf30fa6e54ae44714476d52f716e98a4e0f0918b1604edd64708c2f"
+content_hash: "25588c411f1e982ff30f8c4bb7bcc6282cc4d1cebe7b8674784e8f307272e3af"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Q6E11N"
 source_paths: []
-mirror_sha256: "291421b0ae1a8c10911f69e782ed8d0c1056343c5b93b3ed5a58f0ad981c1a9a"
-etag: "sha256-58e155188b784039725ec7678be9d111c1326751a64169ccb300e1eb79766661"
+mirror_sha256: "8cc5df2c1f72dbe12fc04809bf8d8b035813a9c097c7ab79d3507caff42e0ec3"
+etag: "sha256-cb4ec9ef8c702024667773e1afc8cab42fd41640f29da97f6017a6b0c6ea53aa"
 ---
 ## 개요
 
@@ -41,8 +41,9 @@ etag: "sha256-58e155188b784039725ec7678be9d111c1326751a64169ccb300e1eb79766661"
 | **자원 액션**: `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 자원이 아니라 동사(구)다. 앞 경로가 가리키는 자원에 가하는 동작이다. 케밥 케이스 복합 동사구도 포함한다(`run-now`, `transfer-ownership`, `set-default`). 목적어는 경로에 두고 액션 이름에 넣지 않는다. `/workflows/:id/nodes/:nodeId/execute` 가 맞고 `/workflows/:id/execute-node` 는 틀리다. Boolean 상태 필드의 단순 토글에는 이 형태를 쓰지 않는다(§12.1) | `/executions/:id/stop`, `/schedules/:id/run-now`, `/workflows/:id/nodes/:nodeId/execute` |
 | **예외: RPC 형태 하위 채널 액션** `/api/{resource}/{id}/{channel}/{action}`. 자원 자체가 아닌 하위 채널에 가하는 부수 동작(`rotate-*`, `revoke-*`, `disable-*`, `switch` 등)이다. URL 만으로 자원·채널·동작을 식별할 수 있어야 해서 허용한다. 자원 액션에 `{channel}` 이 하나 더 끼는 자매 형태다. `/api/users/me` 의 `me` 는 로그인한 사용자 id 의 별칭이다. 그래서 이메일 변경 `/api/users/me/email-change/{action}` 도 이 형태다(채널 `email-change`) | `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch`, `/api/users/me/email-change/request` |
 | **예외: 인증 family 전용 네임스페이스** `/api/external/{resource}`. 로그인 세션·워크스페이스 인증이 아니라 실행 단위 토큰(per_execution token, `iext_*`) 같은 인터랙션 토큰으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체와 호출하는 쪽이 달라 경로를 나눈다. 규칙 위반이 아니라 명시한 예외다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md), 요청 빈도 제한은 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한), 부재 표현은 [§5.5](CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
-| **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 로그인·로그아웃·토큰 갱신, 비밀번호 재설정, 2단계 인증 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. 2단계 인증 수단 관리(Passkey credential 목록 · 수정 · 삭제, `/api/auth/2fa/webauthn/credentials[/:id]`)도 이 묶음이다. 로그인 세션 목록 · 강제 종료는 아래 행이다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
+| **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 로그인·로그아웃·토큰 갱신, 비밀번호 재설정, 2단계 인증 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. 2단계 인증 수단 관리(Passkey credential 목록 · 수정 · 삭제, `/api/auth/2fa/webauthn/credentials[/:id]`)도 이 묶음이다. 삭제가 `DELETE` 대신 `POST …/:id/delete` 인 것은 아래 「본문을 받아야 하는 삭제」 행이 정한다. 로그인 세션 목록 · 강제 종료는 아래 행이다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
 | **예외: 리프레시 쿠키 Path 아래의 로그인 세션 자원** `/api/auth/sessions…`. 로그인 세션 목록 조회와 강제 종료는 인증 상태 전이가 아니라 자원 조회와 자원 액션이다. 그래도 `/api/auth` 아래에 둔다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저는 그 아래 경로에만 쿠키를 보낸다. 서버는 그 쿠키로 현재 로그인 세션을 가려낸다. `auth` 아래에서도 자원 이름은 복수형 명사(`sessions`)이고 하나를 끝내는 동작은 자원 액션 형태(`:familyId/revoke`)다. 일괄 종료 `revoke-others` 는 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다. 이 행의 라우트는 사용자 범위 라우트이며 현재 워크스페이스를 쓰지 않는다(`X-Workspace-Id` 불필요). 쿠키가 필요 없는 로그인 이력 조회는 `/api/users/me/login-history` 에 둔다. 근거는 Rationale 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」, 동작은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` |
+| **예외: 본문을 받아야 하는 삭제** `POST /api/{resource}/{id}/delete`. 삭제 요청이 재확인 자격 증명(비밀번호)을 본문으로 받아야 하면 `DELETE` 대신 이 형태를 쓴다. 일부 CDN · 프록시가 `DELETE` 요청의 본문을 버리기 때문이다. 동작은 §3 의 `DELETE` 와 같은 자원 삭제다. 2026-11-14 에 Passkey 삭제에서 처음 더한 예외다. 본문이 꼭 필요한 삭제에만 선례로 삼고, 본문 없이 지우는 삭제는 계속 `DELETE` 를 쓴다. 근거는 Rationale 의 「본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다」 | `POST /api/auth/2fa/webauthn/credentials/:id/delete` |
 | **예외: 인앱 알림의 일괄 동작** `/api/notifications/{action}`. 모두 읽음(`POST /api/notifications/mark-all-read`)과 모두 닫기(`POST /api/notifications/dismiss-all`)는 자원 하나가 아니라 본인 알림 여러 건에 한꺼번에 하는 동작이다. 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 기존 이름이고 선례로 삼지 않는다. 근거는 Rationale 「인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)」에 있고 동작은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다 | `/api/notifications/mark-all-read`, `/api/notifications/dismiss-all` |
 
 ### 2.3 워크스페이스 스코핑
@@ -81,7 +82,7 @@ Authorization: Bearer {access-token}   (payload.activeWorkspaceId)
 | GET | 리소스 조회 (목록·상세) | O |
 | POST | 리소스 생성, 액션 실행 | X |
 | PATCH | 리소스 부분 수정. 인앱 알림 읽음 `PATCH /api/notifications/:id/read` 는 §12.1 의 예외인 전용 경로다 | O |
-| DELETE | 리소스 삭제 | O |
+| DELETE | 리소스 삭제. 본문(재확인 자격 증명)을 받아야 하는 삭제는 `POST /{id}/delete` 를 쓴다(§2.2 「본문을 받아야 하는 삭제」 예외) | O |
 | PUT | 쓰지 않는다 (PATCH 를 쓴다) | 없음 |
 
 ## 4. 요청 형식
@@ -152,7 +153,7 @@ Task CLE-T-ERAJ7P 의 결정이다.
 - `/api/auth/{action}` 예외는 인증 상태 전이와 그 전이에 필요한 capability 조회를 위한 것이다. 세션 목록은 자원이다.
 - 쿠키가 필요 없는 본인 소유 자원은 `users/me` 에 둔다(로그인 이력 조회). 세션 목록과 강제 종료는 리프레시 쿠키가 있어야 현재 로그인 세션을 가린다.
 
-`/api/auth` 아래의 Passkey credential 라우트(`/api/auth/2fa/webauthn/credentials[/:id]`)는 `/api/auth/{action}` 예외의 2단계 인증 등록 · 해제 묶음으로 설명되는 기존 예외이고 이 예외 행과는 근거가 다르다.
+`/api/auth` 아래의 Passkey credential 라우트(`/api/auth/2fa/webauthn/credentials[/:id]`)는 `/api/auth/{action}` 예외의 2단계 인증 등록 · 해제 묶음으로 설명되는 기존 예외이고 이 예외 행과는 근거가 다르다. 삭제의 `POST …/:id/delete` 형태는 2026-11-14 에 따로 더한 예외다(아래 「본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다」).
 
 그래서 §2.2 에 예외 행을 따로 두었다. 예외의 근거는 "현재 로그인 세션을 리프레시 쿠키로 가려야 한다" 하나로 좁혔다. 앞으로 `/api/auth` 아래에 자원 라우트를 더하려면 이 근거가 그 라우트에도 맞는지 먼저 본다. `revoke-others` 를 선례로 삼지 않는 것은 §2.2 의 행에 적었다.
 
@@ -179,3 +180,15 @@ Task CLE-T-ERAJ7P 의 결정이다.
 - 두 일괄 경로를 규칙에 맞는 형태로 옮기는 안. 이미 쓰는 프런트엔드 호출과 응답 DTO 를 함께 바꿔야 하는데 동작은 같다. 경로를 바꿔 달라는 요구도 없다.
 
 읽지 않음으로 되돌리는 기능이 생기면 `PATCH /api/notifications/:id { isRead }` 로 옮기는 것을 다시 본다.
+
+### 본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다 (2026-11-14)
+
+NERV Task `CLE-T-Q6E11N` 의 사람 결정으로 Passkey 삭제에도 비밀번호 재확인을 둔다([Passkey 기능과 등록 「Passkey 삭제에도 비밀번호 재확인을 둔다」](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제에도-비밀번호-재확인을-둔다-2026-11-14)). 비밀번호는 요청 본문으로 받아야 한다. 일부 CDN · 프록시는 `DELETE` 요청의 본문을 버려서 §3 의 `DELETE` 를 그대로 쓰면 비밀번호가 서버에 닿지 않을 수 있다. 그래서 §2.2 에 `POST /{id}/delete` 예외를 더하고 §3 의 `DELETE` 행에서 그 예외를 가리켰다.
+
+- **로그인 세션 강제 종료와는 근거가 다르다.** `POST /api/auth/sessions/:familyId/revoke` 도 재인증 자격 증명을 본문으로 받는 `POST` 다. 다만 `revoke` 는 삭제가 아니라 종료를 뜻하는 도메인 동사라 원래 자원 액션 형태다. 이 예외는 삭제 자체를 `POST` 로 옮긴다.
+- **`/api/auth/{action}` 예외 행에 넣지 않았다.** 그 행은 경로를 `/api/auth` 아래에 두는 근거이고 메서드는 정하지 않는다. Passkey credential 은 복수형 자원(`credentials/:id`)이라 그 행의 근거로 메서드 예외를 설명할 수 없다.
+
+기각한 대안은 두 가지다.
+
+- `DELETE` 에 본문을 싣는 안. 중간 장비가 본문을 버리면 서버는 비밀번호가 빠진 요청으로 보고 거부한다. 사용자는 비밀번호를 맞게 넣고도 실패한다.
+- 비밀번호를 쿼리 문자열이나 헤더로 받는 안. 쿼리 문자열은 접근 로그와 브라우저 기록에 남는다. 헤더로 받으면 비밀번호를 본문으로 받는 다른 재확인 라우트(TOTP 끄기 · Passkey 복구 코드 재발급)와 형식이 갈린다.

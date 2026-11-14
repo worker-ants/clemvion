@@ -246,8 +246,12 @@ export const authApi = {
       { deviceName },
     ),
 
-  webauthnDeleteCredential: (id: string) =>
-    apiClient.delete(`/auth/2fa/webauthn/credentials/${id}`),
+  // 삭제도 계정 비밀번호를 다시 확인한다. 본문을 보내야 해서 DELETE 대신 POST …/delete 다
+  // (CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-Q6E11N).
+  webauthnDeleteCredential: (id: string, password: string) =>
+    apiClient.post(`/auth/2fa/webauthn/credentials/${id}/delete`, {
+      password,
+    }),
 
   webauthnRegenerateRecoveryCodes: (password: string) =>
     apiClient.post<{ data: { webauthnRecoveryCodes: string[] } }>(

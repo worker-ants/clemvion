@@ -2,7 +2,7 @@ import axios from "axios";
 import { extractApiCode } from "@/lib/api/errors";
 import type { TranslationKey } from "@/lib/i18n";
 
-// 비밀번호를 다시 확인하는 폼(TOTP 설정 시작 · Passkey 등록 · Passkey 복구 코드 재발급)은 같은 실패 안내를 쓴다
+// 비밀번호를 다시 확인하는 폼(TOTP 설정 시작 · Passkey 등록 · Passkey 복구 코드 재발급 · Passkey 삭제)은 같은 실패 안내를 쓴다
 // (NERV CLE-ACCT-SIGNIN, CLE-T-94FTMV · CLE-T-FRCRF7). 비밀번호가 없는 계정(OAuth 전용)은 비밀번호 재설정으로
 // 먼저 비밀번호를 만들어야 한다.
 const PASSWORD_RECHECK_ERRORS: Partial<Record<string, TranslationKey>> = {

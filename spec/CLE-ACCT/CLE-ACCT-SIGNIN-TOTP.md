@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-TOTP"
 title: "가입과 로그인 — 2단계 인증 설정과 TOTP"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "e26ddeee6377740295c28e42e6f2629e7af891c48727e7ecfedacf78a12077de"
+content_hash: "67a7e3b6f6f2adfc9a0f695a6a6b3a605739cb9e8486b2ece42da882ada8c229"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Q6E11N"
 source_paths: []
-mirror_sha256: "6d432686aa8e0fbee0d2bbe95abcb227b7d07305f25c41767be64bcace8b2cb6"
-etag: "sha256-4bb6a022262bb253e4a6f63d031b6d9df5451a3daea9975a321ac94fa0a6f5af"
+mirror_sha256: "7bedf102042e7cb43f3b1e850a916e83da266a44171199228a5c3d249d00fa91"
+etag: "sha256-f21bd69ee5df68eb29a58cceae03a1b071b3347bdb527cf68c63f2dc14d1a7c8"
 ---
 ## 개요
 
@@ -36,15 +36,15 @@ etag: "sha256-4bb6a022262bb253e4a6f63d031b6d9df5451a3daea9975a321ac94fa0a6f5af"
 | 카드 | 들어가는 요소 | 동작 |
 | --- | --- | --- |
 | TOTP | 설정 시작 폼(안내 문구, 계정 비밀번호 입력, 설정 시작 버튼), QR 코드, 확인 코드 입력, 복구 코드 표시, 끄기 폼(비밀번호와 인증 코드 입력) | 계정 비밀번호를 넣어 설정을 시작하고 인증 앱으로 QR 을 스캔한 뒤 코드를 넣어 켠다([TOTP 켜기](#totp-켜기)). 켜질 때 복구 코드 10개를 한 번 보여 준다. 끌 때는 비밀번호와 인증 코드를 함께 넣는다([TOTP 끄기](#totp-끄기)) |
-| Passkey · 보안 키 | credential 목록(이름·transport·마지막 사용·등록일), 등록 폼(기기 이름과 계정 비밀번호 입력, 등록 버튼), 이름 변경·삭제, 복구 코드 재발급(계정 비밀번호 입력) | 계정 비밀번호를 넣어 credential 을 등록하고 여러 개를 관리한다([Passkey 등록 흐름](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록-흐름)). 첫 등록 때 별도 복구 코드 10개를 한 번 보여 준다. 이름 변경 입력이 비었거나 공백 문자로만 돼 있으면 저장 버튼을 막는다 |
+| Passkey · 보안 키 | credential 목록(이름·transport·마지막 사용·등록일), 등록 폼(기기 이름과 계정 비밀번호 입력, 등록 버튼), 이름 변경, 삭제(계정 비밀번호 입력), 복구 코드 재발급(계정 비밀번호 입력) | 계정 비밀번호를 넣어 credential 을 등록하고 여러 개를 관리한다([Passkey 등록 흐름](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록-흐름)). 첫 등록 때 별도 복구 코드 10개를 한 번 보여 준다. 이름 변경 입력이 비었거나 공백 문자로만 돼 있으면 저장 버튼을 막는다 |
 
 - 프론트엔드는 보안 화면을 열 때 `GET /api/auth/2fa/webauthn/availability` 를 불러 Passkey 카드를 보일지 정한다.
 - TOTP 카드는 `GET /api/users/me` 응답의 `twoFactorEnabled` 로 TOTP 켜짐 여부를 읽어 설정 카드와 켜짐 카드 가운데 하나를 그린다. 이 필드는 [내 프로필](CLE-ACCT-PROFILE.md#api) 의 API 표가 정한다.
 - Passkey 등록 폼은 기기 이름과 함께 계정 비밀번호를 받는다. 비밀번호가 8자보다 짧으면 화면은 등록 옵션 요청을 보내지 않고 안내를 띄운다(TOTP 설정 시작 폼도 같다).
-- Passkey 등록 옵션 · Passkey 복구 코드 재발급 · TOTP 설정 시작이 `PASSWORD_INVALID` 면 비밀번호가 맞지 않는다는 안내를, `PASSWORD_REQUIRED` 면 "비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요." 를 보여 준다. Passkey 등록의 그 밖의 실패는 등록 실패 안내(`registerFailed`) 하나로 보여 준다.
-- Passkey 등록 · Passkey 복구 코드 재발급 · TOTP 설정 시작 · TOTP 활성화 검증 · TOTP 끄기 폼에서 요청 빈도 제한에 걸린 응답(429)을 받으면 [에러 응답과 클라이언트 처리 「API 에러 처리 흐름」](../CLE-API/CLE-API-ERROR.md#41-api-에러-처리-흐름) 의 공통 처리대로 토스트를 띄운다. 다만 비밀번호가 담긴 요청은 자동으로 다시 보내지 않는다.
+- Passkey 등록 옵션 · Passkey 복구 코드 재발급 · Passkey 삭제 · TOTP 설정 시작이 `PASSWORD_INVALID` 면 비밀번호가 맞지 않는다는 안내를, `PASSWORD_REQUIRED` 면 "비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요." 를 보여 준다. Passkey 등록의 그 밖의 실패는 등록 실패 안내(`registerFailed`) 하나로 보여 준다.
+- Passkey 등록 · Passkey 복구 코드 재발급 · Passkey 삭제 · TOTP 설정 시작 · TOTP 활성화 검증 · TOTP 끄기 폼에서 요청 빈도 제한에 걸린 응답(429)을 받으면 [에러 응답과 클라이언트 처리 「API 에러 처리 흐름」](../CLE-API/CLE-API-ERROR.md#41-api-에러-처리-흐름) 의 공통 처리대로 토스트를 띄운다. 다만 비밀번호가 담긴 요청은 자동으로 다시 보내지 않는다.
 - 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드는 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다.
-- OAuth 전용 계정이 유일한 2단계 인증 수단을 끌 때 대안 로그인 경로를 어떻게 보장할지는 아직 정하지 않았다. TOTP 끄기는 비밀번호를 먼저 확인하므로 OAuth 전용 계정은 비밀번호를 추가하기 전에는 TOTP 를 끌 수 없다. Passkey 삭제에는 따로 막는 로직이 없다. 강제 2단계 인증 정책·계정 복구 흐름과 함께 정할 별개 사안이다.
+- OAuth 전용 계정이 유일한 2단계 인증 수단을 끌 때 대안 로그인 경로를 어떻게 보장할지는 아직 정하지 않았다. TOTP 끄기는 비밀번호를 먼저 확인하므로 OAuth 전용 계정은 비밀번호를 추가하기 전에는 TOTP 를 끌 수 없다. Passkey 삭제도 2026-11-14 부터 비밀번호를 먼저 확인하므로 OAuth 전용 계정은 Passkey 도 지울 수 없다([Passkey 기능과 등록 「Passkey 삭제」](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제)). 강제 2단계 인증 정책·계정 복구 흐름과 함께 정할 별개 사안이다.
 
 ## TOTP 켜기
 
@@ -154,7 +154,7 @@ NERV Task `CLE-T-75TDTN` 의 결정이다. 원문 인증 명세의 2단계 인�
 - **확인 순서**: 비밀번호를 먼저 확인한다. 비밀번호가 틀린 요청은 코드를 확인하지 않으므로 복구 코드를 소비하지 않는다.
 - **에러 코드**: 코드 불일치에는 기존 `TOTP_INVALID`(401)를 쓴다. 코드 누락은 본문 검증의 400 `VALIDATION_ERROR` 가 맡는다. TOTP 가 꺼진 계정의 끄기 요청도 `TOTP_INVALID` 로 묶었다. 끄기 화면은 TOTP 가 켜진 계정에만 보이므로 꺼짐은 다른 탭에서 먼저 끈 경합에서만 나고 클라이언트가 따로 할 동작이 없다. `TOTP_NOT_ENABLED` 는 로그인 2단계 챌린지 전용 코드(401, 다시 로그인 안내)라서 다시 쓰지 않았다. 새 코드나 409 도 같은 이유로 두지 않았다.
 - **로그인 이력**: 끄기의 코드 실패는 로그인 이력에 남기지 않는다. `totp_failed` 는 로그인 2단계 실패를 뜻하는 값이라 설정 화면의 실패를 섞으면 그 뜻이 흐려진다. 추측 시도는 요청 한도(사용자당 분당 10회)가 막는다.
-- **설정 화면의 OAuth 전용 계정 문장**: TOTP 끄기는 이전에도 비밀번호를 먼저 확인해서 OAuth 전용 계정은 끌 수 없었다. 그래서 "따로 막는 로직이 없다" 는 문장을 Passkey 삭제로 좁혔다.
+- **설정 화면의 OAuth 전용 계정 문장**: TOTP 끄기는 이전에도 비밀번호를 먼저 확인해서 OAuth 전용 계정은 끌 수 없었다. 그래서 "따로 막는 로직이 없다" 는 문장을 Passkey 삭제로 좁혔다. 2026-11-14 에 Passkey 삭제도 비밀번호를 먼저 확인하게 되어(NERV Task `CLE-T-Q6E11N`) 그 문장도 고쳤다.
 
 기각한 대안은 다음과 같다.
 
@@ -196,3 +196,14 @@ NERV Task `CLE-T-94FTMV` 에서 사람 결정 두 건으로 정했다. 그 전�
 - **비용**: OAuth 전용 계정은 [비밀번호 재설정](CLE-ACCT-SIGNIN-SIGNUP.md#비밀번호-재설정) 으로 비밀번호를 만들기 전에는 TOTP 를 켤 수 없다. 끄기도 같은 조건이라 켜기와 끄기의 조건이 같아진다. OAuth 전용 계정이 계정 재인증 수단을 늘리는 길은 비밀번호 재설정 하나로 좁아졌다.
 - **setup 의 요청 한도**: setup 이 계정 비밀번호를 bcrypt 로 대조하는 경로가 됐기 때문에 더했다. 탈취한 액세스 토큰만 가진 사람이 `PASSWORD_INVALID` 응답을 보고 비밀번호를 추측하는 속도를 늦추고 bcrypt 비교가 스레드 풀을 오래 잡는 비용도 줄인다. TOTP 끄기와 같은 등급이라 같은 상수(`SENSITIVE_ACTION_THROTTLE`, 사용자당 분당 10회)를 쓴다.
 - **끄기의 꺼짐 응답은 바꾸지 않았다.** 꺼진 계정의 끄기 요청은 401 `TOTP_INVALID` 그대로다. 이번 결정은 켜진 계정의 켜기 요청만 다룬다.
+
+### TOTP 대기 secret 은 설정 시작 10분 뒤 버린다 (2026-11-02)
+
+NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. Passkey 등록의 비밀번호 재확인과 함께 정해 [Passkey 기능과 등록](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 에 적었던 근거를 2026-11-14 에 문서 크기 한도 때문에 이 문서로 옮겼다. 내용은 바꾸지 않았다.
+
+- **설정 시작 뒤 10분이 지나면 대기 secret 을 쓰지 않는다.** 수명이 없으면 비밀번호를 한 번 확인한 뒤 같은 secret 의 코드를 시간 제한 없이 추측할 수 있다.
+- **시각 컬럼을 더한다.** `user.two_factor_setup_started_at`(timestamptz, NULL 허용)이다. 응답에는 싣지 않는다. 비밀은 아니라서 [계정과 워크스페이스 데이터 흐름 「응답에 싣지 않는 민감 컬럼 7개」](CLE-ACCT-DATA.md#응답에-싣지-않는-민감-컬럼-7개) 목록에는 넣지 않는다. 마이그레이션은 컬럼만 더하고 데이터를 바꾸지 않는다.
+- **만료면 코드를 확인하지 않고 `TOTP_NOT_INITIALIZED` 를 쓴다.** 클라이언트가 할 일(설정 시작부터 다시)이 설정 시작 없이 부른 경우와 같아서 새 코드를 두지 않았다. 상태 코드도 기존 400 을 그대로 쓴다. 이미 발행 중인 코드의 상태 코드를 바꾸면 이 코드로 분기하는 클라이언트와의 호환이 깨진다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 5 가 코드 이름 바꾸기를 호환을 깨는 변경으로 보는 것과 같은 이유).
+- **기각: 활성화 검증이 5번 실패하면 대기 secret 을 버린다.** 실패 횟수 컬럼이 더 필요하고 시간 제한이 없어 대기 secret 이 남는다.
+- **기각: 10분 만료와 5회 실패 폐기를 함께 둔다.** 요청 빈도 제한과 겹쳐 얻는 것이 적다.
+- **기각: 요청 빈도 제한만 건다.** 분당 10회여도 시간 제한이 없으면 약 3주면 6자리 코드를 맞춘다.

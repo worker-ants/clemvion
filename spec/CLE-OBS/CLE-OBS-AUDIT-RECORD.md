@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT-RECORD"
 title: "감사 로그 — 기록과 조회"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "56b3c11e5e41e7564916e34867c1100e3a5f1f4b990e54619683399a7736bdb7"
+content_hash: "940671bdf6f47cd4f8e04f0eea6e3670c8370b45d0fb13e2bd9b943297c4cbc0"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Q6E11N"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "7215481e0181781ca2dab9ab3398679673fdfdeb596cab4b52df85ad3f1d3e7a"
-etag: "sha256-5b03c3edc3a5d53dd746dae5412c32cc215a5c7f5d4f0b5c4e4584a6ebe1d380"
+mirror_sha256: "e8230699ec09ff9b26f37352a8b30cf03c8bfd14a33848d9cde7aac9fc0499e3"
+etag: "sha256-0e797e25bbf7f4bf7eeb9a1f58f50d8bbf95b95cf4ddedf1d9f9aae192038436"
 ---
 > 구현 상태: 구현됨 · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/5-system/1-auth.md` (§4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -108,7 +108,7 @@ sequenceDiagram
 이 동작들은 모두 로그인한 세션에서만 일어난다(`POST /users/me/change-password`, TOTP, WebAuthn 모두 JwtAuthGuard 뒤에 있다). 인증 요청은 항상 JWT 로 워크스페이스를 싣고 오므로 그 워크스페이스에 귀속하면 스키마를 바꾸지 않고 제약을 채운다. 이는 카탈로그의 "인증(현재 워크스페이스가 있는 동작)" 분류를 구체화한 것이다. 로그인·로그아웃·로그인 실패(워크스페이스 없음)는 로그인 이력으로 간다는 규칙은 그대로다.
 
 - **WebAuthn 추가 등록도 `user.2fa_enabled` 다.** 이미 2단계 인증이 켜진 상태에서 두 번째 이후 인증기를 등록하는 것은 "2단계 인증 활성화" 사건은 아니다. 하지만 계정 보안 속성(인증 수단)을 더하는 일이라 추적한다. 새 감사 액션을 만들기보다 `details.firstCredential=false` 로 구분하는 편이 조회·집계에 단순하다. `webauthn.controller` 는 복구 코드를 발급했는지로 `firstCredential` 을 판정한다.
-- **OAuth 로만 가입한 사용자의 마지막 2단계 인증 끄기는 별개 결정이다.** 비밀번호가 없는 계정이 유일한 2단계 인증 수단을 끌 때 계정 잠김 위험을 어떻게 막을지는 감사 귀속과 무관하다. 2단계 인증 강제 정책·계정 복구 흐름과 함께 다룰 일이다. TOTP 끄기는 비밀번호를 먼저 확인하므로 비밀번호가 없는 계정은 `PASSWORD_REQUIRED` 로 막힌다. Passkey 삭제에는 막는 로직이 없다([가입과 로그인 「2단계 인증 설정 화면」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-설정-화면)).
+- **OAuth 로만 가입한 사용자의 마지막 2단계 인증 끄기는 별개 결정이다.** 비밀번호가 없는 계정이 유일한 2단계 인증 수단을 끌 때 계정 잠김 위험을 어떻게 막을지는 감사 귀속과 무관하다. 2단계 인증 강제 정책·계정 복구 흐름과 함께 다룰 일이다. TOTP 끄기는 비밀번호를 먼저 확인하므로 비밀번호가 없는 계정은 `PASSWORD_REQUIRED` 로 막힌다. Passkey 삭제에는 막는 로직이 없다([가입과 로그인 「2단계 인증 설정 화면」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-설정-화면)). 2026-11-14 부터는 Passkey 삭제도 비밀번호를 먼저 확인해 같은 코드로 막힌다([Passkey 기능과 등록 「Passkey 삭제」](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제)).
 
 기각한 대안:
 

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-OPS"
 title: "계정과 워크스페이스 데이터 흐름 — 테이블 쓰기 · 배치 · 외부 의존"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "a3062cc29f1807bd50fca6da093c3e1260b9c58acca1d96c8ba9d596935dfe7a"
+content_hash: "752966967ffb319a2380eb500674d8b5946d1689ff6bb39fc36ab85859bbd4c2"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Q6E11N"
 source_paths: []
-mirror_sha256: "7dffe53b2cb5cd923c0bb0ce828f95ca7446d971ce17c52e6edb716eca60f333"
-etag: "sha256-67d68d331b2e4ea5e0f60c1e08ce8dd9b9958efd62416a2147db1f8c8ef4beb8"
+mirror_sha256: "9ffef55fb3ce89dd5d103392ed8d357aea892dcab10dc593fbac6660ec00e7b3"
+etag: "sha256-5c30e6b8837b8078fe43b383f727c37ca83ba09ee169b02a1dfcd4c55e1196f8"
 ---
 ## 개요
 
@@ -81,7 +81,7 @@ BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 
 | `2fa/setup` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
 | `2fa/verify` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
 | `2fa/disable` | 분당 10회 | 사용자 | `auth.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
-| `2fa/webauthn/register/options`·`2fa/webauthn/recovery-codes/regenerate` | 분당 10회 | 사용자 | `webauthn/webauthn.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
+| `2fa/webauthn/register/options`·`2fa/webauthn/recovery-codes/regenerate`·`2fa/webauthn/credentials/:id/delete` | 분당 10회 | 사용자 | `webauthn/webauthn.controller.ts`(`SENSITIVE_ACTION_THROTTLE`) |
 | 이메일 변경 `request`·`resend` | 분당 5회 | 사용자 | `users.controller.ts` |
 | `auth/sessions/:familyId/revoke`·`auth/sessions/revoke-others` | 분당 10회·5회 | 사용자 | `sessions.controller.ts` |
 | 초대 발급·재발송 | 분당 10건 | 사용자 | `workspaces.controller.ts`(`INVITATION_THROTTLE`, 값은 `SENSITIVE_ACTION_THROTTLE`) |
@@ -89,7 +89,7 @@ BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 
 
 전역 한도를 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
 
-초대 발송 · provider probe · 2단계 인증 설정 시작 · 활성화 검증 · 끄기 · Passkey 등록 옵션 · Passkey 복구 코드 재발급은 `SENSITIVE_ACTION_THROTTLE` 상수를 공유하고 카운터는 라우트마다 따로 센다. `verifyPasswordForUser` 로 계정 비밀번호를 다시 확인하는 라우트(2단계 인증 설정 시작 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급)에 이 상수가 모두 걸려 있는지는 단위 테스트로 고정한다. 검사 대상은 테스트에 적어 둔 라우트 목록뿐이라 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
+초대 발송 · provider probe · 2단계 인증 설정 시작 · 활성화 검증 · 끄기 · Passkey 등록 옵션 · Passkey 복구 코드 재발급 · Passkey 삭제는 `SENSITIVE_ACTION_THROTTLE` 상수를 공유하고 카운터는 라우트마다 따로 센다. `verifyPasswordForUser` 로 계정 비밀번호를 다시 확인하는 라우트(2단계 인증 설정 시작 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급 · 삭제)에 이 상수가 모두 걸려 있는지는 단위 테스트로 고정한다. 검사 대상은 테스트에 적어 둔 라우트 목록뿐이라 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
 
 `register`·`login` 의 IP 단위 요청 빈도 제한은 계정 잠금(5회 실패, 10분)과 별개의 이중 방어다. 한 IP 가 여러 계정을 도는 credential stuffing 은 요청 빈도 제한이 먼저 막는다. 여러 IP 에서 한 계정을 노리는 공격은 계정 잠금이 막는다.
 
