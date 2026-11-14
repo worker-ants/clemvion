@@ -1182,9 +1182,6 @@ export class IntegrationOAuthService {
    * - All other `connected` failures (state mismatch / expired / not found)
    *   leave status alone and only update `last_error`.
    * - A vanished row (resource_not_found) is silently skipped.
-   */
-  /**
-   * Record a callback failure onto the Integration row.
    *
    * @param extra Provider-specific structured context attached to
    *   `last_error.details`. For Cafe24 `invalid_scope` callbacks the
