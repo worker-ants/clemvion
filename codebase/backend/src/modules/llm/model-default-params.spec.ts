@@ -13,17 +13,14 @@ function config(
   return { kind, defaultParams } as unknown as ModelConfig;
 }
 
-/** 샘플링 값 말고 다른 호출 값도 그대로 지나가는지 보려고 `model` 을 싣는다. */
-function callParams(params: Partial<ChatParams>): Partial<ChatParams> {
-  return params;
-}
-
 describe('applyModelDefaultParams', () => {
   it('fills temperature and max_tokens when the caller leaves them empty', () => {
+    // 샘플링 값 말고 다른 호출 값도 그대로 지나가는지 보려고 `model` 을 싣는다.
+    const params: Partial<ChatParams> = { model: 'm' };
     expect(
       applyModelDefaultParams(
         config({ temperature: 0.2, max_tokens: 1024 }),
-        callParams({ model: 'm' }),
+        params,
       ),
     ).toEqual({ model: 'm', temperature: 0.2, maxTokens: 1024 });
   });
@@ -111,16 +108,14 @@ describe('applyModelDefaultParams', () => {
   });
 
   it('does not mutate the caller params', () => {
-    const params = callParams({ model: 'm' });
+    const params: Partial<ChatParams> = { model: 'm' };
     applyModelDefaultParams(config({ temperature: 0.5 }), params);
     expect(params).toEqual({ model: 'm' });
   });
 
   it('does not add keys whose value stays empty', () => {
-    const result = applyModelDefaultParams(
-      config({}),
-      callParams({ model: 'm' }),
-    );
+    const params: Partial<ChatParams> = { model: 'm' };
+    const result = applyModelDefaultParams(config({}), params);
     expect(result).toEqual({ model: 'm' });
     expect(result).not.toHaveProperty('temperature');
     expect(result).not.toHaveProperty('maxTokens');

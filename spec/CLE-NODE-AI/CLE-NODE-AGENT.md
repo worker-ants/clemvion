@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "42faefc41ea091e2d7ebc4b0f5740a572427597ac6e337902713c87b296241ad"
+content_hash: "7484c365ebaa141b88a3143fa82281cd225945089c832f9cfd15a55dad2f15d8"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0R5SYN"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "665f56a820fb20006618ec6b8179f7a699cfc06af79b4c1a2730885a356fa165"
-etag: "sha256-a73c49976a0f4731f54c956170ac8d86487c268bc78da5d3320756ef4f504b56"
+mirror_sha256: "8fda4e6064ccbe4cd836662a0bdb5750cc4306774b932eba2685c9f86b4451eb"
+etag: "sha256-874d2c19a86f71ff63944bba3999f77c00ca8b1d36c5b320839eb0291f0ddea0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -89,7 +89,7 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 - REQ-AGENT-051 WHEN 메모리 전략이 `persistent` 면 THE SYSTEM SHALL LLM 호출 전에 에이전트 메모리를 동기로 회수하고 턴 경계에서 메모리 추출을 비동기로 넣는다. (원본: ND-AG-29) (부분 구현)
 - REQ-AGENT-052 WHEN 멀티턴 롤링 요약이 오래된 교환을 새로 덮으면 THE SYSTEM SHALL 다음 턴 messages 에서 그 교환을 `user` 메시지 경계에서 지운다.
 - REQ-AGENT-053 WHEN 메모리 전략이 `manual` 이 아니면 THE SYSTEM SHALL `meta.memory` 에 전략·요약 여부·회수 수·예산 사용량을 싣는다. (원본: ND-AG-30) (부분 구현)
-- REQ-AGENT-054 WHEN 턴 응답을 만드는 LLM `chat` 을 부르면(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출) THE SYSTEM SHALL 호출마다 `AI_AGENT_LLM_CALL_TIMEOUT_MS`(기본 10분) 앱 레벨 타임아웃을 건다.
+- REQ-AGENT-054 WHEN 턴 응답을 만드는 LLM `chat`(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출)이나 롤링 요약 `chat` 을 부르면 THE SYSTEM SHALL 호출마다 `AI_AGENT_LLM_CALL_TIMEOUT_MS`(기본 10분) 앱 레벨 타임아웃을 건다.
 - REQ-AGENT-055 IF 조건이 검증 규칙(최대 20개, id·label·prompt 필수, prompt 2,000자 이하, 예약 포트 이름 금지)을 어기면 THE SYSTEM SHALL 설정을 거부한다.
 
 저장 때의 도구 정의 크기 추정치(REQ-AGENT-043 · REQ-AGENT-044)는 `mcpServers` 가운데 실행 시점과 같은 [개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과한 서버만 센다. 세는 범위 전체는 [도구 정의 크기 예산](CLE-NODE-AGENT-TOOLS.md#도구-정의-크기-예산) 의 저장 시점 경고에 있다.

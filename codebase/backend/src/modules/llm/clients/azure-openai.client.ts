@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { OpenAIClient } from './openai.client';
+import { LLM_SDK_MAX_RETRIES } from './sdk-options';
 
 export class AzureOpenAIClient extends OpenAIClient {
   constructor(apiKey: string, defaultModel: string, baseUrl: string) {
@@ -11,6 +12,7 @@ export class AzureOpenAIClient extends OpenAIClient {
       apiKey,
       baseURL: baseUrl,
       timeout: 120_000,
+      maxRetries: LLM_SDK_MAX_RETRIES,
       defaultHeaders: {
         'api-key': apiKey,
       },

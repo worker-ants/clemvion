@@ -12,6 +12,8 @@ import {
   applyEmbeddingInputPrefix,
   type EmbedInputType,
 } from '../embedding-input-type';
+import { LLM_SDK_MAX_RETRIES } from './sdk-options';
+import { abortedBeforeOpen } from './stream-open';
 
 /**
  * gpt-oss / Harmony 포맷 제어 토큰. OpenAI 가 공식 제공하는 상위 모델에서는
@@ -84,6 +86,7 @@ export class OpenAIClient implements LLMClient {
       apiKey,
       ...(baseUrl ? { baseURL: baseUrl } : {}),
       timeout: 120_000,
+      maxRetries: LLM_SDK_MAX_RETRIES,
     });
   }
 
@@ -245,6 +248,28 @@ export class OpenAIClient implements LLMClient {
     return true;
   }
 
+  /**
+   * 스트림 실패를 `error` 이벤트로 바꾼다. 스트림을 열 때와 도중의 실패가 같은 분류를 쓴다.
+   * harmony 토큰 오염이면 SDK 원문(제어 토큰 · 모델 출력)을 warn 로그로 남기고 `message` 는
+   * 고정 영문으로 바꾼다. 다른 코드는 SDK 원문을 그대로 싣는다. 어느 쪽이든 `message` 는
+   * 화면용이 아니다(`ChatStreamEvent` 의 `error` 변형 주석).
+   */
+  private streamErrorEvent(err: unknown): ChatStreamEvent {
+    const message = err instanceof Error ? err.message : 'Unknown stream error';
+    const code = message.includes('429')
+      ? 'LLM_RATE_LIMIT'
+      : isHarmonyParseError(message)
+        ? 'LLM_OUTPUT_MALFORMED'
+        : 'LLM_CONNECTION_ERROR';
+    if (code === 'LLM_OUTPUT_MALFORMED') {
+      this.logger.warn(
+        `Harmony control tokens broke the stream parse: ${message}`,
+      );
+      return { type: 'error', code, message: HARMONY_OUTPUT_MALFORMED_MESSAGE };
+    }
+    return { type: 'error', code, message };
+  }
+
   async *stream(
     params: ChatParams,
     signal?: AbortSignal,
@@ -315,9 +340,22 @@ export class OpenAIClient implements LLMClient {
       }
     }
 
-    const stream = await this.client.chat.completions.create(requestParams, {
-      signal,
-    });
+    // 스트림을 열 때의 실패(429 · 인증 · SDK 요청 타임아웃 · 연결)도 도중 실패처럼 `error`
+    // 이벤트로 끝낸다. 열기 중 취소는 `done(aborted)` 다. Anthropic · Google 과 같은 계약이고
+    // 다시 열지 않는다(SDK 재전송만 있다). [LLM 클라이언트](CLE-AI-LLM) 「스트리밍 에러 매핑」.
+    let stream: AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
+    try {
+      stream = await this.client.chat.completions.create(requestParams, {
+        signal,
+      });
+    } catch (err) {
+      if (signal?.aborted) {
+        yield abortedBeforeOpen(params.model || this.defaultModel);
+        return;
+      }
+      yield this.streamErrorEvent(err);
+      return;
+    }
 
     // tool_call 인덱스 기반으로 id/name/arguments 조각을 누적한다.
     // OpenAI는 동일 tool_call의 delta를 같은 index로 여러 번 내려보내며,
@@ -409,25 +447,7 @@ export class OpenAIClient implements LLMClient {
       if (signal?.aborted) {
         finishReason = 'aborted';
       } else {
-        const message =
-          err instanceof Error ? err.message : 'Unknown stream error';
-        const code = message.includes('429')
-          ? 'LLM_RATE_LIMIT'
-          : isHarmonyParseError(message)
-            ? 'LLM_OUTPUT_MALFORMED'
-            : 'LLM_CONNECTION_ERROR';
-        // harmony 토큰 오염이면 SDK 원문(제어 토큰 · 모델 출력)을 warn 로그로
-        // 남기고 `message` 는 고정 영문으로 바꾼다. 다른 코드는 SDK 원문을
-        // 그대로 싣는다. 어느 쪽이든 `message` 는 화면용이 아니다
-        // (`ChatStreamEvent` 의 `error` 변형 주석).
-        let eventMessage = message;
-        if (code === 'LLM_OUTPUT_MALFORMED') {
-          this.logger.warn(
-            `Harmony control tokens broke the stream parse: ${message}`,
-          );
-          eventMessage = HARMONY_OUTPUT_MALFORMED_MESSAGE;
-        }
-        yield { type: 'error', code, message: eventMessage };
+        yield this.streamErrorEvent(err);
         return;
       }
     }

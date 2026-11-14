@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL"
 title: "노드 취소"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "efa87a9a10bf9946caa9105557a4dd8c797f304962de692f97a9b07b756d3267"
+content_hash: "2583776777a1289ed0b175000b20b0c8ff2e59fb53d2155f1eb2eb969ac734ff"
 read_as: "approved_fallback"
-task: "CLE-T-64EQ5V"
+task: "CLE-T-0R5SYN"
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "dea4339297b473de64787a2afa8d4c721b5c6256d68bd3ce61ba6c495f2817c8"
-etag: "sha256-5d9fd377b9ac7ee1071943b437c2615a62244ed904a112a483eaaee2c10b1116"
+mirror_sha256: "38ddc4d8f1f01ec32354bd8795910d65a8ebd2d5f388ce05b459866c8afbd253"
+etag: "sha256-7876275b3bb2cbb1b44ace3b2e66da8ec921a4c71578779752e1ea6eeaa4f7fb"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,12 +53,12 @@ etag: "sha256-5d9fd377b9ac7ee1071943b437c2615a62244ed904a112a483eaaee2c10b1116"
    | 호출 | 신호 전파 | 상태 |
    | --- | --- | --- |
    | `fetch(url, init)` | `init.signal` 에 넣는다. 자체 타임아웃과 함께 쓰면 연쇄 패턴을 따른다([fetch 자체 타임아웃과의 연쇄](CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)) | 구현됨(HTTP Request·Cafe24·MakeShop). 신호 전파와 취소 에러 분류(`AbortError` 를 엔진까지 전달)를 모두 한다 |
-   | LLM 호출 | AI 노드(AI 에이전트·텍스트 분류기·정보 추출기)는 `llmService.chat` 에 `signal` 을 넘기고 프로바이더 클라이언트가 진행 중인 요청을 끊는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). AI 에이전트의 롤링 요약(`summary_buffer`) 호출에는 아직 `signal` 을 넘기지 않는다(구현 공백, [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항)). 신호가 만들어지는 병렬 분기 취소에서도 요약 요청은 끝날 때까지 남는다. 사용자 실행 중지는 신호를 만들지 않으므로(규칙 9) 이 공백과 상관없이 노드 경계 · 턴 경계 확인(규칙 10 · 12)이 맡는다. 정보 추출기의 첫 멀티턴 경로(`executeMultiTurn`)는 첫 턴의 LLM 호출에 `context.abortSignal` 을 그대로 넘긴다. AI 에이전트의 첫 멀티턴 경로는 LLM 을 부르지 않고 바로 입력 대기로 간다. 멀티턴 재개 경로(`processMultiTurnMessage`)에는 전파할 신호가 없어 턴 경계 DB 관측으로 취소를 처리한다. `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다. 나중에 신호를 만드는 곳이 생기면 전파되도록 열어 둔 것이지 도입이 예정된 것은 아니다 | 신호 전파는 롤링 요약 호출을 빼고 구현됨. 취소 에러 분류는 세 AI 노드 모두 구현됨(규칙 3, [구현 현황](CLE-EXEC-CANCEL-NODES.md#구현-현황)) |
+   | LLM 호출 | AI 노드(AI 에이전트·텍스트 분류기·정보 추출기)는 `llmService.chat` 에 `signal` 을 넘기고 프로바이더 클라이언트가 진행 중인 요청을 끊는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). AI 에이전트 단일 턴의 롤링 요약(`summary_buffer`·`persistent`) 호출도 같은 신호를 받는다. 정보 추출기의 첫 멀티턴 경로(`executeMultiTurn`)는 첫 턴의 LLM 호출에 `context.abortSignal` 을 그대로 넘긴다. AI 에이전트의 첫 멀티턴 경로는 LLM 을 부르지 않고 바로 입력 대기로 간다. 멀티턴 재개 경로(`processMultiTurnMessage`)에는 전파할 신호가 없다. 재개 턴의 요약 호출을 포함한 LLM 호출의 취소는 턴 경계 DB 관측이 처리한다. `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다. 나중에 신호를 만드는 곳이 생기면 전파되도록 열어 둔 것이지 도입이 예정된 것은 아니다 | 신호 전파는 구현됨(재개 경로는 신호 소스가 없다). 취소 에러 분류는 세 AI 노드 모두 구현됨(규칙 3, [구현 현황](CLE-EXEC-CANCEL-NODES.md#구현-현황)) |
    | PostgreSQL(`pg`)·MySQL(`mysql2`) | `signal.addEventListener('abort', ...)` 로 진행 중 쿼리 취소를 등록한다. 취소되면 **별도 풀 연결**로 PG `SELECT pg_cancel_backend(<pid>)`·MySQL `KILL QUERY <threadId>` 를 보내 진행 중 쿼리만 끊는다(연결은 유지). 취소로 난 드라이버 에러(PG `57014`·MySQL `ER_QUERY_INTERRUPTED`)는 catch 에서 `AbortError` 로 다시 던져 `cancelled` 로 분류되게 한다. 취소 권한(PG 소유자·MySQL `PROCESS`)과 타이밍에 따라 실패할 수 있지만 무해하다. 정상 완료하면 리스너를 해제한다 | 구현됨 |
    | MongoDB | 드라이버의 `signal` 옵션에 바로 넘긴다 | 미구현(Planned). 지금 DB 노드는 pg·mysql 만 지원한다 |
    | Email(nodemailer) | 진행 중 중단은 일부러 택하지 않았다. 전송 중에 `transporter.close()` 를 부르면 일부만 가거나 두 번 갈 위험이 있어 들어가기 직전 `abortSignal?.aborted` 사전 확인만 한다. SMTP 전송은 보통 짧다. 안전한 중단 방법이 확인되면 다시 검토한다 | 부분 구현 |
 
-   AI 에이전트는 신호와 별도로 턴 응답을 만드는 `chat` 호출에 앱 수준 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 건다. 대상 호출은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#llm-호출-타임아웃) 가 정하고 롤링 요약 호출은 빠진다. `withTimeout` 이 **자체 `AbortController`** 로 동작해 신호가 있든 없든 무기한 대기를 막는다.
+   AI 에이전트는 신호와 별도로 턴 응답을 만드는 `chat` 호출과 롤링 요약 호출에 앱 수준 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 건다. 대상 호출은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#llm-호출-타임아웃) 가 정한다. `withTimeout` 이 **자체 `AbortController`** 로 동작해 신호가 있든 없든 무기한 대기를 막는다. 신호가 없는 멀티턴 재개 경로에서는 이 타임아웃이 요약 호출을 포함한 LLM 호출의 상한이다.
 3. 취소 때 나는 에러는 노드가 이름이 `AbortError` 인 채로 엔진까지 던진다(AI 노드가 다른 이름의 SDK 에러를 감싸 던지는 방식은 아래 문단). 엔진의 노드 실행 catch 가 에러 처리 정책을 적용하기 전에 그 에러를 취소로 분류하므로 노드가 따로 처리하지 않는다. 에러를 잡아 다른 코드로 바꾸면 엔진이 취소로 분류하지 못한다. 요청 자신의 타임아웃처럼 노드 취소 신호에서 오지 않은 `AbortError` 는 노드가 자기 실패로 다룬다([fetch 자체 타임아웃과의 연쇄](CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)). 노드 취소 신호로 끝난 외부 호출은 통합 활동 로그를 남기지 않는다. 그 호출은 끝나지 않았기 때문이다(근거는 아래 Rationale). HTTP Request·Cafe24·MakeShop·DB 노드와 세 AI 노드(AI 에이전트·텍스트 분류기·정보 추출기)는 노드 취소를 `AbortError` 로 엔진에 넘긴다. 활동 로그 규칙은 HTTP Request·Cafe24·MakeShop 노드가 지킨다. DB 노드는 아직 취소 때도 `failed` 활동 로그를 남긴다([구현 현황](CLE-EXEC-CANCEL-NODES.md#구현-현황)).
 
    노드 취소를 가르는 방식은 호출 종류마다 다르다. fetch 를 쓰는 노드(HTTP Request·Cafe24·MakeShop)는 `isUpstreamAbort` 로 가른다. 에러 이름이 `AbortError` 이고 노드 취소 신호가 켜져 있어야 노드 취소다. 요청 자신의 타임아웃도 이름이 `AbortError` 라서 신호를 함께 본다. AI 노드는 LLM 호출이 실패했을 때 노드 취소 신호가 켜져 있으면 에러 이름과 상관없이 노드 취소로 본다. 프로바이더 SDK 마다 취소된 요청이 던지는 에러가 달라 이름으로는 가를 수 없기 때문이다. Anthropic·OpenAI SDK 는 `name` 이 `'Error'` 인 `APIUserAbortError` 를 던지고 fetch 기반 클라이언트는 `name` 이 `AbortError` 인 DOMException 을 던진다. AI 노드는 이름이 `AbortError` 인 에러를 그대로 던지고 이름이 다른 에러는 이름이 `AbortError` 인 새 에러로 감싸 던진다. 새 에러의 메시지는 고정 문구 `LLM call was aborted` 이고 원래 에러는 `cause` 에만 남긴다. 엔진은 취소 에러의 메시지를 노드 실행의 `error` 와 `execution.node.cancelled` 이벤트에 그대로 싣는다(규칙 19). 메시지를 고정해 두면 취소와 경합한 401·5xx 같은 실패의 프로바이더 문구가 그 자리로 가지 않는다. 노드 취소 신호가 열려 있을 때 실패한 LLM 호출은 앱 수준 타임아웃을 포함해 노드 자신의 실패다. 두 방식 모두 노드 취소 신호가 켜지지 않은 실패를 취소로 보지 않는다(근거는 [AI 노드는 노드 신호로 취소를 판정한다 (2026-10-31)](CLE-EXEC-CANCEL-NODES.md#ai-노드는-노드-신호로-취소를-판정한다-2026-10-31)).

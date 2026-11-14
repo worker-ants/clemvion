@@ -42,7 +42,7 @@ export const assistant: Dict["assistant"] = {
   configFallbackToast:
     "The selected model config wasn't found, so the workspace default ({{name}}) will answer.",
   errorStreamFailed:
-    "Couldn't finish the response. A rate limit may have been reached or the response may have taken too long. Send your message again in a moment.",
+    "Couldn't finish the response. Send your message again in a moment. If it keeps failing, check your model settings.",
   errorRateLimit:
     "The AI model's rate limit was reached. Send your message again in a moment.",
   errorConnection:

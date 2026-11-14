@@ -51,6 +51,7 @@ import {
   resolveGeminiTaskType,
   type EmbedInputType,
 } from '../embedding-input-type';
+import { abortedBeforeOpen } from './stream-open';
 
 function mapGoogleFinishReason(
   reason: string | undefined,
@@ -432,6 +433,11 @@ export class GoogleClient implements LLMClient {
         config,
       });
     } catch (err) {
+      // 열기 실패는 `error` 이벤트, 열기 중 취소는 `done(aborted)` 다. OpenAI · Anthropic 과 같다.
+      if (signal?.aborted) {
+        yield abortedBeforeOpen(modelId);
+        return;
+      }
       const message =
         err instanceof Error ? err.message : 'Unknown stream error';
       yield { type: 'error', code: classifyStreamError(message), message };

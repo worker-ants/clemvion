@@ -40,7 +40,7 @@ export const assistant = {
   configFallbackToast:
     "선택한 모델 설정을 찾지 못해 워크스페이스 기본 설정({{name}})으로 답해요.",
   errorStreamFailed:
-    "응답을 끝내지 못했어요. 요청 한도를 넘었거나 응답이 늦어졌을 수 있어요. 잠시 후 같은 메시지를 다시 보내 주세요.",
+    "응답을 끝내지 못했어요. 잠시 후 같은 메시지를 다시 보내 주세요. 계속 실패하면 모델 설정을 확인해 주세요.",
   errorRateLimit:
     "AI 모델의 요청 한도를 넘었어요. 잠시 후 같은 메시지를 다시 보내 주세요.",
   errorConnection:

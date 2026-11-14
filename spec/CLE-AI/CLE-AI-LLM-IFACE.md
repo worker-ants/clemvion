@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM-IFACE"
 title: "LLM 클라이언트 — 인터페이스와 프로바이더 매핑"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-LLM"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-LLM"]
 area: "CLE-AI"
-content_hash: "ca5d7e8dd0ea680ca6378872d7d091d076fdbf9f10d65435f64e39c3fb180f63"
+content_hash: "648a435d767c6c00bc8d24fd5d67ab8118245d25b64b76bae2c64180be38a0da"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0VS826"
 source_paths: []
-mirror_sha256: "c2f95c9cc9a0274a159aa392ce3e74b58ae1eaf8a3dbf0492aa8909101ff2f6c"
-etag: "sha256-76267bb19ef87ad6732a0d82233b37764e05c5d550f0ad63efe6826583113fd3"
+mirror_sha256: "e341fc45befcd24ebd0384ad225fdf3d93b7d3d07816a2eea714ddf1ebd8154c"
+etag: "sha256-c4a46e135e43c7ffb84c088b4aff3d9a8245c8e73b54061b9b3b6685e9719860"
 ---
 ## 개요
 
@@ -48,12 +48,14 @@ interface LLMClient {
   testConnection(): Promise<boolean>;
 
   /**
-   * 채팅 스트리밍 (선택). 지원하지 않는 프로바이더는 호출 즉시
-   * `LLM_STREAMING_UNSUPPORTED` 를 throw 한다. 상세는 스트리밍 절.
+   * 채팅 스트리밍 (선택). 이 메서드가 없는 클라이언트에 스트리밍을 요청하면
+   * `LlmService.chatStream` 이 `LLM_STREAMING_UNSUPPORTED` 를 throw 한다. 상세는 스트리밍 절.
    */
   stream?(params: ChatParams, signal?: AbortSignal): AsyncIterable<ChatStreamEvent>;
 }
 ```
+
+지금은 스트리밍을 지원하지 않는 클라이언트가 `stream()` 을 아예 두지 않는다(e2e 용 LLM 스텁). 그런 클라이언트에 스트리밍을 요청하면 `LlmService.chatStream` 이 스트림을 열기 전에 `LLM_STREAMING_UNSUPPORTED` 를 던진다. 다섯 프로바이더 클라이언트는 모두 `stream()` 을 구현한다. 상세는 [스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑) 에 있다.
 
 코드의 응답 타입 이름은 `ChatResult` 이고 아래 `ChatResponse` 와 구조가 같다. `Message` 인터페이스는 코드에서 `ChatMessage` 다. 취소 신호 전파 규약은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 에서 정한다.
 

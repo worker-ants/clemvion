@@ -1,5 +1,5 @@
-import { isLlmStreamingUnsupported } from '../llm/llm.service';
 import {
+  isLlmStreamingUnsupported,
   LLM_STREAMING_UNSUPPORTED,
   type LlmStreamErrorCode,
   type LlmStreamingUnsupportedCode,
@@ -118,8 +118,9 @@ export const assistantStreamError = {
   },
 
   /**
-   * 스트림을 열기 전 실패, 모델 설정 조회 실패, 턴 처리 중 내부 실패. 프로바이더
-   * 탓으로 쓰지 않는다.
+   * 프로바이더 스트림을 열기 전의 서버 쪽 실패(LLM 클라이언트 생성 등), 모델 설정 조회
+   * 실패, 턴 처리 중 내부 실패. 프로바이더 탓으로 쓰지 않는다. 프로바이더 스트림을 열 때의
+   * 실패는 LLM 클라이언트가 `error` 이벤트로 내므로 이 코드로 오지 않는다.
    */
   streamFailed(): AssistantStreamError {
     return build(

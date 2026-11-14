@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "79ce942febdf0d0146f85d597d0cfee78d1c1d2e0af8f52c9139b0f9399ab97d"
+content_hash: "7f1e7c541989400fd81401eedfe76ba725409dc28659898eb51d6371f223b1bc"
 read_as: "approved_fallback"
-task: "CLE-T-GG3WPZ"
+task: "CLE-T-0R5SYN"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "69ff3b625f251ac944dba758405c12ef125e9884110b26fe5fed15a05227118e"
-etag: "sha256-94779d4c889b5bb14e0bdc773b04c0ce0eff3c57035ab775ff5f54a7dc34c703"
+mirror_sha256: "ec3e766676475c3e5d3ae246556cd15d69b8ddc0a6c13aeae74c779167b104e9"
+etag: "sha256-d9699cd24697eb58f819da174b257d6fb8cacbc9cb780b9a55045d24d3a0bfa1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -133,8 +133,6 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 
 ## 미결 사항
 
-- **스트림 열기 실패의 프로바이더별 분기**: OpenAI 계열(OpenAI·Azure·Local) `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던지고 Anthropic·Google 은 `error` 이벤트로 보낸다([스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)). 그래서 호출하는 쪽이 같은 실패를 프로바이더에 따라 다르게 받는다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 낸다. 프로바이더 차이를 클라이언트 계층에 가두는 원칙([모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유))과 맞지 않는다. 표의 분기는 현행 구현을 적은 것이다. `error` 이벤트로 통일할지 결정 필요. NERV Task `CLE-T-0R5SYN`.
-- **공통 기본값**: 클라이언트 계층은 호출하는 쪽이 준 `timeoutMs` 만 건다. `LlmService` 에 공통 기본값을 둘지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 이 함께 정한다(NERV Task `CLE-T-0R5SYN`). 120초 하향안을 기각한 이력은 [그 문서의 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10) 에 있다.
 - **Gemini `v1` 이전**: Google 클라이언트는 지금 `v1beta` 로 고정돼 있다. `v1` 로 옮길지는 [Rationale](CLE-AI-LLM-IFACE.md#gemini-api-버전을-v1beta-로-고정한다-2026-11-12) 에 적은 기능이 `v1` 에서 되는지 실제 키로 확인한 뒤 정한다. 담당 NERV Task `CLE-T-752NN3`.
 
 ## 구현 위치
@@ -176,3 +174,39 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 ### 스트림 오류 `message` 는 진단용으로 둔다 (2026-11-13)
 
 → [LLM 클라이언트 — 에러 처리와 스트리밍](CLE-AI-LLM-STREAM.md#스트림-오류-message-는-진단용으로-둔다-2026-11-13)
+
+### 스트림 열기 실패를 모든 프로바이더에서 `error` 이벤트로 낸다 (2026-11-14)
+
+OpenAI 계열(OpenAI · Azure · Local) 클라이언트의 `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 예외로 던졌다. Anthropic · Google 클라이언트는 같은 실패를 `error` 이벤트로 냈다. 그래서 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 는 같은 429 를 Anthropic · Google 이면 `LLM_RATE_LIMIT` 로, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 냈다. 2026-11-14 에 사람이 다음과 같이 정했다(NERV Task `CLE-T-0R5SYN`, 질문 `01a1d93a-cb58-7714-9af6-56974232f95e` 의 답).
+
+- 세 클라이언트(OpenAI 계열 · Anthropic · Google) 모두 스트림을 열 때의 실패를 `error` 이벤트로 낸다. OpenAI 계열은 도중 실패와 같은 분류를 쓴다.
+- 스트림을 여는 중에 취소되면 도중 취소와 같은 `done`(finishReason=`aborted`)으로 끝낸다. 전에는 Anthropic · Google 이 이 경우를 `LLM_CONNECTION_ERROR` 로 냈다.
+- `chatStream` 에는 앱 재시도를 두지 않는다.
+- OpenAI · Anthropic SDK 생성자에 `maxRetries` 2 를 적는다. SDK 기본값과 같은 값이다. 생성자에 적어 두면 SDK 기본값이 바뀌어도 재전송 횟수가 그대로다.
+- 어시스턴트 턴의 시간 제한은 이 결정에서 다루지 않는다. 2026-10-10 에 기각한 안이다([AI 노드 공통 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10)).
+
+이제 어시스턴트는 같은 429 를 모델 프로바이더와 상관없이 `LLM_RATE_LIMIT` 로 낸다. 계약은 [스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑) 에 있다.
+
+기각한 대안은 둘이다.
+
+- **OpenAI 계열의 예외를 그대로 둔다**: 같은 실패가 프로바이더에 따라 예외와 이벤트로 갈린다. 호출하는 쪽이 두 경로를 모두 처리해야 해서 프로바이더 차이가 클라이언트 계층 밖으로 샌다. [모든 호출을 LlmService 한 곳으로 모은 이유](#모든-호출을-llmservice-한-곳으로-모은-이유) 와 맞지 않는다.
+- **`chatStream` 에 앱 재시도를 둔다**: OpenAI · Anthropic SDK 가 이미 429 와 요청 타임아웃을 두 번 더 보낸다. 앱 재시도를 더하면 두 재시도가 곱해져 한 턴의 요청 수와 대기 시간이 불어난다.
+
+### LLM 호출의 공통 상한을 정한다 (2026-11-14)
+
+2026-10-10 결정은 문서를 코드에 맞추는 데까지였고 앱 타임아웃이 없는 호출의 상한은 정하지 않았다. Google 클라이언트에는 SDK 요청 타임아웃도 없어서 `timeoutMs` 를 주지 않은 Google `chat` 호출에는 상한이 없었다. 2026-11-14 에 사람이 다음과 같이 정했다(NERV Task `CLE-T-0R5SYN`, 질문 `01a1d93a-cd66-73ab-a2e9-37ffa7ee1312` 의 답).
+
+- `LlmService.chat` 은 `timeoutMs` 를 주지 않은 호출에 공통 안전망 10분(`LLM_CHAT_DEFAULT_TIMEOUT_MS`)을 건다. `0` 을 주면 끈다.
+- `chatStream` 과 `embed` 에는 공통 기본값을 걸지 않는다.
+- Google SDK 에는 따로 타임아웃을 걸지 않는다.
+- 스트림 유휴 감지는 하지 않는다.
+- AI 에이전트 롤링 요약에는 취소 신호와 `AI_AGENT_LLM_CALL_TIMEOUT_MS`(기본 10분)를 넘긴다.
+
+계약은 [서비스 계층 「호출 신뢰성 계약」](CLE-AI-LLM-SERVICE.md#호출-신뢰성-계약) 에 있다. 호출 경로별 값은 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 이 모아 적는다. 롤링 요약과 AI 노드 호출에서 본 배경은 [AI 노드 공통 「앱 타임아웃이 없던 호출의 상한을 정한다」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#앱-타임아웃이-없던-호출의-상한을-정한다-2026-11-14) 에 있다. 정상 응답이 10분을 넘는 일은 드물다. OpenAI 계열과 Anthropic 은 SDK 요청 타임아웃(재전송 포함 최대 약 6분)이 먼저 걸린다. 그래서 공통 기본값은 주로 Google 호출과 SDK 가 멈춘 경우에 걸린다.
+
+기각한 대안은 둘이다.
+
+- **스트림 유휴 감지**: 응답 헤더가 온 뒤 일정 시간 조각이 오지 않으면 스트림을 끊는 안이다. 추론 모델은 첫 토큰 전에 몇 분씩 조각 없이 기다리는 일이 정상이다. 유휴 감지를 두면 이런 정상 응답을 끊는다.
+- **Google SDK 에 개별 타임아웃을 건다**: `chat` 의 공통 기본값으로 Google `chat` 호출에도 상한이 생긴다. 그래서 따로 걸 필요가 없다.
+
+AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 어시스턴트 턴에 시간 제한을 두는 안은 2026-10-10 에 기각했다. 근거는 [AI 노드 공통 Rationale](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-타임아웃을-호출-경로별-현행-값으로-적는다-2026-10-10) 에 있다.

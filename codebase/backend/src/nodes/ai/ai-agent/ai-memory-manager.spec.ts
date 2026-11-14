@@ -349,6 +349,67 @@ describe('AiMemoryManager', () => {
       expect(summaryChat.mock.calls[0][2]).toEqual(llmContext);
     });
 
+    // CLE-T-0R5SYN: 요약 chat 도 턴 응답 호출과 같은 `AI_AGENT_LLM_CALL_TIMEOUT_MS` 와 노드 취소
+    // 신호를 받는다. `0` 은 끄는 값이라 그대로 넘긴다(`LlmService.chat` 의 기본 10분도 끈다).
+    it.each([
+      ['미설정이면 기본 10분', undefined, 600_000],
+      ['0 이면 0 그대로', '0', 0],
+    ])(
+      '요약 chat 에 caller 의 취소 신호와 AI_AGENT_LLM_CALL_TIMEOUT_MS 를 넘긴다 — %s',
+      async (_label, envValue, expectedTimeoutMs) => {
+        const prev = process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+        if (envValue === undefined) {
+          delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+        } else {
+          process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = envValue;
+        }
+        try {
+          const summaryChat = jest.fn().mockResolvedValue({
+            content: 'ROLLING SUMMARY',
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            model: 'm',
+            finishReason: 'stop',
+          });
+          const llm = {
+            resolveConfig: jest.fn(),
+            chat: summaryChat,
+          } as unknown as Ctor[0];
+          const turns: FakeTurn[] = [0, 1, 2, 3, 4, 5].map((s) => ({
+            seq: s,
+            source: 'ai_assistant',
+            text: 'w'.repeat(500),
+            nodeLabel: 'Prev',
+          }));
+          const mgr = new AiMemoryManager(
+            llm,
+            threadFake(turns, turns),
+            agentMemFake(),
+          );
+          const controller = new AbortController();
+          await mgr.injectMemoryContext(
+            baseInject({
+              strategy: 'summary_buffer',
+              tailMode: 'system-only',
+              config: { memoryTokenBudget: 100 },
+              target: {
+                conversationThread: { turns },
+              } as unknown as InjectArgs['target'],
+              signal: controller.signal,
+            }),
+          );
+          expect(summaryChat).toHaveBeenCalledTimes(1);
+          expect(summaryChat.mock.calls[0][3]).toEqual({
+            signal: controller.signal,
+            timeoutMs: expectedTimeoutMs,
+          });
+        } finally {
+          if (prev === undefined)
+            delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+          else process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = prev;
+        }
+      },
+    );
+
     it('system 메시지 없는 messages 배열은 휘발성 꼬리를 index 0 에 prepend 한다 (insertAt 폴백)', async () => {
       const turns: FakeTurn[] = [
         { seq: 1, source: 'ai_user', text: 'history', nodeLabel: 'n' },

@@ -1284,6 +1284,8 @@ export class AiTurnExecutor {
             executionId: context.executionId,
             nodeExecutionId: context.nodeExecutionId,
           },
+          // 노드가 취소되면 롤링 요약 요청도 끊는다(CLE-T-0R5SYN).
+          signal: context.abortSignal,
           queryText: userPrompt,
           tailMode: 'prepend',
         });
@@ -2678,6 +2680,8 @@ export class AiTurnExecutor {
     userMessage: string;
     workspaceId: string;
     executionId: string | undefined;
+    /** resume 턴의 취소 신호(`options.signal`). 롤링 요약 chat 에 넘긴다(CLE-T-0R5SYN). */
+    signal: AbortSignal | undefined;
   }): Promise<MultiTurnMemoryMeta> {
     const {
       multiTurnMemoryStrategy,
@@ -2688,6 +2692,7 @@ export class AiTurnExecutor {
       userMessage,
       workspaceId,
       executionId,
+      signal,
     } = args;
     // [B4] attribution·nodeId 는 ResumeState 로 좁혀 타입 접근 (raw cast 제거 — 필드명
     // 오탈자 컴파일 타임 차단, B1 소비측 타입 주석의 소스측 대칭).
@@ -2718,6 +2723,7 @@ export class AiTurnExecutor {
         executionId: executionId ?? undefined,
         nodeExecutionId: resumeState.nodeExecutionId,
       },
+      signal,
       queryText: userMessage,
       tailMode: 'system-only',
     });
@@ -3007,6 +3013,7 @@ export class AiTurnExecutor {
         userMessage,
         workspaceId,
         executionId,
+        signal: options?.signal,
       });
     }
 

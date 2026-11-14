@@ -285,6 +285,15 @@ export interface BuildSummaryBufferArgs {
    * nodeExecutionId 를 전달하면 채워진다. 미전달 시 NULL(기존 동작).
    */
   llmContext?: LlmCallContext;
+  /**
+   * 요약 chat 에 넘기는 노드 취소 신호다. 노드가 취소되면 요약 요청도 끊는다(CLE-T-0R5SYN).
+   */
+  signal?: AbortSignal;
+  /**
+   * 요약 chat 의 앱 타임아웃(ms)이다. caller 가 턴 응답 호출과 같은 `AI_AGENT_LLM_CALL_TIMEOUT_MS`
+   * 를 넘긴다. `0` 은 끈다. 넘기지 않으면 `LlmService.chat` 의 기본값(10분)이 걸린다.
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -310,6 +319,8 @@ export async function buildSummaryBufferUpdate(
     model,
     llmService,
     llmContext,
+    signal,
+    timeoutMs,
   } = args;
 
   const noChange: SummaryBufferUpdate = {
@@ -389,6 +400,8 @@ export async function buildSummaryBufferUpdate(
     },
     // [Spec 7-llm-usage §1.3] 요약 압축도 노드 발 chat 이므로 attribution 전달.
     llmContext,
+    // 노드 취소와 턴 응답 호출과 같은 앱 타임아웃을 요약 호출에도 건다(CLE-T-0R5SYN).
+    { signal, timeoutMs },
   );
 
   const newSummary = (result.content ?? '').trim();

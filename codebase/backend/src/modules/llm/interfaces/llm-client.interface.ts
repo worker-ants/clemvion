@@ -1,3 +1,4 @@
+import { HttpException } from '@nestjs/common';
 import type { EmbedInputType } from '../embedding-input-type';
 
 export interface ChatMessage {
@@ -97,6 +98,22 @@ export type LlmStreamErrorCode =
  */
 export const LLM_STREAMING_UNSUPPORTED = 'LLM_STREAMING_UNSUPPORTED';
 export type LlmStreamingUnsupportedCode = typeof LLM_STREAMING_UNSUPPORTED;
+
+/**
+ * Whether `err` is the exception `LlmService.chatStream` throws for a provider
+ * without `stream()`, judged by the `code` in its response body. It sits next to
+ * the code so the thrower and the workflow assistant share one check, and the
+ * assistant's error builder does not import `LlmService` for it.
+ */
+export function isLlmStreamingUnsupported(err: unknown): boolean {
+  if (!(err instanceof HttpException)) return false;
+  const body = err.getResponse();
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    (body as { code?: unknown }).code === LLM_STREAMING_UNSUPPORTED
+  );
+}
 
 /**
  * Streaming event emitted by `LLMClient.stream()`.

@@ -1,5 +1,4 @@
 import {
-  HttpException,
   Injectable,
   Logger,
   BadRequestException,
@@ -48,6 +47,16 @@ export interface LlmCallContext {
 }
 
 /**
+ * `LlmService.chat` 이 `timeoutMs` 를 받지 못했을 때 쓰는 앱 타임아웃(ms)이다. 기본 10분.
+ *
+ * `timeoutMs` 를 넘기지 않는 chat 호출(텍스트 분류기 · 정보 추출기 · KB · 메모리 내부 호출 등)이
+ * 끝없이 매달리지 않게 하는 마지막 안전망이다. 정상 응답이 10분을 넘는 일은 드물다.
+ * OpenAI · Anthropic 은 SDK 요청 타임아웃(120초, 재전송 포함 약 6분)이 먼저 걸리므로 실제로는
+ * Google 호출과 SDK 가 멈춘 경우에 걸린다. `chatStream` · `embed` 에는 걸지 않는다(CLE-T-0R5SYN).
+ */
+export const LLM_CHAT_DEFAULT_TIMEOUT_MS = 600_000;
+
+/**
  * SUMMARY#10 — `LlmService.chat` / `embed` 호출 옵션 통합 타입.
  * 인라인 리터럴 타입으로 산재하던 opts 를 단일 named type 으로 관리해
  * 호출부의 `undefined` 자리채우기 패턴(context, opts 순서 혼란) 을 방지.
@@ -55,7 +64,10 @@ export interface LlmCallContext {
  * SoT: spec/conventions/node-cancellation.md (signal), spec/5-system/3-llm.md.
  */
 export interface LlmCallOptions {
-  /** 밀리초 단위 타임아웃. 0 또는 미지정 시 타임아웃 없음. */
+  /**
+   * 밀리초 단위 타임아웃. `0`(또는 음수)이면 타임아웃 없음.
+   * `chat` 은 미지정이면 {@link LLM_CHAT_DEFAULT_TIMEOUT_MS} 를 쓰고, `embed` 는 미지정이면 걸지 않는다.
+   */
   timeoutMs?: number;
   /** 호출자 측에서 자체 retry layer 를 보유한 경우 내부 rate-limit 재시도 비활성화. */
   disableInnerRetry?: boolean;
@@ -72,20 +84,6 @@ export interface LlmCallOptions {
    * 내부 호출은 값을 직접 정하고 켜지 않는다. 병합 규칙은 `applyModelDefaultParams`.
    */
   applyModelDefaults?: boolean;
-}
-
-/**
- * `LlmService.chatStream` 이 던지는 스트리밍 미지원 예외인지. 응답 본문의 `code` 로 본다.
- * 던지는 쪽(`chatStream`)과 읽는 쪽(어시스턴트)이 문자열 계약을 따로 들고 있지 않게 한다.
- */
-export function isLlmStreamingUnsupported(err: unknown): boolean {
-  if (!(err instanceof HttpException)) return false;
-  const body = err.getResponse();
-  return (
-    typeof body === 'object' &&
-    body !== null &&
-    (body as { code?: unknown }).code === LLM_STREAMING_UNSUPPORTED
-  );
 }
 
 @Injectable()
@@ -204,8 +202,10 @@ export class LlmService implements OnModuleInit {
     };
     // disableInnerRetry: 호출자가 외부에서 retryWithBackoff 같은 자체 재시도 layer 를 가진 경우
     // 내부 rate-limit 재시도 (withRetry) 와 겹쳐 호출 횟수가 비선형 증폭되는 것을 막는다.
+    // timeoutMs 를 넘기지 않은 호출에도 기본 10분을 건다. `0` 은 끈다.
+    const timeoutMs = opts?.timeoutMs ?? LLM_CHAT_DEFAULT_TIMEOUT_MS;
     const run = () =>
-      opts?.timeoutMs && opts.timeoutMs > 0
+      timeoutMs > 0
         ? // timeoutMs 와 abortSignal 모두 클라이언트 호출에 전달. `withTimeout` 이
           // 콜백에 넘기는 내부 timeout signal 을 호출자 `opts.signal`(execution
           // abort) 과 **병합**해 SDK 로 전달해야, 타임아웃 발화 시 `controller.abort()`
@@ -221,7 +221,7 @@ export class LlmService implements OnModuleInit {
                   ? AbortSignal.any([opts.signal, timeoutSignal])
                   : timeoutSignal,
               ),
-            opts.timeoutMs,
+            timeoutMs,
           )
         : client.chat(sanitized, opts?.signal);
     const result = await (opts?.disableInnerRetry

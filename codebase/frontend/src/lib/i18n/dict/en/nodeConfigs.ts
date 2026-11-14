@@ -444,7 +444,7 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     label: "LLM Provider",
     defaultOption: "Default provider",
     defaultOptionWithResolved: "Default provider (currently: {{name}})",
-    noDefaultHint: "No workspace default LLM is configured. Set a default in LLM Settings, or pick one directly on this node.",
+    noDefaultHint: "No workspace default Chat model is configured. Set a default Chat model in Model Settings, or pick one directly on this node.",
   },
   kbSelector: {
     label: "Knowledge Bases",

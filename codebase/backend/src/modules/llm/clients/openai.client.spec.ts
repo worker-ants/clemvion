@@ -7,6 +7,7 @@ import {
 import { AzureOpenAIClient } from './azure-openai.client';
 import { LocalClient } from './local.client';
 import type { ChatStreamEvent } from '../interfaces/llm-client.interface';
+import { LLM_SDK_MAX_RETRIES } from './sdk-options';
 
 // Helper: build an async iterable from an array of SDK chunks so the
 // production code can iterate it with `for await` exactly as it would the
@@ -413,13 +414,12 @@ describe('OpenAIClient.stream', () => {
   });
 });
 
-// 특성화 테스트다. 지금 동작을 그대로 고정한다.
-// [LLM 클라이언트](CLE-AI-LLM) 「스트리밍 에러 매핑」: OpenAI 계열(OpenAI · Azure · Local)의
-// `stream()` 은 스트림을 열 때의 실패(429, SDK 요청 타임아웃, 그 밖의 실패)를 `error` 이벤트
-// 없이 예외로 던진다. Anthropic · Google 은 같은 실패를 `error` 이벤트로 보낸다(각 spec).
-// 두 갈래를 하나로 맞추기로 하면 NERV Task `CLE-T-0R5SYN` 이 이 테스트도 함께 고친다.
+// [LLM 클라이언트](CLE-AI-LLM) 「스트리밍 에러 매핑」: 스트림을 열 때의 실패(429, SDK 요청
+// 타임아웃, 그 밖의 실패)도 스트림 도중 실패처럼 `error` 이벤트 하나로 끝낸다. 열기 중에
+// 취소되면 `done(aborted)` 다. 세 프로바이더 클라이언트가 같은 계약을 지킨다(CLE-T-0R5SYN,
+// Anthropic · Google 은 각 spec). 앱은 다시 열지 않는다(SDK 재전송만 있다).
 // Azure · Local 은 `stream()` 을 OpenAIClient 에서 물려받으므로 세 클래스를 함께 돌린다.
-describe.each([
+const OPENAI_FAMILY = [
   ['OpenAIClient', () => new OpenAIClient('sk-test', 'gpt-4o')],
   [
     'AzureOpenAIClient',
@@ -431,44 +431,152 @@ describe.each([
       ),
   ],
   ['LocalClient', () => new LocalClient('llama3', 'http://localhost:1234/v1')],
-] as const)('%s.stream — 스트림을 열 때 실패하면', (_name, makeClient) => {
-  it.each([
-    [
-      '429',
-      () =>
-        new OpenAI.RateLimitError(
-          429,
-          { message: 'Rate limit reached' },
-          undefined,
-          new Headers(),
-        ),
-    ],
-    ['SDK 요청 타임아웃', () => new OpenAI.APIConnectionTimeoutError()],
-    ['그 밖의 실패', () => new Error('socket hang up')],
-  ] as const)(
-    '%s: error 이벤트 없이 같은 예외를 던진다',
-    async (_label, makeError) => {
-      const failure = makeError();
-      const create = jest.fn().mockRejectedValue(failure);
-      const client = makeClient();
+] as const;
+
+describe.each(OPENAI_FAMILY)(
+  '%s.stream — 스트림을 열 때 실패하면',
+  (_name, makeClient) => {
+    function stubCreate(client: OpenAIClient, create: jest.Mock): void {
       // @ts-expect-error — 내부 SDK client 를 stub 으로 바꾼다.
       client.client = { chat: { completions: { create } } };
+    }
 
+    async function collectStream(
+      client: OpenAIClient,
+      signal?: AbortSignal,
+    ): Promise<ChatStreamEvent[]> {
       const seen: ChatStreamEvent[] = [];
-      const drain = async (): Promise<void> => {
-        for await (const ev of client.stream({
-          model: 'gpt-4o',
-          messages: [{ role: 'user', content: 'x' }],
-        })) {
-          seen.push(ev);
-        }
-      };
+      for await (const ev of client.stream(
+        { model: 'gpt-4o', messages: [{ role: 'user', content: 'x' }] },
+        signal,
+      )) {
+        seen.push(ev);
+      }
+      return seen;
+    }
 
-      await expect(drain()).rejects.toBe(failure);
-      expect(seen).toEqual([]);
-      expect(create).toHaveBeenCalledTimes(1);
-    },
-  );
+    it.each([
+      [
+        '429',
+        () =>
+          new OpenAI.RateLimitError(
+            429,
+            { message: 'Rate limit reached' },
+            undefined,
+            new Headers(),
+          ),
+        'LLM_RATE_LIMIT',
+      ],
+      [
+        'SDK 요청 타임아웃',
+        () => new OpenAI.APIConnectionTimeoutError(),
+        'LLM_CONNECTION_ERROR',
+      ],
+      [
+        '그 밖의 실패',
+        () => new Error('socket hang up'),
+        'LLM_CONNECTION_ERROR',
+      ],
+    ] as const)(
+      '%s: 예외를 던지지 않고 error 이벤트 하나로 끝내며 다시 열지 않는다',
+      async (_label, makeError, code) => {
+        const failure = makeError();
+        const create = jest.fn().mockRejectedValue(failure);
+        const client = makeClient();
+        stubCreate(client, create);
+
+        const events = await collectStream(client);
+
+        expect(events).toEqual([
+          { type: 'error', code, message: failure.message },
+        ]);
+        expect(create).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    // 열기 단계도 도중 실패와 같은 분류(`streamErrorEvent`)를 쓴다. harmony 토큰 오염이면
+    // 고정 영문 `message` 로 바꾸고 SDK 원문은 warn 로그에만 남긴다.
+    it('harmony 토큰 오염이면 LLM_OUTPUT_MALFORMED 와 고정 영문 message 로 끝내고 원문은 warn 로그에 남긴다', async () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const rawSdkMessage =
+          'Failed to parse input at pos 0: <|channel|>final<|message|>hi';
+        const create = jest.fn().mockRejectedValue(new Error(rawSdkMessage));
+        const client = makeClient();
+        stubCreate(client, create);
+
+        const events = await collectStream(client);
+
+        expect(events).toEqual([
+          {
+            type: 'error',
+            code: 'LLM_OUTPUT_MALFORMED',
+            message: HARMONY_OUTPUT_MALFORMED_MESSAGE,
+          },
+        ]);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0][0]).toContain(rawSdkMessage);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    // 열기 실패를 `done(aborted)` 로 바꾸는 조건은 신호가 있는지가 아니라 취소됐는지다.
+    it('신호를 넘겼어도 취소되지 않았으면 error 이벤트로 끝낸다', async () => {
+      const controller = new AbortController();
+      const create = jest.fn().mockRejectedValue(new Error('socket hang up'));
+      const client = makeClient();
+      stubCreate(client, create);
+
+      const events = await collectStream(client, controller.signal);
+
+      expect(events).toEqual([
+        {
+          type: 'error',
+          code: 'LLM_CONNECTION_ERROR',
+          message: 'socket hang up',
+        },
+      ]);
+    });
+
+    it('열기 중에 취소되면 error 대신 done(aborted) 하나로 끝낸다', async () => {
+      const controller = new AbortController();
+      const create = jest.fn().mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(new OpenAI.APIUserAbortError());
+      });
+      const client = makeClient();
+      stubCreate(client, create);
+
+      const events = await collectStream(client, controller.signal);
+
+      expect(events).toEqual([
+        {
+          type: 'done',
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          model: 'gpt-4o',
+          finishReason: 'aborted',
+        },
+      ]);
+    });
+  },
+);
+
+// SDK 는 429 · 5xx · 연결 실패 · 요청 타임아웃을 `maxRetries` 만큼 다시 보낸다. 기본값과 같은 2 를
+// 생성자에 적어 SDK 기본값이 바뀌어도 그대로 가게 한다(CLE-T-0R5SYN). SDK 가 받은 옵션을 그대로
+// 두는 `_options` 를 본다. `maxRetries` 필드는 적지 않아도 기본값 2 라 적었는지 가리지 못한다.
+describe.each(OPENAI_FAMILY)('%s — SDK 재전송 횟수', (_name, makeClient) => {
+  it('SDK 클라이언트 생성자에 maxRetries 를 적는다', () => {
+    const sdk = (
+      makeClient() as unknown as {
+        client: { _options: { maxRetries?: number } };
+      }
+    ).client;
+    expect(sdk._options.maxRetries).toBe(LLM_SDK_MAX_RETRIES);
+    expect(LLM_SDK_MAX_RETRIES).toBe(2);
+  });
 });
 
 describe('OpenAIClient.listModels', () => {

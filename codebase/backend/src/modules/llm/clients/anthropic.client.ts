@@ -7,6 +7,8 @@ import {
   ModelInfo,
   ToolCall,
 } from '../interfaces/llm-client.interface';
+import { LLM_SDK_MAX_RETRIES } from './sdk-options';
+import { abortedBeforeOpen } from './stream-open';
 
 /**
  * Anthropic Messages API 클라이언트.
@@ -30,6 +32,7 @@ export class AnthropicClient implements LLMClient {
     this.client = new Anthropic({
       apiKey,
       timeout: 120_000,
+      maxRetries: LLM_SDK_MAX_RETRIES,
     });
   }
 
@@ -267,6 +270,11 @@ export class AnthropicClient implements LLMClient {
     try {
       stream = await this.client.messages.create(requestParams, { signal });
     } catch (err) {
+      // 열기 실패는 `error` 이벤트, 열기 중 취소는 `done(aborted)` 다. OpenAI · Google 과 같다.
+      if (signal?.aborted) {
+        yield abortedBeforeOpen(model);
+        return;
+      }
       const message =
         err instanceof Error ? err.message : 'Unknown stream error';
       yield {
