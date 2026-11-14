@@ -555,3 +555,78 @@ describe("resolveDynamicPorts — unknown / default fallback", () => {
     });
   });
 });
+
+describe("resolveDynamicPorts — 동적 에러 포트 (REQ-NODEUI-012 · 043)", () => {
+  const ROUTE = { errorHandling: { policy: "route_to_error_port" } };
+  const httpDef = def("http_request", [
+    { id: "out", label: "Output", type: "data" },
+  ]);
+
+  it("고정 error 포트가 없는 노드에 route_to_error_port 를 고르면 마지막에 빨간 error 포트를 더한다", () => {
+    const ports = resolveDynamicPorts("http_request", ROUTE, httpDef);
+    expect(ports).toEqual([
+      { id: "out", label: "Output", type: "data" },
+      { id: "error", label: "Error", type: "error" },
+    ]);
+  });
+
+  it("다른 정책이거나 정책이 없으면 더하지 않는다", () => {
+    for (const config of [
+      {},
+      { errorHandling: { policy: "stop_workflow" } },
+      { errorHandling: { policy: "skip_node" } },
+      { errorHandling: {} },
+      { errorHandling: null },
+    ]) {
+      expect(
+        resolveDynamicPorts("http_request", config, httpDef).map((p) => p.id),
+      ).toEqual(["out"]);
+    }
+  });
+
+  it("레거시 평면 키 errorPolicy: error_port 만으로는 더하지 않는다(엔진이 읽지 않는다)", () => {
+    expect(
+      resolveDynamicPorts(
+        "http_request",
+        { errorPolicy: "error_port" },
+        httpDef,
+      ).map((p) => p.id),
+    ).toEqual(["out"]);
+  });
+
+  it("고정 error 포트가 있는 정적 노드는 그 포트 하나만 남긴다", () => {
+    const fixed = def("ai_agent_like", [
+      { id: "out", label: "Output", type: "data" },
+      { id: "error", label: "Error", type: "error" },
+    ]);
+    const ports = resolveDynamicPorts("ai_agent_like", ROUTE, fixed);
+    expect(ports.filter((p) => p.id === "error")).toHaveLength(1);
+    expect(ports.map((p) => p.id)).toEqual(["out", "error"]);
+  });
+
+  it("dynamicPorts 가 고정 error 포트를 내는 노드(text_classifier)도 하나만 남긴다", () => {
+    const ports = resolveDynamicPorts(
+      "text_classifier",
+      { ...ROUTE, categories: [{ id: "a", name: "A" }] },
+      def("text_classifier", [], CLASSIFIER_SPEC),
+    );
+    expect(ports.map((p) => p.id)).toEqual(["a", "fallback", "error"]);
+  });
+
+  it("동적 포트 노드(switch)에도 케이스 · default 뒤에 더한다", () => {
+    const ports = resolveDynamicPorts(
+      "switch",
+      { ...ROUTE, cases: [{ id: "c1", label: "C1" }] },
+      def("switch", [], SWITCH_SPEC),
+    );
+    expect(ports.map((p) => [p.id, p.type])).toEqual([
+      ["c1", "data"],
+      ["default", "data"],
+      ["error", "error"],
+    ]);
+  });
+
+  it("노드 정의를 모르면 포트를 지어내지 않는다", () => {
+    expect(resolveDynamicPorts("unknown", ROUTE, undefined)).toEqual([]);
+  });
+});

@@ -7910,6 +7910,85 @@ describe('ExecutionEngineService', () => {
         );
       });
 
+      // 동적 에러 포트(REQ-NODEUI-012): 캔버스가 고정 `error` 포트가 없는 노드에
+      // 그리는 포트도 연결선 `sourcePort === 'error'` 로 저장된다. 정책이 켜져
+      // 있어도 노드가 성공하면 그 연결선은 열지 않는다.
+      it('opens only the normal edge when a route_to_error_port node succeeds', async () => {
+        mockNodeRepo.findBy.mockResolvedValue([
+          { ...throwerNode, id: 'n-ok', type: 'normal_node' },
+          sinkNode('n-next', 'error_sink_node'),
+          sinkNode('n-handle', 'normal_node'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          { ...throwerEdge('e-out', 'out', 'n-next'), sourceNodeId: 'n-ok' },
+          {
+            ...throwerEdge('e-err', 'error', 'n-handle'),
+            sourceNodeId: 'n-ok',
+          },
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+
+        // n-ok 자신만 normal_node 를 한 번 부르고 error 쪽 n-handle 은 부르지 않는다.
+        expect(normalExecute).toHaveBeenCalledTimes(1);
+        expect(errorSinkExecute).toHaveBeenCalledTimes(1);
+        expect(lastNodeExecSave('n-ok')?.status).toBe(
+          NodeExecutionStatus.COMPLETED,
+        );
+        expect(lastNodeExecSave('n-handle')).toBeUndefined();
+      });
+
+      // 고정 `error` 포트가 있는 노드(REQ-NODEUI-043)는 동적 포트 없이 그 포트로
+      // 보낸다. 핸들러가 직접 `port: 'error'` 를 내도, throw 해도 error 연결선
+      // 하나만 열고 다음 노드는 한 번만 실행한다.
+      it.each([
+        [
+          'returns port: error',
+          async () =>
+            mockOutput(
+              { error: { code: 'EMAIL_SEND_FAILED', message: 'SMTP' } },
+              { port: 'error' },
+            ),
+        ],
+        [
+          'throws',
+          async () => {
+            throw new Error('boom');
+          },
+        ],
+      ])(
+        'routes a fixed-error-port node to its error edge once when the handler %s',
+        async (_label, impl) => {
+          handlerRegistry.register('fixed_err_node', {
+            validate: () => ({ valid: true, errors: [] }),
+            execute: jest.fn(impl),
+          });
+          mockNodeRepo.findBy.mockResolvedValue([
+            { ...throwerNode, type: 'fixed_err_node' },
+            sinkNode('n-normal', 'normal_node'),
+            sinkNode('n-handle', 'error_sink_node'),
+          ]);
+          mockEdgeRepo.findBy.mockResolvedValue([
+            throwerEdge('e-out', 'out', 'n-normal'),
+            throwerEdge('e-err', 'error', 'n-handle'),
+          ]);
+
+          await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+          await flushPromises();
+
+          expect(normalExecute).not.toHaveBeenCalled();
+          expect(errorSinkExecute).toHaveBeenCalledTimes(1);
+          expect(lastNodeExecSave('n-throw')?.status).toBe(
+            NodeExecutionStatus.FAILED,
+          );
+          expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+            expect.stringMatching(/UPDATE execution/),
+            expect.arrayContaining([ExecutionStatus.COMPLETED]),
+          );
+        },
+      );
+
       it('stops the workflow (ERROR_PORT_FALLBACK) when no error edge is connected', async () => {
         mockNodeRepo.findBy.mockResolvedValue([
           throwerNode,

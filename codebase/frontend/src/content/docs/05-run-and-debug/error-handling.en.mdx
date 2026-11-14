@@ -88,12 +88,14 @@ If every retry fails, falls back to **Stop Workflow**.
 
 Sends the error payload out the node's **error port**, letting a connected downstream node pick up recovery from there.
 
-- You can only connect this policy's edge to an **error port the node already has**. For example, the HTTP Request, Database Query, and Send Email nodes have one. Selecting the policy does not add a port.
+- On a node that has no error port of its own, selecting this policy adds a red **error port** at the bottom right of the node. Connect the error branch there.
+- Nodes that **already have an error port**, such as HTTP Request, Database Query, and Send Email, get no extra port and use the one they have.
 - When a node throws a failure, **only the edge on the error port** opens. Edges on other output ports such as `out` stay closed, so only the error branch runs.
-- With nothing connected to the error port, the run logs `ERROR_PORT_FALLBACK` and falls back to Stop Workflow. If you apply this policy to a node without an error port, every thrown failure stops the workflow this way.
+- When the node succeeds, the edge on the error port stays closed. Only edges on the other output ports open.
+- With nothing connected to the error port, the run logs `ERROR_PORT_FALLBACK` and falls back to Stop Workflow.
 - `NodeExecution.status` is `failed`, but when an error edge exists **the Execution as a whole keeps going**.
 
-<Callout type="warn">Behavior has changed. Previously, when a node threw a failure, every outgoing edge opened regardless of port. The next node on the normal path also ran with `{ error }` as its input, and the next node ran even with no error edge. Now only the error branch runs, and the workflow stops if there is no error edge. For such workflows, connect an error edge from a node that has an error port, or pick another policy such as Stop Workflow or Skip Node.</Callout>
+<Callout type="warn">Behavior has changed. Previously, when a node threw a failure, every outgoing edge opened regardless of port. The next node on the normal path also ran with `{ error }` as its input, and the next node ran even with no error edge. Now only the error branch runs, and the workflow stops if there is no error edge. For such workflows, connect an edge to the error port, or pick another policy such as Stop Workflow or Skip Node.</Callout>
 
 When a node throws a failure, this policy builds the payload below and passes it to the next node.
 
