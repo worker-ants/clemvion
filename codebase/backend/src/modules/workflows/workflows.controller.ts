@@ -357,7 +357,7 @@ export class WorkflowsController {
   @Post(':id/nodes/:nodeId/execute')
   @HttpCode(HttpStatus.ACCEPTED)
   @Roles('editor')
-  // 근거: [에디터 실행과 디버깅 「단일 노드 실행」](CLE-EXEC-RUN#단일-노드-실행)
+  // 근거: [에디터 실행과 디버깅 「단일 노드 실행」](CLE-EXEC-RUN-START#단일-노드-실행)
   @ApiOperation({
     summary: '단일 노드 실행',
     description:

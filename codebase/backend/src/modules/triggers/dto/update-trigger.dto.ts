@@ -54,8 +54,8 @@ export class UpdateTriggerDto {
 
   // 근거:
   //   - [웹훅 「비밀성」](CLE-TRIG-WEBHOOK#비밀성) v4 UUID 형식 강제
-  //   - [웹훅 「경로 변경」](CLE-TRIG-WEBHOOK#경로-변경)
-  //   - [트리거 데이터와 흐름 「트리거와 스케줄 동기화」](CLE-TRIG-DATA#트리거와-스케줄-동기화) schedule 타입 변경 거부
+  //   - [웹훅 「경로 변경」](CLE-TRIG-WEBHOOK-API#경로-변경)
+  //   - [트리거 데이터와 흐름 「트리거와 스케줄 동기화」](CLE-TRIG-DATA-MODEL#트리거와-스케줄-동기화) schedule 타입 변경 거부
   /**
    * Webhook 엔드포인트 경로 (v4 UUID).
    *

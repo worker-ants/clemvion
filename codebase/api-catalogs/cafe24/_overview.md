@@ -65,7 +65,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 |-----|------|------|
 | `supported` | 노드/MCP Bridge 에서 호출 가능 | `CAFE24_OPERATIONS_BY_RESOURCE[resource]` 에 row 존재 |
 | `planned` | 카탈로그에 등재만, 미구현. UI 의 Operation 드롭다운에 **disabled + "지원 예정" 배지** 로 노출 | `CAFE24_OPERATIONS_BY_RESOURCE` (supported 메타데이터) 에는 row 없음. 단 전용 mirror `CAFE24_PLANNED_BY_RESOURCE` (`metadata/planned.ts`) 에 `{ id, paginated? }` row 가 존재해야 하며, 이 mirror 가 `GET /nodes/definitions` 로 노출돼 프론트 Operation select 의 "지원 예정" 배지를 구동한다. catalog 의 모든 `planned` row ↔ mirror 는 §4 규칙8 로 양방향 강제. 현재 18 resource 전부 planned 0 이므로 mirror (`planned.ts`) 도 모두 빈 배열 |
-| `deprecated` | Cafe24 가 제거 또는 deprecate 했고 우리 노드에서도 더 이상 호출 안 함. **본 도메인은 외부 API operation 폐기 상태다. 스펙 문서 자체의 폐기를 뜻하던 옛 스펙 frontmatter `status: archived`(NERV 전환 단계 5 에서 걷었다. [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE) R-4)와는 별 도메인이다** | row 없으면 정상. 있으면 마이그레이션 대상 |
+| `deprecated` | Cafe24 가 제거 또는 deprecate 했고 우리 노드에서도 더 이상 호출 안 함. **본 도메인은 외부 API operation 폐기 상태다. 스펙 문서 자체의 폐기를 뜻하던 옛 스펙 frontmatter `status: archived`(NERV 전환 단계 5 에서 걷었다. [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE-MIGRATION) R-4)와는 별 도메인이다** | row 없으면 정상. 있으면 마이그레이션 대상 |
 
 `planned` 행의 `method`/`path`/`scope` 가 `?` 인 경우, 구현 시점에 공식 docs 를 다시 검증한 뒤 `supported` 로 승격시키며 정확한 값으로 갱신한다.
 
@@ -142,7 +142,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 - 경로: `codebase/api-catalogs/cafe24/<resource>/<entity_id>.md` (예: `store/activitylogs.md`, `product/products.md`).
 - `<entity_id>` 는 Cafe24 docs 의 sub-resource 식별자 (kebab-case — docs anchor 식별자와 동일 형식, 예: `appstore-orders`). 한 resource 내 unique.
 - frontmatter: `resource`, `entity`, `cafe24_docs` (공식 docs anchor URL), `source` (추출 출처·일자).
-- **frontmatter 검증 범위**: 본 field-level 파일은 생성기 산출물(레퍼런스)이라 frontmatter(`id`/`status`) 검증 대상이 아니다. 카탈로그 최상위 `<resource>.md` 인덱스의 `id` · `status` · `code:` 는 `codebase/backend/src/nodes/integration/api-catalog-index-frontmatter.spec.ts` 가 검증한다. 2026-10-02 `codebase/api-catalogs/` 로 옮기기 전에는 spec frontmatter 가드가 같은 일을 했다(근거 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE) R-7).
+- **frontmatter 검증 범위**: 본 field-level 파일은 생성기 산출물(레퍼런스)이라 frontmatter(`id`/`status`) 검증 대상이 아니다. 카탈로그 최상위 `<resource>.md` 인덱스의 `id` · `status` · `code:` 는 `codebase/backend/src/nodes/integration/api-catalog-index-frontmatter.spec.ts` 가 검증한다. 2026-10-02 `codebase/api-catalogs/` 로 옮기기 전에는 spec frontmatter 가드가 같은 일을 했다(근거 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE-MIGRATION) R-7).
 
 ### 7.2 문서 구성
 

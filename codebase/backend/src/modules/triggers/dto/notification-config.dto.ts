@@ -13,7 +13,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { checkSsrfSafeUrl } from '../../../common/utils/ssrf-safe-url.util';
 
-// 근거: [EIA 알림 웹훅 「구독 이벤트」](CLE-EIA-NOTIFY#구독-이벤트)
+// 근거: [EIA 알림 웹훅 「구독 이벤트」](CLE-EIA-NOTIFY-EVENTS#구독-이벤트)
 /**
  * Outbound notification webhook 의 구독 가능한 이벤트 type.
  *
@@ -32,8 +32,8 @@ export const NOTIFICATION_EVENT_TYPES = [
 export type NotificationEventType = (typeof NOTIFICATION_EVENT_TYPES)[number];
 
 // 근거:
-//   - [EIA 알림 웹훅 「헤더와 서명」](CLE-EIA-NOTIFY#헤더와-서명)
-//   - [EIA 알림 웹훅 「서명 알고리즘 표기를 인바운드와 나눈다」](CLE-EIA-NOTIFY#서명-알고리즘-표기를-인바운드와-나눈다)
+//   - [EIA 알림 웹훅 「헤더와 서명」](CLE-EIA-NOTIFY-DELIVERY#헤더와-서명)
+//   - [EIA 알림 웹훅 「서명 알고리즘 표기를 인바운드와 나눈다」](CLE-EIA-NOTIFY-DELIVERY#서명-알고리즘-표기를-인바운드와-나눈다)
 /**
  * Outbound notification 의 HMAC 서명 설정.
  * 외부 표면에서는 `hmac-` prefix 를 명시한다.

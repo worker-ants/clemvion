@@ -11,14 +11,14 @@ exit 0 → 허용, exit 2 → 차단(stderr 가 이유), 그 밖 → 런타임 �
 
 막지 않는 것:
 - 카탈로그 사본(`CLE-C24-*` · `CLE-MKS-*`). codebase 정본에서 생성하므로 크기는 생성기가 정한다.
-  같은 접두의 NERV 정본 규약 문서(`_lib/spec_size.py` 의 `NOT_EXEMPT_KEYS`)는 막는다(이 문서들은 미러에
-  오지 않아 CI 래칫은 보지 않고 이 훅만 막는다).
+  같은 접두의 NERV 정본 규약 문서는 막는다(`_lib/spec_size.py` 의 `NOT_EXEMPT_KEYS` 와 그 설명).
   키는 `spec_id`(기존 문서) 또는 `key`(새 문서)로 본다. UUID 로 부른 카탈로그 문서는 가려내지 못해
   한도를 적용한다(카탈로그 사본은 `codebase/api-catalogs/README.md` 절차가 키로 저장한다).
 - 본문이 없는 호출(되돌리기 `revert_to_version`, 메타만 고치는 호출).
 
 이 훅은 에이전트의 MCP 호출만 본다. 사람이 웹에서 쓴 초안과 다른 경로로 저장한 초안은 CI 미러 검사
-(`size_check.py`)가 미러를 받을 때 잡는다.
+(`size_check.py`)가 미러를 받을 때 잡는다. 미러에 오지 않는 `NOT_EXEMPT_KEYS` 문서는 예외다. 그 문서를
+훅 밖에서 저장하면 아무 검사도 잡지 못한다.
 
 일회성 우회: `BYPASS_SPEC_SIZE_GUARD=1`.
 """
@@ -35,9 +35,14 @@ sys.path.insert(0, THIS_DIR)
 from _lib.spec_size import LIMIT, TARGET, is_exempt  # noqa: E402
 
 BODY_FIELDS = ("body_markdown", "body_md")
-# 본문이 아닌 필드. 알려진 본문 필드가 없을 때 나머지 문자열 중 가장 긴 값을 본문으로 본다.
-# NERV 도구 스키마의 메타 필드와 맞춰야 한다. 새 메타 필드가 생기면 여기에 더한다(긴 값이 본문으로 잡혀 오차단된다).
-META_FIELDS = ("spec_id", "key", "base_hash", "change_summary", "title", "area", "type")
+# 본문이 아닌 문자열 필드. 알려진 본문 필드가 없을 때 나머지 문자열 중 가장 긴 값을 본문으로 본다.
+# 대조할 정본은 NERV MCP 도구 `nerv_spec_draft_upsert` 의 inputSchema 다(ToolSearch 로 받는다).
+# 새 메타 필드가 생기면 여기에 더한다. 빠뜨리면 그 필드의 긴 값이 본문으로 잡혀 오차단된다.
+# `area` 는 옛 스키마의 필드다. 지금 스키마에는 없지만 남겨도 해가 없다.
+META_FIELDS = (
+    "spec_id", "key", "parent_id", "base_hash", "change_summary", "title", "type", "area",
+    "finding_id", "idempotency_key",
+)
 
 
 def _read_payload() -> dict:

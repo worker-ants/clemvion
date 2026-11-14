@@ -173,7 +173,7 @@ export class NotificationsController {
 
   @Post(':id/dismiss')
   @HttpCode(HttpStatus.OK)
-  // 근거: [알림 「닫기 엔드포인트」](CLE-OBS-NOTIFY#닫기-엔드포인트)
+  // 근거: [알림 「닫기 엔드포인트」](CLE-OBS-NOTIFY-INBOX#닫기-엔드포인트)
   @ApiOperation({
     summary: '알림 닫기 (soft delete)',
     description:

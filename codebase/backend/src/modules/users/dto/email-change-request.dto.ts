@@ -9,7 +9,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // 근거:
 //   - [가입과 로그인 「이메일 변경」](CLE-ACCT-SIGNIN#이메일-변경)
-//   - [가입과 로그인 「이메일 변경 재인증에서 이메일 OTP 를 뺀다」](CLE-ACCT-SIGNIN#이메일-변경-재인증에서-이메일-otp-를-뺀다)
+//   - [가입과 로그인 「이메일 변경 재인증에서 이메일 OTP 를 뺀다」](CLE-ACCT-SIGNIN-SIGNUP#이메일-변경-재인증에서-이메일-otp-를-뺀다)
 /**
  * 이메일 변경 시작 요청.
  *

@@ -42,7 +42,7 @@ import {
   resolveInstallFailure,
 } from './install-failure-response';
 
-// 근거: [OAuth 연결과 토큰 갱신 「Cafe24 App URL 100자 한도에 맞춰 /api/3rd-party/<provider>/ 경로를 새로 뒀다」](CLE-INT-OAUTH#cafe24-app-url-100자-한도에-맞춰-api3rd-partyprovider-경로를-새로-뒀다)
+// 근거: [OAuth 연결과 토큰 갱신 「Cafe24 App URL 100자 한도에 맞춰 /api/3rd-party/<provider>/ 경로를 새로 뒀다」](CLE-INT-OAUTH-INSTALL#cafe24-app-url-100자-한도에-맞춰-api3rd-partyprovider-경로를-새로-뒀다)
 /**
  * 3rd-party 가 호출하는 OAuth endpoints (Cafe24 "테스트 실행" install +
  * provider callbacks). 사용자가 호출하는 통합 관리 API
@@ -64,9 +64,9 @@ export class ThirdPartyOAuthController {
 
   // 근거:
   //   - [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](CLE-INT-OAUTH#설치-엔드포인트-app-url)
-  //   - [Cafe24 노드 「추가 보안 조치」](CLE-NODE-CAFE24#추가-보안-조치)
-  //   - [OAuth 연결과 토큰 갱신 「설치 엔드포인트 rate limit」](CLE-INT-OAUTH#설치-엔드포인트-rate-limit-실패-페널티redis와-ip-throttlepod-별)
-  //   - [OAuth 연결과 토큰 갱신 「설치 토큰 미존재를 404 로 분리한 보안 전제」](CLE-INT-OAUTH#설치-토큰-미존재를-404-로-분리한-보안-전제)
+  //   - [Cafe24 노드 「추가 보안 조치」](CLE-NODE-CAFE24-INSTALL#추가-보안-조치)
+  //   - [OAuth 연결과 토큰 갱신 「설치 엔드포인트 rate limit」](CLE-INT-OAUTH-INSTALL#설치-엔드포인트-rate-limit-실패-페널티redis와-ip-throttlepod-별)
+  //   - [OAuth 연결과 토큰 갱신 「설치 토큰 미존재를 404 로 분리한 보안 전제」](CLE-INT-OAUTH-INSTALL#설치-토큰-미존재를-404-로-분리한-보안-전제)
   /**
    * Cafe24 Private 앱 App URL 엔드포인트. Cafe24 Developers 의 "테스트 실행"
    * 이 path 의 install_token 으로 단일 row 조회 → HMAC 1회 검증 후 Cafe24
@@ -204,8 +204,8 @@ export class ThirdPartyOAuthController {
   }
 
   // 근거:
-  //   - [OAuth 연결과 토큰 갱신 「MakeShop」](CLE-INT-OAUTH#makeshop)
-  //   - [MakeShop 노드 「운영 전 확인할 항목」](CLE-NODE-MAKESHOP#운영-전-확인할-항목)
+  //   - [OAuth 연결과 토큰 갱신 「MakeShop」](CLE-INT-OAUTH-INSTALL#makeshop)
+  //   - [MakeShop 노드 「운영 전 확인할 항목」](CLE-NODE-MAKESHOP-EXEC#운영-전-확인할-항목)
   /**
    * MakeShop ShopStore 설치 진입점 (App URL). MakeShop 마켓에서 앱 설치 시
    * 등록된 App URL 로 `?shop_uid=...&timestamp=...&action_type=install&hmac=...`

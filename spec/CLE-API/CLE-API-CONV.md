@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 18
+version: 19
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "622415fd521244828f877e28969cda10878043119142399834d665c3d84c542e"
+content_hash: "3801fec729f4d2f6a1a174e196263a042ef408d8f9c229184930d2a31e2379a9"
 read_as: "approved_fallback"
-task: "CLE-T-ZC34Y0"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "fa72d23e0015bfcfc325ae97355197b00e9c7d5d0015b29550c37fae75dcea37"
-etag: "sha256-d8ec659621c60bcf35b05beb0ce7e92de14a14776cbc061ddae36644ce420447"
+mirror_sha256: "2e2af1780efaf2d3407c293220cf1b51d3c07dd9702c7b2f53a2510513d93c2a"
+etag: "sha256-0f277aa7e87b541459803f4e4d47b8c520eb627d129233458509509016d4a2c1"
 ---
 > 구현 상태: 부분 구현 (WebSocket `execution.continue` 는 미구현) · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-d8ec659621c60bcf35b05beb0ce7e92de14a14776cbc061ddae36644ce420447"
 
 이 문서는 Clemvion HTTP API 가 밖에서 어떻게 보이는지 정한다. URL 구조, 워크스페이스 스코핑(workspace scoping), 요청 형식, 응답 봉투(response envelope, `{ data }`), 값이 없음을 나타내는 부재 표현(absence representation), HTTP 상태 코드, 요청 빈도 제한(rate limit, `RATE_LIMITED`), 페이지네이션, 파일 업로드가 대상이다.
 
-API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interaction API(EIA, `/api/external/*`)·웹훅·생성된 SDK 가 같은 계약을 읽는다. 그래서 OpenAPI 문서가 실제 wire 와 어긋나면 그 차이가 소비자 코드로 그대로 번진다. 이 문서의 규칙 상당수는 "무엇을 보내는가" 와 함께 "보낸다고 문서에 적은 것과 실제로 보내는 것이 같은가" 를 다룬다. §5.5 부재 표현과 그 검증 층이 그 자리다.
+API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interaction API(EIA, `/api/external/*`)·웹훅·생성된 SDK 가 같은 계약을 읽는다. 그래서 OpenAPI 문서가 실제 wire 와 어긋나면 그 차이가 소비자 코드로 그대로 번진다. 이 문서의 규칙 상당수는 "무엇을 보내는가" 와 함께 "보낸다고 문서에 적은 것과 실제로 보내는 것이 같은가" 를 다룬다. [§5.5 부재 표현](CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략)과 그 검증 층이 그 자리다.
 
 이 문서가 정하지 않는 것은 아래 문서가 정한다.
 
@@ -39,18 +39,29 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 
 1. 리소스 API 는 `{base_url}/api/{resource}` 아래에 둔다. 리소스 이름은 복수형 명사이고 케밥 케이스로 쓴다. 경로 중첩은 2단계까지다.
 2. 자원 액션 경로 `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 동사(구)다. 목적어는 경로에 두고 액션 이름에 넣지 않는다.
-3. Boolean 상태 필드를 바꿀 때는 전용 엔드포인트를 만들지 않는다. `PATCH /:id { field: value }` 로 바꾼다. 예외는 §12.1 에 등록한다.
+3. Boolean 상태 필드를 바꿀 때는 전용 엔드포인트를 만들지 않는다. `PATCH /:id { field: value }` 로 바꾼다. 예외는 [§12.1](CLE-API-CONV-URL.md#121-상태-토글-패턴) 에 등록한다.
 4. 리소스 API 는 현재 워크스페이스 안에서만 동작한다. 현재 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 정한다.
 5. 성공 응답은 `{ data: ... }` 로 감싼다. 페이지 목록은 `{ data: [...], pagination }` 이고 작은 본인 목록은 `{ data: { items } }` 다. 영역 문서의 API 표와 본문은 봉투를 빼고 `data` 안의 내용만 적는다.
-6. 응답에서 값이 없을 때 기본 표현은 `null` 이다. 키를 빼는 것은 §5.5 의 두 기준 중 하나에 해당할 때만이고 그 필드를 문서화하는 절에 사유를 적는다.
+6. 응답에서 값이 없을 때 기본 표현은 `null` 이다. 키를 빼는 것은 [§5.5](CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 의 두 기준 중 하나에 해당할 때만이고 그 필드를 문서화하는 절에 사유를 적는다.
 7. DTO 선언은 wire 를 그대로 반영한다. TS 타입이 `| null` 이면 OpenAPI 에 `nullable: true` 를 반드시 선언한다.
 8. 요청 PATCH 는 키 생략·`null`·값이 각각 다른 뜻인 PATCH 삼중 상태(tri-state)다. 응답 부재 표현 규칙을 요청 DTO 에 적용하지 않는다.
 9. 큐에 넣고 바로 돌아오는 요청은 `202 Accepted` 와 ack 본문을 돌려준다. `202` 는 no-content 가 아니다.
-10. `410 Gone` 은 존재했으나 사라졌거나 비활성인 리소스에 쓴다. 처음부터 없던 리소스는 `404` 다. 예외는 §6 의 `404` · `410` 행에 있다.
-11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다. 예외로 Passkey 환경 변수가 없을 때의 `WEBAUTHN_DISABLED` 도 `503` 이다. 이 응답은 다시 시도해도 회복되지 않는다(§6). 언제 나는지는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) 이 정한다.
-12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 §7 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외가 있다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다. 채팅 채널 인바운드는 채팅방 단위 한도를 넘어도 `202` 를 받는다([§7 머리 콜아웃](#7-요청-빈도-제한)). WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
+10. `410 Gone` 은 존재했으나 사라졌거나 비활성인 리소스에 쓴다. 처음부터 없던 리소스는 `404` 다. 예외는 [§6](CLE-API-CONV-RESP.md#6-http-상태-코드) 의 `404` · `410` 행에 있다.
+11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다. 예외로 Passkey 환경 변수가 없을 때의 `WEBAUTHN_DISABLED` 도 `503` 이다. 이 응답은 다시 시도해도 회복되지 않는다([§6](CLE-API-CONV-RESP.md#6-http-상태-코드)). 언제 나는지는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) 이 정한다.
+12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외가 있다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다. 채팅 채널 인바운드는 채팅방 단위 한도를 넘어도 `202` 를 받는다([§7 머리 콜아웃](CLE-API-CONV-RATE.md#7-요청-빈도-제한)). WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
 13. 목록 조회의 기본 페이지네이션은 offset 방식이다. 대량으로 쌓이는 데이터는 cursor 방식을 쓴다.
 14. `PUT` 은 쓰지 않는다. 부분 수정은 `PATCH` 로 한다.
+
+## 하위 문서
+
+이 문서는 규약의 입구다. 위 「규칙」 이 규약 전체를 요약하고 절마다의 상세는 아래 하위 문서가 정한다. 이 문서에는 요구사항 줄이 없다. 규약 문서라서 「규칙」 절이 그 역할을 한다. 규칙과 하위 문서가 쓰는 절 번호(§)는 나누기 전 번호를 그대로 쓴다. 맡는 요구사항 칸은 그 하위 문서가 링크로 가리키는 다른 문서의 요구사항이고 괄호 안은 그 요구사항에 기대는 자리다. 하위 문서 본문에는 요구사항 번호를 적지 않는다.
+
+| 하위 문서 | 다루는 것 | 맡는 규칙 | 맡는 요구사항 |
+|---|---|---|---|
+| [HTTP API 규약 — URL 과 요청](CLE-API-CONV-URL.md) | §2 URL 구조(명명 규칙과 예외 · 워크스페이스 스코핑 · 시스템 전역 API), §3 HTTP 메서드, §4 요청 형식, §12 공통 API 패턴(상태 토글 · 유니크 제약 범위) | 1 · 2 · 3 · 4 · 14 | REQ-TRIG-026 · REQ-SCHED-029 (§12.1 적용 대상의 camelCase 토글 필드) |
+| [HTTP API 규약 — 응답 형식과 상태 코드](CLE-API-CONV-RESP.md) | §5 응답 형식(봉투 · 목록 · 부재 표현과 검증 층), §6 HTTP 상태 코드, §8 페이지네이션, §9 파일 업로드 | 5 · 6 · 7 · 8 · 9 · 10 · 11 · 13 | REQ-EIAIN-024 (§6 `410` 행의 EIA 토큰 갱신 예외) · REQ-CHAT-064 (§6 `503` 행의 채팅 채널 `/start` 취소 실패) |
+| [HTTP API 규약 — 요청 빈도 제한](CLE-API-CONV-RATE.md) | §7 요청 빈도 제한(한도 표 · 초과 응답 · 키 결정 규칙 · 건너뛰는 경우) | 12 | REQ-CHAT-046 · REQ-CHAT-047 (§7 표의 채팅 채널 인바운드 행) |
+| [HTTP API 규약 — WebSocket 과 웹훅 수신](CLE-API-CONV-HOOK.md) | §10 WebSocket 요약, §11 웹훅 수신 엔드포인트(URL · 메서드 · 처리 흐름 · 응답 봉투와 예외 · 인증 · 한도), 웹훅 수신 한도에서 채팅 채널 트리거를 뺀 결정의 근거 | 5 · 9 · 12 (웹훅 수신 쪽) | REQ-WEBHOOK-002 (§11.1 `base_url`) · REQ-WEBHOOK-012 · REQ-WEBHOOK-032 (§11.1 `endpoint_path` 의 v4 UUID 검증) · REQ-WEBHOOK-003 (§11.2 POST 전용) · REQ-SLACK-043 (§11.4 Slack 슬래시 명령 응답 예외) |
 
 ## 1. 기본 원칙
 
@@ -63,430 +74,31 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 | 인증 | Bearer 토큰 (`Authorization: Bearer {access_token}`) |
 | 버전 | URL 경로에 넣지 않는다. Accept 헤더를 쓰거나 단일 버전으로 운영한다 |
 
-## 2. URL 구조
+## 하위 문서로 옮긴 절
 
-### 2.1 기본 패턴
-
-```
-{base_url}/api/{resource}
-{base_url}/api/{resource}/{id}
-{base_url}/api/{resource}/{id}/{sub-resource}
-```
+다른 문서가 링크하는 절 제목이다. 본문은 하위 문서에 있다.
 
 ### 2.2 명명 규칙
 
-| 규칙 | 예시 |
-|------|------|
-| 리소스는 복수형 명사 | `/api/workflows`, `/api/triggers` |
-| 케밥 케이스 | `/api/knowledge-bases`, `/api/auth-configs` |
-| 중첩은 2단계까지 | `/api/knowledge-bases/:id/documents` |
-| 3단계 이상은 최상위로 분리 | `/api/documents/:docId` (필요할 때) |
-| **자원 액션**: `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 자원이 아니라 동사(구)다. 앞 경로가 가리키는 자원에 가하는 동작이다. 케밥 케이스 복합 동사구도 포함한다(`run-now`, `transfer-ownership`, `set-default`). 목적어는 경로에 두고 액션 이름에 넣지 않는다. `/workflows/:id/nodes/:nodeId/execute` 가 맞고 `/workflows/:id/execute-node` 는 틀리다. Boolean 상태 필드의 단순 토글에는 이 형태를 쓰지 않는다(§12.1) | `/executions/:id/stop`, `/schedules/:id/run-now`, `/workflows/:id/nodes/:nodeId/execute` |
-| **예외: RPC 형태 하위 채널 액션** `/api/{resource}/{id}/{channel}/{action}`. 자원 자체가 아닌 하위 채널에 가하는 부수 동작(`rotate-*`, `revoke-*`, `disable-*`, `switch` 등)이다. URL 만으로 자원·채널·동작을 식별할 수 있어야 해서 허용한다. 자원 액션에 `{channel}` 이 하나 더 끼는 자매 형태다. `/api/users/me` 의 `me` 는 로그인한 사용자 id 의 별칭이다. 그래서 이메일 변경 `/api/users/me/email-change/{action}` 도 이 형태다(채널 `email-change`) | `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch`, `/api/users/me/email-change/request` |
-| **예외: 인증 family 전용 네임스페이스** `/api/external/{resource}`. 로그인 세션·워크스페이스 인증이 아니라 실행 단위 토큰(per_execution token, `iext_*`) 같은 인터랙션 토큰으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체와 호출하는 쪽이 달라 경로를 나눈다. 규칙 위반이 아니라 명시한 예외다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md), 요청 빈도 제한은 §7, 부재 표현은 §5.5 | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
-| **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 로그인·로그아웃·토큰 갱신, 비밀번호 재설정, 2단계 인증 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. 2단계 인증 수단 관리(Passkey credential 목록 · 수정 · 삭제, `/api/auth/2fa/webauthn/credentials[/:id]`)도 이 묶음이다. 로그인 세션 목록 · 강제 종료는 아래 행이다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
-| **예외: 리프레시 쿠키 Path 아래의 로그인 세션 자원** `/api/auth/sessions…`. 로그인 세션 목록 조회와 강제 종료는 인증 상태 전이가 아니라 자원 조회와 자원 액션이다. 그래도 `/api/auth` 아래에 둔다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저는 그 아래 경로에만 쿠키를 보낸다. 서버는 그 쿠키로 현재 로그인 세션을 가려낸다. `auth` 아래에서도 자원 이름은 복수형 명사(`sessions`)이고 하나를 끝내는 동작은 자원 액션 형태(`:familyId/revoke`)다. 일괄 종료 `revoke-others` 는 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다. 이 행의 라우트는 사용자 범위 라우트이며 현재 워크스페이스를 쓰지 않는다(`X-Workspace-Id` 불필요). 쿠키가 필요 없는 로그인 이력 조회는 `/api/users/me/login-history` 에 둔다. 근거는 Rationale 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」, 동작은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` |
-| **예외: 인앱 알림의 일괄 동작** `/api/notifications/{action}`. 모두 읽음(`POST /api/notifications/mark-all-read`)과 모두 닫기(`POST /api/notifications/dismiss-all`)는 자원 하나가 아니라 본인 알림 여러 건에 한꺼번에 하는 동작이다. 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 기존 이름이고 선례로 삼지 않는다. 근거는 Rationale 「인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)」에 있고 동작은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다 | `/api/notifications/mark-all-read`, `/api/notifications/dismiss-all` |
-
-### 2.3 워크스페이스 스코핑
-
-모든 리소스 API 는 현재 워크스페이스 컨텍스트에서 동작한다.
-
-- 현재 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 정한다. `jwt.strategy` 가 멤버십을 검증한 뒤 그 값을 `request.user.workspaceId` 로 채택한다.
-- 워크스페이스 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 한다.
-- **전환기 하위 호환(header-first)**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터와 `RolesGuard` 가 그 워크스페이스를 먼저 쓴다. 헤더가 없으면 토큰 클레임을 쓴다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 기준이 된다.
-- **예외: 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...`, `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이다. 헤더와 토큰 컨텍스트를 쓰지 않는다(2026-09-25). 가드가 경로 값도 검증하는 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#경로-파라미터-워크스페이스도-가드가-본다) 의 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」에 있다.
-- 결정 우선순위·전환 흐름·마이그레이션의 단일 기준은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#전환-api-와-토큰) 의 「전환 API 와 토큰」 절과 [「API 인가」](../CLE-ACCT/CLE-ACCT-WS.md#api-인가) 절이다.
-- 구현 상태: 구현됨(2026-07-07). `jwt.strategy` 는 토큰 클레임을 `activeWorkspaceId ?? workspaceId` 로 이중으로 읽고 그 멤버십을 검증해 현재 워크스페이스를 확정한다. 데코레이터와 `RolesGuard` 는 전환기 동안 헤더를 먼저 본다.
-
-```
-전환기: X-Workspace-Id 헤더가 있으면 header-first 로 먼저 쓴다
-X-Workspace-Id: {workspace-uuid}
-
-헤더가 없으면 토큰 클레임(activeWorkspaceId)이 현재 워크스페이스다
-Authorization: Bearer {access-token}   (payload.activeWorkspaceId)
-```
-
-헤더가 없거나 형식이 잘못됐거나 비멤버일 때 돌려주는 에러 코드는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 유효성 검증 절(`X-Workspace-Id` 세 갈래)에 있다.
-
-#### 시스템 전역 API 예외
-
-일부 관측용 API 는 워크스페이스 경계가 없는 시스템 전역 집계를 돌려준다. 이 부류는 `X-Workspace-Id` 를 받더라도 무시한다. 개별 워크스페이스나 사용자를 식별할 수 있는 데이터(레코드 id, payload 등)는 내보내지 않는다.
-
-| 전역 API | 설명 |
-|----------|------|
-| `GET /api/system-status/overview` | 전체 BullMQ 큐의 집계 카운트와 health. 상세는 [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md) |
-
-## 3. HTTP 메서드
-
-| 메서드 | 용도 | 멱등성 |
-|--------|------|--------|
-| GET | 리소스 조회 (목록·상세) | O |
-| POST | 리소스 생성, 액션 실행 | X |
-| PATCH | 리소스 부분 수정. 인앱 알림 읽음 `PATCH /api/notifications/:id/read` 는 §12.1 의 예외인 전용 경로다 | O |
-| DELETE | 리소스 삭제 | O |
-| PUT | 쓰지 않는다 (PATCH 를 쓴다) | 없음 |
-
-## 4. 요청 형식
-
-### 4.1 목록 조회 쿼리 파라미터
-
-| 파라미터 | 타입 | 설명 | 기본값 |
-|----------|------|------|--------|
-| page | Integer | 페이지 번호 (1부터) | 1 |
-| limit | Integer | 페이지 크기 (최대 100) | 20 |
-| sort | String | 정렬 필드 (예: `created_at`) | `created_at` |
-| order | `asc` / `desc` | 정렬 방향 | `desc` |
-| search | String | 검색 키워드 | 없음 |
-
-### 4.2 필터 파라미터
-
-필터 파라미터는 리소스마다 따로 정한다. 예:
-
-```
-GET /api/workflows?status=active&tag=marketing
-GET /api/triggers?type=webhook&status=active
-```
-
-## 5. 응답 형식
-
-### 5.1 단일 리소스
-
-```json
-{
-  "data": {
-    "id": "uuid",
-    "name": "My Workflow",
-    "...": "..."
-  }
-}
-```
-
-### 5.2 목록 응답
-
-```json
-{
-  "data": [
-    { "id": "uuid-1", "...": "..." },
-    { "id": "uuid-2", "...": "..." }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "totalItems": 45,
-    "totalPages": 3
-  }
-}
-```
-
-- `data`(배열)와 `pagination` 은 최상위 형제다. 중첩하지 않는다.
-- 목록 핸들러는 공용 `PaginatedResponseDto`(`{ data, pagination }`)를 돌려준다. 전역 `TransformInterceptor` 는 이미 `data` 키가 있는 객체를 더 감싸지 않고 그대로 통과시킨다(pass-through). 그래서 §5.1 단일 리소스의 `{ data: <obj> }` 와 달리 `data` 가 한 겹 더 감싸이지 않는다. 통과 분기의 동작과 데코레이터 표기는 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 응답 wrapping 절이 정한다.
-
-### 5.3 고정 목록 응답
-
-페이지를 나누는 의미가 없는 작은 본인 소유 목록(활성 로그인 세션 목록, WebAuthn credential 목록)은 고정 목록 응답(non-paginated collection)을 쓴다. `pagination` 없이 `items` 배열 하나를 `data` 아래에 중첩한 `{ "data": { "items": [ ... ] } }` 형태다.
-
-- 핸들러가 `{ data: { items } }` 를 직접 돌려주면 이미 최상위 `data` 키가 있으므로 `TransformInterceptor` 가 그대로 통과시킨다. §5.2 와 같은 `'data' in data` 통과 경로다.
-- §5.2 페이지 목록(`data` 가 배열 자체이고 `pagination` 이 형제)과 형태가 다르다.
-- [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 레거시 패턴 절이 버그로 지목한 `{ data: { items, totalItems, page, limit } }`(페이지 메타를 `items` 옆에 섞은 오용)과도 다르다. 이 형태에는 `pagination` 필드가 아예 없다.
-- 이 형태를 유지하는 근거는 Rationale 의 "고정 목록 응답을 `{ data: { items } }` 로 유지" 에 있다.
-
-### 5.4 에러 응답
-
-HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code", "message", "requestId", "details"? } }` 형식이다. 봉투 필드의 뜻, 상태 코드별 기본 에러 코드, `details` 를 싣는 규칙은 [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 가 정한다.
+→ [HTTP API 규약 — URL 과 요청](CLE-API-CONV-URL.md#22-명명-규칙)
 
 ### 5.5 부재 표현: `null` 과 키 생략
 
-**적용 범위는 응답 바디다.** 이 절은 서버가 내보내는 표현을 정한다. 요청 바디는 대상이 아니다.
+→ [HTTP API 규약 — 응답 형식과 상태 코드](CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략)
 
-- 특히 PATCH 부분 수정은 키 생략(값 유지)·`null`(초기화)·값(설정)이 각각 뜻을 갖는 PATCH 삼중 상태 계약이다. 아래 "DTO 선언 형태" 규칙을 요청 DTO 에 그대로 적용하면 `?` 가 사라져 "필드를 생략하면 값이 유지된다" 는 계약이 깨진다.
-- 요청 DTO 에서는 `@ApiPropertyOptional({ nullable: true })` 와 `field?: T | null` 조합이 정당하다. 선례는 `UpdateAssistantSessionDto.llmConfigId` 다("null 전달 시 workspace default 로 폴백").
+### 6. HTTP 상태 코드
 
-값이 없음을 나타내는 방식은 두 가지다. 한 응답 안에 섞여도 되지만 필드마다 근거가 있어야 한다.
+→ [HTTP API 규약 — 응답 형식과 상태 코드](CLE-API-CONV-RESP.md#6-http-상태-코드)
 
-| 표현 | 뜻 | 선택 기준 |
-|------|------|----------|
-| `null` (키는 있음) | 이 필드는 응답 계약에 늘 있고 지금은 값이 없다 | **기본값.** 소비자가 키가 있다고 전제하고 값만 분기하면 되는 스칼라·객체 필드 |
-| **키 생략** | 값이 있을 때만 싣는다(present-when-available) | (a) 같은 데이터를 싣는 다른 표면(SSE·WebSocket wire)과 형식을 맞춰야 할 때. (b) 선택적인 부가 맥락이라 소비자가 부재를 정상 경로로 다룰 때 |
+### 7. 요청 빈도 제한
 
-- **기본은 `null` 이다.** 키 생략은 (a)나 (b)에 해당할 때만 쓰고 그 필드를 문서화하는 절에 사유를 적는다.
-- **DTO 선언이 wire 를 반영해야 한다.** 데코레이터 예시는 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 DTO 패턴 절에 있다. 판정 기준과 선언 형태는 이 절이 단일 기준이다.
-  - 키를 생략하는 필드: `@ApiPropertyOptional()` 과 `field?: T` (`| null` 금지)
-  - `null` 을 쓰는(늘 있는) 필드: `@ApiProperty({ nullable: true })` 와 `field: T | null`
-  - TS 타입이 `| null` 인데 `nullable: true` 를 선언하지 않는 것은 어느 쪽에서도 틀리다. OpenAPI 가 null 가능성을 감춰 소비자가 null 이 올 수 없다고 믿게 된다.
-- **`null` 필드에 `@ApiPropertyOptional` 을 쓰지 않는 이유**: 그 데코레이터는 `ApiProperty({ required: false })` 의 별칭이다(`@nestjs/swagger` 구현). 늘 있는 필드에 쓰면 OpenAPI 에 `required: false` 로 나가 "늘 있다" 는 정의와 모순된다. 생성기가 그 필드를 optional 로 만들어 소비자가 키 부재 분기를 쓰게 된다.
-- 클라이언트는 두 표현을 모두 안전하게 다뤄야 한다. optional chaining(`a?.b`)은 `undefined` 와 `null` 을 함께 건너뛰므로 대개 가드 하나로 충분하다.
-- **소급 적용하지 않는다.** 표현 선택과 DTO 선언 형태 모두 앞으로 도입하거나 바꾸는 필드에 적용한다. 이미 문서화된 키 생략 필드(`mcpDiagnostics`, Cafe24 `status`·`requiresCafe24Approval`, 채팅 채널 `details.statusCode` 등)는 기준 (b)를 충족하는 것으로 보고 사유 문구를 소급해 요구하지 않는다.
-
-이 절은 새로 만든 규칙이 아니라 이미 쓰던 관행을 문서로 옮긴 것이다. 기존 선례는 아래와 같다.
-
-| 표현 | 선례 |
-|------|------|
-| `null` | §8.2 `nextCursor`("없으면 `null`") · EIA 단발 상태 조회 `currentNode`·`result`·`error` ([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) |
-| 키 생략 | 에러 응답의 `details`("있을 때만 싣는다", [에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) · EIA 단발 상태 조회 `context.conversationThread` |
-
-실사례: EIA 단발 상태 조회(`GET /api/external/executions/:id`) 응답은 `currentNode`·`result`·`error` 를 `null` 로 두고 `context.conversationThread` 는 키를 생략한다. 뒤의 것은 기준 (a) 때문이다. 근거는 Rationale 의 "`conversationThread` 를 `null` 로 정규화하지 않는 이유" 에 있다.
-
-#### 검증 층: 이 규칙을 무엇이 강제하는가
-
-이 절은 선언과 실제가 같아야 한다고 정한다. 그런데 컨트롤러가 엔티티를 그대로 돌려주는 경로에서는 `tsc` 가 대조할 지점이 없다. 그 자리를 아래 검증자들이 나눠 맡는다. 이름이 비슷하니 어느 쪽인지 먼저 가려야 한다.
-
-| 검증자 | 무엇과 무엇을 대조하나 | 언제 | 못 보는 것 |
-|---|---|---|---|
-| `swagger-dto-contract-guard.ts` (repo-guard) | **선언과 선언**: `@ApiProperty` 데코레이터와 TS 타입 | 정적 (AST) | 선언이 양쪽 다 틀린 경우. 실제 응답 값 |
-| `response-contract.ts` (testing) | **값과 선언**: 실제 HTTP 응답과 생성된 OpenAPI 스키마 | 런타임 (e2e) | 배선되지 않은 엔드포인트 |
-| `user-entity-exposure-guard.ts` (repo-guard) | **구조**: `User` 엔티티를 투영 없이 관계로 싣는 자리를 센다 | 정적 (AST) | 엔티티를 거치지 않고 손으로 조립한 유출 |
-| `user-secret-absence.ts` (testing) | **이름**: 응답 바디 어디에도 `User` 민감 컬럼 이름이 없다(응답 노출 금지 민감 컬럼 목록은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)) | 런타임 (e2e) | 이름이 다른 새 비밀 컬럼. 목록(`USER_SECRET_KEYS`)에 넣어야 걸린다 |
-
-- **개수를 세지 않는다.** 축이 늘 때마다 숫자가 낡는다. 원문 문서가 두 번 겪은 실패다. 문장은 나열을 가리키고 인벤토리는 위 표에 둔다.
-- **두 축이 서로 다른 규칙을 시행한다.** `response-contract.ts` 의 판정 중 required/nullable 축은 이 절을 시행하고 "스키마에 선언하지 않은 키가 응답에 있다" 축은 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 응답 DTO 위치 절(엔티티를 그대로 노출하지 않는다)을 시행한다. 그래서 그 검증자는 두 문서의 구현 위치에 모두 등재한다. 한쪽에만 등재하면 다른 축의 변경이 재검토를 부르지 못한다.
-- 판정 규칙의 상세 표는 코드 JSDoc 이 단일 기준이다. 여기에 옮겨 적으면 어긋날 원천이 하나 더 생길 뿐이다.
-- `swagger-probe.ts` 는 스키마 생성 자체를 맡으므로 이 절과 무관한 이유로도 바뀔 수 있다. 그 변경이 이 문서를 재검토 대상으로 만드는 것은 의도한 과포함이다(판정 근거가 바뀌기 때문이다).
-
-## 6. HTTP 상태 코드
-
-| 코드 | 의미 | 사용 상황 |
-|------|------|-----------|
-| 200 | OK | 조회, 수정 성공 |
-| 201 | Created | 생성 성공 |
-| 202 | Accepted | **비동기 수락.** 큐에 넣고 바로 돌아오며 결과는 별도 채널(실행 상세·WebSocket·SSE)로 전한다. 웹훅 수신(§11)·실행 트리거·재임베딩 같은 긴 작업에 쓴다. no-content 가 아니다. `{ data: { executionId, ... } }` ack 본문을 싣는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) |
-| 204 | No Content | 삭제 성공 |
-| 400 | Bad Request | 잘못된 요청 (유효성 검증 실패) |
-| 401 | Unauthorized | 인증 필요 또는 토큰 만료. EIA 트리거 단위 토큰 경로에서 실행이 없을 때도 `401`(`EXECUTION_NOT_FOUND`)이다(`404` 행) |
-| 403 | Forbidden | 권한 없음 |
-| 404 | Not Found | 리소스 없음. **예외**: EIA 의 트리거 단위 토큰(`itk_*`)으로 보낸 요청과 연 스트림은 실행이 없거나 그 실행의 트리거가 지워졌으면 `401 EXECUTION_NOT_FOUND` 를 받는다. 가드(`InteractionGuard`)가 핸들러 전에 부재를 판정해 다른 토큰 검증 실패와 같은 `401` 로 거부하기 때문이다([EIA 수신 API와 SSE 「명령 에러」](../CLE-IX/CLE-EIA-INBOUND.md#명령-에러), [에러 코드 규약과 카탈로그 §6.9](CLE-API-ERRCODES.md#69-eia-rest-외부-표면-도메인-문서-참조)). EIA 토큰 갱신에서 실행이 없을 때는 `410` 이다(`410` 행) |
-| 409 | Conflict | 리소스 충돌 (중복 생성 등) |
-| 410 | Gone | 리소스가 존재했으나 사라졌거나 비활성이다. 처음부터 없는 `404` 와 구분한다. 비활성 웹훅 트리거 `TRIGGER_INACTIVE`([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)) · 트리거의 워크플로우가 비활성인 웹훅 `WORKFLOW_INACTIVE`([트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문)) · 종료된 실행에 대한 명령 `EXECUTION_TERMINATED`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) · 만료되거나 사용된 초대 `invitation_expired`·`invitation_already_used`([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)). **예외**: EIA 토큰 갱신(`POST /api/external/executions/:id/refresh-token`)은 존재한 적 없는 실행에도 `410 EXECUTION_TERMINATED` 를 돌려준다. 실행이 있었는지를 응답으로 가르지 않아 정보 노출을 줄인다([EIA 수신 API와 SSE 「토큰 갱신」](../CLE-IX/CLE-EIA-INBOUND.md#토큰-갱신) REQ-EIAIN-024). **예외**: `config.chatChannel` 트리거는 `410` 대신 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. 워크플로우가 비활성일 때는 새 실행을 시작하는 인입만 그렇다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md), [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문)). 인터랙션 요청은 `200` 과 채널 프로바이더가 정한 인터랙션 응답을 받는다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). `410` 에는 기본 에러 코드가 없다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) |
-| 413 | Payload Too Large | 요청 본문이 body-parser 한도를 넘었다. 코드 `PAYLOAD_TOO_LARGE`. 웹훅 본문 크기 정책은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| 422 | Unprocessable Entity | 비즈니스 로직 에러 |
-| 429 | Too Many Requests | 요청 빈도 제한 초과 |
-| 500 | Internal Server Error | 서버 에러 |
-| 502 | Bad Gateway | **외부 제3자 API**(채팅 채널 provider 등) 호출 실패. 다시 시도할 수 있다. 코드: `CHAT_CHANNEL_SETUP_FAILED`(채팅 채널 `setupChannel` 실패, [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 아래 `503` 과 구분한다. `502` 는 외부 제3자, `503` 은 우리 인프라다. `WEBAUTHN_DISABLED` 의 `503` 예외는 `503` 행에 있다. 노드 출력 안의 `statusCode` 와는 다른 축이다. 그쪽은 HTTP Request 노드가 받은 응답 상태이고 이 표는 우리 API 가 클라이언트에 주는 상태다 |
-| 503 | Service Unavailable | 상위 의존성(Redis 등)의 일시 장애로 요청을 받을 수 없다. 다시 시도할 수 있다. 다만 이 행 끝의 `WEBAUTHN_DISABLED` 는 다시 시도해도 회복되지 않는다. 코드: `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)·`EXECUTION_ENQUEUE_FAILED`(재개 메시지 발행 실패로 취소·재개 명령 미수락)·`SERVICE_UNAVAILABLE`(로그인 2단계 Passkey 인증 검증에서 Passkey 인증 챌린지를 기록하지 못함, [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름)). 채팅 채널 인바운드의 `/start` 도 기존 실행 취소가 `EXECUTION_ENQUEUE_FAILED` 로 실패하면 `202` 대신 이 `503` 을 그대로 돌려주고 새 실행을 시작하지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-064). 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령)은 큐에 넣지 못해도 이 `503` 을 돌려주지 않는다. `202` 로 답하고 채널 건강도를 `degraded` 로 둔다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). 코드 정의는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 WebSocket 명령 절이고 `SERVICE_UNAVAILABLE` 은 시스템 절이다. 예외로 `WEBAUTHN_DISABLED`(Passkey 환경 변수 미설정, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수))도 이 상태를 쓴다. 일시 장애가 아니라 서버 설정으로 꺼진 기능의 응답이다. 이 코드는 운영자가 설정을 바꿀 때까지 회복되지 않는다. 로그인(`POST /api/auth/login`)도 Passkey 만 등록하고 TOTP 가 꺼진 계정을 이 코드로 거부한다. 클라이언트는 다시 시도하지 않는다. Passkey 설정 화면은 가용성 조회 결과로 기능을 숨긴다. 로그인 화면은 이 코드를 받으면 안내 문구를 보여 준다 |
-
-자원을 만들지 않는 POST 액션의 성공 코드를 정하는 행은 아직 없다. [미결 사항](#미결-사항) 참조.
-
-## 7. 요청 빈도 제한
-
-> **초과 응답이 `429` 가 아닌 행이 있다.**
->
-> - 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 채팅 채널 트리거로 온 웹훅 요청은 전역 요청 빈도 제한(일반 API · 웹훅 수신 행)을 받지 않는다. 남용은 서명 검증과 채팅방 단위 분당 한도(채팅 채널 인바운드 행)가 막는다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거, 채널 연결 전 트리거)는 전처럼 전역 한도를 받는다. 그런 트리거는 서명을 검증하지 않아 서명 검증 실패 한도도 걸리지 않으므로 전역 한도까지 빼면 IP 단위 한도가 하나도 남지 않는다(NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A, 2026-11-13). 채팅 채널 트리거는 서명 참조와 무관하게 `auth_config_id IS NULL` 이어도 공개 웹훅 추가 한도를 받지 않는다. 채팅방 단위 한도를 넘은 메시지는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 받고 처리를 건너뛴다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다. 한 트리거에 같은 IP 에서 서명 검증 실패가 거듭되면 한동안 시크릿 조회와 서명 계산 없이 `401` 로 거절한다. 이 서명 검증 실패 한도도 `429` 를 쓰지 않는다. 규칙은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 전역 한도에서 뺀 근거는 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 다. 채팅방 단위 한도의 근거는 [채팅 채널 「R-CC-19」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 다. 경우별 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 웹훅 수신의 전역 한도를 어느 가드가 어떤 순서로 세는지는 표 아래 키 결정 규칙에 있다. 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
-> - WebSocket 명령은 HTTP 요청이 아니라서 상태 코드가 없다. 한도를 넘으면 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)).
-
-| 범위 | 제한 | 헤더 |
-|------|------|------|
-| 일반 API | 100 req/min (사용자 기준. 로그인 없는 요청은 IP 기준) | 통과한 응답: `X-RateLimit-Limit` · `X-RateLimit-Remaining` · `X-RateLimit-Reset`. 거부 응답(`429`): `Retry-After` |
-| 인증 API (`POST /api/auth/register`, `POST /api/auth/login`) | 10 req/min (IP 기준). 라우트별 `@Throttle` 이다 | 같음 |
-| 계정 확인·복구 (`POST /api/auth/forgot-password`, `POST /api/auth/resend-verification`, `POST /api/auth/check-email`) | 5 req/min (IP 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
-| 초대 토큰 메타 조회 (`GET /api/invitations/:token`) | 30 req/min (공개 라우트라 IP 기준). 토큰 추측을 막는다. 동작 정의는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) | 같음 |
-| 로그인 세션 강제 종료 (`POST /api/auth/sessions/:familyId/revoke`, `POST /api/auth/sessions/revoke-others`) | 10 req/min, 5 req/min (순서대로, 사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | 같음 |
-| 2단계 인증 설정 시작 (`POST /api/auth/2fa/setup`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
-| 2단계 인증 활성화 검증 (`POST /api/auth/2fa/verify`) | 10 req/min (사용자 기준). 인증 코드 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인 「TOTP 켜기」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#totp-켜기) | 같음 |
-| 2단계 인증 끄기 (`POST /api/auth/2fa/disable`) | 10 req/min (사용자 기준). 인증 코드 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
-| Passkey 등록 옵션 (`POST /api/auth/2fa/webauthn/register/options`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 등록 검증(`POST /api/auth/2fa/webauthn/register/verify`)에는 라우트별 `@Throttle` 이 없다. 동작 정의는 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) | 같음 |
-| Passkey 복구 코드 재발급 (`POST /api/auth/2fa/webauthn/recovery-codes/regenerate`) | 10 req/min (사용자 기준). 계정 비밀번호 추측을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE` 을 쓴다(표 아래). 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | 같음 |
-| 이메일 변경 요청·재발송 (`POST /api/users/me/email-change/request`, `.../email-change/resend`) | 5 req/min (사용자 기준). 라우트별 `@Throttle` 이다. 동작 정의는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#이메일-변경) | 같음 |
-| 웹훅 수신 | 100 req/min (전역 기본값. `ThrottlerModule` 의 `default` 등급). 전역 가드 대신 트리거를 조회한 뒤 라우트 가드가 센다(표 아래 키 결정 규칙). 서명 참조가 있는 채팅 채널 트리거는 이 한도를 받지 않는다([위 콜아웃](#7-요청-빈도-제한)) | 같음 |
-| 공개 웹훅 추가 한도 (`auth_config_id IS NULL` 이고 채팅 채널 트리거가 아닌 트리거. 채팅 채널 트리거는 [위 콜아웃](#7-요청-빈도-제한)) | IP 단위 분당 10건, 시간당 누적 신규 20건(기본값). 전역 100 req/min 위에 얹히는 층이다. `PublicWebhookThrottleGuard` 가 걸고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT`·`PUBLIC_WEBHOOK_HOURLY_LIMIT` 이다. 상세는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) | 웹훅 문서 참조 |
-| 파일 업로드 (지식 저장소 문서, 아바타) | 전역 100 req/min 을 그대로 따른다. `POST /api/knowledge-bases/:id/documents` 와 `POST /api/users/me/avatar` 에는 별도 `@Throttle` 이 없다 | 같음 |
-| Provider probe API (`POST /api/model-configs/preview-models`, `POST /api/model-configs/:id/test`, `GET /api/model-configs/:id/models`) | 10 req/min (사용자 기준). 실시간 provider 호출 비용과 provider 쪽 속도 제한을 보호하는 `@Throttle` 이다. 세 핸들러가 컨트롤러 상수 `PROVIDER_PROBE_THROTTLE`(`SENSITIVE_ACTION_THROTTLE` 의 별칭)을 함께 쓴다 | 같음 |
-| 지식 저장소 재임베딩 (`POST /api/knowledge-bases/:id/re-embed`) | 3 req/min (사용자 기준). `@Throttle`, 편집자 이상. 동작 정의는 [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) | 같음 |
-| 지식 저장소 실패 문서 재시도 (`POST /api/knowledge-bases/:id/retry-failed`) | 3 req/min. `@Throttle`, 편집자 이상. 동작 정의는 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) | 같음 |
-| 임베딩 테스트 (`POST /api/knowledge-bases/embedding-probe`) | 30 req/min. `@Throttle`, 편집자 이상. 동작 정의는 [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) | 같음 |
-| 지식 저장소 그래프 재추출 (`POST /api/knowledge-bases/:id/re-extract`, `POST /api/knowledge-bases/:id/documents/:docId/re-extract`) | 3 req/min, 10 req/min (순서대로, 사용자 기준). `@Throttle`, 편집자 이상. 동작 정의는 [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) | 같음 |
-| 재실행 (`POST /api/executions/:id/re-run`) | 10 req/min (사용자 기준). `@Throttle`(60초에 10회). 넘으면 `429 RATE_LIMITED`. 동작 정의는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) | 같음 |
-| 초대 발송·재발송 (`POST /api/workspaces/:id/invitations`, `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준). 메일 폭탄을 막는 `@Throttle` 이다. 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`)을 쓴다(표 아래) | 같음 |
-| 저장 전 연결 테스트 (`POST /api/integrations/preview-test`) | 20 req/min (사용자 기준). 저장하지 않은 자격 증명으로 외부 연결(Email · MCP · HTTP · Database)을 거듭 여는 것을 막는 `@Throttle` 이다. 동작 정의는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), 서비스마다 실제로 접속하는지는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) | 같음 |
-| 쇼핑몰 중복 사전 감지 (`GET /api/integrations/cafe24/precheck`, `GET /api/integrations/makeshop/precheck`) | 60 req/min (사용자 기준). 이 엔드포인트 전용 `@Throttle` 이고 일반 API 한도 대신 적용한다. 동작 정의는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) | 같음 |
-| 쇼핑몰 앱 설치 진입점 (`GET /api/3rd-party/cafe24/install/:installToken`, `GET /api/3rd-party/makeshop/install/:installToken`) | 30 req/min (공개 라우트라 IP 기준). 설치 토큰이 URL 에 드러나서 거는 `@Throttle` 이다. 그 위에 도메인 전용 실패 잠금이 있다. 설치 토큰 조회·HMAC 검증 실패가 쌓인 IP 는 `429 CAFE24_INSTALL_RATE_LIMITED`·`MAKESHOP_INSTALL_RATE_LIMITED` 로 거절한다(두 진입점이 `Cafe24InstallRateLimitService` 를 함께 쓴다). `MAKESHOP_INSTALL_RATE_LIMITED` 는 MakeShop 노드의 API 한도 초과 코드 `MAKESHOP_RATE_LIMITED` 와 다른 코드다. 동작 정의는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) · [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) | 같음 (실패 잠금은 `Retry-After` 없음) |
-| 통합 OAuth 콜백 (`GET /api/3rd-party/:provider/callback`) | 60 req/min (공개 라우트라 IP 기준). OAuth code 교환은 외부를 부르므로 그 비용을 줄이려고 거는 `@Throttle` 이다. 사용자 소셜 로그인 콜백 `/api/auth/oauth/:provider/callback` 과는 다른 경로다. 동작 정의는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) | 같음 |
-| External Interaction 인바운드 (`POST /api/external/executions/:id/interact`, `POST /api/external/executions/:id/cancel`, `GET /api/external/executions/:id`) | interact 60 req/min, 상태 조회 120 req/min. `/cancel` 은 `/interact` 와 같은 카운터를 센다. **실행 단위**다(IP 아님). 전역 100/min 위에 얹히는 층이다. `InteractionRateLimiterService`(Redis fixed-window)와 `InteractionRateLimitGuard` 가 걸고 넘으면 `429 RATE_LIMITED` 와 `Retry-After` 를 돌려준다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 rate limit 절. 토큰 갱신(`POST /api/external/executions/:id/refresh-token`)은 이 층 밖이다. 전역 기본값 100 req/min 만 받고 `@Public()` 라우트라 IP 로 센다(아래 키 결정 규칙) | `Retry-After` |
-| External Interaction SSE 동시 연결 (`GET /api/external/executions/:id/stream`) | 실행당 동시 연결 3개. 상한은 모든 서버 인스턴스의 연결을 합쳐 센다. Redis 를 쓸 수 없으면 서버 인스턴스마다 따로 센다(fail-open). 넘으면 `429 TOO_MANY_CONNECTIONS`(EIA 전용). 상세는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
-| 채팅 채널 인바운드 (채팅방 단위) | 채팅방당 분당 60건(기본값. `config.chatChannel.rateLimitPerMinute` 로 1~600 사이에서 바꾼다). 넘은 메시지는 버퍼링·재발사 없이 처리를 건너뛰고 `chat_channel_health=degraded` 로 표시한다. `ChatChannelRateLimiterService`(Redis fixed-window)이고 Redis 를 쓸 수 없으면 fail-open 이다. 상세는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 REQ-CHAT-046 · REQ-CHAT-047 | 없음 (위 콜아웃) |
-| 채팅 채널 서명 검증 실패 (채팅 채널 트리거의 인바운드 웹훅) | (트리거 id, 클라이언트 IP) 쌍마다 60초 고정 창에 서명 검증 실패 20회. 실패가 20회에 이르면 그 창이 끝날 때까지 시크릿 조회와 서명 계산 없이 `401 AUTH_FAILED` 로 거절한다. `429` 는 쓰지 않는다. `ChatChannelSignatureFailureLimiterService`(Redis `cc:sigfail:` 키)이고 Redis 를 쓸 수 없거나 오류가 나면 막지 않는다(fail-open). 동작은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다 | 없음 (`401`, 위 콜아웃) |
-| WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **소켓당** 60 msg/min (in-memory fixed-window, HTTP 아님). 전역 요청 빈도 제한(일반 API 100 req/min)은 이 경로를 세지 않는다. 한도를 넘으면 `WsRateLimitGuard` 가 `WsException(RATE_LIMITED)` 을 던지고 클라이언트는 `exception` 이벤트로 받는다(HTTP status 없음). `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 적용한다. 등록되지 않은 이벤트(`onAny`)도 같은 소켓 예산을 쓴다. 넘었을 때의 응답은 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 가 정한다 | 없음 (전송: 소켓 `exception` 이벤트) |
-
-- HTTP 요청이 한도를 넘으면 `429` 를 받는다. 에러 코드는 행에 다른 코드를 적지 않았으면 기본 코드 `RATE_LIMITED` 다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)). 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도, External Interaction SSE 동시 연결, 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 행(채팅 채널 인바운드, 채팅 채널 서명 검증 실패, WebSocket 명령)은 위 콜아웃에 있다.
-- **표의 범위**: 위 표는 전역 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 제한 서비스로 덮어쓴 엔드포인트별 한도를 한 곳에 모은 것이다. HTTP 라우트에 건 `@Throttle` 은 모두 이 표에 행이 있다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정하고 요청 빈도 제한 수치의 단일 기준은 이 표다. 라우트에 `@Throttle` 을 새로 걸거나 수치를 바꾸면 이 표도 함께 고친다.
-- **공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`**(분당 10회, `throttle.ts`)는 2단계 인증 설정 시작 · 활성화 검증 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급, provider probe, 초대 발송·재발송 행이 함께 쓴다. 상수가 같아도 라우트마다 따로 센다. `verifyPasswordForUser` 를 부르는 라우트(비밀번호 재확인)인 2단계 인증 설정 시작 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급에는 이 상수가 모두 걸려 있어야 한다. 단위 테스트가 이 라우트 목록을 고정해 두고 핸들러마다 이 상수가 걸렸는지 본다. 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
-- 인증된 HTTP 요청은 전역 `UserThrottlerGuard` 가 `user:<sub>` 키로 사용자별로 센다. 인증되지 않은 요청만 IP 로 센다. 그래서 인증된 라우트의 제한은 사용자 기준이다.
-- **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. NestJS 12 부터 전역 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙으므로 그 핸들러 호출이 여기에 든다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건)가 맡는다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)). 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다. HTTP 요청이어도 `@DeferGlobalThrottle()` 이 붙은 라우트는 전역 가드가 건너뛴다. 그 라우트는 라우트 가드가 같은 한도로 센다(아래 키 결정 규칙). 서명 참조가 있는 채팅 채널 트리거로 온 웹훅 요청은 그 라우트 가드도 세지 않는다([위 콜아웃](#7-요청-빈도-제한)).
-- **키 결정 규칙(현재 구현, HTTP 기준)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다. 웹훅 수신(`POST /api/hooks/:endpointPath`)은 전역 한도를 라우트 가드가 센다. 그 라우트에는 `@DeferGlobalThrottle()` 이 붙어 있어 전역 `UserThrottlerGuard` 가 건너뛴다. 라우트 가드는 `PublicWebhookThrottleGuard` → `HookTriggerThrottlerGuard` 순서로 돈다. `HookTriggerThrottlerGuard` 는 앞 가드가 조회한 트리거로 판정한다. 서명 참조가 있는 채팅 채널 트리거면 세지 않는다([위 콜아웃](#7-요청-빈도-제한)). 그 밖의 요청은 전역 가드와 같은 한도 · 같은 저장소 · 같은 키로 센다. 서명 참조가 없는 채팅 채널 트리거와 트리거가 없거나 조회에 실패한 요청도 센다.
-- External Interaction 인바운드는 `@Throttle` 이 아니라 도메인 전용 `InteractionRateLimiterService`(실행 단위 Redis 카운터)로 덮어쓴 사례다.
-- **환경으로 건너뛰는 경우는 `NODE_ENV=test` 하나다.** e2e 가 컨테이너 IP 하나에서 빠른 인증 호출을 연달아 보내 스스로 요청 빈도 제한(100/60s)에 걸리는 문제를 피하려고 test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 전역 기본값과 라우트별 `@Throttle` 한도를 건너뛴다. production·development 동작은 바뀌지 않는다. 헬퍼는 `throttler-skip.ts` 의 `shouldSkipThrottle` 이다. 위의 HTTP 가 아닌 호출 건너뛰기와는 별개다.
-
-## 8. 페이지네이션
-
-### 8.1 Offset 방식 (기본)
-
-```
-GET /api/workflows?page=2&limit=20
-```
-
-### 8.2 Cursor 방식 (대량 노드 실행 목록 등)
-
-Background 노드 본문의 노드 실행(NodeExecution) 목록처럼 대량으로 쌓이는 데이터는 cursor 페이지네이션을 쓴다.
-
-```
-GET /api/executions/{executionId}/background-runs/{backgroundRunId}?cursor=eyJ...&limit=20
-```
-
-응답의 `nodeExecutions` 묶음이 cursor 페이지를 담는다. 키는 `nextCursor`(opaque base64, 없으면 `null`)와 `hasMore`(다음 페이지가 있는지)다.
-
-```json
-{
-  "data": {
-    "nodeExecutions": {
-      "data": [...],
-      "nextCursor": "eyJ...",
-      "hasMore": true
-    }
-  }
-}
-```
-
-워크플로우별 실행 목록(`GET /api/executions/workflow/:workflowId`)은 cursor 방식이 아니라 §8.1 offset 방식(`{ page, limit, totalItems, totalPages }`)이다. Background 본문 조회 API 의 전체 계약은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 에 있다.
-
-## 9. 파일 업로드
-
-| 항목 | 규칙 |
-|------|------|
-| 형식 | `multipart/form-data` (필드명 `file`) |
-| 최대 크기 | 엔드포인트마다 다르다. 지식 저장소 문서 50MB, 아바타 2MB (각 `FileInterceptor` 의 `limits.fileSize`) |
-| 허용 타입 | 엔드포인트마다 제한한다. 지식 저장소 문서는 PDF·Markdown·텍스트 등, 아바타는 `png`·`jpg`·`jpeg`·`webp`·`gif`(SVG 제외) |
-| 응답 | 엔드포인트마다 다르다. 지식 저장소 문서는 올린 파일 메타데이터(id, status 등), 아바타는 `PATCH /users/me` 와 같은 프로필 응답([내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md)) |
-
-파일 업로드 엔드포인트는 지식 저장소 문서 업로드(`POST /api/knowledge-bases/:id/documents`)와 아바타 업로드(`POST /api/users/me/avatar`, [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md))다. 아바타는 `PATCH /api/users/me` 의 `avatarUrl` 로 외부 URL 을 넣는 경로도 함께 유지한다. 두 경로가 같은 컬럼을 쓴다.
-
-## 10. WebSocket
-
-HTTP API 와 같은 서버가 실시간 채널을 함께 연다. 전송 계층은 Socket.IO(namespace `/ws`)다. 연결·인증·메시지 형식·재연결은 [WebSocket 연결과 채널 구독](CLE-API-WS.md), 이벤트와 명령 목록은 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 이 정한다.
-
-| 용도 | 방향 | 이벤트 |
-|------|------|--------|
-| 워크플로우 실행 상태 | Server → Client | `execution.*`, `execution.node.*` |
-| 실행 제어 | Client → Server | 재개 명령(`execution.submit_form` 등)과 `execution.retry_last_turn`. 실행 시작·중단(`execution.start`·`execution.stop`)은 비채택이고 REST 가 대신한다. `execution.continue` 는 브레이크포인트 로드맵의 계획이며 미구현이다 |
-| 지식 저장소 문서 상태 (임베딩·그래프 추출) | Server → Client | `document:embedding_*`, `document:graph_*` (구독 채널 `kb:{documentId}`) |
-
-재연결 요약:
-
-- **자동 재연결은 Socket.IO 클라이언트에 내장돼 있다.** 지수 백오프와 지터로 제한 없이 다시 시도한다. 구체 파라미터는 구현이 단일 기준이므로 여기에 숫자를 두지 않는다.
-- **놓친 이벤트는 다시 구독할 때 받는 1회성 실행 스냅샷 이벤트(`execution.snapshot`)로 맞춘다.** native WebSocket 에는 이벤트 순번(`seq`) 기반 재전송 버퍼가 없다. 그 버퍼는 EIA SSE 용 Redis Stream(`eia:sse:buf:<executionId>`)이다. SSE 클라이언트는 `Last-Event-Id` 로 그 버퍼에서 놓친 이벤트를 받는다. 자세한 흐름은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 에 있다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼는 공유하지 않는다.
-- **자동 재연결이 되지 않는 경우**: 서버가 스스로 `disconnect()` 하면(토큰 만료 종료) Socket.IO 는 재연결을 시도하지 않는다. 클라이언트가 명시적으로 다시 연결해야 한다. 갈리는 것은 재연결 시작 여부뿐이고 복구 방식은 두 경우가 같다(위 스냅샷). 상세와 근거는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 에 있다.
-
-## 11. 웹훅 수신 엔드포인트
-
-외부 시스템이 워크플로우를 시작하려고 부르는 웹훅 수신 엔드포인트의 요점이다. URL·인증·입력 데이터·에러의 상세 계약은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 단일 기준이고 이 절은 일반 API 규약 관점의 요약만 둔다.
-
-### 11.1 URL 구조
-
-```
-POST {base_url}/api/hooks/{endpoint_path}
-```
-
-- `base_url`: SaaS 는 서비스 도메인(예: `https://api.example.com`), 셀프 호스팅은 설정한 도메인이다. 프론트엔드가 base 를 정하는 규칙은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 REQ-WEBHOOK-002 다.
-- `endpoint_path`: 트리거(Trigger) 엔티티의 `endpoint_path` 값이고 라우팅 식별자로 쓴다. 클라이언트가 CSPRNG 로 v4 UUID(`crypto.randomUUID()`)를 만들어 요청 본문의 `endpointPath` 로 보낸다. 서버는 트리거를 만들거나 경로를 바꿀 때 v4 형식만 검증한다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 REQ-WEBHOOK-012 · REQ-WEBHOOK-032).
-- 예시: `POST https://api.example.com/api/hooks/3f6c2a1e-8b4d-4e2f-9a7c-1d5e8f0b2c64`
-
-### 11.2 지원 메서드
-
-| 메서드 | 지원 | 설명 |
-|--------|------|------|
-| POST | ✓ | 표준 웹훅 수신 (유일하게 지원하는 메서드) |
-
-웹훅 수신(워크플로우 트리거) 메서드는 POST 만 지원하고 그 밖의 메서드는 `405 Method Not Allowed` 다. GET·PUT 트리거 수신은 v1 에서 지원하지 않는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 REQ-WEBHOOK-003). 같은 라우터에 웹채팅 위젯 부팅용 공개 읽기 엔드포인트 `GET /api/hooks/{endpoint_path}/embed-config` 가 따로 있다. 이것은 웹훅 수신이 아니라 임베드 허용 목록 조회용이다([웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md)).
-
-### 11.3 요청 처리 흐름
-
-```mermaid
-flowchart TD
-  A[URL 에서 endpoint_path 추출] --> B{트리거 조회}
-  B -- 없음 --> B1[404]
-  B -- 비활성 --> B2[410 Gone]
-  B -- 활성 --> W{워크플로우 활성 여부}
-  W -- 비활성 --> W2[410 Gone - WORKFLOW_INACTIVE]
-  W -- 활성 --> C{인증 설정 연결 여부}
-  C -- 연결 안 됨 --> E[공개 수신]
-  C -- 연결됨 --> D{AuthConfig 기준 인증}
-  D -- 실패 --> D1[401]
-  D -- 성공 --> F[페이로드 파싱]
-  E --> F
-  F --> G[실행 생성과 실행 엔진 큐 적재]
-  G --> H[202 즉시 응답]
-```
-
-1. URL 에서 `endpoint_path` 를 뽑아 트리거를 찾는다. 없으면 `404`, 비활성이면 `410 Gone` 이다. 트리거가 활성이어도 그 워크플로우가 비활성이면 `410 Gone`(`WORKFLOW_INACTIVE`)이다([트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문)).
-2. `Trigger.auth_config_id` 가 가리키는 인증 설정(AuthConfig)으로 인증한다. 연결된 인증 설정이 없으면 공개 수신이고 인증에 실패하면 `401` 이다.
-3. 페이로드를 파싱한다(`application/json`, `application/x-www-form-urlencoded`).
-4. 실행(Execution)을 만들고 실행 엔진 큐에 넣는다.
-5. 바로 `202` 를 돌려준다(비동기 실행).
-
-인증 분기·파라미터 추출을 포함한 상세 처리 흐름은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 처리 흐름 절이 정한다.
-
-### 11.4 응답 형식
-
-비동기 단일 모드다. 실행 큐에 넣은 뒤 바로 `202 Accepted` 를 돌려준다. 동기 `?wait=true` 모드는 지원하지 않는다. 모든 응답은 전역 `TransformInterceptor` 가 `{ data: ... }` 로 감싼다(§5).
-
-```json
-{
-  "data": {
-    "executionId": "550e8400-e29b-41d4-a716-446655440000",
-    "message": "Webhook received, workflow execution started"
-  }
-}
-```
-
-`interaction.enabled=true` 트리거의 응답 확장 필드는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 웹훅 호출 응답 확장 절이 정한다.
-
-**예외: 채팅 채널 트리거의 handshake · 인터랙션 ack · Slack 슬래시 명령 응답.** `config.chatChannel` 트리거가 받은 Slack `url_verification` 과 Discord PING 의 handshake 응답, Slack · Discord 의 인터랙션 ack(네이티브 모달 열기와 제출 응답, Discord 슬래시 명령의 즉시 응답 포함), Slack 슬래시 명령의 응답은 `{ data }` 로 감싸지 않는다. 프로바이더가 정한 본문을 `200 OK` 로 그대로 보낸다. 프로바이더가 그 형식만 성공으로 인정하기 때문이다. 인터랙션 요청에는 트리거가 꺼져 있거나 처리를 건너뛰어도 같은 ack 를 보낸다. 경우별 본문은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. Slack 슬래시 명령의 본문 `{ response_type: 'ephemeral', text }` 는 [Slack 어댑터 「Slash Commands」](../CLE-CHAT/CLE-CHAT-SLACK.md#slash-commands) 의 REQ-SLACK-043 이 정한다. 채팅 채널 트리거의 `202` 응답은 이 절의 봉투를 그대로 따른다. §6 · §7 과 채팅 채널 문서의 `{ executionId: 'ignored' }` 는 `{ data }` 감싸기와 `message` 를 뺀 줄임 표기다.
-
-### 11.5 인증 방식
-
-웹훅 트리거는 인증 설정을 연결하지 않으면 공개로 받고 연결하면 그 인증 설정으로 인증한다(`api_key`, `bearer_token`, `basic_auth`, `hmac`). 인증 없음은 `AuthConfig.type` 의 값이 아니라 `auth_config_id IS NULL` 로 나타낸다([트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md)). 헤더·기본값·검증 방식의 단일 기준은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 인증 방식 절이다. 예: HMAC 은 `AuthConfig.config.header`(기본 `X-Hub-Signature-256`) 헤더를, API Key 는 `AuthConfig.config.headerName`(기본 `X-API-Key`) 헤더를 검증한다.
-
-### 11.6 워크플로우 실행 입력 데이터
-
-웹훅 수신 데이터가 워크플로우 입력으로 들어가는 구조(`parameters`, `body`, `headers`, `query`, `method`)는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 의 입력 데이터 구조 절이 단일 기준이다.
-
-### 11.7 요청 빈도 제한
-
-웹훅 수신은 전역 요청 빈도 제한(100 req/min)을 받는다(§7). 넘으면 `429 Too Many Requests` 다. 공개 웹훅에는 IP 단위 추가 한도가 걸린다. 채팅 채널 트리거는 `auth_config_id IS NULL` 이어도 공개 웹훅 추가 한도를 받지 않는다. 서명 참조가 있는 채팅 채널 트리거는 전역 한도도 받지 않는다([§7 머리 콜아웃](#7-요청-빈도-제한)). 수치는 §7 표에 있고 버킷·IP 식별 규칙은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
-
-## 12. 공통 API 패턴
-
-### 12.1 상태 토글 패턴
-
-리소스의 상태 필드를 토글(활성·비활성 등)할 때는 전용 엔드포인트를 만들지 않는다. **PATCH 본문에 바꿀 필드를 넣는다.**
-
-```
-PATCH /api/{resource}/{id}
-Content-Type: application/json
-
-{ "isActive": false }
-```
-
-| 규칙 | 설명 |
-|------|------|
-| 패턴 | `PATCH /:id { field: value }` |
-| 전용 엔드포인트 불필요 | `POST /:id/activate`, `POST /:id/deactivate` 같은 전용 엔드포인트를 만들지 않는다 |
-| 적용 대상 | `isActive`(워크플로우, 트리거, 스케줄), `isDisabled`(노드) 같은 Boolean 토글 필드. 토글 필드의 요청 본문 이름은 camelCase(`isActive`)다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 의 REQ-TRIG-026, [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md) 의 REQ-SCHED-029) |
-| 예외 | 인앱 알림의 읽음은 `PATCH /api/notifications/:id/read` 를 쓴다. 읽음은 `is_read` 의 한 방향 전이이고 읽지 않음으로 되돌리는 API 가 없다. 이 경로가 `PATCH` 인 것은 이미 구현된 경로를 그대로 두기 때문이다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)). 모두 읽음 · 모두 닫기 · 닫기는 Boolean 토글이 아니므로 §2.2 가 정한다 |
-
-상태 토글이 아닌 동작(실행, 중단, 복제, 권한 이양 등)의 경로 형태는 §2.2 의 자원 액션 행이 정한다.
-
-### 12.2 유니크 제약 범위
-
-| 필드 | 유니크 범위 | 설명 |
-|------|------------|------|
-| `Trigger.endpoint_path` | 전역 | 모든 워크스페이스를 통틀어 중복될 수 없다. 라우팅 키(`/api/hooks/:endpointPath`)가 워크스페이스와 무관한 전역 키이기 때문이다(V132). 2026-09-18 이전에는 워크스페이스 단위였다 |
-
-인덱스 정의는 [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) 의 인덱스 전략 절에 있다.
+→ [HTTP API 규약 — 요청 빈도 제한](CLE-API-CONV-RATE.md#7-요청-빈도-제한)
 
 ## 미결 사항
 
 - **`204` 삭제 응답의 건수 헤더**: [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 의 범위 삭제(`DELETE /api/agent-memories?scopeKey=`)가 프로젝트 첫 커스텀 응답 헤더 `X-Deleted-Count` 를 쓴다. `204` 라 본문이 없어 실제 삭제 행 수를 헤더로 싣고(0 가능, 멱등 삭제) cross-origin 에서 읽히도록 CORS `exposedHeaders` 에 넣는다. 그 문서는 이 방식을 이 규약의 공통 규칙(멱등 DELETE 와 커스텀 건수 헤더)으로 올리는 일을 별도 작업으로 넘겼다. 공통 규칙으로 올릴지 결정이 필요하다.
-- **자원을 만들지 않는 POST 의 성공 코드**: §6 은 `200` 을 조회·수정에, `201` 을 생성에 배정한다. 저장소에는 `@HttpCode(200)` 을 단 액션 POST 가 여럿 있고 OAuth 시작(설치 대기 통합 행 생성)이나 초대 수락(멤버십 행 생성)처럼 부수적으로 행을 만드는 POST 도 `200` 이다. [OpenAPI 문서화](CLE-API-SWAGGER.md) 는 광고한 코드와 실제 코드의 짝만 강제하고 어느 코드가 맞는지는 정하지 않는다고 스스로 적는다. §6 에 "액션 POST(자원 생성 없음 또는 부수 생성) = `200`" 행을 둘지 결정이 필요하다.
-- **서버 설정으로 꺼진 기능의 상태 코드**: `WEBAUTHN_DISABLED` 는 503 이고 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 두 코드를 한 상태로 맞출지, 맞춘다면 어느 쪽으로 맞출지 결정이 필요하다. 배경은 Rationale 「Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다」 에 있다.
+- **자원을 만들지 않는 POST 의 성공 코드**: [§6](CLE-API-CONV-RESP.md#6-http-상태-코드) 은 `200` 을 조회·수정에, `201` 을 생성에 배정한다. 저장소에는 `@HttpCode(200)` 을 단 액션 POST 가 여럿 있고 OAuth 시작(설치 대기 통합 행 생성)이나 초대 수락(멤버십 행 생성)처럼 부수적으로 행을 만드는 POST 도 `200` 이다. [OpenAPI 문서화](CLE-API-SWAGGER.md) 는 광고한 코드와 실제 코드의 짝만 강제하고 어느 코드가 맞는지는 정하지 않는다고 스스로 적는다. §6 에 "액션 POST(자원 생성 없음 또는 부수 생성) = `200`" 행을 둘지 결정이 필요하다.
+- **서버 설정으로 꺼진 기능의 상태 코드**: `WEBAUTHN_DISABLED` 는 503 이고 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 두 코드를 한 상태로 맞출지, 맞춘다면 어느 쪽으로 맞출지 결정이 필요하다. 배경은 [응답 형식과 상태 코드](CLE-API-CONV-RESP.md#passkey-기능이-꺼졌을-때의-503-을-예외로-적었다-2026-10-17) 의 Rationale 에 있다.
 
 ## 구현 위치
 
@@ -495,312 +107,18 @@ Content-Type: application/json
 - `codebase/backend/src/common/dto/*.ts`
 - `codebase/backend/src/common/swagger/error-response.dto.ts`
 - `codebase/backend/src/common/interceptors/transform.interceptor.ts` (성공 응답 `{ data }` 래핑과 pass-through. HTTP 가 아닌 호출을 건너뛴다)
-- `codebase/backend/src/common/guards/user-throttler.guard.ts` (전역 요청 빈도 제한 키 결정. HTTP 가 아닌 호출과 `@DeferGlobalThrottle()` 라우트를 건너뛴다)
-- `codebase/backend/src/common/guards/user-throttler.guard.spec.ts`
 - `codebase/backend/src/common/utils/http-context.ts` (`isHttpContext`. HTTP 전용 전역 enhancer(요청 빈도 제한 가드 · 응답 래핑 · 요청 로깅)가 함께 쓰는 판정)
-- `codebase/backend/src/common/constants/throttle.ts` (§7 의 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`)
-- `codebase/backend/src/modules/auth/password-recheck-throttle.spec.ts` (`verifyPasswordForUser` 를 부르는 라우트(비밀번호 재확인)의 목록을 고정하고 핸들러마다 §7 의 `SENSITIVE_ACTION_THROTTLE` 이 걸렸는지 보는 단위 테스트)
-- `codebase/backend/src/common/utils/throttler-skip.ts` (`NODE_ENV=test` skip)
-- `codebase/backend/src/modules/websocket/ws-rate-limit.guard.ts` (WebSocket 명령 빈도 제한)
-- `codebase/backend/src/modules/hooks/hooks.controller.ts`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`
-- `codebase/backend/src/modules/hooks/hook-trigger-throttler.guard.ts` (웹훅 수신의 전역 요청 빈도 제한. 서명 참조가 있는 채팅 채널 트리거는 세지 않는다)
-- `codebase/backend/src/modules/hooks/hooks-throttle.wire.spec.ts` (웹훅 수신의 가드 순서)
 - `codebase/backend/src/repo-guards/__tests__/global-enhancer-ws-safety.spec.ts` (전역 enhancer 분류 가드)
-- `codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts` (선언과 선언 대조)
-- `codebase/backend/src/shared/testing/response-contract*.ts` (값과 선언 대조)
-- `codebase/backend/src/shared/testing/swagger-probe*.ts`
-- `codebase/backend/src/repo-guards/__tests__/user-entity-exposure*.ts`
-- `codebase/backend/src/shared/testing/user-secret-absence*.ts`
-- 대조군(negative fixture). 위 가드가 강제하는 위반 형태의 실례다. 없으면 술어가 죽어도 테스트가 통과한다(실제로 그 상태로 한 라운드를 지났다).
-  - `codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/optional-nullable*.ts`
-  - `codebase/backend/src/repo-guards/__tests__/fixtures/user-eager-relation*.ts`
-  - `codebase/backend/src/repo-guards/__tests__/fixtures/user-relation-load*.ts`
+- 주제별 구현 위치는 하위 문서마다 있다. 응답 계약 검증자는 [응답 형식과 상태 코드](CLE-API-CONV-RESP.md#구현-위치), 요청 빈도 제한 가드는 [요청 빈도 제한](CLE-API-CONV-RATE.md#구현-위치), 웹훅 수신 컨트롤러는 [WebSocket 과 웹훅 수신](CLE-API-CONV-HOOK.md#구현-위치) 에 있다.
 
 ## Rationale
 
-### WebSocket 재연결 요약에 예외를 복제하지 않고 위임한 이유 (2026-09-02, 2026-09-10 갱신)
+### 규약을 하위 문서로 나눈 이유 (2026-11-13)
 
-§10 은 재연결을 두 줄로 요약한다. 한때 그 두 줄은 서버가 스스로 끊은 경우에 틀렸다. Socket.IO 는 서버가 보낸 `disconnect()` 에 자동 재연결을 시작하지 않고 복구도 마지막 이벤트 ID 재전송이 아니라 스냅샷이기 때문이다.
-
-- **한때 이 절을 고치지 않기로 했다**(`#1265`). 근거는 "요약에 예외를 복제하면 두 곳이 갈릴 자리를 새로 만든다" 였고 그 논리 자체는 지금도 맞다.
-- **바뀐 것은 전제다.** `#1266` 이 토큰 만료 종료를 구현하면서 그 예외가 access token 수명(15분)마다 늘 발동하게 됐다. 드물게 나는 예외를 요약에서 빼는 것과, 늘 도는 경로를 요약이 반대로 적는 것은 다르다.
-- **그래서 복제가 아니라 위임이다.** 예외가 있다는 사실만 한 줄로 알리고 내용과 근거는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 에 둔다. 요약이 상세를 복제하기 시작하면 둘이 갈리는 것은 시간 문제이고 §10 은 처음부터 "상세는 WebSocket 문서" 구조로 서 있다.
-- **폐기한 대안**: 재연결 규칙 전체를 이 절에 펼치는 안. §10 의 위임 구조를 깨고 WebSocket 문서에 이미 있는 재연결·복구 절과 이중 관리가 된다.
-
-2026-09-10 에 위 진단이 한 칸 좁았다는 것이 드러났다. 첫 문장은 두 요약 줄이 "서버가 스스로 끊은 경우에" 틀리다고 적어 그 밖의 경우에는 맞다는 뜻을 담았다. 실제로 두 줄은 모든 경우에 틀렸고 §10 본문을 그에 맞춰 바꿨다.
-
-- 백오프 수치 `(1s, 2s, 4s, … 30s)` 는 WebSocket 문서가 스스로 "초안 값이며 실제는 Socket.IO Manager 내장 알고리즘을 따른다" 고 부인한 값이다.
-- 마지막 이벤트 ID 재전송은 native WebSocket 에 아예 없다. 끊긴 원인과 무관하게 복구는 늘 실행 스냅샷 이벤트다. `seq` 기반 재전송 버퍼는 EIA SSE 쪽에만 있다. 2026-10-17 부터 그 버퍼는 Redis Stream(`eia:sse:buf:<executionId>`)이다([EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq)).
-- 이 사실은 새로 밝혀진 것이 아니었다. WebSocket 문서 Rationale 「재연결 복구: native WS 는 snapshot, seq 버퍼 재전송은 SSE 전송」이 2026-05-31 에 이미 "native WS lastSeq 버퍼 재전송 전면 구현" 을 폐기 대안으로 기록했다. 2026-09-02 판단은 그 폐기 선언을 인용하지 않은 채 "전송 계층 끊김" 이라는 부분집합에 그 설계를 남겨 뒀다.
-
-위임한다는 결정은 그대로다. 바뀐 것은 위임 대상이 예외 하나가 아니라 재연결·복구 서술 전체라는 점이다.
-
-### 웹훅 수신 절을 웹훅 문서로 위임하고 정합화한 이유
-
-§11 은 웹훅 도메인 문서와 중복 서술돼 어긋남이 쌓였다. 코드(`hooks.controller.ts`, `hooks.service.ts`, `app.module.ts` 의 ThrottlerModule)를 기준으로 맞추고 상세는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 으로 위임했다. 바로잡은 내용은 아래와 같다.
-
-- URL `{base_url}/hooks/` 를 `{base_url}/api/hooks/` 로 고쳤다(코드: `@Controller('hooks')` 와 전역 prefix `api`). "`/hooks/*` 는 `/api/*` 와 분리" 라는 메모는 사실과 반대여서 지웠다.
-- GET·PUT 메서드 행을 지웠다. 코드는 `@Post(':endpointPath')` 하나다(POST 전용).
-- 동기 `?wait=true` 모드를 지웠다. 코드에 wait 파라미터와 동기 경로가 없다(옛 설계의 잔재).
-- 응답 형태를 `{ data: { executionId, message } }` 로 고쳤다. 전역 `TransformInterceptor` 가 `{ data }` 로 감싼다. 옛 표기의 `status`·`triggeredAt` 필드는 실제 응답에 없다.
-- HMAC 헤더 `X-Webhook-Signature` 고정을 `AuthConfig.config.header`(기본 `X-Hub-Signature-256`)로 고쳤고 API Key 의 `?api_key=` 쿼리 옵션을 지웠다(헤더 전용). 상세는 웹훅 문서로 위임했다.
-- 입력 데이터의 `path` 필드를 지웠다. 웹훅 입력 구조에 없다.
-- Content-Type `text/plain` 을 지웠다. 코드는 json·form 파라미터만 뽑는다.
-- 요청 빈도 제한 `1000 req/min(워크스페이스)` 를 `100 req/min(전역 throttler default)` 로 고쳤다(§7 표 포함).
-
-### 고정 목록 응답을 `{ data: { items } }` 로 유지
-
-활성 로그인 세션과 WebAuthn credential 목록은 페이지를 나눌 의미가 없는 작은 본인 소유 목록이고 `{ data: { items: [...] } }` 를 돌려준다. §5.2 페이지 목록(`data` 가 배열 자체, `pagination` 이 형제)과 중첩 형태가 달라 일관성 면에서 이상적이지 않다. 그래도 이 형태를 유지하는 이유는 두 가지다.
-
-1. 두 엔드포인트의 백엔드(`sessions.controller.ts`, `webauthn.controller.ts`, `WebAuthnCredentialListDto`, `SessionListDto`)와 프론트엔드(`lib/api/sessions.ts`, `passkey-card.tsx` 가 `res.data.data.items` 를 읽음)가 이미 이 계약에 기대고 있다.
-2. 배열 하나로 평탄화하면 백엔드 2곳과 프론트엔드 2곳을 한꺼번에 바꾸는 호환성 파괴 변경이라 얻는 것에 비해 비용이 크다.
-
-그래서 문서를 실제 계약에 맞춰 고쳤다. 고정 목록을 `{ data: [] }` 로 정규화하는 대안은 호환성을 깨므로 별도 결정이 날 때까지 미룬다. 이 형태는 [OpenAPI 문서화](CLE-API-SWAGGER.md) 가 기각한 페이지네이션 이중 래핑 버그(`{ data: { items, totalItems, page, limit } }`)와 무관하다. `pagination` 필드가 전혀 없는 고정 목록에만 해당한다.
-
-### `conversationThread` 를 `null` 로 정규화하지 않는 이유 (§5.5)
-
-`GET /api/external/executions/:id` 한 응답 안에서 `currentNode`·`result`·`error` 는 `null` 이고 `context.conversationThread` 는 키를 생략한다. 한 응답에 부재 표현이 섞이면 결함처럼 보이므로 정규화하지 않는 이유를 남긴다.
-
-SSE `execution.waiting_for_input` 이벤트도 `conversationThread` 를 값이 있을 때만 싣는다. [External Interaction API](../CLE-IX/CLE-EIA.md) 는 REST `context` 를 SSE wire 와 같은 형식으로 유지하는 것을 명시 계약으로 두고 웹채팅 위젯이 두 표면에 같은 파서(`parseWaitingForInput`)를 쓰는 것이 그 계약 위에 서 있다. `conversationThread` 만 REST 에서 `null` 로 정규화하면 두 표면의 형식이 갈려 파서를 함께 쓸 수 없다. 응답 안의 겉보기 일관성을 얻는 대신 표면 사이의 실제 일관성을 잃는 교환이다.
-
-그래서 이 경우는 §5.5 기준 (a)(다른 표면과의 wire 일치)의 원형 사례이고 정규화 대상이 아니라 규칙의 근거 사례로 둔다. 소비 쪽 안전성은 따로 확인했다. 위젯의 `threadToMessages` 가 optional chaining(`!thread?.turns?.length`)으로 `undefined` 와 `null` 을 함께 건너뛴다.
-
-### 로그인 세션 강제 종료 한도를 사용자 기준으로 적은 이유 (2026-10-10)
-
-두 라우트는 로그인한 사용자만 부른다. 그래서 §7 키 결정 규칙대로 `UserThrottlerGuard` 가 `user:<sub>` 키로 센다(`user-throttler.guard.ts`).
-
-- 한때 이 행은 집계 키를 미결로 남겼다. [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 같은 한도를 IP 당으로 적어 두 문서가 갈렸기 때문이다.
-- 세션 문서가 v2 에서 집계 키를 이 문서 §7 로 넘겼다. 이 행까지 미결로 두면 두 문서가 서로 상대에게 미루게 된다. 그래서 구현대로 사용자 기준이라고 적었다.
-- [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 은 같은 한도를 IP 당으로 적었고 그 어긋남을 미결 사항 「전역 한도의 집계 키」에 남겼다(2026-10-10 닫힘, 아래 「전역 한도의 집계 키 미결을 닫았다」). 같은 초안 묶음에서 그 문서도 사용자 기준으로 고쳤다.
-
-### 세션 API 를 `/api/auth/sessions` 에 둔 이유 (2026-10-10)
-
-Task CLE-T-ERAJ7P 의 결정이다.
-
-로그인 세션 목록과 강제 종료가 `/api/users/me/sessions` 에 있을 때는 리프레시 쿠키가 요청에 붙지 않았다. 쿠키의 Path 가 `/api/auth` 이기 때문이다. 그래서 서버가 현재 로그인 세션을 가려내지 못했다. 세 라우트를 `/api/auth/sessions…` 로 옮겼고 옛 경로는 별칭 없이 지웠다(404). 결함과 결정의 상세는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 Rationale 「세션 API 를 리프레시 쿠키 Path 아래로 옮겼다」에 있다.
-
-새 경로는 §2.2 의 기존 행 어디에도 맞지 않는다.
-
-- `/api/auth/{action}` 예외는 인증 상태 전이와 그 전이에 필요한 capability 조회를 위한 것이다. 세션 목록은 자원이다.
-- 쿠키가 필요 없는 본인 소유 자원은 `users/me` 에 둔다(로그인 이력 조회). 세션 목록과 강제 종료는 리프레시 쿠키가 있어야 현재 로그인 세션을 가린다.
-
-`/api/auth` 아래에는 본인 소유 자원인 Passkey credential 라우트(`/api/auth/2fa/webauthn/credentials[/:id]`)도 있다. 그 라우트는 `/api/auth/{action}` 예외의 2단계 인증 등록 · 해제 묶음으로 설명되는 기존 예외이고 이 예외 행과는 근거가 다르다.
-
-그래서 §2.2 에 예외 행을 따로 두었다. 예외의 근거는 "현재 로그인 세션을 리프레시 쿠키로 가려야 한다" 하나로 좁혔다. 앞으로 `/api/auth` 아래에 자원 라우트를 더하려면 이 근거가 그 라우트에도 맞는지 먼저 본다.
-
-`revoke-others` 는 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다.
-
-기각한 대안은 네 가지다.
-
-- `/api/auth/{action}` 예외의 문구를 넓혀 세션 라우트를 넣는 안. "인증과 관련된 것은 모두 `/api/auth`" 로 읽히게 돼 예외의 경계가 사라진다.
-- 리프레시 쿠키 Path 를 `/api` 로 넓혀 세션 라우트를 `/api/users/me/sessions` 에 두는 안. 모든 API 요청에 리프레시 쿠키가 붙는다.
-- 액세스 토큰에 로그인 세션 클레임을 넣어 쿠키 없이 현재 세션을 가리는 안. 토큰 계약과 토큰을 발급하는 모든 경로를 바꿔야 한다.
-- 옛 경로를 별칭으로 남기는 안. 옛 경로로 온 요청은 여전히 현재 세션을 가려내지 못한다.
-
-### §7 에 2단계 인증 끄기 행을 더한 이유 (2026-10-10)
-
-Task CLE-T-75TDTN 의 결정이다.
-
-`POST /api/auth/2fa/disable` 은 비밀번호를 확인한 뒤 TOTP 코드나 TOTP 복구 코드를 한 번 더 확인한다. 인증 코드 추측을 막으려고 `@Throttle(SENSITIVE_ACTION_THROTTLE)` 로 분당 10회를 걸었다. 로그인한 사용자만 부르는 라우트라 §7 키 결정 규칙대로 사용자 기준으로 센다. §7 표가 요청 빈도 제한 수치의 단일 기준이므로 라우트별 `@Throttle` 을 더하면 이 표에도 행을 더한다.
-
-기각한 대안은 두 가지다.
-
-- 전역 100 req/min 에 맡기는 안. 비밀번호를 아는 공격자가 6자리 코드를 분당 100회까지 시도할 수 있다.
-- 이 라우트 전용 상수를 새로 두는 안. 이 라우트의 의도는 "전역보다 엄격한 민감 동작" 이라 공통 등급 상수의 의도와 같다. 상수의 주석도 정책이 갈릴 때만 분리하라고 적는다.
-
-### 전역 한도의 집계 키 미결을 닫았다 (2026-10-10)
-
-Task CLE-T-ERAJ7P 에서 바뀐 사실이다.
-
-이 미결은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 이 전역 한도와 로그인 세션 강제 종료 한도를 IP 당으로 적어 §7 과 어긋난다는 내용이었다. 「로그인 세션 강제 종료 한도를 사용자 기준으로 적은 이유」 절의 마지막 항목은 한때 그 문서가 아직 IP 당으로 적는다고 했다. 같은 초안 묶음에서 그 문서도 사용자 기준으로 고쳤으므로 그 항목도 그에 맞게 고쳤다.
-
-- 같은 Task 의 그 문서 개정 초안이 요청 빈도 제한 표에 집계 키 열을 더했다. 인증한 요청은 사용자(`user:<sub>`)로 세고 `@Public` 라우트는 IP 로 센다고 적는다. 세션 강제 종료 두 라우트도 사용자 기준이다.
-- 이것은 §7 키 결정 규칙과 같다. 두 문서가 같은 규칙을 적으므로 정할 것이 남지 않아 미결 항목을 지웠다.
-- [External Interaction API](../CLE-IX/CLE-EIA.md) 가 남긴 미결은 이 문서와 어긋나지 않는다. EIA 인바운드 경로는 `@Public()` 이라 §7 규칙대로 IP 로 센다. 그 미결의 정리는 EIA 문서가 한다.
-
-기각한 대안은 미결을 그대로 두는 안이다. 두 문서가 이미 같은 규칙을 적는데 미결이 남으면 아직 정해지지 않은 것처럼 읽힌다.
-
-### 이메일 변경 행의 소유 문서를 바로잡았다 (2026-10-10)
-
-Task CLE-T-ERAJ7P 에서 바뀐 사실이다.
-
-§7 의 이메일 변경 요청·재발송 행은 동작 정의를 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) 로 가리켰다. 이메일 변경의 API·재인증·토큰 규칙은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 「이메일 변경」 절이 정한다. 그래서 링크를 그 절로 바꿨다. 두 라우트는 `/api/users/me/*` 의 JWT 인증 라우트라 §7 키 결정 규칙대로 사용자 기준이다. 그 사실과 라우트별 `@Throttle` 이라는 점도 행에 적었다.
-
-### §2.3 의 워크스페이스 인가 링크를 바로잡았다 (2026-10-10)
-
-§2.3 은 경로 파라미터 예외의 근거와 현재 워크스페이스 결정의 단일 기준을 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 으로 가리켰다. 그 규칙과 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 「전환 API 와 토큰」 · 「API 인가」 절과 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」가 정하므로 링크를 그쪽으로 바꿨다.
-
-### 410 행과 웹훅 처리 흐름에 `WORKFLOW_INACTIVE` 를 더했다 (2026-10-10)
-
-NERV Task `CLE-T-XRWFMJ` 의 결정이다. 웹훅 트리거가 활성이어도 그 워크플로우가 비활성이면 `410 Gone` 과 `WORKFLOW_INACTIVE` 를 돌려준다. 이 문서는 §6 의 `410` 행과 §11.3 의 요약 흐름에 그 분기를 더했다. 경로별 규칙과 결정의 근거, 기각한 대안은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 과 그 문서의 Rationale 에 있다.
-
-같은 날 일관성 검토에서 관문 규칙이 여러 문서에 거의 같은 문장으로 풀려 있다는 지적이 나왔다. 그래서 두 자리에는 이 문서가 다루는 HTTP 응답만 한 줄로 남기고 기준 링크를 정본 절로 옮겼다.
-
-### `503` 행에 채팅 채널 `/start` 의 취소 실패를 더했다 (2026-10-10)
-
-NERV Task `CLE-T-V4WVF2` 의 결정이다. 채팅 채널 `/start` 는 활성 실행을 취소할 때 `ExecutionsService.stop` 을 직접 부른다. 취소를 큐에 넣지 못하면 `503 EXECUTION_ENQUEUE_FAILED` 를 그대로 돌려주고 새 실행을 시작하지 않는다. 채팅 채널 인바운드는 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 의 `202` 고정 정책을 따른다. 이 경우는 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외라서 §6 의 `503` 행에 적었다. 프로바이더는 이 응답을 받고 같은 update 를 다시 보낼 수 있다. `5xx` 를 받아들인 이유는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」 Rationale 에 있다.
-
-### Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다 (2026-10-17)
-
-NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 가용성 조회와 credential 목록 조회를 뺀 Passkey 엔드포인트는 503 `WEBAUTHN_DISABLED` 를 돌려준다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수)). 규칙 11 은 `503` 을 인프라 의존성의 일시 장애에 쓴다고만 적어 이 응답이 규칙 밖에 있었다. 같은 날 사람 결정으로 Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)도 이 응답으로 막게 됐다([가입과 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)). 예외의 범위는 코드 하나 그대로다.
-
-- 상태 코드는 그대로 두고 규칙 11 과 §6 의 `503` 행에 예외로 적었다. [채팅 채널 「setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다) 는 4xx · 5xx 경계를 누가 고칠 수 있는가로 정했다. 같은 결정은 `503` 사용처에 `WEBAUTHN_DISABLED` 를 이미 들었다. 서버 설정은 운영자만 고칠 수 있으므로 5xx 가 맞다.
-- 저장소 안에서는 로그인 화면만 이 코드로 분기해 안내 문구를 고른다(`codebase/frontend/src/components/auth/login-form.tsx`). Passkey 설정 화면은 가용성 조회로 기능을 미리 숨기고 이 코드로 분기하지 않는다. 저장소 밖 호출자가 이 상태에 기대는지는 배제할 수 없어 상태 코드를 바꾸지 않았다.
-- 클라이언트는 이 응답을 다시 시도하지 않는다. Passkey 엔드포인트의 이 응답은 설정이 바뀐 직후의 요청에서만 난다. 화면이 가용성 조회(`GET /api/auth/2fa/webauthn/availability`)로 기능을 미리 숨기기 때문이다. 로그인의 이 응답은 기능이 꺼져 있는 동안 계속 난다.
-- 예외는 `WEBAUTHN_DISABLED` 하나로 한정했다. 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). "서버 설정으로 꺼진 기능은 `503`" 을 일반 규칙으로 적으면 이 코드와 부딪친다. 두 코드를 한 상태로 맞출지는 이번에 정하지 않았다([미결 사항](#미결-사항)).
-- **기각: 다른 상태 코드로 바꾼다.** 403 은 권한 부족으로 읽혀 사용자가 고칠 수 있는 것처럼 보이지만 사용자는 고칠 수 없다. 409 는 요청과 자원 상태의 충돌이라 서버 설정 상태와 맞지 않는다. 500 은 `OAUTH_CONFIG_MISSING` 과 맞출 수 있지만 발행 중인 상태를 바꾸는 일이라 위 불릿의 이유로 하지 않았다.
-- **감시 영향**: 로그인의 이 응답은 기능이 꺼져 있는 동안 Passkey 만 등록한 사용자가 로그인할 때마다 난다. 5xx 비율로 경보를 거는 감시는 이 응답도 센다. 운영자가 변수를 설정하면 그치는 응답이라 이 위험은 받아들였다.
-- 설정 상태로 `503` 을 내는 곳은 전에도 있었다. `GET /api/health` 는 Redis 가 설정되지 않은 경우(`unconfigured`)에도 503 이다([로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md)). 그 응답은 에러 봉투를 쓰지 않는 probe 응답이라 이 규칙의 예외로 적지 않았다.
-
-### 이메일 변경 경로를 하위 채널 액션의 예로 더했다 (2026-10-17)
-
-NERV Task `CLE-T-D331TT` 에서 §2.2 의 RPC 형태 하위 채널 액션 행에 `/api/users/me/email-change/{action}` 을 예로 더했다. 이 경로는 전부터 있었는데 어느 형태에 드는지 적힌 곳이 없었다. `me` 는 로그인한 사용자 id 의 별칭이므로 이 경로는 `/api/{resource}/{id}/{channel}/{action}` 과 같은 형태다. 그래서 예외 행을 새로 두지 않고 기존 행의 예로 넣었다.
-
-### 채팅 채널 handshake 와 인터랙션 ack 를 §11.4 의 봉투 예외로 적었다 (2026-10-17)
-
-NERV Task `CLE-T-EMB0YG` 에서 더했다. §11.4 는 웹훅 수신의 모든 응답을 `{ data }` 로 감싼다고만 적었다. 코드(`hooks.controller.ts`)는 채팅 채널 트리거의 handshake 와 인터랙션 ack 를 `TransformInterceptor` 를 거치지 않고 `200 OK` 로 바로 보낸다. 이 본문은 프로바이더가 정한 형식이고 프로바이더는 그 형식만 성공으로 인정한다. 그래서 §11.4 에 예외 한 줄과 채팅 채널 문서 링크를 더했다.
-
-같은 자리에 채팅 채널 `202` 본문의 줄임 표기도 밝혔다. 이 문서의 §6 · §7 과 채팅 채널 문서는 그 본문을 `{ executionId: 'ignored' }` 로 적는다. 실제 응답은 `{ data }` 로 감싸이고 `message` 도 실린다.
-
-기각한 대안: 경우별 본문을 §11.4 에 표로 옮기는 안. 프로바이더를 더할 때마다 두 문서를 함께 고쳐야 하고 한쪽만 고쳐지면 두 표가 갈린다. 본문의 기준은 채팅 채널 문서 한 곳에 둔다.
-
-2026-11-13 에 Slack 슬래시 명령의 응답을 같은 예외에 더했다(NERV Task `CLE-T-MGZRRP`, [Slack 어댑터 「R-S-14」](../CLE-CHAT/CLE-CHAT-SLACK.md#r-s-14-슬래시-명령은-본인에게만-보이는-문구와-200-으로-답한다)). Slack 은 슬래시 명령 요청의 HTTP 응답 본문을 사용자에게 보이는 메시지로 쓴다. 그래서 이 응답은 `{ data }` 로 감싸지 않고 프로바이더 형식 그대로 보내야 한다.
-
-### 채팅 채널 `/cancel` 의 큐 적재 실패는 `503` 으로 돌려주지 않는다 (2026-10-17)
-
-NERV Task `CLE-T-EQDYC1` 의 사람 결정이다. 채팅 채널 인바운드의 `/cancel` 은 `ExecutionsService.stop` 을 바로 부른다. 취소를 큐에 넣지 못하면 `stop` 이 `503 EXECUTION_ENQUEUE_FAILED` 를 던진다. 그전에는 이 응답이 채널 프로바이더에 그대로 나가 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 의 `202` 고정 정책과 어긋났다.
-
-이제 `/cancel` 은 `202` 로 답하고 채널 건강도를 `degraded` 로 둔다. 진행 중인 대화의 입력이 재개 큐에 들어가지 못한 경우도 같다. 사람은 분당 한도 초과 · 워크스페이스 불일치 때와 같은 처리를 골랐다. 실패는 채널 건강도와 경고 로그로 운영자에게 보인다. §6 의 `503` 행에는 이 사실을 한 줄로 적었다. 채팅 채널 인바운드가 `503` 을 돌려주는 경우는 `/start` 의 기존 실행 취소 실패 하나로 남는다. 처리 규칙과 근거의 기준은 채팅 채널 문서다.
-
-기각한 대안: `/start` 처럼 `/cancel` 도 `503` 을 돌려주는 안. non-2xx 가 이어지면 프로바이더가 웹훅을 끌 수 있다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). `/start` 는 실패를 숨기면 사용자의 새 시작 요청이 사라져서 이 위험을 받아들였다. `/cancel` 은 그 사정이 없다.
+본문이 스펙 본문 한도(20,000자)를 넘어 주제별 하위 문서로 나눴다. 규칙 목록 · 미결 사항 · 공통 구현 위치는 이 문서에 두고 절의 상세와 그 절의 Rationale 은 하위 문서로 옮겼다. 다른 문서가 링크하는 절 제목은 이 문서에 짧은 절로 남겨 링크가 끊기지 않게 했다.
 
 ### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)
 
-NERV Task `CLE-T-A3W8B8` 에서 더했다. NestJS 12(`@nestjs/websockets` 12.1.2)부터 전역 `APP_GUARD` · `APP_PIPE` · `APP_INTERCEPTOR` 가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 가 아닌 호출을 건너뛰고 WebSocket 명령은 소켓당 `WsRateLimitGuard` 만 센다. 소켓당 가드는 2026-07-07 에 들어왔다([WebSocket 연결과 채널 구독 「전송 계층을 Socket.IO 로 바로잡은 경위 (2026-06-03)」](CLE-API-WS.md#전송-계층을-socketio-로-바로잡은-경위-2026-06-03) 의 2026-07-07 구현 항목). 이번 수정은 WebSocket 명령을 그 가드 하나로 세던 설계를 되살린 것이다.
+다른 문서가 이 제목으로 링크해서 제목만 남겼다. 본문은 하위 문서에 있다.
 
-§7 은 전역 가드 순서와 키 결정 규칙만 적고 어떤 요청을 세는지는 적지 않았다. 그래서 §7 에 HTTP 요청만 센다는 항목을 더하고 키 결정 규칙이 HTTP 기준이라고 밝혔다. 「`NODE_ENV=test` 에서만 건너뛴다」 는 이제 사실과 달라서 환경으로 건너뛰는 경우가 그 하나라는 뜻으로 고쳤다. 같은 항목은 test 환경에서 모든 한도를 건너뛰는 것처럼 읽혔다. `skipIf` 가 건너뛰는 것은 전역 기본값과 라우트별 `@Throttle` 한도라서 그 범위대로 적었다. 판정 함수가 있는 `http-context.ts`, 소켓당 가드, 전역 enhancer 분류 가드 테스트는 구현 위치에 더했다.
-
-같은 초안에서 규칙 12 와 §7 머리 콜아웃도 고쳤다. 두 곳은 초과 응답이 다른 경우를 채팅 채널 하나로 적었다. §7 표의 WebSocket 명령 행도 `429` 대신 소켓 `exception` 이벤트로 알리므로 그 행을 두 번째 예외로 더했다.
-
-규칙 12 와 표 아래 첫 줄은 모든 HTTP 행이 `429` 와 함께 `Retry-After` 헤더를 싣는다고 읽혔다. 코드에서 그 헤더를 싣는 것은 전역 기본값과 라우트별 `@Throttle` 행(`@nestjs/throttler`)과 External Interaction 인바운드 행(`InteractionRateLimitGuard`)이다. 공개 웹훅 추가 한도(`PublicWebhookThrottleGuard`)와 External Interaction SSE 동시 연결은 `429` 만 돌려준다. 그래서 규칙 12 에는 헤더가 행마다 다르다고만 적고 표 아래 첫 줄에 행 묶음별로 적었다.
-
-WebSocket 명령 행은 등록되지 않은 이벤트(`onAny`)도 한도를 넘으면 `exception` 을 받는다고 읽혔다. 그래서 그 행에서 `@SubscribeMessage` 핸들러와 등록되지 않은 이벤트를 나눠 적고 등록되지 않은 이벤트의 응답 규칙은 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 에 맡겼다.
-
-기각한 대안: 전역 가드가 소켓에서 사용자 · IP 키를 만들어 WebSocket 명령도 세는 안. 소켓당 `WsRateLimitGuard` 와 같은 명령을 두 번 센다. WebSocket 명령이 같은 사용자의 HTTP 요청 한도(분당 100회)도 함께 써 버린다.
-
-경위는 [WebSocket 연결과 채널 구독](CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」 에 있다.
-
-### 인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)
-
-§12.1 은 인앱 알림의 `is_read` 를 Boolean 토글의 적용 대상으로 들었지만 알림 모듈은 읽음을 처음부터 전용 경로 `PATCH /api/notifications/:id/read` 로 구현했다. 읽음은 되돌리지 않는 한 방향 전이다. 그래서 이 경로만 §12.1 의 예외로 적었다(NERV Task `CLE-T-3HJ8MM`). 이 경로가 `PATCH` 인 것은 이미 구현된 경로를 그대로 두기 때문이다.
-
-모두 읽음 · 모두 닫기 · 닫기는 Boolean 토글에 해당하지 않는 `POST` 동작이다. 닫기는 `dismissed_at` 을 채우는 동작이다. 한 건 닫기 `POST /api/notifications/:id/dismiss` 는 §2.2 의 자원 액션 형태 그대로다. 두 일괄 경로 `mark-all-read` · `dismiss-all` 은 자원 id 없이 컬렉션 경로에 동사를 붙여 규칙 2 에서 벗어난다. 그래도 `revoke-others` 처럼 기존 이름을 그대로 두고 §2.2 에 예외로 적었다. 이 두 이름은 선례로 삼지 않는다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md#rationale)).
-
-기각한 대안은 두 가지다.
-
-- 읽음을 `PATCH /api/notifications/:id { isRead }` 로 바꾸는 안. 백엔드 · 프런트엔드 API 를 바꿔야 한다. 또 읽지 않음으로 되돌리는 동작이 없는데 토글 형태만 갖추게 된다.
-- 두 일괄 경로를 규칙에 맞는 형태로 옮기는 안. 이미 쓰는 프런트엔드 호출과 응답 DTO 를 함께 바꿔야 하는데 동작은 같다. 경로를 바꿔 달라는 요구도 없다.
-
-읽지 않음으로 되돌리는 기능이 생기면 `PATCH /api/notifications/:id { isRead }` 로 옮기는 것을 다시 본다.
-
-### §7 표에 빠진 라우트별 한도를 더했다 (2026-10-24)
-
-규칙 12 와 §7 「표의 범위」 는 §7 표를 요청 빈도 제한 수치의 단일 기준이라고 한다. 그런데 저장 전 연결 테스트, 쇼핑몰 중복 사전 감지, 쇼핑몰 앱 설치 진입점, 통합 OAuth 콜백, 지식 저장소 그래프 재추출의 `@Throttle` 은 표에 없었다. 수치는 도메인 문서와 코드에만 있었다. 코드(`integrations.controller.ts`, `third-party-oauth.controller.ts`, `graph.controller.ts`)로 수치를 확인하고 표에 행을 더했다(NERV Task `CLE-T-MJ9G4C`). 「표의 범위」 에는 HTTP 라우트의 `@Throttle` 이 모두 표에 있다는 문장과 수치를 바꾸면 표도 고친다는 문장을 더했다. 이 문장은 2026-10-24 에 `@Throttle` 사용처 전부를 표와 대조한 결과다. 같은 의무가 전부터 있었는데도 다섯 라우트가 빠졌으므로 표와 코드를 대조하는 테스트를 NERV Task `CLE-T-CYEVNV` 로 올렸다.
-
-이 결함을 올린 리뷰 발견(`01a12313-21b3-7385-a130-2e24c1a483f8`)은 표에 행을 더하는 안과 「표의 범위」 를 좁혀 일부 라우트만 표에 두는 안을 함께 냈다. 좁히는 안은 고르지 않았다. 그 안을 따르면 빠진 라우트의 수치는 단일 기준 없이 도메인 문서와 코드에만 남는다. 다음 사람은 어느 라우트가 표에 있어야 하는지 알 수 없다.
-
-쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 를 돌려준다(코드 확인). 그래서 표 아래 첫 불릿의 `Retry-After` 없는 목록에 더했다. 같은 불릿에 기본 에러 코드 `RATE_LIMITED` 를 한 번 적었다. NERV Task `CLE-T-V0JAG1` 의 일관성 검토가 초대 발송·재발송 행에 `429 RATE_LIMITED` 를 적자고 했다(Task `CLE-T-MJ9G4C` 본문). 라우트별 `@Throttle` 행은 모두 같은 코드라 행마다 적지 않고 불릿 하나로 모았다. [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 초대 에러 표와 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 는 초대 429 를 소문자 `rate_limited` 로 적는다. 코드는 `RATE_LIMITED` 만 내고 소문자 코드는 발행처가 없다. 그 등재는 NERV Task `CLE-T-8WXV7T` 가 정리한다.
-
-`MAKESHOP_INSTALL_RATE_LIMITED` 는 코드(`third-party-oauth.controller.ts`)가 내는 대로 적었다. [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) 과 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 에러 표에는 아직 `CAFE24_INSTALL_RATE_LIMITED` 만 있고 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에는 두 코드 모두 없다. 도메인 문서에 MakeShop 잠금을 적는 일은 NERV Task `CLE-T-SRXR5W` 가 맡고 두 코드의 카탈로그 등재는 통합 도메인 코드 계열(`CLE-T-5BZ3M2`)과 함께 한다. 설치 잠금의 `429` 는 전역 예외 필터를 거치지 않아 `requestId` 가 빠진다. 에러 봉투를 맞추는 일은 NERV Task `CLE-T-YK106G` 가 맡는다.
-
-새 행의 `/api/3rd-party/*` 경로와 컬렉션 수준 액션 경로(`preview-test`, `precheck`)는 §2.2 명명 규칙의 예외 행에 없다. 전부터 표에 있던 `preview-models` · `embedding-probe` 도 같다. 이 개정은 §7 의 수치만 맞추고 §2.2 는 고치지 않았다. 예외 등록은 NERV Task `CLE-T-SRXR5W` 가 맡는다.
-
-같은 개정에서 API 문서와 어긋난 서술도 고쳤다.
-
-- §11.1 은 `endpoint_path` 를 서버가 자동 발급한다고 적었다. 실제로는 클라이언트가 v4 UUID 를 만들어 요청 본문의 `endpointPath` 로 보내고 서버는 형식만 검증한다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)).
-- §12.1 의 예시와 적용 대상은 DB 컬럼 이름(`is_active`)으로 적었다. 요청 본문은 camelCase(`isActive`)다. 알림 Rationale 의 기각한 대안 `{ is_read }` 도 `{ isRead }` 로 맞췄다.
-- §9 의 «엔드포인트는 둘이다» 에서 개수를 뺐다. 엔드포인트가 늘면 숫자가 낡는다(§5.5 「검증 층」 의 «개수를 세지 않는다» 와 같은 이유). 규칙 12 의 «두 가지», §7 콜아웃의 «두 개», 표 아래 불릿의 «두 행», 파일 업로드 행의 «둘 다» 도 같은 이유로 뺐다.
-- 채팅 채널 인바운드 행의 옛 요구사항 번호 `CCH-NF-03` 을 지금 ID(REQ-CHAT-046 · REQ-CHAT-047)로 바꿨다. §11.1 · §11.2 의 `WH-EP-02` · `WH-EP-03` 도 REQ-WEBHOOK-002 · REQ-WEBHOOK-003 으로 바꿨다.
-
-### 「§7 표에 빠진 라우트별 한도를 더했다」 의 카탈로그 서술을 바로잡았다 (2026-10-24)
-
-「§7 표에 빠진 라우트별 한도를 더했다 (2026-10-24)」 의 `MAKESHOP_INSTALL_RATE_LIMITED` 문단에는 처음에 두 도메인 문서의 에러 표와 카탈로그에 `CAFE24_INSTALL_RATE_LIMITED` 만 있다고 적혀 있었다. 카탈로그 부분이 틀렸다. [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에는 두 코드 모두 없다. 그래서 그 문장을 고쳤다(NERV Task `CLE-T-ZPKDF5`, 구현 완료 일관성 검토 `finding 01a16d2b-0f7b-75a2-9f7a-f6f56aba1ef1`).
-
-### §7 에 2단계 인증 설정 시작 행을 더했다 (2026-11-01)
-
-NERV Task `CLE-T-94FTMV` 에서 더했다. `POST /api/auth/2fa/setup` 은 이제 계정 비밀번호를 확인한 뒤 TOTP secret 을 발급한다. TOTP 가 이미 켜진 계정은 409 `TOTP_ALREADY_ENABLED` 로 거부한다. 규칙과 근거는 [가입과 로그인 「TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다-2026-11-01) 에 있다.
-
-- 비밀번호를 대조하는 라우트가 됐으므로 계정 비밀번호 추측을 막으려고 `@Throttle(SENSITIVE_ACTION_THROTTLE)` 로 분당 10회를 걸었다. 로그인한 사용자만 부르는 라우트라 §7 키 결정 규칙대로 사용자 기준으로 센다.
-- 전용 상수를 두지 않은 이유는 「§7 에 2단계 인증 끄기 행을 더한 이유 (2026-10-10)」 의 두 번째 기각 대안과 같다.
-- 끄기 행에 합치지 않고 행을 따로 두었다. 두 라우트가 막는 대상이 다르다. 설정 시작은 계정 비밀번호 추측을, 끄기는 인증 코드 추측을 막는다. 그때 같은 상수를 쓰는 끄기 행과 초대 발송·재발송 행의 설명에도 설정 시작을 더했다. 2026-11-02 에 그 나열을 표 아래 불릿으로 모았다(아래 「§7 에 활성화 검증 · Passkey 등록 옵션 · 복구 코드 재발급 행을 더했다 (2026-11-02)」).
-- 그때 활성화 검증(`POST /api/auth/2fa/verify`)에는 라우트별 `@Throttle` 이 없어 전역 한도를 따랐고 표에 행이 없었다. 활성화 검증을 포함해 재확인 라우트들의 요청 한도를 맞추는 일은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#미결-사항) 의 미결 사항으로 남겼다(NERV Task `CLE-T-FRCRF7`). 2026-11-02 에 닫았다([가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02)). 이 문서의 변경은 아래 「§7 에 활성화 검증 · Passkey 등록 옵션 · 복구 코드 재발급 행을 더했다 (2026-11-02)」 에 있다.
-
-### `503` 행의 `SERVICE_UNAVAILABLE` 은 규칙 11 의 일시 장애다 (2026-11-01)
-
-NERV Task `CLE-T-H9QJTA` 에서 더했다. §6 `503` 행은 로그인 2단계 Passkey 인증 검증의 `SERVICE_UNAVAILABLE` 을 적는다. 그 검증은 Passkey 인증 챌린지를 기록하지 못하면 이 코드로 거부한다(NERV Task `CLE-T-GK9J2B`). 기록을 두는 Redis 는 우리 인프라라서 이 응답은 규칙 11 의 일시 장애에 든다. 새 코드를 만들지 않은 이유와 상태 코드를 고른 근거는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」 Rationale 에 있다.
-
-- 그래서 `WEBAUTHN_DISABLED` 처럼 규칙 11 의 예외로 적지 않았다. `WEBAUTHN_DISABLED` 는 장애가 아니라 서버 설정으로 기능이 꺼진 상태라서 예외로 적었다([Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다](#passkey-기능이-꺼졌을-때의-503-을-예외로-적었다-2026-10-17)).
-
-### §7 에 활성화 검증 · Passkey 등록 옵션 · 복구 코드 재발급 행을 더했다 (2026-11-02)
-
-NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거의 정본은 [가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 다.
-
-- Passkey 등록 옵션에 비밀번호 재확인을 더했다. 옵션을 만들기 전에 `verifyPasswordForUser` 로 계정 비밀번호를 확인한다. 복구 코드 재발급은 전부터 `verifyPasswordForUser` 로 비밀번호를 확인했지만 라우트별 한도가 없었다. 두 라우트에 계정 비밀번호 추측을 막는 한도를 걸었다.
-- 활성화 검증에는 인증 코드 추측을 막는 한도를 걸었다. 「§7 에 2단계 인증 설정 시작 행을 더했다 (2026-11-01)」 에서 미결로 남긴 일이다.
-- 세 라우트 모두 `@Throttle(SENSITIVE_ACTION_THROTTLE)` 로 분당 10회다. 로그인한 사용자만 부르는 라우트라 §7 키 결정 규칙대로 사용자 기준으로 센다. 전용 상수를 두지 않은 이유는 「§7 에 2단계 인증 끄기 행을 더한 이유 (2026-10-10)」 의 두 번째 기각 대안과 같다.
-- 등록 검증(`POST /api/auth/2fa/webauthn/register/verify`)에는 한도를 걸지 않았다. 등록 검증은 비밀번호를 받지 않고 등록 옵션이 준 `optionsToken` 이 앞선 확인을 대신한다. `optionsToken` 은 발급받은 사용자에 묶이고 5분 동안 유효하다. 그래서 비밀번호 재확인 한 번이 그 사용자가 5분 안에 하는 등록을 모두 덮는다([가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02)).
-- 같은 상수를 쓰는 행마다 다른 행을 나열하던 문장을 지우고 표 아래 불릿 한 곳에 모았다. 행마다 나열하면 행을 더할 때마다 여러 행을 함께 고쳐야 하고 한 행만 빠져도 서로 어긋난다.
-- `verifyPasswordForUser` 를 부르는 라우트(비밀번호 재확인)에 한도가 빠지지 않게 단위 테스트로 고정한다. 복구 코드 재발급처럼 한도 없이 남는 라우트가 다시 생기지 않게 하려는 것이다. 테스트는 고정한 라우트 목록의 핸들러마다 한도가 걸렸는지 본다. 그래서 목록에 없는 새 라우트는 잡지 못한다.
-- 비밀번호 변경(`POST /api/users/me/change-password`), 설정 비밀 평문 노출(`POST /api/auth-configs/:id/reveal`), 계정 재인증 라우트는 이 결정의 범위 밖이다. 세 곳도 계정 비밀번호를 확인하지만 `verifyPasswordForUser` 를 부르지 않는다.
-- **기각: e2e 로 고정한다.** test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 라우트별 `@Throttle` 한도를 건너뛴다(§7). 그래서 e2e 로는 한도가 걸렸는지 볼 수 없어 단위 테스트로 고정한다.
-- 활성화 검증은 설정 시작과 행을 따로 둔다. 설정 시작은 계정 비밀번호 추측을, 활성화 검증은 인증 코드 추측을 막는다. 한도도 라우트마다 따로 센다.
-
-### EIA 인바운드의 세 예외를 §6 · §7 에 적었다 (2026-11-05)
-
-NERV Task `CLE-T-VJQZSW` 다. [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 승인본에는 근거와 함께 있는 예외 세 가지가 이 규약에는 없었다. 그래서 그 문서를 검토할 때마다 이 규약과 어긋난다는 경고가 다시 나왔다. 동작은 바꾸지 않았다. 지금 구현과 그 문서의 내용을 이 규약에 옮겨 적었다.
-
-- **트리거 단위 토큰 경로의 `401 EXECUTION_NOT_FOUND`**: 규칙 10 과 `404` 행만 보면 없는 실행은 `404` 다. 트리거 단위 토큰 경로에서는 가드가 핸들러 전에 실행과 그 트리거를 찾아 토큰을 견준다. 그래서 부재도 다른 토큰 검증 실패와 같은 `401` 로 거부한다. 코드의 뜻과 두 상태를 하나로 맞추지 않은 이유는 [에러 코드 규약과 카탈로그 「트리거 단위 토큰 경로의 부재는 401 `EXECUTION_NOT_FOUND` 로 적는다 (2026-10-17)」](CLE-API-ERRCODES.md#트리거-단위-토큰-경로의-부재는-401-execution_not_found-로-적는다-2026-10-17) 에 있다. 이 문서의 `401` · `404` 행은 그쪽을 가리키기만 한다.
-- **토큰 갱신의 `410`**: 토큰 갱신은 없는 실행에도 `410 EXECUTION_TERMINATED` 를 돌려준다. 규칙 10 대로라면 처음부터 없던 실행은 `404` 다. 클라이언트에게는 어느 쪽이든 그 실행을 더 이을 수 없다는 같은 결론이다. 있고 없음을 가르지 않는 편이 정보 노출도 줄인다(REQ-EIAIN-024). 그래서 `410` 행의 예외 목록에 더했다.
-- **`/cancel` 과 `/refresh-token` 의 한도**: `/cancel` 은 `interact` 의 `command: "cancel"` 과 뜻이 같은 별칭이고 `/interact` 와 같은 실행 단위 카운터를 센다. `/refresh-token` 에는 실행 단위 한도가 없고 전역 기본값만 걸린다. 수치는 규칙 12 대로 §7 표에만 적는다. [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 는 두 사실을 수치 없이 적고 있어 고치지 않았다.
-
-### 공개 웹훅 추가 한도에서 채팅 채널 트리거를 뺐다 (2026-11-12)
-
-NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 사람 결정(2026-11-12, NERV 질문 `01a1cd72-1888` 1안)으로 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) v10 이 공개 웹훅의 IP 단위 한도와 본문 크기 한도의 대상에서 채팅 채널 트리거를 뺐다. 채팅 채널 트리거는 `auth_config_id IS NULL` 이어도 공개 웹훅의 IP 단위 한도와 32KB 본문 한도를 받지 않고 `/api/hooks/*` 본문 파서 한도(기본 1MB)만 받는다. 채널 프로바이더는 적은 수의 발신 IP 에서 모든 사용자의 update 를 보내고 `429` · `413` 을 받으면 재전송하거나 웹훅을 끌 수 있기 때문이다. 근거의 기준은 [웹훅 「본문 크기를 공개와 인증으로 나눈 이유」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#본문-크기를-공개와-인증으로-나눈-이유) 의 채팅 채널 트리거 항목이다.
-
-그래서 §7 표의 공개 웹훅 추가 한도 행과 §11.7 의 대상을 좁혔다. 이 문서는 웹훅 본문 크기 정책을 §6 의 `413` 행에서 웹훅 문서에 맡기므로 본문 크기 서술은 고치지 않았다.
-
-### 채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)
-
-NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 사람 결정(2026-11-12, NERV 질문 `01a1d025-94b3-7448-b9dc-4165d0b6ed5f`)으로 채팅 채널 트리거의 인바운드 요청을 전역 요청 빈도 제한(`UserThrottlerGuard`, 분당 100건)에서 뺐다. 채널 프로바이더는 적은 수의 발신 IP 에서 모든 사용자의 update 를 보낸다. 그래서 트래픽이 많은 봇은 IP 단위로 세는 전역 한도에 닿기 쉽다. 그때 나가는 `429` 는 프로바이더의 재전송과 웹훅 비활성화를 부른다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 채팅 채널 인바운드는 `202` 고정을 지킨다. 남용을 막는 장치와 채팅방 단위 한도를 넘었을 때의 응답은 [§7 머리 콜아웃](#7-요청-빈도-제한) 에 있다. 이 결정에 맞춰 규칙 12, §7 머리 콜아웃, 「웹훅 수신」 행, §11.7 을 고쳤다.
-
-이 결정은 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 의 2026-11-12 결정(NERV Task `CLE-T-XKK9KH` 의 사람 답) 가운데 채팅 채널 인바운드에도 전역 한도를 건다는 부분을 바꾼다. 채팅 채널 문서의 R-CC-12 와 「인바운드 HTTP 응답 계약」 도 이 결정에 맞춰 고쳤다.
-
-NERV Task `CLE-T-ZC34Y0` 에서 구현했다. 채팅 채널 트리거인지는 트리거를 조회해야 알 수 있다. 그런데 전역 `APP_GUARD` 인 `UserThrottlerGuard` 는 트리거를 조회하는 라우트 가드 `PublicWebhookThrottleGuard` 보다 먼저 돈다. 그래서 웹훅 수신 라우트에 `@DeferGlobalThrottle()` 을 붙여 전역 가드가 그 라우트를 건너뛰게 했다. 그 라우트의 전역 한도는 `PublicWebhookThrottleGuard` 뒤에 둔 라우트 가드 `HookTriggerThrottlerGuard` 가 센다. 이 가드는 앞 가드가 조회한 트리거로 면제 여부를 판정한다. 판정 함수는 `isSignedChatChannelTrigger` 이고 인바운드 인증기가 서명을 검증하는 조건과 같다. 면제 대상이 아니면 전역 가드와 같은 한도 · 같은 저장소 · 같은 키(`req.ip`)로 센다. 그래서 채팅 채널 트리거가 아닌 웹훅은 전과 같은 버킷을 같은 한도로 쓴다. 트리거가 없거나(`404` 로 끝날 요청) 조회에 실패한 요청은 센다. 판정할 수 없는 요청을 면제하지 않으려는 것이다.
-
-2026-11-13 에 면제를 서명 참조가 있는 채팅 채널 트리거로 좁혔다(NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A). 서명 참조가 없는 채팅 채널 트리거는 인바운드 인증기가 서명 검증을 건너뛴다. 그래서 서명 검증 실패 한도도 걸리지 않는다. 그런 트리거까지 전역 한도에서 빼면 IP 단위 한도가 하나도 남지 않는다. 공개 웹훅 추가 한도는 그대로 채팅 채널 트리거 전부를 뺀다.
-
-순서를 바꾼 대가는 둘이다.
-
-- 이 라우트는 전역 한도를 넘은 요청도 트리거를 한 번 조회(`endpointPath` 인덱스)한 뒤에 `429` 로 거절한다. 요청마다 늘어나는 DB 왕복은 없다. 컨트롤러가 그 조회 결과를 다시 쓴다.
-- 공개 웹훅은 본문 크기 한도(`413`)와 IP 단위 시작 한도(`429`)를 전역 한도의 `429` 보다 먼저 받는다.
-
-e2e 는 `NODE_ENV=test` 에서 돌아 전역 한도가 꺼져 있다. 그래서 가드 순서는 e2e 가 아니라 wire 테스트(`hooks-throttle.wire.spec.ts`)로 확인한다.
-
-같은 초안에서 「일반 API」 행도 고쳤다.
-
-- 제한 칸에 로그인 없는 요청은 IP 로 센다는 사실을 더했다. `UserThrottlerGuard` 는 인증된 요청을 사용자 키(`user:<sub>`)로 세고 그 밖의 요청을 `req.ip` 로 센다(§7 키 결정 규칙). 행에는 사용자 기준만 적혀 있어 공개 라우트의 집계 키가 보이지 않았다.
-- 헤더 칸을 통과한 응답과 거부 응답으로 나눴다. `@nestjs/throttler` 는 통과한 응답에 `X-RateLimit-Limit` · `X-RateLimit-Remaining` · `X-RateLimit-Reset` 을 싣는다. `429` 로 거부할 때는 `Retry-After` 만 싣고 `X-RateLimit-*` 은 싣지 않는다. 전에는 거부 응답에도 `X-RateLimit-*` 이 실리는 것처럼 읽혔다. 표 아래 첫 불릿의 `Retry-After` 서술과 같은 내용이다.
-
-### 채팅 채널 인터랙션 응답을 §6 · §11.4 에 적었다 (2026-11-13)
-
-NERV Task `CLE-T-GNTWP9` 에서 고쳤다. 채팅 채널 문서가 Discord 인터랙션 · Slack Interactivity 는 트리거가 꺼져 있어도 `200` 과 인터랙션 응답을 받고 Discord 슬래시 명령에는 즉시 응답을 보낸다고 정했다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약), NERV Task `CLE-T-TSEP9G`). 이 문서의 §6 `410` 행과 §11.4 봉투 예외를 그 계약에 맞췄다.
-
-### 채팅 채널의 전역 한도 예외를 §7 머리 콜아웃 한 곳에 모았다 (2026-11-13)
-
-NERV Task `CLE-T-ZC34Y0` · `CLE-T-WGNJWE` 에서 고쳤다. 채팅 채널 트리거 요청이 전역 한도를 받지 않고 채팅방 단위 한도를 넘어도 `202` 를 받는다는 사실이 여러 곳에 거의 같은 문장으로 있었다. 규칙 12, §7 머리 콜아웃, §7 표의 「웹훅 수신」 · 「공개 웹훅 추가 한도」 행, §11.7, 위 「채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)」 다. 한 곳만 고치면 나머지와 어긋난다. 그래서 정본을 [§7 머리 콜아웃](#7-요청-빈도-제한) 에 두고 나머지 자리에는 한 문장과 그 콜아웃 링크만 남겼다.
-
-- 구현을 마친 사실은 「채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)」 에 적었다. 그 절은 전에 코드가 채팅 채널 인바운드도 전역 한도로 센다고 적었다.
-- 「전역 요청 빈도 제한은 HTTP 요청만 센다」 항목과 키 결정 규칙은 전역 가드가 HTTP 요청을 모두 센다고 읽혔다. 두 항목에 웹훅 수신의 라우트 가드와 채팅 채널 트리거 예외를 더했다. 구현 위치에도 그 가드와 가드 순서 테스트를 더했다.
-- 서명 검증 실패 한도는 콜아웃에 한 줄을 두고 수치는 §7 표에 「채팅 채널 서명 검증 실패」 행으로 더했다. §7 표가 요청 빈도 제한 수치의 단일 기준이기 때문이다. 쇼핑몰 앱 설치 진입점의 실패 잠금도 같은 이유로 표에 수치가 있다. 동작 규칙은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
-- 기각한 대안: 다른 자리의 문장을 지우고 콜아웃만 남기는 안. 규칙 12 나 §11.7 만 읽는 사람은 예외가 있다는 것조차 알 수 없다.
+→ [HTTP API 규약 — 요청 빈도 제한](CLE-API-CONV-RATE.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다-2026-10-22)

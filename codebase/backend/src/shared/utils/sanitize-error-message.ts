@@ -284,9 +284,9 @@ export {
  * | `sanitizePayloadForWs` (WS 키-이름) | `[REDACTED]` | fanout 분기 직전 — emit 값-마스킹과 겹친다 |
  * | `sanitizePayloadForWs` 깊이 상한 | `[REDACTED_DEPTH]` | 같은 위 |
  *
- * `[REDACTED]` 는 **문서화된 계약**이다 — [웹훅 「수신 헤더 마스킹」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹)
+ * `[REDACTED]` 는 **문서화된 계약**이다 — [웹훅 「수신 헤더 마스킹」](CLE-TRIG-WEBHOOK-AUTH#수신-헤더-마스킹)
  * 이 규정하고 [수동 트리거 노드 「웹훅 경로 (port `out`)」](CLE-NODE-MANUAL#웹훅-경로-port-out) ·
- * [표현식 언어 「`$trigger`: 웹훅 요청 뷰」](CLE-WF-EXPR#trigger-웹훅-요청-뷰) ·
+ * [표현식 언어 「`$trigger`: 웹훅 요청 뷰」](CLE-WF-EXPR-VARS#trigger-웹훅-요청-뷰) ·
  * [실행 컨텍스트 「트리거 입력 파라미터 싣기」](CLE-EXEC-CONTEXT#트리거-입력-파라미터-싣기) ·
  * [트리거 데이터와 흐름 「웹훅 진입」](CLE-TRIG-DATA#웹훅-진입) 가 그 전제를 공유한다. 재마스킹하면 같은 헤더가 읽는 경로마다
  * 다르게 보인다 — 이 저장소가 마스킹 연쇄 작업으로 없애 온 바로 그 병이다.

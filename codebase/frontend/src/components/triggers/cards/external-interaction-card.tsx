@@ -101,7 +101,7 @@ export function ExternalInteractionCard({
 
   // 한 번만 보여 주는 평문(저장 응답의 첫 알림 서명 시크릿 · 트리거 단위 토큰, rotate · revoke 결과).
   // 서버는 다시 보여 주지 않는다. 한 저장 응답에 두 비밀이 함께 올 수 있어 종류별 목록으로 둔다.
-  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE#상세-드로어) · CLE-T-EQDYC1
+  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE-UI#상세-드로어) · CLE-T-EQDYC1
   const [oneTimeSecrets, setOneTimeSecrets] = useState<OneTimeSecret[]>([]);
 
   function showOneTimeSecret(kind: OneTimeSecretKind, secret: string): void {

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027", "REQ-PROFILE-028", "REQ-PROFILE-029"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "2f6ec1a08758468a6cf01c1f5a0d839b658e93527c5101104bed04e703377c3e"
+content_hash: "76eb01faff78b199810f61793782a81f8d8bb2ef228895241bae4af3b0c929d1"
 read_as: "approved_fallback"
-task: "CLE-T-YG34W6"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "c443cc22a8082ffad72239846b4b180620f468fda37baab593531cb3ed7aa288"
-etag: "sha256-9e30bceadc97a8d818eb010d3b80661f5a79cf2bb9b3907dc25eb789115b7c4b"
+mirror_sha256: "1bfca1a5ac9324b681952b4d35832157b019c5559c9e59bd245ba845668bb99d"
+etag: "sha256-20a20af670fd4a12395584a5a57de614b74917593dc33d9db395f0cc022ef2b0"
 ---
 > 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목은 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -84,8 +84,6 @@ etag: "sha256-9e30bceadc97a8d818eb010d3b80661f5a79cf2bb9b3907dc25eb789115b7c4b"
 | --- | --- |
 | 내 프로필 | `/profile` 로 이동한다. 기본은 읽기 전용이고 편집은 카드별 [편집] 이나 전용 페이지로 나눈다 |
 | 로그아웃 | 세션을 끝내고 로그인 페이지로 이동한다. 절차는 [세션과 토큰](CLE-ACCT-SESSION.md) |
-
-현재 구현은 `codebase/frontend/src/components/layout/sidebar.tsx` 의 사용자 영역 팝업이 프로필 링크와 로그아웃 버튼만 그린다.
 
 팝업 밖에 있는 항목은 다음과 같다.
 
@@ -179,7 +177,7 @@ etag: "sha256-9e30bceadc97a8d818eb010d3b80661f5a79cf2bb9b3907dc25eb789115b7c4b"
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| GET | `/api/users/me` | 내 프로필 조회. 응답은 `CurrentUserProfileDto` 다. `PATCH /api/users/me` 와 아바타 업로드가 돌려주는 프로필 응답(`UserProfileDto`)에 진행 중인 이메일 변경을 표시하는 `pendingEmail: string \| null` 을 더한 모양이다. `pendingEmail` 은 확인 대기 중인 새 이메일이고 늘 실린다. 없으면 null 이다. TOTP 켜짐 여부 `twoFactorEnabled: boolean` 은 두 응답에 모두 있다. `twoFactorEnabled` 는 TOTP 만 가리키고 Passkey 등록 여부는 담지 않는다. 수정 · 업로드 응답(`UserProfileDto`)에는 `pendingEmail` 필드가 없다. 이메일 변경 대기 표시는 조회 화면이 `GET` 으로만 읽는 부가 맥락이라 조회 응답에만 둔다. 수정 · 업로드 응답에 이 필드가 없는 것은 `twoFactorEnabled` 를 더한 NERV Task `CLE-T-KTZ9YV` 전부터 있던 동작이다. TOTP secret 과 복구 코드는 싣지 않는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 「응답에 싣지 않는 민감 컬럼 7개」) |
+| GET | `/api/users/me` | 내 프로필 조회. 응답은 `CurrentUserProfileDto` 다. `PATCH /api/users/me` 와 아바타 업로드가 돌려주는 프로필 응답(`UserProfileDto`)에 진행 중인 이메일 변경을 표시하는 `pendingEmail: string \| null` 을 더한 모양이다. `pendingEmail` 은 확인 대기 중인 새 이메일이고 늘 실린다. 없으면 null 이다. TOTP 켜짐 여부 `twoFactorEnabled: boolean` 은 두 응답에 모두 있다. `twoFactorEnabled` 는 TOTP 만 가리키고 Passkey 등록 여부는 담지 않는다. 수정 · 업로드 응답(`UserProfileDto`)에는 `pendingEmail` 필드가 없다. 이메일 변경 대기 표시는 조회 화면이 `GET` 으로만 읽는 부가 맥락이라 조회 응답에만 둔다. TOTP secret 과 복구 코드는 싣지 않는다([계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 「응답에 싣지 않는 민감 컬럼 7개」) |
 | PATCH | `/api/users/me` | 프로필 수정(이름, `avatarUrl`, 언어, 테마). 테마는 `light`·`dark`·`system` 만 받고 다른 값은 400 `VALIDATION_ERROR` 로 거부하며 저장된 값을 바꾸지 않는다. 이메일은 바꾸지 않는다. 이메일은 `/api/users/me/email-change/*` 별도 흐름이다 |
 | POST | `/api/users/me/avatar` | 아바타 이미지 파일 업로드. `multipart/form-data` 의 `file` 필드, 최대 2MB, 확장자 `png`·`jpg`·`jpeg`·`webp`·`gif`(SVG 제외). 성공하면 200 과 `PATCH /api/users/me` 와 같은 프로필 응답(`UserProfileDto`). 파일 없음·빈 내용 400 `FILE_REQUIRED`, 확장자 불허 400 `INVALID_FILE_TYPE`, 크기 초과 413 `PAYLOAD_TOO_LARGE` |
 | POST | `/api/users/me/change-password` | 비밀번호 변경. 성공하면 모든 세션을 끊고 현재 기기에 새 세션을 발급한다. `{ accessToken }` 을 돌려주고 리프레시 쿠키를 바꾼다. 비밀번호 없음 401 `PASSWORD_REQUIRED`, 불일치 401 `PASSWORD_INVALID`, 사용자 없음 404 `USER_NOT_FOUND` |
@@ -237,14 +235,14 @@ etag: "sha256-9e30bceadc97a8d818eb010d3b80661f5a79cf2bb9b3907dc25eb789115b7c4b"
 
 ### 테마 `system` 값을 저장하게 했다
 
-2026-10-10 결정이다(NERV Task `CLE-T-E7MF3Q`, 리뷰 발견 `01a0e542-19bb-75af-9f64-5529605f2b98`). 이 문서의 예전 미결 사항 «테마 `system` 값을 저장할 수 있는가» 를 닫는다. 환경설정 카드에는 System 선택지가 이미 있었고 DTO 도 `system` 을 받았다. DB CHECK 만 `light`·`dark` 로 남아 있어서 System 을 저장하면 500 이 났다.
+2026-10-10 결정이다(NERV Task `CLE-T-E7MF3Q`). 예전 미결 사항 «테마 `system` 값을 저장할 수 있는가» 를 닫는다. 환경설정 카드에는 System 선택지가 이미 있었고 DTO 도 `system` 을 받았다. DB CHECK 만 `light`·`dark` 로 남아 있어서 System 을 저장하면 500 이 났다.
 
 | 안 | 채택·기각 이유 |
 | --- | --- |
 | CHECK 를 넓혀 `system` 을 저장한다 | 채택. 화면과 DTO 가 이미 받는 값을 DB 도 받게 한다. 마이그레이션 방식은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 에 있다 |
 | DTO 와 화면에서 `system` 을 뺀다 | 기각. OS 색상 모드를 따르는 선택지를 잃는다. 제품 요구사항 NAV-UP-06 이 라이트·다크만 적은 것은 시스템 값을 막으려던 것이 아니라 적지 않은 것으로 봤다 |
 
-이때는 시스템 테마 요구(REQ-PROFILE-023)를 당시 구현의 범위로 적었다. 당시 구현은 테마를 적용하는 순간에 OS 색상 모드를 한 번만 읽어 `.light`·`.dark` 클래스 하나로 바꿨다. 화면이 이 클래스만 따르는 것은 [브랜드](../CLE-UI/CLE-UI-BRAND.md) 의 결정과 같다. 예전 문장 «OS 색상 모드를 따른다» 는 OS 설정이 바뀌면 화면도 따라 바뀐다고 읽힐 수 있어서 좁혔다. 실시간으로 따라갈지는 테마 적용 시점과 함께 미결 사항으로 남겼다. 2026-11-06 에 이 요구를 OS 변경까지 바로 따르도록 넓혔다. 아래 「저장한 테마를 앱 전체에 적용하고 `system` 은 OS 변경을 따른다」 를 본다.
+이때 시스템 테마 요구(REQ-PROFILE-023)는 적용 순간 OS 색상 모드를 한 번만 읽는 범위로 좁혔다. 예전 문장 «OS 색상 모드를 따른다» 는 OS 설정이 바뀌면 화면도 따라 바뀐다고 읽힐 수 있었기 때문이다. 실시간으로 따라갈지는 테마 적용 시점과 함께 미결로 남겼다. 2026-11-06 에 이 요구를 OS 변경까지 바로 따르도록 넓혔다(아래 「저장한 테마를 앱 전체에 적용하고 `system` 은 OS 변경을 따른다」).
 
 범위 밖 값의 400 거부는 새 요구(REQ-PROFILE-026)로 따로 적었다. 예전에는 DTO 를 지난 `system` 이 DB 에서 500 으로 실패했다. 그래서 허용 값 밖의 값은 DTO 가 먼저 막고 저장된 값을 건드리지 않는다는 점을 요구로 남긴다.
 
@@ -278,8 +276,8 @@ etag: "sha256-9e30bceadc97a8d818eb010d3b80661f5a79cf2bb9b3907dc25eb789115b7c4b"
 
 ### 응답 표기와 외부 아바타 요청 범위를 정리했다 (2026-11-13)
 
-NERV Task `CLE-T-YG34W6` 에서 고쳤다. 동작과 응답 형식은 바뀌지 않았다.
+동작과 응답 형식은 바뀌지 않았다(NERV Task `CLE-T-YG34W6`).
 
-- 비밀번호 변경 응답을 봉투째(`{ data: { accessToken } }`) 적은 두 곳을 `data` 안의 내용만 적게 고쳤다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 5).
-- `pendingEmail` 을 «수정 · 업로드 응답에서는 키를 뺀다» 로 적어서 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 「5.5 부재 표현: `null` 과 키 생략」 의 키 생략처럼 읽혔다. 실제로는 응답 DTO 가 둘이다. 조회는 `CurrentUserProfileDto` 라 `pendingEmail` 이 늘 있고 값이 없으면 null 이다. 수정 · 업로드는 `UserProfileDto` 라 이 필드가 선언에 없다. 같은 필드의 부재 표현이 엔드포인트마다 다른 경우가 아니어서 DTO 이름으로 적었다.
-- 「아바타」 에 외부 URL 아바타의 요청 범위와 `referrerPolicy="no-referrer"` 를 적었다. NERV Task `CLE-T-3158TZ` 가 사이드바에 아바타를 보이면서 외부 URL 을 모든 (main) 화면에서 요청하게 됐다. 구현은 그때 Referer 를 막았는데 스펙에는 적지 않았다.
+- 비밀번호 변경 응답은 봉투가 아니라 `data` 안의 내용(`{ accessToken }`)만 적는다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 5).
+- `pendingEmail` 은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 「5.5 부재 표현: `null` 과 키 생략」 의 키 생략이 아니다. 응답 DTO 가 둘이다. 조회는 `CurrentUserProfileDto` 라 `pendingEmail` 이 늘 있고 값이 없으면 null 이다. 수정 · 업로드는 `UserProfileDto` 라 이 필드가 선언에 없다. 같은 필드의 부재 표현이 엔드포인트마다 다른 경우가 아니어서 DTO 이름으로 적었다.
+- 사이드바에 아바타를 보이면서(NERV Task `CLE-T-3158TZ`) 외부 URL 을 모든 (main) 화면에서 요청하게 됐다. 그때 구현이 막은 Referer(`referrerPolicy="no-referrer"`)와 요청 범위를 「아바타」 에 적었다.

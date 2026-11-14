@@ -71,7 +71,7 @@ export interface Cafe24CallOptions {
   timeoutMs?: number;
   /**
    * The execution's `context.abortSignal`, cascaded into this call's own
-   * timeout controller ([노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄)). Absent for callers outside a
+   * timeout controller ([노드 취소](CLE-EXEC-CANCEL-NODES#fetch-자체-타임아웃과의-연쇄)). Absent for callers outside a
    * node run (connection tests, token refresh) — the timeout still applies.
    */
   signal?: AbortSignal;
@@ -1248,7 +1248,7 @@ export class Cafe24ApiClient {
     const timeoutMs = opts.timeoutMs ?? 30_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    // [노드 취소](CLE-EXEC-CANCEL#fetch-자체-타임아웃과의-연쇄) — cascade the execution's abortSignal into the
+    // [노드 취소](CLE-EXEC-CANCEL-NODES#fetch-자체-타임아웃과의-연쇄) — cascade the execution's abortSignal into the
     // controller this request watches, so a cancelled execution stops the
     // in-flight call instead of waiting out `timeoutMs`. An already-aborted
     // upstream aborts before the round trip.

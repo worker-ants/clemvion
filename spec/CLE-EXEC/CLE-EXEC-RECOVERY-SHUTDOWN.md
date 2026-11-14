@@ -1,0 +1,94 @@
+---
+id: "CLE-EXEC-RECOVERY-SHUTDOWN"
+title: "장애 복구와 안전 종료 — 안전 종료와 영속 재개 큐"
+type: "design"
+version: 1
+status: "approved"
+requirements: []
+basis_superseded: false
+parent: "CLE-EXEC-RECOVERY"
+ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
+area: "CLE-EXEC"
+content_hash: "a3b36bc02cbde579c9b58c1765a50ba11d35bd6746def5c7fe353e4c6460f80d"
+read_as: "approved_fallback"
+task: "CLE-T-55J6ZX"
+source_paths: []
+mirror_sha256: "e73327891e4a9960b3420729bc8c2a671d0cac4b42e0acf75bbbf2a32cac5199"
+etag: "sha256-0ac324521131e097e307348f2f4af54bbc5e02bdc0268fdf88e57fded044556e"
+---
+## 개요
+
+이 문서는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 의 하위 문서로 SIGTERM 안전 종료(graceful shutdown) 절차를 정한다. 영속 재개 큐를 택한 결정, 안전 종료 때의 시간 과소 계산 허용, 재개 큐 DLQ 경고를 로그로 남기는 결정은 이 문서의 Rationale 이 맡는다. 재개 큐의 재시도 층 합산은 [체크포인트와 rehydration](CLE-EXEC-RECOVERY-REHYDRATE.md#재시도-층의-합산) 에 있다. 재개 큐의 계약과 발행 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 이 정한다.
+
+## 안전 종료
+
+SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker compose down` 등 모든 정상 종료에 적용한다.
+
+1. **새 실행 시작을 거부한다.** 새 실행을 시작하는 HTTP 진입점(`POST /api/workflows/:id/execute`, 단일 노드 실행 `POST /api/workflows/:id/nodes/:nodeId/execute`)이 **503 Service Unavailable** 로 응답한다. 본문은 표준 에러 응답 봉투(`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`)이고 `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더를 함께 싣는다. 에러 응답 봉투의 기준은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 다. 로드 밸런서 drain 동안 트래픽은 다른 인스턴스로 간다.
+   - 실행 시작은 REST 로만 하므로 이 두 진입점 거부로 완결된다. WebSocket `execution.start` 는 비채택(won't-do)으로 끝났다(REST 로 대체, 핸들러 없음). 근거는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다.
+2. `execution-run` / `execution-continuation` / `background-execution` 의 진행 중 작업을 처리하는 워커는 현재 세그먼트(노드)를 완료까지 진행한다. 새 작업은 가져가지 않는다. 한 세그먼트 안의 노드 dispatch 는 큐를 거치지 않는 in-process 반복문이다.
+3. **입력 대기 실행은 건드리지 않는다.** DB 상태를 그대로 둔다. park 에서 이미 메모리를 비웠으므로 잃는 것이 없다. 사용자 입력이 오면 rehydration 으로 재개한다.
+4. **실행 중 노드**는 다음과 같이 처리한다.
+   - `SIGTERM_GRACE_MS`(기본 30초)까지 완료를 기다린다.
+   - 완료하면 평상시 흐름대로 다음 노드로 진행한다. 재개 큐가 영속이므로 이후 재개는 다른 인스턴스가 가져간다.
+   - 완료하지 못하면 그 노드 실행을 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다. 실행은 노드의 에러 처리 정책에 따라 처리한다(원문: `stop` 이면 실행 `failed`, `continue` 면 다음 노드로 진행). 체크포인트 기반 재개로 다른 인스턴스가 미완료 세그먼트를 이어받을 수도 있다.
+   - **현재 구현**: 정책 분기 없이 모두 `stop` 과 같이 처리한다(노드 실행과 실행 모두 `failed`). `continue` 분기는 미구현이다. `continue` 값의 정의가 갈린다. [미결 사항](CLE-EXEC-RECOVERY.md#미결-사항) 참조.
+5. `SIGTERM_GRACE_MS` 가 지나면 강제로 끝낸다.
+
+**구현**: `ShutdownStateService.onApplicationShutdown` 이 종료를 처리한다.
+
+- 노드 실행은 실행 시작 때 `ShutdownStateService.registerInFlight` 로 등록되고 끝날 때 해제된다(try 첫 줄과 finally).
+- 종료 때는 **이 인스턴스가 추적 중인** 노드 실행과 실행만 대상으로 한다(`WHERE id IN (...)`). 유예 시간 동안 drain 을 기다리고 남은 것을 노드 실행과 실행 각각 원자 UPDATE 로 `failed` + `error.code='SERVER_INTERRUPTED'` 로 표시한다.
+- 종료 중 들어온 새 실행은 503 + `Retry-After` 로 거부한다.
+
+SIGTERM 종료를 `failed` 로 볼지 `cancelled` 로 볼지는 정의가 갈린다. [미결 사항](CLE-EXEC-RECOVERY.md#미결-사항) 참조.
+
+| 환경 변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `SIGTERM_GRACE_MS` | `30000`(30초) | k8s `terminationGracePeriodSeconds` 와 맞춰 설정한다. 셀프 호스팅 Helm Chart 권장값은 `terminationGracePeriodSeconds = ceil(SIGTERM_GRACE_MS / 1000) + 5` 다(5초는 readiness drain 여유). |
+
+워커 동시성, 실행 시간 한도, 재개 큐 시도 횟수는 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 의 환경 변수 표에 있다.
+
+## Rationale
+
+### 영속 재개 큐와 안전 종료 (Durable Continuation)
+
+**운영 회귀**: k8s 재배포 때 입력 대기 실행이 한꺼번에 "Execution failed: server restarted while waiting for user input" 으로 끝났다. 원인은 셋이었다. (a) 재개 resolver 가 메모리에만 있었다(`pendingContinuations: Map`). (b) 부팅 복구 스캔이 입력 대기도 stale 대상에 넣었다. (c) SIGTERM 안전 종료가 구현되지 않았다.
+
+**채택, BullMQ 영속 재개 큐(`execution-continuation`) + rehydration**: `background-execution` 큐로 같은 방식이 이미 검증됐고 멱등 키와 DLQ 까지 BullMQ 에 내장돼 있어 새 인프라가 없다. 폼 제출, 버튼 클릭, AI 메시지 응답은 어느 인스턴스로 들어올지 모르므로 입력 대기 실행을 깨우려면 인스턴스 사이 신호 전달이 필요하다. 영속 큐는 at-least-once 의미, jobId 멱등 키, DLQ 를 모두 준다. 메모리 resolver 만 쓰던 방식은 컨테이너가 죽으면 fan-out 수신자 누구도 resolve 하지 못해 사용자 입력이 조용히 사라졌다. 신호가 영속되므로 인스턴스가 죽었다 살아나도 다음 인스턴스가 rehydration 으로 재개한다. 이 결정은 원본 설정 노출 결정([노드 핸들러 계약](CLE-EXEC-HANDLER.md))과 관계가 없다. 그것은 핸들러 층, 이것은 엔진 인프라 층 결정이다.
+
+검토 후 택하지 않은 방향:
+
+- **Temporal·Inngest 같은 전용 워크플로우 엔진으로 이전**: 엔진은 표현식 해석, 멀티턴, 컨테이너, 채팅 채널 트리거 등 도메인 코드를 노드 핸들러 30여 개에 나눠 두고 있어 전면 이전 비용이 너무 크다. durable timer, signal, child workflow 요구가 쌓이면 다시 검토한다.
+- **`WAITING_FOR_INPUT → INTERRUPTED` 새 상태 값 도입**: 실행 상태 enum 을 넓히면 DB 마이그레이션, 프론트엔드 상태 표시, 외부 API 응답, 재실행, 실행 내역 필터 등 여러 문서가 함께 흔들린다. 외부 상태는 그대로 두고 안에서 rehydrate 하는 편이 바꿀 곳이 적다.
+- **Redis pub/sub 유지 + "Map 에 키가 없으면 기다렸다 재시도"**: 대기·재시도 조정이 작업마다 다르고 at-most-once 한계를 돌아갈 뿐 근본 해결이 아니다.
+
+**sticky fast-path 제거, "항상 큐에 넣는다" 원칙 유지**: 초기 검토안에는 "발행자 인스턴스에 키가 있으면 큐를 건너뛰고 바로 resolve" 하는 sticky fast-path 가 있었다. 옛 원칙 "모든 진입점은 항상 발행한다. '내 Map 에 있으면 바로' 분기는 race 창이다" 와 정면으로 부딪친다. 채택안은 sticky fast-path 를 없애고 "항상 재개 큐에 넣는다" 로 통일한다. 로컬 resolve 로 아끼는 마이크로초는 운영 단순성과 디버깅 가능성보다 가치가 낮다. 옛 원칙은 BullMQ 시대에도 유효하다.
+
+**"키가 없으면 즉시 throw 하지 않는다" 원칙의 확장**: 옛 pub/sub 시대에 "키 없음 → 조용히 건너뜀" 으로 정한 것은 다른 인스턴스의 Map 에 있을 가능성 때문이었다. BullMQ 로 영속한 뒤에는 "키 없음 = DB 에서 다시 만든다" 로 뜻이 강해져 case A rehydration 경로가 됐다. 원칙은 폐기되지 않고 이어진다.
+
+**새 WebSocket 이벤트를 만들지 않는다**: `execution.resumed_after_restart` 같은 새 이벤트는 만들지 않는다. 기존 `execution.resumed`(transient)와 뜻이 비슷해 클라이언트가 헷갈릴 위험이 크고 SSE 매핑까지 고쳐야 한다. 재개 사실은 평상시의 `execution.node.completed` / `execution.node.started` 이벤트로 충분히 보인다. 디버깅용 백엔드 인스턴스 id 가 필요하면 백엔드 로그나 별도 텔레메트리 export 로 처리한다.
+
+**재개 경로에서 outbound routing context 를 다시 등록한다**: 느린 경로 재개는 다른 프로세스나 재시작 뒤의 워커가 가져가므로 `execute()` 때 등록한 routing context(triggerId / workflowId / chatChannel)가 항상 사라져 있다. 특히 `RESUME_INCOMPATIBLE_STATE` 는 "인스턴스 재시작으로 멀티턴 상태를 잃은" 경우다. routing context 를 다시 등록하지 않고 취소를 표시하고 발행하면 채널 어댑터 안내(CCH-AD-05)가 conversationKey 없이 나가 채널에서 조용히 사라진다. 사용자는 "응답 없음" 을 겪고 다음 메시지가 새 대화로 시작된다. 그래서 rehydration 은 실행 행을 확인한 직후 영속된 triggerId / workflowId / `input_data.chatChannel` 로 routing context 를 다시 등록한다(`execute()` 최초 등록과 같은 형태). 새 WS 이벤트 없이 기존 발행 경로의 fan-out 봉투만 되살리므로 위 원칙과 맞는다.
+
+- **best-effort 교환**: 재등록이 예외를 던져도 rehydration 을 막지 않고 warn 로그만 남기고 진행한다. 등록 실패는 "안내가 채널에 닿지 못함" 이라는 부작용이 있지만 그것만으로 실행 재개(또는 취소 표시)를 실패시킬 이유는 아니다. 알림 전달과 실행 정합성을 나눈다.
+
+**안전 종료 때 세그먼트 시간이 덜 세어지는 것을 허용한다(PR2a 결정)**: 실행 시간 한도는 세그먼트 진행 경과분을 메모리의 `segmentStartMs` Map 에 두었다가 세그먼트가 끝날 때(`updateExecutionStatus` 가 `running` 을 떠날 때) `Execution.active_running_ms` 에 flush 한다. SIGTERM 안전 종료로 진행 중 세그먼트가 멈추면 그 경과분이 DB 에 쓰이지 않고 사라질 수 있다. 그 세그먼트가 stalled 로 다른 워커에 재배달되면 새 워커는 `segmentStartMs` 가 없어 그 구간을 세지 못한다. 크래시 재구동(PR3)과 stalled 재배달(PR4)도 세그먼트 시작 시각을 영속하지 않으므로 같은 과소 계산이 남는다. 이 교환을 일부러 허용한다.
+
+- 안전 종료는 드문 인프라 이벤트이고 단일 세그먼트 길이(초~분)는 총 한도(기본 30분)보다 작다. 한도 우회 효과는 미미하다.
+- flush 훅(`OnModuleDestroy` + 부분 누적 + DB 저장)을 더하면 SIGTERM 경로가 복잡해지고 재배달 워커의 `segmentStart` 재기록과 경합한다.
+- 경합 없는 flush(세그먼트 시작 시각을 Redis·DB 에 영속)는 세그먼트 시작 시각 영속에 달려 있다. PR4 는 사용자 결정(Q2 미룸)으로 마이그레이션 없이 진행해 이를 영속하지 않았다. 과소 계산은 후속 후보로 남는다.
+- 그래서 무한 재구동을 막는 1차 경계는 실행 시간 한도가 아니라 **트리거 자체**다(부팅 때 한 번, stalled 1회). 실행 시간 한도는 과소 계산을 감안한 best-effort 2차 경계다. 과소 계산은 "한도를 덜 적용" 하는 방향이라 fail-open 이 아니라 보수적인 과소 적용이며 조용히 과하게 끊을 위험은 없다.
+
+### DLQ 경고는 로그로 남긴다 (Phase 3.1)
+
+재개 큐 DLQ 모니터(`ContinuationDlqMonitorService`)가 OTel 메트릭 대신 구조화된 `logger.error` 경고를 쓰는 근거다.
+
+- Phase 3.1 당시 백엔드는 OTel traces 만 있었다(MeterProvider 미구성, custom 메트릭 0건). DLQ 적재량 경고 하나를 위해 metrics SDK 파이프라인 전체를 들이는 것은 지나쳤다. 지금은 MeterProvider 와 PrometheusExporter 가 구성돼 있고 큐 깊이(DLQ 의 `failed`/`delayed` 포함)는 `clemvion.queue.depth` ObservableGauge 로 나간다. 메트릭 카탈로그는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 NF-OB-07 에 있다. 그래도 **임계 초과 경고(능동 통지)는 로그 기반을 유지한다.** gauge 는 "관측" 이고 cooldown 경고는 "통지" 라 역할이 다르다. 경고 규칙은 Prometheus/Grafana 나 로그 경고 어느 쪽으로도 만들 수 있다.
+- 로그 기반 경고는 기존 운영 인프라에서 바로 쓸 수 있다. `logger.error('[DLQ ALARM] ...')` 는 로그 수집·경고 파이프라인(Sentry, 로그 기반 alert)이 별도 코드 없이 잡는다. cooldown 으로 경고 폭주를 막는다.
+- `/health` 엔드포인트에 DLQ 적재량을 싣지 않는다. readiness probe 가 DLQ 누적으로 unhealthy 가 되면 정상 트래픽까지 막힌다. 적재량은 gauge 관측과 경고의 대상이지 readiness 대상이 아니다.
+- DLQ 모니터 환경 변수 4종(`CONTINUATION_DLQ_*`)은 안전 종료 유예 시간과 같은 `useFactory` 주입 방식을 따른다. 서비스가 `process.env` 를 직접 읽지 않는다. 안전 종료 쪽의 DI 토큰 이름은 `SHUTDOWN_GRACE_MS` 이고 그 값을 주는 환경 변수는 `SIGTERM_GRACE_MS` 다.
+
+## 구현 위치
+
+- `codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.ts` (안전 종료)

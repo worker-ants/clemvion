@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATUS"
 title: "시스템 상태"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-SYSSTAT-001", "REQ-SYSSTAT-002", "REQ-SYSSTAT-003", "REQ-SYSSTAT-004", "REQ-SYSSTAT-005", "REQ-SYSSTAT-006", "REQ-SYSSTAT-007", "REQ-SYSSTAT-008", "REQ-SYSSTAT-009", "REQ-SYSSTAT-010", "REQ-SYSSTAT-011", "REQ-SYSSTAT-012", "REQ-SYSSTAT-013", "REQ-SYSSTAT-014", "REQ-SYSSTAT-015", "REQ-SYSSTAT-016", "REQ-SYSSTAT-017", "REQ-SYSSTAT-018", "REQ-SYSSTAT-019", "REQ-SYSSTAT-020", "REQ-SYSSTAT-021", "REQ-SYSSTAT-022", "REQ-SYSSTAT-023", "REQ-SYSSTAT-024", "REQ-SYSSTAT-025"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "ac0933e3748412d6c3c73e96cf9ddff33111558221c3e0d57382ee11c3bbcacd"
+content_hash: "6cf1a071450ccd73bdfba753fec05164270eca3c3b6b7b69eac12a8f9e29aa42"
 read_as: "approved_fallback"
-task: "CLE-T-9DBM7V"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/2-navigation/15-system-status.md", "spec/2-navigation/_product-overview.md", "spec/5-system/16-system-status-api.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "d62486eeff66b47fe448e60a5168d9168e3fb76207448469e8ec33c4abe8382c"
-etag: "sha256-45f72bc652e297b78c116eb160a273e1b8b927d2fbbcdc6b1485c0473de883d8"
+mirror_sha256: "42f03d3bdcf67f9ff69671be49d200a61ed626e1ace6363fd53401fcebda6a82"
+etag: "sha256-5e4de26957d429655fa369013b159222d4f68665a66100844f9ac462825d08c2"
 ---
 > 구현 상태: 부분 구현(`agent-memory-extraction` 모니터링 미등재) · 원문: `spec/2-navigation/15-system-status.md`, `spec/5-system/16-system-status-api.md`, `spec/2-navigation/_product-overview.md` (§3.9), `spec/data-flow/9-observability.md` (§1.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -75,21 +75,21 @@ etag: "sha256-45f72bc652e297b78c116eb160a273e1b8b927d2fbbcdc6b1485c0473de883d8"
 ### 종합 상태 헤더
 
 - `overall` 을 신호등과 텍스트로 보인다. `healthy` 는 🟢 "시스템 정상", `degraded` 는 🟡 "일부 지연", `down` 은 🔴 "점검 필요" 다. `down` 라벨의 뉘앙스는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
-- 실패 배지는 둘을 함께 보인다. `totalRecentFailed`(최근 윈도우 실패 합계)가 주 배지이고 0 보다 크면 강조한다. `totalFailed`(누적 보관)가 부 배지다. 주 배지 라벨에는 응답의 `failedWindowMinutes` 를 넣는다("최근 N분 실패").
+- 실패 배지는 둘이다. `totalRecentFailed`(최근 윈도우 실패 합계)가 주 배지이고 0 보다 크면 강조한다. `totalFailed`(누적 보관)가 부 배지다. 주 배지 라벨에는 `failedWindowMinutes` 를 넣는다("최근 N분 실패").
 - 집계 `recentFailedCapped` 가 참이면 `totalRecentFailed` 를 "N+" 로 보인다.
 
 ### 큐 카드
 
 - 네 그룹(실행 / 지식 저장소 / 알림·통합 / 스케줄·시스템) 섹션으로 묶는다.
-- 카드마다 건강도 표시, 카운트(대기·처리 중·지연), 실패 두 수치, 포화도 게이지(`utilization`)를 보인다.
+- 포화도 게이지는 `utilization` 이다.
 - 실패 표기: "실패(최근)" 는 `recentFailed` 를 주 수치로 보이고 0 보다 크면 강조한다. "누적 보관" 은 `counts.failed` 를 부 수치로 보인다. 그 큐의 `recentFailedCapped` 가 참이면 `recentFailed` 를 "N+"(하한값)로 보인다.
-- `system` 그룹의 정기 작업 큐는 카운트가 보통 0 이다. 그래서 "정기 작업" 라벨을 함께 보이고 일시 정지 여부를 먼저 강조한다.
+- `system` 그룹의 정기 작업 큐는 카운트가 보통 0 이라 "정기 작업" 라벨을 함께 보이고 일시 정지 여부를 먼저 강조한다.
 
 ### 갱신
 
 - React Query `useQuery({ queryKey: ['system-status', 'overview'], refetchInterval: 5000 })` 로 5초마다 불러온다. 수동 "새로고침" 버튼도 있다.
-- 조회가 실패해 에러 상태가 되면 자동 갱신을 멈춘다. 인증 만료(401)나 서버 에러(5xx)가 이어질 때 5초마다 같은 실패 요청을 보내 서버 로그를 채우지 않게 하려는 것이다. 재시도 버튼이나 "새로고침" 으로 다시 불러와 성공하면 자동 갱신이 다시 시작된다.
-- 읽기 전용이다. 카드를 눌러도 상세 화면이 없다. 개별 job 을 보여 주지 않기 때문이다.
+- 조회가 실패해 에러 상태가 되면 자동 갱신을 멈춘다. 재시도 버튼이나 "새로고침" 으로 다시 불러와 성공하면 자동 갱신이 다시 시작된다.
+- 읽기 전용이다. 개별 job 을 보여 주지 않으므로 카드를 눌러도 상세 화면이 없다.
 
 ### 로딩과 에러
 
@@ -130,7 +130,7 @@ etag: "sha256-45f72bc652e297b78c116eb160a273e1b8b927d2fbbcdc6b1485c0473de883d8"
 | `alerts-evaluator` | system | 1 | 정기 작업(5분). 알림 규칙 평가([알림](CLE-OBS-NOTIFY.md)) |
 
 - 코드의 worker 옵션에 동시 처리 수가 없는 큐는 BullMQ 기본값 1 로 본다.
-- `agent-memory-extraction` 미등재는 옛 `spec/5-system/16-system-status-api.md` 의 구현 갭 표기에 있던 갭이다. 그 표기가 따른 2026-06-10 spec-coverage 감사의 V-15(`git show db496a3c2:review/spec-coverage/2026/06/10/12_32_46/SUMMARY.md`)는 `makeshop-token-refresh` 누락이고 PR #526 에서 고쳤다. 2026-10-08 에 코드를 다시 확인했을 때도 레지스트리에 없었다. 그래서 지금 응답의 큐는 위 표보다 하나 적고 머리 줄의 구현 상태를 «부분 구현» 으로 둔다. `makeshop-token-refresh`·`terminal-revoke-reconcile` 은 등재돼 있다.
+- `agent-memory-extraction` 은 2026-10-08 확인 때도 코드 레지스트리에 없었다. 그래서 응답의 큐는 위 표보다 하나 적고 머리 줄의 구현 상태를 «부분 구현» 으로 둔다. `makeshop-token-refresh`·`terminal-revoke-reconcile` 은 등재돼 있다.
 
 ## API
 
@@ -139,7 +139,7 @@ etag: "sha256-45f72bc652e297b78c116eb160a273e1b8b927d2fbbcdc6b1485c0473de883d8"
 - 인증: JWT(`@ApiBearerAuth('access-token')`). **관리자 역할 가드가 없다.** 집계 카운트만 돌려주므로 워크스페이스와 사용자를 알아낼 수 없다([보안](#보안)).
 - 워크스페이스 스코핑 예외: 시스템 전역 상태를 돌려주므로 `X-Workspace-Id` 스코핑을 적용하지 않는다. 헤더가 와도 무시한다. 응답은 모든 워크스페이스를 가로지른 합산값이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)).
   - 이 예외는 컨트롤러와 핸들러에 `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam()` 을 하나도 붙이지 않는다는 전제에 기댄다. 가드가 어떤 라우트에서 헤더를 검사하는지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드가-무조건-한다) 가 정한다.
-  - 셋 중 하나라도 붙이면 프런트엔드가 모든 요청에 붙이는 `X-Workspace-Id` 때문에 시스템 전역 상태가 워크스페이스 멤버십과 헤더 형식에 묶여 이 화면이 실패할 수 있다. 그래서 이 컨트롤러에는 셋 다 붙이지 않는다.
+  - 하나라도 붙이면 프런트엔드가 모든 요청에 붙이는 `X-Workspace-Id` 때문에 이 화면이 워크스페이스 멤버십과 헤더 형식에 묶여 실패할 수 있다.
 - 응답: `{ data: SystemStatusOverviewDto }`. 전역 `TransformInterceptor` 의 응답 봉투를 따른다.
 
 ```ts
@@ -166,13 +166,13 @@ QueueStatusDto {
 }
 ```
 
-- **`waiting` 과 `paused` 의 뜻**: 큐가 일시 정지돼 있으면(`isPaused`) 처리를 기다리는 job 수를 `paused` 로 보이고 `waiting` 은 0 이다. 일시 정지되지 않은 큐는 그 수를 `waiting` 으로 보이고 `paused` 는 0 이다. BullMQ 6 에는 paused job 상태가 없어 서비스가 이 값을 합성한다([BullMQ 6 에서 `paused` 를 합성한다](#bullmq-6-에서-paused-를-합성한다)).
-- **`failed`(와 `totalFailed`)의 뜻**: 전체 기간 누적이 아니다. 각 큐의 `removeOnFail` 보관 기간 안에 지금 남아 있는 실패 job 수다. 보관 정책은 큐마다 다르다. `execution-run` 과 `execution-continuation` 은 `removeOnFail: false` 라 끝없이 보관하고 다른 큐는 100건·5분·7일·30일 등이다. 시작 큐와 재개 큐의 무한 보관은 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 이 정하고 다른 큐는 각 큐를 다루는 문서와 코드의 `removeOnFail` 설정을 따른다. 그래서 화면은 이 값을 "누적 보관" 으로 부른다.
+- **`waiting` 과 `paused` 의 뜻**: 일시 정지된 큐(`isPaused`)는 처리를 기다리는 job 수를 `paused` 로 보이고 `waiting` 은 0 이다. 그렇지 않은 큐는 그 수를 `waiting` 으로 보이고 `paused` 는 0 이다. BullMQ 6 에는 paused job 상태가 없어 서비스가 이 값을 합성한다([BullMQ 6 에서 `paused` 를 합성한다](#bullmq-6-에서-paused-를-합성한다)).
+- **`failed`(와 `totalFailed`)의 뜻**: 전체 기간 누적이 아니라 각 큐의 `removeOnFail` 보관 기간 안에 지금 남아 있는 실패 job 수라서 화면은 "누적 보관" 으로 부른다. `execution-run` 과 `execution-continuation` 은 `removeOnFail: false` 라 끝없이 보관하고([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)) 다른 큐는 각 큐 문서와 코드의 설정(100건·5분·7일·30일 등)을 따른다.
 - **`recentFailed` 의 뜻**: `queue.getFailed()` 로 가져온 실패 job 가운데 `finishedOn >= now - failedWindowMinutes*60_000` 인 수다. "지금 정상인가" 에 답하는 주 지표다.
 - **집계 방법과 비용**:
-  - `waiting`·`active`·`delayed`·`failed` 는 큐마다 `queue.getJobCounts(...)` 로 세고 일시 정지 여부는 `queue.isPaused()` 로 본다. `paused` 는 따로 세지 않는다. 일시 정지된 큐의 대기 job 수를 `paused` 로 옮기고 `waiting` 을 0 으로 둔다. 큐 하나에 드는 비용이 일정하다.
+  - `waiting`·`active`·`delayed`·`failed` 는 큐마다 `queue.getJobCounts(...)` 로 세고 일시 정지 여부는 `queue.isPaused()` 로 본다. `paused` 는 따로 세지 않고 위 규칙으로 합성한다. 큐 하나에 드는 비용이 일정하다.
   - `recentFailed` 는 큐마다 `queue.getFailed()` 를 최신부터 거꾸로 훑고 `finishedOn` 이 윈도우를 벗어나면 멈춘다. 이 추가 비용은 일정하지 않고 윈도우 안 실패 수와 스캔 상한에 비례한다.
-  - 큐당 스캔 상한은 env `SYSTEM_STATUS_FAILED_SCAN_CAP`(기본 1000)다. 상한을 다 써서 스캔이 끝나면(윈도우 경계나 실패 목록 끝이 아니라) `recentFailed` 는 하한값이고 `recentFailedCapped=true` 가 된다. 윈도우 경계나 목록 끝에서 자연히 끝나면 `recentFailedCapped=false`(정확값)다. 클라이언트는 이 값이 참이면 "N+" 로 그린다. `SystemStatusOverviewDto.recentFailedCapped` 는 큐별 값의 OR 다.
+  - 큐당 스캔 상한은 env `SYSTEM_STATUS_FAILED_SCAN_CAP`(기본 1000)다. 상한을 다 써서 스캔이 끝나면 `recentFailed` 는 하한값이고 `recentFailedCapped=true` 다. 윈도우 경계나 목록 끝에서 끝나면 `recentFailedCapped=false`(정확값)다. 클라이언트는 참이면 "N+" 로 그린다. `SystemStatusOverviewDto.recentFailedCapped` 는 큐별 값의 OR 다.
   - 윈도우는 보관 기간보다 짧게 운영한다고 전제한다(기본 60분은 대부분 큐의 보관 기간보다 훨씬 짧다). 보관 기간이 윈도우보다 짧은 큐(`cafe24-token-refresh`·`makeshop-token-refresh`, 5분)는 `recentFailed` 가 보관분으로 제한될 수 있다.
 - 큐 하나가 Redis 에러로 조회에 실패해도 전체 응답은 실패하지 않는다. 그 큐는 `health: "down"` 과 카운트 0(`recentFailed` 0)으로 표시하고 나머지는 정상으로 돌려준다.
 
@@ -198,7 +198,7 @@ flowchart TD
 
 - 2번의 워커 미가동 판정은 `recentFailed` 와 따로 동작한다.
 - `overall` 은 큐 건강도의 가장 나쁜 값이다(`down` > `degraded` > `healthy`).
-- 임계값은 모듈을 불러올 때의 상수가 아니라 getter 로 그때그때 읽는다. 모듈 로드 순서와 테스트 격리에 흔들리지 않게 하려는 것이다.
+- 임계값은 모듈 로드 시점의 상수가 아니라 getter 로 그때그때 읽는다. 모듈 로드 순서와 테스트 격리에 흔들리지 않게 하려는 것이다.
 
 | 환경 변수 | 기본값 | 쓰는 곳 |
 | --- | --- | --- |
@@ -208,10 +208,9 @@ flowchart TD
 | `SYSTEM_STATUS_FAILED_SCAN_CAP` | 1000 | 큐당 `getFailed()` 스캔 상한 |
 
 - 네 값 모두 양의 유한한 수만 받는다. 음수, 0, 숫자가 아닌 값, 무한대(`Infinity`)가 들어오면 위 표의 기본값으로 대신한다. 숫자인지는 JavaScript `Number()` 로 판정하므로 앞뒤 공백과 지수 표기(`2e3`)도 숫자로 받는다.
+- 스캔 상한은 job 개수라서 정수가 아닌 값도 기본값으로 대신한다. 임계값과 윈도우는 소수도 그대로 쓴다. 기본값은 운영 경험에 따라 다시 맞출 수 있다.
 - 이 규칙은 위 네 변수에만 적용한다. 동시 처리 수 환경 변수(`EXECUTION_RUN_WORKER_CONCURRENCY` · `CONTINUATION_WORKER_CONCURRENCY`)는 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 계약(양수가 아니거나 정수가 아니거나 숫자가 아니면 1 로 대신한다)을 따른다.
-- 스캔 상한은 job 개수라서 정수가 아닌 값도 기본값으로 대신한다. 임계값과 윈도우는 소수도 그대로 쓴다.
-- 기본값은 운영 경험에 따라 다시 맞출 수 있다.
-- `SYSTEM_STATUS_FAILED_THRESHOLD` 는 예전에 누적 보관 실패(`failed`)와 비교했고 지금은 최근 윈도우 `recentFailed` 와 비교한다. 예전 설정값을 그대로 두면 `degraded` 판정이 달라질 수 있으므로 운영자는 설정값을 다시 확인한다.
+- `SYSTEM_STATUS_FAILED_THRESHOLD` 의 비교 대상이 누적 보관 `failed` 에서 `recentFailed` 로 바뀌었으므로 운영자는 예전 설정값을 다시 확인한다.
 
 ### 헬스 어휘
 
@@ -219,8 +218,8 @@ flowchart TD
 
 ## 보안
 
-- 응답에는 전역 합산 정수 카운트만 들어간다. job id, payload, 워크플로우·실행·워크스페이스 식별자가 전혀 없다. 그래서 특정 워크스페이스나 사용자의 데이터를 알아낼 수 없다.
-- 그래서 모든 로그인 사용자에게 보여도 정보가 새지 않는다. [사용자 가이드](../CLE-UI/CLE-UI-GUIDE.md) 메뉴가 역할과 상관없이 모두에게 보이는 것과 같은 노출 모델이다. 권한 매트릭스에서도 모든 역할이 읽기만 한다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)).
+- 응답에는 전역 합산 정수 카운트만 들어가고 job id, payload, 워크플로우·실행·워크스페이스 식별자가 없다. 그래서 특정 워크스페이스나 사용자의 데이터를 알아낼 수 없다.
+- 그래서 모든 로그인 사용자에게 보여도 된다. [사용자 가이드](../CLE-UI/CLE-UI-GUIDE.md) 메뉴가 역할과 상관없이 모두에게 보이는 것과 같은 노출 모델이다. 권한 매트릭스에서도 모든 역할이 읽기만 한다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)).
 
 ## 데이터 흐름
 
@@ -231,7 +230,7 @@ flowchart LR
   SSS -->|GET /api/system-status/overview| Client[화면]
 ```
 
-`SystemStatusService` 는 자기 테이블도 job payload 도 읽지 않는다. 레지스트리의 큐마다 상태별 카운트(`getJobCounts`)와 일시 정지 여부(`isPaused`)를 모으고 `paused` 를 합성한다. 여기에 `getFailed()` 를 거꾸로 훑어 최근 윈도우 실패 수 `recentFailed` 를 계산하고 셋을 함께 건강도 판정(`deriveHealth`)에 쓴다(`system-status.service.ts`). 윈도우·상한·임계값은 env 로 바꿀 수 있다(`system-status.constants.ts`).
+`SystemStatusService`(`system-status.service.ts`)는 자기 테이블도 job payload 도 읽지 않는다. 레지스트리의 큐마다 카운트 · 일시 정지 여부 · `recentFailed` 를 모아 건강도 판정(`deriveHealth`)에 쓴다. env 기본값은 `system-status.constants.ts` 에 있다.
 
 ## 미결 사항
 
@@ -248,52 +247,52 @@ flowchart LR
 
 ### 통계 화면과 공유하는 것과 다른 것
 
-레이아웃 골격, JWT 인증, 응답 봉투 `{data}` 를 꺼내는 유틸, shadcn/ui 컴포넌트, React Query 사용은 [통계](CLE-OBS-STATS.md) 화면을 그대로 따른다. 다른 것은 둘이다. 첫째는 갱신 방식이다. 통계는 수동이나 필터 변경으로 다시 불러온다. 이 화면은 "지금 정상인가" 를 보여 주는 상태 화면이라 `refetchInterval` 자동 폴링(5초)을 따로 둔다. 조회가 실패해 에러 상태가 되면 폴링을 멈춘다. 인증 만료(401)나 서버 에러(5xx)가 이어질 때 5초마다 같은 실패 요청이 쌓이지 않게 하려는 것이다. 대가로 장애가 풀려도 화면이 스스로 돌아오지 않고 사용자가 재시도 버튼이나 "새로고침" 을 눌러야 한다. 에러 상태에서만 멈추므로 정상 응답이 오는 동안의 자동 갱신은 그대로다. 둘째는 로딩과 에러 처리다. 예전 본문은 통계 화면의 로딩 · 에러 처리 방식을 다시 쓴다고 적었지만 [통계](CLE-OBS-STATS.md) 에는 따로 정한 규칙이 없었다. 그래서 스켈레톤만 레이아웃 공통 규칙을 따르고 에러 안내와 재시도는 이 화면이 정한다(NERV Task `CLE-T-9DBM7V`).
+레이아웃 골격, JWT 인증, 응답 봉투 `{data}` 를 꺼내는 유틸, shadcn/ui 컴포넌트, React Query 사용은 [통계](CLE-OBS-STATS.md) 화면을 그대로 따른다. 다른 것은 둘이다. 첫째는 갱신 방식이다. 통계는 수동이나 필터 변경으로 다시 불러오지만 이 화면은 "지금 정상인가" 를 보여 주는 상태 화면이라 5초 자동 폴링을 둔다. 에러 상태에서는 폴링을 멈춘다. 인증 만료(401)나 서버 에러(5xx)가 이어질 때 5초마다 같은 실패 요청으로 서버 로그를 채우지 않으려는 것이다. 대가로 장애가 풀려도 화면이 스스로 돌아오지 않고 사용자가 재시도나 "새로고침" 을 눌러야 한다. 정상 응답이 오는 동안의 자동 갱신은 그대로다. 둘째는 로딩과 에러 처리다. [통계](CLE-OBS-STATS.md) 에는 따로 정한 로딩 · 에러 규칙이 없다. 그래서 스켈레톤만 레이아웃 공통 규칙을 따르고 에러 안내와 재시도는 이 화면이 정한다.
 
 ### 개별 job 을 보여 주지 않는다
 
-BullMQ 큐는 워크스페이스 경계가 없는 전역 인프라다. job payload 에는 실행 입력과 대화 내용 같은 여러 워크스페이스의 민감 정보가 들어 있다. 개별 job 을 보여 주면 워크스페이스 귀속, payload 마스킹, 권한 가드가 모두 필요해진다. 집계 카운트만 보여 주면 이 문제들이 구조적으로 사라진다. "정상 운영 여부" 라는 목적에는 카운트와 건강도로 충분해 최소 노출을 골랐다. 카드를 눌러 들어가는 상세 화면을 두지 않는 것도 같은 이유다. 개별 job 조회는 v1 범위에서 일부러 뺐다.
+BullMQ 큐는 워크스페이스 경계가 없는 전역 인프라이고 job payload 에는 실행 입력과 대화 내용 같은 여러 워크스페이스의 민감 정보가 들어 있다. 개별 job 을 보여 주면 워크스페이스 귀속, payload 마스킹, 권한 가드가 모두 필요하다. 집계 카운트만 보여 주면 이 문제들이 구조적으로 사라진다. "정상 운영 여부" 라는 목적에는 카운트와 건강도로 충분해 최소 노출을 골랐다. 카드 상세 화면을 두지 않는 것도 같은 이유다. 개별 job 조회는 v1 범위에서 일부러 뺐다.
 
 ### 처리량 시계열을 v1 에서 뺀다
 
-순간 카운트, 포화도, 건강도로 "지금 정상인지" 는 답할 수 있다. 처리량 추이를 보려면 BullMQ `metrics`(job 처리 경로에 job 마다 부담이 붙는다)나 샘플링 cron(별도 저장소와 구성 요소)이 필요하다. 부하 추이가 실제로 필요해지면 샘플링 cron 을 먼저 검토한다. job 경로를 건드리지 않고 비용이 일정하며 큐 깊이 추이까지 얻을 수 있다. `recentFailed` 는 시계열이 아니라 윈도우 하나의 스냅샷이다. 별도 저장소 없이 이미 보관 중인 실패 목록을 거를 뿐이라 이 결정과 어긋나지 않는다.
+순간 카운트, 포화도, 건강도로 "지금 정상인지" 는 답할 수 있다. 처리량 추이를 보려면 BullMQ `metrics`(job 처리 경로에 job 마다 부담이 붙는다)나 샘플링 cron(별도 저장소와 구성 요소)이 필요하다. 필요해지면 샘플링 cron 을 먼저 검토한다. job 경로를 건드리지 않고 비용이 일정하며 큐 깊이 추이까지 얻는다. `recentFailed` 는 시계열이 아니라 이미 보관 중인 실패 목록을 거른 윈도우 하나의 스냅샷이라 이 결정과 어긋나지 않는다.
 
 ### 워커 미가동 판정의 한계
 
-`waiting>0 && active===0` 는 스냅샷 한 장으로 판단하는 휴리스틱이다. 동시 처리 수가 1인 큐가 마침 쉬는 순간에 오탐할 수 있다. 그래서 API 원문은 화면이 "점검 필요(추정)" 뉘앙스로 보여야 한다고 적는다. 정확한 워커 생존 여부는 별도 heartbeat 가 필요하고 v1 범위 밖이다.
+`waiting>0 && active===0` 는 스냅샷 한 장으로 판단하는 휴리스틱이라 동시 처리 수가 1인 큐가 마침 쉬는 순간에 오탐할 수 있다(라벨 뉘앙스는 [미결 사항](#미결-사항)). 정확한 워커 생존 여부는 별도 heartbeat 가 필요하고 v1 범위 밖이다.
 
 ### 큐 건강도 어휘를 `healthy`·`degraded`·`down` 으로 둔다
 
 의존성 점검 API(`/api/health`)는 `healthy`·`unhealthy` 두 값이다(`health.service.ts`). 큐 상태는 "밀려 있지만 처리 중(`degraded`)" 과 "처리 자체가 멈춤(`down`)" 을 나눌 가치가 있어 `unhealthy` 를 심각도 두 단계로 나눴다. 정상 상태는 기존 어휘 `healthy` 를 그대로 써서 일관성을 지켰다.
 
-여기서 두 값이라는 것은 `/api/health` 응답 본문의 `status` 어휘 기준이다. `/api/health` 는 이와 별개로 HTTP 상태 코드 200(`healthy`)·503(`unhealthy`)으로 준비 상태 신호를 더 전한다. 생존 확인은 `/api/health/live` 로 따로 뺐다. probe 역할과 상태 코드 분리의 기준은 [로깅과 헬스 체크](CLE-OBS-LOGGING.md) 다.
+두 값은 `/api/health` 응답 본문 `status` 의 어휘다. HTTP 상태 코드와 probe 역할의 기준은 [로깅과 헬스 체크](CLE-OBS-LOGGING.md) 다.
 
 ### 실패 지표를 최근 윈도우와 누적 보관으로 나눈다
 
-- **문제**: 스냅샷 지표(대기·처리 중·지연·일시 정지·포화도)는 이미 현재 상태를 보여 준다. `failed` 만 보관 정책에 따라 쌓여 "전체 기간 누적" 처럼 읽혔다. "지금 정상인가" 라는 목적과 맞지 않았다.
-- **누적 보관이 진짜 전체 기간 합계가 아닌 이유**: `getJobCounts('failed')` 는 BullMQ `removeOnFail` 보관 목록의 크기다. 큐마다 보관 정책이 달라(무한에서 5분까지) 전체 기간 합계가 아니다. 그래서 주 지표를 최근 윈도우 `recentFailed` 로 두고 누적 보관은 "보관 중" 임을 분명히 적어 참고값으로만 함께 보인다.
-- **화면도 같은 구분을 따른다**: 대기·처리 중·지연·포화도는 이미 현재 상태다. 최근 윈도우 실패를 주 지표로 앞에 두고 디버깅 참고용 누적 보관을 부 지표로 함께 보인다.
-- **큐당 일정 비용 전제를 버린다**: 예전 API 명세의 "큐 수에 비례하는 일정 비용" 이라는 문장은 설계 원칙이 아니었다. `getJobCounts` 만 쓰던 때의 구현 관찰이었다. 그 문장을 지우고 바꿨다. `recentFailed` 는 `getFailed()` 스캔이 필요해 비용이 일정하지 않다. 대신 현재 상태 반영을 앞세우고 스캔 상한으로 비용의 상한을 지킨다.
-- **처리량 시계열 제외와 어긋나지 않는다**: 처리량 추이는 별도 샘플링 cron 과 저장소가 필요하다. `recentFailed` 는 윈도우 하나의 스냅샷이라 별도 저장소가 필요 없다.
-- **건강도 판정을 윈도우 기준으로 옮긴다**: `degraded` 가 "지금" 문제인지 보이도록 판정 3번의 비교 대상을 `recentFailed` 로 바꿨다. 예전에는 보관 중인 실패가 1건만 있어도 계속 `degraded` 로 남는 오탐이 있었다. 윈도우 기준이면 최근 실패가 사라질 때 저절로 `healthy` 로 돌아온다. 대가로 보관 중인 실패가 윈도우 밖으로 나가면 `degraded` 신호도 저절로 사라질 수 있다. 이를 알고 디버깅용 누적 보관을 부 지표로 계속 함께 보이는 것으로 보완한다.
-- **`recentFailedCapped` 를 따로 둔다**: `recentFailed === scanCap` 비교만으로는 "정확히 상한과 같은 정상 경우" 와 "상한에 잘린 경우" 를 가릴 수 없다. 서버가 스캔이 끝난 이유(윈도우 경계·목록 끝인지, 상한 소진인지)를 직접 알려 정확한 하한값 신호를 준다. 종합 값은 보수적인 OR 로 둔다. 큐 하나라도 잘렸으면 시스템 전체 수치도 하한값일 수 있어서다. 하한값을 정확값처럼 보이면 사용자가 실패를 과소평가하므로 이 신호에 맞춰 "N+" 로 보인다.
+- **문제**: 다른 스냅샷 지표(대기·처리 중·지연·일시 정지·포화도)는 현재 상태인데 `failed` 만 보관 정책에 따라 쌓여 "전체 기간 누적" 처럼 읽혀 "지금 정상인가" 라는 목적과 맞지 않았다.
+- **누적 보관이 진짜 전체 기간 합계가 아닌 이유**: `getJobCounts('failed')` 는 큐마다 다른 `removeOnFail` 보관 목록(무한에서 5분까지)의 크기다. 그래서 주 지표를 최근 윈도우 `recentFailed` 로 두고 누적 보관은 "보관 중" 임을 분명히 적어 참고값으로만 함께 보인다.
+- **화면도 같은 구분을 따른다**: 최근 윈도우 실패를 주 지표로 앞에 두고 디버깅 참고용 누적 보관을 부 지표로 함께 보인다.
+- **큐당 일정 비용 전제를 버린다**: 예전의 "큐 수에 비례하는 일정 비용" 은 설계 원칙이 아니라 `getJobCounts` 만 쓰던 때의 구현 관찰이었다. `recentFailed` 는 `getFailed()` 스캔이 필요해 비용이 일정하지 않다. 대신 현재 상태 반영을 앞세우고 스캔 상한으로 비용의 상한을 지킨다.
+- **처리량 시계열 제외와 어긋나지 않는다**: [처리량 시계열을 v1 에서 뺀다](#처리량-시계열을-v1-에서-뺀다) 참조.
+- **건강도 판정을 윈도우 기준으로 옮긴다**: 판정 3번의 비교 대상을 `recentFailed` 로 바꿨다. 예전에는 보관 중인 실패가 1건만 있어도 계속 `degraded` 로 남는 오탐이 있었다. 윈도우 기준이면 최근 실패가 사라질 때 저절로 `healthy` 로 돌아온다. 대가로 실패가 윈도우 밖으로 나가면 `degraded` 신호도 사라지므로 누적 보관을 부 지표로 계속 보여 보완한다.
+- **`recentFailedCapped` 를 따로 둔다**: `recentFailed === scanCap` 비교로는 "정확히 상한과 같은 경우" 와 "상한에 잘린 경우" 를 가릴 수 없어 서버가 스캔이 끝난 이유를 직접 알린다. 큐 하나라도 잘렸으면 전체 수치도 하한값일 수 있어 종합 값은 보수적인 OR 로 둔다. 하한값을 정확값처럼 보이면 사용자가 실패를 과소평가하므로 "N+" 로 보인다.
 
 ### BullMQ 6 에서 `paused` 를 합성한다
 
 BullMQ 6.0.0 은 paused job 상태를 없앴다. 큐를 일시 정지해도 job 은 `wait` 목록에 그대로 있고 `getJobCounts()` 는 그 수를 `waiting` 으로 센다. 일시 정지는 job 상태가 아니라 큐 메타데이터의 플래그가 됐다.
 
-응답의 `counts.paused` 는 BullMQ 5 에서 라이브러리가 세던 값이다. 라이브러리 버전에 따라 API 계약이 바뀌지 않도록 서비스가 `isPaused()` 로 같은 값을 합성한다. 일시 정지된 큐는 대기 job 수를 `paused` 로 옮기고 `waiting` 을 0 으로 둔다. 그래서 응답 값과 건강도 판정(일시 정지 → `down`)이 BullMQ 5 때와 같다. `paused` 를 늘 0 으로 두는 최소 수정은 bullmq 6 상향의 2차 코드 리뷰가 견준 대안이다(finding 01a119de-3fa0-7769-8f9b-4621019d40a7 · NERV Task `CLE-T-HPZCK2`). 타입 에러는 막지만 일시 정지된 큐의 대기 job 이 `waiting` 칸으로 옮겨 가 API 응답 값이 바뀌므로 택하지 않았다.
+응답의 `counts.paused` 는 BullMQ 5 에서 라이브러리가 세던 값이다. 라이브러리 버전에 따라 API 계약이 바뀌지 않도록 서비스가 `isPaused()` 로 같은 값을 합성한다. 그래서 응답 값과 건강도 판정(일시 정지 → `down`)이 BullMQ 5 때와 같다. `paused` 를 늘 0 으로 두는 최소 수정도 견줬다. 타입 에러는 막지만 일시 정지된 큐의 대기 job 이 `waiting` 칸으로 옮겨 가 API 응답 값이 바뀌므로 택하지 않았다.
 
-대가가 하나 있다. BullMQ 5 는 두 수를 Lua 호출 한 번으로 셌고 지금은 `getJobCounts` 와 `isPaused` 두 조회다. 두 조회 사이에 정지나 재개가 일어나면 한 응답에서 대기 job 이 반대쪽 칸에 잡힐 수 있다. 정지는 플래그만 바꾸므로 대기 job 수 자체는 변하지 않는다. `counts`·`isPaused`·`health` 를 같은 `isPaused` 값으로 만들어 한 응답 안에서는 모순이 없고 다음 폴링에서 맞춰진다.
+대가가 하나 있다. BullMQ 5 는 두 수를 Lua 호출 한 번으로 셌지만 지금은 `getJobCounts` 와 `isPaused` 두 조회라 그 사이에 정지나 재개가 일어나면 대기 job 이 반대쪽 칸에 잡힐 수 있다. 정지는 플래그만 바꾸므로 대기 job 수 자체는 변하지 않는다. `counts`·`isPaused`·`health` 를 같은 `isPaused` 값으로 만들어 한 응답 안에서는 모순이 없고 다음 폴링에서 맞춰진다.
 
-이 합성은 이 API 응답에만 건다. 큐 깊이 지표 `clemvion.queue.depth` 는 라이브러리가 센 값을 그대로 관측하므로 BullMQ 6 부터 일시 정지된 큐의 대기 job 이 `state=waiting` 에 들어간다([로깅과 헬스 체크](CLE-OBS-LOGGING.md)). 지표에는 `paused` 라벨이 없고 큐 정지는 이 API 의 `isPaused` 와 건강도 `down` 이 따로 알린다. 지표까지 합성하지 않은 것은 코드에서 큐를 일시 정지하는 곳이 지식 저장소 큐의 정리 스크립트 하나뿐이라 지표가 보는 실행 큐와 겹치지 않기 때문이다. 지표 대상에 일시 정지될 수 있는 큐를 더하면 이 결정을 다시 본다.
+이 합성은 이 API 응답에만 건다. 큐 깊이 지표 `clemvion.queue.depth` 는 라이브러리가 센 값을 그대로 관측해 일시 정지된 큐의 대기 job 이 `state=waiting` 에 들어가고 `paused` 라벨이 없다([로깅과 헬스 체크](CLE-OBS-LOGGING.md)). 큐 정지는 이 API 의 `isPaused` 와 건강도 `down` 이 알린다. 지표까지 합성하지 않은 것은 큐를 일시 정지하는 코드가 지식 저장소 큐의 정리 스크립트 하나뿐이라 지표가 보는 실행 큐와 겹치지 않기 때문이다. 지표 대상에 일시 정지될 수 있는 큐를 더하면 이 결정을 다시 본다.
 
-BullMQ 5 에서 일시 정지된 채 올라온 큐는 job 이 옛 `paused` 목록에 남는다. BullMQ 6 은 그 목록을 세지 않아 `resume()` 으로 `wait` 에 옮기기 전까지 `waiting`·`paused` 어느 쪽에도 나타나지 않는다. 업그레이드 절차의 문제라 응답 규칙은 이 경우를 따로 다루지 않는다.
+BullMQ 5 에서 일시 정지된 채 올라온 큐의 job 은 옛 `paused` 목록에 남아 `resume()` 전까지 `waiting`·`paused` 어느 쪽에도 나타나지 않는다. 업그레이드 절차의 문제라 응답 규칙은 이 경우를 따로 다루지 않는다.
 
 ### 잘못된 환경 변수는 기본값으로 대신한다
 
-임계값 · 윈도우 · 스캔 상한 환경 변수에 음수, 0, 숫자가 아닌 값이 들어오면 표의 기본값을 쓴다. 2026-10-08 에 확인한 코드는 이와 달랐다. 임계값 둘은 음수를 그대로 써서 음수 임계값이면 모든 큐가 `degraded` 가 됐고, 윈도우와 스캔 상한은 음수를 1 로 올렸다. 스펙을 코드에 맞춰 «최소 1» 로 고치는 안과 코드를 이 문장에 맞추는 안 가운데 사람이 뒤의 것을 골랐다(NERV Task `CLE-T-9DBM7V`). 앞의 안은 잘못된 설정에 기본값 대신 1 을 쓰게 된다. 2026-10-08 에 코드를 이 문장에 맞췄다.
+임계값 · 윈도우 · 스캔 상한 환경 변수에 음수, 0, 숫자가 아닌 값이 들어오면 표의 기본값을 쓴다. 2026-10-08 의 코드는 음수 임계값을 그대로 써서 모든 큐가 `degraded` 가 됐고 윈도우와 스캔 상한은 음수를 1 로 올렸다. 스펙을 «최소 1» 로 고치는 안과 코드를 이 규칙에 맞추는 안 가운데 사람이 뒤의 것을 골랐다. 앞의 안은 잘못된 설정에 기본값 대신 1 을 쓰게 된다. 2026-10-08 에 코드를 이 규칙에 맞췄다.
 
-무한대도 잘못된 값으로 본다. 윈도우는 응답의 `failedWindowMinutes` 로 나가는데 `Infinity` 는 JSON 에서 `null` 이 되어 "최근 N분" 라벨이 깨진다. 임계값을 `Infinity` 로 두면 그 판정이 꺼지고 스캔 상한을 `Infinity` 로 두면 실패 집합을 끝까지 훑는다. 이 스펙은 판정을 끄거나 상한을 푸는 해제 값을 정하지 않았으므로 무한대를 그 용도로 받지 않는다. [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 `EXECUTION_MAX_ACTIVE_RUNNING_MS` 가 `0` 을 무제한으로 받는 것과 다르다. 큰 유한값은 막지 않으므로 이 규칙이 「[실패 지표를 최근 윈도우와 누적 보관으로 나눈다](#실패-지표를-최근-윈도우와-누적-보관으로-나눈다)」 의 비용 상한을 보장하지는 않는다. 스캔 상한의 크기는 운영자가 정한다. 스캔 상한은 `getFailed()` 의 index 로 쓰는 개수라서 정수가 아닌 값도 잘못된 값으로 본다.
+무한대도 잘못된 값으로 본다. `Infinity` 는 JSON 에서 `null` 이 되어 `failedWindowMinutes` 의 "최근 N분" 라벨이 깨지고, 임계값이면 판정이 꺼지며, 스캔 상한이면 실패 집합을 끝까지 훑는다. 이 스펙은 판정을 끄거나 상한을 푸는 해제 값을 정하지 않았다. [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 `EXECUTION_MAX_ACTIVE_RUNNING_MS` 가 `0` 을 무제한으로 받는 것과 다르다. 큰 유한값은 막지 않으므로 이 규칙이 「[실패 지표를 최근 윈도우와 누적 보관으로 나눈다](#실패-지표를-최근-윈도우와-누적-보관으로-나눈다)」 의 비용 상한을 보장하지는 않는다. 스캔 상한의 크기는 운영자가 정한다. 스캔 상한은 `getFailed()` 의 index 로 쓰는 개수라서 정수가 아닌 값도 잘못된 값으로 본다.
 
-네 값은 `Number()` 로 읽는다. [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 동시 처리 수 환경 변수는 코드가 정수 정규식으로 먼저 거르지만 여기서는 그렇게 하지 않는다. 임계값과 윈도우는 소수를 받아야 하기 때문이다. 앞뒤 공백과 지수 표기를 받는 것은 그 결과이고 단위 테스트가 이 동작을 고정한다. 스캔 상한도 같은 방법으로 읽고 정수 검사를 따로 한다. 그래서 소수는 기본값이 되고 `2e3` 처럼 정수로 읽히는 지수 표기는 그 정수(2000)로 쓴다.
+네 값은 `Number()` 로 읽는다. [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 동시 처리 수처럼 정수 정규식으로 먼저 거르지 않는 것은 임계값과 윈도우가 소수를 받아야 하기 때문이다. 앞뒤 공백과 지수 표기를 받는 것은 그 결과이고 단위 테스트가 이 동작을 고정한다. 스캔 상한은 정수 검사를 따로 한다. 그래서 소수는 기본값이 되고 `2e3` 처럼 정수로 읽히는 지수 표기는 그 정수(2000)로 쓴다.

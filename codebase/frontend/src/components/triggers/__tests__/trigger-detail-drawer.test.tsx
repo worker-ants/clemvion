@@ -363,7 +363,7 @@ describe("TriggerDetailDrawer", () => {
     });
   });
 
-  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE#상세-드로어) 외부 인터랙션 카드 —
+  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE-UI#상세-드로어) 외부 인터랙션 카드 —
   // 저장 응답에 실린 첫 알림 서명 시크릿 평문을 한 번 보여 준다. 서버는 다시 보여 주지 않는다.
   it("External Interaction 저장 응답에 첫 알림 서명 시크릿이 있으면 한 번 보여 준다", async () => {
     mockApi(WEBHOOK_TRIGGER, []);
@@ -389,7 +389,7 @@ describe("TriggerDetailDrawer", () => {
     expect(screen.queryByText("wsk_issued_once")).not.toBeInTheDocument();
   });
 
-  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE#상세-드로어) · CLE-T-EQDYC1 — 인터랙션을
+  // 근거: [트리거 관리 「상세 드로어」](CLE-TRIG-MANAGE-UI#상세-드로어) · CLE-T-EQDYC1 — 인터랙션을
   // per_trigger 로 처음 켠 저장 응답에 실린 트리거 단위 토큰 평문도 한 번 보여 준다.
   it("External Interaction 저장 응답에 트리거 단위 토큰이 있으면 한 번 보여 준다", async () => {
     mockApi(WEBHOOK_TRIGGER, []);

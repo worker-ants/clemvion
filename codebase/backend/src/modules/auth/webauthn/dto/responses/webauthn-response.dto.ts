@@ -75,9 +75,9 @@ export class WebAuthnCredentialDto {
 }
 
 // 근거:
-//   - [HTTP API 규약 「5.3 고정 목록 응답」](CLE-API-CONV#53-고정-목록-응답)
-//   - [HTTP API 규약 「고정 목록 응답을 { data: { items } } 로 유지」](CLE-API-CONV#고정-목록-응답을--data--items---로-유지)
-//   - [가입과 로그인 「2단계 인증」](CLE-ACCT-SIGNIN#2단계-인증-1) API 표의 credential 목록
+//   - [HTTP API 규약 「5.3 고정 목록 응답」](CLE-API-CONV-RESP#53-고정-목록-응답)
+//   - [HTTP API 규약 「고정 목록 응답을 { data: { items } } 로 유지」](CLE-API-CONV-RESP#고정-목록-응답을--data--items---로-유지)
+//   - [가입과 로그인 「2단계 인증」](CLE-ACCT-SIGNIN-API#2단계-인증) API 표의 credential 목록
 /**
  * credential 목록 응답. `SessionListDto` 와 **동일한** `{ items: [] }` shape 이며,
  * 응답 인터셉터를 거쳐 `{ data: { items: [] } }` 로 나간다 — sessions·webauthn 양쪽의

@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, Min } from 'class-validator';
 
 // 근거:
-//   - [워크플로우 데이터와 저장 흐름 「Workflow」](CLE-WF-DATA#workflow) `Workflow.settings` 의 알려진 키
+//   - [워크플로우 데이터와 저장 흐름 「Workflow」](CLE-WF-DATA-MODEL#workflow) `Workflow.settings` 의 알려진 키
 //   - [큐 워커와 동시 실행 제한 「동시 실행 제한」](CLE-EXEC-WORKER#동시-실행-제한)
 /**
  * 워크플로우 실행 설정(`Workflow.settings` JSONB)의 write 검증 DTO.

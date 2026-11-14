@@ -31,7 +31,7 @@ export class CurrentNodeDto {
 // 근거:
 //   - [EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회)
 //   - [노드 출력 규약](CLE-NODE-OUTPUT)
-//   - [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union)
+//   - [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER-DTO#1-4-nested-enum-union)
 /**
  * `context` 두 변형의 공통 봉투.
  *
@@ -142,7 +142,7 @@ export class ExecutionStatusDto {
   })
   currentNode: CurrentNodeDto | null;
 
-  // 근거: [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union)
+  // 근거: [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER-DTO#1-4-nested-enum-union)
   /**
    * waiting_for_input 상태의 인터랙션 표면. 그 외에는 `null`.
    *

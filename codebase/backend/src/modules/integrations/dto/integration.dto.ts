@@ -434,7 +434,7 @@ export class Cafe24PrecheckQueryDto {
 
 // 근거:
 //   - [서비스별 인증 방식과 자격 증명 「MakeShop」](CLE-INT-AUTH#makeshop)
-//   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한) 중복 사전 감지(precheck)
+//   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE-API#인증교체권한) 중복 사전 감지(precheck)
 /**
  * MakeShop shop_uid 사전 중복 감지 query — Cafe24PrecheckQueryDto 의 makeshop
  * 대응. `shop_uid` 가 base URL path segment (`/api/v1/{shop_uid}/`) 에 주입되므로

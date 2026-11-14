@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-// 근거: [알림 「닫기 엔드포인트」](CLE-OBS-NOTIFY#닫기-엔드포인트)
+// 근거: [알림 「닫기 엔드포인트」](CLE-OBS-NOTIFY-INBOX#닫기-엔드포인트)
 /**
  * 단건 알림 dismiss 결과.
  *

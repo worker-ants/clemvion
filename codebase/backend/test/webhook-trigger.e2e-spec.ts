@@ -202,7 +202,7 @@ describe('Webhook trigger (e2e)', () => {
     // `endpoint_path` UNIQUE(V132 부터 전역)가 걸리고, 다른 워크스페이스(B5 · B7 · B8)는 BEFORE 예약
     // 트리거(V133)가 먼저 `webhook_endpoint_reservation_owner` 로 막는다.
     //
-    // 계약 SoT: [에러 코드 규약과 카탈로그 「트리거 endpointPath 충돌」](CLE-API-ERRCODES#613-트리거-endpointpath-충돌-도메인-문서-참조)
+    // 계약 SoT: [에러 코드 규약과 카탈로그 「트리거 endpointPath 충돌」](CLE-API-ERRCODES-TRIGGER#613-트리거-endpointpath-충돌-도메인-문서-참조)
     // — 봉투 `code` 는 상태 기본값 `RESOURCE_CONFLICT` 를 유지하고 세부 사유는 `details` 에 싣는다(객체 형태).
     const path = crypto.randomUUID();
     await createWebhookTrigger(uniqueName('hook-b4'), path);

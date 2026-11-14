@@ -2,19 +2,19 @@
 id: "CLE-OBS-LOGGING"
 title: "로깅과 헬스 체크"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "4909462fe59e04b727428712860682665eaf8dce79a79c1e2d4449a0e1b41ca7"
+content_hash: "2f7fd79f15be50017f6cff924a2ae87a85bf2b0424d7dfaf63299f9fffef43d6"
 read_as: "approved_fallback"
-task: "CLE-T-DM3AXQ"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "38680aee45d1795af0d40360ce85372eca7a1135e8ba71d108bd5e6a28b998ff"
-etag: "sha256-4fb494be598bde86c03f3d47752fcb3ad1966453a8e3198ab22a4f0a9657fbc3"
+mirror_sha256: "25602c99fbc07916b158f892d17af8acc5e24b015513aa59aab195b42e591246"
+etag: "sha256-4bd4a0eebf60d0ffd83e61364d00b0be73b3523f847f32bd22de89e4aa823b24"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md` (§6 로깅 정책, §7 헬스 체크, Rationale 의 `Error.cause` 항목), `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -25,7 +25,7 @@ etag: "sha256-4fb494be598bde86c03f3d47752fcb3ad1966453a8e3198ab22a4f0a9657fbc3"
 - 서버 로그의 레벨·형식·마스킹, 에러를 감쌀 때 `Error.cause` 를 붙이는 기준
 - 부수 기록(감사 로그, 로그인 이력, 알림 이메일 등)이 실패했을 때 주 동작을 막지 않는 방식
 - 헬스 체크(health check): 준비 상태 API `/api/health` 와 생존 확인 API `/api/health/live`
-- OTel 메트릭·트레이싱 수집, 비즈니스 메트릭(`clemvion.*`) 카탈로그와 라벨 규칙
+- OTel 메트릭·트레이싱과 비즈니스 메트릭 카탈로그는 하위 문서 [메트릭과 트레이싱](CLE-OBS-LOGGING-METRICS.md) 가 맡는다
 - 관측 영역 전체의 데이터 흐름(헬스 체크, 대시보드, 통계, 알림 규칙 평가, 시스템 상태)
 
 범위 밖:
@@ -38,6 +38,10 @@ etag: "sha256-4fb494be598bde86c03f3d47752fcb3ad1966453a8e3198ab22a4f0a9657fbc3"
 - 대시보드와 통계 화면: [대시보드](CLE-OBS-DASHBOARD.md), [통계](CLE-OBS-STATS.md)
 - 알림 규칙과 그 평가: [알림](CLE-OBS-NOTIFY.md)
 - 감사 로그와 로그인 이력의 적재: [감사 로그](CLE-OBS-AUDIT.md)
+
+## 하위 문서
+
+- [로깅과 헬스 체크 — 메트릭과 트레이싱](CLE-OBS-LOGGING-METRICS.md): OTel 메트릭 · 트레이싱 수집(`OTEL_ENABLED`, Prometheus 수집 주소, OTLP 엔드포인트), 비즈니스 메트릭 카탈로그와 라벨을 닫는 방법, Redis fail-open 라벨, 통계 API 와의 역할 구분과 그 Rationale. 맡는 요구사항: REQ-NFR-030(「수집」 `OTEL_ENABLED`), REQ-NFR-031(「트레이싱」), REQ-NFR-036(「비즈니스 메트릭 카탈로그」)([비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 소유)
 
 ## 관측 영역의 데이터 흐름
 
@@ -66,7 +70,7 @@ flowchart LR
 | 통계 | 기간·워크플로우 필터 집계 API(`statistics.controller.ts`) | [통계](CLE-OBS-STATS.md) |
 | 알림 규칙 평가 | `alert_rule` 을 5분마다 평가해 인앱 알림을 보낸다(`alerts-evaluator.service.ts`) | [알림](CLE-OBS-NOTIFY.md) |
 | 시스템 상태 | BullMQ 큐 적체 집계 | [시스템 상태](CLE-OBS-STATUS.md) |
-| OTel 메트릭·트레이스 | Prometheus 수집 엔드포인트와 OTLP 트레이스 | 이 문서 [메트릭과 트레이싱](#메트릭과-트레이싱) |
+| OTel 메트릭·트레이스 | Prometheus 수집 엔드포인트와 OTLP 트레이스 | [메트릭과 트레이싱](CLE-OBS-LOGGING-METRICS.md) |
 
 ## 로그 레벨
 
@@ -79,9 +83,7 @@ flowchart LR
 
 ## 로그 형식
 
-목표는 서버 로그를 JSON 으로 구조화해 남기는 것이다(REQ-NFR-029). **아직 구현하지 않았다.** 지금 서버는 NestJS 기본 `Logger` 로 한 줄 텍스트를 남기고 요청 로그(`LoggingInterceptor`)는 `METHOD URL status Nms` 형식이다. 구현은 NERV Task `CLE-T-J1YA0X` 가 맡는다.
-
-아래는 목표 형식의 예다.
+목표는 서버 로그를 JSON 으로 구조화해 남기는 것이다(REQ-NFR-029). **아직 구현하지 않았다.** 지금 서버는 NestJS 기본 `Logger` 로 한 줄 텍스트를 남기고 요청 로그(`LoggingInterceptor`)는 `METHOD URL status Nms` 형식이다. 구현은 NERV Task `CLE-T-J1YA0X` 가 맡는다. 목표 형식의 예:
 
 ```json
 {
@@ -101,11 +103,11 @@ flowchart LR
 }
 ```
 
-목표 형식의 `requestId` 는 에러 응답의 요청 ID 와 같은 값이라 에러 응답과 서버 로그를 잇는다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 이것도 아직 구현하지 않았다. 지금 `GlobalExceptionFilter` 는 요청 ID 를 응답 봉투에만 싣고 로그 줄에는 넣지 않는다. 그래서 응답의 `requestId` 로 서버 로그를 찾을 수 없다.
+목표 형식의 `requestId` 는 에러 응답의 요청 ID 와 같은 값이라 에러 응답과 서버 로그를 잇는다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 이것도 아직 구현하지 않았다. 지금 `GlobalExceptionFilter` 는 요청 ID 를 응답 봉투에만 싣고 로그 줄에는 넣지 않아 응답의 `requestId` 로 서버 로그를 찾을 수 없다.
 
 ## 로그 마스킹
 
-목표는 로그에 다음 정보가 남지 않도록 로거가 자동으로 가리는 것이다. **아직 구현하지 않았다.** 지금은 로거 층에 마스킹이 없어 로그를 남기는 모듈이 민감 정보를 직접 빼고 남긴다. 응답 sanitizer 의 누출 패턴(`SECRET_LEAK_PATTERNS`)은 응답에만 쓰고 로그에는 쓰지 않는다. 구현은 위 로그 형식과 함께 NERV Task `CLE-T-J1YA0X` 가 맡는다.
+목표는 로그에 다음 정보가 남지 않도록 로거가 자동으로 가리는 것이다. **아직 구현하지 않았다.** 지금은 로거 층에 마스킹이 없어 로그를 남기는 모듈이 민감 정보를 직접 빼고 남긴다. 응답 sanitizer 의 누출 패턴(`SECRET_LEAK_PATTERNS`)은 응답에만 쓰고 로그에는 쓰지 않는다. 구현은 로그 형식과 함께 `CLE-T-J1YA0X` 가 맡는다.
 
 - API Key, Bearer Token, 비밀번호
 - OAuth 토큰
@@ -115,18 +117,18 @@ flowchart LR
 
 ## 에러를 감쌀 때 `Error.cause` 를 붙이는 기준
 
-이 절은 로그가 아니라 **에러 객체 자체의 구성**을 다룬다. 노드 에러는 Activity API 로 사용자에게 보이므로 "서버에만 남으니 안전하다" 가 성립하지 않는다(근거는 아래 Rationale). 여기서 `cause` 는 JS `Error` 의 `cause` 프로퍼티다. 근본 원인(root cause)이라는 일반 표현과 관계없다.
+이 절은 로그가 아니라 **에러 객체 자체의 구성**을 다룬다. 노드 에러는 Activity API 로 사용자에게 보이므로 "서버에만 남으니 안전하다" 가 성립하지 않는다. 여기서 `cause` 는 JS `Error` 의 `cause` 프로퍼티다.
 
-REST 표준 응답 경로에서는 이 절보다 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 의 에러 응답 형식 규칙을 먼저 본다. 그쪽은 내부 구현 원문을 응답에 그대로 싣는 것을 조건 없이 금지한다. 아래 기준은 "원문을 이미 담은 message" 를 전제로 하므로 REST 경로에서는 그 전제 자체가 규칙 위반이다. 이 절은 그 적법성을 판정하지 않는다.
+REST 표준 응답 경로에서는 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 의 에러 응답 형식 규칙을 먼저 본다. 그쪽은 내부 구현 원문을 응답에 싣는 것을 조건 없이 금지하므로 "원문을 이미 담은 message" 라는 아래 전제 자체가 REST 경로에서는 규칙 위반이다. 이 절은 그 적법성을 판정하지 않는다.
 
-`catch` 한 에러를 새 에러로 감쌀 때 `{ cause: err }` 를 붙일지는 아래 **두 조건을 모두** 만족하는지로 정한다. 하나라도 어긋나면 붙이지 않는다.
+`catch` 한 에러를 새 에러로 감쌀 때 `{ cause: err }` 는 아래 **두 조건을 모두** 만족할 때만 붙인다.
 
 | # | 조건 | 이유 |
 | --- | --- | --- |
 | C1 | 감싼 `message` 가 원본 `err.message` 를 **이미 담고 있다** | 담고 있다면 `cause` 가 message 쪽에서 새 정보를 더하지 않는다. 담고 있지 않다면 그 비노출이 **의도**이므로 `cause` 를 붙이면 그 의도가 깨진다 |
 | C2 | `err` 가 message·name 밖의 민감 정보를 속성으로 들고 있지 않다 | `cause` 는 문자열이 아니라 **객체 전체**를 붙인다. pg 드라이버의 `detail`·`hint`·`where`, HTTP 응답 헤더, 커넥션 문자열 같은 것이 따라오면 C1 이 참이어도 새 정보가 샌다 |
 
-붙이지 않을 때는 `eslint-disable-next-line preserve-caught-error -- <사유>` 로 규칙을 끄고 **무엇을 왜 감추는지** 주석에 남긴다. 원본 상세는 `logger` 로만 남겨 운영 가시성을 지킨다. 이 방식의 기준 사례가 `SecretResolverService.resolve` 다. 복호화에 실패하면 `ref` 와 `workspaceId` 만 기록하고 평문과 암호화 상세는 기록하지 않는다. 근거는 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 18 이다.
+붙이지 않을 때는 `eslint-disable-next-line preserve-caught-error -- <사유>` 로 규칙을 끄고 **무엇을 왜 감추는지** 주석에 남긴다. 원본 상세는 `logger` 로만 남겨 운영 가시성을 지킨다. 기준 사례는 `SecretResolverService.resolve` 다. 복호화에 실패하면 `ref` 와 `workspaceId` 만 기록하고 평문과 암호화 상세는 기록하지 않는다. 근거는 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 18 이다.
 
 ## 부수 기록 실패 흡수
 
@@ -141,7 +143,7 @@ REST 표준 응답 경로에서는 이 절보다 [에러 응답과 클라이언�
 | 알림 WebSocket 전송 | 실패해도 알림 저장은 유지된다 | 없음 | [알림](CLE-OBS-NOTIFY.md) |
 | LLM 사용량 기록(`llm_usage_log` 적재, `clemvion.llm.tokens` 계측) | 둘을 따로 흡수하고 LLM 호출 결과를 그대로 돌려준다. 계측이 실패해도 적재는 한다 | 경고 로그만. 카운터가 없다 | [LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md) |
 | EIA 멱등 캐시의 Redis 조회·저장 | 요청을 살리고 캐시 없이 진행한다(fail-open) | 경고 로그와 `clemvion.redis.fail_open` 카운터(`component=idempotency`) | [External Interaction API](../CLE-IX/CLE-EIA.md) |
-| 그 밖의 Redis 의존 기능(rate limit · quota · 대화 상태 · 잠금 · 토큰 blacklist · pub/sub 버스 등) | Redis 명령이 실패하면 그 기능 없이 진행한다(fail-open). 무엇을 잃는지는 기능마다 다르다 | 경고 로그와 `clemvion.redis.fail_open` 카운터 | [Redis fail-open 라벨](#redis-fail-open-라벨) |
+| 그 밖의 Redis 의존 기능(rate limit · quota · 대화 상태 · 잠금 · 토큰 blacklist · pub/sub 버스 등) | Redis 명령이 실패하면 그 기능 없이 진행한다(fail-open). 무엇을 잃는지는 기능마다 다르다 | 경고 로그와 `clemvion.redis.fail_open` 카운터 | [Redis fail-open 라벨](CLE-OBS-LOGGING-METRICS.md#redis-fail-open-라벨) |
 
 - 관측 호출(로그·메트릭) 자체가 실패해도 흡수한다. 관측이 새 실패 경로가 되면 흡수 계약을 거스르게 된다.
 - 흡수해도 호출은 기다릴 수 있다. 로그인 이력처럼 바로 뒤 조회와의 읽기 경쟁을 막아야 하면 `await` 한다. 흡수는 에러 전파를 막을 뿐 순서 보장과 별개다.
@@ -171,7 +173,7 @@ sequenceDiagram
   H-->>LP: 200 status ok (의존성 점검 없음)
 ```
 
-헬스 체크는 DB 에 아무것도 쓰지 않는다. 호출마다 독립적이다.
+헬스 체크는 DB 에 아무것도 쓰지 않는다. 호출마다 독립적이다. 헬스 체크 대상은 백엔드뿐이다. 프런트엔드 헬스 체크는 외부 의존성을 점검하지 않아 나눌 필요가 없다.
 
 ### `/api/health` 응답
 
@@ -215,7 +217,7 @@ probe 는 자주 불린다(준비 상태 10초, 생존 확인 30초). 성공 로
 | 실패(HTTP ≥ 400, 준비 상태 503) | 항상 WARN 으로 남긴다 |
 | 헬스 체크가 아닌 경로 | 기존대로 항상 INFO |
 
-`HEALTH_CHECK_LOG` 기본값은 `false` 다. 기본은 실패만 남겨 소음을 줄이고 켜면 성공과 실패를 모두 남긴다. 헬스 체크 대상은 백엔드뿐이다. 프런트엔드 헬스 체크는 외부 의존성을 점검하지 않아 나눌 필요가 없다.
+`HEALTH_CHECK_LOG` 기본값은 `false` 다. 기본은 실패만 남겨 소음을 줄이고 켜면 성공과 실패를 모두 남긴다.
 
 ### 예정 항목
 
@@ -240,153 +242,38 @@ probe 는 자주 불린다(준비 상태 10초, 생존 확인 30초). 성공 로
 
 큐 건강도가 `unhealthy` 를 `degraded`·`down` 두 단계로 나눈 이유는 [시스템 상태](CLE-OBS-STATUS.md) 에 있다.
 
-## 메트릭과 트레이싱
-
-### 수집
-
-- `OTEL_ENABLED=true` 일 때 켜진다(REQ-NFR-030).
-- OTel MeterProvider 와 `@opentelemetry/exporter-prometheus`(`instrumentation.ts`)가 Prometheus 수집 서버의 `/metrics` 로 내보낸다. 주소는 `OTEL_PROMETHEUS_HOST`·`OTEL_PROMETHEUS_PORT` 이고 기본값은 `127.0.0.1:9464` 다. 수집 주소와 아래 트레이스 엔드포인트의 기본값은 이 문서가 기준이다. [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 은 요구사항만 정한다.
-- 자동 수집: auto-instrumentation 의 HTTP 서버 메트릭과 `instrumentation-runtime-node` 의 런타임 메트릭(event loop, GC, heap).
-- 도메인·비즈니스 메트릭은 아래 카탈로그다(REQ-NFR-036).
-
-### 트레이싱
-
-`OTEL_ENABLED=true` 일 때 분산 트레이싱이 켜진다(REQ-NFR-031). OTLP HTTP exporter 의 기본 엔드포인트는 `/v1/traces` 다.
-
-### 비즈니스 메트릭 카탈로그
-
-`OTEL_ENABLED=true` 일 때 `BusinessMetricsService` 가 `metrics.getMeter('clemvion.business')` 로 계측한다(`business-metrics.service.ts`). OTel instrument 이름은 점 표기(`clemvion.*`)이고 Prometheus exporter 가 `clemvion_*` 로 바꾼다. 모든 라벨은 값의 가짓수가 제한돼야 한다(enum, 등록된 모델 수, 노드 타입, 표준 에러 코드).
-
-라벨을 닫는 방법은 둘이다.
-
-1. 소스에 코드 리터럴 유니온이 있으면 그 유니온으로 **타입에서** 닫는다(`clemvion.redis.fail_open` 의 `component` 와 component 별 `reason`).
-2. 소스 시그니처가 이미 `string` 이라 컴파일러가 닫힘을 증명하지 못하는 라벨(`error_code`, `resource_type`)은 값 길이를 64자로 **잘라** 방어한다. 증명되지 않은 닫힘을 타입으로 주장하지 않고 실제로 지켜지는 방어를 적는다.
-
-| 메트릭 | 종류 | 라벨 | 뜻 |
-| --- | --- | --- | --- |
-| `clemvion.execution.total` | Counter | `status`(`completed`·`failed`·`cancelled`) | 워크플로우 실행이 종료 상태로 바뀐 수. 에러율 = `rate(...{status="failed"}) / rate(...)` |
-| `clemvion.execution.errors` | Counter | `error_code` | 실패 종료를 에러 코드별로 나눈다. `status` 라벨만으로는 원인을 나눌 수 없어서 둔다 |
-| `clemvion.queue.depth` | ObservableGauge | `queue`, `state`(`waiting`·`active`·`delayed`·`failed`) | BullMQ 큐 깊이. 주기적인 observable callback 이 `getJobCounts` 로 관측한다. BullMQ 6 부터 일시 정지된 큐의 대기 job 도 `state=waiting` 으로 센다. 시스템 상태 API 와 달리 `paused` 를 합성하지 않는다([시스템 상태](CLE-OBS-STATUS.md#bullmq-6-에서-paused-를-합성한다)) |
-| `clemvion.llm.tokens` | Counter | `model`, `type`(`input`·`output`·`thinking`) | LLM 토큰 사용량. 모든 `LlmService.chat`·`chatStream` 이 거치는 `LlmUsageLogService.record` 한 곳에서 계측한다([LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)) |
-| `clemvion.node.duration` | Histogram(ms) | `node_type`, `status` | 노드 실행 지연. 실행이 끝날 때 그 실행의 `node_execution.duration_ms` 로 기록한다 |
-| `clemvion.redis.fail_open` | Counter | `component`, `reason`(쌍은 [Redis fail-open 라벨](#redis-fail-open-라벨)) | Redis 에 기대는 기능이 fail-open 으로 물러난 횟수. fail-open 은 "요청을 살린다" 와 "장애를 보이게 한다" 가 한 쌍인데 예전에는 뒤쪽이 경고 로그뿐이라 비율·추세로 경보를 걸 수 없었다. 경보 예: `rate(clemvion_redis_fail_open[5m]) > 0` |
-| `clemvion.audit.write_failed` | Counter | `resource_type`(감사 대상 리소스 종류. 코드가 정하는 값이고 실측으로 서로 다른 값 10종: `user`·`trigger`·`workflow`·`schedule`·`member`·`workspace`·`integration`·`model_config`·`auth_config`·`execution`. 감사 기록 위치 파일 수 12 와 다른 수치다. 소스 시그니처가 `string` 이라 64자로 잘라 방어한다) | 감사 로그 적재가 실패해 흡수된 횟수. `AuditLogsService.record()` 는 감사 실패가 본 요청(교체·삭제 같은 특권 작업)을 깨지 않도록 예외를 흡수한다. 예전에는 그 뒤가 경고 로그뿐이라 "작업은 200 으로 성공했는데 감사 행만 조용히 비어 있음" 이 보이지 않았다. 감사 로그는 "계정 탈취 뒤 조용한 시크릿 교체를 재구성한다" 는 신뢰를 지탱하고 그 신뢰는 적재가 실제로 됐을 때만 성립한다. 경보 예: `rate(clemvion_audit_write_failed[5m]) > 0` |
-
-#### Redis fail-open 라벨
-
-`clemvion.redis.fail_open` 은 Redis 명령이 실패해 그 기능이 Redis 없이 진행한 경우를 센다. 동작 하나가 물러날 때 한 번 센다. 한 요청 안에서 명령 여러 개가 실패해도 한 번이다. Redis 가 설정되지 않아 기능이 처음부터 꺼진 경우(클라이언트 없음)와 연결 초기화 실패는 세지 않는다. 장애가 아니라 구성 상태라서다. Redis 와 무관한 실패(저장된 값의 JSON 파싱 실패, 이벤트 핸들러 오류, 연결 종료 실패)도 세지 않는다. 캐시 내용의 손상을 전용 reason 으로 세는 것은 EIA 멱등 캐시뿐이다.
-
-| `component` | 기능 | `reason` |
-| --- | --- | --- |
-| `idempotency` | EIA 멱등 캐시 | `get_failed` · `set_failed` · `serialize_failed` · `entry_corrupt` · `payload_corrupt` |
-| `chat_conversation` | 채팅 채널 대화 상태와 폼 제출 잠금 | `get_failed` · `set_failed` · `del_failed` · `cas_failed` · `lock_failed` · `unlock_failed` |
-| `chat_dedup` | 채팅 채널 update 중복 억제 | `set_failed` · `del_failed` |
-| `chat_rate_limit` | 채팅 채널 대화별 rate limit | `incr_failed` |
-| `chat_listener_bus` | 채팅 채널 리스너 등록을 인스턴스 사이에 알리는 pub/sub | `publish_failed` · `subscribe_failed` |
-| `interaction_rate_limit` | EIA 인터랙션 rate limit | `incr_failed` |
-| `token_blacklist` | EIA 인터랙션 토큰 blacklist | `get_failed` · `set_failed` |
-| `outbound_rate_limit` | EIA 외부 알림 발송 rate limit | `incr_failed` |
-| `sse_fanout` | EIA SSE 이벤트 버퍼와 인스턴스 사이 전달 | `write_failed` · `read_failed` · `slot_failed` · `publish_failed` · `subscribe_failed` |
-| `public_webhook_quota` | 공개 웹훅 quota | `incr_failed` |
-| `cafe24_install_lockout` | Cafe24 앱 설치 실패 잠금 | `get_failed` · `incr_failed` |
-| `cafe24_install_nonce` | Cafe24 앱 설치 nonce | `set_failed` |
-| `execution_seq` | WebSocket 실행 이벤트 순번 할당 | `incr_failed` · `del_failed` |
-| `integration_cache_bus` | 통합 캐시 무효화를 인스턴스 사이에 알리는 pub/sub | `publish_failed` · `subscribe_failed` |
-
-`reason` 은 실패한 Redis 동작이고 component 사이에 같은 이름을 쓴다.
-
-- `get_failed` · `set_failed` · `del_failed`: 값 조회 · 저장 · 삭제
-- `incr_failed`: 고정 창 카운터 증가. 창 TTL 설정과 조회도 포함한다. 증가는 됐고 TTL 설정만 실패한 경우는 세지 않는다. 기능이 Redis 없이 진행한 것이 아니라서다
-- `cas_failed`: 비교 후 교체
-- `lock_failed` · `unlock_failed`: 잠금 획득 · 해제
-- `publish_failed` · `subscribe_failed`: pub/sub 발행 · 구독. 구독 연결 오류, 재구독 실패, 구독 해제 실패도 `subscribe_failed` 다
-- `write_failed` · `read_failed` · `slot_failed`: SSE 버퍼 쓰기(TTL 설정 포함), 버퍼와 순번 읽기, 연결 상한 슬롯의 획득 · 갱신 · 해제. 버퍼 쓰기와 함께 보내는 live 발행이 실패하면 `publish_failed` 다
-- `serialize_failed` · `entry_corrupt` · `payload_corrupt`: EIA 멱등 캐시에만 있다. 응답 직렬화 실패, 캐시 엔트리 손상, 캐시 payload 손상이다
-
-- component 마다 낼 수 있는 `reason` 이 정해져 있다. 표에 없는 쌍은 나오지 않는다.
-- SSE fanout 은 같은 동작의 경고 로그를 복구될 때까지 한 번만 남긴다. 카운터는 실패마다 센다.
-- 구독 연결의 오류는 오류 이벤트마다 센다. ioredis 는 재연결을 시도할 때마다 오류를 내고, 같은 장애로 SUBSCRIBE 가 거부되면 그것도 센다. 그래서 장애 한 번이 여러 번 세질 수 있다. `subscribe_failed` 는 건수보다 증가율로 본다.
-- 보안 판단이 함께 물러나는 쌍이 있다. `token_blacklist`/`get_failed` 이면 취소한 인터랙션 토큰이 통과하고, `cafe24_install_lockout`/`get_failed` 이면 설치 실패 잠금이 풀린다. 이 둘은 component 를 지정한 경보를 따로 두는 편이 낫다. 경보 예: `rate(clemvion_redis_fail_open{component="token_blacklist"}[5m]) > 0`
-
-### 통계 API 와 역할을 나눈다
-
-실행 수와 LLM 사용량은 DB 집계 기반 [통계](CLE-OBS-STATS.md) API 에서도 볼 수 있다. 둘은 서로 보완하고 역할이 다르다.
-
-- OTel·Prometheus 는 실시간 운영 감시와 경보(Grafana 대시보드, Prometheus 경보 규칙)에 쓰는 rate·gauge 지표다.
-- 통계 API 는 제품 분석과 과거 추세의 기준이다. 워크스페이스 단위 정확 집계, 기간 필터, 차트를 준다.
-
-OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터의 기준이 아니다.
-
 ## 구현 위치
 
-- `codebase/backend/src/modules/health/health.controller.ts` (준비 상태 · 생존 확인 엔드포인트, 503 상태 코드 설정)
-- `codebase/backend/src/modules/health/health.service.ts` (`HealthService.check()`: `database` · `redis` 점검)
-- `codebase/backend/src/common/interceptors/logging.interceptor.ts` (요청 로그와 헬스 체크 로그 게이팅, `HEALTH_CHECK_LOG`)
-- `codebase/backend/src/common/interceptors/transform.interceptor.ts` (성공 응답과 헬스 체크 503 의 `{ data }` 래핑)
-- `codebase/backend/src/instrumentation.ts` (OTel 메트릭 · 트레이스 수집)
-- `codebase/backend/src/modules/metrics/business-metrics.service.ts` (비즈니스 메트릭 카탈로그, `RedisFailOpenReasonMap`)
-- Redis fail-open 기록 호출부(`recordRedisFailOpen`):
-  - `codebase/backend/src/modules/external-interaction/idempotency.interceptor.ts`
-  - `codebase/backend/src/modules/external-interaction/interaction-rate-limiter.service.ts`
-  - `codebase/backend/src/modules/external-interaction/interaction-token.service.ts`
-  - `codebase/backend/src/modules/external-interaction/outbound-notification-rate-limiter.service.ts`
-  - `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts`
-  - `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`
-  - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`
-  - `codebase/backend/src/modules/chat-channel/chat-channel-rate-limiter.service.ts`
-  - `codebase/backend/src/modules/chat-channel/channel-listener.bus.ts`
-  - `codebase/backend/src/modules/hooks/public-webhook-quota.service.ts`
-  - `codebase/backend/src/modules/integrations/cafe24-install-rate-limit.service.ts`
-  - `codebase/backend/src/modules/integrations/cafe24-install-nonce-cache.service.ts`
-  - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts`
-  - `codebase/backend/src/common/redis/integration-cache-bus.service.ts`
-- `codebase/backend/src/modules/audit-logs/audit-logs.service.ts` (감사 로그 적재 실패 흡수)
-- `codebase/backend/src/modules/auth/login-history.service.ts` (로그인 이력 적재 실패 흡수)
-- `codebase/backend/src/modules/llm/llm-usage-log.service.ts` (LLM 사용량 기록 실패 흡수)
+모두 `codebase/backend/src/` 아래다.
+
+- `modules/health/health.controller.ts` (준비 상태 · 생존 확인 엔드포인트, 503 상태 코드 설정)
+- `modules/health/health.service.ts` (`HealthService.check()`: `database` · `redis` 점검)
+- `common/interceptors/logging.interceptor.ts` (요청 로그와 헬스 체크 로그 게이팅, `HEALTH_CHECK_LOG`)
+- `common/interceptors/transform.interceptor.ts` (성공 응답과 헬스 체크 503 의 `{ data }` 래핑)
+- `modules/audit-logs/audit-logs.service.ts` (감사 로그 적재 실패 흡수)
+- `modules/auth/login-history.service.ts` (로그인 이력 적재 실패 흡수)
+- `modules/llm/llm-usage-log.service.ts` (LLM 사용량 기록 실패 흡수)
 
 ## Rationale
 
 ### 준비 상태와 생존 확인 probe 를 나눈다
 
-처음에는 `/api/health` 하나를 생존 확인 probe 로 썼다. k8s manifest 의 readinessProbe 와 livenessProbe 가 모두 이 경로를 불렀다.
-
-문제가 둘 있었다. `/api/health` 는 의존성 장애 때도 HTTP 200 을 돌려주고 본문 `status` 로만 `unhealthy` 를 알렸다. 그래서 준비 상태 probe 가 무력했다(Pod 가 Service 에서 빠지지 않았다). 같은 경로가 생존 확인에도 쓰였으므로 의존성 장애 때 503 을 돌려주게 바꾸면 DB 장애 한 번에 모든 replica 의 생존 확인이 동시에 실패한다. 그러면 kubelet 이 모든 Pod 를 동시에 재시작하는 크래시 루프가 생길 위험이 있었다.
+처음에는 `/api/health` 하나를 readinessProbe 와 livenessProbe 가 모두 불렀다. 문제가 둘 있었다. `/api/health` 는 의존성 장애 때도 HTTP 200 을 돌려주고 본문 `status` 로만 `unhealthy` 를 알려 준비 상태 probe 가 무력했다(Pod 가 Service 에서 빠지지 않았다). 그렇다고 503 을 돌려주게 바꾸면 DB 장애 한 번에 모든 replica 의 생존 확인이 동시에 실패해 kubelet 이 모든 Pod 를 동시에 재시작하는 크래시 루프가 생길 위험이 있었다.
 
 그래서 이렇게 바꿨다.
 
-- `/api/health` 는 준비 상태 probe 전용이다. 의존성 점검 결과를 HTTP 상태 코드로 알린다(`healthy` 200, `unhealthy`·`unconfigured` 503). 503 은 "이 Pod 는 지금 트래픽을 받을 준비가 안 됐다" 는 뜻이고 의존성이 돌아오면 저절로 200 으로 돌아온다.
-- `/api/health/live` 는 생존 확인 probe 전용이다. 의존성을 점검하지 않고 프로세스 생존만 본다(항상 200). 생존 확인은 "프로세스가 살아 응답하는가" 만 답해야 한다. 외부 의존성을 보면 외부 장애가 Pod 재시작으로 번져 상황이 더 나빠진다. 재시작으로 외부 DB 를 고칠 수 없으므로 이를 구조적으로 막는다.
-- 본문 구조는 예외를 던지지 않고 응답 상태 코드만 바꿔 지킨다. 그래서 503 도 에러 응답 봉투가 아니라 정상 응답과 같은 `{ data }` 본문이다. probe 와 외부 모니터는 상태 코드로 판정하고 운영자는 본문의 `checks` 로 어느 의존성이 비정상인지 본다. 이 예외는 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 1 에 적었다(2026-11-12). 본문 `status` 어휘는 두 값 그대로다.
-- 대상은 백엔드뿐이다. 프런트엔드 헬스 체크는 외부 의존성을 점검하지 않아 나눌 필요가 없다.
+- `/api/health` 는 준비 상태 probe 전용이다. 503 은 "이 Pod 는 지금 트래픽을 받을 준비가 안 됐다" 는 뜻이고 의존성이 돌아오면 저절로 200 으로 돌아온다.
+- `/api/health/live` 는 생존 확인 probe 전용이다. 생존 확인은 "프로세스가 살아 응답하는가" 만 답해야 한다. 외부 의존성을 보면 외부 장애가 Pod 재시작으로 번져 상황이 더 나빠지고, 재시작으로 외부 DB 를 고칠 수 없다. 이를 구조적으로 막는다.
+- 503 도 예외를 던지지 않고 상태 코드만 바꿔 정상 응답과 같은 `{ data }` 본문을 지킨다. probe 와 외부 모니터는 상태 코드로 판정하고 운영자는 본문의 `checks` 로 어느 의존성이 비정상인지 본다. 이 예외는 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 1 에 적었다(2026-11-12).
 
 ### 파일 저장소 ping 은 아직 넣지 않았다
 
-S3 ping 은 외부 네트워크에 크게 기대 헬스 체크가 느려질 수 있다. 위 분리에 따라 넣는다면 준비 상태 probe(`/api/health`) 단계가 맞다. 생존 확인 `/api/health/live` 는 의존성을 점검하지 않는다. 넣을 때는 짧은 timeout 을 권한다. 현재 구현(`health.service.ts`)은 여전히 `database` 와 `redis` 만 점검한다.
+S3 ping 은 외부 네트워크에 크게 기대 헬스 체크가 느려질 수 있다. 넣는다면 위 분리에 따라 준비 상태 probe 단계에 짧은 timeout 으로 넣는다(「예정 항목」).
 
 ### `Error.cause` 부착 기준을 에러 객체의 성질에 건다
 
-`#1219`(eslint 10 상향)가 켠 `preserve-caught-error` 규칙에 대응하면서 같은 규칙에 두 가지 처분이 갈렸다. `expression-resolver`·`code.handler` 는 `cause` 를 붙였고 `SecretResolverService.resolve` 는 붙이지 않았다. 그 기준을 정리한 것이 위의 `Error.cause` 부착 기준 절이다(2026-08-29).
+eslint 10 상향(`#1219`)이 켠 `preserve-caught-error` 규칙에 대응하면서 처분이 갈렸다. `expression-resolver`·`code.handler` 는 `cause` 를 붙였고 `SecretResolverService.resolve` 는 붙이지 않았다. 그 기준을 정리한 것이 `Error.cause` 부착 기준 절이다(2026-08-29).
 
-기준 후보는 둘이었다. 기각한 쪽은 "지금 `.cause` 가 클라이언트로 직렬화되는가" 다. 실측으로는 그때 직렬화하는 경로가 0곳이었다(`GlobalExceptionFilter` 등. 로그 전용으로 풀어 보는 `describeFetchError` 는 별개다). 그래서 어느 쪽을 골라도 당장은 안전했다. 하지만 그 기준은 소비하는 쪽이 바뀌면 무너진다. 나중에 누가 `.cause` 를 응답 봉투에 실으면 과거의 모든 부착이 한꺼번에 노출이 된다. `#814`(SSRF 에러 메시지 일반화)가 바로 그 함정이었다. "서버 로그니까 안전하다" 는 전제가 Activity API 노출로 반증됐다. 그래서 기준을 에러 객체 자신의 성질(C1 message 포함 여부, C2 부가 속성 유무)에 걸었다. 소비하는 쪽과 상관없이 변하지 않는다.
+기각한 기준은 "지금 `.cause` 가 클라이언트로 직렬화되는가" 다. 그때 직렬화 경로는 0곳이었다(`GlobalExceptionFilter` 등. 로그 전용으로 풀어 보는 `describeFetchError` 는 별개다). 하지만 그 기준은 소비하는 쪽이 바뀌면 무너진다. 누가 `.cause` 를 응답 봉투에 실으면 과거의 모든 부착이 한꺼번에 노출된다. SSRF 에러 메시지 일반화(`#814`)가 그 함정이었다. "서버 로그니까 안전하다" 는 전제가 Activity API 노출로 반증됐다. 그래서 기준을 소비하는 쪽과 무관한 에러 객체 자신의 성질(C1 message 포함 여부, C2 부가 속성 유무)에 걸었다.
 
-C2 는 나중에 더했다. 초안은 C1 만 두었는데 검토에서 "`cause` 는 message 문자열이 아니라 `err` 객체 전체를 붙인다" 는 지적이 나왔다. pg 의 `detail`·`hint`·`where` 처럼 message 밖 속성이 따라오면 C1 이 참이어도 새 정보가 샌다. `#814` 가 세운 "필드가 아니라 원문 내용이 판단 기준" 을 message 텍스트 하나로 어림한 것이 초안의 결함이었다.
-
-### `clemvion.redis.fail_open` 의 `component` 는 실제로 연결한 값만 둔다
-
-Redis fail-open 을 하는 서비스는 여럿이다(rate limiter, quota, 대화 등). 처음에 이 카운터에 연결된 것은 EIA 멱등 캐시(`idempotency`) 하나뿐이었다. 나머지를 미리 적고 싶어지지만 그러면 문서가 구현보다 넓어진다. 경보를 거는 사람이 영원히 오르지 않는 시계열을 감시하게 되고 "이 값이 0 이다" 가 정상인지 계측이 없는 것인지 구분되지 않는다.
-
-그래서 라벨 값 집합은 코드의 선언(`RedisFailOpenReasonMap`, component 별 reason)이 정하는 닫힌 집합과 1:1 로 맞춘다. 새 소비자를 연결할 때는 선언과 [Redis fail-open 라벨](#redis-fail-open-라벨) 표를 **함께** 넓힌다. 이 "함께" 는 기계가 확인하지 않는다. 코드 가드(`redis-fail-open-catalog.spec.ts`)는 선언한 (component, reason) 쌍마다 호출부가 있는지만 보고 이 표를 읽지 않는다. 표와 코드의 정합은 일관성 검토가 본다(가드 아님). 구현을 마친 뒤의 검토이고 강제하지는 않는다. 라벨을 `string` 으로 열어 두지 않는 이유도 같다. 외부 문자열이 라벨에 실리면 Prometheus 시계열 가짓수가 폭발한다.
-
-이 원칙은 코드 유니온이 있는 라벨에 적용한다. 소스 시그니처가 이미 `string` 인 라벨은 컴파일러가 닫힘을 증명하지 못한다. 그래서 유니온을 주장하지 않고 값 길이를 64자로 잘라 같은 목적(가짓수 방어)을 이룬다. `clemvion.execution.errors` 의 `error_code`, `clemvion.audit.write_failed` 의 `resource_type` 이 그 경우다. 증명되지 않은 닫힘을 타입으로 적으면 다음 사람이 그것을 믿고 길이 제한을 지운다.
-
-### Redis fail-open 을 13곳 더 연결하고 reason 을 동작 이름으로 정했다 (2026-11-12)
-
-NERV Task `CLE-T-7ER0Y0` 에서 연결했다. 대상은 Redis 명령이 실패하면 잡고 계속 진행하는 서비스다. 2026-11-12 의 main 에서 fail-open 을 언급하고 Redis 를 참조하는 백엔드 프로덕션 파일(테스트와 저장소 가드 제외)은 26개였다. 이미 연결한 EIA 멱등 인터셉터와 카운터를 정의하는 파일을 빼면 후보는 24개다. 그중 직접 fail-open 하는 서비스가 8곳이었다. 나머지 16곳은 다른 서비스의 fail-open 을 언급만 하거나, DB 실패를 흡수하거나, 실패하면 막는(fail-closed) 파일이었다. 같은 형태인데 "fail-open" 이라는 말을 쓰지 않아 검색에 안 걸린 서비스 5곳을 더해 13곳을 연결했다. 범위는 사람이 정했다(전부 이번에 연결).
-
-- **세는 기준.** Redis 명령의 런타임 실패만 센다. Redis 미설정으로 기능이 꺼진 상태는 배포마다 고정이라 비율 경보의 대상이 아니다. 그 상태까지 세면 설정하지 않은 환경에서 카운터가 요청마다 올라 장애 신호와 섞인다.
-- **reason 은 실패한 동작 이름이다.** component 마다 고유한 이름을 붙이는 안도 있었다. 그러면 "조회가 실패한 곳 전부" 처럼 동작으로 묶는 질의를 쓸 수 없다. 그래서 `get_failed` · `incr_failed` 처럼 동작 이름을 서비스 사이에 같이 쓴다. EIA 멱등 캐시의 `serialize_failed` · `entry_corrupt` · `payload_corrupt` 는 Redis 동작이 아니라 캐시 내용의 문제라 그대로 둔다.
-- **reason 집합은 component 마다 따로 닫는다.** 한 유니온에 모든 reason 을 두면 rate limiter 가 `lock_failed` 를 내도 타입이 막지 못한다. 그러면 "호출부가 없는 라벨" 이 다시 생길 수 있다.
-- **가드는 (component, reason) 쌍 단위로 본다.** component 단위로만 보면 reason 하나를 빠뜨린 배선이 통과한다.
-- **가드는 이 표를 읽지 않는다.** 가드가 이 문서 미러의 표를 읽게 되살리는 안을 기각했다. 사람 결정이다(NERV Task `CLE-T-DM3AXQ` 항목 14, 2026-11-12). 미러는 구현 PR 이 받은 스냅샷이라 승인 시점과 코드 머지 시점을 맞춰야 한다. 표기도 사람이 쓰는 문서 형식에 묶인다.
-- **구독 오류는 장애 건수가 아니라 이벤트 수로 센다.** 장애 건수를 세려면 구독 연결의 상태를 따로 추적해야 한다. 경보는 증가율로 걸므로 이벤트 수로 충분하다.
-- **기각: 서비스마다 카운터를 따로 둔다.** 경보 규칙이 서비스 수만큼 늘고 새 서비스를 연결할 때마다 경보를 새로 걸어야 한다. 카운터 하나에 `component` 라벨을 두면 `rate(clemvion_redis_fail_open[5m]) > 0` 하나로 전부를 본다.
+C2 는 나중에 더했다. 초안은 C1 만 두었는데 `cause` 는 `err` 객체 전체를 붙이므로 pg 의 `detail`·`hint`·`where` 처럼 message 밖 속성이 따라오면 C1 이 참이어도 새 정보가 샌다. `#814` 가 세운 "필드가 아니라 원문 내용이 판단 기준" 을 message 텍스트 하나로 어림한 것이 초안의 결함이었다.

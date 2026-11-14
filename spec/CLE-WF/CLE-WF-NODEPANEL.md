@@ -2,25 +2,25 @@
 id: "CLE-WF-NODEPANEL"
 title: "노드 포트와 설정 패널"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-NODEUI-001", "REQ-NODEUI-002", "REQ-NODEUI-003", "REQ-NODEUI-004", "REQ-NODEUI-005", "REQ-NODEUI-006", "REQ-NODEUI-007", "REQ-NODEUI-008", "REQ-NODEUI-009", "REQ-NODEUI-010", "REQ-NODEUI-011", "REQ-NODEUI-012", "REQ-NODEUI-013", "REQ-NODEUI-014", "REQ-NODEUI-015", "REQ-NODEUI-016", "REQ-NODEUI-017", "REQ-NODEUI-018", "REQ-NODEUI-019", "REQ-NODEUI-020", "REQ-NODEUI-021", "REQ-NODEUI-022", "REQ-NODEUI-023", "REQ-NODEUI-024", "REQ-NODEUI-025", "REQ-NODEUI-026", "REQ-NODEUI-027", "REQ-NODEUI-028", "REQ-NODEUI-029", "REQ-NODEUI-030", "REQ-NODEUI-031", "REQ-NODEUI-032", "REQ-NODEUI-033", "REQ-NODEUI-034", "REQ-NODEUI-035", "REQ-NODEUI-036", "REQ-NODEUI-037", "REQ-NODEUI-038", "REQ-NODEUI-039", "REQ-NODEUI-040", "REQ-NODEUI-041"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "de54c131b4309af8ca35f77107ea5cbda2cf491fa5e09983045ccda3f3a113bb"
+content_hash: "d968f414c4c531ffe9742af0308556b49e519fdd3f10bb4e99612c46d1075337"
 read_as: "approved_fallback"
-task: "CLE-T-D6C9HJ"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "e329da38b51bcbe6eb4094032b4df0ef215c552ed49dacd48ed62345a2ade490"
-etag: "sha256-e5ffa6959d10d9493ce30e7017dd6fc8ab5476373d7b479d478d33feb25e636c"
+mirror_sha256: "329b665e212bccfdc972f752d54345f2c262f58e3148eaf7e6af55bb9b6c526d"
+etag: "sha256-3f24db6f55f796bc7b321fabc68febcaf8ef0b2f27d7e55e9c94102c0eb707da"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 모든 노드가 함께 쓰는 에디터 쪽 규칙을 정한다. 노드의 입력·출력 포트(Port, `source_port`·`target_port`) 체계, 노드를 고르면 오른쪽에 열리는 설정 패널(Settings Panel, `node-settings-panel`), 스키마로 설정 폼을 그리는 auto-form(`SchemaForm`, `UiHint`), 노드 사이 데이터 전달 규칙을 다룬다.
+이 문서는 모든 노드가 함께 쓰는 에디터 쪽 규칙을 정한다. 노드의 입력·출력 포트(Port, `source_port`·`target_port`) 체계, 노드를 고르면 오른쪽에 열리는 설정 패널(Settings Panel, `node-settings-panel`), 노드 사이 데이터 전달 규칙을 다룬다. 스키마로 설정 폼을 그리는 auto-form(`SchemaForm`, `UiHint`)은 하위 문서 [노드 포트와 설정 패널 — auto-form](CLE-WF-NODEPANEL-AUTOFORM.md) 이 정한다.
 
 포트 ID 와 노드별 포트 구성은 각 노드 문서가 정한다. 이 문서는 포트 체계의 공통 규칙만 두고 노드별 포트는 [노드별 포트 문서](#노드별-포트-문서) 표로 각 노드 문서를 가리킨다. 포트 정의 속성(`PortDef`)과 동적 포트 ID 생성 방식은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 가 정한다.
 
@@ -76,6 +76,11 @@ etag: "sha256-e5ffa6959d10d9493ce30e7017dd6fc8ab5476373d7b479d478d33feb25e636c"
 - REQ-NODEUI-040 WHEN 에러 포트로 라우팅하는 노드에서 에러가 나면 THE SYSTEM SHALL 에러 데이터를 `error` 포트로 보내 연결된 다음 노드가 입력으로 실행하게 한다. (부분 구현)
 - REQ-NODEUI-041 WHEN 설정 패널이 ForEach · Map · Parallel 노드를 불러오거나 저장하면 THE SYSTEM SHALL `config.errorPolicy` 를 에러 처리 정책으로 옮기지 않고 지우지도 않는다.
 
+
+## 하위 문서
+
+- [노드 포트와 설정 패널 — auto-form](CLE-WF-NODEPANEL-AUTOFORM.md): Settings 탭 설정 폼의 두 트랙(수작업 폼 · auto-form), UiHint 어휘, 위젯 어휘 21종, 트랙 배정 현황. 요구사항 REQ-NODEUI-032, REQ-NODEUI-033, REQ-NODEUI-034, REQ-NODEUI-035, REQ-NODEUI-036, REQ-NODEUI-037.
+
 ## 포트 체계
 
 ### 입력 포트
@@ -106,8 +111,7 @@ etag: "sha256-e5ffa6959d10d9493ce30e7017dd6fc8ab5476373d7b479d478d33feb25e636c"
 | 에러 포트(error port, `error`) | 빨강(●) | 런타임 에러를 내보내는 출력 포트. 노드에 원래 있는 **고정 에러 포트**와, 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 **동적 에러 포트**가 있다. 동적 에러 포트는 노드 오른쪽 아래에 빨간 원으로 그린다. 동적 에러 포트는 아직 구현되지 않았다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)). |
 | 컨테이너 `emit` 포트 | 보라(●) | Loop·ForEach·Map 의 본문 결과를 모으는 입력 포트. 헤드 라벨도 보라다. |
 
-- 사용자 조건 포트와 시스템 포트 사이에는 점선 구분자를 둔다.
-- 입력 포트가 여럿이면(예: 컨테이너의 `Input`·`Emit`) 포트 옆에 라벨을 붙여 구분한다.
+- 사용자 조건 포트와 시스템 포트 사이에는 점선 구분자를 둔다. 입력 포트가 여럿이면(예: 컨테이너의 `Input`·`Emit`) 포트 옆에 라벨을 붙인다.
 - 연결선 색은 출발 포트 종류를 따른다. 규칙은 [연결선](CLE-WF-EDGE.md) 이 정한다.
 - 시스템 포트의 코드 식별자는 층마다 다르다. [미결 사항](#미결-사항) 참조.
 
@@ -115,34 +119,34 @@ etag: "sha256-e5ffa6959d10d9493ce30e7017dd6fc8ab5476373d7b479d478d33feb25e636c"
 
 노드별 포트 ID·개수·종류는 각 노드 문서의 포트 절이 정하고 노드 스키마와 함께 바뀐다. 포트 ID 는 연결선의 `source_port`·`target_port` 값이므로 아래 문서를 기준으로 쓴다.
 
-| 노드 | 포트 정의 문서 | 비고 |
-| --- | --- | --- |
-| 수동 트리거 노드 | [수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md) | 입력 포트 없음 |
-| If/Else | [If/Else 노드](../CLE-NODE-LOGIC/CLE-NODE-IFELSE.md) | |
-| Switch | [Switch 노드](../CLE-NODE-LOGIC/CLE-NODE-SWITCH.md) | 케이스마다 동적 포트 |
-| Loop | [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) | 컨테이너 포트(`body`·`emit`·`done`) |
-| 변수 선언 | [변수 선언 노드](../CLE-NODE-LOGIC/CLE-NODE-VARDECL.md) | |
-| 변수 수정 | [변수 수정 노드](../CLE-NODE-LOGIC/CLE-NODE-VARSET.md) | |
-| Split | [Split 노드](../CLE-NODE-LOGIC/CLE-NODE-SPLIT.md) | |
-| Map | [Map 노드](../CLE-NODE-LOGIC/CLE-NODE-MAP.md) | 컨테이너 포트(`body`·`emit`·`done`) |
-| Filter | [Filter 노드](../CLE-NODE-LOGIC/CLE-NODE-FILTER.md) | |
-| ForEach | [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md) | 컨테이너 포트(`body`·`emit`·`done`) |
-| Parallel | [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) | 병렬 분기마다 동적 포트 |
-| Merge | [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) | 입력 포트 하나에 여러 연결선 |
-| Background | [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) | 컨테이너가 아니다. `background` 포트로 본문을 가리킨다. |
-| 워크플로우 호출 노드 | [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) | |
-| AI 에이전트 노드 | [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) | 조건마다 동적 포트, 모드별 시스템 포트 |
-| 텍스트 분류기 노드 | [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) | 카테고리마다 동적 포트 |
-| 정보 추출기 노드 | [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) | 모드별 시스템 포트 |
-| HTTP Request | [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) | |
-| Database Query | [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) | |
-| Send Email | [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) | |
-| Cafe24 | [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) | |
-| MakeShop | [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) | |
-| Transform | [Transform 노드](../CLE-NODE-DATA/CLE-NODE-TRANSFORM.md) | |
-| Code | [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) | |
-| Carousel·Table·Chart·Template | [Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md), [Table 노드](../CLE-NODE-PRES/CLE-NODE-TABLE.md), [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md), [Template 노드](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md) | 버튼마다 동적 포트. 공통 규칙은 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md) |
-| Form | [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) | |
+| 포트 정의 문서 | 비고 |
+| --- | --- |
+| [수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md) | 입력 포트 없음 |
+| [If/Else 노드](../CLE-NODE-LOGIC/CLE-NODE-IFELSE.md) | |
+| [Switch 노드](../CLE-NODE-LOGIC/CLE-NODE-SWITCH.md) | 케이스마다 동적 포트 |
+| [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) | 컨테이너 포트(`body`·`emit`·`done`) |
+| [변수 선언 노드](../CLE-NODE-LOGIC/CLE-NODE-VARDECL.md) | |
+| [변수 수정 노드](../CLE-NODE-LOGIC/CLE-NODE-VARSET.md) | |
+| [Split 노드](../CLE-NODE-LOGIC/CLE-NODE-SPLIT.md) | |
+| [Map 노드](../CLE-NODE-LOGIC/CLE-NODE-MAP.md) | 컨테이너 포트(`body`·`emit`·`done`) |
+| [Filter 노드](../CLE-NODE-LOGIC/CLE-NODE-FILTER.md) | |
+| [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md) | 컨테이너 포트(`body`·`emit`·`done`) |
+| [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) | 병렬 분기마다 동적 포트 |
+| [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) | 입력 포트 하나에 여러 연결선 |
+| [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) | 컨테이너가 아니다. `background` 포트로 본문을 가리킨다. |
+| [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) | |
+| [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) | 조건마다 동적 포트, 모드별 시스템 포트 |
+| [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) | 카테고리마다 동적 포트 |
+| [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) | 모드별 시스템 포트 |
+| [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) | |
+| [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) | |
+| [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) | |
+| [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) | |
+| [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) | |
+| [Transform 노드](../CLE-NODE-DATA/CLE-NODE-TRANSFORM.md) | |
+| [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) | |
+| [Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md), [Table 노드](../CLE-NODE-PRES/CLE-NODE-TABLE.md), [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md), [Template 노드](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md) | 버튼마다 동적 포트. 공통 규칙은 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md) |
+| [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) | |
 
 에러 포트를 원래 가진 노드와 에러 분류 원칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
 
@@ -159,16 +163,9 @@ etag: "sha256-e5ffa6959d10d9493ce30e7017dd6fc8ab5476373d7b479d478d33feb25e636c"
 
 ### 동적 포트 ID 규칙
 
-동적 포트(dynamic ports)는 Switch 케이스, Parallel 병렬 분기, 텍스트 분류기 카테고리, AI 에이전트 조건, Presentation 버튼처럼 설정 항목마다 생기는 포트다. 동적 포트의 포트 ID(stable port id)는 아래 규칙을 따른다.
+동적 포트(dynamic ports)는 Switch 케이스, Parallel 병렬 분기, 텍스트 분류기 카테고리, AI 에이전트 조건, Presentation 버튼처럼 설정 항목마다 생기는 포트다. 포트 ID(stable port id)는 추가할 때 `^[a-zA-Z0-9_-]{1,64}$` 형식의 바뀌지 않는 값으로 붙이고, 만드는 방식은 노드마다 다르다(각 노드 문서). 포트 이름 · 순서를 바꾸거나 다른 포트를 지워도 ID 가 바뀌지 않으므로 붙은 연결선은 그대로 남는다. 동적 포트를 지우면 그 포트의 연결선도 함께 지운다.
 
-| 규칙 | 설명 |
-| --- | --- |
-| ID 생성 | 동적 포트를 추가할 때 `^[a-zA-Z0-9_-]{1,64}$` 형식에 맞는 바뀌지 않는 ID 를 붙인다. 만드는 방식은 노드마다 다르다(각 노드 문서). |
-| ID 불변 | 포트 이름을 바꾸거나, 순서를 바꾸거나, 다른 포트를 지워도 기존 포트 ID 는 바뀌지 않는다. |
-| 연결선 유지 | 포트 ID 가 바뀌지 않으므로 포트에 붙은 연결선은 편집 뒤에도 그대로 남는다. |
-| 포트 삭제 | 동적 포트를 지우면 그 포트에 붙은 연결선도 함께 지운다. |
-
-ID 형식이 맞지 않을 때 `case_0` 같은 순번 ID 로 대신하는 규칙과 노드별 생성 방식은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 가 정한다. `case_0`·`cond_0` 같은 순번 ID 는 형식이 맞지 않을 때의 대체값이라 포트 ID 의 예로 쓰지 않는다. 정상 경로의 포트 ID 는 아래 표와 같다.
+ID 형식이 맞지 않을 때 `case_0` 같은 순번 ID 로 대신하는 규칙과 노드별 생성 방식은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 가 정한다. `case_0`·`cond_0` 같은 순번 ID 는 대체값이라 포트 ID 의 예로 쓰지 않는다. 정상 경로의 포트 ID 는 아래와 같다.
 
 | 동적 포트 | 포트 ID |
 | --- | --- |
@@ -186,7 +183,7 @@ ID 형식이 맞지 않을 때 `case_0` 같은 순번 ID 로 대신하는 규칙
 | 제목 줄 | 맨 위 | 닫기(✕), "{노드 유형} Settings" | 닫기를 누르면 패널을 닫는다. |
 | 이름 | 제목 아래 | Name 입력(노드 레이블) | 레이블을 고친다. |
 | 탭 | 가운데 위 | Settings, Code, Info | 탭을 바꾼다. |
-| 노드별 설정 폼 | 가운데 | 노드 유형마다 다른 폼 | [auto-form](#auto-form) 참조 |
+| 노드별 설정 폼 | 가운데 | 노드 유형마다 다른 폼 | [auto-form](CLE-WF-NODEPANEL-AUTOFORM.md) 참조 |
 | 공통 설정 | 아래 | Error Handling 드롭다운, "Disable this node" 체크박스 | 에러 처리 정책, 노드 비활성화 |
 | 메모 | 맨 아래 | Notes 입력 | 노드 메모 |
 
@@ -228,17 +225,17 @@ ID 형식이 맞지 않을 때 `case_0` 같은 순번 ID 로 대신하는 규칙
 
 ### 에러 처리 정책 설정
 
-에러 처리 정책(Error Handling, `config.errorHandling.policy`)은 노드가 실패했을 때의 동작이다. 설정 패널에서 다섯 가지 가운데 하나를 고른다.
+에러 처리 정책(Error Handling, `config.errorHandling.policy`)은 노드가 실패했을 때의 동작이다. 설정 패널에서 다섯 가지 가운데 하나를 고른다. 실행 동작의 정본은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이고 아래 표는 요약이다.
 
 | 옵션(화면 라벨) | `policy` | 동작 |
 | --- | --- | --- |
-| 워크플로우 중단(Stop Workflow, 기본) | `stop_workflow` | 에러가 나면 워크플로우 실행을 멈춘다. 실행 상태는 `failed` 다. |
-| 노드 건너뛰기(Skip Node) | `skip_node` | 에러가 나면 이 노드를 건너뛰고 다음 노드로 간다. 이 노드의 출력은 쓰지 않으므로 다음 노드는 빈 값(`undefined`)을 입력으로 받는다. |
-| 기본 출력 사용(Use Default Output) | `use_default_output` | 에러가 나면 미리 정한 기본 출력을 쓴다. [기본 출력](#기본-출력) 참조 |
+| 워크플로우 중단(Stop Workflow, 기본) | `stop_workflow` | 워크플로우 실행을 멈춘다. 실행 상태는 `failed` 다. |
+| 노드 건너뛰기(Skip Node) | `skip_node` | 이 노드를 건너뛰고 다음 노드로 간다. 이 노드의 출력은 쓰지 않으므로 다음 노드는 빈 값(`undefined`)을 입력으로 받는다. |
+| 기본 출력 사용(Use Default Output) | `use_default_output` | 미리 정한 기본 출력을 쓴다. [기본 출력](#기본-출력) 참조 |
 | 재시도(Retry) | `retry` | 노드 재시도. 고르면 설정 패널에 `maxRetries`(최대 재시도 횟수)와 `retryInterval`(재시도 간격, ms) 입력이 나온다(`node-settings-panel.tsx`). 엔진은 `retryInterval × backoffMultiplier^attempt` 지수 백오프로 재시도한다(`backoffMultiplier` 기본 2). |
 | 에러 포트로 라우팅(Route to Error Port) | `route_to_error_port` | 에러 데이터를 `error` 포트로 보낸다. 고르면 노드에 동적 에러 포트가 생긴다(미구현). `error` 포트에 연결된 노드가 없으면 워크플로우 중단으로 대신한다. |
 
-**저장 형태**: 설정 패널은 정책을 엔진 계약인 중첩 객체로 저장한다.
+**저장 형태**: 설정 패널은 정책을 엔진 계약인 중첩 객체로 저장한다. `policy` 값 집합은 실행 엔진의 `error-policy.handler.ts` 와 같다.
 
 ```ts
 config.errorHandling = {
@@ -248,13 +245,9 @@ config.errorHandling = {
 }
 ```
 
-`policy` 값 집합은 실행 엔진의 `error-policy.handler.ts` 와 같다. 기본값과 실행 동작은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 정한다.
-
 에러 처리 정책은 노드 핸들러가 던진 실패에만 적용된다. 노드가 런타임 실패를 `error` 포트 출력으로 돌려주면 정책이 적용되지 않는다. 예를 들어 AI 에이전트 단일 턴의 LLM 호출 실패에는 `retry` · `skip_node` · `use_default_output` 이 걸리지 않는다. 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#error-포트로-돌려준-실패에-정책을-걸지-않는다-2026-11-01) 에 있다.
 
-`config.errorHandling.policy` 가 없는 노드를 불러오면 예전 평면 키 `config.errorPolicy` 의 단축값을 대응하는 에러 처리 정책으로 읽고 저장할 때 그 키를 지운다. ForEach·Map·Parallel 에서는 이 키가 항목 에러 정책(item error policy, `config.errorPolicy`)이라 옮기지도 지우지도 않는다. 저장 코드는 이 세 노드에서 `config.errorHandling` 과 `config.errorPolicy` 두 키를 모두 보존한다(`node-settings-panel.tsx`). 결정 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 의 Rationale 에 있다.
-
-이 규칙의 요구사항은 REQ-NODEUI-041 이다.
+`config.errorHandling.policy` 가 없는 노드를 불러오면 예전 평면 키 `config.errorPolicy` 의 단축값을 대응하는 에러 처리 정책으로 읽고 저장할 때 그 키를 지운다. ForEach·Map·Parallel 에서는 이 키가 항목 에러 정책(item error policy, `config.errorPolicy`)이라 옮기지도 지우지도 않는다. 저장 코드는 이 세 노드에서 `config.errorHandling` 과 `config.errorPolicy` 두 키를 모두 보존한다(`node-settings-panel.tsx`, REQ-NODEUI-041). 근거는 [R-4](#r-4-foreachmapparallel-의-configerrorpolicy-는-옮기지-않는다-2026-10-10) 에 있다.
 
 ### 기본 출력
 
@@ -267,9 +260,9 @@ config.errorHandling = {
 - "Reset to Default" 버튼은 에디터를 빈 객체 `{}` 로 초기화한다.
 - 에디터를 비우고 저장하면 `defaultOutput` 은 `null` 로 저장된다.
 
-**값이 없을 때**: 사용자가 기본값을 정하지 않았거나 비워 두면 엔진은 `errorHandling.defaultOutput ?? null` 규칙으로 `null` 을 내보낸다(`error-policy.handler.ts`).
+**실행할 때**: 사용자가 정한 기본값이 있으면 그 값을, 없거나 비워 두면 `null` 을 출력 포트로 보내고(`errorHandling.defaultOutput ?? null`, `error-policy.handler.ts`) 다음 노드가 정상 실행된다. 노드 실행(`node_execution`) 상태는 `completed` 다. 원래 에러는 디버깅용으로 `node_execution.error` 에 남긴다. 캔버스에서는 그 노드에 ⚠️ 아이콘을 붙여 기본값을 썼다는 것을 보여 준다.
 
-출력 타입별 기본값 추론은 미구현(계획)이다. 마지막 정상 실행의 출력 타입을 보고 아래 값을 쓰는 방식을 계획했지만 지금은 엔진과 UI 모두 타입을 추론하지 않고 `null` 만 쓴다.
+출력 타입별 기본값 추론은 미구현(계획)이다. 마지막 정상 실행의 출력 타입을 보고 아래 값을 쓰는 방식을 계획했지만 지금은 엔진과 UI 모두 `null` 만 쓴다.
 
 | 출력 타입 | (계획) 기본값 |
 | --- | --- |
@@ -279,57 +272,6 @@ config.errorHandling = {
 | Number | `0` |
 | Boolean | `false` |
 | Null·알 수 없음 | `null` |
-
-**실행할 때**
-
-1. 노드 실행 중 에러가 난다.
-2. 에러 처리 정책이 기본 출력 사용인지 확인한다.
-3. 사용자가 정한 기본값이 있으면 그 값을 출력으로 쓴다.
-4. 정한 값이 없으면 `null` 을 쓴다.
-5. 기본값을 출력 포트로 보내고 다음 노드가 정상 실행된다.
-6. 노드 실행(`node_execution`) 상태는 `completed` 다. 원래 에러는 디버깅용으로 `node_execution.error` 에 남긴다. 캔버스에서는 그 노드에 ⚠️ 아이콘을 붙여 기본값을 썼다는 것을 보여 준다.
-
-### auto-form
-
-Settings 탭의 노드별 설정 폼은 두 트랙으로 그린다(`node-configs/index.tsx` 의 `NodeConfigRenderer`).
-
-1. **수작업 폼 트랙**: `node-configs/override-registry.ts` 의 `OVERRIDE_REGISTRY` 에 등록한 노드는 직접 만든 폼 컴포넌트(`node-configs/*-configs.tsx`)로 그린다.
-2. **auto-form 트랙(기본 경로)**: 등록하지 않은 노드는 백엔드 zod 스키마의 `.meta({ ui: UiHint })` 힌트를 읽어 `SchemaForm`(`auto-form/schema-form.tsx`)이 폼을 자동으로 만든다. 스키마는 `GET /api/nodes/definitions` 로 불러온다([노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 의 메타데이터 API).
-
-노드를 수작업 폼에서 auto-form 으로 옮기려면 레지스트리에서 항목을 빼고 백엔드 스키마에 충분한 `ui` 힌트를 더한다.
-
-#### UiHint 어휘
-
-기준은 백엔드 `nodes/core/node-component.interface.ts` 의 `UiHint` 다.
-
-| 키 | 뜻 |
-| --- | --- |
-| `widget` | 그릴 위젯 id([위젯 어휘](#위젯-어휘)) |
-| `label` / `placeholder` / `hint` | 라벨, 플레이스홀더, 항상 보이는 캡션. `hint` 는 필드 도움말과 함께 쓸 수 있다. |
-| `order` | 폼 안 정렬 순서. 작을수록 먼저 나온다. |
-| `hidden` | auto-form 에서 숨긴다. 스키마 검증은 그대로 한다. |
-| `visibleWhen` | 조건부 표시. `{ field, equals }`, `{ field, notEquals }`, `{ field, oneOf }` 세 형태다. `equals` 는 단일 값 엄격 비교 전용이고 배열 허용 목록은 `oneOf` 를 쓴다. |
-| `required` / `requiredWhen` | UI 필수 표시(별표). `requiredWhen` 은 `{ field, equals }` 한 형태이고 `equals` 는 단일 값(`===`)이나 배열(허용 목록)이다. 실행 시 강제는 `NodeHandler.validate()` 가 맡는다. |
-| `clearFields` | 이 필드 값이 바뀌면 함께 비울 설정 키 목록(모드 전환 등). 예약 키(`__proto__` 등)는 prototype pollution 을 막으려고 비우지 못한다. |
-| `group` / `collapsible` | 섹션 묶음과 접기 토글 여부 |
-| `options` / `language` / `multiline` / `rows` / `itemLabel` / `itemDefault` | 위젯별 보조 옵션 |
-
-#### 위젯 어휘
-
-위젯 id 와 컴포넌트의 대응은 프론트엔드 `auto-form/widget-registry.ts` 가 기준이다. 모두 21종이다.
-
-| 분류 | widget id |
-| --- | --- |
-| 기본 입력(10) | `text`, `textarea`, `number`, `select`, `multiselect`, `checkbox`, `expression`(표현식 에디터), `kv`, `kv-expression`, `code` |
-| 공용 선택기(4) | `llm-config-selector`, `kb-selector`, `mcp-server-selector`, `workflow-selector`(`auto-form/selector-widgets.tsx`). AI 어시스턴트가 후보를 조회하는 계약은 [AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md) 가 정한다. |
-| 모델 설정 선택기(2) | `chat-config-selector`, `embedding-config-selector`. `/models` 에 등록한 Chat·Embedding 모델 설정(ModelConfig)을 고른다. 저장 형태는 `config.id` 로 `llm-config-selector` 와 같다. 후보는 워크스페이스 모델 설정을 종류별로 조회한다(`modelConfigsApi.list("chat"\|"embedding")`). 노드의 `llmConfigId` 와 **독립**이고, 실행 시 고른 설정의 provider·자격 증명·기본 모델로 바로 해석한다(`auto-form/config-selector-widgets.tsx`). AI 어시스턴트 후보 선택기 대상이 아니다(`UserActionWidget` 에 없다). 모델 설정은 [모델 설정](../CLE-AI/CLE-AI-MODELS.md) 이 정한다. |
-| 배열 편집(2) | `field-array`, `button-list` |
-| 수작업 폼 강제(3) | `integration-selector`, `condition-builder`, `table-grid`. `UnsupportedWidget` 으로 대응돼 auto-form 만으로는 그릴 수 없다. 이 위젯을 쓰는 노드는 수작업 폼 트랙에 남아야 한다. |
-
-#### 트랙 배정 현황
-
-- **auto-form 으로 옮긴 노드**: `split`, `map`, `foreach`, `merge`, `carousel`, `ai_agent`, `text_classifier`, `information_extractor`
-- **수작업 폼에 남은 노드**(`OVERRIDE_REGISTRY` 기준): `manual_trigger`, `if_else`, `switch`, `loop`, `variable_declaration`, `variable_modification`, `parallel`, `filter`, `workflow`, `http_request`, `database_query`, `send_email`, `cafe24`, `makeshop`, `transform`, `code`, `table`, `chart`, `form`, `template`. 필드 사이 부수 효과(예: table 의 열·행 동기화)처럼 auto-form 이 표현하지 못하는 요구가 남은 노드들이다.
 
 ## 표현식 입력
 
@@ -347,7 +289,7 @@ Settings 탭의 노드별 설정 폼은 두 트랙으로 그린다(`node-configs
 | 1:N 분기 | 출력 데이터를 복제해 연결된 노드마다 똑같이 보낸다. |
 | N:1 합류 | 여러 입력이 도착하면 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) 의 전략에 따라 처리한다. |
 | 조건부 경로 선택 | If/Else, Switch 같은 조건 노드는 조건에 맞는 출력 포트로만 데이터를 보낸다. |
-| 에러 라우팅 | 에러 처리 정책이 에러 포트로 라우팅인 노드에서 에러가 나면 에러 데이터를 `error` 포트로 보낸다. 에러 연결선(빨간색)으로 이어진 다음 노드가 에러 데이터를 입력으로 받아 실행한다. 에러 연결선 모양은 [연결선](CLE-WF-EDGE.md) 이 정한다. 동적 에러 포트는 아직 구현되지 않았다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)). |
+| 에러 라우팅 | 에러 처리 정책이 에러 포트로 라우팅인 노드에서 에러가 나면 에러 데이터를 `error` 포트로 보내고, 에러 연결선(빨간색, 모양은 [연결선](CLE-WF-EDGE.md))으로 이어진 다음 노드가 그 데이터를 입력으로 받아 실행한다. 동적 에러 포트는 아직 구현되지 않았다([노드 에러 처리 정책 §2 에러 포트로 라우팅](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)). |
 
 ## 미결 사항
 
@@ -358,8 +300,6 @@ Settings 탭의 노드별 설정 폼은 두 트랙으로 그린다(`node-configs
 
 - `codebase/frontend/src/components/editor/canvas/custom-node.tsx` (포트 그리기)
 - `codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx`
-- `codebase/frontend/src/components/editor/settings-panel/node-configs/**` (수작업 폼, `override-registry.ts`)
-- `codebase/frontend/src/components/editor/settings-panel/auto-form/**` (`schema-form.tsx`, `widget-registry.ts`, 선택기 위젯)
 - `codebase/frontend/src/components/editor/expression/*.ts`, `*.tsx`
 - `codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts`
 - `codebase/backend/src/nodes/**/*.schema.ts`
@@ -367,29 +307,23 @@ Settings 탭의 노드별 설정 폼은 두 트랙으로 그린다(`node-configs
 
 ## Rationale
 
+R-2 · R-3 은 auto-form 결정이라 하위 문서 [노드 포트와 설정 패널 — auto-form](CLE-WF-NODEPANEL-AUTOFORM.md#rationale) 으로 옮겼다. 번호는 원래대로 둔다.
+
 ### R-1. 기본 출력의 타입별 기본값 추론은 계획으로 남긴다 (2026-06-03)
 
-출력 타입별 기본값 자동 추론(마지막 정상 실행에서 타입 추론)은 엔진과 UI 어디에도 구현돼 있지 않다. 엔진 `error-policy.handler.ts` 는 `config.errorHandling.defaultOutput ?? null` 하나만 쓴다. 이번 작업(설정 패널의 JSON 에디터)은 사용자가 **명시한** 기본 출력을 저장하고 전달하는 표면만 만들었고, 타입 추론 레지스트리는 별도 기능으로 계획에 남긴다.
+엔진 `error-policy.handler.ts` 는 `config.errorHandling.defaultOutput ?? null` 하나만 쓰고 타입 추론은 엔진과 UI 어디에도 없다. 설정 패널 JSON 에디터는 사용자가 **명시한** 기본 출력을 저장하고 전달하는 표면만 만들었고, 타입 추론 레지스트리는 별도 기능으로 계획에 남긴다.
 
-- 그래서 에디터를 비우고 저장하면 `defaultOutput = null` 이 저장되고 실행 때도 `null` 이 나간다. 타입별 기본값이 아니다. 엔진 실제 동작(`?? null`)과 맞는 의도된 동작이다.
+- 그래서 에디터를 비우고 저장하면 `defaultOutput = null` 이 저장되고 실행 때도 `null` 이 나간다. 엔진 실제 동작(`?? null`)과 맞는 의도된 동작이다.
 - 타입 추론이 없는 상태에서 혼동을 피하려고 버튼 이름을 "Reset to Type Default" 에서 "Reset to Default"(빈 객체 `{}` 로 초기화)로 바꿨다.
-
-### R-2. 설정 폼은 수작업 폼과 auto-form 두 트랙으로 그린다 (2026-06-10)
-
-설정 패널의 스키마 기반 auto-form(SchemaForm, UiHint DSL, 위젯 레지스트리, override 레지스트리)은 구현이 먼저였고 여러 명세가 조각조각 인용해 왔다(Switch 의 `requiredWhen`, AI 에이전트 노드의 `visibleWhen`, AI 어시스턴트의 선택기 위젯 등). 이 문서의 auto-form 절을 시스템 전체의 기준으로 두고 두 트랙 전략, UiHint 어휘, 위젯 21종, 트랙 배정 현황을 한곳에서 관리한다. 노드 명세마다 프론트엔드 설정 UI 경로를 따로 적지 않고 이 문서의 구현 위치(`node-configs/**`, `auto-form/**`) 한곳에 모은다. 유지 부담을 줄이려는 결정이다(2026-06 명세·코드 대조 감사).
-
-### R-3. 텍스트 분류기·정보 추출기 노드를 auto-form 으로 옮겼다 (2026-06-11)
-
-두 AI 노드의 수작업 폼(`ai-configs.tsx`)은 zod 스키마가 드러낸 필드(대화 맥락 5개, 에이전트 메모리 7개, 시스템 맥락 2개, few-shot `examples`, `enumValues`, `maxCollectionRetries`)를 그리지 못했다. 그래서 사용자는 Code 탭 JSON 으로만 설정할 수 있었다. 이 누락은 명세와 코드를 교차 감사할 때 발견 번호 V-02, 심각도 "심각" 으로 기록됐다. 두 노드의 스키마는 이미 이 필드 전부를 auto-form 위젯(`field-array`, `llm-config-selector`, `multiselect`, `expression`, `visibleWhen` 조건 등)으로 표현할 UI 힌트를 내보내고 있었다. 그래서 `ai_agent` 처럼 `OVERRIDE_REGISTRY` 에서 빼 auto-form 으로 옮기고 수작업 컴포넌트는 없앴다. 백엔드 스키마는 한 줄도 바꾸지 않았다. 누락은 프론트엔드 수작업 폼이 스키마 힌트를 무시해서 생긴 것이었다.
 
 ### R-4. ForEach·Map·Parallel 의 `config.errorPolicy` 는 옮기지 않는다 (2026-10-10)
 
-설정 패널은 예전 평면 키 `config.errorPolicy` 를 노드 유형을 가리지 않고 에러 처리 정책으로 옮기고 저장할 때 지웠다. 그래서 ForEach·Map·Parallel 에서 고른 항목 에러 정책이 저장할 때 사라졌다. 이전과 삭제를 세 노드가 아닌 노드로 한정하면 설정 패널 한 곳만 고치면 되고 저장된 워크플로우는 그대로 둘 수 있어서 이 안을 골랐다(NERV Task `CLE-T-V0JAG1`). 항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸고 저장된 워크플로우를 마이그레이션하는 안은 기각했다. 승인된 문서 여러 개와 용어 사전을 함께 고쳐야 하고 데이터 마이그레이션이 필요하기 때문이다. 자세한 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
+설정 패널은 예전 평면 키 `config.errorPolicy` 를 노드 유형을 가리지 않고 에러 처리 정책으로 옮기고 저장할 때 지웠다. 그래서 ForEach·Map·Parallel 에서 고른 항목 에러 정책이 저장할 때 사라졌다. 이전과 삭제를 세 노드가 아닌 노드로 한정하면 설정 패널 한 곳만 고치면 되고 저장된 워크플로우는 그대로 둘 수 있어서 이 안을 골랐다. 항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸고 저장된 워크플로우를 마이그레이션하는 안은 기각했다. 승인된 문서 여러 개와 용어 사전을 함께 고쳐야 하고 데이터 마이그레이션이 필요하기 때문이다. 자세한 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
 
 ### R-5. Logic 노드의 에러 처리 정책 선택지를 막지 않는다 (2026-10-24)
 
-에러 처리 정책 선택지는 노드 카테고리와 상관없이 같다. Logic 노드도 "에러 포트로 라우팅" 을 고를 수 있다. 동적 에러 포트가 구현되기 전까지 Logic 노드에서 이 정책은 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다. 결정과 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다(NERV Task `CLE-T-3HJ8MM`).
+에러 처리 정책 선택지는 노드 카테고리와 상관없이 같다. Logic 노드도 "에러 포트로 라우팅" 을 고를 수 있다. 동적 에러 포트가 구현되기 전까지 Logic 노드에서 이 정책은 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다. 결정과 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#rationale) 에 있다.
 
 ### R-6. 노드 건너뛰기의 출력 설명을 엔진 동작에 맞춘다 (2026-11-06)
 
-이 문서는 노드 건너뛰기의 출력을 `null` 로 적었지만 엔진은 건너뛴 노드의 출력을 쓰지 않는다. [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#노드-건너뛰기는-출력을-쓰지-않는다-2026-11-06) 이 같은 날 문서를 엔진 동작에 맞추면서 이 표도 같은 말로 고쳤다(NERV Task `CLE-T-HW2GKD`). 동작은 바꾸지 않았다. 표현식에 미치는 영향은 그 Rationale 에 있다.
+엔진은 건너뛴 노드의 출력을 쓰지 않으므로 노드 건너뛰기의 출력을 `null` 로 적었던 표를 엔진 동작에 맞췄다. 동작은 바꾸지 않았다. 표현식에 미치는 영향은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#노드-건너뛰기는-출력을-쓰지-않는다-2026-11-06) 의 Rationale 에 있다.

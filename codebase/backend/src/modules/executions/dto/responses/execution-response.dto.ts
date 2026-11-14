@@ -46,7 +46,7 @@ export class ExecutionDto {
   @ApiPropertyOptional({ nullable: true, example: 1820 })
   durationMs?: number | null;
 
-  // 근거: [응답 자격 증명 마스킹 「inputData 는 두 수준 모두 가린다」](CLE-API-EGRESS#41-inputdata-는-두-수준-모두-가린다-2026-08-20)
+  // 근거: [응답 자격 증명 마스킹 「inputData 는 두 수준 모두 가린다」](CLE-API-EGRESS-PIPELINE#41-inputdata-는-두-수준-모두-가린다-2026-08-20)
   /**
    * 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context).
    *
@@ -61,7 +61,7 @@ export class ExecutionDto {
   })
   inputData?: Record<string, unknown> | null;
 
-  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
+  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로-2026-08-16)
   /**
    * 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조.
    *
@@ -77,7 +77,7 @@ export class ExecutionDto {
   })
   outputData?: Record<string, unknown> | null;
 
-  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
+  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로-2026-08-16)
   /**
    * 에러 객체.
    *
@@ -108,7 +108,7 @@ export class ExecutionDto {
   @ApiProperty({ type: [String], example: [] })
   executionPath: string[];
 
-  // 근거: [재실행 「체인 컬럼」](CLE-EXEC-RERUN#체인-컬럼)
+  // 근거: [재실행 「체인 컬럼」](CLE-EXEC-RERUN-API#체인-컬럼)
   /** 직계 부모 실행 UUID — Re-run 으로 생성된 실행만 세팅, 일반 실행은 null */
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   reRunOf?: string | null;
@@ -122,7 +122,7 @@ export class ExecutionDto {
   @ApiProperty({ example: false })
   dryRun: boolean;
 
-  // 근거: [실행 내역 「테이블」](CLE-EXEC-HISTORY#테이블)
+  // 근거: [실행 내역 「테이블」](CLE-EXEC-HISTORY-UI#테이블)
   /** 노드 실행 총 건수 (실행 목록 Nodes 열) */
   @ApiProperty({ example: 0 })
   totalNodeCount: number;
@@ -166,7 +166,7 @@ export class NodeExecutionSummaryDto {
   @ApiPropertyOptional({ nullable: true })
   durationMs?: number | null;
 
-  // 근거: [응답 자격 증명 마스킹 「inputData 는 두 수준 모두 가린다」](CLE-API-EGRESS#41-inputdata-는-두-수준-모두-가린다-2026-08-20)
+  // 근거: [응답 자격 증명 마스킹 「inputData 는 두 수준 모두 가린다」](CLE-API-EGRESS-PIPELINE#41-inputdata-는-두-수준-모두-가린다-2026-08-20)
   /**
    * 노드 입력 데이터.
    *
@@ -182,7 +182,7 @@ export class NodeExecutionSummaryDto {
 
   // 근거:
   //   - [노드 출력 규약 「Principle 7. 설정 에코 원칙」](CLE-NODE-OUTPUT#principle-7-설정-에코-원칙)
-  //   - [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
+  //   - [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로-2026-08-16)
   /**
    * 노드 실행 출력 — `NodeHandlerOutput` envelope 직렬화.
    * - `config`: 노드 정의의 **원본 template** (`{{ ... }}` 를 보존한 raw)
@@ -203,7 +203,7 @@ export class NodeExecutionSummaryDto {
   })
   outputData?: Record<string, unknown> | null;
 
-  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
+  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로-2026-08-16)
   /**
    * 에러.
    *

@@ -47,7 +47,7 @@ model: opus
    - **돈다**: 아래 중 하나라도 맞으면 돈다.
      - 클레임 scope 의 스펙 파일이 기준 브랜치 대비 새로 생겼거나 바뀌었다.
      - 받은 스펙의 머리 줄 `> 구현 상태:` 가 「구현됨」이 아니다(부분 구현 · 미구현). 미러는 일괄 이입과 링크로도
-       채워져서 미러에 있다는 것이 구현됐다는 뜻은 아니다(CLE-ENG-SPECEVIDENCE R-12 · R-16).
+       채워져서 미러에 있다는 것이 구현됐다는 뜻은 아니다(CLE-ENG-SPECEVIDENCE-INTEGRITY R-12 · CLE-ENG-SPECEVIDENCE R-16).
      - 이 Task 가 스펙이 약속한 표면(동작 · API · 화면)을 새로 만들거나 바꾼다.
 
      `/consistency-check --impl-prep <scope>`(scope 가 영역 폴더면 `--focus <클레임 spec_ids>` 를 더한다). Critical → 즉시 중단. Warning → Task 본문에 적고(여러 건이면 목록으로) 진행.

@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031", "REQ-AUDIT-032"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "dc93ba3c532d33584770d5e37565be8f18301655f760b6409f5ad87d064c82fb"
+content_hash: "91cb173a05623d358fec2a57ab0bd9e8d4e79693ee8d0878a465028cde22faa8"
 read_as: "approved_fallback"
-task: "CLE-T-693G4E"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "229d35e388feee82dd5d48431d75749d8a4ce5f87f71b62d727b5e7ab6ff4715"
-etag: "sha256-db8f29619555bc23bee949609535998e09530790be87b1c6b30ac5c010853375"
+mirror_sha256: "a24ea94ed82b39d8fc5c365a841676e2e0294f00ea098b90c34306789818b2e7"
+etag: "sha256-89b2617479d9ba5d209f5b8e0262d2585eaa9a7683274f489ac8d27cc2791cd1"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -27,7 +27,7 @@ etag: "sha256-db8f29619555bc23bee949609535998e09530790be87b1c6b30ac5c010853375"
 
 두 테이블은 일부러 나눠 두었다. 감사 로그는 워크스페이스가 정해진 동작을 기록하고 로그인 이력은 워크스페이스 없이도 일어나는 인증 이벤트를 기록한다([두 테이블로 나눈다](#두-테이블로-나눈다)).
 
-이 문서가 정하는 것:
+이 문서와 하위 문서가 정하는 것:
 
 - 감사 액션(`AuditLog.action`) 카탈로그. 구현된 것과 예정인 것을 한 표로 둔다.
 - 감사 로그 기록 계약, 워크스페이스 귀속, 조회 API, 조회 응답을 읽는 쪽의 계약, 보존 정책
@@ -77,212 +77,40 @@ etag: "sha256-db8f29619555bc23bee949609535998e09530790be87b1c6b30ac5c010853375"
 - REQ-AUDIT-031 IF 로그인 이력 보존 배치의 삭제가 실패하면 THE SYSTEM SHALL 예외를 흡수하고 로그만 남긴다. (원본: data-flow/1-audit §3)
 - REQ-AUDIT-032 WHEN 트리거 생성이나 수정(PATCH)이 일회성 평문(첫 알림 서명 시크릿, 트리거 단위 토큰)을 발급하면 THE SYSTEM SHALL 그 요청의 `trigger.created` · `trigger.updated` 행 `details.issuedSecrets` 에 발급한 비밀의 종류 이름만 싣고 평문은 싣지 않는다.
 
-## 감사 로그 기록
+## 하위 문서
 
-이 문서의 코드 경로는 따로 적지 않으면 `codebase/backend/src/modules/` 아래 경로다.
-
-### 기록 계약
-
-도메인 서비스와 컨트롤러가 `AuditLogsService.record` 를 불러 한 행을 남긴다.
-
-```mermaid
-sequenceDiagram
-  participant Caller as 기록 위치(서비스·컨트롤러)
-  participant ALS as AuditLogsService
-  participant PG as Postgres
-  participant Log as 로그와 메트릭
-  Caller->>ALS: record(workspaceId, userId, action, resourceType, resourceId, details, ipAddress)
-  ALS->>PG: INSERT audit_log
-  alt 적재 실패
-    ALS->>Log: 경고 로그와 clemvion.audit.write_failed 카운터
-    ALS-->>Caller: 예외 없이 반환
-  end
-```
-
-- 인자는 `{ workspaceId, userId, action, resourceType, resourceId, details?, ipAddress? }` 다.
-- `action` 은 `AuditAction` union(`audit-logs/audit-action.const.ts` 의 `AUDIT_ACTIONS`)으로 타입이 좁혀져 있다. union 에 없는 문자열은 컴파일되지 않는다(cross-audit G-01).
-- 적재가 실패해도 예외를 흡수한다. 감사 기록이 실패했다고 리소스 변경이 실패하면 안 된다는 계약이다. 호출부가 `await` 해도 예외가 올라오지 않는다.
-- 트리거 생성은 감사 행을 생성 트랜잭션이 커밋된 직후 트랜잭션 밖에서 남긴다. 트리거 INSERT 와 첫 알림 서명 시크릿 · 트리거 단위 토큰 발급은 그 트랜잭션에 든다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 R14). 그래서 생성이 롤백되면 `trigger.created` 행도 남지 않는다. 커밋과 감사 기록 사이에 프로세스가 멈추면 감사 행이 없는 트리거가 남을 수 있다. 트리거 수정(PATCH)과 같은 받아들인 위험이다([Rationale](#트리거-생성의-감사-행은-커밋-직후-트랜잭션-밖에서-남긴다)).
-- 흡수한 실패는 경고 로그와 카운터 `clemvion.audit.write_failed{resource_type}` 로 드러난다. 로그만으로는 비율·추세로 경보를 걸 수 없어 카운터를 둔다. 로그 메시지에는 무엇이 유실됐는지(`action`·`resourceType`·`resourceId`·`workspaceId`)를 싣는다. 유실 사실만 알고 대상을 모르면 조사도 복구도 시작할 수 없다. 관측 호출 자체의 실패도 흡수한다. 메트릭 정의는 [로깅과 헬스 체크](CLE-OBS-LOGGING.md) 에 있다.
-- 기록 위치는 12곳이다. 9개 서비스 모듈과 3개 컨트롤러(`users`·`auth`·`webauthn`)다(2026-09-01 실측). 12는 파일 수다. `resource_type` 의 서로 다른 값은 10종(`user`·`trigger`·`workflow`·`schedule`·`member`·`workspace`·`integration`·`model_config`·`auth_config`·`execution`)이라 두 수치가 다르다.
-- 인증 설정 계열과 `user.*` 계열 감사 액션은 모두 `ipAddress` 를 함께 넘긴다. 포렌식과 사후 감사 목적이다. IP 는 `extractClientIp`(`auth/utils/client-ip.ts`)로 뽑는다. `CF-Connecting-IP` 신뢰 정책(`TRUST_CF_CONNECTING_IP`)은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 정한다. 뽑을 수 없으면 `undefined` 로 빼고 남긴다.
-
-### 워크스페이스 귀속
-
-`audit_log.workspace_id` 는 NULL 을 허용하지 않는다. 감사 로그에는 현재 워크스페이스가 정해진 동작만 남는다.
-
-- 워크스페이스 리소스(통합·워크플로우·트리거·스케줄·인증 설정·모델 설정·실행·워크스페이스·멤버)의 변경은 그 리소스가 속한 워크스페이스에 귀속한다.
-- 로그인한 세션에서 일어나는 사용자 보안 동작(`user.password_changed`, `user.2fa_enabled`, `user.2fa_disabled`, `user.email_changed`)은 **행위자의 현재 워크스페이스**(인증 요청 JWT 의 워크스페이스)에 귀속한다. 이 동작들은 모두 로그인한 세션에서만 일어난다(`POST /users/me/change-password`, TOTP `verifyAndEnable`·`disable`, WebAuthn 등록·삭제, 이메일 변경 확인). 그래서 항상 현재 워크스페이스가 있고 스키마를 바꾸지 않아도 NOT NULL 제약을 채운다. `resourceType` 은 `'user'`, `resourceId` 는 사용자 ID 다. 기록은 현재 워크스페이스를 알 수 있는 컨트롤러 경계(`users.controller`·`auth.controller`·`webauthn.controller`)에서 한다.
-- 워크스페이스 없이 일어나는 인증 이벤트(로그인, 로그아웃, 로그인 실패 등)는 감사 로그가 아니라 [로그인 이력](#로그인-이력) 에 남는다.
-- 로그인 없이 토큰으로 하는 비밀번호 재설정(`POST /auth/reset-password`)은 현재 워크스페이스가 없어 `user.password_changed` 감사 대상이 아니다. 재설정 완료를 따로 남길지는 로그인 이력 이벤트 신설과 `chk_login_history_event` CHECK 마이그레이션이 따르는 별개 결정이며 이 문서 범위 밖이다.
-- 비밀번호 변경은 모든 로그인 세션 무효화와 현재 기기 재발급을 함께 한다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md)). 그래서 감사 행 `user.password_changed` 와 함께 로그인 이력 `session_revoked`(일괄, `familyId=null`) 한 행이 남는다. 이메일 변경 확인도 같다.
-
-### 감사 액션 카탈로그
-
-아래 표가 감사 액션의 단일 목록이다. 구현의 기준은 코드의 `AUDIT_ACTIONS` union 이다. 이 표는 그 union 과 기록 위치를 함께 적는다. 새 감사 액션을 더하면 union 과 이 표를 같이 고친다. 이름 규칙은 [감사 action 명명](CLE-OBS-AUDITNAME.md) 을 따른다.
-
-| 감사 액션 | `resource_type` | 기록 위치 | 기록하는 동작과 `details` | 상태 |
-| --- | --- | --- | --- | --- |
-| `integration.created` | integration | `integrations/integrations.service.ts` | 통합 생성 | 구현됨 |
-| `integration.updated` | integration | 〃 | 통합 수정 | 구현됨 |
-| `integration.deleted` | integration | 〃 | 통합 삭제. 멤버가 나가거나 제거되면서 그 사람의 개인 통합을 함께 지우면 나가기·제거 트랜잭션이 커밋된 뒤 `member.removed` 다음에 지운 통합마다 한 행씩 남긴다. 기록은 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 의 커밋 뒤 처리에서 일반 삭제와 같은 `finishIntegrationDeletion` 을 불러 남긴다([통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)). 행위자는 나가기면 나간 멤버, 제거면 제거한 관리자다. `details` 에는 `member.removed` 와 같은 `mode`(`'left'` 또는 `'removed'`)와 `memberUserId` 를 싣는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#감사-로그)). 일반 삭제의 행에는 두 키가 없다 | 구현됨 |
-| `integration.rotated` | integration | 〃 | 자격 증명 교체 | 구현됨 |
-| `integration.scope_changed` | integration | 〃 | 공개 범위(`Integration.scope`) 전환. personal ↔ organization. `details.from`·`to` | 구현됨 |
-| `integration.reauthorized` | integration | 〃 | 통합 재인증. OAuth 제공자가 없는 통합의 reset 경로에서만 남는다(`details.mode='reset'`). OAuth 통합 재인증은 `oauth/begin` 에 위임하므로 시작과 콜백 어디에서도 남지 않는다(커버리지 갭, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)) | 부분 구현 |
-| `workspace.transfer_ownership` | workspace | `workspaces/workspaces.service.ts` | 소유자 이양 | 구현됨 |
-| `workspace.created` | workspace | 〃 | 팀 워크스페이스 생성(`createTeam`) | 구현됨 |
-| `workspace.updated` | workspace | 〃 | 이름·설정 변경(`renameWorkspace`, `updateWorkspaceSettings`). `details.field` | 구현됨 |
-| `member.invited` | member | 〃 | 이메일로 직접 추가(`addMemberByEmail`). `details.mode='direct_add'` | 구현됨 |
-| `member.invited` | member | `workspaces/workspace-invitations.service.ts` | 초대 발급(`invite`). `details.mode='invitation'`. 이메일 주소는 개인정보라 저장하지 않는다 | 구현됨 |
-| `member.role_changed` | member | `workspaces/workspaces.service.ts` | 역할 변경(`updateMemberRole`). `details.from`·`to` | 구현됨 |
-| `member.removed` | member | 〃 | 멤버 제거와 스스로 나가기(`removeMember`, `leaveWorkspace`). `details.mode='removed'` 또는 `'left'`, `details.memberUserId`(나가거나 제거된 멤버) | 구현됨 |
-| `execution.re_run` | execution | `executions/executions.service.ts` | 재실행. `details` 에 `originalExecutionId`·`chainId`·`dryRun`·`inputModified`([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)) | 구현됨 |
-| `auth_config.create` | auth_config | `auth-configs/auth-configs.service.ts` | 인증 설정 생성 | 구현됨 |
-| `auth_config.update` | auth_config | 〃 | 인증 설정 수정 | 구현됨 |
-| `auth_config.delete` | auth_config | 〃 | 인증 설정 삭제 | 구현됨 |
-| `auth_config.regenerate` | auth_config | 〃 | 키·토큰 재발급 | 구현됨 |
-| `auth_config.reveal` | auth_config | 〃 | 평문 보기. 비밀번호 재확인 뒤에만 된다([외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md)) | 구현됨 |
-| `user.password_changed` | user | `users/users.controller.ts` | 로그인한 세션의 비밀번호 변경(`POST /users/me/change-password`) | 구현됨 |
-| `user.email_changed` | user | 〃 | 이메일 변경 확인(`POST /users/me/email-change/verify`). `details` 에 이메일 주소를 싣지 않는다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md)) | 구현됨 |
-| `user.2fa_enabled` | user | `auth/auth.controller.ts` | TOTP 켜기(`POST /auth/2fa/verify`). `details.method='totp'` | 구현됨 |
-| `user.2fa_disabled` | user | 〃 | TOTP 끄기(`POST /auth/2fa/disable`). `details.method='totp'` | 구현됨 |
-| `user.2fa_enabled` | user | `auth/webauthn/webauthn.controller.ts` | WebAuthn 등록(`POST …/webauthn/register/verify`). `details.method='webauthn'`·`credentialId`·`firstCredential` | 구현됨 |
-| `user.2fa_disabled` | user | 〃 | WebAuthn 삭제(`DELETE …/webauthn/credentials/:id`). `details.method='webauthn'`·`credentialId`·`remainingCredentials` | 구현됨 |
-| `workflow.created` | workflow | `workflows/workflows.service.ts` | 워크플로우 생성 | 구현됨 |
-| `workflow.updated` | workflow | 〃 | 워크플로우 수정 | 구현됨 |
-| `workflow.deleted` | workflow | 〃 | 워크플로우 삭제 | 구현됨 |
-| `workflow.executed` | workflow | 없음 | 워크플로우 실행. 보존 정책 결정 뒤로 미룬다(아래 Rationale) | 미구현 |
-| `trigger.created` | trigger | `triggers/triggers.service.ts` | 트리거 생성. `details.type`(트리거 종류). 그 요청이 일회성 평문을 발급했으면 `details.issuedSecrets` 에 발급한 비밀의 종류 이름 배열을 싣는다. 값은 `notificationSigningSecret` 과 `interactionToken` 이고 발급한 것만 이 순서로 싣는다. 평문은 싣지 않는다. 발급하지 않았으면 키가 없다 | 구현됨 |
-| `trigger.updated` | trigger | 〃 | 트리거 수정. 켜기·끄기도 이 감사 액션이다(토글 전용 동사가 없다). `details.type`. 그 요청이 일회성 평문을 발급했으면 `details.issuedSecrets` 를 싣는다(`trigger.created` 와 같다) | 구현됨 |
-| `trigger.deleted` | trigger | 〃 | 트리거 삭제 | 구현됨 |
-| `trigger.notification_secret_rotated` | trigger | 〃 | 알림 서명 시크릿 교체. 24시간 유예(`notificationSecretV2`). 새 시크릿을 응답에 한 번 평문으로 싣는다([EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md)) | 구현됨 |
-| `trigger.chat_channel_bot_token_rotated` | trigger | 〃 | 봇 토큰 재발급. 24시간 유예(`chatChannelTokenV2`). 새 토큰은 호출자가 입력하므로 응답에 싣지 않는다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)) | 구현됨 |
-| `trigger.interaction_token_revoked` | trigger | 〃 | 트리거 단위 토큰 재발급. 새 요청에 대해 이전 토큰을 곧바로 무효로 하고 그 토큰으로 연 SSE 스트림을 닫는다(유예 없음). 새 토큰을 응답에 한 번 평문으로 싣는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)) | 구현됨 |
-| `schedule.created` | schedule | `schedules/schedules.service.ts` | 스케줄 생성 | 구현됨 |
-| `schedule.updated` | schedule | 〃 | 스케줄 수정 | 구현됨 |
-| `schedule.deleted` | schedule | 〃 | 스케줄 삭제 | 구현됨 |
-| `model_config.create` | model_config | `model-config/model-config.service.ts` | 모델 설정 생성 | 구현됨 |
-| `model_config.update` | model_config | 〃 | 모델 설정 수정 | 구현됨 |
-| `model_config.delete` | model_config | 〃 | 모델 설정 삭제 | 구현됨 |
-| `model_config.set_default` | model_config | 〃 | 워크스페이스 기본 모델 지정 | 구현됨 |
-
-카탈로그에 딸린 규칙과 사실:
-
-- 워크스페이스·멤버 감사 액션은 결정4(B, 2026-07-07)로 구현됐다. 워크플로우·트리거·스케줄·모델 설정 CRUD 는 2026-08-01, 트리거 시크릿·토큰 세 감사 액션은 2026-08-11 에 구현됐다.
-- **`workspace.deleted` 는 남기지 않는다.** 결정4 는 워크스페이스 CRUD 전체의 감사를 의도했다. 그런데 `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)다. 삭제 전에 남기면 삭제와 함께 cascade 로 지워지고 삭제 뒤에 남기면 FK 위반이 난다. 그래서 `AUDIT_ACTIONS` 에 두지 않는다. 삭제 이력을 남기려면 워크스페이스에 묶이지 않은 별도 저장소가 필요하고 이는 범위 밖이다. 근거 원본은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 Rationale 이다.
-- **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다. 멤버가 나가거나 제거될 때 남는 `member.removed` 한 행과 `integration.deleted` 여러 행은 이 규칙(REQ-AUDIT-010)의 대상이 아니다. 지운 개인 통합은 멤버십과 서로의 행을 맞추는 짝 리소스가 아니고 그 요청으로 실제로 지워진 리소스라서 통합마다 남긴다. 근거는 [나가기와 제거가 지운 개인 통합은 통합마다 한 행씩 남긴다](#나가기와-제거가-지운-개인-통합은-통합마다-한-행씩-남긴다-2026-10-29) 에 있다.
-- **트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다.** 편집자 이상이 부를 수 있는 특권 작업이고 실행하면 기존 자격 증명이 무효가 된다. 무효가 되는 대상은 감사 액션마다 다르다. 계정 탈취 뒤의 조용한 교체를 `audit_log` 만으로 재구성할 수 있어야 해서 기록한다. 세 감사 액션으로 나눈 근거는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 에 있다. 트리거 생성 · 수정 요청이 첫 알림 서명 시크릿이나 트리거 단위 토큰을 발급하는 일에는 전용 감사 액션을 두지 않는다. 그 요청의 `trigger.created` · `trigger.updated` 행이 `details.issuedSecrets` 로 발급을 표시한다([Rationale](#첫-발급-표시는-생성과-수정-기록에-싣는다)).
-- **Telegram 인바운드 서명의 서버 재발급에는 전용 감사 액션이 없다.** Telegram 어댑터는 `setupChannel()` 이 불릴 때마다 `secret_token` 을 새로 만들어 등록한다. 서버는 그 값을 다시 저장한다([채팅 채널 「인바운드 서명 자료 변경」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-서명-자료-변경)). 이 재발급은 사용자가 고른 자격 증명 교체가 아니라 프로바이더 등록의 일부라서 위 세 교체 감사 액션의 대상이 아니다. 재발급을 일으킨 요청의 감사 액션(`trigger.created`, `trigger.updated`, `trigger.chat_channel_bot_token_rotated`)이 그 기록을 겸한다. 감사 로그 조회에서 서명 재발급만 따로 거를 수는 없다(알려진 한계, [Rationale](#telegram-서버-발급-서명에-전용-감사-액션을-두지-않는다)).
-- **모델 설정 레거시 행**: 모델 설정 통합(2026-08-01) 전에 `llm_config.*`·`rerank_config.*` 로 남은 행은 append-only 로 보존하고 다시 쓰지 않는다. 모델 설정 감사를 조회할 때는 두 집합(`model_config.*` 또는 `llm_config.*`·`rerank_config.*`)을 OR 로 묶는다.
-- **남은 커버리지 갭**: `workflow.executed` 외에 알림 규칙 CRUD 를 맡는 `alerts` 모듈이 감사 로그를 남기지 않는다(`AuditLogsService` 를 가져다 쓰지 않는다). 알림 규칙 평가가 알림을 보낼 때도 감사 행은 없다([알림](CLE-OBS-NOTIFY.md)).
-
-## 감사 로그 조회
-
-`GET /api/audit-logs`(`audit-logs/audit-logs.controller.ts` → `AuditLogsService.findAll`)가 감사 로그를 돌려준다.
-
-| 항목 | 규칙 |
-| --- | --- |
-| 권한 | `@Roles('admin')`. 전역 `RolesGuard` 가 워크스페이스 멤버십과 역할을 함께 검사한다. 관리자 이상만 조회한다. 멤버가 아닌 사용자가 `X-Workspace-Id` 를 바꿔 넣어 다른 워크스페이스를 보는 것도 막는다 |
-| 범위 | `@WorkspaceId()` 로 정해진 현재 워크스페이스의 행만 |
-| 필터 | `action`(완전 일치), `resourceType`, `userId`(행위자), `startDate`·`endDate`(`created_at` 범위) |
-| 페이지네이션 | offset 방식. `page` 기본 1, `limit` 기본 20 |
-| 정렬 | 허용 목록 `created_at`·`action`·`resource_type`. 기본 `created_at DESC` |
-| 응답 | 행위자 `user` 를 join 해 싣는다 |
-
-**읽는 쪽 계약: `action` 은 닫힌 enum 이 아니다.** 쓰는 쪽은 `AUDIT_ACTIONS` union 으로 막지만 `AuditLog.action` 컬럼 자체는 DB 에서 자유 문자열이다. 감사 기록은 바꾸지 않는다는 원칙에 따라 과거 행에는 지금 union 밖의 레거시 값이 남아 있을 수 있다. 예를 들어 cross-audit G-02 전에 남은 `execution.re_run` 의 옛 표기 `re_run_initiated` 행은 그대로 있다. 그래서 조회 응답(`AuditLogDto.action`)을 쓰는 쪽은 `action` 을 닫힌 enum 으로 단정하지 말고 모르는 값도 처리해야 한다. `AuditLogDto.action` 의 OpenAPI 설명에도 같은 계약을 적는다.
-
-## 로그인 이력
-
-### 이벤트
-
-`event` 는 7종이다. 코드의 `LoginHistoryEvent` union(`auth/entities/login-history.entity.ts`)과 DB CHECK 제약 `chk_login_history_event` 가 함께 이 목록을 강제한다.
-
-| 이벤트 | 기록 위치 | 뜻 |
+| 문서 | 내용 | 맡는 요구사항 |
 | --- | --- | --- |
-| `login_success` | `auth/auth.service.ts` | 비밀번호 또는 OAuth 로그인 성공 |
-| `login_failed` | 〃 | 비밀번호 불일치·계정 잠금·이메일 미인증 같은 로그인 실패 |
-| `totp_failed` | 〃 | 2단계 인증 TOTP 코드 검증 실패 |
-| `webauthn_failed` | `auth/webauthn/webauthn.service.ts` | 2단계 인증 WebAuthn 검증 실패. `failure_reason` 으로 `WEBAUTHN_INVALID`·`WEBAUTHN_COUNTER_REGRESSION` 을 구분한다 |
-| `logout` | `auth/auth.service.ts` | 사용자가 `/auth/logout` 을 부름. 부른 기기의 로그인 세션 전체를 무효로 한다 |
-| `session_revoked` | `auth/sessions.service.ts` | 활성 세션 목록에서 다른 로그인 세션을 하나씩 강제 종료, `revoke-others` 일괄 종료, 비밀번호 변경·이메일 변경 확정 때의 전체 무효화(일괄, `familyId=null`). 모두 `SessionsService` 를 거친다. 기존 enum 값을 다시 써서 CHECK 제약과 마이그레이션이 필요 없다 |
-| `token_reuse_detected` | `auth/auth.service.ts` | 무효가 된 refresh token 의 재사용을 감지함. 그 로그인 세션 전체를 무효로 한다 |
+| [감사 로그 — 기록과 조회](CLE-OBS-AUDIT-RECORD.md) | `AuditLogsService.record` 기록 계약, 워크스페이스 귀속, 조회 API 와 읽는 쪽 계약, `AuditLog` 데이터 | REQ-AUDIT-001 ~ 008, REQ-AUDIT-014 ~ 017 |
+| [감사 로그 — 감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG.md) | 감사 액션 단일 목록(기록 위치 · `details` · 상태)과 카탈로그 규칙(워크스페이스 삭제, 짝 리소스, 트리거 시크릿 교체, 레거시 행, 커버리지 갭) | REQ-AUDIT-009 ~ 013, REQ-AUDIT-032 |
+| [감사 로그 — 로그인 이력](CLE-OBS-AUDIT-LOGIN.md) | 로그인 이력 이벤트, 기록 계약, 조회 API, 보존 배치 | REQ-AUDIT-020 ~ 031 |
 
-`webauthn_failed` 는 V058 에서 CHECK 제약을 지웠다가 다시 만드는 방식으로 더했다. 컬럼 정의는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 에 있다.
+이 문서의 보존 절이 REQ-AUDIT-018 · 019 를 맡는다. 하위 문서의 코드 경로는 따로 적지 않으면 `codebase/backend/src/modules/` 아래 경로다.
 
-### 기록 계약
+## 감사 액션 카탈로그
 
-```mermaid
-sequenceDiagram
-  participant Auth as AuthService·SessionsService·WebAuthnService
-  participant LHS as LoginHistoryService
-  participant PG as Postgres
-  Auth->>LHS: record(userId?, email, event, ip?, userAgent?, familyId?, failureReason?)
-  LHS->>PG: INSERT login_history
-  LHS-->>Auth: 적재 완료 뒤 반환
-```
-
-- 기록하는 쪽은 인증 도메인의 세 서비스(`AuthService`·`SessionsService`·`WebAuthnService`)뿐이다.
-- 기기 라벨(`deviceLabel`)은 인자로 받지 않는다. 서비스 안에서 `userAgent` 로 만든다(`deriveDeviceLabel`, `auth/utils/device-label.ts`). 외부 라이브러리 없이 정규식만 쓴다. 알아보지 못하면 UA 원문을 64자로 줄여 쓴다.
-- 호출하는 쪽은 반드시 `await` 한다. `void` 로 던져 두면 바로 뒤의 HTTP 요청(예: 로그인 이력 조회)의 SELECT 가 INSERT 보다 먼저 실행되는 읽기 경쟁이 생긴다. 커넥션 풀이 읽기와 쓰기를 다른 커넥션에 실을 때 일어난다. `auth/login-history.service.ts` 의 `record` 주석에 적힌 계약이고 현재 호출부는 모두 `await` 한다.
-- 적재가 실패하면 예외를 흡수하고 `Logger.error` 만 남긴다. 감사 로그와 달리 카운터가 없다. 이 차이는 [Rationale](#적재-실패-관측이-감사-로그와-로그인-이력에서-다르다) 에 있다.
-
-### 조회 API
-
-`GET /api/users/me/login-history`(`auth/sessions.controller.ts` → `LoginHistoryService.findForUser`)가 로그인 이력을 돌려준다.
-
-| 항목 | 규칙 |
-| --- | --- |
-| 범위 | JWT 의 본인 `userId` 행만. 워크스페이스 관리자에게도 다른 사용자의 이력은 보이지 않는다 |
-| 페이지네이션 | 커서 방식. 커서는 `<iso>\|<id>` 로 인코딩한다. `created_at` 이 같은 밀리초인 행을 가르려고 `id` 를 함께 묶는다 |
-| 손상된 커서 | 무시하고 첫 페이지부터 돌려준다 |
-| 페이지 크기 | `limit` 기본 50, 상한 100. `limit + 1` 행을 읽어 `hasMore` 를 판정하고 `nextCursor` 를 돌려준다 |
-
-화면(활성 세션 화면의 로그인 이력 탭)은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 이 정한다.
+→ [감사 로그 — 감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG.md#감사-액션-카탈로그)
 
 ## 보존
 
 | 테이블 | 보존 | 정리 |
 | --- | --- | --- |
 | `audit_log` | 정책 미정. 지금은 무제한 | 정리 배치 없음. "최근 90일 보관(설정 가능)" 은 예정이고 미구현이다 |
-| `login_history` | 180일(`RETENTION_DAYS`) | 매일 배치로 자동 삭제(아래) |
+| `login_history` | 180일(`RETENTION_DAYS`) | 매일 배치로 자동 삭제([로그인 이력 보존 배치](CLE-OBS-AUDIT-LOGIN.md#보존-배치)) |
 
-로그인 이력 보존 배치(`auth/jobs/login-history-pruner.service.ts`):
+두 테이블 모두 외부 시스템으로 내보내지 않는다. 알림 규칙 평가(`alerts/alerts-evaluator.service.ts`)도 두 테이블을 읽지 않는다.
 
-- BullMQ 반복 작업이다. 큐는 `login-history-pruner`, cron 은 `0 3 * * *` 이고 시간대를 Asia/Seoul 로 명시한다. 서버 로컬 시간대가 바뀌어도 실행 시각이 흔들리지 않는다.
-- 서버 인스턴스가 여럿이어도 전역에서 한 번만 돈다. `upsertJobScheduler` 는 멱등이라 Redis 중앙 스케줄에 항목 하나만 남긴다. 워커는 Redis 락을 잡은 쪽만 작업을 가져간다.
-- 삭제는 `LoginHistoryService.pruneOlderThanRetention` 이 배치 루프로 한다. 한 번 호출에 `PRUNE_BATCH`(1000행) × 최대 `PRUNE_MAX_BATCHES`(50) 까지만 지운다. 잠금 경합과 WAL 팽창을 줄이려는 것이고 남은 행은 다음 실행에 넘긴다.
-- 삭제 실패도 예외를 흡수하고 로그만 남긴다.
-- 배치는 `created_at < cutoff` 로 훑는다. 이 스캔 전용 인덱스 `(created_at)` 을 V040 에서 만들었다.
-
-## 데이터
-
-### AuditLog
-
-| 필드 | 타입 | 설명 |
-| --- | --- | --- |
-| id | UUID | PK |
-| workspace_id | UUID | FK → Workspace (CASCADE) |
-| user_id | UUID | FK → User (NO ACTION). 행위자 |
-| action | String | 감사 액션(`VARCHAR(100) NOT NULL`). DB CHECK 가 없다 |
-| resource_type | String | 대상 리소스 종류 |
-| resource_id | UUID | 대상 리소스 ID |
-| details | JSONB | 변경 상세. 감사 액션마다 형식이 다르다 |
-| ip_address | String? | 요청 IP. IP 를 알 수 없거나 시스템 내부 동작이면 없다 |
-| created_at | Timestamp | 발생 시각 |
-
-- 테이블은 V001 에서 만들었다. 인덱스는 V002 의 `idx_audit_log_workspace_created (workspace_id, created_at DESC)` 다.
-- 두 테이블 모두 외부 시스템으로 내보내지 않는다. 알림 규칙 평가(`alerts/alerts-evaluator.service.ts`)도 두 테이블을 읽지 않는다.
-- `AuditLog.details` 는 에러 응답의 `details` 와 이름만 같은 다른 필드다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)).
-
-### 외부 의존
+## 외부 의존
 
 | 의존 | 방향 | 내용 |
 | --- | --- | --- |
-| 9개 도메인 서비스(integrations·workspaces·workspace-invitations·executions·auth-configs·workflows·triggers·schedules·model-config)와 3개 컨트롤러(users·auth·webauthn) | 상류 | `audit_log` 를 쓰는 곳 전부. 목록은 [감사 액션 카탈로그](#감사-액션-카탈로그) |
+| 9개 도메인 서비스(integrations·workspaces·workspace-invitations·executions·auth-configs·workflows·triggers·schedules·model-config)와 3개 컨트롤러(users·auth·webauthn) | 상류 | `audit_log` 를 쓰는 곳 전부. 목록은 [감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG.md#감사-액션-카탈로그) |
 | 인증 도메인(`AuthService`·`SessionsService`·`WebAuthnService`) | 상류 | `login_history` 를 쓰는 유일한 곳 |
 | BullMQ(Redis) | 기반 | `login-history-pruner` 반복 작업 |
 
 ## 구현 위치
+
+하위 문서마다 자기 범위의 구현 위치를 다시 적는다. 이 목록은 영역 전체다.
 
 - `codebase/backend/src/modules/audit-logs/audit-logs.service.ts` (`record`, `findAll`)
 - `codebase/backend/src/modules/audit-logs/audit-action.const.ts` (`AUDIT_ACTIONS`)
@@ -300,23 +128,9 @@ sequenceDiagram
 
 목적과 조회자가 달라서 한 테이블로 합치면 권한 분리와 쿼리 형태가 모두 복잡해진다. 조회 방식도 다르다. 감사 로그는 워크스페이스 범위의 offset 페이지네이션이고 로그인 이력은 본인 전용 커서 페이지네이션이다.
 
-### 사용자 보안 감사 액션을 현재 워크스페이스에 귀속한다
-
-`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled` 를 NOT NULL 인 `audit_log.workspaceId` 에 어떻게 귀속할지 정해야 했다(refactor 04 후속). 행위자의 현재 워크스페이스(인증 요청 JWT 의 워크스페이스)로 정했다.
-
-이 동작들은 모두 로그인한 세션에서만 일어난다(`POST /users/me/change-password`, TOTP, WebAuthn 모두 JwtAuthGuard 뒤에 있다). 인증 요청은 항상 JWT 로 워크스페이스를 싣고 오므로 그 워크스페이스에 귀속하면 스키마를 바꾸지 않고 제약을 채운다. 이는 카탈로그의 "인증(현재 워크스페이스가 있는 동작)" 분류를 구체화한 것이다. 로그인·로그아웃·로그인 실패(워크스페이스 없음)는 로그인 이력으로 간다는 규칙은 그대로다.
-
-- **WebAuthn 추가 등록도 `user.2fa_enabled` 다.** 이미 2단계 인증이 켜진 상태에서 두 번째 이후 인증기를 등록하는 것은 "2단계 인증 활성화" 사건은 아니다. 하지만 계정 보안 속성(인증 수단)을 더하는 일이라 추적한다. 새 감사 액션을 만들기보다 `details.firstCredential=false` 로 구분하는 편이 조회·집계에 단순하다. `webauthn.controller` 는 복구 코드를 발급했는지로 `firstCredential` 을 판정한다.
-- **OAuth 로만 가입한 사용자의 마지막 2단계 인증 끄기는 별개 결정이다.** 비밀번호가 없는 계정이 유일한 2단계 인증 수단을 끌 때 계정 잠김 위험을 어떻게 막을지는 감사 귀속과 무관하다. 2단계 인증 강제 정책·계정 복구 흐름과 함께 다룰 일이다. TOTP 끄기는 비밀번호를 먼저 확인하므로 비밀번호가 없는 계정은 `PASSWORD_REQUIRED` 로 막힌다. Passkey 삭제에는 막는 로직이 없다([가입과 로그인 「2단계 인증 설정 화면」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-설정-화면)).
-
-기각한 대안:
-
-- **`audit_log.workspaceId` 를 NULL 허용으로 바꾸기**(사용자 단위 이벤트는 NULL): 스키마 마이그레이션이 필요하다. 워크스페이스로 거르는 모든 쿼리·인덱스·조회 권한(`@WorkspaceId()` 범위)이 NULL 을 따로 처리해야 해 영향이 크다. 인증 이벤트는 항상 현재 워크스페이스가 있으므로 NULL 이 필요 없다.
-- **사용자·개인 단위 감사 범위를 따로 만들기**: `audit_log` 는 본래 워크스페이스 범위의 팀 기능이고 사용자 단위 인증 이벤트는 이미 `login_history` 가 맡는다. 저장소를 둘로 만들 이유가 없다.
-
 ### 감사 액션은 애플리케이션 union 으로 막고 로그인 이력 이벤트는 DB CHECK 로 고정한다
 
-`audit_log.action` 은 DB 에서 자유 문자열(`VARCHAR(100) NOT NULL`, V001)이다. 새 감사 액션을 더할 때 마이그레이션이 필요 없다. 그 대가는 제각각인 표기가 DB 에 들어갈 위험인데, 이는 애플리케이션의 타입으로 막는다. `AuditLogsService.record({ action })` 의 `action` 이 `AuditAction` union 이라 const 에 더하지 않은 감사 액션은 호출 자체가 컴파일되지 않는다(cross-audit G-01). DB CHECK 대신 union 을 고른 이유는 감사 액션이 도메인이 늘 때마다 자주 추가되기 때문이다.
+`audit_log.action` 은 DB 에서 자유 문자열(`VARCHAR(100) NOT NULL`, V001)이다. 새 감사 액션을 더할 때 마이그레이션이 필요 없다. 그 대가는 제각각인 표기가 DB 에 들어갈 위험인데, 이는 애플리케이션의 타입으로 막는다. `AuditLogsService.record({ action })` 의 `action` 이 `AuditAction` union 이라 const 에 더하지 않은 감사 액션은 호출 자체가 컴파일되지 않는다. DB CHECK 대신 union 을 고른 이유는 감사 액션이 도메인이 늘 때마다 자주 추가되기 때문이다.
 
 반대로 `login_history.event` 는 DB CHECK 제약(`chk_login_history_event`, V040)으로 값을 고정한다. 이벤트 종류를 더하려면 마이그레이션이 필요하다. 예를 들어 `webauthn_failed` 는 V058 에서 CHECK 제약을 DROP 한 뒤 ADD 해 더했다. 엔티티의 `LoginHistoryEvent` union 과 DB CHECK 가 함께 정합성을 지킨다.
 
@@ -328,63 +142,6 @@ sequenceDiagram
 
 감사 로그는 흡수한 실패를 경고 로그와 카운터로 드러내고 로그인 이력은 에러 로그만 남긴다. 이 차이는 일부러 드러내 둔다. 하나로 묶어 적으면 어느 쪽으로 읽어도 틀리고 로그인 이력 쪽의 빈틈이 보이지 않는다. 로그인 이력에 카운터를 도입할지는 별도 작업으로 추적한다.
 
-### `workflow.executed` 를 보존 정책 결정 뒤로 미룬다
-
-`workflow.executed` 는 다른 감사 액션과 빈도가 다르다. CRUD 는 드물지만 `executed` 는 트리거와 웹훅이 발동할 때마다 쌓인다. 그런데 `audit_log` 은 보존 정책이 정해지지 않았고 정리 배치도 없다([보존](#보존)). 로그인 이력에 보존 배치가 있는 것과 대비된다. 무제한 테이블에 고빈도 감사 액션을 넣는 일은 보존 정책 결정과 묶어야 해서 따로 떼어 미뤘다.
-
-이 유예 원칙의 축은 특권성이 아니라 "빈도 × 보존 정책 미정" 이다. 그래서 트리거 시크릿·토큰 교체에는 적용하지 않는다. 교체와 재발급은 드문 특권 작업이고 같은 이유로 `integration.rotated`·`auth_config.regenerate` 가 이미 구현돼 있다.
-
-### 감사 액션 카탈로그를 한 표로 합친다
-
-예전에는 세 문서가 감사 액션 목록을 따로 들고 각자 기준이라고 적었다. 인증 명세의 감사 절은 카탈로그(구현됨·예정 목록)를, 감사 데이터 흐름 문서는 현재 기록되는 감사 액션과 기록 위치를, 명명 규약 문서는 resource 별 분류와 구현 상태를 들고 있었다. 감사 액션을 하나 더할 때마다 세 곳을 고쳐야 했고 실제로 어긋났다. 데이터 흐름 문서의 외부 의존 표와 시퀀스 그림은 2026-08-01 CRUD 확장 전의 4개 서비스만 적고 "그 외 도메인은 감사 기록 없음" 이라 했다. 이제 목록은 이 문서의 카탈로그 한 곳에만 두고 명명 규약은 [감사 action 명명](CLE-OBS-AUDITNAME.md) 이 맡는다. 구현의 기준은 여전히 코드의 `AUDIT_ACTIONS` union 이다.
-
-기록 위치도 한정해서 적는다. 예전에는 감사 로그를 "모든 도메인 서비스가 부르는 공통 관심사" 로 적었다. 실제로 기록하는 곳은 카탈로그에 적은 서비스와 컨트롤러뿐이라 그 서술은 버렸다.
-
-### Telegram 서버 발급 서명에 전용 감사 액션을 두지 않는다
-
-NERV Task `CLE-T-W11BQ9` 에서 정했다. 2026-09-10 의 consistency 검토가 Telegram 인바운드 서명의 서버 재발급이 감사 액션 카탈로그 밖에 있다고 짚었다.
-
-기각한 대안은 전용 감사 액션이다. [감사 action 명명](CLE-OBS-AUDITNAME.md) 은 무엇이 교체됐는지 `details` 를 열어야 알 수 있는 액션을 피한다. 그 원칙은 사용자가 고른 자격 증명 교체를 대상으로 한다. 이 재발급은 사용자가 고른 교체가 아니고 프로바이더 등록에 딸린 결과다. 회전 주체와 PATCH 비밀을 나누는 기준은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-21 의 「세 축」 이다. 재발급을 일으킨 요청의 감사 액션이 이미 남으므로 같은 사건을 두 번 적게 된다. 대가는 조회 필터로 서명 재발급만 고를 수 없다는 점이다.
-
-### 첫 발급 표시는 생성과 수정 기록에 싣는다
-
-2026-10-17 에 NERV Task `CLE-T-EMB0YG` 에서 정했다(사용자 결정). 트리거 생성과 수정(PATCH)은 첫 알림 서명 시크릿과 트리거 단위 토큰(`itk_*`)을 발급하고 그 평문을 응답에 한 번 싣는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 4). 이 발급은 감사 로그에서 구분되지 않았다. 일반 `trigger.created` · `trigger.updated` 행만 남았다(finding 01a11f44-8a41-7056-b3f2-22435b485e5e). 이제 그 행의 `details.issuedSecrets` 에 발급한 비밀의 종류 이름을 싣는다. 평문은 싣지 않는다. 발급하지 않은 요청에는 이 키가 없다. 그래서 키가 있는지만 보고 발급한 요청을 고를 수 있다. 이 행의 감사 액션은 생성이나 수정이다. `details.issuedSecrets` 는 그 행에 붙는 보조 표시일 뿐이다. 그래서 무엇이 교체됐는지 `details` 를 열어야 알 수 있는 액션을 피한다는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 의 원칙과 어긋나지 않는다.
-
-기각한 대안:
-
-- **전용 감사 액션을 둔다**(예: `trigger.notification_secret_issued`). 한 요청이 생성이나 수정 행과 발급 행 두 줄로 남는다. 같은 사건을 두 번 적는다는 점에서 위 Telegram 결정과 같은 이유로 택하지 않았다. 첫 발급은 기존 자격 증명을 무효로 하지 않으므로 교체 감사 액션과도 성격이 다르다.
-- **표시하지 않는다.** 계정을 탈취한 사람이 트리거를 만들거나 고쳐 비밀을 받아 간 일을 `audit_log` 만으로 재구성할 수 없다. 교체를 기록하는 이유(카탈로그의 「트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다」)와 같은 요구다.
-
-시크릿 교체(`rotate-secret`)와 트리거 단위 토큰 재발급(`revoke-token`)은 지금처럼 각자의 감사 액션을 쓴다. 두 동작은 기존 자격 증명을 무효로 한다.
-
 ### 트리거 생성의 감사 행은 커밋 직후 트랜잭션 밖에서 남긴다
 
-2026-10-17 에 NERV Task `CLE-T-EQDYC1` 에서 정했다. 트리거 생성은 INSERT · 첫 발급 · 시크릿 저장소 쓰기 · `config` 쓰기를 트리거 설정 잠금을 쥔 한 트랜잭션으로 묶는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 R14). `trigger.created` 감사 행은 그 트랜잭션이 커밋된 직후 트랜잭션 밖에서 남긴다. 그래서 생성이 롤백되면 `trigger.created` 행도 남지 않는다. REQ-AUDIT-001 은 완료된 변경만 남기게 하므로 이 결과와 맞는다. 감사 적재 실패를 흡수하는 계약(REQ-AUDIT-003)도 그대로다.
-
-전의 동작과는 감사와 발급의 순서가 반대다. 전에는 감사 행을 먼저 남기고 첫 발급은 커밋 뒤의 별도 단계로 했다. 이제는 첫 발급까지 커밋한 뒤에 감사 행을 남긴다. 그래서 발급이 실패한 반쪽 트리거의 생성 기록이 남지 않는다.
-
-받아들인 위험이 하나 있다. 커밋과 감사 기록 사이에 프로세스가 멈추면 감사 행이 없는 트리거가 남을 수 있다. 트리거 수정(PATCH)도 커밋 직후에 감사 행을 남기므로 같은 위험이 이미 있다.
-
-기각한 대안:
-
-- **감사도 생성 트랜잭션 안에서 남긴다**(`record` 에 매니저 인자를 더하고 savepoint 로 감싼다). 같은 날 이 문서의 초안이 처음 택한 안이고 구현을 검토하며 뒤집었다. `AuditLogsService.record` 는 매니저를 받지 않고 적재 실패를 삼킨다. 트랜잭션 안에서 감사 INSERT 가 실패하면 Postgres 트랜잭션 전체가 중단된다. 그러면 REQ-AUDIT-003 을 지키려고 감사 INSERT 를 savepoint 로 감싸야 하고 기록 API 도 바뀐다. 얻는 것은 커밋과 감사 사이의 짧은 창을 닫는 것뿐이다. PATCH 경로와도 달라진다.
-- **감사 행을 먼저 남기고 첫 발급을 커밋 뒤에 따로 한다**(전의 동작). 감사 행을 남긴 뒤 첫 발급이 실패하면 반쪽 트리거와 그 생성 기록이 함께 남았다. 호출자가 다시 시도하면 같은 트리거의 생성 기록이 두 번 남거나 충돌이 났다.
-
-### 레거시 감사 액션 행은 고치지 않는다
-
-예전 `re_run_initiated` 는 resource 접두 없이 적재돼 과거분사형 통합 감사 액션과 섞였다. cross-audit G-02 에서 `execution.re_run` 으로 고쳤지만 새 행부터 적용했고 기존 행은 감사 기록 불변 원칙에 따라 그대로 둔다. 모델 설정 통합 전의 `llm_config.*`·`rerank_config.*` 행도 같다. 이 때문에 조회 응답의 `action` 은 닫힌 enum 이 아니다.
-
-### 나가기와 제거가 지운 개인 통합은 통합마다 한 행씩 남긴다 (2026-10-29)
-
-멤버가 나가거나 제거되면 그 사람의 개인 통합도 함께 지운다. 2026-10-29 에 사용자가 정했다(NERV Task `CLE-T-TGZGM9`, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)). 감사 로그는 `member.removed` 한 행 다음에 지운 통합마다 `integration.deleted` 한 행을 남긴다. 기록 형식은 [통합 관리 「감사 로그」](../CLE-INT/CLE-INT-MANAGE.md#감사-로그) 가 정한다. 이 절은 REQ-AUDIT-010 과 이 문서의 선례에 견준 근거를 적는다.
-
-- **짝 리소스 규칙(REQ-AUDIT-010)의 대상이 아니다.** 트리거와 스케줄은 서로의 행을 맞추는 짝이라 상대 행의 변화는 호출된 감사 액션의 부수 효과다. 지운 개인 통합은 멤버십과 짝이 아니고 그 요청으로 실제로 사라진 리소스다.
-- **«같은 사건을 두 번 적지 않는다» 선례와도 다르다.** [Telegram 서버 발급 서명](#telegram-서버-발급-서명에-전용-감사-액션을-두지-않는다) 과 [첫 발급 표시](#첫-발급-표시는-생성과-수정-기록에-싣는다) 에서 기각한 전용 감사 액션은 같은 트리거에 대한 한 요청을 두 줄로 적는 안이었다. 여기서는 리소스가 다르다. 멤버십이 끝난 것과 통합이 지워진 것은 각자의 리소스 이력에 남아야 한다. 통합의 이력(`resource_type='integration'`, `resource_id`)을 조회하는 사람은 그 통합이 언제 누구의 요청으로 지워졌는지 봐야 한다.
-- **이 개정에서 비교한 안: 지운 통합 목록을 `member.removed` 의 `details` 에 싣는다.** 2026-10-29 결정 기록에는 없는 안이고 이 절을 쓴 2026-10-30 에 견줘 택하지 않았다(NERV Task `CLE-T-395HK2`). 통합의 리소스 이력으로 조회하면 그 삭제가 나오지 않는다. 한 멤버가 가진 개인 통합 수에 상한이 없어 `details` 크기도 정해지지 않는다. 일반 삭제와 같은 마무리(`finishIntegrationDeletion`)를 쓰지 못해 통합 삭제 기록이 두 형식으로 갈린다.
-- **대가**: 요청 하나가 여러 행으로 남는다. 같은 요청의 행은 행위자와 `details.mode` · `details.memberUserId` 로 묶어 본다. 두 키는 `member.removed` 와 같은 값이다.
-
-감사 행은 나가기·제거 트랜잭션이 커밋된 뒤에 남긴다. 그래서 그 트랜잭션이 롤백되면 `member.removed` 와 `integration.deleted` 둘 다 남지 않는다. 2026-10-30 에 NERV Task `CLE-T-PS7JQY` 가 이 기록을 구현해 카탈로그의 `integration.deleted` 행을 구현됨으로 바꿨다. 이 절은 그때 둔 「구현 반영」 절을 대신한다(NERV Task `CLE-T-395HK2`).
-
-### OAuth 전용 계정의 2단계 인증 끄기 서술을 고쳤다 (2026-10-17)
-
-NERV Task `CLE-T-D331TT` 에서 고쳤다. 전에는 끄기를 막는 로직이 없다고만 적었다. TOTP 끄기는 비밀번호를 먼저 확인하므로 비밀번호가 없는 계정은 `PASSWORD_REQUIRED` 로 막힌다. 이 경로를 [사용자 보안 감사 액션을 현재 워크스페이스에 귀속한다](#사용자-보안-감사-액션을-현재-워크스페이스에-귀속한다) 의 해당 불릿에 반영했다. 이 이력은 처음에 그 불릿 안에 있었고 NERV Task `CLE-T-693G4E` 에서 이 절로 옮겼다.
+다른 문서가 이 앵커로 링크하므로 제목을 남긴다. 결정과 근거는 [감사 로그 — 기록과 조회](CLE-OBS-AUDIT-RECORD.md#트리거-생성의-감사-행은-커밋-직후-트랜잭션-밖에서-남긴다) 에 있다.

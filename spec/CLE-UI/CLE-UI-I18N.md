@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N"
 title: "다국어와 화면 문구"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "daa4bdeb566f7ec1946c58dc6e2fea4ab5103fa89e4b2767a38cca8ef3c2ea42"
+content_hash: "235949b59b08f6fe5385b1ec33b8c35d56611cc9d43c1eee18a6f99bd02570e1"
 read_as: "approved_fallback"
-task: "CLE-T-YFDSY7"
+task: "CLE-T-55J6ZX"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "c89652d06493d327d80171869b19cf942d42c78932d8ff460a237934d0a1dcbc"
-etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
+mirror_sha256: "26a0e5f5dec3b0ce9cdde425e308bfc726b2d0996dafa5b93f39269ac7452a43"
+etag: "sha256-3693dc2eff53cbe5c778322d2be524950bde752984577397d55d6277c5e868cc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -24,17 +24,21 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
 
 이 규약은 두 부분으로 나뉜다.
 
-- [규칙](#규칙): 제품이 늘 지켜야 하는 불변 조건이다. 어떤 문자열이 어디를 거쳐 화면에 나가는지, 두 언어의 키가 어떻게 맞아야 하는지, 가이드를 어떤 문체로 쓰는지를 정한다.
+- [규칙](#규칙): 제품이 늘 지켜야 하는 불변 조건이다. 문자열이 화면에 나가는 경로, 두 언어 키의 일치, 가이드 문체를 정한다. 백엔드 문구 매핑(규칙 3~5)의 세부는 하위 문서가 맡는다.
 - [동반 갱신 규율](#동반-갱신-규율): 개발 과정에서 지키는 규칙이다. 코드를 바꿀 때 무엇을 같은 변경 안에서 함께 고쳐야 하는지를 정한다. 어느 파일을 만지고 어떤 명령으로 확인하는지의 목록은 저장소 운영 문서(`PROJECT.md` 의 "변경 유형 → 갱신 위치 매핑")가 갖는다.
 
 관련 요구사항은 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-037(원본 NF-I18N-01, 한국어·영어 기본 다국어 구조)과 REQ-NFR-038(원본 NF-I18N-02, 날짜·시간·숫자의 로케일별 형식)이다. REQ-NFR-038 의 표기 형식은 이 문서가 정하지 않는다. 접근성 요구(REQ-NFR-039~041, 원본 NF-A11Y-*)도 그 문서에 있다. 가이드의 구조·라우트·빌드 검증은 [사용자 가이드](CLE-UI-GUIDE.md), 가이드가 약속한 화면의 코드 근거는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 이 정한다.
+
+## 하위 문서
+
+- [다국어와 화면 문구 — 백엔드 문구 매핑](CLE-UI-I18N-BACKEND.md): 규칙 3 · 4 · 5 의 세부(백엔드 영문 원문과 `backend-labels.ts` 정적 매핑, zod `ui.*` 메타 매핑, 코드 · 규칙 ID 기반 매핑과 어시스턴트 · 통합 화면 에러 코드 표), 그 구현 위치와 근거. 맡는 요구사항 번호: 없음(이 규약에는 요구사항 줄이 없다).
 
 ## 적용 범위
 
 | 코드 영역 | 적용 |
 | --- | --- |
 | `codebase/frontend/**` | 전면 적용. 메인 앱 화면·운영 콘솔·사용자 가이드(`/docs`)가 화면 문구 사전 경유(규칙 1·2)를 따른다 |
-| `codebase/backend/**` | 사용자에게 보이는 문자열의 영문 원문을 내보내는 곳이다(정적 경고 `warningRules[].message`, 그래프 경고 메시지, 노드 `label`·`hint` 등). 한국어 매핑은 프론트엔드 `backend-labels.ts` 가 맡는다(규칙 3~5). 예외로 어시스턴트 SSE `error` 이벤트의 코드는 어시스턴트 패널 모듈의 `ERROR_MESSAGE_KEYS` 가 사전 키로 매핑한다(규칙 5). 통합 화면이 받는 통합 API 에러 코드는 `integration-error-codes.ts` 의 `INTEGRATION_ERROR_CODE_TO_I18N` 이 사전 키로 매핑한다(규칙 5). 백엔드는 영문만 내보내고 매핑 파일은 프론트엔드에 있다 |
+| `codebase/backend/**` | 사용자에게 보이는 문자열의 영문 원문을 내보내는 곳이다(정적 경고 `warningRules[].message`, 그래프 경고 메시지, 노드 `label`·`hint` 등). 한국어 매핑은 프론트엔드 `backend-labels.ts` 가 맡는다(규칙 3~5). 어시스턴트 SSE `error` 코드와 통합 화면 에러 코드는 예외로 화면 모듈의 표(`ERROR_MESSAGE_KEYS`, `integration-error-codes.ts` 의 `INTEGRATION_ERROR_CODE_TO_I18N`)가 사전 키로 매핑한다(규칙 5, [백엔드 문구 매핑](CLE-UI-I18N-BACKEND.md)). 백엔드는 영문만 내보내고 매핑 파일은 프론트엔드에 있다 |
 | `codebase/packages/**` | 지금은 화면 문자열(TSX)이 없다. 화면 문자열이 생기면 이 범위를 다시 본다 |
 | `codebase/channel-web-chat/**` (웹채팅 위젯 SPA) | 일부만 적용. 아래 참조 |
 
@@ -52,7 +56,7 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
    - 금지: JSX 텍스트, 속성(`label`, `placeholder`, `title`, `aria-label`, `alt` 등), 문자열 리터럴에 한국어를 직접 쓰는 것.
    - 허용: 주석(`//`, `/** */`)·JSDoc·테스트 fixture·스토리북 데모·하위 호환용 영문 폴백. 폴백도 되도록 키로 옮긴다.
    - 영문 폴백이나 접근성 전용 문자열도 사전 경유를 먼저 쓴다.
-   - **알려진 예외: 어시스턴트 도구 호출 배지 요약**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#i18n-키) 의 도구 호출 배지 요약(`tool-call-badge.tsx` 의 `summarize()`)은 사전 키를 거치지 않는 영문 고정 문자열이라 한국어 로케일에서도 영문으로 보인다. 재시도 후 성공 표시만 `assistant.toolCallBadgeRetryRecovered` 를 쓴다. 이 문자열은 프론트엔드가 만들므로 백엔드 영문을 매핑하는 규칙 3 의 대상도 아니다. 한국어가 아니어서 규칙 1 의 하드코딩 한국어 가드에도 걸리지 않는다. 그래서 이 항목으로 예외를 적어 둔다. 사전 키로 옮기는 일은 NERV Task `CLE-T-F9QEJC` 가 맡고, 옮기면 이 항목을 지운다.
+   - **알려진 예외: 어시스턴트 도구 호출 배지 요약**: [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#i18n-키) 의 도구 호출 배지 요약(`tool-call-badge.tsx` 의 `summarize()`)은 사전 키를 거치지 않는 영문 고정 문자열이라 한국어 로케일에서도 영문으로 보인다. 재시도 후 성공 표시만 `assistant.toolCallBadgeRetryRecovered` 를 쓴다. 프론트엔드가 만드는 문자열이라 규칙 3 의 대상이 아니고, 한국어가 아니라 하드코딩 한국어 가드에도 걸리지 않아 여기에 예외로 적는다. 사전 키로 옮기는 일은 NERV Task `CLE-T-F9QEJC` 가 맡고, 옮기면 이 항목을 지운다.
 
    위반 예:
 
@@ -74,44 +78,11 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
    - 새 키는 양쪽에 함께 더한다. 번역하지 못했으면 같은 영문을 양쪽에 임시로 둘 수 있고, 번역은 뒤 변경에서 한다.
    - 한쪽은 객체(branch)이고 다른 쪽은 문자열(leaf)인 것도 불일치다. 양쪽 구조가 같아야 한다.
 
-3. **백엔드 문자열은 영문을 원문으로 두고 프론트엔드가 한국어로 매핑한다(원본: Principle 3).** 백엔드(`codebase/backend/`)가 사용자에게 보이는 응답으로 내보내는 `warningRules[].message` 와 노드 스키마 `label`·`description` 은 영문 원문으로 둔다. 한국어는 프론트엔드 `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 매핑 표(`WARNING_KO`, `NODE_LABEL_KO`, `NODE_DESCRIPTION_KO`)에 등록한다. 이것은 영문 문자열 전체를 키로 쓰는 정적 매핑이다. 정적 문자열 키로 나타낼 수 없는 코드 기반·동적 메시지는 규칙 5 가 다룬다.
-   - 금지: 백엔드 응답에 한국어를 직접 넣는 것. 지역화할 수 없게 된다.
-   - 금지: 백엔드만 새 경고 문구(`warningRules[].message`)나 라벨을 내보내고 프론트엔드 매핑을 빠뜨리는 것.
-   - 매핑이 없으면 `pickKo` 같은 폴백으로 영문이 그대로 보인다. 이것은 의도한 안전장치이지만 매핑 누락은 규칙 위반이다.
-   - 어시스턴트 SSE `error` 이벤트의 `message` 도 영문 원문이다. 서버는 코드별 고정 영문만 보낸다. 한국어 문구는 프론트엔드가 코드로 고른 `assistant.*` 사전 키에서 온다(규칙 5).
-   - 매핑 대상이 아닌 값: 트리거의 `chat_channel_last_error` 다. 서버가 저장한 진단 원문을 번역하지 않고 보여 주는 필드다. 자격 증명 모양은 서버가 응답에서 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)). 어댑터 에러 메시지(프로바이더 응답 포함)와 서버가 정한 문구가 섞이고 값이 끼는 문구(`Inbound rate limit exceeded (N/min)`)도 있어 키로 쓸 코드가 없다. 코드로 저장하는 진단 필드는 규칙 5 를 따른다. 화면에는 보이되 번역하지 않는다. 화면은 고정폭 글꼴로 원문임을 드러내고 곁의 안내 문구만 화면 문구 사전을 거친다. 이 면제를 지키는 가드는 없다([진단 원문을 매핑하지 않는 이유](#진단-원문을-매핑하지-않는-이유-2026-10-05)).
+3. **백엔드 문자열은 영문을 원문으로 두고 프론트엔드가 한국어로 매핑한다(원본: Principle 3).** 백엔드가 사용자에게 보이게 내보내는 `warningRules[].message` 와 노드 스키마 `label`·`description` 은 영문 원문으로 두고, 한국어는 프론트엔드 `backend-labels.ts` 의 정적 매핑 표에 등록한다. 백엔드 응답에 한국어를 직접 넣지 않는다. 세부 금지 · 폴백 · 매핑 대상이 아닌 값은 [백엔드 문구 매핑 §백엔드 영문 원문과 정적 매핑 (규칙 3)](CLE-UI-I18N-BACKEND.md#백엔드-영문-원문과-정적-매핑-규칙-3) 이 정한다.
 
-4. **백엔드 zod `ui.*` 메타도 매핑한다(원본: Principle 3-B).** 백엔드 `*ConfigSchema` 가 `z.toJSONSchema` 로 내보내는 `ui.*` 메타는 그 자체가 사용자에게 보이는 영문이다. AI 에이전트 노드의 `Presentation Tools` 그룹, `Description override`, `Defaults overlay` 라벨이 번역되지 않던 회귀를 막으려고 다음 다섯 키에도 같은 매핑 의무를 둔다.
+4. **백엔드 zod `ui.*` 메타도 매핑한다(원본: Principle 3-B).** `ui.label`·`ui.hint`·`ui.group`·`ui.itemLabel`·`ui.options[].label` 다섯 키는 `backend-labels.ts` 매핑을 빌드에서 강제하고 `ui.placeholder` 는 폴백만 적용한다. 키와 매핑 표의 대응은 [백엔드 문구 매핑 §zod ui 메타 매핑 (규칙 4)](CLE-UI-I18N-BACKEND.md#zod-ui-메타-매핑-규칙-4) 이 정한다.
 
-   | 백엔드 `ui` 키(영문 원문) | 프론트엔드 `backend-labels.ts` 매핑 표 |
-   | --- | --- |
-   | `ui.label` | `LABEL_KO` |
-   | `ui.hint` | `HINT_KO` |
-   | `ui.group` | `GROUP_KO` |
-   | `ui.itemLabel`(field-array) | `ITEM_LABEL_KO` |
-   | `ui.options[].label`(select 위젯) | `OPTION_LABEL_KO` |
-
-   `ui.placeholder` 도 별도 매핑 표(`PLACEHOLDER_KO`, `translateBackendPlaceholder`)가 있다. 그러나 지금 placeholder 값은 대부분 표현식 예시(`$input.items`, `{{ ... }}`)라 강제 매핑 대상에서 뺀다(`EXCLUDE_VALUE_PREFIXES`). 위 다섯은 빌드에서 강제하고 placeholder 는 폴백만 적용한다.
-
-5. **코드·동적 백엔드 메시지는 코드와 규칙 ID 를 키로 매핑한다(원본: Principle 3-C).** 일부 백엔드 메시지는 (a) 코드만 안정적이고 메시지는 던지는 자리마다 다르거나(`ErrorCode` enum, `GRAPH_VALIDATION_FAILED`), (b) `Parallel "${node.label}" ... depth > 2` 처럼 실행 중 값을 끼운 동적 문자열이라 문자열 키로 번역할 수 없다. 이 두 부류는 코드나 규칙 ID 를 안정 키로 쓰고, 끼운 값은 따로 받는다.
-
-   | 원천(영문 원문) | 키 | 프론트엔드 매핑 표 | 번역 함수 |
-   | --- | --- | --- | --- |
-   | API 에러 응답 봉투 코드(`GRAPH_VALIDATION_FAILED` 등), 노드 `output.error.code`(`ErrorCode` enum) | 에러 코드(UPPER_SNAKE) | `ERROR_KO` | `translateBackendError(code, params, locale, fallback)` |
-   | `graphWarningRules[].message`(노드를 넘는 동적 경고) | 규칙 ID(`ruleId`, 예: `parallel:nested-depth-exceeded`) | `GRAPH_WARNING_KO` | `translateGraphWarning(result, locale)` |
-   | AI 어시스턴트 SSE `error` 이벤트의 `code`: `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_STREAM_FAILED` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`([에러 코드 규약과 카탈로그 §6.25](../CLE-API/CLE-API-ERRCODES.md#625-ai-어시스턴트-스트림-도메인-문서-참조)) | 에러 코드(UPPER_SNAKE) | 어시스턴트 패널 모듈의 `ERROR_MESSAGE_KEYS`(`ReadonlyMap`, 코드 → `assistant.*` 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `t(key)` |
-   | 통합 화면 에러 응답 코드(REST 봉투): `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` · `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `INTEGRATION_NAME_TAKEN` · `INTEGRATION_OWNER_NOT_MEMBER`([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)) | 에러 코드(UPPER_SNAKE) | `integration-error-codes.ts` 의 `INTEGRATION_ERROR_CODE_TO_I18N`(코드 → `integrations.*` 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `formatIntegrationErrorToast(err, t, fallbackKey)` |
-
-   - **끼워 넣기 계약**: 1행 · 2행의 백엔드는 영문 `message`(원문이자 폴백)와 함께 동적 값을 `params: Record<string, string | number>` 로 보낸다. 그래프 경고는 `GraphWarningRule.evaluate` 의 반환 타입 `{ message, params? }` 가 그 계약이다([그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md)). 프론트엔드 템플릿은 기존 `core.ts` 의 `interpolate()` 와 `{{name}}` 이중 중괄호를 그대로 쓴다. 새 끼워 넣기 문법을 만들지 않는다. `ERROR_KO` · `GRAPH_WARNING_KO` 에 매핑이 없거나 한국어가 아닌 로케일이면 영문 `message` 로 폴백한다. 3행(어시스턴트)은 `params` 를 쓰지 않는다. 3행에서는 표에 없는 코드만 서버가 보낸 영문 `message` 로 폴백한다. 그 `message` 는 백엔드 문구 표에 있는 코드면 코드별 고정 영문이고 없는 코드면 공통 폴백 문구다([워크플로우 AI 어시스턴트 §에러 처리](../CLE-WF/CLE-WF-ASSIST.md#에러-처리)). 4행(통합 화면)도 `params` 를 쓰지 않는다. 4행이 끼워 넣는 값은 설치 대기 409 의 `details.pendingInstallExpiresAt` 하나다. 그 값이 있으면 화면 시각으로 바꿔 `integrations.retryAfterPendingInstallExpiry` 문구의 `{{expiresAt}}` 에 넣고 사전 문구 뒤에 붙인다. 4행은 표에 있는 코드면 사전 문구 뒤 괄호에 서버 `message` 를 붙이고 표에 없는 코드면 서버 `message` 로 폴백한다.
-   - **세션 REST 코드**: 어시스턴트 세션 REST API 의 에러 코드(`ASSISTANT_SESSION_*`)는 1행을 따른다. 3행은 SSE `error` 이벤트만 다룬다.
-   - **도메인별로 표를 나눈다**: 에러 코드(UPPER_SNAKE)와 규칙 ID(`domain:kebab`)는 네임스페이스가 다르다. 한 표에 섞으면 출처 구분과 동등성 가드가 흐려진다. 표시 면이 다른 어시스턴트 SSE 코드도 같은 이유로 따로 둔다. 도메인별로 표를 나눈 기존 방식(`LABEL_KO`, `HINT_KO` …)과 같다.
-   - **어시스턴트 에러 코드는 `ERROR_KO` 밖에 둔다(2026-10-24)**: 어시스턴트 에러 안내에는 ko/en 문구가 모두 있어야 해서 ko/en 짝이 있는 `assistant.*` 사전 키를 쓴다. 문구는 표시 면마다 하나다. 코드 문자열이 같아도 면이 다르면 표도 다르다. 어시스턴트 코드 가운데 노드 `output.error.code` 와 같은 문자열은 `LLM_RATE_LIMIT` 하나다. 노드 화면용으로 이 코드를 `ERROR_KO` 에 등록하는 것은 따로 허용한다. 그 등록은 어시스턴트 에러 버블의 문구를 바꾸지 않는다. 코드와 사전 키의 대응은 [워크플로우 AI 어시스턴트 §에러 처리](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) 가 정본이다. 근거는 [어시스턴트 에러 코드를 컴포넌트 지역 표로 매핑하는 이유](#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유-2026-10-24) 에 있다.
-   - **통합 화면 에러 코드도 `ERROR_KO` 밖에 둔다(2026-10-30)**: 통합 화면의 에러 토스트에는 ko/en 문구가 모두 있어야 해서 ko/en 짝이 있는 `integrations.*` 사전 키를 쓴다. 이 표를 읽는 곳은 통합 화면뿐이다. 코드의 뜻과 화면 동작은 [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) 가 정본이다. 근거는 [통합 화면 에러 코드를 통합 화면 모듈의 표로 매핑하는 이유](#통합-화면-에러-코드를-통합-화면-모듈의-표로-매핑하는-이유-2026-10-30) 에 있다.
-   - **4행 괄호에 붙는 서버 `message`**: 4행 표에 올리는 코드의 서버 `message` 는 코드별 고정 문구여야 한다. 예외 원문, 다른 사용자의 식별자, 통합 ID 를 넣지 않는다. 서버 `message` 에 넣어도 되는 값은 요청자가 그 요청에 넣은 값뿐이고 지금은 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 의 상점 식별자 하나다. 표에 코드를 더할 때 리뷰에서 이 조건을 확인한다. 가드는 없다. 근거는 [통합 화면 에러 토스트는 표에 있는 코드도 서버 `message` 를 괄호에 붙인다](#통합-화면-에러-토스트는-표에-있는-코드도-서버-message-를-괄호에-붙인다-2026-10-30) 에 있다.
-   - 금지: 백엔드 응답에 한국어를 직접 넣는 것, `Accept-Language` 로 서버에서 지역화하는 것. 규칙 3 의 영문 원문 원칙을 어기고 사전이 둘로 갈린다.
-   - **알려진 예외: 워크스페이스 가드 코드의 한국어 서버 문구**: 워크스페이스 가드와 역할 하한 코드(`NOT_A_MEMBER` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`)와 워크스페이스 관리 경로의 `WORKSPACE_NOT_FOUND` 는 서버 `message` 가 한국어다([워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드)). 바로 위 금지와 규칙 3 에 어긋나는 기존 문구다. 4행 표에 올린 코드는 이 가운데 `EDITOR_REQUIRED` · `ADMIN_REQUIRED` 둘이다. 4행은 이 둘의 서버 문구를 괄호에 붙이므로 영어 로케일에서도 괄호 안은 한국어다. 주 안내인 사전 문구는 로케일을 따른다. 표에 없는 코드(`NOT_A_MEMBER` 등)는 4행에서 서버 `message` 로 폴백하므로 영어 로케일에서 안내 전체가 한국어다. 서버 문구를 영문으로 바꾸는 일은 이 개정에서 다루지 않고 NERV Task `CLE-T-CHP94Z` 가 맡는다.
-   - **의무와 점진의 경계**: 등록된 모든 `GraphWarningRule.id` 는 `GRAPH_WARNING_KO` 매핑과 동적 값 `params` 노출이 의무다(새 규칙을 더하면 같은 변경 안에서). `GRAPH_VALIDATION_FAILED` 의 `ERROR_KO` 매핑도 의무다. `ErrorCode` enum 전체의 `ERROR_KO` 매핑은 한꺼번에 강제하지 않는다. 영문 폴백 상태에서 사용자에게 자주 보이는 순서로 늘린다. 동등성을 강제하는 집합은 셋이다. 그래프 경고 규칙 전체, 사용자 노출용으로 명시 등록한 API 에러 코드 집합, 어시스턴트 SSE `error` 코드 집합(백엔드 문구 표와 `ERROR_MESSAGE_KEYS` 가 같은 코드를 가진다)이다. 통합 화면 에러 코드는 백엔드 코드 집합과의 동등성이 아니라 매핑 완결성만 강제한다. `INTEGRATION_ERROR_CODE_TO_I18N` 에 올린 코드마다 사전 키가 있어야 한다. 백엔드가 통합 화면에 보일 코드를 새로 내도 이 표에 저절로 들어오지 않는다. 그 밖의 코드는 점진 대상이다. `ERROR_KO` 는 `backend-labels.ts` 에 구현돼 있다.
-   - **정적 매핑 가드와의 경계**: 규칙 3 의 가드(P1-B)는 `*.schema.ts` 의 정적 `warningRules[].message` 만 본다. 동적 `graphWarningRules` 메시지와 에러 코드는 그 가드 밖이다. 이것은 규칙 5 의 가드(P3-C-1, P3-C-2)가 맡는다. 어시스턴트 SSE 코드의 집합 동등성은 백엔드 테스트가 프론트엔드 `ERROR_MESSAGE_KEYS` 리터럴을 읽어 맡는다. 코드마다 사전 문구가 나오는지는 프론트엔드 테스트가 맡는다. 통합 화면 에러 코드의 매핑 완결성은 매핑 단위 테스트가 맡는다([자동 가드 요약](#자동-가드-요약)).
+5. **코드·동적 백엔드 메시지는 코드와 규칙 ID 를 키로 매핑한다(원본: Principle 3-C).** 코드만 안정적이거나 실행 중 값을 끼운 백엔드 메시지는 에러 코드나 규칙 ID 를 안정 키로 쓰고 끼운 값은 `params` 로 따로 받는다. 서버에서 지역화하지 않는다. 다만 어시스턴트 SSE `error` 코드와 통합 화면 에러 코드는 `ERROR_KO` 밖에 두고 화면 모듈의 표가 ko/en 짝이 있는 사전 키로 매핑한다. 원천별 매핑 표, 끼워 넣기 계약, 알려진 예외, 의무와 점진의 경계는 [백엔드 문구 매핑 §코드와 동적 메시지 매핑 (규칙 5)](CLE-UI-I18N-BACKEND.md#코드와-동적-메시지-매핑-규칙-5) 이 정한다.
 
 6. **가이드 파일과 locale 형제 파일(원본: Principle 5).** 형식의 세부 규약은 `codebase/frontend/src/content/docs/_i18n-conventions.md` 가 기준이다. 여기서는 불변 조건만 적는다.
    - 기본 파일은 `<slug>.mdx`(한국어)다. 프론트매터는 여기에만 둔다.
@@ -147,7 +118,7 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
    3. `dict/{ko,en}/<section>.ts`: 노드 이름·필드 이름·placeholder·도움말 문구.
    4. `backend-labels.ts`: 노드 스키마의 `z.meta({ ui: { label, hint, placeholder, ... } })` 영문 라벨이 늘어난 만큼 한국어 매핑을 보강한다.
 
-3. **가이드 페이지가 낡지 않게 한다(원본: Principle 7).** 코드 변경이 사용자 동선·화면 구조·에러 메시지·필드 의미에 영향을 주면 같은 변경 안에서 관련 가이드 페이지를 고친다. 영향 목록은 `PROJECT.md` 의 "변경 유형 → 갱신 위치 매핑" 표를 따른다. 표에 없는 영역이라도 사용자가 보는 면이 바뀌면 가이드가 낡았을 수 있으므로, 변경한 사람이 점검 결과를 변경 설명에 적는다.
+3. **가이드 페이지가 낡지 않게 한다(원본: Principle 7).** 코드 변경이 사용자 동선·화면 구조·에러 메시지·필드 의미에 영향을 주면 같은 변경 안에서 관련 가이드 페이지를 고친다. 영향 목록은 `PROJECT.md` 의 "변경 유형 → 갱신 위치 매핑" 표를 따른다. 표에 없는 영역이라도 사용자가 보는 면이 바뀌면 변경한 사람이 가이드 점검 결과를 변경 설명에 적는다.
    - 자동 검출은 일부만 된다. 통합 가이드와 트리거 가이드의 화면 조작 흐름 절(GUI 흐름 절)은 `<ImplAnchor kind="ui-entry">` 를 함께 둬야 한다. 가이드에 둔 앵커의 화면 진입 심볼이 코드에서 사라지면 빌드에서 막는다. 그 밖의 가이드 페이지는 사람이 검수한다. GUI 흐름 절을 가리는 기준(제목에 `GUI` 가 있거나 본문 굵은 글씨에 `GUI` 가 있는 절)과 가드의 범위는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 이 정한다.
    - 개념 설명 절(워크플로우 설계, 데이터 모델, 표현식 의미 등)은 자동으로 검출할 수 없다. 코드 리뷰와 사람 검수의 점검 기준으로 쓴다.
 
@@ -161,7 +132,7 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
 | 3(백엔드 라벨 매핑) | `backend-labels.test.ts` 의 `backend-labels parity`(P1-B). 백엔드 `*.schema.ts` 에서 정적으로 뽑은 `warningRules[].message`·`NodeMetadata.label`·`NodeMetadata.description` 과 매핑 표 키의 차집합을 본다. 정적 파싱이라 동적 메시지(`` `${...}` ``), 명령형 `validateConfig` 반환, import 한 상수는 보지 못한다 | 빌드 실패 |
 | 4(`ui.*` 메타 매핑) | `ui-label-parity.test.ts`(P3-B-1). 백엔드 `*.schema.ts` 를 문자열로 읽어 정규식으로 `label`·`hint`·`group`·`itemLabel` 리터럴을 뽑고(`z.toJSONSchema` 런타임 덤프가 아니라 정적 파싱이라 `label: someConst` 같은 동적 표현은 보지 못한다), `LABEL_KO`·`OPTION_LABEL_KO`·`NODE_LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO` 에 있는지 본다. [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 와 같은 "갱신 위치 여럿을 함께 바꾼다" 원칙이다 | ratchet. `KNOWN_MISSES` baseline 을 넘으면 빌드 실패 |
 | 5(코드·동적 메시지 매핑) | `backend-labels.test.ts` 의 그래프 경고 규칙 ID 동등성(P3-C-1: `GRAPH_WARNING_RULES_BY_TYPE` 의 규칙, 그래프 수준 규칙(`UNESCAPABLE_CYCLE_RULE_ID`), 테스트의 백엔드 전용 목록에 등록한 규칙의 `ruleId` 가 모두 `GRAPH_WARNING_KO` 에 있는가. 백엔드 전용 규칙은 그 목록에 등록해야 가드가 본다. [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md) 참고)과 등록 에러 코드 동등성(P3-C-2: 사용자 노출용으로 등록한 코드, 처음은 `GRAPH_VALIDATION_FAILED`, 이 `ERROR_KO` 에 있는가). 어시스턴트 SSE `error` 코드는 위 등록 코드 집합에 들어가지 않는다. 백엔드 문구 표와 프론트엔드 `ERROR_MESSAGE_KEYS` 의 코드 집합은 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 프론트엔드 소스의 `ERROR_MESSAGE_KEYS` 리터럴을 읽어 맞춘다. `backend-checks` 의 경로 목록에 그 프론트엔드 파일이 있어 프론트엔드만 바꾼 변경에서도 이 테스트가 돈다. 코드마다 사전 문구가 나오는지는 프론트엔드 테스트(`assistant-message-error.test.tsx`)가 따로 본다. 통합 화면 에러 코드는 `integration-error-codes.test.ts` 가 코드마다 사전 키를 단언하고 매핑 값의 타입(`TranslationKey`)이 사전에 없는 키를 타입 검사에서 막는다 | 빌드 실패 |
-| 5(4행 괄호에 붙는 서버 `message`) | 없음 | 사람 검수. 표에 코드를 더하는 리뷰에서 확인한다 |
+| 5(원천 표 4행인 통합 화면 에러 토스트의 괄호에 붙는 서버 `message`, [백엔드 문구 매핑 §코드와 동적 메시지 매핑 (규칙 5)](CLE-UI-I18N-BACKEND.md#코드와-동적-메시지-매핑-규칙-5)) | 없음 | 사람 검수. 표에 코드를 더하는 리뷰에서 확인한다 |
 | 6(섹션 라벨) | `locale.test.ts` 의 `SECTION_LABELS_BY_LOCALE coverage` | 빌드 실패 |
 | 6(영어 형제 파일은 본문만) | `registry.test.ts` 의 영어 형제 파일 프론트매터 검사 | 빌드 실패 |
 | 7(용어와 문체) | 없음 | 사람 검수 |
@@ -183,18 +154,9 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
 - `codebase/frontend/src/lib/docs/__tests__/nodes-coverage.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/locale.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/registry.test.ts`
-- `codebase/frontend/src/components/editor/assistant-panel/assistant-message.tsx` (어시스턴트 에러 버블, `ERROR_MESSAGE_KEYS`)
-- `codebase/frontend/src/components/editor/assistant-panel/assistant-message-error.test.tsx`
-- `codebase/frontend/src/lib/api/integration-error-codes.ts` (통합 화면 에러 코드 매핑, `INTEGRATION_ERROR_CODE_TO_I18N` · `formatIntegrationErrorToast`)
-- `codebase/frontend/src/lib/api/__tests__/integration-error-codes.test.ts`
-- `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.ts` (어시스턴트 SSE `error` 이벤트의 코드별 고정 영문)
-- `codebase/backend/src/modules/workflow-assistant/workflow-assistant-stream-errors.spec.ts`
+- 어시스턴트 · 통합 화면 에러 매핑과 어시스턴트 SSE 백엔드 문구 표의 구현 위치는 [다국어와 화면 문구 — 백엔드 문구 매핑 §구현 위치](CLE-UI-I18N-BACKEND.md#구현-위치) 에 있다.
 
 ## Rationale
-
-### 백엔드 문자열을 영문 원문으로 두는 이유
-
-백엔드 응답에 한국어를 직접 넣으면 (a) 로케일을 더할 때 백엔드 코드를 한꺼번에 고쳐야 하고, (b) 프론트엔드 다국어 체계와 떨어진 섬이 생기고, (c) 백엔드 테스트가 한국어 문자열에 매달려 회귀 부담이 는다. 영문 원문과 프론트엔드 매핑은 백엔드 코드를 언어와 무관하게 두고, 프론트엔드 사전이 모든 사용자 언어를 한곳에서 관리하게 한다.
 
 ### ko/en 동등성을 빌드 실패로 강제하는 이유
 
@@ -206,7 +168,7 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
 
 ### 하드코딩 한국어 가드를 ratchet 으로 둔 이유
 
-기존 코드에는 하드코딩 한국어가 어느 정도 남아 있다(주석·JSX 주석·JSDoc 같은 정당한 잔존도 있다). 한 번에 0 으로 만드는 것은 현실적이지 않다. baseline 허용 목록 ratchet 으로 "지금보다 늘지 않는다" 만 강제하면 점진적으로 0 에 다가갈 수 있다. ESLint 사용자 규칙은 후속 과제다.
+기존 코드에는 하드코딩 한국어가 남아 있어(주석·JSDoc 같은 정당한 잔존 포함) 한 번에 0 으로 만들 수 없다. baseline 허용 목록 ratchet 으로 "지금보다 늘지 않는다" 만 강제하면 점진적으로 0 에 다가갈 수 있다. ESLint 사용자 규칙은 후속 과제다.
 
 ### 영어 형제 파일 누락을 위반으로 보지 않는 이유
 
@@ -214,7 +176,7 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
 
 ### 웹채팅 위젯이 메인 앱 사전 밖에서 자체 카탈로그를 쓰는 이유
 
-위젯(`codebase/channel-web-chat`)은 따로 빌드하고 따로 배포하는(정적 export → CDN) 독립 SPA 라 메인 앱 사전과 물리적으로 떨어져 있다. 그래서 그 사전과 `translate()` 를 불러올 수 없다. 처음에는 위젯이 한국어만 보여 사전 경유의 지역화 이득이 없었고, 그래서 위젯을 메인 앱 사전 범위 밖에 두었다. 하드코딩 ratchet 과 문서 동기화 매트릭스 가드도 위젯을 보지 않았다.
+위젯(`codebase/channel-web-chat`)은 따로 빌드 · 배포하는(정적 export → CDN) 독립 SPA 라 메인 앱 사전과 `translate()` 를 불러올 수 없다. 처음에는 위젯이 한국어만 보여 사전 경유의 이득이 없어 메인 앱 사전 범위 밖에 두었다. 하드코딩 ratchet 과 문서 동기화 매트릭스 가드도 위젯을 보지 않았다.
 
 2026-07-12 위젯 화면 틀의 영어 다국어화를 시작하면서 "이득이 없다" 는 전제는 폐기됐다. 이제 위젯 화면 틀에도 ko/en 동등성이 필요하다. 그러나 물리적 분리라는 근거는 그대로라, 위젯은 메인 앱 사전으로 들어가지 않고 위젯 로컬 카탈로그와 자체 동등성 테스트를 쓴다. 이 로컬 가드가, 위젯을 보지 않던 기존 가드의 빈자리를 메운다. 문체는 계속 공유한다.
 
@@ -226,41 +188,9 @@ etag: "sha256-499915138602b63280b989fa1e39b51ee1f4c5cd0ae4a27318c091c6372a9611"
 
 MDX 주석(`{/* … */}`)과 HTML 주석은 예전부터 본문 검사 밖에 있었다. 작성자가 문장의 근거 문서를 키로 적어 둘 자리라서 예외를 이 규칙에 함께 적는다. 주석은 렌더에서 빠지므로 사용자에게 보이지 않는다.
 
-### 진단 원문을 매핑하지 않는 이유 (2026-10-05)
-
-`chat_channel_last_error` 는 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 의 원인마다 다른 출처의 문구를 담는다. 어댑터 실패면 그 에러 메시지(프로바이더 응답 포함)이고 그 밖의 원인은 서버가 정한 문구다. 필드 하나에 출처 둘이 섞여 있어 필드 전체를 면제한다. 정적 키로 옮길 수 있는 고정 문구(`Workflow not found for this trigger`)도 같이 면제한다. 규칙 3 의 정적 키로는 프로바이더 메시지와 값이 끼는 문구를 잡지 못한다. 규칙 5 로 옮기려면 서버가 코드와 `params` 를 따로 저장해야 해 동작이 바뀐다. [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」 가 이 필드를 «화면에 보이는 필드» 로 보고 고정 문구를 고른 것과는 부딪치지 않는다. 보이되 진단용 원문이라 번역하지 않는다. 저장할 때 원문을 바꾸지 않는 점은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 «진단용 필드» 를 저장할 때 지우지 않는 것과 같다. 시크릿 저장소 평문(봇 토큰)만은 프로바이더 API 클라이언트가 원문을 만들 때 지운다. 트리거 응답은 2026-10-05 에 그 문서의 표면 목록에 올랐고 자격 증명 모양만 가린다(NERV Task `CLE-T-H0GF4K`). 화면은 가려진 값을 번역하지 않고 그대로 보여 준다. 화면 안내 문구가 원인을 나열하지 않고 «마지막 오류» 를 가리키게 고친 것도 같은 날이다(NERV Task `CLE-T-K9S0TE`).
-
 ### 어시스턴트 에러 코드를 컴포넌트 지역 표로 매핑하는 이유 (2026-10-24)
 
-[워크플로우 AI 어시스턴트 §에러 처리](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) 의 에러 버블은 SSE `error` 이벤트의 코드로 안내 문구를 고른다. 이 개정판 전까지 규칙 5 의 원천 표에는 이 원천이 없었다. 이 개정판이 원천 표에 3행을 더한다. 매핑은 어시스턴트 패널 모듈의 `ERROR_MESSAGE_KEYS` 와 `assistant.*` 사전 키가 맡는다. 코드와 사전 키의 대응은 그 문서가 정본이다.
-
-규칙 5 의 불변 조건은 그대로 지킨다. 문구는 코드를 키로 고른다. 서버에서 지역화하지 않는다. 사전 키를 쓰므로 규칙 1 · 2 의 사전 경유와 ko/en 동등성 가드도 함께 받는다.
-
-- **표에 없는 코드는 서버 영문으로 폴백한다.** 백엔드가 표에 없는 코드를 보내도 에러 버블이 비지 않게 하려는 것이다. 서버 `message` 는 코드별 고정 영문이거나 공통 폴백 문구라 폴백으로 보여도 예외 원문은 나가지 않는다.
-- **기각: 어시스턴트 코드를 `ERROR_KO` 에 더한다.** `ERROR_KO` 에는 한국어 템플릿만 있어 영어 로케일에서는 서버 영문이 보인다. 또 문구는 표시 면마다 하나이고 코드 문자열이 같아도 면이 다르면 표도 다르다. 어시스턴트 코드 가운데 노드 `output.error.code` 와 같은 문자열은 `LLM_RATE_LIMIT` 하나다. 노드가 내는 LLM 오류 코드는 `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` 이다(`LLM_TIMEOUT` 은 카탈로그에만 있고 발행하지 않는다). `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED` 는 LLM 클라이언트 층의 코드라 노드에서는 `LLM_CALL_FAILED` 로 나타난다([에러 코드 규약과 카탈로그 §6.17](../CLE-API/CLE-API-ERRCODES.md#617-llm-클라이언트-도메인-문서-참조)). 노드 화면용 `ERROR_KO` 등록은 따로 허용한다.
-- **기각: `backend-labels.ts` 안에 어시스턴트 전용 표를 둔다.** 이 표를 읽는 곳은 어시스턴트 에러 버블 하나다. 같은 모듈에는 코드로 이어서 진행 버튼을 보일지 정하는 지역 집합 `RESUMABLE_ERROR_CODES` 가 이미 있다. 문구는 표시 면마다 정하므로 그 면의 모듈에 두는 편이 찾기 쉽다.
-- **두 표의 코드 집합은 백엔드 테스트가 프론트엔드 리터럴을 읽어 맞춘다(2026-11-12).** 2026-10-24 구현은 양쪽 테스트가 같은 코드 목록을 따로 적어 맞췄다. 그러면 한쪽의 표와 테스트를 함께 고쳤을 때 다른 쪽 테스트가 깨지지 않았다. 같은 Task(`CLE-T-MX8PSE`)의 리뷰 뒤 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 프론트엔드 소스의 `ERROR_MESSAGE_KEYS` 리터럴에서 코드를 뽑아 백엔드 문구 표와 맞추게 바꿨다. 다만 그 프론트엔드 파일이 `backend-checks` 의 경로 목록에 없어서 프론트엔드만 바꾼 변경에서는 이 테스트가 돌지 않았다. NERV Task `CLE-T-GXCJAB` 가 그 파일 하나를 경로 목록에 올렸고 하네스 테스트(`test_assistant_error_codes_ci_coverage.py`)가 등재를 고정한다. 프론트엔드 테스트(`assistant-message-error.test.tsx`)는 코드마다 사전 문구가 나오는지 따로 본다.
-- **대조의 남은 한계.** 백엔드 테스트는 프론트엔드 소스를 문자열로 읽는다. `export const ERROR_MESSAGE_KEYS` 선언 줄에서 시작하는 `new Map([["CODE", "assistant.key"], ...])` 리터럴에서만 코드를 뽑는다. 표 모양을 바꾸면(다른 파일로 옮기기, 객체 리터럴로 바꾸기 등) 추출식도 같은 변경에서 고쳐야 한다. 선언을 못 찾거나 코드를 하나도 뽑지 못하면 테스트는 통과하지 않고 지켜야 할 리터럴 모양을 적어 실패한다. 프론트엔드 테스트의 코드 목록은 여전히 사람이 적고 `ERROR_MESSAGE_KEYS` 와만 맞춘다.
-- **기각: 두 패키지가 함께 쓰는 상수 패키지(`codebase/packages/*`)에 코드 집합을 둔다(2026-11-12).** 2026-10-24 구현은 공유 상수를 만들지 않았지만 그 이유를 남기지 않았다. NERV Task `CLE-T-GXCJAB` 에서 다시 따졌다. 공유 패키지가 줄 수 있는 것은 코드 집합 하나다. 문구 표는 양쪽에 그대로 남는다(백엔드는 코드별 고정 영문, 프론트엔드는 사전 키). 코드 가운데 셋(`LLM_*`)은 백엔드 LLM 클라이언트 층의 스트림 에러 코드다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)). 공유 패키지로 옮기면 그 층의 코드 정의가 백엔드 밖으로 나가거나 두 곳에 적힌다. 백엔드 테스트가 이미 한쪽만 바뀐 변경을 잡으므로 그 비용을 들이지 않았다. 대조의 한계가 실제 누락으로 이어지면 다시 본다.
-- **규칙 3 과의 관계.** 서버는 코드별 고정 영문만 보내고 한국어 문구는 프론트엔드가 코드로 고른 `assistant.*` 사전 키에서 온다. `LLM_OUTPUT_MALFORMED` · `ASSISTANT_TOO_MANY_TOOL_CALLS` 도 다른 코드와 같이 고정 영문을 보낸다. 서버 `message` 의 문구는 [워크플로우 AI 어시스턴트 §에러 처리](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) 가 정한다. LLM 클라이언트 안내문을 코드별 허용 목록으로 통과시키는 안은 기각했다. 그 목록이 `LLM_OUTPUT_MALFORMED` 의 한국어 안내문을 그대로 내보내 규칙 3 과 어긋났기 때문이다.
-- **LLM 클라이언트 쪽 정정은 따로 했다.** LLM 클라이언트가 쓰던 `LLM_OUTPUT_MALFORMED` 한국어 안내문과 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) · [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 해당 서술은 NERV Task `CLE-T-V73FFA` 가 2026-11-13 에 고쳤다. 지금 클라이언트는 고정 영문 진단 문장을 싣고 어시스턴트 SSE 는 그 문장도 서버 로그에만 남긴다. 백엔드 응답의 한국어가 하나 줄어 규칙 3 과도 맞는다.
-- **함께 승인한다.** 이 개정판과 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) · [AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md) 의 개정판은 NERV Task `CLE-T-MX8PSE` 의 한 변경이라 함께 승인한다.
-
-### 통합 화면 에러 코드를 통합 화면 모듈의 표로 매핑하는 이유 (2026-10-30)
-
-통합 화면(목록 · 추가 · 상세)은 통합 API 의 에러 코드로 에러 토스트 문구를 고른다. 이 매핑(`INTEGRATION_ERROR_CODE_TO_I18N`)은 Cafe24 · MakeShop 설치 코드와 역할 하한 코드를 ko/en 짝으로 바꿔 왔지만 규칙 5 의 원천 표에는 없었다. 이 개정판이 원천 표에 4행을 더한다. NERV Task `CLE-T-PS7JQY` 구현이 이 표에 `INTEGRATION_OWNER_NOT_MEMBER` 와 `INTEGRATION_NAME_TAKEN` 을 더한 것을 반영한다(NERV Task `CLE-T-G56XCH` 리뷰 후속).
-
-- **어시스턴트 예외와 같은 이유다.** 에러 안내에는 ko/en 문구가 모두 있어야 하고 표시 면은 통합 화면 하나다. 사전 키를 쓰므로 규칙 1 · 2 의 사전 경유와 ko/en 동등성 가드도 함께 받는다.
-- **기각: 두 코드를 `ERROR_KO` 에 더한다.** `ERROR_KO` 에는 한국어 템플릿만 있어 영어 로케일에서는 서버 영문이 보인다. 같은 토스트 도우미 안에서 이 두 코드만 영어 문구가 서버 영문이 되고 통합 화면의 매핑 경로가 둘이 된다.
-- **매핑 완결성은 매핑 단위 테스트와 사전 키 타입이 본다.** `integration-error-codes.test.ts` 가 코드마다 사전 키를 단언한다. 매핑 값의 타입이 `TranslationKey` 라 사전에 없는 키는 타입 검사에서 막힌다. 백엔드가 통합 화면에 보일 코드를 새로 낼 때 이 표를 함께 고치는 일은 가드가 막지 않는다. 표에 없는 코드는 서버 `message` 로 폴백한다.
-
-### 통합 화면 에러 토스트는 표에 있는 코드도 서버 `message` 를 괄호에 붙인다 (2026-10-30)
-
-통합 화면의 에러 토스트는 4행 표에 있는 코드면 사전 문구를 보이고 그 뒤 괄호에 서버 `message` 를 붙인다. `formatIntegrationErrorToast` 의 지금 동작이고 모듈 주석에도 서버 문구는 괄호 안의 보조 정보라고 적혀 있다. 이 개정판은 동작을 바꾸지 않고 그 조건을 규칙 5 에 적는다(NERV Task `CLE-T-395HK2`).
-
-- **사전 문구가 주 안내다.** 어시스턴트 3행은 표에 있는 코드면 사전 문구만 보인다. 그래서 [통합 화면 에러 코드를 통합 화면 모듈의 표로 매핑하는 이유](#통합-화면-에러-코드를-통합-화면-모듈의-표로-매핑하는-이유-2026-10-30) 의 «어시스턴트 예외와 같은 이유다» 는 표를 둘 자리와 사전 경유를 다룬다. 서버 문구를 보이는 방식까지 같다는 뜻은 아니다.
-- **서버 `message` 를 보여도 되는 전제.** 이 표의 코드는 모두 백엔드 상수나 예외 생성 자리에 둔 코드별 고정 문구를 보낸다. 예외 원문이나 다른 사용자의 식별자 · 통합 ID 는 들어가지 않는다. 서버 `message` 에 넣는 값은 Cafe24 `oauth/begin` 이 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 에 넣는 상점 식별자 하나이고 요청자가 방금 입력한 값이다. `INTEGRATION_OWNER_NOT_MEMBER` 는 `message` 에 통합을 만든 사람을 넣지 않는다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)). 표에 코드를 더할 때 지킬 조건은 규칙 5 의 «4행 괄호에 붙는 서버 `message`» 에 두었다. 가드로 막지 않고 리뷰에서 확인한다.
-- **받아들인 잔여.** 영어 로케일에서는 사전 문구와 비슷한 영문이 괄호에 한 번 더 보인다. 역할 하한 코드의 서버 문구는 한국어라 영어 로케일에서도 괄호 안은 한국어다(규칙 5 의 알려진 예외, 후속은 NERV Task `CLE-T-CHP94Z`). 표에 없는 가드 코드(`NOT_A_MEMBER` 등)는 서버 문구로 폴백하므로 영어 로케일에서 안내 전체가 한국어다. 3행처럼 사전 문구만 보이게 바꾸면 화면 동작이 바뀌므로 이 개정판은 바꾸지 않는다.
+→ [다국어와 화면 문구 — 백엔드 문구 매핑 §어시스턴트 에러 코드를 컴포넌트 지역 표로 매핑하는 이유 (2026-10-24)](CLE-UI-I18N-BACKEND.md#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유-2026-10-24)
 
 ### 메신저 봇 안내 문구를 규칙 7 밖에 두는 이유 (2026-11-12)
 

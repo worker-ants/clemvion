@@ -5,13 +5,15 @@
 - 훅: 본문이 20,000자를 넘는 초안 저장은 exit 2, 한도 이하 · 본문 없는 호출(되돌리기) · 카탈로그 사본
   (`CLE-C24-*` · `CLE-MKS-*`)은 exit 0. 글자수는 바이트가 아니라 코드 포인트다(한국어 20,000자는
   UTF-8 로 6만 바이트라 바이트로 세면 한국어 문서만 세 배 엄격해진다). `body_md` · `body_markdown`
-  두 이름을 모두 보고 둘 다 오면 긴 쪽으로 본다. 우회는 `BYPASS_SPEC_SIZE_GUARD=1` 만. 모양이 틀린
+  두 이름을 모두 보고 둘 다 오면 긴 쪽으로 본다. 본문 필드가 없거나 문자열이 아니면 메타 필드를 뺀
+  문자열 필드 중 가장 긴 값을 본문으로 본다(메타 필드는 초안 도구 스키마와 맞춘다). NERV 정본 규약
+  문서(`CLE-C24-META` 등)는 접두가 같아도 막는다. 우회는 `BYPASS_SPEC_SIZE_GUARD=1` 만. 모양이 틀린
   페이로드와 런타임 오류는 통과한다(fail-open).
 - `settings.json` 이 NERV 초안 도구 두 이름에 훅을 걸고, 훅 파일이 없는 체크아웃에서 통과한다.
 - 미러 검사: 기준선에 없는 초과 문서와 기준선보다 커진 문서는 실패, 한도 안에 든 기준선 항목은
   알림만. `--update-baseline` 은 줄이기만 한다. 미러 링크는 NERV 꼴로 되돌려 센다.
 - 훅과 미러 검사의 한도 값이 같고, 실제 저장소 미러가 지금 검사를 통과한다.
-- CI `spec-mirror-integrity` 잡이 미러 검사를 돌린다.
+- CI `spec-mirror-integrity` 잡이 미러 검사를 돌리고, 그 잡의 sparse checkout 에서 import 가 된다.
 """
 
 from __future__ import annotations
@@ -94,6 +96,45 @@ class HookTest(unittest.TestCase):
                 payload = {"tool_name": TOOL_NAME, "tool_input": {"spec_id": key, "body_md": "x" * 50000}}
                 self.assertEqual(run_hook(payload).returncode, 2)
 
+    def test_unknown_body_field_name_still_blocked(self):
+        payload = {"tool_name": TOOL_NAME, "tool_input": {
+            "spec_id": "CLE-API-CONV", "base_hash": "x", "content": "x" * (hook.LIMIT + 1)}}
+        self.assertEqual(run_hook(payload).returncode, 2)
+
+    def test_meta_fields_not_mistaken_for_body(self):
+        # META_FIELDS 전부를 본다. 하나라도 빠지면 그 필드의 긴 값이 본문으로 잡혀 오차단된다.
+        for field in hook.META_FIELDS:
+            if field in ("spec_id", "key"):
+                continue  # 키 필드는 아래 payload 가 따로 준다
+            with self.subTest(field=field):
+                payload = {"tool_name": TOOL_NAME, "tool_input": {
+                    "spec_id": "CLE-API-CONV", field: "x" * (hook.LIMIT + 1)}}
+                self.assertEqual(run_hook(payload).returncode, 0)
+
+    def test_meta_fields_cover_draft_tool_schema(self):
+        # NERV `nerv_spec_draft_upsert` inputSchema 의 본문 아닌 문자열 필드(2026-11-14 기준).
+        # 스키마가 바뀌면 이 목록과 hook.META_FIELDS 를 함께 고친다.
+        schema_string_meta = {"spec_id", "key", "parent_id", "base_hash", "change_summary",
+                              "title", "type", "finding_id", "idempotency_key"}
+        self.assertLessEqual(schema_string_meta, set(hook.META_FIELDS))
+
+    def test_non_string_body_falls_back_to_other_fields(self):
+        # 본문 필드가 문자열이 아니면 폴백이 나머지 문자열 필드를 본다(가드가 조용히 꺼지지 않는다).
+        payload = {"tool_name": TOOL_NAME, "tool_input": {
+            "spec_id": "CLE-API-CONV", "body_md": 5, "content": "x" * (hook.LIMIT + 1)}}
+        self.assertEqual(run_hook(payload).returncode, 2)
+
+    def test_fallback_uses_longest_field(self):
+        long_, short = "x" * (hook.LIMIT + 1), "y" * 10
+        for fields in ({"content": long_, "notes": short}, {"content": short, "notes": long_}):
+            payload = {"tool_name": TOOL_NAME, "tool_input": {"spec_id": "CLE-API-CONV", **fields}}
+            self.assertEqual(run_hook(payload).returncode, 2)
+
+    def test_fallback_within_limit_passes(self):
+        payload = {"tool_name": TOOL_NAME, "tool_input": {
+            "spec_id": "CLE-API-CONV", "content": "x" * hook.LIMIT}}
+        self.assertEqual(run_hook(payload).returncode, 0)
+
     def test_bypass_only_on_one(self):
         big = draft("x" * (hook.LIMIT + 1))
         self.assertEqual(run_hook(big, {"BYPASS_SPEC_SIZE_GUARD": "1"}).returncode, 0)
@@ -160,27 +201,6 @@ class SizeCheckTest(unittest.TestCase):
             p.write_text(json.dumps({"limit": self.L + 1, "docs": {}}), encoding="utf-8")
             with self.assertRaises(ValueError):
                 size_check.load_baseline(p)
-
-    def test_unknown_body_field_name_still_blocked(self):
-        payload = {"tool_name": TOOL_NAME, "tool_input": {
-            "spec_id": "CLE-API-CONV", "base_hash": "x", "content": "x" * (hook.LIMIT + 1)}}
-        self.assertEqual(run_hook(payload).returncode, 2)
-
-    def test_meta_fields_not_mistaken_for_body(self):
-        payload = {"tool_name": TOOL_NAME, "tool_input": {
-            "spec_id": "CLE-API-CONV", "base_hash": "x", "change_summary": "x" * (hook.LIMIT + 1)}}
-        self.assertEqual(run_hook(payload).returncode, 0)
-
-    def test_fallback_uses_longest_field(self):
-        long_, short = "x" * (hook.LIMIT + 1), "y" * 10
-        for fields in ({"content": long_, "notes": short}, {"content": short, "notes": long_}):
-            payload = {"tool_name": TOOL_NAME, "tool_input": {"spec_id": "CLE-API-CONV", **fields}}
-            self.assertEqual(run_hook(payload).returncode, 2)
-
-    def test_fallback_within_limit_passes(self):
-        payload = {"tool_name": TOOL_NAME, "tool_input": {
-            "spec_id": "CLE-API-CONV", "content": "x" * hook.LIMIT}}
-        self.assertEqual(run_hook(payload).returncode, 0)
 
     def test_main_cli(self):
         with tempfile.TemporaryDirectory() as d:
