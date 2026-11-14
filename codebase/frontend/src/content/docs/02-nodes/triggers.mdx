@@ -421,6 +421,9 @@ curl -X POST https://<your-host>/api/triggers \
 2. **Triggers 화면 → "+ Webhook 트리거 추가" → 폼 하단의 "Chat Channel 연결 (외부 챗봇)" 토글 → Provider = Slack → Bot Token + Signing Secret 입력 → 만들기.**
 3. 생성된 트리거의 endpoint URL 을 복사해 Slack 앱 manifest 의 **Event Subscriptions Request URL** 과 **Interactivity Request URL** 에 입력하면 워크플로우와 연결돼요.
 
+Slack 으로 보내는 Template 결과와 AI 응답은 `<` · `>` · `&` 를 escape 해서 보내요. 그래서 본문의 `<@U123>` 같은 멘션이나 `<https://example.com|라벨>` 링크 문법은 글자 그대로 보이고 알림도 울리지 않아요.
+{/* 내부 SoT: CLE-CHAT-SLACK REQ-SLACK-018 */}
+
 ### Discord 설정 방법
 
 <ImplAnchor
@@ -435,6 +438,9 @@ curl -X POST https://<your-host>/api/triggers \
 3. 생성된 트리거의 endpoint URL 을 복사해 Developer Portal 의 **Interactions Endpoint URL** 에 입력하면 PING handshake 가 자동 처리돼 연결이 완료돼요.
 
 버튼 · 선택 메뉴 클릭과 모달 제출에는 서버가 3초 안에 응답해서 Discord 앱에 "This interaction failed" 표시가 뜨지 않아요.
+
+Discord 로 보내는 메시지는 멘션 알림을 끄고 보내요. 본문에 `@everyone` · `@here` · 사용자 · 역할 멘션이 있어도 글자로만 보이고 알림은 울리지 않아요.
+{/* 내부 SoT: CLE-CHAT-DISCORD REQ-DISCORD-010 · CLE-CHAT-DISCORD-API 「멘션 무력화」 */}
 
 <Callout type="warn">
 Discord v1 한계: 일반 DM 자유 텍스트는 수신할 수 없어요. AI 대화 reply 는 슬래시 명령(`/workflow reply <message>`) 또는 응답 메시지의 **Reply** 버튼을 통한 modal 입력으로만 가능해요.
