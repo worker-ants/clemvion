@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-SCAN"
 title: "통합 상태와 만료 알림 — 만료 스캐너와 알림"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "ce977ad3a159b046a6367268683a1f39a46c74fe3a5d1ca654d19d2011e18e79"
+content_hash: "d107c94d878bad8cab44b20aaa074ecc152b57bec90ab11bda4aa88184b593c2"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-MQSRDS"
 source_paths: []
-mirror_sha256: "8f44fddf762503a5ebc48c76ba00504b794a9386c350086be245a204adcb1f0e"
-etag: "sha256-a441139a9bc25bee712db428fc9d1cc8a973c1da98360fc5c7c94c669f8ee607"
+mirror_sha256: "f6aff9d77e842f6254101b605ccdb2be7e4b0327d61f05175334165b9732b17e"
+etag: "sha256-1e22b026b9acc6983c5e18d0e5c5d20428ebd5854755fc963fe0c8b3bbfa91bf"
 ---
 ## 개요
 
@@ -74,17 +74,19 @@ flowchart TD
 
 - 발사 조건: refresh token 이 없는 통합의 토큰 만료(`status_reason='token_expired'` 경로)에서 위 7일·3일·당일 임계에만 보낸다. 갱신 가능 통합에는 보내지 않는다.
 - 중복 방지: `integration_expiry_dispatch` 의 `UNIQUE (integration_id, threshold, token_expires_at)`(V009)로 임계마다 같은 만료 시각에 한 번만 보낸다. 통합 재인증으로 `token_expires_at` 이 바뀌면 새 만료 시각의 임계를 다시 보낸다. 발사 전에 `INSERT … ON CONFLICT DO NOTHING` 으로 선점하고 충돌하면 그 임계를 건너뛴다.
-- 통합 재인증 실패 행은 요구사항과 표에는 있지만 발사하는 코드가 없다. 현재 구현은 7일·3일·당일 세 제목만 보낸다.
+- 통합 재인증 실패 행은 요구사항과 표에는 있지만 발사하는 코드가 없다. 현재 구현은 7일·3일·당일 세 제목만 보낸다. 통합 재인증의 콜백이 코드 교환에 실패해 연결됨 통합이 오류가 되면 아래 조치 필요 알림이 나간다. 그 경우에 이 행도 보낼지는 정하지 않았다.
 
 ### 조치 필요 알림 (`integration_action_required`)
 
 | 상태 사유 | 제목 | 메시지 | 수신자 |
 | --- | --- | --- | --- |
-| `auth_failed` | `Integration disconnected` | `"<name>" needs reauthorization — Cafe24 rejected the access token. Reconnect to resume.` | 개인 통합: 통합 소유자 / 조직 통합: 관리자 전원 |
+| `auth_failed` (API 호출) | `Integration disconnected` | `"<name>" needs reauthorization — Cafe24 rejected the access token. Reconnect to resume.` | 개인 통합: 통합 소유자 / 조직 통합: 관리자 전원 |
+| `auth_failed` (OAuth 콜백) | `Integration disconnected` | `"<name>" needs reauthorization — the authorization code could not be exchanged for an access token. Reconnect to resume.` | 같음 |
 | `insufficient_scope` | `Integration missing permissions` | `"<name>" is missing required scopes — open Settings → Integrations and re-grant access.` | 같음 |
 | `network` | `Integration network failure` | `"<name>" failed 3 consecutive network calls. Check Cafe24 status or retry later.` | 같음 |
 
 - 발사 시점: 오류 전이가 일어나는 그 자리에서 보낸다. Cafe24·MakeShop 클라이언트의 `markAuthFailed`(`auth_failed`·`insufficient_scope`)와 `recordNetworkFailure`(3회 누적 뒤 `network`) 안에서 `IntegrationActionRequiredNotifier` 를 부른다. 매일 도는 스캐너가 보내는 것이 아니다. 메시지에 «Cafe24» 가 고정된 문제는 [미결 사항](CLE-INT-STATUS.md#미결-사항) 에 있다.
+- OAuth 콜백: 통합 재인증이나 추가 권한 요청의 콜백이 코드 교환에 실패해(`OAUTH_TOKEN_EXCHANGE_FAILED`) 연결됨 통합을 `error(auth_failed)` 로 바꾸면 콜백 실패 기록(`markIntegrationCallbackError`)이 그 행을 저장한 뒤 같은 notifier 를 부른다. 저장이 실패하면 보내지 않는다. 이 경로는 서비스 유형을 가리지 않으므로 표의 OAuth 콜백 문구에는 서비스 이름이 없다. 제목이 API 호출의 `auth_failed` 와 같아 24시간 중복 방지를 함께 쓴다.
 - 중복 방지: 정의가 갈린다. [미결 사항](CLE-INT-STATUS.md#미결-사항) 참조. 중복 방지 헬퍼 `hasRecentByResource` 는 알림 행이 있는지만 보므로 사용자가 닫은(`dismissed_at` 이 채워진) 알림도 센다. 닫기는 표시 결정일 뿐 다시 보내는 빈도와 무관하다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)).
 
 ### 채널과 이메일
@@ -97,13 +99,14 @@ flowchart TD
 
 ### 알림을 보내지 않는 경우
 
-설치 대기가 `install_timeout` 으로 만료될 때는 인앱 알림을 보내지 않는다. 사이드바 카운트, 목록 카드 배지, 노드 에디터 경고로만 알린다. 설치 대기의 다른 콜백 실패(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`)도 알림을 보내지 않는다.
+설치 대기가 `install_timeout` 으로 만료될 때는 인앱 알림을 보내지 않는다. 사이드바 카운트, 목록 카드 배지, 노드 에디터 경고로만 알린다. 설치 대기의 다른 콜백 실패(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`)도 알림을 보내지 않는다. 연결됨 통합의 콜백 실패 가운데 상태를 바꾸지 않는 것도 보내지 않는다. 유효한 재설치 대기 표시가 있는 행의 코드 교환 실패, Cafe24 의 권한 범위 거부(`OAUTH_INVALID_SCOPE`), 그 밖의 콜백 코드가 그렇다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너. `pending-install-ttl` 이 같은 갱신에서 `mall_id` 를 비운다)
 - `codebase/backend/migrations/V154__integration_install_timeout_release_mall_id.sql` (이미 `install_timeout` 으로 만료된 행의 `mall_id` 를 한 번 비운다)
-- `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림)
+- `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림. 계기 `api_call` · `oauth_callback` 으로 `auth_failed` 문구를 나눈다)
+- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (콜백 실패 기록 `markIntegrationCallbackError`. 연결됨 통합을 `error(auth_failed)` 로 바꾸면 저장한 뒤 조치 필요 알림을 부른다)
 
 ## Rationale
 
@@ -125,6 +128,15 @@ flowchart TD
 - 설치 토큰을 조용히 지우는 결정과 같은 흐름이다. 외부 흐름이 끝나지 않은 것이 분명한 상태 변화는 알림 가치가 낮다.
 
 이 결정은 만료 알림 미발사만 다룬다. 화면 배지나, 설치 토큰이 NULL 이 되어 다음 설치 시도가 404 가 되는 동작은 영향이 없다.
+
+### 콜백 코드 교환 실패도 조치 필요 알림을 보낸다 (2026-11-14)
+
+[통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 요구사항은 통합이 `error` 로 바뀐 그 자리에서 조치 필요 알림을 보내라고 정한다. 그런데 OAuth 콜백의 코드 교환 실패로 `connected → error(auth_failed)` 가 되는 경로만 알림이 없었다(NERV Task `CLE-T-MQSRDS`). 이 전이 뒤에는 통합을 쓰는 실행이 막히지만 콜백 오류 화면은 재인증을 시작한 사람만 본다. 그래서 다른 전이와 같이 알린다.
+
+- **문구를 나눈다**: API 가 토큰을 거부한 것과 원인이 다르다. 콜백 경로는 Cafe24 말고도 Google 같은 다른 OAuth 서비스가 지나므로 기존 문구(«Cafe24 rejected the access token»)를 쓰면 다른 서비스의 통합에도 Cafe24 를 적게 된다.
+- **제목은 같게 둔다**: 사용자가 할 일(통합 재인증)이 같다. 제목이 같으면 24시간 중복 방지를 함께 써서 클라이언트의 `markAuthFailed` 알림과 콜백 알림이 겹쳐 나가지 않는다.
+- **기각한 안**: 조치 필요 알림 대신 만료 알림 종류의 `Reauthorization failed` 로 보내는 안. 이 전이는 상태가 `error` 로 바뀌어 지금 손봐야 하는 경우라 조치 필요 알림의 기준에 맞는다. 재인증 실패 만료 알림의 발사 범위는 이 개정에서 정하지 않는다.
+- **기각한 안**: 알림 없이 상세 화면의 `last_error` 로만 알리는 안. 조직 통합의 다른 관리자는 통합이 오류가 된 것을 실행이 막힌 뒤에야 안다.
 
 ### `cafe24-background-refresh` 는 7일 기준과 6시간 주기다
 
