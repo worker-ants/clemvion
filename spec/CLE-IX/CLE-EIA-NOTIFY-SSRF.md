@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY-SSRF"
 title: "EIA 알림 웹훅 — SSRF 방지"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-NOTIFY"]
 area: "CLE-IX"
-content_hash: "a04429144e11108bc1ccae10fb7a231b8a3cd128f566c18839e9de8e301f6af7"
+content_hash: "00e8b4412205d79b719fb5ea042eed26742a74c3574a134d15bff1f6975e9dec"
 read_as: "approved_fallback"
 task: "CLE-T-GAQCF9"
 source_paths: []
-mirror_sha256: "96d876496b378e007948915867aa5b73e368b0035d19e7a60fcbd81822fc185b"
-etag: "sha256-de568c6926e4b1ce4121d6bf729455b709556c52962a458408c21a1732e99636"
+mirror_sha256: "57d1a3b74c0357c9694b9362e1fd551da3721cc6eb1f966efa1e634fed5217b9"
+etag: "sha256-2d0713848df341e93c1b65370d0cbd25be6161e73a87cf80e42997bb992a6d2a"
 ---
 ## 개요
 
@@ -42,9 +42,10 @@ etag: "sha256-de568c6926e4b1ce4121d6bf729455b709556c52962a458408c21a1732e99636"
 
 ## 구현 위치
 
-- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp` 와 켜짐 판정 `isNotificationDnsGuardEnabled`, 운영에서 끈 경우의 기동 경고 판정 `shouldWarnNotificationDnsGuardOff`(`main.ts` 가 부른다), 연결 시점 판정 dispatcher `notificationWebhookDispatcher` 와 두 판정이 함께 쓰는 대역 판정 `resolvedAddressBlockReason`, IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`. 두 헬퍼는 MCP 가드 `McpClientService.isBlockedIPv6` 도 쓴다)
+- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp` 와 켜짐 판정 `isNotificationDnsGuardEnabled`, 운영에서 끈 경우의 기동 경고 판정 `shouldWarnNotificationDnsGuardOff`(`main.ts` 가 부른다), 발송 직전 검사와 연결 시점 판정이 함께 쓰는 대역 판정 `resolvedAddressBlockReason`, IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`. 두 헬퍼는 MCP 가드 `McpClientService.isBlockedIPv6` 도 쓴다)
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (등록 거부 `assertNotificationUrlSafe`(`400 INVALID_NOTIFICATION_URL`))
 - `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (보내기 직전 검사, 연결 시점 판정을 붙인 발송, 거부 시 발송 건강도 기록)
+- `codebase/backend/src/modules/external-interaction/notification-webhook-dispatcher.ts` (연결 시점 판정 dispatcher `notificationWebhookDispatcher` 와 연결 때 막힌 주소의 판정 오류 `ResolvedHostBlockedError`)
 - `codebase/backend/src/common/utils/guarded-lookup-dispatcher.ts` (연결할 때 푼 주소를 판정하는 undici dispatcher, HTTP Request 노드 · 외부 MCP 와 공용)
 
 ## Rationale
