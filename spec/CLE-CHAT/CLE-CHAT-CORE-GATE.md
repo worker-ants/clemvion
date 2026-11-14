@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-GATE"
 title: "채팅 채널 — 인바운드 관문"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "226d51a72a2bfe7dc3369bea9cf78d5a1fe45dff76086f0286f6e557105daf0d"
+content_hash: "bc0362cba2829679d0769fb5578f9aa64f1c5669e11dac7997d6a43409d676a1"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CC3GPN"
 source_paths: []
-mirror_sha256: "45d286b005efad1e3c94461867a24b60f751fbf45c3c1fa96311bb113c5541a3"
-etag: "sha256-13f21584240effeca92fb3ba8b50f1fe6524405e3bbff4b666cae8246977c5e9"
+mirror_sha256: "72fd5cefa93ea96c9dfb9795c20322e1f1acb61c10afa6406990fb56eebfa29e"
+etag: "sha256-d62e48ae947c7f6628e9ca11af34957c989baac48e8d7d57933cbad716003ba6"
 ---
 ## 개요
 
@@ -99,9 +99,9 @@ flowchart TD
 같은 채팅 채널 트리거와 같은 클라이언트 IP 쌍의 서명 검증이 60초 고정 창 안에서 20번 `401` 로 실패하면 그 창이 끝날 때까지 그 쌍의 요청을 시크릿 조회와 서명 계산 없이 `401`(`AUTH_FAILED`)로 거부한다.
 
 - 서명이 맞는 요청과 `401` 이 아닌 오류는 세지 않는다. 거부한 요청도 세지 않으므로 창이 늘어나지 않는다.
-- 클라이언트 IP 는 공개 웹훅 IP 한도와 같은 규칙(`X-Forwarded-For` 첫 값, 신뢰 설정이면 `CF-Connecting-IP`)으로 헤더에서 읽는다. IP 를 읽지 못한 요청은 세지도 막지도 않는다.
+- 클라이언트 IP 는 `CF-Connecting-IP`(신뢰 설정 `TRUST_CF_CONNECTING_IP` 가 켜진 배포만), `req.ip` 순서로 읽는다. `X-Forwarded-For` 첫 값은 보내는 쪽이 정할 수 있어 쓰지 않는다. 그래서 공개 웹훅 IP 한도와 규칙이 다르다. IP 를 읽지 못한 요청은 세지도 막지도 않는다.
 - 트리거 조회는 이 판정보다 먼저 끝나 있다. 그래서 한도에 닿은 요청에서 아끼는 것은 시크릿 조회와 서명 계산이다.
-- 카운터는 Redis 고정 창이고 키는 `cc:sigfail:<triggerId>:<ip>` 다. 첫 실패에서만 60초 TTL 을 건다. Redis 가 없으면 세지도 막지도 않는다. Redis 오류면 막지 않고 경고 로그를 남긴다.
+- 카운터는 Redis 고정 창이고 키는 `cc:sigfail:<triggerId>:<ip>` 다. 실패를 세는 일과 TTL 확인은 Lua 스크립트 하나로 한 번에 실행한다. 첫 실패이거나 키에 TTL 이 없으면 60초 TTL 을 건다. 이미 TTL 이 있으면 늘리지 않는다. 그래서 TTL 없이 남은 키도 다음 실패에서 TTL 을 다시 얻는다. 한 쌍이 한도에 닿으면 그 창에서 경고 로그를 한 번 남긴다. 이 로그에는 트리거 id 만 적고 클라이언트 IP 는 적지 않는다. Redis 가 없으면 세지도 막지도 않는다. Redis 오류면 막지 않고 경고 로그를 남긴다.
 - 응답은 서명이 틀린 요청과 같은 `401`(`AUTH_FAILED`)이고 `429` 로 바꾸지 않는다.
 
 근거와 알려진 한계는 [R-CC-34](#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다) 에 있다.
@@ -123,12 +123,13 @@ flowchart TD
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(새 실행 시작 앞의 워크플로우 활성 관문 포함), 서명 검증과 서명 검증 실패 한도(`verifyChatChannelSignature`), 컨트롤러의 `@DeferGlobalThrottle()` 과 라우트 가드 순서
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(새 실행 시작 앞의 워크플로우 활성 관문 포함), 인바운드 인증기 호출(컨트롤러가 `req.ip` 를 넘기고 서비스가 인증기를 한 번 부른다), 핸드셰이크 응답(Slack · Discord 어댑터의 `handshakeResponse` 를 부른다), 컨트롤러의 `@DeferGlobalThrottle()` 과 라우트 가드 순서
 - `codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts`: 공개 웹훅 가드. 트리거를 조회해 요청에 붙이고 채팅 채널 트리거는 서명 참조와 상관없이 통과시킨다
 - `codebase/backend/src/modules/hooks/hook-trigger-throttler.guard.ts`, `codebase/backend/src/common/guards/user-throttler.guard.ts`: `POST /hooks/:endpointPath` 의 전역 요청 한도. 서명 참조가 저장된 채팅 채널 트리거는 세지 않는다(판정은 `isSignedChatChannelTrigger`). 전역 가드는 `@DeferGlobalThrottle()` 이 붙은 라우트를 세지 않는다
-- `codebase/backend/src/modules/chat-channel/`: 인바운드 서명 검증(`chat-channel-inbound-authenticator.ts`), 서명 검증 실패 한도(`chat-channel-signature-failure-limiter.service.ts`), 서명 참조가 저장된 채팅 채널 트리거 판정(`chat-channel-secret-refs.ts` 의 `isSignedChatChannelTrigger`), 중복 제거(`chat-channel-dedup.service.ts`), 분당 한도(`chat-channel-rate-limiter.service.ts`)
+- `codebase/backend/src/modules/chat-channel/`: 인바운드 서명 검증과 서명 검증 실패 한도 적용(`chat-channel-inbound-authenticator.ts` 의 `verify` 가 한도 판정 · 서명 검증 · 실패 기록을 한곳에서 한다), 서명 검증 실패 한도(`chat-channel-signature-failure-limiter.service.ts`), 서명 참조가 저장된 채팅 채널 트리거 판정(`chat-channel-secret-refs.ts` 의 `isSignedChatChannelTrigger`), 중복 제거(`chat-channel-dedup.service.ts`), 분당 한도(`chat-channel-rate-limiter.service.ts`)
+- `codebase/backend/src/modules/auth/utils/client-ip.ts`: 서명 검증 실패 한도가 쓰는 클라이언트 IP 선택(`extractUnspoofableClientIp`)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts`: 워크플로우 활성 관문 `isWorkflowInactive`(트리거의 워크스페이스 안에서만 찾는다)
-- 테스트: `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts`, `codebase/backend/src/modules/hooks/hooks-throttle.wire.spec.ts`(라우트 가드 체인. 종단 간 테스트는 `NODE_ENV=test` 에서 전역 한도가 꺼져 있어 이 파일이 확인한다), `codebase/backend/src/modules/hooks/hook-trigger-throttler.guard.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel-signature-failure-limiter.service.spec.ts`, `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.spec.ts`
+- 테스트: `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts`, `codebase/backend/test/chat-channel-signature-failure-limit.e2e-spec.ts`(키의 IP 가 `req.ip` 인지, TTL 없이 남은 키가 TTL 을 다시 얻는지), `codebase/backend/src/modules/hooks/hooks-throttle.wire.spec.ts`(라우트 가드 체인. 종단 간 테스트는 `NODE_ENV=test` 에서 전역 한도가 꺼져 있어 이 파일이 확인한다), `codebase/backend/src/modules/hooks/hook-trigger-throttler.guard.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.spec.ts`(한도와 서명 검증), `codebase/backend/src/modules/chat-channel/chat-channel-signature-failure-limiter.service.spec.ts`, `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.spec.ts`
 
 ## Rationale
 
@@ -170,7 +171,7 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 
 ### R-CC-34 서명 검증 실패는 트리거와 IP 쌍으로 세고 한도에 닿으면 401 로 답한다
 
-2026-11-13 결정이다. 사람이 방식을 골랐다. 규칙은 [서명 검증 실패 한도](#서명-검증-실패-한도) 에 있다.
+2026-11-13 결정이다. 사람이 방식을 골랐다. 클라이언트 IP 를 읽는 출처는 2026-11-14 에 바꿨다(아래 「IP 출처와 운영 조건」). 규칙은 [서명 검증 실패 한도](#서명-검증-실패-한도) 에 있다.
 
 **왜 두는가.** 서명 참조가 저장된 채팅 채널 트리거를 전역 요청 빈도 제한에서 빼면서(R-CC-12) 위조 서명 요청을 세는 장치가 없어졌다. 트리거의 `endpointPath` 를 아는 쪽이 서명을 위조해 보내면 요청마다 시크릿 조회(DB)와 서명 계산이 한도 없이 생긴다. 대화 단위 분당 한도(R-CC-19)는 서명 검증 뒤에 있어 이 비용을 막지 못한다. 정상 프로바이더 요청은 서명이 늘 맞아 세지 않는다.
 
@@ -182,10 +183,16 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 
 **IP 를 읽지 못하면 세지 않는다.** 식별하지 못한 요청을 한 버킷에 모으면 그 버킷을 채운 쪽이 IP 를 읽지 못한 다른 요청까지 막는다.
 
-**알려진 한계.** `X-Forwarded-For` 첫 값은 보내는 쪽이 정할 수 있다. 트리거의 `endpointPath` 를 아는 사람이 프로바이더 발신 IP 를 적은 위조 요청을 20번 보내면 그 트리거와 그 IP 쌍이 최대 60초 동안 `401` 을 받는다. 그동안 그 IP 에서 온 정상 update 도 `401` 이다. 프로바이더가 그 update 를 다시 보내면 창이 끝난 뒤의 재전송은 처리된다. 공개 웹훅 IP 한도도 같은 헤더 규칙을 써서 같은 성질이 있다. `endpointPath` 는 추측하기 어려운 경로라 이 공격은 그 경로를 아는 사람만 할 수 있다. 이 한계를 받아들였다.
+**IP 출처와 운영 조건.** 2026-11-14 사람 결정으로 클라이언트 IP 의 출처를 바꿨다(NERV 질문 `01a1d828-baff-74d0-a2db-d789f3144b95`, Task `CLE-T-CC3GPN`). 전에는 `X-Forwarded-For` 첫 값을 썼다. 이 값은 보내는 쪽이 정할 수 있다. 그래서 트리거의 `endpointPath` 를 아는 사람이 프로바이더 발신 IP 를 적은 위조 요청을 20번 보내면 그 트리거와 그 IP 쌍의 정상 update 를 최대 60초 동안 막을 수 있었다. 지금은 `CF-Connecting-IP`(신뢰 설정일 때), `req.ip` 순서로 읽는다. 둘 다 보내는 쪽이 정할 수 없다. Cloudflare 는 `CF-Connecting-IP` 를 자기 값으로 덮어쓴다. `req.ip` 는 `trust proxy 1`(`main.ts`)로 신뢰하는 프록시 한 단계가 덧붙인 값이다.
+
+남은 한계는 운영 조건이다. 프록시가 두 단계인데 CF 신뢰 설정을 켜지 않은 배포에서는 `req.ip` 가 앞 프록시의 IP 가 된다. 그러면 한 트리거의 실패가 버킷 하나에 모인다. 이때 위조 요청을 20번 보내면 그 트리거의 정상 update 가 출처와 상관없이 최대 60초 동안 `401` 을 받는다. 전에는 위조 요청으로 막을 수 있는 범위가 공격자가 고른 (트리거, IP) 쌍 하나였다. 이 배포에서는 그 범위가 트리거 전체로 넓어진다. 그래도 이 방식을 고른 것은 설정이 맞는 배포(프록시 한 단계, 또는 Cloudflare 뒤에서 신뢰 설정을 켠 배포)에서 위조 경로를 아예 닫기 위해서다(NERV 질문 `01a1d828-baff-74d0-a2db-d789f3144b95` 의 답 A). 전역 요청 빈도 제한(`UserThrottlerGuard`)도 `req.ip` 로 세므로 같은 설정 오류에서는 이미 프록시 IP 하나로 센다. `main.ts` 의 프록시 한 단계 전제(`trust proxy 1`)와 같은 조건이다. Cloudflare 뒤 배포는 `TRUST_CF_CONNECTING_IP=true` 를 켠다. 창이 끝난 뒤 프로바이더가 다시 보낸 update 는 처리된다.
+
+**공개 웹훅 IP 한도와 규칙이 다른 이유.** [웹채팅 보안 「공개 웹훅에서 IP 를 알 수 없으면 공유 버킷 하나로 완화 한도를 건다 (결정 2026-06-28)」](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#공개-웹훅에서-ip-를-알-수-없으면-공유-버킷-하나로-완화-한도를-건다-결정-2026-06-28) 는 `req.ip` 폴백을 기각했다. cloudflared · LB 뒤에서는 모든 트래픽이 프록시 IP 버킷 하나로 모여 정상 사용자가 거짓 `429` 를 받기 때문이다. 서명 실패 한도는 서명이 틀린 요청만 센다. 정상 프로바이더 요청은 한 버킷에 모여도 세지 않으므로 공격이 없으면 버킷이 차지 않는다. 그래서 공격이 없는 동안에는 그 함정이 이 한도에서 정상 요청의 거짓 차단으로 이어지지 않는다. 공개 웹훅 IP 한도와 `ip_whitelist` 는 그대로 `X-Forwarded-For` 첫 값 규칙을 쓴다.
 
 **기각한 대안.**
 
 - (a) 프로바이더 발신 IP 허용 목록. 목록 밖의 요청을 서명 검증 전에 거부하는 안이다. Slack 과 Discord 는 발신 IP 목록을 공개하지 않거나 목록이 자주 바뀐다. 목록이 낡으면 정상 update 를 막는다.
 - (b) 이번에 두지 않는 안. 전역 요청 빈도 제한에서 빠진 채로 두면 위조 서명 요청이 시크릿 조회와 서명 계산을 한도 없이 일으킨다.
 - (c) IP 만으로 세는 안. 「키에 트리거를 넣는 이유」 대로 한 트리거의 실패가 같은 IP 를 쓰는 다른 트리거를 막는다.
+- (d) `X-Forwarded-For` 첫 값을 그대로 두고 운영 조건만 적는 안. 위조 요청을 보내는 쪽이 키의 IP 를 골라 그 IP 의 정상 update 를 막을 수 있는 한계가 그대로 남는다.
+- (e) 프로바이더 발신 대역에서 온 요청을 한도에서 빼거나 따로 세는 안. Slack 과 Discord 는 고정 발신 대역을 공개하지 않는다. 그래서 세 프로바이더에 같은 규칙을 둘 수 없다. (a) 와 같은 이유다.

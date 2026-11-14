@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-INTERACT"
 title: "채팅 채널 — 인터랙션 응답과 명령 실패"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "baf9dd36951ec3d0babbada4317dda832c0abf0adefdf2e271532675dfa6bc33"
+content_hash: "9ff3e7b04fd482a5a2f0c305532008964774a22e9c9e49022119bf414efe66c9"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0JEQRY"
 source_paths: []
-mirror_sha256: "af007da9ed92844f57cf251eca599369526d222e908b4b0bdc2cf810e62186df"
-etag: "sha256-adf062964ffbdf04e389b6816461cbb85d972712ab38551be5bacb6ccd17c1fe"
+mirror_sha256: "0ea324be80b352fcb49fb8374b724380ae632bce4a360f86b8e85249f0f67328"
+etag: "sha256-f0c13ceefd417b32366df22d9b1d8735391336a71ecb6dda236f2762f19f2889"
 ---
 ## 개요
 
@@ -51,7 +51,7 @@ Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 �
 
 인터랙션 응답과 별개로 활성 트리거에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 대화 단위 분당 한도 초과, 실행 중이라 입력 대기가 아님, 워크플로우 비활성, 워크플로우 없음, 처리 중 예상하지 못한 오류) 채널 어댑터의 선택 함수 `ackDroppedUpdate(raw, config)` 로 프로바이더에 수신 확인을 보낸다.
 
-- 지금 이 함수가 있는 프로바이더는 Telegram 하나다. 버튼 클릭(`callback_query`)이면 `answerCallbackQuery` 만 보내 버튼의 로딩 표시를 끝낸다. 인라인 키보드는 지우지 않는다. 사용자가 잠시 뒤 같은 버튼을 다시 누를 수 있어야 하기 때문이다. 그 밖의 update 에는 아무것도 보내지 않는다.
+- 지금 이 함수가 있는 프로바이더는 Telegram 하나다. 버튼 클릭(`callback_query`)이면 `answerCallbackQuery` 만 보내 버튼의 로딩 표시를 끝낸다. 같은 `callback_query.id` 에는 처리한 클릭의 응답(`ackInteraction`)과 합쳐 한 번만 보낸다([채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER-IFACE.md#인터랙션-기본-응답과-수신-확인)). 인라인 키보드는 지우지 않는다. 사용자가 잠시 뒤 같은 버튼을 다시 누를 수 있어야 하기 때문이다. 그 밖의 update 에는 아무것도 보내지 않는다.
 - Discord 와 Slack 은 3초 안의 `200` 응답이 수신 확인이라 이 함수가 없다.
 - 수신 확인은 보내기만 하고 끝나기를 기다리지 않아 웹훅 응답을 늦추지 않는다. 실패는 경고 로그만 남기고 HTTP 응답(`202`)은 바뀌지 않는다.
 - `/help` 의 도움말 경로와 비활성 트리거에서는 부르지 않는다. 비활성 트리거에서 부르지 않는 것은 비활성 트리거의 외부 호출 금지 때문이다.
@@ -77,7 +77,7 @@ Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 �
 - `codebase/backend/src/modules/chat-channel/types.ts`: 인터랙션 기본 응답 `defaultInteractionResponse` 와 버린 update 의 수신 확인 `ackDroppedUpdate` 선택 함수
 - `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 공통 수신 문구 `COMMAND_RECEIVED_DEFAULTS` 와 Discord · Slack 공용 기본 도움말 `SLASH_HELP_DEFAULTS`
 - 프로바이더별: Discord 인터랙션 기본 응답은 `providers/discord/discord-interaction-response.ts`, Slack 인터랙션 기본 응답은 `providers/slack/slack.adapter.ts` 의 `defaultInteractionResponse` 와 슬래시 명령 판정 `providers/slack/slack-update.parser.ts` 의 `readSlackSlashInvocation`, Telegram 버린 클릭의 수신 확인은 `providers/telegram/telegram.adapter.ts` 의 `ackDroppedUpdate`(모두 `codebase/backend/src/modules/chat-channel/` 아래)
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인터랙션 기본 응답 적용(`withDefaultInteractionResponse`, 컨트롤러의 `200` 응답), 버린 update 의 수신 확인(`dropChatChannelUpdate`), 폼 모달 제출의 큐 적재 실패 때 버튼 재전송(`reNoiseFormModal`)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인터랙션 기본 응답 적용(`withDefaultInteractionResponse`, 컨트롤러가 결과의 `providerResponse` 로 보내는 `200` 응답), 버린 update 의 수신 확인(`ackDroppedUpdateAndIgnore`), 폼 모달 제출의 큐 적재 실패 때 버튼 재전송(`reNoiseFormModal`)
 - 테스트: `codebase/backend/test/chat-channel-telegram-dropped-callback.e2e-spec.ts`(버린 버튼 클릭의 수신 확인), `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(「인터랙션 기본 응답」, 「버린 update 의 수신 확인」), `codebase/backend/src/modules/hooks/hooks.controller.spec.ts`(인터랙션의 `200` 응답), `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.spec.ts`, `codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.spec.ts`, `codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.spec.ts`
 
 ## Rationale
