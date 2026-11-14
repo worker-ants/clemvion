@@ -92,7 +92,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     throw new UnauthorizedException({
-      code: 'WORKSPACE_NOT_FOUND',
+      code: 'NO_WORKSPACE_AVAILABLE',
       message: 'No workspace found for user',
     });
   }

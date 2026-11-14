@@ -15,6 +15,7 @@ import { extractApiCode } from "@/lib/api/errors";
 import { USER_PROFILE_QUERY_KEY, usersApi } from "@/lib/api/users";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useT } from "@/lib/i18n";
+import { MIN_ACCOUNT_PASSWORD_LENGTH } from "@/lib/utils/password";
 import { PasskeyCard } from "./passkey-card";
 import {
   isRateLimited,
@@ -155,7 +156,7 @@ export default function SecurityPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (disablePassword.length < 8) {
+                if (disablePassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
                   toast.error(t("profile.security.passwordRequired"));
                   return;
                 }
@@ -209,7 +210,7 @@ export default function SecurityPage() {
                 className="space-y-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (setupPassword.length < 8) {
+                  if (setupPassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
                     toast.error(t("profile.security.passwordRequired"));
                     return;
                   }

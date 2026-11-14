@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-PKAUTH"
 title: "가입과 로그인 — Passkey 로그인 인증과 counter 역행"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "c79748caadc3bcb1c1d7f5d12acceaffddfdd3835f564e1a01063f4657bd1ecf"
+content_hash: "6a5d64c0c30ba7088f39429a8c7970503741d8b41ba36c40c48159ea49d6c4c7"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZPPWK4"
 source_paths: []
-mirror_sha256: "0e08c124b48d08c398e6280cba381969bce0107961c63a436869b3ae443c21a3"
-etag: "sha256-33a9059753d5414b0f35a8c473dc95ae8836f1e2411c69ff12a2a791b8097d45"
+mirror_sha256: "0ed85cc2614dd0d6ae906843880dfb620ba565682d9bbda19e882abdd6edaec2"
+etag: "sha256-ab709049f230ec606a6995e90bc6a8ee28c541dfde913fe0ecf3bac628bf0ad4"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-33a9059753d5414b0f35a8c473dc95ae8836f1e2411c69ff12a2a791b8097d45"
 
 1. `POST /api/auth/2fa/webauthn/authenticate/options { challengeToken }`. 서버가 챌린지 토큰을 검증하고 `generateAuthenticationOptions` 와 `optionsToken`(`kind=webauthn_auth`, 5분)을 준다.
 2. 클라이언트가 `navigator.credentials.get(options)` 를 호출한다.
-3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버는 챌린지 토큰과 옵션 토큰을 검증한 뒤 그 Passkey 인증 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로 거부한다. 이어서 `verifyAuthenticationResponse` 로 서명을 검증한다. 서명이 맞으면 counter 역행을 판정하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
+3. `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`. 서버는 챌린지 토큰과 옵션 토큰을 검증한 뒤 그 Passkey 인증 챌린지를 쓴 것으로 기록한다. 이미 쓴 챌린지면 401 `WEBAUTHN_INVALID` 로 거부한다. 이어서 응답의 credential 을 그 사용자의 credential 에서 찾는다. 없으면 401 `WEBAUTHN_INVALID` 로 거부하고 로그인 이력을 남기지 않는다. 찾으면 `verifyAuthenticationResponse` 로 서명을 검증한다. 서명이 맞으면 counter 역행을 판정하고 counter 를 갱신한 뒤 액세스 토큰과 리프레시 토큰 쿠키를 발급한다.
 
 복구 코드로 통과할 때는 `POST /api/auth/2fa/webauthn/recovery { challengeToken, code }` 를 부른다. 서버는 `webauthn_recovery_codes` 해시와 비교해 맞으면 그 항목을 지우고 JWT 를 발급한다.
 
@@ -71,7 +71,7 @@ counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드
 ## 구현 위치
 
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts` (Passkey 인증 챌린지 기록)
-- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 서명이 틀린 응답의 거부, counter 가 늘 0 인 인증기, 같은 응답의 재전송(차례로 · 동시에, counter 가 늘 0 인 인증기 포함), 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름)
+- `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (Passkey 등록·인증, counter 역행, 서명이 틀린 응답의 거부, counter 가 늘 0 인 인증기, 같은 응답의 재전송(차례로 · 동시에, counter 가 늘 0 인 인증기 포함), 등록 알고리즘 고정, transport 목록 형식, 표시 이름 형식, 이름 변경의 빈 이름 · 공백 문자로만 된 이름, 그 사용자의 것이 아닌 credential 로 온 인증 응답)
 
 ## Rationale
 
@@ -121,11 +121,11 @@ NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 같은 assertion 
 
 ### 로그인 검증에서 credential 을 찾지 못하면 `WEBAUTHN_INVALID` 로 거부하기로 했다 (2026-11-12)
 
-NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 구현은 NERV Task `CLE-T-ZPPWK4` 가 맡는다. 그때까지 응답은 401 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 이고 [에러 코드](CLE-ACCT-SIGNIN-API.md#에러-코드) 표에 그 사실과 결정을 함께 적었다.
+NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했고 2026-11-14 에 NERV Task `CLE-T-ZPPWK4` 가 구현했다. 메시지도 서명 실패와 같은 「WebAuthn 인증에 실패했어요.」 다.
 
 - **한 이름이 두 뜻으로 쓰였다.** `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 등록한 Passkey 의 이름 변경 · 삭제에서 대상이 없다는 404 이고, 로그인 2단계 검증에서는 인증이 실패했다는 401 이다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 은 뜻이 갈리면 코드를 나누라고 정한다.
 - **로그인 쪽을 기존 `WEBAUTHN_INVALID` 로 옮긴다.** 서명이 틀린 응답과 이미 쓴 챌린지를 이 코드로 묶은 이유와 같다. 사용자가 할 일은 「Passkey 로 다시 시도」 하나이고 credential 이 없다는 사실을 서명 실패와 구별해 알려 줄 이유도 없다. 로그인 화면은 `WEBAUTHN_INVALID` 만 안내 문구(`auth.login.webauthnFailed`)로 바꾸므로 옮기면 이 경우에도 같은 안내가 나간다.
 - **기각: 로그인 쪽에 새 코드를 만든다.** 클라이언트가 그 코드로 따로 할 일이 없다.
 - **기각: 그대로 둔다.** 같은 이름이 404 와 401 로 나가면 클라이언트가 상태와 코드 가운데 무엇으로 분기할지 정할 수 없다.
 - **로그인 이력은 바꾸지 않는다.** 지금 이 경로는 로그인 이력을 남기지 않고, 남길지는 이번 결정에 들지 않았다.
-- **이 코드를 이번에 에러 코드 표에 올렸다.** 「미결 사항」 의 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이다. 나머지 둘은 NERV Task `CLE-T-9KCQ7Y` 에 남긴다.
+- **이 코드를 이번에 에러 코드 표에 올렸다.** 「미결 사항」 의 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이다. 나머지 둘은 NERV Task `CLE-T-9KCQ7Y` 에 남긴다. 그 둘도 2026-11-14 에 등재했다.

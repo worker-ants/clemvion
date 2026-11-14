@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-TRIGGER"
 title: "에러 코드 카탈로그 — 웹훅 · 트리거 · 채팅 채널"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "2a6d8024b0cbaf75a60e7c3549f8ffad70d21dd22e001a04a9cf5f86ff0068d2"
+content_hash: "56034f5ddc55563194b3e735c30a16b6797407f0edbaeefbfcb30a1c6dcf879f"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZPPWK4"
 source_paths: []
-mirror_sha256: "a3136eb21ff6ae59aefe4a0d44db09d86cfddccca023393625dbc2432c24ca08"
-etag: "sha256-41e7dce6ebc3c898c60fb282504d7ba8009e36fe22451bd95bbf7e6161c74bd7"
+mirror_sha256: "8d2b7972feb55af88a0453596428ed44ecc4d2f9da904bb3d10fdc7cb6ca15f7"
+etag: "sha256-d97cf92896d7dcc6168b6e5239781e330fb0f05787bd09da88daebf0ccaa5654"
 ---
 ## 개요
 
@@ -55,7 +55,7 @@ etag: "sha256-41e7dce6ebc3c898c60fb282504d7ba8009e36fe22451bd95bbf7e6161c74bd7"
 |------|--------|------|-----------|
 | `AUTH_CONFIG_NOT_FOUND` | **400** | `authConfigId` 가 호출자 워크스페이스의 인증 설정이 아님(없거나 다른 워크스페이스 소속. 존재 여부 노출을 막으려고 구분하지 않는다). `details: { field: 'authConfigId', code: 'INVALID_FIELD' }` 를 함께 싣는다(`INVALID_FIELD` 행은 §6.4) | [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) |
 
-- **이름은 `_NOT_FOUND` 지만 404 가 아니다.** 이 카탈로그에서 HTTP 로 나가는 `*_NOT_FOUND` 가운데 404 가 아닌 코드는 이 코드 말고 셋이다. 액세스 토큰 검증의 `WORKSPACE_NOT_FOUND`(401, §6.4), 로그인 2단계 Passkey 검증의 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(401, §6.3), 트리거 단위 토큰 경로의 `EXECUTION_NOT_FOUND`(401, [§6.9 의 「트리거 단위 토큰」 행](CLE-API-ERRCODES-WSEIA.md#69-eia-rest-외부-표면-도메인-문서-참조))다. 앞의 두 401 은 다른 코드로 옮기기로 정했다(NERV Task `CLE-T-ZPPWK4`). 나머지는 모두 404 이고 이 상태 일관성을 위해 코드를 쪼갠 선례도 있다(`MODEL_CONFIG_NOT_FOUND` 404 와 `MODEL_CONFIG_DEFAULT_MISSING` 400).
+- **이름은 `_NOT_FOUND` 지만 404 가 아니다.** 이 카탈로그에서 HTTP 로 나가는 `*_NOT_FOUND` 가운데 404 가 아닌 코드는 이 코드 말고 하나다. 트리거 단위 토큰 경로의 `EXECUTION_NOT_FOUND`(401, [§6.9 의 「트리거 단위 토큰」 행](CLE-API-ERRCODES-WSEIA.md#69-eia-rest-외부-표면-도메인-문서-참조))다. 액세스 토큰 검증의 401 은 `NO_WORKSPACE_AVAILABLE`(§6.4)로, 로그인 2단계 Passkey 검증의 401 은 `WEBAUTHN_INVALID`(§6.3)로 2026-11-14 에 옮겼다(NERV Task `CLE-T-ZPPWK4`). 나머지는 모두 404 이고 이 상태 일관성을 위해 코드를 쪼갠 선례도 있다(`MODEL_CONFIG_NOT_FOUND` 404 와 `MODEL_CONFIG_DEFAULT_MISSING` 400).
 - 400 인 근거: 다른 워크스페이스 참조는 리소스 부재가 아니라 입력값 유효성 문제다. 그래서 `details.field='authConfigId'` 로 필드를 지목하고 `BadRequestException` 으로 던진다.
 - **이름과 400 을 그대로 둔다.** 2026-11-12 에 NERV Task `CLE-T-3P4ENZ` 에서 정했다. 이름을 더 정확하게 하려는 목적만으로는 바꾸지 않고(규칙 5), 뜻과 상태가 하나라 새 코드도 만들지 않는다(규칙 6). 이유는 Rationale 에 있다.
 - 특화 코드와 일반 `details[].code` 를 함께 싣는 것이 "겹쳐 쓰지 않는다" 에 걸리지 않는 근거는 [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 판별 기준이다.
@@ -155,7 +155,7 @@ NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했다. 이름은 `_NOT_FOUND` 인�
 - **기각: `AUTH_CONFIG_NOT_FOUND` 를 404 로 바꾸거나 이름을 바꾼다.** 404 로 바꾸면 입력 필드를 지목하는 `details` 와 맞지 않는다. 다른 워크스페이스 참조는 리소스 부재가 아니라 입력값 문제로 봤다(§6.14). 이름 바꾸기는 규칙 5 에 어긋난다.
 - **로그인 검증의 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(401)는 `WEBAUTHN_INVALID` 로 옮긴다.** 같은 이름이 credential 이름 변경 · 삭제에서는 대상이 없다는 404 이고 로그인 2단계 검증에서는 인증이 실패했다는 401 이다. 뜻이 갈리므로 규칙 6 에 따라 나눈다. 로그인 쪽은 새 코드를 만들지 않고 기존 `WEBAUTHN_INVALID` 로 옮긴다. 서명이 틀린 응답과 이미 쓴 챌린지를 이 코드로 묶은 이유와 같다. 사용자가 할 일은 「Passkey 로 다시 시도」 하나다. credential 이 없다는 사실을 서명 실패와 구별해 알려 줄 이유도 없다. 로그인 화면도 `WEBAUTHN_INVALID` 만 안내 문구로 바꾼다. 자세한 근거는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 Rationale 에 있다.
 - **토큰 검증의 `WORKSPACE_NOT_FOUND`(401)는 새 코드 `NO_WORKSPACE_AVAILABLE` 로 옮긴다.** 404 는 대상 워크스페이스가 없다는 뜻이고 401 은 사용자에게 쓸 워크스페이스가 하나도 없다는 뜻이다. 뜻이 갈리므로 규칙 6 에 따라 나눈다. 이름은 조건이 워크스페이스 하나가 아니라 사용자의 상태라는 점이 읽히게 골랐다. 규칙 3 의 `<DOMAIN>_<CONDITION>` 은 권장이라 이 이름에서는 따르지 않았다. 다른 후보를 고르지 않은 이유는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 의 Rationale 에 있다.
-- **두 이동은 구현 전이라 표 아래 문장으로 적었다(규칙 9).** 지금 응답에 나가는 401 은 행으로 그대로 둔다(규칙 8). 구현하는 NERV Task `CLE-T-ZPPWK4` 가 발행과 함께 표를 고친다.
+- **두 이동은 구현 전이라 표 아래 문장으로 적었다(규칙 9).** 지금 응답에 나가는 401 은 행으로 그대로 둔다(규칙 8). 구현하는 NERV Task `CLE-T-ZPPWK4` 가 발행과 함께 표를 고친다. 2026-11-14 에 구현과 함께 §6.3 · §6.4 의 표를 고쳤다.
 
 ### 봇 토큰 재발급 실패 코드와 공개 웹훅 범위를 도메인 문서에 맞췄다 (2026-11-13)
 

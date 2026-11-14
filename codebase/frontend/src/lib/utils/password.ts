@@ -15,6 +15,9 @@ import type { TFunction } from "@/lib/i18n";
  *   4:   strong (green-400)
  *   5:   very strong (green-600)
  */
+/** 계정 비밀번호 최소 길이. 비밀번호 재확인 폼과 강도 점수가 함께 쓴다(백엔드 검증과 같은 값). */
+export const MIN_ACCOUNT_PASSWORD_LENGTH = 8;
+
 export interface PasswordStrength {
   score: number;
   label: string;
@@ -27,7 +30,7 @@ export function getPasswordStrength(
   t: TFunction,
 ): PasswordStrength {
   let score = 0;
-  if (password.length >= 8) score++;
+  if (password.length >= MIN_ACCOUNT_PASSWORD_LENGTH) score++;
   if (/[a-z]/.test(password)) score++;
   if (/[A-Z]/.test(password)) score++;
   if (/[0-9]/.test(password)) score++;

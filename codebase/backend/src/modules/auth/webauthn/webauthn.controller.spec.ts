@@ -3,7 +3,13 @@ import {
   NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
+  RequestMethod,
 } from '@nestjs/common';
+import {
+  HTTP_CODE_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
 import { ConfigService } from '@nestjs/config';
 import { WebAuthnController } from './webauthn.controller';
 import { WebAuthnService } from './webauthn.service';
@@ -220,11 +226,97 @@ describe('WebAuthnController (audit)', () => {
   });
 
   describe('webauthnDelete', () => {
+    const deleteDto = { password: 'OldP@ssw0rd1' } as never;
+
+    // 비밀번호를 본문으로 받으므로 DELETE 대신 POST 다. 일부 CDN · 프록시가 DELETE 본문을
+    // 지운다(CLE-API-CONV-URL 「본문을 받아야 하는 삭제」). 토큰만으로 지우던 DELETE 는 없앴다.
+    it('is POST credentials/:id/delete with 204, and no DELETE route remains', () => {
+      const handler = WebAuthnController.prototype.webauthnDelete;
+      expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(
+        'credentials/:id/delete',
+      );
+      expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(
+        RequestMethod.POST,
+      );
+      expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(204);
+
+      const proto = WebAuthnController.prototype as unknown as Record<
+        string,
+        unknown
+      >;
+      const deleteRoutes = Object.getOwnPropertyNames(proto).filter(
+        (name) =>
+          typeof proto[name] === 'function' &&
+          Reflect.getMetadata(METHOD_METADATA, proto[name] as object) ===
+            RequestMethod.DELETE,
+      );
+      expect(deleteRoutes).toEqual([]);
+    });
+
+    // 근거: CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」 (CLE-T-Q6E11N)
+    it('기능 확인 → 비밀번호 확인 → 삭제 → 감사 순서로 부른다', async () => {
+      const calls: string[] = [];
+      webauthnService.assertEnabled.mockImplementation(() => {
+        calls.push('assertEnabled');
+      });
+      authService.verifyPasswordForUser.mockImplementation(async () => {
+        calls.push('verifyPassword');
+      });
+      webauthnService.deleteCredential.mockImplementation(async () => {
+        calls.push('deleteCredential');
+        return { remaining: 1 };
+      });
+      auditLogsService.record.mockImplementation(async () => {
+        calls.push('audit');
+      });
+
+      await controller.webauthnDelete(payload, 'cred-uuid', deleteDto, mockReq);
+
+      expect(calls).toEqual([
+        'assertEnabled',
+        'verifyPassword',
+        'deleteCredential',
+        'audit',
+      ]);
+      expect(authService.verifyPasswordForUser).toHaveBeenCalledWith(
+        'user-uuid',
+        'OldP@ssw0rd1',
+      );
+    });
+
+    // 비밀번호가 틀린 경우와 비밀번호가 없는 계정(OAuth 전용) 둘 다 지우지 않고 감사도 남기지 않는다.
+    it.each(['PASSWORD_INVALID', 'PASSWORD_REQUIRED'])(
+      '%s 면 지우지 않고 감사도 남기지 않는다',
+      async (code) => {
+        authService.verifyPasswordForUser.mockRejectedValue(
+          new UnauthorizedException({ code }),
+        );
+
+        await expect(
+          controller.webauthnDelete(payload, 'cred-uuid', deleteDto, mockReq),
+        ).rejects.toMatchObject({ status: 401, response: { code } });
+        expect(webauthnService.deleteCredential).not.toHaveBeenCalled();
+        expect(auditLogsService.record).not.toHaveBeenCalled();
+      },
+    );
+
+    it('Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 WEBAUTHN_DISABLED 다', async () => {
+      webauthnService.assertEnabled.mockImplementation(() => {
+        throw webauthnDisabled();
+      });
+
+      await expect(
+        controller.webauthnDelete(payload, 'cred-uuid', deleteDto, mockReq),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(authService.verifyPasswordForUser).not.toHaveBeenCalled();
+      expect(webauthnService.deleteCredential).not.toHaveBeenCalled();
+    });
+
     // [Spec Auth §4.1 / Rationale 4.1.B] credential 삭제 = user.2fa_disabled.
     it('records user.2fa_disabled with remaining count', async () => {
       webauthnService.deleteCredential.mockResolvedValue({ remaining: 0 });
 
-      await controller.webauthnDelete(payload, 'cred-uuid', mockReq);
+      await controller.webauthnDelete(payload, 'cred-uuid', deleteDto, mockReq);
 
       expect(webauthnService.deleteCredential).toHaveBeenCalledWith(
         'user-uuid',
@@ -248,7 +340,7 @@ describe('WebAuthnController (audit)', () => {
     it('reports remaining authenticators when others persist', async () => {
       webauthnService.deleteCredential.mockResolvedValue({ remaining: 2 });
 
-      await controller.webauthnDelete(payload, 'cred-uuid', mockReq);
+      await controller.webauthnDelete(payload, 'cred-uuid', deleteDto, mockReq);
 
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -264,7 +356,7 @@ describe('WebAuthnController (audit)', () => {
       );
 
       await expect(
-        controller.webauthnDelete(payload, 'cred-uuid', mockReq),
+        controller.webauthnDelete(payload, 'cred-uuid', deleteDto, mockReq),
       ).rejects.toThrow(NotFoundException);
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });

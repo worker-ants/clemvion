@@ -29,10 +29,15 @@ import { COSEALG } from '@simplewebauthn/server/helpers';
 import { UsersService } from '../../users/users.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
+import { User } from '../../users/entities/user.entity';
 import { LoginHistoryService } from '../login-history.service';
 import { WebAuthnAuthChallengeService } from './webauthn-auth-challenge.service';
 import type { WebAuthnConfig } from '../../../common/config/webauthn.config';
 import { hasNoNulCharacter } from '../../../common/utils/postgres-text';
+import {
+  isPostgresUniqueViolation,
+  pgErrorConstraint,
+} from '../../../common/db/pg-error';
 
 const RECOVERY_CODE_COUNT = 10;
 const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」)
@@ -90,6 +95,24 @@ function registrationVerifyFailed(): BadRequestException {
   return new BadRequestException({
     code: 'WEBAUTHN_VERIFY_FAILED',
     message: 'WebAuthn 등록 검증에 실패했어요.',
+  });
+}
+
+/** 서명 실패 · 챌린지 재사용 · 인증 대상 credential 부재가 모두 같은 401 로 답하는 예외. */
+function webauthnInvalid(): UnauthorizedException {
+  return new UnauthorizedException({
+    code: 'WEBAUTHN_INVALID',
+    message: 'WebAuthn 인증에 실패했어요.',
+  });
+}
+
+/** `webauthn_credential.credential_id` 의 UNIQUE 제약 이름(V057 마이그레이션). */
+const CREDENTIAL_ID_UNIQUE_CONSTRAINT = 'uq_webauthn_credential_credential_id';
+
+function credentialAlreadyExists(): ConflictException {
+  return new ConflictException({
+    code: 'WEBAUTHN_CREDENTIAL_EXISTS',
+    message: '이미 등록된 인증기예요.',
   });
 }
 
@@ -284,17 +307,11 @@ export class WebAuthnService {
     const publicKey = Buffer.from(credential.publicKey);
     const counter = String(credential.counter ?? 0);
 
-    // credential_id UNIQUE — 중복 시 friendly error
-    const dup = await this.credentialRepo.findOne({ where: { credentialId } });
-    if (dup) {
-      throw new ConflictException({
-        code: 'WEBAUTHN_CREDENTIAL_EXISTS',
-        message: '이미 등록된 인증기예요.',
-      });
-    }
-
-    const isFirst = (await this.countStoredCredentials(userId)) === 0;
-    const entity = this.credentialRepo.create({
+    // 사용자 행 잠금 안에서 중복 확인 · 개수 확인 · credential 저장 · 첫 등록 복구 코드 저장을
+    // 한 트랜잭션으로 한다. 잠금이 없으면 같은 사용자의 첫 등록 두 건이 둘 다 0개를 읽어
+    // 복구 코드 묶음을 서로 덮어쓴다. 복구 코드를 쓰지 못하면 credential 도 남지 않는다.
+    // 근거는 CLE-ACCT-SIGNIN-PASSKEY Rationale 「Passkey 등록 저장을 한 트랜잭션으로 묶는다」.
+    const result = await this.saveRegistration({
       userId,
       credentialId,
       publicKey,
@@ -303,23 +320,90 @@ export class WebAuthnService {
       aaguid: aaguid ?? null,
       deviceName: deviceName?.trim() || null,
     });
-    const saved = await this.credentialRepo.save(entity);
-
-    let recoveryPlain: string[] = [];
-    if (isFirst) {
-      recoveryPlain = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
-        generateRecoveryCode(),
-      );
-      await this.usersService.update(userId, {
-        webauthnRecoveryCodes: recoveryPlain.map(hashRecoveryCode),
-      });
-    }
 
     return {
       verified: true,
-      credentialUuid: saved.id,
-      webauthnRecoveryCodes: recoveryPlain,
+      credentialUuid: result.credentialUuid,
+      webauthnRecoveryCodes: result.recoveryPlain,
     };
+  }
+
+  /**
+   * 등록 저장 트랜잭션과 credential ID UNIQUE 위반의 409 매핑. 트랜잭션 구성과 근거는
+   * `verifyRegistration` 의 호출부 주석을 따른다.
+   */
+  private async saveRegistration(input: {
+    userId: string;
+    credentialId: string;
+    publicKey: Buffer;
+    counter: string;
+    transports: string[];
+    aaguid: string | null;
+    deviceName: string | null;
+  }): Promise<{ credentialUuid: string; recoveryPlain: string[] }> {
+    const { userId, credentialId, publicKey, counter, transports } = input;
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        await this.lockUserRow(manager.getRepository(User), userId);
+        const credRepo = manager.getRepository(WebAuthnCredential);
+
+        const dup = await credRepo.findOne({ where: { credentialId } });
+        if (dup) throw credentialAlreadyExists();
+
+        const isFirst = (await credRepo.count({ where: { userId } })) === 0;
+        const saved = await credRepo.save(
+          credRepo.create({
+            userId,
+            credentialId,
+            publicKey,
+            counter,
+            transports,
+            aaguid: input.aaguid,
+            deviceName: input.deviceName,
+          }),
+        );
+
+        let recoveryPlain: string[] = [];
+        if (isFirst) {
+          recoveryPlain = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
+            generateRecoveryCode(),
+          );
+          await manager.getRepository(User).update(userId, {
+            webauthnRecoveryCodes: recoveryPlain.map(hashRecoveryCode),
+          });
+        }
+        return { credentialUuid: saved.id, recoveryPlain };
+      });
+    } catch (err) {
+      // 잠금은 같은 사용자끼리만 줄을 세운다. 다른 사용자가 같은 credential ID 를 동시에
+      // 등록하면 위 중복 확인을 둘 다 통과하고 UNIQUE 제약이 막는다. 순차 중복과 같은 409 다.
+      if (
+        isPostgresUniqueViolation(err) &&
+        pgErrorConstraint(err) === CREDENTIAL_ID_UNIQUE_CONSTRAINT
+      ) {
+        throw credentialAlreadyExists();
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * 같은 사용자의 Passkey 등록 저장과 삭제를 차례로 세우는 사용자 행 잠금
+   * (`SELECT … FOR NO KEY UPDATE`). 트랜잭션 안에서만 부른다. 행이 없으면(탈퇴 중) 잠글 것이 없다.
+   * 그때 등록 저장은 외래 키 제약이 막고, 삭제는 credential 이 이미 함께 지워져(ON DELETE
+   * CASCADE) 404 다.
+   */
+  private async lockUserRow(
+    userRepo: Repository<User>,
+    userId: string,
+  ): Promise<void> {
+    await userRepo.findOne({
+      where: { id: userId },
+      select: { id: true },
+      // FOR UPDATE 는 `webauthn_credential` INSERT 의 FK 검사(FOR KEY SHARE)까지 막는다.
+      // FOR NO KEY UPDATE 는 같은 사용자끼리만 줄을 세우고 자식 행 INSERT 는 막지 않는다.
+      lock: { mode: 'for_no_key_update' },
+    });
   }
 
   // ========== AUTHENTICATION ==========
@@ -472,10 +556,10 @@ export class WebAuthnService {
 
     // -- transaction 종료 후 audit log + throw --
     if (outcome.kind === 'not_found') {
-      throw new UnauthorizedException({
-        code: 'WEBAUTHN_CREDENTIAL_NOT_FOUND',
-        message: '인증기를 찾을 수 없어요.',
-      });
+      // 서명 실패와 같은 401 `WEBAUTHN_INVALID` 로 답한다. 이름 변경 · 삭제의 404
+      // `WEBAUTHN_CREDENTIAL_NOT_FOUND` 와 뜻이 달라 나눴다(CLE-API-ERRCODES 규칙 6).
+      // `rejectInvalidAuthentication` 과 달리 로그인 이력은 남기지 않는다(이전과 같다).
+      throw webauthnInvalid();
     }
     if (outcome.kind === 'counter_regression') {
       const email =
@@ -563,10 +647,7 @@ export class WebAuthnService {
     this.logger.warn(
       `WebAuthn auth verify failed for user ${userId}: ${reason}`,
     );
-    throw new UnauthorizedException({
-      code: 'WEBAUTHN_INVALID',
-      message: 'WebAuthn 인증에 실패했어요.',
-    });
+    throw webauthnInvalid();
   }
 
   /**
@@ -632,9 +713,9 @@ export class WebAuthnService {
    * `throwMemberNotFound` 와 같은 형태다.
    *
    * **`verifyAuthentication()` 의 `UnauthorizedException`(401)과는 다른 자리다.**
-   * 같은 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 코드 문자열을 공유하지만, 그쪽은 로그인 2FA
-   * 인증 단계에서 존재 노출을 막으려는 401 이고 이쪽은 소유자 확인 후의 404 다 — 예외
-   * 타입도 상태 코드도 다르므로 하나로 합치지 않는다.
+   * 그쪽은 로그인 2FA 인증 단계에서 credential 이 없을 때 401 `WEBAUTHN_INVALID` 를 낸다.
+   * 2026-11-14 전에는 같은 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 문자열을 썼지만, 소유자 확인
+   * 뒤의 404 와 뜻이 달라 코드를 나눴다(CLE-API-ERRCODES 규칙 6).
    */
   private throwCredentialNotFound(): never {
     throw new NotFoundException({
@@ -649,6 +730,11 @@ export class WebAuthnService {
    * (WebAuthnController)가 `remaining === 0` 일 때 2FA 가 완전히 해제됐음을
    * `user.2fa_disabled` 감사 로그 details 에 표기하는 데 사용한다 (§Rationale 4.1.B).
    *
+   * 조회부터 복구 코드 비우기까지 등록 저장과 같은 사용자 행 잠금 안에서 한다. 등록 저장과
+   * 삭제 사이에서는 마지막 credential 삭제와 첫 등록이 겹쳐도 credential 이 남았는데 복구
+   * 코드가 NULL 인 상태가 생기지 않는다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」). 재발급 ·
+   * 복구 코드 사용 · counter 역행 경로는 이 잠금을 거치지 않는다(후속 CLE-T-HQQNEA). 비밀번호 재확인은 컨트롤러가 한다.
+   *
    * @throws {NotFoundException} WEBAUTHN_CREDENTIAL_NOT_FOUND — 존재하지 않거나 본인
    *   소유가 아닐 때, 또는 동시 삭제 두 건이 겹쳐 진 쪽이 이미 지워진 행을 찾을 때(404).
    */
@@ -657,43 +743,39 @@ export class WebAuthnService {
     credentialUuid: string,
   ): Promise<{ remaining: number }> {
     this.assertEnabled();
-    const credential = await this.credentialRepo.findOne({
-      where: { id: credentialUuid },
-    });
-    if (!credential || credential.userId !== userId) {
-      this.throwCredentialNotFound();
-    }
-    // 위 `findOne` 은 잠그지 않으므로 동시 삭제 두 건이 **둘 다** 여기까지 온다. 종전엔
-    // `delete()` 의 `affected` 를 **버렸기 때문에** 둘 다 성공으로 끝났고, 감사를 남기는
-    // 호출자(`WebAuthnController`)가 `user.2fa_disabled` 를 **두 번** 기록했다
-    // (실측: 한 credentialId 에 감사 2건, 둘 다 `remainingCredentials: 1`).
-    //
-    // 형제 여덟(#1369~#1375)과 달리 이 자리는 이미 원자적 `delete()` 를 쓰고 있었다 —
-    // 바꾸는 것은 호출 형태가 아니라 **그 반환값을 판정에 쓰는 것**이다.
-    //
-    // 판정은 `affected === 0` **명시 비교**다. `null`·`undefined` 는 드라이버가 «보고하지
-    // 않았다» 는 뜻이지 «지우지 못했다» 가 아니며, 그것을 0 과 같이 읽으면 정상 삭제를 404 로
-    // 뒤집는다 (같은 규율: `rewriteTriggerConfigLocked`).
-    //
-    // 조건절에 `userId` 를 함께 건다 — 종전엔 `{ id }` 뿐이라 소유권이 위 무락 조회 뒤의 JS
-    // 비교로만 남았다. 형제들이 워크스페이스 스코프를 조건절에 넣은 것과 같은 강화다.
-    //
-    // 진 쪽이 여기서 던지므로 아래 `countStoredCredentials`·복구 코드 NULL 화도 함께 건너뛴다.
-    // 반환 계약 `{ remaining }` 은 그대로다 — 이긴 쪽만 도달한다.
-    const { affected } = await this.credentialRepo.delete({
-      id: credentialUuid,
-      userId,
-    });
-    if (affected === 0) {
-      this.throwCredentialNotFound();
-    }
+    return this.dataSource.transaction(async (manager) => {
+      await this.lockUserRow(manager.getRepository(User), userId);
+      const credRepo = manager.getRepository(WebAuthnCredential);
 
-    const remaining = await this.countStoredCredentials(userId);
-    if (remaining === 0) {
-      // 애플리케이션 레이어 책임 — DB 트리거 아님 (spec/1-data-model.md §2.1)
-      await this.usersService.update(userId, { webauthnRecoveryCodes: null });
-    }
-    return { remaining };
+      const credential = await credRepo.findOne({
+        where: { id: credentialUuid },
+      });
+      if (!credential || credential.userId !== userId) {
+        this.throwCredentialNotFound();
+      }
+      // 같은 사용자의 동시 삭제는 사용자 행 잠금으로 차례로 돌고, 진 쪽은 위 조회에서 404 다.
+      // 잠금을 거치지 않는 삭제(인증 중 counter 역행)와 겹칠 때를 위해 `affected` 도 본다.
+      // 판정은 `affected === 0` 명시 비교다. `null`·`undefined` 는 드라이버가 보고하지 않았다는
+      // 뜻이라 0 과 같이 읽으면 정상 삭제를 404 로 뒤집는다(같은 규율:
+      // `rewriteTriggerConfigLocked`). 조건절에 `userId` 를 함께 걸어 소유권을 DELETE 에도 둔다.
+      // 진 쪽이 던지면 컨트롤러가 `user.2fa_disabled` 감사를 남기지 않는다.
+      const { affected } = await credRepo.delete({
+        id: credentialUuid,
+        userId,
+      });
+      if (affected === 0) {
+        this.throwCredentialNotFound();
+      }
+
+      const remaining = await credRepo.count({ where: { userId } });
+      if (remaining === 0) {
+        // 애플리케이션 레이어 책임 — DB 트리거 아님 (CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」)
+        await manager
+          .getRepository(User)
+          .update(userId, { webauthnRecoveryCodes: null });
+      }
+      return { remaining };
+    });
   }
 
   /** 복구 코드 재발급 (호출 전 비밀번호 재확인은 컨트롤러에서). */

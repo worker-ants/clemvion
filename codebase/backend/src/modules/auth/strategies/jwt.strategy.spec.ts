@@ -110,6 +110,21 @@ describe('JwtStrategy', () => {
     );
   });
 
+  // 쓸 워크스페이스가 하나도 없다는 401 은 관리 경로의 404 `WORKSPACE_NOT_FOUND` 와 뜻이
+  // 달라 `NO_WORKSPACE_AVAILABLE` 로 나눴다(CLE-API-ERRCODES-SYSVAL §6.4, 규칙 6).
+  it('uses NO_WORKSPACE_AVAILABLE for the no-workspace 401', async () => {
+    usersService.findById.mockResolvedValue(mockUser as never);
+    workspacesService.findPersonalWorkspace.mockResolvedValue(null);
+
+    await expect(strategy.validate(validPayload)).rejects.toMatchObject({
+      status: 401,
+      response: {
+        code: 'NO_WORKSPACE_AVAILABLE',
+        message: 'No workspace found for user',
+      },
+    });
+  });
+
   it('should default role to member when getMemberRole returns null', async () => {
     usersService.findById.mockResolvedValue(mockUser as never);
     workspacesService.findPersonalWorkspace.mockResolvedValue(

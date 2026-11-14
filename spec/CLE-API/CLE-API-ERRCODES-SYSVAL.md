@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-SYSVAL"
 title: "에러 코드 카탈로그 — 시스템 · 유효성 검증"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "3f91f88912c389ac37098448047532ff39528cf67018cbc355cde06a93019312"
+content_hash: "c4b196e91d3103aae56b82a9215805dd33d9c9edd2af574936bdce5a03ac9220"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-KCZGP6"
 source_paths: []
-mirror_sha256: "c699a155d657d1c4e4257398e6d1100842ea79a35621b894b487b4e2209e828a"
-etag: "sha256-e68f7202ef246c037c0db6d5797b3a65f89a3868c0b2206c26e47843db7ee29b"
+mirror_sha256: "25561823af2e5559de120a9479b1383d2f2a6c76a420b761290d4ee9ba345f6f"
+etag: "sha256-a670ac6d284022cde723b2f234541f2bf455292b7e65d530dce1f587e7ab2a47"
 ---
 ## 개요
 
@@ -47,10 +47,11 @@ etag: "sha256-e68f7202ef246c037c0db6d5797b3a65f89a3868c0b2206c26e47843db7ee29b"
 | `MODEL_CONFIG_NOT_FOUND` | 지정한 id 의 모델 설정이 없거나 다른 종류(kind)에 접근해 차단됨(존재 누설 방지). id 지정 경로와 `resolveEmbedding` 의 워크스페이스 기본값 부재(지식 저장소 임베딩 설정 부재 = 리소스 부재)에 쓴다. `RESOURCE_NOT_FOUND` 의 모델 설정 특화 코드(`model-config.service.ts` 발행) | 404 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md), [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md), [문서 임베딩 「임베딩 모델 해석」](../CLE-KB/CLE-KB-EMBED.md#임베딩-모델-해석) |
 | `MODEL_CONFIG_DEFAULT_MISSING` | id 를 지정하지 않았는데 워크스페이스 기본 설정이 없음(설정 안내용). `resolveConfig` 의 chat/LLM 기본값 경로 전용이다. `resolveEmbedding` 의 기본값 부재는 `MODEL_CONFIG_NOT_FOUND`(404)를 쓴다(사용자 결정 2026-06-12) | 400 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md). 이 코드는 도메인 문서에 적혀 있지 않다. [지식 저장소 관리](../CLE-KB/CLE-KB-MANAGE.md) 는 임베딩 기본값 부재(404)와 구분할 때만 이름을 든다 |
 | `USER_NOT_FOUND` | 대상 사용자가 없음. `RESOURCE_NOT_FOUND` 의 사용자 특화 코드다. 사용자 API(`users.service.ts`, `users.controller.ts`), 알림 설정(`notifications.service.ts`), TOTP · Passkey(`totp.service.ts`, `webauthn.service.ts`), 멤버 직접 추가의 가입하지 않은 이메일(`workspaces.service.ts`)이 발행한다. 초대 모듈의 소문자 `user_not_found`(§3)와 별개 코드다. 로그인 감사값 `failure_reason='USER_NOT_FOUND'` 와는 문자열만 같다(§6.3) | 404 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md), [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) |
-| `WORKSPACE_NOT_FOUND` (관리 경로) | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행이 없음(`workspaces.service.ts`). 사실상 동시 삭제 경합에서만 난다. `RESOURCE_NOT_FOUND` 의 워크스페이스 특화 코드다. 초대 모듈의 소문자 `workspace_not_found`(§3)와 별개 코드다 | 404 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
-| `WORKSPACE_NOT_FOUND` (토큰 검증) | 액세스 토큰은 유효한데 사용자가 쓸 워크스페이스가 하나도 없음(`jwt.strategy.ts`). 이 401 은 새 코드로 옮기기로 정했다(표 아래) | 401 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
+| `WORKSPACE_NOT_FOUND` | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행이 없음(`workspaces.service.ts`). 사실상 동시 삭제 경합에서만 난다. `RESOURCE_NOT_FOUND` 의 워크스페이스 특화 코드다. 초대 모듈의 소문자 `workspace_not_found`(§3)와 별개 코드다 | 404 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
+| `NO_WORKSPACE_AVAILABLE` | 액세스 토큰은 유효한데 사용자가 쓸 워크스페이스가 하나도 없음(`jwt.strategy.ts`). 토큰 클레임의 워크스페이스 멤버십, 개인 워크스페이스, 첫 멤버십이 모두 없을 때다. 관리 경로의 404 `WORKSPACE_NOT_FOUND` 와 별개 코드다 | 401 | [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) |
 | `RESOURCE_CONFLICT` | 리소스 충돌(이름 중복 등). 409 기본 코드 | 409 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `DUPLICATE_NODE_LABEL` | 노드 라벨 중복. `RESOURCE_CONFLICT` 의 노드 라벨 특화 코드(`nodes.service.ts` 와 캔버스 일괄 저장 · 버전 복원 경로의 `workflows.service.ts` 발행). 버전 복원은 캔버스 저장과 같은 쓰기를 거친다 | 409 | [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md), [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
+| `DUPLICATE_NAME` | 테스트 데이터셋 이름 중복. 같은 사용자가 같은 워크플로우에 같은 이름의 데이터셋을 저장 · 수정 · 복제하면 난다(`(workflow_id, owner_id, name)` UNIQUE, `workflow-test-datasets.service.ts` 의 `saveUnique` 발행). `RESOURCE_CONFLICT` 의 테스트 데이터셋 특화 코드다. 프런트엔드는 이 코드로 분기하지 않고 저장 · 복제 실패 토스트를 보인다 | 409 | [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md), [실행 시작 · 중지와 캔버스 표시 「테스트 데이터셋」](../CLE-EXEC/CLE-EXEC-RUN-START.md#테스트-데이터셋) |
 | `RESERVED_VARIABLE_NAME` | 변수 선언·변수 수정 노드의 변수 이름이 시스템 예약 `__` prefix 로 시작함(`variables.__*` 는 엔진 시스템 네임스페이스). **이 행은 저장 시점(L0)만 다룬다.** `saveCanvas`·`importWorkflow` 가 `details.offenders[]` 와 함께 HTTP 400 을 낸다(`restoreVersion` 은 옛 데이터 탈출구라 면제). 저장을 우회한 리터럴은 엔진 사전 검증(L1)에서 `INVALID_NODE_CONFIG` 가 된다(§6.5 표 아래). 표현식이 예약 이름으로 평가되는 런타임(L2)은 HTTP 와 무관하다. 핸들러가 `RESERVED_VARIABLE_NAME:` 메시지 prefix 로 throw 해 노드 실패로 기록되지만 구조화 `error.code` 는 없다 | 400 (저장) / 없음 (런타임) | [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md), [변수 선언 노드](../CLE-NODE-LOGIC/CLE-NODE-VARDECL.md), [변수 수정 노드](../CLE-NODE-LOGIC/CLE-NODE-VARSET.md) |
 | `WORKFLOW_VERSION_CONFLICT` | 캔버스 저장이나 버전 복원이 같은 워크플로우에 동시에 버전을 만드는 경합. 버전 복원도 캔버스 저장과 같은 쓰기를 거쳐 버전을 만든다. 같은 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 돌려준다(`workflow-versions.service.ts` 발행) | 409 | [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
 | `INVALID_VERSION_SNAPSHOT` | 버전 복원 때 버전 스냅샷 형식이 잘못됐다(`nodes` · `edges` 가 배열이 아니거나 `name` 이 있는데 문자열이 아니다). `workflows.service.ts` 의 `restoreVersion` 발행. 상태 코드는 등재 전부터 내던 400 을 그대로 적었다. 요청이 아니라 저장된 버전 스냅샷의 결함이라 [HTTP API 규약](CLE-API-CONV.md) 「6. HTTP 상태 코드」 의 422 · 500 과 결이 다르다. 상태 코드를 바꾸면 API 계약이 바뀌므로 등재와 함께 바꾸지 않았다 | 400 | [버전 기록](../CLE-WF/CLE-WF-VERSION.md) |
@@ -58,8 +59,6 @@ etag: "sha256-e68f7202ef246c037c0db6d5797b3a65f89a3868c0b2206c26e47843db7ee29b"
 | `INVALID_STATE` | 상태 전이 불가(이미 실행 중인 워크플로우 삭제 등). 422 기본 코드. 표면별 같은 뜻 코드는 §6 머리말. 로그인 OAuth 콜백의 소문자 URL 값 `invalid_state`(§3, state 불일치)와 별개 코드다 | 422 | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md), [큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증), [실행 데이터와 흐름 「입력으로 재개」](../CLE-EXEC/CLE-EXEC-DATA.md#입력으로-재개) |
 | `INVALID_FIELD` | 응답의 최상위 코드가 아니다. 400 응답의 `details` 안에서 문제 필드를 가리키는 필드 단위 표시다. `details` 가 배열이면 원소마다, 객체이면 그 객체에 `field` 와 `code: 'INVALID_FIELD'` 를 싣는다. 최상위 코드는 `VALIDATION_ERROR` 이고 트리거 인증 설정 연결만 `AUTH_CONFIG_NOT_FOUND`(§6.14)다. 클라이언트는 최상위 코드로 분기한다 | 없음 (400 응답 `details` 안의 `code`) | [에러 응답과 클라이언트 처리 「2.4 `details` 의 형태」](CLE-API-ERROR.md#24-details-의-형태), [에러 응답과 클라이언트 처리 「2.5 `field` 를 실으면 `code` 도 싣는다」](CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다-2026-09-11) |
 | `INVALID_NOTIFICATION_URL` | 트리거 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 `notification.url` 이 알림 URL 안전 검사를 통과하지 못함. `message` 에 거절 사유를 싣는다. 보내기 직전 검사에 걸린 알림은 이 코드를 내지 않는다. 보내지 않고 발송 건강도를 `degraded` 로 둔다 | 400 | [EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) |
-
-**토큰 검증의 401 은 `NO_WORKSPACE_AVAILABLE` 로 옮긴다.** 2026-11-12 에 정했고 아직 구현하지 않았다(NERV Task `CLE-T-ZPPWK4`). 구현되면 액세스 토큰 검증은 쓸 워크스페이스가 하나도 없을 때 401 `NO_WORKSPACE_AVAILABLE` 을 낸다. 조건은 지금의 「`WORKSPACE_NOT_FOUND` (토큰 검증)」 행과 같다. 발행과 함께 이 코드를 표에 등재하고 그 행을 지운다. 관리 경로의 404 `WORKSPACE_NOT_FOUND` 는 그대로다. 결정 근거와 이름을 고른 이유는 [웹훅 · 트리거 · 채팅 채널](CLE-API-ERRCODES-TRIGGER.md#404-가-아닌-_not_found-세-코드를-정리했다-2026-11-12) 의 「404 가 아닌 `*_NOT_FOUND` 세 코드를 정리했다」 에 있다.
 
 **`X-Workspace-Id` 세 갈래**: 같은 헤더 하나가 세 갈래로 갈린다.
 
@@ -102,3 +101,11 @@ NERV Task `CLE-T-8MQMGQ` 이다. 이전 판은 multipart 업로드 413 의 `mess
 - **새 코드가 아니다.** 이미 내던 코드를 등재만 했다. 이름 · 상태 코드 · `details.errors` 형태는 그대로다.
 - **`VALIDATION_ERROR` 로 합치지 않는다.** 요청 본문 형식이 틀린 경우가 아니라 저장하려는 그래프가 규칙에 걸린 경우다. 클라이언트는 이 코드로 캔버스의 오류 배지를 보라는 안내를 고른다.
 - **도구 payload 예산 규칙도 이 코드를 쓴다.** 그래프 규칙 평가를 통과한 뒤 따로 평가하고 `AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 일 때만 저장을 막는다. 막는 이유가 같아(저장할 그래프의 규칙 위반) 코드를 나누지 않았다.
+
+### 토큰 검증의 401 을 `NO_WORKSPACE_AVAILABLE` 로 옮겼다 (2026-11-14)
+
+2026-11-12 결정을 NERV Task `CLE-T-ZPPWK4` 가 구현하면서 행을 바꿨다. 조건과 메시지(`No workspace found for user`)는 그대로다. 행이 하나만 남아 관리 경로 행의 「(관리 경로)」 구분도 지웠다. 결정 근거는 [웹훅 · 트리거 · 채팅 채널](CLE-API-ERRCODES-TRIGGER.md#404-가-아닌-_not_found-세-코드를-정리했다-2026-11-12) 에 있다.
+
+### 테스트 데이터셋 이름 중복 `DUPLICATE_NAME` 을 등재했다 (2026-11-14)
+
+NERV Task `CLE-T-KCZGP6` 에서 행만 더했다. 백엔드가 409 로 내는데 §6.4 에 없어 규칙 8 을 어겼다. 이름과 상태 코드는 그대로다. 노드 라벨 중복의 `DUPLICATE_NODE_LABEL` 처럼 `RESOURCE_CONFLICT` 의 특화 코드로 적었다.

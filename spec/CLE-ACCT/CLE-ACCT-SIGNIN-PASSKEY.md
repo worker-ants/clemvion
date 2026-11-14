@@ -2,23 +2,23 @@
 id: "CLE-ACCT-SIGNIN-PASSKEY"
 title: "가입과 로그인 — Passkey 기능과 등록"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "fa807240c64fa067bef59586a7a06b2a94c5cecb09f5f16bb6efcfa793989124"
+content_hash: "911932e68394b9d5a1aca780fbe7296ac6d2f5af03a8fc703f7570b913b6da21"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Q6E11N"
 source_paths: []
-mirror_sha256: "a06c2a3bbbda1966dbef7a16fae88996bb37d269bd072deefc6bb90a128b66ec"
-etag: "sha256-9699acc489f7caf4677db0e425d59c1c1297fae26e33eb50acaf8b2e21c4aae0"
+mirror_sha256: "c4fec2138dd285b6ed4ec5aa6270eb3c0896f2d523c4f75e57aafaf9826ef0f5"
+etag: "sha256-2190dac18ae1de469afcc1b586824d8c44b909a9e83ca3a08e491df5bd407a81"
 ---
 ## 개요
 
-이 문서는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 하위 문서로 Passkey·보안 키 기능을 켜는 환경 변수와 꺼졌을 때의 동작, Passkey 등록 흐름(비밀번호 재확인, 공개 키 알고리즘, transport 목록, 표시 이름), Passkey 복구 코드 재발급, Passkey 도메인 모듈 구성을 정한다. 로그인 2단계 Passkey 인증 검증과 sign counter 역행은 [Passkey 로그인 인증](CLE-ACCT-SIGNIN-PKAUTH.md), 복구 코드 묶음은 [2단계 인증 설정과 TOTP 「복구 코드」](CLE-ACCT-SIGNIN-TOTP.md#복구-코드) 에 있다.
+이 문서는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 하위 문서로 Passkey·보안 키 기능을 켜는 환경 변수와 꺼졌을 때의 동작, Passkey 등록 흐름(비밀번호 재확인, 저장 원자성, 공개 키 알고리즘, transport 목록, 표시 이름), Passkey 복구 코드 재발급, Passkey 삭제, Passkey 도메인 모듈 구성을 정한다. 로그인 2단계 Passkey 인증 검증과 sign counter 역행은 [Passkey 로그인 인증](CLE-ACCT-SIGNIN-PKAUTH.md), 복구 코드 묶음은 [2단계 인증 설정과 TOTP 「복구 코드」](CLE-ACCT-SIGNIN-TOTP.md#복구-코드) 에 있다.
 
 ## Passkey 기능 켜기와 환경 변수
 
@@ -50,7 +50,9 @@ Passkey 는 운영자가 환경 변수를 설정해야 켜지는 선택 기능�
 
 등록 검증은 1번이 준 `optionsToken` 없이는 credential 을 저장하지 않는다. 그래서 1번의 비밀번호 재확인이 등록 옵션과 등록 검증 두 요청을 모두 덮고 등록 검증은 비밀번호를 다시 받지 않는다. 이미 등록한 Passkey 는 그대로 쓴다. OAuth 전용 사용자는 [비밀번호 재설정](CLE-ACCT-SIGNIN-SIGNUP.md#비밀번호-재설정) 으로 비밀번호를 만든 뒤 등록한다. [TOTP 켜기](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기) 와 같은 조건이다. 등록 옵션은 사용자당 분당 10회로 제한한다(`SENSITIVE_ACTION_THROTTLE`). 등록 검증에는 전용 한도를 걸지 않는다.
 
-Passkey 복구 코드 재발급(`POST /api/auth/2fa/webauthn/recovery-codes/regenerate`)도 등록 옵션과 같은 순서다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 거부한다. 사용자가 마지막 credential 을 삭제하면 `WebAuthnService.deleteCredential` 이 애플리케이션 계층에서 Passkey 복구 코드를 NULL 로 비운다.
+등록 검증의 저장은 한 트랜잭션이다. 사용자 행을 잠그고(`pessimistic_write`) credential 수를 센 뒤 credential 을, 첫 등록이면 복구 코드도 저장한다. 같은 사용자의 첫 등록이 동시에 오면 먼저 잠근 요청만 복구 코드를 받고 나머지는 복구 코드 없이 저장한다. 복구 코드를 저장하지 못하면 credential 도 저장하지 않는다. 같은 credential ID 가 이미 있으면(동시 등록 포함) 아무것도 저장하지 않고 409 `WEBAUTHN_CREDENTIAL_EXISTS` 로 거부한다.
+
+Passkey 복구 코드 재발급(`POST /api/auth/2fa/webauthn/recovery-codes/regenerate`)도 등록 옵션과 같은 순서다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 거부한다.
 
 ### 공개 키 알고리즘
 
@@ -75,20 +77,29 @@ Passkey 복구 코드 재발급(`POST /api/auth/2fa/webauthn/recovery-codes/rege
 - 저장할 때는 앞뒤 공백 문자를 지운다. 등록 검증에서 이름을 뺐거나 지운 결과가 빈 문자열이면 이름 없음(`device_name` NULL)으로 저장한다. 그래서 `device_name` 에는 빈 문자열이 들어가지 않는다.
 - 이미 저장된 빈 문자열 이름은 마이그레이션이 NULL 로 바꾼다. 마이그레이션 파일은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 「구현 위치」에 있다.
 
-## 미결 사항
+## Passkey 삭제
 
-- **Passkey 등록 저장의 원자성**: 등록 검증은 credential 저장과 첫 등록의 복구 코드 발급을 트랜잭션 없이 잇는다. 복구 코드 저장이 실패하면 복구 코드 없는 credential 이 남는다. 같은 사용자가 동시에 첫 등록을 하면 복구 코드 묶음이 서로 덮어쓴다. 같은 credential 을 동시에 등록하면 순차 중복의 409 `WEBAUTHN_CREDENTIAL_EXISTS` 대신 409 `RESOURCE_CONFLICT` 가 난다. `WEBAUTHN_CREDENTIAL_EXISTS` 는 [에러 코드](CLE-ACCT-SIGNIN-API.md#에러-코드) 표와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 아직 없어서 등재도 함께 다룬다. 미등재 코드 `WEBAUTHN_NOT_REGISTERED` 도 있다. Passkey 가 없는 사용자의 인증 옵션 요청에서 400, Passkey 복구 코드 재발급에서 403 으로 쓰인다. 모두 후속 NERV Task `CLE-T-9KCQ7Y` 로 추적한다.
+`POST /api/auth/2fa/webauthn/credentials/:id/delete { password }` (JWT 필수, `:id` 는 UUID)는 등록 옵션과 같은 순서로 확인한다.
+
+1. 본문 검증. `password` 가 빠지거나 8자 미만이면 400 `VALIDATION_ERROR`.
+2. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`.
+3. 비밀번호 확인(`AuthService.verifyPasswordForUser`). 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 이고 지우지 않는다. `PASSWORD_REQUIRED` 면 화면에 비밀번호 재설정 안내가 나온다.
+4. 대상이 없거나 호출자의 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지).
+5. 지우고 204. 마지막 credential 이었으면 `WebAuthnService.deleteCredential` 이 같은 트랜잭션에서 Passkey 복구 코드를 NULL 로 비운다(DB 트리거가 아니다).
+
+4~5번은 등록 검증과 같은 사용자 행 잠금 안에서 한다. 그래서 마지막 credential 삭제와 첫 등록이 겹쳐도 credential 이 남았는데 복구 코드가 없는 상태가 생기지 않는다. 사용자당 분당 10회로 제한한다(`SENSITIVE_ACTION_THROTTLE`).
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/auth/webauthn/**` (Passkey 서비스·엔티티·DTO·컨트롤러 파일)
-- `codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts` (Passkey 등록 옵션의 비밀번호 재확인, 등록 옵션 · 복구 코드 재발급의 요청 빈도 제한과 기능 꺼짐 확인 순서)
+- `codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts` (Passkey 등록 옵션 · 삭제의 비밀번호 재확인, 등록 옵션 · 복구 코드 재발급 · 삭제의 요청 빈도 제한과 기능 꺼짐 확인 순서)
 - `codebase/backend/src/common/config/webauthn.config.ts`
 - `codebase/backend/src/common/utils/postgres-text.ts` (표시 이름의 NUL 문자 · 코드 포인트 수 검증기)
 - `codebase/backend/src/common/utils/postgres-text.spec.ts`, `codebase/backend/src/modules/auth/webauthn/dto/webauthn.dto.spec.ts` (표시 이름 검증기와 등록 검증 · 이름 변경 DTO 의 단위 테스트)
 - `codebase/backend/test/webauthn-register-password.e2e-spec.ts` (Passkey 등록 옵션의 비밀번호 재확인, 실패 때 등록 옵션과 `optionsToken` 을 만들지 않음)
-- `codebase/frontend/src/lib/api/auth.ts` (`webauthnRegisterOptions` 가 비밀번호를 보낸다)
-- `codebase/frontend/src/app/(main)/w/[slug]/profile/security/passkey-card.tsx` (Passkey 등록 폼의 비밀번호 입력과 비밀번호 실패 안내)
+- `codebase/backend/src/modules/auth/webauthn/webauthn.service.spec.ts`, `codebase/backend/test/webauthn-2fa.e2e-spec.ts` (등록 저장 · 삭제의 잠금 트랜잭션, 동시 등록, 삭제의 비밀번호 재확인)
+- `codebase/frontend/src/lib/api/auth.ts` (`webauthnRegisterOptions` · `webauthnDeleteCredential` 이 비밀번호를 보낸다)
+- `codebase/frontend/src/app/(main)/w/[slug]/profile/security/passkey-card.tsx` (Passkey 등록 · 삭제의 비밀번호 입력과 비밀번호 실패 안내)
 
 ## Rationale
 
@@ -171,7 +182,7 @@ Passkey 등록 옵션의 비밀번호 재확인:
 - **등록 옵션에서 비밀번호를 재확인한다.** 로그인 세션만 가진 사람이 자기 인증기를 Passkey 로 등록하면 원래 사용자는 다음 로그인에서 막힌다. Passkey 가 하나라도 있으면 로그인 2단계는 Passkey 로만 통과하기 때문이다. 첫 등록의 Passkey 복구 코드도 등록한 사람에게만 보인다. TOTP 설정 시작에서 막은 공격과 같아서 같은 본문(`{ password }`, 8자 이상 문자열), 같은 확인(`AuthService.verifyPasswordForUser`), 같은 에러 코드(401 `PASSWORD_REQUIRED` · `PASSWORD_INVALID`)를 쓴다.
 - **등록 옵션 한 곳에서만 받는다.** `optionsToken` 은 발급받은 사용자(`sub`)에 묶이고 5분 안에만 유효하다. 그래서 비밀번호 재확인 한 번이 덮는 범위는 그 사용자가 그 토큰으로 5분 안에 하는 등록이다.
 - **기능이 꺼져 있으면 비밀번호를 확인하기 전에 거부한다.** 기능을 끈 서버에서 비밀번호 대조를 돌리지 않기 위해서다. 복구 코드 재발급도 이 순서로 바꿨다.
-- **이미 등록한 Passkey 는 그대로 쓴다.** 새 등록만 막고 기존 credential 에 확인을 다시 요구하지 않는다. Passkey 삭제 · 이름 변경에는 비밀번호 재확인을 더하지 않았다.
+- **이미 등록한 Passkey 는 그대로 쓴다.** 새 등록만 막고 기존 credential 에 확인을 다시 요구하지 않는다. Passkey 삭제 · 이름 변경에는 비밀번호 재확인을 더하지 않았다. 삭제에는 2026-11-14 에 더했다([아래](#passkey-삭제에도-비밀번호-재확인을-둔다-2026-11-14)).
 - **비용**: OAuth 전용 사용자는 비밀번호 재설정으로 비밀번호를 만든 뒤 Passkey 를 등록한다. 그래서 비밀번호 없이 Passkey 만 등록한 OAuth 전용 계정은 이 결정 전에 등록한 경우만 남는다.
 - **기각: 비밀번호 또는 TOTP 로 계정 재인증(`SessionsService.reauthenticate`)을 받는다.** 비밀번호 없이 TOTP 만 있는 계정은 TOTP 코드로 등록할 수 있게 되어 비밀번호만 받는 TOTP 설정 시작과 규칙이 갈린다.
 - **기각: 이번에도 더하지 않고 미결로 남긴다.** 로그인 세션을 탈취한 사람이 자기 인증기를 등록해 원래 사용자를 잠그는 공격이 남는다.
@@ -183,14 +194,7 @@ Passkey 등록 옵션의 비밀번호 재확인:
 - **기각: 비밀번호를 확인하는 라우트에만 건다.** 그러면 비밀번호 확인 한 번으로 할 수 있는 TOTP 코드 추측이 전역 한도(사용자당 분당 100회)에만 묶여 10분에 최대 1,000회가 된다.
 - **기각: 바꾸지 않는다.** 복구 코드 재발급 라우트에 전용 한도가 없어 그 라우트로 설정 시작의 한도를 우회해 비밀번호를 추측할 수 있다.
 
-TOTP 대기 secret 의 10분 만료:
-
-- **설정 시작 뒤 10분이 지나면 대기 secret 을 쓰지 않는다.** 수명이 없으면 비밀번호를 한 번 확인한 뒤 같은 secret 의 코드를 시간 제한 없이 추측할 수 있다.
-- **시각 컬럼을 더한다.** `user.two_factor_setup_started_at`(timestamptz, NULL 허용)이다. 응답에는 싣지 않는다. 비밀은 아니라서 [계정과 워크스페이스 데이터 흐름 「응답에 싣지 않는 민감 컬럼 7개」](CLE-ACCT-DATA.md#응답에-싣지-않는-민감-컬럼-7개) 목록에는 넣지 않는다. 마이그레이션은 컬럼만 더하고 데이터를 바꾸지 않는다.
-- **만료면 코드를 확인하지 않고 `TOTP_NOT_INITIALIZED` 를 쓴다.** 클라이언트가 할 일(설정 시작부터 다시)이 설정 시작 없이 부른 경우와 같아서 새 코드를 두지 않았다. 상태 코드도 기존 400 을 그대로 쓴다. 이미 발행 중인 코드의 상태 코드를 바꾸면 이 코드로 분기하는 클라이언트와의 호환이 깨진다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 5 가 코드 이름 바꾸기를 호환을 깨는 변경으로 보는 것과 같은 이유).
-- **기각: 활성화 검증이 5번 실패하면 대기 secret 을 버린다.** 실패 횟수 컬럼이 더 필요하고 시간 제한이 없어 대기 secret 이 남는다.
-- **기각: 10분 만료와 5회 실패 폐기를 함께 둔다.** 요청 빈도 제한과 겹쳐 얻는 것이 적다.
-- **기각: 요청 빈도 제한만 건다.** 분당 10회여도 시간 제한이 없으면 약 3주면 6자리 코드를 맞춘다.
+TOTP 대기 secret 의 10분 만료와 기각한 안은 [2단계 인증 설정과 TOTP](CLE-ACCT-SIGNIN-TOTP.md#totp-대기-secret-은-설정-시작-10분-뒤-버린다-2026-11-02) 로 옮겼다(2026-11-14, 문서 크기 한도).
 
 ### Passkey 도메인 모듈을 분리한다
 
@@ -210,3 +214,24 @@ Passkey 관련 엔티티·서비스·DTO·컨트롤러·테스트는 `codebase/b
 - `WebAuthnController` 파일은 `webauthn/` 폴더에 두지만 모듈 등록은 `AuthModule` 의 `controllers` 에 한다. 컨트롤러가 챌린지 토큰 소비와 2단계 뒤 토큰 발급에 `AuthService` 를 써야 하기 때문이다. `WebAuthnModule` 에 등록하면 역방향 의존이 생긴다.
 - `setRefreshTokenCookie`·`clearRefreshTokenCookie` 는 두 컨트롤러가 함께 쓰므로 `auth/utils/refresh-cookie.ts` 의 모듈 함수로 뺐다.
 - 채택 이유: 로그인·가입·OAuth·로그인 세션·TOTP 에 Passkey 까지 한 모듈에 있으면 응집도가 낮다. 도메인 모듈로 나눠 경계를 드러내고 한 방향 의존으로 순환을 막는다.
+
+### Passkey 등록 저장을 한 트랜잭션으로 묶는다 (2026-11-14)
+
+NERV Task `CLE-T-9KCQ7Y` 에서 정했다. 전에는 credential 과 복구 코드를 따로 저장해 복구 코드 없는 credential 이 남을 수 있었고 동시 첫 등록은 복구 코드 묶음을 서로 덮어썼다. 같은 credential 의 동시 등록은 409 `RESOURCE_CONFLICT` 였다.
+
+- **사용자 행 잠금 안에서 세고 저장한다.** 그래야 첫 등록 판정이 한 요청에서만 참이다. 다른 사용자의 등록은 막지 않는다.
+- **먼저 잠근 요청이 복구 코드를 받는다.** 나중 요청은 복구 코드 없이 저장한다.
+- **동시 중복도 409 `WEBAUTHN_CREDENTIAL_EXISTS` 다.** 순차 중복과 뜻이 같다.
+- **기각: 잠금 없이 트랜잭션만 둔다.** READ COMMITTED 에서는 두 요청이 모두 credential 0개를 읽어 둘 다 첫 등록이 된다.
+- **기각: 복구 코드를 `IS NULL` 조건부 UPDATE 로 저장한다.** 덮어쓰기는 막지만 credential 과 복구 코드가 따로 커밋되고 삭제와의 경합도 남는다.
+
+### Passkey 삭제에도 비밀번호 재확인을 둔다 (2026-11-14)
+
+NERV Task `CLE-T-Q6E11N` 에서 사람이 정했다(NERV 질문 `01a1d82c-12ac-7097-b633-c750fb3db127`). 토큰만으로 지울 수 있으면 로그인 세션만 손에 넣은 사람이 credential 을 모두 지워 Passkey 2단계 인증을 끌 수 있다.
+
+- **모든 삭제에 비밀번호만 다시 받는다.** 확인 방식 · 에러 코드 · 한도는 등록 옵션 · 복구 코드 재발급과 같고 기능 꺼짐 503 을 먼저 낸다.
+- **비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED` 로 막는다.** 2026-11-02 전에 Passkey 를 등록한 OAuth 전용 계정이다. 화면에서 비밀번호 재설정을 안내한다. 복구 코드 재발급과 같은 규칙이다.
+- **`DELETE` 를 없애고 `POST …/:id/delete` 로 옮겼다.** 일부 CDN · 프록시는 `DELETE` 본문을 버린다. 로그인 세션 강제 종료가 `POST …/revoke` 를 쓴 이유와 같다. `DELETE` 를 남기면 토큰만으로 지우는 길이 남는다. 프런트엔드와 함께 배포한다.
+- **이름 변경(`PATCH`)은 그대로 둔다.** 인증 수단을 바꾸지 않는다.
+- **기각: 마지막 credential 삭제에만 받는다.** 다른 credential 을 지우는 것도 쓰던 인증 수단을 없애고, 남은 개수에 따라 규칙이 갈린다.
+- **기각: 비밀번호 또는 TOTP 로 재인증한다.** 비밀번호만 받는 다른 민감 동작과 규칙이 갈린다(등록 옵션과 같은 이유).

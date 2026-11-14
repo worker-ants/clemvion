@@ -4,11 +4,14 @@ import request from 'supertest';
 import { randomUUID } from 'crypto';
 
 import { createDbClient, uniqueEmail } from './helpers/db';
-import { registerAndLogin } from './helpers/auth';
+import { TEST_PASSWORD, registerAndLogin } from './helpers/auth';
 import { raceUnderHeldLock } from './helpers/concurrency';
 
 /**
- * e2e: 동시 WebAuthn credential DELETE — 이 결함 클래스의 **아홉 번째이자 마지막** 짝.
+ * e2e: 동시 WebAuthn credential 삭제 — 이 결함 클래스의 **아홉 번째이자 마지막** 짝.
+ *
+ * 삭제는 2026-11-14 부터 `POST …/credentials/:id/delete { password }` 다(CLE-T-Q6E11N). 비밀번호
+ * 확인은 삭제 트랜잭션 전에 끝나므로 아래 겹침은 그대로 만들어진다.
  *
  * 보호 대상: 두 요청이 겹쳐도 **`user.2fa_disabled` 감사 행은 하나**이고, 진 쪽은 404 를 받는다.
  *
@@ -22,8 +25,11 @@ import { raceUnderHeldLock } from './helpers/concurrency';
  * 의식이 아니고, ceremony 를 태우면 fixture 가 주제를 가린다.
  *
  * 겹침은 테스트가 만든다 — `webauthn_credential` 행 자체를 `SELECT … FOR UPDATE` 로 쥔다.
+ * 현재 판정 경로는 이렇다. `deleteCredential` 은 사용자 행을 잠근 트랜잭션 안에서 대상을 다시
+ * 조회하고, 지는 요청은 그 조회(`findOne`)에서 404 를 받는다. DELETE 의 `affected === 0` 은
+ * 사용자 행 잠금을 거치지 않는 삭제(인증 중 counter 역행)와 겹칠 때를 위한 보조 판정이다.
  *
- * 판별력: 고치기 전 코드는 **둘 다 204** 를 돌려주고 감사 행이 **2** 가 된다.
+ * 판별력: 잠금과 재조회가 없던 코드는 **둘 다 204** 를 돌려주고 감사 행이 **2** 가 된다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -66,15 +72,16 @@ describe('WebAuthn credential delete concurrency (e2e)', () => {
 
     const fireDelete = () =>
       request(BASE_URL)
-        .delete(`/api/auth/2fa/webauthn/credentials/${targetId}`)
+        .post(`/api/auth/2fa/webauthn/credentials/${targetId}/delete`)
         .set('Authorization', `Bearer ${token}`)
+        .send({ password: TEST_PASSWORD })
         .then(
           (res) => ({ status: res.status, code: res.body?.error?.code }),
           () => ({ status: -1, code: undefined as string | undefined }),
         );
 
-    // 둘 다 무락 `findOne` + 소유권 비교를 통과한 뒤 DELETE 에서 이 락을 기다린다.
-    // 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
+    // 먼저 사용자 행을 잠근 요청은 DELETE 에서 이 락을 기다리고, 다른 요청은 그 사용자 행 잠금을
+    // 기다린다. 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
     const results = (
       await raceUnderHeldLock<{ status: number; code?: string }>(
         locker,
@@ -104,34 +111,19 @@ describe('WebAuthn credential delete concurrency (e2e)', () => {
   }, 60_000);
 
   /**
-   * WARNING #4 반증(review/code/2026/09/21/18_03_54) — 리뷰어는 서로 **다른**
-   * credential 두 개를 동시에 지우면 두 `countCredentials` 가 서로 상대의 커밋 전
-   * 스냅샷을 읽어 **둘 다** `remaining === 1` 로 오판하고, 그 결과 `webauthn_recovery_codes`
-   * 가 NULL 화되지 않을 수 있다고 주장했다.
+   * WARNING #4 반증(review/code/2026/09/21/18_03_54) — 서로 **다른** credential 두 개를 동시에
+   * 지우면 두 개수 확인이 서로 상대의 커밋 전 상태를 읽어 **둘 다** `remaining === 1` 로 보고,
+   * `webauthn_recovery_codes` 가 NULL 로 바뀌지 않을 수 있다는 지적이었다.
    *
-   * 순서상 불가능하다: `deleteCredential` 은 트랜잭션이 없어 각 요청의 DELETE 는 그
-   * 자리에서 즉시 커밋되고, 그 뒤에야 자신의 `countCredentials` 가 돈다(delete → count
-   * 는 같은 요청 안의 프로그램 순서라 실시간 순서이기도 하다). R1(A 삭제)의 커밋을 t1,
-   * count 를 t2(t1<t2), R2(B 삭제)의 커밋을 t3, count 를 t4(t3<t4) 라 하면, 커밋은
-   * Postgres WAL 상 전순서이므로 WLOG t1<t3 다. 그러면 R2 의 count(t4>t3>t1) 는 A·B
-   * 모두 이미 커밋된 뒤라 반드시 0 을 본다 — 즉 **나중에 커밋하는 쪽이 항상 0 을 본다.**
-   * 따라서 최소 한쪽은 반드시 NULL 화를 수행하며, 논쟁이 되는 「둘 다 1 로 오판」은
-   * t1<t3 와 t3<t4 와 t4<t1(R2 가 1 을 보려면 A 가 t4 시점에 아직 살아 있어야 함)이
-   * 동시에 성립해야 하는 모순이라 발생할 수 없다.
+   * 2026-11-14 부터 `deleteCredential` 은 사용자 행을 잠근 트랜잭션 안에서 조회 · 삭제 · 개수
+   * 확인 · 복구 코드 비우기를 한다(CLE-T-9KCQ7Y). 같은 사용자의 두 삭제는 차례로 돌고, 나중
+   * 요청은 앞 요청이 커밋한 뒤에 세므로 0 을 본다. 그래서 복구 코드는 NULL 로 수렴한다.
+   * 그 전에는 트랜잭션이 없어 각 DELETE 가 바로 커밋되는 순서 논증으로 같은 결론을 냈다.
    *
-   * **이 논증은 두 요청이 실제로 겹칠 때만 검증력이 있다** — 우연히 순차 처리되면
-   * (R1 이 delete+count+update 를 전부 끝낸 뒤 R2 가 시작) 위 산술이 애초에 시험대에
-   * 오르지 않고도 테스트가 초록이 될 수 있다(테스트 리뷰,
-   * `review/code/2026/09/21/18_31_57/testing.md` WARNING). 그래서 위 첫 번째 `it` 과
-   * 같은 기법으로 겹침을 **관측**한다 — `locker` 가 `BEGIN` 후 A·B 두 행을 모두
-   * `FOR UPDATE` 로 잠그면, 두 DELETE 요청은 무락 `findOne`·소유권 비교를 통과한 뒤
-   * 각자의 `DELETE` 문에서 그 잠금을 기다리며 대기한다 — 이것이 논쟁이 된 인터리빙
-   * (둘 다 삭제 전 상태를 관측한 뒤 진행)이고, 아래 공허성 가드가 "락을 놓기 전엔 둘 다
-   * 아직 안 끝났음"을 단언해 이 겹침이 실제로 일어났음을 보증한다.
-   *
-   * 이 테스트는 그 산술을 **겹침을 강제한 상태에서** e2e 로 고정한다 — 통과하면 리뷰어
-   * 주장이 반증된 것이고, 누군가 이 메서드를 트랜잭션으로 감싸(delete 를 count 시점까지
-   * 커밋 지연) 위 순서 논증의 전제를 깨면 그때 RED 가 되는 캐너리다.
+   * **이 테스트는 두 요청이 실제로 겹칠 때만 검증력이 있다.** `locker` 가 A · B 두 행을
+   * `FOR UPDATE` 로 잠그면 먼저 사용자 행을 잠근 요청은 자기 DELETE 에서, 다른 요청은 사용자 행
+   * 잠금에서 기다린다. 공허성 가드가 "락을 놓기 전엔 둘 다 끝나지 않았다"를 단언한다.
+   * 사용자 행 잠금을 빼면 두 트랜잭션이 서로의 커밋 전 상태를 읽어 이 테스트가 RED 가 될 수 있다.
    */
   it('서로 다른 credential 두 개를 동시 삭제해도 복구 코드는 NULL 로 수렴한다 (WARNING #4 반증)', async () => {
     // 위 테스트의 잔존 credential(survivor)과 섞이지 않도록 별도 사용자로 격리한다.
@@ -163,17 +155,16 @@ describe('WebAuthn credential delete concurrency (e2e)', () => {
 
     const fireDelete = (id: string) =>
       request(BASE_URL)
-        .delete(`/api/auth/2fa/webauthn/credentials/${id}`)
+        .post(`/api/auth/2fa/webauthn/credentials/${id}/delete`)
         .set('Authorization', `Bearer ${otherToken}`)
+        .send({ password: TEST_PASSWORD })
         .then(
           (res) => ({ status: res.status }),
           () => ({ status: -1 }),
         );
 
-    // 두 행을 모두 잠근다 — 공유 락으로 줄 세우는 것이 아니라, A·B 각자의 `DELETE`
-    // 가 각자의 행 잠금을 기다리게 만들어 둘을 동시에 대기 상태로 묶는다.
-    // 둘 다 무락 `findOne` + 소유권 비교를 통과한 뒤 각자의 DELETE 에서 이 락을
-    // 기다린다 — 이것이 논쟁이 된 인터리빙이다.
+    // 두 행을 모두 잠근다. 먼저 사용자 행을 잠근 요청은 자기 DELETE 에서 이 락을 기다리고,
+    // 다른 요청은 사용자 행 잠금을 기다린다. 락을 놓으면 둘이 차례로 돈다.
     // 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
     const results = (
       await raceUnderHeldLock(

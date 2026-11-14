@@ -248,3 +248,104 @@ describe("PasskeyCard 복구 코드 재발급", () => {
     );
   });
 });
+
+// Passkey 삭제도 계정 비밀번호를 다시 확인한다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-Q6E11N).
+// 비밀번호를 본문으로 보내므로 DELETE 대신 POST …/credentials/:id/delete 다.
+describe("PasskeyCard 삭제", () => {
+  const del = vi.mocked(apiClient.delete);
+
+  beforeEach(() => {
+    serveCredentials([CREDENTIAL]);
+  });
+
+  async function openDeleteDialog() {
+    fireEvent.click(
+      await screen.findByRole("button", { name: webauthn.deleteAria }),
+    );
+    return screen.findByLabelText(webauthn.deletePasswordLabel);
+  }
+
+  async function submitDelete(password: string) {
+    const input = await openDeleteDialog();
+    fireEvent.change(input, { target: { value: password } });
+    fireEvent.click(
+      screen.getByRole("button", { name: webauthn.deleteButton }),
+    );
+  }
+
+  it("삭제 버튼은 브라우저 confirm 대신 비밀번호를 받는 대화상자를 연다", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    try {
+      renderCard();
+      await openDeleteDialog();
+
+      expect(
+        screen.getByRole("dialog", { name: webauthn.deleteDialogTitle }),
+      ).toBeTruthy();
+      expect(screen.getByText(webauthn.deleteConfirm)).toBeTruthy();
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    } finally {
+      confirmSpy.mockRestore();
+    }
+  });
+
+  it("입력한 비밀번호를 POST …/delete 로 보내고 성공하면 대화상자를 닫는다", async () => {
+    post.mockResolvedValueOnce({ data: undefined });
+    renderCard();
+    await submitDelete(PASSWORD);
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(webauthn.deleteSuccess);
+    });
+    expect(post).toHaveBeenCalledWith(
+      "/auth/2fa/webauthn/credentials/cred-1/delete",
+      { password: PASSWORD },
+    );
+    expect(del).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByLabelText(webauthn.deletePasswordLabel)).toBeNull();
+    });
+  });
+
+  it("다시 열면 앞서 입력한 비밀번호가 남아 있지 않다", async () => {
+    renderCard();
+    const input = await openDeleteDialog();
+    fireEvent.change(input, { target: { value: PASSWORD } });
+    fireEvent.click(screen.getByRole("button", { name: webauthn.cancelName }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText(webauthn.deletePasswordLabel)).toBeNull();
+    });
+
+    const reopened = (await openDeleteDialog()) as HTMLInputElement;
+    expect(reopened.value).toBe("");
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("비밀번호가 8자보다 짧으면 요청하지 않고 비밀번호를 입력하라고 안내한다", async () => {
+    renderCard();
+    await submitDelete("short");
+
+    expect(toast.error).toHaveBeenCalledWith(security.passwordRequired);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  // 비밀번호가 없는 계정(OAuth 전용)은 비밀번호 재설정으로 먼저 비밀번호를 만들라고 안내한다.
+  it.each([
+    ["PASSWORD_INVALID", 401, security.passwordInvalid],
+    ["PASSWORD_REQUIRED", 401, security.passwordNotSet],
+    ["RATE_LIMITED", 429, security.rateLimited],
+    ["WEBAUTHN_CREDENTIAL_NOT_FOUND", 404, webauthn.deleteFailed],
+  ])("삭제가 %s(%i) 면 맞는 안내를 띄우고 대화상자를 남긴다", async (code, status, message) => {
+    post.mockRejectedValueOnce(apiError(status, code));
+    renderCard();
+    await submitDelete(PASSWORD);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(message);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText(webauthn.deletePasswordLabel)).toBeTruthy();
+  });
+});

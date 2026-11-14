@@ -164,6 +164,8 @@ export const profile = {
       deleteConfirm: "정말 이 인증기를 삭제할까요? 마지막 인증기라면 복구 코드도 함께 폐기됩니다.",
       deleteSuccess: "인증기가 삭제됐어요.",
       deleteFailed: "삭제에 실패했어요.",
+      deleteDialogTitle: "인증기 삭제",
+      deletePasswordLabel: "계정 비밀번호 확인",
       recoveryCodesTitle: "WebAuthn 복구 코드 (한 번만 표시됩니다 — 안전한 곳에 저장하세요)",
       recoveryCodesHint: "Passkey 를 사용할 수 없을 때 각 코드를 한 번씩 사용해 로그인할 수 있어요.",
       dismissCodes: "확인하고 닫기",

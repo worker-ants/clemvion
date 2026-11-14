@@ -13,7 +13,7 @@ import { WebAuthnController } from './webauthn/webauthn.controller';
  * 계정 비밀번호를 다시 확인하는(`AuthService.verifyPasswordForUser`) 라우트는 모두 민감 tier(분당 10회)를 건다.
  * 탈취한 액세스 토큰만 가진 사람이 `PASSWORD_INVALID` 응답을 보고 비밀번호를 추측하는 속도를 늦추기 위해서다.
  *
- * 비밀번호 확인을 `AuthService` 안(설정 시작 · 끄기)과 컨트롤러(Passkey 등록 옵션 · 복구 코드 재발급)에서 부르므로
+ * 비밀번호 확인을 `AuthService` 안(설정 시작 · 끄기)과 컨트롤러(Passkey 등록 옵션 · 복구 코드 재발급 · 삭제)에서 부르므로
  * 호출 위치로 라우트를 찾아낼 수 없다. 그래서 목록을 고정한다. 비밀번호를 다시 확인하는 라우트를 더하면 이 목록에도 더한다.
  * 근거: NERV CLE-API-CONV §7, CLE-ACCT-SIGNIN (CLE-T-FRCRF7)
  */
@@ -41,6 +41,13 @@ const PASSWORD_RECHECK_ROUTES = [
     basePath: 'auth/2fa/webauthn',
     handler: WebAuthnController.prototype.webauthnRegenerateRecovery,
     path: 'recovery-codes/regenerate',
+  },
+  // 근거: CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」 (CLE-T-Q6E11N)
+  {
+    controller: WebAuthnController,
+    basePath: 'auth/2fa/webauthn',
+    handler: WebAuthnController.prototype.webauthnDelete,
+    path: 'credentials/:id/delete',
   },
 ] as const;
 

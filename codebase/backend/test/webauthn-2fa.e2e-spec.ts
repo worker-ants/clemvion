@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Client } from 'pg';
@@ -22,6 +22,7 @@ import {
   fetchAuthOptions,
   fetchRegistrationOptions,
 } from './helpers/webauthn';
+import { raceUnderHeldLock } from './helpers/concurrency';
 
 /**
  * e2e: WebAuthn(Passkey · 보안 키) 2FA 의 HTTP → service → DB 전 구간을 실 인프라에서
@@ -30,6 +31,9 @@ import {
  * 삭제 + 세션 revoke 의 원자성)·서명 검증과 counter 판정 순서(케이스 O · P)·Redis 에 둔
  * Passkey 인증 챌린지 1회 사용(케이스 Q · R · S)은 cover 하지 못한다 — 본 suite 가 그 갭을
  * 메운다.
+ *
+ * 동시 요청 케이스: T(첫 등록 두 건) · U(같은 인증기 두 건) · V(다른 사용자의 같은 credential ID) ·
+ * X(마지막 삭제 × 첫 등록). W 는 삭제의 비밀번호 재확인이다.
  *
  * spec: CLE-ACCT-SIGNIN 「Passkey 등록·인증 흐름」 · 「sign counter 역행과 동시성」.
  * 활성 전제: docker-compose.e2e.yml backend-e2e 가 WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN 을
@@ -56,13 +60,18 @@ interface CredentialRow {
 
 describe('WebAuthn 2FA (e2e)', () => {
   let db: Client;
+  /** 동시 요청 케이스(T · U · V)에서 락을 쥐는 쪽. 요청이 도는 동안 열려 있어야 해서 따로 둔다. */
+  let locker: Client;
 
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
+    locker = createDbClient();
+    await locker.connect();
   }, 30_000);
 
   afterAll(async () => {
+    await locker.end();
     await db.end();
   });
 
@@ -112,6 +121,39 @@ describe('WebAuthn 2FA (e2e)', () => {
     return request(BASE_URL)
       .post('/api/auth/2fa/webauthn/authenticate/verify')
       .send(body);
+  }
+
+  /** Passkey 삭제. 비밀번호를 본문으로 받는 POST 다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」). */
+  function deleteCredential(
+    accessToken: string,
+    credentialUuid: string,
+    body: Record<string, unknown>,
+  ) {
+    return request(BASE_URL)
+      .post(`/api/auth/2fa/webauthn/credentials/${credentialUuid}/delete`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send(body);
+  }
+
+  /** 등록 옵션을 받아 두고 나중에 보낼 등록 검증 요청을 만든다. 동시 등록 케이스가 쓴다. */
+  async function prepareRegisterVerify(
+    accessToken: string,
+    device: SoftWebAuthnDevice,
+  ): Promise<() => Promise<{ status: number; body: any }>> {
+    const { challenge, optionsToken } = await fetchRegistrationOptions(
+      BASE_URL,
+      accessToken,
+    );
+    const response = device.registrationResponse(challenge);
+    return () =>
+      request(BASE_URL)
+        .post('/api/auth/2fa/webauthn/register/verify')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ optionsToken, response, deviceName: 'e2e-race' })
+        .then(
+          (res) => ({ status: res.status, body: res.body }),
+          () => ({ status: -1, body: undefined }),
+        );
   }
 
   async function recoveryCodes(userId: string): Promise<string[] | null> {
@@ -270,9 +312,9 @@ describe('WebAuthn 2FA (e2e)', () => {
     expect(await recoveryCodes(userId)).not.toBeNull();
     const credentialUuid = reg.credentialUuid;
 
-    const del = await request(BASE_URL)
-      .delete(`/api/auth/2fa/webauthn/credentials/${credentialUuid}`)
-      .set('Authorization', `Bearer ${accessToken}`);
+    const del = await deleteCredential(accessToken, credentialUuid, {
+      password: TEST_PASSWORD,
+    });
     expect(del.status).toBe(204);
 
     // 마지막 credential 이므로 복구 코드도 NULL (애플리케이션 레이어 책임).
@@ -936,5 +978,262 @@ describe('WebAuthn 2FA (e2e)', () => {
     const rows = await credentialRows(userId);
     expect(rows).toHaveLength(1);
     expect(rows[0].counter).toBe('0');
+  });
+
+  // 등록 저장은 사용자 행을 잠근 한 트랜잭션이다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 등록 흐름」,
+  // CLE-T-9KCQ7Y). 테스트가 사용자 행을 쥐면 두 요청이 모두 그 잠금(고치기 전 코드는 credential
+  // INSERT 의 외래 키 확인)에서 기다린다. 고치기 전 코드는 둘 다 0개를 읽은 뒤라 둘 다 복구 코드를 받았다.
+  it('T. 같은 사용자의 첫 등록 두 건이 겹쳐도 복구 코드 묶음은 하나다', async () => {
+    const { userId, accessToken } = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-t'),
+      db,
+    );
+    const fireA = await prepareRegisterVerify(
+      accessToken,
+      new SoftWebAuthnDevice(),
+    );
+    const fireB = await prepareRegisterVerify(
+      accessToken,
+      new SoftWebAuthnDevice(),
+    );
+
+    const results = await raceUnderHeldLock(
+      locker,
+      {
+        sql: 'SELECT id FROM "user" WHERE id = $1 FOR UPDATE',
+        params: [userId],
+      },
+      [fireA, fireB],
+    );
+
+    expect(results.map((r) => r.status)).toEqual([200, 200]);
+    const issued = results
+      .map((r) => r.body.data.webauthnRecoveryCodes as string[])
+      .sort((a, b) => b.length - a.length);
+    // 먼저 잠근 요청만 첫 등록이다. 나중 요청은 복구 코드 없이 저장한다.
+    expect(issued.map((codes) => codes.length)).toEqual([10, 0]);
+    expect(await credentialRows(userId)).toHaveLength(2);
+    // 저장된 해시가 응답으로 나간 평문과 맞아야 한다. 덮어쓰였다면 다른 묶음의 해시다.
+    expect(await recoveryCodes(userId)).toEqual(
+      issued[0].map((code) => createHash('sha256').update(code).digest('hex')),
+    );
+  });
+
+  // 같은 인증기의 등록 두 건이 겹치면 하나만 저장하고 나머지는 순차 중복과 같은 409 다.
+  // 고치기 전 코드는 둘 다 중복 확인을 통과해 UNIQUE 위반이 전역 409 `RESOURCE_CONFLICT` 로 나갔다.
+  it('U. 같은 인증기의 등록 두 건이 겹치면 하나만 저장하고 나머지는 409 WEBAUTHN_CREDENTIAL_EXISTS 다', async () => {
+    const { userId, accessToken } = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-u'),
+      db,
+    );
+    const device = new SoftWebAuthnDevice();
+    const fireA = await prepareRegisterVerify(accessToken, device);
+    const fireB = await prepareRegisterVerify(accessToken, device);
+
+    const results = (
+      await raceUnderHeldLock(
+        locker,
+        {
+          sql: 'SELECT id FROM "user" WHERE id = $1 FOR UPDATE',
+          params: [userId],
+        },
+        [fireA, fireB],
+      )
+    ).sort((a, b) => a.status - b.status);
+
+    expect(results.map((r) => r.status)).toEqual([200, 409]);
+    expect(results[1].body.error.code).toBe('WEBAUTHN_CREDENTIAL_EXISTS');
+    expect(results[0].body.data.webauthnRecoveryCodes).toHaveLength(10);
+    expect(await credentialRows(userId)).toHaveLength(1);
+  });
+
+  // 사용자 행 잠금은 같은 사용자끼리만 줄을 세운다. 다른 사용자가 같은 credential ID 를 아직
+  // 커밋하지 않은 채 쥐고 있으면 중복 확인을 통과한 INSERT 가 UNIQUE 제약에서 기다리다 23505 로
+  // 끝난다. 그것도 409 `WEBAUTHN_CREDENTIAL_EXISTS` 이고 credential · 복구 코드가 남지 않는다.
+  it('V. 다른 사용자가 같은 credential ID 를 동시에 저장하면 409 WEBAUTHN_CREDENTIAL_EXISTS 이고 아무것도 남지 않는다', async () => {
+    const { userId, accessToken } = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-v'),
+      db,
+    );
+    const other = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-v2'),
+      db,
+    );
+    const device = new SoftWebAuthnDevice();
+    const fireA = await prepareRegisterVerify(accessToken, device);
+    const fireB = await prepareRegisterVerify(accessToken, device);
+
+    const results = await raceUnderHeldLock(
+      locker,
+      {
+        sql: `INSERT INTO webauthn_credential (user_id, credential_id, public_key)
+                   VALUES ($1, $2, '\\x00'::bytea)`,
+        params: [other.userId, device.credentialIdB64Url],
+      },
+      [fireA, fireB],
+    );
+
+    // 먼저 잠근 요청은 INSERT 의 23505 로, 나중 요청은 커밋된 행을 보는 중복 확인으로 거부된다.
+    expect(results.map((r) => r.status)).toEqual([409, 409]);
+    expect(results.map((r) => r.body.error.code)).toEqual([
+      'WEBAUTHN_CREDENTIAL_EXISTS',
+      'WEBAUTHN_CREDENTIAL_EXISTS',
+    ]);
+    expect(await credentialRows(userId)).toHaveLength(0);
+    expect(await recoveryCodes(userId)).toBeNull();
+  });
+
+  // 마지막 credential 삭제와 첫 등록이 겹쳐도 credential 이 남았는데 복구 코드가 NULL 인 상태가
+  // 생기지 않는다. 사용자 행을 쥔 채 둘을 함께 보내 어느 순서로 끝나도 불변식만 단언한다
+  // (삭제가 먼저면 등록이 첫 등록이 되고, 등록이 먼저면 삭제 뒤에도 credential 이 남는다).
+  // 잠금이 없던 코드는 삭제가 남은 수 0 을 센 뒤 등록이 저장하면 복구 코드만 NULL 이 됐다.
+  it('X. 마지막 credential 삭제와 첫 등록이 겹쳐도 credential 이 있으면 복구 코드가 남는다', async () => {
+    const { userId, accessToken } = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('webauthn-x'),
+      db,
+    );
+    const first = await registerDevice(
+      BASE_URL,
+      accessToken,
+      new SoftWebAuthnDevice(),
+    );
+    const fireRegister = await prepareRegisterVerify(
+      accessToken,
+      new SoftWebAuthnDevice(),
+    );
+    const fireDelete = () =>
+      deleteCredential(accessToken, first.credentialUuid, {
+        password: TEST_PASSWORD,
+      }).then(
+        (res) => ({ status: res.status, body: res.body }),
+        () => ({ status: -1, body: undefined }),
+      );
+
+    const results = await raceUnderHeldLock(
+      locker,
+      {
+        sql: 'SELECT id FROM "user" WHERE id = $1 FOR UPDATE',
+        params: [userId],
+      },
+      [fireDelete, fireRegister],
+    );
+
+    expect(results.map((r) => r.status)).toEqual([204, 200]);
+    const credentials = await credentialRows(userId);
+    const codes = await recoveryCodes(userId);
+    // 삭제가 먼저면 등록이 첫 등록이라 1개, 등록이 먼저면 삭제 뒤 1개가 남는다.
+    expect(credentials).toHaveLength(1);
+    expect(codes).not.toBeNull();
+  });
+
+  // 로그인 세션만으로는 Passkey 를 지우지 못한다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-Q6E11N).
+  describe('W. Passkey 삭제의 비밀번호 재확인', () => {
+    async function setup(prefix: string) {
+      const { userId, accessToken } = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail(prefix),
+        db,
+      );
+      const reg = await registerDevice(
+        BASE_URL,
+        accessToken,
+        new SoftWebAuthnDevice(),
+      );
+      return { userId, accessToken, credentialUuid: reg.credentialUuid };
+    }
+
+    async function disabledAudits(userId: string): Promise<number> {
+      const res = await db.query<{ n: number }>(
+        `SELECT COUNT(*)::int AS n FROM audit_log
+          WHERE resource_type = 'user' AND resource_id = $1
+            AND action = 'user.2fa_disabled'`,
+        [userId],
+      );
+      return res.rows[0].n;
+    }
+
+    it.each([
+      ['비밀번호가 없으면', {}],
+      ['비밀번호가 8자 미만이면', { password: 'short' }],
+    ])('%s 400 VALIDATION_ERROR 이고 지우지 않는다', async (_label, body) => {
+      const { userId, accessToken, credentialUuid } =
+        await setup('webauthn-w1');
+      const res = await deleteCredential(accessToken, credentialUuid, body);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(await credentialRows(userId)).toHaveLength(1);
+    });
+
+    it('비밀번호가 틀리면 401 PASSWORD_INVALID 이고 credential · 복구 코드 · 감사가 그대로다', async () => {
+      const { userId, accessToken, credentialUuid } =
+        await setup('webauthn-w2');
+      const before = await recoveryCodes(userId);
+      const res = await deleteCredential(accessToken, credentialUuid, {
+        password: 'Wrong-Passw0rd!',
+      });
+      expect(res.status).toBe(401);
+      expect(res.body.error.code).toBe('PASSWORD_INVALID');
+      expect(await credentialRows(userId)).toHaveLength(1);
+      expect(await recoveryCodes(userId)).toEqual(before);
+      expect(await disabledAudits(userId)).toBe(0);
+    });
+
+    // 2026-11-02 전에 Passkey 를 등록한 OAuth 전용 계정이다. 화면은 비밀번호 재설정을 안내한다.
+    it('비밀번호가 없는 계정은 401 PASSWORD_REQUIRED 이고 지우지 않는다', async () => {
+      const { userId, accessToken, credentialUuid } =
+        await setup('webauthn-w3');
+      await db.query('UPDATE "user" SET password_hash = NULL WHERE id = $1', [
+        userId,
+      ]);
+      const res = await deleteCredential(accessToken, credentialUuid, {
+        password: TEST_PASSWORD,
+      });
+      expect(res.status).toBe(401);
+      expect(res.body.error.code).toBe('PASSWORD_REQUIRED');
+      expect(await credentialRows(userId)).toHaveLength(1);
+    });
+
+    it('토큰만으로 지우던 DELETE 라우트는 없고 credential 이 남는다', async () => {
+      const { userId, accessToken, credentialUuid } =
+        await setup('webauthn-w4');
+      const res = await request(BASE_URL)
+        .delete(`/api/auth/2fa/webauthn/credentials/${credentialUuid}`)
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(404);
+      expect(await credentialRows(userId)).toHaveLength(1);
+    });
+
+    it('맞는 비밀번호면 204 이고 user.2fa_disabled 감사를 하나 남긴다', async () => {
+      const { userId, accessToken, credentialUuid } =
+        await setup('webauthn-w5');
+      const res = await deleteCredential(accessToken, credentialUuid, {
+        password: TEST_PASSWORD,
+      });
+      expect(res.status).toBe(204);
+      expect(await credentialRows(userId)).toHaveLength(0);
+      expect(await disabledAudits(userId)).toBe(1);
+    });
+
+    it('남의 credential 은 비밀번호가 맞아도 404 WEBAUTHN_CREDENTIAL_NOT_FOUND 이고 지우지 않는다', async () => {
+      const owner = await setup('webauthn-w6');
+      const intruder = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('webauthn-w6b'),
+        db,
+      );
+      const res = await deleteCredential(
+        intruder.accessToken,
+        owner.credentialUuid,
+        { password: TEST_PASSWORD },
+      );
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('WEBAUTHN_CREDENTIAL_NOT_FOUND');
+      expect(await credentialRows(owner.userId)).toHaveLength(1);
+    });
   });
 });
