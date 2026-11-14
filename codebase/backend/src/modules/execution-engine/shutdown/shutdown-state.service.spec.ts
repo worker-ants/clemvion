@@ -1,4 +1,5 @@
 import { WorkerHost } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
 import type { DiscoveryService } from '@nestjs/core';
 import { ShutdownStateService } from './shutdown-state.service';
 import {
@@ -466,15 +467,44 @@ describe('ShutdownStateService', () => {
       expect(run.worker.close).toHaveBeenCalledWith(true);
     });
 
-    it('DiscoveryService 가 없으면 노드 실행 추적만 기다린다', async () => {
-      service = buildService(5_000, 10);
-      service.registerInFlight('ne-1', 'exec-1');
-      setTimeout(() => service.unregisterInFlight('ne-1'), 30);
+    it('DiscoveryService 가 없으면 노드 실행 추적만 기다리고 미배선 경고를 남긴다', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        service = buildService(5_000, 10);
+        service.registerInFlight('ne-1', 'exec-1');
+        setTimeout(() => service.unregisterInFlight('ne-1'), 30);
 
-      await service.onModuleDestroy();
+        await service.onModuleDestroy();
 
-      expect(service.isShuttingDown).toBe(true);
-      expect(nodeExecutionUpdateMock).not.toHaveBeenCalled();
+        expect(service.isShuttingDown).toBe(true);
+        expect(nodeExecutionUpdateMock).not.toHaveBeenCalled();
+        const wiringWarnings = warnSpy.mock.calls.filter(([message]) =>
+          String(message).includes('DiscoveryService is not wired'),
+        );
+        expect(wiringWarnings).toHaveLength(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('DiscoveryService 가 있으면 미배선 경고를 남기지 않는다', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        service = buildService(5_000, 10, discoveryOf([]));
+
+        await service.onModuleDestroy();
+
+        const wiringWarnings = warnSpy.mock.calls.filter(([message]) =>
+          String(message).includes('DiscoveryService is not wired'),
+        );
+        expect(wiringWarnings).toHaveLength(0);
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 });

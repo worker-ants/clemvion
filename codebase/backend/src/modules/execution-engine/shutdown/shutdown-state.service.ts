@@ -207,8 +207,8 @@ export class ShutdownStateService
   /**
    * 모든 워커를 pause 한다. 인자 없는 pause() 는 새 작업을 멈추고 진행 중 작업이 끝날 때까지 기다린다(이 인스턴스의
    * 워커만). 작업이 끝나면 BullMQ 가 차단 연결을 다시 연다. 강제 close 뒤에 작업이 끝나도 마찬가지인데, 그때는 종료
-   * 훅이 끝나 프로세스가 곧 끝나므로 연결이 남지 않는다. `isSettled()` 는 모든 pause 가 끝났는지(워커가 없으면 즉시
-   * true) 알려 준다.
+   * 훅이 끝나 프로세스가 곧 끝나므로 연결이 남지 않는다. `isSettled()` 는 모든 pause 시도가 끝났는지(워커가 없으면
+   * 즉시 true) 알려 준다. pause 가 실패한 워커도 경고를 남긴 뒤 끝난 것으로 센다.
    */
   private pauseWorkers(workers: DrainableWorker[]): {
     isSettled: () => boolean;
@@ -228,7 +228,11 @@ export class ShutdownStateService
     return { isSettled: () => settled };
   }
 
-  /** `@Processor` 로 등록된 워커 전부. 초기화되지 않은 WorkerHost 는 건너뛴다. */
+  /**
+   * `@Processor` 로 등록된 워커 전부. 초기화되지 않은 WorkerHost 는 건너뛴다.
+   * DiscoveryService 가 없으면 경고를 남기고 빈 목록을 돌려준다. 그러면 워커 pause 와 강제 close 를 하지 않으므로
+   * 운영 모듈(ExecutionEngineModule)은 DiscoveryModule 을 import 해야 한다(`shutdown-module-wiring.spec.ts`).
+   */
   private collectWorkers(): DrainableWorker[] {
     if (!this.discovery) {
       this.logger.warn(
