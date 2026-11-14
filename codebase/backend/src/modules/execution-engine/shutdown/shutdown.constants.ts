@@ -5,3 +5,7 @@
  * SoT: spec/5-system/4-execution-engine.md §11 Graceful Shutdown 표.
  */
 export const DEFAULT_GRACE_MS = 30_000;
+
+/** DiscoveryService 가 배선되지 않았을 때 종료 처리가 남기는 경고. 서비스와 테스트가 같은 문구를 쓴다. */
+export const DISCOVERY_NOT_WIRED_WARNING =
+  'Graceful shutdown: DiscoveryService is not wired; BullMQ workers will not be paused or force-closed';
