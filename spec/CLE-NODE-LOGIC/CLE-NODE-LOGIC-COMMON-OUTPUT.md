@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON-OUTPUT"
 title: "Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-LOGIC-COMMON"]
 area: "CLE-NODE-LOGIC"
-content_hash: "68c666e3ede5f8fc81124a11e8173b232aa3b9e48cbb02a4ec523bcb35fda4dc"
+content_hash: "1d7f92c2460bfde82c56cd631d6f0a5598d13263650009248f43c9963b90d6cb"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0R8F99"
 source_paths: []
-mirror_sha256: "5baa303ba0d5dfffe4b6bd0bf6728da8c4731a6ea16ad36e4525aa556ece1a20"
-etag: "sha256-ef55c2ad900e6c56459e8db3f4cc1139b64113d227a80d284197571dd5f1d5ce"
+mirror_sha256: "7660d9d5fa33b67757d57bfb5a603ae4d7b0f56c711e9852c252d5dab16ac1a4"
+etag: "sha256-7ce0a999c0a8178032cb218eb7282fb5c1f75efe16c572cf684684bf6e947a96"
 ---
 ## 개요
 
@@ -142,7 +142,7 @@ ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code`
 - 대체값은 `UNKNOWN_ERROR` 로 두고 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#66-워크플로우-실행-노드-수준-런타임) §6.6 에 올린다. 옛 코드 `NODE_EXECUTION_FAILED` 는 §6.6 이 노드 출력에 더 이상 쓰지 않는다고 적은 이름이라 다시 쓰지 않았다.
 - `PARALLEL_*` · `CONTAINER_*` 메시지 접두사는 코드로 올리지 않았다. 이 결정은 `error.code` 값만 다룬다.
 
-**기존 워크플로우 영향**: `skipped[i].error.code == "Error"` 처럼 클래스 이름으로 분기하던 표현식은 더 맞지 않는다. 코드가 없는 에러는 `UNKNOWN_ERROR` 로 비교한다. 바뀐 값은 사용자 가이드(Logic 노드)에 적었다. 에러 처리 정책 「에러 포트로 라우팅」 의 `output.error.code` 는 아직 `name` 을 싣는다. 이 결정의 범위 밖이라 NERV Task `CLE-T-KXARNK` 가 맡는다.
+**기존 워크플로우 영향**: `skipped[i].error.code == "Error"` 처럼 클래스 이름으로 분기하던 표현식은 더 맞지 않는다. 코드가 없는 에러는 `UNKNOWN_ERROR` 로 비교한다. 바뀐 값은 사용자 가이드(Logic 노드)에 적었다. 에러 처리 정책 「에러 포트로 라우팅」 의 `output.error.code` 도 2026-11-13 에 같은 규칙으로 바꿨다([에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#throw-한-실패의-errorcode-를-반복-결과와-같은-규칙으로-고른다-2026-11-13), NERV Task `CLE-T-KXARNK`).
 
 기각한 대안은 두 가지다.
 

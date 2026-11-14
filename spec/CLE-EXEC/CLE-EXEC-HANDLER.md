@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-HANDLER-001", "REQ-HANDLER-002", "REQ-HANDLER-003", "REQ-HANDLER-004"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "a28cad4c1e3e9641caf3178f53d42756c1163ba7de6bc840056f04510b7f0283"
+content_hash: "da92302ad4fb8c86fa31ee457a34219d01952dbcc0ad2c64fc5a95a8d516fdad"
 read_as: "approved_fallback"
-task: "CLE-T-VQX844"
+task: "CLE-T-V462FA"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "cc896e3b3fe0de4b4691c6e2703c0d3761734586cf1d3727827cb770a1bf5985"
-etag: "sha256-2d6d121a97b7ecf44120a26034ff7bfe40da164ab09fbff646f7435076d0b74a"
+mirror_sha256: "6b008fdde973266d9b1b8cb6bccbd99b3b844320bde432749281c5d6e3a74353"
+etag: "sha256-d8ff4d71fadae61fd867d56105e15725be01b5eacd5bff24cb7740603b3b143e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -131,6 +131,8 @@ return {
 
 엔진의 `applyPortSelection(output)` 은 `output.port` 를 읽어 `_selectedPort` 에 기록하고 뒤 노드의 입력은 `output.output` 이 된다. `_selectedPort` 로 연결선을 여는 규칙은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 에 있다.
 
+핸들러가 실패를 throw 하고 에러 처리 정책이 「에러 포트로 라우팅」이면 핸들러 반환값이 없어도 엔진이 출력 `{ error: { code, message } }` 를 만들고 `_selectedPort` 에 `error` 를 기록한다. 이 경로의 규칙은 [에러 처리 정책 §2](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 에 있다.
+
 출력 값이 배열이나 원시값이면 엔진은 `port` · `status` 를 함께 들고 다니려고 엔진 안에서만 `{ data: <출력 값>, _selectedPort, … }` 객체를 만든다. 이 객체는 포트 라우팅과 대기 판정에만 쓴다. 다음 노드의 `$input`(`gatherNodeInput`), `$node["X"].output`, 컨테이너 본문이 `emit` 으로 넘기는 값, Parallel 분기 결과에는 이 객체 대신 핸들러가 `output` 에 둔 값이 간다. 사용자 코드가 돌려준 `{ data: ... }` 객체와 모양이 같으므로 엔진은 자기가 만든 객체에 표지를 붙여 둘을 가른다. 표지는 메모리에만 있어 DB 에서 되살린 값에는 없다. `meta` 만 있을 때는 이 객체를 만들지 않는다. 출력 값이 `null` 이거나 없으면 핸들러가 포트 하나(문자열)를 고르고 `status` 와 재개 상태(`_resumeState`)를 싣지 않았을 때만 이 객체를 만든다. 그 밖의 경우는 설정 에코와 제어 필드를 펼친 모양 그대로 들고 다닌다. 입력 대기 선언, `status: 'ended'` 같은 다른 `status`, 재개 상태, Parallel 의 분기 선언(포트 배열)이 그렇다. 출력 쪽 규칙은 [노드 출력 규약 Principle 0](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드) 7번이고, 이 객체가 아직 새는 경로는 그 문서의 [미결 사항](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)에 있다.
 
 옛 `{ port, data }` 반환 방식은 없앴다. 핸들러 반환값에 `config` 와 `output` 이 없으면 엔진 경계(`adaptHandlerReturn`)가 에러를 낸다. 엔진은 사용자 출력 값 안의 `data` 키를 보정하지도 풀지도 않는다.
@@ -199,7 +201,7 @@ interface NodeHandlerRegistry {
 
 **Template 노드 예외(입력 최상위 펼치기)**: `template` 노드에 한해 입력이 배열이 아닌 객체면 엔진이 `buildExpressionContext` 직후 그 최상위 키들을 컨텍스트 최상위 변수로 펼친다. `{{ name }}` 이 `{{ $input.name }}` 과 같아진다. 다만 `$` 내장 변수 등 기존 키와 이름이 같으면 기존 키를 남긴다(`Object.hasOwn` 가드). 입력이 배열이나 원시값이면 펼치지 않는다. 기준 코드는 `execution-engine.service.ts` 의 `NODE_TYPES.TEMPLATE` 분기이고 노드 동작은 [Template 노드](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md) 에 있다.
 
-**엔진이 미리 평가하지 않는 키**: `code.code`(원시 JavaScript, 자체 런타임 사용), `table.columns`(항목마다 평가), `filter.conditions`(항목 기준 필드 경로), `loop.breakCondition`(회차마다 다시 평가) 는 미리 평가하지 않는다. `loop.breakCondition` 을 dispatch 시점에 미리 평가하면 `i=0` 으로 고정되고 첫 회차 전에는 `$loop` 가 없어 예외가 난다. 기준은 코드 상수 `EXPRESSION_EXCLUSIONS`(`expression-exclusions.ts`)이고 목록과 이유는 [표현식 언어](../CLE-WF/CLE-WF-EXPR.md) 가 정한다. `template` 노드는 자체 `{{ }}` 파서를 쓰지만 이는 핸들러 내부 동작이고 제외 목록에는 없다.
+**엔진이 미리 평가하지 않는 키**: `code.code`(원시 JavaScript, 자체 런타임 사용), `table.columns`(항목마다 평가), `filter.conditions`(항목 기준 필드 경로), `loop.breakCondition`(회차마다 다시 평가) 는 미리 평가하지 않는다. `loop.breakCondition` 을 dispatch 시점에 미리 평가하면 `i=0` 으로 고정되고 첫 회차 전에는 `$loop` 가 없어 예외가 난다. 기준은 코드 상수 `EXPRESSION_EXCLUSIONS`(`expression-exclusions.ts`)이고 목록과 이유는 [표현식 언어](../CLE-WF/CLE-WF-EXPR.md) 가 정한다. `template` 노드는 자체 `{{ }}` 파서를 쓰지만 이는 핸들러 내부 동작이고 제외 목록에는 없다. 제외 키도 설정 에코에서는 빠지지 않는다. 핸들러는 원본 값을 `config` 에 싣는다([설정 에코 원칙](../CLE-NODE/CLE-NODE-OUTPUT-ECHO.md#principle-7-설정-에코-원칙)).
 
 ## 노드 실행 흐름
 
@@ -259,11 +261,11 @@ flowchart TD
 - 설정과 출력 양쪽에 같은 평가 결과를 두는 안은 설정·출력 직교성을 어겨 기각했다.
 - 2026-08-24 에 `config` 에는 저장 시점 마스킹이 없고 마스킹은 나가는 응답에서만 한다는 점을 명문화했다.
 
-남은 후속 과제:
+이 결정 때 남겨 둔 후속 과제는 2026-11-14 에 모두 끝났다(NERV Task `CLE-T-3G40VQ`).
 
-- AI 에이전트 `buildMultiTurnFinalOutput`·`buildConditionOutput` 의 원본 설정 전달(멀티턴 캐시 수명주기 영향 분석 필요)
-- 정보 추출기 `multiTurnConfigEcho` 의 원본 설정 전달
-- Carousel·Table 에 256KB 상한을 적용하는 정책
+- AI 에이전트 `buildMultiTurnFinalOutput`·`buildConditionOutput` 은 재개 턴에서 `state.rawConfig` 를 에코한다.
+- 정보 추출기는 종결 출력(`multiTurnConfigEcho`)과 입력 대기 출력(`buildWaitingResponse`) 모두 `state.rawConfig` 를 에코한다. 입력 대기 출력은 2026-11-14 까지 평가된 상태 값을 싣고 있어서 원본으로 바꿨다. 원본이 없는 옛 상태 행만 평가된 상태 값을 대신 쓴다.
+- Carousel·Table 출력 상한은 256KB 가 아니라 1MB 로 정했다([Presentation 노드 공통 §출력 크기 한도](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#출력-크기-한도)).
 
 ### 노드 유형 분기를 메타데이터로 바꾼다 (PR-G)
 
