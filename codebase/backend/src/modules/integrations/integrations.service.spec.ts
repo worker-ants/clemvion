@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Not } from 'typeorm';
 import {
   CONNECTION_TEST_MAX_CONCURRENCY,
   IntegrationsService,
@@ -124,6 +125,7 @@ describe('IntegrationsService', () => {
   let mcpTestConnection: { test: Mock };
   let integrationCacheBus: { publish: Mock };
   let dataSource: { transaction: Mock; query: Mock };
+  let actionRequiredNotifier: { notify: Mock };
   /**
    * `dataSource.transaction` 이 콜백에 넘기는 매니저. `findOne` 은 쓰기 잠금 도우미(`lockForIntegrationWrite`)의
    * 워크스페이스 · 멤버십 읽기다. 기본은 둘 다 있다.
@@ -207,6 +209,8 @@ describe('IntegrationsService', () => {
         ]),
     };
 
+    actionRequiredNotifier = { notify: jest.fn().mockResolvedValue(undefined) };
+
     service = new IntegrationsService(
       integrationRepo as never,
       usageLogRepo as never,
@@ -217,6 +221,7 @@ describe('IntegrationsService', () => {
       mcpTestConnection as never,
       integrationCacheBus as never,
       dataSource as never,
+      actionRequiredNotifier as never,
     );
   });
 
@@ -4371,7 +4376,7 @@ describe('IntegrationsService', () => {
         unknown,
         Record<string, unknown>,
       ];
-      expect(criteria).toEqual({ id: 'int-1' });
+      expect(criteria).toEqual({ id: 'int-1', status: Not('error') });
       expect(Object.keys(patch).sort()).toEqual(
         ['lastError', 'lastUsedAt', 'status', 'statusReason'].sort(),
       );
@@ -4428,7 +4433,7 @@ describe('IntegrationsService', () => {
         error: { code: 'MCP_AUTH_FAILED', message: '401' },
       });
       expect(integrationRepo.update).toHaveBeenCalledWith(
-        { id: 'int-1' },
+        { id: 'int-1', status: Not('error') },
         expect.objectContaining({
           status: 'error',
           statusReason: 'auth_failed',
@@ -4450,6 +4455,64 @@ describe('IntegrationsService', () => {
       )[1] as Record<string, unknown>;
       expect(patch.status).toBeUndefined();
       expect(patch.statusReason).toBeUndefined();
+      expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+    });
+
+    // CLE-T-184JJD — MCP 인증 실패로 통합이 실제로 `error(auth_failed)` 로 바뀐 경우에만 조치 필요 알림을 보낸다. 실제 전이는
+    // 조건부 UPDATE(`status <> 'error'`)의 영향 행 수로 판정한다. 동시에 들어온 두 호출이 같은 통합을 바꿔도 한 번만 보낸다.
+    describe('MCP 인증 실패 조치 필요 알림 (CLE-T-184JJD)', () => {
+      const authFailed = {
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'failed' as const,
+        durationMs: 50,
+        error: { code: 'MCP_AUTH_FAILED', message: '401' },
+      };
+
+      it('error 가 아니던 통합이 바뀌면 mcp_call 계기로 auth_failed 알림을 보낸다', async () => {
+        await service.logUsage(usedIntegration, authFailed);
+        expect(actionRequiredNotifier.notify).toHaveBeenCalledTimes(1);
+        expect(actionRequiredNotifier.notify).toHaveBeenCalledWith(
+          usedIntegration,
+          'auth_failed',
+          'mcp_call',
+        );
+      });
+
+      it('이미 error 인 통합은 상태 · 사유를 다시 쓰지 않고 알림도 보내지 않는다', async () => {
+        integrationRepo.update.mockResolvedValueOnce({ affected: 0 });
+        await service.logUsage(usedIntegration, authFailed);
+        expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+        // 조건에 걸리지 않은 행은 사용 시각 · 마지막 오류만 고친다. 먼저 들어온 오류 사유를 덮지 않는다.
+        expect(integrationRepo.update).toHaveBeenCalledTimes(2);
+        const [criteria, patch] = integrationRepo.update.mock.calls[1] as [
+          unknown,
+          Record<string, unknown>,
+        ];
+        expect(criteria).toEqual({ id: 'int-1' });
+        expect(Object.keys(patch).sort()).toEqual(['lastError', 'lastUsedAt']);
+        expect(patch.lastError).toEqual(
+          expect.objectContaining({ code: 'MCP_AUTH_FAILED' }),
+        );
+      });
+
+      it('알림이 실패해도 logUsage 는 던지지 않는다', async () => {
+        actionRequiredNotifier.notify.mockRejectedValueOnce(new Error('boom'));
+        await expect(
+          service.logUsage(usedIntegration, authFailed),
+        ).resolves.toBeUndefined();
+        expect(actionRequiredNotifier.notify).toHaveBeenCalledTimes(1);
+      });
+
+      it('성공 호출은 알림을 보내지 않는다', async () => {
+        await service.logUsage(usedIntegration, {
+          nodeExecutionId: 'nex-1',
+          workflowId: 'wf-1',
+          status: 'success',
+          durationMs: 5,
+        });
+        expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+      });
     });
 
     it('clamps very long error messages before persisting', async () => {

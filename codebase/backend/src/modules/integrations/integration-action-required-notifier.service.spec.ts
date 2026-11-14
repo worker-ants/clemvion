@@ -97,6 +97,30 @@ describe('IntegrationActionRequiredNotifier', () => {
     });
   });
 
+  // CLE-T-184JJD — MCP 서버가 자격 증명을 거부해 `logUsage` 가 통합을 `error(auth_failed)` 로 바꿨다. Cafe24 문구를 쓰면
+  // 다른 서비스 통합에 엉뚱한 서비스 이름이 나가므로 MCP 문구를 따로 둔다. 제목은 같아서 24시간 중복 방지를 함께 쓴다.
+  describe('mcp_call 계기', () => {
+    it('auth_failed 는 같은 제목에 MCP 서버 거부 문구를 쓰고 Cafe24 를 적지 않는다', async () => {
+      await notifier.notify(
+        makeIntegration({ name: 'My MCP' }),
+        'auth_failed',
+        'mcp_call',
+      );
+      const entry = notificationsService.createMany.mock.calls[0][0][0];
+      expect(entry.title).toBe('Integration disconnected');
+      expect(entry.message).toBe(
+        '"My MCP" needs reauthorization — the MCP server rejected the credentials. Reconnect to resume.',
+      );
+      expect(entry.message).not.toContain('Cafe24');
+      expect(notificationsService.hasRecentByResource).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'integration_action_required',
+          title: 'Integration disconnected',
+        }),
+      );
+    });
+  });
+
   it('emits insufficient_scope with distinct title', async () => {
     await notifier.notify(makeIntegration(), 'insufficient_scope');
     const entry = notificationsService.createMany.mock.calls[0][0][0];

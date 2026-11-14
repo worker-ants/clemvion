@@ -15,6 +15,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { McpModule } from '../mcp/mcp.module';
 import { IntegrationsController } from './integrations.controller';
 import { ThirdPartyOAuthController } from './third-party-oauth.controller';
+import { IntegrationsTestHooksController } from './integrations-test-hooks.controller';
 import { IntegrationsService } from './integrations.service';
 import { MemberPersonalIntegrationsPurgerService } from './member-personal-integrations-purger.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
@@ -52,7 +53,12 @@ import { CAFE24_REFRESH_QUEUE } from './cafe24-token-refresh.constants';
     AuditLogsModule,
     McpModule,
   ],
-  controllers: [IntegrationsController, ThirdPartyOAuthController],
+  controllers: [
+    IntegrationsController,
+    ThirdPartyOAuthController,
+    // e2e 전용 훅. NODE_ENV=test · E2E_TEST_HOOKS=1 이 아니면 404 다.
+    IntegrationsTestHooksController,
+  ],
   providers: [
     IntegrationsService,
     IntegrationOAuthService,

@@ -7,6 +7,7 @@ import { DataSource } from 'typeorm';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
+import { IntegrationActionRequiredNotifier } from './integration-action-required-notifier.service';
 import { Integration } from './entities/integration.entity';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
 import { Node } from '../nodes/entities/node.entity';
@@ -105,6 +106,7 @@ describe('POST /integrations/:id/test — 와이어 계약 (HTTP)', () => {
         { provide: AuditLogsService, useValue: {} },
         { provide: IntegrationCacheBus, useValue: {} },
         { provide: DataSource, useValue: {} },
+        { provide: IntegrationActionRequiredNotifier, useValue: {} },
       ],
     }).compile();
 
