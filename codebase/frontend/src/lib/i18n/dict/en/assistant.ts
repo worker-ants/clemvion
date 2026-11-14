@@ -78,4 +78,6 @@ export const assistant: Dict["assistant"] = {
   toolBadgeWithCount: "{{label}}: {{count}}",
   toolBadgeExecutionDetail: "execution detail",
   toolBadgeExecutionDetailNodes: "execution detail: {{count}} nodes",
+  errorStreamingUnsupported:
+    "The selected model config's provider doesn't support streaming responses, so the assistant can't use it. Choose another model config.",
 };

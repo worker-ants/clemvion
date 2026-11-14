@@ -15,6 +15,7 @@ import {
   ChatResult,
   ChatStreamEvent,
   ModelInfo,
+  LLM_STREAMING_UNSUPPORTED,
 } from './interfaces/llm-client.interface';
 import type { EmbedInputType } from './embedding-input-type';
 import { extractRetryAfterMs } from '../../shared/utils/retry-after';
@@ -216,7 +217,7 @@ export class LlmService implements OnModuleInit {
     const client = this.createClient(config);
     if (!client.stream) {
       throw new BadRequestException({
-        code: 'LLM_STREAMING_UNSUPPORTED',
+        code: LLM_STREAMING_UNSUPPORTED,
         message: `Provider '${config.provider}' does not support streaming in this release.`,
       });
     }

@@ -3294,6 +3294,39 @@ describe('WorkflowAssistantStreamService', () => {
       expect(assistantPersist(mocks)?.finishReason).toBe('error');
     });
 
+    // REQ-ASSIST-012: 실제 `chatStream` 은 async generator 라서 스트리밍 미지원 예외는
+    // 첫 `next()` 에서 나온다. 코드를 그대로 넘기고 문구는 고정 영문이다.
+    it('forwards LLM_STREAMING_UNSUPPORTED when the provider cannot stream', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmService.chatStream.mockImplementation(() => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () =>
+            Promise.reject(
+              new BadRequestException({
+                code: 'LLM_STREAMING_UNSUPPORTED',
+                message:
+                  "Provider 'acme' does not support streaming in this release.",
+              }),
+            ),
+        }),
+      }));
+
+      const events = await collect(
+        service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+      );
+
+      expect(errorEventOf(events)).toEqual({
+        code: 'LLM_STREAMING_UNSUPPORTED',
+        message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_STREAMING_UNSUPPORTED,
+      });
+      expect(events[events.length - 1]).toEqual({
+        event: 'done',
+        data: { finishReason: 'error' },
+      });
+      expect(assistantPersist(mocks)?.finishReason).toBe('error');
+      expect(loggedText()).toContain('does not support streaming');
+    });
+
     // 특성화 테스트다. 실제 `chatStream` 은 async generator 라서 OpenAI 계열 클라이언트가
     // 스트림을 열 때 던진 예외(429 포함)는 호출 시점이 아니라 첫 `next()` 에서 나온다.
     // 그 예외도 ASSISTANT_STREAM_FAILED 로 바뀐다. Anthropic · Google 의 같은 429 는

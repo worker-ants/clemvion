@@ -20,7 +20,7 @@ import { ASSISTANT_STREAM_ERROR_MESSAGES } from '../src/modules/workflow-assista
  *
  * SSE 스트리밍·LLM 호출 자체는 LLM 의존이라 unit / integration 이 담당. 본 e2e 는
  * 세션 엔티티 라이프사이클·RBAC·격리에 집중한다. 예외 둘 — SSE 응답의 **상태 줄**은 LLM 에
- * 닿기 전에 정해지므로 여기서 본다(G). 스트림 실패의 `error` 이벤트는 stub 모드의
+ * 닿기 전에 정해지므로 여기서 본다(G). 스트림을 열지 못한 `error` 이벤트는 stub 모드의
  * 스트리밍 미지원 예외로 외부 LLM 없이 만든다(I).
  */
 
@@ -350,13 +350,14 @@ describe('Workflow Assistant sessions (e2e)', () => {
       .set(authHeaders());
   });
 
-  it('I. 스트림이 실패하면 error 이벤트에 코드별 고정 문구만 싣는다 (REQ-ASSIST-048)', async () => {
+  it('I. 스트리밍을 지원하지 않는 프로바이더면 error 이벤트에 LLM_STREAMING_UNSUPPORTED 와 고정 문구만 싣는다 (REQ-ASSIST-012 · 048)', async () => {
     // e2e 컨테이너는 `LLM_STUB_MODE=true`(docker-compose.e2e.yml)라 provider · baseUrl 과
     // 상관없이 `LlmService.createClient` 가 `StubLlmClient` 를 돌려준다. stub 에는 `stream`
     // 이 없어서 `LlmService.chatStream` 이 스트림을 열기 전에 BadRequestException
     // ("Provider '<p>' does not support streaming in this release.")을 던지고, 서비스의
-    // catch 가 이를 ASSISTANT_STREAM_FAILED 로 바꾼다. 외부 LLM 호출 없이 그 catch 경로를
-    // 탄다. SDK 연결 오류 경로(LLM_CONNECTION_ERROR)는 서비스 단위 테스트가 덮는다.
+    // catch 가 코드를 그대로 넘긴다. 외부 LLM 호출 없이 그 catch 경로를 탄다. 다른 예외의
+    // ASSISTANT_STREAM_FAILED 와 SDK 연결 오류 경로(LLM_CONNECTION_ERROR)는 서비스 단위
+    // 테스트가 덮는다.
     // baseUrl 은 local 프로바이더 설정에 채우는 값이고(loopback 은 local 만 받는다) stub
     // 모드라 호출하지 않는다.
     const config = await request(BASE_URL)
@@ -395,11 +396,11 @@ describe('Workflow Assistant sessions (e2e)', () => {
     expect(match).not.toBeNull();
     const data = JSON.parse(match![1]) as { code: string; message: string };
     expect(data).toEqual({
-      code: 'ASSISTANT_STREAM_FAILED',
-      message: ASSISTANT_STREAM_ERROR_MESSAGES.ASSISTANT_STREAM_FAILED,
+      code: 'LLM_STREAMING_UNSUPPORTED',
+      message: ASSISTANT_STREAM_ERROR_MESSAGES.LLM_STREAMING_UNSUPPORTED,
     });
-    // 스트리밍 미지원 예외의 원문 조각이 이벤트에 실리지 않는다 (CWE-209). 원문 문구는
-    // `LlmService.chatStream` 이 정한다.
+    // 스트리밍 미지원 예외의 원문 조각(프로바이더 이름 포함)이 이벤트에 실리지 않는다
+    // (CWE-209). 원문 문구는 `LlmService.chatStream` 이 정한다.
     expect(res.text).not.toContain('does not support streaming');
     expect(res.text).toContain('"finishReason":"error"');
 
@@ -458,9 +459,9 @@ describe('Workflow Assistant sessions (e2e)', () => {
       configName: defaultConfigName,
     });
     // 대체한 설정으로 턴을 이어 갔다는 증거: 설정 단계의 ASSISTANT_NO_LLM_CONFIG 가 아니라 스트림을 여는
-    // 단계의 ASSISTANT_STREAM_FAILED 로 끝난다(stub 클라이언트에 stream 이 없다).
+    // 단계의 LLM_STREAMING_UNSUPPORTED 로 끝난다(stub 클라이언트에 stream 이 없다).
     expect(res.text).not.toContain('ASSISTANT_NO_LLM_CONFIG');
-    expect(res.text).toContain('ASSISTANT_STREAM_FAILED');
+    expect(res.text).toContain('LLM_STREAMING_UNSUPPORTED');
 
     await request(BASE_URL)
       .delete(`/api/workflow-assistant/sessions/${sessionId}`)

@@ -813,7 +813,10 @@ export class WorkflowAssistantStreamService {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         this.logger.error(`Assistant stream failed: ${message}`);
-        yield { event: 'error', data: assistantStreamError.streamFailed() };
+        yield {
+          event: 'error',
+          data: assistantStreamError.fromStreamException(err),
+        };
         hadError = true;
       }
 

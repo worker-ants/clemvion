@@ -26,6 +26,7 @@ const MAPPED_ERROR_CODES = [
   "LLM_CONNECTION_ERROR",
   "LLM_OUTPUT_MALFORMED",
   "LLM_RATE_LIMIT",
+  "LLM_STREAMING_UNSUPPORTED",
 ];
 
 const SERVER_MESSAGE = "Server says: provider detail sk-raw-secret";
@@ -70,6 +71,7 @@ describe("AssistantMessageView error bubble", () => {
     ["LLM_RATE_LIMIT", koAssistant.errorRateLimit],
     ["LLM_CONNECTION_ERROR", koAssistant.errorConnection],
     ["LLM_OUTPUT_MALFORMED", koAssistant.errorOutputMalformed],
+    ["LLM_STREAMING_UNSUPPORTED", koAssistant.errorStreamingUnsupported],
   ])(
     "shows the dictionary text for %s instead of the server message",
     (code, text) => {
@@ -88,6 +90,7 @@ describe("AssistantMessageView error bubble", () => {
     ["LLM_RATE_LIMIT", enAssistant.errorRateLimit],
     ["LLM_CONNECTION_ERROR", enAssistant.errorConnection],
     ["LLM_OUTPUT_MALFORMED", enAssistant.errorOutputMalformed],
+    ["LLM_STREAMING_UNSUPPORTED", enAssistant.errorStreamingUnsupported],
   ])("uses the English dictionary for %s in the en locale", (code, text) => {
     useLocaleStore.setState({ locale: "en" });
     renderError(code);
@@ -104,13 +107,20 @@ describe("AssistantMessageView error bubble", () => {
     expect(link.getAttribute("href")).toBe("/models?tab=chat");
   });
 
-  it.each(["ASSISTANT_STREAM_FAILED", "LLM_RATE_LIMIT"])(
-    "does not show the settings link for %s",
-    (code) => {
-      renderError(code);
-      expect(screen.queryByRole("link")).toBeNull();
-    },
-  );
+  it.each([
+    "ASSISTANT_STREAM_FAILED",
+    "LLM_RATE_LIMIT",
+    "LLM_STREAMING_UNSUPPORTED",
+  ])("does not show the settings link for %s", (code) => {
+    renderError(code);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  // REQ-ASSIST-012: 다른 모델 설정을 고르면 풀리는 오류라 "이어서 진행" 버튼이 없다.
+  it("does not offer the continue button for LLM_STREAMING_UNSUPPORTED", () => {
+    renderError("LLM_STREAMING_UNSUPPORTED");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
 
   it("falls back to the server message for a code without dictionary text", () => {
     renderError("LLM_SOMETHING_NEW");

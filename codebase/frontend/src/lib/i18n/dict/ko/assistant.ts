@@ -75,4 +75,6 @@ export const assistant = {
   toolBadgeWithCount: "{{label}}: {{count}}건",
   toolBadgeExecutionDetail: "실행 상세",
   toolBadgeExecutionDetailNodes: "실행 상세: 노드 {{count}}개",
+  errorStreamingUnsupported:
+    "선택한 모델 설정의 프로바이더는 스트리밍 응답을 지원하지 않아 어시스턴트에서 쓸 수 없어요. 다른 모델 설정을 골라 주세요.",
 } as const;
