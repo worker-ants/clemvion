@@ -2,23 +2,23 @@
 id: "CLE-INT-OAUTH-CALLBACK"
 title: "OAuth 연결과 토큰 갱신 — 팝업 연결과 콜백"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "74d50b87a341dd6b1778a026ec8555eb4e0fbed7feb77cdd6c2cb3fb0a6b3911"
+content_hash: "24aa86c14951ed58693dd792b13b57abb15dab833eff972a885f67727e1bafde"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZCEZ46"
 source_paths: []
-mirror_sha256: "3340b5fd8cc97ead1283b2eb4043f38d4e74413fde54ba43367d4446d3a1591a"
-etag: "sha256-64f9ae518071f9a815abd05412b806f4e1f4a7f2347d9f383be60ef1efde9b78"
+mirror_sha256: "7940f191f7c5bb78f2dbe862a84fd1410f8d6ebed528180d3bff87a3c45d35b1"
+etag: "sha256-2d115912d089226251641bb80fd21fb0e2d169d42eac401c3c6c5443f30ee825"
 ---
 ## 개요
 
-이 문서는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 하위 문서로 팝업 연결(Google·GitHub·Cafe24 Public)과 OAuth 콜백 엔드포인트의 처리 순서 · 에러 매핑을 정한다.
+이 문서는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 의 하위 문서로 팝업 연결(Google·GitHub·Cafe24 Public)과 OAuth 콜백 엔드포인트의 처리 순서 · 에러 매핑을 정한다. 콜백 실패가 통합 행에 남기는 상태 · 상태 사유 · `last_error` 의 규칙은 [상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)이 정본이다.
 
 ## 팝업 연결: Google·GitHub·Cafe24 Public
 
@@ -93,9 +93,9 @@ GET /api/3rd-party/:provider/callback
 3. **토큰 교환**: 제공자별 토큰 엔드포인트에 code 와 client_secret 을 보낸다. MakeShop 은 PKCE `code_verifier` 를 함께 보낸다.
 4. **모드별 처리**:
    - `new`: 아직 통합이 없다. 토큰을 미리보기 토큰(`integration_oauth_preview`, 10분)에 맡기고 `previewToken` 을 발급한다. `POST /api/integrations` 가 이 토큰을 참조해 통합을 만든다.
-   - `reauthorize`: 기존 통합의 자격 증명을 새 토큰으로 바꾸고 상태를 `connected` 로, 상태 사유와 `last_error` 를 NULL 로 되돌린다. 통합이 설치 대기면 성공 시 연결됨이 되고 실패 시 설치 대기를 유지하며 `last_error`·`status_reason` 만 갱신한다(Cafe24 Private·MakeShop 첫 설치). 성공하면 재설치 대기 표시도 같은 트랜잭션에서 NULL 로 지운다. 유효한 재설치 대기 표시가 있는 행은 실패해도 상태와 표시를 보존한다.
+   - `reauthorize`: 기존 통합의 자격 증명을 새 토큰으로 바꾸고 상태를 `connected` 로, 상태 사유와 `last_error` 를 NULL 로 되돌린다. 재설치 대기 표시도 같은 트랜잭션에서 NULL 로 지운다. 통합이 설치 대기면 이때 연결됨이 된다(Cafe24 Private·MakeShop 첫 설치). 실패의 기록은 [상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)을 따른다.
    - `request_scopes`: 기존 `credentials.scopes` 에 새 권한 범위를 합치고 access token·refresh token 을 갱신한다.
-   - `reauthorize`·`request_scopes` 는 커밋 직전에 요청자에게 그 통합이 보이는지, 개인 통합이면 요청자의 현재 역할이 편집자 이상인지, 조직 통합이면 관리자 이상인지 같은 트랜잭션에서 다시 판정한다. 실패하면 롤백한다. 개인 통합의 편집자 하한은 begin 의 라우트 가드와 같은 하한이다. 설치 대기 행과 유효한 재설치 대기 표시가 있는 Cafe24 Private 행은 이 판정을 건너뛴다. Cafe24 Public 행과 MakeShop 행은 표시 값과 상관없이 판정한다. 이유는 [재설치 대기 표시](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)에 있다.
+   - `reauthorize`·`request_scopes` 는 커밋 직전에 요청자에게 그 통합이 보이는지, 개인 통합이면 요청자의 현재 역할이 편집자 이상인지, 조직 통합이면 관리자 이상인지 같은 트랜잭션에서 다시 판정한다. 실패하면 롤백한다. 개인 통합의 편집자 하한은 begin 의 라우트 가드와 같은 하한이다. 설치 대기 행과 유효한 재설치 대기 표시가 있는 Cafe24 Private 행은 이 판정을 건너뛴다. 조건과 받아들인 잔여 위험은 [상태 모델 「재설치 대기 표시」](CLE-INT-STATUS-MODEL.md#재설치-대기-표시)가 정한다.
 5. **부모 창 알림**:
 
    ```javascript
@@ -111,7 +111,7 @@ GET /api/3rd-party/:provider/callback
    window.close();
    ```
 
-6. **실패 처리**: 콜백 처리 중 예외가 나면 컨트롤러는 같은 콜백 HTML 을 `status: 'error'` 와 에러 메시지로 돌려준다. 메시지를 읽을 수 있도록 팝업은 3~5초 뒤 닫는다(성공은 바로). state 를 소비한 뒤의 예외는 `OAuthState.integrationId` 로 행을 알 수 있으므로 그 행의 `last_error`·`status_reason` 을 갱신한다. 다만 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않고 요청자의 콜백 응답에만 싣는다. 상태를 바꾸는지는 아래 에러 매핑 표가 정한다. 실패는 재설치 대기 표시를 지우지 않는다.
+6. **실패 처리**: 콜백 처리 중 예외가 나면 컨트롤러는 같은 콜백 HTML 을 `status: 'error'` 와 에러 메시지로 돌려준다. 메시지를 읽을 수 있도록 팝업은 3~5초 뒤 닫는다(성공은 바로). state 를 소비한 뒤의 예외는 `OAuthState.integrationId` 로 행을 알 수 있으므로 [상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 그 행에 기록한다. 다만 커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않고 요청자의 콜백 응답에만 싣는다.
 
 ### 에러 매핑
 
@@ -119,17 +119,22 @@ GET /api/3rd-party/:provider/callback
 | --- | --- | --- |
 | state 불일치 | `Security validation failed. Please try again.` | 변경 없음. 통합을 식별하기 전 단계다 |
 | 사용자 거부 | `Authorization was denied.` | 변경 없음 |
-| 코드 교환 실패 (`mode='reauthorize'`, 상태 `connected`, 유효한 재설치 대기 표시 없음) | `Failed to connect to {provider}.` (3~5초 뒤 닫기) | `error(auth_failed)` + `last_error` 기록 |
-| 코드 교환 실패 (`mode='reauthorize'`, 상태 `pending_install`) | 같음 | 상태 보존(설치 대기 유지) + `status_reason='oauth_token_exchange_failed'` + `last_error.code='OAUTH_TOKEN_EXCHANGE_FAILED'`. 외부 설정을 고친 뒤 다시 시도할 수 있다 |
-| 콜백 실패 (유효한 재설치 대기 표시가 있는 연결됨·오류·만료됨 행) | 같음 | 상태와 재설치 대기 표시 보존 + `last_error` 기록. 코드 교환이 실패해도 `error(auth_failed)` 로 바꾸지 않는다. 연결됨 행은 기존 토큰으로 실행이 계속되고 사용자는 표시가 유효한 동안 «테스트 실행» 으로 다시 시도한다. 표시를 남긴 지 24시간이 지난 행은 표시가 없는 행과 같이 처리한다. Cafe24 `invalid_scope` 는 연결됨 행이면 아래 행처럼 `status_reason='oauth_invalid_scope'` 도 기록한다 |
-| Cafe24 `invalid_scope` (인가·토큰 교환 두 단계 모두) | `Authorization rejected: invalid scope.` (안내 본문에 별도 승인 안내 분기) | 상태 보존 + `status_reason='oauth_invalid_scope'` + `last_error.code='OAUTH_INVALID_SCOPE'` + `last_error.details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합). 상세 화면이 이 단서를 읽어 «이 권한은 카페24 별도 승인이 필요해요» 를 보인다. `oauth_token_exchange_failed` 와 진입 경로가 다르다. 이쪽은 Cafe24 가 권한 범위를 명시적으로 거부한 경우이고 저쪽은 그 밖의 토큰 교환 실패 전부(네트워크, 서버 오류, 알 수 없는 `invalid_grant` 등)다 |
-| state 불일치·만료 (state 소비 뒤) | `Security validation failed.` / `OAuth state has expired.` | 통합을 알 수 있으면 `status_reason='oauth_state_mismatch'` 또는 `oauth_state_expired` 만 기록, 상태 보존 |
+| 코드 교환 실패 (`OAUTH_TOKEN_EXCHANGE_FAILED`) | `Failed to connect to {provider}.` (3~5초 뒤 닫기) | 설치 대기는 상태 보존과 사유 `oauth_token_exchange_failed`. 연결됨은 유효한 재설치 대기 표시가 없을 때만 `error(auth_failed)`([콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)) |
+| Cafe24 `invalid_scope` (인가·토큰 교환 두 단계 모두) | `Authorization rejected: invalid scope.` (안내 본문에 별도 승인 안내 분기) | 상태 보존. `last_error.code='OAUTH_INVALID_SCOPE'` 와 `last_error.details.requiresCafe24Approval` 기록. 사유는 [콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록) 표대로 설치 대기·연결됨 행만 `oauth_invalid_scope` 로 남긴다 |
+| state 불일치·만료 (state 소비 뒤) | `Security validation failed.` / `OAuth state has expired.` | 상태 보존. 통합을 알 수 있으면 [콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 기록(설치 대기는 사유 `oauth_state_mismatch`·`oauth_state_expired`) |
 | 토큰 발급 뒤 행 조회 실패 | `Integration not found.` | 변경 불가. 행이 사라져 갱신할 대상이 없다 |
-| 커밋 직전 인가 재판정 실패 (`reauthorize`·`request_scopes`, 설치 대기도 아니고 유효한 재설치 대기 표시가 있는 Cafe24 Private 행도 아님. 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 개인 통합이 됨) | 서버 메시지 그대로. `Integration not found`(`RESOURCE_NOT_FOUND`) 또는 `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.`·`… scope 를 추가하려면 …`(`ADMIN_REQUIRED`). 개인 통합의 요청자가 뷰어로 강등됐으면 `EDITOR_REQUIRED` | 자격 증명 불변(롤백), 상태 보존. `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 는 `last_error` 에 그 코드를 기록한다. `RESOURCE_NOT_FOUND` 는 그 행이 요청자에게 보이지 않게 된 경우(남의 개인 통합이 됐거나 지워짐)라 행의 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다. 설치 기한이 지나 만료된 행이면 `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 도 `last_error` 에 쓰지 않는다(아래 행) |
-| 설치 기한이 지나 만료된 설치 대기 행에 늦게 도착한 콜백 (요청자 재판정을 통과한 뒤) | `The install window for this integration has expired` | 변경 없음. 400 `INTEGRATION_INSTALL_EXPIRED` 로 거절하고 상태 · 상태 사유 · 상점 식별자(`mall_id`) · `last_error` 를 그대로 둔다. state 는 유효하므로 state 유효 시간이 지난 경우의 `OAUTH_STATE_EXPIRED` 와 코드가 다르다. 설치 기한이 지나 만료된 행에는 이 표의 다른 콜백 실패도 `last_error` · `status_reason` 을 쓰지 않는다 |
-| 네트워크 오류 | `Connection error.` | 통합을 알 수 있으면 `last_error` 만 기록, 상태 보존 |
+| 커밋 직전 인가 재판정 실패 (`reauthorize`·`request_scopes`) | 서버 메시지 그대로(아래 목록) | 자격 증명 불변(롤백), 상태 보존. `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 는 `last_error` 에 기록하고 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다 |
+| 설치 기한이 지나 만료된 설치 대기 행에 늦게 도착한 콜백 (요청자 재판정을 통과한 뒤) | `The install window for this integration has expired` | 변경 없음. 400 `INTEGRATION_INSTALL_EXPIRED` 로 거절하고 행에 아무것도 쓰지 않는다 |
+| 네트워크 오류 | `Connection error.` | 통합을 알 수 있으면 [콜백 실패 기록](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)대로 기록. 토큰 교환 중의 네트워크 오류와 시간 초과는 코드 교환 실패(`OAUTH_TOKEN_EXCHANGE_FAILED`)로 기록된다 |
 
-상태 사유 저장값(snake_case)과 API 에러 코드(UPPER_SNAKE_CASE)의 관계는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 에 있다.
+- **코드 교환 실패**: 설치 대기 행은 외부 설정을 고친 뒤 다시 시도할 수 있다. 유효한 재설치 대기 표시가 있는 연결됨 행은 기존 토큰으로 실행이 계속되고 사용자는 «테스트 실행» 으로 다시 시도한다.
+- **Cafe24 `invalid_scope`**: `requiresCafe24Approval` 은 요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합(`string[]`)이다. 상세 화면이 이 단서를 읽어 «이 권한은 카페24 별도 승인이 필요해요» 를 보인다. `oauth_token_exchange_failed` 와 진입 경로가 다르다. 이쪽은 Cafe24 가 권한 범위를 명시적으로 거부한 경우이고 저쪽은 그 밖의 토큰 교환 실패 전부(네트워크, 서버 오류, 알 수 없는 `invalid_grant` 등)다.
+- **커밋 직전 인가 재판정 실패**: 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 개인 통합이 된 경우다. 재판정을 건너뛰는 행(설치 대기, 유효한 재설치 대기 표시가 있는 Cafe24 Private)에는 이 실패가 없다.
+  - 팝업 메시지는 `Integration not found`(`RESOURCE_NOT_FOUND`), `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.`·`… scope 를 추가하려면 …`(`ADMIN_REQUIRED`)다. 개인 통합의 요청자가 뷰어로 강등됐으면 `EDITOR_REQUIRED` 다.
+  - `RESOURCE_NOT_FOUND` 는 그 행이 요청자에게 보이지 않게 된 경우(남의 개인 통합이 됐거나 지워짐)라 행의 `last_error`·`status_reason` 을 쓰지 않고 요청자의 콜백 응답에만 싣는다([커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다 (2026-10-29)](#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)).
+- **설치 기한이 지나 만료된 행**: 상태 · 상태 사유 · 상점 식별자(`mall_id`) · `last_error` 를 그대로 둔다. state 는 유효하므로 state 유효 시간이 지난 경우의 `OAUTH_STATE_EXPIRED` 와 코드가 다르다. 이 행에는 이 표의 다른 콜백 실패(재판정 실패의 `ADMIN_REQUIRED`·`EDITOR_REQUIRED` 포함)도 `last_error`·`status_reason` 을 쓰지 않는다.
+
+상태 사유 저장값(snake_case)과 API 에러 코드(UPPER_SNAKE_CASE)의 관계는 [상태 모델 「상태 값과 상태 사유」](CLE-INT-STATUS-MODEL.md#상태-값과-상태-사유) 에 있다.
 
 ## 구현 위치
 
@@ -147,7 +152,7 @@ Cafe24 Private «테스트 실행» 흐름은 설치 대기 행이 이미 있는
 - 표시가 유효하면 실패해도 연결됨 행을 `error(auth_failed)` 로 바꾸지 않는다.
 - 유효한 표시가 있는 Cafe24 Private 행이면 인가 재판정을 건너뛴다.
 
-셋 모두 state 가 아니라 행의 값으로 나뉜다. 표시가 유효한지는 남긴 시각에서 24시간이 지났는지로 정한다.
+셋 모두 state 가 아니라 행의 값으로 나뉜다. 세 규칙과 24시간 유효 기간은 [상태 모델 「재설치 대기 표시」](CLE-INT-STATUS-MODEL.md#재설치-대기-표시)가 정한다.
 
 ### Cafe24 Public 앱은 환경 변수가 있을 때만 보인다
 

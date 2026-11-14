@@ -126,6 +126,7 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
           cb({ getRepository: () => integrationRepo }),
         ),
       } as never,
+      { notify: jest.fn().mockResolvedValue(undefined) } as never,
     );
     controller = new IntegrationsController(service, {
       begin: oauthBegin,

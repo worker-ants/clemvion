@@ -22,6 +22,8 @@ import {
  *   - 공개 범위 전환은 관리자 이상이다. 뷰어와 편집자 모두 `403 ADMIN_REQUIRED` 다
  *   - 추가 권한 요청은 역할(403)을 인증 유형(400)보다 먼저 본다. 편집자가 OAuth2 가 아닌 조직 통합에 요청하면
  *     `403 ADMIN_REQUIRED` 이고 관리자 이상만 `400 INTEGRATION_SCOPE_UNSUPPORTED` 에 닿는다 (CLE-T-RW69WZ)
+ *   - 자격 증명 교체도 역할(403)을 인증 유형(400)보다 먼저 본다. 편집자가 OAuth2 조직 통합에 요청하면
+ *     `403 ADMIN_REQUIRED` 이고 관리자 이상만 `400 INTEGRATION_ROTATE_UNSUPPORTED` 에 닿는다 (CLE-T-4F33EZ)
  *   - 편집자가 `oauth/begin` 의 `new` 모드로 조직 공개 범위를 고르면 `403 ADMIN_REQUIRED` 이고 설치 대기 행이 생기지 않는다
  *   - 뷰어가 조직 통합을 지우면 `403 ADMIN_REQUIRED` 이고 행은 남는다. 자기 개인 통합은 지운다
  *   - 재인증을 시작한 뒤 뷰어로 강등된 요청자의 콜백은 커밋 직전 재판정에서 롤백된다
@@ -47,6 +49,7 @@ describe('Integration route role floors (e2e)', () => {
   let demotedReauthState: string; // demoted 가 편집자일 때 시작한 재인증
   let editorOauthId: string; // editor 의 Cafe24 Public personal — 콜백이 커밋되는 대조군
   let editorReauthState: string;
+  let orgOauthId: string; // owner 의 Cafe24 Public organization — 자격 증명 교체 판정 순서용
 
   const as = (actor: Actor) => ({
     get: (url: string) =>
@@ -89,10 +92,13 @@ describe('Integration route role floors (e2e)', () => {
   };
 
   /**
-   * Cafe24 Public personal 행을 직접 넣는다. 자격 증명은 우리 앱의 CAFE24_CLIENT_ID 를 쓰므로 행에는 토큰과 권한 범위만 있다.
-   * credentials 는 `integration-cafe24-install.e2e-spec.ts` 의 같은 헬퍼처럼 평문 JSONB 다.
+   * Cafe24 Public 행을 직접 넣는다(기본 personal). 자격 증명은 우리 앱의 CAFE24_CLIENT_ID 를 쓰므로 행에는 토큰과 권한 범위만
+   * 있다. credentials 는 `integration-cafe24-install.e2e-spec.ts` 의 같은 헬퍼처럼 평문 JSONB 다.
    */
-  const insertCafe24Public = async (createdBy: Actor): Promise<string> => {
+  const insertCafe24Public = async (
+    createdBy: Actor,
+    scope: 'personal' | 'organization' = 'personal',
+  ): Promise<string> => {
     const mallId = 'mall-' + randomBytes(4).toString('hex');
     const credentials = {
       mall_id: mallId,
@@ -105,7 +111,7 @@ describe('Integration route role floors (e2e)', () => {
       `INSERT INTO integration
         (workspace_id, service_type, auth_type, name, scope, status,
          mall_id, credentials, created_by)
-       VALUES ($1, 'cafe24', 'oauth2', $2, 'personal', 'connected',
+       VALUES ($1, 'cafe24', 'oauth2', $2, $6, 'connected',
          $3, $4::jsonb, $5)
        RETURNING id`,
       [
@@ -114,6 +120,7 @@ describe('Integration route role floors (e2e)', () => {
         mallId,
         JSON.stringify(credentials),
         createdBy.userId,
+        scope,
       ],
     );
     return r.rows[0].id;
@@ -240,6 +247,7 @@ describe('Integration route role floors (e2e)', () => {
     demotedReauthState = await startReauthorize(demoted, demotedOauthId);
     editorOauthId = await insertCafe24Public(editor);
     editorReauthState = await startReauthorize(editor, editorOauthId);
+    orgOauthId = await insertCafe24Public(owner, 'organization');
 
     await setRole(demoted, 'viewer');
   }, 120_000);
@@ -354,6 +362,24 @@ describe('Integration route role floors (e2e)', () => {
       const res = await as(actorOf()).post(
         `/api/integrations/${orgId}/request-scopes`,
         { scopes: ['e2e.irf.scope'] },
+      );
+      expect(answerOf(res)).toBe(answer);
+    },
+  );
+
+  it.each([
+    ['편집자', () => editor, '403 ADMIN_REQUIRED'],
+    [
+      '소유자(위 거절의 대조군)',
+      () => owner,
+      '400 INTEGRATION_ROTATE_UNSUPPORTED',
+    ],
+  ])(
+    '자격 증명 교체 — %s 가 OAuth2 조직 통합에 요청하면 %s',
+    async (_label, actorOf, answer) => {
+      const res = await as(actorOf()).post(
+        `/api/integrations/${orgOauthId}/rotate`,
+        { credentials: { access_token: 'e2e-irf-rotated' } },
       );
       expect(answerOf(res)).toBe(answer);
     },

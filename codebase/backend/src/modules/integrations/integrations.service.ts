@@ -81,6 +81,7 @@ import {
   McpTestConnectionService,
 } from '../mcp/mcp-test-connection.service';
 import { MCP_ERROR_CODES } from '../mcp/mcp-error-codes';
+import { IntegrationActionRequiredNotifier } from './integration-action-required-notifier.service';
 import { clampMessage } from './clamp-message';
 import { testDatabaseConnection } from './database-connection-tester';
 import { testHttpConnection } from './http-connection-tester';
@@ -538,6 +539,7 @@ export class IntegrationsService {
     private readonly mcpTestConnection: McpTestConnectionService,
     private readonly integrationCacheBus: IntegrationCacheBus,
     private readonly dataSource: DataSource,
+    private readonly actionRequiredNotifier: IntegrationActionRequiredNotifier,
   ) {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
@@ -1329,8 +1331,13 @@ export class IntegrationsService {
    * the editor surfaces a "needs reauthorization" badge. Other failure codes
    * only update `lastError`; transient errors do not transition status.
    *
-   * **Never throws** — DB failures are swallowed with a console.warn so a
-   * logging hiccup cannot break the surrounding tool execution.
+   * MCP 인증 실패 전이는 "이미 `error(auth_failed)` 가 아닌 행" 조건부 UPDATE 다. 다른 사유의 `error` 도 `auth_failed`
+   * 로 바꾼다(REQ-INTSTAT-011, Cafe24 · MakeShop `markAuthFailed` 와 같은 기준). 영향 행이 있을 때만 실제 전이로 보고 조치
+   * 필요 알림(`mcp_call` 계기)을 보낸다(CLE-T-184JJD). 이미 `error(auth_failed)` 인 행은 사용 시각 · 마지막 오류만 고친다.
+   * 그래서 동시에 들어온 두 호출이 같은 통합을 바꿔도 알림은 한 번이다.
+   *
+   * **Never throws** — DB failures and notifier failures are swallowed with a
+   * warn so a logging hiccup cannot break the surrounding tool execution.
    */
   async logUsage(
     // 전체 엔티티 타입이라 `{ id }` 같은 손으로 만든 값으로는 부를 수 없다. 얻은 통합만 넘기게 하는 서명이다.
@@ -1368,7 +1375,7 @@ export class IntegrationsService {
         }),
       );
 
-      // Single atomic UPDATE — avoids the read-modify-write race where a
+      // Atomic UPDATE — avoids the read-modify-write race where a
       // concurrent success call's save() would overwrite an in-flight
       // status='error' transition. The patch only touches columns we
       // actually want to update; relation fields are intentionally left
@@ -1380,16 +1387,57 @@ export class IntegrationsService {
           message: clampMessage(params.error?.message),
           at: new Date().toISOString(),
         };
-        if (params.error?.code === MCP_ERROR_CODES.AUTH_FAILED) {
-          patch.status = 'error';
-          patch.statusReason = 'auth_failed';
+      }
+      if (
+        params.status === 'failed' &&
+        params.error?.code === MCP_ERROR_CODES.AUTH_FAILED
+      ) {
+        // 다른 사유의 `error` 도 `auth_failed` 로 바꾼다(REQ-INTSTAT-011). 이미 `error(auth_failed)` 인 행만 조건에서
+        // 빠진다. 판정을 UPDATE 조건에 두어 동시에 들어온 호출 중 한 건만 영향 행을 얻는다.
+        const transition = await this.integrationRepository
+          .createQueryBuilder()
+          .update()
+          .set({ ...patch, status: 'error', statusReason: 'auth_failed' })
+          .where('id = :id', { id: integration.id })
+          .andWhere(
+            new Brackets((qb) => {
+              qb.where('status <> :errorStatus', {
+                errorStatus: 'error',
+              }).orWhere('status_reason IS DISTINCT FROM :authFailed', {
+                authFailed: 'auth_failed',
+              });
+            }),
+          )
+          .execute();
+        if ((transition.affected ?? 0) > 0) {
+          await this.notifyMcpAuthFailed(integration);
+          return;
         }
+        // 이미 `error(auth_failed)` 였다. 사용 시각 · 마지막 오류만 고치고 알림은 보내지 않는다.
       }
       await this.integrationRepository.update({ id: integration.id }, patch);
     } catch (err) {
       // Usage logging must not break execution — swallow and continue.
       this.logger.warn(
         `Failed to log integration usage: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * MCP 인증 실패로 바뀐 통합의 조치 필요 알림. 알림기는 자체 오류를 삼키지만(`notify` 는 던지지 않는 계약) 바깥 catch 에
+   * 맡기면 알림 실패가 사용 기록 실패로 잘못 남아서, 계약이 깨질 때를 대비해 이 자리에서 한 번 더 감싼다.
+   */
+  private async notifyMcpAuthFailed(integration: Integration): Promise<void> {
+    try {
+      await this.actionRequiredNotifier.notify(
+        integration,
+        'auth_failed',
+        'mcp_call',
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to notify MCP auth failure for ${integration.id}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -1428,6 +1476,9 @@ export class IntegrationsService {
     body: RotateCredentialsDto,
   ): Promise<PublicIntegration> {
     const entity = await this.requireVisible(id, workspaceId, userId);
+    // 404 → 403 → 400 순서다(REQ-INTMGMT-031, `requestScopes` 와 같다). 역할 거부를 인증 유형 거부보다 먼저 본다. 그래야
+    // 관리자 미만이 OAuth2 조직 통합에 교체를 요청해도 다른 조직 통합 변경과 같이 403 을 받는다.
+    this.assertCanModify(entity, userRole, 'rotate');
 
     if (entity.authType === 'oauth2') {
       throw new BadRequestException({
@@ -1435,7 +1486,6 @@ export class IntegrationsService {
         message: 'Use the reauthorize endpoint to rotate OAuth credentials',
       });
     }
-    this.assertCanModify(entity, userRole, 'rotate');
 
     const merged = this.mergeAndValidateCredentials(entity, body.credentials);
 

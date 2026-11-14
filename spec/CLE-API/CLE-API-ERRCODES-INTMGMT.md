@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-INTMGMT"
 title: "에러 코드 카탈로그 — 통합 관리 · OAuth"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "8eb618afa7dcabadf74f99418f63feefd11f3f3c2a807896d4a58df2710e9027"
+content_hash: "037c27100a3f99605a1cdb24733c1d2fdc526cbdc2406f38b6b8e5a2d017d85f"
 read_as: "approved_fallback"
-task: "CLE-T-NFNMZG"
+task: "CLE-T-FCN55B"
 source_paths: []
-mirror_sha256: "c329a46d8fd9ac00574b45dc7b35671d7a44133a4e8a815c1877d55e256265a2"
-etag: "sha256-8e1305807f82e5830b5adbf768f095cc4e0244e20932d38dc8aaeb51e3c09905"
+mirror_sha256: "4444673c79f245d53a5554641ff85e12590f861f963ca3b6be651acf3fd37741"
+etag: "sha256-e7978fac1792b175563c23fdfca4dec83b0d3d02ebae6e7179119f86ae34332e"
 ---
 ## 개요
 
@@ -31,8 +31,8 @@ etag: "sha256-8e1305807f82e5830b5adbf768f095cc4e0244e20932d38dc8aaeb51e3c09905"
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
 | `INTEGRATION_INVALID_SERVICE` | 400 | 지원하지 않는 서비스와 인증 방식 조합으로 통합을 만들거나 미리보기 연결 테스트를 요청함 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
-| `INTEGRATION_INVALID_CREDENTIALS` | 400 | 통합 생성이나 자격 증명 교체(`POST /api/integrations/:id/rotate`)의 자격 증명이 서비스의 필드 규칙(필수 필드 · 형식)에 맞지 않음. `message` 는 어긋난 항목을 `; ` 로 이어 적는다. 이름이 비슷한 `INTEGRATION_CREDENTIALS_INVALID` 와 다른 코드다(표 아래) | [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) |
-| `INTEGRATION_CREDENTIALS_INVALID` | 400 | `previewToken` 으로 통합을 만들 때(`POST /api/integrations`) 저장된 미리보기 자격 증명이 암호화되지 않은 문자열이라 쓰지 않음 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
+| `INTEGRATION_INVALID_CREDENTIALS` | 400 | 통합 생성이나 자격 증명 교체(`POST /api/integrations/:id/rotate`)의 자격 증명이 서비스의 필드 규칙(필수 필드 · 형식)에 맞지 않음. `message` 는 어긋난 항목을 `; ` 로 이어 적는다. 이름이 비슷한 `INTEGRATION_CREDENTIALS_INVALID` 와 다른 코드다(표 아래) | [통합 관리 — API 와 에러 코드 「에러 코드」](../CLE-INT/CLE-INT-MANAGE-API.md#에러-코드), [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md) |
+| `INTEGRATION_CREDENTIALS_INVALID` | 400 | `previewToken` 으로 통합을 만들 때(`POST /api/integrations`) 저장된 미리보기 자격 증명이 암호화되지 않은 문자열이라 쓰지 않음 | [통합 관리 — API 와 에러 코드 「에러 코드」](../CLE-INT/CLE-INT-MANAGE-API.md#에러-코드) |
 | `OAUTH_PREVIEW_INVALID` · `OAUTH_PREVIEW_EXPIRED` · `OAUTH_PREVIEW_MISMATCH` | 400 | `previewToken` 으로 통합을 만들 때 미리보기 토큰을 쓸 수 없음. 순서대로 토큰이 없거나 이미 썼거나 요청자(워크스페이스 · 사용자)의 것이 아님, 발급 뒤 10분이 지남, 요청의 서비스 유형이 미리보기와 다름. 미리보기 토큰은 `new` 모드 콜백이 발급한다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `OAUTH_TARGET_MISMATCH` | 400 | `new` 가 아닌 모드의 `oauth/begin` 본문이 대상 통합(`integrationId`)과 맞지 않음. 서비스가 대상 통합의 서비스 유형과 다르거나 Cafe24 상점 식별자 · 앱 유형이 대상 통합의 값과 다름 | [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](../CLE-INT/CLE-INT-OAUTH.md#oauthbegin-요청과-응답) |
 | `INTEGRATION_OAUTH_UNSUPPORTED` | 400 | OAuth 를 쓰지 않는 서비스로 `oauth/begin` 을 요청함 | [OAuth 연결과 토큰 갱신 「`oauth/begin` 요청과 응답」](../CLE-INT/CLE-INT-OAUTH.md#oauthbegin-요청과-응답) |
@@ -49,9 +49,9 @@ etag: "sha256-8e1305807f82e5830b5adbf768f095cc4e0244e20932d38dc8aaeb51e3c09905"
 | `INTEGRATION_NAME_TAKEN` | 409 | 통합 생성 · 수정이나 `oauth/begin` 의 설치 대기 행 쓰기에서 같은 워크스페이스에 같은 이름의 통합이 있음 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `INTEGRATION_OWNER_NOT_MEMBER` | 409 | 통합 범위 변경(`PATCH /api/integrations/:id/scope`)으로 조직 통합을 개인 통합으로 바꾸려는데 통합을 만든 사람이 워크스페이스 멤버가 아님 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 | `INTEGRATION_IN_USE` | 409 | 워크플로우 노드가 아직 참조하는 통합을 지우려 함(`DELETE /api/integrations/:id`). 서비스는 예외에 사용처 목록(`usages`)을 함께 넣지만 전역 예외 필터가 `code` · `message` · `details` 만 남겨 응답에는 실리지 않는다 | [통합 관리 「사용처 추적과 삭제 차단」](../CLE-INT/CLE-INT-MANAGE.md#사용처-추적과-삭제-차단), [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
-| `INTEGRATION_ROTATE_UNSUPPORTED` | 400 | OAuth2 통합에 자격 증명 교체(`POST /api/integrations/:id/rotate`)를 요청함. OAuth2 통합은 재인증을 쓴다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
+| `INTEGRATION_ROTATE_UNSUPPORTED` | 400 | OAuth2 통합에 자격 증명 교체(`POST /api/integrations/:id/rotate`)를 요청함. OAuth2 통합은 재인증을 쓴다. 가시성(404) · 역할(403) 판정 뒤에 본다. 관리자 미만이 OAuth2 조직 통합에 요청하면 403 `ADMIN_REQUIRED`(§6.2)다 | [통합 관리 — API 와 에러 코드 「에러 코드」](../CLE-INT/CLE-INT-MANAGE-API.md#에러-코드) |
 | `INTEGRATION_TEST_FAILED` | 400 | 자격 증명 교체가 새 자격 증명으로 연결 테스트를 했는데 실패함. 상태는 400 이다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)). `message` 는 연결 테스트 결과의 메시지다. 결과에 `code` 가 있으면 `details: { testCode }` 로 싣고 없으면 `details` 를 싣지 않는다. 이 값은 에러 코드가 아니라 연결 테스트 결과의 코드다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
-| `INTEGRATION_SCOPE_UNSUPPORTED` | 400 | OAuth2 가 아닌 통합에 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)을 보냄 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「통합 재인증과 추가 권한 요청」](../CLE-INT/CLE-INT-OAUTH.md#통합-재인증과-추가-권한-요청) |
+| `INTEGRATION_SCOPE_UNSUPPORTED` | 400 | OAuth2 가 아닌 통합에 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)을 보냄. 가시성(404) · 역할(403) 판정 뒤에 본다. 관리자 미만이 OAuth2 가 아닌 조직 통합에 요청하면 403 `ADMIN_REQUIRED`(§6.2)다 | [통합 관리 — API 와 에러 코드 「에러 코드」](../CLE-INT/CLE-INT-MANAGE-API.md#에러-코드), [OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청 「통합 재인증과 추가 권한 요청」](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) |
 | `CAFE24_INSTALL_RATE_LIMITED` · `MAKESHOP_INSTALL_RATE_LIMITED` | 429 | 설치 엔드포인트에서 같은 IP 의 실패가 쌓여 잠김. `details` 와 `Retry-After` 는 없다. 노드의 `CAFE24_RATE_LIMITED` · `MAKESHOP_RATE_LIMITED`(§6.22)와 다른 코드다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `CAFE24_INSTALL_INVALID_TOKEN` · `MAKESHOP_INSTALL_INVALID_TOKEN` | 404 | 설치 토큰의 형식이 틀렸거나 그 토큰의 통합이 없음. IP 실패로 센다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `CAFE24_INSTALL_MISSING_PARAMS` · `MAKESHOP_INSTALL_MISSING_PARAMS` | 400 | 설치 요청에 필수 query 가 없음. Cafe24 는 `mall_id` · `timestamp` · `hmac`, MakeShop 은 `shop_uid` · `timestamp` · `hmac` 이다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
@@ -116,8 +116,10 @@ NERV Task `CLE-T-6G3084` 다. 행은 begin 의 자격 증명 누락과 본문 �
 
 ### 정의 문서와 구현 서술을 맞췄다 (2026-11-14)
 
-NERV Task `CLE-T-6G3084` · `CLE-T-NFNMZG` 다.
+NERV Task `CLE-T-6G3084` · `CLE-T-NFNMZG` · `CLE-T-FCN55B` · `CLE-T-4F33EZ` 다.
 
 - **`INTEGRATION_SCOPE_UNSUPPORTED`**: 통합 관리 「에러 코드」 표에도 이 코드 행이 있어 정의 문서에 두 문서를 함께 적었다. 통합 관리 쪽은 판정 순서를, OAuth 연결 쪽은 요청 흐름을 적는다.
 - **`INTEGRATION_TEST_FAILED`**: NERV Task `CLE-T-XCMNP6` 의 구현으로 결과에 `code` 가 있으면 `details.testCode` 를 싣는다. 「지금 구현은 싣지 않는다」 문장을 지우고 `code` 가 없을 때의 모양을 적었다.
 - **소셜 로그인 콜백의 `OAUTH_ACCOUNT_AMBIGUOUS`**: 연결할 계정을 정하지 못한 실패도 다른 내부 코드처럼 행 없이 `server_error` 로 바뀐다고 적었다. 새 `error=` 값을 두지 않은 이유는 [가입과 로그인 — 가입 · 재설정 · 이메일 변경 Rationale 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05) 에 있다.
+- **`INTEGRATION_SCOPE_UNSUPPORTED` · `INTEGRATION_ROTATE_UNSUPPORTED` 의 판정 순서**: 두 행에 가시성(404) · 역할(403) 판정 뒤에 본다고 적었다. 추가 권한 요청은 NERV Task `CLE-T-RW69WZ`, 자격 증명 교체는 `CLE-T-4F33EZ` 로 이 순서가 됐다. 그래서 관리자 미만이 조직 통합에 보낸 요청은 인증 유형과 관계없이 `ADMIN_REQUIRED` 다.
+- **정의 문서 링크**: 통합 관리를 하위 문서로 나누며 에러 코드 표를 [통합 관리 — API 와 에러 코드](../CLE-INT/CLE-INT-MANAGE-API.md#에러-코드) 로 옮겼다. `INTEGRATION_INVALID_CREDENTIALS` · `INTEGRATION_CREDENTIALS_INVALID` 는 그 표에 행이 없었다. 그 표에 두 행을 더하고 정의 문서를 그 표로 고쳤다. 판정 순서를 더한 두 UNSUPPORTED 행의 통합 관리 링크도 그 표로 옮겼다. `INTEGRATION_SCOPE_UNSUPPORTED` 의 OAuth 링크는 요청 흐름을 적은 하위 문서 [재인증과 추가 권한 요청](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) 으로 고쳤다(NERV Task `CLE-T-FCN55B`).

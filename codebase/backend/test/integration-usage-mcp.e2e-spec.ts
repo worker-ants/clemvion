@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'crypto';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -18,6 +19,15 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *   - MCP 참조 노드 B (AI Agent) → usageKind='mcp'
  *   - 무관한 통합 id 만 가진 노드 C → false-positive 미포함
  *   - DELETE 가 MCP-only 참조만 있어도 409 INTEGRATION_IN_USE 로 차단
+ *
+ * MCP 도구 호출의 인증 실패 기록(CLE-T-184JJD)도 여기서 본다. e2e 에는 LLM 과 MCP 모의 서버가 없어서 실행 엔진의 MCP 도구
+ * 프로바이더가 넘기는 값과 같은 기록을 test-hook(`POST /integrations/:id/_test/mcp-auth-failure`, NODE_ENV=test ·
+ * E2E_TEST_HOOKS=1 일 때만 열린다)으로 남긴다. 단위 테스트는 저장소 mock 이라 조건부 UPDATE(이미 `error(auth_failed)` 인
+ * 행 제외)의 영향 행 수와 알림 행 저장을 실제로 돌리지 못한다:
+ *   - 연결됨 통합이 바뀌면 `error(auth_failed)` 가 되고 조치 필요 알림이 한 건 생긴다
+ *   - 다른 사유로 `error` 인 통합도 `auth_failed` 로 바뀌고 알림이 한 건 생긴다(REQ-INTSTAT-011)
+ *   - 이미 `error(auth_failed)` 인 통합은 알림을 만들지 않는다. 마지막 오류만 고친다
+ *   - 같은 통합에 기록이 동시에 여러 건 들어와도 알림은 한 건이다
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -226,4 +236,149 @@ describe('Integration usage tracking — direct ∪ MCP (e2e)', () => {
 
     expect(allNodes).toHaveLength(2);
   }, 30_000);
+
+  describe('MCP 인증 실패 기록과 조치 필요 알림 (CLE-T-184JJD)', () => {
+    /** 사용 기록 행의 외래 키(workflow · node_execution)를 채우는 실행 한 건. */
+    async function insertNodeExecution(): Promise<{
+      workflowId: string;
+      nodeExecutionId: string;
+    }> {
+      const workflowId = await insertWorkflow(uniqueName('WF-mcpauth'));
+      const nodeId = await insertNode(
+        workflowId,
+        'ai-agent',
+        'ai',
+        'Agent',
+        {},
+      );
+      const executionId = randomUUID();
+      await db.query(
+        `INSERT INTO execution (id, workflow_id, status, started_at)
+           VALUES ($1, $2, 'completed', NOW())`,
+        [executionId, workflowId],
+      );
+      const nodeExecutionId = randomUUID();
+      await db.query(
+        `INSERT INTO node_execution (id, execution_id, node_id, status, started_at)
+           VALUES ($1, $2, $3, 'completed', NOW())`,
+        [nodeExecutionId, executionId, nodeId],
+      );
+      return { workflowId, nodeExecutionId };
+    }
+
+    function reportMcpAuthFailure(
+      integrationId: string,
+      ids: { workflowId: string; nodeExecutionId: string },
+    ) {
+      return request(BASE_URL)
+        .post(`/api/integrations/${integrationId}/_test/mcp-auth-failure`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send(ids);
+    }
+
+    async function stateOf(integrationId: string): Promise<{
+      status: string;
+      statusReason: string | null;
+      lastError: { code?: string } | null;
+    }> {
+      const res = await request(BASE_URL)
+        .get(`/api/integrations/${integrationId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Workspace-Id', workspaceId);
+      expect(res.status).toBe(200);
+      return res.body.data as {
+        status: string;
+        statusReason: string | null;
+        lastError: { code?: string } | null;
+      };
+    }
+
+    async function actionRequiredCount(integrationId: string): Promise<number> {
+      const row = await db.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM notification
+          WHERE resource_id = $1 AND type = 'integration_action_required'`,
+        [integrationId],
+      );
+      return row.rows[0].n;
+    }
+
+    it('D. 연결됨 통합은 error(auth_failed) 로 바뀌고 소유자에게 조치 필요 알림이 한 건 간다', async () => {
+      const intId = await createIntegration(uniqueName('mcpauth-flip'));
+      const ids = await insertNodeExecution();
+
+      const res = await reportMcpAuthFailure(intId, ids);
+      expect(res.status).toBe(202);
+
+      const state = await stateOf(intId);
+      expect(state.status).toBe('error');
+      expect(state.statusReason).toBe('auth_failed');
+      expect(state.lastError?.code).toBe('MCP_AUTH_FAILED');
+
+      const rows = await db.query<{ user_id: string; title: string }>(
+        `SELECT user_id, title FROM notification
+          WHERE resource_id = $1 AND type = 'integration_action_required'`,
+        [intId],
+      );
+      expect(rows.rows).toEqual([
+        { user_id: userId, title: 'Integration disconnected' },
+      ]);
+    }, 30_000);
+
+    it('E. 다른 사유로 error 인 통합도 auth_failed 로 바뀌고 알림이 한 건 간다 (REQ-INTSTAT-011)', async () => {
+      const intId = await createIntegration(uniqueName('mcpauth-reason'));
+      // 네트워크 실패로 먼저 error 가 된 통합. 그 전이 알림은 제목이 달라 24시간 중복 방지와 섞이지 않는다.
+      await db.query(
+        `UPDATE integration SET status = 'error', status_reason = 'network' WHERE id = $1`,
+        [intId],
+      );
+      const ids = await insertNodeExecution();
+
+      const res = await reportMcpAuthFailure(intId, ids);
+      expect(res.status).toBe(202);
+
+      const state = await stateOf(intId);
+      expect(state.status).toBe('error');
+      expect(state.statusReason).toBe('auth_failed');
+      expect(state.lastError?.code).toBe('MCP_AUTH_FAILED');
+      expect(await actionRequiredCount(intId)).toBe(1);
+    }, 30_000);
+
+    it('E2. 이미 error(auth_failed) 인 통합은 알림을 만들지 않고 마지막 오류만 고친다', async () => {
+      const intId = await createIntegration(uniqueName('mcpauth-already'));
+      await db.query(
+        `UPDATE integration SET status = 'error', status_reason = 'auth_failed' WHERE id = $1`,
+        [intId],
+      );
+      const ids = await insertNodeExecution();
+
+      const res = await reportMcpAuthFailure(intId, ids);
+      expect(res.status).toBe(202);
+
+      const state = await stateOf(intId);
+      expect(state.status).toBe('error');
+      expect(state.statusReason).toBe('auth_failed');
+      expect(state.lastError?.code).toBe('MCP_AUTH_FAILED');
+      expect(await actionRequiredCount(intId)).toBe(0);
+    }, 30_000);
+
+    it('F. 같은 통합에 기록이 동시에 여러 건 들어와도 알림은 한 건이다', async () => {
+      // 24시간 중복 방지(`hasRecentByResource`)는 조회 뒤 삽입이라 그 자체로는 경합을 못 막는다. 요청이 많을수록 조건부 UPDATE
+      // (`affected` 판정)를 일반 update 로 되돌렸을 때 알림이 둘 이상 생겨 이 케이스가 실패한다.
+      // 12건은 백엔드 DB 풀(기본 10)보다 많아 요청이 실제로 겹치게 하는 값이다. 제한 시간은 12건 직렬 처리 여유를 둔 값이다.
+      const CONCURRENT = 12;
+      const idList = await Promise.all(
+        Array.from({ length: CONCURRENT }, () => insertNodeExecution()),
+      );
+      const intId = await createIntegration(uniqueName('mcpauth-race'));
+
+      const results = await Promise.all(
+        idList.map((ids) => reportMcpAuthFailure(intId, ids)),
+      );
+      expect(results.map((r) => r.status)).toEqual(Array(CONCURRENT).fill(202));
+
+      expect((await stateOf(intId)).statusReason).toBe('auth_failed');
+      expect(await actionRequiredCount(intId)).toBe(1);
+    }, 60_000);
+  });
 });

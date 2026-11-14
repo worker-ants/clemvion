@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-SCAN"
 title: "통합 상태와 만료 알림 — 만료 스캐너와 알림"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "d107c94d878bad8cab44b20aaa074ecc152b57bec90ab11bda4aa88184b593c2"
+content_hash: "ac729df8e2b5823cffce56cd3eded224bb47eed3ee396b8c2eb7ab1e73379616"
 read_as: "approved_fallback"
-task: "CLE-T-MQSRDS"
+task: "CLE-T-184JJD"
 source_paths: []
-mirror_sha256: "f6aff9d77e842f6254101b605ccdb2be7e4b0327d61f05175334165b9732b17e"
-etag: "sha256-1e22b026b9acc6983c5e18d0e5c5d20428ebd5854755fc963fe0c8b3bbfa91bf"
+mirror_sha256: "787232c24c5e2c5ebb548602e2ee3e632044fff5b1f9c748e5524e4a33b63811"
+etag: "sha256-b6ff077e213f4167adc3788ea339c0ec4435031f30afeb298f02d0ad08bf26b8"
 ---
 ## 개요
 
@@ -57,7 +57,7 @@ flowchart TD
 - 갱신 가능 통합은 상태를 낮추지 않고 만료 알림도, 발사 기록 선점도 하지 않는다. Cafe24 는 남은 시간이 0 이하면 `cafe24-token-refresh` 큐에 넣는다(`jobId` 중복 제거, `cafe24-background-refresh` 와 같은 경로의 안전망). MakeShop 은 큐에 넣지 않고 호출 직전 갱신과 401 뒤 갱신에 맡긴다. 갱신이 실패하면 갱신 워커(`Cafe24TokenRefreshProcessor`)나 호출 경로가 `error(auth_failed)`·`error(network)` 로 바꾸고, 그때 조치 필요 알림이 나간다. 이 작업은 상태를 바꾸지 않는다.
 - refresh token 이 없는 통합은 임계(7d·3d·0d)마다 `integration_expiry_dispatch` 에 `INSERT … ON CONFLICT DO NOTHING` 으로 선점하고, 선점에 성공한 경우만 알림을 보낸다. 당일(0d)이면 `status='expired', status_reason='token_expired'` 로 바꾼다.
 - MakeShop 에는 `cafe24-background-refresh` 같은 배경 갱신 작업이 없다. refresh token 수명이 30~90일로 충분히 길어 호출 직전 갱신과 401 뒤 갱신으로 덮인다([MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md)). 그래도 갱신 가능 통합으로 취급하므로 access token 만 만료된 MakeShop 통합이 `expired` 로 잘못 바뀌거나 만료 알림을 받지 않는다.
-- 외부 MCP 서버 통합은 refresh token 흐름이 아니라 `token_expires_at` 이 항상 NULL 이므로 이 작업 대상이 아니다. 인증 실패는 노드 실행 시점에 `error(auth_failed)` 로 바뀌고 사용자는 자격 증명 교체로 토큰을 바꾼다([MCP 클라이언트](CLE-INT-MCP.md)).
+- 외부 MCP 서버 통합은 refresh token 흐름이 아니라 `token_expires_at` 이 항상 NULL 이므로 이 작업 대상이 아니다. 인증 실패는 노드 실행 중 도구 호출에서 `error(auth_failed)` 로 바뀌고 그때 [조치 필요 알림](#조치-필요-알림-integration_action_required)이 나간다. 사용자는 자격 증명 교체로 토큰을 바꾼다([MCP 클라이언트](CLE-INT-MCP.md)).
 
 ## 알림
 
@@ -82,11 +82,14 @@ flowchart TD
 | --- | --- | --- | --- |
 | `auth_failed` (API 호출) | `Integration disconnected` | `"<name>" needs reauthorization — Cafe24 rejected the access token. Reconnect to resume.` | 개인 통합: 통합 소유자 / 조직 통합: 관리자 전원 |
 | `auth_failed` (OAuth 콜백) | `Integration disconnected` | `"<name>" needs reauthorization — the authorization code could not be exchanged for an access token. Reconnect to resume.` | 같음 |
+| `auth_failed` (MCP 도구 호출) | `Integration disconnected` | `"<name>" needs reauthorization — the MCP server rejected the credentials. Reconnect to resume.` | 같음 |
 | `insufficient_scope` | `Integration missing permissions` | `"<name>" is missing required scopes — open Settings → Integrations and re-grant access.` | 같음 |
 | `network` | `Integration network failure` | `"<name>" failed 3 consecutive network calls. Check Cafe24 status or retry later.` | 같음 |
 
-- 발사 시점: 오류 전이가 일어나는 그 자리에서 보낸다. Cafe24·MakeShop 클라이언트의 `markAuthFailed`(`auth_failed`·`insufficient_scope`)와 `recordNetworkFailure`(3회 누적 뒤 `network`) 안에서 `IntegrationActionRequiredNotifier` 를 부른다. 매일 도는 스캐너가 보내는 것이 아니다. 메시지에 «Cafe24» 가 고정된 문제는 [미결 사항](CLE-INT-STATUS.md#미결-사항) 에 있다.
-- OAuth 콜백: 통합 재인증이나 추가 권한 요청의 콜백이 코드 교환에 실패해(`OAUTH_TOKEN_EXCHANGE_FAILED`) 연결됨 통합을 `error(auth_failed)` 로 바꾸면 콜백 실패 기록(`markIntegrationCallbackError`)이 그 행을 저장한 뒤 같은 notifier 를 부른다. 저장이 실패하면 보내지 않는다. 이 경로는 서비스 유형을 가리지 않으므로 표의 OAuth 콜백 문구에는 서비스 이름이 없다. 제목이 API 호출의 `auth_failed` 와 같아 24시간 중복 방지를 함께 쓴다.
+- 발사 시점: 오류 전이가 일어나는 그 자리에서 보낸다. 매일 도는 스캐너가 보내는 것이 아니다. 부르는 자리는 API 호출 · OAuth 콜백 · MCP 도구 호출 세 곳이다. 알림기 `IntegrationActionRequiredNotifier.notify` 는 계기(`api_call` · `oauth_callback` · `mcp_call`)를 보고 `auth_failed` 문구를 고른다.
+- API 호출: Cafe24·MakeShop 클라이언트의 `markAuthFailed`(`auth_failed`·`insufficient_scope`)와 `recordNetworkFailure`(3회 누적 뒤 `network`) 안에서 알림기를 계기 `api_call` 로 부른다. 메시지에 «Cafe24» 가 고정된 문제는 [미결 사항](CLE-INT-STATUS.md#미결-사항) 에 있다.
+- OAuth 콜백: 통합 재인증이나 추가 권한 요청의 콜백이 코드 교환에 실패해(`OAUTH_TOKEN_EXCHANGE_FAILED`) 연결됨 통합을 `error(auth_failed)` 로 바꾸면 콜백 실패 기록(`markIntegrationCallbackError`)이 그 행을 저장한 뒤 같은 알림기를 계기 `oauth_callback` 으로 부른다. 저장이 실패하면 보내지 않는다. 이 경로는 서비스 유형을 가리지 않으므로 표의 OAuth 콜백 문구에는 서비스 이름이 없다. 제목이 API 호출의 `auth_failed` 와 같아 24시간 중복 방지를 함께 쓴다.
+- MCP 도구 호출: 외부 MCP 서버의 도구 호출(`tools/call`)이 401·403 으로 `MCP_AUTH_FAILED` 가 되면 `IntegrationsService.logUsage` 가 활동 로그를 쓰고 통합을 조건부 UPDATE 로 `error(auth_failed)` 로 바꾼다. 조건은 `status <> 'error' OR status_reason IS DISTINCT FROM 'auth_failed'` 이고 같은 UPDATE 에서 `last_used_at` · `last_error` 도 쓴다. 그래서 다른 사유(`network` · `insufficient_scope` 등)로 `error` 인 통합도 `auth_failed` 로 바뀐다. Cafe24·MakeShop 클라이언트의 `markAuthFailed` 와 같은 기준이다. 이 UPDATE 가 행을 바꿨을 때만 알림기를 계기 `mcp_call` 로 부른다. 이미 `error(auth_failed)` 인 통합은 `last_used_at` · `last_error` 만 고치고 알림을 보내지 않는다. 같은 통합의 두 호출이 동시에 실패해도 한쪽만 행을 바꾸므로 알림은 한 번만 나간다. 알림이 실패하면 경고 로그만 남기고 `logUsage` 는 예외를 던지지 않는다. 이 문구에도 서비스 이름이 없다. 제목이 다른 `auth_failed` 와 같아 24시간 중복 방지를 함께 쓴다. 상태 전환 전체는 [MCP 클라이언트 — 에러 처리](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환)에 있다.
 - 중복 방지: 정의가 갈린다. [미결 사항](CLE-INT-STATUS.md#미결-사항) 참조. 중복 방지 헬퍼 `hasRecentByResource` 는 알림 행이 있는지만 보므로 사용자가 닫은(`dismissed_at` 이 채워진) 알림도 센다. 닫기는 표시 결정일 뿐 다시 보내는 빈도와 무관하다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)).
 
 ### 채널과 이메일
@@ -99,14 +102,15 @@ flowchart TD
 
 ### 알림을 보내지 않는 경우
 
-설치 대기가 `install_timeout` 으로 만료될 때는 인앱 알림을 보내지 않는다. 사이드바 카운트, 목록 카드 배지, 노드 에디터 경고로만 알린다. 설치 대기의 다른 콜백 실패(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`)도 알림을 보내지 않는다. 연결됨 통합의 콜백 실패 가운데 상태를 바꾸지 않는 것도 보내지 않는다. 유효한 재설치 대기 표시가 있는 행의 코드 교환 실패, Cafe24 의 권한 범위 거부(`OAUTH_INVALID_SCOPE`), 그 밖의 콜백 코드가 그렇다.
+설치 대기가 `install_timeout` 으로 만료될 때는 인앱 알림을 보내지 않는다. 사이드바 카운트, 목록 카드 배지, 노드 에디터 경고로만 알린다. 설치 대기의 다른 콜백 실패(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`)도 알림을 보내지 않는다. 연결됨 통합의 콜백 실패 가운데 상태를 바꾸지 않는 것도 보내지 않는다. 유효한 재설치 대기 표시가 있는 행의 코드 교환 실패, Cafe24 의 권한 범위 거부(`OAUTH_INVALID_SCOPE`), 그 밖의 콜백 코드가 그렇다. MCP 도구 호출의 인증 실패가 이미 `error(auth_failed)` 인 통합에 기록될 때도 상태와 사유가 바뀌지 않았으므로 보내지 않는다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` (만료 스캐너. `pending-install-ttl` 이 같은 갱신에서 `mall_id` 를 비운다)
 - `codebase/backend/migrations/V154__integration_install_timeout_release_mall_id.sql` (이미 `install_timeout` 으로 만료된 행의 `mall_id` 를 한 번 비운다)
-- `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림. 계기 `api_call` · `oauth_callback` 으로 `auth_failed` 문구를 나눈다)
+- `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림. 계기 `api_call` · `oauth_callback` · `mcp_call` 로 `auth_failed` 문구를 나눈다)
 - `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (콜백 실패 기록 `markIntegrationCallbackError`. 연결됨 통합을 `error(auth_failed)` 로 바꾸면 저장한 뒤 조치 필요 알림을 부른다)
+- `codebase/backend/src/modules/integrations/integrations.service.ts` (`IntegrationsService.logUsage`. MCP 도구 호출의 `MCP_AUTH_FAILED` 를 조건부 UPDATE 로 `error(auth_failed)` 로 바꾸고 행이 바뀌면 조치 필요 알림을 부른다)
 
 ## Rationale
 
@@ -137,6 +141,15 @@ flowchart TD
 - **제목은 같게 둔다**: 사용자가 할 일(통합 재인증)이 같다. 제목이 같으면 24시간 중복 방지를 함께 써서 클라이언트의 `markAuthFailed` 알림과 콜백 알림이 겹쳐 나가지 않는다.
 - **기각한 안**: 조치 필요 알림 대신 만료 알림 종류의 `Reauthorization failed` 로 보내는 안. 이 전이는 상태가 `error` 로 바뀌어 지금 손봐야 하는 경우라 조치 필요 알림의 기준에 맞는다. 재인증 실패 만료 알림의 발사 범위는 이 개정에서 정하지 않는다.
 - **기각한 안**: 알림 없이 상세 화면의 `last_error` 로만 알리는 안. 조직 통합의 다른 관리자는 통합이 오류가 된 것을 실행이 막힌 뒤에야 안다.
+
+### MCP 도구 호출의 인증 실패도 조치 필요 알림을 보낸다 (2026-11-14)
+
+외부 MCP 서버의 도구 호출이 401·403 으로 `MCP_AUTH_FAILED` 가 되면 `logUsage` 가 통합을 `error(auth_failed)` 로 바꿨지만 알림은 보내지 않았다(NERV Task `CLE-T-184JJD`). 통합 화면의 배지만 바뀌어서 사용자는 통합이 끊긴 것을 놓쳤다. 그동안 AI 에이전트는 그 서버의 도구 없이 실행된다. 다른 오류 전이와 같이 알리는 이유는 [콜백 코드 교환 실패도 조치 필요 알림을 보낸다](#콜백-코드-교환-실패도-조치-필요-알림을-보낸다-2026-11-14) 와 같다.
+
+- **다른 사유의 `error` 도 `auth_failed` 로 바꾼다**: [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 요구사항은 외부 MCP 서버 호출이 인증 실패로 끝나면 사유를 `auth_failed` 로 바꾸라고 정한다. Cafe24·MakeShop 클라이언트의 `markAuthFailed` 도 이미 같은 사유의 `error` 일 때만 전이에서 뺀다. 사유가 바뀌면 사용자가 할 일도 바뀐다. `network` 면 기다렸다가 다시 시도하면 되지만 `auth_failed` 면 자격 증명을 바꿔야 한다. 그래서 사유가 바뀌는 전이에도 알림을 보낸다.
+- **영향 행 수로 판정한다**: 알림 여부는 조건부 UPDATE(`status <> 'error' OR status_reason IS DISTINCT FROM 'auth_failed'`)가 행을 바꿨는지로 정한다. 기준은 `markAuthFailed` 와 같고 판정 방법만 다르다. 같은 통합에 두 호출이 동시에 실패하면 두 호출이 메모리에 읽어 둔 통합은 둘 다 `connected` 다. 이 스냅샷의 상태를 비교하면 둘 다 전이로 보고 알림을 두 번 보낸다. 조건부 UPDATE 는 DB 가 행 잠금으로 한쪽만 행을 바꾸게 하므로 원자적이다. 24시간 중복 방지로는 이 경우를 막지 못한다. 조회한 뒤 만드는 방식이라 동시에 들어온 두 알림이 둘 다 조회를 통과할 수 있다.
+- **기각한 안**: 이미 `error` 인 통합은 사유가 무엇이든 그대로 두는 안. 같은 Task 의 첫 구현이 이렇게 했다. 먼저 기록된 원인은 남지만 위 요구사항과 어긋난다. 사유가 `network` 로 남으면 사용자는 자격 증명을 바꿔야 한다는 것을 알 수 없다.
+- **문구를 나눈다**: API 호출의 `auth_failed` 문구에는 «Cafe24 rejected the access token» 이 들어 있다. 외부 MCP 서버는 Cafe24 가 아니므로 이 문구를 쓰면 다른 서비스 통합의 알림에 Cafe24 이름이 나간다. 제목은 API 호출 · OAuth 콜백과 같은 `Integration disconnected` 로 둔다. 근거는 위 절의 «제목은 같게 둔다» 와 같다.
 
 ### `cafe24-background-refresh` 는 7일 기준과 6시간 주기다
 
