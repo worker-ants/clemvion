@@ -26,6 +26,14 @@ function asLimiter(
   return limiter as unknown as ChatChannelSignatureFailureLimiterService;
 }
 
+/** 한도에 닿지 않은 mock 한도기를 쓰는 인증기. 한도 상태가 필요한 케이스는 직접 만든다. */
+function makeAuthenticator(
+  secrets: SecretResolverService,
+  limiter: LimiterMock = makeLimiterMock(),
+): ChatChannelInboundAuthenticator {
+  return new ChatChannelInboundAuthenticator(secrets, asLimiter(limiter));
+}
+
 function makeSecretsMock(
   resolveImpl?: (ref: string) => Promise<string>,
 ): jest.Mocked<SecretResolverService> {
@@ -49,10 +57,7 @@ describe('ChatChannelInboundAuthenticator', () => {
   describe('Telegram', () => {
     it('정상 — header 와 resolved plaintext 일치', async () => {
       const secrets = makeSecretsMock(async () => 'expected-token');
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       await expect(
         authenticator.verify('t1', TELEGRAM_CONFIG, {
           'x-telegram-bot-api-secret-token': 'expected-token',
@@ -65,10 +70,7 @@ describe('ChatChannelInboundAuthenticator', () => {
 
     it('실패 — header 불일치 시 UnauthorizedException', async () => {
       const secrets = makeSecretsMock(async () => 'expected-token');
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       await expect(
         authenticator.verify('t1', TELEGRAM_CONFIG, {
           'x-telegram-bot-api-secret-token': 'wrong-token',
@@ -78,10 +80,7 @@ describe('ChatChannelInboundAuthenticator', () => {
 
     it('실패 — 같은 길이 다른 토큰 (timing-safe compare mismatch) → 401', async () => {
       const secrets = makeSecretsMock(async () => 'expected-token');
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       // 'expected-token' 과 동일 길이(14) — 길이 가드를 통과해
       // timingSafeEqual mismatch 경로를 탄다.
       await expect(
@@ -95,10 +94,7 @@ describe('ChatChannelInboundAuthenticator', () => {
       const secrets = makeSecretsMock(async () => {
         throw new Error('secret store unavailable');
       });
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       await expect(
         authenticator.verify('t1', TELEGRAM_CONFIG, {
           'x-telegram-bot-api-secret-token': 'any',
@@ -110,10 +106,7 @@ describe('ChatChannelInboundAuthenticator', () => {
 
     it('skip — inboundSigningRef 미설정 시 검증 통과', async () => {
       const secrets = makeSecretsMock();
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       await expect(
         authenticator.verify(
           't1',
@@ -129,10 +122,7 @@ describe('ChatChannelInboundAuthenticator', () => {
 
     it('skip — header 누락 + inboundSigningRef 있음 시 비교 실패 → 401', async () => {
       const secrets = makeSecretsMock(async () => 'expected-token');
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       await expect(
         authenticator.verify('t1', TELEGRAM_CONFIG, {}),
       ).rejects.toBeInstanceOf(UnauthorizedException);
@@ -157,10 +147,7 @@ describe('ChatChannelInboundAuthenticator', () => {
     it('정상 — signature + timestamp + rawBody 검증 통과', async () => {
       const SECRET = 'slack-test-secret';
       const secrets = makeSecretsMock(async () => SECRET);
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       const body = '{"event":{"type":"message"}}';
       const ts = String(Math.floor(Date.now() / 1000));
       const sig = signSlack(body, ts, SECRET);
@@ -179,10 +166,7 @@ describe('ChatChannelInboundAuthenticator', () => {
 
     it('실패 — signature mismatch → UnauthorizedException', async () => {
       const secrets = makeSecretsMock(async () => 'secret');
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       const ts = String(Math.floor(Date.now() / 1000));
       await expect(
         authenticator.verify(
@@ -201,10 +185,7 @@ describe('ChatChannelInboundAuthenticator', () => {
       const secrets = makeSecretsMock(async () => {
         throw new Error('secret store unavailable');
       });
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       await expect(
         authenticator.verify(
           't1',
@@ -222,10 +203,7 @@ describe('ChatChannelInboundAuthenticator', () => {
 
     it('skip — inboundSigningRef 미설정 시 검증 통과 (legacy)', async () => {
       const secrets = makeSecretsMock();
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       await expect(
         authenticator.verify(
           't1',
@@ -263,10 +241,7 @@ describe('ChatChannelInboundAuthenticator', () => {
       delete process.env.TRUST_CF_CONNECTING_IP;
       secrets = makeSecretsMock(async () => 'expected-token');
       limiter = makeLimiterMock();
-      authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(limiter),
-      );
+      authenticator = makeAuthenticator(secrets, limiter);
     });
     afterEach(() => {
       process.env = envSnapshot;
@@ -361,10 +336,7 @@ describe('ChatChannelInboundAuthenticator', () => {
   describe('미지원 provider', () => {
     it('알려지지 않은 provider 는 noop (Discord 등 후속 phase 에서 추가)', async () => {
       const secrets = makeSecretsMock();
-      const authenticator = new ChatChannelInboundAuthenticator(
-        secrets,
-        asLimiter(makeLimiterMock()),
-      );
+      const authenticator = makeAuthenticator(secrets);
       await expect(
         authenticator.verify(
           't1',

@@ -645,6 +645,38 @@ describe('TelegramAdapter', () => {
       });
     });
 
+    it('같은 클릭이 동시에 와도 answerCallbackQuery 와 토큰 조회는 한 번이다', async () => {
+      await Promise.all([
+        adapter.ackDroppedUpdate(callbackUpdate('cq-race'), baseConfig),
+        adapter.ackDroppedUpdate(callbackUpdate('cq-race'), baseConfig),
+      ]);
+
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+      expect(secrets.resolve).toHaveBeenCalledTimes(1);
+    });
+
+    // 알려진 한계: 기억은 답하기 전에 하므로 첫 호출이 실패해 forget 하기 전에 온 동시 호출은 이미 건너뛴다.
+    // 그 클릭은 이번 시도에서 답을 받지 못하고, 같은 클릭이 다시 와야 답을 시도한다. 이 동작을 고정해 둔다.
+    it('동시에 온 첫 호출이 실패하면 둘째는 건너뛰어 답이 가지 않는다(한계)', async () => {
+      secrets.resolve.mockRejectedValueOnce(new Error('secret store down'));
+
+      const results = await Promise.allSettled([
+        adapter.ackDroppedUpdate(callbackUpdate('cq-race-fail'), baseConfig),
+        adapter.ackDroppedUpdate(callbackUpdate('cq-race-fail'), baseConfig),
+      ]);
+
+      expect(results[0].status).toBe('rejected');
+      expect(results[1].status).toBe('fulfilled');
+      expect(client.answerCallbackQuery).not.toHaveBeenCalled();
+
+      // 실패한 클릭은 잊었으므로 다시 오면 답을 시도한다.
+      await adapter.ackDroppedUpdate(
+        callbackUpdate('cq-race-fail'),
+        baseConfig,
+      );
+      expect(client.answerCallbackQuery).toHaveBeenCalledTimes(1);
+    });
+
     it('토큰 조회가 실패한 클릭은 기억하지 않아 다시 오면 답을 시도한다', async () => {
       secrets.resolve.mockRejectedValueOnce(new Error('secret store down'));
       await expect(

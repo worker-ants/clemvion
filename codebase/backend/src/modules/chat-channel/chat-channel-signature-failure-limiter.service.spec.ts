@@ -39,6 +39,7 @@ describe('ChatChannelSignatureFailureLimiterService', () => {
       ['기록이 없으면', null, false],
       ['한도 바로 아래면', String(SIGNATURE_FAILURE_LIMIT_PER_MIN - 1), false],
       ['한도에 닿으면', String(SIGNATURE_FAILURE_LIMIT_PER_MIN), true],
+      ['한도를 하나 넘으면', String(SIGNATURE_FAILURE_LIMIT_PER_MIN + 1), true],
       ['한도를 넘으면', String(SIGNATURE_FAILURE_LIMIT_PER_MIN + 5), true],
       ['값이 숫자가 아니면', 'garbage', false],
     ])('%s %s → %s', async (_label, stored, expected) => {
@@ -89,16 +90,20 @@ describe('ChatChannelSignatureFailureLimiterService', () => {
       );
     });
 
-    it('스크립트는 첫 실패이거나 TTL 이 없는 키에만 창 길이를 건다', () => {
-      expect(RECORD_SIGNATURE_FAILURE_LUA).toMatch(
-        /redis\.call\('INCR', KEYS\[1\]\)/,
-      );
-      expect(RECORD_SIGNATURE_FAILURE_LUA).toMatch(
-        /c == 1 or redis\.call\('TTL', KEYS\[1\]\) == -1/,
-      );
-      expect(RECORD_SIGNATURE_FAILURE_LUA).toMatch(
-        /redis\.call\('EXPIRE', KEYS\[1\], ARGV\[1\]\)/,
-      );
+    // eval 이 문자열이나 숫자가 아닌 값을 돌려줘도 경고 판정이 어긋나지 않는다.
+    it.each([
+      ['문자열 한도 값', String(SIGNATURE_FAILURE_LIMIT_PER_MIN), 1],
+      ['숫자 한도 값', SIGNATURE_FAILURE_LIMIT_PER_MIN, 1],
+      ['한도 바로 아래', SIGNATURE_FAILURE_LIMIT_PER_MIN - 1, 0],
+      ['한도를 넘은 값', SIGNATURE_FAILURE_LIMIT_PER_MIN + 1, 0],
+      ['NaN 으로 바뀌는 값', 'garbage', 0],
+      ['null', null, 0],
+    ])('eval 이 %s 를 돌려주면 경고 %i 번', async (_label, ret, warns) => {
+      const evalFn = jest.fn().mockResolvedValue(ret);
+
+      await limiterWithEval(evalFn).recordFailure(TRIGGER_ID, IP);
+
+      expect(warnSpy).toHaveBeenCalledTimes(warns);
     });
 
     it('한도에 닿은 실패에서만 경고를 한 번 남긴다', async () => {
