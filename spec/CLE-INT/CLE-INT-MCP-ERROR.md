@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-ERROR"
 title: "MCP 클라이언트 — 에러 처리"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "ff992d645816d0d0e7a274c843114055809e675951cc534b57d2220ce1940d39"
+content_hash: "6ec5074b42a7616e92e344644702c2cca5e1d6e5fd570e0c6c841645f47139cf"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-184JJD"
 source_paths: []
-mirror_sha256: "3990bd6ac028d9918336c68fa5fd8f067a111d3d765848495ffba7ce49342b2e"
-etag: "sha256-6c512e00101492ae49a1bbc5f20eea46f7926cada696666df98e49320466f05b"
+mirror_sha256: "5d9464144e27174d9bd6679f5ef3e5c67ae4acae4211195076c249205815d90e"
+etag: "sha256-6eacdbb22c60260ede0170a1f6a839f5c5fc7695c8e8b6d2568f30d4b7a71583"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 �
 |------|------|
 | `initialize` 실패, `tools/list` 실패, connect 타임아웃 | 그 서버 도구는 LLM 에 노출하지 않는다. `meta.mcpDiagnostics.errors` 에 세분 코드([에러 코드](#에러-코드))와 `phase` 로 남긴다. 다른 서버·지식 저장소 도구는 정상 노출한다 |
 | `tools/call` 실패(네트워크, 5xx, RPC error) | 그 호출만 실패한다. LLM 에 `tool_result` 로 `{ "error": "<code>", "message": "..." }` 를 넘겨 LLM 이 응답 방법을 정하게 한다. [활동 로그](#활동-로그)와 `mcpDiagnostics.errors[]`(`phase='tools/call'`, 세분 코드)에 남긴다 |
-| 401·403(인증 실패) | 위와 같고, 추가로 `Integration.status` 를 `error(auth_failed)` 로 바꾸고 `last_error` 를 남긴다. 사용자에게 통합 재인증이나 자격 증명 교체를 권한다([인증 실패 상태 전환](#인증-실패-상태-전환)) |
+| 401·403(인증 실패) | 위와 같고, 추가로 `Integration.status` 를 `error(auth_failed)` 로 바꾸고(이미 `error(auth_failed)` 면 그대로 둔다) `last_error` 를 남긴다. 사용자에게 통합 재인증이나 자격 증명 교체를 권한다([인증 실패 상태 전환](#인증-실패-상태-전환)) |
 | 도구 인자 스키마 검증 실패 | LLM 이 보낸 인자가 `inputSchema` 를 어기면 호출하지 않고 `tool_result.error = 'INVALID_TOOL_ARGUMENTS'` 를 돌려준다. LLM 이 다음 턴에 고친다. 외부 MCP 도구의 구현 범위는 아래 `INVALID_TOOL_ARGUMENTS` 참조 |
 | `tool_result.content` 가 너무 큼(텍스트 100KB 초과, 바이너리 1MB 초과) | 잘라 내고 `tool_result` 끝에 `[truncated: original_size_bytes]` 표시를 붙인다. `mcpDiagnostics` 에 경고를 남긴다 |
 
@@ -49,7 +49,7 @@ MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 �
 | `INVALID_TOOL_ARGUMENTS` | 인자 스키마 검증 실패 또는 인자 JSON 파싱 실패. 호출 자체는 일어나지 않는다. 외부 MCP 도구는 JSON 파싱만 한다. `inputSchema` 검증은 미구현이다([미결 사항](CLE-INT-MCP.md#미결-사항) 참조) |
 | `MCP_RESPONSE_TOO_LARGE` | content 크기 상한 초과. 잘라 냈음을 알린다 |
 
-`Integration.last_error` 에는 `MCP_AUTH_FAILED` 처럼 상태 전이를 일으킨 에러만 남긴다. 일반 호출 실패는 활동 로그와 `mcpDiagnostics.errors` 로 충분하다.
+`tools/call` 이 실패하면 코드가 무엇이든 `Integration.last_error` 를 그 실패로 고친다. `last_error` 는 통합 행의 열이고 모양은 `{ code, message, at }` 이다. 활동 로그 행의 `error` 열(`{ code, message }`)과는 다른 열이고 실패 시각 `at` 이 더 붙는다. 상태까지 바꾸는 것은 `MCP_AUTH_FAILED` 뿐이다. 성공한 호출은 `last_error` 를 지우지 않는다. 실패마다의 자세한 기록은 활동 로그와 `mcpDiagnostics.errors` 에 있다.
 
 ## 활동 로그
 
@@ -58,7 +58,7 @@ MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 �
 | 필드 | 타입 | MCP 호출의 값 |
 |------|------|----|
 | `status` | enum | `success` / `failed` |
-| `error` | jsonb? | 실패 때 `{ code, message }`([에러 코드](#에러-코드) 어휘). `message` 는 자격 증명 모양의 문자열을 가린 뒤 2KB 로 자른다. 가리는 대상은 Bearer 토큰, `Authorization` 헤더, URL userinfo(scheme 을 남겨 `scheme://***@host`), bare JWT, 이름이 붙은 `api_key`·`secret`·`token` 계열(`token`·`access_token`·`csrf_token`·`csrfToken`) key-value 등이다. 모두 공용 `SECRET_LEAK_PATTERNS`(`shared/utils/sanitize-error-message`)로 처리한다. MCP 전용 추가 패턴은 2026-08-17 기준 없다. `mcpDiagnostics.errors[].message` 와 `Integration.last_error` 도 같은 방식(`sanitizeMcpErrorMessage`)이다 |
+| `error` | jsonb? | 실패 때 `{ code, message }`([에러 코드](#에러-코드) 어휘). `message` 는 자격 증명 모양의 문자열을 가린 뒤 2KB 로 자른다. 가리는 대상은 Bearer 토큰, `Authorization` 헤더, URL userinfo(scheme 을 남겨 `scheme://***@host`), bare JWT, 이름이 붙은 `api_key`·`secret`·`token` 계열(`token`·`access_token`·`csrf_token`·`csrfToken`) key-value 등이다. 모두 공용 `SECRET_LEAK_PATTERNS`(`shared/utils/sanitize-error-message`)로 처리한다. MCP 전용 추가 패턴은 2026-08-17 기준 없다. `mcpDiagnostics.errors[].message` 와 `Integration.last_error` 의 `message` 도 같은 방식(`sanitizeMcpErrorMessage`)이다 |
 | `duration_ms` | int | RPC 호출 단위 소요 시간 |
 | `api_label` | `varchar(128)?` | 내부 MCP 브리지 경로는 카탈로그 키를 채운다(Cafe24 `cafe24.<resource>.<operation>`, MakeShop `makeshop.<resource>.<operation>`). 외부 MCP 서버 경로는 NULL |
 | `api_method` | `varchar(8)?` | 내부 MCP 브리지는 operation 의 HTTP 메서드, 외부 MCP 경로는 NULL |
@@ -80,7 +80,8 @@ dry-run 재실행에서 건너뛴 호출은 남기지 않고 실제로 부른 GE
 
 1. `tool_result.error.code = MCP_AUTH_FAILED` 로 LLM 에 넘긴다. 사용자 경험을 위해 호출 자체는 부드럽게 실패시킨다.
 2. 활동 로그 `error.code = MCP_AUTH_FAILED` 로 남긴다.
-3. `Integration.status` 를 `error` 로, `status_reason` 을 `auth_failed` 로 원자적으로 UPDATE 한다. 그러면 통합 관리 화면에 «주의 필요» 배너가 자동으로 뜬다([통합 상태와 만료 알림](CLE-INT-STATUS.md#주의-필요-배너)).
+3. 통합이 `error(auth_failed)` 가 아니면 `Integration.status` 를 `error` 로, `status_reason` 을 `auth_failed` 로 바꾼다. 다른 사유로 `error` 인 통합도 사유가 `auth_failed` 로 바뀐다. 조건(`status <> 'error' OR status_reason IS DISTINCT FROM 'auth_failed'`)을 건 UPDATE 한 번으로 `last_used_at` · `last_error` 와 함께 쓴다. 그러면 통합 관리 화면에 «주의 필요» 배너가 자동으로 뜬다([통합 상태와 만료 알림](CLE-INT-STATUS.md#주의-필요-배너)). 이미 `error(auth_failed)` 인 통합은 `last_used_at` · `last_error` 만 고친다.
+4. 3단계의 UPDATE 가 행을 바꿨을 때만 조치 필요 알림(`integration_action_required`)을 보낸다. 이미 `error(auth_failed)` 였으면 보내지 않는다. 문구 · 수신자 · 중복 방지는 [만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) 이 정한다.
 
 이 정책은 refresh token 이 없는 토큰 모델인 외부 MCP 서버에만 적용한다. `error → connected` 자동 복구는 하지 않는다. 토큰이 다시 유효해지면 사용자가 자격 증명 교체나 OAuth 통합 재인증으로 `connected` 로 되돌린다. 자동 복구를 들이면 만료된 토큰이 잠깐 살아나는 시각 경쟁(race-of-clock) 상황에서 상태가 깜빡여 운영 가시성을 해친다.
 
@@ -99,3 +100,14 @@ dry-run 재실행에서 건너뛴 호출은 남기지 않고 실제로 부른 GE
 사용자에게 보이는 곳(`mcpDiagnostics.errors[].message` 등)으로 나가는 외부 MCP 에러 문자열의 비밀 가리기는 공용 `SECRET_LEAK_PATTERNS`(`shared/utils/sanitize-error-message`)를 다시 쓴다. 공용이 다루지 않는 MCP 특화 경우만 얇게 얹는 훅(`MCP_EXTRA_SECRET_PATTERNS`)을 둔다. 별도 가리기 로직을 새로 두지 않은 이유는 이렇다. 비밀 패턴은 보안상 민감한 단일 기준이라, 나뉘면 «공용에 새 패턴을 더했는데 MCP 는 빠짐» 같은 유지보수 위험이 커진다. 길이 상한만 MCP 는 2048(공용 200 과 별개)로 다르게 둔다. MCP 서버 에러가 더 길 수 있어 진단성을 지키려는 것이다.
 
 URL userinfo(`scheme://user:pass@host`) 패턴과 쿼리의 bare `token=` 은 원래 MCP 전용 목록에 있었다. 공용 패턴이 같은 형태를 흡수하면서 MCP 전용 목록에서 뺐다(2026-07-10, 2026-08-17). 공용 이름 붙은 패턴이 `token` 계열 전체(`[A-Za-z0-9_-]*token`: bare `token`·`access_token`·`csrf_token`·`csrfToken`)로 넓어졌기 때문이다. `?token=abc&foo=bar` 가 공용 패턴만으로 `?***&foo=bar` 가 되는 것을 확인했다. 그래서 `MCP_EXTRA_SECRET_PATTERNS` 는 비었지만 훅은 남긴다. MCP 서버는 제3자 구현이라 공용이 모르는 형태를 언제든 돌려줄 수 있다. 그때 여기에 한 줄 얹는 편이 공용 단일 기준을 MCP 사정으로 넓히는 것보다 안전하다.
+
+### 인증 실패는 상태를 바꾼 호출만 알린다 (2026-11-14)
+
+3단계를 조건부 UPDATE 로 하고 행이 바뀐 호출만 알리는 근거는 [만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#mcp-도구-호출의-인증-실패도-조치-필요-알림을-보낸다-2026-11-14) 에 있다. 동시에 실패한 두 호출이 알림을 두 번 보내지 않게 하려는 것이다. 다른 사유의 `error` 도 `auth_failed` 로 바꾸는 근거도 같은 절에 있다.
+
+### `last_error` 는 모든 `tools/call` 실패를 남긴다 (2026-11-14)
+
+승인본(v1)은 `Integration.last_error` 에 상태 전이를 일으킨 에러만 남기고 일반 호출 실패는 활동 로그와 `mcpDiagnostics.errors` 로 충분하다고 적었다. 그런데 `IntegrationsService.logUsage` 는 실패한 호출마다 `last_error` 를 `{ code, message, at }` 로 고친다. 코드 이력으로 보면 2026-05 저장소 재배치 이전부터 그랬다. 옛 서술은 처음부터 구현과 어긋나 있었다. 이번 개정에서 스펙을 구현에 맞췄다(NERV Task `CLE-T-184JJD`).
+
+- **기각한 안**: 구현을 옛 서술에 맞춰 상태 전이를 일으킨 에러만 남기는 안. 기존 동작을 바꾸는 일이라 이번 Task 범위 밖이다.
+- **가림과 자르기는 활동 로그와 같다**: MCP 도구 프로바이더(`mcp-tool-provider.ts`)가 `sanitizeMcpErrorMessage`(공용 `SECRET_LEAK_PATTERNS`)로 가린 message 를 `logUsage` 에 넘긴다. `logUsage` 는 그 message 를 `clampMessage` 로 `MCP_ERROR_MESSAGE_MAX_LEN`(2048자)에서 자른다. 그래서 [활동 로그](#활동-로그) `error` 행에 적은 가림과 2KB 자르기가 `last_error` 에도 똑같이 적용된다.

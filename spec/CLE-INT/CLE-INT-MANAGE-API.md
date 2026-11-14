@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-API"
 title: "통합 관리 — API 와 에러 코드"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "c4a7a2a8768debaff5a2640deee8cabd58ce73965dd5a3d8f20f5c2ce1a41a71"
+content_hash: "4e2a0f87cdc0e243ae8ecc2ad4c99c5b6c4c70605686f0d4415e550badb8e708"
 read_as: "approved_fallback"
-task: "CLE-T-RW69WZ"
+task: "CLE-T-4F33EZ"
 source_paths: []
-mirror_sha256: "05a35a7e29a68a86b65be3e874426f40f316576856434dd23a6da96dc2d81236"
-etag: "sha256-94c0f8de0401732e9c785851a1105255f2a8d6fbf3bacae42998ee7c49fc579e"
+mirror_sha256: "8aa7f278c1d516848e0b67b872dddc7fffa02dffba669dd7301759907e47a06a"
+etag: "sha256-c355944f8fea0e98c2bdb3af8db319ca5e68ed12e9478021fbfb8a528ce46f5c"
 ---
 ## 개요
 
@@ -118,7 +118,9 @@ etag: "sha256-94c0f8de0401732e9c785851a1105255f2a8d6fbf3bacae42998ee7c49fc579e"
 | `INTEGRATION_NAME_TAKEN` | 409 | 워크스페이스에 같은 이름의 통합이 있다(`integration_workspace_name_unique`, 공개 범위 무관). 생성과 별칭 수정이 낸다. Cafe24 Private·MakeShop 의 `oauth/begin` 이 설치 대기 행을 만들 때도 낸다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 겹친 쪽이 남의 개인 통합이어도 난다([받아들인 잔여](CLE-INT-MANAGE-PERM.md#개인-통합-소유자를-강제한다-404-로-숨기고-역할-우위를-두지-않으며-노드-실행은-후속으로-둔다-2026-09-25)) |
 | `INTEGRATION_TEST_FAILED` | 400 | 자격 증명 교체(`:id/rotate`)가 새 자격 증명으로 돌린 연결 테스트가 실패했다. 자격 증명과 상태는 그대로다. `message` 는 테스트 결과의 `message` 다. 결과에 `code` 가 있으면 `details: { testCode }` 로 싣고 없으면 `details` 를 싣지 않는다. 무엇을 확인하는지는 서비스마다 다르다([서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md)). HTTP 는 `base_url` 이 401·403 을 돌려줄 때만 자격 증명 거부를 안다. `:id/test`·`preview-test` 의 실패는 이 코드가 아니라 200 결과 객체다([연결 테스트](CLE-INT-MANAGE-RUN.md#연결-테스트)) |
 | `INTEGRATION_INVALID_SERVICE` | 400 | 지원하지 않는 서비스 유형·인증 유형 조합. 생성과 저장 전 연결 테스트가 공유하는 `IntegrationsService.validateServiceAuthType` 이 서비스 레지스트리(`findVariant`)에 없는 조합을 거부한다. 메시지 `Unsupported service/auth combination: {serviceType}/{authType}` |
-| `INTEGRATION_ROTATE_UNSUPPORTED` | 400 | `oauth2` 통합에 자격 증명 교체를 요청했다 |
+| `INTEGRATION_INVALID_CREDENTIALS` | 400 | 생성이나 자격 증명 교체(`:id/rotate`)의 자격 증명이 서비스의 필드 규칙(필수 필드 · 형식)에 맞지 않는다. 교체는 저장된 자격 증명에 새 값을 합친 결과를 본다. 이름이 비슷한 `INTEGRATION_CREDENTIALS_INVALID` 와 다른 코드다 |
+| `INTEGRATION_CREDENTIALS_INVALID` | 400 | `previewToken` 으로 통합을 만들 때 저장된 미리보기 자격 증명이 암호화되지 않은 문자열이라 쓰지 않는다 |
+| `INTEGRATION_ROTATE_UNSUPPORTED` | 400 | `oauth2` 통합에 자격 증명 교체(`:id/rotate`)를 요청했다. 가시성(404)과 역할(403) 판정 뒤에 본다. 관리자 미만이 OAuth2 조직 통합에 요청하면 403 `ADMIN_REQUIRED` 다([Rationale](#추가-권한-요청은-역할을-인증-유형보다-먼저-판정한다-2026-11-14)) |
 | `INTEGRATION_SCOPE_UNSUPPORTED` | 400 | 인증 유형이 `oauth2` 가 아닌 통합에 추가 권한 요청(`:id/request-scopes`)을 했다. 가시성(404)과 역할(403) 판정 뒤에 본다. 관리자 미만이 OAuth2 가 아닌 조직 통합에 요청하면 403 이다([Rationale](#추가-권한-요청은-역할을-인증-유형보다-먼저-판정한다-2026-11-14)) |
 | `RESOURCE_NOT_FOUND` | 404 | 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합. 공개 범위 전환 도중 워크스페이스와 함께 지워진 통합도 같다([위험 영역 탭](CLE-INT-MANAGE-DETAIL.md#위험-영역-탭)) |
 | `NOT_A_MEMBER` | 403 | 개인 통합 행을 만드는 트랜잭션이 통합 소유자(요청자)의 멤버십을 다시 읽었는데 없다. 라우트 가드가 멤버십을 확인한 뒤 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 트랜잭션이 먼저 잠글 워크스페이스 행이 그 사이 지워졌을 때도 공개 범위와 관계없이 같은 코드다([통합 쓰기의 잠금 순서](CLE-INT-MANAGE-PERM.md#통합-쓰기의-잠금-순서)). 가드 거부와 같은 코드다([워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드)) |
@@ -155,7 +157,7 @@ etag: "sha256-94c0f8de0401732e9c785851a1105255f2a8d6fbf3bacae42998ee7c49fc579e"
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/integrations/**` (`integrations.service.ts`: `reauthorize`·`requestScopes`·`getForExecution`, `dto/responses/integration-response.dto.ts`: `reinstallRequestedAt`·`authorIsIntegrationOwner`)
+- `codebase/backend/src/modules/integrations/**` (`integrations.service.ts`: `reauthorize`·`requestScopes`·`rotate`·`getForExecution`, `dto/responses/integration-response.dto.ts`: `reinstallRequestedAt`·`authorIsIntegrationOwner`)
 - `codebase/backend/src/common/filters/http-exception.filter.ts` (에러 응답 봉투)
 - `codebase/frontend/src/lib/api/integrations.ts`
 - `codebase/frontend/src/lib/api/integration-error-codes.ts`
@@ -164,10 +166,10 @@ etag: "sha256-94c0f8de0401732e9c785851a1105255f2a8d6fbf3bacae42998ee7c49fc579e"
 
 ### 추가 권한 요청은 역할을 인증 유형보다 먼저 판정한다 (2026-11-14)
 
-`:id/request-scopes` 는 가시성(404), 역할(403), 인증 유형(400) 순서로 판정한다(NERV Task `CLE-T-RW69WZ`). 전에는 인증 유형을 먼저 봐서 관리자 미만이 OAuth2 가 아닌 조직 통합에 요청하면 400 을 받았다. 2026-11-13 개정은 동작을 바꾸지 않아 그 순서를 그대로 적고 후속 Task 로 넘겼다. [통합 관리](CLE-INT-MANAGE.md) 의 역할 거부 요구사항은 이 요청을 403 으로 거절한다.
+`:id/request-scopes` 는 가시성(404), 역할(403), 인증 유형(400) 순서로 판정한다(NERV Task `CLE-T-RW69WZ`). 전에는 인증 유형을 먼저 봐서 관리자 미만이 OAuth2 가 아닌 조직 통합에 요청하면 400 을 받았다. [통합 관리](CLE-INT-MANAGE.md) 의 역할 거부 요구사항은 이 요청을 403 으로 거절한다.
 
 - **기각한 안**: 요구사항을 400 우선으로 고치는 안. 드러나는 것은 요청자가 이미 볼 수 있는 인증 유형뿐이라 보안 차이는 없다. 그래도 권한이 없는 요청자가 요청 형식 오류를 받아 맞지 않는 안내를 보게 된다.
-- **남은 경로**: 자격 증명 교체의 `INTEGRATION_ROTATE_UNSUPPORTED` 는 아직 역할 판정 앞이다(후속 Task `CLE-T-4F33EZ`).
+- **자격 증명 교체도 같은 순서다 (2026-11-14, NERV Task `CLE-T-4F33EZ`).** `:id/rotate` 도 인증 유형보다 역할을 먼저 본다. 관리자 미만이 OAuth2 조직 통합에 교체를 요청하면 403 `ADMIN_REQUIRED` 다. 소유자 · 관리자가 보낸 요청과 본인 개인 통합에 보낸 요청은 400 `INTEGRATION_ROTATE_UNSUPPORTED` 다.
 
 ### MakeShop 거절 코드를 계약으로 정하고 에러 표를 구현에 맞춘다 (2026-11-13)
 
