@@ -14,10 +14,10 @@ const RULE_TYPES = ['failure_rate', 'duration', 'llm_cost'] as const;
 const CHANNELS = ['in_app', 'email'] as const;
 
 export class CreateAlertRuleDto {
-  /** 알림 규칙 타입 (failure_rate: 실패율, duration: 평균 실행 시간, llm_cost: LLM 비용) */
+  /** 알림 규칙 타입 (failure_rate: 실패율, duration: 평균 전체 경과, llm_cost: LLM 비용) */
   @ApiProperty({
     description:
-      '알림 규칙 타입. failure_rate: 실패율(%) / duration: 평균 실행 시간(ms) / llm_cost: 누적 LLM 비용(USD).',
+      '알림 규칙 타입. failure_rate: 실패율(%) / duration: 평균 전체 경과(ms, 완료 실행의 duration_ms 평균이라 입력 대기 시간이 들어간다) / llm_cost: 누적 LLM 비용(USD).',
     enum: RULE_TYPES,
     example: 'failure_rate',
   })

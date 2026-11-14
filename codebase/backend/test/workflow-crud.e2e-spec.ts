@@ -173,7 +173,7 @@ describe('Workflow CRUD (e2e)', () => {
     const ids = items.map((w: { id: string }) => w.id);
     expect(ids).toContain(id);
 
-    // 목록 응답 1건이 `WorkflowDto` 선언과 맞는지 통째로 대조한다 (API 규약 §5.4).
+    // 목록 응답 1건이 `WorkflowDto` 선언과 맞는지 통째로 대조한다 (API 규약 §5.5).
     // 이 컨트롤러는 엔티티를 그대로 반환하므로 DTO 선언을 강제하는 것이 이 단언뿐이다.
     pickMatchingContract(items, (w) => w.id === id, workflowContract);
 

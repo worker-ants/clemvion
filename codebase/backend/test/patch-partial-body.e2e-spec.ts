@@ -20,7 +20,7 @@ import { AuthConfigDto } from '../src/modules/auth-configs/dto/responses/auth-co
  * null 로 채워 거짓 null 이 실린다(폴더 · 트리거가 같은 원인으로 고쳐졌다 — `omitUndefined`).
  *
  * 단언 순서가 판정의 일부다: 저장값(GET) → 응답 **값** → 응답 계약. 계약 대조만으로는 부족하다 — 이 필드들은 선언이 optional +
- * nullable(§5.4 래칫에 동결)이라 키가 빠져도, 거짓 null 이어도 통과한다. 그래서 보내지 않은 nullable 필드에 null 이 아닌 값을
+ * nullable(§5.5 래칫에 동결)이라 키가 빠져도, 거짓 null 이어도 통과한다. 그래서 보내지 않은 nullable 필드에 null 이 아닌 값을
  * 미리 넣고 **값**을 단언한다.
  */
 
@@ -250,7 +250,7 @@ describe('PATCH 부분 본문 (e2e)', () => {
     );
   });
 
-  // 요청 DTO 가 `nullable: true` 로 광고하는 동작 — §5.4 tri-state 에서 명시적 null 은 «값을 지운다». 리소스마다 `it` 을 나눠 한 곳이
+  // 요청 DTO 가 `nullable: true` 로 광고하는 동작 — §5.5 tri-state 에서 명시적 null 은 «값을 지운다». 리소스마다 `it` 을 나눠 한 곳이
   // 실패해도 나머지 둘의 상태가 같은 실행에서 드러나게 한다.
   it('E1. 워크플로 설명에 null 을 보내면 값을 지운다', async () => {
     const wf = await authed(request(BASE_URL).post('/api/workflows')).send({

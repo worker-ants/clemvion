@@ -3,7 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 // 왜 좁혔나 — 종전 응답은 조인된 `Trigger` **엔티티 전체**를 실어 보냈고, 거기에는
 // `notificationSecretV2`(평문 서명 secret) 와 `chatChannelTokenV2`(secret store ref) 가
 // 들어 있었다. `TriggersService` 가 트리거 자신의 응답에서 빼는 바로 그 컬럼들이
-// **조인을 타고** 새어 나왔고, §5.4 응답-계약 스윕이 `trigger` 를 "선언되지 않은 키" 로
+// **조인을 타고** 새어 나왔고, §5.5 응답-계약 스윕이 `trigger` 를 "선언되지 않은 키" 로
 // 검출해 드러났다. 소비처는 `schedules/page.tsx` 네 곳 (`name`·`id`·`workflowId`·
 // `workflow.name`).
 //
@@ -40,7 +40,7 @@ export class ScheduleTriggerRefDto {
   workflowId: string;
 
   /**
-   * 연결된 워크플로우 — **키 생략형**이다 (§5.4 기준 (b): 선택적 부가 컨텍스트).
+   * 연결된 워크플로우 — **키 생략형**이다 (§5.5 기준 (b): 선택적 부가 컨텍스트).
    *
    * **생성 응답에만 없다.** `create()` 는 방금 저장한 트리거를 붙이므로 이 관계가 로드되지
    * 않는다. 조회(`findById` 는 트리거와 그 워크플로 관계를 함께 싣고 `findAll` 은
@@ -111,7 +111,7 @@ export class ScheduleDto {
    * `create`/`update`(저장 직후 대입, `isActive` 무관). e2e 가 네 곳을 각각 단언한다.
    */
   // 근거: [트리거 데이터와 흐름 「트리거와 스케줄 동기화」](CLE-TRIG-DATA-MODEL#트리거와-스케줄-동기화) — `trigger_id` NOT NULL 1:1.
-  // 종전엔 키 생략형으로 선언했는데 §5.4 는 그 형태에 **사유 문서화**를 요구하고, 실측은
+  // 종전엔 키 생략형으로 선언했는데 §5.5 는 그 형태에 **사유 문서화**를 요구하고, 실측은
   // 부재 경로가 없다고 말한다 (`review/consistency/2026/09/05/21_40_38` W1).
   // — 내부 참조라 `//` 에 둔다: 필드 JSDoc 은 `introspectComments` 로 **공개 OpenAPI
   //   description** 이 된다 (`swagger.md §3`).

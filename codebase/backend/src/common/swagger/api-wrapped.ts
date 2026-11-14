@@ -35,7 +35,7 @@ export function wrapDataSchema<T>(dto: ClassRef<T>): SchemaObject {
 }
 
 /**
- * `{ data: <ref> | null }` 스키마 객체를 생성합니다 — `data` 키는 항상 있고 값이 `null` 일 수 있다(api-convention §5.4 «`null`»).
+ * `{ data: <ref> | null }` 스키마 객체를 생성합니다 — `data` 키는 항상 있고 값이 `null` 일 수 있다(api-convention §5.5 «`null`»).
  *
  * OpenAPI 3.0 은 `$ref` 옆의 형제 키(`nullable`)를 무시하므로 `allOf: [<ref>]` 로 감싸 `nullable` 을 붙인다.
  */

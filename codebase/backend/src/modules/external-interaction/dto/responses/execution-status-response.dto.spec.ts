@@ -91,7 +91,7 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
     ]);
   });
 
-  describe('부재 표현 — null vs 키 생략 (API 규약 §5.4)', () => {
+  describe('부재 표현 — null vs 키 생략 (API 규약 §5.5)', () => {
     it.each([['ButtonsContextDto'], ['NodeOutputContextDto']])(
       '%s.conversationThread 는 키 생략 필드다 — optional 이며 nullable 이 아니다',
       (dtoName) => {
@@ -134,7 +134,7 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
     /**
      * ## `required` 축을 직접 단언한다 (리뷰 1R W2)
      *
-     * 위 `it.each` 는 `nullable` 만 봤다. 그런데 §5.4 가 `null` 필드에 요구하는 것은
+     * 위 `it.each` 는 `nullable` 만 봤다. 그런데 §5.5 가 `null` 필드에 요구하는 것은
      * **두 가지**다 — `nullable: true` 이면서 **키가 상시 존재**(`required` 에 포함)라는
      * 것. `@ApiPropertyOptional` 을 쓰면 `nullable` 은 그대로인 채 `required` 만
      * 빠지므로, `nullable` 만 보는 단언은 **그 회귀를 통째로 놓친다.**
