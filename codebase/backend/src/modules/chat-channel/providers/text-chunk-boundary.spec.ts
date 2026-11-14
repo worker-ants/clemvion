@@ -42,6 +42,21 @@ describe('findChunkEnd (NERV Task CLE-T-ZEWGJP)', () => {
     expect(findChunkEnd(text, 0, 20)).toBe(15);
   });
 
+  it.each([
+    ['NBSP', '\u00a0'],
+    ['전각 공백', '\u3000'],
+  ])('%s 도 공백으로 본다', (_label, space) => {
+    const text = `${distinct(14)}${space}${distinct(20, 1)}`;
+    expect(findChunkEnd(text, 0, 20)).toBe(15);
+  });
+
+  it('\\r\\n 은 \\n 바로 뒤에서 잘라 두 글자를 앞 조각에 남긴다', () => {
+    const text = `${distinct(12)}\r\n${distinct(20, 1)}`;
+    const end = findChunkEnd(text, 0, 20);
+    expect(end).toBe(14);
+    expect(text.slice(0, end).endsWith('\r\n')).toBe(true);
+  });
+
   it('줄바꿈 자리가 한도의 절반보다 앞이면 그보다 뒤의 공백을 고른다', () => {
     const text = `${distinct(3)}\n${distinct(10, 1)} ${distinct(20, 2)}`;
     expect(findChunkEnd(text, 0, 20)).toBe(15);
@@ -72,6 +87,11 @@ describe('findChunkEnd (NERV Task CLE-T-ZEWGJP)', () => {
     const text = `${distinct(19)}😀${distinct(20, 1)}`;
     expect(findChunkEnd(text, 0, 20)).toBe(19);
     expect(findChunkEnd(text, 0, 21)).toBe(21);
+  });
+
+  it('한도가 1이면 서로게이트 쌍이어도 한 글자 나아간다(빈 조각을 만들지 않는다)', () => {
+    expect(findChunkEnd('😀😀', 0, 1)).toBe(1);
+    expect(findChunkEnd('😀😀', 1, 1)).toBe(2);
   });
 
   it.each<[string, number, string]>([

@@ -250,6 +250,21 @@ describe('renderSlackEvent — chunking (3500자)', () => {
     expect(bodies[0]).toBe(`${distinct(3000)}&lt;&amp;&gt;\n`);
     expect(bodies.join('')).toBe(escapeSlackMrkdwn(raw));
   });
+
+  it('공백 경계가 엔티티 바로 뒤면 엔티티를 앞 조각에 온전히 남긴다', () => {
+    const raw = `${distinct(3000)}& ${distinct(1000, 1)}`;
+    const bodies = bodiesOf(raw);
+    expect(bodies[0]).toBe(`${distinct(3000)}&amp; `);
+    expect(bodies.join('')).toBe(escapeSlackMrkdwn(raw));
+  });
+
+  it('조각이 엔티티로 시작해도 그 엔티티 앞으로 되돌아가지 않는다', () => {
+    const raw = `${distinct(3500)}&${distinct(4000, 1)}`;
+    const bodies = bodiesOf(raw);
+    expect(bodies.map((b) => b.length)).toEqual([3500, 3500, 505]);
+    expect(bodies[1].startsWith('&amp;')).toBe(true);
+    expect(bodies.join('')).toBe(escapeSlackMrkdwn(raw));
+  });
 });
 
 describe('renderSlackEvent — buttons (CCH-MP-02)', () => {

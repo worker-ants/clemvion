@@ -398,7 +398,9 @@ describe('parseSlackUpdate — Slash Commands', () => {
         { channel_id: 'D2', channel_name: 'general' },
       ],
       ['빈 channel_id', { channel_id: '' }],
-    ])('%s', (_label, channel) => {
+      ['문자열이 아닌 channel_id(숫자)', { channel_id: 123 }],
+      ['문자열이 아닌 channel_id(null)', { channel_id: null }],
+    ])('%s', (_label, channel: Record<string, unknown>) => {
       for (const text of ['', 'start', 'cancel', 'reply hi', 'hello']) {
         expect(parseSlackUpdate(slashCommand(text, channel))).toBeNull();
       }
@@ -413,6 +415,15 @@ describe('parseSlackUpdate — Slash Commands', () => {
           }),
         ),
       ).toMatchObject({ command: { kind: 'cancel' }, conversationKey: 'D9' });
+    });
+
+    it('channel_name 이 없는 D 채널은 DM 으로 받는다', () => {
+      const body = slashCommand('cancel', { channel_id: 'D7' });
+      expect(body).not.toHaveProperty('channel_name');
+      expect(parseSlackUpdate(body)).toMatchObject({
+        command: { kind: 'cancel' },
+        conversationKey: 'D7',
+      });
     });
   });
 });
