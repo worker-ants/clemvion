@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-SHUTDOWN"
 title: "장애 복구와 안전 종료 — 안전 종료와 영속 재개 큐"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "75caa65474fe7cfc52f0ce510a9fcd303071c3f81231fa47009192c6549243d1"
+content_hash: "bc4ce10dc3fc08afda591238950dce9f9e40517ba7bac0757332ab78543fe9d9"
 read_as: "approved_fallback"
-task: "CLE-T-CPZBVH"
+task: "CLE-T-7H7VET"
 source_paths: []
-mirror_sha256: "541b93606065edee6f864a34dd73d9bbad3e2c4debf67882de6bdcbb763e0c79"
-etag: "sha256-2fc6e8f3638aba6ddd66010d790138266a904b0195937fb61b329ffb6896c9dc"
+mirror_sha256: "9f7a35e7711a1122f4b9c0772525089a4454b6e0003497ad3b10737c15ca619c"
+etag: "sha256-9a9373bbf958b24a44a2d2d86e71d0927803459a09250f7a0e9ee5c816e95044"
 ---
 ## 개요
 
@@ -124,7 +124,7 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 - **실행 큐 세 개가 아니라 모든 워커를 멈춘다**: 질문의 선택지 문안은 실행 큐 워커 세 개(`execution-run` · `execution-continuation` · `background-execution`)를 멈춘다고 적었다. 그런데 `@nestjs/bullmq` 는 다른 큐의 워커도 같은 `onModuleDestroy` 에서 close 하고, 그 close 도 진행 중 작업을 한도 없이 기다린다. 세 개만 멈추면 다른 큐의 긴 작업 때문에 종료가 유예 시간을 넘긴다. 그래서 이 인스턴스의 워커를 모두 멈추고 유예 시간이 지나도 진행 중 작업이 남았으면 워커를 모두 강제 close 한다. 실행 큐가 아닌 작업에는 노드 실행이 없어 `SERVER_INTERRUPTED` 로 표시하지 않는다. 강제 close 된 뒤에는 그 큐의 stalled 처리를 따른다.
 - **워커 단위로 멈춘다**: 큐 단위 pause 는 Redis 의 큐 상태를 바꿔 다른 인스턴스도 멈춘다. 워커 단위 pause 는 이 프로세스만 멈춘다.
 - **세그먼트 시간은 여전히 flush 하지 않는다**: 종료를 `onModuleDestroy` 로 옮겼지만 세그먼트 경과 시간을 저장하는 훅은 더하지 않았다. 위 「안전 종료 때 세그먼트 시간이 덜 세어지는 것을 허용한다」 결정은 그대로다.
-- **남은 틈**: 노드와 노드 사이에 유예 시간이 끝나면 표시할 노드 실행이 없어 실행이 `running` 으로 남고 stalled 재배달이 거둔다(「안전 종료」 구현 항목). Makeshop · Cafe24 모듈의 `queueEvents.close()` 가 워커 close 뒤 종료를 31초 더 끄는 문제는 이 결정과 별개이고 NERV Task `CLE-T-7H7VET` 가 맡는다.
+- **남은 틈**: 노드와 노드 사이에 유예 시간이 끝나면 표시할 노드 실행이 없어 실행이 `running` 으로 남고 stalled 재배달이 거둔다(「안전 종료」 구현 항목). Makeshop · Cafe24 모듈의 `queueEvents.close()` 가 워커 close 뒤 종료를 31초 더 끌던 문제는 이 결정과 별개였고, grace 타이머를 지우지 않은 탓이었다. 공용 helper 가 close 뒤 타이머를 지우도록 고쳐 해소했다(NERV Task `CLE-T-7H7VET`, 2026-11-14 e2e 스택 실측: SIGTERM 뒤 종료 31.7초 → 1.2초).
 - **기각: 종료 표시만 앞당기기**: 503 은 바로 나가지만 워커 close 가 진행 중 작업을 한도 없이 기다리는 문제가 남는다. 긴 노드는 여전히 SIGKILL 로 끝나 `SERVER_INTERRUPTED` 표시를 놓친다.
 - **기각: 워커 close 대기에만 유예 시간 한도를 걸기**: 표시는 지켜지지만 종료 표시가 여전히 HTTP 서버를 닫은 뒤에 켜져 워커를 기다리는 동안 수동 실행 진입점이 계속 202 를 준다.
 
@@ -143,3 +143,4 @@ pause 가 실패하거나 `DiscoveryService` 가 배선되지 않아도 경고�
 - `codebase/backend/src/modules/execution-engine/shutdown/shutdown-lifecycle.spec.ts` (종료 훅 순서 테스트)
 - `codebase/backend/src/modules/execution-engine/shutdown/shutdown-module-wiring.spec.ts` (`DiscoveryModule` 배선 테스트)
 - `codebase/backend/test/execution-shutdown-order.e2e-spec.ts` (종료 순서 e2e)
+- `codebase/backend/src/nodes/integration/_base/close-queue-events.util.ts` (Makeshop · Cafe24 토큰 갱신 QueueEvents 종료)
