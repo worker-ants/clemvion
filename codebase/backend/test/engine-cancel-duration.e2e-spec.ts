@@ -407,6 +407,8 @@ describe('엔진 마감 경로의 RETURNING 이 duration_ms 를 종결 이벤트
 
       const after = await readTiming(executionId);
       // 구간 끝은 중지 시각(finished_at)이다. 엔진이 알아채기까지 걸린 시간은 들어가지 않는다.
+      // segStart 는 테스트 프로세스의 시계, finished_at 은 백엔드가 DB 에 쓴 시각이다. 같은 호스트의 시계라는
+      // 전제로 `SEGMENT_BEFORE_STOP_MS` 이상이라고 단언한다.
       const expectedSegment = Number(after.finished_ms) - segStart;
       expect(expectedSegment).toBeGreaterThanOrEqual(SEGMENT_BEFORE_STOP_MS);
       expect(
@@ -434,6 +436,46 @@ describe('엔진 마감 경로의 RETURNING 이 duration_ms 를 종결 이벤트
         .set('X-Workspace-Id', workspaceId);
       expect(detail.status).toBe(200);
       expect(detail.body.data.activeRunningMs).toBe(after.active_running_ms);
+    });
+
+    it('구간 시작이 중지 시각보다 미래면(시계 어긋남) 더하는 값은 0 이다', async () => {
+      const executionId = await insertExecution(ExecutionStatus.RUNNING);
+      await db.query(
+        'UPDATE execution SET active_running_ms = $2 WHERE id = $1',
+        [executionId, PRIOR_ACTIVE_MS],
+      );
+      const stale = await repo(Execution).findOneByOrFail({ id: executionId });
+      expect((await restStop(executionId)).status).toBe(200);
+      const stopped = await readTiming(executionId);
+      // 중지 시각 기준 시작을 한 시간 뒤로 둔다. 증가분이 음수가 되면 0 으로 잘려야 한다.
+      enginePrivates.segmentStartMs.set(
+        executionId,
+        Number(stopped.finished_ms) + 3_600_000,
+      );
+
+      await enginePrivates.finalizeCancelledExecution(stale, 'e2e');
+
+      const after = await readTiming(executionId);
+      expect(after.active_running_ms).toBe(PRIOR_ACTIVE_MS);
+    });
+
+    it('합이 int4 상한을 넘으면 상한에서 멈춘다', async () => {
+      const executionId = await insertExecution(ExecutionStatus.RUNNING);
+      await db.query(
+        'UPDATE execution SET active_running_ms = $2 WHERE id = $1',
+        [executionId, 2_147_483_000],
+      );
+      enginePrivates.segmentStartMs.set(
+        executionId,
+        Date.now() - SEGMENT_BEFORE_STOP_MS,
+      );
+      const stale = await repo(Execution).findOneByOrFail({ id: executionId });
+      expect((await restStop(executionId)).status).toBe(200);
+
+      await enginePrivates.finalizeCancelledExecution(stale, 'e2e');
+
+      const after = await readTiming(executionId);
+      expect(after.active_running_ms).toBe(2_147_483_647);
     });
 
     it('입력 대기 중에 취소되면 대기 시간은 실행 시간에 들어가지 않는다', async () => {

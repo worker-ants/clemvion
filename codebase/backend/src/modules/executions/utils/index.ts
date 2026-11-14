@@ -9,4 +9,7 @@ export {
   type ExecutionTriggerSource,
 } from './execution-trigger';
 export { loadParentWorkflowNames } from './load-parent-workflow-names';
-export { toActiveRunningMsForResponse } from './active-running-ms';
+export {
+  ADD_STOPPED_SEGMENT_SQL,
+  toActiveRunningMsForResponse,
+} from './active-running-ms';

@@ -74,6 +74,7 @@ import {
   Execution,
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
+import { ADD_STOPPED_SEGMENT_SQL } from '../executions/utils';
 import {
   NodeExecution,
   NodeExecutionStatus,
@@ -6066,10 +6067,10 @@ describe('ExecutionEngineService', () => {
           expect(setClause).not.toMatch(
             /\b(status|finished_at|duration_ms|output_data|error)\s*=/i,
           );
-          // 구간 끝은 중지 시각과 지금 중 이른 쪽이고, 음수는 0 으로, 합은 int4 상한으로 자른다.
-          expect(sql).toContain('finished_at');
-          expect(sql).toContain('GREATEST(');
-          expect(sql).toContain('2147483647');
+          // 구간 끝(중지 시각과 지금 중 이른 쪽) · 음수 0 · int4 상한은 SQL 이 정한다. mock 의 query 는 SQL 을
+          // 실행하지 않아 여기서는 헬퍼 상수를 쓰는지만 보고, 계산 결과는 engine-cancel-duration e2e 가
+          // 실제 Postgres 로 검증한다.
+          expect(sql).toBe(ADD_STOPPED_SEGMENT_SQL);
           expect(priv().segmentStartMs.has(executionId)).toBe(false);
         });
 

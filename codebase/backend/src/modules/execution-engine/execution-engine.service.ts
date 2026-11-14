@@ -222,11 +222,11 @@ import {
   CALL_STACK_SCHEMA_VERSION,
   ResumeCallStack,
 } from '../../shared/execution-resume/resume-call-stack.types';
+import { ADD_STOPPED_SEGMENT_SQL } from '../executions/utils';
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
 import {
-  PG_INT4_MAX,
   resolveTerminalDurationMs,
   TERMINAL_DURATION_MS_SQL,
   TERMINAL_FINISHED_AT_PARAM,
@@ -8937,8 +8937,8 @@ export class ExecutionEngineService
    * - `status = 'cancelled'` 인 행에만 더한다. 다른 종결자가 completed · failed 로 마감한 행은 그쪽 값이
    *   정본이다.
    * - 구간 끝은 중지 시각(`finished_at`)과 지금 중 이른 쪽이다. 중지 뒤 엔진이 경계에 닿기까지 돈 시간은
-   *   넣지 않으므로 실행 시간이 전체 경과(`duration_ms`)를 넘지 않는다. 두 시각은 다른 인스턴스의 시계일 수
-   *   있어 음수는 0 으로 자른다. 컬럼이 int4 라 합은 상한에서 멈춘다.
+   *   넣지 않으므로 실행 시간이 전체 경과(`duration_ms`)를 넘지 않는다. 음수 · int4 상한 처리를 포함한
+   *   SQL 은 `ADD_STOPPED_SEGMENT_SQL`(`executions/utils/active-running-ms.ts`)이 정한다.
    * - 입력 대기(`waiting_for_input`)에서 중지된 실행은 열린 구간이 없어 여기 오지 않는다. 대기 시간은
    *   실행 시간에 들어가지 않는다.
    * - 실패해도 던지지 않는다. 호출부 일부가 종결 처리 catch 블록 안이라(`finalizeCancelledExecution`)
@@ -8949,27 +8949,12 @@ export class ExecutionEngineService
     segment: ClosedRunningSegment,
   ): Promise<void> {
     try {
-      await this.executionRepository.query(
-        `UPDATE execution
-            SET active_running_ms = LEAST(
-                  active_running_ms::bigint + GREATEST(
-                    0,
-                    LEAST(
-                      $2::bigint,
-                      (EXTRACT(EPOCH FROM finished_at) * 1000)::bigint - $3::bigint
-                    )
-                  ),
-                  ${PG_INT4_MAX}
-                )
-          WHERE id = $1
-            AND status = $4`,
-        [
-          executionId,
-          segment.endMs - segment.startMs,
-          segment.startMs,
-          ExecutionStatus.CANCELLED,
-        ],
-      );
+      await this.executionRepository.query(ADD_STOPPED_SEGMENT_SQL, [
+        executionId,
+        segment.endMs - segment.startMs,
+        segment.startMs,
+        ExecutionStatus.CANCELLED,
+      ]);
     } catch (err) {
       this.logger.warn(
         `addSegmentToStoppedExecution(${executionId}): 중지된 실행에 마지막 구간을 더하지 못했다 ` +
