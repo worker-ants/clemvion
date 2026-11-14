@@ -101,8 +101,9 @@ export const DISCORD_MESSAGE_FLAG_EPHEMERAL = 64;
  * 보이고 알림은 울리지 않는다. 워크플로우가 일부러 넣은 멘션도 울리지 않는다. 채널 메시지
  * (`DiscordClient.postChannelMessage`)와 메시지를 싣는 interaction 응답(type 4)에 붙인다.
  */
+const NO_MENTION_PARSE: readonly string[] = Object.freeze([]);
 export const DISCORD_ALLOWED_MENTIONS_NONE = Object.freeze({
-  parse: Object.freeze([]) as readonly string[],
+  parse: NO_MENTION_PARSE,
 });
 
 /**

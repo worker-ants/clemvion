@@ -31,10 +31,20 @@ import {
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
+/**
+ * 메시지를 싣는 인터랙션 응답(type 4)은 멘션 알림을 모두 끈다(NERV Task `CLE-T-FQTQ7K`).
+ * 응답 본문은 escape 하지 않으므로 `allowed_mentions` 가 멘션 알림을 막는 유일한 장치다.
+ */
+const ALLOWED_MENTIONS_NONE = { parse: [] };
+
 /** 슬래시 명령의 기본 응답 — 본인에게만 보이는(flags 64) 수신 문구. */
 const RECEIVED = {
   type: 4,
-  data: { content: '요청을 받았습니다.', flags: 64 },
+  data: {
+    content: '요청을 받았습니다.',
+    flags: 64,
+    allowed_mentions: ALLOWED_MENTIONS_NONE,
+  },
 };
 
 const post = (path: string, body: Record<string, unknown>) =>
@@ -241,6 +251,7 @@ describe('Discord Chat Channel e2e', () => {
             '/workflow help - 도움말',
           ].join('\n'),
           flags: 64,
+          allowed_mentions: ALLOWED_MENTIONS_NONE,
         },
       });
     });
