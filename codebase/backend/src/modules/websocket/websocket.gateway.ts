@@ -3,12 +3,13 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Inject, Logger, UseGuards, forwardRef } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
@@ -28,6 +29,7 @@ import {
 } from './websocket-events.types';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
 import { WsErrorCode } from './ws-error-codes';
+import { WsRedisAdapterProvider } from './ws-redis-adapter';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { CHANNEL_AUTHORIZER, ChannelAuthorizer } from './channel-authorizer';
@@ -98,9 +100,12 @@ const MSG_NOT_AUTHORIZED_EXECUTION = 'Not authorized for this execution';
   // CORS_ORIGINS·FRONTEND_URL 미설정 시 wildcard 로 fallback.
   cors: { origin: corsOriginCallback, credentials: true },
   namespace: '/ws',
+  // CLE-API-WS-CONN §2.1 — 전송은 websocket 하나다. polling 은 요청마다 같은 서버
+  // 인스턴스에 닿아야 하는데(sticky session) 여러 인스턴스 배포에 그 설정이 없다.
+  transports: ['websocket'],
 })
 export class WebsocketGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
   server!: Server;
@@ -134,7 +139,20 @@ export class WebsocketGateway
     // §7.1 — WS 명령 rate-limit(socket 당 60/min) 카운터. Guard 가 소비, 본 gateway 가
     // handleDisconnect 에서 release. onAny UNKNOWN_TYPE 검출과 함께 §7.1 하드닝을 구성.
     private readonly wsRateLimiter: WsRateLimiterService,
+    // CLE-API-WS-MSG §4.6 — 채널 발행을 다른 서버 인스턴스의 구독 소켓에도 전달하는
+    // Socket.IO Redis adapter. Redis 미설정이면 메모리 adapter 그대로다.
+    private readonly wsRedisAdapter: WsRedisAdapterProvider,
   ) {}
+
+  /**
+   * CLE-API-WS-MSG §4.6 — 게이트웨이 namespace(`/ws`)가 만들어진 직후 Redis adapter 를 건다.
+   * `server.adapter()` 는 이미 만든 namespace 의 adapter 를 다시 만들므로 연결을 받기 전인
+   * 이 시점에 건다. Nest 는 namespace 게이트웨이에 `Namespace` 를 넘긴다.
+   */
+  afterInit(nsp: Namespace): void {
+    const adapter = this.wsRedisAdapter.createAdapter();
+    if (adapter) nsp.server.adapter(adapter);
+  }
 
   /**
    * 만료 **사전 통지** lead time. spec §1.2 가 60초로 고정한다 — 클라이언트가 REST 재발급 →
@@ -453,9 +471,10 @@ export class WebsocketGateway
       };
     }
     // M-3 (06 concurrency) — join 을 await 하고 실패 시 tentative-add 를 롤백한다.
-    // 현 in-memory adapter 에선 join 이 동기 완결이라 무영향이나, Redis adapter
-    // 도입 시 join 은 비동기가 되어 실패 시 clientSubs 와 실제 room 멤버십이
-    // 어긋날 수 있다(구독했다고 응답했으나 이벤트 미수신). 선제 방어.
+    // 메모리 adapter 와 지금 쓰는 Redis adapter(CLE-API-WS-MSG §4.6) 모두 join 이 로컬
+    // 동기라 무영향이다. Redis adapter 는 room 마다 SUBSCRIBE 하지 않고 접두 패턴 하나로
+    // 모든 패킷을 받는다. join 이 비동기인 adapter(sharded 등)로 바꾸면 실패 시 clientSubs 와
+    // 실제 room 멤버십이 어긋날 수 있어(구독했다고 응답했으나 이벤트 미수신) 선제 방어로 둔다.
     try {
       await client.join(channel);
     } catch (err) {
@@ -1094,6 +1113,10 @@ export class WebsocketGateway
     };
   }
 
+  /**
+   * 채널을 구독한 소켓에 이벤트를 보낸다. Redis adapter 가 걸려 있으면 같은 패킷을 `ws:sio`
+   * 접두 채널로 PUBLISH 해 다른 서버 인스턴스의 구독 소켓도 받는다(CLE-API-WS-MSG §4.6).
+   */
   broadcastToChannel(channel: string, event: string, payload: unknown): void {
     this.server.to(channel).emit(event, payload);
   }

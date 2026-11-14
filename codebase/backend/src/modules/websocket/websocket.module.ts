@@ -5,6 +5,7 @@ import { WebsocketGateway } from './websocket.gateway';
 import { WebsocketService } from './websocket.service';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
+import { WsRedisAdapterProvider } from './ws-redis-adapter';
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
 import { CHANNEL_AUTHORIZER, ChannelAuthorizer } from './channel-authorizer';
 import { NotificationsChannelAuthorizer } from './notifications-channel-authorizer';
@@ -47,6 +48,8 @@ import { WorkflowChannelAuthorizer } from '../workflows/workflow-channel-authori
     // §7.1 — WS 명령 rate-limit(socket 당 60/min) 카운터 + 가드.
     WsRateLimiterService,
     WsRateLimitGuard,
+    // CLE-API-WS-MSG §4.6 — 게이트웨이를 여러 서버 인스턴스에 걸쳐 묶는 Socket.IO Redis adapter.
+    WsRedisAdapterProvider,
     ExecutionSeqAllocator,
     // refactor 02 M-7 — `notifications:`(무서비스, userId 비교)는 WS-local authorizer.
     NotificationsChannelAuthorizer,

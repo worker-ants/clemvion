@@ -51,6 +51,7 @@
     "@opentelemetry/sdk-node": "^0.301.0",
     "@opentelemetry/semantic-conventions": "^1.45.0",
     "@simplewebauthn/server": "^14.1.0",
+    "@socket.io/redis-adapter": "^8.3.0",
     "@workflow/ai-end-reason": "workspace:*",
     "@workflow/chat-channel-validation": "workspace:*",
     "@workflow/expression-engine": "workspace:*",
