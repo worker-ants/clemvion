@@ -7,7 +7,8 @@ import type { ChannelUpdate } from '../../types';
  *   - 4.1 Events API (envelope.type === 'event_callback'): DM message / file_shared
  *   - 4.2 Interactivity (`payload` field 가 JSON string): block_actions / view_submission
  *   - 4.3 Slash Commands (form parsed `command` + `text`): start / cancel / text_message.
- *     `help` 는 null (도움말은 어댑터의 슬래시 명령 기본 응답이 싣는다)
+ *     `help` 는 null (도움말은 어댑터의 슬래시 명령 기본 응답이 싣는다). DM 밖에서 친 명령도 null
+ *     (어댑터의 슬래시 명령 기본 응답이 groupChatRefusal 안내를 싣는다)
  *   - url_verification (envelope.type === 'url_verification') → null (어댑터 `handshakeResponse` 가 challenge 응답)
  *   - DM 외 채널 (channel_type !== 'im') → null (호출자가 groupChatRefusal 안내)
  *   - bot_id 존재 / subtype === 'bot_message' → null (봇 무시)
@@ -58,6 +59,8 @@ export interface SlackSlashInvocation {
   command: string;
   /** `text` 의 첫 토큰. text 가 비어 있으면 빈 문자열이다. */
   subCommand: string;
+  /** 봇과의 DM 에서 친 명령인지({@link isSlackDirectMessageSlash}). */
+  directMessage: boolean;
 }
 
 /**
@@ -76,7 +79,23 @@ export function readSlackSlashInvocation(
   return {
     command: body.command,
     subCommand: splitSlashText(body.text).subCommand,
+    directMessage: isSlackDirectMessageSlash(body),
   };
+}
+
+/** Slack 이 DM 에서 친 슬래시 명령에 싣는 `channel_name`. */
+const SLACK_DM_CHANNEL_NAME = 'directmessage';
+
+/**
+ * 슬래시 명령을 DM 에서 쳤는지 판정한다. DM 대화 ID 는 `D` 로 시작하고 `channel_name` 은
+ * `directmessage` 다. 둘 중 하나라도 어긋나면 DM 이 아니다. `channel_name` 이 없으면 ID 로만 본다.
+ * 슬래시 명령도 DM 에서만 받는다(Spec CLE-CHAT-SLACK R-S-4, NERV Task `CLE-T-JK3ERX`).
+ */
+function isSlackDirectMessageSlash(body: Record<string, unknown>): boolean {
+  const channelId = body.channel_id;
+  if (typeof channelId !== 'string' || !channelId.startsWith('D')) return false;
+  const channelName = body.channel_name;
+  return channelName === undefined || channelName === SLACK_DM_CHANNEL_NAME;
 }
 
 /**
@@ -339,6 +358,8 @@ function parseSlashCommand(
   if (typeof userId !== 'string' || typeof channelId !== 'string') return null;
   if (typeof text !== 'string') return null;
   if (typeof triggerId !== 'string' || triggerId.length === 0) return null;
+  // DM 밖에서 친 명령은 실행으로 보내지 않는다. 안내는 SlackAdapter.defaultInteractionResponse 가 싣는다.
+  if (!isSlackDirectMessageSlash(body)) return null;
 
   const idempotencyKey = triggerId;
   // text 의 첫 token 으로 sub-command 분기 (start / cancel / help / 일반 text).

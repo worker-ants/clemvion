@@ -385,6 +385,36 @@ describe('parseSlackUpdate — Slash Commands', () => {
       text: 'help',
     });
   });
+  // NERV Task CLE-T-JK3ERX — 슬래시 명령도 DM 에서만 받는다(R-S-4). DM 밖에서 친 명령은 실행으로
+  // 보내지 않는다(안내는 어댑터의 기본 응답이 싣는다).
+  describe('DM 밖 채널 → null', () => {
+    it.each([
+      ['공개 채널', { channel_id: 'C1', channel_name: 'general' }],
+      ['비공개 채널', { channel_id: 'G1', channel_name: 'privategroup' }],
+      ['그룹 DM(mpim)', { channel_id: 'G2', channel_name: 'mpdm-a--b-1' }],
+      ['channel_name 없는 C 채널', { channel_id: 'C2' }],
+      [
+        'D 로 시작해도 channel_name 이 DM 이 아님',
+        { channel_id: 'D2', channel_name: 'general' },
+      ],
+      ['빈 channel_id', { channel_id: '' }],
+    ])('%s', (_label, channel) => {
+      for (const text of ['', 'start', 'cancel', 'reply hi', 'hello']) {
+        expect(parseSlackUpdate(slashCommand(text, channel))).toBeNull();
+      }
+    });
+
+    it('DM(channel_name directmessage)은 받는다', () => {
+      expect(
+        parseSlackUpdate(
+          slashCommand('cancel', {
+            channel_id: 'D9',
+            channel_name: 'directmessage',
+          }),
+        ),
+      ).toMatchObject({ command: { kind: 'cancel' }, conversationKey: 'D9' });
+    });
+  });
 });
 
 describe('readSlackSlashInvocation', () => {
@@ -392,10 +422,24 @@ describe('readSlackSlashInvocation', () => {
     expect(readSlackSlashInvocation(slashCommand('  help me '))).toEqual({
       command: '/workflow',
       subCommand: 'help',
+      directMessage: true,
     });
     expect(readSlackSlashInvocation(slashCommand(''))).toEqual({
       command: '/workflow',
       subCommand: '',
+      directMessage: true,
+    });
+  });
+
+  it('DM 밖 채널이면 directMessage 가 false 다', () => {
+    expect(
+      readSlackSlashInvocation(
+        slashCommand('start', { channel_id: 'C1', channel_name: 'general' }),
+      ),
+    ).toEqual({
+      command: '/workflow',
+      subCommand: 'start',
+      directMessage: false,
     });
   });
 
