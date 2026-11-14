@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY"
 title: "장애 복구와 안전 종료"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "f774b0e7cbb310919029db83a6bbdc8d5158021f7e2b2bbd80c8f4116884e019"
+content_hash: "3546a33676fb084ffffa0a69d33335bfc9c918df88ab752da16de396f386f7d8"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-64EQ5V"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "c45f7c6cd939a7dff0be944b668a823ed3e6f378ec07d05cfc75629e3b74a63f"
-etag: "sha256-097b7a3a94b0d14b33888258314846d0a0ff01df2d2acea470e41cdfa1851deb"
+mirror_sha256: "4e57f077ab2c1e25123a868ddcd49bb01e6883675569c376fa60bc025714d0d9"
+etag: "sha256-1320472a6bd2936e99cc7047659132c45fe0be5f10272bfdf5dfea1bfc99e783"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -132,8 +132,6 @@ flowchart TD
 
 ## 미결 사항
 
-- **SIGTERM 종료 상태 분류**: 엔진 원문 안전 종료 절은 유예 시간을 넘긴 노드 실행과 실행을 `failed` + `SERVER_INTERRUPTED` 로 마감하는 것을 확정 계약으로 적는다. 데이터 흐름 원문은 이것이 현재 구현일 뿐이고 `cancelled` 로 다시 정할지는 `plan/in-progress/spec-update-node-cancellation-shutdown-classification.md` 의 (a)/(b) 택일 결정에 달렸다고 적는다. 노드 취소 규약은 안전 종료를 `abortSignal` 생산자로 도입할 계획이라고 적는다. 그렇게 되면 노드가 `cancelled` 로 분류된다(관련: [노드 취소](CLE-EXEC-CANCEL.md), [실행 데이터와 흐름](CLE-EXEC-DATA.md)). 함께 추적 중인 실측 틈이 있다. 취소 확인 `assertExecutionNotCancelled` 가 `FAILED` / `SERVER_INTERRUPTED` 를 보지 못해 안전 종료가 표시한 상태를 dispatch 반복문이 바로 반영하지 못할 수 있다(`plan/in-progress/node-cancellation-residual-signal-propagation.md`). 결정이 `cancelled` 쪽으로 가면 이 틈의 처리도 바뀐다. 현재 구현은 `failed` + `SERVER_INTERRUPTED` 다. 결정 필요.
-- **안전 종료의 `continue` 에러 처리 정책**: 안전 종료 절차는 노드 에러 처리 정책 값으로 `stop` / `continue` 를 쓴다. 노드 공통 정책 enum 은 `stop_workflow` / `skip_node` / `use_default_output` / `retry` / `route_to_error_port` 이고 `continue` 가 없다(관련: [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md), [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md)). 컨테이너 에러 처리 정책(`config.errorPolicy`)과도 이름이 겹친다. PR3 Rationale 도 "spec 의 'continue' 용어가 실제 enum 에 없다" 고 인정한다. 현재 구현은 정책 분기 없이 모두 `stop` 으로 처리한다. 어느 정책을 뜻했는지 정해야 한다.
 - **rehydration 실패를 `cancelled` 로 두는 결정의 유지 여부**: 원문 근거 "재실행 UI 가 `cancelled` 상태에서 활성화된다" 는 재실행 문서와 맞지 않아 빠졌다. 남은 근거로 이분 결정을 유지할지는 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md#미결-사항) 에서 다룬다.
 
 ## 구현 위치
