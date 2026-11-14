@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM-STREAM"
 title: "LLM 클라이언트 — 에러 처리와 스트리밍"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-LLM"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-LLM"]
 area: "CLE-AI"
-content_hash: "f6d9737afc7a5d78d7b01259587aca3b4e6152f7b2635a0178d9a6f4fb5476fe"
+content_hash: "70c1944a462666885d819929797bd6066fe1d0343b3b54f48917c1e15f8135e6"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0VS826"
 source_paths: []
-mirror_sha256: "cc07241793b32c5d98ed1e871b71c82c79ade6ba31c8404e50b0e257fb5649e2"
-etag: "sha256-461aadff0ed9cded39b753b95cbc4f56f80c913e56ced85b7101199d2dca0216"
+mirror_sha256: "23a3c5b1a6e861925f5cf772a2d55fc03ba709e30c1a53fe1fc583a4ce60c17e"
+etag: "sha256-098c5858b407b9d31234ad5eb763c9817494b8ace49590c445a27719947e107d"
 ---
 ## 개요
 
@@ -27,12 +27,12 @@ etag: "sha256-461aadff0ed9cded39b753b95cbc4f56f80c913e56ced85b7101199d2dca0216"
 | 에러 유형 | HTTP 상태 | 코드와 처리 |
 |----------|----------|------|
 | 속도 제한 | 429 | `LLM_RATE_LIMIT`. `chat` 은 지수 백오프로 최대 3회 재시도(`withRetry`). `chatStream` 은 [호출 신뢰성 계약](CLE-AI-LLM-SERVICE.md#호출-신뢰성-계약) 참조 |
-| 네트워크·기타 실패 | - | `LLM_CONNECTION_ERROR`. 위 분기에 들지 않는 모든 클라이언트 호출 실패의 기본값이다(인증 실패·모델 없음·컨텍스트 초과 포함) |
-| 출력 오염 | - | `LLM_OUTPUT_MALFORMED`. gpt-oss 계열 harmony 제어 토큰이 드러날 때(OpenAI 스트리밍 경로). `message` 는 고정 영문 진단 문장이고, 화면 문구는 호출하는 쪽이 코드로 고른다([harmony 제어 토큰 거르기](#harmony-제어-토큰-거르기)) |
+| 네트워크·기타 실패 | 없음 | `LLM_CONNECTION_ERROR`. 위 분기에 들지 않는 모든 클라이언트 호출 실패의 기본값이다(인증 실패·모델 없음·컨텍스트 초과 포함) |
+| 출력 오염 | 없음 | `LLM_OUTPUT_MALFORMED`. gpt-oss 계열 harmony 제어 토큰이 드러날 때(OpenAI 스트리밍 경로). `message` 는 고정 영문 진단 문장이고, 화면 문구는 호출하는 쪽이 코드로 고른다([harmony 제어 토큰 거르기](#harmony-제어-토큰-거르기)) |
 | 자격 증명 누락 | 400 | `LLM_CREDENTIALS_REQUIRED`. 미리보기 요청에서 local 이 아닌 프로바이더의 `apiKey` 가 없을 때 |
 | 프로바이더 설정 에러 | 400 | `MODEL_CONFIG_INVALID`. 팩토리 생성 실패(azure·local 의 `baseUrl` 누락, 알 수 없는 프로바이더) 또는 SSRF 차단 |
 | 모델 목록 조회 실패 | 400 | `LLM_MODEL_LIST_FAILED`. 미리보기·`:id/models` 호출 중 프로바이더 응답이 실패할 때. sanitize 한 메시지를 싣는다 |
-| 스트리밍 미지원 | - | `LLM_STREAMING_UNSUPPORTED`. 지원하지 않는 프로바이더에 `stream()` 을 부를 때 |
+| 스트리밍 미지원 | 없음 | `LLM_STREAMING_UNSUPPORTED`. 클라이언트에 `stream()` 이 없을 때 `LlmService.chatStream` 이 스트림을 열기 전에 던지는 `BadRequestException` 의 응답 본문 `code` 다. `chatStream` 을 부르는 곳이 어시스턴트 스트림뿐이라 이 예외는 HTTP 응답으로 나가지 않는다. 어시스턴트가 대체 경로 없이 SSE `error` 이벤트로만 넘긴다([에러 코드 §6.17](../CLE-API/CLE-API-ERRCODES-LLM.md#617-llm-클라이언트-도메인-문서-참조)) |
 
 - 세분화 코드 `LLM_AUTH_ERROR`(401), `LLM_MODEL_NOT_FOUND`(404), `LLM_CONTEXT_EXCEEDED`(400)는 미구현(Planned)이다. 지금은 모두 `LLM_CONNECTION_ERROR` 로 모인다.
 - 타임아웃은 `withTimeout` 이 `AbortController` 로 진행 중인 요청을 취소하고 "Request timed out after {ms}ms" 에러를 던진다. 전용 `LLM_TIMEOUT` 코드로 옮기지 않는다. 노드 실행 계층(`nodes/core/error-codes.ts`)의 `LLM_TIMEOUT` 은 어느 호출 경로도 내지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)).
@@ -51,7 +51,7 @@ gpt-oss 계열 모델(예: gpt-oss-120b)은 `<|channel|>final<|message|>...` 같
 
 ## 스트리밍
 
-워크플로우 AI 어시스턴트처럼 턴 지연이 사용 경험에 중요한 기능을 위해 `LLMClient` 는 선택적 `stream()` 메서드를 둔다. 시그니처는 [LLMClient](CLE-AI-LLM-IFACE.md#llmclient) 절과 같다. `chat()` 과 독립적으로 구현하고, 스트리밍을 지원하지 않는 프로바이더는 호출 시 명시적 에러를 던진다.
+워크플로우 AI 어시스턴트처럼 턴 지연이 사용 경험에 중요한 기능을 위해 `LLMClient` 는 선택적 `stream()` 메서드를 둔다. 시그니처는 [LLMClient](CLE-AI-LLM-IFACE.md#llmclient) 절과 같다. `chat()` 과 독립적으로 구현한다. `stream()` 을 두지 않은 클라이언트에 스트리밍을 요청하면 `LlmService.chatStream` 이 스트림을 열기 전에 `LLM_STREAMING_UNSUPPORTED` 를 던진다.
 
 ### 스트림 이벤트
 
@@ -90,12 +90,15 @@ type LlmStreamErrorCode = 'LLM_RATE_LIMIT' | 'LLM_CONNECTION_ERROR' | 'LLM_OUTPU
 
 | 경우 | 이벤트 | 비고 |
 |--------|--------|------|
-| 429 rate limit (스트리밍 시작 전) | Anthropic·Google 은 `error` (code=`LLM_RATE_LIMIT`). OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열기 전에 예외를 던진다 | `chatStream` 은 앱 수준 재시도(`withRetry`)를 거치지 않는다([호출 신뢰성 계약](CLE-AI-LLM-SERVICE.md#호출-신뢰성-계약)). 프로바이더 분기는 [미결 사항](CLE-AI-LLM.md#미결-사항) |
-| 그 밖의 실패 (스트리밍 시작 전, 429 아님) | Anthropic·Google 은 `error` (code=`LLM_CONNECTION_ERROR`). OpenAI 계열은 스트림을 열기 전에 예외를 던진다 | 인증 실패나 모델 없음 같은 실패가 여기 든다 |
+| 429 rate limit (스트리밍 시작 전) | `error` (code=`LLM_RATE_LIMIT`) | 모든 프로바이더가 같다. `chatStream` 은 앱 수준 재시도(`withRetry`)를 거치지 않는다. OpenAI 계열과 Anthropic 은 SDK 가 먼저 다시 보낸다([호출 신뢰성 계약](CLE-AI-LLM-SERVICE.md#호출-신뢰성-계약)) |
+| 그 밖의 실패 (스트리밍 시작 전, 429 아님) | `error` (code=`LLM_CONNECTION_ERROR`) | 모든 프로바이더가 같다. 인증 실패나 모델 없음 같은 실패가 여기 든다 |
 | 시작 뒤 네트워크 단절 | `error` (code=`LLM_CONNECTION_ERROR`) | 클라이언트가 다시 시작하도록 안내한다 |
 | 클라이언트 취소 (사용자 Stop) | `done` (finishReason=`aborted`) | 서버는 usage 가 확인되는 만큼만 기록한다 |
-| 지원하지 않는 프로바이더에 stream 요청 | 스트림 시작 전 `LLM_STREAMING_UNSUPPORTED` throw | 호출하는 쪽이 non-streaming 대체 경로를 쓸지 정한다 |
-| 응답 헤더가 오기 전 SDK 요청 타임아웃 | Anthropic 은 `error` (code=`LLM_CONNECTION_ERROR`). OpenAI 계열(OpenAI·Azure·Local)은 스트림을 열기 전에 예외를 던진다 | Google 은 SDK 타임아웃이 없다. `stream()` 에는 앱 타임아웃(`timeoutMs`)이 없어서 헤더가 온 뒤 토큰이 멈추면 어느 프로바이더에서도 잡지 못한다 |
+| 스트림을 여는 중 클라이언트 취소 | `done` (finishReason=`aborted`) | 모든 프로바이더가 같다. usage 는 0 이고 `model` 은 요청한 모델이다. usage 가 0 이라 사용량을 기록하지 않는다 |
+| `stream()` 이 없는 클라이언트에 스트리밍 요청 | `LlmService.chatStream` 이 스트림을 열기 전에 `LLM_STREAMING_UNSUPPORTED` 를 던진다(`BadRequestException`) | 어시스턴트는 non-streaming 대체 경로 없이 SSE `error` 이벤트로 넘긴다. 다섯 프로바이더 클라이언트가 모두 `stream()` 을 구현해 운영 환경의 발동 경로는 없다 |
+| 응답 헤더가 오기 전 SDK 요청 타임아웃 | `error` (code=`LLM_CONNECTION_ERROR`) | OpenAI 계열과 Anthropic 이 해당한다. Google 은 SDK 타임아웃이 없다. `stream()` 에는 앱 타임아웃(`timeoutMs`)이 없다. 그래서 헤더가 온 뒤 토큰이 멈추면 어느 프로바이더에서도 잡지 못한다. 스트림 유휴 감지는 두지 않는다([Rationale](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다-2026-11-14)) |
+
+세 클라이언트(OpenAI 계열 · Anthropic · Google)는 스트림을 열 때의 실패를 예외로 던지지 않는다. 도중의 실패와 같은 `error` 이벤트로 낸다. OpenAI 계열은 열 때의 실패도 도중 실패와 같은 함수(`streamErrorEvent`)로 분류한다. 스트림을 여는 중의 취소는 실패가 아니어서 도중 취소와 같은 `done` 이벤트로 끝낸다. 이 이벤트는 공통 헬퍼 `abortedBeforeOpen`(`clients/stream-open.ts`)이 만든다. 어느 클라이언트도 실패한 스트림을 다시 열지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던지는 예외(스트리밍 미지원, 클라이언트 생성 실패)는 이 계약 밖이다. 결정과 기각한 대안은 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다-2026-11-14) 에 있다.
 
 ### chat() 과의 관계
 
