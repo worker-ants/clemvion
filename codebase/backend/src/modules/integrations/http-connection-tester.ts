@@ -1,5 +1,7 @@
 import { Logger } from '@nestjs/common';
+import type { Dispatcher } from 'undici';
 
+import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
 import {
   appendQueryParams,
   resolveHttpCredentials,
@@ -9,7 +11,11 @@ import {
   followRedirectsSafely,
   outboundBlockReason,
 } from '../../nodes/integration/http-request/http-redirect';
-import { SSRF_BLOCKED_CLIENT_MESSAGE } from '../../nodes/integration/http-request/http-safety';
+import {
+  SSRF_BLOCKED_CLIENT_MESSAGE,
+  SsrfBlockedError,
+  safeOutboundDispatcher,
+} from '../../nodes/integration/http-request/http-safety';
 import { clampMessage } from './clamp-message';
 import { CONNECTION_TEST_CODES } from './connection-test-codes';
 import type { IntegrationTestResult } from './integrations.service';
@@ -81,7 +87,7 @@ function describeFailure(err: unknown): string {
  * - 401 · 403 → `HTTP_AUTH_FAILED`
  * - 그 밖의 4xx → 성공이되 «자격증명은 확인하지 못했다» 안내
  * - 5xx → `HTTP_SERVER_ERROR`
- * - SSRF 차단(첫 요청 · 리다이렉트 대상) · 5홉 초과 → `HTTP_BLOCKED`(차단된 host 는 메시지에 싣지 않는다)
+ * - SSRF 차단(첫 요청 · 리다이렉트 대상 · 연결할 때 푼 주소) · 5홉 초과 → `HTTP_BLOCKED`(차단된 host 는 메시지에 싣지 않는다)
  * - 네트워크 · 타임아웃 · TLS → `HTTP_CONNECT_FAILED`
  *
  * `base_url` 이 비어 있으면(노드가 URL 전체를 적는 통합) 호출하지 않는다. 던지지 않는다.
@@ -123,12 +129,18 @@ export async function testHttpConnection(
 
     // 대기 신호 하나가 리다이렉트 체인 전체에 걸린다 — 홉이 늘어도 10초를 넘지 않는다. **preflight 뒤에** 만든다 —
     // `AbortSignal.timeout` 은 생성 시점부터 세므로 위에서 만들면 가드의 DNS 조회 시간만큼 전송 예산이 깎인다.
-    const init: RequestInit = {
+    // `dispatcher` 는 Node fetch(undici) 확장이라 DOM 의 `RequestInit` 타입에 없다.
+    const init: RequestInit & { dispatcher?: Dispatcher } = {
       method: 'GET',
       headers: requestHeaders,
       redirect: 'manual',
       signal: AbortSignal.timeout(HTTP_TEST_TIMEOUT_MS),
     };
+    // 연결할 때 푼 주소를 노드와 같은 대역표로 다시 판정한다(CLE-T-NESSYD). 위 사전 검사와 연결 사이에 DNS 응답이 바뀌어도
+    // 판정을 거치지 않은 주소로는 연결하지 않는다. 리다이렉트 홉은 `init` 을 펼쳐 만들므로 이 옵션을 물려받는다.
+    // `ALLOW_PRIVATE_HOST_TARGETS=true` 면 없어서 전역 dispatcher 를 쓴다.
+    const connectGuard = safeOutboundDispatcher();
+    if (connectGuard) init.dispatcher = connectGuard;
     // 출처가 바뀐 홉에서 자격 증명을 빼는 규칙도 노드와 같다 — 같은 `credentials` 를 넘긴다.
     const followed = await followRedirectsSafely(
       await fetch(url, init),
@@ -140,6 +152,10 @@ export async function testHttpConnection(
     await discardBody(followed.response);
     return classify(followed.response.status);
   } catch (err) {
+    // 연결 시점 판정이 막으면 fetch 는 `TypeError('fetch failed')` 로 끝나고 판정은 `cause` 에 있다. 사전 검사 차단과
+    // 같은 `HTTP_BLOCKED` 로 돌려준다. 막힌 host/IP 는 서버 로그에만 남긴다.
+    const connectBlock = findCause(err, SsrfBlockedError);
+    if (connectBlock) return blocked(connectBlock.message);
     const name = (err as { name?: unknown } | null)?.name;
     if (name === 'TimeoutError' || name === 'AbortError') {
       return {

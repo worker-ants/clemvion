@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-OUTPUT"
 title: "HTTP Request 노드 — 출력과 에러"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "e9674c509f6c2bf41d4285eafa9bc9848ba04ed0fc30925f9ddeb2e6ce2a6a43"
+content_hash: "01bd11d1ca354280bc98dd9351844be377e5552c755c6f49cf6d88e322249544"
 read_as: "approved_fallback"
-task: "CLE-T-6H2AKH"
+task: "CLE-T-43KCNP"
 source_paths: []
-mirror_sha256: "820da9b44b0a2b9402856f284f7a7671747269f55c09767e4c8d3259e58fe196"
-etag: "sha256-dcffef1bde4cb4e6df510eaed6281eaf438c653e9ece24bff8c9c587911b20b7"
+mirror_sha256: "0e92342f64dd8fa48102c324ce85aba8752739fbda8610ce2375d9c0da8aa31b"
+etag: "sha256-86aa53980c3f0c227c0561201752d033aec7fb1ae07c20263be2a0840c68f2bc"
 ---
 ## 개요
 
@@ -85,7 +85,7 @@ etag: "sha256-dcffef1bde4cb4e6df510eaed6281eaf438c653e9ece24bff8c9c587911b20b7"
 
 ### 4xx·5xx 응답 (`error`)
 
-[노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.2 의 `output.error.{code, message, details?}` 를 채운다. 서버가 돌려준 응답 본문은 디버깅을 위해 `output.response` 에 그대로 둔다. 따라가지 않은 3xx 응답도 이 모양이고 코드는 `HTTP_4XX` 다([실행 로직](CLE-NODE-HTTP-EXEC.md#실행-로직) 12단계).
+[노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.2 의 `output.error.{code, message, details?}` 를 채운다. 서버가 돌려준 응답 본문은 디버깅을 위해 `output.response` 에 그대로 둔다. 따라가지 않은 3xx 응답도 이 모양이고 코드는 `HTTP_4XX` 다([실행 로직](CLE-NODE-HTTP-EXEC.md#실행-로직) 12단계). 3xx 와 4xx 는 `output.error.details.statusCode` 로 가른다([Rationale](#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14)).
 
 ```json
 {
@@ -206,7 +206,7 @@ etag: "sha256-dcffef1bde4cb4e6df510eaed6281eaf438c653e9ece24bff8c9c587911b20b7"
 | `HTTP_4XX` | `300 ≤ statusCode < 500`. 3xx 는 `none`·`custom` 인증의 3xx 와 `integration` 인증에서 `Location` 이 없는 3xx 다 | `statusCode`·`statusText`·`url`·`method` | 서버 본문 보존 | 응답 헤더(가림 적용) | 응답 상태 |
 | `HTTP_5XX` | `500 ≤ statusCode < 600` | `statusCode`·`statusText`·`url`·`method` | 서버 본문 보존 | 응답 헤더(가림 적용) | 응답 상태 |
 | `HTTP_TRANSPORT_FAILED` | 요청 reject(DNS·연결 거부·소켓·노드 자체 타임아웃). 리다이렉트 홉에서 사설망 차단 가드가 판정이 아닌 오류를 던진 경우도 여기로 합류한다 | `url`·`method` | `{ error: <message> }` (옛 호환) | — | `0` |
-| `HTTP_BLOCKED` | 사설망 차단 판정(`SsrfBlockedError`: 호스트 검사·DNS rebinding·연결 시점 주소 판정·리다이렉트 대상 재검사·http(s) 가 아닌 프로토콜), 또는 판정이 아닌 리다이렉트 한도 초과(5홉을 따라간 뒤에도 `Location` 이 있는 3xx). 두 경우 모두 `output.error.message` 는 `Request blocked by SSRF policy.` | `url`·`method` | — | — | `0` |
+| `HTTP_BLOCKED` | 사설망 차단 판정(`SsrfBlockedError`: 호스트 검사·DNS rebinding·연결 시점 주소 판정·리다이렉트 대상 재검사·http(s) 가 아닌 프로토콜), 또는 판정이 아닌 리다이렉트 한도 초과(5홉을 따라간 뒤에도 `Location` 이 있는 3xx). 두 경우 모두 `output.error.message` 는 `Request blocked by SSRF policy.` 다. 한도 초과는 받아들인 예외다([Rationale](#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14)) | `url`·`method` | — | — | `0` |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 실패([통합 노드 공통](CLE-NODE-INT-COMMON.md)) | `url`·`method` | — | — | `0` |
 | `INTEGRATION_AUTH_UNSUPPORTED` | 지원하지 않는 `auth_type` | `url`·`method` | — | — | `0` |
 | `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback), 또는 preflight 사설망 차단 가드의 고장 | `url`·`method` | — | — | `0` |
@@ -228,9 +228,9 @@ etag: "sha256-dcffef1bde4cb4e6df510eaed6281eaf438c653e9ece24bff8c9c587911b20b7"
 
 이전 서술은 직접 따라가는 한도에 닿으면 3xx 가 `HTTP_4XX` 로 나온다고 적었지만 실제로는 한도를 넘기면 `HTTP_BLOCKED` 가 나온다. 동작을 바꾸지 않고 서술을 지금 동작에 맞췄다.
 
-- **3xx 는 `HTTP_4XX` 로 나간다.** 핸들러는 상태가 500 이상이면 `HTTP_5XX` 를 내고 그 밖의 2xx 아닌 응답은 모두 `HTTP_4XX` 로 낸다. 3xx 가 오는 경우는 `none`·`custom` 인증의 3xx 와 `integration` 인증에서 `Location` 이 없는 3xx 다. 채팅 채널의 실패 분류기는 `error.code` 만 보고 `HTTP_4XX` 를 `executionFailedThirdParty4xx` 로 안내한다. 그래서 302 로 끝난 실행은 «외부 서비스 요청이 거부되었습니다 (302)» 로 안내된다. 내부 실패(`executionFailedInternal`)로 분류되지는 않는다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 분류 표는 이 행의 조건을 `details.statusCode` 400~499 로 적었지만 분류기는 상태 범위를 보지 않는다.
+- **3xx 는 `HTTP_4XX` 로 나간다.** 핸들러는 상태가 500 이상이면 `HTTP_5XX` 를 내고 그 밖의 2xx 아닌 응답은 모두 `HTTP_4XX` 로 낸다. 3xx 가 오는 경우는 `none`·`custom` 인증의 3xx 와 `integration` 인증에서 `Location` 이 없는 3xx 다. 이때 채팅 채널의 실패 분류기는 `error.code` 만 보고 `HTTP_4XX` 를 `executionFailedThirdParty4xx` 로 안내했다. 그래서 302 로 끝난 실행은 «외부 서비스 요청이 거부되었습니다 (302)» 로 안내됐다. 내부 실패(`executionFailedInternal`)로 분류되지는 않았다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 분류 표는 이 행의 조건을 `details.statusCode` 400~499 로 적었지만 분류기는 상태 범위를 보지 않았다.
 - **리다이렉트 한도 초과는 판정 없이 `HTTP_BLOCKED` 로 나간다.** 5홉을 따라간 뒤에도 `Location` 이 있는 3xx 가 오면 `followRedirectsSafely` 가 차단으로 돌려준다. 핸들러는 사설망 차단과 같은 코드와 문구(`Request blocked by SSRF policy.`)를 낸다. 사설망 차단 가드의 판정(`SsrfBlockedError`)은 없다. [통합 노드 공통](CLE-NODE-INT-COMMON.md) 의 «차단 코드는 판정에만 쓴다» 규칙에서 벗어나는 경우다. 채팅 채널은 `HTTP_BLOCKED` 를 내부 실패(`executionFailedInternal`)로 안내하므로 외부 서비스의 리다이렉트 반복이 우리 쪽 실패로 보인다. [「사설망 차단 메시지 일반화」](CLE-NODE-HTTP.md#사설망-차단-메시지-일반화-2026-07-05) 결정이 한도 초과를 일부러 `HTTP_BLOCKED` 로 묶었다.
-- **고치지 않은 이유**: 둘 다 고치려면 핸들러가 다른 코드를 내거나 채팅 채널 분류기가 상태 범위를 봐야 한다. 3xx 와 한도 초과에 맞는 기존 코드가 없어서 새 에러 코드를 [에러 코드 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 올려야 할 수도 있다. 이번 개정은 서술을 구현에 맞추는 범위라 동작을 그대로 두었다. 3xx 와 한도 초과의 코드 정리와 채팅 채널 안내는 NERV Task `CLE-T-43KCNP` 가 맡는다. 한도 초과의 `HTTP_BLOCKED` 예외를 [에러 코드 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 행에 적는 일은 NERV Task `CLE-T-6G3084` 가 맡는다.
+- **고치지 않은 이유**: 둘 다 고치려면 핸들러가 다른 코드를 내거나 채팅 채널 분류기가 상태 범위를 봐야 한다. 3xx 와 한도 초과에 맞는 기존 코드가 없어서 새 에러 코드를 [에러 코드 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 올려야 할 수도 있다. 이번 개정은 서술을 구현에 맞추는 범위라 동작을 그대로 두었다. 3xx 와 한도 초과의 코드와 채팅 채널 안내는 NERV Task `CLE-T-43KCNP` 가 2026-11-14 에 정했다([3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다](#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14)). 한도 초과의 `HTTP_BLOCKED` 예외를 [에러 코드 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 행에 적는 일은 NERV Task `CLE-T-6G3084` 가 했다.
 
 ### 에러 `details` 를 구현에 맞춰 적는다 (2026-11-13)
 
@@ -248,3 +248,11 @@ NERV Task `CLE-T-6H2AKH` 에서 `details.url` 에 통합 자격 증명 쿼리의
 - **자격 증명을 붙이기 전 URL 을 쓰지 않았다.** `details.url` 은 실제로 보낸 요청의 URL 이라 디버깅할 때 `base_url` · 경로 · 사용자 쿼리를 그대로 보여 준다. 붙이기 전 URL 을 쓰면 실제 요청과 달라진다. 리다이렉트를 따라간 뒤의 URL 은 서버가 준 `Location` 이라 붙이기 전 URL 이 따로 없다. 이름으로 가리면 쿼리 자리는 남고 값만 가려진다.
 - 사용자가 같은 이름의 쿼리를 직접 넣었으면 그 값도 가린다. 같은 이름이면 대상 서버가 자격 증명으로 읽는 값이다.
 - 이름은 대소문자를 가리지 않고 비교한다. URL 로 파싱되지 않는 값(`base_url` 없는 상대 경로 등)도 `?` 뒤를 쿼리로 읽어 같은 규칙으로 가린다.
+
+### 3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다 (2026-11-14)
+
+NERV Task `CLE-T-43KCNP` 에서 사람이 정했다. 노드가 내는 코드는 그대로 두고 채팅 채널의 안내만 고쳤다.
+
+- **3xx 는 계속 `HTTP_4XX` 로 낸다.** 워크플로우는 `output.error.code` 로 분기한다. `HTTP_3XX` 를 새로 두면 `HTTP_4XX` 로 3xx 를 잡던 분기가 달라진다. 3xx 와 4xx 는 `output.error.details.statusCode` 로 가를 수 있어서 코드를 나누지 않았다.
+- **채팅 채널은 3xx 를 거부로 안내하지 않는다.** 실패 분류기는 `HTTP_4XX` 의 `details.statusCode` 가 300~399 면 `executionFailedThirdParty` 로 보낸다. 외부 서비스 실패를 알리는 일반 안내이고 상태 번호를 싣지 않는다. 서버가 요청을 거부한 것이 아니라 노드가 리다이렉트를 따라가지 않은 결과라서다. 3xx 전용 안내 키를 새로 두는 안은 트리거 설정 DTO · 기본 문구 · 사용자 가이드가 함께 바뀌어 택하지 않았다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 분류 표를 이 분기에 맞추는 일은 NERV Task `CLE-T-Z19QPY` 가 맡는다.
+- **리다이렉트 한도 초과는 `HTTP_BLOCKED` 를 유지한다.** [통합 노드 공통](CLE-NODE-INT-COMMON.md) 의 «차단 코드는 판정에만 쓴다» 규칙과 [에러 코드 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 의 받아들인 예외다. 전용 코드를 두면 카탈로그 개정과 워크플로우 분기 변경이 함께 따른다. 한도 초과는 외부 서비스가 리다이렉트를 계속 돌려줄 때만 나고, [「사설망 차단 메시지 일반화」](CLE-NODE-HTTP.md#사설망-차단-메시지-일반화-2026-07-05) 결정이 이 경우를 일부러 `HTTP_BLOCKED` 로 묶었다. 그래서 채팅 채널은 이 경우를 계속 내부 실패(`executionFailedInternal`)로 안내한다. 카탈로그 규칙 6 의 예외 목록에 이 경우를 더하는 일은 NERV Task `CLE-T-J6M2JG` 가 맡는다.

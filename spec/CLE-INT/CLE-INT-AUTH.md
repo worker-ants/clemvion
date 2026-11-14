@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH"
 title: "서비스별 인증 방식과 자격 증명"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "dd21d392e74e5aa479e743cd9db8551afdf59e87f6e7697f22959d4bd1709c6a"
+content_hash: "1dc9d43abe5efe3ab5fda3944cccc38d2a58722abedde61b6af5adbd092955b2"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-NESSYD"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "17292d7a6b12b3fbe50df4e1e2d753a4eeb8f75fd403840dea6b23a13a39e658"
-etag: "sha256-f929773871b0164da92cfaf06c246a47ff2aa715621e5f7ad50d7173a10d8438"
+mirror_sha256: "27d89e70ea73405df6f55573937abdd57d2af6d633be5c74cdf32b575af6156e"
+etag: "sha256-718f4b2355149d52b30dac5636a6756b3912fff4c843eda7cee5ef8c29f702cf"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -124,7 +124,7 @@ GitHub 는 인증 유형 두 가지 중 하나를 고른다.
 | `username` | string | ✓ | × |
 | `password` | string | ✓ | 🔒 |
 
-연결 테스트: `base_url` 이 있으면 HTTP Request 노드와 같은 방식으로 자격 증명을 붙여 `GET base_url` 을 보낸다. 리다이렉트는 노드와 같이 최대 5홉까지 따라가며 홉마다 SSRF 를 다시 검사한다([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)). 리다이렉트 뒤에서 인증을 거부하는 서비스도 잡기 위해서다. 판정은 마지막 응답으로 한다. 응답 본문은 읽지 않는다. 대기 시간은 10초다. host 의 SSRF 가드는 노드와 같다(`ALLOW_PRIVATE_HOST_TARGETS` 로 끌 수 있다).
+연결 테스트: `base_url` 이 있으면 HTTP Request 노드와 같은 방식으로 자격 증명을 붙여 `GET base_url` 을 보낸다. 리다이렉트는 노드와 같이 최대 5홉까지 따라가며 홉마다 SSRF 를 다시 검사한다([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)). 리다이렉트 뒤에서 인증을 거부하는 서비스도 잡기 위해서다. 판정은 마지막 응답으로 한다. 응답 본문은 읽지 않는다. 대기 시간은 10초다. host 의 SSRF 가드는 노드와 같다. 요청 전 검사에 더해 연결할 때 푼 주소도 노드와 같은 대역으로 다시 판정한다([HTTP Request 노드 — 실행 로직](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#연결할-때-푼-주소를-다시-판정한다-2026-11-14)). `ALLOW_PRIVATE_HOST_TARGETS` 로 둘 다 끌 수 있다.
 
 | 결과 | 코드 |
 | --- | --- |
@@ -132,7 +132,7 @@ GitHub 는 인증 유형 두 가지 중 하나를 고른다.
 | 401·403 | `HTTP_AUTH_FAILED`. 서버가 자격 증명을 거부했다 |
 | 그 밖의 4xx(404·405 등) | `success: true`. 다만 메시지로 «서버에는 닿았지만 `base_url` 이 이 요청을 처리하지 않아 자격 증명은 확인하지 못했다» 고 알린다. `base_url` 은 대개 API 의 뿌리라 그 자체가 자원이 아니다 |
 | 5xx | `HTTP_SERVER_ERROR` |
-| host(첫 요청 또는 리다이렉트 대상)가 SSRF 가드에 차단됨, 또는 리다이렉트가 5홉을 넘음 | `HTTP_BLOCKED` |
+| host(첫 요청 또는 리다이렉트 대상)가 SSRF 가드에 차단됨(연결할 때 푼 주소가 막힌 대역인 경우 포함), 또는 리다이렉트가 5홉을 넘음 | `HTTP_BLOCKED` |
 | 네트워크·타임아웃·TLS 실패 | `HTTP_CONNECT_FAILED`. SSRF 가드가 차단 판정이 아닌 오류를 낸 경우(가드 고장)도 같은 코드다. `HTTP_BLOCKED` 는 차단 판정에만 쓴다 |
 | 자격 증명을 붙이기 전 실패(필수 필드 누락, 지원하지 않는 인증 유형) | `INTEGRATION_INCOMPLETE`·`INTEGRATION_AUTH_UNSUPPORTED`. 요청을 보내지 않는다. 노드와 같은 `resolveHttpCredentials` 를 쓰므로 같은 자격 증명으로 노드가 낼 코드와 같다 |
 

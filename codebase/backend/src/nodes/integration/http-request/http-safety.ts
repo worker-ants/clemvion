@@ -19,7 +19,7 @@
  *    making a network call when DNS rebinding is a concern.
  * 3. {@link safeOutboundDispatcher} — 연결 시점 판정. `fetch` 의 `dispatcher` 로 넘기면 실제 연결이 쓰는 주소
  *    조회에 같은 대역표를 적용한다. 2 와 연결 사이에 DNS 응답이 바뀌어도 판정을 거치지 않은 주소로는 연결하지
- *    않는다(NERV Task `CLE-T-BS1WD1`). 지금은 HTTP Request 노드만 쓴다.
+ *    않는다(NERV Task `CLE-T-BS1WD1`). HTTP Request 노드와 HTTP 통합 연결 테스트(`CLE-T-NESSYD`)가 쓴다.
  *
  * **Self-hosted opt-in**: `ALLOW_PRIVATE_HOST_TARGETS=true` disables both
  * layers — required when the deployment legitimately needs to reach private

@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-EXEC"
 title: "HTTP Request 노드 — 실행 로직"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "65ddabb013e3a5763fa3cc92b73c1bd1271c13f11a66361b79b8f5eb68a8e39c"
+content_hash: "641ad7d28b1243f2f5a6fea5692389f3cb83c29fc7294d96cc73e073360a6731"
 read_as: "approved_fallback"
-task: "CLE-T-BS1WD1"
+task: "CLE-T-NESSYD"
 source_paths: []
-mirror_sha256: "31d7549968b3941ce53e3ba5324a6284ec4f7e890e735318456ce04168db48bb"
-etag: "sha256-beb143b218d8d816565e6b4997eb190833be86517eb691ae9fcd6c1fa4a84934"
+mirror_sha256: "06f4afa54b8445e508feba8a22af89ce4c9c913f3888492c14a316e3ad23ef0e"
+etag: "sha256-a23409c0b1931d941e3bd85e799b76778bb6751bfff4202de1ca5475db831749"
 ---
 ## 개요
 
@@ -154,7 +154,8 @@ API 식별 정보는 다음처럼 채운다. 통합별 채우기 정책의 전�
 - 연결 시점 조회가 `fetch` 의 원래 조회를 대신하므로 요청 하나의 조회 횟수는 전과 같다.
 - 해석 실패는 전처럼 통과시킨다(사람 결정, 2026-11-14). 연결할 때도 풀리지 않으면 요청이 `HTTP_TRANSPORT_FAILED` 로 끝난다. 검사 때 실패하고 연결 때 내부 주소로 풀리는 변형은 연결 시점 판정이 막는다.
 - TLS 의 SNI 와 인증서 검증은 undici 가 URL 의 호스트 이름으로 하므로 바뀌지 않는다. IP 리터럴 호스트는 조회를 거치지 않으므로 8단계의 리터럴 검사가 맡는다.
-- 이 판정 밖에 남은 경로가 있다. HTTP 통합 연결 테스트는 `followRedirectsSafely` 를 함께 쓰지만 이 dispatcher 를 넘기지 않는다. Database Query · Send Email 은 `fetch` 를 쓰지 않아 사전 검사만 한다.
+- HTTP 통합 연결 테스트도 같은 dispatcher 를 첫 요청에 싣는다. 리다이렉트 홉은 첫 요청의 옵션을 물려받아 같은 판정을 거친다. 연결 시점에 막히면 연결 테스트도 `HTTP_BLOCKED` 와 일반화 문구로 끝난다(NERV Task `CLE-T-NESSYD`). 연결 테스트를 통과한 `base_url` 이 실행할 때 연결 시점 판정에 막히는 어긋남을 없애려는 것이다.
+- 이 판정 밖에 남은 경로가 있다. Database Query · Send Email 은 `fetch` 를 쓰지 않아 사전 검사만 한다.
 
 ### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
 

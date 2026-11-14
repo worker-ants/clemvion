@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-ERROR"
 title: "통합 노드 공통 — 에러 코드와 사설망 차단"
 type: "convention"
-version: 2
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "1cecf75860a067d73874bdc664eb665237470f1140dff8f7a42fd10a7f399926"
+content_hash: "b176664de07113c9e483f4042940f59318b41bd2f76b36354e89c3ed03448f52"
 read_as: "approved_fallback"
-task: "CLE-T-BS1WD1"
+task: "CLE-T-43KCNP"
 source_paths: []
-mirror_sha256: "0c824a71a584b4eb507ca7b2049c380c4b49baaf8c1f80e41e37638a2632b853"
-etag: "sha256-a24071c795e4008093de4349ac4fa5e3222f69ea3e3a283b1b73a9aa779e0f6f"
+mirror_sha256: "49b28c769c780d2063b938f29a5d7c7a623f9b323f68119e2ddaf347504a609f"
+etag: "sha256-0fc8bf586717211aec4a260276c59e8748399703ef1f576d654bd4cf64f772e9"
 ---
 ## 개요
 
@@ -67,12 +67,12 @@ etag: "sha256-a24071c795e4008093de4349ac4fa5e3222f69ea3e3a283b1b73a9aa779e0f6f"
 | Send Email | `credentials.host` (SMTP 호스트) | 통합 조회 직후, SMTP 발송 전 | `EMAIL_HOST_BLOCKED` |
 
 - 막는 대역은 loopback, RFC1918 사설 대역, link-local, CGNAT, IPv6 link-local·ULA 다. 호스트 이름은 DNS 로 해석한 뒤 IP 를 다시 검사한다(DNS rebinding 방어, `assertSafeOutboundHostResolved`). HTTP Request 는 그 전에 호스트 리터럴도 검사한다(`assertSafeOutboundUrl`).
-- DNS rebinding 방어의 범위는 노드마다 다르다. 위 검사는 연결 전에 한 번 푼 결과를 본다. HTTP Request 는 요청이 연결할 때 푼 주소도 같은 대역으로 다시 판정한다(`safeOutboundDispatcher`). 그래서 검사와 연결 사이에 DNS 응답이 바뀌어도 막힌 대역에 연결하지 않는다([HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) 8단계). Database Query · Send Email 은 연결 시점 판정이 없어서 검사와 연결 사이의 응답 변경은 egress 방화벽으로 막아야 한다. 외부 MCP 서버의 연결 시점 판정은 [MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md), LLM 엔드포인트의 한계는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 가 정한다.
+- DNS rebinding 방어의 범위는 노드마다 다르다. 위 검사는 연결 전에 한 번 푼 결과를 본다. HTTP Request 와 HTTP 통합 연결 테스트는 요청이 연결할 때 푼 주소도 같은 대역으로 다시 판정한다(`safeOutboundDispatcher`). 그래서 검사와 연결 사이에 DNS 응답이 바뀌어도 막힌 대역에 연결하지 않는다([HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) 8단계). Database Query · Send Email 은 연결 시점 판정이 없어서 검사와 연결 사이의 응답 변경은 egress 방화벽으로 막아야 한다. 외부 MCP 서버의 연결 시점 판정은 [MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md), LLM 엔드포인트의 한계는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 가 정한다.
 - 기본은 차단이다(secure-by-default). 셀프 호스팅에서 내부 DB·on-prem API·내부 SMTP relay 같은 사설망 대상을 정당하게 불러야 할 때만 사설망 허용 플래그 `ALLOW_PRIVATE_HOST_TARGETS=true` 를 켠다. 외부 egress 방화벽이 있다는 전제다.
 - 세 노드는 이 플래그 하나를 함께 쓴다. AI 에이전트의 외부 MCP 서버는 별도 정책(`MCP_ALLOW_INSECURE_URL`)을 따른다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)에서 정한다.
 - MakeShop 노드는 호출 호스트가 `connect.makeshop.co.kr` 하나로 고정돼 사용자 입력이 호스트를 정하지 않는다. 그래서 이 가드를 쓰지 않고 `shop_uid` 형식 검증으로 경로 주입을 막는다([MakeShop 노드](CLE-NODE-MAKESHOP.md)).
 - 차단 코드는 차단 판정(`SsrfBlockedError`)에만 쓴다. 가드가 판정이 아닌 오류를 던지면(예: DNS 해석기가 낸 예기치 않은 예외) `INTEGRATION_CALL_FAILED` 로 내보낸다. HTTP Request 의 리다이렉트 홉에서 같은 고장이 나면 `HTTP_TRANSPORT_FAILED` 가 된다. 두 시점의 코드를 통일할지는 [HTTP Request 노드](CLE-NODE-HTTP.md)의 미결 사항이다. Send Email 노드는 `IntegrationError` 가 아닌 실패를 모두 `EMAIL_SEND_FAILED` 로 흡수하므로 `INTEGRATION_CALL_FAILED` 를 출력하지 않는다.
-- 위 규칙의 예외가 하나 있다. HTTP Request 노드는 통합 인증에서 리다이렉트를 5홉 넘게 따라가야 하면 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 메시지는 차단 판정과 같은 일반화 문구다. 지금 동작과 고치지 않은 이유는 [HTTP Request 노드](CLE-NODE-HTTP.md) Rationale 「리다이렉트 한도 초과와 3xx 응답의 출력 코드」 에 있다.
+- 위 규칙의 예외가 하나 있다. HTTP Request 노드는 통합 인증에서 리다이렉트를 5홉 넘게 따라가야 하면 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 메시지는 차단 판정과 같은 일반화 문구다. 사람이 2026-11-14 에 이 예외를 받아들이기로 정했다. 이 예외는 그 경우에만 쓰고 다른 실패로 넓히지 않는다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md) Rationale 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」 에 있다.
 - 클라이언트에 나가는 `output.error.message` 에는 차단된 호스트나 IP 를 넣지 않는다. 일반화된 문구만 쓴다(내부망 정찰 방지, CWE-209). 원본 상세를 어디에 남기는지는 정의가 갈린다. [미결 사항](CLE-NODE-INT-COMMON.md#미결-사항) 참조.
 
 ## Rationale
@@ -85,11 +85,11 @@ HTTP Request·Database Query·Send Email 노드는 노드별 플래그를 새로
 
 막힌 적 없는 요청을 "막혔다" 고 보고하면 없는 사실을 사용자에게 알리고 활동 로그에도 남기게 된다. 그래서 가드 자체의 고장은 차단 코드가 아니라 분류되지 않은 실패(`INTEGRATION_CALL_FAILED`)로 내보낸다.
 
-HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외로 남아 있다. 판정 없이 `HTTP_BLOCKED` 를 낸다. 2026-11-13 에 지금 동작을 그대로 적었고 고칠지는 NERV Task `CLE-T-43KCNP` 가 맡는다. 근거는 [HTTP Request 노드](CLE-NODE-HTTP.md) Rationale 「리다이렉트 한도 초과와 3xx 응답의 출력 코드」 에 있다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `HTTP_BLOCKED` 행에 이 예외를 적는 일은 NERV Task `CLE-T-6G3084` 가 맡는다.
+HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외다. 판정 없이 `HTTP_BLOCKED` 를 낸다. 2026-11-13 에 지금 동작을 그대로 적었고, 2026-11-14 에 NERV Task `CLE-T-43KCNP` 에서 사람이 전용 코드를 만들지 않고 받아들인 예외로 두기로 정했다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) Rationale 에 있다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `HTTP_BLOCKED` 행에는 NERV Task `CLE-T-6G3084` 가 이 예외를 적었다.
 
 ### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다 (2026-11-14)
 
-NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
+NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. NERV Task `CLE-T-NESSYD` 에서 HTTP 통합 연결 테스트도 HTTP Request 와 같은 판정 dispatcher 를 쓰게 했다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
 
 ### 거절된 조회는 임시 장치로 건너뛴다 (2026-10-25)
 

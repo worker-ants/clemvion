@@ -548,12 +548,20 @@ export class IntegrationsController {
     );
   }
 
+  // 근거: [통합 관리 「연결 테스트의 탐색 위험을 받아들인다」](CLE-INT-MANAGE-RUN#연결-테스트의-탐색-위험을-받아들인다-2026-11-14)
+  // (CLE-T-SG4GRQ). 사용자가 적은 공개 host 에 실제로 접속하고 실패 원인을 구분해 돌려주므로 탐색에
+  // 쓰일 수 있다. 위험은 받아들이고 `preview-test` 와 같은 한도로 빈도만 묶는다.
+  /**
+   * Connection test with the stored credentials. Throttled like `preview-test`
+   * because it makes a real outbound connection to the configured host.
+   */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post(':id/test')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '통합 연결 테스트',
     description:
-      '저장된 자격 증명을 사용해 실제 외부 서비스에 테스트 호출을 수행합니다.',
+      '저장된 자격 증명을 사용해 실제 외부 서비스에 테스트 호출을 수행합니다. 남용 방지를 위해 분당 20회로 제한됩니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(TestConnectionResultDto, {
@@ -563,6 +571,7 @@ export class IntegrationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
+  @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 20회)' })
   async testConnection(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,

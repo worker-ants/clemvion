@@ -107,6 +107,11 @@ export function classifyExecutionFailure(
 
   // HTTP 4xx / 5xx — statusCode placeholder 우선 케이스.
   if (code === 'HTTP_4XX') {
+    // HTTP Request 노드는 따라가지 않은 3xx 도 HTTP_4XX 로 낸다. 서버가 거부한 것이 아니므로
+    // «거부» 안내 대신 일반 외부 서비스 실패로 안내한다(CLE-T-43KCNP).
+    if (statusCode !== undefined && statusCode >= 300 && statusCode < 400) {
+      return { key: 'executionFailedThirdParty', placeholders: {} };
+    }
     return {
       key: 'executionFailedThirdParty4xx',
       placeholders: statusCode !== undefined ? { statusCode } : {},

@@ -1,8 +1,10 @@
+import { Logger } from '@nestjs/common';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
+  safeOutboundDispatcher,
 } from '../../nodes/integration/http-request/http-safety';
 import { appendQueryParams } from '../../nodes/integration/http-request/http-credentials';
 import { MAX_REDIRECT_HOPS } from '../../nodes/integration/http-request/http-redirect';
@@ -16,6 +18,7 @@ jest.mock('../../nodes/integration/http-request/http-safety', () => ({
   ...jest.requireActual('../../nodes/integration/http-request/http-safety'),
   assertSafeOutboundUrl: jest.fn(),
   assertSafeOutboundHostResolved: jest.fn(),
+  safeOutboundDispatcher: jest.fn(),
 }));
 
 /**
@@ -27,6 +30,9 @@ describe('testHttpConnection', () => {
   const mockedUrlGuard = assertSafeOutboundUrl as unknown as jest.Mock;
   const mockedHostGuard =
     assertSafeOutboundHostResolved as unknown as jest.Mock;
+  const mockedConnectGuard = safeOutboundDispatcher as unknown as jest.Mock;
+  /** 연결 시점 판정 dispatcher 자리표시. 실제 판정은 `http-connection-tester.connect-guard.spec.ts` 가 실제 fetch 로 본다. */
+  const connectGuard = { name: 'connect-guard-dispatcher' };
   let fetchMock: jest.SpyInstance;
 
   const bearer = { base_url: 'https://api.example.com/v1', token: 'tok-123' };
@@ -45,6 +51,7 @@ describe('testHttpConnection', () => {
     jest.clearAllMocks();
     mockedUrlGuard.mockImplementation((u: string) => new URL(u));
     mockedHostGuard.mockResolvedValue(undefined);
+    mockedConnectGuard.mockReturnValue(connectGuard);
     fetchMock = jest.spyOn(globalThis, 'fetch');
   });
 
@@ -283,6 +290,86 @@ describe('testHttpConnection', () => {
     });
     expect(result.message).toContain('hostname.toLowerCase');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 연결 시점 판정(CLE-T-NESSYD). HTTP Request 노드와 같은 `safeOutboundDispatcher()` 를 첫 요청에 싣는다. 리다이렉트 홉은
+   * `followRedirectsSafely` 가 `init` 을 펼쳐 새 요청을 만들므로 같은 dispatcher 를 물려받는다.
+   */
+  it('첫 요청과 리다이렉트 홉에 연결 시점 판정 dispatcher 를 싣는다', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        respond(302, { location: 'https://other.example.com/me' }),
+      )
+      .mockResolvedValueOnce(respond(200));
+
+    const result = await testHttpConnection('bearer_token', bearer);
+
+    expect(result.success).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchMock.mock.calls as [string, RequestInit][]) {
+      expect((init as RequestInit & { dispatcher?: unknown }).dispatcher).toBe(
+        connectGuard,
+      );
+    }
+  });
+
+  it('사설 대상 허용(dispatcher 없음)이면 dispatcher 를 싣지 않는다', async () => {
+    mockedConnectGuard.mockReturnValue(undefined);
+    fetchMock.mockResolvedValue(respond(200));
+
+    await testHttpConnection('bearer_token', bearer);
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect('dispatcher' in init).toBe(false);
+  });
+
+  it.each([
+    ['첫 요청', [] as Response[]],
+    ['리다이렉트 홉', [respond(302, { location: '/v2/me' })]],
+  ])(
+    '%s의 연결 시점 판정 차단은 HTTP_BLOCKED — 일반화 문구만, 막힌 주소는 서버 로그에만',
+    async (_label, before) => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        for (const res of before) fetchMock.mockResolvedValueOnce(res);
+        fetchMock.mockRejectedValueOnce(
+          new TypeError('fetch failed', {
+            cause: new SsrfBlockedError(
+              'hostname "api.example.com" resolved to restricted IP "10.0.0.7" at connect time',
+            ),
+          }),
+        );
+
+        const result = await testHttpConnection('bearer_token', bearer);
+
+        expect(result).toEqual({
+          success: false,
+          code: 'HTTP_BLOCKED',
+          message: SSRF_BLOCKED_CLIENT_MESSAGE,
+        });
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('10.0.0.7'));
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
+
+  it('판정 아닌 연결 오류는 cause 가 있어도 HTTP_CONNECT_FAILED 로 둔다', async () => {
+    fetchMock.mockRejectedValue(
+      new TypeError('fetch failed', {
+        cause: new Error('connect ECONNREFUSED 93.184.216.34:443'),
+      }),
+    );
+
+    const result = await testHttpConnection('bearer_token', bearer);
+
+    expect(result).toMatchObject({
+      success: false,
+      code: 'HTTP_CONNECT_FAILED',
+    });
   });
 
   it('리다이렉트는 따라가서 마지막 응답으로 판정한다 — 같은 헤더를 싣는다', async () => {

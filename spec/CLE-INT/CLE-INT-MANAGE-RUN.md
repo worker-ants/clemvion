@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-RUN"
 title: "통합 관리 — 사용처 · 연결 테스트 · 실행 연동"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "dac0f69c990240ab9d203620bedaa692ec87e542268e4271c3687598c27a5ba8"
+content_hash: "d6c5530b4dd3884b1d243d6f06bc4321f1ac1fb87b6533eb40566702c8d8b7a9"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-SG4GRQ"
 source_paths: []
-mirror_sha256: "db1d66859e8152cfeb0948417e39a1be23a931e48a0a38eaa05a8d20edfa183c"
-etag: "sha256-9bd8c6c911a7c89bb6ffbabefaab725c40f66ceeece55d02f21989360e63ce4d"
+mirror_sha256: "3f869c65c495f80049123ac39a71554055aa89d4e7da7204ec520d0b8d461ab6"
+etag: "sha256-29e00a982f9a496058785698bea5c6d65e5be4182492546aa684965343262285"
 ---
 ## 개요
 
@@ -66,6 +66,7 @@ etag: "sha256-9bd8c6c911a7c89bb6ffbabefaab725c40f66ceeece55d02f21989360e63ce4d"
   - host 차단 코드(`EMAIL_HOST_BLOCKED`·`DB_HOST_BLOCKED`·`HTTP_BLOCKED`)는 노드와 같은 SSRF 가드의 판정이라 뜻도 같다.
   - Cafe24·MakeShop 의 인증 실패와 전송 실패(`CAFE24_AUTH_FAILED`·`CAFE24_TRANSPORT_FAILED`·`MAKESHOP_AUTH_FAILED`·`MAKESHOP_TRANSPORT_FAILED`)는 노드와 같은 API 클라이언트가 내서 이름이 같다. 뜻은 다를 수 있다. MakeShop 연결 테스트는 403 을 `MAKESHOP_AUTH_FAILED` 로 내지만 통합 상태를 낮추지 않는다. 노드 실행은 같은 403 에 같은 코드를 내고 상태를 `error(auth_failed)` 로 낮춘다([서비스별 인증 방식과 자격 증명 「MakeShop」](CLE-INT-AUTH.md#makeshop)).
 - 외부를 실제로 부르는 서비스는 Email·MCP·HTTP·Database 이고 Cafe24·MakeShop·Google·GitHub·Webhook 은 저장 전 테스트에서 구조만 확인한다. Cafe24·MakeShop 은 저장 뒤 `:id/test` 에서 실제로 부른다.
+- `preview-test` 와 `:id/test` 는 사용자 기준 분당 20회로 제한한다. 라우트마다 따로 센다. 수치의 정본은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 표다. 두 경로는 사용자가 적은 공개 host 에 실제로 접속하고 실패 원인을 코드로 구분해 돌려주므로 제한적인 포트 탐색에 쓰일 수 있다. 이 위험은 받아들였다([연결 테스트의 탐색 위험을 받아들인다](#연결-테스트의-탐색-위험을-받아들인다-2026-11-14)).
 - 설치 대기 통합에 `:id/test` 를 부르면 외부 호출 없이 `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 로 바로 거절한다. 토큰이 없어 외부 호출이 의미가 없다. 서비스 유형이 아니라 상태만 보는 가드라 설치 대기를 쓰는 모든 서비스에 적용된다. 화면의 버튼 비활성을 우회한 API 직접 호출의 백엔드 방어다.
 - 같은 엔드포인트의 다른 가드도 같은 모양이다. 복호화 실패는 `INTEGRATION_CREDENTIALS_UNREADABLE`, Cafe24 자격 증명 필드 누락은 `INTEGRATION_INCOMPLETE` 를 200 과 `IntegrationTestResult` 로 돌려준다.
 - 사용자가 직접 누른 연결 테스트의 실패는 연속 네트워크 실패(`consecutive_network_failures`)에 합산하지 않는다.
@@ -121,9 +122,27 @@ Cafe24 Private 의 재설치 대기 경로도 같은 빈틈에 들어간다. 통
 ## 구현 위치
 
 - `codebase/backend/src/modules/integrations/**` (`integrations.service.ts`: `getForExecution`·`logUsage`·`testConnection`)
+- `codebase/backend/src/modules/integrations/integrations.controller.ts` (`preview-test` · `:id/test` 의 `@Throttle`)
+- `codebase/backend/src/modules/integrations/integrations.controller.throttle.spec.ts` (두 경로의 한도 메타데이터를 확인하는 단위 테스트. 테스트 환경은 요청 빈도 제한을 건너뛰어 e2e 로는 확인하지 않는다)
 - e2e: `codebase/backend/test/integration-connection-test.e2e-spec.ts`(연결 테스트 세 경로와 교체 실패의 `details.testCode`)
 
 ## Rationale
+
+### 연결 테스트의 탐색 위험을 받아들인다 (2026-11-14)
+
+연결 테스트는 사용자가 적은 host 에 실제로 접속하고 실패 원인(거부 · 타임아웃 · TLS 실패)을 코드와 문구로 구분해 돌려준다. 그래서 어떤 host 의 어떤 포트가 열려 있는지 알아보는 데 쓰일 수 있다. 2026-11-14 에 사용자가 이 위험을 받아들이고 `:id/test` 에 `preview-test` 와 같은 한도를 걸기로 정했다(NERV Task `CLE-T-SG4GRQ`).
+
+- 닿는 대상은 공개 host 뿐이다. 사설 · 루프백 · 메타데이터 주소는 노드와 같은 SSRF 가드가 막는다([통합 노드 공통 — 에러 코드와 사설망 차단](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단)). 남는 위험은 우리 서버 주소에서 공개 host 로 접속을 시도하게 하는 것이고 한도로 그 빈도를 묶는다.
+- 원인 구분은 연결 테스트의 목적이다. 사용자는 이 구분으로 자격 증명 오류와 네트워크 오류를 가린다.
+- `preview-test` 는 이미 편집자 이상과 분당 20회였다. `:id/test` 는 워크스페이스 멤버면 부를 수 있었고 전역 한도(분당 100회)만 받았다. 두 경로가 같은 일을 하므로 같은 분당 20회(사용자 기준)를 건다. 라우트마다 따로 센다.
+- 역할 하한은 바꾸지 않았다. `:id/test` 는 지금처럼 워크스페이스 멤버면 부를 수 있다.
+- 자격 증명 교체(`:id/rotate`)도 안에서 같은 연결 테스트를 하지만 이 결정의 범위 밖이다. 이 경로의 한도는 NERV Task `CLE-T-KNXT0Y` 에서 정한다.
+
+검토한 다른 안:
+
+- 분당 10회(공통 등급 `SENSITIVE_ACTION_THROTTLE`)는 쓰지 않았다. 같은 일을 하는 `preview-test` 와 값이 달라진다.
+- 실패 문구를 일반화해 원인 구분을 줄이는 안은 쓰지 않았다. 연결 테스트의 진단성을 잃는다.
+- 위험 수용만 적고 `:id/test` 를 전역 한도로 두는 안은 쓰지 않았다. 같은 탐색을 `preview-test` 보다 다섯 배 빠르게 할 수 있다.
 
 ### 자격 증명 교체의 연결 테스트 실패는 400 이다 (2026-11-12)
 

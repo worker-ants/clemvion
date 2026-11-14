@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXCEPT"
 title: "에러 코드 — 예외 · 내부 분류 · 은퇴 코드"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "62460ea3dae5f035bf78d4e9770bcb788f0301cb6f4c9e3e6da4736e2cc2350b"
+content_hash: "998e3de7454ba3340a096aca797663d342481d2b851c9b2f78030acc0be279ea"
 read_as: "approved_fallback"
-task: "CLE-T-NFNMZG"
+task: "CLE-T-43KCNP"
 source_paths: []
-mirror_sha256: "f86483f8c3f44f19b702a52cb531146a00d3f3f1032271bb7df41ecc35d7bc84"
-etag: "sha256-3c38c30e412f7b35d5b3e5fca47ca2ea792a8eba7cc4d2f9a225388794abb9bd"
+mirror_sha256: "1aea4a814cc13df8d4bde90a4d534a31af48135edb261eb1012cbe08667feaad"
+etag: "sha256-fe83963daa6216b8e5ab66152ef53a5b59d84bdf3341f3ae5fd93f12c529afed"
 ---
 ## 개요
 
@@ -31,6 +31,7 @@ etag: "sha256-3c38c30e412f7b35d5b3e5fca47ca2ea792a8eba7cc4d2f9a225388794abb9bd"
 | `CAFE24_PRIVATE_APP_INSTALL_PENDING` | 409 | `PRIVATE_APP` 토큰은 흔적이다. 거절을 가르는 것은 앱 유형이 아니라 설치 대기 행의 주인이다. 이름이 상태 값 `pending_install` 처럼 읽히지만 이 코드는 거절이다. 프론트엔드가 이 코드로 안내 문구를 고르므로 바꾸면 호환이 깨진다(§2) | `oauth/begin`(`new`)이 같은 mall 의 설치 대기 행을 다시 쓰려는데 그 행이 남의 개인 통합이다. `details` 에는 `pendingInstallExpiresAt` 만 싣고 통합 ID 와 App URL 은 싣지 않는다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「남의 개인 설치 대기 행은 409 로 거절한다」](../CLE-INT/CLE-INT-OAUTH.md#남의-개인-설치-대기-행은-409-로-거절한다-2026-10-24) |
 | `MAKESHOP_INSTALL_PENDING` | 409 | 설치 엔드포인트 코드(`MAKESHOP_INSTALL_REPLAY` 등)와 같은 `MAKESHOP_INSTALL_` 접두를 쓰지만 설치 엔드포인트가 아니라 `oauth/begin` 이 낸다. 프론트엔드가 이 코드로 안내 문구를 고르므로 바꾸면 호환이 깨진다(§2) | `oauth/begin`(`new`)이 같은 `client_id` 의 설치 대기 행을 다시 쓰려는데 그 행이 남의 개인 통합이다. `details` 는 `CAFE24_PRIVATE_APP_INSTALL_PENDING` 과 같다 | [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드), [OAuth 연결과 토큰 갱신 「설치 대기 행 재사용의 권한」](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) |
 | `CAFE24_404` · `CAFE24_422` · `CAFE24_4XX` · `CAFE24_5XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX` | 없음 (노드 `output.error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 번호를 적는다(규칙 1). 노드 출력 값이라 워크플로우가 이 값으로 분기할 수 있고 바꾸면 호환이 깨진다(§2) | Cafe24 · MakeShop API 가 2xx 가 아닌 상태로 답했다. `*_404` · `*_422` 는 그 상태이고 `*_5XX` 는 500~599, `*_4XX` 는 그 밖의 4xx 다. 401 · 403 · 429 는 API 클라이언트가 먼저 처리해 인증 실패 · 빈도 제한 코드가 된다(§6.22). AI 에이전트 도구 호출에서는 이 코드를 도구 결과에 싣지 않고 `mcpDiagnostics.errors[].code` 와 활동 로그, 통합 `last_error.code` 에 남긴다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
+| `HTTP_4XX` · `HTTP_5XX` | 없음 (노드 `output.error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 범주를 적는다(규칙 1). `HTTP_4XX` 는 이름과 달리 따라가지 않은 3xx 도 담는다. 노드 출력 값이라 워크플로우가 이 값으로 분기할 수 있고 바꾸면 호환이 깨진다(§2) | HTTP Request 노드가 받은 응답이 2xx 가 아니다. 상태가 500 이상이면 `HTTP_5XX`, 그 밖(3xx · 4xx)은 `HTTP_4XX` 다. 상태 번호는 `output.error.details.statusCode` 에 있다. 같은 실패의 활동 로그와 통합 `last_error.code` 에는 아래 `HTTP_{status}` 가 남는다 | [HTTP Request 노드 — 출력과 에러 「에러 코드」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#에러-코드) |
 | `HTTP_{status}` (예: `HTTP_404` · `HTTP_502`) | 없음 (통합 활동 로그 `error.code` · 통합 `last_error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 번호를 적는다(규칙 1). 활동 로그 API(`GET /api/integrations/:id/activity`)와 통합 `last_error.code` 로 클라이언트에 나가고 이미 쌓인 활동 로그 행에도 남아 있다. 바꾸면 옛 행과 새 행의 값이 갈린다(§2) | `integration` 인증의 HTTP Request 노드가 보낸 요청에 서버가 2xx 가 아닌 상태(3xx · 4xx · 5xx)로 답했다. 번호는 응답 상태 그대로다. 같은 실패의 노드 출력 `output.error.code` 는 `HTTP_4XX` · `HTTP_5XX` 다(§6.6) | [HTTP Request 노드 — 실행 로직 「활동 로그」](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#활동-로그) |
 | `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | 이름은 `https://` 가 아닌 URL 만 말한다. 실제로는 파싱할 수 없는 URL 과 사설 · loopback · 메타데이터 호스트(SSRF 차단)에도 난다. 코드를 나누는 일은 NERV Task `CLE-T-DDN3MS` 가 한다 | MCP 서버 URL 이 안전한 HTTPS 주소가 아니다. 두 연결 테스트(`POST /api/integrations/:id/test` · `POST /api/integrations/preview-test`)가 이 코드를 돌려준다. 노드 실행의 도구 목록 구성(`buildTools`)에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 남는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「연결 테스트」](../CLE-INT/CLE-INT-MCP.md#연결-테스트) |
 | `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` · `rate_limited` | 404 · 410 · 410 · 400 · 429 (순서대로) | `lower_snake_case` 로 표기 규칙을 어긴다. 워크스페이스 초대 흐름 v1 에서 이 형태로 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR_CODES`)와 백엔드(`workspace-invitations.service.ts`, `auth.service.ts`)가 `code` 값으로 분기한다. 바꾸면 호환이 깨진다(§2) | 초대 토큰 없음·만료·사용됨·이메일 불일치·빈도 제한. **초대 API 한정**이다. 이 소문자 `rate_limited` 는 초대 흐름 전용이고 다른 영역의 `RATE_LIMITED` 와 별개다. 2026-09-25 에 발행처가 없던 `forbidden` 을 이 행에서 뺐다(`code: 'forbidden'` 0건). 초대 권한 부족은 `RolesGuard` 의 `ADMIN_REQUIRED` 다. 소유자가 아닌 요청자의 관리자 역할 초대 거부는 서비스 계층이 내는 대문자 `OWNER_REQUIRED`(§6.2)라 이 예외에 들지 않는다. `rate_limited` 발행처는 [미결 사항](CLE-API-ERRCODES.md#미결-사항) 참조 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
@@ -138,3 +139,11 @@ NERV Task `CLE-T-6G3084` 다. `integration` 인증의 HTTP Request 노드는 활
 ### 소셜 로그인 콜백 행에 계정을 정하지 못한 경우를 더했다 (2026-11-14)
 
 NERV Task `CLE-T-NFNMZG` 다. 2026-11-05 에 소셜 로그인 콜백은 연결할 계정을 정하지 못하면 `server_error` 로 보내기로 했다(NERV Task `CLE-T-SFWX84`). 새 `error=` 값을 만들지 않았으므로 이 행의 값 목록은 그대로 두고 뜻 열에 그 경우를 더했다. 정의 문서는 그 표가 있는 로그인 문서의 「에러 처리」 절로 바꿨다. 새 값을 두지 않은 근거는 [가입과 로그인 — 가입 · 재설정 · 이메일 변경 Rationale 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05) 에 있다.
+
+### HTTP Request 노드의 `HTTP_4XX` · `HTTP_5XX` 를 등록했다 (2026-11-14)
+
+NERV Task `CLE-T-43KCNP` 다. 사람이 따라가지 않은 3xx 를 계속 `HTTP_4XX` 로 내기로 정했다([HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14)). 이름은 4xx 만 말하는데 3xx 도 담는다는 것이 문서에 드러나서 이 등록부에 올렸다.
+
+- `CAFE24_4XX` · `CAFE24_5XX` 행과 같은 근거다. 이름이 조건의 뜻 대신 상태 범주를 적고, 노드 출력 값이라 바꾸면 워크플로우 분기가 깨진다.
+- `HTTP_5XX` 는 3xx 와 상관없지만 같은 이름 꼴이고 같은 이유로 유지하는 코드라 한 행에 두었다. 이날 전에는 두 코드 모두 이 등록부에 없었다.
+- 3xx 를 `HTTP_4XX` 에 담는 결정 자체는 [워크플로우 실행](CLE-API-ERRCODES-EXEC.md) §6.6 과 그 Rationale 에 적었다. 이 행은 이름이 부정확하다는 사실만 다룬다.

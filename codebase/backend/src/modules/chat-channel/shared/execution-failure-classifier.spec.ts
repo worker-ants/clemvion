@@ -32,6 +32,30 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       expect(result.placeholders).toEqual({ statusCode: 404 });
     });
 
+    // CLE-T-43KCNP: HTTP Request 노드는 따라가지 않은 3xx 도 HTTP_4XX 로 낸다. 서버가 요청을 거부한 것이
+    // 아니므로 «거부» 안내(4xx 키) 대신 일반 외부 서비스 실패로 안내하고 상태 번호는 싣지 않는다.
+    it.each([300, 302, 304, 399])(
+      'HTTP_4XX with 3xx statusCode %i → executionFailedThirdParty (no placeholders)',
+      (statusCode) => {
+        const result = classifyExecutionFailure(
+          makeEvent('HTTP_4XX', { statusCode, url: 'https://internal' }),
+        );
+        expect(result.key).toBe('executionFailedThirdParty');
+        expect(result.placeholders).toEqual({});
+      },
+    );
+
+    it.each([299, 400])(
+      'HTTP_4XX with statusCode %i (3xx 경계 밖) → executionFailedThirdParty4xx',
+      (statusCode) => {
+        const result = classifyExecutionFailure(
+          makeEvent('HTTP_4XX', { statusCode }),
+        );
+        expect(result.key).toBe('executionFailedThirdParty4xx');
+        expect(result.placeholders).toEqual({ statusCode });
+      },
+    );
+
     it('HTTP_5XX with valid 5xx statusCode → executionFailedThirdParty5xx + statusCode', () => {
       const result = classifyExecutionFailure(
         makeEvent('HTTP_5XX', { statusCode: 502 }),
