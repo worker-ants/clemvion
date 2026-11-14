@@ -441,3 +441,70 @@ describe('renderDiscordEvent — form §4.1 native modal 게이팅', () => {
     expect(msgs[0].body).toMatchObject({ kind: 'form_prompt' });
   });
 });
+
+// NERV Task CLE-T-ZGF71P — continued 접미사를 붙여도 조각마다 Discord `content` 한도 2000자 이하.
+describe('renderDiscordEvent — 2000자 조각 한도 (REQ-DISCORD-010)', () => {
+  const DISCORD_LIMIT = 2000;
+  const SUFFIX = '\n_(continued…)_';
+
+  function renderTemplate(rendered: string): string[] {
+    const msgs = renderDiscordEvent(
+      {
+        ...BASE,
+        type: 'execution.node.completed',
+        node: { id: 'tpl-1', type: 'template' },
+        output: { rendered },
+      },
+      CONFIG,
+    );
+    return msgs.map((m) => {
+      if (m.body.kind !== 'text') throw new Error(`unexpected ${m.body.kind}`);
+      return m.body.text;
+    });
+  }
+
+  it.each([2000, 2001, 1985, 1986, 3970, 3971, 4000, 10_000])(
+    '길이 %i 인 본문 — 조각마다 접미사 포함 2000자 이하이고 이으면 원문',
+    (length) => {
+      const text = 'a'.repeat(length);
+      const chunks = renderTemplate(text);
+      for (const c of chunks) expect(c.length).toBeLessThanOrEqual(DISCORD_LIMIT);
+      chunks
+        .slice(0, -1)
+        .forEach((c) => expect(c.endsWith(SUFFIX)).toBe(true));
+      expect(chunks[chunks.length - 1].endsWith(SUFFIX)).toBe(false);
+      const joined = chunks
+        .map((c, i) => (i < chunks.length - 1 ? c.slice(0, -SUFFIX.length) : c))
+        .join('');
+      expect(joined).toBe(text);
+    },
+  );
+
+  it('2000자 본문은 나누지 않는다', () => {
+    expect(renderTemplate('a'.repeat(2000))).toHaveLength(1);
+  });
+
+  it('2001자 본문은 두 조각이고 첫 조각은 정확히 2000자다', () => {
+    const chunks = renderTemplate('a'.repeat(2001));
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]).toHaveLength(DISCORD_LIMIT);
+  });
+
+  it('AI 응답 — 마지막 조각(버튼 메시지)까지 2000자 이하', () => {
+    const msgs = renderDiscordEvent(
+      {
+        ...BASE,
+        type: 'execution.ai_message',
+        message: 'b'.repeat(4500),
+        turnCount: 1,
+      } as Extract<EiaEvent, { type: 'execution.ai_message' }>,
+      CONFIG,
+    );
+    expect(msgs.length).toBeGreaterThan(1);
+    for (const m of msgs) {
+      const text =
+        m.body.kind === 'text' || m.body.kind === 'buttons' ? m.body.text : '';
+      expect(text.length).toBeLessThanOrEqual(DISCORD_LIMIT);
+    }
+  });
+});

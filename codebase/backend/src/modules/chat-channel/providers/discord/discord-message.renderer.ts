@@ -483,15 +483,23 @@ function renderFailedMessage(
   return applyPlaceholders(template, placeholders);
 }
 
+/**
+ * `content` 한도(2000자) 안에서 나눈다. 마지막이 아닌 조각은 `CONTINUED_SUFFIX` 를 더한 길이가
+ * 한도를 넘지 않도록 본문을 `한도 - 접미사 길이` 만큼만 담는다(NERV Task `CLE-T-ZGF71P`).
+ */
 function chunkText(text: string): ChannelMessage[] {
   if (text.length <= DISCORD_TEXT_LIMIT) return [textMessage(text)];
   const chunks: string[] = [];
   let cursor = 0;
   while (cursor < text.length) {
-    const isLast = cursor + DISCORD_TEXT_LIMIT >= text.length;
-    const slice = text.slice(cursor, cursor + DISCORD_TEXT_LIMIT);
-    chunks.push(slice + (isLast ? '' : CONTINUED_SUFFIX));
-    cursor += DISCORD_TEXT_LIMIT;
+    const isLast = text.length - cursor <= DISCORD_TEXT_LIMIT;
+    if (isLast) {
+      chunks.push(text.slice(cursor));
+      break;
+    }
+    const end = cursor + DISCORD_TEXT_LIMIT - CONTINUED_SUFFIX.length;
+    chunks.push(text.slice(cursor, end) + CONTINUED_SUFFIX);
+    cursor = end;
   }
   return chunks.map((c) => ({
     conversationKey: '',
