@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "5fd865d5a8c9ebb772035637f64d6f1f7c9bd14a5f4cfca23e4ea473e6d2fc92"
+content_hash: "a2445c606e210b456b16be81b678da2b7ba776b2da30f54a59502ac93c80f93a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E90KGZ"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "be1243917d8c41f4d0c867d43f4046712357fd4537282d719dced5a3cce70680"
-etag: "sha256-73582d1292ffcfbfb8def789f2740955dd66d22f9fd5b37abf169766ceefaf46"
+mirror_sha256: "b0170219a81e52c4338ed87fd04e5688d397bb6d2e4d71fa18ee45014783d5c5"
+etag: "sha256-79d3dc305386a1660761e6d3f464e40d7640616fda9af3683448a72678d939b8"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -28,8 +28,8 @@ etag: "sha256-73582d1292ffcfbfb8def789f2740955dd66d22f9fd5b37abf169766ceefaf46"
 
 ## 규칙
 
-1. 모든 채널 어댑터는 [채널 어댑터 인터페이스](#채널-어댑터-인터페이스) 의 필수 함수를 구현한다. 선택 함수(`revokeBotToken?`, `enrichInbound?`, `defaultInteractionResponse?`, `ackDroppedUpdate?`, `openFormModal?`, `buildFormSubmissionResponse?`)는 프로바이더가 해당 기능을 지원할 때만 구현한다.
-2. `parseUpdate`, `renderNode`, `escapeControlText`, `defaultInteractionResponse`, `buildFormSubmissionResponse` 는 순수 함수다. DB 에 접근하지 않고 외부 API 를 부르지 않는다. 부수 효과는 `setupChannel`, `teardownChannel`, `sendMessage`, `ackInteraction`, `ackDroppedUpdate`, `revokeBotToken`, `enrichInbound`, `openFormModal` 이 맡는다. 외부 API 로 알아내야 하는 update 정보는 `parseUpdate` 뒤에 `enrichInbound` 가 채운다.
+1. 모든 채널 어댑터는 [채널 어댑터 인터페이스](#채널-어댑터-인터페이스) 의 필수 함수를 구현한다. 선택 함수(`revokeBotToken?`, `enrichInbound?`, `defaultInteractionResponse?`, `handshakeResponse?`, `ackDroppedUpdate?`, `openFormModal?`, `buildFormSubmissionResponse?`)는 프로바이더가 해당 기능을 지원할 때만 구현한다.
+2. `parseUpdate`, `renderNode`, `escapeControlText`, `defaultInteractionResponse`, `handshakeResponse`, `buildFormSubmissionResponse` 는 순수 함수다. DB 에 접근하지 않고 외부 API 를 부르지 않는다. 부수 효과는 `setupChannel`, `teardownChannel`, `sendMessage`, `ackInteraction`, `ackDroppedUpdate`, `revokeBotToken`, `enrichInbound`, `openFormModal` 이 맡는다. 외부 API 로 알아내야 하는 update 정보는 `parseUpdate` 뒤에 `enrichInbound` 가 채운다.
 3. `parseUpdate` 는 해석할 수 없거나 무시할 update 에 `null` 을 돌려준다. `null` 의 뜻은 "채널 어댑터가 해석하지 않음" 하나뿐이다. 안내 메시지를 보낼지는 호출자(`HooksService`)가 raw body 의 프로바이더 메타(예: Telegram `chat.type`, `from.is_bot`)를 보고 정한다.
 4. `setupChannel` 은 같은 설정으로 다시 불러도 등록이 깨지지 않아야 한다(멱등). 이 멱등은 발급 시크릿 값이 그대로라는 뜻이 아니다([setupChannel 멱등의 뜻](#setupchannel-멱등의-뜻)).
 5. `setupChannel`·`teardownChannel` 이 자격 증명 거부로 실패하면 던지는 `Error` 에 `code: 'BOT_TOKEN_INVALID'` 를 싣는다. 호출자는 `err.code === 'BOT_TOKEN_INVALID'` 정확 일치로만 분류하고 `message` 를 해석하지 않는다([setupChannel 실패 판별](#setupchannel-실패-판별)).
@@ -121,7 +121,7 @@ interface ChannelAdapterRegistry {
 
 - `codebase/backend/src/modules/chat-channel/**`
 - `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터 인터페이스와 데이터 타입(`InboundInteractionResponse` 포함)
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: 인터랙션 기본 응답 적용(`withDefaultInteractionResponse`), 버린 update 의 수신 확인(`dropChatChannelUpdate`), 처리한 인터랙션의 `ackInteraction` 호출
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: 인터랙션 기본 응답 적용(`withDefaultInteractionResponse`), 버린 update 의 수신 확인(`ackDroppedUpdateAndIgnore`), 처리한 인터랙션의 `ackInteraction` 호출
 - `codebase/backend/src/modules/hooks/hooks.controller.ts`: 인터랙션 응답 본문과 빈 본문의 `200` 전송
 
 관련 후속 계획(미구현): 401/403 message fallback 제거 판정(NERV Task `CLE-T-PDWFV8`), Discord Gateway, Slack Socket Mode, 시각형 SSR PNG.

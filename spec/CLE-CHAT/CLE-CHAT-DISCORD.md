@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035", "REQ-DISCORD-036", "REQ-DISCORD-037"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "f295357af83e72abfd3e8b060c3cee0a540d3578e0da340d8ae45cf7058fccd2"
+content_hash: "5a72836efecf69fd6ac9aa2dbabfb53071376859c9bfeb400533d1e10c3b76e6"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-9Z0V2R"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "5aec347001bebd15d8d87be6f0f7f9dc84a09710af1f1cebf44f6598ffcda135"
-etag: "sha256-3437457c4b458470d816ceba83689408d7b7788edbee11bd2f4555471416e81f"
+mirror_sha256: "b7651ede6c8158e8a519a2e0179fcd5f6e46878b4cee29d72001bae9150ca85e"
+etag: "sha256-93552f8e68792c4941925a4a7a4c18b62967ae8348d9125fd6fe851df0066cb0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-002 IF 응답의 `verify_key` 와 사용자가 입력한 public key 가 둘 다 있고 서로 다르면 THE SYSTEM SHALL `BOT_TOKEN_INVALID` 로 던져 setup 을 막는다. (원본: discord §3.1)
 - REQ-DISCORD-003 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 로 `/<prefix>` slash command(하위 `start`·`cancel`·`help`·`reply`)를 일괄 덮어써 등록하고 등록이 실패하면 에러를 던져 setup 을 막는다(HTTP 401·403 이면 `code: 'BOT_TOKEN_INVALID'`, 그 밖은 `code` 없는 에러). (원본: discord §3.1, R-D-2)
 - REQ-DISCORD-004 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 에 `[]` 를 보내 명령을 지우고 실패해도 트리거 삭제를 막지 않는다. (원본: discord §3.2)
-- REQ-DISCORD-005 WHEN `type: 1`(PING)이 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `200 OK` 와 `{ type: 1 }` 로 답한다. (원본: discord §3.1, R-D-8)
+- REQ-DISCORD-005 WHEN `type: 1`(PING)이 오면 THE SYSTEM SHALL 어댑터의 `handshakeResponse` 가 정한 `{ type: 1 }` 을 호출자가 `200 OK` 로 보내고 `parseUpdate` 는 `null` 을 돌려준다. (원본: discord §3.1, R-D-8)
 - REQ-DISCORD-006 WHEN Interactions payload 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `interaction.id` 를 중복 제거 키로 쓴다. (원본: discord §4)
 - REQ-DISCORD-007 IF `channel.type !== 1`(DM 이 아님)이면 THE SYSTEM SHALL `null` 을 돌려주고 호출자가 `groupChatRefusal` 안내를 보낸다. (원본: discord §4, §6)
 - REQ-DISCORD-008 IF `member.user.bot === true` 이거나 DM 의 `user.bot === true` 이면 THE SYSTEM SHALL `null` 을 돌려준다. (원본: discord §4, §6)
@@ -114,12 +114,12 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts`
-- `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.ts`: 인터랙션 기본 응답(`buildDiscordDefaultInteractionResponse`)과 기본 도움말(`DISCORD_HELP_DEFAULTS`)
+- `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.ts`: 인터랙션 기본 응답(`buildDiscordDefaultInteractionResponse`)과 도움말 문구 선택(`resolveDiscordHelpText` 가 `pickLocaleDefault` 로 `SLASH_HELP_DEFAULTS` 에서 고른다)
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-signing.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-update.parser.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord.types.ts`: interaction type·callback type·ephemeral flag 상수(`DISCORD_INTERACTION_TYPE`·`DISCORD_INTERACTION_CALLBACK_TYPE`·`DISCORD_MESSAGE_FLAG_EPHEMERAL`)
-- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 수신 문구 기본값(`COMMAND_RECEIVED_DEFAULTS`·`resolveCommandReceivedMessage`)
+- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 수신 문구 기본값(`COMMAND_RECEIVED_DEFAULTS`·`resolveCommandReceivedMessage`), Slack 과 함께 쓰는 슬래시 명령 기본 도움말(`SLASH_HELP_DEFAULTS`)
 - `codebase/backend/src/modules/chat-channel/types.ts`: 선택 함수 `defaultInteractionResponse` 와 `InboundInteractionResponse`
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인바운드 관문(워크플로우 활성 관문 포함), 명령 처리(활성 실행 중 `/<prefix> start` 의 기존 실행 취소), 기본 응답 적용(`withDefaultInteractionResponse`)과 인터랙션 응답 본문의 `200` 전송

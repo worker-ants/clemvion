@@ -2,19 +2,19 @@
 id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "5affd2d98b04612ab1b2880cf9e086e0d23f4fe26d0d30c7192d0e02a688426d"
+content_hash: "cad46d9f28ee34b03273dc8f2a4e7ee261d3cf6355eaea798cbccafade392fb1"
 read_as: "approved_fallback"
-task: "CLE-T-YKA9CJ"
+task: "CLE-T-E90KGZ"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "d9779a2e2c161bd1e8f7bf2c582c0490233592e4b880fc54e064c6538a8c3a08"
-etag: "sha256-77dd63886d3fb30ec4dfb5a7ece9469346e7f77e38c1c73c66241d0f3a951403"
+mirror_sha256: "c33e0b740afe8ba092abc1bd0e1166678b0217b8a06326f113ffbde0f8787253"
+etag: "sha256-448e285b55614c61adab73fd7a78ab9242010cb4da116e8250f305fd7739ddbc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -30,7 +30,7 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 범위 밖:
 
 - 지금 있는 Redis 키와 pub/sub 채널의 전체 목록(인벤토리)과 BullMQ 큐 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 단일 기준이다.
-- 키별 용도·TTL·실패 정책은 그 키를 소유한 문서가 정한다. 실행 엔진 키는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md), EIA 키는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md), 채팅 채널 키는 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md), 웹훅 요청 빈도 제한 키는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), Cafe24 설치 키는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md), Passkey 인증 챌린지 기록 키는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다. 한 표에 상세까지 모으면 그 표가 두 번째 기준이 된다.
+- 키별 용도·TTL·실패 정책은 그 키를 소유한 문서가 정한다. 실행 엔진 키는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md), EIA 키는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md), 채팅 채널 키는 [채팅 채널 데이터와 흐름 — 저장 모델과 상태](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키), 웹훅 요청 빈도 제한 키는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), Cafe24 설치 키는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md), Passkey 인증 챌린지 기록 키는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다. 한 표에 상세까지 모으면 그 표가 두 번째 기준이 된다.
 - BullMQ 가 큐마다 안에서 만드는 `bull:<queue>:*` 키는 라이브러리 표준이라 이 규약 밖이다.
 
 ## 규칙
@@ -56,6 +56,8 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 - **식별자**: 0~4개. 개수가 정해져 있지 않다.
 
 세그먼트 수를 고정하지 않는 이유는 실제 키가 3~6세그먼트로 갈리기 때문이다. `exec:recover:lock`(3세그먼트)부터 `cafe24:install:nonce:<mall_id>:<ts>:<hmac>`(6세그먼트)까지 있다.
+
+식별자 하나에 콜론이 들어갈 수 있다. 채팅 채널 서명 검증 실패 한도 키 `cc:sigfail:<triggerId>:<clientIp>` 는 클라이언트 IP 가 IPv6 이면 그 세그먼트 안에 콜론이 여럿 있다(IPv4 매핑 주소는 IPv4 표기로 바꿔 넣는다). 그래서 세그먼트 수는 키 문자열을 콜론으로 나눈 개수가 아니라 키를 만드는 함수가 이어 붙인 값의 개수로 센다. 채팅 채널 모듈은 이 키를 만들기만 하고 콜론으로 쪼개 읽지 않는다.
 
 ## 워크스페이스 세그먼트
 
@@ -142,3 +144,7 @@ NERV 로 옮기면서 전역 목록은 이 문서에서 [비동기 큐와 Redis 
 `makeshop-pending` 계열은 32비트 `hashtext()` 대신 64비트 `hashtextextended(<키>, 0)` 로 잠근다. 관계없는 키가 같은 락에 걸릴 확률을 줄이려는 것이다. 해시가 겹쳐도 정합성은 깨지지 않지만 관계없는 요청이 서로를 기다리게 된다. 키 공간이 32비트에서 64비트로 넓어지면 그런 겹침은 훨씬 드물어진다.
 
 기존 `trigger-config`·`exec-cap` 계열은 바꾸지 않는다. 해시 함수를 바꾸면 배포 전환기에 옛 판과 새 판의 서버가 같은 키를 서로 다른 락 번호로 잡는다. 그동안은 두 서버가 서로를 막지 못한다. 앞으로 들이는 계열은 64비트를 쓴다(규칙 9).
+
+### 식별자에 콜론이 들어가는 키는 값 개수로 센다 (2026-11-14)
+
+IPv6 주소에는 콜론이 들어 있다. 그래서 `cc:sigfail:<triggerId>:<clientIp>` 를 콜론으로 나누면 IP 종류에 따라 세그먼트 수가 달라지고 [키 형태](#키-형태) 의 세그먼트 수를 셀 수 없다. 채팅 채널 모듈은 이 키를 만들기만 하고 콜론으로 나눠 읽지 않으므로 IP 값을 인코딩하지 않았다. 키를 나눠 읽는 코드가 생기면 인코딩을 다시 정한다.

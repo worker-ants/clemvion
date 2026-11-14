@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK"
 title: "Slack 어댑터"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-SLACK-001", "REQ-SLACK-002", "REQ-SLACK-003", "REQ-SLACK-004", "REQ-SLACK-005", "REQ-SLACK-006", "REQ-SLACK-007", "REQ-SLACK-008", "REQ-SLACK-009", "REQ-SLACK-010", "REQ-SLACK-011", "REQ-SLACK-012", "REQ-SLACK-013", "REQ-SLACK-014", "REQ-SLACK-015", "REQ-SLACK-016", "REQ-SLACK-017", "REQ-SLACK-018", "REQ-SLACK-019", "REQ-SLACK-020", "REQ-SLACK-021", "REQ-SLACK-022", "REQ-SLACK-023", "REQ-SLACK-024", "REQ-SLACK-025", "REQ-SLACK-026", "REQ-SLACK-027", "REQ-SLACK-028", "REQ-SLACK-029", "REQ-SLACK-030", "REQ-SLACK-031", "REQ-SLACK-032", "REQ-SLACK-033", "REQ-SLACK-034", "REQ-SLACK-035", "REQ-SLACK-036", "REQ-SLACK-037", "REQ-SLACK-038", "REQ-SLACK-039", "REQ-SLACK-040", "REQ-SLACK-041", "REQ-SLACK-042", "REQ-SLACK-043", "REQ-SLACK-044"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "bf344131372e77f9f4b1c3d135dd63a10a39a3837383c1f9055e1cd3c6a8c086"
+content_hash: "be187d44acf8f9d2c0a5ced33dc2031cb3f9dc8c671f0d9bc2b581fbc7895e7a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-9Z0V2R"
 source_paths: []
-mirror_sha256: "0f8f5f648d87730ac48c8c86e81f576201ea58525c7e06d08dca97096b95e7f3"
-etag: "sha256-124efc95d7f4b189a414dc40d0cf909493f9c7df91876a9d48f3480fd6ece242"
+mirror_sha256: "1fab391c2b531ae6785afdfb5bc0992174406aa872b6ee4dbe5b628a783a994c"
+etag: "sha256-301ddeb4314f34a5d7471f6772003497a51bec8861d10c13bc50707a55d3cc89"
 ---
 > 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ etag: "sha256-124efc95d7f4b189a414dc40d0cf909493f9c7df91876a9d48f3480fd6ece242"
 - REQ-SLACK-002 IF `auth.test` 가 HTTP 200 과 `ok:false` 에 `invalid_auth`·`not_authed`·`account_inactive`·`token_revoked`·`token_expired` 가운데 하나를 돌려주면 THE SYSTEM SHALL `code: 'BOT_TOKEN_INVALID'` 를 실은 에러를 던진다.
 - REQ-SLACK-003 IF `auth.test` 의 `error` 가 위 다섯 값이 아니면 THE SYSTEM SHALL 자격 증명 거부로 분류하지 않는다.
 - REQ-SLACK-004 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL 외부 API 를 부르지 않는다.
-- REQ-SLACK-005 WHEN envelope `type` 이 `url_verification` 이면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `200 OK` 와 `{ challenge: <받은 값> }` 으로 답한다.
+- REQ-SLACK-005 WHEN envelope `type` 이 `url_verification` 이면 THE SYSTEM SHALL 어댑터의 `handshakeResponse` 가 정한 `{ challenge: <받은 값> }` 을 호출자가 `200 OK` 로 보내고 `parseUpdate` 는 `null` 을 돌려준다.
 - REQ-SLACK-006 WHEN Events API 로 봇이 아닌 사용자의 DM 메시지(`channel_type === "im"`, `bot_id` 없음, `subtype` 없음)가 오면 THE SYSTEM SHALL `text_message` 로 바꾼다.
 - REQ-SLACK-007 IF DM 밖 채널에서 `app_mention` 이 오면 THE SYSTEM SHALL `null` 을 돌려주고 DM 안의 멘션은 `text_message` 로 받는다.
 - REQ-SLACK-008 WHEN DM 에서 `file_shared` 이벤트가 오면 THE SYSTEM SHALL `parseUpdate` 가 `{ kind: "file_upload", fileId, mimeType: "application/octet-stream" }` 를 돌려주고 `HooksService` 가 `files.info` 로 mimeType·filename·url_private 을 보강한다. (R-S-7)
@@ -114,7 +114,7 @@ etag: "sha256-124efc95d7f4b189a414dc40d0cf909493f9c7df91876a9d48f3480fd6ece242"
 2. Interactivity 는 3초 안에 `200 OK`(빈 본문이나 `response_action`)이고 `202` 가 아니다.
 3. 슬래시 명령은 3초 안에 `200 OK` 와 본인에게만 보이는 `{ response_type: 'ephemeral', text }` 다(R-S-14).
 
-(1)·(2) 는 인바운드 응답 계약의 프로바이더별 응답 예외에 들어 있다(R-S-8). (2)·(3) 은 어댑터의 기본 응답(`defaultInteractionResponse`)이 정한다. Interactivity 와 슬래시 명령의 `200` 은 처리 결과와 관계없고 트리거가 비활성이어도 같다(R-S-12, R-S-14). 비활성 트리거의 Events API 메시지와 `url_verification` 은 `202 + { executionId: 'ignored' }` 다(REQ-CHAT-067). 트리거가 활성이면 워크플로우가 비활성이어도 `url_verification` 에는 답한다. 핸드셰이크 응답이 워크플로우 활성 관문보다 앞이기 때문이다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)).
+(1)~(3) 은 인바운드 응답 계약의 프로바이더별 응답 예외에 들어 있다(R-S-8, R-S-14). (1) 은 어댑터의 핸드셰이크 응답(`handshakeResponse`)이, (2)·(3) 은 어댑터의 기본 응답(`defaultInteractionResponse`)이 정한다. Interactivity 와 슬래시 명령의 `200` 은 처리 결과와 관계없고 트리거가 비활성이어도 같다(R-S-12, R-S-14). 비활성 트리거의 Events API 메시지와 `url_verification` 은 `202 + { executionId: 'ignored' }` 다(REQ-CHAT-067). 트리거가 활성이면 워크플로우가 비활성이어도 `url_verification` 에는 답한다. 핸드셰이크 응답이 워크플로우 활성 관문보다 앞이기 때문이다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)).
 
 워크플로우가 비활성이면 새 실행을 시작할 update(활성 실행이 없는 DM 의 메시지, `/<prefix> start`)는 버린다. 이때 Interactivity 로 온 클릭은 `200` 빈 본문이고 `/<prefix> start` 는 `200` 과 수신 문구이며 DM 메시지는 `202 + { executionId: 'ignored' }` 다. 진행 중인 DM 의 입력(답장, 버튼, 모달 제출)과 `/<prefix> cancel` 은 그대로 처리한다(REQ-CHAT-066~068, [채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 슬래시 명령의 `200` 응답 대신 그 에러로 응답한다(REQ-CHAT-064).
 
@@ -130,8 +130,8 @@ etag: "sha256-124efc95d7f4b189a414dc40d0cf909493f9c7df91876a9d48f3480fd6ece242"
 
 인바운드 응답 예외의 구현 위치만 여기 둔다. 나머지는 두 하위 문서의 「구현 위치」 절에 있다.
 
-- `codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts`: Interactivity 와 슬래시 명령의 기본 응답(`defaultInteractionResponse`)
-- `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터의 기본 인터랙션 응답 함수(`defaultInteractionResponse`)
+- `codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts`: `url_verification` 의 핸드셰이크 응답(`handshakeResponse`), Interactivity 와 슬래시 명령의 기본 응답(`defaultInteractionResponse`)
+- `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터의 핸드셰이크 응답 함수(`handshakeResponse`)와 기본 인터랙션 응답 함수(`defaultInteractionResponse`)
 - `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인바운드 관문(워크플로우 활성 관문 포함), 인터랙션 기본 응답을 응답에 싣는 처리(`handleChatChannelWebhook`, `withDefaultInteractionResponse`)와 200 빈 본문 응답
 
 ## Rationale
@@ -166,9 +166,9 @@ Events API 와 Interactivity Request URL 만 쓰는 무상태 HTTP 라 여러 �
 
 ### R-S-8 URL Verification 과 Interactivity 는 200 OK 로 답한다
 
-[채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 응답 계약은 `202 Accepted` 가 기준이다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). Slack 은 프로바이더별 응답 예외 두 가지를 더한다. URL Verification 은 Slack 이 응답 본문에서 `challenge` 를 꺼내야 하므로 `200 OK + { challenge }` JSON 이 필수다. Interactivity 3초 ack 는 Slack 이 `200 OK`(또는 `response_action`)만 성공으로 보고 `202` 는 클라이언트에 에러로 보일 수 있다. 응답 계약을 200·202 둘 다 허용으로 넓히면 모든 프로바이더의 응답 정책이 모호해지므로 Slack 만 예외로 두어 변경 범위를 줄인다. 예외 허용 조건은 인바운드 응답 계약의 프로바이더별 응답 예외가 정한다. 슬래시 명령의 `200` 응답은 R-S-14 가 세 번째 예외로 더했다.
+[채팅 채널](CLE-CHAT-CORE.md) 의 인바운드 응답 계약은 `202 Accepted` 가 기준이다([채팅 채널 「R-CC-12 인바운드 응답은 202 로 고정하고 401·404 만 예외로 둔다」](CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). Slack 의 프로바이더별 응답 예외는 세 가지다. 이 항목이 URL Verification 과 Interactivity 두 가지를 더했고 세 번째인 슬래시 명령의 `200` 응답은 [「R-S-14 슬래시 명령은 본인에게만 보이는 문구와 200 으로 답한다」](CLE-CHAT-SLACK-INBOUND.md#r-s-14-슬래시-명령은-본인에게만-보이는-문구와-200-으로-답한다) 가 더했다. URL Verification 은 Slack 이 응답 본문에서 `challenge` 를 꺼내야 하므로 `200 OK + { challenge }` JSON 이 필수다. 이 본문은 Slack 어댑터의 `handshakeResponse` 가 정하고 `HooksService` 는 update 를 처리하지 않고 그 본문을 `200` 응답에 싣는다. Interactivity 3초 ack 는 Slack 이 `200 OK`(또는 `response_action`)만 성공으로 보고 `202` 는 클라이언트에 에러로 보일 수 있다. 응답 계약을 200·202 둘 다 허용으로 넓히면 모든 프로바이더의 응답 정책이 모호해지므로 Slack 만 예외로 두어 변경 범위를 줄인다. 예외 허용 조건은 인바운드 응답 계약의 프로바이더별 응답 예외가 정한다.
 
-트리거가 꺼져 있을 때 두 예외의 응답은 다르다. URL Verification 요청은 handshake 전에 버리고 `202` 로 답한다([채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). Interactivity 요청에는 트리거가 꺼져 있어도 `200` 빈 본문으로 답한다([채팅 채널 「R-CC-33 인터랙션은 어느 경로로 끝나도 기본 응답으로 답하고 버린 클릭에는 수신 확인을 보낸다」](CLE-CHAT-CORE.md#r-cc-33-인터랙션은-어느-경로로-끝나도-기본-응답으로-답하고-버린-클릭에는-수신-확인을-보낸다)). 위의 «필수» 는 켜진 트리거가 URL 을 등록할 때의 응답을 가리킨다.
+트리거가 꺼져 있을 때 이 항목이 더한 두 예외의 응답은 다르다. URL Verification 요청은 handshake 전에 버리고 `202` 로 답한다([채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). Interactivity 요청에는 트리거가 꺼져 있어도 `200` 빈 본문으로 답한다([채팅 채널 「R-CC-33 인터랙션은 어느 경로로 끝나도 기본 응답으로 답하고 버린 클릭에는 수신 확인을 보낸다」](CLE-CHAT-CORE.md#r-cc-33-인터랙션은-어느-경로로-끝나도-기본-응답으로-답하고-버린-클릭에는-수신-확인을-보낸다)). 위의 «필수» 는 켜진 트리거가 URL 을 등록할 때의 응답을 가리킨다.
 
 ### R-S-9 DM 첫 메시지로 자동 시작한다
 
