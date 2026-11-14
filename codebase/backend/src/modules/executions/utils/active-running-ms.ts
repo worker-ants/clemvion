@@ -36,6 +36,19 @@ export function toActiveRunningMsForResponse(row: {
 }
 
 /**
+ * 엔진이 닫은 RUNNING 구간 길이를 앞선 실행 시간에 더한다. 아래 `ADD_STOPPED_SEGMENT_SQL` 과 같은 규칙이다.
+ *
+ * - 구간 길이가 음수면(시계 어긋남) 0 으로 본다.
+ * - 합은 `PG_INT4_MAX` 에서 멈춘다. 컬럼이 int4 라 넘는 값을 쓰면 상태 전이 UPDATE 가 실패한다.
+ */
+export function addRunningSegmentMs(
+  priorMs: number,
+  segmentMs: number,
+): number {
+  return Math.min(priorMs + Math.max(0, segmentMs), PG_INT4_MAX);
+}
+
+/**
  * REST 중지로 `cancelled` 가 된 행의 `active_running_ms` 에 엔진이 닫은 마지막 RUNNING 구간을 더하는
  * UPDATE 문이다. 실행 시간(`active_running_ms`)을 쓰는 규칙은 이 파일이 한 곳에서 정한다.
  *

@@ -222,7 +222,10 @@ import {
   CALL_STACK_SCHEMA_VERSION,
   ResumeCallStack,
 } from '../../shared/execution-resume/resume-call-stack.types';
-import { ADD_STOPPED_SEGMENT_SQL } from '../executions/utils';
+import {
+  ADD_STOPPED_SEGMENT_SQL,
+  addRunningSegmentMs,
+} from '../executions/utils';
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
@@ -8751,8 +8754,10 @@ export class ExecutionEngineService
       if (segStart !== undefined) {
         const endMs = Date.now();
         closedSegment = { startMs: segStart, endMs };
-        execution.activeRunningMs =
-          (execution.activeRunningMs ?? 0) + (endMs - segStart);
+        execution.activeRunningMs = addRunningSegmentMs(
+          execution.activeRunningMs ?? 0,
+          endMs - segStart,
+        );
         this.segmentStartMs.delete(execution.id);
       }
     }

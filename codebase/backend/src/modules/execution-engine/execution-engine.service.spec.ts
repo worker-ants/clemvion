@@ -75,6 +75,7 @@ import {
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
 import { ADD_STOPPED_SEGMENT_SQL } from '../executions/utils';
+import { PG_INT4_MAX } from '../../shared/utils/terminal-duration';
 import {
   NodeExecution,
   NodeExecutionStatus,
@@ -6140,6 +6141,26 @@ describe('ExecutionEngineService', () => {
           ).resolves.toBe(false);
           expect(addSegmentCalls()).toHaveLength(1);
         });
+      });
+
+      // 컬럼이 int4 라 합이 상한을 넘으면 상태 전이 UPDATE 가 파라미터 단계에서 실패한다. 그러면 행이
+      // 0행인지 가리기 전에 던져서 위 「마지막 구간 더하기」까지 가지 못한다.
+      it('RUNNING 을 떠나며 더한 실행 시간이 int4 상한을 넘으면 상한에서 멈춘다', async () => {
+        priv().segmentStartMs.set(executionId, Date.now() - 500);
+        mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: PG_INT4_MAX - 100,
+        } as unknown as Execution;
+
+        await priv().updateExecutionStatus(exec, ExecutionStatus.CANCELLED);
+
+        expect(exec.activeRunningMs).toBe(PG_INT4_MAX);
+        const transition = mockExecutionRepo.query.mock.calls.find(
+          (c: unknown[]) => /SET status = \$2/.test(String(c[0])),
+        ) as [string, unknown[]] | undefined;
+        expect(transition?.[1][2]).toBe(PG_INT4_MAX);
       });
 
       // #6 — PENDING → RUNNING 동시 선점 케이스: 다른 워커가 먼저 상태를 바꿨을 때

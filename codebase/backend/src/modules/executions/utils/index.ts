@@ -11,5 +11,6 @@ export {
 export { loadParentWorkflowNames } from './load-parent-workflow-names';
 export {
   ADD_STOPPED_SEGMENT_SQL,
+  addRunningSegmentMs,
   toActiveRunningMsForResponse,
 } from './active-running-ms';

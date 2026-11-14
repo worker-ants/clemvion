@@ -2,6 +2,7 @@ import { ExecutionStatus } from '../entities/execution.entity';
 import { PG_INT4_MAX } from '../../../shared/utils/terminal-duration';
 import {
   ADD_STOPPED_SEGMENT_SQL,
+  addRunningSegmentMs,
   toActiveRunningMsForResponse,
 } from './active-running-ms';
 
@@ -87,6 +88,20 @@ describe('toActiveRunningMsForResponse', () => {
         durationMs: 3_200,
       }),
     ).toBe(3_100);
+  });
+});
+
+describe('addRunningSegmentMs', () => {
+  it('닫은 구간 길이를 앞선 실행 시간에 더한다', () => {
+    expect(addRunningSegmentMs(1_200, 500)).toBe(1_700);
+  });
+
+  it('구간 길이가 음수면(시계 어긋남) 0 으로 보고 앞선 값을 그대로 둔다', () => {
+    expect(addRunningSegmentMs(1_200, -50)).toBe(1_200);
+  });
+
+  it('합이 int4 상한을 넘으면 상한에서 멈춘다 (컬럼이 int4 라 넘으면 UPDATE 가 실패한다)', () => {
+    expect(addRunningSegmentMs(PG_INT4_MAX - 100, 500)).toBe(PG_INT4_MAX);
   });
 });
 
