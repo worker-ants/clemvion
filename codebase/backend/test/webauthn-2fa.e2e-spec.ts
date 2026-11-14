@@ -1138,7 +1138,7 @@ describe('WebAuthn 2FA (e2e)', () => {
   });
 
   // 복구 코드를 읽고 쓰는 경로(재발급 · 사용)와 counter 역행 삭제도 등록 저장 · 삭제와 같은 사용자 행 잠금을
-  // 거친다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」, CLE-T-HQQNEA). 잠금이 없던 코드는 아래 각 케이스의
+  // 거친다(CLE-ACCT-SIGNIN-PASSKEY 「사용자 행 잠금」, CLE-T-HQQNEA). 잠금이 없던 코드는 아래 각 케이스의
   // 주석대로 «credential 0개 + 복구 코드 있음» · «credential 있음 + 복구 코드 NULL» 을 남기거나 같은 코드를 두 번 받았다.
   describe('Y. 복구 코드와 역행 삭제가 거치는 사용자 행 잠금', () => {
     type Answer = { status: number; body: any };

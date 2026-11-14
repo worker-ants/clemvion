@@ -731,7 +731,7 @@ export class WebAuthnService {
    *
    * 조회부터 복구 코드 비우기까지 사용자 행 잠금(`lockUserRow`) 안에서 한다. 등록 저장 · 복구 코드
    * 재발급 · 복구 코드 사용 · counter 역행 삭제도 같은 잠금을 거쳐서, 마지막 credential 삭제가 이들과
-   * 겹쳐도 차례로 돈다(CLE-ACCT-SIGNIN-PASSKEY 「Passkey 삭제」). 비밀번호 재확인은 컨트롤러가 한다.
+   * 겹쳐도 차례로 돈다(CLE-ACCT-SIGNIN-PASSKEY 「사용자 행 잠금」). 비밀번호 재확인은 컨트롤러가 한다.
    *
    * @throws {NotFoundException} WEBAUTHN_CREDENTIAL_NOT_FOUND — 존재하지 않거나 본인
    *   소유가 아닐 때, 또는 동시 삭제 두 건이 겹쳐 진 쪽이 이미 지워진 행을 찾을 때(404).
