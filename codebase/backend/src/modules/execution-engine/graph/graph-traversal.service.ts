@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { RESERVED_ERROR_PORT_ID } from '../../../nodes/core/button-slug.util';
 import { Node, NodeCategory } from '../../nodes/entities/node.entity';
 
 import { GraphEdge } from './graph-builder';
-
-/** 에러 포트 ID. 출력이 이 포트를 고를 때만 그 연결선을 연다. */
-const ERROR_PORT_ID = 'error';
 
 /**
  * 실행 엔진의 그래프 순회·reachability 보조 연산을 모은 서비스.
@@ -120,7 +118,7 @@ export class GraphTraversalService {
     const noSelection =
       selectedPort === undefined ||
       (Array.isArray(selectedPort) && selectedPort.length === 0);
-    if (noSelection) return edgeSourcePort === ERROR_PORT_ID;
+    if (noSelection) return edgeSourcePort === RESERVED_ERROR_PORT_ID;
     if (Array.isArray(selectedPort)) {
       return !selectedPort.includes(edgeSourcePort);
     }
@@ -129,7 +127,8 @@ export class GraphTraversalService {
 
   /**
    * 노드 실행 후 outgoing edges 를 따라 reachability 를 downstream 으로 전파.
-   * `_selectedPort` 가 있으면 그에 해당하는 edge 만 활성화. disabled 노드의
+   * `_selectedPort` 가 있으면 그에 해당하는 edge 만 활성화하고, 없으면 `error` 를
+   * 뺀 모든 edge 를 활성화한다(근거는 `isPortFiltered`). disabled 노드의
    * 호출자 책임으로 본 메서드를 호출하지 않는다.
    */
   propagateReachability(

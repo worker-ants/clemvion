@@ -289,7 +289,8 @@ export function resolveDynamicPorts(
   return dedupeById(resolved);
 }
 
-const ERROR_PORT_ID = "error";
+/** 에러 포트 id. 엔진이 연결선 `sourcePort === "error"` 로 비교한다. */
+export const ERROR_PORT_ID = "error";
 
 /**
  * 에러 처리 정책이 "에러 포트로 라우팅" 인지. 엔진이 읽는 `errorHandling.policy`
@@ -319,4 +320,30 @@ function dedupeById(
     out.push(p);
   }
   return out;
+}
+
+/**
+ * 저장하려는 설정에 에러 포트가 없는데도 그 포트에서 나가는 연결선이 남아 있는지
+ * 가려서, 지울 연결선만 골라 준다. 노드 정의를 아직 받지 못했으면 포트를 알 수 없으므로
+ * 아무것도 지우지 않는다.
+ */
+export function findOrphanErrorEdges<
+  E extends { source: string; sourceHandle?: string | null },
+>(
+  nodeId: string,
+  nodeType: string,
+  nextConfig: Record<string, unknown>,
+  definition: NodeDefinition | undefined,
+  edges: E[],
+): E[] {
+  if (!definition) return [];
+  const hasErrorPort = resolveDynamicPorts(
+    nodeType,
+    nextConfig,
+    definition,
+  ).some((p) => p.id === ERROR_PORT_ID);
+  if (hasErrorPort) return [];
+  return edges.filter(
+    (e) => e.source === nodeId && e.sourceHandle === ERROR_PORT_ID,
+  );
 }

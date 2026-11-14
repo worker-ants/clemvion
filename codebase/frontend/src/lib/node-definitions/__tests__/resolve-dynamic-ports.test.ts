@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveDynamicPorts } from "../resolve-dynamic-ports";
+import { findOrphanErrorEdges, resolveDynamicPorts } from "../resolve-dynamic-ports";
 import type { DynamicPortsSpec, NodeDefinition } from "../types";
 
 function def(
@@ -628,5 +628,33 @@ describe("resolveDynamicPorts — 동적 에러 포트 (REQ-NODEUI-012 · 043)",
 
   it("노드 정의를 모르면 포트를 지어내지 않는다", () => {
     expect(resolveDynamicPorts("unknown", ROUTE, undefined)).toEqual([]);
+  });
+});
+
+describe("findOrphanErrorEdges", () => {
+  const edges = [
+    { source: "n1", sourceHandle: "error" },
+    { source: "n1", sourceHandle: "out" },
+    { source: "n2", sourceHandle: "error" },
+  ];
+  const plain = def("plain", [{ id: "out", label: "Out", type: "data" }]);
+
+  it("에러 포트가 사라지면 그 노드의 error 연결선만 돌려준다", () => {
+    expect(findOrphanErrorEdges("n1", "plain", {}, plain, edges)).toEqual([
+      edges[0],
+    ]);
+  });
+
+  it("정책이 에러 포트로 라우팅이면 지우지 않는다", () => {
+    const route = { errorHandling: { policy: "route_to_error_port" } };
+    expect(findOrphanErrorEdges("n1", "plain", route, plain, edges)).toEqual(
+      [],
+    );
+  });
+
+  it("노드 정의를 모르면 지우지 않는다", () => {
+    expect(findOrphanErrorEdges("n1", "plain", {}, undefined, edges)).toEqual(
+      [],
+    );
   });
 });
