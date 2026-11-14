@@ -98,13 +98,58 @@ export const DISCORD_MESSAGE_FLAG_EPHEMERAL = 64;
 /**
  * 멘션 알림을 모두 끄는 `allowed_mentions`(NERV Task `CLE-T-FQTQ7K`, 2026-11-14 사람 결정).
  * Template 결과 · AI 응답 · 안내 문구에 `@everyone` · `@here` · 역할 · 사용자 멘션이 있어도 글자만
- * 보이고 알림은 울리지 않는다. 워크플로우가 일부러 넣은 멘션도 울리지 않는다. 채널 메시지
- * (`DiscordClient.postChannelMessage`)와 메시지를 싣는 interaction 응답(type 4)에 붙인다.
+ * 보이고 알림은 울리지 않는다. 워크플로우가 일부러 넣은 멘션도 울리지 않는다.
+ *
+ * 붙이는 곳은 아래 두 빌더뿐이다(NERV Task `CLE-T-VE7QVM`).
+ * - 채널 메시지: `DiscordClient.postChannelMessage` → {@link withDiscordMentionsDisabled}
+ * - 메시지를 싣는 interaction 응답(type 4): 슬래시 명령 기본 응답
+ *   (`buildDiscordDefaultInteractionResponse`)과 모달 제출 응답
+ *   (`DiscordAdapter.buildFormSubmissionResponse` 의 성공 · 검증 오류 두 분기) →
+ *   {@link buildDiscordEphemeralMessageResponse}
  */
 const NO_MENTION_PARSE: readonly string[] = Object.freeze([]);
 export const DISCORD_ALLOWED_MENTIONS_NONE = Object.freeze({
   parse: NO_MENTION_PARSE,
 });
+
+/**
+ * 채널 메시지 본문에 {@link DISCORD_ALLOWED_MENTIONS_NONE} 을 싣는다. 호출자가 `allowed_mentions` 를
+ * 넣었어도 이 값으로 덮는다.
+ */
+export function withDiscordMentionsDisabled<T extends object>(
+  body: T,
+): Omit<T, 'allowed_mentions'> & {
+  allowed_mentions: typeof DISCORD_ALLOWED_MENTIONS_NONE;
+} {
+  return { ...body, allowed_mentions: DISCORD_ALLOWED_MENTIONS_NONE };
+}
+
+/** {@link buildDiscordEphemeralMessageResponse} 가 만드는 interaction 응답. */
+export interface DiscordEphemeralMessageResponse {
+  type: typeof DISCORD_INTERACTION_CALLBACK_TYPE.CHANNEL_MESSAGE_WITH_SOURCE;
+  data: {
+    content: string;
+    flags: number;
+    allowed_mentions: typeof DISCORD_ALLOWED_MENTIONS_NONE;
+  };
+}
+
+/**
+ * 본인에게만 보이는 메시지 interaction 응답
+ * `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }`.
+ * 메시지를 싣는 interaction 응답은 모두 이 함수로 만든다.
+ */
+export function buildDiscordEphemeralMessageResponse(
+  content: string,
+): DiscordEphemeralMessageResponse {
+  return {
+    type: DISCORD_INTERACTION_CALLBACK_TYPE.CHANNEL_MESSAGE_WITH_SOURCE,
+    data: withDiscordMentionsDisabled({
+      content,
+      flags: DISCORD_MESSAGE_FLAG_EPHEMERAL,
+    }),
+  };
+}
 
 /**
  * Discord REST 클라이언트의 실패 결과. 4xx 본문이든 재시도를 다 쓴 합성 실패(5xx · 429 소진 ·

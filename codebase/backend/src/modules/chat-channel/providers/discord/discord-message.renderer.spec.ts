@@ -468,10 +468,9 @@ describe('renderDiscordEvent — 2000자 조각 한도 (REQ-DISCORD-010)', () =>
     (length) => {
       const text = 'a'.repeat(length);
       const chunks = renderTemplate(text);
-      for (const c of chunks) expect(c.length).toBeLessThanOrEqual(DISCORD_LIMIT);
-      chunks
-        .slice(0, -1)
-        .forEach((c) => expect(c.endsWith(SUFFIX)).toBe(true));
+      for (const c of chunks)
+        expect(c.length).toBeLessThanOrEqual(DISCORD_LIMIT);
+      chunks.slice(0, -1).forEach((c) => expect(c.endsWith(SUFFIX)).toBe(true));
       expect(chunks[chunks.length - 1].endsWith(SUFFIX)).toBe(false);
       const joined = chunks
         .map((c, i) => (i < chunks.length - 1 ? c.slice(0, -SUFFIX.length) : c))

@@ -18,9 +18,8 @@ import type {
 import { credentialRejectedError } from '../../types';
 import { DiscordClient } from './discord-client';
 import {
+  buildDiscordEphemeralMessageResponse,
   DISCORD_INTERACTION_CALLBACK_TYPE,
-  DISCORD_MESSAGE_FLAG_EPHEMERAL,
-  DISCORD_ALLOWED_MENTIONS_NONE,
   isDiscordApiError,
   type DiscordApiError,
   type DiscordMessage,
@@ -427,25 +426,13 @@ export class DiscordAdapter implements NativeFormAdapter {
   }): FormSubmissionResult {
     if (params.validationError) {
       return {
-        httpResponse: {
-          type: DISCORD_INTERACTION_CALLBACK_TYPE.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: `⚠️ ${params.validationError.message}`,
-            flags: DISCORD_MESSAGE_FLAG_EPHEMERAL,
-            allowed_mentions: DISCORD_ALLOWED_MENTIONS_NONE,
-          },
-        },
+        httpResponse: buildDiscordEphemeralMessageResponse(
+          `⚠️ ${params.validationError.message}`,
+        ),
       };
     }
     return {
-      httpResponse: {
-        type: DISCORD_INTERACTION_CALLBACK_TYPE.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          content: '✅ 제출되었습니다.',
-          flags: DISCORD_MESSAGE_FLAG_EPHEMERAL,
-          allowed_mentions: DISCORD_ALLOWED_MENTIONS_NONE,
-        },
-      },
+      httpResponse: buildDiscordEphemeralMessageResponse('✅ 제출되었습니다.'),
     };
   }
 
