@@ -2,23 +2,23 @@
 id: "CLE-CHAT-DISCORD-API"
 title: "Discord 어댑터 — API 호출과 UI 매핑"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DISCORD"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
-content_hash: "d0c1abca4349a35895f7a9c82f23d9087d8b6e89f06d6a9490a34a347f4e6fde"
+content_hash: "65c03a2679fdf71ccffb92a561affd6e515d39a89f6eab790729617314b74c7a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FQTQ7K"
 source_paths: []
-mirror_sha256: "12d6c71947911b89c91e1c90c3b7419846150926c955cd82774029142e1144cd"
-etag: "sha256-52dda640290dc564aacfc34a1062bd18ffe8106d75995bb908e493558e4ad244"
+mirror_sha256: "6e0d6f98ed99c462f554f29a49ad5ac6799f34f2ed307ef96ad05e3d0474e673"
+etag: "sha256-f2f2101da7aae8c0ba58f92ce67996f4a273e3e5476f485419bf7b33cadd0b67"
 ---
 ## 개요
 
-이 문서는 [Discord 어댑터](CLE-CHAT-DISCORD.md) 의 하위 문서로 어댑터 함수와 Discord REST·Interactions API 의 대응, `setupChannel`·`teardownChannel`, 네이티브 모달, 노드별 UI 매핑, 발송 재시도·rate limit·중복 제거를 정한다. 인터랙션을 해석하고 웹훅 HTTP 응답으로 답하는 쪽은 [Discord 어댑터 — 인바운드 처리와 응답](CLE-CHAT-DISCORD-INBOUND.md) 이 정한다.
+이 문서는 [Discord 어댑터](CLE-CHAT-DISCORD.md) 의 하위 문서로 어댑터 함수와 Discord REST·Interactions API 의 대응, `setupChannel`·`teardownChannel`, 네이티브 모달, 발송 본문의 멘션 알림 차단, 노드별 UI 매핑, 발송 재시도·rate limit·중복 제거를 정한다. 인터랙션을 해석하고 웹훅 HTTP 응답으로 답하는 쪽은 [Discord 어댑터 — 인바운드 처리와 응답](CLE-CHAT-DISCORD-INBOUND.md) 이 정한다.
 
 Rationale 의 R-D-1·R-D-3·R-D-4 는 [Discord 어댑터](CLE-CHAT-DISCORD.md#rationale), R-D-8·R-D-10·R-D-11·R-D-12 는 [Discord 어댑터 — 인바운드 처리와 응답](CLE-CHAT-DISCORD-INBOUND.md#rationale) 에 있다.
 
@@ -39,6 +39,8 @@ Rationale 의 R-D-1·R-D-3·R-D-4 는 [Discord 어댑터](CLE-CHAT-DISCORD.md#ra
 | `defaultInteractionResponse` | API 를 부르지 않는다. 원본 본문의 `type` 과 하위 명령 이름으로 3초 기본 응답 본문을 만든다(`buildDiscordDefaultInteractionResponse`). 컴포넌트·모달 제출은 `{ type: 6 }`, 슬래시 명령은 본인에게만 보이는 `{ type: 4 }`, 그 밖은 응답 없음([인바운드 응답](CLE-CHAT-DISCORD-INBOUND.md#인바운드-응답)) |
 | `ackDroppedUpdate` | 구현하지 않는다. 버린 인터랙션도 3초 응답이 수신 확인이다 |
 | `openFormModal` | `__open_form__`·`__reply__` 클릭 때 웹훅 HTTP 응답 본문 `{ type: 9, data: <modal> }`(MODAL)을 만든다. `__open_form__` 은 `clemvion_form` 폼 모달, `__reply__` 는 `clemvion_reply` 답장 모달이다([MODAL](#modal)) |
+
+`POST /channels/{channel_id}/messages` 를 부르는 행은 모두 본문에 `allowed_mentions: {"parse": []}` 를 넣는다([멘션 무력화](#멘션-무력화)).
 
 ### setupChannel
 
@@ -123,13 +125,23 @@ HTTP 200 (Interactions 응답 본문)
 - **MODAL_SUBMIT**: 제출하면 `data.components[].components[]` 의 `{ custom_id: field.name, value }` 를 `parseUpdate` 가 `{ kind: "form_submission", fields }` 로 편다.
 - **검증 실패 재표시**: Discord 는 MODAL_SUBMIT 에 같은 모달을 다시 보낼 수 없다(interaction 응답은 한 번). 서버 쪽 검증이 실패하면 후속 메시지에 "다시 입력" 버튼(`__open_form__`)을 다시 보내고, 사용자가 누르면 모달을 다시 연다.
 
+### 멘션 무력화
+
+Discord 로 보내는 메시지는 본문 글자를 바꾸지 않는다. 대신 [`allowed_mentions`](https://discord.com/developers/docs/resources/message#allowed-mentions-object) 를 `{"parse": []}` 로 붙여 멘션 알림을 막는다.
+
+- **채널 메시지**: 클라이언트(`discord-client.ts`)의 `postChannelMessage` 가 `POST /channels/{channel_id}/messages` 본문에 늘 `allowed_mentions: {"parse": []}` 를 넣는다. 그래서 text · buttons · form_prompt · form_modal 버튼 메시지 · image 대체 텍스트 · 실행 실패 안내까지 모든 채널 발송이 대상이다.
+- **인터랙션 응답 본문**: `content` 를 싣는 `{ type: 4 }` 응답의 `data` 에도 같은 값을 넣는다. 슬래시 명령의 즉시 응답(`buildDiscordDefaultInteractionResponse`)과 Form 제출 결과(`buildFormSubmissionResponse` 의 검증 실패 안내와 제출 완료 안내)가 여기에 든다. 이 응답 본문의 정본은 [Discord 어댑터 — 인바운드 처리와 응답 「인바운드 응답」](CLE-CHAT-DISCORD-INBOUND.md#인바운드-응답) 이다.
+- **붙이지 않는 응답**: 컴포넌트와 모달 제출에 답하는 `{ type: 6 }` 은 메시지를 싣지 않아 붙이지 않는다. 모달을 여는 `{ type: 9 }` 도 메시지가 아니라서 붙이지 않는다.
+
+`parse` 가 빈 배열이면 멘션은 화면에 그대로 보이지만 `@everyone` · `@here` · 사용자 멘션(`<@id>`) · 역할 멘션(`<@&id>`)의 알림은 가지 않는다. markdown 서식과 링크도 그대로 된다. 워크플로우 작성자가 일부러 넣은 멘션도 알림이 가지 않는다. 채팅 채널 공통 의무는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「멘션 무력화」](CLE-CHAT-ADAPTER-RENDER.md#멘션-무력화) 가 정하고 근거는 [Rationale](#rationale) 에 있다.
+
 ## 노드 UI 매핑
 
 ### 멀티턴 AI
 
 아웃바운드는 CCH-MP-01 을 모두 만족한다.
 
-- `execution.ai_message.message` 를 `POST /channels/{id}/messages`(content, 평문 markdown)로 보낸다. Discord 는 자체 markdown 을 지원해 escape 가 필요 없다.
+- `execution.ai_message.message` 를 `POST /channels/{id}/messages`(content, 평문 markdown)로 보낸다. Discord 는 자체 markdown 을 지원해 escape 하지 않는다. 멘션 알림은 `allowed_mentions: {"parse": []}` 로 막는다([멘션 무력화](#멘션-무력화)).
 - 2000자(`content` 한도)에서 나눈다. 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
 - 응답 직전 `POST /channels/{id}/typing` 을 한 번 보낸다(10초 자동 만료). 응답이 10초를 넘으면 5초마다 다시 보낸다.
 
@@ -181,7 +193,7 @@ Discord 는 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 �
 | `chart` | `output.payload.{title, series, labels}` → monospace 미니 막대 차트(markdown code block, 2000자 분할) | 텍스트로 대신(warning 로그) | satori SVG → PNG 첨부 | 텍스트(수치 가독성 우선) | 텍스트 |
 | `carousel` | `output.items[]` → 카드마다 굵은 제목과 설명을 하나로 이어 붙인다(`renderVisualFallback`). 이미지 URL 무시, 카드 10장 상한 | `auto` v1 로 대신 | 5장 collage PNG 첨부 1회 | 미구현. 계획은 카드별 이미지 URL 이 있으면 `embeds: [{image: {url: imageUrl}}]`(제목·설명 embed 필드), 없으면 평문 content. 현재는 `text` 와 같다(embeds 호출처 없음) | 카드별 분기와 5장 collage PNG |
 | `table` | `output.{rows, columns}` → markdown code block monospace 표(열 정렬, 행 20개 상한, 16자 넘는 셀 말줄임, 2000자 분할) | 텍스트로 대신 | 표 PNG 첨부 | 텍스트(정밀도 우선) | 텍스트 |
-| `template` | `output.rendered` 평문 → `POST /messages`(2000자 분할). HTML 은 보내지 않는다 | 텍스트로 대신 | HTML → SSR PNG | 텍스트 | HTML → SSR PNG |
+| `template` | `output.rendered` 평문 → `POST /messages`(2000자 분할). escape 하지 않고 멘션 알림은 `allowed_mentions: {"parse": []}` 로 막는다([멘션 무력화](#멘션-무력화)). HTML 은 보내지 않는다 | 텍스트로 대신 | HTML → SSR PNG | 텍스트 | HTML → SSR PNG |
 
 - **Embed 활용(계획)**: Discord embed 는 title·description·fields·image·color 를 지원하지만 fields 의 inline·길이 제약 때문에 Chart·Table 의 monospace 표현은 평문 content 가 더 읽기 쉽다. Carousel 카드는 embed 가 더 어울린다. `auto` 에서 이미지 URL 이 있으면 embed 를 쓰는 것은 미구현이고 현재 모든 시각형은 markdown 텍스트다.
 - **버튼**: 모든 시각형에서 `buttonConfig.buttons[]` 가 있으면 시각 메시지 다음 메시지로 ACTION_ROW 를 보내거나 마지막 메시지의 `components` 에 붙인다.
@@ -207,6 +219,15 @@ Discord 는 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 �
 - Discord [Rate limits](https://discord.com/developers/docs/topics/rate-limits): 봇당 전역 초당 50건과 경로별 bucket(응답 헤더 `X-RateLimit-Bucket`·`X-RateLimit-Remaining`·`X-RateLimit-Reset-After`)이 있다. `429 Too Many Requests` 의 `Retry-After` 는 따른다(구현됨). bucket 단위 큐와 응답 헤더 기반 throttle 은 미구현이다.
 - `interaction.id` 중복 제거: 같은 id 가 30초 안에 다시 오면 무시한다(Discord 는 3회까지 재전송한다). 파서가 채운 `idempotencyKey = interaction.id`(snowflake, 재전송 때 같다)를 `ChatChannelDedupService` 가 Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<interactionId>` 로 인바운드 진입의 분당 한도 앞에서 거른다. Redis 가 없으면 통과시킨다. 키·TTL·게이트 순서는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 파서가 키를 채우는 규칙은 [Discord 어댑터 — 인바운드 처리와 응답 「명령 매핑」](CLE-CHAT-DISCORD-INBOUND.md#명령-매핑) 에 있다.
 
+## 구현 위치
+
+이 문서가 정한 멘션 무력화의 구현 위치만 여기 둔다. 나머지는 [Discord 어댑터 「구현 위치」](CLE-CHAT-DISCORD.md#구현-위치) 에 있다.
+
+- `codebase/backend/src/modules/chat-channel/providers/discord/discord.types.ts`: 멘션 알림을 모두 끄는 상수 `DISCORD_ALLOWED_MENTIONS_NONE`
+- `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts`: `postChannelMessage` 가 본문에 `allowed_mentions` 를 넣는다
+- `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.ts`: 슬래시 명령 즉시 응답(`{ type: 4 }`)의 `data.allowed_mentions`
+- `codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts`: Form 제출 결과 응답(`buildFormSubmissionResponse`, `{ type: 4 }`)의 `data.allowed_mentions`
+
 ## Rationale
 
 ### R-D-2 setupChannel 에서 slash command 를 일괄 덮어쓴다
@@ -228,3 +249,15 @@ v1 Interactions Webhook 전용(R-D-3)의 결과다. Discord 파일 업로드는 
 ### R-D-9 file 필드 한계는 프로바이더 문서에 적고 Form 은 바꾸지 않는다
 
 Form 의 `file` 추상화는 그대로 두고 Discord 프로바이더만 v1 구현 한계로 지원하지 않는다. Form 에 `unsupportedProviders: ["discord"]` 같은 필드를 더하면 Form 이 프로바이더 한계를 알아야 하는 의존성 역전이 생긴다. file 필드를 자동으로 외부 저장소 URL 입력으로 바꾸면 사용자 의도와 다르게 동작해 헷갈린다. 추상화를 앞세우고 프로바이더 한계는 프로바이더 문서의 Rationale 에 적으며, 구현 단계에서 경고 UI 로 안내한다.
+
+### 멘션 알림은 escape 하지 않고 allowed_mentions 로 막는다 (2026-11-14)
+
+**배경**: Template 본문과 AI 응답(`execution.ai_message`)에는 `{{ }}` 표현식이나 LLM 응답을 거쳐 사용자 입력이 섞일 수 있다. 그 안의 `@everyone` · `@here` · `<@id>` · `<@&id>` 는 멘션 알림을 울린다. 그런데 렌더러는 두 본문을 그대로 보냈다(NERV Task `CLE-T-FQTQ7K`).
+
+**결정**: 2026-11-14 사람 결정이다(NERV 질문 `01a1d93a-a9dc-76d5-95a0-21a4753b0c50` 의 선택지 1). Discord 는 본문을 escape 하지 않고 모든 발송에 `allowed_mentions: {"parse": []}` 를 붙인다. 대가로 워크플로우 작성자가 일부러 넣은 멘션도 알림이 가지 않는다. 사람이 이 대가를 받아들였다.
+
+**escape 대신 `allowed_mentions` 를 쓰는 이유**: escape 는 본문 글자를 바꾼다. 예를 들어 `@` 뒤에 zero-width space 를 넣으면 화면에는 같아 보여도 복사한 글자에 보이지 않는 문자가 섞인다. 사용자 · 역할 멘션(`<@id>` · `<@&id>`)까지 막으려면 문법마다 바꾸는 규칙을 따로 둬야 한다. `allowed_mentions` 는 글자를 그대로 두고 네 가지 멘션의 알림을 한 번에 막는다.
+
+**모든 발송에 붙이는 이유**: 렌더러에서 메시지 종류마다 붙이면 새 메시지 종류나 새 발송 경로가 생길 때 빠질 수 있다. 채널 메시지는 모두 클라이언트의 `postChannelMessage` 를 거치므로 그 한 곳에서 보장한다. 인터랙션 응답 본문(`{ type: 4 }`)은 이 함수를 거치지 않고 웹훅 HTTP 응답으로 나가므로 응답을 만드는 두 곳에 따로 넣는다. `{ type: 6 }` 과 `{ type: 9 }` 응답에는 메시지가 없어 붙일 곳이 없다. 클라이언트와 응답을 만드는 함수 안에서 처리하므로 어댑터 함수와 렌더러 인터페이스는 더하지 않았다.
+
+**기각한 대안**: Template 본문만 막고 AI 응답은 후속 작업으로 미루는 안과 `{{ }}` 치환값만 막는 안은 Slack 과 같은 이유로 기각했다([Slack 어댑터 — Web API 와 노드 UI 매핑 「Template 본문과 AI 응답을 escape 해 멘션을 막는다 (2026-11-14)」](CLE-CHAT-SLACK-OUTBOUND.md#template-본문과-ai-응답을-escape-해-멘션을-막는다-2026-11-14)).

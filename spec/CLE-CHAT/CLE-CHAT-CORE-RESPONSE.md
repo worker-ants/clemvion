@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-RESPONSE"
 title: "채팅 채널 — 인바운드 HTTP 응답 계약"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "953931163eb10bec567c5290d6dd2489554c74e07c71dcb9559f28cbe3064a43"
+content_hash: "0e2783e53373e17acdfcd8d0c0227e96000cca894600f5aeb7e89469704bcffb"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-G2JRMF"
 source_paths: []
-mirror_sha256: "2dc738c2e17f6d3c945170258b4e8565a6c2907b938f62b6ce87de0cc7c84008"
-etag: "sha256-5efd5885fb23e1c2d5a7ff7d5e6c84128954b32dbeeac0d5f7e585a8951b2bea"
+mirror_sha256: "fd8c2b647fbe7e5068b1b63834ea07170b931c0d304032e327c3079279f7a4f5"
+etag: "sha256-e8402d11ca4a309dd7d61050f3a3d6cd6f77cb9f1c02306694b5ff516fae129e"
 ---
 ## 개요
 
@@ -33,9 +33,10 @@ etag: "sha256-5efd5885fb23e1c2d5a7ff7d5e6c84128954b32dbeeac0d5f7e585a8951b2bea"
 |---|---|---|---|
 | 1:1 대화, 정상 update(새 실행 시작) | `202 Accepted` | `{ executionId }`(웹훅 처리 흐름과 같은 형식) | 실행 시작 |
 | 1:1 대화, 정상 update(기존 실행에 전달) | `202 Accepted` | `{ executionId }`(활성 실행 id) | `InteractionService.interact` 호출, 새 실행 없음 |
-| 1:1 대화, 활성 실행이 있는 대화의 `/start` | `202 Accepted` | `{ executionId }`(새 실행 id) | 기존 실행을 실행 중지 경로로 취소한 뒤 새 실행 시작. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다 |
+| 1:1 대화, 활성 실행이 있는 대화에 실행 소유자가 보낸 `/start` | `202 Accepted` | `{ executionId }`(새 실행 id) | 기존 실행을 실행 중지 경로로 취소한 뒤 새 실행 시작. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다 |
 | 1:1 대화, `/start` 의 기존 실행 취소 실패(취소를 큐에 넣지 못함 등) | `503 Service Unavailable` 등 | 표준 에러 응답 봉투(`EXECUTION_ENQUEUE_FAILED` 등. 코드 정의는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조)) | 새 실행 없음. 그 update 의 중복 제거 선점을 풀어 프로바이더의 재전송을 받는다. 위 규칙 (나) 에 해당한다. 인터랙션으로 온 `/start` 도 같다 |
-| 1:1 대화, 활성 실행이 있는 대화의 `/cancel` | `202 Accepted` | `{ executionId }`(취소한 실행 id) | 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 채널 대화 상태의 `executionId` 가 그 실행을 가리킬 때만 비운다. 실행이 이미 끝났거나 지워졌으면(`INVALID_STATE`·`RESOURCE_NOT_FOUND`) 같은 응답이고 채널 건강도를 바꾸지 않는다 |
+| 1:1 대화, 활성 실행이 있는 대화에 실행 소유자가 보낸 `/cancel` | `202 Accepted` | `{ executionId }`(취소한 실행 id) | 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 채널 대화 상태의 `executionId` 가 그 실행을 가리킬 때만 비운다. 실행이 이미 끝났거나 지워졌으면(`INVALID_STATE`·`RESOURCE_NOT_FOUND`) 같은 응답이고 채널 건강도를 바꾸지 않는다 |
+| 활성 실행이 있는 대화에 실행 소유자가 아닌 사람이 보낸 `/start`·`/cancel` | `202 Accepted` | `{ executionId: 'ignored' }` | 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 문구 없이 버린 update 의 수신 확인만 보낸다. 인터랙션(Slack · Discord 슬래시 명령)이면 `200` 과 기본 응답이다. 실행 소유자는 `channelUserKey` 가 채널 대화 상태의 값과 같은 사용자다. 1:1 DM 에서는 생기지 않고 DM 이 아닌 채널에서도 받는 Slack 슬래시 명령에서 생긴다([R-CC-35](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)) |
 | 1:1 대화, `/cancel` 의 취소를 재개 큐에 넣지 못함 | `202 Accepted` | `{ executionId }`(취소하려던 실행 id) | 실행은 입력 대기에 남고 `executionId` 도 그대로다. 경고 로그, `chat_channel_health=degraded`, 고정 문구(이미 `degraded` 면 다시 쓰지 않음). 중복 제거 선점은 풀지 않는다. `503` 으로 답하지 않는다([큐 적재 실패](CLE-CHAT-CORE-INTERACT.md#큐-적재-실패)) |
 | 1:1 대화, 입력 대기 실행으로 보내는 재개 명령(답장, 버튼 탭, 폼 제출)을 재개 큐에 넣지 못함 | `202 Accepted` | `{ executionId }`(활성 실행 id) | 실행은 입력 대기에 그대로 있다. `/cancel` 의 큐 적재 실패와 같이 처리한다. 인터랙션으로 온 재개 명령은 아래 인터랙션 행의 응답을 쓴다. 네이티브 폼 모달 제출이면 모달 대기(`pendingFormModal`)를 지우지 않고 「양식 작성하기」 버튼을 다시 보내며, 응답은 기본 응답이라 모달만 닫힌다 |
 | group·supergroup·channel 대화 | `202 Accepted` | `{ executionId: 'ignored' }` | `languageHints.groupChatRefusal` 안내 발송 |

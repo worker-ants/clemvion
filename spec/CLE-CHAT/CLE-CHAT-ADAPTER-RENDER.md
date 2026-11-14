@@ -2,23 +2,23 @@
 id: "CLE-CHAT-ADAPTER-RENDER"
 title: "채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "80854faae7c30f0939409206ce3ccda2c00a9dbfc36a2c8bb5d7bd7be48fddf7"
+content_hash: "8ff1ac41ac23a4f7ab854e29a5a39e492521f8432dcee0c2bce445024721cabc"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FQTQ7K"
 source_paths: []
-mirror_sha256: "2266f582c9dbc262898d1281fab7acf749d6a27c09da6ee269ced7d560b8dbc6"
-etag: "sha256-7abca22f91fb9f441815280778a7a2ccf292f7f98dba795e8f9f80510c725e6f"
+mirror_sha256: "237972eca49cafdd0689e990cdcd56e774cd11d868f43c44f39a15db2dbb9af4"
+etag: "sha256-cdcc808954b7d2fc15590653c3d515c6063436a8f8b849d9bee31c9cd38803ad"
 ---
 ## 개요
 
-이 문서는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 하위 문서로 `renderNode` 가 이벤트마다 만드는 출력 메시지, 시각형 렌더 입력을 찾는 순서, 실행 실패 안내 분류 함수 `classifyExecutionFailure` 를 정한다.
+이 문서는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 하위 문서로 `renderNode` 가 이벤트마다 만드는 출력 메시지, 시각형 렌더 입력을 찾는 순서, 사용자 입력이 섞이는 본문의 멘션 무력화, 실행 실패 안내 분류 함수 `classifyExecutionFailure` 를 정한다.
 
 ## 이벤트별 렌더 매핑
 
@@ -30,11 +30,11 @@ etag: "sha256-7abca22f91fb9f441815280778a7a2ccf292f7f98dba795e8f9f80510c725e6f"
 | `execution.waiting_for_input`(buttons) | `buttonConfig.buttons[]`, `buttonConfig.nodeOutput` | `buttons` 1건. 노드가 시각형(carousel·table·chart)이면 그 앞에 시각 메시지를 붙인다. `uiMapping.visualNode`(`text`·`photo`·`auto`, 기본 `auto`)에 따라 나누고, 1차 범위는 프로바이더별 텍스트 fallback, 후속 범위는 SSR PNG 다. 1차 범위에서 `photo` 를 고르면 텍스트로 대신 보내고 warning 로그를 남기며 채널 건강도는 바꾸지 않는다. 버튼 달린 Template 의 처리는 [미결 사항](CLE-CHAT-ADAPTER.md#미결-사항) 참조 |
 | `execution.waiting_for_input`(ai_conversation) | 없음 | 빈 배열(조용히 넘김). 이유는 R-CCA-6 |
 | `execution.waiting_for_input`(ai_form_render) | 없음 | `ai_conversation` 과 같이 빈 배열. 채팅 채널의 인라인 폼 처리는 후속 범위다 |
-| `execution.ai_message` | `message`(필수), `presentations?[]` | `text` 1건 이상(나눠 보낼 수 있다). `presentations` 가 있으면 표시물마다 1차 범위의 텍스트 fallback 으로 렌더해 텍스트 뒤에 하나씩 `await` 하며 보낸다(`Promise.all` 금지, rate limit 과 표시 순서). 표시 전용 네 가지(`carousel`·`table`·`chart`·`template`)는 시각형 fallback 을 다시 쓴다. `render_form`(`type === 'form'`)은 필드 목록과 답변 안내를 담은 1차 범위의 임시 텍스트다(R-CCA-13). 기준은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 와 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) |
+| `execution.ai_message` | `message`(필수), `presentations?[]` | `text` 1건 이상(나눠 보낼 수 있다). `presentations` 가 있으면 표시물마다 1차 범위의 텍스트 fallback 으로 렌더해 텍스트 뒤에 하나씩 `await` 하며 보낸다(`Promise.all` 금지, rate limit 과 표시 순서). 표시 전용 네 가지(`carousel`·`table`·`chart`·`template`)는 시각형 fallback 을 다시 쓴다. `render_form`(`type === 'form'`)은 필드 목록과 답변 안내를 담은 1차 범위의 임시 텍스트다(R-CCA-13). `message` 와 `template` 표시물은 [멘션 무력화](#멘션-무력화) 규칙으로 보낸다. 기준은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 와 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) |
 | `execution.completed` | 없음(`status` 만). `result.outputs` 는 EIA 에서 미구현 | `text` 1건. `languageHints.executionCompleted` |
 | `execution.failed` | `error.code`, `error.details.statusCode`(다른 필드 금지) | `text` 1건. [실행 실패 안내 분류](#실행-실패-안내-분류) 결과 `(key, placeholders)` 로 `languageHints[key]` 를 찾고 자리표시자를 채운다. 시스템 의무는 [채팅 채널](CLE-CHAT-CORE.md) 이 정한다 |
 | `execution.cancelled` | `cancelledBy`, `error?.code` | `text` 1건. `error.code` 가 `RESUME_*` 접두 코드면 무엇이든(재개 실패 시스템 취소, [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)) 대화 세션 만료 안내 `languageHints.sessionExpired` 를 보내고, 그 밖은 일반 취소 안내를 보낸다. 이 안내 범위(`RESUME_*` 전부)의 기준은 이 규약이다 |
-| `execution.node.completed`(내부, 표시 전용 Presentation 만) | `node.type ∈ {template, carousel, table, chart}`, `output` | `template` 은 `output.output.rendered` 를 `text` 1건으로(MarkdownV2 escape). 실제 `extractRendered` 는 `rendered` → `payload.rendered` → `output.rendered` 를 훑어 옛 평평한 모양도 받는다. `carousel`·`table`·`chart` 는 시각형 텍스트 fallback(`renderCarouselFallback`·`renderTableFallback`·`renderChartFallback`)을 그대로 쓴다. 버튼 있는(블로킹) 경우는 버튼 입력 대기 행이 처리하므로 미리 거른다. Form 노드는 늘 블로킹이라 대상이 아니다 |
+| `execution.node.completed`(내부, 표시 전용 Presentation 만) | `node.type ∈ {template, carousel, table, chart}`, `output` | `template` 은 `output.output.rendered` 를 `text` 1건으로 보낸다([멘션 무력화](#멘션-무력화)). 실제 `extractRendered` 는 `rendered` → `payload.rendered` → `output.rendered` 를 훑어 옛 평평한 모양도 받는다. `carousel`·`table`·`chart` 는 시각형 텍스트 fallback(`renderCarouselFallback`·`renderTableFallback`·`renderChartFallback`)을 그대로 쓴다. 버튼 있는(블로킹) 경우는 버튼 입력 대기 행이 처리하므로 미리 거른다. Form 노드는 늘 블로킹이라 대상이 아니다 |
 
 ### 시각형 렌더 입력
 
@@ -50,6 +50,16 @@ etag: "sha256-7abca22f91fb9f441815280778a7a2ccf292f7f98dba795e8f9f80510c725e6f"
 4. `nodeOutput.<field>`: 평평한 옛 모양
 
 노드 출력과 wire 의 구분 기준은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이다. 프로바이더 매트릭스가 적은 Chart·Carousel 입력 모양이 노드 출력([Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md), [Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md))과 다르다. [미결 사항](CLE-CHAT-ADAPTER.md#미결-사항) 참조.
+
+### 멘션 무력화
+
+Template 본문(`execution.node.completed` 의 `template`, `execution.ai_message.presentations[]` 의 `template`)과 `execution.ai_message` 의 `message` 에는 `{{ }}` 표현식이나 LLM 응답을 거쳐 사용자 입력이 섞일 수 있다. 채널 어댑터는 이 두 본문을 보낼 때 채널 전체 멘션과 사용자 멘션의 알림이 울리지 않게 한다. 워크플로우 작성자가 일부러 넣은 멘션도 알림이 가지 않는다. 방법은 프로바이더마다 다르다.
+
+- **Telegram**: 지금처럼 MarkdownV2 예약 문자를 escape 해 보낸다([Telegram 어댑터](CLE-CHAT-TELEGRAM.md)).
+- **Slack**: `&` · `<` · `>` 를 escape 한다. `<!channel>` · `<!here>` · `<@U…>` 멘션과 `<url|라벨>` 링크 문법이 글자 그대로 보인다. 맨 URL 자동 링크와 `*굵게*` 같은 서식은 그대로 된다([Slack 어댑터 — Web API 와 노드 UI 매핑 「멘션 무력화」](CLE-CHAT-SLACK-OUTBOUND.md#멘션-무력화)).
+- **Discord**: escape 하지 않고 모든 발송에 `allowed_mentions: {"parse": []}` 를 붙인다. 글자는 그대로 보이고 `@everyone` · `@here` · 사용자 · 역할 멘션의 알림만 가지 않는다([Discord 어댑터 — API 호출과 UI 매핑 「멘션 무력화」](CLE-CHAT-DISCORD-API.md#멘션-무력화)).
+
+escape 하는 프로바이더는 본문을 길이 한도에 맞춰 나눌 때 조각 경계가 escape 결과의 가운데를 지나면 그 앞에서 자른다.
 
 ## 실행 실패 안내 분류
 
@@ -156,3 +166,15 @@ AI 에이전트 핸들러가 빈 `ai_message` 를 내지 못하게 막는 안은
 - (c) 이 임시 텍스트는 AI 에이전트 `render_form` 표시물(표시 도구 턴) 표면이다. 모달 격상은 블로킹 Form 노드(`execution.waiting_for_input` form) 표면이라 경로가 다르다. 블로킹 Form 노드는 폼 모드 분기(모달 또는 다단계)를 타고, `render_form` 표시물은 이 임시 텍스트를 유지한다. `ai_message` 표시물 경로의 네이티브 UI 격상은 후속 작업이다.
 
 [채팅 채널](CLE-CHAT-CORE.md) 의 Rationale 에도 이 결정을 가리키는 항목이 있고, 근거는 이 절에 둔다.
+
+### 사용자 입력이 섞이는 본문은 멘션 알림이 울리지 않게 보낸다 (2026-11-14)
+
+2026-11-14 사람 결정이다(NERV 질문 `01a1d93a-a9dc-76d5-95a0-21a4753b0c50` 의 선택지 1, NERV Task `CLE-T-FQTQ7K`). Template 노드는 `{{ }}` 표현식으로 웹훅 본문, 폼 입력 같은 외부 값을 본문에 넣는다. AI 응답에도 사용자 발화나 도구 결과가 그대로 들어갈 수 있다. 그 안의 멘션 문법이 살아 있으면 워크플로우 작성자가 의도하지 않은 알림이 간다. Telegram 렌더러는 MarkdownV2 escape 를 해 왔지만 Slack · Discord 렌더러는 두 본문을 그대로 보냈다.
+
+의무는 이 규약에 두고 방법은 프로바이더 문서에 둔다. Slack 멘션은 꺾쇠 문법이라 `&` · `<` · `>` escape 로 막는다. Discord 는 발송 옵션 `allowed_mentions` 가 있어 글자를 바꾸지 않고 알림만 막는다. 방법이 프로바이더마다 달라 규약은 무엇을 막는지만 정한다.
+
+어댑터 인터페이스는 바꾸지 않았다. Slack 은 렌더러 안에서 escape 하고 Discord 는 API 클라이언트와 인터랙션 응답을 만드는 함수 안에서 `allowed_mentions` 를 붙인다. `renderNode` 시그니처와 어댑터 함수 목록은 그대로라 [R2](CLE-CHAT-ADAPTER-IFACE.md#r2-필수-함수에-ack-와-escapecontroltext-를-따로-둔다) 의 인터페이스 최소주의와 [R-CCA-7](#r-cca-7-rendernode-시그니처를-union-으로-넓혀-내부-이벤트를-받는다) 의 union 입력을 그대로 지킨다. 멘션을 막는 함수를 인터페이스에 따로 두면 모든 프로바이더 계약이 바뀐다. 방법이 프로바이더마다 달라 공통 시그니처로 묶을 이득도 없다. R-CCA-5 가 `renderError` 를 기각한 이유와 같다.
+
+escape 하면 본문이 길어지므로 길이 한도에 맞춘 분할은 escape 한 뒤에 한다. 조각 경계가 escape 결과의 가운데를 지나면 받는 쪽에 깨진 글자가 보이므로 경계를 그 앞으로 당긴다.
+
+대가로 워크플로우 작성자가 일부러 넣은 멘션도 알림이 가지 않고 Slack 에서는 `<url|라벨>` 링크 문법도 글자로 보인다. 사람이 이 대가를 받아들였다. Template 만 막고 AI 응답은 후속 작업으로 미루는 안과 `{{ }}` 치환값만 막는 안은 기각했다. 근거는 [Slack 어댑터 — Web API 와 노드 UI 매핑](CLE-CHAT-SLACK-OUTBOUND.md#rationale) 과 [Discord 어댑터 — API 호출과 UI 매핑](CLE-CHAT-DISCORD-API.md#rationale) 의 Rationale 에 있다.

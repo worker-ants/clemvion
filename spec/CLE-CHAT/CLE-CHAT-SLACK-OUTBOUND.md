@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK-OUTBOUND"
 title: "Slack 어댑터 — Web API 와 노드 UI 매핑"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-SLACK"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-SLACK"]
 area: "CLE-CHAT"
-content_hash: "a1c8298c23dd42dc4d64e8380846e0a202d85b4f91f4c68b483d943e92b6823c"
+content_hash: "1e66aed3bb57a9769addabfb7532ad247f692fed9d6dafb056ca54866d0b0339"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FQTQ7K"
 source_paths: []
-mirror_sha256: "ba1199361ef5a4fd9876e3366a44f82c14e23fb22a03b0e6cf1f2deffd2ed583"
-etag: "sha256-af0c8c8a673f24a2a4ef6c4278e394fe8a6afebd51a7a83d86234fd7d9eca69a"
+mirror_sha256: "e7da7d456d6811129c605ecd400cd5fe2d489dda5352e51ec906360624edb82f"
+etag: "sha256-90ab42e3645cd60bef4d64e5a9be2432b77f2156afe1b306b62217c8b37fc171"
 ---
 ## 개요
 
@@ -95,10 +95,22 @@ Authorization: Bearer {botToken}
 
 ## 노드 UI 매핑
 
+### 멘션 무력화
+
+`execution.ai_message` 의 `message` 와 Template 본문(`execution.node.completed` 로 받은 `template` 노드의 `output.rendered`, `execution.ai_message.presentations[]` 의 `template`)은 [Slack 서식](https://api.slack.com/reference/surfaces/formatting) 규칙대로 `&` · `<` · `>` 를 `&amp;` · `&lt;` · `&gt;` 로 escape 한 뒤 보낸다(`escapeSlackMrkdwn`). 이 함수는 슬래시 명령 응답의 `text`([「Slash Commands」](CLE-CHAT-SLACK-INBOUND.md#slash-commands))와 안내 문구(`escapeControlText`)를 escape 할 때 쓰는 함수와 같다. 두 본문에는 `{{ }}` 표현식이나 LLM 응답을 거쳐 사용자 입력이 섞일 수 있다. escape 한 본문은 Slack 에서 다음과 같이 보인다.
+
+- `<!channel>` · `<!here>` · `<@U…>` 같은 멘션 문법은 글자 그대로 보이고 알림이 울리지 않는다.
+- `<https://example.com|라벨>` 같은 링크 문법도 글자 그대로 보인다.
+- 꺾쇠 없이 쓴 URL 은 그대로 자동 링크가 되고 `*굵게*` · `_기울임_` 같은 서식도 그대로 된다.
+
+워크플로우 작성자가 템플릿에 일부러 넣은 멘션과 링크 문법도 글자로 보인다. 링크가 필요하면 URL 을 꺾쇠 없이 쓴다.
+
+3500자 분할은 escape 한 뒤에 한다. 3500자 조각 경계가 `&amp;` · `&lt;` · `&gt;` 의 가운데를 지나면 그 엔티티 앞에서 자른다. 채팅 채널 공통 의무는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「멘션 무력화」](CLE-CHAT-ADAPTER-RENDER.md#멘션-무력화) 가 정하고 근거는 [Rationale](#template-본문과-ai-응답을-escape-해-멘션을-막는다-2026-11-14) 에 있다.
+
 ### 멀티턴 AI
 
-- `execution.ai_message.message` 를 `chat.postMessage` 로 보낸다(mrkdwn, [Slack 서식](https://api.slack.com/reference/surfaces/formatting) 규칙대로 `<`, `>`, `&` 만 escape).
-- 3500자에서 나눈다. `chat.postMessage.text` 의 권장 한도 4000자에서 500자 여유를 둔 값이다. 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
+- `execution.ai_message.message` 를 `chat.postMessage` 로 보낸다(mrkdwn, [Slack 서식](https://api.slack.com/reference/surfaces/formatting) 규칙대로 `<`, `>`, `&` 만 escape). Template 본문에도 같은 escape 를 적용한다([멘션 무력화](#멘션-무력화)).
+- 3500자에서 나눈다. `chat.postMessage.text` 의 권장 한도 4000자에서 500자 여유를 둔 값이다. 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 조각 경계가 escape 결과의 가운데를 지나면 그 엔티티 앞에서 자른다.
 - 응답 직전 typing 표시는 보내지 않는다(R-S-5).
 - 사용자 DM 답장(`text_message`)은 EIA `submit_message` 로 보낸다.
 
@@ -141,7 +153,7 @@ Slack 은 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 분�
 | `chart` | `output.payload.{title, series, labels}` → monospace 미니 막대 차트(mrkdwn code block, 3500자 분할) | 텍스트로 대신(warning 로그) | satori SVG → PNG `files.uploadV2` | 텍스트(수치 가독성 우선) | 텍스트 |
 | `carousel` | `output.items[]` → 카드를 차례로 `chat.postMessage`. `text` 는 이미지 URL 을 무시한다(굵은 제목, 설명, 카드별 actions 블록 버튼). 카드 10장 상한과 "외 N장" | `auto` 1차 범위 표현으로 대신(warning 로그) | 카드 1~5장 collage PNG `files.uploadV2` 1회 | 카드별로 이미지 URL 이 있으면 Block Kit `image` 블록(`image_url`, `alt_text`, `title`), 없으면 `chat.postMessage`(굵은 제목, 설명, 카드별 actions). 이미지 블록 분기는 미구현이고 현재는 텍스트 카드만 보낸다. 카드 10장 상한, 전역 버튼은 마지막 카드 뒤 별도 메시지 | 카드별 분기와 5장 collage PNG 시도 |
 | `table` | `output.{rows, columns}` → mrkdwn code block 안의 monospace 표(열 패딩, 헤더 구분선, 행 20개 상한, 16자 넘는 셀 말줄임, 3500자 분할) | 텍스트로 대신 | 표 PNG `files.uploadV2` | 텍스트(정밀도 우선) | 텍스트 |
-| `template` | `output.rendered` 가 평문이면 `chat.postMessage`(3500자 분할). HTML 은 보내지 않는다 | 텍스트로 대신 | HTML → SSR PNG | 텍스트 | HTML → SSR PNG |
+| `template` | `output.rendered` 가 평문이면 `<` · `>` · `&` 를 escape 한 뒤 `chat.postMessage`(3500자 분할. 조각 경계가 escape 결과의 가운데를 지나면 그 엔티티 앞에서 자른다. [멘션 무력화](#멘션-무력화)). HTML 은 보내지 않는다 | 텍스트로 대신 | HTML → SSR PNG | 텍스트 | HTML → SSR PNG |
 
 - **버튼**: 모든 시각형에서 `buttonConfig.buttons[]` 가 있으면 시각 메시지 다음 메시지로 actions 블록을 보낸다.
 - **옛 `text_only`**: 어댑터가 입력 단계에서 `"text"` 로 바꾼다.
@@ -172,7 +184,7 @@ Slack 은 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 분�
 
 - `codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts`: `setupChannel`, 자격 증명 거부 목록(`SLACK_CREDENTIAL_REJECTED_ERRORS`), `ackInteraction`
 - `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts`
-- `codebase/backend/src/modules/chat-channel/providers/slack/slack-message.renderer.ts`
+- `codebase/backend/src/modules/chat-channel/providers/slack/slack-message.renderer.ts`: 노드 UI 매핑 렌더, `execution.ai_message` 본문과 Template 본문의 escape(`escapeSlackMrkdwn`), 3500자 분할(`chunkText` · `chunkEnd`)
 - `codebase/backend/src/modules/chat-channel/providers/slack/slack.types.ts`
 - `codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx`, `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx`, `codebase/frontend/src/lib/i18n/dict/{ko,en}/triggers.ts`
 - 사용자 가이드: `codebase/frontend/src/content/docs/06-integrations-and-config/slack.mdx`, `slack.en.mdx`
@@ -194,3 +206,21 @@ Slack `views.open` 모달을 네이티브 폼으로 택했다. [채팅 채널 �
 ### R-S-11 이전 봇 토큰의 auth.revoke 는 24시간 유예가 끝난 뒤 부른다
 
 2026-11-06 결정이다(NERV Task `CLE-T-D41BY6`). 근거는 [채팅 채널 어댑터 규약 「R-CCA-10 이전 봇 토큰은 24시간 유예가 끝난 정리 작업이 폐기한다」](CLE-CHAT-ADAPTER.md#r-cca-10-이전-봇-토큰은-24시간-유예가-끝난-정리-작업이-폐기한다) 에 있다. 이 결정으로 미결 «이전 봇 토큰 revoke 시점» 을 닫았다.
+
+### Template 본문과 AI 응답을 escape 해 멘션을 막는다 (2026-11-14)
+
+**배경**: Template 노드는 `{{ }}` 표현식으로 웹훅 본문, 폼 입력, 앞 노드 출력 같은 외부 값을 본문에 넣는다. 그 값에 `<!channel>` · `<!here>` 가 들어 있으면 채널 전체 멘션이 되어 알림이 울리고 `<@U…>` 는 사용자 멘션이 된다. 그런데 렌더러는 Template 본문을 그대로 보냈다. AI 응답의 `<` · `>` · `&` escape 는 이미 [Slack 어댑터](CLE-CHAT-SLACK.md) 의 요구사항이었지만 코드는 escape 하지 않았다(NERV Task `CLE-T-FQTQ7K`).
+
+**결정**: 2026-11-14 사람 결정이다(NERV 질문 `01a1d93a-a9dc-76d5-95a0-21a4753b0c50` 의 선택지 1). Template 본문과 AI 응답을 모두 escape 한다. AI 응답은 코드를 그 요구사항에 맞춘다. 대가로 워크플로우 작성자가 템플릿에 일부러 넣은 멘션과 `<url|라벨>` 링크도 글자로 보인다. 맨 URL 자동 링크와 서식은 그대로 되므로 이 대가를 받아들였다.
+
+escape 는 슬래시 명령 응답과 안내 문구에 이미 쓰던 `escapeSlackMrkdwn` 을 그대로 쓴다. 한 함수를 쓰면 봇이 보내는 글의 escape 규칙이 경로마다 갈리지 않는다. escape 는 렌더러 안에서 하고 어댑터 함수와 렌더러 인터페이스는 더하지 않았다.
+
+escape 하면 본문이 길어지므로 3500자 분할은 escape 한 뒤에 한다. 조각 경계가 `&lt;` 같은 엔티티 가운데를 지나면 Slack 에는 `&l` 과 `t;` 같은 깨진 글자가 보인다. 그래서 경계를 그 엔티티 앞으로 당긴다.
+
+**`mrkdwn` 파라미터를 보내지 않는 기존 결정은 유지한다**: `chat.postMessage` 에 `mrkdwn: false` 를 보내면 AI 응답과 Template 본문의 `*굵게*` · `_기울임_` 같은 서식까지 꺼진다. 꺾쇠 문법만 escape 하면 서식은 남기고 멘션과 링크 문법만 글자로 바꿀 수 있다. 그래서 [Web API 호출 매핑](#web-api-호출-매핑) 의 `sendMessage`(text) 행은 바꾸지 않았다.
+
+**기각한 대안**:
+
+- **Template 만 escape 하고 AI 응답은 후속 작업으로 미룬다**: LLM 응답에도 사용자 발화나 도구 결과가 그대로 들어갈 수 있어 같은 위험이 있다. 미루면 Slack 어댑터의 요구사항과 코드가 어긋난 채로 남는다.
+- **`{{ }}` 치환값만 escape 하고 작성자가 쓴 글자는 그대로 둔다**: 렌더러가 받는 값은 완성된 `output.rendered` 라 어느 글자가 치환값인지 알 수 없다. Template 노드나 표현식 해석기가 치환할 때 escape 하거나 치환 경계를 출력에 실어 넘겨야 한다. 이것은 백엔드와 표현식 해석기가 본문을 escape 하지 않고 소비처가 처리한다는 2026-11-12 결정([Presentation 노드 공통 — 표시 표면 「Template 본문은 그리는 쪽이 정화한다 (2026-11-12)」](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다-2026-11-12), NERV Task `CLE-T-MBGDA4`)과 겹친다. AI 응답에는 치환 경계가 아예 없다.
+- **`mrkdwn: false` 로 서식 해석을 끈다**: 위에 적은 대로 서식까지 사라져 AI 응답의 표현이 바뀐다.
