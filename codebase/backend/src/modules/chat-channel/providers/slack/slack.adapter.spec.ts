@@ -255,6 +255,68 @@ describe('SlackAdapter', () => {
         }),
       ).toEqual(ephemeral('Request received.'));
     });
+
+    // NERV Task CLE-T-JK3ERX — 슬래시 명령도 DM 에서만 받는다(R-S-4). DM 밖에서 친 명령은 하위 명령과
+    // 상관없이 본인에게만 보이는 groupChatRefusal 안내로 답한다.
+    describe('DM 밖 채널', () => {
+      const inChannel = (
+        text: string,
+        channel: Record<string, unknown>,
+      ): Record<string, unknown> => ({ ...slash(text), ...channel });
+      const CHANNELS: Array<[string, Record<string, unknown>]> = [
+        ['공개 채널', { channel_id: 'C1', channel_name: 'general' }],
+        ['비공개 채널', { channel_id: 'G1', channel_name: 'privategroup' }],
+        ['그룹 DM(mpim)', { channel_id: 'G2', channel_name: 'mpdm-a--b-1' }],
+      ];
+
+      it.each(
+        CHANNELS.flatMap(([label, channel]) =>
+          ['', 'start', 'cancel', 'reply hi', 'help'].map(
+            (text) => [label, text, channel] as const,
+          ),
+        ),
+      )('%s 의 "%s" → 기본 groupChatRefusal 안내', (_label, text, channel) => {
+        expect(
+          adapter.defaultInteractionResponse(
+            inChannel(text, channel),
+            SLACK_CONFIG,
+          ),
+        ).toEqual(ephemeral('이 봇은 1:1 대화만 지원합니다.'));
+      });
+
+      it('languageHints.groupChatRefusal 이 있으면 그 문구를 escape 해서 쓴다', () => {
+        expect(
+          adapter.defaultInteractionResponse(
+            inChannel('start', { channel_id: 'C1', channel_name: 'general' }),
+            {
+              ...SLACK_CONFIG,
+              languageHints: { groupChatRefusal: 'DM <만> & 돼요' },
+            },
+          ),
+        ).toEqual(ephemeral('DM &lt;만&gt; &amp; 돼요'));
+      });
+
+      it('빈 languageHints.groupChatRefusal 은 무시한다', () => {
+        expect(
+          adapter.defaultInteractionResponse(
+            inChannel('start', { channel_id: 'C1', channel_name: 'general' }),
+            { ...SLACK_CONFIG, languageHints: { groupChatRefusal: '' } },
+          ),
+        ).toEqual(ephemeral('이 봇은 1:1 대화만 지원합니다.'));
+      });
+
+      it('DM(channel_name directmessage)은 지금처럼 수신 문구다', () => {
+        expect(
+          adapter.defaultInteractionResponse(
+            inChannel('start', {
+              channel_id: 'D9',
+              channel_name: 'directmessage',
+            }),
+            SLACK_CONFIG,
+          ),
+        ).toEqual(ephemeral('요청을 받았습니다.'));
+      });
+    });
   });
 
   describe('setupChannel — auth.test 결과를 botIdentity 로 캐시 (Phase 2)', () => {

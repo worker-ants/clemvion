@@ -410,6 +410,9 @@ curl -X POST https://<your-host>/api/triggers \
 2. **Triggers screen → "+ Add Webhook Trigger" → toggle "Connect a Chat Channel (external chatbot)" → Provider = Slack → enter Bot Token + Signing Secret → Create.**
 3. Copy the trigger's endpoint URL into the Slack app manifest under **Event Subscriptions Request URL** and **Interactivity Request URL** to complete the wiring.
 
+Template output and AI replies sent to Slack have `<`, `>`, and `&` escaped. Mentions such as `<@U123>` and link syntax such as `<https://example.com|label>` in the text show up as literal text and do not notify anyone.
+{/* Internal SoT: CLE-CHAT-SLACK REQ-SLACK-018 */}
+
 ### Discord setup
 
 <ImplAnchor
@@ -424,6 +427,9 @@ curl -X POST https://<your-host>/api/triggers \
 3. Copy the trigger's endpoint URL into the Developer Portal's **Interactions Endpoint URL** to complete the PING handshake automatically.
 
 The server answers button and select-menu clicks and modal submissions within 3 seconds, so the Discord app does not show "This interaction failed".
+
+Messages sent to Discord have mention notifications turned off. `@everyone`, `@here`, user, and role mentions in the text show up as text only and do not notify anyone.
+{/* Internal SoT: CLE-CHAT-DISCORD REQ-DISCORD-010 · CLE-CHAT-DISCORD-API "mention neutralization" */}
 
 <Callout type="warn">
 Discord v1 limitation: plain DM free-text messages are not received. AI conversation replies are only available through the slash command (`/workflow reply <message>`) or the modal triggered by the **Reply** button on AI response messages.

@@ -13,6 +13,7 @@ import {
   resolveFormOpenLabel,
 } from '../../shared/language-hint-defaults';
 import { decideFormMode, extractFormFields } from '../../shared/form-mode';
+import { findChunkEnd } from '../text-chunk-boundary';
 
 /**
  * Slack mrkdwn / Block Kit renderer (pure, side-effect free).
@@ -494,21 +495,31 @@ function chunkText(text: string): ChannelMessage[] {
 
 /** escape 엔티티. 조각 경계가 이 가운데를 지나면 엔티티 앞에서 자른다. */
 const SLACK_ENTITY = /^&(?:amp|lt|gt);/;
+/** 가장 긴 escape 엔티티 `&amp;` 의 길이. */
+const SLACK_ENTITY_MAX_LENGTH = '&amp;'.length;
+/**
+ * 경계를 넘을 수 있는 `&` 를 찾는 구간 길이. 엔티티가 경계를 넘으려면 `&` 가 경계 앞
+ * `SLACK_ENTITY_MAX_LENGTH - 1` 글자 안에 있어야 한다.
+ */
+const SLACK_ENTITY_LOOKBACK = SLACK_ENTITY_MAX_LENGTH - 1;
 
 /**
- * `start` 에서 시작하는 조각의 끝 위치. 3500자 경계가 escape 결과(`&amp;` `&lt;` `&gt;`)의 가운데를
- * 지나면 그 엔티티 앞으로 당긴다. 잘린 엔티티는 Slack 에서 `&l` · `t;` 같은 글자로 보인다.
+ * `start` 에서 시작하는 조각의 끝 위치. 3500자 안의 줄바꿈 · 공백 경계를 {@link findChunkEnd} 로 고른다
+ * (NERV Task `CLE-T-ZEWGJP`). 경계가 없어 고정 길이로 자른 자리가 escape 결과(`&amp;` `&lt;` `&gt;`)의
+ * 가운데를 지나면 그 엔티티 앞으로 당긴다. 잘린 엔티티는 Slack 에서 `&l` · `t;` 같은 글자로 보인다.
+ * 엔티티 안에는 공백이 없어서 줄바꿈 · 공백 경계는 엔티티를 자르지 않는다.
  */
 function chunkEnd(text: string, start: number): number {
-  const end = start + SLACK_TEXT_LIMIT;
+  const end = findChunkEnd(text, start, SLACK_TEXT_LIMIT);
   if (end >= text.length) return text.length;
-  // 가장 긴 엔티티 `&amp;` 는 5자라 경계 앞 4자 안의 `&` 만 경계를 넘을 수 있다.
-  const amp = text.lastIndexOf('&', end - 1);
-  if (amp > start && amp >= end - 4) {
-    const entity = SLACK_ENTITY.exec(text.slice(amp, amp + 5));
-    if (entity && amp + entity[0].length > end) return amp;
-  }
-  return end;
+  const windowStart = Math.max(start + 1, end - SLACK_ENTITY_LOOKBACK);
+  const offset = text.slice(windowStart, end).lastIndexOf('&');
+  if (offset < 0) return end;
+  const amp = windowStart + offset;
+  const entity = SLACK_ENTITY.exec(
+    text.slice(amp, amp + SLACK_ENTITY_MAX_LENGTH),
+  );
+  return entity && amp + entity[0].length > end ? amp : end;
 }
 
 function textMessage(text: string): ChannelMessage {
