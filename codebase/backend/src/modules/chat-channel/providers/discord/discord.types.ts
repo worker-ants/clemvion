@@ -96,6 +96,17 @@ export const DISCORD_INTERACTION_CALLBACK_TYPE = {
 export const DISCORD_MESSAGE_FLAG_EPHEMERAL = 64;
 
 /**
+ * 멘션 알림을 모두 끄는 `allowed_mentions`(NERV Task `CLE-T-FQTQ7K`, 2026-11-14 사람 결정).
+ * Template 결과 · AI 응답 · 안내 문구에 `@everyone` · `@here` · 역할 · 사용자 멘션이 있어도 글자만
+ * 보이고 알림은 울리지 않는다. 워크플로우가 일부러 넣은 멘션도 울리지 않는다. 채널 메시지
+ * (`DiscordClient.postChannelMessage`)와 메시지를 싣는 interaction 응답(type 4)에 붙인다.
+ */
+const NO_MENTION_PARSE: readonly string[] = Object.freeze([]);
+export const DISCORD_ALLOWED_MENTIONS_NONE = Object.freeze({
+  parse: NO_MENTION_PARSE,
+});
+
+/**
  * Discord REST 클라이언트의 실패 결과. 4xx 본문이든 재시도를 다 쓴 합성 실패(5xx · 429 소진 ·
  * fetch 예외)든 `ok: false` 를 싣는다. 실패 판정은 이 표지로 한다([isDiscordApiError]).
  */

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { replaceKnownSecret } from '../../../../shared/utils/sanitize-error-message';
 import {
+  DISCORD_ALLOWED_MENTIONS_NONE,
   isDiscordApiError,
   type DiscordApiError,
   type DiscordApplication,
@@ -47,11 +48,12 @@ export class DiscordClient {
       embeds?: unknown[];
     },
   ): Promise<DiscordMessage | DiscordApiError> {
+    // 채널 메시지는 모두 여기를 지난다. 멘션 알림을 끈다(`DISCORD_ALLOWED_MENTIONS_NONE`).
     return this.call<DiscordMessage>(
       botToken,
       'POST',
       `/channels/${encodeURIComponent(channelId)}/messages`,
-      body,
+      { ...body, allowed_mentions: DISCORD_ALLOWED_MENTIONS_NONE },
     );
   }
 

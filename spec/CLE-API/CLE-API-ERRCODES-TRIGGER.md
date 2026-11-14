@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-TRIGGER"
 title: "에러 코드 카탈로그 — 웹훅 · 트리거 · 채팅 채널"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "56034f5ddc55563194b3e735c30a16b6797407f0edbaeefbfcb30a1c6dcf879f"
+content_hash: "e9f1d62195a1d0fe1e6de539c9303ba1f06fc3ac86102c6730f5361167a86aff"
 read_as: "approved_fallback"
-task: "CLE-T-ZPPWK4"
+task: "CLE-T-9Z0V2R"
 source_paths: []
-mirror_sha256: "8d2b7972feb55af88a0453596428ed44ecc4d2f9da904bb3d10fdc7cb6ca15f7"
-etag: "sha256-d97cf92896d7dcc6168b6e5239781e330fb0f05787bd09da88daebf0ccaa5654"
+mirror_sha256: "f86ea3bf51bc0ea3b34bb288574c7b355c855ef3cd248dd433a3bf79aed9d72c"
+etag: "sha256-c630e6414019e962b7fa514e296304410056eb84dc1ad3969762fa9ced80169e"
 ---
 ## 개요
 
@@ -30,7 +30,7 @@ etag: "sha256-d97cf92896d7dcc6168b6e5239781e330fb0f05787bd09da88daebf0ccaa5654"
 | `PUBLIC_WEBHOOK_RATE_LIMIT` | 429 | 공개 웹훅(`auth_config_id IS NULL` 이고 채팅 채널 트리거가 아닌 웹훅)의 IP 단위(IP 를 식별하지 못하면 공유 버킷 `UNIDENTIFIED_IP_BUCKET`) 분당 시작 한도 초과(`PublicWebhookThrottleGuard`, 기본 분당 10) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_HOURLY_LIMIT` | 429 | 공개 웹훅(채팅 채널 트리거 제외) IP 단위(또는 공유 버킷) 시간당 누적 신규 한도 초과(`PublicWebhookThrottleGuard`·`PublicWebhookQuotaService`, 기본 20) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `PUBLIC_WEBHOOK_BODY_TOO_LARGE` | 413 | 공개 웹훅(채팅 채널 트리거 제외) 요청 본문이 32KB(`DEFAULT_MAX_BODY_BYTES`, 설정 `publicWebhook.maxBodyBytes`)를 넘음(`PublicWebhookThrottleGuard`) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, 인증 설정의 기대값(key · token · 사용자 이름 · 비밀번호 · secret)이 비어 있거나 문자열이 아니거나 복호화 불가 표식이라 읽지 못함, 인증 설정의 헤더 이름(`headerName` · `header`)이 문자열이 아님([웹훅 「인증」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#인증)), `ip_whitelist` 불일치가 모두 같은 코드다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
+| `AUTH_FAILED` | 401 | 웹훅 인증 실패. 인증 방식과 무관하게 한 응답으로 돌려준다(열거 공격·정보 노출 차단). `is_active=false` 인증 설정, 인증 설정을 트리거의 워크스페이스에서 찾지 못함([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)), 서명·토큰 불일치, 인증 설정의 기대값(key · token · 사용자 이름 · 비밀번호 · secret)이 비어 있거나 문자열이 아니거나 복호화 불가 표식이라 읽지 못함, 인증 설정의 헤더 이름(`headerName` · `header`)이 문자열이 아님([웹훅 「인증」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#인증)), `ip_whitelist` 불일치가 모두 같은 코드다. 채팅 채널 트리거의 서명 검증 실패 한도 초과도 같은 코드다. 이때는 시크릿을 조회하지 않고 서명도 검증하지 않은 채 401 로 답한다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), [채팅 채널 「서명 검증 실패 한도」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) |
 | `TRIGGER_NOT_FOUND` | 404 | 엔드포인트 경로에 맞는 웹훅 트리거가 없음. 트리거의 워크플로우가 트리거의 워크스페이스에 없을 때도 같은 코드다(채팅 채널 트리거는 `202` ignored). 새 코드를 두지 않은 이유는 [Rationale](#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05) 에 있다 | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `TRIGGER_INACTIVE` | 410 | 트리거가 비활성. 처음부터 없는 404 와 구분한다. 채팅 채널 트리거는 예외로 `202` 와 `{ executionId: 'ignored' }` 를 돌려준다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `WORKFLOW_INACTIVE` | 410 | 트리거는 활성인데 그 트리거의 워크플로우가 비활성임(`workflow.is_active=false`). 채팅 채널 트리거는 이 코드를 내지 않는다. 확인 순서와 경로별 응답은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. `410` 에는 기본 코드가 없어 코드를 명시한다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)) | 구현 | [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
@@ -165,3 +165,7 @@ NERV Task `CLE-T-GNTWP9` 에서 도메인 문서와 어긋난 행을 맞췄다.
 - `INTERNAL_ERROR` 에 더한 문장은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25 · 27 이 거부 전용 코드 없이 일반 500 으로 보낸다고 정한 데서 왔다. 이 거부는 예상된 경우라 「예상하지 못한 서버 에러」 라는 설명만으로는 맞지 않았다.
 - 공개 웹훅 정의와 `PAYLOAD_TOO_LARGE`(요청 본문) 행은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 에 맞췄다. 사람 결정(2026-11-12)에 따라 공개 웹훅 한도에서 채팅 채널 트리거를 뺐고 §6.10 의 분당 · 시간당 한도와 본문 크기 행에 같은 범위를 적었다. 이 제외는 `PublicWebhookThrottleGuard` 에 구현됐으므로(NERV Task `CLE-T-QKJ2TZ`) 세 행의 상태는 «구현» 이다.
 - §6.4 `WORKSPACE_ID_REQUIRED` 행에는 경로로 워크스페이스를 받지 않는 `@Roles()` 라우트가 이 코드 대신 `403 FORBIDDEN` 을 낸다는 단서를 더했다([워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사)).
+
+### 채팅 채널 서명 검증 실패 한도 초과도 `AUTH_FAILED` 다 (2026-11-14)
+
+NERV Task `CLE-T-9Z0V2R` 에서 §6.10 `AUTH_FAILED` 행에 적었다. 한도는 서명 검증이 거듭 실패한 (트리거, 클라이언트 IP) 쌍에만 걸린다. 그 쌍의 요청은 대부분 한도가 없어도 서명 검증에서 같은 401 `AUTH_FAILED` 를 받으므로 새 코드를 만들지 않았다. 동작과 근거의 정본은 [채팅 채널 「R-CC-34」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다) 다.

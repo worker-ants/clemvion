@@ -166,3 +166,52 @@ describe('DiscordClient.postChannelTyping — ok:false 로 판정한다', () => 
     await expect(typingWith(fetchMock)).resolves.toEqual({ ok: true });
   });
 });
+
+/**
+ * 멘션 무력화(NERV Task `CLE-T-FQTQ7K`, 2026-11-14 사람 결정). 채널 메시지는 모두
+ * `postChannelMessage` 를 지나므로 클라이언트가 본문에 `allowed_mentions: {parse: []}` 를 붙인다.
+ * Template 결과나 AI 응답에 `@everyone` · `@here` · 역할 · 사용자 멘션이 있어도 글자만 보이고
+ * 알림은 울리지 않는다.
+ */
+describe('DiscordClient.postChannelMessage — 멘션 알림을 끈다', () => {
+  const sentBody = async (
+    body: Parameters<DiscordClient['postChannelMessage']>[2],
+  ): Promise<Record<string, unknown>> => {
+    const original = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ id: 'M1' }),
+    });
+    (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
+    try {
+      await new DiscordClient().postChannelMessage('bot-token', 'C1', body);
+    } finally {
+      global.fetch = original;
+    }
+    const init = fetchMock.mock.calls[0][1] as { body: string };
+    return JSON.parse(init.body) as Record<string, unknown>;
+  };
+
+  it('텍스트 본문은 그대로 두고 allowed_mentions.parse 를 비운다', async () => {
+    const content = '@everyone @here <@123> <@&456> 안내';
+    await expect(sentBody({ content })).resolves.toEqual({
+      content,
+      allowed_mentions: { parse: [] },
+    });
+  });
+
+  it('버튼 · embed 본문에도 붙인다', async () => {
+    const components = [{ type: 1, components: [] }];
+    const embeds = [{ description: '@everyone' }];
+    await expect(
+      sentBody({ content: 'x', components, embeds }),
+    ).resolves.toEqual({
+      content: 'x',
+      components,
+      embeds,
+      allowed_mentions: { parse: [] },
+    });
+  });
+});

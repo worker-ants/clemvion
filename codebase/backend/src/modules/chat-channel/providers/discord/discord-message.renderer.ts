@@ -26,6 +26,9 @@ import { decideFormMode, extractFormFields } from '../../shared/form-mode';
  *   - completed / failed / cancelled → text
  *
  * conversationKey 는 dispatcher 가 보정.
+ *
+ * 본문은 escape 하지 않는다. 멘션 알림은 `DiscordClient.postChannelMessage` 가 붙이는
+ * `allowed_mentions` 로 끈다(NERV Task `CLE-T-FQTQ7K`).
  */
 
 const DISCORD_TEXT_LIMIT = 2000;

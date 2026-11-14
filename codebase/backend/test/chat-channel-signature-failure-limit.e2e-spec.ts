@@ -35,6 +35,7 @@ const SPOOFED_FIRST = '198.51.100.41';
 const PROXY_SEEN = '198.51.100.42';
 const OTHER_PROXY_SEEN = '198.51.100.43';
 const TTL_LESS_IP = '198.51.100.44';
+const FIXED_WINDOW_IP = '198.51.100.45';
 
 const INVALID_TOKEN = 'Invalid Telegram secret token';
 const TOO_MANY = 'Too many failed signature checks';
@@ -78,6 +79,7 @@ describe('채팅 채널 서명 실패 한도 (e2e)', () => {
           makeSignatureFailureKey(triggerId, PROXY_SEEN),
           makeSignatureFailureKey(triggerId, OTHER_PROXY_SEEN),
           makeSignatureFailureKey(triggerId, TTL_LESS_IP),
+          makeSignatureFailureKey(triggerId, FIXED_WINDOW_IP),
         )
         .catch(() => undefined);
       await db
@@ -152,5 +154,29 @@ describe('채팅 채널 서명 실패 한도 (e2e)', () => {
     const ttl = await redis.ttl(key);
     expect(ttl).toBeGreaterThan(0);
     expect(ttl).toBeLessThanOrEqual(SIGNATURE_FAILURE_WINDOW_SEC);
+  });
+
+  // 근거: NERV Task `CLE-T-WQ88BG`. 고정 창이라 TTL 은 첫 실패에서만 걸고 다음 실패가 늘리지 않는다.
+  // 창이 반쯤 지난 상태를 기다리지 않고 만들려고 첫 실패 뒤 TTL 을 창 길이의 절반으로 줄인다. 실패마다
+  // TTL 을 다시 거는 스크립트라면 둘째 실패 뒤 TTL 이 창 길이로 돌아가 이 단언이 깨진다.
+  it('이미 TTL 이 걸린 카운터는 다음 실패에서 TTL 이 늘지 않는다(고정 창)', async () => {
+    const key = makeSignatureFailureKey(triggerId, FIXED_WINDOW_IP);
+    const elapsedTtl = Math.floor(SIGNATURE_FAILURE_WINDOW_SEC / 2);
+
+    const first = await postUpdate(FIXED_WINDOW_IP);
+    expect(first.status).toBe(401);
+    expect(first.body.error.message).toBe(INVALID_TOKEN);
+    expect(Number(await redis.get(key))).toBe(1);
+    expect(await redis.ttl(key)).toBeGreaterThan(elapsedTtl);
+
+    await redis.expire(key, elapsedTtl);
+
+    const second = await postUpdate(FIXED_WINDOW_IP);
+    expect(second.status).toBe(401);
+    expect(second.body.error.message).toBe(INVALID_TOKEN);
+    expect(Number(await redis.get(key))).toBe(2);
+    const ttl = await redis.ttl(key);
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(elapsedTtl);
   });
 });

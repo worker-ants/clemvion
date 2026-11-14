@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "126e559bee4132f528a80a7c7b40fa20604dede122fc48874fd9e3a189038c1f"
+content_hash: "69e4b34d725e8ea55f8fd16712006dafb6b5f7647015f87c1bf2e941d38856e0"
 read_as: "approved_fallback"
-task: "CLE-T-0QAJ5M"
+task: "CLE-T-E90KGZ"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "2d5e31364238d8cf6f2d84e0bf91f615f6bcce5d3b2f3f41b81ad19b93a6ae98"
-etag: "sha256-426115a13bc5270c7edadecd14845ca2e78a2d2f04b39f22024af67c83a4b747"
+mirror_sha256: "3bf9a50f1c3e8e4183a037c35c5ce86ee8bf6b550ef30017c38a8fe12ab4d870"
+etag: "sha256-a9493388b8b770d5988a380762f517c7a89896387e3d963da0a3ac218563203e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -124,7 +124,7 @@ etag: "sha256-426115a13bc5270c7edadecd14845ca2e78a2d2f04b39f22024af67c83a4b747"
 | `eia:rl:interact:<executionId>` · `eia:rl:status:<executionId>` · `eia:notif:rl:<triggerId>` | `modules/external-interaction` | [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md). 한도는 [External Interaction API](../CLE-IX/CLE-EIA.md) |
 | `eia:sse:buf:<executionId>` · `eia:sse:subs:<executionId>` | `modules/external-interaction` | [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq). `eia:sse:subs:<executionId>` 는 연결 슬롯(동시 연결 상한 계산용)이다 |
 | `chat-channel:<triggerId>:<conversationKey>` · `chat-channel-lock:<triggerId>:<conversationKey>:formsubmit` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
-| `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
+| `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` · `cc:sigfail:<triggerId>:<clientIp>` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md). `cc:sigfail:<triggerId>:<clientIp>` 는 서명 검증 실패 한도의 고정 창 카운터(60초)이고 정본은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키) 다 |
 | `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) |
 | `auth:webauthn-auth-challenge:<challenge>` | `modules/auth` | [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름). 로그인 2단계 Passkey 인증 챌린지를 한 번만 쓰게 하는 기록이다 |

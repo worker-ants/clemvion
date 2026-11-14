@@ -841,5 +841,27 @@ describe('DiscordAdapter', () => {
       expect(resp.type).toBe(4);
       expect(resp.data.content).toContain('오류');
     });
+
+    // 멘션 무력화(NERV Task `CLE-T-FQTQ7K`). 검증 오류 문구에는 사용자가 입력한 값이 들어갈 수 있다.
+    it.each([
+      ['성공', undefined],
+      ['validationError', { message: '@everyone 값이 잘못됐습니다' }],
+    ])(
+      '%s 응답 data 에 allowed_mentions 가 있다',
+      (_label, validationError) => {
+        const adapter = new DiscordAdapter(
+          new DiscordClient(),
+          makeSecretsMock(),
+        );
+        const r = adapter.buildFormSubmissionResponse({
+          config: DISCORD_CONFIG,
+          validationError,
+        });
+        expect(
+          (r.httpResponse as { data: Record<string, unknown> }).data
+            .allowed_mentions,
+        ).toEqual({ parse: [] });
+      },
+    );
   });
 });

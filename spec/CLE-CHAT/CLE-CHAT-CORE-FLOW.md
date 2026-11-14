@@ -2,23 +2,23 @@
 id: "CLE-CHAT-CORE-FLOW"
 title: "채팅 채널 — 처리 흐름과 대화"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "2e227436f89878a71f05555dc010f8b48e757c3c8e0a44ee484a7604d5aca455"
+content_hash: "e78d13980798edc7c3a5add576ee4b7d1425c10be45ac2ffcf1d71c40798418b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-G2JRMF"
 source_paths: []
-mirror_sha256: "ff9a7aa631403dfe44d2018a1caaf100ea7f67996adc7bef31f69132d493435b"
-etag: "sha256-61ea4b59d4d9e0626cbed21459c24efdc10eba35ea4cc56eda412a4a0b5edf05"
+mirror_sha256: "865bb284b43444553cb0cc7e32538d3873d995a14275acd009f8f31075afbf29"
+etag: "sha256-462101d78459b3bef9c99454babfc997d0d456a66049f7ff06e0fafac2e0a77c"
 ---
 ## 개요
 
-이 문서는 [채팅 채널](CLE-CHAT-CORE.md) 의 하위 문서로 채팅 채널의 처리 흐름, 대화와 실행의 매핑, 활성 실행 중 `/start`, 단일 sink 구독, 인증 경계, [EIA](../CLE-IX/CLE-EIA.md) 와의 관계를 정한다. 관문 순서는 [인바운드 관문](CLE-CHAT-CORE-GATE.md#인바운드-관문-순서) 이 정한다.
+이 문서는 [채팅 채널](CLE-CHAT-CORE.md) 의 하위 문서로 채팅 채널의 처리 흐름, 대화와 실행의 매핑, 활성 실행 중 `/start` 와 실행 소유자 확인, 단일 sink 구독, 인증 경계, [EIA](../CLE-IX/CLE-EIA.md) 와의 관계를 정한다. 관문 순서는 [인바운드 관문](CLE-CHAT-CORE-GATE.md#인바운드-관문-순서) 이 정한다.
 
 ## 사용 시나리오
 
@@ -48,7 +48,7 @@ sequenceDiagram
   H->>A: parseUpdate(raw), 50ms 이내
   alt 새 대화
     H->>E: execute() 시작
-  else 활성 실행이 있는 대화에 /start
+  else 활성 실행이 있는 대화에 소유자의 /start
     H->>E: 기존 실행 중지 뒤 execute() 시작
   else 활성 실행이 있는 대화
     H->>I: interact(), 서버 안 호출
@@ -76,6 +76,8 @@ sequenceDiagram
 
 활성 실행이 있는 대화에 `/start` 가 오면 명령이 실행 상태 분기보다 먼저다. 입력 대기 실행이어도 그 실행에 전달하지 않고, `running`·`pending` 이어도 실행 중 안내로 끝내지 않는다. Slack 과 Discord 에서는 `/<prefix> start` 가 이 명령이다. `/start` 가 아닌 메시지는 실행 상태 분기를 그대로 따른다. 명령 이름과 안내 문구는 프로바이더 문서가 정한다. 워크플로우가 비활성이면 취소하기 전에 버리고 기존 실행은 그대로 둔다.
 
+활성 실행이 있으면 `/start`·`/cancel` 은 실행 소유자만 쓴다. 실행 소유자는 `channelUserKey` 가 채널 대화 상태의 값과 같은 사용자다. 소유자가 아닌 사람이 두 명령을 보내면 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 문구 없이 [버린 update 의 수신 확인](CLE-CHAT-CORE-INTERACT.md#버린-update-의-수신-확인)만 보내고 `202`·`{ executionId: 'ignored' }`(인터랙션이면 [기본 응답](CLE-CHAT-CORE-INTERACT.md#인터랙션-기본-응답))로 답한다. 이 확인은 대화 상태를 조회해 활성 실행을 판단한 바로 뒤, `/cancel` 처리와 워크플로우 활성 관문보다 앞에서 한다. 워크플로우가 비활성일 때 소유자가 아닌 사람의 `/start` 는 비활성 관문 대신 이 확인에서 버리지만 응답은 같다. 활성 실행이 없으면 누구나 `/start` 로 새 실행을 시작하고 시작한 사람이 새 소유자가 된다. `channelUserKey` 는 새 실행의 대화 상태를 저장할 때만 바뀐다. `/help` 는 소유자를 확인하지 않는다. 근거는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다.
+
 활성 실행은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태(`running`·`pending`·`waiting_for_input`)를 돌려준 실행이다. 취소는 EIA `cancel`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md))과 사용자 실행 중지(`POST /api/executions/:id/stop`)가 쓰는 REST 취소 경로 `ExecutionsService.stop` 을 부른다([노드 취소 「신호를 만드는 쪽」](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 7). `running`·`pending` 은 원자 UPDATE 로 바로 `cancelled` 가 된다. `waiting_for_input` 은 continuation bus 에 취소를 넣어 비동기로 `cancelled` 가 된다. 새 실행은 그 취소가 끝나기를 기다리지 않는다.
 
 이미 끝난 실행의 취소는 `stop` 이 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)로 거부하고 지워진 실행은 `RESOURCE_NOT_FOUND`(`404`)로 거부한다. 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조) 에 있다. `/start` 는 이 셋을 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 새로 시작하고 `EXECUTION_ENQUEUE_FAILED` 면 새 실행 없이 그 에러로 답한다. 지금 `stop` 은 `INVALID_STATE` 를 `400` 으로 던져 카탈로그의 `422` 와 다르다(부분 구현, NERV Task `CLE-T-B9CRCF`). 판정이 에러 코드라 이 차이로 `/start` 의 동작이 바뀌지는 않는다. 시작 안내(`languageHints.executionStarted`)와 재시작 안내는 아직 보내지 않는다(부분 구현, NERV Task `CLE-T-0400J6`).
@@ -91,7 +93,9 @@ sequenceDiagram
   participant D as ChatChannelDispatcher
   P->>H: /start
   H->>C: 대화 조회, executionId 는 옛 실행
-  alt 워크플로우가 비활성
+  alt 보낸 사람이 실행 소유자가 아님
+    H-->>P: 수신 확인만, 202 ignored, 옛 실행은 그대로
+  else 워크플로우가 비활성
     H-->>P: 202 ignored, 옛 실행은 그대로
   else 워크플로우가 활성
     H->>X: stop(옛 실행)
@@ -142,8 +146,8 @@ sequenceDiagram
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 종결 이벤트에서 대화 상태 정리, 폼 입력 대기 상태 갱신 가드
 - `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: 채널 대화 상태, compare-and-set 정리 `clearExecutionIdIfMatches`
 - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 선점 해제 `release`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`)
-- 테스트: `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`, `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(세 프로바이더의 `/start`), `codebase/backend/src/modules/chat-channel/channel-conversation.service.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts`
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`), `/start`·`/cancel` 의 실행 소유자 확인(대화 상태 조회 바로 뒤, `/cancel` 처리 앞)
+- 테스트: `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`(활성 실행 중 `/start`, 소유자가 아닌 사람의 `/start`·`/cancel`), `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(세 프로바이더의 `/start`, 소유자가 아닌 사람의 `/start`·`/cancel`), `codebase/backend/src/modules/chat-channel/channel-conversation.service.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts`
 
 ## Rationale
 
@@ -155,7 +159,7 @@ EIA HTTP API 를 새로 만들지 않고 서버 안 facade 호출만 쓴다. HTT
 
 ### R3 1차 범위는 1:1 DM 만 지원한다
 
-그룹 대화는 누가 답했는지 가려야 하는데 채널 대화 상태의 `channelUserKey` 는 사용자 한 명을 가정한다. 1차 범위는 1:1 DM 만 받고 그룹은 명시적으로 거부한다. 후속 범위에서 여러 사용자 대화를 도입할 때 다시 논의한다.
+그룹 대화는 누가 답했는지 가려야 하는데 채널 대화 상태의 `channelUserKey` 는 사용자 한 명을 가정한다. 1차 범위는 1:1 DM 만 받고 그룹은 명시적으로 거부한다. 후속 범위에서 여러 사용자 대화를 도입할 때 다시 논의한다. Slack 슬래시 명령은 예외로 DM 이 아닌 채널에서도 받는다. 그 채널의 구성원이 한 대화를 함께 쓰므로 `/start`·`/cancel` 의 실행 소유자 확인을 둔다([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)).
 
 ### R4 단일 sink 를 직접 구독한다
 
@@ -189,8 +193,25 @@ non-2xx 응답이 이어지면 프로바이더가 웹훅을 끌 수 있다. 어�
 
 시작 안내와 재시작 안내는 아직 보내지 않는다. 취소와 새 시작을 먼저 맞췄고 안내는 NERV Task `CLE-T-0400J6` 가 맡는다.
 
-미룬 문제가 셋이다. 셋 모두 후속 NERV Task 가 다룬다.
+미룬 문제가 셋이었다. 첫째는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 로 닫았고 나머지 둘은 NERV Task `CLE-T-QZ8RFC` 가 다룬다.
 
-- 대화의 어느 참여자가 보낸 `/start` 든 기존 실행을 취소하고 대화를 이어받는다. 보낸 사람이 대화를 시작한 사용자(`channelUserKey`)인지 확인하지 않는다. `/start` 와 `/cancel` 의 소유 확인은 그룹 대화에서 다른 구성원이 활성 실행을 취소하는 위협 모델과 함께 NERV Task `CLE-T-G2JRMF` 에서 정한다.
+- 대화의 어느 참여자가 보낸 `/start` 든 기존 실행을 취소하고 대화를 이어받았다. 보낸 사람이 대화를 시작한 사용자(`channelUserKey`)인지 확인하지 않았다. 2026-11-14 결정으로 활성 실행이 있으면 실행 소유자의 `/start`·`/cancel` 만 실행을 취소한다([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)).
 - 같은 대화에 `/start` 두 개가 거의 동시에 오면 경합한다. 둘 다 같은 옛 실행을 읽고 각자 새 실행을 시작할 수 있다. 채널 대화 상태는 나중에 저장한 실행을 가리키고 먼저 시작한 실행에는 입력이 닿지 않는다. 재시작(취소, 새 실행, 대화 상태 저장)을 대화 단위로 직렬화하지 않기 때문이다. 분당 한도와 update id 중복 제거(같은 update 의 재전송)가 경합 창을 좁힌다. NERV Task `CLE-T-QZ8RFC` 가 다룬다.
 - 폼 입력 대기 이벤트의 상태 갱신은 조회한 값을 고쳐 그대로 다시 저장한다. compare-and-set 이 아니다. 대화 상태가 다른 실행을 가리키면 저장하지 않는 가드가 들어간 뒤 남은 경합은 조회와 저장 사이의 창뿐이다. 그 사이에 `/start` 가 대화를 새 실행에 이으면 이 저장이 대화 상태의 `executionId` 를 옛 실행으로 되돌릴 수 있다. 이 창의 크기는 재지 않았다. NERV Task `CLE-T-QZ8RFC` 가 다룬다.
+
+### R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다
+
+2026-11-14 결정이다(NERV Task `CLE-T-G2JRMF`). 그전에는 대화의 어느 참여자가 보낸 `/start`·`/cancel` 이든 활성 실행을 취소했다.
+
+**위협이 생기는 곳.** 1차 범위는 1:1 DM 만 받는다([R3](#r3-1차-범위는-11-dm-만-지원한다)). Telegram 은 그룹 대화를, Discord 는 DM 이 아닌 채널(`channel.type !== 1`)을, Slack 이벤트는 DM 이 아닌 채널(`channel_type !== 'im'`)을 거부한다. DM 에는 사용자가 한 명뿐이라 다른 사람이 명령을 보낼 수 없다. 예외는 Slack 슬래시 명령(`/workflow start`·`cancel`)이다. 파서가 DM 인지 확인하지 않고 대화 키가 채널 ID 라서 그 채널의 구성원 누구나 다른 사람의 실행을 취소하거나 `/start` 로 가로챌 수 있었다. 슬래시 명령을 DM 으로 좁히는 일은 [Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 에 맞추는 별도 NERV Task `CLE-T-JK3ERX` 가 맡는다. 소유자 확인은 그 일과 관계없이 이 길을 막는다.
+
+**양식 버튼과 같은 처리.** 네이티브 폼 모달을 여는 버튼(`open_form_modal`)과 폼 제출(`form_submission`)은 보낸 사람의 `channelUserKey` 가 대화 상태의 값과 다르면 안내 없이 버린다. `/start`·`/cancel` 도 같은 기준으로 가린다.
+
+**안내 문구를 보내지 않는 이유.** 안내를 보내려면 `languageHints` 에 새 키를 더하고 한국어 · 영어 기본 문구를 정해야 한다. 1차 범위에서 소유자가 아닌 사람의 명령은 Slack 슬래시 명령에서만 생기므로 그 비용만큼 얻는 것이 없다. 다른 버린 update 와 같이 수신 확인만 보낸다.
+
+**활성 실행이 없을 때.** 누구나 `/start` 로 새 실행을 시작할 수 있고 시작한 사람이 새 소유자가 된다. 소유자를 대화에 계속 묶어 두면 그 채널의 다른 구성원은 실행이 끝난 뒤에도 그 대화로 워크플로우를 시작할 수 없다. 소유자는 새 실행의 대화 상태를 저장할 때만 바뀐다.
+
+**기각한 대안.**
+
+- 소유자만 쓰게 하고 「다른 사용자의 실행이 진행 중」 안내를 보내는 안. 새 `languageHints` 키와 한국어 · 영어 기본 문구가 필요하고 위 이유로 얻는 것이 적다.
+- 누구나 쓰게 두고 위협 모델만 Rationale 에 적는 안. 슬래시 명령을 DM 으로 좁히기 전까지 Slack 채널의 다른 구성원이 남의 실행을 취소하거나 가로챌 수 있다.

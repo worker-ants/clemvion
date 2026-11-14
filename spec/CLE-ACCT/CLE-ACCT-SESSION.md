@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 18
+version: 19
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047", "REQ-SESSION-048"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "14f96c3de3492f1a346d3d5480c8d1bd3f31868ccad209995dad70a9670f1ebe"
+content_hash: "3145aa8134bc3c46592876150ad574a1bf2df7b4d50306925d974a6505183bb1"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E90KGZ"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "cfa2cf462f9eb467ac2af5ad2bd34e13d8152db3c2e82919a32a086ae3fe859e"
-etag: "sha256-f00403454f5fadb62c2c68f8d15caae7351355c2cb1747e9bc65751f6489ced1"
+mirror_sha256: "3bce34cc7a5a6d5c74d3d30672364e30e1b3373d0296f49ba6af1e13b89e92cb"
+etag: "sha256-758bbdbd5af318167d18cf15be011394e8923a1b9e6d776f7d5f07637ba65a32"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -50,8 +50,8 @@ etag: "sha256-f00403454f5fadb62c2c68f8d15caae7351355c2cb1747e9bc65751f6489ced1"
 - REQ-SESSION-015 WHEN 리프레시 쿠키를 설정하거나 지우면 THE SYSTEM SHALL 같은 Path `/api/auth` 를 쓴다.
 - REQ-SESSION-016 WHEN 리프레시 쿠키 Domain 을 정하면 THE SYSTEM SHALL `FRONTEND_URL`·`APP_URL` hostname 의 공통 상위 도메인을 자동으로 쓰고, 같은 host·localhost·IP·공통 도메인 없음이면 Domain 을 지정하지 않는다.
 - REQ-SESSION-017 WHEN 리프레시 쿠키 SameSite 를 정하면 THE SYSTEM SHALL `COOKIE_SAMESITE` 값을 쓰고 설정이 없거나 알 수 없는 값이면 `none` 을 쓴다.
-- REQ-SESSION-018 WHEN 로그인 세션·감사용 클라이언트 IP 를 읽으면 THE SYSTEM SHALL `TRUST_CF_CONNECTING_IP` 가 `true` 나 `1` 일 때만 `CF-Connecting-IP` 를 1순위로 쓰고 이어서 `X-Forwarded-For` 첫 IP, `req.ip`, `req.socket.remoteAddress` 순으로 쓴다.
-- REQ-SESSION-019 WHEN 공개 웹훅 요청 한도·`ip_whitelist` 용 IP 를 읽으면 THE SYSTEM SHALL 헤더 기반 순서(CF 허용 시 `CF-Connecting-IP`, 그다음 `X-Forwarded-For` 첫 IP)만 쓰고 `req.ip`·socket 폴백을 쓰지 않는다.
+- REQ-SESSION-018 WHEN 로그인 세션·감사용 클라이언트 IP 를 읽으면 THE SYSTEM SHALL `TRUST_CF_CONNECTING_IP` 가 `true` 나 `1` 일 때만 `CF-Connecting-IP` 를 1순위로 쓰고 이어서 `X-Forwarded-For` 첫 IP, `req.ip`, `req.socket.remoteAddress` 순으로 쓴다. 채팅 채널 서명 검증 실패 한도의 IP 는 이 순서를 쓰지 않는다([채팅 채널 「R-CC-34」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다)).
+- REQ-SESSION-019 WHEN 공개 웹훅 호출 수 제한(`PublicWebhookThrottleGuard`)·`ip_whitelist`·실행 기록 소스 IP(`Execution.source_ip`) 용 IP 를 읽으면 THE SYSTEM SHALL 헤더 기반 순서(CF 허용 시 `CF-Connecting-IP`, 그다음 `X-Forwarded-For` 첫 IP)만 쓰고 `req.ip`·socket 폴백을 쓰지 않는다. 채팅 채널 서명 검증 실패 한도의 IP 는 이 규칙 밖이고 CF 허용 시 `CF-Connecting-IP`, 그다음 `req.ip` 순으로 읽는다([채팅 채널 「R-CC-34」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다)).
 - REQ-SESSION-020 WHEN 리프레시 토큰을 발급하면 THE SYSTEM SHALL 발급 시점의 IP·User-Agent·기기 라벨을 기록하고 갱신 때마다 마지막 사용 시각과 IP 를 갱신한다.
 - REQ-SESSION-021 WHEN 사용자가 세션 목록을 조회하면 THE SYSTEM SHALL 로그인 세션 단위로 가장 최신 행의 메타데이터를 보여 주고 요청 쿠키와 맞는 로그인 세션에 `isCurrent` 를 표시한다.
 - REQ-SESSION-022 WHEN 사용자가 다른 로그인 세션을 강제 종료하면 THE SYSTEM SHALL 계정 재인증 뒤 그 로그인 세션의 리프레시 토큰을 모두 무효화하고 로그인 이력에 `session_revoked` 를 남긴다.
@@ -166,6 +166,15 @@ REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않
 - 요구사항 REQ-SESSION-032 한 줄에 있던 복귀 경로를 지정한 로그아웃을 REQ-SESSION-048 로 옮겼다. 담는 경로도 구현대로 슬러그 없는 `/invitations/accept?token=…` 으로 고쳤다. 앞의 표기는 수락 페이지의 슬러그 경로를 그대로 담는 것처럼 읽혔다.
 - 요구사항 REQ-SESSION-037 의 주어를 «프론트엔드 JS» 에서 시스템으로 바꿨다. 쿠키를 심는 곳은 「[로그인 힌트 쿠키](#로그인-힌트-쿠키)」 가 적는다.
 - 2026-10-18 에 쓴 Rationale 제목 세 개에 날짜를 붙여 다른 제목과 표기를 맞췄다.
+
+### 클라이언트 IP 요구사항에 채팅 채널 서명 검증 실패 한도를 적었다 (2026-11-14)
+
+표기만 고쳤고 동작은 바뀌지 않았다.
+
+- 채팅 채널 서명 검증 실패 한도가 클라이언트 IP 를 읽는 세 번째 경로로 들어왔다(NERV Task `CLE-T-CC3GPN`). 이 경로는 `X-Forwarded-For` 첫 IP 를 쓰지 않고 `CF-Connecting-IP`(신뢰할 때), `req.ip` 순으로 읽는다(`extractUnspoofableClientIp`). 규칙과 근거는 [채팅 채널 「R-CC-34」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다) 에 있다.
+- 요구사항 REQ-SESSION-018 · 019 에 이 경로가 두 순서 밖이라고 적었다.
+- 요구사항 REQ-SESSION-019 의 대상을 공개 웹훅 호출 수 제한(`PublicWebhookThrottleGuard`)·`ip_whitelist`·실행 기록 소스 IP(`Execution.source_ip`)로 고쳐 적었다. 요청 한도는 공개 웹훅 호출 수 제한으로 좁혔다. `/api/hooks/*` 의 전역 요청 한도는 `req.ip` 로 세므로 이 요구사항의 대상이 아니다. 실행 기록 소스 IP 는 웹훅 · 채팅 채널 트리거가 실행을 만들 때 같은 `extractClientIpFromHeaders` 로 읽어서 더했다([실행 데이터와 흐름 — 데이터 모델](../CLE-EXEC/CLE-EXEC-DATA-MODEL.md#실행)).
+- NERV Task `CLE-T-E90KGZ` 에서 고쳤다.
 
 다른 문서가 링크하던 Rationale 절은 아래 이름 그대로 남기고 하위 문서로 잇는다.
 

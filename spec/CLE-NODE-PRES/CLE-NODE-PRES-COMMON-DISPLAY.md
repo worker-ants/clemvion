@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON-DISPLAY"
 title: "Presentation 노드 공통 — 표시 표면"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES", "CLE-NODE-PRES-COMMON"]
 area: "CLE-NODE-PRES"
-content_hash: "3ce914f3d5ecfac6d4057565ff9a6cf3a24d7b22967de33aadbc355a968d8e04"
+content_hash: "2e9fc9e9b26f1ca57693c5942a189fd5af1d7730c2ee551d9efa33c6100cb9b1"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FQTQ7K"
 source_paths: []
-mirror_sha256: "4f79135ec514d5c2f08a5eab6efaa73cce6b0d8354990622212e71bcdc7e9f07"
-etag: "sha256-f7dce7a1926ef3d172d5343727e465a41ad22a1cf72a02791d7c9d39fd65f77b"
+mirror_sha256: "94dfe9a5a68f06c36ebcd47e4994981216b2a573d99c12a2e2cc058098534bce"
+etag: "sha256-0477e06b81a3a3fd4fed38adba46c0da3b2a3d54d994072e669a03751966f44e"
 ---
 ## 개요
 
@@ -97,7 +97,7 @@ etag: "sha256-f7dce7a1926ef3d172d5343727e465a41ad22a1cf72a02791d7c9d39fd65f77b"
 |------|------|
 | 실행 결과 드로어 | `html` 은 허용 목록으로 정화한 뒤 그린다. `markdown` 은 HTML 로 바꾸고 정화한 뒤 그린다. `text` 는 태그를 해석하지 않고 `<pre>` 에 글자로 보여 준다 |
 | 웹채팅 위젯 | 드로어보다 좁은 거부 기본 허용 목록으로 정화한 뒤 그린다. 허용 목록과 링크 규칙은 [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#마크다운html-sanitize) 이 정한다([웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md#표시물-렌더)) |
-| 채팅 채널 | 본문을 HTML 로 해석하지 않으므로 HTML 정화는 하지 않는다. 채널 문법 escape 는 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 이 프로바이더별로 정한다. 지금 Telegram 렌더러는 MarkdownV2 escape 를 하고 Slack · Discord 렌더러는 Template 본문을 그대로 보낸다. 두 채널의 멘션 처리는 NERV Task `CLE-T-FQTQ7K` 가 정한다 |
+| 채팅 채널 | 본문을 HTML 로 해석하지 않으므로 HTML 정화는 하지 않는다. 대신 채널 전체 멘션과 사용자 멘션의 알림이 울리지 않게 보낸다. 프로바이더별 방법은 Telegram MarkdownV2 escape, Slack `&` · `<` · `>` escape, Discord `allowed_mentions: {"parse": []}`(글자는 그대로 두고 알림만 막는다)다. 워크플로우 작성자가 일부러 넣은 멘션도 알림이 가지 않는다. 기준은 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「멘션 무력화」](../CLE-CHAT/CLE-CHAT-ADAPTER-RENDER.md#멘션-무력화) 다 |
 | EIA 응답 · 웹훅 · 다음 노드 | 본문을 바꾸지 않고 넘긴다. 받는 쪽이 HTML 로 그리면 그쪽이 정화한다 |
 
 정화 규칙은 다음과 같다.
@@ -142,4 +142,4 @@ etag: "sha256-f7dce7a1926ef3d172d5343727e465a41ad22a1cf72a02791d7c9d39fd65f77b"
 - **백엔드가 `output.rendered` 를 정화한다**: 본문은 HTML 로 그리는 화면 말고도 채팅 채널, EIA 응답, 웹훅, 다음 노드로 나간다. 서버에서 HTML 기준으로 정화하면 이 경로의 본문까지 바뀐다. 예를 들어 다음 노드가 본문을 이메일 HTML 로 쓰면 `style` 같은 정상 마크업이 지워지고, Text · Markdown 본문에 꺾쇠 괄호로 쓴 글자가 지워지거나 바뀐다. 표면마다 허용 목록도 다르다(웹채팅 위젯이 드로어보다 좁다). 그래서 서버 정화 하나로 소비 쪽 정화를 없앨 수 없다. 백엔드에는 서버용 DOM 구현과 정화 라이브러리라는 새 의존성도 생긴다.
 - **백엔드와 소비처가 둘 다 정화한다**: 첫 대안의 본문 훼손 문제가 그대로 남는다. 소비 쪽 정화는 어차피 있어야 하므로 이 안은 첫 대안의 비용을 그대로 지고 얻는 것은 중복 방어뿐이다.
 
-채팅 채널의 멘션 · 채널 문법 처리는 HTML 정화와 다른 문제라 이 결정에 넣지 않았다. NERV Task `CLE-T-FQTQ7K` 가 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 에서 정한다.
+채팅 채널의 멘션 · 채널 문법 처리는 HTML 정화와 다른 문제라 이 결정에 넣지 않았다. 그 처리는 2026-11-14 에 따로 정했다(NERV Task `CLE-T-FQTQ7K`, [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「멘션 무력화」](../CLE-CHAT/CLE-CHAT-ADAPTER-RENDER.md#멘션-무력화)). 이 결정과 같이 Template 노드와 표현식 해석기는 본문을 바꾸지 않고 채널 어댑터가 보낼 때 처리한다.

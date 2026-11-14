@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-INTERACT"
 title: "채팅 채널 — 인터랙션 응답과 명령 실패"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "9ff3e7b04fd482a5a2f0c305532008964774a22e9c9e49022119bf414efe66c9"
+content_hash: "878fe6a3537899a3d30671b95024cccb615486680b13b2b756dae049d9ee5df9"
 read_as: "approved_fallback"
-task: "CLE-T-0JEQRY"
+task: "CLE-T-G2JRMF"
 source_paths: []
-mirror_sha256: "0ea324be80b352fcb49fb8374b724380ae632bce4a360f86b8e85249f0f67328"
-etag: "sha256-f0c13ceefd417b32366df22d9b1d8735391336a71ecb6dda236f2762f19f2889"
+mirror_sha256: "94ad596f98f23608fa0136fd36bf267abfde904f39d0078f335171c19853c33a"
+etag: "sha256-8c65ea64e9ef9fd650d779607ca7ad3681a538c3f543b3969e9bdca49209ce7b"
 ---
 ## 개요
 
@@ -34,7 +34,7 @@ etag: "sha256-f0c13ceefd417b32366df22d9b1d8735391336a71ecb6dda236f2762f19f2889"
 | 프로바이더 · 요청 | 트리거가 활성일 때 | 트리거가 비활성일 때 |
 |---|---|---|
 | Discord 컴포넌트 클릭(`type: 3`) · 모달 제출(`type: 5`) | `200` `{ type: 6 }`. 처리 경로가 정한 응답이 있으면 그 응답 | `200` `{ type: 6 }` |
-| Discord 슬래시 명령(`type: 2`) | `200` `{ type: 4, data: { content, flags: 64 } }`. `help` 는 도움말, 나머지는 `languageHints.commandReceived` | 같다 |
+| Discord 슬래시 명령(`type: 2`) | `200` `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }`. `help` 는 도움말, 나머지는 `languageHints.commandReceived` | 같다 |
 | Discord PING(`type: 1`) | `200` `{ type: 1 }`(핸드셰이크) | `202` ignored |
 | Discord 자동완성(`type: 4`) · 알 수 없는 `type` | `202`(기본 응답 없음) | `202` ignored |
 | Slack Interactivity(`payload` 필드가 있는 요청) | `200` 빈 본문. 처리 경로가 정한 `{ response_action }` 이 있으면 그 응답 | `200` 빈 본문 |
@@ -43,26 +43,28 @@ etag: "sha256-f0c13ceefd417b32366df22d9b1d8735391336a71ecb6dda236f2762f19f2889"
 | Slack Events API | `202` | `202` ignored |
 | Telegram 모든 update | `202` | `202` ignored |
 
-Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 등록한 명령 이름(`languageHints.slashPrefix`, 기본 `workflow`)을 넣은 기본 도움말 네 줄이다. Slack 도움말도 `languageHints.help` 가 있으면 그 문구를 그대로 쓴다(`{prefix}` 를 바꾸지 않는다). 없으면 Discord 와 같은 locale 기본 도움말에 요청의 `command`(앞의 `/` 를 뗀 값, 비었으면 `workflow`)를 넣는다. Slack 은 명령 이름을 앱 manifest 에서 정하므로 `languageHints.slashPrefix` 를 쓰지 않는다. Slack `help` 는 별도 메시지를 보내지 않고 이 응답 하나로 끝난다. Slack 응답의 `text` 는 mrkdwn 으로 렌더되므로 `&` `<` `>` 를 escape 한다. Discord 응답 본문은 escape 하지 않는다. 공통 수신 문구 `languageHints.commandReceived` 의 기본값은 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값) 이 정한다. 프로바이더별 세부는 [Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD.md#인바운드-응답) 과 [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK.md#인바운드-응답) 이 정한다.
+Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 등록한 명령 이름(`languageHints.slashPrefix`, 기본 `workflow`)을 넣은 기본 도움말 네 줄이다. Slack 도움말도 `languageHints.help` 가 있으면 그 문구를 그대로 쓴다(`{prefix}` 를 바꾸지 않는다). 없으면 Discord 와 같은 locale 기본 도움말에 요청의 `command`(앞의 `/` 를 뗀 값, 비었으면 `workflow`)를 넣는다. Slack 은 명령 이름을 앱 manifest 에서 정하므로 `languageHints.slashPrefix` 를 쓰지 않는다. Slack `help` 는 별도 메시지를 보내지 않고 이 응답 하나로 끝난다. Slack 응답의 `text` 는 mrkdwn 으로 렌더되므로 `&` `<` `>` 를 escape 한다. Discord 응답 문구는 escape 하지 않고 멘션 알림만 `allowed_mentions` 로 끈다([Discord 어댑터 — API 호출과 UI 매핑 「멘션 무력화」](CLE-CHAT-DISCORD-API.md#멘션-무력화)). 공통 수신 문구 `languageHints.commandReceived` 의 기본값은 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값) 이 정한다. 프로바이더별 세부는 [Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD.md#인바운드-응답) 과 [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK.md#인바운드-응답) 이 정한다.
 
 인터랙션으로 새 실행을 시작하면 그 실행에 남기는 `response_code` 는 실제로 보낸 `'200'` 이다. 인터랙션이 아니면 `'202'` 다.
 
 ## 버린 update 의 수신 확인
 
-인터랙션 응답과 별개로 활성 트리거에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 대화 단위 분당 한도 초과, 실행 중이라 입력 대기가 아님, 워크플로우 비활성, 워크플로우 없음, 처리 중 예상하지 못한 오류) 채널 어댑터의 선택 함수 `ackDroppedUpdate(raw, config)` 로 프로바이더에 수신 확인을 보낸다.
+인터랙션 응답과 별개로 활성 트리거에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 대화 단위 분당 한도 초과, 실행 중이라 입력 대기가 아님, 실행 소유자가 아닌 사람의 `/start`·`/cancel`, 워크플로우 비활성, 워크플로우 없음, 처리 중 예상하지 못한 오류) 채널 어댑터의 선택 함수 `ackDroppedUpdate(raw, config)` 로 프로바이더에 수신 확인을 보낸다.
 
 - 지금 이 함수가 있는 프로바이더는 Telegram 하나다. 버튼 클릭(`callback_query`)이면 `answerCallbackQuery` 만 보내 버튼의 로딩 표시를 끝낸다. 같은 `callback_query.id` 에는 처리한 클릭의 응답(`ackInteraction`)과 합쳐 한 번만 보낸다([채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER-IFACE.md#인터랙션-기본-응답과-수신-확인)). 인라인 키보드는 지우지 않는다. 사용자가 잠시 뒤 같은 버튼을 다시 누를 수 있어야 하기 때문이다. 그 밖의 update 에는 아무것도 보내지 않는다.
 - Discord 와 Slack 은 3초 안의 `200` 응답이 수신 확인이라 이 함수가 없다.
 - 수신 확인은 보내기만 하고 끝나기를 기다리지 않아 웹훅 응답을 늦추지 않는다. 실패는 경고 로그만 남기고 HTTP 응답(`202`)은 바뀌지 않는다.
 - `/help` 의 도움말 경로와 비활성 트리거에서는 부르지 않는다. 비활성 트리거에서 부르지 않는 것은 비활성 트리거의 외부 호출 금지 때문이다.
+- 활성 실행이 있는 대화에 실행 소유자가 아닌 사람이 보낸 `/start`·`/cancel` 은 실행을 취소하지 않고 새로 시작하지도 않는다. 안내 문구 없이 이 수신 확인만 보내고 `202`·`{ executionId: 'ignored' }` 로 답한다. Telegram 에서는 두 명령이 텍스트 메시지라 프로바이더에 아무것도 보내지 않는다. Slack · Discord 슬래시 명령은 인터랙션이라 [인터랙션 기본 응답](#인터랙션-기본-응답)(공통 수신 문구)으로 답하고 그 응답이 수신 확인이다. 실행 소유자 규칙은 [처리 흐름과 대화 「활성 실행 중 다시 시작」](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작) 이 정하고 근거는 [R-CC-35](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다.
 
 근거는 [R-CC-33](#r-cc-33-인터랙션은-어느-경로로-끝나도-기본-응답으로-답하고-버린-클릭에는-수신-확인을-보낸다) 에 있다.
 
 ## 큐 적재 실패
 
-큐 적재 실패는 둘이다. `/cancel` 이 부른 `ExecutionsService.stop` 의 `EXECUTION_ENQUEUE_FAILED` 와 내부 신뢰 호출 재개 명령(답장, 버튼 탭, 폼 제출)의 `queued:false` 다. 둘 다 `202 Accepted` 로 답하고, 경고 로그를 남기며, 이미 `degraded` 가 아니면 `chat_channel_health` 를 `degraded` 로 바꾸고 `chat_channel_last_error` 에 고정 문구를 남긴다.
+큐 적재 실패는 둘이다. 실행 소유자의 `/cancel` 이 부른 `ExecutionsService.stop` 의 `EXECUTION_ENQUEUE_FAILED` 와 내부 신뢰 호출 재개 명령(답장, 버튼 탭, 폼 제출)의 `queued:false` 다. 둘 다 `202 Accepted` 로 답하고, 경고 로그를 남기며, 이미 `degraded` 가 아니면 `chat_channel_health` 를 `degraded` 로 바꾸고 `chat_channel_last_error` 에 고정 문구를 남긴다.
 
 - `running`·`pending` 실행의 취소는 원자 UPDATE 라 큐를 쓰지 않으므로 `/cancel` 의 큐 적재 실패는 입력 대기 실행의 `/cancel` 에서만 생긴다. 이때 채널 대화 상태의 `executionId` 는 그대로 둔다.
+- 실행 소유자가 아닌 사람의 `/cancel` 은 `stop` 을 부르지 않으므로 큐 적재 실패가 생기지 않는다([버린 update 의 수신 확인](#버린-update-의-수신-확인)).
 - `/cancel` 은 `/start` 와 같이 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 그 실행이 이미 끝났거나 지워진 것으로 보고 `executionId` 를 그 실행을 가리킬 때만 비우며 채널 건강도는 바꾸지 않고 `202` 로 답한다. `EXECUTION_ENQUEUE_FAILED` 면 위의 큐 적재 실패다.
 - `chat_channel_last_error` 의 고정 문구(원인 종류를 알 수 있는 짧은 문장)는 두 경우가 같다. 문구에는 실행 id 와 트리거 id 를 싣지 않고 경고 로그에만 남긴다.
 - `/start` 와 달리 그 update 의 중복 제거 선점을 풀지 않는다. 실행은 입력 대기에 그대로 남으므로 사용자는 같은 명령을 다시 보낼 수 있다. 다시 보낸 명령은 새 update id 로 오므로 중복 제거에 걸리지 않는다.

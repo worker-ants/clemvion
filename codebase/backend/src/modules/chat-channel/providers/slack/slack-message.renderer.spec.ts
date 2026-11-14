@@ -583,3 +583,95 @@ describe('renderSlackEvent — execution.node.completed structured return shape 
     expect(all.length).toBeGreaterThan(0);
   });
 });
+
+// 근거: NERV Task `CLE-T-FQTQ7K`(2026-11-14 사람 결정). Template 본문과 AI 응답은 `{{ }}` 로 들어온 사용자 입력을
+// 담을 수 있다. `<!channel>` · `<!here>` · `<@U…>` 가 채널 전체 · 사용자 알림을 울리지 않게 `<` `>` `&` 를 escape
+// 해서 보낸다(REQ-SLACK-018). 작성자가 일부러 넣은 멘션과 `<url|라벨>` 링크도 글자로 보인다.
+describe('renderSlackEvent — 멘션 무력화 (CLE-T-FQTQ7K)', () => {
+  const RAW = '<!channel> 공지 <!here> <@U123> & <https://ex.com|링크>';
+  const ESCAPED =
+    '&lt;!channel&gt; 공지 &lt;!here&gt; &lt;@U123&gt; &amp; &lt;https://ex.com|링크&gt;';
+  const textsOf = (msgs: ReturnType<typeof renderSlackEvent>) =>
+    msgs.map((m) => (m.body.kind === 'text' ? m.body.text : null));
+
+  it('ai_message 본문을 escape 한다', () => {
+    const msgs = renderSlackEvent(
+      { ...BASE, message: RAW, turnCount: 1 },
+      CONFIG,
+    );
+    expect(textsOf(msgs)).toEqual([ESCAPED]);
+  });
+
+  it('표시 전용 Template(execution.node.completed) 본문을 escape 한다', () => {
+    const msgs = renderSlackEvent(
+      {
+        type: 'execution.node.completed',
+        executionId: 'e1',
+        triggerId: 't1',
+        workflowId: 'w1',
+        seq: 1,
+        timestamp: '2026-11-14T00:00:00.000Z',
+        node: { id: 'tpl-1', type: 'template' },
+        output: { output: { rendered: RAW } },
+      },
+      CONFIG,
+    );
+    expect(textsOf(msgs)).toEqual([ESCAPED]);
+  });
+
+  it('AI presentations 의 Template 본문을 escape 한다', () => {
+    const msgs = renderSlackEvent(
+      {
+        ...BASE,
+        message: '안내',
+        turnCount: 1,
+        presentations: [
+          {
+            type: 'template',
+            toolCallId: 'tc1',
+            renderedAt: '2026-11-14T00:00:00.000Z',
+            payload: { rendered: RAW },
+          },
+        ],
+      },
+      CONFIG,
+    );
+    expect(textsOf(msgs)).toEqual(['안내', ESCAPED]);
+  });
+
+  it('서식 문자(`*` `_` `~` 백틱)와 맨 URL 은 그대로 둔다', () => {
+    const text = '*굵게* _기울임_ ~취소~ `코드` https://ex.com/a?b=1';
+    const msgs = renderSlackEvent(
+      { ...BASE, message: text, turnCount: 1 },
+      CONFIG,
+    );
+    expect(textsOf(msgs)).toEqual([text]);
+  });
+
+  it('3500자로 나눌 때 escape 결과(&amp; &lt; &gt;)의 중간에서 자르지 않는다', () => {
+    const SUFFIX = '\n_(continued…)_';
+    // escape 뒤 `&lt;` 가 3498~3501 번째 글자에 놓여 3500자 경계가 그 가운데를 지난다.
+    const raw = `${'a'.repeat(3498)}<${'b'.repeat(10)}&${'c'.repeat(3494)}>z`;
+    const escaped = escapeSlackMrkdwn(raw);
+    const msgs = renderSlackEvent(
+      { ...BASE, message: raw, turnCount: 1 },
+      CONFIG,
+    );
+    const texts = textsOf(msgs) as string[];
+    expect(texts.length).toBeGreaterThan(1);
+    const bodies = texts.map((t, i) =>
+      i < texts.length - 1 ? t.slice(0, -SUFFIX.length) : t,
+    );
+    for (let i = 0; i < texts.length - 1; i += 1) {
+      expect(texts[i].endsWith(SUFFIX)).toBe(true);
+    }
+    for (const body of bodies) {
+      expect(body.length).toBeLessThanOrEqual(3500);
+      // 조각 끝에 잘린 엔티티(`&`, `&l`, `&am` …)가 없다.
+      expect(body).not.toMatch(/&[a-z]{0,3}$/);
+      // 조각 앞이 잘린 엔티티의 나머지(`t;`, `p;` …)로 시작하지 않는다.
+      expect(body).not.toMatch(/^[a-z]{1,3};/);
+    }
+    expect(bodies.join('')).toBe(escaped);
+  });
+});

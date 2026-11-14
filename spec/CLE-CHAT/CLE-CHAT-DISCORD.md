@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 7
+version: 9
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035", "REQ-DISCORD-036", "REQ-DISCORD-037"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "f295357af83e72abfd3e8b060c3cee0a540d3578e0da340d8ae45cf7058fccd2"
+content_hash: "32a0331ec713428fc4b814fd62decb8e6d8dccc7285bd320b95069dd3bcf2d03"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FQTQ7K"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "5aec347001bebd15d8d87be6f0f7f9dc84a09710af1f1cebf44f6598ffcda135"
-etag: "sha256-3437457c4b458470d816ceba83689408d7b7788edbee11bd2f4555471416e81f"
+mirror_sha256: "f6d47b659d4405e3dabcd0ce8596d2f6601ce4c4d09adaff05aaa98a919d597b"
+etag: "sha256-874566609be2b240d8d5eead5a82e9d44edbcb95374fd568a958d33b453d8f34"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,12 +40,12 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-002 IF 응답의 `verify_key` 와 사용자가 입력한 public key 가 둘 다 있고 서로 다르면 THE SYSTEM SHALL `BOT_TOKEN_INVALID` 로 던져 setup 을 막는다. (원본: discord §3.1)
 - REQ-DISCORD-003 WHEN `setupChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 로 `/<prefix>` slash command(하위 `start`·`cancel`·`help`·`reply`)를 일괄 덮어써 등록하고 등록이 실패하면 에러를 던져 setup 을 막는다(HTTP 401·403 이면 `code: 'BOT_TOKEN_INVALID'`, 그 밖은 `code` 없는 에러). (원본: discord §3.1, R-D-2)
 - REQ-DISCORD-004 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 에 `[]` 를 보내 명령을 지우고 실패해도 트리거 삭제를 막지 않는다. (원본: discord §3.2)
-- REQ-DISCORD-005 WHEN `type: 1`(PING)이 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `200 OK` 와 `{ type: 1 }` 로 답한다. (원본: discord §3.1, R-D-8)
+- REQ-DISCORD-005 WHEN `type: 1`(PING)이 오면 THE SYSTEM SHALL 어댑터의 `handshakeResponse` 가 정한 `{ type: 1 }` 을 호출자가 `200 OK` 로 보내고 `parseUpdate` 는 `null` 을 돌려준다. (원본: discord §3.1, R-D-8)
 - REQ-DISCORD-006 WHEN Interactions payload 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `interaction.id` 를 중복 제거 키로 쓴다. (원본: discord §4)
 - REQ-DISCORD-007 IF `channel.type !== 1`(DM 이 아님)이면 THE SYSTEM SHALL `null` 을 돌려주고 호출자가 `groupChatRefusal` 안내를 보낸다. (원본: discord §4, §6)
 - REQ-DISCORD-008 IF `member.user.bot === true` 이거나 DM 의 `user.bot === true` 이면 THE SYSTEM SHALL `null` 을 돌려준다. (원본: discord §4, §6)
 - REQ-DISCORD-009 WHEN 서명 검증을 통과한 슬래시 명령(APPLICATION_COMMAND)·컴포넌트(MESSAGE_COMPONENT)·모달 제출(MODAL_SUBMIT)이 오면 THE SYSTEM SHALL 3초 안에 `200 OK` 와 `{ type: 4, data }`·`{ type: 6 }`·`{ type: 9, data }` 가운데 [인바운드 응답](#인바운드-응답) 이 정한 응답을 `{ data }` 봉투 없이 돌려준다. (원본: discord §3, §4)
-- REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내고 2000자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. (원본: discord §5.1)
+- REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내되 `allowed_mentions: {"parse": []}` 로 멘션 알림을 끄고 2000자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. (원본: discord §5.1)
 - REQ-DISCORD-011 WHEN AI 응답을 보내면 THE SYSTEM SHALL 마지막 텍스트 조각에 "Reply" 버튼(`__reply__`)을 붙인다. (원본: discord §5.1)
 - REQ-DISCORD-012 WHEN "Reply" 버튼이 눌리면 THE SYSTEM SHALL `custom_id` 가 `clemvion_reply` 인 단일 TEXT_INPUT 모달을 열고 제출 값을 `text_message` 로 바꿔 EIA `submit_message` 로 보낸다. (원본: discord §5.1)
 - REQ-DISCORD-013 WHEN `/<prefix> reply <message>` 가 오면 THE SYSTEM SHALL `{ kind: "text_message", text: <message> }` 로 바꾼다. (원본: discord §5.1)
@@ -64,25 +64,27 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-026 IF `X-Signature-Timestamp` 가 현재 시각 ±5분 밖이면 THE SYSTEM SHALL `401` 로 답한다. (원본: discord §6)
 - REQ-DISCORD-027 IF 트리거 생성 때 `inboundSigningPlaintext` 가 `^[a-f0-9]{64}$` 에 맞지 않으면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='inboundSigningPlaintext'`, `details.code='INVALID_FIELD'`)로 거부한다. (원본: discord §6)
 - REQ-DISCORD-028 WHEN 활성 실행이 없을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 를 즉시 응답이나 후속 메시지로 안내한다. (원본: discord §7) (부분 구현)
-- REQ-DISCORD-029 WHEN 활성 실행이 있을 때 `/<prefix> start` 가 오면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: discord §7) (부분 구현)
-- REQ-DISCORD-030 WHEN `/<prefix> cancel` 이 오면 THE SYSTEM SHALL 활성 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (원본: discord §7) (부분 구현)
-- REQ-DISCORD-031 WHEN `/<prefix> help` 가 오면 THE SYSTEM SHALL EIA 를 부르지 않고 3초 안에 `200 OK` 와 본인에게만 보이는 `{ type: 4, data: { content, flags: 64 } }` 로 답하며 `content` 는 `languageHints.help`(없으면 `languageHints.slashPrefix` 를 넣은 기본 도움말)로 채운다. (원본: discord §4, §7)
+- REQ-DISCORD-029 WHEN 활성 실행이 있을 때 실행 소유자(채널 대화 상태의 `channelUserKey` 와 같은 사용자)가 `/<prefix> start` 를 보내면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (원본: discord §7) (부분 구현)
+- REQ-DISCORD-030 WHEN `/<prefix> cancel` 이 오면 THE SYSTEM SHALL 활성 실행이 있고 보낸 사람이 실행 소유자이면 그 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (원본: discord §7) (부분 구현)
+- REQ-DISCORD-031 WHEN `/<prefix> help` 가 오면 THE SYSTEM SHALL EIA 를 부르지 않고 3초 안에 `200 OK` 와 본인에게만 보이는 `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }` 로 답하며 `content` 는 `languageHints.help`(없으면 `languageHints.slashPrefix` 를 넣은 기본 도움말)로 채운다. (원본: discord §4, §7)
 - REQ-DISCORD-032 WHEN `POST /channels/{id}/messages` 를 부르면 THE SYSTEM SHALL 5초 타임아웃과 지수 백오프로 총 3회까지 시도하고 끝내 실패하면 `chat_channel_health` 를 `degraded` 로 바꾼다. (원본: discord §8)
 - REQ-DISCORD-033 WHEN Discord 가 `429` 와 `Retry-After` 를 돌려주면 THE SYSTEM SHALL 그만큼 기다린 뒤 다시 시도한다. (원본: discord §8)
 - REQ-DISCORD-034 WHILE Discord rate limit 안에서 보내는 동안 THE SYSTEM SHALL bucket 단위 큐와 응답 헤더 기반 throttle 로 발송 속도를 맞춘다. (원본: discord §8) (미구현)
 - REQ-DISCORD-035 WHEN 같은 `interaction.id` 가 30초 안에 다시 오면 THE SYSTEM SHALL 두 번째 update 를 무시한다. (원본: discord §8)
-- REQ-DISCORD-036 WHEN `help` 밖의 슬래시 명령이 오면 THE SYSTEM SHALL 새 실행·취소·답장 전달·중복·분당 한도 초과·실행 중·워크플로우 비활성·파싱 실패·DM 밖 채널 어느 경로로 끝나도 3초 안에 `200 OK` 와 본인에게만 보이는 `{ type: 4, data: { content, flags: 64 } }` 로 답하며 `content` 는 `languageHints.commandReceived`(없으면 `languageLocale` 기본 문구)로 채운다. (R-D-12)
+- REQ-DISCORD-036 WHEN `help` 밖의 슬래시 명령이 오면 THE SYSTEM SHALL 새 실행·취소·답장 전달·중복·분당 한도 초과·실행 중·워크플로우 비활성·파싱 실패·DM 밖 채널 어느 경로로 끝나도 3초 안에 `200 OK` 와 본인에게만 보이는 `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }` 로 답하며 `content` 는 `languageHints.commandReceived`(없으면 `languageLocale` 기본 문구)로 채운다. (R-D-12)
 - REQ-DISCORD-037 WHEN 비활성 트리거로 슬래시 명령·컴포넌트·모달 제출이 오고 서명 검증을 통과하면 THE SYSTEM SHALL 실행을 시작하지 않고 외부 API 를 부르지 않으며 활성일 때와 같은 기본 응답(`200 OK` 와 슬래시 명령 `{ type: 4 }`, 컴포넌트·모달 제출 `{ type: 6 }`)으로 답한다. (R-D-12)
 
 요구사항 보충 설명은 다음과 같다.
 
 - 관련 REQ-DISCORD-002: 인바운드 서명 검증의 기준은 여전히 `inboundSigningRef`(시크릿 저장소)와 생성 때 정규식 검증(REQ-DISCORD-027)이다. setup 때 교차 확인과 `publicKey` 캐시는 그 위의 추가 안전장치이자 identity 편의다.
 - 관련 REQ-DISCORD-009·016·036·037: 인터랙션 종류별 응답, 버린 인터랙션의 응답, 비활성 트리거의 응답은 [인바운드 응답](#인바운드-응답) 과 R-D-11·R-D-12 가 정한다. 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 기본 응답 대신 그 에러로 답한다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-064).
+- 관련 REQ-DISCORD-010: 멘션 알림은 AI 응답만이 아니라 채널 메시지 전부와 메시지를 싣는 `{ type: 4 }` 인터랙션 응답에서 끈다. 본문 글자는 바꾸지 않고 알림만 울리지 않는다. 범위와 escape 대신 `allowed_mentions` 를 쓰는 이유는 [「멘션 무력화」](CLE-CHAT-DISCORD-API.md#멘션-무력화) 에 있다.
 - 관련 REQ-DISCORD-011~013: 두 입력 경로는 함께 있다. "Reply" 버튼 모달이 v1 기본 UX 이고 `/<prefix> reply` 는 숙련 사용자용 보조 옵션이다. 자유 DM 텍스트 답장은 v2 Gateway 에서 된다([채팅 채널](CLE-CHAT-CORE.md) R-CC-13 이 이 부분 유예의 기준이다).
 - 관련 REQ-DISCORD-020: [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 `validation.preset` 이 아직 없다. Discord 에는 연락처 공유에 해당하는 기능이 없다.
 - 관련 REQ-DISCORD-022·023: 현재 구현은 이미지 메시지를 caption(없으면 `fallbackText`) `content` 로만 보내 실제 이미지를 첨부하지 않고, Carousel 카드도 모두 텍스트로 보낸다(embeds 호출처 없음).
 - 관련 REQ-DISCORD-028·029: 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리, 비활성 워크플로우에서의 처리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~066 이 정하고 Discord 의 경우별 처리는 [명령 처리](CLE-CHAT-DISCORD-INBOUND.md#명령-처리) 표가 정한다. 취소와 새 시작은 구현됐다. 즉시 응답은 공통 수신 문구(REQ-DISCORD-036)이고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
-- 관련 REQ-DISCORD-030: 취소는 `/<prefix> start` 와 같은 실행 중지 경로(`ExecutionsService.stop`)를 쓴다. EIA `cancel` 도 같은 `stop` 을 부르므로 취소 동작은 같다([채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 취소한 뒤의 대화 상태 정리는 REQ-CHAT-065 를 따른다. 활성 실행이 없을 때의 안내는 아직 보내지 않는다. 즉시 응답은 공통 수신 문구다(REQ-DISCORD-036).
+- 관련 REQ-DISCORD-029·030: 활성 실행이 있는 대화에 실행 소유자가 아닌 사람이 보낸 `/<prefix> start`·`/<prefix> cancel` 은 실행을 건드리지 않고 안내 없이 버린다. 즉시 응답은 공통 수신 문구다(REQ-DISCORD-036, [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-083). v1 은 DM 만 받아 같은 대화에 다른 사용자가 없으므로 실제로는 생기지 않는다. 근거는 [채팅 채널 처리 흐름 「R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다」](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다.
+- 관련 REQ-DISCORD-030: 취소는 `/<prefix> start` 와 같은 실행 중지 경로(`ExecutionsService.stop`)를 쓴다. EIA `cancel` 도 같은 `stop` 을 부르므로 취소 동작은 같다([채팅 채널 처리 흐름 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 취소한 뒤의 대화 상태 정리는 REQ-CHAT-065 를 따른다. 활성 실행이 없을 때의 안내는 아직 보내지 않는다. 즉시 응답은 공통 수신 문구다(REQ-DISCORD-036).
 - 관련 REQ-DISCORD-031: `parseUpdate` 는 `help` 하위 명령에 `null` 을 돌려주고 `ChannelUpdate` 에 help kind 를 두지 않는다. 도움말은 어댑터의 기본 응답 본문으로만 나간다. 그래서 `HooksService` 의 `/help` 텍스트 분기(Telegram·Slack 용)를 타지 않고, 트리거가 비활성이어도 도움말로 답한다. (R-D-12)
 - 관련 REQ-DISCORD-032·035: 재시도 정책과 중복 제거 키·TTL 은 [채팅 채널](CLE-CHAT-CORE.md)·[채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 대기는 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않는다(`discord-client.ts`).
 - 관련 REQ-DISCORD-034: 현재 구현은 `429` 의 `Retry-After` 대기만 한다. bucket 단위 큐는 확인되지 않았다.
@@ -91,7 +93,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 ## 하위 문서
 
 - [Discord 어댑터 — 인바운드 처리와 응답](CLE-CHAT-DISCORD-INBOUND.md): Interactions payload 를 `ChannelUpdate` 로 바꾸는 명령 매핑, 인터랙션 종류별 웹훅 HTTP 응답, 서명 검증과 보안, 명령 처리. 요구사항 REQ-DISCORD-005~009, REQ-DISCORD-013, REQ-DISCORD-016, REQ-DISCORD-025~031, REQ-DISCORD-036, REQ-DISCORD-037.
-- [Discord 어댑터 — API 호출과 UI 매핑](CLE-CHAT-DISCORD-API.md): REST·Interactions 호출 매핑, `setupChannel`·`teardownChannel`, MODAL, 노드 UI 매핑(멀티턴 AI·버튼·Form·시각형·실행 실패), 비기능(재시도·rate limit·중복 제거). 요구사항 REQ-DISCORD-001~004, REQ-DISCORD-010~024, REQ-DISCORD-032~035.
+- [Discord 어댑터 — API 호출과 UI 매핑](CLE-CHAT-DISCORD-API.md): REST·Interactions 호출 매핑, `setupChannel`·`teardownChannel`, MODAL, 발송 본문의 멘션 알림 차단, 노드 UI 매핑(멀티턴 AI·버튼·Form·시각형·실행 실패), 비기능(재시도·rate limit·중복 제거). 요구사항 REQ-DISCORD-001~004, REQ-DISCORD-010~024, REQ-DISCORD-032~035.
 
 ## 명령 매핑
 
@@ -114,16 +116,16 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts`
-- `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.ts`: 인터랙션 기본 응답(`buildDiscordDefaultInteractionResponse`)과 기본 도움말(`DISCORD_HELP_DEFAULTS`)
+- `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.ts`: 인터랙션 기본 응답(`buildDiscordDefaultInteractionResponse`)과 도움말 문구 선택(`resolveDiscordHelpText` 가 `pickLocaleDefault` 로 `SLASH_HELP_DEFAULTS` 에서 고른다)
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-signing.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-update.parser.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord.types.ts`: interaction type·callback type·ephemeral flag 상수(`DISCORD_INTERACTION_TYPE`·`DISCORD_INTERACTION_CALLBACK_TYPE`·`DISCORD_MESSAGE_FLAG_EPHEMERAL`)
-- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 수신 문구 기본값(`COMMAND_RECEIVED_DEFAULTS`·`resolveCommandReceivedMessage`)
+- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 수신 문구 기본값(`COMMAND_RECEIVED_DEFAULTS`·`resolveCommandReceivedMessage`), Slack 과 함께 쓰는 슬래시 명령 기본 도움말(`SLASH_HELP_DEFAULTS`)
 - `codebase/backend/src/modules/chat-channel/types.ts`: 선택 함수 `defaultInteractionResponse` 와 `InboundInteractionResponse`
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인바운드 관문(워크플로우 활성 관문 포함), 명령 처리(활성 실행 중 `/<prefix> start` 의 기존 실행 취소), 기본 응답 적용(`withDefaultInteractionResponse`)과 인터랙션 응답 본문의 `200` 전송
-- `codebase/backend/src/modules/hooks/hooks.service.spec.ts`: 세 프로바이더의 활성 실행 중 start 명령, 인터랙션 기본 응답. `hooks.controller.spec.ts`: 인터랙션 응답 본문과 빈 본문의 `200` 전송
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인바운드 관문(워크플로우 활성 관문 포함), 명령 처리(활성 실행 중 `/<prefix> start` 의 기존 실행 취소, `start`·`cancel` 의 실행 소유자 확인), 기본 응답 적용(`withDefaultInteractionResponse`)과 인터랙션 응답 본문의 `200` 전송
+- `codebase/backend/src/modules/hooks/hooks.service.spec.ts`: 세 프로바이더의 활성 실행 중 start 명령, 실행 소유자가 아닌 사람의 start·cancel, 인터랙션 기본 응답. `hooks.controller.spec.ts`: 인터랙션 응답 본문과 빈 본문의 `200` 전송
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.spec.ts`, `discord.adapter.spec.ts`
 - `codebase/packages/chat-channel-validation/src/index.ts`
 - `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `chat-channel-trigger-create.e2e-spec.ts`

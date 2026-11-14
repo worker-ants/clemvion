@@ -25,6 +25,9 @@ import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
  * 워크플로우가 꺼져 있으면(NERV Task `CLE-T-XRWFMJ`) `/start` 는 새 실행을 시작하지 못하고
  * 그 앞의 기존 실행 취소도 하지 않는다. 202 ignored 이고 옛 실행은 그대로 `running` 이다.
  *
+ * 실행 소유자(대화 상태의 `channelUserKey`)가 아닌 사용자의 `/start` · `/cancel` 도 202 ignored 이고
+ * 옛 실행과 대화 상태를 건드리지 않는다(NERV Task `CLE-T-G2JRMF`).
+ *
  * 대화 매핑을 비우는 compare-and-set 은 Lua 스크립트라 단위 테스트의 Redis 모사로는 스크립트가
  * 실제로 도는지 알 수 없다. 여기서 실제 Redis 로 스크립트를 돌린다. 일치 경로는 `/cancel` 요청과
  * `ChannelConversationService` 직접 호출로, 불일치 경로는 스크립트 직접 호출과 "읽은 뒤 다른 쓰기가
@@ -241,6 +244,58 @@ describe('Telegram /start 재시작 (e2e)', () => {
         .catch(() => undefined);
     }
   });
+
+  // 근거: NERV Task `CLE-T-G2JRMF`(2026-11-14 사람 결정). 활성 실행이 있는 대화의 `/start` · `/cancel` 은
+  // 실행 소유자만 쓴다. Telegram 1차 범위는 1:1 DM 이라 실제로는 같은 chat 에 다른 사용자가 없다. 여기서는
+  // 보낸 사람(`from.id`)만 바꿔 서버 관문을 본다. 채널에서도 오는 Slack 슬래시 명령의 경로는 단위
+  // 테스트(`hooks.service.spec.ts`)가 고정한다.
+  it.each(['/start', '/cancel'])(
+    '소유자가 아닌 사용자의 %s → 202 ignored, 옛 실행은 running 그대로이고 대화 상태도 바뀌지 않는다',
+    async (command) => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'telegram' });
+      const chatId = command === '/start' ? 71004 : 71005;
+      const ownerId = command === '/start' ? 81004 : 81005;
+      const otherUserId = 89999;
+      const { oldExecutionId, key } = await seedRunningConversation(
+        setup,
+        chatId,
+        ownerId,
+      );
+
+      try {
+        const res = await postText(
+          setup.endpointPath,
+          chatId,
+          otherUserId,
+          command,
+        );
+
+        expect(res.status).toBe(202);
+        expect(res.body.data.executionId).toBe('ignored');
+        const old = await db.query<{ status: string }>(
+          'SELECT status FROM execution WHERE id = $1',
+          [oldExecutionId],
+        );
+        expect(old.rows[0]?.status).toBe('running');
+        const count = await db.query<{ n: string }>(
+          'SELECT count(*)::text AS n FROM execution WHERE workflow_id = $1',
+          [setup.workflowId],
+        );
+        expect(Number(count.rows[0].n)).toBe(1);
+        const stored = JSON.parse((await redis.get(key)) as string) as {
+          executionId: string | null;
+          channelUserKey: string;
+        };
+        expect(stored.executionId).toBe(oldExecutionId);
+        expect(stored.channelUserKey).toBe(String(ownerId));
+      } finally {
+        await redis.del(key);
+        await db
+          .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+          .catch(() => undefined);
+      }
+    },
+  );
 
   describe('ChannelConversationService.clearExecutionIdIfMatches — 실제 Redis (Lua)', () => {
     const triggerId = randomUUID();

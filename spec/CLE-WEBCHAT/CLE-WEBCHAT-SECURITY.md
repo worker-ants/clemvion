@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SECURITY"
 title: "웹채팅 보안"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-WCSEC-001", "REQ-WCSEC-002", "REQ-WCSEC-003", "REQ-WCSEC-004", "REQ-WCSEC-005", "REQ-WCSEC-006", "REQ-WCSEC-007", "REQ-WCSEC-008", "REQ-WCSEC-009", "REQ-WCSEC-010", "REQ-WCSEC-011", "REQ-WCSEC-012", "REQ-WCSEC-013", "REQ-WCSEC-014", "REQ-WCSEC-015", "REQ-WCSEC-016", "REQ-WCSEC-017", "REQ-WCSEC-018", "REQ-WCSEC-019", "REQ-WCSEC-020", "REQ-WCSEC-021", "REQ-WCSEC-022", "REQ-WCSEC-023", "REQ-WCSEC-024", "REQ-WCSEC-025", "REQ-WCSEC-026", "REQ-WCSEC-027", "REQ-WCSEC-028", "REQ-WCSEC-029", "REQ-WCSEC-030", "REQ-WCSEC-031"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "735722165c7a7a9825214d4b4934253378a0edfc4f1d42665409a52d56608ce2"
+content_hash: "559739186e78aa2e0cd3709ca0fa52750eb93f9239b15c9baf94c6f5f02848d1"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E90KGZ"
 source_paths: ["spec/7-channel-web-chat/4-security.md"]
-mirror_sha256: "55d2eeff7aefa75e058d13426a0c45c81686976a72ed9413121f4a88a0379932"
-etag: "sha256-ac0a48c0ad9a5481fef148cd9be105079ebae1ed3ca738cac90e1be43197e839"
+mirror_sha256: "8b47aa1a88949259f89e9764cbb8d7d65115f22dc816c983949dc821f97df2a5"
+etag: "sha256-7d35da4645ff8d8a2b38654980ffc38d64a4543feef136fc45e489194b494455"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/4-security.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -44,7 +44,7 @@ etag: "sha256-ac0a48c0ad9a5481fef148cd9be105079ebae1ed3ca738cac90e1be43197e839"
 - REQ-WCSEC-014 WHEN 채팅 채널 트리거가 아닌 공개 웹훅에 대화 시작 요청이 오면 THE SYSTEM SHALL IP 마다 분당 10건의 시작 한도를 적용하고 넘으면 `429 PUBLIC_WEBHOOK_RATE_LIMIT` 로 거부한다.
 - REQ-WCSEC-015 WHEN 채팅 채널 트리거가 아닌 공개 웹훅에 대화 시작 요청이 오면 THE SYSTEM SHALL IP 마다 시간당 신규 20건의 누적 상한을 적용하고 넘으면 `429 PUBLIC_WEBHOOK_HOURLY_LIMIT` 로 거부한다.
 - REQ-WCSEC-016 IF 클라이언트 IP 를 헤더(`X-Forwarded-For`, 신뢰할 때 `CF-Connecting-IP`)로 알아내지 못하면 THE SYSTEM SHALL 식별하지 못한 요청 전체를 공유 버킷 하나에 묶어 같은 한도를 적용한다.
-- REQ-WCSEC-017 WHEN 클라이언트 IP 를 정하면 THE SYSTEM SHALL `req.ip`·`req.socket.remoteAddress` 로 대신하지 않는다.
+- REQ-WCSEC-017 WHEN 공개 웹훅 호출 수 제한의 클라이언트 IP 를 정하면 THE SYSTEM SHALL `req.ip`·`req.socket.remoteAddress` 로 대신하지 않는다.
 - REQ-WCSEC-018 IF 채팅 채널 트리거가 아닌 공개 웹훅 요청 본문이 32KB 를 넘으면 THE SYSTEM SHALL 요청을 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` 로 거부한다.
 - REQ-WCSEC-019 IF Redis 를 쓸 수 없거나 가드의 트리거 DB 조회가 실패하면 THE SYSTEM SHALL 요청을 통과시킨다(fail-open).
 - REQ-WCSEC-020 IF 가드의 트리거 DB 조회가 실패하면 THE SYSTEM SHALL `error` 레벨로 로그를 남긴다.
@@ -185,6 +185,7 @@ WCAG AA(키보드 내비게이션·ARIA·스크린리더)를 지향한다. 지�
 - **기각: fail-closed(거부)**. 가장 강하지만 프록시 없이 직접 붙은 요청이나 self-host 정상 클라이언트를 막을 수 있다. 인증이 아닌 best-effort 층이 가용성을 희생하는 것은 이 제한의 성격과 점진적 기능 저하 원칙에 맞지 않는다. 인증과 존재성은 `auth_config_id` 와 `endpointPath` UUID 가 맡는다.
 - **기각: `req.socket.remoteAddress`·`req.ip` 폴백**. `trust proxy=1`(`main.ts`) 뒤에서 socket 이 cloudflared·LB 주소라 모든 트래픽이 프록시 IP 버킷 하나로 무너지고 정상 사용자가 거짓 429 를 받는다. [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md)이 `req.ip` 폴백을 기각한 함정과 같아 헤더 기반 추출(`extractClientIpFromHeaders`)을 유지한다.
 - **인프라 권고**: 앱 수준 공유 버킷이 이식 가능한 기준선이고 managed 배포는 XFF 강제와 헤더 없는 외부 요청 차단으로 IP 단위 정확도를 보강한다.
+- **적용 범위**: 이 결정과 REQ-WCSEC-017 은 공개 웹훅 호출 수 제한의 IP 에 적용한다. 채팅 채널 서명 검증 실패 한도는 규칙이 다르다. `X-Forwarded-For` 첫 값은 보내는 쪽이 정할 수 있어 쓰지 않고 `CF-Connecting-IP`(신뢰할 때), `req.ip` 순으로 읽는다. 그 규칙과 `req.ip` 를 쓰는 이유는 [채팅 채널 「R-CC-34」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다) 에 있다.
 
 > **인증 웹훅의 IP 허용 목록(`ip_whitelist`)과 비교**: 같은 헤더 기반 추출을 쓰지만 IP 를 알 수 없으면 `ip_whitelist` 검증은 거부(fail-closed)다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)). 호출 수 제한은 가용성 보호(best-effort)이고 `ip_whitelist` 는 명시적인 인증 게이트라 식별 못 할 때 보수적으로 닫는다.
 
