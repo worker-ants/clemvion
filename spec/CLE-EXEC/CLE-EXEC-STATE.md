@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "a4449f9c716ba18d61f5a6d09dc9ded4a35d73837fb5cafa7faf2561fb10490a"
+content_hash: "142eabc45d61b8a918eed9b48d68602b209c1a4c02820891936483e2261c53bf"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Z914BM"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "02f5cfb97ebfd4dd572972c6c642b49a2d49366f996aa5bcdb79197f5a1e7b85"
-etag: "sha256-ad0127cd31eb74538ec37196d0e728921d44bd7ab86caccc96fd300f20aafcdf"
+mirror_sha256: "119b6f2580bb0b8bb2895b3567864c770c81966814250065e8da8dc9cb9b3902"
+etag: "sha256-99f43701db0ed8f44d29d1defa0e176aa83b7f8a783d2a5ab94f2213f5160e3b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -106,6 +106,8 @@ stateDiagram-v2
 5. 짝 전이는 방향과 상관없이 아무것도 하지 않고 끝날 수 있다. 재개 방향 claim 뿐 아니라 park 방향(`running → waiting_for_input`)도 대상 행이 이미 종결 상태면 적용하지 않는다. 짝 전이는 같은 트랜잭션 안에서 실행 행을 `SELECT … FOR UPDATE` 로 잠그고 비종결 상태를 확인한 뒤에만 두 행을 저장한다. 선점이 보이면 아무것도 쓰지 않고 `false` 를 돌려준다. 호출자는 이때 park·종결 이벤트 발행을 건너뛰고 짝 노드 실행을 `cancelled` 로 표시한 뒤 취소 전파 경로로 넘긴다.
 6. 마지막 턴 재시도 재진입은 예외다. 위 "비종결 확인" 의 종결 정의가 `allowRetryReentry` opt-in 에 따라 바뀐다. 마지막 턴 재시도에 한해 DB 가드(짝 전이의 `FOR UPDATE` 잠금과 else 분기 조건부 UPDATE)가 `failed` 행도 대상에 넣는다(`NON_TERMINAL_OR_FAILED_STATUSES_SQL`). DB 가드의 비종결 목록은 손으로 적지 않고 상태 머신의 `canTransition` 에서 계산한다(`nonTerminalStatuses(opts)`, `guardStatusesSql(opts)`). 나가는 전이가 하나라도 허용되는 상태가 비종결이다. opt-in 을 상태 머신(`canTransition`)에만 반영하고 DB 가드에 전달하지 않으면 마지막 턴 재시도의 짝 전이가 늘 0행이 돼 기능이 동작하지 않는다. opt-in 이어도 `completed`·`cancelled` 는 대상에서 빠지므로 실제 동시 취소는 계속 막힌다.
 7. 이 가드가 없으면 park·재개 경로가 실행을 다시 읽지 않아 메모리의 엔티티가 낡은 상태에서 전체 엔티티 저장이 동시에 도착한 취소를 덮어쓴다. 그러면 사용자의 실행 중지가 그대로 사라진다. 같은 이유로 `finalizeFailedExecution` 등 종결 마감 경로도 조건부 UPDATE(`status IN (비종결)`)를 거친다. 가드의 근거는 [노드 취소](CLE-EXEC-CANCEL.md) 에 있다.
+
+종결된 실행 행에 대한 쓰기의 예외는 하나다. 엔진은 REST 중지로 `cancelled` 가 된 행에 마지막 실행 구간을 `active_running_ms` 에만 더한다. 이 쓰기는 상태와 종결 컬럼(`finished_at` · `duration_ms`)을 바꾸지 않아 종결 가드 대상이 아니다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14) 에 있다.
 
 조건부 UPDATE 결과를 읽을 때는 `RETURNING` 결과가 `[rows, affectedCount]` 튜플이라는 점을 지켜야 한다. 이 규칙은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 에 있다.
 
