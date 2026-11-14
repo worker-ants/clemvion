@@ -9,6 +9,8 @@ import type { QueueEvents } from 'bullmq';
  *
  * grace 타이머는 close 가 먼저 끝나도 반드시 지운다. 지우지 않으면 타이머가 이벤트 루프를 grace 동안 붙잡고,
  * 끝난 close 에 대해 「exceeded grace」 경고를 남긴다. 그러면 SIGTERM 종료가 늘 grace 만큼 늦어진다(CLE-T-7H7VET).
+ *
+ * 스펙: CLE-EXEC-RECOVERY-SHUTDOWN 「종료는 워커 close 보다 먼저 시작한다」.
  */
 export async function closeQueueEventsWithinGrace(
   queueEvents: Pick<QueueEvents, 'close'>,

@@ -128,8 +128,8 @@ export class ShutdownStateService
    *
    * M-2 (06-concurrency) — shutdown 중에도 등록한다 (옛 `if (shuttingDown) return`
    * early-return 제거). CLE-EXEC-RECOVERY-SHUTDOWN 「안전 종료」 2단계가 "현재 세그먼트를 완료까지 진행" 을
-   * 약속하고 세그먼트 내부 노드는 큐 미경유 in-process 반복문으로 dispatch 되므로(CLE-EXEC-WORKER 「세그먼트 안의
-   * 노드 dispatch」), shutdown 진입 후에도 같은 세그먼트의 다음 노드가 계속 시작된다. 이를 등록하지 않으면 grace
+   * 약속하고 세그먼트 내부 노드는 큐 미경유 in-process 반복문으로 dispatch 되므로(CLE-EXEC-ENGINE 「세그먼트 안의
+   * 노드는 같은 프로세스가 직접 dispatch 한다」), shutdown 진입 후에도 같은 세그먼트의 다음 노드가 계속 시작된다. 이를 등록하지 않으면 grace
    * 만료 시 마킹 대상에서 누락돼 「안전 종료」 4 · 5단계의 "미완료 RUNNING → failed + SERVER_INTERRUPTED"
    * 약속이 깨지고 zombie RUNNING row 가 남는다. 신규 세그먼트 job consume 중단은
    * 종료 시작 때 이 서비스가 워커마다 거는 `worker.pause()` 가 맡는다. 이 인스턴스의 워커만 멈추므로
