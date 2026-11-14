@@ -578,6 +578,22 @@ export class HooksService {
     const hasActiveExecution =
       state?.executionId != null && activeStatus !== null;
 
+    // `/start` · `/cancel` 은 실행 소유자(대화 상태의 `channelUserKey`)만 쓴다(NERV Task `CLE-T-G2JRMF`,
+    // 2026-11-14 사람 결정). 소유자가 아니면 기존 실행을 취소하지도 새로 시작하지도 않고 버린 update 의
+    // 수신 확인만 보낸다. 안내 문구는 없다. 양식 버튼 · 제출의 소유자 확인과 같은 처리다. 1차 범위는 DM 만
+    // 받지만 Slack 슬래시 명령은 채널에서도 오고 대화 키가 채널 ID 라 다른 구성원이 이 대화에 닿는다.
+    // 활성 실행이 없으면 누구나 `/start` 로 시작하고 아래 upsert 에서 그 사람이 소유자가 된다.
+    if (
+      (update.command.kind === 'start' || update.command.kind === 'cancel') &&
+      hasActiveExecution &&
+      state.channelUserKey !== update.channelUserKey
+    ) {
+      this.logger.warn(
+        `chat-channel /${update.command.kind} 를 실행 소유자가 아닌 사용자가 보내 수신 확인만 한다 (trigger=${trigger.id}, provider=${config.provider})`,
+      );
+      return this.ackDroppedUpdateAndIgnore(input, config, adapter);
+    }
+
     // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop. 매핑은 읽은 실행을 가리킬 때만
     // 비운다. 취소하는 사이 `/start` 가 대화를 새 실행에 이었다면 그 매핑을 지우지 않는다
     // (NERV Task `CLE-T-V4WVF2`). 취소를 큐에 넣지 못했으면 실행이 입력 대기에 그대로 있으므로

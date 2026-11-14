@@ -1638,6 +1638,35 @@ describe('HooksService', () => {
         expect(mockAdapter.ackInteraction).toHaveBeenCalled();
       });
 
+      // NERV Task `CLE-T-G2JRMF`: Slack 슬래시 명령은 채널에서도 받으므로 채널 구성원이 남의 실행을
+      // 취소하거나 이어받을 수 있었다. 소유자가 아니면 실행을 건드리지 않고 기본 응답으로만 답한다.
+      it.each(['start', 'cancel'])(
+        '실행 소유자가 아닌 사람의 슬래시 명령 %s 는 실행을 건드리지 않고 수신 응답으로만 답한다',
+        async (kind) => {
+          defaultInteractionResponse.mockReturnValue({
+            body: COMMAND_RECEIVED,
+          });
+          mockAdapter.parseUpdate.mockResolvedValue({
+            ...updateOf({ kind }),
+            channelUserKey: 'member-2',
+          });
+          conversationService.lookup.mockResolvedValue(waitingState());
+          markExecutionStatus('waiting_for_input');
+          const executions = moduleRef.get(ExecutionsService) as {
+            stop: jest.Mock;
+          };
+
+          const res = await service.handleWebhook('abc', interactionInput(2));
+
+          expect(res).toEqual({
+            executionId: 'ignored',
+            providerResponse: { body: COMMAND_RECEIVED },
+          });
+          expect(executions.stop).not.toHaveBeenCalled();
+          expect(engine.execute).not.toHaveBeenCalled();
+        },
+      );
+
       it('기본 응답이 없으면(PING 외 type 등) 지금처럼 202 로 답한다', async () => {
         defaultInteractionResponse.mockReturnValue(undefined);
         mockAdapter.parseUpdate.mockResolvedValue(updateOf({ kind: 'start' }));
@@ -3456,6 +3485,108 @@ describe('HooksService', () => {
       // interact 가 호출되면 안 됨.
       expect(interactionService.interact).not.toHaveBeenCalled();
       expect(res).toMatchObject({ executionId: 'exec-active' });
+    });
+
+    // 근거: NERV Task `CLE-T-G2JRMF`(2026-11-14 사람 결정). 활성 실행이 있는 대화의 `/start` · `/cancel` 은
+    // 실행 소유자(대화 상태의 `channelUserKey`)만 쓴다. 소유자가 아니면 실행을 건드리지 않고 버린 update 의
+    // 수신 확인만 보낸다(안내 문구 없음). 양식 버튼 · 제출의 소유자 확인과 같은 처리다.
+    describe('실행 소유자가 아닌 사람의 /start · /cancel', () => {
+      let executions: {
+        stop: jest.Mock;
+        executionRepository: { findOne: jest.Mock };
+      };
+      let ackDroppedUpdate: jest.Mock;
+
+      beforeEach(() => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        executions = moduleRef.get(ExecutionsService);
+        conversationService.lookup.mockResolvedValue({
+          executionId: 'exec-owner',
+          threadId: 'default',
+          channelUserKey: 'user-456',
+          startedAt: '2026-11-14T00:00:00.000Z',
+          lastUpdateAt: '2026-11-14T00:00:00.000Z',
+        });
+        ackDroppedUpdate = jest.fn().mockResolvedValue(undefined);
+        Object.assign(mockAdapter, { ackDroppedUpdate });
+        engine.execute.mockResolvedValue('exec-new');
+      });
+
+      const commandFrom = (kind: 'start' | 'cancel', channelUserKey: string) =>
+        mockAdapter.parseUpdate.mockResolvedValue({
+          conversationKey: 'chat-123',
+          channelUserKey,
+          command: { kind },
+          idempotencyKey: '3001',
+          receivedAt: new Date().toISOString(),
+        });
+
+      it.each([
+        ['start', 'waiting_for_input'],
+        ['start', 'running'],
+        ['start', 'pending'],
+        ['cancel', 'waiting_for_input'],
+        ['cancel', 'running'],
+        ['cancel', 'pending'],
+      ] as const)(
+        '/%s (실행 %s) — 취소도 새 실행도 없이 수신 확인만 보낸다',
+        async (kind, status) => {
+          commandFrom(kind, 'member-999');
+          executions.executionRepository.findOne.mockResolvedValue({ status });
+
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expect(executions.stop).not.toHaveBeenCalled();
+          expect(engine.execute).not.toHaveBeenCalled();
+          expect(conversationService.upsert).not.toHaveBeenCalled();
+          expect(
+            conversationService.clearExecutionIdIfMatches,
+          ).not.toHaveBeenCalled();
+          // 안내 문구(실행 중 안내 포함)를 보내지 않는다.
+          expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+          expect(ackDroppedUpdate).toHaveBeenCalledWith(
+            chatInput.body,
+            expect.objectContaining({ provider: 'telegram' }),
+          );
+        },
+      );
+
+      it.each(['start', 'cancel'] as const)(
+        '소유자의 /%s 는 지금처럼 기존 실행을 취소한다',
+        async (kind) => {
+          commandFrom(kind, 'user-456');
+          executions.executionRepository.findOne.mockResolvedValue({
+            status: 'waiting_for_input',
+          });
+
+          await service.handleWebhook('abc', chatInput);
+
+          expect(executions.stop).toHaveBeenCalledWith('exec-owner');
+          expect(ackDroppedUpdate).not.toHaveBeenCalled();
+        },
+      );
+
+      it('활성 실행이 없으면 누구나 /start 로 새로 시작하고 보낸 사람이 대화의 소유자가 된다', async () => {
+        commandFrom('start', 'member-999');
+        executions.executionRepository.findOne.mockResolvedValue({
+          status: 'completed',
+        });
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(executions.stop).not.toHaveBeenCalled();
+        expect(res).toEqual({ executionId: 'exec-new', status: 'pending' });
+        expect(conversationService.upsert).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          expect.objectContaining({
+            executionId: 'exec-new',
+            channelUserKey: 'member-999',
+          }),
+        );
+        expect(ackDroppedUpdate).not.toHaveBeenCalled();
+      });
     });
 
     // 근거: NERV Task `CLE-T-V4WVF2`. `/cancel` 은 대화가 읽은 실행을 아직 가리킬 때만 매핑을 비운다.
