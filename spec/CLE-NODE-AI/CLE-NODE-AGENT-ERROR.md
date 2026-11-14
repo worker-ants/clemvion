@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-ERROR"
 title: "AI 에이전트 노드 — 에러와 타임아웃"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT"]
 area: "CLE-NODE-AI"
-content_hash: "44553abf452a4bc02bc969d145443cbd73f4ce29f6d5c0b61350a38391c0b8bf"
+content_hash: "99b7777245d397960b84ca1a36fb378dd67bb73471864a674f7ca883cc88b1e8"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0R5SYN"
 source_paths: []
-mirror_sha256: "55af611ce76321e95fbbbcfe8e4739a9ad05c6aec43376800b8c6798e7cb8b73"
-etag: "sha256-558a04a88331ed407ea0e8c772dd32a81e0a05c7347abe483a21d5062092066b"
+mirror_sha256: "7152d756f953fe2b4917900908433334c00aa541e5ae245e6ba9283efa69127b"
+etag: "sha256-86ac025b084125863de82bddaf9df2701b3998ae9846adcbd2b855c9907a0d5b"
 ---
 ## 개요
 
@@ -31,15 +31,15 @@ etag: "sha256-558a04a88331ed407ea0e8c772dd32a81e0a05c7347abe483a21d5062092066b"
 
 ## LLM 호출 타임아웃
 
-턴 응답을 만드는 LLM `chat` 호출(단일 턴 2곳, 멀티턴 재개 2곳. 각각 첫 호출과 도구 루프 호출)에 호출당 앱 레벨 타임아웃을 건다. 마지막 턴 다시 시도도 재개 경로라 같은 타임아웃을 받는다. 롤링 요약(`summary_buffer`)의 요약 호출에는 걸지 않는다. 그 호출이 실패하면 그 턴이 실패한다. 다른 AI 노드와 그 밖의 호출 경로의 값은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
+턴 응답을 만드는 LLM `chat` 호출(단일 턴 2곳, 멀티턴 재개 2곳. 각각 첫 호출과 도구 루프 호출)에 호출당 앱 레벨 타임아웃을 건다. 마지막 턴 다시 시도도 재개 경로라 같은 타임아웃을 받는다. 롤링 요약(`summary_buffer`·`persistent` 전략)의 요약 호출도 같은 타임아웃을 받는다. 단일 턴의 요약 호출은 노드 취소 신호(`context.abortSignal`)도 받는다. 멀티턴 재개에는 신호 소스가 없다. 그래서 재개 턴의 요약 호출도 그 턴의 다른 `chat` 호출처럼 앱 타임아웃과 턴 경계의 취소 관측으로 끝난다. 요약 호출이 실패하면 그 턴이 실패한다. 다른 AI 노드와 그 밖의 호출 경로의 값은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
 
-- 환경 변수 `AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 600000ms(10분), `0` 이면 끈다. `LlmService.chat` 은 `opts.timeoutMs > 0` 이면 `withTimeout`(자체 `AbortController`)으로 경쟁시켜 넘으면 예외를 던진다. 새 에러 코드는 없다.
+- 환경 변수 `AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 600000ms(10분), `0` 이면 끈다. `0` 이면 `LlmService.chat` 의 기본값 10분도 걸리지 않는다. `LlmService.chat` 은 `opts.timeoutMs > 0` 이면 `withTimeout`(자체 `AbortController`)으로 경쟁시켜 넘으면 예외를 던진다. 새 에러 코드는 없다.
 - 단일 턴과 멀티턴 재개 모두 공유 분류 모듈 `llm-error-payload.ts` 가 이 예외를 재시도 가능 `LLM_CALL_FAILED`(네트워크 타임아웃 계열)로 분류한다. AI 에이전트 경로는 `LLM_TIMEOUT` 을 내지 않는다. `error-codes.ts` 의 `LLM_TIMEOUT` 은 어느 경로도 내지 않는 별개 enum 이며 정리는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 소관이다.
 - 단일 턴의 타임아웃도 `error` 포트로 간다. 노드 signal 이 abort 되지 않은 채 끝난 AbortError 는 타임아웃으로 분류한다. 1차 목적은 무기한 멈춤에 상한을 두는 것이다.
 - 타임아웃은 노드 `abortSignal` 과 독립이다. 재개 경로에는 전파할 signal 이 없다. 사용자 중단은 `AbortController` 없이 Execution 행만 UPDATE 하고, `AbortController` 를 만드는 곳은 `parallel-executor.ts` 한 곳뿐이다. 그래서 재개 경로 취소는 턴 경계 DB 관측 가드가 맡는다(2026-07-27 구현, [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다.
 - 프로바이더 SDK 요청 타임아웃과 나란히 걸려 먼저 발화하는 쪽이 실제 상한이다. SDK 타임아웃 값과 재전송은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다. 앱 레벨은 SDK 타임아웃이 없는 구성의 긴 멈춤과 호출당 단일 손잡이 역할을 한다. 앱 레벨을 1차 상한으로 쓰려면 SDK 보다 낮게 준다. 모든 LLM 호출에 120초를 거는 공통 기준은 없다(2026-10-10 결정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01).
 - `LlmService.chat` 은 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 HTTP 요청을 취소해 소켓이 남지 않는다(`listModels` 와 같은 패턴). Google 클라이언트도 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 signal 을 받지 않아 이 배선 밖이다(후속).
-- 이 배선은 AI 에이전트 전용이다. 텍스트 분류기·정보 추출기로 넓히는 것은 후속이다.
+- `AI_AGENT_LLM_CALL_TIMEOUT_MS` 는 AI 에이전트 전용이다. 텍스트 분류기·정보 추출기처럼 `timeoutMs` 를 넘기지 않는 호출에는 `LlmService.chat` 의 기본값 10분이 걸린다([AI 노드 공통](CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃)).
 
 ## 진단 메타 포함 조건
 
@@ -103,7 +103,7 @@ etag: "sha256-558a04a88331ed407ea0e8c772dd32a81e0a05c7347abe483a21d5062092066b"
 
 ### LLM 호출 앱 레벨 타임아웃을 둔 근거
 
-도구 정의 크기 예산은 팽창에 의한 멈춤의 근본 원인을 막지만, 네트워크 지연이나 모델 stall 같은 다른 이유의 무기한 멈춤에는 앱 레벨 상한이 없었다. 이를 심층 방어로 보완한다. 기본값 10분은 정상적인 긴 생성(큰 출력, extended thinking)을 해치지 않으면서 무기한 멈춤만 끊는 값이다. 다만 SDK 에 약 120초 요청 타임아웃을 준 프로바이더(OpenAI 계열·Anthropic)에서는 SDK 쪽이 먼저 끊는다. 그래서 이 설명은 SDK 타임아웃이 없는 Google 과, SDK 재전송으로 늘어나는 누적 시간에만 맞는다(2026-10-23 정정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 Rationale). OpenAI·Anthropic SDK 라이브러리 기본 요청 타임아웃도 10분이다(이 앱은 SDK 클라이언트에 120초를 준다, NF-AI-01). AI 에이전트에만 둔 이유는 재개 다단계 도구 반복 때문에 멈춤 노출면이 가장 넓어서다.
+도구 정의 크기 예산은 팽창에 의한 멈춤의 근본 원인을 막지만, 네트워크 지연이나 모델 stall 같은 다른 이유의 무기한 멈춤에는 앱 레벨 상한이 없었다. 이를 심층 방어로 보완한다. 기본값 10분은 정상적인 긴 생성(큰 출력, extended thinking)을 해치지 않으면서 무기한 멈춤만 끊는 값이다. 다만 SDK 에 약 120초 요청 타임아웃을 준 프로바이더(OpenAI 계열·Anthropic)에서는 SDK 쪽이 먼저 끊는다. 그래서 이 설명은 SDK 타임아웃이 없는 Google 과, SDK 재전송으로 늘어나는 누적 시간에만 맞는다(2026-10-23 정정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 Rationale). OpenAI·Anthropic SDK 라이브러리 기본 요청 타임아웃도 10분이다(이 앱은 SDK 클라이언트에 120초를 준다, NF-AI-01). AI 에이전트에만 둔 이유는 재개 다단계 도구 반복 때문에 멈춤 노출면이 가장 넓어서다. 2026-11-14 부터는 `timeoutMs` 를 넘기지 않는 다른 `chat` 호출에도 `LlmService.chat` 기본값 10분이 걸린다([AI 노드 공통 Rationale](CLE-NODE-AI-COMMON.md#앱-타임아웃이-없던-호출의-상한을-정한다-2026-11-14)).
 
 2026-10-10 에 NF-AI-01 의 공통 120초 기준을 거두고 호출 경로별 현행 값을 적기로 했다. 이 노드의 10분 기본값은 그대로 둔다. 120초로 낮추면 Google 에서 긴 생성이 끊긴다. 다른 프로바이더에서는 SDK 타임아웃이 먼저 걸려 차이가 작다. 결정과 기각한 대안은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
 
@@ -127,8 +127,8 @@ etag: "sha256-558a04a88331ed407ea0e8c772dd32a81e0a05c7347abe483a21d5062092066b"
 
 - **멀티턴 재개와 맞춘다.** 멀티턴 재개는 요약 실패를 엔진의 턴 에러 처리(`handleAiTurnError`)로 받아 이미 `error` 포트로 보냈다. 단일 턴만 throw 라서 같은 실패가 모드에 따라 다르게 끝났다. 분류도 같은 함수(`extractAiTurnErrorPayload`)를 쓴다. 요약 호출의 provider 에러는 [에러 코드](#에러-코드) 의 HTTP status 기준으로 나뉜다. 요약 모델 설정을 찾지 못한 에러는 429·5xx·네트워크 신호가 없어 재시도 불가 `LLM_CALL_FAILED` 로 나온다.
 - **요약을 건너뛰고 턴을 이어 가는 안은 기각했다.** 회수·중복 탐색 같은 메모리 보조 호출은 실패해도 턴을 이어 간다([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)). 요약도 그렇게 하면 노드가 덜 실패한다. 하지만 요약 없이 이어 가려면 예산을 넘은 원문 이력을 그대로 넣거나 잘라 넣어야 한다. 그대로 넣으면 메모리 토큰 예산(`memoryTokenBudget`)을 지키지 못한다. 잘라 넣으면 사용자 모르게 맥락을 잃는다. 멀티턴 재개도 요약 실패를 턴 실패로 다룬다. 그래서 두 모드를 맞추는 쪽을 골랐다.
-- **동작이 바뀐다.** 이제는 `error` 포트 출력이라 노드 에러 처리 정책이 걸리지 않는다. 요약 호출에는 앱 타임아웃이 없어서 응답이 오지 않는 호출은 이 처리로도 끝나지 않는다. 그 상한은 [AI 노드 공통 미결 사항](CLE-NODE-AI-COMMON.md#미결-사항) 이 다룬다(NERV Task `CLE-T-0R5SYN`).
-- **노드 취소는 `error` 포트로 보내지 않는다.** 노드 signal 이 abort 된 뒤에 요약이 실패하면 AbortError 를 던져 노드를 `cancelled` 로 끝낸다(`rethrowIfNodeCancelled`). 요약 호출에는 아직 signal 을 넘기지 않는다. 그래서 취소한 뒤에도 요약 호출은 응답이 올 때까지 이어진다. 이 공백도 `CLE-T-0R5SYN` 이 다룬다.
+- **동작이 바뀐다.** 이제는 `error` 포트 출력이라 노드 에러 처리 정책이 걸리지 않는다. 그때는 요약 호출에 앱 타임아웃이 없어서 응답이 오지 않는 호출은 이 처리로도 끝나지 않았다. 2026-11-14 에 요약 호출도 턴 응답 호출과 같은 앱 타임아웃을 받게 했다([AI 노드 공통 Rationale](CLE-NODE-AI-COMMON.md#앱-타임아웃이-없던-호출의-상한을-정한다-2026-11-14), NERV Task `CLE-T-0R5SYN`).
+- **노드 취소는 `error` 포트로 보내지 않는다.** 노드 signal 이 abort 된 뒤에 요약이 실패하면 AbortError 를 던져 노드를 `cancelled` 로 끝낸다(`rethrowIfNodeCancelled`). 그때는 요약 호출에 signal 을 넘기지 않아 취소한 뒤에도 요약 요청이 응답이 올 때까지 남았다. 2026-11-14 부터는 단일 턴의 요약 호출에도 노드 취소 신호(`context.abortSignal`)를 넘겨 요청을 바로 끊는다(NERV Task `CLE-T-0R5SYN`). 멀티턴 재개에는 신호 소스가 없어서 재개 턴의 요약 요청은 그 턴의 다른 `chat` 호출처럼 앱 타임아웃이나 응답이 올 때까지 남는다. 그 턴의 취소는 턴 경계의 취소 관측이 처리한다.
 - **호출 순서를 바꿨다.** 2026-11-01 에 이 범위를 뺀 이유가 설정 에코 조립과 호출 순서였다. 메모리 주입을 설정 에코 조립 뒤로 옮기고 주입만 감싸는 catch 를 두었다. 도구 목록 구성(`buildTools`)과 턴 응답 LLM 호출 경로는 바꾸지 않았다. `ai_user` 턴은 메모리 주입 전에 넣으므로 실패해도 남는다. 응답 턴과 메모리 추출은 만들지 않는다. 2026-11-01 결정과 같다.
 - **`meta` 토큰은 0 이다.** `meta` 토큰은 턴 응답 LLM 호출만 센다. 요약 호출의 사용량은 정상 완료에서도 `meta` 토큰에 넣지 않는다.
 - **노드 LLM 설정 조회 실패는 이번 범위에서 뺐다.** 단일 턴에서 노드 LLM 설정(`llmConfigId`)을 조회하지 못하면 아직 throw 로 끝난다. 이 조회는 실행 맨 앞에 있다. `error` 출력의 `meta.model` 과 설정 에코가 그 결과(모델 이름)를 쓴다. catch 를 넓히려면 모델을 모르는 `error` 출력의 모양부터 정해야 한다. 남은 범위는 NERV Task `CLE-T-T8FVCG` 가 맡는다.

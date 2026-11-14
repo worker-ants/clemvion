@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-LOOP"
 title: "워크플로우 AI 어시스턴트 — 대화 루프와 턴 가드"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
-content_hash: "b5afa292077e2b68670b5f58f897659316604b018900bb17a34328c826179e60"
+content_hash: "0f7002197a56195ef5eca83ca5088f29f82dd4dacc086d5badd0ef16a920d85b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0R5SYN"
 source_paths: []
-mirror_sha256: "3c47e0f6f7c21d2ed57fa2f0e151884acd3314344d343c2f328ac63ce228ef68"
-etag: "sha256-7e81621fce31ebfc320bde6efba1e0fe92ca25463538b2cdaea279868235b3a7"
+mirror_sha256: "a0d52e14050e7a4abb39e14a994574429c095c192fe6a1eaba898dafd2c18131"
+etag: "sha256-23d626a2ce1900810088afcf0968f3f78b1b086b81e31911ea3139a28d4e301a"
 ---
 ## 개요
 
@@ -79,8 +79,8 @@ AI 어시스턴트는 세 단계를 자유롭게 오간다. 단계는 상태 기
 
 어시스턴트는 스트리밍 호출(`chatStream`)만 쓰고 앱 타임아웃을 걸지 않는다. 턴이나 호출마다 거는 120초 한도는 없다(2026-10-10 결정, [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01).
 
-- 프로바이더 SDK 의 요청 타임아웃과 재전송은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다. SDK 요청 타임아웃이 나면 턴은 [에러 처리](CLE-WF-ASSIST-ERROR.md#에러-처리) 표의 스트림 실패 코드로 끝난다. 어느 코드가 오는지는 프로바이더에 따라 다르다.
-- 응답 헤더가 온 뒤 토큰이 멈추면 서버가 잡지 못한다. 사용자가 중지(Stop)로 턴을 끊는다. 유휴 감지를 둘지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 미결이다.
+- 프로바이더 SDK 의 요청 타임아웃과 재전송은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다. SDK 요청 타임아웃이 나면 턴은 `LLM_CONNECTION_ERROR` 로 끝난다([에러 처리](CLE-WF-ASSIST-ERROR.md#에러-처리)). 모델 프로바이더와 상관없이 같은 코드다. Google 은 SDK 요청 타임아웃이 없다.
+- 응답 헤더가 온 뒤 토큰이 멈추면 서버가 잡지 못한다. 사용자가 중지(Stop)로 턴을 끊는다. 스트림 유휴 감지는 두지 않는다([LLM 클라이언트 「LLM 호출의 공통 상한을 정한다」](../CLE-AI/CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다-2026-11-14)).
 - `LLM_TIMEOUT` 코드는 내지 않는다.
 
 ### 어시스턴트 도구 호출 한도
@@ -263,7 +263,7 @@ flowchart TD
 
 원문은 단일 턴 타임아웃을 "LLM 클라이언트 §6 에 따라 120초" 로 적고 `LLM_TIMEOUT` 에러와 안내 문구를 두었다. 원본 ED-AI-32 도 NF-AI-01 을 들어 120초로 적었다. 그런데 NF-AI-01 은 스트리밍을 뺐고 어시스턴트는 스트리밍만 쓴다. LLM 클라이언트에도 120초 규정이 없고 어시스턴트 모듈에도 그런 타임아웃이 구현된 적이 없다.
 
-2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 120초와 `LLM_TIMEOUT` 약속을 거두고 스트림 실패 요구사항을 다시 적었다(그때 적은 «사유» 는 2026-10-23 에 코드별 안내 문구로 바꿨다). 스트리밍 턴에 앱 타임아웃을 두는 안은 기각했다. 턴 전체에 한도를 걸면 길지만 정상인 응답도 끊긴다. 토큰이 멈춘 것만 잡는 유휴 감지는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 의 «앱 타임아웃이 없는 호출의 상한» 에서 함께 정한다. 공통 결정은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
+2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 120초와 `LLM_TIMEOUT` 약속을 거두고 스트림 실패 요구사항을 다시 적었다(그때 적은 «사유» 는 2026-10-23 에 코드별 안내 문구로 바꿨다). 스트리밍 턴에 앱 타임아웃을 두는 안은 기각했다. 턴 전체에 한도를 걸면 길지만 정상인 응답도 끊긴다. 토큰이 멈춘 것만 잡는 유휴 감지는 이 결정에서 정하지 않았다. 2026-11-14 에 두지 않기로 정했다([AI 노드 공통 「앱 타임아웃이 없던 호출의 상한을 정한다」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#앱-타임아웃이-없던-호출의-상한을-정한다-2026-11-14)). 공통 결정은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다.
 
 ### 유지보수 점검
 

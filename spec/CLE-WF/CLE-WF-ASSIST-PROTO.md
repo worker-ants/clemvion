@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
 content_hash: "6d02040cff1d7ffd1743be2da6b3719011f5a51b1b69edb21487ae82b3d9597b"
 read_as: "approved_fallback"
-task: "CLE-T-0VS826"
+task: "CLE-T-0R5SYN"
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "8376fa3bef6e3411cab3bc9256779c1169ffb1d152bc165853033fe99991f055"
-etag: "sha256-2b68f1d9594f91c29ee4f1c96f3dd91c956ed5e9fe4f13724ca4159525d3a48c"
+mirror_sha256: "4fe1b270f5e1b86ef77ecbbae85f2da4096ee02e00e34dc650f2426b5b90bfa6"
+etag: "sha256-c0dd58e2195037601a1b874d43aa80b1ac4b24f7642ea18c45ac735d003e20f3"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

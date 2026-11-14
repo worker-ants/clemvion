@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM-SERVICE"
 title: "LLM 클라이언트 — 서비스 계층과 모델 목록"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-LLM"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-LLM"]
 area: "CLE-AI"
-content_hash: "10406ad598098258f4d3426bdba7adeed39247b2dc2f37c664565849719b7213"
+content_hash: "9312ce894e81979fa8adc725dc65a9c3167456ddf93a2759560ad25a126be811"
 read_as: "approved_fallback"
-task: "CLE-T-GG3WPZ"
+task: "CLE-T-0R5SYN"
 source_paths: []
-mirror_sha256: "8d147808be9d2434eb2b73f86d05ae565fbe9bcf6c910a46cc8aaf55ecf16b75"
-etag: "sha256-61ffaf2450dcf6f8639f5458ec28fef7633dcd316649e4819243b307a2f1c46c"
+mirror_sha256: "903206655a4e9e4795f78a5afecd609c2b7c545b02642beed8e96d5bed031099"
+etag: "sha256-e42c83497c5265b5d4168d882cf73c3e22238a0e8e7909524b69a8f887cf0aba"
 ---
 ## 개요
 
@@ -58,13 +58,13 @@ class LlmService {
 
 `chat` 호출은 `LlmCallOptions` 로 다음을 제어한다.
 
-- `timeoutMs`: 0 이거나 없으면 타임아웃을 걸지 않는다. 값이 있으면 `withTimeout` race 로 건다.
-- 프로바이더 SDK 에도 요청 타임아웃이 따로 있다. OpenAI·Anthropic·Azure OpenAI·Local(OpenAI 계열) 클라이언트는 SDK 를 만들 때 약 120초 요청 타임아웃이 들어간다. `timeoutMs` 는 이 SDK 타임아웃과 나란히 걸리고 먼저 발화하는 쪽이 실제 상한이다. 앱 레벨 값을 1차 상한으로 쓰려면 SDK 타임아웃보다 낮게 준다. Google 클라이언트는 SDK 를 만들 때 요청 타임아웃을 주지 않아(`new GoogleGenAI({ apiKey, apiVersion })`) SDK 타임아웃이 없다. SDK 요청 타이머는 응답 헤더가 오면 멈추고, OpenAI·Anthropic SDK 는 타임아웃 난 요청도 기본 2회(`maxRetries`) 다시 보낸다. 그래서 한 호출이 SDK 타임아웃만으로 끝나기까지는 120초보다 길 수 있다. 노드별 앱 레벨 기본값(예: `AI_AGENT_LLM_CALL_TIMEOUT_MS`)은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다. 모든 호출에 거는 공통 앱 타임아웃은 없다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
-- `withTimeout` 은 콜백에 넘기는 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 프로바이더 HTTP 요청도 취소되므로 소켓이 남지 않는다(`listModels` 와 같은 방식). Google 클라이언트는 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 `client.embed` 가 signal 을 받지 않아 이 배선 밖이다.
+- `timeoutMs`: 주지 않으면 공통 기본값 10분(`LLM_CHAT_DEFAULT_TIMEOUT_MS = 600_000`)을 건다. `0` 이나 음수를 주면 타임아웃을 걸지 않는다. 0 보다 크면 `withTimeout` race 로 건다. 타임아웃은 `withRetry` 의 시도마다 따로 걸린다. 타임아웃이 난 시도는 다시 하지 않는다. `embed` 는 `timeoutMs` 를 받았을 때만 건다. 근거는 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다-2026-11-14) 에 있다.
+- 프로바이더 SDK 에도 요청 타임아웃이 따로 있다. OpenAI·Anthropic·Azure OpenAI·Local(OpenAI 계열) 클라이언트는 SDK 를 만들 때 120초 요청 타임아웃이 들어간다. `timeoutMs` 는 이 SDK 타임아웃과 나란히 걸리고 먼저 발화하는 쪽이 실제 상한이다. 앱 레벨 값을 1차 상한으로 쓰려면 SDK 타임아웃보다 낮게 준다. Google 클라이언트는 SDK 를 만들 때 요청 타임아웃을 주지 않아(`new GoogleGenAI({ apiKey, apiVersion })`) SDK 타임아웃이 없다. SDK 요청 타이머는 응답 헤더가 오면 멈춘다. OpenAI·Anthropic SDK 는 429 · 5xx · 연결 실패 · 요청 타임아웃을 두 번 더 보낸다. 이 횟수는 네 클라이언트(OpenAI · Azure OpenAI · Local · Anthropic)의 SDK 생성자에 `maxRetries: 2`(`LLM_SDK_MAX_RETRIES`, `clients/sdk-options.ts`)로 고정한다. 그래서 한 호출이 SDK 타임아웃만으로 끝나기까지는 재전송을 포함해 최대 약 6분 걸린다. 노드별 앱 레벨 기본값(예: `AI_AGENT_LLM_CALL_TIMEOUT_MS`)은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에서 정한다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
+- `withTimeout` 은 콜백에 넘기는 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 프로바이더 HTTP 요청도 취소되므로 소켓이 남지 않는다(`listModels` 와 같은 방식). 타임아웃을 끄면(`0`) 호출자 `opts.signal` 만 넘긴다. Google 클라이언트는 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 `client.embed` 가 signal 을 받지 않아 이 배선 밖이다.
 - `signal`: [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규약을 따른다. 취소되면 SDK 가 바로 throw 하고 재시도 대상이 아니다.
 - `disableInnerRetry`: 호출하는 쪽에 자체 재시도 층(예: 지식 저장소의 `retryWithBackoff`)이 있으면 내부 재시도를 꺼서 호출이 불어나지 않게 한다.
-- 내부 `withRetry` 는 rate limit(HTTP 429 또는 "rate limit") 에만 최대 3회 재시도한다. RFC 7231 `Retry-After` 헤더(delta-seconds 또는 HTTP-date)가 있으면 그 값을 따르되 상한은 60초다. 없으면 지수 백오프를 쓴다.
-- `chatStream` 은 `withRetry` 를 거치지 않는다. 스트림을 열 때도 도중에도 앱이 다시 시도하지 않고 실패를 호출하는 쪽에 그대로 넘긴다.
+- 내부 `withRetry` 는 rate limit(HTTP 429 또는 "rate limit") 에만 최대 3회 재시도한다. RFC 7231 `Retry-After` 헤더(delta-seconds 또는 HTTP-date)가 있으면 그 값을 따르되 상한은 60초다. 없으면 지수 백오프를 쓴다. `withRetry` 의 시도마다 SDK 재전송이 따로 일어나므로 두 재시도는 곱해진다. 429 가 이어지면 한 `chat` 호출이 프로바이더에 최대 12번 요청을 보낸다(앱 시도 4번 × SDK 3번).
+- `chatStream` 에는 앱 재시도(`withRetry`)도 앱 타임아웃도 없다. 스트림을 열 때도 도중에도 앱이 다시 시도하지 않는다. OpenAI 계열과 Anthropic 은 스트림을 열 때 위 SDK 재전송만 있다. 열 때의 실패와 도중의 실패는 클라이언트가 스트림 `error` 이벤트로 넘긴다. 스트림을 여는 중에 취소되면 `done`(finishReason=`aborted`)으로 끝난다. 매핑은 [스트리밍 에러 매핑](CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑) 에 있다. 근거는 [LLM 클라이언트 Rationale](CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다-2026-11-14) 에 있다.
 - 호출하는 쪽이 메시지에 붙인 `source` 마커(WebSocket emit 메타)는 프로바이더로 보내기 전에 떼어 낸다.
 - chat 계열 호출은 끝난 뒤 사용량을 fire-and-forget 으로 기록한다. `chatStream` 은 `done` 이벤트에서만 기록한다. 적재 규칙은 [LLM 사용량 기록](CLE-AI-USAGE.md) 에서 정한다.
 
@@ -159,9 +159,9 @@ class LlmService {
 
 ### LLM 호출 타임아웃을 호출 경로별로 적는다 (2026-10-10)
 
-AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구했다. 클라이언트 계층은 `timeoutMs` 를 받지 않으면 앱 타임아웃을 걸지 않고, 120초는 일부 SDK 의 요청 타임아웃으로만 걸린다. 호출하는 쪽 값도 제각각이었다(AI 에이전트 10분, 어시스턴트 문서는 스트리밍 턴에 120초와 `LLM_TIMEOUT`).
+AI 제품 요구사항 NF-AI-01 은 LLM 호출 타임아웃을 120초(스트리밍 제외)로 요구했다. 당시 클라이언트 계층은 `timeoutMs` 를 받지 않으면 앱 타임아웃을 걸지 않았다. 120초는 일부 SDK 의 요청 타임아웃으로만 걸렸다. 호출하는 쪽 값도 제각각이었다(AI 에이전트 10분, 어시스턴트 문서는 스트리밍 턴에 120초와 `LLM_TIMEOUT`).
 
-2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 클라이언트 계층은 지금처럼 호출자가 주는 `timeoutMs` 만 걸고 공통 기본값을 두지 않는다. 공통 기본값을 둘지는 이 결정에서 따지지 않았다(2026-10-23 정정, [미결 사항](CLE-AI-LLM.md#미결-사항)). 타임아웃을 `LLM_TIMEOUT` 으로 옮기지도 않는다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 스트리밍에 타임아웃을 두는 안을 기각한 근거도 그 문서의 Rationale 에 있다.
+2026-10-10 에 사람이 문서를 코드에 맞추기로 정했다. 그래서 그때 문서는 클라이언트 계층이 호출자가 준 `timeoutMs` 만 걸고 공통 기본값은 두지 않는다고 적었다. 공통 기본값을 둘지는 이 결정에서 따지지 않았다(2026-10-23 정정). `chat` 의 공통 기본값 10분은 그 뒤 2026-11-14 에 정했다([LLM 클라이언트 「LLM 호출의 공통 상한을 정한다」](CLE-AI-LLM.md#llm-호출의-공통-상한을-정한다-2026-11-14)). 타임아웃을 `LLM_TIMEOUT` 으로 옮기지 않는다는 결정은 지금도 그대로다. 호출 경로별 값은 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다. AI 에이전트의 앱 기본값 10분을 120초로 낮추는 안과 스트리밍에 타임아웃을 두는 안을 기각한 근거도 그 문서의 Rationale 에 있다.
 
 ### 종류와 상관없이 설정을 찾는 이유
 

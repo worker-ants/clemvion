@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 37
+version: 38
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "98e893007047d0867861c8d5eb8645f839eacc7e077f687ecd67ccd792a3f227"
+content_hash: "ffe44e8786208cc15eff10398f6b31d76f5d5fe64e1514872a49a061222f89ed"
 read_as: "approved_fallback"
-task: "CLE-T-9KCQ7Y"
+task: "CLE-T-0R5SYN"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "c6dd12e9aab6d3f931bb7579772a5e48f44c04ad0022f404eb72b0b5d77fdfc5"
-etag: "sha256-0847ffc1ed1bb99e4ef54846a8f275bcc4391cb45747970b6f2b6b920a8cdb67"
+mirror_sha256: "98b6a9869ebeefa03e15eafac113acdc7c894bf363023b67f19304a31660044f"
+etag: "sha256-5e8bee22d0fbbd2ae85e9d8010dc0771b54fcbbd1acc89bd50fd6412817f5ba5"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -144,7 +144,7 @@ etag: "sha256-0847ffc1ed1bb99e4ef54846a8f275bcc4391cb45747970b6f2b6b920a8cdb67"
 ## 미결 사항
 
 - **발행처가 없는 등재 코드**: `DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. `INTERACTION_TIMEOUT`(§6.7)도 `error-codes.ts` 에 정의만 있고 발행처가 없다(2026-11-12 grep 0건). [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 재개 명령 에러 표에도 있어 함께 정한다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
-- **어시스턴트 스트림 코드의 프로바이더 분기**: §6.25 의 코드에는 규칙과 맞지 않는 점이 두 가지 있다. 규칙 4 와는 같은 429 와 SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가는 점이 어긋난다(429 는 Anthropic·Google 이면 `LLM_RATE_LIMIT`, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED`). 규칙 6 과는 `ASSISTANT_STREAM_FAILED` 한 코드가 429 · SDK 타임아웃 · 모델 설정 조회 실패 · 서비스 내부 실패를 함께 담는 점이 어긋난다. 프로바이더 분기를 통일할지는 NERV Task `CLE-T-0R5SYN` 이 정한다.
+- **`ASSISTANT_STREAM_FAILED` 의 원인 묶음**: §6.25 의 `ASSISTANT_STREAM_FAILED` 한 코드에 클라이언트 생성 실패(모델 설정 값 오류 · 키 복호화 실패 등), 모델 설정 조회 실패(DB 장애 등), 서비스 내부 실패가 함께 담긴다. 설정 값 오류는 다시 보내도 같은 결과지만 나머지는 일시적일 수 있어 규칙 6 과 맞지 않을 수 있다. 코드를 나눌지 결정이 필요하다. 같은 429 · SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가던 규칙 4 의 어긋남은 2026-11-14 에 풀었다([LLM 클라이언트 · AI 어시스턴트 「어시스턴트 스트림 코드의 프로바이더 분기를 없앴다」](CLE-API-ERRCODES-LLM.md#어시스턴트-스트림-코드의-프로바이더-분기를-없앴다-2026-11-14)).
 - **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
 - **`LLM_TIMEOUT` 의 등재**: 2026-10-10 에 LLM 타임아웃을 이 코드로 내지 않기로 정했고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 약속도 거뒀다(§6.6). 남은 것은 `HTTP_TIMEOUT` 처럼 enum 에 남길지, 규칙 9 에 따라 등재를 지울지다. 정리는 NERV Task `CLE-T-8WXV7T` 가 다른 미발행 코드와 함께 한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 예시와 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 분류 표의 행도 그때 함께 정리한다.
 - **`RECURSION_DEPTH_EXCEEDED` 의 발행 형태**: 카탈로그는 이 코드를 등재하지만 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 는 재귀 깊이 초과를 코드 없이 메시지 `Maximum recursion depth exceeded (limit: 10)` 로 throw 한다고 적는다. 코드를 붙일지 카탈로그에서 뺄지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.

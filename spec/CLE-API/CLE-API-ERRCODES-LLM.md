@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-LLM"
 title: "에러 코드 카탈로그 — LLM 클라이언트 · AI 어시스턴트"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "eeb12d1209f8fa70e3dfa2b23ac40f4fe197106a072f5537e84fabf556ba44e7"
+content_hash: "7f2de48c28162d3528453d51f80ed3b07f1ed205e79e6e65ab4acd70f9f0cfa1"
 read_as: "approved_fallback"
-task: "CLE-T-EK4DMX"
+task: "CLE-T-0R5SYN"
 source_paths: []
-mirror_sha256: "7e7463554be08f4f1b22a114e85cd26d63f372f3f5be702a69243625da902d95"
-etag: "sha256-d0e6eab42a4f350fca7936888f6871c8738d38bcd95074cb6981758ca97750e3"
+mirror_sha256: "dbc5804804a4e27efa208370824cd8786c4907b444c72596d62e85a78999accf"
+etag: "sha256-b2b9d4deebc3952e19d4490b8c897a98e11dbaaafbe5359430880b712991281c"
 ---
 ## 개요
 
@@ -26,8 +26,8 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
-| `LLM_RATE_LIMIT` | 429 (프로바이더 응답) | 프로바이더 속도 제한. `chat` 은 지수 백오프로 최대 3회 다시 시도한다(`withRetry`). `chatStream` 은 앱 수준 재시도를 거치지 않는다. 스트림을 열 때의 프로바이더별 분기는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
-| `LLM_CONNECTION_ERROR` | 없음 | 위에 해당하지 않는 모든 클라이언트 호출 실패의 기본값(인증 실패, 모델 없음, 컨텍스트 초과 포함). 스트림을 열 때의 프로바이더별 분기는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_RATE_LIMIT` | 429 (프로바이더 응답) | 프로바이더 속도 제한. `chat` 은 지수 백오프로 최대 3회 다시 시도한다(`withRetry`). `chatStream` 은 앱 수준 재시도를 거치지 않는다. 스트림을 열 때의 429 도 프로바이더와 상관없이 스트림 `error` 이벤트의 이 코드로 온다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_CONNECTION_ERROR` | 없음 | 위에 해당하지 않는 모든 클라이언트 호출 실패의 기본값(인증 실패, 모델 없음, 컨텍스트 초과 포함). 스트림을 열 때의 실패(SDK 요청 타임아웃 포함)도 프로바이더와 상관없이 스트림 `error` 이벤트의 이 코드로 온다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_OUTPUT_MALFORMED` | 없음 | gpt-oss 계열 harmony 제어 토큰 노출(OpenAI 스트리밍 경로). `message` 는 고정 영문 진단 문장이다. 사용자에게 보일 문구는 호출하는 쪽이 코드로 고른다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_CREDENTIALS_REQUIRED` | 400 | 미리보기 요청에서 local 이 아닌 프로바이더의 apiKey 누락 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_MODEL_LIST_FAILED` | 400 | 미리보기나 `:id/models` 호출 중 프로바이더 응답 실패. 정리한 메시지를 보인다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
@@ -52,10 +52,10 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | 코드 | 설명 | 정의 문서 |
 |------|------|-----------|
 | `ASSISTANT_NO_LLM_CONFIG` | 쓸 모델 설정이 없음. 지정한 설정이 없는데 워크스페이스 기본 설정도 없거나, 지정한 설정을 찾지 못해 기본 설정으로 대신하려 했는데 기본 설정도 없음. 기본 설정이 있으면 에러 없이 대신하고 `config_fallback` 이벤트로 알린다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) |
-| `ASSISTANT_STREAM_FAILED` | 스트림을 열기 전 실패(OpenAI 계열의 429 · SDK 요청 타임아웃 포함), 모델 설정 조회 실패(DB 장애 등), 턴 처리 중 서비스 내부 실패. 원인을 나누지 않는다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) |
+| `ASSISTANT_STREAM_FAILED` | `LlmService.chatStream` 이 스트림 `error` 이벤트가 아닌 예외를 던짐(클라이언트 생성 실패 등. 스트리밍 미지원은 뺀다), 모델 설정 조회 실패(DB 장애 등), 턴 처리 중 서비스 내부 실패. 원인을 나누지 않는다. LLM 의 429 · SDK 요청 타임아웃은 스트림을 열 때도 §6.17 코드로 온다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) |
 | `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 LLM 호출 라운드 상한이나 도구 호출 예산을 넘음. `message` 에 한도 숫자가 들어간다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#어시스턴트-도구-호출-한도) |
 
-LLM 클라이언트 스트림의 `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`(§6.17)도 같은 이벤트에 코드 그대로 실린다. 다만 `message` 는 클라이언트의 진단 문구가 아니라 어시스턴트의 코드별 고정 영문이다. 정의는 §6.17 행이라 이 표에 다시 두지 않는다. 스트리밍을 지원하지 않는 프로바이더의 `LLM_STREAMING_UNSUPPORTED`(§6.17)는 LLM 클라이언트의 스트림 `error` 이벤트로 오지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던진 예외에 실려 오고, 어시스턴트는 그 예외를 SSE `error` 이벤트로 바꿀 때 이 코드를 그대로 싣는다. `message` 는 이 코드도 어시스턴트의 고정 영문이다. 다섯 프로바이더가 모두 스트리밍을 지원해 운영 환경의 발동 경로는 없다. e2e 의 LLM 스텁에는 `stream()` 이 없어 어시스턴트 e2e 에서는 이 코드가 나간다.
+LLM 클라이언트 스트림의 `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`(§6.17)도 같은 이벤트에 코드 그대로 실린다. 스트림을 열 때의 실패도 프로바이더와 상관없이 이 코드로 온다. 다만 `message` 는 클라이언트의 진단 문구가 아니라 어시스턴트의 코드별 고정 영문이다. 정의는 §6.17 행이라 이 표에 다시 두지 않는다. 스트리밍을 지원하지 않는 프로바이더의 `LLM_STREAMING_UNSUPPORTED`(§6.17)는 LLM 클라이언트의 스트림 `error` 이벤트로 오지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던진 예외에 실려 오고, 어시스턴트는 그 예외를 SSE `error` 이벤트로 바꿀 때 이 코드를 그대로 싣는다. `message` 는 이 코드도 어시스턴트의 고정 영문이다. 다섯 프로바이더가 모두 스트리밍을 지원해 운영 환경의 발동 경로는 없다. e2e 의 LLM 스텁에는 `stream()` 이 없어 어시스턴트 e2e 에서는 이 코드가 나간다.
 
 편집 도구 실패는 에러 코드가 아니다. `tool_call` 이벤트의 `result.ok: false` 로 오고 턴은 이어진다. 설계 단계에 있던 `ASSISTANT_TOOL_FAILED` · `ASSISTANT_LLM_CONFIG_INVALID` · `ASSISTANT_STREAMING_UNSUPPORTED` 는 발행된 적이 없어 등재하지 않는다(규칙 9).
 
@@ -83,3 +83,11 @@ NERV Task `CLE-T-EK4DMX` 가 2026-11-13 결정대로 `LLM_STREAMING_UNSUPPORTED`
 - **§6.25 표에 행을 더하지 않았다.** 정의는 §6.17 행이고 §6.25 는 넘긴다는 사실만 적는다는 2026-11-13 원칙을 그대로 따랐다.
 - **예외로 오는 경로를 따로 적었다.** 같은 문단의 다른 LLM 코드는 클라이언트의 스트림 `error` 이벤트로 오고 이 코드만 스트림을 열기 전 예외로 온다. 둘을 한 문장으로 묶으면 이 코드도 스트림 이벤트로 오는 것처럼 읽혀 나눠 적었다. 이 코드를 스트림 에러 코드 유니온(`LlmStreamErrorCode`)에 넣지 않은 이유는 [에러 처리와 모델 설정](../CLE-WF/CLE-WF-ASSIST-ERROR.md#스트리밍-미지원-코드를-스트림-에러-유니온-밖에-둔다-2026-11-14) 이 정본이다.
 - **§6.17 행의 설명을 던지는 곳에 맞췄다.** 이전 판은 「스트리밍을 지원하지 않는 프로바이더에 `stream()` 호출」이라 적어 클라이언트의 `stream()` 이 던지는 것처럼 읽혔다. 실제로는 `LlmService.chatStream` 이 클라이언트에 `stream()` 이 없는 것을 보고 스트림을 열기 전에 던진다. HTTP 칸은 「없음」으로 두었다. 예외 종류는 `BadRequestException` 이지만 `chatStream` 을 부르는 곳이 어시스턴트 스트림뿐이라 HTTP 응답으로 나가지 않는다.
+
+### 어시스턴트 스트림 코드의 프로바이더 분기를 없앴다 (2026-11-14)
+
+NERV Task `CLE-T-0R5SYN` 이다. OpenAI 계열 클라이언트는 스트림을 열 때의 실패를 예외로 던졌고 어시스턴트는 그 예외를 `ASSISTANT_STREAM_FAILED` 로 보냈다. 그래서 같은 429 가 Anthropic · Google 이면 `LLM_RATE_LIMIT` 로, OpenAI 계열이면 `ASSISTANT_STREAM_FAILED` 로 나갔다. 2026-11-14 에 사람이 세 클라이언트 모두 열 때의 실패를 스트림 `error` 이벤트로 내기로 정했다([LLM 클라이언트 「스트림 열기 실패를 모든 프로바이더에서 `error` 이벤트로 낸다」](../CLE-AI/CLE-AI-LLM.md#스트림-열기-실패를-모든-프로바이더에서-error-이벤트로-낸다-2026-11-14)).
+
+- **규칙 4 와 어긋나던 점은 없어졌다.** 같은 429 와 SDK 요청 타임아웃이 프로바이더와 상관없이 같은 §6.17 코드로 나간다.
+- **규칙 6 과 어긋나던 점은 줄었다.** 429 와 SDK 요청 타임아웃이 `ASSISTANT_STREAM_FAILED` 에서 빠졌다. 남은 원인은 `chatStream` 이 이벤트가 아닌 예외로 끝난 경우(클라이언트 생성 실패 등), 모델 설정 조회 실패, 서비스 내부 실패다. 모델 설정 조회 실패를 이 코드로 보내는 것은 2026-11-13 결정을 따른다([에러 처리와 모델 설정](../CLE-WF/CLE-WF-ASSIST-ERROR.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다-2026-11-13)). 나머지 원인을 코드로 나눌지는 [에러 코드 규약 「미결 사항」](CLE-API-ERRCODES.md#미결-사항) 에 남겼다.
+- **새 코드는 만들지 않았다.** 429 와 SDK 요청 타임아웃은 이미 있는 §6.17 코드로 옮겨 갔다.

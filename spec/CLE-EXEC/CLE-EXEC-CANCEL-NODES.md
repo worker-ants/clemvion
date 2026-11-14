@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL-NODES"
 title: "노드 취소 — 노드별 적용과 구현 현황"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CANCEL"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CANCEL"]
 area: "CLE-EXEC"
-content_hash: "13e3b1bbd4de260a8c577824aa703db851a30411cfd6f2c6aa59044d4d1db438"
+content_hash: "881cf22c58650ee8a5a1f716708a4a665f777082abce43ce19f1d53b0dff7d2a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0R5SYN"
 source_paths: []
-mirror_sha256: "e17ffbd85a3f6235f42c9dd3175645a5e538ee6bd5c08920ec7e19ea92872655"
-etag: "sha256-ab67b21280c436c9f2c02feb35693dc7af280f32f6f0666c522782d1927c9335"
+mirror_sha256: "7a44096621bd9aa1520f2d788bb54e324972c0891f468f3c937b732820bb1d05"
+etag: "sha256-5cee071ed38a418167721350daf142652b4e260260b0e06beb8fb2b627ed2526"
 ---
 ## 개요
 
@@ -58,7 +58,7 @@ catch 는 `isUpstreamAbort(err, upstream)` 로 두 `AbortError` 를 가른다. �
 
 ## 구현 현황
 
-2026-07-28 코드 대조 기준이다. 노드별 취소 에러 분류와 공용 연쇄 헬퍼에 관한 행은 2026-10-10, AI 노드 신호 전파와 AI 노드 취소 에러 분류 행은 2026-10-31 코드 대조 기준이다.
+2026-07-28 코드 대조 기준이다. 노드별 취소 에러 분류와 공용 연쇄 헬퍼에 관한 행은 2026-10-10, AI 노드 취소 에러 분류 행은 2026-10-31, AI 노드 신호 전파 행은 2026-11-14 코드 대조 기준이다.
 
 | 항목 | 상태 | 비고 |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ catch 는 `isUpstreamAbort(err, upstream)` 로 두 `AbortError` 를 가른다. �
 | 규약 신설 | ✅ | [노드 취소](CLE-EXEC-CANCEL.md) |
 | HTTP 노드 신호 전파(fetch 연쇄) | ✅ | `http-request.handler.ts` 가 공용 헬퍼 `linkUpstreamAbort` 로 잇는다. 리다이렉트 홉(`followRedirectsSafely`)과 응답 본문 읽기도 같은 controller 신호를 쓴다. 리스너는 응답 본문까지 읽은 뒤 `finally` 에서 뗀다. 단위 테스트 `http-request.handler.spec.ts` |
 | HTTP 노드 취소 에러 분류(handler 가 `AbortError` 를 엔진까지 전달) | ✅ | catch 가 `isUpstreamAbort` 이면 `AbortError` 를 다시 던진다. 활동 로그는 남기지 않는다(규칙 3). JSON 본문을 읽는 중에 노드 취소 신호로 끊긴 것도 `null` 로 삼키지 않고 다시 던진다. 노드 자체 타임아웃은 `HTTP_TRANSPORT_FAILED` 로 에러 포트에 간다. 2026-10-10 결정(아래 Rationale) |
-| AI 노드 신호 전파 | 🚧 | AI 에이전트(`ai-turn-executor.ts`)·텍스트 분류기(`text-classifier.handler.ts`)·정보 추출기(`information-extractor.handler.ts`)가 `llmService.chat` 에 `context.abortSignal` 을 넘긴다. AI 에이전트의 롤링 요약 호출은 아직 넘기지 않는다(규칙 2). 단위 테스트가 세 노드에서 `context.abortSignal` 이 `llmService.chat` 으로 가는지 확인한다. 정보 추출기는 단일 턴과 멀티턴 첫 경로를 모두 확인한다 |
+| AI 노드 신호 전파 | ✅ | AI 에이전트(`ai-turn-executor.ts`)·텍스트 분류기(`text-classifier.handler.ts`)·정보 추출기(`information-extractor.handler.ts`)가 `llmService.chat` 에 `context.abortSignal` 을 넘긴다. AI 에이전트 단일 턴의 롤링 요약 호출도 노드 취소 신호를 받는다. 단일 턴은 `context.abortSignal` 을 `injectMemoryContext`(`ai-memory-manager.ts`)에 넘기고 이 신호는 요약 `chat` 의 `signal` 옵션으로 간다(`agent-memory-injection.ts`). 단서: 멀티턴 재개는 같은 자리에 `ResumableMessageOptions.signal` 을 넘기지만 이 값은 지금 늘 `undefined` 다. 재개 경로에는 신호 소스가 없어서 재개 턴의 요약 호출도 그 턴의 다른 `chat` 호출처럼 앱 타임아웃과 턴 경계의 취소 관측으로 끝난다. 단위 테스트가 세 노드에서 `context.abortSignal` 이 `llmService.chat` 으로 가는지 확인한다. 정보 추출기는 단일 턴과 멀티턴 첫 경로를 모두 확인한다. 롤링 요약 호출은 `ai-agent.memory.spec.ts` 가 확인한다. 단일 턴은 `context.abortSignal` 이 요약 `chat` 까지 가는지 보고, 멀티턴 재개는 `options.signal` 이 있을 때 요약 `chat` 까지 가는지만 본다 |
 | AI 노드 취소 에러 분류(handler 가 `AbortError` 를 엔진까지 전달) | ✅ | 세 노드가 LLM 호출의 catch 첫 줄에서 공용 헬퍼 `rethrowIfNodeCancelled`(`shared/llm-cancellation.ts`)를 부른다. 헬퍼는 노드 취소 신호가 켜져 있으면 규칙 3 대로 `AbortError` 를 던지고 신호가 열려 있으면 아무것도 하지 않는다. 부르는 곳은 텍스트 분류기의 chat 호출, 정보 추출기의 단일 턴 호출과 멀티턴 첫 경로(`runTurnWithCollectionRetries`), AI 에이전트 `executeSingleTurn` 의 첫 chat 과 도구 루프 chat 이다. 정보 추출기는 부분 결과를 돌려주기 전에 던지므로 취소된 멀티턴은 스레드 누적과 메모리 추출을 만들지 않는다. 멀티턴 재개 경로에는 신호가 없어 헬퍼가 아무것도 하지 않는다. 앱 수준 타임아웃은 노드 취소 신호를 켜지 않으므로 노드 자신의 실패로 남는다. 대응 요구사항은 [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 와 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 에 있다. 단위 테스트 `llm-cancellation.spec.ts`·`text-classifier.handler.spec.ts`·`information-extractor.handler.spec.ts`·`ai-turn-executor.spec.ts` |
 | Parallel `cancel-others-on-fail` 통합 | ✅ | `parallel-executor.ts` |
 | DB 노드 신호 전파 | ✅ | 사전 확인과 진행 중 쿼리 취소(`database-query.handler.ts`). 단위 테스트 `database-query.handler.spec.ts`. 다만 취소 때도 `failed` 활동 로그를 남긴 뒤 `AbortError` 를 다시 던진다. 규칙 3 의 활동 로그 규칙과 다르고 NERV Task `CLE-T-GZRYQ3` 가 맡는다 |
@@ -92,6 +92,7 @@ chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel
 - `codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts`
 - `codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts`
 - `codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts`
+- `codebase/backend/src/nodes/ai/ai-agent/ai-memory-manager.ts`, `codebase/backend/src/nodes/ai/shared/agent-memory-injection.ts` (롤링 요약 `chat` 에 노드 취소 신호를 넘긴다)
 - `codebase/backend/src/modules/llm/llm.service.ts` (`chat` 이 타임아웃 신호와 호출자 신호를 `AbortSignal.any` 로 합친다)
 
 ## Rationale
