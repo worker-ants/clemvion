@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-ERROR"
 title: "통합 노드 공통 — 에러 코드와 사설망 차단"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "1cecf75860a067d73874bdc664eb665237470f1140dff8f7a42fd10a7f399926"
+content_hash: "2e6869816ad2ef120f05e1fe4171c56704a82262ea90c25ed44a7a99d81872ab"
 read_as: "approved_fallback"
-task: "CLE-T-BS1WD1"
+task: "CLE-T-NESSYD"
 source_paths: []
-mirror_sha256: "0c824a71a584b4eb507ca7b2049c380c4b49baaf8c1f80e41e37638a2632b853"
-etag: "sha256-a24071c795e4008093de4349ac4fa5e3222f69ea3e3a283b1b73a9aa779e0f6f"
+mirror_sha256: "02579df69858eb6b0c399417748ba9f7666155f0a3b034b11b35508f237987e5"
+etag: "sha256-d545a52a2fa0b48973dafcbe9408082d74904a39f6dbf27c045e38f928f0eaaf"
 ---
 ## 개요
 
@@ -67,7 +67,7 @@ etag: "sha256-a24071c795e4008093de4349ac4fa5e3222f69ea3e3a283b1b73a9aa779e0f6f"
 | Send Email | `credentials.host` (SMTP 호스트) | 통합 조회 직후, SMTP 발송 전 | `EMAIL_HOST_BLOCKED` |
 
 - 막는 대역은 loopback, RFC1918 사설 대역, link-local, CGNAT, IPv6 link-local·ULA 다. 호스트 이름은 DNS 로 해석한 뒤 IP 를 다시 검사한다(DNS rebinding 방어, `assertSafeOutboundHostResolved`). HTTP Request 는 그 전에 호스트 리터럴도 검사한다(`assertSafeOutboundUrl`).
-- DNS rebinding 방어의 범위는 노드마다 다르다. 위 검사는 연결 전에 한 번 푼 결과를 본다. HTTP Request 는 요청이 연결할 때 푼 주소도 같은 대역으로 다시 판정한다(`safeOutboundDispatcher`). 그래서 검사와 연결 사이에 DNS 응답이 바뀌어도 막힌 대역에 연결하지 않는다([HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) 8단계). Database Query · Send Email 은 연결 시점 판정이 없어서 검사와 연결 사이의 응답 변경은 egress 방화벽으로 막아야 한다. 외부 MCP 서버의 연결 시점 판정은 [MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md), LLM 엔드포인트의 한계는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 가 정한다.
+- DNS rebinding 방어의 범위는 노드마다 다르다. 위 검사는 연결 전에 한 번 푼 결과를 본다. HTTP Request 와 HTTP 통합 연결 테스트는 요청이 연결할 때 푼 주소도 같은 대역으로 다시 판정한다(`safeOutboundDispatcher`). 그래서 검사와 연결 사이에 DNS 응답이 바뀌어도 막힌 대역에 연결하지 않는다([HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) 8단계). Database Query · Send Email 은 연결 시점 판정이 없어서 검사와 연결 사이의 응답 변경은 egress 방화벽으로 막아야 한다. 외부 MCP 서버의 연결 시점 판정은 [MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md), LLM 엔드포인트의 한계는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 가 정한다.
 - 기본은 차단이다(secure-by-default). 셀프 호스팅에서 내부 DB·on-prem API·내부 SMTP relay 같은 사설망 대상을 정당하게 불러야 할 때만 사설망 허용 플래그 `ALLOW_PRIVATE_HOST_TARGETS=true` 를 켠다. 외부 egress 방화벽이 있다는 전제다.
 - 세 노드는 이 플래그 하나를 함께 쓴다. AI 에이전트의 외부 MCP 서버는 별도 정책(`MCP_ALLOW_INSECURE_URL`)을 따른다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)에서 정한다.
 - MakeShop 노드는 호출 호스트가 `connect.makeshop.co.kr` 하나로 고정돼 사용자 입력이 호스트를 정하지 않는다. 그래서 이 가드를 쓰지 않고 `shop_uid` 형식 검증으로 경로 주입을 막는다([MakeShop 노드](CLE-NODE-MAKESHOP.md)).
@@ -89,7 +89,7 @@ HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외로 
 
 ### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다 (2026-11-14)
 
-NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
+NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. NERV Task `CLE-T-NESSYD` 에서 HTTP 통합 연결 테스트도 HTTP Request 와 같은 판정 dispatcher 를 쓰게 했다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
 
 ### 거절된 조회는 임시 장치로 건너뛴다 (2026-10-25)
 
