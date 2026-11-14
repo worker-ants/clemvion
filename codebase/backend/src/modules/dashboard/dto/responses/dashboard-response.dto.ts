@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ExecutionStatus } from '../../../executions/entities/execution.entity';
 import {
   EXECUTION_TRIGGER_SOURCES,
   type ExecutionTriggerSource,
@@ -55,11 +56,16 @@ export class RecentExecutionDto {
   @ApiProperty({ example: '이메일 알림 플로우' })
   workflowName: string;
 
+  /**
+   * 실행 상태. 실행 행의 값을 그대로 싣는다. enum 은 실행 응답(`ExecutionDto.status`)과 같은
+   * `ExecutionStatus` 스키마를 쓴다. 손으로 적은 목록은 `waiting_for_input` 이 빠진 채 갈렸다.
+   */
   @ApiProperty({
-    enum: ['pending', 'running', 'completed', 'failed', 'cancelled'],
-    example: 'completed',
+    enum: ExecutionStatus,
+    enumName: 'ExecutionStatus',
+    example: ExecutionStatus.COMPLETED,
   })
-  status: string;
+  status: ExecutionStatus;
 
   /** 전체 경과(ms). 입력 대기 시간이 들어간다. 끝나지 않았으면 null */
   @ApiProperty({ type: Number, nullable: true, example: 1540 })
