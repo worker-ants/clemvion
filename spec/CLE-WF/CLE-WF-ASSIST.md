@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061", "REQ-ASSIST-062"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "2c2a5b791511544edefbeafdfc29e7dd342effec93601b16dcc4646ae324c24c"
+content_hash: "7a60b54e857cf096c4b181842b774e07222e392f09cfb4a6ee79992909aab35b"
 read_as: "approved_fallback"
-task: "CLE-T-EK4DMX"
+task: "CLE-T-0VS826"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "3fc21885d6f8c986f4bdc51cc2bf3301faca129d26b0724e56a6c0be569e6e22"
-etag: "sha256-c84af78a2d59465a7b483cc79ba25a3c756a8ca216cbb049d40cbecf46715844"
+mirror_sha256: "fa9b375fee245373e44d07e072f7dd32059a04d717f48b3af86731439a5ce5ba"
+etag: "sha256-10b1c88eaddb04e238d2097f6ad263f25dfed374fe73f5acf18d85723fc2136d"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현 · 부분 구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -204,6 +204,7 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 
 ## 미결 사항
 
+- **패널 문자열의 i18n(REQ-ASSIST-005 부분 구현)**: 2026-11-14 확인으로 사전 키를 거치지 않는 문구가 남았다. 후보 선택기는 노드 스키마의 영문 필드 라벨(`ui.label`)을 `translateBackendLabel` 없이 그대로 보인다. 요약 키가 없는 도구(`get_current_workflow` · `verify_workflow`)의 배지는 도구 이름을 그대로 보인다. 에러 코드에 사전 키가 없고 서버 `message` 도 비면 스토어의 영문 폴백 `Assistant error` 가 보인다. 계획 제목 · 후보 라벨이 비었을 때의 서버 폴백 값(`Plan` · `LLM Config` · `Workflow`)도 영문 그대로다. 사용자 · LLM 이 만든 내용과 식별자는 대상이 아니다. 정리는 NERV Task `CLE-T-66PJNN` 이 맡는다.
 - **`LLM_RATE_LIMIT` 재시도 버튼**: 에러 처리 표는 `LLM_RATE_LIMIT` 에 재시도 버튼을 약속한다. REQ-ASSIST-041 은 재시도 안내만 요구한다. 현재 구현은 에러 버블 버튼(`RESUMABLE_ERROR_CODES`)을 `ASSISTANT_TOO_MANY_TOOL_CALLS` 하나에만 붙인다. OpenAI 계열은 스트림을 열 때의 429 를 `ASSISTANT_STREAM_FAILED` 로 보내므로 버튼을 `LLM_RATE_LIMIT` 에만 붙이면 그 프로바이더에서는 보이지 않는다. 이 프로바이더 분기를 통일할지는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#미결-사항) 의 미결이다(NERV Task `CLE-T-0R5SYN`). 버튼을 둘지 결정 필요.
 
 ## 구현 위치

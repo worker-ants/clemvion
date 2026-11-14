@@ -2,19 +2,19 @@
 id: "CLE-NODE-CLASSIFIER"
 title: "텍스트 분류기 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-CLASSIFY-001", "REQ-CLASSIFY-002", "REQ-CLASSIFY-003", "REQ-CLASSIFY-004", "REQ-CLASSIFY-005", "REQ-CLASSIFY-006", "REQ-CLASSIFY-007", "REQ-CLASSIFY-008", "REQ-CLASSIFY-009", "REQ-CLASSIFY-010", "REQ-CLASSIFY-011", "REQ-CLASSIFY-012", "REQ-CLASSIFY-013", "REQ-CLASSIFY-014", "REQ-CLASSIFY-015", "REQ-CLASSIFY-016", "REQ-CLASSIFY-017", "REQ-CLASSIFY-018", "REQ-CLASSIFY-019", "REQ-CLASSIFY-020"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "420bed6eb6a8ab5fd8129c1f9e6e56bed673873f12585ad8045dcdf50a8beca6"
+content_hash: "e2e1cc4584e976804e7b49a9756a603b13a5c676ed687e8acab935bd4f3e3bf5"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0VS826"
 source_paths: ["spec/4-nodes/3-ai/2-text-classifier.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "adfe5408127f45deac72f17c3d1010e06f45903e90f4e245b843c83a6ada0e0b"
-etag: "sha256-d6b46f2cbb6a4a0690e57d7d1c82248cec7e3e50169203df290427cc8aad8add"
+mirror_sha256: "fb1783ef68bb8839ac50e938c7a2633cdbf8a258c2af2b5a5e18e6adb0eb316b"
+etag: "sha256-7d3d3a9b5098fefb51f7d8a0f46ba9e06c67e1be734f6913e3509d39f03a944d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/3-ai/2-text-classifier.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.3), `spec/4-nodes/_product-overview.md` (§6.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -120,7 +120,7 @@ etag: "sha256-d6b46f2cbb6a4a0690e57d7d1c82248cec7e3e50169203df290427cc8aad8add"
     - 다중 레이블: `categories: { type: 'array', items: { name: enum, … } }`. 매칭 없음은 빈 배열이다.
 3. **옵션 필드**: `includeConfidence`·`includeEvidence` 가 `true` 면 응답 스키마에 `confidence: number`·`evidence: string[]` 를 더하고 시스템 프롬프트에 필드 설명을 넣는다.
 4. **대화 맥락 주입**: `contextScope ≠ none` 이면 `injectConversationContext()` 로 자기 노드 턴을 뺀 스레드를 `contextInjectionMode` 에 따라 messages 앞이나 시스템 프롬프트 뒤에 붙인다. `none`(기본)이면 바뀌지 않는다.
-5. **LLM 호출**: `LlmService.chat` 을 부르고 `context.abortSignal` 을 `signal` 로 넘긴다. 호출이 실패하면 catch 첫 줄에서 `rethrowIfNodeCancelled` 로 노드 취소인지 먼저 가른다.
+5. **LLM 호출**: `LlmService.chat` 을 부르고 `context.abortSignal` 을 `signal` 로 넘긴다. 노드 설정에는 temperature · max_tokens 가 없어 모델 설정의 기본 파라미터를 쓴다([모델 설정 기본 파라미터 채우기](../CLE-AI/CLE-AI-LLM-SERVICE.md#모델-설정-기본-파라미터-채우기)). 호출이 실패하면 catch 첫 줄에서 `rethrowIfNodeCancelled` 로 노드 취소인지 먼저 가른다.
     - 노드 취소: `context.abortSignal.aborted` 가 참이면 에러 이름과 상관없이 노드 취소로 본다. 에러 이름이 `AbortError` 면 그대로 던지고, 아니면 이름이 `AbortError` 인 새 에러로 감싸 원래 에러를 `cause` 로 남기고 던진다(Anthropic·OpenAI SDK 의 `APIUserAbortError` 는 `name` 이 `'Error'` 라 그대로 두면 엔진이 취소로 분류하지 못한다). 엔진은 노드 실행을 `cancelled` 로 기록하고 `output_data` 를 쓰지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19). 노드는 어느 출력 포트로도 보내지 않는다.
     - 그 밖의 실패: 신호가 없거나 열려 있으면 노드 자신의 실패다. `error` 포트로 `LLM_CALL_FAILED` 를 보낸다(429 는 `LLM_RATE_LIMIT`). 프로바이더 SDK 요청 타임아웃은 노드 취소 신호를 켜지 않으므로 여기에 든다.
 6. **응답 파싱**: JSON 응답을 파싱한다. 실패하면 카테고리 이름 부분 문자열 매칭으로 대신한다. 이 경우에도 지정 id 라우팅은 유지한다.

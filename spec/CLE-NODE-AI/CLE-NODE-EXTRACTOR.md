@@ -2,19 +2,19 @@
 id: "CLE-NODE-EXTRACTOR"
 title: "정보 추출기 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-EXTRACT-001", "REQ-EXTRACT-002", "REQ-EXTRACT-003", "REQ-EXTRACT-004", "REQ-EXTRACT-005", "REQ-EXTRACT-006", "REQ-EXTRACT-007", "REQ-EXTRACT-008", "REQ-EXTRACT-009", "REQ-EXTRACT-010", "REQ-EXTRACT-011", "REQ-EXTRACT-012", "REQ-EXTRACT-013", "REQ-EXTRACT-014", "REQ-EXTRACT-015", "REQ-EXTRACT-016", "REQ-EXTRACT-017", "REQ-EXTRACT-018", "REQ-EXTRACT-019", "REQ-EXTRACT-020", "REQ-EXTRACT-021", "REQ-EXTRACT-022", "REQ-EXTRACT-023", "REQ-EXTRACT-024", "REQ-EXTRACT-025", "REQ-EXTRACT-026", "REQ-EXTRACT-027", "REQ-EXTRACT-028", "REQ-EXTRACT-029", "REQ-EXTRACT-030"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "acad06210c4852b3450deb0905de76a9bb5c91565fed0afb249036c654d5d58a"
+content_hash: "df0cc624d2752cddf4ecd45190bbf62b989cd64368f73e5cddf954eb773c50c4"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0VS826"
 source_paths: ["spec/4-nodes/3-ai/3-information-extractor.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "dc105802c575443a48784f92cdcb4d8a7d78063242d6b7d807ed16498421c9c4"
-etag: "sha256-1e045421e2358b44270cd809b4a02c35ff24029f9aac9c2e84da75af9120786b"
+mirror_sha256: "be3067647870e0f92bc47bc212adef7a50e7bfdb33eda44efb725d7bb9daf07b"
+etag: "sha256-371016ce7ebbb5c9a538ca17d4cb4f6b6258dafecb43a685646c4588b2d80786"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/3-information-extractor.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.4), `spec/4-nodes/_product-overview.md` (§6.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -86,6 +86,7 @@ etag: "sha256-1e045421e2358b44270cd809b4a02c35ff24029f9aac9c2e84da75af9120786b"
 | `systemContextSections` | String[]? | | `['time', 'timezone']` | 접두 섹션 |
 
 - 설정 스키마의 단일 기준은 `information-extractor.schema.ts` 의 `informationExtractorNodeConfigSchema` 다.
+- 노드 설정에는 temperature · max_tokens 가 없다. 노드의 LLM 호출(`traceChat`)은 모델 설정의 기본 파라미터를 쓰고, 모델 설정에도 값이 없으면 보내지 않는다. 에이전트 메모리 추출 호출에는 채우지 않는다. 규칙은 [LLM 서비스 「모델 설정 기본 파라미터 채우기」](../CLE-AI/CLE-AI-LLM-SERVICE.md#모델-설정-기본-파라미터-채우기), 기본값은 [모델 설정 「기본 파라미터 기본값」](../CLE-AI/CLE-AI-MODELS.md#기본-파라미터-기본값) 이 정한다.
 - 대화 맥락 설정은 AI 에이전트와 같은 인터페이스다(`buildConversationContextSchemaFields()`, `injectConversationContext()`). 주입 시점은 [실행 로직과 메모리](CLE-NODE-EXTRACTOR-EXEC.md) 가 정한다(멀티턴은 `executeMultiTurn` 에서 초기 messages 를 만든 직후 한 번). `memoryStrategy = manual` 일 때만 적용하고, `persistent` 면 설정 화면에서 대화 맥락 필드를 숨기고 에이전트 메모리가 맥락을 맡는다(AI 에이전트의 `gateOnManualMemoryStrategy` 와 같음). 기본값이 `manual` + `none` 이라 기존 워크플로우 동작은 그대로다.
 
 **FieldDef 구조** (`outputSchema[i]`)

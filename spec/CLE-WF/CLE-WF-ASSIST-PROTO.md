@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-PROTO"
 title: "AI 어시스턴트 스트리밍과 세션 API"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "6568df4bff68ae4367db6c2855654ad0b481d69bc5aacc898947106d189c6829"
+content_hash: "6d02040cff1d7ffd1743be2da6b3719011f5a51b1b69edb21487ae82b3d9597b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0VS826"
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "0d76ea0333e76c834d93778308eeb9f092e8cdac5bed7af58b898fd0327224e8"
-etag: "sha256-b76b10711ea33db8bc9f17dc625bf69339d73e610118b56ca0f53c80a6679b1c"
+mirror_sha256: "8376fa3bef6e3411cab3bc9256779c1169ffb1d152bc165853033fe99991f055"
+etag: "sha256-2b68f1d9594f91c29ee4f1c96f3dd91c956ed5e9fe4f13724ca4159525d3a48c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -133,7 +133,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "The LLM provider rate limit was rea
 | `auto_resume` | 서버가 자동 이어서 진행에 들어갔다는 알림 | 현재 버블을 `streaming=false` 로 확정하고 `autoResume={reason, attempt, max}` 메타를 단 새 어시스턴트 버블을 추가한다. 뒤이은 `text`·`tool_call` 은 새 버블로 가고 새 버블 앞에 구분선을 그린다 |
 | `usage` | 토큰 사용량. 데이터는 `{inputTokens, outputTokens, totalTokens, thinkingTokens?, model}` 이고 메시지 행의 `usage` 와 모양이 같다 | 화면 표시는 선택 |
 | `done` | 어시스턴트 턴 종료 | 스트리밍 표시를 끝내고 입력창을 다시 쓸 수 있게 한다 |
-| `error` | 실패. 데이터는 `{code, message}` 다. `message` 는 코드별 고정 영문이고 한도 숫자처럼 값이 들어가는 자리만 바뀐다. `ASSISTANT_TOO_MANY_TOOL_CALLS` 는 문구 갈래가 둘(라운드 상한, 도구 호출 한도)이라 소비자는 `message` 가 아니라 `code` 로 분기한다. 모든 `message` 는 백엔드 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트 스트림 `error` 의 `message`(진단 문구)는 싣지 않고 서버 로그에만 남긴다. 코드 목록은 [에러 코드 규약과 카탈로그 §6.25](../CLE-API/CLE-API-ERRCODES.md#625-ai-어시스턴트-스트림-도메인-문서-참조) 에 있다 | 에러 코드로 사전 문구를 골라 에러 버블에 보인다. 문구가 없는 코드는 `message` 로 폴백한다. 코드별 안내는 [워크플로우 AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)가 정한다. 코드로 사전 키를 고르는 규칙은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 5 를 따른다 |
+| `error` | 실패. 데이터는 `{code, message}` 다. `message` 는 코드별 고정 영문이고 한도 숫자처럼 값이 들어가는 자리만 바뀐다. `ASSISTANT_TOO_MANY_TOOL_CALLS` 는 문구 갈래가 둘(라운드 상한, 도구 호출 한도)이라 소비자는 `message` 가 아니라 `code` 로 분기한다. 모든 `message` 는 백엔드 `workflow-assistant-stream-errors.ts` 한 곳에서 정한다. 모델 프로바이더 · 라이브러리 예외 원문과 LLM 클라이언트 스트림 `error` 의 `message`(진단 문구)는 싣지 않고 서버 로그에만 남긴다. `LLM_STREAMING_UNSUPPORTED` 는 LLM 클라이언트 스트림 `error` 가 아니라 `LlmService.chatStream` 이 스트림을 열기 전에 던진 예외에서 온다. 이 코드의 `message` 도 그 파일의 고정 영문이다. 코드 목록은 [에러 코드 규약과 카탈로그 §6.25](../CLE-API/CLE-API-ERRCODES.md#625-ai-어시스턴트-스트림-도메인-문서-참조) 에 있다 | 에러 코드로 사전 문구를 골라 에러 버블에 보인다. 문구가 없는 코드는 `message` 로 폴백한다. 코드별 안내는 [워크플로우 AI 어시스턴트 §에러 처리](CLE-WF-ASSIST.md#에러-처리)가 정한다. 코드로 사전 키를 고르는 규칙은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 5 를 따른다 |
 
 ### `tool_call` 데이터
 
