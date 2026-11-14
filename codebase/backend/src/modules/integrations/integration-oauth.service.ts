@@ -478,9 +478,9 @@ function pickPrecheckConflict(
 @Injectable()
 export class IntegrationOAuthService {
   private readonly logger = new Logger(IntegrationOAuthService.name);
-  /** Cafe24 Private · MakeShop 설치 대기 행 쓰기(후보 조회 → 잠금 → 재사용 판정 → 쓰기 → 경합 재시도). */
-  private readonly pendingInstallWriter: PendingInstallWriter;
 
+  // 단위 spec 은 이 생성자를 직접 부르지 않고 `__test-utils__/integration-oauth-service.factory.ts` 로 만든다. 인자를 바꾸면
+  // 그 팩토리도 함께 고친다.
   constructor(
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
@@ -489,6 +489,8 @@ export class IntegrationOAuthService {
     @InjectRepository(IntegrationOAuthPreview)
     private readonly previewRepository: Repository<IntegrationOAuthPreview>,
     private readonly dataSource: DataSource,
+    /** Cafe24 Private · MakeShop 설치 대기 행 쓰기(후보 조회 → 잠금 → 재사용 판정 → 쓰기 → 경합 재시도). */
+    private readonly pendingInstallWriter: PendingInstallWriter,
     // refactor M-6: provider 자격증명·redirect URL·OAUTH_STUB_MODE 직접 접근을
     // ConfigService(`oauth.*`)로 이전. `@Optional()` — 수동 생성 테스트가 config mock
     // 미주입 시 `oauthEnv` 기본 빈값으로 폴백(기존 env 미설정 = OAUTH_CONFIG_MISSING throw 보존).
@@ -503,9 +505,7 @@ export class IntegrationOAuthService {
     // 테스트 호환일 뿐이다 — 없으면 역할을 모르므로 재판정은 거부한다(fail-closed, `assertRequesterStillAllowed`).
     @Optional()
     private readonly workspacesService?: WorkspacesService,
-  ) {
-    this.pendingInstallWriter = new PendingInstallWriter(dataSource);
-  }
+  ) {}
 
   /**
    * 콜백 트랜잭션의 첫 단계 — 대상 행을 잠그고 커밋 직전 판정을 다시 한다. 통과하면 잠근 행을 돌려준다.

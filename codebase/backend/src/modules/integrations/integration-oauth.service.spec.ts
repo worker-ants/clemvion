@@ -11,6 +11,7 @@ import {
   callbackContextOf,
   sanitizeLastErrorMessage,
 } from './integration-oauth.service';
+import { createIntegrationOAuthService } from './__test-utils__/integration-oauth-service.factory';
 import { makeOAuthConfigMock } from './__test-utils__/oauth-config-mock';
 import { integrationNotFoundError } from './integration-visibility';
 
@@ -40,6 +41,15 @@ describe('IntegrationOAuthService', () => {
     transaction: Mock;
   };
 
+  /** 이 spec 의 대역으로 서비스를 만든다. 바꿀 협력 객체만 덮어 넘긴다(`createIntegrationOAuthService`). */
+  const serviceDeps = () => ({
+    integrationRepo,
+    stateRepo,
+    previewRepo,
+    dataSource,
+    configService: oauthMock.configService,
+  });
+
   beforeEach(() => {
     integrationRepo = makeRepo();
     stateRepo = makeRepo();
@@ -62,26 +72,15 @@ describe('IntegrationOAuthService', () => {
     // refactor M-6: provider 자격증명은 `oauth` namespace 로 이전 — config mock 으로 제공.
     oauthMock = makeOAuthConfigMock();
 
-    service = new IntegrationOAuthService(
-      integrationRepo as never,
-      stateRepo as never,
-      previewRepo as never,
-      dataSource as never,
-      oauthMock.configService as never,
-    );
+    service = createIntegrationOAuthService(serviceDeps());
   });
 
   /** 콜백의 커밋 직전 재판정을 통과하는 요청자(편집자) — 재인증 · scope 추가 콜백의 성공 경로가 쓴다. */
   const serviceAsEditor = () =>
-    new IntegrationOAuthService(
-      integrationRepo as never,
-      stateRepo as never,
-      previewRepo as never,
-      dataSource as never,
-      oauthMock.configService as never,
-      undefined,
-      { getMemberRole: jest.fn(async () => 'editor') } as never,
-    );
+    createIntegrationOAuthService({
+      ...serviceDeps(),
+      workspacesService: { getMemberRole: jest.fn(async () => 'editor') },
+    });
 
   afterEach(() => {
     if (savedOAuthStub === undefined) delete process.env.OAUTH_STUB_MODE;
@@ -511,15 +510,10 @@ describe('IntegrationOAuthService', () => {
     let getMemberRole: Mock;
     const serviceWithRole = (role: string | null) => {
       getMemberRole = jest.fn(async () => role);
-      return new IntegrationOAuthService(
-        integrationRepo as never,
-        stateRepo as never,
-        previewRepo as never,
-        dataSource as never,
-        oauthMock.configService as never,
-        undefined,
-        { getMemberRole } as never,
-      );
+      return createIntegrationOAuthService({
+        ...serviceDeps(),
+        workspacesService: { getMemberRole },
+      });
     };
 
     it.each(['reauthorize', 'request_scopes'])(
