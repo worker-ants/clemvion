@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 38
+version: 39
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "ffe44e8786208cc15eff10398f6b31d76f5d5fe64e1514872a49a061222f89ed"
+content_hash: "8c017f53317cab0affa9a997f65e3df0271aec40b96acd3b0b0c022541edf57a"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-H5NJZ3"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "98b6a9869ebeefa03e15eafac113acdc7c894bf363023b67f19304a31660044f"
-etag: "sha256-5e8bee22d0fbbd2ae85e9d8010dc0771b54fcbbd1acc89bd50fd6412817f5ba5"
+mirror_sha256: "5117c8c6998398f814215193d75fa21a34cb9b061e0cc0c5b0a56b1234268ed6"
+etag: "sha256-1528f343e703f7cfd7090e8fe06e615c58bba044dc65885c59d1d57f794cd190"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,10 @@ etag: "sha256-5e8bee22d0fbbd2ae85e9d8010dc0771b54fcbbd1acc89bd50fd6412817f5ba5"
 3. 도메인 범주가 의미 있는 코드는 `<DOMAIN>_<CONDITION>` 으로 묶는 것을 권장한다(`CAFE24_*`, `OAUTH_*`, `INTEGRATION_*`). 시스템 전역 공용 코드는 prefix 없이 쓴다.
 4. 클라이언트는 코드의 의미로 분기한다. 이름의 부분 문자열이나 `message` 문자열을 파싱해 분기하지 않는다. 코드의 정의(문서 본문)가 기준이고 이름은 그 정의를 읽히게 하는 라벨이다.
 5. 에러 코드 이름 바꾸기는 호환성을 깨는 변경이다. 이름을 더 정확하게 하려는 목적만으로 바꾸지 않는다.
-6. 의미가 갈리거나 새 조건이 생기면 새 코드를 만든다. 새 코드는 처음부터 의미가 정확한 이름을 붙여 뒤에 이름을 바꿀 압력을 만들지 않는다. 다만 같은 표면(같은 엔드포인트) 안에서 구분하면 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건은 같은 코드를 쓴다([`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](CLE-API-ERRCODES-TRIGGER.md#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05)). 표면이 다르면 같은 뜻도 다른 코드를 쓰는 카탈로그 관행(§6.19 의 `WORKFLOW_NOT_FOUND`)과는 부딪치지 않는다. 이 단서는 한 표면 안의 조건만 묶는다. 비활성 트리거의 `TRIGGER_INACTIVE`(410)와 비활성 워크플로우의 `WORKFLOW_INACTIVE`(410)처럼 다른 워크스페이스 소속이 아닌 상태는 이 단서 밖이다. 이 규칙에는 예외가 하나 있다. 웹훅 인증(§6.10)에서 인증 설정의 기대값이 비었거나 문자열이 아니거나 읽지 못하는 경우와 헤더 이름이 문자열이 아닌 경우는 새 코드를 만들지 않고 `AUTH_FAILED` 를 쓴다. 이 예외는 그 경우에만 쓰고 다른 조건이나 다른 표면으로 넓히지 않는다. 근거는 [웹훅 인증 설정의 기대값이 비었거나 읽지 못해도 `AUTH_FAILED` 를 쓴다](CLE-API-ERRCODES-TRIGGER.md#웹훅-인증-설정의-기대값이-비었거나-읽지-못해도-auth_failed-를-쓴다-2026-10-31) 에 있다.
+6. 의미가 갈리거나 새 조건이 생기면 새 코드를 만든다. 새 코드는 처음부터 의미가 정확한 이름을 붙여 뒤에 이름을 바꿀 압력을 만들지 않는다. 다만 같은 표면(같은 엔드포인트) 안에서 구분하면 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건은 같은 코드를 쓴다([`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](CLE-API-ERRCODES-TRIGGER.md#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유-2026-10-05)). 표면이 다르면 같은 뜻도 다른 코드를 쓰는 카탈로그 관행(§6.19 의 `WORKFLOW_NOT_FOUND`)과는 부딪치지 않는다. 이 단서는 한 표면 안의 조건만 묶는다. 비활성 트리거의 `TRIGGER_INACTIVE`(410)와 비활성 워크플로우의 `WORKFLOW_INACTIVE`(410)처럼 다른 워크스페이스 소속이 아닌 상태는 이 단서 밖이다. 이 규칙에는 사람이 받아들인 예외가 셋 있다. 세 예외 모두 새 조건에 기존 코드를 쓴다. 아래 세 항목에 적은 경우에만 쓰고 다른 조건이나 다른 표면으로 넓히지 않는다.
+   - 웹훅 인증(§6.10)에서 인증 설정의 기대값이 비었거나 문자열이 아니거나 읽지 못하는 경우와 헤더 이름이 문자열이 아닌 경우는 `AUTH_FAILED` 를 쓴다. 근거는 [웹훅 인증 설정의 기대값이 비었거나 읽지 못해도 `AUTH_FAILED` 를 쓴다](CLE-API-ERRCODES-TRIGGER.md#웹훅-인증-설정의-기대값이-비었거나-읽지-못해도-auth_failed-를-쓴다-2026-10-31) 에 있다.
+   - `integration` 인증의 HTTP Request 노드가 리다이렉트를 5홉 따라간 뒤에도 `Location` 이 있는 3xx 를 받으면 사설망 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 근거는 [에러 코드 카탈로그 — 실행 「HTTP Request 노드의 3xx 와 리다이렉트 한도 초과에 새 코드를 만들지 않았다」](CLE-API-ERRCODES-EXEC.md#http-request-노드의-3xx-와-리다이렉트-한도-초과에-새-코드를-만들지-않았다-2026-11-14) 와 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) 에 있다.
+   - MakeShop 통합의 통합 재인증(`POST /api/integrations/:id/reauthorize`)과 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)은 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절한다. 이 두 경로에만 쓴다. 근거는 [에러 코드 카탈로그 — 통합 관리 · OAuth 「MakeShop 통합 재인증 · 추가 권한 요청의 거절을 `MAKESHOP_CREDENTIALS_REQUIRED` 행에 더했다」](CLE-API-ERRCODES-INTMGMT.md#makeshop-통합-재인증--추가-권한-요청의-거절을-makeshop_credentials_required-행에-더했다-2026-11-14) 와 [OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청 「MakeShop 통합 재인증과 추가 권한 요청의 거절 코드를 정했다」](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13) 에 있다.
 7. 이름 규칙(규칙 1~3)을 따르지 않지만 유지하는 기존 코드는 §3 예외 등록부에 적는다. 새 코드는 예외를 선례로 삼지 않는다.
 8. 발행하는 코드는 모두 §6 카탈로그에 등재한다. 정의·발생 조건이 도메인 문서에 있으면 그 문서를 정의 문서로 적고 카탈로그는 공용 가시성을 위해 등재만 한다.
 9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다. 사람이 정했지만 아직 구현하지 않은 코드는 표에 넣지 않는다. 해당 절의 표 아래 문장에 상태 코드와 조건을 적고 구현 Task 가 있으면 함께 적는다. 발행과 함께 표에 등재한다. 그 코드를 정의하는 영역 문서는 자기 표에 미구현 표시를 붙여 먼저 적을 수 있다.
@@ -190,6 +193,14 @@ etag: "sha256-5e8bee22d0fbbd2ae85e9d8010dc0771b54fcbbd1acc89bd50fd6412817f5ba5"
 규칙 7 은 「규칙을 따르지 않지만 유지하는 기존 코드」 를 §3 에 적게 했다. 그런데 개요 · 규칙 2 · §3 첫 문단은 §3 을 이름 규칙을 따르지 않는 코드의 등록부로 적는다. 규칙 7 만 넓게 읽혀서 규칙 6 의 예외를 §3 에 올릴지 판단할 근거가 둘로 갈렸다. 그래서 규칙 7 을 이름 규칙(규칙 1~3)으로 좁히고 개요 · 규칙 7 · §3 첫 문단을 같은 말로 맞췄다(NERV Task `CLE-T-H9QJTA`). 기존 코드를 다시 쓰는 결정은 이름을 정하는 결정이 아니어서 §3 에 올리지 않는다. prefix 없는 공용 코드도 규칙 3 을 따른 것이라 §3 에 올리지 않는다(§1).
 
 기각한 대안은 규칙 7 을 넓게 두고 개요 · 규칙 2 · §3 첫 문단을 그 범위로 넓히는 안이다. 그러면 기존 코드를 다시 쓰는 결정도 §3 에 올려야 해서 이름이 부정확한 코드를 찾는 표에 이름이 정확한 코드(`AUTH_FAILED` 등)가 섞인다.
+
+### 규칙 6 의 예외 목록에 두 경우를 더했다 (2026-11-14)
+
+규칙 6 은 예외를 웹훅 인증의 `AUTH_FAILED` 하나로 적었다. 그런데 하위 문서에는 사람이 받아들인 예외가 둘 더 있었다. HTTP Request 노드의 리다이렉트 한도 초과에 쓰는 `HTTP_BLOCKED`(NERV Task `CLE-T-43KCNP`, 2026-11-14 결정)와 MakeShop 통합 재인증 · 추가 권한 요청에 쓰는 `MAKESHOP_CREDENTIALS_REQUIRED`(2026-11-13 결정)다. 두 하위 문서는 이 부모 문서를 고치지 못해 그 일을 후속으로 넘겼다. NERV Task `CLE-T-J6M2JG` · `CLE-T-H5NJZ3` 에서 목록을 셋으로 맞췄다.
+
+- **§3 에는 올리지 않았다.** 두 경우 모두 기존 코드를 다시 쓰는 결정이고 이름을 정하는 결정이 아니다(「규칙 7 의 「규칙」 을 이름 규칙으로 좁혔다」).
+- **따라가지 않은 3xx 의 `HTTP_4XX` 는 규칙 6 의 예외로 적지 않았다.** HTTP Request 노드는 `HTTP_4XX` 를 처음부터 «2xx 도 5xx 도 아닌 응답» 에 냈다. 3xx 는 그 조건 안에 있어서 새 조건이 아니다. 이름이 3xx 를 담지 못하는 문제는 이름 규칙의 문제라 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 이미 올라 있다.
+- **예외마다 표면을 적었다.** 예외가 늘면 다른 조건으로 넓혀 읽힐 위험도 커진다. 그래서 세 예외 모두 쓰는 경우와 근거 링크를 따로 적고, 넓히지 않는다는 문장을 셋에 함께 걸었다.
 
 ### 규칙 9 에 정했지만 아직 발행하지 않은 코드의 자리를 적었다 (2026-11-05)
 
