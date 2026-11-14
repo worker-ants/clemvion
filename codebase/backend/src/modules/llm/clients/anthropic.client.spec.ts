@@ -320,6 +320,33 @@ describe('AnthropicClient.stream', () => {
     },
   );
 
+  // `done(aborted)` 로 바꾸는 조건은 신호가 있는지가 아니라 취소됐는지다.
+  it('신호를 넘겼어도 취소되지 않았으면 스트림 열기 실패를 error 이벤트로 끝낸다', async () => {
+    const controller = new AbortController();
+    const create = jest.fn().mockRejectedValue(new Error('socket hang up'));
+    const client = new AnthropicClient('sk-test', 'claude-haiku-4-5-20251001');
+    // @ts-expect-error — stub
+    client.client = { messages: { create } };
+
+    const events = await collect(
+      client.stream(
+        {
+          model: 'claude-haiku-4-5-20251001',
+          messages: [{ role: 'user', content: 'x' }],
+        },
+        controller.signal,
+      ),
+    );
+
+    expect(events).toEqual([
+      {
+        type: 'error',
+        code: 'LLM_CONNECTION_ERROR',
+        message: 'socket hang up',
+      },
+    ]);
+  });
+
   // 열기 중 취소는 연결 실패가 아니다. 스트림 도중 취소처럼 `done(aborted)` 로 끝낸다(CLE-T-0R5SYN).
   it('스트림을 열기 전에 취소되면 error 대신 done(aborted) 하나로 끝낸다', async () => {
     const controller = new AbortController();

@@ -494,6 +494,53 @@ describe.each(OPENAI_FAMILY)(
       },
     );
 
+    // 열기 단계도 도중 실패와 같은 분류(`streamErrorEvent`)를 쓴다. harmony 토큰 오염이면
+    // 고정 영문 `message` 로 바꾸고 SDK 원문은 warn 로그에만 남긴다.
+    it('harmony 토큰 오염이면 LLM_OUTPUT_MALFORMED 와 고정 영문 message 로 끝내고 원문은 warn 로그에 남긴다', async () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const rawSdkMessage =
+          'Failed to parse input at pos 0: <|channel|>final<|message|>hi';
+        const create = jest.fn().mockRejectedValue(new Error(rawSdkMessage));
+        const client = makeClient();
+        stubCreate(client, create);
+
+        const events = await collectStream(client);
+
+        expect(events).toEqual([
+          {
+            type: 'error',
+            code: 'LLM_OUTPUT_MALFORMED',
+            message: HARMONY_OUTPUT_MALFORMED_MESSAGE,
+          },
+        ]);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0][0]).toContain(rawSdkMessage);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    // 열기 실패를 `done(aborted)` 로 바꾸는 조건은 신호가 있는지가 아니라 취소됐는지다.
+    it('신호를 넘겼어도 취소되지 않았으면 error 이벤트로 끝낸다', async () => {
+      const controller = new AbortController();
+      const create = jest.fn().mockRejectedValue(new Error('socket hang up'));
+      const client = makeClient();
+      stubCreate(client, create);
+
+      const events = await collectStream(client, controller.signal);
+
+      expect(events).toEqual([
+        {
+          type: 'error',
+          code: 'LLM_CONNECTION_ERROR',
+          message: 'socket hang up',
+        },
+      ]);
+    });
+
     it('열기 중에 취소되면 error 대신 done(aborted) 하나로 끝낸다', async () => {
       const controller = new AbortController();
       const create = jest.fn().mockImplementation(() => {

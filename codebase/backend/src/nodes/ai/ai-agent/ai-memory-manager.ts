@@ -127,7 +127,9 @@ export class AiMemoryManager {
     llmContext?: LlmCallContext;
     /**
      * 노드 취소 신호. 롤링 요약 chat 에 넘겨 노드가 취소되면 요약 요청도 끊는다.
-     * single-turn 은 `context.abortSignal`, multi-turn resume 은 `options.signal`(CLE-T-0R5SYN).
+     * single-turn 은 `context.abortSignal` 을 넘긴다. multi-turn resume 은 `options.signal` 을
+     * 넘기지만 resume 경로에는 신호 소스가 없어 지금은 늘 `undefined` 다. 그 요약 호출은 앱
+     * 타임아웃과 턴 경계 취소 관측이 끝낸다(CLE-T-0R5SYN, `ResumableMessageOptions.signal`).
      */
     signal?: AbortSignal;
     /** 회수 쿼리 텍스트 (현재 사용자 메시지 / 최근 컨텍스트). */

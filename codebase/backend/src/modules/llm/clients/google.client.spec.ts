@@ -413,6 +413,32 @@ describe('GoogleClient.stream', () => {
     });
   });
 
+  // `done(aborted)` 로 바꾸는 조건은 신호가 있는지가 아니라 취소됐는지다.
+  it('yields an error event when the stream fails to open with a signal that was not aborted', async () => {
+    const abort = new AbortController();
+    const { client } = makeStubs({
+      streamRejects: new Error('socket hang up'),
+    });
+
+    const events = await collect(
+      client.stream(
+        {
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'x' }],
+        },
+        abort.signal,
+      ),
+    );
+
+    expect(events).toEqual([
+      {
+        type: 'error',
+        code: 'LLM_CONNECTION_ERROR',
+        message: 'socket hang up',
+      },
+    ]);
+  });
+
   // 열기 중 취소는 연결 실패가 아니다. 스트림 도중 취소처럼 `done(aborted)` 로 끝낸다
   // (CLE-T-0R5SYN, OpenAI 계열 · Anthropic 과 같은 계약).
   it('yields done(aborted) instead of an error when aborted while opening the stream', async () => {
