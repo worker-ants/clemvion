@@ -96,7 +96,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 
 - `endpoint_path`는 트리거 생성 시 UUID로 자동 발급돼요 — 경로를 추측하기 어렵게 만들어요. 이미 경로를 알고 있더라도 다른 워크스페이스에 같은 경로로 등록하려 하면 거부돼요 — 경로는 서비스 전체에서 유일해야 하거든요. 트리거 목록 화면에서 📋 버튼으로 전체 URL을 복사할 수 있어요.
 - 메서드는 `POST`만 받아요. `Content-Type`은 `application/json` 또는 `application/x-www-form-urlencoded`.
-- 본문 최대 크기는 webhook 종류에 따라 달라요 — 공개(인증 미연결) webhook 은 **32KB**(초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`), 인증 webhook 은 **1MB**(초과 시 `413 PAYLOAD_TOO_LARGE`). 채팅 채널(Telegram · Slack · Discord)을 연결한 트리거는 인증 설정이 없어도 공개 webhook 의 32KB 한도와 IP 단위 시작 한도(분당 10 · 시간당 20)를 받지 않아요. 프로바이더 서명으로 인증하고, 대화별 분당 한도(트리거 설정 `rateLimitPerMinute`, 기본 60)와 인스턴스 전역 한도가 대신 막아요.
+- 본문 최대 크기는 webhook 종류에 따라 달라요 — 공개(인증 미연결) webhook 은 **32KB**(초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`), 인증 webhook 은 **1MB**(초과 시 `413 PAYLOAD_TOO_LARGE`). 채팅 채널(Telegram · Slack · Discord)을 연결한 트리거는 인증 설정이 없어도 공개 webhook 의 32KB 한도와 IP 단위 시작 한도(분당 10 · 시간당 20)를 받지 않아요. 프로바이더 서명으로 인증하고, 채널 연결을 마쳐 서명 설정이 있는 트리거는 인스턴스 전역 한도(IP 당 분당 100건)도 받지 않아요. 대신 대화별 분당 한도(트리거 설정 `rateLimitPerMinute`, 기본 60)와 서명 검증 실패 한도(같은 트리거 · 같은 IP 에서 분당 20번 실패하면 그 창이 끝날 때까지 서명을 확인하지 않고 `401 AUTH_FAILED` 로 답해요)가 막아요.
 
 ### 인증 설정
 
@@ -155,7 +155,7 @@ HMAC을 쓰면 서버가 본문 원본 바이트로 서명을 검증해요. 외�
 | `404 Not Found` | 해당 `endpoint_path`의 트리거가 존재하지 않아요. |
 | `410 Gone` | 트리거나 워크플로우가 꺼져 있어요. 트리거가 꺼져 있으면 `TRIGGER_INACTIVE`, 워크플로우가 꺼져 있으면 `WORKFLOW_INACTIVE` 코드가 와요. 꺼진 쪽을 다시 켜야 받을 수 있어요. |
 | `413 Payload Too Large` | **공개 webhook:** 본문 32KB 초과 (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`). 채팅 채널 연결 트리거에는 적용되지 않아요.<br/>**인증 webhook:** 본문 1MB 초과 (`PAYLOAD_TOO_LARGE`). |
-| `429 Too Many Requests` | 인스턴스 전역 글로벌 100 req/min rate limit 초과. 응답에 `Retry-After` 헤더로 재시도 대기 시간을 안내해요.<br/>**공개 webhook:** IP 단위 시작 한도(분당 10 · 시간당 20) 초과 (`PUBLIC_WEBHOOK_RATE_LIMIT` · `PUBLIC_WEBHOOK_HOURLY_LIMIT`). 채팅 채널 연결 트리거에는 적용되지 않아요. |
+| `429 Too Many Requests` | 인스턴스 전역 rate limit(클라이언트 IP 당 분당 100건, `RATE_LIMITED`) 초과. 채널 연결을 마친(서명 설정이 있는) 채팅 채널 트리거는 이 한도를 받지 않아요. 응답에 `Retry-After` 헤더로 재시도 대기 시간을 안내해요.<br/>**공개 webhook:** IP 단위 시작 한도(분당 10 · 시간당 20) 초과 (`PUBLIC_WEBHOOK_RATE_LIMIT` · `PUBLIC_WEBHOOK_HOURLY_LIMIT`). 채팅 채널 연결 트리거에는 적용되지 않아요. |
 
 ### 워크플로우 안에서 웹훅 페이로드 접근
 

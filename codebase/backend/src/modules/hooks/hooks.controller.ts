@@ -108,16 +108,35 @@ export class HooksController {
   @ApiOperation({
     summary: '웹훅 수신',
     description:
-      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다. 채팅 채널 트리거는 프로바이더 서명으로 인증하므로 이 제한을 받지 않습니다. 전역 요청 한도(클라이언트당 분당 100건)는 트리거를 조회한 뒤 걸고, 채팅 채널 트리거에는 걸지 않습니다. 채팅 채널의 handshake(Slack url_verification · Discord PING)와 프로바이더가 3초 안 응답을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)은 `{ data }` 래핑 없이 200 과 프로바이더가 정한 본문으로 답합니다. Slack Interactivity 의 기본 응답은 빈 본문입니다.',
+      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다. 채팅 채널 트리거는 프로바이더 서명으로 인증하므로 이 제한을 받지 않습니다. 전역 요청 한도(클라이언트당 분당 100건)는 트리거를 조회한 뒤 걸고, 서명 참조가 있는 채팅 채널 트리거에는 걸지 않습니다. 채팅 채널의 handshake(Slack url_verification · Discord PING)와 프로바이더가 3초 안 응답을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령, Slack Interactivity)은 `{ data }` 래핑 없이 200 과 프로바이더가 정한 본문으로 답합니다. Slack Interactivity 의 기본 응답은 빈 본문입니다.',
   })
+  // 429 는 두 가지다. 공개 트리거의 IP 시작 한도(`PublicWebhookThrottleGuard`)와 전역 요청 한도
+  // (`HookTriggerThrottlerGuard`, 서명 참조가 있는 채팅 채널 트리거는 빠진다)다. NERV Task `CLE-T-9Z0V2R`.
   @ApiTooManyRequestsResponse({
-    description: '공개 webhook IP 시작 한도 초과(분당/시간당)',
-    schema: {
-      example: {
-        error: {
-          code: 'PUBLIC_WEBHOOK_RATE_LIMIT',
-          message:
-            'Too many conversation starts from this client. Try again later.',
+    description:
+      '요청 한도 초과. `PUBLIC_WEBHOOK_RATE_LIMIT` 는 공개 트리거의 IP 시작 한도(분당/시간당) 초과, `RATE_LIMITED` 는 전역 요청 한도(클라이언트당 분당 100건) 초과입니다. 서명 참조가 있는 채팅 채널 트리거는 두 한도 모두 받지 않습니다.',
+    content: {
+      'application/json': {
+        examples: {
+          PUBLIC_WEBHOOK_RATE_LIMIT: {
+            summary: '공개 트리거 IP 시작 한도 초과',
+            value: {
+              error: {
+                code: 'PUBLIC_WEBHOOK_RATE_LIMIT',
+                message:
+                  'Too many conversation starts from this client. Try again later.',
+              },
+            },
+          },
+          RATE_LIMITED: {
+            summary: '전역 요청 한도 초과',
+            value: {
+              error: {
+                code: 'RATE_LIMITED',
+                message: 'ThrottlerException: Too Many Requests',
+              },
+            },
+          },
         },
       },
     },

@@ -85,7 +85,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 
 - `endpoint_path` is generated as a UUID at trigger-creation time, which makes it hard to guess. Even if someone already knows the path, registering it on a different workspace is rejected — the path has to be unique across the whole service. Copy the full URL with the 📋 button on the trigger list.
 - Only `POST` is accepted. `Content-Type` must be `application/json` or `application/x-www-form-urlencoded`.
-- Maximum body size depends on the webhook type — public (no auth linked) webhooks cap at **32KB** (`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` on exceed); authenticated webhooks at **1MB** (`413 PAYLOAD_TOO_LARGE` on exceed). Triggers linked to a chat channel (Telegram, Slack, Discord) are not subject to the public webhook's 32KB cap or per-IP start limits (10 per minute, 20 per hour), even without an auth setting. They authenticate with the provider's signature and are limited instead by the per-conversation per-minute limit (trigger setting `rateLimitPerMinute`, default 60) and the instance-wide limit.
+- Maximum body size depends on the webhook type — public (no auth linked) webhooks cap at **32KB** (`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` on exceed); authenticated webhooks at **1MB** (`413 PAYLOAD_TOO_LARGE` on exceed). Triggers linked to a chat channel (Telegram, Slack, Discord) are not subject to the public webhook's 32KB cap or per-IP start limits (10 per minute, 20 per hour), even without an auth setting. They authenticate with the provider's signature and are limited instead by the per-conversation per-minute limit (trigger setting `rateLimitPerMinute`, default 60) and the signature-failure limit. A trigger whose channel connection is complete (so it has a signing setup) is also exempt from the instance-wide limit (100 per minute per IP). After 20 failed signature checks per minute from the same trigger and client IP, the signature is not checked until that window ends and the request gets `401 AUTH_FAILED`.
 
 ### Authentication settings
 
@@ -144,7 +144,7 @@ HMAC verification reads the **raw bytes** of the request body. If a relay middle
 | `404 Not Found` | No trigger exists for that `endpoint_path`. |
 | `410 Gone` | The trigger or its workflow is turned off. The code is `TRIGGER_INACTIVE` when the trigger is off and `WORKFLOW_INACTIVE` when the workflow is off. Turn the inactive one back on before retrying. |
 | `413 Payload Too Large` | **Public webhook:** body over 32KB (`PUBLIC_WEBHOOK_BODY_TOO_LARGE`). Does not apply to triggers linked to a chat channel.<br/>**Authenticated webhook:** body over 1MB (`PAYLOAD_TOO_LARGE`). |
-| `429 Too Many Requests` | Exceeded the instance-wide global 100 req/min rate limit. The response carries a `Retry-After` header telling you when to retry.<br/>**Public webhook:** exceeded the per-IP start limit (10 per minute, 20 per hour; `PUBLIC_WEBHOOK_RATE_LIMIT` · `PUBLIC_WEBHOOK_HOURLY_LIMIT`). Does not apply to triggers linked to a chat channel. |
+| `429 Too Many Requests` | Exceeded the instance-wide rate limit (100 requests per minute per client IP, `RATE_LIMITED`). Chat channel triggers whose channel connection is complete (that have a signing setup) are not subject to this limit. The response carries a `Retry-After` header telling you when to retry.<br/>**Public webhook:** exceeded the per-IP start limit (10 per minute, 20 per hour; `PUBLIC_WEBHOOK_RATE_LIMIT` · `PUBLIC_WEBHOOK_HOURLY_LIMIT`). Does not apply to triggers linked to a chat channel. |
 
 ### Accessing the webhook payload inside the workflow
 
