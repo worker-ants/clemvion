@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA-MODEL"
 title: "실행 데이터와 흐름 — 데이터 모델"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-DATA"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-DATA"]
 area: "CLE-EXEC"
-content_hash: "e1619d8ee0e90b1eb0b7b6a0909d771ed3f6c88f79bc3849cc543c6d07f0c1d3"
+content_hash: "6654d5621c57a37087b7ca609f2b694c05eff6796b893774d43c412d426dd072"
 read_as: "approved_fallback"
-task: "CLE-T-51KBTG"
+task: "CLE-T-ES1J1E"
 source_paths: []
-mirror_sha256: "e2d108020e16fc9cfd4410eb38c7b00540bddf6e434f6551ea2fb8745723de8f"
-etag: "sha256-5c0a89336aa16a2bdffd4c1e45c72bab5c8e6cf87083d0f210a38fcd2b7d8a36"
+mirror_sha256: "c48c6cc762a9fc8d2d66d7f85698e3965934b80fbac76040a401b95c3c2c583a"
+etag: "sha256-cd9b6659242c4dbe3cc3171e35263da058cb57cbff74f69c2e6437911a378f95"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ etag: "sha256-5c0a89336aa16a2bdffd4c1e45c72bab5c8e6cf87083d0f210a38fcd2b7d8a36"
 | started_at | Timestamp | 실행 시작 시각. 부팅 복구 스캔의 stale 판정과 re-claim 에도 쓴다([장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)). |
 | finished_at | Timestamp? | 실행 종료 시각 |
 | duration_ms | Integer? | 실행 소요 시간(wall-clock, 시작부터 종료까지). **취소·타임아웃으로 끝난 경로에서는 실행 시간이 아니라 대기 경과 시간**이다. 기준은 [External Interaction API](../CLE-IX/CLE-EIA.md) §6.5 다. 컬럼이 `INTEGER`(int4, 약 24.8일)라 쓰는 쪽은 상한을 반드시 잘라야 한다. 화면과 API 에서는 「전체 경과」(`durationMs`)로 보인다. |
-| active_running_ms | Integer | 세그먼트 누적 시간(ms). 워커가 노드를 전진시킨 구간의 합이며 입력 대기 park 시간은 뺀다. 기본 0. 실행 시간 한도(`EXECUTION_TIME_LIMIT_EXCEEDED`)의 측정 기준이다(V083). 화면과 API 에서는 「실행 시간」(`activeRunningMs`)으로 보인다. 응답 값과 `null` 규칙은 [실행 내역](CLE-EXEC-HISTORY.md) 의 API 절이 정한다. 실행이 끝나기 전에는 끝난 구간만 더해져 있다. V083 이전 실행은 0 이고 백필하지 않는다. 실행 중(`running`)에 REST 중지로 끝나면 마지막 구간이 빠진다(후속 작업 CLE-T-ES1J1E). |
+| active_running_ms | Integer | 세그먼트 누적 시간(ms). 워커가 노드를 전진시킨 구간의 합이며 입력 대기 park 시간은 뺀다. 기본 0. 실행 시간 한도(`EXECUTION_TIME_LIMIT_EXCEEDED`)의 측정 기준이다(V083). 화면과 API 에서는 「실행 시간」(`activeRunningMs`)으로 보인다. 응답 값과 `null` 규칙은 [실행 내역](CLE-EXEC-HISTORY.md) 의 API 절이 정한다. 실행이 끝나기 전에는 끝난 구간만 더해져 있다. V083 이전 실행은 0 이고 백필하지 않는다. 실행 중(`running`)에 REST 중지로 끝나면 엔진이 취소를 알아채는 다음 경계(노드 · AI 턴)에서 마지막 구간을 중지 시각(`finished_at`)까지만 더한다. 이때 이 컬럼만 고치고 상태와 종결 컬럼은 그대로 둔다. 엔진이 그 전에 멈추면 마지막 구간은 빠진 채 남는다. 근거는 [Rationale](#rationale) 의 「REST 중지 실행의 마지막 구간은 중지 시각까지 센다」. |
 | input_data | JSONB? | 실행 입력. **응답·발행 때 자격 증명 값 패턴을 가린다**(DB 는 원문 보존). 자매 `NodeExecution.input_data` 와 같은 규칙이다. 범위는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다. 서버도 2층으로 거부한다. 수동 실행 경로(저작 주체 기준, 재제출뿐 아니라 직접 입력도 포함)에서 값 leaf 가 마스킹 마커와 정확히 같으면 `400` `details[].code = MASKED_VALUE_RESUBMITTED` 로 거부한다(UI 를 거치지 않은 API 직접 호출 대비). 프론트엔드 마커 가드(프리필 건너뜀, 제출 차단)는 [재실행](CLE-EXEC-RERUN.md) 과 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 에 있다. |
 | output_data | JSONB? | 실행 최종 출력. 응답·발행 때 자격 증명 값 패턴을 가린다(DB 는 원문 보존). 범위는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) |
 | error | JSONB? | 에러 정보. 최초 `failed` 노드 실행의 에러를 복사하거나 엔진이 직접 쓴다. [실행 에러와 노드 실행 에러](#실행-에러와-노드-실행-에러) 참조 |
@@ -165,6 +165,14 @@ V001 은 `execution.execution_path UUID[]` 컬럼에 노드 실행 순서를 담
 ### `dryRun` 응답은 컬럼에서 읽는다
 
 응답의 `dryRun` 을 노드 실행 집계로 만드는 방식은 택하지 않았다. 부수효과 노드가 없는 dry-run 워크플로우를 `false` 로 잘못 도출하기 때문이다. 그래서 `dry_run` 컬럼(V068)을 그대로 내보낸다.
+
+### REST 중지 실행의 마지막 구간은 중지 시각까지 센다 (2026-11-14)
+
+- REST 중지는 실행 행을 먼저 `cancelled` 로 바꾸고, 엔진은 다음 경계에서 행을 다시 읽어야 중지를 안다. 그동안 엔진의 상태 전이 UPDATE 는 0행으로 끝나 열린 구간이 `active_running_ms` 에 들어가지 않았다. 구간이 하나뿐인 실행은 측정되지 않은 것으로 보였다.
+- 그래서 엔진은 저장하지 못한 전이에서 닫은 구간을 이 컬럼에만 더한다. 상태 · `finished_at` · `duration_ms` 는 REST 중지가 쓴 값 그대로다. 입력 대기 중 취소는 열린 구간이 없어 대기 시간이 들어가지 않는다.
+- 구간 끝은 엔진이 중지를 알아챈 시각과 `finished_at` 가운데 이른 쪽이다. 노드 하나가 오래 걸리면 엔진이 알아채는 시각이 중지 시각보다 한참 뒤라서, 그 시각까지 세면 실행 시간이 전체 경과보다 커진다. 중지 뒤 워커가 마저 돈 시간은 실행이 이미 `cancelled` 라 사용자가 본 실행 중 시간도 아니다.
+- 기각한 대안: 엔진이 취소를 처리한 시각까지 센다. 위 이유로 실행 시간이 전체 경과를 넘을 수 있다.
+- 엔진이 알아채기 전에 인스턴스가 멈추면 마지막 구간은 빠진 채 남는다. 실행 시간이 작게 남는 쪽이고, 응답의 `null` 판정은 [실행 내역](CLE-EXEC-HISTORY.md#api) 의 API 절이 정한다.
 
 ### 인증 설정 호출 집계는 실행 행을 다시 쓴다
 
