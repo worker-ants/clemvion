@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "7b541d674e410a3075c63438715867566bd9b55d3ad79e17defe589401443cd9"
+content_hash: "0ea459525a3410456df5877ce2691dd4907fdd0d1d2a14b3f4c5c768d4c01bfb"
 read_as: "approved_fallback"
-task: "CLE-T-0R8F99"
+task: "CLE-T-QGRX9B"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "e276442a4146278a3859801e27062443ac1d485b15f1d892fac3d56ec7463a21"
-etag: "sha256-cd09d8f53488cec2e690ba77f84bd10b823d85854c2ddc87380f380d93557f09"
+mirror_sha256: "0b5b7a72dc535ee92873e864d2a0fbec5818b491c6a270ad6e99f5f8952ad2cd"
+etag: "sha256-54614654437b58eb69d056a3d5dd617c6019bd0b7971587a716c988ae47536f7"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도·동적 에러 포트는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -105,6 +105,8 @@ flowchart TD
 
 노드 취소에는 에러 처리 정책을 적용하지 않는다. 엔진은 `AbortError` 와 `ExecutionCancelledError` 를 실패로 보지 않는다. 노드 실행 상태를 `cancelled` 로 기록하고 에러를 다시 던진다(`execution-engine.service.ts` 의 `executeNode`). 노드 재시도도 이 두 에러는 다시 실행하지 않는다. 취소 흐름은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)가 정한다.
 
+안전 종료가 유예 시간 안에 끝내지 못한 노드에도 에러 처리 정책을 적용하지 않는다. 노드 실행과 실행을 `failed` + `SERVER_INTERRUPTED` 로 표시한다([안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료)).
+
 핸들러가 런타임 실패를 throw 하지 않고 `port: 'error'` 출력으로 돌려주면 엔진은 그 실패에 에러 처리 정책을 적용하지 않는다. 노드 재시도도 하지 않는다. 엔진은 핸들러가 throw 한 실패에만 정책을 건다(`execution-engine.service.ts` 의 `executeNode`). 그 출력이 어디로 가는지는 [2. 에러 포트로 라우팅](#2-에러-포트로-라우팅) 규칙을 따른다.
 
 정책은 `config.errorHandling = { policy, retryConfig?, defaultOutput? }` 에 저장한다. `policy` enum 은 엔진의 `error-policy.handler.ts` 와 같다.
@@ -114,7 +116,7 @@ flowchart TD
 에러 포트는 두 가지다.
 
 - 고정 에러 포트: 노드 정의에 원래 있는 `error` 포트. 어떤 노드에 있는지는 [노드 출력 규약 Principle 3](CLE-NODE-OUTPUT.md#principle-3-에러-계약)의 3.3 이 정한다.
-- 동적 에러 포트: 에러 처리 정책을 "에러 포트로 라우팅" 으로 고를 때 노드에 생기는 `error` 포트. 설정 패널 동작은 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md)이 정한다.
+- 동적 에러 포트: 고정 에러 포트가 없는 노드에서 에러 처리 정책을 "에러 포트로 라우팅" 으로 고를 때 생기는 `error` 포트. 고정 에러 포트가 있는 노드에는 생기지 않는다([노드 출력 규약](CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14)). 설정 패널 동작은 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md)이 정한다.
 
 동적 에러 포트는 아직 구현되지 않았다. 지금은 노드 정의에 고정 `error` 포트를 둔 노드만 이 정책으로 에러 연결선을 이을 수 있다.
 
