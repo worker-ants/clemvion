@@ -424,9 +424,7 @@ describe('LlmService', () => {
         temperature: 0.4,
         maxTokens: 2048,
       });
-      expect((mockClient.stream as jest.Mock).mock.calls[1][0]).toEqual(
-        params,
-      );
+      expect((mockClient.stream as jest.Mock).mock.calls[1][0]).toEqual(params);
     });
 
     it('429 error 이벤트를 받으면 다시 열지 않고 그 이벤트를 넘긴다', async () => {
@@ -875,7 +873,7 @@ describe('LlmService', () => {
 
         const err = await service
           .resolveConfig(undefined, workspaceId)
-          .catch((e: unknown) => e);
+          .catch((err_: unknown) => err_);
         const response = (err as BadRequestException).getResponse() as {
           message: string;
         };

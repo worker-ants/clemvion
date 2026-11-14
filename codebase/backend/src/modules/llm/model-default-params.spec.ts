@@ -67,7 +67,10 @@ describe('applyModelDefaultParams', () => {
 
   it('prefers max_tokens over maxTokens', () => {
     expect(
-      applyModelDefaultParams(config({ max_tokens: 4096, maxTokens: 2000 }), {}),
+      applyModelDefaultParams(
+        config({ max_tokens: 4096, maxTokens: 2000 }),
+        {},
+      ),
     ).toEqual({ maxTokens: 4096 });
   });
 
