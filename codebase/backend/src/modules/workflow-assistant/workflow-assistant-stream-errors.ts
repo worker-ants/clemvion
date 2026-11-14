@@ -1,4 +1,4 @@
-import { HttpException } from '@nestjs/common';
+import { isLlmStreamingUnsupported } from '../llm/llm.service';
 import {
   LLM_STREAMING_UNSUPPORTED,
   type LlmStreamErrorCode,
@@ -103,17 +103,6 @@ function build(
   return { code, message } as AssistantStreamError;
 }
 
-/** `LlmService.chatStream` 이 던지는 스트리밍 미지원 예외인지. 응답 본문의 `code` 로 본다. */
-function isStreamingUnsupportedException(err: unknown): boolean {
-  if (!(err instanceof HttpException)) return false;
-  const body = err.getResponse();
-  return (
-    typeof body === 'object' &&
-    body !== null &&
-    (body as { code?: unknown }).code === LLM_STREAMING_UNSUPPORTED
-  );
-}
-
 /** SSE `error` 이벤트의 `{ code, message }` 빌더. */
 export const assistantStreamError = {
   /**
@@ -163,7 +152,7 @@ export const assistantStreamError = {
    * 포함)는 화면으로 보내지 않는다. 호출자가 서버 로그에 남긴다.
    */
   fromStreamException(err: unknown): AssistantStreamError {
-    if (isStreamingUnsupportedException(err)) {
+    if (isLlmStreamingUnsupported(err)) {
       return build(
         LLM_STREAMING_UNSUPPORTED,
         ASSISTANT_STREAM_ERROR_MESSAGES.LLM_STREAMING_UNSUPPORTED,

@@ -1,4 +1,5 @@
 import {
+  HttpException,
   Injectable,
   Logger,
   BadRequestException,
@@ -71,6 +72,20 @@ export interface LlmCallOptions {
    * 내부 호출은 값을 직접 정하고 켜지 않는다. 병합 규칙은 `applyModelDefaultParams`.
    */
   applyModelDefaults?: boolean;
+}
+
+/**
+ * `LlmService.chatStream` 이 던지는 스트리밍 미지원 예외인지. 응답 본문의 `code` 로 본다.
+ * 던지는 쪽(`chatStream`)과 읽는 쪽(어시스턴트)이 문자열 계약을 따로 들고 있지 않게 한다.
+ */
+export function isLlmStreamingUnsupported(err: unknown): boolean {
+  if (!(err instanceof HttpException)) return false;
+  const body = err.getResponse();
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    (body as { code?: unknown }).code === LLM_STREAMING_UNSUPPORTED
+  );
 }
 
 @Injectable()
@@ -159,6 +174,17 @@ export class LlmService implements OnModuleInit {
     }
   }
 
+  /** `applyModelDefaults` 가 켜졌을 때만 모델 설정 기본 파라미터를 채운다. */
+  private resolveParams(
+    config: ModelConfig,
+    params: ChatParams,
+    opts?: Pick<LlmCallOptions, 'applyModelDefaults'>,
+  ): ChatParams {
+    return opts?.applyModelDefaults
+      ? applyModelDefaultParams(config, params)
+      : params;
+  }
+
   async chat(
     config: ModelConfig,
     params: ChatParams,
@@ -166,9 +192,7 @@ export class LlmService implements OnModuleInit {
     opts?: LlmCallOptions,
   ): Promise<ChatResult> {
     const client = this.createClient(config);
-    const effective = opts?.applyModelDefaults
-      ? applyModelDefaultParams(config, params)
-      : params;
+    const effective = this.resolveParams(config, params, opts);
     // Strip `source` (WebSocket emit metadata per
     // spec/5-system/6-websocket-protocol.md §4.4.6) before forwarding to the
     // provider client — LLM APIs only see the canonical
@@ -239,9 +263,7 @@ export class LlmService implements OnModuleInit {
       thinkingTokens?: number;
     } | null = null;
     let lastModel: string = config.defaultModel;
-    const effective = opts?.applyModelDefaults
-      ? applyModelDefaultParams(config, params)
-      : params;
+    const effective = this.resolveParams(config, params, opts);
     try {
       for await (const event of client.stream(effective, signal)) {
         if (event.type === 'done') {

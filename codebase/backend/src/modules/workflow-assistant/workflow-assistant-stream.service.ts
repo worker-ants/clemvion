@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { LlmService } from '../llm/llm.service';
+import { APPLY_MODEL_DEFAULTS } from '../llm/model-default-params';
 import { ChatMessage } from '../llm/interfaces/llm-client.interface';
 import { ModelConfig } from '../model-config/entities/model-config.entity';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -486,7 +487,7 @@ export class WorkflowAssistantStreamService {
           { workflowId: session.workflowId },
           signal,
           // CLE-T-GG3WPZ — 모델 설정의 temperature · max_tokens 기본값을 쓴다.
-          { applyModelDefaults: true },
+          APPLY_MODEL_DEFAULTS,
         )) {
           if (ev.type === 'text_delta') {
             assistantText += ev.delta;

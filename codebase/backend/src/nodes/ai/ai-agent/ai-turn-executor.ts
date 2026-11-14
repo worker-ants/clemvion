@@ -9,6 +9,7 @@ import {
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
 import { LlmService, LlmCallContext } from '../../../modules/llm/llm.service';
+import { APPLY_MODEL_DEFAULTS } from '../../../modules/llm/model-default-params';
 import {
   ChatMessage,
   ChatResult,
@@ -1971,7 +1972,7 @@ export class AiTurnExecutor {
         {
           signal: context.abortSignal,
           timeoutMs: aiAgentLlmCallTimeoutMs(),
-          applyModelDefaults: true,
+          ...APPLY_MODEL_DEFAULTS,
         },
       );
     } catch (err) {
@@ -2104,7 +2105,7 @@ export class AiTurnExecutor {
           {
             signal: context.abortSignal,
             timeoutMs: aiAgentLlmCallTimeoutMs(),
-            applyModelDefaults: true,
+            ...APPLY_MODEL_DEFAULTS,
           },
         );
       } catch (err) {
@@ -3054,7 +3055,7 @@ export class AiTurnExecutor {
       {
         signal: options?.signal,
         timeoutMs: aiAgentLlmCallTimeoutMs(),
-        applyModelDefaults: true,
+        ...APPLY_MODEL_DEFAULTS,
       },
     );
     llmCalls.push({
@@ -3205,7 +3206,7 @@ export class AiTurnExecutor {
         {
           signal: options?.signal,
           timeoutMs: aiAgentLlmCallTimeoutMs(),
-          applyModelDefaults: true,
+          ...APPLY_MODEL_DEFAULTS,
         },
       );
       llmCalls.push({
