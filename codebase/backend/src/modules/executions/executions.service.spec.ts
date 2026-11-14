@@ -1267,7 +1267,7 @@ describe('ExecutionsService', () => {
           status ? (baseFake({ id: 'eI3', status }) as unknown) : null,
         );
 
-        const err = await service.stop('eI3').catch((e: unknown) => e);
+        const err = await service.stop('eI3').catch((err_: unknown) => err_);
 
         expect(err).toBeInstanceOf(type);
         expect((err as NotFoundException).getResponse()).toMatchObject({
