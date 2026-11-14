@@ -10,7 +10,6 @@ import {
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService, LlmCallContext } from '../../../modules/llm/llm.service';
-import { APPLY_MODEL_DEFAULTS } from '../../../modules/llm/model-default-params';
 import { extractRetryAfterMs } from '../../../shared/utils/retry-after';
 import {
   ChatMessage,
@@ -1944,7 +1943,7 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
     const startedAt = Date.now();
     const result = await this.llmService.chat(llmConfig, params, llmContext, {
       signal,
-      ...APPLY_MODEL_DEFAULTS,
+      applyModelDefaults: true,
     });
     return {
       result,
