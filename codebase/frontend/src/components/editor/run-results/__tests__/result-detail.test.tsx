@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ResultDetail } from "../result-detail";
 import type { NodeResult } from "@/lib/stores/execution-store";
@@ -10,12 +10,16 @@ import {
   ctS19NoTurnDebug,
 } from "./fixtures/conversation-scenarios";
 
-// Mock ws-client
+// Mock ws-client. 기본은 연결된 소켓이다. 끊긴 소켓은 「명령을 보내지 못했을 때」 묶음만 쓴다.
+const { wsEmitMock, wsIsConnectedMock } = vi.hoisted(() => ({
+  wsEmitMock: vi.fn(),
+  wsIsConnectedMock: vi.fn(() => true),
+}));
 vi.mock("@/lib/websocket/ws-client", () => ({
   getWsClient: () => ({
-    emit: vi.fn(),
+    emit: wsEmitMock,
     once: vi.fn(),
-    isConnected: () => true,
+    isConnected: wsIsConnectedMock,
   }),
 }));
 
@@ -1024,5 +1028,108 @@ describe("Inv-9 — 🔎 행 / 📚 chip / References 탭의 sources[] 동일성
     expect(screen.queryByText("참조")).toBeNull();
     // 대화 자체는 정상 렌더 — 결측 내성 (§9.12)
     expect(screen.getByText("안녕")).toBeDefined();
+  });
+});
+
+// CLE-T-5P1ADY — 소켓이 끊겨 버튼 · 대화 명령이 `false` 를 돌려주면(보내지 않음) ResultDetail 은
+// 입력 대기를 푸는 콜백을 부르지 않는다. 연결이 돌아온 뒤 사용자가 다시 할 수 있어야 한다.
+describe("ResultDetail — 명령을 보내지 못했을 때(false)", () => {
+  beforeEach(() => {
+    wsEmitMock.mockReset();
+  });
+  afterEach(() => {
+    wsIsConnectedMock.mockReturnValue(true);
+  });
+
+  function renderButtons(buttons: unknown[]) {
+    const onButtonClick = vi.fn();
+    render(
+      <ResultDetail
+        result={makeResult({ status: "waiting_for_input" })}
+        {...defaultProps}
+        isWaitingButtons
+        buttonConfig={{ buttons }}
+        onButtonClick={onButtonClick}
+      />,
+    );
+    return onButtonClick;
+  }
+
+  function renderLiveConversation() {
+    Element.prototype.scrollIntoView = vi.fn() as never;
+    const onConversationEnd = vi.fn();
+    render(
+      <ResultDetail
+        result={makeResult({
+          nodeId: "ai-node",
+          nodeType: "ai_agent",
+          nodeCategory: "ai",
+          status: "waiting_for_input",
+          outputData: null,
+        })}
+        {...defaultProps}
+        isWaitingConversation
+        conversationConfig={{ message: "", messages: [], turnCount: 1, maxTurns: 5 }}
+        onConversationEnd={onConversationEnd}
+      />,
+    );
+    return onConversationEnd;
+  }
+
+  const PORT_BUTTON = { id: "approve", label: "승인", type: "port" };
+  const LINK_BUTTON = { id: "docs", label: "문서", type: "link", url: "https://example.com" };
+
+  it.each([
+    ["연결돼 있으면 보내고 입력 대기를 푼다", true, 1],
+    ["끊겨 있으면 보내지 않고 입력 대기를 그대로 둔다", false, 0],
+  ])("포트 버튼: %s", (_name, connected, calls) => {
+    wsIsConnectedMock.mockReturnValue(connected);
+    const onButtonClick = renderButtons([PORT_BUTTON]);
+
+    fireEvent.click(screen.getByRole("button", { name: "승인" }));
+
+    expect(wsEmitMock).toHaveBeenCalledTimes(calls);
+    expect(onButtonClick).toHaveBeenCalledTimes(calls);
+  });
+
+  it.each([
+    ["연결돼 있으면 보내고 입력 대기를 푼다", true, 1],
+    ["끊겨 있으면 보내지 않고 입력 대기를 그대로 둔다", false, 0],
+  ])("링크 버튼만 있을 때의 Continue: %s", (_name, connected, calls) => {
+    wsIsConnectedMock.mockReturnValue(connected);
+    const onButtonClick = renderButtons([LINK_BUTTON]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }));
+
+    expect(wsEmitMock).toHaveBeenCalledTimes(calls);
+    expect(onButtonClick).toHaveBeenCalledTimes(calls);
+  });
+
+  it.each([
+    ["연결돼 있으면 보내고 대화 종료를 알린다", true, 1],
+    ["끊겨 있으면 보내지 않고 대화 종료를 알리지 않는다", false, 0],
+  ])("대화 종료: %s", (_name, connected, calls) => {
+    wsIsConnectedMock.mockReturnValue(connected);
+    const onConversationEnd = renderLiveConversation();
+
+    fireEvent.click(screen.getByTitle(/대화 종료|End conversation/));
+
+    expect(wsEmitMock).toHaveBeenCalledTimes(calls);
+    expect(onConversationEnd).toHaveBeenCalledTimes(calls);
+  });
+
+  it.each([
+    ["연결돼 있으면 보내고 입력창을 비운다", true, 1, ""],
+    ["끊겨 있으면 보내지 않고 입력창의 글을 남긴다", false, 0, "환불 정책 알려줘"],
+  ])("메시지 전송: %s", (_name, connected, calls, expected) => {
+    wsIsConnectedMock.mockReturnValue(connected);
+    renderLiveConversation();
+
+    const textbox = screen.getByRole("textbox");
+    fireEvent.change(textbox, { target: { value: "환불 정책 알려줘" } });
+    fireEvent.keyDown(textbox, { key: "Enter" });
+
+    expect(wsEmitMock).toHaveBeenCalledTimes(calls);
+    expect(textbox).toHaveValue(expected);
   });
 });
