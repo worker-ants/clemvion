@@ -606,6 +606,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
         const controller = new AbortController();
 
         await handler.processMultiTurnMessage('질문', state, {
+          source: 'ai_message',
           signal: controller.signal,
         });
 

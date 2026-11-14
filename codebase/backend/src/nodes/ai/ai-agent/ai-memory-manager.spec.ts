@@ -391,7 +391,9 @@ describe('AiMemoryManager', () => {
               strategy: 'summary_buffer',
               tailMode: 'system-only',
               config: { memoryTokenBudget: 100 },
-              target: { conversationThread: { turns } } as InjectArgs['target'],
+              target: {
+                conversationThread: { turns },
+              } as unknown as InjectArgs['target'],
               signal: controller.signal,
             }),
           );
