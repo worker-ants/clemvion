@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-AUTH"
 title: "계정과 워크스페이스 데이터 흐름 — 인증 흐름"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "8184da40c8b05a8babbede8c8f05aeb73ca062025220041ce1f4c2db81b5072d"
+content_hash: "ec4b8cc2206a7ee46951557159613d068120067fd3b48edab7f2e0e05a02ead2"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-VYNVGP"
 source_paths: []
-mirror_sha256: "6409d0df725cfda036476726304781f56d2fcca7dcd11efdf25cceb709d84e1b"
-etag: "sha256-c4d82bfceb1a4bbb9cbf29d1787ed738837a9fbed8be6aa84fbf090e56e8e23f"
+mirror_sha256: "7f702482ddfe62499b17ee18cda83d3300c3754a18cd7f5db5b82c1174b24c32"
+etag: "sha256-1f732ae9c4e159da7c45203e5dc5f50ba91d0648a223e7a847fc2a10924011ce"
 ---
 ## 개요
 
@@ -98,9 +98,9 @@ sequenceDiagram
 - 성공 응답 본문은 `{ accessToken }` 뿐이다. 리프레시 토큰은 httpOnly 쿠키로만 내려가고 `user` 객체는 없다(`auth.controller.ts` 의 `login`).
 - Passkey 를 쓸 수 없는 사용자는 `POST /api/auth/2fa/webauthn/recovery` 로 등록 때 받은 복구 코드를 내 2단계를 통과한다(`webauthn/webauthn.controller.ts`).
 - 이메일 인증 여부는 비밀번호 확인 뒤에 보므로 비밀번호가 틀린 인증 전 계정은 `INVALID_PASSWORD` 로 기록된다. 다이어그램의 `EMAIL_VERIFICATION_REQUIRED` 와 `WEBAUTHN_DISABLED` 두 경우 모두 비밀번호가 맞았으므로 `login_attempts` 는 0 으로 되돌린다. 규칙은 [가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리) 에 있다.
-- 이미 쓴 Passkey 인증 챌린지로 온 요청과 서명이 틀린 응답은 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 다. 로그인 이력에 `webauthn_failed`(`failure_reason='WEBAUTHN_INVALID'`)를 남긴다. 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다. 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) · [「sign counter 역행과 동시성」](CLE-ACCT-SIGNIN.md#sign-counter-역행과-동시성) 에 있다.
-- Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE` 이다. credential · 리프레시 토큰 · 로그인 이력을 바꾸지 않는다. 기록하지 못하는 조건과 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다.
-- 처음 쓰는 챌린지로 온 응답이 서명 검증을 통과했는데 counter 역행(복제 징후)이 감지되면 `webauthn/webauthn.service.ts` 의 `verifyAuthentication` 이 한 트랜잭션에서 그 credential 행을 지우고 사용자의 활성 리프레시 토큰을 모두 무효화한다. 응답은 401 `WEBAUTHN_COUNTER_REGRESSION` 이다. `login_history.event=webauthn_failed` 는 트랜잭션 밖에서 남긴다. 마지막 credential 이 지워져도 `webauthn_recovery_codes` 는 비우지 않는다. 이유는 [가입과 로그인 「counter 역행이면 credential 을 지운다」](CLE-ACCT-SIGNIN.md#counter-역행이면-credential-을-지운다-suspend-기각) 에 있다.
+- 이미 쓴 Passkey 인증 챌린지로 온 요청과 서명이 틀린 응답은 credential 과 리프레시 토큰을 건드리지 않고 401 `WEBAUTHN_INVALID` 다. 로그인 이력에 `webauthn_failed`(`failure_reason='WEBAUTHN_INVALID'`)를 남긴다. 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다. 규칙은 [Passkey 로그인 인증과 counter 역행 「Passkey 로그인 인증 흐름」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-로그인-인증-흐름) · [「sign counter 역행과 동시성」](CLE-ACCT-SIGNIN-PKAUTH.md#sign-counter-역행과-동시성) 에 있다.
+- Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE` 이다. credential · 리프레시 토큰 · 로그인 이력을 바꾸지 않는다. 기록하지 못하는 조건과 규칙은 [Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록) 에 있다.
+- 처음 쓰는 챌린지로 온 응답이 서명 검증을 통과했는데 counter 역행(복제 징후)이 감지되면 `webauthn/webauthn.service.ts` 의 `verifyAuthentication` 이 한 트랜잭션에서 그 credential 행을 지우고 사용자의 활성 리프레시 토큰을 모두 무효화한다. 응답은 401 `WEBAUTHN_COUNTER_REGRESSION` 이다. `login_history.event=webauthn_failed` 는 트랜잭션 밖에서 남긴다. 마지막 credential 이 지워져도 `webauthn_recovery_codes` 는 비우지 않는다. 이유는 [Passkey 로그인 인증과 counter 역행 「counter 역행이면 credential 을 지운다」](CLE-ACCT-SIGNIN-PKAUTH.md#counter-역행이면-credential-을-지운다-suspend-기각) 에 있다.
 
 ## 소셜 로그인
 
@@ -121,7 +121,16 @@ sequenceDiagram
   Svc->>Prov: 코드 교환, userinfo 조회
   alt oauth_provider와 oauth_provider_id로 사용자 있음
     Svc->>PG: SELECT user
-  else 이메일로 사용자 있음
+  else 이메일로 사용자 있음, 이메일 인증 전
+    Note over Svc,PG: 한 트랜잭션 (user UPDATE 와 refresh_token 폐기, 폐기가 실패하면 둘 다 롤백하고 콜백 실패)
+    Svc->>PG: 한 트랜잭션에서 UPDATE user SET oauth_provider, oauth_provider_id, email_verified=true, password_hash=NULL, 재설정 · 인증 토큰 NULL WHERE oauth_provider IS NULL AND email_verified=false
+    opt 1행을 바꿈
+      Svc->>PG: 같은 트랜잭션에서 UPDATE refresh_token SET is_revoked=true WHERE user_id
+      opt 폐기한 행이 있음
+        Svc->>PG: INSERT login_history (session_revoked, family_id=NULL)
+      end
+    end
+  else 이메일로 사용자 있음, 인증됨 또는 위 UPDATE 가 0행
     Svc->>PG: UPDATE user SET oauth_provider, oauth_provider_id, email_verified=true WHERE oauth_provider IS NULL
   else 신규 사용자
     Svc->>PG: INSERT user (password_hash=NULL)
@@ -133,7 +142,12 @@ sequenceDiagram
 
 - state 행이 없으면(없음·만료·이미 소비) 서비스는 400 `OAUTH_STATE_MISMATCH` 예외를 던진다. 행의 `provider` 가 경로의 `:provider` 와 달라도 거부한다. 현재 구현은 컨트롤러가 이 예외를 `{frontendUrl}/callback?error=invalid_state` 리다이렉트로 바꾼다. 다른 실패도 `{frontendUrl}/callback?error={code}` 로 보낸다.
 - 콜백은 액세스 토큰을 URL 에 싣지 않는다. 리프레시 토큰만 쿠키로 설정하고 프론트 `/callback` 페이지가 `POST /api/auth/refresh` 로 액세스 토큰을 받는다.
-- 이메일 매칭 연결은 `oauth_provider IS NULL` 조건부 UPDATE 라 이미 다른 제공자에 묶인 계정을 덮어쓰지 않는다. 연결할 때 `email_verified=true` 와 아바타 URL 도 함께 설정한다(`auth-oauth.service.ts` 의 `resolveUser`).
+- 이메일 매칭 연결은 기존 계정의 이메일 인증 여부에 따라 갈린다(`auth-oauth.service.ts` 의 `resolveUser` · `claimUnverifiedAccount`). 규칙과 근거는 [로그인과 소셜 로그인](CLE-ACCT-SIGNIN-LOGIN.md) 에 있다.
+  1. 이메일 인증 전 계정이면 트랜잭션 하나를 열고 조건부 UPDATE 하나로 `oauth_provider` · `oauth_provider_id` · `email_verified=true` · `avatar_url`(기존 값 우선)을 쓰고 `password_hash` · `password_reset_token` · `password_reset_expires_at` · `email_verify_token` · `email_verify_expires_at` 을 NULL 로 비운다. 조건은 `id = :id AND oauth_provider IS NULL AND email_verified = false` 다.
+  2. 그 UPDATE 가 한 행을 바꿨으면 같은 트랜잭션에서 `SessionsService.revokeAllFamilies` 로 그 사용자의 리프레시 토큰을 모두 `is_revoked=true` 로 바꾼다. 폐기가 실패하면 1의 UPDATE 도 롤백하고 콜백은 토큰을 발급하지 않고 실패한다. 계정이 인증 전 상태로 남으므로 다음 로그인 시도는 다시 이 경로로 들어온다. 폐기한 행이 있으면 로그인 이력 `session_revoked`(일괄, `family_id=null`)를 1건 남긴다. 폐기를 마친 뒤에 콜백이 새 로그인 세션을 발급한다.
+  3. 그 UPDATE 가 0행이면 그 사이 인증을 마쳤거나 다른 제공자에 묶인 계정이다. 세션을 폐기하지 않고 4의 조건부 연결로 넘어간다.
+  4. 이메일 인증을 마친 계정은 `oauth_provider IS NULL` 조건부 UPDATE 로 연결한다. 이미 다른 제공자에 묶인 계정은 덮어쓰지 않는다. `email_verified=true` 와 아바타 URL 도 함께 쓰고 비밀번호와 세션은 그대로 둔다.
+- 미인증 계정에는 보통 세션이 없어서 위 2의 폐기는 방어용이다. TOTP 와 Passkey 는 로그인해야 설정할 수 있어 미인증 계정에는 없으므로 이 경로가 건드리지 않는다. 비밀번호를 다시 쓰려는 사용자는 「비밀번호 찾기」로 새로 정한다.
 - 신규 사용자 경로에서 첫 콜백이 동시에 와 unique index 충돌(23505)이 나면 이긴 쪽이 만든 행을 다시 조회해 복구한다.
 - `OAUTH_STUB_MODE` 는 개발·테스트에서만 제공자 토큰·userinfo 호출을 stub 으로 바꾼다. 운영에서 켜면 부팅을 거부한다([세션과 토큰](CLE-ACCT-SESSION.md)).
 
@@ -215,7 +229,7 @@ stateDiagram-v2
   Active --> Revoked: 회전 (옛 행)
   Active --> Revoked: 로그아웃·세션 강제 종료
   Active --> Revoked: 재사용 감지로 family 전체
-  Active --> Revoked: 비밀번호 재설정·변경, 이메일 변경, Passkey counter 역행
+  Active --> Revoked: 비밀번호 재설정·변경, 이메일 변경, Passkey counter 역행, 미인증 계정의 소셜 연결
   Active --> Expired: now > expires_at (사용 시 거부)
   Revoked --> [*]
   Expired --> [*]
@@ -293,4 +307,4 @@ CSRF 와 재전송을 막기 위해 `auth_oauth_state` 는 콜백 한 번에 소
 
 ### Passkey 인증 챌린지 기록을 Redis 키에 둔다 (2026-10-30)
 
-NERV Task `CLE-T-GK9J2B` 에서 Passkey 인증 챌린지 기록을 테이블이 아니라 Redis 키에 두기로 정했다. 근거와 기각한 안은 [가입과 로그인 「Passkey 인증 챌린지는 한 번만 쓴다」](CLE-ACCT-SIGNIN.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17) 에 있다. 같은 문서의 [OAuth state 를 한 번의 DELETE 로 소비한다](#oauth-state-를-한-번의-delete-로-소비한다) 와 저장소가 다른 것은 OAuth state 는 시작할 때 만든 행을 콜백에서 지워 소비하지만 이 기록은 검증할 때마다 새로 쓰고 TTL 로 사라지기만 하면 되기 때문이다.
+NERV Task `CLE-T-GK9J2B` 에서 Passkey 인증 챌린지 기록을 테이블이 아니라 Redis 키에 두기로 정했다. 근거와 기각한 안은 [Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지는 한 번만 쓴다」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지는-한-번만-쓴다) 에 있다. 같은 문서의 [OAuth state 를 한 번의 DELETE 로 소비한다](#oauth-state-를-한-번의-delete-로-소비한다) 와 저장소가 다른 것은 OAuth state 는 시작할 때 만든 행을 콜백에서 지워 소비하지만 이 기록은 검증할 때마다 새로 쓰고 TTL 로 사라지기만 하면 되기 때문이다.

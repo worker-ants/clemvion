@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION-POLICY"
 title: "세션과 토큰 — 세션 정책과 세션 관리"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SESSION"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SESSION"]
 area: "CLE-ACCT"
-content_hash: "4d7752d9e4b9b4d0e112c110138277945e01bc4cfa3dd1e0bcd03dba79f35483"
+content_hash: "a95a5d51356eefe229820b57aa417e2645999a214e77e4ebd8dc39cc2083c14c"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-Y2C5F4"
 source_paths: []
-mirror_sha256: "185f6d6ce501efc117776a9d59f17aef83936cd97e5b89d2b7d829539a27b218"
-etag: "sha256-ec2348b8e60260f980a178ade1fab6e4f99143c7c232d00d2ad3a5e0b75813a3"
+mirror_sha256: "c695a90d280115c1644f9017599c0e6a9385d7205d8b8ff31f8d8b03548c6f29"
+etag: "sha256-a74cbb58ee5b5b3f39a67d7b5b21910b9ba649e42b279fd6d137c0adcaf95bae"
 ---
 > 구현 상태: 부분 구현 (동시 세션 한도와 초과 시 가장 오래된 세션 종료는 미구현) · 상위: [세션과 토큰](CLE-ACCT-SESSION.md)
 
@@ -33,6 +33,7 @@ etag: "sha256-ec2348b8e60260f980a178ade1fab6e4f99143c7c232d00d2ad3a5e0b75813a3"
 | 강제 종료 재인증 | `SessionsService.verifyReauth` 로 본인을 확인한다. 비밀번호가 있는 계정은 비밀번호, 비밀번호가 없고 TOTP 가 켜진 계정은 등록된 TOTP 코드로 확인한다. 둘 다 있으면 비밀번호, TOTP 순으로 하나만 통과하면 된다. 복구 코드는 받지 않는다. 지금은 요청 DTO 의 `totpCode` 길이 제한(6~8자)이 복구 코드를 막는다. 비밀번호도 TOTP 도 없는 OAuth 전용 계정은 `REAUTH_NOT_AVAILABLE` 로 막는다. Passkey 만 등록한 계정도 여기에 든다. Passkey 와 이메일 OTP 로 하는 계정 재인증은 현재 지원하지 않는다. 이메일 변경과 일괄 종료도 같은 `verifyReauth` 를 쓴다 |
 | 비밀번호 변경 시 | `POST /api/users/me/change-password` 가 성공하면 사용자의 모든 활성 로그인 세션을 무효화하고 변경한 현재 기기에 새 로그인 세션(새 액세스 토큰과 리프레시 쿠키)을 바로 발급한다. 로그인 이력에 `session_revoked`(일괄, `familyId=null`) 1건을 남긴다. 새 로그인 세션은 표준 7일(`rememberMe=false`)이다. 이 요청은 `/api/users/me/*` 경로라 리프레시 쿠키가 붙지 않는다. 그래서 현재 로그인 세션을 식별할 수 없어 직전 로그인 세션의 로그인 유지 여부를 이어받지 않는다 |
 | 이메일 변경 시 | `POST /api/users/me/email-change/verify` 가 성공하면 비밀번호 변경과 같게 모든 로그인 세션을 무효화하고 현재 기기에 다시 발급한다. 이 요청도 `/api/users/me/*` 경로라 현재 로그인 세션을 식별할 수 없다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 기존 enum 값을 다시 쓰므로 DB CHECK·마이그레이션이 필요 없다 |
+| 미인증 계정에 소셜 로그인을 연결할 때 | 소셜 로그인 콜백이 이메일 인증 전 계정에 연결하면 그 사용자의 모든 로그인 세션을 무효화한다. 폐기한 행이 있으면 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 그다음 콜백이 새 로그인 세션을 발급한다. 인증된 계정에 연결할 때는 무효화하지 않는다. 연결 규칙은 [로그인과 소셜 로그인 「소셜 로그인」](CLE-ACCT-SIGNIN-LOGIN.md#소셜-로그인) 이 정한다 |
 | 현재 로그인 세션 식별 | 서버가 요청의 리프레시 쿠키 해시를 조회해 `isCurrent` 로 응답한다. 원래 토큰은 JS 에 노출하지 않는다. 브라우저가 쿠키를 보내도록 세션 API 는 쿠키 Path 아래 `/api/auth/sessions` 에 둔다. 쿠키가 없거나 맞는 로그인 세션이 없으면 모든 로그인 세션의 `isCurrent` 가 false 이고 일괄 종료는 400 `CURRENT_SESSION_REQUIRED` 로 거부한다 |
 | 메타데이터 | 발급 시점의 IP·User-Agent·기기 라벨과 마지막 사용 시각·IP 를 리프레시 토큰 행에 기록한다 |
 | 클라이언트 IP | `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 `true` 나 `1` 일 때만 1순위로 쓴다(기본 off, 위조 가능한 헤더). off 면 `X-Forwarded-For` 첫 IP, `req.ip`(trust proxy), `req.socket.remoteAddress` 순이다. 이 네 단계 순서는 로그인 세션·감사 IP 경로(`extractClientIp(req)`)에만 쓴다. 공개 웹훅 요청 한도·`ip_whitelist`·실행 기록 소스 IP(`Execution.source_ip`) 경로는 헤더 기반(CF 허용 시 `CF-Connecting-IP`, 그다음 `X-Forwarded-For` 첫 IP)만 쓰고 `req.ip`·socket 폴백이 없다(`extractClientIpFromHeaders`). 헤더로 IP 를 알 수 없으면 공개 웹훅 요청 한도는 거부하지 않고 단일 공유 버킷의 완화 한도를 쓴다. `ip_whitelist` 는 반대로 거부한다. 실행 기록 소스 IP 는 비워 저장한다(NULL 허용 컬럼, [실행 데이터와 흐름 — 데이터 모델](../CLE-EXEC/CLE-EXEC-DATA-MODEL.md#실행)). Cloudflare(Tunnel 포함) 뒤에 배포할 때만 켠다. 채팅 채널 서명 검증 실패 한도는 보내는 쪽이 정할 수 없는 출처만 쓴다. CF 허용 시 `CF-Connecting-IP`, 그다음 `req.ip` 순이고 `X-Forwarded-For` 첫 IP 와 socket 폴백은 쓰지 않는다(`extractUnspoofableClientIp`). 이 경로에서 IP 를 알 수 없으면 그 한도를 보지도 세지도 않는다. 규칙과 근거는 [채팅 채널 「R-CC-34」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다) 에 있다 |
@@ -50,7 +51,7 @@ etag: "sha256-ec2348b8e60260f980a178ade1fab6e4f99143c7c232d00d2ad3a5e0b75813a3"
 | 헬퍼 | 쓰는 곳 | 에러 코드 |
 | --- | --- | --- |
 | 계정 재인증 `SessionsService.verifyReauth` | 세션 강제 종료, 일괄 종료, 이메일 변경 | 요청에 비밀번호·TOTP 어느 쪽도 없거나 충족 안 됨(비밀번호가 없는 계정에 비밀번호만 보낸 경우 포함) `REAUTH_REQUIRED`(400), 비밀번호 불일치 `PASSWORD_INVALID`(401), TOTP 불일치 `TOTP_INVALID`(401), 계정 재인증 수단 없음(계정에 비밀번호도 TOTP 도 없음. Passkey 만 등록한 계정 포함) `REAUTH_NOT_AVAILABLE`(403) |
-| 비밀번호 재확인 `AuthService.verifyPasswordForUser` | 2단계 인증 설정 시작(`/api/auth/2fa/setup`), 2단계 인증 끄기(`/api/auth/2fa/disable`), Passkey 등록 옵션(`/api/auth/2fa/webauthn/register/options`), Passkey 복구 코드 재발급, Passkey 삭제(`/api/auth/2fa/webauthn/credentials/:id/delete`) | 비밀번호 미설정(OAuth 전용)·미입력 `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401). 위 라우트에서는 본문 검증이 미입력을 먼저 400 `VALIDATION_ERROR` 로 거른다. 그래서 라우트가 내는 `PASSWORD_REQUIRED` 는 계정에 비밀번호가 없다는 뜻이다. 2단계 인증 설정 시작은 비밀번호 확인 뒤 TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED`. 2단계 인증 끄기는 비밀번호 확인 뒤 인증 코드를 확인하고 틀리면 401 `TOTP_INVALID`. Passkey 등록 옵션은 비밀번호 확인이 실패하면 등록 옵션과 `optionsToken` 을 만들지 않고 Passkey 삭제는 credential 을 지우지 않는다 |
+| 비밀번호 재확인 `AuthService.verifyPasswordForUser` | 2단계 인증 설정 시작(`/api/auth/2fa/setup`), 2단계 인증 끄기(`/api/auth/2fa/disable`), Passkey 등록 옵션(`/api/auth/2fa/webauthn/register/options`), Passkey 복구 코드 재발급, Passkey 삭제(`/api/auth/2fa/webauthn/credentials/:id/delete`) | 비밀번호 미설정(OAuth 전용)·미입력 `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401). 위 라우트에서는 본문 검증이 미입력을 먼저 400 `VALIDATION_ERROR` 로 거른다. 그래서 라우트가 내는 `PASSWORD_REQUIRED` 는 계정에 비밀번호가 없다는 뜻이다. 라우트별로 뒤따르는 검사와 코드는 표 아래 목록에 있다 |
 | 비밀번호 변경 `UsersService.changePassword` | `POST /api/users/me/change-password` 의 현재 비밀번호 확인 | 비밀번호 미설정(`passwordHash` 없음) `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401), 사용자 없음 `USER_NOT_FOUND`(404) |
 
 - `PASSWORD_INVALID` 는 세 헬퍼가 같은 코드를 쓴다. `TOTP_INVALID` 는 로그인 2단계 TOTP 검증, TOTP 활성화 검증, 2단계 인증 끄기에서도 같은 코드다.
@@ -73,7 +74,7 @@ etag: "sha256-ec2348b8e60260f980a178ade1fab6e4f99143c7c232d00d2ad3a5e0b75813a3"
 | 활성 세션 탭 | 로그인된 기기·브라우저 목록(로그인 세션 단위), 기기 라벨·IP·마지막 사용 시각, "현재" 세션 배지 | 다른 세션을 하나씩 종료하거나 현재 세션을 뺀 나머지를 한꺼번에 종료한다. 종료 전 `RevokeConfirmDialog` 가 비밀번호 또는 TOTP 로 계정 재인증을 받는다 |
 | 로그인 이력 탭 | 성공·실패·강제 종료 같은 인증 이벤트를 시간 역순으로 표시 | 본인만 조회한다. 이벤트 종류·조회 API·180일 보존은 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다 |
 
-세션 종료 확인 창의 계정 재인증 입력은 다음 순서로 바뀐다. 이유는 「[세션 강제 종료의 계정 재인증은 비밀번호를 먼저 받고 서버 응답으로 입력을 바꾼다 (2026-11-02)](#세션-강제-종료의-계정-재인증은-비밀번호를-먼저-받고-서버-응답으로-입력을-바꾼다-2026-11-02)」 에 있다.
+세션 종료 확인 창의 계정 재인증 입력은 다음 순서로 바뀐다. 이유는 「[세션 강제 종료의 계정 재인증은 비밀번호를 먼저 받고 서버 응답으로 입력을 바꾼다](#세션-강제-종료의-계정-재인증은-비밀번호를-먼저-받고-서버-응답으로-입력을-바꾼다)」 에 있다.
 
 - 처음에는 늘 비밀번호 입력란을 보여 준다. TOTP 가 켜진 계정도 같다.
 - 종료 요청이 400 `REAUTH_REQUIRED` 로 끝나고 그 계정의 TOTP 가 켜져 있으면 TOTP 코드 입력란으로 바꾼다. 비밀번호만 보낸 요청에 이 응답이 오면 그 계정에 비밀번호가 없다는 뜻이다. TOTP 켜짐 여부는 `GET /api/users/me` 응답의 `twoFactorEnabled` 로 읽는다([내 프로필](CLE-ACCT-PROFILE.md#api)).
@@ -86,11 +87,13 @@ etag: "sha256-ec2348b8e60260f980a178ade1fab6e4f99143c7c232d00d2ad3a5e0b75813a3"
 
 세션 API 다. 갱신과 로그아웃 API 는 [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#api) 에 있다.
 
+이 문서의 표에 적은 성공 응답은 응답 봉투 `{ data: … }` 안의 내용이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 5). 에러 응답 형식은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다.
+
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| GET | `/api/auth/sessions` | 활성 로그인 세션 목록. 로그인 세션 단위, `isCurrent` 포함. 응답 `{ data: { items: [...] } }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
-| POST | `/api/auth/sessions/:familyId/revoke` | 로그인 세션 하나 강제 종료. 그 `family_id` 전체를 무효화한다. 본문에 비밀번호 또는 TOTP 로 계정 재인증. 응답 200 과 `{ data: { items } }` 형태의 갱신된 세션 목록. 분당 10회. 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7 이 정한다. 현재 세션 400 `CANNOT_REVOKE_CURRENT_SESSION`, 남의 세션·없는 세션 404, 재인증 수단 없음 403 `REAUTH_NOT_AVAILABLE`. 일부 CDN·프록시가 DELETE 본문을 지우는 문제를 피하려고 DELETE 대신 POST `/revoke` 를 쓴다(`sessions.controller.ts`) |
-| POST | `/api/auth/sessions/revoke-others` | 현재 세션을 뺀 나머지 세션 일괄 종료. 비밀번호 또는 TOTP 로 계정 재인증. 응답 200 과 `{ data: { items } }` 형태의 갱신된 세션 목록. 현재 세션을 식별할 수 없으면 400 `CURRENT_SESSION_REQUIRED`. 분당 5회. 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7 이 정한다 |
+| GET | `/api/auth/sessions` | 활성 로그인 세션 목록. 로그인 세션 단위, `isCurrent` 포함. 응답 `{ items: [...] }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)) |
+| POST | `/api/auth/sessions/:familyId/revoke` | 로그인 세션 하나 강제 종료. 그 `family_id` 전체를 무효화한다. 본문에 비밀번호 또는 TOTP 로 계정 재인증. 응답 200 과 `{ items }` 형태의 갱신된 세션 목록. 분당 10회. 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7 이 정한다. 현재 세션 400 `CANNOT_REVOKE_CURRENT_SESSION`, 남의 세션·없는 세션 404, 재인증 수단 없음 403 `REAUTH_NOT_AVAILABLE`. 일부 CDN·프록시가 DELETE 본문을 지우는 문제를 피하려고 DELETE 대신 POST `/revoke` 를 쓴다(`sessions.controller.ts`) |
+| POST | `/api/auth/sessions/revoke-others` | 현재 세션을 뺀 나머지 세션 일괄 종료. 비밀번호 또는 TOTP 로 계정 재인증. 응답 200 과 `{ items }` 형태의 갱신된 세션 목록. 현재 세션을 식별할 수 없으면 400 `CURRENT_SESSION_REQUIRED`. 분당 5회. 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) §7 이 정한다 |
 
 세 세션 라우트는 리프레시 쿠키 Path(`/api/auth`) 아래에 있어야 현재 세션을 식별할 수 있다. 옛 경로 `/api/users/me/sessions…` 는 별칭 없이 지웠고 지금은 404 다. 이유는 「[세션 API 를 리프레시 쿠키 Path 아래로 옮겼다](#세션-api-를-리프레시-쿠키-path-아래로-옮겼다)」 에 있다. URL 명명 규칙의 예외 등재는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 명명 규칙 절이 한다.
 
@@ -147,8 +150,6 @@ OAuth 전용 계정은 비밀번호가 없어 `POST /api/users/me/change-passwor
 
 세션 강제 종료 재인증은 처음에 "OAuth 전용 계정은 TOTP·Passkey 또는 이메일 OTP 로 대체, Passkey 우선" 으로 적혀 있었다. 실제 구현(`SessionsService.verifyReauth`)과 이메일 변경 재인증 결정, 내 프로필 화면은 모두 비밀번호 또는 TOTP 만 지원한다. Passkey 로 하는 재인증은 challenge·response 흐름이 필요해 지원하지 않고, 이메일 OTP 는 코드에 없다. 그래서 세션 정책 표를 실제 지원 수단으로 고치고 Passkey·이메일 OTP 를 "현재 미지원" 으로 적었다. 새 결정이 아니라 벗어나 있던 서술을 이미 정한 이메일 변경 재인증 결정에 맞춘 것이다. 이 정정으로 세션 정책이 재인증 에러 코드(`REAUTH_REQUIRED`=400, `PASSWORD_INVALID`=401, `TOTP_INVALID`=401)의 기준이 됐다.
 
-복구 코드는 받지 않는다. 지금은 요청 DTO 의 `totpCode` 길이 제한(6~8자)이 복구 코드를 막는다.
-
 2026-10-17 에 `REAUTH_NOT_AVAILABLE` 의 조건을 "비밀번호도 2단계 인증도 없는 계정" 에서 TOTP 기준으로 바로잡았다. [가입과 로그인](CLE-ACCT-SIGNIN.md) 에서 2단계 인증은 TOTP 와 Passkey 를 함께 뜻하지만 구현은 `password_hash` 와 `two_factor_enabled`(TOTP 사용 여부만 뜻함)만 본다. 그래서 Passkey 만 등록하고 비밀번호와 TOTP 가 없는 계정도 403 `REAUTH_NOT_AVAILABLE` 이다. Passkey 로 하는 계정 재인증은 지원하지 않으므로 이 동작이 그 결정과 맞다. 동작은 바뀌지 않았다.
 
 ### 비밀번호 변경이 비밀번호 재확인 헬퍼를 재사용하지 않는 이유
@@ -184,7 +185,9 @@ URL 명명 규칙의 예외는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의
 
 비밀번호 변경과 이메일 변경은 `/api/users/me/*` 에 그대로 둔다. 두 흐름은 모든 세션을 끊고 현재 기기에 다시 발급하므로 현재 세션을 알 필요가 없다. 세션 정책 표와 「[비밀번호 변경은 모든 세션을 끊고 현재 기기에 다시 발급한다](#비밀번호-변경은-모든-세션을-끊고-현재-기기에-다시-발급한다)」 의 "쿠키가 붙지 않아 현재 세션을 식별할 수 없다" 는 이 두 요청에만 해당한다. 그 절이 기각한 (b) 현재 세션만 빼고 끊는 방식은 이제 경로를 옮기면 만들 수 있다. 그래도 바꾸지 않는다. 다시 발급하면 현재 세션의 옛 리프레시 토큰까지 바뀌어 더 강하게 무효화된다는 이유는 그대로다.
 
-### 세션 강제 종료의 계정 재인증은 비밀번호를 먼저 받고 서버 응답으로 입력을 바꾼다 (2026-11-02)
+### 세션 강제 종료의 계정 재인증은 비밀번호를 먼저 받고 서버 응답으로 입력을 바꾼다
+
+결정일: 2026-11-02
 
 계정 재인증은 비밀번호가 있는 계정이면 TOTP 를 켰어도 비밀번호로 통과한다. 인증 앱을 잃은 사용자도 비밀번호로 다른 세션을 끊을 수 있어야 한다. 그래서 세션 종료 확인 창은 처음에 늘 비밀번호를 받는다([세션 화면](#세션-화면)).
 

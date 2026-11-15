@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-API"
 title: "가입과 로그인 — API 와 에러 코드"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "b9f07fb36ed791c0a0399ceaf7e6bd264faf32c4b2f743c14911c2c752e1e9c2"
+content_hash: "16797ceb02988223ef77a96cd083eb49e65e301bbf5686da61cdddd1e27cf31f"
 read_as: "approved_fallback"
-task: "CLE-T-GWC9M3"
+task: "CLE-T-6F4W2A"
 source_paths: []
-mirror_sha256: "45422fbf4f82f6d8716de1d1018e34f34eb2928783d5f6421cc2e8bc9834d784"
-etag: "sha256-e3791bcbc4bfe4785e4a9aeb0164e25e480c67839b277e83c1dea923598a5c1c"
+mirror_sha256: "a3fde508fd983c03f530b60b63087464f74995be75e42e961dcf9c4f86b0da0e"
+etag: "sha256-f80749bf76b8dc9da873b6d9a3dc24408e6927fec6288874542a0bdd565bc242"
 ---
 ## 개요
 
@@ -33,7 +33,7 @@ etag: "sha256-e3791bcbc4bfe4785e4a9aeb0164e25e480c67839b277e83c1dea923598a5c1c"
 | POST | `/api/auth/register` | 가입. 인증 불요(`@Public`), IP 당 분당 10회. 본문 `{ name, email, password, termsAccepted, invitationToken? }`. `password` 는 8~100자다. 강도 규칙 위반은 400 `VALIDATION_ERROR` 이고 `details[].field` 는 `password` 다. `termsAccepted` 가 `true` 가 아니면 400 `VALIDATION_ERROR` 다. 초대 토큰이 없으면 사용자 행과 인증 메일만 만들고 토큰 없이 201 `{ message }` 를 준다. 활성화는 `verify-email` 에서 한다. 초대 토큰이 있으면 인증 메일 없이 바로 로그인하고 `{ message, accessToken }` 과 리프레시 쿠키를 준다. 개인 워크스페이스는 만들지 않는다([워크스페이스와 멤버](CLE-ACCT-WS.md)). 초대 토큰 에러는 [워크스페이스와 멤버 「초대 에러 코드」](CLE-ACCT-WS.md#초대-에러-코드) 에 있다. 이메일이 이미 가입돼 있으면(대소문자만 다른 계정 포함, [이메일 비교 규칙](CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙)) 409 `RESOURCE_CONFLICT`(메시지 `Email already registered`)다. 초대 가입 화면은 메시지가 아닌 `error.code` 로 이 경우를 가른다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 4). 이 응답을 전용 코드로 바꾸는 일은 NERV Task `CLE-T-2M6Q02` 가 맡는다 |
 | POST | `/api/auth/verify-email` | 본문 `{ token }` 으로 이메일 인증 토큰을 검증한다. 개인 워크스페이스를 만들고 액세스·리프레시 토큰을 바로 발급한다. 인증 불요(`@Public`). 토큰이 무효하거나 만료되면 400 |
 | POST | `/api/auth/resend-verification` | 인증 메일 재발송(24시간 유효). 인증 불요(`@Public`), IP 당 분당 5회. 계정 존재·인증 여부와 상관없이 같은 응답. 메일은 인증 전 계정에만 보낸다 |
-| POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회. 가입 폼 이메일 입력란의 중복 확인과 초대 가입 화면의 가입 여부 확인([워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면))에 쓴다. 초대 가입 화면은 이 응답을 5초까지만 기다린다. 대소문자를 구분하지 않고 비교한다. 저장된 이메일과 대소문자만 다른 계정이 있어도 `available: false` 다([이메일 비교 규칙](CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙)). 이 확인이 이메일 존재를 새로 드러내지 않는 이유는 [워크스페이스와 멤버 「가입 여부 확인은 이메일 존재를 새로 노출하지 않는다 (2026-10-18)」](CLE-ACCT-WS.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다-2026-10-18) 에 있다 |
+| POST | `/api/auth/check-email` | 가입 전 이메일 사용 가능 여부 `{ available }`. 인증 불요(`@Public`), IP 당 분당 5회. 가입 폼 이메일 입력란의 중복 확인과 초대 가입 화면의 가입 여부 확인([워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면))에 쓴다. 초대 가입 화면은 이 응답을 5초까지만 기다린다. 대소문자를 구분하지 않고 비교한다. 저장된 이메일과 대소문자만 다른 계정이 있어도 `available: false` 다([이메일 비교 규칙](CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙)). 이 확인이 이메일 존재를 새로 드러내지 않는 이유는 [워크스페이스와 멤버 「가입 여부 확인은 이메일 존재를 새로 노출하지 않는다」](CLE-ACCT-WS.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다) 에 있다 |
 | POST | `/api/auth/login` | 로그인. IP 당 분당 10회. 본문 `{ email, password, rememberMe }`. 2단계 인증이 있으면 `{ requires2fa, methods, challengeToken }`, 없으면 `{ accessToken }` 과 리프레시 쿠키. 실패 401 `LOGIN_FAILED`, 비밀번호가 맞는 이메일 인증 전 계정 401 `EMAIL_VERIFICATION_REQUIRED`, 잠긴 계정 401 `ACCOUNT_LOCKED`, Passkey 기능이 꺼진 동안 Passkey 만 등록하고 TOTP 가 꺼진 계정 503 `WEBAUTHN_DISABLED`. 순서는 [로그인 처리](CLE-ACCT-SIGNIN-LOGIN.md#로그인-처리) |
 | POST | `/api/auth/login/totp` | 로그인 2단계 TOTP 검증. 본문 `{ challengeToken, code }`(6자리 코드 또는 TOTP 복구 코드). 성공하면 액세스·리프레시 토큰 발급. 챌린지 토큰 무효 401 `CHALLENGE_INVALID`, TOTP 꺼짐 401 `TOTP_NOT_ENABLED`(Passkey 만 있는 계정 포함), TOTP 와 Passkey 가 모두 있는 계정 401 `WEBAUTHN_REQUIRED`, 코드 불일치 401 `TOTP_INVALID` |
 | POST | `/api/auth/forgot-password` | 비밀번호 재설정 요청. IP 당 분당 5회. 항상 같은 응답 |
@@ -115,30 +115,36 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 
 ## Rationale
 
-### 에러 코드 표와 응답 표기를 구현에 맞췄다 (2026-10-17)
+### 에러 코드 표와 응답 표기를 구현에 맞췄다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-D331TT` 에서 바로잡았다. 동작은 바꾸지 않았다.
 
-- **발행하는데 표에 없던 코드**: `LOGIN_FAILED` · `CHALLENGE_METHOD_MISMATCH` · `WEBAUTHN_COUNTER_REGRESSION` · `WEBAUTHN_REQUIRED` 를 에러 코드 표에 더했다. counter 역행은 구현대로 `WEBAUTHN_COUNTER_REGRESSION` 이다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 `WEBAUTHN_INVALID` 로 적었었다). 이메일 인증 전 계정은 사람 결정으로 새 코드 `EMAIL_VERIFICATION_REQUIRED` 로 나눴다([이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다](CLE-ACCT-SIGNIN-LOGIN.md#이메일-인증-전-계정은-비밀번호가-맞을-때만-알린다-2026-10-17)). `WEBAUTHN_REQUIRED` 는 구현대로 좁혔다. TOTP 가 꺼진 계정은 Passkey 가 있어도 먼저 `TOTP_NOT_ENABLED` 를 받는다.
+- **발행하는데 표에 없던 코드**: `LOGIN_FAILED` · `CHALLENGE_METHOD_MISMATCH` · `WEBAUTHN_COUNTER_REGRESSION` · `WEBAUTHN_REQUIRED` 를 에러 코드 표에 더했다. counter 역행은 구현대로 `WEBAUTHN_COUNTER_REGRESSION` 이다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 는 `WEBAUTHN_INVALID` 로 적었었다). 이메일 인증 전 계정은 사람 결정으로 새 코드 `EMAIL_VERIFICATION_REQUIRED` 로 나눴다([이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다](CLE-ACCT-SIGNIN-LOGIN.md#이메일-인증-전-계정은-비밀번호가-맞을-때만-알린다)). `WEBAUTHN_REQUIRED` 는 구현대로 좁혔다. TOTP 가 꺼진 계정은 Passkey 가 있어도 먼저 `TOTP_NOT_ENABLED` 를 받는다.
 - **계정 재인증 수단 없음의 조건**: 구현(`SessionsService.verifyReauth`)은 비밀번호와 TOTP 만 보므로 조건을 "비밀번호도 TOTP 도 없는 계정" 으로 고쳤다. Passkey 만 등록한 계정도 막힌다.
 - **재설정 실패의 구분**: `details` 유무를 판별 규칙으로 적는 안은 에러 코드 규약(규칙 4 · 6)과 어긋나 기각하고 현재 동작만 적은 뒤 코드를 나눌지는 미결로 올렸다([가입 · 재설정 · 이메일 변경 「미결 사항」](CLE-ACCT-SIGNIN-SIGNUP.md#미결-사항)).
 - **응답 봉투 표기**: [API](#api) 첫머리에 봉투를 뺀 내용으로 적는다는 규칙을 두고 봉투째 적은 곳을 고쳤다.
 - **counter 역행 뒤의 Passkey 복구 코드**: 역행 삭제는 복구 코드를 비우지 않는 지금 동작을 [복구 코드](CLE-ACCT-SIGNIN-TOTP.md#복구-코드) 에 적었다.
 - **`WEBAUTHN_DISABLED` 범위**: 가용성 조회는 기능이 꺼져도 200 `{ enabled: false }` 라는 예외를 적었다.
-- **counter 0 경계**: 저장값과 응답 값이 모두 0 이면 역행이 아니라고 라이브러리 판정에 맞췄다. 2026-10-30 부터는 서비스가 같은 식으로 직접 비교한다([역행은 서명 검증을 통과한 응답에서만 판정한다](CLE-ACCT-SIGNIN-PKAUTH.md#역행은-서명-검증을-통과한-응답에서만-판정한다-2026-10-30)).
+- **counter 0 경계**: 저장값과 응답 값이 모두 0 이면 역행이 아니라고 라이브러리 판정에 맞췄다. 2026-10-30 부터는 서비스가 같은 식으로 직접 비교한다([역행은 서명 검증을 통과한 응답에서만 판정한다](CLE-ACCT-SIGNIN-PKAUTH.md#역행은-서명-검증을-통과한-응답에서만-판정한다)).
 - **날짜가 붙은 Rationale 의 정정**: transport 목록 결정의 고치기 전 동작을 "일부만 500, `null` 은 200" 으로 바로잡았다. 감사 details 결정의 "그 세션 워크스페이스" 를 "변경을 확정한 요청의 현재 워크스페이스" 로 고쳤다(뜻은 같다).
 
-### 승인본 정합 경고를 정리했다 (2026-11-05)
+### 승인본 정합 경고를 정리했다
+
+결정일: 2026-11-05
 
 NERV Task `CLE-T-693G4E` 에서 결정은 바꾸지 않고 표현과 범위 설명만 고쳤다. credential 목록 조회의 200 빈 목록 예외를 요구사항 · 켜기 표 · API 표 · 에러 코드 표에 적었다. 옵션 토큰 챌린지를 테이블에 두지 않는다는 문장을 발급 시점으로 좁혔다. 2단계 인증을 건너뛰지 않는다는 근거가 비밀번호 로그인에만 해당한다고 적었다. 이메일 인증 전 계정 결정이 숨기는 것은 인증 상태라고 적었다. 미결 사항에 로그인 응답 시간, 복구 코드 소비의 원자성, 미등재 코드 `WEBAUTHN_NOT_REGISTERED` 를 더했다. 2단계 인증 방식 선택 플로차트의 겹친 분기를 합쳤다. Passkey 표시 이름의 `null` 허용과 ZWJ 풀이, 23505 처리 근거를 적었다. 초대 토큰 가입 행에 초대 에러 코드 링크를 더했다.
 
 하지 않은 것: `REAUTH_NOT_AVAILABLE` 조건을 한 곳으로 모으는 일(다섯 문서에 걸쳐 범위가 크다), 600자가 넘는 표 셀 정리(이 문서 밖), 표시 이름 규칙이 여러 곳에 나뉜 것을 합치는 일(NERV 버전 이력에 맡긴다), [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 5xx 페이지 범위([에러 응답과 클라이언트 처리 「미결 사항」](../CLE-API/CLE-API-ERROR.md#미결-사항) 에 맡긴다), [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 쪽 문장(별도 초안).
 
-### Passkey 코드를 구현에 맞춰 등재하고 삭제를 POST 로 옮겼다 (2026-11-14)
+### Passkey 코드를 구현에 맞춰 등재하고 삭제를 POST 로 옮겼다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-ZPPWK4` · `CLE-T-9KCQ7Y` · `CLE-T-Q6E11N` 에서 구현과 함께 고쳤다.
 
-- 로그인 2단계 Passkey 검증에서 credential 을 찾지 못하면 401 `WEBAUTHN_INVALID` 다. [2026-11-12 결정](CLE-ACCT-SIGNIN-PKAUTH.md#로그인-검증에서-credential-을-찾지-못하면-webauthn_invalid-로-거부하기로-했다-2026-11-12)을 구현했고 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 404 하나만 남았다.
+- 로그인 2단계 Passkey 검증에서 credential 을 찾지 못하면 401 `WEBAUTHN_INVALID` 다. [2026-11-12 결정](CLE-ACCT-SIGNIN-PKAUTH.md#로그인-검증에서-credential-을-찾지-못하면-webauthn_invalid-로-거부하기로-했다)을 구현했고 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 404 하나만 남았다.
 - 발행 중인데 표에 없던 `WEBAUTHN_CREDENTIAL_EXISTS` · `WEBAUTHN_NOT_REGISTERED` 를 더했다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 8).
 - Passkey 삭제가 비밀번호를 받으므로 `DELETE` 를 없애고 `POST …/credentials/:id/delete` 로 옮겼다. 근거는 [Passkey 삭제에도 비밀번호 재확인을 둔다](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제에도-비밀번호-재확인을-둔다-2026-11-14) 에 있다.
 - 이미 400 `VALIDATION_ERROR` 를 내던 Passkey 삭제 · 복구 코드 재발급 본문과 credential `:id` 의 형식 에러를 에러 코드 표의 열거에 더했다(NERV Task `CLE-T-GWC9M3`). 동작은 그대로다.

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-LOGIN"
 title: "가입과 로그인 — 로그인과 소셜 로그인"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "357497ce02cc8f7eebc9b6bc203e8705b2f0ec9ac3e2a146ebb00595741f199c"
+content_hash: "fd8fa0c91c510a3d35a80855cc8910b0612d1f40d64a17d92040ba8701ef99f0"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-327K37"
 source_paths: []
-mirror_sha256: "37fa52819ef956b87bafa514fc61224c57e4ce25a3764697de60520872f2c774"
-etag: "sha256-37879f7c29161d1462a75721553ca6076c87994fa8f286f7013c0f7701a5c171"
+mirror_sha256: "d0f38cd20d8b56fd19940f96e8a0f94f494b0eb29b37177b6a84d310a1d3eaba"
+etag: "sha256-605841185eb8f87edf3a0db99f1917007223d0f2eae3da4d360c6fd228c3500f"
 ---
 ## 개요
 
@@ -59,11 +59,11 @@ etag: "sha256-37879f7c29161d1462a75721553ca6076c87994fa8f286f7013c0f7701a5c171"
 | 로그인 2단계 | 그 밖의 코드 | 응답의 `error.message` |
 | 로그인 2단계 | 응답 없음 | 수단별 일반 문구 |
 
-로그인 화면에서 시작한 로그인은 2단계 인증과 복구 코드를 거쳐도 모두 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 이 정한 곳으로 이동한다. 소셜 로그인은 [콜백 처리](#콜백-처리) 를 함께 본다.
+2단계 인증과 복구 코드를 거친 로그인도 4번과 같은 곳으로 이동한다. 소셜 로그인은 [콜백 처리](#콜백-처리) 를 함께 본다.
 
 ## 2단계 인증 방식 선택
 
-로그인 1단계를 통과하면 서버가 등록 상태를 보고 2단계를 고른다. Passkey·보안 키(WebAuthn, `WebAuthnCredential`)가 있으면 그것만 쓰고, 없을 때만 TOTP 를 쓴다. TOTP 로 자동 전환하지 않는 것이 핵심 규칙이다. 예외는 Passkey 기능이 꺼진 경우 하나다. 그때는 TOTP 가 켜진 사용자가 TOTP 로 로그인하고 Passkey 만 등록한 사용자는 503 `WEBAUTHN_DISABLED` 로 막힌다.
+로그인 1단계를 통과하면 서버가 등록 상태를 보고 2단계를 고른다. Passkey·보안 키(WebAuthn, `WebAuthnCredential`)가 있으면 그것만 쓰고, 없을 때만 TOTP 를 쓴다. TOTP 로 자동 전환하지 않는 것이 핵심 규칙이다. 예외는 Passkey 기능이 꺼진 경우 하나다(아래 표).
 
 ```mermaid
 flowchart TD
@@ -89,7 +89,7 @@ flowchart TD
 
 - Passkey 기능이 켜져 있으면 Passkey 가 하나라도 등록된 사용자에게 로그인 화면에서 TOTP 입력을 주지 않는다. TOTP 로 로그인하려면 보안 설정에서 Passkey 를 먼저 모두 삭제해야 한다.
 - Passkey 인증이 실패하면 같은 화면의 "복구 코드 사용" 링크로 Passkey 전용 복구 코드 입력란을 연다. TOTP 화면으로 자동 전환하지 않는다.
-- 클라이언트는 `requires2fa` 와 `methods` 만 본다. `requires2fa=true` 이면 챌린지 단계이고 `methods[0]` 으로 화면을 가른다. 로그인 응답에 `requiresTotp` 필드는 없다.
+- 클라이언트는 `requires2fa` 와 `methods` 만 본다. `requires2fa=true` 이면 챌린지 단계이고 `methods[0]` 으로 화면을 가른다.
 - 챌린지 토큰(`challengeToken`)은 로그인 1단계를 통과한 뒤 2단계 검증을 부를 때 쓰는 단기 토큰(`mfa_challenge` JWT)이다.
 - 로그인(`AuthService.login`)과 TOTP 로그인(`AuthService.loginWithTotp`)은 저장된 credential 수(`WebAuthnService.countStoredCredentials()`, 기능이 꺼져도 저장된 수를 센다)와 켜짐 여부(`isEnabled()`)를 `AuthService.passkeyState()` 한 곳에서 판정한다.
 - TOTP 로그인은 기능이 켜져 있을 때만 `WEBAUTHN_REQUIRED` 로 막는다. Passkey 가 있는 계정이 TOTP 로 2단계를 넘지 못하게 하는 백스탑이다.
@@ -131,6 +131,7 @@ flowchart TD
 | GitHub | GitHub OAuth Apps |
 
 - 소셜 로그인 이메일이 기존 이메일 계정과 같으면 그 계정에 자동으로 연결한다. 이메일은 [이메일 비교 규칙](CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙) 대로 대소문자를 구분하지 않고 비교한다. 연결은 `oauth_provider IS NULL` 조건부 갱신이라 이미 다른 제공자에 묶인 계정을 덮어쓰지 않는다. 연결할 때 `email_verified=true` 와 아바타 URL 도 함께 설정한다.
+- 연결할 계정이 이메일 인증 전이면 갱신 조건에 `email_verified = false` 를 더하고 같은 갱신에서 비밀번호 해시 · 재설정 토큰 · 인증 토큰을 비운다. 갱신된 행이 있으면 그 사용자의 리프레시 토큰 패밀리를 모두 폐기하고(로그인 이력 `session_revoked` 1건) 새 로그인 세션은 그 뒤에 발급한다([세션 무효화 규칙](CLE-ACCT-SESSION-POLICY.md#세션-정책)). 갱신된 행이 없으면 폐기 없이 위의 연결로 넘어간다. 이유는 [아래 Rationale](#미인증-계정에-소셜-로그인을-연결하면-비밀번호를-비우고-세션을-폐기한다) 에 있다.
 - 처음 소셜 로그인하면 자동으로 가입시키고 개인 워크스페이스를 만든다.
 - 소셜 로그인은 2단계 인증 없이 토큰을 발급한다.
 - 소셜 로그인은 통합의 OAuth 연결과 다른 흐름이다. 통합 쪽은 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) 이 정한다.
@@ -194,7 +195,7 @@ sequenceDiagram
 | 기존 사용자 | OAuth 제공자 정보를 연결하고 로그인 처리한다 |
 | 신규 사용자 | 자동 가입하고 개인 워크스페이스를 만든 뒤 로그인 처리한다 |
 | 토큰 발급 | 리프레시 토큰만 HttpOnly 쿠키로 발급한다. 액세스 토큰은 콜백 페이지가 따로 받는다 |
-| 리다이렉트 | `{frontend_url}/callback?success=true`. 액세스 토큰은 URL 에 싣지 않는다. 콜백 페이지가 리프레시 쿠키로 `POST /api/auth/refresh` 를 불러 액세스 토큰을 받아 메모리에 둔다. 복귀 경로도 URL 에 싣지 않는다. 콜백 페이지는 로그인 화면이 탭의 sessionStorage 에 저장해 둔 복귀 경로로 이동한다([세션과 토큰 「소셜 로그인의 복귀 경로」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로)) |
+| 리다이렉트 | `{frontend_url}/callback?success=true`. 액세스 토큰과 복귀 경로는 URL 에 싣지 않는다. 콜백 페이지의 동작은 [에러 처리](#에러-처리) 아래의 `/callback` 목록에 있다 |
 
 서버 시퀀스와 `auth_oauth_state` 테이블 동작은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 에 있다.
 
@@ -229,7 +230,7 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/auth/**` (로그인·OAuth)
+- `codebase/backend/src/modules/auth/**` (로그인·OAuth. 미인증 계정 연결은 `auth-oauth.service.ts` 의 `claimUnverifiedAccount`)
 - `codebase/frontend/src/app/(auth)/**` (`callback/callback-content.tsx` 의 소셜 로그인 복귀 포함)
 - `codebase/frontend/src/components/auth/**` (`login-form.tsx` 포함)
 - `codebase/frontend/src/components/auth/__tests__/login-form-webauthn.test.tsx` (검증 중 버튼 잠금, 실패 뒤 새 옵션)
@@ -245,7 +246,9 @@ Passkey 는 피싱에 강하고 TOTP 는 코드를 입력하는 순간 피싱에
 
 예외는 Passkey 기능이 꺼진 경우다(2026-10-17). 기능이 꺼지면 Passkey 로 인증할 수 없으므로 TOTP 가 켜진 사용자는 TOTP 로 로그인한다. 사용자가 등록한 수단 가운데 남은 것을 쓰므로 2단계 인증을 건너뛰지 않는다. 이 근거는 비밀번호 로그인에만 해당한다. 소셜 로그인은 기능이 켜져 있을 때도 2단계 인증 없이 토큰을 발급한다([콜백 처리](#콜백-처리)). TOTP 가 없는 사용자를 막는 이유는 아래 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」 에 있다. 기능이 켜져 있을 때 Passkey 인증이 실패해도 TOTP 로 넘기지 않는 규칙은 그대로다.
 
-### Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다 (2026-10-17)
+### Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 구현은 기능이 꺼지면 credential 수를 0 으로 보고 Passkey 만 등록한 계정을 비밀번호만으로 로그인시켰다. 그러면 환경 변수 하나가 빠질 때 Passkey 로 2단계 인증을 등록한 계정이 모두 비밀번호만으로 들어온다. 그래서 막는 쪽으로 정했다. TOTP 가 켜진 사용자는 TOTP 로 로그인한다.
 
@@ -255,7 +258,9 @@ NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 구현은 기능�
 - **바뀐 계약**: `WebAuthnService.countCredentials()` 는 기능이 꺼지면 0 을 돌려줬다. NERV Task `CLE-T-RFSJXQ` 에서 기능이 꺼져도 저장된 credential 수를 세게 바꾸고 이름도 `countStoredCredentials()` 로 바꿨다. 켜짐 여부는 `isEnabled()` 로 따로 묻는다.
 - **로그인 이력 없이 경고 로그만 남긴다(2026-11-05 구현).** 503 `WEBAUTHN_DISABLED` 는 로그인 실패가 아니라 서버 설정 문제라서 2단계 인증 챌린지를 발급할 때처럼 로그인 이력을 남기지 않는다. 운영자는 서버 경고 로그(warn)로 차단이 일어난 것을 안다.
 
-### 이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다 (2026-10-17)
+### 이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 구현은 비밀번호를 확인하기 전에 이메일 인증 여부를 보고 인증 전 계정에 다른 메시지를 줬다. 그래서 비밀번호를 몰라도 그 이메일로 가입한 인증 전 계정이 있는지 알 수 있었다. 확인을 비밀번호 뒤로 옮기면 비밀번호를 아는 본인만 계정 상태를 알게 된다. 인증 메일을 놓친 사용자는 왜 로그인이 안 되는지 알 수 있다.
 
@@ -271,7 +276,9 @@ NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 구현은 비밀�
 
 로그인 2단계 챌린지 응답에는 `requiresTotp?: boolean` 이 없다. 백엔드 `LoginChallengeDto`·`AuthService.login()`·프론트엔드 `TwoFactorChallengeResponse` 모두 그렇다. 클라이언트는 `requires2fa` 와 `methods` 만으로 가른다(`lib/api/auth.ts` 의 `isTwoFactorChallenge()`). 같은 뜻을 두 필드로 표현하면 Swagger·클라이언트 타입·DTO·테스트 mock 에 잡음이 생기고 "두 필드가 다르면 무엇을 따르나" 같은 규칙을 유지해야 한다.
 
-### 로그인 · 2단계 · 재설정 화면이 거부 코드별 문구와 서버 문구를 보여 준다 (2026-11-05)
+### 로그인 · 2단계 · 재설정 화면이 거부 코드별 문구와 서버 문구를 보여 준다
+
+결정일: 2026-11-05
 
 NERV Task `CLE-T-MFWBE1` 에서 고쳤다. 그 전에는 이 화면들이 에러 응답 봉투를 읽지 못해 거부 이유와 상관없이 일반 실패 문구만 보였다.
 
@@ -281,12 +288,14 @@ NERV Task `CLE-T-MFWBE1` 에서 고쳤다. 그 전에는 이 화면들이 에러
 - **기각: 코드별 문구가 없는 코드도 일반 문구로 보인다.** 사용자가 거부 이유를 알 수 없다.
 - **후속**: 다른 화면의 같은 문제와 소셜 로그인 콜백 화면의 문구는 NERV Task `CLE-T-PRB4D3` 가 맡는다.
 
-### 로그인 뒤 이동할 곳은 세션과 토큰 문서가 정한다 (2026-10-18)
+### 로그인 뒤 이동할 곳은 세션과 토큰 문서가 정한다
+
+결정일: 2026-10-18
 
 이동 규칙은 [세션과 토큰 「로그인 뒤 이동」](CLE-ACCT-SESSION.md#로그인-뒤-이동) 한 곳에 두고 이 문서는 그 절을 링크한다. 두 문서에 규칙을 함께 적으면 한쪽만 고쳐지기 쉽다. 이 문서가 늘 대시보드로 간다고 적어 초대 링크에서 온 기존 가입자를 초대 수락 페이지로 돌려보내는 규칙과 어긋났던 것이 그 경우다.
 
 - 로그인 화면의 초대 안내 문구와 「계정 만들기」 링크 동작은 화면 요소라서 이 문서의 [로그인 화면](#로그인-화면) 표가 정한다. 세션과 토큰 문서와 워크스페이스와 멤버 문서는 그 표를 링크한다.
-- 소셜 로그인은 제공자를 거쳐 `/callback` 으로 돌아오므로 로그인 화면의 `redirect` 쿼리가 이어지지 않는다. 시작 요청의 `mode` 와 `rememberMe` 는 로그인 OAuth state(`auth_oauth_state`) 행에 실어 콜백까지 나른다. 복귀 경로는 백엔드 인증 API 를 바꾸지 않으려고 탭의 sessionStorage 로 넘긴다. 다른 탭에서 돌아오거나 팝업 로그인이 필요해지면 state 행으로 옮긴다. 이유와 비용은 [세션과 토큰 「소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다-2026-10-18) 에 있다. 화면이 팝업을 쓰지 않고 같은 탭에서 제공자 페이지로 가는 것도 이 결정이 기대는 동작이다.
+- 소셜 로그인은 제공자를 거쳐 `/callback` 으로 돌아오므로 로그인 화면의 `redirect` 쿼리가 이어지지 않는다. 시작 요청의 `mode` 와 `rememberMe` 는 로그인 OAuth state(`auth_oauth_state`) 행에 실어 콜백까지 나른다. 복귀 경로는 백엔드 인증 API 를 바꾸지 않으려고 탭의 sessionStorage 로 넘긴다. 다른 탭에서 돌아오거나 팝업 로그인이 필요해지면 state 행으로 옮긴다. 이유와 비용은 [세션과 토큰 「소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다」](CLE-ACCT-SESSION.md#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다) 에 있다. 화면이 팝업을 쓰지 않고 같은 탭에서 제공자 페이지로 가는 것도 이 결정이 기대는 동작이다.
 - 콜백은 이동하기 전에 `GET /api/users/me` 를 불러 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 쿠키 없이 보호 경로로 가면 proxy 가 다시 로그인 화면으로 보내기 때문이다. 이메일 인증 링크와 초대 토큰 가입의 자동 로그인도 같은 진입점(`establishSession`)으로 힌트 쿠키를 심는다(NERV Task `CLE-T-1X7DMR`).
 - 이메일 인증 링크를 연 뒤의 자동 로그인은 복귀 경로의 범위가 아니다. 지금처럼 대시보드로 보낸다.
 - 초대 가입 화면의 가입 여부 확인 규칙은 [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS.md#초대-가입-화면) 에만 둔다. 가입 폼 이메일 입력란의 중복 확인은 읽기 전용 입력란에서 건너뛰고 그 절을 링크한다([가입 「필드 검증」](CLE-ACCT-SIGNIN-SIGNUP.md#필드-검증)).
@@ -294,3 +303,15 @@ NERV Task `CLE-T-MFWBE1` 에서 고쳤다. 그 전에는 이 화면들이 에러
 ### OAuth 콜백에서 액세스 토큰을 URL 에 싣지 않는다
 
 2026-05-31 결정이다. URL 에 액세스 토큰을 실으면 브라우저 기록·Referer·프록시 로그에 남는다. 그래서 리프레시 토큰만 HttpOnly 쿠키로 설정하고 콜백 페이지가 `POST /api/auth/refresh` 로 액세스 토큰을 받는다.
+
+### 미인증 계정에 소셜 로그인을 연결하면 비밀번호를 비우고 세션을 폐기한다
+
+결정일: 2026-11-15
+
+NERV Task `CLE-T-327K37` 에서 사람이 정했다. 남의 이메일로 먼저 가입한 사람은 인증 전 계정에 비밀번호를 정해 둘 수 있다. 이메일 주인이 소셜 로그인으로 그 계정을 이어받으면 `email_verified=true` 가 되어 선점자의 비밀번호 로그인이 열린다.
+
+- **세션 폐기는 방어용이다.** 미인증 계정은 가입 때 토큰을 받지 않고 로그인도 `EMAIL_VERIFICATION_REQUIRED` 로 막혀서 보통 세션이 없다. 초대 가입은 인증된 계정을 만든다. TOTP 와 Passkey 도 로그인해야 설정하므로 없어서 건드리지 않는다.
+- **인증을 마친 계정은 비밀번호와 세션을 그대로 둔다.** 그 비밀번호는 이메일 주인이 정한 것이다.
+- **비용**: 주인이 인증 전에 정한 비밀번호도 지워진다. 필요하면 [비밀번호 재설정](CLE-ACCT-SIGNIN-SIGNUP.md#비밀번호-재설정) 으로 다시 정한다. OAuth 전용 계정도 재설정 메일을 받는다.
+- **기각: 연결을 거부하고 재설정을 안내한다.** 피해자의 첫 소셜 로그인이 실패로 보이고 새 에러 코드와 화면 문구가 필요하다.
+- **기각: 지금 동작을 유지한다.** 선점자가 계속 들어올 수 있다.

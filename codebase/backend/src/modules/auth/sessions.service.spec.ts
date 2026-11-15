@@ -443,6 +443,51 @@ describe('SessionsService', () => {
       );
     });
 
+    it('manager 를 주면 refresh_token 갱신을 그 트랜잭션 매니저로 한다 (CLE-T-327K37)', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'a@b.c',
+      } as never);
+      const txnUpdate = jest.fn().mockResolvedValue({ affected: 2 });
+      const manager = {
+        getRepository: jest.fn().mockReturnValue({ update: txnUpdate }),
+      };
+
+      const result = await service.revokeAllFamilies(
+        'user-1',
+        {},
+        manager as never,
+      );
+
+      expect(result.revoked).toBe(2);
+      expect(manager.getRepository).toHaveBeenCalledWith(RefreshToken);
+      expect(txnUpdate).toHaveBeenCalledWith(
+        { userId: 'user-1', isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(repo.update).not.toHaveBeenCalled();
+      // 이력은 호출자가 커밋 뒤에 남긴다.
+      expect(loginHistory.record).not.toHaveBeenCalled();
+    });
+
+    it('recordBulkRevoked 는 familyId=null 인 session_revoked 를 남긴다 (CLE-T-327K37)', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'a@b.c',
+      } as never);
+
+      await service.recordBulkRevoked('user-1', { ip: '9.9.9.9' });
+
+      expect(loginHistory.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          email: 'a@b.c',
+          event: 'session_revoked',
+          familyId: null,
+        }),
+      );
+    });
+
     it('does not record session_revoked when nothing was revoked', async () => {
       usersService.findById.mockResolvedValue({
         id: 'user-1',

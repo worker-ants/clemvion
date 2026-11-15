@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-PKAUTH"
 title: "가입과 로그인 — Passkey 로그인 인증과 counter 역행"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "729bd54133ce79c46ee06b81c7da6c42289f47d52d67caeebb18ce6d8a783e29"
+content_hash: "370ca7deaf353213b5a3c0b41784930d9cf302b0796afe0ce5900366a6447e0a"
 read_as: "approved_fallback"
-task: "CLE-T-GWC9M3"
+task: "CLE-T-6F4W2A"
 source_paths: []
-mirror_sha256: "8d5c199a525a02e1b5d49d971a1e9b036de740764e7a5730c1f7a5c43fa390bc"
-etag: "sha256-84004b7850fcc4a4b9da283609231c97f56c1a565024ecdc0eace372c314aaa6"
+mirror_sha256: "d36b273d244902a17052fb6bfd34cc32c0f46a4e8e8c83aaff717fbc9497c146"
+etag: "sha256-e089d7a8736e1d0672fe521e173be77069141d778704ebedec6ffff4345a0bd2"
 ---
 ## 개요
 
@@ -48,7 +48,7 @@ etag: "sha256-84004b7850fcc4a4b9da283609231c97f56c1a565024ecdc0eace372c314aaa6"
 - 기록은 서명 검증보다 먼저 하므로 실패한 시도도 그 옵션 토큰을 쓴 것이 된다. 다시 시도하려면 옵션부터 다시 받는다.
 - 이미 쓴 챌린지로 온 요청은 로그인 이력에 `webauthn_failed`(`failure_reason='WEBAUTHN_INVALID'`)를 남긴다. 계정 잠금 카운터(`login_attempts`)는 바꾸지 않는다. 서명이 틀린 응답과 같은 처리다.
 
-이유는 Rationale 「[Passkey 인증 챌린지는 한 번만 쓴다](#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17)」 에 있다.
+이유는 Rationale 「[Passkey 인증 챌린지는 한 번만 쓴다](#passkey-인증-챌린지는-한-번만-쓴다)」 에 있다.
 
 ## sign counter 역행과 동시성
 
@@ -87,9 +87,11 @@ counter 역행은 인증기 복제 공격이나 인증기 firmware 에러 둘 �
 
 2026-10-17 추가(NERV Task `CLE-T-D331TT`): counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드는 비우지 않는다. 남은 코드는 쓸 곳이 거의 없다. credential 이 없으면 로그인 응답이 `methods: ['webauthn']` 가 아니다. 쓸 수 있는 곳은 삭제 전에 `methods: ['webauthn']` 로 발급된 챌린지 토큰(`challengeToken`, 5분)뿐이고 그 토큰은 로그인 1단계를 통과해야 받는다. 첫 등록은 credential 수가 0 인지로 판정하므로 다음 등록 때 새 코드로 바뀐다. 역행 트랜잭션에서 복구 코드도 비우는 안은 기각했다. counter 역행 처분 범위가 처음 쓰는 챌린지에서 서명이 맞는 응답으로 좁혀져도 남은 코드를 쓸 곳은 그대로라 비워서 얻는 것이 없다.
 
-2026-10-30 에 역행 판정 자리를 서명 검증 뒤로 옮겼다(NERV Task `CLE-T-NWHVMN`). 이유와 기각한 안은 [역행은 서명 검증을 통과한 응답에서만 판정한다](#역행은-서명-검증을-통과한-응답에서만-판정한다-2026-10-30) 에 있다.
+2026-10-30 에 역행 판정 자리를 서명 검증 뒤로 옮겼다(NERV Task `CLE-T-NWHVMN`). 이유와 기각한 안은 [역행은 서명 검증을 통과한 응답에서만 판정한다](#역행은-서명-검증을-통과한-응답에서만-판정한다) 에 있다.
 
-### 역행은 서명 검증을 통과한 응답에서만 판정한다 (2026-10-30)
+### 역행은 서명 검증을 통과한 응답에서만 판정한다
+
+결정일: 2026-10-30
 
 NERV Task `CLE-T-NWHVMN` 에서 정했다. 그 전 구현은 `@simplewebauthn/server` 의 counter 비교를 그대로 썼다. 라이브러리는 counter 를 서명보다 먼저 비교한다. 그래서 서명이 틀린 응답도 counter 만 저장값 이하면 역행 에러가 났고 서비스는 credential 을 지우고 리프레시 토큰을 모두 무효화했다. 저장 counter 가 0 보다 크면 인증기 없이 이런 응답을 만들 수 있다. 비밀번호로 로그인 1단계를 통과하면 인증 옵션의 `allowCredentials` 에서 credential id 를 받기 때문이다. 그러면 그 사용자는 Passkey 를 잃고 로그인 세션이 모두 끝난다. 지워진 것이 마지막 Passkey 이고 TOTP 도 없으면 다음 로그인은 2단계 인증 없이 비밀번호만으로 통과한다.
 
@@ -97,7 +99,9 @@ NERV Task `CLE-T-NWHVMN` 에서 정했다. 그 전 구현은 `@simplewebauthn/se
 - **기각: 라이브러리 에러 메시지로 역행을 가려낸다.** 라이브러리가 문구를 바꾸면 역행이 조용히 `WEBAUTHN_INVALID` 로 바뀐다. 서명 검증 뒤에 서비스가 직접 비교하면 문구에 기대지 않는다.
 - **기각: 서명 검증을 따로 한다.** 라이브러리의 counter 에러를 받은 뒤 서명을 다시 검증하거나 서명 검증 함수를 직접 부르는 안이다. 라이브러리가 하는 challenge · origin · rpID · UV 확인까지 서비스가 다시 맞춰야 한다. 저장 counter 자리에 0 을 넘기면 라이브러리의 확인을 그대로 쓰고 counter 비교만 서비스로 옮긴다.
 
-### Passkey 인증 챌린지는 한 번만 쓴다 (2026-10-17)
+### Passkey 인증 챌린지는 한 번만 쓴다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 같은 assertion 이 두 번 오는 일은 공격이 아니어도 생긴다. 버튼을 두 번 누르거나 네트워크 계층이 요청을 다시 보내는 경우다. 챌린지 기록이 없을 때 counter 를 올리는 인증기는 두 번째 요청이 counter 역행으로 처분됐다. credential 이 지워지고 첫 요청이 받은 로그인 세션까지 끝났다. counter 가 늘 0 인 인증기(대부분의 플랫폼 Passkey)는 같은 assertion 이 다시 통과해 토큰이 한 번 더 나왔다. 챌린지를 한 번만 쓰면 두 경우 모두 credential 을 지우지 않는 401 로 끝난다. 처음 쓰는 챌린지에서 서명이 맞는데 counter 가 역행한 응답만 복제 신호로 남는다. (2026-10-30 정정: 다른 챌린지로 온 정상 응답의 순서가 뒤바뀌어도 역행으로 판정된다([미결 사항](#미결-사항)).)
 
@@ -111,7 +115,7 @@ NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 같은 assertion 
 - **저장소는 Redis 키다.** 쓴 챌린지마다 키 하나를 `SET` 명령 하나(`NX` · `EX`)로 남긴다. 명령 하나라서 여러 서버 인스턴스에서도 원자적이다. 기록은 TTL 로 사라지므로 정리 배치와 마이그레이션이 없다.
 - **기각: OAuth state 처럼 테이블에 넣는다.** 유니크 제약과 마이그레이션이 더 들고 검증할 때마다 DB 쓰기가 하나 는다. 기록은 보존 기간(길어야 약 6분) 동안만 있으면 된다. 기록을 잃을 수 있다는 점은 아래 「받아들인 위험」 에 적었다.
 - **키에 챌린지 원문을 넣는다.** 해시하지 않는다. 챌린지는 옵션 응답으로 클라이언트에 이미 내려가는 서버 무작위 값이고 서명된 옵션 토큰 안에 있어 키만으로는 아무것도 할 수 없다. [Redis 키 명명 규약 「Redis 키가 아닌 인접 이름」](../CLE-ENG/CLE-ENG-REDIS.md#redis-키가-아닌-인접-이름) 의 advisory lock 키 `makeshop-pending` 이 `client_id` 를 SHA-256 hex 로 바꿔 넣는 것은 `client_id` 가 자격 증명이기 때문이다.
-- **기록하지 못하면 판정하지 않는다(fail-closed).** 기록 없이 판정으로 보내면 같은 assertion 의 두 번째 요청이 역행으로 처분되어 이 결정이 막으려던 경우가 돌아온다. 같은 Redis 를 쓰는 다른 기능(`ChatChannelDedupService` · `Cafe24InstallNonceCache`)은 fail-open 이지만 따르지 않았다. 실패 정책은 키마다 그 키를 소유한 문서가 정한다([용어 사전 — API 와 개발 규약](../CLE-GLOSSARY-API.md) 「fail-open」, [EIA 데이터 「인프라 장애에는 fail-open 한다」](../CLE-IX/CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다)). Redis 장애 중에는 Passkey 로 로그인 2단계를 통과할 수 없고 Passkey 복구 코드 경로만 열린다. 이 상태는 2026-10-17 에 기각한 「기능이 꺼진 동안 Passkey 복구 코드로만 로그인을 연다」([Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다](CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17))와 닮았지만, 그 안을 기각한 이유(새 `methods` 값과 화면)는 여기서 생기지 않는다. 복구 코드 입력은 [Passkey 인증 화면](CLE-ACCT-SIGNIN-LOGIN.md#passkey-인증-화면) 에 이미 있다. 복구 코드가 바닥날 위험은 장애가 이어지는 동안 남고, 장애는 `/api/health` 의 Redis 점검과 error 로그로 드러난다.
+- **기록하지 못하면 판정하지 않는다(fail-closed).** 기록 없이 판정으로 보내면 같은 assertion 의 두 번째 요청이 역행으로 처분되어 이 결정이 막으려던 경우가 돌아온다. 같은 Redis 를 쓰는 다른 기능(`ChatChannelDedupService` · `Cafe24InstallNonceCache`)은 fail-open 이지만 따르지 않았다. 실패 정책은 키마다 그 키를 소유한 문서가 정한다([용어 사전 — API 와 개발 규약](../CLE-GLOSSARY-API.md) 「fail-open」, [EIA 데이터 「인프라 장애에는 fail-open 한다」](../CLE-IX/CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다)). Redis 장애 중에는 Passkey 로 로그인 2단계를 통과할 수 없고 Passkey 복구 코드 경로만 열린다. 이 상태는 2026-10-17 에 기각한 「기능이 꺼진 동안 Passkey 복구 코드로만 로그인을 연다」([Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다](CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다))와 닮았지만, 그 안을 기각한 이유(새 `methods` 값과 화면)는 여기서 생기지 않는다. 복구 코드 입력은 [Passkey 인증 화면](CLE-ACCT-SIGNIN-LOGIN.md#passkey-인증-화면) 에 이미 있다. 복구 코드가 바닥날 위험은 장애가 이어지는 동안 남고, 장애는 `/api/health` 의 Redis 점검과 error 로그로 드러난다.
 - **기각: 저장소 장애를 401 `WEBAUTHN_INVALID` 로 돌려준다.** 인증 실패와 인프라 장애를 한 코드로 묶으면 클라이언트가 다시 시도할지 가를 수 없다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6). [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 규칙 11 은 우리 인프라 의존성의 일시 장애에 `503` 을 쓰게 한다. 카탈로그에 있는 503 `SERVICE_UNAVAILABLE` 을 쓰고 새 코드를 만들지 않았다.
 - **이미 쓴 챌린지는 서명이 틀린 응답과 같게 처리한다.** 로그인 이력 사유는 `WEBAUTHN_INVALID` 이고 `login_attempts` 는 바꾸지 않는다. 로그인 1단계를 통과한 뒤의 실패라서 기존 2단계 실패와 같게 둔다.
 - **전용 요청 빈도 제한은 두지 않았다.** 이 경로는 `@Public` 이라 전역 한도(IP 당 분당 100회)가 걸리고 재사용 거부는 저장소 조회 한 번이다.
@@ -119,7 +123,9 @@ NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 같은 assertion 
 
 2026-11-01 정리(NERV Task `CLE-T-YKA9CJ`): 보존 기간(옵션 토큰 만료 시각 + 여유 60초)을 [Passkey 인증 챌린지 기록](#passkey-인증-챌린지-기록) 에 한 번 정의하고 다른 곳은 그 정의를 가리키게 했다. 요구사항 문장이 여유를 빠뜨렸던 것도 맞췄다. 여유 60초는 이미 승인된 값이다. 기록하지 못하는 원인에서 「Redis 설정 누락」 을 뺐다. 연결 설정에는 기본값(`localhost:6379`)이 있어 남는 원인은 연결 · 명령 실패이고, 둘 다 다시 시도하면 풀릴 수 있어 「다시 시도할 수 있는 응답」 과 맞는다.
 
-### 로그인 검증에서 credential 을 찾지 못하면 `WEBAUTHN_INVALID` 로 거부하기로 했다 (2026-11-12)
+### 로그인 검증에서 credential 을 찾지 못하면 `WEBAUTHN_INVALID` 로 거부하기로 했다
+
+결정일: 2026-11-12
 
 NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했고 2026-11-14 에 NERV Task `CLE-T-ZPPWK4` 가 구현했다. 메시지도 서명 실패와 같은 「WebAuthn 인증에 실패했어요.」 다.
 
@@ -130,6 +136,8 @@ NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했고 2026-11-14 에 NERV Task `CL
 - **로그인 이력은 바꾸지 않는다.** 지금 이 경로는 로그인 이력을 남기지 않고, 남길지는 이번 결정에 들지 않았다.
 - **이 코드를 이번에 에러 코드 표에 올렸다.** 당시(2026-11-12) 「미결 사항」 에 있던 Passkey 미등재 코드 셋 가운데 이번 결정과 직접 걸리는 것은 이 코드뿐이었다. 나머지 둘은 NERV Task `CLE-T-9KCQ7Y` 에 남겼고 2026-11-14 에 등재해 그 미결 항목도 없어졌다.
 
-### 인증 검증도 사용자 행 잠금을 먼저 잡는다 (2026-11-14)
+### 인증 검증도 사용자 행 잠금을 먼저 잡는다
 
-NERV Task `CLE-T-HQQNEA`. counter 역행 삭제가 사용자의 마지막 credential 삭제와 겹치면 삭제 쪽은 아직 커밋되지 않은 역행 삭제를 보지 못하고 credential 을 하나 더 센다. 그래서 credential 없이 복구 코드가 남을 수 있었다. 이제 `verifyAuthentication` 도 사용자 행을 먼저 잠그고 credential 행을 그 뒤에 잠근다. 역행 삭제가 복구 코드를 비우지 않는 2026-10-17 결정은 그대로다. 잠금을 거치는 경로 · 대기 상한 · 기각한 대안의 정본은 [Passkey 기능과 등록 「복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다 (2026-11-14)」](CLE-ACCT-SIGNIN-PASSKEY.md#복구-코드를-읽고-쓰는-경로도-사용자-행-잠금-아래-둔다-2026-11-14) 다.
+결정일: 2026-11-14
+
+NERV Task `CLE-T-HQQNEA`. counter 역행 삭제가 사용자의 마지막 credential 삭제와 겹치면 삭제 쪽은 아직 커밋되지 않은 역행 삭제를 보지 못하고 credential 을 하나 더 센다. 그래서 credential 없이 복구 코드가 남을 수 있었다. 이제 `verifyAuthentication` 도 사용자 행을 먼저 잠그고 credential 행을 그 뒤에 잠근다. 역행 삭제가 복구 코드를 비우지 않는 2026-10-17 결정은 그대로다. 잠금을 거치는 경로 · 대기 상한 · 기각한 대안의 정본은 [Passkey 기능과 등록 「복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다」](CLE-ACCT-SIGNIN-PASSKEY.md#복구-코드를-읽고-쓰는-경로도-사용자-행-잠금-아래-둔다) 다.

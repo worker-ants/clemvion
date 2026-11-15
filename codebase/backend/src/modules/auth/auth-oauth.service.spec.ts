@@ -8,6 +8,7 @@ import { AuthOAuthState } from './entities/auth-oauth-state.entity';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuthService } from './auth.service';
+import { SessionsService } from './sessions.service';
 import { User } from '../users/entities/user.entity';
 
 describe('AuthOauthService', () => {
@@ -15,6 +16,24 @@ describe('AuthOauthService', () => {
   let usersService: jest.Mocked<UsersService>;
   let workspacesService: jest.Mocked<WorkspacesService>;
   let authService: jest.Mocked<AuthService>;
+  let sessionsService: {
+    revokeAllFamilies: jest.Mock;
+    recordBulkRevoked: jest.Mock;
+  };
+  let userRepo: { createQueryBuilder: jest.Mock };
+  let txnUserRepo: {
+    createQueryBuilder: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+  };
+  let txnQb: typeof qbUpdate;
+  let txnManager: { getRepository: jest.Mock };
+  let qbUpdate: {
+    update: jest.Mock;
+    set: jest.Mock;
+    where: jest.Mock;
+    execute: jest.Mock;
+  };
   let dataSource: {
     query: jest.Mock;
     transaction: jest.Mock;
@@ -50,18 +69,28 @@ describe('AuthOauthService', () => {
       save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
       delete: jest.fn().mockResolvedValue(undefined),
     };
-    const qbUpdateResult = { execute: jest.fn().mockResolvedValue(undefined) };
-    const qbUpdate = {
+    qbUpdate = {
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue(undefined),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
     };
-    Object.assign(qbUpdate, qbUpdateResult);
-    const userRepo = {
+    sessionsService = {
+      revokeAllFamilies: jest.fn().mockResolvedValue({ revoked: 0 }),
+      recordBulkRevoked: jest.fn().mockResolvedValue(undefined),
+    };
+    // 트랜잭션 매니저 리포지토리와 일반 리포지토리가 서로 다른 qb 를 돌려줘 어느 쪽으로 실행했는지 구분한다.
+    txnQb = {
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    userRepo = {
       createQueryBuilder: jest.fn().mockReturnValue(qbUpdate),
     };
-    const txnUserRepo = {
+    txnUserRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(txnQb),
       create: jest.fn().mockImplementation((data) => data),
       save: jest
         .fn()
@@ -69,13 +98,14 @@ describe('AuthOauthService', () => {
           Promise.resolve({ id: 'user-new', ...data }),
         ),
     };
+    txnManager = { getRepository: jest.fn().mockReturnValue(txnUserRepo) };
     dataSource = {
       query: jest.fn(),
       getRepository: jest.fn().mockReturnValue(userRepo),
       transaction: jest
         .fn()
         .mockImplementation((cb: (m: unknown) => Promise<unknown>) =>
-          cb({ getRepository: jest.fn().mockReturnValue(txnUserRepo) }),
+          cb(txnManager),
         ),
     };
 
@@ -111,6 +141,7 @@ describe('AuthOauthService', () => {
             }),
           },
         },
+        { provide: SessionsService, useValue: sessionsService },
         {
           provide: AuthService,
           useValue: {
@@ -310,6 +341,192 @@ describe('AuthOauthService', () => {
       expect(usersService.findById).toHaveBeenCalledWith(baseUser.id);
       expect(usersService.create).not.toHaveBeenCalled();
       expect(usersService.update).not.toHaveBeenCalled();
+    });
+
+    it('인증된 계정에 연결할 때는 비밀번호와 세션을 그대로 둔다 (CLE-T-327K37)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: { ...baseUser, emailVerified: true } as User,
+      });
+      usersService.findById.mockResolvedValue(baseUser as User);
+
+      await service.handleCallback('google', 'code', 'abc');
+
+      expect(qbUpdate.execute).toHaveBeenCalledTimes(1);
+      const setArg = qbUpdate.set.mock.calls[0][0] as Record<string, unknown>;
+      expect(setArg).not.toHaveProperty('passwordHash');
+      expect(qbUpdate.where).toHaveBeenCalledWith(
+        'id = :id AND oauth_provider IS NULL',
+        { id: baseUser.id },
+      );
+      expect(sessionsService.revokeAllFamilies).not.toHaveBeenCalled();
+    });
+
+    it('미인증 계정에 연결하면 같은 갱신에서 비밀번호 · 재설정 토큰 · 인증 토큰을 비우고 refresh 패밀리를 모두 폐기한다 (CLE-T-327K37)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      const unverified = { ...baseUser, emailVerified: false } as User;
+      usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: unverified,
+      });
+      usersService.findById.mockResolvedValue({
+        ...unverified,
+        emailVerified: true,
+        passwordHash: null,
+      } as User);
+      const ctx = { ip: '203.0.113.7', userAgent: 'jest' };
+
+      await service.handleCallback('google', 'code', 'abc', ctx);
+
+      // 점유 UPDATE 는 트랜잭션 매니저 리포지토리로 실행하고 일반 리포지토리는 쓰지 않는다.
+      expect(txnManager.getRepository).toHaveBeenCalledWith(User);
+      expect(userRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(qbUpdate.execute).not.toHaveBeenCalled();
+      expect(txnQb.execute).toHaveBeenCalledTimes(1);
+      expect(txnQb.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          oauthProvider: 'google',
+          emailVerified: true,
+          passwordHash: null,
+          passwordResetToken: null,
+          passwordResetExpiresAt: null,
+          emailVerifyToken: null,
+          emailVerifyExpiresAt: null,
+        }),
+      );
+      expect(txnQb.where).toHaveBeenCalledWith(
+        'id = :id AND oauth_provider IS NULL AND email_verified = false',
+        { id: baseUser.id },
+      );
+      // 점유 UPDATE 와 같은 트랜잭션 매니저로 폐기한다.
+      expect(sessionsService.revokeAllFamilies).toHaveBeenCalledWith(
+        baseUser.id,
+        ctx,
+        txnManager,
+      );
+      // 폐기가 새 토큰 발급보다 먼저다. 반대면 방금 발급한 세션까지 폐기된다.
+      expect(
+        sessionsService.revokeAllFamilies.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        authService.issueTokensForOauthUser.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('폐기 이력은 트랜잭션이 끝난 뒤에만 남기고 커밋 전에 실패하면 남기지 않는다 (CLE-T-327K37)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: { ...baseUser, emailVerified: false } as User,
+      });
+      usersService.findById.mockResolvedValue(baseUser as User);
+      sessionsService.revokeAllFamilies.mockResolvedValue({ revoked: 2 });
+      let txnDone = false;
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: unknown) => Promise<unknown>) => {
+          const r = await cb(txnManager);
+          txnDone = true;
+          return r;
+        },
+      );
+      sessionsService.recordBulkRevoked.mockImplementation(() => {
+        expect(txnDone).toBe(true);
+        return Promise.resolve();
+      });
+      const ctx = { ip: '203.0.113.7', userAgent: 'jest' };
+
+      await service.handleCallback('google', 'code', 'abc', ctx);
+
+      expect(sessionsService.recordBulkRevoked).toHaveBeenCalledWith(
+        baseUser.id,
+        ctx,
+      );
+    });
+
+    it('트랜잭션이 커밋 전에 실패하면 폐기 이력을 남기지 않는다 (CLE-T-327K37)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: { ...baseUser, emailVerified: false } as User,
+      });
+      sessionsService.revokeAllFamilies.mockResolvedValue({ revoked: 2 });
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: unknown) => Promise<unknown>) => {
+          await cb(txnManager);
+          throw new Error('commit failed');
+        },
+      );
+
+      await expect(
+        service.handleCallback('google', 'code', 'abc'),
+      ).rejects.toThrow('commit failed');
+
+      expect(sessionsService.recordBulkRevoked).not.toHaveBeenCalled();
+    });
+
+    it('세션 폐기가 실패하면 예외를 전파하고 토큰을 발급하지 않는다 (트랜잭션이 롤백된다) (CLE-T-327K37)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: { ...baseUser, emailVerified: false } as User,
+      });
+      sessionsService.revokeAllFamilies.mockRejectedValueOnce(
+        new Error('revoke failed'),
+      );
+
+      await expect(
+        service.handleCallback('google', 'code', 'abc'),
+      ).rejects.toThrow('revoke failed');
+
+      expect(authService.issueTokensForOauthUser).not.toHaveBeenCalled();
+    });
+
+    it('미인증 계정 갱신이 0행이면(그 사이 인증됐거나 다른 공급자에 묶임) 폐기 없이 기존 조건부 연결로 넘어간다 (CLE-T-327K37)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: { ...baseUser, emailVerified: false } as User,
+      });
+      usersService.findById.mockResolvedValue(baseUser as User);
+      txnQb.execute.mockResolvedValueOnce({ affected: 0 });
+
+      await service.handleCallback('google', 'code', 'abc');
+
+      expect(txnQb.execute).toHaveBeenCalledTimes(1);
+      expect(qbUpdate.execute).toHaveBeenCalledTimes(1);
+      const fallbackSet = qbUpdate.set.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(fallbackSet).not.toHaveProperty('passwordHash');
+      expect(qbUpdate.where).toHaveBeenLastCalledWith(
+        'id = :id AND oauth_provider IS NULL',
+        { id: baseUser.id },
+      );
+      expect(sessionsService.revokeAllFamilies).not.toHaveBeenCalled();
+      expect(sessionsService.recordBulkRevoked).not.toHaveBeenCalled();
+    });
+
+    it('stub 모드에서 `stub-email:<이메일>` 코드는 그 이메일을 공급자 이메일로 쓴다', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({ kind: 'none' });
+
+      await service.handleCallback(
+        'google',
+        'stub-email:victim@example.com',
+        'abc',
+      );
+
+      expect(usersService.lookupByEmail).toHaveBeenCalledWith(
+        'victim@example.com',
+      );
     });
 
     it('creates new user and personal workspace on first OAuth login', async () => {
