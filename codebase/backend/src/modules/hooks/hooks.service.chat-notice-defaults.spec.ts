@@ -64,8 +64,7 @@ describe('HooksService — 채팅 채널 안내 기본 문구', () => {
   function lastSentText(): string {
     const calls = sendMessage.mock.calls;
     expect(calls.length).toBeGreaterThan(0);
-    return (calls[calls.length - 1][0] as { body: { text: string } }).body
-      .text;
+    return (calls[calls.length - 1][0] as { body: { text: string } }).body.text;
   }
 
   /** 폼 다단계 시퀀스 중인 대화에 텍스트 응답이 들어온 상황을 만든다. */
