@@ -7074,6 +7074,57 @@ describe('WorkflowAssistantStreamService — 실행 중 편집 거부 (REQ-ASSIS
     );
   });
 
+  it('keeps stall recovery bounded when workflowRunning and an approved plan has a pending step (no edit applied, auto_resume capped)', async () => {
+    const { service, mocks } = makeService();
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '요청', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Approved plan',
+          summary: '',
+          steps: [{ id: 's1', action: 'add_node', description: 'add node' }],
+          approvedAt: '2026-11-15T00:00:00Z',
+        },
+      },
+    ]);
+    // 편집 없이 텍스트만 내고 stop 하는 라운드가 반복된다.
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        { type: 'text_delta', delta: '실행이 끝나면 이어가겠습니다.' },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        workflowRunning: true,
+      } as never),
+    );
+
+    // 최초 1회 + stall 복구 최대 2회 = 3 라운드 이내에서 끝난다 (무한 루프 아님).
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(3);
+    expect(events.filter((e) => e.event === 'auto_resume')).toHaveLength(2);
+    expect(toolEvent(events, 'add_node')).toBeUndefined();
+    expect(events[events.length - 1]).toMatchObject({ event: 'done' });
+  });
+
   it('applies edits normally when workflowRunning is false', async () => {
     const { service, mocks } = makeService();
     mocks.llmService.chatStream.mockImplementation(() =>
