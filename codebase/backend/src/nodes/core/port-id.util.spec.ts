@@ -10,16 +10,20 @@ import { RESERVED_ERROR_PORT_ID as REEXPORTED } from './button-slug.util';
  */
 describe('RESERVED_ERROR_PORT_ID ↔ 프런트엔드 ERROR_PORT_ID', () => {
   it('프런트 resolve-dynamic-ports.ts 의 ERROR_PORT_ID 와 값이 같다', () => {
-    const source = readFileSync(
-      join(
-        __dirname,
-        '../../../../frontend/src/lib/node-definitions/resolve-dynamic-ports.ts',
-      ),
-      'utf8',
+    const frontendPath = join(
+      __dirname,
+      '../../../../frontend/src/lib/node-definitions/resolve-dynamic-ports.ts',
     );
-    const match = /export const ERROR_PORT_ID = "([^"]*)";/.exec(source);
-    expect(match).not.toBeNull();
-    expect(match?.[1]).toBe(RESERVED_ERROR_PORT_ID);
+    const source = readFileSync(frontendPath, 'utf8');
+    const match = /export const ERROR_PORT_ID\s*=\s*["']([^"']*)["']/.exec(
+      source,
+    );
+    if (!match) {
+      throw new Error(
+        `ERROR_PORT_ID 리터럴을 찾지 못했다. 읽은 파일: ${frontendPath}, 기대 서식: export const ERROR_PORT_ID = "<값>"`,
+      );
+    }
+    expect(match[1]).toBe(RESERVED_ERROR_PORT_ID);
   });
 
   it('button-slug.util 이 다시 내보낸 값도 같은 상수다', () => {
