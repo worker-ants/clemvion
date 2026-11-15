@@ -2,23 +2,23 @@
 id: "CLE-OBS-NOTIFY-RULES"
 title: "알림 — 알림 규칙"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-NOTIFY"]
 area: "CLE-OBS"
-content_hash: "312dbc857799a05954d983f45cd7e7f075997a0d0bd0ca5599f2543c255f7730"
+content_hash: "a594b28663f474a911e6615841c05a9bac11627e5552177d9f9d6f5d1f870846"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-42VJAY"
 source_paths: []
-mirror_sha256: "850d014eef37e11ef595bbdee87b518c38c5434644a5a92458719f7970364bb5"
-etag: "sha256-8c9a5f4b8db29e2dea5bb4d3a321c2e4db9bde88b04dd6f5e7bdd470fcbb19bc"
+mirror_sha256: "de22ebe9fe192afc07755e4e5b594ce73b443706485812b2a51701fc400a33f0"
+etag: "sha256-a9d831f8cdce14f6ec93423c7a9f66df8dd0397ab7a3f45b27153fa161e2d37c"
 ---
 ## 개요
 
-이 문서는 [알림](CLE-OBS-NOTIFY.md) 의 하위 문서로 알림 규칙(Alert Rule, `AlertRule`)의 화면, API, 평가, 엔티티를 정한다. 알림 규칙은 워크스페이스 단위 규칙이다. 실패율·평균 실행 시간·LLM 비용이 임계치를 넘으면 인앱 알림을 보낸다. [알림 설정](CLE-OBS-NOTIFY-SETTINGS.md) 의 이메일 토글과는 별개다(NF-OB-05).
+이 문서는 [알림](CLE-OBS-NOTIFY.md) 의 하위 문서로 알림 규칙(Alert Rule, `AlertRule`)의 화면, API, 평가, 엔티티를 정한다. 알림 규칙은 워크스페이스 단위 규칙이다. 실패율·평균 전체 경과·LLM 비용이 임계치를 넘으면 인앱 알림을 보낸다. [알림 설정](CLE-OBS-NOTIFY-SETTINGS.md) 의 이메일 토글과는 별개다(NF-OB-05).
 
 ## 알림 규칙
 
@@ -26,7 +26,7 @@ etag: "sha256-8c9a5f4b8db29e2dea5bb4d3a321c2e4db9bde88b04dd6f5e7bdd470fcbb19bc"
 
 | 항목 | 내용 |
 | --- | --- |
-| 규칙 목록 | 현재 워크스페이스의 모든 규칙. 유형(실패율·실행 시간·LLM 비용), 임계치, 평가 기간, 활성 상태 열. 멤버 누구나 볼 수 있다 |
+| 규칙 목록 | 현재 워크스페이스의 모든 규칙. 유형(실패율·평균 전체 경과·LLM 비용), 임계치, 평가 기간, 활성 상태 열. 멤버 누구나 볼 수 있다 |
 | 생성 폼 | 관리자 이상에게만 보인다(`useHasRole("admin")`). 유형 선택, 임계치 숫자 입력, 평가 기간(ISO 8601 기간, 폼 기본값 `PT1H`) |
 | 활성 토글·삭제 | 관리자 이상 전용 행 동작. 관리자 미만에게는 활성 상태를 읽기 전용 배지로만 보인다 |
 
@@ -37,7 +37,7 @@ etag: "sha256-8c9a5f4b8db29e2dea5bb4d3a321c2e4db9bde88b04dd6f5e7bdd470fcbb19bc"
 | 메서드 | 경로 | 권한 | 설명 |
 | --- | --- | --- | --- |
 | GET | `/api/alerts` | 멤버 | 현재 워크스페이스의 알림 규칙 목록 |
-| POST | `/api/alerts` | 관리자 이상 | 규칙 생성. 본문: `type`(`failure_rate` 실패율 %, `duration` 평균 실행 시간 ms, `llm_cost` 누적 LLM 비용 USD), `threshold`(number, 0 이상, 단위는 유형별), `window?`(ISO 8601 기간, 예 `PT1H`. 없으면 모듈 기본값), `channel?`(`in_app` 또는 `email`, 기본 `in_app`), `workflowId?`(UUID. 없으면 워크스페이스 전체 감시), `enabled?`(기본 `true`). `workflowId` 가 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`, `details[].code='INVALID_FIELD'`)다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
+| POST | `/api/alerts` | 관리자 이상 | 규칙 생성. 본문: `type`(`failure_rate` 실패율 %, `duration` 평균 전체 경과 ms(완료 실행의 `duration_ms` 평균. 입력 대기 시간이 들어간다), `llm_cost` 누적 LLM 비용 USD), `threshold`(number, 0 이상, 단위는 유형별), `window?`(ISO 8601 기간, 예 `PT1H`. 없으면 모듈 기본값), `channel?`(`in_app` 또는 `email`, 기본 `in_app`), `workflowId?`(UUID. 없으면 워크스페이스 전체 감시), `enabled?`(기본 `true`). `workflowId` 가 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`, `details[].code='INVALID_FIELD'`)다([참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
 | PATCH | `/api/alerts/:id` | 관리자 이상 | 부분 수정(`threshold`·`window`·`channel`·`enabled`). 현재 워크스페이스에 없으면 404 `ALERT_RULE_NOT_FOUND` |
 | DELETE | `/api/alerts/:id` | 관리자 이상 | 영구 삭제(204 No Content). 현재 워크스페이스에 없으면 404 `ALERT_RULE_NOT_FOUND` |
 
@@ -68,7 +68,7 @@ sequenceDiagram
 ```
 
 - `onModuleInit` 이 `queue.upsertJobScheduler` 로 반복 작업 **하나**를 등록한다. 이름은 `'alerts-evaluator-5min'`, 작업 이름은 `'evaluate'`, payload 는 `{ triggeredAt }` 이다. 주기는 `*/5 * * * *`(UTC)다. 규칙마다 큐에 넣지 않는다. 처리기의 `run()` 이 `enabled=true` 규칙 전체를 직접 읽어 차례로 평가한다(`alerts-evaluator.service.ts`). 큐 등록 정보는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다.
-- 지표는 `execution`(실패율, 평균 실행 시간)과 `llm_usage_log`(LLM 비용)에서 집계한다. 수신자인 워크스페이스 관리자는 워크스페이스 멤버에서 찾는다.
+- 지표는 `execution`(실패율, 평균 전체 경과)과 `llm_usage_log`(LLM 비용)에서 집계한다. `duration` 은 완료(`completed`) 실행의 `duration_ms` 평균이다(`computeAvgDuration`). 수신자인 워크스페이스 관리자는 워크스페이스 멤버에서 찾는다.
 - 발사하면 알림 저장(`notificationsService.createMany`, `type=alert_<type>`, `resource_type='alert_rule'`)과 `last_triggered_at` 갱신만 한다. 감사 로그는 남기지 않는다(`dispatchBreach`).
 
 평가와 발사의 세부 규칙:
@@ -129,3 +129,7 @@ V016 이 만든 `alert_rule` 의 컬럼 정의가 데이터 모델 문서에 없
 ### `failure_rate` 에 최소 표본 5건을 둔다
 
 평가 기간 안 실행이 아주 적으면 비율 지표는 흔들림이 크다. 1건 중 1건 실패(100%)가 50% 규칙을 울리면 알림을 믿을 수 없게 된다. 표본이 5건 미만이면 평가하지 않아 이런 흔들림을 누른다. 대가로 실행이 드문 워크플로우의 실패는 비율 규칙으로 잡히지 않을 수 있다.
+
+### 「평균 실행 시간」을 「평균 전체 경과」로 바꿨다 (2026-11-14)
+
+`duration` 유형의 이름만 바꿨다. 값은 그대로 완료(`completed`) 실행의 `duration_ms` 평균이라 입력 대기 시간이 들어간다. 실행 화면의 「실행 시간」은 입력 대기를 뺀 시간이라 옛 이름으로는 기준이 달라 보였다. 알림 제목과 본문도 같은 이름을 쓴다(제목 「평균 전체 경과 임계값 초과」). 이름은 [통계](CLE-OBS-STATS.md) 와 [용어 사전 — 관측과 운영](../CLE-GLOSSARY-OBS.md) 을 따른다.

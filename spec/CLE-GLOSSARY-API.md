@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-API"
 title: "용어 사전 — API 와 개발 규약"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "32e9544743c7bf1e5e8d45be1d8b581430eb4bba93795e16b53ef68c8a7c361b"
+content_hash: "f0c9bfd772863e74edc3c8838d11fb646741b9e59567f7b8ec7ee79bbe85c129"
 read_as: "approved_fallback"
-task: "CLE-T-GNTWP9"
+task: "CLE-T-EVGA56"
 source_paths: []
-mirror_sha256: "a64f1e82a2484431cd496058aa4151adb7ff94cc740911f9027e7e6142c33ee5"
-etag: "sha256-a238973870e136c0e56aeda3e97fa2b01f75b6e5d2fe8ab91daee19d6177b10b"
+mirror_sha256: "462a6a6622a07a6af8d0bf49573bd62d6c3ee1e151c172abee9b50208e711696"
+etag: "sha256-3007fddecf5b74db697ca5182c7c04ea691f88aad56b5de72af4b27e97ecad85"
 ---
 ## 개요
 
@@ -32,8 +32,8 @@ etag: "sha256-a238973870e136c0e56aeda3e97fa2b01f75b6e5d2fe8ab91daee19d6177b10b"
 | 부재 표현 | absence representation | 값이 없음을 응답에서 나타내는 방식. 기본은 null 이고, 정한 경우에만 키를 뺀다. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
 | PATCH 삼중 상태 | tri-state | PATCH 요청에서 키 생략·null·값이 각각 다른 뜻인 규칙. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
 | 워크스페이스 스코핑 | workspace scoping | API 가 현재 워크스페이스 안의 리소스만 다루게 하는 규칙. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
-| 요청 빈도 제한 | rate limit, `RATE_LIMITED` | 정한 시간 안의 요청 수나 동시 연결 수에 거는 상한. 세는 단위는 범위마다 다르다(사용자 · IP · 실행 · 채팅방 · WebSocket 소켓). 넘으면 HTTP 는 429 를 돌려준다. 채팅 채널 인바운드는 전역 한도 대상이 아니다. 채팅방 단위 한도를 넘으면 202 로 받고 건너뛴다. WebSocket 명령은 `RATE_LIMITED` 예외 이벤트로 알린다. 범위와 한도는 기준 문서의 표에 있다. | throttle(본문), Rate Limiting, 요청 제한 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
-| 클라이언트 IP 추출 | client IP extraction | 세션·감사 기록과 공개 웹훅 한도·IP 화이트리스트가 요청자 IP 를 읽는 규칙. 용도에 따라 폴백 순서가 둘이다. | 없음 | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
+| 요청 빈도 제한 | rate limit, `RATE_LIMITED` | 정한 시간 안의 요청 수나 동시 연결 수에 거는 상한. 세는 단위는 범위마다 다르다(사용자 · IP · 실행 · 채팅방 · WebSocket 소켓). 넘으면 HTTP 는 429 를 돌려준다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다(서명 참조가 없는 옛 트리거 · 채널 연결 전 트리거는 받는다). 채팅방 단위 한도를 넘으면 202 로 받고 건너뛴다. WebSocket 명령은 `RATE_LIMITED` 예외 이벤트로 알린다. 범위와 한도는 기준 문서 §7 의 표에 있다. | throttle(본문), Rate Limiting, 요청 제한 | [HTTP API 규약 — 요청 빈도 제한](CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) |
+| 클라이언트 IP 추출 | client IP extraction | 세션·감사 기록과 공개 웹훅 한도·IP 화이트리스트가 요청자 IP 를 읽는 규칙. 용도에 따라 폴백 순서가 둘이다. 채팅 채널 서명 검증 실패 한도는 `X-Forwarded-For` 를 쓰지 않고 `CF-Connecting-IP`(신뢰 설정일 때), `req.ip` 순서로 따로 읽는다([채팅 채널 인바운드 관문 「서명 검증 실패 한도」](CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도)). | 없음 | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 에러 코드 | error code, `error.code` | 클라이언트가 분기에 쓰는 UPPER_SNAKE_CASE 문자열. 이름을 바꾸면 호환성이 깨진다. | wire 코드, errorCode(본문) | [에러 코드 규약과 카탈로그](CLE-API/CLE-API-ERRCODES.md) |
 | 예외 등록 코드 | historical artifact | 명명 규칙을 어기지만 호환 때문에 유지하는 코드(초대 모듈의 소문자 코드 등). | historical-artifact 예외 | [에러 코드 규약과 카탈로그](CLE-API/CLE-API-ERRCODES.md) |
 | 은퇴 코드 | retired code | 더 이상 내보내지 않는 옛 에러 코드. | Retired codes(본문) | [에러 코드 규약과 카탈로그](CLE-API/CLE-API-ERRCODES.md) |
@@ -79,7 +79,7 @@ etag: "sha256-a238973870e136c0e56aeda3e97fa2b01f75b6e5d2fe8ab91daee19d6177b10b"
 
 NERV Task `CLE-T-GNTWP9` 에서 사람 결정(NERV 질문 `01a1d025-94b3-7448-b9dc-4165d0b6ed5f`)을 반영했다.
 
-- 「요청 빈도 제한」: 채팅 채널 인바운드의 202 는 채팅방 단위 한도를 넘었을 때의 응답이라고 고쳤다. 채팅 채널 인바운드는 전역 한도 대상이 아니다. 기준 문서 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 같은 날 개정과 맞췄다. 코드는 아직 채팅 채널 인바운드에도 전역 한도를 건다. NERV Task `CLE-T-ZC34Y0` 이 고친다.
+- 「요청 빈도 제한」: 채팅 채널 인바운드의 202 는 채팅방 단위 한도를 넘었을 때의 응답이라고 고쳤다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다. 기준 문서 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 같은 날 개정과 맞췄다.
 
 ### 정의 보정 (2026-10-03)
 
@@ -108,3 +108,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「fail-open」: [비동기 큐와 Redis 키 목록](CLE-PLAT/CLE-PLAT-QUEUE.md) 에는 이 말이 없다. Redis fail-open 의 뜻과 계측을 적은 [로깅과 헬스 체크](CLE-OBS/CLE-OBS-LOGGING.md) 로 기준 문서를 옮겼다.
 - 「스펙 상태」: NERV 이전 뒤 문서 상태(`doc_status`)와 머리 줄 구현 상태로 갈렸다([스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 의 「NERV 이전 영향」). 옛 다섯 값은 「옛 스펙 상태」 로 한정하고 두 행을 더했다.
 - 「리뷰 라운드」 · 「리뷰 발견」 · 「처분」: 운영 규칙은 아직 NERV 문서에 없고 저장소 `code-review-agents` SKILL 이 정한다. [리뷰 산출물 인용 규약](CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 세 이름을 쓰는 NERV 문서라 기준 문서로 두었다. 리뷰 절차를 담은 NERV 문서가 생기면 기준 문서를 바꾼다. 2026-10-03 에 NERV Task `CLE-T-52JYHM` 이 확인했을 때 그런 문서는 아직 없었다.
+
+### 채팅 채널 전역 한도 면제에 서명 참조 조건을 붙였다 (2026-11-14)
+
+NERV Task `CLE-T-EVGA56` 에서 고쳤다. 「요청 빈도 제한」 의 면제 조건을 [HTTP API 규약 — 요청 빈도 제한](CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 머리 콜아웃과 맞췄다. 서명 참조(`config.chatChannel.inboundSigningRef`)가 없는 채팅 채널 트리거는 서명을 검증하지 않아서 전역 한도를 그대로 받는다. 코드 후속인 NERV Task `CLE-T-ZC34Y0` 이 끝나서 2026-11-12 항목에 남아 있던 「코드는 아직 전역 한도를 건다」 문장을 지웠다. 「요청 빈도 제한」 의 기준 문서 칸은 한도 표가 있는 하위 문서 §7 로 바꿨다. 「클라이언트 IP 추출」 에는 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) 과 [채팅 채널 — 인바운드 관문](CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 이 적은 대로 채팅 채널 서명 검증 실패 한도의 별도 IP 읽기를 더했다.
