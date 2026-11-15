@@ -27,7 +27,8 @@ describe('execution-memory.policy', () => {
   it('resolveExecutionSeqTtlSeconds 는 미설정 · 잘못된 값에 기본값을 쓴다', () => {
     delete process.env[ENV];
     expect(resolveExecutionSeqTtlSeconds()).toBe(DEFAULT_SEQ_KEY_TTL_SECONDS);
-    for (const bad of ['abc', '-1', '0', 'Infinity']) {
+    // '0.5' · '0.999' 는 양수지만 소수를 버리면 0 이라 메모리 Map 을 만들 수 없다.
+    for (const bad of ['abc', '-1', '0', '0.5', '0.999', '', 'Infinity']) {
       process.env[ENV] = bad;
       expect(resolveExecutionSeqTtlSeconds()).toBe(DEFAULT_SEQ_KEY_TTL_SECONDS);
     }

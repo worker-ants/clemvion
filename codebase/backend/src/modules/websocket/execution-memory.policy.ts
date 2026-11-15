@@ -18,13 +18,15 @@ export const DEFAULT_SEQ_KEY_TTL_SECONDS = 86_400;
 export const EXECUTION_MEMORY_MAX_ENTRIES = 10_000;
 
 /**
- * `EXECUTION_SEQ_TTL_SECONDS` 를 읽는다(양수만 채택, 아니면 24시간). Redis seq 키의 sliding TTL 이고,
- * 같은 값을 실행 단위 메모리 항목의 유휴 TTL 로도 쓴다. 미러가 Redis 키보다 먼저 사라지지 않게 하려는 것이다.
+ * `EXECUTION_SEQ_TTL_SECONDS` 를 읽는다. 소수는 버리고, 그 결과가 1 이상일 때만 채택한다(아니면 24시간).
+ * Redis seq 키의 sliding TTL 이고, 같은 값을 실행 단위 메모리 항목의 유휴 TTL 로도 쓴다. 미러가 Redis 키보다
+ * 먼저 사라지지 않게 하려는 것이다. `0.5` 처럼 버리면 0 이 되는 값을 받으면 메모리 Map 생성이 실패하므로
+ * 버린 뒤의 값으로 판단한다.
  */
 export function resolveExecutionSeqTtlSeconds(): number {
-  const parsed = Number(process.env.EXECUTION_SEQ_TTL_SECONDS);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.floor(parsed)
+  const seconds = Math.floor(Number(process.env.EXECUTION_SEQ_TTL_SECONDS));
+  return Number.isFinite(seconds) && seconds > 0
+    ? seconds
     : DEFAULT_SEQ_KEY_TTL_SECONDS;
 }
 

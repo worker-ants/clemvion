@@ -651,6 +651,25 @@ describe('WebsocketService', () => {
       expect(routingOf(a).size).toBe(1);
     });
 
+    it('EXECUTION_SEQ_TTL_SECONDS 를 routing 의 유휴 TTL 로도 쓴다', () => {
+      const prev = process.env.EXECUTION_SEQ_TTL_SECONDS;
+      process.env.EXECUTION_SEQ_TTL_SECONDS = '60';
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      try {
+        const a = makeInstance();
+        a.registerExecutionRouting('exec-short', { triggerId: 'trg' });
+        jest.setSystemTime(Date.now() + 59_999);
+        a.registerExecutionRouting('exec-other', { triggerId: 'trg' });
+        expect(routingOf(a).size).toBe(2); // 아직 60초가 지나지 않았다
+        jest.setSystemTime(Date.now() + 1);
+        a.registerExecutionRouting('exec-third', { triggerId: 'trg' });
+        expect(routingOf(a).size).toBe(2); // exec-short 만 회수된다
+      } finally {
+        if (prev === undefined) delete process.env.EXECUTION_SEQ_TTL_SECONDS;
+        else process.env.EXECUTION_SEQ_TTL_SECONDS = prev;
+      }
+    });
+
     it('유휴 TTL 이 지난 항목은 fanout 봉투에 붙지 않는다', async () => {
       jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
       const a = makeInstance();
