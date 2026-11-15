@@ -19,7 +19,7 @@ const BACKGROUND_RUN_EVENT_NAMES = [
 /**
  * Background 본문 실행 조회 + WebSocket 실시간 갱신.
  *
- * spec/4-nodes/1-logic/12-background.md §8.5 의 `background:run:<id>` 채널을
+ * [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](CLE-API-WS-EVENTS-CHANNELS#8-background-본문-실행-이벤트-server--client) 의 `background:run:<id>` 채널을
  * 구독해 run 수명주기 변화를 받아오며, 이벤트 수신 시 React Query 캐시를
  * invalidate 해 fresh data 로 갱신한다. 본문 안의 NodeExecution 개별 변화는
  * 기존 `execution:<id>` 채널을 받아 main timeline 측에서 처리하고 본 훅은

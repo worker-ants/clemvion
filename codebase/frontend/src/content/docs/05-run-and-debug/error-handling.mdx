@@ -99,12 +99,15 @@ interval = min(retryInterval * backoffMultiplier ^ attempt, maxInterval)
 
 에러 발생 시 에러 데이터를 노드의 **error 포트**로 보내고, 연결된 다음 노드가 에러 데이터를 입력으로 받아 복구 흐름을 이어가게 해요.
 
-- 이 정책의 연결선은 노드에 **원래 있는 error 포트**에만 이을 수 있어요. 예를 들어 HTTP Request, Database Query, Send Email 노드에는 error 포트가 있어요. 정책을 골라도 포트가 새로 생기지는 않아요.
+- error 포트가 원래 없는 노드에 이 정책을 고르면 노드 오른쪽 아래에 빨간 **error 포트**가 생겨요. 여기에 에러 분기를 이어요.
+- 이런 노드에서 다른 정책으로 바꿔 저장하면 error 포트가 사라지고 거기 이어 둔 연결선도 함께 지워져요. 지운 개수는 알림으로 보여 주고 **Ctrl+Z** 한 번으로 정책과 연결선을 함께 되돌릴 수 있어요.
+- HTTP Request, Database Query, Send Email 처럼 error 포트가 **원래 있는 노드**는 포트가 새로 생기지 않고 그 포트를 그대로 써요.
 - 노드가 실패를 던지면 **error 포트의 연결선만** 열려요. `out` 같은 다른 출력 포트의 연결선은 열리지 않아서 에러 분기만 실행돼요.
-- error 포트에 연결선이 연결되어 있지 않으면 `ERROR_PORT_FALLBACK` 로그와 함께 Stop Workflow로 폴백돼요. error 포트가 없는 노드에 이 정책을 걸면 실패를 던질 때마다 이렇게 중단돼요.
+- 노드가 성공하면 error 포트의 연결선은 열리지 않아요. 다른 출력 포트의 연결선만 열려요.
+- error 포트에 연결선이 연결되어 있지 않으면 `ERROR_PORT_FALLBACK` 로그와 함께 Stop Workflow로 폴백돼요.
 - `NodeExecution.status`는 `failed`로 기록되지만, error 연결선이 있으면 **Execution 전체는 계속 진행**돼요.
 
-<Callout type="warn">동작이 바뀌었어요. 예전에는 노드가 실패를 던지면 포트와 상관없이 출력 연결선이 모두 열렸어요. 그래서 정상 경로의 다음 노드도 `{ error }` 를 입력으로 받아 실행됐고, error 연결선이 없어도 다음 노드가 실행됐어요. 이제는 에러 분기만 실행되고, error 연결선이 없으면 워크플로우가 중단돼요. 이런 워크플로우는 error 포트가 있는 노드에서 error 연결선을 잇거나 Stop Workflow, Skip Node 같은 다른 정책을 골라 주세요.</Callout>
+<Callout type="warn">동작이 바뀌었어요. 예전에는 노드가 실패를 던지면 포트와 상관없이 출력 연결선이 모두 열렸어요. 그래서 정상 경로의 다음 노드도 `{ error }` 를 입력으로 받아 실행됐고, error 연결선이 없어도 다음 노드가 실행됐어요. 이제는 에러 분기만 실행되고, error 연결선이 없으면 워크플로우가 중단돼요. 이런 워크플로우는 error 포트에 연결선을 잇거나 Stop Workflow, Skip Node 같은 다른 정책을 골라 주세요.</Callout>
 
 노드가 실패를 던지면 아래 데이터가 다음 노드로 넘어가요.
 

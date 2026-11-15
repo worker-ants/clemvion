@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { RESERVED_ERROR_PORT_ID } from '../../../nodes/core/button-slug.util';
 import { Node, NodeCategory } from '../../nodes/entities/node.entity';
 
 import { GraphEdge } from './graph-builder';
@@ -100,30 +101,34 @@ export class GraphTraversalService {
 
   /**
    * Output 객체의 `_selectedPort` 메타데이터를 기준으로 edge 의 sourcePort 가
-   * 라우팅에서 제외됐는지 판정. `_selectedPort` 가 없으면 모든 포트가 활성.
-   * 배열이면 비어있을 때 모든 포트 활성, 그 외엔 included 여부로 판단.
+   * 라우팅에서 제외됐는지 판정. `_selectedPort` 가 없으면 `error` 를 뺀 모든
+   * 포트가 활성. 배열이면 비어있을 때 같은 규칙, 그 외엔 included 여부로 판단.
+   *
+   * `error` 연결선은 출력이 `error` 포트를 고를 때만 연다. 동적 에러 포트를 단
+   * 노드는 성공할 때 포트를 고르지 않으므로 이 규칙이 없으면 에러 분기가 성공할
+   * 때도 실행된다. 근거: [노드 에러 처리 정책 「2. 에러 포트로 라우팅」](CLE-NODE-ERROR#2-에러-포트로-라우팅).
    */
   isPortFiltered(sourceOutput: unknown, edgeSourcePort: string): boolean {
-    if (
+    const selectedPort =
       sourceOutput &&
       typeof sourceOutput === 'object' &&
       '_selectedPort' in (sourceOutput as Record<string, unknown>)
-    ) {
-      const selectedPort = (sourceOutput as Record<string, unknown>)
-        ._selectedPort;
-      if (Array.isArray(selectedPort)) {
-        return (
-          selectedPort.length > 0 && !selectedPort.includes(edgeSourcePort)
-        );
-      }
-      return edgeSourcePort !== selectedPort;
+        ? (sourceOutput as Record<string, unknown>)._selectedPort
+        : undefined;
+    const noSelection =
+      selectedPort === undefined ||
+      (Array.isArray(selectedPort) && selectedPort.length === 0);
+    if (noSelection) return edgeSourcePort === RESERVED_ERROR_PORT_ID;
+    if (Array.isArray(selectedPort)) {
+      return !selectedPort.includes(edgeSourcePort);
     }
-    return false;
+    return edgeSourcePort !== selectedPort;
   }
 
   /**
    * 노드 실행 후 outgoing edges 를 따라 reachability 를 downstream 으로 전파.
-   * `_selectedPort` 가 있으면 그에 해당하는 edge 만 활성화. disabled 노드의
+   * `_selectedPort` 가 있으면 그에 해당하는 edge 만 활성화하고, 없으면 `error` 를
+   * 뺀 모든 edge 를 활성화한다(근거는 `isPortFiltered`). disabled 노드의
    * 호출자 책임으로 본 메서드를 호출하지 않는다.
    */
   propagateReachability(

@@ -156,6 +156,7 @@ export const editor = {
   labelField: "레이블",
   duplicateLabelError: "동일한 이름의 노드가 이미 존재합니다",
   settingsSavedToast: "노드 설정을 저장했어요",
+  errorPortEdgesRemovedToast: "에러 포트가 사라져 연결선 {{count}}개를 지웠어요. Ctrl+Z 로 되돌릴 수 있어요",
   errorHandling: "오류 처리",
   errorStop: "워크플로우 중단",
   errorSkip: "노드 건너뛰기",

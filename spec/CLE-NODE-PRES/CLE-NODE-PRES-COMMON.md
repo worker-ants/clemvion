@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "2438b111755caf606bbe386c2ee6943530a7e128d7a29e5c16f94a92f2bb4b38"
-read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+content_hash: "a81386a48474a30088c2d9f712b39b1aa804ad74a0ff770165e9fdaffe7615d3"
+read_as: "approved"
+task: null
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "600f413cbc967bb19ffce8b741fb4eb8335afa41ab51148dbe56a3d81aa043b9"
-etag: "sha256-01a8718abdebdcfb58922cd3e964019dffa178e1fbe5dc9492cfbd304dff6cb6"
+mirror_sha256: "f0e00330b554f2a8b37ec17ff86ecec602ea7adc5eb4df165f66fd47bb2f91b3"
+etag: "sha256-cfcbaac02d69ecfe51e1bce4908958710e5f31a097ca4132649547e35aa37065"
 ---
 > 구현 상태: 부분 구현 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -73,7 +73,7 @@ Carousel·Table·Chart·Template 노드가 함께 쓰는 버튼 정의(`ButtonDe
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| `id` | String | 자동 생성 | 바뀌지 않는 버튼 식별자. 포트 버튼이면 동적 출력 포트 ID 로 쓴다. 에디터는 버튼을 추가할 때 UUID v4 를 발급한다. 포트 ID 는 slug 정규식(`^[a-zA-Z0-9_-]{1,64}$`)만 만족하면 되므로 `approve` 같은 slug 도 유효하다. 형식 검증은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 가 정한다 |
+| `id` | String | 자동 생성 | 바뀌지 않는 버튼 식별자. 포트 버튼이면 동적 출력 포트 ID 로 쓴다. 에디터는 버튼을 추가할 때 UUID v4 를 발급한다. 포트 ID 는 slug 정규식(`^[a-zA-Z0-9_-]{1,64}$`)만 만족하면 되므로 `approve` 같은 slug 도 유효하다. 단 `error` 는 에러 포트 ID 라서 쓸 수 없다. 형식 검증은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 가 정한다. `error` 외 예약어(`out` · `continue` 등)의 거부는 [노드 출력 규약 Principle 6 미결 사항](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md#미결-사항)을 따른다 |
 | `label` | String | ✓ | 버튼 텍스트. 표현식(`{{ }}`)을 쓸 수 있다 |
 | `type` | Enum | ✓ | `link`(외부 URL) / `port`(노드 포트 연결) |
 | `url` | String | `type=link` 일 때 ✓ | 외부 URL. 표현식을 쓸 수 있다 |
@@ -89,6 +89,7 @@ Carousel·Table·Chart·Template 노드가 함께 쓰는 버튼 정의(`ButtonDe
 | 포트 버튼 URL 금지 | `type: "port"` 에는 `url` 을 둘 수 없다 |
 | 최대 버튼 수 | 노드당 전역 버튼(`buttons`) **5개**. Carousel 항목 버튼(`itemButtons`, `items[].buttons`)도 항목마다 5개. 한 항목 화면에는 전역 5 + 항목 5 = 최대 10개가 보인다([Rationale](#버튼-수-한도)) |
 | 버튼 ID 고유 | 노드 안의 모든 버튼 ID 는 서로 달라야 한다 |
+| 버튼 ID `error` 예약 | 전역 버튼(`buttons`)과 항목 버튼(`itemButtons`, `items[].buttons`)의 ID 는 `error` 와 정확히 같을 수 없다. 각 노드의 `validateConfig` 가 부르는 `validateButtons` 가 거부한다. Carousel 항목 버튼은 `validateCarouselItemButtons` 가 거부한다. 대소문자를 가리므로 `Error` · `error_1` 은 통과한다 |
 | 연결 안 된 포트 버튼 | 포트 버튼의 동적 포트에 연결선이 없으면 경고한다. 에러는 아니다 |
 | `userMessage` 는 포트 버튼 전용 | 링크 버튼에 `userMessage` 를 넣으면 클릭 동작은 바뀌지 않고 값은 무시한다. 이때 `validateButtons` 가 저장을 막지 않는 안내 메시지 `"buttons[i].userMessage is ignored for link type buttons …"` 를 함께 낸다. LLM 페이로드의 어긋남을 캔버스 사용자에게 알린다 |
 
@@ -241,6 +242,8 @@ Presentation 노드 출력은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT
 | Carousel(항목 버튼) | `<itemButton.id>__item_<idx>`(런타임) | 라우팅할 때 접미사를 떼어 원래 `itemButton.id` 포트로 잇는다 |
 | 링크 버튼만 있을 때 | `'continue'` | 자동 생성 |
 
+전역 버튼과 항목 버튼의 ID 에는 에러 포트 ID 로 예약한 `error` 를 쓸 수 없다([노드 출력 규약 — 포트 · 흐름 상태 · 에러 「Principle 6. 동적 포트 ID 이름」](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md#principle-6-동적-포트-id-이름)).
+
 ## 출력 구조 색인
 
 | 노드 | 입력 대기 출력 값 | 재개 출력 값 | 표시 전용 |
@@ -353,3 +356,11 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 ### Template 본문은 그리는 쪽이 정화한다 (2026-11-12)
 
 → [표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다-2026-11-12)
+
+### 버튼 id `error` 를 예약하고 저장된 id 를 옮긴다 (2026-11-14)
+
+**왜 예약하는가**: 엔진은 버튼을 누르면 `_selectedPort` 에 버튼 id 를 넣고 이 값을 연결선의 `sourcePort` 와 문자열로 비교해 다음 노드를 고른다. 그래서 같은 노드에 id 가 `error` 인 버튼과 에러 포트가 함께 있으면 두 연결선을 구분하지 못한다. 엔진 비교가 정확 일치라서 검증도 정확 일치만 거부한다. 대소문자는 구분하므로 `Error` 는 통과한다. 결정의 전체 배경은 [노드 출력 규약 — 포트 · 흐름 상태 · 에러](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14) 의 Rationale 에 있다.
+
+**저장된 id 이전**: "버튼 id 는 바뀌지 않는다"는 원칙과 연결선을 보존한다는 원칙의 일회성 예외다. 이전 스크립트(`codebase/backend/src/scripts/migrate-reserved-error-button-ids.ts`)는 버튼 id 와 그 노드에서 나가는 `error` 연결선의 `sourcePort` 를 같은 트랜잭션에서 함께 바꾼다. 그래서 연결선이 끊기지 않는다. 새 id 는 `error_1` 부터 시작해 노드 안에서 비어 있는 첫 번호를 쓴다. 한 번만 돌리는 작업이고 운영에서 언제 돌릴지는 사람이 정한다.
+
+**기각한 대안**: 저장된 `error` 버튼은 그대로 두고 새로 저장할 때만 막는 방식이다. 기존 워크플로우에서 버튼 연결선과 에러 연결선이 계속 섞이므로 택하지 않았다.

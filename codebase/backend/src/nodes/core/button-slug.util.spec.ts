@@ -104,6 +104,43 @@ describe('normalizeNodeButtonIds', () => {
       ).toEqual(['btn_0', 'btn_1', 'btn_2']);
     });
 
+    it('label slug 가 예약 id `error` 면 `error_1` 부터 번호를 붙인다 (REQ-NODEUI-042)', () => {
+      const result = normalizeNodeButtonIds({
+        buttons: [{ label: 'Error' }, { label: 'ERROR!' }],
+      });
+      expect(
+        (result?.buttons as Array<{ id: string }>).map((b) => b.id),
+      ).toEqual(['error_1', 'error_2']);
+    });
+
+    it('`error_1` 이 이미 있으면 다음 번호를 쓴다', () => {
+      const result = normalizeNodeButtonIds({
+        buttons: [{ id: 'error_1', label: 'Keep' }, { label: 'Error' }],
+      });
+      expect(
+        (result?.buttons as Array<{ id: string }>).map((b) => b.id),
+      ).toEqual(['error_1', 'error_2']);
+    });
+
+    it('itemButtons · items[].buttons 에서도 `error` 를 만들지 않는다', () => {
+      const result = normalizeNodeButtonIds({
+        itemButtons: [{ label: 'Error' }],
+        items: [{ buttons: [{ label: 'error' }] }],
+      });
+      expect((result?.itemButtons as Array<{ id: string }>)[0].id).toBe(
+        'error_1',
+      );
+      expect(
+        (result?.items as Array<{ buttons: Array<{ id: string }> }>)[0]
+          .buttons[0].id,
+      ).toBe('error_1');
+    });
+
+    it('명시한 id `error` 는 바꾸지 않는다 — 거부는 validateConfig 가 한다', () => {
+      const input = { buttons: [{ id: 'error', label: 'Error' }] };
+      expect(normalizeNodeButtonIds(input)).toBe(input);
+    });
+
     it('살아있는 id 는 보존 — label 변경에도 slug 불변', () => {
       const result = normalizeNodeButtonIds({
         buttons: [

@@ -50,6 +50,26 @@ export function uniqueSlug(base: string, taken: Set<string>): string {
   }
 }
 
+/**
+ * 에러 포트 ID. 사용자 정의 동적 포트 ID(버튼 · 케이스 · 조건 · 카테고리)로 쓸 수
+ * 없다. 엔진이 `_selectedPort === 'error'` 와 연결선 `sourcePort === 'error'` 를
+ * 문자열로 비교해서 같은 노드에 버튼 `error` 와 에러 포트가 있으면 두 연결선을
+ * 구분하지 못한다. 근거: [노드 출력 규약 — 포트 · 흐름 상태 · 에러 「Principle 6.
+ * 동적 포트 ID 이름」](CLE-NODE-OUTPUT-FLOW#principle-6-동적-포트-id-이름) 의 4번.
+ */
+export const RESERVED_ERROR_PORT_ID = 'error';
+
+/**
+ * `error` 대신 쓸 버튼 id. `error_1` 부터 `taken` 에 없는 첫 번호를 고른다.
+ * AI 어시스턴트 정규화(`normalizeNodeButtonIds`)와 저장된 id 이전 스크립트
+ * (`scripts/migrate-reserved-error-button-ids.ts`)가 같은 규칙을 쓴다.
+ */
+export function nextErrorReplacementId(taken: Set<string>): string {
+  let n = 1;
+  while (taken.has(`${RESERVED_ERROR_PORT_ID}_${n}`)) n++;
+  return `${RESERVED_ERROR_PORT_ID}_${n}`;
+}
+
 interface ButtonLike {
   id?: unknown;
   label?: unknown;
@@ -100,7 +120,12 @@ function normalizeButtonsArray(
     // 명시한 id (e.g. `btn_1`) 와 fallback prefix (e.g. index 1 의 `btn_1`)
     // 가 충돌해도 dedup 된다 (review W-2).
     const seed = labelSlug.length > 0 ? labelSlug : fallbackPrefix(i);
-    const candidate = uniqueSlug(seed, taken);
+    // label 이 "Error" 면 slug 가 예약 id `error` 가 된다. 그대로 쓰면
+    // validateConfig 가 거부하므로 `error_1` 부터 번호를 붙인다(REQ-NODEUI-042).
+    const candidate =
+      seed === RESERVED_ERROR_PORT_ID
+        ? nextErrorReplacementId(taken)
+        : uniqueSlug(seed, taken);
     taken.add(candidate);
     changed = true;
     return { ...b, id: candidate };
@@ -183,8 +208,14 @@ export function normalizeNodeButtonIds(
  * 이 노드 type 이 buttons 정규화 대상인지. 정규화 비용이 작아 모든 노드에
  * 대해 호출해도 무방하지만 의도를 명확히 하기 위해 명시 타입 게이트를 둔다.
  */
-const BUTTON_NODE_TYPES = new Set(['carousel', 'chart', 'table', 'template']);
+export const BUTTON_NODE_TYPES: readonly string[] = [
+  'carousel',
+  'chart',
+  'table',
+  'template',
+];
+const BUTTON_NODE_TYPE_SET = new Set(BUTTON_NODE_TYPES);
 
 export function isButtonNodeType(type: string): boolean {
-  return BUTTON_NODE_TYPES.has(type);
+  return BUTTON_NODE_TYPE_SET.has(type);
 }

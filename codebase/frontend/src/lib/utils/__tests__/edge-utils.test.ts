@@ -852,6 +852,23 @@ describe("dropStaleEdges", () => {
     expect(result.dropped.map((e) => e.id)).toEqual(["stale"]);
   });
 
+  it("keeps error edges from the dynamic error port only while the policy routes to it (REQ-NODEUI-012 · 020)", () => {
+    const edges: Edge[] = [
+      { id: "err", source: "a", target: "b", sourceHandle: "error", targetHandle: "in", type: "custom" },
+    ];
+    const routed: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: { type: "template", config: { errorHandling: { policy: "route_to_error_port" } } } },
+      { id: "b", position: { x: 0, y: 0 }, data: { type: "template" } },
+    ];
+    expect(dropStaleEdges(edges, routed).dropped).toEqual([]);
+
+    const stopped: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: { type: "template", config: { errorHandling: { policy: "stop_workflow" } } } },
+      { id: "b", position: { x: 0, y: 0 }, data: { type: "template" } },
+    ];
+    expect(dropStaleEdges(edges, stopped).dropped.map((e) => e.id)).toEqual(["err"]);
+  });
+
   it("drops edges whose targetHandle does not exist on the target node", () => {
     const nodes: Node[] = [
       { id: "a", position: { x: 0, y: 0 }, data: { type: "template" } },
