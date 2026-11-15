@@ -143,6 +143,19 @@ export type AssistantStreamEvent =
   | { event: 'done'; data: { finishReason: string } }
   | { event: 'error'; data: AssistantStreamError };
 
+/**
+ * 에디터가 워크플로우를 실행 중인 턴(요청의 `workflowRunning === true`)에 편집
+ * 도구를 거부할 때 돌려주는 도구 결과(REQ-ASSIST-028). SSE `error` 로 턴을
+ * 끊지 않고 도구 결과로 돌려줘 조회 · 계획 대화는 이어진다. `message` 는
+ * 모델에게 주는 고정 영문 지시이고 화면 문구는 프런트가 `error` 코드로 고른다.
+ */
+export const WORKFLOW_RUNNING_EDIT_REJECTION = {
+  ok: false,
+  error: 'ASSISTANT_WORKFLOW_RUNNING',
+  message:
+    'The workflow is currently running in the editor, so edits are not applied. Do NOT call any more edit tools in this turn. Tell the user briefly, in their language, that the workflow is running and nothing was changed, and ask them to send the request again after the run finishes or is stopped. You may still use explore tools to answer questions about the running execution.',
+} as const;
+
 /** `resolveTurnConfig` 의 결과. 실패면 턴을 끝낼 `error` 이벤트 데이터를 싣는다. */
 type TurnConfigResolution =
   | { ok: true; config: ModelConfig; fallbackFrom?: string }
@@ -661,8 +674,13 @@ export class WorkflowAssistantStreamService {
                 result = { ok: true, planId };
               }
             } else {
-              // edit — plan-only turn 에서는 approve 전까지 거부.
-              if (isPlanPendingApproval(planForTurn)) {
+              // edit — 에디터가 실행 중이면 Shadow 에 적용하지 않고 거부한다
+              // (REQ-ASSIST-028). 계획 승인 대기보다 먼저 본다. 실패 결과라
+              // 진척 카운터와 종료 가드의 "이번 턴 편집" 에 들지 않는다.
+              if (dto.workflowRunning === true) {
+                result = { ...WORKFLOW_RUNNING_EDIT_REJECTION };
+              } else if (isPlanPendingApproval(planForTurn)) {
+                // plan-only turn 에서는 approve 전까지 거부.
                 result = {
                   ok: false,
                   error: 'PLAN_AWAITING_APPROVAL',

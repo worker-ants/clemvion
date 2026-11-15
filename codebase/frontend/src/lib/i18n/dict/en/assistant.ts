@@ -27,6 +27,7 @@ export const assistant: Dict["assistant"] = {
     "No {{label}} available yet. Register one in Settings first.",
   candidatePickerEmptyLink: "Open Settings",
   toolCallBadgeRetryRecovered: "Retried and succeeded",
+  toolCallBadgeWorkflowRunning: "not applied: workflow is running",
   errorBubbleTitle: "Something went wrong with this turn",
   continueAfterBudgetButton: "Continue",
   continueAfterBudget: "Continue.",

@@ -1,6 +1,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsNumber,
   IsObject,
@@ -189,4 +190,13 @@ export class AssistantMessageRequestDto {
   @IsOptional()
   @IsUUID()
   llmConfigId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      '에디터가 이 워크플로우를 실행 중인지(에디터 실행 상태가 running · waiting_for_input). true 인 턴은 편집 도구를 Shadow 에 적용하지 않고 도구 결과 ASSISTANT_WORKFLOW_RUNNING 으로 거부한다(REQ-ASSIST-028). 생략하면 false 다.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  workflowRunning?: boolean;
 }

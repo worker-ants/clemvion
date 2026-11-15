@@ -6894,3 +6894,212 @@ describe('toRuntimePortDescriptor — runtime port type 정규화', () => {
     expect('label' in p).toBe(false);
   });
 });
+
+describe('WorkflowAssistantStreamService — 실행 중 편집 거부 (REQ-ASSIST-028)', () => {
+  const addArgs = JSON.stringify({
+    type: 'http_request',
+    label: 'While Running',
+    position: { x: 500, y: 300 },
+    config: {},
+  });
+
+  function toolEvent(
+    events: Array<{ event: string; data: unknown }>,
+    name: string,
+  ) {
+    return events.find(
+      (e) =>
+        e.event === 'tool_call' && (e.data as { name: string }).name === name,
+    ) as
+      | {
+          event: string;
+          data: { kind: string; result: Record<string, unknown> };
+        }
+      | undefined;
+  }
+
+  it('rejects edit tools with ASSISTANT_WORKFLOW_RUNNING when the editor reports a running workflow, without touching the shadow', async () => {
+    const { service, mocks } = makeService();
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: addArgs,
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_view',
+          name: 'get_current_workflow',
+          arguments: '{}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        workflowRunning: true,
+      } as never),
+    );
+
+    const addEvent = toolEvent(events, 'add_node');
+    expect(addEvent?.data.kind).toBe('edit');
+    expect(addEvent?.data.result).toMatchObject({
+      ok: false,
+      error: 'ASSISTANT_WORKFLOW_RUNNING',
+    });
+    expect(typeof addEvent?.data.result.message).toBe('string');
+    // 조회 도구는 그대로 쓸 수 있고, 거부된 편집은 Shadow 에 들어가지 않았다.
+    const viewEvent = toolEvent(events, 'get_current_workflow');
+    const nodes = viewEvent?.data.result as {
+      ok: boolean;
+      nodes: Array<{ label: string }>;
+    };
+    expect(nodes.ok).toBe(true);
+    expect(nodes.nodes.map((n) => n.label)).toEqual(['Start']);
+    // SSE error 로 턴을 끊지 않는다.
+    expect(events.some((e) => e.event === 'error')).toBe(false);
+  });
+
+  it('checks the running state before plan approval: an edit after propose_plan in a running turn gets ASSISTANT_WORKFLOW_RUNNING, and the plan event is still emitted', async () => {
+    const { service, mocks } = makeService();
+    const planArgs = JSON.stringify({
+      title: 'Build',
+      summary: '',
+      steps: [{ id: 's1', action: 'add_node', description: 'step 1' }],
+    });
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_plan',
+          name: 'propose_plan',
+          arguments: planArgs,
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: addArgs,
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        workflowRunning: true,
+      } as never),
+    );
+
+    expect(events.some((e) => e.event === 'plan')).toBe(true);
+    expect(toolEvent(events, 'add_node')?.data.result.error).toBe(
+      'ASSISTANT_WORKFLOW_RUNNING',
+    );
+  });
+
+  it('lets finish through in one round when every edit of the turn was rejected for a running workflow (no PLAN_NOT_COMPLETE loop)', async () => {
+    const { service, mocks } = makeService();
+    mocks.sessionService.loadMessages.mockResolvedValue([
+      { role: 'user', content: '요청', toolCalls: null },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'p0',
+            name: 'propose_plan',
+            arguments: {},
+            kind: 'plan',
+            result: { ok: true },
+          },
+        ],
+        plan: {
+          title: 'Approved plan',
+          summary: '',
+          steps: [{ id: 's1', action: 'add_node', description: 'add node' }],
+          approvedAt: '2026-11-15T00:00:00Z',
+        },
+      },
+    ]);
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'add_1',
+          name: 'add_node',
+          arguments: JSON.stringify({
+            ...JSON.parse(addArgs),
+            planStepId: 's1',
+          }),
+        },
+        { type: 'tool_call_end', id: 'fin_1', name: 'finish', arguments: '{}' },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        workflowRunning: true,
+      } as never),
+    );
+
+    expect(mocks.llmService.chatStream).toHaveBeenCalledTimes(1);
+    expect(events[events.length - 1]).toMatchObject({
+      event: 'done',
+      data: { finishReason: 'stop' },
+    });
+    expect(toolEvent(events, 'add_node')?.data.result.error).toBe(
+      'ASSISTANT_WORKFLOW_RUNNING',
+    );
+  });
+
+  it('applies edits normally when workflowRunning is false', async () => {
+    const { service, mocks } = makeService();
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_add',
+          name: 'add_node',
+          arguments: addArgs,
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', {
+        ...baseDto,
+        workflowRunning: false,
+      } as never),
+    );
+
+    expect(toolEvent(events, 'add_node')?.data.result.ok).toBe(true);
+  });
+});

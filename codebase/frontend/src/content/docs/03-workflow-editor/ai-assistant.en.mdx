@@ -65,6 +65,8 @@ While processing a request, the Assistant calls tools that show up as small badg
 
 <Callout type="note">
 The Assistant **never executes the workflow on its own**. The `Run` button is always yours. It can read the results of a run you've triggered and propose fixes from there.
+
+While the workflow is running or waiting for input, the Assistant does not change the canvas. Its edit badges turn red with "not applied: workflow is running". Send the same request again after the run finishes or is stopped. Questions about the run still get answered.
 </Callout>
 
 ## Sessions and persistence
