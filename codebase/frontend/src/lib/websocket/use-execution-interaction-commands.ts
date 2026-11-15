@@ -69,7 +69,7 @@ export interface RetryLastTurnAck {
 }
 
 /**
- * ack 이벤트 이름 → ack payload 타입. `emitWithAck` 가 이 표로 `onFailure` · `onSuccess`
+ * ack 이벤트 이름 → ack payload 타입. `emitAndAwaitAckEvent` 가 이 표로 `onFailure` · `onSuccess`
  * 인자 타입을 정하므로 호출부가 ack 형태를 잘못 고를 수 없다.
  */
 interface AckByEvent {
@@ -206,8 +206,11 @@ function requireRealtime(
  * one-shot ack listener is enough to match the latest emit.
  *
  * `onSuccess` 는 `success: true` ack 에서만 부른다. 지금은 마지막 턴 재시도만 쓴다.
+ *
+ * Socket.IO 내장 `Socket#emitWithAck` 와 다르다. 내장은 ack callback 을 기다리지만 이 헬퍼는
+ * ack 이벤트를 기다린다. 이름이 같아 헷갈려서 옛 이름 `emitWithAck` 에서 바꿨다(NERV Task CLE-T-7MBBA7).
  */
-function emitWithAck<E extends keyof AckByEvent>(
+function emitAndAwaitAckEvent<E extends keyof AckByEvent>(
   ws: WsClient,
   event: string,
   data: unknown,
@@ -340,7 +343,7 @@ export function useExecutionInteractionCommands(
         submitFormOverRest(t, target.executionId, waitingNodeId, formData);
         return true;
       }
-      emitWithAck(
+      emitAndAwaitAckEvent(
         target.ws,
         "execution.submit_form",
         { executionId: target.executionId, formData },
@@ -362,7 +365,7 @@ export function useExecutionInteractionCommands(
     (buttonId: string) => {
       const target = requireRealtime(executionId, t);
       if (!target) return false;
-      emitWithAck(
+      emitAndAwaitAckEvent(
         target.ws,
         "execution.click_button",
         { executionId: target.executionId, buttonId },
@@ -377,7 +380,7 @@ export function useExecutionInteractionCommands(
   const clickContinue = useCallback(() => {
     const target = requireRealtime(executionId, t);
     if (!target) return false;
-    emitWithAck(
+    emitAndAwaitAckEvent(
       target.ws,
       "execution.click_button",
       { executionId: target.executionId, buttonId: CONTINUE_BUTTON_ID },
@@ -406,7 +409,7 @@ export function useExecutionInteractionCommands(
         optimisticPending: true,
       });
       setWaitingAiResponse(true);
-      emitWithAck(
+      emitAndAwaitAckEvent(
         target.ws,
         "execution.submit_message",
         { executionId: target.executionId, nodeId, message },
@@ -428,7 +431,7 @@ export function useExecutionInteractionCommands(
     (nodeId: string) => {
       const target = requireRealtime(executionId, t);
       if (!target) return false;
-      emitWithAck(
+      emitAndAwaitAckEvent(
         target.ws,
         "execution.end_conversation",
         { executionId: target.executionId, nodeId },
@@ -447,7 +450,7 @@ export function useExecutionInteractionCommands(
       // optimistic — user 가 [다시 시도] 를 누르는 순간 spinner 노출.
       // ack 실패 시 release.
       setWaitingAiResponse(true);
-      emitWithAck(
+      emitAndAwaitAckEvent(
         target.ws,
         "execution.retry_last_turn",
         { executionId: target.executionId, nodeExecutionId },
