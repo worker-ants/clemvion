@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK-OUTBOUND"
 title: "Slack 어댑터 — Web API 와 노드 UI 매핑"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-SLACK"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-SLACK"]
 area: "CLE-CHAT"
-content_hash: "1e66aed3bb57a9769addabfb7532ad247f692fed9d6dafb056ca54866d0b0339"
+content_hash: "8cf68a79b5ed1ddf3ff1ae3597916218c29bfa98d75f7f7ddecd327bc05e4959"
 read_as: "approved_fallback"
-task: "CLE-T-FQTQ7K"
+task: "CLE-T-D78VKM"
 source_paths: []
-mirror_sha256: "e7da7d456d6811129c605ecd400cd5fe2d489dda5352e51ec906360624edb82f"
-etag: "sha256-90ab42e3645cd60bef4d64e5a9be2432b77f2156afe1b306b62217c8b37fc171"
+mirror_sha256: "415de44166cbb580f1ffcd6db03abbfad80923d61f8af98a4b351e2a7a5f3443"
+etag: "sha256-fafe9961cfdbbb695aafd1835459fc63ddc534e0418ac117fa038c922897bd1e"
 ---
 ## 개요
 
@@ -110,7 +110,7 @@ Authorization: Bearer {botToken}
 ### 멀티턴 AI
 
 - `execution.ai_message.message` 를 `chat.postMessage` 로 보낸다(mrkdwn, [Slack 서식](https://api.slack.com/reference/surfaces/formatting) 규칙대로 `<`, `>`, `&` 만 escape). Template 본문에도 같은 escape 를 적용한다([멘션 무력화](#멘션-무력화)).
-- 3500자에서 나눈다. `chat.postMessage.text` 의 권장 한도 4000자에서 500자 여유를 둔 값이다. 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 조각 경계가 escape 결과의 가운데를 지나면 그 엔티티 앞에서 자른다.
+- 3500자에서 나눈다. `chat.postMessage.text` 의 권장 한도 4000자에서 500자 여유를 둔 값이다. 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 접미사는 3500자 밖에 붙지만 4000자 안이다. 조각 경계가 escape 결과의 가운데를 지나면 그 엔티티 앞에서 자른다. 경계 · 접미사 · 코드 블록 규칙은 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
 - 응답 직전 typing 표시는 보내지 않는다(R-S-5).
 - 사용자 DM 답장(`text_message`)은 EIA `submit_message` 로 보낸다.
 

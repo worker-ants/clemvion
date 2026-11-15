@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-FLOW"
 title: "웹훅 — 처리 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "7f172e799b130a683f0849582590d014d3a6fda2ada5b18706c3014310993b0b"
+content_hash: "61aef7666a304eae1da1a9c7a028ecdc78dbcf60696a06a7d3bd4a5d4b6cecd3"
 read_as: "approved_fallback"
-task: "CLE-T-289XDB"
+task: "CLE-T-W020BQ"
 source_paths: []
-mirror_sha256: "10f3f3a434e3966d4a55b69fb0e603d32de27f451e56864a490ff5badaaa1356"
-etag: "sha256-420edccd98643a9f9b4dd1720afeb45d9f5129dfae282ab7bbd03e475fb821fb"
+mirror_sha256: "acb16dbe0a9017a5216e2487483489ab5c3132edd8024e63da45880faca28cc2"
+etag: "sha256-92af4a224ff7287c31014aa34a502eccb2715561b3563c0f8451427384bf2e02"
 ---
 ## 개요
 
@@ -53,7 +53,7 @@ etag: "sha256-420edccd98643a9f9b4dd1720afeb45d9f5129dfae282ab7bbd03e475fb821fb"
 
 `config.chatChannel.provider` 가 빈 문자열이 아닌 문자열인 트리거는 5단계에서 채팅 채널 분기(`handleChatChannelWebhook`)로 간다. 이 분기는 일반 흐름의 활성 확인(410), 인증 설정 인증, 트리거 파라미터 검증을 거치지 않는다.
 
-- 인증은 인증 설정이 아니라 provider 별 inbound 서명 검증(`chatChannelInboundAuthenticator.verify`)으로 한다. Telegram 은 `X-Telegram-Bot-Api-Secret-Token`, Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 를 쓴다. 검증에 실패하면 401 이다.
+- 인증은 인증 설정이 아니라 provider 별 inbound 서명 검증(`chatChannelInboundAuthenticator.verify`)으로 한다. Telegram 은 `X-Telegram-Bot-Api-Secret-Token`, Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 를 쓴다. 검증에 실패하면 401 이다. 저장된 설정에 인바운드 서명 자료 참조(`config.chatChannel.inboundSigningRef`)가 없는 행은 서명 검증을 건너뛰고 다음 관문으로 넘어간다([채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](../CLE-CHAT/CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행)).
 - 인터랙션 요청은 프로바이더가 3초 안에 `200 OK` 와 정해진 본문을 받아야 하는 요청이다. Discord 컴포넌트(type 3) · 모달 제출(type 5) · 슬래시 명령(type 2)과 Slack Interactivity(`block_actions` · `view_submission` 등) · 슬래시 명령이 해당한다.
   - 서명 검증 직후 채널 어댑터 훅 `defaultInteractionResponse` 가 요청 본문만 보고 기본 인터랙션 응답을 정한다. 외부 호출이 없는 계산이다. Discord 컴포넌트 · 모달 제출은 `{ type: 6 }`, Discord 슬래시 명령은 본인에게만 보이는 수신 문구나 도움말을 담은 `{ type: 4 }`, Slack Interactivity 는 빈 본문이다. Slack 슬래시 명령은 본인에게만 보이는 수신 문구나 도움말을 담은 `{ response_type: 'ephemeral', text }` 다.
   - 인터랙션 요청이 아니면 기본 인터랙션 응답이 없고 아래 규칙대로 `202` 나 handshake 응답으로 답한다. Discord PING · 자동 완성, Slack `url_verification` · Events API 메시지, Telegram update 가 여기에 든다.
