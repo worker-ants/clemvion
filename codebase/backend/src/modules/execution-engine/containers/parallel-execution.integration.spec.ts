@@ -2,7 +2,7 @@
  * ExecutionEngineService — Parallel 컨테이너 통합 테스트 (PARALLEL_ENGINE=v1).
  *
  * `execution-engine.service.spec.ts` 에서 나눠 냈다. 서비스 구성은 두 스펙이
- * `__test__/engine-service-harness.ts` 공용 하네스를 같이 쓴다. 최상위 describe 이름은
+ * `__test-utils__/engine-service-harness.ts` 공용 하네스를 같이 쓴다. 최상위 describe 이름은
  * 원래 스펙과 같게 두어 테스트 전체 이름이 바뀌지 않는다.
  */
 import { BackgroundExecutionJob } from '../queues/background-execution.queue';
@@ -33,7 +33,7 @@ import {
   flushPromises,
   withWorkspace,
   workflowId,
-} from '../__test__/engine-service-harness';
+} from '../__test-utils__/engine-service-harness';
 
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;

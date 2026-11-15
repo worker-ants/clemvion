@@ -109,7 +109,7 @@ import {
   mockWorkflow,
   withWorkspace,
   workflowId,
-} from './__test__/engine-service-harness';
+} from './__test-utils__/engine-service-harness';
 import { ForEachHandler } from '../../nodes/logic/foreach/foreach.handler';
 import { LoopHandler } from '../../nodes/logic/loop/loop.handler';
 import { MapHandler } from '../../nodes/logic/map/map.handler';
@@ -174,7 +174,7 @@ describe('ExecutionEngineService', () => {
   // 테스트가 다시 대입하는 `dbExecutionStatus` · `waitingRawRows` ·
   // `waitingQueryError` 는 mock 클로저가 읽는 하네스 필드라 `h.` 로 대입한다.
 
-  // 서비스 구성 · mock 레포지토리는 `__test__/engine-service-harness.ts` 공용 하네스.
+  // 서비스 구성 · mock 레포지토리는 `__test-utils__/engine-service-harness.ts` 공용 하네스.
   beforeEach(async () => {
     h = await createEngineServiceHarness();
     ({

@@ -61,7 +61,7 @@ import {
   ExecutionContext,
   NodeHandler,
 } from '../../../nodes/core/node-handler.interface';
-import { mockOutput } from './mock-output';
+import { mockOutput } from '../__test__/mock-output';
 
 // Helper to flush pending promises (allow background execution to complete)
 export function flushPromises(): Promise<void> {
