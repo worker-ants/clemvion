@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "a2445c606e210b456b16be81b678da2b7ba776b2da30f54a59502ac93c80f93a"
+content_hash: "fb6903de8e9ce6abdfcdc418dbcb96f47d03917a834d8dc283903b887eb21191"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-AAGZRW"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "b0170219a81e52c4338ed87fd04e5688d397bb6d2e4d71fa18ee45014783d5c5"
-etag: "sha256-79d3dc305386a1660761e6d3f464e40d7640616fda9af3683448a72678d939b8"
+mirror_sha256: "ef31f9b5b5ac10a870dab1ba2b1c11e72da69504f3b44b4200c25b4cee58ad3e"
+etag: "sha256-a6daed13ca1a7b5fbb57f64c35a04f2bfafc958075307996058503f2b8c59521"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -100,7 +100,7 @@ interface ChannelAdapterRegistry {
 ## 보안
 
 - 자격 증명은 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 참조만 둔다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안) 의 자격 증명 저장 요구사항). 평문 노출 금지와 그 예외는 규칙 10, 고정 URL(SSRF 차단)은 규칙 11 이 정한다.
-- `parseUpdate` 는 raw body 의 출처를 검증한 뒤에 부른다. 진입점 핸들러가 프로바이더별 인바운드 서명(Telegram `X-Telegram-Bot-Api-Secret-Token` 등)을 먼저 검증한다. 저장된 `inboundSigningRef` 가 없는 행에서 이 검증을 건너뛰는 임시 동작은 [미결 사항](#미결-사항) 에 적었다.
+- `parseUpdate` 는 raw body 의 출처를 검증한 뒤에 부른다. 진입점 핸들러가 프로바이더별 인바운드 서명(Telegram `X-Telegram-Bot-Api-Secret-Token` 등)을 먼저 검증한다. 1차 범위의 세 채널 프로바이더는 서명 자료가 필수다. 예외로 저장된 `inboundSigningRef` 가 없는 옛 행은 이 검증을 건너뛴다. 이 예외는 2026-11-14 에 현행 유지로 정했다. 근거와 위험은 [채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다.
 
 ## 변경 관리
 
@@ -114,7 +114,6 @@ interface ChannelAdapterRegistry {
 - **`revokeBotToken` 이 `code` 를 던지는지**: 실패 판별 절은 `revokeBotToken` 도 `BOT_TOKEN_INVALID` 를 실어 던진다고 적었고, 인터페이스와 함수 책임 표는 내부 에러를 흡수해 호출자에 전파하지 않는다고 적었다. 흡수로 정리해 판별 대상에서 뺄지 정해야 한다.
 - **`sendMessage` 의 중복 제거 책임**: 옛 규약은 "호출자가 EIA `seq` 와 `X-Clemvion-Delivery` 로 중복을 거른다" 고 적었다. 채널 어댑터는 서버 안 `executionEvents$` 를 받아 웹훅 헤더가 없다. 현재 구현(chat-channel 모듈)에서 해당 헤더 참조는 0건이고 `seq` 는 전달만 된다. 중복 제거는 [채팅 채널 「R-CC-20 인바운드 중복 제거는 전용 서비스로 한다」](CLE-CHAT-CORE.md#r-cc-20-인바운드-중복-제거는-전용-서비스로-한다) 가 인바운드 쪽만 정했다. [채팅 채널](CLE-CHAT-CORE.md) 의 미결 사항과 함께 정해야 한다.
 - **`WORKER_HEARTBEAT_TIMEOUT` 등 분류 표에 없는 코드**: EIA 는 `execution.failed` 가 `WORKER_HEARTBEAT_TIMEOUT` 을 실을 수 있다고 적었다. 그런데 분류 표에 행이 없어 매번 알 수 없는 코드(`executionFailedInternal` 과 warn 로그)로 처리된다. 이 코드는 stalled 재배달을 모두 소진한 워커 쪽 최종 실패다([장애 복구와 안전 종료 「운영 중 stalled 재배달」](../CLE-EXEC/CLE-EXEC-RECOVERY.md#운영-중-stalled-재배달)). [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `SUB_WORKFLOW_NOT_FOUND`·`SUB_WORKFLOW_TIMEOUT`·`SUB_WORKFLOW_QUEUE_FAILED`·`EMAIL_HOST_BLOCKED` 도 분류 표에 없어 같은 경로를 탄다. 지금 구현(`execution-failure-classifier.ts`)도 이 다섯 코드를 따로 매핑하지 않는다. 행을 더할지와 어느 키로 보낼지(`SUB_WORKFLOW_TIMEOUT` 은 시간 초과 안내 후보) 정해야 한다.
-- **인바운드 서명 자료 참조가 없는 행의 검증 생략**: 1차 범위의 세 채널 프로바이더는 규약상 모두 서명 자료가 필수다. 그런데 지금 구현은 저장된 `inboundSigningRef` 가 없는 행에서 인바운드 서명 검증을 건너뛴다. 현행 동작은 [채팅 채널 데이터와 흐름 §인바운드 서명 자료 참조가 없는 행](CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 에 적었다. 401 로 막을지는 NERV Task `CLE-T-AAGZRW` 가 운영 데이터에서 그런 행 수를 잰 뒤 정한다. 0건이면 401(fail-closed)로 바꾼다. 1건이라도 있으면 현행 유지를 스펙 결정으로 올린다.
 - **`render_form` 임시 텍스트의 답변 안내**: 임시 텍스트는 "답변을 메시지로 보내주세요." 로 끝난다. 이 안내를 따른 답은 늘 폼 호출 취소 경로를 탄다([AI 에이전트 노드 「멀티턴」](../CLE-NODE-AI/CLE-NODE-AGENT.md#멀티턴)). LLM 이 취소를 보고 폼을 다시 부르는 반복도 생길 수 있다. 안내 문구를 이 의미에 맞출지 정해야 한다(R-CCA-13 (b)).
 
 ## 구현 위치
