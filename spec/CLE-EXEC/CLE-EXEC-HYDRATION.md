@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HYDRATION"
 title: "실행 화면 복원 규약"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "cbb9ec0dfa2a4b18479b670af861b7c1523b2a8d64e1a2d079bf801168bb34c6"
+content_hash: "b5b1b0e4d51323649901691b5cc5605fe84e5a323e80b6882ff3eba624b6e8ef"
 read_as: "approved_fallback"
-task: "CLE-T-5P1ADY"
+task: "CLE-T-VXPW7G"
 source_paths: ["spec/conventions/data-hydration-surfaces.md"]
-mirror_sha256: "fd0adb7da5d225601b8ff353a6c258b3adeb913f3101205cc4d1847840fe41d8"
-etag: "sha256-55f1bec3f643b14e80358968739d8483ce43eab7498d6b5f0c6f34459ae974ea"
+mirror_sha256: "40016a85f742eac26e413e5320beecbb78ebd520f50f8ed9527483d589c6c578"
+etag: "sha256-901051a712b8aaf8531c1d43b730a70d86e4319cab17104afccdac32169a4fb1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/data-hydration-surfaces.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -99,7 +99,7 @@ etag: "sha256-55f1bec3f643b14e80358968739d8483ce43eab7498d6b5f0c6f34459ae974ea"
 
 | 트리거 | 함수 |
 | --- | --- |
-| 대화 스레드 재구성 보기 | EH-DETAIL-12. 실행 내역의 여러 노드 대화 재구성(v2, [실행 내역](CLE-EXEC-HISTORY.md)) |
+| 대화 스레드 재구성 보기 | [REQ-EXHIST-034](CLE-EXEC-HISTORY.md). 실행 내역의 여러 노드 대화 재구성(v2, [실행 내역](CLE-EXEC-HISTORY.md)) |
 
 ## 구현 위치
 
@@ -118,4 +118,6 @@ etag: "sha256-55f1bec3f643b14e80358968739d8483ce43eab7498d6b5f0c6f34459ae974ea"
 
 ### 에디터 폴링 대체 경로는 저장된 대화가 앞설 때만 바꾼다 (2026-11-14)
 
-대체 경로에서는 `execution.ai_message` 가 오지 않으므로 폴링 응답의 저장된 대화가 AI 응답을 보여 줄 유일한 길이다. 비어 있을 때만 채우는 기존 규칙으로는 첫 응답 뒤로 대화가 멈춘다. 응답마다 덮으면 사용자가 방금 보낸 낙관적 메시지가 사라졌다가 다시 나타난다. 그래서 확정된 사용자·AI 메시지 수가 앞설 때만 바꾼다. 실시간 경로와 실행 상세 화면은 WebSocket 이 대화를 채우므로 기존 규칙(비어 있을 때만 채운다)을 그대로 둔다. 이 결정은 NERV Task `CLE-T-5P1ADY` 에서 내렸다.
+대체 경로에서는 `execution.ai_message` 가 오지 않으므로 폴링 응답의 저장된 대화가 AI 응답을 보여 줄 유일한 길이다. 비어 있을 때만 채우는 기존 규칙으로는 첫 응답 뒤로 대화가 멈춘다. 그래서 확정된 사용자·AI 메시지 수가 앞설 때만 바꾼다. 실시간 경로와 실행 상세 화면은 WebSocket 이 대화를 채우므로 기존 규칙(비어 있을 때만 채운다)을 그대로 둔다. 이 결정은 NERV Task `CLE-T-5P1ADY` 에서 내렸다.
+
+- **기각: 응답마다 덮기**: 폴링 응답이 올 때마다 저장된 대화로 바꾸면 사용자가 방금 보낸 낙관적 메시지가 사라졌다가 다시 나타난다. 같은 근거가 [에디터 실행과 디버깅 — 실시간 수신·내역·Background 의 Rationale](CLE-EXEC-RUN-SYNC.md#소켓이-끊긴-입력-대기는-폼만-rest-로-보낸다-2026-11-14) 의 「AI 대화는 저장된 대화가 앞설 때만 바꾼다」 에 있다.
