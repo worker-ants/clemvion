@@ -408,14 +408,15 @@ function renderButtons(
   const out: ChannelMessage[] = [];
 
   // 시각형 노드 출력이 있으면 시각 ChannelMessage 시퀀스를 먼저 발송 (텔레그램 §5.4 / CCH-MP-04 v1).
-  // [Spec Chat Channel R-CC-11] visualNode enum 분기:
+  // [CLE-CHAT-ADAPTER-RENDER R-CCA-12] visualNode enum 분기:
   //   - 'text'     → 시각형 미발송 (carousel imageUrl 도 무시. legacy 'text_only' 는 DTO 단에서 normalize)
   //   - 'photo'    → v1 단계는 SSR 인프라 미도입 → fallback to text + warning 로그 (chat_channel_health 변경 없음)
   //   - 'auto'/미설정 → 노드별 휴리스틱 (chart/table → text, carousel → 카드별 imageUrl 분기)
   const nodeOutput = buttonConfig?.nodeOutput;
   const visualKind = nodeOutput?.nodeType;
   // legacy 'text_only' 가 DB 에 남아있는 경우 read-time normalize (DTO normalize 와 중복 안전망).
-  const rawVisualNode = config.uiMapping?.visualNode;
+  // 타입은 스펙의 세 값이지만 저장값은 옛 값일 수 있어 string 으로 넓혀 읽는다.
+  const rawVisualNode: string | undefined = config.uiMapping?.visualNode;
   const visualNode: 'text' | 'photo' | 'auto' =
     rawVisualNode === 'text_only'
       ? 'text'

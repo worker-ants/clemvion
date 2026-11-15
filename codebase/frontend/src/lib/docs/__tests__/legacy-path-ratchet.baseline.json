@@ -129,7 +129,7 @@
     "codebase/backend/src/modules/chat-channel/providers/slack/slack-message.renderer.ts": 8,
     "codebase/backend/src/modules/chat-channel/providers/slack/slack-update.parser.ts": 1,
     "codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts": 4,
-    "codebase/backend/src/modules/chat-channel/providers/telegram/telegram-message.renderer.spec.ts": 3,
+    "codebase/backend/src/modules/chat-channel/providers/telegram/telegram-message.renderer.spec.ts": 1,
     "codebase/backend/src/modules/chat-channel/providers/telegram/telegram-message.renderer.ts": 6,
     "codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.ts": 1,
     "codebase/backend/src/modules/chat-channel/shared/execution-failure-classifier.ts": 5,

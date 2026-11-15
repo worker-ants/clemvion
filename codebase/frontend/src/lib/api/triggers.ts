@@ -40,7 +40,7 @@ export interface ChatChannelConfigView {
   botIdentity?: { botId?: number; username?: string };
   uiMapping?: {
     formMode?: "multi_step" | "native_modal" | "auto";
-    /** Spec R-CC-11 — text/photo/auto, default auto. legacy text_only 는 backend normalize. */
+    /** CLE-CHAT-ADAPTER-RENDER R-CCA-12 — text/photo/auto, default auto. legacy text_only 는 backend normalize. */
     visualNode?: "text" | "photo" | "auto";
     buttonLayout?: "auto" | "vertical" | "horizontal";
   };

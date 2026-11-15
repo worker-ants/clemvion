@@ -47,6 +47,9 @@ import {
 } from '../chat-channel/types';
 import { validateFormSubmission } from '../chat-channel/shared/form-mode';
 import {
+  FORM_VALIDATION_FAILED_DEFAULT,
+  formNextFieldDefault,
+  GROUP_CHAT_REFUSAL_DEFAULT,
   resolveFormOpenLabel,
   resolveSurfaceMismatchMessage,
 } from '../chat-channel/shared/language-hint-defaults';
@@ -1198,8 +1201,7 @@ export class HooksService {
     const chatType = chat.type ?? '';
     const isGroup = ['group', 'supergroup', 'channel'].includes(chatType);
     const announcement = isGroup
-      ? (config.languageHints?.groupChatRefusal ??
-        '이 봇은 1:1 대화만 지원합니다.')
+      ? (config.languageHints?.groupChatRefusal ?? GROUP_CHAT_REFUSAL_DEFAULT)
       : (config.languageHints?.unsupportedMessageKind ??
         '지원하지 않는 메시지 형식입니다.');
     await this.sendBestEffortNotice(
@@ -1294,7 +1296,7 @@ export class HooksService {
         await this.sendBestEffortNotice(
           update.conversationKey,
           config.languageHints?.formValidationFailed ??
-            '입력값을 다시 확인해주세요.',
+            FORM_VALIDATION_FAILED_DEFAULT,
           'formValidationFailed',
           config,
           adapter,
@@ -1306,7 +1308,7 @@ export class HooksService {
       await this.sendBestEffortNotice(
         update.conversationKey,
         config.languageHints?.formNextField ??
-          `다음 항목을 입력해주세요. (${formState.currentFieldIdx + 1})`,
+          formNextFieldDefault(formState.currentFieldIdx + 1),
         'formNextField',
         config,
         adapter,
