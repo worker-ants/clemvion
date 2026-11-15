@@ -116,7 +116,15 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 - The old token is honored for a **24-hour grace window** alongside the new one, so in-flight updates are not lost. After 24h the old token is cleaned up automatically.
 - Response: `{ data: { triggerId, rotatedAt, chatChannelHealth, botIdentity } }`
-- Errors: 400 `VALIDATION_ERROR` (`<trigger-id>` is not a UUID), 400 `BOT_TOKEN_INVALID`, 404 `RESOURCE_NOT_FOUND` (trigger not found, or no access to that workspace), 502 `CHAT_CHANNEL_SETUP_FAILED`, etc.
+- Errors:
+  - 400 `INVALID_BOT_TOKEN`: `newBotToken` is missing, not a string, longer than 256 characters, or contains characters outside visible ASCII (spaces, control characters, non-ASCII). It is rejected before the provider is called.
+  - 400 `VALIDATION_ERROR`: `<trigger-id>` is not a UUID, or the `X-Workspace-Id` header is not a UUID.
+  - 400 `CHAT_CHANNEL_NOT_CONFIGURED` (the trigger has no chat channel configuration), `CHAT_CHANNEL_PROVIDER_UNKNOWN` (unknown provider), `CHAT_CHANNEL_ENDPOINT_REQUIRED` (the trigger has no endpointPath)
+  - 400 `BOT_TOKEN_INVALID`: Telegram rejected the token (credential rejected). It has the same words as `INVALID_BOT_TOKEN` in a different order but a different meaning: `INVALID_BOT_TOKEN` is an input format error, while `BOT_TOKEN_INVALID` is a provider rejection.
+  - 403 `FORBIDDEN` (no workspace context), `NOT_A_MEMBER` (not a workspace member), `EDITOR_REQUIRED` (editor role or higher required)
+  - 404 `RESOURCE_NOT_FOUND` (trigger not found, or no access to that workspace)
+  - 500 `INTERNAL_ERROR`: the trigger's secret reference still points to a secret row owned by another workspace. An operator must clean it up before the call is retried.
+  - 502 `CHAT_CHANNEL_SETUP_FAILED`: any other Telegram call failure (5xx, network, timeout)
 
 ## 7. Customizing notification messages (`languageHints` / `languageLocale`)
 
@@ -192,7 +200,7 @@ While a Form node is waiting for a submission or a Button Presentation node is w
 **default messages**:
 
 ```
-ko → 지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요
+ko → 지금은 이 입력을 받을 수 없습니다. 화면에 표시된 양식이나 버튼을 사용해 주세요.
 en → This input can't be accepted here right now, please use the form or buttons shown above
 ```
 

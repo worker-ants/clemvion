@@ -129,7 +129,15 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 - 기존 token 은 **24시간 동안 grace 기간** 으로 같이 받아요 (그 사이 진행 중인 update 는 유실 없이 처리). 24시간 후 자동 정리.
 - 응답: `{ data: { triggerId, rotatedAt, chatChannelHealth, botIdentity } }`
-- 에러: 400 `VALIDATION_ERROR`(`<trigger-id>` 가 UUID 형식이 아님), 400 `BOT_TOKEN_INVALID`, 404 `RESOURCE_NOT_FOUND`(트리거 미존재 또는 워크스페이스 권한 없음), 502 `CHAT_CHANNEL_SETUP_FAILED` 등
+- 에러:
+  - 400 `INVALID_BOT_TOKEN`: `newBotToken` 이 없거나 문자열이 아니거나 256자를 넘거나 보이는 ASCII 밖 문자(공백 · 제어 문자 · 비ASCII)가 있어요. 프로바이더를 부르기 전에 거부해요.
+  - 400 `VALIDATION_ERROR`: `<trigger-id>` 가 UUID 형식이 아니거나 `X-Workspace-Id` 헤더가 UUID 가 아니에요.
+  - 400 `CHAT_CHANNEL_NOT_CONFIGURED`(채팅 채널 설정이 없는 트리거), `CHAT_CHANNEL_PROVIDER_UNKNOWN`(알 수 없는 프로바이더), `CHAT_CHANNEL_ENDPOINT_REQUIRED`(트리거에 endpointPath 가 없음)
+  - 400 `BOT_TOKEN_INVALID`: Telegram 이 토큰을 거부했어요(자격 증명 거부). `INVALID_BOT_TOKEN` 과 어순만 다르고 뜻이 달라요. 앞은 입력 형식 오류이고 뒤는 프로바이더의 거부예요.
+  - 403 `FORBIDDEN`(워크스페이스 문맥 없음), `NOT_A_MEMBER`(워크스페이스 멤버가 아님), `EDITOR_REQUIRED`(편집자 이상 역할 필요)
+  - 404 `RESOURCE_NOT_FOUND`(트리거 미존재 또는 워크스페이스 권한 없음)
+  - 500 `INTERNAL_ERROR`: 트리거의 비밀 참조에 다른 워크스페이스 소유의 시크릿 행이 남아 있을 때예요. 운영자가 정리한 뒤 다시 호출해요.
+  - 502 `CHAT_CHANNEL_SETUP_FAILED`: 그 밖의 Telegram 호출 실패(5xx · 네트워크 · 타임아웃)
 
 ## 7. 안내 메시지 커스터마이즈 (`languageHints` / `languageLocale`)
 
@@ -205,7 +213,7 @@ Form 노드가 양식 제출을 기다리거나 Button Presentation 노드가 �
 **default 문구**:
 
 ```
-ko → 지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요
+ko → 지금은 이 입력을 받을 수 없습니다. 화면에 표시된 양식이나 버튼을 사용해 주세요.
 en → This input can't be accepted here right now, please use the form or buttons shown above
 ```
 
