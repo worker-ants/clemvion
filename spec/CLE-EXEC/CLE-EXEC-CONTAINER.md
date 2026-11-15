@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "4518c17b8a5c0ab4f4b2c45839b3fbece6e1bcd762f059f94ed72cae59fda582"
+content_hash: "8bcccf56fc68c9a94759d725e99ce4c9e24ab4200675d3b088773c4437d7a849"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JXD0W5"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "b07e870c3fd27a61817c6c1986829be168447a3af65ff19b99210236b4b2850b"
-etag: "sha256-1452bbdb54c00182099e6722e1288e50cb4357db01b3d5c6f757f667ce7d080f"
+mirror_sha256: "7fe240fb19ab740a357f6b9eb7f9eed9406427d03bedae41a7eb6d9ddccf911b"
+etag: "sha256-106e563c455b793e3244d2fae2adfe026a74fa7257af297e5279ce1fd65dcb0b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -103,7 +103,16 @@ Parallel 의 `branches[i]` 는 `emit` 으로 모으지 않는다. 병렬 분기�
 
 `PARALLEL_ENGINE=off` 되돌림 경로에서는 엔진이 Parallel 을 덮어쓰지 않는다. Parallel 노드 출력은 시작 시점 형태로 남는다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)).
 
-시작 시점의 `output: items[]` 는 엔진 내부 전용 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 park · 재구동 없이 이어진 실행에서 `done` 포트 뒤 노드의 표현식(`$node["X"].output.*`)은 원시 배열이 아니라 `{ <컬렉션 키>, count }` 형태를 본다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 배열이 남고 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)). 노드 출력 다섯 필드 계약은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
+시작 시점의 `output: items[]` 는 엔진 내부 전용 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 `done` 포트 뒤 노드의 표현식(`$node["X"].output.*`)은 원시 배열이 아니라 `{ <컬렉션 키>, count }` 형태를 본다. 노드 실행 행(`node_execution`)은 엔진이 본문을 다 돈 뒤에 한 번 마감한다.
+
+- 본문이 도는 동안 행은 `running` 이다.
+- 마감할 때 `output_data` 는 실행 컨텍스트에 쓴 완료 출력과 같다(`config` · 완료 `output` · 합친 `meta`, Parallel 은 `port: 'done'` 도 담는다). `finished_at` · `duration_ms` 는 본문까지 포함한 노드 전체 기준이다.
+- `execution.node.completed` 이벤트는 마감할 때 한 번만 보낸다. 이벤트의 `output` · `duration` 은 행과 같은 값이다.
+- 본문이 실패하면 행을 `failed` 로 마감하고 `execution.node.failed` 를 보낸다. 외부에서 취소하면 `cancelled` 로 마감하고 `execution.node.cancelled` 를 보낸다. 두 경우 모두 completed 이벤트는 보내지 않는다.
+- [단일 노드 실행](CLE-EXEC-RUN.md)은 본문을 돌지 않으므로 핸들러 반환값으로 행을 바로 마감한다. `PARALLEL_ENGINE=off` 되돌림 경로의 Parallel 도 핸들러 반환값으로 바로 마감한다.
+- 재개 · 재구동 때 rehydration 은 `completed` 행의 `output_data` 를 복원하므로 완료 출력을 쓴다. 본문 도중에 크래시가 나면 행이 `running` 이라 rehydration 은 그 노드를 완료로 보지 않는다.
+
+노드 출력 다섯 필드 계약은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다.
 
 ## Loop 실행
 
@@ -186,7 +195,7 @@ Background 노드는 컨테이너가 아니다. 엔진은 `background` 포트 �
 - `codebase/backend/src/modules/execution-engine/containers/loop-executor.ts`
 - `codebase/backend/src/modules/execution-engine/containers/foreach-executor.ts` (ForEach·Map 공용)
 - `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts`
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`planContainerBody`, 본문 안 컨테이너 · Background · Parallel 넘기기(`executeContainerBody`)와 깊이 검사(`runContainerInner`), 엔진 덮어쓰기)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`planContainerBody`, 본문 안 컨테이너 · Background · Parallel 넘기기(`executeContainerBody`)와 깊이 검사(`runContainerInner`), 엔진 덮어쓰기, 행 마감(`completeDeferredNode`))
 - `codebase/backend/src/modules/execution-engine/graph/graph-builder.ts` (`buildGraph` 의 컨테이너 범위)
 - Background 본문 큐 · 워커는 [컨테이너 실행 — Background 본문](CLE-EXEC-CONTAINER-BG.md#구현-위치)
 
@@ -208,7 +217,7 @@ ForEach·Map 뒤의 노드는 원본 항목과 결과를 짝지어 쓰는 경우
 
 ### 완료 시점 덮어쓰기를 엔진이 한다
 
-ForEach·Map 핸들러는 본문에 나눌 배열을 `output` 으로 돌려준다. 노드 출력 다섯 필드 계약을 깨지 않고 분배용 데이터를 엔진에 넘기기 위한 방식이고, 핸들러 반환 형태와 외부에 보이는 형태가 다른 것은 의도한 설계다. 엔진이 완료 시점에 핸들러를 다시 부르지 않고 덮어써서 다음 노드 표현식에는 `{ <컬렉션 키>, count }` 만 보이게 하는 것이 목표다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale). 저장값과 rehydration 에 남는 시작 시점 배열은 [엔진 덮어쓰기](#엔진-덮어쓰기) 의 미구현 항목이다.
+ForEach·Map 핸들러는 본문에 나눌 배열을 `output` 으로 돌려준다. 노드 출력 다섯 필드 계약을 깨지 않고 분배용 데이터를 엔진에 넘기기 위한 방식이고, 핸들러 반환 형태와 외부에 보이는 형태가 다른 것은 의도한 설계다. 엔진이 완료 시점에 핸들러를 다시 부르지 않고 덮어써서 다음 노드 표현식에는 `{ <컬렉션 키>, count }` 만 보이게 하는 것이 목표다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale). 2026-10-24 구현 확인 때는 저장값 · rehydration 에 시작 시점 배열이 남는다는 조건을 붙여 적었다. 그 갭을 닫아(NERV Task CLE-T-JXD0W5) 원래 서술로 돌렸다.
 
 ### Background 본문은 컨테이너 소속 모델을 쓰지 않는다
 
@@ -252,3 +261,16 @@ Background 본문은 메인 흐름과 따로 끝나고 결과가 메인으로 �
 ### 컨테이너 구조 검사는 메시지 전체를 적는다 (2026-11-12)
 
 접두사 이름만 적으면 `error.code` 값으로 읽히는데 엔진은 이 이름을 코드 필드에 싣지 않는다. 그래서 [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 의 에러 표처럼 엔진이 던지는 메시지 전체를 적고 트리거 자식 · `containerId` 순환 메시지도 본문 제약에 적었다. 카탈로그는 이 접두사들에 행을 두지 않고 `INVALID_NODE_CONFIG: ` 처럼 메시지 접두로 적는다. 옛 문장은 `CONTAINER_*` 접두사를 안정된 코드로 올릴지를 후속 검토에 넘겼다. 그 검토는 실패한 회차의 `error.code` 값만 정하고 끝났고 접두사는 코드로 올리지 않았다([Logic 노드 공통 「실패한 회차와 병렬 분기의 `error.code`」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05)). 그래서 그 문장을 지웠다.
+
+### 노드 실행 행은 본문이 끝난 뒤 한 번 마감한다 (2026-11-15)
+
+- 개정 전: 핸들러가 시작 시점 값을 돌려주면 `executeNode` 가 행을 바로 `completed` 로 저장하고 `execution.node.completed` 이벤트를 보냈다. 완료 덮어쓰기는 실행 컨텍스트만 바꿨다. 그래서 실행 내역 · completed 이벤트 · rehydration · 단일 노드 실행의 상류 복원이 시작 시점 값을 봤다. `duration_ms` 는 핸들러 실행 시간이라 `clemvion.node.duration` 메트릭과 [통계](../CLE-OBS/CLE-OBS-STATS.md) 의 노드 평균이 실제보다 짧았다. 저장값이 실행 컨텍스트와 달라 rehydration 단일 기준([장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md))도 어겼다.
+- 결정: 행 마감과 completed 이벤트를 본문이 끝난 뒤로 옮겼다. 이벤트는 시작과 완료에 두 번 보내지 않고 완료 때 한 번만 보낸다.
+- 기각한 대안: 시작 때 `completed` 로 저장하고 완료 때 다시 갱신한다. 본문이 도는 동안 행이 `completed` 라서 본문 도중 크래시 뒤 재구동이 컨테이너를 끝난 노드로 보고 시작 시점 값으로 건너뛴다.
+- 기각한 대안: rehydration 때 덮어쓰기를 다시 적용한다. `NodeExecution.outputData` 를 rehydration 단일 기준으로 쓰는 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) 의 결정을 깬다.
+- 기각한 대안: 노드 전체 실행 시간을 완료 `meta.durationMs` 에 싣는다. 일반 노드의 같은 키는 핸들러 실행 시간이라 뜻이 갈린다. 노드 전체 시간은 행의 `duration_ms` 와 이벤트 `duration` 으로 충분하다.
+- 기존 워크플로우 영향:
+  - 결과 값과 다음 노드 표현식은 바뀌지 않는다.
+  - 실행 화면에서 컨테이너 · Parallel 은 본문이 끝날 때까지 실행 중으로 보인다. completed 이벤트는 본문 노드 이벤트 뒤에 온다.
+  - 실행 내역 · 통계 · 메트릭에 보이는 이 노드들의 실행 시간이 노드 전체 기준으로 길어진다.
+  - 병렬 분기가 실패해 Parallel 이 멈추면(`errorPolicy` 가 `stop` · `cancel-others-on-fail`) Parallel 행이 `failed` 로 남는다. 개정 전에는 `completed` 로 남았다.
