@@ -2,19 +2,19 @@
 id: "CLE-API-WS-CONN"
 title: "WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "74802297a94d73652b7328407847f5ff37bc2f6bdfdb7a90ea8eeb3c2253e6ee"
+content_hash: "fdcce3bd39057df517a7e46cc154c421c353680631bea20b8f719b6e1ef1bfa2"
 read_as: "approved_fallback"
-task: "CLE-T-4YT18G"
+task: "CLE-T-7MBBA7"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "7c3798d6ff962d65cca591640e7196a9dc9acaf47389dd9c314eb501cc11a569"
-etag: "sha256-2291d8eec9ec04257510fafe07c4fe427880f0545a9aa265947c44e6b55944bb"
+mirror_sha256: "9918724576aa74006c98e3485beeba4085e9163ef18ca13cf2ec51e8369b05f1"
+etag: "sha256-68ae681e8a80ba2a998d6e02ac6b70acaa18dbc2ae768f492134375082c88915"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§2 · §5 · §6 · §9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -157,7 +157,7 @@ flowchart LR
 
 1. **연결**: `io(url + '/ws', { auth: { token } })` 로 Socket.IO 인스턴스를 만들고 토큰을 넘긴다.
 2. **인증 확인**: `connect` 이벤트로 확인한다. 실패는 `connect_error` 로 온다.
-3. **구독**: `socket.emit('subscribe', { channel })` 을 보내고 `subscribed` ack 이벤트 payload 의 `success` 를 확인한다(`socket.on('subscribed', …)`, [§1](CLE-API-WS.md#1-전송-계층)).
+3. **구독**: `socket.emit('subscribe', { channel })` 을 보내고 `subscribed` ack 이벤트 payload 의 `success` 를 확인한다(`socket.on('subscribed', …)`, [§1](CLE-API-WS.md#1-전송-계층)). 구독이 실패하면(`success: false`) 클라이언트는 그 화면의 REST 조회로 보완한다. 에디터는 [에디터 실행과 디버깅 — 실시간 수신·내역·Background 「노드 결과 수집」](../CLE-EXEC/CLE-EXEC-RUN-SYNC.md#노드-결과-수집) 의 REST 폴링 대체 경로로 실행 결과 드로어를 채운다. 실패 응답에는 `channel` 이 없어 클라이언트가 어느 구독의 실패인지 가리지 못한다([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.4 구독 인가」](CLE-API-WS-MSG.md#44-구독-인가)). 실패 응답에 `channel` 을 더할지는 NERV Task `CLE-T-A338CH` 가 정한다.
 4. **이벤트 처리**: `socket.on('<event>', handler)` 로 이벤트별로 나눈다(이벤트 이름 = 논리 구조의 `type`).
 5. **Heartbeat**: Socket.IO 내장 transport ping/pong 이 자동으로 처리한다(§5). app 수준 `ping` 은 클라이언트가 보내고 서버의 `pong` 이벤트를 받는 선택 경로다.
 6. **토큰 갱신**: `connect_error` 때 REST `/api/auth/refresh` 로 새 토큰을 받아 `socket.auth.token` 을 바꾸고 다시 연결한다(§2.3). in-band `auth.refresh` 메시지는 비채택이다.
@@ -174,6 +174,7 @@ flowchart LR
 - `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 구독자 관리와 재전송 판정, 비교 대상)
 - `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (SSE 재전송 버퍼 Redis Stream 과 인스턴스 사이 전달, 비교 대상)
 - `codebase/frontend/src/lib/websocket/ws-client.ts` (재연결 설정, 토큰 갱신, 토큰 만료 대응)
+- `codebase/frontend/src/lib/websocket/use-execution-events.ts` (구독 실패 · 무수신 판정, 에디터 REST 폴링 대체 경로 신호 `needsRestPolling`)
 
 ## Rationale
 
