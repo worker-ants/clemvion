@@ -2,19 +2,19 @@
 id: "CLE-RESEARCH-COMPETITORS"
 title: "경쟁 분석: n8n · Flowise"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-RESEARCH"
 ancestors: ["CLE-VISION", "CLE-RESEARCH"]
 area: "CLE-RESEARCH"
-content_hash: "9c73a72b9d445b127b751def85bf061b1b4d9c52c751bb0d6f42cdee8d2e7cb1"
+content_hash: "085e88974d68b8ac87ef37b65142ec0bd69475bafc7eb2a5c1edae80530ee945"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0TBB0Z"
 source_paths: []
-mirror_sha256: "e22c787c8a9580f410d635573311d7b22efc92f52bd91445429fa8f27db8a2ff"
-etag: "sha256-3f7bb5a93b85bdc7d44e508a023346c7912bff2b22cf8019e187a7fef549c395"
+mirror_sha256: "e64ba9bb58acf301f34c380f9e9f11f519c2648b5ed5bab24a9e8a8babcfbbc7"
+etag: "sha256-8bb4037342a2466e90f08cae874cd57d11c9a9adc8a32ac554e5fa72f21ebfc4"
 ---
 > 성격: 전략 리서치(2026-06-03 작성, 2026-07-16 · 2026-10-10 · 2026-10-31 교정) · 원문: `plan/research/competitive-analysis-n8n-flowise.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -30,21 +30,21 @@ v2(2026-06-03)는 네 영역의 스펙과 코드를 정독하고 외부 자료�
 
 ## 후속 액션의 현재 상태
 
-원문의 후속 액션 체크리스트는 다른 계획으로 넘기는 위임 목록이었고 2026-07-16 실측 때 이미 낡아 있었다. 아래 표가 교정한 상태다. "현재 상태" 칸은 2026-07-16 교정에 NERV 문서의 구현 상태를 더해 적었다. 계획 이름은 저장소 `plan/in-progress/` 의 추적 문서다.
+원문의 후속 액션 체크리스트는 다른 계획으로 넘기는 위임 목록이었고 2026-07-16 실측 때 이미 낡아 있었다. 아래 표가 교정한 상태다. "현재 상태" 칸은 2026-07-16 교정에 NERV 문서의 구현 상태를 더해 적었다. 남은 항목의 추적처는 NERV Task 다.
 
 | 항목 | 원문 우선순위 | 내용 | 현재 상태 | 기준 문서 |
 | --- | --- | --- | --- | --- |
 | P0-1 실행 엔진 신뢰성 | P0 | 시작 큐와 work-stealing, 크래시 때 실행 중 세그먼트 재구동, 동시 실행 제한과 실행 시간 한도, 워커 크래시 검출 | 대부분 구현됨. 시작 큐, 동시 실행 제한, 우선순위 3단계, stalled 재배달, 작업을 잃은 대기 중 실행 회수가 들어갔다. 워커 크래시는 별도 heartbeat 채널 대신 stalled 재배달로 잡는다. 제품 개요의 "분산 워커 풀" 서술도 실제 모델과 맞다. | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md), [시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md#실행-엔진-redis-큐--분산-워커-풀) |
-| P0-2 스펙과 코드의 차이 31건 정리 | P0 | 현재형으로 약속했지만 코드가 없는 표면을 우선순위화 | `spec-sync-*` 계획들로 줄여 나눠 추적 중이다. | 각 영역 문서 머리 줄의 구현 상태 |
-| P0-2b 범용 노드 ↔ 에이전트 도구 통합 | P0 | 임의 워크플로우 노드를 AI 에이전트 도구로 쓰는 경로 재구현(ND-AG-06/10/21) | 미구현. `ai-agent-tool-connection-rewrite` 계획이 소유한다. | [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-연결-입력-경로-제거) |
-| P0-3 통합 · 확장 봉쇄 완화 | P0 | 핵심 SaaS 커넥터와 MCP-first 결합 | `marketplace-and-plugin-sdk` 계획이 소유한다. 그 사이 통합 노드에 MakeShop 이 더해졌다. | [마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md), [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md), [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) |
+| P0-2 스펙과 코드의 차이 31건 정리 | P0 | 현재형으로 약속했지만 코드가 없는 표면을 우선순위화 | 영역별 동기화 계획으로 나눠 대부분 정리했다. 남은 항목은 영역별 NERV Task 가 맡는다. | 각 영역 문서 머리 줄의 구현 상태 |
+| P0-2b 범용 노드 ↔ 에이전트 도구 통합 | P0 | 임의 워크플로우 노드를 AI 에이전트 도구로 쓰는 경로 재구현(ND-AG-06/10/21) | 미구현. NERV Task `CLE-T-AMS5S2` 가 연결 모델을 정한다. | [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-연결-입력-경로-제거) |
+| P0-3 통합 · 확장 봉쇄 완화 | P0 | 핵심 SaaS 커넥터와 MCP-first 결합 | NERV Task `CLE-T-DJ9Z38` 이 착수 전 설계 결정을 맡는다. 그 사이 통합 노드에 MakeShop 이 더해졌다. | [마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md), [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md), [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) |
 | P1-1 MCP-first 포지셔닝 확정 | P1 | 제품 메시징과 랜딩의 1급 축으로 삼을지, 제품 개요 비전에 반영할지 | 미착지. 이 문서 밖에 추적처가 없다. 제품 개요 비전에는 MCP-first 서술이 없다. | [Clemvion 제품 개요](../CLE-VISION.md), [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) |
 | P1-2 알림톡 대행사 통합 노드 | P1 | 솔라피 · 비즈고 · 알리고 같은 대행사를 거쳐 알림톡을 보내는 노드, Cafe24 주문 → 알림톡, "Cafe24 상점주 AI 운영 · CS" 진입. 코어 밖의 첫 진입점으로 추진 | 미착지. 다른 계획에 집이 없다. | [통합 노드](../CLE-NODE-INT/CLE-NODE-INT.md), [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md), [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) |
-| P1-3 템플릿 갤러리 MVP | P1 | 마켓플레이스 백로그에서 템플릿만 떼어 먼저 낸다 | `marketplace-and-plugin-sdk` 계획의 워크플로우 템플릿 마켓 단계가 소유한다. | [마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md) |
-| P2-1 LLMOps 레이어 | P2 | 리랭커 · 청킹 전략 · 평가 · 프롬프트 버전 관리 · LLM 트레이싱(Langfuse) 연결의 스펙이 필요한지 | 일부 구현됨. 리랭킹(`cross_encoder`, `cross_encoder_llm`)과 검색 지표 평가 하네스가 들어갔다. 청킹 개선과 생성 품질 평가는 `rag-quality-improvement` 계획이 소유한다. 프롬프트 버전 관리와 LLM 트레이싱 연결은 추적처가 없다. | [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md), [RAG 품질 평가](../CLE-KB/CLE-KB-EVAL.md), [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
+| P1-3 템플릿 갤러리 MVP | P1 | 마켓플레이스 백로그에서 템플릿만 떼어 먼저 낸다 | 워크플로우 템플릿 마켓 1단계인 NERV Task `CLE-T-H3XC2A` 가 맡는다. | [마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md) |
+| P2-1 LLMOps 레이어 | P2 | 리랭커 · 청킹 전략 · 평가 · 프롬프트 버전 관리 · LLM 트레이싱(Langfuse) 연결의 스펙이 필요한지 | 일부 구현됨. 리랭킹(`cross_encoder`, `cross_encoder_llm`)과 검색 지표 평가 하네스가 들어갔다. 청킹 개선은 NERV Task `CLE-T-7Z7FT4` · `CLE-T-644F0B`, 생성 품질 평가는 `CLE-T-BGJ0NV` 가 맡는다. 프롬프트 버전 관리와 LLM 트레이싱 연결은 추적처가 없다. | [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md), [RAG 품질 평가](../CLE-KB/CLE-KB-EVAL.md), [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
 | P2-2 멀티에이전트 · A2A 채택 조사 | P2 | Dify · Langflow · Gumloop 벤치마크 | 미착지. 다른 계획에 집이 없다. | [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md), [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) |
 | P2-3 보안 백로그 | P2 | `JWT_SECRET` fallback, `ENCRYPTION_KEY` 분리, 인증 설정 감사 | 해소됨. 운영(`NODE_ENV=production`)에서 `JWT_SECRET` 이 없거나 기본값이면 부팅을 거부한다. 인증 설정 변경 감사는 `auth_config.*` 액션으로 구현됐다. 암호화 키 두 개의 정리는 시크릿 저장소 R13 에서 결정했고(2026-10-10) 마스터키를 LLM API 키와 함께 쓰는 구조는 R6 대로 둔다. 상세는 [강점과 약점](CLE-RESEARCH-COMPETITORS-ASSESS.md#약점과-갭) 의 ⑬ 보안 백로그에 있다. | [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md), [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md), [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) |
-| P3 업마켓 전환 여부 결정 | P3 | SSO/SAML/SCIM, 조직 수준, 메트릭, Helm, 실시간 협업에 투자할 트리거 | 결정은 미착지다. 구성 요소 일부는 따로 움직였다. Prometheus 메트릭은 구현됐다. Docker Compose · Helm 배포는 `self-hosting-deployment`, LDAP/SAML 은 `spec-sync-auth-gaps` 계획이 소유한다. SCIM 과 실시간 협업은 추적처가 없다. | [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md), [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
+| P3 업마켓 전환 여부 결정 | P3 | SSO/SAML/SCIM, 조직 수준, 메트릭, Helm, 실시간 협업에 투자할 트리거 | 결정은 미착지다. 구성 요소 일부는 따로 움직였다. Prometheus 메트릭은 구현됐다. Docker Compose · Helm 배포는 NERV Task `CLE-T-F7357C`, LDAP/SAML 은 `CLE-T-CQ6BVK` 가 맡는다. SCIM 과 실시간 협업은 추적처가 없다. | [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md), [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
 
 2026-07-16 교정의 결론은 이렇다. 다른 계획에 집이 없는 미착지 전략 항목은 P1-2(알림톡 대행사 노드), P2-2(멀티에이전트 · A2A 조사), P3(업마켓 전환 결정) 세 건이다. NERV 로 옮기며 다시 확인하니 P1-1(MCP-first 포지셔닝)과 P2-1 의 나머지(프롬프트 버전 관리, LLM 트레이싱)도 추적처가 없다. 이 항목들이 이 문서를 살아 있게 하는 실질 내용이다.
 
@@ -166,3 +166,9 @@ v2.3 까지는 "한국 커머스 버티컬 수직 통합" 을 코어이자 진�
 P2-3 행과 ⑬ 은 암호화 키 두 개의 정리를 시크릿 저장소의 미결 사항으로 적었다. 이 사항은 2026-10-10 에 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에서 결정됐으므로 두 곳을 결정 내용으로 고쳤다(NERV Task `CLE-T-KQ37NJ`).
 
 R13 은 통합 암호화 키를 마스터키와 따로 두는 일만 정했다. ⑬ 의 원래 항목인 "`ENCRYPTION_KEY` 단일 마스터키의 여러 도메인 재사용" 가운데 마스터키 하나를 시크릿 저장소와 LLM API 키가 함께 쓰는 부분은 그대로 남는다. 이 구조는 [시크릿 저장소 「R6. 마스터키를 LLM API 키와 함께 쓴다」](../CLE-INT/CLE-INT-SECRET.md#r6-마스터키를-llm-api-키와-함께-쓴다) 가 정한 대로다. 결정 문장만 적으면 이 부분까지 R13 이 닫은 것으로 읽힌다. 그래서 P2-3 행과 ⑬ 두 곳에 R6 도 함께 적었다. 분리한 뒤로 ⑬ 은 하위 문서 [강점과 약점](CLE-RESEARCH-COMPETITORS-ASSESS.md#약점과-갭) 에 있다. 전문은 ⑬ 에 두고 P2-3 행은 요약과 링크만 둔다.
+
+### 옛 계획 이름을 NERV Task 키로 바꿨다
+
+결정일: 2026-11-15
+
+「후속 액션의 현재 상태」 표는 추적처를 저장소 계획 문서의 이름으로 적었다. 이 계획 문서들은 2026-10-02 NERV 전환에서 지웠고 열린 항목은 NERV Task 로 옮겼다. 그래서 지금은 찾을 수 없는 이름을 각 항목을 이어 받은 Task 키로 바꿨다(NERV Task `CLE-T-0TBB0Z`). 키는 Task 본문에 적힌 원래 계획 항목으로 확인했다. 동기화 계획 묶음(P0-2)은 하나의 Task 가 이어 받지 않아 키 없이 추적처만 적었다. 머리 줄의 「원문:」 경로는 원문 출처 표기라 이 개정에서 고치지 않았다(NERV Task `CLE-T-649054`). 계획 이름을 그대로 두고 지운 사실만 적는 안은 기각했다. 독자가 현재 추적처를 찾을 수 없다.
