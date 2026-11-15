@@ -419,7 +419,10 @@ describe('visual fallback — chart (CCH-MP-04 v1)', () => {
     });
     const config: ChatChannelConfig = {
       ...BASE_CONFIG,
-      uiMapping: { visualNode: 'text_only' },
+      // DB 에 남은 옛 값. 타입은 스펙의 세 값만 받으므로 저장값을 흉내 내려고 넓힌다.
+      uiMapping: {
+        visualNode: 'text_only',
+      } as unknown as ChatChannelConfig['uiMapping'],
     };
     const m = renderTelegramMessages(event, config);
     expect(m).toHaveLength(1);
@@ -664,8 +667,8 @@ describe('visual fallback — unrecognized / template', () => {
 // 2026-05-25 — chat-channel outbound 회귀 ① + ② fix
 // CCH-MP-06 (비-blocking presentation 발화) + CCH-MP-01 보강 (ai_message
 // presentations[] sequential 발송) 의 telegram renderer 구현 검증.
-// SoT: spec/5-system/15-chat-channel.md §3.3 / R-CC-16,
-//      spec/conventions/chat-channel-adapter.md §3 / R-CCA-7.
+// SoT: CLE-CHAT-CORE-RENDER R-CC-16,
+//      CLE-CHAT-ADAPTER-RENDER R-CCA-7.
 // ---------------------------------------------------------------------------
 describe('execution.node.completed (CCH-MP-06) — 비-blocking presentation 본문 발화', () => {
   it('template + output.rendered → MarkdownV2 escape 후 text 1건', () => {
