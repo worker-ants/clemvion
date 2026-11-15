@@ -17,6 +17,7 @@ import type {
 } from '../../types';
 import { credentialRejectedError } from '../../types';
 import {
+  GROUP_CHAT_REFUSAL_DEFAULT,
   pickLocaleDefault,
   readLanguageHintOverride,
   resolveCommandReceivedMessage,
@@ -449,7 +450,7 @@ export class SlackAdapter implements NativeFormAdapter {
     if (!slash) return undefined;
     const text = !slash.directMessage
       ? (readLanguageHintOverride(config.languageHints, 'groupChatRefusal') ??
-        SLACK_GROUP_CHAT_REFUSAL_DEFAULT)
+        GROUP_CHAT_REFUSAL_DEFAULT)
       : slash.subCommand === SLACK_SLASH_HELP_SUBCOMMAND
         ? resolveSlackHelpText(slash.command, config)
         : resolveCommandReceivedMessage(
@@ -462,12 +463,6 @@ export class SlackAdapter implements NativeFormAdapter {
     };
   }
 }
-
-/**
- * `groupChatRefusal` 의 기본 문구(Spec CLE-CHAT-DATA-CONFIG). 이 키의 영어 기본값은 범위 밖이라
- * locale 과 상관없이 이 문구다. HooksService 의 그룹 대화 안내와 같은 값이다.
- */
-const SLACK_GROUP_CHAT_REFUSAL_DEFAULT = '이 봇은 1:1 대화만 지원합니다.';
 
 /**
  * 슬래시 명령 이름이 비어 있을 때 도움말에 넣을 이름. 가이드가 Slack 앱 manifest 에 등록하라고
