@@ -7,6 +7,15 @@ import * as bcrypt from 'bcrypt';
  */
 export const BCRYPT_ROUNDS = 12;
 
+/** 계정 비밀번호의 최소 길이. 프런트 `MIN_ACCOUNT_PASSWORD_LENGTH`(`lib/utils/password.ts`)와 같은 값이다. */
+export const MIN_ACCOUNT_PASSWORD_LENGTH = 8;
+
+/**
+ * 비밀번호 재확인 입력의 최대 길이. 가입 · 비밀번호 변경은 100자까지 받으므로 저장된 비밀번호는 이보다 짧다.
+ * 이 상한은 대조하기 전에 지나치게 긴 입력을 400 으로 거르는 용도다.
+ */
+export const MAX_PASSWORD_RECHECK_INPUT_LENGTH = 128;
+
 /**
  * 비밀번호 재확인 실패 코드 — **두 조건의 단일 SoT**.
  *

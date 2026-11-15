@@ -18,6 +18,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
+import { RequirePasswordRecheck } from './decorators/require-password-recheck.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -286,8 +287,8 @@ export class AuthController {
   @Post('2fa/setup')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  // 계정 비밀번호를 대조하는 경로라 비밀번호 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
-  @Throttle(SENSITIVE_ACTION_THROTTLE)
+  // 계정 비밀번호를 대조한다. 민감 tier(분당 10회, 사용자 기준)와 사용자 단위 실패 한도가 걸린다.
+  @RequirePasswordRecheck()
   @ApiOperation({
     summary: '2FA 설정 시작',
     description:
@@ -367,8 +368,8 @@ export class AuthController {
   @Post('2fa/disable')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  // 6자리 코드 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
-  @Throttle(SENSITIVE_ACTION_THROTTLE)
+  // 계정 비밀번호와 6자리 코드를 대조한다. 민감 tier(분당 10회, 사용자 기준)와 사용자 단위 비밀번호 실패 한도가 걸린다.
+  @RequirePasswordRecheck()
   @ApiOperation({
     summary: '2FA 비활성',
     description:

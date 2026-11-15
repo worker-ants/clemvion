@@ -24,6 +24,7 @@ import { User } from '../users/entities/user.entity';
 import { LoginHistoryService } from './login-history.service';
 import { SessionsService } from './sessions.service';
 import { TotpService } from './totp.service';
+import { PasswordRecheckFailureLimiterService } from './password-recheck-failure-limiter.service';
 
 function sha256(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -58,6 +59,10 @@ describe('AuthService', () => {
   let webauthnService: {
     countStoredCredentials: jest.Mock;
     isEnabled: jest.Mock;
+  };
+  let passwordRecheckLimiter: {
+    isBlocked: jest.Mock;
+    recordFailure: jest.Mock;
   };
 
   const mockUser: Partial<User> = {
@@ -213,6 +218,13 @@ describe('AuthService', () => {
             disableUnchecked: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: PasswordRecheckFailureLimiterService,
+          useValue: {
+            isBlocked: jest.fn().mockResolvedValue(false),
+            recordFailure: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -228,6 +240,7 @@ describe('AuthService', () => {
     sessionsService = module.get(SessionsService);
     totpService = module.get(TotpService);
     webauthnService = module.get(WebAuthnService);
+    passwordRecheckLimiter = module.get(PasswordRecheckFailureLimiterService);
   });
 
   it('should be defined', () => {
@@ -1066,6 +1079,56 @@ describe('AuthService', () => {
       await expect(
         service.verifyPasswordForUser('user-uuid', 'CorrectP@ss1'),
       ).resolves.toBeUndefined();
+      expect(passwordRecheckLimiter.recordFailure).not.toHaveBeenCalled();
+    });
+
+    // 사용자 단위 실패 한도(NERV Task `CLE-T-CJ7HB1`). 어느 재확인 라우트든 이 메서드를 지나므로 한 카운터를 함께 쓴다.
+    describe('사용자 단위 실패 한도', () => {
+      async function withHash(): Promise<void> {
+        const hash = await bcrypt.hash('CorrectP@ss1', BCRYPT_ROUNDS);
+        usersService.findById.mockResolvedValue({
+          ...mockUser,
+          passwordHash: hash,
+        } as User);
+      }
+
+      it('틀린 비밀번호는 사용자 id 로 실패를 센다', async () => {
+        await withHash();
+        await expect(
+          service.verifyPasswordForUser('user-uuid-1', 'WrongP@ss1'),
+        ).rejects.toMatchObject({ status: 401 });
+        expect(passwordRecheckLimiter.recordFailure).toHaveBeenCalledWith(
+          mockUser.id,
+        );
+      });
+
+      it('한도에 닿았으면 맞는 비밀번호라도 대조하지 않고 429 RATE_LIMITED 로 답한다', async () => {
+        await withHash();
+        passwordRecheckLimiter.isBlocked.mockResolvedValue(true);
+        // 맞는 비밀번호로 부른다. 대조했다면 resolve 했을 것이므로 429 는 대조 전에 막았다는 뜻이다.
+        await expect(
+          service.verifyPasswordForUser('user-uuid-1', 'CorrectP@ss1'),
+        ).rejects.toMatchObject({
+          status: 429,
+          response: { code: 'RATE_LIMITED' },
+        });
+        expect(passwordRecheckLimiter.isBlocked).toHaveBeenCalledWith(
+          mockUser.id,
+        );
+        expect(passwordRecheckLimiter.recordFailure).not.toHaveBeenCalled();
+      });
+
+      it('비밀번호가 없는 계정은 한도를 보지도 세지도 않는다', async () => {
+        usersService.findById.mockResolvedValue({
+          ...mockUser,
+          passwordHash: null,
+        } as unknown as User);
+        await expect(
+          service.verifyPasswordForUser('user-uuid-1', 'anything'),
+        ).rejects.toMatchObject({ response: { code: 'PASSWORD_REQUIRED' } });
+        expect(passwordRecheckLimiter.isBlocked).not.toHaveBeenCalled();
+        expect(passwordRecheckLimiter.recordFailure).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -1947,6 +2010,22 @@ describe('AuthService', () => {
     });
   });
 
+  /**
+   * 비밀번호 변경 · 이메일 변경 확인이 새로 발급한 세션은 로그인 유지와 상관없이 7일이다
+   * ([로그인 세션 — 토큰](CLE-ACCT-SESSION-TOKEN), NERV Task `CLE-T-XF3WMA`). 30일 로그인을 이어받지 않는다.
+   */
+  function expectSevenDayRefreshIssued(): void {
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const created = refreshTokenRepo.create.mock.calls.at(-1)?.[0] as {
+      rememberMe: boolean;
+      expiresAt: Date;
+    };
+    expect(created.rememberMe).toBe(false);
+    const ttl = created.expiresAt.getTime() - Date.now();
+    expect(ttl).toBeGreaterThan(SEVEN_DAYS_MS - 60_000);
+    expect(ttl).toBeLessThanOrEqual(SEVEN_DAYS_MS);
+  }
+
   describe('verifyEmailChange', () => {
     const RAW_TOKEN = '11111111-2222-3333-4444-555555555555';
 
@@ -1992,6 +2071,7 @@ describe('AuthService', () => {
       );
       expect(tokens.accessToken).toBe('mock-access-token');
       expect(tokens.refreshToken).toBeDefined();
+      expectSevenDayRefreshIssued();
     });
 
     it('토큰 불일치 → BadRequestException', async () => {
@@ -2168,6 +2248,7 @@ describe('AuthService', () => {
         sessionsService.revokeAllFamilies.mock.invocationCallOrder[0];
       const signOrder = jwtService.sign.mock.invocationCallOrder[0];
       expect(revokeOrder).toBeLessThan(signOrder);
+      expectSevenDayRefreshIssued();
     });
 
     it('throws UnauthorizedException when the user is missing', async () => {

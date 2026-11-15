@@ -16,8 +16,9 @@
  *   `.../recovery-codes/regenerate`, `.../credentials/:id/delete`) — 계정 비밀번호 추측 방지
  *   (`webauthn.controller`).
  *
- * 계정 비밀번호를 다시 확인하는(`AuthService.verifyPasswordForUser`) 라우트는 모두 이 상수를 건다.
- * `modules/auth/password-recheck-throttle.spec.ts` 가 그 목록을 고정한다(NERV CLE-API-CONV §7, CLE-T-FRCRF7).
+ * 계정 비밀번호를 다시 확인하는(`AuthService.verifyPasswordForUser`) 라우트는 `@RequirePasswordRecheck()` 로 이 상수를 건다.
+ * `modules/auth/password-recheck-throttle.spec.ts` 가 그 라우트를 메타데이터로 찾아 확인한다. 라우트마다 따로 세는 이 한도와
+ * 별개로 틀린 비밀번호는 사용자 단위로 한 번 더 센다(`PasswordRecheckFailureLimiterService`, NERV Task `CLE-T-CJ7HB1`).
  *
  * 정책 SoT: `spec/5-system/2-api-convention.md §7 Rate Limiting`. 특정 라우트의 정책이
  * 갈리면 이 상수를 공유하지 말고 라우트별 자체 `@Throttle` 로 분리한다.

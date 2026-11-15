@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 
 import { PostgresVarchar } from '../../../../common/utils/postgres-text';
+import { PasswordRecheckDto } from '../../dto/password-recheck.dto';
 
 // Passkey 표시 이름의 최대 길이(유니코드 코드 포인트). `webauthn_credential.device_name` 이 `varchar(100)` 이다.
 // 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
@@ -130,29 +131,11 @@ export class WebAuthnRenameDto {
 
 // 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름) (CLE-T-FRCRF7)
 /** WebAuthn 등록 옵션 발급 (비밀번호 재확인). 로그인 세션만으로는 Passkey 를 등록하지 못한다. */
-export class WebAuthnRegisterOptionsRequestDto {
-  @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  password: string;
-}
+export class WebAuthnRegisterOptionsRequestDto extends PasswordRecheckDto {}
 
 /** WebAuthn 복구 코드 재발급 (비밀번호 재확인). */
-export class WebAuthnRegenerateRecoveryDto {
-  @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  password: string;
-}
+export class WebAuthnRegenerateRecoveryDto extends PasswordRecheckDto {}
 
 // 근거: [Passkey 기능과 등록 「Passkey 삭제」](CLE-ACCT-SIGNIN-PASSKEY#passkey-삭제) (CLE-T-Q6E11N)
 /** WebAuthn credential 삭제 (비밀번호 재확인). 로그인 세션만으로는 Passkey 를 지우지 못한다. */
-export class WebAuthnDeleteCredentialDto {
-  @ApiProperty({ description: '계정 비밀번호 (재확인용)' })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  password: string;
-}
+export class WebAuthnDeleteCredentialDto extends PasswordRecheckDto {}
