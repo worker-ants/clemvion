@@ -416,7 +416,7 @@ export async function createEngineServiceHarness(): Promise<EngineServiceHarness
     findOneBy: jest.fn().mockResolvedValue(mockWorkflow),
     // runExecution 의 createContext 단계에서 workflow + workspace 를 join 으로
     // 가져오는 호출 (workspace timezone 을 __workspaceTimezone 으로 주입하기 위함).
-    // spec/4-nodes/3-ai/0-common.md §11.3.
+    // `CLE-NODE-AI-COMMON-CONTEXT` 「시간대 결정 순서」.
     findOne: jest.fn().mockResolvedValue({
       ...mockWorkflow,
       workspace: { id: 'ws-1', settings: {} },
@@ -521,7 +521,7 @@ export async function createEngineServiceHarness(): Promise<EngineServiceHarness
         // 의 in-memory 시뮬레이션. 옛 Redis pub/sub `on(type, handler)` 등록
         // 경로는 폐기되어 `on` 은 no-op. publish 는 즉시 service 의 dispatch
         // 메서드 (applyContinuation / applyCancellation) 를 호출해 Phase 1
-        // 까지의 round-trip 동등성을 유지한다. SoT: spec/5-system/4-execution-engine.md §7.4.
+        // 까지의 round-trip 동등성을 유지한다. SoT: `CLE-EXEC-DATA-FLOW` 「입력으로 재개」.
         provide: ContinuationBusService,
         useValue: {
           on: jest.fn(),

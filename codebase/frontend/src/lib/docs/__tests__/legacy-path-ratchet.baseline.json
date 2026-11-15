@@ -154,7 +154,7 @@
     "codebase/backend/src/modules/execution-engine/engine-driver.interface.ts": 1,
     "codebase/backend/src/modules/execution-engine/events/execution-event-emitter.service.ts": 1,
     "codebase/backend/src/modules/execution-engine/execution-engine.module.ts": 1,
-    "codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts": 26,
+    "codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts": 24,
     "codebase/backend/src/modules/execution-engine/execution-engine.service.ts": 38,
     "codebase/backend/src/modules/execution-engine/execution-limits.ts": 1,
     "codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.spec.ts": 2,
