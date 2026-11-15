@@ -21,7 +21,11 @@ describe('AuthOauthService', () => {
     recordBulkRevoked: jest.Mock;
   };
   let userRepo: { createQueryBuilder: jest.Mock };
-  let txnUserRepo: { createQueryBuilder: jest.Mock };
+  let txnUserRepo: {
+    createQueryBuilder: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+  };
   let txnQb: typeof qbUpdate;
   let txnManager: { getRepository: jest.Mock };
   let qbUpdate: {
