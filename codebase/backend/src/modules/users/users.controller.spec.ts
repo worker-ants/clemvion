@@ -14,6 +14,9 @@ import type { JwtPayload } from '../../common/decorators';
 import type { User } from './entities/user.entity';
 import { expectNoUserSecrets } from '../../shared/testing/user-secret-absence';
 
+/** 비밀번호 변경 · 이메일 변경 확인이 다시 거는 refresh 쿠키의 수명. */
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
 describe('UsersController', () => {
   let controller: UsersController;
   let service: UsersService;
@@ -282,6 +285,14 @@ describe('UsersController', () => {
       expect(
         (mockRes as unknown as { cookie: jest.Mock }).cookie,
       ).toHaveBeenCalledTimes(1);
+      // 로그인 유지와 상관없이 7일 쿠키다(CLE-ACCT-SESSION-TOKEN, NERV Task `CLE-T-XF3WMA`).
+      expect(
+        (mockRes as unknown as { cookie: jest.Mock }).cookie,
+      ).toHaveBeenCalledWith(
+        'refreshToken',
+        expect.any(String),
+        expect.objectContaining({ maxAge: SEVEN_DAYS_MS }),
+      );
       // 새 access token 반환
       expect(result).toEqual({ data: { accessToken: 'new-at' } });
 
@@ -373,6 +384,14 @@ describe('UsersController', () => {
       expect(
         (mockRes as unknown as { cookie: jest.Mock }).cookie,
       ).toHaveBeenCalledTimes(1);
+      // 로그인 유지와 상관없이 7일 쿠키다(CLE-ACCT-SESSION-TOKEN, NERV Task `CLE-T-XF3WMA`).
+      expect(
+        (mockRes as unknown as { cookie: jest.Mock }).cookie,
+      ).toHaveBeenCalledWith(
+        'refreshToken',
+        expect.any(String),
+        expect.objectContaining({ maxAge: SEVEN_DAYS_MS }),
+      );
       expect(auditLogsService.record).toHaveBeenCalledWith({
         workspaceId: 'ws-uuid',
         userId: 'user-uuid',
