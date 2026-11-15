@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REHYDRATE"
 title: "장애 복구와 안전 종료 — 체크포인트와 rehydration"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "46e9c1ac1db18687ed2f41c58302c8583b4ad4964e059a7d430bf2efdb9fdb21"
+content_hash: "004934180fb981b4ca04adc0901b008d34b1be97dadff39e279b72e2cd1281ed"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-7PTJAS"
 source_paths: []
-mirror_sha256: "9116e3f1f7fa2484da0e29cdf7a44b73a7ba42a687324ecb1d26e9af49a4c16b"
-etag: "sha256-c548378613c25774e0be39ec1e5865c5c2e769b6f31706ae7ecf9fb05081b048"
+mirror_sha256: "e616efb526d281142d2a022ef6a294238609383b72011d7ab51b354672e49ee9"
+etag: "sha256-41a8210d3fa93b64f3281d3b20f142160e56151bf49a8ced329ad17952c1dacc"
 ---
 ## 개요
 
@@ -73,7 +73,7 @@ case A 는 다음 순서로 재개한다. case B 는 8단계의 "도착 입력�
 
 1. 클라이언트의 재개 명령이 controller 나 WS gateway 에 들어오고 재개 큐에 들어간다. 발행 쪽 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다.
 2. 임의 워커가 작업을 가져가 **재개 진입 원자 claim** 을 한다. `waiting_for_input` 조건부 UPDATE 로 `running` 으로 바꾼다. affected=0 이면 작업을 ack 하고 버린다([재개 진입 원자 claim](#재개-진입-원자-claim)).
-3. **outbound routing context 를 다시 등록한다**(`triggerId` 와 `workflowId` 가 있을 때). 영속된 실행 행의 `triggerId` / `workflowId` / `input_data.chatChannel` 로 `execute()` 최초 등록과 같은 형태로 등록한다(CCH-AD-05). 등록이 실패해도 warn 로그만 남기고 rehydration 은 계속한다(best-effort). 종료 이벤트를 발행할 때 저절로 해제된다.
+3. **outbound routing context 를 다시 등록한다**(`triggerId` 와 `workflowId` 가 있을 때). 영속된 실행 행의 `triggerId` / `workflowId` / `input_data.chatChannel` 로 `execute()` 최초 등록과 같은 형태로 등록한다(CCH-AD-05). 등록이 실패해도 warn 로그만 남기고 rehydration 은 계속한다(best-effort). 종료 이벤트를 발행할 때 저절로 해제된다. park 한 서버 인스턴스에 남은 옛 등록은 유휴 TTL · 상한으로 회수되지만([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달)) 이 단계가 다시 등록하므로 재개 뒤 전달에는 영향이 없다.
 4. `NodeExecution.outputData` 에서 원본 설정(`rawConfig`) 스냅샷과 멀티턴 AI 재개 체크포인트(`_resumeCheckpoint`)를 읽는다.
 5. `Execution.conversation_thread` 에서 대화 스레드 스냅샷을 손실 없이 되살린다. 영속 규칙은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 에 있다.
 6. `Execution.user_variables` 에서 사용자 정의 변수를 되살린다. 시스템 예약 변수(`__*`)는 여기 없고 따로 다시 넣는다.

@@ -2,19 +2,19 @@
 id: "CLE-API-WS"
 title: "WebSocket 연결과 채널 구독"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "dd35ba92930d13ab1cf4f0175e0118312eef82a3a6720cfaf90ba40b6ea48834"
+content_hash: "5cfcea1b336a729f0b39f43792b6ffb14ecda3d948639b0e68d7fe2ee74b91c3"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-7MBBA7"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "4cc88b77313f3e2a6b1a035dccb163f67d94fe90e9d4b341c42e4d1ad20b8111"
-etag: "sha256-417e7c52302a5f425033d80d5801711a827c899ba7c4506ba316a39e84883cc8"
+mirror_sha256: "cd080f54e111cf1835247edadcd5a1947360ed16388e4dca6ea90174a99dfd21"
+etag: "sha256-9a540e3bdd679ff3bb29fce1bc38f99069d3d097a9aa8931c4f52f3aa49c02f8"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -135,11 +135,11 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 - 2026-06-03 정정부터 이 문서는 명령과 구독의 응답을 «Socket.IO ack callback 의 `{ event, data }`» 로 적었다. 코드는 그렇게 동작하지 않는다.
 - `@nestjs/platform-socket.io` 12.1.2 의 `IoAdapter.bindMessageHandlers` 는 핸들러 반환값에 `event` 가 있으면 `socket.emit(response.event, response.data)` 를 부른다. `event` 필드 값을 이름으로 하는 Socket.IO 이벤트로 `data` 만 보내는 것이다. 이때 ack callback 은 부르지 않는다. 반환값에 `event` 가 없고 클라이언트가 callback 을 넘긴 경우에만 `ack(response)` 를 부른다.
 - 게이트웨이 핸들러는 모두 `{ event, data }` 를 돌려준다. 그래서 wire 는 ack 이벤트 이름(`event` 값)과 payload `data` 이고 `{ event, data }` 형태는 wire 에 없다.
-- 프론트엔드는 이 wire 로 받아 왔다. 구독 결과는 `subscribed` 이벤트 구독으로 받는다. 재개 명령은 프론트엔드 로컬 헬퍼 `emitWithAck`(`use-execution-interaction-commands.ts`)가 ack 이벤트 이름(`execution.click_button.ack` 등)을 한 번 기다린다. 이 헬퍼는 Socket.IO 내장 `Socket#emitWithAck` 와 다르다(§1). e2e `ws-execution-subscribe.e2e-spec.ts` 는 callback 없이 `subscribe` 를 보내고 `subscribed` 이벤트 payload 가 `{ success: true, channel }` 임을 단언한다.
+- 프론트엔드는 이 wire 로 받아 왔다. 구독 결과는 `subscribed` 이벤트 구독으로 받는다. 재개 명령은 프론트엔드 로컬 헬퍼 `emitAndAwaitAckEvent`(`use-execution-interaction-commands.ts`)가 ack 이벤트 이름(`execution.click_button.ack` 등)을 한 번 기다린다. 이 헬퍼는 Socket.IO 내장 `Socket#emitWithAck` 와 다르다(§1). 이름이 같아 헷갈려서 2026-11-15 에 옛 이름 `emitWithAck` 에서 바꿨고(NERV Task `CLE-T-7MBBA7`) 동작은 그대로다. e2e `ws-execution-subscribe.e2e-spec.ts` 는 callback 없이 `subscribe` 를 보내고 `subscribed` 이벤트 payload 가 `{ success: true, channel }` 임을 단언한다.
 - 문서를 믿고 구현할 클라이언트가 callback 을 넘겨 기다리면 응답을 받지 못한다. 그래서 문서를 코드에 맞췄다. 이벤트 이름과 payload 필드는 그대로라 지금 클라이언트에는 영향이 없다.
 - [§7.2](CLE-API-WS-MSG.md#72-에러-메시지-형식) 에서 `error` 이벤트 `{ message }` 를 쓰는 경우를 연결 핸드셰이크 에러로 좁혔다. 연결된 소켓도 등록되지 않은 이벤트를 보내면 `error` 이벤트로 `{ code: 'UNKNOWN_TYPE', message }` 를 받는다([§7.1](CLE-API-WS-MSG.md#71-에러-코드)). 범위를 좁히지 않으면 §7.2 가 §7.1 과 어긋난다.
 - **기각한 대안**
-  - 핸들러가 `event` 없이 `data` 만 돌려 ack callback 으로 맞추기: 프론트엔드(`ws.on('subscribed')` 와 로컬 헬퍼 `emitWithAck`)와 새 e2e 가 이미 이벤트 wire 에 기대고 있어 호환만 깨진다. 이미 굳은 wire 이름을 바꾸지 않은 판단은 [WebSocket 이벤트와 명령 「`submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유 (2026-06-10)」](CLE-API-WS-EVENTS.md#submit_formclick_button-payload-와-ack-를-구현에-맞춘-이유-2026-06-10) 의 폼 제출 ack 이름에도 있다.
+  - 핸들러가 `event` 없이 `data` 만 돌려 ack callback 으로 맞추기: 프론트엔드(`ws.on('subscribed')` 와 로컬 헬퍼 `emitAndAwaitAckEvent`)와 새 e2e 가 이미 이벤트 wire 에 기대고 있어 호환만 깨진다. 이미 굳은 wire 이름을 바꾸지 않은 판단은 [WebSocket 이벤트와 명령 「`submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유 (2026-06-10)」](CLE-API-WS-EVENTS.md#submit_formclick_button-payload-와-ack-를-구현에-맞춘-이유-2026-06-10) 의 폼 제출 ack 이름에도 있다.
   - callback 과 이벤트를 함께 보내기(이번 Task 에서 검토만 한 안): 택하지 않은 이유는 지금 callback 을 기다리는 소비자가 없고 응답이 두 번 나가는 표면만 늘기 때문이다.
 
 **NestJS 12 전역 enhancer 장애**

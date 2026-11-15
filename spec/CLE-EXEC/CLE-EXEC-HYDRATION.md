@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HYDRATION"
 title: "실행 화면 복원 규약"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "b5b1b0e4d51323649901691b5cc5605fe84e5a323e80b6882ff3eba624b6e8ef"
+content_hash: "0ba3a3b05fb5f8816d46ff6887851093210dedaaac5d763460712af8d75b14db"
 read_as: "approved_fallback"
-task: "CLE-T-VXPW7G"
+task: "CLE-T-88KRHT"
 source_paths: ["spec/conventions/data-hydration-surfaces.md"]
-mirror_sha256: "40016a85f742eac26e413e5320beecbb78ebd520f50f8ed9527483d589c6c578"
-etag: "sha256-901051a712b8aaf8531c1d43b730a70d86e4319cab17104afccdac32169a4fb1"
+mirror_sha256: "d68cfd692f5f15c7f0ebbb3f7cb0418cf72450db826f423083f56a737f553daf"
+etag: "sha256-8e7b870cd9a0c317740eacef3beb7adf10003ae7472d04991009cb7fc354f882"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/data-hydration-surfaces.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -86,7 +86,7 @@ etag: "sha256-901051a712b8aaf8531c1d43b730a70d86e4319cab17104afccdac32169a4fb1"
 | 트리거 | 함수 |
 | --- | --- |
 | REST `/executions/:id` 응답 | `applyExecutionSnapshot` 대기 분기 → `seedAiConversation` 과 `pauseForConversation`. store 의 대화가 비어 있을 때만 채운다 |
-| 에디터 REST 폴링 대체 경로의 `/executions/:id` 응답 | `applyExecutionSnapshot`(`refreshConversation: true`) 대기 분기 → `refreshAiConversation`. 저장된 대화의 확정된 사용자·AI 메시지 수가 store 보다 많으면 store 의 대화를 바꾸고, 노드가 다시 입력을 기다리는 출력이면 AI 응답 대기 표시를 끈다. 같은 노드가 다음 턴을 처리하는 중인 출력(`running` 실행의 `resumed` 행)도 같은 규칙으로 대화를 바꾸되, 응답이 아직 오는 중이라 AI 응답 대기 표시는 그대로 둔다([에디터 실행과 디버깅 — 실시간 수신·내역·Background](CLE-EXEC-RUN-SYNC.md#노드-결과-수집) 의 「입력 대기」) |
+| 에디터 REST 폴링 대체 경로의 `/executions/:id` 응답 | `applyExecutionSnapshot`(`refreshConversation: true`) 대기 분기 → `refreshAiConversation`. 저장된 대화의 확정된 사용자·AI 메시지 수가 store 보다 많으면 store 의 대화를 바꾸고, 노드가 다시 입력을 기다리는 출력이면 AI 응답 대기 표시를 끈다. 같은 노드가 다음 턴을 처리하는 중인 응답도 이 함수에 닿는다. 이때 실행은 `running` 이고 그 노드 행의 출력은 `status: 'resumed'` · `meta.interactionType: 'ai_conversation'` 인 재개 스냅샷이다. 서버 조회의 대기 정규화(`reconcilePreParkWaitingStatus`)가 이 행의 상태를 `waiting_for_input` 으로 바꿔 보내고 프런트 `isNodeWaitingForInput` 도 같은 조건으로 이 행을 대기 행으로 본다. 그래서 store 가 같은 노드(`waitingNodeId`)의 AI 대화 대기(`ai_conversation` · `ai_form_render`)를 가리키면 `refreshAiConversation` 이 불린다. 대화는 같은 규칙으로 바꾸고 응답이 아직 오는 중이라 AI 응답 대기 표시는 그대로 둔다. 재개 스냅샷인지는 행 상태가 아니라 출력의 `status` 로 가린다(`isAiResumedWaitingEnvelope`). 근거는 [에디터 실행과 디버깅 — 실시간 수신·내역·Background](CLE-EXEC-RUN-SYNC.md#노드-결과-수집) 의 「입력 대기」 에 있다 |
 | `execution.snapshot` 이벤트 | 위와 같다 |
 
 ### 완료 내역 (실행 내역 화면)

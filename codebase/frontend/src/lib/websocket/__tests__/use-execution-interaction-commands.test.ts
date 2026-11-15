@@ -349,7 +349,7 @@ describe("useExecutionInteractionCommands", () => {
     expect(onceCall).toBeDefined();
     const ackHandler = onceCall![1] as (resp: unknown) => void;
     act(() => {
-      // error 필드 없이 success:false — emitWithAck 의 `error ?? "Unknown error"` fallback
+      // error 필드 없이 success:false — emitAndAwaitAckEvent 의 `error ?? "Unknown error"` fallback
       ackHandler({ success: false });
     });
     expect(toastErrorMock).toHaveBeenCalledWith("Unknown error");
