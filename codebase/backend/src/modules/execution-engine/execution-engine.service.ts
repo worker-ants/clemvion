@@ -134,6 +134,7 @@ import {
   SUB_WORKFLOW_MAX_RECURSION_DEPTH,
 } from '../../nodes/core/node-types.constants';
 import { isDryRun } from '../../nodes/core/dry-run.util';
+import { RESERVED_ERROR_PORT_ID } from '../../nodes/core/button-slug.util';
 import {
   type ChatChannelRoutingInfo,
   ExecutionEventType,
@@ -6280,7 +6281,7 @@ export class ExecutionEngineService
           // 같은 finalizeErrorPortNode 가 맡는다.
           const routedOutput = {
             ...(result.output as Record<string, unknown>),
-            _selectedPort: 'error',
+            _selectedPort: RESERVED_ERROR_PORT_ID,
           };
           this.commitNodeOutput(context, node.id, routedOutput);
           executedNodes.add(node.id);
@@ -6567,7 +6568,8 @@ export class ExecutionEngineService
       !!finalOutput &&
       typeof finalOutput === 'object' &&
       !Array.isArray(finalOutput) &&
-      (finalOutput as Record<string, unknown>)._selectedPort === 'error'
+      (finalOutput as Record<string, unknown>)._selectedPort ===
+        RESERVED_ERROR_PORT_ID
     );
   }
 
@@ -6581,7 +6583,7 @@ export class ExecutionEngineService
     outgoingEdgeMap: Map<string, GraphEdge[]>,
   ): boolean {
     const edges = outgoingEdgeMap.get(nodeId) ?? [];
-    return edges.some((e) => e.sourcePort === 'error');
+    return edges.some((e) => e.sourcePort === RESERVED_ERROR_PORT_ID);
   }
 
   /**
