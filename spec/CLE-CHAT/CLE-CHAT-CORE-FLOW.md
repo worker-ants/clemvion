@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-FLOW"
 title: "채팅 채널 — 처리 흐름과 대화"
 type: "design"
-version: 2
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "e78d13980798edc7c3a5add576ee4b7d1425c10be45ac2ffcf1d71c40798418b"
+content_hash: "3acd4ae9f3368be5a9f601cccad9592e65da3d2ecb65d65329d8fd0573fefbe1"
 read_as: "approved_fallback"
-task: "CLE-T-G2JRMF"
+task: "CLE-T-JK3ERX"
 source_paths: []
-mirror_sha256: "865bb284b43444553cb0cc7e32538d3873d995a14275acd009f8f31075afbf29"
-etag: "sha256-462101d78459b3bef9c99454babfc997d0d456a66049f7ff06e0fafac2e0a77c"
+mirror_sha256: "5005f9ea532c017706f6e35ab0ef4aa00fb3d2acbc04c67f4054d2c8e60cee26"
+etag: "sha256-d9720263ba459722edcbf6c5bb1caa2fc8e15b1766fcf5b2efd45a1cdffec7f7"
 ---
 ## 개요
 
@@ -125,7 +125,7 @@ sequenceDiagram
 
 ## 인증과 보안
 
-- **웹훅 진입점**: 채팅 채널 경로는 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md)(AuthConfig) 인증 대신 프로바이더별 인바운드 서명을 검증한다. Telegram 은 HMAC(Hash-based Message Authentication Code)을 지원하지 않아 `setWebhook` 때 `secret_token` 을 등록하고 `X-Telegram-Bot-Api-Secret-Token` 헤더로 검증한다. Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 다. 세부는 프로바이더 문서가 정한다.
+- **웹훅 진입점**: 채팅 채널 경로는 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md)(AuthConfig) 인증 대신 프로바이더별 인바운드 서명을 검증한다. Telegram 은 HMAC(Hash-based Message Authentication Code)을 지원하지 않아 `setWebhook` 때 `secret_token` 을 등록하고 `X-Telegram-Bot-Api-Secret-Token` 헤더로 검증한다. Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 다. 세부는 프로바이더 문서가 정한다. 저장된 서명 자료 참조(`inboundSigningRef`)가 없는 옛 행은 서명 검증을 건너뛴다. 이 예외는 2026-11-14 에 현행 유지로 정했고 근거는 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다.
 - **EIA 인바운드 facade**: 채널 어댑터는 EIA 외부 토큰(`iext_*`, `itk_*`) 발급을 건너뛰고 `InteractionService.interact(ctx: InteractionRequestContext, dto: InteractDto)` 를 서버 안에서 직접 부른다. 근거는 [External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출) 의 내부 신뢰 호출(`in_process_trusted`) 예외다. EIA HTTP API 는 외부 클라이언트 전용이다.
 - **접근 제어**: 이 우회는 서버 안 신뢰 호출자에게만 열리고 외부 HTTP 경로는 구조상 닿을 수 없다. `InteractionRequestContext` 판별 union(`isInternalCtx()`)과 "HTTP guard 의 ctx 는 `scope === undefined`" 불변식은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정하고 컴파일러가 강제하므로 여기 다시 적지 않는다. `scope` 는 신뢰 영역을 나타내며 토큰 종류(`tokenFamily`)와 뜻이 다르다.
 - **SSRF(Server-Side Request Forgery)**: 아웃바운드 URL 은 프로바이더마다 고정(예: `api.telegram.org`)이라 사용자가 정하는 URL 이 아니다. [EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) 의 허용 목록과 따로 간다.
@@ -159,7 +159,7 @@ EIA HTTP API 를 새로 만들지 않고 서버 안 facade 호출만 쓴다. HTT
 
 ### R3 1차 범위는 1:1 DM 만 지원한다
 
-그룹 대화는 누가 답했는지 가려야 하는데 채널 대화 상태의 `channelUserKey` 는 사용자 한 명을 가정한다. 1차 범위는 1:1 DM 만 받고 그룹은 명시적으로 거부한다. 후속 범위에서 여러 사용자 대화를 도입할 때 다시 논의한다. Slack 슬래시 명령은 예외로 DM 이 아닌 채널에서도 받는다. 그 채널의 구성원이 한 대화를 함께 쓰므로 `/start`·`/cancel` 의 실행 소유자 확인을 둔다([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)).
+그룹 대화는 누가 답했는지 가려야 하는데 채널 대화 상태의 `channelUserKey` 는 사용자 한 명을 가정한다. 1차 범위는 1:1 DM 만 받고 그룹은 명시적으로 거부한다. 후속 범위에서 여러 사용자 대화를 도입할 때 다시 논의한다. Slack 슬래시 명령도 DM 에서만 받는다(2026-11-14, NERV Task `CLE-T-JK3ERX`). 판정과 응답은 [Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 가 정한다. 그전에는 슬래시 명령을 DM 이 아닌 채널에서도 받아서 그 채널의 구성원이 한 대화를 함께 썼다. `/start`·`/cancel` 의 실행 소유자 확인([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다))은 그때 생겼고 지금은 겹 방어로 남아 있다.
 
 ### R4 단일 sink 를 직접 구독한다
 
@@ -203,15 +203,15 @@ non-2xx 응답이 이어지면 프로바이더가 웹훅을 끌 수 있다. 어�
 
 2026-11-14 결정이다(NERV Task `CLE-T-G2JRMF`). 그전에는 대화의 어느 참여자가 보낸 `/start`·`/cancel` 이든 활성 실행을 취소했다.
 
-**위협이 생기는 곳.** 1차 범위는 1:1 DM 만 받는다([R3](#r3-1차-범위는-11-dm-만-지원한다)). Telegram 은 그룹 대화를, Discord 는 DM 이 아닌 채널(`channel.type !== 1`)을, Slack 이벤트는 DM 이 아닌 채널(`channel_type !== 'im'`)을 거부한다. DM 에는 사용자가 한 명뿐이라 다른 사람이 명령을 보낼 수 없다. 예외는 Slack 슬래시 명령(`/workflow start`·`cancel`)이다. 파서가 DM 인지 확인하지 않고 대화 키가 채널 ID 라서 그 채널의 구성원 누구나 다른 사람의 실행을 취소하거나 `/start` 로 가로챌 수 있었다. 슬래시 명령을 DM 으로 좁히는 일은 [Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 에 맞추는 별도 NERV Task `CLE-T-JK3ERX` 가 맡는다. 소유자 확인은 그 일과 관계없이 이 길을 막는다.
+**위협이 생기는 곳.** 1차 범위는 1:1 DM 만 받는다([R3](#r3-1차-범위는-11-dm-만-지원한다)). Telegram 은 그룹 대화를, Discord 는 DM 이 아닌 채널(`channel.type !== 1`)을, Slack 이벤트는 DM 이 아닌 채널(`channel_type !== 'im'`)을 거부한다. DM 에는 사용자가 한 명뿐이라 다른 사람이 명령을 보낼 수 없다. 이 결정을 내릴 때는 Slack 슬래시 명령(`/workflow start`·`cancel`)이 예외였다. 파서가 DM 인지 확인하지 않았고 대화 키가 채널 ID 라서 그 채널의 구성원 누구나 다른 사람의 실행을 취소하거나 `/start` 로 가로챌 수 있었다. 같은 날 NERV Task `CLE-T-JK3ERX` 의 결정으로 슬래시 명령도 DM 에서만 받는다([Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다)). `channel_id` 가 `D` 로 시작하고 `channel_name` 이 없거나 `directmessage` 일 때만 DM 으로 보고, DM 밖에서 친 명령은 실행으로 보내지 않는다. 소유자 확인은 그대로 두고 겹 방어로 남긴다. 사람끼리의 DM 에서 친 슬래시 명령처럼 DM 판정이 넓게 잡히는 드문 경우에도 대화 상대가 소유자의 실행을 취소하거나 가로채는 것을 소유자 확인이 막는다.
 
 **양식 버튼과 같은 처리.** 네이티브 폼 모달을 여는 버튼(`open_form_modal`)과 폼 제출(`form_submission`)은 보낸 사람의 `channelUserKey` 가 대화 상태의 값과 다르면 안내 없이 버린다. `/start`·`/cancel` 도 같은 기준으로 가린다.
 
-**안내 문구를 보내지 않는 이유.** 안내를 보내려면 `languageHints` 에 새 키를 더하고 한국어 · 영어 기본 문구를 정해야 한다. 1차 범위에서 소유자가 아닌 사람의 명령은 Slack 슬래시 명령에서만 생기므로 그 비용만큼 얻는 것이 없다. 다른 버린 update 와 같이 수신 확인만 보낸다.
+**안내 문구를 보내지 않는 이유.** 안내를 보내려면 `languageHints` 에 새 키를 더하고 한국어 · 영어 기본 문구를 정해야 한다. 슬래시 명령도 DM 에서만 받으므로 소유자가 아닌 사람의 명령은 사람끼리의 DM 처럼 DM 판정이 넓게 잡히는 드문 경우에만 생긴다. 그 비용만큼 얻는 것이 없어 다른 버린 update 와 같이 수신 확인만 보낸다.
 
-**활성 실행이 없을 때.** 누구나 `/start` 로 새 실행을 시작할 수 있고 시작한 사람이 새 소유자가 된다. 소유자를 대화에 계속 묶어 두면 그 채널의 다른 구성원은 실행이 끝난 뒤에도 그 대화로 워크플로우를 시작할 수 없다. 소유자는 새 실행의 대화 상태를 저장할 때만 바뀐다.
+**활성 실행이 없을 때.** 누구나 `/start` 로 새 실행을 시작할 수 있고 시작한 사람이 새 소유자가 된다. 소유자를 대화에 계속 묶어 두면 그 대화의 다른 참여자는 실행이 끝난 뒤에도 그 대화로 워크플로우를 시작할 수 없다. 소유자는 새 실행의 대화 상태를 저장할 때만 바뀐다.
 
 **기각한 대안.**
 
 - 소유자만 쓰게 하고 「다른 사용자의 실행이 진행 중」 안내를 보내는 안. 새 `languageHints` 키와 한국어 · 영어 기본 문구가 필요하고 위 이유로 얻는 것이 적다.
-- 누구나 쓰게 두고 위협 모델만 Rationale 에 적는 안. 슬래시 명령을 DM 으로 좁히기 전까지 Slack 채널의 다른 구성원이 남의 실행을 취소하거나 가로챌 수 있다.
+- 누구나 쓰게 두고 위협 모델만 Rationale 에 적는 안. 이 결정을 내릴 때는 슬래시 명령을 아직 DM 으로 좁히지 않아서 Slack 채널의 다른 구성원이 남의 실행을 취소하거나 가로챌 수 있었다. 슬래시 명령을 DM 으로 좁힌 지금도 DM 판정이 넓게 잡히는 드문 경우에는 같은 일이 생긴다.
