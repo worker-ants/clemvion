@@ -108,6 +108,7 @@ slash command 를 보내면 3초 안에 본인에게만 보이는 짧은 응답�
 |---|---|---|
 | `help` | 명령 목록 (`/workflow start - 새 대화 시작` · `/workflow cancel - 진행 중인 대화 취소` · `/workflow reply - 진행 중인 대화에 답장` · `/workflow help - 도움말`) | `languageHints.help` |
 | 그 밖의 명령 (`start` · `cancel` · `reply` 등) | 수신 문구 (기본값 `요청을 받았습니다.`) | `languageHints.commandReceived` |
+| DM 밖(채널 · 비공개 채널 · 그룹 DM)에서 친 모든 명령 | 1:1 대화 안내 (기본값 `이 봇은 1:1 대화만 지원합니다.`). 실행은 시작하지 않아요 | `languageHints.groupChatRefusal` |
 
 `help` 는 별도 메시지 없이 이 응답으로만 도움말이 보여요. `languageHints.help` 를 넣으면 그 문구를 그대로 보여 줘요. 명령 목록의 `workflow` 에는 Slack 앱에 등록한 명령 이름이 들어가요. Slack 은 명령 이름을 앱에서 정하므로 Discord 용 `languageHints.slashPrefix` 는 Slack 에서 쓰지 않아요. 트리거나 워크플로우를 꺼 두어도 같은 수신 문구가 보여요. 이때 실행은 시작하지 않아요.
 
@@ -137,7 +138,7 @@ Slack 은 모든 필드 타입 (`text`, `email`, `textarea`, `select` 등) 을 m
 
 ## 5. 현재 한계 / 알려진 사항
 
-- **DM only** — group chat / channel / mpim 은 미지원이에요 (자동 거부 + 안내 메시지).
+- **DM only** — group chat / channel / mpim 은 미지원이에요 (자동 거부 + 안내 메시지). slash command 도 봇과의 DM 에서만 받아요.
 - **Typing indicator 없음** — Slack Web API 가 server-initiated typing indicator 를 제공하지 않아 LLM 응답 latency 가 긴 경우 사용자에게 "처리 중" 표시가 보이지 않아요.
 - **시각형 노드** (Chart / Table / Carousel) — 현재는 mrkdwn monospace 텍스트로 표현돼요.
 - **Socket Mode 미지원** — 현재는 Webhook 모드만 지원해요.

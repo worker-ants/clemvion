@@ -9,10 +9,9 @@ import {
   SLASH_HELP_DEFAULTS,
 } from '../../shared/language-hint-defaults';
 import {
-  DISCORD_ALLOWED_MENTIONS_NONE,
+  buildDiscordEphemeralMessageResponse,
   DISCORD_INTERACTION_CALLBACK_TYPE,
   DISCORD_INTERACTION_TYPE,
-  DISCORD_MESSAGE_FLAG_EPHEMERAL,
   type DiscordInteraction,
 } from './discord.types';
 
@@ -59,16 +58,7 @@ export function buildDiscordDefaultInteractionResponse(
             config.languageHints,
             config.languageLocale,
           );
-    return {
-      body: {
-        type: DISCORD_INTERACTION_CALLBACK_TYPE.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          content,
-          flags: DISCORD_MESSAGE_FLAG_EPHEMERAL,
-          allowed_mentions: DISCORD_ALLOWED_MENTIONS_NONE,
-        },
-      },
-    };
+    return { body: buildDiscordEphemeralMessageResponse(content) };
   }
   return undefined;
 }

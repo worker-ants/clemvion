@@ -97,6 +97,7 @@ Every slash command gets a short reply visible only to the sender within 3 secon
 |---|---|---|
 | `help` | Command list (`/workflow start - Start a new conversation` · `/workflow cancel - Cancel the active conversation` · `/workflow reply - Reply to the active conversation` · `/workflow help - Show help`) | `languageHints.help` |
 | Other commands (`start` · `cancel` · `reply`, etc.) | Receipt text (default `Request received.`) | `languageHints.commandReceived` |
+| Any command sent outside a DM (channel · private channel · group DM) | One-on-one notice (default `이 봇은 1:1 대화만 지원합니다.` in every locale; there is no English default yet). No execution is started | `languageHints.groupChatRefusal` |
 
 `help` is answered only by this reply, with no separate message. If you set `languageHints.help`, that text is shown as is. The `workflow` in the command list is the command name you registered in the Slack app. Slack sets command names in the app, so the Discord-only `languageHints.slashPrefix` is not used in Slack. Even when the trigger or workflow is turned off, the same receipt text is shown. No execution is started in that case.
 
@@ -126,7 +127,7 @@ Slack supports all field types (`text`, `email`, `textarea`, `select`, etc.) in 
 
 ## 5. Current limitations / known gaps
 
-- **DM only** — group / channel / mpim are unsupported (auto-rejected with notice).
+- **DM only** — group / channel / mpim are unsupported (auto-rejected with notice). Slash commands are also accepted only in a DM with the bot.
 - **No typing indicator** — the Slack Web API does not expose a server-initiated typing indicator, so users see no progress feedback during long LLM latency.
 - **Visual nodes** (Chart / Table / Carousel) — currently rendered as mrkdwn monospace text.
 - **No Socket Mode** — only Webhook mode is supported right now.
