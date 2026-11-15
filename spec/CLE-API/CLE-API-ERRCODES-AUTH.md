@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-AUTH"
 title: "에러 코드 카탈로그 — 인증 · 인가 · 워크스페이스"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "82c7a83cfff7a1ef59908ef86d43b9173e631c4c163a2e53219a188ac85aea95"
+content_hash: "888b0b6685c24645630cac8cf17e15f31b95b071a55ac93535933d98a8165863"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-2M6Q02"
 source_paths: []
-mirror_sha256: "2f331804399193ac1210016979a1737e684a1ae51b9357e5cf95b0d0d2bed08e"
-etag: "sha256-6f5439649064821f95ee9a3ad739df7538ecec5707562866c2ee1455c5ba2935"
+mirror_sha256: "39c1e4299b583503f4b1def41c85d6c8ae946a302bd1479ad1a5239b3c1600ec"
+etag: "sha256-8522ef9fbfdab569cc4f5cde9efccb4b9a835e40399c1d65fbdac5bfeeb660b9"
 ---
 ## 개요
 
@@ -37,6 +37,8 @@ etag: "sha256-6f5439649064821f95ee9a3ad739df7538ecec5707562866c2ee1455c5ba2935"
 | `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패. `RolesGuard` 의 멤버십 거부(헤더 위조, 경로 워크스페이스, 없는 워크스페이스를 구분하지 않고 요구 역할과도 무관)와 전환(`/api/auth/workspaces/:id/switch`)·탈퇴·멤버십 확인 경로(`auth.service`, `workspaces.service`)가 발행한다. 통합 행을 만드는 트랜잭션의 첫 잠금(`integration-owner-write-lock.ts`)도 이 코드를 낸다. 통합 생성과 Cafe24 Private · MakeShop `oauth/begin` 의 설치 대기 행 쓰기에서 개인 통합을 만드는 요청자가 그 사이 나갔거나 제거됐을 때와 워크스페이스가 그 사이 지워졌을 때다. 워크스페이스가 지워진 경우는 조직 통합에도 해당한다 | 403 | [워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드), [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md), [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) |
 
 `NOT_A_MEMBER`·`EDITOR_REQUIRED`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 는 가드 거부 코드(guard rejection codes)다. 가드 거부에 전용 코드를 쓰게 된 결정은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부에-에러-코드를-붙인다) 의 「가드 거부에 에러 코드를 붙인다」 Rationale(2026-09-25)에 있고 403 응답 설명에 싣는 규칙은 [OpenAPI 문서화](CLE-API-SWAGGER.md) 의 새 엔드포인트 체크리스트에 있다. 이 가운데 `NOT_A_MEMBER`·`ADMIN_REQUIRED`·`OWNER_REQUIRED` 는 가드를 통과한 뒤 서비스 계층에서도 난다. 서비스 계층은 같은 뜻의 거부에 가드와 같은 코드를 쓴다. `EDITOR_REQUIRED` 도 서비스 계층에서 한 곳 난다. 라우트 가드를 거치지 않는 통합 OAuth 콜백의 커밋 직전 재판정이다. 예외는 초대 모듈이다. 초대 모듈(`WorkspaceInvitationsService`)의 서비스 계층 두 번째 방어선은 비멤버와 관리자 미만 멤버를 모두 §3 의 소문자 `admin_required` 로 거부한다. 초대 라우트는 가드가 먼저 `NOT_A_MEMBER` · `ADMIN_REQUIRED` 로 거부하므로 이 코드는 HTTP 로 나가지 않는다.
+
+가입(`POST /api/auth/register`)과 이메일 변경 요청 · 확인(`POST /api/users/me/email-change/request` · `POST /api/users/me/email-change/verify`)의 이메일 중복은 409 `RESOURCE_CONFLICT`([시스템 · 유효성 검증 「6.4 유효성 검증」](CLE-API-ERRCODES-SYSVAL.md#64-유효성-검증))다. 이메일 중복 전용 코드는 두지 않는다. 동시에 온 요청이 `email` UNIQUE 제약에 걸려도 같은 코드다. 가입은 전역 예외 필터가 unique 위반(23505)을 이 코드로 바꾸고 이메일 변경 확인은 서비스가 직접 바꾼다. 초대 가입 화면은 가입 요청의 이 코드를 이미 가입된 이메일로 본다([워크스페이스와 멤버 — 초대 「초대 가입 화면」](../CLE-ACCT/CLE-ACCT-WS-INVITE.md#초대-가입-화면)). 근거와 재검토 조건은 Rationale 「[가입과 이메일 변경의 이메일 중복에 전용 코드를 두지 않는다](#가입과-이메일-변경의-이메일-중복에-전용-코드를-두지-않는다)」 에 있다.
 
 ## 6.12 워크스페이스 멤버 직접 추가 (도메인 문서 참조)
 
@@ -105,3 +107,18 @@ NERV Task `CLE-T-B4WH9N`(통합 스펙 정리)이 최신 승인본과 대조해 
 
 - **`ADMIN_REQUIRED`**: 관리자 미만이 조직 공개 범위로 `oauth/begin` 을 `new` 모드로 부르면 다시 쓸 설치 대기 행을 찾기 전에 이 코드로 거절한다. 컨트롤러가 통합 생성과 같은 판정(`IntegrationsService.assertCanCreate`)을 부른다. 통합 OAuth 의 발행 자리를 두 곳에서 세 곳으로 고쳤다.
 - **`EDITOR_REQUIRED`**: 통합 쓰기 라우트와 `oauth/begin` 에는 편집자 이상 라우트 가드가 붙는다. 뷰어가 부르면 대상의 공개 범위와 상관없이 이 코드다. 기준은 [통합 관리 「권한」](../CLE-INT/CLE-INT-MANAGE.md#권한) 의 «역할 거부 코드는 라우트 가드가 먼저 정한다» 다. 관련 문서 칸에 그 문서를 더했다.
+
+### 가입과 이메일 변경의 이메일 중복에 전용 코드를 두지 않는다
+
+결정일: 2026-11-15
+
+NERV Task `CLE-T-2M6Q02` 에서 사람이 정했다. 가입과 이메일 변경의 이메일 중복은 409 기본 코드 `RESOURCE_CONFLICT` 를 그대로 쓴다. 초대 가입 화면은 가입 요청의 이 코드를 이미 가입된 이메일로 보고 로그인 화면으로 보낸다. 전에는 이 판별을 전용 코드가 생기기 전까지 쓰는 임시 분기로 적었다. 이제 계약으로 유지한다.
+
+- **계정 존재가 더 드러나지 않는다.** 가입 API 는 원래 이메일 중복에 409 를 낸다. 상태 코드와 메시지로 이미 구분된다. 전용 코드를 만들어도 드러나는 범위는 같다.
+- **가입 요청의 409 는 뜻이 하나다.** 가입 요청이 409 를 내는 경우는 이메일 중복과 그 경합(unique 위반 23505) 둘뿐이다. 둘 다 이미 가입된 이메일이라 화면이 할 일이 같다. 그래서 규칙 4 대로 메시지를 보지 않고 코드로 분기한다.
+- **규칙 6 의 예외 목록에 올리지 않았다.** 이메일 중복은 `RESOURCE_CONFLICT` 의 정의(리소스 충돌, 이름 중복 등) 안의 조건이고 처음부터 이 코드로 냈다. 새 조건에 기존 코드를 쓰는 경우가 아니다.
+- **이메일 변경과 코드가 갈리지 않는다.** 이메일 변경의 요청과 확인도 새 이메일 중복에 같은 코드를 낸다. 가입에만 전용 코드를 만들면 두 경로의 코드가 갈린다. 함께 바꾸면 옛 클라이언트를 위해 두 코드를 함께 받는 이행 기간이 필요하다.
+
+재검토 조건: 가입 요청에 이메일 중복이 아닌 409 를 더하게 되면 그때 이메일 중복 전용 코드를 만들고 규칙 8 에 따라 이 카탈로그에 올린다. 화면 쪽 근거는 [워크스페이스와 멤버 — 초대 「가입 이메일 중복에 전용 코드를 두지 않는다」](../CLE-ACCT/CLE-ACCT-WS-INVITE.md#가입-이메일-중복에-전용-코드를-두지-않는다) 에 있다.
+
+기각한 대안은 가입 이메일 중복 전용 코드(예: `EMAIL_ALREADY_REGISTERED`)를 만드는 안이다. 위 이유로 기각했다.

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 26
+version: 27
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072", "REQ-WSPACE-073"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "d74a24be365f1aae348e203871183d8aceb923d41098d728d85a42e31de11e67"
+content_hash: "23f7f332c4ac2216210910e0a4c4fdd30defa74720f12c99323b282e48c7c3b3"
 read_as: "approved_fallback"
-task: "CLE-T-6F4W2A"
+task: "CLE-T-2M6Q02"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "5d87ab5fe0309c54c45ddb7a344bfbe30f0b60c75c9c9c27f84b64b4e71a17cb"
-etag: "sha256-6538f38b4f2668a8063a7fb3e6744c79996b65907e8552fae1628de10e6d0b57"
+mirror_sha256: "35ba7522d34c2e6fbb8b7ae299737b4a6b4d4e7c45f89cba568fe5d5330f0adc"
+etag: "sha256-79b54d417ee8b02387413b264110233e527d20a1e67125345299eb237a489b72"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -106,7 +106,7 @@ etag: "sha256-6538f38b4f2668a8063a7fb3e6744c79996b65907e8552fae1628de10e6d0b57"
 - REQ-WSPACE-064 WHEN 초대를 수락하거나 초대 토큰으로 가입하면 THE SYSTEM SHALL 초대를 보낸 사람의 지금 역할을 다시 확인하지 않고 초대 행의 역할로 멤버십을 만든다.
 - REQ-WSPACE-065 IF 소유자가 아닌 관리자가 멤버 탭을 열면 THE SYSTEM SHALL 초대와 역할 변경의 역할 선택지에서 관리자를 빼고 관리자 멤버의 역할을 읽기 전용 배지로 보여 준다.
 - REQ-WSPACE-066 IF 로그인 힌트 쿠키(`has_session`)가 없는 사용자가 초대 가입 링크를 열고 토큰 메타 조회 뒤 `POST /api/auth/check-email` 이 초대 이메일을 가입된 이메일로 답하면 THE SYSTEM SHALL 가입 폼 대신 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
-- REQ-WSPACE-067 IF 초대 토큰 가입이 토큰 이메일 중복으로 거부되면 THE SYSTEM SHALL 사용자를 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
+- REQ-WSPACE-067 IF 초대 토큰 가입이 409 `RESOURCE_CONFLICT` 로 거부되면 THE SYSTEM SHALL 토큰 이메일이 이미 가입된 것으로 보고 사용자를 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
 - REQ-WSPACE-068 IF 초대 가입 화면의 가입 여부 확인(`POST /api/auth/check-email`)이 실패하거나(429 · 네트워크 에러) 5초 안에 끝나지 않으면 THE SYSTEM SHALL 가입되지 않은 이메일로 보고 가입 폼을 보여 준다.
 - REQ-WSPACE-069 WHEN 나가기나 멤버 제거 확인 다이얼로그를 보이면 THE SYSTEM SHALL 그 멤버가 이 워크스페이스에 둔 개인 통합도 함께 지워진다는 문장을 보인다. 개인 통합이 있는지와 그 개수는 보이지 않고 늘 같은 문장을 보인다.
 - REQ-WSPACE-070 WHEN 멤버 직접 추가나 초대가 대상 이메일로 기존 계정을 찾으면 THE SYSTEM SHALL [가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)대로 입력의 앞뒤 공백을 지우고 대소문자를 구분하지 않고 찾는다.
@@ -208,6 +208,12 @@ etag: "sha256-6538f38b4f2668a8063a7fb3e6744c79996b65907e8552fae1628de10e6d0b57"
 
 → [초대](CLE-ACCT-WS-INVITE.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다)
 
+### 가입 이메일 중복에 전용 코드를 두지 않는다
+
+결정일: 2026-11-15
+
+→ [초대](CLE-ACCT-WS-INVITE.md#가입-이메일-중복에-전용-코드를-두지-않는다)
+
 ### 관리자 역할을 주고 빼는 일은 소유자만 한다
 
 → [멤버 관리와 역할](CLE-ACCT-WS-MEMBER.md#관리자-역할을-주고-빼는-일은-소유자만-한다)
@@ -216,7 +222,9 @@ etag: "sha256-6538f38b4f2668a8063a7fb3e6744c79996b65907e8552fae1628de10e6d0b57"
 
 → [멤버 관리와 역할](CLE-ACCT-WS-MEMBER.md#관리자-역할-판정의-요청자-역할은-잠그지-않고-읽는다)
 
-### 나가기와 제거는 개인 통합도 지운다 (2026-10-29)
+### 나가기와 제거는 개인 통합도 지운다
+
+결정일: 2026-10-29
 
 → [멤버 관리와 역할](CLE-ACCT-WS-MEMBER.md#나가기와-제거는-개인-통합도-지운다)
 
