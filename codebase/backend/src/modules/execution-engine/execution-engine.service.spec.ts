@@ -16032,6 +16032,328 @@ describe('ExecutionEngineService', () => {
         });
       });
     });
+
+    // CLE-T-JXD0W5 — 컨테이너는 본문을 다 돈 뒤 출력을 완료 출력으로 덮어쓴다. 노드 실행 행과
+    // `execution.node.completed` 도 그 완료 출력 · 노드 전체 실행 시간으로 한 번만 남아야
+    // 재개 · 재구동의 rehydration 과 실행 이력이 시작 시점 값을 보지 않는다.
+    describe('엔진 덮어쓰기 완료 기록 (CLE-T-JXD0W5)', () => {
+      type SavedRow = Partial<NodeExecution>;
+      let savedRows: SavedRow[];
+      let bodyDoneAt: number;
+
+      beforeEach(() => {
+        savedRows = [];
+        bodyDoneAt = 0;
+        // save 는 같은 엔티티를 고쳐 다시 저장하므로 호출 시점 값을 복사해 둔다.
+        mockNodeExecutionRepo.save.mockImplementation(
+          (entity: Partial<NodeExecution>) => {
+            savedRows.push({ ...entity });
+            return Promise.resolve(entity);
+          },
+        );
+      });
+
+      const rowsOf = (nodeId: string, status?: NodeExecutionStatus) =>
+        savedRows.filter(
+          (r) => r.nodeId === nodeId && (!status || r.status === status),
+        );
+      const nodeEventsOf = (nodeId: string, eventType: string) =>
+        mockWebsocketService.emitNodeEvent.mock.calls.filter(
+          (c) => c[1] === nodeId && c[2] === eventType,
+        );
+      const lastEventIndex = (nodeId: string, eventType: string) =>
+        mockWebsocketService.emitNodeEvent.mock.calls.reduce(
+          (acc: number, c, i) =>
+            c[1] === nodeId && c[2] === eventType ? i : acc,
+          -1,
+        );
+
+      const registerBody = (
+        type: string,
+        execute: (input: unknown) => Promise<unknown>,
+      ) => {
+        handlerRegistry.register(type, {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(execute),
+        } as NodeHandler);
+      };
+
+      // 본문 노드는 아이템마다 5ms 이상 걸린다. 끝난 시각을 기록해 컨테이너 행의 끝 시각이
+      // 본문보다 뒤인지(= 시작 시점이 아니라 완료 시점에 쟀는지) 판별한다.
+      const busyBody = async (input: unknown) => {
+        const start = Date.now();
+        while (Date.now() - start < 5) {
+          // 의도적인 바쁜 대기 — 실제 시간이 흐르게 한다.
+        }
+        bodyDoneAt = Date.now();
+        return mockOutput({ seen: input ?? null });
+      };
+
+      const containerGraph = (
+        containerType: 'foreach' | 'map' | 'loop',
+        config: Record<string, unknown>,
+        bodyType: string,
+      ) => {
+        const nodes: Partial<Node>[] = [
+          {
+            id: containerType,
+            workflowId,
+            type: containerType,
+            category: NodeCategory.LOGIC,
+            label: containerType,
+            config,
+            isDisabled: false,
+            containerId: null,
+            toolOwnerId: null,
+          },
+          {
+            id: 'body',
+            workflowId,
+            type: bodyType,
+            category: NodeCategory.LOGIC,
+            label: 'body',
+            config: {},
+            isDisabled: false,
+            containerId: containerType,
+            toolOwnerId: null,
+          },
+        ];
+        const edges: Partial<Edge>[] = [
+          {
+            id: 'e-c-body',
+            workflowId,
+            sourceNodeId: containerType,
+            sourcePort: 'body',
+            targetNodeId: 'body',
+            targetPort: 'in',
+            type: EdgeType.DATA,
+          },
+          {
+            id: 'e-body-emit',
+            workflowId,
+            sourceNodeId: 'body',
+            sourcePort: 'out',
+            targetNodeId: containerType,
+            targetPort: 'emit',
+            type: EdgeType.DATA,
+          },
+        ];
+        mockNodeRepo.findBy.mockResolvedValue(nodes);
+        mockEdgeRepo.findBy.mockResolvedValue(edges);
+      };
+
+      it.each([
+        {
+          containerType: 'foreach' as const,
+          config: { arrayField: 'items' },
+          outputKey: 'items',
+        },
+        {
+          containerType: 'map' as const,
+          config: { inputField: 'items' },
+          outputKey: 'mapped',
+        },
+        {
+          containerType: 'loop' as const,
+          config: { count: 3 },
+          outputKey: 'iterations',
+        },
+      ])(
+        '$containerType 행은 완료 출력 · 전체 실행 시간으로 COMPLETED 를 한 번 저장하고 completed 이벤트를 본문 뒤에 한 번 보낸다',
+        async ({ containerType, config, outputKey }) => {
+          const bodyType = `body_jxd0w5_${containerType}`;
+          registerBody(bodyType, busyBody);
+          containerGraph(containerType, config, bodyType);
+
+          await service.execute(
+            workflowId,
+            { items: [1, 2, 3] },
+            { workspaceId: 'ws-1' },
+          );
+          await flushPromises();
+          await flushPromises();
+
+          const completedRows = rowsOf(
+            containerType,
+            NodeExecutionStatus.COMPLETED,
+          );
+          expect(completedRows).toHaveLength(1);
+          const row = completedRows[0];
+          const output = (
+            row.outputData as { output?: Record<string, unknown> }
+          ).output;
+          // 시작 시점 핸들러 출력(`[]` 시드)이 아니라 완료 출력 `{ <key>, count }` 다.
+          expect(output?.count).toBe(3);
+          expect(output?.[outputKey]).toHaveLength(3);
+          expect(row.outputData).toEqual(
+            expect.objectContaining({ config: expect.any(Object) }),
+          );
+          // 끝 시각 · 실행 시간은 본문이 끝난 뒤에 잰다.
+          expect(row.finishedAt!.getTime()).toBeGreaterThanOrEqual(bodyDoneAt);
+          expect(row.durationMs).toBe(
+            row.finishedAt!.getTime() - row.startedAt!.getTime(),
+          );
+
+          // completed 이벤트는 한 번, 마지막 본문 이벤트 뒤에 행과 같은 값으로 나간다.
+          const completedEvents = nodeEventsOf(
+            containerType,
+            'execution.node.completed',
+          );
+          expect(completedEvents).toHaveLength(1);
+          expect(
+            lastEventIndex(containerType, 'execution.node.completed'),
+          ).toBeGreaterThan(lastEventIndex('body', 'execution.node.completed'));
+          expect(completedEvents[0][3]).toEqual(
+            expect.objectContaining({
+              status: NodeExecutionStatus.COMPLETED,
+              output: row.outputData,
+              duration: row.durationMs,
+            }),
+          );
+        },
+      );
+
+      it('ForEach 행의 완료 출력을 rehydration 이 그대로 복원한다', async () => {
+        registerBody('body_jxd0w5_rehydrate', async (input) =>
+          mockOutput({ doubled: (input as number) * 2 }),
+        );
+        containerGraph(
+          'foreach',
+          { arrayField: 'items' },
+          'body_jxd0w5_rehydrate',
+        );
+
+        await service.execute(
+          workflowId,
+          { items: [1, 2, 3] },
+          { workspaceId: 'ws-1' },
+        );
+        await flushPromises();
+        await flushPromises();
+
+        const row = rowsOf('foreach', NodeExecutionStatus.COMPLETED)[0];
+        expect(row).toBeDefined();
+
+        const rehydrateId = 'exec-jxd0w5-rehydrate';
+        const internals = service as unknown as {
+          contextService: ExecutionContextService;
+        };
+        internals.contextService.deleteContext(rehydrateId);
+        mockWorkflowRepo.findOne.mockResolvedValue({
+          ...mockWorkflow,
+          workspaceId: 'ws-1',
+          workspace: { id: 'ws-1', name: 'WS', settings: {} },
+        });
+        mockExecutionNodeLogRepo.find.mockResolvedValue([
+          { id: '1', nodeId: 'foreach' },
+        ]);
+        mockNodeExecutionRepo.find.mockResolvedValue([
+          { ...row, executionId: rehydrateId },
+        ]);
+
+        const ctx = await service.rehydrateContext(
+          {
+            id: rehydrateId,
+            workflowId,
+            status: ExecutionStatus.RUNNING,
+            recursionDepth: 0,
+            dryRun: false,
+          } as unknown as Execution,
+          null,
+        );
+
+        expect(ctx.structuredOutputCache?.['foreach']?.output).toEqual({
+          items: [{ doubled: 2 }, { doubled: 4 }, { doubled: 6 }],
+          count: 3,
+        });
+        internals.contextService.deleteContext(rehydrateId);
+      });
+
+      it('본문 실패면 ForEach 행을 FAILED 로 마감하고 completed 이벤트를 보내지 않는다', async () => {
+        registerBody('body_jxd0w5_fail', async () => {
+          throw new Error('body-boom');
+        });
+        containerGraph('foreach', { arrayField: 'items' }, 'body_jxd0w5_fail');
+
+        await service.execute(
+          workflowId,
+          { items: [1, 2] },
+          { workspaceId: 'ws-1' },
+        );
+        await flushPromises();
+        await flushPromises();
+
+        expect(rowsOf('foreach', NodeExecutionStatus.COMPLETED)).toHaveLength(
+          0,
+        );
+        const failedRows = rowsOf('foreach', NodeExecutionStatus.FAILED);
+        expect(failedRows).toHaveLength(1);
+        expect(failedRows[0].id).toBe('ne-foreach');
+        expect(failedRows[0].error).toEqual({ message: 'body-boom' });
+        expect(
+          nodeEventsOf('foreach', 'execution.node.completed'),
+        ).toHaveLength(0);
+        expect(nodeEventsOf('foreach', 'execution.node.failed')).toHaveLength(
+          1,
+        );
+      });
+
+      it('아이템 경계 외부 취소면 ForEach 행을 CANCELLED 로 마감하고 cancelled 이벤트를 보낸다', async () => {
+        let bodyCalls = 0;
+        let simulatedNow = Date.now();
+        const nowSpy = jest
+          .spyOn(Date, 'now')
+          .mockImplementation(() => simulatedNow);
+        registerBody('body_jxd0w5_cancel', async () => {
+          bodyCalls++;
+          if (bodyCalls === 1) {
+            mockExecutionRepo.findOneBy.mockImplementation(() =>
+              Promise.resolve({
+                id: executionId,
+                workflowId,
+                status: ExecutionStatus.CANCELLED,
+                startedAt: new Date(),
+              }),
+            );
+            // 아이템 경계 가드의 스로틀 창(250ms)을 넘긴다(위 C3 테스트와 같은 이유).
+            simulatedNow += 300;
+          }
+          return mockOutput({ ok: true });
+        });
+        containerGraph(
+          'foreach',
+          { arrayField: 'items' },
+          'body_jxd0w5_cancel',
+        );
+
+        try {
+          await service.execute(
+            workflowId,
+            { items: [1, 2, 3] },
+            { workspaceId: 'ws-1' },
+          );
+          await flushPromises();
+          await flushPromises();
+        } finally {
+          nowSpy.mockRestore();
+        }
+
+        expect(bodyCalls).toBe(1);
+        expect(rowsOf('foreach', NodeExecutionStatus.COMPLETED)).toHaveLength(
+          0,
+        );
+        expect(rowsOf('foreach', NodeExecutionStatus.FAILED)).toHaveLength(0);
+        expect(rowsOf('foreach', NodeExecutionStatus.CANCELLED)).toHaveLength(
+          1,
+        );
+        expect(
+          nodeEventsOf('foreach', 'execution.node.cancelled'),
+        ).toHaveLength(1);
+        expect(
+          nodeEventsOf('foreach', 'execution.node.completed'),
+        ).toHaveLength(0);
+      });
+    });
   });
 
   describe('Parallel execution (PARALLEL_ENGINE=v1)', () => {
@@ -17092,6 +17414,110 @@ describe('ExecutionEngineService', () => {
           expect(parallelStructured()?.port).not.toBe('done');
         },
       );
+
+      // CLE-T-JXD0W5 — Parallel 행도 done 포트 완료 출력 · 노드 전체 실행 시간으로 한 번만
+      // COMPLETED 가 되고, 분기 실패(stop · cancel-others-on-fail)면 FAILED 로 끝난다.
+      describe('Parallel 노드 실행 행 (CLE-T-JXD0W5)', () => {
+        let savedRows: Partial<NodeExecution>[];
+
+        beforeEach(() => {
+          savedRows = [];
+          mockNodeExecutionRepo.save.mockImplementation(
+            (entity: Partial<NodeExecution>) => {
+              savedRows.push({ ...entity });
+              return Promise.resolve(entity);
+            },
+          );
+        });
+
+        const parRows = (status: NodeExecutionStatus) =>
+          savedRows.filter((r) => r.nodeId === 'par' && r.status === status);
+        const parEvents = (eventType: string) =>
+          mockWebsocketService.emitNodeEvent.mock.calls.filter(
+            (c) => c[1] === 'par' && c[2] === eventType,
+          );
+
+        it('완료 출력 { config, output: { branches, count }, port: done } 와 전체 실행 시간으로 COMPLETED 를 한 번 저장한다', async () => {
+          let branchDoneAt = 0;
+          registerHandler('slow_ok_node', async () => {
+            const start = Date.now();
+            while (Date.now() - start < 5) {
+              // 의도적인 바쁜 대기 — 분기가 실제 시간을 쓰게 한다.
+            }
+            branchDoneAt = Date.now();
+            return mockOutput({ ok: true });
+          });
+          await runGraph(
+            {},
+            [
+              pNode('a', 'slow_ok_node'),
+              pNode('b', 'slow_ok_node'),
+              pNode('sink', 'sink_node'),
+            ],
+            [
+              pEdge('par', 'branch_0', 'a'),
+              pEdge('par', 'branch_1', 'b'),
+              pEdge('par', 'done', 'sink'),
+            ],
+          );
+
+          const completed = parRows(NodeExecutionStatus.COMPLETED);
+          expect(completed).toHaveLength(1);
+          expect(completed[0].outputData).toEqual({
+            config: expect.objectContaining({ branchCount: 2 }),
+            output: { branches: [{ ok: true }, { ok: true }], count: 2 },
+            port: 'done',
+          });
+          expect(completed[0].finishedAt!.getTime()).toBeGreaterThanOrEqual(
+            branchDoneAt,
+          );
+          const events = parEvents('execution.node.completed');
+          expect(events).toHaveLength(1);
+          expect(events[0][3]).toEqual(
+            expect.objectContaining({
+              output: completed[0].outputData,
+              duration: completed[0].durationMs,
+            }),
+          );
+        });
+
+        it.each(['stop', 'cancel-others-on-fail'])(
+          'errorPolicy=%s 분기 실패면 Parallel 행을 FAILED 로 마감하고 completed 이벤트를 보내지 않는다',
+          async (errorPolicy) => {
+            const g = failingGraph(() => {
+              throw new Error('notify failed');
+            });
+            await runGraph({ errorPolicy }, g.nodes, g.edges);
+
+            expect(parRows(NodeExecutionStatus.COMPLETED)).toHaveLength(0);
+            const failed = parRows(NodeExecutionStatus.FAILED);
+            expect(failed).toHaveLength(1);
+            expect(failed[0].id).toBe('ne-par');
+            expect(parEvents('execution.node.completed')).toHaveLength(0);
+            expect(parEvents('execution.node.failed')).toHaveLength(1);
+          },
+        );
+
+        it('continue 정책의 분기 실패는 Parallel 행을 done 완료 출력으로 COMPLETED 저장한다', async () => {
+          const g = failingGraph(() => {
+            throw new Error('notify failed');
+          });
+          await runGraph({ errorPolicy: 'continue' }, g.nodes, g.edges);
+
+          const completed = parRows(NodeExecutionStatus.COMPLETED);
+          expect(completed).toHaveLength(1);
+          expect(
+            (completed[0].outputData as { output: Record<string, unknown> })
+              .output,
+          ).toEqual(
+            expect.objectContaining({
+              branches: [{ ok: true }, null],
+              count: 2,
+            }),
+          );
+          expect(parRows(NodeExecutionStatus.FAILED)).toHaveLength(0);
+        });
+      });
 
       it('_selectedPort 와 port 는 done 문자열이고 branches[i] 에 엔진 제어 필드가 없다', async () => {
         registerHandler('ok_node', async () => mockOutput({ ok: true }));
