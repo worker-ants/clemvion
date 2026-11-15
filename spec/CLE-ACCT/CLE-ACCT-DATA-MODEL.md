@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-MODEL"
 title: "계정과 워크스페이스 데이터 흐름 — 사용자 · 인증 엔티티"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "01f4a52e4d8d183251016043dad114e8a39897bc6b4ee603af9cf60e853b2928"
+content_hash: "f0abeed08c6916d7f7ffa490a9b61493cf518c859b408784e254efc0073a8f76"
 read_as: "approved_fallback"
-task: "CLE-T-VYNVGP"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "89d1fce68c8ea6058ec8a03a94d60c46c16da914f0ba6ae16bcded7c31bba96e"
-etag: "sha256-b6ec06422be77e9c2e1e1af852ba6b8fb4a643f2d57202e9ec1f7b2fc48507a3"
+mirror_sha256: "35830d5a1aad99c158b78719a655ab3d76028fcc52694f7e26eb09f0ce229b03"
+etag: "sha256-1f91b856366528d906ff82c3344f8aeb18df237a9b7f16334b9332ed165f8f40"
 ---
 ## 개요
 
@@ -103,7 +103,7 @@ etag: "sha256-b6ec06422be77e9c2e1e1af852ba6b8fb4a643f2d57202e9ec1f7b2fc48507a3"
 
 인덱스: `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false`(V040 메타데이터).
 
-`remember_me` 는 `codebase/backend/migrations/V156__refresh_token_remember_me.sql` 이 더했다. 같은 마이그레이션이 배포 시점에 `is_revoked = false AND expires_at > now() AND expires_at - created_at > interval '8 days'` 인 행만 `true` 로 채운다. 이유는 Rationale 「리프레시 토큰 행에 로그인 유지 여부를 둔다 (2026-11-05)」 에 있다.
+`remember_me` 는 `codebase/backend/migrations/V156__refresh_token_remember_me.sql` 이 더했다. 같은 마이그레이션이 배포 시점에 `is_revoked = false AND expires_at > now() AND expires_at - created_at > interval '8 days'` 인 행만 `true` 로 채운다. 이유는 Rationale 「리프레시 토큰 행에 로그인 유지 여부를 둔다」 에 있다.
 
 ## LoginHistory
 
@@ -222,7 +222,9 @@ V058(`chk_login_history_event` 에 `webauthn_failed` 추가)은 `DROP/ADD CONSTR
 
 트랜잭션을 끄는 설정 파일(같은 이름 `.conf` 나 `.sql.conf`)은 쓰지 않았다. 같은 이름 `.conf` 가 적용되지 않은 것처럼 보인 관찰이 있어서다(재현 전, NERV Task `CLE-T-NYFE78` 에서 확인). 두 파일로 나누는 방식은 파일마다 트랜잭션 하나라는 Flyway 기본 동작만으로 NOT VALID 와 VALIDATE 의 잠금을 나눈다. V141~V146 이 `NOT VALID` 로 건 외래 키를 V147 이 따로 검증한 것과 같은 방식이다.
 
-### 리프레시 토큰 행에 로그인 유지 여부를 둔다 (2026-11-05)
+### 리프레시 토큰 행에 로그인 유지 여부를 둔다
+
+결정일: 2026-11-05
 
 NERV Task `CLE-T-BYCGF1` 에서 바꿨다. 규칙과 근거, 기각한 안은 [세션과 토큰 「토큰 회전이 로그인 유지 여부를 이어받는다」](CLE-ACCT-SESSION.md#토큰-회전이-로그인-유지-여부를-이어받는다) 에 있다. 이 문서에는 컬럼 정의와 백필 근거만 적는다.
 
@@ -233,7 +235,9 @@ NERV Task `CLE-T-BYCGF1` 에서 바꿨다. 규칙과 근거, 기각한 안은 [�
 - **기각: 살아 있는 행을 모두 `true` 로 채우기.** 로그인 유지를 끄고 로그인한 세션까지 30일로 늘어난다.
 - 상수 기본값이 있는 NOT NULL 컬럼 추가는 PostgreSQL 11 이상에서 메타데이터만 바꾼다. 다만 ACCESS EXCLUSIVE 잠금을 잡으므로 V149 와 같이 `lock_timeout` 을 3초로 둔다. 잡지 못하면 그 파일이 롤백되므로 다시 배포하면 된다.
 
-### 새로 저장하는 이메일을 소문자로 정규화하고 기존 행은 바꾸지 않는다 (2026-11-05)
+### 새로 저장하는 이메일을 소문자로 정규화하고 기존 행은 바꾸지 않는다
+
+결정일: 2026-11-05
 
 NERV Task `CLE-T-SFWX84` 에서 바꿨다. 기존 계정을 다루는 방식은 사람 결정이다(NERV 질문 `01a1ac05-8931-7309-acc4-ae26e35086a2`). 비교 규칙과 근거, 기각한 안은 [가입과 로그인 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다」](CLE-ACCT-SIGNIN.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다) 에 있다. 이 문서에는 데이터 쪽만 적는다.
 

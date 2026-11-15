@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-URL"
 title: "HTTP API 규약 — URL 과 요청"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "11bb00d9287b29a21698d0f23325329d7d217e289a13f2753a33cd9af1199457"
+content_hash: "0d320337ee9a0ea19d336fc3ef9184924c9cb37f69bce09ff26764cd2f5ae46a"
 read_as: "approved_fallback"
-task: "CLE-T-GWC9M3"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "c44f090a17c5ade86a7f6f19742cdefdd6820dadf4b104a51a9648a55c5a288b"
-etag: "sha256-54178b9461e7fd4d1d9357bc5b7e50a407a4a5b8bb20e604eb78f3eb33503862"
+mirror_sha256: "b046a85990fb769588bcb03cff4dd0b87baafa7b203da5661b4b64470707baa4"
+etag: "sha256-b863110a465198ebac9082ee94c7d66e262fe6142e1b4c620b3b77a2a794609d"
 ---
 ## 개요
 
@@ -183,7 +183,7 @@ Task CLE-T-ERAJ7P 의 결정이다.
 
 ### 본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다 (2026-11-14)
 
-NERV Task `CLE-T-Q6E11N` 의 사람 결정으로 Passkey 삭제에도 비밀번호 재확인을 둔다([Passkey 기능과 등록 「Passkey 삭제에도 비밀번호 재확인을 둔다」](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제에도-비밀번호-재확인을-둔다-2026-11-14)). 비밀번호는 요청 본문으로 받아야 한다. 일부 CDN · 프록시는 `DELETE` 요청의 본문을 버려서 §3 의 `DELETE` 를 그대로 쓰면 비밀번호가 서버에 닿지 않을 수 있다. 그래서 §2.2 에 `POST /{id}/delete` 예외를 더하고 §3 의 `DELETE` 행에서 그 예외를 가리켰다.
+NERV Task `CLE-T-Q6E11N` 의 사람 결정으로 Passkey 삭제에도 비밀번호 재확인을 둔다([Passkey 기능과 등록 「Passkey 삭제에도 비밀번호 재확인을 둔다」](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제에도-비밀번호-재확인을-둔다)). 비밀번호는 요청 본문으로 받아야 한다. 일부 CDN · 프록시는 `DELETE` 요청의 본문을 버려서 §3 의 `DELETE` 를 그대로 쓰면 비밀번호가 서버에 닿지 않을 수 있다. 그래서 §2.2 에 `POST /{id}/delete` 예외를 더하고 §3 의 `DELETE` 행에서 그 예외를 가리켰다.
 
 - **로그인 세션 강제 종료와는 근거가 다르다.** `POST /api/auth/sessions/:familyId/revoke` 도 재인증 자격 증명을 본문으로 받는 `POST` 다. 다만 `revoke` 는 삭제가 아니라 종료를 뜻하는 도메인 동사라 원래 자원 액션 형태다. 이 예외는 삭제 자체를 `POST` 로 옮긴다.
 - **`/api/auth/{action}` 예외 행에 넣지 않았다.** 그 행은 경로를 `/api/auth` 아래에 두는 근거이고 메서드는 정하지 않는다. Passkey credential 은 복수형 자원(`credentials/:id`)이라 그 행의 근거로 메서드 예외를 설명할 수 없다.
