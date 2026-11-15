@@ -293,12 +293,13 @@ export async function createEngineServiceHarness(): Promise<EngineServiceHarness
     // PR2b — admission advisory-lock 트랜잭션 기본 mock: query rows 1건 → admitted
     // (runExecutionFromQueue 경유 테스트가 기존 흐름 유지). admission/deferred 전용
     // 테스트는 manager.transaction 을 자체 재할당.
-    manager: {
+    // `Record<string, jest.Mock>` 에 맞추려고 manager 를 transaction 속성을 단 jest.fn 으로 둔다.
+    manager: Object.assign(jest.fn(), {
       // eslint-disable-next-line @typescript-eslint/require-await -- 원래 spec 의 async mock 을 그대로 옮겼다
       transaction: jest.fn(async (cb: (m: { query: jest.Mock }) => unknown) =>
         cb({ query: jest.fn().mockResolvedValue([{ id: 'x' }]) }),
       ),
-    },
+    }),
     create: jest.fn().mockReturnValue({ ...savedExecution }),
     save: jest.fn().mockImplementation((entity: Partial<Execution>) => {
       lastSaved = { ...savedExecution, ...entity };
