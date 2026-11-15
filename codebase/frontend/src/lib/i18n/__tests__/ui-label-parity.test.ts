@@ -63,7 +63,6 @@ const KNOWN_MISSES: Record<string, ReadonlySet<string>> = {
     "Success",
     "Parameter Name",
     "Expression",
-    "Target Workflow",
     "Workflow Name",
     "Content-Type",
     "Encoding",

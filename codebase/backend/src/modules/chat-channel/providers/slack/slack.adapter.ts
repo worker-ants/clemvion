@@ -422,6 +422,9 @@ export class SlackAdapter implements NativeFormAdapter {
    *   오므로 `payload` 문자열 필드로 가른다(`parseSlackUpdate` 와 같은 판정). 메시지 갱신은
    *   {@link ackInteraction} 이 `response_url` 로 따로 한다. view_submission 의 검증 실패 응답
    *   (`response_action: errors`)은 경로별 응답이 이 값보다 앞선다.
+   * - DM 밖에서 친 슬래시 명령: 하위 명령과 상관없이 본인에게만 보이는 groupChatRefusal 안내
+   *   (`languageHints.groupChatRefusal` 나 기본 문구)다. 파서는 이 명령을 실행으로 보내지 않는다
+   *   (Spec CLE-CHAT-SLACK R-S-4, NERV Task `CLE-T-JK3ERX`).
    * - 슬래시 명령: 본인에게만 보이는 `{ response_type: 'ephemeral', text }`. `help` 는 도움말
    *   (`languageHints.help` 나 기본 문구), 나머지는 수신 문구(`languageHints.commandReceived` 나 기본
    *   문구)다. 슬래시 명령인지와 하위 명령은 {@link readSlackSlashInvocation} 이 파서와 같은 규칙으로
@@ -444,8 +447,10 @@ export class SlackAdapter implements NativeFormAdapter {
     }
     const slash = readSlackSlashInvocation(raw);
     if (!slash) return undefined;
-    const text =
-      slash.subCommand === SLACK_SLASH_HELP_SUBCOMMAND
+    const text = !slash.directMessage
+      ? (readLanguageHintOverride(config.languageHints, 'groupChatRefusal') ??
+        SLACK_GROUP_CHAT_REFUSAL_DEFAULT)
+      : slash.subCommand === SLACK_SLASH_HELP_SUBCOMMAND
         ? resolveSlackHelpText(slash.command, config)
         : resolveCommandReceivedMessage(
             config.languageHints,
@@ -457,6 +462,12 @@ export class SlackAdapter implements NativeFormAdapter {
     };
   }
 }
+
+/**
+ * `groupChatRefusal` 의 기본 문구(Spec CLE-CHAT-DATA-CONFIG). 이 키의 영어 기본값은 범위 밖이라
+ * locale 과 상관없이 이 문구다. HooksService 의 그룹 대화 안내와 같은 값이다.
+ */
+const SLACK_GROUP_CHAT_REFUSAL_DEFAULT = '이 봇은 1:1 대화만 지원합니다.';
 
 /**
  * 슬래시 명령 이름이 비어 있을 때 도움말에 넣을 이름. 가이드가 Slack 앱 manifest 에 등록하라고

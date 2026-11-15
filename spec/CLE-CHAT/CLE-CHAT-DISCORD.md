@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035", "REQ-DISCORD-036", "REQ-DISCORD-037"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "32a0331ec713428fc4b814fd62decb8e6d8dccc7285bd320b95069dd3bcf2d03"
+content_hash: "0a33c5f1c186b0072ca4a2a8ddd281b449c110bdc3373f84f14249911416520c"
 read_as: "approved_fallback"
-task: "CLE-T-FQTQ7K"
+task: "CLE-T-ZGF71P"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "f6d47b659d4405e3dabcd0ce8596d2f6601ce4c4d09adaff05aaa98a919d597b"
-etag: "sha256-874566609be2b240d8d5eead5a82e9d44edbcb95374fd568a958d33b453d8f34"
+mirror_sha256: "febc4242b651ad75d04221d0040f4d0e10a4d1e8bfc72e9a1589f8d5ac6fcd20"
+etag: "sha256-3925e60164c1035a9c05e8a1feb46a7349222633b05c68586e7a83370d9de549"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -45,7 +45,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-007 IF `channel.type !== 1`(DM 이 아님)이면 THE SYSTEM SHALL `null` 을 돌려주고 호출자가 `groupChatRefusal` 안내를 보낸다. (원본: discord §4, §6)
 - REQ-DISCORD-008 IF `member.user.bot === true` 이거나 DM 의 `user.bot === true` 이면 THE SYSTEM SHALL `null` 을 돌려준다. (원본: discord §4, §6)
 - REQ-DISCORD-009 WHEN 서명 검증을 통과한 슬래시 명령(APPLICATION_COMMAND)·컴포넌트(MESSAGE_COMPONENT)·모달 제출(MODAL_SUBMIT)이 오면 THE SYSTEM SHALL 3초 안에 `200 OK` 와 `{ type: 4, data }`·`{ type: 6 }`·`{ type: 9, data }` 가운데 [인바운드 응답](#인바운드-응답) 이 정한 응답을 `{ data }` 봉투 없이 돌려준다. (원본: discord §3, §4)
-- REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내되 `allowed_mentions: {"parse": []}` 로 멘션 알림을 끄고 2000자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. (원본: discord §5.1)
+- REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내되 `allowed_mentions: {"parse": []}` 로 멘션 알림을 끄고 2000자를 넘으면 단어·문장 경계로 나누고 마지막 조각 전까지 붙이는 `\n_(continued…)_` 를 포함해 조각마다 2000자를 넘지 않게 한다. (원본: discord §5.1)
 - REQ-DISCORD-011 WHEN AI 응답을 보내면 THE SYSTEM SHALL 마지막 텍스트 조각에 "Reply" 버튼(`__reply__`)을 붙인다. (원본: discord §5.1)
 - REQ-DISCORD-012 WHEN "Reply" 버튼이 눌리면 THE SYSTEM SHALL `custom_id` 가 `clemvion_reply` 인 단일 TEXT_INPUT 모달을 열고 제출 값을 `text_message` 로 바꿔 EIA `submit_message` 로 보낸다. (원본: discord §5.1)
 - REQ-DISCORD-013 WHEN `/<prefix> reply <message>` 가 오면 THE SYSTEM SHALL `{ kind: "text_message", text: <message> }` 로 바꾼다. (원본: discord §5.1)
@@ -117,10 +117,10 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.ts`: 인터랙션 기본 응답(`buildDiscordDefaultInteractionResponse`)과 도움말 문구 선택(`resolveDiscordHelpText` 가 `pickLocaleDefault` 로 `SLASH_HELP_DEFAULTS` 에서 고른다)
-- `codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts`
+- `codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts`: 2000자 조각 분할(`chunkText`)
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-signing.ts`
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-update.parser.ts`
-- `codebase/backend/src/modules/chat-channel/providers/discord/discord.types.ts`: interaction type·callback type·ephemeral flag 상수(`DISCORD_INTERACTION_TYPE`·`DISCORD_INTERACTION_CALLBACK_TYPE`·`DISCORD_MESSAGE_FLAG_EPHEMERAL`)
+- `codebase/backend/src/modules/chat-channel/providers/discord/discord.types.ts`: interaction type·callback type·ephemeral flag 상수(`DISCORD_INTERACTION_TYPE`·`DISCORD_INTERACTION_CALLBACK_TYPE`·`DISCORD_MESSAGE_FLAG_EPHEMERAL`), 멘션 무력화 공용 빌더 `withDiscordMentionsDisabled`(채널 메시지 본문에 `allowed_mentions` 를 덮어 싣는다)와 `buildDiscordEphemeralMessageResponse`(본인에게만 보이는 `{ type: 4 }` 메시지 응답을 만든다)
 - `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 수신 문구 기본값(`COMMAND_RECEIVED_DEFAULTS`·`resolveCommandReceivedMessage`), Slack 과 함께 쓰는 슬래시 명령 기본 도움말(`SLASH_HELP_DEFAULTS`)
 - `codebase/backend/src/modules/chat-channel/types.ts`: 선택 함수 `defaultInteractionResponse` 와 `InboundInteractionResponse`
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`

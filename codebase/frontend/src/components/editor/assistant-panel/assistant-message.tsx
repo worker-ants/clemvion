@@ -78,13 +78,17 @@ export function buildPickerSubmissionValue(
   return selection.ids[0] ?? "";
 }
 
-/** 에러 버블 본문. 사전 문구가 있는 코드는 그 문구, 없으면 서버의 영문 `message`. */
+/**
+ * 에러 버블 본문. 사전 문구가 있는 코드는 그 문구, 없으면 서버의 영문 `message`,
+ * 그것도 비면 사전 문구 `assistant.errorUnknown`.
+ */
 function errorText(
   error: { code: string; message: string },
   t: ReturnType<typeof useT>,
 ): string {
   const key = ERROR_MESSAGE_KEYS.get(error.code);
-  return key ? t(key) : error.message;
+  if (key) return t(key);
+  return error.message || t("assistant.errorUnknown");
 }
 
 interface AssistantMessageViewProps {

@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH"
 title: "OAuth 연결과 토큰 갱신"
 type: "feature"
-version: 15
+version: 16
 status: "approved"
 requirements: ["REQ-INTOAUTH-001", "REQ-INTOAUTH-002", "REQ-INTOAUTH-003", "REQ-INTOAUTH-004", "REQ-INTOAUTH-005", "REQ-INTOAUTH-006", "REQ-INTOAUTH-007", "REQ-INTOAUTH-008", "REQ-INTOAUTH-009", "REQ-INTOAUTH-010", "REQ-INTOAUTH-011", "REQ-INTOAUTH-012", "REQ-INTOAUTH-013", "REQ-INTOAUTH-014", "REQ-INTOAUTH-015", "REQ-INTOAUTH-016", "REQ-INTOAUTH-017", "REQ-INTOAUTH-018", "REQ-INTOAUTH-019", "REQ-INTOAUTH-020", "REQ-INTOAUTH-021", "REQ-INTOAUTH-022", "REQ-INTOAUTH-023", "REQ-INTOAUTH-024", "REQ-INTOAUTH-025", "REQ-INTOAUTH-026", "REQ-INTOAUTH-027", "REQ-INTOAUTH-028", "REQ-INTOAUTH-029", "REQ-INTOAUTH-030", "REQ-INTOAUTH-031", "REQ-INTOAUTH-032", "REQ-INTOAUTH-033", "REQ-INTOAUTH-034", "REQ-INTOAUTH-035", "REQ-INTOAUTH-036", "REQ-INTOAUTH-037", "REQ-INTOAUTH-038", "REQ-INTOAUTH-039", "REQ-INTOAUTH-040", "REQ-INTOAUTH-041", "REQ-INTOAUTH-042", "REQ-INTOAUTH-043", "REQ-INTOAUTH-044", "REQ-INTOAUTH-045", "REQ-INTOAUTH-046", "REQ-INTOAUTH-047", "REQ-INTOAUTH-048", "REQ-INTOAUTH-049", "REQ-INTOAUTH-050", "REQ-INTOAUTH-051", "REQ-INTOAUTH-052", "REQ-INTOAUTH-053", "REQ-INTOAUTH-054", "REQ-INTOAUTH-055", "REQ-INTOAUTH-056", "REQ-INTOAUTH-057", "REQ-INTOAUTH-058", "REQ-INTOAUTH-059", "REQ-INTOAUTH-060", "REQ-INTOAUTH-061", "REQ-INTOAUTH-062", "REQ-INTOAUTH-063", "REQ-INTOAUTH-064", "REQ-INTOAUTH-065", "REQ-INTOAUTH-066", "REQ-INTOAUTH-067", "REQ-INTOAUTH-068", "REQ-INTOAUTH-069", "REQ-INTOAUTH-070", "REQ-INTOAUTH-071", "REQ-INTOAUTH-072"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "441fbff35717f791e9d48994a690d06472a8a543a6fce6f61d4b2e8d7dce3488"
+content_hash: "865263278b4b1cd7f9734eff1ac01c89dae2fd3ac3db6338eed289403aa09384"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-N121VD"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "0c9b9502d1a972455f3d6e1053c2390701f846f85af7d366e89e02e08202a8bd"
-etag: "sha256-77844b8b533b4694630fb64c16492ea4bce51f8d139f040068ecf9d72532241c"
+mirror_sha256: "a2a75623ba8087fa65d755932e405b3e30aaa6044957d227b8d8cc10641f51f4"
+etag: "sha256-3104c53b4100cb0603340829d25f10ce5cf088990762f0d9010adfb553877d20"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§3.2 OAuth 흐름, §3.5, §4.4, §9.2 OAuth·설치 행, §10, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.2 진입점 표, §1.2.1 보안 계층, §2.2), `spec/4-nodes/4-integration/_product-overview.md` (INT-AU-01·04·06), `spec/2-navigation/_product-overview.md` (NAV-IN-03) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -63,7 +63,7 @@ etag: "sha256-77844b8b533b4694630fb64c16492ea4bce51f8d139f040068ecf9d72532241c"
 - REQ-INTOAUTH-026 WHEN 통합 재인증·추가 권한 요청 콜백을 커밋하기 직전이고 통합이 설치 대기도 아니고 유효한 재설치 대기 표시가 있는 Cafe24 Private 통합도 아니면 THE SYSTEM SHALL 요청자의 가시성, 개인 통합의 편집자 하한, 조직 통합의 관리자 권한을 다시 판정하고 실패하면 롤백한다.
 - REQ-INTOAUTH-027 WHEN 콜백 처리가 끝나면 THE SYSTEM SHALL `postMessage` 로 부모 창에 결과를 알리고 성공은 바로, 실패는 3~5초 뒤 팝업을 닫는다.
 - REQ-INTOAUTH-028 IF OAuth 팝업이 5분 안에 돌아오지 않으면 THE SYSTEM SHALL 타임아웃 에러를 보이고 다시 시도할 수 있게 한다.
-- REQ-INTOAUTH-029 IF 유효한 재설치 대기 표시가 없는 연결됨 통합의 통합 재인증 코드 교환이 실패하면 THE SYSTEM SHALL 상태를 `error(auth_failed)` 로 바꾸고 `last_error` 를 기록한다.
+- REQ-INTOAUTH-029 IF 유효한 재설치 대기 표시가 없는 연결됨 통합의 통합 재인증이나 추가 권한 요청 콜백에서 코드 교환이 실패하면 THE SYSTEM SHALL 상태를 `error(auth_failed)` 로 바꾸고 `last_error` 를 기록하고 조치 필요 알림을 보낸다.
 - REQ-INTOAUTH-030 IF Cafe24 가 `invalid_scope` 로 권한 범위를 거부하면 THE SYSTEM SHALL 상태를 보존하고 사유 `oauth_invalid_scope` 와 `last_error.details.requiresCafe24Approval` 을 기록한다.
 - REQ-INTOAUTH-031 WHEN 사용자가 설치 토큰이 있는 Cafe24 Private 통합에 추가 권한 요청을 하면 THE SYSTEM SHALL OAuth 를 시작하지 않고 권한 범위를 합쳐 저장하며 통합이 설치 대기가 아니면 재설치 대기 표시를 남긴 뒤 `cafe24_private_pending` 응답을 돌려준다.
 - REQ-INTOAUTH-032 WHEN 추가 권한 요청 응답이 `cafe24_private_pending` 이면 THE SYSTEM SHALL 권한 탭에 인라인 안내와 info 토스트를 보이고 통합을 다시 조회한다.
@@ -271,6 +271,11 @@ etag: "sha256-77844b8b533b4694630fb64c16492ea4bce51f8d139f040068ecf9d72532241c"
 
 - REQ-INTOAUTH-052: 권한 요청 버튼을 막는 조건에 설치 기한이 지나 만료된 통합(`status='expired'`, `status_reason='install_timeout'`)을 더했다. 같은 Task 의 코드 수정으로 화면이 이 이유를 먼저 판정하고 이 통합을 지우지 않고 같은 상점을 새로 등록하라고 안내한다. 이 통합은 MakeShop 이거나 App URL 이 없는 Cafe24 Private 이라 버튼은 그 전에도 막혔다. 바뀐 것은 이유와 안내다.
 
+### 요구사항 변경 이력 (2026-11-14, Task CLE-T-N121VD)
+
+다음 요구사항의 뜻을 구현에 맞췄다. 번호는 그대로 두고 동작은 바뀌지 않는다.
+
+- REQ-INTOAUTH-029: 추가 권한 요청 콜백을 더했다. 콜백의 코드 교환 실패 처리(`markIntegrationCallbackError`)는 모드를 가리지 않고 두 콜백을 같게 다루고, [통합 상태 모델](CLE-INT-STATUS-MODEL.md) 의 상태 전이 표도 그렇다. 조치 필요 알림(계기 `oauth_callback`)도 적었다. 조건과 문구는 [통합 상태와 만료 알림 — 만료 스캐너와 알림 「조치 필요 알림」](CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) 이 정한다. 사람이 고른 안이다. 추가 권한 요청을 빼고 구현을 바꾸는 안은 고르지 않았다.
 
 ### 요구사항 추가 이력
 

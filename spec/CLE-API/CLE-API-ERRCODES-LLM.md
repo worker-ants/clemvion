@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-LLM"
 title: "에러 코드 카탈로그 — LLM 클라이언트 · AI 어시스턴트"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "7f2de48c28162d3528453d51f80ed3b07f1ed205e79e6e65ab4acd70f9f0cfa1"
+content_hash: "bedfc8e28be56ba0cdfda48e701b99b726d570b01f27381050646d32774cad79"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-B7YTQX"
 source_paths: []
-mirror_sha256: "dbc5804804a4e27efa208370824cd8786c4907b444c72596d62e85a78999accf"
-etag: "sha256-b2b9d4deebc3952e19d4490b8c897a98e11dbaaafbe5359430880b712991281c"
+mirror_sha256: "e59e1d82c72386bdf2a15ee8e5f2631032de155e1d9e0d42794e73c0309aba01"
+etag: "sha256-8d28a3b8ee82500952c980a0b9669164fb35b26bdfe8a5d0e0b13990482348c1"
 ---
 ## 개요
 
@@ -56,6 +56,8 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 | `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 LLM 호출 라운드 상한이나 도구 호출 예산을 넘음. `message` 에 한도 숫자가 들어간다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md#어시스턴트-도구-호출-한도) |
 
 LLM 클라이언트 스트림의 `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED`(§6.17)도 같은 이벤트에 코드 그대로 실린다. 스트림을 열 때의 실패도 프로바이더와 상관없이 이 코드로 온다. 다만 `message` 는 클라이언트의 진단 문구가 아니라 어시스턴트의 코드별 고정 영문이다. 정의는 §6.17 행이라 이 표에 다시 두지 않는다. 스트리밍을 지원하지 않는 프로바이더의 `LLM_STREAMING_UNSUPPORTED`(§6.17)는 LLM 클라이언트의 스트림 `error` 이벤트로 오지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던진 예외에 실려 오고, 어시스턴트는 그 예외를 SSE `error` 이벤트로 바꿀 때 이 코드를 그대로 싣는다. `message` 는 이 코드도 어시스턴트의 고정 영문이다. 다섯 프로바이더가 모두 스트리밍을 지원해 운영 환경의 발동 경로는 없다. e2e 의 LLM 스텁에는 `stream()` 이 없어 어시스턴트 e2e 에서는 이 코드가 나간다.
+
+`ASSISTANT_STREAM_FAILED` 를 원인별 코드로 나눌지(규칙 6)는 [에러 코드 규약과 카탈로그 「미결 사항」](CLE-API-ERRCODES.md#미결-사항) 의 「`ASSISTANT_STREAM_FAILED` 의 원인 묶음」 항목에서 정한다.
 
 편집 도구 실패는 에러 코드가 아니다. `tool_call` 이벤트의 `result.ok: false` 로 오고 턴은 이어진다. 설계 단계에 있던 `ASSISTANT_TOOL_FAILED` · `ASSISTANT_LLM_CONFIG_INVALID` · `ASSISTANT_STREAMING_UNSUPPORTED` 는 발행된 적이 없어 등재하지 않는다(규칙 9).
 

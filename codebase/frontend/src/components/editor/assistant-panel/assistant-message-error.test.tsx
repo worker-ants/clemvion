@@ -128,6 +128,31 @@ describe("AssistantMessageView error bubble", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  // REQ-ASSIST-005: 사전 문구도 서버 message 도 없으면 영문 고정 문구 대신
+  // 현재 언어의 사전 문구(assistant.errorUnknown)를 보인다.
+  it.each([
+    ["ko", koAssistant.errorUnknown],
+    ["en", enAssistant.errorUnknown],
+  ] as const)(
+    "shows the %s dictionary fallback when neither dictionary text nor server message exists",
+    (locale, text) => {
+      useLocaleStore.setState({ locale });
+      render(
+        <AssistantMessageView
+          message={{
+            ...errorMessage("LLM_SOMETHING_NEW"),
+            error: { code: "LLM_SOMETHING_NEW", message: "" },
+          }}
+          onApprovePlan={vi.fn()}
+          onContinueAfterBudget={vi.fn()}
+        />,
+      );
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toContain(text);
+      expect(alert.textContent).not.toContain("Assistant error");
+    },
+  );
+
   it("shows the dictionary text and the continue button for ASSISTANT_TOO_MANY_TOOL_CALLS", () => {
     renderError("ASSISTANT_TOO_MANY_TOOL_CALLS");
     const alert = screen.getByRole("alert");

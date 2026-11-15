@@ -314,5 +314,15 @@ function summarize(call: AssistantToolCallRecord, t: TFunction): string {
       ? t("assistant.toolBadgeExecutionDetailNodes", { count })
       : t("assistant.toolBadgeExecutionDetail");
   }
-  return call.name;
+  if (call.name === "get_current_workflow") {
+    return t("assistant.toolBadgeCurrentWorkflow");
+  }
+  if (call.name === "verify_workflow") {
+    return t("assistant.toolBadgeVerifyWorkflow");
+  }
+  // plan 종류 호출은 라이브 SSE 로 오지 않지만 저장된 메시지를 다시 그리면
+  // toolCalls 에 함께 들어 있다.
+  if (call.name === "propose_plan") return t("assistant.toolBadgeProposePlan");
+  if (call.name === "clear_plan") return t("assistant.toolBadgeClearPlan");
+  return t("assistant.toolBadgeOther", { name: call.name });
 }

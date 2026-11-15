@@ -285,6 +285,38 @@ describe('WorkflowAssistantStreamService', () => {
     expect(params).not.toHaveProperty('maxTokens');
   });
 
+  // REQ-ASSIST-005: 제목 없는 계획에 영문 고정 제목을 붙이지 않는다. 빈 제목이면
+  // 계획 카드는 사전 문구인 카드 제목(assistant.planCardTitle)만 보인다.
+  it('keeps an empty plan title instead of an English fallback', async () => {
+    const { service, mocks } = makeService();
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_plan',
+          name: 'propose_plan',
+          arguments: JSON.stringify({
+            steps: [{ id: 's1', action: 'add_node', description: 'Add node' }],
+          }),
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 50, outputTokens: 20, totalTokens: 70 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    const events = await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+    const plan = events.find((e) => e.event === 'plan');
+    expect((plan?.data as { title: string }).title).toBe('');
+    const assistantCall = mocks.sessionService.appendMessage.mock.calls[1][1];
+    expect(assistantCall.plan.title).toBe('');
+  });
+
   it('emits a `plan` SSE event for propose_plan tool calls and persists the plan snapshot', async () => {
     const { service, mocks } = makeService();
     const planArgs = JSON.stringify({

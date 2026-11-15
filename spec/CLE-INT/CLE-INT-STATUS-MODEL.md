@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-MODEL"
 title: "통합 상태와 만료 알림 — 상태 모델"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "a62da89218e111943b3a5a2f9a5c461a83167aa10212ded5f721c89bc902b6f9"
+content_hash: "0fb06d7de3b3f73ba7f68d531cfbd67a0cd7205218a5d0f7543347cf5cc348ca"
 read_as: "approved_fallback"
-task: "CLE-T-EMB185"
+task: "CLE-T-BDPE71"
 source_paths: []
-mirror_sha256: "05cf1e20e5bd067377855a0c9507dd584eb87c615c4148af8e0ca620087b3bd9"
-etag: "sha256-f4e54402b36aa546d22fafd91bc459abea694b9d229e9f94b1452538b3e409e2"
+mirror_sha256: "fdce3879f6c71e6861e0af86d942002d403aca4fd3711864e05ed1cc590f94db"
+etag: "sha256-e26ad42dbb2b4c1338bc026b55f268731e33f867e7f2f2034fbfb3166585c4d6"
 ---
 ## 개요
 
@@ -76,6 +76,7 @@ stateDiagram-v2
 | `pending_install` → `pending_install` | OAuth 콜백 처리가 실패했다. 상태와 설치 토큰은 보존하고 사유와 `last_error` 만 갱신한다([콜백 실패 기록](#콜백-실패-기록)) |
 | `connected` → `connected`(사유 기록) | 통합 재인증이나 추가 권한 요청의 콜백이 실패했고 `error(auth_failed)` 조건에 들지 않는다([콜백 실패 기록](#콜백-실패-기록)) |
 | `connected` → `error(auth_failed)` | 토큰 갱신 `invalid_grant`, 외부 MCP 서버 인증 실패, 콜백 코드 교환 실패, Cafe24·MakeShop 클라이언트의 401·403([세부](#전이별-세부)) |
+| `error`(다른 사유) → `error(auth_failed)` | 외부 MCP 서버 인증 실패, Cafe24·MakeShop 클라이언트의 401·403. 이미 `error(auth_failed)` 면 그대로다([MCP 클라이언트 — 에러 처리 「인증 실패 상태 전환」](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환)) |
 | `connected` → `error(insufficient_scope)` | 노드 실행 중 403 과 서비스별 권한 부족 신호를 받았다([세부](#전이별-세부)) |
 | `connected` → `error(network)` | 노드 실행이나 토큰 갱신 중 transport 실패가 3회 연속 났다(`consecutive_network_failures`, V049) |
 | `connected` → `expired(token_expired)` | refresh token 이 없는 통합의 토큰 만료 시각이 지나 만료 스캐너가 당일 임계에서 격하했다 |

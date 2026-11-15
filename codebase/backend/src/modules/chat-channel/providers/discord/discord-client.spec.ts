@@ -202,6 +202,18 @@ describe('DiscordClient.postChannelMessage — 멘션 알림을 끈다', () => {
     });
   });
 
+  // NERV Task CLE-T-VE7QVM — 타입 밖에서 들어온 allowed_mentions 도 상수로 덮는다.
+  it('호출자가 넣은 allowed_mentions 는 parse 빈 배열로 덮는다', async () => {
+    const body = {
+      content: '@everyone',
+      allowed_mentions: { parse: ['everyone', 'roles', 'users'] },
+    } as unknown as Parameters<DiscordClient['postChannelMessage']>[2];
+    await expect(sentBody(body)).resolves.toEqual({
+      content: '@everyone',
+      allowed_mentions: { parse: [] },
+    });
+  });
+
   it('버튼 · embed 본문에도 붙인다', async () => {
     const components = [{ type: 1, components: [] }];
     const embeds = [{ description: '@everyone' }];

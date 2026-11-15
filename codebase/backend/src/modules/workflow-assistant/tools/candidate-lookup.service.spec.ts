@@ -132,6 +132,48 @@ describe('CandidateLookupService', () => {
     });
   });
 
+  // REQ-ASSIST-005: 후보 이름을 못 찾으면 영문 고정 라벨 대신 빈 문자열을 보내고
+  // 프런트 선택기가 사전 문구(assistant.candidateUnnamed)로 채운다.
+  describe('label fallback', () => {
+    it('falls back to the provider, then to an empty label for llm configs', async () => {
+      const { service, mocks } = makeService();
+      mocks.llmConfigs.findAll.mockResolvedValue({
+        data: [{ id: 'cfg-1', provider: 'openai' }, { id: 'cfg-2' }],
+      });
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
+        {
+          field: 'llmConfigId',
+          widget: 'llm-config-selector',
+          label: 'LLM Provider',
+          selectionMode: 'single',
+          candidates: [],
+        },
+      ]);
+      expect(out[0].candidates).toEqual([
+        { id: 'cfg-1', label: 'openai' },
+        { id: 'cfg-2', label: '' },
+      ]);
+    });
+
+    it('sends an empty label for a workflow without a name', async () => {
+      const { service, mocks } = makeService();
+      mocks.exploreTools.listWorkflows.mockResolvedValue({
+        ok: true,
+        items: [{ id: 'wf-2' }],
+      });
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
+        {
+          field: 'workflowId',
+          widget: 'workflow-selector',
+          label: 'Target Workflow',
+          selectionMode: 'single',
+          candidates: [],
+        },
+      ]);
+      expect(out[0].candidates).toEqual([{ id: 'wf-2', label: '' }]);
+    });
+  });
+
   describe('kb-selector', () => {
     it('maps kb rows to {id, label}', async () => {
       const { service, mocks } = makeService();

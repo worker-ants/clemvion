@@ -1138,7 +1138,9 @@ export class WorkflowAssistantStreamService {
   ): AssistantPlanRecord {
     const steps = Array.isArray(args.steps) ? args.steps : [];
     return {
-      title: asString(args.title, 'Plan'),
+      // 제목이 없으면 빈 문자열로 둔다. 영문 고정 제목을 붙이지 않고 계획
+      // 카드가 사전 문구인 카드 제목만 보인다(REQ-ASSIST-005).
+      title: asString(args.title, ''),
       summary: asString(args.summary, ''),
       steps: steps.map((s) => {
         const step = s as Record<string, unknown>;

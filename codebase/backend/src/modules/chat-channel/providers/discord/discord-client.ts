@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { replaceKnownSecret } from '../../../../shared/utils/sanitize-error-message';
 import {
-  DISCORD_ALLOWED_MENTIONS_NONE,
   isDiscordApiError,
+  withDiscordMentionsDisabled,
   type DiscordApiError,
   type DiscordApplication,
   type DiscordMessage,
@@ -53,7 +53,7 @@ export class DiscordClient {
       botToken,
       'POST',
       `/channels/${encodeURIComponent(channelId)}/messages`,
-      { ...body, allowed_mentions: DISCORD_ALLOWED_MENTIONS_NONE },
+      withDiscordMentionsDisabled(body),
     );
   }
 

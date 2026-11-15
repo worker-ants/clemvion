@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-API"
 title: "통합 관리 — API 와 에러 코드"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "998846e7874a95848e6bc99fa41b92f4cdd6415cd99544ee96d3006a8b87936c"
+content_hash: "6fd88511fa31b7a3affc259575d12a7ec7de8138cc32384f537095308ead482f"
 read_as: "approved_fallback"
-task: "CLE-T-ZCEZ46"
+task: "CLE-T-2ZZ3D2"
 source_paths: []
-mirror_sha256: "b13d35d928a62d370d5e318a0df592a8eddabc332af1ef83b48424a5fd3a8da2"
-etag: "sha256-2b6be1993ba729d4d2be016c37e8af888a1ba5932874ed81c7893a37037d3d56"
+mirror_sha256: "2940382b8d9f801f0c130425d449f60729b36bbbc05e466520bfba39ccc40f02"
+etag: "sha256-8990ca409541bc630e503b57c29dd3c17cc8b79b391e73e7abe3281ef9f1df55"
 ---
 ## 개요
 
@@ -110,7 +110,7 @@ etag: "sha256-2b6be1993ba729d4d2be016c37e8af888a1ba5932874ed81c7893a37037d3d56"
 
 ### 에러 코드
 
-통합 API 가 내는 에러 코드를 한곳에 모은다. 상태 코드가 정의되지 않은 코드는 비워 둔다.
+통합 관리 API(`/api/integrations/*`, `oauth/begin` 포함)가 JSON 에러 응답으로 내는 코드를 모은다. OAuth 콜백은 거절을 HTTP 상태로 내지 않고 상태 200 의 HTML 페이지와 통합의 `last_error.code` 로 알린다. 콜백 코드와 설치 엔드포인트(App URL) 코드는 [에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 가 정한다([Rationale](#에러-코드-표를-통합-관리-api-의-json-에러로-좁혔다-2026-11-14)).
 
 | 코드 | HTTP | 뜻 |
 | --- | --- | --- |
@@ -127,13 +127,9 @@ etag: "sha256-2b6be1993ba729d4d2be016c37e8af888a1ba5932874ed81c7893a37037d3d56"
 | `INTEGRATION_OWNER_NOT_MEMBER` | 409 | 조직 통합을 개인으로 바꾸려는데 통합을 만든 사람(`created_by`, 전환하면 통합 소유자가 된다)이 워크스페이스 멤버가 아니다. 통합은 바뀌지 않는다. 요청자는 멤버이고 통합의 상태와 부딪힌 요청이라 `NOT_A_MEMBER` 를 쓰지 않는다 |
 | `ADMIN_REQUIRED` | 403 | 관리자 미만이 조직 통합을 만들거나 바꾸려 했다. `oauth/begin` 이 다시 쓸 조직 설치 대기 행을 관리자 미만이 만난 경우도 같다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 공개 범위 전환은 라우트 가드가 이 코드를 낸다. 삭제는 라우트 가드가 뷰어를 막지 않아 뷰어의 조직 통합 삭제도 이 코드다. 라우트 가드 밖에서는 OAuth 콜백의 커밋 직전 인가 재판정도 관리자 미만인 요청자의 조직 통합 재인증 · 추가 권한 요청을 이 코드로 실패시키고 콜백 팝업과 통합의 `last_error` 로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑)). 발행처는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에도 있다. 뷰어가 이 코드와 `EDITOR_REQUIRED` 가운데 무엇을 받는지는 [권한](CLE-INT-MANAGE-PERM.md#권한) 의 «역할 거부 코드는 라우트 가드가 먼저 정한다» 가 정한다 |
 | `EDITOR_REQUIRED` | 403 | 뷰어가 편집자 이상 라우트(생성, 별칭 수정, 자격 증명 교체, 통합 재인증, 추가 권한 요청, 저장 전 연결 테스트, `oauth/begin`)를 불렀다. 대상의 공개 범위와 상관없이 라우트 가드가 낸다. 뷰어의 조회, 저장된 통합의 연결 테스트, 삭제는 이 코드를 내지 않는다. 라우트 가드 밖에서는 OAuth 콜백의 커밋 직전 인가 재판정이 시작과 콜백 사이에 뷰어로 강등된 요청자의 개인 통합 재인증 · 추가 권한 요청을 이 코드로 실패시키고 콜백 팝업과 통합의 `last_error` 로 알린다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#에러-매핑)). 발행처는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에도 있다 |
-| `OAUTH_STATE_MISMATCH` | 400 | OAuth state 불일치 |
-| `OAUTH_STATE_EXPIRED` | 400 | OAuth state 의 유효 시간이 지났다 |
-| `INTEGRATION_INSTALL_EXPIRED` | 400 | 설치 기한이 지나 만료된(`install_timeout`) 설치 대기 행에 OAuth 콜백이 늦게 도착했다. 행을 되살리지 않고 `last_error` 도 쓰지 않는다([OAuth 연결과 토큰 갱신 「에러 매핑」](CLE-INT-OAUTH.md#에러-매핑)) |
 | `OAUTH_CONFIG_MISSING` | 500 | 서버 OAuth 설정(예: Cafe24 Public 환경 변수) 없음 |
 | `OAUTH_PREVIEW_INVALID` · `OAUTH_PREVIEW_EXPIRED` · `OAUTH_PREVIEW_MISMATCH` | 400 | 미리보기 토큰이 없거나 남의 것 · 10분 경과 · 서비스 유형 불일치 |
 | `OAUTH_TARGET_MISMATCH` | 400 | `new` 가 아닌 모드(통합 재인증·추가 권한 요청)의 `oauth/begin` 본문이 대상 통합(`integrationId`)과 맞지 않는다. 서비스가 대상 통합의 서비스 유형과 다르거나 Cafe24 상점 식별자·앱 유형이 대상 통합의 `credentials.mall_id`·`credentials.app_type` 과 다르다. state 를 만들지 않는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#oauthbegin-요청과-응답)). `:id/reauthorize`·`:id/request-scopes` 는 행의 값을 넘기므로 이 코드를 내지 않는다 |
-| `INSUFFICIENT_SCOPE` | 403 | 권한 부족. 노드 실행 중 감지하면 통합 상태도 `error(insufficient_scope)` 로 바뀐다. `details.missingScopes: string[]`(Cafe24 응답에서 뽑은 누락 권한 범위)와, Cafe24 만 `details.requiresCafe24Approval?: string[]`(누락 권한과 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1·§2 명단 전체의 교집합)를 싣는다. §2 항목은 권한 범위 자체(`mall.read_store`·`mall.write_store`)가 일반 사용 가능이라 교집합은 대개 §1 항목에서 생긴다. 다른 서비스는 이 필드를 뺀다. 프런트엔드는 비어 있지 않으면 «이 권한은 카페24 별도 승인이 필요해요» 를 더 보인다. 새 코드 없이 필드만 더한 보강이다. 노드 실행 중 403 의 노드 출력 코드는 [미결](CLE-INT-MANAGE.md#미결-사항) |
 | `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 상점의 Cafe24 통합이 있다(앱 유형 무관). `new` 가 아닌 모드의 begin(통합 재인증·추가 권한 요청)은 대상 통합 자신을 빼고 본다. 겹친 행의 통합 ID 는 싣지 않는다. 발행 경로와 이름의 유래는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) |
 | `CAFE24_PRIVATE_APP_INSTALL_PENDING` | 409 | Cafe24 Private `oauth/begin`(`new`)이 다시 쓸 같은 상점의 설치 대기 행이 남의 개인 통합이다. 통합 ID 와 App URL 을 싣지 않고 `details.pendingInstallExpiresAt` 에 그 행의 설치 기한을 싣는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 이름이 통합 상태 값 `pending_install` 과 비슷하지만 상태 값이 아니고 `oauth/begin` 이 내는 충돌 코드다 |
 | `CAFE24_PRIVATE_APP_USE_TEST_RUN` | 400 | 우리 서버가 OAuth 를 시작할 수 없는 Cafe24 Private 통합에 OAuth 시작을 요청했다. 설치는 «테스트 실행» 이 App URL 을 거쳐 마친다. 나오는 자리는 `client_id`·`client_secret` 을 갖춘 `oauth/begin` 의 `new` 외 모드와 설치 토큰이 있는 설치 대기 Cafe24 Private 통합의 `:id/reauthorize` 다. 설치 대기여도 설치 토큰이 없으면 `CAFE24_PRIVATE_APP_INSTALL_TOKEN_MISSING` 이다. 설치 토큰이 있고 설치 대기가 아닌 통합의 통합 재인증과 추가 권한 요청은 이 코드 대신 재설치 대기 표시를 남긴다. 2026-10-10 에 낼 자리가 좁아졌지만 뜻이 같아 이름을 유지했다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) Rationale) |
@@ -145,15 +141,8 @@ etag: "sha256-2b6be1993ba729d4d2be016c37e8af888a1ba5932874ed81c7893a37037d3d56"
 | `MAKESHOP_CREDENTIALS_REQUIRED` | 400 | MakeShop `oauth/begin` 본문에 `client_id`·`client_secret` 이 없다. MakeShop 통합의 `:id/reauthorize`·`:id/request-scopes` 도 이 코드로 거절한다([REQ-INTOAUTH-072](CLE-INT-OAUTH.md#요구사항)). 두 경로는 자격 증명 없이 begin 을 부르고 begin 은 모드보다 자격 증명을 먼저 본다. 이 응답은 계약이다(2026-11-13 사용자 결정). 가시성과 역할 판정(404·403)을 통과한 요청만 닿는다. 복구는 삭제 후 재등록이다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)) |
 | `MAKESHOP_ALREADY_CONNECTED` | 409 | 같은 워크스페이스에 같은 `shop_uid` 의 연결됨 MakeShop 통합이 있다. 겹친 행의 통합 ID 는 싣지 않는다 |
 | `MAKESHOP_INSTALL_PENDING` | 409 | MakeShop `oauth/begin`(`new`)이 다시 쓸 같은 `client_id` 의 설치 대기 행이 남의 개인 통합이다. 응답 모양은 `CAFE24_PRIVATE_APP_INSTALL_PENDING` 과 같다. `MAKESHOP_INSTALL_*` 계열이지만 설치 엔드포인트가 아니라 `oauth/begin` 이 낸다. 그래서 클라이언트는 접두로 묶지 않고 코드 값 전체로 분기한다 |
-| `CAFE24_INSTALL_MISSING_PARAMS` | 400 | App URL 호출에 `mall_id`·`timestamp`·`hmac` 누락 |
-| `CAFE24_INSTALL_INVALID_TOKEN` | 404 | App URL 경로의 설치 토큰으로 행을 찾지 못했다(삭제, 24시간 만료, 회복 실패) |
-| `CAFE24_INSTALL_INVALID_HMAC` | 403 | App URL HMAC 검증 실패 |
-| `CAFE24_INSTALL_REPLAY` | 400 | App URL timestamp 가 ±5분 창 밖 |
-| `CAFE24_INSTALL_RATE_LIMITED` | 429 | 같은 IP 의 설치 토큰 조회·HMAC 실패가 임계치 초과 |
-| `MAKESHOP_INSTALL_REPLAY` | 400 | MakeShop App URL timestamp 가 ±5분 창 밖 |
-| `MAKESHOP_INVALID_SHOP_UID` | 400 | MakeShop App URL 의 `shop_uid` 형식 위반. 노드 출력 문맥은 [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) 가 정한다 |
 
-설치 엔드포인트 코드의 조건과 순서는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md), 409 등 상태 코드 선택은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md), 코드 명명 규율은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 정한다.
+409 등 상태 코드 선택은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md), 코드 명명 규율은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 정한다.
 
 ## 구현 위치
 
@@ -163,6 +152,13 @@ etag: "sha256-2b6be1993ba729d4d2be016c37e8af888a1ba5932874ed81c7893a37037d3d56"
 - `codebase/frontend/src/lib/api/integration-error-codes.ts`
 
 ## Rationale
+
+### 에러 코드 표를 통합 관리 API 의 JSON 에러로 좁혔다 (2026-11-14)
+
+- **차이**: 표는 콜백 코드(`OAUTH_STATE_MISMATCH` · `OAUTH_STATE_EXPIRED` · `INTEGRATION_INSTALL_EXPIRED`)를 HTTP 400 으로 적었다. 콜백 컨트롤러는 서비스 예외를 잡아 상태 200 의 HTML 로 답하므로 클라이언트가 400 을 받는 일이 없다. 설치 엔드포인트 코드는 카탈로그와 조건이 달랐다. `*_INSTALL_REPLAY` 에 nonce 재사용이, `CAFE24_INSTALL_INVALID_HMAC` 에 시크릿 없음 · 식별자 불일치가 빠졌고 `MAKESHOP_INSTALL_INVALID_HMAC` 은 행이 없었다.
+- **결정**: 표를 통합 관리 API 가 JSON 에러 응답으로 내는 코드로 좁혔다. 콜백 · 설치 코드는 [에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 한 곳에만 둔다. 사람이 고른 안이다(NERV Task `CLE-T-2ZZ3D2`).
+- **기각한 안**: 빠진 코드를 모두 더하고 표를 하위 문서로 나누는 안. 같은 조건을 두 문서에 적으면 이번 같은 차이가 다시 생긴다.
+- **`INSUFFICIENT_SCOPE` 행도 뺐다.** 이 코드를 내는 곳이 없다([에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 의 «`INSUFFICIENT_SCOPE` 는 행이 없다» 항목). 사유 `insufficient_scope` 와 `last_error.details.requiresCafe24Approval` 은 [통합 상태 모델](CLE-INT-STATUS-MODEL.md) 이 정한다. 노드 실행 중 403 의 출력 코드는 [통합 관리 「미결 사항」](CLE-INT-MANAGE.md#미결-사항) 에 남아 있다. 그 항목은 아직 이 표가 `INSUFFICIENT_SCOPE` 를 적는다고 쓰며, 고치는 일은 후속 Task 로 넘겼다.
 
 ### 추가 권한 요청은 역할을 인증 유형보다 먼저 판정한다 (2026-11-14)
 
