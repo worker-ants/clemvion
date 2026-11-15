@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-FLOW"
 title: "채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "322c13d8b3766e9fa89c86be9298c4d2d6f5415e1c5b380f364c12f21937813a"
+content_hash: "2d237e879923a8df671969d1507e7fe36ee61dcc9f16cbc0d9b5f012891d75f5"
 read_as: "approved_fallback"
-task: "CLE-T-AAGZRW"
+task: "CLE-T-TJAHCN"
 source_paths: []
-mirror_sha256: "292bfa7b8f8719995b69811c3eef499d32362d945480cc8c21a212489f25c4a2"
-etag: "sha256-678268fac74c9744b930a091d080d00fa8103bc3b24dd243bc9b9e86c90a43a8"
+mirror_sha256: "eaa34646cb2e83e4935e5307a1c963517c5a0590c7cd6eb3852450940aa231e5"
+etag: "sha256-9fc45c7aeb59f97d8b4c1367c228e11c83c2578e3bdb9d95bef1fc173611fc4f"
 ---
 ## 개요
 
@@ -124,9 +124,15 @@ Slack · Discord 는 생성 때 서명 자료(`inboundSigningPlaintext`)를 필�
 **서명 자료가 생기는 길**: 이 결정은 저장된 행을 고치지 않는다. 운영 데이터를 고치는 작업도 이 결정에 들지 않는다. 참조는 쓰기 경로에서만 다시 만든다([시크릿 저장소 — 참조 소유와 교차 행 「R9」](../CLE-INT/CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04)). 그래서 참조가 없는 행은 사용자가 채널을 다시 설정하거나 봇 토큰을 재발급할 때 서명 자료를 얻는다. 얻는 방식은 프로바이더마다 다르다.
 
 - Telegram 은 `chatChannel` 이 실린 PATCH 가 부르는 `setupChannel()` 이 `secret_token` 을 새로 발급한다. 호출자가 그 값을 시크릿 저장소에 쓰고 참조를 싣는다. 봇 토큰 재발급도 같은 발급을 거친다.
-- Slack · Discord 는 서명 자료를 생성 때만 받고 PATCH 로는 받지 않는다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-051). 그래서 채널을 다시 설정해도 참조가 생기지 않는다. 서명 자료를 넣으려면 트리거를 다시 만든다. 봇 토큰 재발급에는 아래의 알려진 동작이 있다.
+- Slack · Discord 는 서명 자료를 생성 때만 받고 PATCH 로는 받지 않는다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-051). 그래서 채널을 다시 설정해도 참조가 생기지 않는다. 서명 자료를 넣으려면 트리거를 다시 만든다. 봇 토큰을 재발급해도 참조가 없는 행에는 참조가 생기지 않는다(아래 「봇 토큰 재발급」).
 
-**봇 토큰 재발급의 알려진 동작**: `TriggersService.rotateBotToken` 은 저장하는 `chatChannel` 델타에 `inboundSigningRef` 를 늘 넣는다. 서명 자료를 시크릿 저장소에 쓰는 단계는 채널 어댑터가 `issuedInboundSigning` 을 돌려줄 때만 돈다. 1차 범위에서 그 값을 돌려주는 채널 어댑터는 Telegram 뿐이다. 그래서 참조가 없는 Slack · Discord 행을 재발급하면 참조는 생기지만 그 참조 자리에 시크릿 저장소 행이 없을 수 있다. 그러면 그 트리거의 인바운드는 참조를 풀지 못해 모두 401 이 된다. 이 동작은 코드(`triggers.service.ts` 의 `rotateBotToken`, `chat-channel-inbound-authenticator.ts` 의 `verify`)를 읽고 적었다. 재현하지는 않았다. 이 경로를 고칠지는 이 결정에서 정하지 않고 후속으로 남긴다.
+**봇 토큰 재발급**: `TriggersService.rotateBotToken` 은 저장하는 `chatChannel` 델타와 응답 설정에 `botTokenRef` 를 늘 싣는다. `inboundSigningRef` 는 다음 셋 가운데 하나일 때만 싣는다.
+
+- 이번 재발급이 서명 자료를 시크릿 저장소에 새로 썼다. 채널 어댑터가 `issuedInboundSigning` 을 돌려준 경우이고 1차 범위에서는 Telegram 뿐이다.
+- 요청을 시작할 때 읽은 행에 참조가 이미 있었다.
+- 락 안에서 다시 읽은 행에 참조가 있다. 그 사이 다른 요청이 참조를 만든 경우다. 이때는 참조를 빼지 않고 이 트리거의 참조로 맞춘다. 빼면 그 행의 인바운드 서명 검증이 건너뛰기(fail-open)로 돌아간다.
+
+이 규칙은 바인더의 참조 보존 규칙(`chat-channel-binder.service.ts` 의 `inboundSigningRefSurvives`)과 같다. 그래서 참조가 없는 Slack · Discord 행은 재발급 뒤에도 참조가 없고 지금처럼 서명 검증을 건너뛴다. 시크릿 저장소에 값이 없는 참조가 생겨 인바운드가 모두 401 이 되는 경우는 없다. 참조가 있는 행은 재발급 뒤에도 참조를 유지한다. 재발급은 저장된 행의 참조를 지우지 않는다. 재발급 성공 경로는 단위 테스트(`triggers.service.spec.ts` 「저장하는 inboundSigningRef」)로 확인한다. e2e 환경에는 프로바이더 대역이 없어서 e2e(`chat-channel-slack.e2e-spec.ts` 「봇 토큰 재발급과 인바운드 서명 참조」)는 재발급이 실패하는 경로만 본다. 재발급이 실패해도 참조가 없는 행에 참조가 생기지 않고 서명 없는 요청이 계속 통과하는지 확인한다.
 
 **다시 정할 조건**: 운영 DB 에서 참조가 없는 채팅 채널 행이 0 임을 확인하면 검증을 건너뛰지 않고 401 로 막는다(fail-closed). 2026-10-31 에 세운 원래 권장안이다.
 
@@ -180,7 +186,7 @@ sequenceDiagram
 - `codebase/backend/src/modules/hooks/hooks.service.ts`: `handleChatChannelWebhook`(인바운드 전체 조율, 워크플로우 활성 관문, `/start` 의 기존 실행 취소 `stopForRestart`, 인터랙션 기본 응답 적용 `withDefaultInteractionResponse`), 버린 update 의 수신 확인(`ackDroppedUpdateAndIgnore`), 폼 모달 제출의 큐 적재 실패와 검증 실패 때 버튼 다시 보내기(`reNoiseFormModal`)
 - `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터의 선택 메서드 `defaultInteractionResponse` · `ackDroppedUpdate` 와 응답 타입 `InboundInteractionResponse`(함수 계약은 [채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER.md#인터랙션-기본-응답과-수신-확인))
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`: 프로바이더별 인바운드 서명 검증(`verify`). 저장된 `inboundSigningRef` 가 없는 행은 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행))
-- `codebase/backend/src/modules/triggers/triggers.service.ts`: 봇 토큰 재발급(`rotateBotToken`). 재발급이 서명 자료 참조를 늘 저장하는 알려진 동작은 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 에 있다
+- `codebase/backend/src/modules/triggers/triggers.service.ts`: 봇 토큰 재발급(`rotateBotToken`). 재발급이 서명 자료 참조를 저장하는 조건은 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 에 있다
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 아웃바운드 구독(`WebsocketService.executionEvents$`), Form 입력 대기 상태 갱신 가드, 종결 이벤트의 채널 대화 상태 정리
 - `codebase/backend/src/modules/chat-channel/channel-listener.registry.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.bus.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.restorer.ts`: 트리거 단위 listener 레지스트리, `chat-channel:listener` 발행 · 구독, 재시작 · 구독 확립 때의 일괄 복원(`ChannelListenerRestorer`)
 - `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts`: 트리거 행을 없애기 전의 외부 해제 단계에서 채팅 채널 트리거의 레지스트리 해제와 그 변경 메시지 발행
@@ -222,4 +228,13 @@ NERV Task `CLE-T-AAGZRW` 의 결정이다. 2026-10-31 결정(위 항목)은 운�
 - 지금 401 로 막는다(fail-closed). 참조가 없는 옛 Slack · Discord 행이 있으면 그 채팅 채널의 수신이 바로 끊긴다. 두 채널 프로바이더의 서명 자료는 PATCH 로 넣을 수 없어 트리거를 다시 만들어야 한다. 행 수를 재지 않았으니 끊기는 범위도 모른다.
 - 운영 DB 의 행 수를 잰 뒤 정한다. 2026-10-31 결정의 방법이다. 사람이 측정하지 않기로 했다.
 
-저장된 행을 한꺼번에 고쳐 참조를 붙이는 데이터 수정은 이 결정에 넣지 않았다. 참조를 다시 만드는 일은 쓰기 경로뿐이라는 [시크릿 저장소 — 참조 소유와 교차 행 「R9」](../CLE-INT/CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04) 를 지킨다. 참조가 없는 행에 참조를 붙이면 그 행의 검증 동작이 바뀐다. 쓰기 경로 가운데 봇 토큰 재발급은 R9 의 문구와 다르게 동작한다. 재발급은 참조가 없던 행에도 참조를 저장하므로 그 행의 검증 동작이 바뀔 수 있다. 이 동작은 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 「봇 토큰 재발급의 알려진 동작」 에 따로 적었고 NERV Task `CLE-T-TJAHCN` 이 다룬다.
+저장된 행을 한꺼번에 고쳐 참조를 붙이는 데이터 수정은 이 결정에 넣지 않았다. 참조를 다시 만드는 일은 쓰기 경로뿐이라는 [시크릿 저장소 — 참조 소유와 교차 행 「R9」](../CLE-INT/CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04) 를 지킨다. 참조가 없는 행에 참조를 붙이면 그 행의 검증 동작이 바뀐다. 재발급 경로는 2026-11-15 결정이 따로 정했다(아래).
+
+### 봇 토큰 재발급도 참조가 없던 행에 참조를 붙이지 않는다 (2026-11-15)
+
+2026-11-15 에 NERV Task `CLE-T-TJAHCN` 에서 봇 토큰 재발급도 R9 와 같게 참조가 없던 행에 참조를 붙이지 않기로 정했다. 재발급이 참조를 싣는 조건은 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 「봇 토큰 재발급」 에 있다.
+
+재발급에서 기각한 대안은 둘이다.
+
+- 시크릿 저장소에 서명 자료 행이 있는지 읽어 보고 참조를 싣는다. 재발급마다 읽기가 하나 늘고 바인더와 다른 규칙이 생긴다. 바인더와 같은 규칙(이번에 새로 썼거나 행에 이미 있음)으로도 값 없는 참조는 생기지 않는다.
+- Slack · Discord 재발급에서는 참조를 늘 뺀다. 참조가 있는 행의 참조가 지워져 그 행의 검증이 건너뛰기로 돌아간다. 저장된 참조를 지우지 않는다는 원칙(`pinChatChannelSecretRefs`, R9)과 어긋난다.
