@@ -21,8 +21,9 @@ export class GraphTraversalService {
    * `executeInline` / `runExecution` 양쪽이 공통으로 필요한 edge lookup 맵 3종.
    *
    * - **backEdgeMap**: sourceNodeId → list of `{ edge, targetIndex }` (back-edge 도착 인덱스 포함)
-   * - **outgoingEdgeMap**: sourceNodeId → forward outgoing edges
-   * - **incomingEdgeMap**: targetNodeId → forward incoming edges
+   * - **outgoingEdgeMap**: sourceNodeId → outgoing edges (back-edge 포함)
+   * - **incomingEdgeMap**: targetNodeId → incoming edges (back-edge 포함). `gatherNodeInput` 이
+   *   입력 모양을 고를 때 세는 연결선 수에도 back-edge 가 들어간다(CLE-EXEC-ENGINE 「다중 입력 조립」).
    *
    * back-edge 의 target 이 sortedIndexMap 에 없으면 방어적으로 skip — 옛 동작 동일.
    */
