@@ -466,6 +466,26 @@ describe('SessionsService', () => {
         { isRevoked: true },
       );
       expect(repo.update).not.toHaveBeenCalled();
+      // 이력은 호출자가 커밋 뒤에 남긴다.
+      expect(loginHistory.record).not.toHaveBeenCalled();
+    });
+
+    it('recordBulkRevoked 는 familyId=null 인 session_revoked 를 남긴다 (CLE-T-327K37)', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'a@b.c',
+      } as never);
+
+      await service.recordBulkRevoked('user-1', { ip: '9.9.9.9' });
+
+      expect(loginHistory.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          email: 'a@b.c',
+          event: 'session_revoked',
+          familyId: null,
+        }),
+      );
     });
 
     it('does not record session_revoked when nothing was revoked', async () => {

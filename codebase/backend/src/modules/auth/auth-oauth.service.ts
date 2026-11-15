@@ -410,7 +410,7 @@ export class AuthOauthService {
   ): Promise<boolean> {
     // 점유 UPDATE 와 refresh_token 폐기를 한 트랜잭션으로 묶는다. 폐기가 실패하면 점유도
     // 롤백돼 재시도할 수 있다. 연결 전에 받은 세션이 있으면 모두 끊고, 새 토큰은 이 뒤에 발급한다.
-    return this.dataSource.transaction(async (manager) => {
+    const revoked = await this.dataSource.transaction(async (manager) => {
       const result = await manager
         .getRepository(User)
         .createQueryBuilder()
@@ -433,10 +433,28 @@ export class AuthOauthService {
           },
         )
         .execute();
-      if (result.affected !== 1) return false;
-      await this.sessionsService.revokeAllFamilies(byEmail.id, ctx, manager);
-      return true;
+      if (result.affected !== 1) return null;
+      const { revoked } = await this.sessionsService.revokeAllFamilies(
+        byEmail.id,
+        ctx,
+        manager,
+      );
+      return revoked;
     });
+    if (revoked === null) return false;
+    // 이력은 커밋 뒤에 남긴다(best-effort). 커밋 전에 남기면 롤백된 폐기의 이력만 남는다.
+    if (revoked > 0) {
+      try {
+        await this.sessionsService.recordBulkRevoked(byEmail.id, ctx);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to record session_revoked history: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+    return true;
   }
 
   private async resolveUser(

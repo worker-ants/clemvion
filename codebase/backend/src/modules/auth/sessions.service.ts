@@ -183,8 +183,10 @@ export class SessionsService {
    * revoke 가 1건 이상이면 `login_history` 에 `session_revoked`(bulk, `familyId=null`) 를 기록해
    * data-flow §1.2(session_revoked emitter = SessionsService) 일관성을 유지한다.
    *
-   * `manager` 를 주면 refresh_token 갱신을 그 트랜잭션 안에서 한다(미인증 계정 소셜 연결의
-   * 점유 UPDATE 와 원자적으로 묶는 용도, CLE-T-327K37). 생략하면 기존 동작이다.
+   * `manager` 를 주면 refresh_token 갱신을 그 트랜잭션 안에서 하고 `session_revoked` 이력은
+   * 남기지 않는다(미인증 계정 소셜 연결의 점유 UPDATE 와 원자적으로 묶는 용도, CLE-T-327K37).
+   * 이력은 트랜잭션 커밋 뒤에 호출자가 `recordBulkRevoked` 로 남긴다. 커밋 전에 남기면
+   * 롤백된 폐기의 이력만 남는다. 생략하면 기존 동작이다.
    *
    * @returns `{ revoked }` — revoke 된 row 수.
    */
@@ -207,18 +209,33 @@ export class SessionsService {
     );
 
     const revoked = result.affected ?? 0;
-    if (revoked > 0) {
-      // bulk revoke 는 단일 familyId 가 없으므로 familyId=null 로 기록(revokeOtherFamilies 와 동일).
-      await this.loginHistory.record({
-        userId,
-        email: user.email,
-        event: 'session_revoked',
-        ip: ctx.ip ?? null,
-        userAgent: ctx.userAgent ?? null,
-        familyId: null,
-      });
+    if (revoked > 0 && !manager) {
+      await this.recordBulkRevoked(userId, ctx, user.email);
     }
     return { revoked };
+  }
+
+  /**
+   * 일괄 폐기 이력(`session_revoked`, `familyId=null`)을 남긴다. bulk revoke 는 단일 familyId 가
+   * 없어 revokeOtherFamilies 와 같이 null 로 기록한다. `revokeAllFamilies` 에 `manager` 를 준
+   * 호출자가 트랜잭션 커밋 뒤에 부른다.
+   */
+  async recordBulkRevoked(
+    userId: string,
+    ctx: AuthContext,
+    email?: string,
+  ): Promise<void> {
+    const resolvedEmail =
+      email ?? (await this.usersService.findById(userId))?.email;
+    if (!resolvedEmail) return;
+    await this.loginHistory.record({
+      userId,
+      email: resolvedEmail,
+      event: 'session_revoked',
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+      familyId: null,
+    });
   }
 
   /**
