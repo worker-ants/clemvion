@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-RENDER"
 title: "채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "8ff1ac41ac23a4f7ab854e29a5a39e492521f8432dcee0c2bce445024721cabc"
+content_hash: "d94b4550596d516a2e008cb94ea90d32978151bef854312f793c713a207bcadb"
 read_as: "approved_fallback"
-task: "CLE-T-FQTQ7K"
+task: "CLE-T-Z19QPY"
 source_paths: []
-mirror_sha256: "237972eca49cafdd0689e990cdcd56e774cd11d868f43c44f39a15db2dbb9af4"
-etag: "sha256-cdcc808954b7d2fc15590653c3d515c6063436a8f8b849d9bee31c9cd38803ad"
+mirror_sha256: "00cc0aa619db04b47876cd63e4f65d4605d27298eb2bf289a6457ae8d5acc097"
+etag: "sha256-acc9ab7d06c935bd7d09f96db366b45321e27a905993cf0b1826da614ab97e7a"
 ---
 ## 개요
 
@@ -94,7 +94,8 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 
 | `error.code` | 추가 조건 | 결과 `key` | placeholders |
 |---|---|---|---|
-| `HTTP_4XX` | `details.statusCode` ∈ [400, 499], 있을 때만 | `executionFailedThirdParty4xx` | `{ statusCode }`(없으면 뺀다) |
+| `HTTP_4XX` | `details.statusCode` 가 정수 300~399(HTTP Request 노드가 따라가지 않은 3xx. R-CCA-16) | `executionFailedThirdParty` | `{}` |
+| `HTTP_4XX` | 그 밖(`details.statusCode` 가 없거나 정수가 아니거나 300~399 밖의 값) | `executionFailedThirdParty4xx` | `{ statusCode }`(정수일 때만. 아니면 뺀다) |
 | `HTTP_5XX` | `details.statusCode` ∈ [500, 599], 있을 때만 | `executionFailedThirdParty5xx` | `{ statusCode }`(없으면 뺀다) |
 | `HTTP_TIMEOUT`(발행 안 됨) | 없음 | `executionFailedTimeout` | `{}` |
 | `HTTP_TRANSPORT_FAILED` | 없음 | `executionFailedThirdParty` | `{}` |
@@ -178,3 +179,7 @@ AI 에이전트 핸들러가 빈 `ai_message` 를 내지 못하게 막는 안은
 escape 하면 본문이 길어지므로 길이 한도에 맞춘 분할은 escape 한 뒤에 한다. 조각 경계가 escape 결과의 가운데를 지나면 받는 쪽에 깨진 글자가 보이므로 경계를 그 앞으로 당긴다.
 
 대가로 워크플로우 작성자가 일부러 넣은 멘션도 알림이 가지 않고 Slack 에서는 `<url|라벨>` 링크 문법도 글자로 보인다. 사람이 이 대가를 받아들였다. Template 만 막고 AI 응답은 후속 작업으로 미루는 안과 `{{ }}` 치환값만 막는 안은 기각했다. 근거는 [Slack 어댑터 — Web API 와 노드 UI 매핑](CLE-CHAT-SLACK-OUTBOUND.md#rationale) 과 [Discord 어댑터 — API 호출과 UI 매핑](CLE-CHAT-DISCORD-API.md#rationale) 의 Rationale 에 있다.
+
+### R-CCA-16 따라가지 않은 3xx 는 거부로 안내하지 않는다
+
+HTTP Request 노드는 따라가지 않은 3xx 응답도 `HTTP_4XX` 로 낸다. 3xx 는 서버가 요청을 거부한 결과가 아니고 노드가 리다이렉트를 따라가지 않은 결과라서 거부 안내(`executionFailedThirdParty4xx`) 대신 일반 외부 서비스 실패 안내(`executionFailedThirdParty`)를 보낸다. 3xx 전용 안내 키를 두려면 트리거 설정 DTO · 기본 문구 · 사용자 가이드를 함께 바꿔야 해서 두지 않았다. 결정의 정본은 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) 이고, 사람 결정은 NERV 질문 `01a1d937-d34d-7705-9f4f-7a8e1880967e` 의 1안이다(근거 NERV Task `CLE-T-43KCNP`).
