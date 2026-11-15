@@ -1084,8 +1084,9 @@ describe('AuthService', () => {
 
     // 사용자 단위 실패 한도(NERV Task `CLE-T-CJ7HB1`). 어느 재확인 라우트든 이 메서드를 지나므로 한 카운터를 함께 쓴다.
     describe('사용자 단위 실패 한도', () => {
+      // 한도 판정만 보므로 비용을 낮춘 해시로 충분하다(bcrypt.compare 는 해시에 적힌 비용을 따른다).
       async function withHash(): Promise<void> {
-        const hash = await bcrypt.hash('CorrectP@ss1', BCRYPT_ROUNDS);
+        const hash = await bcrypt.hash('CorrectP@ss1', 4);
         usersService.findById.mockResolvedValue({
           ...mockUser,
           passwordHash: hash,

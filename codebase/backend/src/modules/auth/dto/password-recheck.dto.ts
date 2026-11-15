@@ -5,9 +5,10 @@ import {
   MIN_ACCOUNT_PASSWORD_LENGTH,
 } from '../../../common/utils/password.util';
 
+// 근거: NERV Task CLE-T-CJ7HB1. 클래스 JSDoc 은 공개 OpenAPI 설명으로 나가므로 내부 참조는 이 줄 주석에만 둔다.
 /**
- * 계정 비밀번호 재확인 본문의 공통 부분(NERV Task `CLE-T-CJ7HB1`). 재확인 라우트(`@RequirePasswordRecheck()`)의 본문 DTO 는
- * 모두 이 클래스를 상속한다. 비밀번호 검증 규칙을 한 곳에 두고, 테스트가 이 상속으로 재확인 라우트를 찾는다.
+ * 계정 비밀번호 재확인 본문의 공통 부분. 재확인 라우트의 본문 DTO 는 모두 이 클래스를 상속한다.
+ * 비밀번호 검증 규칙을 한 곳에 두고, 테스트가 이 상속으로 재확인 라우트를 찾는다.
  */
 export class PasswordRecheckDto {
   @ApiProperty({
