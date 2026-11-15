@@ -7,6 +7,10 @@ import { createTeamWorkspace, registerAndLogin } from './helpers/auth';
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
 import {
+  addManualTriggerNode,
+  countExecutions,
+} from './helpers/e2e-workflow-rows';
+import {
   insertChatChannelTriggerRow,
   insertWorkflowRow,
   setupChatChannelTrigger,
@@ -108,29 +112,6 @@ const SLASH_GROUP_CHAT_REFUSAL = {
   response_type: 'ephemeral',
   text: '이 봇은 1:1 대화만 지원합니다.',
 };
-
-/** 워크플로우에 수동 트리거 노드를 하나 단다. 이 노드가 있어야 DM 의 `start` 가 실행을 만든다. */
-async function addManualTriggerNode(
-  db: Client,
-  workflowId: string,
-): Promise<void> {
-  await db.query(
-    `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
-     VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
-    [randomUUID(), workflowId, JSON.stringify({ parameters: [] })],
-  );
-}
-
-async function countExecutions(
-  db: Client,
-  workflowId: string,
-): Promise<string> {
-  const rows = await db.query<{ n: string }>(
-    'SELECT count(*)::text AS n FROM execution WHERE workflow_id = $1',
-    [workflowId],
-  );
-  return rows.rows[0]?.n ?? '';
-}
 
 // inbound-signing secret 저장 (AES-256-GCM application encryption — secret_store INSERT 는
 // application 경로를 거쳐야 함. e2e 에서는 직접 INSERT 가 불가 — REST API 없이
@@ -624,13 +605,12 @@ describe('Slack Chat Channel e2e', () => {
   });
 
   /**
-   * 서명 참조가 없는 옛 행을 재발급해도 참조가 생기지 않아 인바운드가 끊기지 않는다(NERV Task
-   * `CLE-T-TJAHCN`). e2e 에는 Slack API 가짜 서버가 없어 재발급은 늘 채널 등록(4단계)에서 실패한다.
+   * 실패한 봇 토큰 재발급이 서명 참조를 남기지 않는다(NERV Task `CLE-T-TJAHCN`). e2e 에는 Slack API 가짜 서버가 없어 재발급은 늘 채널 등록(4단계)에서 실패한다.
    * 그래서 여기서는 실패한 재발급이 참조를 남기지 않는지만 본다. 성공한 재발급이 참조를 싣는
    * 조건은 `triggers.service.spec.ts` 의 「저장하는 inboundSigningRef」 가 고정한다.
    */
   describe('봇 토큰 재발급과 인바운드 서명 참조', () => {
-    it('참조가 없는 행은 재발급을 시도한 뒤에도 참조가 없고 서명 없는 요청을 그대로 받는다', async () => {
+    it('재발급이 채널 등록에서 실패하면 참조가 없는 행에 참조가 생기지 않는다', async () => {
       const owner = await registerAndLogin(
         BASE_URL,
         uniqueEmail('slack-rotate'),

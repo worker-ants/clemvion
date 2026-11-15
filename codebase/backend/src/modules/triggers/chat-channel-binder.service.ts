@@ -16,6 +16,7 @@ import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import {
   stripChatChannelPlaintext,
   extractInboundSigningRef,
+  shouldKeepInboundSigningRef,
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
@@ -189,8 +190,10 @@ export class ChatChannelBinderService {
     // `config.chatChannel` 을 통째로 교체한 뒤 저장하고, 그 결과를 이 함수에 넘긴다. 즉 여기
     // 도착한 시점의 `trigger.config.chatChannel` 은 **이미 요청 바디로 갈아치워져** 옛 ref 가
     // 없다. 그래서 호출자가 **병합 전에** 집어 인자로 넘긴다.
-    const inboundSigningRefSurvives =
-      providerIssuedStored || Boolean(preservedInboundSigningRef);
+    const inboundSigningRefSurvives = shouldKeepInboundSigningRef(
+      providerIssuedStored,
+      preservedInboundSigningRef,
+    );
 
     const internalCfg: ChatChannelConfig = {
       ...(sanitizedCfg as ChatChannelConfig),
@@ -210,8 +213,10 @@ export class ChatChannelBinderService {
      * 다시 읽고 이 값을 그대로 넣으면 결함이 그대로 재발한다.
      */
     const survivesWithFresh = (freshConfig: Record<string, unknown>): boolean =>
-      inboundSigningRefSurvives ||
-      Boolean(extractInboundSigningRef(freshConfig));
+      shouldKeepInboundSigningRef(
+        inboundSigningRefSurvives,
+        extractInboundSigningRef(freshConfig),
+      );
 
     /**
      * 락 안에서 쓸 `chatChannel` 을 만든다 — **성공·실패 두 경로가 이 함수 하나를 쓴다.**

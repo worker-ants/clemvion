@@ -60,6 +60,7 @@ import {
   stripChatChannelPlaintext,
   translateSetupChannelError,
   extractInboundSigningRef,
+  shouldKeepInboundSigningRef,
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { assertRawConfigAccepted } from './trigger-config-internal-fields';
@@ -1708,9 +1709,10 @@ export class TriggersService {
         // 붙이면 시크릿 저장소에 값이 없는 참조가 생겨 그 트리거의 인바운드가 모두 401 이 된다
         // (NERV Task `CLE-T-TJAHCN`). 참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 그대로 둔다.
         // 근거: [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW#인바운드-서명-자료-참조가-없는-행).
-        const signingRefAtStart =
-          Boolean(result.issuedInboundSigning) ||
-          Boolean(chatChannelCfg.inboundSigningRef);
+        const signingRefAtStart = shouldKeepInboundSigningRef(
+          Boolean(result.issuedInboundSigning),
+          chatChannelCfg.inboundSigningRef,
+        );
         const signingRefDelta = (
           keep: boolean,
         ): { inboundSigningRef?: string } =>
@@ -1763,8 +1765,10 @@ export class TriggersService {
                 ...(result.configUpdates ?? {}),
                 botTokenRef,
                 ...signingRefDelta(
-                  signingRefAtStart ||
-                    Boolean(extractInboundSigningRef(freshConfig)),
+                  shouldKeepInboundSigningRef(
+                    signingRefAtStart,
+                    extractInboundSigningRef(freshConfig),
+                  ),
                 ),
               },
               merged as unknown as Record<string, unknown>,

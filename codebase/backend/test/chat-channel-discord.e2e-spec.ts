@@ -7,6 +7,10 @@ import { randomUUID } from 'node:crypto';
 import { createDbClient } from './helpers/db';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
 import {
+  addManualTriggerNode,
+  countExecutions,
+} from './helpers/e2e-workflow-rows';
+import {
   insertChatChannelTriggerRow,
   setupChatChannelTrigger,
 } from './helpers/e2e-chat-channel-fixture';
@@ -267,11 +271,7 @@ describe('Discord Chat Channel e2e', () => {
 
     it('DM /workflow start → 200 + 수신 문구이고 새 실행의 response_code 는 200 이다', async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
-      await db.query(
-        `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
-         VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
-        [randomUUID(), setup.workflowId, JSON.stringify({ parameters: [] })],
-      );
+      await addManualTriggerNode(db, setup.workflowId);
       try {
         const res = await post(
           setup.endpointPath,
@@ -296,11 +296,7 @@ describe('Discord Chat Channel e2e', () => {
     // `content` 는 `languageHints.commandReceived` 가 있으면 그 문구다(NERV Task `CLE-T-3HYK6R`).
     it('같은 /workflow start 가 다시 와도 200 + 수신 문구이고 실행은 하나다', async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
-      await db.query(
-        `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
-         VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
-        [randomUUID(), setup.workflowId, JSON.stringify({ parameters: [] })],
-      );
+      await addManualTriggerNode(db, setup.workflowId);
       try {
         const body = interaction(
           `I-dup-start-${Date.now()}`,
@@ -314,11 +310,7 @@ describe('Discord Chat Channel e2e', () => {
         expect(second.status).toBe(200);
         expect(second.body).toEqual(RECEIVED);
 
-        const rows = await db.query<{ n: string }>(
-          'SELECT count(*)::text AS n FROM execution WHERE workflow_id = $1',
-          [setup.workflowId],
-        );
-        expect(rows.rows[0]?.n).toBe('1');
+        expect(await countExecutions(db, setup.workflowId)).toBe('1');
       } finally {
         await db
           .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])

@@ -42,8 +42,9 @@ return c
  *
  * Redis 가 없거나 오류면 막지 않는다(fail-open, `ChatChannelRateLimiterService` 와 같다). Redis 오류는
  * 경고 로그로 남기고 `clemvion.redis.fail_open{component=chat_signature_failure_limit}` 에 센다
- * (조회 `get_failed` · 기록 `incr_failed`, NERV Task `CLE-T-TB33HY`). Redis 가 없어 기능을 끈 상태는 세지 않는다. 한 쌍이 한도에 닿으면 그 창에서 한 번 경고 로그를 남긴다. 클라이언트 IP 는 로그에
- * 남기지 않는다.
+ * (조회 `get_failed` · 기록 `incr_failed`, NERV Task `CLE-T-TB33HY`).
+ * Redis 가 없어 기능을 끈 상태는 세지 않는다. 한 쌍이 한도에 닿으면 그 창에서 한 번 경고 로그를
+ * 남긴다. 클라이언트 IP 는 로그에 남기지 않는다.
  */
 @Injectable()
 export class ChatChannelSignatureFailureLimiterService {
