@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-PROTO"
 title: "AI 어시스턴트 스트리밍과 세션 API"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "6d02040cff1d7ffd1743be2da6b3719011f5a51b1b69edb21487ae82b3d9597b"
+content_hash: "1a728da5c88049908103dd8d5edfd3a1bf08e98fa2cdb5f637a4d4759f183ff9"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-P3SKS4"
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "4fe1b270f5e1b86ef77ecbbae85f2da4096ee02e00e34dc650f2426b5b90bfa6"
-etag: "sha256-c0dd58e2195037601a1b874d43aa80b1ac4b24f7642ea18c45ac735d003e20f3"
+mirror_sha256: "bf576c75e2c4997f3debcd32120b5d622f3795bf6438ffdb1ea5ddb7ec379505"
+etag: "sha256-61e7e31c434329217a8dfa1f383fee139d6c752c8c13c82033c5981c9751f00d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,10 +58,13 @@ interface AssistantMessageRequest {
     edges: Array<{id, sourceNodeId, sourcePort, targetNodeId, targetPort, type}>;
   };
   llmConfigId?: UUID;              // 생략하면 세션에 저장된 값, 그것도 없으면 워크스페이스 기본 설정
+  workflowRunning?: boolean;       // 에디터에서 워크플로우가 실행 중이면 true. 생략하면 false
 }
 ```
 
 `currentWorkflow` 는 시스템 프롬프트의 현재 워크플로우 스냅샷으로 들어간다. `width`·`height` 는 시스템 프롬프트의 배치 지침이 쓴다([워크플로우 AI 어시스턴트 §시스템 프롬프트](CLE-WF-ASSIST.md#시스템-프롬프트)).
+
+`workflowRunning` 은 에디터의 실행 상태가 `running` 이거나 `waiting_for_input` 이면 `true` 다. 서버는 턴을 시작할 때 이 값을 읽는다. 값이 `true` 인 턴은 편집 도구를 Shadow 에 적용하지 않고 도구 결과 `ASSISTANT_WORKFLOW_RUNNING` 으로 거부한다. 턴 도중에 실행이 시작돼도 그 턴은 막지 않는다. 판정 기준과 거부 결과는 [워크플로우 AI 어시스턴트 「실행과 디버깅」](CLE-WF-ASSIST.md#실행과-디버깅) 이 정한다.
 
 ### 한 턴의 흐름
 
@@ -129,7 +132,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "The LLM provider rate limit was rea
 | `config_fallback` | 요청이나 세션이 지정한 모델 설정을 찾지 못해(삭제됐거나 워크스페이스 밖이거나 Chat 종류가 아님) 워크스페이스 기본 설정으로 대신했다는 알림(REQ-ASSIST-009). 데이터는 `{requestedConfigId, configId, configName}`. 대신했을 때만 턴의 첫 이벤트로 한 번 온다 | `assistant.configFallbackToast` 토스트에 `configName` 을 넣어 알리고 선택한 모델 설정 값을 비운다. 다음 턴부터 기본 설정을 쓴다([워크플로우 AI 어시스턴트 §모델 설정](CLE-WF-ASSIST.md#모델-설정)) |
 | `text` | 어시스턴트 텍스트 조각(delta) | 현재 어시스턴트 버블에 덧붙인다 |
 | `tool_call` | 탐색·편집 도구 호출 결과. `data.kind` 로 후처리를 나눈다 | [`data.kind` 별 동작](#tool_call-데이터) |
-| `plan` | `propose_plan` 결과 | 메시지에 계획 카드를 더한다 |
+| `plan` | `propose_plan` 결과. `title` 은 빈 문자열일 수 있다 | 메시지에 계획 카드를 더한다. `title` 이 비면 카드의 제목 줄을 그리지 않는다([패널 화면](CLE-WF-ASSIST-UI.md#요소별-동작)) |
 | `auto_resume` | 서버가 자동 이어서 진행에 들어갔다는 알림 | 현재 버블을 `streaming=false` 로 확정하고 `autoResume={reason, attempt, max}` 메타를 단 새 어시스턴트 버블을 추가한다. 뒤이은 `text`·`tool_call` 은 새 버블로 가고 새 버블 앞에 구분선을 그린다 |
 | `usage` | 토큰 사용량. 데이터는 `{inputTokens, outputTokens, totalTokens, thinkingTokens?, model}` 이고 메시지 행의 `usage` 와 모양이 같다 | 화면 표시는 선택 |
 | `done` | 어시스턴트 턴 종료 | 스트리밍 표시를 끝내고 입력창을 다시 쓸 수 있게 한다 |
@@ -142,7 +145,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "The LLM provider rate limit was rea
 | `id` | `string` | LLM 이 만든 tool_call ID. 세션을 다시 불러올 때와 계획 단계 매칭에 쓴다 |
 | `name` | `string` | 도구 이름 |
 | `arguments` | `object` | LLM 이 만든 인자(파싱을 마친 JSON 객체) |
-| `result` | `unknown` | 도구 실행 결과. 편집 도구는 `{ok, id?, ports?, error?, pendingUserConfig?, ...}` 이다. 탐색 도구는 도구마다 모양이 다르다([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md)) |
+| `result` | `unknown` | 도구 실행 결과. 편집 도구는 `{ok, id?, ports?, error?, pendingUserConfig?, ...}` 이다. 편집 도구 실패는 `ok: false` 와 `error` 코드로 오고 턴은 이어진다. 실행 중 편집 거부(`ASSISTANT_WORKFLOW_RUNNING`)도 이렇게 온다. 탐색 도구는 도구마다 모양이 다르다([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md)) |
 | `kind` | `'explore' \| 'edit'` | 후처리를 가르는 값 |
 | `planStepId` | `string?` | `kind='edit'` 일 때 LLM 이 맞춘 계획 단계 ID (단일, 옛 단축형) |
 | `planStepIds` | `string[]?` | 호출 하나가 여러 계획 단계를 해결할 때 쓴다. 소비자는 `planStepId` 와 `planStepIds` 의 합집합으로 완료 처리해야 한다 |

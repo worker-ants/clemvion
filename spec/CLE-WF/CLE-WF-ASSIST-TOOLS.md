@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS"
 title: "AI 어시스턴트 도구"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "2207e3d71beda235d348e6ff5a2e5e055a580d6b4312d5fd29828ef15c8074ad"
+content_hash: "ca785dca9d051011177f4f0a15750a4ef9bcbe788aa8cb83e37be40ada3d75bc"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZN111F"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md"]
-mirror_sha256: "761fc1b85d54cddd28dae4563de14071462cfd0fcb65cbe1ebe2457d8dea6987"
-etag: "sha256-4a65a9bbceb999c208f5cef914757487b1973a8e9b7b7261844fc9945a06a78b"
+mirror_sha256: "d74158961b23b5d063ae35eddbba335aea33dcf97d0fcb2a43842810b9483259"
+etag: "sha256-7c79d76aeb5105e00de52d517c73f61b31c441a3416ddfd82dd3ae0176b9b338"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -106,6 +106,8 @@ etag: "sha256-4a65a9bbceb999c208f5cef914757487b1973a8e9b7b7261844fc9945a06a78b"
 | `propose_plan` | `{title: string, summary: string, steps: Step[], openQuestions?: string[]}` | `{ok: true, planId: UUID}` | 사용자에게 계획 카드를 제시한다. 활성 계획이 있을 때 부르면 활성 계획을 새 계획으로 바꾼다. 화제 전환이 아니라 계획을 고칠 때의 정상 경로다 |
 | `clear_plan` | `{reason?: string}` | `{ok: true, cleared: true}` | 활성 계획을 세션 컨텍스트에서 지운다. 사용자가 전혀 다른 작업을 요청했거나 계획을 버린다고 밝힌 경우처럼 화제가 완전히 바뀌었을 때만 부른다. 부른 뒤로는 시스템 프롬프트의 활성 계획 컨텍스트가 사라지고 종료 가드도 그 계획을 기준으로 동작하지 않는다 |
 
+`propose_plan` 의 `title` 을 모델이 비우거나 빠뜨리면(문자열이 아닌 값 포함) 서버는 계획 `title` 을 빈 문자열로 둔다. 화면은 빈 계획 제목 줄을 그리지 않는다([패널 화면](CLE-WF-ASSIST-UI.md)).
+
 ```typescript
 interface Step {
   id: string;            // LLM 이 정한다. 편집 도구의 planStepId 와 맞춘다
@@ -131,6 +133,7 @@ interface Step {
 - `ports` 는 [런타임 포트 목록](CLE-WF-ASSIST-TOOLS-EDITRESULT.md#런타임-포트-목록), `pendingUserConfig` 는 [사용자 선택 필드 후보](CLE-WF-ASSIST-TOOLS-EDITRESULT.md#사용자-선택-필드-후보)를 따른다.
 - 성공 응답에는 `configWarnings`(설정 경고), `warning`(계획 단계 누락 경고)이 붙을 수 있다([Shadow 검증 규칙](CLE-WF-ASSIST-TOOLS-SHADOW.md#shadow-검증-규칙)).
 - `update_node`·`remove_node`·`add_edge` 의 `id`·`source_id`·`target_id` 자리에는 노드 UUID 만 쓴다. UUID 의 출처는 직전 `add_node` 성공 응답의 `result.id` 와 `currentWorkflow.nodes[*].id` 두 가지뿐이다. 라벨을 넣으면 `NODE_NOT_FOUND` 가 난다.
+- `ASSISTANT_WORKFLOW_RUNNING`: 요청의 `workflowRunning` 이 true 인 턴에는 편집 부류 도구(`add_node`·`update_node`·`remove_node`·`add_edge`·`remove_edge`)가 `{ok: false, error: 'ASSISTANT_WORKFLOW_RUNNING', message}` 를 돌려준다. 서버는 이 편집을 Shadow 에 적용하지 않는다. 이 검사는 `PLAN_AWAITING_APPROVAL` 보다 먼저다. 거부된 호출은 계획 단계를 완료 처리하지 않는다. 모델은 같은 편집을 다시 부르지 않고 실행이 끝난 뒤 다시 요청하라고 사용자에게 안내한다. 탐색 · 계획 도구와 `finish` 는 그대로 쓸 수 있다. 실행 중 판정과 안내는 [AI 어시스턴트 §실행과 디버깅](CLE-WF-ASSIST.md#실행과-디버깅)에서 정한다.
 - `finish` 는 어시스턴트 턴을 끝내는 신호다. 막는 조건(계획 완결성·품질 점검·요청 대조)과 막힌 뒤의 동작은 [AI 어시스턴트 §종료 가드](CLE-WF-ASSIST.md#종료-가드)에서 정한다.
 
 ### 버튼 ID 자동 부여
