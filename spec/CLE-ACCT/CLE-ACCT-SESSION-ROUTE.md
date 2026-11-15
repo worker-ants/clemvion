@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION-ROUTE"
 title: "세션과 토큰 — 라우트 가드와 로그인 뒤 이동"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SESSION"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SESSION"]
 area: "CLE-ACCT"
-content_hash: "f324b62a9e36e693d5ec7881846b935c0e89331aec3a64110f221c9cc422a6ef"
+content_hash: "1d6e806b65139817aa399eded89dfd939c0868ad767054e041e484674533950e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-6F4W2A"
 source_paths: []
-mirror_sha256: "6a94272f38d273cbe3f9431564ab286c920ce150b3915f4e9bbea088e8cec152"
-etag: "sha256-e72fe710d25d31a79a6bbf3473db60124b6896bbe13b062c4dc1224c3f335f2a"
+mirror_sha256: "6d5a0a1ea23adbc1e933e4412cf5df6fb07bd112d6d36e64e0a3b1b0cfc90b7e"
+etag: "sha256-89baf68b196ce05bdac3a713cafa39c19b048b2f4955cbb62e4b2703d7990584"
 ---
 > 구현 상태: 구현됨 · 상위: [세션과 토큰](CLE-ACCT-SESSION.md)
 
@@ -69,7 +69,7 @@ etag: "sha256-e72fe710d25d31a79a6bbf3473db60124b6896bbe13b062c4dc1224c3f335f2a"
 - 슬러그 경로 `/w/<slug>/…` 는 그대로 간다. 슬러그 없는 옛 경로(예: `/invitations/accept?token=…`)는 옛 경로 흡수 라우트(catch-all route)가 받아 쿼리와 해시를 둔 채 현재 워크스페이스의 슬러그 경로로 넘긴다.
 - `/dashboard` 도 슬러그 없는 경로다. 로그인 폼은 슬러그를 알기 전이라 `/dashboard` 로 보내고, `(main)/[...rest]` 옛 경로 흡수 라우트가 워크스페이스 목록을 읽은 뒤 현재 워크스페이스의 `/w/<slug>/dashboard` 로 넘긴다. 리다이렉트만 하는 중간 경로라 화면 깜빡임을 허용한다. 슬러그 라우팅 규칙은 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 이 정한다.
 
-안전한 같은 출처 경로의 기준은 다음 표다. 판정은 `isSafeInternalPath`(`lib/workspace/safe-path.ts`) 하나로 한다. 이 함수는 링크 생성(`buildWorkspaceHref`)과 같은 정규화 함수 `toSafeInternalPath` 를 쓴다. 이유는 「[로그인 뒤 이동은 같은 출처 경로만 받는다 (2026-10-18)](#로그인-뒤-이동은-같은-출처-경로만-받는다-2026-10-18)」 에 있다.
+안전한 같은 출처 경로의 기준은 다음 표다. 판정은 `isSafeInternalPath`(`lib/workspace/safe-path.ts`) 하나로 한다. 이 함수는 링크 생성(`buildWorkspaceHref`)과 같은 정규화 함수 `toSafeInternalPath` 를 쓴다. 이유는 「[로그인 뒤 이동은 같은 출처 경로만 받는다](#로그인-뒤-이동은-같은-출처-경로만-받는다)」 에 있다.
 
 | `redirect` 값 | 판정 |
 | --- | --- |
@@ -90,7 +90,7 @@ etag: "sha256-e72fe710d25d31a79a6bbf3473db60124b6896bbe13b062c4dc1224c3f335f2a"
 
 #### 소셜 로그인의 복귀 경로
 
-소셜 로그인은 백엔드와 OAuth 제공자를 거쳐 `/callback` 으로 돌아온다. 백엔드 인증 API 를 바꾸지 않고 복귀 경로를 그 탭의 sessionStorage 로 넘긴다(`lib/auth/post-login-redirect.ts`). 이유는 「[소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)](#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다-2026-10-18)」 에 있다.
+소셜 로그인은 백엔드와 OAuth 제공자를 거쳐 `/callback` 으로 돌아온다. 백엔드 인증 API 를 바꾸지 않고 복귀 경로를 그 탭의 sessionStorage 로 넘긴다(`lib/auth/post-login-redirect.ts`). 이유는 「[소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다](#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다)」 에 있다.
 
 1. 로그인 화면은 소셜 로그인을 시작하기 전에 `redirect` 값을 그 탭의 sessionStorage 키 `clemvion.postLoginRedirect` 에 둔다. 값이 없거나 안전하지 않으면 남아 있던 값을 지운다.
 2. 가입 화면에서 시작하는 소셜 로그인(`mode=register`)은 남아 있던 값을 지운다.
@@ -121,7 +121,9 @@ etag: "sha256-e72fe710d25d31a79a6bbf3473db60124b6896bbe13b062c4dc1224c3f335f2a"
 
 ## Rationale
 
-### 로그인 뒤 이동은 같은 출처 경로만 받는다 (2026-10-18)
+### 로그인 뒤 이동은 같은 출처 경로만 받는다
+
+결정일: 2026-10-18
 
 `redirect` 는 누구나 만들 수 있는 링크의 쿼리다. 로그인 화면이 받은 값으로 아무 URL 이나 열면 오픈 리다이렉트가 된다. 공격자가 우리 로그인 화면을 거쳐 피싱 사이트로 보내는 링크를 만들 수 있다. 그래서 같은 출처의 경로만 받고 나머지는 `/dashboard` 로 보낸다.
 
@@ -136,7 +138,9 @@ etag: "sha256-e72fe710d25d31a79a6bbf3473db60124b6896bbe13b062c4dc1224c3f335f2a"
 
 전체 화면 오류(`ErrorPage`)의 세션 만료 변형(`components/ui/error-page.tsx`, `app/(main)/error.tsx`)도 같은 판정을 쓴다. 이 화면은 처음에 경로만 담아 쿼리가 필요한 화면(예: 초대 수락 페이지의 `?token=`)에서 401 이 나면 로그인 뒤 쿼리 없이 돌아왔다. 2026-11-13 에 이 화면도 경로와 쿼리를 담게 했고([오류 화면과 빈 상태 「감지 규칙」](../CLE-UI/CLE-UI-ERRORS.md#감지-규칙)), 서버 proxy 도 `buildLoginHref` 로 주소를 만들게 했다. 그래서 로그인 화면으로 보내는 네 곳이 한 헬퍼로 같은 인코딩을 쓴다.
 
-### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)
+### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다
+
+결정일: 2026-10-18
 
 소셜 로그인은 백엔드 시작 요청, OAuth 제공자, 백엔드 콜백을 거쳐 프론트엔드 `/callback` 으로 돌아온다. 이번 범위는 백엔드 인증 API 를 바꾸지 않는다. 그래서 로그인 화면이 복귀 경로를 같은 탭의 sessionStorage 에 두고 `/callback` 이 꺼낸다.
 
@@ -154,7 +158,9 @@ etag: "sha256-e72fe710d25d31a79a6bbf3473db60124b6896bbe13b062c4dc1224c3f335f2a"
 
 콜백은 이동하기 전에 `GET /api/users/me` 를 읽어 비밀번호 로그인과 같게 로그인 상태를 표시한다. 이때 로그인 힌트 쿠키(`has_session`)가 심어진다. 쿠키 없이 보호 경로로 이동하면 proxy 가 JS 를 내려보내기 전에 다시 `/login` 으로 보낸다. 소셜 로그인을 마친 사용자가 복귀 경로 대신 로그인 화면을 보지 않게 하려는 것이다.
 
-### 로그인 힌트 쿠키 규약을 한 모듈에 둔다 (2026-10-18)
+### 로그인 힌트 쿠키 규약을 한 모듈에 둔다
+
+결정일: 2026-10-18
 
 쿠키 문자열은 `auth-store.ts` 에, 쿠키 이름은 proxy 와 가입 화면에 따로 적혀 있어 한 곳만 바꾸면 나머지가 어긋날 수 있었다. 그래서 쿠키 이름 · 속성과 심기 · 지우기 · 읽기를 `lib/auth/session-hint.ts` 한 곳에 모았다. 쿠키 이름 · 속성 · 심는 시점은 바뀌지 않았다.
 
@@ -162,7 +168,9 @@ proxy(Next 서버 미들웨어)도 이 모듈을 import 한다. 그래서 이 �
 
 사용처마다 쿠키 문자열을 그대로 두는 방식은 택하지 않았다. 쿠키 이름이나 속성을 바꿀 때 세 곳을 함께 고쳐야 했고, 한 곳을 빠뜨려도 이를 잡는 테스트가 없었다.
 
-### 토큰을 받은 경로를 한 진입점으로 모았다 (2026-11-05)
+### 토큰을 받은 경로를 한 진입점으로 모았다
+
+결정일: 2026-11-05
 
 초대 토큰 가입과 이메일 인증의 자동 로그인은 액세스 토큰만 두고 로그인 힌트 쿠키를 심지 않았다. 그래서 보호 경로로 가면 proxy 가 로그인 화면으로 보냈다. 토큰을 받는 경로가 함께 쓰는 진입점 `establishSession`(`codebase/frontend/src/lib/auth/establish-session.ts`)을 두어 이 어긋남을 없앴다.
 

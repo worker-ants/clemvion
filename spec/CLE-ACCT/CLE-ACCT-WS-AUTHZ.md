@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-AUTHZ"
 title: "워크스페이스와 멤버 — API 인가"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "8ac5a587bc6c92847469c7bcc8d529080728e5e64983aaf55b54d644f4645759"
+content_hash: "6ffff3ed5003b7b924ef971279f3d8dcb65019cd8b0dbeefd2e96d0d75530ee9"
 read_as: "approved_fallback"
-task: "CLE-T-ZPPWK4"
+task: "CLE-T-6F4W2A"
 source_paths: []
-mirror_sha256: "4e0ac8a0bd84799b864846ef1d0eb6e592546f97186497078a3aa5ac8d66e091"
-etag: "sha256-8c4f7ced07cca2d40defcdaa1713ddd8633d74cb781c0e2267392c3252fbc1fc"
+mirror_sha256: "60ce5ea5de5f7e75fb08d0c1e7842f41f4177337b49ed589ba5c17267e25b10b"
+etag: "sha256-62668362b807c86967558daadb9c8809dcdae05db28fdb223fbb42df9b31ff31"
 ---
 ## 개요
 
@@ -168,7 +168,9 @@ etag: "sha256-8c4f7ced07cca2d40defcdaa1713ddd8633d74cb781c0e2267392c3252fbc1fc"
 
 (c) `assertProductionConfig` 와 합치지 않았다. 축이 다르다. 그쪽은 환경 변수 축이라 `NODE_ENV=production` 에서만 동작하고 개발·테스트에서는 아무 일도 하지 않는다. 이 검사는 환경과 무관한 구조 불변식이라 모든 환경에서 동작해야 뜻이 있다. 합치면 "production config" 라는 이름의 범위를 넘고, production 한정 조건이 이 검사까지 끌고 갈 위험이 생긴다.
 
-### 토큰 검증의 401 에 새 코드 `NO_WORKSPACE_AVAILABLE` 을 주기로 했다 (2026-11-12)
+### 토큰 검증의 401 에 새 코드 `NO_WORKSPACE_AVAILABLE` 을 주기로 했다
+
+결정일: 2026-11-12
 
 사람이 정했고 2026-11-14 에 NERV Task `CLE-T-ZPPWK4` 가 구현했다. 조건과 메시지(`No workspace found for user`)는 그대로 두고 코드만 바꿨다.
 

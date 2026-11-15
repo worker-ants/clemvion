@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 25
+version: 26
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072", "REQ-WSPACE-073"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "de959f17638c9a1d9e58ed7367d0fc8ca9958b2aba7e32f3fef46db6ae6bbfe6"
+content_hash: "d74a24be365f1aae348e203871183d8aceb923d41098d728d85a42e31de11e67"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-6F4W2A"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "ae4ddd29d4dc5a33f7c2851653aa5d2224c91125279588e29e48f5b9f4893b90"
-etag: "sha256-1233b0dc4d3dc55fef91938792dcc6b5e61eaaa5a9b5628aa78b4a84af5ac404"
+mirror_sha256: "5d87ab5fe0309c54c45ddb7a344bfbe30f0b60c75c9c9c27f84b64b4e71a17cb"
+etag: "sha256-6538f38b4f2668a8063a7fb3e6744c79996b65907e8552fae1628de10e6d0b57"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -202,9 +202,11 @@ etag: "sha256-1233b0dc4d3dc55fef91938792dcc6b5e61eaaa5a9b5628aa78b4a84af5ac404"
 
 → [초대](CLE-ACCT-WS-INVITE.md#초대-메일-링크는-register-로-보내고-옛-경로는-리다이렉트한다)
 
-### 가입 여부 확인은 이메일 존재를 새로 노출하지 않는다 (2026-10-18)
+### 가입 여부 확인은 이메일 존재를 새로 노출하지 않는다
 
-→ [초대](CLE-ACCT-WS-INVITE.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다-2026-10-18)
+결정일: 2026-10-18
+
+→ [초대](CLE-ACCT-WS-INVITE.md#가입-여부-확인은-이메일-존재를-새로-노출하지-않는다)
 
 ### 관리자 역할을 주고 빼는 일은 소유자만 한다
 
@@ -216,11 +218,13 @@ etag: "sha256-1233b0dc4d3dc55fef91938792dcc6b5e61eaaa5a9b5628aa78b4a84af5ac404"
 
 ### 나가기와 제거는 개인 통합도 지운다 (2026-10-29)
 
-→ [멤버 관리와 역할](CLE-ACCT-WS-MEMBER.md#나가기와-제거는-개인-통합도-지운다-2026-10-29)
+→ [멤버 관리와 역할](CLE-ACCT-WS-MEMBER.md#나가기와-제거는-개인-통합도-지운다)
 
-### 직접 추가와 초대는 어느 계정인지 정할 수 없으면 가입하지 않은 이메일처럼 다룬다 (2026-11-06)
+### 직접 추가와 초대는 어느 계정인지 정할 수 없으면 가입하지 않은 이메일처럼 다룬다
 
-→ [멤버 관리와 역할](CLE-ACCT-WS-MEMBER.md#직접-추가와-초대는-어느-계정인지-정할-수-없으면-가입하지-않은-이메일처럼-다룬다-2026-11-06)
+결정일: 2026-11-06
+
+→ [멤버 관리와 역할](CLE-ACCT-WS-MEMBER.md#직접-추가와-초대는-어느-계정인지-정할-수-없으면-가입하지-않은-이메일처럼-다룬다)
 
 ### 멤버십 검증은 가드 한 곳에서 `@Roles()` 와 상관없이 한다
 

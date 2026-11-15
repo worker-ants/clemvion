@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-OPS"
 title: "계정과 워크스페이스 데이터 흐름 — 테이블 쓰기 · 배치 · 외부 의존"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "7137dd45796bf2b799944faf96555ecd720c84dd19f67398c2e7262374199269"
+content_hash: "e5d42512e131bf3eab7b03aa64b05f31f2efaa378d915fa9e48bc066474e338f"
 read_as: "approved_fallback"
-task: "CLE-T-GWC9M3"
+task: "CLE-T-VYNVGP"
 source_paths: []
-mirror_sha256: "6a8ff8f7f75f365a35e2db0dbd6417caec89d2bcbb717059df8bee342976897d"
-etag: "sha256-e199a74bdf1f7cfcbd853d0bdf1649519eddc712d61cd6a303c6f2549c00e89e"
+mirror_sha256: "a982c68bda571a2b8f5ea7aafa153d28fae82a6d56a8a1608dc5a9263236183d"
+etag: "sha256-3e497f1cfc6fbe3ae14901ca0bc2d4720d09ac141f8296e77c0ec139224115da"
 ---
 ## 개요
 
@@ -29,7 +29,7 @@ etag: "sha256-e199a74bdf1f7cfcbd853d0bdf1649519eddc712d61cd6a303c6f2549c00e89e"
 | `user` | 가입 | INSERT `email, password_hash, name, locale, theme, email_verify_token, email_verify_expires_at, created_at` | `email UNIQUE`(V001) |
 | `user` | 프로필 수정 | UPDATE `name, avatar_url, locale, theme`. `theme` 이 `light`·`dark`·`system` 밖이면 API 가 먼저 400 `VALIDATION_ERROR` 로 막는다 | `chk_user_theme` |
 | `user` | 로그인 실패 | UPDATE `login_attempts, locked_until` | 없음 |
-| `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id` | 없음 |
+| `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id, email_verified, avatar_url`(`oauth_provider IS NULL` 조건부). 이메일 인증 전 계정이면 같은 조건부 UPDATE 에 `email_verified = false` 조건을 더하고 `password_hash, password_reset_token, password_reset_expires_at, email_verify_token, email_verify_expires_at` 를 NULL 로 비운다. 순서와 세션 폐기는 [인증 흐름 「소셜 로그인」](CLE-ACCT-DATA-AUTH.md#소셜-로그인) | 없음 |
 | `user` | TOTP 켜기·끄기 | UPDATE `two_factor_enabled, two_factor_secret, two_factor_setup_started_at, totp_recovery_codes`. 설정 시작은 비밀번호를 확인한 뒤 `two_factor_secret` 과 `two_factor_setup_started_at = now` 를 `two_factor_enabled = false` 조건부 UPDATE 하나로 쓴다. 활성화 검증은 `two_factor_secret` 이 코드를 확인한 secret 과 같다는 조건을 더한 조건부 UPDATE 로 `two_factor_enabled=true` 와 `totp_recovery_codes` 를 쓰고 `two_factor_setup_started_at` 을 NULL 로 비운다. 끄기는 비밀번호와 코드(6자리 TOTP 코드나 TOTP 복구 코드)를 모두 확인한 뒤 `two_factor_enabled` 를 `false` 로, 나머지 세 컬럼을 NULL 로 바꾼다. 활성화 검증에서 그 사이 secret 이 바뀌었거나 끄기의 코드가 틀리면 401 `TOTP_INVALID` 이고 컬럼은 그대로다. 코드 확인 실패는 로그인 이력에 쓰지 않는다. 상태별 결과와 에러 코드(409 `TOTP_ALREADY_ENABLED`, 401 `TOTP_INVALID`, 400 `TOTP_NOT_INITIALIZED`)와 만료 비우기 조건은 [인증 흐름 「TOTP 대기 secret」](CLE-ACCT-DATA-AUTH.md#totp-대기-secret-usertwo_factor_setup_started_at) | 없음 |
 | `user` | Passkey 복구 코드 발급·소진·재발급·비우기 | UPDATE `webauthn_recovery_codes`. 첫 등록이 발급하고 복구 코드 사용이 맞은 항목을 지우고 재발급이 새 묶음으로 바꾼다. 사용자가 마지막 credential 을 지우면 NULL 로 비운다(counter 역행 삭제는 비우지 않는다). 이 쓰기와 `webauthn_credential` 의 INSERT · DELETE 는 사용자 행을 `FOR NO KEY UPDATE` 로 먼저 잠근 트랜잭션에서 한다([Passkey 기능과 등록 「사용자 행 잠금」](CLE-ACCT-SIGNIN-PASSKEY.md#사용자-행-잠금)) | 없음 |
 | `user` | 이메일 변경 | UPDATE `pending_email, email_change_token, email_change_expires_at`, 확정 때 `email, email_verified`. `pending_email` 은 앞뒤 공백을 지운 소문자로 저장하고 확정 때 그 값을 `email` 로 옮긴다 | `email UNIQUE`, `LOWER(email)`(V101) |
@@ -37,6 +37,7 @@ etag: "sha256-e199a74bdf1f7cfcbd853d0bdf1649519eddc712d61cd6a303c6f2549c00e89e"
 | `refresh_token` | 로그인·갱신 | INSERT `user_id, token_hash, family_id, is_revoked=false, expires_at, remember_me, device_label, user_agent, ip_address` | `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false`(V040) |
 | `refresh_token` | 토큰 회전 | 옛 행 UPDATE `is_revoked=true, last_used_at, last_used_ip`, 새 행 INSERT(옛 행의 `remember_me` 를 이어받는다) | 없음 |
 | `refresh_token` | 재사용 감지 | 같은 `family_id` 전체 UPDATE `is_revoked=true` | 없음 |
+| `refresh_token` | 미인증 계정의 소셜 연결 | 그 사용자의 행 전체 UPDATE `is_revoked=true`. 위 「OAuth 첫 연결」 의 이메일 인증 전 계정 UPDATE 가 한 행을 바꿨을 때만 그 UPDATE 와 같은 트랜잭션에서 한다. 폐기가 실패하면 그 UPDATE 도 함께 롤백하고 콜백은 실패한다. 새 로그인 세션은 이 트랜잭션을 커밋한 뒤에 발급한다 | 없음 |
 | `auth_oauth_state` | OAuth 시작 | INSERT `state, provider, mode, remember_me, expires_at = now+10m` | `state UNIQUE`(V013) |
 | `auth_oauth_state` | OAuth 콜백 | DELETE `WHERE state=? AND expires_at > now RETURNING`(원자적 1회 소비) | 없음 |
 | `login_history` | 모든 이벤트 | INSERT `user_id, email, event, ip_address, user_agent, device_label, family_id, failure_reason, created_at` | `(user_id, created_at DESC)`, `(email, created_at DESC)`(V040) |
@@ -164,4 +165,4 @@ NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거, 기각한 �
 
 ### Passkey 복구 코드 쓰기에 사용자 행 잠금을 적었다 (2026-11-14)
 
-NERV Task `CLE-T-HQQNEA`. `user` 행의 Passkey 복구 코드 쓰기에 사용자가 마지막 credential 을 지울 때 비우는 것과 사용자 행 잠금을 적었다. 복구 코드를 읽고 쓰는 경로가 모두 이 잠금에서 차례로 돌아야 credential 없이 코드가 남지 않는다. 범위와 근거의 정본은 [Passkey 기능과 등록 「복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다 (2026-11-14)」](CLE-ACCT-SIGNIN-PASSKEY.md#복구-코드를-읽고-쓰는-경로도-사용자-행-잠금-아래-둔다-2026-11-14) 다.
+NERV Task `CLE-T-HQQNEA`. `user` 행의 Passkey 복구 코드 쓰기에 사용자가 마지막 credential 을 지울 때 비우는 것과 사용자 행 잠금을 적었다. 복구 코드를 읽고 쓰는 경로가 모두 이 잠금에서 차례로 돌아야 credential 없이 코드가 남지 않는다. 범위와 근거의 정본은 [Passkey 기능과 등록 「복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다」](CLE-ACCT-SIGNIN-PASSKEY.md#복구-코드를-읽고-쓰는-경로도-사용자-행-잠금-아래-둔다) 다.

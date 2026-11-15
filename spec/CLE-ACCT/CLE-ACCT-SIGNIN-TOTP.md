@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-TOTP"
 title: "가입과 로그인 — 2단계 인증 설정과 TOTP"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "67a7e3b6f6f2adfc9a0f695a6a6b3a605739cb9e8486b2ece42da882ada8c229"
+content_hash: "7e291babc877b77866206f45dd454fa32dc96d6ad620d40c5e8d4f11047be418"
 read_as: "approved_fallback"
-task: "CLE-T-Q6E11N"
+task: "CLE-T-VYNVGP"
 source_paths: []
-mirror_sha256: "7bedf102042e7cb43f3b1e850a916e83da266a44171199228a5c3d249d00fa91"
-etag: "sha256-f21bd69ee5df68eb29a58cceae03a1b071b3347bdb527cf68c63f2dc14d1a7c8"
+mirror_sha256: "50ce70619858859bbea792cd329768fef574574446ef6912153569949a89be72"
+etag: "sha256-c9a98a430da7ae5fa9091036ff7c83363e447e6ab889513278a59d191e790f0a"
 ---
 ## 개요
 
@@ -111,7 +111,7 @@ counter 역행으로 마지막 credential 이 지워져도 Passkey 복구 코드
 
 ## 미결 사항
 
-- **복구 코드 소비의 원자성**: TOTP 복구 코드와 Passkey 복구 코드는 사용자 행을 읽어 맞는 항목을 뺀 배열을 다시 쓴다(`totp.service.ts` 의 `verifyForLogin`, `webauthn/webauthn.service.ts` 의 `verifyRecoveryCode`). 조건부 갱신이 아니라서 같은 복구 코드로 두 요청이 동시에 오면 둘 다 통과해 토큰이 두 번 나갈 수 있다. 조건부 갱신으로 한 번만 소비할지 정해야 한다.
+- **TOTP 복구 코드 소비의 원자성**: TOTP 복구 코드는 사용자 행을 읽어 맞는 항목을 뺀 배열을 다시 쓴다(`totp.service.ts` 의 `verifyForLogin`). 조건부 갱신도 행 잠금도 아니라서 같은 복구 코드로 두 요청이 동시에 오면 둘 다 통과해 토큰이 두 번 나갈 수 있다. 조건부 갱신이나 행 잠금으로 한 번만 소비할지 정해야 한다. Passkey 복구 코드는 사용자 행 잠금 아래에서 소비해 한 번만 통과한다([Passkey 기능과 등록 「사용자 행 잠금」](CLE-ACCT-SIGNIN-PASSKEY.md#사용자-행-잠금)).
 
 ## 구현 위치
 
@@ -144,11 +144,13 @@ TOTP 발급과 검증은 `otplib` v13 을 쓴다(`totp.service.ts`). secret 은 
 - v12 와 v13 모두 RFC 6238 을 따르므로 기존 secret 이 그대로 검증된다. RFC 6238 Appendix B 벡터로 교차 버전 단위 테스트를 둬 기존 사용자가 잠기지 않게 했다.
 - v12 의 `window:1` 허용 오차는 v13 의 `epochTolerance: 30`(앞뒤 1 time step)으로 같게 맞췄다.
 
-### TOTP 끄기에 비밀번호와 인증 코드를 함께 받는다 (2026-10-10)
+### TOTP 끄기에 비밀번호와 인증 코드를 함께 받는다
+
+결정일: 2026-10-10
 
 NERV Task `CLE-T-75TDTN` 의 결정이다. 원문 인증 명세의 2단계 인증 표는 끌 때 "비밀번호 재확인과 코드 입력" 을, API 표는 "인증과 비밀번호 재확인" 만 적었고 구현은 비밀번호만 받았다. 비밀번호와 코드를 모두 받기로 정했다.
 
-- **코드를 함께 받는 이유**: 비밀번호만으로 끌 수 있으면 비밀번호와 로그인 세션을 손에 넣은 사람이 두 번째 요소를 지울 수 있다. 2단계 인증이 막으려는 상황이 바로 그것이다. 요소를 지우려면 그 요소를 가졌다는 것을 보여야 한다. 켜진 상태의 setup/verify 로 새 secret 을 만들어 코드 확인을 통과하는 길은 2026-11-01 에 닫았다([TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다](#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다-2026-11-01)).
+- **코드를 함께 받는 이유**: 비밀번호만으로 끌 수 있으면 비밀번호와 로그인 세션을 손에 넣은 사람이 두 번째 요소를 지울 수 있다. 2단계 인증이 막으려는 상황이 바로 그것이다. 요소를 지우려면 그 요소를 가졌다는 것을 보여야 한다. 켜진 상태의 setup/verify 로 새 secret 을 만들어 코드 확인을 통과하는 길은 2026-11-01 에 닫았다([TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다](#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다)).
 - **복구 코드도 받는 이유**: 인증 앱을 잃은 사용자는 TOTP 복구 코드로 로그인한 뒤 TOTP 를 끄고 새 기기로 다시 설정해야 한다. TOTP 복구 코드만 따로 재발급하는 API 도 없다. 6자리 코드만 받으면 이 사용자는 TOTP 를 끌 수도 다시 설정할 수도 없다. 그래서 로그인 2단계와 같은 `verifyForLogin` 을 쓰고 복구 코드도 로그인처럼 소비한다.
 - **필드 이름 `code`**: 로그인 2단계 `POST /api/auth/login/totp` 의 본문 필드가 `code` 이고 길이 규칙(6~32자)과 받는 값이 같다. 활성화 검증 `POST /api/auth/2fa/verify` 도 `code` 를 쓴다(6자리만). 계정 재인증의 `totpCode` 는 등록된 TOTP 코드만 받는 필드라서 따르지 않았다. 이름이 같으면 받는 값도 같다고 읽히기 때문이다.
 - **확인 순서**: 비밀번호를 먼저 확인한다. 비밀번호가 틀린 요청은 코드를 확인하지 않으므로 복구 코드를 소비하지 않는다.
@@ -165,7 +167,9 @@ NERV Task `CLE-T-75TDTN` 의 결정이다. 원문 인증 명세의 2단계 인�
 - 비밀번호를 빼고 코드만 받기: 원문과 기존 구현이 모두 비밀번호 확인을 요구했다. 이를 약하게 할 이유가 없다.
 - 코드 누락용 새 에러 코드(`TOTP_REQUIRED`): 본문 검증이 이미 400 으로 막는다. 같은 상황에 코드를 둘 두지 않는다.
 
-### 계정 재인증과 TOTP 끄기는 코드 규칙이 다르다 (2026-10-10)
+### 계정 재인증과 TOTP 끄기는 코드 규칙이 다르다
+
+결정일: 2026-10-10
 
 이메일 변경과 세션 강제 종료의 계정 재인증은 등록된 TOTP 코드만 받고 TOTP 복구 코드는 받지 않는다([세션과 토큰](CLE-ACCT-SESSION.md) 의 「세션 정책」 표 「강제 종료 재인증」 행). TOTP 끄기는 복구 코드도 받는다. 두 규칙은 일부러 다르게 두었다.
 
@@ -178,7 +182,9 @@ NERV Task `CLE-T-75TDTN` 의 결정이다. 원문 인증 명세의 2단계 인�
 
 계정 재인증에서 복구 코드를 막는 것은 지금 본문 검증이다. `totpCode` 는 6~8자로 묶여 있어 `xxxx-xxxx-xxxx` 꼴의 복구 코드가 서비스에 닿지 않는다. 서비스(`verifyReauth`)는 로그인과 같은 `verifyForLogin` 을 부른다. 그래서 이 길이 제한을 넓히면 계정 재인증에서도 복구 코드가 통과하고 소비된다.
 
-### TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다 (2026-11-01)
+### TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다
+
+결정일: 2026-11-01
 
 NERV Task `CLE-T-94FTMV` 에서 사람 결정 두 건으로 정했다. 그 전에는 setup 과 verify 가 TOTP 가 이미 켜져 있는지 보지 않았고 로그인 세션만 있으면 됐다. 그래서 로그인 세션만 가진 사람이 secret 과 TOTP 복구 코드를 새로 만들어 원래 사용자의 인증 앱과 복구 코드를 못 쓰게 만들 수 있었다. 비밀번호까지 가진 사람은 새 secret 의 코드로 [TOTP 끄기](#totp-끄기) 도 통과했다. TOTP 가 꺼진 계정에서는 로그인 세션만 가진 사람이 자기 인증 앱으로 TOTP 를 켜 원래 사용자의 다음 로그인을 막을 수 있었다. 화면만 설정 카드를 숨겼고 API 는 막지 않았다.
 
@@ -190,16 +196,18 @@ NERV Task `CLE-T-94FTMV` 에서 사람 결정 두 건으로 정했다. 그 전�
 - **verify 는 코드를 확인하기 전에 거부한다.** 켜진 계정에서는 코드가 맞아도 새로 켤 것이 없다. 그래서 코드를 확인하지 않고 복구 코드도 다시 발급하지 않는다.
 - **setup 은 비밀번호를 다시 확인한다.** 로그인 세션만 가진 사람이 자기 인증 앱으로 TOTP 를 켜 원래 사용자를 잠그는 공격을 막는다. 켜진 계정을 거부하는 것만으로는 꺼진 계정에서 이 공격이 남는다. TOTP 끄기와 Passkey 복구 코드 재발급이 쓰는 비밀번호 재확인(`verifyPasswordForUser`)을 그대로 쓰고 같은 에러 코드(401 `PASSWORD_REQUIRED` · `PASSWORD_INVALID`)를 낸다.
 - **기각: 비밀번호를 받지 않는다.** 위 공격이 남는다.
-- **기각: 후속 Task 에서 TOTP 와 Passkey 를 함께 정한다.** TOTP 쪽은 setup · verify 를 고치면서 함께 막을 수 있어서 Passkey 를 기다리지 않았다. Passkey 쪽은 2026-11-02 에 정했다([Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02)).
+- **기각: 후속 Task 에서 TOTP 와 Passkey 를 함께 정한다.** TOTP 쪽은 setup · verify 를 고치면서 함께 막을 수 있어서 Passkey 를 기다리지 않았다. Passkey 쪽은 2026-11-02 에 정했다([Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다)).
 - **비밀번호를 켜짐 여부보다 먼저 본다.** TOTP 끄기와 같은 순서다. 비밀번호를 확인하지 못한 요청은 TOTP 상태를 읽기 전에 끝나므로 켜진 계정도 비밀번호가 틀리면 409 가 아니라 401 이다.
 - **저장은 조건부 갱신이다.** 켜짐 여부를 읽은 뒤 저장하기 전에 다른 탭의 verify 가 TOTP 를 켤 수 있다. 읽은 값만 믿고 쓰면 막 켜진 계정의 secret 이나 복구 코드를 덮어쓴다. 갱신된 행이 없을 때 secret 이 바뀌었으면 확인한 코드가 지금 secret 과 맞지 않으므로 401 `TOTP_INVALID` 이고 사용자는 새 QR 의 코드로 다시 확인한다. 조건 없이 쓰는 `UsersService.update` 대신 `TotpService` 가 `User` 저장소로 직접 쓴다.
 - **비용**: OAuth 전용 계정은 [비밀번호 재설정](CLE-ACCT-SIGNIN-SIGNUP.md#비밀번호-재설정) 으로 비밀번호를 만들기 전에는 TOTP 를 켤 수 없다. 끄기도 같은 조건이라 켜기와 끄기의 조건이 같아진다. OAuth 전용 계정이 계정 재인증 수단을 늘리는 길은 비밀번호 재설정 하나로 좁아졌다.
 - **setup 의 요청 한도**: setup 이 계정 비밀번호를 bcrypt 로 대조하는 경로가 됐기 때문에 더했다. 탈취한 액세스 토큰만 가진 사람이 `PASSWORD_INVALID` 응답을 보고 비밀번호를 추측하는 속도를 늦추고 bcrypt 비교가 스레드 풀을 오래 잡는 비용도 줄인다. TOTP 끄기와 같은 등급이라 같은 상수(`SENSITIVE_ACTION_THROTTLE`, 사용자당 분당 10회)를 쓴다.
 - **끄기의 꺼짐 응답은 바꾸지 않았다.** 꺼진 계정의 끄기 요청은 401 `TOTP_INVALID` 그대로다. 이번 결정은 켜진 계정의 켜기 요청만 다룬다.
 
-### TOTP 대기 secret 은 설정 시작 10분 뒤 버린다 (2026-11-02)
+### TOTP 대기 secret 은 설정 시작 10분 뒤 버린다
 
-NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. Passkey 등록의 비밀번호 재확인과 함께 정해 [Passkey 기능과 등록](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 에 적었던 근거를 2026-11-14 에 문서 크기 한도 때문에 이 문서로 옮겼다. 내용은 바꾸지 않았다.
+결정일: 2026-11-02
+
+NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. Passkey 등록의 비밀번호 재확인과 함께 정해 [Passkey 기능과 등록](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다) 에 적었던 근거를 2026-11-14 에 문서 크기 한도 때문에 이 문서로 옮겼다. 내용은 바꾸지 않았다.
 
 - **설정 시작 뒤 10분이 지나면 대기 secret 을 쓰지 않는다.** 수명이 없으면 비밀번호를 한 번 확인한 뒤 같은 secret 의 코드를 시간 제한 없이 추측할 수 있다.
 - **시각 컬럼을 더한다.** `user.two_factor_setup_started_at`(timestamptz, NULL 허용)이다. 응답에는 싣지 않는다. 비밀은 아니라서 [계정과 워크스페이스 데이터 흐름 「응답에 싣지 않는 민감 컬럼 7개」](CLE-ACCT-DATA.md#응답에-싣지-않는-민감-컬럼-7개) 목록에는 넣지 않는다. 마이그레이션은 컬럼만 더하고 데이터를 바꾸지 않는다.

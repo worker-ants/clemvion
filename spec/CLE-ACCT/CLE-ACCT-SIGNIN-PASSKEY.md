@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-PASSKEY"
 title: "가입과 로그인 — Passkey 기능과 등록"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "e92b40ec3b49119001e1c4aa0b950f2860f7f652a50efb56a76e600fb6275fe5"
+content_hash: "d36306d132ed0dad137900492feee02ef752c5a550398a10afca3f55a24ea7f5"
 read_as: "approved_fallback"
-task: "CLE-T-GWC9M3"
+task: "CLE-T-VYNVGP"
 source_paths: []
-mirror_sha256: "058f4f1c25ef10e8ac9bb54881f26bac41834eb4073d9b848dde613a2c669434"
-etag: "sha256-5bf4a5f27931cc70f81d1ca7c0b7018ea536bf316449280ca962416317962563"
+mirror_sha256: "c03d0ad9ba84374e335a02d3af5fecf3211d80bf63eb1c299c11b50908915e7a"
+etag: "sha256-7d7115fb1f153a5c70af0a40a4c4a3335d0e58fc250bd09f4615a0a9eaea0e1e"
 ---
 ## 개요
 
@@ -133,7 +133,9 @@ Passkey 복구 코드(`user.webauthn_recovery_codes`)를 읽고 쓰는 경로와
 - 등록 옵션만 고정하는 안도 기각했다. 옵션을 따르지 않는 클라이언트의 ML-DSA 키를 등록 검증이 받아들인다.
 - v13 에 머무는 안도 기각했다. 14.0.0(2026-09-02) 뒤로 v13 라인 릴리스가 없다.
 
-### 등록 검증은 transport 목록의 형식만 확인하고 값은 거르지 않는다 (2026-10-16)
+### 등록 검증은 transport 목록의 형식만 확인하고 값은 거르지 않는다
+
+결정일: 2026-10-16
 
 전에는 transport 목록을 확인 없이 저장해서 형식에 따라 500 이 나거나 `null` · 숫자 항목이 바뀐 채 저장됐다(NERV Task `CLE-T-C5EWSD`).
 
@@ -143,7 +145,9 @@ Passkey 복구 코드(`user.webauthn_recovery_codes`)를 읽고 쓰는 경로와
 - 빈 목록으로 바꿔 저장하는 안과 NUL 문자가 든 항목만 빼는 안도 기각했다. 잘못된 요청을 성공으로 받으면 클라이언트 결함을 찾기 어렵고, 값을 바꾸지 않고 저장한다는 원칙이 깨진다. 필드가 빠진 요청만 빈 목록으로 저장한다.
 - 개수와 길이 상한은 두지 않는다. 요청 본문에 전역 100KB 한도가 걸린다.
 
-### Passkey 표시 이름은 요청 DTO 에서 코드 포인트 수와 NUL 문자를 확인한다 (2026-10-17)
+### Passkey 표시 이름은 요청 DTO 에서 코드 포인트 수와 NUL 문자를 확인한다
+
+결정일: 2026-10-17
 
 요청 DTO 가 문자열인지와 `MaxLength(100)` 만 확인해서 저장할 수 없는 이름이 500 이 났다(NERV Task `CLE-T-XYW44D`). NUL 문자가 든 이름은 PostgreSQL 이 UTF8 인코딩 에러로 거부했다. 변형 선택자가 붙은 101 코드 포인트 이름은 class-validator 의 `MaxLength` 가 한 글자로 세서 통과했고 `varchar(100)` 이 거부했다.
 
@@ -155,7 +159,9 @@ Passkey 복구 코드(`user.webauthn_recovery_codes`)를 읽고 쓰는 경로와
 - NUL 문자를 지우고 저장하는 안은 기각했다. 사용자가 보낸 이름을 알리지 않고 바꾸게 된다.
 - 전역 예외 필터에서 SQLSTATE 22021 · 22001 을 400 으로 바꾸는 안은 기각했다. 저장할 수 없는 값은 요청 입구에서 거부한다는 기존 방식(`codebase/backend/src/common/utils/optional-non-null.ts`, [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4 의 `X-Workspace-Id` 형식 에러 행)과 맞지 않고, 틀린 필드도 응답에 담을 수 없다. 필터가 23505 를 409 `RESOURCE_CONFLICT` 로 바꾸는 것은 중복을 동시 요청 때문에 입구에서 알 수 없어서다.
 
-### Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다 (2026-10-17)
+### Passkey 이름 변경은 공백 문자로만 된 이름을 거부한다
+
+결정일: 2026-10-17
 
 이름 변경 DTO 는 빈 문자열만 거부해서(`MinLength(1)`) 공백 문자로만 된 이름이 빈 문자열로 저장됐다. 목록 화면은 이름이 NULL 일 때만 기본 문구를 보여 줘서 이름이 빈 칸으로 보였고, 이름이 없다는 값이 NULL 과 빈 문자열 두 가지로 갈렸다(NERV Task `CLE-T-SREW0S`). 화면은 저장 버튼을 막으므로 API 를 직접 부를 때만 생긴다.
 
@@ -173,10 +179,12 @@ Passkey 복구 코드(`user.webauthn_recovery_codes`)를 읽고 쓰는 경로와
 - Passkey 는 부가 인증 수단이지 인증의 핵심 경로가 아니다. 그래서 기능이 꺼져도 부팅과 Passkey 를 등록하지 않은 사용자의 로그인, TOTP 로그인은 동작해야 한다.
 - 운영자가 환경 변수를 한 번에 다 설정하지 않는 셀프 호스팅 점진 도입을 막지 않는다.
 - localhost 같은 잘못된 폴백으로 등록 데이터가 쌓이면 도메인을 정할 때 모두 무효가 된다. 자동 폴백보다 명시적 활성화가 안전하다.
-- Passkey 만 쓰는 사용자(TOTP 꺼짐)는 설정이 꺼지면 비밀번호로 로그인하지 못한다(503 `WEBAUTHN_DISABLED`, [Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다](CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)). 운영자가 한 번 켰다면 그대로 두는 것이 정상 운영이다. 실수로 꺼지면 Passkey 복구 코드로 TOTP 를 등록하는 우회 경로가 없어 운영자 개입이 필요하다. 설정을 바꾸기 전에 사용자에게 공지하는 것을 권한다.
+- Passkey 만 쓰는 사용자(TOTP 꺼짐)는 설정이 꺼지면 비밀번호로 로그인하지 못한다(503 `WEBAUTHN_DISABLED`, [Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다](CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다)). 운영자가 한 번 켰다면 그대로 두는 것이 정상 운영이다. 실수로 꺼지면 Passkey 복구 코드로 TOTP 를 등록하는 우회 경로가 없어 운영자 개입이 필요하다. 설정을 바꾸기 전에 사용자에게 공지하는 것을 권한다.
 - 폴백이 필요한 개발·로컬·시연에는 `WEBAUTHN_ALLOW_FALLBACK=1` 을 남겨 둔다.
 
-### Passkey 기능이 꺼져도 credential 목록 조회는 빈 목록을 준다 (2026-11-05)
+### Passkey 기능이 꺼져도 credential 목록 조회는 빈 목록을 준다
+
+결정일: 2026-11-05
 
 구현의 credential 목록 조회는 기능이 꺼져 있으면 200 `{ items: [] }` 를 돌려줬고 사람이 구현을 유지하기로 정했다(NERV Task `CLE-T-693G4E`).
 
@@ -185,9 +193,11 @@ Passkey 복구 코드(`user.webauthn_recovery_codes`)를 읽고 쓰는 경로와
 - 저장된 행은 지우지 않는다. 운영자가 기능을 다시 켜면 목록에 그대로 나온다.
 - **기각: 목록 조회도 503 으로 맞춘다.** 구현을 바꿔야 하고 설정 화면이 목록 에러를 따로 처리해야 한다. 얻는 것은 없다.
 
-### Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)
+### Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다
 
-NERV Task `CLE-T-FRCRF7` 에서 사람 결정 세 건으로 정했다. [TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다-2026-11-01) 가 미룬 Passkey 등록의 비밀번호 재확인과 요청 빈도 제한 정렬, 그리고 [대기 secret](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기) 의 수명을 함께 정했다.
+결정일: 2026-11-02
+
+NERV Task `CLE-T-FRCRF7` 에서 사람 결정 세 건으로 정했다. [TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다) 가 미룬 Passkey 등록의 비밀번호 재확인과 요청 빈도 제한 정렬, 그리고 [대기 secret](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기) 의 수명을 함께 정했다.
 
 Passkey 등록 옵션의 비밀번호 재확인:
 
@@ -206,7 +216,7 @@ Passkey 등록 옵션의 비밀번호 재확인:
 - **기각: 비밀번호를 확인하는 라우트에만 건다.** 그러면 비밀번호 확인 한 번으로 할 수 있는 TOTP 코드 추측이 전역 한도(사용자당 분당 100회)에만 묶여 10분에 최대 1,000회가 된다.
 - **기각: 바꾸지 않는다.** 복구 코드 재발급 라우트에 전용 한도가 없어 그 라우트로 설정 시작의 한도를 우회해 비밀번호를 추측할 수 있다.
 
-TOTP 대기 secret 의 10분 만료와 기각한 안은 [2단계 인증 설정과 TOTP](CLE-ACCT-SIGNIN-TOTP.md#totp-대기-secret-은-설정-시작-10분-뒤-버린다-2026-11-02) 로 옮겼다(2026-11-14, 문서 크기 한도).
+TOTP 대기 secret 의 10분 만료와 기각한 안은 [2단계 인증 설정과 TOTP](CLE-ACCT-SIGNIN-TOTP.md#totp-대기-secret-은-설정-시작-10분-뒤-버린다) 로 옮겼다(2026-11-14, 문서 크기 한도).
 
 ### Passkey 도메인 모듈을 분리한다
 
@@ -218,7 +228,9 @@ Passkey 관련 엔티티·서비스·DTO·컨트롤러·테스트는 `codebase/b
 - 두 컨트롤러가 함께 쓰는 리프레시 토큰 쿠키 함수는 `auth/utils/refresh-cookie.ts` 에 둔다.
 - 채택 이유: 로그인 · 가입 · OAuth · 로그인 세션 · TOTP 에 Passkey 까지 한 모듈에 있으면 응집도가 낮다. 한 방향 의존으로 순환을 막는다.
 
-### Passkey 등록 저장을 한 트랜잭션으로 묶는다 (2026-11-14)
+### Passkey 등록 저장을 한 트랜잭션으로 묶는다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-9KCQ7Y` 에서 정했다. 전에는 credential 과 복구 코드를 따로 저장해 복구 코드 없는 credential 이 남을 수 있었고 동시 첫 등록은 복구 코드 묶음을 서로 덮어썼다. 같은 credential 의 동시 등록은 409 `RESOURCE_CONFLICT` 였다.
 
@@ -239,7 +251,9 @@ NERV Task `CLE-T-Q6E11N` 에서 사람이 정했다(NERV 질문 `01a1d82c-12ac-7
 - **기각: 마지막 credential 삭제에만 받는다.** 다른 credential 을 지우는 것도 쓰던 인증 수단을 없애고, 남은 개수에 따라 규칙이 갈린다.
 - **기각: 비밀번호 또는 TOTP 로 재인증한다.** 비밀번호만 받는 다른 민감 동작과 규칙이 갈린다(등록 옵션과 같은 이유).
 
-### 복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다 (2026-11-14)
+### 복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-HQQNEA` 에서 정했다. 등록 저장과 삭제만 사용자 행을 잠가서 재발급 · 복구 코드 사용 · counter 역행 삭제가 마지막 credential 삭제와 겹치면 credential 없이 복구 코드가 남았고, 같은 복구 코드를 동시에 두 번 보내면 둘 다 통과했다.
 

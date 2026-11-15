@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 21
+version: 22
 status: "approved"
-requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085", "REQ-SIGNIN-086", "REQ-SIGNIN-087", "REQ-SIGNIN-088", "REQ-SIGNIN-089", "REQ-SIGNIN-090", "REQ-SIGNIN-091", "REQ-SIGNIN-092", "REQ-SIGNIN-093", "REQ-SIGNIN-094", "REQ-SIGNIN-095"]
+requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085", "REQ-SIGNIN-086", "REQ-SIGNIN-087", "REQ-SIGNIN-088", "REQ-SIGNIN-089", "REQ-SIGNIN-090", "REQ-SIGNIN-091", "REQ-SIGNIN-092", "REQ-SIGNIN-093", "REQ-SIGNIN-094", "REQ-SIGNIN-095", "REQ-SIGNIN-096"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "bbec0242d6d2bf52ed9363dfff3cfbb7630f2df9e30d8bc438ccf02b7b0738ac"
+content_hash: "d9ceae91daae8b306141ba14e12d63e79d0a600954abb943558f4627123acd6c"
 read_as: "approved_fallback"
-task: "CLE-T-Q6E11N"
+task: "CLE-T-6F4W2A"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "a6a56b0d746592d2f352413090fa1197e09ba3a4719b0a7e4a8fed644d1560a9"
-etag: "sha256-8aac3d1217edb6ebfcdc9e6c5cfeb64972d642cd59848c1d3beaa8e6e16e17ab"
+mirror_sha256: "d725bbe91bb475303468d1414b3050e2b4c0b6452d32f486af6c97b2deec5163"
+etag: "sha256-2afc47c8ede6b414a94a7e41535fd1c76f718540d30de076b89f90c99ea42713"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -85,6 +85,7 @@ etag: "sha256-8aac3d1217edb6ebfcdc9e6c5cfeb64972d642cd59848c1d3beaa8e6e16e17ab"
 - REQ-SIGNIN-048 WHEN 가입·로그인 화면을 열면 THE SYSTEM SHALL 자격 증명이 설정된 OAuth 제공자만 소셜 로그인 버튼으로 보여 준다.
 - REQ-SIGNIN-049 IF 활성 OAuth 제공자 목록 조회가 실패하면 THE SYSTEM SHALL 빈 목록으로 처리해 소셜 로그인 UI 를 숨긴다.
 - REQ-SIGNIN-050 WHEN 소셜 로그인 이메일이 기존 계정 이메일과 같으면 THE SYSTEM SHALL 그 계정에 OAuth 제공자 정보를 연결한다.
+- REQ-SIGNIN-096 IF 소셜 로그인 이메일로 연결할 기존 계정이 이메일 인증을 마치지 않았으면 THE SYSTEM SHALL 연결과 같은 갱신에서 비밀번호 해시 · 비밀번호 재설정 토큰 · 이메일 인증 토큰을 비우고 연결 전에 발급된 그 사용자의 리프레시 토큰 패밀리를 모두 폐기한 뒤 새 로그인 세션을 발급한다.
 - REQ-SIGNIN-051 WHEN 사용자가 처음 소셜 로그인하면 THE SYSTEM SHALL 자동으로 가입시키고 개인 워크스페이스를 만든다.
 - REQ-SIGNIN-052 WHEN OAuth 콜백을 받으면 THE SYSTEM SHALL 서버가 발급한 `state` 를 한 번만 소비해 검증한다.
 - REQ-SIGNIN-053 WHEN 소셜 로그인이 성공하면 THE SYSTEM SHALL 액세스 토큰을 URL 에 싣지 않고 리프레시 토큰만 쿠키로 설정한 뒤 `/callback?success=true` 로 보낸다.
@@ -138,7 +139,7 @@ etag: "sha256-8aac3d1217edb6ebfcdc9e6c5cfeb64972d642cd59848c1d3beaa8e6e16e17ab"
 | 문서 | 내용 | 요구사항 |
 | --- | --- | --- |
 | [가입 · 재설정 · 이메일 변경](CLE-ACCT-SIGNIN-SIGNUP.md) | 인증 화면 공통, 가입과 이메일 인증, 이메일·비밀번호 인증 규칙, 이메일 비교 규칙, 비밀번호 재설정, 이메일 변경 | REQ-SIGNIN-001, REQ-SIGNIN-002, REQ-SIGNIN-003, REQ-SIGNIN-004, REQ-SIGNIN-005, REQ-SIGNIN-006, REQ-SIGNIN-007, REQ-SIGNIN-008, REQ-SIGNIN-009, REQ-SIGNIN-010, REQ-SIGNIN-011, REQ-SIGNIN-012, REQ-SIGNIN-013, REQ-SIGNIN-031, REQ-SIGNIN-032, REQ-SIGNIN-033, REQ-SIGNIN-034, REQ-SIGNIN-035, REQ-SIGNIN-036, REQ-SIGNIN-037, REQ-SIGNIN-038, REQ-SIGNIN-039, REQ-SIGNIN-040, REQ-SIGNIN-041, REQ-SIGNIN-042, REQ-SIGNIN-043, REQ-SIGNIN-044, REQ-SIGNIN-045, REQ-SIGNIN-046, REQ-SIGNIN-047, REQ-SIGNIN-086, REQ-SIGNIN-087, REQ-SIGNIN-088, REQ-SIGNIN-089 |
-| [로그인과 소셜 로그인](CLE-ACCT-SIGNIN-LOGIN.md) | 로그인 화면과 처리 순서, 2단계 인증 방식 선택, TOTP 입력 · Passkey 인증 화면, 소셜 로그인 흐름 · 콜백 · 에러 처리 | REQ-SIGNIN-014, REQ-SIGNIN-015, REQ-SIGNIN-016, REQ-SIGNIN-017, REQ-SIGNIN-018, REQ-SIGNIN-019, REQ-SIGNIN-048, REQ-SIGNIN-049, REQ-SIGNIN-050, REQ-SIGNIN-051, REQ-SIGNIN-052, REQ-SIGNIN-053, REQ-SIGNIN-054, REQ-SIGNIN-065, REQ-SIGNIN-066, REQ-SIGNIN-067 |
+| [로그인과 소셜 로그인](CLE-ACCT-SIGNIN-LOGIN.md) | 로그인 화면과 처리 순서, 2단계 인증 방식 선택, TOTP 입력 · Passkey 인증 화면, 소셜 로그인 흐름 · 콜백 · 에러 처리 | REQ-SIGNIN-014, REQ-SIGNIN-015, REQ-SIGNIN-016, REQ-SIGNIN-017, REQ-SIGNIN-018, REQ-SIGNIN-019, REQ-SIGNIN-048, REQ-SIGNIN-049, REQ-SIGNIN-050, REQ-SIGNIN-051, REQ-SIGNIN-052, REQ-SIGNIN-053, REQ-SIGNIN-054, REQ-SIGNIN-065, REQ-SIGNIN-066, REQ-SIGNIN-067, REQ-SIGNIN-096 |
 | [2단계 인증 설정과 TOTP](CLE-ACCT-SIGNIN-TOTP.md) | 2단계 인증 수단과 설정 화면, TOTP 켜기 · 끄기, 복구 코드 | REQ-SIGNIN-020, REQ-SIGNIN-022, REQ-SIGNIN-023, REQ-SIGNIN-056, REQ-SIGNIN-057, REQ-SIGNIN-058, REQ-SIGNIN-059, REQ-SIGNIN-073, REQ-SIGNIN-074, REQ-SIGNIN-075, REQ-SIGNIN-076, REQ-SIGNIN-077, REQ-SIGNIN-078, REQ-SIGNIN-083, REQ-SIGNIN-084, REQ-SIGNIN-085 |
 | [Passkey 기능과 등록](CLE-ACCT-SIGNIN-PASSKEY.md) | Passkey 기능 켜기와 환경 변수, 등록 흐름(비밀번호 재확인, 저장 원자성, 알고리즘, transport, 표시 이름), Passkey 삭제, 도메인 모듈 | REQ-SIGNIN-021, REQ-SIGNIN-024, REQ-SIGNIN-025, REQ-SIGNIN-026, REQ-SIGNIN-027, REQ-SIGNIN-060, REQ-SIGNIN-061, REQ-SIGNIN-062, REQ-SIGNIN-063, REQ-SIGNIN-064, REQ-SIGNIN-079, REQ-SIGNIN-080, REQ-SIGNIN-081, REQ-SIGNIN-082, REQ-SIGNIN-090, REQ-SIGNIN-091, REQ-SIGNIN-092, REQ-SIGNIN-093, REQ-SIGNIN-094, REQ-SIGNIN-095 |
 | [Passkey 로그인 인증](CLE-ACCT-SIGNIN-PKAUTH.md) | 로그인 2단계 Passkey 인증 흐름, 인증 챌린지 한 번만 쓰기, sign counter 역행과 동시성 | REQ-SIGNIN-028, REQ-SIGNIN-029, REQ-SIGNIN-030, REQ-SIGNIN-068, REQ-SIGNIN-069, REQ-SIGNIN-070, REQ-SIGNIN-071, REQ-SIGNIN-072 |
@@ -195,21 +196,23 @@ etag: "sha256-8aac3d1217edb6ebfcdc9e6c5cfeb64972d642cd59848c1d3beaa8e6e16e17ab"
 
 → [Passkey 기능 켜기와 환경 변수](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-기능-켜기와-환경-변수)
 
-### Passkey 기능이 꺼져도 credential 목록 조회는 빈 목록을 준다 (2026-11-05)
+### Passkey 기능이 꺼져도 credential 목록 조회는 빈 목록을 준다
 
-→ [Passkey 기능이 꺼져도 credential 목록 조회는 빈 목록을 준다 (2026-11-05)](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-기능이-꺼져도-credential-목록-조회는-빈-목록을-준다-2026-11-05)
+결정일: 2026-11-05
+
+→ [Passkey 기능이 꺼져도 credential 목록 조회는 빈 목록을 준다](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-기능이-꺼져도-credential-목록-조회는-빈-목록을-준다)
 
 ### Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다 (2026-10-17)
 
-→ [Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다 (2026-10-17)](CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)
+→ [Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다](CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다)
 
 ### Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)
 
-→ [Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02)
+→ [Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다)
 
 ### Passkey 인증 챌린지는 한 번만 쓴다 (2026-10-17)
 
-→ [Passkey 인증 챌린지는 한 번만 쓴다 (2026-10-17)](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지는-한-번만-쓴다-2026-10-17)
+→ [Passkey 인증 챌린지는 한 번만 쓴다](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지는-한-번만-쓴다)
 
 ### sign counter 역행과 동시성
 
@@ -225,9 +228,11 @@ etag: "sha256-8aac3d1217edb6ebfcdc9e6c5cfeb64972d642cd59848c1d3beaa8e6e16e17ab"
 
 ### TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다 (2026-11-01)
 
-→ [TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다 (2026-11-01)](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다-2026-11-01)
+→ [TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다)
 
-### 대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다 (2026-11-05)
+### 대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다
+
+결정일: 2026-11-05
 
 → [대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다 (2026-11-05)](CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)
 
@@ -257,7 +262,7 @@ etag: "sha256-8aac3d1217edb6ebfcdc9e6c5cfeb64972d642cd59848c1d3beaa8e6e16e17ab"
 
 ### 역행은 서명 검증을 통과한 응답에서만 판정한다 (2026-10-30)
 
-→ [역행은 서명 검증을 통과한 응답에서만 판정한다 (2026-10-30)](CLE-ACCT-SIGNIN-PKAUTH.md#역행은-서명-검증을-통과한-응답에서만-판정한다-2026-10-30)
+→ [역행은 서명 검증을 통과한 응답에서만 판정한다](CLE-ACCT-SIGNIN-PKAUTH.md#역행은-서명-검증을-통과한-응답에서만-판정한다)
 
 ### 이메일 변경
 
@@ -273,7 +278,7 @@ etag: "sha256-8aac3d1217edb6ebfcdc9e6c5cfeb64972d642cd59848c1d3beaa8e6e16e17ab"
 
 ### 이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다 (2026-10-17)
 
-→ [이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다 (2026-10-17)](CLE-ACCT-SIGNIN-LOGIN.md#이메일-인증-전-계정은-비밀번호가-맞을-때만-알린다-2026-10-17)
+→ [이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다](CLE-ACCT-SIGNIN-LOGIN.md#이메일-인증-전-계정은-비밀번호가-맞을-때만-알린다)
 
 ### Passkey 등록·인증 흐름
 

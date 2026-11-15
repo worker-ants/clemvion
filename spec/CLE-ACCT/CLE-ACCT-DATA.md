@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 23
+version: 24
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "cdd12f8f1d0cf7e9ec11903d4d05b774fdc5f3d6ed438df5d088b850826d8c53"
+content_hash: "b31595342cb1823b896e136885160359e301e584798e90a0af09adbeaf71e233"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-VYNVGP"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "d8cd38a69f86761c6de50240da8665263ca25b0d7945f3d24e67cfa281629c4a"
-etag: "sha256-eb95eca1011c25ff9285a1f5b70e16b9d74583f608cdaf7ed255a1d55e84c49b"
+mirror_sha256: "83a7cc21df18e7eff153578fead589d33e57578b1bd137506eab3cfbd667b6ce"
+etag: "sha256-5d8c7afb42a2f7ddc8a9c584c7e91696247ded2e88197ff3dcb3931379e7153d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -96,7 +96,7 @@ erDiagram
 
 ## 미결 사항
 
-- **잠금 대기 초과의 응답 코드**: 나가기 · 멤버 제거와 워크스페이스 삭제 · 워크플로우 삭제는 잠금 대기 상한 5초를 넘기면(PostgreSQL `55P03`) 롤백하고 일반 500 으로 끝난다([워크스페이스 삭제와 나가기](CLE-ACCT-DATA-WS.md#워크스페이스-삭제와-나가기)). 트리거 · 스케줄 화면 삭제도 같다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). 다시 시도하면 대개 통과하는 일시적 실패인데 500 이라 [HTTP API 규약 §6](../CLE-API/CLE-API-CONV.md#6-http-상태-코드) 의 500 · 503 구분과 잘 맞지 않는다. 이 경로들의 응답 코드는 NERV Task `CLE-T-1C2JE0` 가 함께 정한다. 지금 따로 매핑하지 않는 이유는 [워크스페이스 데이터와 흐름 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」](CLE-ACCT-DATA-WS.md#나가기와-멤버-제거의-잠금-대기-초과는-따로-매핑하지-않는다-2026-10-30) 에 있다.
+- **잠금 대기 초과의 응답 코드**: 나가기 · 멤버 제거와 워크스페이스 삭제 · 워크플로우 삭제는 잠금 대기 상한 5초를 넘기면(PostgreSQL `55P03`) 롤백하고 일반 500 으로 끝난다([워크스페이스 삭제와 나가기](CLE-ACCT-DATA-WS.md#워크스페이스-삭제와-나가기)). 트리거 · 스케줄 화면 삭제도 같다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). Passkey 의 사용자 행 잠금 경로 다섯(등록 저장 · 삭제 · 복구 코드 재발급 · 복구 코드 사용 · 로그인 2단계 Passkey 인증 검증)도 같다([Passkey 기능과 등록 「사용자 행 잠금」](CLE-ACCT-SIGNIN-PASSKEY.md#사용자-행-잠금)). 다시 시도하면 대개 통과하는 일시적 실패인데 500 이라 [HTTP API 규약 §6](../CLE-API/CLE-API-CONV.md#6-http-상태-코드) 의 500 · 503 구분과 잘 맞지 않는다. 이 경로들의 응답 코드는 NERV Task `CLE-T-1C2JE0` 가 함께 정한다. 지금 따로 매핑하지 않는 이유는 [워크스페이스 데이터와 흐름 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다 (2026-10-30)」](CLE-ACCT-DATA-WS.md#나가기와-멤버-제거의-잠금-대기-초과는-따로-매핑하지-않는다-2026-10-30) 에 있다.
 
 2026-10-10 에 «`User.theme` 에 `system` 을 둘 수 있는가» 와 «전역 요청 한도의 집계 기준» 을 닫았다. 결정은 [사용자 · 인증 엔티티 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」](CLE-ACCT-DATA-MODEL.md#usertheme-check-확장은-두-단계-마이그레이션으로-했다) 와 [테이블 쓰기 · 배치 · 외부 의존 「요청 한도의 집계 기준을 코드에 맞췄다」](CLE-ACCT-DATA-OPS.md#요청-한도의-집계-기준을-코드에-맞췄다) 에 있다.
 

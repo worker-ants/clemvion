@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 19
+version: 20
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047", "REQ-SESSION-048"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "3145aa8134bc3c46592876150ad574a1bf2df7b4d50306925d974a6505183bb1"
+content_hash: "e1b3155fdd723c9495e546f250bd37d968bfbc13f245eec8b7208978c5ec297c"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-Y2C5F4"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "3bce34cc7a5a6d5c74d3d30672364e30e1b3373d0296f49ba6af1e13b89e92cb"
-etag: "sha256-758bbdbd5af318167d18cf15be011394e8923a1b9e6d776f7d5f07637ba65a32"
+mirror_sha256: "10be7a266b20b5c3f2b8ffc72cd97d9380b1e202765c11abd80387c7eb8b6668"
+etag: "sha256-8d83237976a96a3dab5b220508fc7cc7ba59ed1effb8581c5a6b012ce81e28db"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -155,11 +155,15 @@ REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않
 
 `refresh_token.family_id` 는 토큰 회전 뒤에도 유지돼 기기 하나의 로그인 상태를 가리킨다. 사용자에게 보이는 활성 세션 목록은 로그인 세션 단위로 가장 최신 행의 메타데이터를 보여 준다. 회전 중 재사용을 감지하면 그 `family_id` 전체를 무효화해 훔친 토큰의 피해 범위를 한 로그인 세션으로 한정한다.
 
-### 구현 상태는 요구사항 줄과 머리 줄에 표시한다 (2026-10-22)
+### 구현 상태는 요구사항 줄과 머리 줄에 표시한다
 
-요구사항을 인용하는 다른 문서와 spec-coverage 감사는 요구사항 줄과 머리 줄을 기준으로 읽는다. 그래서 일부만 구현된 요구는 미결 사항이나 본문 절에만 적지 않고 요구사항 줄과 머리 줄 구현 상태에도 표시한다. 로그인 힌트 쿠키 요구에 이 표시를 달았다가 토큰을 받는 경로를 `establishSession` 으로 모은 뒤 지웠다([세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#토큰을-받은-경로를-한-진입점으로-모았다-2026-11-05)).
+결정일: 2026-10-22
 
-### 로그아웃 요구사항을 둘로 나누고 제목 날짜를 맞췄다 (2026-11-13)
+요구사항을 인용하는 다른 문서와 spec-coverage 감사는 요구사항 줄과 머리 줄을 기준으로 읽는다. 그래서 일부만 구현된 요구는 미결 사항이나 본문 절에만 적지 않고 요구사항 줄과 머리 줄 구현 상태에도 표시한다. 로그인 힌트 쿠키 요구에 이 표시를 달았다가 토큰을 받는 경로를 `establishSession` 으로 모은 뒤 지웠다([세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#토큰을-받은-경로를-한-진입점으로-모았다)).
+
+### 로그아웃 요구사항을 둘로 나누고 제목 날짜를 맞췄다
+
+결정일: 2026-11-13
 
 표기만 고쳤고 동작은 바뀌지 않았다.
 
@@ -167,7 +171,9 @@ REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않
 - 요구사항 REQ-SESSION-037 의 주어를 «프론트엔드 JS» 에서 시스템으로 바꿨다. 쿠키를 심는 곳은 「[로그인 힌트 쿠키](#로그인-힌트-쿠키)」 가 적는다.
 - 2026-10-18 에 쓴 Rationale 제목 세 개에 날짜를 붙여 다른 제목과 표기를 맞췄다.
 
-### 클라이언트 IP 요구사항에 채팅 채널 서명 검증 실패 한도를 적었다 (2026-11-14)
+### 클라이언트 IP 요구사항에 채팅 채널 서명 검증 실패 한도를 적었다
+
+결정일: 2026-11-14
 
 표기만 고쳤고 동작은 바뀌지 않았다.
 
@@ -182,13 +188,17 @@ REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않
 
 → [세션과 토큰 — 세션 정책과 세션 관리](CLE-ACCT-SESSION-POLICY.md#세션-api-를-리프레시-쿠키-path-아래로-옮겼다)
 
-### 토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)
+### 토큰 회전이 로그인 유지 여부를 이어받는다
 
-→ [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05)
+결정일: 2026-11-05
 
-### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다 (2026-10-18)
+→ [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#토큰-회전이-로그인-유지-여부를-이어받는다)
 
-→ [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다-2026-10-18)
+### 소셜 로그인의 복귀 경로는 sessionStorage 로 넘긴다
+
+결정일: 2026-10-18
+
+→ [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md#소셜-로그인의-복귀-경로는-sessionstorage-로-넘긴다)
 
 ### 운영 환경 가드를 한 함수에 모은다
 

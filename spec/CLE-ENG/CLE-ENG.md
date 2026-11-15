@@ -2,19 +2,19 @@
 id: "CLE-ENG"
 title: "개발 규약"
 type: "area"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "9aa986280a3f04ee2b4704e6a2dadbb0d33e968b67380ee5872ea5c2217fc88e"
+content_hash: "91ac4ee5cc0e91836742243f53e2cdf6264120e9b03a45737628588566ecce90"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-6F4W2A"
 source_paths: []
-mirror_sha256: "5a7d074af0ecafa56e8845fa53eb6fdcac2777a3bdfa30656cfcc2d2962a64c8"
-etag: "sha256-b0cf9c75f68d4d9c76bcef4c70d606c7b9027cbc8ae6519ba721cac1078c0096"
+mirror_sha256: "36b731f29ebba335368ebd420a6eafe462b96e6261fd8db65eecd075c33aceb0"
+etag: "sha256-3ea4c5cc1a539d7f934b4ea1791f33522f12e523a2531606dc859e284a150a1a"
 ---
 > 구현 상태: 구현됨 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,5 +39,6 @@ API 응답 형식·에러 코드·OpenAPI 문서화처럼 제품 표면에 닿�
 | [Redis 키 명명 규약](CLE-ENG-REDIS.md) | `{도메인}:{용도}[:{식별자}...]` 형태, 워크스페이스 세그먼트를 넣는 기준, 새 키 등재 의무, Redis 키가 아닌 인접 이름. 키 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다 |
 | [raw SQL 결과 읽기 규약](CLE-ENG-RAWQUERY.md) | `UPDATE`/`DELETE … RETURNING` 이 튜플이라는 것과 raw 결과 컬럼이 snake_case 라는 것, 이를 개수로 강제하는 발견형 가드 |
 | [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) | 스펙 본문 `## 구현 위치` 와 그 경로의 실재를 보는 빌드 가드(`spec-impl-locations`), 스펙 문서 저장소 무결성 가드(링크 · 도구 태그 잔재), 코드 속 스펙 언급 가드(옛 경로 래칫 · 키 언급), 코드 주석의 키 링크, NERV 이전으로 바뀐 전제. 옛 frontmatter(`status` · `code:` · `pending_plans:`)와 상태 라이프사이클, plan 무결성 가드는 전환 단계 3 · 5 에서 걷었다 |
+| [스펙 문서 제목과 앵커 규약](CLE-ENG-SPECHEADING.md) | 제목에 날짜를 넣지 않고 결정일은 제목 아래 `결정일:` 줄에 적는 규칙, 제목을 고칠 때 그 앵커를 가리키는 링크를 함께 고치는 규칙, 기존 문서를 옮겨 가는 순서 |
 | [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) | 코드 주석이 리뷰를 가리키는 형식(옛 산출물은 날짜 필수, 새 리뷰는 NERV 발견 전체 ID)과 적용 범위, 응답 DTO JSDoc 가드, 줄인 발견 ID 와 로컬 `.review/**` 경로를 막는 가드(`review-citation-form`), NERV 리뷰 레코드 전환으로 바뀐 전제 |
 | [사용자 가이드 근거 규약](CLE-ENG-GUIDEEVIDENCE.md) | 가이드가 약속한 화면·API 가 코드에 있는지 빌드에서 확인하는 `<ImplAnchor>` 와 가드 3건 |

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-SIGNUP"
 title: "가입과 로그인 — 가입 · 재설정 · 이메일 변경"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "23282f7a86361032ee9844f863d7e7819a855deee4b27d43e2c9901c091009d6"
+content_hash: "a01bbc964de58434fc00e1b1745e9988043fe82a29371d32527ae00527aa2a44"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-6F4W2A"
 source_paths: []
-mirror_sha256: "c7a7b303f0f9e6484d1c03bb10d1e9586190c0e87fb8188910601e37189bccb9"
-etag: "sha256-aee8aca3eadd33050547489594bdbf7cd87b39849a8992f1654d71757c520a19"
+mirror_sha256: "a3d1ce87a943c5d0ff16ecea7e84391f981a1874c67a6995b704e8a1de7ecdaa"
+etag: "sha256-7506a23985066d89aa92a062ee874a1bedffc9687faeace849926ff66f8a0323"
 ---
 ## 개요
 
@@ -288,7 +288,7 @@ NERV Task `CLE-T-SFWX84` 에서 사람 결정으로 정했다. 그 전에는 가
 - **기각: 묶음을 자동으로 합치거나 지운다.** 한쪽 계정의 데이터를 잃을 수 있다.
 - **기각: 가장 먼저 가입한 계정을 쓴다.** 로그인이나 재설정 메일이 입력한 사람과 다른 계정으로 갈 수 있다.
 - **기각: 소셜 로그인에 새 `error=` 값을 둔다.** 콜백의 `error=` 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §3 의 예외 등록 목록에 오른 `lower_snake_case` 예외다. 같은 문서 규칙 7 은 새 코드가 예외를 선례로 삼지 않게 한다. 값을 더하려면 그 예외 등록 목록을 개정해야 한다. 이 경우는 운영자가 정리해야 풀리고 사용자가 따로 할 일이 없다. 그래서 기존 `server_error` 를 쓴다. 서버 내부 코드 `OAUTH_ACCOUNT_AMBIGUOUS` 는 컨트롤러가 리다이렉트로 바꿔 응답 봉투로 나가지 않으므로 카탈로그에 올리지 않는다.
-- **후속**: 대소문자를 무시하는 유일 인덱스(`LOWER(email)`)는 NERV Task `CLE-T-6QZCYD` 가 맡는다. 워크스페이스 멤버 직접 추가와 초대의 기존 사용자 조회는 2026-11-06 에 이 규칙으로 맞췄다([워크스페이스와 멤버 Rationale](CLE-ACCT-WS.md#직접-추가와-초대는-어느-계정인지-정할-수-없으면-가입하지-않은-이메일처럼-다룬다-2026-11-06)).
+- **후속**: 대소문자를 무시하는 유일 인덱스(`LOWER(email)`)는 NERV Task `CLE-T-6QZCYD` 가 맡는다. 워크스페이스 멤버 직접 추가와 초대의 기존 사용자 조회는 2026-11-06 에 이 규칙으로 맞췄다([워크스페이스와 멤버 Rationale](CLE-ACCT-WS.md#직접-추가와-초대는-어느-계정인지-정할-수-없으면-가입하지-않은-이메일처럼-다룬다)).
 
 ### 인증 화면 배경과 로고 자리
 

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-MODEL"
 title: "계정과 워크스페이스 데이터 흐름 — 사용자 · 인증 엔티티"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "f50cb5d91cb3fb1036630202d722adfbc57943d7a3cc5c6ec80857640b9e9483"
+content_hash: "01f4a52e4d8d183251016043dad114e8a39897bc6b4ee603af9cf60e853b2928"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-VYNVGP"
 source_paths: []
-mirror_sha256: "fe53b99beefa28d5db8f76c9c9cae3e66012fc95b20b289cc184a3ff34bcfe4a"
-etag: "sha256-836bf87c829b1a91482e63a9aef2af314d36b8531cbe8015060b2a8689bee579"
+mirror_sha256: "89d1fce68c8ea6058ec8a03a94d60c46c16da914f0ba6ae16bcded7c31bba96e"
+etag: "sha256-b6ec06422be77e9c2e1e1af852ba6b8fb4a643f2d57202e9ec1f7b2fc48507a3"
 ---
 ## 개요
 
@@ -48,7 +48,7 @@ etag: "sha256-836bf87c829b1a91482e63a9aef2af314d36b8531cbe8015060b2a8689bee579"
 | two_factor_secret | String? | TOTP secret (base32, RFC 6238). 활성화 검증 전에는 값이 있어도 `two_factor_enabled = false`. TOTP 가 켜진 동안에는 설정 시작이 거부돼 바뀌지 않는다. 활성화 검증 전의 대기 secret([가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기))은 설정 시작 뒤 10분이 지나면 만료되고 활성화 검증이 비운다(`two_factor_setup_started_at`). 끄면 NULL |
 | two_factor_setup_started_at | Timestamp? | TOTP 설정 시작 시각. 설정 시작이 `two_factor_secret` 과 같은 조건부 UPDATE 로 쓴다. 활성화 검증이 성공하거나 TOTP 를 끄면 NULL 이다. 값이 없거나 10분이 지났으면 활성화 검증이 대기 secret 을 만료로 보고 secret 과 함께 비운다. 응답에 싣지 않는다 |
 | totp_recovery_codes | String[]? | TOTP 활성화 때 발급한 복구 코드 10개의 SHA-256 해시 배열. 쓰면 항목 제거 |
-| webauthn_recovery_codes | String[]? | 첫 Passkey 등록 때 발급한 복구 코드 10개의 SHA-256 해시 배열. 사용자가 마지막 credential 을 지우면 NULL. 이 NULL 처리는 DB 트리거가 아니라 애플리케이션(`WebAuthnService.deleteCredential`) 책임이다. counter 역행으로 서버가 지운 경우는 비우지 않는다([가입과 로그인 「복구 코드」](CLE-ACCT-SIGNIN.md#복구-코드)). 사용자가 재발급해도 갱신 |
+| webauthn_recovery_codes | String[]? | 첫 Passkey 등록 때 발급한 복구 코드 10개의 SHA-256 해시 배열. 사용자가 마지막 credential 을 지우면 NULL. 이 NULL 처리는 DB 트리거가 아니라 애플리케이션(`WebAuthnService.deleteCredential`) 책임이다. counter 역행으로 서버가 지운 경우는 비우지 않는다([2단계 인증 설정과 TOTP 「복구 코드」](CLE-ACCT-SIGNIN-TOTP.md#복구-코드)). 사용자가 재발급해도 갱신 |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
@@ -137,16 +137,16 @@ etag: "sha256-836bf87c829b1a91482e63a9aef2af314d36b8531cbe8015060b2a8689bee579"
 | credential_id | String | UNIQUE. WebAuthn 표준 credential ID (base64url). 길이가 가변이라 TEXT |
 | public_key | Bytes | CBOR-COSE 로 직렬화한 공개 키 (BYTEA) |
 | counter | BigInt | 재전송 방어용 sign counter. 인증마다 갱신한다. 처음 쓰는 Passkey 인증 챌린지로 온 응답이 서명 검증을 통과했는데 역행하면(응답 값이 저장값 이하. 둘 다 0 이면 역행이 아니다) 그 행을 바로 지우고(suspend 컬럼은 두지 않는다) 로그인 이력에 `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`)를 남긴다 |
-| transports | String[] | 등록 때 클라이언트가 보낸 transport 문자열 목록. 값은 바꾸지 않고, 필드가 없으면 빈 배열로 저장한다. 개수와 길이 상한은 없고 요청 본문 한도(100KB)만 걸린다. 형식 검증(문자열 배열, NUL 문자 없음, `null` 거부)과 표준 값은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다 |
+| transports | String[] | 등록 때 클라이언트가 보낸 transport 문자열 목록. 값은 바꾸지 않고, 필드가 없으면 빈 배열로 저장한다. 개수와 길이 상한은 없고 요청 본문 한도(100KB)만 걸린다. 형식 검증(문자열 배열, NUL 문자 없음, `null` 거부)과 표준 값은 [Passkey 기능과 등록 「transport 목록」](CLE-ACCT-SIGNIN-PASSKEY.md#transport-목록) 이 정한다 |
 | aaguid | UUID? | 인증기 모델 식별자 (선택) |
-| device_name | String? | 사용자가 붙인 표시 이름(`varchar(100)`, 유니코드 코드 포인트 100개까지. 앞뒤 공백을 지우기 전 값으로 센다). NUL 문자는 받지 않는다. 앞뒤 공백 문자를 지워 저장하고 빈 문자열은 저장하지 않는다. DB CHECK 제약은 없고 등록 검증과 이름 변경이 이 규칙을 지킨다. 이름이 없으면 NULL 이고 UI 가 transport 와 등록일로 표시한다. 형식 규칙과 근거는 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) |
+| device_name | String? | 사용자가 붙인 표시 이름(`varchar(100)`, 유니코드 코드 포인트 100개까지. 앞뒤 공백을 지우기 전 값으로 센다). NUL 문자는 받지 않는다. 앞뒤 공백 문자를 지워 저장하고 빈 문자열은 저장하지 않는다. DB CHECK 제약은 없고 등록 검증과 이름 변경이 이 규칙을 지킨다. 이름이 없으면 NULL 이고 UI 가 transport 와 등록일로 표시한다. 형식 규칙과 근거는 [Passkey 기능과 등록 「표시 이름」](CLE-ACCT-SIGNIN-PASSKEY.md#표시-이름) |
 | last_used_at | Timestamp? | 마지막 인증 성공 시각 |
 | created_at | Timestamp | 등록 시각 |
 
 인덱스: `credential_id UNIQUE`, `(user_id)`.
 
 - **옵션 토큰**: 등록·인증 옵션 토큰(`optionsToken`)의 챌린지는 stateless JWT 로 발급한다. 만료 5분, payload `{ kind: 'webauthn_register'|'webauthn_auth', sub, challenge, exp }` 다. 발급할 때는 테이블에 두지 않는다.
-- **Passkey 인증 챌린지 기록**: Passkey 인증 챌린지(`webauthn_auth` 의 `challenge` 값)는 한 번만 쓰므로 서버가 쓴 값을 기록한다. 챌린지 토큰(`challengeToken`)은 기록하지 않는다. 이 기록의 보존 기간과 규칙은 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 에 있다. 기록은 테이블이 아니라 Redis 키에 둔다([Redis 와 배치](CLE-ACCT-DATA-OPS.md#redis-와-배치)).
+- **Passkey 인증 챌린지 기록**: Passkey 인증 챌린지(`webauthn_auth` 의 `challenge` 값)는 한 번만 쓰므로 서버가 쓴 값을 기록한다. 챌린지 토큰(`challengeToken`)은 기록하지 않는다. 이 기록의 보존 기간과 규칙은 [Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록) 에 있다. 기록은 테이블이 아니라 Redis 키에 둔다([Redis 와 배치](CLE-ACCT-DATA-OPS.md#redis-와-배치)).
 
 ## AuthOauthState
 
@@ -224,7 +224,7 @@ V058(`chk_login_history_event` 에 `webauthn_failed` 추가)은 `DROP/ADD CONSTR
 
 ### 리프레시 토큰 행에 로그인 유지 여부를 둔다 (2026-11-05)
 
-NERV Task `CLE-T-BYCGF1` 에서 바꿨다. 규칙과 근거, 기각한 안은 [세션과 토큰 「토큰 회전이 로그인 유지 여부를 이어받는다 (2026-11-05)」](CLE-ACCT-SESSION.md#토큰-회전이-로그인-유지-여부를-이어받는다-2026-11-05) 에 있다. 이 문서에는 컬럼 정의와 백필 근거만 적는다.
+NERV Task `CLE-T-BYCGF1` 에서 바꿨다. 규칙과 근거, 기각한 안은 [세션과 토큰 「토큰 회전이 로그인 유지 여부를 이어받는다」](CLE-ACCT-SESSION.md#토큰-회전이-로그인-유지-여부를-이어받는다) 에 있다. 이 문서에는 컬럼 정의와 백필 근거만 적는다.
 
 - 그 전에는 토큰 행에 로그인 유지 여부가 없어서 갱신이 토큰을 회전할 때 늘 `false` 로 넘겼다. 그래서 30일로 로그인한 세션도 첫 회전 뒤에는 7일 만료가 됐다. 회전이 이어받을 값을 남기려고 `refresh_token.remember_me`(NOT NULL, 기본 `false`)를 더했다.
 - `auth_oauth_state.remember_me` 는 그대로 둔다. 소셜 로그인 시작부터 콜백까지 값을 나르는 단명 행이고 콜백이 소비하면 사라진다. 콜백이 발급한 리프레시 토큰의 `remember_me` 가 그 값을 받는다.
@@ -235,7 +235,7 @@ NERV Task `CLE-T-BYCGF1` 에서 바꿨다. 규칙과 근거, 기각한 안은 [�
 
 ### 새로 저장하는 이메일을 소문자로 정규화하고 기존 행은 바꾸지 않는다 (2026-11-05)
 
-NERV Task `CLE-T-SFWX84` 에서 바꿨다. 기존 계정을 다루는 방식은 사람 결정이다(NERV 질문 `01a1ac05-8931-7309-acc4-ae26e35086a2`). 비교 규칙과 근거, 기각한 안은 [가입과 로그인 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다 (2026-11-05)」](CLE-ACCT-SIGNIN.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05) 에 있다. 이 문서에는 데이터 쪽만 적는다.
+NERV Task `CLE-T-SFWX84` 에서 바꿨다. 기존 계정을 다루는 방식은 사람 결정이다(NERV 질문 `01a1ac05-8931-7309-acc4-ae26e35086a2`). 비교 규칙과 근거, 기각한 안은 [가입과 로그인 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다」](CLE-ACCT-SIGNIN.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다) 에 있다. 이 문서에는 데이터 쪽만 적는다.
 
 - 그 전에는 이메일을 입력한 대소문자 그대로 저장했다. 로그인 · 가입 중복 확인 · `check-email` · OAuth 이메일 연결도 대소문자를 구분해 비교했다. `LOWER(email)` 로 비교한 곳은 이메일 변경의 중복 확인(`emailTakenByOther`)뿐이었다.
 - 정규화는 새로 쓰는 값에만 건다. 기존 행을 소문자로 바꾸는 마이그레이션은 기각했다. 대소문자만 다른 묶음이 있으면 `email UNIQUE` 에 걸리고 어느 계정을 남길지 사람이 정해야 한다.
