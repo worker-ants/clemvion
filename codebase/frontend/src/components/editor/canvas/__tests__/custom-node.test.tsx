@@ -223,6 +223,15 @@ beforeAll(() => {
           { id: "advised:also-risky", when: "mode == risky", message: "Second hint", severity: "advisory" },
         ],
       }),
+      // A container node whose header summary leads the advisory icon, so
+      // the tests can check that only the first right-side item gets ml-auto.
+      advised_container: make("advised_container", {
+        isContainer: true,
+        summaryTemplate: { template: "{{count}}x" },
+        warningRules: [
+          { id: "advised_container:big", when: "count > 100", message: "Large count hint", severity: "advisory" },
+        ],
+      }),
     },
   });
 });
@@ -415,6 +424,28 @@ describe("CustomNode", () => {
         const { container } = renderNode({ type: "merge", label: "Merge", category: "logic", config: { strategy: "wait_all" } });
         const graph = container.querySelector('[data-testid="graph-warning-badge"]');
         expect(graph?.getAttribute("class")).toContain("ml-auto");
+      });
+
+      it("gives ml-auto to the container header summary, not the advisory icon after it", () => {
+        const { container } = renderNode({
+          type: "advised_container",
+          label: "Box",
+          category: "logic",
+          config: { count: 200 },
+        });
+        expect(screen.getByText("200x").getAttribute("class")).toContain("ml-auto");
+        expect(advisoryBadge(container)).toBeInTheDocument();
+        expect(advisoryBadge(container)?.getAttribute("class")).not.toContain("ml-auto");
+      });
+
+      it("gives ml-auto to the blocking warning icon, not the graph-warning badge after it", () => {
+        setGraphWarning();
+        const { container } = renderNode({ type: "http_request", config: {} });
+        const header = container.querySelector(".rounded-t-lg");
+        expect(header?.querySelector('[aria-label="warning"]')?.getAttribute("class")).toContain("ml-auto");
+        const graph = container.querySelector('[data-testid="graph-warning-badge"]');
+        expect(graph).toBeInTheDocument();
+        expect(graph?.getAttribute("class")).not.toContain("ml-auto");
       });
     });
 
