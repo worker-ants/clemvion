@@ -98,6 +98,12 @@ export interface OauthCallbackResult {
   rememberMe: boolean;
 }
 
+type OauthRequestCtx = { ip?: string | null; userAgent?: string | null };
+
+function stripPrefix(value: string, prefix: string): string {
+  return value.startsWith(prefix) ? value.slice(prefix.length) : '';
+}
+
 @Injectable()
 export class AuthOauthService {
   private readonly logger = new Logger(AuthOauthService.name);
@@ -164,7 +170,7 @@ export class AuthOauthService {
     provider: string,
     code: string,
     state: string,
-    ctx: { ip?: string | null; userAgent?: string | null } = {},
+    ctx: OauthRequestCtx = {},
   ): Promise<OauthCallbackResult> {
     this.assertProvider(provider);
 
@@ -217,9 +223,7 @@ export class AuthOauthService {
     if (isOAuthStubEnabled()) {
       // e2e 가 기존 계정 연결을 재현하려면 공급자 이메일을 정해야 한다. 코드가
       // `stub-email:<이메일>` 이면 그 이메일을 토큰에 실어 stub userinfo 로 넘긴다.
-      const stubEmail = code.startsWith(STUB_EMAIL_CODE_PREFIX)
-        ? code.slice(STUB_EMAIL_CODE_PREFIX.length)
-        : '';
+      const stubEmail = stripPrefix(code, STUB_EMAIL_CODE_PREFIX);
       if (stubEmail) return `${STUB_EMAIL_TOKEN_PREFIX}${stubEmail}`;
       return `stub-${provider}-${randomBytes(8).toString('hex')}`;
     }
@@ -281,9 +285,7 @@ export class AuthOauthService {
   ): Promise<OauthProfile> {
     if (isOAuthStubEnabled()) {
       const suffix = randomBytes(4).toString('hex');
-      const stubEmail = accessToken.startsWith(STUB_EMAIL_TOKEN_PREFIX)
-        ? accessToken.slice(STUB_EMAIL_TOKEN_PREFIX.length)
-        : '';
+      const stubEmail = stripPrefix(accessToken, STUB_EMAIL_TOKEN_PREFIX);
       return {
         providerId: `stub-${provider}-${suffix}`,
         email: stubEmail || `stub-${provider}-${suffix}@example.com`,
@@ -404,33 +406,43 @@ export class AuthOauthService {
     provider: AuthOAuthProvider,
     profile: OauthProfile,
     byEmail: User,
+    ctx: OauthRequestCtx,
   ): Promise<boolean> {
-    const result = await this.dataSource
-      .getRepository(User)
-      .createQueryBuilder()
-      .update(User)
-      .set({
-        oauthProvider: provider,
-        oauthProviderId: profile.providerId,
-        emailVerified: true,
-        avatarUrl: byEmail.avatarUrl ?? profile.avatarUrl ?? undefined,
-        passwordHash: null,
-        passwordResetToken: null,
-        passwordResetExpiresAt: null,
-        emailVerifyToken: null,
-        emailVerifyExpiresAt: null,
-      })
-      .where('id = :id AND oauth_provider IS NULL AND email_verified = false', {
-        id: byEmail.id,
-      })
-      .execute();
-    return result.affected === 1;
+    // 점유 UPDATE 와 refresh_token 폐기를 한 트랜잭션으로 묶는다. 폐기가 실패하면 점유도
+    // 롤백돼 재시도할 수 있다. 연결 전에 받은 세션이 있으면 모두 끊고, 새 토큰은 이 뒤에 발급한다.
+    return this.dataSource.transaction(async (manager) => {
+      const result = await manager
+        .getRepository(User)
+        .createQueryBuilder()
+        .update(User)
+        .set({
+          oauthProvider: provider,
+          oauthProviderId: profile.providerId,
+          emailVerified: true,
+          avatarUrl: byEmail.avatarUrl ?? profile.avatarUrl ?? undefined,
+          passwordHash: null,
+          passwordResetToken: null,
+          passwordResetExpiresAt: null,
+          emailVerifyToken: null,
+          emailVerifyExpiresAt: null,
+        })
+        .where(
+          'id = :id AND oauth_provider IS NULL AND email_verified = false',
+          {
+            id: byEmail.id,
+          },
+        )
+        .execute();
+      if (result.affected !== 1) return false;
+      await this.sessionsService.revokeAllFamilies(byEmail.id, ctx, manager);
+      return true;
+    });
   }
 
   private async resolveUser(
     provider: AuthOAuthProvider,
     profile: OauthProfile,
-    ctx: { ip?: string | null; userAgent?: string | null },
+    ctx: OauthRequestCtx,
   ): Promise<User> {
     const byOauth = await this.usersService.findByOauth(
       provider,
@@ -453,10 +465,8 @@ export class AuthOauthService {
       const byEmail = lookup.user;
       if (
         !byEmail.emailVerified &&
-        (await this.claimUnverifiedAccount(provider, profile, byEmail))
+        (await this.claimUnverifiedAccount(provider, profile, byEmail, ctx))
       ) {
-        // 연결 전에 받은 세션이 있으면 모두 끊는다. 새 토큰은 이 뒤에 발급한다.
-        await this.sessionsService.revokeAllFamilies(byEmail.id, ctx);
         return (await this.usersService.findById(byEmail.id)) ?? byEmail;
       }
       // Conditional link: only claim an account that is not yet bound to any

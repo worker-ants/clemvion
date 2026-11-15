@@ -443,6 +443,31 @@ describe('SessionsService', () => {
       );
     });
 
+    it('manager 를 주면 refresh_token 갱신을 그 트랜잭션 매니저로 한다 (CLE-T-327K37)', async () => {
+      usersService.findById.mockResolvedValue({
+        id: 'user-1',
+        email: 'a@b.c',
+      } as never);
+      const txnUpdate = jest.fn().mockResolvedValue({ affected: 2 });
+      const manager = {
+        getRepository: jest.fn().mockReturnValue({ update: txnUpdate }),
+      };
+
+      const result = await service.revokeAllFamilies(
+        'user-1',
+        {},
+        manager as never,
+      );
+
+      expect(result.revoked).toBe(2);
+      expect(manager.getRepository).toHaveBeenCalledWith(RefreshToken);
+      expect(txnUpdate).toHaveBeenCalledWith(
+        { userId: 'user-1', isRevoked: false },
+        { isRevoked: true },
+      );
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
     it('does not record session_revoked when nothing was revoked', async () => {
       usersService.findById.mockResolvedValue({
         id: 'user-1',

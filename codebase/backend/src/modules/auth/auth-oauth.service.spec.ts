@@ -17,6 +17,7 @@ describe('AuthOauthService', () => {
   let workspacesService: jest.Mocked<WorkspacesService>;
   let authService: jest.Mocked<AuthService>;
   let sessionsService: { revokeAllFamilies: jest.Mock };
+  let txnManager: { getRepository: jest.Mock };
   let qbUpdate: {
     update: jest.Mock;
     set: jest.Mock;
@@ -71,6 +72,7 @@ describe('AuthOauthService', () => {
       createQueryBuilder: jest.fn().mockReturnValue(qbUpdate),
     };
     const txnUserRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(qbUpdate),
       create: jest.fn().mockImplementation((data) => data),
       save: jest
         .fn()
@@ -78,13 +80,14 @@ describe('AuthOauthService', () => {
           Promise.resolve({ id: 'user-new', ...data }),
         ),
     };
+    txnManager = { getRepository: jest.fn().mockReturnValue(txnUserRepo) };
     dataSource = {
       query: jest.fn(),
       getRepository: jest.fn().mockReturnValue(userRepo),
       transaction: jest
         .fn()
         .mockImplementation((cb: (m: unknown) => Promise<unknown>) =>
-          cb({ getRepository: jest.fn().mockReturnValue(txnUserRepo) }),
+          cb(txnManager),
         ),
     };
 
@@ -376,9 +379,11 @@ describe('AuthOauthService', () => {
         'id = :id AND oauth_provider IS NULL AND email_verified = false',
         { id: baseUser.id },
       );
+      // 점유 UPDATE 와 같은 트랜잭션 매니저로 폐기한다.
       expect(sessionsService.revokeAllFamilies).toHaveBeenCalledWith(
         baseUser.id,
         ctx,
+        txnManager,
       );
       // 폐기가 새 토큰 발급보다 먼저다. 반대면 방금 발급한 세션까지 폐기된다.
       expect(
@@ -386,6 +391,24 @@ describe('AuthOauthService', () => {
       ).toBeLessThan(
         authService.issueTokensForOauthUser.mock.invocationCallOrder[0],
       );
+    });
+
+    it('세션 폐기가 실패하면 예외를 전파하고 토큰을 발급하지 않는다 (트랜잭션이 롤백된다) (CLE-T-327K37)', async () => {
+      dataSource.query.mockResolvedValueOnce([validState]);
+      usersService.findByOauth.mockResolvedValue(null);
+      usersService.lookupByEmail.mockResolvedValue({
+        kind: 'found',
+        user: { ...baseUser, emailVerified: false } as User,
+      });
+      sessionsService.revokeAllFamilies.mockRejectedValueOnce(
+        new Error('revoke failed'),
+      );
+
+      await expect(
+        service.handleCallback('google', 'code', 'abc'),
+      ).rejects.toThrow('revoke failed');
+
+      expect(authService.issueTokensForOauthUser).not.toHaveBeenCalled();
     });
 
     it('미인증 계정 갱신이 0행이면(그 사이 인증됐거나 다른 공급자에 묶임) 폐기 없이 기존 조건부 연결로 넘어간다 (CLE-T-327K37)', async () => {

@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Not, Repository } from 'typeorm';
+import { EntityManager, MoreThan, Not, Repository } from 'typeorm';
 import { createHash } from 'crypto';
 import {
   PASSWORD_VERIFY_CODES,
@@ -183,18 +183,25 @@ export class SessionsService {
    * revoke 가 1건 이상이면 `login_history` 에 `session_revoked`(bulk, `familyId=null`) 를 기록해
    * data-flow §1.2(session_revoked emitter = SessionsService) 일관성을 유지한다.
    *
+   * `manager` 를 주면 refresh_token 갱신을 그 트랜잭션 안에서 한다(미인증 계정 소셜 연결의
+   * 점유 UPDATE 와 원자적으로 묶는 용도, CLE-T-327K37). 생략하면 기존 동작이다.
+   *
    * @returns `{ revoked }` — revoke 된 row 수.
    */
   async revokeAllFamilies(
     userId: string,
     ctx: AuthContext,
+    manager?: EntityManager,
   ): Promise<{ revoked: number }> {
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException({ code: 'UNAUTHENTICATED' });
     }
 
-    const result = await this.refreshTokenRepository.update(
+    const tokenRepo = manager
+      ? manager.getRepository(RefreshToken)
+      : this.refreshTokenRepository;
+    const result = await tokenRepo.update(
       { userId, isRevoked: false },
       { isRevoked: true },
     );
