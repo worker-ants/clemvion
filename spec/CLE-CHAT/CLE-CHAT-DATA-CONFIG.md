@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-CONFIG"
 title: "채팅 채널 데이터와 흐름 — 설정과 안내 문구"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "8a8ab7236bf2e03074b24f22235f3198fce615ad8518fafaee6039f7412646bd"
+content_hash: "f5c210fca2edf33d1ffce74ce0741255a3b999a23a89e4801d223b365d8d9791"
 read_as: "approved_fallback"
 task: "CLE-T-A0G1FB"
 source_paths: []
-mirror_sha256: "707e1191d1f1880058a2c9667789b80fa9cebab9b15b070a32c880a62c9f2f4d"
-etag: "sha256-b11ed13a7c7b35872e9ebee43ebfdc2b6eaf853a3c3fd2f51765c6dd999ceb5e"
+mirror_sha256: "042357a58b0c8b39343dcd1b84e2abe782459731ffd99c25ee5162f924557ec3"
+etag: "sha256-fc70eaad6d3db81d3557430c5c93bb03691568895a9a77dad0efc6f6bb243bb5"
 ---
 ## 개요
 
@@ -108,7 +108,7 @@ etag: "sha256-b11ed13a7c7b35872e9ebee43ebfdc2b6eaf853a3c3fd2f51765c6dd999ceb5e"
 
 `{statusCode}` 는 두 locale 에서 같은 자리에 있다. 그래서 치환 코드가 locale 분기 없이 한 경로로 동작한다.
 
-봇 안내 문구는 메신저로 나가는 봇 메시지라 [다국어와 화면 문구 「규칙」](../CLE-UI/CLE-UI-I18N.md#규칙) 7(화면 한국어 문자열의 표기 · 문체)의 대상이 아니다. 한국어 기본 문구는 합쇼체로 쓰고 «~해 주세요» 처럼 띄어 쓴다. 이 표와 위 `languageHints` 예시가 그 기준이다. 지금 백엔드 기본 문구의 `surfaceMismatch` 와 «~해주세요» 로 붙여 쓴 Form 안내 두 개는 이 기준과 다르고 NERV Task `CLE-T-A0G1FB` 가 맞춘다.
+봇 안내 문구는 메신저로 나가는 봇 메시지라 [다국어와 화면 문구 「규칙」](../CLE-UI/CLE-UI-I18N.md#규칙) 7(화면 한국어 문자열의 표기 · 문체)의 대상이 아니다. 한국어 기본 문구는 합쇼체로 쓰고 요청은 «~해 주세요» 처럼 띄어 쓴다. 이 표와 위 `languageHints` 예시가 그 기준이고 백엔드 기본 문구도 이 기준을 따른다. 근거는 [「봇 안내 문구의 문체」](#봇-안내-문구의-문체-2026-11-12) 에 있다. `formNextField` 의 기본 문구는 위 예시 문장 뒤에 다음 항목 번호(1부터 센다)를 `다음 항목을 입력해 주세요. (2)` 처럼 붙인다. 덮어쓴 문구에는 번호를 붙이지 않는다.
 
 `sessionExpired` 는 멀티턴 AI 대화가 서버 재시작이나 AI 재개 체크포인트 부재로 재개할 수 없을 때(`execution.cancelled` 와 `RESUME_*` 코드) 일반 취소 안내 대신 보낸다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 찾는 순서는 `formOpenLabel` 과 같다. 사용자의 다음 메시지는 새 실행으로 시작한다(취소된 실행은 새 실행을 시작시킨다).
 
@@ -135,7 +135,7 @@ Discord · Slack 슬래시 명령의 즉시 응답에 싣는 `commandReceived` �
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 안내 문구의 locale 기본값과 덮어쓰기 해석. 공통 수신 문구 `COMMAND_RECEIVED_DEFAULTS` · `resolveCommandReceivedMessage` 와 Discord · Slack 이 함께 쓰는 슬래시 명령 기본 도움말 `SLASH_HELP_DEFAULTS` 를 포함한다
+- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 안내 문구의 locale 기본값과 덮어쓰기 해석. 공통 수신 문구 `COMMAND_RECEIVED_DEFAULTS` · `resolveCommandReceivedMessage` 와 Discord · Slack 이 함께 쓰는 슬래시 명령 기본 도움말 `SLASH_HELP_DEFAULTS` 를 포함한다. `groupChatRefusal` · `formValidationFailed` · `formNextField` 의 기본 문구 `GROUP_CHAT_REFUSAL_DEFAULT` · `FORM_VALIDATION_FAILED_DEFAULT` · `formNextFieldDefault` 도 여기 있고 Slack 어댑터와 `HooksService` 가 함께 쓴다
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.ts`, `codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts`, `codebase/backend/src/modules/chat-channel/providers/slack/slack-update.parser.ts`: 슬래시 명령의 즉시 응답. Discord 는 `buildDiscordDefaultInteractionResponse`, Slack 은 `defaultInteractionResponse` · `resolveSlackHelpText`(응답 `text` 의 mrkdwn escape 포함)다. Slack 의 `help` 판정은 파서와 같은 규칙의 `readSlackSlashInvocation` 이 한다
 
 ## Rationale
@@ -150,3 +150,14 @@ Discord · Slack 슬래시 명령의 즉시 응답에 싣는 `commandReceived` �
 - (b) 시작 안내 `executionStarted` 를 다시 쓴다. 이 응답은 새 실행뿐 아니라 취소, 답장 전달, 중복, 분당 한도 초과, 워크플로우 비활성처럼 실행을 시작하지 않는 경로에도 나간다. 그 경로에서 «워크플로우를 시작합니다» 는 사실과 다르다. 시작 안내는 NERV Task `CLE-T-0400J6` 가 따로 다룬다.
 
 2026-11-13 에 Slack 슬래시 명령에도 같은 키와 같은 기본 도움말을 쓰기로 했다(NERV Task `CLE-T-MGZRRP`, 질문 `01a1d2f3-e188-7354-8298-243092419a3c`). Slack 도 슬래시 명령에는 3초 안에 `200` 으로 답해야 한다. 그래서 Discord 와 같게 모든 경로에서 본인에게만 보이는 응답(`response_type: 'ephemeral'`)으로 답한다. Slack 은 명령 이름을 앱 manifest 에서 정하고 요청마다 `command` 로 보내 준다. 그래서 기본 도움말에 넣을 명령 이름을 `languageHints.slashPrefix` 로 받지 않는다.
+
+### 봇 안내 문구의 문체 (2026-11-12)
+
+2026-11-12 에 사람이 질문 `01a1cd72-1b08-75dc-8392-7f42c03cbfa8` 에 권장안 1 로 답해 정했다. 봇 안내 문구는 메신저 대화창에 봇이 보내는 메시지라 화면 문구의 [다국어와 화면 문구 「규칙」](../CLE-UI/CLE-UI-I18N.md#규칙) 7 을 따르지 않고 따로 정한다. 그때 표의 한국어 기본 문구는 `surfaceMismatch` 하나만 해요체(«받을 수 없어요»)였고 나머지는 합쇼체였다. 그래서 합쇼체로 통일하고 `surfaceMismatch` 를 바꿨다. 요청은 보조 용언 «주다» 를 띄어 «~해 주세요» 로 쓴다.
+
+기각한 대안은 둘이다.
+
+- (a) 화면 문구처럼 해요체로 통일한다. 합쇼체로 쓴 나머지 기본 문구를 모두 바꿔야 한다.
+- (b) 요청을 «~해주세요» 로 붙여 쓴다. 그때 코드의 `formValidationFailed` · `formNextField` 기본 문구가 이렇게 붙여 썼다. 보조 용언은 띄어 쓰는 것이 한글 맞춤법의 원칙이라 띄어 쓰는 쪽으로 맞췄다.
+
+백엔드 기본 문구는 2026-11-15 에 이 기준에 맞췄다(NERV Task `CLE-T-A0G1FB` · `CLE-T-77C0HP`). `languageHints` 키가 아닌 봇 문구 가운데 «~해주세요» 로 붙여 쓴 곳은 NERV Task `CLE-T-P650QF` 가 맞춘다.
