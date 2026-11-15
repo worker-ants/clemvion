@@ -6,6 +6,7 @@ import {
   assertInboundSigningPlaintextByProvider,
   assertPatchCarriesNoSecrets,
   extractInboundSigningRef,
+  shouldKeepInboundSigningRef,
   stripChatChannelPlaintext,
   translateSetupChannelError,
 } from './chat-channel-input-rules';
@@ -433,5 +434,17 @@ describe('extractInboundSigningRef', () => {
     ['config 가 undefined', undefined, undefined],
   ])('%s', (_label, config, expected) => {
     expect(extractInboundSigningRef(config)).toBe(expected);
+  });
+});
+
+describe('shouldKeepInboundSigningRef', () => {
+  it.each([
+    ['새로 씀 · 참조 없음', true, undefined, true],
+    ['새로 안 씀 · 참조 있음', false, 'secret://x', true],
+    ['둘 다 있음', true, 'secret://x', true],
+    ['둘 다 없음', false, undefined, false],
+    ['빈 문자열 참조', false, '', false],
+  ])('%s', (_label, issued, ref, expected) => {
+    expect(shouldKeepInboundSigningRef(issued, ref)).toBe(expected);
   });
 });

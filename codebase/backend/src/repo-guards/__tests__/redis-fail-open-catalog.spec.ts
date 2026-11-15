@@ -85,6 +85,7 @@ describe('clemvion.redis.fail_open (component, reason) 선언 · 실배선 정�
       'chat_dedup',
       'chat_listener_bus',
       'chat_rate_limit',
+      'chat_signature_failure_limit',
       'execution_seq',
       'idempotency',
       'integration_cache_bus',

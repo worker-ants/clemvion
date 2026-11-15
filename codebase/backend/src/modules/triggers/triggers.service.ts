@@ -60,6 +60,7 @@ import {
   stripChatChannelPlaintext,
   translateSetupChannelError,
   extractInboundSigningRef,
+  shouldKeepInboundSigningRef,
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { assertRawConfigAccepted } from './trigger-config-internal-fields';
@@ -1702,11 +1703,25 @@ export class TriggersService {
           );
           throw translateSetupChannelError(err);
         }
+        // `inboundSigningRef` 는 이번에 서명 자료를 새로 쓰거나 저장된 행에 참조가 이미 있을 때만 싣는다.
+        // 바인더의 [ref 보존] 규칙(`chat-channel-binder.service.ts` 의 `inboundSigningRefSurvives`)과 같다.
+        // 서명 자료를 돌려주지 않는 어댑터(Slack · Discord)로 참조가 없는 옛 행을 재발급할 때 참조만
+        // 붙이면 시크릿 저장소에 값이 없는 참조가 생겨 그 트리거의 인바운드가 모두 401 이 된다
+        // (NERV Task `CLE-T-TJAHCN`). 참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 그대로 둔다.
+        // 근거: [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW#인바운드-서명-자료-참조가-없는-행).
+        const signingRefAtStart = shouldKeepInboundSigningRef(
+          Boolean(result.issuedInboundSigning),
+          chatChannelCfg.inboundSigningRef,
+        );
+        const signingRefDelta = (
+          keep: boolean,
+        ): { inboundSigningRef?: string } =>
+          keep ? { inboundSigningRef } : {};
         const merged: ChatChannelConfig = {
           ...mergedConfig,
           ...(result.configUpdates ?? {}),
           botTokenRef,
-          inboundSigningRef,
+          ...signingRefDelta(signingRefAtStart),
         };
 
         // 5. issuedInboundSigning plaintext → secret store.
@@ -1738,8 +1753,10 @@ export class TriggersService {
           // 되돌린다 — 헬퍼를 쓰면서도 헬퍼가 막으려던 결함을 그대로 낸 것이다
           // (`/ai-review` `review/code/2026/09/14/23_38_09` side_effect·maintainability C1).
           //
-          // 두 ref 는 델타에 **포함한다** — `chatChannelSecretRef(trigger.id, …)` 로 매번 재유도되는
-          // 결정적 값이고, 빠지면 인입 서명 검증이 fail-open 으로 돌아간다(D-3 계약).
+          // 두 ref 는 `chatChannelSecretRef(trigger.id, …)` 로 매번 재유도되는 결정적 값이다. `botTokenRef` 는
+          // 늘 델타에 넣는다. `inboundSigningRef` 는 위 조건에 락 안에서 다시 읽은 행의 참조를 더해 판정한다.
+          // 그 사이 다른 요청이 참조를 만들었으면 빼지 않고 이 트리거의 참조로 맞춘다. 빼면 인입 서명
+          // 검증이 fail-open 으로 돌아간다(D-3 계약).
           (freshConfig) =>
             mergeIntoFreshSubKey(
               freshConfig,
@@ -1747,7 +1764,12 @@ export class TriggersService {
               {
                 ...(result.configUpdates ?? {}),
                 botTokenRef,
-                inboundSigningRef,
+                ...signingRefDelta(
+                  shouldKeepInboundSigningRef(
+                    signingRefAtStart,
+                    extractInboundSigningRef(freshConfig),
+                  ),
+                ),
               },
               merged as unknown as Record<string, unknown>,
             ),
