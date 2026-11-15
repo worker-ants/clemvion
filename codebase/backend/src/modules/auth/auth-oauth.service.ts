@@ -17,6 +17,7 @@ import { UsersService } from '../users/users.service';
 import { normalizeEmail } from '../users/utils/normalize-email';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuthService } from './auth.service';
+import { SessionsService } from './sessions.service';
 import { User } from '../users/entities/user.entity';
 
 import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
@@ -52,6 +53,10 @@ interface AuthOAuthStateRow {
 function isOAuthStubEnabled(): boolean {
   return isOAuthStubModeAllowed();
 }
+
+/** stub 모드에서 공급자 이메일을 정하는 인가 코드 접두사. 운영에서는 stub 모드가 꺼져 쓰이지 않는다. */
+const STUB_EMAIL_CODE_PREFIX = 'stub-email:';
+const STUB_EMAIL_TOKEN_PREFIX = 'stub-token-email:';
 
 export const AUTH_OAUTH_PROVIDERS = ['google', 'github'] as const;
 export type AuthOAuthProvider = (typeof AUTH_OAUTH_PROVIDERS)[number];
@@ -105,6 +110,7 @@ export class AuthOauthService {
     private readonly usersService: UsersService,
     private readonly workspacesService: WorkspacesService,
     private readonly authService: AuthService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   static isSupportedProvider(value: string): value is AuthOAuthProvider {
@@ -195,7 +201,7 @@ export class AuthOauthService {
 
     const accessToken = await this.exchangeCodeForToken(provider, code);
     const profile = await this.fetchProfile(provider, accessToken);
-    const user = await this.resolveUser(provider, profile);
+    const user = await this.resolveUser(provider, profile, ctx);
     const tokens = await this.authService.issueTokensForOauthUser(
       user,
       rememberMe,
@@ -209,6 +215,12 @@ export class AuthOauthService {
     code: string,
   ): Promise<string> {
     if (isOAuthStubEnabled()) {
+      // e2e 가 기존 계정 연결을 재현하려면 공급자 이메일을 정해야 한다. 코드가
+      // `stub-email:<이메일>` 이면 그 이메일을 토큰에 실어 stub userinfo 로 넘긴다.
+      const stubEmail = code.startsWith(STUB_EMAIL_CODE_PREFIX)
+        ? code.slice(STUB_EMAIL_CODE_PREFIX.length)
+        : '';
+      if (stubEmail) return `${STUB_EMAIL_TOKEN_PREFIX}${stubEmail}`;
       return `stub-${provider}-${randomBytes(8).toString('hex')}`;
     }
 
@@ -269,9 +281,12 @@ export class AuthOauthService {
   ): Promise<OauthProfile> {
     if (isOAuthStubEnabled()) {
       const suffix = randomBytes(4).toString('hex');
+      const stubEmail = accessToken.startsWith(STUB_EMAIL_TOKEN_PREFIX)
+        ? accessToken.slice(STUB_EMAIL_TOKEN_PREFIX.length)
+        : '';
       return {
         providerId: `stub-${provider}-${suffix}`,
-        email: `stub-${provider}-${suffix}@example.com`,
+        email: stubEmail || `stub-${provider}-${suffix}@example.com`,
         name: `Stub ${provider} user`,
         avatarUrl: null,
       };
@@ -374,9 +389,48 @@ export class AuthOauthService {
     };
   }
 
+  /**
+   * 이메일 인증을 마치지 않은 기존 계정에 소셜 로그인을 연결한다. 연결과 같은 갱신에서
+   * 비밀번호 · 재설정 토큰 · 인증 토큰을 비운다. 남의 이메일로 먼저 가입만 해 둔 사람이
+   * 정해 둔 비밀번호로 연결 뒤의 계정에 들어오지 못하게 하려는 것이다.
+   * 비밀번호가 필요하면 사용자가 「비밀번호 찾기」로 새로 정한다. CLE-ACCT-SIGNIN 소셜 로그인, CLE-T-327K37.
+   *
+   * `email_verified = false` 조건을 함께 걸어서 그 사이 인증을 마쳤거나 다른 공급자에
+   * 묶인 계정은 건드리지 않는다. 그 경우 false 를 돌려주고 호출자가 기존 조건부 연결로 넘어간다.
+   *
+   * @returns 이 갱신이 계정을 연결했으면 true.
+   */
+  private async claimUnverifiedAccount(
+    provider: AuthOAuthProvider,
+    profile: OauthProfile,
+    byEmail: User,
+  ): Promise<boolean> {
+    const result = await this.dataSource
+      .getRepository(User)
+      .createQueryBuilder()
+      .update(User)
+      .set({
+        oauthProvider: provider,
+        oauthProviderId: profile.providerId,
+        emailVerified: true,
+        avatarUrl: byEmail.avatarUrl ?? profile.avatarUrl ?? undefined,
+        passwordHash: null,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+        emailVerifyToken: null,
+        emailVerifyExpiresAt: null,
+      })
+      .where('id = :id AND oauth_provider IS NULL AND email_verified = false', {
+        id: byEmail.id,
+      })
+      .execute();
+    return result.affected === 1;
+  }
+
   private async resolveUser(
     provider: AuthOAuthProvider,
     profile: OauthProfile,
+    ctx: { ip?: string | null; userAgent?: string | null },
   ): Promise<User> {
     const byOauth = await this.usersService.findByOauth(
       provider,
@@ -397,6 +451,14 @@ export class AuthOauthService {
     }
     if (lookup.kind === 'found') {
       const byEmail = lookup.user;
+      if (
+        !byEmail.emailVerified &&
+        (await this.claimUnverifiedAccount(provider, profile, byEmail))
+      ) {
+        // 연결 전에 받은 세션이 있으면 모두 끊는다. 새 토큰은 이 뒤에 발급한다.
+        await this.sessionsService.revokeAllFamilies(byEmail.id, ctx);
+        return (await this.usersService.findById(byEmail.id)) ?? byEmail;
+      }
       // Conditional link: only claim an account that is not yet bound to any
       // provider. If a different provider already owns the account, the update
       // is a no-op and we return the original record, preserving the binding.
