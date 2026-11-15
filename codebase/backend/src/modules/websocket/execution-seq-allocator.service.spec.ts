@@ -1,7 +1,5 @@
-import {
-  EXECUTION_MEMORY_MAX_ENTRIES,
-  ExecutionSeqAllocator,
-} from './execution-seq-allocator.service';
+import { EXECUTION_MEMORY_MAX_ENTRIES } from './execution-memory.policy';
+import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
 import { Logger } from '@nestjs/common';
 import type { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
@@ -380,12 +378,46 @@ describe('ExecutionSeqAllocator', () => {
       expect(await alloc.next('exec-keep')).toBe(3);
     });
 
-    it('미러 항목 수는 상한을 넘지 않는다', async () => {
-      const alloc = makeAllocator(makeRedis());
-      for (let i = 0; i <= EXECUTION_MEMORY_MAX_ENTRIES; i++) {
-        await alloc.next(`exec-${i}`);
+    it('미러 항목 수는 상한을 넘지 않고 가장 오래된 항목을 지운 경고를 한 번 남긴다', async () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const alloc = makeAllocator(makeRedis());
+        // 첫 항목 id 에 개행을 넣어 경고 로그의 sanitize 를 함께 확인한다.
+        await alloc.next('exec-0\nforged');
+        for (let i = 1; i <= EXECUTION_MEMORY_MAX_ENTRIES; i++) {
+          await alloc.next(`exec-${i}`);
+        }
+        expect(mirrorOf(alloc).size).toBe(EXECUTION_MEMORY_MAX_ENTRIES);
+        const evictionWarns = warn.mock.calls
+          .map(([msg]) => String(msg))
+          .filter((msg) => msg.includes('seq 미러 상한'));
+        expect(evictionWarns).toEqual([
+          `seq 미러 상한(${EXECUTION_MEMORY_MAX_ENTRIES}) 초과로 1건 회수: exec-0 forged`,
+        ]);
+      } finally {
+        warn.mockRestore();
       }
-      expect(mirrorOf(alloc).size).toBe(EXECUTION_MEMORY_MAX_ENTRIES);
+    });
+
+    it('EXECUTION_SEQ_TTL_SECONDS 를 미러의 유휴 TTL 로도 쓴다', async () => {
+      const prev = process.env.EXECUTION_SEQ_TTL_SECONDS;
+      process.env.EXECUTION_SEQ_TTL_SECONDS = '60';
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      try {
+        const alloc = makeAllocator(makeRedis());
+        await alloc.next('exec-short');
+        jest.setSystemTime(Date.now() + 59_999);
+        await alloc.next('exec-other');
+        expect(mirrorOf(alloc).size).toBe(2); // 아직 60초가 지나지 않았다
+        jest.setSystemTime(Date.now() + 1);
+        await alloc.next('exec-third');
+        expect(mirrorOf(alloc).size).toBe(2); // exec-short 만 회수된다
+      } finally {
+        if (prev === undefined) delete process.env.EXECUTION_SEQ_TTL_SECONDS;
+        else process.env.EXECUTION_SEQ_TTL_SECONDS = prev;
+      }
     });
   });
 

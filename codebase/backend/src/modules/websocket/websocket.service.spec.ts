@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { firstValueFrom, take, toArray } from 'rxjs';
-import { EXECUTION_MEMORY_MAX_ENTRIES } from './execution-seq-allocator.service';
+import { EXECUTION_MEMORY_MAX_ENTRIES } from './execution-memory.policy';
 import {
   BackgroundRunEventType,
   type ExecutionChannelEvent,
@@ -693,12 +693,16 @@ describe('WebsocketService', () => {
         .mockImplementation(() => undefined);
       try {
         const a = makeInstance();
-        for (let i = 0; i <= EXECUTION_MEMORY_MAX_ENTRIES; i++) {
+        // 첫 항목 id 에 개행을 넣어 경고 로그의 sanitize 를 함께 확인한다.
+        a.registerExecutionRouting('exec-0\r\nforged', { triggerId: 'trg' });
+        for (let i = 1; i <= EXECUTION_MEMORY_MAX_ENTRIES; i++) {
           a.registerExecutionRouting(`exec-${i}`, { triggerId: 'trg' });
         }
         expect(routingOf(a).size).toBe(EXECUTION_MEMORY_MAX_ENTRIES);
         expect(warn).toHaveBeenCalledTimes(1);
-        expect(String(warn.mock.calls[0][0])).toContain('exec-0');
+        expect(warn.mock.calls[0][0]).toBe(
+          `routing context 상한(${EXECUTION_MEMORY_MAX_ENTRIES}) 초과로 1건 회수: exec-0  forged`,
+        );
       } finally {
         warn.mockRestore();
       }

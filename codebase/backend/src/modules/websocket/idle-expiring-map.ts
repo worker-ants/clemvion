@@ -40,6 +40,7 @@ export class IdleExpiringMap<K, V> {
     this.now = options.now ?? (() => Date.now());
   }
 
+  /** 들어 있는 항목 수. 만료됐지만 아직 정리하지 않은 항목도 센다(정리는 `set` · `get` · `has` 때 한다). */
   get size(): number {
     return this.entries.size;
   }

@@ -2,32 +2,13 @@ import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
+import {
+  EXECUTION_MEMORY_MAX_ENTRIES,
+  formatEvictionWarning,
+  resolveExecutionSeqTtlSeconds,
+  sanitizeExecutionIdForLog,
+} from './execution-memory.policy';
 import { IdleExpiringMap } from './idle-expiring-map';
-
-/**
- * `exec:cont:seq:` (continuation-bus) 와 별개의 emit-event seq 네임스페이스 default TTL.
- * sliding window: 매 next() 가 EXPIRE 를 갱신해 활성 execution 동안 키가 유지되고,
- * execution 종료 후 (마지막 emit 으로부터) TTL 경과 시 자동 회수된다 (in-memory 누수 방지와 별도로
- * Redis 측 누수 방지). 24시간 = continuation-bus 와 동일 보수값.
- */
-const DEFAULT_SEQ_KEY_TTL_SECONDS = 86_400;
-
-/**
- * 실행 단위 메모리 항목(seq 미러, `WebsocketService` 의 routing context)의 인스턴스당 상한.
- * 한 인스턴스가 동시에 붙드는 실행 수보다 넉넉히 크게 잡았다. 넘치면 가장 오래 만지지 않은 항목부터 지운다.
- */
-export const EXECUTION_MEMORY_MAX_ENTRIES = 10_000;
-
-/**
- * `EXECUTION_SEQ_TTL_SECONDS` 를 읽는다(양수만 채택, 아니면 24시간). Redis seq 키의 sliding TTL 이고,
- * 같은 값을 실행 단위 메모리 항목의 유휴 TTL 로도 쓴다. 미러가 Redis 키보다 먼저 사라지지 않게 하려는 것이다.
- */
-export function resolveExecutionSeqTtlSeconds(): number {
-  const parsed = Number(process.env.EXECUTION_SEQ_TTL_SECONDS);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.floor(parsed)
-    : DEFAULT_SEQ_KEY_TTL_SECONDS;
-}
 
 /**
  * Execution 단위 monotonic seq 발급기 — Redis `INCR exec:seq:<id>`.
@@ -184,11 +165,7 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
   private setMirror(executionId: string, seq: number): void {
     const evicted = this.fallbackCounters.set(executionId, seq);
     if (evicted.length > 0) {
-      this.logger.warn(
-        `seq 미러 상한(${EXECUTION_MEMORY_MAX_ENTRIES}) 초과로 ${evicted.length}건 회수: ${evicted
-          .map((id) => ExecutionSeqAllocator.sanitize(id))
-          .join(', ')}`,
-      );
+      this.logger.warn(formatEvictionWarning('seq 미러', evicted));
     }
   }
 
@@ -198,10 +175,8 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
     this.fallbackCounters.clear();
   }
 
-  /** 로그 인젝션 방지 — executionId 의 CR/LF/탭 제거 (기타 C0 생략) + 길이 cap. */
+  /** 로그 인젝션 방지 — {@link sanitizeExecutionIdForLog} 참조. */
   private static sanitize(value: string): string {
-    return String(value)
-      .replace(/[\r\n\t]/g, ' ')
-      .slice(0, 128);
+    return sanitizeExecutionIdForLog(value);
   }
 }

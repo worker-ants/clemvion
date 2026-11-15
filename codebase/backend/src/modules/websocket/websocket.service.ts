@@ -3,9 +3,10 @@ import { Observable, Subject } from 'rxjs';
 import { WebsocketGateway } from './websocket.gateway';
 import {
   EXECUTION_MEMORY_MAX_ENTRIES,
-  ExecutionSeqAllocator,
+  formatEvictionWarning,
   resolveExecutionSeqTtlSeconds,
-} from './execution-seq-allocator.service';
+} from './execution-memory.policy';
+import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
 import { IdleExpiringMap } from './idle-expiring-map';
 import {
   EXTERNAL_STRIPPED_FIELDS,
@@ -339,9 +340,7 @@ export class WebsocketService {
     if (!executionId) return;
     const evicted = this.executionRouting.set(executionId, context);
     if (evicted.length > 0) {
-      this.logger.warn(
-        `routing context 상한(${EXECUTION_MEMORY_MAX_ENTRIES}) 초과로 ${evicted.length}건 회수: ${evicted.join(', ')}`,
-      );
+      this.logger.warn(formatEvictionWarning('routing context', evicted));
     }
     // production 진단용 debug log — log level 을 'debug' 로 올리면 dispatcher 의
     // listenerRegistry miss 와 envelope 첨부 누락을 시간순으로 추적 가능.
