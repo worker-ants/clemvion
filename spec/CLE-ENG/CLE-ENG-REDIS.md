@@ -2,47 +2,48 @@
 id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "cad46d9f28ee34b03273dc8f2a4e7ee261d3cf6355eaea798cbccafade392fb1"
+content_hash: "987c2791842b6c58feba51d5a75e4ae573fdba19d0a719bf51e171beae81f7b0"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-GDR39Z"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "c33e0b740afe8ba092abc1bd0e1166678b0217b8a06326f113ffbde0f8787253"
-etag: "sha256-448e285b55614c61adab73fd7a78ab9242010cb4da116e8250f305fd7739ddbc"
+mirror_sha256: "60a657c9d0e99bed95748f25e39f434e86f03a24324c116b3327326567e5d162"
+etag: "sha256-1be562317bf003c0dbee156e5874712fa4014656c86ec4e238956031579d18df"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}...]`)를 정한다. 이 문서가 정하는 것은 넷이다.
+Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}...]`)를 정한다. 이 문서가 정하는 것은 다섯이다.
 
 1. 키 형태 규칙
 2. 키에 워크스페이스 세그먼트를 넣을지 가리는 기준
 3. 새 키를 만들 때의 등재 의무
 4. 이름 모양이 비슷하지만 Redis 키가 아닌 인접 이름의 구분과 PostgreSQL advisory lock 키 계열의 목록·키 모양·해시 함수
+5. 라이브러리가 형식을 정하는 이름(`bull:<queue>:*` · `ws:sio` 채널)의 범위와 접두 예외
 
 범위 밖:
 
 - 지금 있는 Redis 키와 pub/sub 채널의 전체 목록(인벤토리)과 BullMQ 큐 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 단일 기준이다.
-- 키별 용도·TTL·실패 정책은 그 키를 소유한 문서가 정한다. 실행 엔진 키는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md), EIA 키는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md), 채팅 채널 키는 [채팅 채널 데이터와 흐름 — 저장 모델과 상태](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키), 웹훅 요청 빈도 제한 키는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), Cafe24 설치 키는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md), Passkey 인증 챌린지 기록 키는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다. 한 표에 상세까지 모으면 그 표가 두 번째 기준이 된다.
-- BullMQ 가 큐마다 안에서 만드는 `bull:<queue>:*` 키는 라이브러리 표준이라 이 규약 밖이다.
+- 키별 용도·TTL·실패 정책은 그 키를 소유한 문서가 정한다. 실행 엔진 키는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md), EIA 키는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md), 채팅 채널 키는 [채팅 채널 데이터와 흐름 — 저장 모델과 상태](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키), 웹훅 요청 빈도 제한 키는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), Cafe24 설치 키는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md), Passkey 인증 챌린지 기록 키는 [가입과 로그인 — Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](../CLE-ACCT/CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록), WebSocket adapter 채널은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달) 이 정한다. 한 표에 상세까지 모으면 그 표가 두 번째 기준이 된다.
+- 라이브러리가 이름을 정하는 키 · 채널(`bull:<queue>:*`, `ws:sio` 채널)은 형태 규칙 밖이다([라이브러리가 이름을 정하는 것](#라이브러리가-이름을-정하는-것)).
 
 ## 규칙
 
 1. Redis 키는 `{도메인}:{용도}[:{식별자}...]` 형태다. 머리 두 세그먼트(도메인·용도)는 고정이고 꼬리 식별자는 0~4개다.
 2. 도메인은 그 키를 소유한 코드 모듈을 가리키는 짧은 접두다. 용도는 그 도메인 안에서 무엇을 저장하는지다.
-3. 새 키는 규칙 1 을 따른다. 규칙보다 먼저 있던 예외 두 계열은 이름을 바꾸지 않는다([규칙 밖의 기존 키](#규칙-밖의-기존-키)).
+3. 새 키는 규칙 1 을 따른다. 규칙보다 먼저 있던 예외 두 계열은 이름을 바꾸지 않는다([규칙 밖의 기존 키](#규칙-밖의-기존-키)). 라이브러리가 형식을 정하는 이름은 규칙 1 밖이다([라이브러리가 이름을 정하는 것](#라이브러리가-이름을-정하는-것)).
 4. 키에 워크스페이스 세그먼트(`workspaceId`)는 **키 수준의 워크스페이스 격리가 필요할 때만** 넣는다. 예: 워크스페이스별 쿼터, 격리된 네임스페이스 열거.
 5. 워크스페이스 세그먼트를 넣을 때는 도메인 바로 뒤에 둔다: `{도메인}:{workspaceId}:{용도}:…`.
-6. 한 모듈이 이미 쓰는 접두를 더 늘리지 않는다. 이미 여러 접두를 쓰는 모듈에 통일을 강제하지는 않는다.
+6. 한 모듈이 이미 쓰는 접두를 더 늘리지 않는다. 이미 여러 접두를 쓰는 모듈에 통일을 강제하지는 않는다. 예외는 Socket.IO Redis adapter 채널 접두 `ws:sio` 하나다([한 모듈이 여러 접두를 쓴다](#한-모듈이-여러-접두를-쓴다)). 이 예외를 새 접두를 더하는 근거로 쓰지 않는다.
 7. 새 Redis 키나 pub/sub 채널을 만들면 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 한 줄을 더하고 용도·TTL·실패 정책은 소유 문서에 적는다. 이 의무가 없으면 목록은 만든 시점의 스냅샷으로 굳는다.
-8. 이름 모양이 비슷해도 Redis 를 거치지 않는 이름은 Redis 키 목록에 넣지 않는다([인접 이름](#redis-키가-아닌-인접-이름)).
+8. 이름 모양이 비슷해도 Redis 키가 아닌 이름은 Redis 키 목록에 넣지 않는다([인접 이름](#redis-키가-아닌-인접-이름)).
 9. PostgreSQL advisory lock 키 계열을 새로 들이면 [인접 이름](#redis-키가-아닌-인접-이름) 표에 키 모양과 해시 함수를 올린다. 새 계열의 해시는 64비트 `hashtextextended(<키>, 0)` 를 쓴다.
 
 ## 키 형태
@@ -71,8 +72,11 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 
 - `modules/external-interaction` 은 `iext:`·`interaction:`·`eia:` 를 쓴다.
 - `modules/chat-channel` 은 긴 접두(`chat-channel:`·`chat-channel-lock:`)와 약어(`cc:`)를 함께 쓴다.
+- `modules/websocket` 은 `exec:seq`(이벤트 순번 키)와 `ws:sio`(Socket.IO Redis adapter 채널 접두)를 쓴다.
 
 통일을 강제하지 않는다. 키 형식을 바꾸면 배포 전환기에 기존 엔트리가 모두 고아가 된다. 대신 모듈마다 접두가 더 늘지 않게 이 사실을 남긴다(규칙 6).
+
+`ws:sio` 는 `websocket` 모듈이 접두를 하나 더 쓴 것이라 규칙 6 의 예외다. adapter 채널은 실행 이벤트 말고도 지식 저장소 · 인앱 알림 · Background 채널의 패킷을 싣기 때문에 `exec:` 아래에 두면 뜻이 틀린다. 이 예외는 라이브러리가 형식을 정하는 채널의 접두에만 둔다. 우리가 이름을 정하는 키에 새 접두를 더하는 근거로 쓰지 않는다.
 
 ### 형태 규칙의 예외 두 계열
 
@@ -81,17 +85,27 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 | `chat-channel:<triggerId>:<conversationKey>` | 머리 두 세그먼트 중 **용도가 없다**. 도메인 다음이 바로 식별자다 |
 | `chat-channel-lock:<triggerId>:<conversationKey>:formsubmit` | 반대로 **용도를 꼬리에** 둔다 |
 
-둘 다 규약보다 먼저 있던 키이고 위와 같은 이유로 이름을 바꾸지 않는다. 이 표는 예외가 어디까지인지 그은 선이다. 새 예외를 허용하는 근거로 쓰지 않는다. 새 키는 규칙 1 을 따른다.
+둘 다 규약보다 먼저 있던 키이고 위와 같은 이유로 이름을 바꾸지 않는다. 이 표는 우리가 이름을 정한 키의 예외가 어디까지인지 그은 선이다. 새 예외를 허용하는 근거로 쓰지 않는다. 새 키는 규칙 1 을 따른다. 라이브러리가 형식을 정하는 이름은 다음 절에서 따로 다룬다.
+
+### 라이브러리가 이름을 정하는 것
+
+| 이름 | 정하는 라이브러리 | 우리가 정하는 부분 |
+| --- | --- | --- |
+| `bull:<queue>:*` | BullMQ | 큐 이름 |
+| `ws:sio#/ws#[<채널>#]` · `ws:sio-request#/ws#` · `ws:sio-response#/ws#[<서버 uid>#]` | `@socket.io/redis-adapter` | 접두 `ws:sio`(adapter 의 `key` 옵션) |
+
+이 절의 이름은 형식을 라이브러리가 정하므로 우리가 이름을 정한 앞 절의 두 계열과 종류가 다르다. `ws:sio` 채널 이름은 `#` 로 나뉘고 namespace(`/ws`)와 Socket.IO 채널 이름이 들어가서 규칙 1(형태)과 규칙 3(새 키는 규칙 1)을 따르지 않는다. 우리가 고를 수 있는 것은 접두뿐이다. 규칙 7 의 등재 의무는 그대로다. 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다. `bull:<queue>:*` 키는 한 줄씩 올리지 않고 큐 목록으로 대신한다.
+
+`ws:sio` 채널은 옛 `ws:{wsId}:session:{connId}` 연결 상태 키와 다르다. 연결 상태는 Redis 에 두지 않는다.
 
 ## Redis 키가 아닌 인접 이름
 
-다음 이름은 `{도메인}:{용도}:{id}` 꼴이지만 Redis 를 거치지 않는다. Redis 키 목록에 넣지 않는다. PostgreSQL advisory lock 키 계열의 키 모양과 해시 함수는 이 표가 정본이다. 그 키로 잠그는 기능 문서는 언제 잠그는지만 적고 이 표를 링크한다.
+다음 이름은 `{도메인}:{용도}:{id}` 꼴이지만 Redis 키가 아니다. Redis 키 목록에 넣지 않는다. PostgreSQL advisory lock 키 계열의 키 모양과 해시 함수는 이 표가 정본이다. 그 키로 잠그는 기능 문서는 언제 잠그는지만 적고 이 표를 링크한다.
 
 | 이름 | 실체 | 기준 문서 |
 | --- | --- | --- |
-| `background:run:<id>` · `execution:<id>` · `workflow:<id>` | **Socket.IO 채널** (`server.to(channel).emit()`) | [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) |
+| `background:run:<id>` · `execution:<id>` · `workflow:<id>` | **Socket.IO 채널** (`server.to(channel).emit()`). Redis 키가 아니다. 서버 인스턴스가 여럿이면 채널 이름이 adapter 채널 이름 `ws:sio#/ws#<채널>#` 안에 실려 Redis 를 지난다([라이브러리가 이름을 정하는 것](#라이브러리가-이름을-정하는-것)) | [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러](../CLE-API/CLE-API-WS-MSG.md) §4.2 · §4.6 |
 | `bg:<executionId>:<backgroundRunId>` | **메모리 Map 라우팅 키** (`_contextKey`) | [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) |
-| `bull:<queue>:*` | BullMQ 내부 키(라이브러리 표준) | [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) |
 | `trigger-config:<triggerId>` · `exec-cap:<workspaceId>` (`workspaceId` 가 없으면 `<workflowId>`) | **PostgreSQL advisory lock 키**. `pg_advisory_xact_lock(hashtext(<키>))` 에 넣는 문자열. 해시는 32비트 `hashtext()` 다 | [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) · [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) |
 | `makeshop-pending:<workspaceId>:<client_id 의 SHA-256 hex>` | **PostgreSQL advisory lock 키**. `pg_advisory_xact_lock(hashtextextended(<키>, 0))` 에 넣는 문자열. 해시는 64비트 `hashtextextended(<키>, 0)` 다. MakeShop `oauth/begin` 이 같은 `(workspace_id, client_id)` 의 설치 대기 행 재사용을 줄 세운다 | [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) |
 
@@ -113,6 +127,7 @@ advisory lock 키는 계열이 달라도 한 공간을 쓴다. 모든 계열은 
 - `codebase/backend/src/modules/hooks/**/*.ts`
 - `codebase/backend/src/modules/integrations/**/*.ts`
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts`
+- `codebase/backend/src/modules/websocket/ws-redis-adapter.ts`
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts`
 - `codebase/backend/src/common/redis/**/*.ts`
 
@@ -148,3 +163,7 @@ NERV 로 옮기면서 전역 목록은 이 문서에서 [비동기 큐와 Redis 
 ### 식별자에 콜론이 들어가는 키는 값 개수로 센다 (2026-11-14)
 
 IPv6 주소에는 콜론이 들어 있다. 그래서 `cc:sigfail:<triggerId>:<clientIp>` 를 콜론으로 나누면 IP 종류에 따라 세그먼트 수가 달라지고 [키 형태](#키-형태) 의 세그먼트 수를 셀 수 없다. 채팅 채널 모듈은 이 키를 만들기만 하고 콜론으로 나눠 읽지 않으므로 IP 값을 인코딩하지 않았다. 키를 나눠 읽는 코드가 생기면 인코딩을 다시 정한다.
+
+### WebSocket adapter 채널 접두를 규약 예외로 둔 이유 (2026-11-14)
+
+NERV Task `CLE-T-GDR39Z`. Socket.IO Redis adapter 의 채널 이름 형식은 라이브러리가 정하고 우리가 바꿀 수 없다. 우리가 고르는 것은 접두뿐이다. 연결 상태는 Redis 에 두지 않는다는 2026-08-13 결정([비동기 큐와 Redis 키 목록 「지운 키 두 개 (2026-08-13)」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개-2026-08-13))은 그대로 두고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 인접 이름 표는 Socket.IO 채널을 «Redis 를 거치지 않는다» 고 적었다. adapter 를 건 뒤로는 서버 인스턴스가 여럿이면 채널 이름이 adapter 채널 이름 안에 실려 Redis 를 지나므로 «Redis 키가 아니다» 로 고쳤다. 규칙 8 도 같은 이유로 고쳤다. adapter 를 걸기로 한 결정과 기각한 대안은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다. `bull:<queue>:*` 는 Redis 키인데도 인접 이름 표(Redis 키가 아닌 이름)에 있었다. 라이브러리가 이름을 정하는 이름을 한 절로 모으면서 그 행을 새 절로 옮겼다. 규칙 6 의 예외는 라이브러리가 형식을 정하는 채널 접두 하나로 좁혔다. 접두를 고를 수 있는 우리 키에까지 예외를 넓히면 규칙 6 이 막으려던 접두 늘리기가 다시 열린다.

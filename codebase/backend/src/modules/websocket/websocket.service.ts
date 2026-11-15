@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { WebsocketGateway } from './websocket.gateway';
+import {
+  EXECUTION_MEMORY_MAX_ENTRIES,
+  formatEvictionWarning,
+  resolveExecutionSeqTtlSeconds,
+} from './execution-memory.policy';
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
+import { IdleExpiringMap } from './idle-expiring-map';
 import {
   EXTERNAL_STRIPPED_FIELDS,
   stripExternalOnlyFields,
@@ -299,11 +305,20 @@ export class WebsocketService {
    *
    * Lifecycle 은 seq allocator 의 키와 동일 — terminal event 발송 후 자동
    * release. 명시 release 필요 시 {@link releaseExecutionRouting}.
+   *
+   * terminal 이벤트는 실행을 끝낸 인스턴스에서만 나간다. 실행을 park 한 인스턴스와 끝낸 인스턴스가
+   * 다르면 park 한 쪽 항목이 남으므로 유휴 TTL(`EXECUTION_SEQ_TTL_SECONDS`, 기본 24시간)과
+   * 상한({@link EXECUTION_MEMORY_MAX_ENTRIES})으로도 회수한다(NERV Task CLE-T-4J965H). 이벤트를 낼
+   * 때마다 유휴 시각을 다시 잰다. park 뒤 재개는 늘 rehydration 경로라 그 인스턴스가 routing 을 다시
+   * 등록하므로, park 동안 항목이 회수돼도 재개 뒤 fanout 봉투에는 영향이 없다.
    */
-  private readonly executionRouting = new Map<
+  private readonly executionRouting = new IdleExpiringMap<
     string,
     ExecutionRoutingContext
-  >();
+  >({
+    maxEntries: EXECUTION_MEMORY_MAX_ENTRIES,
+    idleTtlMs: resolveExecutionSeqTtlSeconds() * 1000,
+  });
 
   constructor(
     private readonly gateway: WebsocketGateway,
@@ -323,7 +338,10 @@ export class WebsocketService {
     context: ExecutionRoutingContext,
   ): void {
     if (!executionId) return;
-    this.executionRouting.set(executionId, context);
+    const evicted = this.executionRouting.set(executionId, context);
+    if (evicted.length > 0) {
+      this.logger.warn(formatEvictionWarning('routing context', evicted));
+    }
     // production 진단용 debug log — log level 을 'debug' 로 올리면 dispatcher 의
     // listenerRegistry miss 와 envelope 첨부 누락을 시간순으로 추적 가능.
     this.logger.debug(

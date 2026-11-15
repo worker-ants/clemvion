@@ -1,3 +1,4 @@
+import { EXECUTION_MEMORY_MAX_ENTRIES } from './execution-memory.policy';
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
 import { Logger } from '@nestjs/common';
 import type { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
@@ -336,6 +337,87 @@ describe('ExecutionSeqAllocator', () => {
     it('미설정 → default 86400', () => {
       delete process.env[ENV];
       expect(ttlOf(makeAllocatorForTtl())).toBe(86_400);
+    });
+  });
+
+  describe('park 한 인스턴스와 끝낸 인스턴스가 다를 때 (CLE-T-4J965H)', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    function mirrorOf(alloc: ExecutionSeqAllocator): { size: number } {
+      return (alloc as unknown as { fallbackCounters: { size: number } })
+        .fallbackCounters;
+    }
+
+    it('A 가 발급하고 B 가 release 해도 A 의 미러는 유휴 TTL 뒤 다음 발급 때 회수된다', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      const redis = makeRedis();
+      const a = makeAllocator(redis);
+      const b = makeAllocator(redis);
+      await a.next('exec-parked'); // A 가 첫 세그먼트를 돌리고 park
+      await b.next('exec-parked'); // B 가 이어 받아
+      b.release('exec-parked'); // 끝낸다
+      expect(mirrorOf(a).size).toBe(1); // A 에는 남아 있다
+
+      jest.setSystemTime(Date.now() + 86_400 * 1000);
+      await a.next('exec-other');
+      expect(mirrorOf(a).size).toBe(1); // exec-parked 는 지워지고 exec-other 만 남는다
+    });
+
+    it('유휴 TTL 안에서는 미러가 남아 장애 전환 때 high-water mark 를 이어받는다', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      const redis = makeRedis();
+      const alloc = makeAllocator(redis);
+      await alloc.next('exec-keep');
+      await alloc.next('exec-keep');
+      jest.setSystemTime(Date.now() + 86_400 * 1000 - 1);
+      (alloc as unknown as { getClient: () => unknown }).getClient = () => {
+        throw new Error('Redis down');
+      };
+      expect(await alloc.next('exec-keep')).toBe(3);
+    });
+
+    it('미러 항목 수는 상한을 넘지 않고 가장 오래된 항목을 지운 경고를 한 번 남긴다', async () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const alloc = makeAllocator(makeRedis());
+        // 첫 항목 id 에 개행을 넣어 경고 로그의 sanitize 를 함께 확인한다.
+        await alloc.next('exec-0\nforged');
+        for (let i = 1; i <= EXECUTION_MEMORY_MAX_ENTRIES; i++) {
+          await alloc.next(`exec-${i}`);
+        }
+        expect(mirrorOf(alloc).size).toBe(EXECUTION_MEMORY_MAX_ENTRIES);
+        const evictionWarns = warn.mock.calls
+          .map(([msg]) => String(msg))
+          .filter((msg) => msg.includes('seq 미러 상한'));
+        expect(evictionWarns).toEqual([
+          `seq 미러 상한(${EXECUTION_MEMORY_MAX_ENTRIES}) 초과로 1건 회수: exec-0 forged`,
+        ]);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('EXECUTION_SEQ_TTL_SECONDS 를 미러의 유휴 TTL 로도 쓴다', async () => {
+      const prev = process.env.EXECUTION_SEQ_TTL_SECONDS;
+      process.env.EXECUTION_SEQ_TTL_SECONDS = '60';
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      try {
+        const alloc = makeAllocator(makeRedis());
+        await alloc.next('exec-short');
+        jest.setSystemTime(Date.now() + 59_999);
+        await alloc.next('exec-other');
+        expect(mirrorOf(alloc).size).toBe(2); // 아직 60초가 지나지 않았다
+        jest.setSystemTime(Date.now() + 1);
+        await alloc.next('exec-third');
+        expect(mirrorOf(alloc).size).toBe(2); // exec-short 만 회수된다
+      } finally {
+        if (prev === undefined) delete process.env.EXECUTION_SEQ_TTL_SECONDS;
+        else process.env.EXECUTION_SEQ_TTL_SECONDS = prev;
+      }
     });
   });
 
