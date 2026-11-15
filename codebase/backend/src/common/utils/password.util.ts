@@ -79,14 +79,14 @@ export function validatePasswordStrength(
   password: string,
   field: string,
 ): void {
-  if (password.length < 8) {
+  if (password.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
     throw new BadRequestException({
       code: 'VALIDATION_ERROR',
-      message: 'Password must be at least 8 characters',
+      message: `Password must be at least ${MIN_ACCOUNT_PASSWORD_LENGTH} characters`,
       details: [
         {
           field,
-          message: 'Minimum 8 characters required',
+          message: `Minimum ${MIN_ACCOUNT_PASSWORD_LENGTH} characters required`,
           code: 'INVALID_FIELD',
         },
       ],

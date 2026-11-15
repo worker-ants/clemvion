@@ -1,4 +1,5 @@
 import { SetMetadata, applyDecorators } from '@nestjs/common';
+import { ApiTooManyRequestsResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { SENSITIVE_ACTION_THROTTLE } from '../../../common/constants/throttle';
 
@@ -19,4 +20,8 @@ export const RequirePasswordRecheck = (): MethodDecorator =>
   applyDecorators(
     SetMetadata(PASSWORD_RECHECK_METADATA, true),
     Throttle(SENSITIVE_ACTION_THROTTLE),
+    ApiTooManyRequestsResponse({
+      description:
+        '요청 빈도 초과(RATE_LIMITED). 라우트별 분당 10회 한도를 넘었거나, 이 사용자가 최근 1분 안에 비밀번호를 10번 틀려 창이 끝날 때까지 비밀번호를 대조하지 않는 경우',
+    }),
   );

@@ -1,4 +1,6 @@
 import { Logger } from '@nestjs/common';
+import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
+import { RECORD_SIGNATURE_FAILURE_LUA } from '../chat-channel/chat-channel-signature-failure-limiter.service';
 import {
   PASSWORD_RECHECK_FAILURE_LIMIT_PER_MIN,
   PASSWORD_RECHECK_FAILURE_WINDOW_SEC,
@@ -31,8 +33,47 @@ describe('PasswordRecheckFailureLimiterService', () => {
   });
 
   it('한도는 라우트별 민감 tier 와 같은 분당 10회다', () => {
-    expect(PASSWORD_RECHECK_FAILURE_LIMIT_PER_MIN).toBe(10);
-    expect(PASSWORD_RECHECK_FAILURE_WINDOW_SEC).toBe(60);
+    expect(PASSWORD_RECHECK_FAILURE_LIMIT_PER_MIN).toBe(
+      SENSITIVE_ACTION_THROTTLE.default.limit,
+    );
+    expect(PASSWORD_RECHECK_FAILURE_WINDOW_SEC * 1000).toBe(
+      SENSITIVE_ACTION_THROTTLE.default.ttl,
+    );
+  });
+
+  describe('생성자의 Redis 해석', () => {
+    it('주입 토큰이 있으면 그것을 쓰고 연결 제공자는 부르지 않는다', async () => {
+      const get = jest.fn().mockResolvedValue('10');
+      const getClientOrNull = jest.fn();
+
+      const limiter = new PasswordRecheckFailureLimiterService(
+        { get } as never,
+        { getClientOrNull } as never,
+      );
+
+      await expect(limiter.isBlocked(USER_ID)).resolves.toBe(true);
+      expect(getClientOrNull).not.toHaveBeenCalled();
+    });
+
+    it('주입 토큰이 없으면 RedisConnectionProvider 의 클라이언트로 폴백한다', async () => {
+      const get = jest.fn().mockResolvedValue('10');
+      const getClientOrNull = jest.fn().mockReturnValue({ get });
+
+      const limiter = new PasswordRecheckFailureLimiterService(undefined, {
+        getClientOrNull,
+      } as never);
+
+      await expect(limiter.isBlocked(USER_ID)).resolves.toBe(true);
+      expect(getClientOrNull).toHaveBeenCalledTimes(1);
+    });
+
+    it('연결 제공자가 클라이언트를 못 주면 막지 않는다', async () => {
+      const limiter = new PasswordRecheckFailureLimiterService(undefined, {
+        getClientOrNull: () => null,
+      } as never);
+
+      await expect(limiter.isBlocked(USER_ID)).resolves.toBe(false);
+    });
   });
 
   describe('isBlocked', () => {
@@ -130,6 +171,12 @@ describe('PasswordRecheckFailureLimiterService', () => {
     expect(RECORD_PASSWORD_RECHECK_FAILURE_LUA).toContain("redis.call('INCR'");
     expect(RECORD_PASSWORD_RECHECK_FAILURE_LUA).toContain(
       "c == 1 or redis.call('TTL', KEYS[1]) == -1",
+    );
+  });
+
+  it('Lua 스크립트는 채팅 채널 서명 실패 카운터와 같다(복제본이 어긋나지 않게 한다)', () => {
+    expect(RECORD_PASSWORD_RECHECK_FAILURE_LUA).toBe(
+      RECORD_SIGNATURE_FAILURE_LUA,
     );
   });
 });

@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
+import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
 /** 비밀번호 재확인 실패 카운터 키. 사용자마다 하나다. 어느 라우트에서 틀렸든 같은 키를 센다. */
@@ -7,14 +8,16 @@ export const makePasswordRecheckFailureKey = (userId: string): string =>
   `auth:password-recheck-failures:${userId}`;
 
 /** 고정 창 길이(초). */
-export const PASSWORD_RECHECK_FAILURE_WINDOW_SEC = 60;
+export const PASSWORD_RECHECK_FAILURE_WINDOW_SEC =
+  SENSITIVE_ACTION_THROTTLE.default.ttl / 1000;
 
 /**
  * 창 안에서 허용하는 비밀번호 재확인 실패 수. 이만큼 틀리면 창이 끝날 때까지 비밀번호를 대조하지 않고 429 로 답한다.
- * 라우트마다 거는 `SENSITIVE_ACTION_THROTTLE`(분당 10회)과 같은 값이다. 그 한도는 라우트마다 따로 세서 재확인 라우트가 다섯이면
+ * 라우트마다 거는 `SENSITIVE_ACTION_THROTTLE`(분당 10회)에서 값을 가져온다. 그 한도는 라우트마다 따로 세서 재확인 라우트가 다섯이면
  * 한 사용자의 추측 예산이 분당 50회가 된다. 이 카운터가 그 예산을 사용자 단위 10회로 묶는다.
  */
-export const PASSWORD_RECHECK_FAILURE_LIMIT_PER_MIN = 10;
+export const PASSWORD_RECHECK_FAILURE_LIMIT_PER_MIN =
+  SENSITIVE_ACTION_THROTTLE.default.limit;
 
 /**
  * 실패 하나를 세고 센 값을 돌려주는 Lua 스크립트. 첫 실패이거나 키에 TTL 이 없으면 창 길이로 TTL 을 건다.
