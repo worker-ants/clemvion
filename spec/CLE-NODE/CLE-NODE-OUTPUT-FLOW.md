@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-FLOW"
 title: "노드 출력 규약 — 포트 · 흐름 상태 · 에러"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "c3517d25287af282db352c9e1c148b2b9f884bff31f5658fa9962d671ec756fe"
-read_as: "approved_fallback"
-task: "CLE-T-QGRX9B"
+content_hash: "20ccd66acd99d4622f3ed860ef769251b47a157de1a7b551c1fc0e2ee0313b71"
+read_as: "approved"
+task: null
 source_paths: []
-mirror_sha256: "7c7a9dd31548f84fabb5cbcbb9e5d3df9d83278fe481684079508af95a43cb1f"
-etag: "sha256-ab86a8c6e2d49a97fd6451dbe9548b1939a99fe1b5bc3ccdf2deb23d2492515a"
+mirror_sha256: "8c38e17720e1257410a5c5b5325e3c6c474ebc606a03db5be8b74d620e6cdd42"
+etag: "sha256-ebe0a1cf59b42ce8085b1546010abe31bb935f5612d534b567716d526c26d60a"
 ---
 ## 개요
 
@@ -73,10 +73,10 @@ AI 노드가 아닌 노드에서 `retryable`·`retryAfterSec` 는 선택이다. 
 ### 3.3 에러 포트가 있는 노드
 
 1. 다음 노드에는 고정 에러 포트(`error`)가 반드시 있다: `http_request`, `database_query`, `send_email`, `cafe24`, `makeshop`, `ai_agent`, `information_extractor`, `text_classifier`, `code`, `workflow`(서브 워크플로우 실패 시).
-2. `transform`, `if_else`, `switch` 같은 노드는 설정 검증만 하고 실패하면 throw 한다. 런타임 에러 포트가 없다.
+2. `transform`, `if_else`, `switch` 같은 노드는 설정 검증만 하고 실패하면 throw 한다. 고정 에러 포트가 없다.
 3. 이 가운데 AI 노드(`ai_agent`, `text_classifier`, `information_extractor`)는 에러로 끝날 때 `output.error.details.retryable` 을 분류할 의무가 있다. 기준은 [3.2.1](#321-details-의-공통-표준-필드)이다.
 4. 포트 구성의 기준은 각 노드 문서의 포트 절이다. 에러 처리 정책으로 생기는 동적 에러 포트는 [노드 에러 처리 정책](CLE-NODE-ERROR.md)이 다룬다.
-5. 노드 정의에 포트 ID 가 `error` 인 포트가 이미 있는 노드(1번의 노드)에는 동적 에러 포트를 따로 만들지 않는다. 에러 처리 정책을 「에러 포트로 라우팅」으로 골라도 그 포트를 쓴다. 그래서 한 노드에 `error` 포트는 하나다([Rationale](#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14)).
+5. 노드 정의에 포트 ID 가 `error` 인 포트가 이미 있는 노드(위 1번 목록의 노드)에는 동적 에러 포트를 따로 만들지 않는다. 에러 처리 정책을 「에러 포트로 라우팅」으로 골라도 그 포트를 쓴다. 그래서 한 노드에 `error` 포트는 하나다([Rationale](#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14)).
 
 ## Principle 4. 블로킹과 재개 계약
 
@@ -205,16 +205,15 @@ stateDiagram-v2
 
 1. 전역 버튼은 `config.buttons[i].id` 를 그대로 쓴다. 사용자가 설정한 ID 다.
 2. 항목 버튼(Carousel 정적 모드 등)은 `${buttonId}__item_${index}` 를 쓴다. Carousel 이 쓰던 접미사를 공식 규칙으로 올린 것이다. 엔진은 `__item_\d+$` 부분을 떼어 원래 포트로 보낸다.
-3. 시스템 포트 예약어는 `out`, `error`, `default`, `done`, `user_ended`, `max_turns`, `completed`, `fallback`, `continue` 다. 사용자가 설정한 ID 가 이 값과 겹치면 거부한다. `error` 를 뺀 예약어의 집합과 거부하는 계층은 노드마다 다르게 적혀 있다. [미결 사항](#미결-사항) 참조.
-4. `error` 는 모든 노드에서 예약한다. Switch 케이스, 텍스트 분류기 카테고리, AI 에이전트 조건, Presentation 버튼(전역 버튼과 항목 버튼)의 ID 가 `error` 와 정확히 같으면 노드 설정 검증(`validateConfig`)이 거부한다. 이 검증은 실행 직전 검사(`INVALID_NODE_CONFIG`)와 AI 어시스턴트 검증에서 돈다. 워크플로우 저장 API 와 가져오기는 검사하지 않는다. AI 어시스턴트가 빈 버튼 id 를 label 로 채울 때(`normalizeNodeButtonIds`)도 `error` 를 만들지 않는다. 텍스트 분류기는 지금처럼 대소문자를 가리지 않고 거부한다.
-   - Presentation 버튼 검증(`validateButtons`)과 `normalizeNodeButtonIds` 는 아직 `error` 를 막지 않는다(미구현).
-   - 이미 저장된 버튼 id `error` 는 일회성 이전 스크립트로 바꾼다. 노드 출력 재설계 때의 `migrate-node-output-refs.ts` 와 같은 방식이다. 새 id 는 `error_1` 부터 시작하고 같은 노드에 이미 있으면 번호를 올린다. 그 버튼에 붙은 연결선의 `sourcePort` 도 함께 바꾼다(미구현).
+3. 시스템 포트 예약어는 `out`, `error`, `default`, `done`, `user_ended`, `max_turns`, `completed`, `fallback`, `continue` 9개다. 노드마다 이 가운데 어디까지 거부하는지는 4번과 [미결 사항](#미결-사항)을 따른다.
+4. `error` 는 모든 노드에서 예약한다. Switch 케이스, 텍스트 분류기 카테고리, AI 에이전트 조건의 ID 가 `error` 와 정확히 같으면 노드 설정 검증(`validateConfig`)이 거부한다. Presentation 노드는 `validateConfig` 가 부르는 `validateButtons`(Carousel 항목 버튼은 `validateCarouselItemButtons`)가 버튼 id `error` 를 거부한다. 이 검증은 실행 직전 검사(`INVALID_NODE_CONFIG`)와 AI 어시스턴트 검증에서 돈다. 워크플로우 저장 API 와 가져오기는 검사하지 않는다. AI 어시스턴트가 빈 버튼 id 를 label 로 채울 때(`normalizeNodeButtonIds`)도 `error` 를 만들지 않는다. 텍스트 분류기는 지금처럼 대소문자를 가리지 않고 거부한다.
+   - 이미 저장된 버튼 id `error` 는 일회성 이전 스크립트(`codebase/backend/src/scripts/migrate-reserved-error-button-ids.ts`)로 바꾼다. 노드 출력 재설계 때의 `migrate-node-output-refs.ts` 와 같은 방식이다. 새 id 는 `error_1` 부터 시작하고 같은 노드에 이미 있으면 번호를 올린다. 그 버튼에 붙은 연결선의 `sourcePort` 도 함께 바꾼다. 스크립트의 기본 동작은 dry-run 이고 운영에서 언제 돌릴지는 사람이 정한다.
 5. 설정 항목이 있는 동적 포트(Switch 케이스, 분류 카테고리, 조건, 버튼)는 항목이 가진 고정 ID(slug)를 포트 ID 로 쓴다. 형식이 맞지 않을 때만 `<prefix>_<index>` 형태의 인덱스 fallback(`case_0`, `class_0` 등)으로 떨어진다. Parallel 분기 포트는 `branch_0`, `branch_1` 처럼 `<prefix>_<index>` 형식이다. 생성과 검증 규칙은 [노드 시스템 구조와 카탈로그](CLE-NODE-ARCH.md#포트-정의-portdef)가 정한다.
 
 ## 미결 사항
 
 - **AI 노드의 인증 실패 재시도 가능 분류(Principle 3.2.1)**: 이 규약과 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md), [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 문서는 인증 실패(401·403)를 `retryable: false` 로 정한다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 둔다. 현재 구현은 정보 추출기 핸들러가 코드 기반이라 항상 `true` 를 채우고, 텍스트 분류기 핸들러도 자기 문서와 달리 `LLM_CALL_FAILED` 를 항상 `true` 로 채운다. 같은 인증 실패에서 노드마다 `[다시 시도]` 버튼이 보이기도 하고 안 보이기도 한다. 또 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도를 지원하지 않아 `_retryState` 를 만들지 않는다. 화면이 노드 유형으로 버튼을 막지 않으면 버튼을 눌러도 `RETRY_STATE_NOT_FOUND` 가 난다. 결정 필요: HTTP 상태 기반 분류로 통일할지, 정보 추출기의 코드 기반 예외를 규약에 적을지, 재시도 버튼 노출 조건을 어디에 둘지.
-- **시스템 포트 예약어 집합과 거부 계층(Principle 6)**: 이 규약은 예약어 9개를 두지만 거부 계층은 정하지 않았다. [Switch 노드](../CLE-NODE-LOGIC/CLE-NODE-SWITCH.md)는 이 원칙을 인용하면서 `default`, `out`, `error` 3개만 백엔드 `validateSwitchConfig` 에서 거부한다. [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)는 9개를 백엔드 스키마(`RESERVED_PORT_WORDS`)에서 거부한다. [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 조건 검증은 `out`, `in`, `error`, `user_ended`, `max_turns` 를 막는다. 케이스 ID `done` 의 허용 여부가 노드마다 다르다. Presentation 노드의 버튼 id 는 `validateButtons`(`button.types.ts`)가 `__item_` 포함과 중복만 거부하고 예약어는 검사하지 않아 `out`·`continue` 같은 고정 포트 ID 를 저장할 수 있다. `error` 는 2026-11-14 에 모든 노드에서 예약하기로 정했고 거부 계층은 `validateConfig` 다(Principle 6 의 4번). 결정 필요: 나머지 예약어에 공통 상수 하나와 거부 계층을 정할지, 노드별 허용 범위를 적을지. 정해지면 Presentation 버튼 검증에도 적용한다. 워크플로우 저장 API · 가져오기에서도 포트 ID 를 검사할지(저장 시점 거부)도 함께 정한다.
+- **시스템 포트 예약어 집합과 거부 계층(Principle 6)**: 이 규약은 예약어 9개를 두지만 거부 계층은 정하지 않았다. [Switch 노드](../CLE-NODE-LOGIC/CLE-NODE-SWITCH.md)는 이 원칙을 인용하면서 `default`, `out`, `error` 3개만 백엔드 `validateSwitchConfig` 에서 거부한다. [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)는 9개를 백엔드 스키마(`RESERVED_PORT_WORDS`)에서 거부한다. [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 조건 검증은 `out`, `in`, `error`, `user_ended`, `max_turns` 를 막는다. 케이스 ID `done` 의 허용 여부가 노드마다 다르다. Presentation 노드는 `validateConfig` 가 부르는 `validateButtons`(Carousel 항목 버튼은 `validateCarouselItemButtons`)가 버튼 id `error` 를 거부한다. `validateButtons`(`button.types.ts`)는 그 밖에 `__item_` 이 들어간 id 와 중복 id 만 거부해서 `out`·`continue` 같은 고정 포트 ID 는 아직 저장할 수 있다. `error` 는 2026-11-14 에 모든 노드에서 예약하기로 정했다(Principle 6 의 4번). 결정 필요: 나머지 예약어에 공통 상수 하나와 거부 계층을 정할지, 노드별 허용 범위를 적을지. 정해지면 Presentation 버튼 검증에도 적용한다. 워크플로우 저장 API · 가져오기에서도 포트 ID 를 검사할지(저장 시점 거부)도 함께 정한다.
 - **출력 포트가 둘인데 `port` 를 비우는 노드(Principle 5)**: `port: undefined` 는 출력이 하나인 노드용이고 여러 포트 동시 활성화는 `string[]` 로 나타낸다. [Filter 노드](../CLE-NODE-LOGIC/CLE-NODE-FILTER.md)는 출력이 둘(`match`, `unmatched`)인데 `port` 를 돌려주지 않고 두 포트를 모두 활성화한다. 결정 필요: "모든 출력 포트 활성화" 형태를 이 원칙에 더할지, Filter 가 `port: ['match', 'unmatched']` 를 돌려주게 할지.
 
 ## Rationale
