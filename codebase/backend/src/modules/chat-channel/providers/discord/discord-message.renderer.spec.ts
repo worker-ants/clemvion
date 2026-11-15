@@ -6,6 +6,7 @@
 import { Logger } from '@nestjs/common';
 import { renderDiscordEvent } from './discord-message.renderer';
 import type { ChatChannelConfig, EiaEvent } from '../../types';
+import { distinct } from '../__test-utils__/distinct-text';
 
 const CONFIG: ChatChannelConfig = {
   provider: 'discord',
@@ -450,13 +451,6 @@ describe('renderDiscordEvent — 2000자 조각 한도와 경계 (REQ-DISCORD-01
   const BODY_LIMIT = DISCORD_LIMIT - SUFFIX.length;
 
   /** 자리마다 글자가 다르고 공백이 없는 문자열. 위치가 어긋나면 이은 결과가 원문과 달라진다. */
-  function distinct(length: number, seed = 0): string {
-    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let out = '';
-    for (let i = 0; i < length; i += 1)
-      out += alphabet[(i * 7 + seed) % alphabet.length];
-    return out;
-  }
 
   function renderTemplate(rendered: string): string[] {
     const msgs = renderDiscordEvent(

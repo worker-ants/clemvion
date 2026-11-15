@@ -3,6 +3,7 @@
  */
 import { escapeSlackMrkdwn, renderSlackEvent } from './slack-message.renderer';
 import type { ChatChannelConfig, EiaEvent } from '../../types';
+import { distinct } from '../__test-utils__/distinct-text';
 
 const CONFIG: ChatChannelConfig = {
   provider: 'slack',
@@ -182,13 +183,6 @@ describe('renderSlackEvent — chunking (3500자)', () => {
   const SUFFIX = '\n_(continued…)_';
 
   /** 자리마다 글자가 다르고 공백 · escape 대상이 없는 문자열. */
-  function distinct(length: number, seed = 0): string {
-    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let out = '';
-    for (let i = 0; i < length; i += 1)
-      out += alphabet[(i * 7 + seed) % alphabet.length];
-    return out;
-  }
 
   function bodiesOf(message: string): string[] {
     const msgs = renderSlackEvent({ ...BASE, message, turnCount: 1 }, CONFIG);

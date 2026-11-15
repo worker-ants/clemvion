@@ -1,13 +1,5 @@
 import { findChunkEnd } from './text-chunk-boundary';
-
-/** 자리마다 글자가 다른 문자열. 위치가 어긋나면 이어 붙인 결과가 원문과 달라진다. */
-function distinct(length: number, seed = 0): string {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let out = '';
-  for (let i = 0; i < length; i += 1)
-    out += alphabet[(i * 7 + seed) % alphabet.length];
-  return out;
-}
+import { distinct } from './__test-utils__/distinct-text';
 
 function split(text: string, maxLength: number): string[] {
   const chunks: string[] = [];
