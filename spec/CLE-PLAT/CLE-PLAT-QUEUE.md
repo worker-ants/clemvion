@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "69e4b34d725e8ea55f8fd16712006dafb6b5f7647015f87c1bf2e941d38856e0"
+content_hash: "76e227666520bd292ac1ac528a14fd41d050e4f0a0c58414676c74308aed6d00"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-GDR39Z"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "3bf9a50f1c3e8e4183a037c35c5ce86ee8bf6b550ef30017c38a8fe12ab4d870"
-etag: "sha256-a9493388b8b770d5988a380762f517c7a89896387e3d963da0a3ac218563203e"
+mirror_sha256: "45155bd714d732b4d2ab0e718c2663cfbdc177f8f38d508781325af4d3f23661"
+etag: "sha256-5a1bbd3ae4b60c4d9d2f1d651bd13bdef91e828b4e37ee4bb24dc14995f82763"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,7 +52,7 @@ etag: "sha256-a9493388b8b770d5988a380762f517c7a89896387e3d963da0a3ac218563203e"
 | `terminal-revoke-reconcile` | `external-interaction.module.ts` | `TerminalRevokeReconcilerService` (매분 반복 작업 `* * * * *`) | 같은 서비스 (`@Processor`, 동시 처리 1) | 종료된 실행에 남은 인터랙션 토큰을 훑어 폐기한다. 최소 1회 폐기를 보강한다(EIA-RL-06) | [External Interaction API](../CLE-IX/CLE-EIA.md) |
 | `webchat-idle-reaper` | `external-interaction.module.ts` | `WebChatIdleReaperService` (매분 반복 작업 `* * * * *`) | 같은 서비스 (`@Processor`, 동시 처리 1) | 웹채팅 위젯 유휴 실행 회수. 공개 웹훅(`auth_config_id IS NULL`)이 시작한 입력 대기 실행 가운데 실행 토큰 행이 하나 이상 있고 가장 늦은 `execution_token.exp_at` 뒤로 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`)이 지난 실행을 `cancelled`(`WEBCHAT_IDLE_TIMEOUT`)로 회수하고 토큰을 폐기한다. 토큰 행이 없는 실행은 대상이 아니다. 버려진 위젯 세션의 마지막 안전장치다(EIA-RL-07) | [External Interaction API](../CLE-IX/CLE-EIA.md) · [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 
-모니터링 레지스트리 `MONITORED_QUEUES` 는 이 표를 기준으로 삼는다. 현재 구현은 레지스트리에 `agent-memory-extraction` 이 빠져 있다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)). BullMQ 가 안에서 만드는 Redis 키(`bull:<queue>:*`)는 라이브러리 표준이라 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 의 명명 규칙 밖이다.
+모니터링 레지스트리 `MONITORED_QUEUES` 는 이 표를 기준으로 삼는다. 현재 구현은 레지스트리에 `agent-memory-extraction` 이 빠져 있다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)).
 
 ### 실행 엔진 큐의 옵션
 
@@ -113,6 +113,7 @@ etag: "sha256-a9493388b8b770d5988a380762f517c7a89896387e3d963da0a3ac218563203e"
 | `chat-channel:listener` | `modules/chat-channel` | 채팅 채널의 트리거 단위 listener 레지스트리 변경을 모든 서버 인스턴스에 알린다([채팅 채널 「R8 트리거 단위 listener 정책」](../CLE-CHAT/CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 워크스페이스와 무관한 전역 pub/sub 채널이다. 놓친 등록은 구독을 다시 확립할 때만 DB 에서 다시 읽어 메운다. 구독이 끊긴 사이 놓친 해제와 구독이 이어진 동안 잃은 메시지는 메우지 않는다. 해시 비교로 놓친 메시지를 메우는 `integration:cache:invalidate` 와 달리 보정이 구독 재확립 때만 있는 예외다. 페이로드 형식은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA.md#redis-키) 가 정한다. 복원 · 유실 정책과 이 예외의 근거는 [채팅 채널 「R-CC-30 트리거 단위 listener 레지스트리의 변경을 Redis pub/sub 로 모든 서버 인스턴스에 알린다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-30-트리거-단위-listener-레지스트리의-변경을-redis-pubsub-로-모든-서버-인스턴스에-알린다) 에 있다 |
 | `eia:sse:live:<executionId>` | `modules/external-interaction` | 실행별 EIA SSE 이벤트 채널이다. 실행 이벤트가 난 서버 인스턴스가 이 채널로 발행하고 그 실행의 SSE 구독자가 있는 서버 인스턴스만 구독한다. 그래서 구독자는 어느 서버 인스턴스에 붙어도 그 실행의 이벤트를 받는다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
 | `eia:sse:close` | `modules/external-interaction` | 트리거 단위 토큰(`itk_*`)이 무효가 되면 그 트리거를 모든 서버 인스턴스에 알린다. 받은 서버 인스턴스는 그 토큰으로 연 SSE 스트림을 닫는다. 워크스페이스와 무관한 전역 pub/sub 채널이다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
+| `ws:sio#/ws#` · `ws:sio#/ws#<채널>#` · `ws:sio-request#/ws#` · `ws:sio-response#/ws#[<서버 uid>#]` | `modules/websocket` (`ws-redis-adapter.ts`) | Socket.IO Redis adapter 채널이다. WebSocket 채널 발행을 다른 서버 인스턴스의 같은 채널 구독 소켓에 전달한다. 이름은 라이브러리가 `<접두>#<namespace>#[<채널>#]` 형식으로 만들고 접두만 `ws:sio` 로 정한다. 채널 하나로 보내는 패킷은 `ws:sio#/ws#<채널>#` 로 발행한다. 모든 서버 인스턴스가 `ws:sio#/ws#*` 를 패턴 구독하므로 그 채널의 구독자가 없는 서버 인스턴스도 받는다. 페이로드는 클라이언트가 받는 이벤트 봉투뿐이고 연결 상태는 싣지 않는다. 2026-08-13 에 지운 연결 상태 키 `ws:{wsId}:session:{connId}` 와는 무관하다. 요청 · 응답 채널(`ws:sio-request#/ws#` · `ws:sio-response#/ws#[<서버 uid>#]`)은 라이브러리가 구독만 하고 지금 코드는 쓰지 않는다. 워크스페이스와 무관한 전역 pub/sub 채널이다. 전달 방식과 Redis 가 없거나 끊겼을 때의 실패 정책은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달) 이 정한다. 이름 형식이 명명 규약 밖인 근거는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 에 있다 |
 
 ### 다른 모듈의 키
 
@@ -127,18 +128,19 @@ etag: "sha256-a9493388b8b770d5988a380762f517c7a89896387e3d963da0a3ac218563203e"
 | `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` · `cc:sigfail:<triggerId>:<clientIp>` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md). `cc:sigfail:<triggerId>:<clientIp>` 는 서명 검증 실패 한도의 고정 창 카운터(60초)이고 정본은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키) 다 |
 | `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) |
-| `auth:webauthn-auth-challenge:<challenge>` | `modules/auth` | [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름). 로그인 2단계 Passkey 인증 챌린지를 한 번만 쓰게 하는 기록이다 |
+| `auth:webauthn-auth-challenge:<challenge>` | `modules/auth` | [가입과 로그인 — Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](../CLE-ACCT/CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록). 로그인 2단계 Passkey 인증 챌린지를 한 번만 쓰게 하는 기록이다 |
 
-한 모듈이 접두를 여럿 쓴다. `external-interaction` 은 `iext:`·`interaction:`·`eia:` 를, `chat-channel` 은 긴 접두(`chat-channel:`·`chat-channel-lock:`)와 약어(`cc:`)를 함께 쓴다. 통일을 강제하지 않지만 모듈마다 접두가 더 늘지 않게 한다. 규칙의 예외 두 계열은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
+한 모듈이 접두를 여럿 쓴다. `external-interaction` 은 `iext:`·`interaction:`·`eia:` 를, `chat-channel` 은 긴 접두(`chat-channel:`·`chat-channel-lock:`)와 약어(`cc:`)를 함께 쓴다. `websocket` 은 `exec:seq`(이벤트 순번 키)와 `ws:sio`(adapter 채널 접두)를 함께 쓴다. `ws:sio` 는 라이브러리가 정하는 채널 이름의 접두라 예외로 둔다. 이 예외의 기준은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다. 통일을 강제하지 않지만 모듈마다 접두가 더 늘지 않게 한다. 규칙의 예외 두 계열은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
 
 ### Redis 키가 아닌 것
 
-다음은 이름 모양이 비슷하지만 Redis 를 거치지 않는다. 이 목록에 넣지 않는다.
+다음은 이름 모양이 비슷하지만 Redis 키가 아니다. 이 목록에 넣지 않는다.
 
-- Socket.IO 구독 채널(`execution:<id>`, `workflow:<id>`, `background:run:<id>`)
+- Socket.IO 구독 채널(`execution:<id>`, `workflow:<id>`, `background:run:<id>`). 채널 이름은 Redis 키가 아니다. 서버 인스턴스가 여럿이면 위 pub/sub 채널 표의 adapter 채널 이름 `ws:sio#/ws#<채널>#` 안에 실려 Redis 를 지난다.
 - 메모리 Map 라우팅 키(`bg:<executionId>:<backgroundRunId>`)
-- BullMQ 내부 키(`bull:<queue>:*`)
 - PostgreSQL advisory lock 키(`trigger-config:<triggerId>`, `exec-cap:<workspaceId>`, `makeshop-pending:<workspaceId>:<client_id 해시>`)
+
+BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름을 정하므로 한 줄씩 올리지 않고 [BullMQ 큐 목록](#bullmq-큐-목록) 으로 대신한다([Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md)).
 
 구분 기준과 advisory lock 키 공간 규칙은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 에 있다.
 
@@ -164,6 +166,7 @@ etag: "sha256-a9493388b8b770d5988a380762f517c7a89896387e3d963da0a3ac218563203e"
 - `codebase/backend/src/modules/integrations/**/*.ts`
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts`
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts`
+- `codebase/backend/src/modules/websocket/ws-redis-adapter.ts`
 - `codebase/backend/src/common/redis/**/*.ts`
 - `codebase/backend/src/modules/system-status/system-status.constants.ts` (`MONITORED_QUEUES`)
 
@@ -195,3 +198,7 @@ etag: "sha256-a9493388b8b770d5988a380762f517c7a89896387e3d963da0a3ac218563203e"
 ### DLQ 경고를 로그 기반으로 둔 이유
 
 DLQ 임계 초과 경고는 구조화 로그로 남기고, 큐 깊이는 OTel gauge 로 따로 노출한다. 관측과 능동 통지를 나눈 것이다. 결정의 근거는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 Rationale «DLQ 경고는 로그로 남긴다» 에 있다.
+
+### WebSocket adapter 채널을 목록에 올린 이유 (2026-11-14)
+
+NERV Task `CLE-T-GDR39Z`. 새 pub/sub 채널은 이 목록에 한 줄을 더한다는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 규칙 7 을 따라 `ws:sio` 채널을 올렸다. 이 채널은 2026-08-13 에 지운 `ws:{wsId}:session:{connId}` 와 다르다([지운 키 두 개](#지운-키-두-개-2026-08-13)). 연결 상태는 지금도 Redis 에 두지 않는다는 그 결정을 유지하고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 전달 방식을 고른 근거는 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다.
