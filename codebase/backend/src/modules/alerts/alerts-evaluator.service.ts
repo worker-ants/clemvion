@@ -248,7 +248,7 @@ function titleFor(type: AlertRuleType): string {
     case 'failure_rate':
       return '실행 실패율 임계값 초과';
     case 'duration':
-      return '평균 실행 시간 임계값 초과';
+      return '평균 전체 경과 임계값 초과';
     case 'llm_cost':
       return 'LLM 비용 임계값 초과';
   }
@@ -263,7 +263,7 @@ function messageFor(breach: BreachInfo): string {
     case 'failure_rate':
       return `${scope} 최근 ${rule.window} 동안 실패율이 ${observedValue.toFixed(1)}% (임계값 ${rule.threshold}%)에 도달했습니다.`;
     case 'duration':
-      return `${scope} 최근 ${rule.window} 동안 평균 실행 시간이 ${Math.round(observedValue)}ms (임계값 ${rule.threshold}ms)에 도달했습니다.`;
+      return `${scope} 최근 ${rule.window} 동안 평균 전체 경과가 ${Math.round(observedValue)}ms (임계값 ${rule.threshold}ms)에 도달했습니다.`;
     case 'llm_cost':
       return `${scope} 최근 ${rule.window} 동안 LLM 비용이 $${observedValue.toFixed(4)} (임계값 $${rule.threshold})에 도달했습니다.`;
   }

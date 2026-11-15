@@ -36,7 +36,7 @@ export class WorkflowVersionListItemDto {
   version: number;
 
   /** 변경 요약. 없으면 null */
-  // §5.4 기본형 — 두 조회의 `select` 가 늘 싣는 키라 required, 컬럼이 nullable 이라 값은 null 일 수 있다. `type` 을 적는 것은
+  // §5.5 기본형 — 두 조회의 `select` 가 늘 싣는 키라 required, 컬럼이 nullable 이라 값은 null 일 수 있다. `type` 을 적는 것은
   // `string | null` 의 설계 타입(`Object`)이 플러그인 없는 스키마에서 `type: object` 로 새지 않게 하려는 것이다.
   @ApiProperty({ type: String, nullable: true })
   changeSummary: string | null;
@@ -70,7 +70,7 @@ export class WorkflowVersionDto {
   version: number;
 
   /** 변경 요약. 없으면 null */
-  // §5.4 기본형 — 두 조회의 `select` 가 늘 싣는 키라 required, 컬럼이 nullable 이라 값은 null 일 수 있다. `type` 을 적는 것은
+  // §5.5 기본형 — 두 조회의 `select` 가 늘 싣는 키라 required, 컬럼이 nullable 이라 값은 null 일 수 있다. `type` 을 적는 것은
   // `string | null` 의 설계 타입(`Object`)이 플러그인 없는 스키마에서 `type: object` 로 새지 않게 하려는 것이다.
   @ApiProperty({ type: String, nullable: true })
   changeSummary: string | null;

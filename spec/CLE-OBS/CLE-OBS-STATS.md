@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATS"
 title: "통계"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-STATS-001", "REQ-STATS-002", "REQ-STATS-003", "REQ-STATS-004", "REQ-STATS-005", "REQ-STATS-006", "REQ-STATS-007", "REQ-STATS-008", "REQ-STATS-009", "REQ-STATS-010", "REQ-STATS-011", "REQ-STATS-012", "REQ-STATS-013", "REQ-STATS-014", "REQ-STATS-015", "REQ-STATS-016", "REQ-STATS-017", "REQ-STATS-018", "REQ-STATS-019", "REQ-STATS-020", "REQ-STATS-021"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "be271c160d83b3ddd15be26bf5ac495304eb29547bff035db3f47e19108ab4a2"
+content_hash: "b07e109b45bd74fe4fb85367004af2b9aa8c6f60fcfd78d80c88b950e4b2cc62"
 read_as: "approved_fallback"
-task: "CLE-T-7704WC"
+task: "CLE-T-86XM7Z"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "b644c1faf685c36443531bad3a6b247041e0e394d8978f96b4d10e65d9986a83"
-etag: "sha256-0e66f9b11e150e30e6193e958087f0118cc83af693c82ae9281de4343965f57e"
+mirror_sha256: "74548f4ef5f0776abde625f4d68605522097fe28d8bae891c9ce35ec08acdfab"
+etag: "sha256-80380250717dae6a97ef45109c91964c115f572789ab6e2ff8d615734ecf47b1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,8 +46,8 @@ etag: "sha256-0e66f9b11e150e30e6193e958087f0118cc83af693c82ae9281de4343965f57e"
 - REQ-STATS-010 WHEN 오류 분포 차트를 보이면 THE SYSTEM SHALL 실패 실행을 워크플로우별로 나눈 비율을 파이 또는 도넛 차트로 보인다. (원본: NAV-ST-04)
 - REQ-STATS-011 WHEN 오류 분포 API 를 부르면 THE SYSTEM SHALL 실패 건수 내림차순으로 상위 20개 워크플로우를 돌려준다. (원본: 7-statistics §3)
 - REQ-STATS-012 WHEN 상위 워크플로우 차트를 보이면 THE SYSTEM SHALL 실행 횟수 기준 상위 10개 워크플로우를 수평 막대로 보인다. (원본: 7-statistics §2.3)
-- REQ-STATS-013 WHEN 워크플로우 필터로 특정 워크플로우를 고르면 THE SYSTEM SHALL 그 워크플로우의 노드별 평균 실행 시간과 에러율을 보인다. (원본: NAV-ST-05)
-- REQ-STATS-014 WHEN 노드별 통계를 보이면 THE SYSTEM SHALL 평균 실행 시간이 가장 긴 노드를 병목으로 강조한다. (원본: 7-statistics §2.4)
+- REQ-STATS-013 WHEN 워크플로우 필터로 특정 워크플로우를 고르면 THE SYSTEM SHALL 그 워크플로우의 노드별 평균 전체 경과와 에러율을 보인다. (원본: NAV-ST-05)
+- REQ-STATS-014 WHEN 노드별 통계를 보이면 THE SYSTEM SHALL 평균 전체 경과가 가장 긴 노드를 병목으로 강조한다. (원본: 7-statistics §2.4)
 - REQ-STATS-015 WHEN LLM 토큰 사용량을 보이면 THE SYSTEM SHALL 모델 프로바이더별·모델별 입력 토큰과 출력 토큰을 나눠 보인다. (원본: NAV-ST-06)
 - REQ-STATS-016 WHEN LLM 토큰 사용량을 보이면 THE SYSTEM SHALL 공개 가격 기준 예상 비용을 참고용으로 함께 보인다. (원본: 7-statistics §2.5)
 - REQ-STATS-017 WHEN LLM 토큰 사용량을 보이면 THE SYSTEM SHALL 기간 안 일별 토큰 사용량 추이를 차트로 보인다. (원본: 7-statistics §2.5)
@@ -65,10 +65,11 @@ etag: "sha256-0e66f9b11e150e30e6193e958087f0118cc83af693c82ae9281de4343965f57e"
 | 성공률(success rate, `successRate`) | 완료(`completed`) 실행 수 ÷ 기간 안 전체 실행 수 × 100. 분모에는 상태와 상관없이 기간 안의 모든 실행이 들어간다(실행 중·대기 중·취소됨 포함) | 대시보드 성공률 카드(최근 7일), 통계 요약 |
 | 실패율 | 기간 안 실행 중 실패 비율(%) | 통계 요약 |
 | 평균 전체 경과(average total elapsed) | 완료(`completed`) 실행의 `duration_ms`(전체 경과) 평균. 입력 대기 시간이 들어간다. 단위는 밀리초다. 실행이 없으면 0 이다 | 대시보드 요약 응답(`avgExecutionTime`), 통계 요약(`avgDurationMs`), 상위 워크플로우 집계 |
+| 노드 평균 전체 경과 | 노드 실행의 `node_execution.duration_ms` 평균. 폼 · 버튼 · AI 멀티턴처럼 입력을 기다리는 노드는 대기 시간이 들어간다. 컨테이너(Loop · ForEach · Map)와 Parallel 노드는 지금 핸들러 실행 시간만 들어간다 | 통계 노드별 통계(`avgDurationMs`) |
 | 증감률 | 직전 같은 길이 구간 대비 총 실행 수의 변화율(%). 직전 구간이 0건이면 값이 없다(`null`) | 대시보드 `runs7dChangePercent`, 통계 `totalExecutionsChangeRate` |
 
 - 성공률 정의는 대시보드 원문이 정했다. 통계 요약도 현재 구현이 같은 식을 쓴다(`statistics.service.ts` 의 `buildSummary`).
-- 평균 전체 경과의 `completed` 한정은 요약과 상위 워크플로우(워크플로우별) 두 집계에 걸린다. 노드별 통계의 노드 평균 실행 시간은 `completed` 한정이 아니다. 현재 구현은 `node_execution.duration_ms` 가 있는 행을 모두 평균한다.
+- 평균 전체 경과의 `completed` 한정은 요약과 상위 워크플로우(워크플로우별) 두 집계에 걸린다. 노드별 통계의 노드 평균 전체 경과는 `completed` 한정이 아니다. 현재 구현은 `node_execution.duration_ms` 가 있는 행을 모두 평균한다.
 - 증감률의 `null` 규칙은 대시보드 원문(`runs7dChangePercent`)이 정했다. 통계의 `totalExecutionsChangeRate` 도 현재 구현이 같은 규칙과 반올림(소수 둘째 자리)을 쓴다.
 
 ## 화면
@@ -80,7 +81,7 @@ etag: "sha256-0e66f9b11e150e30e6193e958087f0118cc83af693c82ae9281de4343965f57e"
 | 실행 추이 | 요약 아래, 전체 폭 | 일자별 스택 막대 차트 | 읽기 전용 |
 | 오류 분포 · 상위 워크플로우 | 실행 추이 아래, 2열 | 왼쪽 파이·도넛 차트, 오른쪽 수평 막대 차트 | 읽기 전용 |
 | LLM 토큰 사용량 | 맨 아래, 전체 폭 | 프로바이더·모델·토큰·예상 비용 표, 일별 추이 차트, 내보내기 메뉴 | 내보내기 형식 선택 |
-| 노드별 통계 | 워크플로우 필터로 특정 워크플로우를 골랐을 때 | 노드별 평균 실행 시간·에러율, 병목 노드 강조 | 읽기 전용 |
+| 노드별 통계 | 워크플로우 필터로 특정 워크플로우를 골랐을 때 | 노드별 평균 전체 경과·에러율, 병목 노드 강조 | 읽기 전용 |
 
 ### 필터
 
@@ -112,9 +113,9 @@ etag: "sha256-0e66f9b11e150e30e6193e958087f0118cc83af693c82ae9281de4343965f57e"
 
 | 항목 | 내용 |
 | --- | --- |
-| 노드별 평균 실행 시간 | 워크플로우 안 각 노드의 평균 소요 시간 |
+| 노드별 평균 전체 경과(Avg Total Elapsed) | 워크플로우 안 각 노드의 `duration_ms` 평균. 정의는 [지표 정의](#지표-정의) |
 | 노드별 에러율 | 노드별 실패 비율 |
-| 병목 노드 표시 | 평균 실행 시간이 가장 긴 노드를 강조한다 |
+| 병목 노드 표시 | 평균 전체 경과가 가장 긴 노드를 강조한다 |
 
 ### LLM 토큰 사용량
 
@@ -156,7 +157,7 @@ etag: "sha256-0e66f9b11e150e30e6193e958087f0118cc83af693c82ae9281de4343965f57e"
 | 원천 테이블 | 집계 |
 | --- | --- |
 | `execution` | 전체 실행 수, 실패 수, 성공률, 평균 전체 경과 |
-| `node_execution` | 노드별 실행 횟수·평균 시간·에러율 |
+| `node_execution` | 노드별 실행 횟수·평균 전체 경과·에러율 |
 | `llm_usage_log` | 모델·기간별 토큰과 비용([LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md)) |
 | `workflow` | 워크스페이스 범위 필터와 워크플로우 이름 join |
 
@@ -210,3 +211,11 @@ LLM 토큰 사용량 위젯에는 집계 축이 다른 두 뷰가 있다. 표는
 ### 사전 집계 테이블을 두지 않는다
 
 지금 워크스페이스 규모에서는 요청마다 원본 테이블을 집계해도 충분하다. 대시보드는 `workflow`·`execution` 을, 통계는 여기에 `node_execution`·`llm_usage_log` 를 더 읽는다. 데이터가 커지면 시간 단위 사전 집계 테이블(`statistics_hourly`)을 두고 일일 배치로 채우는 방향을 검토한다(P2 이후).
+
+### 노드 평균도 「전체 경과」로 부른다 (2026-11-14)
+
+- 노드별 통계의 평균(응답 필드 `avgDurationMs`)은 `node_execution.duration_ms` 평균이다. 폼 · 버튼 · AI 멀티턴처럼 입력을 기다리는 노드는 재개할 때 `duration_ms = finished_at − started_at` 으로 저장한다(`form-interaction.service.ts` · `button-interaction.service.ts` · `ai-turn-orchestrator.service.ts`). `started_at` 은 노드가 대기에 들어간 시각이라 입력 대기 시간이 값에 들어간다.
+- 실행 화면의 「실행 시간」은 입력 대기를 뺀 시간이다([실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md#api)). 그래서 요약 · 상위 워크플로우 평균처럼 노드 평균도 「평균 전체 경과」(영문 라벨 Avg Total Elapsed)로 부른다. 값 · 계산식 · 응답 필드 이름(`avgDurationMs`)은 그대로다.
+- 기각한 대안: 「평균 실행 시간」을 유지한다. 입력 대기 노드는 대기 시간이 들어가서 실행 화면의 「실행 시간」과 기준이 갈린다.
+- 기각한 대안: 값을 순수 실행 시간으로 바꾼다. 노드 실행 기록에는 입력 대기를 뺀 시간을 따로 저장하지 않아서 새 컬럼과 측정 코드가 필요하다.
+- 주의: 컨테이너(Loop · ForEach · Map)와 Parallel 노드의 `duration_ms` 는 지금 핸들러 실행 시간만 담는다. 반복 · 분기 전체 시간이 들어가지 않아 실제보다 짧다. NERV Task CLE-T-JXD0W5 에서 이를 고치면 이 노드들의 평균이 노드 전체 시간 기준으로 커진다.

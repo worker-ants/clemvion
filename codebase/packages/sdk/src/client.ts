@@ -115,7 +115,7 @@ interface WaitingContextBase {
   waitingNodeId: string;
   /**
    * 대화 히스토리 durable 스냅샷. **present-when-available** — 값이 있을 때만 키가 present 하고,
-   * 부재 시 키 자체가 생략된다 (`| null` 아님, [Spec EIA §5.3 / api-convention §5.4]).
+   * 부재 시 키 자체가 생략된다 (`| null` 아님, [Spec EIA §5.3 / api-convention §5.5]).
    */
   conversationThread?: Record<string, unknown>;
 }

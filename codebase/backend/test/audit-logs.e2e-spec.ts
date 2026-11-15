@@ -77,7 +77,7 @@ describe('Audit logs 권한 경계 (e2e)', () => {
     const rows = res.body.data as Array<{ action: string }>;
     expect(rows.length).toBeGreaterThanOrEqual(1);
 
-    // 응답 1건 vs `AuditLogDto` 선언 전수 대조 (API 규약 §5.4).
+    // 응답 1건 vs `AuditLogDto` 선언 전수 대조 (API 규약 §5.5).
     assertMatchesContract(rows[0], auditLogContract);
 
     // 중첩 `user` 는 `AuditLogUserDto`(id/name/email) 를 광고한다. 이 엔드포인트는

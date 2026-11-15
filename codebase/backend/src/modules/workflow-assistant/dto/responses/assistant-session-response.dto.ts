@@ -16,7 +16,7 @@ import type { AssistantSessionStatus } from '../../entities/workflow-assistant-s
 
 // 세션 CRUD 는 엔티티를 그대로 반환한다(`workflow-assistant.controller.ts`). 이 DTO 들은 반환 모양을 **바꾸지 않고 적는다** —
 // 컬럼 전부, 관계는 싣지 않는다(조회가 관계를 로드하지 않는다). 맞는지는 e2e 가 `assertMatchesContract` 로 본다 —
-// 선언되지 않은 키가 응답에 있으면 실패한다(api-convention §5.4 «검증 층»).
+// 선언되지 않은 키가 응답에 있으면 실패한다(api-convention §5.5 «검증 층»).
 //
 // 내부 서사를 `//` 에 두는 이유: JSDoc 은 공개 OpenAPI `description` 으로 나간다(`spec/conventions/swagger.md` §3).
 

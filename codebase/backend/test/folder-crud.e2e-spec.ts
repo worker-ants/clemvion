@@ -14,7 +14,7 @@ import { FolderDto } from '../src/modules/folders/dto/responses/folder-response.
 /**
  * e2e: 폴더 API 의 응답 계약 — `GET/POST /folders` · `GET/PATCH/DELETE /folders/:id`.
  *
- * 이 모듈엔 e2e 가 없어 `FolderDto` 를 실제 응답과 대조한 적이 없었다(§5.4 응답-계약 스윕 2차). 대조를 걸면서 드러난 것은
+ * 이 모듈엔 e2e 가 없어 `FolderDto` 를 실제 응답과 대조한 적이 없었다(§5.5 응답-계약 스윕 2차). 대조를 걸면서 드러난 것은
  * PATCH 쪽이다 — 일부 필드만 보내면 보내지 않은 필드가 응답에서 사라지거나 틀린 값으로 실렸다(C · E). 원인과 처방은
  * `folders.service.ts` `update()` 주석에 있다.
  *

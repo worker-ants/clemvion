@@ -916,7 +916,7 @@ export class TriggersService {
       ? stripChatChannelPlaintext(chatChannel)
       : undefined;
     // `rest` 의 `undefined` 필드(보내지 않은 optional 필드)를 뺀다 — 이유는 `omitUndefined`
-    // JSDoc. `PATCH /api/triggers/:id` 응답에 `name` 이 없던 원인이고, §5.4 계약 대조를 그
+    // JSDoc. `PATCH /api/triggers/:id` 응답에 `name` 이 없던 원인이고, §5.5 계약 대조를 그
     // 경로로 넓히자 드러났다 (`review/code/2026/09/05/21_40_37` W1).
     const defined = omitUndefined(rest);
 
@@ -1091,7 +1091,7 @@ export class TriggersService {
       // **`relations` 를 함께 실어야 한다.** 이 재조회가 `saved` 를 통째로 갈아치우므로,
       // 관계를 빼고 읽으면 `chatChannel` 을 포함한 PATCH 응답에서만 `workflow` 가 사라진다
       // — `TriggerDto.workflow` JSDoc 은 *"생성 응답에만 없다"* 고 보장하는데 그 보장이
-      // 구현보다 넓었다 (`review/code/2026/09/06/01_13_50` W4). 부재가 §5.4 키 생략형이라
+      // 구현보다 넓었다 (`review/code/2026/09/06/01_13_50` W4). 부재가 §5.5 키 생략형이라
       // 계약 검증자도 못 잡는 자리다.
       const refreshed = await this.triggerRepository.findOne({
         where: { id: saved.id, workspaceId },
@@ -1150,7 +1150,7 @@ export class TriggersService {
    * chat-channel 이 아닌 트리거는 정화를 아예 거치지 않았고, chat-channel 트리거도 컬럼 쪽
    * 비밀(4)은 그대로 나갔다 — `GET /api/triggers` 의 `createQueryBuilder('t')` 가 전 컬럼을
    * select 하므로 로테이션 유예 중이면 `notificationSecretV2` 가 wire 로 나간다.
-   * (§5.4 응답-계약 스윕이 `TriggerDto` 미선언 9필드로 검출.)
+   * (§5.5 응답-계약 스윕이 `TriggerDto` 미선언 9필드로 검출.)
    *
    * 그것을 고친 뒤에도 (2) 가 빠져 있었다 — `botTokenRef` 를 빼는 것과 **같은 등급·같은
    * 이유**인데 목록이 chat-channel 쪽에만 있었다 (`review/code/2026/09/05/18_23_02` W1).

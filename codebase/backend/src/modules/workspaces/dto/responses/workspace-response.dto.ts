@@ -79,7 +79,7 @@ export class WorkspaceMemberDto {
   role: string;
 
   /** 멤버가 워크스페이스에 합류한 시각. 상시 존재하며, 값이 없으면 `null`. */
-  // 왜 §5.4 **기본형**인가 — `WorkspacesService.listMembers` 가 `joinedAt: m.joinedAt` 으로
+  // 왜 §5.5 **기본형**인가 — `WorkspacesService.listMembers` 가 `joinedAt: m.joinedAt` 으로
   // 무조건 실으므로 값이 없어도 키는 온다. 키 생략형이 아니다.
   //
   // `nullable` 은 **스키마를 따른 것**이지 현행 코드의 도달 가능한 상태가 아니다 — 실측

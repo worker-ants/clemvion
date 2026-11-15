@@ -63,7 +63,7 @@ export class SchedulesController {
    * **Trigger 엔티티 전체**를 싣는다. 거기에는 `notificationSecretV2`(평문 서명 secret,
    * 24h rotation grace 동안 non-null) 와 `chatChannelTokenV2`(secret store ref) 가 있다 —
    * `TriggersService.sanitizeForResponse` 가 트리거 자신의 응답에서 빼는 바로 그 컬럼들이
-   * **조인을 타고** 여기로 새어 나왔다. §5.4 응답-계약 스윕이 `trigger` 를 "선언되지 않은
+   * **조인을 타고** 여기로 새어 나왔다. §5.5 응답-계약 스윕이 `trigger` 를 "선언되지 않은
    * 키" 로 검출해 드러났다.
    *
    * **서비스가 아니라 컨트롤러에서 좁히는 이유**: `findById`/`create`/`update` 는 응답
@@ -74,7 +74,7 @@ export class SchedulesController {
     const t = schedule.trigger;
     const { trigger: _drop, ...rest } = schedule;
     // `trigger` 는 상시 존재한다 (NOT NULL 1:1 + 네 경로가 전부 채움) — 그래서 분기 없이
-    // 항상 싣는다. **조용히 키를 빠뜨리지 않는다**: DTO 가 §5.4 기본형(`@ApiProperty`)으로
+    // 항상 싣는다. **조용히 키를 빠뜨리지 않는다**: DTO 가 §5.5 기본형(`@ApiProperty`)으로
     // 선언하므로 키를 빼면 계약 위반이다. (프런트엔드는 `s.trigger?.name ?? ""` 로 방어
     // 하지만, 그 방어는 부재를 정상으로 만들지 않는다 — 이름 없는 행이 조용히 남는다.)
     //

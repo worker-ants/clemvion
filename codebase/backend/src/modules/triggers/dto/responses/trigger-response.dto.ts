@@ -7,7 +7,7 @@ import type {
 
 // 왜 좁혔나 — `findAll` 의 `leftJoinAndSelect('t.workflow','w')` 와 `findById` 의
 // `relations: { workflow: true }` 가 **Workflow 엔티티 전체**를 실어 왔고 `TriggerDto` 는 그것을
-// 선언조차 하지 않았다. §5.4 응답-계약 대조를 목록·수정 경로로 넓히자 드러났다
+// 선언조차 하지 않았다. §5.5 응답-계약 대조를 목록·수정 경로로 넓히자 드러났다
 // (`review/code/2026/09/05/21_40_37` W1). `ScheduleDto.trigger` 와 같은 처방이다.
 // 소비처는 `triggers/page.tsx` 두 곳뿐 — `t.workflow?.id` · `t.workflow?.name`.
 //
@@ -101,7 +101,7 @@ export class TriggerDto {
   updatedAt: string;
 
   /**
-   * 연결된 워크플로우 — **키 생략형**이다 (§5.4 기준 (b)).
+   * 연결된 워크플로우 — **키 생략형**이다 (§5.5 기준 (b)).
    *
    * 목록·단건 조회와 **수정**(`update()` 가 `findById` 로 시작한다) 에서 로드된다.
    * **생성 응답에만 없다** — 그래서 소비처도 `t.workflow?.name ?? ""` 로 읽는다.
@@ -110,10 +110,10 @@ export class TriggerDto {
   workflow?: TriggerWorkflowRefDto;
 
   // ── 아래 필드는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로
-  // 반환하기 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고,
+  // 반환하기 때문이다. §5.5 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고,
   // 프런트엔드가 실제로 소비하므로 빼면 계약 회귀다. 선언을 실제에 맞춘다.
   //
-  // 전부 **엔티티 컬럼이라 응답에 상시 존재**한다 → §5.4 의 기본형
+  // 전부 **엔티티 컬럼이라 응답에 상시 존재**한다 → §5.5 의 기본형
   // (`@ApiProperty` + 컬럼이 nullable 이면 `nullable: true`). `@ApiPropertyOptional`
   // 은 `required: false` 의 별칭이라 상시 존재 필드에 쓰면 "상시 존재" 와 모순된다.
 

@@ -36,7 +36,7 @@ import {
 import { WorkspaceInvitationDto } from '../../modules/workspaces/dto/responses/workspace-response.dto';
 
 /**
- * §5.4 래칫(`swagger-dto-contract.spec.ts` 의 `EXPECTED_OPTIONAL_NULLABLE_DRIFT`)에서 뺀 응답 필드의 선언 모양을 고정한다
+ * §5.5 래칫(`swagger-dto-contract.spec.ts` 의 `EXPECTED_OPTIONAL_NULLABLE_DRIFT`)에서 뺀 응답 필드의 선언 모양을 고정한다
  * (API 규약 §5.5 「부재 표현」, NERV Task `CLE-T-H6DT8G`).
  *
  * ## 왜 래칫과 e2e 만으로는 부족한가

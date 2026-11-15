@@ -191,6 +191,26 @@ describe('AlertsEvaluatorService.run', () => {
     expect(entries[0].type).toBe('alert_duration');
   });
 
+  // duration 규칙의 값은 완료 실행 duration_ms(전체 경과) 평균이라 입력 대기 시간이
+  // 들어간다. 통계 · 대시보드와 같은 이름 「평균 전체 경과」로 알린다 (CLE-T-42VJAY).
+  it('names the duration breach as average total elapsed', async () => {
+    ruleRepo.find.mockResolvedValue([
+      makeRule({ type: 'duration', threshold: '1000' }),
+    ]);
+    executionRepo.createQueryBuilder.mockReturnValue(
+      createQbStub({ rawAvg: '2500' }),
+    );
+
+    await evaluator.run(new Date('2026-04-16T00:00:00Z'));
+    const entries = notificationsService.createMany.mock.calls[0][0] as Array<{
+      title: string;
+      message: string;
+    }>;
+    expect(entries[0].title).toBe('평균 전체 경과 임계값 초과');
+    expect(entries[0].message).toContain('평균 전체 경과가 2500ms');
+    expect(entries[0].message).not.toContain('평균 실행 시간');
+  });
+
   it('dispatches when LLM cost exceeds threshold', async () => {
     ruleRepo.find.mockResolvedValue([
       makeRule({ type: 'llm_cost', threshold: '5', window: 'P1D' }),

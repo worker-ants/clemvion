@@ -2,19 +2,19 @@
 id: "CLE-OBS"
 title: "관측과 운영"
 type: "area"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "eba9724105b942302957516b55ddad6710e2e8e350606af9acde7c3440e4c94b"
+content_hash: "8a3bea325bbdcc63c245ee1ca47c6608beb2e1ae0e22cbc918ea9c8009d45035"
 read_as: "approved_fallback"
-task: "CLE-T-52JYHM"
+task: "CLE-T-42VJAY"
 source_paths: []
-mirror_sha256: "65354d9691b0ada64722b31cb762d4f57b83185ee63d674a518ab4dde54b5d0c"
-etag: "sha256-1784603185a2743c8d50f7ae08721c74f1f0a875d3d28dc08f6d9f133e4f8dbf"
+mirror_sha256: "0d744db5367663a190cf393f852828eab400dafa7701dfb488abc29fcbefb5c6"
+etag: "sha256-2d7372a788ccd8488087e40e78190ee7710894e98ea8bd8b4c13752898b3a54f"
 ---
 > 구현 상태: 부분 구현 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -32,7 +32,7 @@ etag: "sha256-1784603185a2743c8d50f7ae08721c74f1f0a875d3d28dc08f6d9f133e4f8dbf"
 ## 문서
 
 - [대시보드](CLE-OBS-DASHBOARD.md): 로그인 뒤 첫 화면. 요약 카드 4개, 최근 워크플로우 5개, 최근 실행 10건, 새 워크플로우 만들기.
-- [통계](CLE-OBS-STATS.md): 기간·워크플로우 필터로 실행 횟수·성공률·평균 실행 시간·오류 분포·상위 워크플로우·노드 통계·LLM 토큰 사용량을 보여 주는 화면과 API. 대시보드와 함께 쓰는 지표 정의를 둔다.
+- [통계](CLE-OBS-STATS.md): 기간·워크플로우 필터로 실행 횟수·성공률·평균 전체 경과·오류 분포·상위 워크플로우·노드 통계·LLM 토큰 사용량을 보여 주는 화면과 API. 대시보드와 함께 쓰는 지표 정의를 둔다.
 - [시스템 상태](CLE-OBS-STATUS.md): 워크스페이스와 상관없이 BullMQ 큐의 적체·실패·포화도와 큐 건강도를 보여 주는 읽기 전용 화면과 API.
 - [감사 로그](CLE-OBS-AUDIT.md): 워크스페이스 변경을 남기는 감사 로그와 사용자별 로그인 이력의 적재·조회·보존, 감사 액션 카탈로그.
 - [감사 action 명명](CLE-OBS-AUDITNAME.md): 감사 액션 식별자의 `<resource>.<verb>` 구조와 동사 시제 세 갈래.

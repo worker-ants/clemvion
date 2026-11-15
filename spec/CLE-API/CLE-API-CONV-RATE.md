@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-RATE"
 title: "HTTP API 규약 — 요청 빈도 제한"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "edab36ac0c1d1acc5541dfab81a70eec59f785f0efbaf8afeff382f579e41796"
+content_hash: "60968086daedfa3c8b6b00c30813d85ff5d056a8d88746fa22ae6d08505ac47b"
 read_as: "approved_fallback"
-task: "CLE-T-SG4GRQ"
+task: "CLE-T-HMFRBD"
 source_paths: []
-mirror_sha256: "aff8eed8fbf272a80ab8ef6cf35eb0157b4b5c755b56b7f1e51d7a2c7eefdaf8"
-etag: "sha256-1b50b125efd516049a989d3ec8bffb91065a9bccac9f115778b13ab168bc9c78"
+mirror_sha256: "4a58d02ac9a7a0a0f107b5fe37bc99c5d9a82bf60e22743594a5ac13a1bdcd6f"
+etag: "sha256-8ab9e2fdd8db06eef0d4a96331520836db701eecb7cb50b870709db0e7463473"
 ---
 ## 개요
 
@@ -24,7 +24,7 @@ etag: "sha256-1b50b125efd516049a989d3ec8bffb91065a9bccac9f115778b13ab168bc9c78"
 
 > **초과 응답이 `429` 가 아닌 행이 있다.**
 >
-> - 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 채팅 채널 트리거로 온 웹훅 요청은 전역 요청 빈도 제한(일반 API · 웹훅 수신 행)을 받지 않는다. 남용은 서명 검증과 채팅방 단위 분당 한도(채팅 채널 인바운드 행)가 막는다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거, 채널 연결 전 트리거)는 전처럼 전역 한도를 받는다. 그런 트리거는 서명을 검증하지 않아 서명 검증 실패 한도도 걸리지 않으므로 전역 한도까지 빼면 IP 단위 한도가 하나도 남지 않는다. 채팅 채널 트리거는 서명 참조와 무관하게 `auth_config_id IS NULL` 이어도 공개 웹훅 추가 한도를 받지 않는다. 채팅방 단위 한도를 넘은 메시지는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 받고 처리를 건너뛴다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다. 한 트리거에 같은 IP 에서 서명 검증 실패가 거듭되면 한동안 시크릿 조회와 서명 계산 없이 `401` 로 거절한다. 이 서명 검증 실패 한도도 `429` 를 쓰지 않는다. 규칙은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 전역 한도에서 뺀 근거는 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 다. 채팅방 단위 한도의 근거는 [채팅 채널 「R-CC-19」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 다. 경우별 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 웹훅 수신의 전역 한도를 어느 가드가 어떤 순서로 세는지는 표 아래 키 결정 규칙에 있다. 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
+> - 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 채팅 채널 트리거로 온 웹훅 요청은 전역 요청 빈도 제한(일반 API · 웹훅 수신 행)을 받지 않는다. 남용은 서명 검증과 채팅방 단위 분당 한도(채팅 채널 인바운드 행)가 막는다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거, 채널 연결 전 트리거)는 전처럼 전역 한도를 받는다. 그런 트리거는 서명을 검증하지 않아 서명 검증 실패 한도도 걸리지 않으므로 전역 한도까지 빼면 IP 단위 한도가 하나도 남지 않는다. 채팅 채널 트리거는 서명 참조와 무관하게 `auth_config_id IS NULL` 이어도 공개 웹훅 추가 한도를 받지 않는다. 채팅방 단위 한도를 넘은 메시지는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 받고 처리를 건너뛴다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다. 한 트리거에 같은 IP 에서 서명 검증 실패가 거듭되면 한동안 시크릿 조회와 서명 계산 없이 `401` 로 거절한다. 이 서명 검증 실패 한도도 `429` 를 쓰지 않는다. 규칙은 [채팅 채널 인바운드 관문 「서명 검증 실패 한도」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 가 정한다. 전역 한도에서 뺀 근거는 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 다. 채팅방 단위 한도의 근거는 [채팅 채널 「R-CC-19」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 다. 경우별 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 웹훅 수신의 전역 한도를 어느 가드가 어떤 순서로 세는지는 표 아래 키 결정 규칙에 있다. 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
 > - WebSocket 명령은 HTTP 요청이 아니라서 상태 코드가 없다. 한도를 넘으면 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)).
 
 | 범위 | 제한 | 헤더 |
@@ -58,7 +58,7 @@ etag: "sha256-1b50b125efd516049a989d3ec8bffb91065a9bccac9f115778b13ab168bc9c78"
 | External Interaction 인바운드 (`POST /api/external/executions/:id/interact`, `POST /api/external/executions/:id/cancel`, `GET /api/external/executions/:id`) | interact 60 req/min, 상태 조회 120 req/min. `/cancel` 은 `/interact` 와 같은 카운터를 센다. **실행 단위**다(IP 아님). 전역 100/min 위에 얹히는 층이다. `InteractionRateLimiterService`(Redis fixed-window)와 `InteractionRateLimitGuard` 가 걸고 넘으면 `429 RATE_LIMITED` 와 `Retry-After` 를 돌려준다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 rate limit 절. 토큰 갱신(`POST /api/external/executions/:id/refresh-token`)은 이 층 밖이다. 전역 기본값 100 req/min 만 받고 `@Public()` 라우트라 IP 로 센다(아래 키 결정 규칙) | `Retry-After` |
 | External Interaction SSE 동시 연결 (`GET /api/external/executions/:id/stream`) | 실행당 동시 연결 3개. 상한은 모든 서버 인스턴스의 연결을 합쳐 센다. Redis 를 쓸 수 없으면 서버 인스턴스마다 따로 센다(fail-open). 넘으면 `429 TOO_MANY_CONNECTIONS`(EIA 전용). 상세는 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) | 없음 |
 | 채팅 채널 인바운드 (채팅방 단위) | 채팅방당 분당 60건(기본값. `config.chatChannel.rateLimitPerMinute` 로 1~600 사이에서 바꾼다). 넘은 메시지는 버퍼링·재발사 없이 처리를 건너뛰고 `chat_channel_health=degraded` 로 표시한다. `ChatChannelRateLimiterService`(Redis fixed-window)이고 Redis 를 쓸 수 없으면 fail-open 이다. 상세는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 이 정한다 | 없음 (위 콜아웃) |
-| 채팅 채널 서명 검증 실패 (채팅 채널 트리거의 인바운드 웹훅) | (트리거 id, 클라이언트 IP) 쌍마다 60초 고정 창에 서명 검증 실패 20회. 실패가 20회에 이르면 그 창이 끝날 때까지 시크릿 조회와 서명 계산 없이 `401 AUTH_FAILED` 로 거절한다. `429` 는 쓰지 않는다. `ChatChannelSignatureFailureLimiterService`(Redis `cc:sigfail:` 키)이고 Redis 를 쓸 수 없거나 오류가 나면 막지 않는다(fail-open). 동작은 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다 | 없음 (`401`, 위 콜아웃) |
+| 채팅 채널 서명 검증 실패 (채팅 채널 트리거의 인바운드 웹훅) | (트리거 id, 클라이언트 IP) 쌍마다 60초 고정 창에 서명 검증 실패 20회. 실패가 20회에 이르면 그 창이 끝날 때까지 시크릿 조회와 서명 계산 없이 `401 AUTH_FAILED` 로 거절한다. `429` 는 쓰지 않는다. `ChatChannelSignatureFailureLimiterService`(Redis `cc:sigfail:` 키)이고 Redis 를 쓸 수 없거나 오류가 나면 막지 않는다(fail-open). 동작은 [채팅 채널 인바운드 관문 「서명 검증 실패 한도」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 가 정한다. 클라이언트 IP 출처도 같은 절이 정한다(`CF-Connecting-IP`(신뢰 설정 `TRUST_CF_CONNECTING_IP` 가 켜진 배포만) → `req.ip`. `X-Forwarded-For` 첫 값은 쓰지 않는다) | 없음 (`401`, 위 콜아웃) |
 | WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **소켓당** 60 msg/min (in-memory fixed-window, HTTP 아님). 전역 요청 빈도 제한(일반 API 100 req/min)은 이 경로를 세지 않는다. 한도를 넘으면 `WsRateLimitGuard` 가 `WsException(RATE_LIMITED)` 을 던지고 클라이언트는 `exception` 이벤트로 받는다(HTTP status 없음). `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 적용한다. 등록되지 않은 이벤트(`onAny`)도 같은 소켓 예산을 쓴다. 넘었을 때의 응답은 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 가 정한다 | 없음 (전송: 소켓 `exception` 이벤트) |
 
 - HTTP 요청이 한도를 넘으면 `429` 를 받는다. 에러 코드는 행에 다른 코드를 적지 않았으면 기본 코드 `RATE_LIMITED` 다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)). 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도, External Interaction SSE 동시 연결, 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 행(채팅 채널 인바운드, 채팅 채널 서명 검증 실패, WebSocket 명령)은 위 콜아웃에 있다.
@@ -108,7 +108,7 @@ Task CLE-T-75TDTN 의 결정이다. `POST /api/auth/2fa/disable` 은 비밀번�
 
 ### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)
 
-NERV Task `CLE-T-A3W8B8` 에서 더했다. NestJS 12(`@nestjs/websockets` 12.1.2)부터 전역 `APP_GUARD` · `APP_PIPE` · `APP_INTERCEPTOR` 가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 가 아닌 호출을 건너뛰고 WebSocket 명령은 소켓당 `WsRateLimitGuard` 만 센다. 이 가드는 2026-07-07 에 들어왔다([WebSocket 연결과 채널 구독 「전송 계층을 Socket.IO 로 바로잡은 경위 (2026-06-03)」](CLE-API-WS.md#전송-계층을-socketio-로-바로잡은-경위-2026-06-03)). WebSocket 명령을 그 가드 하나로 세던 설계를 되살린 것이다.
+NERV Task `CLE-T-A3W8B8` 에서 더했다. NestJS 12(`@nestjs/websockets` 12.1.2)부터 전역 `APP_GUARD` · `APP_PIPE` · `APP_INTERCEPTOR` 가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 가 아닌 호출을 건너뛰고 WebSocket 명령은 소켓당 `WsRateLimitGuard` 만 센다.
 
 - §7 에 HTTP 요청만 센다는 항목을 더하고 키 결정 규칙이 HTTP 기준이라고 밝혔다. 환경으로 건너뛰는 경우는 `NODE_ENV=test` 하나이고 `skipIf` 가 건너뛰는 범위는 전역 기본값과 라우트별 `@Throttle` 한도다.
 - 규칙 12 와 §7 머리 콜아웃에 WebSocket 명령을 초과 응답이 `429` 가 아닌 두 번째 예외로 더했다.
@@ -117,16 +117,14 @@ NERV Task `CLE-T-A3W8B8` 에서 더했다. NestJS 12(`@nestjs/websockets` 12.1.2
 
 기각한 대안: 전역 가드가 소켓에서 사용자 · IP 키를 만들어 WebSocket 명령도 세는 안. 소켓당 `WsRateLimitGuard` 와 같은 명령을 두 번 센다. WebSocket 명령이 같은 사용자의 HTTP 요청 한도(분당 100회)도 함께 써 버린다.
 
-경위는 [WebSocket 연결과 채널 구독](CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 에 있다.
-
 ### §7 표에 빠진 라우트별 한도를 더했다 (2026-10-24)
 
-규칙 12 와 「표의 범위」 는 §7 표를 수치의 단일 기준이라고 한다. 그런데 저장 전 연결 테스트, 쇼핑몰 중복 사전 감지, 쇼핑몰 앱 설치 진입점, 통합 OAuth 콜백, 지식 저장소 그래프 재추출의 `@Throttle` 이 표에 없었다. 코드(`integrations.controller.ts`, `third-party-oauth.controller.ts`, `graph.controller.ts`)로 수치를 확인해 행을 더하고(NERV Task `CLE-T-MJ9G4C`) 「표의 범위」 에 HTTP 라우트의 `@Throttle` 이 모두 표에 있다는 문장과 수치를 바꾸면 표도 고친다는 문장을 더했다. 표와 코드를 대조하는 테스트는 NERV Task `CLE-T-CYEVNV` 로 올렸다.
+규칙 12 와 「표의 범위」 는 §7 표를 수치의 단일 기준이라고 한다. 그런데 저장 전 연결 테스트, 쇼핑몰 중복 사전 감지, 쇼핑몰 앱 설치 진입점, 통합 OAuth 콜백, 지식 저장소 그래프 재추출의 `@Throttle` 이 표에 없었다. 코드(`integrations.controller.ts`, `third-party-oauth.controller.ts`, `graph.controller.ts`)로 수치를 확인해 행을 더하고(NERV Task `CLE-T-MJ9G4C`) 「표의 범위」 에 HTTP 라우트의 `@Throttle` 이 모두 표에 있다는 문장과 수치를 바꾸면 표도 고친다는 문장을 더했다.
 
 - 「표의 범위」 를 좁혀 일부 라우트만 표에 두는 안은 고르지 않았다. 빠진 라우트의 수치가 단일 기준 없이 도메인 문서와 코드에만 남고 어느 라우트가 표에 있어야 하는지 알 수 없게 된다.
-- 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 를 돌려준다(코드 확인). 라우트별 `@Throttle` 행은 모두 기본 코드 `RATE_LIMITED` 라서 행마다 적지 않고 표 아래 첫 불릿에 한 번 적었다. 초대 429 를 소문자 `rate_limited` 로 적은 문서가 있지만 코드는 `RATE_LIMITED` 만 낸다(정리는 NERV Task `CLE-T-8WXV7T`).
-- `MAKESHOP_INSTALL_RATE_LIMITED` 는 코드(`third-party-oauth.controller.ts`)가 내는 대로 적었다. [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) 과 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 에러 표에는 아직 `CAFE24_INSTALL_RATE_LIMITED` 만 있고 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에는 두 코드 모두 없다. 도메인 문서 반영은 NERV Task `CLE-T-SRXR5W`, 카탈로그 등재는 `CLE-T-5BZ3M2` 가 맡는다. 설치 잠금의 `429` 는 전역 예외 필터를 거치지 않아 `requestId` 가 빠진다(NERV Task `CLE-T-YK106G`).
-- `/api/3rd-party/*` 경로와 컬렉션 수준 액션 경로(`preview-test`, `precheck`, `preview-models`, `embedding-probe`)는 §2.2 명명 규칙의 예외 행에 없다. 이 개정은 §7 의 수치만 맞췄고 예외 등록은 NERV Task `CLE-T-SRXR5W` 가 맡는다.
+- 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 를 돌려준다(코드 확인). 라우트별 `@Throttle` 행은 모두 기본 코드 `RATE_LIMITED` 라서 행마다 적지 않고 표 아래 첫 불릿에 한 번 적었다.
+- `MAKESHOP_INSTALL_RATE_LIMITED` 는 코드(`third-party-oauth.controller.ts`)가 내는 대로 적었다.
+- `/api/3rd-party/*` 경로와 컬렉션 수준 액션 경로(`preview-test`, `precheck`, `preview-models`, `embedding-probe`)는 §2.2 명명 규칙의 예외 행에 없다. 이 개정은 §7 의 수치만 맞췄다.
 - 규칙 12, §7 머리 콜아웃, 표 아래 불릿, [§9](CLE-API-CONV-RESP.md#9-파일-업로드) 에는 엔드포인트나 행의 개수를 쓰지 않는다. 늘면 숫자가 낡는다. [§5.5 「검증 층」](CLE-API-CONV-RESP.md#검증-층-이-규칙을-무엇이-강제하는가) 의 «개수를 세지 않는다» 와 같은 이유다.
 
 ### §7 에 2단계 인증 설정 시작 행을 더했다 (2026-11-01)
@@ -162,3 +160,7 @@ NERV Task `CLE-T-GNTWP9` 의 초안에서 고쳤다. 「일반 API」 행에 로
 - [공개 웹훅 추가 한도에서 채팅 채널 트리거를 뺐다 (2026-11-12)](CLE-API-CONV-HOOK.md#공개-웹훅-추가-한도에서-채팅-채널-트리거를-뺐다-2026-11-12)
 - [채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)](CLE-API-CONV-HOOK.md#채팅-채널-인바운드를-전역-요청-빈도-제한에서-뺐다-2026-11-12) (가드 순서와 그 대가)
 - [채팅 채널의 전역 한도 예외를 §7 머리 콜아웃 한 곳에 모았다 (2026-11-13)](CLE-API-CONV-HOOK.md#채팅-채널의-전역-한도-예외를-7-머리-콜아웃-한-곳에-모았다-2026-11-13)
+
+### 서명 검증 실패 한도 링크와 IP 출처를 고쳤다 (2026-11-14)
+
+NERV Task `CLE-T-HMFRBD` 에서 고쳤다. 서명 검증 실패 한도의 정본 절이 하위 문서 [채팅 채널 — 인바운드 관문](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 으로 옮겨 가서 머리 콜아웃과 서명 검증 실패 행의 링크를 그 절로 바꿨다. 같은 행에 클라이언트 IP 출처를 적었다. 본문 20,000자 한도에 맞추려고 Rationale 에서 작업 추적 · 경위 문장을 걷어냈다.

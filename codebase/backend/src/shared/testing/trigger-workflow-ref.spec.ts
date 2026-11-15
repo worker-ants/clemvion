@@ -102,7 +102,7 @@ describe('expectTriggerWorkflowRef', () => {
   /**
    * ## 가드 3·5 — `null` 은 부재가 아니다
    *
-   * §5.4 는 **키 생략**과 `null`(키 present)을 **다른 표현**으로 규정한다. 부재를 `null` 로
+   * §5.5 는 **키 생략**과 `null`(키 present)을 **다른 표현**으로 규정한다. 부재를 `null` 로
    * 바꾸는 회귀는 계약 검증자가 안 잡으므로 여기서 갈라야 한다 — 이 헬퍼의 존재 이유 절반이 이것.
    *
    * **이 케이스가 실제로 무는 것은 3 쪽뿐이다.** `present: true` 갈래는 5(`workflow` not-null)를

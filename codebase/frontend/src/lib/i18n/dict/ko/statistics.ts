@@ -54,7 +54,7 @@ export const statistics = {
   colNode: "노드",
   colType: "유형",
   colExecutions: "실행 수",
-  colAvgDuration: "평균 실행 시간",
+  colAvgDuration: "평균 전체 경과",
   colErrorRate: "오류율",
   periodCustom: "사용자 지정",
   customRangeStart: "시작일",

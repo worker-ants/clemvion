@@ -64,7 +64,7 @@ const WORKFLOW_REF_KEYS = ['id', 'name'] as const;
  * **왜 계약 검증자로 안 되나 — 처음 이 자리에 과장해 적었다.** `assertMatchesContract` 는 무능하지
  * 않다: `response-contract.ts` 의 `visit()` 은 optional-non-nullable 필드에 `null` 이 오면
  * `kind:'null'` 로 **잡는다**. 정확한 사실은 **이 chatChannel 재조회 분기에 그 검증자를 거는 기존
- * 호출이 하나도 없다**는 것이다(부재 자체는 §5.4 키 생략형이라 위반이 아니므로 그 축으로는 애초에
+ * 호출이 하나도 없다**는 것이다(부재 자체는 §5.5 키 생략형이라 위반이 아니므로 그 축으로는 애초에
  * 안 걸린다). 그래서 이 양성 단언이 필요하다 — "검증자가 못 잡는다" 가 아니라 "이 분기가 어디에도
  * 안 걸려 있다" 가 근거다.
  *
@@ -74,7 +74,7 @@ const WORKFLOW_REF_KEYS = ['id', 'name'] as const;
  * **참조 객체 전체의 키셋**을 등가 비교한다 — 그 객체가 좁혀졌는지가 관심사다. 여기서는 응답이
  * `TriggerDto` **전체**라 키셋 등가 비교가 성립하지 않는다. 고정할 것은 `workflow` **유무**와
  * 그 참조의 **shape** 다. 그래서 옵션 이름도 다르다 — 자매는 `withWorkflow`("이 경로가 관계를
- * 채우는가", 도메인 조건), 여기는 `present`("그 키가 있는가", §5.4 판정 그 자체이며
+ * 채우는가", 도메인 조건), 여기는 `present`("그 키가 있는가", §5.5 판정 그 자체이며
  * `response-contract.ts` 가 같은 뜻으로 이미 쓰는 어휘다). 옵션 객체를 서로 바꿔 넘기면 구조적
  * 타이핑이 컴파일 타임에 잡는다.
  *
@@ -115,7 +115,7 @@ export function expectTriggerWorkflowRef(
   }
 
   if (!opts.present) {
-    // §5.4 키 생략형 — **키 자체가 없어야** 한다. `null` 은 "상시 존재하며 지금 값이 없다" 는
+    // §5.5 키 생략형 — **키 자체가 없어야** 한다. `null` 은 "상시 존재하며 지금 값이 없다" 는
     // 다른 표현이고, 그 둘을 가르는 것이 이 단언의 존재 이유다.
     expect(Object.hasOwn(record, 'workflow')).toBe(false);
     return;

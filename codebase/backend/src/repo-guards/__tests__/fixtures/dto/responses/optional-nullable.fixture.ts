@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
- * §5.4 금지-조합 래칫의 **양성 대조군**.
+ * §5.5 금지-조합 래칫의 **양성 대조군**.
  *
  * 이 파일은 일부러 규약을 어긴다 — 술어가 그 조합을 실제로 집는지 확인하는 것이 존재
  * 이유다. 경로에 `/dto/responses/` 가 들어 있어 `isResponseDtoFile` 을 통과하지만,
@@ -21,7 +21,7 @@ export class OptionalNullableOffenderFixtureDto {
   @ApiProperty({ required: false, nullable: true, type: String })
   offendingViaRequiredOption?: string | null;
 
-  /** 준수 — 상시 존재 + nullable (§5.4 기본형). 집히면 안 된다. */
+  /** 준수 — 상시 존재 + nullable (§5.5 기본형). 집히면 안 된다. */
   @ApiProperty({ nullable: true, type: String })
   compliantNullable: string | null;
 

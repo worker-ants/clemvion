@@ -16,7 +16,7 @@ import { NotificationRotateSecretDto } from '../src/modules/triggers/dto/respons
  * e2e: 새로 광고한 성공 응답 DTO 가 **실제 응답과 맞는가** — `plan/complete/success-advert.md`.
  *
  * 성공 응답을 광고하지 않던 라우트에 응답 DTO 를 붙였다. 광고가 실제와 다르면(필수인데 빠진 키 · 선언하지 않은 키) 생성된
- * OpenAPI 가 새로 틀린다 — `assertMatchesContract` 가 선언되지 않은 키까지 문다(api-convention §5.4 «검증 층»). 이 파일은 다른
+ * OpenAPI 가 새로 틀린다 — `assertMatchesContract` 가 선언되지 않은 키까지 문다(api-convention §5.5 «검증 층»). 이 파일은 다른
  * e2e 가 부르지 않던 두 라우트를 맡는다. workflow-assistant 세션은 `workflow-assistant.e2e-spec.ts`, interaction token 재발급은
  * `chat-channel-trigger-create.e2e-spec.ts` 가 같은 대조를 한다.
  */

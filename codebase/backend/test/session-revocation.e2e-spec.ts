@@ -169,7 +169,7 @@ describe('Session revocation (e2e)', () => {
     }>;
     expect(sessions.length).toBeGreaterThanOrEqual(2);
 
-    // 응답 1건 vs `SessionDto` 선언 전수 대조 (API 규약 §5.4).
+    // 응답 1건 vs `SessionDto` 선언 전수 대조 (API 규약 §5.5).
     assertMatchesContract(sessions[0], sessionContract);
 
     const currents = sessions.filter((s) => s.isCurrent);

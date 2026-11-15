@@ -434,7 +434,7 @@ export class InteractionService {
         const bc = structured.config?.buttonConfig ?? structured.buttonConfig;
         if (interactionType) {
           // 공통 필드 선조립 — interactionType/waitingNodeId + (durable) conversationThread top-level.
-          // conversationThread 는 값이 있을 때만 키를 얹는다 (present-when-available, API 규약 §5.4).
+          // conversationThread 는 값이 있을 때만 키를 얹는다 (present-when-available, API 규약 §5.5).
           // 명시 annotate 필수 — spread 가 interactionType 리터럴을 string 으로 넓힌다.
           // (지우면 아래 context 대입이 컴파일 에러로 드러난다.)
           const base: WaitingContextBaseDto = {
@@ -464,7 +464,7 @@ export class InteractionService {
       // **영속값을 그대로** 싣는다 — 재계산하지 않는다. push 계열(webhook/SSE/WS)이
       // 같은 컬럼값을 싣기 시작했으므로, 재조회가 다른 숫자를 말하면 "이벤트 유실 후
       // 재조회로 복구" 패턴이 깨진다. 종결 전에는 컬럼이 NULL 이라 `null` (키는 존재 —
-      // API 규약 §5.4 의 부재 표현).
+      // API 규약 §5.5 의 부재 표현).
       durationMs: execution.durationMs ?? null,
       currentNode,
       context,

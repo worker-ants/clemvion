@@ -108,7 +108,7 @@ export class StatisticsController {
   @ApiOperation({
     summary: '노드별 실행 통계',
     description:
-      '특정 워크플로우(workflowId 필수)의 노드별 실행 건수, 평균 실행 시간(ms), 오류율(%)을 반환합니다. workflowId 미지정 시 빈 배열을 반환합니다.',
+      '특정 워크플로우(workflowId 필수)의 노드별 실행 건수, 평균 전체 경과(ms. node_execution.duration_ms 평균이라 입력 대기 시간이 들어간다), 오류율(%)을 반환합니다. workflowId 미지정 시 빈 배열을 반환합니다.',
   })
   @ApiOkWrappedArrayResponse(NodeStatDto, { description: '노드별 실행 집계' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })

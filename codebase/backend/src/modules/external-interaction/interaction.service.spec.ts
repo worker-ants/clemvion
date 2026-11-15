@@ -908,7 +908,7 @@ describe('InteractionService.getStatus', () => {
     expect('buttonConfig' in ctx).toBe(false);
   });
 
-  // API 규약 §5.4 — conversationThread 는 present-when-available(키 생략), 형제는 null.
+  // API 규약 §5.5 — conversationThread 는 present-when-available(키 생략), 형제는 null.
   // ai_conversation + thread 부재는 아래 별 테스트가 이미 커버하므로, 여기서는 미커버 조합인
   // buttons variant + thread 부재를 검증한다 (버튼 노드도 durable thread 없이 대기할 수 있다).
   it('waiting_for_input(buttons) — durable thread 부재 시 conversationThread 키 자체를 생략 (null 아님)', async () => {

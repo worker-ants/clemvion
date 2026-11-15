@@ -103,7 +103,11 @@ export class NodeStatDto {
   @ApiProperty({ example: 120 })
   executionCount: number;
 
-  @ApiProperty({ example: 420 })
+  @ApiProperty({
+    example: 420,
+    description:
+      '이 노드의 평균 전체 경과(ms). node_execution.duration_ms 평균이라 입력 대기 노드(폼 · 버튼 · AI 멀티턴)는 대기 시간이 들어간다',
+  })
   avgDurationMs: number;
 
   @ApiProperty({ example: 1.67 })

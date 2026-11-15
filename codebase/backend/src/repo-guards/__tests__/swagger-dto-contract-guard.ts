@@ -130,7 +130,7 @@ function hasTopLevelNull(type: ts.TypeNode): boolean {
  * - **presence**: OpenAPI 의 실효 `required` 는 TS 의 `?` 와 정확히 반대여야 한다.
  *   실효 `required` 는 인자의 `required:` 가 있으면 그것이고, 없으면 데코레이터 이름이
  *   정한다 — `@ApiPropertyOptional` 은 `ApiProperty({ required: false })` 의 별칭이다
- *   (`@nestjs/swagger` 구현). SoT: `spec/5-system/2-api-convention.md` §5.4.
+ *   (`@nestjs/swagger` 구현). SoT: `spec/5-system/2-api-convention.md` §5.5.
  * - **null**: OpenAPI 의 `nullable: true` 는 TS 최상위 유니온의 `null` 과 일치해야 한다.
  *
  * ## `@Transform` 예외 — 허용목록이 아니라 원리
@@ -220,7 +220,7 @@ export function findSwaggerContractMismatches(
 }
 
 /**
- * §5.4 가 **응답 바디에서 금지한** 조합 — `required: false` + `nullable: true`.
+ * §5.5 가 **응답 바디에서 금지한** 조합 — `required: false` + `nullable: true`.
  *
  * ## 왜 별도 축인가
  *
@@ -231,7 +231,7 @@ export function findSwaggerContractMismatches(
  * 키가 없어도 되고 null 이어도 되니 어떤 값이 와도 맞는다.
  *
  * 즉 이 조합은 **두 검증자 사이의 사각지대**였고, 실제로 조용히 넓어졌다 —
- * 2026-09-05 의 §5.4 스윕 커밋이 17개 필드를 이 형태로 새로 선언했고
+ * 2026-09-05 의 §5.5 스윕 커밋이 17개 필드를 이 형태로 새로 선언했고
  * (`review/consistency/2026/09/05/18_23_03` Critical 1), 그 커밋 자신이 같은 조합을
  * "동결, 확대 금지" 라고 적어 둔 상태였다.
  *
@@ -243,7 +243,7 @@ export function findSwaggerContractMismatches(
  *
  * ## 요청 DTO 는 대상이 아니다
  *
- * §5.4 자신이 *"요청 바디는 대상이 아니다"* 라고 적는다 — PATCH 부분 업데이트는 키 생략
+ * §5.5 자신이 *"요청 바디는 대상이 아니다"* 라고 적는다 — PATCH 부분 업데이트는 키 생략
  * (=불변) · `null`(=초기화) · 값(=설정)의 tri-state 가 각각 의미를 갖는 별개 계약이라 이
  * 조합이 **정당하다**. 그래서 이 술어는 `dto/responses/` 아래만 본다.
  */
@@ -262,7 +262,7 @@ export function isResponseDtoFile(file: string): boolean {
 }
 
 /**
- * `srcRoot` 아래 응답 DTO 파일에서 **§5.4 금지 조합**을 전부 찾아 돌려준다.
+ * `srcRoot` 아래 응답 DTO 파일에서 **§5.5 금지 조합**을 전부 찾아 돌려준다.
  *
  * 판정은 **데코레이터만** 본다 — `required` 가 거짓(`@ApiPropertyOptional` 의 기본값이거나
  * 명시된 `required: false`)이면서 `nullable: true` 인 필드. TS 타입(`?: T | null`)은 보지

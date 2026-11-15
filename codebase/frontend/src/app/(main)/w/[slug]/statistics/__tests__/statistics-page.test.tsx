@@ -136,6 +136,53 @@ describe("StatisticsPage", () => {
     },
   );
 
+  // 노드별 통계의 평균도 node_execution.duration_ms 평균이다. 폼 · 버튼 · AI 멀티턴처럼
+  // 입력을 기다린 노드는 재개 때 대기 시간까지 duration_ms 에 들어가므로 「실행 시간」이
+  // 아니라 요약과 같은 「전체 경과」로 부른다 (CLE-T-86XM7Z).
+  it.each([
+    ["ko", "평균 전체 경과", "평균 실행 시간"],
+    ["en", "Avg Total Elapsed", "Avg Duration"],
+  ] as const)(
+    "labels the node stats average column as total elapsed (%s)",
+    async (locale, label, oldLabel) => {
+      useLocaleStore.setState({ locale });
+      mockApi();
+      const base = apiGetMock.getMockImplementation()!;
+      apiGetMock.mockImplementation((url: string, ...rest: unknown[]) => {
+        if (url === "/workflows")
+          return Promise.resolve({
+            data: { data: [{ id: "wf-1", name: "Flow A" }] },
+          });
+        if (url === "/statistics/node-stats")
+          return Promise.resolve({
+            data: {
+              data: [
+                {
+                  nodeId: "n-1",
+                  nodeLabel: "Form step",
+                  nodeType: "form",
+                  executionCount: 3,
+                  avgDurationMs: 420,
+                  errorRate: 0,
+                },
+              ],
+            },
+          });
+        return base(url, ...rest);
+      });
+      await renderPage();
+
+      const allWorkflows = locale === "ko" ? "모든 워크플로우" : "All Workflows";
+      fireEvent.click(await screen.findByText(allWorkflows));
+      fireEvent.click(await screen.findByText("Flow A"));
+
+      expect(await screen.findByText("Form step")).toBeInTheDocument();
+      // 요약 카드와 노드 표 머리가 같은 이름을 쓴다.
+      expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(2);
+      expect(screen.queryByText(oldLabel)).not.toBeInTheDocument();
+    },
+  );
+
   it("omits the change indicator when change rate is null", async () => {
     mockApi({ ...SUMMARY, totalExecutionsChangeRate: null });
     await renderPage();

@@ -93,7 +93,7 @@ describe('SchedulesController — 행위자(userId) 배선', () => {
    * **불변식 위반은 던지되, 진단은 새지 않는다.**
    *
    * `trigger` 가 없는 행이 응답 경계에 오면 던진다 — 키를 생략하면 `ScheduleDto.trigger`
-   * 의 §5.4 기본형 선언(`@ApiProperty`)을 깨기 때문이다. 다만 `GlobalExceptionFilter` 는
+   * 의 §5.5 기본형 선언(`@ApiProperty`)을 깨기 때문이다. 다만 `GlobalExceptionFilter` 는
    * `HttpException` 의 `message` 를 **응답 바디로 그대로 흘리므로**, 진단 문구를 예외
    * 인자로 넘기면 `schedule.id` 와 내부 쿼리 구조가 500 바디에 실린다(CWE-209).
    *

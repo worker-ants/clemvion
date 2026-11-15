@@ -27,7 +27,7 @@ import { UpdateWorkspaceSettingsDto } from '../../modules/workspaces/dto/update-
  *
  * 이 표는 `plan/complete/patch-null-validation.md` §전수(PATCH 21라우트)의 결과 그대로다. **새 필드는 자동으로 들어오지 않는다** —
  * NOT NULL 컬럼에 대응하는 PATCH 필드를 더하면 `@IsOptional()` 대신 `@IsOptionalNonNull()` 을 쓰고 여기에 한 줄 더한다. nullable
- * 컬럼(null = 값을 지움)은 반대로 `@IsOptional()` + `nullable: true` 다(API 규약 §5.4 PATCH tri-state).
+ * 컬럼(null = 값을 지움)은 반대로 `@IsOptional()` + `nullable: true` 다(API 규약 §5.5 PATCH tri-state).
  */
 
 type DtoClass = new () => object;

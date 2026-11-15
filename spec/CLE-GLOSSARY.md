@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY"
 title: "용어 사전"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "0ba827b157fb105e0bcfb700957ecb97171db0e02f402cbf6291a8e7c7ecc76a"
+content_hash: "d7e0d951d8bb871ac7614ad1fec5390aa9507992b5f680147ee316fb0faeabc7"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-42VJAY"
 source_paths: []
-mirror_sha256: "bd45753e0488db3adf16e925f214217dc61e77e8ae03770f9d8a5ca5414178d0"
-etag: "sha256-eef9477d48631658127226b69a90502fa3641a1886e06f7d48304fd37e0ef58e"
+mirror_sha256: "459ed53e86e375b75e1e8e049520daff446427bc34f277c5082a05ea86ea6338"
+etag: "sha256-7f772c3d556f743105cec5e9b0027ca0bc4977bf8755c24b37a822cc0b1bc8ac"
 ---
 ## 개요
 
@@ -227,7 +227,7 @@ enum 값은 백틱으로 적는다. 화면에 보이는 라벨과 본문 표기�
 | 발송 건강도 `notification_health` | `unknown`, `healthy`, `degraded` | 확인 안 됨, 정상, 저하됨 | 확인 안 됨, 정상, 저하됨 |
 | 채널 건강도 `chat_channel_health` | `unknown`, `healthy`, `degraded` | 확인 안 됨, 정상, 저하됨 | 확인 안 됨, 정상, 저하됨 |
 | `Notification.channel` | `in_app`, `email`, `both` | 없음 | 인앱, 이메일, 둘 다 |
-| `AlertRule.type` | `failure_rate`, `duration`, `llm_cost` | 실패율, 평균 실행 시간, LLM 비용 | 같음 |
+| `AlertRule.type` | `failure_rate`, `duration`, `llm_cost` | 실패율, 평균 전체 경과, LLM 비용 | 같음 |
 | `AlertRule.channel` | `in_app`, `email` | 없음(화면 사전에 "이메일"·"웹훅" 문구가 있지만 쓰는 화면이 없다) | 인앱, 이메일 |
 
 ### 외부 상호작용과 채널
@@ -326,3 +326,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다. 하위 문서
 ### 약어 표 「HMAC」 행에 채팅 채널을 더했다 (2026-11-12)
 
 채팅 채널에서 HMAC 을 쓰는 곳은 [Slack 어댑터](CLE-CHAT/CLE-CHAT-SLACK.md) 의 인바운드 서명 검증뿐이다. [Telegram 어댑터](CLE-CHAT/CLE-CHAT-TELEGRAM.md) 는 `secret_token` 헤더 값을 비교하고 [Discord 어댑터](CLE-CHAT/CLE-CHAT-DISCORD.md) 는 Ed25519 서명을 검증한다.
+
+### 「평균 실행 시간」을 「평균 전체 경과」로 고쳤다 (2026-11-14)
+
+상태값 표 `AlertRule.type` 행의 `duration` 라벨을 바꿨다. 값은 그대로 완료(`completed`) 실행의 `duration_ms` 평균이다. 이름은 [용어 사전 — 관측과 운영](CLE-GLOSSARY-OBS.md) 과 [통계](CLE-OBS/CLE-OBS-STATS.md) 를 따른다.
