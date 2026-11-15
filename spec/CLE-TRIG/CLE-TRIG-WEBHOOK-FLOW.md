@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-FLOW"
 title: "웹훅 — 처리 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "fab16a8581ab0bb6975152b9c32fa64075e710b4f052045faffdf39626136a1d"
+content_hash: "7f172e799b130a683f0849582590d014d3a6fda2ada5b18706c3014310993b0b"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-289XDB"
 source_paths: []
-mirror_sha256: "cbd722498cd7e16c20da2daea15d40c13992bb60a1a7c14288a7725390588084"
-etag: "sha256-55b384fb21b35ca2e69b8699e9bf5ad72845dcd929cb55120033c3023e5fbaba"
+mirror_sha256: "10f3f3a434e3966d4a55b69fb0e603d32de27f451e56864a490ff5badaaa1356"
+etag: "sha256-420edccd98643a9f9b4dd1720afeb45d9f5129dfae282ab7bbd03e475fb821fb"
 ---
 ## 개요
 
@@ -43,7 +43,7 @@ etag: "sha256-55b384fb21b35ca2e69b8699e9bf5ad72845dcd929cb55120033c3023e5fbaba"
 10. `ExecutionEngineService.execute(trigger.workflowId, { __triggerSource:'webhook', parameters, body, headers, query, method }, { triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode: '202' })` 를 부른다.
     - 엔진은 워크플로우가 트리거의 워크스페이스에 없으면 거부한다. 이때 4 와 같은 `404 TRIGGER_NOT_FOUND`(같은 본문)로 응답하고 실행 행과 `last_triggered_at` 을 남기지 않는다. 저장 경계 이전에 남은 교차 행을 위한 동작이다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)).
     - 세 번째 인자로 `triggerId` 를 넘겨야 실행 행의 `trigger_id` 가 채워지고 실행 내역 화면에서 출처가 `webhook` 으로 분류된다.
-    - `sourceIp`(`extractClientIpFromHeaders` 결과, 인증 IP whitelist 검증과 같은 값)와 `responseCode`(성공 경로의 실제 HTTP 코드 `202`)도 넘긴다. 둘은 실행 행의 `source_ip`/`response_code` 컬럼에 저장돼 인증 설정 사용 내역의 소스 IP·응답 코드를 채운다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)).
+    - `sourceIp`(`extractClientIpFromHeaders` 결과, 인증 IP whitelist 검증과 같은 값)와 `responseCode`(성공 경로의 실제 HTTP 코드 `202`. 채팅 채널 인터랙션 요청의 값은 [채팅 채널 분기](#채팅-채널-분기) 에 있다)도 넘긴다. 둘은 실행 행의 `source_ip`/`response_code` 컬럼에 저장돼 인증 설정 사용 내역의 소스 IP·응답 코드를 채운다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)).
     - 스케줄·수동 트리거는 두 인자를 넘기지 않아 컬럼이 NULL 이다. `ExecuteOptions` 의 `triggerId` variant 에서 `sourceIp?`/`responseCode?` 는 선택이라 기존 호출자와 호환된다.
     - `execute()` 는 실행 행을 `pending` 으로 만들고 곧바로 `executionId` 를 돌려준다.
 11. `Trigger.lastTriggeredAt` 을 현재 시각으로 갱신한다.
@@ -62,7 +62,7 @@ etag: "sha256-55b384fb21b35ca2e69b8699e9bf5ad72845dcd929cb55120033c3023e5fbaba"
   - 비활성인데 410 이 아니라 2xx 인 이유는 Telegram 같은 provider 가 2xx 가 아닌 응답을 받으면 웹훅을 자동으로 끄거나 재시도를 쏟아내기 때문이다. 인터랙션 요청에 `200` 으로 답하는 이유는 [꺼진 트리거도 인터랙션 요청에는 200 으로 답한다](#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다-2026-11-12) 에 있다.
   - 비활성이어도 인증을 하는 이유는 인증에 실패한 요청에 조용한 202 를 주면 공격자가 트리거 활성 여부를 추측할 수 있고 운영자는 인증 실패를 401 로 봐야 디버깅할 수 있기 때문이다.
 - 워크플로우가 비활성이면(`workflow.is_active=false`) 새 실행을 시작하는 경우만 막고 비활성 트리거와 같이 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답한다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다. handshake 에는 답하고 진행 중인 대화는 이어진다. 막는 update 와 비활성 트리거와의 차이는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 확인 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
-- 새 대화면 일반 경로와 같이 `execute(workflowId, input, { triggerId, workspaceId, sourceIp, responseCode })` 로 실행을 시작한다. 입력은 provider update 를 바꾼 값이다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 인터랙션 요청이면 `'200'` 이다. 워크플로우가 트리거의 워크스페이스에 없으면 404 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 답하고 `chat_channel_health` 를 `degraded` 로 남긴다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)).
+- 새 대화면 일반 경로와 같이 `execute(workflowId, input, { triggerId, workspaceId, sourceIp, responseCode })` 로 실행을 시작한다. 입력은 provider update 를 바꾼 값이다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 채팅 채널의 인터랙션 요청(Discord 슬래시 명령 · 컴포넌트 · 모달 제출, Slack Interactivity · 슬래시 명령)이면 `'200'` 이다. 워크플로우가 트리거의 워크스페이스에 없으면 404 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 답하고 `chat_channel_health` 를 `degraded` 로 남긴다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)).
 - handshake 와 인터랙션 요청의 응답은 `200 OK` 로 직접 보내고 `{ data }` 봉투로 감싸지 않는다(`TransformInterceptor` 우회). handshake 는 Slack `url_verification` 의 `{ challenge }` 와 Discord PING 의 `{ type: 1 }` 이고 트리거가 활성일 때만 답한다. 인터랙션 요청은 서명 검증을 통과하면 트리거 활성 여부와 처리 결과(무시, 대기 실행에 전달, 새 실행, 새 실행 차단)에 상관없이 이 방식으로 답한다. 처리 경로가 따로 정한 응답이 있으면 그것을 기본 인터랙션 응답보다 먼저 쓴다. Discord 모달을 열면 `{ type: 9 }`, Form 모달 제출 결과는 `{ type: 4 }` 다. 응답 본문이 없으면(Slack Interactivity) 빈 본문을 보낸다.
 - update 파싱, 무시 대상 판정, 진행 중인 실행에 인터랙션 전달, 대화 기록은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 이 정한다. 비활성 트리거의 응답과 서명 실패 `401` 을 포함한 응답 계약의 기준은 [채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이다. 사용자에게 보내는 메시지와 버린 update 의 수신 확인 같은 프로바이더 API 호출도 채팅 채널 쪽이 정한다. 슬래시 명령의 수신 문구와 도움말은 위 기본 인터랙션 응답 본문에 실린다.
 

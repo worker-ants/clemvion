@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT-TRIGGER"
 title: "실행 컨텍스트 — 트리거 입력과 진입 API"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CONTEXT"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CONTEXT"]
 area: "CLE-EXEC"
-content_hash: "9622df6682c7625e24e16daab44d83a9e351ec900d5d2eaed2364c954605139e"
+content_hash: "c46429032711e4e6ceddc2698b7b6f469466ceb32942b08f28e00f028985da38"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-289XDB"
 source_paths: []
-mirror_sha256: "e9c7a7fe02941c788ca0425720ee3fc46de38ec45904fc2366e1ebc3296912d0"
-etag: "sha256-0b529751219e7a896a30a95dbe6dd4ddd479c0c55afc74de2896e39cefe73851"
+mirror_sha256: "2708f7300de6834651f51f9914d82eb09a662b59a1eff66d6ede54064aafff9f"
+etag: "sha256-02aeb949d6b188913935900f6c1549d9c70a671e05cb314697d01c866e37973f"
 ---
 ## 개요
 
@@ -70,7 +70,7 @@ type ExecuteOptions = {
 | 단일 노드 실행 | 수동 실행과 같이 `{ executedBy: user.sub, workspaceId, singleNodeId, previousExecutionId }` 로 부른다. `workspaceId` 는 요청의 워크스페이스다 | `executed_by` 가 채워진다 |
 | 재실행 | `ExecutionsService.reRun` 이 원본 실행을 요청의 워크스페이스에서 찾은 뒤 `{ executedBy, workspaceId, reRunOf, chainId, dryRun }` 로 부른다 | `executed_by` 가 채워진다 |
 | 웹훅 | `HooksService` 가 `body` 를 원천으로 `resolveTriggerParameters` 를 거친다. 실패하면 `400 Bad Request` 를 돌려주고 실행을 만들지 않는다. 성공하면 `{ __triggerSource: 'webhook', parameters, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode: '202' }` 로 부른다 | `trigger_id` 가 채워져 웹훅 |
-| 채팅 채널 인바운드 | `HooksService` 의 채팅 채널 분기가 파라미터 해석 없이 `{ __triggerSource: 'webhook', parameters: {}, chatChannel, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode }` 로 부른다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 Discord 컴포넌트(type 3) · 모달 제출(type 5)은 `'200'` 이다([웹훅 §채팅 채널 분기](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#채팅-채널-분기)) | `trigger_id` 가 채워져 웹훅 |
+| 채팅 채널 인바운드 | `HooksService` 의 채팅 채널 분기가 파라미터 해석 없이 `{ __triggerSource: 'webhook', parameters: {}, chatChannel, body, headers, query, method }` 와 `{ triggerId: trigger.id, workspaceId: trigger.workspaceId, sourceIp, responseCode }` 로 부른다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 채팅 채널의 인터랙션 요청(Discord 슬래시 명령 · 컴포넌트 · 모달 제출, Slack Interactivity · 슬래시 명령)이면 `'200'` 이다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)) | `trigger_id` 가 채워져 웹훅 |
 | Cron 자동 발사 | `ScheduleRunnerService.process()` 가 `schedule.parameterValues` 를 제한 컨텍스트(`{ $now, $schedule: { id, cronExpression, timezone } }`)로 표현식 평가한 뒤 `resolveTriggerParameters` 를 거쳐 `{ parameters }` 와 `{ triggerId: schedule.triggerId, workspaceId }` 로 부른다. `workspaceId` 는 스케줄의 워크스페이스이고 트리거의 워크스페이스가 아니다. `$node`·`$input`·`$var` 는 쓸 수 없다 | `trigger_id` 가 채워져 스케줄 |
 | 스케줄 "지금 실행" | 사용자가 지금 실행 버튼을 누른 경우 수동 실행과 같이 `{ executedBy: userId, workspaceId }` 로 부른다. `workspaceId` 는 요청의 워크스페이스다 | 수동 실행 |
 
