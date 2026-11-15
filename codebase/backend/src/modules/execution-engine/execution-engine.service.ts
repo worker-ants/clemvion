@@ -6360,7 +6360,7 @@ export class ExecutionEngineService
   /**
    * 노드 실행 행을 COMPLETED 로 저장하고 `execution.node.completed` 를 보낸다. 끝 시각과
    * 실행 시간은 지금 시각으로 잰다. 일반 노드는 핸들러가 끝난 직후에, 엔진 덮어쓰기를 받는
-   * 노드는 본문이 끝난 뒤에 부른다({@link completeDeferredNode}). 그래서 행과 이벤트의
+   * 노드는 본문이 끝난 뒤에 부른다. 그래서 행과 이벤트의
    * 실행 시간은 두 경우 모두 노드 전체 실행 시간이다(CLE-T-JXD0W5).
    */
   private async markNodeCompleted(
@@ -6396,76 +6396,44 @@ export class ExecutionEngineService
   }
 
   /**
-   * `executeNode` 가 열어 둔 노드 실행 행을 엔진 덮어쓰기 결과로 마감한다. `outputData` 는
-   * 실행 컨텍스트에 쓴 구조화 출력(`config` · 완료 `output` · 합친 `meta` · `port`)과 같은
-   * 값이다. 이 값을 저장해야 재개 · 재구동의 rehydration 과 단일 노드 실행의 상류 복원이
-   * 완료 출력을 본다. 덮어쓰기 결과가 없으면(`undefined`) 핸들러 반환값으로 마감한다.
+   * 엔진 덮어쓰기 실행 경로가 외부 취소로 끝났을 때 `executeNode` 가 열어 둔 행을 CANCELLED 로
+   * 마감한다. 취소 마감은 best-effort 다. 원래 취소 에러를 호출부가 그대로 던져야 실행이
+   * cancelled 로 끝난다.
    */
-  private async completeDeferredNode(
+  private async markEngineOverrideNodeCancelled(
     executionId: string,
     node: Node,
     context: ExecutionContext,
-    pending: DeferredNodeCompletion,
-    completedOutput: NodeHandlerOutput | undefined,
+    pending: DeferredNodeCompletion | undefined,
   ): Promise<void> {
-    await this.markNodeCompleted(
-      executionId,
-      node,
-      pending.nodeExecution,
-      context,
-      completedOutput ? { ...completedOutput } : pending.handlerOutput,
-    );
+    if (!pending) return;
+    try {
+      await this.markNodeCancelled(
+        pending.nodeExecution,
+        node,
+        context,
+        executionId,
+      );
+    } catch (markErr) {
+      this.logger.warn(
+        `엔진 덮어쓰기 노드 취소 마감 실패 — execution=${executionId} node=${node.id}: ${
+          markErr instanceof Error ? markErr.message : String(markErr)
+        }`,
+      );
+    }
   }
 
   /**
-   * 엔진 덮어쓰기 실행 경로(컨테이너 · Parallel)가 실패했을 때 그 노드의 실행 행을 마감한다.
-   *
-   * - 외부 취소(`ExecutionCancelledError`)면 열린 행을 CANCELLED 로 마감한다. 행이 열려 있지
-   *   않으면(핸들러 단계에서 이미 마감) 건드리지 않는다.
-   * - 그 밖의 실패면 행을 FAILED 로 바꾸고 `execution.node.failed` 를 보낸다. 열린 행이
-   *   없으면 `fallbackToLatestRow` 일 때만 그 노드의 최근 행을 찾아 바꾼다(컨테이너의 예전
-   *   동작). 열린 행을 받은 Parallel 만 새로 FAILED 를 남긴다.
-   *
-   * 원래 에러를 다시 던지는 것은 호출부가 한다.
+   * 노드 실행 행을 FAILED 로 바꾸고 `execution.node.failed` 를 보낸다. 행이 없으면(`null`)
+   * 이벤트만 보낸다.
    */
-  private async markEngineOverrideNodeFailed(
+  private async markNodeRowFailed(
     executionId: string,
     node: Node,
-    context: ExecutionContext,
+    nodeExec: NodeExecution | null,
     err: unknown,
-    pending: DeferredNodeCompletion | undefined,
-    fallbackToLatestRow: boolean,
   ): Promise<void> {
-    if (err instanceof ExecutionCancelledError) {
-      if (!pending) return;
-      try {
-        await this.markNodeCancelled(
-          pending.nodeExecution,
-          node,
-          context,
-          executionId,
-        );
-      } catch (markErr) {
-        // 취소 마감은 best-effort 다. 원래 취소 에러를 호출부가 그대로 던져야 실행이
-        // cancelled 로 끝난다.
-        this.logger.warn(
-          `엔진 덮어쓰기 노드 취소 마감 실패 — execution=${executionId} node=${node.id}: ${
-            markErr instanceof Error ? markErr.message : String(markErr)
-          }`,
-        );
-      }
-      return;
-    }
     const message = err instanceof Error ? err.message : String(err);
-    const nodeExec =
-      pending?.nodeExecution ??
-      (fallbackToLatestRow
-        ? await this.nodeExecutionRepository.findOne({
-            where: { executionId, nodeId: node.id },
-            order: { startedAt: 'DESC' },
-          })
-        : null);
-    if (!nodeExec && !fallbackToLatestRow) return;
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.FAILED;
       nodeExec.error = { message };
@@ -6492,6 +6460,61 @@ export class ExecutionEngineService
         finishedAt: nodeExec?.finishedAt?.toISOString?.(),
       },
     );
+  }
+
+  /**
+   * Parallel 실행 경로가 실패했을 때 열린 행을 마감한다. 외부 취소면 CANCELLED, 그 밖의
+   * 실패면 FAILED + `execution.node.failed` 다. 열린 행이 없으면(핸들러 단계에서 마감)
+   * 건드리지 않는다. 원래 에러를 다시 던지는 것은 호출부가 한다(CLE-T-JXD0W5).
+   */
+  private async markParallelNodeFailed(
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    err: unknown,
+    pending: DeferredNodeCompletion | undefined,
+  ): Promise<void> {
+    if (err instanceof ExecutionCancelledError) {
+      await this.markEngineOverrideNodeCancelled(
+        executionId,
+        node,
+        context,
+        pending,
+      );
+      return;
+    }
+    if (!pending) return;
+    await this.markNodeRowFailed(executionId, node, pending.nodeExecution, err);
+  }
+
+  /**
+   * 컨테이너(Loop · ForEach · Map) 실행 경로가 실패했을 때 그 노드의 행을 마감한다. 외부
+   * 취소면 열린 행을 CANCELLED 로 마감한다. 그 밖의 실패면 FAILED + `execution.node.failed`
+   * 이고, 열린 행이 없으면 그 노드의 최근 행을 찾아 바꾼다(예전 동작).
+   */
+  private async markContainerNodeFailed(
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    err: unknown,
+    pending: DeferredNodeCompletion | undefined,
+  ): Promise<void> {
+    if (err instanceof ExecutionCancelledError) {
+      await this.markEngineOverrideNodeCancelled(
+        executionId,
+        node,
+        context,
+        pending,
+      );
+      return;
+    }
+    const nodeExec =
+      pending?.nodeExecution ??
+      (await this.nodeExecutionRepository.findOne({
+        where: { executionId, nodeId: node.id },
+        order: { startedAt: 'DESC' },
+      }));
+    await this.markNodeRowFailed(executionId, node, nodeExec, err);
   }
 
   /**
@@ -7430,28 +7453,46 @@ export class ExecutionEngineService
       return undefined;
     }
     if (kind === 'parallel' && parallel) {
-      return this.runParallel({
-        parallelNode: node,
-        allNodes,
-        allEdges,
-        ...parallel,
-        context,
-        executionId,
-        executedNodes,
-        executionMeta,
-        input: nodeInput,
-        pendingCompletion,
-      });
+      try {
+        return await this.runParallel({
+          parallelNode: node,
+          allNodes,
+          allEdges,
+          ...parallel,
+          context,
+          executionId,
+          executedNodes,
+          executionMeta,
+          input: nodeInput,
+          pendingCompletion,
+        });
+      } catch (err) {
+        // 열린 행이 있는데 `runParallel` 의 본문 실행 전 단계(설정 해석 · 사전 검사)에서 던지면
+        // 행이 RUNNING 으로 남는다. 아직 열려 있을 때만 FAILED · CANCELLED 로 마감한다.
+        if (
+          pendingCompletion?.nodeExecution.status ===
+          NodeExecutionStatus.RUNNING
+        ) {
+          await this.markParallelNodeFailed(
+            executionId,
+            node,
+            context,
+            err,
+            pendingCompletion,
+          );
+        }
+        throw err;
+      }
     }
     // 열린 행을 받을 실행 경로가 없다. `completesAfterEngineOverride` 와 호출부의 `parallel`
     // 판정이 같아 닿지 않지만, 닿으면 행이 RUNNING 으로 남지 않게 핸들러 반환값으로 마감한다.
     if (pendingCompletion) {
-      await this.completeDeferredNode(
+      await this.markNodeCompleted(
         executionId,
         node,
+        pendingCompletion.nodeExecution,
         context,
-        pendingCompletion,
-        undefined,
+        pendingCompletion.handlerOutput,
       );
     }
     if (kind === 'background') {
@@ -8160,13 +8201,12 @@ export class ExecutionEngineService
     } catch (err) {
       // CLE-T-JXD0W5 — 열린 행이 RUNNING 으로 남지 않게 마감한다. 실패면 FAILED, 외부
       // 취소면 CANCELLED 다. 열린 행이 없으면(핸들러 단계에서 마감) 예전처럼 두고 다시 던진다.
-      await this.markEngineOverrideNodeFailed(
+      await this.markParallelNodeFailed(
         executionId,
         parallelNode,
         context,
         err,
         pendingCompletion,
-        false,
       );
       throw err;
     }
@@ -8221,12 +8261,14 @@ export class ExecutionEngineService
       },
     );
     if (pendingCompletion) {
-      await this.completeDeferredNode(
+      await this.markNodeCompleted(
         executionId,
         parallelNode,
+        pendingCompletion.nodeExecution,
         context,
-        pendingCompletion,
-        completedOutput,
+        completedOutput
+          ? { ...completedOutput }
+          : pendingCompletion.handlerOutput,
       );
     }
 
@@ -8378,23 +8420,24 @@ export class ExecutionEngineService
       // 그 밖의 실패(예: CONTAINER_MISSING_EMIT)는 컨테이너 행을 FAILED 로 바꿔 UI 가
       // 컨테이너 노드에 실패 이유를 보이게 한다. 열린 행이 없으면(핸들러 단계에서 이미
       // 마감) 그 노드의 최근 행을 찾아 바꾼다.
-      await this.markEngineOverrideNodeFailed(
+      await this.markContainerNodeFailed(
         executionId,
         containerNode,
         context,
         err,
         pendingCompletion,
-        true,
       );
       throw err;
     }
     if (pendingCompletion) {
-      await this.completeDeferredNode(
+      await this.markNodeCompleted(
         executionId,
         containerNode,
+        pendingCompletion.nodeExecution,
         context,
-        pendingCompletion,
-        completedOutput,
+        completedOutput
+          ? { ...completedOutput }
+          : pendingCompletion.handlerOutput,
       );
     }
   }
