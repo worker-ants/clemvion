@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /** 서명 검증 실패 카운터 키. 트리거와 클라이언트 IP 쌍마다 하나다. */
 export const makeSignatureFailureKey = (
@@ -40,7 +41,8 @@ return c
  * 서명 시크릿을 잘못 넣은 트리거 하나의 실패가 같은 IP 에서 오는 다른 트리거의 정상 요청까지 막는다.
  *
  * Redis 가 없거나 오류면 막지 않는다(fail-open, `ChatChannelRateLimiterService` 와 같다). Redis 오류는
- * 경고 로그로만 남긴다. 한 쌍이 한도에 닿으면 그 창에서 한 번 경고 로그를 남긴다. 클라이언트 IP 는 로그에
+ * 경고 로그로 남기고 `clemvion.redis.fail_open{component=chat_signature_failure_limit}` 에 센다
+ * (조회 `get_failed` · 기록 `incr_failed`, NERV Task `CLE-T-TB33HY`). Redis 가 없어 기능을 끈 상태는 세지 않는다. 한 쌍이 한도에 닿으면 그 창에서 한 번 경고 로그를 남긴다. 클라이언트 IP 는 로그에
  * 남기지 않는다.
  */
 @Injectable()
@@ -55,6 +57,7 @@ export class ChatChannelSignatureFailureLimiterService {
     @Inject('CHAT_CHANNEL_SIGNATURE_FAILURE_REDIS')
     injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
   }
@@ -75,6 +78,10 @@ export class ChatChannelSignatureFailureLimiterService {
     } catch (err) {
       this.logger.warn(
         `chat-channel 서명 실패 한도 조회 실패 (fail-open): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.metrics?.recordRedisFailOpen(
+        'chat_signature_failure_limit',
+        'get_failed',
       );
       return false;
     }
@@ -107,6 +114,10 @@ export class ChatChannelSignatureFailureLimiterService {
     } catch (err) {
       this.logger.warn(
         `chat-channel 서명 실패 기록 실패 (fail-open): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.metrics?.recordRedisFailOpen(
+        'chat_signature_failure_limit',
+        'incr_failed',
       );
       return false;
     }

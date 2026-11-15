@@ -3,10 +3,12 @@ import { Client } from 'pg';
 import { createHmac, randomUUID } from 'crypto';
 import request from 'supertest';
 
-import { createDbClient } from './helpers/db';
+import { createTeamWorkspace, registerAndLogin } from './helpers/auth';
+import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
 import {
   insertChatChannelTriggerRow,
+  insertWorkflowRow,
   setupChatChannelTrigger,
 } from './helpers/e2e-chat-channel-fixture';
 
@@ -69,15 +71,24 @@ function postInteractivity(path: string, payload: unknown) {
     );
 }
 
-/** 슬래시 명령 요청 — Slack 은 `command` · `text` 등을 form-urlencoded 로 보낸다. 대화는 id 마다 따로 둔다. */
-function postSlashCommand(path: string, id: string, text: string) {
+/**
+ * 슬래시 명령 요청 — Slack 은 `command` · `text` 등을 form-urlencoded 로 보낸다. 대화는 id 마다 따로 둔다.
+ * `channel` 을 주지 않으면 DM(`D…`)에서 친 명령이다. `channel_name` 은 줄 때만 싣는다.
+ */
+function postSlashCommand(
+  path: string,
+  id: string,
+  text: string,
+  channel: { id?: string; name?: string } = {},
+) {
   const form = new URLSearchParams({
     command: '/workflow',
     text,
     user_id: `U-${id}`,
-    channel_id: `D-${id}`,
+    channel_id: channel.id ?? `D-${id}`,
     team_id: 'T-e2e',
     trigger_id: `trg-${id}`,
+    ...(channel.name === undefined ? {} : { channel_name: channel.name }),
   });
   return request(BASE_URL)
     .post(`/api/hooks/${path}`)
@@ -91,6 +102,35 @@ const SLASH_RECEIVED = {
   response_type: 'ephemeral',
   text: '요청을 받았습니다.',
 };
+
+/** DM 밖에서 친 슬래시 명령의 기본 응답 — 본인에게만 보이는 groupChatRefusal 기본 문구(REQ-SLACK-045). */
+const SLASH_GROUP_CHAT_REFUSAL = {
+  response_type: 'ephemeral',
+  text: '이 봇은 1:1 대화만 지원합니다.',
+};
+
+/** 워크플로우에 수동 트리거 노드를 하나 단다. 이 노드가 있어야 DM 의 `start` 가 실행을 만든다. */
+async function addManualTriggerNode(
+  db: Client,
+  workflowId: string,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+     VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
+    [randomUUID(), workflowId, JSON.stringify({ parameters: [] })],
+  );
+}
+
+async function countExecutions(
+  db: Client,
+  workflowId: string,
+): Promise<string> {
+  const rows = await db.query<{ n: string }>(
+    'SELECT count(*)::text AS n FROM execution WHERE workflow_id = $1',
+    [workflowId],
+  );
+  return rows.rows[0]?.n ?? '';
+}
 
 // inbound-signing secret 저장 (AES-256-GCM application encryption — secret_store INSERT 는
 // application 경로를 거쳐야 함. e2e 에서는 직접 INSERT 가 불가 — REST API 없이
@@ -379,14 +419,6 @@ describe('Slack Chat Channel e2e', () => {
     let on: { endpointPath: string; triggerId: string; workflowId: string };
     let off: { endpointPath: string; triggerId: string; workflowId: string };
 
-    const countExecutions = async (workflowId: string): Promise<string> => {
-      const rows = await db.query<{ n: string }>(
-        'SELECT count(*)::text AS n FROM execution WHERE workflow_id = $1',
-        [workflowId],
-      );
-      return rows.rows[0]?.n ?? '';
-    };
-
     beforeAll(async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
       await dropSigningRef(db, setup.triggerId);
@@ -433,7 +465,7 @@ describe('Slack Chat Channel e2e', () => {
           '/workflow help - 도움말',
         ].join('\n'),
       });
-      expect(await countExecutions(on.workflowId)).toBe('0');
+      expect(await countExecutions(db, on.workflowId)).toBe('0');
     });
 
     it('/workflow cancel(진행 중인 대화 없음) → 200 + 수신 문구', async () => {
@@ -449,11 +481,7 @@ describe('Slack Chat Channel e2e', () => {
     it('/workflow start → 200 + 수신 문구이고 새 실행의 response_code 는 200 이다', async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
       await dropSigningRef(db, setup.triggerId);
-      await db.query(
-        `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
-         VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
-        [randomUUID(), setup.workflowId, JSON.stringify({ parameters: [] })],
-      );
+      await addManualTriggerNode(db, setup.workflowId);
       try {
         const res = await postSlashCommand(
           setup.endpointPath,
@@ -483,7 +511,182 @@ describe('Slack Chat Channel e2e', () => {
       );
       expect(res.status).toBe(200);
       expect(res.body).toEqual(SLASH_RECEIVED);
-      expect(await countExecutions(off.workflowId)).toBe('0');
+      expect(await countExecutions(db, off.workflowId)).toBe('0');
+    });
+  });
+  /**
+   * DM 밖에서 친 슬래시 명령은 하위 명령과 상관없이 실행으로 보내지 않고 200 + 본인에게만 보이는
+   * groupChatRefusal 안내로 끝난다(CLE-CHAT-SLACK REQ-SLACK-045 · R-S-4, NERV Task `CLE-T-4NJYM5`).
+   * DM 판정은 `channel_id` 가 `D` 로 시작하고 `channel_name` 이 없거나 `directmessage` 인지로 한다.
+   * 각 경우의 워크플로우에는 수동 트리거 노드를 달아, DM 이었다면 `start` 가 실행을 만들었을 상태에서
+   * 실행이 0 건인지 본다.
+   */
+  describe('DM 밖 슬래시 명령의 거절', () => {
+    let target: { endpointPath: string; triggerId: string; workflowId: string };
+
+    beforeAll(async () => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
+      await dropSigningRef(db, setup.triggerId);
+      await addManualTriggerNode(db, setup.workflowId);
+      target = setup;
+    });
+
+    afterAll(async () => {
+      await db
+        .query('DELETE FROM trigger WHERE id = $1', [target.triggerId])
+        .catch(() => undefined);
+    });
+
+    const outsideDm: Array<[string, { id: string; name?: string }]> = [
+      ['공개 채널(C)', { id: 'C0E2EPUBLIC', name: 'general' }],
+      ['비공개 채널(G)', { id: 'G0E2EPRIVATE', name: 'privategroup' }],
+      ['그룹 DM(mpdm)', { id: 'G0E2EMPDM', name: 'mpdm-alice--bob-1' }],
+      ['channel_name 없는 C 채널', { id: 'C0E2ENONAME' }],
+      [
+        'D 로 시작해도 channel_name 이 directmessage 가 아닌 요청',
+        { id: 'D0E2EODD', name: 'general' },
+      ],
+    ];
+
+    it.each(
+      outsideDm.flatMap(([label, channel]) =>
+        (['start', 'reply 안녕하세요'] as const).map(
+          (text) => [label, text, channel] as const,
+        ),
+      ),
+    )(
+      '%s 의 /workflow %s → 200 + groupChatRefusal 안내이고 실행을 만들지 않는다',
+      async (_label, text, channel) => {
+        const res = await postSlashCommand(
+          target.endpointPath,
+          `outside-${randomUUID()}`,
+          text,
+          channel,
+        );
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual(SLASH_GROUP_CHAT_REFUSAL);
+        expect(await countExecutions(db, target.workflowId)).toBe('0');
+      },
+    );
+
+    it('DM 에서 친 /workflow start 는 그대로 받아 실행을 만든다', async () => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
+      await dropSigningRef(db, setup.triggerId);
+      await addManualTriggerNode(db, setup.workflowId);
+      try {
+        const id = `dm-${randomUUID()}`;
+        const res = await postSlashCommand(setup.endpointPath, id, 'start', {
+          id: `D-${id}`,
+          name: 'directmessage',
+        });
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual(SLASH_RECEIVED);
+        expect(await countExecutions(db, setup.workflowId)).toBe('1');
+      } finally {
+        await db
+          .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+          .catch(() => undefined);
+      }
+    });
+
+    it('languageHints.groupChatRefusal 이 있으면 그 문구로 거절한다', async () => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
+      await db.query(`UPDATE trigger SET config = $1::jsonb WHERE id = $2`, [
+        JSON.stringify({
+          chatChannel: {
+            provider: 'slack',
+            botTokenRef: `secret://triggers/${setup.triggerId}/bot-token`,
+            languageHints: {
+              groupChatRefusal: '1:1 대화에서만 쓸 수 있습니다.',
+            },
+          },
+        }),
+        setup.triggerId,
+      ]);
+      try {
+        const res = await postSlashCommand(
+          setup.endpointPath,
+          `hint-${randomUUID()}`,
+          'start',
+          { id: 'C0E2EHINT', name: 'general' },
+        );
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({
+          response_type: 'ephemeral',
+          text: '1:1 대화에서만 쓸 수 있습니다.',
+        });
+      } finally {
+        await db
+          .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+          .catch(() => undefined);
+      }
+    });
+  });
+
+  /**
+   * 서명 참조가 없는 옛 행을 재발급해도 참조가 생기지 않아 인바운드가 끊기지 않는다(NERV Task
+   * `CLE-T-TJAHCN`). e2e 에는 Slack API 가짜 서버가 없어 재발급은 늘 채널 등록(4단계)에서 실패한다.
+   * 그래서 여기서는 실패한 재발급이 참조를 남기지 않는지만 본다. 성공한 재발급이 참조를 싣는
+   * 조건은 `triggers.service.spec.ts` 의 「저장하는 inboundSigningRef」 가 고정한다.
+   */
+  describe('봇 토큰 재발급과 인바운드 서명 참조', () => {
+    it('참조가 없는 행은 재발급을 시도한 뒤에도 참조가 없고 서명 없는 요청을 그대로 받는다', async () => {
+      const owner = await registerAndLogin(
+        BASE_URL,
+        uniqueEmail('slack-rotate'),
+        db,
+      );
+      const workspaceId = await createTeamWorkspace(
+        BASE_URL,
+        owner.accessToken,
+        uniqueName('SLACK-ROTATE'),
+      );
+      const workflowId = await insertWorkflowRow(db, {
+        workspaceId,
+        userId: owner.userId,
+        name: uniqueName('slack-rotate-wf'),
+      });
+      const row = await insertChatChannelTriggerRow(db, {
+        workspaceId,
+        workflowId,
+        name: uniqueName('slack-rotate'),
+        provider: 'slack',
+      });
+      await dropSigningRef(db, row.triggerId);
+      try {
+        const rotate = await request(BASE_URL)
+          .post(`/api/triggers/${row.triggerId}/chat-channel/rotate-bot-token`)
+          .set('Authorization', `Bearer ${owner.accessToken}`)
+          .set('X-Workspace-Id', workspaceId)
+          .send({ newBotToken: 'xoxb-e2e-rotate-legacy' });
+        // 가짜 토큰이라 Slack 이 거부하면 400, 네트워크가 닿지 않으면 502 다.
+        expect([400, 502]).toContain(rotate.status);
+
+        const saved = await db.query<{ config: { chatChannel?: object } }>(
+          'SELECT config FROM trigger WHERE id = $1',
+          [row.triggerId],
+        );
+        expect(saved.rows[0]?.config.chatChannel).not.toHaveProperty(
+          'inboundSigningRef',
+        );
+
+        const res = await request(BASE_URL)
+          .post(`/api/hooks/${row.endpointPath}`)
+          .set('x-forwarded-for', nextE2eClientIp())
+          .set('content-type', 'application/json')
+          .send(
+            JSON.stringify({
+              type: 'url_verification',
+              challenge: 'after-rotate',
+            }),
+          );
+        expect(res.status).toBe(200);
+        expect(res.body.challenge).toBe('after-rotate');
+      } finally {
+        await db
+          .query('DELETE FROM trigger WHERE id = $1', [row.triggerId])
+          .catch(() => undefined);
+      }
     });
   });
 });

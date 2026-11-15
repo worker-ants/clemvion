@@ -2531,6 +2531,160 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
   });
 
   /**
+   * 재발급이 저장하는 `chatChannel` 에 `inboundSigningRef` 를 싣는 조건(NERV Task `CLE-T-TJAHCN`).
+   * 이번에 서명 자료를 새로 썼거나 저장된 행에 참조가 이미 있을 때만 싣는다. 참조가 없는 옛
+   * Slack · Discord 행은 어댑터가 서명 자료를 돌려주지 않으므로 시크릿 저장소에 값이 없는 참조를
+   * 얻게 되고, 인바운드 인증기가 그 참조를 풀지 못해 모든 인바운드가 401 이 됐다.
+   */
+  describe('저장하는 inboundSigningRef', () => {
+    const legacyRow = (provider: string) =>
+      ({
+        id: TRIGGER_ID,
+        workspaceId: WORKSPACE_ID,
+        endpointPath: 'hook-abc',
+        config: { chatChannel: { provider, botTokenRef: BOT_TOKEN_REF } },
+      }) as unknown as Trigger;
+    const withRef = (provider: string) =>
+      ({
+        id: TRIGGER_ID,
+        workspaceId: WORKSPACE_ID,
+        endpointPath: 'hook-abc',
+        config: {
+          chatChannel: {
+            provider,
+            botTokenRef: BOT_TOKEN_REF,
+            inboundSigningRef: SECRET_TOKEN_REF,
+          },
+        },
+      }) as unknown as Trigger;
+    const savedChannel = (): Record<string, unknown> | undefined => {
+      const call = triggerRepo.update.mock.calls.at(-1) as
+        | [unknown, { config?: { chatChannel?: Record<string, unknown> } }]
+        | undefined;
+      return call?.[1]?.config?.chatChannel;
+    };
+    const noIssuedSigning = () =>
+      mockAdapter.setupChannel.mockResolvedValue({
+        registeredAt: new Date().toISOString(),
+        configUpdates: {},
+      });
+
+    it.each(['slack', 'discord'])(
+      '%s — 참조가 없는 행을 재발급해도 참조를 저장하지 않고 서명 자료도 쓰지 않는다',
+      async (provider) => {
+        triggerRepo.findOne.mockResolvedValue(legacyRow(provider));
+        noIssuedSigning();
+
+        await service.rotateBotToken(
+          TRIGGER_ID,
+          WORKSPACE_ID,
+          NEW_TOKEN,
+          'u-bot',
+        );
+
+        expect(savedChannel()).toMatchObject({ botTokenRef: BOT_TOKEN_REF });
+        expect(savedChannel()).not.toHaveProperty('inboundSigningRef');
+        expect(secrets.rotate.mock.calls.map((call) => call[0])).not.toContain(
+          SECRET_TOKEN_REF,
+        );
+      },
+    );
+
+    it.each(['slack', 'discord'])(
+      '%s — 참조가 있는 행은 서명 자료를 새로 받지 않아도 참조를 그대로 저장한다',
+      async (provider) => {
+        triggerRepo.findOne.mockResolvedValue(withRef(provider));
+        noIssuedSigning();
+
+        await service.rotateBotToken(
+          TRIGGER_ID,
+          WORKSPACE_ID,
+          NEW_TOKEN,
+          'u-bot',
+        );
+
+        expect(savedChannel()).toMatchObject({
+          botTokenRef: BOT_TOKEN_REF,
+          inboundSigningRef: SECRET_TOKEN_REF,
+        });
+      },
+    );
+
+    it('telegram — 참조가 없는 행도 어댑터가 서명 자료를 발급하면 쓰고 참조를 저장한다', async () => {
+      triggerRepo.findOne.mockResolvedValue(legacyRow('telegram'));
+
+      await service.rotateBotToken(
+        TRIGGER_ID,
+        WORKSPACE_ID,
+        NEW_TOKEN,
+        'u-bot',
+      );
+
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        SECRET_TOKEN_REF,
+        WORKSPACE_ID,
+        ISSUED_SECRET,
+      );
+      expect(savedChannel()).toMatchObject({
+        inboundSigningRef: SECRET_TOKEN_REF,
+      });
+    });
+
+    // 바인더의 `survivesWithFresh` 와 같은 이유다. 요청을 시작할 때 참조가 없었어도 락 안에서 다시
+    // 읽은 행에 참조가 생겼으면 지우지 않고 이 트리거의 참조로 맞춰 저장한다.
+    it('요청 시작 때 없던 참조가 락 안 재읽기에 있으면 이 트리거의 참조로 저장한다', async () => {
+      const FOREIGN_SIGNING = 'secret://triggers/other-trig/inbound-signing';
+      triggerRepo.findOne
+        .mockResolvedValueOnce(legacyRow('slack'))
+        .mockResolvedValue({
+          ...withRef('slack'),
+          config: {
+            chatChannel: {
+              provider: 'slack',
+              botTokenRef: BOT_TOKEN_REF,
+              inboundSigningRef: FOREIGN_SIGNING,
+            },
+          },
+        } as unknown as Trigger);
+      noIssuedSigning();
+
+      await service.rotateBotToken(
+        TRIGGER_ID,
+        WORKSPACE_ID,
+        NEW_TOKEN,
+        'u-bot',
+      );
+
+      expect(savedChannel()).toMatchObject({
+        inboundSigningRef: SECRET_TOKEN_REF,
+      });
+    });
+
+    it('참조를 싣지 않은 재발급은 응답 설정 · 되돌리기 입력에도 참조를 넣지 않는다', async () => {
+      noIssuedSigning();
+      // 락 안 재읽기에서 행이 사라지면 쓰기가 건너뛰어지고 되돌리기가 이번 재발급의 설정을 받는다.
+      triggerRepo.findOne
+        .mockResolvedValueOnce(legacyRow('discord'))
+        .mockResolvedValueOnce(null);
+      const releaser = (
+        service as unknown as {
+          resourceReleaser: { undoAbsentWrite: jest.Mock };
+        }
+      ).resourceReleaser;
+      const undoSpy = jest
+        .spyOn(releaser, 'undoAbsentWrite')
+        .mockResolvedValue(undefined);
+
+      await expect(
+        service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot'),
+      ).rejects.toThrow();
+
+      expect(undoSpy).toHaveBeenCalledTimes(1);
+      expect(undoSpy.mock.calls[0][1]).not.toHaveProperty('inboundSigningRef');
+    });
+  });
+
+  /**
    * 유예 중 재교체(A→B 뒤 24시간 안에 B→C)는 유예 백업 칸의 A 를 B 로 덮는다. A 는 그 뒤 어디에도
    * 남지 않아 유예 종료 정리가 revoke 하지 못한다. 그래서 교체가 끝난 뒤 A 를 best-effort 로
    * revoke 한다. 근거: NERV Task `CLE-T-6ZTPZ8` 4번(2026-11-13 답 A).
