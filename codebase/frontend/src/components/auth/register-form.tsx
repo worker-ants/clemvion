@@ -43,11 +43,12 @@ function startOauth(provider: OAuthProvider) {
 }
 
 /**
- * 가입 요청이 이메일 중복으로 거부될 때의 에러 코드. 전용 코드가 아니라 409 의 기본 코드다. 지금 가입
- * 요청에서 409 는 이메일 중복 하나뿐이라 이 값으로 가려내는 임시 판별이다(CLE-ACCT-WS 「초대 가입 화면」
- * 11단계). 가입 이메일 중복 전용 코드가 생기면 이 상수와 사용처를 그 코드로 바꾼다(CLE-T-2M6Q02).
+ * 가입 요청이 이메일 중복으로 거부될 때의 에러 코드. 409 의 기본 코드를 그대로 쓴다. 가입 요청에서 409 는 이메일
+ * 중복 하나뿐이라 이 값으로 가려낸다(CLE-ACCT-WS 「초대 가입 화면」 11단계). 전용 코드를 두지 않기로 했다.
+ * 전용 코드를 두어도 가입 여부가 드러나는 정도는 같기 때문이다(CLE-API-ERRCODES-AUTH Rationale, NERV Task
+ * `CLE-T-2M6Q02`). 가입 요청이 이메일 중복이 아닌 409 를 내게 되면 그때 전용 코드를 만든다.
  */
-const REGISTER_EMAIL_CONFLICT_CODE = "RESOURCE_CONFLICT";
+const REGISTER_CONFLICT_CODE = "RESOURCE_CONFLICT";
 
 interface RegisterFormProps {
   enabledProviders?: OAuthProvider[];
@@ -75,10 +76,8 @@ function RegisterFormInner({
   const lastCheckedEmailRef = useRef<string>("");
   // 이미 로그인한 사용자 · 로그인하지 않은 기존 가입자 · 미가입자를 가른다. 가입 폼은 미가입자(와 가입 여부를
   // 확인하지 못한 기존 가입자)가 쓴다.
-  const {
-    state: invitationState,
-    sendExistingAccountToLogin,
-  } = useInvitationGate(invitationToken);
+  const { state: invitationState, sendExistingAccountToLogin } =
+    useInvitationGate(invitationToken);
 
   // OAuth 는 초대 토큰 흐름에서 의미가 없다 — 토큰의 이메일과 OAuth 프로바이더
   // 이메일이 다른 경우 가입 후 자동 accept 가 깨지므로 일부러 숨긴다.
@@ -167,15 +166,15 @@ function RegisterFormInner({
     } catch (err) {
       const error = err as AxiosError<ApiErrorBody>;
       const code = extractApiCode(error);
-      // 가입 여부 확인이 실패해 폼을 띄운 기존 가입자. 임시 판별이다(REGISTER_EMAIL_CONFLICT_CODE 주석 참고).
-      if (invitationToken && code === REGISTER_EMAIL_CONFLICT_CODE) {
+      // 가입 여부 확인이 실패해 폼을 띄운 기존 가입자다(판별 근거는 REGISTER_CONFLICT_CODE 주석).
+      if (invitationToken && code === REGISTER_CONFLICT_CODE) {
         sendExistingAccountToLogin();
         return;
       }
       const message =
         code === INVITATION_ERROR.EMAIL_MISMATCH
           ? t("auth.register.invitationEmailMismatch")
-          : extractApiMessage(error) ?? t("auth.register.genericFailed");
+          : (extractApiMessage(error) ?? t("auth.register.genericFailed"));
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -323,12 +322,16 @@ function RegisterFormInner({
                     <div
                       key={i}
                       className={`h-full flex-1 rounded-full transition-colors ${
-                        i < strength.score ? strength.color : "bg-[hsl(var(--muted))]"
+                        i < strength.score
+                          ? strength.color
+                          : "bg-[hsl(var(--muted))]"
                       }`}
                     />
                   ))}
                 </div>
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">{strength.label}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                  {strength.label}
+                </p>
               </div>
             )}
             {errors.password && (
@@ -347,9 +350,7 @@ function RegisterFormInner({
               type="checkbox"
               className="mt-0.5 h-4 w-4 rounded border-[hsl(var(--input))]"
               aria-invalid={errors.termsAccepted ? "true" : undefined}
-              aria-describedby={
-                errors.termsAccepted ? termsErrorId : undefined
-              }
+              aria-describedby={errors.termsAccepted ? termsErrorId : undefined}
               {...register("termsAccepted")}
             />
             <span>
@@ -358,15 +359,21 @@ function RegisterFormInner({
                   terms: "\u0000TERMS\u0000",
                   privacy: "\u0000PRIVACY\u0000",
                 });
-                const parts = template.split(/\u0000TERMS\u0000|\u0000PRIVACY\u0000/);
-                const termsFirst = template.indexOf("\u0000TERMS\u0000") < template.indexOf("\u0000PRIVACY\u0000");
+                const parts = template.split(
+                  /\u0000TERMS\u0000|\u0000PRIVACY\u0000/,
+                );
+                const termsFirst =
+                  template.indexOf("\u0000TERMS\u0000") <
+                  template.indexOf("\u0000PRIVACY\u0000");
                 const firstLink = (
                   <Link
                     key="first"
                     href={termsFirst ? "/terms" : "/privacy"}
                     className="text-[hsl(var(--primary))] underline"
                   >
-                    {termsFirst ? t("auth.register.termsOfService") : t("auth.register.privacyPolicy")}
+                    {termsFirst
+                      ? t("auth.register.termsOfService")
+                      : t("auth.register.privacyPolicy")}
                   </Link>
                 );
                 const secondLink = (
@@ -375,7 +382,9 @@ function RegisterFormInner({
                     href={termsFirst ? "/privacy" : "/terms"}
                     className="text-[hsl(var(--primary))] underline"
                   >
-                    {termsFirst ? t("auth.register.privacyPolicy") : t("auth.register.termsOfService")}
+                    {termsFirst
+                      ? t("auth.register.privacyPolicy")
+                      : t("auth.register.termsOfService")}
                   </Link>
                 );
                 return (
@@ -400,12 +409,10 @@ function RegisterFormInner({
             </p>
           )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={submitDisabled}
-          >
-            {isLoading ? t("auth.register.creatingAccount") : t("auth.register.createAccount")}
+          <Button type="submit" className="w-full" disabled={submitDisabled}>
+            {isLoading
+              ? t("auth.register.creatingAccount")
+              : t("auth.register.createAccount")}
           </Button>
         </form>
 
