@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-DRAWER"
 title: "에디터 실행과 디버깅 — 실행 결과 드로어"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "c51ec704e23a19171623ac79c1e735821122ee7a4624bad23f0c3241254c48c4"
+content_hash: "0a0888f3499791280dfc868c2b744e6ec34ad261f490f9f3ce86008faa63a4da"
 read_as: "approved_fallback"
-task: "CLE-T-5P1ADY"
+task: "CLE-T-VXPW7G"
 source_paths: []
-mirror_sha256: "6297ed09a69e729e2168b0712134d22e2ccfefedbe58bdd92b749cff37e158e1"
-etag: "sha256-b4261ed6e91afa2f1291cba409c97b52ba3a9c7f911b83e6bd87deabb5d3ce14"
+mirror_sha256: "d5807a65582c4d4baa660b75444e881882d8a33d6253069c9df68f90708440dd"
+etag: "sha256-272f595886e78e5a6d4d89a8f3567d4e530bb16225f09204c8fd7c90d1a15a59"
 ---
 ## 개요
 
@@ -255,7 +255,7 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 | 도구 호출 완료(`execution.tool_call_completed`) | `toolCallId` 로 항목을 찾아 success·error 로 바꾸고 결과 상세에 인자·결과·에러를 표시한다 |
 | 멀티턴 AI 응답 수신(`execution.ai_message`) | `messages` 스냅샷으로 실행 트리를 다시 만든다. user·assistant·tool 이 모두 들어가고 `toolCallId` 로 중복을 없앤다. 입력을 다시 활성화한다 |
 | 멀티턴 대화 종료(종료 버튼·maxTurns) | 실행이 재개되고 상태 바가 "🔄 Running..." 으로 바뀐다 |
-| 멀티턴 오류 종료(`output.error` 채워짐, 엔진이 `node.failed` 발생) | 노드 상태를 `failed` 로 바꾸고 대화 스레드 마지막에 `system_error` 항목을 자동으로 붙인다. **미리보기 탭을 유지하고 기본으로 고른다**(retryable 무관, Inv-8). `details.retryable === true` 면 입력 영역이 `[다시 시도]` 와 `retryAfterSec` 카운트다운으로 바뀌고 `false` 면 액션 영역이 비어 있다. 노드 `outputData` 는 실패해도 저장·전송되므로 새로고침 뒤 내역 화면에서도 대화가 복원된다. 이때는 재시도 버튼만 숨는다 |
+| 멀티턴 오류 종료(`output.error` 채워짐, 엔진이 `node.failed` 발생) | 노드 상태를 `failed` 로 바꾸고 대화 스레드 마지막에 `system_error` 항목을 자동으로 붙인다. **미리보기 탭을 유지하고 기본으로 고른다**(retryable 무관, Inv-8). `output.error.details.retryable === true` 면 입력 영역이 `[다시 시도]` 와 `output.error.details.retryAfterSec` 카운트다운으로 바뀌고 `false` 면 액션 영역이 비어 있다. 대화 스레드의 `system_error` 항목에서는 이 두 값을 `data.retryable` · `data.retryAfterSec` 로 읽는다. 노드 `outputData` 는 실패해도 저장·전송되므로 새로고침 뒤 내역 화면에서도 대화가 복원된다. 이때는 재시도 버튼만 숨는다 |
 | 멀티턴 재시도 클릭(`execution.retry_last_turn`) | 노드 상태를 `running` 으로 바꾼다. 화면 변화는 [AI 멀티턴 콘텐츠](#ai-멀티턴-콘텐츠) 의 재시도 순서를 따른다 |
 | 끝난 멀티턴 노드 클릭(내역) | 접힘·펼침을 바꾸고 대화 기록 미리보기를 표시한다. 입력 영역은 없다 |
 | 실행 완료 | 드로어를 유지한다. 실행 트리에서 노드를 눌러 결과를 살펴본다. **대화 스냅샷을 보존한다** |

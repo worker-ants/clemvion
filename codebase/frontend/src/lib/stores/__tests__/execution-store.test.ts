@@ -1124,6 +1124,19 @@ describe("마지막 턴 재시도 대기 표시", () => {
     expect(useExecutionStore.getState().pendingLastTurnRetry).toBeNull();
   });
 
+  it.each([
+    ["pauseForForm", () => useExecutionStore.getState().pauseForForm("node-form", { fields: [] })],
+    ["pauseForButtons", () => useExecutionStore.getState().pauseForButtons("node-btn", { buttons: [] })],
+    ["pauseForConversation", () => useExecutionStore.getState().pauseForConversation("ai-node", {})],
+  ] as const)("입력 대기로 넘어가는 %s 도 표시를 지운다", (_name, act) => {
+    useExecutionStore.getState().failExecution("LLM 429");
+    useExecutionStore.getState().markLastTurnRetryPending("ne-r");
+    act();
+    const state = useExecutionStore.getState();
+    expect(state.status).toBe("waiting_for_input");
+    expect(state.pendingLastTurnRetry).toBeNull();
+  });
+
   it("실행이 failed 가 아니면 표시가 남아 있어도 재시도 대기로 보지 않는다", () => {
     expect(
       selectAwaitingLastTurnRetry({
@@ -1151,6 +1164,30 @@ describe("마지막 턴 재시도 대기 표시", () => {
     expect(state.status).toBe("running");
     expect(state.pendingLastTurnRetry).toBeNull();
     expect(state.isWaitingAiResponse).toBe(false);
+  });
+
+  it("resumeFromLastTurnRetry 는 다른 재개 액션처럼 입력 대기 표시 전체를 지우고 대화는 남긴다", () => {
+    useExecutionStore.getState().addConversationMessage({
+      type: "user",
+      content: "안녕",
+      turnIndex: 1,
+    } as ConversationItem);
+    useExecutionStore.getState().failExecution("LLM 429");
+    useExecutionStore.getState().markLastTurnRetryPending("ne-r");
+    useExecutionStore.setState({ selectedConversationItemIndex: 0 });
+    useExecutionStore.getState().resumeFromLastTurnRetry();
+    const state = useExecutionStore.getState();
+    expect(state).toMatchObject({
+      waitingNodeId: null,
+      waitingFormConfig: null,
+      waitingInteractionType: null,
+      waitingButtonConfig: null,
+      waitingConversationConfig: null,
+      isWaitingAiResponse: false,
+      selectedConversationItemIndex: null,
+      pendingLastTurnRetry: null,
+    });
+    expect(state.conversationMessages).toHaveLength(1);
   });
 });
 

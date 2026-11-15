@@ -20,6 +20,7 @@ import {
 } from '../../../modules/integrations/makeshop-token-refresh.constants';
 import { IntegrationsModule } from '../../../modules/integrations/integrations.module';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service';
+import { closeQueueEventsWithinGrace } from '../_base/close-queue-events.util';
 
 /**
  * QueueEvents provider — MakeshopApiClient 가 `waitUntilFinished` 로 worker
@@ -97,23 +98,13 @@ export class MakeshopModule implements OnApplicationShutdown, OnModuleInit {
     });
   }
 
+  /** 토큰 갱신 큐의 QueueEvents 를 닫는다. grace 와 타이머 정리는 helper 가 맡는다(CLE-T-7H7VET). */
   async onApplicationShutdown(): Promise<void> {
-    try {
-      await Promise.race([
-        this.queueEvents.close(),
-        new Promise<void>((resolve) =>
-          setTimeout(() => {
-            this.logger.warn(
-              `MakeshopModule shutdown: queueEvents.close() exceeded ${MAKESHOP_MODULE_SHUTDOWN_GRACE_MS}ms grace — forcing exit. In-flight waitUntilFinished listeners may receive stream-closed errors.`,
-            );
-            resolve();
-          }, MAKESHOP_MODULE_SHUTDOWN_GRACE_MS),
-        ),
-      ]);
-    } catch (err) {
-      this.logger.warn(
-        `MakeshopModule shutdown: queueEvents.close() failed — ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await closeQueueEventsWithinGrace(
+      this.queueEvents,
+      MAKESHOP_MODULE_SHUTDOWN_GRACE_MS,
+      this.logger,
+      MakeshopModule.name,
+    );
   }
 }

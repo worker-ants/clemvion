@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL-DBGUARD"
 title: "노드 취소 — DB 관측 취소 가드"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CANCEL"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CANCEL"]
 area: "CLE-EXEC"
-content_hash: "e7db7e1e4d4e3c5436ed641a29eb7915934ef61a9be2d4507a389af3ecfcd933"
+content_hash: "19461d6c33a8d68ec2df070ffc184ae07bbcee5de09a0e25557c0a12ab0722a2"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Z914BM"
 source_paths: []
-mirror_sha256: "dd1ef8ad6602dd207706636c3449aceb57d5912635a3a22dc772e316b13a1c11"
-etag: "sha256-4501aae4f2ad01e1683a88be3a955c3fd94e3281ef0041852908449b33be6eb2"
+mirror_sha256: "640f446586e2efa427dec4aa422273dae75a49fe8de1e8264211d09181afd0a2"
+etag: "sha256-af17715f91109f3acd6e62fd6ffeeec6f1d4b82d758cb92b256f7212b780eb68"
 ---
 ## 개요
 
@@ -35,9 +35,9 @@ etag: "sha256-4501aae4f2ad01e1683a88be3a955c3fd94e3281ef0041852908449b33be6eb2"
 11. **컨테이너 항목 경계는 250ms 로 묶는다**: 컨테이너 안에서는 항목 경계마다 확인한다. `CONTAINER_CANCEL_CHECK_THROTTLE_MS = 250` 안에 다시 부르면 직전 결과를 쓴다. 선형 노드 경계와 Parallel 분기 노드 경계는 묶지 않고 매번 조회한다.
 12. **턴 경계 확인**(구현됨 2026-07-27): 멀티턴 AI 는 턴마다 park 로 세그먼트가 끝나 노드 경계 확인에 닿지 않는다. 그래서 `AiTurnOrchestrator` 가 **턴 경계**에서 같은 가드를 직접 부른다. 이 호출은 턴 실패를 `FAILED` 로 마감하는 try/catch **바깥**에 있어야 한다. 안에 두면 취소가 실패로 잘못 분류된다.
 13. **park·재개 짝 전이의 종결 가드**(구현됨 2026-07-27): 실행과 노드 실행을 한 트랜잭션으로 옮기는 경로는 같은 트랜잭션에서 대상 행을 `SELECT … FOR UPDATE` 로 잠그고 **비종결 상태를 확인한 뒤에만** 쓴다. 확인 없이 쓰면 턴 진행 중 도착한 실행 중지가 덮여 **취소가 사라진다**. 선점을 보면 짝 노드 실행을 `cancelled` 로 표시한 뒤 `ExecutionCancelledError` 를 전파한다. 이 가드를 쓰는 곳은 짝 전이, `finalizeFailedExecution`, `failFirstSegmentSetup`, `executeSync` 타임아웃이다. 마지막 턴 재시도 재진입에 한해 비종결 판정에 `failed` 가 조건부로 들어간다(`allowRetryReentry` opt-in). 자세한 내용은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) 의 원자성 보장에 있다.
-14. **마지막 턴 재시도 종결 가드**(구현됨 2026-07-28): 재진입의 종결(`completed`·`failed`·`cancelled`)은 메모리 엔티티를 믿지 않는다. 재진입 전이(`failed → running`)가 **다른 엔티티 인스턴스**에 적용돼 종결 시점의 메모리 `status` 가 낡았을 수 있다. 그래서 종결 직전에 **행을 다시 읽어 비종결을 확인**하고 그 상태에서 목표로 옮길 수 없거나 조건부 UPDATE 가 0행이면 **저장과 종결 이벤트 발행을 모두 건너뛴다**. 확인 없이 쓰면 턴 진행 중 도착한 실행 중지가 `failed`·`completed` 로 덮여 취소가 사라진다. `retry-turn.service.ts` 의 `completeRetryExecution`·`failRetryExecution` 이 공용 `finalizeGuarded` 로 처리한다.
-15. **최상위 취소 종결 가드**(`finalizeCancelledExecution`): 조건부 UPDATE(`status IN (비종결)`)가 0행이면 **행을 다시 읽어 DB 값으로 가른다**. 이미 `CANCELLED` 면 **이벤트를 낸다**. `stop()` 은 `running`·`pending` 경로에서 이벤트를 내지 않으므로 여기가 유일한 알림 지점이다. 다른 종결자가 `FAILED`·`COMPLETED` 로 먼저 마감했으면 건너뛴다. 형제 `finalizeFailedExecution` 은 진입만 같고 0행 뒤의 방향이 반대다. 그쪽은 "덮어쓰지 말라" 가 목적이라 무조건 건너뛴다. 새 취소 마감 경로를 만들 때 무조건 건너뛰기를 기본으로 가정하지 않는다.
-16. 이미 `cancelled` 인 행에 종결 경로가 다시 닿아도 **먼저 커밋된 취소 시각(`finishedAt`·`durationMs`)이 기준**이다. 취소할 때 `error` 는 저장하지 않는다. 취소를 실패와 가르고 REST 로 내부 예외 메시지가 나가지 않게 하려는 것이다.
+14. **마지막 턴 재시도 종결 가드**(구현됨 2026-07-28): 재진입의 종결(`completed`·`failed`·`cancelled`)은 메모리 엔티티를 믿지 않는다. 재진입 전이(`failed → running`)가 **다른 엔티티 인스턴스**에 적용돼 종결 시점의 메모리 `status` 가 낡았을 수 있다. 그래서 종결 직전에 **행을 다시 읽어 비종결을 확인**하고 그 상태에서 목표로 옮길 수 없거나 조건부 UPDATE 가 0행이면 **저장과 종결 이벤트 발행을 모두 건너뛴다**. 0행이어도 `completed`·`failed` 전이에는 규칙 16 의 `active_running_ms` 가산이 예외로 일어나고 `cancelled` 로 마감하는 갈래는 가산하지 않는다. 확인 없이 쓰면 턴 진행 중 도착한 실행 중지가 `failed`·`completed` 로 덮여 취소가 사라진다. `retry-turn.service.ts` 의 `completeRetryExecution`·`failRetryExecution` 이 공용 `finalizeGuarded` 로 처리한다.
+15. **최상위 취소 종결 가드**(`finalizeCancelledExecution`): 조건부 UPDATE(`status IN (비종결)`)가 0행이면 **행을 다시 읽어 DB 값으로 가른다**. 이미 `CANCELLED` 면 **이벤트를 낸다**. `stop()` 은 `running`·`pending` 경로에서 이벤트를 내지 않으므로 여기가 유일한 알림 지점이다. 다른 종결자가 `FAILED`·`COMPLETED` 로 먼저 마감했으면 건너뛴다. 0행이어도 규칙 16 의 `active_running_ms` 가산은 예외이고 이 가산은 `cancelled` 행에만 닿는다. 형제 `finalizeFailedExecution` 은 진입만 같고 0행 뒤의 방향이 반대다. 그쪽은 "덮어쓰지 말라" 가 목적이라 무조건 건너뛴다. 새 취소 마감 경로를 만들 때 무조건 건너뛰기를 기본으로 가정하지 않는다.
+16. 이미 `cancelled` 인 행에 종결 경로가 다시 닿아도 **먼저 커밋된 취소 시각(`finishedAt`·`durationMs`)이 기준**이다. 취소할 때 `error` 는 저장하지 않는다. 취소를 실패와 가르고 REST 로 내부 예외 메시지가 나가지 않게 하려는 것이다. 규칙 13~15 의 조건부 UPDATE 가 0행으로 끝난 뒤에도 엔진은 REST 중지로 `cancelled` 가 된 행의 `active_running_ms` 하나만 더한다. 더하는 값은 엔진이 닫은 마지막 실행 구간이고 구간 끝은 중지 시각(`finished_at`)과 지금 중 이른 쪽이라 실행 시간이 `duration_ms` 를 넘지 않는다. 예외는 이 컬럼 하나뿐이다. 상태와 `finishedAt`·`durationMs` 는 그대로다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14) 에 있다.
 17. 규칙 13~15 의 조건부 UPDATE 를 `.query()` 로 실행한 raw `UPDATE … RETURNING` 으로 쓰면 결과는 `[rows, affectedCount]` 튜플이다. 0행 판정은 `updateReturningRows` 를 거쳐 읽는다. QueryBuilder 의 `.update().returning().execute()` 는 이 규칙의 대상이 아니다([raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 규칙 1·2).
 
 ## 구현 현황
@@ -104,3 +104,7 @@ park·재개 경로는 실행을 메모리에 읽은 뒤 **다시 읽지 않는�
 영향은 좁다. 노드 경계와 턴 경계의 `assertExecutionNotCancelled()` 는 반환값으로 가르지 않아 영향이 없다. 짝 전이의 `SELECT … FOR UPDATE` 잠금 자체도 정상 동작했다. 영향을 받은 것은 짝 전이의 "0행이면 건너뜀" 과 마지막 턴 재시도 종결의 "0행이면 저장·발행 모두 건너뜀" 이다. 원인은 소비자들이 함께 쓰는 드라이버 메서드(`updateExecutionStatus`) 한 곳이었다. `finalizeCancelledExecution` 은 반환값으로 가르기 시작한 것이 수정 뒤(2026-08-15)라 영향 밖이다.
 
 위 [구현 현황](#구현-현황) 표의 mutation 6/6·13/13 은 드라이버 mock 경계 **안쪽**의 로직 검증이다. mock 이 불리언을 정직하게 돌려주는 세계에서 가드 로직은 옳았다. 그러나 그때 실제 드라이버는 튜플을 행 배열로 오해해 늘 참을 돌려줬다. "mutation N/N 검증" 은 로직이 옳다는 뜻이지 그 분기가 실제로 탔다는 뜻이 아니다. 헬퍼 경계 안쪽 검증은 그 경계 **밖**의 계약이 참일 때만 결론으로 이어진다. 불변식은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 이 정한다.
+
+### 종결 가드가 0행이어도 실행 시간은 더한다 (2026-11-14)
+
+규칙 13~15 의 종결 가드는 먼저 커밋된 상태와 종결 컬럼(`finished_at`·`duration_ms`)을 덮지 않으려는 장치다. 규칙 16 의 가산은 `active_running_ms` 하나만 쓰고 그 컬럼들을 건드리지 않으므로 가드가 막을 대상이 아니다. 0행이라고 이 가산까지 버리면 중지된 실행의 실행 시간에서 마지막 구간이 빠진다. 결정 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14) 에 있다.

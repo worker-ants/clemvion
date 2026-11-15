@@ -179,6 +179,29 @@ describe("연결이 끊겼을 때 폼 제출은 REST 로 보낸다", () => {
     expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
   });
 
+  it.each([
+    ["빈 문자열", { code: "VALIDATION_ERROR", message: "" }],
+    ["공백만", { code: "VALIDATION_ERROR", message: "   " }],
+    ["message 없음", { code: "VALIDATION_ERROR" }],
+    ["문자열이 아닌 message", { code: "VALIDATION_ERROR", message: 42 }],
+  ])(
+    "400 VALIDATION_ERROR 의 검증 문구가 비었으면(%s) 일반 실패 문구를 띄운다",
+    async (_name, error) => {
+      continueExecutionMock.mockRejectedValue(restError(400, { error }));
+      const result = renderCommands();
+      act(() => {
+        result.current.submitForm({ email: "x" });
+      });
+      await flushRest();
+
+      expect(toastErrorMock).toHaveBeenCalledTimes(1);
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.internalError",
+      );
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+    },
+  );
+
   it("그 밖의 실패(네트워크 · 5xx)는 일반 실패 문구를 띄운다", async () => {
     continueExecutionMock.mockRejectedValue(
       new AxiosError("Network Error", "ERR_NETWORK"),
@@ -216,6 +239,65 @@ describe("연결이 끊겼을 때 폼 제출은 REST 로 보낸다", () => {
     await flushRest();
 
     expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+  });
+
+  describe("응답 대기 표시는 제출한 입력 대기가 그대로일 때만 끈다", () => {
+    /** 실패 응답을 테스트가 정한 시점에 돌려주게 한다. */
+    function deferRestFailure(): (err: unknown) => void {
+      let rejectRest: (err: unknown) => void = () => {};
+      continueExecutionMock.mockReturnValue(
+        new Promise((_, reject) => {
+          rejectRest = reject;
+        }),
+      );
+      return (err) => rejectRest(err);
+    }
+
+    beforeEach(() => {
+      useExecutionStore.setState({ waitingNodeId: "node-form-1" });
+    });
+
+    it("실패 시점에도 같은 노드를 기다리고 있으면 응답 대기 표시를 끈다", async () => {
+      const rejectRest = deferRestFailure();
+      const result = renderCommands();
+      act(() => {
+        result.current.submitForm({ name: "John" });
+      });
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+
+      rejectRest(restError(422, { error: { code: "INVALID_STATE" } }));
+      await flushRest();
+
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.invalidState",
+      );
+    });
+
+    it("그사이 같은 실행이 다음 입력 대기로 넘어가 표시가 다시 켜졌으면 그대로 둔다", async () => {
+      const rejectRest = deferRestFailure();
+      const result = renderCommands();
+      act(() => {
+        result.current.submitForm({ name: "John" });
+      });
+      // 폴링 응답이 다음 입력 대기(다른 노드)를 넣고 응답 대기 표시가 다시 켜진 상태.
+      act(() => {
+        useExecutionStore.setState({
+          waitingNodeId: "node-form-2",
+          isWaitingAiResponse: true,
+        });
+      });
+
+      rejectRest(restError(422, { error: { code: "INVALID_STATE" } }));
+      await flushRest();
+
+      expect(useExecutionStore.getState().executionId).toBe(EXECUTION_ID);
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+      // 실패 자체는 알린다.
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "executions.interactionError.invalidState",
+      );
+    });
   });
 });
 
@@ -333,8 +415,11 @@ describe("연결돼 있으면 지금처럼 WS 명령을 보낸다", () => {
 });
 
 describe("실행 ID 가 없으면", () => {
-  it("어떤 명령도 보내지 않고 false 를 돌려준다", () => {
-    isConnectedMock.mockReturnValue(true);
+  it.each([
+    ["연결돼 있어도", true],
+    ["연결이 끊겨 있어도", false],
+  ])("%s 어떤 명령도 보내지 않고 조용히 false 를 돌려준다", (_name, connected) => {
+    isConnectedMock.mockReturnValue(connected);
     const result = renderCommands(null);
     const sent: boolean[] = [];
     act(() => {

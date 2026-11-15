@@ -805,3 +805,23 @@ describe("ConversationInspector SelectedItemDetail — content/toolCalls 헤더 
     expect(screen.getByText(/AI Response — Turn 3/)).toBeInTheDocument();
   });
 });
+
+// CLE-T-5P1ADY — 소켓이 끊겨 메시지를 보내지 못하면(`onSendMessage` 가 false) 입력창의 글을
+// 지우지 않는다. 사용자가 연결이 돌아온 뒤 같은 글을 다시 보낼 수 있어야 한다.
+describe("ConversationInspector MessageInput — 보내지 못한 글은 지우지 않는다", () => {
+  it.each([
+    ["보냈으면(true) 입력창을 비운다", true, ""],
+    ["보내지 못했으면(false) 입력창의 글을 그대로 둔다", false, "다시 보낼 글"],
+  ])("%s", (_name, sent, expected) => {
+    const props = makeBaseProps();
+    const onSendMessage = vi.fn(() => sent);
+    render(<ConversationInspector {...props} onSendMessage={onSendMessage} />);
+
+    const textbox = screen.getByRole("textbox");
+    fireEvent.change(textbox, { target: { value: "다시 보낼 글" } });
+    fireEvent.keyDown(textbox, { key: "Enter" });
+
+    expect(onSendMessage).toHaveBeenCalledWith("다시 보낼 글");
+    expect(textbox).toHaveValue(expected);
+  });
+});

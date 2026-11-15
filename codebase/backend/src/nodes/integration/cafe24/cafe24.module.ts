@@ -20,6 +20,7 @@ import {
 } from '../../../modules/integrations/cafe24-token-refresh.constants';
 import { IntegrationsModule } from '../../../modules/integrations/integrations.module';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service';
+import { closeQueueEventsWithinGrace } from '../_base/close-queue-events.util';
 
 /**
  * QueueEvents provider — Cafe24ApiClient 가 `waitUntilFinished` 로 worker
@@ -114,29 +115,17 @@ export class Cafe24Module implements OnApplicationShutdown, OnModuleInit {
     });
   }
 
+  /**
+   * 토큰 갱신 큐의 QueueEvents 를 닫는다. close 는 진행 중인 `waitUntilFinished` 를 기다리지 않고 stream 을 끊는다.
+   * 그 호출자는 stream-closed 오류를 받고 worker 작업은 jobId 중복 제거로 다음 부팅에서 이어진다.
+   * grace 와 타이머 정리는 helper 가 맡는다(CLE-T-7H7VET).
+   */
   async onApplicationShutdown(): Promise<void> {
-    // QueueEvents.close() 자체는 stream 을 끊는다. 본 모듈은 그 시점에
-    // Cafe24ApiClient 의 `waitUntilFinished` listener 가 in-flight 일 수
-    // 있는데, 그대로 close 하면 listener 들이 stream-closed 에러를 받는다.
-    // CAFE24_MODULE_SHUTDOWN_GRACE_MS 만큼 close 를 기다리고, 초과하면
-    // 진행 listener 의 에러를 감수하고 강제 close 한다 (worker job 은
-    // jobId dedup 으로 다음 부팅에서 이어 받음).
-    try {
-      await Promise.race([
-        this.queueEvents.close(),
-        new Promise<void>((resolve) =>
-          setTimeout(() => {
-            this.logger.warn(
-              `Cafe24Module shutdown: queueEvents.close() exceeded ${CAFE24_MODULE_SHUTDOWN_GRACE_MS}ms grace — forcing exit. In-flight waitUntilFinished listeners may receive stream-closed errors.`,
-            );
-            resolve();
-          }, CAFE24_MODULE_SHUTDOWN_GRACE_MS),
-        ),
-      ]);
-    } catch (err) {
-      this.logger.warn(
-        `Cafe24Module shutdown: queueEvents.close() failed — ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await closeQueueEventsWithinGrace(
+      this.queueEvents,
+      CAFE24_MODULE_SHUTDOWN_GRACE_MS,
+      this.logger,
+      Cafe24Module.name,
+    );
   }
 }

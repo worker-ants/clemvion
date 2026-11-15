@@ -287,9 +287,8 @@ interface ExecutionState {
    * 켜고 `applyExecutionSnapshot` 은 그동안의 `failed` 응답을 다시 적용하지 않는다.
    *
    * 실패한 실행에서만 남는다(`markLastTurnRetryPending`). `CLEAR_INPUT_AFFORDANCE` 를 쓰는
-   * 액션(실패 · 완료 · 재개 · 새 실행 · reset)이 지운다. 입력 대기로 넘어가는 `pauseFor*` 는
-   * 지우지 않지만 `selectAwaitingLastTurnRetry` 가 `failed` 일 때만 보므로 남은 값은 쓰이지
-   * 않고 다음 실패(`failExecution`)에서 지워진다.
+   * 액션(실패 · 완료 · 재개 · 새 실행 · reset)과 입력 대기로 넘어가는 `pauseFor*` 가 지운다.
+   * 재시도 턴이 입력 대기로 park 했으면 재시도는 끝난 것이다.
    */
   pendingLastTurnRetry: PendingLastTurnRetry | null;
 
@@ -418,8 +417,8 @@ interface ExecutionState {
   /** 마지막 턴 재시도 대기 표시만 지운다(`pendingLastTurnRetry`). 재시도 턴이 입력 대기로 park 했을 때 쓴다. */
   clearLastTurnRetryPending: () => void;
   /**
-   * 재시도 턴이 끝나 그래프를 이어 갈 때 쓴다. 실행 상태를 `running` 으로 돌리고 대기 표시와
-   * 응답 대기 표시를 함께 끈다.
+   * 재시도 턴이 끝나 그래프를 이어 갈 때 쓴다. 실행 상태를 `running` 으로 돌리고 다른
+   * `resumeFrom*` 처럼 `CLEAR_INPUT_AFFORDANCE` 로 재시도 대기 표시와 응답 대기 표시를 함께 끈다.
    */
   resumeFromLastTurnRetry: () => void;
   selectResultNode: (nodeId: string | null) => void;
@@ -805,6 +804,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       waitingInteractionType: "form",
       waitingButtonConfig: null,
       waitingConversationConfig: null,
+      pendingLastTurnRetry: null,
       // Prefer the per-iteration id so the timeline highlights the exact row
       // that's waiting — falling back to nodeId for events that don't carry
       // a NodeExecution id.
@@ -864,6 +864,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       waitingInteractionType: "buttons",
       waitingButtonConfig: buttonConfig,
       waitingConversationConfig: null,
+      pendingLastTurnRetry: null,
       selectedResultNodeId: latestResultIdForNode(state.nodeResults, nodeId),
     })),
 
@@ -879,6 +880,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       waitingButtonConfig: null,
       waitingConversationConfig: config,
       isWaitingAiResponse: false,
+      pendingLastTurnRetry: null,
       selectedResultNodeId: latestResultIdForNode(state.nodeResults, nodeId),
     })),
 
@@ -1028,11 +1030,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   clearLastTurnRetryPending: () => set({ pendingLastTurnRetry: null }),
 
   resumeFromLastTurnRetry: () =>
-    set({
-      status: "running",
-      pendingLastTurnRetry: null,
-      isWaitingAiResponse: false,
-    }),
+    set({ status: "running", ...CLEAR_INPUT_AFFORDANCE }),
 
   selectResultNode: (nodeId: string | null) =>
     set({ selectedResultNodeId: nodeId, selectedConversationItemIndex: null }),

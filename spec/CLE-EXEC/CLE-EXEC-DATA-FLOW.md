@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA-FLOW"
 title: "실행 데이터와 흐름 — 흐름과 저장소 매핑"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-DATA"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-DATA"]
 area: "CLE-EXEC"
-content_hash: "44edc8ed9cf0fa3f10af1daa394bd76e840340b57cfe7f37ba2e9a191cd2903d"
+content_hash: "01166668c8a721d48620c3039e185f72a0a56c791ee6f29b9c32bcc73cc02d72"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Z914BM"
 source_paths: []
-mirror_sha256: "071479a9ecb08833767778fc38fd4f91294a19a44a4b41122414dd3985fcccd7"
-etag: "sha256-e30741289812a0112d49f0b164819f6422a99d3d16739b9d0de839f3f53fddd2"
+mirror_sha256: "a0bc6977724f9158f03907c8236044bc274961deee0845efb2e112b58020b57b"
+etag: "sha256-0658c3c27599ddfc0bdd574e20e68c92de525884236f539c5834b8317190f129"
 ---
 ## 개요
 
@@ -98,7 +98,7 @@ sequenceDiagram
 그림은 첫 세그먼트에서 노드마다 어떤 행이 쓰이는지 보여 준다.
 
 - **노드 실행 순서 로그는 처리 완료 로그다.** 기록 시점은 [노드 실행 순서 로그](CLE-EXEC-DATA-MODEL.md#노드-실행-순서-로그) 에 있다.
-- **세그먼트 시간 누적**: `updateExecutionStatus` 가 `running` 에 들어가고 나올 때마다 세그먼트 시간을 `execution.active_running_ms` 에 더한다. dispatch 반복문은 노드 사이마다 `assertActiveTimeWithinLimit` 를 부른다. 누적(저장분 + 진행 중 세그먼트 경과분)이 한도(`EXECUTION_MAX_ACTIVE_RUNNING_MS`, 기본 30분, `0`=무제한, `execution-limits.ts`) 이상이면 `ExecutionTimeLimitError` 를 던져 `error.code='EXECUTION_TIME_LIMIT_EXCEEDED'` 로 `failed` 마감한다. 입력 대기 park 시간은 `running` 이 아니므로 누적에서 저절로 빠진다(불변식).
+- **세그먼트 시간 누적**: `updateExecutionStatus` 가 `running` 에 들어가고 나올 때마다 세그먼트 시간을 `execution.active_running_ms` 에 더한다. dispatch 반복문은 노드 사이마다 `assertActiveTimeWithinLimit` 를 부른다. 누적(저장분 + 진행 중 세그먼트 경과분)이 한도(`EXECUTION_MAX_ACTIVE_RUNNING_MS`, 기본 30분, `0`=무제한, `execution-limits.ts`) 이상이면 `ExecutionTimeLimitError` 를 던져 `error.code='EXECUTION_TIME_LIMIT_EXCEEDED'` 로 `failed` 마감한다. 입력 대기 park 시간은 `running` 이 아니므로 누적에서 저절로 빠진다(불변식). 실행 중(`running`)에 REST 중지로 끝나면 엔진은 취소를 알아챈 다음 경계(노드 · AI 턴)에서 마지막 구간을 중지 시각(`finished_at`)까지만 이 컬럼에 더한다([REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14)).
 - 노드 실행은 try 첫 줄에서 `ShutdownStateService.registerInFlight` 로 등록되고 finally 에서 해제된다. 안전 종료 drain 이 이 목록을 추적한다([장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)).
 
 ### Background 본문
@@ -158,7 +158,7 @@ sequenceDiagram
 
 그림은 입력 대기 실행에 재개 명령이 들어와 다시 진행되기까지 읽고 쓰는 데이터다.
 
-- 재개 진입점은 두 가지다. (1) REST `POST /executions/:id/continue` 는 본문 `{ formData? }` 만 받고 입력 대기가 아니면 동기 422 `INVALID_STATE` 로 응답한다(`executions.controller.ts` `continueExecution`). (2) WebSocket `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation`(`websocket.gateway.ts`). ack 이름과 wire 형식은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 기준이다.
+- 재개 진입점은 두 가지다. (1) REST `POST /api/executions/:id/continue` 는 본문 `{ formData? }` 만 받는다. 입력 대기가 아니면 동기 422 `INVALID_STATE`, 폼 필드 검증에 실패하면 동기 400 `VALIDATION_ERROR` 로 응답한다(`executions.controller.ts` `continueExecution`). 에디터가 이 경로를 쓰는 경우는 [실행 이벤트와 명령](CLE-EXEC-RUN-SYNC.md#실행-이벤트와-명령) 의 「소켓이 끊겼을 때」 가 정한다. (2) WebSocket `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation`(`websocket.gateway.ts`). ack 이름과 wire 형식은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 기준이다.
 - `type` / `nodeExecutionId` / `payload` 는 클라이언트가 보내는 필드가 아니다. 발행자가 노드 실행 조회 뒤 구성해 재개 큐에 싣는 내부 메시지 필드다. 사전 검증 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다.
 - claim 이 affected=0 이면 작업을 ack 하고 버린다. 턴 처리의 LLM throw 는 `running → failed`, rehydration 과정 실패는 `RESUME_*` 종결이다. rehydration 실패는 뒤따르는 `execution.cancelled` 이벤트로 알린다. 절차는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 - **마지막 턴 재시도(`execution.retry_last_turn`)는 이 흐름과 다르다.** 대상 실행은 `failed` 여야 하고 입력 대기 조회를 거치지 않는다. 새 `running` 노드 실행 행을 만들어 재개 큐로 넘기며 claim 도 `_retryState` 키 조건부 소비로 따로 한다. 규칙은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) 와 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다.
@@ -183,7 +183,8 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 | 테이블 | 흐름 | 읽고 쓰는 컬럼 | 인덱스·제약 |
 | --- | --- | --- | --- |
 | `execution` | 실행 진입 | INSERT `workflow_id, trigger_id?, status='pending', input_data, started_at, executed_by?, parent_execution_id?, recursion_depth, re_run_of?, chain_id?, dry_run`. `re_run_of`/`chain_id` 는 재실행 체인(decision F2), `dry_run` 은 컨텍스트 변수 `__dryRun` 으로 핸들러에 넣는다(V068). | `(workflow_id, started_at DESC)`, `(status)` |
-| `execution` | 상태 전이 | UPDATE `status, finished_at, duration_ms, output_data, error, active_running_ms`. `error` 는 최초 `failed` 노드 실행의 에러 + nodeId 복사다. **`status IN (종료 아닌 상태)` 조건부 UPDATE 이며 트랜잭션 안에서 실행한다**(2026-08-30). 결과 shape 확인이 throw 하면 이 UPDATE 도 함께 롤백된다. 원자성 규칙은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md), 결정 배경은 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 의 Rationale 에 있다. | 없음 |
+| `execution` | 상태 전이 | UPDATE `status, finished_at, duration_ms, output_data, error, active_running_ms`. `error` 는 최초 `failed` 노드 실행의 에러 + nodeId 복사다. **`status IN (종료 아닌 상태)` 조건부 UPDATE 이며 트랜잭션 안에서 실행한다**(2026-08-30). 결과 shape 확인이 throw 하면 이 UPDATE 도 함께 롤백된다. 원자성 규칙은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md), 결정 배경은 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 의 Rationale 에 있다. 0행으로 끝난 뒤의 예외 쓰기는 다음 행에 있다. | 없음 |
+| `execution` | REST 중지 행의 마지막 구간 가산 | UPDATE `active_running_ms` 만. 위 상태 전이 UPDATE 가 0행으로 끝난 뒤 한 번 더 쓴다. 조건은 `WHERE id = $1 AND status = 'cancelled'` 다. 구간 끝은 엔진이 취소를 알아챈 시각과 `finished_at` 가운데 이른 쪽이다. 합은 int4 상한에서 멈춘다. `status` · `finished_at` · `duration_ms` 는 바꾸지 않는다. 종결 뒤 쓰기의 예외는 이 컬럼 하나뿐이다. SQL 은 `ADD_STOPPED_SEGMENT_SQL`(`executions/utils/active-running-ms.ts`)이다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14) 에 있다. | 없음 |
 | `execution` | park 진입(영속 재개) | UPDATE `conversation_thread, user_variables, resume_call_stack`. `waiting_for_input` 전이와 같은 트랜잭션으로 커밋한다(V084/V085/V087). | 없음 |
 | `node_execution` | 노드 실행 시작 | INSERT `execution_id, node_id, status='running', started_at, input_data, retry_count=0, parent_node_execution_id?`(V006/V012). 건너뛴 노드는 `status='skipped'` 로 바로 INSERT | `(execution_id)`, V034 `(execution_id, node_id, started_at DESC)` 복합, V095 `(execution_id, status) WHERE status IN ('waiting_for_input','running')` 부분 인덱스(활성 노드 조회·전이), V112 `(node_id)`(FK CASCADE, 캔버스 노드 삭제·워크플로우 삭제) |
 | `node_execution` | 노드 완료 | UPDATE `status, finished_at, duration_ms, output_data, error, retry_count, interaction_data`(V004) | 없음 |
