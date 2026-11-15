@@ -188,8 +188,10 @@ body 내부에서 `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`를 참�
 
 ### 포트
 
-- `match` — 조건을 만족하는 항목들의 배열이 흘러가요.
-- `unmatched` — 조건을 만족하지 못한 항목들의 배열이 흘러가요. 매칭 0건이어도 빈 배열로 흘러가서, 두 포트는 항상 동시에 활성돼요.
+- `match` — 조건을 만족하는 항목들의 배열이에요.
+- `unmatched` — 조건을 만족하지 못한 항목들의 배열이에요.
+
+두 포트에 연결한 다음 노드는 결과 배열이 비어 있어도 항상 둘 다 실행돼요. 두 노드가 받는 `$input`은 포트와 상관없이 Filter 출력 전체인 `{ match: [...], unmatched: [...] }`예요. 조건을 만족한 항목은 `$input.match`, 나머지는 `$input.unmatched`로 읽어요. 다른 노드에서는 `$node["<Filter 이름>"].output.match`로 읽어요. 입력이 비었거나 `null`이면 `{ match: [], unmatched: [] }`예요. 배열이 비었을 때 다음 노드를 건너뛰려면 그 노드 앞에 If/Else를 두고 `{{ $input.match.length }}`가 `gt` 0인 조건을 걸어요.
 
 ### 예시
 
@@ -201,8 +203,8 @@ body 내부에서 `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`를 참�
   { field: "{{ $item.status }}", operator: "eq", value: "active" },
   { field: "{{ $item.age }}", operator: "gte", value: 18 }
 ]
-// match 포트: 조건 만족 항목 배열
-// unmatched 포트: 나머지 항목 배열
+// 다음 노드에서 $input.match: 조건 만족 항목 배열
+// 다음 노드에서 $input.unmatched: 나머지 항목 배열
 ```
 </Example>
 
