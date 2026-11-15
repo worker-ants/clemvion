@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
 requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032", "REQ-PARALLEL-033", "REQ-PARALLEL-034", "REQ-PARALLEL-035", "REQ-PARALLEL-036", "REQ-PARALLEL-037"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "6b9228cb25fe7335cf810d22a62b116e681ba04f208cc5adcadfb9230514ac20"
+content_hash: "7d670b28c6d248074cb97795f395c20bcfbae0319a7c6e9d91205a8fdef212fd"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CE31NB"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "810a610c8e6117fcb0d01f09fecd41daedc8b7cf2194f172116c600dd2d579d7"
-etag: "sha256-e48b08eab1ee27645fef793af6ae10698a732b195f2fab8765f218ee42b71231"
+mirror_sha256: "6ecc585983da9ba96b77a3849eada01dce5056c2e840879966d39051ea8dc642"
+etag: "sha256-d02eb94d1770fa8df7dd7bcffa3ceb2d643e32adfd758ff5a6a1103954ccccb4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -55,7 +55,7 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 - REQ-PARALLEL-025 IF 중첩 Parallel 의 바깥 × 안쪽 동시 실행 수 곱이 32를 넘으면 THE SYSTEM SHALL 안쪽 동시 실행 수를 `max(1, floor(32 / parentEffective))` 로 줄이고 `meta.clampedConcurrency` 에 기록한다.
 - REQ-PARALLEL-026 WHEN 워크플로우를 저장하거나 캔버스를 편집하면 THE SYSTEM SHALL 중첩 깊이 위반은 저장을 거부하고 동시 실행 수 곱 초과는 경고 배지로 먼저 알린다.
 - REQ-PARALLEL-027 WHEN `PARALLEL_ENGINE=off` 로 설정하면 THE SYSTEM SHALL 병렬 분기를 위상 순서로 차례로 실행하고 완료 출력(`branches` · `count` · `skipped`)을 만들지 않으며 Parallel 노드 출력을 핸들러의 시작 시점 출력(`output: null`, `port: ['branch_0', …]`)으로 둔다.
-- REQ-PARALLEL-028 WHEN Parallel 노드를 정의하면 THE SYSTEM SHALL 런타임 에러 포트를 두지 않는다.
+- REQ-PARALLEL-028 WHEN Parallel 노드를 정의하면 THE SYSTEM SHALL 런타임 에러 포트를 두지 않는다(에러 처리 정책으로 생기는 동적 에러 포트는 제외).
 - REQ-PARALLEL-029 IF 실패한 병렬 분기가 없으면 THE SYSTEM SHALL 완료 출력에 `output.skipped` 를 싣지 않는다.
 - REQ-PARALLEL-030 WHEN 병렬 분기의 결과를 정하면 THE SYSTEM SHALL 이번 Parallel 실행에서 그 병렬 분기가 출력을 쓴 노드 가운데 [위상 순서](#병렬-분기의-노드-집합과-위상-순서)가 가장 늦은 노드의 출력을 엔진 제어 필드(`_selectedPort` 등)를 빼고 `output.branches[i]` 에 담고 그런 노드가 없거나 그 출력이 `undefined` 면 `null` 을 담는다.
 - REQ-PARALLEL-031 WHEN 병렬 분기 안의 노드가 출력을 쓰면 THE SYSTEM SHALL 그 출력을 병렬 분기의 캐시 사본에도 옮겨 같은 병렬 분기의 다음 노드 입력과 포트 라우팅이 그 출력을 쓰게 한다.
@@ -202,3 +202,11 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 ### 컨테이너 안 Background 본문의 Parallel 은 사전 검사도 깊이 1 부터 센다 (2026-11-12)
 
 → [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#컨테이너-안-background-본문의-parallel-은-사전-검사도-깊이-1-부터-센다-2026-11-12)
+
+### 동적 에러 포트 예외와 합류 노드 서술을 맞춘다
+
+결정일: 2026-11-15
+
+런타임 에러 포트를 두지 않는다는 요구사항(REQ-PARALLEL-028)에 [ForEach 노드](CLE-NODE-FOREACH.md#요구사항) · [Map 노드](CLE-NODE-MAP.md#요구사항) 와 같은 예외 문구를 더했다. 에러 처리 정책으로 생기는 동적 에러 포트는 NERV Task `CLE-T-K0Y546` 이 구현했고 이 요구사항이 막는 대상이 아니다(NERV Task `CLE-T-RWHTXC`). 합류 노드를 실행하는 주체는 [실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기의-노드-집합과-위상-순서) 에서 「그 Parallel 을 실행한 루프」 로 고쳤다. 합류 노드가 받는 입력은 [다중 입력 조립](../CLE-EXEC/CLE-EXEC-ENGINE.md#다중-입력-조립) 이 정한다(NERV Task `CLE-T-CE31NB`). 원본 ND-PL-03 의 Merge `wait_all` 우회 문구는 엔진 동작과 맞아 그대로 둔다. Parallel 은 모든 병렬 분기를 기다린 뒤 합류 노드를 한 번 실행하므로 Merge 쪽 대기에 기대지 않는다. 동작은 바뀌지 않는다.
+
+기존 워크플로우 영향은 없다.

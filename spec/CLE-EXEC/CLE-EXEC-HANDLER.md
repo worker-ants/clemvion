@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-HANDLER-001", "REQ-HANDLER-002", "REQ-HANDLER-003", "REQ-HANDLER-004"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "da92302ad4fb8c86fa31ee457a34219d01952dbcc0ad2c64fc5a95a8d516fdad"
+content_hash: "003c56ebd000f26e299143e793cf1a86b1c86bb7621701bbb16772b985b2e1a7"
 read_as: "approved_fallback"
-task: "CLE-T-V462FA"
+task: "CLE-T-CE31NB"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "6b008fdde973266d9b1b8cb6bccbd99b3b844320bde432749281c5d6e3a74353"
-etag: "sha256-d8ff4d71fadae61fd867d56105e15725be01b5eacd5bff24cb7740603b3b143e"
+mirror_sha256: "6abd2694903944fcb097fa24ed0c8613827976a1b9d9ea71fb04c1f8a698e764"
+etag: "sha256-34043a3a12e759ed77b78e4b41dea7dc4a15b17fccdaadc3b01c23d113f3f44a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -211,7 +211,7 @@ interface NodeHandlerRegistry {
 2. `registry.get(nodeType)` 으로 핸들러를 찾는다. 등록되지 않은 유형이면 메시지가 `UNKNOWN_NODE_TYPE: ` 로 시작하는 에러를 던진다.
 3. `handler.validate(rawConfig)` 가 실패하면 메시지가 `INVALID_NODE_CONFIG: ` 로 시작하고 검증 메시지를 이어 붙인 에러를 던진다. 이 이름은 메시지 접두이고 구조화된 `error.code` 는 없다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.5).
 4. `ExpressionResolver.resolveConfig(rawConfig)` 로 `resolvedConfig` 를 만든다.
-5. `handler.execute(input, resolvedConfig, { ...context, rawConfig })` 로 출력을 받는다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 이 단계를 되풀이한다.
+5. `handler.execute(input, resolvedConfig, { ...context, rawConfig })` 로 출력을 받는다. 선행이 여럿일 때 `input` 의 모양과 실행 조건은 [다중 입력 조립](CLE-EXEC-ENGINE.md#다중-입력-조립) 이 정한다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 이 단계를 되풀이한다.
 6. 출력이 JSON 으로 직렬화되는지 확인한다.
 7. 노드 실행 행에 입력·출력·상태를 기록한다.
 8. 그래프 순회에 따라 포인터를 옮긴다.
@@ -303,6 +303,8 @@ Code 노드가 `null` 을 돌려주거나 아무것도 돌려주지 않을 때 `
 - 모든 `null` 출력을 감싸는 안은 기각했다. 입력 대기 노드는 `output` 을 `null` 로 두고 대기 선언을 설정 쪽에 싣는다. 엔진이 이 선언을 최상위에서 읽으므로 펼친 모양을 유지한다. 다른 `status` 값과 재개 상태(`_resumeState`)를 실은 출력도 엔진이 최상위 키로 읽어서 그대로 둔다.
 - Parallel 의 분기 선언(포트 배열)은 포트 하나를 고르는 출력이 아니어서 이 규칙에서 뺐다.
 - 핸들러마다 `null` 출력을 고치는 안도 기각했다. `output: input` 으로 입력을 넘기는 분기 노드(If/Else · Switch · Background)도 앞 노드가 `null` 을 내면 같은 결함이 있다. 엔진 한 곳에서 고쳐야 빠지는 노드가 없다.
+
+이후 엔진 규칙이 바뀌어 고른 포트가 없는 출력은 `error` 연결선만 열지 않고 나머지 연결선을 연다. `_selectedPort` 가 없거나 `undefined` 이거나 빈 배열인 경우다. 기준 코드는 `codebase/backend/src/modules/execution-engine/graph/graph-traversal.service.ts` 의 `GraphTraversalService.isPortFiltered` 다. NERV 질문 `01a1da28` 의 답 (a) 로 정했고 NERV Task `CLE-T-K0Y546` 이 구현했다.
 
 ### 원본 설정 노출 요구를 요구사항 줄로 옮겼다 (2026-11-13)
 

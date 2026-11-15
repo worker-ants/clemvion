@@ -2,19 +2,19 @@
 id: "CLE-EXEC-ENGINE"
 title: "실행 엔진 개요와 그래프 순회"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "f9c4bc5be2adb161c2cfddddbff35803afee02028559cfe0651b38709fff62dc"
+content_hash: "1dd6e94ebf869a23f0ff1c0698dc165386d562198e7753f770159a4b38d5a985"
 read_as: "approved_fallback"
-task: "CLE-T-X3YE55"
+task: "CLE-T-CE31NB"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "f58446d14d47734dc974502d258bfc8859dc32e9f41440774a7a4b173228b284"
-etag: "sha256-df32d6c8894a80e5d8dd5c2a48fec085b60514c4667c0a134c04cca97d2ec015"
+mirror_sha256: "488f13b7d71eea468d00ec5a7ce26411ba2b93e48c716e849f48213b043b4976"
+etag: "sha256-fdc81c9b5a88d953731d0a59d7fc352c80b5fd4e1ad90970b7d9d8bd2dbf5052"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (Overview, §2, Rationale "C-1 god-class strangler-fig 분할"·"park 즉시 해제 + slow-path 일원화" 중 registry 항목과 `runNodeDispatchLoop` 반환 계약) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -148,7 +148,7 @@ dispatch 루프 `runNodeDispatchLoop` 는 `Promise<{ parked: boolean }>` 를 돌
 
 - 소스 노드 출력에 `_selectedPort` 가 있으면 연결선의 `sourcePort` 가 선택된 포트와 같을 때만 활성화한다.
 - `_selectedPort` 가 배열이면(Parallel 핸들러의 시작 시점 출력이나 Text Classifier 처럼 여러 포트를 한 번에 여는 경우) `sourcePort` 가 배열에 들어 있을 때 활성화한다. Parallel 은 `PARALLEL_ENGINE=v1` 에서 모든 병렬 분기가 끝나면 엔진이 `_selectedPort` 를 `'done'` 으로 덮어쓰므로 그 뒤 Parallel 에서 나가는 연결선 판정에는 `'done'` 이 쓰인다. `PARALLEL_ENGINE=off` 되돌림 경로에서는 시작 시점 배열이 그대로 쓰인다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#엔진-덮어쓰기-계약)). 포트 활성화 모델은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 5 를 따른다.
-- 소스 노드 출력에 `_selectedPort` 가 없으면 연결선은 항상 활성화된다.
+- 소스 노드 출력에 `_selectedPort` 가 없거나 `undefined` 이거나 빈 배열이면 `error` 포트에서 나가는 연결선을 뺀 연결선은 항상 활성화된다(`GraphTraversalService.isPortFiltered`).
   - 그래서 `_selectedPort` 를 내지 않는 일반 노드(값을 그대로 넘기는 노드)에 되돌아가는 연결선을 달면 빠져나올 수 없는 무한 루프가 된다.
   - 이 루프는 `MAX_NODE_ITERATIONS` 한도에 걸려 결국 실패로 끝난다.
   - 순환은 반드시 분기 노드(Switch, If/Else 등)의 특정 포트에서 되돌아가게 연결해야 안전하다. 에디터의 경고 규칙은 [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md) 에 있다.
@@ -167,6 +167,37 @@ dispatch 루프 `runNodeDispatchLoop` 는 `Promise<{ parked: boolean }>` 를 돌
 `_selectedPort` 는 그 노드의 연결선 라우팅에만 쓰는 내부 메타데이터다. 포트 하나를 고르면 문자열이고 여러 포트를 동시에 열면 `string[]` 다. 모양은 노드 출력의 `port` 필드와 같다. 연결선 활성화는 `sourcePort` 가 문자열과 같은지(하나) 또는 배열에 들어 있는지(여럿)로 판정한다.
 
 다음 노드의 입력으로 넘길 때 `_selectedPort` 는 자동으로 지운다. 그래서 값을 그대로 넘기는 노드(변수 선언 노드, 변수 수정 노드 등)를 거쳐도 뒤 노드가 잘못 건너뛰어지지 않는다. `_selectedPort` 를 기록하는 단계는 [노드 핸들러 계약](CLE-EXEC-HANDLER.md) 의 포트 선택에 있다.
+
+### 다중 입력 조립
+
+선행 노드가 여럿인 노드를 엔진이 언제 실행하고 입력을 어떤 모양으로 넘기는지 적는다. 이 절은 현재 엔진 동작을 적은 것이다. 입력을 합치는 방식은 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) 가 정한다.
+
+**실행 시점**
+
+- 노드는 위상 정렬 순서로 한 노드씩 차례로 실행된다. 노드 단위 비동기 dispatch 는 없다.
+- 선행이 여럿이면 그중 하나라도 연결선을 열어 주면 실행된다(OR).
+- 선행을 따로 기다리는 장치는 없다. 위상 순서상 그 노드에 닿을 때 앞쪽 선행은 이미 실행됐거나 건너뛰어졌다.
+- 닫힌 연결선만 받은 노드는 건너뛴다. 실행 기록과 이벤트를 남기지 않는다.
+
+**입력 모양** (`gatherNodeInput`)
+
+| 들어오는 연결선 | 입력 |
+| --- | --- |
+| 0개 | 워크플로우 입력 |
+| 1개 | 선행 출력에서 제어 필드를 뺀 값. 포트가 막혔으면 `undefined` 이고 선행이 실행되지 않았으면 워크플로우 입력이다 |
+| 2개 이상 | `{ [선행 노드 ID]: 출력 }` 객체. 실행되지 않았거나 포트가 막힌 선행은 키에서 빠진다. 키가 하나도 없으면 워크플로우 입력이다 |
+
+- 같은 선행에서 온 연결선 둘은 포트가 달라도 키 하나가 된다.
+- 연결선 수에는 되돌아가는 연결선도 들어간다. 그래서 되돌아가는 연결선을 받는 노드는 앞쪽 연결선이 하나여도 객체 모양 입력을 받는다.
+- 제어 필드는 `_selectedPort` · `port` · `status` · `_resumeState` · `_resumeCheckpoint` 다. 배열이나 원시값을 실은 엔진 봉투면 제어 필드를 지우는 대신 안의 `data` 를 꺼낸다.
+
+**Parallel 분기 합류**
+
+- 둘 이상 분기에서 닿는 노드를 합류 노드라 한다. 합류 노드는 Parallel 이 모든 분기를 끝낸 뒤 한 번 실행된다.
+- 합류 노드를 실행하는 쪽은 그 Parallel 을 실행한 루프다. 최상위 Parallel 이면 메인 루프이고 안쪽 Parallel 이면 바깥 분기 실행이다.
+- 합류 노드의 입력은 위 규칙대로 `{ 분기 출구 노드 ID: 출력 }` 이다. Parallel 의 `done` 연결선도 이어져 있으면 `{ <Parallel 노드 ID>: { branches, count } }` 키가 더해진다.
+- 실패한 분기의 출구 노드는 키에서 빠진다.
+- 한 분기에서만 닿는 노드는 그 분기 안에서 실행된다. 분기 실행 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 가 정한다.
 
 ### 컨테이너 본문 정렬
 
@@ -189,8 +220,9 @@ Background 본문 워커도 이 단계 구분을 따른다. 작업에 컨테이�
 ## 구현 위치
 
 - `codebase/backend/src/modules/execution-engine/**` (엔진 전체)
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (dispatch 루프, 상태 전이 지점)
-- `codebase/backend/src/modules/execution-engine/graph/` (`graph-builder.ts`, `graph-traversal.service.ts`, `back-edge-identifier.ts`, `topological-sort.ts`, `cycle-detector.ts`)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (dispatch 루프, 상태 전이 지점, 다중 입력 조립 `gatherNodeInput`)
+- `codebase/backend/src/modules/execution-engine/graph/` (`graph-builder.ts`, `graph-traversal.service.ts`, `back-edge-identifier.ts`, `topological-sort.ts`, `cycle-detector.ts`, `parallel-branch-membership.ts`)
+- `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts` (Parallel 분기 실행)
 - `codebase/backend/src/modules/execution-engine/node-bootstrap.service.ts`
 - `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts`
 - `codebase/backend/src/modules/execution-engine/form-interaction.service.ts`, `button-interaction.service.ts`
@@ -257,3 +289,9 @@ import 를 옮기자 `ws.service` ↔ `gateway` ↔ `retry` ↔ `event-emitter` 
 ### 도구 영역 실행 규칙을 지운다
 
 원문 §2.3 은 도구 영역 노드를 AI 에이전트가 요청할 때만 실행하고 노드 실행 기록을 남긴다고 적었다. 도구 영역과 도구 연결 필드가 제거된 뒤에도 이 절이 현행 규칙처럼 남아 있었다. 제거 결정은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 가 기준이므로 실행 규칙은 옮기지 않았다.
+
+### 다중 입력 조립 계약을 엔진 문서에 둔다
+
+결정일: 2026-11-15
+
+선행이 여럿인 노드의 실행 시점과 입력 모양을 정한 문서가 없었다. 그래서 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md) 문서의 해석이 갈렸다(CLE-T-CE31NB). [노드 핸들러 계약](CLE-EXEC-HANDLER.md) 은 본문 한도(20,000자)에 가까워 이 문서에 둔다. 엔진 동작은 바꾸지 않고 현재 동작을 적었다. 그래서 기존 워크플로우에는 영향이 없다.

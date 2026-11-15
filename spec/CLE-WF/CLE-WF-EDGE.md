@@ -2,19 +2,19 @@
 id: "CLE-WF-EDGE"
 title: "연결선"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-EDGE-001", "REQ-EDGE-002", "REQ-EDGE-003", "REQ-EDGE-004", "REQ-EDGE-005", "REQ-EDGE-006", "REQ-EDGE-007", "REQ-EDGE-008", "REQ-EDGE-009", "REQ-EDGE-010", "REQ-EDGE-011", "REQ-EDGE-012", "REQ-EDGE-013", "REQ-EDGE-014", "REQ-EDGE-015", "REQ-EDGE-016", "REQ-EDGE-017", "REQ-EDGE-018", "REQ-EDGE-019", "REQ-EDGE-020", "REQ-EDGE-021", "REQ-EDGE-022", "REQ-EDGE-023", "REQ-EDGE-024", "REQ-EDGE-025", "REQ-EDGE-026", "REQ-EDGE-027", "REQ-EDGE-028", "REQ-EDGE-029", "REQ-EDGE-030", "REQ-EDGE-031", "REQ-EDGE-032", "REQ-EDGE-033", "REQ-EDGE-034", "REQ-EDGE-035", "REQ-EDGE-036", "REQ-EDGE-037", "REQ-EDGE-038", "REQ-EDGE-039"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "b5a501e1cee7edf5510b95ecc2bcbb4d71c33e50262a69ae3eba914937d90811"
+content_hash: "abd6f69627074747e2c4cf4f519141133d8b9a9fb23bb3ba09d92b4dfec4174d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-RWHTXC"
 source_paths: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "2f49e0ffbb4b699218773f8b37dfef07f508dffe3a2b4da65f91e4038642f6c9"
-etag: "sha256-0f3909c7b11aa26c04007699def0520b26cd33570cc9c86fdb5ce3973dada080"
+mirror_sha256: "2e2f86dc1480fd35d0d2247572a0f0aab33191ffe0ac984b502ada641138df7b"
+etag: "sha256-bbcb180d5fb60ba08afc1fce63f0cab401118e057dac41c9bd46f36bce6839e7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/2-edge.md`, `spec/3-workflow-editor/_product-overview.md` (§3.3 ED-EG-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -167,6 +167,8 @@ AI 에이전트 노드 옆 도구 영역(Tool Area)에 노드를 놓아 도구�
 | 사용자 알림 | 하나 이상 지우면 경고 토스트(`editor.autoCleanedEdgesFull`, 지운 개수 포함)를 보여 준다. 조용히 지나가지 않게 하려는 것이다. |
 | 영구 반영 시점 | 에디터 상태에 넣기 전에 지우고, **사용자가 저장(`Ctrl+S`·`Save`, 실행 직전 저장)할 때 서버에 확정**한다. 저장하지 않고 닫으면 DB 의 연결선은 그대로다. |
 
+에러 처리 정책을 "에러 포트로 라우팅" 에서 다른 정책으로 바꿔 설정 패널에서 저장하면 사라진 동적 에러 포트의 연결선은 이 정리를 기다리지 않는다. 설정 패널이 저장할 때 그 연결선을 먼저 지우고 지운 개수를 경고 토스트로 알린다(`node-settings-panel.tsx` 의 `handleSave` → `resolve-dynamic-ports.ts` 의 `findOrphanErrorEdges`). 되돌리기 한 번으로 정책과 연결선이 함께 돌아온다. `dropStaleEdges` 는 워크플로우를 불러올 때 모든 연결선의 출발 · 도착 포트를 검사한다. 설정 패널 경로는 저장하는 그 노드에서 나가는 `error` 연결선만 본다. 근거는 [노드 포트와 설정 패널 「에러 처리 정책 설정」](CLE-WF-NODEPANEL.md#에러-처리-정책-설정) 의 REQ-NODEUI-044 다.
+
 비슷한 예로 캔버스를 불러올 때 `containerId` 를 다시 계산하는 규칙이 [워크플로우 에디터와 캔버스](CLE-WF-EDITOR.md) 에 있다.
 
 ## 미결 사항
@@ -189,6 +191,8 @@ AI 에이전트 노드 옆 도구 영역(Tool Area)에 노드를 놓아 도구�
 ### R-1. 불러올 때 낡은 연결선을 자동으로 지우고 알린다 (2026-06-10)
 
 저장한 뒤 노드 설정이 바뀌어 포트가 사라진 연결선은 React Flow 가 `Couldn't create edge for source handle id` 경고를 찍고 끊어진 조각으로 그린다. 이를 불러올 때 `dropStaleEdges` 로 한꺼번에 정리한다. 다만 워크플로우를 **말없이 바꾸는** 동작이라 경고 토스트로 반드시 알리고, 영구 반영은 기존 저장 흐름(사용자가 저장할 때)에 맡긴다. 조용한 자동 수정 대신 "정리, 알림, 저장 때 확정" 을 고른 결정이다.
+
+이 정리는 그대로 두되 정책 변경으로 사라진 동적 에러 포트의 연결선만 설정 패널이 저장할 때 먼저 지운다(2026-11-14, REQ-NODEUI-044). 근거와 기각한 대안은 [노드 포트와 설정 패널 R-8](CLE-WF-NODEPANEL.md#r-8-정책을-바꾸면-동적-에러-포트의-연결선을-저장할-때-지운다-2026-11-14) 에 있다.
 
 ### R-2. 순환은 에디터에서 경고하고 AI 어시스턴트 도구에서 막는다 (2026-07-07)
 

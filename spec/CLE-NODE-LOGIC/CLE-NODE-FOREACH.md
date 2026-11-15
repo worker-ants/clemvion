@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021", "REQ-FOREACH-022"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "6b915bb0194cf585305117c2ef3394af34d12c09f80dcf4090dd6d3d8c13d708"
+content_hash: "545cc1572eaadd5a71aaf98f2bb62933776a0825454e70bd06ad1178843f46cd"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-RWHTXC"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "03b4335b915e6d50e64541442383c46e2a246feec9ca77703f4c9e926d9668da"
-etag: "sha256-9d47d5acc2eb121844f3a86a843268c1ea845d68f03e05c2181cb7bcdce52061"
+mirror_sha256: "d8c7d61d6f33a7cbf4b7ff64296115298120da827789ce980d70d86f5d2ec2cf"
+etag: "sha256-c4dfc99ef9d18cbc2b5647d945cdaa439cff911ddda0584574fe60ac177477ce"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -80,7 +80,7 @@ ForEach 노드(ForEach, `foreach`)는 배열의 항목마다 컨테이너 본문
 | 출력 | `body` | Body | data | false | 항목마다 본문에 들어간다. `$item` / `$itemIndex` 를 묶는다 |
 | 출력 | `done` | Done | data | false | 모든 회차가 끝난 뒤 `{ items, count }` 를 넘긴다 |
 
-ForEach 는 동적 포트가 없다. 포트 표와 REQ-FOREACH-021 은 노드 정의에 둔 포트만 다룬다. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 동적 에러 포트는 노드 공통 규칙이고 아직 구현되지 않았다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5).
+ForEach 는 동적 포트가 없다. 포트 표와 REQ-FOREACH-021 은 노드 정의에 둔 포트만 다룬다. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 동적 에러 포트는 노드 공통 규칙이다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5).
 
 ### 본문 안 컨텍스트 변수
 
@@ -274,3 +274,9 @@ ForEach 는 `arrayField` 가 배열이 아니면 모두 `[]` 로 바꿔 왔다. 
 ### 실패한 회차의 `error.code` 를 Map · Parallel 과 같은 규칙으로 고른다 (2026-11-05)
 
 그전 `skipped[].error.code` 는 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. Parallel 은 같은 자리에 빈 `name` 대신 `UNKNOWN_ERROR` 를 내서 두 노드가 달랐다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-FOREACH-022). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.
+
+### 동적 에러 포트 미구현 서술을 지운다
+
+결정일: 2026-11-15
+
+포트 절은 에러 처리 정책 "에러 포트로 라우팅" 으로 생기는 동적 에러 포트가 아직 구현되지 않았다고 적었다. NERV Task `CLE-T-K0Y546` 이 이 포트를 구현해서 그 서술을 지웠다. 문서가 정하는 동작은 바뀌지 않는다. 기존 워크플로우 영향은 없다.
