@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
+import { IdleExpiringMap } from './idle-expiring-map';
 
 /**
  * `exec:cont:seq:` (continuation-bus) 와 별개의 emit-event seq 네임스페이스 default TTL.
@@ -10,6 +11,23 @@ import { BusinessMetricsService } from '../metrics/business-metrics.service';
  * Redis 측 누수 방지). 24시간 = continuation-bus 와 동일 보수값.
  */
 const DEFAULT_SEQ_KEY_TTL_SECONDS = 86_400;
+
+/**
+ * 실행 단위 메모리 항목(seq 미러, `WebsocketService` 의 routing context)의 인스턴스당 상한.
+ * 한 인스턴스가 동시에 붙드는 실행 수보다 넉넉히 크게 잡았다. 넘치면 가장 오래 만지지 않은 항목부터 지운다.
+ */
+export const EXECUTION_MEMORY_MAX_ENTRIES = 10_000;
+
+/**
+ * `EXECUTION_SEQ_TTL_SECONDS` 를 읽는다(양수만 채택, 아니면 24시간). Redis seq 키의 sliding TTL 이고,
+ * 같은 값을 실행 단위 메모리 항목의 유휴 TTL 로도 쓴다. 미러가 Redis 키보다 먼저 사라지지 않게 하려는 것이다.
+ */
+export function resolveExecutionSeqTtlSeconds(): number {
+  const parsed = Number(process.env.EXECUTION_SEQ_TTL_SECONDS);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.floor(parsed)
+    : DEFAULT_SEQ_KEY_TTL_SECONDS;
+}
 
 /**
  * Execution 단위 monotonic seq 발급기 — Redis `INCR exec:seq:<id>`.
@@ -49,8 +67,13 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
    * Redis 미가용 시 사용하는 in-memory per-execution high-water mark.
    * 정상 경로에서도 mirror 로 갱신된다 (위 클래스 주석 참조).
    * 키 = executionId, 값 = 마지막 발급 seq. {@link release} 로 회수.
+   *
+   * release 는 terminal 이벤트를 보낸 인스턴스에서만 불린다. 실행을 park 한 인스턴스와 끝낸 인스턴스가
+   * 다르면 park 한 쪽 항목이 남으므로 유휴 TTL(Redis 키와 같은 {@link seqKeyTtlSeconds})과
+   * 상한({@link EXECUTION_MEMORY_MAX_ENTRIES})으로도 회수한다(NERV Task CLE-T-4J965H).
+   * 유휴 TTL 이 지나면 Redis 키도 만료됐으므로 미러를 잃어 생기는 차이는 없다.
    */
-  private readonly fallbackCounters = new Map<string, number>();
+  private readonly fallbackCounters: IdleExpiringMap<string, number>;
 
   private readonly seqKeyTtlSeconds: number;
 
@@ -59,11 +82,11 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
     @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     // ENV 오버라이드 (양수 정수만 채택). continuation-bus 의 NaN/음수 방어 패턴 동일.
-    const parsed = Number(process.env.EXECUTION_SEQ_TTL_SECONDS);
-    this.seqKeyTtlSeconds =
-      Number.isFinite(parsed) && parsed > 0
-        ? Math.floor(parsed)
-        : DEFAULT_SEQ_KEY_TTL_SECONDS;
+    this.seqKeyTtlSeconds = resolveExecutionSeqTtlSeconds();
+    this.fallbackCounters = new IdleExpiringMap({
+      maxEntries: EXECUTION_MEMORY_MAX_ENTRIES,
+      idleTtlMs: this.seqKeyTtlSeconds * 1000,
+    });
   }
 
   /**
@@ -112,13 +135,13 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
         );
       }
       // in-memory mirror — 장애 전환 시 high-water mark 를 이어받기 위함.
-      this.fallbackCounters.set(executionId, seq);
+      this.setMirror(executionId, seq);
       return seq;
     } catch (err) {
       // degraded: in-memory per-instance monotonic. 분산 monotonic 미보장(수용된 mode).
       const current = this.fallbackCounters.get(executionId) ?? 0;
       const degradedSeq = current + 1;
-      this.fallbackCounters.set(executionId, degradedSeq);
+      this.setMirror(executionId, degradedSeq);
       this.logger.warn(
         `Redis INCR 실패 — in-memory degraded seq=${degradedSeq} ` +
           `(${ExecutionSeqAllocator.sanitize(executionId)}): ${
@@ -154,6 +177,18 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
         this.metrics?.recordRedisFailOpen('execution_seq', 'del_failed');
         return 0;
       });
+    }
+  }
+
+  /** 미러를 갱신한다. 상한 때문에 다른 실행의 항목을 지웠으면 경고를 남긴다. */
+  private setMirror(executionId: string, seq: number): void {
+    const evicted = this.fallbackCounters.set(executionId, seq);
+    if (evicted.length > 0) {
+      this.logger.warn(
+        `seq 미러 상한(${EXECUTION_MEMORY_MAX_ENTRIES}) 초과로 ${evicted.length}건 회수: ${evicted
+          .map((id) => ExecutionSeqAllocator.sanitize(id))
+          .join(', ')}`,
+      );
     }
   }
 

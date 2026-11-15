@@ -1,4 +1,7 @@
-import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
+import {
+  EXECUTION_MEMORY_MAX_ENTRIES,
+  ExecutionSeqAllocator,
+} from './execution-seq-allocator.service';
 import { Logger } from '@nestjs/common';
 import type { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
@@ -336,6 +339,53 @@ describe('ExecutionSeqAllocator', () => {
     it('미설정 → default 86400', () => {
       delete process.env[ENV];
       expect(ttlOf(makeAllocatorForTtl())).toBe(86_400);
+    });
+  });
+
+  describe('park 한 인스턴스와 끝낸 인스턴스가 다를 때 (CLE-T-4J965H)', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    function mirrorOf(alloc: ExecutionSeqAllocator): { size: number } {
+      return (alloc as unknown as { fallbackCounters: { size: number } })
+        .fallbackCounters;
+    }
+
+    it('A 가 발급하고 B 가 release 해도 A 의 미러는 유휴 TTL 뒤 다음 발급 때 회수된다', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      const redis = makeRedis();
+      const a = makeAllocator(redis);
+      const b = makeAllocator(redis);
+      await a.next('exec-parked'); // A 가 첫 세그먼트를 돌리고 park
+      await b.next('exec-parked'); // B 가 이어 받아
+      b.release('exec-parked'); // 끝낸다
+      expect(mirrorOf(a).size).toBe(1); // A 에는 남아 있다
+
+      jest.setSystemTime(Date.now() + 86_400 * 1000);
+      await a.next('exec-other');
+      expect(mirrorOf(a).size).toBe(1); // exec-parked 는 지워지고 exec-other 만 남는다
+    });
+
+    it('유휴 TTL 안에서는 미러가 남아 장애 전환 때 high-water mark 를 이어받는다', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      const redis = makeRedis();
+      const alloc = makeAllocator(redis);
+      await alloc.next('exec-keep');
+      await alloc.next('exec-keep');
+      jest.setSystemTime(Date.now() + 86_400 * 1000 - 1);
+      (alloc as unknown as { getClient: () => unknown }).getClient = () => {
+        throw new Error('Redis down');
+      };
+      expect(await alloc.next('exec-keep')).toBe(3);
+    });
+
+    it('미러 항목 수는 상한을 넘지 않는다', async () => {
+      const alloc = makeAllocator(makeRedis());
+      for (let i = 0; i <= EXECUTION_MEMORY_MAX_ENTRIES; i++) {
+        await alloc.next(`exec-${i}`);
+      }
+      expect(mirrorOf(alloc).size).toBe(EXECUTION_MEMORY_MAX_ENTRIES);
     });
   });
 

@@ -1,4 +1,6 @@
+import { Logger } from '@nestjs/common';
 import { firstValueFrom, take, toArray } from 'rxjs';
+import { EXECUTION_MEMORY_MAX_ENTRIES } from './execution-seq-allocator.service';
 import {
   BackgroundRunEventType,
   type ExecutionChannelEvent,
@@ -601,6 +603,105 @@ describe('WebsocketService', () => {
       const chatChannel = fanout.payload.chatChannel as Record<string, unknown>;
       expect(chatChannel.api_key).toBe('[REDACTED]');
       expect(chatChannel.conversationKey).toBe('12345');
+    });
+  });
+
+  describe('park 한 인스턴스와 끝낸 인스턴스가 다를 때 (CLE-T-4J965H)', () => {
+    // 엔진은 세그먼트를 가져간 인스턴스에서 routing 을 등록하고 terminal 이벤트를 보낸 인스턴스만
+    // 푼다. A 가 park 하고 B 가 끝내면 A 의 항목은 유휴 TTL 과 상한으로만 회수된다.
+    const TTL_MS = 86_400 * 1000;
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    function routingOf(svc: WebsocketService): { size: number } {
+      return (svc as unknown as { executionRouting: { size: number } })
+        .executionRouting;
+    }
+
+    function makeInstance(): WebsocketService {
+      return new WebsocketService(
+        { broadcastToChannel: jest.fn() } as never,
+        makeFakeAllocator() as never,
+      );
+    }
+
+    it('A 가 park 하고 B 가 끝내면 A 의 routing 항목은 유휴 TTL 뒤 다음 등록 때 회수된다', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      const a = makeInstance();
+      const b = makeInstance();
+      a.registerExecutionRouting('exec-parked', { triggerId: 'trg-A' });
+      await a.emitExecutionEvent(
+        'exec-parked',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {},
+      );
+      b.registerExecutionRouting('exec-parked', { triggerId: 'trg-A' });
+      await b.emitExecutionEvent(
+        'exec-parked',
+        ExecutionEventType.EXECUTION_COMPLETED,
+        {},
+      );
+      expect(routingOf(b).size).toBe(0);
+      expect(routingOf(a).size).toBe(1);
+
+      jest.setSystemTime(Date.now() + TTL_MS);
+      a.registerExecutionRouting('exec-next', { triggerId: 'trg-B' });
+      expect(routingOf(a).size).toBe(1);
+    });
+
+    it('유휴 TTL 이 지난 항목은 fanout 봉투에 붙지 않는다', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      const a = makeInstance();
+      a.registerExecutionRouting('exec-idle', { triggerId: 'trg-A' });
+      jest.setSystemTime(Date.now() + TTL_MS);
+      const eventP = nextFanoutEvent(a);
+      await a.emitExecutionEvent(
+        'exec-idle',
+        ExecutionEventType.EXECUTION_STARTED,
+        {},
+      );
+      const fanout = await eventP;
+      expect(fanout.payload.triggerId).toBeUndefined();
+    });
+
+    it('이벤트를 내는 동안에는 유휴 시각이 다시 재져 항목이 남는다', async () => {
+      jest.useFakeTimers({ now: new Date('2026-11-15T00:00:00Z') });
+      const a = makeInstance();
+      a.registerExecutionRouting('exec-busy', { triggerId: 'trg-A' });
+      jest.setSystemTime(Date.now() + TTL_MS - 1);
+      await a.emitNodeEvent(
+        'exec-busy',
+        'node-1',
+        NodeEventType.NODE_STARTED,
+        {},
+      );
+      jest.setSystemTime(Date.now() + TTL_MS - 1);
+      const eventP = nextFanoutEvent(a);
+      await a.emitExecutionEvent(
+        'exec-busy',
+        ExecutionEventType.EXECUTION_STARTED,
+        {},
+      );
+      expect((await eventP).payload.triggerId).toBe('trg-A');
+    });
+
+    it('항목 수는 상한을 넘지 않고 넘친 항목을 지울 때 경고를 남긴다', () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const a = makeInstance();
+        for (let i = 0; i <= EXECUTION_MEMORY_MAX_ENTRIES; i++) {
+          a.registerExecutionRouting(`exec-${i}`, { triggerId: 'trg' });
+        }
+        expect(routingOf(a).size).toBe(EXECUTION_MEMORY_MAX_ENTRIES);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0][0])).toContain('exec-0');
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 
