@@ -95,9 +95,7 @@ describe('ChatChannelSignatureFailureLimiterService', () => {
       );
 
       await expect(limiter.isBlocked(TRIGGER_ID, IP)).resolves.toBe(false);
-      await expect(
-        limiter.recordFailure(TRIGGER_ID, IP),
-      ).resolves.toBeUndefined();
+      await expect(limiter.recordFailure(TRIGGER_ID, IP)).resolves.toBe(false);
     });
 
     it('주입 토큰이 공용 연결보다 앞선다', async () => {
@@ -142,13 +140,19 @@ describe('ChatChannelSignatureFailureLimiterService', () => {
       ['한도를 넘은 값', SIGNATURE_FAILURE_LIMIT_PER_MIN + 1, 0],
       ['NaN 으로 바뀌는 값', 'garbage', 0],
       ['null', null, 0],
-    ])('eval 이 %s 를 돌려주면 경고 %i 번', async (_label, ret, warns) => {
-      const evalFn = jest.fn().mockResolvedValue(ret);
+    ])(
+      'eval 이 %s 를 돌려주면 경고 %i 번, 한도 도달 여부를 그와 같게 돌려준다',
+      async (_label, ret, warns) => {
+        const evalFn = jest.fn().mockResolvedValue(ret);
 
-      await limiterWithEval(evalFn).recordFailure(TRIGGER_ID, IP);
+        // 호출자(인증기)는 반환값으로 `reached` 지표를 센다(NERV Task `CLE-T-5GVB9N`).
+        await expect(
+          limiterWithEval(evalFn).recordFailure(TRIGGER_ID, IP),
+        ).resolves.toBe(warns === 1);
 
-      expect(warnSpy).toHaveBeenCalledTimes(warns);
-    });
+        expect(warnSpy).toHaveBeenCalledTimes(warns);
+      },
+    );
 
     it('한도에 닿은 실패에서만 경고를 한 번 남긴다', async () => {
       const evalFn = jest
@@ -175,7 +179,7 @@ describe('ChatChannelSignatureFailureLimiterService', () => {
 
       await expect(
         limiterWithEval(evalFn).recordFailure(TRIGGER_ID, IP),
-      ).resolves.toBeUndefined();
+      ).resolves.toBe(false);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('boom'));
     });
 
@@ -185,7 +189,7 @@ describe('ChatChannelSignatureFailureLimiterService', () => {
           TRIGGER_ID,
           IP,
         ),
-      ).resolves.toBeUndefined();
+      ).resolves.toBe(false);
     });
   });
 });

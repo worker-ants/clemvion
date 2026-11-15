@@ -59,6 +59,39 @@ describe('BusinessMetricsService (NF-OB-07)', () => {
     );
   });
 
+  // NERV Task `CLE-T-5GVB9N`. 호출부 spec 은 이 메서드를 jest.fn() 으로 바꾸므로 이름 · 라벨은 여기서 본다.
+  it.each([
+    ['telegram', 'reached'],
+    ['slack', 'rejected'],
+    ['discord', 'reached'],
+  ] as const)(
+    'recordChatChannelSignatureFailureLimit(%s, %s) → chat_channel.signature_failure_limit{provider,event} += 1',
+    (provider, event) => {
+      service.recordChatChannelSignatureFailureLimit(provider, event);
+      expect(
+        mock.counters['clemvion.chat_channel.signature_failure_limit'].add,
+      ).toHaveBeenCalledWith(1, { provider, event });
+    },
+  );
+
+  it('recordChatChannelInboundErrorAbsorbed → chat_channel.inbound_error_absorbed{provider} += 1', () => {
+    service.recordChatChannelInboundErrorAbsorbed('slack');
+    expect(
+      mock.counters['clemvion.chat_channel.inbound_error_absorbed'].add,
+    ).toHaveBeenCalledWith(1, { provider: 'slack' });
+  });
+
+  it('채팅 채널 지표는 v1 프로바이더 밖의 provider 를 other 로 접는다 (cardinality 방어)', () => {
+    service.recordChatChannelSignatureFailureLimit('line', 'rejected');
+    service.recordChatChannelInboundErrorAbsorbed('x'.repeat(200));
+    expect(
+      mock.counters['clemvion.chat_channel.signature_failure_limit'].add,
+    ).toHaveBeenCalledWith(1, { provider: 'other', event: 'rejected' });
+    expect(
+      mock.counters['clemvion.chat_channel.inbound_error_absorbed'].add,
+    ).toHaveBeenCalledWith(1, { provider: 'other' });
+  });
+
   /**
    * `audit-logs.spec.ts` 는 이 메서드를 `jest.fn()` 스텁으로 대체하므로 **구현 자체는
    * 어느 테스트도 실행하지 않았다** — 아래 `recordRedisFailOpen` 주석이 이미 적어 둔 그

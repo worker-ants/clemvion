@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-FLOW"
 title: "채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "c656f63ea17e24194287c0cbced4e66731550c1e16bf3510c896664d8967b104"
+content_hash: "322c13d8b3766e9fa89c86be9298c4d2d6f5415e1c5b380f364c12f21937813a"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-AAGZRW"
 source_paths: []
-mirror_sha256: "2da915a7384e2d11ed2d0b46a3c8df7059c0028a1a71a707778bc2af2b24d64e"
-etag: "sha256-57077d91a83297d3a0c5474a8bbe48f04047d6aebc54fd25ce5432d22ee02daf"
+mirror_sha256: "292bfa7b8f8719995b69811c3eef499d32362d945480cc8c21a212489f25c4a2"
+etag: "sha256-678268fac74c9744b930a091d080d00fa8103bc3b24dd243bc9b9e86c90a43a8"
 ---
 ## 개요
 
@@ -105,11 +105,15 @@ sequenceDiagram
 
 ### 인바운드 서명 자료 참조가 없는 행
 
-이 절은 지금 코드의 동작을 적는다. 요구사항이 아니다.
+인바운드 서명 검증(`ChatChannelInboundAuthenticator.verify`)은 저장된 `config.chatChannel.inboundSigningRef` 가 없는 행에서 검증을 건너뛴다. Telegram · Slack · Discord 가 모두 같다. 1차 범위의 세 채널 프로바이더는 규약상 서명 자료가 필수다([채팅 채널 어댑터 규약 「보안」](CLE-CHAT-ADAPTER.md#보안)). 참조가 없는 행은 그 규칙의 예외다. 이 예외는 2026-11-14 결정으로 유지한다. 근거는 [Rationale](#rationale) 의 「참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다 (2026-11-14)」 에 있다.
 
-인바운드 서명 검증(`ChatChannelInboundAuthenticator.verify`)은 저장된 `config.chatChannel.inboundSigningRef` 가 없는 행에서 검증을 건너뛴다. Telegram · Slack · Discord 가 모두 같다. 그런 행으로 온 요청은 서명이 없거나 틀려도 다음 관문으로 넘어간다. 남는 방어는 웹훅 경로(`endpointPath`)가 v4 UUID 라 짐작하기 어렵다는 점뿐이다. 참조가 있는 행은 검증을 건너뛰지 않는다. 참조가 가리키는 비밀을 시크릿 저장소에서 풀지 못해도 401 이다.
+- 그런 행으로 온 요청은 서명이 없거나 틀려도 다음 관문으로 넘어간다.
+- 서명을 검증하지 않으므로 [서명 검증 실패 한도](CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 에서도 세지 않는다. 그 요청은 핸들러 앞에서 전역 요청 한도로 센다([인바운드 관문 순서](CLE-CHAT-CORE-GATE.md#인바운드-관문-순서)).
+- 참조가 있는 행은 검증을 건너뛰지 않는다. 참조가 가리키는 비밀을 시크릿 저장소에서 풀지 못해도 401 이다.
 
-참조가 없는 행은 다음 길로 생긴다. 운영 DB 에 이런 행이 실제로 있는지는 재지 않았다.
+**위험**: 참조가 없는 행에 남는 방어는 웹훅 경로(`endpointPath`)가 v4 UUID 라 짐작하기 어렵다는 점뿐이다. 경로를 아는 쪽은 서명 없이 그 트리거로 update 를 보낼 수 있다.
+
+**참조가 없는 행이 생기는 길**: 운영 DB 에 이런 행이 실제로 있는지는 재지 않았다.
 
 - 지금의 참조 보존 규칙이 생기기 전에 만들거나 고친 옛 행. 예를 들어 `chatChannel` 이 실린 PATCH 가 Slack · Discord 행의 `inboundSigningRef` 를 잃던 결함을 고치기 전에 그 PATCH 를 거친 행이다(`chat-channel-binder.service.ts` 의 참조 보존 주석).
 - 원시 `config` 로 `chatChannel` 을 붙인 행. 생성 · 수정은 요청 본문의 최상위 필드 `chatChannel` 이 있을 때만 `setupChatChannel` 을 부르므로 이 길로 붙인 설정에는 참조가 실리지 않았다. 원시 `config` 는 이제 `chatChannel` 키를 받지 않으므로 이 길로는 새 행이 생기지 않는다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 행은 남는다.
@@ -117,7 +121,14 @@ sequenceDiagram
 
 Slack · Discord 는 생성 때 서명 자료(`inboundSigningPlaintext`)를 필수로 받고 `setupChannel()` 앞에서 시크릿 저장소에 넣는다. 그래서 지금 생성 경로에서는 `setupChannel()` 의 성공 여부와 상관없이 참조가 실린다.
 
-검증을 건너뛰지 않고 401 로 막을지는 NERV Task `CLE-T-AAGZRW` 가 운영 DB 의 참조 없는 행 수를 잰 뒤 정한다. 근거는 [Rationale](#rationale) 의 「인바운드 서명 자료 참조가 없는 행의 검증 생략은 운영 데이터를 잰 뒤 정한다 (2026-10-31)」 에 있다.
+**서명 자료가 생기는 길**: 이 결정은 저장된 행을 고치지 않는다. 운영 데이터를 고치는 작업도 이 결정에 들지 않는다. 참조는 쓰기 경로에서만 다시 만든다([시크릿 저장소 — 참조 소유와 교차 행 「R9」](../CLE-INT/CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04)). 그래서 참조가 없는 행은 사용자가 채널을 다시 설정하거나 봇 토큰을 재발급할 때 서명 자료를 얻는다. 얻는 방식은 프로바이더마다 다르다.
+
+- Telegram 은 `chatChannel` 이 실린 PATCH 가 부르는 `setupChannel()` 이 `secret_token` 을 새로 발급한다. 호출자가 그 값을 시크릿 저장소에 쓰고 참조를 싣는다. 봇 토큰 재발급도 같은 발급을 거친다.
+- Slack · Discord 는 서명 자료를 생성 때만 받고 PATCH 로는 받지 않는다([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-051). 그래서 채널을 다시 설정해도 참조가 생기지 않는다. 서명 자료를 넣으려면 트리거를 다시 만든다. 봇 토큰 재발급에는 아래의 알려진 동작이 있다.
+
+**봇 토큰 재발급의 알려진 동작**: `TriggersService.rotateBotToken` 은 저장하는 `chatChannel` 델타에 `inboundSigningRef` 를 늘 넣는다. 서명 자료를 시크릿 저장소에 쓰는 단계는 채널 어댑터가 `issuedInboundSigning` 을 돌려줄 때만 돈다. 1차 범위에서 그 값을 돌려주는 채널 어댑터는 Telegram 뿐이다. 그래서 참조가 없는 Slack · Discord 행을 재발급하면 참조는 생기지만 그 참조 자리에 시크릿 저장소 행이 없을 수 있다. 그러면 그 트리거의 인바운드는 참조를 풀지 못해 모두 401 이 된다. 이 동작은 코드(`triggers.service.ts` 의 `rotateBotToken`, `chat-channel-inbound-authenticator.ts` 의 `verify`)를 읽고 적었다. 재현하지는 않았다. 이 경로를 고칠지는 이 결정에서 정하지 않고 후속으로 남긴다.
+
+**다시 정할 조건**: 운영 DB 에서 참조가 없는 채팅 채널 행이 0 임을 확인하면 검증을 건너뛰지 않고 401 로 막는다(fail-closed). 2026-10-31 에 세운 원래 권장안이다.
 
 ## 아웃바운드 흐름
 
@@ -169,6 +180,7 @@ sequenceDiagram
 - `codebase/backend/src/modules/hooks/hooks.service.ts`: `handleChatChannelWebhook`(인바운드 전체 조율, 워크플로우 활성 관문, `/start` 의 기존 실행 취소 `stopForRestart`, 인터랙션 기본 응답 적용 `withDefaultInteractionResponse`), 버린 update 의 수신 확인(`ackDroppedUpdateAndIgnore`), 폼 모달 제출의 큐 적재 실패와 검증 실패 때 버튼 다시 보내기(`reNoiseFormModal`)
 - `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터의 선택 메서드 `defaultInteractionResponse` · `ackDroppedUpdate` 와 응답 타입 `InboundInteractionResponse`(함수 계약은 [채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER.md#인터랙션-기본-응답과-수신-확인))
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`: 프로바이더별 인바운드 서명 검증(`verify`). 저장된 `inboundSigningRef` 가 없는 행은 검증을 건너뛴다([인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행))
+- `codebase/backend/src/modules/triggers/triggers.service.ts`: 봇 토큰 재발급(`rotateBotToken`). 재발급이 서명 자료 참조를 늘 저장하는 알려진 동작은 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 에 있다
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 아웃바운드 구독(`WebsocketService.executionEvents$`), Form 입력 대기 상태 갱신 가드, 종결 이벤트의 채널 대화 상태 정리
 - `codebase/backend/src/modules/chat-channel/channel-listener.registry.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.bus.ts`, `codebase/backend/src/modules/chat-channel/channel-listener.restorer.ts`: 트리거 단위 listener 레지스트리, `chat-channel:listener` 발행 · 구독, 재시작 · 구독 확립 때의 일괄 복원(`ChannelListenerRestorer`)
 - `codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts`: 트리거 행을 없애기 전의 외부 해제 단계에서 채팅 채널 트리거의 레지스트리 해제와 그 변경 메시지 발행
@@ -185,16 +197,11 @@ NERV Task `CLE-T-EQDYC1` · `CLE-T-EMB0YG` 의 결정이다. `/cancel` 의 취�
 
 ### 인바운드 서명 자료 참조가 없는 행의 검증 생략은 운영 데이터를 잰 뒤 정한다 (2026-10-31)
 
-NERV Task `CLE-T-EA7B5M` 에서 사람이 정했다(NERV 질문 `01a19048-6f1c-7782-8fce-2c3a060f9291`). 이 Task 는 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 현행 동작을 스펙에 적는 데까지 한다. 바꿀지는 NERV Task `CLE-T-AAGZRW` 가 운영 DB 의 행 수를 잰 뒤 정한다.
+NERV Task `CLE-T-EA7B5M` 에서 사람이 정했다(NERV 질문 `01a19048-6f1c-7782-8fce-2c3a060f9291`). 이 Task 는 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 현행 동작을 스펙에 적는 데까지 했다. 바꿀지는 NERV Task `CLE-T-AAGZRW` 에 넘겼다. 그 Task 가 운영 DB 의 참조 없는 행 수를 재는 계획이었다. 0 이면 401 로 막고 하나라도 있으면 지금 동작을 유지한다는 결정을 스펙에 올리기로 했다. 막는 안과 유지하는 안 모두 참조 없는 행이 몇 개인지 모르는 채로 정해야 해서 먼저 재기로 했다.
 
 원시 `config` 계약을 정하면서 이 동작이 드러났다. 원시 `config` 로 채팅 채널을 붙이면 참조 없는 행이 생길 수 있었고 그 행은 서명 검증 없이 인바운드를 받았다. 원시 `config` 의 타입 키 거부로 그 길은 닫힌다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 행과 다른 길로 생긴 행은 남는다.
 
-지금 고르지 않은 안은 둘이다(후속 Task `CLE-T-AAGZRW` 가 계측 결과로 고른다).
-
-- 지금 401 로 막는다. 참조 없는 옛 Slack · Discord 행이 있으면 그 채팅 채널의 수신이 바로 끊긴다. 두 채널 프로바이더의 서명 자료는 PATCH 로 넣을 수 없어서(1차 범위에 그 경로가 없다) 트리거를 다시 만들어야 한다.
-- 지금 동작을 유지한다는 결정을 스펙에 올린다. 참조 없는 행은 웹훅 경로의 무작위성에만 기댄다.
-
-두 안 모두 참조 없는 행이 몇 개인지 모르는 채로 정해야 한다. 그래서 먼저 잰다. 참조가 없는 행이 0 이면 401 로 막고 하나라도 있으면 지금 동작을 유지한다는 결정을 스펙에 올린다.
+2026-11-14 에 행 수를 재지 않고 지금 동작을 유지하기로 정해 이 계획은 닫혔다(아래 「참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다 (2026-11-14)」).
 
 ### 폼 모달 제출의 큐 적재 실패는 모달 대기를 남기고 버튼을 다시 보낸다 (2026-11-13)
 
@@ -203,3 +210,16 @@ NERV Task `CLE-T-6ZTPZ8` 의 결정이다. 사람이 질문 `01a1d2f3-df05-7334-
 그래서 검증 실패와 같은 복구 경로를 쓴다. `pendingFormModal` 을 두고 버튼을 다시 보내며 성공 응답 대신 기본 응답으로 모달만 닫는다. 응답 코드와 채널 건강도는 다른 재개 명령의 큐 적재 실패와 같다. 근거는 [채팅 채널 「R-CC-31 /cancel 과 재개 명령의 큐 적재 실패는 202 와 degraded 로 답한다」](CLE-CHAT-CORE.md#r-cc-31-cancel-과-재개-명령의-큐-적재-실패는-202-와-degraded-로-답한다) 에 있다.
 
 여러 단계 폼(`formState`)의 마지막 제출은 이 결정에 들어가지 않는다. 지금 코드는 그 제출을 큐에 넣지 못해도 `formState` 를 지운다. 후속에서 다룬다.
+
+### 참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다 (2026-11-14)
+
+NERV Task `CLE-T-AAGZRW` 의 결정이다. 2026-10-31 결정(위 항목)은 운영 DB 에서 참조가 없는 행 수를 잰 뒤 정하기로 했다. 2026-11-14 에 사람(gehrig)이 NERV 질문 `01a1da19-0e6b-7441-ba50-97d0d1da4a90` 에 «측정하지 않는다. 현행 유지로 스펙 결정을 올린다» 고 답했다. 그래서 행 수를 재지 않고 지금 동작을 유지한다. 이 결정을 스펙에 올린 세션은 운영 DB 에 접근할 수 없었다. 참조가 없는 행이 몇 개인지, 있기는 한지 모른다.
+
+지금 동작을 유지하면 참조가 없는 행은 웹훅 경로의 무작위성에만 기댄다. 이 위험을 받아들이는 대신 참조가 없는 옛 Slack · Discord 행이 있어도 그 채팅 채널의 수신은 끊기지 않는다.
+
+기각한 대안은 둘이다.
+
+- 지금 401 로 막는다(fail-closed). 참조가 없는 옛 Slack · Discord 행이 있으면 그 채팅 채널의 수신이 바로 끊긴다. 두 채널 프로바이더의 서명 자료는 PATCH 로 넣을 수 없어 트리거를 다시 만들어야 한다. 행 수를 재지 않았으니 끊기는 범위도 모른다.
+- 운영 DB 의 행 수를 잰 뒤 정한다. 2026-10-31 결정의 방법이다. 사람이 측정하지 않기로 했다.
+
+저장된 행을 한꺼번에 고쳐 참조를 붙이는 데이터 수정은 이 결정에 넣지 않았다. 참조를 다시 만드는 일은 쓰기 경로뿐이라는 [시크릿 저장소 — 참조 소유와 교차 행 「R9」](../CLE-INT/CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04) 를 지킨다. 참조가 없는 행에 참조를 붙이면 그 행의 검증 동작이 바뀐다. 쓰기 경로 가운데 봇 토큰 재발급은 R9 의 문구와 다르게 동작한다. 재발급은 참조가 없던 행에도 참조를 저장하므로 그 행의 검증 동작이 바뀔 수 있다. 이 동작은 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 「봇 토큰 재발급의 알려진 동작」 에 따로 적었고 NERV Task `CLE-T-TJAHCN` 이 다룬다.

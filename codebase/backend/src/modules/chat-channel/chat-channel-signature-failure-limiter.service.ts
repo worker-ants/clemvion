@@ -82,9 +82,12 @@ export class ChatChannelSignatureFailureLimiterService {
 
   /**
    * 서명 검증 실패 한 건을 센다. 이 실패로 한도에 닿으면 경고 로그를 한 번 남긴다. 오류는 삼킨다.
+   *
+   * @returns 이 실패로 이번 창의 한도에 닿았으면 `true`. 창마다 한 번만 `true` 다. 호출자가 지표를 센다
+   *   (NERV Task `CLE-T-5GVB9N`). Redis 가 없거나 오류면 `false`.
    */
-  async recordFailure(triggerId: string, clientIp: string): Promise<void> {
-    if (!this.redis) return;
+  async recordFailure(triggerId: string, clientIp: string): Promise<boolean> {
+    if (!this.redis) return false;
     const key = makeSignatureFailureKey(triggerId, clientIp);
     try {
       const count = Number(
@@ -95,16 +98,17 @@ export class ChatChannelSignatureFailureLimiterService {
           String(SIGNATURE_FAILURE_WINDOW_SEC),
         ),
       );
-      if (count === SIGNATURE_FAILURE_LIMIT_PER_MIN) {
-        this.logger.warn(
-          `chat-channel 서명 검증 실패가 한도(${SIGNATURE_FAILURE_LIMIT_PER_MIN}회/${SIGNATURE_FAILURE_WINDOW_SEC}초)에 닿았다. ` +
-            `창이 끝날 때까지 이 트리거 · IP 쌍은 검증 없이 401 로 답한다 (trigger=${triggerId})`,
-        );
-      }
+      if (count !== SIGNATURE_FAILURE_LIMIT_PER_MIN) return false;
+      this.logger.warn(
+        `chat-channel 서명 검증 실패가 한도(${SIGNATURE_FAILURE_LIMIT_PER_MIN}회/${SIGNATURE_FAILURE_WINDOW_SEC}초)에 닿았다. ` +
+          `창이 끝날 때까지 이 트리거 · IP 쌍은 검증 없이 401 로 답한다 (trigger=${triggerId})`,
+      );
+      return true;
     } catch (err) {
       this.logger.warn(
         `chat-channel 서명 실패 기록 실패 (fail-open): ${err instanceof Error ? err.message : String(err)}`,
       );
+      return false;
     }
   }
 }

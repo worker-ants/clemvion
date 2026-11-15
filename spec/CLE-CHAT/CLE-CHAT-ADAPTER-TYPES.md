@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-TYPES"
 title: "채팅 채널 어댑터 규약 — 이벤트와 데이터 타입"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "681e3e10b0d1f0498dae491a9d7bc188280f3cb7d6020e6a97ab66499b7404b7"
+content_hash: "e70ceb98155a190aed1fdabbd3d339f0ea65ca1c4ee6aed1faf4ca64c4701fb9"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-AAGZRW"
 source_paths: []
-mirror_sha256: "bc52b0562e1c20d2fc9edb4f4381663353a2a3a7837b8f6b4540416fce1515f7"
-etag: "sha256-564543a79e5a1b34a986132b0dcadf491f23a5ae264e2b83b84b6e7fb482d0ef"
+mirror_sha256: "f0b13308d9f9fad9d92f0dd375506a215ca35949bab4cd7fb48a8b3fbf2fc5b0"
+etag: "sha256-4fd2fb5b1ac5db00598b7bc345dfe716ecbd8944bd57e48fad6ea8680a6fc0e2"
 ---
 ## 개요
 
@@ -178,7 +178,7 @@ interface ChatChannelConfig {
    * 인바운드 서명 자료 참조(secret://triggers/{id}/inbound-signing). 프로바이더 공통 단일 슬롯이고,
    * 검증 알고리즘과 발급 주체는 백엔드가 프로바이더별로 나눈다(아래 표).
    * 선택: 서명 자료 없이 URL 무작위성만으로 인증하는 프로바이더가 생길 수 있어 ? 로 둔다.
-   * 1차 범위의 세 채널 프로바이더는 규약상 필수다. 참조가 없는 행의 임시 동작은 아래 표 뒤 문단.
+   * 1차 범위의 세 채널 프로바이더는 필수다. 참조가 없는 옛 행의 예외는 아래 표 뒤 문단.
    */
   inboundSigningRef?: string;
   /**
@@ -223,7 +223,7 @@ interface ChatChannelConfig {
 | Slack | HMAC-SHA256 signing secret | Slack 앱 설치 때 발급, 사용자가 직접 입력 | `X-Slack-Signature` = HMAC-SHA256(secret, "v0:" + ts + ":" + body) |
 | Discord | ed25519 application public key | Discord Developer Portal 발급, 사용자가 직접 입력 | `X-Signature-Ed25519` ed25519 검증(raw body + timestamp) |
 
-1차 범위의 세 채널 프로바이더는 규약상 모두 서명 자료가 필수다. 저장된 `inboundSigningRef` 가 없는 행(옛 행 등)에서 서명 검증을 건너뛰는 지금 구현은 `CLE-T-AAGZRW` 가 정할 때까지의 임시 동작이다([미결 사항](CLE-CHAT-ADAPTER.md#미결-사항)). 그런 행이 생기는 길은 [채팅 채널 데이터와 흐름 §인바운드 서명 자료 참조가 없는 행](CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 에 적었다.
+1차 범위의 세 채널 프로바이더는 모두 서명 자료가 필수다. 참조가 없는 옛 행의 예외는 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다.
 
 `languageHints` 의 키 가운데 웹훅 HTTP 응답 본문에 싣는 문구(슬래시 명령의 `commandReceived` 와 `help`)는 `sendMessage` 로 보내지 않으므로 `escapeControlText` 를 거치지 않는다. Discord 는 이 문구를 그대로 싣는다. Slack 은 응답 `text` 가 mrkdwn 으로 렌더되므로 채널 어댑터가 `escapeControlText` 와 같은 규칙(`&` `<` `>`)으로 escape 해 싣는다. 기본값과 찾는 순서는 다른 키와 같다([채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값)).
 
