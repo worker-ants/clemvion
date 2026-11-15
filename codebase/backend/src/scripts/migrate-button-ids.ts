@@ -28,6 +28,7 @@
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { DataSource } from 'typeorm';
+import { BUTTON_NODE_TYPES } from '../nodes/core/button-slug.util';
 import { isValidStablePortId } from '../nodes/core/port-id.util';
 
 /**
@@ -59,8 +60,6 @@ function parseCliFlag(name: string): string | undefined {
 
 const CLI_WORKSPACE_ID = parseCliFlag('--workspace-id');
 const CLI_USER_ID = parseCliFlag('--user-id');
-
-const BUTTON_NODE_TYPES = new Set(['carousel', 'chart', 'table', 'template']);
 
 interface ButtonLike {
   id?: unknown;
@@ -237,7 +236,7 @@ async function runMigration(ds: DataSource): Promise<void> {
        JOIN node n ON n.workflow_id = w.id
       WHERE n.type = ANY($1)
       ORDER BY w.created_at, n.id`,
-    [Array.from(BUTTON_NODE_TYPES)],
+    [[...BUTTON_NODE_TYPES]],
   )) as Array<{
     workflow_id: string;
     id: string;

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { RESERVED_ERROR_PORT_ID } from '../../../nodes/core/button-slug.util';
+import { RESERVED_ERROR_PORT_ID } from '../../../nodes/core/port-id.util';
 import { Node, NodeCategory } from '../../nodes/entities/node.entity';
 
 import { GraphEdge } from './graph-builder';

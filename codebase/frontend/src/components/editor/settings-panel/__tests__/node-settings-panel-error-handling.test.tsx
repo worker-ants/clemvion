@@ -6,6 +6,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -14,6 +15,7 @@ import { useEditorStore } from "@/lib/stores/editor-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { NodeDefinition } from "@/lib/node-definitions";
+import { toast } from "sonner";
 
 /**
  * 티어2 ③ — Error Handling 패널이 엔진의 nested `errorHandling` 계약
@@ -277,6 +279,48 @@ describe("NodeSettingsPanel — error handling", () => {
       await user.click(screen.getByText("Save Changes"));
 
       expect(edgeIds()).toContain("e-err");
+    });
+
+    it("warns with the removed edge count only when it removes edges", async () => {
+      const warning = vi.spyOn(toast, "warning");
+      try {
+        const user = userEvent.setup();
+        seedWithEdges({ errorHandling: { policy: "route_to_error_port" } });
+        render(<NodeSettingsPanel />);
+
+        await user.click(screen.getByText("Save Changes"));
+        expect(warning).not.toHaveBeenCalled();
+
+        await user.selectOptions(
+          screen.getByDisplayValue("Route to Error Port"),
+          "skip_node",
+        );
+        await user.click(screen.getByText("Save Changes"));
+        expect(warning).toHaveBeenCalledTimes(1);
+        expect(warning).toHaveBeenCalledWith(
+          "Removed 1 edge(s) from the error port that no longer exists. Press Ctrl+Z to undo.",
+        );
+      } finally {
+        warning.mockRestore();
+      }
+    });
+
+    it("keeps the error edge when the node definition is not loaded yet", async () => {
+      const user = userEvent.setup();
+      seedWithEdges(
+        { errorHandling: { policy: "route_to_error_port" } },
+        { type: "not_loaded_type", label: "Pending", category: "data" },
+      );
+      render(<NodeSettingsPanel />);
+
+      await user.selectOptions(
+        screen.getByDisplayValue("Route to Error Port"),
+        "stop_workflow",
+      );
+      await user.click(screen.getByText("Save Changes"));
+
+      expect(edgeIds()).toEqual(["e-out", "e-err"]);
+      expect(savedConfig().errorHandling).toEqual({ policy: "stop_workflow" });
     });
   });
 

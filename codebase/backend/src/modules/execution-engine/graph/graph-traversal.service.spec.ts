@@ -36,6 +36,12 @@ describe('GraphTraversalService.isPortFiltered', () => {
     expect(svc.isPortFiltered(output, 'out')).toBe(true);
   });
 
+  it('_selectedPort 가 빈 문자열이면 고른 것으로 보아 이름 있는 연결선을 모두 닫는다(기존 동작)', () => {
+    const output = { _selectedPort: '' };
+    expect(svc.isPortFiltered(output, 'out')).toBe(true);
+    expect(svc.isPortFiltered(output, 'error')).toBe(true);
+  });
+
   it('배열 선택은 포함 여부로 판단한다', () => {
     const output = { _selectedPort: ['a', 'error'] };
     expect(svc.isPortFiltered(output, 'a')).toBe(false);
@@ -58,5 +64,16 @@ describe('GraphTraversalService.propagateReachability', () => {
       reachable,
     );
     expect([...reachable]).toEqual(['next']);
+  });
+
+  it('error 를 고른 출력은 error 연결선의 대상만 연다', () => {
+    const reachable = new Set<string>();
+    svc.propagateReachability(
+      'n',
+      new Map([['n', [edge('out', 'next'), edge('error', 'handler')]]]),
+      { n: { _selectedPort: 'error', error: { message: 'boom' } } },
+      reachable,
+    );
+    expect([...reachable]).toEqual(['handler']);
   });
 });
