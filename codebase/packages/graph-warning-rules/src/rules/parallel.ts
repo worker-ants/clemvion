@@ -7,20 +7,33 @@ import { GraphRuleEdge, GraphRuleGraph, GraphRuleNode, GraphWarningRule } from '
  */
 export const PARALLEL_NESTED_CONCURRENCY_CAP = 32;
 
+/** Background 노드 type 과 그 본문으로 이어지는 출력 포트. */
+const BACKGROUND_NODE_TYPE = 'background';
+const BACKGROUND_PORT = 'background';
+
 /**
- * Helper — 노드 N (Parallel) 의 분기 body 안에 있는 모든 자식 노드 id 를 BFS 로
- * 수집. `branch_N` outgoing edge 만 시작점 (다른 컨테이너 분기와 의미 다름).
- * cross-node-warning-rules 평가에서 nested-Parallel 탐지에 사용.
+ * Parallel 노드의 병렬 분기 본문 노드 ID 를 모두 모은다. `branch_N` 연결선 대상에서 시작해
+ * 연결선을 앞으로 따라간다. 다른 Parallel 의 분기 본문과 섞지 않는다.
+ *
+ * Background 노드의 `background` 연결선은 따라가지 않는다. 그 뒤 본문은 워커가 새
+ * 컨텍스트에서 실행하므로 병렬 분기 본문이 아니다. 본문 안 Parallel 은 깊이 1부터 센다
+ * (REQ-PARALLEL-036, NERV Task CLE-T-B7A8B2). Background 본문에서 다시 병렬 분기 쪽으로
+ * 이어지는 노드도 다른 경로로 닿지 않으면 넣지 않는다. 실행 시 사전 검사가 쓰는
+ * `collectBackgroundOnlyNodeIds`(backend `graph/background-body-membership.ts`)와 같은
+ * 범위다.
+ *
+ * @param isBackgroundNode 노드가 Background 인지. 주지 않으면 모든 연결선을 따라간다.
  */
 export function collectParallelBranchBodyNodeIds(
   parallelNodeId: string,
   edges: readonly GraphRuleEdge[],
+  isBackgroundNode: (nodeId: string) => boolean = () => false,
 ): Set<string> {
   const out = new Set<string>();
-  const adj = new Map<string, string[]>();
+  const adj = new Map<string, GraphRuleEdge[]>();
   for (const e of edges) {
     const list = adj.get(e.source) ?? [];
-    list.push(e.target);
+    list.push(e);
     adj.set(e.source, list);
   }
   // branch_N entry points
@@ -35,16 +48,25 @@ export function collectParallelBranchBodyNodeIds(
   // 따라 forward 로만 확장하므로, 실제 방문 범위는 해당 Parallel 분기 body 이후로
   // 한정된다 (entrypoint 이전의 그래프나 다른 컨테이너 분기는 도달하지 않음).
   const queue = [...entries];
-  while (queue.length > 0) {
-    const id = queue.shift();
-    if (id === undefined) break;
+  let head = 0;
+  while (head < queue.length) {
+    const id = queue[head++];
     if (out.has(id)) continue;
     out.add(id);
-    for (const next of adj.get(id) ?? []) {
-      if (!out.has(next)) queue.push(next);
+    const background = isBackgroundNode(id);
+    for (const e of adj.get(id) ?? []) {
+      if (background && e.sourceHandle === BACKGROUND_PORT) continue;
+      if (!out.has(e.target)) queue.push(e.target);
     }
   }
   return out;
+}
+
+/** 노드 인덱스로 Background 여부를 묻는 함수를 만든다. */
+function backgroundCheckOf(
+  byId: ReadonlyMap<string, GraphRuleNode>,
+): (nodeId: string) => boolean {
+  return (nodeId) => byId.get(nodeId)?.type === BACKGROUND_NODE_TYPE;
 }
 
 /**
@@ -79,11 +101,20 @@ export const parallelNestedDepthExceededRule: GraphWarningRule = {
   evaluate: (node: GraphRuleNode, graph: GraphRuleGraph) => {
     if (node.type !== 'parallel') return null;
     const byId = buildNodeIndex(graph);
-    const myBody = collectParallelBranchBodyNodeIds(node.id, graph.edges);
+    const isBackground = backgroundCheckOf(byId);
+    const myBody = collectParallelBranchBodyNodeIds(
+      node.id,
+      graph.edges,
+      isBackground,
+    );
     for (const childId of myBody) {
       const child = byId.get(childId);
       if (!child || child.type !== 'parallel') continue;
-      const grandBody = collectParallelBranchBodyNodeIds(child.id, graph.edges);
+      const grandBody = collectParallelBranchBodyNodeIds(
+        child.id,
+        graph.edges,
+        isBackground,
+      );
       for (const gId of grandBody) {
         const g = byId.get(gId);
         if (g && g.type === 'parallel') {
@@ -114,7 +145,12 @@ export const parallelNestedConcurrencyCapRule: GraphWarningRule = {
     const byId = buildNodeIndex(graph);
     const myEffective = resolveEffective(node.config);
 
-    const myBody = collectParallelBranchBodyNodeIds(node.id, graph.edges);
+    // Background 본문 안 Parallel 은 바깥 Parallel 과 동시에 돌지 않으므로 곱하지 않는다.
+    const myBody = collectParallelBranchBodyNodeIds(
+      node.id,
+      graph.edges,
+      backgroundCheckOf(byId),
+    );
     for (const childId of myBody) {
       const child = byId.get(childId);
       if (!child || child.type !== 'parallel') continue;

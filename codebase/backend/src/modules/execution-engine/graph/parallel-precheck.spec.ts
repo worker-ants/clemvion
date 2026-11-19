@@ -175,6 +175,105 @@ describe('ParallelPrecheck (CLE-T-8PAPKV)', () => {
       ).toThrow(/^PARALLEL_BACK_EDGE: /);
     });
 
+    // CLE-T-B7A8B2 — 병렬 분기 안 Background 의 `background` 연결선 뒤에서만 닿는 노드는
+    // 워커가 새 컨텍스트에서 실행한다. 병렬 분기 본문으로 검사하지 않고 그 안 Parallel 은
+    // 깊이 1부터 센다(REQ-PARALLEL-036). 블로킹 노드는 막지 않는다(REQ-BGRUN-010).
+    describe('병렬 분기 안 Background 본문 (CLE-T-B7A8B2)', () => {
+      const outer = node('p1', 'parallel', { label: 'Outer' });
+      const inner = node('p2', 'parallel', { label: 'Inner' });
+      const bg = node('bg', 'background');
+      const bodyP = node('p3', 'parallel', { label: 'BodyP' });
+      const plan = (nodes: Node[], edges: GraphEdge[]) =>
+        precheck.planParallelBody(outer, graphOf(nodes), edges, [], 2, 1);
+
+      it('Parallel → Parallel → Background → Parallel 은 깊이를 넘지 않는다', () => {
+        expect(() =>
+          plan(
+            [outer, inner, bg, bodyP],
+            [
+              edge('p1', 'branch_0', 'p2'),
+              edge('p2', 'branch_0', 'bg'),
+              edge('bg', 'background', 'p3'),
+            ],
+          ),
+        ).not.toThrow();
+      });
+
+      it('Background 본문 안에서 Parallel 이 세 겹이면 던진다', () => {
+        const p4 = node('p4', 'parallel', { label: 'P4' });
+        const p5 = node('p5', 'parallel', { label: 'P5' });
+        expect(() =>
+          plan(
+            [outer, bg, bodyP, p4, p5],
+            [
+              edge('p1', 'branch_0', 'bg'),
+              edge('bg', 'background', 'p3'),
+              edge('p3', 'branch_0', 'p4'),
+              edge('p4', 'branch_0', 'p5'),
+            ],
+          ),
+        ).toThrow(/^PARALLEL_NESTED_DEPTH_EXCEEDED: Nested Parallel node "P4"/);
+      });
+
+      it('Background 본문의 블로킹 노드는 막지 않는다', () => {
+        const form = node('f', 'form');
+        expect(() =>
+          plan(
+            [outer, bg, form],
+            [edge('p1', 'branch_0', 'bg'), edge('bg', 'background', 'f')],
+          ),
+        ).not.toThrow();
+      });
+
+      it('Background 본문 안 컨테이너의 Parallel 도 깊이 1 이다', () => {
+        const container = node('c', 'container', { label: 'Loop' });
+        const cp = node('cp', 'parallel', { containerId: 'c' });
+        const cp2 = node('cp2', 'parallel', { containerId: 'c' });
+        const graph = precheck.buildParallelCheckGraph(
+          [outer, inner, bg, container, cp, cp2],
+          [edge('c', 'body', 'cp'), edge('cp', 'branch_0', 'cp2')] as Edge[],
+        );
+        expect(() =>
+          precheck.planParallelBody(
+            outer,
+            graph,
+            [
+              edge('p1', 'branch_0', 'p2'),
+              edge('p2', 'branch_0', 'bg'),
+              edge('bg', 'background', 'c'),
+            ],
+            [],
+            2,
+            1,
+          ),
+        ).not.toThrow();
+      });
+
+      it('Background 의 다른 포트 뒤나 다른 경로로도 닿는 노드는 병렬 분기 본문으로 검사한다', () => {
+        const form = node('f', 'form');
+        expect(() =>
+          plan(
+            [outer, bg, form],
+            [edge('p1', 'branch_0', 'bg'), edge('bg', 'out', 'f')],
+          ),
+        ).toThrow(/^PARALLEL_INVALID_CHILD: /);
+        // 같은 병렬 분기 안에서 Background 를 거치지 않고도 p3 에 닿는다(bg.out → x → p3).
+        const x = node('x', 't');
+        expect(() =>
+          plan(
+            [outer, inner, bg, x, bodyP],
+            [
+              edge('p1', 'branch_0', 'p2'),
+              edge('p2', 'branch_0', 'bg'),
+              edge('bg', 'background', 'p3'),
+              edge('bg', 'out', 'x'),
+              edge('x', 'out', 'p3'),
+            ],
+          ),
+        ).toThrow(/^PARALLEL_NESTED_DEPTH_EXCEEDED: /);
+      });
+    });
+
     it('병렬 분기마다 본문 · 위상 순서 · 입구 · 출구를 계획한다', () => {
       // p.branch_0 → a → b → m, p.branch_1 → c → m (m 은 합류 노드)
       const nodes = ['a', 'b', 'c', 'm'].map((id) => node(id, 't'));
