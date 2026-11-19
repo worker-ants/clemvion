@@ -906,6 +906,53 @@ describe('HooksService', () => {
       );
     });
 
+    // Slack Events API 의 DM 밖 메시지와 Discord 의 DM 밖 인터랙션은 안내 없이 버린다. 안내를 보내는 것은
+    // Telegram 그룹 대화뿐이다. 2026-11-19 사람 결정(NERV 질문 `01a1f2b8-1979-7137-b882-faf2d0563083`),
+    // NERV Task `CLE-T-800D2Q` · `CLE-T-T8ZTG8`.
+    it.each([
+      [
+        'Slack 채널 메시지',
+        {
+          type: 'event_callback',
+          event: {
+            type: 'message',
+            channel: 'C1',
+            channel_type: 'channel',
+            user: 'U1',
+            text: 'hi',
+          },
+        },
+      ],
+      [
+        'Slack 그룹 DM(mpim) 메시지',
+        {
+          type: 'event_callback',
+          event: {
+            type: 'message',
+            channel: 'G1',
+            channel_type: 'mpim',
+            user: 'U1',
+            text: 'hi',
+          },
+        },
+      ],
+      [
+        'Discord 서버 채널의 버튼 클릭',
+        { id: 'I1', type: 3, channel: { id: 'C1', type: 0 } },
+      ],
+    ])(
+      'parseUpdate null + %s → 안내를 보내지 않고 ignored',
+      async (_label, body) => {
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(null);
+
+        const res = await service.handleWebhook('abc', { ...chatInput, body });
+
+        expect(res).toMatchObject({ executionId: 'ignored' });
+        expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+      },
+    );
+
     // F-4 — maybeNotifyIgnored 의 발송 실패도 sendBestEffortNotice 가 swallow(warn) 한다.
     it('F-4 — maybeNotifyIgnored sendMessage 실패는 삼킴 — webhook 정상 종료', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
@@ -1642,6 +1689,137 @@ describe('HooksService', () => {
           providerResponse: { body: COMMAND_RECEIVED },
         });
         expect(mockAdapter.ackInteraction).toHaveBeenCalled();
+      });
+
+      // 진행 중인 실행이 없는데 슬래시 `/cancel` 이 오면 즉시 응답 내용을 수신 문구 대신
+      // `noActiveExecution` 안내로 채운다. 채널에 따로 보내지 않는다. 2026-11-19 사람 결정(NERV 질문
+      // `01a1f2b8-1ad7-7778-b15d-36c208d2accf`), NERV Task `CLE-T-A78V0M`. 실제 Discord 기본 응답 함수를 붙인다.
+      describe('진행 중인 실행이 없는 슬래시 명령 cancel', () => {
+        const NO_ACTIVE = (content: string) => ({
+          body: {
+            type: 4,
+            data: { content, flags: 64, allowed_mentions: { parse: [] } },
+          },
+        });
+        const slashCancel = (): WebhookInput => ({
+          ...chatInput,
+          body: {
+            id: 'I100',
+            type: 2,
+            token: 'tok',
+            application_id: 'A',
+            channel: { id: 'D1', type: 1 },
+            data: { name: 'workflow', options: [{ name: 'cancel', type: 1 }] },
+          },
+        });
+        let executions: { stop: jest.Mock };
+
+        beforeEach(() => {
+          defaultInteractionResponse.mockImplementation(
+            buildDiscordDefaultInteractionResponse,
+          );
+          mockAdapter.parseUpdate.mockResolvedValue(
+            updateOf({ kind: 'cancel' }),
+          );
+          executions = moduleRef.get(ExecutionsService);
+        });
+
+        it('대화 상태가 없으면 즉시 응답이 안내 문구이고 메시지를 따로 보내지 않는다', async () => {
+          conversationService.lookup.mockResolvedValue(null);
+
+          const res = await service.handleWebhook('abc', slashCancel());
+
+          expect(res).toEqual({
+            executionId: 'ignored',
+            providerResponse: NO_ACTIVE('진행 중인 대화가 없습니다.'),
+          });
+          expect(executions.stop).not.toHaveBeenCalled();
+          expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+          expect(mockAdapter.ackInteraction).toHaveBeenCalled();
+        });
+
+        it('대화가 가리키는 실행이 이미 끝났으면 같은 안내다', async () => {
+          conversationService.lookup.mockResolvedValue(waitingState());
+          markExecutionStatus('completed');
+
+          const res = await service.handleWebhook('abc', slashCancel());
+
+          expect(res).toEqual({
+            executionId: 'exec-active',
+            providerResponse: NO_ACTIVE('진행 중인 대화가 없습니다.'),
+          });
+          expect(executions.stop).not.toHaveBeenCalled();
+          expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('취소하는 사이 실행이 끝나 INVALID_STATE 로 거부되면 같은 안내이고 매핑은 비운다', async () => {
+          conversationService.lookup.mockResolvedValue(waitingState());
+          markExecutionStatus('waiting_for_input');
+          executions.stop.mockRejectedValue(
+            new BadRequestException({
+              code: 'INVALID_STATE',
+              message: "Cannot stop execution with status 'completed'",
+            }),
+          );
+
+          const res = await service.handleWebhook('abc', slashCancel());
+
+          expect(res).toEqual({
+            executionId: 'exec-active',
+            providerResponse: NO_ACTIVE('진행 중인 대화가 없습니다.'),
+          });
+          expect(
+            conversationService.clearExecutionIdIfMatches,
+          ).toHaveBeenCalledWith('t1', 'dm-1', 'exec-active');
+        });
+
+        it('languageHints.noActiveExecution 이 있으면 그 문구이고 비어 있으면 locale 기본 문구다', async () => {
+          conversationService.lookup.mockResolvedValue(null);
+          const withHints = (chatChannel: Record<string, unknown>): Trigger =>
+            ({
+              ...discordTrigger(),
+              config: {
+                chatChannel: {
+                  ...(
+                    discordTrigger().config as {
+                      chatChannel: Record<string, unknown>;
+                    }
+                  ).chatChannel,
+                  ...chatChannel,
+                },
+              },
+            }) as unknown as Trigger;
+
+          triggerRepo.findOne.mockResolvedValue(
+            withHints({
+              languageHints: { noActiveExecution: '취소할 대화 없음' },
+            }),
+          );
+          expect(
+            (await service.handleWebhook('abc', slashCancel()))
+              .providerResponse,
+          ).toEqual(NO_ACTIVE('취소할 대화 없음'));
+
+          triggerRepo.findOne.mockResolvedValue(
+            withHints({
+              languageLocale: 'en',
+              languageHints: { noActiveExecution: '' },
+            }),
+          );
+          expect(
+            (await service.handleWebhook('abc', slashCancel()))
+              .providerResponse,
+          ).toEqual(NO_ACTIVE('There is no active conversation.'));
+        });
+
+        it('실제로 취소했으면 그대로 수신 문구다', async () => {
+          conversationService.lookup.mockResolvedValue(waitingState());
+          markExecutionStatus('waiting_for_input');
+
+          const res = await service.handleWebhook('abc', slashCancel());
+
+          expect(res.providerResponse).toEqual(NO_ACTIVE('요청을 받았습니다.'));
+        });
       });
 
       // NERV Task `CLE-T-G2JRMF`: Slack 슬래시 명령은 채널에서도 받으므로 채널 구성원이 남의 실행을
@@ -3878,6 +4056,8 @@ describe('HooksService', () => {
           conversationService.clearExecutionIdIfMatches,
         ).not.toHaveBeenCalled();
         expect(mockAdapter.ackInteraction).toHaveBeenCalled();
+        // 실행이 그대로 있으므로 «진행 중인 대화가 없습니다» 안내를 보내지 않는다.
+        expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
       });
 
       it('503 본문이 API 규약의 `{ error: { code } }` 모양이어도 같은 실패로 읽는다', async () => {
@@ -3956,6 +4136,14 @@ describe('HooksService', () => {
           expect(
             conversationService.clearExecutionIdIfMatches,
           ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
+          // 취소할 실행이 없었으므로 안내를 보낸다(NERV Task `CLE-T-A78V0M`).
+          expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+            {
+              conversationKey: 'chat-123',
+              body: { kind: 'text', text: '진행 중인 대화가 없습니다.' },
+            },
+            expect.anything(),
+          );
         },
       );
 
@@ -3969,6 +4157,85 @@ describe('HooksService', () => {
         expect(
           conversationService.clearExecutionIdIfMatches,
         ).toHaveBeenCalledWith('t1', 'chat-123', 'exec-active');
+        // 실제로 취소했으면 안내를 보내지 않는다.
+        expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+      });
+
+      // 진행 중인 실행이 없는 대화의 `/cancel` 에는 `noActiveExecution` 안내를 대화에 보낸다(Telegram 처럼
+      // 즉시 응답이 없는 프로바이더). 2026-11-19 사람 결정(NERV 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf`),
+      // NERV Task `CLE-T-A78V0M`. 안내는 제어 안내 발송 경로를 거쳐 escape 된다.
+      it.each([
+        ['대화 상태가 없으면', null, 'waiting_for_input', 'ignored'],
+        [
+          '대화가 가리키는 실행이 이미 끝났으면',
+          {
+            executionId: 'exec-active',
+            threadId: 'default',
+            channelUserKey: 'user-456',
+            startedAt: '2026-10-10T00:00:00.000Z',
+            lastUpdateAt: '2026-10-10T00:00:00.000Z',
+          },
+          'completed',
+          'exec-active',
+        ],
+      ])(
+        '%s 취소하지 않고 noActiveExecution 안내를 보낸다',
+        async (_label, state, status, executionId) => {
+          conversationService.lookup.mockResolvedValue(state);
+          executions.executionRepository.findOne.mockResolvedValue({ status });
+          mockAdapter.escapeControlText.mockImplementation(
+            (t: string) => `[esc]${t}`,
+          );
+
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId });
+          expect(executions.stop).not.toHaveBeenCalled();
+          expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+            {
+              conversationKey: 'chat-123',
+              body: { kind: 'text', text: '[esc]진행 중인 대화가 없습니다.' },
+            },
+            expect.anything(),
+          );
+          expect(mockAdapter.ackInteraction).toHaveBeenCalled();
+        },
+      );
+
+      it('en locale 이면 영어 안내다', async () => {
+        triggerRepo.findOne.mockResolvedValue({
+          ...chatChannelTrigger,
+          config: {
+            chatChannel: {
+              ...(
+                chatChannelTrigger.config as {
+                  chatChannel: Record<string, unknown>;
+                }
+              ).chatChannel,
+              languageLocale: 'en',
+            },
+          },
+        } as unknown as Trigger);
+        conversationService.lookup.mockResolvedValue(null);
+
+        await service.handleWebhook('abc', chatInput);
+
+        expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+          {
+            conversationKey: 'chat-123',
+            body: { kind: 'text', text: 'There is no active conversation.' },
+          },
+          expect.anything(),
+        );
+      });
+
+      it('안내 발송이 실패해도 202 로 답한다', async () => {
+        conversationService.lookup.mockResolvedValue(null);
+        mockAdapter.sendMessage.mockRejectedValue(new Error('telegram down'));
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
       });
 
       // REQ-CHAT-056 — `/start` 의 취소 실패(REQ-CHAT-064)와 달리 202 다. 매핑과 건강도는 그대로 둔다.

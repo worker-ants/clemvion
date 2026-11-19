@@ -86,6 +86,7 @@ slash command 를 보내면 3초 안에 본인에게만 보이는(ephemeral) 응
 |---|---|---|
 | `help` | 명령 목록 (`/workflow start - 새 대화 시작` · `/workflow cancel - 진행 중인 대화 취소` · `/workflow reply - 진행 중인 대화에 답장` · `/workflow help - 도움말`) | `languageHints.help` |
 | `start` · `cancel` · `reply` | 수신 문구 (기본값 `요청을 받았습니다.`) | `languageHints.commandReceived` |
+| 진행 중인 대화가 없을 때 보낸 `cancel` | 취소할 대화가 없다는 안내 (기본값 `진행 중인 대화가 없습니다.`). 대화가 이미 끝난 경우도 같아요 | `languageHints.noActiveExecution` |
 | DM 밖(서버 채널 · 스레드 · 그룹 DM)에서 친 모든 명령 | 1:1 대화 안내 (기본값 `이 봇은 1:1 대화만 지원합니다.`). 실행은 시작하지 않아요 | `languageHints.groupChatRefusal` |
 
 명령 목록의 `workflow` 는 `languageHints.slashPrefix` 를 따라요. 명령은 DM 에서만 처리해요. 트리거를 꺼 두어도 버튼 클릭 · modal 제출 · slash command 에는 응답하므로 실패 표시가 뜨지 않아요. 이때 실행은 시작하지 않아요.
@@ -123,7 +124,7 @@ Form 노드는 **native modal** 방식으로 동작해요 — "양식 작성하�
 ## 6. 현재 한계 / 알려진 사항
 
 - **자유 텍스트 DM 미지원** — Discord 의 일반 `MESSAGE_CREATE` event 는 Gateway WebSocket 연결이 필요해요. 자유 채팅 대신 `/workflow reply` slash command 또는 modal 을 사용해 주세요.
-- **DM only** — guild (server) 채널은 지원하지 않아요 (자동 거부).
+- **DM only** — guild (server) 채널은 지원하지 않아요. 서버 채널에서 누른 버튼 · modal 제출은 안내 없이 무시하고, slash command 에는 본인에게만 보이는 1:1 대화 안내로 답해요.
 - **자동 start 미지원** — Telegram `/start` 의 DM 첫 메시지 자동 시작과 달리, Discord 는 `/workflow start` 를 명시적으로 입력해야 해요.
 - **Form `file` 필드 사실상 미지원** — file upload 가 Gateway attachment 기반이라 사용할 수 없어요. 외부 storage URL 입력 (`text` + url validation) 을 우회로 사용해요.
 - **typing 은 native** — `POST /channels/{id}/typing` (10초 유지). LLM latency 가 길면 5초마다 반복 호출돼요.

@@ -13,7 +13,7 @@ import type { DiscordInteraction } from './discord.types';
  *   - type=2 (APPLICATION_COMMAND): start / cancel / help / reply 분기
  *   - type=3 (MESSAGE_COMPONENT button/select) → button_callback
  *   - type=5 (MODAL_SUBMIT) → text_message (Reply modal 의 TEXT_INPUT 결과)
- *   - DM 외 channel.type → null (caller 가 groupChatRefusal 안내)
+ *   - DM 외 channel.type → null. 슬래시 명령은 어댑터 기본 응답이 groupChatRefusal 을 싣고, 컴포넌트 · 모달은 안내 없이 { type: 6 }
  *   - bot user → null
  *
  * `idempotencyKey` = `interaction.id` (Discord snowflake, retry 시 같음).

@@ -99,7 +99,7 @@ Chat Channel을 통해 아래 인터랙션 노드 유형을 사용할 수 있어
 | 명령 | 동작 |
 |---|---|
 | `/start` | 새 대화(execution) 시작. 진행 중인 대화가 있으면 취소 후 재시작 |
-| `/cancel` | 현재 진행 중인 execution 취소 |
+| `/cancel` | 현재 진행 중인 execution 취소. 진행 중인 대화가 없으면 안내 메시지(`languageHints.noActiveExecution`)를 보내요 |
 | `/help` | 봇 도움말 표시 |
 
 버튼 클릭을 처리하지 않고 버린 경우에도 봇이 Telegram 에 수신 확인을 보내 버튼의 로딩 표시가 바로 사라져요. 같은 update 가 다시 전송됐거나, 대화당 분당 한도를 넘었거나, 실행이 아직 진행 중이라 입력을 받지 않거나, 워크플로우가 꺼져 있는 경우가 해당해요. 인라인 키보드는 그대로 남아서 잠시 뒤 다시 누를 수 있어요. 수신 확인이 실패해도 웹훅 응답은 바뀌지 않아요. 트리거 자체를 꺼 둔 경우에는 외부 호출을 하지 않으므로 수신 확인도 보내지 않아요.
@@ -218,6 +218,21 @@ en → This input can't be accepted here right now, please use the form or butto
 ```
 
 안내를 받은 사용자는 화면에 표시된 **양식**이나 **버튼**을 이용해 다시 시도하면 돼요.
+
+### 7.5 취소할 대화 없음 안내 키 (`noActiveExecution`)
+
+진행 중인 대화가 없는데 `/cancel` 을 보내면 봇이 **취소할 대화가 없다는 안내**를 발송해요. 대화가 이미 끝난 경우도 같아요. 운영자는 `languageHints.noActiveExecution` 으로 문구를 override 할 수 있어요.
+
+| 키 | 발송 조건 | `{statusCode}` 허용 |
+|---|---|---|
+| `noActiveExecution` | 진행 중인 대화가 없을 때 `/cancel` | 불허 |
+
+**default 문구**:
+
+```
+ko → 진행 중인 대화가 없습니다.
+en → There is no active conversation.
+```
 
 ## 8. 제한 사항
 

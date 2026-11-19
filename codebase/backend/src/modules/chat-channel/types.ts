@@ -118,8 +118,8 @@ export interface ChatChannelConfig {
    * 채널별 안내 문구 override. 알려진 키(일부): `executionStarted`·`executionCompleted`·
    * `executionCancelled`·`sessionExpired`·`groupChatRefusal`·`help`·`slashPrefix`·
    * `replyButtonLabel`·`replyModalTitle`·`replyModalLabel`·`formModalTitle`(§3.3 form modal 제목,
-   * default `'양식'`)·`commandReceived`(Discord · Slack 슬래시 명령의 수신 응답). 미설정 키는 provider
-   * default(§4.1.1) fallback.
+   * default `'양식'`)·`commandReceived`(Discord · Slack 슬래시 명령의 수신 응답)·`noActiveExecution`
+   * (진행 중인 실행이 없는 대화의 `/cancel` 안내). 미설정 키는 provider default(§4.1.1) fallback.
    */
   languageHints?: Record<string, string>;
 }
