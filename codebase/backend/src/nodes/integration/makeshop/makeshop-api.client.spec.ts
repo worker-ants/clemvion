@@ -397,6 +397,126 @@ describe('MakeshopApiClient', () => {
         });
         expect(result.body).toBeNull();
       });
+
+      it('counts three consecutive mid-body local timeouts and demotes to error(network)', async () => {
+        // The counter must not be reset before the body is read. Resetting right
+        // after the headers made every stalled body start from 0 again, so the
+        // count never reached 3.
+        const integration = makeIntegration({ consecutiveNetworkFailures: 0 });
+        for (let i = 0; i < 3; i += 1) {
+          fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+            Promise.resolve(
+              makeBodyPendingResponse(init.signal as AbortSignal),
+            ),
+          );
+          await expect(
+            client.call(integration, {
+              method: 'GET',
+              path: 'product',
+              timeoutMs: 5,
+            }),
+          ).rejects.toBeInstanceOf(MakeshopTransportFailedError);
+        }
+        expect(integration.status).toBe('error');
+        expect(integration.statusReason).toBe('network');
+        expect(repo.update).toHaveBeenCalledWith(
+          'int-makeshop-1',
+          expect.objectContaining({
+            status: 'error',
+            statusReason: 'network',
+          }),
+        );
+      });
+
+      it('does not reset the counter when the body read times out', async () => {
+        const integration = makeIntegration({ consecutiveNetworkFailures: 1 });
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(makeBodyPendingResponse(init.signal as AbortSignal)),
+        );
+        await expect(
+          client.call(integration, {
+            method: 'GET',
+            path: 'product',
+            timeoutMs: 5,
+          }),
+        ).rejects.toBeInstanceOf(MakeshopTransportFailedError);
+        expect(repo.update).not.toHaveBeenCalledWith(
+          'int-makeshop-1',
+          expect.objectContaining({ consecutiveNetworkFailures: 0 }),
+        );
+        expect(integration.consecutiveNetworkFailures).toBe(2);
+      });
+    });
+
+    describe('timer release before a retry', () => {
+      // `release()` runs before the 429 sleep and before the 401 refresh. If it
+      // did not, the first request's local timer would fire during the wait and
+      // abort a request that is already finished.
+      const waitMs = (ms: number) =>
+        new Promise<void>((r) => setTimeout(r, ms));
+
+      it('clears the first request timer before the 429 sleep', async () => {
+        const seen: AbortSignal[] = [];
+        fetchMock
+          .mockImplementationOnce((_url: string, init: RequestInit) => {
+            seen.push(init.signal as AbortSignal);
+            return Promise.resolve(
+              makeJsonResponse(
+                {},
+                { status: 429, headers: { 'retry-after': '1' } },
+              ),
+            );
+          })
+          .mockImplementationOnce((_url: string, init: RequestInit) => {
+            seen.push(init.signal as AbortSignal);
+            return Promise.resolve(makeJsonResponse({ ok: true }));
+          });
+        sleepMock.mockImplementationOnce(() => waitMs(40));
+
+        await client.call(makeIntegration(), {
+          method: 'GET',
+          path: 'product',
+          timeoutMs: 10,
+        });
+
+        expect(seen).toHaveLength(2);
+        expect(seen[0].aborted).toBe(false);
+      });
+
+      it('clears the first request timer before the 401 refresh', async () => {
+        const integration = makeIntegration();
+        txFindOne.mockResolvedValue({ ...integration });
+        const seen: AbortSignal[] = [];
+        fetchMock
+          .mockImplementationOnce((_url: string, init: RequestInit) => {
+            seen.push(init.signal as AbortSignal);
+            return Promise.resolve(
+              makeJsonResponse({ error: 'expired' }, { status: 401 }),
+            );
+          })
+          // refresh endpoint — slow enough for a leaked 10ms timer to fire.
+          .mockImplementationOnce(async () => {
+            await waitMs(40);
+            return makeJsonResponse({
+              access_token: 'fresh-access',
+              refresh_token: 'fresh-refresh',
+              expires_in: 3600,
+            });
+          })
+          .mockImplementationOnce((_url: string, init: RequestInit) => {
+            seen.push(init.signal as AbortSignal);
+            return Promise.resolve(makeJsonResponse({ ok: true }));
+          });
+
+        await client.call(integration, {
+          method: 'GET',
+          path: 'product',
+          timeoutMs: 10,
+        });
+
+        expect(seen).toHaveLength(2);
+        expect(seen[0].aborted).toBe(false);
+      });
     });
   });
   describe('credentials validation', () => {

@@ -1304,16 +1304,17 @@ export class Cafe24ApiClient {
       const respHeaders = readHeaderMap(response.headers);
       const callMeta = parseRateLimitHeaders(respHeaders);
 
-      // REQ-C2: HTTP 응답이 정상적으로 돌아왔다 = transport 레벨은 성공.
-      // 다음 단계의 status 분기와 무관하게 카운터 리셋. 401/403 인 경우는
-      // markAuthFailed 가 별도로 status='error(auth_failed)' 로 전이하므로
-      // 카운터 리셋은 무해 (그 행은 이미 connected 가 아님).
-      await this.resetNetworkFailures(integration);
+      // REQ-C2: HTTP 응답이 돌아왔다 = transport 레벨은 성공. 다만 본문 읽기
+      // 중 자체 타임아웃도 전송 실패로 세므로, 리셋은 본문을 다 읽은 뒤에 한다
+      // (헤더 직후에 리셋하면 본문 stall 이 반복돼도 연속 실패 카운터가 3 에
+      // 닿지 못한다). 429 는 본문을 읽지 않으므로 그 분기에서 바로 리셋한다.
+      // 401/403 은 markAuthFailed 가 별도로 status 를 바꾸므로 리셋은 무해하다.
 
       // Rate-limited — retry per spec policy with random jitter so multiple
       // concurrent callers sharing the same Integration don't all wake up
       // at the same instant and hammer the server in lockstep (thundering
       // herd → another 429 → another batched retry).
+      if (response.status === 429) await this.resetNetworkFailures(integration);
       if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
         const baseSec = Math.max(
           callMeta.callRemain ?? 0,
@@ -1350,6 +1351,7 @@ export class Cafe24ApiClient {
           controller.signal,
           upstream,
         );
+        await this.resetNetworkFailures(integration);
         // Server-side diagnostic — Cafe24's error code/description rarely
         // contains sensitive info (it never echoes tokens), and without this
         // log there is no way to tell APP_NOT_INSTALLED from EXPIRED_TOKEN
@@ -1421,6 +1423,7 @@ export class Cafe24ApiClient {
         controller.signal,
         upstream,
       );
+      await this.resetNetworkFailures(integration);
 
       return {
         status: response.status,
