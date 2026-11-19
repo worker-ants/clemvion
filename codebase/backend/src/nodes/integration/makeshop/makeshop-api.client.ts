@@ -937,12 +937,14 @@ export class MakeshopApiClient {
       const respHeaders = readHeaderMap(response.headers);
 
       // 리셋은 본문을 다 읽은 뒤에 한다. 본문 읽기 중 자체 타임아웃도 전송 실패로
-      // 세므로 헤더 직후에 리셋하면 연속 실패 카운터가 3 에 닿지 못한다. 429 는
-      // 본문을 읽지 않으므로 그 분기에서 바로 리셋한다.
+      // 세므로 헤더 직후에 리셋하면 연속 실패 카운터가 3 에 닿지 못한다. 리셋
+      // 지점은 응답 분기마다 하나다: 429(아래), 401/403 본문 읽기 뒤, 성공 본문
+      // 읽기 뒤. 새 응답 분기를 더하면 여기에 리셋을 넣는다. 429 는 본문을 읽지
+      // 않으므로 그 자리에서 바로 리셋한다.
+      if (response.status === 429) await this.resetNetworkFailures(integration);
 
       // 429 — MakeShop has no documented rate-limit headers (spec §9.7). Honour
       // `Retry-After` (seconds) if present, else a fixed backoff; max 2 retries.
-      if (response.status === 429) await this.resetNetworkFailures(integration);
       if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
         const retryAfterSec = parseRetryAfter(respHeaders['retry-after']);
         const baseMs =
