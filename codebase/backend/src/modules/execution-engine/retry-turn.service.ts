@@ -134,6 +134,8 @@ export class RetryTurnService {
    *  2-1. 실행(Execution) 상태가 `failed` 가 아니면 INVALID_EXECUTION_STATE
    *      (CLE-T-DJ3VC8). WS 게이트웨이가 이 에러의 `code` 를 그대로 `errorCode` 로
    *      내고 프론트가 재시도 실패 문구(`systemErrorRetryFailedInvalidState`)로 보여 준다.
+   *  2-2. 실행의 `finishedAt` 이 비어 있으면(같은 실행의 다른 재시도 턴이 도는 중)
+   *      INVALID_EXECUTION_STATE (CLE-T-T9HZX7).
    *  3. `outputData.output.error.details.retryable !== true` → NODE_NOT_RETRYABLE.
    *  4. `outputData._retryState` 부재 또는 `now > expiresAt` → RETRY_STATE_NOT_FOUND.
    *  5. `retryAfterSec` 카운트다운 미경과 → RETRY_TOO_EARLY.
@@ -417,9 +419,8 @@ export class RetryTurnService {
     // 실행이 다른 경로로 바뀌었으면 이 재진입은 그 흐름과 겹친다. 재진입 턴 끝의
     // 전이(`failed → running` · `failed → waiting_for_input`)는 `failed` 에서만
     // 출발해야 하므로 새 행을 `failed` 로 마감하고 버린다. NODE_STARTED 를 내기
-    // 전이라 노드 이벤트는 내지 않는다.
-    // 거절하면 새 행을 `failed` 로 마감하고 node.failed 를 낸다(CLE-T-T9HZX7).
-    // 명령 ack 는 이미 성공으로 나갔으므로 클라이언트는 이 이벤트로 거절을 안다.
+    // 전이지만 마감한 새 행의 node.failed 는 낸다(CLE-T-T9HZX7). 명령 ack 는 이미
+    // 성공으로 나갔으므로 클라이언트는 이 이벤트로 거절을 안다.
     if (execution.status !== ExecutionStatus.FAILED) {
       await this.closeSpawnedRowIfRunning(
         spawnedRow,
