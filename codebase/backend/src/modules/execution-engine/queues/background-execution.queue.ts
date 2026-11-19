@@ -62,6 +62,13 @@ export interface BackgroundExecutionJob {
   variables: Record<string, unknown>;
   /** Snapshot of context.nodeOutputCache at enqueue time. */
   nodeOutputCache: Record<string, unknown>;
+  /**
+   * 큐에 넣을 때의 구조화 출력 캐시(`context.structuredOutputCache`) 스냅샷. 본문 노드 식의
+   * `$node["X"]` 가 이 값을 읽는다. 없으면 표현식이 flat 값으로 대신 읽는데, 작업이 JSON 을
+   * 거치면 엔진이 만든 봉투 표지가 사라져 `{ data, _selectedPort }` 가 그대로 보인다
+   * (CLE-T-JDYHCF 5번). 이 필드가 생기기 전에 큐에 들어간 작업에는 없다.
+   */
+  structuredOutputCache?: ExecutionContext['structuredOutputCache'];
   /** Snapshot of context.expressionContext at enqueue time. */
   expressionContext: Record<string, unknown>;
   /**

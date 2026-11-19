@@ -169,6 +169,8 @@ import {
   isCanonicalHandlerOutput,
   isWrappedValueEnvelope,
   markWrappedValueEnvelope,
+  resolveNodeResultValue,
+  toDownstreamValue,
   toEngineFlatShape,
   unwrapEngineFlatValue,
   wrapBareAsNodeHandlerOutput,
@@ -2551,9 +2553,10 @@ export class ExecutionEngineService
       // emit skip.
       const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
       if (lastNodeId) {
-        savedExecution.outputData =
-          (context.nodeOutputCache[lastNodeId] as
-            Record<string, unknown> | undefined) ?? {};
+        savedExecution.outputData = this.resolveExecutionOutputData(
+          context,
+          lastNodeId,
+        );
       }
       // **조건 밖**이다 — `outputData` 만 마지막 노드에 의존한다. 종전엔 셋 다 `if` 안에
       // 있어서, 노드가 없는 그래프면 `finishedAt`/`durationMs` 가 비어 있는 채로 emit 됐다
@@ -2726,8 +2729,7 @@ export class ExecutionEngineService
 
       // COMPLETED 마감 (runExecution / driveResumeAwaited 와 동일 형식). 마감 필드를
       // 먼저 세팅한 뒤 guarded updateExecutionStatus 가 원자적으로 영속한다 (M-3).
-      savedExecution.outputData =
-        (topResult.output as Record<string, unknown> | undefined) ?? {};
+      savedExecution.outputData = topResult.output ?? {};
       savedExecution.finishedAt = new Date();
       savedExecution.durationMs =
         resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
@@ -2880,7 +2882,9 @@ export class ExecutionEngineService
       return { parked: true, output: undefined };
     }
     const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
-    const output = lastNodeId ? context.nodeOutputCache[lastNodeId] : undefined;
+    const output = lastNodeId
+      ? resolveNodeResultValue(context, lastNodeId)
+      : undefined;
     return { parked: false, output };
   }
 
@@ -3548,9 +3552,10 @@ export class ExecutionEngineService
       // COMPLETED 마감 (driveResumeAwaited 완결부와 동일).
       const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
       if (lastNodeId) {
-        savedExecution.outputData =
-          (context.nodeOutputCache[lastNodeId] as
-            Record<string, unknown> | undefined) ?? {};
+        savedExecution.outputData = this.resolveExecutionOutputData(
+          context,
+          lastNodeId,
+        );
       }
       // **조건 밖**이다 — `outputData` 만 마지막 노드에 의존한다. 종전엔 셋 다 `if` 안에
       // 있어서, 노드가 없는 그래프면 `finishedAt`/`durationMs` 가 비어 있는 채로 emit 됐다
@@ -4094,7 +4099,7 @@ export class ExecutionEngineService
               : undefined,
         });
         if (ranParallel) {
-          lastOutput = context.nodeOutputCache[node.id];
+          lastOutput = resolveNodeResultValue(context, node.id);
           pointer++;
           continue;
         }
@@ -4152,7 +4157,7 @@ export class ExecutionEngineService
           }
         }
 
-        lastOutput = context.nodeOutputCache[node.id];
+        lastOutput = resolveNodeResultValue(context, node.id);
 
         // Propagate reachability to downstream nodes through activated edges
         this.graphTraversal.propagateReachability(
@@ -4721,9 +4726,10 @@ export class ExecutionEngineService
       const resultNodeId =
         singleNodeId ?? sortedNodeIds[sortedNodeIds.length - 1];
       if (resultNodeId) {
-        savedExecution.outputData =
-          (context.nodeOutputCache[resultNodeId] as Record<string, unknown>) ??
-          {};
+        savedExecution.outputData = this.resolveExecutionOutputData(
+          context,
+          resultNodeId,
+        );
       }
       // 위와 같은 이유로 조건 밖 (`outputData` 만 결과 노드에 의존한다).
       savedExecution.finishedAt = new Date();
@@ -6993,36 +6999,18 @@ export class ExecutionEngineService
    * 그대로 돌려준다. 다운스트림은 핸들러 `output` 을 받는다(NERV Task CLE-T-T30D5S).
    */
   private stripControlFields(output: unknown): unknown {
-    if (isWrappedValueEnvelope(output)) {
-      return output.data;
-    }
-    if (!output || typeof output !== 'object' || Array.isArray(output)) {
-      return output;
-    }
-    const o = output as Record<string, unknown>;
-    if (
-      !('_selectedPort' in o) &&
-      !('port' in o) &&
-      !('status' in o) &&
-      !('_resumeState' in o) &&
-      !('_resumeCheckpoint' in o)
-    ) {
-      return output;
-    }
-    const {
-      _selectedPort: _sp,
-      port: _p,
-      status: _st,
-      _resumeState: _rs,
-      _resumeCheckpoint: _rc,
-      ...rest
-    } = o;
-    void _sp;
-    void _p;
-    void _st;
-    void _rs;
-    void _rc;
-    return rest;
+    return toDownstreamValue(output);
+  }
+
+  /**
+   * 실행 결과(`Execution.outputData`)에 실을 값. 결과 노드의 핸들러 `output` 이고 출력이
+   * 없으면(`undefined` · `null`) `{}` 다(NERV Task CLE-T-JDYHCF 결정 1).
+   */
+  private resolveExecutionOutputData(
+    context: ExecutionContext,
+    resultNodeId: string,
+  ): unknown {
+    return resolveNodeResultValue(context, resultNodeId) ?? {};
   }
 
   /**
@@ -7621,6 +7609,7 @@ export class ExecutionEngineService
       input: bodyInput,
       variables: { ...context.variables },
       nodeOutputCache: { ...context.nodeOutputCache },
+      structuredOutputCache: { ...context.structuredOutputCache },
       expressionContext: { ...(context.expressionContext ?? {}) },
       conversationThread: threadSnapshot,
       config: {
@@ -7666,6 +7655,11 @@ export class ExecutionEngineService
     );
     context.variables = { ...job.variables };
     context.nodeOutputCache = { ...job.nodeOutputCache };
+    // 본문 식의 `$node["X"]` 가 메인과 같은 구조화 출력을 읽게 한다(CLE-T-JDYHCF 5번). 옛
+    // 작업에는 필드가 없어 예전처럼 flat 값으로 읽는다.
+    if (job.structuredOutputCache) {
+      context.structuredOutputCache = { ...job.structuredOutputCache };
+    }
     context.expressionContext = { ...job.expressionContext };
     // Use the enqueue-time snapshot (already turns-cloned) — pushes from
     // here onward stay inside the background subgraph (§3.2 isolation).

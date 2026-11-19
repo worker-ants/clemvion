@@ -12073,6 +12073,134 @@ describe('ExecutionEngineService', () => {
       expect(errorCalls).toHaveLength(0);
     });
 
+    // Background 본문은 큐 작업(JSON)으로 넘어간 스냅샷으로 돈다. 구조화 출력이 스냅샷에 없으면
+    // 본문의 `$node[X].output` 이 엔진 내부 flat 값(`{ data, _selectedPort }`)으로 보였다
+    // (CLE-T-JDYHCF 5번).
+    it.each([
+      ['array', [1, 2, 3]],
+      ['number', 42],
+      ['object', { a: 1 }],
+    ])(
+      'Background 본문의 $node["code"].output 이 %s output 을 그대로 본다',
+      async (_label, value) => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
+        });
+        registerValueNode('value_node', value);
+        mockNodeRepo.findBy.mockResolvedValue([
+          vNode('trigger', 'test_node'),
+          vNode('code', 'value_node'),
+          vNode('bg', 'background'),
+          vNode('ok', 'success_sink', {
+            fromNode: '{{ $node["code"].output }}',
+            port: '{{ $node["code"].port }}',
+          }),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          vEdge('trigger', 'out', 'code'),
+          vEdge('code', 'success', 'bg'),
+          vEdge('bg', 'background', 'ok'),
+        ]);
+        const queueAdd = (
+          service as unknown as { backgroundQueue: { add: jest.Mock } }
+        ).backgroundQueue.add;
+        queueAdd.mockClear();
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await waitUntil(
+          () => queueAdd.mock.calls.length > 0,
+          'Background 큐 작업',
+        );
+        expect(successCalls).toHaveLength(0);
+
+        // BullMQ 는 작업을 JSON 으로 저장한다.
+        const job = JSON.parse(
+          JSON.stringify(queueAdd.mock.calls[0][1]),
+        ) as BackgroundExecutionJob;
+        await service.executeBackgroundSubgraph(job);
+        await waitForSink();
+
+        expect(successCalls).toHaveLength(1);
+        expect(successCalls[0].config.fromNode).toStrictEqual(value);
+        expect(successCalls[0].config.port).toBe('success');
+      },
+    );
+
+    // 실행 결과(`Execution.outputData`)와 동기 서브워크플로 결과(`executeInline` 반환값 →
+    // `$node["Workflow"].output.result`)는 마지막 노드의 핸들러 `output` 그대로다. 예전에는
+    // 엔진 flat 값이라 `{ data, _selectedPort }` · `{ ...값, _selectedPort }` 였다
+    // (CLE-T-JDYHCF 결정 1).
+    const persistedExecutionOutput = (): unknown => {
+      const completedCall = mockExecutionRepo.query.mock.calls.find(
+        (c: unknown[]) =>
+          typeof c[0] === 'string' &&
+          c[0].includes('output_data') &&
+          (c[1] as unknown[])?.[1] === ExecutionStatus.COMPLETED,
+      );
+      return completedCall
+        ? (JSON.parse((completedCall[1] as string[])[5]) as unknown)
+        : undefined;
+    };
+
+    it.each([
+      ['array', [1, 2, 3]],
+      ['number', 42],
+      ['object', { a: 1 }],
+    ])(
+      '마지막 노드 output 이 %s 이면 실행 결과 outputData 가 그 값이다',
+      async (_label, value) => {
+        registerValueNode('value_node', value);
+        mockNodeRepo.findBy.mockResolvedValue([
+          vNode('trigger', 'test_node'),
+          vNode('code', 'value_node'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          vEdge('trigger', 'out', 'code'),
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await waitUntil(
+          () => persistedExecutionOutput() !== undefined,
+          '실행 완료',
+        );
+
+        expect(persistedExecutionOutput()).toStrictEqual(value);
+      },
+    );
+
+    it.each([
+      ['array', [1, 2, 3]],
+      ['number', 42],
+      ['object', { a: 1 }],
+    ])(
+      '서브워크플로 마지막 노드 output 이 %s 이면 executeInline 이 그 값을 돌려준다',
+      async (_label, value) => {
+        registerValueNode('value_node', value);
+        mockNodeRepo.findBy.mockResolvedValue([vNode('code', 'value_node')]);
+        mockEdgeRepo.findBy.mockResolvedValue([]);
+        const contextService = (
+          service as unknown as { contextService: ExecutionContextService }
+        ).contextService;
+        const context = withWorkspace(
+          contextService.createContext(executionId, workflowId),
+        );
+
+        const result = await service.executeInline(
+          workflowId,
+          {},
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'workflow-node-row',
+          },
+        );
+
+        expect(result).toStrictEqual(value);
+      },
+    );
+
     // 예전에는 설정 에코(`code` · `language`)를 펼친 값에 `_selectedPort` 가 없어 success ·
     // error 포트가 함께 열리고 다음 노드가 설정 에코를 받았다(NERV Task CLE-T-X3AH4F).
     // CLE-NODE-CODE: `return` 이 없으면 `output` 은 `undefined` 다. 표현식은 없는 멤버를

@@ -102,7 +102,7 @@ const STATUS_PROJECTION_COLUMNS = {
  * 깊이 상한은 자매 `deepRedactSecrets` 와 같은 {@link MAX_REDACT_DEPTH} — 그 밖은 이미
  * `'***'` 로 마스킹된 뒤라 더 볼 것이 없다.
  */
-function stripAndRedact(value: unknown): Record<string, unknown> | null {
+function stripAndRedact<T>(value: T | null | undefined): T | null {
   if (value === null || value === undefined) return null;
   // **strip 을 먼저** — `deepRedactSecrets` 는 정규식 다중 패스 + JSON 파싱까지 하는데,
   // `llmCalls` 서브트리(대개 이 payload 에서 가장 큰 필드)는 어차피 통째로 버려진다.
@@ -116,7 +116,7 @@ function stripAndRedact(value: unknown): Record<string, unknown> | null {
   // 만들거나 없애지 않는다. 그 동일성은 아래 spec 의 대조 테스트가 고정한다.
   return deepRedactSecrets(
     stripExternalOnlyFields(value, MAX_REDACT_DEPTH),
-  ) as Record<string, unknown>;
+  ) as T;
 }
 
 /**
@@ -481,9 +481,12 @@ export class InteractionService {
         execution.status === ExecutionStatus.COMPLETED
           ? stripAndRedact(execution.outputData)
           : null,
+      // 엔진은 `outputData` 를 완료 때만 쓴다. 실패한 실행에서는 객체이거나 비어 있다.
       error:
         execution.status === ExecutionStatus.FAILED
-          ? stripAndRedact(execution.outputData)
+          ? stripAndRedact(
+              execution.outputData as Record<string, unknown> | null,
+            )
           : null,
       seq: SSE_SEQ_PLACEHOLDER,
       updatedAt: (

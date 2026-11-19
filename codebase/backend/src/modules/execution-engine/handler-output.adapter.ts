@@ -169,6 +169,58 @@ export function unwrapEngineFlatValue(value: unknown): unknown {
   return isWrappedValueEnvelope(value) ? value.data : value;
 }
 
+/** flat 값에서 떼는 엔진 제어 필드. 이유는 {@link toDownstreamValue} 참조. */
+const ENGINE_CONTROL_FIELDS = [
+  '_selectedPort',
+  'port',
+  'status',
+  '_resumeState',
+  '_resumeCheckpoint',
+] as const;
+
+/**
+ * 엔진 flat 캐시 값에서 다음 노드에 넘길 값을 꺼낸다. 봉투면 그 안의 `data`, 객체면
+ * 엔진 제어 필드(`_selectedPort` · `port` · `status` · `_resumeState` ·
+ * `_resumeCheckpoint`)를 뗀 값이다. 제어 필드는 이 노드의 라우팅 · 대기 판정에만 쓰고
+ * 다음 노드 `$input` 에 새면 그 노드의 라우팅과 대기 판정이 틀어진다.
+ */
+export function toDownstreamValue(flat: unknown): unknown {
+  if (isWrappedValueEnvelope(flat)) {
+    return flat.data;
+  }
+  if (!flat || typeof flat !== 'object' || Array.isArray(flat)) {
+    return flat;
+  }
+  const o = flat as Record<string, unknown>;
+  if (!ENGINE_CONTROL_FIELDS.some((key) => key in o)) {
+    return flat;
+  }
+  const rest: Record<string, unknown> = { ...o };
+  for (const key of ENGINE_CONTROL_FIELDS) delete rest[key];
+  return rest;
+}
+
+/**
+ * 노드의 결과 값, 곧 핸들러가 돌려준 `output` 을 꺼낸다. 실행 결과
+ * (`Execution.outputData`)와 동기 서브워크플로 결과(`$node["Workflow"].output.result`)가
+ * 이 값을 싣는다. `$node[X].output` 과 같은 값이다(NERV Task CLE-T-JDYHCF 결정 1).
+ *
+ * 구조화 출력 캐시가 정본이다. flat 캐시 값에는 엔진 봉투와 `_selectedPort` 가 섞여 있고
+ * 봉투 표지는 JSON 을 거치면 사라진다. 구조화 출력이 없는 노드(구조화 캐시가 없던 옛
+ * 컨텍스트)만 flat 값을 {@link toDownstreamValue} 로 풀어 쓴다.
+ */
+export function resolveNodeResultValue(
+  caches: {
+    structuredOutputCache?: Record<string, NodeHandlerOutput>;
+    nodeOutputCache: Record<string, unknown>;
+  },
+  nodeId: string,
+): unknown {
+  const structured = caches.structuredOutputCache?.[nodeId];
+  if (structured) return structured.output;
+  return toDownstreamValue(caches.nodeOutputCache[nodeId]);
+}
+
 /**
  * Collapses a {@link NodeHandlerOutput} back into the pre-migration flat
  * shape so that existing engine internals (`applyPortSelection`,

@@ -92,7 +92,7 @@ type ExecutionStatusFilter = (typeof EXECUTION_STATUS_VALUES)[number];
  */
 function redactAssistantFields(row: {
   inputData?: Record<string, unknown> | null;
-  outputData?: Record<string, unknown> | null;
+  outputData?: unknown;
   error?: Record<string, unknown> | null;
 }): {
   inputData: unknown;
