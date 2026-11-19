@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030", "REQ-SUBWF-031"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "d00b559b76c9a96db91b4ea4c5acbbb271a110e72a2614cc2f5af477aab61d8c"
+content_hash: "b563fd4c1a8c357efa8ef9b8c8cafe3703cbe34c643e1df4505267fcade3718c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JDYHCF"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "5511fe8d96686892db27b970d6f0f30206d56d051f341465bd4139dd627301ad"
-etag: "sha256-50a73edeb7333596c7764ba4d165c0d51a4d2a8fd33b868d73a70b4a009bebf8"
+mirror_sha256: "c011185cd98d65f40fdcdb95dc0e55905da61451dc8587a4d8ff81254804cdc7"
+etag: "sha256-e3932735e03e0a9c30829fbe4a2c4f5e7f3ca68ed40024f39233a54ca2c339ce"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,7 +77,7 @@ Flow 공통 규약은 [Flow 노드 공통](CLE-NODE-FLOW-COMMON.md), 노드 출�
 | `paramName` | string | 서브 워크플로우 입력 키 이름. 핸들러가 이 키로 읽는다. |
 | `expression` | string | 넘길 값의 표현식 또는 리터럴. 스키마(zod)는 `z.string()` 으로 저장하고, 엔진이 평가한 값(런타임 `unknown`)을 핸들러에 넘긴다. |
 
-설정 스키마의 기준은 `workflow.schema.ts` 의 `workflowNodeConfigSchema` 다. 스키마와 핸들러 모두 `paramName`·`expression` 을 쓴다.
+설정 스키마의 기준은 `workflow.schema.ts` 의 `workflowNodeConfigSchema` 다.
 
 ## 설정 화면
 
@@ -135,7 +135,7 @@ flowchart TD
     F -->|park 신호| K[다시 던져 세그먼트 종료]
 ```
 
-1. 사전 검증(throw, [노드 출력 규약 Principle 3](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-3-에러-계약)의 3.1). 조건과 메시지는 [사전 검증 throw](#사전-검증-throw-포트-라우팅-없음) 표가 정한다. 경고 규칙 `workflow:no-workflow-selected` 의 캔버스 배지는 i18n 으로 한국어를 보인다.
+1. 사전 검증(throw, [노드 출력 규약 Principle 3](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-3-에러-계약)의 3.1). 조건과 메시지는 [사전 검증 throw](#사전-검증-throw-포트-라우팅-없음) 표가 정한다.
 2. 서브 워크플로우 입력을 만든다. `inputMapping` 이 있으면 `{ [paramName]: 평가한 expression }`, 비어 있으면 부모 `input` 이다.
 3. 호출 방식에 따라 나뉜다.
    - 동기: `executionEngine.executeInline(workflowId, effectiveInput, { executionId, context, executedNodes, recursionDepth: depth+1, parentNodeExecutionId, invokerNodeId })` 를 부른다. 반환값([최종 노드 출력](#최종-노드-출력))을 `output: { result: <inlineResult> }` 로 한 겹 감싼다([동기 호출 성공](#동기-호출-성공-port-out)). `invokerNodeId` 는 이 노드의 `Node.id` 이고 park 때 호출 스택 프레임 키가 된다. rehydration 은 부모 그래프에서 이 노드까지 나아간 뒤 다시 들어온다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 동기 호출은 부모 실행 컨텍스트를 같이 쓰므로 부모가 dry-run 이면 서브 워크플로우도 dry-run 이다.
@@ -152,14 +152,14 @@ flowchart TD
 
 ### 최종 노드 출력
 
-동기 호출이 돌려받는 최종 노드 출력(`executeInline` 반환값)은 엔진이 서브 워크플로우에서 마지막으로 실행한 노드의 출력이다.
+동기 호출이 돌려받는 최종 노드 출력(`executeInline` 반환값)은 서브 워크플로우에서 마지막으로 실행한 노드의 핸들러 `output` 이다. `$node["X"].output` 과 같은 값이라 배열 · 원시값을 감싸지 않고 `_selectedPort` 같은 엔진 내부 키가 없다.
 
 - 엔진은 노드를 실행할 때마다 이 값을 그 출력으로 바꾼다. 끝나는 노드가 둘 이상이면 실행 순서에서 마지막 노드의 출력이다.
 - 비활성 노드는 실행하지 않으므로 이 값을 바꾸지 않는다.
 - `skip_node` 로 건너뛴 노드가 마지막이면 값은 `undefined` 다. 같은 실행에서 그 노드가 앞서 쓴 출력이 있으면 그 값이다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)).
 - 실행한 노드가 진입점 트리거뿐이면 서브 워크플로우 입력이다.
 - 컨테이너 노드가 마지막이면 컨테이너의 완료 출력이다.
-- 서브 워크플로우가 Parallel 로 끝나면(`done` 뒤에 노드가 없으면) Parallel 의 완료 출력이다. 병렬 분기 노드가 Parallel 안에서 실행된 뒤 완료 출력이 쓰이기 때문이다. `done` 뒤에 노드가 있으면 그 노드의 출력이다. `PARALLEL_ENGINE=off` 경로에는 완료 출력이 없어 앞 규칙대로 마지막으로 실행한 노드의 출력이다.
+- 서브 워크플로우가 Parallel 로 끝나면(`done` 뒤에 노드가 없으면) Parallel 의 완료 출력이다. 병렬 분기 노드가 Parallel 안에서 실행된 뒤 완료 출력이 쓰이기 때문이다. `PARALLEL_ENGINE=off` 경로에는 완료 출력이 없어 앞 규칙대로 마지막으로 실행한 노드의 출력이다.
 
 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 의 병렬 분기 결과는 출력을 쓴 노드 가운데서 고르므로 이 규칙과 다르다. 건너뛴 노드는 Parallel 결과 노드가 될 수 없지만 여기서는 마지막이면 빈 값이 최종 노드 출력이 된다.
 
@@ -201,7 +201,7 @@ flowchart TD
 
 표현식 접근 예: `$node["X"].output.result.data` → `[1, 2, 3]`, `$node["X"].output.result` → 최종 노드 출력 전체, `$node["X"].port` → `undefined`(= 기본 `'out'`).
 
-최종 노드 출력에 `result` 키가 있으면 경로가 `output.result.result` 가 된다(위 예시는 `'success'`). 늘 한 겹 감싼 의도된 결과다.
+최종 노드 출력에 `result` 키가 있으면 경로가 `output.result.result` 가 된다(위 예시는 `'success'`).
 
 ### 비동기 호출 성공 (port `out`)
 
@@ -304,7 +304,7 @@ flowchart TD
 `workflowNodeMetadata.summaryTemplate` 은 `{{workflowName|fallback:workflowId}} · {{mode|default:sync}}` 이고 `node-config-summary.ts` 가 `renderSummaryTemplate` 으로 그린다. 예: `Data Pipeline · sync`
 
 1. 대상 워크플로우가 삭제·비활성화되어 `workflowName` 이 비면 `⚠ Missing workflow` 배지를 보인다(`warnWhen: 'workflowId && !workflowName'`).
-2. `workflowId` 가 비어 있으면 blocking 경고 규칙 `workflow:no-workflow-selected` 가 먼저 나서 `⚠ Target workflow must be selected.` 를 보인다.
+2. `workflowId` 가 비어 있으면 blocking 경고 규칙 `workflow:no-workflow-selected` 가 먼저 나서 `⚠ Target workflow must be selected.` 를 보인다. 캔버스 배지는 i18n 으로 한국어를 보인다.
 
 템플릿 문법은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md#템플릿-문법)에 있다.
 
@@ -336,7 +336,7 @@ flowchart TD
 
 ### 워크스페이스 격리를 fail-closed 로 바꾼 이유 (PR #637)
 
-예전에는 호출자 워크스페이스 ID 가 없으면 로그만 남기고 통과시켰다(fail-open). 운영 호출처 세 곳(`executeInline` 두 곳, `executeAsync` 한 곳)이 늘 워크스페이스 ID 를 넘긴다는 것을 확인한 뒤 값이 없어도 막도록 바꿨다. 경위는 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md)의 Rationale "C-1" 에 있다.
+예전에는 호출자 워크스페이스 ID 가 없으면 로그만 남기고 통과시켰다(fail-open). 운영 호출처가 모두 이 값을 넘기는 것을 확인하고 값이 없어도 막도록 바꿨다. 경위는 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md)의 Rationale "C-1" 에 있다.
 
 ### 최종 노드 출력은 마지막으로 실행한 노드의 출력이다 (2026-11-06)
 
@@ -344,9 +344,11 @@ Parallel 노드가 병렬 분기 결과를 「출력을 쓴 노드 가운데 위
 
 기각한 대안은 Parallel 처럼 출력을 쓴 노드로 좁히는 안이다. 반환값이 바뀌어 기존 워크플로우 동작이 달라지고 엔진 코드를 바꿔야 한다. 기존 워크플로우 영향은 없다.
 
+2026-11-19 에 이 값을 마지막 노드의 핸들러 `output` 으로 정했다(NERV Task `CLE-T-JDYHCF`). `output.result._selectedPort` · `output.result.data` 로 엔진 봉투를 읽던 표현식은 고쳐야 한다. 근거와 기각한 대안은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다)에 있다.
+
 ### 서브 워크플로우의 Parallel 은 깊이를 새로 센다 (2026-11-06)
 
-전에는 서브 워크플로우 루프(`executeInline`)가 Parallel 의 핸들러만 부르고 병렬 분기 노드를 차례로 실행했으며 완료 출력이 없었다. 이제 이 루프도 Parallel 을 엔진의 Parallel 실행 경로(`runParallel`)로 넘긴다. 실행 경로의 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 가 정하고 컨테이너 본문 쪽은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문의-parallel-도-덮어쓰기를-받는다-2026-11-06) 이 정한다.
+서브 워크플로우 루프(`executeInline`)도 Parallel 을 엔진의 Parallel 실행 경로(`runParallel`)로 넘긴다. 전에는 핸들러만 부르고 병렬 분기 노드를 차례로 실행했다. 실행 경로의 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 가 정하고 컨테이너 본문 쪽은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문의-parallel-도-덮어쓰기를-받는다-2026-11-06) 이 정한다.
 
 **중첩 깊이**: 병렬 분기 안에서 이 노드를 부르면 바깥 병렬 분기의 `parentParallelConcurrency` 가 따라와 서브 워크플로우의 맨 바깥 Parallel 이 깊이 2 로 판정된다. 사람의 결정에 따라 동기 서브 워크플로우는 깊이를 새로 센다. 이유는 두 가지다.
 
@@ -356,8 +358,6 @@ Parallel 노드가 병렬 분기 결과를 「출력을 쓴 노드 가운데 위
 대가로 호출한 쪽의 동시 실행 수 곱 상한 32 가 걸리지 않아, 바깥 Parallel 과 서브 워크플로우 맨 바깥 Parallel 의 곱은 최대 16×16 이다.
 
 기각한 대안은 서브 워크플로우도 호출한 쪽 깊이를 이어받는 안이다. 곱 상한은 지키지만 위 두 문제가 생긴다.
-
-**최종 노드 출력**: 위 절의 정의는 바꾸지 않았고 그 절이 기각한 안도 고르지 않았다. 실행 방식이 바뀌어 Parallel 이 마지막으로 출력을 쓰는 노드가 되었으므로 Parallel 로 끝나면 완료 출력이 최종 노드 출력이다.
 
 **기존 워크플로우 영향**:
 

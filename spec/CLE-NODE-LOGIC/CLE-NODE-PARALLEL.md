@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032", "REQ-PARALLEL-033", "REQ-PARALLEL-034", "REQ-PARALLEL-035", "REQ-PARALLEL-036", "REQ-PARALLEL-037"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "1e958b062090c57232a5bad7a1e8fe00e51cbbe3707bfe99acd041a9cfa06b0f"
+content_hash: "ded8ce35f861f05ce16f5ae0a4f48e0ae89fa083e3a24787d1372650831d87ed"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-B7A8B2"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "2bd0d9f2954702f4de4a0394b243da0c35133d383dbb47c765263b62cf3015a5"
-etag: "sha256-a4a82f0e38c7cc570c248867f721365f8a8838ce1070e5acf143800fe90bcc53"
+mirror_sha256: "025622970584a917a4a7acac8508798cc461b0f4878e05db6d1420111f2d393f"
+etag: "sha256-0f34590378527dd643cf4f4c660138855ab959db442cf057792d2616d08ab7d9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-a4a82f0e38c7cc570c248867f721365f8a8838ce1070e5acf143800fe90bcc53"
 
 Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(branch) N개를 동시에 실행하는 노드다(`executionMetadata.kind = 'parallel'`). 컨테이너는 아니지만 엔진 덮어쓰기를 받는 노드다. 핸들러는 `branch_0` ~ `branch_{N-1}` 동적 출력 포트를 한꺼번에 활성화한다. 모든 병렬 분기가 끝나면 엔진이 `done` 포트로 `{ branches, count, skipped? }` 결과를 내보낸다. `branches[i]` 는 `branch_i` 병렬 분기의 결과 노드 출력이다. 결과 노드를 고르는 규칙은 [병렬 분기의 노드 집합과 위상 순서](CLE-NODE-PARALLEL-EXEC.md#병렬-분기의-노드-집합과-위상-순서) 가 정한다. `errorPolicy='continue'` 에서 실패한 병렬 분기는 `branches[i]` 를 `null` 로 두고 실패 정보를 `output.skipped` 에 따로 모은다. 이 형태는 [ForEach 노드](CLE-NODE-FOREACH.md) 와 같고 `meta.skippedCount` 는 싣지 않는다. 출력의 자세한 모양은 [완료 시점](CLE-NODE-PARALLEL-OUTPUT.md#완료-시점-done-포트) 이 정한다.
 
-**구현 상태**: `ParallelExecutor` 가 `p-limit` 과 `Promise.allSettled` 로 병렬 분기를 동시에 실행한다. 코드 기본값이 `PARALLEL_ENGINE=v1` 이라 기본으로 켜져 있다. k8s 기본 매니페스트는 `off` 다([미결 사항](#미결-사항)). `PARALLEL_ENGINE=off` 로 명시하면 엔진이 위상 순서로 차례로 실행하는 되돌림 경로를 쓰고 완료 출력을 만들지 않는다(REQ-PARALLEL-027). 이 환경 변수는 모듈을 불러올 때 한 번 읽으므로 바꾸면 인스턴스를 다시 시작해야 반영된다. `branchCount` 2~16, `maxConcurrency` 0(제한 없음)·1~16 을 지원한다. 병렬 분기 안에 블로킹 노드와 되돌아가는 연결선은 둘 수 없다. 중첩 Parallel 은 깊이 2까지 허용한다. `waitAll` 은 항상 `true` 로 동작하고 `false` 는 지원하지 않는다. fire-and-forget 이 필요하면 [Background 노드](CLE-NODE-BACKGROUND.md) 를 쓴다. `v1` 에서 Parallel 은 놓인 곳(맨 바깥 · 병렬 분기 안 · 컨테이너 본문 · 동기 서브 워크플로우 · Background 본문)과 상관없이 엔진의 Parallel 실행 경로를 탄다(REQ-PARALLEL-034). 노드 실행 기록은 모든 병렬 분기가 끝난 뒤 완료 출력과 노드 전체 실행 시간으로 한 번 마감하고 재개 · 재구동 뒤에도 완료 출력이 보인다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)).
+**구현 상태**: `ParallelExecutor` 가 `p-limit` 과 `Promise.allSettled` 로 병렬 분기를 동시에 실행한다. 코드 기본값이 `PARALLEL_ENGINE=v1` 이라 기본으로 켜져 있다. k8s 기본 매니페스트는 `off` 다([미결 사항](#미결-사항)). `PARALLEL_ENGINE=off` 로 명시하면 엔진이 위상 순서로 차례로 실행하는 되돌림 경로를 쓰고 완료 출력을 만들지 않는다(REQ-PARALLEL-027). 이 환경 변수는 모듈을 불러올 때 한 번 읽으므로 바꾸면 인스턴스를 다시 시작해야 반영된다. `branchCount` 2~16, `maxConcurrency` 0(제한 없음)·1~16 을 지원한다. 병렬 분기 안에 블로킹 노드와 되돌아가는 연결선은 둘 수 없다(병렬 분기 안 Background 본문은 병렬 분기 본문으로 세지 않는다). 중첩 Parallel 은 깊이 2까지 허용한다. `waitAll` 은 항상 `true` 로 동작하고 `false` 는 지원하지 않는다. fire-and-forget 이 필요하면 [Background 노드](CLE-NODE-BACKGROUND.md) 를 쓴다. `v1` 에서 Parallel 은 놓인 곳(맨 바깥 · 병렬 분기 안 · 컨테이너 본문 · 동기 서브 워크플로우 · Background 본문)과 상관없이 엔진의 Parallel 실행 경로를 탄다(REQ-PARALLEL-034). 노드 실행 기록은 모든 병렬 분기가 끝난 뒤 완료 출력과 노드 전체 실행 시간으로 한 번 마감하고 재개 · 재구동 뒤에도 완료 출력이 보인다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)).
 
 이 문서와 [하위 문서](#하위-문서)는 Parallel 노드의 설정, 포트, 실행 로직, 병렬 분기 격리, 중첩 Parallel 제한, 출력 구조, 에러를 정한다. 항목 에러 정책의 값 비교와 엔진 덮어쓰기 계약은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md) 이 정한다. 엔진 덮어쓰기의 실행 흐름은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md), `abortSignal` 전파 규칙은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md), 실행 컨텍스트 필드 분류는 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md), 저장·캔버스 단계의 중첩 경고 규칙은 [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md) 이 정한다. 동기 서브 워크플로우 실행은 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 가 정한다.
 
@@ -49,7 +49,7 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 - REQ-PARALLEL-019 IF `branchCount` 가 정수가 아니거나 2~16 밖이면 THE SYSTEM SHALL 캔버스에 경고 배지를 표시하고 `handler.validate` 에서 거부한다.
 - REQ-PARALLEL-020 IF `maxConcurrency` 가 숫자가 아니거나 정수가 아니거나 0~16 밖이면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
 - REQ-PARALLEL-021 IF 검증을 거치지 않은 `branchCount` 가 2~16 밖이면 THE SYSTEM SHALL 핸들러와 실행기 양쪽에서 그 범위로 줄여 방어한다.
-- REQ-PARALLEL-022 IF 병렬 분기 안에 블로킹 노드가 있으면 THE SYSTEM SHALL 병렬 분기를 실행하기 전 엔진 그래프 검증에서 메시지가 `PARALLEL_INVALID_CHILD:` 로 시작하는 에러로 실행을 실패시킨다.
+- REQ-PARALLEL-022 IF 병렬 분기 안에 블로킹 노드가 있으면(병렬 분기 안 Background 의 `background` 연결선 뒤에서만 닿는 본문 노드는 병렬 분기 안으로 세지 않는다) THE SYSTEM SHALL 병렬 분기를 실행하기 전 엔진 그래프 검증에서 메시지가 `PARALLEL_INVALID_CHILD:` 로 시작하는 에러로 실행을 실패시킨다.
 - REQ-PARALLEL-023 IF 병렬 분기 안에 되돌아가는 연결선이 있으면 THE SYSTEM SHALL 엔진 그래프 검증에서 메시지가 `PARALLEL_BACK_EDGE:` 로 시작하는 에러로 실행을 실패시킨다.
 - REQ-PARALLEL-024 IF 중첩 Parallel 깊이가 2를 넘으면 THE SYSTEM SHALL 엔진 그래프 검증에서 메시지가 `PARALLEL_NESTED_DEPTH_EXCEEDED:` 로 시작하는 에러로 실행을 실패시킨다.
 - REQ-PARALLEL-025 IF 중첩 Parallel 의 바깥 × 안쪽 동시 실행 수 곱이 32를 넘으면 THE SYSTEM SHALL 안쪽 동시 실행 수를 `max(1, floor(32 / parentEffective))` 로 줄이고 `meta.clampedConcurrency` 에 기록한다.
@@ -107,17 +107,17 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 - **`PARALLEL_ENGINE=off` 에서 `done` 뒤 노드의 실행 시점** (info): 되돌림 경로에서 `done` 연결선 뒤 노드가 병렬 분기 완료를 기다리는지 정하지 않았다. 핸들러가 `port: ['branch_0', …]` 를 돌려주면 엔진이 `done` 을 포함한 모든 연결선을 활성화하므로 `done` 뒤 노드는 실행되고 Parallel 의 시작 시점 출력을 받는다(2026-11-06 확인). 실행 순서 확인과 결정 필요.
 - **k8s 기본 매니페스트의 `PARALLEL_ENGINE`** (warning): 코드 기본값과 `.env.example` 은 `v1` 이다. k8s 기본 매니페스트(`k8s/base/configmap.yaml`)는 `PARALLEL_ENGINE: "off"` 다. 그래서 지금 k8s 기본 매니페스트로 배포하면 되돌림 경로(REQ-PARALLEL-027)로 실행되고 완료 출력(`branches` · `count` · `skipped`)이 나오지 않는다. 매니페스트를 `v1` 로 바꿀지 결정 필요.
 - **입력 대기로 실패한 자식 노드의 실행 기록 상태** (info): REQ-PARALLEL-032 로 병렬 분기가 실패할 때 `waiting_for_input` 을 낸 자식 노드의 실행 기록이 어느 상태로 끝나는지 정하지 않았다. 지금 테스트도 이 상태를 확인하지 않는다. 종결 상태를 정하고 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 전이 표에 넣을지 결정 필요.
-- **병렬 분기 안 Background 본문의 검사 범위** (info): 바깥 Parallel 의 사전 검사(`planParallelBody`)와 저장 규칙 `parallel:nested-depth-exceeded` 는 병렬 분기 안 Background 본문을 바깥 병렬 분기 본문으로 보고 깊이를 이어서 센다. 사전 검사는 그 본문의 블로킹 노드도 막는다. 그 본문은 실제로 실행될 때 새 컨텍스트에서 깊이 1 부터 센다([저장 규칙과 실행 검사의 범위](CLE-NODE-PARALLEL-NEST.md#저장-규칙과-실행-검사의-범위)). Background 본문을 검사 범위에서 뺄지 결정 필요. 빼려면 저장 규칙과 실행 검사를 함께 고쳐야 한다. 병렬 분기 안 컨테이너에 둔 Background 본문은 실행 검사가 이미 깊이 1 부터 세고(2026-11-12) 저장 규칙만 바깥 깊이를 이어서 센다. 저장 규칙을 고친다면 이 경우도 함께 본다. 후속 NERV Task `CLE-T-B7A8B2`.
 
 ## 구현 위치
 
 - `codebase/backend/src/nodes/logic/parallel/parallel.*.ts`
 - `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts` (`ParallelExecutor`, `ParallelBranchContext`)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeParallelBranchBody` · `runParallel` 완료 시점 덮어쓰기, 완료 출력 쓰기 `commitParallelDoneOutput`, 엔진 공통 출력 쓰기 지점 `commitNodeOutput`, 병렬 분기 사본 반영 `syncParallelBranchCacheEntry`, 안쪽 병렬 분기 출력을 바깥 병렬 분기 사본에 옮기는 `publishBranchOutputsToParent`, 컨테이너 본문 루프 `executeContainerBody` 와 동기 서브 워크플로우 · Background 본문 루프 `executeInline` 의 Parallel 넘김)
-- `codebase/backend/src/modules/execution-engine/graph/parallel-precheck.ts` (`ParallelPrecheck` 의 `planParallelBody` 와 사전 깊이 검사 `assertParallelBranchChildrenAllowed` · `assertNestedParallelBodyAllowed` · `assertContainerBodyParallelsAllowed`, 깊이 판별 `parallelDepthOf`)
+- `codebase/backend/src/modules/execution-engine/graph/parallel-precheck.ts` (`ParallelPrecheck` 의 `planParallelBody` 와 사전 깊이 검사 `assertParallelBranchChildrenAllowed` · `assertNestedParallelBodyAllowed` · `assertContainerBodyParallelsAllowed`, 병렬 분기 안 Background 본문 노드 검사 `assertBackgroundBodyChildAllowed`, 깊이 판별 `parallelDepthOf`)
 - `codebase/backend/src/modules/execution-engine/graph/parallel-branch-membership.ts` (`collectParallelBranchMembership`, 병렬 분기 소속과 합류 노드 판정)
-- `codebase/backend/src/modules/execution-engine/graph/background-body-membership.ts` (`collectBackgroundOnlyNodeIds`, 컨테이너 본문 노드 가운데 Background 본문으로만 닿는 노드 판정)
+- `codebase/backend/src/modules/execution-engine/graph/background-body-membership.ts` (`collectBackgroundOnlyNodeIds`, 컨테이너 본문과 병렬 분기 본문 노드 가운데 Background 본문으로만 닿는 노드 판정)
 - `codebase/backend/src/modules/execution-engine/graph/topological-sort.ts` (위상 순서)
+- `codebase/packages/graph-warning-rules/src/rules/parallel.ts` (저장 · 캔버스 규칙 `parallel:nested-depth-exceeded` · `parallel:nested-concurrency-cap`, 병렬 분기 본문 수집 `collectParallelBranchBodyNodeIds`)
 
 ## Rationale
 
@@ -218,3 +218,11 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 개요의 구현 상태 문단은 재개 · 재구동 뒤에는 완료 출력 대신 시작 시점 출력이 보인다는 구현 갭을 적었다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 기록을 모든 병렬 분기가 끝난 뒤 완료 출력으로 한 번 마감하게 고쳐 그 갭을 닫았고 이 문장을 지웠다. 기록의 실행 시간도 핸들러 실행 시간에서 노드 전체 실행 시간으로 바뀌었다. 근거와 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 에 있다.
 
 **기존 워크플로우 영향**: 결과 값과 다음 노드 표현식은 바뀌지 않는다. 항목 에러 정책 `stop` · `cancel-others-on-fail` 로 Parallel 이 실패하면 노드 실행 기록이 `failed` 로 남는다. 개정 전에는 `completed` 로 남았다.
+
+### 병렬 분기 안 Background 본문을 병렬 분기 본문에서 뺀다
+
+결정일: 2026-11-19
+
+미결 사항 「병렬 분기 안 Background 본문의 검사 범위」를 닫았다(NERV 질문 `01a1f1cc-0de3-747a-901b-84d85ecddcbc`, 답 A, NERV Task `CLE-T-B7A8B2`). 저장 규칙 `parallel:nested-depth-exceeded` · `parallel:nested-concurrency-cap` 과 실행 사전 검사 모두 병렬 분기 안 Background 의 `background` 연결선 뒤에서만 닿는 노드를 병렬 분기 본문에서 뺀다. 그 본문의 Parallel 은 깊이 1 부터 다시 센다(REQ-PARALLEL-036). 그 본문의 블로킹 노드는 `PARALLEL_INVALID_CHILD` 로 막지 않고 본문이 그 지점에서 에러 없이 끝난다([Background 노드](CLE-NODE-BACKGROUND.md#본문의-블로킹-노드가-입력-대기로-멈추면-곧바로-조용히-끝낸다)). 병렬 분기 안 컨테이너에 둔 Background 의 본문도 저장 규칙이 깊이 1 부터 센다. REQ-PARALLEL-022 에는 Background 본문을 병렬 분기 안으로 세지 않는다는 단서를 더했다. 규칙과 기각한 대안은 [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#병렬-분기-안-background-본문을-병렬-분기-본문에서-뺀다) 에 있다.
+
+**기존 워크플로우 영향**: 거부되던 그래프가 통과하는 쪽으로만 바뀐다.

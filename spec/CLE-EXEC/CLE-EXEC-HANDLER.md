@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-HANDLER-001", "REQ-HANDLER-002", "REQ-HANDLER-003", "REQ-HANDLER-004"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "003c56ebd000f26e299143e793cf1a86b1c86bb7621701bbb16772b985b2e1a7"
+content_hash: "3d958e497ad4fc6f10694b1227fab2878ce26d8f9677680c9018b78d6cdef390"
 read_as: "approved_fallback"
-task: "CLE-T-CE31NB"
+task: "CLE-T-JDYHCF"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "6abd2694903944fcb097fa24ed0c8613827976a1b9d9ea71fb04c1f8a698e764"
-etag: "sha256-34043a3a12e759ed77b78e4b41dea7dc4a15b17fccdaadc3b01c23d113f3f44a"
+mirror_sha256: "a724cf49c56c4dde844dc091784728ceda9f4d5526751047993cb3f47fa322cc"
+etag: "sha256-0d4e407528059e5b4410bebb9b8558b43e1cb27e238e6c46e84164964b88d73f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -133,7 +133,7 @@ return {
 
 핸들러가 실패를 throw 하고 에러 처리 정책이 「에러 포트로 라우팅」이면 핸들러 반환값이 없어도 엔진이 출력 `{ error: { code, message } }` 를 만들고 `_selectedPort` 에 `error` 를 기록한다. 이 경로의 규칙은 [에러 처리 정책 §2](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 에 있다.
 
-출력 값이 배열이나 원시값이면 엔진은 `port` · `status` 를 함께 들고 다니려고 엔진 안에서만 `{ data: <출력 값>, _selectedPort, … }` 객체를 만든다. 이 객체는 포트 라우팅과 대기 판정에만 쓴다. 다음 노드의 `$input`(`gatherNodeInput`), `$node["X"].output`, 컨테이너 본문이 `emit` 으로 넘기는 값, Parallel 분기 결과에는 이 객체 대신 핸들러가 `output` 에 둔 값이 간다. 사용자 코드가 돌려준 `{ data: ... }` 객체와 모양이 같으므로 엔진은 자기가 만든 객체에 표지를 붙여 둘을 가른다. 표지는 메모리에만 있어 DB 에서 되살린 값에는 없다. `meta` 만 있을 때는 이 객체를 만들지 않는다. 출력 값이 `null` 이거나 없으면 핸들러가 포트 하나(문자열)를 고르고 `status` 와 재개 상태(`_resumeState`)를 싣지 않았을 때만 이 객체를 만든다. 그 밖의 경우는 설정 에코와 제어 필드를 펼친 모양 그대로 들고 다닌다. 입력 대기 선언, `status: 'ended'` 같은 다른 `status`, 재개 상태, Parallel 의 분기 선언(포트 배열)이 그렇다. 출력 쪽 규칙은 [노드 출력 규약 Principle 0](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드) 7번이고, 이 객체가 아직 새는 경로는 그 문서의 [미결 사항](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)에 있다.
+출력 값이 배열이나 원시값이면 엔진은 `port` · `status` 를 함께 들고 다니려고 엔진 안에서만 `{ data: <출력 값>, _selectedPort, … }` 객체를 만든다. 이 객체는 포트 라우팅과 대기 판정에만 쓴다. 다음 노드의 `$input`(`gatherNodeInput`), `$node["X"].output`, 컨테이너 본문이 `emit` 으로 넘기는 값, Parallel 분기 결과에는 이 객체 대신 핸들러가 `output` 에 둔 값이 간다. 사용자 코드가 돌려준 `{ data: ... }` 객체와 모양이 같으므로 엔진은 자기가 만든 객체에 표지를 붙여 둘을 가른다. 재개 때 DB 완료 행에서 캐시를 되살리는 경로도 정상 실행과 같은 경로로 이 객체를 다시 만들고 표지를 붙인다. `meta` 만 있을 때는 이 객체를 만들지 않는다. 출력 값이 `null` 이거나 없으면 핸들러가 포트 하나(문자열)를 고르고 `status` 와 재개 상태(`_resumeState`)를 싣지 않았을 때만 이 객체를 만든다. 그 밖의 경우는 설정 에코와 제어 필드를 펼친 모양 그대로 들고 다닌다. 입력 대기 선언, `status: 'ended'` 같은 다른 `status`, 재개 상태, Parallel 의 분기 선언(포트 배열)이 그렇다. 출력 쪽 규칙은 [노드 출력 규약 Principle 0](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드) 7번이다. 연결선 라우팅과 다음 노드 입력 조립(`gatherNodeInput`)은 이 객체가 든 flat 캐시(`nodeOutputCache`)를 읽는다. `$node["X"]` · 실행 결과(`Execution.outputData`) · 동기 서브워크플로 결과 · Background 본문 스냅샷 · Parallel 분기 결과는 구조화 출력 캐시(`structuredOutputCache[X].output`)를 읽는다. flat 캐시의 표지를 없애는 정리는 NERV Task `CLE-T-ZJR3AF` 가 맡는다.
 
 옛 `{ port, data }` 반환 방식은 없앴다. 핸들러 반환값에 `config` 와 `output` 이 없으면 엔진 경계(`adaptHandlerReturn`)가 에러를 낸다. 엔진은 사용자 출력 값 안의 `data` 키를 보정하지도 풀지도 않는다.
 
@@ -293,6 +293,8 @@ flowchart TD
 - 엔진 캐시에 제어 필드를 따로 두어 `{ data }` 객체를 없애는 안은 미뤘다. 라우팅 · 대기 판정 · 재개 · 서브워크플로 경로를 모두 바꿔야 하고, 객체 출력과 분기 노드의 포트 라우팅을 바꾸지 않는다는 작업 경계를 넘는다.
 - 컨테이너 입력에 한해 `meta` 만 있을 때 감싸지 않게 한 앞선 수정(NERV Task `CLE-T-3HJ8MM`)은 일반 노드에 같은 결함을 남겼다. 라우팅은 `meta` 를 읽지 않으므로 모든 노드에서 `meta` 만으로는 감싸지 않게 바꿨다.
 - 표지는 `WeakSet` 이라 값의 모양과 JSON 직렬화를 바꾸지 않는다. 대신 객체를 새로 만들면 표지가 따라가지 않으므로 객체를 새로 만드는 `applyPortSelection` 이 표지를 옮긴다.
+
+2026-11-19 에 실행 결과 · 서브워크플로 결과 · Background 본문 · 재개 값도 구조화 출력 캐시에서 읽도록 바꿔 이 객체가 새는 경로를 닫았다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다), NERV Task `CLE-T-JDYHCF`).
 
 ### `null` 출력도 같은 객체에 싣는다 (2026-11-05)
 

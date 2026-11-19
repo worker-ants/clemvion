@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "31fc3d8d86404ea00eab29aac3a60c553ac20ecbb70beac8b289cddc91f69a17"
+content_hash: "6ffaf7c0a2fc5f3c7566f41428f0af5348d5bc0a445d1874051fdb4ad2e0e5c6"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-JDYHCF"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "ef1e5a282a613d5df7be6039e590aa802e4d7a0b5387d7b1c036a2989e78a84d"
-etag: "sha256-9af55b916805283832d0971435022b59b14236fca50ba09fa703e327dec2dde4"
+mirror_sha256: "1aeec15b46b7b420f3a6c7e838d1c58ca79f56a729932703b26e47501f39bfdd"
+etag: "sha256-c0e8d5188837947301f710c9db18aa71152a1a759bbc1036b19de6614587f45e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,7 +67,7 @@ etag: "sha256-9af55b916805283832d0971435022b59b14236fca50ba09fa703e327dec2dde4"
    이 8키는 `nodeOutput` 안(노드 출력 층)의 키다. 봉투 층에도 `interactionType` · `buttonConfig` 같은 키가 있다. 봉투 키는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)과 [입력 대기 이벤트](../CLE-API/CLE-API-WS-EVENTS-WAITING.md)가 정한다.
 5. 다섯 필드 목록을 넓히지 않는다. wire 전용 키는 핸들러가 만드는 값이 아니라 전송 조립 계층이 만드는 값이다. 정본 목록은 `codebase/backend/src/nodes/core/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS` 다. 컴파일 타임 assertion 이 다섯 필드를 묶고 나머지 8키는 리터럴 테스트가 지킨다. 범위 표는 [응답 자격 증명 마스킹 §3.8](../CLE-API/CLE-API-EGRESS.md#38-외부-nodeoutput-의-fail-closed-허용-목록-2026-08-23-2026-08-24)이 가진다. 갈래 라벨은 그 표와 같은 문구를 쓴다.
 6. 내부 최상위 필드 세 개는 다섯 필드 밖 최상위 위치를 예외로 허용한다. `_resumeState`(멀티턴 입력 대기·재개 중 내부 전달), `_resumeCheckpoint`(재시작 뒤 재개용 DB 보존 부분집합), `_retryState`(재시도 가능 에러로 끝날 때 DB 보존)다. 세 필드는 표현식 해석기와 자동완성에 노출하지 않고, 자격 증명 제외 정책도 같다. 자세한 규칙은 [4.2.1](CLE-NODE-OUTPUT-FLOW.md#421-보존-예외--_resumecheckpoint--_retrystate)에 있다.
-7. 출력 값이 배열이나 원시값(문자열 · 숫자 · 불리언 · `null`)이어도 다음 노드는 그 값을 그대로 받는다. `$input` 과 `$node["X"].output` 은 핸들러가 `output` 에 둔 값과 같다. `port` · `status` · `meta` 가 함께 있어도 `{ data: … }` 같은 객체로 감싸지 않는다. 사용자 코드가 `{ data: [...] }` 객체를 돌려주면 그 객체가 출력 값이다. 엔진이 포트 라우팅을 위해 이 값을 어떻게 들고 다니는지는 [노드 핸들러 계약 §포트 선택](../CLE-EXEC/CLE-EXEC-HANDLER.md#포트-선택)에 있다. 이 규칙이 아직 닿지 않는 경로는 [미결 사항](#미결-사항)에 있다.
+7. 출력 값이 배열이나 원시값(문자열 · 숫자 · 불리언 · `null`)이어도 다음 노드는 그 값을 그대로 받는다. `$input` 과 `$node["X"].output` 은 핸들러가 `output` 에 둔 값과 같다. `port` · `status` · `meta` 가 함께 있어도 `{ data: … }` 같은 객체로 감싸지 않는다. 사용자 코드가 `{ data: [...] }` 객체를 돌려주면 그 객체가 출력 값이다. 엔진이 포트 라우팅을 위해 이 값을 어떻게 들고 다니는지는 [노드 핸들러 계약 §포트 선택](../CLE-EXEC/CLE-EXEC-HANDLER.md#포트-선택)에 있다. 실행 결과(`Execution.outputData`) · 동기 서브워크플로 결과 · Background 본문 · 재개 뒤의 값도 같고 `_selectedPort` 같은 엔진 내부 키가 붙지 않는다([Rationale](#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다)).
 
 ### Principle 1. 출력 값에는 비즈니스 결과만 둔다
 
@@ -209,7 +209,7 @@ AI 노드의 `meta` 필드는 다음과 같다.
 | 코드 실행 결과(사용자 `return` 값) | `output` 최상위. Code·Transform 은 `output.result` 로 감싸지 않는다. 사용자 코드나 연산이 형태를 정하기 때문이다. 배열이나 원시값을 돌려주면 그 값이 `output` 이다([Principle 0](#principle-0-노드-출력의-다섯-필드) 7번). |
 | 표시용 런타임 필드 | `output.items`(Carousel 동적 모드), `output.rows`·`output.totalRows`(Table), `output.data`(Chart), `output.rendered`(Template). 빈 출력(`{}`)은 Form 과 Carousel 정적 모드다. 자세한 형태는 [4.3](CLE-NODE-OUTPUT-FLOW.md#43-입력-대기-상태의-출력-값-노드별)에 있다. |
 
-`output.result` 감싸기는 AI 노드(`ai_agent`, `text_classifier`, `information_extractor`)에만 쓴다. 이 세 노드만 도메인 결과를 `output.result` 아래에 모은다. Code·Transform 은 사용자가 형태를 정하므로 `output` 최상위에 바로 둔다. 기준은 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md)와 [Transform 노드](../CLE-NODE-DATA/CLE-NODE-TRANSFORM.md)다.
+`output.result` 감싸기는 AI 노드(`ai_agent`, `text_classifier`, `information_extractor`)에만 쓴다. Code·Transform 의 기준은 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md)와 [Transform 노드](../CLE-NODE-DATA/CLE-NODE-TRANSFORM.md)다.
 
 ### Principle 9. 컨테이너와 Parallel 의 출력 덮어쓰기
 
@@ -274,7 +274,7 @@ AI 노드의 `meta` 필드는 다음과 같다.
 
 ## 미결 사항
 
-주제별 미결 항목은 하위 문서로 옮겼다. 다른 문서가 이 절을 가리키면 아래 항목에서 해당 하위 문서로 간다.
+주제별 미결 항목은 하위 문서로 옮겼다.
 
 - **AI 노드의 인증 실패 재시도 가능 분류(Principle 3.2.1)** · **시스템 포트 예약어 집합과 거부 계층(Principle 6)** · **출력 포트가 둘인데 `port` 를 비우는 노드(Principle 5)**: [포트 · 흐름 상태 · 에러의 미결 사항](CLE-NODE-OUTPUT-FLOW.md#미결-사항)
 - **정보 추출기의 설정 에코 키 이름(Principle 7)**: [설정 에코의 미결 사항](CLE-NODE-OUTPUT-ECHO.md#미결-사항)
@@ -283,12 +283,11 @@ AI 노드의 `meta` 필드는 다음과 같다.
 이 문서에 남은 미결 항목은 다음과 같다.
 
 - **흐름 지시 상태 값 `started`(Principle 0)**: 이 규약은 `status` 를 엔진 흐름을 바꾸는 값으로 정의한다. [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)의 비동기 호출은 최상위 `status: 'started'` 를 돌려준다. 자세한 내용은 그 문서의 미결 사항에 있다.
-- **배열 · 원시값 `output` 이 `{ data }` 로 감싸이는 갭(Principle 0 · 8)**: 다음 노드의 `$input` 과 `$node["X"].output` 은 [Principle 0](#principle-0-노드-출력의-다섯-필드) 7번대로 배열 · 원시값을 그대로 받는다. 엔진 내부 값을 그대로 쓰는 경로는 아직 이 규칙을 따르지 않는다. 실행 결과(`Execution.outputData`)와 동기 서브워크플로 결과(워크플로우 호출 노드의 `output.result`)에는 마지막 노드의 엔진 내부 값이 들어간다. 출력 값이 배열 · 원시값(`null` 포함)이고 `port` 가 있으면 `{ data: <값>, _selectedPort: <포트> }` 이고, 객체면 `_selectedPort` 키가 붙는다. `port` 가 있는 객체 출력은 `$node["X"].output` 에도 `_selectedPort` 키가 붙는다. `$input` 에는 붙지 않는다. Background 노드 본문은 큐로 넘어온 엔진 내부 값(`nodeOutputCache` 스냅샷)만 받으므로, 본문 밖 노드의 배열 · 원시값 출력에 `port` 가 있으면 본문 안의 `$node["X"].output` 이 같은 `{ data, _selectedPort }` 형태로 보인다. DB 에서 되살린 값으로 실행을 이어 가는 경로도 같은지는 아직 확인하지 않았다. 결정 필요: 이 경로들도 핸들러 `output` 을 그대로 쓰게 할지, 실행 결과는 노드 출력 다섯 필드 전체로 둘지. 후속 작업은 NERV Task `CLE-T-JDYHCF` 가 다룬다.
 
 ## 구현 위치
 
 - `codebase/backend/src/nodes/core/node-handler.interface.ts`: `NodeHandlerOutput` 타입
-- `codebase/backend/src/modules/execution-engine/handler-output.adapter.ts`
+- `codebase/backend/src/modules/execution-engine/handler-output.adapter.ts`: 노드 결과 값을 꺼내는 `resolveNodeResultValue`
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`
 - `codebase/backend/src/nodes/core/node-output-allowlist.ts`: `NODE_OUTPUT_ALLOWED_KEYS`
 
@@ -314,17 +313,17 @@ AI 노드의 `meta` 필드는 다음과 같다.
 
 결정일: 2026-08-24
 
-이 구분이 산문으로 다섯 문서에 흩어져 있었고, 사본마다 같은 결함이 따로 나왔다. 사본을 줄이는 것이 재발을 막는 유일한 방법이라 [Principle 0](#principle-0-노드-출력의-다섯-필드)을 기준으로 삼고 다른 문서가 인용하게 했다. 2026-11-19 에 4번 wire 전용 키의 층을 적었다(NERV Task `CLE-T-7F5XSA`).
+이 구분이 산문으로 다섯 문서에 흩어져 있었고, 사본마다 같은 결함이 따로 나왔다. 사본을 줄이는 것이 재발을 막는 유일한 방법이라 [Principle 0](#principle-0-노드-출력의-다섯-필드)을 기준으로 삼고 다른 문서가 인용하게 했다.
 
 ### wire 전용 키를 다섯 필드에 넣지 않는 이유
 
-wire 전용 키 8개는 핸들러가 아니라 전송 조립 계층이 만든다. 계약에 넣으면 모든 핸들러가 지켜야 할 것처럼 읽힌다. 갈래 라벨은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 허용 목록 표와 같은 문구를 쓴다. 코드 JSDoc 은 접미어 없는 축약형(`wire 전용 (위젯)`, `(chat-channel)`)이라 글자가 완전히 같지는 않다. 키 배열은 정확히 같으므로 기능 위험은 없다. 라벨 통일은 남은 개발 작업이다.
+wire 전용 키 8개는 핸들러가 아니라 전송 조립 계층이 만든다. 계약에 넣으면 모든 핸들러가 지켜야 할 것처럼 읽힌다. 코드 JSDoc 의 갈래 라벨은 접미어 없는 축약형(`wire 전용 (위젯)`, `(chat-channel)`)이라 글자가 완전히 같지는 않다. 키 배열은 정확히 같으므로 기능 위험은 없다. 라벨 통일은 남은 개발 작업이다.
 
 ### `meta.durationMs` 는 핸들러가 넣는다
 
 결정일: 2026-11-19
 
-여러 노드 문서가 엔진이 이 값을 넣는다고 적었으나 엔진은 Form 재개 때만 이 값을 고친다. 값을 싣는 쪽은 핸들러다. HTTP 요청 · Send Email · DB 쿼리 · Cafe24 · MakeShop · Background · AI 노드 · 워크플로우 호출은 잰 값을 싣는다. 버튼 대기에 들어가는 Chart · Carousel · Table · Template 과 Form 은 `0` 을 싣고 버튼 재개는 이 값을 바꾸지 않는다. Code · Transform · 수동 트리거와 나머지 Logic 노드는 싣지 않는다. 그래서 문서를 지금 동작에 맞췄다(NERV Task `CLE-T-1GJKB2`). 실제 출력은 바뀌지 않으므로 호환 영향은 없다. 통합 노드는 계속 잰 값을 싣고 Send Email dry-run 만 값이 없다(보강은 `CLE-T-22PSME`). 통합 노드 공통 규칙 3 은 시간 키 이름을 정하는 규칙이라 그대로 둔다.
+여러 노드 문서가 엔진이 이 값을 넣는다고 적었으나 엔진은 Form 재개 때만 이 값을 고친다. 값을 싣는 쪽은 핸들러다. HTTP 요청 · Send Email · DB 쿼리 · Cafe24 · MakeShop · Background · AI 노드 · 워크플로우 호출은 잰 값을 싣는다. 버튼 대기에 들어가는 Chart · Carousel · Table · Template 과 Form 은 `0` 을 싣고 버튼 재개는 이 값을 바꾸지 않는다. Code · Transform · 수동 트리거와 나머지 Logic 노드는 싣지 않는다. 그래서 문서를 지금 동작에 맞췄다(NERV Task `CLE-T-1GJKB2`). 실제 출력은 바뀌지 않으므로 호환 영향은 없다. 통합 노드 공통 규칙 3 은 시간 키 이름을 정하는 규칙이라 그대로 둔다.
 
 기각한 대안은 엔진이 모든 노드 완료 때 값을 넣는 안이다. 핸들러가 잰 외부 호출 시간과 엔진이 잰 노드 전체 시간이 한 키에서 뜻이 갈리고, 노드 전체 시간은 이미 실행 기록에 있다.
 
@@ -332,9 +331,21 @@ wire 전용 키 8개는 핸들러가 아니라 전송 조립 계층이 만든다
 
 결정일: 2026-11-05
 
-이 결정 전에는 엔진이 배열 · 원시값 출력에 `port` · `status` · `meta` 가운데 하나라도 있으면 `{ data: <값> }` 으로 감쌌다. 그래서 Code 의 `return [...]` 를 다음 노드가 `$input.data` 로 읽어야 했고, `port` 나 `meta` 를 싣는 Merge · 변수 선언 · Transform · If/Else · Switch 의 배열 출력도 늘 감싸였다. 값 위치를 예측한다는 목표와 [Principle 8.2](#82-통일된-1차-이름)에 맞지 않았다. 2026-11-05 에 이 감싸기를 없앴다(NERV Task `CLE-T-T30D5S`). 감싼 값을 `$input.data` · `$node["X"].output.data` 로 읽던 워크플로우는 이 결정 뒤 `undefined` 를 읽는다. 호환이 깨지는 변경이다. 엔진 쪽 구현 결정은 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#배열--원시값-출력의-엔진-내부-객체를-표지로-가른다-2026-11-05)에 있다. 같은 날 Code 가 `null` 을 돌려주거나 값을 돌려주지 않는 경우도 맞췄다(NERV Task `CLE-T-X3AH4F`). 전에는 다음 노드가 설정 에코를 받고 success · error 포트가 함께 열렸으나 이제 success 포트만 열리고 다음 노드는 `null` 을 받는다.
+이 결정 전에는 엔진이 배열 · 원시값 출력에 `port` · `status` · `meta` 가운데 하나라도 있으면 `{ data: <값> }` 으로 감쌌다. 그래서 Code 의 `return [...]` 도 다음 노드가 `$input.data` 로 읽어야 했다. 값 위치를 예측한다는 목표와 [Principle 8.2](#82-통일된-1차-이름)에 맞지 않았다. 2026-11-05 에 이 감싸기를 없앴다(NERV Task `CLE-T-T30D5S`). 감싼 값을 `$input.data` · `$node["X"].output.data` 로 읽던 워크플로우는 이 결정 뒤 `undefined` 를 읽는다. 호환이 깨지는 변경이다. 엔진 쪽 구현 결정은 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#배열--원시값-출력의-엔진-내부-객체를-표지로-가른다-2026-11-05)에 있다. 같은 날 Code 가 `null` 을 돌려주거나 값을 돌려주지 않는 경우도 맞췄다(NERV Task `CLE-T-X3AH4F`). 전에는 다음 노드가 설정 에코를 받고 success · error 포트가 함께 열렸으나 이제 success 포트만 열리고 다음 노드는 `null` 을 받는다.
 
 기각한 대안은 둘이다. 첫째, `$input.data` 도 같은 값을 주는 별칭은 원시값에 속성을 붙일 수 없고 배열에 `data` 속성을 붙이면 사용자 값의 모양이 바뀐다. 둘째, Code 만 감싸지 않는 노드별 적용은 노드 종류를 알아야 값 위치를 알 수 있어 규약의 목표와 맞지 않는다. 저장된 워크플로우의 `$input.data` 를 자동으로 고치는 마이그레이션도 두지 않았다. 앞 노드의 출력이 배열 · 원시값인지는 실행해 봐야 알 수 있어 표현식만 보고 고칠 곳을 가를 수 없다.
+
+### 실행 결과와 서브워크플로 결과도 핸들러 output 을 싣는다
+
+결정일: 2026-11-19
+
+[앞 결정](#배열--원시값-출력을-감싸지-않는다) 뒤에도 실행 결과와 동기 서브워크플로 결과에는 마지막 노드의 엔진 내부 값이 실렸다. 배열 · 원시값에 `port` 가 있으면 `{ data, _selectedPort }` 였고 객체에는 `_selectedPort` 키가 붙었다. `$node["X"].output` 의 `port` 있는 객체 출력, Background 본문, 재개 뒤의 값도 같았다.
+
+사람이 두 가지를 정했다(NERV Task `CLE-T-JDYHCF`). 첫째, 두 결과에 마지막 노드의 핸들러 `output` 을 그대로 싣는다(NERV 질문 `01a1f1cf-c0f1-7445-bd83-6a823030cb73`, 답 a). 마지막 노드가 출력 없이 끝나면 실행 결과는 `{}` 이고 서브워크플로 결과는 `undefined` 다. 둘째, 이 값은 구조화 출력 캐시(`structuredOutputCache[X].output`)에서 읽고 봉투 표지는 JSON 에 싣지 않는다(NERV 질문 `01a1f1cf-c250-748c-a58a-ef45e2d530c6`, 답 A). 재개 때 DB 에서 되살리는 경로는 정상 실행과 같은 경로로 두 캐시를 채우고 Background 큐 작업은 이 캐시의 스냅샷을 싣는다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#실행-로직)).
+
+기각한 대안은 둘이다. 실행 결과에 노드 출력 다섯 필드 전체를 싣는 안은 서브워크플로 결과를 읽는 표현식이 모두 `.result.output.…` 으로 바뀌어 호환 영향이 크다. 값 안 전용 필드(`__engineEnvelope`)로 표지를 남기는 안은 DB 노드 실행 `outputData` 와 WS 이벤트에 그 필드가 보이고 저장 값의 모양이 바뀐다.
+
+호환이 깨지는 변경이다. 실행 결과, [EIA 상태 조회](../CLE-IX/CLE-EIA-INBOUND-STATUS.md#단발-상태-조회)의 `result`, [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#최종-노드-출력)의 `output.result` 가 배열 · 원시값을 그대로 담고 `_selectedPort` 키가 사라진다. `$node["Workflow"].output.result._selectedPort` 나 `.result.data` 로 봉투를 읽던 표현식은 고쳐야 한다. flat 캐시의 봉투 표지 제거 같은 내부 정리는 NERV Task `CLE-T-ZJR3AF` 가 맡고 사용자에게 보이는 값은 바뀌지 않는다.
 
 ### 예외 표에서 정한 노드만 배열이 아닌 입력을 빈 배열로 바꾼다
 
