@@ -202,6 +202,25 @@ const envExampleTexts = [
 ];
 
 /**
+ * `파일.ts#심볼` 참조 한 건의 문제를 낸다(없으면 null). 심볼이 파일에 없으면 문제다.
+ * 심볼이 토큰과 다르면 심볼이 든 줄 중 하나는 토큰도 담아야 한다. 심볼이 토큰과 같은
+ * 문자열이면 두 번째 검사가 첫 번째와 같아서 심볼 존재만 본다(동어반복을 검사인 척하지 않는다).
+ */
+function symbolRefProblem(
+  lines: readonly string[],
+  token: string,
+  symbol: string,
+): string | null {
+  const symbolRe = new RegExp(`\\b${symbol}\\b`);
+  const symbolLines = lines.filter((l) => symbolRe.test(l));
+  if (symbolLines.length === 0) return "심볼이 파일에 없다";
+  if (symbol !== token && !symbolLines.some((l) => l.includes(token))) {
+    return "의 줄에 토큰이 없다";
+  }
+  return null;
+}
+
+/**
  * `where` 에서 `파일.ts:줄` · `파일.ts#심볼` 참조를 **전부** 뽑고, **뽑히지 않고 남은 것**을
  * 함께 낸다.
  *
@@ -221,7 +240,9 @@ const envExampleTexts = [
  * 원리적으로 틀렸다 — 다음 구분자를 또 모른다. 대신 **머리 부분(` — ` 앞)에 참조와
  * 구분자 말고는 아무것도 남지 않을 것**을 요구한다. 남으면 그게 잔여다.
  */
-type WhereRef = { file: string; line: number } | { file: string; symbol: string };
+type WhereRef =
+  | { file: string; line: number }
+  | { file: string; symbol: string };
 
 function parseWhereRefs(where: string): {
   refs: WhereRef[];
@@ -401,7 +422,12 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 아래 `[한계]`·`[대조군]` 은 그것과 **분리된 병렬 구현**이었다 — 그래서 실제 체인에서
       // 카탈로그 필터를 지워도 71/71 GREEN 이었다
       // (`review/code/2026/09/13/20_57_13` testing WARNING#1, 리뷰어가 뮤테이션으로 관측).
-      expect(computeNonEmittedOffenders(citations.map((c) => c.token), sets)).toEqual([]);
+      expect(
+        computeNonEmittedOffenders(
+          citations.map((c) => c.token),
+          sets,
+        ),
+      ).toEqual([]);
     });
 
     it("[vacuity] 세 수집기가 실제로 뭔가를 걷었다", () => {
@@ -427,10 +453,14 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // `CLE-API-ERRCODES` 만으로 단언하면 가드를 지워도 통과한다. `readFileSync` 의
       // ENOENT 메시지에도 그 경로가 들어 있기 때문이다. 그래서 가드 메시지에만 있는
       // 명령 조각으로 단언하고 ENOENT 가 아님을 함께 본다.
-      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "guide-ident-catalog-"));
+      const tmp = fs.mkdtempSync(
+        path.join(os.tmpdir(), "guide-ident-catalog-"),
+      );
       try {
         const read = () => readErrorCodeCatalogMirror(tmp);
-        expect(read).toThrow(/pull\.py --task <CLE-T-…> --spec CLE-API-ERRCODES/);
+        expect(read).toThrow(
+          /pull\.py --task <CLE-T-…> --spec CLE-API-ERRCODES/,
+        );
         expect(read).toThrow(/git restore spec\/CLE-API\/CLE-API-ERRCODES\.md/);
         expect(read).not.toThrow(/ENOENT/);
       } finally {
@@ -452,7 +482,9 @@ describe("유저 가이드 식별자 실재성 가드", () => {
         "## 미결 사항",
         "`AFTER_CATALOG`",
       ].join("\n");
-      expect([...collectCatalogCodes([catalogSection(text)])]).toEqual(["IN_CATALOG"]);
+      expect([...collectCatalogCodes([catalogSection(text)])]).toEqual([
+        "IN_CATALOG",
+      ]);
     });
 
     it("하위 문서에서는 `## 6.N` 절만 걷는다", () => {
@@ -500,7 +532,9 @@ describe("유저 가이드 식별자 실재성 가드", () => {
 
     it("「6. 카탈로그」 절이 없으면 throw 한다", () => {
       // 절 제목이 바뀌면 빈 문자열이 나와 탈출구가 조용히 닫힌다. 그 대신 멈춘다.
-      expect(() => catalogSection("## 6. 코드 목록\n`X_Y`\n")).toThrow(/6\. 카탈로그/);
+      expect(() => catalogSection("## 6. 코드 목록\n`X_Y`\n")).toThrow(
+        /6\. 카탈로그/,
+      );
     });
 
     it("등록된 3종이 **실제로 접두 전용**이다 (죽은 등록 방지)", () => {
@@ -565,12 +599,9 @@ describe("유저 가이드 식별자 실재성 가드", () => {
             continue;
           }
           if ("symbol" in ref) {
-            const symbolRe = new RegExp(`\\b${ref.symbol}\\b`);
-            const symbolLines = lines.filter((l) => symbolRe.test(l));
-            if (symbolLines.length === 0) {
-              broken.push(`${entry.token}: ${file} 에 심볼 ${ref.symbol} 이 없다`);
-            } else if (!symbolLines.some((l) => l.includes(entry.token))) {
-              broken.push(`${entry.token}: ${file}#${ref.symbol} 의 줄에 토큰이 없다`);
+            const problem = symbolRefProblem(lines, entry.token, ref.symbol);
+            if (problem !== null) {
+              broken.push(`${entry.token}: ${file}#${ref.symbol} ${problem}`);
             }
             continue;
           }
@@ -583,6 +614,15 @@ describe("유저 가이드 식별자 실재성 가드", () => {
         }
       }
       expect(broken).toEqual([]);
+    });
+
+    it("[대조군] `symbolRefProblem` 이 없는 심볼과 토큰 없는 줄을 가른다", () => {
+      const lines = ["const FOO = 1;", "export const BAR = 'x';"];
+      expect(symbolRefProblem(lines, "FOO", "FOO")).toBeNull();
+      expect(symbolRefProblem(lines, "FOO", "NOPE")).not.toBeNull();
+      // 심볼이 토큰과 다르면 그 줄에 토큰이 있어야 한다.
+      expect(symbolRefProblem(lines, "x", "BAR")).toBeNull();
+      expect(symbolRefProblem(lines, "TOKEN", "BAR")).not.toBeNull();
     });
 
     it("[대조군] `parseWhereRefs` 가 `파일:줄·줄` 의 **모든** 위치를 낸다", () => {
@@ -634,9 +674,9 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 위 술어가 실제 데이터에 대해 조용히 항상 참인지(=이 목록이 우연히 통과하는지)
       // 가 아니라, **오늘 등록분이 형식을 지키는지**를 본다.
       expect(
-        GUIDE_NON_EMITTED_VOCABULARY.filter((e) => parseWhereRefs(e.where).residue !== "").map(
-          (e) => e.token,
-        ),
+        GUIDE_NON_EMITTED_VOCABULARY.filter(
+          (e) => parseWhereRefs(e.where).residue !== "",
+        ).map((e) => e.token),
       ).toEqual([]);
     });
 
@@ -655,7 +695,9 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 같은 클래스의 중복을 새로 만들었다
       // (`review/code/2026/09/13/19_51_33` maintainability WARNING#4).
       const cited = new Set(citations.map((c) => c.token));
-      expect(staleGuideEntries(GUIDE_NON_EMITTED_VOCABULARY, cited)).toEqual([]);
+      expect(staleGuideEntries(GUIDE_NON_EMITTED_VOCABULARY, cited)).toEqual(
+        [],
+      );
     });
 
     it(`[vacuity] 목록이 비면 위 3강제가 전부 무의미해진다`, () => {
@@ -702,7 +744,11 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       );
       const withoutCatalog = computeNonEmittedOffenders(
         citations.map((c) => c.token),
-        { ...sets, catalogCodes: new Set<string>(), registered: new Set<string>() },
+        {
+          ...sets,
+          catalogCodes: new Set<string>(),
+          registered: new Set<string>(),
+        },
       );
       const rescuedByCatalog = withoutCatalog.filter(
         (t) => !withCatalog.includes(t),
@@ -750,9 +796,9 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     const citedByBacktick = new Set(
       citations.filter((c) => c.axis === "backtick").map((c) => c.token),
     );
-    expect(
-      ONLY_IN_MIXED_SPANS.filter((t) => !citedByBacktick.has(t)),
-    ).toEqual([]);
+    expect(ONLY_IN_MIXED_SPANS.filter((t) => !citedByBacktick.has(t))).toEqual(
+      [],
+    );
     // 그리고 실제로 판정까지 간다 — 걷히기만 하고 기준집합 대조를 못 받으면 의미가 없다.
     expect(ONLY_IN_MIXED_SPANS.filter((t) => !basis.has(t))).toEqual([]);
   });
@@ -869,8 +915,12 @@ describe("collectSourceTokens — 경계 대조군", () => {
   });
 
   it("독립된 토큰은 센다", () => {
-    expect([...collectSourceTokens(["const MY_TOKEN = 1;"])]).toEqual(["MY_TOKEN"]);
-    expect([...collectSourceTokens(["process.env.SOME_FLAG"])]).toEqual(["SOME_FLAG"]);
+    expect([...collectSourceTokens(["const MY_TOKEN = 1;"])]).toEqual([
+      "MY_TOKEN",
+    ]);
+    expect([...collectSourceTokens(["process.env.SOME_FLAG"])]).toEqual([
+      "SOME_FLAG",
+    ]);
   });
 
   it("긴 토큰은 통째로 센다 (내부 조각을 따로 세지 않는다)", () => {
@@ -885,7 +935,9 @@ describe("collectSourceTokens — 경계 대조군", () => {
   });
 
   it("[비대상] 밑줄 없는 약어는 안 센다", () => {
-    expect([...collectSourceTokens(["const LLM = 1; const HTTP = 2;"])]).toEqual([]);
+    expect([
+      ...collectSourceTokens(["const LLM = 1; const HTTP = 2;"]),
+    ]).toEqual([]);
   });
 });
 
@@ -979,7 +1031,10 @@ describe("computeNonEmittedOffenders — 네 항이 각각 무는가", () => {
 
   it("[접두-전용 항] 토큰-단독 리터럴이 있으면 offender 가 아니다", () => {
     expect(
-      computeNonEmittedOffenders([T], { ...base, quotedLiterals: new Set([T]) }),
+      computeNonEmittedOffenders([T], {
+        ...base,
+        quotedLiterals: new Set([T]),
+      }),
     ).toEqual([]);
   });
 
@@ -994,13 +1049,15 @@ describe("staleGuideEntries — 판별 대조군", () => {
   // 목록이 커지기 전까지는 우연히만 잡힌다. 같은 파일이 다른 신규 함수 전부에 적용한
   // 규율(«두 판정이 갈리는 값을 고정») 을 이 1줄 함수만 비켜 갔다.
   it("인용되지 않은 항목을 낸다", () => {
-    expect(staleGuideEntries([{ token: "NOT_CITED" }], new Set(["OTHER"]))).toEqual([
-      "NOT_CITED",
-    ]);
+    expect(
+      staleGuideEntries([{ token: "NOT_CITED" }], new Set(["OTHER"])),
+    ).toEqual(["NOT_CITED"]);
   });
 
   it("인용된 항목은 내지 않는다", () => {
-    expect(staleGuideEntries([{ token: "CITED" }], new Set(["CITED"]))).toEqual([]);
+    expect(staleGuideEntries([{ token: "CITED" }], new Set(["CITED"]))).toEqual(
+      [],
+    );
   });
 
   it("[경계] 빈 목록은 빈 결과 — 단언이 vacuous 해지는 자리", () => {
@@ -1049,7 +1106,9 @@ describe("발행 축 수집기 — 경계 대조군", () => {
     it("세 따옴표 형태를 모두 받는다", () => {
       expect([...collectQuotedLiterals(["a 'A_ONE' b"])]).toEqual(["A_ONE"]);
       expect([...collectQuotedLiterals(['a "B_TWO" b'])]).toEqual(["B_TWO"]);
-      expect([...collectQuotedLiterals(["a `C_THREE` b"])]).toEqual(["C_THREE"]);
+      expect([...collectQuotedLiterals(["a `C_THREE` b"])]).toEqual([
+        "C_THREE",
+      ]);
     });
 
     it("[경계] 여닫이 따옴표가 **다르면** 안 받는다 (역참조)", () => {
@@ -1059,9 +1118,9 @@ describe("발행 축 수집기 — 경계 대조군", () => {
 
     it("[비대상] 따옴표 안에 토큰 **외의 글자**가 있으면 안 받는다", () => {
       // 이것이 «접두» 와 «리터럴» 을 가르는 자리다.
-      expect([...collectQuotedLiterals(["throw new Error('E_FIVE: 설명')"])]).toEqual(
-        [],
-      );
+      expect([
+        ...collectQuotedLiterals(["throw new Error('E_FIVE: 설명')"]),
+      ]).toEqual([]);
       expect([...collectQuotedLiterals(["'F_SIX '"])]).toEqual([]);
     });
 
@@ -1072,16 +1131,18 @@ describe("발행 축 수집기 — 경계 대조군", () => {
 
   describe("collectMessagePrefixes — 여는 따옴표 직후 + `:` + 공백", () => {
     it("작은따옴표·템플릿 리터럴 둘 다 받는다 (코퍼스가 둘을 섞어 쓴다)", () => {
-      expect([...collectMessagePrefixes(["new Error('H_ONE: 설명')"])]).toEqual([
-        "H_ONE",
-      ]);
-      expect([...collectMessagePrefixes(["new Error(`I_TWO: ${x}`)"])]).toEqual([
-        "I_TWO",
-      ]);
+      expect([...collectMessagePrefixes(["new Error('H_ONE: 설명')"])]).toEqual(
+        ["H_ONE"],
+      );
+      expect([...collectMessagePrefixes(["new Error(`I_TWO: ${x}`)"])]).toEqual(
+        ["I_TWO"],
+      );
     });
 
     it("[경계] `:` 가 없으면 접두가 아니다", () => {
-      expect([...collectMessagePrefixes(["new Error('J_THREE 설명')"])]).toEqual([]);
+      expect([
+        ...collectMessagePrefixes(["new Error('J_THREE 설명')"]),
+      ]).toEqual([]);
     });
 
     it("[경계] `:` 뒤에 공백이 없으면 접두가 아니다", () => {
@@ -1091,7 +1152,9 @@ describe("발행 축 수집기 — 경계 대조군", () => {
 
     it("[경계] 여는 따옴표 **직후**여야 한다", () => {
       // 문장 중간의 `… L_FIVE: …` 는 접두가 아니다.
-      expect([...collectMessagePrefixes(["'prefix L_FIVE: 설명'"])]).toEqual([]);
+      expect([...collectMessagePrefixes(["'prefix L_FIVE: 설명'"])]).toEqual(
+        [],
+      );
     });
   });
 
@@ -1196,7 +1259,9 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
 
   it("축 1 — FieldTable 의 name 을 집는다", () => {
     expect(
-      tokens('<FieldTable rows={[\n  { name: "MADE_UP_CODE", type: "x" }\n]} />'),
+      tokens(
+        '<FieldTable rows={[\n  { name: "MADE_UP_CODE", type: "x" }\n]} />',
+      ),
     ).toEqual(["field-table:MADE_UP_CODE"]);
   });
 
@@ -1227,9 +1292,9 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     expect(tokens('    "code": "MADE_UP_CODE",')).toEqual([
       "code-field:MADE_UP_CODE",
     ]);
-    expect(tokens('{ error: { code: "MADE_UP_CODE", message: "…" } }')).toEqual([
-      "code-field:MADE_UP_CODE",
-    ]);
+    expect(tokens('{ error: { code: "MADE_UP_CODE", message: "…" } }')).toEqual(
+      ["code-field:MADE_UP_CODE"],
+    );
   });
 
   it("[비대상] `code` 로 끝나는 다른 키는 안 집는다", () => {
@@ -1246,7 +1311,7 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     expect(tokens('{ "http_code": "SNAKE_TWO" }')).toEqual([]);
     // 대조군 — 정확히 `code` 인 키는 집는다(두 판정이 갈리는 값).
     expect(tokens('{ "code": "REAL_ONE" }')).toEqual(["code-field:REAL_ONE"]);
-    expect(tokens("{ error: { code: \"BARE_FORM\" } }")).toEqual([
+    expect(tokens('{ error: { code: "BARE_FORM" } }')).toEqual([
       "code-field:BARE_FORM",
     ]);
   });
@@ -1274,15 +1339,18 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     expect(tokens("환경변수 `SOME_ENV_FLAG` 로 켜요.")).toEqual([
       "backtick:SOME_ENV_FLAG",
     ]);
-    expect(tokens("- 4xx → `output.error.code` 가 `MADE_UP_CODE` 로 채워져요.")).toEqual(
-      ["backtick:MADE_UP_CODE"],
-    );
+    expect(
+      tokens("- 4xx → `output.error.code` 가 `MADE_UP_CODE` 로 채워져요."),
+    ).toEqual(["backtick:MADE_UP_CODE"]);
   });
 
   it("축 3 — 실패 설명 셀의 괄호 인용도 집는다", () => {
     const row =
       "| `executionFailedTimeout` | Processing timed out (`HTTP_TIMEOUT` / `LLM_TIMEOUT`) | no |";
-    expect(tokens(row)).toEqual(["backtick:HTTP_TIMEOUT", "backtick:LLM_TIMEOUT"]);
+    expect(tokens(row)).toEqual([
+      "backtick:HTTP_TIMEOUT",
+      "backtick:LLM_TIMEOUT",
+    ]);
   });
 
   it("축 3 — 스팬에 **다른 글자가 섞여도** 집는다 (라운드 7 CRITICAL)", () => {
@@ -1292,11 +1360,15 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     expect(tokens("`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`")).toEqual([
       "backtick:PUBLIC_WEBHOOK_BODY_TOO_LARGE",
     ]);
-    expect(tokens("`PARALLEL_ENGINE=v1`")).toEqual(["backtick:PARALLEL_ENGINE"]);
+    expect(tokens("`PARALLEL_ENGINE=v1`")).toEqual([
+      "backtick:PARALLEL_ENGINE",
+    ]);
     expect(tokens("`details.code='UNKNOWN_PLACEHOLDER'`")).toEqual([
       "backtick:UNKNOWN_PLACEHOLDER",
     ]);
-    expect(tokens("`INVALID_FIELD: 설명문`")).toEqual(["backtick:INVALID_FIELD"]);
+    expect(tokens("`INVALID_FIELD: 설명문`")).toEqual([
+      "backtick:INVALID_FIELD",
+    ]);
     // 한 스팬에 둘 이상이면 둘 다 — 스팬을 끊고 «안» 을 훑는다는 것이 관측되는 값.
     expect(tokens("`A_ONE and B_TWO`")).toEqual([
       "backtick:A_ONE",
@@ -1331,7 +1403,9 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     // 그것들은 기준집합에 있을 수도 없을 수도 있어 **베이스라인이 통제 불능**이 된다.
     expect(tokens("모델은 `LLM` 이고 전송은 `HTTP` 예요.")).toEqual([]);
     // 대조군 — 밑줄이 하나라도 있으면 집는다(두 판정이 갈리는 값이어야 제약이 관측된다).
-    expect(tokens("`LLM_TIMEOUT` 은 집는다.")).toEqual(["backtick:LLM_TIMEOUT"]);
+    expect(tokens("`LLM_TIMEOUT` 은 집는다.")).toEqual([
+      "backtick:LLM_TIMEOUT",
+    ]);
   });
 
   it("[비대상] 백틱 없는 산문 토큰은 안 집는다", () => {
