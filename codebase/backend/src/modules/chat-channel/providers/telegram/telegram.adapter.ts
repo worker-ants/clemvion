@@ -502,7 +502,7 @@ function buildFormReplyMarkup(
     case 'file_upload':
       return {
         force_reply: true,
-        input_field_placeholder: '파일을 업로드해주세요',
+        input_field_placeholder: '파일을 업로드해 주세요',
       };
     case 'date':
       return {

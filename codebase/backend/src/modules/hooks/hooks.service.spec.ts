@@ -26,6 +26,7 @@ import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate
 import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
 import { SURFACE_MISMATCH_DEFAULTS } from '../chat-channel/shared/language-hint-defaults';
+import { buildDiscordDefaultInteractionResponse } from '../chat-channel/providers/discord/discord-interaction-response';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
@@ -1810,6 +1811,48 @@ describe('HooksService', () => {
         expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
       });
 
+      // REQ-DISCORD-036 · 037 이 겹치는 경우: 꺼진 트리거에 DM 밖 슬래시 명령이 오면 수신 문구가 아니라
+      // groupChatRefusal 로 답한다. 기본 응답을 활성 여부보다 먼저 만들기 때문이다(NERV Task `CLE-T-BP79PK`).
+      // 실제 Discord 기본 응답 함수를 붙여 HooksService 가 그 결과를 그대로 싣는지 본다.
+      it('꺼진 트리거에 DM 밖 Discord 슬래시 명령이 오면 groupChatRefusal 로 답한다', async () => {
+        triggerRepo.findOne.mockResolvedValue({
+          ...discordTrigger(),
+          isActive: false,
+        } as Trigger);
+        defaultInteractionResponse.mockImplementation(
+          buildDiscordDefaultInteractionResponse,
+        );
+        const input: WebhookInput = {
+          ...chatInput,
+          body: {
+            id: 'I100',
+            type: 2,
+            token: 'tok',
+            application_id: 'A',
+            channel: { id: 'C1', type: 0 },
+            data: { name: 'workflow', options: [{ name: 'start', type: 1 }] },
+          },
+        };
+
+        const res = await service.handleWebhook('abc', input);
+
+        expect(res).toEqual({
+          executionId: 'ignored',
+          providerResponse: {
+            body: {
+              type: 4,
+              data: {
+                content: '이 봇은 1:1 대화만 지원합니다.',
+                flags: 64,
+                allowed_mentions: { parse: [] },
+              },
+            },
+          },
+        });
+        expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
+        expect(engine.execute).not.toHaveBeenCalled();
+      });
+
       it('본문 없는 기본 응답(Slack Interactivity)은 본문 없는 providerResponse 로 답한다', async () => {
         triggerRepo.findOne.mockResolvedValue(discordTrigger('slack'));
         mockAdapter.provider = 'slack';
@@ -3260,7 +3303,7 @@ describe('HooksService', () => {
       const buildFormSubmissionResponse = jest.fn().mockReturnValue({
         httpResponse: {
           type: 4,
-          data: { content: '⚠️ 입력값을 다시 확인해주세요.', flags: 64 },
+          data: { content: '⚠️ 입력값을 다시 확인해 주세요.', flags: 64 },
         },
       });
       (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse =
@@ -3296,7 +3339,7 @@ describe('HooksService', () => {
       // buildFormSubmissionResponse 가 validationError 와 함께 호출돼야 함.
       expect(buildFormSubmissionResponse).toHaveBeenCalledWith(
         expect.objectContaining({
-          validationError: { message: '입력값을 다시 확인해주세요.' },
+          validationError: { message: '입력값을 다시 확인해 주세요.' },
         }),
       );
       // providerResponse 가 반환돼야 함.
@@ -3304,7 +3347,7 @@ describe('HooksService', () => {
         providerResponse: {
           body: {
             type: 4,
-            data: { content: '⚠️ 입력값을 다시 확인해주세요.', flags: 64 },
+            data: { content: '⚠️ 입력값을 다시 확인해 주세요.', flags: 64 },
           },
         },
       });

@@ -794,7 +794,7 @@ export class HooksService {
           const r = isNativeFormAdapter(adapter)
             ? adapter.buildFormSubmissionResponse({
                 config,
-                validationError: { message: '입력값을 다시 확인해주세요.' },
+                validationError: { message: FORM_VALIDATION_FAILED_DEFAULT },
               })
             : undefined;
           // §4.1 step 5: spec 에 따라 Discord 는 검증 실패 후 "양식 작성하기" 버튼을 재노출해
