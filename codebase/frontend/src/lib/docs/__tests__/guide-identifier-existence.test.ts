@@ -1199,7 +1199,7 @@ describe("matchTokens — 매치를 꺼내는 한 곳", () => {
     // 손으로 쓴 `exec` 루프와 맨 `matchAll` 은 `lastIndex` 가 남아 있으면 그 위치부터 찾아
     // 앞 매치를 놓친다. 앞 호출이 끝까지 돌면 `exec` 가 null 에서 스스로 0 으로 되돌리므로,
     // 리셋 줄만 지워서는 이 차이가 드러나지 않는다. 그래서 `lastIndex` 를 직접 옮겨 놓고 본다.
-    const rx = /(?<token>[A-Z]+_[A-Z]+)/g;
+    const rx = new RegExp("(?<token>[A-Z]+_[A-Z]+)", "g");
     const text = "A_ONE B_TWO C_THREE";
     rx.lastIndex = text.indexOf("C_THREE");
     expect(matchTokens(text, rx)).toEqual(["A_ONE", "B_TWO", "C_THREE"]);
@@ -1208,7 +1208,7 @@ describe("matchTokens — 매치를 꺼내는 한 곳", () => {
   });
 
   it("같은 정규식으로 두 텍스트를 이어 걸어도 두 번째의 앞 매치를 놓치지 않는다", () => {
-    const rx = /(?<token>[A-Z]+_[A-Z]+)/g;
+    const rx = new RegExp("(?<token>[A-Z]+_[A-Z]+)", "g");
     expect(matchTokens("X_ONE Y_TWO", rx)).toEqual(["X_ONE", "Y_TWO"]);
     expect(matchTokens("Z_ONE", rx)).toEqual(["Z_ONE"]);
   });

@@ -154,7 +154,9 @@ const CODE_FIELD = new RegExp(
  * | `` `details.code='UNKNOWN_PLACEHOLDER'` `` | **미매치** | 매치 |
  * | `` `MAKESHOP_UNRESOLVED_PATH_PARAM: operation …` `` | **미매치** | 매치 |
  */
-const BACKTICK_SPAN = /`(?<span>[^`\n]+)`/g;
+// 정규식 리터럴로 쓰지 않는다. frontend `target` 이 ES2017 이라 tsc 가 리터럴의 이름 붙은 그룹을
+// TS1503 으로 막는다(`check-frontend-typecheck-ratchet.py`). 이 파일의 정규식은 모두 `new RegExp` 다.
+const BACKTICK_SPAN = new RegExp("`(?<span>[^`\\n]+)`", "g");
 
 /**
  * 백틱 스팬 **안쪽**을 다시 훑는 토큰 패턴.
