@@ -7,7 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { ApiOkWrappedResponse } from '../../common/swagger';
 import { SystemStatusService } from './system-status.service';
-import { SystemStatusOverviewDto } from './dto/system-status-response.dto';
+import { SystemStatusOverviewDto } from './dto/responses/system-status-response.dto';
 
 // 근거: [시스템 상태 「API」](CLE-OBS-STATUS#api)
 /**
