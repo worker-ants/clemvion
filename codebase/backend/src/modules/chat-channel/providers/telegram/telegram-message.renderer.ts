@@ -8,7 +8,7 @@ import {
 import { Logger } from '@nestjs/common';
 import type { PresentationPayload } from '../../../../shared/conversation-thread/conversation-thread.types';
 import { classifyExecutionFailure } from '../../shared/execution-failure-classifier';
-import { splitKeepingCodeFences } from '../code-fence-chunk';
+import { joinFencedChunks, splitKeepingCodeFences } from '../code-fence-chunk';
 import {
   resolveLanguageHint,
   resolveSessionExpiredMessage,
@@ -571,13 +571,7 @@ function splitByLimit(text: string, limit: number): string[] {
     midLimit: limit - CONTINUED_SUFFIX.length,
     pickEnd: pickTelegramCut,
   });
-  return chunks.map(
-    (c, i) =>
-      c.reopen +
-      c.body +
-      c.close +
-      (i < chunks.length - 1 ? CONTINUED_SUFFIX : ''),
-  );
+  return joinFencedChunks(chunks, CONTINUED_SUFFIX);
 }
 
 /**

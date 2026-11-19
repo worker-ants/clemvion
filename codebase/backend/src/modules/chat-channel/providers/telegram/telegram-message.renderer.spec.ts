@@ -133,6 +133,26 @@ describe('renderTelegramMessages', () => {
     });
   });
 
+  // NERV Task CLE-T-RYXCFX — ai_message 본문은 escape 뒤에 나누므로 LLM 이 쓴 ``` 는 표식이 아니다.
+  it('ai_message 의 ``` 는 escape 되어 4096자 초과로 나눠도 닫고 다시 여는 표식이 붙지 않는다', () => {
+    const long = '```python\n' + 'print(1)\n'.repeat(600) + '```';
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: long,
+      turnCount: 1,
+    };
+    const texts = renderTelegramMessages(event, BASE_CONFIG).flatMap((m) =>
+      m.body.kind === 'text' ? [m.body.text] : [],
+    );
+    expect(texts.length).toBeGreaterThan(1);
+    texts.forEach((t) => {
+      expect(t).not.toContain('```');
+      expect(t.length).toBeLessThanOrEqual(4096);
+      expect(unescapedReservedOutsideCode(t)).toEqual([]);
+    });
+  });
+
   it('completed → languageHints.executionCompleted', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,

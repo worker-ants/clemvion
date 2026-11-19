@@ -151,6 +151,50 @@ describe('splitKeepingCodeFences (NERV Task CLE-T-RYXCFX)', () => {
     expect(joinBodies(chunks)).toBe(text);
   });
 
+  it('조각 맨 앞의 여는 표식 줄이 한도보다 길어도 끝나고 원문을 되살릴 수 있다', () => {
+    // 표식 줄 앞으로 당길 자리가 없으면 그 줄 가운데에서 자른다.
+    const opener = '```' + 'p'.repeat(150);
+    const text = opener + '\n' + 'x = 1\n'.repeat(40) + '```';
+    const chunks = split(text, 100);
+    expect(chunks[0].body).toBe(text.slice(0, chunks[0].body.length));
+    chunks.forEach((c) => {
+      expect(c.body.length).toBeGreaterThan(0);
+      expect((c.reopen + c.body + c.close).length).toBeLessThanOrEqual(100);
+    });
+    expect(joinBodies(chunks)).toBe(text);
+  });
+
+  it('한도가 다시 연 표식과 닫는 표식보다 작아도 끝나고 원문을 되살릴 수 있다', () => {
+    // 다시 연 표식(```+32자 태그+줄바꿈 = 36자)이 midLimit 25 보다 길다. 이런 한도는 실제로 쓰지
+    // 않지만 무한 루프 없이 끝나야 한다.
+    const tag = 'a'.repeat(32);
+    const text = '```' + tag + '\n' + 'code\n'.repeat(20) + '```';
+    const chunks = split(text, 40, 25);
+    chunks.forEach((c) => expect(c.body.length).toBeGreaterThan(0));
+    expect(joinBodies(chunks)).toBe(text);
+  });
+
+  it('escape 된 \\`\\`\\` 는 표식으로 보지 않는다', () => {
+    const text = '\\`\\`\\`py\n' + 'x = 1\n'.repeat(40) + '\\`\\`\\`';
+    const chunks = split(text, 100);
+    expect(chunks.length).toBeGreaterThan(1);
+    chunks.forEach((c) => {
+      expect(c.reopen).toBe('');
+      expect(c.close).toBe('');
+    });
+    expect(joinBodies(chunks)).toBe(text);
+  });
+
+  it('줄바꿈 없는 긴 본문에 ``` 가 많아도 제곱 시간이 들지 않는다', () => {
+    // 여는 표식마다 줄 끝을 다시 찾거나 조각마다 표식을 처음부터 훑으면 O(n²) 이 된다. 그 구현은
+    // 2MB 에서 수 초가 걸린다(200KB 는 40ms 라 가려지지 않는다). 지금 구현은 수십 ms 다.
+    const text = '```a '.repeat(400_000);
+    const started = Date.now();
+    const chunks = split(text, 3500);
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(joinBodies(chunks)).toBe(text);
+  });
+
   it('생성한 본문 여러 개에서 한도 · 원문 복원 · 표식 짝이 늘 지켜진다', () => {
     // 시드를 고정한 선형 합동 생성기. 실패하면 같은 입력을 다시 만들 수 있다.
     let state = 12345;

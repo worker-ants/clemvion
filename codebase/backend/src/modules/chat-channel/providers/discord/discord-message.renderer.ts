@@ -14,7 +14,7 @@ import {
 } from '../../shared/language-hint-defaults';
 import { decideFormMode, extractFormFields } from '../../shared/form-mode';
 import { findChunkEnd } from '../text-chunk-boundary';
-import { splitKeepingCodeFences } from '../code-fence-chunk';
+import { joinFencedChunks, splitKeepingCodeFences } from '../code-fence-chunk';
 
 /**
  * Discord renderer (pure, side-effect free).
@@ -499,15 +499,11 @@ function chunkText(text: string): ChannelMessage[] {
     midLimit: DISCORD_TEXT_LIMIT - CONTINUED_SUFFIX.length,
     pickEnd: findChunkEnd,
   });
-  return chunks.map((c, i) => ({
+  return joinFencedChunks(chunks, CONTINUED_SUFFIX).map((text) => ({
     conversationKey: '',
     body: {
       kind: 'text',
-      text:
-        c.reopen +
-        c.body +
-        c.close +
-        (i < chunks.length - 1 ? CONTINUED_SUFFIX : ''),
+      text,
       chunked: true,
     } as const,
   }));
