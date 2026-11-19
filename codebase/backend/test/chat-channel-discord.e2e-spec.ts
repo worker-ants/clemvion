@@ -143,8 +143,9 @@ describe('Discord Chat Channel e2e', () => {
     expect(res.status).toBe(202);
   });
 
-  // 길드 채널 슬래시 명령은 파서가 버리지만(parser null) 슬래시 명령이라 3초 응답은 돌려준다.
-  it('guild channel (type=0) 슬래시 명령 → 200 + 수신 문구 { type: 4 } (parser null)', async () => {
+  // 길드 채널 슬래시 명령은 파서가 버리지만(parser null) 슬래시 명령이라 3초 응답은 돌려준다. 그 응답은
+  // 본인에게만 보이는 groupChatRefusal 안내다(REQ-CHAT-017, NERV Task `CLE-T-B9CRCF`).
+  it('guild channel (type=0) 슬래시 명령 → 200 + groupChatRefusal { type: 4 } (parser null)', async () => {
     const body = JSON.stringify({
       id: 'I-guild-1',
       application_id: 'A',
@@ -162,7 +163,14 @@ describe('Discord Chat Channel e2e', () => {
       .set('content-type', 'application/json')
       .send(body);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual(RECEIVED);
+    expect(res.body).toEqual({
+      type: 4,
+      data: {
+        content: '이 봇은 1:1 대화만 지원합니다.',
+        flags: 64,
+        allowed_mentions: ALLOWED_MENTIONS_NONE,
+      },
+    });
   });
 
   // 근거: [Discord 「인바운드 응답」](CLE-CHAT-DISCORD) — 컴포넌트 클릭 · 모달 제출은 3초 안에 200 과

@@ -196,6 +196,56 @@ describe('buildDiscordDefaultInteractionResponse', () => {
   ])('%s 에는 기본 응답이 없다', (_label, raw) => {
     expect(buildDiscordDefaultInteractionResponse(raw, config)).toBeUndefined();
   });
+
+  // DM 밖(서버 채널 · 스레드 · 그룹 DM)에서 친 슬래시 명령은 파서가 버린다. 사용자에게는 수신 문구 대신
+  // 본인에게만 보이는 groupChatRefusal 안내로 답한다(REQ-CHAT-017, Slack 과 같은 규칙). 2026-11-19 사람
+  // 결정(NERV 질문 `01a1f1d3-f3ba-702d-9689-121062b39a9d`), NERV Task `CLE-T-B9CRCF`.
+  const inChannel = (channelType: number, subCommand?: string) => ({
+    ...slash(subCommand),
+    channel_id: 'C1',
+    channel: { id: 'C1', type: channelType },
+  });
+  const refusal = (content: string) => ({
+    body: {
+      type: 4,
+      data: { content, flags: 64, allowed_mentions: { parse: [] } },
+    },
+  });
+
+  it.each([
+    ['서버 텍스트 채널(type 0)', 0, 'start'],
+    ['서버 텍스트 채널(type 0) help', 0, 'help'],
+    ['그룹 DM(type 3)', 3, 'cancel'],
+    ['공개 스레드(type 11)', 11, undefined],
+  ])('%s 의 슬래시 명령은 groupChatRefusal 안내다', (_label, type, sub) => {
+    expect(
+      buildDiscordDefaultInteractionResponse(inChannel(type, sub), config),
+    ).toEqual(refusal('이 봇은 1:1 대화만 지원합니다.'));
+  });
+
+  it('DM 밖 슬래시 명령은 languageHints.groupChatRefusal 이 있으면 그 문구다', () => {
+    expect(
+      buildDiscordDefaultInteractionResponse(inChannel(0, 'start'), {
+        ...config,
+        languageHints: { groupChatRefusal: 'DM 으로 불러 주세요.' },
+      }),
+    ).toEqual(refusal('DM 으로 불러 주세요.'));
+  });
+
+  it('DM(type 1)에서 친 슬래시 명령은 그대로 수신 문구다', () => {
+    expect(
+      buildDiscordDefaultInteractionResponse(inChannel(1, 'start'), config),
+    ).toEqual(refusal('요청을 받았습니다.'));
+  });
+
+  it('DM 밖 컴포넌트 클릭은 그대로 { type: 6 } 이다', () => {
+    expect(
+      buildDiscordDefaultInteractionResponse(
+        { id: 'I1', type: 3, channel: { id: 'C1', type: 0 } },
+        config,
+      ),
+    ).toEqual({ body: { type: 6 } });
+  });
 });
 
 /**

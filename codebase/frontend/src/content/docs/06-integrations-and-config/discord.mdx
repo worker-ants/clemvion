@@ -86,8 +86,9 @@ slash command 를 보내면 3초 안에 본인에게만 보이는(ephemeral) 응
 |---|---|---|
 | `help` | 명령 목록 (`/workflow start - 새 대화 시작` · `/workflow cancel - 진행 중인 대화 취소` · `/workflow reply - 진행 중인 대화에 답장` · `/workflow help - 도움말`) | `languageHints.help` |
 | `start` · `cancel` · `reply` | 수신 문구 (기본값 `요청을 받았습니다.`) | `languageHints.commandReceived` |
+| DM 밖(서버 채널 · 스레드 · 그룹 DM)에서 친 모든 명령 | 1:1 대화 안내 (기본값 `이 봇은 1:1 대화만 지원합니다.`). 실행은 시작하지 않아요 | `languageHints.groupChatRefusal` |
 
-명령 목록의 `workflow` 는 `languageHints.slashPrefix` 를 따라요. 길드 채널에서 보낸 slash command 도 같은 수신 문구를 받아요. 처리는 DM 에서만 해요. 트리거를 꺼 두어도 버튼 클릭 · modal 제출 · slash command 에는 응답하므로 실패 표시가 뜨지 않아요. 이때 실행은 시작하지 않아요.
+명령 목록의 `workflow` 는 `languageHints.slashPrefix` 를 따라요. 명령은 DM 에서만 처리해요. 트리거를 꺼 두어도 버튼 클릭 · modal 제출 · slash command 에는 응답하므로 실패 표시가 뜨지 않아요. 이때 실행은 시작하지 않아요.
 
 ### 5.2 Button / Modal
 
