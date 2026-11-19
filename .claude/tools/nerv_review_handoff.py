@@ -37,7 +37,10 @@ NERV 쓰기 도구가 없다(결정 D9). 그래서 applier 는 처분을 파일�
   - critical 발견은 `wont_fix` · `dismissed` 로 처분하지 않는다(사람 승인이 필요하다).
   - `spec_change` 는 applier 가 쓰지 않는다. 스펙 결함은 `spec_proposals` 로 넘기고 main 이 NERV 초안을
     저장한 뒤 그 처분을 이 파일에 더한다. `spec_version_id` 에 초안 저장의 `spec_version_id`(전체 UUID)를 단다
-    (`fixed` 의 `commit_sha` 와 같은 근거 필드다). 초안을 쓸 수 없으면 main 이 `escalated(spec)` 로 넘긴다.
+    (`fixed` 의 `commit_sha` 와 같은 근거 필드다). 다른 처분에는 `spec_version_id` 를 달지 않는다. 초안을 쓸 수
+    없으면 main 이 `escalated(spec)` 로 넘긴다.
+  - 이 도구는 `spec_version_id` 의 형식만 본다. 그 버전이 실제로 있는지는 NERV 가 처분을 받을 때 판단한다.
+    critical 을 `spec_change` 로 닫는 것은 막지 않는다. 근거인 초안은 사람이 승인해야 스펙이 되기 때문이다.
   - 제안 파일은 세션 디렉터리 바로 아래 `_spec-proposal-<area>.md` 다. `<area>` 는 대상 NERV 스펙 키를
     소문자로 쓴 값이다(예: `cle-eng-reviewcite`, `[a-z0-9-]`). 스펙 하나에 파일 하나이고, 같은 스펙의 발견
     여럿이 한 파일을 가리켜도 된다. `_` 로 시작해야 제출 도구(`nerv_review_payload.py`)가 역할 리포트로
@@ -216,10 +219,12 @@ def _check_disposition(d, where: str, claims: _Claims, target: str, cwd: str) ->
             errors.append(f"{where}: fixed 는 40자 commit_sha 를 단다 — {sha!r}")
         elif not git_probe.is_ancestor(sha, target, cwd):
             errors.append(f"{where}: commit_sha {sha[:12]} 가 리뷰한 브랜치({target})에서 닿지 않는다")
+    vid = d.get("spec_version_id")
     if res == "spec_change":
-        vid = d.get("spec_version_id")
         if not isinstance(vid, str) or not _UUID.match(vid):
             errors.append(f"{where}: spec_change 는 초안 저장의 spec_version_id(전체 UUID)를 단다 — {vid!r}")
+    elif vid is not None:
+        errors.append(f"{where}: spec_version_id 는 spec_change 에만 단다 — {res!r}")
     if res == "escalated" and d.get("escalate_reason") not in ESCALATE_REASONS:
         errors.append(f"{where}: escalated 는 escalate_reason 을 단다({', '.join(ESCALATE_REASONS)})")
     if known and claims.severity.get(fid) == "critical" and res in ("wont_fix", "dismissed"):

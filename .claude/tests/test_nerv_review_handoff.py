@@ -192,6 +192,19 @@ class CheckTest(_SessionCase):
                 self.write_dispositions([self.fixed(CRIT), dict(good, spec_version_id=bad)])
                 self.assertTrue(any("spec_version_id" in e for e in self.errors()), self.errors())
 
+    def test_spec_version_id_belongs_to_spec_change_only(self):
+        # 다른 처분에 달린 spec_version_id 는 검사 없이 --out 과 멱등 키에 실렸다(리뷰 INFO). 이제 거절한다.
+        ok_warn = {"finding_id": WARN, "resolution": "wont_fix", "rationale": "근거"}
+        self.write_dispositions([self.fixed(CRIT), ok_warn])
+        self.assertEqual(self.errors(), [])
+        for res, extra in (("fixed", None), ("wont_fix", None), ("escalated", "spec")):
+            with self.subTest(resolution=res):
+                bad = self.fixed(CRIT) if res == "fixed" else dict(ok_warn, finding_id=CRIT, resolution=res)
+                if extra:
+                    bad["escalate_reason"] = extra
+                self.write_dispositions([dict(bad, spec_version_id=SPEC_VERSION), ok_warn])
+                self.assertTrue(any("spec_change 에만" in e for e in self.errors()), self.errors())
+
     def test_a_full_hash_is_whatever_git_probe_says_it_is(self):
         # "전체 해시" 의 정의는 `git_probe.is_full_commit_id` 하나다. SHA-256 길이(64자)는 형식 검사를 지나 도달성에서 걸린다.
         # 40자만 받는 자체 패턴이 남아 있으면 같은 값이 "40자" 오류로 먼저 걸린다.
