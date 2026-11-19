@@ -6,6 +6,8 @@ import {
   isTerminalServerExecutionStatus,
   nextExecutionRefetchInterval,
   loadHistoricalExecution,
+  mapNodeStatus,
+  shouldUpdateStatus,
 } from "../apply-execution-snapshot";
 import { useExecutionStore } from "../../stores/execution-store";
 import type { ExecutionData } from "../../api/executions";
@@ -1930,5 +1932,83 @@ describe("applyExecutionSnapshot — 폴링 대체 경로의 AI 대화 갱신", 
     applyExecutionSnapshot(snapshot, undefined, { refreshConversation: true });
 
     expect(useExecutionStore.getState().conversationMessages).toHaveLength(2);
+  });
+});
+
+// CLE-EXEC-RUN-DRAWER 「결과 상세 탭」 · 「라이프사이클 · 노드 취소」 — REST 로 받은 cancelled 노드는
+// WS `execution.node.cancelled` 로 받은 노드와 같은 종료 상태여야 한다(NERV Task CLE-T-99QHNG).
+describe("cancelled 노드 — REST 스냅샷 매핑", () => {
+  beforeEach(() => {
+    useExecutionStore.setState({
+      executionId: "exec-1",
+      status: "running",
+      nodeStatuses: new Map(),
+      nodeResults: [],
+      startedAt: "2026-04-01T00:00:00Z",
+      waitingNodeId: null,
+      waitingFormConfig: null,
+      waitingButtonConfig: null,
+      waitingConversationConfig: null,
+      waitingInteractionType: null,
+      selectedResultNodeId: null,
+      conversationMessages: [],
+      selectedConversationItemIndex: null,
+    });
+  });
+
+  function cancelledRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "ne-cancel",
+      executionId: "exec-1",
+      nodeId: "sub-node",
+      nodeType: "sub_workflow",
+      status: "cancelled",
+      durationMs: 30,
+      error: null,
+      startedAt: "2026-04-01T00:00:01Z",
+      finishedAt: "2026-04-01T00:00:02Z",
+      outputData: null,
+      ...overrides,
+    };
+  }
+
+  it("mapNodeStatus 는 cancelled 를 그대로 둔다(pending 으로 바꾸지 않는다)", () => {
+    expect(mapNodeStatus("cancelled")).toBe("cancelled");
+  });
+
+  it("cancelled 는 종료 상태라 늦게 온 running · waiting 이 덮지 못하고, cancelled 는 running 을 덮는다", () => {
+    expect(shouldUpdateStatus("cancelled", "running")).toBe(false);
+    expect(shouldUpdateStatus("cancelled", "waiting_for_input")).toBe(false);
+    expect(shouldUpdateStatus("cancelled", "pending")).toBe(false);
+    expect(shouldUpdateStatus("running", "cancelled")).toBe(true);
+    expect(shouldUpdateStatus("waiting_for_input", "cancelled")).toBe(true);
+  });
+
+  it("REST 의 cancelled 행은 store 의 노드 상태와 결과 행에 cancelled 로 들어간다", () => {
+    applyExecutionSnapshot(
+      createExec({ status: "cancelled", nodeExecutions: [cancelledRow()] }),
+    );
+
+    const state = useExecutionStore.getState();
+    expect(state.nodeStatuses.get("sub-node")?.status).toBe("cancelled");
+    const row = state.nodeResults.find((r) => r.nodeExecutionId === "ne-cancel");
+    expect(row?.status).toBe("cancelled");
+  });
+
+  it("WS node.cancelled 를 먼저 받은 노드를 늦게 온 running 스냅샷이 되돌리지 않는다", () => {
+    useExecutionStore.setState({
+      nodeStatuses: new Map([["sub-node", { status: "cancelled" }]]),
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "running",
+        nodeExecutions: [cancelledRow({ status: "running", finishedAt: null })],
+      }),
+    );
+
+    expect(
+      useExecutionStore.getState().nodeStatuses.get("sub-node")?.status,
+    ).toBe("cancelled");
   });
 });

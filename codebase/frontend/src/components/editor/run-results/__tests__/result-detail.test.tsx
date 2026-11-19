@@ -541,6 +541,47 @@ describe("ResultDetail", () => {
     });
   });
 
+  // CLE-EXEC-RUN-DRAWER 「결과 상세 탭」 — cancelled 노드는 failed 와 같은 탭 배치를 쓰고
+  // 취소는 머리의 상태 배지로 보여 준다(NERV Task CLE-T-99QHNG).
+  describe("cancelled 노드", () => {
+    it("DB 관측 취소(출력 · 에러 없음) — 입력 · 출력 탭이 나오고 오류 탭은 없으며 배지가 Cancelled 다", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "sub_workflow",
+            nodeCategory: "flow",
+            status: "cancelled",
+            outputData: null,
+            error: undefined,
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "입력" })).toBeDefined();
+      expect(screen.getByRole("button", { name: "출력" })).toBeDefined();
+      expect(screen.queryByRole("button", { name: "오류" })).toBeNull();
+      expect(screen.getByText("Cancelled")).toBeDefined();
+    });
+
+    it("abortSignal 취소(AbortError) — 오류 탭이 기본으로 열린다", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            status: "cancelled",
+            outputData: null,
+            error: "The operation was aborted",
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "오류" })).toBeDefined();
+      expect(screen.getByText(/The operation was aborted/)).toBeDefined();
+      expect(screen.getByText("Cancelled")).toBeDefined();
+    });
+  });
+
   it("does not show tabs for running nodes", () => {
     render(
       <ResultDetail

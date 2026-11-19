@@ -627,6 +627,8 @@ export function mapNodeStatus(
       return "failed";
     case "skipped":
       return "skipped";
+    case "cancelled":
+      return "cancelled";
     case "waiting_for_input":
       return "waiting_for_input";
     default:
@@ -671,6 +673,7 @@ const STATUS_PRIORITY: Record<string, number> = {
   completed: 3,
   failed: 3,
   skipped: 3,
+  cancelled: 3,
 };
 
 export function shouldUpdateStatus(
