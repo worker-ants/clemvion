@@ -4191,6 +4191,10 @@ describe('HooksService', () => {
 
           expect(res).toEqual({ executionId });
           expect(executions.stop).not.toHaveBeenCalled();
+          // 처음부터 활성 실행이 없었으므로 매핑을 건드리지 않는다.
+          expect(
+            conversationService.clearExecutionIdIfMatches,
+          ).not.toHaveBeenCalled();
           expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
             {
               conversationKey: 'chat-123',

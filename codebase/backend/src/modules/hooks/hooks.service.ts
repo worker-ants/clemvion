@@ -135,6 +135,26 @@ const CHAT_CHANNEL_WORKFLOW_MISSING_ERROR =
  */
 const CHAT_CHANNEL_ENQUEUE_FAILED_ERROR = 'Command could not be queued';
 
+/**
+ * `/cancel` 처리 결과. `stopped` 는 취소했다, `already_ended` 는 취소하려던 실행이 그사이 끝났다,
+ * `enqueue_failed` 는 취소를 큐에 넣지 못했다, `no_active` 는 처음부터 활성 실행이 없었다는 뜻이다.
+ * 매핑을 비우는 결과와 `noActiveExecution` 안내를 보내는 결과는 아래 두 집합이 정한다(NERV Task `CLE-T-A78V0M`).
+ */
+type CancelOutcome =
+  'stopped' | 'already_ended' | 'enqueue_failed' | 'no_active';
+
+/** 대화 매핑을 비우는 `/cancel` 결과. 읽은 실행이 더는 활성이 아니다. */
+const CANCEL_OUTCOMES_CLEARING_MAPPING: ReadonlySet<CancelOutcome> = new Set([
+  'stopped',
+  'already_ended',
+]);
+
+/** `noActiveExecution` 안내로 답하는 `/cancel` 결과. 취소할 실행이 없었다. */
+const CANCEL_OUTCOMES_WITHOUT_EXECUTION: ReadonlySet<CancelOutcome> = new Set([
+  'no_active',
+  'already_ended',
+]);
+
 @Injectable()
 export class HooksService {
   private readonly logger = new Logger(HooksService.name);
@@ -609,21 +629,22 @@ export class HooksService {
     // 매핑도 그대로 둔다(NERV Task `CLE-T-EQDYC1`). 취소할 실행이 없었으면(활성 실행이 없거나 그사이
     // 끝남) `noActiveExecution` 안내로 답한다(NERV Task `CLE-T-A78V0M`).
     if (update.command.kind === 'cancel') {
-      const outcome = hasActiveExecution
-        ? await this.stopForCancelCommand(trigger, state.executionId!)
+      const activeExecutionId = hasActiveExecution ? state.executionId : null;
+      const outcome: CancelOutcome = activeExecutionId
+        ? await this.stopForCancelCommand(trigger, activeExecutionId)
         : 'no_active';
-      if (outcome === 'stopped' || outcome === 'already_ended') {
+      if (activeExecutionId && CANCEL_OUTCOMES_CLEARING_MAPPING.has(outcome)) {
         await this.channelConversationService.clearExecutionIdIfMatches(
           trigger.id,
           update.conversationKey,
-          state!.executionId!,
+          activeExecutionId,
         );
       }
       await adapter.ackInteraction(update, config);
       const result: ChatChannelWebhookResult = {
         executionId: state?.executionId ?? 'ignored',
       };
-      if (outcome === 'no_active' || outcome === 'already_ended') {
+      if (CANCEL_OUTCOMES_WITHOUT_EXECUTION.has(outcome)) {
         const providerResponse = await this.notifyNoActiveExecution(
           input,
           update,
@@ -1011,7 +1032,7 @@ export class HooksService {
   private async stopForCancelCommand(
     trigger: Trigger,
     executionId: string,
-  ): Promise<'stopped' | 'already_ended' | 'enqueue_failed'> {
+  ): Promise<Exclude<CancelOutcome, 'no_active'>> {
     try {
       await this.executionsService.stop(executionId);
       return 'stopped';
@@ -1462,7 +1483,8 @@ export class HooksService {
   /**
    * `renderNode` 를 우회하는 **모든 control-plane 텍스트 직접 발송의 단일 chokepoint** (F-4).
    * 소비처: `sendExecutionStillRunningNotice` · `sendSurfaceMismatchNotice` · `maybeNotifyIgnored`
-   * (groupChatRefusal/unsupportedMessageKind) · `/help` · `formValidationFailed` · `formNextField`.
+   * (groupChatRefusal/unsupportedMessageKind) · `/help` · `formValidationFailed` · `formNextField` ·
+   * `notifyNoActiveExecution`(Telegram 의 `noActiveExecution`).
    * try/catch/warn 골격을 여기 모아, 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가
    * 안내 루프를 유발하지 않도록 한다.
    *
