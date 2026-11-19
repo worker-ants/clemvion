@@ -164,7 +164,7 @@ The **Nodes column** in the execution history list shows node run aggregates as 
 
 A run started with Re-run joins the same chain as the original run. The execution detail page shows a chain badge with the re-run number and a **View chain** list. Viewers can see the chain too. Only Editors and above can press **Re-run**, and only Owners and Admins can re-run a run someone else started.
 
-Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead. Cafe24·MakeShop read nodes are really called. An operation that is a read request but changes settings, such as MakeShop's "Update Cart Free Config", returns a mock result like a write.
+Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead. Cafe24·MakeShop read nodes are really called. An operation that is a read request but changes settings, such as MakeShop's "Update Cart Free Config", returns a mock result like a write. The Database Query node really runs only read queries such as SELECT. Even when Query Type is left as SELECT, a write statement such as DELETE, or a query whose kind is unclear such as one that starts with WITH, returns a mock result.
 
 Dry-run also carries into sub-workflows, both synchronous and asynchronous. If a sub-workflow contains a node that does not support dry-run, the re-run is rejected and does not start.
 
