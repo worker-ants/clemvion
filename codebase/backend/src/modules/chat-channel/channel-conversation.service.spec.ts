@@ -558,6 +558,83 @@ describe('ChannelConversationService', () => {
     });
   });
 
+  // NERV Task `CLE-T-QZ8RFC` — 같은 대화의 `/start` 를 직렬화하는 시작 잠금. 키는 Redis 키 규약 규칙 1 을
+  // 따르는 `cc:startlock:{triggerId}:{conversationKey}` 다(2026-11-19 사람 결정). 폼 제출 잠금과 따로 잡힌다.
+  describe("acquireLock() / releaseLock() — 'start' 용도", () => {
+    it('cc:startlock 키에 SET NX EX 로 잡고 같은 키를 Lua 로 푼다', async () => {
+      const setSpy = jest.spyOn(redis, 'set');
+      const evalSpy = jest.spyOn(redis, 'eval');
+
+      await service.acquireLock(triggerId, conversationKey, 's1', 30, 'start');
+      await service.releaseLock(triggerId, conversationKey, 's1', 'start');
+
+      expect(setSpy).toHaveBeenCalledWith(
+        `cc:startlock:${triggerId}:${conversationKey}`,
+        's1',
+        'EX',
+        30,
+        'NX',
+      );
+      expect(evalSpy).toHaveBeenCalledWith(
+        expect.stringContaining("redis.call('del',KEYS[1])"),
+        1,
+        `cc:startlock:${triggerId}:${conversationKey}`,
+        's1',
+      );
+    });
+
+    it('이미 잡혀 있으면 false, 풀면 다시 잡힌다', async () => {
+      expect(
+        await service.acquireLock(
+          triggerId,
+          conversationKey,
+          's1',
+          30,
+          'start',
+        ),
+      ).toBe(true);
+      expect(
+        await service.acquireLock(
+          triggerId,
+          conversationKey,
+          's2',
+          30,
+          'start',
+        ),
+      ).toBe(false);
+      await service.releaseLock(triggerId, conversationKey, 's1', 'start');
+      expect(
+        await service.acquireLock(
+          triggerId,
+          conversationKey,
+          's3',
+          30,
+          'start',
+        ),
+      ).toBe(true);
+    });
+
+    it('폼 제출 잠금과 서로 막지 않는다', async () => {
+      expect(await service.acquireLock(triggerId, conversationKey, 'f1')).toBe(
+        true,
+      );
+      expect(
+        await service.acquireLock(
+          triggerId,
+          conversationKey,
+          's1',
+          30,
+          'start',
+        ),
+      ).toBe(true);
+      // 시작 잠금을 풀어도 폼 제출 잠금은 그대로다.
+      await service.releaseLock(triggerId, conversationKey, 's1', 'start');
+      expect(await service.acquireLock(triggerId, conversationKey, 'f2')).toBe(
+        false,
+      );
+    });
+  });
+
   describe('RedisConnectionProvider 공유 경로 (W-3)', () => {
     // injectedRedis 없이 redisConn (3번째 인자) 만으로도 공유 provider 경로가
     // 동작함을 검증한다. provider.getClientOrNull() 이 fakeRedis 를 반환.

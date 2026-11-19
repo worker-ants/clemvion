@@ -134,6 +134,13 @@ const CHAT_CHANNEL_WORKFLOW_MISSING_ERROR =
  */
 const CHAT_CHANNEL_ENQUEUE_FAILED_ERROR = 'Command could not be queued';
 
+/**
+ * 같은 대화의 `/start` 를 직렬화하는 시작 잠금의 TTL(초)(NERV Task `CLE-T-QZ8RFC`). 잠금 구간(기존 실행 취소,
+ * 새 실행 시작, 대화 상태 저장)은 웹훅 응답 전에 끝나므로 폼 제출 잠금과 같은 30초면 넉넉하다. 프로세스가
+ * 잠금을 쥔 채 죽어도 이 시간이 지나면 풀린다.
+ */
+const START_LOCK_TTL_SEC = 30;
+
 @Injectable()
 export class HooksService {
   private readonly logger = new Logger(HooksService.name);
@@ -879,76 +886,145 @@ export class HooksService {
       return this.ackDroppedUpdateAndIgnore(input, config, adapter);
     }
 
-    // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).
-    // 기존 실행을 실행 중지 경로(CLE-EXEC-CANCEL)로 취소한 뒤 아래에서 새로 시작한다.
-    if (update.command.kind === 'start' && hasActiveExecution) {
-      await this.stopForRestart(
+    // 같은 대화의 `/start` 는 대화 단위 시작 잠금으로 한 번에 하나씩 처리한다(NERV Task `CLE-T-QZ8RFC`).
+    // 잠금 없이 두 `/start` 가 겹치면 둘 다 같은 옛 실행을 읽고 새 실행을 각각 만든다. 마지막 저장만
+    // 대화 상태에 남고 먼저 만든 실행은 입력이 닿지 않는 채 계속 돈다. 잠금을 잡지 못한 `/start` 는
+    // 겹쳐 온 것으로 보고 버린다. Redis 가 없거나 오류면 잠금 없이 진행한다(fail-open).
+    let startLockToken: string | undefined;
+    if (update.command.kind === 'start') {
+      startLockToken = randomUUID();
+      const acquired = await this.channelConversationService.acquireLock(
         trigger.id,
-        parsed.idempotencyKey,
-        state.executionId!,
+        update.conversationKey,
+        startLockToken,
+        START_LOCK_TTL_SEC,
+        'start',
       );
-    }
-
-    // 새 execution 시작 (start 또는 활성 없음 / terminal 상태).
-    let executionId: string;
-    try {
-      executionId = await this.executionEngineService.execute(
-        trigger.workflowId,
-        {
-          __triggerSource: 'webhook',
-          parameters: {},
-          body: input.body,
-          // 민감 헤더 마스킹 (spec 12-webhook §5.3) — chatChannel provider 서명 검증
-          // (chatChannelInboundAuthenticator.verify)은 위에서 raw 로 이미 수행됨.
-          headers: sanitizeResponseHeaders(input.headers),
-          query: input.query,
-          method: input.method,
-          chatChannel: {
-            provider: config.provider,
-            conversationKey: update.conversationKey,
-            channelUserKey: update.channelUserKey,
-          },
-        },
-        {
-          triggerId: trigger.id,
-          // 엔진은 이 워크스페이스의 워크플로우만 실행한다(NERV Task `CLE-T-XYR067`).
-          workspaceId: trigger.workspaceId,
-          triggerType: 'webhook', // priority 3-tier(§4.3) — chat-channel 도 webhook 발화
-          // §A.3 호출 이력 — chat-channel inbound 가 실제로 답하는 코드(202, 인터랙션 기본 응답이 있으면 200).
-          sourceIp: clientIp,
-          responseCode,
-        },
-      );
-    } catch (err) {
-      // 트리거의 워크플로우가 트리거의 워크스페이스에 없다(저장 경계 이전의 교차 행). 채팅 채널은
-      // non-2xx 가 프로바이더의 재시도 · 비활성화를 부르므로(R-CC-12) 202 ignored 로 답하고 운영
-      // 신호로 degraded 를 남긴다. 메시지는 고정 문구다.
-      if (err instanceof WorkflowNotFoundError) {
-        await this.markChatChannelDegraded(
-          trigger,
-          CHAT_CHANNEL_WORKFLOW_MISSING_ERROR,
+      if (!acquired) {
+        this.logger.warn(
+          `chat-channel /start 가 같은 대화의 다른 /start 와 겹쳐 버린다 (trigger=${trigger.id}, provider=${config.provider})`,
         );
         return this.ackDroppedUpdateAndIgnore(input, config, adapter);
       }
-      throw err;
     }
+    try {
+      // 처음 읽은 대화 상태 뒤에 다른 `/start` 가 끝나 대화를 새 실행에 이었으면 이 `/start` 도 겹쳐 온
+      // 것이다. 그대로 가면 방금 이은 실행을 취소하지 않고 새 실행을 또 만든다.
+      if (
+        startLockToken !== undefined &&
+        (await this.conversationMovedToAnotherExecution(
+          trigger.id,
+          update.conversationKey,
+          state?.executionId,
+        ))
+      ) {
+        this.logger.warn(
+          `chat-channel /start 가 같은 대화의 다른 /start 뒤에 처리돼 버린다 (trigger=${trigger.id}, provider=${config.provider})`,
+        );
+        return this.ackDroppedUpdateAndIgnore(input, config, adapter);
+      }
 
-    await this.channelConversationService.upsert(
-      trigger.id,
-      update.conversationKey,
-      {
-        executionId,
-        threadId: 'default',
-        channelUserKey: update.channelUserKey,
-        startedAt: state?.startedAt ?? new Date().toISOString(),
-        lastUpdateAt: new Date().toISOString(),
-      },
+      // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).
+      // 기존 실행을 실행 중지 경로(CLE-EXEC-CANCEL)로 취소한 뒤 아래에서 새로 시작한다.
+      if (update.command.kind === 'start' && hasActiveExecution) {
+        await this.stopForRestart(
+          trigger.id,
+          parsed.idempotencyKey,
+          state.executionId!,
+        );
+      }
+
+      // 새 execution 시작 (start 또는 활성 없음 / terminal 상태).
+      let executionId: string;
+      try {
+        executionId = await this.executionEngineService.execute(
+          trigger.workflowId,
+          {
+            __triggerSource: 'webhook',
+            parameters: {},
+            body: input.body,
+            // 민감 헤더 마스킹 (spec 12-webhook §5.3) — chatChannel provider 서명 검증
+            // (chatChannelInboundAuthenticator.verify)은 위에서 raw 로 이미 수행됨.
+            headers: sanitizeResponseHeaders(input.headers),
+            query: input.query,
+            method: input.method,
+            chatChannel: {
+              provider: config.provider,
+              conversationKey: update.conversationKey,
+              channelUserKey: update.channelUserKey,
+            },
+          },
+          {
+            triggerId: trigger.id,
+            // 엔진은 이 워크스페이스의 워크플로우만 실행한다(NERV Task `CLE-T-XYR067`).
+            workspaceId: trigger.workspaceId,
+            triggerType: 'webhook', // priority 3-tier(§4.3) — chat-channel 도 webhook 발화
+            // §A.3 호출 이력 — chat-channel inbound 가 실제로 답하는 코드(202, 인터랙션 기본 응답이 있으면 200).
+            sourceIp: clientIp,
+            responseCode,
+          },
+        );
+      } catch (err) {
+        // 트리거의 워크플로우가 트리거의 워크스페이스에 없다(저장 경계 이전의 교차 행). 채팅 채널은
+        // non-2xx 가 프로바이더의 재시도 · 비활성화를 부르므로(R-CC-12) 202 ignored 로 답하고 운영
+        // 신호로 degraded 를 남긴다. 메시지는 고정 문구다.
+        if (err instanceof WorkflowNotFoundError) {
+          await this.markChatChannelDegraded(
+            trigger,
+            CHAT_CHANNEL_WORKFLOW_MISSING_ERROR,
+          );
+          return this.ackDroppedUpdateAndIgnore(input, config, adapter);
+        }
+        throw err;
+      }
+
+      await this.channelConversationService.upsert(
+        trigger.id,
+        update.conversationKey,
+        {
+          executionId,
+          threadId: 'default',
+          channelUserKey: update.channelUserKey,
+          startedAt: state?.startedAt ?? new Date().toISOString(),
+          lastUpdateAt: new Date().toISOString(),
+        },
+      );
+
+      await this.touchLastTriggeredAt(trigger);
+
+      await adapter.ackInteraction(update, config);
+      return { executionId, status: 'pending' as const };
+    } finally {
+      if (startLockToken !== undefined) {
+        await this.channelConversationService.releaseLock(
+          trigger.id,
+          update.conversationKey,
+          startLockToken,
+          'start',
+        );
+      }
+    }
+  }
+
+  /**
+   * 시작 잠금을 잡은 뒤 대화 상태를 다시 읽어 처음 읽은 뒤 다른 실행으로 이어졌는지 본다(NERV Task `CLE-T-QZ8RFC`).
+   *
+   * 잠금을 잡기 전에 다른 `/start` 가 잠금을 잡고 끝났으면 그 `/start` 가 이은 새 실행이 대화 상태에 있다.
+   * 처음 읽은 실행과 다른 실행을 가리킬 때만 `true` 다. 실행이 비었으면 옛 실행이 끝나 종결 이벤트가
+   * 비운 것이므로 `false` 다. Redis 가 없거나 읽지 못하면 `lookup` 이 `null` 을 돌려 `false` 가 된다.
+   */
+  private async conversationMovedToAnotherExecution(
+    triggerId: string,
+    conversationKey: string,
+    readExecutionId: string | undefined,
+  ): Promise<boolean> {
+    const current = await this.channelConversationService.lookup(
+      triggerId,
+      conversationKey,
     );
-
-    await this.touchLastTriggeredAt(trigger);
-
-    await adapter.ackInteraction(update, config);
-    return { executionId, status: 'pending' as const };
+    return (
+      current?.executionId != null && current.executionId !== readExecutionId
+    );
   }
 
   /**

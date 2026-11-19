@@ -13,6 +13,15 @@ import { ChannelConversationState } from './types';
 export const COMPARE_AND_SET_SCRIPT =
   "if redis.call('get',KEYS[1])==ARGV[1] then redis.call('set',KEYS[1],ARGV[2],'EX',ARGV[3]) return 1 else return 0 end";
 
+/**
+ * 대화 잠금의 용도. 용도마다 키가 다르고 서로 막지 않는다.
+ * - `formsubmit`: 네이티브 모달 중복 제출 방지(`chat-channel-lock:{triggerId}:{conversationKey}:formsubmit`).
+ *   Redis 키 규약보다 먼저 있던 예외 계열이라 이름을 바꾸지 않는다.
+ * - `start`: 같은 대화의 `/start` 직렬화(`cc:startlock:{triggerId}:{conversationKey}`, NERV Task `CLE-T-QZ8RFC`).
+ *   새 키라 규약 규칙 1 을 따른다(CLE-ENG-REDIS 규칙 3, 2026-11-19 사람 결정).
+ */
+export type ConversationLockPurpose = 'formsubmit' | 'start';
+
 /** compare-and-set 이 다른 쓰기에 밀렸을 때 다시 읽는 횟수 상한. */
 const COMPARE_AND_SET_MAX_ATTEMPTS = 3;
 
@@ -216,8 +225,8 @@ export class ChannelConversationService {
   }
 
   /**
-   * §4.1 native modal 동시 제출 방지 lock 획득 (SET NX EX).
-   * lockKey = `chat-channel-lock:{triggerId}:{conversationKey}:formsubmit`.
+   * 대화 단위 lock 획득 (SET NX EX). 용도(`purpose`)마다 키가 다르다({@link ConversationLockPurpose}).
+   * 기본 용도는 §4.1 native modal 동시 제출 방지(`formsubmit`)다.
    * `token` 은 호출자가 발급한 고유 값 (release 시 소유권 확인용).
    *
    * Redis 미가용 시 true (fail-open — 기존 graceful degradation 정합, lock 인프라 없음).
@@ -230,9 +239,10 @@ export class ChannelConversationService {
     conversationKey: string,
     token: string,
     ttlSec = 30,
+    purpose: ConversationLockPurpose = 'formsubmit',
   ): Promise<boolean> {
     if (!this.redis) return true;
-    const lockKey = this.buildLockKey(triggerId, conversationKey);
+    const lockKey = this.buildLockKey(triggerId, conversationKey, purpose);
     try {
       // ioredis 타입 시그니처는 EX seconds NX 순서 — Redis 명령상 `SET k v NX EX n` 와 동치.
       const result = await this.redis.set(lockKey, token, 'EX', ttlSec, 'NX');
@@ -250,14 +260,16 @@ export class ChannelConversationService {
    * acquireLock 으로 획득한 lock 안전 해제. Lua 로 소유권 (token 일치) 확인 후 DEL —
    * TTL 만료 후 다른 요청이 잡은 lock 을 잘못 삭제하지 않도록 보장.
    * Redis 미가용 시 noop. 오류 시 logger.warn (lock 은 TTL 로 자연 만료).
+   * `purpose` 는 잡을 때 준 용도와 같은 값을 준다.
    */
   async releaseLock(
     triggerId: string,
     conversationKey: string,
     token: string,
+    purpose: ConversationLockPurpose = 'formsubmit',
   ): Promise<void> {
     if (!this.redis) return;
-    const lockKey = this.buildLockKey(triggerId, conversationKey);
+    const lockKey = this.buildLockKey(triggerId, conversationKey, purpose);
     try {
       await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
     } catch (err) {
@@ -272,8 +284,14 @@ export class ChannelConversationService {
     return `chat-channel:${triggerId}:${conversationKey}`;
   }
 
-  private buildLockKey(triggerId: string, conversationKey: string): string {
-    return `chat-channel-lock:${triggerId}:${conversationKey}:formsubmit`;
+  private buildLockKey(
+    triggerId: string,
+    conversationKey: string,
+    purpose: ConversationLockPurpose,
+  ): string {
+    return purpose === 'start'
+      ? `cc:startlock:${triggerId}:${conversationKey}`
+      : `chat-channel-lock:${triggerId}:${conversationKey}:formsubmit`;
   }
 
   // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
