@@ -8,6 +8,19 @@ export type ExecutionStatus =
   | "cancelled"
   | "waiting_for_input";
 
+/**
+ * 실행 결과 값(`Execution.outputData`). 마지막 노드의 핸들러 `output` 그대로라 객체 · 배열 ·
+ * 원시값일 수 있다(NERV Task CLE-T-JDYHCF). 백엔드 `ExecutionResultValue`
+ * (codebase/backend/src/shared/utils/execution-result-schema.ts)와 같은 모양이다. 노드 실행 행의
+ * `outputData` 는 객체 그대로다.
+ */
+export type ExecutionResultValue =
+  | Record<string, unknown>
+  | unknown[]
+  | string
+  | number
+  | boolean;
+
 export interface NodeExecutionData {
   id: string;
   executionId: string;
@@ -51,7 +64,7 @@ export interface ExecutionData {
   workflowId: string;
   status: ExecutionStatus;
   inputData: Record<string, unknown>;
-  outputData: Record<string, unknown> | null;
+  outputData: ExecutionResultValue | null;
   error: { message?: string } | null;
   startedAt: string;
   finishedAt: string | null;
@@ -160,7 +173,7 @@ export interface ExecutionChainItem {
   finishedAt: string | null;
   durationMs: number | null;
   inputData?: Record<string, unknown> | null;
-  outputData?: Record<string, unknown> | null;
+  outputData?: ExecutionResultValue | null;
   error?: Record<string, unknown> | null;
   executedBy?: string | null;
   parentExecutionId?: string | null;

@@ -3452,6 +3452,87 @@ describe('ExecutionEngineService', () => {
       inlineSpy.mockRestore();
     });
 
+    // 큐 작업의 구조화 출력 캐시 스냅샷은 본문 context 에 사본으로 들어간다. 필드가 없는 옛
+    // 작업은 빈 구조화 캐시로 시작해 예전처럼 flat 값으로 읽는다(CLE-T-JDYHCF 5번).
+    describe('구조화 출력 캐시 스냅샷 복원', () => {
+      const runCapturingStructured = async (
+        job: Parameters<ExecutionEngineService['executeBackgroundSubgraph']>[0],
+      ) => {
+        let captured: Record<string, unknown> | undefined;
+        const inlineSpy = jest
+          .spyOn(service, 'executeInline')
+          .mockImplementation((_w, _i, options) => {
+            captured = options.context.structuredOutputCache;
+            options.context.structuredOutputCache['body-node'] = {
+              output: 'written by body',
+            } as never;
+            return Promise.resolve(undefined);
+          });
+        try {
+          await service.executeBackgroundSubgraph(job);
+        } finally {
+          inlineSpy.mockRestore();
+        }
+        return captured;
+      };
+
+      it('작업에 스냅샷이 있으면 본문 context 에 사본으로 넣는다', async () => {
+        const snapshot = {
+          'node-1': { output: [1, 2, 3], port: 'success' },
+        };
+        const job = {
+          executionId,
+          parentNodeExecutionId: 'parent-1',
+          backgroundRunId: 'bg-run-1',
+          workspaceId: 'ws-1',
+          workflowId,
+          bodyEntryNodeIds: ['node-2'],
+          input: {},
+          variables: {},
+          nodeOutputCache: {},
+          structuredOutputCache: snapshot,
+          expressionContext: {},
+          conversationThread: createEmptyConversationThread(),
+          config: { notifyOnFailure: false, maxDurationMs: 0 },
+        } as unknown as Parameters<
+          ExecutionEngineService['executeBackgroundSubgraph']
+        >[0];
+
+        const captured = await runCapturingStructured(job);
+
+        expect(captured).not.toBe(snapshot);
+        expect(captured?.['node-1']).toEqual({
+          output: [1, 2, 3],
+          port: 'success',
+        });
+        // 본문이 쓴 항목은 작업 스냅샷으로 새지 않는다.
+        expect(snapshot).not.toHaveProperty('body-node');
+      });
+
+      it('스냅샷이 없는 옛 작업은 빈 구조화 캐시로 시작한다', async () => {
+        const job = {
+          executionId,
+          parentNodeExecutionId: 'parent-1',
+          backgroundRunId: 'bg-run-legacy',
+          workspaceId: 'ws-1',
+          workflowId,
+          bodyEntryNodeIds: ['node-2'],
+          input: {},
+          variables: {},
+          nodeOutputCache: { 'node-1': { hello: 'world' } },
+          expressionContext: {},
+          conversationThread: createEmptyConversationThread(),
+          config: { notifyOnFailure: false, maxDurationMs: 0 },
+        };
+
+        const captured = await runCapturingStructured(job);
+
+        expect(captured).toEqual({
+          'body-node': { output: 'written by body' },
+        });
+      });
+    });
+
     // race 회귀 차단: 본문 context 는 부모 executionId 가 아닌 bgKey 로 등록돼야
     // 하고(격리), executeBackgroundSubgraph 가 자체 finally 로 정리해야 한다
     // (근거: [Background 노드 「격리 계약」](CLE-NODE-BACKGROUND#격리-계약) ·
