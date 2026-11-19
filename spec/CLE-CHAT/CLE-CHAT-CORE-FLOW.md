@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-FLOW"
 title: "채팅 채널 — 처리 흐름과 대화"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "86ad3d06def8b930b197571bdfab69c7e1ba4706ebae626c7286f05a31a25e50"
+content_hash: "03a8ef8e76bf89798c9553f207b392fcdd49c636822f9e8e3628a18e0f2a3ea1"
 read_as: "approved_fallback"
-task: "CLE-T-CVJXDE"
+task: "CLE-T-QZ8RFC"
 source_paths: []
-mirror_sha256: "9b9b869c76dea408a9a746c319e6301e07f8bca79e96010eeb2a83dc7c9ccc81"
-etag: "sha256-992874c1699b53de58cbc8a7530acd000d63f5fe2939d4dceeabd732c728978b"
+mirror_sha256: "08a40b3f8fce47825e8ee457328e92ccd67a6e7244149e84a29abefc2ec2bbb2"
+etag: "sha256-56c0ed6b75af460abb67117077df6650e7794a2d02621090b5240de79645e07a"
 ---
 ## 개요
 
@@ -78,6 +78,8 @@ sequenceDiagram
 
 활성 실행이 있으면 `/start`·`/cancel` 은 실행 소유자만 쓴다. 실행 소유자는 `channelUserKey` 가 채널 대화 상태의 값과 같은 사용자다. 소유자가 아닌 사람이 두 명령을 보내면 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 문구 없이 [버린 update 의 수신 확인](CLE-CHAT-CORE-INTERACT.md#버린-update-의-수신-확인)만 보내고 `202`·`{ executionId: 'ignored' }`(인터랙션이면 [기본 응답](CLE-CHAT-CORE-INTERACT.md#인터랙션-기본-응답))로 답한다. 이 확인은 대화 상태를 조회해 활성 실행을 판단한 바로 뒤, `/cancel` 처리와 워크플로우 활성 관문보다 앞에서 한다. 워크플로우가 비활성일 때 소유자가 아닌 사람의 `/start` 는 비활성 관문 대신 이 확인에서 버리지만 응답은 같다. 활성 실행이 없으면 누구나 `/start` 로 새 실행을 시작하고 시작한 사람이 새 소유자가 된다. `channelUserKey` 는 새 실행의 대화 상태를 저장할 때만 바뀐다. `/help` 는 소유자를 확인하지 않는다. 근거는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다.
 
+같은 대화에 `/start` 가 겹쳐 오면 대화 단위 시작 잠금(`cc:startlock`)으로 하나씩 처리한다. 잠금은 워크플로우 활성 관문 뒤, 기존 실행 취소 앞에서 잡는다. 활성 실행이 없어도 잡는다. 잠금 구간은 기존 실행 취소, 새 실행 시작, 대화 상태 저장이고 어느 경로로 끝나든 잠금을 푼다. 잠금을 잡지 못한 `/start` 는 소유자가 아닌 사람의 명령과 같은 방식으로 버리고 경고 로그를 남긴다. 잠금을 잡으면 대화 상태를 다시 읽는다. `executionId` 가 처음 읽은 값과 다른 실행을 가리키면 같은 방식으로 버린다. 비어 있거나 다시 읽지 못하면 그대로 진행한다. Redis 가 없거나 오류가 나면 잠금을 잡은 것으로 본다(fail-open). 키와 TTL 은 [채팅 채널 데이터와 흐름 — 저장 모델과 상태 「Redis 키」](CLE-CHAT-DATA-STORE.md#redis-키) 가 정한다. 근거는 [R-CC-36](#r-cc-36-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다.
+
 활성 실행은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태(`running`·`pending`·`waiting_for_input`)를 돌려준 실행이다. 취소는 EIA `cancel`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md))과 사용자 실행 중지(`POST /api/executions/:id/stop`)가 쓰는 REST 취소 경로 `ExecutionsService.stop` 을 부른다([노드 취소 「신호를 만드는 쪽」](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 7). `running`·`pending` 은 원자 UPDATE 로 바로 `cancelled` 가 된다. `waiting_for_input` 은 continuation bus 에 취소를 넣어 비동기로 `cancelled` 가 된다. 새 실행은 그 취소가 끝나기를 기다리지 않는다.
 
 이미 끝난 실행의 취소는 `stop` 이 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)로 거부하고 지워진 실행은 `RESOURCE_NOT_FOUND`(`404`)로 거부한다. 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조) 에 있다. `/start` 는 이 셋을 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 새로 시작하고 `EXECUTION_ENQUEUE_FAILED` 면 새 실행 없이 그 에러로 답한다. 지금 `stop` 은 `INVALID_STATE` 를 `400` 으로 던져 카탈로그의 `422` 와 다르다(부분 구현, NERV Task `CLE-T-B9CRCF`). 판정이 에러 코드라 이 차이로 `/start` 의 동작이 바뀌지는 않는다. 시작 안내(`languageHints.executionStarted`)와 재시작 안내는 아직 보내지 않는다(부분 구현, NERV Task `CLE-T-0400J6`).
@@ -98,6 +100,7 @@ sequenceDiagram
   else 워크플로우가 비활성
     H-->>P: 202 ignored, 옛 실행은 그대로
   else 워크플로우가 활성
+    Note over H,C: 시작 잠금을 잡고 다시 읽는다. 못 잡거나 다른 실행이면 202 ignored
     H->>X: stop(옛 실행)
     alt 취소됨, 이미 끝남(INVALID_STATE), 없음(404)
       H->>E: execute(), 새 실행
@@ -144,9 +147,9 @@ sequenceDiagram
 ## 구현 위치
 
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 종결 이벤트에서 대화 상태 정리, 폼 입력 대기 상태 갱신 가드
-- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: 채널 대화 상태, compare-and-set 갱신 `updateIfExecutionMatches` 와 그것을 쓰는 정리 `clearExecutionIdIfMatches`
+- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: 채널 대화 상태, compare-and-set 갱신 `updateIfExecutionMatches` 와 그것을 쓰는 정리 `clearExecutionIdIfMatches`, 폼 제출 잠금과 `/start` 시작 잠금(`acquireLock`·`releaseLock`)
 - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 선점 해제 `release`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`), `/start`·`/cancel` 의 실행 소유자 확인(대화 상태 조회 바로 뒤, `/cancel` 처리 앞)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`), `/start`·`/cancel` 의 실행 소유자 확인(대화 상태 조회 바로 뒤, `/cancel` 처리 앞), `/start` 의 대화 단위 시작 잠금과 재확인
 - 테스트: `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`(활성 실행 중 `/start`, 소유자가 아닌 사람의 `/start`·`/cancel`), `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(세 프로바이더의 `/start`, 소유자가 아닌 사람의 `/start`·`/cancel`), `codebase/backend/src/modules/chat-channel/channel-conversation.service.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts`
 
 ## Rationale
@@ -193,11 +196,11 @@ non-2xx 응답이 이어지면 프로바이더가 웹훅을 끌 수 있다. 어�
 
 시작 안내와 재시작 안내는 아직 보내지 않는다. 취소와 새 시작을 먼저 맞췄고 안내는 NERV Task `CLE-T-0400J6` 가 맡는다.
 
-미룬 문제가 셋이었다. 첫째는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 로, 셋째는 NERV Task `CLE-T-CVJXDE` 로 닫았다. 둘째는 NERV Task `CLE-T-QZ8RFC` 가 다룬다.
+미룬 문제가 셋이었고 모두 닫았다.
 
-- 대화의 어느 참여자가 보낸 `/start` 든 기존 실행을 취소하고 대화를 이어받았다. 보낸 사람이 대화를 시작한 사용자(`channelUserKey`)인지 확인하지 않았다. 2026-11-14 결정으로 활성 실행이 있으면 실행 소유자의 `/start`·`/cancel` 만 실행을 취소한다([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)).
-- 같은 대화에 `/start` 두 개가 거의 동시에 오면 경합한다. 둘 다 같은 옛 실행을 읽고 각자 새 실행을 시작할 수 있다. 채널 대화 상태는 나중에 저장한 실행을 가리키고 먼저 시작한 실행에는 입력이 닿지 않는다. 재시작(취소, 새 실행, 대화 상태 저장)을 대화 단위로 직렬화하지 않기 때문이다. 분당 한도와 update id 중복 제거(같은 update 의 재전송)가 경합 창을 좁힌다. NERV Task `CLE-T-QZ8RFC` 가 다룬다.
-- 폼 입력 대기 이벤트의 상태 갱신은 조회한 값을 고쳐 그대로 다시 저장했다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 이 저장이 대화 상태의 `executionId` 를 옛 실행으로 되돌릴 수 있었다. 2026-11-19 에 종결 이벤트 정리와 같은 compare-and-set 으로 바꿔 닫았다(NERV Task `CLE-T-CVJXDE`).
+- 어느 참여자가 보낸 `/start` 든 기존 실행을 취소하던 문제는 2026-11-14 에 실행 소유자 확인으로 닫았다([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)).
+- 같은 대화에 동시에 온 `/start` 두 개가 각자 새 실행을 시작하던 경합은 2026-11-19 에 대화 단위 시작 잠금과 재확인으로 닫았다([R-CC-36](#r-cc-36-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)).
+- 폼 입력 대기 상태 갱신이 `executionId` 를 옛 실행으로 되돌리던 경합은 2026-11-19 에 compare-and-set 으로 닫았다(NERV Task `CLE-T-CVJXDE`).
 
 ### R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다
 
@@ -215,3 +218,23 @@ non-2xx 응답이 이어지면 프로바이더가 웹훅을 끌 수 있다. 어�
 
 - 소유자만 쓰게 하고 「다른 사용자의 실행이 진행 중」 안내를 보내는 안. 새 `languageHints` 키와 한국어 · 영어 기본 문구가 필요하고 위 이유로 얻는 것이 적다.
 - 누구나 쓰게 두고 위협 모델만 Rationale 에 적는 안. 이 결정을 내릴 때는 슬래시 명령을 아직 DM 으로 좁히지 않아서 Slack 채널의 다른 구성원이 남의 실행을 취소하거나 가로챌 수 있었다. 슬래시 명령을 DM 으로 좁힌 지금도 DM 판정이 넓게 잡히는 드문 경우에는 같은 일이 생긴다.
+
+### R-CC-36 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다
+
+결정일: 2026-11-19
+
+NERV Task `CLE-T-QZ8RFC` 의 결정이다. R-CC-27 이 미룬 둘째 문제를 닫는다.
+
+**잠금 뒤 다시 읽는다.** 대화 상태를 처음 읽는 일은 소유자 확인에 필요해서 잠금보다 앞에 있다. 그래서 `/start` B 가 A 의 저장 전에 상태를 읽고, A 가 잠금을 푼 뒤에 잠금을 잡을 수 있다. 그러면 B 는 A 가 시작한 실행을 취소하지 않고 대화를 자기 새 실행에 잇는다. A 의 실행에는 입력이 닿지 않는다. 그래서 다시 읽은 `executionId` 가 처음 값과 다르면 버린다. 비어 있으면 옛 실행이 끝나 종결 이벤트가 비운 것이다. 이때 버리면 사용자의 `/start` 가 말없이 사라진다. 이어진 실행이 없으니 새로 시작해도 고아 실행이 생기지 않는다.
+
+**못 잡은 `/start` 는 `202` 로 버린다.** 먼저 온 `/start` 가 같은 결과(기존 실행 취소와 새 실행)를 만들므로 사용자의 의도는 남는다(R-CC-27 의 «말없이 사라진다» 와 다르다). 기다리거나 다시 시도하면 웹훅 응답이 늦어진다. `503` 같은 5xx 는 재전송과 자동 비활성화를 부른다([R-CC-12](CLE-CHAT-CORE-RESPONSE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 그래서 `cc:dedup` 선점도 풀지 않는다.
+
+**Redis 장애에서는 통과한다.** Redis 장애로 `/start` 를 막지 않는다. 폼 제출 잠금과 같은 정책이고 같은 지표로 센다. Redis 가 없으면 잠금 없이 진행하므로 그동안은 경합이 남는다. 잠금 구간이 TTL(30초)보다 길면 잠금이 먼저 풀려 직렬화가 깨질 수 있다. 해제는 소유권을 확인하므로 다른 `/start` 의 잠금은 지우지 않는다.
+
+**기각한 대안.**
+
+- 키를 `chat-channel-lock:{triggerId}:{conversationKey}:start` 로 두는 안. 새 키는 규칙 1 을 따른다는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 규칙 3 에 어긋난다. [형태 규칙의 예외 두 계열](../CLE-ENG/CLE-ENG-REDIS.md#형태-규칙의-예외-두-계열) 표는 새 예외의 근거로 쓰지 않는다. `cc:` 는 chat-channel 이 이미 쓰는 접두라 규칙 6 을 지킨다. 2026-11-19 에 사람이 정했다(NERV 질문 `01a1f2b8-c0c1-7530-a9e8-f263d1bf4db2`).
+- 잠금 없이 대화 상태 저장만 compare-and-set 으로 하는 안. 저장할 때 경합을 알면 두 번째 새 실행이 이미 시작된 뒤라 고아 실행이 남는다.
+- 잠금을 기다리거나 `503` 으로 답해 재전송을 받는 안. 위 이유로 택하지 않았다.
+
+**범위 밖.** 일반 텍스트 첫 메시지가 동시에 와서 새 실행이 둘 생기는 경합은 NERV Task `CLE-T-8A055H` 에서 다룬다.

@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
 content_hash: "f40ebd16719d0f5ae0e5382180336d58ea08856b4551c128d2af126d2bcf530f"
 read_as: "approved_fallback"
-task: "CLE-T-GTG3NQ"
+task: "CLE-T-QZ8RFC"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "acb83e4c60b7ef396b0372cb2ca00a2972ea32bbe63aac27862166ad79fa2660"
-etag: "sha256-4898bded6c3211817ebbea0e67306a4e67a5282e7ce90cc4c244ddd7a8e9f29c"
+mirror_sha256: "a0911db74b2fb1d51756904229d83f66a99431fcf8d2d66f900c76affe6177bd"
+etag: "sha256-20bbcc6e693c9f4e7c045ecc72c8c9169d3da02abb6bc57969d2f370c59df3b9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
