@@ -1022,9 +1022,11 @@ export class HooksService {
       triggerId,
       conversationKey,
     );
-    return (
-      current?.executionId != null && current.executionId !== readExecutionId
-    );
+    const currentExecutionId = current?.executionId;
+    if (currentExecutionId === null || currentExecutionId === undefined) {
+      return false;
+    }
+    return currentExecutionId !== readExecutionId;
   }
 
   /**

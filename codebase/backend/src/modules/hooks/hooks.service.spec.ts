@@ -4461,16 +4461,42 @@ describe('HooksService', () => {
         );
       });
 
-      it('다시 읽은 대화 상태의 실행이 그사이 비워졌으면 그대로 새로 시작한다', async () => {
-        // 옛 실행이 끝나 종결 이벤트가 executionId 를 비웠다. 다른 /start 가 낀 것이 아니다.
+      it.each([[null], [undefined]])(
+        '다시 읽은 대화 상태의 실행이 그사이 비워졌으면(%p) 그대로 새로 시작한다',
+        async (emptied) => {
+          // 옛 실행이 끝나 종결 이벤트가 executionId 를 비웠다. 다른 /start 가 낀 것이 아니다.
+          conversationService.lookup
+            .mockResolvedValueOnce(oldState)
+            .mockResolvedValueOnce({
+              ...oldState,
+              executionId: emptied as unknown as string | null,
+            });
+
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'exec-new', status: 'pending' });
+          expect(engine.execute).toHaveBeenCalledTimes(1);
+        },
+      );
+
+      it('처음 읽을 때 대화 상태가 없었는데 다시 읽은 상태가 다른 실행을 가리키면 버린다', async () => {
+        // 첫 /start 두 개가 겹쳤다. 먼저 잠금을 잡은 쪽이 대화를 exec-other 에 이었다.
         conversationService.lookup
-          .mockResolvedValueOnce(oldState)
-          .mockResolvedValueOnce({ ...oldState, executionId: undefined });
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ ...oldState, executionId: 'exec-other' });
 
         const res = await service.handleWebhook('abc', chatInput);
 
-        expect(res).toEqual({ executionId: 'exec-new', status: 'pending' });
-        expect(engine.execute).toHaveBeenCalledTimes(1);
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(executionsService.stop).not.toHaveBeenCalled();
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+        expect(conversationService.releaseLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          conversationService.acquireLock.mock.calls[0][2],
+          'start',
+        );
       });
 
       it('취소가 503 으로 실패해 오류를 전파해도 시작 잠금을 푼다', async () => {
