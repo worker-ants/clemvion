@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATUS"
 title: "시스템 상태"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-SYSSTAT-001", "REQ-SYSSTAT-002", "REQ-SYSSTAT-003", "REQ-SYSSTAT-004", "REQ-SYSSTAT-005", "REQ-SYSSTAT-006", "REQ-SYSSTAT-007", "REQ-SYSSTAT-008", "REQ-SYSSTAT-009", "REQ-SYSSTAT-010", "REQ-SYSSTAT-011", "REQ-SYSSTAT-012", "REQ-SYSSTAT-013", "REQ-SYSSTAT-014", "REQ-SYSSTAT-015", "REQ-SYSSTAT-016", "REQ-SYSSTAT-017", "REQ-SYSSTAT-018", "REQ-SYSSTAT-019", "REQ-SYSSTAT-020", "REQ-SYSSTAT-021", "REQ-SYSSTAT-022", "REQ-SYSSTAT-023", "REQ-SYSSTAT-024", "REQ-SYSSTAT-025"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "6cf1a071450ccd73bdfba753fec05164270eca3c3b6b7b69eac12a8f9e29aa42"
+content_hash: "dc8e8861b4a487d3984fc4799232e6c33ac75bba904fc1d1f97bbab47bcc6f33"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-62B0J9"
 source_paths: ["spec/2-navigation/15-system-status.md", "spec/2-navigation/_product-overview.md", "spec/5-system/16-system-status-api.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "42f03d3bdcf67f9ff69671be49d200a61ed626e1ace6363fd53401fcebda6a82"
-etag: "sha256-5e4de26957d429655fa369013b159222d4f68665a66100844f9ac462825d08c2"
+mirror_sha256: "61e7973d3149dd9685387bf9868064aa6b547548f45ed63bdd5c2cd30b155de4"
+etag: "sha256-57a838c033d230e79d5eee3404866fc9b382e734860ed3426fa5eadfdfdba458"
 ---
 > 구현 상태: 부분 구현(`agent-memory-extraction` 모니터링 미등재) · 원문: `spec/2-navigation/15-system-status.md`, `spec/5-system/16-system-status-api.md`, `spec/2-navigation/_product-overview.md` (§3.9), `spec/data-flow/9-observability.md` (§1.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -138,8 +138,8 @@ etag: "sha256-5e4de26957d429655fa369013b159222d4f68665a66100844f9ac462825d08c2"
 
 - 인증: JWT(`@ApiBearerAuth('access-token')`). **관리자 역할 가드가 없다.** 집계 카운트만 돌려주므로 워크스페이스와 사용자를 알아낼 수 없다([보안](#보안)).
 - 워크스페이스 스코핑 예외: 시스템 전역 상태를 돌려주므로 `X-Workspace-Id` 스코핑을 적용하지 않는다. 헤더가 와도 무시한다. 응답은 모든 워크스페이스를 가로지른 합산값이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)).
-  - 이 예외는 컨트롤러와 핸들러에 `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam()` 을 하나도 붙이지 않는다는 전제에 기댄다. 가드가 어떤 라우트에서 헤더를 검사하는지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드가-무조건-한다) 가 정한다.
-  - 하나라도 붙이면 프런트엔드가 모든 요청에 붙이는 `X-Workspace-Id` 때문에 이 화면이 워크스페이스 멤버십과 헤더 형식에 묶여 실패할 수 있다.
+  - 이 예외는 컨트롤러와 핸들러에 `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 붙이지 않는다는 전제에 기댄다. 가드가 어떤 라우트에서 헤더를 검사하는지는 [API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드가-무조건-한다) 가 정한다.
+  - `@Roles()` 나 `@WorkspaceId()` 를 붙이면 프런트엔드가 모든 요청에 붙이는 `X-Workspace-Id` 때문에 이 화면이 워크스페이스 멤버십과 헤더 형식에 묶여 실패할 수 있다.
 - 응답: `{ data: SystemStatusOverviewDto }`. 전역 `TransformInterceptor` 의 응답 봉투를 따른다.
 
 ```ts

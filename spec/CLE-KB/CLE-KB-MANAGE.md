@@ -2,19 +2,19 @@
 id: "CLE-KB-MANAGE"
 title: "지식 저장소 관리"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-KBUI-001", "REQ-KBUI-002", "REQ-KBUI-003", "REQ-KBUI-004", "REQ-KBUI-005", "REQ-KBUI-006", "REQ-KBUI-007", "REQ-KBUI-008", "REQ-KBUI-009", "REQ-KBUI-010", "REQ-KBUI-011", "REQ-KBUI-012", "REQ-KBUI-013", "REQ-KBUI-014", "REQ-KBUI-015", "REQ-KBUI-016", "REQ-KBUI-017", "REQ-KBUI-018", "REQ-KBUI-019", "REQ-KBUI-020", "REQ-KBUI-021", "REQ-KBUI-022", "REQ-KBUI-023", "REQ-KBUI-024", "REQ-KBUI-025", "REQ-KBUI-026", "REQ-KBUI-027", "REQ-KBUI-028", "REQ-KBUI-029", "REQ-KBUI-030", "REQ-KBUI-031", "REQ-KBUI-032", "REQ-KBUI-033", "REQ-KBUI-034", "REQ-KBUI-035", "REQ-KBUI-036", "REQ-KBUI-037", "REQ-KBUI-038", "REQ-KBUI-039", "REQ-KBUI-040", "REQ-KBUI-041", "REQ-KBUI-042", "REQ-KBUI-043", "REQ-KBUI-044", "REQ-KBUI-045", "REQ-KBUI-046", "REQ-KBUI-047", "REQ-KBUI-048", "REQ-KBUI-049", "REQ-KBUI-050", "REQ-KBUI-051", "REQ-KBUI-052", "REQ-KBUI-053", "REQ-KBUI-054", "REQ-KBUI-055", "REQ-KBUI-056", "REQ-KBUI-057", "REQ-KBUI-058"]
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
-content_hash: "a022f3885c91cc622ec5e4c687071e57d700016289e4039bb306ef655f7bdb16"
+content_hash: "96ce104ff6be1d03b013efe782877b0a89a35bcd7f43ce1983e646327968b84a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-SRXR5W"
 source_paths: ["spec/2-navigation/5-knowledge-base.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "7e897f076fe52147763d1e6e4fc53b18c79b702b003d2173bcb6bd7c6b696cef"
-etag: "sha256-5ac5e9827349f17d4c01fe8d6d1ec39f9ff0ebbabe784f28ed953bacdb8ca28d"
+mirror_sha256: "d4bd149ad5fb33dce32e02dfb764cd59bf52a6cded691e748a58f957bff10de0"
+etag: "sha256-7fa219be1a94b405c4e13d64c7cd7ceafda8ea263576010f278e2e212421f43f"
 ---
 > 구현 상태: 부분 구현 (화면과 API 는 구현됨, PRD 요구사항 일부 미구현) · 원문: `spec/2-navigation/5-knowledge-base.md`, `spec/2-navigation/_product-overview.md` (§3.5), `spec/4-nodes/4-integration/_product-overview.md` (§3), `spec/4-nodes/3-ai/_product-overview.md` (§3.5, §5 NF-AI-05), `spec/data-flow/6-knowledge-base.md` (§1.6 임베딩 테스트) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -147,8 +147,8 @@ API 와 권한 · 속도 제한(REQ-KBUI-054~057), 임베딩 테스트 API(REQ-K
 | GET | `/api/knowledge-bases/:id/embedding-stats` | 임베딩 진행 통계(완료·실패·진행 수, Vector·Graph 공통). 진행 박스 폴링 소스 |
 | POST | `/api/knowledge-bases/:id/retry-failed` | 실패 문서 일괄 재시도. 본문 `{ scope: 'embedding' \| 'graph' \| 'all' }`. 편집자 이상, 분당 3번([문서 임베딩](CLE-KB-EMBED.md)) |
 | POST | `/api/knowledge-bases/search` | RAG 검색 디버그(`query`, `knowledgeBaseIds`, `topK`, `threshold`). 디버깅과 테스트용이다. 실제 워크플로우 실행은 노드가 검색 서비스를 직접 부른다([RAG 검색](CLE-KB-SEARCH.md)) |
-| POST | `/api/knowledge-bases/:id/documents/:docId/re-extract` | (Graph) 문서 하나 그래프 재추출 |
-| POST | `/api/knowledge-bases/:id/re-extract` | (Graph) 지식 저장소 전체 그래프 재추출. 재처리 잠금(`reextract_status`), 진행 중이면 409 `KB_REEXTRACT_IN_PROGRESS` |
+| POST | `/api/knowledge-bases/:id/documents/:docId/re-extract` | (Graph) 문서 하나 그래프 재추출. 편집자 이상, 분당 10번. 202 |
+| POST | `/api/knowledge-bases/:id/re-extract` | (Graph) 지식 저장소 전체 그래프 재추출. 재처리 잠금(`reextract_status`), 진행 중이면 409 `KB_REEXTRACT_IN_PROGRESS`. 편집자 이상, 분당 3번. 202 `{ documentCount }` |
 | GET | `/api/knowledge-bases/:id/graph/stats` | (Graph) Entity·Relation 수와 추출 진행 요약 |
 | GET | `/api/knowledge-bases/:id/graph/visualization` | (Graph, P2) 등장 횟수 상위 Entity 와 Relation. 시각화 페이로드 |
 | GET | `/api/knowledge-bases/:id/entities` | (Graph, P1) Entity 목록(페이지네이션, 검색, 타입 필터) |

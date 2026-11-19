@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-TOOLS"
 title: "MCP 클라이언트 — 도구 노출과 진단"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "a44bfee0ce389d8ffb54d4ea6a7d6db31132d227dbefa98aebe856248a74e7b4"
+content_hash: "b94d2dcb3149f06fe397c18956cd5b1ca730f8bf5971852fba5048b6d6e898d6"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-7BNDT8"
 source_paths: []
-mirror_sha256: "2a1dd547acaceadd80160a14112223f760e44426ad87a20f7c16a05ee5a89ef1"
-etag: "sha256-8f92ef5d8381f33048ffed75b56cb660990e3de65f125fe0cb5efe02d137d71f"
+mirror_sha256: "1714c7d5aa2e9301f33d19268ec4600e7825116064147774145bdf135f8e73a9"
+etag: "sha256-7c9a08ae233465d2274fd0cabb8443e6c478ad14f95366410d1eea1167e64005"
 ---
 ## 개요
 
@@ -225,19 +225,30 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 | `serverSummaries[]` | `mcpServers` 설정에 등록된 통합마다 도구 목록 구성 결과. 사용자가 «통합이 보이지 않는» 원인을 바로 알게 하려는 것이다. 필드는 `integrationId`, `serviceType`(`mcp`·`cafe24`·…), `status`(`connected`·`skipped`), `skipReason`(skip 일 때만), `toolCount`(카탈로그에 등록된 도구 수) |
 | `errors` | 서버별 부분 실패 기록(전체 실패가 아니라 격리된 실패) |
 
-**`skipReason` 어휘**: 이 어휘는 주로 내부 MCP 브리지(Cafe24) 경로의 도구 목록 구성 단계 skip 을 정한다. 외부 MCP 의 실패는 위와 같이 요약(`skipReason='error'`)과 `errors[]` 의 세분 코드에 함께 남는다.
+**`skipReason` 어휘**: 이 어휘는 주로 내부 MCP 브리지(Cafe24 · MakeShop) 경로의 도구 목록 구성 단계 skip 을 정한다. 외부 MCP 의 실패는 위와 같이 요약(`skipReason='error'`)과 `errors[]` 의 세분 코드에 함께 남는다.
 
 `skipReason` 값은 모두 `lower_snake_case` 다. 이 필드는 에러 코드가 아니라 운영 진단용 enum 이다. 그래서 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-3-에러-계약)의 `code` UPPER_SNAKE_CASE 규칙(예: `MCP_AUTH_FAILED`, `MCP_TIMEOUT`)과 다르다. 통합 상태 사유(`Integration.status_reason`, 예: `auth_failed`, `install_timeout`)와는 일부러 표기를 맞췄다. `skipReason` 의 일부 값(`expired_install_timeout`, `expired_refresh_failed`)이 상태 사유의 뜻을 그대로 옮기기 때문이다.
 
 | 값 | 뜻 | 적용 프로바이더 |
 |----|------|---------------|
-| `expired_install_timeout` | Cafe24 Private 의 `pending_install → expired` 24시간 TTL 만료. `install_token` 이 NULL 이라 갱신할 수 없다. 사용자는 이 행을 지우지 않고 같은 상점을 새로 등록하고 이름이 겹치면 다른 이름을 쓴다. 이 통합을 쓰던 AI 에이전트는 새 통합을 다시 고른다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | cafe24 |
-| `expired_refresh_failed` | `expired` 상태에서 `buildTools` 의 1회 갱신 시도가 `invalid_grant` 로 실패. worker 가 `error(auth_failed)` 로 전이한다([Cafe24 노드 §만료된 통합의 도구 목록 처리](../CLE-NODE-INT/CLE-NODE-CAFE24.md#만료된-통합의-도구-목록-처리)) | cafe24 |
-| `expired_no_refresh_token` | `expired` 상태인데 `credentials.refresh_token` 이 없다. 갱신할 수 없어 통합 재인증이 필요하다 | cafe24 |
-| `error` | `status='error'`(auth_failed·insufficient_scope·network 등). 정식 회복은 외부에서 하는 명시적 재인증이다([인증 실패 상태 전환](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환)) | cafe24 / mcp |
-| `pending_install` | Cafe24 Private 첫 설치가 끝나지 않았다 | cafe24 |
+| `expired_install_timeout` | Cafe24 Private · MakeShop 의 `pending_install → expired` 24시간 TTL 만료. `install_token` 이 NULL 이라 갱신할 수 없다. 사용자는 이 행을 지우지 않고 같은 상점을 새로 등록하고 이름이 겹치면 다른 이름을 쓴다. 이 통합을 쓰던 AI 에이전트는 새 통합을 다시 고른다([설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | cafe24 / makeshop |
+| `expired_refresh_failed` | `expired` 상태에서 `buildTools` 의 1회 갱신 시도가 `invalid_grant` 로 실패. worker 가 `error(auth_failed)` 로 전이한다([Cafe24 노드 §만료된 통합의 도구 목록 처리](../CLE-NODE-INT/CLE-NODE-CAFE24.md#만료된-통합의-도구-목록-처리). MakeShop 도 같은 정책이다: [MakeShop 노드 §그 밖의 정책](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#그-밖의-정책)) | cafe24 / makeshop |
+| `expired_no_refresh_token` | `expired` 상태인데 `credentials.refresh_token` 이 없어 갱신할 수 없다. 사용자가 아래 「복구 경로」로 되살린다 | cafe24 / makeshop |
+| `error` | `status='error'`(auth_failed·insufficient_scope·network 등). 자동으로 회복하지 않고 사용자가 아래 「복구 경로」로 되살린다. 외부 MCP 가 `error` 로 바뀌는 조건은 [인증 실패 상태 전환](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환) 이 정한다 | cafe24 / makeshop / mcp |
+| `pending_install` | Cafe24 Private · MakeShop 첫 설치가 끝나지 않았다 | cafe24 / makeshop |
 | `lookup_failed` | 통합 행 조회 실패. 통합이 없을 때, 다른 워크스페이스에 있을 때, 개인 통합인데 [개인 통합 사용 판정](CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과하지 못할 때다. 셋을 구분하지 않는다. 서버 종류별 차이는 아래 「통합 조회 기준」에 있다 | 공용 |
 | `not_capable` | `mcpServers` 에 등록된 통합의 `service_type` 이 이 프로바이더가 처리할 대상이 아니다(프로바이더 라우팅이 정상인지 확인하는 용도) | 공용 |
+
+**복구 경로**: `expired_no_refresh_token` · `expired_refresh_failed` · `error` 로 빠진 통합을 되살리는 방법은 프로바이더마다 다르다.
+
+- 외부 MCP: 자격 증명 교체나 OAuth 통합 재인증.
+- Cafe24 Public: 통합 재인증.
+- Cafe24 Private: 통합 재인증으로 재설치 대기 표시를 남긴 뒤 24시간 안에 Cafe24 개발자 센터에서 «테스트 실행» 을 누른다. 설치 토큰이 없는 행은 삭제 후 재등록한다.
+- MakeShop: 삭제 후 재등록. 통합 재인증은 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절된다.
+
+`expired_install_timeout` 은 이 경로를 따르지 않는다. Cafe24 Private · MakeShop 모두 위 표대로 행을 지우지 않고 같은 상점을 새로 등록한다.
+
+근거는 [재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) 과 그 Rationale 「[MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)」다.
 
 `expired` 통합을 `buildTools` 가 스스로 되살리는지는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md#미결-사항)와 [통합 상태와 만료 알림](CLE-INT-STATUS.md#미결-사항)의 미결 사항이다.
 

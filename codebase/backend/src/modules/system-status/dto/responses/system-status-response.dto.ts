@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type { QueueGroup } from '../system-status.constants';
+import type { QueueGroup } from '../../system-status.constants';
 
 export type QueueHealth = 'healthy' | 'degraded' | 'down';
 

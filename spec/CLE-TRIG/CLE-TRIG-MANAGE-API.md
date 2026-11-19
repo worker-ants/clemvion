@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-API"
 title: "트리거 관리 — API 와 PATCH 계약"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "4597a2c17998b2ef830b8c14ecfd9f9f3c3cc18665bf6b454f658eb0651c92e0"
+content_hash: "d10e315f8a862cae0db8a6d0a439d23d9e3a59a11be13e5f16b3d6191700cebe"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FAEAVE"
 source_paths: []
-mirror_sha256: "262db40938b929e74503cacb8b3f75ae747f02c1b3dda85be43fbc8c49ce1c6b"
-etag: "sha256-4a6fd925735e69b3f70985aa2ca132bdac44920697c5a22ce47bd3d682971a4d"
+mirror_sha256: "78f1137c77273aa0e33accf5f50ade6309809657aafc09fdd97d2ac0a5b9c462"
+etag: "sha256-76d9b377459030787a5aeb55195d0e00da36823c2a40c106c052dec5db6c5f63"
 ---
 ## 개요
 
@@ -27,7 +27,7 @@ etag: "sha256-4a6fd925735e69b3f70985aa2ca132bdac44920697c5a22ce47bd3d682971a4d"
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | POST | `/api/triggers` | 트리거 생성(편집자 이상). `webhook`·`manual` 유형만 받는다. `schedule` 은 스케줄 API 가 자동으로 만들므로 받지 않는다. 트리거 화면 "웹훅 추가" 모달이 이 경로로 웹훅 트리거를 만든다. 본문 `workflowId` 가 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`)다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 본문에 EIA 알림 웹훅 설정(`notification`, 저장 위치 `config.notification`)이 있으면 서버가 알림 서명 시크릿(`wsk_<64hex>`)을 발급해 시크릿 저장소에 넣고 `config.notification.signing` 에는 평문 대신 트리거 id 로 정해지는 시크릿 참조(`secretRef`)를 남긴다. 발급 규칙의 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다. 원시 `config` 로는 `notification` 을 보낼 수 없어서([PATCH 본문 계약](#patch-본문-계약)) 옛 평문 `signing.secret` 은 생성으로 들어오지 않는다. 본문의 인터랙션 설정(`interaction`)이 켜져 있고(`enabled: true`) 전략이 `per_trigger` 면 서버가 트리거 단위 토큰(`itk_*`)도 발급해 `config.interaction.triggerToken` 에 저장한다. 발급한 평문은 이 생성 응답의 `data.secrets` 에 한 번만 실린다(`notificationSigningSecret`, `interactionToken`). 이후 응답에는 실리지 않는다. 발급한 비밀이 없는 응답에는 `secrets` 키가 없다([응답 형태](#응답-형태)). 행 INSERT · 시크릿 저장소 쓰기 · 첫 비밀 발급은 한 트랜잭션이라 하나라도 실패하면 행이 남지 않는다. 감사 기록은 커밋 직후 트랜잭션 밖에서 남긴다([동시 쓰기 직렬화](CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화)) |
-| GET | `/api/triggers` | 목록. 쿼리: `type`, `status`, `search`, `page`, `limit`, `sort`, `order`, `interactionEnabled`. `interactionEnabled`(boolean, 선택)는 `config.interaction.enabled` 가 일치하는 트리거만 돌려주는 JSONB 필터로, [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) 목록이 쓴다. `sort`·`order` 는 `PaginationQueryDto` 로 받지만 `findAll` 이 무시하고 `created_at DESC` 로 고정 정렬한다(반영은 미구현) |
+| GET | `/api/triggers` | 목록. 쿼리: `type`, `status`, `search`, `page`, `limit`, `sort`, `order`, `interactionEnabled`. `interactionEnabled`(boolean, 선택)는 `config.interaction.enabled` 가 일치하는 트리거만 돌려주는 JSONB 필터로, [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) 목록이 쓴다. `sort` 허용 값은 `created_at` · `updated_at` · `name` · `type` · `is_active` · `last_triggered_at` 이고 허용 밖 값은 `created_at` 으로 정렬한다. 기본은 `created_at DESC` 다. 형식이 틀린 `sort` · `order` 는 400 `VALIDATION_ERROR` 다. `last_triggered_at` 은 방향과 상관없이 값이 없는 행을 뒤에 두고(NULLS LAST) 같은 값끼리는 정렬 방향과 같은 방향의 `id` 로 순서를 고정한다. 스케줄 행의 `nextRunAt` 은 정렬 대상이 아니다. 근거는 [트리거 관리 「트리거 목록 정렬 규칙」](CLE-TRIG-MANAGE.md#트리거-목록-정렬-규칙-2026-11-19) |
 | GET | `/api/triggers/:id` | 상세 |
 | PATCH | `/api/triggers/:id` | 수정. 활성/비활성 토글도 이 경로로 한다(`{ isActive: boolean }`). 별도 `/toggle` 경로는 없다. 이 요청으로 서버가 알림 서명 시크릿이나 트리거 단위 토큰을 처음 발급하면 평문은 이 응답의 `data.secrets` 에 한 번만 실린다(`notificationSigningSecret`, `interactionToken`, [PATCH 본문 계약](#patch-본문-계약)). 이 응답을 받지 못했으면 알림 서명 시크릿은 `rotate-secret`, 트리거 단위 토큰은 `revoke-token` 으로 새로 받는다 |
 | GET | `/api/triggers/:id/history` | 호출 이력 |
@@ -97,6 +97,7 @@ etag: "sha256-4a6fd925735e69b3f70985aa2ca132bdac44920697c5a22ce47bd3d682971a4d"
 - `codebase/backend/src/modules/triggers/triggers.controller.ts`
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (원시 `config` 의 병합 `mergeRawConfig`)
 - `codebase/backend/src/modules/triggers/triggers.module.ts`
+- `codebase/backend/src/modules/triggers/triggers-list-sort.ts` (목록 정렬. 허용 목록 · 폴백 · NULLS LAST · `id` 보조 정렬. 검증은 `triggers-list-sort.spec.ts` · `test/trigger-list-sort.e2e-spec.ts`)
 - `codebase/backend/src/modules/triggers/trigger-config-internal-fields.ts` (원시 `config` 의 검사 `assertRawConfigAccepted`. 내부 필드 경로, 타입 키, `secret://` 값을 이 순서로 거부한다)
 - `codebase/backend/src/modules/triggers/dto/responses/trigger-response.dto.ts`, `codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts` (생성 · PATCH 응답과 일회성 평문 묶음 `TriggerIssuedSecretsDto`. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 4 의 예외 응답이다)
 - `codebase/backend/src/modules/triggers/dto/**`

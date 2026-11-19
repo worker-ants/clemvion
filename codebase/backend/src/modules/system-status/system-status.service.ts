@@ -13,7 +13,7 @@ import {
   QueueStatusDto,
   QueueCountsDto,
   QueueHealth,
-} from './dto/system-status-response.dto';
+} from './dto/responses/system-status-response.dto';
 
 /** 모니터링 대상 큐 1건 — 메타 + BullMQ Queue 인스턴스(읽기 메서드만 사용). */
 export interface QueueHandle {

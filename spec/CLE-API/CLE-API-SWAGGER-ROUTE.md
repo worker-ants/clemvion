@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER-ROUTE"
 title: "OpenAPI 문서화 — 컨트롤러와 응답 DTO"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-SWAGGER"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-SWAGGER"]
 area: "CLE-API"
-content_hash: "31cdcd51ff1d14fd4fff5bf9649e3d50a564b61767f3542ff8630c1d6ef6698b"
+content_hash: "99997d925ac5a9e789697f5f2cbf09f7889f0e5bd8b815d109ca6d4b67570452"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-62B0J9"
 source_paths: []
-mirror_sha256: "c0a0d55f4882108c820f700a620e807d2e85b0ca925848c48163e81695b0ae69"
-etag: "sha256-615d0e6de0b178a133bde18fe057df6fd55833c29bd0df566427206f7afb2e9c"
+mirror_sha256: "27850ab561553f515a36514f3f268afb3c2fd9378bb61f60fb8c3d53a08d7e82"
+etag: "sha256-c3499d90ac4d79b2526f3a5ed8c840c13b1f19e2c21dd8b198e1f61f337afec9"
 ---
 ## 개요
 
@@ -227,7 +227,7 @@ async create(...) { ... }
 - [ ] DTO 필드에 JSDoc 이 있고 필요하면 `@ApiProperty`(enum, example, format, nullable)로 보강했는가
 - [ ] `ApiOkWrappedResponse`·`ApiOkPaginatedResponse` 등 알맞은 래퍼를 썼는가
 - [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()`·`@WorkspaceParam(...)` 을 쓰는 엔드포인트에 `@ApiForbiddenResponse` 를 더했는가.
-  - `RolesGuard` 는 `@Roles()` 유무와 무관하게 워크스페이스 멤버십을 늘 검증한다. 그래서 `@WorkspaceId()`·`@WorkspaceParam(...)` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(근거: [워크스페이스와 멤버 「멤버십 검증은 가드 한 곳에서 `@Roles()` 와 상관없이 한다」](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드-한-곳에서-roles-와-상관없이-한다), [워크스페이스와 멤버 「경로 파라미터 워크스페이스도 가드가 본다」](../CLE-ACCT/CLE-ACCT-WS.md#경로-파라미터-워크스페이스도-가드가-본다)).
+  - `RolesGuard` 는 워크스페이스 컨텍스트를 쓰는 라우트에서 `@Roles()` 유무와 무관하게 워크스페이스 멤버십을 검증한다. `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트(시스템 전역 API 등)는 검증하지 않는다. 그래서 `@WorkspaceId()`·`@WorkspaceParam(...)` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(근거: [API 인가 「멤버십 검증은 가드 한 곳에서 `@Roles()` 와 상관없이 한다」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드-한-곳에서-roles-와-상관없이-한다), [API 인가 「경로 파라미터 워크스페이스도 가드가 본다」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#경로-파라미터-워크스페이스도-가드가-본다)).
   - 설명에는 **가드가 낼 수 있는 거부 코드를 모두** 싣는다. 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 이므로 대상 라우트는 모두 "워크스페이스 멤버가 아님(`NOT_A_MEMBER`)" 을 싣는다. `@Roles()` 가 있으면 요구 역할 중 가장 낮은 역할의 코드를 더한다(예: "워크스페이스 멤버가 아님(`NOT_A_MEMBER`) 또는 Editor 이상 권한 필요(`EDITOR_REQUIRED`)"). `@Roles('viewer')` 는 멤버십과 같아 앞 문장뿐이다.
   - 문장은 공용 헬퍼 `FORBIDDEN_NOT_A_MEMBER`·`forbiddenForRole(role)`(`common/swagger`)로 만들고 서비스가 내는 403 은 그 뒤에 덧붙인다. 코드 목록은 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 가드 거부 코드다.
   - 저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에서 빠진 가드 코드를 잡는다. 설명에 남은 코드(역할을 내린 뒤의 옛 역할 코드)와 서비스 거부는 세지 않으므로 `@Roles()` 를 바꾸면 설명도 손으로 맞춘다. `@Public()` 라우트는 대상이 아니다.

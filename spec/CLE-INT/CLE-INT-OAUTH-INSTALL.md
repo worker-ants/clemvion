@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-INSTALL"
 title: "OAuth 연결과 토큰 갱신 — 설치 우선 흐름과 App URL"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "089776b22715acaf2b8cea39e02c9450a90addeaa1364e74ee31d2407a16f029"
+content_hash: "dde8a7988b9fafe28dc0f1a4c1eba2c850b03ad6c2d1894983d56e6585709d3e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-SRXR5W"
 source_paths: []
-mirror_sha256: "f712056a99de0335465b1f6ba246b7b8d7bb16083189f6f5f4f49b9300263231"
-etag: "sha256-e96649747a16d74fc07c1597ef48ba883a7c0f984adf92c4b12cfbe48df7a702"
+mirror_sha256: "bd96748a04f47e97045e5cae68a9f453442b81b268278c5830d60703d958c669"
+etag: "sha256-4576be795d502c1f2a38df68264f578d46c7a8117e5695aecf990b341740db48"
 ---
 ## 개요
 
@@ -98,7 +98,7 @@ sequenceDiagram
 
 | 순서 | 검사 | 실패 응답 |
 | --- | --- | --- |
-| ① | IP 잠금 | 429 `CAFE24_INSTALL_RATE_LIMITED` |
+| ① | IP 잠금 | 429 `CAFE24_INSTALL_RATE_LIMITED` (MakeShop 은 `MAKESHOP_INSTALL_RATE_LIMITED`. 노드의 `MAKESHOP_RATE_LIMITED` 와 다른 코드다) |
 | ② | 설치 토큰 형식 | 404, 실패 카운트 |
 | ③ | 필수 파라미터(`mall_id`·`timestamp`·`hmac`) | 400 `CAFE24_INSTALL_MISSING_PARAMS` |
 | ④ | timestamp ±5분 | 400 `CAFE24_INSTALL_REPLAY` (MakeShop 은 `MAKESHOP_INSTALL_REPLAY`) |
