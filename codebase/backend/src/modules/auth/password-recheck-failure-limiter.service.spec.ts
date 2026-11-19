@@ -167,6 +167,77 @@ describe('PasswordRecheckFailureLimiterService', () => {
     });
   });
 
+  // 근거: NERV Task `CLE-T-0KZ7S3`. 두 fail-open 경로를 `clemvion.redis.fail_open` 에 센다
+  // (CLE-OBS-LOGGING-METRICS 「Redis fail-open 라벨」). Redis 가 없어 기능을 끈 상태는 장애가 아니라 세지 않는다.
+  describe('Redis fail-open 지표', () => {
+    const metricsMock = () => ({ recordRedisFailOpen: jest.fn() });
+
+    it('조회가 실패하면 get_failed 로 한 번 센다', async () => {
+      const metrics = metricsMock();
+      const limiter = new PasswordRecheckFailureLimiterService(
+        { get: jest.fn().mockRejectedValue(new Error('redis down')) } as never,
+        undefined,
+        metrics as never,
+      );
+
+      await expect(limiter.isBlocked(USER_ID)).resolves.toBe(false);
+
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+        'password_recheck_failure_limit',
+        'get_failed',
+      );
+    });
+
+    it('기록이 실패하면 incr_failed 로 한 번 센다', async () => {
+      const metrics = metricsMock();
+      const limiter = new PasswordRecheckFailureLimiterService(
+        { eval: jest.fn().mockRejectedValue(new Error('boom')) } as never,
+        undefined,
+        metrics as never,
+      );
+
+      await expect(limiter.recordFailure(USER_ID)).resolves.toBeUndefined();
+
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+        'password_recheck_failure_limit',
+        'incr_failed',
+      );
+    });
+
+    it('조회 · 기록이 성공하면 세지 않는다', async () => {
+      const metrics = metricsMock();
+      const limiter = new PasswordRecheckFailureLimiterService(
+        {
+          get: jest.fn().mockResolvedValue(null),
+          eval: jest.fn().mockResolvedValue(1),
+        } as never,
+        undefined,
+        metrics as never,
+      );
+
+      await limiter.isBlocked(USER_ID);
+      await limiter.recordFailure(USER_ID);
+
+      expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+    });
+
+    it('Redis 가 없으면 세지 않는다', async () => {
+      const metrics = metricsMock();
+      const limiter = new PasswordRecheckFailureLimiterService(
+        undefined,
+        undefined,
+        metrics as never,
+      );
+
+      await limiter.isBlocked(USER_ID);
+      await limiter.recordFailure(USER_ID);
+
+      expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+    });
+  });
+
   it('Lua 스크립트는 첫 실패이거나 TTL 이 없을 때만 창 길이 TTL 을 건다', () => {
     expect(RECORD_PASSWORD_RECHECK_FAILURE_LUA).toContain("redis.call('INCR'");
     expect(RECORD_PASSWORD_RECHECK_FAILURE_LUA).toContain(
