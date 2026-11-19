@@ -111,6 +111,21 @@ describe('parallel graphWarningRules', () => {
         ).toEqual(['p3']);
       });
 
+      it('병렬 분기 안 컨테이너에 둔 Background 본문의 Parallel 도 바깥 깊이를 이어 세지 않는다', () => {
+        const loop = mkNode('loop', 'foreach', { label: 'Each' });
+        const graph = {
+          nodes: [outer, inner, loop, bg, bodyP],
+          edges: [
+            mkEdge('p1', 'p2', 'branch_0'),
+            mkEdge('p2', 'loop', 'branch_0'),
+            mkEdge('loop', 'bg', 'body'),
+            mkEdge('bg', 'p3', 'background'),
+          ],
+        };
+        expect(parallelNestedDepthExceededRule.evaluate(outer, graph)).toBeNull();
+        expect(evaluateGraphWarningRulesForGraph(graph, resolver)).toEqual([]);
+      });
+
       it('Background 의 다른 포트 뒤 노드는 병렬 분기 본문으로 센다', () => {
         const graph = {
           nodes: [outer, inner, bg, bodyP],
