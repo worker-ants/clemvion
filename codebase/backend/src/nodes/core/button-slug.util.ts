@@ -1,4 +1,4 @@
-import { isValidStablePortId } from './port-id.util';
+import { isValidStablePortId, RESERVED_ERROR_PORT_ID } from './port-id.util';
 
 /**
  * Auto-generated id for `carousel` / `chart` / `table` / `template` 노드의
@@ -50,14 +50,9 @@ export function uniqueSlug(base: string, taken: Set<string>): string {
   }
 }
 
-/**
- * 에러 포트 ID. 사용자 정의 동적 포트 ID(버튼 · 케이스 · 조건 · 카테고리)로 쓸 수
- * 없다. 엔진이 `_selectedPort === 'error'` 와 연결선 `sourcePort === 'error'` 를
- * 문자열로 비교해서 같은 노드에 버튼 `error` 와 에러 포트가 있으면 두 연결선을
- * 구분하지 못한다. 근거: [노드 출력 규약 — 포트 · 흐름 상태 · 에러 「Principle 6.
- * 동적 포트 ID 이름」](CLE-NODE-OUTPUT-FLOW#principle-6-동적-포트-id-이름) 의 4번.
- */
-export const RESERVED_ERROR_PORT_ID = 'error';
+// 에러 포트 ID 의 정의는 포트 규약 모듈(`port-id.util.ts`)에 있다. 버튼 정규화와
+// 기존 import 경로를 위해 여기서도 다시 내보낸다.
+export { RESERVED_ERROR_PORT_ID };
 
 /**
  * `error` 대신 쓸 버튼 id. `error_1` 부터 `taken` 에 없는 첫 번호를 고른다.
@@ -204,10 +199,7 @@ export function normalizeNodeButtonIds(
   return next ?? config;
 }
 
-/**
- * 이 노드 type 이 buttons 정규화 대상인지. 정규화 비용이 작아 모든 노드에
- * 대해 호출해도 무방하지만 의도를 명확히 하기 위해 명시 타입 게이트를 둔다.
- */
+/** buttons 정규화 대상 노드 type 목록. 저장된 id 이전 스크립트도 이 목록을 쓴다. */
 export const BUTTON_NODE_TYPES: readonly string[] = [
   'carousel',
   'chart',
@@ -216,6 +208,10 @@ export const BUTTON_NODE_TYPES: readonly string[] = [
 ];
 const BUTTON_NODE_TYPE_SET = new Set(BUTTON_NODE_TYPES);
 
+/**
+ * 이 노드 type 이 buttons 정규화 대상인지. 정규화 비용이 작아 모든 노드에
+ * 대해 호출해도 무방하지만 의도를 명확히 하기 위해 명시 타입 게이트를 둔다.
+ */
 export function isButtonNodeType(type: string): boolean {
   return BUTTON_NODE_TYPE_SET.has(type);
 }

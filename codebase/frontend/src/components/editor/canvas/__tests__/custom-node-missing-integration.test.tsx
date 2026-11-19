@@ -133,4 +133,45 @@ describe("CustomNode ⚠ Missing integration 배지", () => {
     );
     expect(screen.getByTestId("missing-integration-badge")).toBeInTheDocument();
   });
+
+  // 헤더 우측 정렬(`ml-auto`)은 헤더 우측의 첫 요소만 받는다(CLE-T-EPTQQE).
+  describe("헤더 우측 정렬", () => {
+    afterEach(() => {
+      useEditorStore.setState({
+        graphWarnings: { results: [], hasError: false, hasWarning: false },
+      } as never);
+    });
+
+    it("앞선 헤더 요소가 없으면 배지가 ml-auto 를 받는다", () => {
+      renderNode(
+        { authentication: "integration", integrationId: "deleted-int" },
+        new Set(["other-int"]),
+      );
+      expect(
+        screen.getByTestId("missing-integration-badge").getAttribute("class"),
+      ).toContain("ml-auto");
+    });
+
+    it("graph-warning 배지가 앞서면 배지는 ml-auto 를 받지 않는다", () => {
+      useEditorStore.setState({
+        graphWarnings: {
+          results: [
+            { ruleId: "x", severity: "warning", nodeId: NODE_ID, message: "m" },
+          ],
+          hasError: false,
+          hasWarning: true,
+        },
+      } as never);
+      renderNode(
+        { authentication: "integration", integrationId: "deleted-int" },
+        new Set(["other-int"]),
+      );
+      expect(screen.getByTestId("graph-warning-badge").getAttribute("class")).toContain(
+        "ml-auto",
+      );
+      expect(
+        screen.getByTestId("missing-integration-badge").getAttribute("class"),
+      ).not.toContain("ml-auto");
+    });
+  });
 });

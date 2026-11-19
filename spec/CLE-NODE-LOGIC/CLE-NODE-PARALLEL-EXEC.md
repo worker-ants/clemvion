@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL-EXEC"
 title: "Parallel 노드 — 실행 로직"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PARALLEL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-PARALLEL"]
 area: "CLE-NODE-LOGIC"
-content_hash: "53ebadf436eab16a688f1a64bcdb99af40259123447c4aa27f9a2106ad0f360b"
+content_hash: "a9a57cb311c713b74d26e3f26b3224960fbf0909d42317c85c7310a59c0a75fc"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CE31NB"
 source_paths: []
-mirror_sha256: "3fb9366c7b6cd31b4246ab37591b77c25c62e1de1555af4ec2c8a295d2eab898"
-etag: "sha256-2eb9a7be365dda04b02f38e9067754c1f57d51a3f5c221a3ab3a32f0df5653f6"
+mirror_sha256: "08a997c779e6d7229eaafbb9d917082228b7940d6383c44cc9df7fe1e7151763"
+etag: "sha256-35021c349eda03a2502d806d04dde5539aaacc0cbcb32bf54a74ed4f8496ab66"
 ---
 ## 개요
 
@@ -25,7 +25,7 @@ etag: "sha256-2eb9a7be365dda04b02f38e9067754c1f57d51a3f5c221a3ab3a32f0df5653f6"
 이 절은 병렬 분기마다 어떤 노드를 어떤 순서로 실행하고 어느 노드의 출력을 결과로 쓰는지 정한다. 엔진의 `planParallelBody` 와 `executeParallelBranchBody` 가 이 규칙을 구현한다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 은 컨테이너 본문만 정하고 병렬 분기 본문은 이 문서가 정한다.
 
 1. **소속**: `branch_i` 포트에 직접 연결된 노드가 그 병렬 분기의 진입점이다. 진입점에서 앞으로 가는 연결선을 따라 닿는 노드가 그 병렬 분기 본문의 후보다. 되돌아가는 연결선은 따라가지 않는다.
-2. **합류 노드**: 둘 이상의 병렬 분기에서 닿는 노드는 합류 노드다(대개 Merge). 합류 노드는 어느 병렬 분기 본문에도 넣지 않고 모든 병렬 분기가 끝난 뒤 메인 루프가 실행한다. 그래서 병렬 분기 본문의 노드 집합은 서로 겹치지 않는다. 겹침은 에러로 다루지 않고 합류 노드로 처리한다.
+2. **합류 노드**: 둘 이상의 병렬 분기에서 닿는 노드는 합류 노드다(대개 Merge). 합류 노드는 어느 병렬 분기 본문에도 넣지 않는다. 그래서 병렬 분기 본문의 노드 집합은 서로 겹치지 않는다. 겹침은 에러로 다루지 않고 합류 노드로 처리한다. 모든 병렬 분기가 끝난 뒤 그 Parallel 을 실행한 루프가 합류 노드를 한 번 실행한다. 맨 바깥 Parallel 이면 메인 루프이고 병렬 분기 안이나 컨테이너 본문의 Parallel 이면 그 본문을 도는 루프다. 합류 노드가 받는 입력은 [다중 입력 조립](../CLE-EXEC/CLE-EXEC-ENGINE.md#다중-입력-조립) 이 정한다.
 3. **위상 순서**: 병렬 분기 본문 노드와 그 사이 연결선만으로 Kahn 알고리즘을 돈다(`topologicalSort`). 처음에는 진입 차수가 0 인 노드를 노드 ID 문자열 순서로 큐에 넣는다. 노드를 하나 꺼낼 때마다 새로 진입 차수가 0 이 된 이웃을 노드 ID 문자열 순서로 정렬해 큐 뒤에 붙인다. 예를 들어 `A → B`, `A → C` 면 순서는 `A`, `B`, `C` 다.
 4. **실행**: 병렬 분기 루프는 이 순서대로 노드를 하나씩 실행한다. 진입점에서 닿는 노드만 실행하고 If · Switch 가 고르지 않은 포트 뒤의 노드는 실행하지 않는다. 노드 출력은 그 병렬 분기의 캐시 사본에도 옮기므로 같은 병렬 분기의 다음 노드 입력과 포트 라우팅이 그 출력을 본다. 병렬 분기 안 컨테이너(Loop · ForEach · Map)는 자기 본문을 반복 회차마다 직접 실행한다. 그 본문에 둔 Parallel 도 엔진의 Parallel 실행 경로로 실행한다([놓인 위치별 실행과 중첩 깊이](CLE-NODE-PARALLEL-NEST.md#놓인-위치별-실행과-중첩-깊이)). 병렬 분기 안 Background 는 본문을 큐에 넣고 기다리지 않는다. 병렬 분기 안 Parallel(안쪽 Parallel)은 엔진의 Parallel 실행 경로로 자기 병렬 분기를 실행하고 완료 출력을 쓴다. 안쪽 병렬 분기가 쓴 출력은 바깥 병렬 분기의 캐시 사본에도 옮기므로 안쪽 합류 노드와 안쪽 `done` 뒤 노드가 그 출력을 읽는다.
 5. **결과 노드**: 병렬 분기 루프가 이번 Parallel 실행에서 출력을 쓴 노드 가운데 3번 순서가 가장 늦은 노드가 결과 노드다. 경계는 다음과 같다.
@@ -139,3 +139,11 @@ flowchart LR
 [Background 노드](CLE-NODE-BACKGROUND.md#본문의-블로킹-노드가-입력-대기로-멈추면-곧바로-조용히-끝낸다) 는 같은 상황에서 본문을 에러 없이 끝낸다. Background 본문의 결과는 메인 흐름으로 돌아오지 않으므로 조용히 끝내도 메인 흐름이 잃는 값이 없다. Parallel 에서는 메인 흐름이 모든 병렬 분기의 결과를 `done` 으로 합친다. 병렬 분기를 조용히 끝내면 끝나지 않은 병렬 분기가 성공처럼 보이므로 실패로 드러낸다.
 
 기존 가드를 문서로 옮겼으므로 기각한 대안은 없다. 입력 대기를 낸 자식 노드의 실행 기록이 어느 상태로 끝나는지는 [미결 사항](CLE-NODE-PARALLEL.md#미결-사항) 에 남겼다.
+
+### 합류 노드를 실행하는 루프를 바로잡는다
+
+결정일: 2026-11-15
+
+옛 2번은 합류 노드를 메인 루프가 실행한다고 적었다. 맨 바깥 Parallel 에서는 맞지만 안쪽 Parallel 과 컨테이너 본문의 Parallel 에서는 그 본문을 도는 루프가 합류 노드를 실행한다. 그래서 「그 Parallel 을 실행한 루프」 로 고치고 입력 모양은 [다중 입력 조립](../CLE-EXEC/CLE-EXEC-ENGINE.md#다중-입력-조립) 을 인용했다(NERV Task `CLE-T-CE31NB`, 묶음 `CLE-T-RWHTXC`). 동작은 바뀌지 않는다.
+
+기존 워크플로우 영향은 없다.

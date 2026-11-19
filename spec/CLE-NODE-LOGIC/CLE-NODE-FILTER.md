@@ -2,29 +2,29 @@
 id: "CLE-NODE-FILTER"
 title: "Filter 노드"
 type: "feature"
-version: 1
+version: 2
 status: "approved"
 requirements: ["REQ-FILTER-001", "REQ-FILTER-002", "REQ-FILTER-003", "REQ-FILTER-004", "REQ-FILTER-005", "REQ-FILTER-006", "REQ-FILTER-007", "REQ-FILTER-008", "REQ-FILTER-009", "REQ-FILTER-010", "REQ-FILTER-011", "REQ-FILTER-012", "REQ-FILTER-013", "REQ-FILTER-014", "REQ-FILTER-015", "REQ-FILTER-016", "REQ-FILTER-017"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "a9811ebdc41ba95ef326832ce838416c45a30b024125c7805ae3db5922ffb947"
-read_as: "task_basis"
-task: "CLE-T-4EV45V"
+content_hash: "7dd3b79ba07614616d803b38ed1516d6e733d04d69de38133d627ce24ab67b36"
+read_as: "approved_fallback"
+task: "CLE-T-RWHTXC"
 source_paths: ["spec/4-nodes/1-logic/8-filter.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "702bd4299dca641103758ae5f5dac1df2c6a89c29e5e933380803a24fe1349df"
-etag: "sha256-c64db7780b4787da359152db5bede7f1f86da3d068aa26f5a03a95348510a4cb"
+mirror_sha256: "8dc226bde1dedad6cb2fe1010b5db0f7158a6c4064cfb45fa997f198a0f2276b"
+etag: "sha256-7e286e51a3d3bfed767c62509da65e0677a4a301bf841b3119e8c4a77cebc705"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/8-filter.md`, `spec/4-nodes/_product-overview.md` (§4.8) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-Filter 노드(Filter, `filter`)는 배열을 조건에 따라 두 묶음으로 나누는 노드다. 입력 배열의 항목마다 조건을 평가해 맞는 항목은 `match` 포트로, 맞지 않는 항목은 `unmatched` 포트로 동시에 보낸다. Map 이 변환을 맡는다면 Filter 는 부분집합 분리를 맡는다.
+Filter 노드(Filter, `filter`)는 배열을 조건에 따라 두 묶음으로 나누는 노드다. 입력 배열의 항목마다 조건을 평가해 맞는 항목은 `output.match` 에, 맞지 않는 항목은 `output.unmatched` 에 담고 `match` · `unmatched` 두 포트를 함께 연다. Map 이 변환을 맡는다면 Filter 는 부분집합 분리를 맡는다.
 
 Filter 는 패스스루 노드가 아니다. If/Else · Switch 같은 패스스루 노드는 입력을 바꾸지 않고 한 포트로 흘려보내지만 Filter 는 데이터를 바꾸는 노드다. `output.match` / `output.unmatched` 는 입력 배열의 부분집합이지 입력 자체가 아니다.
 
-[Transform 노드](../CLE-NODE-DATA/CLE-NODE-TRANSFORM.md) 의 `array_filter` 와도 다르다. `array_filter` 는 변환 체인 안에서 특정 필드의 배열을 간단한 조건식으로 거르는 인라인 연산이다. Filter 노드는 워크플로우 흐름의 독립 노드로 여러 조건과 조건 결합(AND/OR)을 지원하고 맞는 항목과 맞지 않는 항목을 두 포트로 동시에 보낸다.
+[Transform 노드](../CLE-NODE-DATA/CLE-NODE-TRANSFORM.md) 의 `array_filter` 와도 다르다. `array_filter` 는 변환 체인 안에서 특정 필드의 배열을 간단한 조건식으로 거르는 인라인 연산이다. Filter 노드는 워크플로우 흐름의 독립 노드로 여러 조건과 조건 결합(AND/OR)을 지원하고 맞는 항목과 맞지 않는 항목을 두 배열로 나눠 두 포트를 함께 연다.
 
 이 문서는 Filter 노드의 설정, 항목별 표현식 컨텍스트, 포트, 실행 로직, 출력 구조, 에러를 정한다. 조건 구조·비교 연산자·정규식 안전 컴파일은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md) 이 정한다.
 
@@ -32,7 +32,7 @@ Filter 는 패스스루 노드가 아니다. If/Else · Switch 같은 패스스�
 
 - REQ-FILTER-001 WHEN Filter 노드가 실행되면 THE SYSTEM SHALL 입력 배열의 항목마다 조건을 평가해 맞는 항목과 맞지 않는 항목으로 나눈다. (원본: ND-FL-01)
 - REQ-FILTER-002 WHEN 사용자가 조건을 설정하면 THE SYSTEM SHALL 여러 조건(`Condition[]`)과 `combineMode` (AND/OR) 결합을 지원한다. (원본: ND-FL-02)
-- REQ-FILTER-003 WHEN 항목 분리가 끝나면 THE SYSTEM SHALL 맞는 항목을 `match` 포트로, 맞지 않는 항목을 `unmatched` 포트로 동시에 보낸다. (원본: ND-FL-03)
+- REQ-FILTER-003 WHEN 항목 분리가 끝나면 THE SYSTEM SHALL 맞는 항목을 `output.match` 에, 맞지 않는 항목을 `output.unmatched` 에 담고 두 배열이 비었어도 `match` · `unmatched` 포트의 다음 노드를 모두 실행해 출력 전체 `{ match, unmatched }` 를 입력으로 넘긴다. (원본: ND-FL-03)
 - REQ-FILTER-004 WHEN 항목마다 조건을 평가하면 THE SYSTEM SHALL `$item` 과 `$itemIndex` 를 표현식 컨텍스트에 묶고 워크플로우 전역 컨텍스트(`$input`, `$var`, `$node["..."]`)도 그대로 물려준다. (원본: ND-FL-04)
 - REQ-FILTER-005 WHEN `strictComparison` 이 `true` 면 THE SYSTEM SHALL 타입 변환 없이 엄격 비교로 조건을 평가한다. (원본: ND-FL-05)
 - REQ-FILTER-006 WHEN `condition.field` 가 비었거나 `'$item'` 이면 THE SYSTEM SHALL 항목 자체를 비교 대상으로 쓴다.
@@ -84,10 +84,10 @@ Filter 는 패스스루 노드가 아니다. If/Else · Switch 같은 패스스�
 | 방향 | id | label | type | dynamic | 설명 |
 |------|------|-------|------|---------|------|
 | 입력 | `in` | Input | data | false | 평가 대상 데이터(1개 필수). `inputField` 로 읽을 배열이 들어 있다 |
-| 출력 | `match` | Match | data | false | 조건에 맞는 항목 배열. 다음 노드는 `$node["X"].output.match` 를 입력으로 받는다 |
-| 출력 | `unmatched` | Unmatched | data | false | 조건에 맞지 않는 항목 배열. 다음 노드는 `$node["X"].output.unmatched` 를 입력으로 받는다 |
+| 출력 | `match` | Match | data | false | 조건에 맞는 항목 배열은 `output.match` 에 있다. 이 포트의 다음 노드는 출력 전체 `{ match, unmatched }` 를 입력으로 받는다 |
+| 출력 | `unmatched` | Unmatched | data | false | 조건에 맞지 않는 항목 배열은 `output.unmatched` 에 있다. 이 포트의 다음 노드도 출력 전체 `{ match, unmatched }` 를 입력으로 받는다 |
 
-**두 포트 동시 활성화**: Filter 는 `port` 를 반환하지 않는다. 두 포트의 연결선을 모두 따라가고 각 연결선은 `output.match` / `output.unmatched` 하위 키를 다음 노드 입력으로 넘긴다. 이 표현 방식은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `port` 활성화 모델과 어긋난다. [미결 사항](#미결-사항) 참조.
+**두 포트 동시 활성화**: Filter 는 `port` 를 반환하지 않는다. 엔진은 고른 포트가 없는 출력에서 `error` 를 뺀 연결선을 모두 연다(`GraphTraversalService.isPortFiltered`). 그래서 `match` · `unmatched` 연결선이 함께 열린다. 두 배열이 비었어도 엔진은 두 다음 노드를 건너뛰지 않고 실행한다. 두 다음 노드의 `$input` 은 연결선 포트와 상관없이 Filter 출력 전체 `{ match: [...], unmatched: [...] }` 다. 한쪽 포트에만 연결선이 있어도 같다. 하위 배열은 `$input.match` 나 `$node["<이름>"].output.match` 로 읽는다. 이 표현 방식은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `port` 활성화 모델과 어긋난다. [미결 사항](#미결-사항) 참조.
 
 ## 실행 로직
 
@@ -166,23 +166,28 @@ Filter 는 한 케이스로 두 포트 결과를 동시에 낸다. 빈 배열·�
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `inputField` 가 `null` / `undefined` 로 해석돼 `[]` 로 대체했으면 `true`. 실제 빈 배열 입력은 `false` 로 구분한다 |
 | `meta.invalidRegexPatterns` | string[] | 핸들러 반환 | 컴파일 실패·길이 초과·위험 패턴이라 `false` 로 평가한 패턴 목록. 문제가 없으면 `[]`. 같은 패턴은 한 번만 싣는다 |
 
-`port` 필드는 없다. Filter 는 `port` 를 반환하지 않고 `match` / `unmatched` 두 포트를 모두 활성화한다. 다음 노드는 `output.match` / `output.unmatched` 하위 키로 나뉜 데이터를 받는다.
+`port` 필드는 없다. Filter 는 `port` 를 반환하지 않고 `match` / `unmatched` 두 포트를 모두 활성화한다. 두 포트의 다음 노드는 모두 `output` 전체 `{ match, unmatched }` 를 `$input` 으로 받는다.
 
 표현식 접근 예:
 
 - `$node["X"].output.match` → `[{ name: "Alice", ... }, ...]`
 - `$node["X"].output.unmatched` → `[{ name: "Bob", ... }, ...]`
+- 다음 노드의 `$input.match` → `$node["X"].output.match` 와 같은 배열
+- `$node["X"].port` → `null`(Filter 는 `port` 를 돌려주지 않는다)
 - `$node["X"].meta.matchedCount` → 맞는 항목 수(`output.match.length` 와 같음)
 - `$node["X"].meta.fellBackToEmpty` → `inputField` 의 `null` / `undefined` 대체 여부
 - `$node["X"].config.conditions` → 원래 조건(표현식 보존)
 
 **특수 값 동작**:
 
-| 입력 | `output.match` | `output.unmatched` |
-|------|----------------|---------------------|
-| `[]` (빈 배열) | `[]` | `[]` |
-| 모든 항목이 맞음 | 입력 그대로 | `[]` |
-| 모든 항목이 맞지 않음 | `[]` | 입력 그대로 |
+| 입력 | `output.match` | `output.unmatched` | 다음 노드 |
+|------|----------------|---------------------|-----------|
+| `[]` (빈 배열) | `[]` | `[]` | 두 노드 모두 실행된다. `$input` 은 `{ match: [], unmatched: [] }` |
+| 모든 항목이 맞음 | 입력 그대로 | `[]` | 두 노드 모두 실행된다. `$input.unmatched` 는 `[]` |
+| 모든 항목이 맞지 않음 | `[]` | 입력 그대로 | 두 노드 모두 실행된다. `$input.match` 는 `[]` |
+| `inputField` 가 `null` / `undefined` 로 해석됨 | `[]` | `[]` | 두 노드 모두 실행된다. `$input` 은 `{ match: [], unmatched: [] }` |
+
+배열이 비었어도 엔진은 다음 노드를 건너뛰지 않는다.
 
 ## 에러
 
@@ -220,3 +225,23 @@ Filter 는 런타임 에러 포트가 없다. 설정 검증 실패는 사전 검
 ### 배열 아닌 입력은 종류에 따라 다르게 처리한다
 
 `null` / `undefined` 는 값이 아직 없는 경우라 빈 배열로 본다. 문자열·숫자·객체처럼 타입이 어긋난 입력은 명백한 사용자 실수로 보고 에러를 던진다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 빈 입력 절이 Filter 의 이 동작을 유지한다고 적었다.
+
+### 다음 노드 입력을 실제 동작에 맞춘다
+
+결정일: 2026-11-15
+
+이전 판은 각 연결선이 `output.match` / `output.unmatched` 하위 키를 다음 노드 입력으로 넘긴다고 적었다. NERV Task `CLE-T-4EV45V` 가 실제 엔진과 `FilterHandler` 로 측정한 결과는 달랐다(`codebase/backend/src/modules/execution-engine/__test__/filter-downstream-input.spec.ts`).
+
+- 두 다음 노드는 입력이 비었을 때, 모두 맞을 때, 모두 맞지 않을 때 모두 실행된다.
+- 두 다음 노드의 `$input` 은 연결선 포트와 상관없이 출력 전체 `{ match, unmatched }` 다. 한쪽 포트만 연결해도 같다.
+- `$node["X"].port` 는 `null` 이다. 엔진은 고른 포트가 없는 출력에서 `error` 를 뺀 연결선을 모두 연다(`GraphTraversalService.isPortFiltered`).
+- `inputField` 가 `null` 로 해석되면 두 다음 노드 모두 `{ match: [], unmatched: [] }` 를 받는다.
+
+선택지는 둘이었다.
+
+- (A) 엔진이 포트별 하위 키를 다음 노드에 넘기게 바꾼다.
+- (B) 문서를 실제 동작에 맞춘다.
+
+(B) 를 골랐다(NERV Task `CLE-T-2F5H0E`). 기존 워크플로우는 `$input.match` 처럼 출력 전체를 읽는다. (B) 는 이 워크플로우를 깨지 않고 엔진도 바꾸지 않는다. (A) 는 라우팅 모델을 바꿔야 하고 기존 워크플로우가 받는 입력 모양이 바뀐다. 그래서 (A) 는 기각했다.
+
+Filter 가 `port` 를 돌려주는 방식(리뷰 발견 `01a0e5a1-1191`)은 이 결정에서 바꾸지 않았다. 그 결정은 [미결 사항](#미결-사항)에 남는다. 기존 워크플로우 영향은 없다(문서만 바뀐다).

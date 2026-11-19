@@ -13,6 +13,19 @@
  * that intentionally inlines the same rule — keep all three call sites in sync.
  */
 
+/**
+ * 에러 포트 ID. 사용자 정의 동적 포트 ID(버튼 · 케이스 · 조건 · 카테고리)로 쓸 수
+ * 없다. 엔진이 `_selectedPort === 'error'` 와 연결선 `sourcePort === 'error'` 를
+ * 문자열로 비교해서 같은 노드에 버튼 `error` 와 에러 포트가 있으면 두 연결선을
+ * 구분하지 못한다. 근거: [노드 출력 규약 — 포트 · 흐름 상태 · 에러 「Principle 6.
+ * 동적 포트 ID 이름」](CLE-NODE-OUTPUT-FLOW#principle-6-동적-포트-id-이름) 의 4번.
+ *
+ * 프런트 `codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts` 의
+ * `ERROR_PORT_ID` 와 값이 같아야 한다. 두 패키지가 공유하는 모듈이 없어서
+ * `port-id.util.spec.ts` 가 프런트 소스의 리터럴을 읽어 맞춘다.
+ */
+export const RESERVED_ERROR_PORT_ID = 'error';
+
 /** Slug allowed for any user/LLM-supplied dynamic-port id (a-zA-Z0-9_-, ≤ 64). */
 export const PORT_ID_SLUG_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
