@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXCEPT"
 title: "에러 코드 — 예외 · 내부 분류 · 은퇴 코드"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "ed4c540b73b194248096dcbf43110104303c175ceb741bfd6a497cc0af7de8db"
+content_hash: "7172961392c674247d498aa47df4de84545d966bac7f52e692a4babfb29d126f"
 read_as: "approved_fallback"
 task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "4a6cb81bce643449668978135f8c23f251351141561ef21704852095f35db0e2"
-etag: "sha256-5cf6fae2d68895d2568edde6ecd781172aa0c6cd44457929b2adaa9269862e8c"
+mirror_sha256: "b19a193430dd80f748adce2eb6054c233bc4e344d58664bd1a600f516cdf22ec"
+etag: "sha256-21502d2326aa7a3ff73e2ddf1f14eb3af07663ef461546f28ffed91b614df2a6"
 ---
 ## 개요
 
@@ -148,6 +148,8 @@ NERV Task `CLE-T-43KCNP` 다. 사람이 따라가지 않은 3xx 를 계속 `HTTP
 - `HTTP_5XX` 는 3xx 와 상관없지만 같은 이름 꼴이고 같은 이유로 유지하는 코드라 한 행에 두었다. 이날 전에는 두 코드 모두 이 등록부에 없었다.
 - 3xx 를 `HTTP_4XX` 에 담는 결정 자체는 [워크플로우 실행](CLE-API-ERRCODES-EXEC.md) §6.6 과 그 Rationale 에 적었다. 이 행은 이름이 부정확하다는 사실만 다룬다.
 
-### `AbortError` 행을 구현 사실에 맞췄다 (2026-11-19)
+### `AbortError` 행을 구현 사실에 맞췄다
+
+결정일: 2026-11-19
 
 NERV Task `CLE-T-GZRYQ3` 다. 옛 행은 fetch · SDK · DB 드라이버가 모두 이 이름으로 던진다고 적었다. 실제로 이 이름으로 던지는 것은 fetch 뿐이다. DB 드라이버는 쿼리 취소 코드로 끝나고 Anthropic · OpenAI SDK 의 `APIUserAbortError` 는 `name` 이 `'Error'` 라 엔진의 이름 판정을 비껴간다. 그래서 Database Query 노드와 AI 노드가 이 이름으로 바꿔 던진다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). 값과 이름을 유지하는 근거는 그대로다. 기록 위치도 노드 출력이 아니라 노드 실행의 `error.code` 로 적었다. 노드 취소는 에러 포트로 가지 않아 `output.error` 가 없다.

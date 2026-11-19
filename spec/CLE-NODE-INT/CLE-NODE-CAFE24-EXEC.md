@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24-EXEC"
 title: "Cafe24 노드 — 실행 로직"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CAFE24"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-CAFE24"]
 area: "CLE-NODE-INT"
-content_hash: "b944765e99b44238bff241bfb0d477cd70dcba5b9d684dd4a12d02a7694aeb0a"
+content_hash: "88cfa50b0d6834da65b99587c5aca80490821e2d4014ace98c669e0fe75469f1"
 read_as: "approved_fallback"
 task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "ddd7c8c7cf2914e516e4f4f0e2d42249b6ce9e8f8630453a18e02371a11323b6"
-etag: "sha256-3649cf19c2fa48c46d27eda564a750c6ea5313eac9776884b9fdb0e2a6694962"
+mirror_sha256: "c27879283db5365de6479c1802a9b8f2dd96a74a83594f438f80a0f45b8165a8"
+etag: "sha256-8d13b55f2219ddb4c9fd7569fbf69630cb450c242d1f79d55795b3a778e6c214"
 ---
 ## 개요
 
@@ -111,6 +111,8 @@ POST·PUT 밖의 method 는 허용 목록으로 강제한다. PATCH 같은 metho
 
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다. 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#요구사항-변경-2026-10-23--2026-10-24)에 있다.
 
-### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다 (2026-11-19)
+### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다
 
-11단계에 이 예외를 적었다. 근거와 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#실행-취소로-끝난-호출은-활동-로그에-남기지-않는다-2026-11-19)에 있다.
+결정일: 2026-11-19
+
+11단계에 이 예외를 적었다. 근거와 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#실행-취소로-끝난-호출은-활동-로그에-남기지-않는다)에 있다.

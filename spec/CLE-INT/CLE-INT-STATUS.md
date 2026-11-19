@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "80c41c341f83907591deb8f2a7bf6a0cbe018783fe6858a4468604298ce7dfb2"
+content_hash: "067f7c5f47973db4c306f47b80774cf0974b52d3a5e73b1ee4bac2015e355217"
 read_as: "approved_fallback"
 task: "CLE-T-GZRYQ3"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "3c5c3fe8869f49901469cc88c9944dae4cdb536a6ac5312db384457b9f0d3305"
-etag: "sha256-40eec882481d616db47200c808380be0dcb0f06bedf082fcc8af629a1c2eacf3"
+mirror_sha256: "bad3b128241dcbe4f13dcbc4ab4ab8d813089caeab5633af9686adb2975df5ea"
+etag: "sha256-d62652ea89849c986094780fd608d343e654ae99859b3a84be83cf8b0a1238c2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -165,7 +165,9 @@ etag: "sha256-40eec882481d616db47200c808380be0dcb0f06bedf082fcc8af629a1c2eacf3"
 
 통합 노드 차단 요구사항(REQ-INTSTAT-015)은 연결되지 않은 통합을 쓰는 통합 노드 «실행을 `INTEGRATION_NOT_CONNECTED` 로 실패시킨다» 고 적었다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 은 `execute()` 안의 실패를 에러 포트로 보낸다고 정했고 구현도 다섯 직결 노드(HTTP Request·Database Query·Send Email·Cafe24·MakeShop) 모두 `assertUsable` 이 던진 `INTEGRATION_NOT_CONNECTED` 를 잡아 에러 포트로 내보낸다. 2026-11-13 에 요구사항과 상태 모델의 서술을 구현과 공통 규칙에 맞췄다. 동작은 바꾸지 않았다. 요구사항 줄 끝의 «(원본: …)» 표지는 출처 표기라 그대로 둔다.
 
-### 노드 취소는 연속 전송 실패로 세지 않는다 (2026-11-19)
+### 노드 취소는 연속 전송 실패로 세지 않는다
+
+결정일: 2026-11-19
 
 2026-11-19 에 연속 전송 실패 요구사항(REQ-INTSTAT-008)의 범위를 정했다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 사용자가 실행을 취소하거나 다른 분기 실패로 노드가 취소되면 요청이 `AbortError` 로 끝난다. 이것은 외부 서비스와의 연결이 실패한 것이 아니다. 이를 카운터에 넣으면 취소를 세 번 하는 것만으로 멀쩡한 통합이 `error(network)` 로 떨어지고 이후 실행이 모두 막힌다. 그래서 Cafe24 · MakeShop 클라이언트는 노드 취소 신호로 생긴 `AbortError` 를 카운터에 넣기 전에 다시 던진다.
 

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL-NODES"
 title: "노드 취소 — 노드별 적용과 구현 현황"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CANCEL"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CANCEL"]
 area: "CLE-EXEC"
-content_hash: "9c00d8c596fbacbd5c69b5cc4788b158e350721797a82118f1869fd12fb094cc"
+content_hash: "2ca84167d92295702d6ac0a61910b386073eb102da19795a6cf0f11301a281af"
 read_as: "approved_fallback"
-task: "CLE-T-WMH3EK"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "469f0f8b2c008b1635b9816d5bff08acbb9f65341d731e0a3ae1550ec72da861"
-etag: "sha256-9cf10d67fd0a8951368241be820c9e966d44934f774ed5294e15847f81cebadd"
+mirror_sha256: "c5160145189929aaa01ed041aef29b1a80546181ce35add6d86d95d9eee6f05a"
+etag: "sha256-08ea18f1f33b0294eee210d91d3fd5a87ed4af94aaedbdd6adcd75cbf86ea5f0"
 ---
 ## 개요
 
@@ -134,15 +134,19 @@ chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel
 
 [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 와 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 는 같은 작업에서 기존 실패 요구사항의 범위를 좁히고 노드 취소 요구사항을 더했다.
 
-### 응답 본문을 다 읽을 때까지 연쇄를 유지한다 (2026-11-19, CLE-T-WMH3EK)
+### 응답 본문을 다 읽을 때까지 연쇄를 유지한다
 
-이 규약은 리스너를 응답 본문까지 읽은 뒤에 뗀다고 정했다. 그런데 Cafe24 · MakeShop 클라이언트는 헤더를 받자마자 타이머와 리스너를 떼고 본문은 에러를 삼키는 읽기로 읽었다. 그래서 본문을 읽는 동안에는 노드 취소도 자체 타임아웃도 걸리지 않았고 본문이 멈추면 노드가 끝없이 기다릴 수 있었다.
+결정일: 2026-11-19
+
+이 규약은 리스너를 응답 본문까지 읽은 뒤에 뗀다고 정했다. 그런데 Cafe24 · MakeShop 클라이언트는 헤더를 받자마자 타이머와 리스너를 떼고 본문은 에러를 삼키는 읽기로 읽었다. 그래서 본문을 읽는 동안에는 노드 취소도 자체 타임아웃도 걸리지 않았고 본문이 멈추면 노드가 끝없이 기다릴 수 있었다. NERV Task `CLE-T-WMH3EK` 에서 정했다.
 
 - 채택: 코드를 고친다. 두 클라이언트도 타이머와 리스너를 본문까지 유지하고 본문 읽기 실패를 노드 취소 · 자체 타임아웃 · 그 밖으로 가른다.
 - 기각: 규약을 HTTP Request 한정으로 좁힌다. 문서는 코드와 맞게 되지만 본문 읽기에 상한이 없는 결함이 그대로 남아 기각했다.
 
 노드 취소를 연속 전송 실패 카운터에 넣지 않는 것도 같은 작업에서 정했다. 취소된 형제 분기 셋이 건강한 통합을 `error(network)` 로 떨어뜨리면 안 되기 때문이다.
 
-### 이웃 문서 정합 (2026-10-10, 2026-11-19)
+### 이웃 문서의 정합은 따로 맡긴다
+
+결정일: 2026-10-10
 
 2026-10-10 개정과 2026-10-31 AI 노드 취소 판정에 맞춰 이웃 문서를 고치는 일은 NERV Task `CLE-T-GZRYQ3` 가 맡았다. 2026-11-19 차수에 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) · [노드 출력 규약 — 포트 · 흐름 상태 · 에러](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md) · [에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md) · [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) · [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) · [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) · [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) · [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) · [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 를 이 규약에 맞췄다.

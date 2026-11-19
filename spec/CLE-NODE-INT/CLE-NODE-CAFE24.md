@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "e7016498e304aed45e33ea8b65111a075996407c10bc363a085892689a1904ce"
+content_hash: "7eac1a7f712db781fde211fd4e668380f47f62770adcf92b9334abdf4f6f5bce"
 read_as: "approved_fallback"
 task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4371b8051cff0a80cb4ff8428927dff92673024f54688a045d5594d43722de3f"
-etag: "sha256-34435ad5abebf944e1fba9dab2ff52f4daf4456973a43f92eec423bd91f5e0f2"
+mirror_sha256: "399ecf08609a3f024f795ae95ec23356ff7fcb908a5e5f2f49fef7a79c97c6e5"
+etag: "sha256-c03c683bc1423a39dd081b0c1a6cd28e37fa64119a5bf24a413dc324b0e4c210"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -179,6 +179,8 @@ operation 규모는 초기 추정치("총 약 180개")와 달리 2026-07-17 실�
 - 2026-10-23: REQ-CAFENODE-035 는 «dry-run 으로 mock 결과를 돌려주면 활동 로그를 1건 남긴다» 에서 «남기지 않는다» 로 바꿨다. REQ-CAFENODE-033 · REQ-CAFENODE-034 는 상태를 바꾸는 GET 예외 목록을 판정에 더했다. REQ-CAFENODE-039 는 실제로 부른 호출로, REQ-CAFENODE-031 은 외부 호출로 범위를 좁혔다.
 - 2026-10-24: REQ-CAFENODE-031 은 «외부 호출이 끝나면» 에서 «통합을 얻은 뒤 외부 호출이 끝나면» 으로 범위를 좁혔다. 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale(REQ-INTMGMT-053)이다.
 
-### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다 (2026-11-19)
+### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다
+
+결정일: 2026-11-19
 
 2026-11-19 에 활동 로그 요구사항(REQ-CAFENODE-031)에 실행 취소 예외를 더했다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 동작은 바꾸지 않았다. 핸들러는 이미 노드 취소로 생긴 `AbortError` 를 활동 로그 전에 다시 던지고 있었다. [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)은 이 동작을 정했지만 요구사항 줄은 «성공·실패와 관계없이 1건» 이라고만 적어 서로 달랐다. 취소된 호출은 끝난 호출이 아니어서 성공에도 실패에도 들지 않는다. 활동 로그 `status` 에 `cancelled` 값을 새로 두지 않는다. HTTP Request · MakeShop · Database Query 노드와 같은 규칙이고 [통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙)이 공통 규칙을 정한다.

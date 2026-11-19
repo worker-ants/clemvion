@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "c5b99738c796b2177ca9c54455966430fcba4a887b3bb309e03b1ece6b025f63"
+content_hash: "5b704aa5a6b275060293452be48a2257f9fae2f389f77087151158841954f74e"
 read_as: "approved_fallback"
 task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "f3fbc47b1e0a1e0a48d5c3b63b00f667323ea464fec7b7adcfcb3e8595290729"
-etag: "sha256-0dd8bc06601f5bf439acfd0906e16002ff3f3173964e9db30f80b9c4ee9f9d51"
+mirror_sha256: "5f7e1453283d3da897a341eabc5bf6e5945858e54e2c1f5a2bc5e6d090371903"
+etag: "sha256-1afc4ca194adf62e23c7ebdc415db685be77622ebb27ce412ebf02edf2d680e7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -194,7 +194,9 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 - 방송 트리거는 `rotate` 와 통합 삭제 전체다. 삭제 쪽 발행은 삭제 뒤 후처리가 하므로 멤버가 나가거나 제거될 때의 개인 통합 삭제도 방송한다. 지금 구독하는 소비자는 이 노드의 풀뿐이다.
 - 요구사항 변경: REQ-DBQ-013 은 결과(모든 인스턴스가 그 통합의 풀을 버린다)만 남기고 채널은 통합 데이터와 흐름을 가리키게 했고, 트리거를 «통합이 삭제(`remove`)되면» 에서 «통합이 삭제되면» 으로 넓혔다. REQ-DBQ-014 는 «무효화 방송이 실패하거나 이 인스턴스에 닿지 않으면» 으로 고쳤다. 경고 로그와 실패 계수는 발행하는 쪽의 동작이라 통합 데이터와 흐름이 정한다. 동작은 바뀌지 않았다.
 
-### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다 (2026-11-19)
+### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다
+
+결정일: 2026-11-19
 
 이전에는 이 노드만 실행 취소 때도 `failed` 활동 로그 1건을 남겼다. catch 가 취소 여부를 보기 전에 `logUsage` 를 불렀기 때문이다. HTTP Request · Cafe24 · MakeShop 노드는 취소된 호출을 남기지 않아 네 노드의 규칙이 달랐다. 취소로 끝난 호출은 끝난 호출이 아니므로 활동 로그를 남기지 않는다. 2026-11-19 에 catch 첫머리에서 취소를 먼저 가려 활동 로그 없이 다시 던지게 고쳤다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 활동 로그 `status` 에 `cancelled` 값은 새로 두지 않았다. 근거 전체는 [노드 취소 Rationale](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다-2026-10-10)에 있다.
 
