@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM"
 title: "Telegram 어댑터"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031", "REQ-TGRAM-032", "REQ-TGRAM-033"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "97cfa7d25b337a3d3dd7926db26c0c30bacb7a5cfcab0c6dff215a025941ae80"
+content_hash: "9e9ad712e1d245c40729768735a8e111026b270a94666a6dcd6e406706d0ecd7"
 read_as: "approved_fallback"
-task: "CLE-T-G2JRMF"
+task: "CLE-T-VKNJ4B"
 source_paths: []
-mirror_sha256: "d3bd1baea1a0176883068aa8cfe8c90c1c3e6055c7b4daf31d9bfb10892090aa"
-etag: "sha256-c934d54db5e35cd82d4e90bfcaec2dd120183409fdf4bfbc9d8154d4c439fc2c"
+mirror_sha256: "76169c7e908e01a69966989d46b960d5e2ad4137bb835ae00dc63af049b19ca8"
+etag: "sha256-0506b12d106eae34b61923d52192e4c31c6469cd5a3cdb94877d268cac6bd2a4"
 ---
 > 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -41,7 +41,7 @@ etag: "sha256-c934d54db5e35cd82d4e90bfcaec2dd120183409fdf4bfbc9d8154d4c439fc2c"
 - REQ-TGRAM-005 IF `message.chat.type` 이 `group`·`supergroup`·`channel` 이면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `languageHints.groupChatRefusal` 안내를 보낸 뒤 update 를 버린다.
 - REQ-TGRAM-006 IF `message.from.is_bot === true` 이면 THE SYSTEM SHALL 안내 없이 update 를 버린다.
 - REQ-TGRAM-007 IF `sticker`·`voice` 처럼 지원하지 않는 update 가 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주고 호출자가 `unsupportedMessageKind` 안내를 보낸다.
-- REQ-TGRAM-008 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL MarkdownV2 escape 한 `sendMessage` 로 보내고 4096자를 넘으면 단어·문장 경계로 나눠 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
+- REQ-TGRAM-008 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL MarkdownV2 escape 한 `sendMessage` 로 보내고 4096자를 넘으면 줄바꿈 · 공백 경계로 나눠 마지막 조각 전까지 괄호를 escape 한 `\n_\(continued…\)_` 를 붙인다.
 - REQ-TGRAM-009 WHEN 본문이 있는 `execution.ai_message` 를 보내면 THE SYSTEM SHALL 텍스트 앞에 `sendChatAction(typing)` 을 한 번 보내고 본문이 비어 있으면 둘 다 보내지 않는다.
 - REQ-TGRAM-010 WHEN 버튼 대기를 보내면 THE SYSTEM SHALL `buttonConfig.buttons[]` 를 `uiMapping.buttonLayout` 에 따라 `inline_keyboard` 로 만들고 `callback_data` 에 `buttonId` 를 그대로 넣는다.
 - REQ-TGRAM-011 WHEN 활성 트리거로 `callback_query` 가 오면 THE SYSTEM SHALL 클릭을 처리했든 버렸든 `answerCallbackQuery` 를 부르고 처리한 클릭이면 원본 메시지의 키보드를 `editMessageReplyMarkup` 으로 지우며 버린 클릭이면 키보드를 남긴다.
@@ -199,6 +199,8 @@ Telegram 은 모든 update 에 단조 증가 `update_id` 를 붙이므로 그 �
 
 2026-10-10 에 명령 우선 규칙을 [채팅 채널 처리 흐름 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 로 정했다. 세 프로바이더에 같은 규칙이라 시스템 문서에 두고 이 문서는 명령 이름과 안내 문구만 정한다. 이 결정으로 이 문서의 미결 «활성 실행 중 `/start`» 를 닫았다. 2026-11-14 에 더한 실행 소유자 확인([채팅 채널 처리 흐름 「R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다」](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다))도 같은 이유로 시스템 문서가 정한다.
 
-### R8 요구사항 줄의 옛 문서 절 표기를 지우고 머리 줄을 고쳤다
+### R8 요구사항 줄과 머리 줄의 표기를 고쳤다
 
 요구사항 줄 끝의 `(원본: telegram §n)` 표기와 머리 줄의 «원문» 경로는 지워진 옛 저장소 문서를 가리켜 찾아갈 수 없었다. 문서는 NERV 링크로 가리킨다는 [용어 사전](../CLE-GLOSSARY.md) 원칙 11 에 따라 지웠고 요구사항의 뜻은 바꾸지 않았다. 머리 줄의 구현 상태는 `부분 구현` 으로 고쳤다. REQ-TGRAM-014·018·019·030 이 미구현이고 024~026 이 부분 구현이라 [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 의 구현 상태 세 값(구현됨·부분 구현·미구현) 가운데 `구현됨` 이 맞지 않는다.
+
+2026-11-19 에는 REQ-TGRAM-008 의 「단어·문장 경계」를 실제 규칙인 「줄바꿈 · 공백 경계」로 고치고 접미사를 실제로 보내는 꼴(괄호를 escape 한 17자)로 적었다(NERV Task `CLE-T-VKNJ4B`, `CLE-T-V4GYE4`). 경계 쪽은 요구사항 문장을 두고 뜻만 정했던 결정을 뒤집은 것이고 동작은 같다. 근거는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) 의 R-CCA-17 다.

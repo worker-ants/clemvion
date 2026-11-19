@@ -2,21 +2,21 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 19
+version: 20
 status: "approved"
 requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073", "REQ-CHAT-074", "REQ-CHAT-075", "REQ-CHAT-076", "REQ-CHAT-077", "REQ-CHAT-078", "REQ-CHAT-079", "REQ-CHAT-080", "REQ-CHAT-081", "REQ-CHAT-082", "REQ-CHAT-083"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "f4f36b79ee42ffed7d2d08f66b0091b28a0a278977f6d777dab399bbe9fd2086"
+content_hash: "7333dcf3a8e1b67b6921c7addff2582a17aae183d485fae7c0984be58578aefe"
 read_as: "approved_fallback"
-task: "CLE-T-G2JRMF"
-source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "52aee21c379d889ab44cc99c6ecafc9eb0f2ac644133583bce73dd3d94acc75e"
-etag: "sha256-e126719b5249d7ac7da62839f90cc11c58db0ad5fc979db5614de158020b73c2"
+task: "CLE-T-B9CRCF"
+source_paths: []
+mirror_sha256: "42069e362cc505f4fd3903831ed62d0b9c7e02d74e5263db409548196c8c4501"
+etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
 ---
-> 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md`, `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -32,6 +32,8 @@ etag: "sha256-e126719b5249d7ac7da62839f90cc11c58db0ad5fc979db5614de158020b73c2"
 - 웹채팅 위젯은 이 모듈을 거치지 않는다([웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md)).
 
 ## 요구사항
+
+줄 끝 `(원본: …)` 은 옛 요구사항 ID(`CCH-*`)나 옛 문서 `15-chat-channel` 절의 대응표다. 다른 문서는 옛 ID 대신 REQ ID 를 쓴다.
 
 ### 어댑터 라이프사이클
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM-UI"
 title: "Telegram 어댑터 — 노드 UI 매핑"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-TELEGRAM"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-TELEGRAM"]
 area: "CLE-CHAT"
-content_hash: "0277ce7f70294cc2891456bc0a2a90242e329a278b9ff2717700b1e8cd92b72d"
+content_hash: "36e8c17d9e2999b3868c3d3bf66c103fb67ca3fb0f8aeebff770eefd1b2d0fff"
 read_as: "approved_fallback"
-task: "CLE-T-D78VKM"
+task: "CLE-T-V4GYE4"
 source_paths: []
-mirror_sha256: "77ba7fa0088a10b6b468bdb672d6db2433f511d8dd688e3ac12acf12fff9aabe"
-etag: "sha256-b1682221387b288dc9efea6d84621bc6055cb835c80b3206bbbace48d9ee528c"
+mirror_sha256: "2bb34d2e7116cf0bfbeab9c2275d14312ba1ac926c286b278c34365279736b92"
+etag: "sha256-cb78a23bd92ca480abaea362743444022d0601a0a82998c08adaf3e3e4c6d34a"
 ---
 ## 개요
 
@@ -25,7 +25,7 @@ etag: "sha256-b1682221387b288dc9efea6d84621bc6055cb835c80b3206bbbace48d9ee528c"
 ## 멀티턴 AI
 
 - `execution.ai_message.message` 를 `sendMessage`(`parse_mode=MarkdownV2`, Bot API 규칙대로 escape)로 보낸다.
-- 4096자(Telegram 메시지 한도)를 넘으면 단어·문장 경계로 나눈다. 마지막 조각 전까지 `\n_(continued…)_` 를 붙이고 접미사까지 4096자 안에 넣는다. 자르는 자리는 Slack · Discord 와 다르다. 규칙과 코드 블록 처리는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
+- 4096자(Telegram 메시지 한도)를 넘으면 줄바꿈 · 공백 경계로 나눈다. 마지막 조각 전까지 괄호를 escape 한 `\n_\(continued…\)_`(17자)를 붙이고 접미사와 코드 블록 표식까지 4096자 안에 넣는다. 자르는 자리는 Slack · Discord 와 다르다. 규칙과 코드 블록 처리는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
 - 응답 직전에 `sendChatAction(action=typing)` 을 한 번 보낸다(5초 뒤 자동 만료). `telegram-message.renderer.ts` 의 `renderAiMessage` 가 본문이 있는 `ai_message` 에서 텍스트 앞에 `{ kind: 'typing' }` 메시지를 넣고, 어댑터 `sendMessage` 의 `typing` 분기가 `sendChatAction` 으로 보낸다. 긴 실행 동안 주기적으로 보내는 typing 은 [채팅 채널 「R9 처리 중 메시지는 큐에 쌓지 않고 바로 안내한다」](CLE-CHAT-CORE.md#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 의 후속 범위 검토 항목이다.
 - 사용자 답장(`text_message`)은 EIA `submit_message` 로 보낸다.
 
@@ -149,3 +149,9 @@ LLM 응답은 일반 Markdown 이지만 Telegram MarkdownV2 는 추가 escape(`_
 비활성 트리거는 예외다. 꺼진 트리거에서는 수신 확인을 포함한 외부 호출을 하지 않는다(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f` 의 사람 답). 그래서 그 클릭의 진행 표시는 시간 초과까지 남는다.
 
 검토한 다른 선택은 처리한 클릭처럼 키보드까지 지우는 안이다. 다시 누르면 처리될 클릭까지 막혀 택하지 않았다.
+
+### 이어짐 접미사의 괄호를 escape 하고 나누는 경계를 줄바꿈 · 공백 경계로 적는다 (2026-11-19)
+
+접미사 `\n_(continued…)_` 의 괄호는 MarkdownV2 예약 문자라 escape 하지 않으면 Telegram 이 `400 can't parse entities` 로 조각을 거절한다. 그래서 escape 한 17자를 붙인다(NERV Task `CLE-T-V4GYE4`). 보이는 글은 Slack · Discord 와 같다.
+
+「단어·문장 경계」는 실제 규칙인 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`). 요구사항 문장을 두고 뜻만 정했던 결정을 뒤집었고 동작은 같다. 근거는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) 의 R-CCA-17 다.

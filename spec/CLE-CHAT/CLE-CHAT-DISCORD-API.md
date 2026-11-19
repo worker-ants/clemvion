@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD-API"
 title: "Discord 어댑터 — API 호출과 UI 매핑"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DISCORD"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
-content_hash: "9656a2c845cc504aa89190131b68bcbb6b5efb32d580c91c1ce05e27d4f7f1de"
+content_hash: "948c55748eb378f560d8ab4d980e865ebca088a280a4c6f9fd47f0cee2d84256"
 read_as: "approved_fallback"
-task: "CLE-T-D78VKM"
+task: "CLE-T-B9CRCF"
 source_paths: []
-mirror_sha256: "5be029c7d768ff6a93b9f74a9dbee94c919c4de02652cd2b44b35026ede4402f"
-etag: "sha256-897bf83fe6e65d5e27367c6a5150e6d4c9ac3359e5252b51dce7484f88f80ee4"
+mirror_sha256: "a64bde715aab518a070d4311e406b002682555cdf69848ebc8a56375bddf3bd2"
+etag: "sha256-f04e86e242c7cf4e362c5a67006d4dedc9107ffd946509b05a6c8a9a3258b363"
 ---
 ## 개요
 
@@ -137,13 +137,13 @@ Discord 로 보내는 메시지는 본문 글자를 바꾸지 않는다. 대신 
 
 ### 멀티턴 AI
 
-아웃바운드는 CCH-MP-01 을 모두 만족한다.
+아웃바운드는 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-018~020 을 모두 만족한다.
 
 - `execution.ai_message.message` 를 `POST /channels/{id}/messages`(content, 평문 markdown)로 보낸다. Discord 는 자체 markdown 을 지원해 escape 하지 않는다. 멘션 알림은 [멘션 무력화](#멘션-무력화) 대로 막는다.
-- 2000자(`content` 한도)를 넘으면 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 접미사까지 2000자 안에 넣는다. 규칙은 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
+- 2000자(`content` 한도)를 넘으면 줄바꿈 · 공백 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 접미사와 코드 블록 표식까지 2000자 안에 넣는다. 규칙은 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
 - 응답 직전 `POST /channels/{id}/typing` 을 한 번 보낸다(10초 자동 만료). 응답이 10초를 넘으면 5초마다 다시 보낸다.
 
-인바운드는 CCH-MP-01 을 일부 미룬다. v1 은 Interactions Webhook 만 써서 DM `MESSAGE_CREATE` 를 받지 못하므로 답장 경로는 둘로 제한된다([채팅 채널](CLE-CHAT-CORE.md) R-CC-13 이 이 부분 유예의 기준이다).
+인바운드는 멀티턴 AI 의 답장 경로를 일부 미룬다. v1 은 Interactions Webhook 만 써서 DM `MESSAGE_CREATE` 를 받지 못하므로 답장 경로는 둘로 제한된다([채팅 채널](CLE-CHAT-CORE.md) R-CC-13 이 이 부분 유예의 기준이다).
 
 - (a) `/<prefix> reply <message>` slash command: text option 으로 자유 입력한다. 멀티턴 AI 진행 중에만 의미가 있다. `parseUpdate` 가 `{ kind: "text_message", text }` 로 돌려주고 EIA `submit_message` 로 간다. 숙련 사용자용 보조 옵션이다.
 - (b) "Reply" 버튼 → 모달 TEXT_INPUT(v1 기본 UX): 어댑터(`renderAiMessage`)가 AI 응답의 마지막 텍스트 조각을 버튼 메시지로 바꿔 "Reply" 버튼(`id: "__reply__"`, style none·SECONDARY)을 붙인다. 누르면 `parseUpdate` 가 `open_form_modal`(`openContext.modal: "reply"`)을 돌려주고, `HooksService` 가 `openFormModal(modalKind='reply')` 로 `{ type: 9 }` 모달(`custom_id: "clemvion_reply"`, TEXT_INPUT `custom_id: "message"`)을 연다. 제출(`clemvion_reply` MODAL_SUBMIT)의 값을 `parseUpdate` 가 `text_message` 로 바꿔 EIA `submit_message` 로 보낸다. 폼 모달은 `clemvion_form`, AI 답장 모달은 `clemvion_reply` 로 두 MODAL_SUBMIT 경로를 나눈다.
@@ -199,7 +199,7 @@ Discord 는 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 �
 
 ### 실행 실패
 
-`execution.failed` 는 어댑터 규약의 `classifyExecutionFailure(event)` 결과로 문구를 찾아 채운 뒤 `POST /channels/{id}/messages` 한 번(평문)으로 보낸다. 민감 정보 제외는 [채팅 채널](CLE-CHAT-CORE.md) 의 CCH-ERR-03 을 따른다.
+`execution.failed` 는 어댑터 규약의 `classifyExecutionFailure(event)` 결과로 문구를 찾아 채운 뒤 `POST /channels/{id}/messages` 한 번(평문)으로 보낸다. 민감 정보 제외는 [채팅 채널](CLE-CHAT-CORE.md)  REQ-CHAT-041 을 따른다.
 
 | 항목 | Discord 매핑 |
 |---|---|
@@ -261,4 +261,6 @@ Form 의 `file` 추상화는 그대로 두고 Discord 프로바이더만 v1 구�
 
 ### continued 접미사도 2000자 한도 안에 넣는다 (2026-11-14)
 
-예전 구현은 마지막이 아닌 조각에 본문 2000자를 담고 접미사 `\n_(continued…)_`(15자)를 더해 2015자 조각을 보냈다. Discord 는 2000자를 넘는 `content` 를 거부할 수 있다. 그래서 접미사까지 포함해 조각마다 2000자 안에 넣는다(NERV Task `CLE-T-ZGF71P`).
+예전 구현은 마지막이 아닌 조각에 본문 2000자를 담고 접미사 `\n_(continued…)_`(15자)를 더해 2015자 조각을 보냈다. Discord 는 2000자를 넘는 `content` 를 거부할 수 있다. 그래서 접미사까지 포함해 조각마다 2000자 안에 넣는다(NERV Task `CLE-T-ZGF71P`). 코드 블록을 닫고 다시 연 표식도 같은 2000자 안에 넣는다(NERV Task `CLE-T-RYXCFX`).
+
+「단어·문장 경계」는 2026-11-19 에 「줄바꿈 · 공백 경계」로 고쳤다(R-CCA-17 번복, NERV Task `CLE-T-VKNJ4B`). 동작은 같다.

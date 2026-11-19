@@ -2,25 +2,25 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035", "REQ-DISCORD-036", "REQ-DISCORD-037"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "0a33c5f1c186b0072ca4a2a8ddd281b449c110bdc3373f84f14249911416520c"
+content_hash: "fdeb93297fe678976367ebb34b56d74bd1e0562663a324d4abbb096904d65196"
 read_as: "approved_fallback"
-task: "CLE-T-ZGF71P"
+task: "CLE-T-B9CRCF"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "febc4242b651ad75d04221d0040f4d0e10a4d1e8bfc72e9a1589f8d5ac6fcd20"
-etag: "sha256-3925e60164c1035a9c05e8a1feb46a7349222633b05c68586e7a83370d9de549"
+mirror_sha256: "f37f6b63ef2b3df79eb260cf835b38e852bb5f3444192b86c6ac09df20580fe6"
+etag: "sha256-7beafe0429d377fc8ab0bfc3d03004313c43b2122a0af1e96ad4bf28d9e25130"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-`provider: "discord"` 채널 어댑터는 [Discord REST API](https://discord.com/developers/docs/reference) 와 [Interactions Webhook](https://discord.com/developers/docs/interactions/receiving-and-responding) 위에서 동작한다. 사용자가 Discord Developer Portal 에서 Application 과 Bot 을 만들고 봇 토큰과 application public key 를 등록하면, 어댑터가 slash command 를 일괄 덮어쓰기로 등록한다. 그리고 [채팅 채널](CLE-CHAT-CORE.md) 의 UI 매핑 요구사항(CCH-MP-01~06)이 다루는 노드를 Discord UI(Message Components, Embeds, Modal)로 바꾼다.
+`provider: "discord"` 채널 어댑터는 [Discord REST API](https://discord.com/developers/docs/reference) 와 [Interactions Webhook](https://discord.com/developers/docs/interactions/receiving-and-responding) 위에서 동작한다. 사용자가 Discord Developer Portal 에서 Application 과 Bot 을 만들고 봇 토큰과 application public key 를 등록하면, 어댑터가 slash command 를 일괄 덮어쓰기로 등록한다. 그리고 [채팅 채널](CLE-CHAT-CORE.md) 의 UI 매핑 요구사항(REQ-CHAT-018~030)이 다루는 노드를 Discord UI(Message Components, Embeds, Modal)로 바꾼다.
 
 v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://discord.com/developers/docs/topics/gateway) 은 봇마다 오래 유지되는 연결과 heartbeat 관리가 필요해 v2 옵션이다(R-D-3). 그래서 v1 사용자는 자유 텍스트 대신 slash command, 버튼, 모달로 워크플로우와 주고받는다. 멀티턴 AI 의 사용자 답장도 모달·명령 입력으로 받는다.
 
@@ -45,7 +45,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-007 IF `channel.type !== 1`(DM 이 아님)이면 THE SYSTEM SHALL `null` 을 돌려주고 호출자가 `groupChatRefusal` 안내를 보낸다. (원본: discord §4, §6)
 - REQ-DISCORD-008 IF `member.user.bot === true` 이거나 DM 의 `user.bot === true` 이면 THE SYSTEM SHALL `null` 을 돌려준다. (원본: discord §4, §6)
 - REQ-DISCORD-009 WHEN 서명 검증을 통과한 슬래시 명령(APPLICATION_COMMAND)·컴포넌트(MESSAGE_COMPONENT)·모달 제출(MODAL_SUBMIT)이 오면 THE SYSTEM SHALL 3초 안에 `200 OK` 와 `{ type: 4, data }`·`{ type: 6 }`·`{ type: 9, data }` 가운데 [인바운드 응답](#인바운드-응답) 이 정한 응답을 `{ data }` 봉투 없이 돌려준다. (원본: discord §3, §4)
-- REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내되 `allowed_mentions: {"parse": []}` 로 멘션 알림을 끄고 2000자를 넘으면 단어·문장 경계로 나누고 마지막 조각 전까지 붙이는 `\n_(continued…)_` 를 포함해 조각마다 2000자를 넘지 않게 한다. (원본: discord §5.1)
+- REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내되 `allowed_mentions: {"parse": []}` 로 멘션 알림을 끄고 2000자를 넘으면 줄바꿈 · 공백 경계로 나누고 마지막 조각 전까지 붙이는 `\n_(continued…)_` 를 포함해 조각마다 2000자를 넘지 않게 한다. (원본: discord §5.1)
 - REQ-DISCORD-011 WHEN AI 응답을 보내면 THE SYSTEM SHALL 마지막 텍스트 조각에 "Reply" 버튼(`__reply__`)을 붙인다. (원본: discord §5.1)
 - REQ-DISCORD-012 WHEN "Reply" 버튼이 눌리면 THE SYSTEM SHALL `custom_id` 가 `clemvion_reply` 인 단일 TEXT_INPUT 모달을 열고 제출 값을 `text_message` 로 바꿔 EIA `submit_message` 로 보낸다. (원본: discord §5.1)
 - REQ-DISCORD-013 WHEN `/<prefix> reply <message>` 가 오면 THE SYSTEM SHALL `{ kind: "text_message", text: <message> }` 로 바꾼다. (원본: discord §5.1)
@@ -158,7 +158,11 @@ Gateway 도입은 사용자 요청이 있을 때 v2 후보로 진입한다.
 
 ### R-D-4 DM 만 받고 guild 채널은 거부한다
 
-v1 정책(CCH-CV-05)과 맞다. guild 채널은 여러 사용자가 있어 대화 매핑이 깨진다. guild 봇 UX 는 v2 여러 사용자 대화와 함께 간다.
+1차 범위 정책([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-017)과 맞다. guild 채널은 여러 사용자가 있어 대화 매핑이 깨진다. guild 봇 UX 는 v2 여러 사용자 대화와 함께 간다.
+
+### REQ-DISCORD-010 의 나누는 경계를 줄바꿈 · 공백 경계로 적는다 (2026-11-19)
+
+「단어·문장 경계」를 실제 규칙인 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`). 요구사항 문장을 두고 뜻만 정했던 결정을 뒤집었고 동작은 같다. 근거는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) 의 R-CCA-17 다.
 
 ### 다른 Rationale 항목의 위치
 

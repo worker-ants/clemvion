@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-SETUP"
 title: "채팅 채널 어댑터 규약 — 채널 등록 실패와 토큰 폐기"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "1e34a960c94dcdd710a32a61d9d15ed6657ea5fbedcfa512caf475a22e5a6531"
+content_hash: "bcc171eba12c289ec5f202f7d00ba71c5edb428a74a94271ff8758c771642b68"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-B9CRCF"
 source_paths: []
-mirror_sha256: "f8884697e86475acc008c6a69458ff35518419f266750dc988c88f08e0e472f9"
-etag: "sha256-f72cd0315a81185c5d9f60e72ff5ee4817ddf7b1b1aa76e9b9121e2ecc00ff7d"
+mirror_sha256: "d3338144eba961b7649ce9991ee507816d04a5201121736d2109f8ed3c1a0ad1"
+etag: "sha256-82780123412f66cd3d8267eff2614650a2fd07f47c226189cb4de89a59e5200c"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-f72cd0315a81185c5d9f60e72ff5ee4817ddf7b1b1aa76e9b9121e2ecc00ff7d"
 
 ## setupChannel 실패 판별
 
-`setupChannel` 이 자격 증명 거부로 실패하면 던지는 `Error` 에 `code: 'BOT_TOKEN_INVALID'` 를 실어 사유를 선언한다. 옛 규약은 `teardownChannel` 과 `revokeBotToken` 도 같이 적었으나 `revokeBotToken` 은 에러를 흡수한다고도 적어 어긋난다([미결 사항](CLE-CHAT-ADAPTER.md#미결-사항)). 호출자는 `code` 로만 분류하고 `message` 를 해석하지 않는다. `code` 가 없는 에러는 일반 실패로 다룬다. 응답 분류(`400 BOT_TOKEN_INVALID`, `502 CHAT_CHANNEL_SETUP_FAILED`)는 [채팅 채널](CLE-CHAT-CORE.md) 의 봇 토큰 재발급 API 가 정한다(근거 R-CCA-9).
+`setupChannel` 이 자격 증명 거부로 실패하면 던지는 `Error` 에 `code: 'BOT_TOKEN_INVALID'` 를 실어 사유를 선언한다. `revokeBotToken` 은 내부 에러를 흡수해 던지지 않으므로 이 판별의 대상이 아니다([인터페이스와 함수 책임](CLE-CHAT-ADAPTER-IFACE.md#채널-어댑터-인터페이스)). 호출자는 `code` 로만 분류하고 `message` 를 해석하지 않는다. `code` 가 없는 에러는 일반 실패로 다룬다. 응답 분류(`400 BOT_TOKEN_INVALID`, `502 CHAT_CHANNEL_SETUP_FAILED`)는 [채팅 채널](CLE-CHAT-CORE.md) 의 봇 토큰 재발급 API 가 정한다(근거 R-CCA-9).
 
 `code` 라는 이름은 이 호출 스택에서 네 가지 뜻으로 쓰인다. 섞으면 조용히 잘못 분기한다.
 

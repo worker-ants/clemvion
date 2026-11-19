@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
 content_hash: "04d65aa5f3d70c43995508b21cb365a285e696890e25afbefa126bdf637d4916"
 read_as: "approved_fallback"
-task: "CLE-T-K57S4N"
+task: "CLE-T-B9CRCF"
 source_paths: []
-mirror_sha256: "2367c4713d90d83cd63ee019bf1efaff4544db73340f323cd9afab17efb5a7dd"
-etag: "sha256-7cd47f6278684c1cb335d09cd9b163822098851fdc82bdcc25ec968877fe051d"
+mirror_sha256: "6dfab2f4481147508aa7083bc24216d857ffcdc0b9a739e5bdf0d89ca6b6b570"
+etag: "sha256-24cff4a78b92d04c9f0670aef2adfea5087eb7f14b2820615bf50dce98f80357"
 ---
 ## 개요
 

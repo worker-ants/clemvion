@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-RESPONSE"
 title: "채팅 채널 — 인바운드 HTTP 응답 계약"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "5e0111ad6b0f10518937f3e6c651e9ae7026eef72b4d846967ff8870099cc31b"
+content_hash: "6dc574ca59ff54d559bb5e185253baaf91a0b7bbc8479f15593fbdd746a67678"
 read_as: "approved_fallback"
-task: "CLE-T-4RSBFY"
+task: "CLE-T-B9CRCF"
 source_paths: []
-mirror_sha256: "e8d9fa3d5327b399519b381067aa7c9f3b0e0c868b4e91e68f6e544ade45cc6c"
-etag: "sha256-126d9f1b9b91584d309a54171147dfdc426f7ed2efab11c6cb186fc50e410fa0"
+mirror_sha256: "45435028870f41009287174ffbb995937ae60507804a07cd180009993a3e6410"
+etag: "sha256-7beff5ff437c4f634b6361ac335dc8c8b14f995a7008a0bbcd726faa3a60e454"
 ---
 ## 개요
 
@@ -41,7 +41,7 @@ etag: "sha256-126d9f1b9b91584d309a54171147dfdc426f7ed2efab11c6cb186fc50e410fa0"
 | 1:1 대화, 입력 대기 실행으로 보내는 재개 명령(답장, 버튼 탭, 폼 제출)을 재개 큐에 넣지 못함 | `202 Accepted` | `{ executionId }`(활성 실행 id) | 실행은 입력 대기에 그대로 있다. `/cancel` 의 큐 적재 실패와 같이 처리한다. 인터랙션으로 온 재개 명령은 아래 인터랙션 행의 응답을 쓴다. 네이티브 폼 모달 제출이면 모달 대기(`pendingFormModal`)를 지우지 않고 「양식 작성하기」 버튼을 다시 보내며, 응답은 기본 응답이라 모달만 닫힌다 |
 | group·supergroup·channel 대화 | `202 Accepted` | `{ executionId: 'ignored' }` | `languageHints.groupChatRefusal` 안내 발송 |
 | 봇이 보낸 메시지(`from.is_bot === true`, Slack `bot_id`, Discord `member.user.bot === true`) | `202 Accepted` | `{ executionId: 'ignored' }` | 조용히 건너뜀 |
-| `parseUpdate` 가 지원하지 않는 update | `202 Accepted` | `{ executionId: 'ignored' }` | 조용히 건너뜀(웹훅 처리 흐름과 같다). Telegram 버튼 클릭이면 수신 확인을 보낸다 |
+| `parseUpdate` 가 지원하지 않는 update | `202 Accepted` | `{ executionId: 'ignored' }` | Telegram 1:1 대화의 메시지(`message.chat` 이 있는 update)면 `languageHints.unsupportedMessageKind` 안내 발송(REQ-TGRAM-007). Slack · Discord 의 DM 밖 메시지는 각 프로바이더 문서의 그룹 대화 거부(REQ-SLACK-009, REQ-DISCORD-007)를 따른다. 그 밖의 update 는 안내 없이 건너뛴다. Telegram 버튼 클릭이면 수신 확인을 보낸다 |
 | 대화 단위 분당 한도 초과 | `202 Accepted` | `{ executionId: 'ignored' }` | `rateLimitPerMinute`(기본 60)를 넘으면 쌓거나 다시 보내지 않고 건너뛴 뒤 `chat_channel_health=degraded`([R-CC-19](CLE-CHAT-CORE-GATE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다)). 안내 메시지는 1차 범위 밖. Telegram 버튼 클릭이면 수신 확인을 보낸다 |
 | 트리거의 워크플로우가 트리거의 워크스페이스에 없음(저장 경계 이전의 id 참조 교차 행) | `202 Accepted` | `{ executionId: 'ignored' }` | 실행을 만들지 않고 `chat_channel_health=degraded`. `chat_channel_last_error` 는 고정 문구 `Workflow not found for this trigger` 이고 이미 `degraded` 면 다시 쓰지 않는다([R-CC-25](CLE-CHAT-CORE-GATE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다)) |
 | 비활성 트리거 | `202 Accepted` | `{ executionId: 'ignored' }` | `HooksService.handle` 의 채팅 채널 분기가 비활성 검사보다 먼저 돌고, `handleChatChannelWebhook` 이 서명 검증(`chatChannelInboundAuthenticator.verify`)을 먼저 한 뒤 비활성이면 조용히 건너뛴다. 서명이 틀리면 401 이다(R-CC-12 (d)). 비활성 트리거에 `410` 으로 답하는 일반 웹훅 규칙([웹훅 「요구사항」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#요구사항))의 채팅 채널 예외다. 진행 중인 대화의 입력과 `/cancel` 도 버린다. 인터랙션이면 `200` 과 기본 응답으로 답한다. 실행을 시작하지 않고 수신 확인을 포함한 외부 호출도 하지 않는다. 비활성 워크플로우와의 차이는 [관문 표](CLE-CHAT-CORE-GATE.md#비활성-트리거와-비활성-워크플로우) 를 본다 |
