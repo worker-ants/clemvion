@@ -209,8 +209,8 @@ executionFailedInternal       → 서비스에 일시적 문제가 발생했습�
 
 | 증상 | 원인 / 해결 |
 |---|---|
-| Discord Portal "Interactions Endpoint URL — Validation Failed" | Public Key 불일치 또는 endpoint 가 PING 에 `{ type: 1 }` 200 응답 못 함. clemvion 의 `chat_channel_health` 확인 |
+| Discord Portal "Interactions Endpoint URL — Validation Failed" | Public Key 불일치 또는 endpoint 가 PING 에 `{ type: 1 }` 200 응답 못 함. `chat_channel_health` 가 `degraded` 면 원인은 트리거 상세의 **마지막 오류** 에서 확인해요 |
 | slash command 가 Discord 에서 안 보임 | bulk overwrite 후 캐시 반영까지 1시간 소요 가능. 또는 `applications.commands` scope 누락 |
 | `401 Unauthorized` | Bot Token 만료 — clemvion 의 **Bot Token 재발급** API 로 24h grace 회전 |
 | slash command 를 보낸 뒤 "애플리케이션이 응답하지 않았습니다" 가 표시됨 | 이제 slash command 는 3초 안에 본인에게만 보이는 응답을 받아요. 계속 보이면 Interactions Endpoint URL 도달 여부와 backend latency 를 점검해요 |
-| modal "Reply" 가 click 후 안 뜸 | 3초 ack 시한 초과 — backend latency 점검 (degraded health) |
+| modal "Reply" 가 click 후 안 뜸 | 3초 ack 시한 초과. backend latency 를 점검해요. `chat_channel_health` 가 `degraded` 면 원인은 트리거 상세의 **마지막 오류** 에서 확인해요 |
