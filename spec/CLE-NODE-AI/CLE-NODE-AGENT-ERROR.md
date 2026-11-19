@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-ERROR"
 title: "AI 에이전트 노드 — 에러와 타임아웃"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT"]
 area: "CLE-NODE-AI"
-content_hash: "99b7777245d397960b84ca1a36fb378dd67bb73471864a674f7ca883cc88b1e8"
+content_hash: "0d05285d3cd844ec80ea1d1ae0a84735c4c2b77b60fdd180b2fefd6041b03b47"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "7152d756f953fe2b4917900908433334c00aa541e5ae245e6ba9283efa69127b"
-etag: "sha256-86ac025b084125863de82bddaf9df2701b3998ae9846adcbd2b855c9907a0d5b"
+mirror_sha256: "dafdaf3777f05c83becc30e4fdb30ed152772ac536d1e25e27017a6f5cc330e0"
+etag: "sha256-72c5d4414d4199c5d5796c157a0e440040b0509d4b223bb0f34f2b4d87bd180a"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-86ac025b084125863de82bddaf9df2701b3998ae9846adcbd2b855c9907a0d5b"
 
 - 두 실패로 나온 출력의 `meta` 토큰은 실패 전에 성공한 턴 응답 LLM 호출의 합이다. 기준은 [AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계) 에 있고 출력 형태는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) 에 있다. 호출 경로별 앱 타임아웃은 [AI 노드 공통](CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 의 표에 있다.
 - 노드 LLM 설정(`llmConfigId`)을 조회하지 못하면 단일 턴은 아직 에러 코드 없이 실패한다(throw). 멀티턴 재개는 같은 실패를 `error` 포트로 보낸다. LLM 오류의 `error` 포트 요구사항을 부분 구현으로 둔 것은 이 남은 범위 때문이다. 남은 범위는 NERV Task `CLE-T-T8FVCG` 가 맡는다.
-- 노드 취소는 `error` 포트로 가지 않는다. 노드 signal 이 abort 된 뒤에 실패하면 AbortError 를 던지고 노드는 `cancelled` 로 끝난다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
+- 노드 취소는 `error` 포트로 가지 않는다. 노드 신호(`context.abortSignal`)가 abort 된 뒤에 LLM 호출이 실패하면 원래 에러의 이름과 상관없이 이름이 `AbortError` 인 에러를 던진다(`rethrowIfNodeCancelled`). Anthropic · OpenAI SDK 의 `APIUserAbortError` 는 이름이 `'Error'` 라서 메시지 `LLM call was aborted` 로 고정한 `AbortError` 로 감싼다. 엔진은 노드 실행을 `cancelled` 로 기록하고 `output_data` 는 쓰지 않는다. 에러는 노드 실행의 `error` 에 남는다([AI 노드 공통](CLE-NODE-AI-COMMON.md#규칙) 규칙 17, [노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3, [「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19).
 - `error` 포트로 나온 실패에는 노드 에러 처리 정책(재시도 등)이 걸리지 않는다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)). `error` 연결선이 없으면 `ERROR_PORT_FALLBACK` 으로 워크플로우가 멈춘다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)).
 
 ## LLM 호출 타임아웃
@@ -36,7 +36,7 @@ etag: "sha256-86ac025b084125863de82bddaf9df2701b3998ae9846adcbd2b855c9907a0d5b"
 - 환경 변수 `AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 600000ms(10분), `0` 이면 끈다. `0` 이면 `LlmService.chat` 의 기본값 10분도 걸리지 않는다. `LlmService.chat` 은 `opts.timeoutMs > 0` 이면 `withTimeout`(자체 `AbortController`)으로 경쟁시켜 넘으면 예외를 던진다. 새 에러 코드는 없다.
 - 단일 턴과 멀티턴 재개 모두 공유 분류 모듈 `llm-error-payload.ts` 가 이 예외를 재시도 가능 `LLM_CALL_FAILED`(네트워크 타임아웃 계열)로 분류한다. AI 에이전트 경로는 `LLM_TIMEOUT` 을 내지 않는다. `error-codes.ts` 의 `LLM_TIMEOUT` 은 어느 경로도 내지 않는 별개 enum 이며 정리는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 소관이다.
 - 단일 턴의 타임아웃도 `error` 포트로 간다. 노드 signal 이 abort 되지 않은 채 끝난 AbortError 는 타임아웃으로 분류한다. 1차 목적은 무기한 멈춤에 상한을 두는 것이다.
-- 타임아웃은 노드 `abortSignal` 과 독립이다. 재개 경로에는 전파할 signal 이 없다. 사용자 중단은 `AbortController` 없이 Execution 행만 UPDATE 하고, `AbortController` 를 만드는 곳은 `parallel-executor.ts` 한 곳뿐이다. 그래서 재개 경로 취소는 턴 경계 DB 관측 가드가 맡는다(2026-07-27 구현, [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다.
+- 타임아웃은 노드 `abortSignal` 과 독립이다. 재개 경로에는 전파할 signal 이 없다. 사용자 실행 중지는 `AbortController` 를 만들지 않고 실행 행만 UPDATE 한다. 노드 취소 신호(`context.abortSignal`)를 채우는 생산자는 `ParallelExecutor` 하나뿐이다([노드 취소 「신호를 만드는 쪽」](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 규칙 9). 그래서 재개 경로 취소는 턴 경계 DB 관측 가드가 맡는다(2026-07-27 구현, [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다.
 - 프로바이더 SDK 요청 타임아웃과 나란히 걸려 먼저 발화하는 쪽이 실제 상한이다. SDK 타임아웃 값과 재전송은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다. 앱 레벨은 SDK 타임아웃이 없는 구성의 긴 멈춤과 호출당 단일 손잡이 역할을 한다. 앱 레벨을 1차 상한으로 쓰려면 SDK 보다 낮게 준다. 모든 LLM 호출에 120초를 거는 공통 기준은 없다(2026-10-10 결정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01).
 - `LlmService.chat` 은 내부 타임아웃 signal 을 호출자 `opts.signal` 과 `AbortSignal.any` 로 합쳐 SDK 요청에 넘긴다. 타임아웃이 나면 실제 HTTP 요청을 취소해 소켓이 남지 않는다(`listModels` 와 같은 패턴). Google 클라이언트도 `chat(params, signal)` 로 받은 signal 을 `generateContent` 의 `abortSignal` 로 넘긴다. `embed` 경로는 signal 을 받지 않아 이 배선 밖이다(후속).
 - `AI_AGENT_LLM_CALL_TIMEOUT_MS` 는 AI 에이전트 전용이다. 텍스트 분류기·정보 추출기처럼 `timeoutMs` 를 넘기지 않는 호출에는 `LlmService.chat` 의 기본값 10분이 걸린다([AI 노드 공통](CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃)).

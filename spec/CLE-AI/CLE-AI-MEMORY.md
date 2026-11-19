@@ -2,19 +2,19 @@
 id: "CLE-AI-MEMORY"
 title: "에이전트 메모리"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-MEMORY-001", "REQ-MEMORY-002", "REQ-MEMORY-003", "REQ-MEMORY-004", "REQ-MEMORY-005", "REQ-MEMORY-006", "REQ-MEMORY-007", "REQ-MEMORY-008", "REQ-MEMORY-009", "REQ-MEMORY-010", "REQ-MEMORY-011", "REQ-MEMORY-012", "REQ-MEMORY-013", "REQ-MEMORY-014", "REQ-MEMORY-015", "REQ-MEMORY-016", "REQ-MEMORY-017", "REQ-MEMORY-018", "REQ-MEMORY-019", "REQ-MEMORY-020", "REQ-MEMORY-021", "REQ-MEMORY-022", "REQ-MEMORY-023", "REQ-MEMORY-024", "REQ-MEMORY-025", "REQ-MEMORY-026", "REQ-MEMORY-027", "REQ-MEMORY-028", "REQ-MEMORY-029", "REQ-MEMORY-030", "REQ-MEMORY-031", "REQ-MEMORY-032", "REQ-MEMORY-033", "REQ-MEMORY-034", "REQ-MEMORY-035", "REQ-MEMORY-036", "REQ-MEMORY-037", "REQ-MEMORY-038", "REQ-MEMORY-039", "REQ-MEMORY-040", "REQ-MEMORY-041", "REQ-MEMORY-042", "REQ-MEMORY-043", "REQ-MEMORY-044", "REQ-MEMORY-045", "REQ-MEMORY-046", "REQ-MEMORY-047", "REQ-MEMORY-048", "REQ-MEMORY-049", "REQ-MEMORY-050", "REQ-MEMORY-051", "REQ-MEMORY-052", "REQ-MEMORY-053"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "79ae2a01f772edacf592559999fda18f2f133f9a9dc8e3c51db479b7220fe492"
+content_hash: "b57c5f28581b2db02cee48339de0c7e35813fd91e66f273df188ea17484dd33a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-A4RCZ3"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/16-agent-memory.md", "spec/2-navigation/_product-overview.md", "spec/5-system/17-agent-memory.md", "spec/5-system/_product-overview.md", "spec/data-flow/13-agent-memory.md"]
-mirror_sha256: "65f77944b304b08ac121ac792b836157a750dac6d6c2a6a69f819f86eb57b005"
-etag: "sha256-c9e2afab339ef46a7d20fa0185b85eefbeb6769591c83e9520fec25cc4d6f761"
+mirror_sha256: "63485c6424d045a1ebbdab57b100a593b03f9b0c7f52a6a25e2777d45a255c62"
+etag: "sha256-4252637af119cfe7655c0f01229a121db3ed0a6cace9e566be72090ab7a1399c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/17-agent-memory.md`, `spec/2-navigation/16-agent-memory.md`, `spec/data-flow/13-agent-memory.md`, `spec/1-data-model.md` (§2.23), `spec/5-system/_product-overview.md` (§8), `spec/2-navigation/_product-overview.md` (§3.13) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -32,7 +32,7 @@ etag: "sha256-c9e2afab339ef46a7d20fa0185b85eefbeb6769591c83e9520fec25cc4d6f761"
 메모리를 만들고 쓰는 노드는 두 가지다.
 
 - **AI 에이전트 노드**: 메모리를 만들고(턴 경계 추출) 쓴다(LLM 호출 직전 회수). 롤링 요약도 함께 쓴다.
-- **정보 추출기 노드**: `memoryStrategy: 'persistent'` 이면 같은 저장소·메모리 범위 키·추출·회수·격리 규칙을 쓴다. 메모리 범위 키 해석(`resolveScopeKey(memoryKey, executionId)`)이 같으므로 같은 키를 쓰면 AI 에이전트와 메모리를 공유한다. 롤링 요약은 쓰지 않는다. 회수 시점(추출 LLM 호출 전 1회, 멀티턴은 첫 진입에만), 회수 쿼리(`inputField`, 비면 systemPrompt), 멀티턴 추출 시점(종결 때 1회)이 AI 에이전트와 다르며 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 에서 정한다.
+- **정보 추출기 노드**: `memoryStrategy: 'persistent'` 이면 같은 저장소·메모리 범위 키·추출·회수·격리 규칙을 쓴다. 메모리 범위 키 해석(`resolveScopeKey(memoryKey, executionId)`)이 같으므로 같은 키를 쓰면 AI 에이전트와 메모리를 공유한다. 롤링 요약은 쓰지 않는다. 회수 시점(추출 LLM 호출 전 1회, 멀티턴은 첫 진입에만), 회수 쿼리(`inputField`, 비면 systemPrompt), 멀티턴 추출 시점(종결 때 1회)이 AI 에이전트와 다르며 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 에서 정한다. 회수 건수는 시스템 프롬프트를 바꿀지 정하는 데만 쓰고 `meta.memory` 에는 싣지 않는다.
 - 텍스트 분류기 노드는 단일 턴이고 상태가 없어 메모리 대상이 아니다.
 - `manual`·`summary_buffer` 전략은 이 파이프라인을 전혀 타지 않는다. 추출도 회수도 `persistent` 에서만 일어난다. 이 불변식이 깨지면 회귀다. 롤링 요약은 `agent_memory` 가 아니라 대화 스레드의 `runningSummary` 에 저장한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md)).
 
@@ -76,7 +76,7 @@ etag: "sha256-c9e2afab339ef46a7d20fa0185b85eefbeb6769591c83e9520fec25cc4d6f761"
 - REQ-MEMORY-028 IF 회수한 내용 안에 같은 마커 토큰이 있으면 THE SYSTEM SHALL zero-width separator(U+200B)로 escape 한다.
 - REQ-MEMORY-029 IF AI 에이전트 노드의 현재 사용자 메시지가 비어 있으면 THE SYSTEM SHALL 시스템 프롬프트 본문을 회수 쿼리로 쓴다.
 - REQ-MEMORY-030 IF 회수가 실패하면 THE SYSTEM SHALL 빈 결과로 이어 가고 응답 경로를 깨지 않는다.
-- REQ-MEMORY-031 WHEN 회수를 마치면 THE SYSTEM SHALL 회수 건수를 `meta.memory.recalledCount` 에 싣는다.
+- REQ-MEMORY-031 WHEN 메모리 전략이 `persistent` 인 AI 에이전트 노드가 회수를 마치면 THE SYSTEM SHALL 회수 건수를 `meta.memory.recalledCount` 에 싣는다.
 - REQ-MEMORY-032 WHEN 추출 항목을 저장하면 THE SYSTEM SHALL 같은 범위에서 cosine 유사도 0.85 이상인 기존 행을 찾아 그 행을 갱신한다. (원본: AGM-09)
 - REQ-MEMORY-033 IF 유사도 0.85 이상인 기존 행이 없으면 THE SYSTEM SHALL 새 행을 넣는다. (원본: AGM-09)
 - REQ-MEMORY-034 IF 기존 행을 갱신할 때 `memoryTtlDays` 가 없으면 THE SYSTEM SHALL 기존 `expires_at` 을 유지한다. (원본: AGM-09)
@@ -203,3 +203,7 @@ Pinecone·Weaviate·Qdrant 같은 별도 벡터 DB 대신 기존 pgvector 인프
 - 부하: 처리량이 큰 임베딩과, rate limit 이 빡빡한 추출 chat
 
 재사용은 인프라(pgvector) 수준이지 테이블 수준이 아니다.
+
+### REQ-MEMORY-031 을 AI 에이전트로 좁혔다 (CLE-T-A4RCZ3)
+
+옛 REQ-MEMORY-031 은 노드를 가리지 않고 회수 건수를 `meta.memory.recalledCount` 에 싣는다고 적었다. 그래서 정보 추출기도 이 값을 실어야 하는 것처럼 읽혔다. 구현은 AI 에이전트만 `meta.memory` 를 싣고 정보 추출기는 회수 건수를 시스템 프롬프트를 바꿀지 정하는 데만 쓴다(`information-extractor.handler.ts`). 회수 시점을 정한 REQ-MEMORY-024 가 이미 AI 에이전트만 가리키므로 같은 주어로 맞췄다. 정보 추출기에 `meta.memory` 를 새로 싣는 안은 출력 계약을 바꾸는 일이라 이번에 하지 않았다.

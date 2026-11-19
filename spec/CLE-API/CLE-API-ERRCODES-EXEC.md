@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXEC"
 title: "에러 코드 카탈로그 — 워크플로우 실행"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "6805c10cb5f070cb773c369fce738ed1c3ea383840b330665c36c69b170e97af"
+content_hash: "f2d87fcb5d55b7583d6a53b9620ce5c0f2738f6b9413c190f472bd6d251aaea7"
 read_as: "approved_fallback"
-task: "CLE-T-CPZBVH"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "9f9af47d4e375019f8144b18b287800f0c639f8c82c95f5db2ba10ad1a1c8c89"
-etag: "sha256-0ef373821d93699337c6cb33d0ad954ad7bd591f3db16a26574f629a676b1abd"
+mirror_sha256: "311712b87b1eefffd4b748f473bb6b3fd3f29f43875b5773a5a06254def5e692"
+etag: "sha256-0a3a083c7d8fb359999160ee2fbe7e867e4eeb8d54bb5fb365d148ba07c3fb08"
 ---
 ## 개요
 
@@ -53,7 +53,7 @@ etag: "sha256-0ef373821d93699337c6cb33d0ad954ad7bd591f3db16a26574f629a676b1abd"
 
 ## 6.6 워크플로우 실행: 노드 수준 런타임
 
-노드 핸들러가 `output.error.code` 로 에러 포트에 싣는 코드다(에러 포트 동작은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md)). ForEach · Map · Parallel 이 실패한 회차 · 병렬 분기를 결과 항목의 `error.code` 에 담을 때 쓰는 대체값 `UNKNOWN_ERROR` 도 이 절에 둔다. 핸들러가 throw 한 실패를 에러 처리 정책 `route_to_error_port` 로 에러 포트에 보낼 때도 `output.error.code` 에 같은 대체값을 쓴다(아래). 정식 목록은 `ErrorCode` enum 이고 주요 항목은 아래와 같다.
+노드 핸들러가 `output.error.code` 로 에러 포트에 싣는 코드다(에러 포트 동작은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md)). 노드 취소의 `AbortError` 만은 에러 포트로 가지 않고 엔진이 노드 실행의 `error.code` 에 남긴다. ForEach · Map · Parallel 이 실패한 회차 · 병렬 분기를 결과 항목의 `error.code` 에 담을 때 쓰는 대체값 `UNKNOWN_ERROR` 도 이 절에 둔다. 핸들러가 throw 한 실패를 에러 처리 정책 `route_to_error_port` 로 에러 포트에 보낼 때도 `output.error.code` 에 같은 대체값을 쓴다(아래). 정식 목록은 `ErrorCode` enum 이고 주요 항목은 아래와 같다.
 
 | 부류 | 코드 | 정의 문서 |
 |----------|------|-----------|
@@ -64,7 +64,7 @@ etag: "sha256-0ef373821d93699337c6cb33d0ad954ad7bd591f3db16a26574f629a676b1abd"
 | Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT`(isolate 메모리 하드 리밋 초과, 기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` 로 조정) | [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) |
 | 서브 워크플로우 | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE` | [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) |
 | 통합 공통 · Cafe24 · MakeShop | 통합 노드 공통 코드 `INTEGRATION_*` 와 `CAFE24_*` · `MAKESHOP_*`. 코드 목록은 §6.22 | [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드), [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
-| 노드 취소 | `AbortError` (§3 예외 등록 코드) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) |
+| 노드 취소 | `AbortError`(§3 예외 등록 코드. 노드 실행의 `error.code`) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) |
 | 반복 · 병렬 실패 회차 · 에러 포트 라우팅 | `UNKNOWN_ERROR`(`errorPolicy='continue'` 의 `skipped[].error.code` · Map `mapped[i].error.code` 대체값. 핸들러가 throw 한 실패를 `route_to_error_port` 로 보낼 때의 `output.error.code` 대체값, 아래) | [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조), [노드 에러 처리 정책 「2. 에러 포트로 라우팅」](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) |
 
 - **`HTTP_TIMEOUT` 은 발행하지 않는다.** enum 에는 있지만 HTTP Request 핸들러는 타임아웃 때 `AbortController.abort()` 로 fetch 를 멈추고 그 reject 를 다른 전송 에러와 함께 `HTTP_TRANSPORT_FAILED` 로 발행한다(`http-request.handler.ts`). 그래서 `output.error.code` 로 `HTTP_TIMEOUT` 이 보이는 경로는 없다. 앞으로 세분화할 여지와 방어적 매핑을 위해 enum 과 분류 표에 코드를 남긴다.
@@ -104,7 +104,7 @@ etag: "sha256-0ef373821d93699337c6cb33d0ad954ad7bd591f3db16a26574f629a676b1abd"
 
 ### LLM 타임아웃에 `LLM_TIMEOUT` 을 쓰지 않는다 (2026-10-10)
 
-`LLM_TIMEOUT` 은 enum 에 있지만 발행처가 없었다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 만 스트리밍 턴 타임아웃에 이 코드를 약속했다. 2026-10-10 에 사람이 LLM 호출 타임아웃 문서를 코드에 맞추기로 정하면서 이 코드도 내지 않기로 했다. LLM 타임아웃은 `LLM_CALL_FAILED` 나 스트림 에러 코드로 온다. 결정 근거는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다. enum 과 등재를 지울지는 규칙 9 정리와 함께 NERV Task `CLE-T-8WXV7T` 가 정한다.
+`LLM_TIMEOUT` 은 enum 에 있지만 발행처가 없었다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 만 스트리밍 턴 타임아웃에 이 코드를 약속했다. 2026-10-10 에 사람이 LLM 호출 타임아웃 문서를 코드에 맞추기로 정하면서 이 코드도 내지 않기로 했다. 결정 근거는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다. enum 과 등재를 지울지는 규칙 9 정리와 함께 NERV Task `CLE-T-8WXV7T` 가 정한다.
 
 - 단일 턴 AI 에이전트의 LLM 호출(첫 호출 · 도구 루프 호출 · 롤링 요약 호출)이 실패하면 노드는 멀티턴과 같은 분류의 에러를 `error` 포트로 낸다(NERV Task `CLE-T-ZHBMAC` · `CLE-T-Q38K9F`). 타임아웃은 재시도할 수 있는 `LLM_CALL_FAILED` 다. 롤링 요약 `chat` 실패는 첫 호출과 같은 HTTP status 기준으로 나뉜다. 요약 모델 설정(`summaryModelConfigId`)을 찾지 못한 실패는 429 · 5xx · 네트워크 신호가 없어 재시도할 수 없는 `LLM_CALL_FAILED` 로 나온다. 멀티턴 재개와 같은 분류다.
 - 남은 공백은 노드 LLM 설정(`llmConfigId`)을 해석하지 못하는 경우다. 이때는 아직 에러 코드 없이 노드가 실패한다.
@@ -147,7 +147,7 @@ NERV Task `CLE-T-14VQC2` 다. 핸들러가 throw 한 실패를 `route_to_error_p
 
 NERV Task `CLE-T-6G3084` 다. 두 경우 모두 동작은 그대로 두고 카탈로그를 지금 동작에 맞췄다.
 
-- **`HTTP_BLOCKED` 의 리다이렉트 한도 초과**: HTTP 행은 이 코드를 사설망 차단으로만 적었다. 실제로는 한도를 넘긴 리다이렉트에도 판정 없이 같은 코드가 나간다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 규칙 9 와 [HTTP Request 노드 — 출력과 에러](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md) 에는 이 예외가 이미 있고 이 카탈로그에만 없었다. 새 조건에 기존 코드를 쓰는 것이라 규칙 6 과 맞지 않는다. 규칙 6 의 예외로 정한 결정이 없어서 예외로 적지 않았다. 전용 코드를 새로 만들지는 NERV Task `CLE-T-43KCNP` 에 넘겼고, 같은 날 만들지 않기로 정했다(아래 절).
+- **`HTTP_BLOCKED` 의 리다이렉트 한도 초과**: HTTP 행은 이 코드를 사설망 차단으로만 적었다. 실제로는 한도를 넘긴 리다이렉트에도 판정 없이 같은 코드가 나간다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 규칙 9 와 [HTTP Request 노드 — 출력과 에러](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md) 에는 이 예외가 이미 있고 이 카탈로그에만 없었다. 새 조건에 기존 코드를 쓰는 것이라 규칙 6 과 맞지 않는다. 같은 날 NERV Task `CLE-T-43KCNP` 에서 이 예외를 받아들였다(아래 절).
 - **활동 로그의 `HTTP_{status}`**: 통합 활동 로그와 통합 `last_error.code` 로 나가는 코드인데 카탈로그에 없었다(규칙 8). 이름이 조건의 뜻 대신 상태 번호를 적어 규칙 1 을 어기므로 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 행을 두고 이 절에는 그 행을 가리키는 설명만 두었다. `CAFE24_404` 등이 §6.22 와 §3 에 함께 있는 것과 같은 배치다.
 
 ### HTTP Request 노드의 3xx 와 리다이렉트 한도 초과에 새 코드를 만들지 않았다 (2026-11-14)

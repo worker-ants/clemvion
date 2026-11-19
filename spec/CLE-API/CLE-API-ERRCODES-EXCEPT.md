@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXCEPT"
 title: "에러 코드 — 예외 · 내부 분류 · 은퇴 코드"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "6a8e554b659d015cd6a3fee3f895363115c9b282e61733e344c83abce955da87"
+content_hash: "ed4c540b73b194248096dcbf43110104303c175ceb741bfd6a497cc0af7de8db"
 read_as: "approved_fallback"
-task: "CLE-T-2M6Q02"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "fe78292650743d4ce90a05a6b3bc164305da88c175e64a0d24aa7238bce337bf"
-etag: "sha256-1f31d380d555d0ed42177a88ef02b9cf0bb7362d1106c2de682e69bc8ba23993"
+mirror_sha256: "4a6cb81bce643449668978135f8c23f251351141561ef21704852095f35db0e2"
+etag: "sha256-5cf6fae2d68895d2568edde6ecd781172aa0c6cd44457929b2adaa9269862e8c"
 ---
 ## 개요
 
@@ -39,7 +39,7 @@ etag: "sha256-1f31d380d555d0ed42177a88ef02b9cf0bb7362d1106c2de682e69bc8ba23993"
 | `workspace_not_found` · `user_not_found` · `admin_required` | 404 · 404 · 403 | `lower_snake_case`. 위 두 행과 같은 초대 모듈이 조회·RBAC 단계에서 발행한다. 모듈 안 소문자 일관성을 위해 유지한다(등록부 완전성 차원의 등재) | 워크스페이스 없음 / 대상 사용자 없음 / 관리자 미만 권한. 2026-09-25 이후 `admin_required` 는 HTTP 로 나가지 않는다. 초대 라우트가 `RolesGuard` 의 `@Roles('admin')` 를 먼저 거쳐 `ADMIN_REQUIRED` 가 나기 때문이다. 서비스 계층의 `admin_required` 는 가드가 빠졌을 때만 닿는 두 번째 방어선이다. **초대 모듈 한정**이고 직접 추가·관리 경로의 `WORKSPACE_NOT_FOUND`·`USER_NOT_FOUND`(§6.4)와 별개 코드다 | [계정과 워크스페이스 데이터 흐름 「초대 발급」](../CLE-ACCT/CLE-ACCT-DATA.md#초대-발급). 세 코드는 도메인 문서에 적혀 있지 않아 이 행이 유일한 등재다 |
 | `invalid_state` · `token_exchange_failed` · `email_required` · `server_error` (OAuth 콜백 `?error=`) | 없음 (302 리다이렉트) | `lower_snake_case`. 봉투의 `error.code` 가 아니라 로그인 OAuth 콜백이 `{frontend_url}/callback?error=<값>` 으로 보내는 **URL query 값**이다. v1 에서 굳었고 콜백 페이지가 이 값으로 분기한다(§2) | 소셜 로그인 콜백 실패 사유(state 불일치 / 코드 교환 실패 / 이메일 미제공 / 서버 에러 · 연결할 계정을 정하지 못함). 연결할 계정을 정하지 못한 경우는 이메일이 대소문자만 다른 기존 계정 여럿과 맞고 대소문자까지 같은 계정이 없을 때다([가입과 로그인 — 가입 · 재설정 · 이메일 변경 「이메일 비교 규칙」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙)). 새 값을 두지 않고 `server_error` 를 쓴다. **로그인 OAuth 콜백 URL 한정**이고 통합 OAuth 의 `OAUTH_*` 봉투 코드와 별개다. `invalid_state` 는 §6.4 의 봉투 코드 `INVALID_STATE`(422, 상태 전이 불가)와 대소문자만 같고 뜻이 다른 별개 값이다 | [가입과 로그인 — 로그인과 소셜 로그인 「에러 처리」](../CLE-ACCT/CLE-ACCT-SIGNIN-LOGIN.md#에러-처리) |
 | `WORKER_HEARTBEAT_TIMEOUT` | 없음 (HTTP 무관. 엔진 수준 `error.code`, 실행 `failed`) | "HEARTBEAT" 는 워커가 주기적으로 보내는 별도 heartbeat 채널을 암시하지만 그런 채널은 만들지 않는다. 처음에는 부팅 때 30분 넘게 멈춘 `running` 실행을 실패 처리했다. 2026-07-04 에 부팅 경로는 rehydration 재구동(`recoverStuckExecutions`, 이 코드를 쓰지 않음)으로 바꾸고 이 코드는 BullMQ stalled 재배달(`maxStalledCount=1`)을 다 쓸 때 `finalizeStalledExhausted` 가 내도록 뜻을 다시 정의했다. 코드와 여러 문서가 값으로 참조하므로 바꾸면 호환이 깨진다(§2) | 활성 세그먼트 워커의 최종 실패로 실행이 `failed` 가 된다 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| `AbortError` | 없음 (HTTP 무관. 노드 수준 `error.code`, 노드 실행 `cancelled`) | PascalCase 다. 우리가 정한 코드가 아니라 웹 표준 `AbortSignal` 이 던지는 `DOMException.name` 을 그대로 옮긴 값이다. fetch·SDK·DB 드라이버가 모두 이 이름으로 던지므로 정규화하면 엔진 분류 키(`error.name === 'AbortError'`)와 `code` 가 갈라진다. 여러 핸들러와 테스트가 값으로 참조한다(§2) | 노드의 외부 I/O 가 `abortSignal` 로 중단돼 노드 실행이 `cancelled` 가 된다. 엔진의 `ExecutionCancelledError`(DB 관측 취소 가드)는 같은 상태로 끝나지만 `code` 를 싣지 않는 별개 신호다. ForEach · Map · Parallel 이 실패한 회차 · 병렬 분기를 결과에 담을 때도 `name` 이 `AbortError` 인 에러는 이 값이다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) |
+| `AbortError` | 없음 (HTTP 무관. 노드 실행의 `error.code`, 노드 실행 `cancelled`) | PascalCase 다. 우리가 정한 코드가 아니라 웹 표준 `AbortSignal` 의 `DOMException.name` 을 그대로 옮긴 값이다. fetch 는 이 이름으로 던진다. DB 드라이버는 쿼리 취소 코드(PostgreSQL `57014` · MySQL `ER_QUERY_INTERRUPTED`)로 끝나고 Database Query 노드가 이 이름의 에러로 바꾼다. Anthropic · OpenAI SDK 는 `name` 이 `'Error'` 인 `APIUserAbortError` 를 던지고 AI 노드가 이를 메시지 `LLM call was aborted` 로 고정한 이 이름의 에러로 감싼다. 정규화하면 엔진 분류 키(`error.name === 'AbortError'`)와 `code` 가 갈라진다. 여러 핸들러와 테스트가 값으로 참조한다(§2) | 노드의 외부 I/O 가 노드 취소 신호(`context.abortSignal`)로 중단돼 노드 실행이 `cancelled` 가 된다. 엔진은 이 값을 노드 실행의 `error.code` 에 남기고 `output.error` 는 쓰지 않는다. 엔진의 `ExecutionCancelledError`(DB 관측 취소 가드)는 같은 상태로 끝나지만 `code` 를 싣지 않는 별개 신호다. ForEach · Map · Parallel 이 실패한 회차 · 병렬 분기를 결과에 담을 때도 `name` 이 `AbortError` 인 에러는 이 값이다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조)) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md), [노드 취소 「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) |
 
 ## 4. 내부 분류 코드의 정규화
 
@@ -147,3 +147,7 @@ NERV Task `CLE-T-43KCNP` 다. 사람이 따라가지 않은 3xx 를 계속 `HTTP
 - `CAFE24_4XX` · `CAFE24_5XX` 행과 같은 근거다. 이름이 조건의 뜻 대신 상태 범주를 적고, 노드 출력 값이라 바꾸면 워크플로우 분기가 깨진다.
 - `HTTP_5XX` 는 3xx 와 상관없지만 같은 이름 꼴이고 같은 이유로 유지하는 코드라 한 행에 두었다. 이날 전에는 두 코드 모두 이 등록부에 없었다.
 - 3xx 를 `HTTP_4XX` 에 담는 결정 자체는 [워크플로우 실행](CLE-API-ERRCODES-EXEC.md) §6.6 과 그 Rationale 에 적었다. 이 행은 이름이 부정확하다는 사실만 다룬다.
+
+### `AbortError` 행을 구현 사실에 맞췄다 (2026-11-19)
+
+NERV Task `CLE-T-GZRYQ3` 다. 옛 행은 fetch · SDK · DB 드라이버가 모두 이 이름으로 던진다고 적었다. 실제로 이 이름으로 던지는 것은 fetch 뿐이다. DB 드라이버는 쿼리 취소 코드로 끝나고 Anthropic · OpenAI SDK 의 `APIUserAbortError` 는 `name` 이 `'Error'` 라 엔진의 이름 판정을 비껴간다. 그래서 Database Query 노드와 AI 노드가 이 이름으로 바꿔 던진다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). 값과 이름을 유지하는 근거는 그대로다. 기록 위치도 노드 출력이 아니라 노드 실행의 `error.code` 로 적었다. 노드 취소는 에러 포트로 가지 않아 `output.error` 가 없다.

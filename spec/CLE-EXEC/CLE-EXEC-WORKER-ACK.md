@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER-ACK"
 title: "큐 워커 — 재개 ack 에러 표면"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-WORKER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-WORKER"]
 area: "CLE-EXEC"
-content_hash: "ec3c26a416fdacfda489a5d61e9101d268151dbc2b5e9a7254704024d21e313c"
+content_hash: "7b628a709caf1db03818f3a6bda90667f8a903d54c69006a7213ba5dd6d82145"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "9866f09b1e98d16b6088fb3d416901f65255ef23d6aebf4b73c128124364ef61"
-etag: "sha256-7d3162482108a10d671f044836b81a8a1f99439a7aa7119c634b5ba0b07c34c8"
+mirror_sha256: "e5f8f1cf128b96e528c92bf909c48fd2e81ba1322b5a2d7f00c4ca5f0e5f834b"
+etag: "sha256-69c63fb2ad261e729f674dd967fc7489f98c4f53cf52acc68e4e378990fbdc87"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-7d3162482108a10d671f044836b81a8a1f99439a7aa7119c634b5ba0b07c34c8"
 | --- | --- |
 | WebSocket 재개 명령 4종(`execution.submit_form` / `click_button` / `submit_message` / `end_conversation`) | 실패 ack `{ success:false, error:'Continuation could not be queued. Please try again.' }`. `errorCode` 는 싣지 않는다. 성공 ack 에 `queued:false` 를 싣는 경우는 없다. ack 는 서버에 저장되지 않으므로 클라이언트는 같은 명령을 다시 보낸다. |
 | WebSocket `execution.retry_last_turn` | 실패 ack 의 `error` 는 `{ code:'INTERNAL_ERROR', message }` 객체다. 새로 만든 `running` 행은 `failed` 로 마감한다. `_retryState` 는 이미 소비됐으므로 다시 보내면 `RETRY_STATE_NOT_FOUND` 가 온다. 형식은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 에 있다. |
-| REST `POST /executions/:id/stop` 의 입력 대기 취소 분기 | **503 `EXECUTION_ENQUEUE_FAILED`**. 안전 종료 중의 `SERVER_SHUTTING_DOWN` 503 과 같은 모양이다. 클라이언트는 다시 시도한다. |
+| REST `POST /api/executions/:id/stop` 의 입력 대기 취소 분기 | **503 `EXECUTION_ENQUEUE_FAILED`**. 안전 종료 중의 `SERVER_SHUTTING_DOWN` 503 과 같은 모양이다. 클라이언트는 다시 시도한다. |
 | EIA `/interact` 재개 명령 4종과 입력 대기 실행의 `cancel`(별칭 `POST /api/external/executions/:id/cancel` 포함) | **503 `EXECUTION_ENQUEUE_FAILED`**. 이 응답은 멱등 캐시에 넣지 않는다. 같은 `Idempotency-Key` 로 다시 보내면 새로 처리한다. 503 을 받는 요청의 범위는 [EIA 수신 API와 SSE 「명령 에러」](../CLE-IX/CLE-EIA-INBOUND.md#명령-에러) 에 있다. |
 | 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령) | `202` 로 답하고 채널 건강도를 `degraded` 로 둔다. 기준은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이다. |
 | 채팅 채널 인바운드의 `/start`(기존 실행 취소) | 503 `EXECUTION_ENQUEUE_FAILED` 를 그대로 돌려주고 새 실행을 시작하지 않는다. 기준은 같은 채팅 채널 절이다. |
@@ -64,7 +64,7 @@ etag: "sha256-7d3162482108a10d671f044836b81a8a1f99439a7aa7119c634b5ba0b07c34c8"
 
 ### 발행 실패를 `queued:false` 하나로 알린다
 
-- **취소도 발행 결과를 돌려준다**: `cancelWaitingExecution` 은 원래 `void publish` 로 결과를 버렸다. 발행 실패가 호출자에게 닿지 않아 에러가 사라졌다. 다른 재개 메서드 4종은 이미 `ContinuationPublishResult` 를 돌려주므로 취소만 예외로 둘 근거가 없었다. 같은 방식으로 맞추고 REST `POST /executions/:id/stop` 의 입력 대기 취소 분기가 `queued:false` 를 알리게 했다.
+- **취소도 발행 결과를 돌려준다**: `cancelWaitingExecution` 은 원래 `void publish` 로 결과를 버렸다. 발행 실패가 호출자에게 닿지 않아 에러가 사라졌다. 다른 재개 메서드 4종은 이미 `ContinuationPublishResult` 를 돌려주므로 취소만 예외로 둘 근거가 없었다. 같은 방식으로 맞추고 REST `POST /api/executions/:id/stop` 의 입력 대기 취소 분기가 `queued:false` 를 알리게 했다.
   - HTTP 코드는 **503** 이다. Redis 의존성 장애는 상류를 쓸 수 없는 상태이므로 502(잘못된 게이트웨이 응답)가 아니라 503(일시적 불가, 재시도)이 맞다. `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)이 같은 503 선례를 만들었다.
   - 취소는 WS ack 경로가 아니라 REST 중지 진입점이므로 새 코드 `EXECUTION_ENQUEUE_FAILED`(`EXECUTION_*` 이름공간)로 표기한다. 이 코드는 처음에 REST 중지 진입점 전용이었다. 2026-10-09 에 EIA `/interact` 의 재개 명령과 취소로 넓어졌다. 진입점별 표면은 [「진입점마다 큐 적재 실패를 다르게 알린다」](#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
   - "502 가 아니라 503" 판정은 **우리 의존성의 장애**에 한정된다. 외부 서드파티 API 호출 실패의 502 사용은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-23 이 정한다. 두 기준은 지금까지의 사례에서 모두 같은 결론을 낸다.

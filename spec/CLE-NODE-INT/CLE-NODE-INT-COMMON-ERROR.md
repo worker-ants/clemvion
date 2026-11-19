@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-ERROR"
 title: "통합 노드 공통 — 에러 코드와 사설망 차단"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "b176664de07113c9e483f4042940f59318b41bd2f76b36354e89c3ed03448f52"
+content_hash: "dcf387d01c7a92f25e44b31f0cbfb8e5786c79b4368da16a652b7680117b9aca"
 read_as: "approved_fallback"
-task: "CLE-T-43KCNP"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "49b28c769c780d2063b938f29a5d7c7a623f9b323f68119e2ddaf347504a609f"
-etag: "sha256-0fc8bf586717211aec4a260276c59e8748399703ef1f576d654bd4cf64f772e9"
+mirror_sha256: "8dc33bb99848cf9c769f213fb42e462552edb587c1d911cc2f6981ab13353ac5"
+etag: "sha256-b590cd4b80711aaf14cbef9291e7c27fea3655ee3e9cff1d31ebc2ab2cb32d28"
 ---
 ## 개요
 
@@ -37,7 +37,7 @@ etag: "sha256-0fc8bf586717211aec4a260276c59e8748399703ef1f576d654bd4cf64f772e9"
   - 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)는 조회가 통합을 찾았어도 얻지 못한 통합으로 본다. `getForExecution` 이 통합을 돌려주지 않고 이 예외를 던지기 때문이다. 근거는 [Rationale 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05) 에 있다.
   - 서비스가 주입되지 않은 경우는 기록할 서비스가 없어 남지 않는다.
 - **기록할 통합은 얻은 통합뿐이다**: `logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 «얻은 통합에만 기록한다» 요구사항). 얻지 못한 통합은 넘길 수 없으므로 위 규칙을 핸들러와 도구 프로바이더가 따로 지키지 않아도 된다. 다른 워크스페이스 통합도 `getForExecution` 이 돌려주지 않으므로 기록되지 않는다.
-- **에러 포트 라우팅**: 위 코드가 생기는 모든 경우는 핸들러 안에서 잡혀 `port: 'error'` 와 `output.error.{code, message, details?}` 로 나간다. 다섯 노드 모두 Send Email 노드의 catch 패턴으로 통일했다. `IntegrationError` 를 throw 해서 노드 실행이 실패하는 경로는 없다. 모든 `IntegrationError.code` 는 `output.error.code` 로 나온다. 통합을 얻은 뒤의 실패는 활동 로그에 `status: 'failed'` 와 `error: {code, message}` 로 기록한다. 통합을 얻기 전의 실패는 위 «통합을 얻기 전에 끝난 실행의 기록» 대로 남기지 않는다.
+- **에러 포트 라우팅**: 위 코드가 생기는 모든 경우는 핸들러 안에서 잡혀 `port: 'error'` 와 `output.error.{code, message, details?}` 로 나간다. 다섯 노드 모두 Send Email 노드의 catch 패턴으로 통일했다. `IntegrationError` 를 throw 해서 노드 실행이 실패하는 경로는 없다. 모든 `IntegrationError.code` 는 `output.error.code` 로 나온다. 통합을 얻은 뒤의 실패는 활동 로그에 `status: 'failed'` 와 `error: {code, message}` 로 기록한다. 통합을 얻기 전의 실패는 위 «통합을 얻기 전에 끝난 실행의 기록» 대로 남기지 않는다. 노드 취소로 생긴 `AbortError` 는 이 라우팅에 들지 않는다. 핸들러가 다시 던져 노드 실행이 `cancelled` 로 끝나고 활동 로그도 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md) 규칙 6 · 7).
 - 노드별 코드(`HTTP_*`, `DB_*`, `EMAIL_*`, `CAFE24_*`, `MAKESHOP_*`)와 `INTEGRATION_AUTH_UNSUPPORTED`(HTTP 전용)는 각 노드 문서가 정한다. 어느 코드가 어느 문서에 있는지는 아래 "노드별 코드 색인" 에 모았다.
 - 자격 증명을 복호화할 수 없을 때(`IntegrationCredentialsUnreadableError`)의 출력 코드는 정해지지 않았다. [미결 사항](CLE-NODE-INT-COMMON.md#미결-사항) 참조.
 

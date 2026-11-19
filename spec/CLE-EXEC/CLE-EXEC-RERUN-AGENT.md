@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-AGENT"
 title: "재실행 — dry-run 의 AI 에이전트 도구"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "74eca6b71826acfdec5d39236a8904c199c4e480cc9df3618acd00d9b4d986b3"
+content_hash: "e9eafa424a3e26ae48eb3e0d4bc4cbde02883d02bc4ce6c805134e441749f25e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-2V3P8D"
 source_paths: []
-mirror_sha256: "d66839071885ffe9162dd906c0b53eeee126321e2785b8eea5f628847aea55a2"
-etag: "sha256-9cf5d72154812b626bd60cd9ce83ad924de529fe2f068c97cfeb48d483495081"
+mirror_sha256: "c13c2b97b4cc1d7d0d9fd586a4be7ac661ef69bd7d5e728c064e28357fa318b8"
+etag: "sha256-8371728620a2f85b171a0540d4f729b92e2226b1387a119575257d1adb867fbd"
 ---
 ## 개요
 
@@ -31,7 +31,7 @@ AI 노드(AI 에이전트, 텍스트 분류기, 정보 추출기)의 LLM 호출�
 
 AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-연결-입력-경로-제거)). 그래서 HTTP Request 노드나 Send Email 노드는 AI 에이전트의 도구가 되지 않는다. AI 에이전트가 외부 시스템에 닿는 도구는 MCP 도구다. 외부 MCP 서버의 도구와 Cafe24 · MakeShop 내부 MCP 브리지의 operation 이 여기에 든다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)).
 
-모의 응답은 `success` 상태이고 본문에 `_dryRun: true` 와 `executed: false` 가 있다. 모의 처리한 호출도 `turnDebug[].toolCalls` 에 `success` 로 남고 `maxToolCalls` 에 센다. 결과의 모양, `wouldHaveCalled` 의 필드, 활동 로그와 진단 집계 규칙은 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행) 의 「dry-run 재실행」 절이 정한다.
+모의 응답은 `success` 상태이고 본문에 `_dryRun: true` 와 `executed: false` 가 있다. 모의 응답으로 대신한 호출도 `turnDebug[].toolCalls` 에 `success` 로 남고 `maxToolCalls` 에 센다. 결과의 모양과 `wouldHaveCalled` 의 필드, 진단 집계 규칙은 [MCP 클라이언트 — dry-run 재실행](../CLE-INT/CLE-INT-MCP-DRYRUN.md) 이 정한다. 이 호출이 통합 활동 로그를 남기지 않는다는 규칙은 [재실행](CLE-EXEC-RERUN.md) 의 REQ-RERUN-053 이 정한다.
 
 - **노드와 도구의 확인 순서는 다르다**: 도구 이름 · 인자 검증 실패(`INVALID_TOOL_ARGUMENTS`, `CAFE24_MISSING_FIELDS` 등)와 알 수 없는 도구(`MCP_UNKNOWN_TOOL`, `CAFE24_UNKNOWN_OPERATION` 등)는 도구 프로바이더가 dry-run 확인보다 먼저 판정해 평소대로 보고한다. LLM 이 고칠 수 있는 인자 에러를 dry-run 에서도 똑같이 돌려주려는 것이다. Cafe24 · MakeShop 노드 핸들러는 반대로 dry-run 확인을 필수 필드 검증보다 먼저 해서 필수 필드가 빠진 쓰기 operation 도 모의 출력으로 끝난다. 두 순서는 일부러 다르게 뒀다([Rationale](#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)). 외부 MCP 도구의 인자 검증은 JSON 파싱뿐이다(`inputSchema` 검증 미구현, [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#미결-사항) 의 미결 사항).
 - MCP 메타 도구(`list_resources` · `read_resource` · `list_prompts` · `get_prompt`)는 읽기 전용이라 그대로 보낸다. 내장 `kb_*`(지식 저장소 검색)와 `render_*`(표시) 도구도 외부 시스템 상태를 바꾸지 않아 그대로 실행한다.
@@ -55,10 +55,10 @@ AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([
 ## 구현 위치
 
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/agent-tool-provider.interface.ts` (`ProviderExecCtx.dryRun`)
-- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (`buildDryRunSkippedToolResult`)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (`buildDryRunMockedToolResult`, 안내 문구 `DRY_RUN_MOCKED_TOOL_MESSAGE`)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts` (외부 MCP 도구는 dry-run 에서 늘 모의 응답)
-- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` (Cafe24 브리지 도구의 dry-run 판정)
-- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (MakeShop 브리지 도구의 dry-run 판정)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` (Cafe24 브리지 도구의 dry-run 판정. `isCafe24DryRunMocked` 를 부른다)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (MakeShop 브리지 도구의 dry-run 판정. `isMakeshopDryRunMocked` 를 부른다)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-guard-classification.spec.ts` (도구 프로바이더의 dry-run 분류 등록부)
 - `codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts` (턴마다 `dryRun` 을 도구 프로바이더에 넘긴다)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`buildRetryReentryState` 의 `dryRun` 재유도)
@@ -82,7 +82,7 @@ AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([
 
 **GET 도 막았다**: 임시 가드에는 도구마다 읽기와 쓰기를 가르는 분류가 없어 브리지의 GET operation 도 막혔다. 노드 dry-run 은 Cafe24 · MakeShop 의 GET 을 그대로 부르므로 당시 노드와 도구의 동작이 달랐다. 안전을 위해 재현 충실도를 일시적으로 낮춘 것이고 2026-10-23 에 부수효과 판정이 들어가 풀렸다.
 
-**에러가 아닌 `success` 로 돌려준다**: 에러로 돌려주면 LLM 이 도구 실패로 보고 같은 도구를 다시 부르거나 사용자에게 실패를 알릴 수 있다. 그래서 결과 상태는 `success` 로 두고 본문에 `executed: false` 와 이번 실행에서 다시 부르지 말라는 안내를 넣었다. 이 모양은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#render_form-제출-뒤-같은-폼-재호출을-막은-방법) Rationale 의 `render_form` 선례(`ok: true` 와 `message` 안내, 실패로 읽히는 값 기각)를 따랐다. `executed: false` 는 실패 표시가 아니라 이 호출이 외부로 나가지 않았다는 사실을 남겨 실제 결과와 모의 응답을 가르는 값이다. 실패가 아니므로 새 에러 코드는 만들지 않았다. 건너뛴 호출이 활동 로그를 남기지 않는 이유는 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10) 의 Rationale 에 있다.
+**에러가 아닌 `success` 로 돌려준다**: 에러로 돌려주면 LLM 이 도구 실패로 보고 같은 도구를 다시 부르거나 사용자에게 실패를 알릴 수 있다. 그래서 결과 상태는 `success` 로 두고 본문에 `executed: false` 와 이번 실행에서 다시 부르지 말라는 안내를 넣었다. 이 모양은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#render_form-제출-뒤-같은-폼-재호출을-막은-방법) Rationale 의 `render_form` 선례(`ok: true` 와 `message` 안내, 실패로 읽히는 값 기각)를 따랐다. `executed: false` 는 실패 표시가 아니라 이 호출이 외부로 나가지 않았다는 사실을 남겨 실제 결과와 모의 응답을 가르는 값이다. 실패가 아니므로 새 에러 코드는 만들지 않았다. 모의 응답으로 대신한 호출이 활동 로그를 남기지 않는 이유는 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10) 의 Rationale 에 있다.
 
 **메타 도구와 `kb_*` · `render_*` 는 막지 않는다**: MCP resources · prompts 메타 도구는 MCP 프로토콜이 읽기 전용으로 정한 요청이라 분류 없이도 외부 상태를 바꾸지 않는다. 이 판단은 프로토콜을 지키는 서버를 전제하고 지키지 않는 서버의 부수효과는 막지 않는다. 반면 `tools/call` 은 서버가 무엇을 하는지 알 수 없다. `kb_*` 와 `render_*` 는 외부 시스템에 닿지 않는다.
 
@@ -96,7 +96,10 @@ AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([
 
 - **`scopeType` 을 기각했다**: `scopeType` 은 operation 을 부를 때 필요한 OAuth 권한 범위다. Cafe24 `carts_setting_update` 는 `scopeType: read` 인 PUT 이라 이 값으로 가르면 쓰기가 실제로 나간다.
 - **메서드만으로는 부족한 곳을 예외 목록으로 막았다**: MakeShop `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꾼다. 메서드 판정만 두면 dry-run 에서 설정이 실제로 바뀐다. 2026-10-23 에 두 카탈로그의 GET operation 을 모두 확인해 이 하나를 예외 목록에 넣었다. 목록이 낡지 않도록 id · path 에 쓰기 낱말이 있는 GET 을 예외 목록이나 확인한 조회 목록 중 하나에 올리게 하는 단위 테스트를 뒀다.
-- **읽기 의도인 POST 는 모의 처리를 받아들였다**: MakeShop `post-cpik_member-check` 처럼 POST 로 조회하는 operation 도 모의 응답을 받는다. 반대 방향 예외 목록(읽기 POST)을 두면 판단이 하나 더 늘고 틀렸을 때 쓰기가 나간다. 재현 충실도가 조금 떨어지는 쪽을 골랐다.
+- **벤더 판정 함수로 호출 지점을 고정했다(CLE-T-2V3P8D 에서 덧붙임)**: 호출 지점이 예외 목록을 빠뜨리고 공통 판정을 부르면 상태를 바꾸는 GET 이 아무 경고 없이 실제 호출로 나간다. 그래서 공통 판정 `isDryRunMockedOperation` 은 예외 목록 인자를 꼭 받는다. 노드 핸들러와 도구 프로바이더는 벤더 판정 함수(`isCafe24DryRunMocked` · `isMakeshopDryRunMocked`) 하나만 부른다. 목록을 넘기는 곳이 벤더마다 한 군데라 빠뜨리거나 다른 벤더의 목록을 넘길 자리가 없다. Cafe24 목록이 비어 있어도 같은 자리에 둔 것도 이 때문이다.
+- **`scopeType` 은 테스트 신호로만 쓴다(CLE-T-2V3P8D 에서 덧붙임)**: 위 기각 이유대로 모의 여부 판정에는 `scopeType` 을 쓰지 않는다. 다만 쓰기 권한이 필요한 GET 은 상태를 바꿀 가능성이 있다. 그래서 단위 테스트가 예외 목록에서 빠진 후보를 잡는 신호로만 쓴다.
+- **설명 문구로 탐지하지 않는다(CLE-T-APWJ05)**: operation 설명에서 상태 변경을 찾는 세 번째 테스트 신호는 넣지 않았다. 대신 카탈로그 재생성 절차(`codebase/api-catalogs/README.md`)에 «새 GET 중 설정 변경 후보 확인» 단계를 두어 사람이 새 GET 을 훑는다. 설명 문구 신호도 기존 두 신호(이름 낱말 · `scopeType`)처럼 후보만 잡는 휴리스틱이다. 판정에 쓸 수 없고, 설명은 두 언어로 쓴 자유 서술이라 누락을 막지도 못한다. 카탈로그에 새 GET 이 생기는 때는 카탈로그를 다시 만들 때뿐이다. 그래서 재생성 절차에서 사람이 새 GET 을 확인하면 새 항목을 빠짐없이 볼 수 있다. 2026-10-23 리뷰에서 지금 카탈로그(Cafe24 GET 약 232건, MakeShop GET 81건)를 훑었을 때 빠진 예외는 없었다.
+- **읽기 의도인 POST 는 모의 응답을 받아들였다**: MakeShop `post-cpik_member-check` 처럼 POST 로 조회하는 operation 도 모의 응답을 받는다. 반대 방향 예외 목록(읽기 POST)을 두면 판단이 하나 더 늘고 틀렸을 때 쓰기가 나간다. 재현 충실도가 조금 떨어지는 쪽을 골랐다.
 
 **외부 MCP 도구는 늘 부수효과로 본다**: `tools/call` 은 서버가 무엇을 하는지 알 수 없다. MCP 도구 annotation 의 `readOnlyHint` 는 서버가 스스로 알리는 힌트이고 MCP 명세도 신뢰할 수 없는 서버의 annotation 을 판정 근거로 쓰지 말라고 한다. dry-run 은 사용자가 외부를 바꾸지 않으려고 켜는 안전장치라 틀렸을 때 비용이 큰 쪽을 막는다. [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 가 모호한 쿼리를 읽기로 보는 것은 노드가 직접 파싱한 SQL 이 근거라서다. 외부 MCP 도구에는 그런 근거가 없어 같은 기본값을 쓰지 않았다. 외부 MCP 도구를 도구별로 나누는 정책(예: 신뢰하는 서버의 allow-list)은 필요해지면 따로 결정한다. 그때까지 읽기 전용 외부 MCP 도구도 dry-run 에서 데이터를 받지 못한다.
 

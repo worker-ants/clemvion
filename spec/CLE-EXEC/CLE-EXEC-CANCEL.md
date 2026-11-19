@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL"
 title: "노드 취소"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "2583776777a1289ed0b175000b20b0c8ff2e59fb53d2155f1eb2eb969ac734ff"
+content_hash: "fab82ec6f503d6bec395df75a107998cfa092efe9fd5414e9f423eb1e63904e0"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-WMH3EK"
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "38ddc4d8f1f01ec32354bd8795910d65a8ebd2d5f388ce05b459866c8afbd253"
-etag: "sha256-7876275b3bb2cbb1b44ace3b2e66da8ec921a4c71578779752e1ea6eeaa4f7fb"
+mirror_sha256: "77bda8e768372bfa78760c766f4bba4f0929c696aeaaa8934eba83bc13dc2db8"
+etag: "sha256-87c472eac3cebe87a8c284869b9ffa5df7f4f0b10eabb98072bbcd188af2b772"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -41,7 +41,7 @@ etag: "sha256-7876275b3bb2cbb1b44ace3b2e66da8ec921a4c71578779752e1ea6eeaa4f7fb"
 규칙 번호(1~23)는 하위 문서와 이어서 매긴다.
 
 - [노드 취소 — DB 관측 취소 가드](CLE-EXEC-CANCEL-DBGUARD.md): 사용자 실행 중지를 엔진이 노드 경계 · 턴 경계 · 짝 전이 · 종결 경로에서 알아채는 규칙 10~17, 가드의 구현 현황과 그 Rationale. 맡는 요구사항: 없음.
-- [노드 취소 — 노드별 적용과 구현 현황](CLE-EXEC-CANCEL-NODES.md): fetch 연쇄 패턴, 노드별 신호 전파 · 취소 에러 분류의 구현 현황, HTTP Request · AI 노드의 취소 판정 결정과 이웃 문서 정합 과제. 맡는 요구사항: 없음.
+- [노드 취소 — 노드별 적용과 구현 현황](CLE-EXEC-CANCEL-NODES.md): fetch 연쇄 패턴, 노드별 신호 전파 · 취소 에러 분류의 구현 현황, HTTP Request · AI 노드의 취소 판정과 응답 본문 읽기 연쇄 결정. 맡는 요구사항: 없음.
 
 ## 규칙
 
@@ -59,7 +59,7 @@ etag: "sha256-7876275b3bb2cbb1b44ace3b2e66da8ec921a4c71578779752e1ea6eeaa4f7fb"
    | Email(nodemailer) | 진행 중 중단은 일부러 택하지 않았다. 전송 중에 `transporter.close()` 를 부르면 일부만 가거나 두 번 갈 위험이 있어 들어가기 직전 `abortSignal?.aborted` 사전 확인만 한다. SMTP 전송은 보통 짧다. 안전한 중단 방법이 확인되면 다시 검토한다 | 부분 구현 |
 
    AI 에이전트는 신호와 별도로 턴 응답을 만드는 `chat` 호출과 롤링 요약 호출에 앱 수준 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 건다. 대상 호출은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#llm-호출-타임아웃) 가 정한다. `withTimeout` 이 **자체 `AbortController`** 로 동작해 신호가 있든 없든 무기한 대기를 막는다. 신호가 없는 멀티턴 재개 경로에서는 이 타임아웃이 요약 호출을 포함한 LLM 호출의 상한이다.
-3. 취소 때 나는 에러는 노드가 이름이 `AbortError` 인 채로 엔진까지 던진다(AI 노드가 다른 이름의 SDK 에러를 감싸 던지는 방식은 아래 문단). 엔진의 노드 실행 catch 가 에러 처리 정책을 적용하기 전에 그 에러를 취소로 분류하므로 노드가 따로 처리하지 않는다. 에러를 잡아 다른 코드로 바꾸면 엔진이 취소로 분류하지 못한다. 요청 자신의 타임아웃처럼 노드 취소 신호에서 오지 않은 `AbortError` 는 노드가 자기 실패로 다룬다([fetch 자체 타임아웃과의 연쇄](CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)). 노드 취소 신호로 끝난 외부 호출은 통합 활동 로그를 남기지 않는다. 그 호출은 끝나지 않았기 때문이다(근거는 아래 Rationale). HTTP Request·Cafe24·MakeShop·DB 노드와 세 AI 노드(AI 에이전트·텍스트 분류기·정보 추출기)는 노드 취소를 `AbortError` 로 엔진에 넘긴다. 활동 로그 규칙은 HTTP Request·Cafe24·MakeShop 노드가 지킨다. DB 노드는 아직 취소 때도 `failed` 활동 로그를 남긴다([구현 현황](CLE-EXEC-CANCEL-NODES.md#구현-현황)).
+3. 취소 때 나는 에러는 노드가 이름이 `AbortError` 인 채로 엔진까지 던진다(AI 노드가 다른 이름의 SDK 에러를 감싸 던지는 방식은 아래 문단). 엔진의 노드 실행 catch 가 에러 처리 정책을 적용하기 전에 그 에러를 취소로 분류하므로 노드가 따로 처리하지 않는다. 에러를 잡아 다른 코드로 바꾸면 엔진이 취소로 분류하지 못한다. 요청 자신의 타임아웃처럼 노드 취소 신호에서 오지 않은 `AbortError` 는 노드가 자기 실패로 다룬다([fetch 자체 타임아웃과의 연쇄](CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)). 노드 취소 신호로 끝난 외부 호출은 통합 활동 로그를 남기지 않는다. 그 호출은 끝나지 않았기 때문이다(근거는 아래 Rationale). HTTP Request·Cafe24·MakeShop·DB 노드와 세 AI 노드(AI 에이전트·텍스트 분류기·정보 추출기)는 노드 취소를 `AbortError` 로 엔진에 넘긴다. HTTP Request·Cafe24·MakeShop·DB 노드가 이 활동 로그 규칙을 지킨다([구현 현황](CLE-EXEC-CANCEL-NODES.md#구현-현황)).
 
    노드 취소를 가르는 방식은 호출 종류마다 다르다. fetch 를 쓰는 노드(HTTP Request·Cafe24·MakeShop)는 `isUpstreamAbort` 로 가른다. 에러 이름이 `AbortError` 이고 노드 취소 신호가 켜져 있어야 노드 취소다. 요청 자신의 타임아웃도 이름이 `AbortError` 라서 신호를 함께 본다. AI 노드는 LLM 호출이 실패했을 때 노드 취소 신호가 켜져 있으면 에러 이름과 상관없이 노드 취소로 본다. 프로바이더 SDK 마다 취소된 요청이 던지는 에러가 달라 이름으로는 가를 수 없기 때문이다. Anthropic·OpenAI SDK 는 `name` 이 `'Error'` 인 `APIUserAbortError` 를 던지고 fetch 기반 클라이언트는 `name` 이 `AbortError` 인 DOMException 을 던진다. AI 노드는 이름이 `AbortError` 인 에러를 그대로 던지고 이름이 다른 에러는 이름이 `AbortError` 인 새 에러로 감싸 던진다. 새 에러의 메시지는 고정 문구 `LLM call was aborted` 이고 원래 에러는 `cause` 에만 남긴다. 엔진은 취소 에러의 메시지를 노드 실행의 `error` 와 `execution.node.cancelled` 이벤트에 그대로 싣는다(규칙 19). 메시지를 고정해 두면 취소와 경합한 401·5xx 같은 실패의 프로바이더 문구가 그 자리로 가지 않는다. 노드 취소 신호가 열려 있을 때 실패한 LLM 호출은 앱 수준 타임아웃을 포함해 노드 자신의 실패다. 두 방식 모두 노드 취소 신호가 켜지지 않은 실패를 취소로 보지 않는다(근거는 [AI 노드는 노드 신호로 취소를 판정한다 (2026-10-31)](CLE-EXEC-CANCEL-NODES.md#ai-노드는-노드-신호로-취소를-판정한다-2026-10-31)).
 4. **CPU 위주이거나 바로 끝나는 노드**는 신호를 지원하지 않아도 된다(best-effort). 작업을 끝까지 해도 되지만 시작 직전에 `context.abortSignal?.aborted` 를 확인하기를 권한다. 시작 전에 이미 취소됐으면 바로 끝낸다.
@@ -130,7 +130,7 @@ flowchart LR
 - 주요 SDK·fetch·드라이버가 모두 표준으로 지원해 별도 래퍼가 필요 없다.
 - 외부 타임아웃과의 연쇄가 표준 패턴이다(`AbortController` 의 취소가 이어진다).
 - `AbortSignal.any([...])`(Node.js 18+)나 `AbortSignal.timeout(ms)` 같은 표준 도구를 나중에 쓸 수 있다.
-- 지금 연쇄는 `AbortSignal.any` 대신 공용 헬퍼(`linkUpstreamAbort`)로 직접 잇는다(fetch 노드인 HTTP Request·Cafe24·MakeShop 한정). 직접 이으면 리스너를 떼는 시점을 호출자가 `finally` 로 정한다. HTTP Request 노드는 응답 본문을 다 읽은 뒤에 뗀다. `AbortSignal.any` 로 바꾸면 그 해제를 런타임이 맡으므로 옮기기 전에 이 시점이 지켜지는지 확인한다. LLM 호출의 연쇄는 다르다. `LlmService.chat` 은 타임아웃을 건 호출에서 타임아웃 신호와 호출자 신호를 `AbortSignal.any` 로 합쳐 프로바이더 클라이언트에 넘긴다.
+- 지금 연쇄는 `AbortSignal.any` 대신 공용 헬퍼(`linkUpstreamAbort`)로 직접 잇는다(fetch 노드인 HTTP Request·Cafe24·MakeShop 한정). 직접 이으면 리스너를 떼는 시점을 호출자가 `finally` 로 정한다. 세 노드 모두 리스너를 응답 본문을 다 읽은 뒤에 뗀다. Cafe24·MakeShop 은 자체 타임아웃 타이머도 본문까지 유지한다. HTTP Request 는 타이머를 본문을 읽기 전에 지우므로 본문 읽기에 자체 타임아웃이 없다([노드별 적용 §미결 사항](CLE-EXEC-CANCEL-NODES.md#미결-사항)). `AbortSignal.any` 로 바꾸면 그 해제를 런타임이 맡으므로 옮기기 전에 이 시점이 지켜지는지 확인한다. LLM 호출의 연쇄는 다르다. `LlmService.chat` 은 타임아웃을 건 호출에서 타임아웃 신호와 호출자 신호를 `AbortSignal.any` 로 합쳐 프로바이더 클라이언트에 넘긴다.
 
 ### 핸들러 시그니처를 바꾸지 않고 실행 컨텍스트 필드로 전파한다
 
@@ -150,13 +150,15 @@ flowchart LR
 
 활동 로그는 통합 호출 한 건이 성공했는지 실패했는지를 남긴다. 노드 취소 신호로 끊긴 호출은 끝나지 않았으므로 어느 쪽에도 들지 않는다. `failed` 로 남기면 다른 분기의 실패로 멈춘 호출이 이 통합의 실패로 기록된다.
 
+로그 `status` 에 `cancelled` 값을 새로 두지 않는다. 그래서 취소된 호출은 통합 관리 화면의 호출 수 차트에도 잡히지 않는다. DB 노드는 처음에 취소 때도 `failed` 활동 로그를 남겼고 2026-11-19 에 이 규칙에 맞췄다(NERV Task `CLE-T-GZRYQ3`).
+
 ### 취소 에러는 노드 실행의 `error` 에 남긴다 (2026-10-10)
 
 규칙 19 는 원래 `output.error` 를 표준 형태에 `code: 'AbortError'` 로 기록하고 `meta.success = false` 를 둔다고 적었다. 구현은 엔진이 `NodeExecution.error` 에 `{ code: 'AbortError', message }` 를 저장하고 같은 값을 `execution.node.cancelled` 이벤트의 `error` 로 보내며 `output_data` 는 쓰지 않는다. [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 의 `node.cancelled` payload(`executionId`·`nodeId`·`nodeExecutionId`·`nodeLabel`·`error?`)도 이미 이 형태다.
 
 그래서 구현을 바꾸지 않고 규칙 19 의 문구를 구현에 맞췄다. `meta.success` 는 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 전용 편의 필드라 취소에 쓸 근거가 없다. 구현에 `meta.success` 를 더하는 대안은 이 이유로 기각했다.
 
-이 기록 위치에서도 사용자는 취소 에러를 본다. 실행 결과 패널의 오류 탭은 노드 결과에 `error` 가 있을 때만 보인다(`codebase/frontend/src/components/editor/run-results/result-detail.tsx`). 실행 기록 화면에서는 그 값이 노드 실행의 `error.message` 에서 온다(`executions/[executionId]/page.tsx` 의 `toNodeResult`). 실시간 화면에서는 `execution.node.cancelled` 이벤트의 `error.message` 에서 온다(`codebase/frontend/src/lib/websocket/use-execution-events.ts`). [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 규칙 1 과 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §3·§6.6 머리말을 이 기록 위치에 맞추는 일은 NERV Task `CLE-T-GZRYQ3` 가 맡는다.
+이 기록 위치에서도 사용자는 취소 에러를 본다. 실행 결과 패널의 오류 탭은 노드 결과에 `error` 가 있을 때만 보인다(`codebase/frontend/src/components/editor/run-results/result-detail.tsx`). 실행 기록 화면에서는 그 값이 노드 실행의 `error.message` 에서 온다(`executions/[executionId]/page.tsx` 의 `toNodeResult`). 실시간 화면에서는 `execution.node.cancelled` 이벤트의 `error.message` 에서 온다(`codebase/frontend/src/lib/websocket/use-execution-events.ts`). 이웃 문서는 2026-11-19 NERV Task `CLE-T-GZRYQ3` 에서 이 기록 위치에 맞췄다. 고친 곳은 [노드 출력 규약 — 포트 · 흐름 상태 · 에러](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md) 의 §3.1 표 취소 행과 §3.2 규칙 1(노드 실행의 `error.code`), [에러 코드 — 예외 · 내부 분류 · 은퇴 코드](../CLE-API/CLE-API-ERRCODES-EXCEPT.md) 의 `AbortError` 행, [에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md) 의 §6.6 머리말이다.
 
 ### 서버 쪽 중단은 생산자 태그로 `failed` 를 지킨다 (2026-11-14, CLE-T-GQ7WHS)
 

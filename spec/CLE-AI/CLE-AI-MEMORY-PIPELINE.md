@@ -2,19 +2,19 @@
 id: "CLE-AI-MEMORY-PIPELINE"
 title: "에이전트 메모리 — 추출 · 회수 · 정리"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI-MEMORY"
 ancestors: ["CLE-VISION", "CLE-AI", "CLE-AI-MEMORY"]
 area: "CLE-AI"
-content_hash: "66350aabdf2d80eecda0685788f1f1dcb1825036f2c4ea51b77a5c12e1755781"
+content_hash: "8bc3cbc77aef082b57be071abc1cf8813f8680ba5cf07cc6ab41f99953a87e00"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-A4RCZ3"
 source_paths: []
-mirror_sha256: "017400baa4f302b3719e5395b8aaa9e56509bae2b0307a417c1b2812e7c04078"
-etag: "sha256-d1812e8f357d63b8bcd5353a222988ed1a03697f25e3fa663ff5de163ac97f15"
+mirror_sha256: "8bef5aa1edabf2f0a30386af439bff8992bc857d1fbe6a1caf8bcf6b8d2dfaf4"
+etag: "sha256-549d758075398da0d1997a5bde6db2b34bfade33030f21076297bfe8413e5b85"
 ---
 ## 개요
 
@@ -118,7 +118,7 @@ LLM 호출 전에 메모리 범위 `(workspace_id, scope_key)` 안에서 현재 
 - **만료 제외**: 회수 SQL 은 `(expires_at IS NULL OR expires_at > now())` 로 만료된 행을 뺀다.
 - **차원**: 쿼리 벡터와 같은 차원의 행만 본다. 지원하지 않는 차원이면 빈 결과를 돌려준다.
 - **실패**: 회수는 모든 층에서 실패해도 빈 배열로 이어 간다. 회수 실패가 응답 경로를 깨지 않는다.
-- **메타**: 회수 건수는 `meta.memory.recalledCount` 로 싣는다.
+- **메타**: AI 에이전트 노드는 회수 건수를 `meta.memory.recalledCount` 로 싣는다. 정보 추출기 노드는 회수 건수를 시스템 프롬프트에 회수 블록을 붙일지 정하는 데만 쓰고 출력에는 싣지 않는다([REQ-MEMORY-031](CLE-AI-MEMORY.md)).
 
 회수 쿼리의 모양은 다음과 같다.
 

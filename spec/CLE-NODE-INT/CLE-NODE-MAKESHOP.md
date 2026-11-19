@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAKESHOP"
 title: "MakeShop 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-MKSNODE-001", "REQ-MKSNODE-002", "REQ-MKSNODE-003", "REQ-MKSNODE-004", "REQ-MKSNODE-005", "REQ-MKSNODE-006", "REQ-MKSNODE-007", "REQ-MKSNODE-008", "REQ-MKSNODE-009", "REQ-MKSNODE-010", "REQ-MKSNODE-011", "REQ-MKSNODE-012", "REQ-MKSNODE-013", "REQ-MKSNODE-014", "REQ-MKSNODE-015", "REQ-MKSNODE-016", "REQ-MKSNODE-017", "REQ-MKSNODE-018", "REQ-MKSNODE-019", "REQ-MKSNODE-020", "REQ-MKSNODE-021", "REQ-MKSNODE-022", "REQ-MKSNODE-023", "REQ-MKSNODE-024", "REQ-MKSNODE-025", "REQ-MKSNODE-026", "REQ-MKSNODE-027", "REQ-MKSNODE-028", "REQ-MKSNODE-029", "REQ-MKSNODE-030", "REQ-MKSNODE-031", "REQ-MKSNODE-032", "REQ-MKSNODE-033", "REQ-MKSNODE-034", "REQ-MKSNODE-035", "REQ-MKSNODE-036", "REQ-MKSNODE-037", "REQ-MKSNODE-038", "REQ-MKSNODE-039", "REQ-MKSNODE-040", "REQ-MKSNODE-041", "REQ-MKSNODE-042", "REQ-MKSNODE-043", "REQ-MKSNODE-044", "REQ-MKSNODE-045", "REQ-MKSNODE-046", "REQ-MKSNODE-047"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "e9a59dc19c9bb952a0fc52716c0f7dd458ba83f448b876955fc64b35563208a1"
+content_hash: "0ce6f8e8b74950357113e87fbf2aec424d6ad4c99939e678887ac02bcf2de766"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/4-integration/5-makeshop.md"]
-mirror_sha256: "d7cfd07449f49401f9853f878732d5b4bddc76f70759b361da898fa871c67880"
-etag: "sha256-88478a015394508b7b5408ec52de968a2914beb764fa5666f55b75623cc7cd90"
+mirror_sha256: "2e35f983cfa025a63d377b64363bc19427457191c95e308978c39b786b38255d"
+etag: "sha256-4520c762ecbc4bc69543b24fb261f426c3931a53a32470d605d33c7e354bbedb"
 ---
 > 구현 상태: 부분 구현 (일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -216,7 +216,7 @@ MakeShop 노드(`makeshop`)는 한국 이커머스 SaaS [MakeShop](https://devel
 - `codebase/backend/src/nodes/integration/makeshop/makeshop.schema.ts` (설정 스키마)
 - `codebase/backend/src/nodes/integration/makeshop/makeshop.component.ts`
 - `codebase/backend/src/nodes/integration/makeshop/makeshop.module.ts`
-- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (operation 메타데이터, 상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
+- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (operation 메타데이터, dry-run 판정 함수 `isMakeshopDryRunMocked`, 상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (내부 MCP 브리지)
 - `codebase/frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx` (`MakeshopConfig` 설정 화면과 페이지네이션 입력)
 - `codebase/frontend/src/components/integrations/makeshop-allowlist-editor.tsx` (노출 도구 목록 편집)

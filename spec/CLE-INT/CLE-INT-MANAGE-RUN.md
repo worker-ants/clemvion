@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-RUN"
 title: "통합 관리 — 사용처 · 연결 테스트 · 실행 연동"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "d6c5530b4dd3884b1d243d6f06bc4321f1ac1fb87b6533eb40566702c8d8b7a9"
+content_hash: "5546aa3d1a4e1e6a4bd660d170eec6684a1d5a5059c40d8f7f9edca8a561f32f"
 read_as: "approved_fallback"
-task: "CLE-T-SG4GRQ"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "3f869c65c495f80049123ac39a71554055aa89d4e7da7204ec520d0b8d461ab6"
-etag: "sha256-29e00a982f9a496058785698bea5c6d65e5be4182492546aa684965343262285"
+mirror_sha256: "5007143cac9ac21b834173fbb7b54fc45504bb8f514ba0638f5a661365b64f94"
+etag: "sha256-9c66833906c01b1b136025b068291efeba2f0db8d8e020c5ed9f436ba4f30d28"
 ---
 ## 개요
 
@@ -81,6 +81,7 @@ etag: "sha256-29e00a982f9a496058785698bea5c6d65e5be4182492546aa684965343262285"
 - `logUsage` 는 조회가 돌려준 통합을 인자로 받는다. 그래서 얻지 못한 통합에는 기록할 수 없다([활동 로그는 얻은 통합에만 쓴다](CLE-INT-MANAGE-USE.md#활동-로그는-얻은-통합에만-쓴다)).
 - 엔진은 노드 실행 직전에 `ExecutionContext.nodeExecutionId` 를 넣어 활동 로그의 귀속을 보장한다.
 - 실패하면 핸들러는 `IntegrationError(code, message)` 를 throw 하지 않고 `port: 'error'` 와 `output.error` 로 보낸다. 통합을 얻은 뒤의 실패면 `logUsage(통합, { status: 'failed' })` 로 기록한다. config 형식 오류(`handler.validate` 실패)만 throw 로 남는다. 실패가 통합 상태를 어디까지 바꾸는지는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
+- 실행 취소는 실패가 아니다. 노드 취소로 생긴 AbortError 는 에러 포트로 보내지 않고 활동 로그도 남기지 않은 채 AbortError 로 다시 던진다. 엔진이 노드를 `cancelled` 로 기록한다([통합 노드 공통 규칙 7](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#규칙), [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3 · 19).
 - 노드 에러 코드(`INTEGRATION_CALL_FAILED`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_AUTH_UNSUPPORTED`·`INTEGRATION_SERVICE_UNAVAILABLE` 등 공통 코드와 노드별 코드)는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 과 각 노드 문서가 정한다. 존재하지 않거나 다른 워크스페이스의 통합은 별도 `INTEGRATION_NOT_FOUND` 없이 `INTEGRATION_CALL_FAILED` 다.
 - 개인 통합 사용 판정을 통과하지 못한 개인 통합도 같은 코드와 같은 문구로 실패한다. 노드 출력만 보고는 남의 개인 통합인지 알 수 없다. AI 에이전트의 `mcpServers[].integrationId` 는 없는 통합과 같이 그 서버만 건너뛰고 노드는 계속 실행한다. 건너뛴 서버를 알리는 방식은 [MCP 클라이언트 「통합 조회 기준」](CLE-INT-MCP.md#통합-조회-기준) 이 정한다.
 - HTTP Request 노드는 2xx 가 아닌 응답을 노드 출력 `HTTP_4XX`·`HTTP_5XX` 로 내고 활동 로그에는 `HTTP_{status}`(예: `HTTP_502`)로 남긴다([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)).
@@ -96,7 +97,7 @@ etag: "sha256-29e00a982f9a496058785698bea5c6d65e5be4182492546aa684965343262285"
 | `cafe24` | 매 호출(성공·실패 모두). AI 에이전트의 `Cafe24McpToolProvider` 호출도 같은 로그에 남긴다. `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 메타 도구 호출은 남기지 않는다([MCP 클라이언트](CLE-INT-MCP.md)) |
 | `makeshop` | 매 호출(성공·실패 모두). `MakeshopMcpToolProvider` 호출도 같다 |
 
-표의 «매 호출» 은 통합을 얻은 뒤의 호출이다. 통합을 얻기 전에 끝난 실패는 남기지 않는다.
+표의 «매 호출» 은 통합을 얻은 뒤의 호출이다. 통합을 얻기 전에 끝난 실패는 남기지 않는다. 실행 취소로 끝난 호출도 성공이나 실패가 아니라서 남기지 않는다.
 
 ### 워크플로우 에디터
 

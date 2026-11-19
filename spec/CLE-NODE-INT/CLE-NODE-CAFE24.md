@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "4e98c3f609c1c9ffa3d47c38287a482c9c73c4e791965d3c99b0c9df9a0a45de"
+content_hash: "e7016498e304aed45e33ea8b65111a075996407c10bc363a085892689a1904ce"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "cb8b8082cb41a3aeb7a3f9f0e404f82caffc0b54fc05e684e5b5da747b12811c"
-etag: "sha256-682bce7d6ba2bc179b3a6c03daf850099983e46e42925ff10c559b082e01c872"
+mirror_sha256: "4371b8051cff0a80cb4ff8428927dff92673024f54688a045d5594d43722de3f"
+etag: "sha256-34435ad5abebf944e1fba9dab2ff52f4daf4456973a43f92eec423bd91f5e0f2"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,7 +67,7 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 - REQ-CAFENODE-028 WHEN 응답이 4xx·5xx 면 THE SYSTEM SHALL 상태별 코드(`CAFE24_404`·`CAFE24_422`·`CAFE24_4XX`·`CAFE24_5XX`)로 에러 포트에 보낸다.
 - REQ-CAFENODE-029 IF 요청이 reject 되면 THE SYSTEM SHALL `CAFE24_TRANSPORT_FAILED` 와 `meta.statusCode = 0` 으로 에러 포트에 보낸다.
 - REQ-CAFENODE-030 WHEN 설정을 에코하면 THE SYSTEM SHALL `integrationId`·`resource`·`operation`·`fields`·`pagination` 을 명시적으로 열거하고 자격 증명은 싣지 않는다.
-- REQ-CAFENODE-031 WHEN 통합을 얻은 뒤 외부 호출이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다.
+- REQ-CAFENODE-031 WHEN 통합을 얻은 뒤 외부 호출이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다. 실행 취소로 끝난 호출은 남기지 않는다([통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙), [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)).
 - REQ-CAFENODE-032 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 `cafe24.<resource>.<operation>`, `api_method` 를 operation method, `api_path` 를 치환 전 path 템플릿으로 채운다.
 - REQ-CAFENODE-033 WHEN 노드가 dry-run 으로 실행되고 operation method 가 GET 이 아니거나 operation 이 상태를 바꾸는 GET 예외 목록에 있으면 THE SYSTEM SHALL 실제 호출 없이 모의 출력으로 `success` 포트에 보낸다.
 - REQ-CAFENODE-034 WHEN 노드가 dry-run 으로 실행되고 operation method 가 GET 이며 상태를 바꾸는 GET 예외 목록에 없으면 THE SYSTEM SHALL 실제로 호출한다.
@@ -144,11 +144,13 @@ Cafe24 노드(`cafe24`)는 한국 이커머스 SaaS [Cafe24](https://developers.
 ## 구현 위치
 
 - `codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts`
-- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 부수효과 판정 `isDryRunMockedOperation`)
+- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 공통 판정 `isDryRunMockedOperation`. 벤더 판정 함수 `isCafe24DryRunMocked` 가 예외 목록을 넘겨 부른다)
 - `codebase/backend/src/nodes/integration/cafe24/cafe24.schema.ts`
 - `codebase/backend/src/nodes/integration/cafe24/cafe24.component.ts`
-- `codebase/backend/src/nodes/integration/cafe24/metadata/index.ts` (operation 메타데이터)
+- `codebase/backend/src/nodes/integration/cafe24/metadata/index.ts` (operation 메타데이터, dry-run 판정 함수 `isCafe24DryRunMocked`, 상태를 바꾸는 GET 예외 목록 `CAFE24_STATE_CHANGING_GET_OPERATION_IDS`)
 - `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` (호출 제한·요청 봉투·401 재시도)
+- `codebase/backend/src/nodes/integration/_base/abort-cascade.util.ts` (노드 취소 신호 연쇄 `linkUpstreamAbort`, 노드 취소 판정 `isUpstreamAbort`)
+- `codebase/backend/src/nodes/core/abort-error.util.ts` (이름으로 `AbortError` 를 가리는 공용 판정 `isAbortErrorLike`)
 - `codebase/backend/src/nodes/integration/cafe24/cafe24-token-refresh.processor.ts` (토큰 갱신 worker)
 - `codebase/backend/src/nodes/integration/cafe24/cafe24.module.ts`
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` (내부 MCP 브리지)
@@ -176,3 +178,7 @@ operation 규모는 초기 추정치("총 약 180개")와 달리 2026-07-17 실�
 
 - 2026-10-23: REQ-CAFENODE-035 는 «dry-run 으로 mock 결과를 돌려주면 활동 로그를 1건 남긴다» 에서 «남기지 않는다» 로 바꿨다. REQ-CAFENODE-033 · REQ-CAFENODE-034 는 상태를 바꾸는 GET 예외 목록을 판정에 더했다. REQ-CAFENODE-039 는 실제로 부른 호출로, REQ-CAFENODE-031 은 외부 호출로 범위를 좁혔다.
 - 2026-10-24: REQ-CAFENODE-031 은 «외부 호출이 끝나면» 에서 «통합을 얻은 뒤 외부 호출이 끝나면» 으로 범위를 좁혔다. 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale(REQ-INTMGMT-053)이다.
+
+### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다 (2026-11-19)
+
+2026-11-19 에 활동 로그 요구사항(REQ-CAFENODE-031)에 실행 취소 예외를 더했다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 동작은 바꾸지 않았다. 핸들러는 이미 노드 취소로 생긴 `AbortError` 를 활동 로그 전에 다시 던지고 있었다. [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)은 이 동작을 정했지만 요구사항 줄은 «성공·실패와 관계없이 1건» 이라고만 적어 서로 달랐다. 취소된 호출은 끝난 호출이 아니어서 성공에도 실패에도 들지 않는다. 활동 로그 `status` 에 `cancelled` 값을 새로 두지 않는다. HTTP Request · MakeShop · Database Query 노드와 같은 규칙이고 [통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙)이 공통 규칙을 정한다.

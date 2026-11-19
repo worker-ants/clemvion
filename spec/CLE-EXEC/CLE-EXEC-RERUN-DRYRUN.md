@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-DRYRUN"
 title: "재실행 — dry-run"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "69f3dcac2608e16e95273bddac169b593d2fdd4fd0c54f5283329ca2debf981a"
+content_hash: "84b3d225c340334999f302c08a833e28590cce182f159232db0cb577562306dd"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-2V3P8D"
 source_paths: []
-mirror_sha256: "377c57493732967785566d722c57713f398a4583a2b2032d9d5f1598f88de8af"
-etag: "sha256-cb32fe729578d1588467040fd78df86e237ee5e15ad14a757c9f3bb1e4a2ef41"
+mirror_sha256: "84bc616d62befe8cf76b726aace15d711a9e20d3af58e085e5ab2fce97b26a54"
+etag: "sha256-33b477a6490dcfe7519193555302a93e8f26d2a93150c936fe5fbc61e7bdc56b"
 ---
 ## 개요
 
@@ -35,7 +35,7 @@ etag: "sha256-cb32fe729578d1588467040fd78df86e237ee5e15ad14a757c9f3bb1e4a2ef41"
 
 다음은 **내부 부수효과가 없다**고 보고 dry-run 에서도 그대로 실행한다.
 
-- Logic, Flow, Data, AI(LLM 호출은 외부지만 워크플로우 결과 재현에 필요하다, [LLM 호출](CLE-EXEC-RERUN-AGENT.md#llm-호출)), Presentation(UI 렌더), Trigger(이미 발화된 뒤의 재실행이라 트리거는 다시 발화하지 않는다)
+- Logic, Flow, Data, AI(LLM 호출은 외부지만 워크플로우 결과 재현에 필요하다, [LLM 호출](CLE-EXEC-RERUN-AGENT.md#llm-호출)), Presentation(UI 렌더), Trigger(이미 발사된 뒤의 재실행이라 트리거는 다시 발사하지 않는다)
 
 AI 에이전트 노드 자체는 그대로 실행한다. 이 노드가 부르는 도구는 부수효과 판정 기준으로 모의 응답을 받거나 그대로 호출된다([재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md)).
 
@@ -54,17 +54,19 @@ dry-run 이 모의 출력 · 응답으로 대신할 호출을 고르는 기준�
 | Cafe24 · MakeShop operation(노드와 내부 MCP 브리지 도구) | HTTP 메서드가 GET 이 아니거나, 메서드는 GET 인데 상태를 바꾸는 GET 예외 목록에 있다 | operation 메타데이터의 `method` 와 예외 목록 |
 | 외부 MCP 서버의 도구(`tools/call`) | 늘 | 무엇을 하는지 판정할 수 없어 부수효과로 본다 |
 | MCP 메타 도구 · `kb_*` · `render_*` · `cond_*` | 보지 않는다(그대로 실행) | 프로토콜상 읽기 전용이거나 외부 시스템에 닿지 않는다. `cond_*` 는 그래프 분기만 고른다 |
+| AI 에이전트의 일반 도구 | 지금은 판정하지 않는다 | 노드를 도구로 연결하는 입력 경로를 없애 일반 도구는 stub 으로만 남았다. 입력 경로를 다시 열 때 이 표에 판정을 더한다([AI 에이전트 노드 「도구 연결 입력 경로 제거」](../CLE-NODE-AI/CLE-NODE-AGENT.md#도구-연결-입력-경로-제거)) |
 | 도구 목록 구성(`buildTools`)의 목록 조회 · 만료 통합 토큰 갱신, 실제로 부른 GET 의 토큰 갱신 · 인증 실패 처리 | 보지 않는다(그대로 실행) | 통합을 유지하는 작업이고 업무 데이터를 외부에 쓰지 않는다([MCP 클라이언트 「도구 목록 구성 단계」](../CLE-INT/CLE-INT-MCP.md#도구-목록-구성-단계)) |
 
-- Cafe24 · MakeShop 은 operation 메타데이터의 `method` 로 판정한다([Cafe24 operation 메타데이터](CLE-C24-META), [MakeShop operation 메타데이터](CLE-MKS-META)). `scopeType` 은 OAuth 권한 범위라 쓰지 않는다. 예를 들어 Cafe24 `carts_setting_update` 는 `scopeType: read` 인 PUT 이고 부수효과로 판정된다.
-- 상태를 바꾸는 GET 예외 목록은 2026-10-23 에 두 카탈로그의 GET operation 을 모두 확인해 정했다. MakeShop `get-cart_free_config-update`(카트프리 설정 변경) 하나이고 Cafe24 에는 없다. 메타데이터를 다시 생성할 때 id · path 에 쓰기를 뜻하는 낱말이 있는 GET 이 새로 생기면 단위 테스트(`dry-run-state-changing-get.spec.ts`)가 막는다. Cafe24 에 그런 GET 이 생기면 MakeShop 의 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS` 와 짝이 되는 Cafe24 목록을 둔다.
+- Cafe24 · MakeShop 은 operation 메타데이터의 `method` 로 판정한다([Cafe24 operation 메타데이터](CLE-C24-META), [MakeShop operation 메타데이터](CLE-MKS-META)). `scopeType` 은 OAuth 권한 범위라 판정에 쓰지 않는다. 예를 들어 Cafe24 `carts_setting_update` 는 `scopeType: read` 인 PUT 이고 부수효과로 판정된다.
+- 상태를 바꾸는 GET 예외 목록은 2026-10-23 에 두 카탈로그의 GET operation 을 모두 확인해 정했다. MakeShop 은 `get-cart_free_config-update`(카트프리 설정 변경) 하나다. Cafe24 도 같은 자리에 예외 목록 `CAFE24_STATE_CHANGING_GET_OPERATION_IDS` 를 두었고 지금은 비어 있다. Cafe24 에 상태를 바꾸는 GET 이 생기면 이 목록에 올린다.
+- 메타데이터를 다시 생성할 때 id · path 에 쓰기를 뜻하는 낱말이 있는 GET 이 새로 생기면 단위 테스트(`dry-run-state-changing-get.spec.ts`)가 막는다. 같은 테스트는 `scopeType` 이 write 인 GET 도 후보로 잡아 예외 목록에서 빠졌는지 확인한다. 판정에는 `scopeType` 을 쓰지 않고, 쓰기 권한이 필요한 GET 을 예외 목록에 올릴 후보로만 본다.
 - 읽기 의도인 POST(예: MakeShop `post-cpik_member-check` 회원 연동 확인)도 메서드로 판정하므로 모의 응답을 받는다. 재현 충실도보다 안전을 고른 보수적 결과다.
 - 외부 MCP 서버가 도구에 붙인 annotation(`readOnlyHint` 등)은 판정에 쓰지 않는다.
 - 판정할 근거가 없으면 부수효과로 본다. 틀렸을 때 비용이 큰 쪽(외부 상태가 바뀌는 쪽)을 막는 것이다. Database Query 노드만 예외로 모호한 쿼리를 읽기로 본다(노드가 직접 파싱한 SQL 이 근거인 기존 규칙).
-- Cafe24 · MakeShop 노드 핸들러와 내부 MCP 브리지 도구 프로바이더는 같은 판정 함수(`nodes/core/dry-run.util.ts` 의 `isDryRunMockedOperation`)를 쓴다.
-- 모의 출력 · 응답으로 대신한 호출은 외부로 나가지 않았으므로 통합 활동 로그를 남기지 않는다. 실제로 부른 읽기 호출은 평소처럼 남긴다. 이 규칙의 기준은 이 문서다. 다른 문서에 이 예외를 적는 일은 [미결 사항](CLE-EXEC-RERUN.md#미결-사항) 에 있다.
+- Cafe24 · MakeShop 노드 핸들러와 내부 MCP 브리지 도구 프로바이더는 벤더마다 둔 판정 함수를 부른다. Cafe24 는 `isCafe24DryRunMocked`, MakeShop 은 `isMakeshopDryRunMocked` 다. 두 함수는 자기 예외 목록을 넘겨 공통 판정(`nodes/core/dry-run.util.ts` 의 `isDryRunMockedOperation`)을 부른다. 공통 판정은 예외 목록 인자를 꼭 받는다. 호출 지점이 벤더 판정 함수를 거치는지는 같은 단위 테스트가 소스에서 확인한다.
+- 모의 출력 · 응답으로 대신한 호출은 외부로 나가지 않았으므로 통합 활동 로그를 남기지 않는다. 실제로 부른 읽기 호출은 평소처럼 남긴다. 이 규칙의 기준은 [재실행](CLE-EXEC-RERUN.md) 의 REQ-RERUN-053 이다. 다른 문서에 이 예외를 적는 일은 [미결 사항](CLE-EXEC-RERUN.md#미결-사항) 에 있다.
 
-판정 기준의 근거는 [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다.
+판정 기준의 근거는 [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다. 벤더 판정 함수로 호출 지점을 고정한 이유와 `scopeType` 을 테스트 신호로만 쓰는 이유도 그 절에 있다.
 
 ## 동작
 
@@ -116,13 +118,14 @@ dry-run 실행이 시작한 서브 워크플로우와 Background 본문도 dry-r
 - 노드 출력의 `output` 에 `_dryRun: true` 가 있으면(`outputData.output._dryRun`) 출력을 자동으로 강조한다.
 - 체인 배지에도 "dry-run" 을 붙인다(`#3-th re-run · dry-run`).
 
-**배지 판정 범위**: `_dryRun` 표시는 실제로 모의 처리한 노드(`supportsDryRun` 부수효과 노드)의 출력에만 들어간다. 그래서 **실행 상세 화면**은 노드별 `_dryRun` 표시에 더해 실행 수준의 **`Execution.dry_run`** 도 함께 반영한다. 표시가 없는 비부수효과 노드(Logic·Flow·Data·AI 등)도 dry-run 실행에 속하면 배지를 단다. "이 실행 전체가 dry-run 이었다" 를 개별 노드 상세에서도 알 수 있게 하려는 것이다. **에디터 실행 결과 드로어**는 실행 수준 플래그를 받지 않아 노드 표시로만 판정한다. 두 화면의 차이는 의도한 비대칭이다.
+**배지 판정 범위**: `_dryRun` 표시는 실제로 모의 출력을 낸 노드(`supportsDryRun` 부수효과 노드)의 출력에만 들어간다. 그래서 **실행 상세 화면**은 노드별 `_dryRun` 표시에 더해 실행 수준의 **`Execution.dry_run`** 도 함께 반영한다. 표시가 없는 비부수효과 노드(Logic·Flow·Data·AI 등)도 dry-run 실행에 속하면 배지를 단다. "이 실행 전체가 dry-run 이었다" 를 개별 노드 상세에서도 알 수 있게 하려는 것이다. **에디터 실행 결과 드로어**는 실행 수준 플래그를 받지 않아 노드 표시로만 판정한다. 두 화면의 차이는 의도한 비대칭이다.
 
 ## 구현 위치
 
-- `codebase/backend/src/nodes/core/dry-run.util.ts` (`isDryRun`, `buildDryRunMock`, 부수효과 판정 `isDryRunMockedOperation`)
-- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
-- `codebase/backend/src/nodes/integration/dry-run-state-changing-get.spec.ts` (예외 목록 누락 감지)
+- `codebase/backend/src/nodes/core/dry-run.util.ts` (`isDryRun`, `buildDryRunMock`, 부수효과 공통 판정 `isDryRunMockedOperation`)
+- `codebase/backend/src/nodes/integration/cafe24/metadata/index.ts` (Cafe24 판정 함수 `isCafe24DryRunMocked` 와 상태를 바꾸는 GET 예외 목록 `CAFE24_STATE_CHANGING_GET_OPERATION_IDS`)
+- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (MakeShop 판정 함수 `isMakeshopDryRunMocked` 와 상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
+- `codebase/backend/src/nodes/integration/dry-run-state-changing-get.spec.ts` (예외 목록 누락 감지, 호출 지점이 벤더 판정 함수를 거치는지 확인)
 - `codebase/backend/src/modules/executions/executions.service.ts` (`assertDryRunSupported`. 사전 점검은 서브 워크플로우까지 너비 우선으로 본다)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeAsync` 가 자식 실행 행에 남기는 `dry_run`)
 - `codebase/backend/src/nodes/flow/workflow/workflow.handler.ts` (비동기 호출에 `dryRun: isDryRun(context)` 를 넘긴다)

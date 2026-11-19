@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE"
 title: "통합 관리"
 type: "feature"
-version: 22
+version: 23
 status: "approved"
 requirements: ["REQ-INTMGMT-001", "REQ-INTMGMT-002", "REQ-INTMGMT-003", "REQ-INTMGMT-004", "REQ-INTMGMT-005", "REQ-INTMGMT-006", "REQ-INTMGMT-007", "REQ-INTMGMT-008", "REQ-INTMGMT-009", "REQ-INTMGMT-010", "REQ-INTMGMT-011", "REQ-INTMGMT-012", "REQ-INTMGMT-013", "REQ-INTMGMT-014", "REQ-INTMGMT-015", "REQ-INTMGMT-016", "REQ-INTMGMT-017", "REQ-INTMGMT-018", "REQ-INTMGMT-019", "REQ-INTMGMT-020", "REQ-INTMGMT-021", "REQ-INTMGMT-022", "REQ-INTMGMT-023", "REQ-INTMGMT-024", "REQ-INTMGMT-025", "REQ-INTMGMT-026", "REQ-INTMGMT-027", "REQ-INTMGMT-028", "REQ-INTMGMT-029", "REQ-INTMGMT-030", "REQ-INTMGMT-031", "REQ-INTMGMT-032", "REQ-INTMGMT-033", "REQ-INTMGMT-034", "REQ-INTMGMT-035", "REQ-INTMGMT-036", "REQ-INTMGMT-037", "REQ-INTMGMT-038", "REQ-INTMGMT-039", "REQ-INTMGMT-040", "REQ-INTMGMT-041", "REQ-INTMGMT-042", "REQ-INTMGMT-043", "REQ-INTMGMT-044", "REQ-INTMGMT-045", "REQ-INTMGMT-046", "REQ-INTMGMT-047", "REQ-INTMGMT-048", "REQ-INTMGMT-049", "REQ-INTMGMT-050", "REQ-INTMGMT-051", "REQ-INTMGMT-052", "REQ-INTMGMT-053", "REQ-INTMGMT-054", "REQ-INTMGMT-055", "REQ-INTMGMT-056", "REQ-INTMGMT-057", "REQ-INTMGMT-058", "REQ-INTMGMT-059", "REQ-INTMGMT-060", "REQ-INTMGMT-061", "REQ-INTMGMT-062", "REQ-INTMGMT-063", "REQ-INTMGMT-064", "REQ-INTMGMT-065", "REQ-INTMGMT-066", "REQ-INTMGMT-067", "REQ-INTMGMT-068"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "c82657aa3dac9da4c9a69514d820f5cf56e3eabec9f6aa0edfa1bc86ec065c78"
+content_hash: "12784a3cb21e86f7f7ec05183b678b8f12decf1401b75ca4fe976e29631f8ae1"
 read_as: "approved_fallback"
-task: "CLE-T-RW69WZ"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "833ed3e7176d954bf8d95c89a6e313ae2cd893a6c87335ab543f59e10658b471"
-etag: "sha256-92f5bda52f3bdf8e0a96930760f68283545bfe8d4fba4cbafe7a2f1fd95c9e01"
+mirror_sha256: "f0279bd5cdb2ecd6ba30eb9141138e31bc4407805ac03f98d57b76c460c4bd22"
+etag: "sha256-f97ea47ec1ce7918ba05839ad25e288b7b608a9cb384b5c277b0fa7eee8e051e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -55,7 +55,7 @@ etag: "sha256-92f5bda52f3bdf8e0a96930760f68283545bfe8d4fba4cbafe7a2f1fd95c9e01"
 - REQ-INTMGMT-018 WHEN 사용처를 돌려주면 THE SYSTEM SHALL 노드마다 `usageKind`(`direct`·`mcp`)를 표시하고 두 경로에 모두 해당하면 `direct` 로 둔다. (원본: INT-US-01)
 - REQ-INTMGMT-019 IF 사용처가 남은 통합을 삭제하려 하면 THE SYSTEM SHALL 409 `INTEGRATION_IN_USE` 와 사용처 목록으로 거절하고 노드를 먼저 바꾸거나 지우라고 안내한다. 멤버가 나가거나 제거될 때의 삭제(REQ-INTMGMT-065)는 이 거절을 거치지 않는다. (원본: INT-US-02)
 - REQ-INTMGMT-020 WHEN 통합이 만료됨이나 오류가 되면 THE SYSTEM SHALL 그 통합을 참조하는 노드에 에디터 경고 배지와 상세 바로가기를 보인다. (원본: INT-US-03)
-- REQ-INTMGMT-021 WHEN 통합 노드나 내부 MCP 브리지가 통합을 부르면 THE SYSTEM SHALL 호출마다 활동 로그를 한 행 남기고 상세 활동 탭에 최근 7일 호출 수 차트를 보인다. 통합을 얻기 전에 끝난 실패는 REQ-INTMGMT-053 을 따르고, dry-run 이 모의 출력 · 응답으로 대신한 호출은 REQ-RERUN-053 을 따른다. (원본: INT-US-04)
+- REQ-INTMGMT-021 WHEN 통합 노드나 내부 MCP 브리지가 통합을 부르면 THE SYSTEM SHALL 호출마다 활동 로그를 한 행 남기고 상세 활동 탭에 최근 7일 호출 수 차트를 보인다. 통합을 얻기 전에 끝난 실패는 REQ-INTMGMT-053 을 따르고, dry-run 이 모의 출력 · 응답으로 대신한 호출은 REQ-RERUN-053 을 따른다. 실행 취소로 끝난 호출은 활동 로그를 남기지 않아 호출 수 차트에도 잡히지 않는다([통합 노드 공통 규칙 7](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#규칙), [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). (원본: INT-US-04)
 - REQ-INTMGMT-022 WHEN 활동 로그를 남기면 THE SYSTEM SHALL 호출 API 식별 정보(`api_label`·`api_method`·`api_path`)를 함께 저장한다. (원본: INT-US-05)
 - REQ-INTMGMT-023 WHEN 활동 탭이 Cafe24·MakeShop 카탈로그 키를 보이면 THE SYSTEM SHALL `services/:type/catalog` 의 `labelKey` 와 프런트엔드 i18n 으로 사람이 읽는 문구를 보인다.
 - REQ-INTMGMT-024 WHILE 통합이 연결됨이 아닌 동안 THE SYSTEM SHALL 활동 탭 위에 «연결 안 됨» 인라인 안내를 보인다.
@@ -239,7 +239,7 @@ etag: "sha256-92f5bda52f3bdf8e0a96930760f68283545bfe8d4fba4cbafe7a2f1fd95c9e01"
 
 2026-10-31, Task CLE-T-KQ37NJ.
 
-- REQ-INTMGMT-012: 자격 증명 암호화에 운영 환경(`NODE_ENV=production`) 한정을 달고 예외를 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 로 링크했다. 요구는 조건 없이 적혀 있었지만 실제로 보장하는 것은 운영 환경에서 새로 쓰는 값뿐이다. 운영 환경 가드(`assertProductionConfig`)는 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)가 없으면 서버를 기동하지 않는다. 이 결정의 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 이다. 운영 환경 밖에서는 키가 없으면 경고를 남기고 평문으로 저장한다. 이미 평문으로 저장된 행은 키가 있는 환경에서 그 컬럼을 다음에 쓸 때까지 평문으로 남는다. 이 둘은 보장 밖이다. 옛 평문 행을 다시 암호화하는 수단은 아직 정하지 않았다(2026-10-31, NERV Task `CLE-T-KQ37NJ`).
+- REQ-INTMGMT-012: 자격 증명 암호화에 운영 환경(`NODE_ENV=production`) 한정을 달고 예외를 [통합 데이터와 흐름 「암호화」](CLE-INT-DATA.md#암호화) 로 링크했다. 요구는 조건 없이 적혀 있었지만 실제로 보장하는 것은 운영 환경에서 새로 쓰는 값뿐이다. 운영 환경 가드(`assertProductionConfig`)는 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)가 없으면 서버를 기동하지 않는다. 이 결정의 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 이다. 운영 환경 밖에서는 키가 없으면 경고를 남기고 평문으로 저장한다. 이미 평문으로 저장된 행은 키가 있는 환경에서 그 컬럼을 다음에 쓸 때까지 평문으로 남는다. 이 둘은 보장 밖이다. 옛 평문 행을 다시 암호화하는 수단은 아직 정하지 않았다.
 
 2026-10-24, Task CLE-T-MG0EQZ. 새 요구사항은 051 부터다. 058~062 는 승인한 초안을 다시 리뷰한 뒤, 063 · 064 는 2026-10-29 에 화면의 역할 게이트를 정하며 더했다.
 
@@ -254,3 +254,7 @@ etag: "sha256-92f5bda52f3bdf8e0a96930760f68283545bfe8d4fba4cbafe7a2f1fd95c9e01"
 - REQ-INTMGMT-054(2026-10-25): 참조 값이 표현식이면 거절하지도 비우지도 않는다고 더했다. [플랫폼 데이터 모델 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 에는 있고 요구사항 줄에는 없었다(finding 01a1705c-cb6b-76e0-a4b7-5e9b0348e9a4).
 - REQ-INTMGMT-062(2026-10-25): «통합의 워크스페이스가 실행의 워크스페이스와 같을 때만» 을 «실행 중에 조회해 얻은 통합에만» 으로 바꿨다. 얻은 통합은 워크스페이스 검사를 이미 통과했으므로 앞 조건을 포함한다([「활동 로그는 얻은 통합에만 쓴다」](#활동-로그는-얻은-통합에만-쓴다)).
 - REQ-INTMGMT-006(2026-10-29): 위험 영역 탭은 공개 범위 전환이나 삭제를 할 수 있는 사람에게만 보인다고 더했다(REQ-INTMGMT-063, [통합 화면은 할 수 없는 변경 동작을 숨긴다](#통합-화면은-할-수-없는-변경-동작을-숨긴다-2026-10-29)).
+
+2026-11-19, Task CLE-T-GZRYQ3 · CLE-T-WMH3EK.
+
+- REQ-INTMGMT-021: 실행 취소로 끝난 호출은 활동 로그를 남기지 않아 호출 수 차트에도 잡히지 않는다고 더했다.
