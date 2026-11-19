@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-CONTAINER"
 title: "노드 출력 규약 — 컨테이너 출력과 빈 입력"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "bdffefd7d094612a170b373130c21e07bcb206cfec31c703d49f7dc75dac6eae"
+content_hash: "5b1b6afb6793d37e052ef0f367d0b2d24a8c86393b683b53d016dde176ce0168"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-Z7QRQP"
 source_paths: []
-mirror_sha256: "15a433bcb1bde940fe69ec5d50383c0fea842ddfbe69366fcebb507367687658"
-etag: "sha256-b93f36d89c8849aa8345d086ceeb593833ac5424025dc9f13c93cdd9efef78da"
+mirror_sha256: "1296dff684dcd1eb0a37d3964e81ace4885b9bf567363398bf48dd776f747a80"
+etag: "sha256-decb29c3c334cd16c90576128cf1d87fe4cb017304369d79747196d2c9ab5cbe"
 ---
 ## 개요
 
@@ -72,7 +72,7 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 ## 미결 사항
 
 - **컨테이너 완료 출력의 `port`(Principle 5)**: `port: undefined` 는 출력이 하나인 노드용이다. Loop·ForEach·Map 은 출력 포트가 `body`·`done` 둘인데 완료 출력에 `port` 를 싣지 않고 엔진이 `done` 연결선을 직접 활성화한다. Parallel 은 완료 출력에 `port: 'done'` 을 싣는다([Principle 5](CLE-NODE-OUTPUT-FLOW.md#principle-5-출력-포트-선택-모델)). 결정은 [Logic 노드 공통 미결 사항](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항) 의 같은 항목에서 한다.
-- **컨테이너 · Parallel 노드의 실행 시간(Principle 2)**: Loop · ForEach · Map · Parallel 은 핸들러가 시작 시점 값을 돌려주면 엔진이 바로 노드 실행 기록을 완료로 저장한다. 그래서 기록의 `node_execution.finished_at` · `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 핸들러 실행 시간이고 반복 회차 · 병렬 분기 시간은 들어 있지 않다. 성공한 실행에서는 이 기록을 다시 갱신하지 않는다. 그래서 네 노드의 기록 행에는 노드 전체 실행 시간이 없고 본문 노드 행(Parallel 은 병렬 분기 행)의 시각으로 따로 계산해야 한다. `node_execution.duration_ms` 를 노드 실행 시간으로 쓰는 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 의 `clemvion.node.duration` 메트릭과 [통계](../CLE-OBS/CLE-OBS-STATS.md) 의 노드별 평균 실행 시간과 병목 강조에서도 네 노드가 실제보다 짧게 잡힌다. 결정 필요: 완료 시점에 실행 기록의 끝 시각과 실행 시간을 갱신할지, 완료 `meta` 에 `meta.durationMs` 를 더할지. 실행 기록의 완료 출력 갱신과 함께 NERV Task `CLE-T-JXD0W5` 가 다룬다.
+- **컨테이너 · Parallel 노드의 실행 시간(Principle 2)**: Loop · ForEach · Map · Parallel 은 핸들러가 시작 시점 값을 돌려주면 엔진이 바로 노드 실행 기록을 완료로 저장한다. 그래서 기록의 `node_execution.finished_at` · `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 핸들러 실행 시간이고 반복 회차 · 병렬 분기 시간은 들어 있지 않다. 성공한 실행에서는 이 기록을 다시 갱신하지 않는다. 그래서 네 노드의 기록 행에는 노드 전체 실행 시간이 없고 본문 노드 행(Parallel 은 병렬 분기 행)의 시각으로 따로 계산해야 한다. `node_execution.duration_ms` 를 노드 실행 시간으로 쓰는 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 의 `clemvion.node.duration` 메트릭과 [통계](../CLE-OBS/CLE-OBS-STATS.md) 의 노드 평균 전체 경과와 병목 강조에서도 네 노드가 실제보다 짧게 잡힌다. 결정 필요: 완료 시점에 실행 기록의 끝 시각과 실행 시간을 갱신할지, 완료 `meta` 에 `meta.durationMs` 를 더할지. 실행 기록의 완료 출력 갱신과 함께 NERV Task `CLE-T-JXD0W5` 가 다룬다.
 
 ## Rationale
 
@@ -118,3 +118,9 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 ### `skipped[].error.code` 의 임시 예외를 닫는다 (2026-11-05)
 
 2026-11-02 에는 `skipped[].error.code` 가 `UPPER_SNAKE_CASE` 규칙([3.2](CLE-NODE-OUTPUT-FLOW.md#32-outputerror-표준-형태))을 따르지 않아 9.2 에 임시 예외로 적었다. Parallel 만 고치면 ForEach 와 값이 갈려서 함께 정리하도록 미뤘다. 당시 예외의 정본 서술은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#errorcode-의-값-2026-11-01) 에 있다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 실패 회차 `error.code` 를 한 규칙으로 정리했다. 값은 이제 백엔드가 직접 싣는 카탈로그 코드, [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 `AbortError`, 대체값 `UNKNOWN_ERROR` 중 하나다. 그래서 9.2 의 임시 예외 문장을 지우고 그 규칙을 가리키게 했다. 규칙과 근거, 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다. 이 개정은 규약 문장을 그 결정에 맞추기만 하므로 따로 기각한 대안이 없다.
+
+### 「노드별 평균 실행 시간」 을 「노드 평균 전체 경과」로 고쳤다
+
+결정일: 2026-11-15
+
+[통계](../CLE-OBS/CLE-OBS-STATS.md) 가 2026-11-14 에 이 지표의 이름을 「노드 평균 전체 경과」로 바꿨다. 미결 사항의 실행 시간 항목에 옛 이름이 남아 있어 맞췄다(NERV Task `CLE-T-Z7QRQP`). 미결 사항의 결정 내용과 NERV Task `CLE-T-JXD0W5` 의 범위는 바꾸지 않았다.

@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
 content_hash: "a819d7b740d1ab687055aa8e4e3168d23fbe01f61a320b9e9925c2cb4ccd2638"
 read_as: "approved_fallback"
-task: "CLE-T-B7YTQX"
+task: "CLE-T-0TBB0Z"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "72c9c677e30925a9391840ffd82b8fdd41998546dbc2d4e4098c4ec11501671c"
-etag: "sha256-ac3474c34642011b435a58da8a7adbd034325a14aee72e095f2f6abb2a954b68"
+mirror_sha256: "4334f18624139505956e45f46d50e08b14db71565861a5e3c98f517ce2f51428"
+etag: "sha256-2431dc707f5a34f02bc20e564499fc2da250906f9e04c0135a206e71b5636411"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
