@@ -140,7 +140,7 @@ describe('UNVALIDATED_METATYPES', () => {
 });
 
 /**
- * NestJS 12 부터 APP_PIPE 가 WebSocket 게이트웨이 핸들러의 인자에도 붙는다. 게이트웨이의
+ * 전역 파이프는 WebSocket 게이트웨이 핸들러의 인자에도 붙는다(근거는 common/utils/http-context.ts). 게이트웨이의
  * `@ConnectedSocket() client: Socket` 은 `custom` 인자로 오고, 설계 타입이 `Socket` 클래스라
  * 목록에 걸리지 않는다. 실제 소켓은 `@nestjs/platform-socket.io` 가 고정한 socket.io 사본의
  * 인스턴스라 백엔드가 import 한 `Socket` 의 인스턴스도 아니다. 이 값을 DTO 처럼 변환하면

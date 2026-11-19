@@ -1,3 +1,4 @@
+import { afterEach } from '@jest/globals';
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ThrottlerException, ThrottlerStorageService } from '@nestjs/throttler';
@@ -6,17 +7,43 @@ import {
   UserThrottlerGuard,
 } from './user-throttler.guard';
 
+// 테스트마다 만든 저장소. afterEach 에서 정리 타이머를 멈춘다.
+const openStorages: ThrottlerStorageService[] = [];
+
+afterEach(() => {
+  for (const storage of openStorages.splice(0)) {
+    storage.onApplicationShutdown();
+  }
+});
+
 /**
- * UserThrottlerGuard.getTracker 4분기 단위 테스트 (spec §12 사용자당 rate-limit).
- * getTracker 는 protected 라 서브클래스로 노출해 직접 호출한다. ThrottlerGuard
- * 의 생성자 의존성은 본 테스트에서 사용하지 않으므로 Object.create 로 우회한다.
+ * 한도 1 의 전역 가드를 만든다. 저장소는 정리 타이머(`sweepInterval`)를 띄우므로 테스트마다
+ * `afterEach` 에서 `onApplicationShutdown` 으로 멈춘다. 멈추지 않으면 Jest 가 열린 핸들을 남긴다.
  */
+async function buildLimitOneGuard(): Promise<UserThrottlerGuard> {
+  const storage = new ThrottlerStorageService();
+  openStorages.push(storage);
+  const guard = new UserThrottlerGuard(
+    { throttlers: [{ name: 'default', ttl: 60_000, limit: 1 }] },
+    storage,
+    new Reflector(),
+  );
+  await guard.onModuleInit();
+  return guard;
+}
+
 class TestableGuard extends UserThrottlerGuard {
   public track(req: Record<string, unknown>): Promise<string> {
     return this.getTracker(req);
   }
 }
 
+/**
+ * UserThrottlerGuard.getTracker 4분기 단위 테스트 (사용자당 요청 빈도 제한,
+ * [HTTP API 요청 빈도 제한](CLE-API-CONV-RATE#7-요청-빈도-제한)).
+ * getTracker 는 protected 라 서브클래스로 노출해 직접 호출한다. ThrottlerGuard
+ * 의 생성자 의존성은 본 테스트에서 사용하지 않으므로 Object.create 로 우회한다.
+ */
 describe('UserThrottlerGuard.getTracker', () => {
   let guard: TestableGuard;
 
@@ -52,8 +79,8 @@ describe('UserThrottlerGuard.getTracker', () => {
 });
 
 /**
- * NestJS 12 부터 APP_GUARD 가 WebSocket 게이트웨이 핸들러에도 붙는다. 그 컨텍스트의 "요청" 은
- * 소켓이라 `user` · `ip` 가 없어 tracker 가 모두 `'unknown'` 이 된다. 그대로 두면 모든 사용자의
+ * 전역 가드는 WebSocket 게이트웨이 핸들러에도 붙는다(근거는 `common/utils/http-context.ts`). 그
+ * 컨텍스트의 "요청" 은 소켓이라 `user` · `ip` 가 없어 tracker 가 모두 `'unknown'` 이 된다. 그대로 두면 모든 사용자의
  * WS 메시지가 핸들러마다 한 버킷을 나눠 써서 서버 전체가 분당 limit 건에 막힌다. WS 빈도 제한은
  * 소켓당 `WsRateLimitGuard` 가 맡는다
  * ([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS#71-에러-코드)).
@@ -63,15 +90,7 @@ describe('UserThrottlerGuard — HTTP 가 아닌 컨텍스트', () => {
     handleSubscribe(): void {}
   }
 
-  const buildGuard = async (): Promise<UserThrottlerGuard> => {
-    const guard = new UserThrottlerGuard(
-      { throttlers: [{ name: 'default', ttl: 60_000, limit: 1 }] },
-      new ThrottlerStorageService(),
-      new Reflector(),
-    );
-    await guard.onModuleInit();
-    return guard;
-  };
+  const buildGuard = (): Promise<UserThrottlerGuard> => buildLimitOneGuard();
 
   const buildContext = (type: 'http' | 'ws', req: Record<string, unknown>) =>
     ({
@@ -120,15 +139,7 @@ describe('UserThrottlerGuard — @DeferGlobalThrottle 라우트', () => {
     plain(): void {}
   }
 
-  const buildGuard = async (): Promise<UserThrottlerGuard> => {
-    const guard = new UserThrottlerGuard(
-      { throttlers: [{ name: 'default', ttl: 60_000, limit: 1 }] },
-      new ThrottlerStorageService(),
-      new Reflector(),
-    );
-    await guard.onModuleInit();
-    return guard;
-  };
+  const buildGuard = (): Promise<UserThrottlerGuard> => buildLimitOneGuard();
 
   const buildContext = (
     handler: () => void,

@@ -70,16 +70,18 @@ export function useBackgroundRun(
     };
 
     const ackHandler = (ack: unknown) => {
-      if (
-        typeof ack === "object" &&
-        ack !== null &&
-        "success" in ack &&
-        (ack as { success: boolean }).success === false
-      ) {
-        // 권한 거부 / 채널 부재. polling fallback (위 refetchInterval) 이 계속
-        // 동작하므로 사용자 영향은 없음 — 진단용 warn 만.
-        console.warn("[useBackgroundRun] subscribe rejected:", ack);
-      }
+      if (typeof ack !== "object" || ack === null) return;
+      const { success, channel: ackChannel } = ack as {
+        success?: unknown;
+        channel?: unknown;
+      };
+      if (success !== false) return;
+      // 싱글턴 소켓이라 다른 채널의 실패 ack 도 온다. channel 이 다르면 거른다. channel 이 없는
+      // 실패 ack 는 실패 응답에 channel 을 싣기 전의 서버가 보낸 것이라 이 구독의 실패로 본다.
+      if (typeof ackChannel === "string" && ackChannel !== channel) return;
+      // 권한 거부 / 채널 부재. polling fallback (위 refetchInterval) 이 계속
+      // 동작하므로 사용자 영향은 없음 — 진단용 warn 만.
+      console.warn("[useBackgroundRun] subscribe rejected:", ack);
     };
 
     void (async () => {

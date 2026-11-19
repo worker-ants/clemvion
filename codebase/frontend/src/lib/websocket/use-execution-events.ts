@@ -1225,13 +1225,15 @@ export function useExecutionEvents({
       bind(name, markOnExecutionEvent);
     }
 
-    // 구독 실패 ack(`{ success:false, error, code }`) — 10초를 기다리지 않고 폴링으로
-    // 넘긴다. 서버의 실패 ack 에는 channel 이 없어(CLE-API-WS 「구독 인가」) 어느 구독의 실패인지
-    // 가릴 수 없다. 싱글턴 소켓의 다른 채널 구독이 거부돼도 켜질 수 있지만, 이 실행의
-    // 실시간 데이터가 오면 꺼지므로 잠깐의 불필요한 폴링에 그친다. 이 실행의 데이터를
-    // 이미 받은 뒤에는 켜지 않는다(`nextRealtimePhase`).
+    // 구독 실패 ack(`{ success:false, error, code, channel }`)를 받으면 10초를 기다리지 않고
+    // 폴링으로 넘긴다. 싱글턴 소켓이라 다른 채널의 실패 ack 도 오므로 channel 로 거른다
+    // ([WebSocket 메시지 「구독 인가」](CLE-API-WS-MSG#44-구독-인가)). channel 이 없는 실패 ack 는
+    // 실패 응답에 channel 을 싣기 전의 서버가 보낸 것이라 이 실행의 실패로 본다. 이 실행의
+    // 데이터를 이미 받은 뒤에는 켜지 않는다(`nextRealtimePhase`).
     const onSubscribed = (data: unknown) => {
-      if (asRecord(data)?.success !== false) return;
+      const ack = asRecord(data);
+      if (ack?.success !== false) return;
+      if (typeof ack.channel === "string" && ack.channel !== channel) return;
       signal("failed");
     };
     bind("subscribed", onSubscribed);

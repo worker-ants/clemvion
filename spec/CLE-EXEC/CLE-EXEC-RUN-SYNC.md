@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-SYNC"
 title: "에디터 실행과 디버깅 — 실시간 수신·내역·Background"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "69af7d50336a7f9c2b505eebc5ffd6e19318ab2a9f3d6a544bae9619d6721acf"
+content_hash: "cfc2055c40837d5bfb1c9509d7970325276ec2eeb1c031fe45e1ce9f82f2ea33"
 read_as: "approved_fallback"
-task: "CLE-T-88KRHT"
+task: "CLE-T-A338CH"
 source_paths: []
-mirror_sha256: "b73a07df43d178739a4350f4b1cdaa051959ea808dd07f6d6846c46591e155e7"
-etag: "sha256-444e5ce482333ffbd135658dfef8d65862e94486dd8d2c98ee40b856aa34740e"
+mirror_sha256: "d12e53a72bcd915757d9c8bf677cb2c42d9cc1d7c06ec767cb3c37b78535b749"
+etag: "sha256-c88ea83e915f6af73a3e36c21d4cf2df42873859d07bcdd8c69b6825df792232"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-444e5ce482333ffbd135658dfef8d65862e94486dd8d2c98ee40b856aa34740e"
 
 | 항목 | 동작 |
 | --- | --- |
-| 바로 켜는 경우 | 연결이나 구독 요청이 실패할 때, 또는 `subscribed` 의 `success: false` 응답을 받을 때. 실패 응답에는 `channel` 필드가 없어 어느 구독 채널의 실패인지 가릴 수 없다. 그래서 이 실행의 `execution.snapshot` 이나 실행 이벤트가 아직 오지 않은 동안 받은 실패 응답은 이 실행의 실패로 본다. 이미 왔으면 그 응답으로 폴링을 켜지 않는다. 게이트웨이가 `subscribed` 응답 없이 `exception` 으로 끝나는 경우는 10초 경로가 잡는다 |
+| 바로 켜는 경우 | 연결이나 구독 요청이 실패할 때, 또는 이 실행 채널(`execution:<id>`)의 `subscribed` 실패 응답(`success: false`)을 받을 때. 실패 응답의 `channel` 이 다른 채널이면 무시한다. `channel` 이 없는 실패 응답(옛 서버)은 이 실행의 `execution.snapshot` 이나 실행 이벤트가 아직 오지 않은 동안이면 이 실행의 실패로 본다. 이 실행의 데이터를 이미 받았으면 어느 실패 응답으로도 폴링을 켜지 않는다. 게이트웨이가 `subscribed` 응답 없이 `exception` 으로 끝나는 경우는 10초 경로가 잡는다 |
 | 10초 뒤 켜는 경우 | 구독 뒤 10초 안에 이 실행의 `execution.snapshot` 이나 실행 이벤트가 하나도 오지 않을 때 |
 | 지연 토스트 | "실시간 업데이트 연결이 지연되고 있어요. 폴링으로 진행됩니다." 는 10초 시점에만 띄운다. 바로 켜는 경우에도 토스트는 10초를 기다린다 |
 | 요청 | 켜지면 `GET /api/executions/:id` 를 바로 한 번 받는다. 응답을 받고 2초 뒤에 다음 요청을 예약하므로 요청이 겹치지 않는다 |
@@ -116,7 +116,7 @@ etag: "sha256-444e5ce482333ffbd135658dfef8d65862e94486dd8d2c98ee40b856aa34740e"
 **실시간 갱신**:
 
 - Background 노드 카드가 처음 표시되면 `background:run:<backgroundRunId>` 채널을 자동으로 구독한다.
-- 카드의 run 상태는 REST(`backgroundRunsApi.getById`, React Query)로 받고 받은 상태가 `running` · `pending` 이면 5초마다 다시 받는다. 채널 이벤트는 이 조회를 앞당기는 캐시 무효화일 뿐이다(`use-background-run.ts`). 그래서 구독이 거부되면([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.5 최대 구독 수」](../CLE-API/CLE-API-WS-MSG.md#45-최대-구독-수) 의 연결당 구독 상한 20개를 넘은 `SUBSCRIPTION_LIMIT_EXCEEDED`, 인가 실패 등) 콘솔 경고만 남기고 5초 조회가 최종 상태를 맞춘다. 이 거부 응답이 실행 구독의 실패로 읽힐 수 있는 점은 [Rationale](#에디터의-rest-폴링은-실시간-경로가-막혔을-때만-켠다-2026-10-22) 의 「실패 응답으로는 구독 채널을 가리지 않는다」 에 있다.
+- 카드의 run 상태는 REST(`backgroundRunsApi.getById`, React Query)로 받고 받은 상태가 `running` · `pending` 이면 5초마다 다시 받는다. 채널 이벤트는 이 조회를 앞당기는 캐시 무효화일 뿐이다(`use-background-run.ts`). 그래서 구독이 거부되면([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.5 최대 구독 수」](../CLE-API/CLE-API-WS-MSG.md#45-최대-구독-수) 의 연결당 구독 상한 20개를 넘은 `SUBSCRIPTION_LIMIT_EXCEEDED`, 인가 실패 등) 콘솔 경고만 남기고 5초 조회가 최종 상태를 맞춘다. 콘솔 경고는 실패 응답의 `channel` 이 이 카드의 채널(`background:run:<id>`)이거나 `channel` 이 없을 때만 남긴다. 실행 구독 쪽은 실패 응답의 `channel` 을 보고 이 거부를 무시한다([Rationale](#에디터의-rest-폴링은-실시간-경로가-막혔을-때만-켠다-2026-10-22) 의 「실패 응답의 `channel` 로 구독 채널을 가린다」).
 - 본문 안 개별 노드 이벤트(`execution.node.started`·`completed`·`failed`)는 기존 `execution:<id>` 채널로 받는다. 에디터는 `parentNodeExecutionId === <Background 노드의 NodeExecution.id>` 로 걸러 본문 타임라인을 갱신한다.
 - `execution.background_run.completed` 를 받으면 카드 배지를 최종 상태로 바꾸고 `background:run:<id>` 채널 구독을 해제한다. 최종 상태 값은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 이벤트 정의를 따른다.
 - 드로어를 닫거나 다른 실행으로 옮기면 활성 Background 채널을 모두 구독 해제한다.
@@ -137,7 +137,7 @@ etag: "sha256-444e5ce482333ffbd135658dfef8d65862e94486dd8d2c98ee40b856aa34740e"
 - **수신 진입점은 하나로 유지한다**: 폴링 응답과 실행 스냅샷 이벤트(`execution.snapshot`)는 `applyExecutionSnapshot` 한 진입점으로 store 를 채운다. 새 표면을 만들지 않으므로 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 2026-07-08 REST 대체 항목 비채택과 부딪치지 않는다. 그 결정이 막은 것은 REST 가 이미 하는 일을 WebSocket 명령으로 한 번 더 만드는 중복 경로다. 옛 REST 응답이 앞선 store 를 덮는 위험은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) 의 "대기 진입 직전 읽기 창" 과 같은 종류라서 꺼진 뒤 도착한 응답과 store 의 실행 ID · 종결 여부가 맞지 않는 응답을 버린다. WebSocket 이 복구된 직후 폴링이 꺼지기 전(렌더 한 번 사이)에 떠 있던 요청의 응답은 실행 ID 와 종결 여부로 가를 수 없어서 요청 뒤 store 가 바뀌었는지로 가려 버린다. 이 응답이 WebSocket 이 채운 노드 결과 행을 실행 중·출력 없음으로 덮으면 WebSocket 이 그 노드를 다시 보내지 않는 한 옛 값으로 남기 때문이다.
 - **요청 빈도**: 폴링은 실행 하나에 분당 30건이다. 일반 API 요청 빈도 한도(사용자 기준 100 req/min, [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한))의 약 30% 다. 실시간 경로가 막혔을 때만 켜지므로 이 비용을 받아들인다. `waiting_for_input` 동안에도 같은 간격으로 받는다. 여러 탭에서 막힌 실행을 동시에 보면 한도에 닿을 수 있어서 실패한 요청은 간격을 늘려 다시 받고 회복할 수 없는 에러에서는 멈춘다. 401 마다 토큰 갱신을 되풀이하거나 429 를 받고도 같은 간격으로 보내 사용자 요청 한도를 스스로 쓰지 않게 하려는 것이다. `Retry-After` 의 날짜 형식은 읽지 않고 늘리는 간격으로 대신한다. 사용자가 일으킨 요청이 아니므로 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) §4.1 의 토스트 · 404 페이지 처리를 따르지 않는다. 폴링 훅이 에러를 직접 처리하므로 [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md) 의 에러 바운더리도 타지 않는다. 실패에 토스트를 띄우지 않는 것은 화면 뒤에서 2초마다 도는 요청이라 실패할 때마다 토스트가 쌓이기 때문이다. `Retry-After` 를 2초~60초로 자르는 것은 잘못된 헤더 값 하나로 폴링이 사실상 멈추지 않게 하려는 것이다.
 - **실시간 수신 신호에 실행 이벤트도 센다**: `execution.snapshot` 은 소켓의 첫 구독에서만 한 번 온다([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「6.2 놓친 이벤트 복구」](../CLE-API/CLE-API-WS-CONN.md#62-놓친-이벤트-복구)). 같은 소켓이 이미 구독한 채널을 다시 구독하면 `execution.snapshot` 없이 실행 이벤트만 온다. 그래서 이 실행의 실행 이벤트가 와도 실시간 경로가 살아 있다고 본다.
-- **실패 응답으로는 구독 채널을 가리지 않는다**: `subscribed` 실패 응답에는 `channel` 필드가 없다. 같은 소켓의 다른 구독(Background 본문 결과 등)이 실패해도 이 실행의 `execution.snapshot` 이나 실행 이벤트가 오기 전이면 폴링이 켜진다. `execution.snapshot` 이나 실행 이벤트가 오면 바로 꺼지므로 그 비용을 받아들였다. 실패 응답에 `channel` 을 더하는 계약 변경(추가 필드라 옛 클라이언트에는 영향이 없다)은 이 결정에서 하지 않았고 NERV Task `CLE-T-A338CH` 에서 정한다.
+- **실패 응답의 `channel` 로 구독 채널을 가린다 (2026-11-19 개정)**: 처음에는 `subscribed` 실패 응답에 `channel` 필드가 없었다. 그래서 같은 소켓의 다른 구독(Background 본문 결과 등)이 실패해도 이 실행의 `execution.snapshot` 이나 실행 이벤트가 오기 전이면 폴링이 켜졌다. `execution.snapshot` 이나 실행 이벤트가 오면 바로 꺼지므로 그 비용을 받아들였다. 2026-11-19 NERV Task `CLE-T-A338CH` 에서 서버가 실패 응답에 요청한 `channel` 을 싣게 했다([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.4 구독 인가」](../CLE-API/CLE-API-WS-MSG.md#44-구독-인가)). 이제 에디터는 이 실행 채널의 실패만 처리한다. `channel` 이 없는 응답은 옛 서버와 함께 동작하도록 처음 규칙을 따른다.
 - **마지막 턴 재시도를 대체 경로에서 따라간다** (2026-11-14, NERV Task `CLE-T-GKVH1B`): 처음에는 재시도 뒤 폴링을 다시 켜는 신호와 `applyExecutionSnapshot` 의 `failed → running` 분기가 함께 필요해서 뒤로 미뤘다. 재시도 ack 가 성공한 시점에 실행은 아직 `failed` 이고 같은 노드에 새 노드 실행 행만 생긴다. 실행 상태는 워커가 재시도 턴을 끝낼 때 바뀐다. 그래서 `failed` 응답이 재시도가 아직 도는 중인지 다시 실패했는지는 새 행의 상태로 가린다. 새 행이 보이지 않는 응답에서 기다리면 끝나지 않는 폴링이 될 수 있어 실패로 마감한다. 실행 상세 화면도 같은 명령 훅이라 재시도 대기 표시를 남기지만 그 화면의 폴링은 종결 응답에서 멈추므로 재시도 뒤 갱신은 지금처럼 WebSocket 이벤트가 맡는다. `execution.retry_last_turn` 의 메시지 형식은 바꾸지 않았다.
 - **기각 (a) 에디터도 실행 상세 화면처럼 늘 폴링한다**: WebSocket 으로 받는 동안에도 실행 하나에 2초마다 REST 요청이 더 나간다(분당 30건). WebSocket 으로 이미 앞선 store 를 옛 REST 응답이 덮을 수도 있다. `running` 응답이 이전 `waiting_for_input` 상태와 만나면 `applyExecutionSnapshot` 의 재개 분기가 입력 대기 UI 를 지운다.
 - **기각 (b) React Query `refetchInterval` 로 켜고 끈다**: 꺼진 뒤 도착한 응답이 store 에 들어가고, 다시 켤 때 캐시에 남은 옛 응답도 store 에 들어간다. (a) 의 덮어쓰기와 같은 문제가 생긴다. 그래서 effect 안에서 응답을 받은 뒤 다음 요청을 예약하고, 꺼지면 도착한 응답을 버린다.

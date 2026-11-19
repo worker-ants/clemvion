@@ -24,9 +24,10 @@ export const DeferGlobalThrottle = () =>
  * 인증된 요청이면 `user.sub` 로 키를 만들어 **사용자당** rate-limit 을
  * 보장하고, 미인증(로그인 전 auth 엔드포인트 등) 이면 IP 로 폴백한다.
  *
- * 도입 동기: Re-run rate-limit (spec/5-system/13-replay-rerun.md §12 — 사용자당
- * 분당 10회). 라우트의 `@Throttle({ default: { ttl, limit } })` 메타는 그대로
- * 적용되며, 키만 사용자 단위로 바뀐다. 미인증 라우트 동작은 IP 폴백으로 무변경.
+ * 도입 동기: 재실행 요청 빈도 제한(사용자당 분당 10회.
+ * [HTTP API 요청 빈도 제한](CLE-API-CONV-RATE#7-요청-빈도-제한)). 라우트의
+ * `@Throttle({ default: { ttl, limit } })` 메타는 그대로 적용되며, 키만 사용자 단위로 바뀐다.
+ * 미인증 라우트 동작은 IP 폴백으로 무변경.
  *
  * HTTP 요청만 센다. WebSocket 게이트웨이 핸들러는 건너뛰고 소켓 단위 `WsRateLimitGuard` 가 맡는다
  * (`shouldSkip` 참조). `@DeferGlobalThrottle()` 이 붙은 라우트도 건너뛰고 그 라우트 가드가 센다.
@@ -34,7 +35,7 @@ export const DeferGlobalThrottle = () =>
 @Injectable()
 export class UserThrottlerGuard extends ThrottlerGuard {
   /**
-   * HTTP 요청만 센다. NestJS 12 부터 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙는데, 그
+   * HTTP 요청만 센다. 전역 가드는 WebSocket 게이트웨이 핸들러에도 붙는다(근거는 `isHttpContext`). 그
    * 컨텍스트의 요청은 소켓이라 `user` · `ip` 가 없어 모든 사용자가 `'unknown'` 한 버킷을 나눠 쓴다.
    * WebSocket 빈도 제한은 소켓 단위 `WsRateLimitGuard` 가 맡는다
    * ([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS#71-에러-코드)).

@@ -9,7 +9,7 @@ import { plainToInstance } from 'class-transformer';
 
 /**
  * 이 설계 타입이면 검증하지 않고 값을 그대로 넘긴다 — 인라인 객체 타입 · 인터페이스 · `unknown` 본문이 여기 든다. 저장소 가드
- * `request-body-advertised` 가 **이 상수를 그대로** 써서 «문서도 스키마가 비는 자리» 를 센다(`spec/conventions/swagger.md` §5-4).
+ * `request-body-advertised` 가 **이 상수를 그대로** 써서 «문서도 스키마가 비는 자리» 를 센다([OpenAPI 라우트 데코레이터 「새 엔드포인트 체크리스트」](CLE-API-SWAGGER-ROUTE#5-4-새-엔드포인트-체크리스트)).
  *
  * 얼린다 — export 된 전역 목록이라 `readonly` 타입만으로는 런타임 변형(`.push`)을 막지 못한다. 이 목록이 늘면 그 타입의 본문은
  * 검증 없이 지나간다.
@@ -29,6 +29,19 @@ interface ValidationDetail {
   code: 'INVALID_FIELD';
 }
 
+/**
+ * 요청 인자를 DTO 클래스로 변환하고 class-validator 로 검증하는 전역 파이프(`APP_PIPE`).
+ *
+ * 검증하지 않고 값을 그대로 넘기는 경우는 둘이다.
+ * - 커스텀 파라미터 데코레이터 인자(`type === 'custom'`). WebSocket 게이트웨이의 `@ConnectedSocket()`
+ *   소켓이 여기로 온다. 전역 파이프가 게이트웨이 인자에도 붙는 근거는 `common/utils/http-context.ts`.
+ * - 설계 타입이 없거나 {@link UNVALIDATED_METATYPES} 에 든 인자.
+ *
+ * HTTP 컨트롤러의 커스텀 데코레이터는 `@CurrentUser()`(설계 타입 `JwtPayload` 인터페이스라 `Object`)와
+ * `@WorkspaceId()`(`string`) 둘뿐이고 둘 다 두 번째 경우에도 걸려 원래 검증하지 않았다. 그래서 첫 번째
+ * 경우를 더해도 HTTP 검증 대상은 그대로다. NestJS 기본 `ValidationPipe` 의 `validateCustomDecorators: false`
+ * 와 같은 동작이다.
+ */
 @Injectable()
 export class CustomValidationPipe implements PipeTransform<unknown> {
   async transform(
@@ -36,8 +49,8 @@ export class CustomValidationPipe implements PipeTransform<unknown> {
     { metatype, type }: ArgumentMetadata,
   ): Promise<unknown> {
     // 커스텀 파라미터 데코레이터 값은 검증하지 않는다(NestJS 기본 `ValidationPipe` 의
-    // `validateCustomDecorators: false` 와 같다). NestJS 12 부터 `APP_PIPE` 가 WebSocket 게이트웨이
-    // 인자에도 붙어 `@ConnectedSocket()` 소켓이 `custom` 으로 온다. 그 소켓은
+    // `validateCustomDecorators: false` 와 같다). WebSocket 게이트웨이의 `@ConnectedSocket()` 소켓이
+    // `custom` 으로 온다(근거는 클래스 JSDoc). 그 소켓은
     // `@nestjs/platform-socket.io` 가 고정한 socket.io 사본의 인스턴스라 `instanceof Socket` 으로는
     // 가려내지 못한다. `@MessageBody()` 는 `body` 로 오므로 계속 검증한다.
     if (type === 'custom' || !metatype || !this.toValidate(metatype)) {

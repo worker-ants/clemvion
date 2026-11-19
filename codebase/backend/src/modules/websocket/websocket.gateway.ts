@@ -28,7 +28,7 @@ import {
   type AuthTokenExpiredPayload,
 } from './websocket-events.types';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
-import { WsErrorCode } from './ws-error-codes';
+import { WsErrorCode, type WsErrorCodeValue } from './ws-error-codes';
 import { WsRedisAdapterProvider } from './ws-redis-adapter';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
@@ -62,8 +62,49 @@ const VALID_CHANNEL_PREFIXES = [
   'background:run:',
 ];
 
-function isValidChannel(channel: string): boolean {
-  return VALID_CHANNEL_PREFIXES.some((prefix) => channel.startsWith(prefix));
+function isValidChannel(channel: unknown): channel is string {
+  return (
+    typeof channel === 'string' &&
+    VALID_CHANNEL_PREFIXES.some((prefix) => channel.startsWith(prefix))
+  );
+}
+
+/** `subscribed` ack 의 payload. 실패면 평문 `error` 에 더해 구조화 `code` 를 싣는다. */
+interface SubscribedAckData {
+  success: boolean;
+  channel?: string;
+  error?: string;
+  code?: string;
+}
+
+/**
+ * `subscribed` 실패 응답을 만든다. 요청한 `channel` 이 문자열이면 형식이 틀렸거나 빈 문자열이어도 그대로
+ * 싣고, 문자열이 아니면 뺀다. 클라이언트는 이 값으로 같은 소켓의 여러 구독 중 어느 것이 실패했는지
+ * 가린다([WebSocket 메시지 「구독 인가」](CLE-API-WS-MSG#44-구독-인가)).
+ */
+function subscribeRejected(
+  requested: unknown,
+  error: string,
+  code: WsErrorCodeValue,
+): { event: 'subscribed'; data: SubscribedAckData } {
+  return {
+    event: 'subscribed',
+    data: {
+      success: false,
+      error,
+      code,
+      ...(typeof requested === 'string' ? { channel: requested } : {}),
+    },
+  };
+}
+
+/** 연결당 구독 한도 초과 거부. 한도 검사 세 곳이 같은 응답을 쓴다. */
+function subscriptionLimitRejected(requested: unknown) {
+  return subscribeRejected(
+    requested,
+    `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
+    WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
+  );
 }
 
 /**
@@ -343,43 +384,32 @@ export class WebsocketGateway
   ): Promise<{
     event: string;
     // §3.3/§3.4/§7.1 — 실패 시 평문 `error` 문자열에 더해 구조화 `code` 를 additive 로
-    // 동봉한다(기존 클라이언트는 error 로 계속 동작, 신규는 code 로 분기).
-    data: { success: boolean; channel?: string; error?: string; code?: string };
+    // 동봉한다(기존 클라이언트는 error 로 계속 동작, 신규는 code 로 분기). 실패 응답에도
+    // 요청한 `channel` 을 싣는다(`subscribeRejected`).
+    data: SubscribedAckData;
   }> {
-    const { channel } = data;
+    // 본문은 검증 파이프를 지나지 않는다(인라인 타입). 문자열이 아닌 값도 올 수 있다.
+    const channel: unknown = (data as { channel?: unknown } | null)?.channel;
 
     if (!channel || !isValidChannel(channel)) {
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: 'Invalid channel',
-          code: WsErrorCode.INVALID_MESSAGE,
-        },
-      };
+      return subscribeRejected(
+        channel,
+        'Invalid channel',
+        WsErrorCode.INVALID_MESSAGE,
+      );
     }
 
     const clientSubs = this.subscriptions.get(client.id);
     if (!clientSubs) {
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: 'Not authenticated',
-          code: WsErrorCode.UNAUTHENTICATED,
-        },
-      };
+      return subscribeRejected(
+        channel,
+        'Not authenticated',
+        WsErrorCode.UNAUTHENTICATED,
+      );
     }
 
     if (clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION) {
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
-          code: WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
-        },
-      };
+      return subscriptionLimitRejected(channel);
     }
 
     // W-13: 채널별 인가는 strategy 맵을 lookup — 새 채널 추가 시 본 함수
@@ -393,14 +423,11 @@ export class WebsocketGateway
     // 존재하므로 정상 경로에서는 도달 불가하나, 새 prefix 만 추가하고 authorizer 등록을
     // 누락하면 인가 없이 join 되는 구멍이 생긴다 — 기본 거부로 봉인.
     if (!authorizer) {
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: 'Not authorized for this channel',
-          code: WsErrorCode.FORBIDDEN,
-        },
-      };
+      return subscribeRejected(
+        channel,
+        'Not authorized for this channel',
+        WsErrorCode.FORBIDDEN,
+      );
     }
     // workspace 가 가입되지 않은 소켓이 인가 대상 채널을 구독하려 시도하면
     // 즉시 거부 — handleConnection 이 인증 실패 시 disconnect 하므로 정상
@@ -408,28 +435,18 @@ export class WebsocketGateway
     // (notifications: 는 user 단위지만, 인증된 소켓은 JWT 에 workspaceId 를
     // 함께 담으므로 본 가드는 정상 경로를 막지 않는다. userId 검증은 authorizer.)
     if (!workspaceId) {
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: 'Not authenticated',
-          code: WsErrorCode.UNAUTHENTICATED,
-        },
-      };
+      return subscribeRejected(
+        channel,
+        'Not authenticated',
+        WsErrorCode.UNAUTHENTICATED,
+      );
     }
     const rejection = await authorizer.authorize(channel, {
       workspaceId,
       userId,
     });
     if (rejection) {
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: rejection.error,
-          code: WsErrorCode.FORBIDDEN,
-        },
-      };
+      return subscribeRejected(channel, rejection.error, WsErrorCode.FORBIDDEN);
     }
 
     // 원자 블록: authorize() await 이후의 한도 검사와 Set add 를 한 동기 구간
@@ -446,14 +463,7 @@ export class WebsocketGateway
       isNewSubscription &&
       clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION
     ) {
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
-          code: WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
-        },
-      };
+      return subscriptionLimitRejected(channel);
     }
     clientSubs.add(channel);
     if (clientSubs.size > MAX_SUBSCRIPTIONS_PER_CONNECTION) {
@@ -461,14 +471,7 @@ export class WebsocketGateway
       // 즉시 롤백하고 거부. Set.add 가 이미 있는 키면 size 증가 없으므로
       // 재구독 경로에는 영향 없음.
       clientSubs.delete(channel);
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
-          code: WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
-        },
-      };
+      return subscriptionLimitRejected(channel);
     }
     // M-3 (06 concurrency) — join 을 await 하고 실패 시 tentative-add 를 롤백한다.
     // 메모리 adapter 와 지금 쓰는 Redis adapter(CLE-API-WS-MSG §4.6) 모두 join 이 로컬
@@ -484,14 +487,11 @@ export class WebsocketGateway
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      return {
-        event: 'subscribed',
-        data: {
-          success: false,
-          error: 'Subscription failed — please retry',
-          code: WsErrorCode.INTERNAL_ERROR,
-        },
-      };
+      return subscribeRejected(
+        channel,
+        'Subscription failed — please retry',
+        WsErrorCode.INTERNAL_ERROR,
+      );
     }
     this.logger.debug(`Client ${client.id} subscribed to ${channel}`);
 

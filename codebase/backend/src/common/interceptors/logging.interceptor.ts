@@ -11,14 +11,14 @@ import { tap } from 'rxjs/operators';
 import { isHttpContext } from '../utils/http-context';
 
 /**
- * Health probe 경로 (spec/data-flow/9-observability.md §1.1).
+ * Health probe 경로 ([로깅과 헬스 체크 「헬스 체크」](CLE-OBS-LOGGING#헬스-체크)).
  * readiness(`/api/health`)·liveness(`/api/health/live`)는 k8s probe 가 고빈도로
  * 호출하므로 성공 로그를 기본 억제한다 (아래 게이팅 규칙).
  */
 const HEALTH_PROBE_PATHS = new Set(['/api/health', '/api/health/live']);
 
 /**
- * HTTP 요청·응답을 로깅하는 인터셉터 (spec/data-flow/9-observability.md §1.1).
+ * HTTP 요청·응답을 로깅하는 인터셉터 ([로깅과 헬스 체크 「로그 게이팅」](CLE-OBS-LOGGING#로그-게이팅)).
  *
  * health probe 경로(`/api/health`, `/api/health/live`)는 k8s 가 고빈도로 호출하므로
  * 성공 로그를 기본 억제한다 (게이팅 규칙):
@@ -27,8 +27,8 @@ const HEALTH_PROBE_PATHS = new Set(['/api/health', '/api/health/live']);
  *
  * 그 외 경로는 결과와 무관하게 항상 INFO 레벨로 로그한다.
  *
- * HTTP 요청만 로그한다. NestJS 12 부터 `APP_INTERCEPTOR` 가 WebSocket 게이트웨이 핸들러에도
- * 붙는데, 그 컨텍스트의 `switchToHttp().getRequest()` 는 소켓이라 `url` 이 없다.
+ * HTTP 요청만 로그한다. 전역 인터셉터는 WebSocket 게이트웨이 핸들러에도 붙는데(근거는
+ * `isHttpContext`), 그 컨텍스트의 요청은 소켓이라 `url` 이 없다.
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
