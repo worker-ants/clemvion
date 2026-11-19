@@ -41,7 +41,7 @@ export {
  * 2026-10-23 에 전체 GET operation 의 id · path · 설명을 확인해 올렸다. 메타데이터를
  * 다시 생성할 때 새로 생긴 후보는 `dry-run-state-changing-get.spec.ts` 가 잡지만
  * 신호가 휴리스틱이라 사람이 함께 확인한다(`codebase/api-catalogs/README.md`).
- * 타입 검사가 변경을 막고 런타임 Set 은 얼리지 않는다.
+ * `ReadonlySet` 타입이라 add · delete 는 컴파일 오류가 되고, 런타임 Set 은 얼리지 않는다.
  */
 export const MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS: ReadonlySet<string> =
   new Set([
