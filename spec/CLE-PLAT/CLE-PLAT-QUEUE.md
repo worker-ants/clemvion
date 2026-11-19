@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "76e227666520bd292ac1ac528a14fd41d050e4f0a0c58414676c74308aed6d00"
+content_hash: "b27fa2a1ab8f31607548273701b5100932bbaa52e2a03fd381119a81ca581cb9"
 read_as: "approved_fallback"
-task: "CLE-T-GDR39Z"
+task: "CLE-T-AVN7M2"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "45155bd714d732b4d2ab0e718c2663cfbdc177f8f38d508781325af4d3f23661"
-etag: "sha256-5a1bbd3ae4b60c4d9d2f1d651bd13bdef91e828b4e37ee4bb24dc14995f82763"
+mirror_sha256: "17a156612ce57b255218294a9f0fe5ec5c342c653ac0cba4ddaffeba7a8ce468"
+etag: "sha256-dbcbd85782e2aa9bb47fd9d0f5acd4187484d981eb29f607dafa1e9317402f76"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -70,7 +70,7 @@ etag: "sha256-5a1bbd3ae4b60c4d9d2f1d651bd13bdef91e828b4e37ee4bb24dc14995f82763"
 
 재개 큐는 `removeOnFail: false` 로 운영한다. 그래서 재시도(`RESUME_BULLMQ_ATTEMPTS`)를 다 쓴 작업이 `failed` 상태, 곧 DLQ 로 쌓인다. rehydration 이 구조적으로 실패하는 회귀는 DLQ 깊이 급증으로 나타난다. 배포 뒤 `_resumeCheckpoint` 스키마가 어긋나 `buildRetryReentryState` 재구성이 실패하거나 체크포인트가 손상된 경우가 그 예다. 그래서 다음을 둔다.
 
-- **`ContinuationDlqMonitorService`**: DLQ 깊이(`failed`)와 재시도 적체(`delayed`)를 주기적으로 조회한다. 임계를 넘으면 구조화된 `logger.error` 경고를 cooldown 당 1회 남긴다. 임계 초과 경고는 로그 기반을 유지한다. 큐 깊이(waiting·active·delayed·failed)는 `registerQueueDepthProvider` 로 `clemvion.queue.depth` ObservableGauge 에도 노출한다(NF-OB-07, [비기능 요구사항](CLE-PLAT-NFR.md)). 관측(gauge)과 능동 통지(경고)를 나눈다.
+- **`ContinuationDlqMonitorService`**: DLQ 깊이(`failed`)와 재시도 적체(`delayed`)를 주기적으로 조회한다. 임계를 넘으면 구조화된 `logger.error` 경고를 cooldown 당 1회 남긴다. 임계 초과 경고는 로그 기반을 유지한다. 큐 깊이(waiting·active·delayed·failed)는 `registerQueueDepthProvider` 로 `clemvion.queue.depth` ObservableGauge 에도 노출한다([비기능 요구사항 「관측성」](CLE-PLAT-NFR.md#관측성) REQ-NFR-036). 관측(gauge)과 능동 통지(경고)를 나눈다.
 - **`ExecutionRunDlqMonitorService`**: 시작 큐에 대한 같은 모니터다. 환경 변수 `EXECUTION_RUN_DLQ_*` 를 주입받아 임계·주기·cooldown 을 정한다(서비스가 `process.env` 를 직접 읽지 않는다). stalled 재배달을 다 써서(`WORKER_HEARTBEAT_TIMEOUT`) DLQ 로 쌓이는 작업을 본다.
 - **워커 `onFailed`**(`@OnWorkerEvent('failed')`): 실패 1건마다 `RETRY`(재시도 남음) 또는 `DEAD-LETTER`(재시도 소진) 태그와 시도 횟수를 로그에 남긴다.
 
@@ -113,7 +113,7 @@ etag: "sha256-5a1bbd3ae4b60c4d9d2f1d651bd13bdef91e828b4e37ee4bb24dc14995f82763"
 | `chat-channel:listener` | `modules/chat-channel` | 채팅 채널의 트리거 단위 listener 레지스트리 변경을 모든 서버 인스턴스에 알린다([채팅 채널 「R8 트리거 단위 listener 정책」](../CLE-CHAT/CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 워크스페이스와 무관한 전역 pub/sub 채널이다. 놓친 등록은 구독을 다시 확립할 때만 DB 에서 다시 읽어 메운다. 구독이 끊긴 사이 놓친 해제와 구독이 이어진 동안 잃은 메시지는 메우지 않는다. 해시 비교로 놓친 메시지를 메우는 `integration:cache:invalidate` 와 달리 보정이 구독 재확립 때만 있는 예외다. 페이로드 형식은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA.md#redis-키) 가 정한다. 복원 · 유실 정책과 이 예외의 근거는 [채팅 채널 「R-CC-30 트리거 단위 listener 레지스트리의 변경을 Redis pub/sub 로 모든 서버 인스턴스에 알린다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-30-트리거-단위-listener-레지스트리의-변경을-redis-pubsub-로-모든-서버-인스턴스에-알린다) 에 있다 |
 | `eia:sse:live:<executionId>` | `modules/external-interaction` | 실행별 EIA SSE 이벤트 채널이다. 실행 이벤트가 난 서버 인스턴스가 이 채널로 발행하고 그 실행의 SSE 구독자가 있는 서버 인스턴스만 구독한다. 그래서 구독자는 어느 서버 인스턴스에 붙어도 그 실행의 이벤트를 받는다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
 | `eia:sse:close` | `modules/external-interaction` | 트리거 단위 토큰(`itk_*`)이 무효가 되면 그 트리거를 모든 서버 인스턴스에 알린다. 받은 서버 인스턴스는 그 토큰으로 연 SSE 스트림을 닫는다. 워크스페이스와 무관한 전역 pub/sub 채널이다. 페이로드와 실패 정책은 [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq) 가 정한다 |
-| `ws:sio#/ws#` · `ws:sio#/ws#<채널>#` · `ws:sio-request#/ws#` · `ws:sio-response#/ws#[<서버 uid>#]` | `modules/websocket` (`ws-redis-adapter.ts`) | Socket.IO Redis adapter 채널이다. WebSocket 채널 발행을 다른 서버 인스턴스의 같은 채널 구독 소켓에 전달한다. 이름은 라이브러리가 `<접두>#<namespace>#[<채널>#]` 형식으로 만들고 접두만 `ws:sio` 로 정한다. 채널 하나로 보내는 패킷은 `ws:sio#/ws#<채널>#` 로 발행한다. 모든 서버 인스턴스가 `ws:sio#/ws#*` 를 패턴 구독하므로 그 채널의 구독자가 없는 서버 인스턴스도 받는다. 페이로드는 클라이언트가 받는 이벤트 봉투뿐이고 연결 상태는 싣지 않는다. 2026-08-13 에 지운 연결 상태 키 `ws:{wsId}:session:{connId}` 와는 무관하다. 요청 · 응답 채널(`ws:sio-request#/ws#` · `ws:sio-response#/ws#[<서버 uid>#]`)은 라이브러리가 구독만 하고 지금 코드는 쓰지 않는다. 워크스페이스와 무관한 전역 pub/sub 채널이다. 전달 방식과 Redis 가 없거나 끊겼을 때의 실패 정책은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달) 이 정한다. 이름 형식이 명명 규약 밖인 근거는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 에 있다 |
+| `ws:sio#/ws#` · `ws:sio#/ws#<채널>#` · `ws:sio-request#/ws#` · `ws:sio-response#/ws#[<서버 uid>#]` | `modules/websocket` (`ws-redis-adapter.ts`) | Socket.IO Redis adapter 채널이다. WebSocket 채널 발행을 다른 서버 인스턴스의 같은 채널 구독 소켓에 전달한다. 이름은 라이브러리가 `<접두>#<namespace>#[<채널>#]` 형식으로 만들고 접두만 `ws:sio` 로 정한다. 채널 하나로 보내는 패킷은 `ws:sio#/ws#<채널>#` 로 발행한다. 모든 서버 인스턴스가 `ws:sio#/ws#*` 를 패턴 구독하므로 그 채널의 구독자가 없는 서버 인스턴스도 받는다. 페이로드는 클라이언트가 받는 이벤트 봉투뿐이고 연결 상태는 싣지 않는다. 요청 · 응답 채널(`ws:sio-request#/ws#` · `ws:sio-response#/ws#[<서버 uid>#]`)은 라이브러리가 구독만 하고 지금 코드는 쓰지 않는다. 워크스페이스와 무관한 전역 pub/sub 채널이다. 전달 방식과 Redis 가 없거나 끊겼을 때의 실패 정책은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달) 이 정한다 |
 
 ### 다른 모듈의 키
 
@@ -129,8 +129,9 @@ etag: "sha256-5a1bbd3ae4b60c4d9d2f1d651bd13bdef91e828b4e37ee4bb24dc14995f82763"
 | `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) |
 | `auth:webauthn-auth-challenge:<challenge>` | `modules/auth` | [가입과 로그인 — Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](../CLE-ACCT/CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록). 로그인 2단계 Passkey 인증 챌린지를 한 번만 쓰게 하는 기록이다 |
+| `auth:password-recheck-failures:<userId>` | `modules/auth` | [HTTP API 규약 — 요청 빈도 제한 「비밀번호 재확인 실패 한도」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한). 사용자별 비밀번호 재확인 실패 카운터다 |
 
-한 모듈이 접두를 여럿 쓴다. `external-interaction` 은 `iext:`·`interaction:`·`eia:` 를, `chat-channel` 은 긴 접두(`chat-channel:`·`chat-channel-lock:`)와 약어(`cc:`)를 함께 쓴다. `websocket` 은 `exec:seq`(이벤트 순번 키)와 `ws:sio`(adapter 채널 접두)를 함께 쓴다. `ws:sio` 는 라이브러리가 정하는 채널 이름의 접두라 예외로 둔다. 이 예외의 기준은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다. 통일을 강제하지 않지만 모듈마다 접두가 더 늘지 않게 한다. 규칙의 예외 두 계열은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
+한 모듈이 접두를 여럿 쓴다. `external-interaction` 은 `iext:`·`interaction:`·`eia:` 를, `chat-channel` 은 긴 접두(`chat-channel:`·`chat-channel-lock:`)와 약어(`cc:`)를 함께 쓴다. `websocket` 은 `exec:seq`(이벤트 순번 키)와 `ws:sio`(adapter 채널 접두)를 함께 쓴다. `ws:sio` 는 라이브러리가 정하는 채널 이름의 접두라 예외로 둔다. 통일을 강제하지 않지만 모듈마다 접두가 더 늘지 않게 한다. 예외의 기준과 두 계열은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
 
 ### Redis 키가 아닌 것
 
@@ -165,6 +166,7 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 - `codebase/backend/src/modules/hooks/**/*.ts`
 - `codebase/backend/src/modules/integrations/**/*.ts`
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts`
+- `codebase/backend/src/modules/auth/password-recheck-failure-limiter.service.ts`
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts`
 - `codebase/backend/src/modules/websocket/ws-redis-adapter.ts`
 - `codebase/backend/src/common/redis/**/*.ts`
@@ -178,7 +180,7 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 
 ### 작업 단위를 코드 동작 기준으로 적는 이유
 
-옛 큐 목록은 `alerts-evaluator` 의 작업 단위를 "규칙 1건 평가" 로, `integration-expiry-scanner` 를 "매일, 만료 후보 1건 처리" 로 적었다. 실제로는 알림 평가 반복 작업 1개가 켜진 규칙 전체를 순회하고, 만료 스캐너는 매일 3종과 6시간 1종, 모두 4종의 반복 작업이 대상 전체를 일괄 처리한다. 이 문서는 소유 문서([알림 §알림 규칙 평가](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-규칙-평가), [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md))의 서술에 맞춰 적는다.
+옛 큐 목록은 `alerts-evaluator` 의 작업 단위를 "규칙 1건 평가" 로, `integration-expiry-scanner` 를 "매일, 만료 후보 1건 처리" 로 적었다. 실제로는 두 큐 모두 반복 작업이 대상 전체를 일괄 처리한다. 이 문서는 소유 문서([알림 §알림 규칙 평가](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-규칙-평가), [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md))의 서술에 맞춰 적는다.
 
 ### 지운 키 두 개 (2026-08-13)
 
