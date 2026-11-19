@@ -2,19 +2,19 @@
 id: "CLE-NODE-EXTRACTOR-OUTPUT"
 title: "정보 추출기 노드 — 출력 구조와 에러"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-EXTRACTOR"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-EXTRACTOR"]
 area: "CLE-NODE-AI"
-content_hash: "a2a238528fbd4ea4f935da185656e1b6de60c633635aa602d0931e195ab2f3d3"
+content_hash: "bb27e70886a4c833d1dad1572bd1beecd6bf631772956467317fbd02accef275"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1GJKB2"
 source_paths: []
-mirror_sha256: "0f0f39b405a91c21ccd94f524b23257693e8d9ce972efc06f5f9f09bf3a2cbd2"
-etag: "sha256-6058be0eeb6ee99e5e9d1bebd2b4df68ff7cd283f10716a885dd239199721fcd"
+mirror_sha256: "f15dc603e59ee9f8a5acae06249860450be96e9f9d09eeae82469b130e2cb9e7"
+etag: "sha256-9a429fc032d0b3e42b2f86884c67d9e2d58ebfa1477a924bc1ad645a4cfdc299"
 ---
 ## 개요
 
@@ -93,7 +93,7 @@ etag: "sha256-6058be0eeb6ee99e5e9d1bebd2b4df68ff7cd283f10716a885dd239199721fcd"
 | `output.result.endReason` | `'out'` | 핸들러 | 단일 턴 정상 종료 사유. 종료 사유 패키지 밖 값이다([인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md)) |
 | `output.result.turnCount` | number | 핸들러 | 단일 턴은 늘 `1` |
 | `output.result.originalInput` | string | 핸들러 | LLM 에 넣은 실제 입력 |
-| `meta.durationMs` | number | 핸들러·엔진 | 총 실행 시간(ms) |
+| `meta.durationMs` | number | 핸들러 | 총 실행 시간(ms) |
 | `meta.model` | string | LLM 응답 | 실제 모델 ID |
 | `meta.{inputTokens, outputTokens, totalTokens, thinkingTokens}` | number | LLM 사용량 | 토큰 회계([AI 노드 공통](CLE-NODE-AI-COMMON.md)) |
 | `meta.turnDebug` | Array | 핸들러 | 턴별 LLM 호출 기록(단일 턴은 1항목). 필드 의미는 [AI 에이전트 노드 출력과 디버그](CLE-NODE-AGENT-OUTPUT.md) |
@@ -147,7 +147,7 @@ etag: "sha256-6058be0eeb6ee99e5e9d1bebd2b4df68ff7cd283f10716a885dd239199721fcd"
 | `output.error.details.retryAfterSec` | number? | 핸들러 | provider 신호가 있을 때 권장 대기(초). `retryable === true` 일 때만 |
 | `output.error.details`(기타) | object? | 핸들러 | `attempts`·`originalInput`·`lastResponse`·`turnCount`·`collectionRetryCount` 등 |
 | `output.result` | object? | 핸들러 | 멀티턴 `LLM_CALL_FAILED` 한정. `extracted`·`endReason: 'error'`·`turnCount`·`messages` 부분 결과. 노드 취소로 끝난 멀티턴에는 출력 자체가 없다 |
-| `meta.durationMs` | number | 핸들러·엔진 | 실행 시간 |
+| `meta.durationMs` | number | 핸들러 | 실행 시간 |
 | `meta.model` | string? | LLM 응답 | 호출이 일부라도 성공했을 때만. 공통 규약과 다르다([AI 노드 공통](CLE-NODE-AI-COMMON.md) 미결 사항) |
 | `meta.collectionRetryCount` | number? | 핸들러 | 멀티턴 에러 때 누적값 |
 | `meta.turnDebug` | Array | 핸들러 | 턴별 기록 |
@@ -353,7 +353,7 @@ etag: "sha256-6058be0eeb6ee99e5e9d1bebd2b4df68ff7cd283f10716a885dd239199721fcd"
 | `output.result.turnCount` | number | 핸들러 | 실제 진행 턴 수 |
 | `output.result.messages` | `ChatMessage[]` | 핸들러 | 누적 대화 |
 | `output.error` | object | 핸들러 | `max_retries` 한정. 멀티턴 `LLM_CALL_FAILED` 도 같은 형태(에러 절) |
-| `meta.durationMs` | number | 핸들러·엔진 | 누적 실행 시간 |
+| `meta.durationMs` | number | 핸들러 | 누적 실행 시간 |
 | `meta.model` | string | 핸들러 | 사용한 모델 |
 | `meta.{inputTokens, outputTokens, totalTokens, thinkingTokens}` | number | LLM 사용량 누적 | 턴별 합산 |
 | `meta.collectionRetryCount` | number | 핸들러 | 재질의 누적 |

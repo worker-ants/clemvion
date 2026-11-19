@@ -2,19 +2,19 @@
 id: "CLE-NODE-TRIG-COMMON"
 title: "트리거 노드 공통"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-TRIG"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-TRIG"]
 area: "CLE-NODE-TRIG"
-content_hash: "eac4c135bc60e4330cc4b8e212ecb50c94f0e033f6a62e5ad59db5d8f4c83976"
-read_as: "approved"
-task: null
+content_hash: "809847cbb4fd83738c15ecfed150ede58d04a89b3e2350d989afaa25340e1dfc"
+read_as: "approved_fallback"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/7-trigger/0-common.md"]
-mirror_sha256: "c05b4a64b3e21737c481fd40000398ace636a519096f155cfc11eca4eda5485f"
-etag: "sha256-6babd50c2888c825e4a387a5bf51e30afa4574bac933d9a178cbb7faa3001d4f"
+mirror_sha256: "a9f3ecd2ccd79e0e9d11d5c6da8fe568c39ae48338c00003de6633b1dea66371"
+etag: "sha256-99a82060ed4fa202a86bb2f648f8e07e65fd5dd274631c73772fbc612c4dc48a"
 ---
 > 구현 상태: 구현됨(설정 요약은 미구현) · 원문: `spec/4-nodes/7-trigger/0-common.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -86,7 +86,7 @@ interface TriggerParameterDefinition {
 | --- | --- |
 | `config` | 원본 설정 에코. 수동 트리거 노드는 `config.parameters` 에 `TriggerParameterDefinition[]` 스키마를 그대로 싣는다(값이 아니라 스키마). |
 | `output` | 모은 파라미터 값. 수동 트리거 노드는 `output.parameters` 에 `$params`(= `$input.parameters`)를 싣는다. `config.parameters` 는 스키마, `output.parameters` 는 해석된 값이라 서로 겹치지 않는다([Principle 1.1](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다)). |
-| `meta` | 실행 메트릭만 둔다. `meta.durationMs` 는 보통 0 이다(외부 호출이 없다). 진입 경로 표시 `meta.source: 'manual' \| 'webhook' \| 'schedule'` 는 필수다. 진입 어댑터가 넣은 `__triggerSource` 마커를 핸들러가 받아 채운다. |
+| `meta` | 실행 메트릭만 둔다. `meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)). 진입 경로 표시 `meta.source: 'manual' \| 'webhook' \| 'schedule'` 는 필수다. 진입 어댑터가 넣은 `__triggerSource` 마커를 핸들러가 받아 채운다. |
 | `port` | 출력이 하나라서 `undefined` 또는 `'out'`(메타데이터에 정의한 정적 포트) |
 | `status` | 입력을 기다리지 않고 바로 끝나므로 `undefined` |
 

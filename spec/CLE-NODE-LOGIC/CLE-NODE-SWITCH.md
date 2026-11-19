@@ -2,19 +2,19 @@
 id: "CLE-NODE-SWITCH"
 title: "Switch 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-SWITCH-001", "REQ-SWITCH-002", "REQ-SWITCH-003", "REQ-SWITCH-004", "REQ-SWITCH-005", "REQ-SWITCH-006", "REQ-SWITCH-007", "REQ-SWITCH-008", "REQ-SWITCH-009", "REQ-SWITCH-010", "REQ-SWITCH-011", "REQ-SWITCH-012", "REQ-SWITCH-013", "REQ-SWITCH-014", "REQ-SWITCH-015", "REQ-SWITCH-016", "REQ-SWITCH-017", "REQ-SWITCH-018", "REQ-SWITCH-019", "REQ-SWITCH-020", "REQ-SWITCH-021", "REQ-SWITCH-022", "REQ-SWITCH-023", "REQ-SWITCH-024"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "81f3f50a09faf3597864ce78d324540c6928b6c91232008546f5c9c7497bfbb3"
+content_hash: "36ce8ec9af445531dd5037826ff92a8f337b58bacf3449289ea1e078cb6e76d0"
 read_as: "approved_fallback"
-task: "CLE-T-W0377J"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/1-logic/2-switch.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c4fda9b7c6614df6f85b5dbae250f90e1875e99922bc766bab04f7d954c0ed99"
-etag: "sha256-a58f22be06c5440a31c5371b0c8be254e829eaf9372a52c8f1868efcf82248cd"
+mirror_sha256: "8e1808e30372e9bea68b87eab44e536b3e13eee625225353792ac6b10bf5cc54"
+etag: "sha256-c5e4ba87ff411c9c68ce6b4ab9c7a1b2a66382b47626ddbf1fd56d2c961d4cf1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/2-switch.md`, `spec/4-nodes/_product-overview.md` (§4.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -135,7 +135,6 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
   },
   "output": { "user": { "role": "admin", "name": "Alice" } },
   "meta": {
-    "durationMs": 0,
     "mode": "value",
     "matchedCase": "case_admin",
     "matchedCaseLabel": "Admin",
@@ -146,15 +145,18 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
 }
 ```
 
+`config.*` 행은 [설정 에코 표의 범례](../CLE-NODE/CLE-NODE-OUTPUT-ECHO.md#설정-에코-표의-범례)를 따른다.
+
+`meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)).
+
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.mode` | `'value'` / `'expression'` | 설정 에코 | 매칭 모드(기본 `value`) |
 | `config.switchValue` | unknown | 설정 에코 | 원래 형태. 사용자가 `{{ $input.user.role }}` 로 입력했으면 그대로 남는다. 평가한 값은 `meta.resolvedValue` 에 있다 |
 | `config.cases` | `CaseDef[]` | 설정 에코 | 사용자가 입력한 원래 케이스 목록. 케이스의 `value` / `condition` 도 원래 형태로 남는다 |
-| `config.hasDefault?` | boolean | 설정 에코 | `default` 포트 사용 여부. 핸들러는 스키마 기본값(`false`)도 동작 기본값(`true`)도 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 동작은 `true` 와 같다([실행 로직](#실행-로직) 4단계) |
-| `config.strictComparison?` | boolean | 설정 에코 | 엄격 비교 모드. 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 비교는 `false` 일 때와 같다 |
+| `config.hasDefault?` | boolean | 설정 에코 | `default` 포트 사용 여부. 설정하지 않으면 스키마 기본값 `false` 가 아니라 `true` 와 같다([실행 로직](#실행-로직) 4단계) |
+| `config.strictComparison?` | boolean | 설정 에코 | 엄격 비교 모드. 설정하지 않으면 `false` 와 같다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로. `output.view` / `output.type` 같은 판별자는 쓰지 않는다 |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 엔진이 모든 노드에 주입한다 |
 | `meta.mode` | `'value'` / `'expression'` | 핸들러 반환 | 기본값을 적용한 뒤의 모드 |
 | `meta.matchedCase` | string | 핸들러 반환 | 매칭된 케이스 id |
 | `meta.matchedCaseLabel?` | string | 핸들러 반환 | 매칭된 케이스의 `label`. 케이스에 `label` 이 없으면 값이 `undefined` 라 JSON 에서 빠진다 |
@@ -190,7 +192,6 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
   },
   "output": { "user": { "role": "viewer", "name": "Charlie" } },
   "meta": {
-    "durationMs": 0,
     "mode": "value",
     "matchedCase": "default",
     "matchedCaseIndex": -1,
@@ -205,7 +206,7 @@ Switch 는 경로만 고르는 패스스루 노드라서 출력 케이스가 케
 | `config.*` | 케이스 매칭과 같음 | 설정 에코 | 케이스 매칭과 같은 다섯 키(`mode` · `switchValue` · `cases` · `hasDefault` · `strictComparison`)를 싣는다. 어느 포트로 가든 설정 에코는 같다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로 |
 | `meta.matchedCase` | `'default'` | 핸들러 반환 | 매칭 실패 때의 고정 문자열 |
-| `meta.matchedCaseLabel?` | `undefined` | 핸들러 반환 | `default` 대체 때는 전용 label 이 없어 항상 `undefined` 라 JSON 에서 빠진다 |
+| `meta.matchedCaseLabel?` | string | 핸들러 반환 | `default` 대체 때는 전용 label 이 없어 늘 비어 있다. 저장된 출력과 API 응답에는 보이지 않는다 |
 | `meta.matchedCaseIndex` | `-1` | 핸들러 반환 | `default` 대체 표시 값 |
 | `meta.resolvedValue?` | unknown | 핸들러 반환 | `mode=value` 일 때 평가한 `switchValue`. `default` 대체여도 남긴다. `mode=expression` 이면 싣지 않는다 |
 | `port` | `'default'` | 핸들러 반환 | 정적 `default` 포트 |

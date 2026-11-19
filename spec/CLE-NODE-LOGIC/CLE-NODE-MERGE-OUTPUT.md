@@ -2,19 +2,19 @@
 id: "CLE-NODE-MERGE-OUTPUT"
 title: "Merge 노드 — 실행 로직과 출력 구조"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-MERGE"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-MERGE"]
 area: "CLE-NODE-LOGIC"
-content_hash: "4d4e56f0b4d6b12aadc4f5031d0dc37df08d8916e46137bf8b1c42a99cc09760"
+content_hash: "a2b2c05d671c681a0f15358ad32b242e6264f806f1a7f43370bc6d63b68d2953"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1GJKB2"
 source_paths: []
-mirror_sha256: "0e59cce1c1dd1ddf9b867adaf087dc47adaa698eb4ac814cee42ac0c50460704"
-etag: "sha256-6815fa7b4332ec148913ffa8b228a2fc3ba26d243a81151ac79657a7c9ca9297"
+mirror_sha256: "bd2cf55f9ae82a07935d62e292067b011fe31097f7f29fb2b20b45648ec21baa"
+etag: "sha256-66e0d9cf7798ffea6ca5a1797916d876973582710234de74a3752308c464ad46"
 ---
 > 구현 상태: 구현됨 · 상위: [Merge 노드](CLE-NODE-MERGE.md)
 
@@ -29,7 +29,7 @@ etag: "sha256-6815fa7b4332ec148913ffa8b228a2fc3ba26d243a81151ac79657a7c9ca9297"
 3. `outputFormat` 에 따라 결과를 만든다([형식별 결과](#형식별-결과)). `merge_object` 에서 prototype pollution 때문에 버린 키는 따로 모아 정렬·중복 제거한 뒤 `meta.skippedKeys` 에 싣는다.
 4. `timeout > 0` 이거나 `partialOnTimeout === true` 면 warn 로그를 남긴다. 실행 결과에는 영향이 없다(barrier 가 동작하지 않는다). 해당 필드는 `meta.dormantFields` 에 쌓인다. 같은 조건의 노드 경고 규칙은 `blocking` 으로 평가돼 `handler.validate` 를 막는다([에러](CLE-NODE-MERGE.md#에러)). 엔진은 노드를 실행하기 직전에 `handler.validate` 를 부른다. 검증이 실패하면 에러 메시지가 `INVALID_NODE_CONFIG:` 로 시작하는 에러로 실행이 실패한다([노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#노드-실행-흐름)). 그래서 엔진 경로에서는 dormant 값이 이 단계까지 오지 않는다. warn 로그와 `meta.dormantFields` 의 항목은 `handler.validate` 를 거치지 않고 실행한 경우에만 생긴다.
 5. `config` 에는 dormant 여부와 상관없이 스키마 4필드를 모두 싣는다(설정 에코. [노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4). `strategy` / `outputFormat` 은 `context.rawConfig` 값에 기본값 대체(`?? 'wait_all'` / `?? 'array'`)를 적용한다. `timeout` / `partialOnTimeout` 은 `rawConfig` 값을 대체 없이 그대로 싣는다(저장된 설정에 키가 없으면 `undefined` 라서 JSON 에서 빠진다).
-6. `meta` 에 `inputCount` / `strategy` / `outputFormat` / `skippedKeys` / `dormantFields` 를 채워 반환한다. `durationMs` 는 엔진이 주입한다.
+6. `meta` 에 `inputCount` / `strategy` / `outputFormat` / `skippedKeys` / `dormantFields` 를 채워 반환한다. `meta.durationMs` 는 싣지 않는다.
 
 ### 입력 정규화
 
@@ -67,7 +67,6 @@ Merge 는 단일 출력 데이터 노드라서 정상 케이스 하나뿐이다.
   },
   "output": [{ "a": 1 }, { "b": 2 }],
   "meta": {
-    "durationMs": 0,
     "inputCount": 2,
     "strategy": "wait_all",
     "outputFormat": "array",
@@ -84,7 +83,6 @@ Merge 는 단일 출력 데이터 노드라서 정상 케이스 하나뿐이다.
 | `config.timeout?` | number | 설정 에코 | `rawConfig.timeout` 을 대체 없이 그대로 싣는다. 위 예시는 기본 설정(`timeout: 0`)으로 만든 노드다. 저장된 설정에 키가 없으면 `undefined` 라서 JSON 에서 빠진다 |
 | `config.partialOnTimeout?` | boolean | 설정 에코 | `rawConfig.partialOnTimeout` 을 대체 없이 그대로 싣는다. 저장된 설정에 키가 없으면 `undefined` 라서 JSON 에서 빠진다 |
 | `output` | `unknown[]` / `Record<string, unknown>` | 런타임, `outputFormat` 별 | 병합 결과. 모양은 [형식별 결과](#형식별-결과) |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms) |
 | `meta.inputCount` | number | 런타임 | 실제로 합친 입력 수. `strategy: 'first'` 면 1(정규화 후 잘라 낸 길이) |
 | `meta.strategy` | `'wait_all'` / `'first'` / `'append'` | 런타임, 기본값 적용 | 적용한 전략. `meta` 는 평가한 설정에서, `config.strategy` 는 원문에서 기본값을 채운다. enum 이라 표현식을 쓰지 않으므로 두 값은 같다. [노드 출력 규약 Principle 2](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 예외로 둔다([Rationale](#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다-2026-11-12)) |
 | `meta.outputFormat` | `'array'` / `'merge_object'` / `'indexed'` | 런타임, 기본값 적용 | 적용한 출력 형식. `config.outputFormat` 과 같은 값이고 `meta.strategy` 와 같은 예외다 |
@@ -93,7 +91,7 @@ Merge 는 단일 출력 데이터 노드라서 정상 케이스 하나뿐이다.
 
 `output` 의 타입 자체가 `outputFormat` 에 따라 달라진다(`array` 는 배열, `merge_object` · `indexed` 는 객체). 뒤 노드가 안전하게 나누려면 `$node["X"].config.outputFormat` 을 키로 쓴다.
 
-`meta.durationMs` 는 엔진이 모든 노드에 주입한다. 나머지 `meta` 필드는 핸들러가 채운다. `meta.skippedKeys` / `meta.dormantFields` 는 해당이 없어도 항상 `[]` 로 실어 뒤 노드의 선택적 확인을 단순하게 한다.
+`meta` 필드는 모두 핸들러가 채운다. `meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)). `meta.skippedKeys` / `meta.dormantFields` 는 해당이 없어도 항상 `[]` 로 실어 뒤 노드의 선택적 확인을 단순하게 한다.
 
 #### 출력 형식별 예시
 

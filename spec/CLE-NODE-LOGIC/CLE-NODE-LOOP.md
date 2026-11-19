@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOOP"
 title: "Loop 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-LOOP-001", "REQ-LOOP-002", "REQ-LOOP-003", "REQ-LOOP-004", "REQ-LOOP-005", "REQ-LOOP-006", "REQ-LOOP-007", "REQ-LOOP-008", "REQ-LOOP-009", "REQ-LOOP-010", "REQ-LOOP-011", "REQ-LOOP-012", "REQ-LOOP-013", "REQ-LOOP-014", "REQ-LOOP-015", "REQ-LOOP-016", "REQ-LOOP-017", "REQ-LOOP-018", "REQ-LOOP-019", "REQ-LOOP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "d77b7d725a55aac3488851df180253af9117bcdac242cda591fd828d1caae78c"
+content_hash: "a4a5dd6285b38a53956fd19e4fccd050916a213513af6793a3c622ac072c400b"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/1-logic/3-loop.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "f21e115eddf7c2bfbeecd1afb4853134f65305ee3e342c9848cdb87e423b73e1"
-etag: "sha256-bddf57d4f807591007a4f34dcf28af2dc588bf5b573376fdc8984a487038aa96"
+mirror_sha256: "19316cb3a0cfc31968adbfe4e087838b2636c860cf1f230b4d81929bf1e67bb7"
+etag: "sha256-fa5a3feb8cdcf46d4c025014adfcfc693a89601db789483ce5d7b8a7eee4e0fb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -142,7 +142,7 @@ Loop 는 컨테이너라서 핸들러가 반환하는 출력과 엔진 덮어쓰
 | `config.breakCondition?` | string | 설정 에코 | 사용자가 입력한 원래 표현식 문자열. 평가하지 않은 원문이다. 엔진은 반복 회차마다 이 식을 따로 평가한다([실행 로직](#실행-로직) 6번). 설정하지 않으면 `undefined` 라서 JSON 에서 빠진다 |
 | `output` | `null` | 핸들러 반환 | 엔진 덮어쓰기 신호. 엔진이 완료 시점 형태로 덮어쓴다 |
 
-- `breakCondition` 도 다른 비민감 필드처럼 원문을 싣는다. 이 필드가 표현식 평가 제외 목록(`expression-exclusions.ts`)에 있는 것은 평가에서 뺀다는 뜻이고 에코에서 뺀다는 뜻은 아니다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙)). 핸들러(`loop.handler.ts`)는 `count` · `maxIterations` 와 함께 이 원문을 싣는다. 결정과 근거는 [Rationale](#breakcondition-도-설정-에코에-싣는다-2026-11-12) 에 있다.
+- `breakCondition` 도 다른 비민감 필드처럼 원문을 싣는다. 이 필드가 표현식 평가 제외 목록(`expression-exclusions.ts`)에 있는 것은 평가에서 뺀다는 뜻이고 에코에서 뺀다는 뜻은 아니다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙)). 핸들러(`loop.handler.ts`)는 `count` · `maxIterations` 와 함께 이 원문을 싣는다. 결정과 근거는 [Rationale](#breakcondition-도-설정-에코에-싣는다) 에 있다.
 - Loop 는 입력을 나눠 주지 않고 횟수로 도는 컨테이너다. 그래서 이 시점의 본문 입력은 `undefined` (첫 회차)이거나 직전 회차의 emit 출력이다.
 
 ### 완료 시점 (`done` 포트)
@@ -261,13 +261,15 @@ Loop 에는 노드 경고 규칙이 없다(`warningRules: []`). 이유는 [Ratio
 
 ### 캔버스에서 그룹 박스로 그리지 않는다
 
-노드 요구사항 ND-LP-06 은 Loop 를 "자식 노드를 배치할 수 있는 확장 가능 그룹 박스" 로 그린다고 적었다. 캔버스는 시각 containment 를 쓰지 않기로 정했다. 컨테이너는 일반 노드와 같은 크기로 그리고 자식 노드는 캔버스 어디에나 놓는다. 자식 노드의 소속은 `containerId` 와 자식 헤더 아래 `in <컨테이너 레이블>` 배지로만 나타낸다([워크플로우 에디터와 캔버스 §시각 표현](../CLE-WF/CLE-WF-EDITOR.md#시각-표현)). REQ-LOOP-006 은 이 결정에 맞춰 적었다.
+옛 노드 요구사항은 Loop 를 "자식 노드를 배치할 수 있는 확장 가능 그룹 박스" 로 그린다고 적었다. 캔버스는 시각 containment 를 쓰지 않기로 정했다. 컨테이너는 일반 노드와 같은 크기로 그리고 자식 노드는 캔버스 어디에나 놓는다. 자식 노드의 소속은 `containerId` 와 자식 헤더 아래 `in <컨테이너 레이블>` 배지로만 나타낸다([워크플로우 에디터와 캔버스 §시각 표현](../CLE-WF/CLE-WF-EDITOR.md#시각-표현)). REQ-LOOP-006 은 이 결정에 맞춰 적었다.
 
 ### `$loop` 는 네 키만 두고 `$parent` 를 두지 않는다
 
 엔진 원문만 `$loop.count` 와 `$parent.loop` 를 적었고 이 문서의 원문, [표현식 언어](../CLE-WF/CLE-WF-EXPR.md), 현재 구현은 모두 "`$loop` 는 네 키, `$parent` 없음" 이었다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#반복-변수-표면은-표현식-언어를-따른다) 이 소유 문서인 표현식 언어 기준으로 정리했으므로 이 문서도 그 기준을 현재 규칙으로 쓰고 미결을 닫았다.
 
-### `breakCondition` 도 설정 에코에 싣는다 (2026-11-12)
+### `breakCondition` 도 설정 에코에 싣는다
+
+결정일: 2026-11-12
 
 **결정**: 핸들러가 `breakCondition` 원문을 시작 시점 `config` 에 싣는다. [노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4 에 예외를 두지 않는다. 구현은 NERV Task `CLE-T-CYCGST` 가 맡는다(결정 Task `CLE-T-QV1NFT`).
 
@@ -275,7 +277,9 @@ Loop 에는 노드 경고 규칙이 없다(`warningRules: []`). 이유는 [Ratio
 
 **기각한 대안** (2026-11-12 사용자 선택): 규약 Principle 7 에 예외 목록(노드 · 필드 · 이유)을 두고 Loop `breakCondition` 을 올린다. 코드는 바꾸지 않아도 되지만 다음 노드가 노드마다 어떤 필드가 빠지는지 따로 알아야 하고 예외가 늘어날 길이 열린다.
 
-### 실행 시간 서술을 노드 전체 시간으로 고친다 (2026-11-15)
+### 실행 시간 서술을 노드 전체 시간으로 고친다
+
+결정일: 2026-11-15
 
 이 문서는 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간이 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다고 적었다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 한 번 마감하게 고쳐서 두 값이 반복 회차까지 포함한 노드 전체 시간이 됐다. 그래서 그 문장을 고쳤다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
 

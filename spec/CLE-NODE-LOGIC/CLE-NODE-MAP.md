@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020", "REQ-MAP-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "8a9d67951519094842d5f97a6e566d3fa1c0a58ec60aaf588bdcf902672b1b24"
+content_hash: "ccb2cebe31b562c736c4bf7dddba30aa1336e88628795deeb102d6617e1d3cc3"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "64176d91180d88071c3d5220bb121ccda5efbf32bafa5f910f26a2ea38e546f5"
-etag: "sha256-218e17ead79f0659b0ae228c648fe95480a205dfc952c013a53e8a615ea3adca"
+mirror_sha256: "3631382ace3b6354c15668e30751fc147cabdb9ec13f123c1cfaf49c50d883c4"
+etag: "sha256-ea0fad2f641e9570d077b626caeb58232df35f14d7c4b8518a47ec36544b731f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -112,10 +112,12 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.inputField` | Expression | 설정 에코 | 사용자가 입력한 원래 표현식. `{{ }}` 을 남긴다 |
-| `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 엔진은 `stop` 일 때와 같이 동작한다 |
+| `config.inputField` | Expression | 설정 에코 | 변환할 배열 경로·표현식 |
+| `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책. 설정하지 않으면 `stop` 과 같다 |
 | `output` | unknown[] | 런타임, 핸들러 반환 | 해석한 원래 배열(항목이 본문으로 나뉜다). `inputField` 가 배열이 아니거나 해석되지 않으면 `[]` |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `inputField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
+
+`config.*` 행은 [설정 에코 표의 범례](../CLE-NODE/CLE-NODE-OUTPUT-ECHO.md#설정-에코-표의-범례)를 따른다.
 
 이 시점의 `output` 은 해석한 원래 배열이다. 본문 반복 입력을 나눠 주는 데만 쓰고 다음 노드가 직접 참조하면 안 된다. 완료 뒤 `{ mapped, count }` 로 덮어써진다. 이 배열을 엔진 내부 표현으로 두는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」 에 있다.
 
@@ -228,7 +230,9 @@ Map 과 ForEach 는 같은 실행기를 쓰지만 뜻이 다르다. ForEach 는 
 
 시작 시점 배열을 엔진 내부 표현으로 두는 결정은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」 에 있다. 실패 표현을 ForEach 와 다르게 두는 결정은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#foreach-와-map-의-실패-표현을-다르게-둔다) 의 Rationale 「ForEach 와 Map 의 실패 표현을 다르게 둔다」 에 있다.
 
-### 설정 패널이 항목 에러 정책을 지우지 않는다 (2026-10-10)
+### 설정 패널이 항목 에러 정책을 지우지 않는다
+
+결정일: 2026-10-10
 
 2026-10-10 에 설정 패널이 항목 에러 정책을 지우던 결함을 고쳤다(NERV Task `CLE-T-V0JAG1`). 결정과 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
 
@@ -240,7 +244,9 @@ Map 은 `inputField` 가 배열이 아니면 원시값 · 객체까지 모두 `[
 
 같은 작업에서 완료 `meta` 에 `iterations` 와 `skippedCount` 를 더했다. Map 은 ForEach 와 같은 실행기를 쓰는데 완료 메트릭이 없어 실패 항목 수를 보려면 `mapped` 배열을 돌아야 했다. 그래서 ForEach 와 같은 실행기가 이미 내는 값을 Map 문서에도 적었다.
 
-### 실패한 회차의 `error.code` 를 ForEach · Parallel 과 같은 규칙으로 고른다 (2026-11-05)
+### 실패한 회차의 `error.code` 를 ForEach · Parallel 과 같은 규칙으로 고른다
+
+결정일: 2026-11-05
 
 Map 은 ForEach 실행기를 함께 써서 `mapped[i]` 의 `_skipped` 표시에 실행기가 고른 `error.code` 를 그대로 싣는다. 그전 값은 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-MAP-021). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. Map 만 따로 바꾸면 같은 실행기의 ForEach 와 값이 갈려 함께 바꿨다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.
 
@@ -250,7 +256,9 @@ Map 은 ForEach 실행기를 함께 써서 `mapped[i]` 의 `_skipped` 표시에 
 
 포트 절은 에러 처리 정책 "에러 포트로 라우팅" 으로 생기는 동적 에러 포트가 아직 구현되지 않았다고 적었다. NERV Task `CLE-T-K0Y546` 이 이 포트를 구현해서 그 서술을 지웠다. 문서가 정하는 동작은 바뀌지 않는다. 기존 워크플로우 영향은 없다.
 
-### 완료 출력의 범위 단서를 걷는다 (2026-11-15)
+### 완료 출력의 범위 단서를 걷는다
+
+결정일: 2026-11-15
 
 2026-10-24 구현 확인 때 이 문서는 완료 출력이 park · 재구동 없이 이어진 실행에서만 보인다는 조건을 붙여 적었다. 노드 실행 기록 · completed 이벤트 · rehydration 에 시작 시점 배열이 남았기 때문이다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았다. 그래서 범위 단서와 `(부분 구현)` 표시를 걷고 원래 서술로 돌렸다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
 

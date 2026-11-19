@@ -2,19 +2,19 @@
 id: "CLE-NODE-CODE"
 title: "Code 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-CODE-001", "REQ-CODE-002", "REQ-CODE-003", "REQ-CODE-004", "REQ-CODE-005", "REQ-CODE-006", "REQ-CODE-007", "REQ-CODE-008", "REQ-CODE-009", "REQ-CODE-010", "REQ-CODE-011", "REQ-CODE-012", "REQ-CODE-013", "REQ-CODE-014", "REQ-CODE-015", "REQ-CODE-016", "REQ-CODE-017", "REQ-CODE-018", "REQ-CODE-019", "REQ-CODE-020", "REQ-CODE-021", "REQ-CODE-022", "REQ-CODE-023", "REQ-CODE-024", "REQ-CODE-025", "REQ-CODE-026", "REQ-CODE-027", "REQ-CODE-028", "REQ-CODE-029", "REQ-CODE-030"]
 basis_superseded: false
 parent: "CLE-NODE-DATA"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-DATA"]
 area: "CLE-NODE-DATA"
-content_hash: "03ffbddd876ccd5c609e53b5f50ba5d3a21be99262b1c0b20a00466a65cc26f4"
+content_hash: "2c619f5806e9baa6d6e999ecec2c84a17aa4b2e7be1709676762517a40ef2560"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/5-data/2-code.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "9a6fd2e4f0b880df3a8e15ac6e47e6eeebf3bb1841a60b4f277fdc1f8bc6a7d2"
-etag: "sha256-ec0cebd7aea29c9c205d4a5fe853b567fc9776e566722e786321192ee8048d2a"
+mirror_sha256: "3e114929ddf679405d55ad2abda5aecc39048a2e71d2e346b5cc45e21bff6847"
+etag: "sha256-a11012ae5b5eb57ea01b3e12b4f855a20e6fd782c19adad6b23bff76fedb4aa9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/5-data/2-code.md`, `spec/4-nodes/_product-overview.md` (§8.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -177,7 +177,7 @@ Code 노드(`code`)는 사용자가 쓴 JavaScript 로 데이터를 자유롭게
     "timeout": 30
   },
   "output": 42,
-  "meta": { "durationMs": 7, "success": true, "logs": [] },
+  "meta": { "success": true, "logs": [] },
   "port": "success"
 }
 ```
@@ -188,10 +188,11 @@ Code 노드(`code`)는 사용자가 쓴 JavaScript 로 데이터를 자유롭게
 | `config.code` | string | 설정 에코 | 사용자 코드 원본. 표현식 평가에서 빠지므로 `{{ }}` 가 있어도 평가하지 않는다. 길이 제한 없음 |
 | `config.timeout` | number? | 설정 에코 | 사용자가 정한 타임아웃(초). 없으면 기본 `30` |
 | `output` | any | 런타임(사용자 `return` 값) | 원시값(`42`)·객체·배열·`undefined`(`return` 없음) 모두 가능. 모양은 사용자 코드가 정한다(Principle 8 의 `output.result` 감싸기를 쓰지 않는다) |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms) |
 | `meta.success` | `true` | 핸들러 반환 | Code 노드 전용 편의 필드(Principle 2) |
 | `meta.logs` | string[] | 핸들러 반환 | `console.log/warn/error` 캡처. `[level] payload` 형식, 최대 100줄 |
 | `port` | `'success'` | 핸들러 반환 | 정상 종료 분기 |
+
+`meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)).
 
 표현식 접근 예: `$node["X"].output` → `42`, `$node["X"].meta.success` → `true`, `$node["X"].meta.logs` → `[]`.
 
@@ -201,7 +202,7 @@ Code 노드(`code`)는 사용자가 쓴 JavaScript 로 데이터를 자유롭게
 {
   "config": { "language": "javascript", "code": "console.log('processing', 1); return { ok: true };", "timeout": 30 },
   "output": { "ok": true },
-  "meta": { "durationMs": 9, "success": true, "logs": ["[log] processing 1"] },
+  "meta": { "success": true, "logs": ["[log] processing 1"] },
   "port": "success"
 }
 ```
@@ -211,7 +212,7 @@ Code 노드(`code`)는 사용자가 쓴 JavaScript 로 데이터를 자유롭게
 ```json
 {
   "config": { "language": "javascript", "code": "const x = 1;", "timeout": 30 },
-  "meta": { "durationMs": 1, "success": true, "logs": [] },
+  "meta": { "success": true, "logs": [] },
   "port": "success"
 }
 ```
@@ -233,7 +234,7 @@ Code 노드(`code`)는 사용자가 쓴 JavaScript 로 데이터를 자유롭게
       }
     }
   },
-  "meta": { "durationMs": 5, "success": false, "logs": [] },
+  "meta": { "success": false, "logs": [] },
   "port": "error"
 }
 ```
@@ -252,7 +253,7 @@ Code 노드(`code`)는 사용자가 쓴 JavaScript 로 데이터를 자유롭게
       "details": { "legacyCode": "EXECUTION_TIMEOUT", "stack": "..." }
     }
   },
-  "meta": { "durationMs": 1000, "success": false, "logs": [] },
+  "meta": { "success": false, "logs": [] },
   "port": "error"
 }
 ```
@@ -269,12 +270,12 @@ Code 노드(`code`)는 사용자가 쓴 JavaScript 로 데이터를 자유롭게
       "details": { "legacyCode": "EXECUTION_MEMORY_EXCEEDED", "stack": "..." }
     }
   },
-  "meta": { "durationMs": 42, "success": false, "logs": [] },
+  "meta": { "success": false, "logs": [] },
   "port": "error"
 }
 ```
 
-isolate 가 `memoryLimit` 을 넘으면 V8 이 isolate 를 즉시 버린다. 핸들러는 이 에러를 `EXECUTION_MEMORY_EXCEEDED` 로 분류하고 `CODE_MEMORY_LIMIT` 로 정규화한다. 핸들러는 `meta: { success, logs }` 만 돌려주고 엔진이 `durationMs` 를 덧붙인다. 위 `42` 는 예시 값이다.
+isolate 가 `memoryLimit` 을 넘으면 V8 이 isolate 를 즉시 버린다. 핸들러는 이 에러를 `EXECUTION_MEMORY_EXCEEDED` 로 분류하고 `CODE_MEMORY_LIMIT` 로 정규화한다.
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
@@ -283,7 +284,6 @@ isolate 가 `memoryLimit` 을 넘으면 V8 이 isolate 를 즉시 버린다. 핸
 | `output.error.message` | string | 핸들러 반환 | 사람이 읽는 에러 메시지(로그·디버깅용 원문) |
 | `output.error.details.legacyCode` | string | 핸들러 반환 | 내부 분류용 옛 코드(`CODE_RUNTIME_ERROR`·`EXECUTION_TIMEOUT`·`EXECUTION_MEMORY_EXCEEDED`). 뒤쪽 노드는 `output.error.code` 를 쓴다 |
 | `output.error.details.stack` | string? | 핸들러 반환 | 스택 트레이스. `NODE_ENV !== 'production'` 일 때만 |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 타임아웃이면 timeout 값에 가깝다 |
 | `meta.success` | `false` | 핸들러 반환 | 실패 표시 |
 | `meta.logs` | string[] | 핸들러 반환 | 에러 직전까지의 console 캡처 |
 | `port` | `'error'` | 핸들러 반환 | 런타임 에러 분기 |
@@ -324,7 +324,9 @@ isolate 생성·부트스트랩의 세부는 [Code 노드 — 샌드박스](CLE-
 
 ## Rationale
 
-### `config.code` 를 원본 그대로 에코 (2026-06-03 정합화)
+### `config.code` 를 원본 그대로 에코
+
+결정일: 2026-06-03
 
 `config.code`(사용자 코드 본문)는 노드 출력 `config` 에 **원본 그대로** 에코한다. 아래 두 개념을 구분한다.
 
@@ -333,13 +335,17 @@ isolate 생성·부트스트랩의 세부는 [Code 노드 — 샌드박스](CLE-
 
 코드 본문은 `systemPrompt`·`userPrompt`·`body` 와 같은 부류의 사용자 원본 텍스트라서 디버깅과 뒤쪽 노드 참조를 위해 에코한다. 사용자 본인의 코드라 민감하지 않고, 에디터·UI 로 크기가 제한된다. 그래서 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 7 의 "항상 에코" 목록에 속한다(정합화 때 금지 목록에서 옮겼다).
 
-### `output` 루트에 바로 배치 (2026-06-03 정합화)
+### `output` 루트에 바로 배치
+
+결정일: 2026-06-03
 
 Code 노드의 `output` 은 사용자 `return` 값을 **루트에 그대로** 담고 `output.result` 로 감싸지 않는다. `output.result` 감싸기는 노드 출력 규약 Principle 8.2 의 **AI 노드(`ai_agent`·`text_classifier`·`information_extractor`) 한정** 규칙이다. Code(와 Transform)는 사용자 코드·연산이 출력 모양을 정하므로 인위적인 `result` 감싸기는 뒤쪽 표현식만 길게 만든다(`$node["X"].output.result.foo` 대 `$node["X"].output.foo`). Principle 8.2 표는 이를 "루트 직접 배치(Code·Transform 예외)" 로 적는다.
 
 기각한 대안: Code 출력을 `output.result` 로 감싸기. AI 노드와 겉모습은 맞지만, 사용자가 `return { result: ... }` 를 쓰면 `output.result.result` 로 이중 중첩되고 원시값 반환(`return 42`)이 `output.result: 42` 로 어색해진다. 사용자 코드의 자유로운 모양이 핵심 가치이므로 루트 배치를 유지한다.
 
-### `$helpers` 입력 타입 계약 정렬 (2026-06-12)
+### `$helpers` 입력 타입 계약 정렬
+
+결정일: 2026-06-12
 
 `$helpers.crypto.hash` 는 이미 문자열이 아닌 `data` 에 `TypeError` 를 던졌다(허용 목록 + 타입 가드). `$helpers.base64.encode/decode` 만 문자열이 아닌 값을 `String(data)` 로 조용히 바꿔서 `base64.encode(42)` 가 `"42"` 를 인코딩했고 타입 버그를 숨겼다. base64 도 문자열이 아닌 값에 `TypeError` 를 던지게 맞춰 계약을 명시적으로 만들었다.
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-TRANSFORM"
 title: "Transform 노드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-TRANSFORM-001", "REQ-TRANSFORM-002", "REQ-TRANSFORM-003", "REQ-TRANSFORM-004", "REQ-TRANSFORM-005", "REQ-TRANSFORM-006", "REQ-TRANSFORM-007", "REQ-TRANSFORM-008", "REQ-TRANSFORM-009", "REQ-TRANSFORM-010", "REQ-TRANSFORM-011", "REQ-TRANSFORM-012", "REQ-TRANSFORM-013", "REQ-TRANSFORM-014", "REQ-TRANSFORM-015", "REQ-TRANSFORM-016", "REQ-TRANSFORM-017", "REQ-TRANSFORM-018", "REQ-TRANSFORM-019", "REQ-TRANSFORM-020", "REQ-TRANSFORM-021", "REQ-TRANSFORM-022", "REQ-TRANSFORM-023", "REQ-TRANSFORM-024", "REQ-TRANSFORM-025", "REQ-TRANSFORM-026", "REQ-TRANSFORM-027", "REQ-TRANSFORM-028"]
 basis_superseded: false
 parent: "CLE-NODE-DATA"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-DATA"]
 area: "CLE-NODE-DATA"
-content_hash: "beb0632adad71cf49c13b407dbe5d00d3200bd782fd281d471621d3aba5d4537"
+content_hash: "92c43e50b1d07bbee8ea83fae929cd20b803a1f39f1c07d3b721cf73abaabe61"
 read_as: "approved_fallback"
-task: "CLE-T-ETAZAT"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/5-data/1-transform.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ab930d5c52e415e7c2e0069fa2f4aed6aab7ed488b02d191fc4e81270a82d3ca"
-etag: "sha256-b9deb99fb80f573ffc124f1d198ad8e91f3353511629f9093cde0fcd5e17a4f8"
+mirror_sha256: "3d0a358d161d6877c024b5affafb2b905479263de1547efb03cdb436b675f0d5"
+etag: "sha256-b9c937f5d921923c89a441100350452a055fd5fa5d56e299f1548cbf281fdda4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/5-data/1-transform.md`, `spec/4-nodes/_product-overview.md` (§8.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -166,7 +166,6 @@ Data 노드 공통 규약(표현식 평가 위치, 노드 출력 사용 방식, 
     "items": [1, 2, 3]
   },
   "meta": {
-    "durationMs": 3,
     "operationsApplied": 4,
     "operationsSkipped": 0
   }
@@ -176,19 +175,19 @@ Data 노드 공통 규약(표현식 평가 위치, 노드 출력 사용 방식, 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.operations` | Operation[] | 설정 에코 | 사용자가 입력한 원본 연산 목록(표현식 보존) |
-| `output` | object \| array | 런타임(변환 결과) | 입력을 복제해 모든 연산을 차례로 적용한 최종 값. 타입은 입력을 따른다([실행 로직](#실행-로직) 4단계). 루트 키는 입력과 연산에 따라 달라진다. 뒤쪽 노드는 `$node["X"].output.<변형된 필드>` 로 바로 읽는다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#82-통일된-1차-이름) Principle 8.2 의 Code · Transform 예외라 변형 결과를 루트에 둔다. 이유는 [Rationale](#변형-결과를-output-루트에-둔다-2026-11-07) |
-| `meta.durationMs` | number | 엔진 주입 | 핸들러 실행 시간(ms). Principle 2 공통 필드 |
+| `output` | object \| array | 런타임(변환 결과) | 입력을 복제해 모든 연산을 차례로 적용한 최종 값. 타입은 입력을 따른다([실행 로직](#실행-로직) 4단계). 루트 키는 입력과 연산에 따라 달라진다. 뒤쪽 노드는 `$node["X"].output.<변형된 필드>` 로 바로 읽는다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#82-통일된-1차-이름) Principle 8.2 의 Code · Transform 예외라 변형 결과를 루트에 둔다. 이유는 [Rationale](#변형-결과를-output-루트에-둔다) |
 | `meta.operationsApplied` | number | 핸들러 집계 | 실제로 바꾼 연산 수. `applied + skipped === config.operations.length`. `set_field` 는 언제나 applied 로 센다. `setNestedValue` 가 prototype 오염 차단으로 무시했어도 사용자가 의도한 변형 시도이기 때문이다(skipped 는 필드·타입 부재에 한정) |
 | `meta.operationsSkipped` | number | 핸들러 집계 | 필드 부재, 타입 불일치, `divide` operand 0, 유효하지 않은 dayjs 입력, JSON 파싱 실패, 검사를 통과하지 못한 정규식 등으로 조용히 no-op 처리한 연산 수 |
 | `port` | `undefined` | — | 단일 출력(Principle 5 의 대표 사례) |
 | `status` | `undefined` | — | 일반 완료(비블로킹) |
+
+`meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)).
 
 표현식 접근 예(변형 결과는 루트에서 바로 읽는다):
 
 - `$node["X"].output.user.name` → `"ALICE"`
 - `$node["X"].output.items[0]` → `1`
 - `$node["X"].config.operations.length` → `4`
-- `$node["X"].meta.durationMs` → `3`
 - `$node["X"].meta.operationsApplied` → `4`
 - `$node["X"].meta.operationsSkipped` → `0`
 
@@ -245,8 +244,10 @@ Error: operations[2].operation is invalid
 
 정규식 길이 제한만으로는 지수 백트래킹 패턴을 막을 수 없다. 그래서 `compileUserRegex` 한 곳에서 `safe-regex` 위험 패턴 검사를 1차로, 200자 길이 제한을 2차로 적용한다. `array_filter` 의 `regex` 연산자와 `string_op.replace` 의 정규식 모드가 같은 헬퍼를 쓴다.
 
-### 변형 결과를 `output` 루트에 둔다 (2026-11-07)
+### 변형 결과를 `output` 루트에 둔다
+
+결정일: 2026-11-07
 
 Transform 은 입력 값(객체 또는 배열)을 연산으로 재구조화하는 노드다. 결과의 모양은 입력과 사용자가 고른 연산에 따라 달라지고 노드가 미리 정하지 않는다. 그래서 변형 결과를 `output.result` 같은 키로 감싸지 않고 `output` 루트에 둔다. 다음 노드는 입력에서 쓰던 경로를 그대로 쓴다. 입력의 `user.name` 을 대문자로 바꿨다면 다음 노드는 `$node["X"].output.user.name` 으로 읽는다. 감쌌다면 `$node["X"].output.result.user.name` 처럼 경로마다 `result` 를 덧붙여야 한다.
 
-`output.result` 감싸기는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#82-통일된-1차-이름) Principle 8.2 가 AI 노드에만 쓰는 규칙이다. [Code 노드](CLE-NODE-CODE.md#output-루트에-바로-배치-2026-06-03-정합화) 도 같은 이유로 사용자 `return` 값을 루트에 두고 그 Rationale 에 Code 와 Transform 의 결정이 함께 적혀 있다.
+`output.result` 감싸기는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#82-통일된-1차-이름) Principle 8.2 가 AI 노드에만 쓰는 규칙이다. [Code 노드](CLE-NODE-CODE.md#output-루트에-바로-배치) 도 같은 이유로 사용자 `return` 값을 루트에 두고 그 Rationale 에 Code 와 Transform 의 결정이 함께 적혀 있다.

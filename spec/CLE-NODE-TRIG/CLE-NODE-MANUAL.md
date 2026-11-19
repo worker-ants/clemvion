@@ -2,19 +2,19 @@
 id: "CLE-NODE-MANUAL"
 title: "수동 트리거 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-MANUAL-001", "REQ-MANUAL-002", "REQ-MANUAL-003", "REQ-MANUAL-004", "REQ-MANUAL-005", "REQ-MANUAL-006", "REQ-MANUAL-007", "REQ-MANUAL-008", "REQ-MANUAL-009", "REQ-MANUAL-010", "REQ-MANUAL-011", "REQ-MANUAL-012", "REQ-MANUAL-013", "REQ-MANUAL-014", "REQ-MANUAL-015", "REQ-MANUAL-016", "REQ-MANUAL-017", "REQ-MANUAL-018", "REQ-MANUAL-019", "REQ-MANUAL-020", "REQ-MANUAL-021", "REQ-MANUAL-022", "REQ-MANUAL-023", "REQ-MANUAL-024", "REQ-MANUAL-025"]
 basis_superseded: false
 parent: "CLE-NODE-TRIG"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-TRIG"]
 area: "CLE-NODE-TRIG"
-content_hash: "fa9aec49984179352b1d23dbb369a0613b74a8fae792413851bfff7fe8edb7a3"
-read_as: "approved"
-task: null
+content_hash: "5976098f50aee767e5826fbf1367a12b07195f4b28fd8b15d28faf158bea98a0"
+read_as: "approved_fallback"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/7-trigger/1-manual-trigger.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "614a3fd64fc3f187ea7b01b347b06e48425033f247132b2ae1024276f020d49e"
-etag: "sha256-7c9ef9a4982162ec5e7a586dfc56246d519774200c754a6c78926f5275836978"
+mirror_sha256: "3f7acb9b6211ea7ffc7e51e5878329cf3d55bc65fd3130b299f499ed5a5613b3"
+etag: "sha256-821069d6c906414f9aa8a8a28ad898d6b8186d79118da4ccecd30a7a4242e0a0"
 ---
 > 구현 상태: 구현됨(설정 요약은 미구현) · 원문: `spec/4-nodes/7-trigger/1-manual-trigger.md`, `spec/4-nodes/_product-overview.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -111,7 +111,7 @@ flowchart TD
 ```
 
 1. 어댑터 단계에서 미리 해석한다. 엔진의 진입 어댑터(`resolveTriggerParameters`)가 경로별 원시 값을 `config.parameters` 스키마로 검증하고, 기본값을 적용하고, 타입을 강제로 바꿔 `input.parameters` 로 넘긴다. 필수 값이 빠지면 이 단계에서 400 또는 경로별 처리로 끝난다([검증과 에러](#검증과-에러)). 어댑터는 `input.__triggerSource` 마커도 함께 넣는다.
-2. 핸들러에 들어온다. `input.parameters` 가 객체면 그대로 쓰고, 아니면 `{}` 로 대체한다([노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값)).
+2. 핸들러에 들어온다. `input.parameters` 가 객체면 그대로 쓰고, 아니면 `{}` 로 대체한다.
 3. 설정을 다시 싣는다. `context.rawConfig?.parameters ?? []` 를 `config.parameters` 에 싣는다. `defaultValue` 의 `{{ }}` 템플릿은 그대로 둔다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙)).
 4. 진입 경로를 정한다. `input.__triggerSource` 마커를 먼저 쓴다. 마커가 없으면 `body`·`headers`·`query`·`method` 가운데 하나라도 있을 때 `webhook`, 아니면 `manual` 로 정한다.
 5. 출력 값을 만든다. `output.parameters = resolvedParameters` 다. 웹훅 경로일 때만 `output.request: { method, headers, query, body }` 로 전송 정보를 묶어 싣는다. 수동·스케줄 경로에서는 `output.request` 자체를 빼고, 마커(`__triggerSource`)가 출력으로 새지 않도록 지운다.
@@ -265,7 +265,9 @@ flowchart TD
 
 ## Rationale
 
-### 마스킹 표시 검사를 원본에서 먼저, 해석한 뒤 한 번 더 한다 (2026-08-21)
+### 마스킹 표시 검사를 원본에서 먼저, 해석한 뒤 한 번 더 한다
+
+결정일: 2026-08-21
 
 한 시점에서만 검사하면 두 방향 모두 뚫린다.
 
@@ -280,7 +282,9 @@ flowchart TD
 
 두 단계를 합쳐 한 번에 던지지 않는 이유도 같다. 원본 단계에서 걸린 뒤에도 해석을 계속하면 `coerce_failed` 가 섞여 안내가 다시 흐려진다.
 
-### 수동 재실행을 에러 응답 봉투 설명에 넣은 경위 (2026-08-20)
+### 수동 재실행을 에러 응답 봉투 설명에 넣은 경위
+
+결정일: 2026-08-20
 
 2026-08-20 전까지 `executions.service.ts` 는 내부 사유를 `errors` 키로 던졌다. `GlobalExceptionFilter` 는 `details` 만 읽기 때문에 필드별 내역이 응답에 실리지 않았다. 당시 문서가 에러 응답 봉투 설명에 수동·웹훅만 적은 것은 그 사실을 정확히 반영한 것이었다. `masked_value_resubmitted` 를 더하면서 그 연결을 함께 바로잡았다.
 
@@ -296,4 +300,4 @@ flowchart TD
 
 ### 수동 트리거 노드를 패스스루로 보지 않는 이유
 
-예전 제품 요구(ND-MT-03)와 일부 문서는 이 노드를 "워크플로우 입력 데이터를 그대로 출력 포트로 넘기는 패스스루" 로 적었다. 실제 노드는 `config.parameters` 스키마로 입력을 검증·기본값 적용·타입 변환한 `output.parameters` 를 내고, 웹훅 경로에서는 `output.request` 로 전송 정보를 다시 묶으며, 엔진 마커를 지운다. 그래서 요구와 카탈로그 설명을 이 문서 기준으로 맞췄다.
+옛 노드 요구사항과 일부 문서는 이 노드를 "워크플로우 입력 데이터를 그대로 출력 포트로 넘기는 패스스루" 로 적었다. 실제 노드는 `config.parameters` 스키마로 입력을 검증·기본값 적용·타입 변환한 `output.parameters` 를 내고, 웹훅 경로에서는 `output.request` 로 전송 정보를 다시 묶으며, 엔진 마커를 지운다. 그래서 요구와 카탈로그 설명을 이 문서 기준으로 맞췄다.

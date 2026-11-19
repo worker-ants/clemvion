@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "a81386a48474a30088c2d9f712b39b1aa804ad74a0ff770165e9fdaffe7615d3"
-read_as: "approved"
-task: null
+content_hash: "1e45823c7186e1f26c3f6638610e3bc12a939439127a936a4ac6f4c9e2ded09b"
+read_as: "approved_fallback"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "f0e00330b554f2a8b37ec17ff86ecec602ea7adc5eb4df165f66fd47bb2f91b3"
-etag: "sha256-cfcbaac02d69ecfe51e1bce4908958710e5f31a097ca4132649547e35aa37065"
+mirror_sha256: "e56f7e2004a2e4c16f042b411814a0e76e199b3a7a617ff6895cfb0fb6c90f48"
+etag: "sha256-6098fc3a863a765d8d248c49767ab04284b8490ff1fb0dc94bb01e43310a5996"
 ---
 > 구현 상태: 부분 구현 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -219,7 +219,7 @@ Presentation 노드 출력은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT
 `previousOutput` 은 폐기 예정이지만 아직 지우지 않았다. 버튼 재개 경로(`ButtonInteractionService`)가 재개 출력에 지금도 넣는다. 이 예외의 정의는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 소유한다.
 
 - **새로 읽지 않는다.** 재개 출력에도 입력 대기 시점의 출력 값이 남으므로 최상위 런타임 필드를 직접 읽는다.
-- **적용 범위는 `config.buttons` 가 있는 네 노드(Carousel·Chart·Table·Template)다.** Form 은 버튼이 없어 `ButtonInteractionService` 를 거치지 않는다. 재개 출력은 `FormInteractionService` 가 만들고 `previousOutput` 을 넣지 않는다. Form 에서는 완전히 금지된 필드다.
+- **적용 범위는 `config.buttons` 가 있는 네 노드(Carousel·Chart·Table·Template)다.** Form 재개 출력은 `FormInteractionService` 가 만들고 `previousOutput` 을 넣지 않는다.
 - 과도기 정리 단계에서 코드와 스펙에서 함께 지운다.
 
 ## 노드 출력 필드 사용 패턴
@@ -230,7 +230,7 @@ Presentation 노드 출력은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT
 |------|------------------------------|
 | `config` | 사용자 입력을 그대로 되돌리는 설정 에코. `title`·`layout`·`chartType`·`columns[*].field`·`format` 같은 리터럴 설정값은 모두 `config` 에만 둔다 |
 | `output` | 런타임에 만든 값만 담는다. Carousel `items`(동적 모드), Table `rows`, Chart `data`, Template `rendered`, Form `{}`. 출력 크기 한도를 적용한다 |
-| `meta` | 실행 메트릭만 담는다. `meta.durationMs` 는 공통이다. Carousel·Table 의 잘림 정보(`itemsTruncated`·`rowsTruncated`)는 다운스트림이 볼 수 있게 `output` 에 둔다 |
+| `meta` | 실행 메트릭만 담는다. `durationMs` 는 핸들러가 싣는다. 버튼 대기는 재개 뒤에도 `0` 이고 Form 은 재개 때 엔진이 대기 시간으로 고친다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)). Carousel·Table 의 잘림 정보(`itemsTruncated`·`rowsTruncated`)는 다운스트림이 볼 수 있게 `output` 에 둔다 |
 | `port` | 표시 전용이면 `undefined` 또는 `'out'`. 블로킹 모드면 `<button.id>`(전역 버튼), `<button.id>__item_<idx>`(Carousel 항목 버튼), `'continue'`(링크 버튼만 있을 때) |
 | `status` | 표시 전용이면 `undefined`. 블로킹 모드면 `'waiting_for_input'`(입력 대기), `'resumed'`(재개) |
 
@@ -254,7 +254,7 @@ Presentation 노드 출력은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT
 | [Form](CLE-NODE-FORM.md) | `{}` | `{ interaction }` | 없음. 항상 입력 대기 |
 | [Template](CLE-NODE-TEMPLATE.md) | `{ rendered }` | 입력 대기 값 + `interaction` | 있음 |
 
-Carousel·Table 은 출력 크기 한도가 걸리면 `*Truncated`·`*TotalCount` 를 더 싣는다. 버튼이 없는 표시 전용 출력은 `out` 포트 하나로 나간다. 각 노드 문서에 표시 전용 경우가 있는지 적는다.
+Carousel·Table 은 출력 크기 한도가 걸리면 `*Truncated`·`*TotalCount` 를 더 싣는다. 각 노드 문서에 표시 전용 경우가 있는지 적는다.
 
 ## 대화 스레드 opt-out
 
@@ -338,7 +338,7 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 
 ### 입력 대기에 기한을 두지 않는다 (2026-10-24)
 
-옛 제품 요구사항 표는 버튼 대기에 "선택적 타임아웃 지원(무제한 가능)" 을(ND-CL-07 · ND-TB-07 · ND-CH-07 · ND-TP-06), Form 에 "대기 타임아웃 설정(초 단위, 미지정 시 무제한)" 을(ND-FM-05) 구현됨으로 적었다. 옛 에디터 실행 문서는 버튼 대기 중 남은 시간 카운트다운을 적었다. 실제로는 다섯 노드 설정 스키마에 타임아웃 필드가 없고 옛 `buttonTimeout` 입력은 무시한다(`button.types.spec.ts`). 옛 실행 엔진 · EIA 원문이 근거로 든 `formConfig.timeout` 도 없는 필드다.
+옛 제품 요구사항 표는 버튼 대기 네 노드에 "선택적 타임아웃 지원(무제한 가능)" 을, Form 에 "대기 타임아웃 설정(초 단위, 미지정 시 무제한)" 을 구현됨으로 적었다. 옛 에디터 실행 문서는 버튼 대기 중 남은 시간 카운트다운을 적었다. 실제로는 다섯 노드 설정 스키마에 타임아웃 필드가 없고 옛 `buttonTimeout` 입력은 무시한다(`button.types.spec.ts`). 옛 실행 엔진 · EIA 원문이 근거로 든 `formConfig.timeout` 도 없는 필드다.
 
 사용자가 2026-10-10 에 지금의 무기한 대기를 계약으로 정했다(리뷰 발견 `finding 01a0e5a1-11bf-74cc-b5c1-0278ad7c5480`, NERV Task `CLE-T-PERSR7`). 그래서 위 요구사항 행의 타임아웃 부분과 드로어 카운트다운은 새 문서로 옮기지 않는다.
 
@@ -353,11 +353,15 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 
 → [표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#파일-필드는-메타데이터만-보낸다)
 
-### Template 본문은 그리는 쪽이 정화한다 (2026-11-12)
+### Template 본문은 그리는 쪽이 정화한다
+
+결정일: 2026-11-12
 
 → [표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다-2026-11-12)
 
-### 버튼 id `error` 를 예약하고 저장된 id 를 옮긴다 (2026-11-14)
+### 버튼 id `error` 를 예약하고 저장된 id 를 옮긴다
+
+결정일: 2026-11-14
 
 **왜 예약하는가**: 엔진은 버튼을 누르면 `_selectedPort` 에 버튼 id 를 넣고 이 값을 연결선의 `sourcePort` 와 문자열로 비교해 다음 노드를 고른다. 그래서 같은 노드에 id 가 `error` 인 버튼과 에러 포트가 함께 있으면 두 연결선을 구분하지 못한다. 엔진 비교가 정확 일치라서 검증도 정확 일치만 거부한다. 대소문자는 구분하므로 `Error` 는 통과한다. 결정의 전체 배경은 [노드 출력 규약 — 포트 · 흐름 상태 · 에러](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14) 의 Rationale 에 있다.
 

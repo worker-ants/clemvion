@@ -2,19 +2,19 @@
 id: "CLE-NODE-VARDECL"
 title: "변수 선언 노드"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-VARDECL-001", "REQ-VARDECL-002", "REQ-VARDECL-003", "REQ-VARDECL-004", "REQ-VARDECL-005", "REQ-VARDECL-006", "REQ-VARDECL-007", "REQ-VARDECL-008", "REQ-VARDECL-009", "REQ-VARDECL-010", "REQ-VARDECL-011", "REQ-VARDECL-012", "REQ-VARDECL-013", "REQ-VARDECL-014", "REQ-VARDECL-015", "REQ-VARDECL-016", "REQ-VARDECL-017", "REQ-VARDECL-018"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "3e782bd0b40039bac1e9b198bcc3b77ae2eb281b052610605dda4a491bd3d9c9"
-read_as: "approved"
-task: null
+content_hash: "9572458571f55191472fe5978283567987ba7f16ae1fcf63822975f7e64c492b"
+read_as: "approved_fallback"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/1-logic/4-variable-declaration.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "2b234983fff90f8871a2bce5d1922d00264987377f4e2f6d10779b21edad1df0"
-etag: "sha256-38ff329eaee53c52f5df85bf091325df49c29baa87184d9d955590473805760a"
+mirror_sha256: "7bbd29acac54734435777805e97dff4b08ba5b817d87aebf8d4bb2fac432b61f"
+etag: "sha256-e8baaaaf35912e9f6682f8a0ded04f3e3238ef1c49b576bd9440f53a9e4cc37e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/4-variable-declaration.md`, `spec/4-nodes/_product-overview.md` (§4.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -120,7 +120,6 @@ etag: "sha256-38ff329eaee53c52f5df85bf091325df49c29baa87184d9d955590473805760a"
   },
   "output": { "user": { "id": "u-1", "name": "Alice" } },
   "meta": {
-    "durationMs": 0,
     "declared": ["counter", "users", "today"],
     "skipped": [],
     "coercionWarnings": []
@@ -128,11 +127,12 @@ etag: "sha256-38ff329eaee53c52f5df85bf091325df49c29baa87184d9d955590473805760a"
 }
 ```
 
+`meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)).
+
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.variables` | `VarDef[]` | 설정 에코 | 사용자가 입력한 원래 변수 정의. `defaultValue` 의 `{{ }}` 템플릿을 남긴다. 평가한 값은 `context.variables` 에만 저장하고 `output` 에 싣지 않는다 |
 | `output` | 입력 전체 | 런타임, 패스스루 | 입력 데이터 그대로. `output.view` / `output.type` 같은 판별자는 쓰지 않는다 |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 엔진이 모든 노드에 주입한다 |
 | `meta.declared` | string[] | 런타임 메트릭 | 이번 실행에서 새로 등록한 변수 이름(건너뛰지 않은 항목). 이미 있으면 건너뛰는 동작을 보여 준다 |
 | `meta.skipped` | string[] | 런타임 메트릭 | 같은 이름 변수가 이미 있어 등록을 건너뛴 변수 이름. 의도한 초기화가 조용히 빠진 경우를 진단할 때 쓴다 |
 | `meta.coercionWarnings` | `Array<{ name: string, attemptedType: string, error?: string }>` | 런타임 메트릭 | `coerceToType` 이 조용히 `null` 로 바꾼 항목. 핸들러는 `raw !== null && coerced === null` 일 때만 넣는다. 그래서 `number` (`Number()` 가 `NaN`) / `boolean` 변환 실패만 잡힌다. `array` / `object` 는 실패하면 원래 값을 반환하므로 여기에 들어가지 않는다. `defaultValue` 를 두지 않아 `null` 로 저장한 경우도 의도한 초기화라서 들어가지 않는다 |

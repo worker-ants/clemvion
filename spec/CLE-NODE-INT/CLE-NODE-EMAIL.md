@@ -2,19 +2,19 @@
 id: "CLE-NODE-EMAIL"
 title: "Send Email 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-EMAIL-001", "REQ-EMAIL-002", "REQ-EMAIL-003", "REQ-EMAIL-004", "REQ-EMAIL-005", "REQ-EMAIL-006", "REQ-EMAIL-007", "REQ-EMAIL-008", "REQ-EMAIL-010", "REQ-EMAIL-011", "REQ-EMAIL-012", "REQ-EMAIL-013", "REQ-EMAIL-014", "REQ-EMAIL-015", "REQ-EMAIL-016", "REQ-EMAIL-017", "REQ-EMAIL-018", "REQ-EMAIL-019", "REQ-EMAIL-020", "REQ-EMAIL-021", "REQ-EMAIL-022", "REQ-EMAIL-023", "REQ-EMAIL-024", "REQ-EMAIL-025", "REQ-EMAIL-026", "REQ-EMAIL-027"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "490870ce905cf07df8841f6b985a37adcb3ba18ef42a5ca63e5bfc60c04ff812"
+content_hash: "f890079f6c34203a1ca591d45d7dc900005277d20af9d92906f6952418559b81"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7603641879f35eca048e1fc1e29c2a946e09c5a9dca3ce4738db9e6fcc647189"
-etag: "sha256-33ff07aa6cc647cf7a106e1a88a065901a8bb5bce1de3d32cfac7260b358ccd6"
+mirror_sha256: "fcbe292927ec40daf7621df5ed30487c101f3ab405a68b68207194aa03a0ff66"
+etag: "sha256-25bd0777da01724e461cf5fe95593b0bd682f04c783473ba7931e3fdc4f7e360"
 ---
 > 구현 상태: 부분 구현 (워크스페이스 누락의 `INTEGRATION_SERVICE_UNAVAILABLE` 은 미구현) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -110,8 +110,8 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 1. **사전 검증**(`validate()`): `evaluateMetadataBlockingErrors`(경고 규칙 평가), `validateConfig`(수신자 배열만 허용), `subject`·`body` 문자열 확인, `bodyType` enum 확인. 실패하면 throw 로 노드 실행이 시작되지 않는다(실행 실패).
 2. **수신자 정규화**: `to`·`cc`·`bcc` 는 배열만 받는다.
-   - 배열이면 원소를 `trim()` 하고 빈 문자열을 뺀다.
-   - 배열이 아니면 방어적으로 `[]` 를 돌려준다. 스키마와 검증기가 이미 거부하므로 표준 경로에서는 도달하지 않는다. 옛 데이터와 직접 호출 경로를 위한 안전망이다.
+   - 배열이면 문자열이 아닌 원소를 빼고 원소를 `trim()` 한 뒤 빈 문자열을 뺀다.
+   - 배열이 아니면 방어적으로 `[]` 를 돌려준다. 값이 `null` · `undefined` 가 아니면 경고 로그를 남긴다. 스키마와 검증기가 이미 거부하므로 표준 경로에서는 도달하지 않는다. 옛 데이터와 직접 호출 경로를 위한 안전망이다. 이 처리는 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 대상이 아니다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 규칙 2).
 3. **본문 제한**: 평가된 `body` 를 `truncateBodyForOutput`(256KB)으로 제한한다. 넘치면 `output.bodyTruncated: true` 를 붙인다.
 4. **빈 수신자 확인**: 정규화한 `to.length === 0` 이면 try 블록 **안**에서 `IntegrationError('EMAIL_NO_RECIPIENTS')` 를 던진다. 메시지는 ``No valid recipients after normalizing the `to` field`` 다. catch 가 잡아 `EMAIL_NO_RECIPIENTS` 로 에러 포트에 보낸다(dry-run · 서비스 미주입 환경 포함). 통합을 얻기 전이라 활동 로그는 남지 않는다.
 5. **dry-run 분기**: `context.variables.__dryRun === true` 면(`metadata.supportsDryRun: true`) 실제 SMTP 발송 전에 `buildDryRunMock('send_email', { to, subject })` 로 끝낸다. 외부 SMTP 를 건드리지 않고 `out` 포트로 진행한다([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) dry-run).
@@ -191,15 +191,19 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 - 프론트엔드: `widget: 'field-array'` 가 이미 배열이라 변경 없음
 - 저장(zod): `z.array(z.string())` 유지. 배열이 아닌 원본 입력은 파싱 실패
 - 검증기(`validateSendEmailConfig`): 문자열 경로를 지우고 배열만 받음. zod 와 일치
-- 핸들러(`normalizeRecipients`): 문자열 콤마 분리 경로를 지움. 배열이 아닌 입력은 방어적으로 `[]`
+- 핸들러(`normalizeRecipients`): 문자열 콤마 분리 경로를 지움. 배열이 아닌 입력은 방어적으로 `[]`([실행 로직](#실행-로직) 2단계)
 - 출력 에코(`sendEmailNodeOutputSchema.config.to/cc/bcc`): `z.unknown()` 에서 `z.array(z.string())` 로 바꿔 배열만 에코함을 명시
 - 표현식: 배열 원소 단위로 `{{ ... }}` 를 쓴다(예: `["{{ $input.email }}"]`)
 
-### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
+### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다
+
+결정일: 2026-10-24
 
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다(REQ-INTMGMT-053). 그래서 REQ-EMAIL-024 의 범위를 «통합을 얻은 뒤 실행이 끝나면» 으로 좁혔다.
 
-### 빈 수신자를 에러 포트로 보낸다 (2026-11-06)
+### 빈 수신자를 에러 포트로 보낸다
+
+결정일: 2026-11-06
 
 정규화한 `to` 가 비는 경우는 설정 형식 오류가 아니다. 수신자 표현식이 빈 값으로 평가될 때 생기므로 입력 데이터에 따라 결과가 달라진다. 워크플로우 작성자는 이런 실패를 에러 포트로 분기할 수 있어야 한다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.1 · 3.2). 노드 실행을 실패시키면 설정 오류와 구별되지 않고 평가된 제목과 본문도 출력에 남지 않는다. 그래서 확인을 `execute()` 의 try 블록 안으로 옮기고 `IntegrationError('EMAIL_NO_RECIPIENTS')` 로 던지게 했다.
 
@@ -208,7 +212,9 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 - 기각: 빈 수신자에 throw 를 유지하는 안. 노드 실행 전체가 실패하므로 워크플로우 작성자가 에러 포트 분기를 쓸 수 없다.
 - 요구사항 변경: 옛 동작의 REQ-EMAIL-009 를 지우고 REQ-EMAIL-010 으로 대체했다. REQ-EMAIL-012 와 REQ-EMAIL-013 에는 정규화한 `to` 가 비지 않았다는 전제를 붙였다.
 
-### 워크스페이스 누락 코드와 활동 로그 코드를 정했다 (2026-11-13)
+### 워크스페이스 누락 코드와 활동 로그 코드를 정했다
+
+결정일: 2026-11-13
 
 요구사항의 코드 이름을 구현과 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 맞췄다. 동작은 바꾸지 않았다.
 
@@ -222,3 +228,11 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 - `meta.deliveryStatus` 는 공통 규칙에 없는 필드다. 노드 출력 재설계 때 출력 최상위에서 `meta` 로 옮긴 필드라(`migrate-node-output-refs.ts` 의 `META_FIELDS`) 워크플로우가 `$node["X"].meta.deliveryStatus` 로 읽을 수 있다. 지우면 이 참조를 쓰는 워크플로우가 깨지므로 남겨 둔다.
 - dry-run 출력에는 `meta.durationMs` 가 없다. HTTP Request · Database Query · Cafe24 · MakeShop 노드의 dry-run 출력은 이 값을 싣는다. 스펙 서술을 구현에 맞추는 범위라 핸들러를 고치지 않았고, dry-run 출력에 `meta.durationMs` 를 더하는 일은 NERV Task `CLE-T-22PSME` 가 맡는다.
+
+### 배열이 아닌 수신자 값의 방어 처리는 Principle 10 의 대상이 아니다
+
+결정일: 2026-11-19
+
+`normalizeRecipients` 는 배열이 아닌 수신자 값을 `[]` 로 둔다. 이 값은 입력에서 설정 경로로 꺼낸 배열이 아니고 스키마와 검증기가 이미 거부한 설정 필드다. Principle 10 은 반복 · 분리 노드가 꺼낸 배열 입력의 대체 규칙이라 이 처리를 다루지 않는다. 그래서 이 처리를 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 규칙 2 의 대상이 아닌 처리 목록에 올렸다(NERV Task `CLE-T-1GJKB2`).
+
+기각한 대안은 이 경우에 throw 하는 안이다. `normalizeRecipients` 는 `execute()` 의 try 블록 앞에서 불리므로 옛 데이터의 워크플로우가 에러 포트 분기 없이 노드 실행 실패로 끝난다.

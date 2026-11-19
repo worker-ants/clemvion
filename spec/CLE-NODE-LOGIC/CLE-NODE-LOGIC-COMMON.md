@@ -2,25 +2,25 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "8f2239f6119f8a6d9a0562fb3a1c263c86d65f14fa8663a6a0a15524319f73dd"
+content_hash: "0a4d0958e560b811ef5d0744f7643424112d7197f57460639aae701b1fb2cf5a"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "54d147eb2b1d48ed664d3aee5e69530311a90e61a9245403a7bbee7bfb0d0936"
-etag: "sha256-c35b159226ddd84e10e0d70ddd23b883ba79f3ee05baa97c417fc259fd9ae316"
+mirror_sha256: "37ca535402c3de6e2f736b51e839069e7981a1de4926f53a0645d4249e3380b6"
+etag: "sha256-f6051e37b77991c2742f64177b0dc0870842f080af344dec5e918eea977bd0ed"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 제어를 맡는다. 이 문서는 Logic 카테고리 12종이 함께 따르는 규약을 정한다. 다루는 것은 조건 구조와 비교 연산자, 컨테이너 패턴, 리소스 제한, 동적 포트 ID, 설정 요약, 배열이 아닌 입력 처리, 패스스루 규약, 출력 구조 색인이다. 항목 에러 정책 · 반복 결과 출력 구조 · 노드 출력 사용 패턴 · 엔진 덮어쓰기 계약은 [하위 문서](#하위-문서) 가 정한다. [배열이 아닌 입력 처리](#배열이-아닌-입력-처리) 절은 Presentation 노드인 Chart 행도 담는다. 예외 표를 한 곳에 두기로 했기 때문이다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다-2026-10-24)).
+Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 제어를 맡는다. 이 문서는 Logic 카테고리 12종이 함께 따르는 규약을 정한다. 다루는 것은 조건 구조와 비교 연산자, 컨테이너 패턴, 리소스 제한, 동적 포트 ID, 설정 요약, 배열이 아닌 입력 처리, 패스스루 규약, 출력 구조 색인이다. 항목 에러 정책 · 반복 결과 출력 구조 · 노드 출력 사용 패턴 · 엔진 덮어쓰기 계약은 [하위 문서](#하위-문서) 가 정한다. [배열이 아닌 입력 처리](#배열이-아닌-입력-처리) 절은 Presentation 노드인 Chart 행도 담는다.
 
 노드마다의 설정과 동작은 각 노드 문서가 정한다.
 
@@ -155,13 +155,12 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
 | [Filter](CLE-NODE-FILTER.md) | `inputField` | `[]` | throw (`Filter inputField does not resolve to an array`) | `null` · `undefined` 를 대체할 때만 `true` |
 | [Chart](../CLE-NODE-PRES/CLE-NODE-CHART.md) | `dataField` | `[]` | `[]` | 싣지 않는다 |
 
-`meta.fellBackToEmpty` 가 `true` 가 되는 조건은 노드마다 다르다(표의 `meta.fellBackToEmpty` 열).
-
-1. 예외 노드는 Split · ForEach · Map 과 Chart 다. Chart 를 예외로 둔 이유는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다-2026-10-24) 의 Rationale 「예외 표에서 정한 노드만 배열이 아닌 입력을 빈 배열로 바꾼다」 에 있다.
-2. 이 표와 Principle 10 은 노드가 배열을 돌거나 나누려고 설정 경로로 꺼낸 값이 배열이 아닐 때 `[]` 로 대체할지 throw 할지를 다룬다. 값을 대체하지 않는 다음 처리는 Principle 10 의 대상이 아니다.
+1. 예외 노드는 Split · ForEach · Map 과 Chart 다. Chart 를 예외로 둔 이유는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다) 의 Rationale 「예외 표에서 정한 노드만 배열이 아닌 입력을 빈 배열로 바꾼다」 에 있다.
+2. 이 표와 Principle 10 은 노드가 배열을 돌거나 나누려고 설정 경로로 꺼낸 값이 배열이 아닐 때 `[]` 로 대체할지 throw 할지를 다룬다. 다음 처리는 Principle 10 의 대상이 아니다.
    - 입력 전체를 정규화하는 처리. Merge 가 배열이 아닌 입력을 `[input]` 으로 감싸는 동작은 [Merge 노드](CLE-NODE-MERGE.md) 가 정한다. Chart 가 `dataField` 없이 입력 자체를 배열로 쓰는 동작은 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md) 가 정한다.
    - 단일 값을 한 항목 배열로 감싸는 정규화. [Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md) 의 `source` 와 [Table 노드](../CLE-NODE-PRES/CLE-NODE-TABLE.md) 의 `dataSource` 가 그렇다.
    - 대상이 배열이 아니면 연산을 건너뛰는 처리. [Transform 노드](../CLE-NODE-DATA/CLE-NODE-TRANSFORM.md) 의 `array_filter` · `array_sort` 가 그렇다.
+   - 스키마와 검증기가 배열만 받는 설정 필드의 방어 처리. [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md#실행-로직) 의 `to` · `cc` · `bcc` 는 배열이 아니면 `[]` 로 두고 빈 `to` 는 `EMAIL_NO_RECIPIENTS` 로 에러 포트에 보낸다.
 3. 규칙 2 의 범위에 드는 새 노드는 기본 규칙(throw)을 따른다. 예외로 두려면 이 표에 행을 더하고 그 노드 문서의 Rationale 에 이유를 적는다.
 
 ### 패스스루 규약
@@ -250,11 +249,13 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
 - Logic 노드에서 에러 처리 정책을 막는 안. 설정 패널과 엔진에 카테고리 검사를 새로 넣어야 하고, 이미 정책을 저장한 워크플로우를 어떻게 다룰지도 정해야 한다.
 - "에러 포트로 라우팅" 만 막는 안. 동적 에러 포트가 구현되면 다시 열어야 하고, 그 전에도 연결선이 없을 때 규칙으로 동작이 정해져 있다.
 
-### 배열이 아닌 입력 예외 노드를 이 문서에 모은다 (2026-10-24)
+### 배열이 아닌 입력 예외 노드를 이 문서에 모은다
 
-예외 목록을 이 문서 한 곳에 두는 이유와 기각한 대안은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다-2026-10-24) 에 있다. Chart 를 예외에 넣은 이유도 거기에 있다. 이 문서는 노드별 처리를 표로 정한다. Merge 는 설정 경로로 값을 꺼내지 않고 입력 전체를 정규화하므로 표에 넣지 않았다.
+결정일: 2026-10-24
 
-표는 설정 경로로 꺼낸 값을 `[]` 로 대체하는 노드만 담는다. 아래 노드는 값을 감싸거나 다른 입력을 쓰거나 연산을 건너뛴다. 2026-10-10 결정의 "다른 노드는 throw 한다" 를 글자 그대로 따르면 이 노드들도 throw 로 바꿔야 하지만 이 개정은 지금 동작을 그대로 두었다. 그 근거는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다-2026-10-24) 에 있다.
+예외 목록을 이 문서 한 곳에 두는 이유와 기각한 대안은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다) 에 있다. Chart 를 예외에 넣은 이유도 거기에 있다. 이 문서는 노드별 처리를 표로 정한다. Merge 는 설정 경로로 값을 꺼내지 않고 입력 전체를 정규화하므로 표에 넣지 않았다.
+
+표는 설정 경로로 꺼낸 값을 `[]` 로 대체하는 노드만 담는다. 아래 노드는 값을 감싸거나 다른 입력을 쓰거나 연산을 건너뛴다. 2026-10-10 결정의 "다른 노드는 throw 한다" 를 글자 그대로 따르면 이 노드들도 throw 로 바꿔야 하지만 이 개정은 지금 동작을 그대로 두었다. 그 근거는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다) 에 있다.
 
 - Carousel 의 `source`: 값이 배열이 아니면 `source` 대신 입력을 쓴다. 입력도 배열이 아니면 `null` · `undefined` 가 아닌 값은 `[입력]` 으로 감싸고 `null` · `undefined` 는 `[]` 로 둔다.
 - Table 의 `dataSource`: 값이 `null` · `undefined` 면 입력을 쓴다. 쓰는 값이 배열이 아니면 `[값]` 으로 감싼다.
@@ -269,6 +270,8 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
 
 → [Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05)
 
-### Parallel `stop` 설명을 실행기 동작에 맞춘다 (2026-11-06)
+### Parallel `stop` 설명을 실행기 동작에 맞춘다
+
+결정일: 2026-11-06
 
 → [Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#parallel-stop-설명을-실행기-동작에-맞춘다-2026-11-06)

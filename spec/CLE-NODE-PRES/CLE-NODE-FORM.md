@@ -2,19 +2,19 @@
 id: "CLE-NODE-FORM"
 title: "Form 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-FORM-001", "REQ-FORM-002", "REQ-FORM-003", "REQ-FORM-004", "REQ-FORM-005", "REQ-FORM-006", "REQ-FORM-007", "REQ-FORM-008", "REQ-FORM-009", "REQ-FORM-010", "REQ-FORM-011", "REQ-FORM-012", "REQ-FORM-013", "REQ-FORM-014", "REQ-FORM-015", "REQ-FORM-016", "REQ-FORM-017", "REQ-FORM-018", "REQ-FORM-019", "REQ-FORM-020", "REQ-FORM-021", "REQ-FORM-022", "REQ-FORM-023"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "90a05d633fc102a3fbb4b855b0cd5bdc52bcf056b042067909b737f4bce9059e"
+content_hash: "052838aaff218e946ef5a1e31ec3c99c7c73ab9b8367c7276121a45700907d06"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/6-presentation/4-form.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "93999e00bfdc0337e07666a98a5202abf59ae85e436529e6c24d25ea1298b632"
-etag: "sha256-4025b862a02c8bac0ebe37ce2e77a5a23d9facdf3510e7f5601bdbbcc550162b"
+mirror_sha256: "d4f1f299c64acfd871e64ea136aaa077ec082ee9b645ca98c39db875ad380e8e"
+etag: "sha256-fda670d78ac3f57dcef73a3e71aa5a80216fcd53b63d0ac72ba8061829a8bbe9"
 ---
 > 구현 상태: 구현됨 (검증 preset 카탈로그와 캔버스 설정 요약은 미구현) · 원문: `spec/4-nodes/6-presentation/4-form.md`, `spec/4-nodes/_product-overview.md` (§9.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -60,7 +60,7 @@ Form 노드는 버튼 정의(`ButtonDef`)를 쓰지 않고 자체 폼 필드(`Fo
 
 입력 대기에는 기한이 없다. 사용자가 폼을 제출하거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-제품 요구사항 원문(ND-FM-01~07)의 우선순위는 모두 필수다. 다만 ND-FM-05 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
+옛 제품 요구사항의 우선순위는 모두 필수다. 다만 대기 타임아웃 요구사항은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
 
 ## 설정
 
@@ -128,7 +128,7 @@ sequenceDiagram
   end
 ```
 
-1. 실행이 Form 노드에 오면 핸들러가 `output: {}`(빈 객체), `status: 'waiting_for_input'`, `meta: { interactionType: 'form', durationMs: 0 }` 을 돌려준다. 엔진은 실행을 멈춘다.
+1. 실행이 Form 노드에 오면 핸들러가 `output: {}`(빈 객체), `status: 'waiting_for_input'`, `meta: { interactionType: 'form', durationMs: 0 }` 을 돌려준다. 엔진은 실행을 멈춘다. `durationMs` 는 재개 때 엔진이 실제 대기 시간으로 고친다.
 2. WebSocket 이벤트 `execution.waiting_for_input` 을 보낸다(`interactionType: 'form'`).
 3. 클라이언트는 `config.title`·`config.description`·`config.fields`·`config.submitLabel` 을 직접 읽어 폼 UI 를 그린다(출력 값에 되풀이하지 않는다).
 4. 사용자가 폼을 제출하면 `execution.submit_form` WebSocket 명령을 보낸다.
@@ -169,7 +169,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.fields` | FormField[] | 설정 에코 | 필드 정의 원문. `defaultValue` 등에 표현식 `{{ }}` 이 있을 수 있다 |
 | `output` | `{}` | 핸들러 반환 | **빈 객체.** 입력 대기 시점에 계산한 런타임 값이 없다 |
 | `meta.interactionType` | `'form'` | 핸들러 반환 | 대기 표면. 화면이 폼 입력임을 알아본다(하위 호환 필드) |
-| `meta.durationMs` | number | 핸들러 반환 | 늘 `0`. 입력 대기 핸들러는 바로 끝난다 |
+| `meta.durationMs` | `0` | 핸들러 반환 | 대기 때는 늘 `0` 이다. 재개 때 엔진이 고친다 |
 | `status` | `'waiting_for_input'` | 핸들러 반환 | 엔진이 실행을 멈춘다 |
 
 **쓰지 않는 필드**: `output.type: 'form'` 판별자, `output.view`, `output.submittedData`, `output.previousOutput`, `output.fields`·`output.title`·`output.submitLabel` 같은 설정 리터럴. 노드 유형은 워크플로우 정의로 알 수 있고 폼 정의는 모두 `config.*` 에서 읽는다.
@@ -209,7 +209,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `output.interaction.data` | Record<fieldName, value> | 엔진 주입 | 사용자가 제출한 필드 값 맵. 키는 `config.fields[i].name`, 값은 검증을 통과한 정규화 입력 |
 | `output.interaction.receivedAt` | String(ISO 8601) | 엔진 주입 | 제출 수신 시각 |
 | `meta.interactionType` | `'form'` | 엔진 | 입력 대기 때와 같다 |
-| `meta.durationMs` | number | 엔진 주입 | 입력 대기 시작부터 재개까지 걸린 시간(ms) |
+| `meta.durationMs` | number | 엔진 갱신 | 핸들러가 실은 `0` 을 엔진(`form-interaction.service.ts`)이 입력 대기 시작부터 재개까지 걸린 시간(ms)으로 고친다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)) |
 | `port` | `'out'` | 엔진 | 단일 출력 포트 |
 | `status` | `'resumed'` | 엔진 | 재개 상태 |
 

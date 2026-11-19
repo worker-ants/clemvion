@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT-SINGLE"
 title: "AI 에이전트 노드 출력 — 단일 턴"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT-OUTPUT"]
 area: "CLE-NODE-AI"
-content_hash: "96cf5ec27e6669af3438deb343820809fe0accdacc8af460c727c45c380d3ccf"
+content_hash: "799978706daa03af28fb87d3bfd9c03bf73f5fd98bdc87b215194f64a0e8e40d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1GJKB2"
 source_paths: []
-mirror_sha256: "14b65252f99cc3bad5cc34470a371bf79c32e7838afec8f704f619064784c4ff"
-etag: "sha256-57056212036509e1cb5dc0f2ec066d18eefcd208b74634c7ff4a6ebc7bba87a1"
+mirror_sha256: "2aa087327370bc582d673bc35c0f2efc45e8cb0a3e94e04d60068e9a1fe4772a"
+etag: "sha256-895b2220233b49faa6eb55c897f7c86d807069913dec27d47a69019ea30f2f63"
 ---
 ## 개요
 
@@ -93,7 +93,7 @@ etag: "sha256-57056212036509e1cb5dc0f2ec066d18eefcd208b74634c7ff4a6ebc7bba87a1"
 | `output.result.endReason` | `"out"` | 핸들러 반환 | 단일 턴 정상 종료 사유 |
 | `output.result.turnCount` | number | 핸들러 반환 | 단일 턴은 늘 `1` |
 | `output.result.presentations[]` | `PresentationPayload[]?` | 핸들러 반환 | 표시 도구 호출이 있었을 때만 싣는다([표시물 페이로드 운반](CLE-NODE-AGENT-OUTPUT-DEBUG.md#표시물-페이로드-운반)) |
-| `meta.durationMs` | number | 엔진 + 핸들러 | 노드 실행 소요 시간(ms) |
+| `meta.durationMs` | number | 핸들러 | 노드 실행 소요 시간(ms) |
 | `meta.model` | string | LLM provider 응답 | 실제로 부른 모델 ID(`config.model` 평가 결과) |
 | `meta.inputTokens`·`outputTokens`·`totalTokens` | number | LLM provider 응답 | 그 턴에서 성공한 LLM 호출 `usage` 의 합이다. 도구 루프로 여러 번 부르면 모두 더한다([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)) |
 | `meta.thinkingTokens` | number | LLM provider 응답 | 성공한 호출의 합이다. 늘 싣고 모델이 보고하지 않으면 `0` 이다([AI 노드 공통 §토큰 회계](CLE-NODE-AI-COMMON.md#토큰-회계)) |
@@ -231,6 +231,8 @@ etag: "sha256-57056212036509e1cb5dc0f2ec066d18eefcd208b74634c7ff4a6ebc7bba87a1"
 
 ## Rationale
 
-### 단일 턴 에러 예시를 구현에 맞춘 이유 (2026-11-01)
+### 단일 턴 에러 예시를 구현에 맞춘 이유
+
+결정일: 2026-11-01
 
 단일 턴 에러 절의 JSON 예시와 `output.error.details` 설명을 구현이 실제로 내는 값에 맞췄다. 이전 판 예시의 `provider`·`statusCode`·`attempt` 와 메시지의 "after 3 retries" 는 구현이 내지 않는 목표 예시였다.

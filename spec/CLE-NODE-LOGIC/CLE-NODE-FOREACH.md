@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021", "REQ-FOREACH-022"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "ce9968a8e73bf62656cea8cfa8c0438e0889bb5111ad70691949c0f41420437b"
+content_hash: "27722316d6341fe27ae595c4dde14c4341f2cd74b0927afd8827c2c50f5e782d"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4d6bdfb6edfff27988d2fa0182fe93b3c246860ac6c587c47c3f4a0beead5074"
-etag: "sha256-bfd615905f72a21149d83b5464e249f65ec6e276e0565299dd39c079043dbec3"
+mirror_sha256: "b7de76b9778f854b6a0a30e818ebb2f23b1caa9cc83884c7a16ea8a1f46d13b4"
+etag: "sha256-0b70eff50a2a26bb68bf815d2897684cfc9c07ee216188e330471b16659b95d3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -126,10 +126,12 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.arrayField` | Expression (원래 값) | 설정 에코 | 사용자가 입력한 원래 경로·표현식. `{{ }}` 을 남긴다 |
-| `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 엔진은 `stop` 일 때와 같이 동작한다 |
+| `config.arrayField` | Expression | 설정 에코 | 대상 배열 경로·표현식 |
+| `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책. 설정하지 않으면 `stop` 과 같다 |
 | `output` | unknown[] | 핸들러 반환 | 해석한 배열. 엔진이 항목을 본문 반복 회차 입력으로 나눠 준다. 엔진 안에서만 쓰는 중간 형태라 밖에서 보이지 않는다([엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 1 · 2번) |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `arrayField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
+
+`config.*` 행은 [설정 에코 표의 범례](../CLE-NODE/CLE-NODE-OUTPUT-ECHO.md#설정-에코-표의-범례)를 따른다.
 
 이 시점의 `output` 은 엔진 덮어쓰기 직전 단계다. 다음 노드 표현식(`$node["X"].output.*`)에 드러나는 값은 park 뒤 재개나 재구동 뒤에도 [완료 시점](#완료-시점-done-포트) 형태다. 이 배열을 엔진 내부 표현으로 두는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」 에 있다.
 
@@ -154,7 +156,7 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.arrayField` | Expression (원래 값) | 설정 에코 | 사용자 입력 원래 값. `{{ }}` 을 남긴다 |
+| `config.arrayField` | Expression | 설정 에코 | 시작 시점과 같다 |
 | `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 시작 시점과 같다 |
 | `output.items` | unknown[] | 엔진 덮어쓰기 | 회차마다의 `emit` 포트 출력 배열. `errorPolicy` 가 `skip` / `continue` 면 실패 인덱스는 `null` 자리 |
 | `output.count` | number | 엔진 덮어쓰기 | 반복 실행한 항목 수(입력 배열 길이와 같음. 인덱스 유지) |
@@ -249,7 +251,9 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 
 ## Rationale
 
-### `$itemIsFirst` / `$itemIsLast` 를 최상위 변수로 노출한다 (2026-06-03)
+### `$itemIsFirst` / `$itemIsLast` 를 최상위 변수로 노출한다
+
+결정일: 2026-06-03
 
 처음에는 `itemContext.isFirst` / `isLast` 를 "컨테이너 실행 제어용 내부 상태라 표현식에 노출하지 않는다" 고 정했다. 그런데 본문 표현식에서 첫·마지막 항목으로 나누려는 수요가 확인됐고 `$itemIndex === 0` 으로 우회하는 방식은 읽기 어려웠다. 그래서 노출로 바꿨다.
 
@@ -259,19 +263,25 @@ ForEach 는 런타임 에러 포트가 없다. 컨테이너 구조 검증 실패
 
 ### 캔버스에서 그룹 박스로 그리지 않는다
 
-노드 요구사항 ND-FE-05 는 ForEach 를 "자식 노드를 배치할 수 있는 확장 가능 그룹 박스" 로 그린다고 적었다. 캔버스는 시각 containment 를 쓰지 않기로 정했다. 컨테이너는 일반 노드와 같은 크기로 그리고 자식 노드는 캔버스 어디에나 놓는다. 자식 노드의 소속은 `containerId` 와 자식 헤더 아래 `in <컨테이너 레이블>` 배지로만 나타낸다([워크플로우 에디터와 캔버스 §시각 표현](../CLE-WF/CLE-WF-EDITOR.md#시각-표현)). REQ-FOREACH-005 는 [Loop 노드](CLE-NODE-LOOP.md) 의 REQ-LOOP-006 과 같이 이 결정에 맞춰 적었다.
+옛 노드 요구사항은 ForEach 를 "자식 노드를 배치할 수 있는 확장 가능 그룹 박스" 로 그린다고 적었다. 캔버스는 시각 containment 를 쓰지 않기로 정했다. 컨테이너는 일반 노드와 같은 크기로 그리고 자식 노드는 캔버스 어디에나 놓는다. 자식 노드의 소속은 `containerId` 와 자식 헤더 아래 `in <컨테이너 레이블>` 배지로만 나타낸다([워크플로우 에디터와 캔버스 §시각 표현](../CLE-WF/CLE-WF-EDITOR.md#시각-표현)). REQ-FOREACH-005 는 [Loop 노드](CLE-NODE-LOOP.md) 의 REQ-LOOP-006 과 같이 이 결정에 맞춰 적었다.
 
-### 설정 패널이 항목 에러 정책을 지우지 않는다 (2026-10-10)
+### 설정 패널이 항목 에러 정책을 지우지 않는다
+
+결정일: 2026-10-10
 
 2026-10-10 에 설정 패널이 항목 에러 정책을 지우던 결함을 고쳤다(NERV Task `CLE-T-V0JAG1`). 결정과 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
 
 항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸는 안은 저장된 워크플로우의 노드 설정을 옮기는 데이터 마이그레이션이 필요해서 기각했다.
 
-### 배열이 아닌 입력을 빈 배열로 바꾸고 meta 로 알린다 (2026-10-24)
+### 배열이 아닌 입력을 빈 배열로 바꾸고 meta 로 알린다
+
+결정일: 2026-10-24
 
 ForEach 는 `arrayField` 가 배열이 아니면 모두 `[]` 로 바꿔 왔다. 2026-10-10 에 사용자가 승인한 규칙대로 이 동작을 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외로 두고 `meta.fellBackToEmpty` 로 대체 여부를 알린다(NERV Task `CLE-T-3HJ8MM`). 기각한 대안은 ForEach 만 throw 로 바꾸는 안이다. 지금 0회 실행으로 지나가는 워크플로우가 실패로 바뀐다.
 
-### 실패한 회차의 `error.code` 를 Map · Parallel 과 같은 규칙으로 고른다 (2026-11-05)
+### 실패한 회차의 `error.code` 를 Map · Parallel 과 같은 규칙으로 고른다
+
+결정일: 2026-11-05
 
 그전 `skipped[].error.code` 는 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. Parallel 은 같은 자리에 빈 `name` 대신 `UNKNOWN_ERROR` 를 내서 두 노드가 달랐다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-FOREACH-022). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.
 
@@ -281,7 +291,9 @@ ForEach 는 `arrayField` 가 배열이 아니면 모두 `[]` 로 바꿔 왔다. 
 
 포트 절은 에러 처리 정책 "에러 포트로 라우팅" 으로 생기는 동적 에러 포트가 아직 구현되지 않았다고 적었다. NERV Task `CLE-T-K0Y546` 이 이 포트를 구현해서 그 서술을 지웠다. 문서가 정하는 동작은 바뀌지 않는다. 기존 워크플로우 영향은 없다.
 
-### 완료 출력의 범위 단서를 걷는다 (2026-11-15)
+### 완료 출력의 범위 단서를 걷는다
+
+결정일: 2026-11-15
 
 2026-10-24 구현 확인 때 이 문서는 완료 출력이 park · 재구동 없이 이어진 실행에서만 보인다는 조건을 붙여 적었다. 노드 실행 기록 · completed 이벤트 · rehydration 에 시작 시점 배열이 남았기 때문이다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았다. 그래서 범위 단서와 `(부분 구현)` 표시를 걷고 원래 서술로 돌렸다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
 
