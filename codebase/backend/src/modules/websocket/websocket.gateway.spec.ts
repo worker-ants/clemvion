@@ -713,6 +713,158 @@ describe('WebsocketGateway', () => {
     });
   });
 
+  /**
+   * 실패 응답에도 요청한 `channel` 을 싣는다(CLE-API-WS-MSG §4.4, CLE-T-A338CH). 클라이언트는 같은 소켓의
+   * 여러 구독 중 어느 것이 실패했는지 이 값으로 가린다. 요청 값이 문자열이면 형식이 틀렸거나 빈 문자열이어도
+   * 그대로 싣고, 문자열이 아니면 필드를 뺀다.
+   */
+  describe('handleSubscribe — 실패 응답의 channel', () => {
+    const EXEC_CHANNEL = 'execution:11111111-1111-4111-8111-111111111111';
+    type Ack = Awaited<ReturnType<WebsocketGateway['handleSubscribe']>>;
+
+    function subscribe(body: unknown, socket: Socket): Promise<Ack> {
+      return gateway.handleSubscribe(body as { channel: string }, socket);
+    }
+
+    function authedSocket() {
+      const mock = createMockSocket({ id: 'client-1' });
+      (mock.socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+      return mock;
+    }
+
+    it.each(['invalid:123', ''])(
+      '형식이 틀린 문자열 %p 은 그대로 싣는다',
+      async (channel) => {
+        const { socket } = authedSocket();
+        const result = await subscribe({ channel }, socket);
+        expect(result.data).toEqual({
+          success: false,
+          error: 'Invalid channel',
+          code: WsErrorCode.INVALID_MESSAGE,
+          channel,
+        });
+      },
+    );
+
+    it.each([
+      ['숫자', { channel: 123 }],
+      ['객체', { channel: { name: EXEC_CHANNEL } }],
+      ['null', { channel: null }],
+      ['키 없음', {}],
+      ['본문 없음', undefined],
+    ])('문자열이 아닌 값(%s)이면 channel 필드를 뺀다', async (_label, body) => {
+      const { socket } = authedSocket();
+      const result = await subscribe(body, socket);
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Invalid channel',
+        code: WsErrorCode.INVALID_MESSAGE,
+      });
+      expect('channel' in result.data).toBe(false);
+    });
+
+    it('인증 상태가 없으면 UNAUTHENTICATED 와 channel 을 싣는다', async () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      const result = await subscribe({ channel: EXEC_CHANNEL }, socket);
+      expect(result.data).toMatchObject({
+        success: false,
+        code: WsErrorCode.UNAUTHENTICATED,
+        channel: EXEC_CHANNEL,
+      });
+    });
+
+    it('구독 한도에 걸리면 SUBSCRIPTION_LIMIT_EXCEEDED 와 channel 을 싣는다', async () => {
+      const { socket } = authedSocket();
+      const subs = getSubscriptions().get('client-1')!;
+      for (let i = 0; i < 20; i++) subs.add(`execution:exec-${i}`);
+      const result = await subscribe({ channel: EXEC_CHANNEL }, socket);
+      expect(result.data).toMatchObject({
+        success: false,
+        code: WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
+        channel: EXEC_CHANNEL,
+      });
+    });
+
+    it('맞는 authorizer 가 없으면 FORBIDDEN 과 channel 을 싣는다', async () => {
+      const { socket } = authedSocket();
+      (
+        gateway as unknown as { channelAuthorizers: unknown[] }
+      ).channelAuthorizers = [];
+      const result = await subscribe({ channel: EXEC_CHANNEL }, socket);
+      expect(result.data).toMatchObject({
+        success: false,
+        code: WsErrorCode.FORBIDDEN,
+        channel: EXEC_CHANNEL,
+      });
+    });
+
+    it('워크스페이스가 없으면 UNAUTHENTICATED 와 channel 을 싣는다', async () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      getSubscriptions().set('client-1', new Set());
+      const result = await subscribe({ channel: EXEC_CHANNEL }, socket);
+      expect(result.data).toMatchObject({
+        success: false,
+        code: WsErrorCode.UNAUTHENTICATED,
+        channel: EXEC_CHANNEL,
+      });
+    });
+
+    it('authorizer 가 거부하면 FORBIDDEN 과 channel 을 싣는다', async () => {
+      const { socket } = authedSocket();
+      const kbService = module.get(KnowledgeBaseService);
+      (kbService.verifyDocumentOwnership as jest.Mock).mockResolvedValueOnce(
+        false,
+      );
+      const channel = 'kb:dddddddd-2222-4222-8222-dddddddddddd';
+      const result = await subscribe({ channel }, socket);
+      expect(result.data).toEqual({
+        success: false,
+        error: 'Not authorized for this document',
+        code: WsErrorCode.FORBIDDEN,
+        channel,
+      });
+    });
+
+    it('join 이 실패하면 INTERNAL_ERROR 와 channel 을 싣는다', async () => {
+      const { socket, join } = authedSocket();
+      join.mockRejectedValueOnce(new Error('adapter down'));
+      const result = await subscribe({ channel: EXEC_CHANNEL }, socket);
+      expect(result.data).toMatchObject({
+        success: false,
+        code: WsErrorCode.INTERNAL_ERROR,
+        channel: EXEC_CHANNEL,
+      });
+    });
+
+    it('인가 뒤 한도 재확인에서 진 구독은 자기 channel 을 싣는다', async () => {
+      const { socket } = authedSocket();
+      const subs = getSubscriptions().get('client-1')!;
+      for (let i = 0; i < 19; i++) subs.add(`execution:exec-${i}`);
+      const kbService = module.get(KnowledgeBaseService);
+      let resolveA: (v: boolean) => void = () => undefined;
+      let resolveB: (v: boolean) => void = () => undefined;
+      (kbService.verifyDocumentOwnership as jest.Mock)
+        .mockImplementationOnce(
+          () => new Promise<boolean>((r) => (resolveA = r)),
+        )
+        .mockImplementationOnce(
+          () => new Promise<boolean>((r) => (resolveB = r)),
+        );
+      const channelA = 'kb:aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+      const channelB = 'kb:bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb';
+      const pA = subscribe({ channel: channelA }, socket);
+      const pB = subscribe({ channel: channelB }, socket);
+      resolveA(true);
+      resolveB(true);
+      const results = await Promise.all([pA, pB]);
+
+      expect(results.map((r) => r.data.channel)).toEqual([channelA, channelB]);
+      const loser = results.find((r) => !r.data.success);
+      expect(loser?.data.code).toBe(WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED);
+    });
+  });
+
   describe('handleUnsubscribe', () => {
     it('should unsubscribe from channel', async () => {
       const { socket, leave } = createMockSocket({ id: 'client-1' });

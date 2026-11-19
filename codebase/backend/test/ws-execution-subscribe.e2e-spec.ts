@@ -77,4 +77,37 @@ describe('WebSocket 실행 채널 구독 (e2e)', () => {
     expect(received.execution.id).toBe(executionId);
     expect(exceptions).toEqual([]);
   });
+
+  // 실패 응답에도 요청한 channel 이 실린다([WebSocket 메시지 「구독 인가」](CLE-API-WS-MSG#44-구독-인가)).
+  // 클라이언트는 이 값으로 같은 소켓의 여러 구독 중 어느 것이 실패했는지 가린다.
+  it('다른 워크스페이스의 실행을 구독하면 FORBIDDEN 과 요청한 channel 을 받는다', async () => {
+    const other = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('ws-sub-other'),
+      db,
+    );
+    const created = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${other.accessToken}`)
+      .send({ name: uniqueName('ws-sub-other-wf') });
+    expect(created.status).toBe(201);
+    const executed = await request(BASE_URL)
+      .post(
+        `/api/workflows/${(created.body.data as { id: string }).id}/execute`,
+      )
+      .set('Authorization', `Bearer ${other.accessToken}`)
+      .send({});
+    expect(executed.status).toBe(202);
+    const channel = `execution:${(executed.body.data as { executionId: string }).executionId}`;
+
+    const subscribed = waitForEvent<SubscribedAck>(socket, 'subscribed');
+    socket.emit('subscribe', { channel });
+
+    expect(await subscribed).toEqual({
+      success: false,
+      error: 'Not authorized for this execution',
+      code: 'FORBIDDEN',
+      channel,
+    });
+  });
 });

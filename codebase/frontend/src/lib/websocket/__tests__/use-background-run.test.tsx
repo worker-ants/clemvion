@@ -168,3 +168,66 @@ describe("useBackgroundRun (W-20 — WS lifecycle)", () => {
     });
   });
 });
+
+/**
+ * 구독 실패 ack 거르기(CLE-API-WS-MSG §4.4). 싱글턴 소켓이라 다른 채널의 실패 ack 도 온다. 이 구독의
+ * channel 이거나 channel 이 없는(실패 응답에 channel 을 싣기 전 서버) 실패만 경고한다.
+ */
+describe("useBackgroundRun — 구독 실패 ack", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    wsClientMock.isConnected.mockReturnValue(true);
+    vi.spyOn(api.backgroundRunsApi, "getById").mockResolvedValue({
+      backgroundRunId: "bg-1",
+      executionId: "exec-1",
+      parentNodeExecutionId: "p-1",
+      status: "completed",
+      startedAt: "2026-05-15T05:04:37.123Z",
+      completedAt: "2026-05-15T05:04:50.000Z",
+      durationMs: 12877,
+      nodeExecutions: { data: [], nextCursor: null, hasMore: false },
+      notifications: [],
+    });
+  });
+
+  async function mountAndGetAckHandler(): Promise<(ack: unknown) => void> {
+    renderHook(() => useBackgroundRun("exec-1", "bg-1"), { wrapper });
+    await waitFor(() => {
+      expect(wsClientMock.subscribe).toHaveBeenCalledWith(
+        "background:run:bg-1",
+      );
+    });
+    const call = wsClientMock.on.mock.calls.find(
+      (c: unknown[]) => c[0] === "subscribed",
+    );
+    expect(call).toBeDefined();
+    return call![1] as (ack: unknown) => void;
+  }
+
+  it.each([
+    ["이 구독의 channel", { channel: "background:run:bg-1" }],
+    ["channel 없음", {}],
+  ])("%s 실패 ack 는 경고한다", async (_label, extra) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ackHandler = await mountAndGetAckHandler();
+    const ack = { success: false, error: "denied", code: "FORBIDDEN", ...extra };
+    ackHandler(ack);
+    expect(warn).toHaveBeenCalledWith(
+      "[useBackgroundRun] subscribe rejected:",
+      ack,
+    );
+    warn.mockRestore();
+  });
+
+  it.each([
+    ["다른 채널 실패", { success: false, channel: "background:run:bg-2" }],
+    ["실행 채널 실패", { success: false, channel: "execution:exec-1" }],
+    ["성공", { success: true, channel: "background:run:bg-1" }],
+  ])("%s ack 로는 경고하지 않는다", async (_label, ack) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ackHandler = await mountAndGetAckHandler();
+    ackHandler(ack);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

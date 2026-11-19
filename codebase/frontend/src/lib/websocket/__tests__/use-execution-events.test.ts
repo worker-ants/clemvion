@@ -2783,9 +2783,55 @@ describe("useExecutionEvents", () => {
       expect(result.current.needsRestPolling).toBe(true);
     });
 
-    // 서버(`websocket.gateway.ts` handleSubscribe)의 실패 ack 는 channel 을 싣지 않는다.
-    // 그래서 어느 구독의 실패인지 가릴 수 없고, 실패 ack 가 오면 켠다.
-    it("구독 실패 ack 가 오면 10초를 기다리지 않고 켠다", () => {
+    // 서버(`websocket.gateway.ts` handleSubscribe)의 실패 ack 에는 요청한 channel 이 실린다
+    // (CLE-API-WS-MSG §4.4). 이 실행 채널의 실패만 켜고 다른 채널의 실패는 거른다.
+    it("이 실행 채널의 구독 실패 ack 가 오면 10초를 기다리지 않고 켠다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        fireAll("subscribed", {
+          success: false,
+          error: "Not authorized to subscribe",
+          code: "FORBIDDEN",
+          channel: "execution:exec-1",
+        });
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+      expect(mockToast.warning).not.toHaveBeenCalled();
+    });
+
+    it("다른 채널의 구독 실패 ack 로는 켜지 않는다", () => {
+      const { result } = renderHook(() =>
+        useExecutionEvents({ executionId: "exec-1" }),
+      );
+      act(() => {
+        for (const channel of [
+          "execution:exec-2",
+          "background:run:run-1",
+          "kb:doc-1",
+          "",
+        ]) {
+          fireAll("subscribed", {
+            success: false,
+            error: "Not authorized to subscribe",
+            code: "FORBIDDEN",
+            channel,
+          });
+        }
+      });
+      expect(result.current.needsRestPolling).toBe(false);
+
+      // 거른 ack 가 신호를 남기지 않았다. 10초가 지나야 켜진다.
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(result.current.needsRestPolling).toBe(true);
+    });
+
+    // 실패 응답에 channel 을 싣기 전의 서버는 channel 없이 보낸다. 어느 구독의 실패인지 가릴
+    // 수 없어 이 실행의 실패로 보고 켠다.
+    it("channel 이 없는 구독 실패 ack 가 오면 10초를 기다리지 않고 켠다", () => {
       const { result } = renderHook(() =>
         useExecutionEvents({ executionId: "exec-1" }),
       );
