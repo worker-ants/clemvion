@@ -169,7 +169,10 @@ describe('Workflow Execution (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({});
-    const executionId = execA.body.executionId;
+    const executionId = execA.body.data.executionId;
+    // 응답 봉투의 data 아래에 있다. 봉투 밖을 읽으면 `undefined` 라 경로 검증 400 으로 끝나
+    // 소유권 확인까지 가지 않는다.
+    expect(typeof executionId).toBe('string');
 
     // 다른 owner / 워크스페이스 준비.
     const intruder = await registerAndLogin(
@@ -187,10 +190,9 @@ describe('Workflow Execution (e2e)', () => {
       .post(`/api/executions/${executionId}/stop`)
       .set('Authorization', `Bearer ${intruder.accessToken}`)
       .set('X-Workspace-Id', otherWs);
-    // verifyOwnership 가 NotFoundException, ForbiddenException, 또는
-    // 422 INVALID_STATE (이미 terminal) 형태로 모두 cross-workspace 접근을 막는다 —
-    // 어느 쪽이든 외부 워크스페이스가 자원을 조작할 수 없는 invariant 충족.
-    expect([403, 404, 422]).toContain(stop.status);
+    // 컨트롤러가 상태를 보기 전에 verifyOwnership 으로 소속 워크스페이스를 확인한다. 다른
+    // 워크스페이스의 실행은 존재를 드러내지 않도록 404 다.
+    expect(stop.status).toBe(404);
   });
 
   it('D. terminal 상태 실행에 stop → 422 INVALID_STATE (이미 완료된 실행)', async () => {
