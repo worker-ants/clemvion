@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "a59b3ca5b9d2cd82a67fac26a92c841c4398f46233da311d56344360e93755cc"
+content_hash: "8f2239f6119f8a6d9a0562fb3a1c263c86d65f14fa8663a6a0a15524319f73dd"
 read_as: "approved_fallback"
-task: "CLE-T-RWHTXC"
+task: "CLE-T-JXD0W5"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4edaa2b4a28c5ef0c9f6af0eeb471d60dd692038133c42d3c67c5cfc39747e79"
-etag: "sha256-2f7c755348598434ce369089c3279197394af7e1117be294a19a74c8f2c7d1eb"
+mirror_sha256: "54d147eb2b1d48ed664d3aee5e69530311a90e61a9245403a7bbee7bfb0d0936"
+etag: "sha256-c35b159226ddd84e10e0d70ddd23b883ba79f3ee05baa97c417fc259fd9ae316"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -210,7 +210,6 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
 - **실행 중 컨테이너 헤더의 진행 인덱스** (info): 이 문서와 Loop · Map 문서는 실행 중 헤더에 "Iteration 3/10" 같은 진행 인덱스를 보인다고 적는다. [워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md) 의 컨테이너 절에는 이 요소가 없고 프론트엔드 캔버스 코드에서도 찾지 못했다. 캔버스 문서에 정의할지 미구현으로 표시할지 결정 필요.
 - **`skip` 과 `continue` 의 차이** (info): 노드 PRD 는 두 값을 다른 정책으로 보여 주지만 결과 형태는 같고 `continue` 가 노드 실행 기록에도 에러를 남긴다는 차이만 있다. 관측할 수 있는 차이를 더 적을지 하나로 합칠지 결정 필요.
 - **완료 출력의 `port` 가 노드 출력 규약 Principle 5 와 맞지 않는다** (info): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 5 는 `port: undefined` 를 노드 정의상 출력이 1개인 노드에, `port: string[]` 을 Parallel 핸들러와 텍스트 분류기에 둔다. Loop · ForEach · Map 은 출력 포트가 `body` 와 `done` 둘인데 완료 출력에 `port` 가 없다. 이 사실은 `execution-engine.service.ts` 의 컨테이너 완료 처리에서 확인했다. 규약과 이 문서 가운데 어느 쪽을 고칠지 결정 필요. Parallel 의 완료 `port` 는 [노드 출력 사용 패턴](CLE-NODE-LOGIC-COMMON-OUTPUT.md#노드-출력-사용-패턴) 표대로 `'done'` 문자열로 정했다(2026-11-01, [Parallel 노드](CLE-NODE-PARALLEL.md#완료-출력-port-는-done-문자열이다-2026-11-01)). 구현도 `'done'` 문자열을 싣는다.
-- **완료 덮어쓰기가 노드 실행 기록에 남지 않는다** (warning): [엔진 덮어쓰기 계약](CLE-NODE-LOGIC-COMMON-OUTPUT.md#엔진-덮어쓰기-계약) 규칙 3 은 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에서 시작 시점 배열을 감추는 부분을 미구현으로 적는다. 현재 구현은 Loop · ForEach · Map · Parallel 모두 완료 때 실행 컨텍스트의 출력만 바꾸고 노드 실행 기록(`node_execution.output_data`)은 갱신하지 않는다. 그래서 Map · ForEach 의 실행 기록에는 시작 시점의 `output: items[]` 와 핸들러 `meta` 만 남고 완료 출력과 엔진이 합친 `meta.iterations` · `meta.skippedCount` 는 없다. park 뒤 재개와 크래시 뒤 재구동의 rehydration 경로도 이 저장값을 복원한다. 이전 실행의 직속 상류 출력을 복원하는 단일 노드 실행과 캔버스 · 실행 트리의 실행 시간 표시도 이 저장값을 읽는다([에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md)). 그래서 다음 노드 표현식은 rehydration 뒤에 시작 시점 값을 본다(2026-10-24 e2e 실행으로 확인). 이 갭은 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md#park-즉시-해제와-rehydration-단일-경로-phase-b) 의 rehydration 단일 경로 · 무손실 전제를 어기므로 설계 변경이 아니라 결함으로 둔다. ForEach · Map 의 `done` 포트 뒤에 Form · Carousel 같은 입력 대기 노드가 오면 재개 뒤의 노드부터 이 경로에 닿는다. 실행 기록을 완료 출력으로 갱신할지 규칙 3 을 실제에 맞게 고칠지 결정 필요. 규칙 3 을 고치는 쪽이면 그 전제와 [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) 의 rehydration 기준 문장도 함께 고친다. 후속 작업은 NERV Task `CLE-T-JXD0W5` 가 맡는다.
 
 ## 구현 위치
 

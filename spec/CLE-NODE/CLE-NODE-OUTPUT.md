@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "af4b2c24e4c09f22bef7f50a34caab93bc77c7b645a9055f12a73fe95bc788ae"
+content_hash: "b2b832706517002028a8d318718d19ac6aa082b1a14b323d7f8011b0184794bf"
 read_as: "approved_fallback"
-task: "CLE-T-QGRX9B"
+task: "CLE-T-JXD0W5"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "16d3720c83b0f01753f8b96d3003c2adf4d15769e114aa01ea1e00e986ae02ad"
-etag: "sha256-0c79cac5b4cf75118d807b2e20a12ac8c485c3a4d2b013e04ca96c5c920bbc62"
+mirror_sha256: "d031fda9ff5737ed524195e66dad399f020d98c05b85dcf34478b0b2905ac8e0"
+etag: "sha256-29567a91a01b70d3d9565cecc34bee9ced2cc802127e1b7c82a155e6d161483c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -116,7 +116,7 @@ etag: "sha256-0c79cac5b4cf75118d807b2e20a12ac8c485c3a4d2b013e04ca96c5c920bbc62"
 
 | 분류 | 필수·권장 필드 |
 | --- | --- |
-| 공통 | `meta.durationMs: number`. Loop·ForEach·Map·Parallel 의 완료 출력은 잠정적으로 제외한다([컨테이너 · Parallel 의 완료 `meta`](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-meta)). 이 값을 누가 채우는지는 노드 문서가 정한다([미결 사항](#미결-사항)). Send Email 노드의 dry-run 출력에는 `meta.durationMs` 가 없다([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) Rationale). 이 값을 채우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다 |
+| 공통 | `meta.durationMs: number`. Loop·ForEach·Map·Parallel 의 완료 출력에는 싣지 않는다. 이 네 노드의 노드 전체 실행 시간은 노드 실행 기록에 있다([컨테이너 · Parallel 의 완료 `meta`](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-meta), [Rationale](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-출력에-durationms-를-싣지-않는다-잠정-2026-10-24)). 이 값을 누가 채우는지는 노드 문서가 정한다([미결 사항](#미결-사항)). Send Email 노드의 dry-run 출력에는 `meta.durationMs` 가 없다([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) Rationale). 이 값을 채우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다 |
 | AI 노드 | 아래 목록 |
 | HTTP | `meta.statusCode`, `meta.durationMs` |
 | DB | `meta.durationMs`, `meta.rowCount` |
@@ -277,7 +277,7 @@ AI 노드의 `meta` 필드는 다음과 같다.
 
 - **AI 노드의 인증 실패 재시도 가능 분류(Principle 3.2.1)** · **시스템 포트 예약어 집합과 거부 계층(Principle 6)** · **출력 포트가 둘인데 `port` 를 비우는 노드(Principle 5)**: [포트 · 흐름 상태 · 에러의 미결 사항](CLE-NODE-OUTPUT-FLOW.md#미결-사항)
 - **정보 추출기의 설정 에코 키 이름(Principle 7)**: [설정 에코의 미결 사항](CLE-NODE-OUTPUT-ECHO.md#미결-사항)
-- **컨테이너 완료 출력의 `port`(Principle 5)** · **컨테이너 · Parallel 노드의 실행 시간(Principle 2)**: [컨테이너 출력과 빈 입력의 미결 사항](CLE-NODE-OUTPUT-CONTAINER.md#미결-사항)
+- **컨테이너 완료 출력의 `port`(Principle 5)**: [컨테이너 출력과 빈 입력의 미결 사항](CLE-NODE-OUTPUT-CONTAINER.md#미결-사항)
 
 이 문서에 남은 미결 항목은 다음과 같다.
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL-OUTPUT"
 title: "Parallel 노드 — 출력 구조"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PARALLEL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-PARALLEL"]
 area: "CLE-NODE-LOGIC"
-content_hash: "aafc62c2c9e7a15f3be1ed47ce36a6d2e22167f9b6e36f6732b768796127bc76"
+content_hash: "5fe2924a4d431b0692bca1599536e1192efb7c25c21154dee975e3e51cd7c55e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JXD0W5"
 source_paths: []
-mirror_sha256: "1a9dc3bb0b3eacd731257b5b186360a338459d09bfe1e847392df9699b2e0625"
-etag: "sha256-b12b8fec23aef64da2d06e0b2f82fdc94097fcc9a80e92ab44bd59c89d14ff3f"
+mirror_sha256: "874cde0ea070baecbc3afa713d60e27a9a02c573d607bd72844ad9ac74cebb5f"
+etag: "sha256-c9f9a36bf005feeec001643670d0cd9d0c9bf27ea1829d6060978fe68d812a0f"
 ---
 ## 개요
 
@@ -40,7 +40,7 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 | `config.maxConcurrency` | Integer (원래 값) | 설정 에코 | 사용자 설정 원래 값. 음수·16 초과 같은 잘못된 값도 그대로 싣고 실제 동작은 실행기가 맞춘다 |
 | `config.waitAll` | Boolean (원래 값) | 설정 에코 | 사용자 설정 원래 값. 설정하지 않았으면 `undefined` 라 JSON 에서 빠진다. 검증을 통과한 값은 `true` 다 |
 | `config.errorPolicy` | String (원래 값) | 설정 에코 | 사용자 설정 원래 값. 설정하지 않았으면 `undefined` 라 JSON 에서 빠지고 엔진은 [설정](CLE-NODE-PARALLEL-CONFIG.md#설정) 2번대로 정책을 고른다 |
-| `output` | `null` | 핸들러 반환 | 엔진 덮어쓰기 대상 노드의 핸들러 계약(Loop · ForEach · Map 과 같은 계열). 엔진 안에서만 쓰는 중간 형태다. park · 재구동 없이 이어진 실행에서 다음 노드가 `$node["X"].output.*` 로 보는 값은 완료 시점 형태다. rehydration 뒤에는 이 `null` 을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)) |
+| `output` | `null` | 핸들러 반환 | 엔진 덮어쓰기 대상 노드의 핸들러 계약(Loop · ForEach · Map 과 같은 계열). 엔진 안에서만 쓰는 중간 형태다. 다음 노드가 `$node["X"].output.*` 로 보는 값은 완료 시점 형태다. 노드 실행 기록과 rehydration 도 완료 시점 형태를 쓴다([엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 1번) |
 | `port` | `string[]` | 핸들러 반환 | `branch_0` ~ `branch_{N-1}` 을 모두 활성화한다(fan-out). 병렬 분기 진입점을 여는 신호 |
 
 ### 완료 시점 (`done` 포트)
@@ -75,7 +75,7 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 | `output.skipped?` | `Array<{ index, error: { code, message } }>` | 엔진 덮어쓰기 | `errorPolicy='continue'` 에서 실패한 병렬 분기 목록이고 `index` 오름차순이다. `index` 는 병렬 분기 번호(`branch_<index>` 의 index)다. `error.code` 와 `error.message` 는 ForEach · Map 과 같은 규칙으로 고른다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4 · 5번). `error.code` 는 카탈로그 코드 · `AbortError` · `UNKNOWN_ERROR` 가운데 하나다. 실패가 0건이면 필드 자체를 뺀다. 사용자 취소는 여기에 들어가지 않는다. 실행 상태 `skipped`(실행하지 않고 건너뜀)와는 다른 뜻이다 |
 | `port` | `'done'` | 엔진 | 단일 문자열. 모든 병렬 분기 완료 경로 |
 
-완료 출력의 `meta` 는 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `{ clampedConcurrency }` 로 싣고 그 밖에는 싣지 않는다([놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md)). 병렬 분기 수와 실패 수는 `meta` 에 따로 두지 않는다. 다음 노드는 병렬 분기 수를 `output.count` 로, 실패는 `output.skipped` 로 읽는다(실패 수는 `output.skipped.length`). `meta.durationMs` 도 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 병렬 분기 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)).
+완료 출력의 `meta` 는 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `{ clampedConcurrency }` 로 싣고 그 밖에는 싣지 않는다([놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md)). 병렬 분기 수와 실패 수는 `meta` 에 따로 두지 않는다. 다음 노드는 병렬 분기 수를 `output.count` 로, 실패는 `output.skipped` 로 읽는다(실패 수는 `output.skipped.length`). `meta.durationMs` 도 없다. 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 핸들러와 병렬 분기를 모두 포함한 노드 전체 실행 시간이다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)).
 
 `errorPolicy` 가 `stop` 이나 `cancel-others-on-fail` 이면 병렬 분기가 실패할 때 Parallel 노드가 실패로 전이하고 `done` 포트를 거치지 않는다. 그래서 실패 자리의 `null` 과 `output.skipped` 는 `errorPolicy='continue'` 에서만 보인다.
 
@@ -99,8 +99,8 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 | 시작(병렬 분기 fan-out 직전) | `output: null` | `string[]` (`branch_0` ~ `branch_{N-1}`) | 핸들러 반환. 병렬 분기 포트를 여는 용도 |
 | 완료(모든 병렬 분기 종료 뒤) | `output: { branches: Array<unknown \| null>, count, skipped? }` | `'done'` (단일 문자열) | **엔진 덮어쓰기** |
 
-1. park · 재구동 없이 이어진 실행에서 다음 노드가 `$node["Parallel"].output.*` 로 보는 값은 완료 시점 형태다. rehydration 뒤에는 시작 시점의 `output: null` 을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
-2. 핸들러가 시작 시점에 반환한 `output: null` 은 엔진이 덮어쓰기 전의 중간 단계다(Loop · ForEach · Map 과 같은 방식). 밖의 표현식에 드러나지 않는 범위는 1번과 같다.
+1. `PARALLEL_ENGINE=v1` 에서 다음 노드가 `$node["Parallel"].output.*` 로 보는 값은 완료 시점 형태다. 노드 실행 기록(`output_data`)과 `execution.node.completed` 이벤트, park 뒤 재개와 크래시 재구동의 rehydration 도 같은 완료 출력을 쓴다. 엔진은 모든 병렬 분기가 끝난 뒤 노드 실행 기록을 한 번 마감한다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
+2. 핸들러가 시작 시점에 반환한 `output: null` 은 엔진이 덮어쓰기 전의 중간 단계다(Loop · ForEach · Map 과 같은 방식). 1번의 범위에서는 밖의 표현식 · 노드 실행 기록 · 이벤트에 드러나지 않는다. [단일 노드 실행](../CLE-EXEC/CLE-EXEC-RUN.md)은 병렬 분기를 돌지 않으므로 핸들러 반환값으로 노드 실행 기록을 바로 마감한다.
 3. `port` 는 시작 시점에 `string[]` (fan-out)이고 완료 시점에 `'done'` 문자열(단일 포트)이다. 엔진 덮어쓰기 대상 노드 가운데 노드 출력에 `port` 를 직접 싣는 것은 Parallel 뿐이다. 엔진이 연결선을 고르려고 내부 캐시에 두는 `_selectedPort` 도 노드 출력 `port` 와 같은 모양이라([실행 엔진](../CLE-EXEC/CLE-EXEC-ENGINE.md) 의 `_selectedPort` 처리) 완료 시점에 `'done'` 이다.
 4. 병렬 분기 입력은 `ParallelExecutor` 가 `ExecutionContext` 얕은 복사본(`variables` 는 깊은 복사)으로 나눠 준다. 핸들러의 시작 시점 `output` 에 기대지 않는다.
 5. `PARALLEL_ENGINE=off` 되돌림 경로에서는 완료 시점 덮어쓰기가 없다. 노드 출력은 시작 시점 형태(`output: null`, `port: string[]`)로 남는다([`off` 되돌림 경로는 완료 출력을 만들지 않는다](#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)).
@@ -119,11 +119,13 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 
 옛 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 컨테이너 행은 `meta.branches?` 를 적었지만 엔진은 `meta.clampedConcurrency` 만 싣는다. 지금 동작을 계약으로 정했다. 병렬 분기 수는 `output.count`, 실패 수는 `output.skipped.length` 로 센다([아래 절](#완료-출력은-병렬-분기-결과를-그대로-두고-실패를-따로-모은다-2026-11-01)).
 
-기각한 대안은 완료 `meta` 에 `branches` · `fulfilledCount` · `rejectedCount` 를 더하는 안이다. 엔진 코드를 바꿔야 하고 지금 이 값을 요구하는 화면 · 요구사항이 없다. `meta.durationMs` 는 이 판단에 넣지 않았다. 노드 전체 실행 시간을 둘 곳은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항) 의 미결 사항 「컨테이너 · Parallel 노드의 실행 시간」 에서 정한다.
+기각한 대안은 완료 `meta` 에 `branches` · `fulfilledCount` · `rejectedCount` 를 더하는 안이다. 엔진 코드를 바꿔야 하고 지금 이 값을 요구하는 화면 · 요구사항이 없다. `meta.durationMs` 는 이 판단에 넣지 않았다. 그때는 노드 전체 실행 시간을 둘 곳을 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 미결 사항 「컨테이너 · Parallel 노드의 실행 시간」 으로 넘겼다.
 
 출력 균일성을 겹침 제거보다 앞에 둔 2026-06-03 결정 B([`done` 출력에 `count` 를 싣는다](#done-출력에-count-를-싣는다-2026-06-03-결정-b))는 `output` 필드에 대한 결정이라 이 판단과 부딪치지 않는다. [Map 노드](CLE-NODE-MAP.md#배열이-아닌-입력을-빈-배열로-바꾸고-meta-로-알린다-2026-10-24) 가 완료 `meta` 에 `iterations` · `skippedCount` 를 더한 것은 같은 실행기를 쓰는 ForEach 와 `meta` 를 맞추려는 것이라 이 경우와 다르다.
 
 병렬 분기 수나 실패 수를 `meta` 로 읽어야 하는 화면이나 요구사항이 생기면 다시 본다.
+
+2026-11-15 확정(NERV Task CLE-T-JXD0W5): 완료 `meta.durationMs` 는 싣지 않는다. 일반 노드에서 같은 키는 핸들러가 잰 시간이라 Parallel 에 노드 전체 시간을 실으면 키의 뜻이 노드마다 갈린다. 노드 전체 실행 시간은 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 으로 읽는다. 2026-10-24 구현 확인 때는 이 두 값이 핸들러 실행 시간이라 병렬 분기 시간이 빠진다고 적었다. 시작 시점 표와 엔진 덮어쓰기 계약 1 · 2 도 그때 park · 재구동 없이 이어진 실행으로 범위를 좁혀 적었다. 같은 Task 가 노드 실행 기록을 모든 병렬 분기가 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았고 이 문서도 원래 서술로 돌렸다. 근거와 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 에 있다.
 
 ### 완료 출력은 병렬 분기 결과를 그대로 두고 실패를 따로 모은다 (2026-11-01)
 

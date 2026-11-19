@@ -20,6 +20,10 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 2. **비배열 입력은 meta 로 알린다**: 배열 경로가 원시값 · 객체로 풀리면 바디를 돌지
  *    않고 `meta.fellBackToEmpty: true` 를 남긴다. 다운스트림은
  *    `$node["<컨테이너>"].meta.*` 로 읽는다.
+ * 3. **실행 이력의 컨테이너 행은 완료 시점 값이다**: 실행 상세 API 의 컨테이너
+ *    노드 실행은 완료 출력 `{ <items|mapped>, count }` · 완료 meta 와 바디까지 포함한
+ *    실행 시간을 담는다. 컨테이너 뒤에서 멈췄다가 재개해도 다운스트림은
+ *    그 행에서 복원한 완료 출력을 읽는다(NERV Task CLE-T-JXD0W5).
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -50,7 +54,10 @@ describe('Container array input and completion meta (e2e)', () => {
 
   const auth = () => ({ Authorization: `Bearer ${token}` });
 
-  async function poll(executionId: string): Promise<string> {
+  async function poll(
+    executionId: string,
+    until: (status: string) => boolean = (st) => TERMINAL.includes(st),
+  ): Promise<string> {
     const start = Date.now();
     let last = '';
     while (Date.now() - start < 20_000) {
@@ -60,7 +67,7 @@ describe('Container array input and completion meta (e2e)', () => {
         .set('X-Workspace-Id', workspaceId);
       if (res.status === 200) {
         last = (res.body.data as { status: string }).status;
-        if (TERMINAL.includes(last)) return last;
+        if (until(last)) return last;
       }
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -111,10 +118,14 @@ describe('Container array input and completion meta (e2e)', () => {
 
   // Start → Code(return <codeBody>) → <컨테이너>(배열 경로) ⟲ Body → Echo
   // Echo 는 사용자가 쓸 표현식 그대로 컨테이너의 output · meta 를 옮겨 적는다.
+  // parkAfterDone 이면 done 과 Echo 사이에 Form 을 두어 실행을 멈췄다가 재개한다.
+  // 재개는 노드 실행 행에서 컨텍스트를 복원(rehydration)하므로 Echo 가 읽는 값은
+  // 컨테이너 행의 output_data 다.
   async function runGraph(
     type: ContainerType,
     codeBody: string,
     arrayExpr: string,
+    opts: { parkAfterDone?: boolean } = {},
   ): Promise<{
     executionId: string;
     ctrId: string;
@@ -135,6 +146,7 @@ describe('Container array input and completion meta (e2e)', () => {
     const ctrId = randomUUID();
     const bodyId = randomUUID();
     const echoId = randomUUID();
+    const formId = randomUUID();
     const ctrLabel = type === 'map' ? 'Map' : 'ForEach';
     const collection = type === 'map' ? 'mapped' : 'items';
 
@@ -218,6 +230,22 @@ describe('Container array input and completion meta (e2e)', () => {
               ],
             },
           },
+          ...(opts.parkAfterDone
+            ? [
+                {
+                  id: formId,
+                  type: 'form',
+                  category: 'presentation',
+                  label: 'Wait',
+                  positionX: 540,
+                  positionY: 0,
+                  config: {
+                    title: 'Wait',
+                    fields: [{ name: 'note', type: 'text', label: 'Note' }],
+                  },
+                },
+              ]
+            : []),
         ],
         edges: [
           {
@@ -245,12 +273,29 @@ describe('Container array input and completion meta (e2e)', () => {
             targetNodeId: ctrId,
             targetPort: 'emit',
           },
-          {
-            sourceNodeId: ctrId,
-            sourcePort: 'done',
-            targetNodeId: echoId,
-            targetPort: 'in',
-          },
+          ...(opts.parkAfterDone
+            ? [
+                {
+                  sourceNodeId: ctrId,
+                  sourcePort: 'done',
+                  targetNodeId: formId,
+                  targetPort: 'in',
+                },
+                {
+                  sourceNodeId: formId,
+                  sourcePort: 'out',
+                  targetNodeId: echoId,
+                  targetPort: 'in',
+                },
+              ]
+            : [
+                {
+                  sourceNodeId: ctrId,
+                  sourcePort: 'done',
+                  targetNodeId: echoId,
+                  targetPort: 'in',
+                },
+              ]),
         ],
       });
     expect(save.status).toBe(200);
@@ -262,6 +307,19 @@ describe('Container array input and completion meta (e2e)', () => {
       .send({});
     expect(exec.status).toBe(202);
     const executionId = exec.body.data.executionId as string;
+    if (opts.parkAfterDone) {
+      const parked = await poll(
+        executionId,
+        (st) => st === 'waiting_for_input' || TERMINAL.includes(st),
+      );
+      expect(parked).toBe('waiting_for_input');
+      const resumed = await request(BASE_URL)
+        .post(`/api/executions/${executionId}/continue`)
+        .set(auth())
+        .set('X-Workspace-Id', workspaceId)
+        .send({ formData: { note: 'resume' } });
+      expect([200, 202]).toContain(resumed.status);
+    }
     const status = await poll(executionId);
     return { executionId, ctrId, bodyId, echoId, status };
   }
@@ -313,6 +371,66 @@ describe('Container array input and completion meta (e2e)', () => {
     60_000,
   );
 
+  // 실행 상세 API 의 컨테이너 행이 시작 시점 핸들러 출력(입력 배열)과 핸들러만의 실행
+  // 시간이 아니라 완료 출력과 바디까지 포함한 실행 시간을 담는다(NERV Task CLE-T-JXD0W5).
+  it.each<ContainerType>(['map', 'foreach'])(
+    '%s node execution in the history API holds the completion output and full duration',
+    async (type) => {
+      const { executionId, ctrId, bodyId, status } = await runGraph(
+        type,
+        'return { items: [{ v: 1 }, { v: 2 }, { v: 3 }] };',
+        '{{ $node["Code"].output.items }}',
+      );
+      expect(status).toBe('completed');
+
+      const res = await request(BASE_URL)
+        .get(`/api/executions/${executionId}`)
+        .set(auth())
+        .set('X-Workspace-Id', workspaceId);
+      expect(res.status).toBe(200);
+      type NodeExecutionDto = {
+        nodeId: string;
+        status: string;
+        startedAt: string;
+        finishedAt: string | null;
+        durationMs: number | null;
+        outputData: {
+          output?: Record<string, unknown>;
+          meta?: Record<string, unknown>;
+        } | null;
+      };
+      const rows = (res.body.data as { nodeExecutions: NodeExecutionDto[] })
+        .nodeExecutions;
+      const ctrRows = rows.filter((r) => r.nodeId === ctrId);
+      expect(ctrRows).toHaveLength(1);
+      const ctr = ctrRows[0];
+      expect(ctr.status).toBe('completed');
+
+      const collection = type === 'map' ? 'mapped' : 'items';
+      expect(ctr.outputData?.output?.count).toBe(3);
+      expect(ctr.outputData?.output?.[collection]).toEqual([
+        { v: 1, seen: 'yes' },
+        { v: 2, seen: 'yes' },
+        { v: 3, seen: 'yes' },
+      ]);
+      expect(ctr.outputData?.meta).toEqual(
+        expect.objectContaining({ iterations: 3, fellBackToEmpty: false }),
+      );
+
+      // 컨테이너의 끝 시각은 마지막 바디가 끝난 뒤이고, 실행 시간은 시작 · 끝 시각 차다.
+      const bodyRows = rows.filter((r) => r.nodeId === bodyId);
+      expect(bodyRows).toHaveLength(3);
+      const lastBodyFinished = Math.max(
+        ...bodyRows.map((r) => Date.parse(r.finishedAt ?? '')),
+      );
+      expect(ctr.finishedAt).not.toBeNull();
+      const ctrFinished = Date.parse(ctr.finishedAt!);
+      expect(ctrFinished).toBeGreaterThanOrEqual(lastBodyFinished);
+      expect(ctr.durationMs).toBe(ctrFinished - Date.parse(ctr.startedAt));
+    },
+    60_000,
+  );
+
   it.each<ContainerType>(['map', 'foreach'])(
     '%s skips the body for a non-array path and reports fellBackToEmpty=true',
     async (type) => {
@@ -327,6 +445,29 @@ describe('Container array input and completion meta (e2e)', () => {
       expect(echo.fell).toBe(true);
       expect(echo.iterations).toBe(0);
       expect(echo.count).toBe(0);
+    },
+    60_000,
+  );
+
+  // 컨테이너 뒤에서 실행이 멈췄다가 재개되면 컨텍스트는 노드 실행 행에서 복원된다.
+  // 다운스트림이 읽는 컨테이너 output · meta 는 그 행에 남은 완료 출력이다
+  // (NERV Task CLE-T-JXD0W5).
+  it.each<ContainerType>(['map', 'foreach'])(
+    '%s completion output survives a park after done and the resume',
+    async (type) => {
+      const { executionId, bodyId, echoId, status } = await runGraph(
+        type,
+        'return { items: [{ v: 1 }, { v: 2 }, { v: 3 }] };',
+        '{{ $node["Code"].output.items }}',
+        { parkAfterDone: true },
+      );
+      expect(status).toBe('completed');
+      expect(await countBodyRuns(executionId, bodyId)).toBe(3);
+      const echo = await readOutput(executionId, echoId);
+      expect(echo.fell).toBe(false);
+      expect(echo.iterations).toBe(3);
+      expect(echo.count).toBe(3);
+      expect(echo.first).toEqual({ v: 1, seen: 'yes' });
     },
     60_000,
   );

@@ -125,6 +125,7 @@ import type { ResumeCheckpoint } from './utils/resume-state.schema';
 import {
   ExecutionContext,
   NodeHandler,
+  NodeHandlerOutput,
   ParallelBranchContext,
   ResumableMessageSource,
 } from '../../nodes/core/node-handler.interface';
@@ -133,6 +134,7 @@ import {
   SUB_WORKFLOW_MAX_RECURSION_DEPTH,
 } from '../../nodes/core/node-types.constants';
 import { isDryRun } from '../../nodes/core/dry-run.util';
+import { RESERVED_ERROR_PORT_ID } from '../../nodes/core/button-slug.util';
 import {
   type ChatChannelRoutingInfo,
   ExecutionEventType,
@@ -312,6 +314,21 @@ function extractChatChannelFromInput(
 }
 
 /**
+ * 엔진 덮어쓰기를 받는 노드(Loop · ForEach · Map · Parallel)의 노드 실행 행을 본문이 끝날
+ * 때까지 열어 둔 것. `executeNode` 가 핸들러를 실행한 뒤 행을 RUNNING 으로 두고 돌려주면
+ * `dispatchByNodeKind` 가 받은 실행 경로가 완료 출력 · 끝 시각 · 노드 전체 실행 시간으로
+ * 행을 마감하고 `execution.node.completed` 를 한 번 보낸다(CLE-T-JXD0W5).
+ */
+interface DeferredNodeCompletion {
+  nodeExecution: NodeExecution;
+  /**
+   * 핸들러가 돌려준 시작 시점 값. 실행 경로가 엔진 덮어쓰기를 하지 않고 끝나면 이 값으로
+   * 마감한다(예전 동작과 같다).
+   */
+  handlerOutput: Record<string, unknown>;
+}
+
+/**
  * {@link ExecutionEngineService.runParallel} 인자. 호출하는 루프마다 연결선 범위가
  * 달라서 위치 인자 대신 이름으로 넘긴다.
  */
@@ -339,6 +356,8 @@ interface RunParallelOptions {
   reachable: Set<string>;
   /** Parallel 노드 입력. 병렬 분기 입구 노드가 받는다. */
   input: unknown;
+  /** `executeNode` 가 열어 둔 Parallel 의 노드 실행 행. 완료 출력으로 마감한다. */
+  pendingCompletion?: DeferredNodeCompletion;
 }
 
 /**
@@ -369,6 +388,11 @@ interface NodeKindDispatchOptions {
     RunParallelOptions,
     'forwardEdges' | 'backEdges' | 'outgoingEdgeMap' | 'reachable'
   >;
+  /**
+   * `executeNode` 가 돌려준 열린 노드 실행 행. 주면 이 메서드가 어느 실행 경로로 넘기든
+   * 행을 반드시 마감한다.
+   */
+  pendingCompletion?: DeferredNodeCompletion;
 }
 
 /** {@link ExecutionEngineService.executeParallelBranchBody} 인자. */
@@ -1979,7 +2003,7 @@ export class ExecutionEngineService
           input,
           incomingEdgeMap,
         );
-        await this.executeNode(
+        const pendingCompletion = await this.executeNode(
           executionId,
           node,
           nodeInput,
@@ -1988,6 +2012,7 @@ export class ExecutionEngineService
           nodeMap,
           dispatchMeta,
           outgoingEdgeMap,
+          { completeAfterDispatch: true },
         );
         const ranParallel = await this.dispatchByNodeKind({
           node,
@@ -1998,6 +2023,7 @@ export class ExecutionEngineService
           executedNodes,
           executionMeta: dispatchMeta,
           nodeInput,
+          pendingCompletion,
           // PR #364 (default ON) 정책 정합 — runExecution / resumeFromCheckpoint
           // 가 모두 'v1' default. helper 도 동일 default 사용해 retry 경로의
           // 우연한 'off' default (PR #365 잔재) 도 동시 통일.
@@ -4039,7 +4065,7 @@ export class ExecutionEngineService
         this.logger.log(
           `[executeInline] Executing node "${node.label}" (type=${node.type}, id=${node.id})`,
         );
-        await this.executeNode(
+        const pendingCompletion = await this.executeNode(
           executionId,
           node,
           nodeInput,
@@ -4048,6 +4074,7 @@ export class ExecutionEngineService
           subNodeMap,
           executionMeta,
           outgoingEdgeMap,
+          { completeAfterDispatch: true },
         );
 
         // PR-G — metadata flag dispatch (CRIT #3 시나리오 D). 노드 종류별 실행 경로는
@@ -4062,6 +4089,7 @@ export class ExecutionEngineService
           executedNodes,
           executionMeta,
           nodeInput,
+          pendingCompletion,
           parallel:
             this.resolveParallelEngineFlag() === 'v1'
               ? { forwardEdges, backEdges, outgoingEdgeMap, reachable }
@@ -4574,8 +4602,9 @@ export class ExecutionEngineService
           incomingEdgeMap,
         );
 
-        // Execute the node
-        await this.executeNode(
+        // Execute the node. 단일 노드 실행은 dispatch 없이 끝나므로 완료를 미루지 않는다
+        // (CLE-T-JXD0W5).
+        const pendingCompletion = await this.executeNode(
           executionId,
           node,
           nodeInput,
@@ -4587,6 +4616,7 @@ export class ExecutionEngineService
             mode: 'manual',
           },
           outgoingEdgeMap,
+          { completeAfterDispatch: !singleNodeId },
         );
 
         // 단일 노드 실행 (§1.3) — 대상 노드 1개만 실행하고 종결한다. container body
@@ -4620,6 +4650,7 @@ export class ExecutionEngineService
             mode: 'manual',
           },
           nodeInput,
+          pendingCompletion,
           parallel:
             this.resolveParallelEngineFlag() === 'v1'
               ? { forwardEdges, backEdges, outgoingEdgeMap, reachable }
@@ -5878,6 +5909,14 @@ export class ExecutionEngineService
    * blocking 노드 (form/buttons/ai_conversation) 의 waiting 진입은 본 메서드가
    * 아니라 호출 측 (waitForFormSubmission / waitForButtonInteraction /
    * waitForAiConversation) 가 별도로 다룬다.
+   *
+   * @param options.completeAfterDispatch 바로 뒤에 `dispatchByNodeKind` 를 부르는 루프만
+   *   켠다. 켜면 엔진 덮어쓰기를 받는 노드(Loop · ForEach · Map, Parallel 실행 경로가 켜진
+   *   Parallel)는 핸들러가 성공해도 행을 COMPLETED 로 저장하지 않고 `execution.node.completed`
+   *   도 보내지 않는다. 열린 행을 돌려주고, 받은 실행 경로가 본문이 끝난 뒤 완료 출력과 노드
+   *   전체 실행 시간으로 마감한다(CLE-T-JXD0W5). 단일 노드 실행처럼 본문을 돌리지 않는 경로는
+   *   끄고 핸들러 반환값으로 마감한다.
+   * @returns 열어 둔 노드 실행 행. 열어 두지 않았으면 `undefined`.
    */
   private async executeNode(
     executionId: string,
@@ -5888,7 +5927,9 @@ export class ExecutionEngineService
     nodeMap: Map<string, Node> | undefined,
     executionMeta: { startedAt?: string; mode?: string } | undefined,
     outgoingEdgeMap: Map<string, GraphEdge[]>,
-  ): Promise<void> {
+    options?: { completeAfterDispatch?: boolean },
+  ): Promise<DeferredNodeCompletion | undefined> {
+    let pendingCompletion: DeferredNodeCompletion | undefined;
     // §3.2 — error 포트 라우팅 + error 엣지 미연결 시 finally 이후 던질 sentinel.
     let errorPortFallbackMessage: string | null = null;
     const nodeExecution = await this.createNodeExecution(
@@ -6076,31 +6117,24 @@ export class ExecutionEngineService
           finalOutput,
           outgoingEdgeMap,
         );
+      } else if (
+        !isBlocking &&
+        options?.completeAfterDispatch === true &&
+        this.completesAfterEngineOverride(node.type)
+      ) {
+        // CLE-T-JXD0W5 — 엔진 덮어쓰기를 받는 노드는 본문이 끝나야 완료 출력과 끝 시각이
+        // 정해진다. 행을 RUNNING 으로 두고 `dispatchByNodeKind` 가 받은 실행 경로에 넘긴다.
+        pendingCompletion = {
+          nodeExecution,
+          handlerOutput: (output as Record<string, unknown>) ?? {},
+        };
       } else if (!isBlocking) {
-        // Update node execution record
-        nodeExecution.status = NodeExecutionStatus.COMPLETED;
-        nodeExecution.outputData = (output as Record<string, unknown>) ?? {};
-        nodeExecution.finishedAt = new Date();
-        nodeExecution.durationMs =
-          nodeExecution.finishedAt.getTime() -
-          nodeExecution.startedAt.getTime();
-        await this.nodeExecutionRepository.save(nodeExecution);
-        await this.eventEmitter.emitNode(
+        await this.markNodeCompleted(
           executionId,
-          node.id,
-          NodeEventType.NODE_COMPLETED,
-          {
-            nodeExecutionId: nodeExecution.id,
-            parentNodeExecutionId: context.parentNodeExecutionId,
-            status: NodeExecutionStatus.COMPLETED,
-            duration: nodeExecution.durationMs,
-            nodeType: node.type,
-            nodeLabel: node.label ?? node.type,
-            output: nodeExecution.outputData,
-            input: nodeExecution.inputData,
-            startedAt: nodeExecution.startedAt?.toISOString?.(),
-            finishedAt: nodeExecution.finishedAt?.toISOString?.(),
-          },
+          node,
+          nodeExecution,
+          context,
+          (output as Record<string, unknown>) ?? {},
         );
         // presentation 노드(carousel/table/chart/template)가 버튼 없이 자동 진행 완료하면,
         // EIA SSE 표면(웹채팅 위젯 등)이 렌더할 수 있도록 execution-level `execution.message` 를
@@ -6132,6 +6166,8 @@ export class ExecutionEngineService
       // ParallelExecutor branches finishing concurrently.
       await this.appendExecutionPath(executionId, node.id);
     } catch (err: unknown) {
+      // 아래 에러 정책 분기가 행을 직접 마감하므로 열어 둔 행을 넘기지 않는다.
+      pendingCompletion = undefined;
       // spec/conventions/node-cancellation.md §5.1 — abortSignal 로 노드 외부 I/O
       // 가 중단된 경우(AbortError)는 실패가 아니라 취소다. errorPolicy 와 무관하게
       // NodeExecution.status=cancelled 로 기록하고 NODE_CANCELLED 이벤트를 발행한 뒤
@@ -6245,7 +6281,7 @@ export class ExecutionEngineService
           // 같은 finalizeErrorPortNode 가 맡는다.
           const routedOutput = {
             ...(result.output as Record<string, unknown>),
-            _selectedPort: 'error',
+            _selectedPort: RESERVED_ERROR_PORT_ID,
           };
           this.commitNodeOutput(context, node.id, routedOutput);
           executedNodes.add(node.id);
@@ -6307,6 +6343,178 @@ export class ExecutionEngineService
       );
       throw new ErrorPortFallbackError(errorPortFallbackMessage);
     }
+    return pendingCompletion;
+  }
+
+  /**
+   * 엔진 덮어쓰기를 받는 노드인지 본다. 컨테이너(Loop · ForEach · Map)는 늘 받고,
+   * Parallel 은 Parallel 실행 경로가 켜졌을 때(`PARALLEL_ENGINE=v1`)만 받는다.
+   * `off` 되돌림 경로는 완료 출력을 만들지 않으므로 핸들러 반환값으로 바로 마감한다.
+   */
+  private completesAfterEngineOverride(nodeType: string): boolean {
+    const kind = this.handlerRegistry.getMetadata(nodeType).kind;
+    if (kind === 'container') return true;
+    return kind === 'parallel' && this.resolveParallelEngineFlag() === 'v1';
+  }
+
+  /**
+   * 노드 실행 행을 COMPLETED 로 저장하고 `execution.node.completed` 를 보낸다. 끝 시각과
+   * 실행 시간은 지금 시각으로 잰다. 일반 노드는 핸들러가 끝난 직후에, 엔진 덮어쓰기를 받는
+   * 노드는 본문이 끝난 뒤에 부른다. 그래서 행과 이벤트의
+   * 실행 시간은 두 경우 모두 노드 전체 실행 시간이다(CLE-T-JXD0W5).
+   */
+  private async markNodeCompleted(
+    executionId: string,
+    node: Node,
+    nodeExecution: NodeExecution,
+    context: ExecutionContext,
+    outputData: Record<string, unknown>,
+  ): Promise<void> {
+    nodeExecution.status = NodeExecutionStatus.COMPLETED;
+    nodeExecution.outputData = outputData;
+    nodeExecution.finishedAt = new Date();
+    nodeExecution.durationMs =
+      nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
+    await this.nodeExecutionRepository.save(nodeExecution);
+    await this.eventEmitter.emitNode(
+      executionId,
+      node.id,
+      NodeEventType.NODE_COMPLETED,
+      {
+        nodeExecutionId: nodeExecution.id,
+        parentNodeExecutionId: context.parentNodeExecutionId,
+        status: NodeExecutionStatus.COMPLETED,
+        duration: nodeExecution.durationMs,
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+        output: nodeExecution.outputData,
+        input: nodeExecution.inputData,
+        startedAt: nodeExecution.startedAt?.toISOString?.(),
+        finishedAt: nodeExecution.finishedAt?.toISOString?.(),
+      },
+    );
+  }
+
+  /**
+   * 엔진 덮어쓰기 실행 경로가 외부 취소로 끝났을 때 `executeNode` 가 열어 둔 행을 CANCELLED 로
+   * 마감한다. 취소 마감은 best-effort 다. 원래 취소 에러를 호출부가 그대로 던져야 실행이
+   * cancelled 로 끝난다.
+   */
+  private async markEngineOverrideNodeCancelled(
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    pending: DeferredNodeCompletion | undefined,
+  ): Promise<void> {
+    if (!pending) return;
+    try {
+      await this.markNodeCancelled(
+        pending.nodeExecution,
+        node,
+        context,
+        executionId,
+      );
+    } catch (markErr) {
+      this.logger.warn(
+        `엔진 덮어쓰기 노드 취소 마감 실패 — execution=${executionId} node=${node.id}: ${
+          markErr instanceof Error ? markErr.message : String(markErr)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * 노드 실행 행을 FAILED 로 바꾸고 `execution.node.failed` 를 보낸다. 행이 없으면(`null`)
+   * 이벤트만 보낸다.
+   */
+  private async markNodeRowFailed(
+    executionId: string,
+    node: Node,
+    nodeExec: NodeExecution | null,
+    err: unknown,
+  ): Promise<void> {
+    const message = err instanceof Error ? err.message : String(err);
+    if (nodeExec) {
+      nodeExec.status = NodeExecutionStatus.FAILED;
+      nodeExec.error = { message };
+      nodeExec.finishedAt = new Date();
+      if (nodeExec.startedAt) {
+        nodeExec.durationMs =
+          nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
+      }
+      await this.nodeExecutionRepository.save(nodeExec);
+    }
+    await this.eventEmitter.emitNode(
+      executionId,
+      node.id,
+      NodeEventType.NODE_FAILED,
+      {
+        nodeExecutionId: nodeExec?.id,
+        parentNodeExecutionId: nodeExec?.parentNodeExecutionId ?? undefined,
+        status: NodeExecutionStatus.FAILED,
+        error: message,
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+        input: nodeExec?.inputData,
+        startedAt: nodeExec?.startedAt?.toISOString?.(),
+        finishedAt: nodeExec?.finishedAt?.toISOString?.(),
+      },
+    );
+  }
+
+  /**
+   * Parallel 실행 경로가 실패했을 때 열린 행을 마감한다. 외부 취소면 CANCELLED, 그 밖의
+   * 실패면 FAILED + `execution.node.failed` 다. 열린 행이 없으면(핸들러 단계에서 마감)
+   * 건드리지 않는다. 원래 에러를 다시 던지는 것은 호출부가 한다(CLE-T-JXD0W5).
+   */
+  private async markParallelNodeFailed(
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    err: unknown,
+    pending: DeferredNodeCompletion | undefined,
+  ): Promise<void> {
+    if (err instanceof ExecutionCancelledError) {
+      await this.markEngineOverrideNodeCancelled(
+        executionId,
+        node,
+        context,
+        pending,
+      );
+      return;
+    }
+    if (!pending) return;
+    await this.markNodeRowFailed(executionId, node, pending.nodeExecution, err);
+  }
+
+  /**
+   * 컨테이너(Loop · ForEach · Map) 실행 경로가 실패했을 때 그 노드의 행을 마감한다. 외부
+   * 취소면 열린 행을 CANCELLED 로 마감한다. 그 밖의 실패면 FAILED + `execution.node.failed`
+   * 이고, 열린 행이 없으면 그 노드의 최근 행을 찾아 바꾼다(예전 동작).
+   */
+  private async markContainerNodeFailed(
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    err: unknown,
+    pending: DeferredNodeCompletion | undefined,
+  ): Promise<void> {
+    if (err instanceof ExecutionCancelledError) {
+      await this.markEngineOverrideNodeCancelled(
+        executionId,
+        node,
+        context,
+        pending,
+      );
+      return;
+    }
+    const nodeExec =
+      pending?.nodeExecution ??
+      (await this.nodeExecutionRepository.findOne({
+        where: { executionId, nodeId: node.id },
+        order: { startedAt: 'DESC' },
+      }));
+    await this.markNodeRowFailed(executionId, node, nodeExec, err);
   }
 
   /**
@@ -6383,7 +6591,8 @@ export class ExecutionEngineService
       !!finalOutput &&
       typeof finalOutput === 'object' &&
       !Array.isArray(finalOutput) &&
-      (finalOutput as Record<string, unknown>)._selectedPort === 'error'
+      (finalOutput as Record<string, unknown>)._selectedPort ===
+        RESERVED_ERROR_PORT_ID
     );
   }
 
@@ -6397,7 +6606,7 @@ export class ExecutionEngineService
     outgoingEdgeMap: Map<string, GraphEdge[]>,
   ): boolean {
     const edges = outgoingEdgeMap.get(nodeId) ?? [];
-    return edges.some((e) => e.sourcePort === 'error');
+    return edges.some((e) => e.sourcePort === RESERVED_ERROR_PORT_ID);
   }
 
   /**
@@ -6985,7 +7194,7 @@ export class ExecutionEngineService
         iterInput,
       );
 
-      await this.executeNode(
+      const pendingCompletion = await this.executeNode(
         executionId,
         node,
         nodeInput,
@@ -6994,6 +7203,7 @@ export class ExecutionEngineService
         nodeMap,
         executionMeta,
         outgoingEdgeMap,
+        { completeAfterDispatch: true },
       );
 
       // CLE-T-MR6ZH3 — 메인 루프 · 병렬 분기 루프와 같은 `dispatchByNodeKind` 를 쓴다.
@@ -7013,6 +7223,7 @@ export class ExecutionEngineService
         executedNodes,
         executionMeta,
         nodeInput,
+        pendingCompletion,
         parallel: parallelEngineV1
           ? {
               forwardEdges: internalEdges,
@@ -7208,6 +7419,9 @@ export class ExecutionEngineService
    *   `background` 포트 뒤 노드는 핸들러가 `main` 만 고르므로 호출한 루프에서 실행되지 않는다.
    * - parallel: `parallel` 을 줬으면 {@link runParallel} 로 넘긴다.
    *
+   * `pendingCompletion` 을 받으면 컨테이너 · Parallel 실행 경로가 본문이 끝난 뒤 행을 마감한다.
+   * 받을 실행 경로가 없으면 여기서 바로 마감한다(CLE-T-JXD0W5).
+   *
    * @returns Parallel 을 넘겼으면 `runParallel` 이 돌려준 "출력을 쓴 노드" 집합. `runParallel`
    *   이 `done` 포트와 출구 노드의 다음 노드를 `reachable` 에 넣었으므로 호출한 루프는 전파와
    *   blocking 검사를 건너뛴다. 그 밖에는 `undefined` 다.
@@ -7222,31 +7436,25 @@ export class ExecutionEngineService
     executionMeta,
     nodeInput,
     parallel,
+    pendingCompletion,
   }: NodeKindDispatchOptions): Promise<ReadonlySet<string> | undefined> {
-    switch (this.handlerRegistry.getMetadata(node.type).kind) {
-      case 'container':
-        await this.runContainer(
-          node,
-          allNodes,
-          allEdges,
-          context,
-          executionId,
-          executedNodes,
-          executionMeta,
-        );
-        return undefined;
-      case 'background':
-        await this.scheduleBackgroundBody(
-          node,
-          allEdges,
-          context,
-          executionId,
-          nodeInput,
-        );
-        return undefined;
-      case 'parallel':
-        if (!parallel) return undefined;
-        return this.runParallel({
+    const kind = this.handlerRegistry.getMetadata(node.type).kind;
+    if (kind === 'container') {
+      await this.runContainer(
+        node,
+        allNodes,
+        allEdges,
+        context,
+        executionId,
+        executedNodes,
+        executionMeta,
+        pendingCompletion,
+      );
+      return undefined;
+    }
+    if (kind === 'parallel' && parallel) {
+      try {
+        return await this.runParallel({
           parallelNode: node,
           allNodes,
           allEdges,
@@ -7256,10 +7464,47 @@ export class ExecutionEngineService
           executedNodes,
           executionMeta,
           input: nodeInput,
+          pendingCompletion,
         });
-      default:
-        return undefined;
+      } catch (err) {
+        // 열린 행이 있는데 `runParallel` 의 본문 실행 전 단계(설정 해석 · 사전 검사)에서 던지면
+        // 행이 RUNNING 으로 남는다. 아직 열려 있을 때만 FAILED · CANCELLED 로 마감한다.
+        if (
+          pendingCompletion?.nodeExecution.status ===
+          NodeExecutionStatus.RUNNING
+        ) {
+          await this.markParallelNodeFailed(
+            executionId,
+            node,
+            context,
+            err,
+            pendingCompletion,
+          );
+        }
+        throw err;
+      }
     }
+    // 열린 행을 받을 실행 경로가 없다. `completesAfterEngineOverride` 와 호출부의 `parallel`
+    // 판정이 같아 닿지 않지만, 닿으면 행이 RUNNING 으로 남지 않게 핸들러 반환값으로 마감한다.
+    if (pendingCompletion) {
+      await this.markNodeCompleted(
+        executionId,
+        node,
+        pendingCompletion.nodeExecution,
+        context,
+        pendingCompletion.handlerOutput,
+      );
+    }
+    if (kind === 'background') {
+      await this.scheduleBackgroundBody(
+        node,
+        allEdges,
+        context,
+        executionId,
+        nodeInput,
+      );
+    }
+    return undefined;
   }
 
   /**
@@ -7567,7 +7812,7 @@ export class ExecutionEngineService
         branchInput,
       );
 
-      await this.executeNode(
+      const pendingCompletion = await this.executeNode(
         executionId,
         node,
         nodeInput,
@@ -7576,6 +7821,7 @@ export class ExecutionEngineService
         nodeMap,
         executionMeta,
         plan.outgoingEdgeMap,
+        { completeAfterDispatch: true },
       );
       // `skip_node` 는 출력을 남기지 않으므로 후보에서 빠진다.
       if (writtenNodeIds.has(nodeId)) resultNodeId = nodeId;
@@ -7601,6 +7847,7 @@ export class ExecutionEngineService
         executedNodes,
         executionMeta,
         nodeInput,
+        pendingCompletion,
         parallel: {
           forwardEdges: plan.internalEdges,
           backEdges: [],
@@ -7805,6 +8052,7 @@ export class ExecutionEngineService
     executionMeta,
     reachable,
     input,
+    pendingCompletion,
   }: RunParallelOptions): Promise<ReadonlySet<string>> {
     const structured = context.structuredOutputCache?.[parallelNode.id];
     // `structured?.config` carries the handler's raw echo per CONVENTIONS
@@ -7896,10 +8144,13 @@ export class ExecutionEngineService
     // Resolve the Parallel node's current NodeExecution row so branch
     // children can be grouped under it in the run-results timeline
     // (mirrors the Background node's parentNodeExecutionId stamping).
-    const parentNodeExecution = await this.nodeExecutionRepository.findOne({
-      where: { executionId, nodeId: parallelNode.id },
-      order: { startedAt: 'DESC' },
-    });
+    // `executeNode` 가 열어 둔 행이 있으면 그 행이다. 같은 노드의 행을 다시 찾지 않는다.
+    const parentNodeExecution =
+      pendingCompletion?.nodeExecution ??
+      (await this.nodeExecutionRepository.findOne({
+        where: { executionId, nodeId: parallelNode.id },
+        order: { startedAt: 'DESC' },
+      }));
     const parentNodeExecutionId = parentNodeExecution?.id;
     // W-2 (parallel-p2-followups §7): 명시 `: ExecutionContext` 주석 제거 — 추론에
     // 위임. 주석을 달면 context 가 ParallelBranchContext 일 때 spread 로 따라오는
@@ -7914,37 +8165,51 @@ export class ExecutionEngineService
       plan.branches.length,
     );
     const branchWrittenNodeIds = new Set<string>();
-    const parallelResult = await this.parallelExecutor.execute(
-      { branchCount, maxConcurrency, waitAll: true, errorPolicy },
-      branchParentContext,
-      async (branchIndex, branchContext) => {
-        const branchPlan = plan.branches[branchIndex];
-        try {
-          resultNodeIds[branchIndex] = await this.executeParallelBranchBody({
-            parallelNode,
-            plan: branchPlan,
-            allNodes,
-            allEdges,
-            branchContext,
-            executionId,
-            executedNodes,
-            executionMeta,
-            branchInput: input,
-          });
-        } finally {
-          for (const nodeId of this.publishBranchOutputsToParent(
-            context,
-            branchContext,
-          )) {
-            branchWrittenNodeIds.add(nodeId);
+    let parallelResult: Awaited<ReturnType<ParallelExecutor['execute']>>;
+    try {
+      parallelResult = await this.parallelExecutor.execute(
+        { branchCount, maxConcurrency, waitAll: true, errorPolicy },
+        branchParentContext,
+        async (branchIndex, branchContext) => {
+          const branchPlan = plan.branches[branchIndex];
+          try {
+            resultNodeIds[branchIndex] = await this.executeParallelBranchBody({
+              parallelNode,
+              plan: branchPlan,
+              allNodes,
+              allEdges,
+              branchContext,
+              executionId,
+              executedNodes,
+              executionMeta,
+              branchInput: input,
+            });
+          } finally {
+            for (const nodeId of this.publishBranchOutputsToParent(
+              context,
+              branchContext,
+            )) {
+              branchWrittenNodeIds.add(nodeId);
+            }
           }
-        }
-      },
-      // 결정 #3 + G: 본 Parallel 이 inner (depth=2) 면 부모 분기가 넘긴
-      // effectiveConcurrency 를 executor 에 명시 전달해 자기 concurrency 를
-      // floor(32/parent) 로 silent clamp 시킨다. outermost (depth=1) 면 undefined.
-      parentParallelConcurrency,
-    );
+        },
+        // 결정 #3 + G: 본 Parallel 이 inner (depth=2) 면 부모 분기가 넘긴
+        // effectiveConcurrency 를 executor 에 명시 전달해 자기 concurrency 를
+        // floor(32/parent) 로 silent clamp 시킨다. outermost (depth=1) 면 undefined.
+        parentParallelConcurrency,
+      );
+    } catch (err) {
+      // CLE-T-JXD0W5 — 열린 행이 RUNNING 으로 남지 않게 마감한다. 실패면 FAILED, 외부
+      // 취소면 CANCELLED 다. 열린 행이 없으면(핸들러 단계에서 마감) 예전처럼 두고 다시 던진다.
+      await this.markParallelNodeFailed(
+        executionId,
+        parallelNode,
+        context,
+        err,
+        pendingCompletion,
+      );
+      throw err;
+    }
 
     // CLE-NODE-PARALLEL v3 — 완료 출력 `{ branches, count, skipped? }`.
     // 실패한 병렬 분기(`errorPolicy='continue'` 에서만 여기까지 온다) 자리는 `null`
@@ -7982,13 +8247,30 @@ export class ExecutionEngineService
     // run-results timeline + expression `$node["X"].meta.clampedConcurrency` 로
     // 사용자가 "의도 vs 실제" 차이를 즉시 확인. frontend 사전 경고
     // (cross-node-warning-rules.md) 와 별개로 runtime 추적성 확보.
-    this.commitParallelDoneOutput(context, parallelNode.id, {
-      config: echoConfig,
-      output: doneOutput,
-      ...(parallelResult.clampedConcurrency
-        ? { meta: { clampedConcurrency: parallelResult.clampedConcurrency } }
-        : {}),
-    });
+    const completedOutput = this.commitParallelDoneOutput(
+      context,
+      parallelNode.id,
+      {
+        config: echoConfig,
+        output: doneOutput,
+        ...(parallelResult.clampedConcurrency
+          ? {
+              meta: { clampedConcurrency: parallelResult.clampedConcurrency },
+            }
+          : {}),
+      },
+    );
+    if (pendingCompletion) {
+      await this.markNodeCompleted(
+        executionId,
+        parallelNode,
+        pendingCompletion.nodeExecution,
+        context,
+        completedOutput
+          ? { ...completedOutput }
+          : pendingCompletion.handlerOutput,
+      );
+    }
 
     // Activate `done` downstream via the main outgoingEdgeMap (Parallel →
     // done-port edges). Branch exit → join (Merge) edges are also activated.
@@ -8033,6 +8315,8 @@ export class ExecutionEngineService
    *    다시 만들기 때문에, 1 보다 먼저 쓰면 `$node["Parallel"].output` 에 라우팅 표지
    *    `_selectedPort` 가 섞인다.
    * 3. 2 에서 쓴 항목을 병렬 분기 사본에 다시 옮긴다({@link syncParallelBranchCacheEntry}).
+   *
+   * 2 에서 쓴 구조화 출력을 돌려준다. 노드 실행 행에도 같은 값을 저장한다(CLE-T-JXD0W5).
    */
   private commitParallelDoneOutput(
     context: ExecutionContext,
@@ -8042,22 +8326,24 @@ export class ExecutionEngineService
       output: Record<string, unknown>;
       meta?: Record<string, unknown>;
     },
-  ): void {
+  ): NodeHandlerOutput {
     this.commitNodeOutput(context, parallelNodeId, {
       _selectedPort: 'done',
       ...done.output,
     });
+    const completedOutput: NodeHandlerOutput = {
+      config: done.config,
+      output: done.output,
+      port: 'done',
+      ...(done.meta ? { meta: done.meta } : {}),
+    };
     this.contextService.setStructuredOutput(
       this.contextKeyOf(context),
       parallelNodeId,
-      {
-        config: done.config,
-        output: done.output,
-        port: 'done',
-        ...(done.meta ? { meta: done.meta } : {}),
-      },
+      completedOutput,
     );
     this.syncParallelBranchCacheEntry(context, parallelNodeId);
+    return completedOutput;
   }
 
   /**
@@ -8096,6 +8382,9 @@ export class ExecutionEngineService
    * was just stored in the structured cache by executeNode. The resulting
    * collected array overwrites the container's output so downstream
    * `done`-port edges carry the body results.
+   *
+   * `pendingCompletion` 을 받으면 본문이 끝난 뒤 그 행을 완료 출력 · 합친 `meta` · 노드 전체
+   * 실행 시간으로 마감하고 `execution.node.completed` 를 보낸다(CLE-T-JXD0W5).
    */
   private async runContainer(
     containerNode: Node,
@@ -8105,9 +8394,11 @@ export class ExecutionEngineService
     executionId: string,
     executedNodes: Set<string>,
     executionMeta: { startedAt?: string; mode?: string },
+    pendingCompletion?: DeferredNodeCompletion,
   ): Promise<void> {
+    let completedOutput: NodeHandlerOutput | undefined;
     try {
-      await this.runContainerInner(
+      completedOutput = await this.runContainerInner(
         containerNode,
         allNodes,
         allEdges,
@@ -8118,53 +8409,36 @@ export class ExecutionEngineService
       );
     } catch (err) {
       // ai-review W9 (2026-07-26) — §2.3 가 컨테이너 경로(ForEach/Loop/Map)에
-      // `ExecutionCancelledError` 를 처음 실전 발생시켰다. 아래 일반 catch-all
-      // 은 instanceof 분기 없이 컨테이너 NodeExecution 을 FAILED 로 영속하고
+      // `ExecutionCancelledError` 를 처음 실전 발생시켰다. 일반 catch-all 은
+      // instanceof 분기 없이 컨테이너 NodeExecution 을 FAILED 로 영속하고
       // 내부 전용 message(executionId 포함)를 실어 NODE_FAILED 를 WS 로 방출
       // 했었다 — Execution 은 결국 cancelled 로 마감되므로 "실행은 취소인데
       // 그 안의 컨테이너 노드는 실패" 라는 상태·감사로그 불일치가 발생했다.
-      // C1(workflow.handler)·C3(ForEachExecutor) 와 대칭으로 여기서도 취소를
-      // 우회 재throw 해 FAILED 마킹/NODE_FAILED emit 이전에 차단한다.
-      if (err instanceof ExecutionCancelledError) {
-        throw err;
-      }
-      // Container-level failure happens AFTER executeNode has already marked
-      // the container as COMPLETED (handler's initial return succeeded). We
-      // overwrite that to FAILED with the real error so the UI surfaces the
-      // reason (e.g. CONTAINER_MISSING_EMIT) on the container node itself
-      // instead of leaving it looking "completed with null output".
-      const message = err instanceof Error ? err.message : String(err);
-      const nodeExec = await this.nodeExecutionRepository.findOne({
-        where: { executionId, nodeId: containerNode.id },
-        order: { startedAt: 'DESC' },
-      });
-      if (nodeExec) {
-        nodeExec.status = NodeExecutionStatus.FAILED;
-        nodeExec.error = { message };
-        nodeExec.finishedAt = new Date();
-        if (nodeExec.startedAt) {
-          nodeExec.durationMs =
-            nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
-        }
-        await this.nodeExecutionRepository.save(nodeExec);
-      }
-      await this.eventEmitter.emitNode(
+      // C1(workflow.handler)·C3(ForEachExecutor) 와 대칭으로 취소는 FAILED 로
+      // 마킹하지 않는다. 열린 행은 CANCELLED 로 마감한다.
+      //
+      // 그 밖의 실패(예: CONTAINER_MISSING_EMIT)는 컨테이너 행을 FAILED 로 바꿔 UI 가
+      // 컨테이너 노드에 실패 이유를 보이게 한다. 열린 행이 없으면(핸들러 단계에서 이미
+      // 마감) 그 노드의 최근 행을 찾아 바꾼다.
+      await this.markContainerNodeFailed(
         executionId,
-        containerNode.id,
-        NodeEventType.NODE_FAILED,
-        {
-          nodeExecutionId: nodeExec?.id,
-          parentNodeExecutionId: nodeExec?.parentNodeExecutionId ?? undefined,
-          status: NodeExecutionStatus.FAILED,
-          error: message,
-          nodeType: containerNode.type,
-          nodeLabel: containerNode.label ?? containerNode.type,
-          input: nodeExec?.inputData,
-          startedAt: nodeExec?.startedAt?.toISOString?.(),
-          finishedAt: nodeExec?.finishedAt?.toISOString?.(),
-        },
+        containerNode,
+        context,
+        err,
+        pendingCompletion,
       );
       throw err;
+    }
+    if (pendingCompletion) {
+      await this.markNodeCompleted(
+        executionId,
+        containerNode,
+        pendingCompletion.nodeExecution,
+        context,
+        completedOutput
+          ? { ...completedOutput }
+          : pendingCompletion.handlerOutput,
+      );
     }
   }
 
@@ -8176,7 +8450,7 @@ export class ExecutionEngineService
     executionId: string,
     executedNodes: Set<string>,
     executionMeta: { startedAt?: string; mode?: string },
-  ): Promise<void> {
+  ): Promise<NodeHandlerOutput | undefined> {
     // Resolve and validate the container wiring once upfront. planContainerBody
     // throws on missing/duplicate emit edges or back-edges so the user sees
     // the error immediately rather than mid-iteration.
@@ -8350,7 +8624,7 @@ export class ExecutionEngineService
         exitReason: collected.exitReason,
       };
     } else {
-      return;
+      return undefined;
     }
 
     // Merge container-side `meta.*` (e.g. foreach `skippedCount`) with any
@@ -8363,16 +8637,20 @@ export class ExecutionEngineService
         ? { ...(prevStructuredMeta ?? {}), ...(structuredMeta ?? {}) }
         : undefined;
 
+    // 실행 컨텍스트에 쓴 값을 그대로 돌려줘 `runContainer` 가 노드 실행 행에도 같은 값을
+    // 저장하게 한다(CLE-T-JXD0W5).
+    const completedOutput: NodeHandlerOutput = {
+      config: echoConfig,
+      output: structuredOutput,
+      ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
+    };
     this.contextService.setStructuredOutput(
       this.contextKeyOf(context),
       containerNode.id,
-      {
-        config: echoConfig,
-        output: structuredOutput,
-        ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
-      },
+      completedOutput,
     );
     this.commitNodeOutput(context, containerNode.id, structuredOutput);
+    return completedOutput;
   }
 
   /**

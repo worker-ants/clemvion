@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021", "REQ-FOREACH-022"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "545cc1572eaadd5a71aaf98f2bb62933776a0825454e70bd06ad1178843f46cd"
+content_hash: "ce9968a8e73bf62656cea8cfa8c0438e0889bb5111ad70691949c0f41420437b"
 read_as: "approved_fallback"
-task: "CLE-T-RWHTXC"
+task: "CLE-T-JXD0W5"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d8c7d61d6f33a7cbf4b7ff64296115298120da827789ce980d70d86f5d2ec2cf"
-etag: "sha256-c4dfc99ef9d18cbc2b5647d945cdaa439cff911ddda0584574fe60ac177477ce"
+mirror_sha256: "4d6bdfb6edfff27988d2fa0182fe93b3c246860ac6c587c47c3f4a0beead5074"
+etag: "sha256-bfd615905f72a21149d83b5464e249f65ec6e276e0565299dd39c079043dbec3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -44,7 +44,7 @@ ForEach 노드(ForEach, `foreach`)는 배열의 항목마다 컨테이너 본문
 - REQ-FOREACH-014 WHEN 분리한 실패 항목이 있으면 THE SYSTEM SHALL 그 수를 `meta.skippedCount` 에 실어 다음 노드의 표현식에서 읽을 수 있게 한다.
 - REQ-FOREACH-015 IF 분리한 실패 항목이 없으면 THE SYSTEM SHALL `output.skipped` 와 `meta.skippedCount` 를 싣지 않는다.
 - REQ-FOREACH-016 WHEN 반복이 끝나면 THE SYSTEM SHALL 본문 실행 횟수를 `meta.iterations` 에 실어 다음 노드의 표현식에서 읽을 수 있게 한다.
-- REQ-FOREACH-017 WHEN 다음 노드가 ForEach 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 완료 형태만 보여 준다. (부분 구현)
+- REQ-FOREACH-017 WHEN 다음 노드가 ForEach 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 완료 형태만 보여 준다.
 - REQ-FOREACH-018 IF `arrayField` 가 빈 문자열이거나 없으면 THE SYSTEM SHALL 캔버스에 경고 배지를 표시하고 `handler.validate` 에서 거부한다.
 - REQ-FOREACH-019 IF `errorPolicy` 가 `stop` / `skip` / `continue` 가 아니면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
 - REQ-FOREACH-020 IF `emit` 포트에 본문 노드가 없거나 2개 이상이거나 본문 안에 되돌아가는 연결선이나 블로킹 노드가 있으면 THE SYSTEM SHALL 엔진 그래프 검증에서 실행을 실패시킨다.
@@ -128,10 +128,10 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 |------|------|------|------|
 | `config.arrayField` | Expression (원래 값) | 설정 에코 | 사용자가 입력한 원래 경로·표현식. `{{ }}` 을 남긴다 |
 | `config.errorPolicy?` | `'stop'` / `'skip'` / `'continue'` | 설정 에코 | 항목 에러 정책. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 엔진은 `stop` 일 때와 같이 동작한다 |
-| `output` | unknown[] | 핸들러 반환 | 해석한 배열. 엔진이 항목을 본문 반복 회차 입력으로 나눠 준다. 엔진 안에서만 쓰는 중간 형태다. 밖에서 보이지 않는 범위는 [엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 1번에 있다 |
+| `output` | unknown[] | 핸들러 반환 | 해석한 배열. 엔진이 항목을 본문 반복 회차 입력으로 나눠 준다. 엔진 안에서만 쓰는 중간 형태라 밖에서 보이지 않는다([엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 1 · 2번) |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | `arrayField` 해석 결과가 배열이 아니어서 `[]` 로 대체했으면 `true`, 배열이면 `false` |
 
-이 시점의 `output` 은 엔진 덮어쓰기 직전 단계다. park · 재구동 없이 이어진 실행에서 다음 노드 표현식(`$node["X"].output.*`)에 드러나는 값은 [완료 시점](#완료-시점-done-포트) 형태다. 이 배열을 엔진 내부 표현으로 두는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」 에 있다.
+이 시점의 `output` 은 엔진 덮어쓰기 직전 단계다. 다음 노드 표현식(`$node["X"].output.*`)에 드러나는 값은 park 뒤 재개나 재구동 뒤에도 [완료 시점](#완료-시점-done-포트) 형태다. 이 배열을 엔진 내부 표현으로 두는 이유는 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale 「시작 시점 배열을 엔진 내부 표현으로 둔다」 에 있다.
 
 ### 완료 시점 (`done` 포트)
 
@@ -163,9 +163,9 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 | `meta.iterations` | number | 엔진 주입 | 본문 실행 횟수(반복 메트릭). 현재 구현은 실패로 `null` 이 된 인덱스도 본문이 돌았으므로 센다. Loop 의 `output.iterations`(배열)와 다르다 |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | 시작 시점 값이 그대로 남는다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약) 규칙 6) |
 
-완료 `output` 과 `meta` 는 park · 재구동 없이 이어진 실행에서 다음 노드 표현식이 읽는 값이다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 반환값이 남는다. 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+완료 `output` 과 `meta` 는 다음 노드 표현식이 읽는 값이다. 엔진은 본문이 다 돈 뒤에 노드 실행 행을 한 번 마감하므로 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에도 이 완료 출력이 남는다. 본문이 도는 동안 행은 `running` 이다. 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓰므로 완료 출력을 본다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
 
-ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`execution-engine.service.ts` 의 컨테이너 완료 처리는 `port` 키를 쓰지 않는다). `done` 포트는 노드 출력의 `port` 필드가 아니라 엔진의 연결선 활성화로 열린다. 노드 출력에 `port` 를 직접 싣는 것은 엔진 덮어쓰기 대상 노드 가운데 Parallel 뿐이다. 완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)). Map · Loop · Parallel 도 같다.
+ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`execution-engine.service.ts` 의 컨테이너 완료 처리는 `port` 키를 쓰지 않는다). `done` 포트는 노드 출력의 `port` 필드가 아니라 엔진의 연결선 활성화로 열린다. 노드 출력에 `port` 를 직접 싣는 것은 엔진 덮어쓰기 대상 노드 가운데 Parallel 뿐이다. 완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 반복 회차까지 포함한 노드 전체 실행 시간이다. `meta.durationMs` 를 두지 않는 이유는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다. Map · Loop · Parallel 도 같다.
 
 표현식 접근 예:
 
@@ -214,8 +214,8 @@ Map 은 실패 항목을 `output.mapped[i] = { _skipped: true, error }` 인라�
 | 시작(본문 진입 직전) | `output: items[]` (해석한 원래 배열) | 핸들러 반환. 본문 반복 회차에 나눠 줄 입력 |
 | 완료(모든 회차 종료 뒤) | `output: { items: [...], count: N, skipped?: [...] }` | **엔진 덮어쓰기**(핸들러 다시 부르지 않음) |
 
-1. park · 재구동 없이 이어진 실행에서 다음 노드가 `$node["ForEach"].output.*` 로 보는 값은 완료 시점 형태다. rehydration 뒤에는 시작 시점 배열을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
-2. 핸들러가 시작 시점에 반환한 `output: items[]` 는 엔진이 덮어쓰기 전의 중간 단계다. 밖의 표현식에 드러나지 않는 범위는 1번과 같다.
+1. 다음 노드가 `$node["ForEach"].output.*` 로 보는 값은 완료 시점 형태다. park 뒤 재개나 재구동으로 rehydration 한 뒤에도 같다. 엔진이 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하기 때문이다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
+2. 핸들러가 시작 시점에 반환한 `output: items[]` 는 엔진이 덮어쓰기 전의 중간 단계다. 밖의 표현식에도, 노드 실행 기록과 `execution.node.completed` 이벤트에도 드러나지 않는다. [단일 노드 실행](../CLE-EXEC/CLE-EXEC-RUN.md)은 본문을 돌지 않으므로 이 핸들러 반환값으로 행을 마감한다.
 3. 핸들러는 한 번만 실행되고 완료 시점 덮어쓰기는 엔진이 핸들러 호출 없이 한다.
 
 핸들러가 `null` 이 아닌 배열을 반환해도 엔진이 덮어쓰는 규칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#91-계약) 의 9.1 이 정한다.
@@ -280,3 +280,9 @@ ForEach 는 `arrayField` 가 배열이 아니면 모두 `[]` 로 바꿔 왔다. 
 결정일: 2026-11-15
 
 포트 절은 에러 처리 정책 "에러 포트로 라우팅" 으로 생기는 동적 에러 포트가 아직 구현되지 않았다고 적었다. NERV Task `CLE-T-K0Y546` 이 이 포트를 구현해서 그 서술을 지웠다. 문서가 정하는 동작은 바뀌지 않는다. 기존 워크플로우 영향은 없다.
+
+### 완료 출력의 범위 단서를 걷는다 (2026-11-15)
+
+2026-10-24 구현 확인 때 이 문서는 완료 출력이 park · 재구동 없이 이어진 실행에서만 보인다는 조건을 붙여 적었다. 노드 실행 기록 · completed 이벤트 · rehydration 에 시작 시점 배열이 남았기 때문이다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았다. 그래서 범위 단서와 `(부분 구현)` 표시를 걷고 원래 서술로 돌렸다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
+
+기존 워크플로우 영향: 결과 값과 다음 노드 표현식은 바뀌지 않는다. 실행 내역 · 통계에 보이는 이 노드의 실행 시간은 노드 전체 기준으로 길어진다.

@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATS"
 title: "통계"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-STATS-001", "REQ-STATS-002", "REQ-STATS-003", "REQ-STATS-004", "REQ-STATS-005", "REQ-STATS-006", "REQ-STATS-007", "REQ-STATS-008", "REQ-STATS-009", "REQ-STATS-010", "REQ-STATS-011", "REQ-STATS-012", "REQ-STATS-013", "REQ-STATS-014", "REQ-STATS-015", "REQ-STATS-016", "REQ-STATS-017", "REQ-STATS-018", "REQ-STATS-019", "REQ-STATS-020", "REQ-STATS-021"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "b07e109b45bd74fe4fb85367004af2b9aa8c6f60fcfd78d80c88b950e4b2cc62"
+content_hash: "b18c1d5b0a512206a712638d6cb7b09e7767ff761a324fb57e2755ac8208917a"
 read_as: "approved_fallback"
-task: "CLE-T-86XM7Z"
+task: "CLE-T-JXD0W5"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "74548f4ef5f0776abde625f4d68605522097fe28d8bae891c9ce35ec08acdfab"
-etag: "sha256-80380250717dae6a97ef45109c91964c115f572789ab6e2ff8d615734ecf47b1"
+mirror_sha256: "6d7af022da587d86c27c414128bd2820bcddf9056b541611301a6a4e07135b2d"
+etag: "sha256-fa4213ec97ee3c3e0d73af45a31eb18bc5039f4778165d557bb216c7a14520ab"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -65,7 +65,7 @@ etag: "sha256-80380250717dae6a97ef45109c91964c115f572789ab6e2ff8d615734ecf47b1"
 | 성공률(success rate, `successRate`) | 완료(`completed`) 실행 수 ÷ 기간 안 전체 실행 수 × 100. 분모에는 상태와 상관없이 기간 안의 모든 실행이 들어간다(실행 중·대기 중·취소됨 포함) | 대시보드 성공률 카드(최근 7일), 통계 요약 |
 | 실패율 | 기간 안 실행 중 실패 비율(%) | 통계 요약 |
 | 평균 전체 경과(average total elapsed) | 완료(`completed`) 실행의 `duration_ms`(전체 경과) 평균. 입력 대기 시간이 들어간다. 단위는 밀리초다. 실행이 없으면 0 이다 | 대시보드 요약 응답(`avgExecutionTime`), 통계 요약(`avgDurationMs`), 상위 워크플로우 집계 |
-| 노드 평균 전체 경과 | 노드 실행의 `node_execution.duration_ms` 평균. 폼 · 버튼 · AI 멀티턴처럼 입력을 기다리는 노드는 대기 시간이 들어간다. 컨테이너(Loop · ForEach · Map)와 Parallel 노드는 지금 핸들러 실행 시간만 들어간다 | 통계 노드별 통계(`avgDurationMs`) |
+| 노드 평균 전체 경과 | 노드 실행의 `node_execution.duration_ms` 평균. 폼 · 버튼 · AI 멀티턴처럼 입력을 기다리는 노드는 대기 시간이 들어간다. 컨테이너(Loop · ForEach · Map)와 Parallel 노드는 본문 · 병렬 분기까지 포함한 노드 전체 시간이다 | 통계 노드별 통계(`avgDurationMs`) |
 | 증감률 | 직전 같은 길이 구간 대비 총 실행 수의 변화율(%). 직전 구간이 0건이면 값이 없다(`null`) | 대시보드 `runs7dChangePercent`, 통계 `totalExecutionsChangeRate` |
 
 - 성공률 정의는 대시보드 원문이 정했다. 통계 요약도 현재 구현이 같은 식을 쓴다(`statistics.service.ts` 의 `buildSummary`).
@@ -218,4 +218,4 @@ LLM 토큰 사용량 위젯에는 집계 축이 다른 두 뷰가 있다. 표는
 - 실행 화면의 「실행 시간」은 입력 대기를 뺀 시간이다([실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md#api)). 그래서 요약 · 상위 워크플로우 평균처럼 노드 평균도 「평균 전체 경과」(영문 라벨 Avg Total Elapsed)로 부른다. 값 · 계산식 · 응답 필드 이름(`avgDurationMs`)은 그대로다.
 - 기각한 대안: 「평균 실행 시간」을 유지한다. 입력 대기 노드는 대기 시간이 들어가서 실행 화면의 「실행 시간」과 기준이 갈린다.
 - 기각한 대안: 값을 순수 실행 시간으로 바꾼다. 노드 실행 기록에는 입력 대기를 뺀 시간을 따로 저장하지 않아서 새 컬럼과 측정 코드가 필요하다.
-- 주의: 컨테이너(Loop · ForEach · Map)와 Parallel 노드의 `duration_ms` 는 지금 핸들러 실행 시간만 담는다. 반복 · 분기 전체 시간이 들어가지 않아 실제보다 짧다. NERV Task CLE-T-JXD0W5 에서 이를 고치면 이 노드들의 평균이 노드 전체 시간 기준으로 커진다.
+- 컨테이너(Loop · ForEach · Map)와 Parallel 노드의 `duration_ms` 는 2026-11-15 부터 본문 · 병렬 분기까지 포함한 노드 전체 시간이다(NERV Task CLE-T-JXD0W5, [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)). 그 전 실행의 행은 핸들러 실행 시간이라 기간에 걸친 평균은 섞인 값이다.

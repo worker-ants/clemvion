@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOOP"
 title: "Loop 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-LOOP-001", "REQ-LOOP-002", "REQ-LOOP-003", "REQ-LOOP-004", "REQ-LOOP-005", "REQ-LOOP-006", "REQ-LOOP-007", "REQ-LOOP-008", "REQ-LOOP-009", "REQ-LOOP-010", "REQ-LOOP-011", "REQ-LOOP-012", "REQ-LOOP-013", "REQ-LOOP-014", "REQ-LOOP-015", "REQ-LOOP-016", "REQ-LOOP-017", "REQ-LOOP-018", "REQ-LOOP-019", "REQ-LOOP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "ec73db132ca6b57ecac28bf535941487a5983acb52801b03ad582aef2de1e566"
+content_hash: "d77b7d725a55aac3488851df180253af9117bcdac242cda591fd828d1caae78c"
 read_as: "approved_fallback"
-task: "CLE-T-CYCGST"
+task: "CLE-T-JXD0W5"
 source_paths: ["spec/4-nodes/1-logic/3-loop.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e5a565ed45dce1dc62934debb0b18860811c7c2d99b28fda567b845690b7e1dc"
-etag: "sha256-a36cb0a98c6b1afc23d30e88ee77eee5f9fa3b3e9d4088a17393c19abbd943db"
+mirror_sha256: "f21e115eddf7c2bfbeecd1afb4853134f65305ee3e342c9848cdb87e423b73e1"
+etag: "sha256-bddf57d4f807591007a4f34dcf28af2dc588bf5b573376fdc8984a487038aa96"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -178,7 +178,7 @@ Loop 는 컨테이너라서 핸들러가 반환하는 출력과 엔진 덮어쓰
 | `meta.maxIterationsReached` | boolean | 엔진 주입 | `meta.exitReason === 'maxIterations'` 일 때만 `true`. 한도를 넘는 순간은 `MAX_ITERATIONS_EXCEEDED` 에러로 끝나므로 이 값은 "break 없이 한도까지 정상 완료" 만 가리킨다 |
 | `meta.exitReason` | `'completed' \| 'break' \| 'maxIterations'` | 엔진 주입 | 종료 이유. `'break'` 는 `breakCondition` 이 참이 되어 일찍 끝난 경우, `'maxIterations'` 는 `config.count === config.maxIterations` 로 한도까지 정상 완료한 경우, 나머지는 `'completed'` |
 
-완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)). ForEach · Map · Parallel 도 같다.
+완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 반복 회차까지 포함한 노드 전체 실행 시간이다. 엔진은 본문이 다 돈 뒤에 노드 실행 행을 한 번 마감한다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)). `meta.durationMs` 를 두지 않는 이유는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다. ForEach · Map · Parallel 도 같다.
 
 `output.count` 는 실제 반복 수이고 `config.count` 는 사용자 설정값이다. `break` 로 일찍 끝나면 `output.count < config.count` 가 될 수 있다. 하나는 설정, 하나는 실행 결과 메트릭이라 서로 겹치지 않는다.
 
@@ -274,3 +274,9 @@ Loop 에는 노드 경고 규칙이 없다(`warningRules: []`). 이유는 [Ratio
 **근거**: 이 문서는 엔진이 반복마다 원문 식을 직접 평가하고 다음 노드가 다시 평가할 일이 없다는 이유로 `breakCondition` 을 싣지 않는다고 적어 두었다. 그런데 같은 표현식 평가 제외 목록에 있는 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 의 `code` 는 규약이 싣는다고 정했다. 평가 제외 목록은 평가 대상에서 뺀다는 뜻일 뿐이라서다. 다음 노드가 원문 식을 다시 평가하지 않아도 어떤 조건으로 반복을 끝내게 설정했는지는 디버깅과 참조에 쓰인다. `config.breakCondition` 은 평가하지 않은 원문 문자열이다.
 
 **기각한 대안** (2026-11-12 사용자 선택): 규약 Principle 7 에 예외 목록(노드 · 필드 · 이유)을 두고 Loop `breakCondition` 을 올린다. 코드는 바꾸지 않아도 되지만 다음 노드가 노드마다 어떤 필드가 빠지는지 따로 알아야 하고 예외가 늘어날 길이 열린다.
+
+### 실행 시간 서술을 노드 전체 시간으로 고친다 (2026-11-15)
+
+이 문서는 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간이 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다고 적었다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 한 번 마감하게 고쳐서 두 값이 반복 회차까지 포함한 노드 전체 시간이 됐다. 그래서 그 문장을 고쳤다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
+
+기존 워크플로우 영향: 결과 값과 다음 노드 표현식은 바뀌지 않는다. 실행 내역 · 통계에 보이는 Loop 의 실행 시간은 노드 전체 기준으로 길어진다.
