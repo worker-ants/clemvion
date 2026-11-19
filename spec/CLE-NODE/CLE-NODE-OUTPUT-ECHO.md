@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-ECHO"
 title: "노드 출력 규약 — 설정 에코"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "4957f90a2f5f85730a65cfd6ac279751f98711f30b5c5793652939c309f27431"
+content_hash: "65f6f406ed62857b0dcb9a9812825679c458c7d433f9c060ce1085b224c88a75"
 read_as: "approved_fallback"
-task: "CLE-T-V462FA"
+task: "CLE-T-1GJKB2"
 source_paths: []
-mirror_sha256: "6a7fdcb55e89a420c666652463a8c5dffb13e66839dcb1822b5ba332f8f4318c"
-etag: "sha256-09e77f220e2e6746116fcc1e2e2d494b9a3d52331677191bbaf1a379b21637fa"
+mirror_sha256: "b9e21738a6d2f2b070ae4cf06e51cdbe3fb8d4a391c1767cc78afb1fc8999171"
+etag: "sha256-af8f9b35145c7f2bf2c578aaeadfaa99e1b185443596eecbe1c5eed63217873b"
 ---
 ## 개요
 
@@ -80,7 +80,7 @@ egress 값 마스킹이 이 금지를 한 번 더 막는다. 위 금지는 핸�
 1. 권장 방식은 비민감 필드를 하나씩 적는 것이다. 아래 핸들러 구현 예를 따른다.
 2. spread 로 싣지 않는다. `{ ...context.rawConfig }` 나 `{ ...rawConfig, ...overrides }` 형태를 금지한다. 이유는 [Rationale](#설정-에코를-명시-나열로-만드는-이유)에 있다.
 3. 기준 구현은 `background.handler.ts` 의 명시 나열 블록(`notes`, `notifyOnFailure`, `maxDurationMs` 만 나열)이다. `background.handler.spec.ts` 의 자격 증명 누출 방지 테스트가 이를 강제한다. 이 테스트는 rawConfig 에 가상의 `apiKey` 를 넣어도 에코에 새지 않는지 확인한다.
-4. 모든 노드 핸들러는 스키마의 비민감 필드를 항상 싣는다. 값이 `undefined` 여도 키를 둔다. 이런 키는 출력을 JSON 으로 저장하거나 내보낼 때 빠지므로 저장된 출력과 API 응답에는 보이지 않는다. 표현식으로 읽으면 `undefined` 다. 설정하지 않은 필드에 핸들러가 기본값을 채우는지, 채우지 않으면 동작이 어떤 값일 때와 같은지는 노드 문서의 출력 필드 표에 필드마다 적는다. 이런 필드는 선택 필드라 표에 `?` 를 붙인다([Principle 11](CLE-NODE-OUTPUT.md#principle-11-출력-예시-작성-규칙) 규칙 2). 이 규칙과 다르게 적은 노드 문서가 있다. [미결 사항](#미결-사항) 참조.
+4. 모든 노드 핸들러는 스키마의 비민감 필드를 항상 싣는다. 값이 `undefined` 여도 키를 둔다. 이런 키는 출력을 JSON 으로 저장하거나 내보낼 때 빠지므로 저장된 출력과 API 응답에는 보이지 않는다. 표현식으로 읽으면 `undefined` 다. 설정하지 않은 필드에 핸들러가 기본값을 채우는지, 채우지 않으면 동작이 어떤 값일 때와 같은지는 노드 문서의 출력 필드 표에 필드마다 적는다. 이런 필드는 선택 필드라 표에 `?` 를 붙인다([Principle 11](CLE-NODE-OUTPUT.md#principle-11-출력-예시-작성-규칙) 규칙 2). 표에 적는 형식은 [설정 에코 표의 범례](#설정-에코-표의-범례)를 따른다.
 
 핸들러 구현 예는 다음과 같다. 핸들러는 `context.rawConfig` 를 싣고, 평가한 값으로 동작한다.
 
@@ -111,6 +111,16 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 }
 ```
 
+### 설정 에코 표의 범례
+
+노드 문서의 출력 필드 표에서 `config.*` 행은 다음 범례를 따른다. 노드 문서는 아래 내용을 되풀이하지 않고 이 절을 링크한다.
+
+- `config.*` 의 값은 표현식을 평가하기 전 원본이다. 평가 결과는 `output.*` 에 있다.
+- 필드 이름 뒤의 `?` 는 사용자가 설정하지 않았고 핸들러가 기본값을 채우지 않아 값이 `undefined` 일 수 있다는 뜻이다. 키는 늘 실리지만 저장된 출력과 API 응답에는 보이지 않는다([명시 나열](#명시-나열) 규칙 4).
+- `?` 가 붙은 행의 설명에는 설정하지 않았을 때의 동작만 한 구절로 적는다. 예: "설정하지 않으면 `false` 와 같다".
+- 핸들러가 기본값을 채우는 필드는 `?` 없이 쓰고 그 기본값을 적는다.
+- 타입 열에는 `undefined` 를 쓰지 않는다. 그 뜻은 `?` 가 나타낸다.
+
 ## 미결 사항
 
 - **정보 추출기의 설정 에코 키 이름(Principle 7)**: 이 규약은 비민감 스키마 필드를 모두 항상 싣는다고 정한다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)는 `outputSchema` 를 `schema` 키로 싣고 이를 미뤄 둔 알려진 결함으로 적는다. 결정 필요: 이 이름을 예외로 인정할지, 노드를 규약에 맞출지. Loop `breakCondition` 은 2026-11-12 에 싣기로 정했고 구현됐다(결정 NERV Task `CLE-T-QV1NFT`, 구현 `CLE-T-CYCGST`, `loop.handler.ts`). ForEach `errorPolicy` 는 핸들러가 이미 싣고 [ForEach 노드](../CLE-NODE-LOGIC/CLE-NODE-FOREACH.md) 출력 표 정리는 NERV Task `CLE-T-W0377J` 가 맡는다.
@@ -121,7 +131,9 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 
 예전에는 `config` 를 "해석된 설정값(자격 증명 제거)" 으로 정의했다. 이 서술은 엔진 경계(`handler-output.adapter.ts`)가 저장 전에 마스킹한다는 전제에 기대고 있었다. 그 경계는 제거됐다. 저장 전에 가리면 `$node["X"].config.<field>` 가 리터럴 `****abcd` 를 읽는다. 이는 보이는 정보가 줄어드는 정도가 아니라 기능이 오염되는 문제였다. 그래서 `config` 는 원문으로 저장하고 REST·WebSocket 으로 나갈 때만 가리기로 했다. [응답 자격 증명 마스킹 §1.1](../CLE-API/CLE-API-EGRESS.md#11-egress-only)의 egress 전용 원칙과 같은 방향이다. 근거와 경위는 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md)의 R-5 에 있다. 같은 날 정리한 `_resumeState`·`_retryState` 의 자격 증명 제외 방식은 [포트 · 흐름 상태 · 에러](CLE-NODE-OUTPUT-FLOW.md#_resumestate--_retrystate-의-자격-증명-제외-방식-2026-08-24)에 있다.
 
-### egress 값 마스킹을 방어층으로 둔 이유 (2026-08-17)
+### egress 값 마스킹을 방어층으로 둔 이유
+
+결정일: 2026-08-17
 
 "절대 싣지 않는다" 목록은 핸들러의 의무다. 하지만 핸들러가 놓치거나 자유 텍스트 필드 안에 자격 증명 리터럴이 박혀 있으면 이 의무만으로는 막지 못한다. 그래서 나가는 경로에서 값 패턴을 한 번 더 가린다. 새 예외를 만든 것이 아니라 같은 금지를 다른 층에서 한 번 더 지키는 것이다.
 
@@ -140,3 +152,11 @@ spread 로 싣지 않는 이유는 세 가지다.
 2026-11-14 에 [싣는 값](#싣는-값)에 Loop `breakCondition` 을 Code `code` 와 같은 경우로 적었다. 제외 목록만 보고 에코에서도 빠진다고 읽지 않도록 [표현식 제외 키](../CLE-WF/CLE-WF-EXPR-ENGINE.md#표현식-제외-키)와 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#표현식-컨텍스트-구성)의 제외 목록에도 같은 설명을 한 줄씩 더했다(NERV Task `CLE-T-V462FA`). 동작은 바뀌지 않는다.
 
 2026-11-13 에 Principle 7 의 작업 레이블 표기를 지웠다. 한 작업 안에서 쓰던 레이블이라 다른 문서에서는 뜻을 알 수 없다. 동작은 바뀌지 않는다.
+
+### 출력 표의 설정 에코 범례를 이 문서에 둔다
+
+결정일: 2026-11-19
+
+노드 문서마다 출력 필드 표의 `config.*` 행에 "원본을 그대로 싣는다", "미설정이면 키가 JSON 에서 빠진다" 같은 같은 설명을 길게 되풀이했고 문서마다 문구가 조금씩 달랐다. 일부 문서는 타입 열에 `undefined` 를 적었다. 그래서 범례를 [설정 에코 표의 범례](#설정-에코-표의-범례) 한 곳에 두고 노드 문서는 링크와 필드별 미설정 동작만 적게 했다(NERV Task `CLE-T-C9900V`). 에코하는 키와 동작은 바뀌지 않는다.
+
+기각한 대안은 둘이다. 부모 문서 [Principle 11](CLE-NODE-OUTPUT.md#principle-11-출력-예시-작성-규칙)에 범례를 두는 안은 설정 에코 규칙과 범례가 두 문서로 갈린다. 노드 문서마다 설명을 그대로 두는 안은 사본마다 문구가 다시 갈린다.

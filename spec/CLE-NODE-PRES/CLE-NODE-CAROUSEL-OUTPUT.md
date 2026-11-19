@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAROUSEL-OUTPUT"
 title: "Carousel 노드 — 출력 구조"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CAROUSEL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES", "CLE-NODE-CAROUSEL"]
 area: "CLE-NODE-PRES"
-content_hash: "95a4654e8fa8eb5329fb71654a743c91b98d66ae21ef2764a6e9bfc3987f3e6c"
+content_hash: "7c8dd644632f7f4288b9316a8ecffd72b460b7146de2e6c4962db67715e06011"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/6-presentation/1-carousel.md"]
-mirror_sha256: "afa1ac1c28d177c0452dfcb984b348e3777a44d3d0ed136cacf100e276bbfb2c"
-etag: "sha256-955fdbfec8d7830698b082215561fb897c8bd8dd89d74216d055b540b6483181"
+mirror_sha256: "5104964bf156948c299fae91a63cf334b8b45b2b137af304464857d40e1986f7"
+etag: "sha256-b56ea6e3ca4522fe9be29834b027d6c9064a298d5a2745bba98892444ec0c79d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/1-carousel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 }
 ```
 
-표시 전용 핸들러는 `{ config, output }` 만 돌려준다(`carousel.handler.ts`). `meta.durationMs` 는 엔진이 넣는다. 아래 표에서 `?` 가 붙은 설정 에코 키는 핸들러가 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 미설정이면 값이 `undefined` 라 JSON 에서 빠진다.
+표시 전용 핸들러는 `{ config, output }` 만 돌려준다(`carousel.handler.ts`). `meta` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)). `config.*` 행은 [설정 에코 표의 범례](../CLE-NODE/CLE-NODE-OUTPUT-ECHO.md#설정-에코-표의-범례)를 따른다.
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
@@ -59,7 +59,6 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.itemButtons?` | ButtonDef[] | 설정 에코 | 동적 모드 항목 공통 버튼 원문. 미설정이면 항목 버튼이 없을 때와 같다. 버튼이 없어 표시 전용으로 끝났으면 이 값은 빈 배열이거나 키가 빠진다 |
 | `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 미설정이면 전역 버튼이 없을 때와 같다. 버튼이 없어 표시 전용으로 끝났으면 이 값은 빈 배열이거나 키가 빠진다 |
 | `output.items` | Array | 런타임(`source` 해석 + 필드 매핑, 동적 모드 전용) | 동적 모드 매핑 결과. 출력 크기 한도를 적용한다. **정적 모드는 이 필드를 싣지 않는다.** 슬라이드는 `config.items` 를 본다 |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms) |
 | `port` | `undefined` | 없음 | 단일 출력(`out`). `port` 를 두지 않는다 |
 
 정적 모드의 표시 전용 출력 값은 `{}` 다. 한도가 걸리면 `{ itemsTruncated, itemsTotalCount }` 다.
@@ -116,7 +115,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.buttonConfig.buttons` | ButtonDef[] | 런타임(전역 + 항목 합산) | 핸들러가 만든 통합 버튼 목록. 항목 버튼은 `<btn.id>__item_<idx>` 런타임 ID 다 |
 | `config.buttonConfig.buttonItemMap?` | `Record<string, number>` | 런타임 | 항목 버튼 런타임 ID → 한도 적용 후 `items` 인덱스. 비어 있으면 생략한다 |
 | `output` | `{}` | 없음 | 정적 모드는 런타임 계산값이 없다. 슬라이드는 `config.items` 를 본다 |
-| `meta.durationMs` | number | 엔진 주입 | |
+| `meta.durationMs` | `0` | 핸들러 반환 | 버튼 대기에 들어갈 때 핸들러가 `0` 을 싣는다. 재개 뒤에도 `0` 이다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)) |
 | `meta.interactionType` | `'buttons'` | 핸들러 반환 | 대기 표면 |
 | `status` | `'waiting_for_input'` | 핸들러 반환 | 블로킹 모드 진입 |
 
@@ -149,7 +148,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
       { "title": "Beta",  "description": "Second", "image": "http://b.png" }
     ]
   },
-  "meta": { "durationMs": 42, "interactionType": "buttons" },
+  "meta": { "durationMs": 0, "interactionType": "buttons" },
   "status": "waiting_for_input"
 }
 ```
@@ -171,7 +170,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 
 ## 재개
 
-입력 대기 시점의 출력 값을 바꾸지 않는 스냅샷으로 두고 `output.interaction` 을 더한다. `status: 'resumed'` 이고 `port` 는 누른 버튼의 원래 ID(항목 버튼은 접미사를 뗀 값)나 `'continue'` 다.
+입력 대기 시점의 출력 값을 바꾸지 않는 스냅샷으로 두고 `output.interaction` 을 더한다. `status: 'resumed'` 이고 `port` 는 누른 버튼의 원래 ID(항목 버튼은 접미사를 뗀 값)나 `'continue'` 다. `meta` 도 입력 대기 때 값 그대로라 `meta.durationMs` 는 `0` 이다.
 
 **전역 포트 버튼 클릭:**
 
@@ -194,7 +193,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
       "receivedAt": "2026-04-19T12:34:56.000Z"
     }
   },
-  "meta": { "durationMs": 12340, "interactionType": "buttons" },
+  "meta": { "durationMs": 0, "interactionType": "buttons" },
   "port": "approve",
   "status": "resumed"
 }
@@ -230,7 +229,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
       "receivedAt": "2026-04-19T12:34:56.000Z"
     }
   },
-  "meta": { "durationMs": 9876, "interactionType": "buttons" },
+  "meta": { "durationMs": 0, "interactionType": "buttons" },
   "port": "act",
   "status": "resumed"
 }
@@ -262,7 +261,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
       "receivedAt": "2026-04-19T12:34:56.000Z"
     }
   },
-  "meta": { "durationMs": 5432, "interactionType": "buttons" },
+  "meta": { "durationMs": 0, "interactionType": "buttons" },
   "port": "continue",
   "status": "resumed"
 }

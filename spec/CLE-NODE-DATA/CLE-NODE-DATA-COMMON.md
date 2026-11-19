@@ -2,19 +2,19 @@
 id: "CLE-NODE-DATA-COMMON"
 title: "Data 노드 공통"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-DATA"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-DATA"]
 area: "CLE-NODE-DATA"
-content_hash: "7f52ce7aa7f8ad023aac77f1546352f724f4bcdf40cc98286648ba415774ad1a"
-read_as: "approved"
-task: null
+content_hash: "c2f57a37982619110d3cf00a17bb948532716c2f2ee29b049c3ff7b8372a07a4"
+read_as: "approved_fallback"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/5-data/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "1c7e67180daf9ba6ec18c5d0d1805796046bc853c2d29180b5cc061d7458c719"
-etag: "sha256-1f939d3f1428389fa495465f8c34e8eee22c01ea9d774a7eb578092fc492e164"
+mirror_sha256: "b65ba1587d34322d36ea37741f9e8728f246a4025ab120cb4b4b3f6dba461a9c"
+etag: "sha256-0469238a8e7b64e781ccd57997a4481b1f2ce8b968885abbfb545ba101b6bfbc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/5-data/0-common.md`, `spec/4-nodes/_product-overview.md` (§8 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -63,7 +63,7 @@ Data 노드는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 
 |------|---------------------------|
 | `config` | 사용자 입력 원본을 에코한다(Principle 7). Code 노드의 `code` 필드는 길이 제한 없이 에코한다(사용자 본인이 쓴 코드). Transform 노드의 `operations[]` 는 표현식 템플릿을 보존한다 |
 | `output` | 계산 결과. Transform 은 변환 결과(단일 객체 또는 배열), Code 는 사용자 코드의 `return` 값 |
-| `meta` | 실행 메트릭만(Principle 2). 공통은 `meta.durationMs`. Transform 은 `meta.{operationsApplied, operationsSkipped}`, Code 는 `meta.{success, logs}` |
+| `meta` | 실행 메트릭만(Principle 2). 두 노드 모두 `meta.durationMs` 를 싣지 않는다. 노드 전체 실행 시간은 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)). Transform 은 `meta.{operationsApplied, operationsSkipped}`, Code 는 `meta.{success, logs}` |
 | `port` | Transform 은 비워 둔다(단일 출력). Code 는 `'success'` 또는 `'error'` |
 | `status` | 비워 둔다(두 노드 모두 비블로킹) |
 

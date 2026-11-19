@@ -2,19 +2,19 @@
 id: "CLE-NODE-CHART-OUTPUT"
 title: "Chart 노드 — 출력 구조"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CHART"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES", "CLE-NODE-CHART"]
 area: "CLE-NODE-PRES"
-content_hash: "86698d1696d0558a2848358c01b76b6bbedbbb44ed66a3b5075a5e3eff5b8a5c"
+content_hash: "8cc703241fb2679880218d947002f0608297fa7ace09481060f17dca6c7665f6"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-1GJKB2"
 source_paths: []
-mirror_sha256: "19749a17d71a9423b29b1e1d75108b90ce500fc0a7f62e48bb0bfaff4e64e62d"
-etag: "sha256-41af2b19b04e1a70c9b2dafa1ccd1ce1a8a05121421b1394c60dbfcb7340ced2"
+mirror_sha256: "ca28ac086c323cb93ee118f45f660054c2295721b095f35b309b78820a333cfd"
+etag: "sha256-cd2c78d645f387a0d899d4a05d2fe071f4c11d01a33f8983c677c8ea4620a307"
 ---
 ## 개요
 
@@ -42,12 +42,11 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
       { "x": "Feb", "y": 1500 },
       { "x": "Mar", "y": 1800 }
     ]
-  },
-  "meta": {
-    "durationMs": 12
   }
 }
 ```
+
+표시 전용 핸들러는 `{ config, output }` 만 돌려준다(`chart.handler.ts`). `meta` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)).
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
@@ -58,7 +57,6 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.groupBy?` | String | 설정 에코 | 시리즈를 나눈 항목 필드. pie·donut 이면 에코만 하고 쓰지 않는다 |
 | `config.colors?` | String[] | 설정 에코 | 사용자 색상 배열 |
 | `output.data` | `{ x, y?, series? }[]` | 런타임 집계 | 입력을 `xAxis.field`(`groupBy` 를 쓰면 시리즈까지) 기준으로 묶고 `yAxis.aggregation` 을 적용한 결과. `series` 는 `groupBy` 를 쓴 bar·line·area 에만 있다 |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms) |
 | `port` | undefined | 없음 | 단일 출력(`out` 포트) |
 
 표현식 접근 예:
@@ -87,9 +85,6 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
       { "x": "Feb", "y": 1500, "series": "Seoul" },
       { "x": "Feb", "y": 900, "series": "Busan" }
     ]
-  },
-  "meta": {
-    "durationMs": 14
   }
 }
 ```
@@ -128,7 +123,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
   },
   "meta": {
     "interactionType": "buttons",
-    "durationMs": 15
+    "durationMs": 0
   },
   "status": "waiting_for_input"
 }
@@ -140,7 +135,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.buttonConfig.buttons` | ButtonDef[] | 핸들러(블로킹 쌍 식별) | 블로킹 모드에 들어갈 때 핸들러가 내는 평가된 버튼 목록. 실행 내역 화면과 버튼 바가 쓴다 |
 | `output.data` | `{ x, y?, series? }[]` | 런타임 집계 | 표시 전용과 같다. 입력 대기 시점의 바뀌지 않는 스냅샷이고 재개에서도 같다 |
 | `meta.interactionType` | `"buttons"` | 핸들러 반환 | 대기 표면. 화면이 버튼 바 모드를 알아본다 |
-| `meta.durationMs` | number | 엔진 주입 | 집계까지 걸린 시간 |
+| `meta.durationMs` | `0` | 핸들러 반환 | 버튼 대기에 들어갈 때 핸들러가 `0` 을 싣는다. 재개 뒤에도 `0` 이다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)) |
 | `status` | `"waiting_for_input"` | 핸들러 반환 | 블로킹 진입. 사용자 클릭을 기다린다 |
 | `port` | undefined | 없음 | 클릭 전에는 켜진 포트가 없다 |
 
@@ -183,7 +178,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
   },
   "meta": {
     "interactionType": "buttons",
-    "durationMs": 7200
+    "durationMs": 0
   },
   "port": "export",
   "status": "resumed"
@@ -197,7 +192,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `output.interaction.data.buttonId` | String | 엔진 | 누른 버튼의 정의 ID(켜진 포트 ID 와 같다) |
 | `output.interaction.data.buttonLabel` | String | 엔진 | 클릭 시점 버튼 라벨 |
 | `output.interaction.receivedAt` | ISO8601 | 엔진 | 클릭 수신 시각 |
-| `meta.durationMs` | number | 엔진 주입 | 입력 대기에서 재개까지 걸린 시간(대기 시간 포함) |
+| `meta.durationMs` | `0` | 입력 대기 스냅샷 | 재개는 이 값을 바꾸지 않는다. 대기 시간을 담지 않는다 |
 | `port` | `<button.id>` | 엔진 라우팅 | 누른 포트 버튼의 ID 그대로 |
 | `status` | `"resumed"` | 엔진 | 재개 상태 |
 
@@ -236,7 +231,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
   },
   "meta": {
     "interactionType": "buttons",
-    "durationMs": 14000
+    "durationMs": 0
   },
   "port": "continue",
   "status": "resumed"
@@ -274,7 +269,9 @@ zod 는 `data` 를 검사하지 않으므로 도구 의미 검사(`checkRenderTo
 
 ## Rationale
 
-### `render_chart` 의 `data` 는 스키마 밖에 두고 최소 모양만 검사한다 (2026-11-05)
+### `render_chart` 의 `data` 는 스키마 밖에 두고 최소 모양만 검사한다
+
+결정일: 2026-11-05
 
 `chartConfigSchema` 는 노드 설정 스키마이면서 `render_chart` 의 도구 파라미터 스키마다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#스키마-단일-기준)). 여기에 런타임 출력인 `data` 를 선언하면 설정 스키마에 출력 값이 들어가 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-11-설정과-출력-값은-겹치지-않는다) Principle 1.1 과 부딪친다. 그래서 `data` 는 스키마 밖에 두고 도구 설명 문구를 LLM 에 주는 계약으로 삼는다. 문구가 여러 곳에서 갈리지 않도록 모양 표기를 상수 `CHART_DATA_SHAPE` 하나로 모았다(CLE-T-NRN1RR).
 
@@ -287,6 +284,8 @@ zod 는 `data` 를 검사하지 않으므로 도구 의미 검사(`checkRenderTo
 
 스키마 밖의 `data` 는 zod 검사를 받지 않는다. 그래서 `data` 가 빠졌거나 객체가 아닌 값만 든 호출도 통과하고 LLM 은 성공 결과를 받는다. 사용자에게는 차트가 보이지 않고 LLM 은 다시 부를 기회를 얻지 못한다. 이것을 막으려고 도구 의미 검사에 최소 모양 검사를 두어 다른 표시 도구처럼 `INVALID_PAYLOAD` 로 다시 부르게 한다. 검사는 배열인지와 객체 항목이 하나라도 있는지만 본다. 일부 항목만 틀린 페이로드는 렌더러가 틀린 항목을 건너뛰고 나머지를 그리는 지금 동작을 그대로 둔다.
 
-### 출력 스키마는 노드 출력 다섯 필드 형태로 선언한다 (2026-11-01)
+### 출력 스키마는 노드 출력 다섯 필드 형태로 선언한다
+
+결정일: 2026-11-01
 
 이전 `chartOutputSchema` 는 `type: 'chart'`·`chartType`·`title` 을 선언했다. 승인본 v2 까지 미결 사항에 있던 항목이다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 1.1 · 4.2 가 이미 이 필드를 쓰지 않는다고 정했고, Table · Carousel 의 출력 스키마는 이미 그 형태다. 그래서 사람 결정 없이 같은 형태를 따른다. 핸들러는 출력 재설계 뒤로 이 필드를 출력에 싣지 않았다. 그래서 `$node["Ch"].output.chartType` 같은 표현식은 이전에도 값이 없었고, 스키마를 고쳐도 깨지는 워크플로우가 없다.

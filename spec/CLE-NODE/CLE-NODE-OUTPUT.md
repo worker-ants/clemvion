@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "b2b832706517002028a8d318718d19ac6aa082b1a14b323d7f8011b0184794bf"
+content_hash: "31fc3d8d86404ea00eab29aac3a60c553ac20ecbb70beac8b289cddc91f69a17"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "d031fda9ff5737ed524195e66dad399f020d98c05b85dcf34478b0b2905ac8e0"
-etag: "sha256-29567a91a01b70d3d9565cecc34bee9ced2cc802127e1b7c82a155e6d161483c"
+mirror_sha256: "ef1e5a282a613d5df7be6039e590aa802e4d7a0b5387d7b1c036a2989e78a84d"
+etag: "sha256-9af55b916805283832d0971435022b59b14236fca50ba09fa703e327dec2dde4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,7 +38,7 @@ etag: "sha256-29567a91a01b70d3d9565cecc34bee9ced2cc802127e1b7c82a155e6d161483c"
 ## 하위 문서
 
 - [노드 출력 규약 — 포트 · 흐름 상태 · 에러](CLE-NODE-OUTPUT-FLOW.md): Principle 3(에러 계약 · `output.error` 형태 · 에러 포트), Principle 4(블로킹 · 재개 상태 전이, `_resumeCheckpoint` · `_retryState` 보존 예외, 입력 대기 · 재개 출력 값, `interaction.data`), Principle 5(출력 포트 선택 모델), Principle 6(동적 포트 ID 이름). 맡는 요구사항: 없음.
-- [노드 출력 규약 — 설정 에코](CLE-NODE-OUTPUT-ECHO.md): Principle 7(설정 에코에 싣는 값 · 싣지 않는 값, egress 마스킹, 명시 나열 방식). 맡는 요구사항: 없음.
+- [노드 출력 규약 — 설정 에코](CLE-NODE-OUTPUT-ECHO.md): Principle 7(설정 에코에 싣는 값 · 싣지 않는 값, egress 마스킹, 명시 나열 방식)과 출력 표의 설정 에코 범례. 맡는 요구사항: 없음.
 - [노드 출력 규약 — 컨테이너 출력과 빈 입력](CLE-NODE-OUTPUT-CONTAINER.md): Principle 9(컨테이너와 Parallel 의 엔진 덮어쓰기)와 Principle 10(비었거나 null 인 입력의 대체 값), 컨테이너 · Parallel 의 완료 `meta` 와 실행 시간. 맡는 요구사항: 없음.
 
 ## 규칙
@@ -64,6 +64,7 @@ etag: "sha256-29567a91a01b70d3d9565cecc34bee9ced2cc802127e1b7c82a155e6d161483c"
    | `wire 전용 (위젯 파서)` | `formConfig` · `conversationConfig` · `buttonConfig` · `interactionType` | `channel-web-chat` 의 `parseWaitingForInput` |
    | `wire 전용 (chat-channel 렌더러)` | `payload` · `title` · `rendered` · `nodeType` | Discord·Telegram·Slack 렌더러(평면 레거시 형태) |
 
+   이 8키는 `nodeOutput` 안(노드 출력 층)의 키다. 봉투 층에도 `interactionType` · `buttonConfig` 같은 키가 있다. 봉투 키는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)과 [입력 대기 이벤트](../CLE-API/CLE-API-WS-EVENTS-WAITING.md)가 정한다.
 5. 다섯 필드 목록을 넓히지 않는다. wire 전용 키는 핸들러가 만드는 값이 아니라 전송 조립 계층이 만드는 값이다. 정본 목록은 `codebase/backend/src/nodes/core/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS` 다. 컴파일 타임 assertion 이 다섯 필드를 묶고 나머지 8키는 리터럴 테스트가 지킨다. 범위 표는 [응답 자격 증명 마스킹 §3.8](../CLE-API/CLE-API-EGRESS.md#38-외부-nodeoutput-의-fail-closed-허용-목록-2026-08-23-2026-08-24)이 가진다. 갈래 라벨은 그 표와 같은 문구를 쓴다.
 6. 내부 최상위 필드 세 개는 다섯 필드 밖 최상위 위치를 예외로 허용한다. `_resumeState`(멀티턴 입력 대기·재개 중 내부 전달), `_resumeCheckpoint`(재시작 뒤 재개용 DB 보존 부분집합), `_retryState`(재시도 가능 에러로 끝날 때 DB 보존)다. 세 필드는 표현식 해석기와 자동완성에 노출하지 않고, 자격 증명 제외 정책도 같다. 자세한 규칙은 [4.2.1](CLE-NODE-OUTPUT-FLOW.md#421-보존-예외--_resumecheckpoint--_retrystate)에 있다.
 7. 출력 값이 배열이나 원시값(문자열 · 숫자 · 불리언 · `null`)이어도 다음 노드는 그 값을 그대로 받는다. `$input` 과 `$node["X"].output` 은 핸들러가 `output` 에 둔 값과 같다. `port` · `status` · `meta` 가 함께 있어도 `{ data: … }` 같은 객체로 감싸지 않는다. 사용자 코드가 `{ data: [...] }` 객체를 돌려주면 그 객체가 출력 값이다. 엔진이 포트 라우팅을 위해 이 값을 어떻게 들고 다니는지는 [노드 핸들러 계약 §포트 선택](../CLE-EXEC/CLE-EXEC-HANDLER.md#포트-선택)에 있다. 이 규칙이 아직 닿지 않는 경로는 [미결 사항](#미결-사항)에 있다.
@@ -116,11 +117,11 @@ etag: "sha256-29567a91a01b70d3d9565cecc34bee9ced2cc802127e1b7c82a155e6d161483c"
 
 | 분류 | 필수·권장 필드 |
 | --- | --- |
-| 공통 | `meta.durationMs: number`. Loop·ForEach·Map·Parallel 의 완료 출력에는 싣지 않는다. 이 네 노드의 노드 전체 실행 시간은 노드 실행 기록에 있다([컨테이너 · Parallel 의 완료 `meta`](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-meta), [Rationale](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-출력에-durationms-를-싣지-않는다-잠정-2026-10-24)). 이 값을 누가 채우는지는 노드 문서가 정한다([미결 사항](#미결-사항)). Send Email 노드의 dry-run 출력에는 `meta.durationMs` 가 없다([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) Rationale). 이 값을 채우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다 |
+| 공통 | `meta.durationMs?: number`. 넣는다면 핸들러가 넣고, 없을 수 있다. 엔진은 Form 재개 때 실제 대기 시간으로 고치기만 한다. 노드 전체 실행 시간은 노드 실행 기록의 `node_execution.duration_ms` 에 있다([Rationale](#metadurationms-는-핸들러가-넣는다)). Loop·ForEach·Map·Parallel 의 완료 출력([완료 `meta`](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-meta))과 Send Email 의 dry-run 출력([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) Rationale, NERV Task `CLE-T-22PSME`)에는 없다 |
 | AI 노드 | 아래 목록 |
 | HTTP | `meta.statusCode`, `meta.durationMs` |
 | DB | `meta.durationMs`, `meta.rowCount` |
-| Code | `meta.durationMs`, `meta.success`, `meta.logs?`. 런타임 에러는 `output.error` 와 `port: 'error'` 로 낸다. `meta.error`, `meta.errorCode` 별칭은 폐기했다. |
+| Code | `meta.success`, `meta.logs?`. `meta.durationMs` 는 싣지 않는다. 런타임 에러는 `output.error` 와 `port: 'error'` 로 낸다. `meta.error`, `meta.errorCode` 별칭은 폐기했다. |
 | 컨테이너 · Parallel | `meta.iterations`(Loop·ForEach·Map), `meta.skippedCount?`(ForEach·Map), `meta.fellBackToEmpty`(ForEach·Map), `meta.maxIterationsReached`·`meta.exitReason`(Loop). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency?` 를 싣는다 |
 | Split · Filter | `meta.fellBackToEmpty`([Principle 10](#principle-10-비었거나-null-인-입력의-대체-값)) |
 | Merge | `meta.inputCount`, `meta.strategy`, `meta.outputFormat`, `meta.skippedKeys`, `meta.dormantFields`. `meta.strategy` · `meta.outputFormat` 은 설정 에코와 같은 값이라 이 원칙의 예외다. 예외로 둔 이유는 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다-2026-11-12) 에 있다 |
@@ -249,7 +250,7 @@ AI 노드의 `meta` 필드는 다음과 같다.
 ````
 
 1. JSON 예시에서 `undefined` 필드는 빼고 쓴다.
-2. 선택 필드는 표에 `?` 를 붙인다. 이 규약에서 선택인 필드라도 노드 문서가 그 케이스에서 늘 싣는다고 정하면 `?` 없이 쓴다. 예를 들어 AI 에이전트 단일 턴 케이스의 `meta.thinkingTokens` 다. 설정 에코에서 값이 `undefined` 일 수 있는 필드(사용자가 설정하지 않았고 핸들러가 기본값을 채우지 않는 필드)도 선택 필드다([Principle 7](CLE-NODE-OUTPUT-ECHO.md#principle-7-설정-에코-원칙) 규칙 4).
+2. 선택 필드는 표에 `?` 를 붙인다. 이 규약에서 선택인 필드라도 노드 문서가 그 케이스에서 늘 싣는다고 정하면 `?` 없이 쓴다. 예를 들어 AI 에이전트 단일 턴 케이스의 `meta.thinkingTokens` 다. 설정 에코에서 값이 `undefined` 일 수 있는 필드(사용자가 설정하지 않았고 핸들러가 기본값을 채우지 않는 필드)도 선택 필드다. 이런 `config.*` 행은 [설정 에코 표의 범례](CLE-NODE-OUTPUT-ECHO.md#설정-에코-표의-범례)를 따른다.
 3. 케이스(성공, 에러, 재개 등)마다 따로 쓴다.
 4. 다섯 필드 밖의 최상위 키를 쓰지 않는다([Principle 0](#principle-0-노드-출력의-다섯-필드)의 내부 필드 예외는 제외).
 
@@ -281,7 +282,6 @@ AI 노드의 `meta` 필드는 다음과 같다.
 
 이 문서에 남은 미결 항목은 다음과 같다.
 
-- **일반 노드의 `meta.durationMs` 를 채우는 주체(Principle 2)**: 여러 노드 문서가 `meta.durationMs` 의 출처를 "엔진 주입" 으로 적는다. 2026-10-24 에 확인한 코드에서 엔진이 이 값을 넣는 곳은 폼 재개 경로뿐이다. Chart · Carousel · Table · Template 의 버튼 대기는 핸들러가 `0` 을 싣고 버튼 재개는 그 값을 바꾸지 않는다. 버튼이 없는 Chart · Carousel · Table · Template 은 `meta` 를 싣지 않는다. If/Else · Switch · Filter · Merge · Split · 변수 선언 · 변수 수정 핸들러도 이 값을 싣지 않는다. 결정 필요: 엔진이 모든 노드 완료 때 실제 값을 넣도록 바꿀지, 노드 문서를 지금 동작에 맞출지. 영향을 받는 노드 문서 목록과 후속 작업은 NERV Task `CLE-T-1GJKB2` 가 다룬다. 경위는 [컨테이너 하위 문서의 Rationale](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-출력에-durationms-를-싣지-않는다-잠정-2026-10-24)에 있다.
 - **흐름 지시 상태 값 `started`(Principle 0)**: 이 규약은 `status` 를 엔진 흐름을 바꾸는 값으로 정의한다. [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)의 비동기 호출은 최상위 `status: 'started'` 를 돌려준다. 자세한 내용은 그 문서의 미결 사항에 있다.
 - **배열 · 원시값 `output` 이 `{ data }` 로 감싸이는 갭(Principle 0 · 8)**: 다음 노드의 `$input` 과 `$node["X"].output` 은 [Principle 0](#principle-0-노드-출력의-다섯-필드) 7번대로 배열 · 원시값을 그대로 받는다. 엔진 내부 값을 그대로 쓰는 경로는 아직 이 규칙을 따르지 않는다. 실행 결과(`Execution.outputData`)와 동기 서브워크플로 결과(워크플로우 호출 노드의 `output.result`)에는 마지막 노드의 엔진 내부 값이 들어간다. 출력 값이 배열 · 원시값(`null` 포함)이고 `port` 가 있으면 `{ data: <값>, _selectedPort: <포트> }` 이고, 객체면 `_selectedPort` 키가 붙는다. `port` 가 있는 객체 출력은 `$node["X"].output` 에도 `_selectedPort` 키가 붙는다. `$input` 에는 붙지 않는다. Background 노드 본문은 큐로 넘어온 엔진 내부 값(`nodeOutputCache` 스냅샷)만 받으므로, 본문 밖 노드의 배열 · 원시값 출력에 `port` 가 있으면 본문 안의 `$node["X"].output` 이 같은 `{ data, _selectedPort }` 형태로 보인다. DB 에서 되살린 값으로 실행을 이어 가는 경로도 같은지는 아직 확인하지 않았다. 결정 필요: 이 경로들도 핸들러 `output` 을 그대로 쓰게 할지, 실행 결과는 노드 출력 다섯 필드 전체로 둘지. 후속 작업은 NERV Task `CLE-T-JDYHCF` 가 다룬다.
 
@@ -299,7 +299,7 @@ AI 노드의 `meta` 필드는 다음과 같다.
 다른 문서가 `CLE-NODE-OUTPUT#rationale` 로 가리키는 결정 가운데 하위 문서로 옮긴 것은 다음과 같다.
 
 - 사설망 차단과 자격 증명 해석 실패를 에러 포트로 보낸다 (2026-05-17), `_resumeState` · `_retryState` 의 자격 증명 제외 방식 (2026-08-24), 에러 `details` 예를 구현에 맞춘다 (2026-11-13), AI 대화 노드의 재개 출력을 규약에 올린다 (2026-11-12): [포트 · 흐름 상태 · 에러의 Rationale](CLE-NODE-OUTPUT-FLOW.md#rationale)
-- 설정 에코의 원문 저장 · egress 마스킹 · 명시 나열: [설정 에코의 Rationale](CLE-NODE-OUTPUT-ECHO.md#rationale)
+- 설정 에코의 원문 저장 · egress 마스킹 · 명시 나열 · 범례: [설정 에코의 Rationale](CLE-NODE-OUTPUT-ECHO.md#rationale)
 - 엔진 덮어쓰기 형태 · 빈 입력 대체 · 완료 `meta` 의 `durationMs` · 완료 출력 표의 `skipped` · `skipped[].error.code` 예외 종료: [컨테이너 출력과 빈 입력의 Rationale](CLE-NODE-OUTPUT-CONTAINER.md#rationale)
 
 ### 노드 종류를 몰라도 값 위치를 예측할 수 있게 한다
@@ -310,20 +310,32 @@ AI 노드의 `meta` 필드는 다음과 같다.
 
 초안은 `output.view.type` 으로 노드 종류를 구분하려 했다. 노드 종류는 `$node["X"]` 로 접근할 때 워크플로우 정의에서 이미 알 수 있으므로 판별자는 중복이다. 같은 이유로 Presentation 노드의 `output.type` 판별자도 폐기했다.
 
-### 이벤트 봉투와 노드 출력의 구분을 한 곳에 둔 이유 (2026-08-24)
+### 이벤트 봉투와 노드 출력의 구분을 한 곳에 둔 이유
 
-이 구분이 산문으로 다섯 문서에 흩어져 있었고, 사본마다 같은 결함이 따로 나왔다. 사본을 줄이는 것이 재발을 막는 유일한 방법이라 [Principle 0](#principle-0-노드-출력의-다섯-필드)을 기준으로 삼고 다른 문서가 인용하게 했다.
+결정일: 2026-08-24
+
+이 구분이 산문으로 다섯 문서에 흩어져 있었고, 사본마다 같은 결함이 따로 나왔다. 사본을 줄이는 것이 재발을 막는 유일한 방법이라 [Principle 0](#principle-0-노드-출력의-다섯-필드)을 기준으로 삼고 다른 문서가 인용하게 했다. 2026-11-19 에 4번 wire 전용 키의 층을 적었다(NERV Task `CLE-T-7F5XSA`).
 
 ### wire 전용 키를 다섯 필드에 넣지 않는 이유
 
 wire 전용 키 8개는 핸들러가 아니라 전송 조립 계층이 만든다. 계약에 넣으면 모든 핸들러가 지켜야 할 것처럼 읽힌다. 갈래 라벨은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 허용 목록 표와 같은 문구를 쓴다. 코드 JSDoc 은 접미어 없는 축약형(`wire 전용 (위젯)`, `(chat-channel)`)이라 글자가 완전히 같지는 않다. 키 배열은 정확히 같으므로 기능 위험은 없다. 라벨 통일은 남은 개발 작업이다.
 
-### 배열 · 원시값 출력을 감싸지 않는다 (2026-11-05)
+### `meta.durationMs` 는 핸들러가 넣는다
 
-이 결정 전에는 엔진이 배열 · 원시값 출력에 `port` · `status` · `meta` 가운데 하나라도 있으면 `{ data: <값> }` 으로 감쌌다. 그래서 Code 의 `return [...]` 를 다음 노드가 `$input.data` 로 읽어야 했고, `port` 나 `meta` 를 싣는 Merge · 변수 선언 · Transform · If/Else · Switch 의 배열 출력도 늘 감싸였다. 값 위치를 예측한다는 목표와 [Principle 8.2](#82-통일된-1차-이름)에 맞지 않았다. 2026-11-05 에 이 감싸기를 없앴다(NERV Task `CLE-T-T30D5S`). 감싼 값을 `$input.data` · `$node["X"].output.data` 로 읽던 워크플로우는 이 결정 뒤 `undefined` 를 읽는다. 호환이 깨지는 변경이다. 앞서 컨테이너 입력에 한해 `meta` 만 있을 때 감싸지 않게 한 수정(NERV Task `CLE-T-3HJ8MM`)은 이 결정에 포함됐다. 엔진 쪽 구현 결정은 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#배열--원시값-출력의-엔진-내부-객체를-표지로-가른다-2026-11-05)에 있다. 같은 날 Code 가 `null` 을 돌려주거나 값을 돌려주지 않는 경우도 맞췄다(NERV Task `CLE-T-X3AH4F`). 전에는 다음 노드가 설정 에코를 받고 success · error 포트가 함께 열렸으나 이제 success 포트만 열리고 다음 노드는 `null` 을 받는다.
+결정일: 2026-11-19
+
+여러 노드 문서가 엔진이 이 값을 넣는다고 적었으나 엔진은 Form 재개 때만 이 값을 고친다. 값을 싣는 쪽은 핸들러다. HTTP 요청 · Send Email · DB 쿼리 · Cafe24 · MakeShop · Background · AI 노드 · 워크플로우 호출은 잰 값을 싣는다. 버튼 대기에 들어가는 Chart · Carousel · Table · Template 과 Form 은 `0` 을 싣고 버튼 재개는 이 값을 바꾸지 않는다. Code · Transform · 수동 트리거와 나머지 Logic 노드는 싣지 않는다. 그래서 문서를 지금 동작에 맞췄다(NERV Task `CLE-T-1GJKB2`). 실제 출력은 바뀌지 않으므로 호환 영향은 없다. 통합 노드는 계속 잰 값을 싣고 Send Email dry-run 만 값이 없다(보강은 `CLE-T-22PSME`). 통합 노드 공통 규칙 3 은 시간 키 이름을 정하는 규칙이라 그대로 둔다.
+
+기각한 대안은 엔진이 모든 노드 완료 때 값을 넣는 안이다. 핸들러가 잰 외부 호출 시간과 엔진이 잰 노드 전체 시간이 한 키에서 뜻이 갈리고, 노드 전체 시간은 이미 실행 기록에 있다.
+
+### 배열 · 원시값 출력을 감싸지 않는다
+
+결정일: 2026-11-05
+
+이 결정 전에는 엔진이 배열 · 원시값 출력에 `port` · `status` · `meta` 가운데 하나라도 있으면 `{ data: <값> }` 으로 감쌌다. 그래서 Code 의 `return [...]` 를 다음 노드가 `$input.data` 로 읽어야 했고, `port` 나 `meta` 를 싣는 Merge · 변수 선언 · Transform · If/Else · Switch 의 배열 출력도 늘 감싸였다. 값 위치를 예측한다는 목표와 [Principle 8.2](#82-통일된-1차-이름)에 맞지 않았다. 2026-11-05 에 이 감싸기를 없앴다(NERV Task `CLE-T-T30D5S`). 감싼 값을 `$input.data` · `$node["X"].output.data` 로 읽던 워크플로우는 이 결정 뒤 `undefined` 를 읽는다. 호환이 깨지는 변경이다. 엔진 쪽 구현 결정은 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#배열--원시값-출력의-엔진-내부-객체를-표지로-가른다-2026-11-05)에 있다. 같은 날 Code 가 `null` 을 돌려주거나 값을 돌려주지 않는 경우도 맞췄다(NERV Task `CLE-T-X3AH4F`). 전에는 다음 노드가 설정 에코를 받고 success · error 포트가 함께 열렸으나 이제 success 포트만 열리고 다음 노드는 `null` 을 받는다.
 
 기각한 대안은 둘이다. 첫째, `$input.data` 도 같은 값을 주는 별칭은 원시값에 속성을 붙일 수 없고 배열에 `data` 속성을 붙이면 사용자 값의 모양이 바뀐다. 둘째, Code 만 감싸지 않는 노드별 적용은 노드 종류를 알아야 값 위치를 알 수 있어 규약의 목표와 맞지 않는다. 저장된 워크플로우의 `$input.data` 를 자동으로 고치는 마이그레이션도 두지 않았다. 앞 노드의 출력이 배열 · 원시값인지는 실행해 봐야 알 수 있어 표현식만 보고 고칠 곳을 가를 수 없다.
 
-### 예외 표에서 정한 노드만 배열이 아닌 입력을 빈 배열로 바꾼다 (2026-10-24)
+### 예외 표에서 정한 노드만 배열이 아닌 입력을 빈 배열로 바꾼다
 
-→ [컨테이너 출력과 빈 입력](CLE-NODE-OUTPUT-CONTAINER.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다-2026-10-24)
+→ [컨테이너 출력과 빈 입력](CLE-NODE-OUTPUT-CONTAINER.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다)

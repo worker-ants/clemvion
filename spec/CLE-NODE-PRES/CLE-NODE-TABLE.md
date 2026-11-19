@@ -2,19 +2,19 @@
 id: "CLE-NODE-TABLE"
 title: "Table 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-TABLE-001", "REQ-TABLE-002", "REQ-TABLE-003", "REQ-TABLE-004", "REQ-TABLE-005", "REQ-TABLE-006", "REQ-TABLE-007", "REQ-TABLE-008", "REQ-TABLE-009", "REQ-TABLE-010", "REQ-TABLE-011", "REQ-TABLE-012", "REQ-TABLE-013", "REQ-TABLE-014", "REQ-TABLE-015", "REQ-TABLE-016", "REQ-TABLE-017", "REQ-TABLE-018", "REQ-TABLE-019", "REQ-TABLE-020"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "65852f8ea8abe971cdab7bf37fe9733166d725a6e2f98831417ecf02a8214ca8"
+content_hash: "f9fee95b1edd357f5a8c0658bba82b4ceda688fbf830bae6d272617abe05b9d1"
 read_as: "approved_fallback"
-task: "CLE-T-079J24"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/6-presentation/2-table.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "2778b4da612ba0f7eef9aed6a789a6ea304ed85790665a870316cbb8b7dca9e7"
-etag: "sha256-b2331a0108f53cfceb34a41562f2822a483161908621a4a0e57ebd3faf5de378"
+mirror_sha256: "900d01d07ad69e8ae033f5c3690adaa8a9ac8dd1a4c733cacefa05c07beec24d"
+etag: "sha256-30eb731cd1e089a07df26aee76873fd7d3441496559698f4a35ef8e0f18caef4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/2-table.md`, `spec/4-nodes/_product-overview.md` (§9.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,7 +58,7 @@ Table 노드(Table, `table`)는 데이터를 표로 구조화해 보여 주는 P
 
 입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-제품 요구사항 원문(ND-TB-01~07)의 우선순위는 모두 필수다. 다만 ND-TB-07 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
+옛 제품 요구사항의 우선순위는 모두 필수다. 다만 버튼 대기 요구사항의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
 
 ## 설정
 
@@ -148,11 +148,11 @@ flowchart TD
    1. `config.dataSource` 가 있으면 그 값을, 없으면 입력 포트 데이터를 쓴다. 배열이 아니면 `[obj]` 로 감싼다.
    2. 컬럼을 표현식 컬럼(`{{` 포함)과 일반 필드 컬럼으로 미리 나눈다.
    3. 각 항목마다 `{ $dataSource, $sourceItem, $sourceItemIndex }` 를 표현식 컨텍스트에 더해 셀 값을 계산한다. 표현식 컬럼은 `evaluate()` 로 평가하고 일반 컬럼은 `getNestedValue` 로 dot-path 를 읽는다. 평가에 실패하면 그 셀은 `null` 이다.
-4. `sortBy` 가 있으면 `sortOrder` 에 따라 `dataRows` 를 정렬한다. null 비교는 "null 아닌 값 먼저" 규칙(`aVal != null && bVal != null && aVal < bVal ? -1 : 1`)을 쓴 뒤 `desc` 면 부호를 뒤집는다. 그래서 **`asc` 에서는 null 이 뒤로, `desc` 에서는 null 이 앞으로** 간다. 두 방향 모두 끝으로 모으지는 않는다(`table.handler.ts:118-126`).
+4. `sortBy` 가 있으면 `sortOrder` 에 따라 `dataRows` 를 정렬한다. null 비교는 "null 아닌 값 먼저" 규칙(`aVal != null && bVal != null && aVal < bVal ? -1 : 1`)을 쓴 뒤 `desc` 면 부호를 뒤집는다. 그래서 **`asc` 에서는 null 이 뒤로, `desc` 에서는 null 이 앞으로** 간다. 두 방향 모두 끝으로 모으지는 않는다(`TableHandler.execute` 의 `sortBy` 정렬).
 5. `pageSize` 가 참 같은 값이면 `dataRows = dataRows.slice(0, pageSize)` 로 자른다.
 6. 출력 크기 한도를 적용한다. `truncateArrayForOutput(dataRows, PRESENTATION_MAX_BYTES)` 가 직렬화 후 1MB 를 넘으면 뒤에서부터 원소 단위로 자른다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#출력-크기-한도)).
 7. **컬럼 라벨 평가**(동적 모드만): 라벨에 `{{` 가 있는 컬럼만 `$dataSource` 컨텍스트로 평가해 `resolvedColumns` 를 만든다. `$sourceItem`·`$sourceItemIndex` 는 넣지 않는다. 결과는 `output.columns` 에 싣는다.
-8. **출력 구성**: `output.rows` 에 한도를 적용한 행을, `output.columns` 에 `resolvedColumns` 를 싣는다. 백엔드는 HTML 을 만들지 않고 프런트엔드 `TableContent` 가 `rows` 와 `columns` 로 직접 그린다. 한도로 잘린 행은 `rows` 에 없으므로 새어 나가지 않는다(`table.handler.ts:21-24,148-158`).
+8. **출력 구성**: `output.rows` 에 한도를 적용한 행을, `output.columns` 에 `resolvedColumns` 를 싣는다. 백엔드는 HTML 을 만들지 않고 프런트엔드 `TableContent` 가 `rows` 와 `columns` 로 직접 그린다. 한도로 잘린 행은 `rows` 에 없으므로 새어 나가지 않는다(`TableHandler.execute` 의 `payload`).
 9. **버튼 분기**: `buttons.length > 0` 이면 입력 대기 출력을 내고 엔진이 사용자 입력을 받으면 재개 출력을 만든다. 버튼이 없으면 표시 전용 출력을 낸다.
 
 핸들러는 `codebase/backend/src/nodes/presentation/table/table.handler.ts` 다. 설정 에코는 `context.rawConfig` 를 먼저 쓴다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md)).
@@ -190,19 +190,19 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 }
 ```
 
-**설정 에코는 모든 키를 싣는다**: 핸들러는 민감하지 않은 스키마 필드 `mode`·`dataSource`·`columns`·`rows`·`pagination`·`pageSize`·`sortBy`·`sortOrder`·`buttons` 를 모두 되돌린다. 핸들러가 기본값을 채우는 `mode`·`columns`·`sortOrder` 말고는 원문 값이 없으면 `undefined` 키로 남고 JSON 직렬화에서 빠진다. 위 예시는 `undefined` 필드를 생략했을 뿐 실제 에코 객체에는 모든 키가 있다(`table.handler.ts` 의 `configEcho`).
+**설정 에코는 모든 키를 싣는다**: 핸들러는 민감하지 않은 스키마 필드 `mode`·`dataSource`·`columns`·`rows`·`pagination`·`pageSize`·`sortBy`·`sortOrder`·`buttons` 를 모두 되돌린다(`table.handler.ts` 의 `configEcho`). `config.*` 행은 [설정 에코 표의 범례](../CLE-NODE/CLE-NODE-OUTPUT-ECHO.md#설정-에코-표의-범례)를 따른다.
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.mode` | `'static'` / `'dynamic'` | 설정 에코 | 행 생성 방식. 설정하지 않았으면 핸들러가 `dynamic` 을 채운다(`rawConfig.mode ?? mode`) |
-| `config.dataSource?` | string | 설정 에코 | 배열 데이터 소스 표현식 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 입력 포트 데이터를 쓴다 |
+| `config.dataSource?` | string | 설정 에코 | 배열 데이터 소스 표현식 원문. 설정하지 않으면 입력 포트 데이터를 쓴다 |
 | `config.columns` | ColumnDef[] | 설정 에코 | **원문** 컬럼 정의. `label` 의 `{{ }}` 를 보존한다. 설정하지 않았으면 핸들러가 `[]` 를 채운다(`rawConfig.columns ?? columns`) |
-| `config.rows?` | RowDef[] | 설정 에코 | 정적 모드 행 데이터 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 정적 모드는 행이 없을 때와 같다 |
-| `config.pagination?` | boolean | 설정 에코 | 페이지네이션 플래그 원문. 핸들러는 기본값을 채우지 않고 이 값을 읽지도 않는다([미결 사항](#미결-사항)). 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다 |
-| `config.pageSize?` | number | 설정 에코 | 페이지당 행 수 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 행 수를 자르지 않는다 |
-| `config.sortBy?` | string | 설정 에코 | 기본 정렬 컬럼 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠지고 정렬하지 않는다 |
+| `config.rows?` | RowDef[] | 설정 에코 | 정적 모드 행 데이터 원문. 설정하지 않으면 정적 모드는 행이 없을 때와 같다 |
+| `config.pagination?` | boolean | 설정 에코 | 페이지네이션 플래그 원문. 핸들러는 이 값을 읽지 않아 설정하지 않아도 동작이 같다([미결 사항](#미결-사항)) |
+| `config.pageSize?` | number | 설정 에코 | 페이지당 행 수 원문. 설정하지 않으면 행 수를 자르지 않는다 |
+| `config.sortBy?` | string | 설정 에코 | 기본 정렬 컬럼 원문. 설정하지 않으면 정렬하지 않는다 |
 | `config.sortOrder` | `'asc'` / `'desc'` | 설정 에코 | 정렬 방향. 설정하지 않았으면 핸들러가 `asc` 를 채운다(`rawConfig.sortOrder ?? sortOrder`) |
-| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 표시 전용에서도 싣는다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4). 캔버스에서 만든 노드는 스키마 기본값 `[]` 를 저장하므로 보통 `[]` 가 실린다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다. 입력 대기 여부는 이 필드가 아니라 `status` 와 `config.buttonConfig` 로 판단한다 |
+| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 표시 전용에서도 싣는다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4). 캔버스에서 만든 노드는 스키마 기본값 `[]` 를 저장하므로 보통 `[]` 가 실린다. 설정하지 않으면 버튼이 없을 때와 같다. 입력 대기 여부는 이 필드가 아니라 `status` 와 `config.buttonConfig` 로 판단한다 |
 | `output.rows` | `Record<string, unknown>[]` | 런타임 | 정적 모드는 `columns[*].field` 기준으로 고른 행, 동적 모드는 `dataSource` 항목별로 평가한 셀. 한도로 잘렸을 수 있다 |
 | `output.totalRows` | number | 런타임 | **한도 적용 전** 행 수(정렬과 `pageSize` 적용 후). `rows.length !== totalRows` 만으로도 잘림을 알 수 있다 |
 | `output.columns` | ColumnDef[] | 런타임 | `label` 표현식을 평가한 컬럼(동적 모드만). 설정의 원문 label 과 따로 둔다 |
@@ -265,7 +265,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `output.rows` / `output.totalRows` / `output.columns` | 표시 전용과 같다 | 런타임 | 입력 대기 시점의 바뀌지 않는 스냅샷 |
 | `output.rowsTruncated?` / `output.rowsTotalCount?` | 표시 전용과 같다 | 런타임, 한도가 걸렸을 때 | |
 | `meta.interactionType` | `'buttons'` | 핸들러 반환 | 대기 표면. 화면이 어떤 입력 UI 를 그릴지 정한다 |
-| `meta.durationMs` | number | 핸들러 반환(엔진이 덮어씀) | 핸들러는 `0` 을 넣고 엔진이 실제 측정값으로 바꾼다 |
+| `meta.durationMs` | `0` | 핸들러 반환 | 핸들러가 `0` 을 싣고 버튼 재개 뒤에도 `0` 이다. 대기 시간을 포함한 실행 시간은 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)) |
 | `status` | `'waiting_for_input'` | 핸들러 반환 | 블로킹 모드 진입. 엔진은 WebSocket `execution.waiting_for_input` 을 보낸다 |
 
 Table 은 행마다 붙는 버튼이 없으므로 `buttonConfig.buttonItemMap` 을 싣지 않는다. 이 필드는 Carousel 전용이다.
@@ -295,7 +295,7 @@ Table 은 행마다 붙는 버튼이 없으므로 `buttonConfig.buttonItemMap` �
       "receivedAt": "2026-04-19T12:34:56.789Z"
     }
   },
-  "meta": { "interactionType": "buttons", "durationMs": 9800 },
+  "meta": { "interactionType": "buttons", "durationMs": 0 },
   "port": "approve",
   "status": "resumed"
 }
@@ -333,7 +333,7 @@ Table 은 행 버튼이 없으므로 `interaction.data.selectedItem` 을 쓰지 
       "receivedAt": "2026-04-19T12:34:56.789Z"
     }
   },
-  "meta": { "interactionType": "buttons", "durationMs": 9800 },
+  "meta": { "interactionType": "buttons", "durationMs": 0 },
   "port": "continue",
   "status": "resumed"
 }
@@ -377,7 +377,7 @@ Table 은 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 
 
 ## 미결 사항
 
-- **`pagination` 플래그가 출력 자르기를 제어하는가**: 설정 표는 `pagination`(기본 `true`)을 "페이지네이션 활성화" 로 적는다. 그런데 실행 로직 5단계는 플래그와 상관없이 `pageSize` 가 참 같은 값이면 앞 `pageSize` 행만 출력 값에 담는다. 현재 구현(`table.handler.ts:128`)도 플래그를 보지 않는다. 그래서 다운스트림과 드로어가 받는 행은 늘 한 페이지이고 드로어 페이지네이션 컨트롤이 넘길 페이지가 없다. `pagination` 이 출력 자르기를 제어하는지, 화면 표시 전용인지 결정 필요. 드로어 표시 행 수 문제([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#미결-사항))와 함께 정한다.
+- **`pagination` 플래그가 출력 자르기를 제어하는가**: 설정 표는 `pagination`(기본 `true`)을 "페이지네이션 활성화" 로 적는다. 그런데 실행 로직 5단계는 플래그와 상관없이 `pageSize` 가 참 같은 값이면 앞 `pageSize` 행만 출력 값에 담는다. 현재 구현(`TableHandler.execute` 의 `pageSize` 분기)도 플래그를 보지 않는다. 그래서 다운스트림과 드로어가 받는 행은 늘 한 페이지이고 드로어 페이지네이션 컨트롤이 넘길 페이지가 없다. `pagination` 이 출력 자르기를 제어하는지, 화면 표시 전용인지 결정 필요. 드로어 표시 행 수 문제([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#미결-사항))와 함께 정한다.
 
 ## 구현 위치
 
@@ -388,7 +388,9 @@ Table 은 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 
 
 ## Rationale
 
-### 백엔드 HTML 스냅샷을 만들지 않는다 (2026-05-17)
+### 백엔드 HTML 스냅샷을 만들지 않는다
+
+결정일: 2026-05-17
 
 백엔드는 `output.rendered` HTML 을 만들지 않는다. 다운스트림과 화면은 `output.rows` 와 `output.columns` 로 직접 그린다. Carousel·Chart 와 같은 방식이고 escape 책임은 표시 계층(React JSX 자동 escape)으로 옮겼다. 한도로 잘린 행이 HTML 에 섞여 나갈 일도 없다. 옛 워크플로우가 `$node["T"].output.rendered` 를 참조하면 깨지므로 `rows`·`columns` 참조로 바꿔야 한다.
 

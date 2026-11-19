@@ -2,19 +2,19 @@
 id: "CLE-NODE-TEMPLATE"
 title: "Template 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-TEMPLATE-001", "REQ-TEMPLATE-002", "REQ-TEMPLATE-003", "REQ-TEMPLATE-004", "REQ-TEMPLATE-005", "REQ-TEMPLATE-006", "REQ-TEMPLATE-007", "REQ-TEMPLATE-008", "REQ-TEMPLATE-009", "REQ-TEMPLATE-010", "REQ-TEMPLATE-011", "REQ-TEMPLATE-012", "REQ-TEMPLATE-013", "REQ-TEMPLATE-014", "REQ-TEMPLATE-015", "REQ-TEMPLATE-016", "REQ-TEMPLATE-017", "REQ-TEMPLATE-018", "REQ-TEMPLATE-019"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "e9702ef00a86dafdf3568e0ecb90eb8cc7efe4cd012ad392d1c934258705c654"
+content_hash: "a42d46ed880c94e15328e3d0d82b10c713f7f6110e3d4ac0e76bdf0b07b8f1a3"
 read_as: "approved_fallback"
-task: "CLE-T-961M2W"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/6-presentation/5-template.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "3651620874b06a749dc3a4e45aadb35896698c222bdc8295c42847e127e4b606"
-etag: "sha256-08bcc99204f8b475e6ede7eb5998d3f6987e47dfeb201f749713e1de6d715c58"
+mirror_sha256: "c0a155d95bf2d20cc73ffa264a9763fc8d89abcb2aa9567d430726231274dec9"
+etag: "sha256-f949d5589214fd1b816189234802c24aa1366137c7950aa2626570ca800e4a9b"
 ---
 > 구현 상태: 구현됨 (Handlebars 블록 구문·내장 헬퍼 지원 여부는 [미결 사항](#미결-사항)) · 원문: `spec/4-nodes/6-presentation/5-template.md`, `spec/4-nodes/_product-overview.md` (§9.5) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,11 +53,11 @@ Template 노드(Template, `template`)는 사용자가 적은 템플릿 문자열
 - REQ-TEMPLATE-018 WHEN 노드가 `output.rendered` 를 만들면 THE SYSTEM SHALL 치환 결과를 정화하거나 escape 하지 않고 그대로 싣는다.
 - REQ-TEMPLATE-019 WHEN 실행 결과 드로어가 `html` 이나 `markdown` 출력을 그리면 THE SYSTEM SHALL 허용 목록으로 정화한 뒤 그린다.
 
-Handlebars 블록 구문과 내장 헬퍼(ND-TP-03)는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+Handlebars 블록 구문과 내장 헬퍼는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 
 입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-제품 요구사항 원문(ND-TP-01~06)의 우선순위는 모두 필수다. 다만 ND-TP-06 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
+옛 제품 요구사항의 우선순위는 모두 필수다. 다만 버튼 대기 요구사항의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
 
 ## 설정
 
@@ -70,7 +70,7 @@ Handlebars 블록 구문과 내장 헬퍼(ND-TP-03)는 정의가 갈린다. [미
 
 **`outputFormat` 기본값 차이**: 스키마(`templateNodeConfigSchema`) 기본값은 `html` 이다. 이 기본값은 캔버스에서 노드를 만들 때와 워크플로우를 가져올 때 설정에 저장된다. 실행 엔진은 스키마 기본값을 채우지 않는다. 그래서 저장된 설정에 `outputFormat` 이 없으면 핸들러가 `text` 로 대신하고 설정 에코에도 `text` 를 싣는다.
 
-**HTML 정화 책임**: 백엔드는 `output.rendered` 를 정화하거나 escape 하지 않는다. 표현식 해석기도 `{{ }}` 자리에 넣는 값을 escape 하지 않는다. 그래서 신뢰할 수 없는 입력이 `{{ }}` 로 들어가면 `output.rendered` 에 그대로 남는다. 본문을 HTML 로 해석해 그리는 표면(실행 결과 드로어, 웹채팅 위젯)은 그리기 전에 허용 목록으로 정화한다. 허용 목록에 없는 태그와 속성(`<script>`, 이벤트 핸들러, `style` 속성 등)은 화면에 그릴 때 빠진다. 채팅 채널 · EIA 응답 · 웹훅으로 내보낼 때는 HTML 정화를 하지 않는다. 채팅 채널 문법 escape 는 채널 어댑터가 맡는다. 소비처별 처리는 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#template-본문-정화-책임) 에 있다.
+**HTML 정화 책임**: 백엔드와 표현식 해석기는 본문과 `{{ }}` 자리에 넣는 값을 정화하거나 escape 하지 않는다. 그래서 신뢰할 수 없는 입력이 `output.rendered` 에 그대로 남는다. 본문을 HTML 로 그리는 표면이 그리기 전에 정화한다. 소비처별 처리와 허용 목록은 [Presentation 노드 공통 — 표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문-정화-책임) 이 정한다.
 
 스키마 단일 기준은 `codebase/backend/src/nodes/presentation/template/template.schema.ts` 의 `templateNodeConfigSchema` 다.
 
@@ -112,7 +112,7 @@ Template 에는 항목 버튼이 없다. `itemButtons` 같은 동적 포트 변�
 2. **(핸들러)** `config.template` 을 `String()` 으로 바꿔 `output.rendered` 에 담는다. Handlebars·Mustache 같은 별도 템플릿 엔진은 돌리지 않는다.
 3. `outputFormat` 을 정한다: `rawConfig.outputFormat ?? config.outputFormat ?? 'text'`. 핸들러 대체값은 `'text'`, 스키마 기본값은 `'html'` 이다.
 4. `config.buttons` 를 처리한다.
-   - `Array.isArray(buttons) && buttons.length > 0` 이면 **블로킹 모드**로 들어간다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#블로킹-모드-실행-흐름)). 설정 에코에 `buttonConfig: { buttons }` 를 넣고 `status: 'waiting_for_input'`, `meta.interactionType: 'buttons'` 를 돌려준다.
+   - `Array.isArray(buttons) && buttons.length > 0` 이면 **블로킹 모드**로 들어간다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#블로킹-모드-실행-흐름)). 설정 에코에 `buttonConfig: { buttons }` 를 넣고 `status: 'waiting_for_input'`, `meta: { interactionType: 'buttons', durationMs: 0 }` 을 돌려준다.
    - 그 밖에는 **표시 전용**이다. `status` 를 두지 않고 `out` 포트로 출력한다.
 5. (블로킹) 사용자가 버튼을 누르면 `status: 'resumed'` 와 `output.interaction.{type, data, receivedAt}` 이 더해지고 입력 대기 시점의 `output.rendered` 는 바뀌지 않는 스냅샷으로 남는다.
 
@@ -139,11 +139,11 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 |------|------|------|------|
 | `config.outputFormat` | `'html'` / `'markdown'` / `'text'` | 설정 에코 | 사용자가 정한 출력 포맷. 설정하지 않았으면 핸들러가 `text` 를 채운다(`rawConfig.outputFormat ?? outputFormat`). 출력 값에 싣지 않는다 |
 | `config.template` | string | 설정 에코 | `{{ }}` 를 보존한 **원래** 템플릿. `context.rawConfig.template` 그대로 |
-| `config.helpers?` | boolean | 설정 에코 | 내장 헬퍼 토글 원문. 핸들러는 기본값을 채우지 않고 저장된 값을 그대로 싣는다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다. 실행 동작에는 쓰이지 않는다([미결 사항](#미결-사항)) |
-| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 표시 전용에서도 싣는다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4). 캔버스에서 만든 노드는 스키마 기본값 `[]` 를 저장하므로 보통 `[]` 가 실린다. 설정하지 않았으면 값이 `undefined` 라 JSON 에서 빠진다. 입력 대기 여부는 이 필드가 아니라 `status` 와 `config.buttonConfig` 로 판단한다 |
+| `config.helpers?` | boolean | 설정 에코 | 내장 헬퍼 토글 원문. 실행 동작에는 쓰이지 않아 설정하지 않아도 동작이 같다([미결 사항](#미결-사항)) |
+| `config.buttons?` | ButtonDef[] | 설정 에코 | 전역 버튼 정의 원문. 표시 전용에서도 싣는다([노드 출력 규약 Principle 7](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-7-설정-에코-원칙) 규칙 4). 캔버스에서 만든 노드는 스키마 기본값 `[]` 를 저장하므로 보통 `[]` 가 실린다. 설정하지 않으면 버튼이 없을 때와 같다. 입력 대기 여부는 이 필드가 아니라 `status` 와 `config.buttonConfig` 로 판단한다 |
 | `output.rendered` | string | 런타임(표현식 해석기) | `{{ }}` 치환이 끝난 최종 문자열 |
 
-`meta.durationMs` 는 엔진이 모든 노드에 공통으로 넣는다. `port`·`status` 는 두지 않고 `out` 포트 하나로 출력한다.
+`config.*` 행은 [설정 에코 표의 범례](../CLE-NODE/CLE-NODE-OUTPUT-ECHO.md#설정-에코-표의-범례)를 따른다. 표시 전용은 `meta` 를 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)). `port`·`status` 는 두지 않고 `out` 포트 하나로 출력한다.
 
 표현식 접근 예:
 
@@ -187,7 +187,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `config.buttonConfig.buttons` | ButtonDef[] | 핸들러 생성 | 블로킹 모드 흐름의 `buttonConfig` 페이로드(`NodeExecution` 보존용) |
 | `output.rendered` | string | 런타임 | 평가한 최종 문자열. 재개 때도 바뀌지 않는다 |
 | `meta.interactionType` | `'buttons'` | 핸들러 반환 | 대기 표면 |
-| `meta.durationMs` | number | 핸들러 반환 | 입력 대기 직전까지의 핸들러 실행 시간 |
+| `meta.durationMs` | `0` | 핸들러 반환 | 핸들러가 늘 `0` 을 싣는다 |
 | `status` | `'waiting_for_input'` | 핸들러 반환 | 입력 대기 상태 |
 
 `port` 는 두지 않는다. 사용자가 어느 버튼을 누를지 정해질 때까지 라우팅을 미룬다. 누르면 재개로 넘어간다.
@@ -225,7 +225,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
   },
   "meta": {
     "interactionType": "buttons",
-    "durationMs": 8500
+    "durationMs": 0
   },
   "port": "approve",
   "status": "resumed"
@@ -240,7 +240,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
 | `output.interaction.data.buttonId` | string | 엔진 재개 | 누른 버튼의 `config.buttons[i].id` |
 | `output.interaction.data.buttonLabel` | string | 엔진 재개 | 누른 버튼의 `config.buttons[i].label`(평가 후) |
 | `output.interaction.receivedAt` | ISO8601 | 엔진 재개 | 클릭 수신 시각 |
-| `meta.durationMs` | number | 엔진 | 입력 대기 시작부터 클릭 수신까지의 전체 시간 |
+| `meta.durationMs` | `0` | 핸들러 반환 | 버튼 재개는 입력 대기 때 값 `0` 을 바꾸지 않는다. 대기 시간을 포함한 실행 시간은 `node_execution.duration_ms` 에 있다 |
 | `port` | `<button.id>` | 엔진 | 누른 포트 버튼의 ID 로 라우팅 |
 | `status` | `'resumed'` | 엔진 | 재개 상태. `'button_click'` 같은 옛 상태 값은 쓰지 않는다 |
 
@@ -281,7 +281,7 @@ JSON 예시는 `undefined` 필드를 생략한다. 노드 출력의 다섯 필�
   },
   "meta": {
     "interactionType": "buttons",
-    "durationMs": 12340
+    "durationMs": 0
   },
   "port": "continue",
   "status": "resumed"
@@ -316,11 +316,11 @@ Template 핸들러는 `output.error` 나 `port: 'error'` 를 돌려주지 않는
 |----------------|------|
 | `{{outputFormat}} · {{buttons.length}} buttons`(`summaryTemplate`) | `html · 2 buttons` |
 
-`summaryTemplate` 은 정적 문자열 하나라 버튼 유무로 나눌 수 없으므로 한 포맷으로 통일한다. 버튼이 없으면 `html · 0 buttons` 로 보인다. 템플릿 줄 수(`N lines`)는 `summaryTemplate` 문법이 줄바꿈 세기를 지원하지 않아 보여 주지 않는다([Rationale](#설정-요약을-한-포맷으로-통일한다-2026-06-03)).
+`summaryTemplate` 은 정적 문자열 하나라 버튼 유무로 나눌 수 없으므로 한 포맷으로 통일한다. 버튼이 없으면 `html · 0 buttons` 로 보인다. 템플릿 줄 수(`N lines`)는 `summaryTemplate` 문법이 줄바꿈 세기를 지원하지 않아 보여 주지 않는다([Rationale](#설정-요약을-한-포맷으로-통일한다)).
 
 ## 미결 사항
 
-- **Handlebars 를 지원하는가**: 제품 요구사항 ND-TP-01 은 "Handlebars 스타일 템플릿으로 입력 데이터 바인딩" 을, ND-TP-03 은 "내장 Handlebars 헬퍼 제공(if, each, formatDate, formatNumber 등)" 을 구현됨으로 적었다. 설정 화면 예시도 `{{#each items}}` 블록과 Handlebars 구문 강조를 보여 준다. 그런데 실행 로직은 엔진 표현식 해석만 하는 no-op 렌더러이고 Handlebars·Mustache 를 돌리지 않는다고 적는다. 현재 구현(`template.handler.ts`)에서 `helpers` 플래그는 설정 에코 말고 어디서도 쓰이지 않는다. 지금 동작(표현식만)에 맞춰 ND-TP-01·03, 화면 예시, `helpers` 설명을 고칠지, Handlebars 를 새로 들일지 결정 필요.
+- **Handlebars 를 지원하는가**: 옛 제품 요구사항은 "Handlebars 스타일 템플릿으로 입력 데이터 바인딩" 과 "내장 Handlebars 헬퍼 제공(if, each, formatDate, formatNumber 등)" 을 구현됨으로 적었다. 설정 화면 예시도 `{{#each items}}` 블록과 Handlebars 구문 강조를 보여 준다. 그런데 실행 로직은 엔진 표현식 해석만 하는 no-op 렌더러이고 Handlebars·Mustache 를 돌리지 않는다고 적는다. 현재 구현(`template.handler.ts`)에서 `helpers` 플래그는 설정 에코 말고 어디서도 쓰이지 않는다. 지금 동작(표현식만)에 맞춰 이 두 요구사항, 화면 예시, `helpers` 설명을 고칠지, Handlebars 를 새로 들일지 결정 필요.
 - **버튼 있는 Template 의 채팅 채널 전달**: Template 도 버튼이 있으면 입력 대기에 들어간다. 그런데 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 은 입력 대기 이벤트 앞에 보내는 시각 메시지 규칙에 carousel·table·chart 만 적고 [Telegram 어댑터](../CLE-CHAT/CLE-CHAT-TELEGRAM.md) 의 template 행은 표시 전용과 AI 경로만 적는다. 현재 구현의 Telegram 렌더러는 template 도 처리한다. 문서만 보면 버튼 달린 Template 본문이 채널로 나가는지 알 수 없다. 어댑터 규약의 버튼 대기 규칙에 template 을 더할지 결정 필요.
 
 ## 구현 위치
@@ -334,14 +334,20 @@ Template 핸들러는 `output.error` 나 `port: 'error'` 를 돌려주지 않는
 
 ## Rationale
 
-### 설정 요약을 한 포맷으로 통일한다 (2026-06-03)
+### 설정 요약을 한 포맷으로 통일한다
+
+결정일: 2026-06-03
 
 처음 명세는 버튼 유무에 따라 `{outputFormat} · {N} lines`(버튼 없음)와 `{outputFormat} · {N} buttons`(버튼 있음) 두 포맷을 적었다. 그런데 `summaryTemplate` 은 정적 문자열 하나라 설정(버튼 유무)으로 나눌 수 없다. "N lines"(템플릿 줄 수)는 `summaryTemplate` 문법이 줄바꿈 세기를 지원하지 않는다. 그래서 `{{outputFormat}} · {{buttons.length}} buttons` 한 포맷으로 통일했다. 버튼이 0개일 때 `html · 0 buttons` 로 보이는 것은 차선이지만 일관된다.
 
-### `outputFormat` 기본값은 저장할 때만 채워진다고 고쳐 적는다 (2026-11-12)
+### `outputFormat` 기본값은 저장할 때만 채워진다고 고쳐 적는다
+
+결정일: 2026-11-12
 
 이전 판은 "정상 실행 경로는 스키마를 거치므로 `html` 이 쓰이고 단위 테스트처럼 핸들러를 직접 부를 때만 `text` 가 보인다" 고 적었고 REQ-TEMPLATE-011 도 미설정이면 `html` 을 쓴다고 정했다. 코드와 대조하니 실행 엔진은 스키마 기본값을 채우지 않는다. 스키마 기본값은 캔버스에서 노드를 만들 때(`node-component.registry.ts` 의 `resolveDefaultConfig`)와 워크플로우를 가져올 때(`applyConfigDefaults`)만 설정에 저장된다. 그래서 `outputFormat` 없이 저장된 노드는 실행 때 핸들러 대체값 `text` 로 나온다. REQ-TEMPLATE-011 은 저장 동작으로 좁히고 실행 때 대체는 REQ-TEMPLATE-017 로 따로 적었다(NERV Task `CLE-T-W0377J`). 핸들러 대체값을 `html` 로 바꾸는 안은 고르지 않았다. 이미 `outputFormat` 없이 저장된 노드의 설정 에코와 실행 결과 화면 표시 방식이 바뀌는 동작 변경이라 문서를 실제 동작에 맞추는 이 Task 의 범위 밖이다.
 
-### HTML 정화는 그리는 쪽이 맡는다 (2026-11-12)
+### HTML 정화는 그리는 쪽이 맡는다
 
-이전 판은 "sanitize 는 별도 보안 과제로 다룬다" 며 정화 책임을 미뤄 두고 실행 결과 드로어가 HTML 을 샌드박스 iframe 안에서 그린다고 적었다. 코드와 대조하니 드로어는 iframe 을 쓰지 않고 DOMPurify 허용 목록으로 정화한 뒤 그린다. 웹채팅 위젯도 따로 정화한다. 사용자가 2026-11-12 에 정화 책임을 소비 쪽에 두기로 정했다(NERV 질문 `01a1cd71-0bab-70ba-9168-49e83c564256`, NERV Task `CLE-T-MBGDA4`). 그래서 `output.rendered` 는 정화하지 않은 데이터로 정하고 위 문단과 REQ-TEMPLATE-018 · 019 를 적었다. 백엔드에서 정화하는 안과 백엔드 · 소비처 양쪽에서 정화하는 안을 기각한 이유는 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#template-본문은-그리는-쪽이-정화한다-2026-11-12) 에 있다.
+결정일: 2026-11-12
+
+이전 판은 "sanitize 는 별도 보안 과제로 다룬다" 며 정화 책임을 미뤄 두고 실행 결과 드로어가 HTML 을 샌드박스 iframe 안에서 그린다고 적었다. 코드와 대조하니 드로어는 iframe 을 쓰지 않고 DOMPurify 허용 목록으로 정화한 뒤 그린다. 웹채팅 위젯도 따로 정화한다. 사용자가 2026-11-12 에 정화 책임을 소비 쪽에 두기로 정했다(NERV 질문 `01a1cd71-0bab-70ba-9168-49e83c564256`, NERV Task `CLE-T-MBGDA4`). 그래서 `output.rendered` 는 정화하지 않은 데이터로 정하고 위 문단과 REQ-TEMPLATE-018 · 019 를 적었다. 백엔드에서 정화하는 안과 백엔드 · 소비처 양쪽에서 정화하는 안을 기각한 이유는 [Presentation 노드 공통 — 표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다-2026-11-12) 에 있다.

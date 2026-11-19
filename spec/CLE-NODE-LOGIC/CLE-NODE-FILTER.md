@@ -2,19 +2,19 @@
 id: "CLE-NODE-FILTER"
 title: "Filter 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-FILTER-001", "REQ-FILTER-002", "REQ-FILTER-003", "REQ-FILTER-004", "REQ-FILTER-005", "REQ-FILTER-006", "REQ-FILTER-007", "REQ-FILTER-008", "REQ-FILTER-009", "REQ-FILTER-010", "REQ-FILTER-011", "REQ-FILTER-012", "REQ-FILTER-013", "REQ-FILTER-014", "REQ-FILTER-015", "REQ-FILTER-016", "REQ-FILTER-017"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "7dd3b79ba07614616d803b38ed1516d6e733d04d69de38133d627ce24ab67b36"
+content_hash: "af058ec4a200d26a9acb3a98527ca7da744f50842543dba52f37fa0da5a1355b"
 read_as: "approved_fallback"
-task: "CLE-T-RWHTXC"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/1-logic/8-filter.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "8dc226bde1dedad6cb2fe1010b5db0f7158a6c4064cfb45fa997f198a0f2276b"
-etag: "sha256-7e286e51a3d3bfed767c62509da65e0677a4a301bf841b3119e8c4a77cebc705"
+mirror_sha256: "50574746b7d8ab63eec089a669776100540261621bdba2b7186b6a3f7a154202"
+etag: "sha256-9044e262eaecb3049e403831399c3574ac9e55db640875ef43a72802e11a0c74"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/8-filter.md`, `spec/4-nodes/_product-overview.md` (§4.8) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -141,7 +141,6 @@ Filter 는 한 케이스로 두 포트 결과를 동시에 낸다. 빈 배열·�
     ]
   },
   "meta": {
-    "durationMs": 0,
     "matchedCount": 2,
     "unmatchedCount": 1,
     "totalCount": 3,
@@ -151,6 +150,8 @@ Filter 는 한 케이스로 두 포트 결과를 동시에 낸다. 빈 배열·�
 }
 ```
 
+`meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)).
+
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.inputField` | Expression \| 평가된 배열 | 설정 에코 | 사용자가 입력한 원래 값. 인라인 표현식이면 평가 전 형태를 싣는다. `context.rawConfig.inputField` 를 먼저 쓴다 |
@@ -159,7 +160,6 @@ Filter 는 한 케이스로 두 포트 결과를 동시에 낸다. 빈 배열·�
 | `config.strictComparison` | boolean | 설정 에코 | 기본 `false` |
 | `output.match` | Array | 핸들러 반환 | 조건에 맞는 항목 배열(입력 순서 유지). 빈 배열일 수 있다 |
 | `output.unmatched` | Array | 핸들러 반환 | 조건에 맞지 않는 항목 배열(입력 순서 유지). 빈 배열일 수 있다 |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms). 엔진이 모든 노드에 주입한다 |
 | `meta.matchedCount` | number | 핸들러 반환 | `output.match.length`. O(1) 개수 |
 | `meta.unmatchedCount` | number | 핸들러 반환 | `output.unmatched.length`. O(1) 개수 |
 | `meta.totalCount` | number | 핸들러 반환 | `matchedCount + unmatchedCount`. 대체 때는 `0` |

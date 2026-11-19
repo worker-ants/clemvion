@@ -2,19 +2,19 @@
 id: "CLE-NODE-SPLIT"
 title: "Split 노드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-SPLIT-001", "REQ-SPLIT-002", "REQ-SPLIT-003", "REQ-SPLIT-004", "REQ-SPLIT-005", "REQ-SPLIT-006", "REQ-SPLIT-007", "REQ-SPLIT-008", "REQ-SPLIT-009", "REQ-SPLIT-010", "REQ-SPLIT-011", "REQ-SPLIT-012"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "699d5c1e95eb009011242dd069c1319a787ffd4474bdfb005af4038391e57fa8"
+content_hash: "9b61346f913433ade7345470527319712b56801d87ec587aefd04e8f4a7bd85d"
 read_as: "approved_fallback"
-task: "CLE-T-3HJ8MM"
+task: "CLE-T-1GJKB2"
 source_paths: ["spec/4-nodes/1-logic/6-split.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "a921c4ce35526cb766d1a63337010b6856a92fe40375e42c13eab58748d61796"
-etag: "sha256-0ff43ab139c092e53cddf0f6d7fb3a1c0b237abfad0b29e862cfa3d513e19d19"
+mirror_sha256: "c1837bd016c60b5e959b43dfa624b93af73624eec229e536d8f2a0a9d3b39aa7"
+etag: "sha256-bf22fcb63b0b01ec87afaed8fa7f9aa86f5b62a164d349f8f096279503436e78"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/6-split.md`, `spec/4-nodes/_product-overview.md` (§4.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -90,19 +90,19 @@ Split 은 단일 출력 데이터 노드라서 정상 케이스 하나뿐이다(
     "count": 2
   },
   "meta": {
-    "durationMs": 1,
     "itemCount": 2,
     "fellBackToEmpty": false
   }
 }
 ```
 
+`meta.durationMs` 는 싣지 않는다. 노드 전체 실행 시간은 노드 실행 기록 `node_execution.duration_ms` 에 있다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)).
+
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.fieldPath` | Expression | 설정 에코 | 사용자가 입력한 원래 경로. 표현식 `{{ }}` 을 남긴다 |
 | `output.items` | `Array<{ index: number, value: unknown }>` | 핸들러 반환 | 정규화한 항목 배열. `index` 는 0부터, `value` 는 원래 항목(객체와 원시값을 똑같이 감싼다) |
 | `output.count` | number | 핸들러 반환 | `items.length` 와 같다. O(1) 접근용 |
-| `meta.durationMs` | number | 엔진 주입 | 실행 시간(ms) |
 | `meta.itemCount` | number | 핸들러 반환 | 처리한 항목 수(실행 메트릭). `output.count` 와 같은 값이지만 `meta` 는 메트릭 축이라 따로 싣는다 |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | 입력이 배열이 아니어서 빈 배열로 대체했는지. 진단용 |
 
@@ -162,6 +162,8 @@ flowchart LR
 
 Split 은 나눈 배열을 한 포트로 한 번에 내보낸다. 항목마다의 반복 실행이 필요하면 ForEach 와 함께 쓴다. 옛 PRD 에 있던 "원본 데이터의 다른 필드를 각 항목에 병합" 옵션은 현행 Split 에 없다. 다른 필드가 필요하면 앞 노드 출력을 직접 참조한다.
 
-### 배열이 아닌 입력을 빈 배열로 처리한다 (2026-10-24)
+### 배열이 아닌 입력을 빈 배열로 처리한다
+
+결정일: 2026-10-24
 
 Split 은 배열이 아닌 입력을 모두 빈 배열로 처리하고 `meta.fellBackToEmpty` 로 알려 왔다. 2026-10-10 에 사용자가 승인한 규칙대로 이 동작을 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외로 확정했다(NERV Task `CLE-T-3HJ8MM`). 기각한 대안은 Split 만 throw 로 바꾸는 안이다. 지금 빈 결과로 지나가는 워크플로우가 실패로 바뀐다.
