@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-RESPONSE"
 title: "채팅 채널 — 인바운드 HTTP 응답 계약"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "6dc574ca59ff54d559bb5e185253baaf91a0b7bbc8479f15593fbdd746a67678"
+content_hash: "eba5f32d825caecbe7ca717b0a2abddd86da2d803e3fe43908e43441427a2b58"
 read_as: "approved_fallback"
 task: "CLE-T-B9CRCF"
 source_paths: []
-mirror_sha256: "45435028870f41009287174ffbb995937ae60507804a07cd180009993a3e6410"
-etag: "sha256-7beff5ff437c4f634b6361ac335dc8c8b14f995a7008a0bbcd726faa3a60e454"
+mirror_sha256: "e12e9bac59daf8d79f83970edb36db1a466fd4aaa8a1b4114127cbee0bebd832"
+etag: "sha256-a126cd9c149333bdd560e46bdce546dd1c9e19ed232dc9bf44c6db736d845bb3"
 ---
 ## 개요
 
@@ -57,7 +57,7 @@ etag: "sha256-7beff5ff437c4f634b6361ac335dc8c8b14f995a7008a0bbcd726faa3a60e454"
 | Slack 슬래시 명령(`command` 필드가 있는 요청) | `200 OK` | `{ response_type: 'ephemeral', text }`. 본인에게만 보이는 메시지다 | 프로바이더별 예외. Slack 의 3초 응답 시한이다. `help` 하위 명령은 도움말(`languageHints.help` 나 기본 도움말), 나머지는 공통 수신 문구(`languageHints.commandReceived`)를 싣는다. 새 실행, 취소, 답장 전달, 중복, 한도 초과, 워크플로우 비활성, 트리거 비활성 모두 같다. `help` 는 별도 메시지를 보내지 않는다([Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK.md#인바운드-응답)) |
 | Discord PING(`type: 1`) | `200 OK` | `{ type: 1 }` JSON | 프로바이더별 예외. Interactions endpoint 등록 때 1회, 그 뒤 주기적으로 온다([Discord 어댑터](CLE-CHAT-DISCORD.md)). 워크플로우가 비활성이어도 답한다. 트리거가 비활성이면 답하지 않고 `202` 로 버린다(비활성 트리거 행, R-CC-33) |
 | Discord 컴포넌트 클릭 · 모달 제출(`type ∈ {3, 5}`) | `200 OK` | `{ type: 6 }`(DEFERRED_UPDATE_MESSAGE). 처리 경로가 정한 응답이 있으면 그 응답(모달 열기 `{ type: 9, data: {...} }`, Form 모달 제출 결과 `{ type: 4, data: {...} }`) | 프로바이더별 예외. Discord 의 3초 응답 시한이다. 트리거 비활성, 중복, 한도 초과, 실행 중, 워크플로우 비활성 등 어느 경로로 끝나도 같다([Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD.md#인바운드-응답)) |
-| Discord 슬래시 명령(`type: 2`) | `200 OK` | `{ type: 4, data: { content, flags: 64 } }`. 본인에게만 보이는 메시지다 | 프로바이더별 예외. `help` 하위 명령은 도움말(`languageHints.help` 나 기본 도움말), 나머지는 공통 수신 문구(`languageHints.commandReceived`)를 싣는다. 새 실행, 취소, 답장 전달, 중복, 한도 초과, 워크플로우 비활성, 파싱 실패, 트리거 비활성 모두 같다. 시작 안내는 따로 다룬다(NERV Task `CLE-T-0400J6`) |
+| Discord 슬래시 명령(`type: 2`) | `200 OK` | `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }`. 본인에게만 보이는 메시지다 | 프로바이더별 예외. DM 에서 친 명령이면 `help` 하위 명령은 도움말(`languageHints.help` 나 기본 도움말), 나머지는 공통 수신 문구(`languageHints.commandReceived`)를 싣는다. 새 실행, 취소, 답장 전달, 중복, 한도 초과, 워크플로우 비활성, 파싱 실패, 트리거 비활성 모두 같다. DM 밖 채널에서 친 명령은 `help` 를 포함해 `groupChatRefusal` 안내를 싣는다(REQ-DISCORD-036). 시작 안내는 따로 다룬다(NERV Task `CLE-T-0400J6`) |
 
 에러 응답 봉투의 형식은 [에러 응답과 클라이언트 처리 「2. 에러 응답 봉투」](../CLE-API/CLE-API-ERROR.md#2-에러-응답-봉투) 가 정한다.
 

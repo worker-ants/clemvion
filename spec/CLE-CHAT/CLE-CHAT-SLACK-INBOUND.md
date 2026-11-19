@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK-INBOUND"
 title: "Slack 어댑터 — 인바운드 파싱과 명령"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-SLACK"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-SLACK"]
 area: "CLE-CHAT"
-content_hash: "354d57096bfba2f5bbecacaae06b5f4ec00c219d8e0bc4c4b7dacba0e093aca5"
+content_hash: "3c663d86826b27743c3f6793d9b6f12e747030e2582ae37c00bc1251981f941e"
 read_as: "approved_fallback"
-task: "CLE-T-K57S4N"
+task: "CLE-T-B9CRCF"
 source_paths: []
-mirror_sha256: "27bb5190dde7acdcd020e14baab62cb0417126685dab98545e7b896ccb037aee"
-etag: "sha256-4bd55fd33d25f14b79cbfaf4a68eb865b7512abbe94059ce564c98f612d60691"
+mirror_sha256: "df133271359390ccbd4e898591d6dc8ea29e96e20f83bf19ad7374a0aaca89d8"
+etag: "sha256-dc0246ec6060ef29489aa80c9f4f8748f8e8766f7989b95f48478d532fe2d707"
 ---
 ## 개요
 
@@ -171,4 +171,4 @@ escape 는 `languageHints` 문구의 `<…>` 가 링크나 멘션 문법으로 �
 
 기각한 대안은 빈 본문 `200` 만 돌려주는 안이다. 오류는 표시되지 않지만 사용자 화면에 아무것도 남지 않아 명령이 받아들여졌는지 알 수 없고 `help` 의 도움말도 실을 곳이 없어 메시지를 따로 보내야 한다. 이전처럼 `202` 와 `{ data }` 봉투로 답하는 안은 Slack 이 오류로 표시하므로 남길 수 없었다.
 
-DM 밖에서 친 명령의 응답은 Discord 와 다르다(NERV Task `CLE-T-K57S4N` 에서 의도한 차이로 정했다). Slack 은 `groupChatRefusal` 로 답하고([Slack 어댑터 「R-S-4」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 의 2026-11-14 결정), Discord 는 DM 밖 명령에도 수신 문구로 답한다([Discord 어댑터 — 인바운드 처리와 응답 「R-D-12」](CLE-CHAT-DISCORD-INBOUND.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다)). 두 프로바이더 모두 DM 밖 명령으로 실행을 시작하거나 취소하지 않으므로 보안 성질은 같고 사용자에게 보이는 문구만 다르다. Slack 은 앱의 슬래시 명령을 채널에서도 칠 수 있어서 봇과의 DM 으로 옮기라는 안내를 응답에 싣는다.
+DM 밖에서 친 명령에는 두 프로바이더 모두 `groupChatRefusal` 로 답한다. Slack 은 [Slack 어댑터 「R-S-4」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 의 2026-11-14 결정이고, Discord 는 2026-11-19 사람 결정(NERV 질문 `01a1f1d3-f3ba-702d-9689-121062b39a9d`, NERV Task `CLE-T-B9CRCF`)으로 수신 문구에서 이 안내로 바꿨다([Discord 어댑터 — 인바운드 처리와 응답 「R-D-12」](CLE-CHAT-DISCORD-INBOUND.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다)). 그 전에는 Discord 만 수신 문구로 답하는 차이를 의도한 것으로 두었다(NERV Task `CLE-T-K57S4N`). Slack 은 앱의 슬래시 명령을 채널에서도 칠 수 있어서 봇과의 DM 으로 옮기라는 안내를 응답에 싣는다.
