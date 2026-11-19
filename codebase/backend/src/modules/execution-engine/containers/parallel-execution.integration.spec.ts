@@ -890,9 +890,24 @@ describe('ExecutionEngineService', () => {
       let doneReceived: unknown[];
       let sinkConfigs: Record<string, unknown>[];
       let structuredSpy: jest.SpyInstance;
+      let nodeOutputsSpy: jest.SpyInstance;
+
+      // 구조화 출력 기록을 호출 순서대로 모은다. 노드 실행 완료는 `setNodeOutputs` 로 두
+      // 캐시를 함께 쓰고(CLE-T-JDYHCF), 엔진 덮어쓰기는 `setStructuredOutput` 으로 쓴다.
+      // 두 메서드 모두 (key, nodeId, structured, …) 순서라 앞 세 인자만 본다.
+      const structuredWrites = (): unknown[][] =>
+        [structuredSpy, nodeOutputsSpy]
+          .flatMap((spy) =>
+            spy.mock.calls.map((call: unknown[], i: number) => ({
+              order: spy.mock.invocationCallOrder[i],
+              call,
+            })),
+          )
+          .sort((a, b) => a.order - b.order)
+          .map(({ call }) => call);
 
       const parallelStructured = () => {
-        const calls = structuredSpy.mock.calls.filter(
+        const calls = structuredWrites().filter(
           (call: unknown[]) => call[1] === 'par',
         );
         return calls.length > 0
@@ -946,10 +961,12 @@ describe('ExecutionEngineService', () => {
           service as unknown as { contextService: ExecutionContextService }
         ).contextService;
         structuredSpy = jest.spyOn(contextService, 'setStructuredOutput');
+        nodeOutputsSpy = jest.spyOn(contextService, 'setNodeOutputs');
       });
 
       afterEach(() => {
         structuredSpy.mockRestore();
+        nodeOutputsSpy.mockRestore();
       });
 
       const runGraph = async (
@@ -2138,10 +2155,10 @@ describe('ExecutionEngineService', () => {
           };
           handlerRegistry.register(type, handler);
         };
-        // structuredSpy 의 호출 인자는 (executionId, nodeId, payload) 순서다. 같은 노드를
+        // 구조화 출력 기록의 호출 인자는 (executionId, nodeId, payload) 순서다. 같은 노드를
         // 여러 번 기록했으면 마지막 호출의 payload 를 돌려준다.
         const structuredOf = (nodeId: string) => {
-          const matched = structuredSpy.mock.calls
+          const matched = structuredWrites()
             .map((call: unknown[]) => {
               const [, id, payload] = call;
               return { id, payload };
@@ -2651,9 +2668,9 @@ describe('ExecutionEngineService', () => {
           }
           return { runs, inputs };
         };
-        // structuredSpy 의 호출 인자는 (executionId, nodeId, payload) 순서다.
+        // 구조화 출력 기록의 호출 인자는 (executionId, nodeId, payload) 순서다.
         const structuredOf = (nodeId: string) => {
-          const matched = structuredSpy.mock.calls.filter(
+          const matched = structuredWrites().filter(
             (call: unknown[]) => call[1] === nodeId,
           );
           return matched.length > 0

@@ -1735,8 +1735,8 @@ export class ExecutionEngineService
             typeof workspaceName === 'string' ? workspaceName : '',
           __workspaceTimezone:
             typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
-          // dry-run 플래그 복원 (rehydration) — spec §7.2. 핸들러는
-          // `context.variables.__dryRun === true` 로 mock 분기.
+          // dry-run 플래그 복원(재개). 핸들러는 `context.variables.__dryRun === true` 로
+          // 부수효과 판정을 한다(CLE-EXEC-RERUN 「부수효과 판정」).
           __dryRun: execution.dryRun ?? false,
         },
         recursionDepth: execution.recursionDepth,
@@ -1795,7 +1795,7 @@ export class ExecutionEngineService
       const ne = latestCompletedByNodeId.get(nodeId);
       if (!ne) continue;
       if (ne.outputData) {
-        this.contextService.setNodeOutput(
+        this.restoreStoredNodeOutput(
           this.contextKeyOf(context),
           nodeId,
           ne.outputData,
@@ -4495,8 +4495,8 @@ export class ExecutionEngineService
               typeof workspaceName === 'string' ? workspaceName : '',
             __workspaceTimezone:
               typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
-            // dry-run 플래그 주입 — spec §7.2. 핸들러는
-            // `context.variables.__dryRun === true` 로 mock 분기.
+            // dry-run 플래그 주입. 핸들러는 `context.variables.__dryRun === true` 로
+            // 부수효과 판정을 한다(CLE-EXEC-RERUN 「부수효과 판정」).
             __dryRun: savedExecution.dryRun ?? false,
           },
           recursionDepth: savedExecution.recursionDepth,
@@ -6064,11 +6064,6 @@ export class ExecutionEngineService
       // Structured cache powers `$node[X].config/.output/.meta/.port/.status`
       // expressions; the flat cache preserves pre-migration engine internals.
       const adapted = adaptHandlerReturn(output);
-      this.contextService.setStructuredOutput(
-        this.contextKeyOf(context),
-        node.id,
-        adapted,
-      );
       // Echo channel (structured.config = raw per Principle 7) and engine-
       // side action-parameter channel are now separated. Container paths
       // (runContainer/runParallel) read the evaluated snapshot from this
@@ -6085,7 +6080,7 @@ export class ExecutionEngineService
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
       const finalOutput = this.applyPortSelection(flatForCache);
-      this.commitNodeOutput(context, node.id, finalOutput);
+      this.commitNodeOutput(context, node.id, finalOutput, adapted);
       executedNodes.add(node.id);
 
       // Check if this is a blocking node (waiting_for_input).
@@ -6278,7 +6273,12 @@ export class ExecutionEngineService
             ...(result.output as Record<string, unknown>),
             _selectedPort: RESERVED_ERROR_PORT_ID,
           };
-          this.commitNodeOutput(context, node.id, routedOutput);
+          // 라우팅 표지는 평면 캐시에만 둔다. `$node[X].output` 은 에러 데이터 그대로다.
+          this.commitNodeOutput(context, node.id, routedOutput, {
+            config: {},
+            output: result.output,
+            port: RESERVED_ERROR_PORT_ID,
+          });
           executedNodes.add(node.id);
           errorPortFallbackMessage = await this.finalizeErrorPortNode(
             executionId,
@@ -6801,24 +6801,36 @@ export class ExecutionEngineService
     );
     const ctxKey = this.contextKeyOf(context);
     for (const [predId, storedOutput] of outputs) {
-      // NodeExecution.outputData 는 canonical `{config, output, ...}` 형태로
-      // 저장되므로(handler raw return / adapted) adaptHandlerReturn 으로 정규화한다.
-      // 혹시 비-canonical(legacy/배포 이전 row, scalar/array 등)이면 lenient
-      // wrapper 로 폴백한다 — wrapBareAsNodeHandlerOutput 은 null/scalar/array/object
-      // 전부 안전 처리하므로 어떤 stored shape 도 throw 없이 복원된다.
-      const adapted = isCanonicalHandlerOutput(storedOutput)
-        ? adaptHandlerReturn(storedOutput)
-        : wrapBareAsNodeHandlerOutput(storedOutput);
-      // 정상 실행의 노드 완료 경로(setStructuredOutput → setNodeOutput(flat))를
-      // 동일 순서로 재현해 두 캐시 상태를 무손실 복원한다.
-      this.contextService.setStructuredOutput(ctxKey, predId, adapted);
-      this.contextService.setNodeOutput(
-        ctxKey,
-        predId,
-        this.applyPortSelection(toEngineFlatShape(adapted)),
-      );
+      this.restoreStoredNodeOutput(ctxKey, predId, storedOutput);
       executedNodes.add(predId);
     }
+  }
+
+  /**
+   * DB 에 저장한 완료 노드 출력(`NodeExecution.outputData`)으로 두 캐시를 되살린다. 정상
+   * 실행의 노드 완료와 같은 값을 만든다. 구조화 캐시에는 핸들러 반환값을, 평면 캐시에는
+   * 그 값의 평면 모양에 고른 포트를 붙인 값을 쓴다. 그래서 다음 노드 `$input` · 포트
+   * 라우팅 · `$node[X].output` 이 재개 전과 같다(NERV Task CLE-T-JDYHCF).
+   *
+   * 저장 값은 다섯 필드 정본 `{ config, output, … }` 이라 `adaptHandlerReturn` 으로
+   * 정규화한다. 정본이 아닌 옛 행(배포 이전 · 원시값 · 배열)은 `wrapBareAsNodeHandlerOutput`
+   * 으로 감싼다. 이 함수는 어떤 모양도 예외 없이 받는다. 재개 복원(`rehydrateContext`)과
+   * 단일 노드 실행의 앞 노드 출력 채우기가 쓴다.
+   */
+  private restoreStoredNodeOutput(
+    ctxKey: string,
+    nodeId: string,
+    storedOutput: unknown,
+  ): void {
+    const adapted = isCanonicalHandlerOutput(storedOutput)
+      ? adaptHandlerReturn(storedOutput)
+      : wrapBareAsNodeHandlerOutput(storedOutput);
+    this.contextService.setNodeOutputs(
+      ctxKey,
+      nodeId,
+      adapted,
+      this.applyPortSelection(toEngineFlatShape(adapted)),
+    );
   }
 
   /**
@@ -7891,12 +7903,14 @@ export class ExecutionEngineService
    * **병렬 분기 안에서 실행되는 노드의 출력은 모두 이 메서드로 쓴다.** 쓰기와 사본
    * 반영을 따로 부르면 한쪽을 빠뜨려도 예외 없이 입력이 비거나 결과 노드가 `null` 이
    * 되므로 두 동작을 한 곳에 묶었다. 사본 반영은 `structuredOutputCache` 항목도 함께
-   * 옮긴다. 다만 `setNodeOutput` 이 평면 출력에서 구조화 출력의 `output` 을 다시
-   * 만들므로, 평면 출력에 라우팅 표지(`_selectedPort`)를 넣는 호출은 이 메서드 뒤에
-   * `setStructuredOutput` 을 쓰고 {@link syncParallelBranchCacheEntry} 로 다시 옮긴다
-   * (Parallel 완료 출력은 {@link commitParallelDoneOutput} 이 이 순서로 쓴다).
-   * `contextService.setNodeOutput` 을 직접 부르는 다른 지점은 병렬 분기 본문에서
-   * 닿지 않는다. 재개 시 캐시 복원, 서브워크플로 호출자 출력 주입, 서브워크플로 트리거
+   * 옮긴다. `structured` 를 주면 구조화 출력을 그 값으로 쓰고 평면 출력에서 다시 만들지
+   * 않는다. 노드 실행 완료가 핸들러 반환값을 이렇게 넘긴다. 주지 않으면 `setNodeOutput` 이
+   * 평면 출력에서 구조화 출력의 `output` 을 다시 만든다. 그래서 `structured` 없이 평면
+   * 출력에 라우팅 표지(`_selectedPort`)를 넣는 호출은 이 메서드 뒤에 `setStructuredOutput`
+   * 을 쓰고 {@link syncParallelBranchCacheEntry} 로 다시 옮긴다(Parallel 완료 출력은
+   * {@link commitParallelDoneOutput} 이 이 순서로 쓴다).
+   * `contextService.setNodeOutput` · `setNodeOutputs` 를 직접 부르는 다른 지점은 병렬 분기
+   * 본문에서 닿지 않는다. 재개 시 캐시 복원, 서브워크플로 호출자 출력 주입, 서브워크플로 트리거
    * 출력은 분기 사본이 만들어지기 전이거나 별도 그래프의 루프에서 실행되고, 폼 · 버튼
    * · AI 턴 상호작용은 분기 금지 노드(블로킹)가 쓴다.
    */
@@ -7904,12 +7918,14 @@ export class ExecutionEngineService
     context: ExecutionContext,
     nodeId: string,
     output: unknown,
+    structured?: NodeHandlerOutput,
   ): void {
-    this.contextService.setNodeOutput(
-      this.contextKeyOf(context),
-      nodeId,
-      output,
-    );
+    const ctxKey = this.contextKeyOf(context);
+    if (structured) {
+      this.contextService.setNodeOutputs(ctxKey, nodeId, structured, output);
+    } else {
+      this.contextService.setNodeOutput(ctxKey, nodeId, output);
+    }
     this.syncParallelBranchCacheEntry(context, nodeId);
   }
 
@@ -8634,10 +8650,9 @@ export class ExecutionEngineService
       return undefined;
     }
 
-    // Merge container-side `meta.*` (e.g. foreach `skippedCount`) with any
-    // pre-existing structured meta (engine-injected `durationMs`, prior
-    // handler-stage meta, etc.). Container-side keys take precedence on
-    // conflict — they describe the just-finalised iteration semantics.
+    // 컨테이너 쪽 `meta.*`(예: ForEach `skippedCount`)를 컨테이너 핸들러가 먼저 쓴 구조화
+    // meta 와 합친다. 엔진은 여기에 `durationMs` 를 넣지 않는다. 실행 시간은 노드 실행 행과
+    // 이벤트에 있다. 키가 겹치면 방금 끝난 반복을 설명하는 컨테이너 쪽 값을 쓴다.
     const prevStructuredMeta = structured?.meta;
     const mergedMeta =
       prevStructuredMeta || structuredMeta

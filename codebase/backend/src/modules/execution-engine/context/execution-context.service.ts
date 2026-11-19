@@ -286,6 +286,30 @@ export class ExecutionContextService {
       : derived;
   }
 
+  /**
+   * 핸들러 반환값에서 만든 두 캐시 값을 함께 쓴다. {@link setNodeOutput} 과 달리 평면
+   * 출력에서 구조화 출력을 다시 만들지 않는다. 평면 출력에는 라우팅 표지(`_selectedPort`)가
+   * 섞여 있어서 다시 만들면 `$node[X].output` 에 그 키가 붙는다(NERV Task CLE-T-JDYHCF).
+   * 노드 실행 완료와 DB 행에서 캐시를 되살리는 경로가 쓴다. 컨텍스트가 없으면
+   * {@link setNodeOutput} 처럼 예외를 던진다.
+   */
+  setNodeOutputs(
+    key: string,
+    nodeId: string,
+    structured: NodeHandlerOutput,
+    flat: unknown,
+  ): void {
+    const context = this.contexts.get(key);
+    if (!context) {
+      this.logger.error(
+        `[ctx-trace] setNodeOutputs MISSING — key=${key} nodeId=${nodeId}`,
+      );
+      throw new Error(`Execution context not found: ${key}`);
+    }
+    context.nodeOutputCache[nodeId] = flat;
+    context.structuredOutputCache[nodeId] = structured;
+  }
+
   getNodeOutput(key: string, nodeId: string): unknown {
     const context = this.contexts.get(key);
     if (!context) {
