@@ -2314,10 +2314,9 @@ describe('AiTurnOrchestrator', () => {
         })),
         ...overrides,
       } as unknown as NodeHandler;
-      handlerRegistry.register('ai_agent', handler, {
-        kind: 'blocking',
-        interaction: 'ai_conversation',
-      });
+      // 오케스트레이터는 등록 metadata 를 읽지 않는다. `ai_conversation` 은
+      // NodeTypeMetadata 의 blocking interaction 타입이 아니라서 넘기지 않는다.
+      handlerRegistry.register('ai_agent', handler);
       return handler;
     };
 
