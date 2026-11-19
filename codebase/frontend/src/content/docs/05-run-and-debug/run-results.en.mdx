@@ -182,6 +182,7 @@ Calls handled with a mock result, whether from a node or a tool, are not recorde
 
 ## Tips for inspecting per-node I/O
 
+- **The result of the whole run**: when a run finishes, its result is **the last node's Output as is**. It can be an object, an array, a number, or a string. If the last node has no output, the result is `{}`. It is the same value you read with `$node["Node name"].output` in a later node.
 - **Copy buttons**: the Input/Output tabs expose `Copy Input` and `Copy Output` buttons. Paste the JSON straight into Run with Input to reproduce a run.
 - **Re-run with this input**: open the in-editor history panel, click the run you want, then click the **Re-run** button in the Run Results drawer to start a new run with that execution's original input.
 - **Presentation node Preview**: Table, Chart, Carousel, and Template show a rendered preview rather than raw JSON. The JSON itself is still on the Output tab.

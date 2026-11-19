@@ -222,6 +222,21 @@ export function resolveNodeResultValue(
 }
 
 /**
+ * 실행 결과(`Execution.outputData`)에 실을 값. {@link resolveNodeResultValue} 이고 출력이
+ * 없으면(`undefined` · `null`) `{}` 다(NERV Task CLE-T-JDYHCF 결정 1). 엔진과 재시도 턴이
+ * 같은 규칙을 쓰도록 한 곳에 둔다.
+ */
+export function resolveExecutionOutputValue(
+  caches: {
+    structuredOutputCache?: Record<string, NodeHandlerOutput>;
+    nodeOutputCache: Record<string, unknown>;
+  },
+  nodeId: string,
+): unknown {
+  return resolveNodeResultValue(caches, nodeId) ?? {};
+}
+
+/**
  * Collapses a {@link NodeHandlerOutput} back into the pre-migration flat
  * shape so that existing engine internals (`applyPortSelection`,
  * `stripControlFields`, downstream `$input.<field>` access) keep working

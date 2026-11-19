@@ -7,6 +7,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import type { ExecutionResultValue } from '../../shared/utils/execution-result-schema';
 import { InjectRepository } from '@nestjs/typeorm';
 import { type FindOptionsSelect, Repository } from 'typeorm';
 import {
@@ -479,7 +480,7 @@ export class InteractionService {
       // 다음 사람이 그 구조를 바꾸는 순간 조용히 열린다.
       result:
         execution.status === ExecutionStatus.COMPLETED
-          ? stripAndRedact(execution.outputData)
+          ? (stripAndRedact(execution.outputData) as ExecutionResultValue)
           : null,
       // 엔진은 `outputData` 를 완료 때만 쓴다. 실패한 실행에서는 객체이거나 비어 있다.
       error:

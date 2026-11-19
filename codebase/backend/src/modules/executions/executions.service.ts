@@ -8,6 +8,7 @@ import {
   UnprocessableEntityException,
   Logger,
 } from '@nestjs/common';
+import type { ExecutionResultValue } from '../../shared/utils/execution-result-schema';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Execution, ExecutionStatus } from './entities/execution.entity';
@@ -1077,7 +1078,8 @@ export class ExecutionsService {
       durationMs: execution.durationMs ?? null,
       activeRunningMs: toActiveRunningMsForResponse(execution),
       inputData,
-      outputData,
+      // 엔티티 컬럼은 `unknown`(핸들러 output 그대로)이고 응답은 JSON 값 union 이다.
+      outputData: outputData as ExecutionResultValue,
       error,
       executedBy: execution.executedBy ?? null,
       parentExecutionId: execution.parentExecutionId ?? null,

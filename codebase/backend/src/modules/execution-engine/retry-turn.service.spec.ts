@@ -1492,6 +1492,59 @@ describe('RetryTurnService', () => {
       );
     });
 
+    // CLE-T-JDYHCF 결정 1 — 실행 결과는 결과 노드의 핸들러 output 그대로다. 구조화 캐시에서
+    // 읽으므로 flat 캐시의 봉투(`{ data, _selectedPort }`)가 새지 않고, 출력이 없으면 `{}` 다.
+    describe.each([
+      ['배열 output', [1, 2, 3], [1, 2, 3]],
+      ['문자열 output', 'done', 'done'],
+      ['출력 없음(undefined)', undefined, {}],
+    ])('자연 종결의 outputData — %s', (_label, output, expected) => {
+      it('결과 노드의 핸들러 output 을 그대로 싣는다', async () => {
+        (
+          mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+        ).mockImplementation((exec: { status: ExecutionStatus }) => {
+          exec.status = ExecutionStatus.RUNNING;
+          return Promise.resolve(undefined);
+        });
+        (mockDriver.loadAndBuildGraph as jest.Mock).mockResolvedValue({
+          nodes: [{ id: NODE_ID }],
+          sortedNodeIds: [NODE_ID],
+          sortedIndexMap: new Map([[NODE_ID, 0]]),
+          backEdgeMap: new Map(),
+          outgoingEdgeMap: new Map(),
+          nodeMap: new Map([[NODE_ID, { id: NODE_ID }]]),
+          forwardEdges: [],
+        });
+        // 디스패치 루프가 결과 노드를 실행해 두 캐시에 쓴 상태를 흉내 낸다. flat 값은
+        // 라우팅 표지가 섞인 봉투다.
+        (mockDriver.runNodeDispatchLoop as jest.Mock).mockImplementation(() => {
+          contextService.setNodeOutputs(
+            EXEC,
+            NODE_ID,
+            { config: {}, output },
+            { data: output, _selectedPort: 'default' },
+          );
+          return Promise.resolve({ parked: false });
+        });
+
+        const NOT_CALLED = Symbol('completion-not-reached');
+        let outputAtCompletion: unknown = NOT_CALLED;
+        (mockDriver.updateExecutionStatus as jest.Mock).mockImplementation(
+          (exec: Record<string, unknown>, status: ExecutionStatus) => {
+            if (status === ExecutionStatus.COMPLETED) {
+              outputAtCompletion = exec.outputData;
+            }
+            return Promise.resolve(true);
+          },
+        );
+
+        await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+        expect(outputAtCompletion).not.toBe(NOT_CALLED);
+        expect(outputAtCompletion).toEqual(expected);
+      });
+    });
+
     // C-4 (`retry-turn-terminal-guard.md` 5R INFO 2) — retry 는 **FAILED 실행에서**
     // 시작하므로 로드된 엔티티가 이전 시도의 `error` 를 들고 있다. 자연 종결 경로는
     // `outputData`·`finishedAt`·`durationMs` 만 세팅하고 `error` 는 건드리지 않는데,

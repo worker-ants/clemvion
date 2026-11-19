@@ -169,6 +169,7 @@ import {
   isCanonicalHandlerOutput,
   isWrappedValueEnvelope,
   markWrappedValueEnvelope,
+  resolveExecutionOutputValue,
   resolveNodeResultValue,
   toDownstreamValue,
   toEngineFlatShape,
@@ -2553,7 +2554,7 @@ export class ExecutionEngineService
       // emit skip.
       const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
       if (lastNodeId) {
-        savedExecution.outputData = this.resolveExecutionOutputData(
+        savedExecution.outputData = resolveExecutionOutputValue(
           context,
           lastNodeId,
         );
@@ -3552,7 +3553,7 @@ export class ExecutionEngineService
       // COMPLETED 마감 (driveResumeAwaited 완결부와 동일).
       const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
       if (lastNodeId) {
-        savedExecution.outputData = this.resolveExecutionOutputData(
+        savedExecution.outputData = resolveExecutionOutputValue(
           context,
           lastNodeId,
         );
@@ -4726,7 +4727,7 @@ export class ExecutionEngineService
       const resultNodeId =
         singleNodeId ?? sortedNodeIds[sortedNodeIds.length - 1];
       if (resultNodeId) {
-        savedExecution.outputData = this.resolveExecutionOutputData(
+        savedExecution.outputData = resolveExecutionOutputValue(
           context,
           resultNodeId,
         );
@@ -7000,17 +7001,6 @@ export class ExecutionEngineService
    */
   private stripControlFields(output: unknown): unknown {
     return toDownstreamValue(output);
-  }
-
-  /**
-   * 실행 결과(`Execution.outputData`)에 실을 값. 결과 노드의 핸들러 `output` 이고 출력이
-   * 없으면(`undefined` · `null`) `{}` 다(NERV Task CLE-T-JDYHCF 결정 1).
-   */
-  private resolveExecutionOutputData(
-    context: ExecutionContext,
-    resultNodeId: string,
-  ): unknown {
-    return resolveNodeResultValue(context, resultNodeId) ?? {};
   }
 
   /**

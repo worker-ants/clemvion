@@ -449,4 +449,32 @@ describe('ExecutionContextService', () => {
       expect(structured?.port).toBe('out');
     });
   });
+
+  describe('setNodeOutputs', () => {
+    it('평면 캐시와 구조화 캐시를 함께 쓰고 평면 값에서 구조화 값을 다시 만들지 않는다', () => {
+      const structured = { config: {}, output: [1, 2] };
+      const flat = { data: [1, 2], _selectedPort: 'default' };
+
+      service.setNodeOutputs(executionId, nodeId, structured, flat);
+
+      const ctx = service.getContext(executionId)!;
+      expect(ctx.nodeOutputCache[nodeId]).toBe(flat);
+      // 다시 만들었다면 output 에 `_selectedPort` 가 섞인 객체가 된다.
+      expect(ctx.structuredOutputCache[nodeId]).toBe(structured);
+      expect(ctx.structuredOutputCache[nodeId].output).toEqual([1, 2]);
+    });
+
+    it('컨텍스트가 없으면 setNodeOutput 처럼 예외를 던지고 에러를 남긴다', () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      expect(() =>
+        service.setNodeOutputs('missing', nodeId, { config: {}, output: 1 }, 1),
+      ).toThrow('Execution context not found: missing');
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('setNodeOutputs MISSING'),
+      );
+      errorSpy.mockRestore();
+    });
+  });
 });

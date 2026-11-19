@@ -3,6 +3,9 @@ import {
   adaptHandlerReturn,
   isWrappedValueEnvelope,
   markWrappedValueEnvelope,
+  resolveExecutionOutputValue,
+  resolveNodeResultValue,
+  toDownstreamValue,
   toEngineFlatShape,
   unwrapEngineFlatValue,
   wrapBareAsNodeHandlerOutput,
@@ -728,5 +731,108 @@ describe('null · undefined output 의 포트 봉투', () => {
     expect(
       toEngineFlatShape({ config: {}, output: undefined }),
     ).toBeUndefined();
+  });
+});
+
+describe('toDownstreamValue', () => {
+  it('표지가 붙은 봉투는 그 안의 data 를 꺼낸다', () => {
+    const envelope = toEngineFlatShape({
+      config: {},
+      output: [1, 2],
+      port: 'default',
+    });
+    expect(isWrappedValueEnvelope(envelope)).toBe(true);
+    expect(toDownstreamValue(envelope)).toEqual([1, 2]);
+  });
+
+  it('객체 출력에서 엔진 제어 필드만 뗀다', () => {
+    expect(
+      toDownstreamValue({
+        a: 1,
+        _selectedPort: 'p',
+        port: 'p',
+        status: 's',
+        _resumeState: {},
+        _resumeCheckpoint: {},
+      }),
+    ).toEqual({ a: 1 });
+  });
+
+  it('제어 필드가 없으면 같은 참조를 돌려주고 원본을 바꾸지 않는다', () => {
+    const plain = { a: 1 };
+    expect(toDownstreamValue(plain)).toBe(plain);
+    const withControl = { a: 1, _selectedPort: 'p' };
+    toDownstreamValue(withControl);
+    expect(withControl).toEqual({ a: 1, _selectedPort: 'p' });
+  });
+
+  it('사용자가 돌려준 { data } 객체는 봉투가 아니라 그대로다', () => {
+    expect(toDownstreamValue({ data: [1] })).toEqual({ data: [1] });
+  });
+
+  it.each([[null], [undefined], [0], ['s'], [[1, 2]]])(
+    '객체가 아닌 값 %p 은 그대로다',
+    (v) => {
+      expect(toDownstreamValue(v)).toBe(v);
+    },
+  );
+});
+
+describe('resolveNodeResultValue · resolveExecutionOutputValue', () => {
+  const structured = (output: unknown) => ({ config: {}, output });
+
+  it('구조화 캐시가 있으면 flat 봉투 대신 핸들러 output 을 돌려준다', () => {
+    const caches = {
+      structuredOutputCache: { n1: structured([1, 2]) },
+      nodeOutputCache: { n1: { data: [1, 2], _selectedPort: 'default' } },
+    };
+    expect(resolveNodeResultValue(caches, 'n1')).toEqual([1, 2]);
+  });
+
+  it('구조화 output 이 falsy 여도(0 · 빈 문자열) 구조화 캐시를 쓴다', () => {
+    const caches = {
+      structuredOutputCache: { n1: structured(0) },
+      nodeOutputCache: { n1: { other: true } },
+    };
+    expect(resolveNodeResultValue(caches, 'n1')).toBe(0);
+  });
+
+  it('구조화 캐시가 없으면 flat 값을 풀어 쓴다', () => {
+    const caches = {
+      nodeOutputCache: { n1: { a: 1, _selectedPort: 'p' } },
+    };
+    expect(resolveNodeResultValue(caches, 'n1')).toEqual({ a: 1 });
+  });
+
+  it('두 캐시 모두 없으면 undefined 다', () => {
+    expect(
+      resolveNodeResultValue({ nodeOutputCache: {} }, 'n1'),
+    ).toBeUndefined();
+  });
+
+  it('resolveExecutionOutputValue 는 출력이 없으면(undefined · null) {} 를 돌려준다', () => {
+    expect(resolveExecutionOutputValue({ nodeOutputCache: {} }, 'n1')).toEqual(
+      {},
+    );
+    expect(
+      resolveExecutionOutputValue(
+        {
+          structuredOutputCache: { n1: structured(null) },
+          nodeOutputCache: {},
+        },
+        'n1',
+      ),
+    ).toEqual({});
+  });
+
+  it('resolveExecutionOutputValue 는 0 · 빈 문자열 · false 를 {} 로 바꾸지 않는다', () => {
+    for (const v of [0, '', false]) {
+      expect(
+        resolveExecutionOutputValue(
+          { structuredOutputCache: { n1: structured(v) }, nodeOutputCache: {} },
+          'n1',
+        ),
+      ).toBe(v);
+    }
   });
 });

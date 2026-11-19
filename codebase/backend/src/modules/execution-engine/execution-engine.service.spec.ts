@@ -12201,6 +12201,52 @@ describe('ExecutionEngineService', () => {
       },
     );
 
+    // Parallel 로 끝나는 서브워크플로는 Parallel 실행 경로(`executeAndDispatchNode` 가 true)로
+    // 빠져 `lastOutput` 을 그 자리에서 읽는다. 그 경로도 flat 봉투가 아니라 핸들러 output 을 준다.
+    it('서브워크플로가 Parallel 실행 경로로 끝나도 executeInline 은 그 노드의 핸들러 output 을 돌려준다', async () => {
+      mockNodeRepo.findBy.mockResolvedValue([vNode('parallel', 'parallel')]);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
+      const output = [{ branch: 'a' }, { branch: 'b' }];
+      jest
+        .spyOn(
+          service as unknown as {
+            executeAndDispatchNode: (arg: {
+              node: { id: string };
+            }) => Promise<boolean>;
+          },
+          'executeAndDispatchNode',
+        )
+        .mockImplementation((arg) => {
+          contextService.setNodeOutputs(
+            executionId,
+            arg.node.id,
+            { config: {}, output },
+            { data: output, _selectedPort: 'default' },
+          );
+          return Promise.resolve(true);
+        });
+
+      const result = await service.executeInline(
+        workflowId,
+        {},
+        {
+          executionId,
+          context,
+          executedNodes: new Set<string>(),
+          recursionDepth: 1,
+          parentNodeExecutionId: 'workflow-node-row',
+        },
+      );
+
+      expect(result).toStrictEqual(output);
+    });
+
     // 예전에는 설정 에코(`code` · `language`)를 펼친 값에 `_selectedPort` 가 없어 success ·
     // error 포트가 함께 열리고 다음 노드가 설정 에코를 받았다(NERV Task CLE-T-X3AH4F).
     // CLE-NODE-CODE: `return` 이 없으면 `output` 은 `undefined` 다. 표현식은 없는 멤버를

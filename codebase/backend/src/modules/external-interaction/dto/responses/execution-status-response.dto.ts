@@ -1,4 +1,8 @@
 import {
+  EXECUTION_RESULT_VALUE_ONE_OF,
+  type ExecutionResultValue,
+} from '../../../../shared/utils/execution-result-schema';
+import {
   ApiExtraModels,
   ApiProperty,
   ApiPropertyOptional,
@@ -166,16 +170,10 @@ export class ExecutionStatusDto {
   @ApiProperty({
     description:
       'completed 시점의 최종 결과. 마지막 노드의 output 그대로라 객체 · 배열 · 원시값일 수 있다.',
-    oneOf: [
-      { type: 'object', additionalProperties: true },
-      { type: 'array', items: {} },
-      { type: 'string' },
-      { type: 'number' },
-      { type: 'boolean' },
-    ],
+    oneOf: [...EXECUTION_RESULT_VALUE_ONE_OF],
     nullable: true,
   })
-  result: unknown;
+  result: ExecutionResultValue | null;
 
   // 근거: [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략)
   /** failed 가 아니면 `null` (키 present). */
