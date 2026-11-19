@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   ConflictException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -914,7 +915,8 @@ export class ExecutionsService {
       execution.status !== ExecutionStatus.PENDING &&
       execution.status !== ExecutionStatus.WAITING_FOR_INPUT
     ) {
-      throw new BadRequestException({
+      // 카탈로그(CLE-API-ERRCODES §6.4)대로 422 다(NERV Task `CLE-T-B9CRCF`).
+      throw new UnprocessableEntityException({
         code: 'INVALID_STATE',
         message: `Cannot stop execution with status '${execution.status}'`,
       });

@@ -188,9 +188,9 @@ describe('Workflow Execution (e2e)', () => {
       .set('Authorization', `Bearer ${intruder.accessToken}`)
       .set('X-Workspace-Id', otherWs);
     // verifyOwnership 가 NotFoundException, ForbiddenException, 또는
-    // BadRequest (이미 terminal) 형태로 모두 cross-workspace 접근을 막는다 —
+    // 422 INVALID_STATE (이미 terminal) 형태로 모두 cross-workspace 접근을 막는다 —
     // 어느 쪽이든 외부 워크스페이스가 자원을 조작할 수 없는 invariant 충족.
-    expect([400, 403, 404]).toContain(stop.status);
+    expect([403, 404, 422]).toContain(stop.status);
   });
 
   it('D. terminal 상태 실행에 stop → 400 (이미 완료된 실행)', async () => {
@@ -215,9 +215,9 @@ describe('Workflow Execution (e2e)', () => {
       .post(`/api/executions/${executionId}/stop`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId);
-    // 이미 terminal 인 execution 은 stop 불가 — 구현에 따라 400 (bad transition)
+    // 이미 terminal 인 execution 은 stop 불가 — 422 INVALID_STATE(카탈로그 §6.4)
     // 또는 404 (재조회 시 stop-able 후보가 아님) 로 모두 거부 가능.
-    expect([400, 404]).toContain(stop.status);
+    expect([422, 404]).toContain(stop.status);
   }, 30_000);
 
   it('D-2. 실행 중(running) 실행 stop → 200 + 응답이 ExecutionDto 계약과 맞는다', async () => {

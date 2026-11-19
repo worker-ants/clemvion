@@ -1,5 +1,5 @@
 import {
-  BadRequestException,
+  UnprocessableEntityException,
   Logger,
   NotFoundException,
   ServiceUnavailableException,
@@ -1258,7 +1258,8 @@ describe('ExecutionsService', () => {
         '이미 끝난 실행',
         ExecutionStatus.COMPLETED,
         'INVALID_STATE',
-        BadRequestException,
+        // 카탈로그(CLE-API-ERRCODES §6.4)대로 422 다(NERV Task `CLE-T-B9CRCF`).
+        UnprocessableEntityException,
       ],
     ] as const)(
       '%s 은 커밋 전에 실패하므로 그대로 던진다 (%s)',
