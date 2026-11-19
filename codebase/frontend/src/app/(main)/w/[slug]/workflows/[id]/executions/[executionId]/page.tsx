@@ -13,6 +13,7 @@ import {
   Clock,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  Ban,
 } from "lucide-react";
 import {
   executionsApi,
@@ -78,6 +79,8 @@ function NodeStatusIcon({ status }: { status: string }) {
       return <XCircle className="h-4 w-4 text-red-500" />;
     case "waiting_for_input":
       return <PauseCircle className="h-4 w-4 text-amber-500" />;
+    case "cancelled":
+      return <Ban className="h-4 w-4 text-gray-400" />;
     default:
       return <Clock className="h-4 w-4 text-gray-400" />;
   }

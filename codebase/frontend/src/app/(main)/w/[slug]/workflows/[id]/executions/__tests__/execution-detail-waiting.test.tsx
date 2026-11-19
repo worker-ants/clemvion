@@ -567,3 +567,38 @@ describe("ExecutionDetailPage - 상시 REST 폴링", () => {
     expect(useExecutionStore.getState().status).toBe("completed");
   });
 });
+
+// CLE-T-99QHNG — 실행 상세 화면도 REST 로 받은 cancelled 노드를 종료 상태로 그린다
+// (CLE-EXEC-RUN-DRAWER 「결과 상세 탭」 · 「라이프사이클 · 노드 취소」).
+describe("ExecutionDetailPage - cancelled 노드", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useExecutionStore.getState().reset();
+    mockGetByWorkflow.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 100, totalItems: 0, totalPages: 0 },
+    });
+  });
+
+  it("노드 목록은 Ban 아이콘을, 결과 상세는 Cancelled 배지와 입력 · 출력 탭을 보여 준다", async () => {
+    const exec = makeCompletedExecution("http_request");
+    mockGetById.mockResolvedValue({
+      ...exec,
+      status: "cancelled",
+      nodeExecutions: [
+        { ...exec.nodeExecutions[0], status: "cancelled", outputData: null },
+      ],
+    });
+    await renderPage();
+
+    const nodeBtn = await screen.findByText("Fetch");
+    expect(
+      nodeBtn.closest("button")?.querySelector(".lucide-ban"),
+    ).not.toBeNull();
+
+    fireEvent.click(nodeBtn);
+    expect(await screen.findByText("Cancelled")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "입력" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "출력" })).toBeInTheDocument();
+  });
+});
