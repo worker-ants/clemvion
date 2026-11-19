@@ -1,3 +1,7 @@
+import {
+  EXECUTION_RESULT_VALUE_ONE_OF,
+  type ExecutionResultValue,
+} from '../../../../shared/utils/execution-result-schema';
 import { ApiProperty } from '@nestjs/swagger';
 import { ExecutionStatus } from '../../entities/execution.entity';
 import {
@@ -83,13 +87,17 @@ export class ExecutionDto {
    * `Bearer …`·자격증명 포함 URI 등이 `***` 로 치환되므로 **DB 원문과 다를 수 있다**.
    * ingestion 이 이미 남긴 `[REDACTED]` 마커는 **보존**된다. 구현은
    * `shared/utils/redact-stored-error.ts` 의 `redactStoredDataForResponse`.
+   *
+   * 값은 마지막 노드의 핸들러 `output` 그대로라 객체 · 배열 · 원시값일 수 있다. 마지막 노드가
+   * 출력 없이 끝나면 `{}` 다.
    */
   @ApiProperty({
-    type: 'object',
-    additionalProperties: true,
+    description:
+      '워크플로우 최종 결과. 마지막 노드의 output 그대로라 객체 · 배열 · 원시값일 수 있다.',
+    oneOf: [...EXECUTION_RESULT_VALUE_ONE_OF],
     nullable: true,
   })
-  outputData: Record<string, unknown> | null;
+  outputData: ExecutionResultValue | null;
 
   // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로-2026-08-16)
   /**

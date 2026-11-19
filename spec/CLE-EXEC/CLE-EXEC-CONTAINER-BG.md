@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER-BG"
 title: "컨테이너 실행 — Background 본문"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CONTAINER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CONTAINER"]
 area: "CLE-EXEC"
-content_hash: "6d4f7841adf2d84d12667983ba198c876dbddd3da059ba0cf1477776da898231"
+content_hash: "74b7877eacd437a945489e69a2edcf3aeef0bbf2f6137855feab411cc06c5b5b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-B7A8B2"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "e76a8ec3834d8ca1fa525eb4a0d429d75ad84b0800eed01f26670ad901c77d1d"
-etag: "sha256-09619288ecf08ca28e5d59e982bbcf778350edfb3fba301ff243780a81e4f15d"
+mirror_sha256: "8f56d28b7e07d0f5d7487762a5b61cae9c9c011cd2928c5fe1cc7ac72f7ef373"
+etag: "sha256-f39b001f22a5e7738cee15d482ff5bbc31c3d1b96ca9f551386b3237ae23e929"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4 중 Background 본문) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -48,7 +48,7 @@ sequenceDiagram
 
 - 본문은 메인 실행과 같은 `execution_id` 를 쓴다. 노드 실행 묶음, WebSocket 채널, 권한의 1차 키가 모두 이것이다. 다만 **메모리의 실행 컨텍스트 Map 키만** 따로 `bg:<executionId>:<backgroundRunId>` 를 써서 부모 컨텍스트와 격리하고 `executeBackgroundSubgraph` 가 자기 `finally` 에서 정리한다. 이 키의 분류는 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) 가 정한다.
 - 본문 노드의 `parentNodeExecutionId` 는 Background 노드 자신의 노드 실행 ID 를 가리킨다.
-- 본문의 Parallel 도 엔진의 Parallel 실행 경로를 탄다(`PARALLEL_ENGINE=v1`). 본문은 격리된 새 컨텍스트에서 실행되므로 Parallel 중첩 깊이를 1부터 센다. 예외로 병렬 분기 본문에 바로 둔 Background 의 본문은 바깥 Parallel 의 사전 검사(`planParallelBody`)와 저장 규칙 `parallel:nested-depth-exceeded` 가 바깥 깊이를 이어서 센다. 이 검사 범위는 아직 정하지 않았다([Parallel 노드 §저장 규칙과 실행 검사의 범위](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#저장-규칙과-실행-검사의-범위), [미결 사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#미결-사항)). 컨테이너 안 Background 의 본문은 사전 검사도 깊이 1 부터 센다([본문 안 Parallel](CLE-EXEC-CONTAINER.md#본문-안-parallel)).
+- 본문의 Parallel 도 엔진의 Parallel 실행 경로를 탄다(`PARALLEL_ENGINE=v1`). 본문은 격리된 새 컨텍스트에서 실행되므로 Parallel 중첩 깊이를 1부터 센다. 병렬 분기 본문이나 컨테이너 본문에 둔 Background 의 본문도 저장 규칙 `parallel:nested-depth-exceeded` 와 실행 사전 검사 모두 깊이 1 부터 센다. 병렬 분기 안 Background 본문의 블로킹 노드는 사전 검사가 `PARALLEL_INVALID_CHILD` 로 막지 않고 본문이 그 지점에서 에러 없이 끝난다([Parallel 노드 — 놓인 위치와 중첩 §저장 규칙과 실행 검사의 범위](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL-NEST.md#저장-규칙과-실행-검사의-범위), [본문 안 Parallel](CLE-EXEC-CONTAINER.md#본문-안-parallel)).
 - 본문 실패는 메인 실행 상태에 영향을 주지 않는다.
 - 대화 스레드는 발행 시점 스냅샷으로 격리된다. 본문에서 생긴 턴은 메인 스레드에 영향이 없고 반대도 같다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md)).
 - 본문이 실패하고 `notifyOnFailure=true` 이면 **워크스페이스 관리자에게 인앱 알림**(`type: background_failed`, `channel: in_app`)을 보낸다. 이메일 채널과 실행자(`executed_by`) 수신은 현재 지원하지 않는다.

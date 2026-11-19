@@ -170,6 +170,7 @@ export class ParallelPrecheck {
       );
       this.assertParallelBranchChildrenAllowed(
         parallelNode,
+        branchEntries[i],
         bodyNodeIds,
         internalEdges,
         graph,
@@ -228,18 +229,40 @@ export class ParallelPrecheck {
    * - 블로킹 노드: `PARALLEL_INVALID_CHILD` 를 던진다. 메타데이터만 보므로 buttons ·
    *   ai_conversation 처럼 실행해야 대기 여부가 정해지는 노드는 엔진의
    *   `executeParallelBranchBody` 런타임 가드가 막는다(PR-G, CRIT #3).
+   *
+   * 병렬 분기 안 Background 의 `background` 연결선 뒤에서만 닿는 노드
+   * ({@link collectBackgroundOnlyNodeIds})는 병렬 분기 본문으로 검사하지 않는다. 워커가 새
+   * 컨텍스트에서 실행하므로 그 안 Parallel 은 깊이
+   * {@link BACKGROUND_BODY_PARALLEL_DEPTH} 부터 세고, 블로킹 노드는 막지 않는다
+   * (REQ-PARALLEL-036 · REQ-BGRUN-010, NERV Task CLE-T-B7A8B2). 컨테이너 본문 안
+   * Background 본문({@link assertContainerBodyParallelsAllowed})과 같은 규칙이다.
    */
   private assertParallelBranchChildrenAllowed(
     parallelNode: Node,
+    branchEntryNodeIds: ReadonlySet<string>,
     bodyNodeIds: ReadonlySet<string>,
     internalEdges: GraphEdge[],
     graph: ParallelCheckGraph,
     currentDepth: number,
   ): void {
+    const backgroundOnlyIds = collectBackgroundOnlyNodeIds(
+      branchEntryNodeIds,
+      internalEdges,
+      (id) => this.isBackgroundNode(graph, id),
+    );
     for (const id of bodyNodeIds) {
       const node = graph.nodeMap.get(id);
       if (!node) continue;
       const childKind = this.kindOf(node.type);
+      if (backgroundOnlyIds.has(id)) {
+        this.assertBackgroundBodyChildAllowed(
+          node,
+          childKind,
+          internalEdges,
+          graph,
+        );
+        continue;
+      }
       if (childKind === 'parallel') {
         if (currentDepth >= PARALLEL_MAX_NESTED_DEPTH) {
           throw new Error(
@@ -262,6 +285,39 @@ export class ParallelPrecheck {
         );
       }
     }
+  }
+
+  /**
+   * 병렬 분기 안 Background 본문 노드 하나를 검사한다. 본문은 워커가 새 컨텍스트에서
+   * 실행하므로 그 안 Parallel 은 깊이 {@link BACKGROUND_BODY_PARALLEL_DEPTH} 이고, 그 안
+   * 컨테이너 본문의 Parallel 도 같은 깊이다. 블로킹 노드는 막지 않는다(REQ-BGRUN-010).
+   */
+  private assertBackgroundBodyChildAllowed(
+    node: Node,
+    childKind: NodeTypeMetadata['kind'],
+    internalEdges: GraphEdge[],
+    graph: ParallelCheckGraph,
+  ): void {
+    if (childKind === 'parallel') {
+      this.assertNestedParallelBodyAllowed(
+        node,
+        internalEdges,
+        graph,
+        BACKGROUND_BODY_PARALLEL_DEPTH,
+      );
+    }
+    if (childKind === 'container') {
+      this.assertContainerBodyParallelsAllowed(
+        node,
+        graph,
+        BACKGROUND_BODY_PARALLEL_DEPTH,
+      );
+    }
+  }
+
+  private isBackgroundNode(graph: ParallelCheckGraph, nodeId: string): boolean {
+    const node = graph.nodeMap.get(nodeId);
+    return node !== undefined && this.kindOf(node.type) === 'background';
   }
 
   /**
@@ -291,12 +347,13 @@ export class ParallelPrecheck {
     graph: ParallelCheckGraph,
     depth: number,
   ): void {
-    const { bodyNodeIdsPerBranch } = collectParallelBranchMembership(
-      parallelNode.id,
-      forwardEdges,
-      PARALLEL_BRANCH_COUNT_MAX,
-    );
-    for (const bodyNodeIds of bodyNodeIdsPerBranch) {
+    const { branchEntries, bodyNodeIdsPerBranch } =
+      collectParallelBranchMembership(
+        parallelNode.id,
+        forwardEdges,
+        PARALLEL_BRANCH_COUNT_MAX,
+      );
+    for (const [i, bodyNodeIds] of bodyNodeIdsPerBranch.entries()) {
       // 본문이 빈 병렬 분기(설정한 병렬 분기 수 밖의 `branch_N`)는 검사할 노드가 없다.
       if (bodyNodeIds.size === 0) continue;
       const internalEdges = pickContainerInternalEdges(
@@ -305,6 +362,7 @@ export class ParallelPrecheck {
       );
       this.assertParallelBranchChildrenAllowed(
         parallelNode,
+        branchEntries[i],
         bodyNodeIds,
         internalEdges,
         graph,
@@ -334,9 +392,8 @@ export class ParallelPrecheck {
    * 그 노드는 워커가 새 컨텍스트에서 실행하므로 깊이를 1 부터 센다
    * ({@link collectBackgroundOnlyNodeIds}, CLE-T-BTR4ZA). 회차 본문에서도 닿는 노드는
    * 회차 루프에서 실행되므로 컨테이너 깊이로 센다. 본문 Parallel 의 병렬 분기 안에 둔
-   * Background 의 본문은 그 병렬 분기 본문으로도 잡혀 바깥 깊이를 이어서 센다
-   * ({@link assertNestedParallelBodyAllowed}). 병렬 분기 안 Background 본문을 이렇게
-   * 엄격하게 세는 동작은 CLE-NODE-PARALLEL 「미결 사항」에 남아 있다.
+   * Background 의 본문도 같은 규칙으로 깊이 1부터 센다
+   * ({@link assertParallelBranchChildrenAllowed}, CLE-T-B7A8B2).
    */
   assertContainerBodyParallelsAllowed(
     containerNode: Node,

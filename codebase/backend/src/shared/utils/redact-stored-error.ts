@@ -66,11 +66,11 @@ export function redactStoredErrorForResponse(
  * @returns 마스킹된 **복사본**. copy-on-change 라 바뀐 것이 없으면 같은 참조를 돌려주므로
  *   입력은 변이되지 않고 불필요한 allocation 도 생기지 않는다. 입력이 없으면 `null`.
  */
-export function redactStoredDataForResponse(
-  data: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | null {
+export function redactStoredDataForResponse<T = Record<string, unknown>>(
+  data: T | null | undefined,
+): T | null {
   if (data === null || data === undefined) return null;
-  return deepRedactSecrets(data) as Record<string, unknown>;
+  return deepRedactSecrets(data) as T;
 }
 
 /**
@@ -93,17 +93,21 @@ export function redactStoredDataForResponse(
  * > 이유가 사라져 이 함수 하나로 합쳤다. 마스킹할 컬럼이 늘어날 때 고칠 자리는 이 함수
  * > 하나다.
  */
-export function redactStoredFieldsForResponse(row: {
+export function redactStoredFieldsForResponse<
+  O = Record<string, unknown>,
+>(row: {
   inputData?: Record<string, unknown> | null;
-  outputData?: Record<string, unknown> | null;
+  outputData?: O | null;
   error?: Record<string, unknown> | null;
 }): {
   inputData: Record<string, unknown> | null;
-  outputData: Record<string, unknown> | null;
+  outputData: O | null;
   error: Record<string, unknown> | null;
 } {
   return {
     inputData: redactStoredDataForResponse(row.inputData),
+    // `O` 는 실행 행의 `outputData`(핸들러 output 그대로라 배열 · 원시값일 수 있다)를 받으려고
+    // 연다. 마스킹은 값 모양과 상관없이 같다.
     outputData: redactStoredDataForResponse(row.outputData),
     error: redactStoredErrorForResponse(row.error),
   };

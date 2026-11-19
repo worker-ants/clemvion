@@ -34,6 +34,7 @@ import {
   ENGINE_DRIVER,
   type RetryEngineDriver,
 } from './engine-driver.interface';
+import { resolveExecutionOutputValue } from './handler-output.adapter';
 
 /**
  * `_retryState` JSONB 키 리터럴의 단일 진실 지점 (ai-review WARNING #3,
@@ -1183,9 +1184,11 @@ export class RetryTurnService {
     // (동시 cancel/park 선점)이면 emit skip.
     const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
     if (lastNodeId) {
-      savedExecution.outputData =
-        (context.nodeOutputCache[lastNodeId] as
-          Record<string, unknown> | undefined) ?? {};
+      // 결과 노드의 핸들러 output 그대로(엔진과 같은 resolveExecutionOutputValue).
+      savedExecution.outputData = resolveExecutionOutputValue(
+        context,
+        lastNodeId,
+      );
     }
     // 조건 밖 — `outputData` 만 마지막 노드에 의존한다 (engine 과 동일 처방).
     this.prepareSuccessTermination(savedExecution);

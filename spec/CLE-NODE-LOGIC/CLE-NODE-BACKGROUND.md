@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026", "REQ-BGRUN-027", "REQ-BGRUN-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "481731d7fb5f19e2341483d165ab4a5f0970cbeec3ba62f237443b6cebfddaa0"
+content_hash: "39821dac1d3f88f008b8e49d47460796d8ddd4b1a68e77be8c2e3fda5d111f6d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JDYHCF"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "6d8c08a66640027e1bb0d93d35a0a0b4382f0041a6bdfd0734658baaf63f2b9b"
-etag: "sha256-70f34638f7d9c97b614d44b8267ddf1eba3f65e8881dc59691fc8ec3b2cd7074"
+mirror_sha256: "853847b26402ce7d3319355993d3182b6d1a7589de08369655e1dbb924f99f9f"
+etag: "sha256-aace84af7457f57b506c149f158914a05f00d9fb99450358372f75ec4bfaa1d4"
 ---
 > 구현 상태: 부분 구현 (REQ-BGRUN-026 AI 어시스턴트 조회 도구는 미구현) · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -101,7 +101,7 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
 1. 핸들러는 입력을 바꾸지 않고 `output` 에 복사하고 `port: 'main'` 으로 반환한다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#패스스루-규약)).
 2. 핸들러가 끝난 직후 `ExecutionEngineService.scheduleBackgroundBody()` 가 BullMQ `background-execution` 큐에 다음을 넣는다.
    - `background` 포트 연결선의 도착 노드 ID 배열(본문 진입점)
-   - `context.variables`, `context.nodeOutputCache`, `context.expressionContext` 의 얕은 복사 스냅샷
+   - `context.variables`, `context.nodeOutputCache`, `context.structuredOutputCache`, `context.expressionContext` 의 얕은 복사 스냅샷
    - 대화 스레드 스냅샷. `turns` 배열까지 새로 복사해 본문과 메인이 서로의 턴 목록을 건드리지 못하게 한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md))
    - Background 노드가 받은 입력의 스냅샷. `main` 포트로 나가는 값과 같고 본문 진입 노드가 이 값을 입력으로 받는다. 맨 바깥 실행 · 입력 대기 뒤 재개 · 서브 워크플로우 · Background 본문 · 병렬 분기 · 컨테이너 본문 어디에 놓여도 같다
    - Background 가 컨테이너 본문 안에 있으면 그 컨테이너 ID(`containerScopeId`). 맨 바깥 Background 는 넣지 않는다
@@ -109,6 +109,7 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
    - `notifyOnFailure`, `maxDurationMs`
 3. `BackgroundExecutionProcessor` 워커가 작업을 꺼내면 `executeBackgroundSubgraph(job)` 이 다음을 한다.
    - 새 `ExecutionContext` 를 만들고 스냅샷으로 채운다.
+   - 작업에 구조화 출력 캐시가 있으면 본문 실행 컨텍스트에 되살린다. 본문 노드의 `$node["X"].output` 은 메인 흐름처럼 핸들러 `output` 그대로다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다), NERV Task `CLE-T-JDYHCF`). 이 필드가 생기기 전에 큐에 들어간 작업은 flat 값(`nodeOutputCache`)으로 대신 읽는다.
    - 작업에 반복 변수가 있으면 본문 실행 컨텍스트에 되살린다. 본문 노드의 식은 큐에 넣은 회차의 `$item` · `$itemIndex` · `$itemIsFirst` · `$itemIsLast` · `$loop` 를 읽는다. 반복 변수가 없는 작업(맨 바깥 Background, 필드를 넣기 전에 큐에 들어간 작업)은 본문에서 반복 변수가 비어 있다.
    - `executeInline(workflowId, input, { entryNodeIds, containerScopeId, ... })` 으로 진입점에서 앞으로 도달할 수 있는 노드만 실행한다. `containerScopeId` 가 있으면 그 컨테이너의 본문 노드만으로 그래프를 만든다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). 큐에 넣은 뒤 그 컨테이너가 워크플로우에서 지워졌으면 워커가 만든 그래프가 비어 본문을 실행하지 않고 오류 없이 끝난다.
    - `maxDurationMs > 0` 이면 `Promise.race` 로 시간 제한을 건다.
@@ -204,6 +205,7 @@ sequenceDiagram
 | 입력 데이터 | enqueue 시점 스냅샷 | Background 노드의 입력 그대로 |
 | `context.variables` | enqueue 시점 스냅샷(얕은 복사) | 메인의 이후 변경은 반영되지 않는다 |
 | `context.nodeOutputCache` | enqueue 시점 스냅샷 | 본문에서는 enqueue 시점까지의 메인 노드 출력을 참조할 수 있다 |
+| `context.structuredOutputCache` | enqueue 시점 스냅샷(얕은 복사) | 본문 노드 식의 `$node["X"]` 가 읽는다. 필드가 없는 옛 큐 작업은 `nodeOutputCache` 로 대신 읽는다 |
 | `context.expressionContext` | enqueue 시점 스냅샷 | 표현식 평가용 |
 | `context.conversationThread` | enqueue 시점 스냅샷(`turns` 배열까지 새로 복사) | 본문에서 쌓인 턴은 메인 스레드에 들어가지 않고 반대도 같다. 필드가 없는 옛 큐 작업은 빈 스레드로 시작한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md), [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#background-본문-실행)) |
 | 반복 변수 | enqueue 시점 스냅샷(`itemContext` · `loopContext` 복사본) | 컨테이너 본문 안(또는 그 안 병렬 분기)에서 큐에 넣은 작업만 있다. 되살리는 규칙은 [실행 로직](#실행-로직) 3 |
@@ -260,6 +262,7 @@ Background 본문 실패는 메인의 에러 코드가 되지 않는다. 본문 
 - `codebase/backend/src/nodes/logic/background/background.*.ts`
 - 모니터링 API · 구독 채널: [하위 문서 구현 위치](CLE-NODE-BACKGROUND-RUNS.md#구현-위치)
 - `codebase/backend/src/modules/execution-engine/**` (`scheduleBackgroundBody`, 노드 종류별 디스패치 `dispatchByNodeKind`, `executeBackgroundSubgraph`, `BackgroundExecutionProcessor`)
+- `codebase/backend/src/modules/execution-engine/queues/background-execution.queue.ts`: 큐 작업 타입(스냅샷 필드)
 
 ## Rationale
 
@@ -289,7 +292,7 @@ Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행
 
 ### 본문 진입 노드는 Background 노드가 받은 입력을 받는다 (2026-11-12)
 
-예전에는 `scheduleBackgroundBody` 를 부르는 다섯 곳이 본문 진입 노드에 서로 다른 값을 넘겼다. 맨 바깥 실행은 실행 원본 입력을, 입력 대기 뒤 재개 경로는 빈 객체(`{}`)를, `executeInline`(서브 워크플로우 · Background 워커)은 그 실행의 원본 입력을, 병렬 분기는 Parallel 이 받은 입력을 넘겼다. 컨테이너 본문만 그 회차에 Background 노드가 받은 입력을 넘겼다. 스펙도 「본문 진입」 표는 "Background 노드의 입력 그대로", 실행 로직 2 와 REQ-BGRUN-007 은 "메인 입력(`input` 스냅샷)"이라 두 가지로 읽혔다.
+예전에는 `scheduleBackgroundBody` 를 부르는 다섯 곳이 본문 진입 노드에 서로 다른 값을 넘겼다. 맨 바깥 실행은 실행 원본 입력을, 입력 대기 뒤 재개 경로는 빈 객체(`{}`)를, `executeInline`(서브 워크플로우 · Background 워커)은 그 실행의 원본 입력을, 병렬 분기는 Parallel 이 받은 입력을 넘겼다. 컨테이너 본문만 그 회차에 Background 노드가 받은 입력을 넘겼다.
 
 **(A) Background 노드가 받은 입력으로 맞추는 안** (채택): 다섯 곳 모두 Background 노드가 받은 입력을 넘긴다(NERV 질문 `01a1cef7-c693-7166-bc43-78e1436e1783`, 답 A). 「본문 진입」 표와 컨테이너 경로와 같고 `main` 포트로 나가는 값과도 같아서 본문과 메인의 다음 노드가 같은 값에서 출발한다. 노드 종류별 디스패치를 `dispatchByNodeKind` 하나로 합쳐 위치마다 값이 다시 갈라지지 않게 했다(NERV Task `CLE-T-TDAV1G`).
 

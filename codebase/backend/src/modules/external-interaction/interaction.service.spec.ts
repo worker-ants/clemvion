@@ -664,6 +664,44 @@ describe('InteractionService.getStatus', () => {
     expect(typeof r.updatedAt).toBe('string');
   });
 
+  // CLE-T-JDYHCF 결정 1 — `result` 는 마지막 노드의 핸들러 output 그대로라 배열 · 원시값일 수
+  // 있다. strip · 마스킹이 비객체를 예외 없이 통과시키고 자격증명은 가린다.
+  it.each([
+    ['배열', [1, { a: 2 }], [1, { a: 2 }]],
+    ['문자열', 'done', 'done'],
+    ['숫자 0', 0, 0],
+    ['불리언 false', false, false],
+  ])(
+    'completed 의 result 가 %s 이어도 그대로 돌려준다',
+    async (_l, out, want) => {
+      const { service, repo } = makeMocks();
+      repo.findOne.mockResolvedValue(
+        makeExecution({
+          status: ExecutionStatus.COMPLETED,
+          outputData: out as never,
+        }),
+      );
+      const r = await service.getStatus(IEXT_CTX);
+      expect(r.result).toEqual(want);
+    },
+  );
+
+  it('배열 result 안의 자격증명은 마스킹한다', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.COMPLETED,
+        outputData: [
+          'connect failed: postgres://u:pw@db.internal/prod',
+        ] as never,
+      }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.result).toEqual([
+      'connect failed: postgres://***@db.internal/prod',
+    ]);
+  });
+
   // push 계열(webhook/SSE/WS)은 종결 시 `durationMs` 를 싣는데 REST 재조회에는 필드
   // 자체가 없었다 — **이벤트 유실 후 재조회로 복구하는** 클라이언트 패턴에서 값이
   // 사라진다. 계산하지 않고 **영속 컬럼을 그대로** 싣는다(DB = wire).

@@ -3452,6 +3452,87 @@ describe('ExecutionEngineService', () => {
       inlineSpy.mockRestore();
     });
 
+    // 큐 작업의 구조화 출력 캐시 스냅샷은 본문 context 에 사본으로 들어간다. 필드가 없는 옛
+    // 작업은 빈 구조화 캐시로 시작해 예전처럼 flat 값으로 읽는다(CLE-T-JDYHCF 5번).
+    describe('구조화 출력 캐시 스냅샷 복원', () => {
+      const runCapturingStructured = async (
+        job: Parameters<ExecutionEngineService['executeBackgroundSubgraph']>[0],
+      ) => {
+        let captured: Record<string, unknown> | undefined;
+        const inlineSpy = jest
+          .spyOn(service, 'executeInline')
+          .mockImplementation((_w, _i, options) => {
+            captured = options.context.structuredOutputCache;
+            options.context.structuredOutputCache['body-node'] = {
+              output: 'written by body',
+            } as never;
+            return Promise.resolve(undefined);
+          });
+        try {
+          await service.executeBackgroundSubgraph(job);
+        } finally {
+          inlineSpy.mockRestore();
+        }
+        return captured;
+      };
+
+      it('작업에 스냅샷이 있으면 본문 context 에 사본으로 넣는다', async () => {
+        const snapshot = {
+          'node-1': { output: [1, 2, 3], port: 'success' },
+        };
+        const job = {
+          executionId,
+          parentNodeExecutionId: 'parent-1',
+          backgroundRunId: 'bg-run-1',
+          workspaceId: 'ws-1',
+          workflowId,
+          bodyEntryNodeIds: ['node-2'],
+          input: {},
+          variables: {},
+          nodeOutputCache: {},
+          structuredOutputCache: snapshot,
+          expressionContext: {},
+          conversationThread: createEmptyConversationThread(),
+          config: { notifyOnFailure: false, maxDurationMs: 0 },
+        } as unknown as Parameters<
+          ExecutionEngineService['executeBackgroundSubgraph']
+        >[0];
+
+        const captured = await runCapturingStructured(job);
+
+        expect(captured).not.toBe(snapshot);
+        expect(captured?.['node-1']).toEqual({
+          output: [1, 2, 3],
+          port: 'success',
+        });
+        // 본문이 쓴 항목은 작업 스냅샷으로 새지 않는다.
+        expect(snapshot).not.toHaveProperty('body-node');
+      });
+
+      it('스냅샷이 없는 옛 작업은 빈 구조화 캐시로 시작한다', async () => {
+        const job = {
+          executionId,
+          parentNodeExecutionId: 'parent-1',
+          backgroundRunId: 'bg-run-legacy',
+          workspaceId: 'ws-1',
+          workflowId,
+          bodyEntryNodeIds: ['node-2'],
+          input: {},
+          variables: {},
+          nodeOutputCache: { 'node-1': { hello: 'world' } },
+          expressionContext: {},
+          conversationThread: createEmptyConversationThread(),
+          config: { notifyOnFailure: false, maxDurationMs: 0 },
+        };
+
+        const captured = await runCapturingStructured(job);
+
+        expect(captured).toEqual({
+          'body-node': { output: 'written by body' },
+        });
+      });
+    });
+
     // race 회귀 차단: 본문 context 는 부모 executionId 가 아닌 bgKey 로 등록돼야
     // 하고(격리), executeBackgroundSubgraph 가 자체 finally 로 정리해야 한다
     // (근거: [Background 노드 「격리 계약」](CLE-NODE-BACKGROUND#격리-계약) ·
@@ -6189,7 +6270,7 @@ describe('ExecutionEngineService', () => {
       }
     });
 
-    // 재실행 dry-run 임시 가드 — 실행 시작이 만드는 `context.variables.__dryRun` 이
+    // 재실행 dry-run 부수효과 판정(CLE-EXEC-RERUN) — 실행 시작이 만드는 `context.variables.__dryRun` 이
     // `Execution.dryRun` 에서 오는지 고정한다(rehydration 쪽은 위 별도 케이스). provider
     // 가드 3종과 resume 재유도가 전부 이 값을 입력으로 삼아서, 이 연결이 끊기면 쇼핑몰
     // 쓰기를 막는 안전장치가 조용히 열린다.
@@ -7359,6 +7440,35 @@ describe('ExecutionEngineService', () => {
           expect.stringMatching(/UPDATE execution/),
           expect.arrayContaining([ExecutionStatus.COMPLETED]),
         );
+      });
+
+      // 엔진이 라우팅 표지를 붙인 값은 평면 캐시에만 둔다. `$node[X].output` 은 에러 데이터
+      // 그대로이고 `port` 는 `error` 다(NERV Task CLE-T-JDYHCF 3번과 같은 경로).
+      it('$node[X].output 은 라우팅 표지 없이 에러 데이터이고 port 는 error 다', async () => {
+        mockNodeRepo.findBy.mockResolvedValue([
+          throwerNode,
+          {
+            ...sinkNode('n-handle', 'error_sink_node'),
+            config: {
+              fromNode: '{{ $node["Thrower"].output }}',
+              port: '{{ $node["Thrower"].port }}',
+            },
+          },
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          throwerEdge('e-err', 'error', 'n-handle'),
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await flushPromises();
+
+        expect(errorSinkExecute).toHaveBeenCalledTimes(1);
+        const config = errorSinkExecute.mock.calls[0][1] as Record<
+          string,
+          unknown
+        >;
+        expect(config.fromNode).toStrictEqual({ error: routedError });
+        expect(config.port).toBe('error');
       });
 
       // 동적 에러 포트(REQ-NODEUI-012): 캔버스가 고정 `error` 포트가 없는 노드에
@@ -8641,7 +8751,7 @@ describe('ExecutionEngineService', () => {
       expect(ctx.variables['__workspaceId']).toBe('ws-rehydrate-w2');
     });
 
-    // 재실행 dry-run 임시 가드 — resume 경로가 만드는 `context.variables.__dryRun` 이
+    // 재실행 dry-run 부수효과 판정(CLE-EXEC-RERUN) — resume 경로가 만드는 `context.variables.__dryRun` 이
     // `Execution.dryRun` 에서 오는지 고정한다. provider 가드 3종과 resume 재유도가 전부
     // 이 값을 입력으로 삼으므로, 이 연결이 끊기면 가드가 조용히 열린다. 컬럼 NULL(배포 이전
     // row)은 false 로 닫는다.
@@ -8704,18 +8814,19 @@ describe('ExecutionEngineService', () => {
         ) => Promise<{ _executedNodes: Set<string> }>;
         contextService: {
           deleteContext: (id: string) => void;
-          setNodeOutput: (
+          setNodeOutputs: (
             key: unknown,
             nodeId: string,
-            output: unknown,
+            structured: unknown,
+            flat: unknown,
           ) => void;
         };
       };
       const subject = service as unknown as RehydrateSubject;
       subject.contextService.deleteContext(rehydrateExecId);
-      const setNodeOutputSpy = jest.spyOn(
+      const setNodeOutputsSpy = jest.spyOn(
         subject.contextService,
-        'setNodeOutput',
+        'setNodeOutputs',
       );
 
       mockWorkflowRepo.findOne.mockResolvedValueOnce({
@@ -8774,16 +8885,23 @@ describe('ExecutionEngineService', () => {
         findOneCallsBefore,
       );
       // (b) nodeId 당 최신 1건 — n1 은 iter-2 가 복원돼야 한다 (옛 값 회귀 차단).
-      const n1Call = setNodeOutputSpy.mock.calls.find((c) => c[1] === 'n1');
-      expect(n1Call?.[2]).toEqual({ output: { iter: 2 } });
-      const n2Call = setNodeOutputSpy.mock.calls.find((c) => c[1] === 'n2');
-      expect(n2Call?.[2]).toEqual({ output: { n2: true } });
+      // 정본이 아닌 옛 행이라 구조화 출력은 저장 값을 `output` 으로 감싼다.
+      const n1Call = setNodeOutputsSpy.mock.calls.find((c) => c[1] === 'n1');
+      expect(n1Call?.[2]).toEqual({
+        config: {},
+        output: { output: { iter: 2 } },
+      });
+      const n2Call = setNodeOutputsSpy.mock.calls.find((c) => c[1] === 'n2');
+      expect(n2Call?.[2]).toEqual({
+        config: {},
+        output: { output: { n2: true } },
+      });
       // (c) COMPLETED 부재 노드(n3)는 복원/완료 처리되지 않는다.
       expect(ctx._executedNodes.has('n1')).toBe(true);
       expect(ctx._executedNodes.has('n2')).toBe(true);
       expect(ctx._executedNodes.has('n3')).toBe(false);
 
-      setNodeOutputSpy.mockRestore();
+      setNodeOutputsSpy.mockRestore();
     });
   });
 
@@ -11900,19 +12018,40 @@ describe('ExecutionEngineService', () => {
       });
     };
 
-    // Code 는 isolated-vm 에서 돌아서 마이크로태스크 몇 번으로는 끝나지 않는다. 뒤 노드가
-    // 불릴 때까지 기다리고(최대 5초) 남은 포트 처리를 마저 흘려보낸다.
-    const waitForSink = async () => {
+    // 정해 둔 output · port 를 돌려주는 핸들러. 실제 Code 와 같은 다섯 필드 모양이다.
+    const registerValueNode = (
+      type: string,
+      output: unknown,
+      port = 'success',
+    ) =>
+      handlerRegistry.register(type, {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({ config: {}, output, port })),
+      });
+
+    // Code 는 isolated-vm 에서 돌아서 마이크로태스크 몇 번으로는 끝나지 않는다. 조건이 맞을
+    // 때까지 기다리고(최대 5초) 남은 포트 처리를 마저 흘려보낸다. 시간이 넘으면 그때까지 받은
+    // 호출을 담아 실패한다.
+    const waitUntil = async (done: () => boolean, label: string) => {
       const deadline = Date.now() + 5_000;
-      while (
-        successCalls.length + errorCalls.length === 0 &&
-        Date.now() < deadline
-      ) {
+      while (!done()) {
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `${label} 를 5초 안에 못 봤다. success=${JSON.stringify(
+              successCalls,
+            )} error=${JSON.stringify(errorCalls)}`,
+          );
+        }
         await new Promise((resolve) => setTimeout(resolve, 5));
       }
       await flushPromises();
       await flushPromises();
     };
+    const waitForSink = () =>
+      waitUntil(
+        () => successCalls.length + errorCalls.length > 0,
+        '뒤 노드 호출',
+      );
 
     beforeEach(() => {
       successCalls = [];
@@ -11924,13 +12063,15 @@ describe('ExecutionEngineService', () => {
 
     // trigger → code ─success→ ok
     //                ─error──→ err
+    // `codeType` 을 주면 실제 Code 대신 그 타입의 핸들러를 `code` 노드에 쓴다.
     const runCodeGraph = async (
       code: string,
       sinkConfig: Record<string, unknown> = {},
+      codeType = 'code',
     ) => {
       mockNodeRepo.findBy.mockResolvedValue([
         vNode('trigger', 'test_node'),
-        vNode('code', 'code', { code }),
+        vNode('code', codeType, { code }),
         vNode('ok', 'success_sink', sinkConfig),
         vNode('err', 'error_sink'),
       ]);
@@ -11942,25 +12083,50 @@ describe('ExecutionEngineService', () => {
       await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
       await waitForSink();
     };
+    // 실제 Code 대신 `output` 을 그대로 돌려주는 핸들러로 같은 그래프를 돌린다.
+    const runValueGraph = async (
+      output: unknown,
+      sinkConfig: Record<string, unknown> = {},
+    ) => {
+      registerValueNode('value_node', output);
+      await runCodeGraph('', sinkConfig, 'value_node');
+    };
+
+    const valueSinkConfig = {
+      fromNode: '{{ $node["code"].output }}',
+      fromInput: '{{ $input }}',
+      port: '{{ $node["code"].port }}',
+    };
+
+    // 대표 케이스는 실제 Code(isolated-vm)로 돌린다.
+    it('Code 가 배열을 돌려주면 다음 노드의 $input 과 $node["code"].output 이 그 배열이다', async () => {
+      const expected = [{ v: 1 }, { v: 2 }, { v: 3 }];
+      await runCodeGraph(
+        'return [{ v: 1 }, { v: 2 }, { v: 3 }];',
+        valueSinkConfig,
+      );
+
+      expect(successCalls).toHaveLength(1);
+      expect(successCalls[0].input).toEqual(expected);
+      expect(successCalls[0].config).toEqual(
+        expect.objectContaining({
+          fromNode: expected,
+          fromInput: expected,
+          port: 'success',
+        }),
+      );
+      expect(errorCalls).toHaveLength(0);
+    });
 
     it.each([
-      [
-        'array',
-        'return [{ v: 1 }, { v: 2 }, { v: 3 }];',
-        [{ v: 1 }, { v: 2 }, { v: 3 }],
-      ],
-      ['number', 'return 42;', 42],
-      ['string', "return 'hello';", 'hello'],
-      ['zero', 'return 0;', 0],
-      ['false', 'return false;', false],
+      ['number', 42],
+      ['string', 'hello'],
+      ['zero', 0],
+      ['false', false],
     ])(
-      'Code 가 %s 를 돌려주면 다음 노드의 $input 과 $node["code"].output 이 그 값이다',
-      async (_label, code, expected) => {
-        await runCodeGraph(code, {
-          fromNode: '{{ $node["code"].output }}',
-          fromInput: '{{ $input }}',
-          port: '{{ $node["code"].port }}',
-        });
+      'output 이 %s 이면 다음 노드의 $input 과 $node["code"].output 이 그 값이다',
+      async (_label, expected) => {
+        await runValueGraph(expected, valueSinkConfig);
 
         expect(successCalls).toHaveLength(1);
         expect(successCalls[0].input).toEqual(expected);
@@ -11976,37 +12142,231 @@ describe('ExecutionEngineService', () => {
       },
     );
 
-    // 예전에는 설정 에코(`code` · `language`)를 펼친 값에 `_selectedPort` 가 없어 success ·
-    // error 포트가 함께 열리고 다음 노드가 설정 에코를 받았다(NERV Task CLE-T-X3AH4F).
-    // CLE-NODE-CODE: `return` 이 없으면 `output` 은 `undefined` 다. 표현식은 없는 멤버를
-    // `null` 로 읽으므로(expression-engine 의 멤버 접근 규칙) `$node[...].output` 은 둘 다 `null` 이다.
+    // 포트가 있는 객체 출력도 `$node[X].output` 에 라우팅 표지(`_selectedPort`)가 붙지 않는다
+    // (CLE-T-JDYHCF 3번). `$input` 은 예전부터 표지를 뗀 값이었다.
+    it('포트가 있는 객체 output 의 $node["code"].output 에 _selectedPort 가 붙지 않는다', async () => {
+      await runValueGraph({ a: 1 }, valueSinkConfig);
+
+      expect(successCalls).toHaveLength(1);
+      expect(successCalls[0].input).toStrictEqual({ a: 1 });
+      expect(successCalls[0].config.fromNode).toStrictEqual({ a: 1 });
+      expect(successCalls[0].config.port).toBe('success');
+      expect(errorCalls).toHaveLength(0);
+    });
+
+    // Background 본문은 큐 작업(JSON)으로 넘어간 스냅샷으로 돈다. 구조화 출력이 스냅샷에 없으면
+    // 본문의 `$node[X].output` 이 엔진 내부 flat 값(`{ data, _selectedPort }`)으로 보였다
+    // (CLE-T-JDYHCF 5번).
     it.each([
-      ['null', 'return null;', null],
-      ['반환 없음', 'const x = 1;', undefined],
+      ['array', [1, 2, 3]],
+      ['number', 42],
+      ['object', { a: 1 }],
     ])(
-      'Code 가 %s 이면 success 포트만 열고 다음 노드는 설정 에코가 아니라 그 값을 받는다',
-      async (_label, code, expected) => {
-        await runCodeGraph(code, {
-          fromNode: '{{ $node["code"].output }}',
-          port: '{{ $node["code"].port }}',
+      'Background 본문의 $node["code"].output 이 %s output 을 그대로 본다',
+      async (_label, value) => {
+        handlerRegistry.register('background', new BackgroundHandler(), {
+          kind: 'background',
         });
+        registerValueNode('value_node', value);
+        mockNodeRepo.findBy.mockResolvedValue([
+          vNode('trigger', 'test_node'),
+          vNode('code', 'value_node'),
+          vNode('bg', 'background'),
+          vNode('ok', 'success_sink', {
+            fromNode: '{{ $node["code"].output }}',
+            port: '{{ $node["code"].port }}',
+          }),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          vEdge('trigger', 'out', 'code'),
+          vEdge('code', 'success', 'bg'),
+          vEdge('bg', 'background', 'ok'),
+        ]);
+        const queueAdd = (
+          service as unknown as { backgroundQueue: { add: jest.Mock } }
+        ).backgroundQueue.add;
+        queueAdd.mockClear();
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await waitUntil(
+          () => queueAdd.mock.calls.length > 0,
+          'Background 큐 작업',
+        );
+        expect(successCalls).toHaveLength(0);
+
+        // BullMQ 는 작업을 JSON 으로 저장한다.
+        const job = JSON.parse(
+          JSON.stringify(queueAdd.mock.calls[0][1]),
+        ) as BackgroundExecutionJob;
+        await service.executeBackgroundSubgraph(job);
+        await waitForSink();
 
         expect(successCalls).toHaveLength(1);
-        expect(errorCalls).toHaveLength(0);
-        expect(successCalls[0].input).toBe(expected);
-        expect(successCalls[0].config.fromNode).toBeNull();
+        expect(successCalls[0].config.fromNode).toStrictEqual(value);
         expect(successCalls[0].config.port).toBe('success');
       },
     );
 
-    // 입력을 그대로 넘기는 분기 노드(If/Else 의 `output: input`)는 Code 의 `null` 을 받으면
-    // 자기 출력도 `null` 이 되어 같은 봉투를 탄다. 고른 포트 하나만 열고 그 뒤 노드는 `null` 을
+    // 실행 결과(`Execution.outputData`)와 동기 서브워크플로 결과(`executeInline` 반환값 →
+    // `$node["Workflow"].output.result`)는 마지막 노드의 핸들러 `output` 그대로다. 예전에는
+    // 엔진 flat 값이라 `{ data, _selectedPort }` · `{ ...값, _selectedPort }` 였다
+    // (CLE-T-JDYHCF 결정 1).
+    const persistedExecutionOutput = (): unknown => {
+      const completedCall = mockExecutionRepo.query.mock.calls.find(
+        (c: unknown[]) =>
+          typeof c[0] === 'string' &&
+          c[0].includes('output_data') &&
+          (c[1] as unknown[])?.[1] === ExecutionStatus.COMPLETED,
+      );
+      return completedCall
+        ? (JSON.parse((completedCall[1] as string[])[5]) as unknown)
+        : undefined;
+    };
+
+    it.each([
+      ['array', [1, 2, 3]],
+      ['number', 42],
+      ['object', { a: 1 }],
+    ])(
+      '마지막 노드 output 이 %s 이면 실행 결과 outputData 가 그 값이다',
+      async (_label, value) => {
+        registerValueNode('value_node', value);
+        mockNodeRepo.findBy.mockResolvedValue([
+          vNode('trigger', 'test_node'),
+          vNode('code', 'value_node'),
+        ]);
+        mockEdgeRepo.findBy.mockResolvedValue([
+          vEdge('trigger', 'out', 'code'),
+        ]);
+
+        await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+        await waitUntil(
+          () => persistedExecutionOutput() !== undefined,
+          '실행 완료',
+        );
+
+        expect(persistedExecutionOutput()).toStrictEqual(value);
+      },
+    );
+
+    it.each([
+      ['array', [1, 2, 3]],
+      ['number', 42],
+      ['object', { a: 1 }],
+    ])(
+      '서브워크플로 마지막 노드 output 이 %s 이면 executeInline 이 그 값을 돌려준다',
+      async (_label, value) => {
+        registerValueNode('value_node', value);
+        mockNodeRepo.findBy.mockResolvedValue([vNode('code', 'value_node')]);
+        mockEdgeRepo.findBy.mockResolvedValue([]);
+        const contextService = (
+          service as unknown as { contextService: ExecutionContextService }
+        ).contextService;
+        const context = withWorkspace(
+          contextService.createContext(executionId, workflowId),
+        );
+
+        const result = await service.executeInline(
+          workflowId,
+          {},
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'workflow-node-row',
+          },
+        );
+
+        expect(result).toStrictEqual(value);
+      },
+    );
+
+    // Parallel 로 끝나는 서브워크플로는 Parallel 실행 경로(`executeAndDispatchNode` 가 true)로
+    // 빠져 `lastOutput` 을 그 자리에서 읽는다. 그 경로도 flat 봉투가 아니라 핸들러 output 을 준다.
+    it('서브워크플로가 Parallel 실행 경로로 끝나도 executeInline 은 그 노드의 핸들러 output 을 돌려준다', async () => {
+      mockNodeRepo.findBy.mockResolvedValue([vNode('parallel', 'parallel')]);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
+      const output = [{ branch: 'a' }, { branch: 'b' }];
+      jest
+        .spyOn(
+          service as unknown as {
+            executeAndDispatchNode: (arg: {
+              node: { id: string };
+            }) => Promise<boolean>;
+          },
+          'executeAndDispatchNode',
+        )
+        .mockImplementation((arg) => {
+          contextService.setNodeOutputs(
+            executionId,
+            arg.node.id,
+            { config: {}, output },
+            { data: output, _selectedPort: 'default' },
+          );
+          return Promise.resolve(true);
+        });
+
+      const result = await service.executeInline(
+        workflowId,
+        {},
+        {
+          executionId,
+          context,
+          executedNodes: new Set<string>(),
+          recursionDepth: 1,
+          parentNodeExecutionId: 'workflow-node-row',
+        },
+      );
+
+      expect(result).toStrictEqual(output);
+    });
+
+    // 예전에는 설정 에코(`code` · `language`)를 펼친 값에 `_selectedPort` 가 없어 success ·
+    // error 포트가 함께 열리고 다음 노드가 설정 에코를 받았다(NERV Task CLE-T-X3AH4F).
+    // CLE-NODE-CODE: `return` 이 없으면 `output` 은 `undefined` 다. 표현식은 없는 멤버를
+    // `null` 로 읽으므로(expression-engine 의 멤버 접근 규칙) `$node[...].output` 은 둘 다 `null` 이다.
+    it('Code 가 null 을 돌려주면 success 포트만 열고 다음 노드는 설정 에코가 아니라 null 을 받는다', async () => {
+      await runCodeGraph('return null;', {
+        fromNode: '{{ $node["code"].output }}',
+        port: '{{ $node["code"].port }}',
+      });
+
+      expect(successCalls).toHaveLength(1);
+      expect(errorCalls).toHaveLength(0);
+      expect(successCalls[0].input).toBeNull();
+      expect(successCalls[0].config.fromNode).toBeNull();
+      expect(successCalls[0].config.port).toBe('success');
+    });
+
+    it('output 이 없으면 success 포트만 열고 다음 노드는 설정 에코가 아니라 undefined 를 받는다', async () => {
+      await runValueGraph(undefined, {
+        fromNode: '{{ $node["code"].output }}',
+        port: '{{ $node["code"].port }}',
+      });
+
+      expect(successCalls).toHaveLength(1);
+      expect(errorCalls).toHaveLength(0);
+      expect(successCalls[0].input).toBeUndefined();
+      expect(successCalls[0].config.fromNode).toBeNull();
+      expect(successCalls[0].config.port).toBe('success');
+    });
+
+    // 입력을 그대로 넘기는 분기 노드(If/Else 의 `output: input`)는 `null` 을 받으면 자기
+    // 출력도 `null` 이 되어 같은 봉투를 탄다. 고른 포트 하나만 열고 그 뒤 노드는 `null` 을
     // 받는다(NERV Task CLE-T-X3AH4F 의 영향 범위. Switch · Background 도 같은 모양이다).
-    it('Code 의 null 을 받은 If/Else 도 고른 포트로만 보내고 그 뒤 노드는 null 을 받는다', async () => {
+    it('null 을 받은 If/Else 도 고른 포트로만 보내고 그 뒤 노드는 null 을 받는다', async () => {
       handlerRegistry.register('if_else', new IfElseHandler());
+      registerValueNode('value_node', null);
       mockNodeRepo.findBy.mockResolvedValue([
         vNode('trigger', 'test_node'),
-        vNode('code', 'code', { code: 'return null;' }),
+        vNode('code', 'value_node'),
         vNode('branch', 'if_else', {
           conditions: [{ field: 'value', operator: 'is_null' }],
           combineMode: 'and',
@@ -12030,7 +12390,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('배열 원소를 표현식으로 바로 읽는다', async () => {
-      await runCodeGraph('return [{ v: 1 }, { v: 2 }, { v: 3 }];', {
+      await runValueGraph([{ v: 1 }, { v: 2 }, { v: 3 }], {
         count: '{{ $input.length }}',
         second: '{{ $node["code"].output[1].v }}',
       });
@@ -12041,9 +12401,10 @@ describe('ExecutionEngineService', () => {
     });
 
     it('사용자가 돌려준 { data: [...] } 객체는 풀지 않는다', async () => {
-      await runCodeGraph('return { data: [1, 2] };', {
-        dataFromNode: '{{ $node["code"].output.data }}',
-      });
+      await runValueGraph(
+        { data: [1, 2] },
+        { dataFromNode: '{{ $node["code"].output.data }}' },
+      );
 
       expect(successCalls[0].input).toEqual({ data: [1, 2] });
       expect(successCalls[0].config).toEqual(
@@ -12055,15 +12416,7 @@ describe('ExecutionEngineService', () => {
     // 분기 노드가 배열을 그대로 넘겨도(If/Else · Switch 의 `output: input`) 고른 포트로만
     // 가고 그 뒤 노드는 배열을 받는다.
     it('배열 output 을 고른 포트로만 보내고 그 뒤 노드는 배열을 받는다', async () => {
-      handlerRegistry.register('array_router', {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => ({
-          config: {},
-          output: ['a', 'b'],
-          meta: { conditionResult: true },
-          port: 'true',
-        })),
-      });
+      registerValueNode('array_router', ['a', 'b'], 'true');
       mockNodeRepo.findBy.mockResolvedValue([
         vNode('trigger', 'test_node'),
         vNode('router', 'array_router'),
@@ -12077,7 +12430,7 @@ describe('ExecutionEngineService', () => {
       ]);
 
       await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
-      await flushPromises();
+      await waitForSink();
 
       expect(successCalls).toHaveLength(1);
       expect(successCalls[0].input).toEqual(['a', 'b']);
@@ -12088,19 +12441,10 @@ describe('ExecutionEngineService', () => {
     });
 
     // 입력 노드가 둘이면 `$input` 은 { [sourceId]: 값 } 으로 합쳐진다. 각 값은 봉투가 풀린 배열이다.
+    // 합류 노드는 두 입력이 다 온 뒤 한 번만 실행된다.
     it('입력 노드 둘이 배열 + port 를 내보내면 $input 을 { [sourceId]: 배열 } 로 합친다', async () => {
-      const registerRouter = (type: string, output: unknown[]) =>
-        handlerRegistry.register(type, {
-          validate: () => ({ valid: true, errors: [] }),
-          execute: jest.fn(async () => ({
-            config: {},
-            output,
-            meta: { conditionResult: true },
-            port: 'true',
-          })),
-        });
-      registerRouter('array_router_a', ['a1', 'a2']);
-      registerRouter('array_router_b', ['b1']);
+      registerValueNode('array_router_a', ['a1', 'a2'], 'true');
+      registerValueNode('array_router_b', ['b1'], 'true');
       mockNodeRepo.findBy.mockResolvedValue([
         vNode('trigger', 'test_node'),
         vNode('ra', 'array_router_a'),
@@ -12115,15 +12459,13 @@ describe('ExecutionEngineService', () => {
       ]);
 
       await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
-      await flushPromises();
+      await waitForSink();
 
-      expect(successCalls.length).toBeGreaterThan(0);
-      const last = successCalls[successCalls.length - 1].input as Record<
-        string,
-        unknown
-      >;
-      expect(last.ra).toEqual(['a1', 'a2']);
-      expect(last.rb).toEqual(['b1']);
+      expect(successCalls).toHaveLength(1);
+      const merged = successCalls[0].input as Record<string, unknown>;
+      expect(Object.keys(merged).sort()).toEqual(['ra', 'rb']);
+      expect(merged.ra).toEqual(['a1', 'a2']);
+      expect(merged.rb).toEqual(['b1']);
       expect(errorCalls).toHaveLength(0);
     });
   });
@@ -16497,6 +16839,124 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // 재개 뒤 캐시 복원(CLE-T-JDYHCF 4번). DB 의 완료 행은 다섯 필드 정본 `{ config, output,
+  // port… }` 이다. 정상 실행이 만든 두 캐시와 같은 값으로 되살려야 다음 노드의 `$input` ·
+  // 포트 라우팅 · `$node[X].output` 이 재개 전과 같다.
+  describe('rehydrateContext — 완료 노드 출력 캐시 복원 (CLE-T-JDYHCF)', () => {
+    type RehydrateCacheSubject = {
+      rehydrateContext: (
+        execution: unknown,
+        waitingNodeExec: unknown,
+      ) => Promise<{
+        nodeOutputCache: Record<string, unknown>;
+        structuredOutputCache: Record<string, { output?: unknown }>;
+        _executedNodes?: Set<string>;
+      }>;
+      gatherNodeInput: (
+        nodeId: string,
+        edges: unknown[],
+        executedNodes: Set<string>,
+        nodeOutputCache: Record<string, unknown>,
+        workflowInput: unknown,
+        incomingEdgeMap?: Map<string, unknown[]>,
+      ) => unknown;
+      contextService: { deleteContext: (key: string) => void };
+    };
+    const subject = () => service as unknown as RehydrateCacheSubject;
+    const WORKFLOW_INPUT = { from: 'workflow-input' };
+
+    const restore = async (executionId: string, outputData: unknown) => {
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([{ nodeId: 'src' }]);
+      mockNodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne-src',
+          nodeId: 'src',
+          status: NodeExecutionStatus.COMPLETED,
+          outputData,
+        },
+      ]);
+      subject().contextService.deleteContext(executionId);
+      const ctx = await subject().rehydrateContext(
+        {
+          id: executionId,
+          workflowId,
+          status: ExecutionStatus.RUNNING,
+          recursionDepth: 0,
+          dryRun: false,
+          conversationThread: null,
+        },
+        null,
+      );
+      // 다음 노드 `next` 가 `src` 의 `sourcePort` 연결선 하나로 이어진 그래프의 `$input`.
+      const inputVia = (sourcePort: string) => {
+        const edge = {
+          sourceNodeId: 'src',
+          sourcePort,
+          targetNodeId: 'next',
+          targetPort: 'in',
+        };
+        return subject().gatherNodeInput(
+          'next',
+          [edge],
+          ctx._executedNodes ?? new Set(),
+          ctx.nodeOutputCache,
+          WORKFLOW_INPUT,
+          new Map([['next', [edge]]]),
+        );
+      };
+      subject().contextService.deleteContext(executionId);
+      return { ctx, inputVia };
+    };
+
+    it.each([
+      ['배열', [1, 2, 3]],
+      ['객체', { a: 1 }],
+      ['숫자', 42],
+      ['null', null],
+    ])(
+      '포트가 있는 %s 출력을 되살리면 다음 노드 $input 은 그 값이고 다른 포트 연결선은 막힌다',
+      async (_label, value) => {
+        const { ctx, inputVia } = await restore('exec-rehydrate-cache', {
+          config: { code: 'return x;' },
+          output: value,
+          port: 'success',
+        });
+
+        expect(inputVia('success')).toEqual(value);
+        expect(inputVia('error')).toBeUndefined();
+        expect(ctx.structuredOutputCache.src).toEqual({
+          config: { code: 'return x;' },
+          output: value,
+          port: 'success',
+        });
+      },
+    );
+
+    it('포트 없는 정본 행은 output 을 다음 노드 $input 으로 준다', async () => {
+      const { ctx, inputVia } = await restore('exec-rehydrate-noport', {
+        config: {},
+        output: { rows: [1] },
+      });
+
+      expect(inputVia('out')).toEqual({ rows: [1] });
+      expect(ctx.structuredOutputCache.src.output).toEqual({ rows: [1] });
+    });
+
+    it('정본이 아닌 옛 행은 값 그대로 되살린다', async () => {
+      const { ctx, inputVia } = await restore('exec-rehydrate-legacy', {
+        foo: 1,
+      });
+
+      expect(inputVia('out')).toEqual({ foo: 1 });
+      expect(ctx.structuredOutputCache.src.output).toEqual({ foo: 1 });
+    });
+  });
+
   // PR-A2a — `_resumeCheckpoint` 견고화 (spec §1.3 / §7.5). checkpoint 에 스키마
   // 버전을 stamp 하고, 재구성 시 버전 메타를 strip + 핵심 필드 누락을 기본값으로
   // 보강한다. buildResumeCheckpoint / buildRetryReentryState 를 직접 호출해 격리 검증.
@@ -16685,7 +17145,7 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    // 재실행 dry-run 임시 가드 — resume 턴 provider-tool 실행도 dry-run 을 알아야 MCP
+    // 재실행 dry-run 부수효과 판정(CLE-EXEC-RERUN) — resume 턴 provider-tool 실행도 dry-run 을 알아야 MCP
     // 도구를 실제로 부르지 않는다. dryRun 은 checkpoint 에 영속하지 않는 context-binding
     // 값이라 context.variables.__dryRun 에서 재유도한다(checkpoint 에 값이 남아도 무시).
     it.each([

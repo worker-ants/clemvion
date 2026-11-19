@@ -77,8 +77,12 @@ export class Execution {
   @Column({ name: 'input_data', type: 'jsonb', nullable: true })
   inputData: Record<string, unknown> | null;
 
+  /**
+   * 마지막 노드의 핸들러 `output` 그대로다. 배열 · 원시값일 수 있고 출력이 없으면 `{}` 다
+   * (NERV Task CLE-T-JDYHCF 결정 1).
+   */
   @Column({ name: 'output_data', type: 'jsonb', nullable: true })
-  outputData: Record<string, unknown> | null;
+  outputData: unknown;
 
   @Column({ type: 'jsonb', nullable: true })
   error: Record<string, unknown> | null;

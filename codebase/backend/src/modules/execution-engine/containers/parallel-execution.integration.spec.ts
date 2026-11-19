@@ -890,9 +890,24 @@ describe('ExecutionEngineService', () => {
       let doneReceived: unknown[];
       let sinkConfigs: Record<string, unknown>[];
       let structuredSpy: jest.SpyInstance;
+      let nodeOutputsSpy: jest.SpyInstance;
+
+      // 구조화 출력 기록을 호출 순서대로 모은다. 노드 실행 완료는 `setNodeOutputs` 로 두
+      // 캐시를 함께 쓰고(CLE-T-JDYHCF), 엔진 덮어쓰기는 `setStructuredOutput` 으로 쓴다.
+      // 두 메서드 모두 (key, nodeId, structured, …) 순서라 앞 세 인자만 본다.
+      const structuredWrites = (): unknown[][] =>
+        [structuredSpy, nodeOutputsSpy]
+          .flatMap((spy) =>
+            spy.mock.calls.map((call: unknown[], i: number) => ({
+              order: spy.mock.invocationCallOrder[i],
+              call,
+            })),
+          )
+          .sort((a, b) => a.order - b.order)
+          .map(({ call }) => call);
 
       const parallelStructured = () => {
-        const calls = structuredSpy.mock.calls.filter(
+        const calls = structuredWrites().filter(
           (call: unknown[]) => call[1] === 'par',
         );
         return calls.length > 0
@@ -946,10 +961,12 @@ describe('ExecutionEngineService', () => {
           service as unknown as { contextService: ExecutionContextService }
         ).contextService;
         structuredSpy = jest.spyOn(contextService, 'setStructuredOutput');
+        nodeOutputsSpy = jest.spyOn(contextService, 'setNodeOutputs');
       });
 
       afterEach(() => {
         structuredSpy.mockRestore();
+        nodeOutputsSpy.mockRestore();
       });
 
       const runGraph = async (
@@ -1281,6 +1298,162 @@ describe('ExecutionEngineService', () => {
           expect(parRows(NodeExecutionStatus.COMPLETED)).toHaveLength(0);
           expect(parEvents('execution.node.cancelled')).toHaveLength(1);
           expect(parEvents('execution.node.completed')).toHaveLength(0);
+        });
+
+        // CLE-T-JQHZ99 — 본문 실행 전 사전 검사에서 던지면 `runParallel` 은 행을 마감하지
+        // 않는다. `executeAndDispatchNode` 가 열린 행을 FAILED 로 마감해 RUNNING 으로 남지 않는다.
+        it('사전 검사 실패(PARALLEL_INVALID_CHILD)면 Parallel 행을 FAILED 로 한 번 마감하고 failed 이벤트를 한 번 보낸다', async () => {
+          handlerRegistry.register(
+            'form_like',
+            {
+              validate: () => ({ valid: true, errors: [] }),
+              execute: jest.fn(async () => mockOutput({ form: true })),
+            },
+            { kind: 'blocking', interaction: 'form' },
+          );
+          registerHandler('ok_node', async () => mockOutput({ ok: true }));
+          await runGraph(
+            {},
+            [
+              pNode('a', 'ok_node'),
+              pNode('f', 'form_like'),
+              pNode('sink', 'sink_node'),
+            ],
+            [
+              pEdge('par', 'branch_0', 'a'),
+              pEdge('par', 'branch_1', 'f'),
+              pEdge('par', 'done', 'sink'),
+            ],
+          );
+
+          expect(parRows(NodeExecutionStatus.COMPLETED)).toHaveLength(0);
+          const failed = parRows(NodeExecutionStatus.FAILED);
+          expect(failed).toHaveLength(1);
+          expect(failed[0].id).toBe('ne-par');
+          expect(failed[0].error).toEqual({
+            message: expect.stringMatching(/^PARALLEL_INVALID_CHILD: /),
+          });
+          const failedEvents = parEvents('execution.node.failed');
+          expect(failedEvents).toHaveLength(1);
+          expect(parEvents('execution.node.completed')).toHaveLength(0);
+          expect(doneReceived).toEqual([]);
+        });
+
+        // CLE-T-JQHZ99 — Loop · ForEach · Map 도 같은 catch 를 쓴다. `runContainer` 가 행을
+        // 마감하기 전에 던져도 컨테이너 행이 RUNNING 으로 남거나 두 번 마감되면 안 된다.
+        describe('컨테이너 실행 경로가 던질 때', () => {
+          const feRows = (status: NodeExecutionStatus) =>
+            savedRows.filter((r) => r.nodeId === 'fe' && r.status === status);
+          const feEvents = (eventType: string) =>
+            mockWebsocketService.emitNodeEvent.mock.calls.filter(
+              (c) => c[1] === 'fe' && c[2] === eventType,
+            );
+
+          const runForeach = async (rejectWith: Error) => {
+            handlerRegistry.register('foreach', new ForEachHandler(), {
+              kind: 'container',
+            });
+            registerHandler('items_node', async () =>
+              mockOutput({ items: [{ n: 1 }] }),
+            );
+            registerHandler('double_node', async () => mockOutput({ d: 1 }));
+            mockNodeRepo.findBy.mockResolvedValue([
+              pNode('trigger', 'test_node'),
+              pNode('src', 'items_node'),
+              pNode('fe', 'foreach', { arrayField: 'items' }),
+              { ...pNode('body', 'double_node'), containerId: 'fe' },
+            ]);
+            mockEdgeRepo.findBy.mockResolvedValue([
+              pEdge('trigger', 'out', 'src'),
+              pEdge('src', 'out', 'fe'),
+              pEdge('fe', 'body', 'body'),
+              { ...pEdge('body', 'out', 'fe'), targetPort: 'emit' },
+            ]);
+            const runContainerSpy = jest
+              .spyOn(
+                service as unknown as {
+                  runContainer: () => Promise<void>;
+                },
+                'runContainer',
+              )
+              .mockRejectedValue(rejectWith);
+            try {
+              await service.execute(
+                workflowId,
+                { start: true },
+                { workspaceId: 'ws-1' },
+              );
+              await flushPromises();
+            } finally {
+              runContainerSpy.mockRestore();
+            }
+          };
+
+          it('runContainer 가 reject 되면 컨테이너 행을 FAILED 로 한 번 마감하고 failed 이벤트를 한 번 보낸다', async () => {
+            await runForeach(new Error('container boom'));
+
+            expect(feRows(NodeExecutionStatus.FAILED)).toHaveLength(1);
+            expect(feRows(NodeExecutionStatus.CANCELLED)).toHaveLength(0);
+            expect(feRows(NodeExecutionStatus.COMPLETED)).toHaveLength(0);
+            expect(feEvents('execution.node.failed')).toHaveLength(1);
+            expect(feEvents('execution.node.completed')).toHaveLength(0);
+          });
+
+          it('runContainer 가 외부 취소로 reject 되면 컨테이너 행을 CANCELLED 로 마감한다', async () => {
+            await runForeach(new ExecutionCancelledError());
+
+            expect(feRows(NodeExecutionStatus.CANCELLED)).toHaveLength(1);
+            expect(feRows(NodeExecutionStatus.FAILED)).toHaveLength(0);
+            expect(feEvents('execution.node.cancelled')).toHaveLength(1);
+            expect(feEvents('execution.node.failed')).toHaveLength(0);
+          });
+        });
+
+        // `afterExecute` 는 병렬 분기 루프가 넘기는 훅이다. 던지면 열린 행을 마감하고 다시 던진다.
+        it('afterExecute 가 던지면 열린 행을 FAILED 로 마감하고 에러를 다시 던진다', async () => {
+          const row = {
+            id: 'ne-x',
+            executionId: 'exec-x',
+            nodeId: 'par',
+            status: NodeExecutionStatus.RUNNING,
+          } as unknown as NodeExecution;
+          const boom = new Error('after boom');
+          const priv = service as unknown as {
+            executeNode: jest.Mock;
+            dispatchByNodeKind: jest.Mock;
+            executeAndDispatchNode: (o: unknown) => Promise<unknown>;
+          };
+          const executeSpy = jest
+            .spyOn(priv, 'executeNode')
+            .mockResolvedValue({ nodeExecution: row } as never);
+          const dispatchSpy = jest.spyOn(priv, 'dispatchByNodeKind');
+          try {
+            await expect(
+              priv.executeAndDispatchNode({
+                executionId: 'exec-x',
+                node: pNode('par', 'parallel'),
+                nodeInput: {},
+                context: { nodeOutputCache: {} },
+                executedNodes: new Set<string>(),
+                executionMeta: undefined,
+                nodeMap: new Map(),
+                outgoingEdgeMap: new Map(),
+                allNodes: [],
+                allEdges: [],
+                afterExecute: () => {
+                  throw boom;
+                },
+              }),
+            ).rejects.toBe(boom);
+            expect(dispatchSpy).not.toHaveBeenCalled();
+          } finally {
+            executeSpy.mockRestore();
+            dispatchSpy.mockRestore();
+          }
+
+          expect(parRows(NodeExecutionStatus.FAILED)).toHaveLength(1);
+          expect(parRows(NodeExecutionStatus.RUNNING)).toHaveLength(0);
+          expect(parEvents('execution.node.failed')).toHaveLength(1);
         });
 
         it('continue 정책의 분기 실패는 Parallel 행을 done 완료 출력으로 COMPLETED 저장한다', async () => {
@@ -1982,10 +2155,10 @@ describe('ExecutionEngineService', () => {
           };
           handlerRegistry.register(type, handler);
         };
-        // structuredSpy 의 호출 인자는 (executionId, nodeId, payload) 순서다. 같은 노드를
+        // 구조화 출력 기록의 호출 인자는 (executionId, nodeId, payload) 순서다. 같은 노드를
         // 여러 번 기록했으면 마지막 호출의 payload 를 돌려준다.
         const structuredOf = (nodeId: string) => {
-          const matched = structuredSpy.mock.calls
+          const matched = structuredWrites()
             .map((call: unknown[]) => {
               const [, id, payload] = call;
               return { id, payload };
@@ -2495,9 +2668,9 @@ describe('ExecutionEngineService', () => {
           }
           return { runs, inputs };
         };
-        // structuredSpy 의 호출 인자는 (executionId, nodeId, payload) 순서다.
+        // 구조화 출력 기록의 호출 인자는 (executionId, nodeId, payload) 순서다.
         const structuredOf = (nodeId: string) => {
-          const matched = structuredSpy.mock.calls.filter(
+          const matched = structuredWrites().filter(
             (call: unknown[]) => call[1] === nodeId,
           );
           return matched.length > 0

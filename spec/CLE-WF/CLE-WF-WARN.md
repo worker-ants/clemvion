@@ -2,19 +2,19 @@
 id: "CLE-WF-WARN"
 title: "그래프 경고 규칙"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "960b71e370f8a8b393b520a5cc8db9c37aa2a8a9e14131891659e9b7b2db5bd0"
+content_hash: "e40639dc5b8fdeff8f04eec018b5a3c633297425a6331745bbae8d81e6407d36"
 read_as: "approved_fallback"
-task: "CLE-T-D6C9HJ"
+task: "CLE-T-B7A8B2"
 source_paths: ["spec/conventions/cross-node-warning-rules.md"]
-mirror_sha256: "dad77e4a329b7ff89e7513b3b9dcd676643a7a03eb13347ec431a26fe9898893"
-etag: "sha256-04caf00e40f119079212ecc64e9f19d6a26c73d9b9447b62bd8f091f7032dd87"
+mirror_sha256: "cf4dc51f376a457d2b3193f83cccfc0288f962d7f56250d967edcd98adb7ea92"
+etag: "sha256-d99ffa8fc8f994e596f0636fc62cd11053b2555f21e8bab8d949f6897134a8a1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/cross-node-warning-rules.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -177,8 +177,8 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 
 | 노드 | 규칙 id | 심각도 | 뜻 |
 | --- | --- | --- | --- |
-| Parallel | `parallel:nested-depth-exceeded` | `error` | 바깥 Parallel 의 병렬 분기 본문에 안쪽 Parallel 이 있고 그 분기 본문에 또 Parallel 이 있으면 깊이 3이라 거부한다(Parallel 후속 결정 3). |
-| Parallel | `parallel:nested-concurrency-cap` | `warning` | 바깥 유효 동시성 × 안쪽 유효 동시성이 32를 넘으면 경고한다. 실행 시 말없이 상한을 낮추는 조정이 안전망이다(Parallel 후속 결정 3, D). |
+| Parallel | `parallel:nested-depth-exceeded` | `error` | 바깥 Parallel 의 병렬 분기 본문에 안쪽 Parallel 이 있고 그 분기 본문에 또 Parallel 이 있으면 깊이 3이라 거부한다(Parallel 후속 결정 3). Background 의 `background` 연결선 뒤 본문은 병렬 분기 본문으로 세지 않는다. 그 본문의 Parallel 은 깊이 1 부터 검사한다([Parallel 노드 — 놓인 위치와 중첩 §저장 규칙과 실행 검사의 범위](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL-NEST.md#저장-규칙과-실행-검사의-범위)). |
+| Parallel | `parallel:nested-concurrency-cap` | `warning` | 바깥 유효 동시성 × 안쪽 유효 동시성이 32를 넘으면 경고한다. 실행 시 말없이 상한을 낮추는 조정이 안전망이다(Parallel 후속 결정 3, D). 병렬 분기 본문의 범위는 위 규칙과 같아서 Background 본문의 Parallel 은 곱하지 않는다. |
 | 그래프 수준 | `graph:unescapable-cycle` | `warning` | 분기 노드 없이 탈출할 수 없는 순환(통과형 노드에서 되돌아가는 연결선)을 그 출발 노드에 경고한다. 컨테이너가 모으는 연결선(`targetHandle==='emit'`)과 컨테이너 진입 연결선(`sourceHandle==='body'`)은 예외다. 에디터는 경고만 하고 막지 않는다([연결선](CLE-WF-EDGE.md)). |
 | AI 에이전트 노드(**백엔드 전용**, 예외 규칙) | `ai_agent:tool-payload-budget` | `warning`. `AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 면 hard 초과분을 `error` 로 올린다. | 노드의 도구 정의(스키마) payload 가 예산(`AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES`, `_HARD_BYTES`)을 넘는다. 통합 권한 범위를 비동기로 조회해야 해서 백엔드 전용으로 평가한다(가드 ② 생략, 실행 시 `TOOL_DEFINITION_PAYLOAD_EXCEEDED` 가 안전망). `WorkflowsService` 가 `getGraphWarnings`(조회) 결과에 덧붙이고 `saveCanvas`(저장)는 심각도가 `error` 면 막는다. 기준은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 다. |
 

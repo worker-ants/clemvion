@@ -230,3 +230,28 @@ describe('redactStoredFieldsForResponse', () => {
     ).toEqual(plain);
   });
 });
+
+// CLE-T-JDYHCF 결정 1 — `Execution.outputData` 는 마지막 노드의 핸들러 output 그대로라
+// 배열 · 원시값일 수 있다. 마스킹이 비객체를 예외 없이 통과시켜야 한다.
+describe('redactStoredDataForResponse — 비객체 결과 값', () => {
+  const CRED = 'connect failed: postgres://u:pw@db.internal/prod';
+  const MASKED = 'connect failed: postgres://***@db.internal/prod';
+
+  it('배열은 요소 안 자격증명을 마스킹하고 배열로 남는다', () => {
+    expect(redactStoredDataForResponse<unknown>([CRED, 1])).toEqual([
+      MASKED,
+      1,
+    ]);
+  });
+
+  it('문자열 · 숫자 · 불리언은 예외 없이 통과한다', () => {
+    expect(redactStoredDataForResponse<unknown>(CRED)).toBe(MASKED);
+    expect(redactStoredDataForResponse<unknown>(0)).toBe(0);
+    expect(redactStoredDataForResponse<unknown>(false)).toBe(false);
+  });
+
+  it('redactStoredFieldsForResponse 도 outputData 의 배열을 그대로 싣는다', () => {
+    const out = redactStoredFieldsForResponse<unknown>({ outputData: [CRED] });
+    expect(out.outputData).toEqual([MASKED]);
+  });
+});

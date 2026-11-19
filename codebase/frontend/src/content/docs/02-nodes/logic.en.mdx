@@ -405,7 +405,7 @@ Both patterns can coexist — use `done` for the full list and Merge for a resha
 </Example>
 
 <Callout type="warn">
-Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. If a node in a branch ends up waiting for user input while it runs, that branch fails. Back-edges (cycles) are blocked. Nested Parallel is allowed up to **depth 2** (one inner Parallel inside an outer Parallel). When outer × inner concurrency exceeds 32, the inner one is silently clamped — see `meta.clampedConcurrency` on the Parallel result.
+Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. If a node in a branch ends up waiting for user input while it runs, that branch fails. Back-edges (cycles) are blocked. Nested Parallel is allowed up to **depth 2** (one inner Parallel inside an outer Parallel). The body behind a Background node's `background` port inside a branch runs on a separate worker, so it is excluded from this depth and from the blocking-node check. A Parallel in that body counts depth from 1. When outer × inner concurrency exceeds 32, the inner one is silently clamped — see `meta.clampedConcurrency` on the Parallel result.
 </Callout>
 
 <Callout type="tip">

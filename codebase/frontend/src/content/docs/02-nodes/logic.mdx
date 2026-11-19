@@ -416,7 +416,7 @@ Parallel(2)
 </Example>
 
 <Callout type="warn">
-Parallel 분기 안에서는 **Form, 버튼 블로킹, AI 대화(Multi Turn)** 같은 블로킹 노드를 사용할 수 없어요. 실행하다가 사용자 입력을 기다리는 상태가 되는 노드가 분기 안에 있으면 그 분기는 실패해요. 순환 연결(back-edge)도 막혀요. 중첩 Parallel은 **깊이 2까지만** 허용돼요(외부 Parallel 안에 내부 Parallel 1단계). 외부 × 내부 동시 실행 수의 곱이 32를 넘으면 자동으로 줄여요(silent clamp + 결과의 `meta.clampedConcurrency` 로 확인 가능).
+Parallel 분기 안에서는 **Form, 버튼 블로킹, AI 대화(Multi Turn)** 같은 블로킹 노드를 사용할 수 없어요. 실행하다가 사용자 입력을 기다리는 상태가 되는 노드가 분기 안에 있으면 그 분기는 실패해요. 순환 연결(back-edge)도 막혀요. 중첩 Parallel은 **깊이 2까지만** 허용돼요(외부 Parallel 안에 내부 Parallel 1단계). 분기 안 Background 노드의 `background` 포트 뒤 본문은 별도 워커에서 실행되므로 이 깊이와 블로킹 노드 검사에서 빼요. 그 본문 안 Parallel 은 깊이 1부터 세요. 외부 × 내부 동시 실행 수의 곱이 32를 넘으면 자동으로 줄여요(silent clamp + 결과의 `meta.clampedConcurrency` 로 확인 가능).
 </Callout>
 
 <Callout type="tip">

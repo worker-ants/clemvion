@@ -68,6 +68,101 @@ describe('parallel graphWarningRules', () => {
       ).toBeNull();
     });
 
+    // Background 의 `background` 연결선 뒤 본문은 워커가 새 컨텍스트에서 실행한다. 바깥
+    // Parallel 의 병렬 분기 본문으로 세지 않고 그 안 Parallel 은 깊이 1부터 센다
+    // (REQ-PARALLEL-036, NERV Task CLE-T-B7A8B2).
+    describe('Background 본문', () => {
+      const outer = mkNode('p1', 'parallel', { label: 'Outer' });
+      const inner = mkNode('p2', 'parallel', { label: 'Inner' });
+      const bg = mkNode('bg', 'background', { label: 'BG' });
+      const bodyP = mkNode('p3', 'parallel', { label: 'BodyP' });
+
+      it('병렬 분기 안 Background 본문의 Parallel 은 바깥 깊이를 이어 세지 않는다', () => {
+        const graph = {
+          nodes: [outer, inner, bg, bodyP],
+          edges: [
+            mkEdge('p1', 'p2', 'branch_0'),
+            mkEdge('p2', 'bg', 'branch_0'),
+            mkEdge('bg', 'p3', 'background'),
+          ],
+        };
+        expect(parallelNestedDepthExceededRule.evaluate(outer, graph)).toBeNull();
+        expect(evaluateGraphWarningRulesForGraph(graph, resolver)).toEqual([]);
+      });
+
+      it('Background 본문 안에서 Parallel 이 세 겹이면 본문 첫 Parallel 에서 막는다', () => {
+        const p4 = mkNode('p4', 'parallel', { label: 'P4' });
+        const p5 = mkNode('p5', 'parallel', { label: 'P5' });
+        const graph = {
+          nodes: [outer, bg, bodyP, p4, p5],
+          edges: [
+            mkEdge('p1', 'bg', 'branch_0'),
+            mkEdge('bg', 'p3', 'background'),
+            mkEdge('p3', 'p4', 'branch_0'),
+            mkEdge('p4', 'p5', 'branch_0'),
+          ],
+        };
+        expect(parallelNestedDepthExceededRule.evaluate(outer, graph)).toBeNull();
+        const results = evaluateGraphWarningRulesForGraph(graph, resolver);
+        expect(
+          results
+            .filter((r) => r.ruleId === 'parallel:nested-depth-exceeded')
+            .map((r) => r.nodeId),
+        ).toEqual(['p3']);
+      });
+
+      it('병렬 분기 안 컨테이너에 둔 Background 본문의 Parallel 도 바깥 깊이를 이어 세지 않는다', () => {
+        const loop = mkNode('loop', 'foreach', { label: 'Each' });
+        const graph = {
+          nodes: [outer, inner, loop, bg, bodyP],
+          edges: [
+            mkEdge('p1', 'p2', 'branch_0'),
+            mkEdge('p2', 'loop', 'branch_0'),
+            mkEdge('loop', 'bg', 'body'),
+            mkEdge('bg', 'p3', 'background'),
+          ],
+        };
+        expect(parallelNestedDepthExceededRule.evaluate(outer, graph)).toBeNull();
+        expect(evaluateGraphWarningRulesForGraph(graph, resolver)).toEqual([]);
+      });
+
+      it('Background 의 다른 포트 뒤 노드는 병렬 분기 본문으로 센다', () => {
+        const graph = {
+          nodes: [outer, inner, bg, bodyP],
+          edges: [
+            mkEdge('p1', 'p2', 'branch_0'),
+            mkEdge('p2', 'bg', 'branch_0'),
+            mkEdge('bg', 'p3', 'out'),
+          ],
+        };
+        expect(parallelNestedDepthExceededRule.evaluate(outer, graph)).not.toBeNull();
+      });
+
+      it('Background 본문이 아닌 경로로도 닿는 노드는 병렬 분기 본문으로 센다', () => {
+        const graph = {
+          nodes: [outer, inner, bg, bodyP],
+          edges: [
+            mkEdge('p1', 'p2', 'branch_0'),
+            mkEdge('p2', 'bg', 'branch_0'),
+            mkEdge('bg', 'p3', 'background'),
+            mkEdge('p2', 'p3', 'branch_1'),
+          ],
+        };
+        expect(parallelNestedDepthExceededRule.evaluate(outer, graph)).not.toBeNull();
+      });
+
+      it('Background 본문 안 Parallel 과는 동시 실행 한도를 곱하지 않는다', () => {
+        const wide = mkNode('p1', 'parallel', { config: { maxConcurrency: 8 } });
+        const bodyWide = mkNode('p3', 'parallel', { config: { maxConcurrency: 8 } });
+        expect(
+          parallelNestedConcurrencyCapRule.evaluate(wide, {
+            nodes: [wide, bg, bodyWide],
+            edges: [mkEdge('p1', 'bg', 'branch_0'), mkEdge('bg', 'p3', 'background')],
+          }),
+        ).toBeNull();
+      });
+    });
+
     it('non-parallel node is skipped', () => {
       const http = mkNode('h', 'http');
       expect(
