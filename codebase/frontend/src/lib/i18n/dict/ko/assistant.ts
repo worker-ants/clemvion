@@ -25,6 +25,7 @@ export const assistant = {
     "사용 가능한 {{label}} 이(가) 없어요. 설정 화면에서 먼저 등록해 주세요.",
   candidatePickerEmptyLink: "설정 화면으로 이동",
   toolCallBadgeRetryRecovered: "재시도 후 성공",
+  toolCallBadgeWorkflowRunning: "실행 중이라 적용 안 함",
   errorBubbleTitle: "요청 처리 중 문제가 발생했어요",
   continueAfterBudgetButton: "이어서 진행",
   continueAfterBudget: "이어서 진행해줘.",

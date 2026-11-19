@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST"
 title: "워크플로우 AI 어시스턴트"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-ASSIST-001", "REQ-ASSIST-002", "REQ-ASSIST-003", "REQ-ASSIST-004", "REQ-ASSIST-005", "REQ-ASSIST-006", "REQ-ASSIST-007", "REQ-ASSIST-008", "REQ-ASSIST-009", "REQ-ASSIST-010", "REQ-ASSIST-011", "REQ-ASSIST-012", "REQ-ASSIST-013", "REQ-ASSIST-014", "REQ-ASSIST-015", "REQ-ASSIST-016", "REQ-ASSIST-017", "REQ-ASSIST-018", "REQ-ASSIST-019", "REQ-ASSIST-020", "REQ-ASSIST-021", "REQ-ASSIST-022", "REQ-ASSIST-023", "REQ-ASSIST-024", "REQ-ASSIST-025", "REQ-ASSIST-026", "REQ-ASSIST-027", "REQ-ASSIST-028", "REQ-ASSIST-029", "REQ-ASSIST-030", "REQ-ASSIST-031", "REQ-ASSIST-032", "REQ-ASSIST-033", "REQ-ASSIST-034", "REQ-ASSIST-035", "REQ-ASSIST-036", "REQ-ASSIST-037", "REQ-ASSIST-038", "REQ-ASSIST-039", "REQ-ASSIST-040", "REQ-ASSIST-041", "REQ-ASSIST-042", "REQ-ASSIST-043", "REQ-ASSIST-044", "REQ-ASSIST-045", "REQ-ASSIST-046", "REQ-ASSIST-047", "REQ-ASSIST-048", "REQ-ASSIST-049", "REQ-ASSIST-050", "REQ-ASSIST-051", "REQ-ASSIST-052", "REQ-ASSIST-053", "REQ-ASSIST-054", "REQ-ASSIST-055", "REQ-ASSIST-056", "REQ-ASSIST-057", "REQ-ASSIST-058", "REQ-ASSIST-059", "REQ-ASSIST-060", "REQ-ASSIST-061", "REQ-ASSIST-062"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "3ebfce94317f62aecf61e4b0d1cca82a5ac07c0f8b2077cc9a68a13313fc1219"
+content_hash: "321aba9c9a83f28772b3adbfc86b2ffb2b7e94cfaa8f98a3d46894a55f8f7ebe"
 read_as: "approved_fallback"
-task: "CLE-T-B7YTQX"
+task: "CLE-T-ZN111F"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "31bf6ff4d00e89f01ca3ca425ab420304942f59d1496715a768587919f4f850e"
-etag: "sha256-18b1f951a714edad474ab05ad92b1407a60f9397082ee477d3b3c310b1e03c95"
+mirror_sha256: "c9c440beec3ad128be3319cc9b76702eadc6b465a77e7d1f3ff96640c71ddbc6"
+etag: "sha256-898ef273d86586eeb246064a8ee4f94f8992451cfc96169c76922bb7112a7fa2"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -76,7 +76,7 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 - REQ-ASSIST-025 WHEN 편집 도구 호출이 성공하면 THE SYSTEM SHALL 에디터 메모리 스토어에 바로 반영하고 되돌리기 스택에 넣는다. (원본: ED-AI-16)
 - REQ-ASSIST-026 WHILE 어시스턴트가 편집하는 동안 THE SYSTEM SHALL DB 에 직접 쓰지 않고 수동 저장과 실행 직전 저장으로만 영속한다. (원본: ED-AI-17)
 - REQ-ASSIST-027 WHEN 사용자가 `Ctrl+Z`·`Ctrl+Y` 를 누르면 THE SYSTEM SHALL 어시스턴트 편집도 되돌리거나 다시 적용한다. (원본: ED-AI-18)
-- REQ-ASSIST-028 IF 워크플로우가 실행 중일 때 편집 도구가 호출되면 THE SYSTEM SHALL 그 편집을 거부하고 사용자에게 안내한다. (원본: ED-AI-19) (미구현)
+- REQ-ASSIST-028 IF 워크플로우가 실행 중일 때 편집 도구가 호출되면 THE SYSTEM SHALL 그 편집을 거부하고 사용자에게 안내한다. (원본: ED-AI-19)
 - REQ-ASSIST-029 WHEN 편집 도구가 호출되면 THE SYSTEM SHALL 컨테이너·수동 트리거 노드 제약을 Shadow 검증으로 적용한다. (원본: ED-AI-20)
 - REQ-ASSIST-030 IF 선택기 위젯 필드(통합·MCP 서버·모델 설정·지식 저장소·다른 워크플로우)가 비어 있으면 THE SYSTEM SHALL LLM 대신 서버가 워크스페이스 후보를 찾아 `pendingUserConfig` 로 싣는다. (원본: ED-AI-39)
 - REQ-ASSIST-031 WHEN 후보가 1개 이상이면 THE SYSTEM SHALL 편집 버블 안에 후보 선택기를 보여 주고 사용자가 확인할 때만 에디터 스토어에 반영한다. (원본: ED-AI-39)
@@ -166,7 +166,12 @@ AI 어시스턴트(Workflow AI Assistant, `workflow-assistant`)는 워크플로�
 ### 실행과 디버깅
 
 - AI 어시스턴트는 워크플로우 실행 API 를 부르지 않는다. 실행은 사용자 몫이다.
-- 실행 중(실행 결과 드로어가 열린 상태) 편집 도구를 Shadow 단계에서 거부하는 가드(REQ-ASSIST-028)는 계획이며 미구현이다. 지금 코드에는 차단 로직이 없어 실행 중에도 편집 도구가 호출될 수 있다. 거부할 때 낼 코드는 `ASSISTANT_WORKFLOW_RUNNING`(미구현)으로 정해 두었다. 발행하기 전에는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 등재하지 않는다(규칙 9).
+- 워크플로우가 실행 중인 턴에는 편집 도구를 거부한다(REQ-ASSIST-028). 동작은 다음과 같다.
+  - **판정**: 프런트는 메시지 요청 본문(`POST /api/workflow-assistant/sessions/{id}/messages`)에 선택 필드 `workflowRunning`(boolean, 기본 `false`)을 싣는다. 에디터의 실행 상태(`useExecutionStore.status`)가 `running` 또는 `waiting_for_input` 이면 `true` 다. 이 기준은 에디터가 노드 삭제 버튼을 숨기는 기준([노드 시각 표현 「삭제 버튼」](CLE-WF-EDITOR-NODE.md#삭제-버튼))과 같다. 서버는 턴을 시작할 때 이 값을 읽는다. 턴 도중에 사용자가 실행을 시작하면 그 턴은 막지 않고 다음 턴부터 막는다.
+  - **거부 결과**: `workflowRunning` 이 `true` 인 턴에서는 `kind` 가 `edit` 인 도구(`add_node` · `update_node` · `remove_node` · `add_edge` · `remove_edge` 등)를 Shadow 에 적용하지 않는다. 도구 결과로 `{ ok: false, error: 'ASSISTANT_WORKFLOW_RUNNING', message }` 를 돌려준다. 이 검사는 계획 승인 대기 검사(`PLAN_AWAITING_APPROVAL`)보다 먼저 한다. SSE `error` 이벤트로 보내지 않으며 HTTP 상태 코드도 없다. 코드는 [에러 코드 카탈로그 — LLM 클라이언트 · AI 어시스턴트](../CLE-API/CLE-API-ERRCODES-LLM.md) 에 등재한다.
+  - **이어지는 대화**: 거부해도 턴은 끊기지 않고 대화가 이어진다. 거부된 편집은 성공한 편집이 아니므로 계획 체크리스트를 진행시키지 않는다. 성공한 편집이 없는 턴에서는 종료 가드(`PLAN_NOT_COMPLETE`)도 걸리지 않는다.
+  - **안내**: 결과의 `message` 는 모델에게 주는 고정 영문 지시다. 편집을 더 부르지 말고 워크플로우가 실행 중이라 편집하지 않았다고 사용자 언어로 짧게 알리라는 내용이다. 실행이 끝나거나 멈춘 뒤 다시 요청하라는 안내도 함께 하게 한다. 시스템 프롬프트에도 이 코드를 받으면 같은 편집을 다시 부르지 말라는 규칙을 한 줄 둔다. 패널은 편집 도구 배지를 실패 색과 경고 아이콘으로 그리고 배지 문구 끝에 `assistant.toolCallBadgeWorkflowRunning` 문구를 괄호로 붙인다([패널 화면](CLE-WF-ASSIST-UI.md#요소별-동작)). 에러 버블은 띄우지 않는다.
+  - **쓸 수 있는 도구**: 조회 도구(실행 조회 포함), 계획 도구(`propose_plan` · `clear_plan`), `finish` 는 실행 중에도 그대로 쓸 수 있다. 실행 중에도 진단 질문에 답할 수 있어야 하기 때문이다.
 - 실행 조회 도구(`get_workflow_executions`, `get_execution_details`)는 읽기 전용이라 실행 중에도 부를 수 있고 진행 중인 실행은 지금까지의 부분 타임라인을 돌려준다([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md#실행-조회-도구)).
 - 실행 이슈를 진단할 때는 목록으로 후보를 좁힌 뒤 한 건만 상세 조회하는 2단계 패턴을 따른다. 한 턴에 여러 건을 동시에 상세 조회하면 어시스턴트 도구 호출 한도와 페이로드 크기 양쪽에서 낭비가 생긴다.
 
@@ -242,4 +247,17 @@ AI 어시스턴트 스펙을 쓸 때 사용자와 합의한 결정이다.
 
 ### 실행 중 편집 거부 요구에서 발행 전 코드 이름을 뺐다 (2026-11-14)
 
-NERV Task `CLE-T-B7YTQX` 다. REQ-ASSIST-028 은 발행된 적 없는 `ASSISTANT_WORKFLOW_RUNNING` 으로 거부한다고 약속해 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 9 와 어긋났다. 요구사항의 뜻(실행 중 편집 거부와 안내)은 그대로 두고 코드 이름은 「실행과 디버깅」 의 계획 문장으로 옮겼다. 같은 날 NERV Task `CLE-T-66PJNN` 이 패널의 남은 영문 폴백을 사전 키로 옮겨 REQ-ASSIST-005 의 부분 구현 표시와 미결 항목을 걷었다. 근거는 [패널 화면](CLE-WF-ASSIST-UI.md#rationale) 에 있다.
+NERV Task `CLE-T-B7YTQX` 다. REQ-ASSIST-028 은 발행된 적 없는 `ASSISTANT_WORKFLOW_RUNNING` 으로 거부한다고 약속해 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 9 와 어긋났다. 요구사항의 뜻(실행 중 편집 거부와 안내)은 그대로 두고 코드 이름은 「실행과 디버깅」 의 계획 문장으로 옮겼다. 같은 날 NERV Task `CLE-T-66PJNN` 이 패널의 남은 영문 폴백을 사전 키로 옮겨 REQ-ASSIST-005 의 부분 구현 표시와 미결 항목을 걷었다. 근거는 [패널 화면](CLE-WF-ASSIST-UI.md#rationale) 에 있다. 2026-11-15 에 구현과 함께 `ASSISTANT_WORKFLOW_RUNNING` 을 카탈로그에 등재했고 근거는 [「실행 중 편집 거부를 편집 도구 결과로 돌려준다」](CLE-WF-ASSIST.md#실행-중-편집-거부를-편집-도구-결과로-돌려준다-2026-11-15) 에 있다.
+
+### 실행 중 편집 거부를 편집 도구 결과로 돌려준다 (2026-11-15)
+
+NERV Task `CLE-T-ZN111F` 다. 실행 중 편집을 거부하는 요구(REQ-ASSIST-028)를 구현하면서 거부를 돌려주는 방식과 「실행 중」 판정 기준을 정했다. 동작은 「실행과 디버깅」 에 있다.
+
+거부는 편집 도구의 결과로 돌려준다. 그러면 턴이 끊기지 않고 대화가 이어진다. 사용자는 실행 중에도 실패 원인 같은 진단 질문을 하고 어시스턴트는 실행 조회 도구로 답한다. 이런 턴에서 모델이 편집 도구를 함께 부를 수 있다. 그 편집 때문에 턴을 끊으면 실행을 조회하려던 대화까지 끊긴다.
+
+「실행 중」 은 요청의 `workflowRunning` 으로 판정하고 이 값은 에디터의 실행 상태에서 나온다. 어시스턴트 편집은 요청에 실린 캔버스 스냅샷에 적용되고 저장은 캔버스가 한다. 그래서 편집을 막는 기준도 에디터가 노드 삭제 버튼을 숨기는 기준과 같아야 한다. 요청에서 이 필드를 빼면 편집이 막히지 않는다. 편집은 에디터 메모리에만 반영되고 DB 에는 사용자가 저장할 때만 기록되므로 이 빈틈은 받아들였다.
+
+기각한 대안은 둘이다.
+
+- **SSE `error` 로 턴을 끊기**: 에러 버블로 바로 알릴 수 있다. 하지만 같은 턴의 조회와 대화도 함께 끊겨 사용자가 질문을 다시 해야 한다. 실행 중에도 조회를 허용한 규칙([AI 어시스턴트 도구 — 실행 조회](CLE-WF-ASSIST-TOOLS-EXEC.md#진행-중-실행은-스냅샷이다))과도 맞지 않는다.
+- **서버가 DB 의 실행 기록으로 판정하기**: 요청 값을 믿지 않아도 된다. 하지만 웹훅 · 스케줄 · 채팅 채널이 시작한 실행까지 잡는다. 채팅 채널의 입력 대기 실행이 남아 있는 동안에는 채팅 봇 워크플로우를 편집할 수 없게 된다. 사용자가 보는 캔버스의 실행 상태와도 어긋난다.

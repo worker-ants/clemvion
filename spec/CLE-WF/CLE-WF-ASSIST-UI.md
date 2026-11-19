@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-UI"
 title: "워크플로우 AI 어시스턴트 — 패널 화면"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
-content_hash: "2afa324d40f9951f81096023983c71466e4e475cfb5312735d2dc83d1029470d"
+content_hash: "680fd00f418ef2e2a88919507fe3c01f672df06bae733d875fa53672d2334b00"
 read_as: "approved_fallback"
-task: "CLE-T-B7YTQX"
+task: "CLE-T-ZN111F"
 source_paths: []
-mirror_sha256: "323e9009d5f40b8c62b849b8e1c6f2bbf00d5643e01b817a26c91e88538d7fe4"
-etag: "sha256-54bacf383acf3b88ef1236e1ca114b55d4afb4f65f374f34a3bb22d5c9cbdc74"
+mirror_sha256: "542a77473300f0dfd6b095d8db3af8f6b295e9c261a2ca36b2dbb336e8673fed"
+etag: "sha256-a5e8212e2c7295997c4dfe6e2ee226a593f10018c1c5fc814d76c19c0ab19bec"
 ---
 ## 개요
 
@@ -44,7 +44,7 @@ etag: "sha256-54bacf383acf3b88ef1236e1ca114b55d4afb4f65f374f34a3bb22d5c9cbdc74"
 
 | 요소 | 설명 |
 |------|------|
-| 헤더 | 제목과 닫기(✕). 닫아도 어시스턴트 세션은 서버에 보존된다 |
+| 헤더 | 제목과 닫기(✕) |
 | 모델 선택 | 모델 설정 선택기. 라벨은 `assistant.modelLabel`(모델)이다. "기본 Provider"(`assistant.modelDefault`)를 고를 수 있다. 값이 비면 워크스페이스 기본 설정을 쓴다. 고른 설정을 서버가 찾지 못해 기본 설정으로 대신하면 선택 값이 "기본 Provider" 로 돌아간다([모델 설정](CLE-WF-ASSIST-ERROR.md#모델-설정)) |
 | 새 대화(⟳) | 확인 다이얼로그를 띄운 뒤 현재 대화를 비운다. 이전 세션은 기록에 남는다 |
 | 메시지 목록 | 사용자·어시스턴트 메시지, 도구 호출 배지, 계획 카드, 에러가 시간순으로 쌓인다. 스트리밍 중에는 회색 커서 애니메이션이 보인다. 새 이벤트(텍스트 조각, 도구 호출 배지, 계획 카드, 단계 체크)가 올 때마다 목록이 맨 아래로 자동 스크롤된다 |
@@ -53,14 +53,14 @@ etag: "sha256-54bacf383acf3b88ef1236e1ca114b55d4afb4f65f374f34a3bb22d5c9cbdc74"
 | 탐색 배지 (🔍 회색) | `list_workflows`, `list_integrations` 같은 탐색 도구 호출. 요약 한 줄을 보이고 접기·펼치기로 전체 결과를 본다 |
 | 편집 배지 (✔ 녹색) | `add_node`, `update_node` 등 성공. 인자 요약과 연결된 노드 라벨을 보인다. 서명이 같은 호출이 연달아 오면 `× N` 을 붙인 배지 하나로 줄인다. 서명은 `update_node` 는 patch 필드 집합, `add_node` 는 노드 유형, 나머지는 도구 이름이다. 실패(`ok:false`) 호출은 서명에 `:err` 를 붙여 성공 묶음과 따로 그린다. 에러가 묻히지 않게 하기 위해서다 |
 | 재시도 후 성공 배지 | `add_edge` 실패의 에러 코드가 `PORT_NOT_FOUND` 나 `NODE_NOT_FOUND` 이고 같은 `source_id`·`target_id` 의 성공 배지가 곧바로 이어지면 두 배지를 "재시도 후 성공" 하나로 줄인다. 앞선 `NODE_NOT_FOUND` 가 연쇄 실패였으면 같은 source 기준으로 묶는다. 라벨은 성공한 호출 기준에 재시도 꼬리표를 붙이고 툴팁·hover 에 원래 실패 사유(실패한 포트 값, 에러 코드)와 성공 때의 포트 값을 함께 보인다. 꼬리표 문구는 `assistant.toolCallBadgeRetryRecovered` 다. 이 축약은 서버가 `knownPorts` 와 연쇄 실패 FIFO 로 다음 라운드에 자연 복구하도록 설계한 두 코드에만 쓴다. `LABEL_CONFLICT`, `CYCLE_DETECTED` 같은 다른 Shadow 에러는 사용자와 디버깅하는 사람에게 분명히 보여야 하므로 빨간 배지를 유지한다. 성공 배지가 이어지지 않으면 실패 배지를 그대로 둔다 |
-| 에러 배지 (⚠ 빨강) | 편집 도구 실패. Shadow 검증 실패 사유를 보인다 |
+| 에러 배지 (⚠ 빨강) | 편집 도구 실패. Shadow 검증 실패 사유를 보인다. 결과 `error` 가 `ASSISTANT_WORKFLOW_RUNNING` 이면 `assistant.toolCallBadgeWorkflowRunning` 문구를 괄호로 붙인다(에러 버블 없음, [실행과 디버깅](CLE-WF-ASSIST.md#실행과-디버깅)) |
 | 에러 버블 | `error` 이벤트(예: `ASSISTANT_TOO_MANY_TOOL_CALLS`, `ASSISTANT_STREAM_FAILED`)를 토스트가 아닌 해당 어시스턴트 버블 아래 빨간 상자로 그린다. 상자에는 제목(`assistant.errorBubbleTitle`), 에러 코드 배지, 안내 문구가 보인다. `ASSISTANT_NO_LLM_CONFIG` 에는 모델 설정 화면의 Chat 탭(`/models?tab=chat`)으로 가는 링크(`assistant.errorNoLlmConfigLink`)가 붙는다. 사용자는 채팅 맥락에서 왜 멈췄는지와 복구 방법을 보고 다음 행동을 바로 고를 수 있다. 안내 문구 선택(사전 문구, 없으면 서버 `message`, 그것도 비면 `assistant.errorUnknown`)과 코드별 문구는 [에러 처리](CLE-WF-ASSIST-ERROR.md#에러-처리) 표를 따른다 |
 | 멈춤 안내 | 어시스턴트가 텍스트 없이(content 공백) 정상 종료(`done`)했고 승인된 계획(버튼 승인이나 자연어 승인으로 단계가 1개 이상 끝남)에 실행 가능한 대기 단계가 남아 있으면 프론트엔드가 그 메시지에 `systemHint.kind = 'info'` 로 `assistant.turnStalledHint` 를 넣고 amber 안내 상자로 그린다. 서버 가드가 진척을 추적해 계획이 끝날 때까지 `finish` 를 계속 막으므로 이 안내는 LLM 이 정말 막혔거나 한도가 다 됐을 때만 보인다 |
-| 완료 안내 | 턴이 끝날 때 활성 계획의 `note` 가 아닌 단계가 모두 `done` 이고 `openQuestions` 도 비어 있으면 `systemHint.kind = 'success'` 로 `assistant.turnCompletedHint`("작업을 완료했어요 — N개 단계 실행 성공.")를 넣고 체크 아이콘이 있는 emerald 성공 상자로 그린다. 에러가 났으면 에러 버블이 우선이고 성공 안내는 띄우지 않는다. 우선순위는 에러 > 멈춤 > 완료다 |
+| 완료 안내 | 턴이 끝날 때 활성 계획의 `note` 가 아닌 단계가 모두 `done` 이고 `openQuestions` 도 비어 있으면 `systemHint.kind = 'success'` 로 `assistant.turnCompletedHint`("작업을 완료했어요 — N개 단계 실행 성공.")를 넣고 체크 아이콘이 있는 emerald 성공 상자로 그린다. 우선순위는 에러 > 멈춤 > 완료다 |
 | 자동 이어서 진행 구분선 | 서버가 [자동 이어서 진행](CLE-WF-ASSIST-LOOP.md#자동-이어서-진행)으로 다음 라운드를 시작하면 어시스턴트 메시지 행이 나뉘어 새 버블이 생긴다. 경계에는 회전 아이콘과 `assistant.autoResumedHint`("자동으로 이어서 진행했어요 (1/2)")로 구분선을 그린다. 실시간 경로는 `attempt/max` 로 진행도를 보이고 `max` 가 없는 세션 다시 불러오기 경로는 `assistant.autoResumedHintShort` 로 순번("(1번째)")만 보인다. 이 구조 덕분에 gpt-oss-120b 가 이어서 진행 앞뒤 라운드에서 같은 확인 문구를 되풀이해도 다른 버블에 나뉘어 보인다 |
 | 후보 선택기 | `add_node`·`update_node` 결과에 `pendingUserConfig` 가 붙고 그 안에 `candidates` 가 1개 이상이면 그 편집 버블의 도구 호출 배지 묶음 바로 아래(에러 버블과 안내 상자보다 위)에 드롭다운 선택기를 그린다. 필드 라벨은 노드 스키마의 영문 `ui.label` 을 `translateBackendLabel` 로 옮겨 보이고([다국어와 화면 문구 — 백엔드 문구 매핑](../CLE-UI/CLE-UI-I18N-BACKEND.md#zod-ui-메타-매핑-규칙-4)) 매핑이 없으면 원문을 보인다. 이름이 빈 후보는 `assistant.candidateUnnamed` 로 보인다. 사용자가 항목을 고르고 Confirm 을 누르면 `editor-store.updateNode(nodeId, { config: { [field]: selectedId } })` 로 바로 반영하고 선택기는 "✓ {label}: {selected} 로 설정됨" 읽기 전용 표시로 바뀐다. LLM 을 다시 부르지 않는다. 프론트엔드 혼자 적용하며 캔버스의 저장 흐름과 되돌리기 스택에 그대로 들어간다. 되돌리기를 해도 선택기 상태는 되돌리지 않는다. 후보가 하나여도 자동으로 넣지 않고 선택지 하나짜리 드롭다운으로 확인을 받는다. `candidates` 가 0개면 선택기 대신 amber 안내 상자(`assistant.candidatePickerEmpty`)와 해당 리소스 등록 화면 딥링크를 그린다. 데이터 구조와 후보 조회 범위는 [AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md#사용자-선택-필드-후보), 세션을 다시 불러올 때의 복원은 [AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md#메시지-응답-필드)에 있다 |
 | 계획 카드 | [계획 카드 진행](CLE-WF-ASSIST-LOOP.md#계획-카드-진행) 참고. 화면 제목은 `assistant.planCardTitle`("실행 계획")이다. 계획 제목은 LLM 이 정한다. 제목이 비면 카드 안의 제목 줄을 그리지 않는다 |
-| 입력창 | 기본 1줄, 최대 6줄까지 자동으로 늘어난다. 응답 중단 버튼은 스트리밍 중에만 보인다 |
+| 입력창 | 기본 1줄, 최대 6줄까지 자동으로 늘어난다 |
 
 ### 접근성
 
@@ -129,6 +129,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 | `assistant.candidatePickerEmptyLink` | 설정 화면으로 이동 | Open Settings |
 | `assistant.candidateUnnamed` | (이름 없음) | (untitled) |
 | `assistant.toolCallBadgeRetryRecovered` | 재시도 후 성공 | Retried and succeeded |
+| `assistant.toolCallBadgeWorkflowRunning` | 실행 중이라 적용 안 함 | not applied: workflow is running |
 | `assistant.toolBadgeNode` | 노드 | node |
 | `assistant.toolBadgeRemoveNode` | − 노드 | − node |
 | `assistant.toolBadgeAddEdge` | → 연결선 | → edge |
@@ -206,7 +207,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 구현자가 기억할 계약은 다음과 같다.
 
 1. **서버**: `collectPendingUserConfig` 는 스키마를 훑어 빈 선택기 필드를 모으고 위젯별 저장소를 워크스페이스 범위로 조회해 `candidates` 를 채운다. 통합은 요청자에게 보이는 것만 담는다(다른 사용자의 개인 통합 제외, 2026-09-25 부터). 요청자가 워크플로우 작성자가 아니면 요청자의 개인 통합도 뺀다. 골라도 노드 저장이 400 이기 때문이다([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md) Rationale).
-2. **프롬프트**: 전의 "You must NOT fill ... surface them in the closing message" 를 "Leave ids empty; server attaches candidates; mention only when candidates list is empty" 로 바꿔 `STATIC_BLOCK_3_EDIT_PLAYBOOK` 에 넣었다.
+2. **프롬프트**: `STATIC_BLOCK_3_EDIT_PLAYBOOK` 이 ID 를 비워 두고 후보가 0개일 때만 마무리 메시지에서 언급하라고 지시한다.
 3. **품질 점검**: `collectUnmentionedPendingUserConfig` 는 `candidates?.length === 0` 인 항목만 빠진 필드로 센다.
 4. **화면**: 확정 뒤 선택기는 "✓ 설정됨" 으로 고정한다. 되돌리기로 선택기 상태를 되돌리지 않는 것은 화면 복잡도에 비해 얻는 것이 적기 때문이다.
 
@@ -221,7 +222,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 
 ### 계획 전용 턴의 자동 승인 안내를 없앴다
 
-계획 전용 턴이 끝나면 계획 카드와 함께 "계획대로 진행해 주세요." 안내 상자를 넣었다. 카드의 "계획대로 진행" 버튼과 같은 문구가 겹쳐 중복 메시지로 보였다. 버튼이 이미 있으니 안내는 필요 없다는 사용자 피드백을 받아 `assistant-store.ts` 의 `done` 이벤트 안내 분기에서 `planApproveConfirm` 을 넣는 조건을 지웠다. 멈춤 안내와 완료 안내만 남는다. i18n 문자열은 `approveActivePlan` 이 사용자 메시지로 보낼 때 쓰므로 남겼다.
+계획 전용 턴이 끝나도 "계획대로 진행해 주세요." 안내 상자를 넣지 않는다. 카드의 "계획대로 진행" 버튼과 문구가 겹쳐 중복으로 보였고 버튼이 있으니 안내는 필요 없다는 사용자 피드백을 받았다. `done` 이벤트 뒤에는 멈춤 안내와 완료 안내만 넣는다.
 
 ### 에러 버블에 "이어서 진행" 버튼을 더했다
 
@@ -229,7 +230,7 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 
 ### 에러 상자 대비
 
-패널 에러 상자가 `text-red-800/200` 의 탁한 색을 써서 11px 작은 글씨가 특히 읽기 어려웠다. `assistant-message.tsx` 의 에러 상자를 안내 상자 패턴에 맞춰 본문은 `text-red-950 dark:text-red-50` 와 `font-medium`, 에러 코드 배지는 별도 배경(red-200, 어두운 모드 red-800)과 테두리로 구분했다. 본문은 10px 에서 11px 로 올렸다. 긴 영문 메시지를 위해 더했던 `break-all` 은 2026-10-24 에 뺐다. 에러 버블이 코드별 사전 문구를 보이고 모델 프로바이더 원문을 싣지 않게 되어 긴 URL 이나 토큰 문자열이 더는 오지 않는다. 지금은 단어 단위 줄바꿈(`break-words`)만 쓴다.
+패널 에러 상자가 `text-red-800/200` 의 탁한 색을 써서 작은 글씨가 읽기 어려웠다. 그래서 안내 상자 패턴에 맞춰 본문은 `text-red-950 dark:text-red-50` · `font-medium` · 11px 로 두고 에러 코드 배지는 별도 배경(red-200, 어두운 모드 red-800)과 테두리로 구분한다. 에러 버블이 사전 문구를 보이고 프로바이더 원문을 싣지 않아 긴 URL 이나 토큰 문자열이 오지 않는다. 그래서 `break-all` 은 쓰지 않고 단어 단위 줄바꿈(`break-words`)만 쓴다.
 
 ### 유지보수 점검
 
@@ -239,15 +240,13 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 
 ### 도구 호출 배지 요약과 실패 토스트를 사전 키로 옮겼다 (2026-11-14)
 
-도구 호출 배지 요약은 영문 고정 문자열이라 한국어 로케일에서도 영문으로 보였다. 이 문구는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 1 의 알려진 예외로 적혀 있었다. NERV Task `CLE-T-F9QEJC` 가 고정 단어를 `assistant.toolBadge*` 사전 키로 옮겼다. 규칙 1 의 예외 항목은 같은 변경에서 지운다.
+도구 호출 배지 요약은 영문 고정 문자열이라 한국어 로케일에서도 영문으로 보였다. NERV Task `CLE-T-F9QEJC` 가 고정 단어를 `assistant.toolBadge*` 사전 키로 옮겼고 `CLE-T-9T5MNG` 가 세션 생성 · 응답 실패 토스트를 옮겼다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 1 의 예외 항목도 함께 지웠다.
 
 - **도구 인자 · 결과에서 온 값은 번역하지 않는다.** 노드 라벨은 워크플로우에 들어가는 이름이다. 노드 타입 · 설정 키 · 실행 상태 값 · 도구 이름은 코드 식별자다. 둘 다 사전에 둘 화면 문구가 아니어서 그대로 싣는다.
-- **배지 모양은 바꾸지 않았다.** 아이콘, `× N` 묶음, 재시도 후 성공 표시, `tool_call` 데이터 모양은 그대로다. 바뀐 것은 고정 단어를 가져오는 곳뿐이다.
-- **실패 토스트도 사전 키로 옮겼다.** 세션 생성 실패와 응답 실패 토스트는 NERV Task `CLE-T-9T5MNG` 가 `assistant.sessionCreateFailedToast` · `assistant.responseFailedToast` 로 옮겼다.
 
 ### 남은 영문 폴백을 사전 키로 옮겼다 (2026-11-14)
 
 NERV Task `CLE-T-66PJNN` 이다. 배지 요약을 사전 키로 옮긴 뒤에도 후보 선택기의 필드 라벨, 요약 키가 없는 도구의 배지, 스토어의 에러 폴백(`Assistant error`), 서버가 채우던 계획 제목 · 후보 라벨 폴백(`Plan` · `LLM Config` · `Workflow`)이 영문으로 남아 있었다.
 
 - **서버 폴백은 빈 문자열로 바꿨다.** 서버는 화면 언어를 모르고, 계획과 후보는 메시지에 저장돼 나중에 다른 언어로 다시 그려진다. 서버가 요청 언어로 문구를 채우는 안은 저장 시점의 언어가 메시지에 굳어서 택하지 않았다. 빈 후보 이름은 화면이 사전 키로 채우고 빈 계획 제목 줄은 그리지 않는다.
-- **필드 라벨은 백엔드 라벨 표를 거친다.** 설정 패널과 같은 `translateBackendLabel` 을 써서 같은 필드가 두 화면에서 같은 이름으로 보인다. 표에 없던 `Target Workflow` 를 더해 설정 패널 라벨도 함께 바뀌었다.
+- **필드 라벨은 백엔드 라벨 표를 거친다.** 설정 패널과 같은 `translateBackendLabel` 을 써서 같은 필드가 두 화면에서 같은 이름으로 보인다.

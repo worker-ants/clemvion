@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-LLM"
 title: "에러 코드 카탈로그 — LLM 클라이언트 · AI 어시스턴트"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "bedfc8e28be56ba0cdfda48e701b99b726d570b01f27381050646d32774cad79"
+content_hash: "cb7b4fa997c345738fab5ef8160be31c51286dc3dd59edf40cc2957fad426e33"
 read_as: "approved_fallback"
-task: "CLE-T-B7YTQX"
+task: "CLE-T-ZN111F"
 source_paths: []
-mirror_sha256: "e59e1d82c72386bdf2a15ee8e5f2631032de155e1d9e0d42794e73c0309aba01"
-etag: "sha256-8d28a3b8ee82500952c980a0b9669164fb35b26bdfe8a5d0e0b13990482348c1"
+mirror_sha256: "1d55fe580a64769ff7a7dd3b4e1dfb82838a3f56922aaa097f507df34714a9a3"
+etag: "sha256-4469250f2868765669fc3ea4dbb13b4746c8d6c30e0f65dbcb5598e94c97a6c9"
 ---
 ## 개요
 
@@ -26,12 +26,12 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
-| `LLM_RATE_LIMIT` | 429 (프로바이더 응답) | 프로바이더 속도 제한. `chat` 은 지수 백오프로 최대 3회 다시 시도한다(`withRetry`). `chatStream` 은 앱 수준 재시도를 거치지 않는다. 스트림을 열 때의 429 도 프로바이더와 상관없이 스트림 `error` 이벤트의 이 코드로 온다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
-| `LLM_CONNECTION_ERROR` | 없음 | 위에 해당하지 않는 모든 클라이언트 호출 실패의 기본값(인증 실패, 모델 없음, 컨텍스트 초과 포함). 스트림을 열 때의 실패(SDK 요청 타임아웃 포함)도 프로바이더와 상관없이 스트림 `error` 이벤트의 이 코드로 온다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_RATE_LIMIT` | 429 (프로바이더 응답) | 프로바이더 속도 제한. `chat` 은 지수 백오프로 최대 3회 다시 시도한다(`withRetry`). `chatStream` 은 앱 수준 재시도를 거치지 않는다. 스트림을 열 때의 429 도 프로바이더와 상관없이 스트림 `error` 이벤트의 이 코드로 온다([LLM 클라이언트 — 에러 처리와 스트리밍](../CLE-AI/CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_CONNECTION_ERROR` | 없음 | 위에 해당하지 않는 모든 클라이언트 호출 실패의 기본값(인증 실패, 모델 없음, 컨텍스트 초과 포함). 스트림을 열 때의 실패(SDK 요청 타임아웃 포함)도 프로바이더와 상관없이 스트림 `error` 이벤트의 이 코드로 온다([LLM 클라이언트 — 에러 처리와 스트리밍](../CLE-AI/CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_OUTPUT_MALFORMED` | 없음 | gpt-oss 계열 harmony 제어 토큰 노출(OpenAI 스트리밍 경로). `message` 는 고정 영문 진단 문장이다. 사용자에게 보일 문구는 호출하는 쪽이 코드로 고른다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_CREDENTIALS_REQUIRED` | 400 | 미리보기 요청에서 local 이 아닌 프로바이더의 apiKey 누락 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 | `LLM_MODEL_LIST_FAILED` | 400 | 미리보기나 `:id/models` 호출 중 프로바이더 응답 실패. 정리한 메시지를 보인다 | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
-| `LLM_STREAMING_UNSUPPORTED` | 없음 | 클라이언트에 `stream()` 이 없을 때 `LlmService.chatStream` 이 스트림을 열기 전에 던지는 예외의 코드. 예외는 `BadRequestException` 이고 응답 본문의 `code` 에 이 코드가 실린다. `chatStream` 을 부르는 곳이 어시스턴트 스트림뿐이라 HTTP 응답으로 나가지 않고 SSE `error` 이벤트로 나간다(§6.25) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
+| `LLM_STREAMING_UNSUPPORTED` | 없음 (SSE `error` 이벤트, §6.25) | 클라이언트에 `stream()` 이 없을 때 `LlmService.chatStream` 이 스트림을 열기 전에 던지는 예외의 코드. 예외는 `BadRequestException` 이고 응답 본문의 `code` 에 이 코드가 실린다. `chatStream` 을 부르는 곳이 어시스턴트 스트림뿐이라 HTTP 응답으로 나가지 않고 SSE `error` 이벤트로 나간다(§6.25) | [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
 
 세분화 코드 `LLM_AUTH_ERROR`(401), `LLM_MODEL_NOT_FOUND`(404), `LLM_CONTEXT_EXCEEDED`(400)는 계획이며 미구현이다. 지금은 `LLM_CONNECTION_ERROR` 로 모인다.
 
@@ -47,7 +47,7 @@ LLM 클라이언트 층(`*.client.ts`)이 프로바이더 원본 에러를 좁�
 
 ## 6.25 AI 어시스턴트 스트림 (도메인 문서 참조)
 
-어시스턴트 메시지 스트림(`POST /api/workflow-assistant/sessions/{id}/messages`)의 SSE `error` 이벤트가 내는 코드다. 이벤트 데이터는 `{code, message}` 이고 HTTP 에러 응답 봉투가 아니다([AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md#sse-이벤트)). `message` 는 코드별 고정 영문이고 화면 문구는 프론트엔드가 코드로 고른다. 같은 API 의 세션 REST 코드는 §6.19 다.
+어시스턴트 메시지 스트림(`POST /api/workflow-assistant/sessions/{id}/messages`)의 SSE `error` 이벤트가 내는 코드다. 이벤트 데이터는 `{code, message}` 이고 HTTP 에러 응답 봉투가 아니다([AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md#sse-이벤트)). `message` 는 코드별 고정 영문이고 화면 문구는 프론트엔드가 코드로 고른다. 같은 API 의 세션 REST 코드는 §6.19 다. 이 절의 코드는 HTTP 응답으로 나가지 않으므로 표에 HTTP 칸을 두지 않는다.
 
 | 코드 | 설명 | 정의 문서 |
 |------|------|-----------|
@@ -59,7 +59,15 @@ LLM 클라이언트 스트림의 `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `
 
 `ASSISTANT_STREAM_FAILED` 를 원인별 코드로 나눌지(규칙 6)는 [에러 코드 규약과 카탈로그 「미결 사항」](CLE-API-ERRCODES.md#미결-사항) 의 「`ASSISTANT_STREAM_FAILED` 의 원인 묶음」 항목에서 정한다.
 
-편집 도구 실패는 에러 코드가 아니다. `tool_call` 이벤트의 `result.ok: false` 로 오고 턴은 이어진다. 설계 단계에 있던 `ASSISTANT_TOOL_FAILED` · `ASSISTANT_LLM_CONFIG_INVALID` · `ASSISTANT_STREAMING_UNSUPPORTED` 는 발행된 적이 없어 등재하지 않는다(규칙 9).
+편집 도구의 실패는 SSE `error` 이벤트로 오지 않는다. `tool_call` 이벤트의 `result.ok: false` 로 오고 턴은 이어진다. 모델에게 고쳐 부르라는 신호인 도구 결과 문자열(`NODE_NOT_FOUND` 등)은 [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md) 가 정하고 카탈로그에 올리지 않는다. [워크플로우 AI 어시스턴트 「요구사항」](../CLE-WF/CLE-WF-ASSIST.md#요구사항) 의 실행 중 편집 거부가 사용자 안내를 약속한 `ASSISTANT_WORKFLOW_RUNNING` 만 아래 표에 올린다. 설계 단계에 있던 `ASSISTANT_TOOL_FAILED` · `ASSISTANT_LLM_CONFIG_INVALID` · `ASSISTANT_STREAMING_UNSUPPORTED` 는 발행된 적이 없어 등재하지 않는다(규칙 9).
+
+### 편집 도구 결과로 내는 코드
+
+이 표의 코드는 `tool_call` 이벤트에 실린 편집 도구 결과의 `result.error` 로 온다. SSE `error` 이벤트로도, HTTP 응답으로도 나가지 않는다.
+
+| 코드 | 설명 | 정의 문서 |
+|------|------|-----------|
+| `ASSISTANT_WORKFLOW_RUNNING` | 워크플로우가 실행 중인 턴에 편집 도구를 부름. 턴은 이어진다 | [워크플로우 AI 어시스턴트 「실행과 디버깅」](../CLE-WF/CLE-WF-ASSIST.md#실행과-디버깅) |
 
 ## Rationale
 
@@ -93,3 +101,19 @@ NERV Task `CLE-T-0R5SYN` 이다. OpenAI 계열 클라이언트는 스트림을 �
 - **규칙 4 와 어긋나던 점은 없어졌다.** 같은 429 와 SDK 요청 타임아웃이 프로바이더와 상관없이 같은 §6.17 코드로 나간다.
 - **규칙 6 과 어긋나던 점은 줄었다.** 429 와 SDK 요청 타임아웃이 `ASSISTANT_STREAM_FAILED` 에서 빠졌다. 남은 원인은 `chatStream` 이 이벤트가 아닌 예외로 끝난 경우(클라이언트 생성 실패 등), 모델 설정 조회 실패, 서비스 내부 실패다. 모델 설정 조회 실패를 이 코드로 보내는 것은 2026-11-13 결정을 따른다([에러 처리와 모델 설정](../CLE-WF/CLE-WF-ASSIST-ERROR.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다-2026-11-13)). 나머지 원인을 코드로 나눌지는 [에러 코드 규약 「미결 사항」](CLE-API-ERRCODES.md#미결-사항) 에 남겼다.
 - **새 코드는 만들지 않았다.** 429 와 SDK 요청 타임아웃은 이미 있는 §6.17 코드로 옮겨 갔다.
+
+### 스트리밍 에러 매핑 링크와 HTTP 칸 표기를 고쳤다 (2026-11-15)
+
+NERV Task `CLE-T-790NKJ` 이다.
+
+- **§6.17 의 매핑 링크를 하위 문서로 옮겼다.** [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 의 「스트리밍 에러 매핑」 절에는 이제 하위 문서로 가는 안내만 남아 있다. 매핑 표의 정본은 [LLM 클라이언트 — 에러 처리와 스트리밍](../CLE-AI/CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑) 이라 그쪽을 가리킨다.
+- **`LLM_STREAMING_UNSUPPORTED` 의 HTTP 칸에 나가는 곳을 적었다.** 설명에 `BadRequestException` 이 있어 칸에 「없음」만 두면 400 을 빠뜨린 것처럼 읽힌다. 칸에 SSE `error` 이벤트(§6.25)를 적어 HTTP 로 나가지 않는다는 것을 칸만 보고도 알 수 있게 했다.
+- **§6.25 표에는 HTTP 칸을 더하지 않았다.** §6.17 · §6.19 와 열 구성이 다르지만 §6.25 의 코드는 모두 HTTP 응답으로 나가지 않는다. 칸을 더하면 모든 행이 「없음」이 되어 담기는 정보가 없다. 대신 머리말에 HTTP 칸이 없는 이유를 한 문장으로 적었다.
+
+### 실행 중 편집 거부 코드를 §6.25 에 등재했다 (2026-11-15)
+
+NERV Task `CLE-T-ZN111F` 이다. [워크플로우 AI 어시스턴트 「요구사항」](../CLE-WF/CLE-WF-ASSIST.md#요구사항) 의 실행 중 편집 거부를 구현하면서 편집 도구가 결과 `{ ok: false, error: 'ASSISTANT_WORKFLOW_RUNNING', message }` 를 돌려주게 됐다. 발행하는 코드는 등재한다는 규칙 8 에 따라 §6.25 에 올렸다. 거부를 SSE `error` 이벤트가 아닌 도구 결과로 돌려주는 이유는 [워크플로우 AI 어시스턴트 「실행 중 편집 거부를 편집 도구 결과로 돌려준다」](../CLE-WF/CLE-WF-ASSIST.md#실행-중-편집-거부를-편집-도구-결과로-돌려준다-2026-11-15) 에 있다.
+
+- **편집 도구 결과 가운데 이 코드만 올렸다.** `NODE_NOT_FOUND` 같은 다른 결과 문자열은 모델에게 인자를 고쳐 다시 부르라는 신호이고 [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md) 가 정한다. `ASSISTANT_WORKFLOW_RUNNING` 은 세 가지가 다르다. 요구사항이 사용자 안내를 약속했다. 화면이 이 코드를 보고 도구 배지 문구를 고른다. 이름도 `ASSISTANT_` 도메인의 코드다.
+- **SSE `error` 표와 따로 표를 두었다.** 기존 표의 코드는 SSE `error` 이벤트로 와서 턴이 끝난다. 이 코드는 `tool_call` 결과로 오고 턴이 이어진다. 한 표에 섞으면 이 코드도 턴을 끝내는 것처럼 읽힌다.
+- **2026-11-13 의 `ASSISTANT_TOOL_FAILED` 판단은 그대로다.** 편집 도구 실패 전체를 묶는 코드는 여전히 두지 않는다. 사용자 안내가 정해진 이 한 가지만 올린다.

@@ -544,6 +544,10 @@ describe('buildSystemPrompt', () => {
       expect(prompt).toMatch(/PLAN_AWAITING_APPROVAL/);
       expect(prompt).toMatch(/PLAN_NOT_COMPLETE/);
       expect(prompt).toMatch(/MISSING_PLAN_STEP_ID/);
+      // REQ-ASSIST-028: 실행 중 편집 거부 결과를 받으면 재시도하지 않고 안내한다.
+      expect(prompt).toMatch(
+        /ASSISTANT_WORKFLOW_RUNNING.{0,10}→ the workflow is running in the editor and nothing was changed\. Do not retry/,
+      );
     });
 
     it('neutralizes `#` headers that appear after newlines in userRequest', () => {

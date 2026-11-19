@@ -203,4 +203,30 @@ describe("ToolCallBadge summary i18n", () => {
       "→ 연결선 × 3 (재시도 후 성공)",
     );
   });
+
+  // REQ-ASSIST-028: 워크플로우 실행 중이라 거부된 편집은 실패 배지 끝에 이유를 붙인다.
+  it.each([
+    ["ko", "+ Fetch order (실행 중이라 적용 안 함)"],
+    ["en", "+ Fetch order (not applied: workflow is running)"],
+  ] as const)(
+    "appends the %s workflow-running suffix to a rejected edit",
+    (locale, expected) => {
+      useLocaleStore.setState({ locale });
+      const rejected = call(
+        "add_node",
+        { type: "http", label: "Fetch order" },
+        { ok: false, error: "ASSISTANT_WORKFLOW_RUNNING", message: "running" },
+      );
+      expect(badgeText(rejected)).toBe(expected);
+    },
+  );
+
+  it("keeps the plain summary for other edit failures", () => {
+    const failed = call(
+      "add_node",
+      { type: "http", label: "Fetch order" },
+      { ok: false, error: "LABEL_CONFLICT", message: "dup" },
+    );
+    expect(badgeText(failed)).toBe("+ Fetch order");
+  });
 });
