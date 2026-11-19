@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "a12e3a1aa4b79ff9f03cd25aada4dd0e1dba98da2fab50a241d1757381253e5c"
+content_hash: "d1d2370ed5779d8ea5b9f6810652b82fc05e598c3ad775bed352ac67479918e2"
 read_as: "approved_fallback"
-task: "CLE-T-N2FM8W"
+task: "CLE-T-62B0J9"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "3a819b0b24c9f5c996cbccd78f58e73785b249231dcacb3ddcd3c009bdbbedfa"
-etag: "sha256-e60044be3c6d7f49e8099fa285c70cd03a10a6126ef158ac9d09cc684093bbad"
+mirror_sha256: "fa8c064b6161a9013db474ee5e1586c66a89d350310291f9cbf355f949a57c86"
+etag: "sha256-806c2631f5e556cd2bb3f32c025ab3751dfadec4713bd20a0a94c2e30d4c2ded"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -133,7 +133,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 | 5xx | `INTERNAL_ERROR` |
 | 410 | **없음** |
 
-- `RolesGuard` 의 멤버십·역할 거부는 기본값이 아니라 전용 가드 거부 코드(`NOT_A_MEMBER`, `EDITOR_REQUIRED`, `ADMIN_REQUIRED`, `OWNER_REQUIRED`)를 쓴다. 2026-09-25 이전에는 코드를 지정하지 않아 기본값 `FORBIDDEN` 이 나갔다. 결정 근거는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 "가드 거부의 오류 코드" Rationale 이다.
+- `RolesGuard` 의 멤버십·역할 거부는 기본값이 아니라 전용 가드 거부 코드(`NOT_A_MEMBER`, `EDITOR_REQUIRED`, `ADMIN_REQUIRED`, `OWNER_REQUIRED`)를 쓴다. 2026-09-25 이전에는 코드를 지정하지 않아 기본값 `FORBIDDEN` 이 나갔다. 결정 근거는 [API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#가드-거부에-에러-코드를-붙인다) 의 Rationale 「가드 거부에 에러 코드를 붙인다」다.
 - **`410` 에는 기본값이 없다.** 위 표는 필터의 상태→코드 매핑을 옮긴 것이고 그 매핑에 `410` 항목이 없다. 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 그래서 `410` 을 돌려주는 경로는 `code` 를 반드시 명시한다. 현재 `410` 발행 지점(`TRIGGER_INACTIVE`, `WORKFLOW_INACTIVE`, `EXECUTION_TERMINATED`, `invitation_expired`, `invitation_already_used`)은 모두 코드를 명시한다. 소문자 두 값은 이름 규칙의 예외로 등록된 초대 흐름 코드다([에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md#3-예외-등록-코드) §3). 기본값을 새로 만들지 않은 이유는 Rationale 에 있다.
 - **외부 표면의 의도적 교체**: EIA REST(`/api/external/*`)와 웹훅 수신(`/api/hooks/*`)은 외부 호출자에게 보이는 표면이라 기본 코드 대신 도메인 코드를 쓴다(예: 400 에 `INVALID_COMMAND`·`INVALID_WEBHOOK_PAYLOAD`, 429 에 `TOO_MANY_CONNECTIONS`). `410` 은 교체가 아니라 명시 의무다. 교체할 기본값이 애초에 없다.
 

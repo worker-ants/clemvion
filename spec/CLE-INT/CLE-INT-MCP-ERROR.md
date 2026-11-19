@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-ERROR"
 title: "MCP 클라이언트 — 에러 처리"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "6ec5074b42a7616e92e344644702c2cca5e1d6e5fd570e0c6c841645f47139cf"
+content_hash: "ffa5a27b55914edccf1813aea905446355d174de46af59f83dec3b85044b588b"
 read_as: "approved_fallback"
-task: "CLE-T-BDPE71"
+task: "CLE-T-7BNDT8"
 source_paths: []
-mirror_sha256: "25a3382fa5f51b1a13ffe0e8a5a2ba2edd1f3189a55e40e4aee51c2023203867"
-etag: "sha256-7d61995aece1a19fed82484d44b640afc4991d8723f1e3f417bd0f37d4186fe5"
+mirror_sha256: "e4c6d8c59c909e0aa48c087edb2a5793a73a0d90ae4abc929e3bc0bfb9cdd55c"
+etag: "sha256-9ad9981fedeeee58708bf6ccab4e2570e795613aeaa6438dbd5020e786556df8"
 ---
 ## 개요
 
@@ -22,13 +22,13 @@ etag: "sha256-7d61995aece1a19fed82484d44b640afc4991d8723f1e3f417bd0f37d4186fe5"
 
 ## 격리 원칙
 
-MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 않는다. 지식 저장소 검색과 같은 graceful degradation 전략이다.
+MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 않는다. 실패한 서버만 빼고 나머지 서버로 계속 실행한다. 지식 저장소 검색도 같은 방식이다.
 
 | 상황 | 처리 |
 |------|------|
 | `initialize` 실패, `tools/list` 실패, connect 타임아웃 | 그 서버 도구는 LLM 에 노출하지 않는다. `meta.mcpDiagnostics.errors` 에 세분 코드([에러 코드](#에러-코드))와 `phase` 로 남긴다. 다른 서버·지식 저장소 도구는 정상 노출한다 |
 | `tools/call` 실패(네트워크, 5xx, RPC error) | 그 호출만 실패한다. LLM 에 `tool_result` 로 `{ "error": "<code>", "message": "..." }` 를 넘겨 LLM 이 응답 방법을 정하게 한다. [활동 로그](#활동-로그)와 `mcpDiagnostics.errors[]`(`phase='tools/call'`, 세분 코드)에 남긴다 |
-| 401·403(인증 실패) | 위와 같고, 추가로 `Integration.status` 를 `error(auth_failed)` 로 바꾸고(이미 `error(auth_failed)` 면 그대로 둔다) `last_error` 를 남긴다. 사용자에게 통합 재인증이나 자격 증명 교체를 권한다([인증 실패 상태 전환](#인증-실패-상태-전환)) |
+| 401·403(인증 실패) | 위와 같고, 추가로 `Integration.status` 를 `error(auth_failed)` 로 바꾸고(이미 `error(auth_failed)` 면 그대로 둔다) `last_error` 를 남긴다. 사용자에게 복구를 권한다. 외부 MCP 는 자격 증명 교체나 OAuth 통합 재인증이고 Cafe24 · MakeShop 은 프로바이더마다 경로가 다르다([인증 실패 상태 전환](#인증-실패-상태-전환), [재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청)) |
 | 도구 인자 스키마 검증 실패 | LLM 이 보낸 인자가 `inputSchema` 를 어기면 호출하지 않고 `tool_result.error = 'INVALID_TOOL_ARGUMENTS'` 를 돌려준다. LLM 이 다음 턴에 고친다. 외부 MCP 도구의 구현 범위는 아래 `INVALID_TOOL_ARGUMENTS` 참조 |
 | `tool_result.content` 가 너무 큼(텍스트 100KB 초과, 바이너리 1MB 초과) | 잘라 내고 `tool_result` 끝에 `[truncated: original_size_bytes]` 표시를 붙인다. `mcpDiagnostics` 에 경고를 남긴다 |
 

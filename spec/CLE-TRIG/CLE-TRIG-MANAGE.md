@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-061", "REQ-TRIG-062", "REQ-TRIG-063"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "147a3b09d21a538e03af8f3e7459a64ca9e94d74120e3db7c6664b11938d2f07"
+content_hash: "85dfba888d239456cd73f6be08f253d90d5ae255f0f480b5895ade5ad438321d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FAEAVE"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "0efb82189f1b318d6f25bafa076087813530128cdf6e87355d27fcb47fe14a43"
-etag: "sha256-1d62ac2586c31f2a524357cf9fc92841a1374d00e6a52414dfde3bc484599fe2"
+mirror_sha256: "a01644fc56c861224a0315c780d93d39a20f58b9a787832f0a002495b43d4d52"
+etag: "sha256-7483389fc9ae24851010714927a6c3cc76d06fea9b91d3a51c716f586a49cdec"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -62,7 +62,7 @@ etag: "sha256-1d62ac2586c31f2a524357cf9fc92841a1374d00e6a52414dfde3bc484599fe2"
 - REQ-TRIG-022 WHEN 클라이언트가 웹훅 트리거를 만들면 THE SYSTEM SHALL 엔드포인트 경로를 `crypto.randomUUID()` 로 만들어 보낸다.
 - REQ-TRIG-023 WHEN 생성 모달이 Slack·Discord 채팅 채널의 `inboundSigningPlaintext` 를 보내기 전이면 THE SYSTEM SHALL `@workflow/chat-channel-validation` 패키지의 정규식으로 hex 형식을 검사한다.
 - REQ-TRIG-024 WHEN `GET /api/triggers` 가 `interactionEnabled` 를 받으면 THE SYSTEM SHALL `config.interaction.enabled` 값이 일치하는 트리거만 반환한다.
-- REQ-TRIG-025 WHEN `GET /api/triggers` 가 `sort`·`order` 를 받으면 THE SYSTEM SHALL 그 기준으로 정렬한다. (미구현)
+- REQ-TRIG-025 WHEN `GET /api/triggers` 가 `sort`·`order` 를 받으면 THE SYSTEM SHALL 허용 값 목록(`created_at` · `updated_at` · `name` · `type` · `is_active` · `last_triggered_at`) 안의 값만 정렬에 반영하고 허용 밖 값은 `created_at` 으로 정렬하며 기본은 `created_at DESC` 로 한다.
 - REQ-TRIG-026 WHEN `PATCH /api/triggers/:id` 가 `isActive` 를 받으면 THE SYSTEM SHALL 그 값으로 활성 상태를 바꾸고 별도 `/toggle` 경로는 두지 않는다.
 - REQ-TRIG-027 IF `authConfigId` 가 호출자 워크스페이스의 인증 설정이 아니면 THE SYSTEM SHALL 400 `AUTH_CONFIG_NOT_FOUND`(`details.field='authConfigId'`)로 거부한다.
 - REQ-TRIG-028 WHEN PATCH 본문에 `notification`·`interaction`·`chatChannel` 이 오면 THE SYSTEM SHALL 각 객체를 `config` 안의 같은 이름 키에 통째로 교체해 넣고 `interaction.triggerToken` 은 PATCH 결과의 `interaction.tokenStrategy` 가 `per_trigger` 일 때만 잠금 안에서 다시 읽은 행의 값을 이어받고 그 밖에는 지운다. `notification` 이 오면 알림 서명 시크릿 참조를 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 대로 보존하거나 첫 시크릿을 발급한다.
@@ -144,6 +144,15 @@ etag: "sha256-1d62ac2586c31f2a524357cf9fc92841a1374d00e6a52414dfde3bc484599fe2"
 
 - 이 결정이 REQ-TRIG-061 (타입 키 거부) · REQ-TRIG-062 (`secret://` 값 거부) · REQ-TRIG-063 (키 단위 병합)을 더했다.
 - 이 결정으로 REQ-TRIG-060 을 지웠다. 그 요구사항은 원시 `config` 로 `interaction` 을 바꾼 PATCH 가 토큰을 없애거나 인터랙션을 끄면 스트림을 닫는다고 정했다. 원시 `config` 의 `interaction` 이 400 이 되어 그 경로가 없어졌다. 같은 동작은 top-level `interaction` 쪽 REQ-TRIG-059 가 맡는다. 번호는 다시 쓰지 않는다. 같은 이유로 REQ-TRIG-056 에서 원시 `config` 갈래를 지웠다.
+
+### 트리거 목록 정렬 규칙 (2026-11-19)
+
+`GET /api/triggers` 의 `sort`·`order` 는 DTO 로 받기만 하고 `findAll` 이 무시해서 REQ-TRIG-025 를 미구현으로 표시했다. NERV Task `CLE-T-FKYM4N` 이 정렬을 구현했고 허용 목록과 처리 규칙은 그 Task 질문의 사람 답으로 정했다. 이번 개정(`CLE-T-FAEAVE`)은 미구현 표시를 풀고 그 규칙을 [API](CLE-TRIG-MANAGE-API.md#api) 표에 적었다. 기능 약속을 바꾼 것이 아니라 구현이 끝나 문서를 맞춘 것이다. 형식은 [스케줄](CLE-TRIG-SCHEDULE.md) 의 REQ-SCHED-027 을 따랐다.
+
+- **허용 목록**: 엔티티에서 정렬할 만한 컬럼 전부(`created_at` · `updated_at` · `name` · `type` · `is_active` · `last_triggered_at`)다. 값은 [HTTP API 규약 §4.1](../CLE-API/CLE-API-CONV-URL.md#41-목록-조회-쿼리-파라미터) 의 표기(snake_case 컬럼 이름)를 따른다. 스케줄 행에만 붙는 `nextRunAt` 은 스케줄 표에서 읽어 응답에 붙이는 값이라 트리거 목록 쿼리로 정렬할 수 없어 넣지 않았다.
+- **허용 밖 값은 400 이 아니라 `created_at` 으로 정렬한다**: `schedules` · `workflows` 목록 구현(공통 `pickSortColumn`)과 같은 처리다. 이 폴백은 두 목록의 스펙에는 아직 적혀 있지 않다. 목록마다 거부 기준이 다르면 클라이언트가 화면마다 다른 에러를 다뤄야 한다. 형식이 틀린 값(`sort` 정규식 위반, `order` 가 `asc` · `desc` 밖)은 공통 DTO 가 400 으로 막으므로 SQL 식별자 주입은 폴백과 상관없이 닫혀 있다.
+- **`last_triggered_at` 은 방향과 상관없이 NULLS LAST**: 한 번도 실행되지 않은 트리거는 값이 없다. PostgreSQL 기본(ASC 는 NULLS LAST, DESC 는 NULLS FIRST)을 따르면 «최근 실행 순» 첫 페이지가 실행 이력 없는 트리거로 찬다.
+- **같은 값끼리는 `id` 로 고정한다**: `type` · `is_active` 처럼 값이 몇 개뿐인 컬럼은 같은 값이 많다. 보조 정렬이 없으면 offset 페이지 사이에서 행이 겹치거나 빠진다. 방향은 정렬 방향과 같게 둔다.
 
 ### 채널 프로바이더 표기 (2026-11-12)
 

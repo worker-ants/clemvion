@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-POLICY"
 title: "재실행 — 정책"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "9c4dc7e54cf05fd17ce530685852d6894562031cf6fa663e2aa8bb12e7b8e559"
+content_hash: "c463c622707d7f19d774a846723887aef6b15979b725b0bd89ea795f4ecd1b8c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-62B0J9"
 source_paths: []
-mirror_sha256: "764f3e0d73208053694f2cb5c5787ed37dc21713bb19035081d7ce22156ee7fb"
-etag: "sha256-635a0eafac762ed6f1ce396d725d4002e9e08c996b8f1291a410556be11cd0a6"
+mirror_sha256: "adbfde65999e79fa297ecef05d380d482023eb63dd5ef917f0c53e847584a50f"
+etag: "sha256-442b0cf41b11d495deca1c937ad16739cc18828a57f1754d0824f9557dce1967"
 ---
 ## 개요
 
@@ -71,7 +71,7 @@ v1 은 워크플로우 전체만 재실행한다. 실패한 노드부터 이어 
 - 호출자가 같은 워크스페이스의 멤버이고 편집자 이상(소유자, 관리자, 편집자)이다.
 - 호출자가 원본 실행(`execution.executed_by`)의 시작자이거나 워크스페이스의 소유자·관리자다.
 
-거부하는 층은 둘이다. 첫 조건은 `RolesGuard` 가 막는다(라우트 `@Roles('editor')`, 비멤버는 `NOT_A_MEMBER`, 뷰어는 `EDITOR_REQUIRED`). 둘째 조건은 서비스가 `RERUN_PERMISSION_DENIED` 로 막는다. 가드 거부 에러 코드의 근거는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 에 있다.
+거부하는 층은 둘이다. 첫 조건은 `RolesGuard` 가 막는다(라우트 `@Roles('editor')`, 비멤버는 `NOT_A_MEMBER`, 뷰어는 `EDITOR_REQUIRED`). 둘째 조건은 서비스가 `RERUN_PERMISSION_DENIED` 로 막는다. 가드 거부 에러 코드의 근거는 [API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#가드-거부에-에러-코드를-붙인다) 의 Rationale 「가드 거부에 에러 코드를 붙인다」에 있다.
 
 **`executed_by = NULL` 인 자동 실행(트리거·스케줄·웹훅)**: 시작자가 없는 자동 실행은 "다른 사람의 실행" 이 아니다. 그래서 워크스페이스 편집자 이상이면 누구나 재실행할 수 있다(워크스페이스 자원으로 취급). 소유자·관리자로 더 좁혀야 한다면 후속 정책 결정이 필요하다. 현재 구현(`executions.service.ts` 의 reRun)은 이 정책을 따른다.
 
@@ -123,9 +123,9 @@ G2 는 사용자가 "AI 에게 재실행 권한 부여" 를 명시적으로 켜�
 
 둘은 같은 사용자 가치("실패한 흐름 다시")의 다른 단위다.
 
-### 트리거를 다시 발화하지 않는다
+### 트리거를 다시 발사하지 않는다
 
-재실행은 **트리거를 다시 발화하지 않는다.** 원본 실행이 웹훅으로 시작됐어도 재실행은 웹훅 발화 없이 수동 경로로 진행한다. 새 실행 행은 `executed_by = <재실행 호출자>`, `trigger_id = NULL` 로 채워진다([실행 컨텍스트](CLE-EXEC-CONTEXT.md) 의 수동 경로와 같다). 실행 출처 분류([실행 내역](CLE-EXEC-HISTORY.md))는 이 실행을 `manual` 로 표시하고 체인 배지가 함께 보여 출처가 재실행임을 따로 알린다.
+재실행은 **트리거를 다시 발사하지 않는다.** 원본 실행이 웹훅으로 시작됐어도 재실행은 웹훅 발사 없이 수동 경로로 진행한다. 새 실행 행은 `executed_by = <재실행 호출자>`, `trigger_id = NULL` 로 채워진다([실행 컨텍스트](CLE-EXEC-CONTEXT.md) 의 수동 경로와 같다). 실행 출처 분류([실행 내역](CLE-EXEC-HISTORY.md))는 이 실행을 `manual` 로 표시하고 체인 배지가 함께 보여 출처가 재실행임을 따로 알린다.
 
 ## 향후 확장
 

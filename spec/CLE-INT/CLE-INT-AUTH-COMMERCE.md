@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH-COMMERCE"
 title: "서비스별 인증 방식과 자격 증명 — Cafe24 · MakeShop"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-AUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-AUTH"]
 area: "CLE-INT"
-content_hash: "38145f9cd8e4faed073a03f4e49c6d4e9d64e5d3e04be7f0d3ea8f5c7f55c7e8"
+content_hash: "2779fc953b7d2bcb05c34c2ef4ce2223585c934cfd3f4cff3c977c9618dda81b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-7BNDT8"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "be44e24a4c9b3fbdc00db0beb7f8ee990d18d3f95d4806c23ab634dadb23b642"
-etag: "sha256-dc104fcc935e2a2c8af6bce647309ce849278bcb33c7a22fe1f5d8d6bf876491"
+mirror_sha256: "b5126434058ed9a98de6b1655bb30e36e59a64c69b3a083e63b9bacbb027c686"
+etag: "sha256-6265768fec66736cacf04a28549ab427199f171467e257a2584defebed0efc3d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -79,10 +79,10 @@ etag: "sha256-dc104fcc935e2a2c8af6bce647309ce849278bcb33c7a22fe1f5d8d6bf876491"
 
 - 401(`access_token time expired` 등)을 받을 때만 `refresh_token` 으로 access token 을 갱신한 뒤 한 번만 다시 시도한다. 다시 시도해도 401 이면 `error(auth_failed)` 로 바꾼다. 호출 직전 갱신이 경쟁 조건(DB `expires_at` 미동기, 여러 인스턴스 등)으로 빗나간 경우를 스스로 복구하려는 것이며, 노드 호출 경로와 같은 정책이다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
 - 토큰 갱신 요청이 401·403 으로 거절되면 갱신 단계가 통합을 `error(auth_failed)` 로 바꾸고 `CAFE24_AUTH_FAILED` 를 돌려준다. 갱신 요청이 그 밖의 상태로 실패하면 지금은 `CAFE24_TRANSPORT_FAILED` 다(아래 Rationale 「연결 테스트는 401 만 토큰 문제로 본다」).
-- 403 이면 상태를 낮추지 않고 `CAFE24_INSUFFICIENT_SCOPE` 메시지만 돌려준다. 권한 부족이나 앱 미설치는 사용자가 통합 재인증이나 추가 권한 요청으로 해결한다.
+- 403 이면 상태를 낮추지 않고 `CAFE24_INSUFFICIENT_SCOPE` 메시지만 돌려준다. 권한 부족이나 앱 미설치를 푸는 방법은 앱 유형에 따라 다르다. Cafe24 Public 은 통합 재인증이나 추가 권한 요청의 OAuth 팝업에서 다시 동의한다. Cafe24 Private 은 Cafe24 개발자 센터에서 앱 권한을 고친 뒤 통합 재인증이나 추가 권한 요청으로 재설치 대기 표시를 남기고 24시간 안에 «테스트 실행» 을 누른다. 설치 토큰이 없는 Private 행은 삭제 후 재등록한다([재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청)).
 - 2xx 가 아닌 상태 가운데 401·403 을 뺀 나머지(429·5xx·404 등)는 토큰 문제로 보지 않는다. 토큰을 갱신하지 않고 상태도 낮추지 않는다. 받은 상태를 메시지에 담아 `CAFE24_API_ERROR` 를 돌려준다. 다시 보낸 요청이 이런 상태로 실패해도 같다. 사용자는 잠시 뒤 다시 시도한다.
 - 사용자가 직접 누른 진단 호출이라 연속 네트워크 실패(`consecutive_network_failures`) 합산에서 뺀다. 이 카운터는 노드 실행 시점의 자동 호출만 센다.
-- 저장 전 연결 테스트(`preview-test`)는 저장하기 전 자격 증명의 구조만 검증하고 외부를 부르지 않는다. 막 발급된 토큰이라 갱신이 필요 없다. 컨트롤러 throttle 은 분당 20회다.
+- 저장 전 연결 테스트(`preview-test`)는 저장하기 전 자격 증명의 구조만 검증하고 외부를 부르지 않는다. 막 발급된 토큰이라 갱신이 필요 없다. 요청 빈도 제한은 [§7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
 
 **Rate limit**: Cafe24 는 leaky bucket 으로 호출량을 제한한다. 백엔드 `Cafe24ApiClient` 가 응답 헤더 `X-Cafe24-Call-Remain`·`X-Cafe24-Call-Usage`·`X-Api-Call-Limit` 을 보고, 429 를 받으면 기다렸다가 최대 2회 다시 시도한다. 노드 호출과 AI 에이전트 MCP 호출이 같은 클라이언트를 거치므로 같은 프로세스 안에서는 통합 단위로 bucket 을 공유한다. 같은 통합을 동시에 많이 쓰면 양쪽이 함께 기다린다. 여러 인스턴스 사이의 직렬화는 보장하지 않는다. 429 뒤 대기 시간은 `max(X-Cafe24-Call-Remain, X-Cafe24-Time-Remain)` 초이고, 헤더 뜻과 재시도 규칙은 [Cafe24 노드 §호출 제한](../CLE-NODE-INT/CLE-NODE-CAFE24.md#호출-제한) 이 정한다.
 

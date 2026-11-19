@@ -2,19 +2,19 @@
 id: "CLE-UI-LAYOUT"
 title: "레이아웃과 내비게이션"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-LAYOUT-001", "REQ-LAYOUT-002", "REQ-LAYOUT-003", "REQ-LAYOUT-004", "REQ-LAYOUT-005", "REQ-LAYOUT-006", "REQ-LAYOUT-007", "REQ-LAYOUT-008", "REQ-LAYOUT-009", "REQ-LAYOUT-010", "REQ-LAYOUT-011", "REQ-LAYOUT-012", "REQ-LAYOUT-013", "REQ-LAYOUT-014", "REQ-LAYOUT-015", "REQ-LAYOUT-016", "REQ-LAYOUT-017", "REQ-LAYOUT-018", "REQ-LAYOUT-019", "REQ-LAYOUT-020", "REQ-LAYOUT-021", "REQ-LAYOUT-022", "REQ-LAYOUT-023", "REQ-LAYOUT-024", "REQ-LAYOUT-025", "REQ-LAYOUT-026", "REQ-LAYOUT-027", "REQ-LAYOUT-028", "REQ-LAYOUT-029", "REQ-LAYOUT-030", "REQ-LAYOUT-031", "REQ-LAYOUT-032", "REQ-LAYOUT-033", "REQ-LAYOUT-034", "REQ-LAYOUT-035", "REQ-LAYOUT-036", "REQ-LAYOUT-037", "REQ-LAYOUT-038", "REQ-LAYOUT-039", "REQ-LAYOUT-040", "REQ-LAYOUT-041", "REQ-LAYOUT-042", "REQ-LAYOUT-043"]
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "845afdce460fec64356762f22517dd4a0e533d5d898b0ecc0c14e4805223a984"
+content_hash: "da7027bd67503bcd5a22155371e2133cf28de4a9436e9e1327f05ccd708aabd6"
 read_as: "approved_fallback"
-task: "CLE-T-YG34W6"
+task: "CLE-T-7BNDT8"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "dba870b8a431458db4cc5cfb6dec072700569befb30eb0362eca47e8a97d267f"
-etag: "sha256-da7bebc3b77c49b2bbae840cf9359cf28e492e1017e04d7d73d159b7fe717b15"
+mirror_sha256: "3ddf08709db8ea303d4a684347fb03f5e6f35bfa29697640038c5594e8f594cb"
+etag: "sha256-7e1a8c477490ead7a2f4890c46b14cc169c589cf3d0d63b59450115cfeba1e59"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/_layout.md` (§1 레이아웃 구조, §2 사이드바, §4 메인 컨텐츠 영역, §5 공통 헤더, Rationale), `spec/2-navigation/_product-overview.md` (§1 개요, §2 내비게이션 구조), `spec/0-overview.md` (§3 공통 UI 패턴, Rationale «Inline Alert 의 위치») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -206,6 +206,7 @@ etag: "sha256-da7bebc3b77c49b2bbae840cf9359cf28e492e1017e04d7d73d159b7fe717b15"
   - Cafe24 Public 새 등록 폼의 별도 승인 권한 경고(warning, 계속 표시): [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), [Cafe24 별도 승인 scope](CLE-C24-SCOPES)
   - 통합 상세 Scope & Permissions 탭의 Cafe24 Private 권한 추가 응답 안내(warning): [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)
   - 통합 상세 활동 탭의 "연결 안 됨" 안내. 통합 상태에 따라 톤을 올린다. `error` 는 error(빨강), `expired`·`pending_install` 은 warning(amber)이다: [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)
+  - 통합 상세 화면 머리글 아래의 Cafe24 Private 재설치 대기 안내(info, `role=status`). 통합 재인증이나 추가 권한 요청이 재설치 대기 표시를 남기면 보이고, 콜백이 성공하거나 24시간이 지나 표시가 만료되면 사라진다. X 버튼은 없다: [재설치 대기 표시](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)
 
 ### 반응형과 테마
 

@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT-CATALOG"
 title: "감사 로그 — 감사 액션 카탈로그"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "8c598ddc0a5a0781614507b9a038cb65f735710078aba55eb420ad008c3d3b40"
+content_hash: "e6a7330075a87c0767eb69be16be916ab1139640fee5dc2e47d86ddedd0b8447"
 read_as: "approved_fallback"
-task: "CLE-T-Q6E11N"
+task: "CLE-T-7BNDT8"
 source_paths: ["spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "2ee124fc699ca2e6cc97d03f441aceed08ff6761150cd185bc7bb7de9f404afb"
-etag: "sha256-695dfe5f8ebe8f04b7fad00596dd67a947f14bd8e270fdd93263e1465f8b0678"
+mirror_sha256: "38ba1392a74c05fef77d9cf22941b57636bc707d873f0b2c5012bbed2d7e0a24"
+etag: "sha256-a4269d53d1799579a3f00d923349d0f21af5a166764df366e40dc491603f465c"
 ---
 > 구현 상태: 부분 구현(`workflow.executed` 미구현, `alerts` 모듈 커버리지 갭) · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/5-system/1-auth.md` (§4), `spec/data-flow/1-audit.md`, `spec/conventions/audit-actions.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -33,7 +33,7 @@ etag: "sha256-695dfe5f8ebe8f04b7fad00596dd67a947f14bd8e270fdd93263e1465f8b0678"
 | `integration.deleted` | integration | 〃 | 통합 삭제. 멤버가 나가거나 제거되면서 그 사람의 개인 통합을 함께 지우면 나가기·제거 트랜잭션이 커밋된 뒤 `member.removed` 다음에 지운 통합마다 한 행씩 남긴다. 기록은 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 의 커밋 뒤 처리에서 일반 삭제와 같은 `finishIntegrationDeletion` 을 불러 남긴다([통합 데이터와 흐름 「멤버가 나가거나 제거될 때」](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)). 행위자는 나가기면 나간 멤버, 제거면 제거한 관리자다. `details` 에는 `member.removed` 와 같은 `mode`(`'left'` 또는 `'removed'`)와 `memberUserId` 를 싣는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#감사-로그)). 일반 삭제의 행에는 두 키가 없다 | 구현됨 |
 | `integration.rotated` | integration | 〃 | 자격 증명 교체 | 구현됨 |
 | `integration.scope_changed` | integration | 〃 | 공개 범위(`Integration.scope`) 전환. personal ↔ organization. `details.from`·`to` | 구현됨 |
-| `integration.reauthorized` | integration | 〃 | 통합 재인증. OAuth 제공자가 없는 통합의 reset 경로에서만 남는다(`details.mode='reset'`). OAuth 통합 재인증은 `oauth/begin` 에 위임하므로 시작과 콜백 어디에서도 남지 않는다(커버리지 갭, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)) | 부분 구현 |
+| `integration.reauthorized` | integration | 〃 | 통합 재인증. OAuth 제공자가 없는 통합의 reset 경로에서만 남는다(`details.mode='reset'`). OAuth 통합 재인증은 `oauth/begin` 에 위임하므로 시작과 콜백 어디에서도 남지 않는다. Cafe24 Private 통합 재인증도 재설치 대기 표시(`reinstall_requested_at`)만 남기고 감사 로그는 남기지 않는다(커버리지 갭, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md), [재설치 대기 표시](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)) | 부분 구현 |
 | `workspace.transfer_ownership` | workspace | `workspaces/workspaces.service.ts` | 소유자 이양 | 구현됨 |
 | `workspace.created` | workspace | 〃 | 팀 워크스페이스 생성(`createTeam`) | 구현됨 |
 | `workspace.updated` | workspace | 〃 | 이름·설정 변경(`renameWorkspace`, `updateWorkspaceSettings`). `details.field` | 구현됨 |

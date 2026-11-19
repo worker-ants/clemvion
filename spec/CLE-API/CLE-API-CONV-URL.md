@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-URL"
 title: "HTTP API 규약 — URL 과 요청"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "0d320337ee9a0ea19d336fc3ef9184924c9cb37f69bce09ff26764cd2f5ae46a"
+content_hash: "0e27196ec736e8d9e0bfcbef495dd94f8c6100b17b10c356bb3da2c6dd08ce4a"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-SRXR5W"
 source_paths: []
-mirror_sha256: "b046a85990fb769588bcb03cff4dd0b87baafa7b203da5661b4b64470707baa4"
-etag: "sha256-b863110a465198ebac9082ee94c7d66e262fe6142e1b4c620b3b77a2a794609d"
+mirror_sha256: "82a4977ed3a1071e8fba39d473b66f1e6e8a574a13b5469e1178b8c764c049f5"
+etag: "sha256-8ec2f998961eb338210287132421378420f06cdd5bb0b6acf81b0ae9a356bbb6"
 ---
 ## 개요
 
@@ -39,12 +39,16 @@ etag: "sha256-b863110a465198ebac9082ee94c7d66e262fe6142e1b4c620b3b77a2a794609d"
 | 중첩은 2단계까지 | `/api/knowledge-bases/:id/documents` |
 | 3단계 이상은 최상위로 분리 | `/api/documents/:docId` (필요할 때) |
 | **자원 액션**: `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 자원이 아니라 동사(구)다. 앞 경로가 가리키는 자원에 가하는 동작이다. 케밥 케이스 복합 동사구도 포함한다(`run-now`, `transfer-ownership`, `set-default`). 목적어는 경로에 두고 액션 이름에 넣지 않는다. `/workflows/:id/nodes/:nodeId/execute` 가 맞고 `/workflows/:id/execute-node` 는 틀리다. Boolean 상태 필드의 단순 토글에는 이 형태를 쓰지 않는다(§12.1) | `/executions/:id/stop`, `/schedules/:id/run-now`, `/workflows/:id/nodes/:nodeId/execute` |
+| **컬렉션 수준 액션**: `/api/{resource}/{action}` 의 마지막 세그먼트는 동사(구)이고 자원 id 가 없다. 저장된 자원 하나가 아니라 컬렉션에 딸린 동작이다. 아직 저장하지 않은 입력을 검사 · 시험 · 미리 보기하거나 외부 흐름을 시작할 때 쓰고, 결과를 자원으로 남기지 않는다. 공급자나 흐름마다 다른 동작은 그 이름을 동사 앞 세그먼트에 둔다(`cafe24/precheck`, `oauth/begin`). 이미 있는 자원의 상태를 바꾸는 동작은 이 행에 들지 않는다. 여러 건을 한꺼번에 바꾸는 일괄 동작도 마찬가지다(아래 「인앱 알림의 일괄 동작」 예외). 예시 가운데 `preview-models` · `embedding-probe` 는 동사에 목적어를 붙인 기존 이름이다. 새 경로는 동사(구)만 쓰고 이 둘을 선례로 삼지 않는다. 근거는 Rationale 「컬렉션 수준 액션 · 벤더 등록 경로 · 관측 뷰를 §2.2 에 적었다」 | `POST /api/integrations/preview-test`, `POST /api/integrations/oauth/begin`, `GET /api/integrations/cafe24/precheck`, `GET /api/integrations/makeshop/precheck`, `POST /api/model-configs/preview-models`, `POST /api/knowledge-bases/embedding-probe` |
 | **예외: RPC 형태 하위 채널 액션** `/api/{resource}/{id}/{channel}/{action}`. 자원 자체가 아닌 하위 채널에 가하는 부수 동작(`rotate-*`, `revoke-*`, `disable-*`, `switch` 등)이다. URL 만으로 자원·채널·동작을 식별할 수 있어야 해서 허용한다. 자원 액션에 `{channel}` 이 하나 더 끼는 자매 형태다. `/api/users/me` 의 `me` 는 로그인한 사용자 id 의 별칭이다. 그래서 이메일 변경 `/api/users/me/email-change/{action}` 도 이 형태다(채널 `email-change`) | `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch`, `/api/users/me/email-change/request` |
 | **예외: 인증 family 전용 네임스페이스** `/api/external/{resource}`. 로그인 세션·워크스페이스 인증이 아니라 실행 단위 토큰(per_execution token, `iext_*`) 같은 인터랙션 토큰으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체와 호출하는 쪽이 달라 경로를 나눈다. 규칙 위반이 아니라 명시한 예외다. 상세는 [External Interaction API](../CLE-IX/CLE-EIA.md), 요청 빈도 제한은 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한), 부재 표현은 [§5.5](CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
 | **예외: 인증 상태 전이와 capability 액션** `/api/auth/{action}`. 자원 CRUD 가 아니라 인증 상태 전이(자격 검증, 로그인·로그아웃·토큰 갱신, 비밀번호 재설정, 2단계 인증 등록·해제)이거나 그 전이에 필요한 읽기 전용 capability 조회(OAuth 시작, WebAuthn 가용성)다. 조작할 자원이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다. 2단계 인증 수단 관리(Passkey credential 목록 · 수정 · 삭제, `/api/auth/2fa/webauthn/credentials[/:id]`)도 이 묶음이다. 삭제가 `DELETE` 대신 `POST …/:id/delete` 인 것은 아래 「본문을 받아야 하는 삭제」 행이 정한다. 로그인 세션 목록 · 강제 종료는 아래 행이다. `/api/auth/workspaces/:id/switch` 는 RPC 형태 예외 쪽이다. 상세는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
-| **예외: 리프레시 쿠키 Path 아래의 로그인 세션 자원** `/api/auth/sessions…`. 로그인 세션 목록 조회와 강제 종료는 인증 상태 전이가 아니라 자원 조회와 자원 액션이다. 그래도 `/api/auth` 아래에 둔다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저는 그 아래 경로에만 쿠키를 보낸다. 서버는 그 쿠키로 현재 로그인 세션을 가려낸다. `auth` 아래에서도 자원 이름은 복수형 명사(`sessions`)이고 하나를 끝내는 동작은 자원 액션 형태(`:familyId/revoke`)다. 일괄 종료 `revoke-others` 는 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다. 이 행의 라우트는 사용자 범위 라우트이며 현재 워크스페이스를 쓰지 않는다(`X-Workspace-Id` 불필요). 쿠키가 필요 없는 로그인 이력 조회는 `/api/users/me/login-history` 에 둔다. 근거는 Rationale 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」, 동작은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` |
+| **예외: 리프레시 쿠키 Path 아래의 로그인 세션 자원** `/api/auth/sessions…`. 로그인 세션 목록 조회와 강제 종료는 인증 상태 전이가 아니라 자원 조회와 자원 액션이다. 그래도 `/api/auth` 아래에 둔다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저는 그 아래 경로에만 쿠키를 보낸다. 서버는 그 쿠키로 현재 로그인 세션을 가려낸다. `auth` 아래에서도 자원 이름은 복수형 명사(`sessions`)이고 하나를 끝내는 동작은 자원 액션 형태(`:familyId/revoke`)다. 일괄 종료 `revoke-others` 는 「자원 액션」 행(`/{id}/{action}`)에서 벗어난 이름이고 선례로 삼지 않는다. 옛 경로의 이름을 그대로 둬 클라이언트 변경을 접두사 교체로 줄였다. 이 행의 라우트는 사용자 범위 라우트이며 현재 워크스페이스를 쓰지 않는다(`X-Workspace-Id` 불필요). 쿠키가 필요 없는 로그인 이력 조회는 `/api/users/me/login-history` 에 둔다. 근거는 Rationale 의 「세션 API 를 `/api/auth/sessions` 에 둔 이유」, 동작은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` |
 | **예외: 본문을 받아야 하는 삭제** `POST /api/{resource}/{id}/delete`. 삭제 요청이 재확인 자격 증명(비밀번호)을 본문으로 받아야 하면 `DELETE` 대신 이 형태를 쓴다. 일부 CDN · 프록시가 `DELETE` 요청의 본문을 버리기 때문이다. 동작은 §3 의 `DELETE` 와 같은 자원 삭제이고 성공은 204 다. 2026-11-14 에 Passkey 삭제에서 처음 더한 예외다. 본문이 꼭 필요한 삭제에만 선례로 삼고, 본문 없이 지우는 삭제는 계속 `DELETE` 를 쓴다. 근거는 Rationale 의 「본문을 받아야 하는 삭제를 `POST …/delete` 로 받는다」 | `POST /api/auth/2fa/webauthn/credentials/:id/delete` |
-| **예외: 인앱 알림의 일괄 동작** `/api/notifications/{action}`. 모두 읽음(`POST /api/notifications/mark-all-read`)과 모두 닫기(`POST /api/notifications/dismiss-all`)는 자원 하나가 아니라 본인 알림 여러 건에 한꺼번에 하는 동작이다. 규칙 2(자원 액션 `/{id}/{action}`)에서 벗어난 기존 이름이고 선례로 삼지 않는다. 근거는 Rationale 「인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)」에 있고 동작은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다 | `/api/notifications/mark-all-read`, `/api/notifications/dismiss-all` |
+| **예외: 인앱 알림의 일괄 동작** `/api/notifications/{action}`. 모두 읽음(`POST /api/notifications/mark-all-read`)과 모두 닫기(`POST /api/notifications/dismiss-all`)는 자원 하나가 아니라 본인 알림 여러 건에 한꺼번에 하는 동작이다. 「자원 액션」 행(`/{id}/{action}`)에서 벗어난 기존 이름이고 선례로 삼지 않는다. 근거는 Rationale 「인앱 알림의 읽음 경로와 일괄 동작을 §12.1 · §2.2 의 예외로 적었다 (2026-10-24)」에 있고 동작은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다 | `/api/notifications/mark-all-read`, `/api/notifications/dismiss-all` |
+| **예외: 외부 벤더에 등록하는 경로** `/api/3rd-party/{provider}/...`. 쇼핑몰 앱 설치 진입점(App URL)과 통합 OAuth 콜백이다. 두 URL 은 Cafe24 · MakeShop 개발자 센터와 OAuth 제공자 콘솔에 등록하고, 벤더는 등록값과 같은 URL 로만 브라우저를 보낸다. 그래서 리소스 이름 규칙보다 등록한 URL 을 바꾸지 않는 쪽을 앞세운다. 모두 `@Public()` 라우트다. 이 prefix 아래에는 벤더에 등록하는 경로만 둔다. 사용자 소셜 로그인 콜백(`/api/auth/oauth/:provider/callback`)과 따로 등록하는 것은 [OAuth 연결 시작](../CLE-INT/CLE-INT-OAUTH-BEGIN.md#제공자별-설정) 이, 요청 빈도 제한은 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다 | `GET /api/3rd-party/cafe24/install/:installToken`, `GET /api/3rd-party/makeshop/install/:installToken`, `GET /api/3rd-party/:provider/callback` |
+| **예외: 관측용 단일 뷰** `/api/{view}[/{section}]`. 대시보드 · 시스템 상태 · 헬스 체크는 늘어나는 자원 목록이 아니라 집계를 한 번 보여 주는 뷰라 단수 이름을 쓴다. 하위 세그먼트는 뷰 안의 구역 이름이다(`summary`, `recent-executions`, `overview`, `live`). 범위는 서로 다르다. `/api/dashboard/*` 는 현재 워크스페이스 범위(§2.3)이고 `/api/system-status/overview` 는 아래 「시스템 전역 API 예외」, `/api/health` 는 `@Public()` 이다. 관측 뷰에만 이 형태를 쓰고 그 밖의 자원은 복수형 명사를 쓴다 | `GET /api/dashboard/summary`, `GET /api/dashboard/recent-executions`, `GET /api/system-status/overview`, `GET /api/health`, `GET /api/health/live` |
+| **예외: 통합 관리의 기존 이름**. 추가 권한 요청 `POST /api/integrations/:id/request-scopes` 는 목적어(`scopes`)를 액션 이름에 넣었다. 공개 범위 전환 `PATCH /api/integrations/:id/scope` 는 `PATCH /:id { scope }` 대신 하위 경로를 쓴다. API 카탈로그 `GET /api/integrations/services/:type/catalog` 는 통합 id 가 아닌 서비스 유형 아래에 단수 `catalog` 를 둔다. 목록 검색 파라미터는 §4.1 의 `search` 가 아니라 `q` 다. 모두 규칙에서 벗어난 기존 이름이고 선례로 삼지 않는다. 동작은 [통합 관리 API](../CLE-INT/CLE-INT-MANAGE-API.md) 가 정한다 | `/api/integrations/:id/request-scopes`, `/api/integrations/:id/scope`, `/api/integrations/services/:type/catalog`, `GET /api/integrations?q=` |
 
 ### 2.3 워크스페이스 스코핑
 
@@ -53,8 +57,8 @@ etag: "sha256-b863110a465198ebac9082ee94c7d66e262fe6142e1b4c620b3b77a2a794609d"
 - 현재 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 정한다. `jwt.strategy` 가 멤버십을 검증한 뒤 그 값을 `request.user.workspaceId` 로 채택한다.
 - 워크스페이스 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 한다.
 - **전환기 하위 호환(header-first)**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터와 `RolesGuard` 가 그 워크스페이스를 먼저 쓴다. 헤더가 없으면 토큰 클레임을 쓴다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 기준이 된다.
-- **예외: 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...`, `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이다. 헤더와 토큰 컨텍스트를 쓰지 않는다(2026-09-25). 가드가 경로 값도 검증하는 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#경로-파라미터-워크스페이스도-가드가-본다) 의 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」에 있다.
-- 결정 우선순위·전환 흐름·마이그레이션의 단일 기준은 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#전환-api-와-토큰) 의 「전환 API 와 토큰」 절과 [「API 인가」](../CLE-ACCT/CLE-ACCT-WS.md#api-인가) 절이다.
+- **예외: 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...`, `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이다. `@WorkspaceId()` 를 함께 쓰지 않으면 헤더와 토큰 컨텍스트를 쓰지 않는다(2026-09-25). 함께 쓰면 가드가 헤더 · 토큰이 가리키는 현재 워크스페이스의 멤버십도 따로 본다([API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드가-무조건-한다)). 가드가 경로 값도 검증하는 근거는 [API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#경로-파라미터-워크스페이스도-가드가-본다) 의 Rationale 「경로 파라미터 워크스페이스도 가드가 본다」에 있다.
+- 결정 우선순위·전환 흐름·마이그레이션의 단일 기준은 [워크스페이스 전환](../CLE-ACCT/CLE-ACCT-WS-SPACE.md#전환-api-와-토큰) 의 「전환 API 와 토큰」 절과 [「API 인가」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#api-인가) 절이다.
 - 구현 상태: 구현됨(2026-07-07). `jwt.strategy` 는 토큰 클레임을 `activeWorkspaceId ?? workspaceId` 로 이중으로 읽고 그 멤버십을 검증해 현재 워크스페이스를 확정한다. 데코레이터와 `RolesGuard` 는 전환기 동안 헤더를 먼저 본다.
 
 ```
@@ -69,7 +73,7 @@ Authorization: Bearer {access-token}   (payload.activeWorkspaceId)
 
 #### 시스템 전역 API 예외
 
-일부 관측용 API 는 워크스페이스 경계가 없는 시스템 전역 집계를 돌려준다. 이 부류는 `X-Workspace-Id` 를 받더라도 무시한다. 개별 워크스페이스나 사용자를 식별할 수 있는 데이터(레코드 id, payload 등)는 내보내지 않는다.
+일부 관측용 API 는 워크스페이스 경계가 없는 시스템 전역 집계를 돌려준다. 이 부류는 `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트다. 그래서 가드가 멤버십을 확인하지 않고([API 인가](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#멤버십-검증은-가드가-무조건-한다) 의 제외 대상 (b)) `X-Workspace-Id` 를 받더라도 무시한다. 셋 가운데 하나라도 붙이면 전역 API 가 아니다. 개별 워크스페이스나 사용자를 식별할 수 있는 데이터(레코드 id, payload 등)는 내보내지 않는다.
 
 | 전역 API | 설명 |
 |----------|------|
@@ -192,3 +196,18 @@ NERV Task `CLE-T-Q6E11N` 의 사람 결정으로 Passkey 삭제에도 비밀번�
 
 - `DELETE` 에 본문을 싣는 안. 중간 장비가 본문을 버리면 서버는 비밀번호가 빠진 요청으로 보고 거부한다. 사용자는 비밀번호를 맞게 넣고도 실패한다.
 - 비밀번호를 쿼리 문자열이나 헤더로 받는 안. 쿼리 문자열은 접근 로그와 브라우저 기록에 남는다. 헤더로 받으면 비밀번호를 본문으로 받는 다른 재확인 라우트(TOTP 끄기 · Passkey 복구 코드 재발급)와 형식이 갈린다.
+
+### 컬렉션 수준 액션 · 벤더 등록 경로 · 관측 뷰를 §2.2 에 적었다 (2026-11-19)
+
+NERV Task `CLE-T-SRXR5W` · `CLE-T-62B0J9` 와 `CLE-T-B9CRCF` 6번 항목을 한 번에 정리했다. 세 Task 모두 이미 쓰는 경로가 §2.2 의 어느 행에도 맞지 않는다는 지적이다. 경로는 바꾸지 않았다.
+
+- **컬렉션 수준 액션은 예외가 아니라 규칙 행으로 두었다.** 저장 전 입력 검사(`precheck`) · 연결 시험(`preview-test`) · 모델 목록 미리 보기(`preview-models`) · 임베딩 시험(`embedding-probe`) · 외부 흐름 시작(`oauth/begin`)이 세 모듈에 걸쳐 같은 형태로 있다. 대상이 아직 저장되지 않아 붙일 id 가 없으니 자원 액션 형태를 쓸 수 없다. 같은 형태가 되풀이되므로 예외를 하나씩 늘리기보다 규칙으로 적었다. 인앱 알림의 `mark-all-read` · `dismiss-all` 은 이미 있는 자원 여러 건을 바꾸는 동작이라 이 규칙에 넣지 않고 예외로 남겼다. 일괄 변경까지 이 규칙으로 받으면 `/{id}/{action}` 대신 컬렉션 경로에 동사를 붙이는 길이 열린다.
+- **`/api/3rd-party` 는 벤더 등록값이라 예외로 두었다.** 이 경로를 규칙에 맞게 옮기면 벤더 개발자 센터와 제공자 콘솔의 등록값을 모두 바꿔야 하고, 바꾸기 전에 이미 설치한 앱의 App URL 은 옛 경로를 계속 부른다.
+- **관측 뷰는 단수 이름을 예외로 적었다(`CLE-T-B9CRCF` 6번).** `/api/dashboards` 같은 복수형은 대시보드가 여러 개인 것처럼 읽힌다. 경로를 바꾸면 프런트엔드 호출을 함께 바꿔야 하는데 얻는 것이 없다. `/api/system-status` · `/api/health` 도 같은 부류라 한 행에 묶었다.
+- **통합 관리의 기존 이름 네 개는 notifications 행처럼 «선례로 삼지 않는다» 로 적었다.** 동작에는 문제가 없고 프런트엔드와 문서가 이미 쓰는 이름이다.
+- **시스템 전역 API 예외에 전제를 적었다(`CLE-T-62B0J9`).** 가드가 멤버십을 보지 않는 것은 라우트가 워크스페이스 데코레이터를 하나도 쓰지 않기 때문이다. 이 전제가 없으면 «전역 API 는 `X-Workspace-Id` 를 무시한다» 가 데코레이터를 붙인 라우트에도 맞는 말로 읽힌다. §2.3 의 경로 파라미터 예외에 `@WorkspaceId()` 를 함께 쓸 때의 단서를 더한 것도 같은 이유다.
+
+기각한 대안은 두 가지다.
+
+- 경로를 규칙에 맞게 옮기는 안. 벤더 등록값과 프런트엔드 호출을 함께 바꿔야 하고 동작은 같다. 경로를 바꿔 달라는 요구도 없다.
+- 컬렉션 수준 액션을 경로마다 예외 행으로 적는 안. 표가 길어지고 다음 미리 보기 경로가 생길 때마다 같은 예외를 또 더해야 한다.
