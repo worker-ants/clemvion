@@ -144,9 +144,9 @@ describe('BackgroundHandler', () => {
     });
 
     it('does not return jobId — handler has no queue knowledge (spec §5.1)', async () => {
-      // jobId is engine-stamped (ExecutionEngineService.scheduleBackgroundBody)
-      // and may surface later via NodeExecution.outputData; the handler itself
-      // must remain queue-agnostic.
+      // jobId is engine-stamped (ExecutionEngineService.scheduleBackgroundBody
+      // writes it into the completed NodeExecution.outputData after enqueue,
+      // CLE-T-6V9957); the handler itself must remain queue-agnostic.
       const result = await handler.execute(
         { event: 'x' },
         { notes: '', notifyOnFailure: false, maxDurationMs: 300000 },

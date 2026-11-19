@@ -7611,10 +7611,81 @@ export class ExecutionEngineService
       },
     };
 
-    await this.backgroundQueue.add('background-run', job, {
-      removeOnComplete: 100,
-      removeOnFail: 100,
-    });
+    // 큐 넣기가 실패해도 메인 흐름은 이어진다. 본문 실패를 메인에 올리지 않는 격리 계약과
+    // 같은 규칙이다(CLE-NODE-BACKGROUND, CLE-T-6V9957).
+    let enqueuedJobId: string | undefined;
+    try {
+      const enqueued = await this.backgroundQueue.add('background-run', job, {
+        removeOnComplete: 100,
+        removeOnFail: 100,
+      });
+      enqueuedJobId = enqueued?.id;
+    } catch (err) {
+      this.logger.error(
+        `Background 본문 큐 넣기 실패 — execution=${executionId} node=${node.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return;
+    }
+    if (enqueuedJobId) {
+      await this.stampBackgroundJobId(
+        executionId,
+        node.id,
+        context,
+        parentNodeExecutionId,
+        enqueuedJobId,
+      );
+    }
+  }
+
+  /**
+   * 큐에 넣은 Background 본문의 BullMQ 작업 ID 를 노드 출력의 `meta.jobId` 로 남긴다. 핸들러는
+   * 큐를 몰라 이 값을 내지 않는다(CLE-T-6V9957).
+   *
+   * 큐에 넣는 시점에는 행이 이미 COMPLETED 이고 `execution.node.completed` 도 나갔다. 그래서
+   * 순서를 바꾸지 않고 완료된 행의 `output_data.meta` 에 키 하나를 더한다. 행이 COMPLETED 가
+   * 아니거나 `output_data` · `meta` 가 객체가 아니면 바꾸지 않는다. 뒤 노드가 `$node["X"].meta`
+   * 로 읽도록 구조화 출력 캐시의 `meta` 에도 넣는다. 큐 작업 스냅샷은 그 전에 만들었으므로
+   * 본문 쪽에는 이 값이 없다. 스탬프가 실패해도 메인 흐름은 이어진다.
+   */
+  private async stampBackgroundJobId(
+    executionId: string,
+    nodeId: string,
+    context: ExecutionContext,
+    nodeExecutionId: string,
+    jobId: string,
+  ): Promise<void> {
+    const structured = context.structuredOutputCache[nodeId];
+    if (structured) {
+      context.structuredOutputCache[nodeId] = {
+        ...structured,
+        meta: { ...(structured.meta ?? {}), jobId },
+      };
+    }
+    if (!nodeExecutionId) return;
+    try {
+      await this.nodeExecutionRepository.query(
+        `UPDATE node_execution
+            SET output_data = jsonb_set(
+                  output_data,
+                  '{meta}',
+                  COALESCE(output_data -> 'meta', '{}'::jsonb)
+                    || jsonb_build_object('jobId', $2::text)
+                )
+          WHERE id = $1
+            AND status = $3
+            AND jsonb_typeof(output_data) = 'object'
+            AND jsonb_typeof(COALESCE(output_data -> 'meta', '{}'::jsonb)) = 'object'`,
+        [nodeExecutionId, jobId, NodeExecutionStatus.COMPLETED],
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Background 작업 ID 스탬프 실패 — execution=${executionId} node=${nodeId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   /**

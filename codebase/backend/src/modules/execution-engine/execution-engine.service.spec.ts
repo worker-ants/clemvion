@@ -15824,6 +15824,126 @@ describe('ExecutionEngineService', () => {
           expect(queuedInputs()).toEqual([preOutput]);
         });
       });
+
+      // CLE-T-6V9957 — 핸들러는 큐를 몰라 `meta.jobId` 를 내지 않는다. 엔진이 큐에 넣은 뒤
+      // `add()` 가 돌려준 작업 ID 를 이미 COMPLETED 인 행의 `output_data.meta.jobId` 와
+      // 구조화 출력 캐시의 `meta` 에 넣는다. 큐 넣기나 스탬프가 실패해도 메인 흐름은 이어진다.
+      describe('Background 큐 작업 ID 스탬프 (CLE-T-6V9957)', () => {
+        const nodeExecutionQuery = () => {
+          const query = jest.fn().mockResolvedValue([]);
+          mockNodeExecutionRepo.query = query;
+          return query;
+        };
+        // bg 뒤 after 노드가 실행될 때 본 bg 의 구조화 출력 meta 를 남긴다.
+        const runBackgroundGraph = async () => {
+          handlerRegistry.register('background', new BackgroundHandler(), {
+            kind: 'background',
+          });
+          recordingHandler('test_node', () => ({ marker: 'trigger-output' }));
+          const seenMeta: Record<string, unknown>[] = [];
+          const afterCalls = recordingHandler('after_node', (input, ctx) => {
+            seenMeta.push({ ...(ctx.structuredOutputCache.bg?.meta ?? {}) });
+            return input;
+          });
+          recordingHandler('bg_body_node', (input) => input);
+          await runGraph(
+            [
+              cNode('src', 'test_node', null),
+              cNode('bg', 'background', null),
+              cNode('after', 'after_node', null),
+              cNode('bgBody', 'bg_body_node', null),
+            ],
+            [
+              cEdge('src', 'out', 'bg'),
+              cEdge('bg', 'main', 'after'),
+              cEdge('bg', 'background', 'bgBody'),
+            ],
+          );
+          return { afterCalls, seenMeta };
+        };
+        const stampCalls = (query: jest.Mock) =>
+          query.mock.calls.filter(
+            (call: unknown[]) =>
+              typeof call[0] === 'string' &&
+              call[0].includes('UPDATE node_execution'),
+          );
+
+        beforeEach(() => {
+          backgroundQueueAdd().mockClear();
+        });
+
+        it('add() 가 돌려준 작업 ID 를 COMPLETED 행의 output_data.meta.jobId 와 구조화 출력 meta 에 넣는다', async () => {
+          const query = nodeExecutionQuery();
+          backgroundQueueAdd().mockResolvedValueOnce({ id: 'job-7' });
+
+          const { afterCalls, seenMeta } = await runBackgroundGraph();
+
+          expect(backgroundQueueAdd()).toHaveBeenCalledTimes(1);
+          const calls = stampCalls(query);
+          expect(calls).toHaveLength(1);
+          const [sql, params] = calls[0] as [string, unknown[]];
+          // 완료된 행만 바꾸고 meta 의 다른 키는 그대로 둔다.
+          expect(sql).toContain('jsonb_set');
+          expect(sql).toContain("jsonb_build_object('jobId'");
+          expect(params).toEqual([
+            'ne-bg',
+            'job-7',
+            NodeExecutionStatus.COMPLETED,
+          ]);
+          // 뒤 노드의 `$node["bg"].meta` 에도 보인다. 핸들러가 낸 meta 는 그대로다.
+          expect(afterCalls).toHaveLength(1);
+          expect(seenMeta).toEqual([
+            expect.objectContaining({
+              jobId: 'job-7',
+              backgroundRunId: expect.any(String),
+              forkedAt: expect.any(String),
+            }),
+          ]);
+          // 큐에 넣은 스냅샷은 스탬프 전에 만들어 작업 ID 가 없다.
+          const job = backgroundQueueAdd().mock
+            .calls[0][1] as BackgroundExecutionJob;
+          expect(job.structuredOutputCache?.bg?.meta).not.toHaveProperty(
+            'jobId',
+          );
+        });
+
+        it('add() 가 작업 ID 를 돌려주지 않으면 스탬프하지 않는다', async () => {
+          const query = nodeExecutionQuery();
+          backgroundQueueAdd().mockResolvedValueOnce(undefined);
+
+          const { afterCalls, seenMeta } = await runBackgroundGraph();
+
+          expect(stampCalls(query)).toHaveLength(0);
+          expect(afterCalls).toHaveLength(1);
+          expect(seenMeta[0]).not.toHaveProperty('jobId');
+        });
+
+        it('스탬프 UPDATE 가 실패해도 메인 흐름은 다음 노드로 이어지고 캐시 meta 에는 작업 ID 가 남는다', async () => {
+          const query = nodeExecutionQuery();
+          query.mockRejectedValue(new Error('db down'));
+          backgroundQueueAdd().mockResolvedValueOnce({ id: 'job-8' });
+
+          const { afterCalls, seenMeta } = await runBackgroundGraph();
+
+          expect(stampCalls(query)).toHaveLength(1);
+          expect(afterCalls).toHaveLength(1);
+          expect(seenMeta[0]).toEqual(
+            expect.objectContaining({ jobId: 'job-8' }),
+          );
+        });
+
+        it('큐 넣기가 실패해도 메인 흐름은 다음 노드로 이어지고 스탬프하지 않는다', async () => {
+          const query = nodeExecutionQuery();
+          backgroundQueueAdd().mockRejectedValueOnce(new Error('redis down'));
+
+          const { afterCalls, seenMeta } = await runBackgroundGraph();
+
+          expect(backgroundQueueAdd()).toHaveBeenCalledTimes(1);
+          expect(stampCalls(query)).toHaveLength(0);
+          expect(afterCalls).toHaveLength(1);
+          expect(seenMeta[0]).not.toHaveProperty('jobId');
+        });
+      });
     });
 
     // CLE-T-JXD0W5 — 컨테이너는 본문을 다 돈 뒤 출력을 완료 출력으로 덮어쓴다. 노드 실행 행과
