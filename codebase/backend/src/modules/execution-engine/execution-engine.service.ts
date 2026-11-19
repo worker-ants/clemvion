@@ -447,15 +447,16 @@ class ErrorPortFallbackError extends Error {
   }
 }
 
-/** §7.5 재개 진입 원자 claim(06 C-2) 내부 sentinel — NodeExecution claim 성공 후
- *  Execution 짝 전이가 affected=0(동시 cancel 등으로 Execution 이 이미 terminal)일 때,
- *  트랜잭션을 롤백해 node claim 도 취소하기 위해 throw 한다. `claimResumeEntry` 의
- *  catch 가 `instanceof` 로 판별해 정상 discard(false)로 흡수하며 외부로 전파하지
- *  않는다 (그 외 DB 오류는 전파). */
-class ResumeClaimExecTerminalError extends Error {
+/** §7.5 재개 진입 원자 claim(06 C-2) 내부 sentinel — Execution 짝 전이를 먼저 한 뒤
+ *  NodeExecution claim 이 affected=0(다른 worker 가 이미 claim 했거나 terminal)일 때,
+ *  트랜잭션을 롤백해 앞선 Execution 전이를 취소하기 위해 throw 한다. 롤백하지 않으면
+ *  늦게 온 재개 메시지가 다른 worker 의 claim 을 잃은 채 Execution 상태만 바꾼다.
+ *  `claimResumeEntry` 의 catch 가 `instanceof` 로 판별해 정상 discard(false)로
+ *  흡수하며 외부로 전파하지 않는다 (그 외 DB 오류는 전파). */
+class ResumeClaimNodeLostError extends Error {
   constructor() {
-    super('resume claim aborted — paired Execution is terminal');
-    this.name = 'ResumeClaimExecTerminalError';
+    super('resume claim aborted — NodeExecution already claimed or terminal');
+    this.name = 'ResumeClaimNodeLostError';
   }
 }
 
@@ -1205,6 +1206,10 @@ export class ExecutionEngineService
    * 트랜잭션**으로 묶는다. 비-트랜잭션 2단계였을 때는 첫 UPDATE 커밋 후 둘째가
    * 실패(또는 그 사이 크래시)하면 NodeExecution 이 영구 WAITING 으로 잔류하고
    * Execution 만 CANCELLED 로 남는 불일치가 있었다.
+   *
+   * 잠금 순서는 Execution → NodeExecution 이다. 같은 두 행을 바꾸는 형제 경로
+   * (`markWebChatIdleTimeout` · `finalizeStalledExhausted` · `claimResumeEntry`)도
+   * 이 순서를 지킨다. 순서를 바꾸면 동시 실행 시 데드락이 날 수 있다.
    */
   private async cancelParkedExecution(executionId: string): Promise<void> {
     try {
@@ -1332,6 +1337,9 @@ export class ExecutionEngineService
    * - **best-effort**: emit 실패는 warn(취소는 DB 반영됨). DB 오류는 내부 흡수(reaper 를 죽이지 않음).
    * - **public**: EIA reaper(`WebChatIdleReaperService`)가 다른 모듈에서 호출한다.
    *
+   * - **잠금 순서**: Execution → NodeExecution. 형제 `cancelParkedExecution` ·
+   *   `finalizeStalledExhausted` · `claimResumeEntry` 와 같다(데드락 방지).
+   *
    * @returns 실제로 이 호출이 `waiting_for_input → cancelled` 전이를 일으켰으면 `true`.
    */
   async markWebChatIdleTimeout(executionId: string): Promise<boolean> {
@@ -1340,7 +1348,7 @@ export class ExecutionEngineService
       'Execution cancelled: public web-chat widget idle-wait timeout';
     try {
       // Execution + 동반 WAITING NodeExecution 을 **단일 트랜잭션**으로 마감한다(형제
-      // `claimResumeEntry` 와 동일 패턴, review W1). 비-트랜잭션 2단계면 첫 UPDATE 커밋 후 둘째가
+      // `cancelParkedExecution` 과 같은 Execution → NodeExecution 순서, review W1). 비-트랜잭션 2단계면 첫 UPDATE 커밋 후 둘째가
       // 실패할 때 NodeExecution 이 영구 WAITING 잔류하고 Execution 만 cancelled 로 남아, 다음 tick
       // (status=waiting_for_input 필터)에서도 재선정 안 돼 복구 경로가 없다 → 트랜잭션으로 원자화해
       // 롤백 시 execution 이 waiting 으로 남아 다음 tick 이 재시도하게 한다.
@@ -1425,6 +1433,12 @@ export class ExecutionEngineService
    * 막혀 영구 stuck 된다. 페어링으로 크래시 시 둘 다 RUNNING → `recoverStuckExecutions`
    * 가 Execution(+자식 NodeExecution) 을 30분 stale 회수한다.
    *
+   * **잠금 순서 Execution → NodeExecution**: 같은 두 행을 한 트랜잭션에서 바꾸는 형제
+   * 경로(`cancelParkedExecution` · `markWebChatIdleTimeout` · `finalizeStalledExhausted`)
+   * 와 같은 순서로 잠근다. Execution 을 먼저 전이하고, NodeExecution claim 이
+   * affected=0 이면 sentinel 로 롤백해 Execution 전이를 취소한다. 레이스 결정은
+   * 여전히 NodeExecution `affected=1` 이 한다.
+   *
    * check-then-act 창이 없어 멀티 인스턴스(인스턴스당 concurrency=1 이어도 인스턴스
    * 간 병렬)·§7.4 concurrency 상향 양쪽에서 "동일 turn 이중 실행 0" 불변식을
    * 기계적으로 보장한다 (§1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화).
@@ -1443,25 +1457,12 @@ export class ExecutionEngineService
     }
     const claimed = await this.dataSource
       .transaction(async (manager) => {
-        // (1) 레이스 결정자 — NodeExecution 조건부 claim.
-        const nodeRes = await manager
-          .createQueryBuilder()
-          .update(NodeExecution)
-          .set({ status: NodeExecutionStatus.RUNNING })
-          .where('id = :id', { id: nodeExecutionId })
-          .andWhere('status = :waiting', {
-            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
-          })
-          .execute();
-        if ((nodeRes.affected ?? 0) === 0) return false;
-        // (2) 짝 전이 — 같은 tx 로 Execution 도 WFI→RUNNING (§1.1). 재개 가능
-        //     상태(WAITING_FOR_INPUT ∪ RUNNING)만 대상. affected=0 이면 Execution 이
-        //     이미 terminal(동시 cancel 등) → node 만 claim 되면 짝 불일치가 남으므로
-        //     throw(ResumeClaimExecTerminalError)로 tx 롤백해 node claim 도 취소한다
-        //     (→ discard). (ai-review WARNING #1, 2026-07-27 — `cancelParkedExecution`
-        //     은 이제 exec/node UPDATE 를 단일 트랜잭션으로 원자화해 그 경로발
-        //     "exec=CANCELLED·node=WAITING" 창은 닫혔다. 이 discard 분기는 다른
-        //     동시 취소 경로에 대한 일반 방어로 남긴다.)
+        // (1) 짝 전이 — Execution 을 먼저 WFI→RUNNING (§1.1). 형제 경로
+        //     (`cancelParkedExecution` · `markWebChatIdleTimeout` ·
+        //     `finalizeStalledExhausted`)와 같은 Execution → NodeExecution 잠금
+        //     순서를 지켜 데드락 표면을 없앤다. 재개 가능 상태(WAITING_FOR_INPUT ∪
+        //     RUNNING)만 대상. affected=0 이면 Execution 이 이미 terminal(동시 cancel
+        //     등) → 바뀐 행이 없으므로 그대로 discard 한다.
         const execRes = await manager
           .createQueryBuilder()
           .update(Execution)
@@ -1474,14 +1475,28 @@ export class ExecutionEngineService
             ],
           })
           .execute();
-        if ((execRes.affected ?? 0) === 0) {
-          throw new ResumeClaimExecTerminalError();
+        if ((execRes.affected ?? 0) === 0) return false;
+        // (2) 레이스 결정자 — NodeExecution 조건부 claim. 동시 claim 은 (1) 의
+        //     Execution 행 잠금에서 직렬화되고, 뒤에 온 쪽은 여기서 affected=0 이
+        //     된다. 그때 throw(ResumeClaimNodeLostError)로 tx 를 롤백해 (1) 의
+        //     Execution 전이도 취소한다 (→ discard).
+        const nodeRes = await manager
+          .createQueryBuilder()
+          .update(NodeExecution)
+          .set({ status: NodeExecutionStatus.RUNNING })
+          .where('id = :id', { id: nodeExecutionId })
+          .andWhere('status = :waiting', {
+            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        if ((nodeRes.affected ?? 0) === 0) {
+          throw new ResumeClaimNodeLostError();
         }
         return true;
       })
       .catch((err: unknown) => {
-        // 짝 불일치 abort(sentinel)는 정상 discard 경로(false). 그 외 DB 오류는 전파.
-        if (err instanceof ResumeClaimExecTerminalError) return false;
+        // claim 패배 abort(sentinel)는 정상 discard 경로(false). 그 외 DB 오류는 전파.
+        if (err instanceof ResumeClaimNodeLostError) return false;
         throw err;
       });
     if (claimed) {
@@ -3306,6 +3321,7 @@ export class ExecutionEngineService
    * 첫 문장이 커밋된 뒤 둘째가 실패하면 자식이 **영구 `RUNNING`** 으로 잔류했다 — 자매 두
    * 함수의 주석이 경고하는 바로 그 실패 모드이고, 셋 중 이 하나만 열려 있었다.
    * emit·cleanup 은 **커밋 이후** best-effort 로 실행한다(자매와 같은 순서).
+   * 잠금 순서도 자매 · `claimResumeEntry` 와 같은 Execution → NodeExecution 이다.
    *
    * **함수 레벨 `try/catch` 는 의도적으로 없다** — 자매 둘과 다른 유일한 점이다. 유일
    * 호출부(`ExecutionRunProcessor.onFailed`)가 `.catch()` 로 흡수하므로 최종 동작은

@@ -2750,115 +2750,149 @@ describe('ExecutionEngineService', () => {
   // 06 C-2 — 재개 진입 DB 원자 claim (§7.5). 비원자 SELECT 재검증을 조건부
   // UPDATE(waiting_for_input → running, affected=0 → ack-and-discard)로 대체.
   describe('claimResumeEntry — §7.5 재개 진입 원자 claim (06 C-2)', () => {
-    const makeQb = (affected: number) => ({
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      setParameter: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected }),
-    });
+    // qb 가 어느 엔티티를 UPDATE 하는지는 `update()` 인자로 판별한다. 그래야 잠금
+    // 순서(Execution → NodeExecution, CLE-T-9JBVQK)를 단언할 수 있다.
+    type ClaimQb = Record<string, jest.Mock> & { target: string };
+    const makeQb = (
+      affectedOf: (target: string) => number,
+      order: string[],
+    ): ClaimQb => {
+      const qb = { target: '' } as ClaimQb;
+      qb.update = jest.fn((entity: { name: string }) => {
+        qb.target = entity.name;
+        return qb;
+      });
+      for (const m of [
+        'set',
+        'setParameter',
+        'where',
+        'andWhere',
+        'returning',
+      ]) {
+        qb[m] = jest.fn().mockReturnValue(qb);
+      }
+      qb.execute = jest.fn(async () => {
+        order.push(qb.target);
+        return { affected: affectedOf(qb.target) };
+      });
+      return qb;
+    };
     const ds = () =>
       service as unknown as { dataSource: { transaction: jest.Mock } };
-    // claim 은 dataSource.transaction 안에서 manager.createQueryBuilder 를 2회 호출:
-    // (1) NodeExecution 조건부 claim, (2) 짝 전이 Execution. tx 콜백을 in-memory 즉시
-    // 실행하고 두 qb 를 순서대로 반환한다.
-    const installTx = (nodeAffected: number, execAffected: number) => {
-      const nodeQb = makeQb(nodeAffected);
-      const execQb = makeQb(execAffected);
-      const qbs = [nodeQb, execQb];
-      ds().dataSource.transaction = jest.fn(
-        async (cb: (m: unknown) => Promise<unknown>) => {
-          let i = 0;
-          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
-        },
+    // tx 콜백을 바로 실행한다. 콜백이 던지면 tx mock 도 reject 한다(실제 트랜잭션의
+    // 롤백 자리).
+    const txWith = (
+      affectedOf: (target: string) => number,
+      order: string[],
+      byEntity: Record<string, ClaimQb> = {},
+    ) =>
+      jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
+        cb({
+          createQueryBuilder: jest.fn(() => {
+            const qb = makeQb(affectedOf, order);
+            const update = qb.update;
+            qb.update = jest.fn((entity: { name: string }) => {
+              update(entity);
+              byEntity[qb.target] = qb;
+              return qb;
+            });
+            return qb;
+          }),
+        }),
       );
-      return { nodeQb, execQb };
+    const installTx = (nodeAffected: number, execAffected: number) => {
+      const order: string[] = [];
+      const byEntity: Record<string, ClaimQb> = {};
+      const tx = txWith(
+        (t) => (t === 'NodeExecution' ? nodeAffected : execAffected),
+        order,
+        byEntity,
+      );
+      ds().dataSource.transaction = tx;
+      return { order, byEntity, tx };
     };
+    const segmentStarted = () =>
+      (
+        service as unknown as { segmentStartMs: Map<string, number> }
+      ).segmentStartMs.has('exec-1');
+    const clearSegment = () =>
+      (
+        service as unknown as { segmentStartMs: Map<string, number> }
+      ).segmentStartMs.delete('exec-1');
 
-    it('node affected>=1 → true + Execution 짝 전이 (단일 트랜잭션)', async () => {
-      const { nodeQb, execQb } = installTx(1, 1);
+    it('둘 다 affected=1 → true. Execution 을 먼저 잠그고 NodeExecution 을 claim 한다 (형제 경로와 같은 순서)', async () => {
+      const { order, byEntity } = installTx(1, 1);
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
         true,
       );
 
-      // (1) NodeExecution: waiting_for_input 조건 → running.
-      expect(nodeQb.set).toHaveBeenCalledWith(
+      // 잠금 순서 — 형제 cancelParkedExecution · markWebChatIdleTimeout ·
+      // finalizeStalledExhausted 와 같은 Execution → NodeExecution (CLE-T-9JBVQK).
+      expect(order).toEqual(['Execution', 'NodeExecution']);
+      // Execution: 재개 가능 상태(WFI ∪ RUNNING)만 RUNNING 으로.
+      expect(byEntity.Execution.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.RUNNING }),
+      );
+      expect(byEntity.Execution.andWhere).toHaveBeenCalledWith(
+        'status IN (:...resumable)',
+        expect.objectContaining({
+          resumable: [
+            ExecutionStatus.WAITING_FOR_INPUT,
+            ExecutionStatus.RUNNING,
+          ],
+        }),
+      );
+      // NodeExecution: 경합 판정 — waiting_for_input 조건 → running.
+      expect(byEntity.NodeExecution.set).toHaveBeenCalledWith(
         expect.objectContaining({ status: NodeExecutionStatus.RUNNING }),
       );
-      expect(nodeQb.andWhere).toHaveBeenCalledWith(
+      expect(byEntity.NodeExecution.andWhere).toHaveBeenCalledWith(
         'status = :waiting',
         expect.objectContaining({
           waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
         }),
       );
-      // (2) 짝 전이: Execution 도 같은 tx 로 WFI→RUNNING (crash-consistency).
-      expect(execQb.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: ExecutionStatus.RUNNING }),
-      );
-      expect(execQb.execute).toHaveBeenCalled();
       // 부수효과: claim 성공 시 active-running 세그먼트 시작 기록(PR2a/§8 보정).
-      expect(
-        (
-          service as unknown as { segmentStartMs: Map<string, number> }
-        ).segmentStartMs.has('exec-1'),
-      ).toBe(true);
+      expect(segmentStarted()).toBe(true);
     });
 
-    it('node affected=0 → false + Execution 짝 전이 미실행 + segmentStartMs 미기록', async () => {
-      const { execQb } = installTx(0, 1);
-      (
-        service as unknown as { segmentStartMs: Map<string, number> }
-      ).segmentStartMs.delete('exec-1');
+    it('node affected=0 → false + 트랜잭션 롤백(Execution 변경 취소) + segmentStartMs 미기록', async () => {
+      const { order, tx } = installTx(0, 1);
+      clearSegment();
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
         false,
       );
-      // node claim 실패 → 짝 Execution UPDATE 도달 전 return.
-      expect(execQb.execute).not.toHaveBeenCalled();
-      // 부수효과 미발생 — claim 실패 시 세그먼트 기록 없음.
-      expect(
-        (
-          service as unknown as { segmentStartMs: Map<string, number> }
-        ).segmentStartMs.has('exec-1'),
-      ).toBe(false);
+      // Execution 은 이미 RUNNING 으로 바꿨다. 경합에서 졌으므로 롤백해야 늦게 온
+      // 메시지가 WFI 실행을 RUNNING 으로 뒤집지 않는다 — tx 콜백이 던진다.
+      expect(order).toEqual(['Execution', 'NodeExecution']);
+      await expect(tx.mock.results[0].value).rejects.toBeInstanceOf(Error);
+      expect(segmentStarted()).toBe(false);
     });
 
-    it('node claim 성공하나 Execution terminal(짝 UPDATE affected=0) → 롤백·false (동시 cancel 방어)', async () => {
+    it('Execution terminal(affected=0) → false + NodeExecution claim 미실행 (동시 cancel 방어)', async () => {
       // 일반 방어 시나리오: 어떤 경로로든 exec=CANCELLED(또는 다른 terminal)·
-      // node=WAITING 상태에서 claim 이 node 만 잡으면 짝 불일치 → exec 짝 UPDATE
-      // affected=0 → throw 로 tx 롤백 → false. (ai-review WARNING #1, 2026-07-27
-      // — `cancelParkedExecution` 자신의 비원자 창은 트랜잭션 원자화로 이미
-      // 닫혔다; 이 테스트는 claimResumeEntry 자체의 일반 방어를 가드한다.)
-      const { execQb } = installTx(1, 0);
-      (
-        service as unknown as { segmentStartMs: Map<string, number> }
-      ).segmentStartMs.delete('exec-1');
+      // node=WAITING 이면 Execution UPDATE 가 affected=0 이다. 바뀐 행이 없으므로
+      // 롤백 없이 false 이고 node 는 건드리지 않는다.
+      const { order, tx } = installTx(1, 0);
+      clearSegment();
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
         false,
       );
-      // exec 짝 UPDATE 는 시도됨(affected=0 확인) — 그 결과로 abort.
-      expect(execQb.execute).toHaveBeenCalled();
-      // claim 실패 → 세그먼트 미기록.
-      expect(
-        (
-          service as unknown as { segmentStartMs: Map<string, number> }
-        ).segmentStartMs.has('exec-1'),
-      ).toBe(false);
+      expect(order).toEqual(['Execution']);
+      await expect(tx.mock.results[0].value).resolves.toBe(false);
+      expect(segmentStarted()).toBe(false);
     });
 
-    it('동시 재개 — 두 claim 중 하나만 승리 (레이스 결정자=node claim)', async () => {
-      // 첫 tx 만 node affected=1(승리), 두번째는 status 불일치로 affected=0.
+    it('동시 재개 — 두 claim 중 하나만 승리 (경합 판정=node claim)', async () => {
+      // 둘 다 Execution UPDATE 는 통과한다(WFI ∪ RUNNING). 첫 tx 만 node affected=1.
       let txCall = 0;
       ds().dataSource.transaction = jest.fn(
         async (cb: (m: unknown) => Promise<unknown>) => {
           const nodeAff = txCall++ === 0 ? 1 : 0;
-          let i = 0;
-          const qbs = [makeQb(nodeAff), makeQb(1)];
-          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
+          return txWith((t) => (t === 'NodeExecution' ? nodeAff : 1), [])(cb);
         },
       );
 
@@ -2868,6 +2902,15 @@ describe('ExecutionEngineService', () => {
       ]);
 
       expect([a, b].filter(Boolean)).toHaveLength(1); // 정확히 하나만 승리
+    });
+
+    it('센티널이 아닌 DB 오류는 전파한다', async () => {
+      ds().dataSource.transaction = jest.fn(async () => {
+        throw new Error('db down');
+      });
+      await expect(service.claimResumeEntry('exec-1', 'ne-1')).rejects.toThrow(
+        'db down',
+      );
     });
 
     it('__no_node_exec__ / 빈 id → true (legacy 우회, 트랜잭션 미실행)', async () => {
