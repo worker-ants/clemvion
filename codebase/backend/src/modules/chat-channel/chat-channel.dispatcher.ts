@@ -238,47 +238,43 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       channelEvent.type === 'execution.waiting_for_input' &&
       channelEvent.node.interactionType === 'form'
     ) {
-      const state = await this.conversationService.lookup(
+      // 대화가 이 실행을 가리킬 때만 compare-and-set 으로 고친다. `/start` 나 `/cancel` 이 이 실행을 끊고
+      // 대화를 다른 실행에 잇거나 비웠는데 이 실행의 폼 이벤트가 늦게 왔으면(읽은 뒤 쓰기 전에 끼어든
+      // 경우 포함) 그 상태는 다른 실행의 것이라 덮어쓰지 않는다(NERV Task `CLE-T-V4WVF2` · `CLE-T-CVJXDE`).
+      const modalMsg = messages.find((m) => m.body.kind === 'form_modal');
+      const nodeId = channelEvent.node.id;
+      const updated = await this.conversationService.updateIfExecutionMatches(
         trigger.id,
         conversationKey,
+        event.executionId,
+        (state) => {
+          if (modalMsg) {
+            const modalFormConfig = (modalMsg.body as { formConfig: unknown })
+              .formConfig;
+            // §3.3 — formConfig.title (또는 nodeOutput config.title) → modal 제목.
+            const modalTitle = extractFormTitle(modalFormConfig);
+            state.pendingFormModal = {
+              nodeId,
+              fields: extractFormFields(modalFormConfig),
+              ...(modalTitle ? { title: modalTitle } : {}),
+            };
+            state.formState = undefined;
+          } else {
+            // Clear any stale pendingFormModal to maintain mutual exclusivity with formState.
+            // Without this, a previous pendingFormModal could persist alongside formState,
+            // causing hooks.service form_submission to use the wrong nodeId.
+            state.pendingFormModal = undefined;
+            state.formState = {
+              nodeId,
+              currentFieldIdx: 0,
+              partialFormData: {},
+            };
+          }
+        },
       );
-      if (state && state.executionId !== event.executionId) {
-        // 읽은 시점에 대화가 이 실행을 가리키지 않는다. `/start` 나 `/cancel` 이 이 실행을 끊고 대화를
-        // 다른 실행에 잇거나 비웠는데 이 실행의 폼 이벤트가 늦게 온 경우다. 그 상태는 다른 실행의 것이라
-        // 덮어쓰지 않는다(NERV Task `CLE-T-V4WVF2`). 읽은 뒤 아래 upsert 전에 다른 요청이 대화를 바꾸는
-        // 경합은 막지 않는다. 종결 이벤트처럼 compare-and-set 으로 바꾸는 일은 NERV Task `CLE-T-CVJXDE`.
+      if (!updated) {
         this.logger.debug(
-          `form 대기 상태 갱신 생략 — 대화가 다른 실행을 가리킨다 (event=${event.executionId}, state=${state.executionId ?? 'null'}, trigger=${trigger.id})`,
-        );
-      } else if (state) {
-        const modalMsg = messages.find((m) => m.body.kind === 'form_modal');
-        if (modalMsg) {
-          const modalFormConfig = (modalMsg.body as { formConfig: unknown })
-            .formConfig;
-          // §3.3 — formConfig.title (또는 nodeOutput config.title) → modal 제목.
-          const modalTitle = extractFormTitle(modalFormConfig);
-          state.pendingFormModal = {
-            nodeId: channelEvent.node.id,
-            fields: extractFormFields(modalFormConfig),
-            ...(modalTitle ? { title: modalTitle } : {}),
-          };
-          state.formState = undefined;
-        } else {
-          // Clear any stale pendingFormModal to maintain mutual exclusivity with formState.
-          // Without this, a previous pendingFormModal could persist alongside formState,
-          // causing hooks.service form_submission to use the wrong nodeId.
-          state.pendingFormModal = undefined;
-          state.formState = {
-            nodeId: channelEvent.node.id,
-            currentFieldIdx: 0,
-            partialFormData: {},
-          };
-        }
-        state.lastUpdateAt = new Date().toISOString();
-        await this.conversationService.upsert(
-          trigger.id,
-          conversationKey,
-          state,
+          `form 대기 상태 갱신 생략 — 대화가 없거나 다른 실행을 가리킨다 (event=${event.executionId}, trigger=${trigger.id})`,
         );
       }
     }

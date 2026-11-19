@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REDRIVE"
 title: "장애 복구와 안전 종료 — 크래시 재구동과 부팅 복구 스캔"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "78292f9883b83e7a53206ddb7d344a37e1f840ad426ce46f714f2411572aa4aa"
+content_hash: "3a436ce6f63a21a34ff289f46fccf7d8370c625a7f9ed38290a9092821453128"
 read_as: "approved_fallback"
-task: "CLE-T-EC9VFJ"
+task: "CLE-T-K9RZQV"
 source_paths: []
-mirror_sha256: "c7eff802460e62d1f0e0565bcfb7dc8b8437d6548330816886cd749100d8d802"
-etag: "sha256-7812bafcc798c212a56da5f20531fc04dce06a19ce565eb6148f55d3bda80d73"
+mirror_sha256: "8f12d860619c4c464271f6060923631f579edfa3374c989532e7fd45de4762a9"
+etag: "sha256-a593be77abe734816a6195282e4d7bbc62046feded2499ff4062e997a11ae4e0"
 ---
 ## 개요
 
@@ -50,7 +50,8 @@ etag: "sha256-7812bafcc798c212a56da5f20531fc04dce06a19ce565eb6148f55d3bda80d73"
 | 항목 | 동작 |
 | --- | --- |
 | 입력 대기 | 대상이 아니다. 큐 작업이 없으므로 stall, 재발행, 만료 어디에도 걸리지 않는다. 기한 없이 park 한다. |
-| 재구동 자체가 불가 | 체크포인트가 없거나 손상됐으면 `RESUME_CHECKPOINT_MISSING` 으로 끝낸다([rehydration 실패](CLE-EXEC-RECOVERY-REHYDRATE.md#rehydration-실패)). |
+| 재구동 자체가 불가 | 실행을 다시 세울 체크포인트(노드 실행 출력 · 중첩 재개의 호출 스택)가 없거나 손상됐으면 `RESUME_CHECKPOINT_MISSING` 으로 끝낸다([rehydration 실패](CLE-EXEC-RECOVERY-REHYDRATE.md#rehydration-실패)). |
+| 재개 턴 중 크래시한 멀티턴 AI 노드 | 옛 행 출력이 AI 대화 재개 스냅샷이고 `_resumeCheckpoint` 가 온전하면 새 행이 처리 중이던 턴을 다시 돈다. 스냅샷이나 그 노드 행의 `_resumeCheckpoint` 가 없거나 손상됐거나 미래 버전이면 실행을 실패로 끝내지 않고 그 노드만 처음부터 다시 실행한다. 규칙은 [크래시 재구동에서 처리 중이던 턴을 다시 돌린다](CLE-EXEC-STATE-RESUME.md#크래시-재구동에서-처리-중이던-턴을-다시-돌린다) 에 있고 구현은 NERV Task `CLE-T-K9RZQV` 가 한다. |
 | 계속 실패하는 poison 세그먼트 | 부팅 트리거는 부팅마다 최대 1회라 저절로 속도가 제한된다. 운영 중 stalled 트리거는 `maxStalledCount:1` 이라 1회 재배달 뒤 `WORKER_HEARTBEAT_TIMEOUT` 으로 DLQ 에 간다. 누적되면 실행 시간 한도 초과(`EXECUTION_TIME_LIMIT_EXCEEDED`)가 2차 경계로 작동한다. 이 2차 경계는 best-effort 다(시간이 덜 세어질 수 있다, [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#rationale) 참조). |
 | stalled 재배달 소진 | `onFailed → finalizeStalledExhausted` 가 `status='running'` 조건부로 실행을 `failed` + `WORKER_HEARTBEAT_TIMEOUT` 으로 마감한다. 부팅 재구동은 이 코드를 쓰지 않는다. |
 
@@ -181,6 +182,19 @@ PR3 로 멱등 재구동 메커니즘을 검증한 뒤 운영 중 워커 크래�
 - **기각: FK 를 RESTRICT 나 CASCADE 로 바꾸기**: RESTRICT 는 실행 이력이 있는 노드를 지우지 못하게 해 워크플로우 편집이 막힌다. CASCADE 는 실행 이력의 자식 행까지 지운다. V012 가 SET NULL 을 고른 이유(부모 행이 지워져도 자식 기록을 남긴다)와도 어긋난다.
 - **기각: 노드 그래프 대조**: 지워진 노드는 그래프에 남지 않고 `container_id` 도 NULL 이 돼 원래 부모를 되찾을 수 없다.
 - **기각: 실행 중 노드 삭제 막기**: 워크플로우 편집 규칙을 바꾸는 큰 변경이고 얻는 것은 표시 한 줄이다.
+
+### 재개 턴 중 크래시한 멀티턴 AI 노드는 그 턴을 다시 돌린다
+
+결정일: 2026-11-19
+
+**문제**: case B 는 끝나지 않은 노드를 새 행으로 처음부터 다시 실행한다. 멀티턴 AI 노드가 재개 턴의 LLM 호출 중 크래시하면 새 행은 turnCount 0 에서 첫 메시지를 기다리며 park 한다. 처리 중이던 사용자 메시지는 답을 받지 못하고 사라지고 LLM 에 넘기는 messages 는 system 하나뿐이다. 실행의 `conversation_thread` 는 rehydrate 로 되살아나 화면에는 이전 턴이 보이는데 LLM 은 그 대화를 모른다(NERV Task `CLE-T-4196DR` e2e 실측).
+
+**결정(사람 결정, NERV Task `CLE-T-K9RZQV`)**: 옛 행에 남은 재개 스냅샷과 `_resumeCheckpoint` 로 새 행의 `_resumeState` 를 만들고 처리 중이던 입력으로 그 턴을 다시 돌린다. 마지막 턴 재시도와 같은 재구성기(`buildRetryReentryState`)를 쓴다. 스냅샷이 없거나 손상됐으면 지금 동작(처음부터)으로 돌아간다.
+
+- **처음부터 다시 시작하고 `conversation_thread` 로 LLM 문맥만 되살리는 안 기각**: 사용자가 같은 메시지를 다시 보내야 하고 핸들러 런타임 상태(`pendingFormToolCall`, 정보 추출기의 `partialResult` 등)는 여전히 사라진다.
+- **지금 동작을 유지하는 안 기각**: 화면의 대화와 LLM 문맥이 어긋난 채 남는다.
+- **체크포인트 결손을 case A 처럼 `RESUME_INCOMPATIBLE_STATE` 로 끝내는 안 기각**: case A 는 도착한 사용자 입력을 처리할 수 없어 대화를 끝내고 새로 시작하라고 안내한다. case B 는 서버 시작 때 사용자 입력 없이 도는 재구동이고, 노드를 처음부터 다시 실행하는 기존 동작이 이미 안전한 기본값이다. 노드 하나의 상태가 없다고 실행 전체를 취소할 이유가 없다.
+- **대가**: 그 턴의 LLM 호출과 도구 실행이 한 번 더 일어날 수 있다. 크래시 시점 미완료 노드의 at-least-once 원칙([멱등성 계약](CLE-EXEC-RECOVERY-REHYDRATE.md#멱등성-계약)) 안이다. 완료 노드 비재실행과 재개 스냅샷 저장 순서는 바꾸지 않는다.
 
 ## 구현 위치
 

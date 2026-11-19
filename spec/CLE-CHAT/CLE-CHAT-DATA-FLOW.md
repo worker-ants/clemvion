@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-FLOW"
 title: "채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "2d237e879923a8df671969d1507e7fe36ee61dcc9f16cbc0d9b5f012891d75f5"
+content_hash: "2c9d78042dcd622c5926a9b6287ce8aff76aa41114d064b8bbca5c3582323632"
 read_as: "approved_fallback"
-task: "CLE-T-TJAHCN"
+task: "CLE-T-CVJXDE"
 source_paths: []
-mirror_sha256: "eaa34646cb2e83e4935e5307a1c963517c5a0590c7cd6eb3852450940aa231e5"
-etag: "sha256-9fc45c7aeb59f97d8b4c1367c228e11c83c2578e3bdb9d95bef1fc173611fc4f"
+mirror_sha256: "9bc08e7c56d9e6f908fdea43911bd30c4707c20278567b45a8dcdb622ec08e59"
+etag: "sha256-dad170de5c086231d9fde54462ff9301a73bf7ff35ed708453d1e656d0779ffb"
 ---
 ## 개요
 
@@ -99,13 +99,13 @@ sequenceDiagram
 
 활성 실행으로 가는 재개 명령(`submit_message`·`click_button`·`submit_form`)을 재개 큐에 넣지 못하면(`queued:false`) 내부 신뢰 호출이라 `503` 이 나지 않는다. 이때 `HooksService` 는 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 warn 로그를 쓴 뒤 `202` 로 답한다. 인터랙션이면 `200` 과 그 어댑터의 기본 응답이다. 고정 문구는 `/cancel` 의 큐 적재 실패와 같다. 입력이 실행에 닿지 않았으므로 실행은 입력 대기에 그대로 남는다. 사용자가 같은 입력을 다시 보내면 새 update 로 들어와 다시 처리된다. 규칙은 [채팅 채널](CLE-CHAT-CORE.md) 과 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다.
 
-네이티브 폼 모달 제출(`form_submission` 의 `submit_form`)이 큐 적재에 실패하면 같은 양식을 다시 낼 수 있게 모달 대기(`pendingFormModal`)를 남기고 "양식 작성하기" 버튼을 다시 보낸다(위 표). HTTP 응답은 폼 제출 성공 응답이 아니라 그 어댑터의 기본 응답이다(Discord `{ type: 6 }`, Slack 빈 본문). 그래서 모달만 닫히고 Discord 의 제출 확인 문구(«제출되었습니다.»)는 보이지 않는다. Slack 은 제출이 성공해도 빈 본문으로 답하므로 응답이 같다. 사용자는 버튼을 다시 눌러 같은 양식을 다시 낸다. 이 경로는 채널 대화 상태를 저장하지 않으므로 TTL 을 다시 걸지 않는다. 근거는 [Rationale](#rationale) 의 「폼 모달 제출의 큐 적재 실패는 모달 대기를 남기고 버튼을 다시 보낸다 (2026-11-13)」 에 있다.
+네이티브 폼 모달 제출(`form_submission` 의 `submit_form`)이 큐 적재에 실패하면 같은 양식을 다시 낼 수 있게 모달 대기(`pendingFormModal`)를 남기고 "양식 작성하기" 버튼을 다시 보낸다(위 표). HTTP 응답은 폼 제출 성공 응답이 아니라 그 어댑터의 기본 응답이다(Discord `{ type: 6 }`, Slack 빈 본문). 그래서 모달만 닫히고 Discord 의 제출 확인 문구(«제출되었습니다.»)는 보이지 않는다. Slack 은 제출이 성공해도 빈 본문으로 답하므로 응답이 같다. 사용자는 버튼을 다시 눌러 같은 양식을 다시 낸다. 이 경로는 채널 대화 상태를 저장하지 않으므로 TTL 을 다시 걸지 않는다. 근거는 [Rationale](#rationale) 의 「폼 모달 제출의 큐 적재 실패는 모달 대기를 남기고 버튼을 다시 보낸다」 에 있다.
 
 분당 한도는 구현됐다. `ChatChannelRateLimiterService.consume` 가 `cc:rl:` 키([Redis 키](CLE-CHAT-DATA-STORE.md#redis-키))를 `INCR`+`EXPIRE NX` 한 pipeline 으로 세고, `HooksService` 가 `parseUpdate` 뒤 초과분을 `202 ignored` 로 건너뛰고 `chat_channel_health=degraded` 로 바꾼다. 공개 웹훅 가드(`PublicWebhookThrottleGuard`)의 IP 단위 시작 한도와는 별개의 대화 단위 카운터다. 채팅 채널 트리거는 그 가드의 대상이 아니다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서)). 전역 요청 빈도 제한(`UserThrottlerGuard`)에서도 빼는 것이 목표 동작이다. 그 구현 상태는 같은 절에 있다.
 
 ### 인바운드 서명 자료 참조가 없는 행
 
-인바운드 서명 검증(`ChatChannelInboundAuthenticator.verify`)은 저장된 `config.chatChannel.inboundSigningRef` 가 없는 행에서 검증을 건너뛴다. Telegram · Slack · Discord 가 모두 같다. 1차 범위의 세 채널 프로바이더는 규약상 서명 자료가 필수다([채팅 채널 어댑터 규약 「보안」](CLE-CHAT-ADAPTER.md#보안)). 참조가 없는 행은 그 규칙의 예외다. 이 예외는 2026-11-14 결정으로 유지한다. 근거는 [Rationale](#rationale) 의 「참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다 (2026-11-14)」 에 있다.
+인바운드 서명 검증(`ChatChannelInboundAuthenticator.verify`)은 저장된 `config.chatChannel.inboundSigningRef` 가 없는 행에서 검증을 건너뛴다. Telegram · Slack · Discord 가 모두 같다. 1차 범위의 세 채널 프로바이더는 규약상 서명 자료가 필수다([채팅 채널 어댑터 규약 「보안」](CLE-CHAT-ADAPTER.md#보안)). 참조가 없는 행은 그 규칙의 예외다. 이 예외는 2026-11-14 결정으로 유지한다. 근거는 [Rationale](#rationale) 의 「참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다」 에 있다.
 
 - 그런 행으로 온 요청은 서명이 없거나 틀려도 다음 관문으로 넘어간다.
 - 서명을 검증하지 않으므로 [서명 검증 실패 한도](CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 에서도 세지 않는다. 그 요청은 핸들러 앞에서 전역 요청 한도로 센다([인바운드 관문 순서](CLE-CHAT-CORE-GATE.md#인바운드-관문-순서)).
@@ -176,7 +176,7 @@ sequenceDiagram
 
 - **라우팅 키**: 이벤트의 `triggerId` 와 `chatChannel.conversationKey` 다. `HooksService` 가 `execute()` 입력에 넣은 값이 WebsocketService 의 라우팅 문맥 레지스트리를 거쳐 이벤트 봉투에 자동으로 붙는다. 둘 중 하나라도 없으면 건너뛴다(수동 실행은 채팅 채널 발송 대상이 아니다).
 - **빈 텍스트**: 본문이 빈 텍스트 메시지는 조용히 건너뛰고 warn 을 남긴다.
-- **Form 입력 대기의 채널 대화 상태 갱신**: Form 입력 대기(`interactionType=form`)의 `execution.waiting_for_input` 이 오면 채널 대화 상태를 조회한다. 그 `executionId` 가 이벤트의 실행을 가리킬 때만 렌더 결과에 따라 `pendingFormModal` 이나 `formState` 를 바꿔 다시 저장한다. 채널 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 건너뛰고 debug 로그만 남긴다. `/start`·`/cancel` 이 끊은 옛 실행의 Form 입력 대기 이벤트가 늦게 와도 새 실행의 Form 입력 대기 상태를 덮어쓰지 않게 하려는 것이다([채팅 채널](CLE-CHAT-CORE.md)). 렌더한 메시지는 이 조건과 관계없이 보낸다. 이 저장은 compare-and-set 이 아니다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 덮어쓸 수 있다. 이 창의 크기는 재지 않았다. NERV Task `CLE-T-QZ8RFC` 가 다룬다.
+- **Form 입력 대기의 채널 대화 상태 갱신**: Form 입력 대기(`interactionType=form`)의 `execution.waiting_for_input` 이 오면 채널 대화 상태를 조회한다. 그 `executionId` 가 이벤트의 실행을 가리킬 때만 렌더 결과에 따라 `pendingFormModal` 이나 `formState` 를 바꿔 compare-and-set 으로 저장한다. 채널 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 건너뛰고 debug 로그만 남긴다. `/start`·`/cancel` 이 끊은 옛 실행의 Form 입력 대기 이벤트가 늦게 와도 새 실행의 Form 입력 대기 상태를 덮어쓰지 않게 하려는 것이다([채팅 채널](CLE-CHAT-CORE.md)). 렌더한 메시지는 이 조건과 관계없이 보낸다. 저장 방식은 종결 이벤트의 `executionId` 정리와 같아서 조회 뒤 `/start` 가 대화를 새 실행에 이으면 저장하지 않는다(NERV Task `CLE-T-CVJXDE`).
 - **종결 이벤트의 채널 대화 상태 정리**: completed·failed·cancelled 가 오면 채널 대화 상태의 `executionId` 가 그 이벤트의 실행을 가리킬 때만 비운다(`clearExecutionIdIfMatches`). 저장된 JSON 문자열을 읽어 `executionId` 를 확인한 뒤, 저장된 값이 읽은 문자열과 같을 때만 새 값으로 바꾸는 Lua 스크립트를 부른다(TTL 7일도 다시 건다). 다른 쓰기에 밀리면 다시 읽고 최대 3회까지 시도한다. 키가 없거나 다른 실행을 가리키면 바꾸지 않는다. Redis 를 쓸 수 없거나 에러가 나거나 3회 모두 밀리면 warn 을 남기고 비우지 않는다. 그때 남은 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 새 실행을 시작한다([채팅 채널](CLE-CHAT-CORE.md)). `/cancel` 의 정리도 같은 메서드를 쓴다.
 - **트리거 단위 listener 레지스트리**: `setupChatChannel` 이 성공해 잠금 안 재기록이 커밋되면 등록한다. 재기록이 행이 없어 쓰지 못하면 등록하지 않는다. 트리거를 켜는 PATCH 도 커밋 뒤 `setupChannel()` 없이 등록한다([채팅 채널 「R8 트리거 단위 listener 정책」](CLE-CHAT-CORE.md#r8-트리거-단위-listener-정책)). 끄는 PATCH 는 해제하지 않고 트리거 행을 없앨 때 해제한다. 등록 · 해제는 pub/sub 채널 `chat-channel:listener` 로 다른 서버 인스턴스의 레지스트리에도 반영된다([Redis 키](CLE-CHAT-DATA-STORE.md#redis-키)). 재시작 때와 그 pub/sub 채널의 구독이 확립될 때마다 `ChannelListenerRestorer`(`channel-listener.restorer.ts`)가 활성 채팅 채널 트리거를 DB 에서 한꺼번에 복원한다(`bulkRegister`). 미등록 트리거의 이벤트는 DB 왕복 없이 건너뛴다.
 - **자동 비활성화 없음**: 실패해도 `degraded` 만 기록하고 트리거를 끄지 않는다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)).
@@ -193,7 +193,9 @@ sequenceDiagram
 
 ## Rationale
 
-### `/cancel` 과 재개 명령의 큐 적재 실패에서 중복 제거 키를 지우지 않는다 (2026-10-17)
+### `/cancel` 과 재개 명령의 큐 적재 실패에서 중복 제거 키를 지우지 않는다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-EQDYC1` · `CLE-T-EMB0YG` 의 결정이다. `/cancel` 의 취소나 활성 실행으로 가는 재개 명령을 재개 큐에 넣지 못하면 채팅 채널은 `202` 로 답하고 채널 건강도를 `degraded` 로 바꾼다. 응답 코드를 이렇게 정한 근거는 [채팅 채널 「R-CC-31 /cancel 과 재개 명령의 큐 적재 실패는 202 와 degraded 로 답한다」](CLE-CHAT-CORE.md#r-cc-31-cancel-과-재개-명령의-큐-적재-실패는-202-와-degraded-로-답한다) 에 있다.
 
@@ -201,15 +203,19 @@ NERV Task `CLE-T-EQDYC1` · `CLE-T-EMB0YG` 의 결정이다. `/cancel` 의 취�
 
 기각한 대안은 큐 적재 실패 때도 `/start` 처럼 키를 지우는 것이다. `202` 뒤에는 재전송이 오지 않아 지워도 달라지는 것이 없다.
 
-### 인바운드 서명 자료 참조가 없는 행의 검증 생략은 운영 데이터를 잰 뒤 정한다 (2026-10-31)
+### 인바운드 서명 자료 참조가 없는 행의 검증 생략은 운영 데이터를 잰 뒤 정한다
+
+결정일: 2026-10-31
 
 NERV Task `CLE-T-EA7B5M` 에서 사람이 정했다(NERV 질문 `01a19048-6f1c-7782-8fce-2c3a060f9291`). 이 Task 는 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 현행 동작을 스펙에 적는 데까지 했다. 바꿀지는 NERV Task `CLE-T-AAGZRW` 에 넘겼다. 그 Task 가 운영 DB 의 참조 없는 행 수를 재는 계획이었다. 0 이면 401 로 막고 하나라도 있으면 지금 동작을 유지한다는 결정을 스펙에 올리기로 했다. 막는 안과 유지하는 안 모두 참조 없는 행이 몇 개인지 모르는 채로 정해야 해서 먼저 재기로 했다.
 
 원시 `config` 계약을 정하면서 이 동작이 드러났다. 원시 `config` 로 채팅 채널을 붙이면 참조 없는 행이 생길 수 있었고 그 행은 서명 검증 없이 인바운드를 받았다. 원시 `config` 의 타입 키 거부로 그 길은 닫힌다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 행과 다른 길로 생긴 행은 남는다.
 
-2026-11-14 에 행 수를 재지 않고 지금 동작을 유지하기로 정해 이 계획은 닫혔다(아래 「참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다 (2026-11-14)」).
+2026-11-14 에 행 수를 재지 않고 지금 동작을 유지하기로 정해 이 계획은 닫혔다(아래 「참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다」).
 
-### 폼 모달 제출의 큐 적재 실패는 모달 대기를 남기고 버튼을 다시 보낸다 (2026-11-13)
+### 폼 모달 제출의 큐 적재 실패는 모달 대기를 남기고 버튼을 다시 보낸다
+
+결정일: 2026-11-13
 
 NERV Task `CLE-T-6ZTPZ8` 의 결정이다. 사람이 질문 `01a1d2f3-df05-7334-88a9-e745d4a668dc` 에 답해 정했다. 재개 명령의 큐 적재 실패 규칙은 사용자가 같은 입력을 다시 보내면 다시 처리된다는 전제에 기댄다([인바운드 흐름](#인바운드-흐름)). 텍스트와 버튼 입력은 사용자가 그대로 다시 보낼 수 있다. 네이티브 폼 모달은 "양식 작성하기" 버튼으로만 다시 열 수 있고 그 버튼은 `pendingFormModal` 이 있어야 모달을 연다. 큐 적재 실패를 제출 성공처럼 처리해 `pendingFormModal` 을 지우면 사용자는 같은 양식을 다시 낼 수 없다. Discord 에서는 제출 확인 문구까지 보여 입력이 실행에 닿은 것처럼 보인다.
 
@@ -217,7 +223,9 @@ NERV Task `CLE-T-6ZTPZ8` 의 결정이다. 사람이 질문 `01a1d2f3-df05-7334-
 
 여러 단계 폼(`formState`)의 마지막 제출은 이 결정에 들어가지 않는다. 지금 코드는 그 제출을 큐에 넣지 못해도 `formState` 를 지운다. 후속에서 다룬다.
 
-### 참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다 (2026-11-14)
+### 참조가 없는 행은 서명 검증을 건너뛰는 지금 동작을 유지한다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-AAGZRW` 의 결정이다. 2026-10-31 결정(위 항목)은 운영 DB 에서 참조가 없는 행 수를 잰 뒤 정하기로 했다. 2026-11-14 에 사람(gehrig)이 NERV 질문 `01a1da19-0e6b-7441-ba50-97d0d1da4a90` 에 «측정하지 않는다. 현행 유지로 스펙 결정을 올린다» 고 답했다. 그래서 행 수를 재지 않고 지금 동작을 유지한다. 이 결정을 스펙에 올린 세션은 운영 DB 에 접근할 수 없었다. 참조가 없는 행이 몇 개인지, 있기는 한지 모른다.
 
@@ -230,7 +238,9 @@ NERV Task `CLE-T-AAGZRW` 의 결정이다. 2026-10-31 결정(위 항목)은 운�
 
 저장된 행을 한꺼번에 고쳐 참조를 붙이는 데이터 수정은 이 결정에 넣지 않았다. 참조를 다시 만드는 일은 쓰기 경로뿐이라는 [시크릿 저장소 — 참조 소유와 교차 행 「R9」](../CLE-INT/CLE-INT-SECRET-REFS.md#r9-리소스-설정의-시크릿-참조는-요청-본문으로-받지-않는다-2026-10-04) 를 지킨다. 참조가 없는 행에 참조를 붙이면 그 행의 검증 동작이 바뀐다. 재발급 경로는 2026-11-15 결정이 따로 정했다(아래).
 
-### 봇 토큰 재발급도 참조가 없던 행에 참조를 붙이지 않는다 (2026-11-15)
+### 봇 토큰 재발급도 참조가 없던 행에 참조를 붙이지 않는다
+
+결정일: 2026-11-15
 
 2026-11-15 에 NERV Task `CLE-T-TJAHCN` 에서 봇 토큰 재발급도 R9 와 같게 참조가 없던 행에 참조를 붙이지 않기로 정했다. 재발급이 참조를 싣는 조건은 [인바운드 서명 자료 참조가 없는 행](#인바운드-서명-자료-참조가-없는-행) 의 「봇 토큰 재발급」 에 있다.
 

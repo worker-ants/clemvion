@@ -134,6 +134,8 @@ export class RetryTurnService {
    *  2-1. 실행(Execution) 상태가 `failed` 가 아니면 INVALID_EXECUTION_STATE
    *      (CLE-T-DJ3VC8). WS 게이트웨이가 이 에러의 `code` 를 그대로 `errorCode` 로
    *      내고 프론트가 재시도 실패 문구(`systemErrorRetryFailedInvalidState`)로 보여 준다.
+   *  2-2. 실행의 `finishedAt` 이 비어 있으면(같은 실행의 다른 재시도 턴이 도는 중)
+   *      INVALID_EXECUTION_STATE (CLE-T-T9HZX7).
    *  3. `outputData.output.error.details.retryable !== true` → NODE_NOT_RETRYABLE.
    *  4. `outputData._retryState` 부재 또는 `now > expiresAt` → RETRY_STATE_NOT_FOUND.
    *  5. `retryAfterSec` 카운트다운 미경과 → RETRY_TOO_EARLY.
@@ -184,6 +186,16 @@ export class RetryTurnService {
     if (!execution || execution.status !== ExecutionStatus.FAILED) {
       throw new InvalidExecutionStateError(
         `retry_last_turn: execution ${executionId} is ${execution?.status ?? 'missing'}, expected failed`,
+      );
+    }
+    // 2-2. `failed` 인데 finished_at 이 비어 있으면 같은 실행의 다른 재시도 턴이 실행
+    //      단위 claim 을 쥐고 도는 중이다(CLE-T-T9HZX7). 그 턴은 끝날 때 상태를
+    //      바꾸므로 지금은 아직 `failed` 로 읽힌다. 소비하기 전에 거절해야 그 턴이
+    //      끝난 뒤 다시 시도할 수 있다. 판정은 워커의 조건부 UPDATE 가 하고 이
+    //      확인은 앞단 거름망이다.
+    if (execution.finishedAt == null) {
+      throw new InvalidExecutionStateError(
+        `retry_last_turn: another retry of execution ${executionId} is running`,
       );
     }
 
@@ -317,8 +329,11 @@ export class RetryTurnService {
    *      키를 원자 제거해 동시 배달을 차단한다(claim 실패 시 discard, 이후
    *      단계 미진입; ai-review CRITICAL #1/#2, 2026-07-28).
    *   2-1. 실행이 아직 `failed` 인지 다시 보고, 아니면 새 행을 `failed` 로 마감하고
-   *      버린다. 통과하면 실행의 옛 실패 필드(error · finishedAt · durationMs)를
-   *      비운다(CLE-T-DJ3VC8).
+   *      버린다. 이어서 실행 단위 claim(`claimFailedExecution`)으로 같은 실행의
+   *      형제 재시도 가운데 하나만 들여보낸다. 이 조건부 UPDATE 가 실행의 옛 실패
+   *      필드(error · finishedAt · durationMs)를 DB 에서 비우고, 비운 finished_at
+   *      이 claim 표시가 된다(CLE-T-T9HZX7). 거절된 배달은 새 행을 `failed` 로
+   *      마감하고 `node.failed` 를 낸다.
    *   3. ExecutionContext 확보 (`rehydrateContext` 재사용 — live 면 그대로).
    *   4. `_retryState` → `_resumeState` shape 변환 후 nodeOutputCache /
    *      structuredOutputCache 에 주입.
@@ -338,11 +353,10 @@ export class RetryTurnService {
    *      `failRetryExecution` 이 Execution 을 FAILED 또는 CANCELLED 로 마감
    *      (일반 노드 종결 규칙 — spec §10).
    *
-   * 남은 위험(CLE-T-T9HZX7 이 맡는다): 2-1 의 확인과 재진입 턴 끝의 전이 사이는
-   * 원자적이지 않다. 그 사이 다른 경로가 실행 상태를 바꾸면 엔티티 저장이 덮어쓸 수
-   * 있다. 워커가 2-1 에서 거절하면 이미 소비한 `_retryState` 는 되살리지 않고
-   * 클라이언트에도 거절을 알리지 않는다. 전이는 `state/state-machine.ts` ·
-   * EES 쪽이라 이 서비스에서 조건부 UPDATE 로 바꾸지 않는다.
+   * 턴 끝 전이(`state/state-machine.ts` · EES)는 바꾸지 않는다. claim 표시가
+   * finished_at 이라 이긴 쪽이 턴 도중 죽으면 실행이 `failed` · finished_at 없음으로
+   * 남고, 그동안 형제 재시도는 거절된다. 그 창은 `_retryState` 의 60분 TTL 안이다.
+   * 거절된 배달이 소비한 `_retryState` 는 되살리지 않는다.
    */
   async applyRetryLastTurn(
     executionId: string,
@@ -405,19 +419,39 @@ export class RetryTurnService {
     // 실행이 다른 경로로 바뀌었으면 이 재진입은 그 흐름과 겹친다. 재진입 턴 끝의
     // 전이(`failed → running` · `failed → waiting_for_input`)는 `failed` 에서만
     // 출발해야 하므로 새 행을 `failed` 로 마감하고 버린다. NODE_STARTED 를 내기
-    // 전이라 노드 이벤트는 내지 않는다.
+    // 전이지만 마감한 새 행의 node.failed 는 낸다(CLE-T-T9HZX7). 명령 ack 는 이미
+    // 성공으로 나갔으므로 클라이언트는 이 이벤트로 거절을 안다.
     if (execution.status !== ExecutionStatus.FAILED) {
-      await this.markSpawnedRowFailed(
+      await this.closeSpawnedRowIfRunning(
         spawnedRow,
-        `applyRetryLastTurn: execution ${executionId} is ${execution.status}, expected failed`,
-        'Retry re-entry rejected: execution is no longer failed',
+        node,
+        spawnedRow.parentNodeExecutionId ?? undefined,
+        executionId,
+        new Error('Retry re-entry rejected: execution is no longer failed'),
       );
       return;
     }
-    // CLE-T-DJ3VC8 — 앞선 실패의 error · finishedAt · durationMs 를 비운다. 재진입
-    // 턴 끝 전이와 재실패 마감이 엔티티 값을 함께 저장하므로, 비우지 않으면
-    // re-park 한 실행에 옛 error 가 남고 종결 durationMs 가 옛 값으로 다시 쓰인다
-    // (`resolveTerminalDurationMs` 는 엔티티에 값이 있으면 그 값을 쓴다).
+    // CLE-T-T9HZX7 — 배달 claim 은 행마다 따로라 같은 실행의 형제 재시도(서로 다른
+    // 노드 실행 행)는 둘 다 여기까지 온다. 실행 행의 조건부 UPDATE 로 하나만
+    // 들여보낸다. 진 쪽은 context 를 만들기 전에 끝내야 한다. 만들면 `finally` 의
+    // deleteContext 가 이긴 쪽 턴의 context 를 지운다.
+    if (!(await this.claimFailedExecution(executionId))) {
+      await this.closeSpawnedRowIfRunning(
+        spawnedRow,
+        node,
+        spawnedRow.parentNodeExecutionId ?? undefined,
+        executionId,
+        new Error(
+          'Retry re-entry rejected: another retry of this execution is running',
+        ),
+      );
+      return;
+    }
+    // CLE-T-DJ3VC8 — 앞선 실패의 error · finishedAt · durationMs 를 엔티티에서도
+    // 비운다. DB 는 위 claim 이 이미 비웠다. 재진입 턴 끝 전이와 재실패 마감이
+    // 엔티티 값을 함께 저장하므로, 비우지 않으면 re-park 한 실행에 옛 error 가
+    // 남고 종결 durationMs 가 옛 값으로 다시 쓰인다(`resolveTerminalDurationMs`
+    // 는 엔티티에 값이 있으면 그 값을 쓴다).
     execution.error = null;
     execution.finishedAt = null;
     execution.durationMs = null;
@@ -503,7 +537,7 @@ export class RetryTurnService {
       await this.closeSpawnedRowIfRunning(
         spawnedRow,
         node,
-        context,
+        context.parentNodeExecutionId,
         executionId,
         err,
       );
@@ -561,7 +595,36 @@ export class RetryTurnService {
   }
 
   /**
-   * 재진입이 예외로 끝났을 때 새 행이 아직 `running` 이면 마감한다(CLE-T-DJ3VC8).
+   * 실행 단위 claim(CLE-T-T9HZX7). 실행이 `failed` 이고 finished_at 이 있을 때만
+   * 옛 실패 필드(finished_at · error · duration_ms)를 비운다. 1행을 바꾼 배달만
+   * 재진입한다.
+   *
+   * 배달 claim(`claimSpawnedRetryRow`)은 노드 실행 행마다 따로라 같은 실행의 형제
+   * 재시도를 서로 막지 못한다. 엔진은 실행을 `failed` 로 바꿀 때마다 finished_at 을
+   * 함께 쓰므로 `failed` 실행에는 늘 finished_at 이 있다. 그래서 비운 finished_at 을
+   * 「재시도 턴이 도는 중」 표시로 쓴다. 턴 끝 전이가 finished_at 을 다시 쓰거나
+   * 상태를 바꾸면 표시가 풀린다. 이긴 쪽이 턴 도중 죽으면 표시가 남아 형제 재시도가
+   * 거절된다. 그 창은 `_retryState` 의 60분 TTL 안이다.
+   */
+  private async claimFailedExecution(executionId: string): Promise<boolean> {
+    const result = await this.executionRepository
+      .createQueryBuilder()
+      .update(Execution)
+      .set({ finishedAt: null, error: null, durationMs: null })
+      .where('id = :id', { id: executionId })
+      .andWhere('status = :failed', { failed: ExecutionStatus.FAILED })
+      .andWhere('finished_at IS NOT NULL')
+      .execute();
+    return (result.affected ?? 0) === 1;
+  }
+
+  /**
+   * 새 행이 아직 `running` 이면 마감한다. 두 경우에 쓴다.
+   *
+   * - 워커 진입에서 재진입을 거절할 때(CLE-T-T9HZX7). 명령 ack 는 이미 성공으로
+   *   나갔으므로 클라이언트는 이 `node.failed` 로 거절을 안다. context 를 만들기
+   *   전이라 부모 노드 실행 id 는 새 행에서 읽는다.
+   * - 재진입이 예외로 끝났을 때(CLE-T-DJ3VC8).
    *
    * 보통은 `finalizeAiNode` 가 새 행을 `failed`(재실패)나 `cancelled`(취소 가드)로
    * 마감한 뒤 던진다. 그 전에 던지는 경로(예: COMPLETED 분기의 `assertTransition`
@@ -579,7 +642,7 @@ export class RetryTurnService {
   private async closeSpawnedRowIfRunning(
     spawnedRow: NodeExecution,
     node: Node,
-    context: ExecutionContext,
+    parentNodeExecutionId: string | undefined,
     executionId: string,
     error: unknown,
   ): Promise<void> {
@@ -615,7 +678,7 @@ export class RetryTurnService {
       spawnedRow.durationMs = durationMs;
       if (!isCancelled) spawnedRow.error = { message: errMessage };
       this.logger.warn(
-        `applyRetryLastTurn: spawned row ${spawnedRow.id} was still running after re-entry threw — closed as ${status}`,
+        `applyRetryLastTurn: spawned row ${spawnedRow.id} closed as ${status}: ${errMessage}`,
       );
       await this.eventEmitter.emitNode(
         executionId,
@@ -623,7 +686,7 @@ export class RetryTurnService {
         isCancelled ? NodeEventType.NODE_CANCELLED : NodeEventType.NODE_FAILED,
         {
           nodeExecutionId: spawnedRow.id,
-          parentNodeExecutionId: context.parentNodeExecutionId,
+          parentNodeExecutionId,
           status,
           ...(isCancelled ? {} : { error: errMessage, duration: durationMs }),
           nodeType: node.type,

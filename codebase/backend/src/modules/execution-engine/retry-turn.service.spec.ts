@@ -205,9 +205,11 @@ describe('RetryTurnService', () => {
       consumeAndWhereParams = [];
       mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue(nodeExec);
       // 재시도는 실행이 `failed` 일 때만 들어간다(CLE-T-DJ3VC8). 기본 실행은 failed 다.
-      mockExecutionRepo.findOneBy = jest
-        .fn()
-        .mockResolvedValue({ id: EXEC, status: ExecutionStatus.FAILED });
+      mockExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: EXEC,
+        status: ExecutionStatus.FAILED,
+        finishedAt: new Date(Date.now() - 60_000),
+      });
       // dataSource.transaction → manager with create / save / createQueryBuilder.
       (service as unknown as { dataSource: unknown }).dataSource = {
         transaction: jest.fn(
@@ -309,6 +311,25 @@ describe('RetryTurnService', () => {
         expect(createdEntities).toHaveLength(0);
       },
     );
+
+    // CLE-T-T9HZX7 — 실행이 `failed` 여도 finished_at 이 비어 있으면 같은 실행의 다른
+    // 재시도 턴이 실행 단위 claim 을 쥐고 도는 중이다. 소비하기 전에 거절해야 그 턴이
+    // 끝난 뒤 다시 시도할 수 있다. 판정은 워커의 조건부 UPDATE 가 하고 이 확인은 앞단
+    // 거름망이다.
+    it('실행이 failed 지만 finished_at 이 비어 있으면(다른 재시도 턴이 도는 중) 거절하고 _retryState 를 소비하지 않는다', async () => {
+      installRetryMocks(makeFailedNodeExec());
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC,
+        status: ExecutionStatus.FAILED,
+        finishedAt: null,
+      });
+
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'INVALID_EXECUTION_STATE',
+      });
+      expect(consumeSetArgs).toHaveLength(0);
+      expect(createdEntities).toHaveLength(0);
+    });
 
     it('실행 행이 없으면 INVALID_EXECUTION_STATE 로 거절하고 _retryState 를 소비하지 않는다', async () => {
       installRetryMocks(makeFailedNodeExec());
@@ -738,11 +759,101 @@ describe('RetryTurnService', () => {
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
 
+    // 새 행 마감은 조건부 UPDATE(`status = 'running'`)다. 첫 UPDATE 는 배달 claim 이고
+    // 그다음이 마감이다. 각 UPDATE 의 SET · WHERE 인자를 모아 단언한다.
+    function captureNodeUpdates() {
+      const sets: Array<Record<string, unknown>> = [];
+      const conds: Array<Array<[string, unknown]>> = [];
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
+        const mine: Array<[string, unknown]> = [];
+        conds.push(mine);
+        const qb: Record<string, jest.Mock> = {};
+        qb.update = jest.fn(() => qb);
+        qb.set = jest.fn((v: Record<string, unknown>) => {
+          sets.push(v);
+          return qb;
+        });
+        qb.where = jest.fn((sql: string, p?: unknown) => {
+          mine.push([sql, p]);
+          return qb;
+        });
+        qb.andWhere = qb.where;
+        qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
+        return qb;
+      });
+      return { sets, conds };
+    }
+
+    // CLE-T-T9HZX7 — 실행 단위 claim. 실행 행에 거는 조건부 UPDATE 의 인자를 모으고
+    // 영향 행 수를 정한다.
+    function installExecutionClaim(affected: number) {
+      const calls = {
+        set: [] as Array<Record<string, unknown>>,
+        where: [] as Array<[string, unknown]>,
+        execute: jest.fn().mockResolvedValue({ affected }),
+      };
+      mockExecutionRepo.createQueryBuilder = jest.fn(() => {
+        const qb: Record<string, jest.Mock> = {};
+        qb.update = jest.fn(() => qb);
+        qb.set = jest.fn((v: Record<string, unknown>) => {
+          calls.set.push(v);
+          return qb;
+        });
+        qb.where = jest.fn((sql: string, p?: unknown) => {
+          calls.where.push([sql, p]);
+          return qb;
+        });
+        qb.andWhere = qb.where;
+        qb.execute = calls.execute;
+        return qb;
+      });
+      return calls;
+    }
+
+    function expectRejectedAsNodeFailed(
+      row: Record<string, unknown>,
+      message: string,
+      nodeUpdates: ReturnType<typeof captureNodeUpdates>,
+    ) {
+      expectGraphNotDriven();
+      expect(row.status).toBe(NodeExecutionStatus.FAILED);
+      expect(row.error).toEqual({ message });
+      expect(row.finishedAt).toBeInstanceOf(Date);
+      // 무조건 save 가 아니라 `running` 일 때만 바꾸는 조건부 UPDATE 로 닫는다.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+      expect(nodeUpdates.sets[1]).toMatchObject({
+        status: NodeExecutionStatus.FAILED,
+        error: { message },
+      });
+      expect(nodeUpdates.conds[1]).toEqual([
+        ['id = :id', { id: SPAWNED_ID }],
+        ['status = :running', { running: NodeExecutionStatus.RUNNING }],
+      ]);
+      expect(
+        (row.inputData as Record<string, unknown>)._retryState,
+      ).toBeUndefined();
+      // 클라이언트는 새 행의 node.failed 로 거절을 안다. node.started 는 내지 않는다.
+      const emitNode = mockEventEmitter.emitNode as jest.Mock;
+      expect(emitNode).toHaveBeenCalledTimes(1);
+      expect(emitNode).toHaveBeenCalledWith(
+        EXEC,
+        NODE_ID,
+        NodeEventType.NODE_FAILED,
+        expect.objectContaining({
+          nodeExecutionId: SPAWNED_ID,
+          parentNodeExecutionId: 'ne-parent',
+          status: NodeExecutionStatus.FAILED,
+          error: message,
+        }),
+      );
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emitTerminalExecution).not.toHaveBeenCalled();
+    }
+
     // CLE-T-DJ3VC8 — 워커 진입 확인. 명령 시점에 `failed` 였어도 워커가 집기 전에
     // 같은 실행의 다른 재시도가 먼저 재진입했거나 취소되면 실행은 `failed` 가 아니다.
     // 그대로 들어가면 재진입 턴이 살아 있는 흐름과 겹친다. 새 행은 이 배달이 claim 한
-    // 것이라 다른 쪽이 쓰지 않으므로 `failed` 로 마감하고, `node.started` 전이라 노드
-    // 이벤트는 내지 않는다.
+    // 것이라 `failed` 로 마감하고 node.failed 를 낸다(CLE-T-T9HZX7).
     it.each([
       ExecutionStatus.PENDING,
       ExecutionStatus.RUNNING,
@@ -750,9 +861,9 @@ describe('RetryTurnService', () => {
       ExecutionStatus.COMPLETED,
       ExecutionStatus.CANCELLED,
     ])(
-      '(g) claim 뒤 실행이 %s 면 새 행을 failed 로 마감하고 재진입하지 않는다',
+      '(g) claim 뒤 실행이 %s 면 새 행을 failed 로 마감하고 node.failed 를 낸다',
       async (status) => {
-        const row = makeSpawnedRow();
+        const row = makeSpawnedRow({ parentNodeExecutionId: 'ne-parent' });
         mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
         mockExecutionRepo.findOneBy.mockResolvedValue({
           id: EXEC,
@@ -760,26 +871,105 @@ describe('RetryTurnService', () => {
           startedAt: new Date(),
         });
         mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
+        const nodeUpdates = captureNodeUpdates();
+        const claim = installExecutionClaim(1);
 
         await expect(
           service.applyRetryLastTurn(EXEC, SPAWNED_ID),
         ).resolves.toBeUndefined();
 
-        expectGraphNotDriven();
-        expect(row.status).toBe(NodeExecutionStatus.FAILED);
-        expect(row.error).toEqual({
-          message: 'Retry re-entry rejected: execution is no longer failed',
-        });
-        expect(row.finishedAt).toBeInstanceOf(Date);
-        expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(row);
-        expect(
-          (row.inputData as Record<string, unknown>)._retryState,
-        ).toBeUndefined();
-        expect(mockEventEmitter.emitNode).not.toHaveBeenCalled();
-        expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
-        expect(mockEventEmitter.emitTerminalExecution).not.toHaveBeenCalled();
+        expectRejectedAsNodeFailed(
+          row,
+          'Retry re-entry rejected: execution is no longer failed',
+          nodeUpdates,
+        );
+        // 실행이 `failed` 가 아니면 실행 단위 claim 까지 가지 않는다.
+        expect(claim.execute).not.toHaveBeenCalled();
       },
     );
+
+    // CLE-T-T9HZX7 — 같은 실행의 형제 재시도(서로 다른 노드 실행 행)는 배달 claim 이
+    // 행마다 따로라 둘 다 통과한다. 실행 행의 조건부 UPDATE 가 하나만 들여보낸다.
+    it('(h) 실행 단위 claim 은 failed · finished_at 있음을 조건으로 옛 실패 필드를 DB 에서 비운다', async () => {
+      const row = makeSpawnedRow({ parentNodeExecutionId: 'ne-parent' });
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(),
+        finishedAt: new Date(),
+      });
+      mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
+      captureNodeUpdates();
+      const claim = installExecutionClaim(0);
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(claim.set).toEqual([
+        { finishedAt: null, error: null, durationMs: null },
+      ]);
+      expect(claim.where).toEqual([
+        ['id = :id', { id: EXEC }],
+        ['status = :failed', { failed: ExecutionStatus.FAILED }],
+        ['finished_at IS NOT NULL', undefined],
+      ]);
+    });
+
+    it('(i) 실행 단위 claim 에 지면(0행) 새 행을 failed 로 마감하고 node.failed 를 낸다', async () => {
+      const row = makeSpawnedRow({ parentNodeExecutionId: 'ne-parent' });
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      const execution = {
+        id: EXEC,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(),
+        finishedAt: new Date(),
+        error: { message: '앞선 실패' },
+      };
+      mockExecutionRepo.findOneBy.mockResolvedValue(execution);
+      mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
+      const nodeUpdates = captureNodeUpdates();
+      installExecutionClaim(0);
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expectRejectedAsNodeFailed(
+        row,
+        'Retry re-entry rejected: another retry of this execution is running',
+        nodeUpdates,
+      );
+      // 진 쪽은 실행을 건드리지 않는다. 이긴 쪽이 비운 값은 이긴 쪽의 것이다.
+      expect(execution.error).toEqual({ message: '앞선 실패' });
+      expect(execution.finishedAt).toBeInstanceOf(Date);
+    });
+
+    it('(j) 새 행이 이미 running 이 아니면(0행) 마감 이벤트를 내지 않는다', async () => {
+      const row = makeSpawnedRow({ parentNodeExecutionId: 'ne-parent' });
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC,
+        status: ExecutionStatus.RUNNING,
+        startedAt: new Date(),
+      });
+      mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
+      let n = 0;
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
+        n += 1;
+        const affected = n === 1 ? 1 : 0;
+        return {
+          update: jest.fn().mockReturnThis(),
+          set: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          execute: jest.fn().mockResolvedValue({ affected }),
+        };
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expectGraphNotDriven();
+      expect(row.status).toBe(NodeExecutionStatus.RUNNING);
+      expect(mockEventEmitter.emitNode).not.toHaveBeenCalled();
+    });
 
     it('(d) marks spawned row FAILED when parent execution is not found', async () => {
       const row = makeSpawnedRow();
@@ -900,6 +1090,32 @@ describe('RetryTurnService', () => {
         expect.anything(),
         expect.anything(),
         expect.objectContaining({ nodeExecutionId: SPAWNED_ID }),
+      );
+    });
+
+    // CLE-T-T9HZX7 — 실행 단위 claim 을 이긴 배달만 재진입한다. claim 은 context 를
+    // 만들기 전에 끝나야 한다. 진 쪽이 context 를 만들면 이긴 쪽 턴의 context 를
+    // `finally` 의 deleteContext 가 지운다.
+    it('실행 단위 claim 이 rehydrate 보다 먼저 돈다', async () => {
+      const claimExecute = jest.fn().mockResolvedValue({ affected: 1 });
+      mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: claimExecute,
+      }));
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockResolvedValue(PARK_RELEASED);
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(claimExecute).toHaveBeenCalledTimes(1);
+      const rehydrate = mockDriver.rehydrateContext as jest.Mock;
+      expect(rehydrate).toHaveBeenCalledTimes(1);
+      expect(claimExecute.mock.invocationCallOrder[0]).toBeLessThan(
+        rehydrate.mock.invocationCallOrder[0],
       );
     });
 

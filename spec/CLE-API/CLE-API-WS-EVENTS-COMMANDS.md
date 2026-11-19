@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-COMMANDS"
 title: "WebSocket 이벤트와 명령 — 실행 제어 명령과 ack"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "d4f6ee92f25e74d4dbd4220c325da41262bd8a0f7eeb4e2ea639b2f72e80e650"
+content_hash: "bee3809f54355629cc6522268c3e6efb9a241db12ac14effa1773b48e17d8cce"
 read_as: "approved_fallback"
-task: "CLE-T-SKDWWG"
+task: "CLE-T-T9HZX7"
 source_paths: []
-mirror_sha256: "d535180cf81debb0472484628b10c41ee30e3d8f8971e7f3d33dfaccfd814c8c"
-etag: "sha256-e11e8da1bff75d25a37f56af4727950561f7a40a507476d7dd5807e6251d4467"
+mirror_sha256: "bcc5feb0fc910cf2c589e329cca38907d515ccde6e2d265f2eab8774217a0511"
+etag: "sha256-2d5772482c9fbcb7fbb81c7d5d9c7962d88e99740b197f1004480db48c804b2e"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 명령 `execution.continue`·`execution.step` 은 미구현, 실행 시작·중단 명령은 비채택) · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -154,7 +154,7 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 | `RETRY_STATE_NOT_FOUND` | `NodeExecution.outputData._retryState` 가 DB 에 없거나 만료됨(`expiresAt` TTL 초과, 또는 다른 재시도가 이미 소비). 별도 토큰 필드는 payload 에 없다 |
 | `NODE_NOT_RETRYABLE` | 대상 노드의 `outputData.output.error.details.retryable === false` 이거나 재시도 가능한 에러로 끝나지 않음(정상 종결, 조건 종결 등) |
 | `RETRY_TOO_EARLY` | `outputData.output.error.details.retryAfterSec` 카운트다운이 끝나기 전 호출(서버 쪽 강제). 클라이언트가 버튼을 비활성으로 두면 정상적으로는 생기지 않는다 |
-| `INVALID_EXECUTION_STATE` | 대상 노드 실행이 `FAILED` 가 아니거나 실행이 재시도에 들어갈 수 있는 상태가 아님(사전 검증 실패). 재개 명령의 같은 코드와 뜻을 공유한다(기대 상태만 다르다) |
+| `INVALID_EXECUTION_STATE` | 대상 노드 실행이 `FAILED` 가 아니거나 실행이 재시도에 들어갈 수 있는 상태가 아님(사전 검증 실패). 실행이 `failed` 여도 `finishedAt` 이 비어 있으면 같은 실행의 다른 재시도 턴이 도는 중이라 이 코드다. 재개 명령의 같은 코드와 뜻을 공유한다(기대 상태만 다르다) |
 | `INTERNAL_ERROR` | 새로 만든 재시도 턴을 재개 큐에 넣지 못함(Redis 장애 등). 새 노드 실행 행은 `failed` 로 마감한다. `_retryState` 는 이미 소비됐으므로 같은 명령을 다시 보내면 `RETRY_STATE_NOT_FOUND` 가 온다. typed 에러가 아닌 예외도 이 코드로 오고 이때 `message` 는 고정 문자열 `Retry failed` 다 |
 
 **`_retryState` 소비 원자성과 TTL (구현 계약)**
@@ -162,6 +162,7 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 - **한 번만 소비한다.** 재시도 처리는 `nodeExecutionId` 로 `_retryState` 를 조회하고 **같은 트랜잭션 안에서** `NodeExecution.outputData` 에서 `_retryState` 키를 지우며(JSONB `-` 연산) 새 노드 실행 행을 만든다. 키 제거가 affected=1 인 쪽만 진행해 동시 재시도가 행을 중복으로 만드는 것을 막는다. 한 번 소비하면 뒤 재시도는 `RETRY_STATE_NOT_FOUND` 다.
 - **TTL**: `_retryState.expiresAt`(ISO 8601). 기본 60분이고 환경 변수 `AI_RETRY_STATE_TTL_MINUTES` 로 바꾼다. `now > expiresAt` 이면 `RETRY_STATE_NOT_FOUND` 다. 만료된 미소비 `_retryState` 는 행의 `outputData` 에 남아 있다가(별도 정리 작업 없음, 행 수명을 따른다) 다음 시도 때 만료로 거부된다.
 - **재개 버스를 거쳐 워커로 넘긴다.** WebSocket 게이트웨이(다른 인스턴스일 수 있음)는 턴을 동기로 재개할 수 없다. 다시 들어가려면 살아 있는 실행 컨텍스트를 rehydrate 하고 `processAiResumeTurn`(단발 턴 처리기)을 돌려야 하는데 이는 **실행 워커 컨텍스트**에서만 된다. 그래서 검증, 원자 소비, 새 행 생성 뒤 재개 큐(`execution-continuation`)에 **새 job 종류 `retry_last_turn`** 을 넣어 워커로 넘긴다. 워커는 그 job 으로 새 행을 `_retryState`(`_resumeState` 형태)로 채운 채 `processAiResumeTurn` 에 `allowRetryReentry` opt-in 을 넘겨 다시 들어간다. `submit_message` 등과 같은 WebSocket → 워커 다리를 쓰되 대기 행 재개가 아니라 **새 행 재개**라는 점만 다르다.
+- **같은 실행의 재시도 턴은 하나만 돈다.** 워커는 턴에 들어가기 전에 실행 단위 claim 을 한다. 지는 재시도의 새 노드 실행 행은 `failed` 로 마감되고 `node.failed` 가 나간다. 워커 진입 때 실행이 이미 `failed` 가 아닐 때도 같다. 이 거절은 성공 ack 뒤에 일어나므로 클라이언트는 ack 가 아니라 새 행의 `node.failed` 로 재시도가 끝났음을 안다. claim 규칙은 [마지막 턴 재시도](../CLE-EXEC/CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) 에 있다.
 - **재시도 중 취소**: 다시 들어간 턴이 `running` 으로 도는 동안 사용자 중단(REST `POST /api/executions/:id/stop`)이 오면 진행 중인 턴을 즉시 끊지 않는다. 취소 기록은 바로 커밋되고 재시도는 다음 턴 경계에서 이를 관측해 끝낸다. park 에 닿으면 park 쪽 취소가 짝 행을 마감한다. 이때 `execution.cancelled` 가 나가고 `execution.completed`·`execution.failed` 는 나가지 않는다. 상세 규칙은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 가 정한다.
 - **다시 들어간 턴이 끝난 뒤 그래프 진행**: 성공하면 새 노드 실행은 일반 노드 `COMPLETED` 와 같이 출력 포트의 다음 노드로 그래프 진행이 이어진다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md), [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md)). 실패하면 일반 노드 `FAILED` 와 같이 끝난다(실행도 `FAILED`). **다시 들어간 턴이 대화를 끝내지 않으면**(가장 흔한 경우) 종결이 아니라 입력 대기로 **다시 park** 하고 세그먼트를 끝낸다. 다음 사용자 입력이 오면 일반 rehydration 재개 경로로 합류한다. 워크플로우 재실행과 갈리는 점은 "같은 실행 안 노드 단위 재시도" 이지 "다음 노드 진행 차단" 이 아니다. AI 에이전트 쪽 서술은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 에 있다.
 

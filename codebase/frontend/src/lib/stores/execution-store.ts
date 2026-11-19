@@ -548,6 +548,34 @@ const CLEAR_INPUT_AFFORDANCE = {
   pendingLastTurnRetry: null as PendingLastTurnRetry | null,
 };
 
+/**
+ * 들어온 노드 결과가 마지막 턴 재시도의 새 행이 끝났다는 뜻인지. 새 행은 재시도한 행과 같은
+ * 노드의 다른 노드 실행 행이다. 그 행이 `failed` · `cancelled` 로 들어오면 재시도는 끝났다.
+ *
+ * 워커가 재진입을 거절하면(CLE-T-T9HZX7) 실행 이벤트 없이 새 행의 `node.failed` 만 온다.
+ * 실행은 처음부터 `failed` 라 `failExecution` 이 다시 불리지 않으므로 여기서 재시도 대기와
+ * 응답 대기 표시를 끝낸다. 재진입한 턴이 다시 실패할 때도 같은 이벤트가 먼저 오는데, 뒤따르는
+ * `execution.failed` 가 같은 값을 다시 쓸 뿐이다.
+ */
+function isLastTurnRetryClosedBy(
+  state: Pick<
+    ExecutionState,
+    "pendingLastTurnRetry" | "nodeResults" | "nodeResultIndexByExecId"
+  >,
+  result: NodeResult,
+): boolean {
+  const pending = state.pendingLastTurnRetry;
+  if (!pending || !result.nodeExecutionId) return false;
+  if (result.status !== "failed" && result.status !== "cancelled") return false;
+  if (result.nodeExecutionId === pending.nodeExecutionId) return false;
+  const idx = state.nodeResultIndexByExecId.get(pending.nodeExecutionId);
+  const retried = idx === undefined ? undefined : state.nodeResults[idx];
+  return (
+    retried?.nodeExecutionId === pending.nodeExecutionId &&
+    retried.nodeId === result.nodeId
+  );
+}
+
 const CLEAR_CONVERSATION_SNAPSHOT = {
   conversationMessages: [] as ConversationItem[],
 };
@@ -653,6 +681,11 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
         }
       }
 
+      // 마지막 턴 재시도의 새 행이 실패로 끝났으면 재시도 대기를 함께 끝낸다(CLE-T-T9HZX7).
+      const retryClosed = isLastTurnRetryClosedBy(state, result)
+        ? CLEAR_INPUT_AFFORDANCE
+        : {};
+
       // Clone the derived indices so the produced state is a fresh object graph
       // (Zustand/React reference-equality) — only touched entries mutate.
       const execIdIndex = new Map(state.nodeResultIndexByExecId);
@@ -714,6 +747,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
           nodeResultIndexByExecId: execIdIndex,
           lastIndexByNodeId: lastIndex,
           firstNoExecIdIndexByNodeId: firstNoExecIdIndex,
+          ...retryClosed,
         };
       }
 
@@ -741,6 +775,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
         nodeResultIndexByExecId: execIdIndex,
         lastIndexByNodeId: lastIndex,
         firstNoExecIdIndexByNodeId: firstNoExecIdIndex,
+        ...retryClosed,
       };
     }),
 

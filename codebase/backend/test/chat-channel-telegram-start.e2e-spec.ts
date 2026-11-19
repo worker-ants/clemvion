@@ -28,7 +28,7 @@ import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
  * 실행 소유자(대화 상태의 `channelUserKey`)가 아닌 사용자의 `/start` · `/cancel` 도 202 ignored 이고
  * 옛 실행과 대화 상태를 건드리지 않는다(NERV Task `CLE-T-G2JRMF`).
  *
- * 대화 매핑을 비우는 compare-and-set 은 Lua 스크립트라 단위 테스트의 Redis 모사로는 스크립트가
+ * 대화 매핑을 비우거나 폼 대기 상태를 저장하는 compare-and-set 은 Lua 스크립트라 단위 테스트의 Redis 모사로는 스크립트가
  * 실제로 도는지 알 수 없다. 여기서 실제 Redis 로 스크립트를 돌린다. 일치 경로는 `/cancel` 요청과
  * `ChannelConversationService` 직접 호출로, 불일치 경로는 스크립트 직접 호출과 "읽은 뒤 다른 쓰기가
  * 끼는" 경합 재현으로 본다. 서비스는 읽은 값의 executionId 가 다르면 스크립트를 부르지 않으므로
@@ -420,6 +420,123 @@ describe('Telegram /start 재시작 (e2e)', () => {
       expect(evalResults).toEqual([0]);
       expect(reads).toBe(2);
       expect(await redis.get(key)).toBe(relinked);
+    });
+  });
+
+  describe('ChannelConversationService.updateIfExecutionMatches — 실제 Redis (Lua)', () => {
+    // 폼 대기 상태 저장(dispatcher)이 쓰는 경로다(NERV Task `CLE-T-CVJXDE`).
+    const triggerId = randomUUID();
+    const cleanup: string[] = [];
+
+    afterAll(async () => {
+      if (cleanup.length > 0) await redis.del(...cleanup);
+    });
+
+    const stateOf = (executionId: string, threadId = 'default') => ({
+      executionId,
+      threadId,
+      channelUserKey: 'u1',
+      startedAt: '2026-10-10T00:00:00.000Z',
+      lastUpdateAt: '2026-10-10T00:00:00.000Z',
+    });
+
+    const seed = async (chatId: number, executionId: string) => {
+      const key = conversationKeyOf(triggerId, chatId);
+      cleanup.push(key);
+      await redis.set(key, JSON.stringify(stateOf(executionId)), 'EX', 600);
+      return key;
+    };
+
+    /** 첫 읽기 직후 `afterFirstRead` 값으로 바꾸고, 스크립트 호출은 실제 Redis 로 보낸다. */
+    const racingRedisOf = (afterFirstRead: string) => {
+      const evalResults: unknown[] = [];
+      let reads = 0;
+      const client = {
+        get: async (k: string) => {
+          const value = await redis.get(k);
+          reads += 1;
+          if (reads === 1) await redis.set(k, afterFirstRead, 'EX', 600);
+          return value;
+        },
+        eval: async (
+          script: string,
+          numKeys: number,
+          ...args: Array<string | number>
+        ) => {
+          const result = await redis.eval(script, numKeys, ...args);
+          evalResults.push(result);
+          return result;
+        },
+      };
+      return { client: client as unknown as Redis, evalResults };
+    };
+
+    const setFormModal = (state: { pendingFormModal?: unknown }) => {
+      state.pendingFormModal = { nodeId: 'node-form', fields: [] };
+    };
+
+    it('일치하면 폼 대기 상태를 저장하고 TTL(7일)을 새로 건다', async () => {
+      const key = await seed(73001, 'exec-a');
+      const service = new ChannelConversationService(undefined, redis);
+
+      const updated = await service.updateIfExecutionMatches(
+        triggerId,
+        '73001',
+        'exec-a',
+        setFormModal,
+      );
+
+      expect(updated).toBe(true);
+      const stored = JSON.parse((await redis.get(key)) as string) as {
+        executionId: string;
+        pendingFormModal: { nodeId: string; fields: unknown };
+      };
+      expect(stored.executionId).toBe('exec-a');
+      expect(stored.pendingFormModal.nodeId).toBe('node-form');
+      expect(Array.isArray(stored.pendingFormModal.fields)).toBe(true);
+      expect(await redis.ttl(key)).toBeGreaterThan(600);
+    });
+
+    it('읽은 뒤 대화가 새 실행에 이어지면 그 값을 덮어쓰지 않는다', async () => {
+      const key = await seed(73002, 'exec-old');
+      const relinked = JSON.stringify(stateOf('exec-new'));
+      const { client, evalResults } = racingRedisOf(relinked);
+      const service = new ChannelConversationService(undefined, client);
+
+      const updated = await service.updateIfExecutionMatches(
+        triggerId,
+        '73002',
+        'exec-old',
+        setFormModal,
+      );
+
+      expect(updated).toBe(false);
+      expect(evalResults).toEqual([0]);
+      expect(await redis.get(key)).toBe(relinked);
+    });
+
+    it('읽은 뒤 같은 실행의 다른 필드만 바뀌면 다시 읽어 그 값 위에 저장한다', async () => {
+      const key = await seed(73003, 'exec-a');
+      const { client, evalResults } = racingRedisOf(
+        JSON.stringify(stateOf('exec-a', 'thread-2')),
+      );
+      const service = new ChannelConversationService(undefined, client);
+
+      const updated = await service.updateIfExecutionMatches(
+        triggerId,
+        '73003',
+        'exec-a',
+        setFormModal,
+      );
+
+      expect(updated).toBe(true);
+      expect(evalResults).toEqual([0, 1]);
+      const stored = JSON.parse((await redis.get(key)) as string) as {
+        threadId: string;
+        pendingFormModal: { nodeId: string };
+      };
+      expect(stored.threadId).toBe('thread-2');
+      expect(stored.pendingFormModal.nodeId).toBe('node-form');
     });
   });
 
