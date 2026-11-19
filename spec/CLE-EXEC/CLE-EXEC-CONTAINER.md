@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "8bcccf56fc68c9a94759d725e99ce4c9e24ab4200675d3b088773c4437d7a849"
+content_hash: "735189a12de4c2c619c63773141f728fc95cb01da539f94a4831e6d775d5d24e"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-B7A8B2"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "7fe240fb19ab740a357f6b9eb7f9eed9406427d03bedae41a7eb6d9ddccf911b"
-etag: "sha256-106e563c455b793e3244d2fae2adfe026a74fa7257af297e5279ce1fd65dcb0b"
+mirror_sha256: "e7bebe93609c996fd75b04b94007394e87066d346303bd15fb1fa696f7ebdfeb"
+etag: "sha256-ea28d01f35f74a10c03061f32180fb7a285c607c4c7bd55e39120247d8216023"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -175,7 +175,7 @@ Loop 안에 ForEach 가 있을 때:
 | --- | --- |
 | 반복 변수 | 병렬 분기 노드도 바깥 반복 변수(`$item` · `$itemIndex` · `$loop`)를 읽는다. 위 표의 읽기 · 쓰기 불가 · 가림 규칙을 병렬 분기에도 그대로 적용한다. 병렬 분기 안 컨테이너가 반복 변수를 새로 바인딩해도 다른 병렬 분기와 바깥 컨테이너에는 영향이 없다 |
 | `emit` 수집 | `emit` 원천 노드가 병렬 분기 안에 있어도 그 출력을 회차 결과로 모은다 |
-| 중첩 깊이 | 본문 안 Parallel 은 컨테이너를 둘러싼 병렬 분기의 깊이를 이어받는다. 맨 바깥 컨테이너의 본문 Parallel 은 깊이 1, 병렬 분기 안 컨테이너의 본문 Parallel 은 깊이 2 이고 바깥 × 안쪽 동시 실행 수 곱 상한 32 가 걸린다(줄이면 `meta.clampedConcurrency`). 본문 안 컨테이너는 깊이를 늘리지 않는다. 본문 안 Background 의 본문(`background` 연결선으로만 닿는 노드)은 실행 검사에서 깊이 1 부터 센다([Parallel 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-안-background-본문의-parallel-은-사전-검사도-깊이-1-부터-센다-2026-11-12)). 저장 단계 규칙은 병렬 분기 안 컨테이너면 바깥 깊이를 이어서 센다([Parallel 노드 §저장 규칙과 실행 검사의 범위](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#저장-규칙과-실행-검사의-범위)) |
+| 중첩 깊이 | 본문 안 Parallel 은 컨테이너를 둘러싼 병렬 분기의 깊이를 이어받는다. 맨 바깥 컨테이너의 본문 Parallel 은 깊이 1, 병렬 분기 안 컨테이너의 본문 Parallel 은 깊이 2 이고 바깥 × 안쪽 동시 실행 수 곱 상한 32 가 걸린다(줄이면 `meta.clampedConcurrency`). 본문 안 컨테이너는 깊이를 늘리지 않는다. 본문 안 Background 의 본문(`background` 연결선 뒤에서만 닿는 노드)은 저장 규칙과 실행 검사 모두 깊이 1 부터 센다. 병렬 분기 안 컨테이너여도 같다([Parallel 노드 — 놓인 위치와 중첩 §저장 규칙과 실행 검사의 범위](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL-NEST.md#저장-규칙과-실행-검사의-범위)) |
 | 깊이 검사 시점 | 엔진은 컨테이너 시작(첫 반복 회차 전)과 바깥 Parallel 의 병렬 분기 계획 두 곳에서 본문(본문 안 컨테이너의 본문 포함)의 Parallel 깊이를 미리 검사한다. 깊이가 2를 넘으면 메시지가 `PARALLEL_NESTED_DEPTH_EXCEEDED:` 로 시작하는 에러로 실행이 실패하고, 첫 회차 전에 던지므로 컨테이너의 항목 에러 정책이 흡수하지 않는다. 본문 안 Background 의 본문은 두 검사 모두 깊이 1 부터 센다([Parallel 노드 §놓인 위치별 실행과 중첩 깊이](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#놓인-위치별-실행과-중첩-깊이)) |
 
 동기 서브 워크플로우는 호출한 쪽의 깊이를 이어받지 않고 깊이를 새로 센다([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#서브-워크플로우의-parallel-은-깊이를-새로-센다-2026-11-06)).
@@ -195,7 +195,7 @@ Background 노드는 컨테이너가 아니다. 엔진은 `background` 포트 �
 - `codebase/backend/src/modules/execution-engine/containers/loop-executor.ts`
 - `codebase/backend/src/modules/execution-engine/containers/foreach-executor.ts` (ForEach·Map 공용)
 - `codebase/backend/src/modules/execution-engine/containers/parallel-executor.ts`
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`planContainerBody`, 본문 안 컨테이너 · Background · Parallel 넘기기(`executeContainerBody`)와 깊이 검사(`runContainerInner`), 엔진 덮어쓰기, 행 마감(`completeDeferredNode`))
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`planContainerBody`, 본문 안 컨테이너 · Background · Parallel 넘기기(`executeContainerBody`)와 깊이 검사(`runContainerInner`), 엔진 덮어쓰기, 노드 실행과 종류별 처리(`executeAndDispatchNode`) · 실패 마감(`markDeferredNodeFailed`))
 - `codebase/backend/src/modules/execution-engine/graph/graph-builder.ts` (`buildGraph` 의 컨테이너 범위)
 - Background 본문 큐 · 워커는 [컨테이너 실행 — Background 본문](CLE-EXEC-CONTAINER-BG.md#구현-위치)
 
@@ -274,3 +274,4 @@ Background 본문은 메인 흐름과 따로 끝나고 결과가 메인으로 �
   - 실행 화면에서 컨테이너 · Parallel 은 본문이 끝날 때까지 실행 중으로 보인다. completed 이벤트는 본문 노드 이벤트 뒤에 온다.
   - 실행 내역 · 통계 · 메트릭에 보이는 이 노드들의 실행 시간이 노드 전체 기준으로 길어진다.
   - 병렬 분기가 실패해 Parallel 이 멈추면(`errorPolicy` 가 `stop` · `cancel-others-on-fail`) Parallel 행이 `failed` 로 남는다. 개정 전에는 `completed` 로 남았다.
+  - 병렬 분기가 시작되기 전에 설정 해석이나 사전 검사(`PARALLEL_NESTED_DEPTH_EXCEEDED` 등)가 실패해도 노드 실행 행을 `failed` 나 `cancelled` 로 한 번만 마감한다. 행이 `running` 으로 남지 않는다(NERV Task CLE-T-JQHZ99).

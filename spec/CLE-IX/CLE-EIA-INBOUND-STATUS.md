@@ -2,19 +2,19 @@
 id: "CLE-EIA-INBOUND-STATUS"
 title: "EIA 수신 API — 상태 조회와 토큰 갱신"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-INBOUND"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-INBOUND"]
 area: "CLE-IX"
-content_hash: "630b81bbbcf6eb63d72929a3d32f57822b2a4873e8452af5023dbed2df5753cf"
+content_hash: "c7ae112bfbca659490f2dd92db3a8593d89f89507803be3e35b12dba77c9d036"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JDYHCF"
 source_paths: []
-mirror_sha256: "b7822fc44f6ccd7693008e18f1093a9b183fe32323018ac909c69b521a6e3140"
-etag: "sha256-fd76ba70d7bba0c35da9d6969dfaa6bc57fdea261fa9bec70d54f62f5abe6c80"
+mirror_sha256: "16b94464e6459e060b5ab667388037c9e081b49ba5e442ca37e1b0b7c70d4c64"
+etag: "sha256-1939f566e16790568b3bfd694578a14a651a17c5f058ba3e458c132a27a9ff75"
 ---
 ## 개요
 
@@ -25,6 +25,7 @@ etag: "sha256-fd76ba70d7bba0c35da9d6969dfaa6bc57fdea261fa9bec70d54f62f5abe6c80"
 `GET /api/external/executions/:executionId` 는 현재 상태를 한 번 돌려준다.
 
 - `id`·`workflowId`·`status`·`result`·`error`·`updatedAt` 는 실제 값으로 채운다.
+- `result` 는 실행이 `completed` 일 때 실행 결과(`Execution.outputData`)를 싣고 그 밖에는 `null` 이다. 값은 마지막으로 실행한 노드의 핸들러 `output` 그대로라 객체 · 배열 · 문자열 · 숫자 · 불리언일 수 있고, 마지막 노드가 출력 없이 끝나면 `{}` 다. 규칙의 정본은 [노드 출력 규약 Principle 0](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드) 7번이다.
 - 입력 대기 상태에서는 `currentNode`(id·type·interactionType)와 `context` 도 채운다. 지금 대기 중인 노드 실행 출력(`NodeExecution.outputData` 의 `meta.interactionType` 과 구조화된 `config.buttonConfig`)에서 복원한다. 버튼은 `context.buttonConfig{ buttons, nodeOutput }`, 폼·AI 대화는 `context.nodeOutput` 에 싣는다. SSE `waiting_for_input` 과 같은 형식이라 위젯이 `parseWaitingForInput` 으로 그대로 시드할 수 있다. 빠른 첫 노드(버튼·캐러셀)가 SSE 구독 전에 발행되는 경쟁에서 현재 대기 표면을 되살리는 1차 경로다(`interaction.service.ts` 의 `getStatus()`).
 - `context.conversationThread` 에는 영속 대화 스레드 스냅샷(`Execution.conversation_thread`, [대화 스레드](CLE-IX-THREAD.md))을 SSE `waiting_for_input` 과 같은 형식으로 싣는다. 새로고침 복원이 5분 버퍼에 기대지 않고, 버퍼 만료·서버 재시작·인스턴스 전환과 관계없이 전체 기록을 되살리게 하려는 것이다.
 - 스냅샷이 없으면(배포 전 행, park 이력 없음) `context.conversationThread` 키를 생략한다. 형제 필드가 `null` 을 쓰는 것과 다르다. SSE 도 있을 때만 싣고, 위젯은 부재를 빈 기록으로 처리한다. 두 부재 표현의 선택 기준은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 부재 표현 규칙이고, 이 필드는 다른 경로와의 형식 일치 사례다.
@@ -55,7 +56,9 @@ Authorization: Bearer <iext_jwt | itk_token>
     "nodeOutput":   { ... }         // 그 밖. form·ai_conversation, 그리고 buttonConfig 를 복원하지 못한 buttons.
                                     // formConfig·conversationConfig 는 이 nodeOutput 안에 있다(top-level 아님)
   } | null,
-  "result":  { ... } | null,        // completed 일 때
+  "result":  { ... } | [ ... ] | "..." | 0 | true | null,
+                                    // completed 일 때. 마지막 노드의 핸들러 output 그대로
+                                    // (객체 · 배열 · 문자열 · 숫자 · 불리언)
   "error":   { ... } | null,        // failed 일 때
   "durationMs": 4242 | null,        // 종결 시. 영속 컬럼 값을 그대로 싣는다(다시 계산하지 않음).
                                     // 종결 이벤트의 같은 이름 필드와 같은 값이다.
@@ -67,6 +70,7 @@ Authorization: Bearer <iext_jwt | itk_token>
 ```
 
 - `context` 는 판별자 없는 닫힌 2-variant union 이다. `interactionType` 은 판별자가 아니다. `buttons` 는 `buttonConfig` 변형과, 복원에 실패해 넘어온 `nodeOutput` 변형 양쪽에 나온다. 소비자는 키 존재(`'buttonConfig' in context`)로 가른다. OpenAPI 스키마는 `discriminator` 없이 `oneOf` 로 적는다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md)).
+- `result` 의 OpenAPI 스키마는 객체 · 배열 · 문자열 · 숫자 · 불리언 가운데 하나이고 nullable 이다.
 - `conversationThread.turns[].source` 는 대화 기록 항목의 항목 출처(`ConversationTurnSource`) 값이다. WebSocket 메시지의 전송 출처 표시(`live`·`injected`)와 그 누락 시 `live` 로 보는 폴백은 `nodeOutput.conversationConfig.messages[].source` 에만 해당하고 `turns[]` 에는 해당하지 않는다([WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md), [대화 스레드](CLE-IX-THREAD.md)).
 - `currentNode.interactionType` 과 `context.interactionType` 은 외부로 세 값(`form`·`buttons`·`ai_conversation`)을 싣는다. 엔진 내부의 `ai_form_render` 가 여기서 어떻게 보이는지는 [인터랙션 타입 레지스트리](CLE-IX-TYPES.md#미결-사항) 의 미결 사항이다.
 - 상태 조회와 SSE 는 노드 출력(`nodeOutput`)과 대화 스레드를 공개 경로로 내보낸다. 노드 핸들러는 여기에 민감한 중간 결과(시크릿·내부 토큰 등)를 남기지 않아야 한다. 이 불변식은 출구에서 강제한다. 대화 스레드는 `redactThreadForPublic` 가, 입력 대기 `nodeOutput` 은 고정 키 허용 목록과 값 가리기가, 종결 `result`·`error` 는 디버그 필드 제거와 값 가리기가 맡는다. 적용 범위와 남은 갭은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다.
@@ -107,3 +111,9 @@ Authorization: Bearer <expiring_iext_jwt>
 - **대화 스레드도 싣도록 조정**: 처음에는 `conversationThread` 를 SSE 전용 권위로 두고 상태 조회에서 뺐다(5분 버퍼 재전송으로 보정한다는 전제). 그러나 버퍼 만료(5분 초과)·서버 재시작·인스턴스 전환 뒤 새로고침하면 재전송이 불가능해 위젯이 기록을 잃었다. 영속 스냅샷(`Execution.conversation_thread`)은 이미 손실 없이 저장돼 있는데도 내보낼 길이 없었다. [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md) 도 "버퍼 만료 때 상태 조회 스냅샷으로 다시 맞춘다" 를 계약으로 두고 있어 이 생략과 모순이었다. 그래서 상태 조회가 입력 대기일 때 영속 스레드를 싣도록 좁게 넓혀 새로고침 복원이 버퍼·재시작과 무관하게 되게 했다. 이미 SSE `waiting_for_input` 으로 공개 중인 `conversationThread` 를 REST 단발 응답에도 읽기 전용으로 싣는 것뿐이라 새로운 민감 데이터 노출이 아니다.
 - **부재 표현이 형제 필드와 다르다**: `conversationThread` 만 키를 생략하는 것은 SSE 도 있을 때만 싣기 때문이다. REST 만 `null` 로 맞추면 위젯의 `parseWaitingForInput` 재사용이 깨진다.
 - **기각한 대안**: (a) SSE 전용을 유지하고 버퍼 만료 때 위젯이 다시 조회하는 안. 그 재조회(상태 조회)가 스레드를 주지 않으므로 만료 때 되살릴 원천이 없어 문제를 풀지 못한다. (b) 노드 실행 출력에 흩어진 값으로 스레드를 다시 만드는 안. `runningSummary` 같은 스레드 메타가 노드별로 저장되지 않아 손실 없이 되살릴 수 없다([대화 스레드](CLE-IX-THREAD.md) 가 같은 이유로 기각). 영속 컬럼을 그대로 내보내는 것이 손실 없고 단순하다.
+
+### 종결 result 는 마지막 노드의 핸들러 output 이다
+
+결정일: 2026-11-19
+
+전에는 `result` 에 마지막 노드의 엔진 내부 값이 실려 객체에는 `_selectedPort` 키가 붙고, 포트가 있는 배열 · 원시값은 `{ data, _selectedPort }` 로 감싸였다. 이제 마지막 노드의 핸들러 `output` 을 그대로 싣는다(NERV Task `CLE-T-JDYHCF`). 호환이 깨지는 변경이다. `result` 가 배열 · 원시값을 그대로 담고 `_selectedPort` 키가 사라지므로 `result.data` · `result._selectedPort` 를 읽던 클라이언트는 고쳐야 한다. 결정과 기각한 대안은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다)에 있다.
