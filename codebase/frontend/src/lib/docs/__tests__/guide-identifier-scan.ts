@@ -364,7 +364,8 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
   token: string;
   /**
    * 접두를 붙이는 자리. 사유가 "어디서" 를 지목하지 못하면 등록이 통행증이 된다.
-   * `파일.ts:줄` 이나 줄 번호가 움직여도 깨지지 않는 `파일.ts#심볼` 로 적는다.
+   * 줄 번호가 움직여도 깨지지 않는 `파일.ts#심볼` 로 적는다. `파일.ts:줄` 은 쓰지 않는다
+   * (엔진 서비스에 줄이 더해질 때마다 따로 고쳐야 했다. 테스트가 막는다).
    */
   where: string;
   why: string;
@@ -376,12 +377,12 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
   },
   {
     token: "CONTAINER_MISSING_EMIT",
-    where: "execution-engine.service.ts:7336·7340 — 템플릿 리터럴 메시지 접두",
+    where: "execution-engine.service.ts#CONTAINER_MISSING_EMIT — 템플릿 리터럴 메시지 접두",
     why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 2026-11-12 에 전용 코드를 만들지도, 카탈로그 행으로 등재하지도 않기로 정했다(NERV Task `CLE-T-1W44RD`. `CLE-API-ERRCODES` 「6.5」 는 이 이름을 행 없이 메시지 접두로 적는다). 그래서 이 등록은 계속 필요하다.",
   },
   {
     token: "CONTAINER_MULTIPLE_EMIT",
-    where: "execution-engine.service.ts:7345 — 형제 접두",
+    where: "execution-engine.service.ts#CONTAINER_MULTIPLE_EMIT — 형제 접두",
     why: "위와 동형. 두 이름은 같은 문장에 함께 등장하므로 처분도 함께 한다.",
   },
 ];
