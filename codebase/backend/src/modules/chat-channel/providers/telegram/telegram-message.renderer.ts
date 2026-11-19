@@ -17,7 +17,12 @@ import {
 const logger = new Logger('ChatChannelTelegram');
 
 const TELEGRAM_MESSAGE_LIMIT = 4096;
-const CONTINUED_SUFFIX = '\n_(continued…)_';
+/**
+ * 이어짐 접미사. MarkdownV2 본문에 붙으므로 괄호를 escape 한다. escape 하지 않으면 Telegram 이
+ * `400 can't parse entities` 로 조각을 거절한다(NERV Task `CLE-T-V4GYE4`). 보이는 글은 Slack ·
+ * Discord 의 `\n_(continued…)_` 와 같다.
+ */
+const CONTINUED_SUFFIX = '\n_\\(continued…\\)_';
 
 /**
  * Telegram MarkdownV2 escape rule per Bot API docs.
@@ -553,7 +558,7 @@ function keyboardHintForFieldType(
 /**
  * Telegram 4096자 한계 분할.
  *
- * 단순 size-based — 마지막 chunk 전까지는 CONTINUED_SUFFIX (`\n_(continued…)_`) 가
+ * 단순 size-based — 마지막 chunk 전까지는 CONTINUED_SUFFIX (`\n_\\(continued…\\)_`) 가
  * 본문에 포함. 단어 경계 splitting 은 v1 best-effort — 너무 긴 단일 단어는 그대로 자른다.
  *
  * Telegram MarkdownV2 escape 가 적용된 텍스트 가정 — `\\.` 같은 escape sequence 의 중간을

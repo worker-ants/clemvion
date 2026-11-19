@@ -18,6 +18,30 @@ const BASE_EVENT_FIELDS = {
   timestamp: '2026-05-21T00:00:00.000Z',
 };
 
+/**
+ * MarkdownV2 본문에서 코드 블록(```) 밖에 escape 없이 남은 예약 문자를 찾는다. 서식 표식
+ * `_` `*` `~` `` ` `` 은 짝을 맞춰 쓰므로 세지 않는다. Telegram 은 이런 글자가 있으면
+ * `400 can't parse entities` 로 거절한다.
+ */
+function unescapedReservedOutsideCode(text: string): string[] {
+  const found: string[] = [];
+  let inPre = false;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.startsWith('```', i)) {
+      inPre = !inPre;
+      i += 2;
+      continue;
+    }
+    const ch = text[i];
+    if (ch === '\\') {
+      i += 1;
+      continue;
+    }
+    if (!inPre && '[]()>#+-=|{}.!'.includes(ch)) found.push(`${ch}@${i}`);
+  }
+  return found;
+}
+
 describe('escapeMarkdownV2', () => {
   it('special 글자를 backslash escape', () => {
     expect(escapeMarkdownV2('hello.world')).toBe('hello\\.world');
@@ -85,6 +109,28 @@ describe('renderTelegramMessages', () => {
         (m) => m.body.kind !== 'text' && m.body.kind !== 'typing',
       ),
     ).toHaveLength(0);
+  });
+
+  // NERV Task CLE-T-V4GYE4 — 이어짐 접미사도 MarkdownV2 본문이라 괄호를 escape 해야 Telegram 이 받는다.
+  it('ai_message 4096자 초과 → 앞 조각의 이어짐 접미사가 MarkdownV2 규칙에 맞다', () => {
+    const long = 'word. '.repeat(1500);
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: long,
+      turnCount: 1,
+    };
+    const texts = renderTelegramMessages(event, BASE_CONFIG).flatMap((m) =>
+      m.body.kind === 'text' ? [m.body.text] : [],
+    );
+    expect(texts.length).toBeGreaterThan(1);
+    texts.slice(0, -1).forEach((t) => {
+      expect(t.endsWith('\n_\\(continued…\\)_')).toBe(true);
+    });
+    texts.forEach((t) => {
+      expect(t.length).toBeLessThanOrEqual(4096);
+      expect(unescapedReservedOutsideCode(t)).toEqual([]);
+    });
   });
 
   it('completed → languageHints.executionCompleted', () => {
