@@ -554,3 +554,29 @@ describe('renderDiscordEvent — 2000자 조각 한도와 경계 (REQ-DISCORD-01
     expect(bodiesOf(texts).join('')).toBe(message);
   });
 });
+
+// NERV Task CLE-T-RYXCFX — 조각 경계가 열린 코드 블록 안이면 앞 조각을 닫고 다음 조각을 다시 연다.
+describe('renderDiscordEvent — 코드 블록을 지나는 분할', () => {
+  it('긴 코드 블록을 나누면 조각마다 ``` 짝이 맞고 표식과 접미사를 더해도 2000자 이하다', () => {
+    const code = Array.from(
+      { length: 300 },
+      (_, i) => `const v${i} = ${i};`,
+    ).join('\n');
+    const msgs = renderDiscordEvent(
+      {
+        ...BASE,
+        type: 'execution.node.completed',
+        node: { id: 'tpl-1', type: 'template' },
+        output: { rendered: `\`\`\`ts\n${code}\n\`\`\`` },
+      },
+      CONFIG,
+    );
+    const texts = msgs.map((m) => (m.body as { text: string }).text);
+    expect(texts.length).toBeGreaterThan(2);
+    texts.forEach((t) => {
+      expect(t.length).toBeLessThanOrEqual(2000);
+      expect(t.split('```').length % 2).toBe(1);
+    });
+    texts.slice(1).forEach((t) => expect(t.startsWith('```ts\n')).toBe(true));
+  });
+});

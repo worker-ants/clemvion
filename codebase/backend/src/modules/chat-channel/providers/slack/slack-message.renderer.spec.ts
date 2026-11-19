@@ -769,3 +769,33 @@ describe('renderSlackEvent — 멘션 무력화 (CLE-T-FQTQ7K)', () => {
     expect(bodies.join('')).toBe(escaped);
   });
 });
+
+// NERV Task CLE-T-RYXCFX — 조각 경계가 열린 코드 블록 안이면 앞 조각을 닫고 다음 조각을 다시 연다.
+describe('renderSlackEvent — 코드 블록을 지나는 분할', () => {
+  const SUFFIX = '\n_(continued…)_';
+
+  function textsOf(message: string): string[] {
+    return renderSlackEvent({ ...BASE, message, turnCount: 1 }, CONFIG).map(
+      (m) => (m.body as { text: string }).text,
+    );
+  }
+
+  it('긴 코드 블록을 나누면 조각마다 ``` 짝이 맞고 다음 조각은 같은 언어 태그로 다시 연다', () => {
+    const code = Array.from(
+      { length: 400 },
+      (_, i) => `print("line ${i}")`,
+    ).join('\n');
+    const texts = textsOf(`설명\n\`\`\`python\n${code}\n\`\`\`\n끝`);
+    expect(texts.length).toBeGreaterThan(1);
+    texts.forEach((t, i) => {
+      expect(t.split('```').length % 2).toBe(1);
+      expect(t.length).toBeLessThanOrEqual(4000);
+      const body = i < texts.length - 1 ? t.slice(0, -SUFFIX.length) : t;
+      expect(body.length).toBeLessThanOrEqual(3500);
+    });
+    texts
+      .slice(1)
+      .forEach((t) => expect(t.startsWith('```python\n')).toBe(true));
+    expect(texts[0].endsWith('```' + SUFFIX)).toBe(true);
+  });
+});

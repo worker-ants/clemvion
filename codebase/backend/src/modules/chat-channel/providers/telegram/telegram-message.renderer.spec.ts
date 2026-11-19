@@ -1009,3 +1009,38 @@ describe('execution.node.completed — handler structured return shape 처리 (�
     expect(all).toContain('카드 2');
   });
 });
+
+// NERV Task CLE-T-RYXCFX — 렌더러가 ``` 로 감싼 표가 4096자를 넘으면 앞 조각을 닫고 다음 조각을 다시 연다.
+describe('visual fallback — 4096자를 넘는 표의 분할', () => {
+  it('조각마다 ``` 짝이 맞고 표식과 접미사를 더해도 4096자 이하다', () => {
+    const columns = Array.from({ length: 20 }, (_, i) => ({
+      key: `c${i}`,
+      label: `column${i}`,
+    }));
+    const rows = Array.from({ length: 20 }, (_, r) =>
+      Object.fromEntries(columns.map((c) => [c.key, `value-${r}-${c.key}`])),
+    );
+    const event = buttonsEvent({
+      nodeType: 'table',
+      title: 'wide',
+      payload: { columns, rows },
+    });
+    const texts = renderTelegramMessages(event, BASE_CONFIG).flatMap((m) =>
+      m.body.kind === 'text' ? [m.body.text] : [],
+    );
+    const tableChunks = texts.filter(
+      (t) => t.includes('column0') || t.includes('value-'),
+    );
+    expect(tableChunks.length).toBeGreaterThan(1);
+    tableChunks.forEach((t) => {
+      expect(t.length).toBeLessThanOrEqual(4096);
+      expect(t.split('```').length % 2).toBe(1);
+    });
+    tableChunks
+      .slice(1)
+      .forEach((t) => expect(t.startsWith('```\n')).toBe(true));
+    tableChunks
+      .slice(0, -1)
+      .forEach((t) => expect(t.endsWith('```\n_\\(continued…\\)_')).toBe(true));
+  });
+});
