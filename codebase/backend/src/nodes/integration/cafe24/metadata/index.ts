@@ -55,12 +55,10 @@ export const CAFE24_TIMEZONE_SUFFIX =
  * 2026-10-23 에 전체 GET operation 을 확인했고 그런 operation 이 없어 비어 있다.
  * 새로 생기면 여기에 올린다. 메타데이터를 다시 생성할 때 후보는
  * `dry-run-state-changing-get.spec.ts` 가 잡지만 신호가 휴리스틱이라 사람이 함께
- * 확인한다(`codebase/api-catalogs/README.md`). 원본 배열을 얼리고 `ReadonlySet` 으로
- * 내보낸다. 목록을 바꾸는 코드는 타입 검사에서 걸린다. `Set` 자체는 얼지 않으므로
- * 캐스트한 코드가 실행 중에 바꾸는 것까지 막지는 않는다.
+ * 확인한다(`codebase/api-catalogs/README.md`). 타입 검사가 변경을 막고 런타임 Set 은 얼리지 않는다.
  */
 export const CAFE24_STATE_CHANGING_GET_OPERATION_IDS: ReadonlySet<string> =
-  new Set(Object.freeze<string[]>([]));
+  new Set<string>([]);
 
 /**
  * dry-run 에서 이 Cafe24 operation 을 모의 응답으로 대신할지 판정한다. Cafe24
