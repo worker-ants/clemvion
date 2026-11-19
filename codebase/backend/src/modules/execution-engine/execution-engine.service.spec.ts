@@ -6411,7 +6411,7 @@ describe('ExecutionEngineService', () => {
 
       // 오직 node-2 만 실행 — node-1(상류) 및 node-3(하류) 미실행.
       expect(mockHandler.execute).toHaveBeenCalledTimes(1);
-      // node-2 입력 = node-1 의 seed 출력(flat + stripControlFields).
+      // node-2 입력 = node-1 의 seed 출력(구조화 캐시의 핸들러 output).
       expect(seenInputs[0]).toEqual({ seeded: 42 });
       // predecessor 조회가 previousExecutionId 로 수행됐는지.
       expect(mockNodeExecutionRepo.find).toHaveBeenCalledWith(
