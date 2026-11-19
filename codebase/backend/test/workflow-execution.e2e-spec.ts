@@ -193,7 +193,7 @@ describe('Workflow Execution (e2e)', () => {
     expect([403, 404, 422]).toContain(stop.status);
   });
 
-  it('D. terminal 상태 실행에 stop → 400 (이미 완료된 실행)', async () => {
+  it('D. terminal 상태 실행에 stop → 422 INVALID_STATE (이미 완료된 실행)', async () => {
     const id = await createWorkflow();
     const exec = await request(BASE_URL)
       .post(`/api/workflows/${id}/execute`)
@@ -215,9 +215,10 @@ describe('Workflow Execution (e2e)', () => {
       .post(`/api/executions/${executionId}/stop`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId);
-    // 이미 terminal 인 execution 은 stop 불가 — 422 INVALID_STATE(카탈로그 §6.4)
-    // 또는 404 (재조회 시 stop-able 후보가 아님) 로 모두 거부 가능.
-    expect([422, 404]).toContain(stop.status);
+    // 이미 terminal 인 execution 은 stop 불가. 카탈로그 §6.4 대로 422 INVALID_STATE 다
+    // (NERV Task `CLE-T-B9CRCF`).
+    expect(stop.status).toBe(422);
+    expect(stop.body.error.code).toBe('INVALID_STATE');
   }, 30_000);
 
   it('D-2. 실행 중(running) 실행 stop → 200 + 응답이 ExecutionDto 계약과 맞는다', async () => {
