@@ -781,6 +781,20 @@ function buildDispatcherHarness(
     lookup: jest.fn(async () => state),
     upsert,
     clearExecutionIdIfMatches: jest.fn(async () => true),
+    // 서비스의 compare-and-set 판정(대화가 그 실행을 가리킬 때만 고친다)만 흉내 낸다. 읽은 뒤 끼는
+    // 경합은 `channel-conversation.service.spec.ts` 와 e2e 가 본다.
+    updateIfExecutionMatches: jest.fn(
+      async (
+        _triggerId: string,
+        _conversationKey: string,
+        executionId: string,
+        mutate: (s: Record<string, unknown>) => void,
+      ) => {
+        if (!state || state.executionId !== executionId) return false;
+        mutate(state);
+        return true;
+      },
+    ),
   };
   const adapter = {
     provider: 'slack',
@@ -920,11 +934,11 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
       startedAt: '2026-05-28T00:00:00Z',
       lastUpdateAt: '2026-05-28T00:00:00Z',
     };
-    const { dispatcher, upsert } = buildDispatcherHarness({
+    const { dispatcher, upsert, conversationService } = buildDispatcherHarness({
       renderResult,
       lookupState,
     });
-    return { dispatcher, state: lookupState, upsert };
+    return { dispatcher, state: lookupState, upsert, conversationService };
   }
 
   const formEvent: ExecutionChannelEvent = {
@@ -956,8 +970,19 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
         },
       },
     };
-    const { dispatcher, state } = buildDispatcher([formModalMsg]);
+    const { dispatcher, state, upsert, conversationService } = buildDispatcher([
+      formModalMsg,
+    ]);
     await callHandle(dispatcher, formEvent);
+    // 읽고 통째로 쓰지 않고 compare-and-set 으로 고친다(NERV Task `CLE-T-CVJXDE`).
+    expect(conversationService.updateIfExecutionMatches).toHaveBeenCalledWith(
+      'trig-1',
+      'D1',
+      'exec-1',
+      expect.any(Function),
+    );
+    expect(upsert).not.toHaveBeenCalled();
+    expect(conversationService.lookup).not.toHaveBeenCalled();
     expect(state.pendingFormModal).toMatchObject({ nodeId: 'node-form' });
     expect(
       (state.pendingFormModal as { fields: unknown[] }).fields,
@@ -979,9 +1004,10 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
     expect(state.pendingFormModal).toBeUndefined();
   });
 
-  // 근거: NERV Task `CLE-T-V4WVF2`. `/start` 가 이 실행을 취소하고 대화를 새 실행에 이었거나 `/cancel` 이
-  // 매핑을 비운 뒤 이 실행의 폼 이벤트가 늦게 올 수 있다. 읽은 시점에 다른 실행을 가리키면 덮어쓰지
-  // 않는다. 읽은 뒤 쓰기 전에 끼는 경합은 이 테스트가 다루지 않는다(NERV Task `CLE-T-CVJXDE`).
+  // 근거: NERV Task `CLE-T-V4WVF2` · `CLE-T-CVJXDE`. `/start` 가 이 실행을 취소하고 대화를 새 실행에
+  // 이었거나 `/cancel` 이 매핑을 비운 뒤 이 실행의 폼 이벤트가 늦게 올 수 있다. 대화가 다른 실행을
+  // 가리키면 덮어쓰지 않는다. 읽은 뒤 쓰기 전에 끼는 경합은 서비스의 compare-and-set 이 막고
+  // `channel-conversation.service.spec.ts` 와 e2e 가 본다.
   describe('대화가 이 이벤트의 실행을 가리키지 않으면', () => {
     const formModalMsg: ChannelMessage = {
       conversationKey: '',
@@ -1008,13 +1034,17 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
       '%s 을 가리키면 pendingFormModal · formState 를 고치지 않고 저장도 하지 않는다',
       async (_label, executionId) => {
         const lookupState = stateOf(executionId);
-        const { dispatcher, upsert } = buildDispatcherHarness({
-          renderResult: [formModalMsg],
-          lookupState,
-        });
+        const { dispatcher, upsert, conversationService } =
+          buildDispatcherHarness({
+            renderResult: [formModalMsg],
+            lookupState,
+          });
 
         await callHandle(dispatcher, formEvent);
 
+        expect(
+          conversationService.updateIfExecutionMatches,
+        ).toHaveBeenCalledWith('trig-1', 'D1', 'exec-1', expect.any(Function));
         expect(lookupState.pendingFormModal).toBeUndefined();
         expect(lookupState.formState).toBeUndefined();
         expect(lookupState.executionId).toBe(executionId);

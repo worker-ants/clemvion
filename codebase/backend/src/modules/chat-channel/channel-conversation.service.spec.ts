@@ -176,6 +176,139 @@ describe('ChannelConversationService', () => {
   });
 
   // 근거: NERV Task `CLE-T-V4WVF2`. 옛 실행의 종결 이벤트가 /start 로 이은 새 실행의 매핑을 지우지 않게 한다.
+  // NERV Task `CLE-T-CVJXDE` — 폼 대기 상태 갱신처럼 대화가 이 실행을 가리킬 때만 고치는 쓰기. 읽은 뒤
+  // `/start` 가 대화를 새 실행에 이으면 그 상태를 덮어쓰지 않아야 한다.
+  describe('updateIfExecutionMatches()', () => {
+    const setModal = (s: ChannelConversationState) => {
+      s.pendingFormModal = { nodeId: 'node-form', fields: [] };
+    };
+
+    it('대화가 그 실행을 가리키면 고친 값을 저장하고 lastUpdateAt 을 새로 쓴다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+
+      const updated = await service.updateIfExecutionMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+        setModal,
+      );
+
+      expect(updated).toBe(true);
+      const result = await service.lookup(triggerId, conversationKey);
+      // 빈 배열이 그대로 남는다(Lua 에서 JSON 을 다시 만들지 않는다).
+      expect(result?.pendingFormModal).toEqual({
+        nodeId: 'node-form',
+        fields: [],
+      });
+      expect(result?.executionId).toBe('exec-abc');
+      expect(result?.lastUpdateAt).not.toBe(state.lastUpdateAt);
+    });
+
+    it.each([
+      ['다른 실행', 'exec-new'],
+      ['비워진 매핑', null],
+    ])(
+      '대화가 %s 을 가리키면 고치지 않고 false 를 돌려준다',
+      async (_label, executionId) => {
+        await service.upsert(triggerId, conversationKey, {
+          ...state,
+          executionId,
+        });
+        const mutate = jest.fn(setModal);
+
+        const updated = await service.updateIfExecutionMatches(
+          triggerId,
+          conversationKey,
+          'exec-abc',
+          mutate,
+        );
+
+        expect(updated).toBe(false);
+        expect(mutate).not.toHaveBeenCalled();
+        const result = await service.lookup(triggerId, conversationKey);
+        expect(result?.executionId).toBe(executionId);
+        expect(result?.pendingFormModal).toBeUndefined();
+      },
+    );
+
+    it('읽은 뒤 `/start` 가 대화를 새 실행에 이었으면 덮어쓰지 않는다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      const realGet = redis.get.bind(redis);
+      let raced = false;
+      jest.spyOn(redis, 'get').mockImplementation(async (key: string) => {
+        const value = await realGet(key);
+        if (!raced) {
+          raced = true;
+          await service.upsert(triggerId, conversationKey, {
+            ...state,
+            executionId: 'exec-new',
+          });
+        }
+        return value;
+      });
+
+      const updated = await service.updateIfExecutionMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+        setModal,
+      );
+
+      expect(updated).toBe(false);
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBe('exec-new');
+      expect(result?.pendingFormModal).toBeUndefined();
+    });
+
+    it('읽은 뒤 같은 실행의 다른 필드만 바뀌었으면 다시 읽어 그 값 위에 고친다', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      const realGet = redis.get.bind(redis);
+      let raced = false;
+      jest.spyOn(redis, 'get').mockImplementation(async (key: string) => {
+        const value = await realGet(key);
+        if (!raced) {
+          raced = true;
+          await service.upsert(triggerId, conversationKey, {
+            ...state,
+            threadId: 'thread-2',
+          });
+        }
+        return value;
+      });
+
+      const updated = await service.updateIfExecutionMatches(
+        triggerId,
+        conversationKey,
+        'exec-abc',
+        setModal,
+      );
+
+      expect(updated).toBe(true);
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.threadId).toBe('thread-2');
+      expect(result?.pendingFormModal).toEqual({
+        nodeId: 'node-form',
+        fields: [],
+      });
+    });
+
+    it('conversation 이 없거나 Redis 가 없으면 false', async () => {
+      const mutate = jest.fn(setModal);
+      await expect(
+        service.updateIfExecutionMatches(triggerId, 'none', 'exec-abc', mutate),
+      ).resolves.toBe(false);
+      await expect(
+        new ChannelConversationService().updateIfExecutionMatches(
+          triggerId,
+          conversationKey,
+          'exec-abc',
+          mutate,
+        ),
+      ).resolves.toBe(false);
+      expect(mutate).not.toHaveBeenCalled();
+    });
+  });
+
   describe('clearExecutionIdIfMatches()', () => {
     it('대화가 그 실행을 가리키면 executionId 만 비우고 true 를 돌려준다', async () => {
       await service.upsert(triggerId, conversationKey, state);
@@ -279,7 +412,7 @@ describe('ChannelConversationService', () => {
         expect(cleared).toBe(false);
         expect(evalSpy).toHaveBeenCalledTimes(3);
         expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('동시 쓰기가 이어져 비우지 못했다'),
+          expect.stringContaining('동시 쓰기가 이어져 바꾸지 못했다'),
         );
       } finally {
         warnSpy.mockRestore();

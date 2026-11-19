@@ -36,7 +36,7 @@ export const RELEASE_LOCK_SCRIPT =
  *
  * Redis 오류로 삼킨 실패는 `clemvion.redis.fail_open` 카운터에 `chat_conversation` 으로 센다.
  * reason 은 메서드마다 다르다(lookup `get_failed` · upsert `set_failed` · clear `del_failed` ·
- * clearExecutionIdIfMatches `cas_failed` · acquireLock `lock_failed` · releaseLock `unlock_failed`).
+ * clearExecutionIdIfMatches · updateIfExecutionMatches `cas_failed` · acquireLock `lock_failed` · releaseLock `unlock_failed`).
  * Redis 미설정, compare-and-set 재시도 소진, 저장된 값의 JSON 손상은 Redis 실패가 아니라 세지 않는다.
  */
 @Injectable()
@@ -138,8 +138,7 @@ export class ChannelConversationService {
    *
    * `/start` 는 기존 실행을 취소하고 새 실행을 대화에 잇는다(NERV Task `CLE-T-V4WVF2`). 옛 실행의
    * 종결 이벤트는 그 뒤에 올 수 있다. 무조건 비우면 새 실행의 매핑이 지워져 다음 메시지가 대기 중인
-   * 새 실행으로 가지 않고 또 다른 실행을 시작한다. 읽은 값과 저장된 값을 비교해 바꾸므로 읽은 뒤에
-   * 다른 요청이 새 실행을 이어도 덮어쓰지 않는다.
+   * 새 실행으로 가지 않고 또 다른 실행을 시작한다. 비교와 교체는 `updateIfExecutionMatches` 가 한다.
    *
    * Redis 미가용 · 오류 시 false (graceful degradation). 비우지 못한 executionId 는 이미 종결된
    * 실행을 가리키므로 다음 메시지가 활성 실행 없음으로 판정한다.
@@ -151,6 +150,35 @@ export class ChannelConversationService {
     conversationKey: string,
     executionId: string,
   ): Promise<boolean> {
+    return this.updateIfExecutionMatches(
+      triggerId,
+      conversationKey,
+      executionId,
+      (state) => {
+        state.executionId = null;
+      },
+    );
+  }
+
+  /**
+   * 대화가 아직 `executionId` 를 가리킬 때만 `mutate` 로 고친 상태를 저장한다(compare-and-set).
+   * 실행 이벤트가 대화 상태를 고칠 때 쓴다(종결 이벤트의 매핑 비우기, 폼 대기 상태 저장).
+   *
+   * 읽은 문자열과 저장된 문자열을 비교해 바꾸므로 읽은 뒤에 `/start` 가 대화를 새 실행에 이었으면
+   * 덮어쓰지 않는다(NERV Task `CLE-T-CVJXDE`). 같은 실행의 다른 필드만 바뀌어 밀렸으면 다시 읽어
+   * 그 값 위에 `mutate` 를 다시 적용한다. `mutate` 는 시도마다 새로 읽은 상태를 받으므로 부수 효과
+   * 없이 상태만 고쳐야 한다. `lastUpdateAt` 은 여기서 새로 쓴다.
+   *
+   * Redis 미가용 · 오류 · 재시도 소진 시 false (graceful degradation).
+   *
+   * @returns 저장했으면 true. 대화가 없거나 다른 실행을 가리키면 false.
+   */
+  async updateIfExecutionMatches(
+    triggerId: string,
+    conversationKey: string,
+    executionId: string,
+    mutate: (state: ChannelConversationState) => void,
+  ): Promise<boolean> {
     if (!this.redis) return false;
     const key = this.buildKey(triggerId, conversationKey);
     try {
@@ -159,7 +187,7 @@ export class ChannelConversationService {
         if (!raw) return false;
         const state = JSON.parse(raw) as ChannelConversationState;
         if (state.executionId !== executionId) return false;
-        state.executionId = null;
+        mutate(state);
         state.lastUpdateAt = new Date().toISOString();
         const swapped = await this.redis.eval(
           COMPARE_AND_SET_SCRIPT,
@@ -172,12 +200,12 @@ export class ChannelConversationService {
         if (swapped === 1) return true;
       }
       this.logger.warn(
-        `ChannelConversationService.clearExecutionIdIfMatches — 동시 쓰기가 이어져 비우지 못했다 (trigger=${triggerId}, execution=${executionId})`,
+        `ChannelConversationService.updateIfExecutionMatches — 동시 쓰기가 이어져 바꾸지 못했다 (trigger=${triggerId}, execution=${executionId})`,
       );
       return false;
     } catch (err) {
       this.logger.warn(
-        `ChannelConversationService.clearExecutionIdIfMatches 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
+        `ChannelConversationService.updateIfExecutionMatches 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
       );
       // 읽기(GET)와 교체(EVAL) 실패를 함께 센다. 저장된 값의 JSON 손상(SyntaxError)은 세지 않는다.
       if (!(err instanceof SyntaxError)) {
