@@ -4,7 +4,6 @@ import {
   isNodeWaitingForInput,
   isAiResumedWaitingEnvelope,
   isTerminalServerExecutionStatus,
-  nextExecutionRefetchInterval,
   loadHistoricalExecution,
   mapNodeStatus,
   shouldUpdateStatus,
@@ -1437,22 +1436,6 @@ describe("isTerminalServerExecutionStatus", () => {
     "%s 는 종결 상태가 아니다",
     (status) => {
       expect(isTerminalServerExecutionStatus(status)).toBe(false);
-    },
-  );
-});
-
-describe("nextExecutionRefetchInterval", () => {
-  it.each(["completed", "failed", "cancelled"] as const)(
-    "%s 이면 폴링을 멈춘다",
-    (status) => {
-      expect(nextExecutionRefetchInterval(status, 2000)).toBe(false);
-    },
-  );
-
-  it.each([undefined, "pending", "running", "waiting_for_input"] as const)(
-    "%s 이면 간격을 돌려준다",
-    (status) => {
-      expect(nextExecutionRefetchInterval(status, 2000)).toBe(2000);
     },
   );
 });

@@ -53,7 +53,7 @@ vi.mock("@/lib/node-definitions", () => ({
 
 import ExecutionDetailPage from "../[executionId]/page";
 import { useExecutionStore } from "@/lib/stores/execution-store";
-import { EXECUTION_POLL_INTERVAL_MS } from "@/lib/websocket/use-execution-polling-fallback";
+import { EXECUTION_POLL_INTERVAL_MS } from "@/lib/websocket/execution-polling-policy";
 
 function makeWaitingExecution(interactionType: "form" | "buttons" | "ai_conversation") {
   const baseNode = {
