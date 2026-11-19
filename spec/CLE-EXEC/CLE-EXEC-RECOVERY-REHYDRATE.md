@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REHYDRATE"
 title: "장애 복구와 안전 종료 — 체크포인트와 rehydration"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "004934180fb981b4ca04adc0901b008d34b1be97dadff39e279b72e2cd1281ed"
+content_hash: "2bdce2ecb8797b7517910f49504d92c9a0f581acc74dae87a532ecb77c1251a7"
 read_as: "approved_fallback"
-task: "CLE-T-7PTJAS"
+task: "CLE-T-K9RZQV"
 source_paths: []
-mirror_sha256: "e616efb526d281142d2a022ef6a294238609383b72011d7ab51b354672e49ee9"
-etag: "sha256-41a8210d3fa93b64f3281d3b20f142160e56151bf49a8ced329ad17952c1dacc"
+mirror_sha256: "c276378e251c07f30406177a18223326568670c9695370d68aa2a7213ac31a7b"
+etag: "sha256-bc14831434b29841977efabf0f0b3fff9faff8515837e562c14302a3d81a6e6f"
 ---
 ## 개요
 
@@ -38,22 +38,23 @@ etag: "sha256-41a8210d3fa93b64f3281d3b20f142160e56151bf49a8ced329ad17952c1dacc"
 
 1. 소유권을 얻는다. stalled 재배달은 BullMQ 가 같은 jobId 로 재배달한 작업을 받은 워커가, 부팅 복구 스캔은 `started_at` 조건부 re-claim 에서 affected=1 인 인스턴스가 맡는다.
 2. `rehydrateContext` 가 같은 executionId 의 노드 실행 순서 로그로 `_executedNodes` Set 과 완료 노드 출력을 되살린다.
-3. 도착한 입력이 없으므로 turn 핸들러(`dispatchResumeTurn`)를 거치지 않는다. `runNodeDispatchLoop` 를 마지막 완료 노드 다음부터 진행한다.
+3. 도착한 입력이 없으므로 turn 핸들러(`dispatchResumeTurn`)를 거치지 않는다. `runNodeDispatchLoop` 를 마지막 완료 노드 다음부터 진행한다. 예외로 재개 턴 중 크래시한 멀티턴 AI 노드는 새 행이 옛 행에 남은 재개 입력으로 그 턴을 다시 돈다([크래시 재구동에서 처리 중이던 턴을 다시 돌린다](CLE-EXEC-STATE-RESUME.md#크래시-재구동에서-처리-중이던-턴을-다시-돌린다)).
 4. 완료 노드는 다시 실행하지 않는다(`_executedNodes` 기준).
 5. 크래시 시점에 아직 완료되지 않은 노드는 다시 실행된다(at-least-once).
 6. 재구동 도중 새 블로킹 노드에 닿으면 정상적으로 park 하고 세그먼트를 끝낸다.
 
-이 절차는 노드 타입과 관계없다. `rehydrateContext` 와 `runNodeDispatchLoop` 가 이미 노드 타입을 가리지 않는다. 입력 대기 노드 재개(case A, `dispatchResumeTurn`)와 달리 도착 입력과 turn 핸들러를 거치지 않고 바로 그래프를 진행한다.
+이 절차는 노드 타입과 관계없다. `rehydrateContext` 와 `runNodeDispatchLoop` 가 이미 노드 타입을 가리지 않는다. 입력 대기 노드 재개(case A, `dispatchResumeTurn`)와 달리 도착 입력과 turn 핸들러를 거치지 않고 바로 그래프를 진행한다. 3단계의 멀티턴 AI 노드 예외만 다르다.
 
 ### 멱등성 계약
 
 재개(case A)와 재구동(case B)에서 "같은 턴·세그먼트 이중 실행 0" 을 지키는 계약은 넷이다.
 
 - **jobId 멱등**: 세그먼트·재개 작업의 jobId 는 `executionId`(시작 큐) 또는 `executionId:nodeExecutionId:seq`(재개 큐)다. BullMQ 가 중복 작업을 거른다.
-- **재개 진입 원자 claim(affected=1)**: 입력 대기 재개는 `waiting_for_input → running`(`claimResumeEntry`)으로, 크래시 재구동은 `running → running` `started_at` 조건부 re-claim 으로 소유권을 얻는다. 둘 다 affected=1 인 워커나 인스턴스만 진행한다. `_retryState` 의 "affected=1 인 쪽만 진행" 방식을 일반화한 것이다.
+- **재개 진입 원자 claim(affected=1)**: 입력 대기 재개는 `waiting_for_input → running`(`claimResumeEntry`)으로, 크래시 재구동은 `running → running` `started_at` 조건부 re-claim 으로 소유권을 얻는다. 둘 다 affected=1 인 워커나 인스턴스만 진행한다. `_retryState` 의 "affected=1 인 쪽만 진행" 방식을 일반화한 것이다. 마지막 턴 재시도는 새 행 단위 배달 claim 과 실행 단위 claim(같은 실행의 재시도 턴은 하나만) 두 겹을 쓴다([재시도 전제와 재시도 턴 시작](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작)).
 - **완료 노드 미재실행(엔진 보장, exactly-once)**: 재개나 재구동 때 노드 실행 순서 로그와 완료 노드 출력으로 되살린 `_executedNodes` 로 완료 노드를 건너뛴다. 추가로 dispatch 직전 대상 노드 실행이 이미 `completed` 면 건너뛴다(메모리 Set 과 겹치는 DB 재확인 방어).
 - **크래시 시점 미완료 노드는 at-least-once**: 크래시 때 아직 `completed` 가 아니던 노드는 재구동 때 **다시 실행된다.** 그 노드의 외부 부수효과(`send_email`, HTTP POST 같은 통합 쓰기)가 이미 일어났는지 엔진은 알 수 없다. 그래서 exactly-once 를 보장하지 않는다. 외부 API 를 부르는 통합 노드의 멱등성은 노드 설정에서 관리한다(idempotency key 등). 엔진 보장은 "완료 노드 미재실행" 까지다. 분산 트랜잭션 없이 무손실로 이어 가려면 피할 수 없는 대가다.
   - **남은 행 마감**: 다시 실행은 **새 노드 실행 행**으로 한다. 크래시 때의 옛 `running` 노드 실행 행은 case B 재구동에 들어갈 때 `failed` 로 마감한다(`failOrphanRunningNodeExecutions`). 완료 노드는 `completed` 라 대상이 아니다. 이 마감은 부모 실행이 끝난 뒤에도 `running` 노드가 타임라인과 진행률 집계에 남지 않게 한다.
+  - **멀티턴 AI 노드의 처리 중이던 턴**: 재개 턴 중 크래시했으면 새 행이 그 턴을 다시 돈다. 그 턴의 LLM 호출과 도구 실행이 한 번 더 일어날 수 있다([경계와 마감](CLE-EXEC-RECOVERY-REDRIVE.md#경계와-마감)).
   - **적용 범위**: 이 마감은 **case B 재구동에 들어가는 시점에만** 돌고 대상은 아직 `running` 인 실행 아래의 행이다. 실행이 이미 끝났는데 노드 실행 행만 `running` 으로 남은 경우(예: 마지막 턴 재시도 `retry_last_turn` 의 2차 claim 이 버린 새 행, 그때 실행은 이미 `failed`)는 부팅 복구 스캔의 (d) 단계가 닫는다([종결된 실행 아래 남은 노드 실행 행](CLE-EXEC-RECOVERY-REDRIVE.md#종결된-실행-아래-남은-노드-실행-행)).
 
 ## rehydration
@@ -63,13 +64,13 @@ etag: "sha256-41a8210d3fa93b64f3281d3b20f142160e56151bf49a8ced329ad17952c1dacc"
 rehydration 은 두 트리거로 들어온다. 둘 다 `rehydrateContext` 로 DB 에서 컨텍스트를 손실 없이 되살리고 affected=1 원자 claim 으로 소유권을 얻어 `runNodeDispatchLoop` 로 진행한다. 트리거와 도착 입력의 유무만 다르다.
 
 - **case A, 입력 대기 노드 재개**: 입력 대기 상태에서 인스턴스가 내려간 뒤 **사용자 입력이 도착**한다. BullMQ 가 임의 인스턴스에 재개 큐 작업을 배달한다. `waiting_for_input → running` 원자 claim(`claimResumeEntry`) 뒤 rehydrate 한다. 도착 입력을 `dispatchResumeTurn`(form·button·ai turn 핸들러)으로 처리한 다음 진행한다.
-- **case B, 크래시·재시작 `running` 세그먼트 재구동**: 도착 입력도 입력 대기 노드도 **없다.** 부팅 복구 스캔은 `running → running` `started_at` 조건부 re-claim 으로, 운영 중 stalled 재배달은 `runExecutionFromQueue` 가 `status==='running'` 을 보고 `recordRunningSegmentStart` + `redriveStuckExecution` 으로 들어온다. 이후는 [재구동 절차](#재구동-절차) 와 같다.
+- **case B, 크래시·재시작 `running` 세그먼트 재구동**: 도착 입력도 입력 대기 노드도 **없다.** 부팅 복구 스캔은 `running → running` `started_at` 조건부 re-claim 으로, 운영 중 stalled 재배달은 `runExecutionFromQueue` 가 `status==='running'` 을 보고 `recordRunningSegmentStart` + `redriveStuckExecution` 으로 들어온다. 이후는 [재구동 절차](#재구동-절차) 와 같다. 재개 턴 중 크래시한 멀티턴 AI 노드는 도착 입력 대신 옛 행에 남은 재개 입력으로 그 턴을 다시 돈다(재구동 절차 3단계의 예외).
 
 모든 재개는 rehydration 한 경로로 간다. 같은 인스턴스가 우연히 작업을 가져가도 마찬가지다. park 에서 코루틴을 바로 풀어 주므로 in-process resolver 가 없기 때문이다(Phase B).
 
 ### 재개 절차
 
-case A 는 다음 순서로 재개한다. case B 는 8단계의 "도착 입력으로 turn 핸들러 호출" 만 "turn 핸들러를 건너뛰고 진행" 으로 바꾸고 나머지(claim, rehydrate, routing 재등록, 진행)를 공유한다.
+case A 는 다음 순서로 재개한다. case B 는 8단계의 "도착 입력으로 turn 핸들러 호출" 만 "turn 핸들러를 건너뛰고 진행" 으로 바꾸고 나머지(claim, rehydrate, routing 재등록, 진행)를 공유한다. 멀티턴 AI 노드의 처리 중이던 턴은 [재구동 절차](#재구동-절차) 3단계의 예외를 따른다.
 
 1. 클라이언트의 재개 명령이 controller 나 WS gateway 에 들어오고 재개 큐에 들어간다. 발행 쪽 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 에 있다.
 2. 임의 워커가 작업을 가져가 **재개 진입 원자 claim** 을 한다. `waiting_for_input` 조건부 UPDATE 로 `running` 으로 바꾼다. affected=0 이면 작업을 ack 하고 버린다([재개 진입 원자 claim](#재개-진입-원자-claim)).
@@ -133,7 +134,7 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 - AI 핸들러의 재시도(예: 2회)는 **핸들러 안 LLM 호출 층**의 재시도다. 두 층은 따로 적용된다. 노드 재시도 규칙은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 에 있다.
 - **최악의 경우**: 재개 큐가 시도마다 다른 인스턴스로 배달하고 그 인스턴스가 LLM 호출 단계에서 죽으면 큐 3회 × LLM 2회 = 최대 6회 LLM 호출이 생길 수 있다. `NodeExecution.status` 확인이 결과 중복 저장을 막지만 **호출 비용은 생긴다.**
 - 운영 관측: 재개 큐 DLQ 적재량이 임계를 넘으면 경고 로그를 남긴다. 임계는 재시도 비율이 아니라 DLQ(`failed`) 작업 건수다(`CONTINUATION_DLQ_ALARM_THRESHOLD`, 기본 50). 주기와 나머지 설정은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 의 DLQ 모니터가 정한다.
-- **AI 대화 노드의 비용**: rehydration 자체는 LLM 을 부르지 않는다. 사용자 메시지가 도착한 뒤 다음 턴부터 LLM 을 부른다. BullMQ 재시도가 메시지를 중복 배달해도 위 [멱등성 계약](#멱등성-계약) 의 확인이 LLM 중복 호출을 막는다. 핸들러 실행 중 워커가 죽는 경우는 위 최악의 경우에 해당한다.
+- **AI 대화 노드의 비용**: rehydration 자체는 LLM 을 부르지 않는다. 사용자 메시지가 도착한 뒤 다음 턴부터 LLM 을 부른다. BullMQ 재시도가 메시지를 중복 배달해도 위 [멱등성 계약](#멱등성-계약) 의 확인이 LLM 중복 호출을 막는다. 핸들러 실행 중 워커가 죽는 경우는 위 최악의 경우에 해당한다. case B 재구동은 처리 중이던 턴을 한 번 더 돌린다.
 
 ## Rationale
 
@@ -150,9 +151,7 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 
 ### 마지막 턴 재시도에도 원자 claim 을 둔다 (2026-07-28)
 
-재개 claim 은 `waiting_for_input → running` 조건부 전이로 race 를 판정하지만 마지막 턴 재시도(`retry_last_turn`)는 대상이 이미 `running` 인 새 행이라 그 전이가 성립하지 않는다. 그래서 `applyRetryLastTurn` 이 새 행의 `inputData._retryState` 키를 조건부 UPDATE 로 원자 소비하는 배달 단위 claim 을 따로 둔다. 결정 경위, 대가(크래시 재배달 차단과 남는 `running` 행), 열린 범위는 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) Rationale 의 "마지막 턴 재시도에 배달 단위 claim 을 둔다" 에 있다.
-
-2026-11-12 갱신: 남는 `running` 행과 열린 범위(claim 과 턴 진입 사이의 일반 예외)는 부팅 복구 스캔의 (d) 단계가 닫는다([종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다](CLE-EXEC-RECOVERY-REDRIVE.md#종결된-실행-아래-남은-running-노드-행은-부팅-스캔이-닫는다-2026-11-12-cle-t-cceqec)).
+재개 claim 은 `waiting_for_input → running` 조건부 전이로 race 를 판정하지만 마지막 턴 재시도(`retry_last_turn`)는 대상이 이미 `running` 인 새 행이라 그 전이가 성립하지 않는다. 그래서 `applyRetryLastTurn` 이 새 행의 `inputData._retryState` 키를 조건부 UPDATE 로 원자 소비하는 배달 단위 claim 을 따로 둔다. 남는 `running` 행은 부팅 복구 스캔의 (d) 단계가 닫는다. 2026-11-19 에 같은 실행의 형제 재시도를 가르는 실행 단위 claim(`finished_at` 표지)을 더했다. 결정 경위와 대가는 [마지막 턴 재시도](CLE-EXEC-STATE-RETRY.md) 의 Rationale 에 있다.
 
 ### park 즉시 해제와 rehydration 단일 경로 (Phase B)
 
@@ -164,9 +163,9 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 - **워커 쪽과 발행 쪽은 다르다**: [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#영속-재개-큐와-안전-종료-durable-continuation) 의 sticky fast-path 제거는 **발행 쪽**("내 인스턴스에 키가 있으면 큐를 건너뜀")을 없앴다. 이 결정은 그 **워커 쪽** 짝(작업을 가져간 뒤 로컬 Map 에 키가 있으면 바로 resolve)을 마저 없애 "항상 rehydration" 을 완성한다.
 - **손실 없는 재개의 전제, 영속(Phase A)**: 대화 스레드(`Execution.conversation_thread` V084, A1), 멀티턴 AI 재개 체크포인트(A2a, 정보 추출기 노드 A2b), 사용자 정의 변수(`Execution.user_variables` V085, A3)가 먼저 영속됐다. 그래서 모든 재개를 rehydration 으로 돌려도 상태를 잃지 않는다.
 - **D4, 멀티턴은 턴 단위로 park 한다**: `runAiConversationLoop` 의 오래 도는 반복문을 **턴마다 입력 대기에서 풀어 준다.** 한 턴 처리가 한 세그먼트이고 다음 메시지가 오면 rehydration 으로 재개한다. 응답 없는 대화도 메모리를 쓰지 않는다. 기각한 대안("대화 전체를 한 입력 대기로 두고 코루틴 누적을 받아들임")은 메모리 제한 목표와 정면으로 부딪친다. 턴마다 rehydration 비용은 사람 속도라 받아들인다.
-- **D3, 턴마다 새 설정**: 매 턴 rehydration 이 `node.config` 를 새로 유도하므로 park 중 편집이 다음 턴부터 반영된다. 결정과 기각한 대안은 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) Rationale 의 "멀티턴 설정은 턴마다 새로 만든다 (D3)" 에 있다.
+- **D3, 턴마다 새 설정**: 매 턴 rehydration 이 `node.config` 를 새로 유도하므로 park 중 편집이 다음 턴부터 반영된다. 결정과 기각한 대안은 [실행 컨텍스트 — 저장 전략과 재개](CLE-EXEC-CONTEXT-STORAGE.md) Rationale 의 "멀티턴 설정은 턴마다 새로 만든다" 에 있다.
 - **불변식은 유지된다**: 같은 턴 이중 실행 0(영속된 `WAITING_FOR_INPUT` + 재개 진입 **DB 원자 claim**, 비원자 재확인 가드를 대체), 재개 명령 유실 0(영속 재개 큐), 멱등(jobId). park → 워커 종료 → 손실 없는 재개는 dockerized e2e 회귀 테스트로 보증한다.
-- **단계 적용(B1 → B2a → B2b, 2026-06-05/06, 완료)**: park 지점 단위로 "해제와 느린 경로를 함께" 적용했다. B1 은 form·button(`waitForFormSubmission` / `waitForButtonInteraction`), B2a 는 최상위 멀티턴 AI(`waitForAiConversation('release')` 첫 턴 park + `processAiResumeTurn` 재개 턴 처리와 재-park), B2b 는 중첩 `executeInline` 블로킹의 영속(아래 D6)과 메모리 머신 완전 제거(`pendingContinuations`, `firstSegmentBarriers` 일가, `firePayload` scheduler, `runAiConversationLoop`, detached)를 맡았다. 응답 없는 park 누적 차단이라는 핵심 이득은 단발 park 와 최상위 멀티턴이 대부분인 HITL 패턴에서 B1 + B2a 로 대부분 얻었고 B2b 가 중첩까지 넓혔다.
+- **단계 적용(B1 → B2a → B2b, 2026-06-05/06, 완료)**: park 지점 단위로 해제와 느린 경로를 함께 적용했다. B1 은 form·button, B2a 는 최상위 멀티턴 AI, B2b 는 중첩 `executeInline` 블로킹의 영속(아래 D6)과 메모리 머신 제거를 맡았다.
 - **재개 turn 분기와 park 진입 분기의 registry 추출**: form·buttons·ai 분기를 순서 있는 registry 와 단일 진입점(`dispatchResumeTurn`·`dispatchParkEntry`)으로 뽑은 동작 보존 리팩터링이다. 결정은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) Rationale 의 "입력 대기 분기를 registry 로 모은다 (#507, M-4)" 에 있다.
 - **`runNodeDispatchLoop` 반환 계약**: park 로 끝났는지를 `{ parked: boolean }` 으로 돌려준다. 계약과 경위는 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 에 있다.
 - **exec-park D6, 중첩 서브 워크플로우 블로킹 영속(2026-06-06, 사용자 결정 "호출 스택 영속 정공법")**: 중첩 서브 워크플로우(`executeInline`) 안의 블로킹 노드도 park 해제 + rehydration 으로 모아 **메모리 의존을 완전히 없앴다.** 빠진 조각은 **호출 체인 구조뿐**이었다. 노드 출력은 같은 executionId 타임라인으로, 대화 스레드·변수는 V084/V085 로 DB 에 남는다. 그래서 새 `Execution.resume_call_stack jsonb`(V087)로 호출 체인을 영속하고 frame 단위로 재진입한다.

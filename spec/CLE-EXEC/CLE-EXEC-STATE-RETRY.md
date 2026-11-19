@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE-RETRY"
 title: "실행 상태 머신과 대기·재개 — 마지막 턴 재시도"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-STATE"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-STATE"]
 area: "CLE-EXEC"
-content_hash: "15676772db556adceae7ac74b20c18e3a04aa6c0dd6957bd2eba718e5b2cc178"
+content_hash: "1095c770e016c368420251f1b1794d6bb6ebd656946a672e6f66ef661952c896"
 read_as: "approved_fallback"
-task: "CLE-T-T9HZX7"
+task: "CLE-T-K9RZQV"
 source_paths: []
-mirror_sha256: "d79fc5f0809df4f987b1cc9d209a91ed058713dfc0aa5042a0bc06bf420169b3"
-etag: "sha256-15ec470c20c273a997c45b0e75cccd77445c05aec4da5663f3a686404bfb9d3d"
+mirror_sha256: "062fa8f1d284c4167ba9b28459a025c031dd11ac2e70e6e9b50e22ff2832d625"
+etag: "sha256-be18894019b38b7ba78fa2e37fa00cfda5628f35e30346806575eebc32bd7477"
 ---
 ## 개요
 
@@ -102,7 +102,7 @@ sequenceDiagram
 
 ## 미결 사항
 
-없다. 같은 실행의 재시도 둘이 서로 다른 워커에서 함께 도는 경우는 [같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다-2026-11-19) 로 닫았다.
+없다. 같은 실행의 재시도 둘이 서로 다른 워커에서 함께 도는 경우는 [같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다) 로 닫았다.
 
 ## 구현 위치
 
@@ -146,14 +146,16 @@ sequenceDiagram
 
 - 명령 시점 확인은 사용자에게 바로 `INVALID_EXECUTION_STATE` 를 돌려주고 `_retryState` 를 남긴다. 이것만 두면 명령과 워커 사이에 실행이 바뀌는 창이 남는다.
 - 워커 진입 확인은 그 창을 닫는다. 이것만 두면 명령은 성공 ack 를 받고 `_retryState` 도 소비된 뒤에 재시도 턴이 버려져 사용자가 다시 시도할 수 없다.
-- 두 확인을 함께 둬도 명령과 워커 사이에 실행이 바뀌면 같은 일이 생긴다. 워커 진입 거절은 성공 ack 뒤라 명령 응답으로는 알려지지 않는다. 이 창은 대부분 같은 실행의 재시도끼리 겹칠 때 생긴다. 2026-11-19 에 실행 단위 claim 을 더하면서 거절된 새 행의 `node.failed` 로 알리게 했다([같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다-2026-11-19)).
+- 두 확인을 함께 둬도 명령과 워커 사이에 실행이 바뀌면 같은 일이 생긴다. 워커 진입 거절은 성공 ack 뒤라 명령 응답으로는 알려지지 않는다. 이 창은 대부분 같은 실행의 재시도끼리 겹칠 때 생긴다. 2026-11-19 에 실행 단위 claim 을 더하면서 거절된 새 행의 `node.failed` 로 알리게 했다([같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다)).
 - 거절 코드는 새로 만들지 않는다. [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 과 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 가 이미 `execution.retry_last_turn` 의 기대 상태를 `failed` 로 두고 이 코드를 쓴다.
 - 이 결정으로 [재시도 가능한 에러로 끝나면 `_retryState` 를 남긴다](#재시도-가능한-에러로-끝나면-_retrystate-를-남긴다) 에서 정한 별도 사용자 행동(`execution.retry_last_turn`)은 실행이 `failed` 인 경우로 한정된다.
 - 옛 필드는 재시도 턴 시작 때 실행 엔티티에서 비우고 턴 끝 전이가 함께 저장하게 한다. 모든 전이가 함께 쓰는 `updateExecutionStatus` 의 SET 절을 재시도 전용으로 바꾸는 방법은 다른 전이까지 영향이 넓어 택하지 않았다.
 
 같은 실행의 재시도 둘이 서로 다른 워커에서 함께 들어오는 경우는 이 결정으로 막히지 않았다. 다음 결정이 막는다.
 
-### 같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다 (2026-11-19)
+### 같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다
+
+결정일: 2026-11-19
 
 **문제**: 같은 실행 안 서로 다른 노드 실행(예: 병렬 분기 둘이 모두 재시도 가능한 에러로 실패)의 재시도가 거의 동시에 들어오면 둘 다 명령 시점과 워커 진입 시점에 실행 `failed` 를 봤다. 재시도 턴이 끝날 때까지 실행은 `failed` 였기 때문이다. 배달 claim 은 새 행 단위라 둘을 가르지 않는다. 인스턴스가 여럿이거나 `CONTINUATION_WORKER_CONCURRENCY` 를 올리면 두 턴이 함께 돌았다. 한 쪽이 끝나며 실행 컨텍스트를 지우면 다른 쪽의 컨텍스트도 사라졌고, 턴 끝 전이가 서로의 상태를 덮었다.
 
