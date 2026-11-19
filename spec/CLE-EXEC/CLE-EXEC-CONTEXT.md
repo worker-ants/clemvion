@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "db4ef9a8b8fff7917a492383a56357c52edafcc09564e3929b67ab4534ce9446"
+content_hash: "a31828edf38d30a589e88587fb1ddbb0d65cfdb6d323451d7a32cba4b8dd5239"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-AGBPHW"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "b30604f6aa8b8637ee268dca593d0b76315284d30172c1e00687c139168a92f9"
-etag: "sha256-37160fe521d6b8fc77c114fcd718a32997025b73601782120c3262c7154fc254"
+mirror_sha256: "b4441056deee73cea5ce3de8c10f507ceaafae8207d089bae99f42658e7df48c"
+etag: "sha256-0f5e347c76c0636eca1fa978825300f1f2e2758cd95e06ef917ad1e7691196d1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -181,7 +181,7 @@ setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 
 
 ### `parentParallelConcurrency` 를 `ParallelBranchContext` 로 나눈다
 
-`parentParallelConcurrency` 는 중첩 Parallel 의 동시 실행 수 곱 상한(결정 #3·G·D)을 위해 바깥 Parallel 이 자식 분기에 넘기는 값이다. Parallel 분기 안에서만 뜻이 있다. `ExecutionContext` 의 선택 필드로 두면 HTTP·AI·DB 등 모든 노드가 상관없는 필드를 보고 같은 방식이 Loop·ForEach 전용 필드로 되풀이되면 God Object 가 쌓인다. 별도 인터페이스로 나누면 "이 필드는 Parallel 분기에서만 읽힌다" 를 타입이 강제하고 안정 핵심이 작게 유지된다. 비용은 분기 컨텍스트를 만드는 곳과 쓰는 곳의 타입 좁히기 한 번뿐이다.
+`parentParallelConcurrency` 는 중첩 Parallel 의 동시 실행 수 곱 상한([중첩 Parallel](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL-NEST.md) Rationale 「중첩 Parallel 을 제한적으로 허용한다」)을 위해 바깥 Parallel 이 자식 분기에 넘기는 값이다. Parallel 분기 안에서만 뜻이 있다. `ExecutionContext` 의 선택 필드로 두면 HTTP·AI·DB 등 모든 노드가 상관없는 필드를 보고 같은 방식이 Loop·ForEach 전용 필드로 되풀이되면 God Object 가 쌓인다. 별도 인터페이스로 나누면 "이 필드는 Parallel 분기에서만 읽힌다" 를 타입이 강제하고 안정 핵심이 작게 유지된다. 비용은 분기 컨텍스트를 만드는 곳과 쓰는 곳의 타입 좁히기 한 번뿐이다.
 
 ### `abortSignal` 은 안정 핵심에 둔다
 

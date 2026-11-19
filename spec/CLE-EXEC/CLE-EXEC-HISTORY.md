@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY"
 title: "실행 내역"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-EXHIST-001", "REQ-EXHIST-002", "REQ-EXHIST-003", "REQ-EXHIST-004", "REQ-EXHIST-005", "REQ-EXHIST-006", "REQ-EXHIST-007", "REQ-EXHIST-008", "REQ-EXHIST-009", "REQ-EXHIST-010", "REQ-EXHIST-011", "REQ-EXHIST-012", "REQ-EXHIST-013", "REQ-EXHIST-014", "REQ-EXHIST-015", "REQ-EXHIST-016", "REQ-EXHIST-017", "REQ-EXHIST-018", "REQ-EXHIST-019", "REQ-EXHIST-020", "REQ-EXHIST-021", "REQ-EXHIST-022", "REQ-EXHIST-023", "REQ-EXHIST-024", "REQ-EXHIST-025", "REQ-EXHIST-026", "REQ-EXHIST-027", "REQ-EXHIST-028", "REQ-EXHIST-029", "REQ-EXHIST-030", "REQ-EXHIST-031", "REQ-EXHIST-032", "REQ-EXHIST-033", "REQ-EXHIST-034", "REQ-EXHIST-035", "REQ-EXHIST-036", "REQ-EXHIST-037", "REQ-EXHIST-038", "REQ-EXHIST-039", "REQ-EXHIST-040", "REQ-EXHIST-041", "REQ-EXHIST-042", "REQ-EXHIST-043", "REQ-EXHIST-044", "REQ-EXHIST-045"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "fc88d1360008606ed9bab93191d202e3c99f51ff3ff31d41db1c8c91d6f98301"
+content_hash: "b22b0889dfff4f6d7bf342e9ca026fbbe6458c835eef05714a1d1738cc067875"
 read_as: "approved_fallback"
-task: "CLE-T-ES1J1E"
+task: "CLE-T-AGBPHW"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "177ed5824c01300c16dbdf4eedd89d7e493560b5c4fe04a35c42f99dd08e1686"
-etag: "sha256-e00f04328bfc8a92908bad8c382cd8450d093bbd06c3ee294457ef6c63393b44"
+mirror_sha256: "345eec5fcc31bc90f2ed366cadedbbebdaa7b7b4edbecdd5d266dd324cf39cdd"
+etag: "sha256-f16a9c25396c768690da06babb94e3b9cd112ae091b5d504c190721c6273b634"
 ---
 > 구현 상태: 구현됨 (EH-DETAIL-12 여러 노드 대화 재구성 보기만 v2 미구현) · 원문: `spec/2-navigation/14-execution-history.md`, `spec/2-navigation/_product-overview.md` (§3.15 Execution History) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -102,7 +102,7 @@ etag: "sha256-e00f04328bfc8a92908bad8c382cd8450d093bbd06c3ee294457ef6c63393b44"
 판정 표에는 `Trigger.type = 'manual'` 행이 없다. 현재 구현에는 그런 트리거로 `executed_by` 없이 시작하는 실행이 없다. `trigger_id` 를 채우는 경로는 둘뿐이다.
 
 - 웹훅 수신과 채팅 채널 수신: `type = 'webhook'` 트리거만 찾는다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)).
-- 스케줄 자동 발화: 스케줄에 딸린 `type = 'schedule'` 트리거를 쓴다([스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md)).
+- Cron 자동 발사: 스케줄에 딸린 `type = 'schedule'` 트리거를 쓴다([스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md)).
 
 수동 실행, 단일 노드 실행, 스케줄 "지금 실행", 재실행은 `executed_by` 만 채우고 `trigger_id` 는 비운다. 실행 시작 옵션(`ExecuteOptions`)은 판별 유니온이라 `executedBy` 와 `triggerId` 를 함께 넘기는 호출을 컴파일 시점에 막는다(`execution-engine.service.ts`). 그런 실행이 생기더라도 판정 표대로 `unknown` 으로 분류된다.
 

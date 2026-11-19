@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON-CONTEXT"
 title: "AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AI-COMMON"]
 area: "CLE-NODE-AI"
-content_hash: "31301265d5c020be483ad81f374ad8e548b3b1e6587f921138031eb89c5489f3"
+content_hash: "6493ade7a2f66ead3e44eb90eefc00d3a124ac8319f5607fe39912112a890e79"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-AGBPHW"
 source_paths: []
-mirror_sha256: "4e2d14811e2a6a8d86cb65946d295a8dbdf2c9205b4ae96b8641494d35a80123"
-etag: "sha256-7f9428b902f39ceb3f3ce8f9849c15bbd849c5aceae432a5a04054d096c6f1a3"
+mirror_sha256: "3fab47ed570b310d6e2e87146112e71a983b8d80fad790aa8a3129199aaa2b62"
+etag: "sha256-602f1821301ec6f5dad489608b08603a9ae9d2c454dcc9999470edbbfef3f61e"
 ---
 ## 개요
 
@@ -120,7 +120,7 @@ UTC 워크스페이스의 접두 예시:
 
 각 단계의 IANA 이름은 `Intl.DateTimeFormat(...).resolvedOptions().timeZone` 으로 검증한다. 검증에 실패하면 다음 단계로 넘어간다. UTC offset 은 `$now` 시점 기준이다. DST 가 있는 시간대는 실행 시점의 offset 을 쓴다.
 
-스케줄의 시간대는 cron 발화 기준이며 이 접두와 별개로 정한다([스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md)). AI 에이전트가 스케줄 트리거로 실행돼도 접두의 시간대는 워크스페이스 설정을 따른다.
+스케줄의 시간대는 Cron 자동 발사 기준이며 이 접두와 별개로 정한다([스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md)). AI 에이전트가 스케줄 트리거로 실행돼도 접두의 시간대는 워크스페이스 설정을 따른다.
 
 ### 시스템 프롬프트 조립 순서
 

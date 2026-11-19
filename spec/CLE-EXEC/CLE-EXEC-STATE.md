@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "142eabc45d61b8a918eed9b48d68602b209c1a4c02820891936483e2261c53bf"
+content_hash: "97e1f2a9ec3742979a2f0fe064f5611f955ae6f2c6a2d7572be5fe68db7ce100"
 read_as: "approved_fallback"
-task: "CLE-T-Z914BM"
+task: "CLE-T-AGBPHW"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "119b6f2580bb0b8bb2895b3567864c770c81966814250065e8da8dc9cb9b3902"
-etag: "sha256-99f43701db0ed8f44d29d1defa0e176aa83b7f8a783d2a5ab94f2213f5160e3b"
+mirror_sha256: "38b029fc5c47aac21373ddd78c8bb76e534c9de5e6a1287808393dfb6fbea3e2"
+etag: "sha256-9f39f97d5943d0a23f9885553bd2e763504316ad23743d8808547adc3cb56f79"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,7 +67,7 @@ stateDiagram-v2
 
 | 상태 | 본문 표기 | 설명 | 들어오는 조건 |
 | --- | --- | --- | --- |
-| `pending` | 대기 중 | 실행이 요청됐고 워커 할당을 기다린다 | 트리거 발화·수동 실행 시 생성 |
+| `pending` | 대기 중 | 실행이 요청됐고 워커 할당을 기다린다 | 트리거 발사·수동 실행 시 생성 |
 | `running` | 실행 중 | 실행 중 | 워커가 작업을 가져감 |
 | `waiting_for_input` | 입력 대기 | Form 노드, 버튼이 설정된 Presentation 노드, 멀티턴 AI 노드가 사용자 입력을 기다린다 | 해당 노드 도달 또는 멀티턴 대화 턴 대기 |
 | `completed` | 완료 | 정상 종료 | 모든 노드 실행 완료 |

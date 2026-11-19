@@ -200,7 +200,7 @@ executionFailedInternal       → The service is temporarily unavailable. Please
 
 | Symptom | Cause / fix |
 |---|---|
-| Slack says "Your URL didn't respond with the value of the challenge parameter" | Signing Secret mismatch or endpoint not publicly reachable. If clemvion shows `chat_channel_health = degraded`, a setup error is likely |
-| Slack retry storm ("dispatch_failed") | 3-second ack missed. Inspect backend latency — degraded health usually points to outbound API failure |
+| Slack says "Your URL didn't respond with the value of the challenge parameter" | Signing Secret mismatch or endpoint not publicly reachable. If `chat_channel_health` is `degraded`, check **Last error** in the trigger details for the cause |
+| Slack retry storm ("dispatch_failed") | 3-second ack missed. Inspect backend latency. If `chat_channel_health` is `degraded`, check **Last error** in the trigger details for the cause |
 | Bot ignores DMs | Missing `message.im` event subscription or the bot isn't a conversation member (DMs are automatic) |
 | `invalid_auth` errors | Bot token rotated/expired — use the **Rotate Bot Token** action in the trigger panel for a 24h-grace rotation |

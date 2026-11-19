@@ -199,8 +199,8 @@ executionFailedInternal       → The service is temporarily unavailable. Please
 
 | Symptom | Cause / fix |
 |---|---|
-| Discord Portal "Validation Failed" | Public Key mismatch or endpoint can't respond `{ type: 1 }` 200. Check `chat_channel_health` |
+| Discord Portal "Validation Failed" | Public Key mismatch or endpoint can't respond `{ type: 1 }` 200. If `chat_channel_health` is `degraded`, check **Last error** in the trigger details for the cause |
 | Slash commands not visible | bulk-overwrite cache propagation ≤ 1h; or missing `applications.commands` scope |
 | `401 Unauthorized` | Bot Token rotated — use **Rotate Bot Token** in clemvion (24h grace) |
 | "The application did not respond" after a slash command | Slash commands now get an ephemeral reply within 3 seconds. If it still appears, check that the Interactions Endpoint URL is reachable and review backend latency |
-| Modal "Reply" doesn't open | 3-second ack missed — backend latency (degraded health) |
+| Modal "Reply" doesn't open | 3-second ack missed. Review backend latency. If `chat_channel_health` is `degraded`, check **Last error** in the trigger details for the cause |

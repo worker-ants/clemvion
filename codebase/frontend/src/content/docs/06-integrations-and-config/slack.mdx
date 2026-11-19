@@ -211,7 +211,7 @@ executionFailedInternal       → 서비스에 일시적 문제가 발생했습�
 
 | 증상 | 원인 / 해결 |
 |---|---|
-| Slack 이 URL Verification 실패 → "Your URL didn't respond with the value of the challenge parameter" | Signing Secret 미일치 또는 endpoint 가 publicly reachable 아님. clemvion 의 채널 health 가 `degraded` 면 setup 오류 |
-| Slack 이 retry 폭주 ("dispatch_failed") | 3초 이내 ack 실패. backend latency 점검 — `chat_channel_health` 가 `degraded` 면 외부 API 호출 자체 실패 가능 |
+| Slack 이 URL Verification 실패 → "Your URL didn't respond with the value of the challenge parameter" | Signing Secret 미일치 또는 endpoint 가 publicly reachable 아님. `chat_channel_health` 가 `degraded` 면 원인은 트리거 상세의 **마지막 오류** 에서 확인해요 |
+| Slack 이 retry 폭주 ("dispatch_failed") | 3초 이내 ack 실패. backend latency 를 점검해요. `chat_channel_health` 가 `degraded` 면 원인은 트리거 상세의 **마지막 오류** 에서 확인해요 |
 | Bot 이 DM 에 응답 안 함 | `message.im` event subscription 누락 또는 봇이 conversation 멤버 아님 (DM 은 자동) |
 | `invalid_auth` 에러 | Bot Token 만료 — clemvion 트리거 패널의 **Bot Token 재발급** 으로 24h grace 회전 |

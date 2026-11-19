@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN"
 title: "재실행"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-RERUN-001", "REQ-RERUN-002", "REQ-RERUN-003", "REQ-RERUN-004", "REQ-RERUN-005", "REQ-RERUN-006", "REQ-RERUN-007", "REQ-RERUN-008", "REQ-RERUN-009", "REQ-RERUN-010", "REQ-RERUN-011", "REQ-RERUN-012", "REQ-RERUN-013", "REQ-RERUN-014", "REQ-RERUN-015", "REQ-RERUN-016", "REQ-RERUN-017", "REQ-RERUN-018", "REQ-RERUN-019", "REQ-RERUN-020", "REQ-RERUN-021", "REQ-RERUN-022", "REQ-RERUN-023", "REQ-RERUN-024", "REQ-RERUN-025", "REQ-RERUN-026", "REQ-RERUN-027", "REQ-RERUN-028", "REQ-RERUN-029", "REQ-RERUN-030", "REQ-RERUN-031", "REQ-RERUN-032", "REQ-RERUN-033", "REQ-RERUN-034", "REQ-RERUN-035", "REQ-RERUN-036", "REQ-RERUN-037", "REQ-RERUN-038", "REQ-RERUN-039", "REQ-RERUN-040", "REQ-RERUN-041", "REQ-RERUN-042", "REQ-RERUN-047", "REQ-RERUN-048", "REQ-RERUN-049", "REQ-RERUN-050", "REQ-RERUN-051", "REQ-RERUN-052", "REQ-RERUN-053", "REQ-RERUN-054", "REQ-RERUN-055"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "652030b4a1f3ddb01b9f41f1cf8631e92354456907e88378c39a16003124ad83"
+content_hash: "84fd59f00d70c43294be41047a3346e6ffd4f58f0335a7801928806649f923be"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-AGBPHW"
 source_paths: ["spec/5-system/13-replay-rerun.md"]
-mirror_sha256: "c397b2adff404de57de4bda8e87012c8c9b1586d4710baf812cfc29c79734f05"
-etag: "sha256-918032ab5540fdcde19cfe2e712fb5e5bdc8e292ebdf634f74f69015d357abeb"
+mirror_sha256: "e6ce0ec1e1e237223c6ecb90e5400219dc7d8d067d391460be43a4e59fb3a3fc"
+etag: "sha256-79f53e53c1ee793d4a7eafe8bd52e7317316803159b766cb83072b551f32644b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -81,7 +81,7 @@ etag: "sha256-918032ab5540fdcde19cfe2e712fb5e5bdc8e292ebdf634f74f69015d357abeb"
 - REQ-RERUN-037 IF 감사 로그 기록이 실패하면 THE SYSTEM SHALL 재실행을 그대로 진행한다.
 - REQ-RERUN-038 IF 한 사용자가 1분에 재실행을 10번 넘게 요청하면 THE SYSTEM SHALL `429 RATE_LIMITED` 로 거부한다.
 - REQ-RERUN-039 WHEN 재실행하면 THE SYSTEM SHALL 원본 실행 시점 스냅샷이 아니라 현재 워크플로우 정의로 실행한다.
-- REQ-RERUN-040 WHEN 재실행하면 THE SYSTEM SHALL 트리거를 다시 발화하지 않고 수동 경로로 진행하며 `executed_by` 를 호출자로, `trigger_id` 를 NULL 로 채운다.
+- REQ-RERUN-040 WHEN 재실행하면 THE SYSTEM SHALL 트리거를 다시 발사하지 않고 수동 경로로 진행하며 `executed_by` 를 호출자로, `trigger_id` 를 NULL 로 채운다.
 - REQ-RERUN-041 WHEN 모달이 새 실행 ID 를 받으면 THE SYSTEM SHALL 실행 상세 화면에서는 새 실행 상세 경로로 이동한다.
 - REQ-RERUN-042 WHEN 사용자가 모달의 원본 실행 ID 를 누르면 THE SYSTEM SHALL 새 탭에서 원본 실행 상세를 연다.
 - REQ-RERUN-047 WHEN 워크스페이스 멤버가 체인 조회를 요청하면 THE SYSTEM SHALL 멤버의 역할과 원본 실행의 시작자와 상관없이 조회를 허용한다.
