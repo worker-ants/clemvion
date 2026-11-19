@@ -4,11 +4,17 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import { Client } from 'pg';
 import { Server } from 'socket.io';
-import { io, Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin } from './helpers/auth';
+import {
+  WS_EVENT_TIMEOUT_MS,
+  connectWs,
+  waitForEvent,
+  type SubscribedAck,
+} from './helpers/ws';
 
 /**
  * 여러 서버 인스턴스에서의 WebSocket 전달 e2e
@@ -21,7 +27,6 @@ import { registerAndLogin } from './helpers/auth';
  * - 전송은 websocket 하나라 polling 요청은 거절한다(CLE-API-WS-CONN §2.1).
  */
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
-const EVENT_TIMEOUT_MS = 10_000;
 const ADAPTER_KEY = 'ws:sio';
 
 function redisClient(): Redis {
@@ -29,20 +34,6 @@ function redisClient(): Redis {
     host: process.env.REDIS_HOST ?? 'redis',
     port: Number(process.env.REDIS_PORT ?? '6379'),
     maxRetriesPerRequest: null,
-  });
-}
-
-function waitForEvent<T>(socket: Socket, event: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      socket.off(event, onEvent);
-      reject(new Error(`${event} 를 ${EVENT_TIMEOUT_MS}ms 안에 받지 못했다`));
-    }, EVENT_TIMEOUT_MS);
-    const onEvent = (payload: T) => {
-      clearTimeout(timer);
-      resolve(payload);
-    };
-    socket.once(event, onEvent);
   });
 }
 
@@ -64,12 +55,7 @@ describe('WebSocket 여러 서버 인스턴스 전달 (e2e)', () => {
       db,
     ));
 
-    socket = io(`${BASE_URL}/ws`, {
-      auth: { token: accessToken },
-      transports: ['websocket'],
-      reconnection: false,
-    });
-    await waitForEvent(socket, 'connect');
+    socket = await connectWs(BASE_URL, accessToken);
 
     pub = redisClient();
     sub = pub.duplicate();
@@ -89,10 +75,7 @@ describe('WebSocket 여러 서버 인스턴스 전달 (e2e)', () => {
 
   it('다른 서버 인스턴스가 채널에 낸 이벤트를 백엔드에 붙은 구독 소켓이 받는다', async () => {
     const channel = `notifications:${userId}`;
-    const subscribed = waitForEvent<{ success: boolean; channel?: string }>(
-      socket,
-      'subscribed',
-    );
+    const subscribed = waitForEvent<SubscribedAck>(socket, 'subscribed');
     socket.emit('subscribe', { channel });
     await expect(subscribed).resolves.toEqual({ success: true, channel });
 
@@ -139,10 +122,10 @@ describe('WebSocket 여러 서버 인스턴스 전달 (e2e)', () => {
           () =>
             reject(
               new Error(
-                `${expected} 를 ${EVENT_TIMEOUT_MS}ms 안에 받지 못했다`,
+                `${expected} 를 ${WS_EVENT_TIMEOUT_MS}ms 안에 받지 못했다`,
               ),
             ),
-          EVENT_TIMEOUT_MS,
+          WS_EVENT_TIMEOUT_MS,
         );
         waiters.set(expected, () => {
           clearTimeout(timer);

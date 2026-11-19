@@ -32,8 +32,8 @@ import { WebsocketGateway } from '../../modules/websocket/websocket.gateway';
  *
  * ## 왜 이 가드인가 — 같은 사고가 enhancer 마다 따로 났다
  *
- * NestJS 12 부터 전역 guards · pipes · interceptors 가 게이트웨이 핸들러에도 걸린다(전역 필터만
- * `ExceptionFiltersContext.getGlobalMetadata() => []` 로 제외된다). 이 사실을 몰라서
+ * 전역 guards · pipes · interceptors 는 게이트웨이 핸들러에도 걸린다(근거는
+ * `common/utils/http-context.ts` 의 `isHttpContext` JSDoc). 이 사실을 몰라서
  * `LoggingInterceptor`(`url.split` TypeError) · `CustomValidationPipe`(`@ConnectedSocket()` 소켓을 DTO
  * 로 변환) · `UserThrottlerGuard`(모든 사용자가 `'unknown'` 버킷 하나를 공유)가 차례로 깨졌고,
  * 단위 테스트는 핸들러를 직접 불러 이 파이프라인을 지나지 않아서 e2e 에서야 드러났다(CLE-T-A3W8B8).
@@ -48,7 +48,9 @@ import { WebsocketGateway } from '../../modules/websocket/websocket.gateway';
  * 1. `app.module.ts` 가 등록한 전역 `APP_GUARD | APP_PIPE | APP_INTERCEPTOR` 가 아래 `POLICY` 에 전부
  *    있다(없는 것 → 실패, 등록이 사라진 항목 → 실패). 새 전역 enhancer 를 더하면 이 표에 분류를 적어야 한다.
  * 2. 그 등록이 `app.module.ts` 한 곳뿐이다 — 다른 모듈이 더하면 1번이 못 본다.
- * 3. 표의 분류가 사실이다. 표 항목마다 `verifyWs` 가 필수라서(타입이 강제한다) 항목을 더하면서 증거를
+ * 3. `@WebSocketGateway(` 가 `modules/websocket/websocket.gateway.ts` 한 곳뿐이다 — 아래 증거가 그 클래스의
+ *    핸들러만 순회하므로 두 번째 게이트웨이가 생기면 여기서 실패한다.
+ * 4. 표의 분류가 사실이다. 표 항목마다 `verifyWs` 가 필수라서(타입이 강제한다) 항목을 더하면서 증거를
  *    빼먹을 수 없고, 아래 `it` 이 `POLICY` 를 순회하며 그것을 부른다. `skips-non-http` 는 WS 컨텍스트에서
  *    실제로 건너뛰는지, `ws-safe-by-design` 은 `WebsocketGateway` 의 **모든** `@SubscribeMessage` 핸들러에서
  *    실제로 통과하는지 호출해서 본다. 표만 믿지 않는다.
@@ -58,10 +60,16 @@ import { WebsocketGateway } from '../../modules/websocket/websocket.gateway';
  * `useClass` 가 아닌 등록(`useExisting` · `useFactory` · `useValue`)은 분류할 클래스를 알 수 없어
  * 실패로 본다. `APP_FILTER` 는 WS 에 걸리지 않으므로 대상이 아니다.
  *
+ * `main.ts` 등에서 `app.useGlobalGuards()` · `useGlobalPipes()` · `useGlobalInterceptors()` 로 건 전역
+ * enhancer 는 모듈 메타데이터에 없어서 이 가드가 보지 못한다. 지금 운영 코드에는 그런 등록이 없다(테스트
+ * 하네스의 `useGlobalInterceptors` 만 있다). 탐지를 더하지 않은 것은 등록 방식이 하나뿐인 지금 소스 검색
+ * 가드를 하나 더 두는 비용이 막는 위험보다 크기 때문이다. 그 방식을 쓰기 시작하면 2번처럼 소스 검색으로
+ * 막는다.
+ *
  * `ws-safe-by-design` 의 증거는 핸들러 목록을 `@SubscribeMessage` 메타데이터에서 매번 읽어 순회한다.
  * 그래서 핸들러가 추가되거나 `@Roles()` 가 붙어 전제가 깨지면 그 핸들러의 이벤트 이름으로 실패한다.
- * 게이트웨이 클래스가 `WebsocketGateway` 하나라는 전제는 이 파일이 지킨다. 두 번째 게이트웨이가 생기면
- * 그쪽 핸들러는 이 가드가 보지 않는다.
+ * 게이트웨이 클래스가 `WebsocketGateway` 하나라는 전제는 3번이 소스 검색으로 지킨다. 두 번째 게이트웨이를
+ * 들이면 그 단언이 실패하므로 그때 이 증거가 그 클래스의 핸들러도 순회하게 고친다.
  *
  * `verifyWs` 가 분류와 맞는 증거인지(예: `skips-non-http` 인데 아무것도 단언하지 않는 함수)는 이 가드가
  * 알 수 없다. 표를 고치는 리뷰에서 사람이 본다.
@@ -150,6 +158,19 @@ async function findBlockedHandlers(
 
 const GATEWAY_HANDLERS = messageHandlersOf(WebsocketGateway);
 
+/**
+ * `ws-safe-by-design` 증거의 공통 단언. `WebsocketGateway` 의 핸들러를 읽었는지(vacuous 방지) 보고, 모든
+ * 핸들러가 `canPass` 를 통과하는지 본다.
+ */
+async function expectEveryGatewayHandlerPasses(
+  canPass: (context: ExecutionContext) => unknown,
+): Promise<void> {
+  expect(GATEWAY_HANDLERS.length).toBeGreaterThan(0);
+  expect(
+    await findBlockedHandlers(WebsocketGateway, GATEWAY_HANDLERS, canPass),
+  ).toEqual([]);
+}
+
 /** 핸들러에 의존하지 않는 증거가 쓰는 컨텍스트. */
 const wsContext = wsContextFor(
   WebsocketGateway,
@@ -215,12 +236,7 @@ const POLICY: readonly PolicyEntry[] = [
     why: '게이트웨이 클래스의 `@Public()` 으로 통과한다. 인증은 `handleConnection` 의 JWT 검증이 맡는다',
     verifyWs: async () => {
       const guard = new JwtAuthGuard(new Reflector());
-      expect(GATEWAY_HANDLERS.length).toBeGreaterThan(0);
-      expect(
-        await findBlockedHandlers(WebsocketGateway, GATEWAY_HANDLERS, (ctx) =>
-          guard.canActivate(ctx),
-        ),
-      ).toEqual([]);
+      await expectEveryGatewayHandlerPasses((ctx) => guard.canActivate(ctx));
     },
   },
   {
@@ -241,15 +257,13 @@ const POLICY: readonly PolicyEntry[] = [
     verifyWs: async () => {
       // 어느 핸들러(또는 게이트웨이 클래스)에 `@Roles()` 가 붙으면 그 핸들러의 WS 메시지는 Forbidden 이 된다.
       const guard = new RolesGuard(new Reflector(), {} as WorkspacesService);
-      expect(GATEWAY_HANDLERS.length).toBeGreaterThan(0);
-      expect(
-        await findBlockedHandlers(WebsocketGateway, GATEWAY_HANDLERS, (ctx) =>
-          guard.canActivate(ctx),
-        ),
-      ).toEqual([]);
+      await expectEveryGatewayHandlerPasses((ctx) => guard.canActivate(ctx));
     },
   },
 ];
+
+/** 게이트웨이 클래스 선언. 주석 속 언급은 `stripComments` 로 지운 뒤 센다. */
+const GATEWAY_DECORATOR = /@WebSocketGateway\s*\(/;
 
 const ENHANCER_TOKENS: readonly unknown[] = [
   APP_GUARD,
@@ -351,6 +365,29 @@ describe('전역 enhancer 의 WebSocket 안전성 가드', () => {
       )
       .map((f) => path.relative(SRC_ROOT, f));
     expect(offenders).toEqual(['app.module.ts']);
+  });
+
+  it('WebSocket 게이트웨이는 WebsocketGateway 한 곳뿐이다', () => {
+    // 아래 증거는 WebsocketGateway 의 핸들러만 순회한다. 두 번째 게이트웨이가 생기면 그 핸들러에서
+    // 전역 enhancer 가 어떻게 도는지 아무도 보지 않으므로 여기서 멈춘다.
+    const gateways = collectTsFiles(SRC_ROOT)
+      .filter((f) => !f.includes(`${path.sep}repo-guards${path.sep}`))
+      .filter((f) =>
+        GATEWAY_DECORATOR.test(stripComments(fs.readFileSync(f, 'utf8'))),
+      )
+      .map((f) => path.relative(SRC_ROOT, f));
+    expect(gateways).toEqual([
+      path.join('modules', 'websocket', 'websocket.gateway.ts'),
+    ]);
+  });
+
+  it('대조군: 게이트웨이 선언은 잡고 주석 속 언급은 세지 않는다', () => {
+    const declared =
+      "@WebSocketGateway({ namespace: '/admin' })\nexport class AdminGateway {}";
+    const commented =
+      '/** `@WebSocketGateway({ cors: true })` 를 쓴다 */\nexport const x = 1;';
+    expect(GATEWAY_DECORATOR.test(stripComments(declared))).toBe(true);
+    expect(GATEWAY_DECORATOR.test(stripComments(commented))).toBe(false);
   });
 
   describe('분류가 사실이다 — WS 컨텍스트로 직접 호출한다', () => {

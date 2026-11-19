@@ -155,8 +155,8 @@ describe('LoggingInterceptor', () => {
     });
   });
 
-  // NestJS 12 부터 APP_INTERCEPTOR 가 WebSocket 게이트웨이 핸들러에도 붙는다. 그 컨텍스트의
-  // switchToHttp().getRequest() 는 HTTP 요청이 아니라 소켓이라 url 이 없다. 예전에는 여기서
+  // 전역 인터셉터는 WebSocket 게이트웨이 핸들러에도 붙는다(근거는 common/utils/http-context.ts).
+  // 그 컨텍스트의 요청은 소켓이라 url 이 없다. 예전에는 여기서
   // `url.split` 이 TypeError 를 던져 `subscribe` 가 `exception` 으로 끝났다.
   describe('HTTP 가 아닌 컨텍스트 (WebSocket)', () => {
     const buildWsContext = () =>

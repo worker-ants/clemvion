@@ -4,7 +4,9 @@ import type { ExecutionContext } from '@nestjs/common';
  * HTTP 요청 컨텍스트인지 판정한다.
  *
  * `app.module.ts` 의 전역 `APP_GUARD` · `APP_PIPE` · `APP_INTERCEPTOR` 는 NestJS 12 부터 WebSocket
- * 게이트웨이 핸들러에도 붙는다(전역 필터만 제외된다). HTTP 요청 객체를 가정하는 전역 enhancer 는 이
+ * 게이트웨이 핸들러에도 붙는다(전역 필터만 `ExceptionFiltersContext.getGlobalMetadata() => []` 로 제외된다).
+ * 그 컨텍스트의 `switchToHttp().getRequest()` 는 HTTP 요청이 아니라 소켓이다. 이 근거는 여기 한 곳에만 적고
+ * 전역 enhancer 와 그 테스트는 이 JSDoc 을 가리킨다. HTTP 요청 객체를 가정하는 전역 enhancer 는 이
  * 술어로 HTTP 가 아니면 건너뛴다 — enhancer 마다 `getType()` 비교를 따로 쓰면 어느 것이 WS 를 걸렀는지
  * 한눈에 보이지 않는다. 새 전역 enhancer 는 `src/repo-guards/__tests__/global-enhancer-ws-safety.spec.ts`
  * 가 WS 처리 방식을 분류하도록 강제한다.
