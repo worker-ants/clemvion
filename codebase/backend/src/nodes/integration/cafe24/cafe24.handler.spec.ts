@@ -6,6 +6,7 @@ import {
   Cafe24TransportFailedError,
 } from './cafe24-api.client';
 import { IntegrationError } from '../_base/integration-handler-base';
+import { CAFE24_STATE_CHANGING_GET_OPERATION_IDS } from './metadata/index';
 import type { ExecutionContext } from '../../core/node-handler.interface';
 import type { Integration } from '../../../modules/integrations/entities/integration.entity';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
@@ -618,9 +619,10 @@ describe('Cafe24Handler', () => {
     });
   });
 
-  // Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — cafe24 mocks WRITE
-  // operations (POST/PUT/DELETE) and passes READ (GET) operations through.
-  describe('execute — dry-run (§7)', () => {
+  // Re-run dry-run (CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」) — cafe24 mocks non-GET
+  // operations and the state-changing GET list (empty today), and passes other
+  // GET operations through.
+  describe('execute — dry-run', () => {
     function makeDryRunContext(): ExecutionContext {
       const ctx = makeContext();
       ctx.variables = { ...ctx.variables, __dryRun: true };
@@ -707,6 +709,50 @@ describe('Cafe24Handler', () => {
         expect.objectContaining({ id: 'int-cafe24-1' }),
         expect.objectContaining({ status: 'success' }),
       );
+    });
+
+    describe('GET listed as state-changing', () => {
+      // The list is empty today. List one GET for this test only and remove it after.
+      const exceptions = CAFE24_STATE_CHANGING_GET_OPERATION_IDS as Set<string>;
+      let added = false;
+      beforeEach(() => {
+        added = !exceptions.has('product_list');
+        exceptions.add('product_list');
+      });
+      afterEach(() => {
+        if (added) exceptions.delete('product_list');
+      });
+
+      it('returns the _dryRun mock without calling ApiClient', async () => {
+        integrationsService.getForExecution.mockResolvedValue(
+          makeIntegration(),
+        );
+
+        const result = await handler.execute(
+          null,
+          {
+            integrationId: 'id',
+            resource: 'product',
+            operation: 'product_list',
+            fields: { shop_no: 1 },
+          },
+          makeDryRunContext(),
+        );
+
+        expect(apiClient.call).not.toHaveBeenCalled();
+        expect(integrationsService.logUsage).not.toHaveBeenCalled();
+        expect(result.port).toBe('success');
+        expect(result.output).toEqual({
+          _dryRun: true,
+          skippedReason: 'dry-run mode',
+          wouldHaveCalled: {
+            kind: 'cafe24',
+            operation: 'product_list',
+            method: 'GET',
+            resource: 'product',
+          },
+        });
+      });
     });
 
     it('non-dry-run WRITE op — unchanged, real ApiClient call performed', async () => {

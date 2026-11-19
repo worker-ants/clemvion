@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 7
+version: 9
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "dc516d5321bf4c33991317948a54db5793708b0a99813af4b7e6b3a57bcd7ed8"
+content_hash: "5b704aa5a6b275060293452be48a2257f9fae2f389f77087151158841954f74e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "135a25e35473e0eb591b34133c9ffc47fcab91a0438fb8c00b766b81d8383577"
-etag: "sha256-4e6d21cbefcac4004a5c9c4b89cea78dfc83e0f4ecad8838d0bb146c887a125a"
+mirror_sha256: "5f7e1453283d3da897a341eabc5bf6e5945858e54e2c1f5a2bc5e6d090371903"
+etag: "sha256-1afc4ca194adf62e23c7ebdc415db685be77622ebb27ce412ebf02edf2d680e7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,7 +52,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 - REQ-DBQ-024 WHEN 에러 메시지를 내보내거나 활동 로그에 남기면 THE SYSTEM SHALL 비밀번호·Bearer·긴 토큰 패턴을 가린다.
 - REQ-DBQ-025 WHEN dry-run 으로 실행되고 쿼리가 쓰기 작업이면 THE SYSTEM SHALL DB 에 연결하지 않고 mock 결과로 `success` 포트에 보낸다.
 - REQ-DBQ-026 WHEN dry-run 으로 실행되고 쿼리가 읽기 작업이거나 판정이 모호하면 THE SYSTEM SHALL 쿼리를 실제로 실행한다.
-- REQ-DBQ-027 WHEN 통합을 얻은 뒤 실행이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다.
+- REQ-DBQ-027 WHEN 통합을 얻은 뒤 실행이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다. 실행 취소로 끝난 호출은 활동 로그를 남기지 않고 `AbortError` 를 그대로 던져 노드가 `cancelled` 로 끝난다([통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙), [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)).
 - REQ-DBQ-028 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 NULL, `api_method` 를 SQL 동사, `api_path` 를 드라이버 토큰으로 채운다.
 - REQ-DBQ-029 IF 설정 형식이 잘못되면 THE SYSTEM SHALL 사전 검증 에러로 실행을 실패시킨다.
 
@@ -90,7 +90,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 | 출력 | `success` | Success | data | false | 쿼리 실행 성공 |
 | 출력 | `error` | Error | error | false | 런타임 실패(구문 에러·연결 끊김·제약 위반·권한 부족 등). 노드 출력 규약 Principle 3.1 |
 
-동적 포트는 없다. 자격 증명 누락, `INVALID_PARAMETERS`, 통합 해소 실패를 포함한 모든 실행 중 실패가 `error` 포트로 간다(D4).
+동적 포트는 없다. 자격 증명 누락, `INVALID_PARAMETERS`, 통합 해소 실패를 포함한 모든 실행 중 실패가 `error` 포트로 간다(D4). 실행 취소로 생긴 `AbortError` 는 예외다. 어느 포트로도 나가지 않고 노드가 `cancelled` 로 끝난다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
 
 ## 실행 로직
 
@@ -116,11 +116,11 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
    | `verify-full` | `ssl: { rejectUnauthorized: true }` | `ssl: { rejectUnauthorized: true }` |
 
    `require` 도 인증서 검증을 강제한다(MITM 방어). self-signed 인증서를 쓰려면 별도 `require-trust` 모드를 새로 도입해야 한다.
-8. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 `logUsage` 를 부른다(인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](../CLE-INT/CLE-INT-DATA.md#호출-api-식별-채우기-규칙)).
+8. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 `logUsage` 를 부른다(인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). 실행 취소로 끝난 호출도 남기지 않는다. catch 첫머리에서 `isAbortErrorLike` 로 `AbortError` 인지 보고, 맞으면 `logUsage` 를 부르지 않고 그대로 다시 던진다. 0단계에서 드라이버 에러를 바꾼 `AbortError` 도 같다. 엔진이 노드를 `cancelled` 로 기록한다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](../CLE-INT/CLE-INT-DATA.md#호출-api-식별-채우기-규칙)).
    - `api_label` = NULL. 임의 SQL 을 부르므로 엔드포인트 카탈로그가 없다.
    - `api_method` = SQL 동사(`SELECT`·`INSERT`·`UPDATE`·`DELETE`). `config.queryType` 을 대문자로 그대로 쓴다. `queryType='raw'` 이면 평가된 SQL 의 첫 토큰을 대문자로 뽑는다. 뽑지 못하면 NULL 이다.
    - `api_path` = 드라이버 토큰(`postgres`·`mysql`). SQL 본문 파싱을 피하고 개인정보가 드러나지 않게 한다. 드라이버가 늘면 토큰 목록을 넓힌다.
-9. **포트 라우팅**: 정상 종료는 `port: 'success'`, 그 밖의 모든 실패(쿼리 throw·자격 증명 누락·통합 해소 실패 등)는 `port: 'error'` 다(D4).
+9. **포트 라우팅**: 정상 종료는 `port: 'success'`, 그 밖의 모든 실패(쿼리 throw·자격 증명 누락·통합 해소 실패 등)는 `port: 'error'` 다(D4). 실행 취소로 생긴 `AbortError` 는 포트로 보내지 않고 다시 던진다(8단계).
 
 ### 풀 캐시 무효화
 
@@ -164,8 +164,9 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 ## 구현 위치
 
-- `codebase/backend/src/nodes/integration/database-query/database-query.handler.ts`
+- `codebase/backend/src/nodes/integration/database-query/database-query.handler.ts` (실행 로직. catch 첫머리의 실행 취소 판정과 다시 던지기 포함)
 - `codebase/backend/src/nodes/integration/database-query/database-query.schema.ts`
+- `codebase/backend/src/nodes/core/abort-error.util.ts` (`AbortError` 공용 판정 `isAbortErrorLike`)
 - `codebase/backend/src/common/redis/integration-cache-bus.service.ts` (무효화 버스. 이 노드는 처리 함수를 등록해 구독한다. 채널 정의는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화))
 
 ## Rationale
@@ -192,3 +193,11 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 - 방송 트리거는 `rotate` 와 통합 삭제 전체다. 삭제 쪽 발행은 삭제 뒤 후처리가 하므로 멤버가 나가거나 제거될 때의 개인 통합 삭제도 방송한다. 지금 구독하는 소비자는 이 노드의 풀뿐이다.
 - 요구사항 변경: REQ-DBQ-013 은 결과(모든 인스턴스가 그 통합의 풀을 버린다)만 남기고 채널은 통합 데이터와 흐름을 가리키게 했고, 트리거를 «통합이 삭제(`remove`)되면» 에서 «통합이 삭제되면» 으로 넓혔다. REQ-DBQ-014 는 «무효화 방송이 실패하거나 이 인스턴스에 닿지 않으면» 으로 고쳤다. 경고 로그와 실패 계수는 발행하는 쪽의 동작이라 통합 데이터와 흐름이 정한다. 동작은 바뀌지 않았다.
+
+### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다
+
+결정일: 2026-11-19
+
+이전에는 이 노드만 실행 취소 때도 `failed` 활동 로그 1건을 남겼다. catch 가 취소 여부를 보기 전에 `logUsage` 를 불렀기 때문이다. HTTP Request · Cafe24 · MakeShop 노드는 취소된 호출을 남기지 않아 네 노드의 규칙이 달랐다. 취소로 끝난 호출은 끝난 호출이 아니므로 활동 로그를 남기지 않는다. 2026-11-19 에 catch 첫머리에서 취소를 먼저 가려 활동 로그 없이 다시 던지게 고쳤다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 활동 로그 `status` 에 `cancelled` 값은 새로 두지 않았다. 근거 전체는 [노드 취소 Rationale](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다-2026-10-10)에 있다.
+
+- 요구사항 변경: REQ-DBQ-027 에 «실행 취소로 끝난 호출은 활동 로그를 남기지 않고 `AbortError` 를 그대로 던져 노드가 `cancelled` 로 끝난다» 를 더했다.

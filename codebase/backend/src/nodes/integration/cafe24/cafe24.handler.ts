@@ -13,7 +13,7 @@ import {
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import type { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
-import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
+import { isAbortErrorLike } from '../../core/abort-error.util.js';
 import {
   Cafe24ApiClient,
   Cafe24AuthFailedError,
@@ -172,12 +172,10 @@ export class Cafe24Handler
       apiInfo.method = operation.method;
       apiInfo.path = operation.path;
 
-      // 1b. Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — cafe24 의
-      // WRITE operation (POST/PUT/DELETE) 은 외부 commerce 상태를 변경하는
-      // 부수효과이므로 실제 ApiClient 호출 없이 mock 으로 단락한다. READ
-      // operation (GET) 은 부수효과가 없어 dry-run 에서도 그대로 호출한다
-      // (Database SELECT 와 동일 취급). method 가 곧 read/write 분류 기준이다.
-      // 외부 API 를 부르지 않았으므로 활동 로그도 남기지 않는다.
+      // 1b. Re-run dry-run — 분류는 `isCafe24DryRunMocked` 가 정한다(method +
+      // 상태를 바꾸는 GET 예외 목록, 지금 비어 있음). 모의 처리하면 ApiClient 를
+      // 부르지 않고 활동 로그도 남기지 않는다. 판정 규칙은 `isDryRunMockedOperation`
+      // doc 과 CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」.
       if (isDryRun(context) && isCafe24DryRunMocked(operation)) {
         const durationMs = Date.now() - started;
         return {

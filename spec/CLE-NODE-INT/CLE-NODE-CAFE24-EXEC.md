@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24-EXEC"
 title: "Cafe24 노드 — 실행 로직"
 type: "design"
-version: 1
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CAFE24"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-CAFE24"]
 area: "CLE-NODE-INT"
-content_hash: "905f25b5e0ae1bac46168d49009f1488bd5e1da6b28d175ac9e46eaeec9bd003"
+content_hash: "88cfa50b0d6834da65b99587c5aca80490821e2d4014ace98c669e0fe75469f1"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "ca02f9279a39a6ae8bb140d88bb844314ec3754e4d8b462d76fe3cbf8bbf3c02"
-etag: "sha256-5d1bd0cceade80bab40e1b4a77b8a7f9bd9c9c437cb2edceef119108f93a49fb"
+mirror_sha256: "c27879283db5365de6479c1802a9b8f2dd96a74a83594f438f80a0f45b8165a8"
+etag: "sha256-8d13b55f2219ddb4c9fd7569fbf69630cb450c242d1f79d55795b3a778e6c214"
 ---
 ## 개요
 
@@ -37,9 +37,9 @@ etag: "sha256-5d1bd0cceade80bab40e1b4a77b8a7f9bd9c9c437cb2edceef119108f93a49fb"
    - POST·PUT 본문을 Cafe24 요청 봉투(`{ shop_no?, request: { ...payload } }`)로 감싼다. 직렬화 규칙은 [Cafe24 operation 메타데이터](CLE-C24-META) wire format 절이 단일 기준이다. DELETE·GET 에는 감싸지 않는다. 호출자가 이미 `{request: ...}` 로 감싼 본문을 넘기면 즉시 throw 해 이중 감싸기를 막는다(개발 단계 가드).
    - 응답 헤더 `X-Cafe24-Call-Remain` 을 지켜보고 429 를 받으면 기다렸다 재시도한다([호출 제한](#호출-제한)).
    - 401 을 받으면 액세스 토큰을 한 번 갱신하고 같은 요청을 한 번 재시도한다. 6단계의 사전 갱신이 경쟁 구간에서 빗나간 경우를 되살리는 장치다. 403 은 갱신 없이 즉시 격하한다. 절차는 [인증 실패 처리](CLE-NODE-CAFE24-CONFIG.md#인증-실패-처리)가 정한다.
-   - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
+   - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). 이 `AbortError` 는 연속 전송 실패 카운터에도 넣지 않는다([통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)). 요청 자체 타임아웃은 노드 취소가 아니고 전송 실패다. 신호 연쇄와 두 `AbortError` 를 가르는 방법은 [노드 취소 — 노드별 적용](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)이 정한다.
 10. **응답 파싱**: JSON 본문을 그대로 `output.response` 에 둔다. `meta.statusCode`, `meta.durationMs`, `meta.callUsage`(헤더 `X-Cafe24-Call-Usage`), `meta.callRemain`(헤더 `X-Cafe24-Call-Remain`)을 채운다.
-11. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 1건 남긴다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). operation 조회(1단계)와 필수 필드 검사(5단계)의 실패도 통합을 얻기 전에 끝나므로 남기지 않는다. 현재 구현은 5단계 검사를 3단계보다 먼저 한다. dry-run 모의 출력은 1단계 직후에 끝나 이 단계에 닿지 않는다. `error.code` 는 [에러 코드](CLE-NODE-CAFE24-CONFIG.md#에러-코드) 표의 값이다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
+11. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 1건 남긴다. 실행 취소(`AbortError`)로 끝난 호출은 남기지 않는다([통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙), [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). operation 조회(1단계)와 필수 필드 검사(5단계)의 실패도 통합을 얻기 전에 끝나므로 남기지 않는다. 현재 구현은 5단계 검사를 3단계보다 먼저 한다. dry-run 모의 출력은 1단계 직후에 끝나 이 단계에 닿지 않는다. `error.code` 는 [에러 코드](CLE-NODE-CAFE24-CONFIG.md#에러-코드) 표의 값이다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) INT-US-05).
     - `api_label` = 카탈로그 키 `cafe24.<resource>.<operation>`(예: `cafe24.product.product_list`). DB 에는 언어 정보가 없는 카탈로그 키만 저장하고 사람이 읽는 라벨은 프론트엔드 i18n 사전이 만든다([Cafe24 operation 메타데이터](CLE-C24-META) 카탈로그 키 절).
     - `api_method` = 메타데이터 행의 `method`(`GET`·`POST`·`PUT`·`DELETE`).
     - `api_path` = 메타데이터 행의 `path` 템플릿. placeholder 를 그대로 둔다(예: `products/{product_no}`). 실제 호출 URL 의 치환값을 넣지 않는다. 엔드포인트 단위로 묶고 path 안 ID 에 담긴 개인정보가 새지 않게 하기 위해서다.
@@ -47,7 +47,9 @@ etag: "sha256-5d1bd0cceade80bab40e1b4a77b8a7f9bd9c9c437cb2edceef119108f93a49fb"
 
 ### dry-run
 
-노드 스키마가 `supportsDryRun: true` 인 부수효과 노드다([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)). 부수효과로 판정된 operation 은 dry-run 에서 `Cafe24ApiClient` 를 부르지 않고 1단계 직후 모의 출력으로 끝낸다(`buildDryRunMock('cafe24', ...)`, `port:'success'`). 모의 출력의 `output` 에는 `_dryRun: true` · `skippedReason` · `wouldHaveCalled`(`kind: 'cafe24'` 와 `operation` · `method` · `resource`)가 들고 `meta` 는 `statusCode: 0` · `durationMs` 다. 판정 기준은 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)이다. operation `method` 가 GET 이 아닌 호출(쓰기: POST·PUT·DELETE)이 대상이다. Cafe24 에는 상태를 바꾸는 GET 이 없어(2026-10-23 확인) 예외 목록이 비어 있고 GET operation 은 모두 dry-run 에서도 그대로 부른다. 메타데이터를 다시 생성해 쓰기를 뜻하는 낱말이 든 GET 이 생기면 단위 테스트(`dry-run-state-changing-get.spec.ts`)가 예외 목록이나 확인한 조회 목록에 올리게 한다. `scopeType` 은 OAuth 권한 범위라 판정에 쓰지 않는다. 모의 출력으로 끝낸 경우에는 외부 호출이 없었으므로 활동 로그를 남기지 않는다(같은 절).
+노드 스키마가 `supportsDryRun: true` 인 부수효과 노드다([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)). 부수효과로 판정된 operation 은 dry-run 에서 `Cafe24ApiClient` 를 부르지 않고 1단계 직후 모의 출력으로 끝낸다(`buildDryRunMock('cafe24', ...)`, `port:'success'`). 모의 출력의 `output` 에는 `_dryRun: true` · `skippedReason` · `wouldHaveCalled`(`kind: 'cafe24'` 와 `operation` · `method` · `resource`)가 들고 `meta` 는 `statusCode: 0` · `durationMs` 다. 판정 기준은 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)이다. operation `method` 가 GET 이 아닌 호출(쓰기: POST·PUT·DELETE)이 대상이다.
+
+노드 핸들러와 내부 MCP 브리지는 벤더 판정 함수 `isCafe24DryRunMocked` 하나만 부른다. 이 함수가 공통 판정 `isDryRunMockedOperation` 에 상태를 바꾸는 GET 예외 목록 `CAFE24_STATE_CHANGING_GET_OPERATION_IDS` 를 넘긴다. Cafe24 에는 상태를 바꾸는 GET 이 없어(2026-10-23 확인) 이 예외 목록이 비어 있고 GET operation 은 모두 dry-run 에서도 그대로 부른다. 메타데이터를 다시 생성해 새 GET 이 생기면 단위 테스트(`dry-run-state-changing-get.spec.ts`)가 목록을 점검한다. 이름에 쓰기 낱말이 든 GET 은 예외 목록이나 확인한 조회 목록에, `scopeType` 이 write 인 GET 은 예외 목록에 있어야 통과한다. `scopeType` 은 OAuth 권한 범위라 이 테스트가 후보를 잡는 신호로만 쓰고 판정에는 쓰지 않는다. 같은 테스트가 호출 지점이 벤더 판정 함수를 거치는지도 소스로 확인한다. 모의 출력으로 끝낸 경우에는 외부 호출이 없었으므로 활동 로그를 남기지 않는다(같은 절).
 
 AI 에이전트가 내부 MCP 브리지로 부르는 Cafe24 도구도 같은 기준으로 판정하고, 모의 응답으로 대신한 호출은 활동 로그를 남기지 않는다. 다만 도구 경로는 필수 필드 검증(`CAFE24_MISSING_FIELDS`)을 dry-run 확인보다 먼저 한다. 노드는 dry-run 확인이 먼저라 필수 필드가 빠진 쓰기 operation 도 모의 출력으로 끝난다. 도구 경로의 결과 형식은 [MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)이 정한다.
 
@@ -108,3 +110,9 @@ POST·PUT 밖의 method 는 허용 목록으로 강제한다. PATCH 같은 metho
 ### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
 
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다. 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#요구사항-변경-2026-10-23--2026-10-24)에 있다.
+
+### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다
+
+결정일: 2026-11-19
+
+11단계에 이 예외를 적었다. 근거와 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#실행-취소로-끝난-호출은-활동-로그에-남기지-않는다)에 있다.

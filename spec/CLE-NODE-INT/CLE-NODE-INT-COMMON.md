@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 15
+version: 17
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "6744b1c666a0589e5b87adeef8dcadd7f8a698cccc17d29d6f3886686a4c4758"
+content_hash: "a6befee12ba117280fe7d70788cb9a1f8db21e54be2a80238fafbd5d2fb48efc"
 read_as: "approved_fallback"
-task: "CLE-T-BS1WD1"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "5a3e7dfb6522288db87867145851f39ef41bc13be4e2c49918e6928312496f25"
-etag: "sha256-26d06a021f7ec1eba344eee7670f033aced1a04ecb4f4ad4bca87634a243bc7b"
+mirror_sha256: "cee733e0b783acf5fd65d0b3507d5667ca6a1a0a579576f391fe7e1109c48ba3"
+etag: "sha256-1fa2b2de72535b468ed9e94fc69812d9e5c895a987809b125e7b4bfebf835f61"
 ---
 > 구현 상태: 부분 구현 (워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -41,6 +41,7 @@ etag: "sha256-26d06a021f7ec1eba344eee7670f033aced1a04ecb4f4ad4bca87634a243bc7b"
 5. 모든 통합 핸들러는 [핸들러 실행 계약](CLE-NODE-INT-COMMON-HANDLER.md#6단계-계약) 의 6단계를 따른다.
 6. 사전 검증 에러(`handler.validate()` 실패)만 throw 로 실행을 실패시킨다. `execute()` 안에서 난 실패는 모두 에러 포트(`port: 'error'`)와 `output.error.{code, message, details?}` 로 내보낸다. 근거는 [Rationale 「핸들러 실패를 에러 포트로 통일」](#핸들러-실패를-에러-포트로-통일-2026-05-17) 에 있다. 예외는 상위 취소 신호(`context.abortSignal`) 때문에 생긴 `AbortError` 하나다. 다섯 노드 모두 이 예외를 에러 포트로 바꾸지 않고 다시 던지므로 노드 실행이 `cancelled` 로 분류된다([노드 취소 「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류)). Send Email 노드는 실행을 시작할 때 신호가 이미 켜져 있는 경우에만 이 예외를 던진다.
 7. 통합을 얻은 뒤의 외부 호출마다 성공·실패와 관계없이 활동 로그를 1건 남긴다. 이때 API 식별 정보(`api`)를 함께 넘긴다. HTTP Request 노드는 통합 인증일 때만 활동 로그를 남긴다. 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않는다. 조회 거절과 조회 앞 단계의 실패가 모두 해당한다. `logUsage` 는 얻은 통합만 받으므로 얻지 못한 통합에는 기록할 수 없다. 통합을 얻기 전에 끝나는 실패의 목록은 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 에 있다.
+   - 노드 취소로 끝난 호출도 활동 로그를 남기지 않는다. 그 호출은 끝나지 않아서 성공도 실패도 아니다. 활동 로그 `status` 에 `cancelled` 값은 두지 않는다. 그래서 이 호출은 통합 관리 화면의 호출 수 차트에도 잡히지 않는다. 취소 사실은 엔진이 노드 실행을 `cancelled` 로 기록해 남긴다. HTTP Request·Cafe24·MakeShop·Database Query 노드가 같다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3, [「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19). 근거는 [Rationale 「노드 취소로 끝난 호출은 활동 로그를 남기지 않는다」](#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다) 에 있다.
 8. HTTP Request·Database Query·Send Email 노드는 사설망 차단을 기본으로 켠다. 끄는 방법은 `ALLOW_PRIVATE_HOST_TARGETS=true` 하나뿐이다.
 9. 차단 코드(`HTTP_BLOCKED`·`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)는 차단 판정에만 쓴다. 예외는 HTTP Request 노드가 리다이렉트 한도를 넘겼을 때 내는 `HTTP_BLOCKED` 하나다([사설망 차단](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단)). 클라이언트에 나가는 차단 메시지에는 차단된 호스트나 IP 를 넣지 않는다.
 10. 캔버스 요약은 노드 스키마의 `summaryTemplate` 으로 렌더하고, 렌더된 한 줄을 40자에서 자른다.
@@ -139,7 +140,7 @@ etag: "sha256-26d06a021f7ec1eba344eee7670f033aced1a04ecb4f4ad4bca87634a243bc7b"
 
 ## 출력 구조 색인
 
-다섯 노드 모두 에러 경로는 하나(`port: 'error'` + `output.error.*`)다.
+다섯 노드 모두 에러 경로는 하나(`port: 'error'` + `output.error.*`)다. 노드 취소는 에러 경로가 아니다. 노드 출력 없이 `AbortError` 로 끝나고 노드 실행이 `cancelled` 가 된다(규칙 6).
 
 | 노드 | 정상 케이스 | 에러 케이스 |
 |------|-------------|-------------|
@@ -180,6 +181,15 @@ etag: "sha256-26d06a021f7ec1eba344eee7670f033aced1a04ecb4f4ad4bca87634a243bc7b"
 이 결정 전에는 `resolveIntegration` 의 `IntegrationError` 와 환경 에러가 throw 돼 노드 실행 자체가 실패했다. 서비스 미주입도 throw 였다. 이 결정으로 그 경로를 폐기하고, `execute()` 안의 모든 실패를 Send Email 노드가 먼저 쓰던 catch 패턴(에러 포트 + `output.error`)으로 모았다. 설정 형식 자체가 잘못된 경우(`handler.validate()` 실패)만 throw 로 남는다. 실행 엔진 문서의 "workspace 누락 시 `Missing workspace context` throw", "모든 핸들러가 미주입 시 `requires_integration` stub 반환" 서술은 이 결정 전 상태라 이 문서의 현행 규칙으로 대체했다.
 
 그 뒤 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙이 상위 취소 신호로 생긴 `AbortError` 를 이 통일의 예외로 두었다. 이 문서는 2026-11-13 에 그 예외를 규칙 6 에 적었다.
+
+### 노드 취소로 끝난 호출은 활동 로그를 남기지 않는다
+
+결정일: 2026-11-19
+
+NERV Task `CLE-T-GZRYQ3` 에서 규칙 7 에 적었다. 결정 자체는 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다-2026-10-10) 의 2026-10-10 결정과 같다. 활동 로그는 통합 호출 한 건이 성공했는지 실패했는지를 남긴다. 노드 취소로 끊긴 호출은 끝나지 않았으므로 어느 쪽에도 들지 않는다. 취소 사실은 엔진이 노드 실행을 `cancelled` 로 기록해 이미 남긴다.
+
+- 기각: `failed` 로 남기는 안. 다른 분기의 실패나 사용자 실행 중지로 멈춘 호출이 이 통합의 실패로 세어져 실패 통계가 부풀려진다. 노드 실행은 `cancelled` 인데 활동 로그만 실패라 두 기록이 어긋난다.
+- 기각: 활동 로그 `status` 에 `cancelled` 를 새로 두는 안. 로그 스키마와 통합 관리 화면의 차트 · 필터를 함께 바꿔야 한다. 그렇게 해서 얻는 정보는 엔진의 노드 실행 기록과 겹친다.
 
 ### 시간 메트릭을 `meta.durationMs` 로 통일
 

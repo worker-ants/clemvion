@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAKESHOP-EXEC"
 title: "MakeShop 노드 — 실행 로직"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-MAKESHOP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-MAKESHOP"]
 area: "CLE-NODE-INT"
-content_hash: "5c2240d82bddf793998ddf3b9ffe3232f47efe18a1c3d8a9beda3330c66335ed"
+content_hash: "fdcaf2053a5352239fd7526add420a69ea6853c93472f851965c69f8729f999a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-2V3P8D"
 source_paths: []
-mirror_sha256: "86a5ced3207a1de137daadf64ffce7d4806c0305d10c7f187368fe19b90f9025"
-etag: "sha256-dc77d1f4af92bff768c25e742a39bdab783a8528399069a07da4eb938ef9dd9b"
+mirror_sha256: "dc7ee8266ab7d17208a899c1ed9236ac1f14a7354ae8040f73afe70f099abd86"
+etag: "sha256-ac4bdec2df5b545dadb5cbb5b376e9b8ce393fdca00e0efed9b7784bab5a4073"
 ---
 ## 개요
 
@@ -40,9 +40,9 @@ etag: "sha256-dc77d1f4af92bff768c25e742a39bdab783a8528399069a07da4eb938ef9dd9b"
 9. **호출**: `MakeshopApiClient` 가 `Authorization: Bearer {access_token}` 을 붙여 보낸다.
    - 401 을 받으면 토큰을 갱신하고 같은 요청을 한 번 재시도한다(Cafe24 와 같은 정책). 403 은 즉시 격하한다([인증 실패 처리](CLE-NODE-MAKESHOP-OUTPUT.md#인증-실패-처리)).
    - MakeShop 은 데이터 호출의 호출 제한 헤더·정책을 공개 문서로 밝히지 않았다. 429 를 받으면 `Retry-After` 헤더가 있으면 그 값만큼, 없으면 고정 간격만큼 기다려 최대 2회 재시도하고, 다 쓰면 `MAKESHOP_RATE_LIMITED` 다.
-   - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
+   - 현재 구현은 상위 취소 신호(`context.abortSignal`)를 API 클라이언트에 넘긴다. 그 때문에 생긴 `AbortError` 는 에러 포트로 바꾸지 않고 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). 이 `AbortError` 는 연속 전송 실패 카운터에도 넣지 않는다([통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md)). 요청 자체 타임아웃은 노드 취소가 아니고 전송 실패다. 신호 연쇄와 두 `AbortError` 를 가르는 방법은 [노드 취소 — 노드별 적용](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)이 정한다.
 10. **응답 파싱**: JSON 본문을 `output.response` 에 둔다. `meta.statusCode`, `meta.durationMs` 를 채운다.
-11. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤) 끝난 실행마다 성공·실패 1건을 남긴다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). dry-run 모의 출력은 통합을 얻기 전(1단계 직후)에 끝나 이 단계에 닿지 않는다. 노드 취소 신호(`AbortError`)로 끝난 호출은 남기지 않는다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). API 식별 정보는 다음과 같다(통합별 전체 표와 요구사항은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)).
+11. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤) 끝난 실행마다 성공·실패 1건을 남긴다. 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). dry-run 모의 출력은 통합을 얻기 전(1단계 직후)에 끝나 이 단계에 닿지 않는다. 실행 취소(`AbortError`)로 끝난 호출은 남기지 않는다([통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙), [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). API 식별 정보는 다음과 같다(통합별 전체 표와 요구사항은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md)).
     - `api_label` = 카탈로그 키 `makeshop.<resource>.<operation>`(예: `makeshop.product.get-product`). 프론트엔드가 `GET /api/integrations/services/makeshop/catalog` 응답의 `labelKey` 와 i18n 사전으로 렌더한다.
     - `api_method` = operation 의 `method`(`GET`·`POST`).
     - `api_path` = operation 의 path 템플릿(placeholder 그대로).
@@ -98,6 +98,8 @@ etag: "sha256-dc77d1f4af92bff768c25e742a39bdab783a8528399069a07da4eb938ef9dd9b"
 
 [Cafe24 노드](CLE-NODE-CAFE24.md#dry-run)와 같은 규칙이고 판정 기준은 [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)이다. operation `method` 가 GET 이 아니면 dry-run 에서 외부 상태 변경을 막으려고 모의 출력으로 끝낸다. MakeShop Shop API 는 GET · POST 만 쓰므로 POST 가 대상이다. 읽기 의도인 POST(예: `post-cpik_member-check` 회원 연동 확인)도 메서드로 판정해 모의 출력으로 끝난다. 메서드는 GET 인데 상태를 바꾸는 operation 은 예외 목록(`MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)에 올려 모의 출력으로 끝낸다. 지금은 `get-cart_free_config-update`(카트프리 설정 변경) 하나다. 나머지 GET 은 그대로 부른다.
 
+노드 핸들러와 내부 MCP 브리지는 벤더 판정 함수 `isMakeshopDryRunMocked` 하나만 부른다. 이 함수가 공통 판정 `isDryRunMockedOperation` 에 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS` 를 넘긴다. 단위 테스트(`dry-run-state-changing-get.spec.ts`)가 예외 목록이 낡지 않았는지 점검한다. 이름에 쓰기 낱말이 든 GET 은 예외 목록이나 확인한 조회 목록에, `scopeType` 이 write 인 GET 은 예외 목록에 있어야 통과한다. `scopeType` 은 이 테스트가 후보를 잡는 신호로만 쓰고 판정에는 쓰지 않는다. 같은 테스트가 호출 지점이 벤더 판정 함수를 거치는지도 소스로 확인한다.
+
 모의 출력은 실행 로직 1단계 직후, 필수 필드 · 페이지네이션 검증과 통합 자격 증명 해소보다 먼저 `success` 포트로 끝난다. `output` 에는 응답 대신 `_dryRun: true` · `skippedReason` · `wouldHaveCalled`(`kind: 'makeshop'` 와 `operation` · `method` · `resource`)가 들고 `meta` 는 `statusCode: 0` · `durationMs` 다. 2xx 응답과 달리 `statusCode` 가 0 이다. 모의 출력으로 끝낸 경우에는 외부 호출이 없었으므로 활동 로그를 남기지 않는다. [통합 노드 공통](CLE-NODE-INT-COMMON.md) 6단계의 «성공·실패와 관계없이 `logUsage` 를 부른다» 는 외부 호출이 나간 경우를 말한다. 공통 문서에 이 예외를 적는 일은 [재실행 미결 사항](../CLE-EXEC/CLE-EXEC-RERUN.md#미결-사항)에 있다.
 
 AI 에이전트가 내부 MCP 브리지로 부르는 MakeShop 도구도 같은 기준으로 판정하고, 모의 응답으로 대신한 호출은 활동 로그를 남기지 않는다. 도구 경로는 필수 필드 검증(`MAKESHOP_MISSING_FIELDS`)을 dry-run 확인보다 먼저 한다는 점만 다르다([MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)).
@@ -111,8 +113,10 @@ MakeShop API 날짜·시간 필드의 시간대 규약은 **확인되지 않았�
 - `codebase/backend/src/nodes/integration/makeshop/makeshop.handler.ts` (`resolveMakeshopPagination` 페이지네이션 변환, `buildRequestParts` query·본문 만들기)
 - `codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts` (401 재시도·429 재시도)
 - `codebase/backend/src/nodes/integration/makeshop/makeshop-token-refresh.processor.ts` (토큰 갱신 worker)
-- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
-- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 부수효과 판정 `isDryRunMockedOperation`)
+- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (dry-run 판정 함수 `isMakeshopDryRunMocked`, 상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
+- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 공통 판정 `isDryRunMockedOperation`. 벤더 판정 함수가 예외 목록을 넘겨 부른다)
+- `codebase/backend/src/nodes/integration/_base/abort-cascade.util.ts` (노드 취소 신호 연결 `linkUpstreamAbort`, 노드 취소 판정 `isUpstreamAbort`)
+- `codebase/backend/src/nodes/core/abort-error.util.ts` (`AbortError` 공용 판정 `isAbortErrorLike`)
 
 ## Rationale
 
@@ -138,6 +142,8 @@ Task CLE-T-XVS8H7 에서 다음 두 안 가운데 (2) 를 택했다.
 원래 요구사항은 "호출이 끝나면 성공·실패와 관계없이 활동 로그를 1건 남긴다" 였다. 2026-10-10 에 통합을 해소한 뒤(당시 표현) 끝난 실행으로 범위를 좁히고 노드 취소 신호로 끝난 호출은 남기지 않는다고 더했다. 해소 전 실패의 기록은 당시 알려진 결함(Task CLE-T-PTC4SF)이었고 2026-11-05 에 고쳤다.
 
 2026-10-24 에 «통합을 해소한 뒤» 를 «통합을 얻은 뒤» 로 바꿨다. «해소» 는 3단계 전체(조회와 유형 · 연결 상태 확인)를 가리켜 유형 불일치와 미연결로 끝난 실행이 빠지는 것처럼 읽혔다. 두 실패는 통합을 얻은 뒤의 실패라 기록한다. 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다.
+
+2026-11-19 기준으로 HTTP Request · Cafe24 · MakeShop · Database Query 네 노드가 실행 취소로 끝난 호출을 남기지 않는 같은 규칙을 따른다. 근거는 [노드 취소 Rationale](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다-2026-10-10)에 있다.
 
 ### dry-run 판정과 활동 로그 (2026-10-23)
 

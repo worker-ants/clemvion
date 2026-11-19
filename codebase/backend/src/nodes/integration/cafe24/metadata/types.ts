@@ -110,11 +110,13 @@ export interface Cafe24RestrictedApproval {
  * Maps directly to Cafe24 scope strings: `mall.read_<resource>` /
  * `mall.write_<resource>`.
  *
- * Note: `scopeType` is decoupled from HTTP `method`. A POST/PUT can be
- * `scopeType: 'read'` when Cafe24 requires only the read OAuth scope to
- * call it (e.g. `carts_setting_update` is a PUT under the read scope).
- * Dry-run re-runs therefore classify side effects by `method`, not
- * `scopeType` (`isCafe24DryRunMocked`, CLE-EXEC-RERUN).
+ * Note: `scopeType` is decoupled from HTTP `method` and from whether the call
+ * changes state. A PUT can be `scopeType: 'read'` when Cafe24 requires only
+ * the read OAuth scope to call it (e.g. `carts_setting_update`), and a POST
+ * can be a pure calculation (e.g. `orders_calculation_total` computes an order
+ * total without mutating server state). Dry-run re-runs therefore classify
+ * side effects by `method` plus the state-changing GET list, not `scopeType`,
+ * so both examples are mocked (`isCafe24DryRunMocked`, CLE-EXEC-RERUN-DRYRUN).
  */
 export interface Cafe24OperationMetadata {
   id: string;

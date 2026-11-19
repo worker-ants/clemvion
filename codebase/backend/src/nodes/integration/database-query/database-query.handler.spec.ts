@@ -338,7 +338,7 @@ describe('DatabaseQueryHandler', () => {
       };
 
       it('PG: 진행 중 abort → 별도 연결로 pg_cancel_backend 발행 + AbortError(cancelled)', async () => {
-        const { service } = makeService();
+        const { service, logUsage } = makeService();
         const controller = new AbortController();
         // 쿼리 시작 시 외부 abort 가 도착한 것으로 시뮬레이트 → driver 가 57014 로 reject
         queryMock.mockImplementation(() => {
@@ -364,11 +364,15 @@ describe('DatabaseQueryHandler', () => {
         );
         expect(pgCancelEndMock).toHaveBeenCalled(); // 취소 연결 닫힘
         expect(releaseMock).toHaveBeenCalled();
+        // CLE-EXEC-CANCEL 규칙 3 — 취소된 호출은 활동 로그를 남기지 않는다.
+        expect(logUsage).not.toHaveBeenCalled();
         await handler.shutdown();
       });
 
       it('MySQL: 진행 중 abort → 별도 연결로 KILL QUERY 발행 + AbortError', async () => {
-        const { service } = makeService({ integration: mysqlIntegration });
+        const { service, logUsage } = makeService({
+          integration: mysqlIntegration,
+        });
         const controller = new AbortController();
         mysqlQueryMock.mockImplementation(() => {
           controller.abort();
@@ -388,6 +392,7 @@ describe('DatabaseQueryHandler', () => {
         ).rejects.toMatchObject({ name: 'AbortError' });
         expect(mysqlCancelQueryMock).toHaveBeenCalledWith('KILL QUERY 42');
         expect(mysqlReleaseMock).toHaveBeenCalled();
+        expect(logUsage).not.toHaveBeenCalled();
         await handler.shutdown();
       });
 
@@ -423,7 +428,7 @@ describe('DatabaseQueryHandler', () => {
       });
 
       it('abort 중이라도 취소와 무관한 실패(비-57014)는 cancelled 오분류 안 함 → error 포트', async () => {
-        const { service } = makeService();
+        const { service, logUsage } = makeService();
         const controller = new AbortController();
         queryMock.mockImplementation(() => {
           controller.abort();
@@ -441,6 +446,11 @@ describe('DatabaseQueryHandler', () => {
         )) as { port: string };
         // AbortError(cancelled) 가 아니라 실제 에러가 error 포트로 매핑돼야 함
         expect(out.port).toBe('error');
+        // 취소가 아닌 실패는 그대로 `failed` 활동 로그를 남긴다.
+        expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'int-1' }),
+          expect.objectContaining({ status: 'failed' }),
+        );
         await handler.shutdown();
       });
     });

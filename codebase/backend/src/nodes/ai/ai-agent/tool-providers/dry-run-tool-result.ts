@@ -5,7 +5,7 @@ import type { AgentToolResult } from './agent-tool-provider.interface';
  * dry-run 으로 모의 처리한 도구 결과에 싣는 안내. LLM 이 읽는 문장이라 영어로 둔다.
  * 실제로 보낸 읽기 호출은 이 안내를 받지 않으므로 이 호출만 가리킨다.
  */
-export const DRY_RUN_SKIPPED_TOOL_MESSAGE =
+export const DRY_RUN_MOCKED_TOOL_MESSAGE =
   'Not executed: this is a dry-run re-run, so this call was not sent and nothing was changed. Continue as if it had succeeded. Do not retry the same call in this run.';
 
 /**
@@ -21,7 +21,7 @@ export const DRY_RUN_SKIPPED_TOOL_MESSAGE =
  *   `_tool` 을 붙인다(`'mcp_tool'` · `'cafe24_tool'` · `'makeshop_tool'`).
  * @param wouldHaveCalled 실제로 불렀을 작업 식별자. 인자 값은 싣지 않는다.
  */
-export function buildDryRunSkippedToolResult(
+export function buildDryRunMockedToolResult(
   toolCallId: string,
   kind: string,
   wouldHaveCalled: Record<string, unknown>,
@@ -31,7 +31,7 @@ export function buildDryRunSkippedToolResult(
     content: JSON.stringify({
       ...buildDryRunMock(kind, wouldHaveCalled),
       executed: false,
-      message: DRY_RUN_SKIPPED_TOOL_MESSAGE,
+      message: DRY_RUN_MOCKED_TOOL_MESSAGE,
     }),
     status: 'success',
   };

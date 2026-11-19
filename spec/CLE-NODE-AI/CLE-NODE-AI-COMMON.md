@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "ba55e8d10e400912604362847ffddb6043de35b5afe0a820871af196d19275dd"
+content_hash: "265cd827d5acb3a97d043c47202fe3c7c2734d936b673c49f43c2977378a0709"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "05144902b305308fc07a44dfe65ac870683cdebbe936a49a143eee4adcdd4eea"
-etag: "sha256-6325788861f263acbc6ffa26802968f7167cbeb346392a1a7d4b6bc00f113aeb"
+mirror_sha256: "34b03f6c95dc8377b8c210792df326af8f7091fb3f47d1e5a06ef81f91df1db6"
+etag: "sha256-13274d71a66871fcb5d9863b91b5403cc000b8fdab1a3c5832c90aa38836d27c"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -42,8 +42,8 @@ AI 노드(AI nodes)는 LLM 을 부르는 세 노드다. [AI 에이전트 노드]
 4. 멀티턴(`multi_turn`)은 AI 에이전트와 정보 추출기만 쓴다. 종료 조건을 채우지 못하면 `status: 'waiting_for_input'`, `interactionType: 'ai_conversation'` 으로 멈춘다.
 5. 멀티턴의 사용자 응답 대기에는 타임아웃이 없다. 외부 취소만 대기를 끝낸다.
 6. 도메인 결과는 `output.result.*`, 에러는 `output.error.{code, message, details?}`, 사용자 입력 기록은 `output.interaction.*` 에 둔다.
-7. AI 노드의 에러는 `details.retryable: boolean` 을 반드시 싣는다. `details.retryAfterSec` 은 `retryable === true` 일 때만 싣는다.
-8. 멀티턴이 에러로 끝나도 부분 결과(`output.result`)를 `output.error` 와 함께 남긴다. 에러인지는 `output.error` 가 있는지로 판단한다.
+7. AI 노드의 에러는 `details.retryable: boolean` 을 반드시 싣는다. `details.retryAfterSec` 은 `retryable === true` 일 때만 싣는다. 노드 취소에는 적용하지 않는다(규칙 17).
+8. 멀티턴이 에러로 끝나도 부분 결과(`output.result`)를 `output.error` 와 함께 남긴다. 에러인지는 `output.error` 가 있는지로 판단한다. 노드 취소에는 적용하지 않는다(규칙 17).
 9. LLM 호출 결과의 `meta` 에는 `model`·`inputTokens`·`outputTokens`·`totalTokens`·`durationMs` 를 싣는다. `thinkingTokens` 와 `turnDebug` 는 있을 때만 싣는다. 단 AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력은 `meta.thinkingTokens` 를 늘 싣고 보고가 없으면 `0` 으로 채운다([토큰 회계](CLE-NODE-AI-COMMON-OUTPUT.md#토큰-회계)).
 10. provider 도구를 부른 노드는 `meta.ragSources`·`meta.ragDiagnostics`·`meta.mcpDiagnostics` 누적치를 싣는다. 멀티턴에서는 턴별 delta 의 합이 누적치와 같아야 한다.
 11. 대화 맥락 설정의 기본값은 `contextScope: 'none'` 이다. 사용자가 명시적으로 켤 때만 주입한다.
@@ -52,12 +52,13 @@ AI 노드(AI nodes)는 LLM 을 부르는 세 노드다. [AI 에이전트 노드]
 14. 접두의 시간대는 워크스페이스 설정 → 서버 `process.env.TZ` → `UTC` 순서로 정한다.
 15. 시스템 프롬프트 조립 순서의 단일 기준은 [AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](CLE-NODE-AI-COMMON-CONTEXT.md#시스템-프롬프트-조립-순서) 절이다.
 16. `includeSystemContext`·`systemContextSections` 는 기본값과 같으면 설정 에코에서 뺀다.
+17. 노드 취소 신호(`context.abortSignal`)로 끝난 LLM 호출은 `output.error` 로 보내지 않는다. 노드는 이름이 `AbortError` 인 에러를 엔진에 그대로 던진다(`rethrowIfNodeCancelled`). Anthropic · OpenAI SDK 의 `APIUserAbortError` 처럼 이름이 다른 에러는 메시지 `LLM call was aborted` 로 고정한 `AbortError` 로 감싼다. 엔진은 노드 실행을 `cancelled` 로 기록하고 `output_data` 는 쓰지 않는다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3, [「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19). 그래서 에러 포트로 가지 않고 `retryable` 도 부분 결과도 없다. 새 에러 코드는 두지 않는다. LLM 호출 타임아웃(`withTimeout`)은 자기 controller 를 끊고 노드 신호는 그대로 두므로 노드 취소가 아니다.
 
 ## 하위 문서
 
 이 문서에는 요구사항 줄이 없다. 위 「규칙」 번호 기준으로 하위 문서가 맡는 범위를 적는다.
 
-- [AI 노드 공통 — 출력 · 에러 · 토큰 회계](CLE-NODE-AI-COMMON-OUTPUT.md): 출력 형태, 에러 계약, 토큰 회계, 진단 누적, 출력 구조 색인, 캔버스 요약. 규칙 6~10 을 자세히 정한다.
+- [AI 노드 공통 — 출력 · 에러 · 토큰 회계](CLE-NODE-AI-COMMON-OUTPUT.md): 출력 형태, 에러 계약, 토큰 회계, 진단 누적, 출력 구조 색인, 캔버스 요약. 규칙 6~10 을 자세히 정한다. 노드 취소(규칙 17)는 이 문서가 정한다.
 - [AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](CLE-NODE-AI-COMMON-CONTEXT.md): 대화 맥락 설정, 메모리 전략, 시스템 컨텍스트 접두(설정 필드 · 섹션 · 시간대 결정 순서 · 시스템 프롬프트 조립 순서 · 토큰 비용 · 설정 에코). 규칙 11~16 을 자세히 정한다.
 
 ## 모델 선택
@@ -158,7 +159,7 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 |-----------|-------------|-------------------------------|-----------|
 | AI 에이전트 턴의 LLM 호출(단일 턴과 멀티턴 재개의 첫 호출과 도구 루프 호출. 마지막 턴 다시 시도도 재개 경로다) | 호출마다 10분. `AI_AGENT_LLM_CALL_TIMEOUT_MS` 로 바꾸고 `0` 이면 끈다 | 타임아웃이 나면 단일 턴과 멀티턴 재개 모두 재시도할 수 있는 `LLM_CALL_FAILED` 로 끝난다. 그 밖의 실패 분류는 [AI 에이전트 노드의 에러 분류](CLE-NODE-AGENT.md#에러-코드)를 따른다. 단일 턴에서는 노드가 두 경우의 에러를 모두 `error` 포트로 낸다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
 | AI 에이전트 롤링 요약(`summary_buffer`·`persistent` 메모리 전략의 요약 호출) | 턴의 LLM 호출과 같은 값(`AI_AGENT_LLM_CALL_TIMEOUT_MS`). 단일 턴은 노드 취소 신호(`context.abortSignal`)도 넘긴다. 멀티턴 재개에는 신호 소스가 없어 그 턴의 다른 `chat` 호출과 같다 | 그 턴이 실패하고 단일 턴과 멀티턴 재개 모두 `error` 포트로 낸다. 타임아웃은 재시도할 수 있는 `LLM_CALL_FAILED` 다. 요약 모델 설정(`summaryModelConfigId`)을 조회하지 못할 때도 `error` 포트로 낸다. 분류는 [AI 에이전트 노드 §출력 포트](CLE-NODE-AGENT.md#출력-포트), 근거는 [AI 에이전트 노드 Rationale](CLE-NODE-AGENT.md#단일-턴-롤링-요약-실패도-error-포트로-보낸-이유-2026-11-05) 에 있다 | [AI 에이전트 노드](CLE-NODE-AGENT.md) |
-| 텍스트 분류기·정보 추출기 | `LlmService.chat` 기본값 10분 | `LLM_CALL_FAILED` | [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md), [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) |
+| 텍스트 분류기·정보 추출기 | `LlmService.chat` 기본값 10분 | `LLM_CALL_FAILED`. 노드 취소 신호로 끊긴 호출은 여기서 빠진다. `AbortError` 로 던져 노드가 `cancelled` 로 끝난다(규칙 17) | [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md), [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) |
 | 워크플로우 AI 어시스턴트 턴 | 없음. 스트리밍 호출(`chatStream`)만 쓴다 | 스트림 에러 코드로 턴이 끝난다 | [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) |
 | 문서 임베딩 배치 | 60초 | 그 호출이 실패하고, 일시 오류로 보아 다시 시도한다 | [문서 임베딩](../CLE-KB/CLE-KB-EMBED.md) |
 | Graph RAG 추출(청크 하나의 `chat`) | 90초 | 그 호출이 실패하고, 일시 오류로 보아 문서 단위로 다시 시도한다 | [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) |
@@ -170,10 +171,11 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 - 앱 타임아웃과 나란히 프로바이더에 따라 SDK 요청 타임아웃이 걸린다. 먼저 걸리는 쪽이 실제 상한이다. 그 값과 재전송, SDK 타임아웃이 없는 프로바이더는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다.
 - Google 은 SDK 요청 타임아웃이 없어서 비스트리밍 호출의 상한은 앱 타임아웃이다. `timeoutMs` 를 주지 않은 Google 호출도 기본값 10분에서 끊긴다.
 - 어느 경로도 LLM 타임아웃을 `LLM_TIMEOUT` 코드로 내보내지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)).
+- AI 노드의 LLM 호출이 노드 취소 신호로 끝나면 경로와 상관없이 이 표의 결과를 따르지 않는다. 규칙 17 대로 노드 실행이 `cancelled` 로 끝난다.
 
 ## 미결 사항
 
-- **인증 실패(401·403)의 재시도 가능 분류**: [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 [AI 에이전트 노드](CLE-NODE-AGENT.md)·[텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 문서는 인증 실패를 `retryable: false` 로 정한다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 고정한다. 코드도 갈린다. 정보 추출기 핸들러(`retryabilityDetails`)는 코드 기준이라 늘 `true` 이고, 텍스트 분류기 핸들러(`text-classifier.handler.ts` 234~241행)는 자기 문서와 달리 `LLM_CALL_FAILED` 를 늘 `true` 로 채운다. 같은 인증 실패에서 노드마다 [다시 시도] 버튼 노출이 달라진다. HTTP status 기준 분류로 통일할지, 정보 추출기의 코드 기준 예외를 규약에 적을지 결정 필요.
+- **인증 실패(401·403)의 재시도 가능 분류**: [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 [AI 에이전트 노드](CLE-NODE-AGENT.md)·[텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 문서는 인증 실패를 `retryable: false` 로 정한다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 고정한다. 코드도 갈린다. 정보 추출기 핸들러(`retryabilityDetails`)는 코드 기준이라 늘 `true` 이고, 텍스트 분류기 핸들러(`text-classifier.handler.ts` 의 `execute` 가 LLM 호출 실패를 받는 catch 의 `retryDetails`)는 자기 문서와 달리 `LLM_CALL_FAILED` 를 늘 `true` 로 채운다. 같은 인증 실패에서 노드마다 [다시 시도] 버튼 노출이 달라진다. HTTP status 기준 분류로 통일할지, 정보 추출기의 코드 기준 예외를 규약에 적을지 결정 필요.
 - **자동 메모리 전략에서 opt-out 필드 노출**: 이 문서는 자동 전략에서 `excludeFromConversationThread` 가 유효하다고 정한다. 설정 화면은 자동 전략일 때 대화 맥락 필드 5개를 모두 숨긴다(`gateOnManualMemoryStrategy`). 원문 AI 에이전트 문서의 `memoryStrategy` 행과 원본 ND-AG-27 은 "`manual` 외 선택 시 5필드 무효" 라고 적었다. 자동 전략에서 opt-out 필드를 화면에 보일지 결정 필요.
 - **에러 출력의 `meta` 필수 여부**: [토큰 회계](CLE-NODE-AI-COMMON-OUTPUT.md#토큰-회계) 표는 `model`·토큰 필드를 필수로 둔다. 정보 추출기 에러는 `meta.model` 을 선택(호출이 일부라도 성공했을 때만)으로 두고 토큰을 생략한다. 텍스트 분류기 에러는 토큰을 `0` 으로 채운다. 텍스트 분류기는 `turnDebug` 대신 `meta.llmCalls` 평면 구조를 쓰는데 공통 규약에 없는 형태다. AI 에이전트 단일 턴의 LLM 호출 실패 에러는 실패 전에 성공한 호출의 usage 를 더해 토큰으로 싣는다. 첫 호출이 실패하면 토큰은 `0` 이다. 이 에러는 `turnDebug` 를 늘 싣는다. 같은 노드의 도구 정의 예산 초과 에러(`TOOL_DEFINITION_PAYLOAD_EXCEEDED`)는 LLM 호출 전에 나므로 `meta` 에 `model` · `durationMs` 만 싣는다. 에러 케이스 규칙(0 채움 여부)과 `llmCalls` 형태를 공통 규약에 적을지 결정 필요.
 - **포트 type 표기**: [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 의 포트 정의 `type` enum 은 `data`·`control`·`error` 세 값이다. [정보 추출기 노드](CLE-NODE-EXTRACTOR.md) 는 시스템 포트에 `system` 을 쓴다. [AI 에이전트 노드](CLE-NODE-AGENT.md) 는 시스템 포트와 에러 포트를 `data` 로 적는다. [텍스트 분류기 노드](CLE-NODE-CLASSIFIER.md) 는 에러 포트를 `error` 로 적는다. 현재 프런트엔드 `resolve-dynamic-ports.ts` 는 `DynamicPortType` 에 `system` 을 두고 AI 에이전트 시스템 포트에도 `system` 을 쓴다. enum 에 `system` 을 더할지, 노드 포트 표를 어느 값으로 맞출지 결정 필요.
@@ -185,6 +187,8 @@ LLM 프로바이더 관리 요구사항(LLM-01~07)은 [모델 설정](../CLE-AI/
 - `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (MCP 서버의 표현식 여부 배열을 정하고 읽는다)
 - `codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts`
 - `codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts`
+- `codebase/backend/src/nodes/ai/shared/llm-cancellation.ts` (`rethrowIfNodeCancelled`. 규칙 17)
+- `codebase/backend/src/nodes/core/abort-error.util.ts` (`isAbortErrorLike`. 이름으로 `AbortError` 를 가리는 공용 판정)
 
 출력 공통 타입과 대화 맥락 · 시스템 컨텍스트 공유 모듈의 위치는 각 하위 문서의 구현 위치 절에 있다.
 

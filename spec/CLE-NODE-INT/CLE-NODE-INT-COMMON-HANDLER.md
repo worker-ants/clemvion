@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-HANDLER"
 title: "통합 노드 공통 — 핸들러 실행 계약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "53b0006ac925640e37127ab6d2c1c1410229a6ade994ab908a241159f1317234"
+content_hash: "492f6f36be34020d2258040fee4a7c66db9d3d3e41d0593b8f94ff7778af8cfb"
 read_as: "approved_fallback"
-task: "CLE-T-BDPE71"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "f3b7e08afef072cc4bc8c4bdec93273da0088c7a70c6d933b1f07f8d95d3f26a"
-etag: "sha256-037ca202a003fc2f9886b38c5b03e5f2f43644485420e08f27e2b44b2eca5e77"
+mirror_sha256: "5432b6f71a11dc42ac0b520c175484dc541366e02e1b4033ef25a422b8d9e84d"
+etag: "sha256-968324d324d5d8ca9653fe6878cb791eb0e28d11216949ef21ae6565738d8432"
 ---
 ## 개요
 
@@ -33,7 +33,7 @@ etag: "sha256-037ca202a003fc2f9886b38c5b03e5f2f43644485420e08f27e2b44b2eca5e77"
 | 3. 유형·상태 검증 | `serviceType` 이 노드 기대값과 같은지, `status === 'connected'` 인지 확인한다 |
 | 4. 자격 증명 충족 검증 | 서비스별 필수 필드가 빠지면 `INTEGRATION_INCOMPLETE` |
 | 5. 외부 호출 | 노드마다 정해진 클라이언트로 부른다. HTTP Request 는 `fetch`, Database Query 는 DB 드라이버(`pg`·`mysql2`), Send Email 은 SMTP 라이브러리(`nodemailer`), Cafe24·MakeShop 은 서비스별 API 클라이언트(`Cafe24ApiClient`·`MakeshopApiClient`)를 쓴다 |
-| 6. 활동 로그 기록 | 통합을 얻은 뒤에는 성공·실패와 관계없이 `IntegrationsService.logUsage` 에 얻은 통합과 `{nodeExecutionId, workflowId, status, durationMs, error?, api?}` 를 넘긴다. 1·2단계에서 끝난 실패(조회 거절, 조회 중 일시 에러, 자격 증명 읽기 실패 포함)는 얻은 통합이 없어 기록하지 않는다. 전체 목록은 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 에 있다 |
+| 6. 활동 로그 기록 | 통합을 얻은 뒤에는 성공·실패와 관계없이 `IntegrationsService.logUsage` 에 얻은 통합과 `{nodeExecutionId, workflowId, status, durationMs, error?, api?}` 를 넘긴다. 노드 취소로 끝난 호출은 성공도 실패도 아니라서 기록하지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md) 규칙 7). 1·2단계에서 끝난 실패(조회 거절, 조회 중 일시 에러, 자격 증명 읽기 실패 포함)는 얻은 통합이 없어 기록하지 않는다. 전체 목록은 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 에 있다 |
 
 6단계의 `api` 식별 정보(`{ label?, method?, path? }`)는 동반이 의무다. 이 값은 `integration_usage_log.api_label`·`api_method`·`api_path`(`varchar(128)`·`varchar(8)`·`varchar(256)`)에 저장된다. 통합별로 무엇을 채우는지는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](../CLE-INT/CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 이 정하고, 각 노드 문서는 자기 노드의 값만 적는다. 값이 길면 백엔드(`logUsage` 내부)가 컬럼 한도로 자르고 끝에 `…` 를 붙인다(`clampMessage` 패턴). 호출하는 쪽이 직접 자를 필요는 없다.
 
@@ -116,7 +116,7 @@ interface IntegrationUsageParams {
 
 - `acquireIntegration` 은 1·2단계를 맡는다. `context.nodeId` 와 `context.rawConfig` 로 `use` 인자를 만들어 `getForExecution` 을 부르고 얻은 통합을 돌려준다. 실패하면 예외를 던진다. 워크스페이스 누락이 지금 일반 `Error` 로 나가는 것은 아래 "서비스 미주입과 워크스페이스 누락" 에 있다.
 - `assertUsable` 은 3단계를 맡는다. 실패하면 `IntegrationError(code, message)` 를 던진다. `code` 는 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 의 값이다. 핸들러는 이 예외를 잡아 에러 포트로 내보낸다.
-- `logUsage` 는 `acquireIntegration` 이 돌려준 통합을 받는다. 핸들러는 얻은 통합을 지역 변수(`integration: Integration | undefined`)로 들고 있다가 3단계 이후에 실패해도 그 통합으로 활동 로그를 남긴다. 바깥 catch 도 통합을 얻었을 때만 기록한다. 통합을 얻기 전에 끝난 실패는 넘길 통합이 없어 기록하지 않는다.
+- `logUsage` 는 `acquireIntegration` 이 돌려준 통합을 받는다. 핸들러는 얻은 통합을 지역 변수(`integration: Integration | undefined`)로 들고 있다가 3단계 이후에 실패해도 그 통합으로 활동 로그를 남긴다. 바깥 catch 도 통합을 얻었을 때만 기록한다. 통합을 얻기 전에 끝난 실패는 넘길 통합이 없어 기록하지 않는다. 노드 취소로 생긴 `AbortError` 는 실패가 아니라서 기록하지 않고 다시 던진다.
 - `IntegrationError` 에는 코드와 메시지만 싣는다. 통합을 싣지 않는다. 통합의 `credentials` 는 복호화된 평문이라 예외에 실으면 예외를 잡거나 로그로 남기는 모든 곳으로 퍼진다.
 
 ### 호출 순서
@@ -143,6 +143,7 @@ sequenceDiagram
   E->>E: 노드 실행 상태 COMPLETED 또는 FAILED
 ```
 
+- 노드 취소로 외부 호출이 끊기면 위 그림의 뒷부분이 달라진다. 핸들러는 `logUsage` 를 부르지 않고 노드 출력도 돌려주지 않는다. `AbortError` 를 다시 던지고 엔진이 노드 실행을 `cancelled` 로 기록한다([통합 노드 공통](CLE-NODE-INT-COMMON.md) 규칙 6 · 7).
 - `context.nodeExecutionId` 는 엔진이 노드 실행마다 한 번 만드는 실행 컨텍스트 복사본에 담기므로 다른 노드 실행이나 병렬 분기의 값과 섞이지 않는다. 노드 재시도 정책이면 재시도도 같은 복사본으로 핸들러를 부른다([노드 핸들러 계약 「핸들러용 실행 컨텍스트는 노드 실행마다 하나다」](../CLE-EXEC/CLE-EXEC-HANDLER.md#핸들러용-실행-컨텍스트는-노드-실행마다-하나다)). 개인 통합 판정에 쓰는 `context.nodeId` 도 같은 곳에 담긴다.
 - 멀티턴 AI 노드의 재개·재시도 턴은 노드를 새로 dispatch 하지 않고 `resumeState` 로 다시 들어온다. 이때 `context.nodeExecutionId`·`workflowId`·`nodeId` 는 새로 배정되지 않는다. `buildRetryReentryState` 가 입력 대기·재시도 중인 노드 실행 행과 그 노드 행에서 다시 유도한다. 이 유도가 빠지면 활동 로그의 귀속이 누락된다. 불변식은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 «사용량 귀속 불변식» 이 정하고, 귀속이 빠졌던 회귀의 경위는 같은 문서 Rationale 「재개·재시도 턴의 식별 필드를 다시 넣는다」 에 있다.
 

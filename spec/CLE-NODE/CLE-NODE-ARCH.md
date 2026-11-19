@@ -2,19 +2,19 @@
 id: "CLE-NODE-ARCH"
 title: "노드 시스템 구조와 카탈로그"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "146b1ac2a1801f8c89de1cca9a2fdf424006bb66570609db24bb376aacc08c50"
+content_hash: "0de792ef374a15715cd860be72c9efac67966cfcf242a47ec6d64f18bec7da27"
 read_as: "approved_fallback"
-task: "CLE-T-D6C9HJ"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/4-nodes/0-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0bb0e2041ab226da059da23e534c0fdee1c768288f9f5b4c085e34f1be705749"
-etag: "sha256-d9241c75fe505dcb3db637dce28b95efdf4a893005fab9cabf596bbd4cffcaee"
+mirror_sha256: "356e329edf9b374f5f12a01712fd7fd0e59f87e5d1f1892983aa9ea7eb238730"
+etag: "sha256-80d8c9a6752c12b7ce4984044f420b784fef0130bcf022b6ea49da8b34f871ba"
 ---
 > 구현 상태: 부분 구현(플러그인·마켓플레이스와 파일 시스템 샌드박스 정책은 미구현) · 원문: `spec/4-nodes/0-overview.md`, `spec/4-nodes/_product-overview.md` (§1, §2, §10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,7 +67,7 @@ etag: "sha256-d9241c75fe505dcb3db637dce28b95efdf4a893005fab9cabf596bbd4cffcaee"
 | `zod-validator.ts` | Zod 스키마를 `ValidationResult` 로 바꾸는 어댑터 |
 | `index.ts` | core 공개 API 재수출 |
 
-`core/` 에는 이 밖에도 `categories.ts`(카테고리 메타데이터 단일 기준, [카테고리](#카테고리)), `port-id.util.ts`(동적 포트 slug 검증·해석, [포트 정의 (PortDef)](#포트-정의-portdef)), `button-slug.util.ts`, `node-type-metadata.ts`, `node-types.constants.ts`, `metadata-validation.ts`, `truncate-output.util.ts`, `condition-evaluator.util.ts`, `dry-run.util.ts`, `error-codes.ts`, `graph-warning-rule.ts` 가 있다.
+`core/` 에는 이 밖에도 `categories.ts`(카테고리 메타데이터 단일 기준, [카테고리](#카테고리)), `port-id.util.ts`(동적 포트 slug 검증·해석, [포트 정의 (PortDef)](#포트-정의-portdef)), `button-slug.util.ts`, `node-type-metadata.ts`, `node-types.constants.ts`, `metadata-validation.ts`, `truncate-output.util.ts`, `condition-evaluator.util.ts`, `dry-run.util.ts`, `error-codes.ts`, `graph-warning-rule.ts`, `abort-error.util.ts` 가 있다. `abort-error.util.ts` 는 이름으로 `AbortError` 를 가리는 노드 공용 판정 `isAbortErrorLike` 를 둔다. 통합 노드와 AI 노드가 함께 쓰는 판정이라 아래 규칙 4 에 따라 카테고리 폴더가 아니라 `core/` 에 둔다([노드 취소 — 노드별 적용과 구현 현황](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#구현-위치)).
 
 노드 한 개의 폴더(`nodes/<category>/<type>/`)는 다음 파일로 이뤄진다.
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-FLOW"
 title: "노드 출력 규약 — 포트 · 흐름 상태 · 에러"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "20ccd66acd99d4622f3ed860ef769251b47a157de1a7b551c1fc0e2ee0313b71"
-read_as: "approved"
-task: null
+content_hash: "cb7b668121a6fd804c4be5f68ac42930ea9568048ace437dc2966621521bf31a"
+read_as: "approved_fallback"
+task: "CLE-T-A4RCZ3"
 source_paths: []
-mirror_sha256: "8c38e17720e1257410a5c5b5325e3c6c474ebc606a03db5be8b74d620e6cdd42"
-etag: "sha256-ebe0a1cf59b42ce8085b1546010abe31bb935f5612d534b567716d526c26d60a"
+mirror_sha256: "97d7cf5ca43907048c0781efc4d5b31bcd40110a456d9df522560805458e6d48"
+etag: "sha256-3bbb0410359d2cd5439c413f1b6cf9d9ce092042e7ba7b1833f6416309947574"
 ---
 ## 개요
 
@@ -29,6 +29,7 @@ etag: "sha256-ebe0a1cf59b42ce8085b1546010abe31bb935f5612d534b567716d526c26d60a"
 | 사전 검증 에러(pre-flight error): 설정 오류, 스키마 검증 실패 등 | `throw`. 엔진이 노드 실행을 실패로 표시한다. |
 | 런타임 에러(runtime error): 외부 API 실패, 쿼리 실패, 사설망 차단(SSRF), 통합 자격 증명 해석 실패 등 | `port: 'error'` 와 `output.error` |
 | 예상 가능한 비즈니스 실패: 매칭 없음, 빈 결과 등 | 정상 `port` 를 유지하고 결과가 비었음을 드러낸다. |
+| 노드 취소: 노드 취소 신호(`context.abortSignal`)로 끝난 외부 I/O | `AbortError` 를 그대로 던진다. 엔진이 노드 실행을 `cancelled` 로 기록하고 `output_data` 는 쓰지 않는다. 에러 포트로 가지 않는다. 통합 노드와 AI 노드가 같다([노드 에러 처리 정책](CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지), [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3 · 19). |
 
 통합 노드(HTTP Request·Database Query·Send Email)의 사설망 차단(`HTTP_BLOCKED`)과 자격 증명 해석 실패(`INTEGRATION_INCOMPLETE` 등)는 사전 검증 throw 가 아니라 런타임 에러 포트로 보낸다([Rationale](#사설망-차단과-자격-증명-해석-실패를-에러-포트로-보낸다-2026-05-17)). 설정 형식 자체의 오류(`handler.validate` 실패)만 throw 로 남는다. 자세한 규칙은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)에 있다.
 
@@ -38,7 +39,7 @@ etag: "sha256-ebe0a1cf59b42ce8085b1546010abe31bb935f5612d534b567716d526c26d60a"
 {
   "output": {
     "error": {
-      "code": "HTTP_5XX" | "DB_QUERY_FAILED" | "LLM_TIMEOUT" | ...,
+      "code": "HTTP_5XX" | "DB_QUERY_FAILED" | "LLM_CALL_FAILED" | ...,
       "message": "사람이 읽는 메시지",
       "details": { /* 3.2.1 공통 표준 필드 + 3.2.2 노드별 필드 */ }
     }
@@ -47,7 +48,7 @@ etag: "sha256-ebe0a1cf59b42ce8085b1546010abe31bb935f5612d534b567716d526c26d60a"
 }
 ```
 
-1. `code` 는 `UPPER_SNAKE_CASE` 로 쓴다. 노드 취소로 끝난 경우의 `AbortError` 는 웹 표준 이름을 그대로 쓰는 예외다. 예외 목록과 근거는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md), 취소 규약은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)에 있다.
+1. `code` 는 `UPPER_SNAKE_CASE` 로 쓴다. 노드 취소는 `output.error` 를 쓰지 않는다. 엔진이 노드 실행의 `error.code` 에 `AbortError` 를 남기고, 이 값은 웹 표준 이름을 그대로 쓰는 예외다. 예외 목록과 근거는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md), 취소 규약은 [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)에 있다.
 2. `message` 는 영문 원문이다. 로그와 디버깅의 기준이다. 사용자에게 보이는 곳의 한국어 표시는 프론트엔드가 `code` 를 키로 `ERROR_KO` 매핑을 적용한다. 코드 기반 현지화 정책과 적용 범위는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md)의 Principle 3-C 가 정한다. `ErrorCode` enum 전체에 강제하지 않고, 매핑이 없으면 영문을 그대로 보인다.
 3. `details` 는 두 층이다. 3.2.1 공통 표준 필드(AI 노드만 필수)와 3.2.2 노드별 선택 스키마다.
 
@@ -55,10 +56,10 @@ etag: "sha256-ebe0a1cf59b42ce8085b1546010abe31bb935f5612d534b567716d526c26d60a"
 
 | 필드 | 타입 | 노드별 의무 | 뜻 |
 | --- | --- | --- | --- |
-| `retryable` | `boolean` | AI 노드(`ai_agent`, `text_classifier`, `information_extractor`)는 필수. 다른 노드는 선택(점진 채택). | 이 에러가 일시적이라 같은 호출을 다시 하면 성공할 수 있는지. `true` 는 HTTP 429, 5xx, 네트워크 타임아웃 같은 일시 장애다. `false` 는 인증 실패, 스키마 치명 오류, 사용자 취소 같은 근본 원인이다. AI 노드마다 분류가 갈린다. [미결 사항](#미결-사항) 참조. |
+| `retryable` | `boolean` | AI 노드(`ai_agent`, `text_classifier`, `information_extractor`)는 필수. 다른 노드는 선택(점진 채택). | 이 에러가 일시적이라 같은 호출을 다시 하면 성공할 수 있는지. `true` 는 HTTP 429, 5xx, 네트워크 타임아웃 같은 일시 장애다. `false` 는 인증 실패, 스키마 치명 오류 같은 근본 원인이다. AI 노드마다 분류가 갈린다. [미결 사항](#미결-사항) 참조. |
 | `retryAfterSec` | `number` | 선택(AI 노드와 그 밖의 노드 모두) | 프로바이더가 `Retry-After` 헤더나 같은 신호를 준 경우의 권장 대기 시간(초). `retryable === true` 일 때만 채울 수 있다. `false` 와 함께 채우면 규약 위반이다. 이 불변식의 기준은 이 절이다. |
 
-`retryable=true` 인 노드는 화면에 인라인 `[다시 시도]` 버튼과 `retryAfterSec` 카운트다운이 보인다. 예를 들어 AI 에이전트 멀티턴 대화 스레드의 `system_error` 항목이다([대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)). 버튼은 마지막 턴 재시도 상태(`_retryState`)가 있는 멀티턴 AI 에이전트에만 보인다. AI 에이전트 단일 턴은 LLM 호출 실패에도 `retryable` 을 채우지만 `_retryState` 를 남기지 않아 버튼이 보이지 않는다.
+`retryable=true` 인 에러에 화면이 인라인 `[다시 시도]` 버튼과 `retryAfterSec` 카운트다운을 보이는 조건은 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 의 「[다시 시도] 버튼 조건」 이 정한다. 버튼은 마지막 턴 재시도 상태(`_retryState`)가 있을 때만 보인다.
 
 ### 3.2.2 `details` 의 노드별 선택 스키마
 
@@ -67,8 +68,6 @@ etag: "sha256-ebe0a1cf59b42ce8085b1546010abe31bb935f5612d534b567716d526c26d60a"
 - AI 에이전트: `provider`, `statusCode` 등. LLM 에러 객체의 `details` 에 있을 때만 들어간다([AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md))
 - HTTP Request: `statusCode`·`statusText`·`url`·`method`. 응답이 없는 에러는 `url`·`method` 만([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#에러-코드))
 - Database Query: `driverCode`. 드라이버가 에러 코드를 줄 때만 들어간다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md))
-
-AI 노드가 아닌 노드에서 `retryable`·`retryAfterSec` 는 선택이다. 쓰는 경우 이 절의 뜻을 따른다.
 
 ### 3.3 에러 포트가 있는 노드
 
@@ -212,7 +211,7 @@ stateDiagram-v2
 
 ## 미결 사항
 
-- **AI 노드의 인증 실패 재시도 가능 분류(Principle 3.2.1)**: 이 규약과 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md), [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 문서는 인증 실패(401·403)를 `retryable: false` 로 정한다. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 문서는 `LLM_CALL_FAILED` 면 무조건 `true` 로 둔다. 현재 구현은 정보 추출기 핸들러가 코드 기반이라 항상 `true` 를 채우고, 텍스트 분류기 핸들러도 자기 문서와 달리 `LLM_CALL_FAILED` 를 항상 `true` 로 채운다. 같은 인증 실패에서 노드마다 `[다시 시도]` 버튼이 보이기도 하고 안 보이기도 한다. 또 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도를 지원하지 않아 `_retryState` 를 만들지 않는다. 화면이 노드 유형으로 버튼을 막지 않으면 버튼을 눌러도 `RETRY_STATE_NOT_FOUND` 가 난다. 결정 필요: HTTP 상태 기반 분류로 통일할지, 정보 추출기의 코드 기반 예외를 규약에 적을지, 재시도 버튼 노출 조건을 어디에 둘지.
+- **AI 노드의 인증 실패 재시도 가능 분류(Principle 3.2.1)**: 인증 실패(401·403)의 `retryable` 분류가 AI 노드마다 갈린다. 문서와 코드의 차이는 [AI 노드 공통 「미결 사항」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#미결-사항) 에 있다. 이 규약에 걸린 문제가 하나 더 있다. 정보 추출기는 멀티턴 실패를 `retryable=true` 로 내지만 마지막 턴 재시도를 지원하지 않아 `_retryState` 를 만들지 않는다. 화면이 노드 유형으로 버튼을 막지 않으면 버튼을 눌러도 `RETRY_STATE_NOT_FOUND` 가 난다. 결정 필요: HTTP 상태 기반 분류로 통일할지, 정보 추출기의 코드 기반 예외를 규약에 적을지, 재시도 버튼 노출 조건을 어디에 둘지.
 - **시스템 포트 예약어 집합과 거부 계층(Principle 6)**: 이 규약은 예약어 9개를 두지만 거부 계층은 정하지 않았다. [Switch 노드](../CLE-NODE-LOGIC/CLE-NODE-SWITCH.md)는 이 원칙을 인용하면서 `default`, `out`, `error` 3개만 백엔드 `validateSwitchConfig` 에서 거부한다. [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)는 9개를 백엔드 스키마(`RESERVED_PORT_WORDS`)에서 거부한다. [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 조건 검증은 `out`, `in`, `error`, `user_ended`, `max_turns` 를 막는다. 케이스 ID `done` 의 허용 여부가 노드마다 다르다. Presentation 노드는 `validateConfig` 가 부르는 `validateButtons`(Carousel 항목 버튼은 `validateCarouselItemButtons`)가 버튼 id `error` 를 거부한다. `validateButtons`(`button.types.ts`)는 그 밖에 `__item_` 이 들어간 id 와 중복 id 만 거부해서 `out`·`continue` 같은 고정 포트 ID 는 아직 저장할 수 있다. `error` 는 2026-11-14 에 모든 노드에서 예약하기로 정했다(Principle 6 의 4번). 결정 필요: 나머지 예약어에 공통 상수 하나와 거부 계층을 정할지, 노드별 허용 범위를 적을지. 정해지면 Presentation 버튼 검증에도 적용한다. 워크플로우 저장 API · 가져오기에서도 포트 ID 를 검사할지(저장 시점 거부)도 함께 정한다.
 - **출력 포트가 둘인데 `port` 를 비우는 노드(Principle 5)**: `port: undefined` 는 출력이 하나인 노드용이고 여러 포트 동시 활성화는 `string[]` 로 나타낸다. [Filter 노드](../CLE-NODE-LOGIC/CLE-NODE-FILTER.md)는 출력이 둘(`match`, `unmatched`)인데 `port` 를 돌려주지 않고 두 포트를 모두 활성화한다. 결정 필요: "모든 출력 포트 활성화" 형태를 이 원칙에 더할지, Filter 가 `port: ['match', 'unmatched']` 를 돌려주게 할지.
 
@@ -230,7 +229,6 @@ stateDiagram-v2
 
 서술만 고쳤고 동작은 바뀌지 않는다.
 
-- 3.1 의 작업 레이블 표기를 지우고 해당 Rationale 절을 링크로 가리킨다. 한 작업 안에서 쓰던 레이블이라 다른 문서에서는 뜻을 알 수 없다.
 - 3.2.2 의 HTTP Request 예를 핸들러(`http-request.handler.ts`)가 싣는 필드에 맞췄다. 응답을 받은 에러는 `statusCode`·`statusText`·`url`·`method` 를 싣고 응답이 없는 에러는 `url`·`method` 만 싣는다. 옛 예에 있던 응답 헤더와 응답 본문은 `details` 가 아니라 `output.responseHeaders` 와 `output.response` 에 있다. 짝이 되는 개정은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#rationale) Rationale 의 2026-11-13 항목에 있다.
 - 3.2.2 의 Database Query 예를 핸들러(`database-query.handler.ts` 의 `mapDbError`)에 맞췄다. `details` 에는 드라이버가 준 에러 코드 `driverCode` 하나만 있다. 드라이버가 코드를 주지 않으면 `details` 를 싣지 않는다. 옛 예의 `pgErrorCode` · `query` 는 구현이 싣지 않는 필드였다.
 

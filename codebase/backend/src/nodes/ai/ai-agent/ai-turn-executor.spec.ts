@@ -1977,8 +1977,9 @@ describe('AiTurnExecutor', () => {
     });
   });
 
-  // 재실행 dry-run 임시 가드 — provider 는 ProviderExecCtx.dryRun 을 보고 MCP 도구
-  // 호출을 건너뛴다. 단일 턴 · 멀티턴 첫 턴 · resume 턴 모두 값이 전달돼야 한다.
+  // 재실행 dry-run 부수효과 판정(CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」) — provider 는
+  // ProviderExecCtx.dryRun 을 보고 부수효과가 있는 MCP 도구 호출을 모의 응답으로 대신한다.
+  // 단일 턴 · 멀티턴 첫 턴 · resume 턴 모두 값이 전달돼야 한다.
   describe('ProviderExecCtx.dryRun (re-run dry-run guard)', () => {
     const recordingProvider = () => {
       const execute = jest.fn(

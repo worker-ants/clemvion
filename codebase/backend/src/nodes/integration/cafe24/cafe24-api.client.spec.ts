@@ -49,6 +49,32 @@ function makeJsonResponse(
   });
 }
 
+/**
+ * A response whose body never arrives until `signal` aborts, then rejects the
+ * read with AbortError — what undici does when the request's controller fires
+ * mid-body. `onRead` runs once the client has started reading.
+ */
+function makeBodyPendingResponse(
+  signal: AbortSignal,
+  onRead?: () => void,
+  status = 200,
+): Response {
+  const res = new Response(null, { status });
+  Object.defineProperty(res, 'text', {
+    value: () =>
+      new Promise<string>((_resolve, reject) => {
+        const fail = () =>
+          reject(
+            Object.assign(new Error('body aborted'), { name: 'AbortError' }),
+          );
+        if (signal.aborted) return fail();
+        signal.addEventListener('abort', fail, { once: true });
+        onRead?.();
+      }),
+  });
+  return res;
+}
+
 // 테스트 전용 JWT 빌더는 `modules/integrations/__test-utils__/make-fake-jwt`
 // 의 공유 helper 사용. ai-review (2026-05-18) W2 조치로 중복 제거.
 
@@ -286,6 +312,288 @@ describe('Cafe24ApiClient', () => {
 
       const [, init] = fetchMock.mock.calls[0];
       expect((init.signal as AbortSignal).aborted).toBe(false);
+    });
+
+    // CLE-T-WMH3EK — the timer and the listener used to come off as soon as the
+    // headers arrived, and `safeReadJson` swallowed every body-read error, so a
+    // cancellation or a stalled body during the read went unnoticed.
+    describe('while the response body is being read', () => {
+      it('rethrows AbortError and does NOT count a network failure when the execution is cancelled mid-body', async () => {
+        const upstream = new AbortController();
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            makeBodyPendingResponse(init.signal as AbortSignal, () =>
+              upstream.abort(),
+            ),
+          ),
+        );
+
+        await expect(
+          client.call(makeIntegration(), {
+            method: 'GET',
+            path: 'products',
+            signal: upstream.signal,
+          }),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+        expect(repo.update).not.toHaveBeenCalled();
+      });
+
+      it('rethrows a mid-body cancellation on the 401/403 error-body read too', async () => {
+        const upstream = new AbortController();
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            makeBodyPendingResponse(
+              init.signal as AbortSignal,
+              () => upstream.abort(),
+              403,
+            ),
+          ),
+        );
+
+        await expect(
+          client.call(makeIntegration(), {
+            method: 'GET',
+            path: 'products',
+            signal: upstream.signal,
+          }),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+        // No auth demotion either: the cancelled call never judged the 403.
+        expect(repo.update).not.toHaveBeenCalled();
+      });
+
+      it('counts a network failure when the LOCAL timeout fires mid-body', async () => {
+        const upstream = new AbortController(); // never fires
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(makeBodyPendingResponse(init.signal as AbortSignal)),
+        );
+
+        await expect(
+          client.call(makeIntegration(), {
+            method: 'GET',
+            path: 'products',
+            signal: upstream.signal,
+            timeoutMs: 5,
+          }),
+        ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+        expect(repo.update).toHaveBeenCalledWith(
+          'int-cafe24-1',
+          expect.objectContaining({ consecutiveNetworkFailures: 1 }),
+        );
+      });
+
+      it('keeps the best-effort null body for a read failure that is not an abort', async () => {
+        // The boundary of the change: only aborts surface. A body that fails
+        // for any other reason resolves as before.
+        const upstream = new AbortController();
+        const res = new Response(null, { status: 200 });
+        Object.defineProperty(res, 'text', {
+          value: () => Promise.reject(new TypeError('terminated')),
+        });
+        fetchMock.mockResolvedValueOnce(res);
+
+        const result = await client.call(makeIntegration(), {
+          method: 'GET',
+          path: 'products',
+          signal: upstream.signal,
+        });
+        expect(result.body).toBeNull();
+      });
+
+      it('counts three consecutive mid-body local timeouts and demotes to error(network)', async () => {
+        // The counter must not be reset before the body is read. Resetting right
+        // after the headers made every stalled body start from 0 again, so the
+        // count never reached 3.
+        const integration = makeIntegration({ consecutiveNetworkFailures: 0 });
+        for (let i = 0; i < 3; i += 1) {
+          fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+            Promise.resolve(
+              makeBodyPendingResponse(init.signal as AbortSignal),
+            ),
+          );
+          await expect(
+            client.call(integration, {
+              method: 'GET',
+              path: 'products',
+              timeoutMs: 5,
+            }),
+          ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+        }
+        expect(integration.status).toBe('error');
+        expect(integration.statusReason).toBe('network');
+        expect(repo.update).toHaveBeenCalledWith(
+          'int-cafe24-1',
+          expect.objectContaining({
+            status: 'error',
+            statusReason: 'network',
+          }),
+        );
+      });
+
+      it('does not reset the counter when the body read times out', async () => {
+        const integration = makeIntegration({ consecutiveNetworkFailures: 1 });
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(makeBodyPendingResponse(init.signal as AbortSignal)),
+        );
+        await expect(
+          client.call(integration, {
+            method: 'GET',
+            path: 'products',
+            timeoutMs: 5,
+          }),
+        ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+        expect(repo.update).not.toHaveBeenCalledWith(
+          'int-cafe24-1',
+          expect.objectContaining({ consecutiveNetworkFailures: 0 }),
+        );
+        expect(integration.consecutiveNetworkFailures).toBe(2);
+      });
+    });
+
+    describe('counter reset per response branch', () => {
+      // `resetNetworkFailures` 는 응답 분기마다 따로 불린다. 한 줄이 빠져도 다른
+      // 분기 테스트는 통과하므로 분기마다 고정한다.
+      it('resets the counter on a 429 that exhausts the retries', async () => {
+        fetchMock.mockResolvedValue(makeJsonResponse({}, { status: 429 }));
+        const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+        await expect(
+          client.call(integration, { method: 'GET', path: 'orders' }),
+        ).rejects.toBeInstanceOf(Cafe24RateLimitedError);
+        expect(repo.update).toHaveBeenCalledWith('int-cafe24-1', {
+          consecutiveNetworkFailures: 0,
+        });
+        expect(integration.consecutiveNetworkFailures).toBe(0);
+      });
+
+      it('resets the counter after the 401/403 error body is read', async () => {
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse({ error: 'forbidden' }, { status: 403 }),
+        );
+        const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+        await expect(
+          client.call(integration, { method: 'GET', path: 'orders' }),
+        ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+        expect(repo.update).toHaveBeenCalledWith('int-cafe24-1', {
+          consecutiveNetworkFailures: 0,
+        });
+        expect(integration.consecutiveNetworkFailures).toBe(0);
+      });
+
+      it('counts, not resets, when the 403 error body read times out locally', async () => {
+        const integration = makeIntegration({ consecutiveNetworkFailures: 1 });
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            makeBodyPendingResponse(init.signal as AbortSignal, undefined, 403),
+          ),
+        );
+        await expect(
+          client.call(integration, {
+            method: 'GET',
+            path: 'orders',
+            timeoutMs: 5,
+          }),
+        ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+        expect(repo.update).not.toHaveBeenCalledWith(
+          'int-cafe24-1',
+          expect.objectContaining({ consecutiveNetworkFailures: 0 }),
+        );
+        expect(integration.consecutiveNetworkFailures).toBe(2);
+      });
+    });
+
+    describe('timer release before a retry', () => {
+      // `release()` runs before the 429 sleep and before the 401 refresh. If it
+      // did not, the first request's local timer would fire during the wait and
+      // abort a request that is already finished.
+      const waitMs = (ms: number) =>
+        new Promise<void>((r) => setTimeout(r, ms));
+
+      // 401 refresh 가 읽는 환경변수. 단언이 실패해도 afterEach 가 원래 값으로
+      // 되돌려 다른 테스트로 새지 않게 한다.
+      const savedEnv = {
+        id: process.env.CAFE24_CLIENT_ID,
+        secret: process.env.CAFE24_CLIENT_SECRET,
+      };
+      afterEach(() => {
+        const restore = (key: string, value: string | undefined) => {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        };
+        restore('CAFE24_CLIENT_ID', savedEnv.id);
+        restore('CAFE24_CLIENT_SECRET', savedEnv.secret);
+      });
+
+      it('clears the first request timer before the 429 sleep', async () => {
+        const seen: AbortSignal[] = [];
+        fetchMock
+          .mockImplementationOnce((_url: string, init: RequestInit) => {
+            seen.push(init.signal as AbortSignal);
+            return Promise.resolve(
+              makeJsonResponse(
+                {},
+                { status: 429, headers: { 'retry-after': '1' } },
+              ),
+            );
+          })
+          .mockImplementationOnce((_url: string, init: RequestInit) => {
+            seen.push(init.signal as AbortSignal);
+            return Promise.resolve(makeJsonResponse({ ok: true }));
+          });
+        sleepMock.mockImplementationOnce(() => waitMs(40));
+
+        await client.call(makeIntegration(), {
+          method: 'GET',
+          path: 'products',
+          timeoutMs: 10,
+        });
+
+        expect(seen).toHaveLength(2);
+        expect(seen[0].aborted).toBe(false);
+      });
+
+      it('clears the first request timer before the 401 refresh', async () => {
+        const integration = makeIntegration();
+        dataSource.transaction.mockImplementation(
+          async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+            const txRepo = {
+              findOne: jest.fn().mockResolvedValue(integration),
+              save: jest.fn().mockResolvedValue(undefined),
+            };
+            await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+          },
+        );
+        process.env.CAFE24_CLIENT_ID = 'fake-client-id-for-test';
+        process.env.CAFE24_CLIENT_SECRET = 'fake-client-secret-for-test';
+        const seen: AbortSignal[] = [];
+        fetchMock
+          .mockImplementationOnce((_url: string, init: RequestInit) => {
+            seen.push(init.signal as AbortSignal);
+            return Promise.resolve(
+              makeJsonResponse({ error: 'expired' }, { status: 401 }),
+            );
+          })
+          // refresh endpoint — slow enough for a leaked 10ms timer to fire.
+          .mockImplementationOnce(async () => {
+            await waitMs(40);
+            return makeJsonResponse({
+              access_token: 'fresh-access',
+              refresh_token: 'fresh-refresh',
+              expires_in: 3600,
+            });
+          })
+          .mockImplementationOnce((_url: string, init: RequestInit) => {
+            seen.push(init.signal as AbortSignal);
+            return Promise.resolve(makeJsonResponse({ ok: true }));
+          });
+
+        await client.call(integration, {
+          method: 'GET',
+          path: 'products',
+          timeoutMs: 10,
+        });
+
+        expect(seen).toHaveLength(2);
+        expect(seen[0].aborted).toBe(false);
+      });
     });
   });
 

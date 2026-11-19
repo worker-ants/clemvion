@@ -1,4 +1,4 @@
-import { isAbortErrorLike } from '../../nodes/integration/_base/abort-cascade.util';
+import { isAbortErrorLike } from '../../nodes/core/abort-error.util';
 import { isAbortError } from './execution-engine.service';
 
 // The integration nodes (HTTP Request · Cafe24 · MakeShop) and the engine each

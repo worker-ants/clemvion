@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON-OUTPUT"
 title: "AI 노드 공통 — 출력 · 에러 · 토큰 회계"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AI-COMMON"]
 area: "CLE-NODE-AI"
-content_hash: "5f644d111fdb8d6bf776ea588456b17e6e3d2e7ea34ae848c19f015ba223f8f1"
+content_hash: "6f8d914b83e308310858e0e8baedbc4f807b021b6ebae1b57d4334e96c648475"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "b3da731660d9358c9e9c5f9b2097b0d8826fbd99e63a01c0f0f4744c12c872d9"
-etag: "sha256-a77f687ef062d426771277713a6db3e9a92b4d62c07c4fdd0d8ac891e3ced643"
+mirror_sha256: "a3297a1435db9a29369574080888f5229a984af2fea4e39974f8b26195dfe7b6"
+etag: "sha256-c09a023503f1d585db78b8a9a9ca457b9975e7797d26835a331ca6534ff6e3ba"
 ---
 ## 개요
 
@@ -37,6 +37,7 @@ AI 노드는 `output.result.*`·`output.error.*`·`output.interaction.*` 세 묶
 - AI 노드의 `output.error.details` 에는 재시도 가능 여부(`retryable: boolean`)가 반드시 있다. `retryAfterSec` 은 `retryable === true` 일 때만 싣는다. 이 필드의 의미와 분류 원칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 에서 정한다.
 - 에러 코드 등록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 맡는다. 노드별 코드 표는 각 노드 문서에 있다.
 - 인증 실패(HTTP 401·403)의 재시도 가능 분류와 에러 출력에 싣는 `meta` 는 노드마다 다르다. [미결 사항](CLE-NODE-AI-COMMON.md#미결-사항) 참조.
+- 노드 취소로 끝난 LLM 호출은 `output.error` 로 보내지 않는다. 노드는 `AbortError` 를 던지고 엔진이 노드 실행을 `cancelled` 로 기록한다. 규칙은 [AI 노드 공통](CLE-NODE-AI-COMMON.md#규칙) 규칙 17 에 있다.
 
 | 노드 | 쓰는 코드 |
 |------|-----------|
@@ -84,7 +85,7 @@ AI 에이전트 단일 턴이 LLM 호출 단계까지 간 출력(정상 완료 `
 
 ## 출력 구조 색인
 
-AI 노드는 정상·분기·에러·입력 대기·재개·종결로 출력 케이스가 가장 다양하다. 모든 케이스는 [출력 형태](#출력-형태) 절을 따른다.
+AI 노드는 정상·분기·에러·입력 대기·재개·종결로 출력 케이스가 가장 다양하다. 모든 케이스는 [출력 형태](#출력-형태) 절을 따른다. 노드 취소는 이 표에 없다. 노드가 `AbortError` 를 던지고 엔진이 노드 실행을 `cancelled` 로 기록하며 출력을 남기지 않는다([AI 노드 공통](CLE-NODE-AI-COMMON.md#규칙) 규칙 17).
 
 | 노드 | 정상 | 분기 | 에러 | 입력 대기 / 재개 | 종결 |
 |------|------|------|------|------------------|------|

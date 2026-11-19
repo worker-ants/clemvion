@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-DETAIL"
 title: "통합 관리 — 상세 화면"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "c8e46b372e34b5e545f330d3a617f418c10ae4916c5bcefc93536caa04914e3c"
+content_hash: "ec38bece8038308938c814d85f931e8ea94c068cbceef937305fe531bf75b376"
 read_as: "approved_fallback"
-task: "CLE-T-ZCEZ46"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "45b6a7cd9fb298ff03a03e23a972eef40d655c14917a8d46173322bcc9aa6124"
-etag: "sha256-53cdc45e8724bec31b5448aacdba6a4966b02cd60f97a5d134eb7953826bb3f6"
+mirror_sha256: "b3fe4a7869f03659aa907683d66aef09c5dd352a4646a8f4b22d70780c293b1a"
+etag: "sha256-eecd50a76144f5237057d02cccf4263ea8b2205cb6a105e6146639d6574ff353"
 ---
 ## 개요
 
@@ -109,6 +109,7 @@ OAuth 통합에서만 보인다. 요소와 추가 권한 요청 응답 처리는
 | 13:40 Apr 11 | — | Success | 18 ms | — |
 
 - 데이터는 `GET /api/integrations/:id/activity?limit=20&days=7` 에서 온다([사용처와 활동 API](CLE-INT-MANAGE-API.md#사용처와-활동-api)).
+- 실행 취소로 끝난 호출은 활동 로그가 없어 요약 · 스파크라인 · 표 어디에도 잡히지 않는다([REQ-INTMGMT-021](CLE-INT-MANAGE.md#요구사항)).
 - 실패 행을 누르면 에러 요약 팝오버와 `Execution detail →` 링크를 보인다.
 - 카탈로그 라벨: Cafe24 의 `apiLabel`(`cafe24.<resource>.<operation>`)은 `GET /api/integrations/services/cafe24/catalog` 응답의 `labelKey` 와 프런트엔드 i18n 사전으로 한국어·영어 라벨이 된다. MakeShop 도 같다(`makeshop.<resource>.<operation>`, `services/makeshop/catalog`). 그 밖의 통합은 `apiLabel` 이 NULL 이라 endpoint 만 보이고 세 값이 모두 NULL 이면 `—` 가 보인다. 통합마다 세 값을 무엇으로 채우는지는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 이 정한다.
 - **연결 안 됨 안내**: 통합 상태가 연결됨이 아니면(오류, 만료됨, 설치 대기) 활동 목록과 빈 상태 위에 [인라인 안내](../CLE-UI/CLE-UI-LAYOUT.md) 를 보인다. 이 상태에서는 새 호출이 기록되지 않는다. AI 에이전트는 내부 MCP 브리지가 연결되지 않은 통합의 도구를 노출하지 않아 호출이 없고 직결 노드는 `INTEGRATION_NOT_CONNECTED` 로 바로 실패한다. 그래서 단순한 «활동 없음» 과 구분해 원인을 알린다. 톤은 오류가 red, 만료됨·설치 대기가 amber 로 헤더 상태 배지와 맞춘다. 안내에는 개요 탭으로 가는 «상태 확인» 버튼이 있다. 연결됨(만료 임박 포함)은 여전히 기록되므로 안내를 보이지 않는다. 설치 대기를 넣는 것은 주의 필요(설치 대기 제외)와 다른 축이다. «조치가 필요한가» 가 아니라 «활동 데이터가 왜 없는가» 를 설명한다.

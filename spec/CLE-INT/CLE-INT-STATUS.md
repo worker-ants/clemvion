@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 10
+version: 12
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "95015b750ad588e7f052a3c5b77fdf15b4ec3ba7fc2529a47a9903a688bbb608"
+content_hash: "067f7c5f47973db4c306f47b80774cf0974b52d3a5e73b1ee4bac2015e355217"
 read_as: "approved_fallback"
-task: "CLE-T-BDPE71"
+task: "CLE-T-GZRYQ3"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "89f608ae290f56d9869372365c112ed787194aac9c50a8dfb87b016345b89754"
-etag: "sha256-e70fa9b49d0c5f018bcb78f8312e2bbc90ac8b991d0d493285e7fb616aeb2517"
+mirror_sha256: "bad3b128241dcbe4f13dcbc4ab4ab8d813089caeab5633af9686adb2975df5ea"
+etag: "sha256-d62652ea89849c986094780fd608d343e654ae99859b3a84be83cf8b0a1238c2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ etag: "sha256-e70fa9b49d0c5f018bcb78f8312e2bbc90ac8b991d0d493285e7fb616aeb2517"
 - REQ-INTSTAT-005 WHEN 설치 대기 통합이 설치 토큰 발급 뒤 24시간 안에 연결되지 않으면 THE SYSTEM SHALL 상태를 `expired`, 사유를 `install_timeout` 으로 바꾸고 설치 토큰을 지운다.
 - REQ-INTSTAT-006 IF 설치 대기 통합의 OAuth 콜백 처리가 실패하면 THE SYSTEM SHALL 상태와 설치 토큰을 보존하고 `status_reason` 과 `last_error` 만 갱신한다.
 - REQ-INTSTAT-007 WHEN refresh token 자체가 무효(`invalid_grant`)라 토큰 갱신이 실패하면 THE SYSTEM SHALL 상태를 `error`, 사유를 `auth_failed` 로 바꾼다.
-- REQ-INTSTAT-008 WHEN 노드 실행이나 토큰 갱신 중 transport 실패가 3회 연속 나면 THE SYSTEM SHALL 상태를 `error`, 사유를 `network` 로 바꾸고 연속 실패 카운터를 0 으로 되돌린다.
+- REQ-INTSTAT-008 WHEN 노드 실행이나 토큰 갱신 중 transport 실패가 3회 연속 나면 THE SYSTEM SHALL 상태를 `error`, 사유를 `network` 로 바꾸고 연속 실패 카운터를 0 으로 되돌린다. 노드 취소 신호로 생긴 `AbortError` 는 transport 실패로 세지 않는다. 요청 자체 타임아웃은 응답 본문을 읽는 중에 걸려도 transport 실패로 센다([노드 취소 — 노드별 적용](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)).
 - REQ-INTSTAT-009 WHEN 노드 실행 중 403 과 서비스별 권한 부족 신호를 받으면 THE SYSTEM SHALL 상태를 `error`, 사유를 `insufficient_scope` 로 바꾼다. (원본: INT-AU-07) (부분 구현)
 - REQ-INTSTAT-010 WHEN 통합 사유가 `insufficient_scope` 이면 THE SYSTEM SHALL 상세 화면에 누락 권한 범위 배지와 추가 권한 요청 동작을 보인다. (원본: INT-AU-07)
 - REQ-INTSTAT-011 WHEN 외부 MCP 서버 호출이 인증 실패로 끝나면 THE SYSTEM SHALL 상태를 `error`, 사유를 `auth_failed` 로 바꾼다.
@@ -164,3 +164,11 @@ etag: "sha256-e70fa9b49d0c5f018bcb78f8312e2bbc90ac8b991d0d493285e7fb616aeb2517"
 ### 통합 노드 차단은 에러 포트로 보낸다 (2026-11-13)
 
 통합 노드 차단 요구사항(REQ-INTSTAT-015)은 연결되지 않은 통합을 쓰는 통합 노드 «실행을 `INTEGRATION_NOT_CONNECTED` 로 실패시킨다» 고 적었다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 은 `execute()` 안의 실패를 에러 포트로 보낸다고 정했고 구현도 다섯 직결 노드(HTTP Request·Database Query·Send Email·Cafe24·MakeShop) 모두 `assertUsable` 이 던진 `INTEGRATION_NOT_CONNECTED` 를 잡아 에러 포트로 내보낸다. 2026-11-13 에 요구사항과 상태 모델의 서술을 구현과 공통 규칙에 맞췄다. 동작은 바꾸지 않았다. 요구사항 줄 끝의 «(원본: …)» 표지는 출처 표기라 그대로 둔다.
+
+### 노드 취소는 연속 전송 실패로 세지 않는다
+
+결정일: 2026-11-19
+
+2026-11-19 에 연속 전송 실패 요구사항(REQ-INTSTAT-008)의 범위를 정했다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 사용자가 실행을 취소하거나 다른 분기 실패로 노드가 취소되면 요청이 `AbortError` 로 끝난다. 이것은 외부 서비스와의 연결이 실패한 것이 아니다. 이를 카운터에 넣으면 취소를 세 번 하는 것만으로 멀쩡한 통합이 `error(network)` 로 떨어지고 이후 실행이 모두 막힌다. 그래서 Cafe24 · MakeShop 클라이언트는 노드 취소 신호로 생긴 `AbortError` 를 카운터에 넣기 전에 다시 던진다.
+
+요청 자체 타임아웃은 외부 서비스가 제때 답하지 않은 것이라 transport 실패로 센다. 두 클라이언트는 요청마다 건 자체 타이머와 취소 리스너를 응답 본문을 다 읽을 때까지 유지한다. 그래서 본문을 읽는 중의 취소는 세지 않고, 본문을 읽는 중의 자체 타임아웃은 센다. 두 `AbortError` 를 가르는 방법은 [노드 취소 — 노드별 적용](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)이 정한다.

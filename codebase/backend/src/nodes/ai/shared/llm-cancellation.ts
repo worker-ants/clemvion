@@ -1,4 +1,4 @@
-import { isAbortErrorLike } from '../../integration/_base/abort-cascade.util';
+import { isAbortErrorLike } from '../../core/abort-error.util';
 
 /**
  * Throws an `AbortError` when an LLM call failed after the node was cancelled.

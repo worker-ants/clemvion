@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT"
 title: "AI 에이전트 노드"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-AGENT-001", "REQ-AGENT-002", "REQ-AGENT-003", "REQ-AGENT-004", "REQ-AGENT-005", "REQ-AGENT-006", "REQ-AGENT-007", "REQ-AGENT-008", "REQ-AGENT-009", "REQ-AGENT-010", "REQ-AGENT-011", "REQ-AGENT-012", "REQ-AGENT-013", "REQ-AGENT-014", "REQ-AGENT-015", "REQ-AGENT-016", "REQ-AGENT-017", "REQ-AGENT-018", "REQ-AGENT-019", "REQ-AGENT-020", "REQ-AGENT-021", "REQ-AGENT-022", "REQ-AGENT-023", "REQ-AGENT-024", "REQ-AGENT-025", "REQ-AGENT-026", "REQ-AGENT-027", "REQ-AGENT-028", "REQ-AGENT-029", "REQ-AGENT-030", "REQ-AGENT-031", "REQ-AGENT-032", "REQ-AGENT-033", "REQ-AGENT-034", "REQ-AGENT-035", "REQ-AGENT-036", "REQ-AGENT-037", "REQ-AGENT-038", "REQ-AGENT-039", "REQ-AGENT-040", "REQ-AGENT-041", "REQ-AGENT-042", "REQ-AGENT-043", "REQ-AGENT-044", "REQ-AGENT-045", "REQ-AGENT-046", "REQ-AGENT-047", "REQ-AGENT-048", "REQ-AGENT-049", "REQ-AGENT-050", "REQ-AGENT-051", "REQ-AGENT-052", "REQ-AGENT-053", "REQ-AGENT-054", "REQ-AGENT-055"]
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "7484c365ebaa141b88a3143fa82281cd225945089c832f9cfd15a55dad2f15d8"
+content_hash: "8d5afd14184ad7267954a593ee80c96bd18c2cea966c47dfd33e70cee56c4435"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-2V3P8D"
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "8fda4e6064ccbe4cd836662a0bdb5750cc4306774b932eba2685c9f86b4451eb"
-etag: "sha256-874d2c19a86f71ff63944bba3999f77c00ca8b1d36c5b320839eb0291f0ddea0"
+mirror_sha256: "53245ef3e454debb4619fbff471bac1c5efad37f9661f9e8781a071a8f5b8f70"
+etag: "sha256-08bd8aae451c07e86ba9a8cb2249d7493d9eab4e6d5967b87e95a18b55495818"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§1~§6, §9~§12), `spec/4-nodes/3-ai/_product-overview.md` (§3.2), `spec/4-nodes/_product-overview.md` (§6.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -160,7 +160,9 @@ AI 에이전트 노드(AI Agent, `ai_agent`)는 LLM 으로 응답을 만든다. 
 - `codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts`, `ai-agent.component.ts`
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/*.ts`
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (dry-run 재실행에서 부수효과 도구에 돌려주는 모의 응답)
-- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 여부 `isDryRun` 과 Cafe24 · MakeShop 부수효과 판정 `isDryRunMockedOperation`)
+- `codebase/backend/src/nodes/core/dry-run.util.ts` (dry-run 여부 `isDryRun` 과 부수효과 공통 판정 `isDryRunMockedOperation`)
+- `codebase/backend/src/nodes/integration/cafe24/metadata/index.ts` (Cafe24 판정 함수 `isCafe24DryRunMocked`)
+- `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (MakeShop 판정 함수 `isMakeshopDryRunMocked`)
 - `codebase/backend/src/nodes/ai/shared/agent-memory-injection.ts`, `agent-memory-schema.ts`
 - `codebase/backend/src/nodes/ai/shared/llm-error-payload.ts` (단일 턴 · 멀티턴 공유 LLM 에러 분류)
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`

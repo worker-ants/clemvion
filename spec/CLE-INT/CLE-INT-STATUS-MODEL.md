@@ -2,25 +2,25 @@
 id: "CLE-INT-STATUS-MODEL"
 title: "통합 상태와 만료 알림 — 상태 모델"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "0fb06d7de3b3f73ba7f68d531cfbd67a0cd7205218a5d0f7543347cf5cc348ca"
+content_hash: "f66d5349e9edff8fbbee21ad0bf4f043d1430e0876aa4a07ea299ac54599c5f4"
 read_as: "approved_fallback"
-task: "CLE-T-BDPE71"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "fdce3879f6c71e6861e0af86d942002d403aca4fd3711864e05ed1cc590f94db"
-etag: "sha256-e26ad42dbb2b4c1338bc026b55f268731e33f867e7f2f2034fbfb3166585c4d6"
+mirror_sha256: "c7f930231eb301714b9cdc716df6ee9dfa77d2a12d423b2c73c3fe6a3a78645a"
+etag: "sha256-8c84ad61944d3678b7f6fe49abc3319ce41d874ccb7de497fb612fe2f6643666"
 ---
 ## 개요
 
 이 문서는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 하위 문서로 통합 상태 값과 상태 사유, 상태 전이 규칙, OAuth 콜백 실패의 기록 규칙, Cafe24 Private 재설치 대기 표시와 상태의 관계를 정한다. 화면 표시와 주의 필요 판정은 [화면 표시와 주의 필요](CLE-INT-STATUS-DISPLAY.md), 만료 스캐너와 알림은 [만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md) 이 정한다.
 
-콜백 실패의 상태 보존 규칙([콜백 실패 기록](#콜백-실패-기록))과 재설치 대기 표시의 24시간 규칙([재설치 대기 표시](#재설치-대기-표시))은 이 문서가 정본이다. 다른 문서는 한 줄로 요약하고 이 문서를 링크한다(2026-11-14, NERV Task `CLE-T-ZCEZ46`).
+콜백 실패의 상태 보존 규칙([콜백 실패 기록](#콜백-실패-기록))과 재설치 대기 표시의 24시간 규칙([재설치 대기 표시](#재설치-대기-표시))은 이 문서가 정본이다. 다른 문서는 한 줄로 요약하고 이 문서를 링크한다.
 
 ## 상태 값과 상태 사유
 
@@ -78,7 +78,7 @@ stateDiagram-v2
 | `connected` → `error(auth_failed)` | 토큰 갱신 `invalid_grant`, 외부 MCP 서버 인증 실패, 콜백 코드 교환 실패, Cafe24·MakeShop 클라이언트의 401·403([세부](#전이별-세부)) |
 | `error`(다른 사유) → `error(auth_failed)` | 외부 MCP 서버 인증 실패, Cafe24·MakeShop 클라이언트의 401·403. 이미 `error(auth_failed)` 면 그대로다([MCP 클라이언트 — 에러 처리 「인증 실패 상태 전환」](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환)) |
 | `connected` → `error(insufficient_scope)` | 노드 실행 중 403 과 서비스별 권한 부족 신호를 받았다([세부](#전이별-세부)) |
-| `connected` → `error(network)` | 노드 실행이나 토큰 갱신 중 transport 실패가 3회 연속 났다(`consecutive_network_failures`, V049) |
+| `connected` → `error(network)` | 노드 실행이나 토큰 갱신 중 transport 실패가 3회 연속 났다(`consecutive_network_failures`, V049, [세부](#전이별-세부)) |
 | `connected` → `expired(token_expired)` | refresh token 이 없는 통합의 토큰 만료 시각이 지나 만료 스캐너가 당일 임계에서 격하했다 |
 | `expired`·`error` → `connected` | 통합 재인증 또는 자격 증명 교체가 성공했다(연결 테스트 통과, [세부](#전이별-세부)) |
 | 모든 상태 → 삭제 | 사용자의 명시적 삭제와 개인 통합 소유자의 나가기·제거뿐이다([세부](#전이별-세부)) |
@@ -93,11 +93,11 @@ stateDiagram-v2
   - Cafe24·MakeShop 클라이언트가 401 뒤 토큰 갱신과 1회 재시도에도 401 을 받았거나 403 을 받았다(`markAuthFailed`).
   - 그 밖의 서비스(HTTP·Database·Email) 노드 실행 중 401·403 이 상태를 바꾸는지는 정의가 갈린다. [미결 사항](CLE-INT-STATUS.md#미결-사항) 참조.
 - **권한 부족**: 지금 이 신호를 감지해 전이하는 실행 경로는 Cafe24(`cafe24-api.client.ts`, `cafe24-mcp-tool-provider.ts`)뿐이다. HTTP·Database·Email 핸들러로 넓히는 일은 미구현이다.
-- **네트워크**: Cafe24·MakeShop 클라이언트의 `recordNetworkFailure` 가 판정한다.
+- **네트워크**: Cafe24·MakeShop 클라이언트의 `recordNetworkFailure` 가 판정한다. 노드 취소로 생긴 AbortError 는 세지 않고 자체 타임아웃은 응답 본문을 읽는 중이어도 센다([REQ-INTSTAT-008](CLE-INT-STATUS.md), [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)).
 - **복구**: OAuth 가 아닌 통합은 통합 재인증이 OAuth 왕복 없이 바로 연결됨으로 되돌린다. Cafe24 Private 은 설치 토큰이 있으면 통합 재인증이 [재설치 대기 표시](#재설치-대기-표시)를 남기고 사용자가 24시간 안에 «테스트 실행» 으로 OAuth 를 마쳐야 연결됨이 된다. 설치 토큰이 없는 Cafe24 Private 행과 MakeShop 통합은 통합 재인증이 없어 삭제 후 재등록으로 복구한다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)). 설치 기한이 지나 만료된 행은 이 전이를 거치지 않고 지우지 않은 채 새로 등록한다. 내부 MCP 브리지가 `expired` 통합을 스스로 되살리는지는 [미결 사항](CLE-INT-STATUS.md#미결-사항) 이다.
 - **삭제**: 사용자가 명시적으로 삭제했을 때와 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거됐을 때뿐이다([개인 통합 소유자의 나가기·제거는 자동 삭제의 예외다](CLE-INT-STATUS.md#개인-통합-소유자의-나가기제거는-자동-삭제의-예외다-2026-10-29)). 시간이나 상태로 지우는 자동 삭제는 없다. 설치 대기 24시간 초과도 `expired` 로만 바꾼다.
 
-`error` 상태에서는 반드시 상태 사유를 기록한다. 토큰 갱신 실패는 `expired` 가 아니라 `error(auth_failed)` 로 바꾼다. 그래서 `expired` 가 되는 경로는 두 가지뿐이다. refresh token 이 없는 통합의 `token_expired` 와 설치 대기의 `install_timeout` 이다. Cafe24 는 refresh token 을 가지므로 Cafe24 의 `expired` 는 사실상 `install_timeout` 하나만 남는다.
+토큰 갱신 실패는 `expired` 가 아니라 `error(auth_failed)` 로 바꾼다. 그래서 `expired` 가 되는 경로는 두 가지뿐이다. refresh token 이 없는 통합의 `token_expired` 와 설치 대기의 `install_timeout` 이다. Cafe24 는 refresh token 을 가지므로 Cafe24 의 `expired` 는 사실상 `install_timeout` 하나만 남는다.
 
 ## 콜백 실패 기록
 
@@ -113,7 +113,7 @@ OAuth 콜백 처리가 실패하면 `markIntegrationCallbackError` 가 그 행�
 | 오류·만료됨 | 모든 코드 | 그대로 | 그대로 |
 
 - 재설치 대기 표시가 기록 결과를 바꾸는 경우는 연결됨 행의 코드 교환 실패 하나다. 표시를 남긴 지 24시간이 지났으면 표시가 없는 행과 같이 처리한다. 설치 대기의 콜백 실패가 상태를 보존하는 것과 같은 원칙이다([설치 대기의 콜백 실패는 상태를 보존한다](#설치-대기의-콜백-실패는-상태를-보존한다)).
-- 토큰 교환 중의 네트워크 오류와 시간 초과도 `OAUTH_TOKEN_EXCHANGE_FAILED` 로 기록한다. 그래서 유효한 표시가 없는 연결됨 행은 transport 실패 한 번에 `error(auth_failed)` 가 되고 `error(network)` 의 3회 연속 규칙을 따르지 않는다. 콜백은 자동으로 다시 시도하지 않는 한 번의 교환이고 복구하려면 사용자가 통합 재인증을 다시 시작해야 한다. 지금 동작을 적었고 바꾸지 않았다.
+- 토큰 교환 중의 네트워크 오류와 시간 초과도 `OAUTH_TOKEN_EXCHANGE_FAILED` 로 기록한다. 그래서 유효한 표시가 없는 연결됨 행은 transport 실패 한 번에 `error(auth_failed)` 가 되고 `error(network)` 의 3회 연속 규칙을 따르지 않는다. 콜백은 자동으로 다시 시도하지 않는 한 번의 교환이고 복구하려면 사용자가 통합 재인증을 다시 시작해야 한다.
 - 연결됨 행이 `error(auth_failed)` 로 바뀌면 행을 저장한 뒤 조치 필요 알림을 보낸다. 상태가 바뀌지 않는 기록은 알림을 보내지 않는다([만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#알림)).
 - 권한 범위 거부(`OAUTH_INVALID_SCOPE`)는 `last_error.details.requiresCafe24Approval` 을 함께 남긴다([Cafe24 별도 승인 scope](CLE-C24-SCOPES)). 주의 필요 판정은 상태만 보므로 이 연결됨 행은 주의 필요에 들어가지 않는다. 다음 콜백이 성공하면 사유와 `last_error` 가 NULL 로 돌아간다.
 - 기록하지 않는 경우: state 를 소비하기 전의 실패는 통합을 알 수 없다. 설치 기한이 지나 만료된 행(`install_timeout`)과, 콜백 재판정에서 요청자가 볼 수 없는 행이라 404 로 거절한 콜백(`CallbackContext.recordable: false`)은 행에 아무것도 쓰지 않는다. 행이 사라졌으면 쓸 곳이 없다.
@@ -125,8 +125,8 @@ OAuth 콜백 처리가 실패하면 `markIntegrationCallbackError` 가 그 행�
 
 - **상태와 따로 둔다**: 표시는 통합 상태도 상태 사유도 아니다. 표시를 남겨도 상태·상태 사유·토큰은 그대로다. 연결됨 행은 계속 연결됨이라 노드와 AI 에이전트가 기존 토큰으로 계속 쓴다. 오류·만료됨 행은 표시가 있어도 «테스트 실행» 으로 콜백이 성공하기 전까지 노드 실행이 막힌다. 상태 사유 union(`INTEGRATION_STATUS_REASONS`)에 값을 더하지 않는다.
 - **설치 대기와 다르다**: 설치 대기(`pending_install`)는 아직 한 번도 연결되지 않은 행의 상태다. 재설치 대기 표시는 설치를 마친 행(연결됨·오류·만료됨)에 붙는다. 설치 대기 행에는 표시를 남기지 않는다.
-- **지우는 경로는 둘이다**: 콜백 성공과 통합 삭제다. 콜백이 성공하면 자격 증명 교체와 같은 트랜잭션에서 표시를 지우고 상태는 `connected`, 사유와 `last_error` 는 NULL 이 된다. 콜백이 실패하면 표시를 지우지 않는다.
-- **콜백 실패**: 기록 규칙은 [콜백 실패 기록](#콜백-실패-기록)을 따른다. 유효한 표시가 있는 연결됨 행은 코드 교환이 실패해도 `error(auth_failed)` 로 바뀌지 않는다.
+- **지우는 경로는 둘이다**: 콜백 성공과 통합 삭제다. 콜백이 성공하면 자격 증명 교체와 같은 트랜잭션에서 표시를 지우고 상태는 `connected`, 사유와 `last_error` 는 NULL 이 된다.
+- **콜백 실패**: 기록 규칙은 [콜백 실패 기록](#콜백-실패-기록)을 따른다.
 - **24시간 동안만 유효하다**: 서버는 표시를 남긴 시각부터 24시간이 지나면 표시가 없는 것으로 본다. 경계는 닫혀 있어 정확히 24시간이 지난 표시도 무효다. 설치 대기의 24시간과 같은 값이다(`REINSTALL_REQUEST_TTL_HOURS`). 표시를 읽는 곳(App URL 분기, 콜백 재판정과 실패 기록, 조회 응답)은 모두 같은 판정 함수 `isReinstallRequestActive` 를 쓴다. 24시간이 지나면 App URL 은 그 행을 상세 화면으로 보내고, 콜백은 요청자 인가를 다시 판정하며, 콜백 실패도 상태를 보존하지 않는다. 응답의 `reinstallRequestedAt` 은 `null` 이다. 지난 값을 지우는 작업은 없고 컬럼에 값이 남아도 판정에서 무시한다. 표시를 취소하는 경로도 따로 없다. 사용자가 통합 재인증이나 추가 권한 요청을 다시 하면 새 시각으로 다시 남긴다.
 - **콜백은 요청자를 다시 판정하지 않는다**: 유효한 표시가 있는 Cafe24 Private 행의 콜백은 커밋 직전 요청자 인가 재판정(가시성·역할)을 건너뛴다. App URL 이 만든 state 의 `user_id` 가 요청자가 아니라 통합 소유자(`created_by`)라 다시 판정할 요청자가 없다. 그래서 표시를 남긴 요청자가 그 24시간 안에 강등되거나 워크스페이스를 나가도 콜백은 자격 증명을 바꾼다. 이것은 받아들인 잔여 위험이다([재설치 대기 표시 동안의 콜백은 요청자를 다시 판정하지 않는다 (2026-11-14)](#재설치-대기-표시-동안의-콜백은-요청자를-다시-판정하지-않는다-2026-11-14)). 표시를 남기는 입구가 Cafe24 Private 뿐이라 Cafe24 Public 행과 MakeShop 행은 표시 값과 상관없이 다시 판정한다.
 - **주의 필요와 알림에 넣지 않는다**: 주의 필요 술어(`attention`·`expiring`), 사이드바 배지, 만료 알림, 조치 필요 알림은 표시를 보지 않는다. 표시가 있는 오류·만료됨 행은 상태 때문에 주의 필요에 들어가고 표시가 있는 연결됨 행은 들어가지 않는다. 화면은 상세 머리 아래의 재설치 대기 안내로만 알린다([통합 관리](CLE-INT-MANAGE.md#상세-페이지)). 알림 쪽 규칙은 [만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#알림) 이 정한다.
@@ -194,7 +194,7 @@ MakeShop 복구 안내 요구사항은 처음에 MakeShop 통합이 오류나 �
 
 ### 연결됨 행의 콜백 실패는 사유만 남긴다 (2026-11-13)
 
-상태 사유 표는 연결됨 행의 사유를 NULL 로만 적었고 상태 전이 표에는 연결됨 행의 콜백 실패가 없었다. 구현(`markIntegrationCallbackError`)은 통합 재인증이나 추가 권한 요청의 콜백에서 Cafe24 가 권한 범위를 거부하면(`OAUTH_INVALID_SCOPE`) 상태를 그대로 두고 사유를 `oauth_invalid_scope` 로 남긴다. 2026-11-13 에 이 동작을 상태 사유 표와 상태 전이 표에 적었고 2026-11-14 에 [콜백 실패 기록](#콜백-실패-기록) 절로 모았다. 동작은 바꾸지 않았다.
+상태 사유 표는 연결됨 행의 사유를 NULL 로만 적었고 상태 전이 표에는 연결됨 행의 콜백 실패가 없었다. 구현(`markIntegrationCallbackError`)은 통합 재인증이나 추가 권한 요청의 콜백에서 Cafe24 가 권한 범위를 거부하면(`OAUTH_INVALID_SCOPE`) 상태를 그대로 두고 사유를 `oauth_invalid_scope` 로 남긴다. 2026-11-13 에 동작은 바꾸지 않고 두 표에 적었다.
 
 - **상태를 바꾸지 않는 이유**: 권한 범위 거부는 Cafe24 의 별도 승인이 필요한 권한 범위를 요청했다는 뜻이고 기존 토큰은 그대로 살아 있다. 노드 실행을 막을 까닭이 없다. 상세 화면은 이 사유와 `last_error.details.requiresCafe24Approval` 로 별도 승인 안내를 보이고 사용자는 승인을 받은 뒤 다시 시도한다([Cafe24 별도 승인 scope](CLE-C24-SCOPES)).
 - **코드 교환 실패와의 차이**: 코드 교환 실패를 `error(auth_failed)` 로 바꾸는 것은 원문 통합 화면 정의의 콜백 실패 규칙을 따른 것이다. 유효한 재설치 대기 표시가 있는 행을 빼는 것은 «설치 대기의 콜백 실패는 상태를 보존한다» 의 2026-10-10 단락이 정했다.

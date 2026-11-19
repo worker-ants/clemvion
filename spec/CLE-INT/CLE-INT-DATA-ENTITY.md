@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-ENTITY"
 title: "통합 데이터와 흐름 — 엔티티와 인덱스"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "74767f73819576732b2c80b1ec10ccab6eabf9ee2fec639beb257ac555ef2618"
+content_hash: "991184cf2cc97c83f7357aabf7edb36e3c8d9052fba65990cf641d15232b2cd9"
 read_as: "approved_fallback"
-task: "CLE-T-ZCEZ46"
+task: "CLE-T-GZRYQ3"
 source_paths: []
-mirror_sha256: "286df4c8e24b884ca81a57a6b9f6aad10b42ba0182870275a5e0910cb66c5b1f"
-etag: "sha256-d5b148ca8ec6fec82b6f6d0d1880bc775b0b01dc778efb9720089306196e6402"
+mirror_sha256: "ac674a03c58be92a8e9c2ac49c377a978dc05f69eb64b00e8ae5e7bfb29d96f2"
+etag: "sha256-f6df02f470a28ea8ecd195cacb11603168597209153d7ab765607e7364d16a28"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ etag: "sha256-d5b148ca8ec6fec82b6f6d0d1880bc775b0b01dc778efb9720089306196e6402"
 | install_token_issued_at | Timestamp? | 설치 토큰 발급 시각. 설치 대기 만료 판정의 기준이다. 설치 토큰을 새로 발급할 때만 갱신한다. 설치 대기 행을 다시 써도 설치 토큰을 보존하면 그대로 두고 연결 성공 콜백에서도 보존한다. 만료·삭제 경로에서만 NULL 로 지운다. V044 이전 행은 NULL 이며 스캐너가 `created_at` 으로 대신 판정한다. Cafe24 Private 과 MakeShop 모두 적용한다. V044 |
 | mall_id | String? | 상점 식별자(`mall_id`)의 평문 투영. Cafe24 는 `credentials.mall_id`, MakeShop 은 `credentials.shop_uid` 를 이 컬럼에 복제한다. Cafe24·MakeShop 외 서비스 유형은 항상 NULL 이다. NULL 인 경우는 셋이다. V045 이전 행은 다음 저장(콜백·재인증)에서 채운다. MakeShop 설치 대기 행은 App URL 을 거쳐 `shop_uid` 를 받을 때 채운다. 설치 대기 행이 설치 기한을 넘겨 만료(`install_timeout`)되면 NULL 로 비운다([통합 상태와 만료 알림](CLE-INT-STATUS.md#상태-전이)). 이 규칙 전에 만료된 행은 V154 가 한 번 비웠다. 만료 행은 다시 채우지 않는다. 콜백, begin 의 행 재사용, App URL 은 설치 대기 행만 다룬다. NULL 이 세 뜻이라 같은 상점을 찾을 때 NULL 로 가르지 않는다(아래 상점 식별자 유일성의 조회 함수). Cafe24·MakeShop 행에서도 NOT NULL 로 강화하지 않는다. V045 |
 | status_reason | String? | 상태 사유. snake_case 코드이고 허용값은 코드 union `INTEGRATION_STATUS_REASONS` 한 곳에서 정한다. 상태별 허용값은 [상태 모델 「상태 값과 상태 사유」](CLE-INT-STATUS-MODEL.md#상태-값과-상태-사유). 연결됨 행에도 `oauth_invalid_scope` 가 남을 수 있다([상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)). `VARCHAR(64)`, V008 |
-| consecutive_network_failures | int | 연속 네트워크 실패 횟수. 노드 실행이나 토큰 갱신 중 transport 실패가 나면 늘고, 성공하면 0 으로 되돌린다. 3 에 닿으면 상태를 `error(network)` 로 바꾸고 0 으로 되돌린다. NOT NULL DEFAULT 0. V049 |
+| consecutive_network_failures | int | 연속 네트워크 실패 횟수. 노드 실행이나 토큰 갱신 중 transport 실패가 나면 늘고, 성공하면 0 으로 되돌린다. 노드 취소 신호로 끝난 요청(`AbortError`)은 세지 않는다([통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 연속 전송 실패 요구사항). 3 에 닿으면 상태를 `error(network)` 로 바꾸고 0 으로 되돌린다. NOT NULL DEFAULT 0. V049 |
 | token_expires_at | Timestamp? | OAuth 토큰 만료 시각 |
 | last_used_at | Timestamp? | 마지막으로 노드 실행에서 쓴 시각(캐시) |
 | last_rotated_at | Timestamp? | 자격 증명을 마지막으로 바꾼 시각(OAuth 통합 재인증, 자격 증명 교체, 토큰 자동 갱신) |
