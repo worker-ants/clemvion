@@ -1476,4 +1476,99 @@ describe('isWriteOperation', () => {
   it('missing queryType and no query is mocked', () => {
     expect(isWriteOperation(undefined, undefined)).toBe(true);
   });
+
+  describe('multi-statement queries (CLE-T-KH11HA)', () => {
+    it.each([
+      'SELECT 1; DELETE FROM t',
+      'SELECT 1;DELETE FROM t',
+      'SELECT 1;\r\nDROP TABLE t',
+      'SELECT 1; -- c\nDELETE FROM t',
+      'SELECT 1; /* c */ UPDATE t SET a = 1',
+      'SELECT 1; SELECT 2',
+      'SELECT 1;;',
+      "SELECT ';' ; DELETE FROM t",
+      'SELECT "a;b" FROM t; DELETE FROM t',
+      'SELECT `a;b` FROM t; DELETE FROM t',
+      'SELECT $$a$$; DELETE FROM t',
+    ])('statement after a semicolon makes it write: %s', (query) => {
+      expect(isWriteOperation('select', query)).toBe(true);
+      expect(isWriteOperation('raw', query)).toBe(true);
+    });
+
+    it.each([
+      'SELECT 1;',
+      'SELECT 1; ',
+      'SELECT 1;\r\n',
+      'SELECT 1; -- trailing',
+      'SELECT 1; /* trailing */',
+      'SELECT 1; -- only comment\n  /* more */ ',
+    ])('a single trailing semicolon stays read: %s', (query) => {
+      expect(isWriteOperation('select', query)).toBe(false);
+      expect(isWriteOperation('raw', query)).toBe(false);
+    });
+
+    it.each([
+      "SELECT ';' FROM t",
+      "SELECT 'it''s; fine' FROM t",
+      'SELECT "a;b" FROM t',
+      'SELECT `a;b` FROM t',
+      'SELECT 1 -- a; b',
+      'SELECT 1 /* a; b */',
+      'SELECT $$a; DELETE FROM t$$',
+      'SELECT $tag$a; DELETE FROM t$tag$',
+      'SELECT $1, $2 FROM t',
+      "SELECT ';';",
+    ])(
+      'semicolon inside a literal, identifier or comment stays read: %s',
+      (query) => {
+        expect(isWriteOperation('select', query)).toBe(false);
+      },
+    );
+
+    it.each([
+      "SELECT 'open; DELETE FROM t",
+      'SELECT "open; DELETE FROM t',
+      'SELECT `open; DELETE FROM t',
+      'SELECT $$open; DELETE FROM t',
+      'SELECT $tag$a$$; DELETE FROM t',
+      "SELECT 'a\\'; DELETE FROM t; SELECT ''",
+      'SELECT 1 /* /* nested */ ; DELETE FROM t */',
+      'SELECT 1 /*! ; DELETE FROM t */',
+      'SELECT 1 --;\nDELETE FROM t',
+    ])('ambiguous or unterminated text is mocked: %s', (query) => {
+      expect(isWriteOperation('select', query)).toBe(true);
+    });
+  });
+
+  describe('executable and hint comments (CLE-T-KH11HA)', () => {
+    it.each([
+      '/*! DELETE FROM t */',
+      '/*!50000 DELETE FROM t */ SELECT 1',
+      '/*+ HINT */ SELECT 1',
+      '/* a */ /*! SELECT 1 */',
+    ])('leading /*! or /*+ block is mocked: %s', (query) => {
+      expect(isWriteOperation('select', query)).toBe(true);
+      expect(isWriteOperation('raw', query)).toBe(true);
+    });
+
+    it('a hint after the verb stays read', () => {
+      expect(isWriteOperation('select', 'SELECT /*+ INDEX(t i) */ 1')).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('comment-only boundaries (CLE-T-KH11HA)', () => {
+    it.each(['-- only comment', '-- only comment\n', '/* only */', '  \r\n'])(
+      'no verb is mocked: %j',
+      (query) => {
+        expect(isWriteOperation('select', query)).toBe(true);
+      },
+    );
+
+    it('handles CRLF line comments before the verb', () => {
+      expect(isWriteOperation('select', '-- c\r\nSELECT 1')).toBe(false);
+      expect(isWriteOperation('select', '-- c\r\nDELETE FROM t')).toBe(true);
+    });
+  });
 });
