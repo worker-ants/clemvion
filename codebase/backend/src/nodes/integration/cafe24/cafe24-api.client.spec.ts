@@ -449,12 +449,78 @@ describe('Cafe24ApiClient', () => {
       });
     });
 
+    describe('counter reset per response branch', () => {
+      // `resetNetworkFailures` 는 응답 분기마다 따로 불린다. 한 줄이 빠져도 다른
+      // 분기 테스트는 통과하므로 분기마다 고정한다.
+      it('resets the counter on a 429 that exhausts the retries', async () => {
+        fetchMock.mockResolvedValue(makeJsonResponse({}, { status: 429 }));
+        const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+        await expect(
+          client.call(integration, { method: 'GET', path: 'orders' }),
+        ).rejects.toBeInstanceOf(Cafe24RateLimitedError);
+        expect(repo.update).toHaveBeenCalledWith('int-cafe24-1', {
+          consecutiveNetworkFailures: 0,
+        });
+        expect(integration.consecutiveNetworkFailures).toBe(0);
+      });
+
+      it('resets the counter after the 401/403 error body is read', async () => {
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse({ error: 'forbidden' }, { status: 403 }),
+        );
+        const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+        await expect(
+          client.call(integration, { method: 'GET', path: 'orders' }),
+        ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+        expect(repo.update).toHaveBeenCalledWith('int-cafe24-1', {
+          consecutiveNetworkFailures: 0,
+        });
+        expect(integration.consecutiveNetworkFailures).toBe(0);
+      });
+
+      it('counts, not resets, when the 403 error body read times out locally', async () => {
+        const integration = makeIntegration({ consecutiveNetworkFailures: 1 });
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            makeBodyPendingResponse(init.signal as AbortSignal, undefined, 403),
+          ),
+        );
+        await expect(
+          client.call(integration, {
+            method: 'GET',
+            path: 'orders',
+            timeoutMs: 5,
+          }),
+        ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+        expect(repo.update).not.toHaveBeenCalledWith(
+          'int-cafe24-1',
+          expect.objectContaining({ consecutiveNetworkFailures: 0 }),
+        );
+        expect(integration.consecutiveNetworkFailures).toBe(2);
+      });
+    });
+
     describe('timer release before a retry', () => {
       // `release()` runs before the 429 sleep and before the 401 refresh. If it
       // did not, the first request's local timer would fire during the wait and
       // abort a request that is already finished.
       const waitMs = (ms: number) =>
         new Promise<void>((r) => setTimeout(r, ms));
+
+      // 401 refresh 가 읽는 환경변수. 단언이 실패해도 afterEach 가 원래 값으로
+      // 되돌려 다른 테스트로 새지 않게 한다.
+      const savedEnv = {
+        id: process.env.CAFE24_CLIENT_ID,
+        secret: process.env.CAFE24_CLIENT_SECRET,
+      };
+      afterEach(() => {
+        const restore = (key: string, value: string | undefined) => {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        };
+        restore('CAFE24_CLIENT_ID', savedEnv.id);
+        restore('CAFE24_CLIENT_SECRET', savedEnv.secret);
+      });
 
       it('clears the first request timer before the 429 sleep', async () => {
         const seen: AbortSignal[] = [];
@@ -527,8 +593,6 @@ describe('Cafe24ApiClient', () => {
 
         expect(seen).toHaveLength(2);
         expect(seen[0].aborted).toBe(false);
-        delete process.env.CAFE24_CLIENT_ID;
-        delete process.env.CAFE24_CLIENT_SECRET;
       });
     });
   });

@@ -448,6 +448,67 @@ describe('MakeshopApiClient', () => {
       });
     });
 
+    describe('counter reset per response branch', () => {
+      // `resetNetworkFailures` 는 응답 분기마다 따로 불린다. 한 줄이 빠져도 다른
+      // 분기 테스트는 통과하므로 분기마다 고정한다.
+      it('resets the counter on a 429 that exhausts the retries', async () => {
+        fetchMock.mockResolvedValue(makeJsonResponse({}, { status: 429 }));
+        const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+        await expect(
+          client.call(integration, { method: 'GET', path: 'product' }),
+        ).rejects.toBeInstanceOf(MakeshopRateLimitedError);
+        expect(repo.update).toHaveBeenCalledWith('int-makeshop-1', {
+          consecutiveNetworkFailures: 0,
+        });
+        expect(integration.consecutiveNetworkFailures).toBe(0);
+      });
+
+      it('resets the counter after the 401/403 error body is read', async () => {
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse({ error: 'forbidden' }, { status: 403 }),
+        );
+        const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+        await expect(
+          client.call(integration, { method: 'GET', path: 'product' }),
+        ).rejects.toBeInstanceOf(MakeshopAuthFailedError);
+        expect(repo.update).toHaveBeenCalledWith('int-makeshop-1', {
+          consecutiveNetworkFailures: 0,
+        });
+        expect(integration.consecutiveNetworkFailures).toBe(0);
+      });
+
+      it('counts, not resets, when the 403 error body read times out locally', async () => {
+        const integration = makeIntegration({ consecutiveNetworkFailures: 1 });
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            makeBodyPendingResponse(init.signal as AbortSignal, undefined, 403),
+          ),
+        );
+        await expect(
+          client.call(integration, {
+            method: 'GET',
+            path: 'product',
+            timeoutMs: 5,
+          }),
+        ).rejects.toBeInstanceOf(MakeshopTransportFailedError);
+        expect(repo.update).not.toHaveBeenCalledWith(
+          'int-makeshop-1',
+          expect.objectContaining({ consecutiveNetworkFailures: 0 }),
+        );
+        expect(integration.consecutiveNetworkFailures).toBe(2);
+      });
+
+      it('resets the counter on a successful response', async () => {
+        fetchMock.mockResolvedValueOnce(makeJsonResponse({ list: [] }));
+        const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+        await client.call(integration, { method: 'GET', path: 'product' });
+        expect(repo.update).toHaveBeenCalledWith('int-makeshop-1', {
+          consecutiveNetworkFailures: 0,
+        });
+        expect(integration.consecutiveNetworkFailures).toBe(0);
+      });
+    });
+
     describe('timer release before a retry', () => {
       // `release()` runs before the 429 sleep and before the 401 refresh. If it
       // did not, the first request's local timer would fire during the wait and
