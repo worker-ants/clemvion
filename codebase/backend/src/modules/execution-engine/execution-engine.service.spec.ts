@@ -15978,6 +15978,46 @@ describe('ExecutionEngineService', () => {
           expect(afterCalls).toHaveLength(1);
           expect(seenMeta[0]).not.toHaveProperty('jobId');
         });
+
+        // Background 노드는 병렬 분기 안에도 놓일 수 있다. 그때 `context` 는 분기 사본이라
+        // 등록된 루트 컨텍스트의 캐시와 다른 객체다. 두 캐시의 `meta.jobId` 가 같아야 분기
+        // 안 뒤 노드와 분기 뒤 노드가 같은 값을 본다.
+        it('병렬 분기 사본 컨텍스트면 등록된 루트 컨텍스트의 구조화 출력 meta 에도 작업 ID 를 넣는다', () => {
+          const ctxService = (
+            service as unknown as { contextService: ExecutionContextService }
+          ).contextService;
+          const root = ctxService.createContext('exec-branch', 'wf-branch');
+          root.structuredOutputCache.bg = {
+            config: {},
+            output: { k: 1 },
+            meta: { forkedAt: 'x' },
+          };
+          const branchCopy = {
+            ...root,
+            structuredOutputCache: { ...root.structuredOutputCache },
+          };
+
+          (
+            service as unknown as {
+              stampStructuredMetaJobId: (
+                c: unknown,
+                nodeId: string,
+                jobId: string,
+              ) => void;
+            }
+          ).stampStructuredMetaJobId(branchCopy, 'bg', 'job-p');
+
+          expect(branchCopy.structuredOutputCache.bg.meta).toEqual({
+            forkedAt: 'x',
+            jobId: 'job-p',
+          });
+          expect(root.structuredOutputCache.bg.meta).toEqual({
+            forkedAt: 'x',
+            jobId: 'job-p',
+          });
+          expect(root.structuredOutputCache.bg.output).toEqual({ k: 1 });
+          ctxService.deleteContext('exec-branch');
+        });
       });
     });
 

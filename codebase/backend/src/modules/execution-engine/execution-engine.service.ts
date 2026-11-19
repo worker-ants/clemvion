@@ -6083,7 +6083,10 @@ export class ExecutionEngineService
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
       const finalOutput = this.applyPortSelection(flatForCache);
-      this.commitNodeOutput(context, node.id, finalOutput, adapted);
+      this.commitNodeOutput(context, node.id, {
+        flat: finalOutput,
+        structured: adapted,
+      });
       executedNodes.add(node.id);
 
       // Check if this is a blocking node (waiting_for_input).
@@ -6254,7 +6257,7 @@ export class ExecutionEngineService
           break;
 
         case 'use_default':
-          this.commitNodeOutput(context, node.id, result.output);
+          this.commitNodeOutput(context, node.id, { flat: result.output });
           nodeExecution.status = NodeExecutionStatus.COMPLETED;
           nodeExecution.outputData =
             (result.output as Record<string, unknown>) ?? {};
@@ -6277,10 +6280,13 @@ export class ExecutionEngineService
             _selectedPort: RESERVED_ERROR_PORT_ID,
           };
           // 라우팅 표지는 평면 캐시에만 둔다. `$node[X].output` 은 에러 데이터 그대로다.
-          this.commitNodeOutput(context, node.id, routedOutput, {
-            config: {},
-            output: result.output,
-            port: RESERVED_ERROR_PORT_ID,
+          this.commitNodeOutput(context, node.id, {
+            flat: routedOutput,
+            structured: {
+              config: {},
+              output: result.output,
+              port: RESERVED_ERROR_PORT_ID,
+            },
           });
           executedNodes.add(node.id);
           errorPortFallbackMessage = await this.finalizeErrorPortNode(
@@ -7622,6 +7628,11 @@ export class ExecutionEngineService
    * 아니거나 `output_data` · `meta` 가 객체가 아니면 바꾸지 않는다. 뒤 노드가 `$node["X"].meta`
    * 로 읽도록 구조화 출력 캐시의 `meta` 에도 넣는다. 큐 작업 스냅샷은 그 전에 만들었으므로
    * 본문 쪽에는 이 값이 없다. 스탬프가 실패해도 메인 흐름은 이어진다.
+   *
+   * 구조화 출력 캐시 쓰기는 {@link stampStructuredMetaJobId} 가 맡는다. Background 노드가 병렬
+   * 분기 안에 있으면 `context` 는 분기 사본이라 등록된 루트 컨텍스트의 캐시에도 같이 적어야 한다.
+   * 행 갱신은 엔진이 이미 원시 SQL 을 쓰는 다른 지점(`manager.query`, `executionRepository.query`)과
+   * 같은 층에서 한다.
    */
   private async stampBackgroundJobId(
     executionId: string,
@@ -7630,13 +7641,7 @@ export class ExecutionEngineService
     nodeExecutionId: string,
     jobId: string,
   ): Promise<void> {
-    const structured = context.structuredOutputCache[nodeId];
-    if (structured) {
-      context.structuredOutputCache[nodeId] = {
-        ...structured,
-        meta: { ...(structured.meta ?? {}), jobId },
-      };
-    }
+    this.stampStructuredMetaJobId(context, nodeId, jobId);
     if (!nodeExecutionId) return;
     try {
       await this.nodeExecutionRepository.query(
@@ -7659,6 +7664,33 @@ export class ExecutionEngineService
           err instanceof Error ? err.message : String(err)
         }`,
       );
+    }
+  }
+
+  /**
+   * 구조화 출력 캐시 항목의 `meta.jobId` 를 쓴다(CLE-T-6V9957). `context` 의 캐시에 쓰고, 병렬
+   * 분기 사본이라 등록된 루트 컨텍스트의 캐시가 다른 객체면 거기에도 같은 값을 쓴다. 그래야 분기
+   * 안 뒤 노드와 분기 뒤 노드가 같은 `meta.jobId` 를 본다. 항목이 없으면 아무것도 하지 않는다.
+   */
+  private stampStructuredMetaJobId(
+    context: ExecutionContext,
+    nodeId: string,
+    jobId: string,
+  ): void {
+    const stamp = (cache: ExecutionContext['structuredOutputCache']): void => {
+      const structured = cache[nodeId];
+      if (!structured) return;
+      cache[nodeId] = {
+        ...structured,
+        meta: { ...(structured.meta ?? {}), jobId },
+      };
+    };
+    stamp(context.structuredOutputCache);
+    const registered = this.contextService.getContext(
+      this.contextKeyOf(context),
+    )?.structuredOutputCache;
+    if (registered && registered !== context.structuredOutputCache) {
+      stamp(registered);
     }
   }
 
@@ -7946,14 +7978,20 @@ export class ExecutionEngineService
   private commitNodeOutput(
     context: ExecutionContext,
     nodeId: string,
-    output: unknown,
-    structured?: NodeHandlerOutput,
+    outputs: { flat: unknown; structured?: NodeHandlerOutput },
   ): void {
     const ctxKey = this.contextKeyOf(context);
-    if (structured) {
-      this.contextService.setNodeOutputs(ctxKey, nodeId, structured, output);
+    // 이름 있는 인자로 받는다. `setNodeOutputs(key, id, structured, flat)` 와 인자 순서가 달라
+    // 둘 다 unknown 계열이면 컴파일러가 순서 실수를 잡지 못한다.
+    if (outputs.structured) {
+      this.contextService.setNodeOutputs(
+        ctxKey,
+        nodeId,
+        outputs.structured,
+        outputs.flat,
+      );
     } else {
-      this.contextService.setNodeOutput(ctxKey, nodeId, output);
+      this.contextService.setNodeOutput(ctxKey, nodeId, outputs.flat);
     }
     this.syncParallelBranchCacheEntry(context, nodeId);
   }
@@ -8379,8 +8417,7 @@ export class ExecutionEngineService
     },
   ): NodeHandlerOutput {
     this.commitNodeOutput(context, parallelNodeId, {
-      _selectedPort: 'done',
-      ...done.output,
+      flat: { _selectedPort: 'done', ...done.output },
     });
     const completedOutput: NodeHandlerOutput = {
       config: done.config,
@@ -8694,12 +8731,10 @@ export class ExecutionEngineService
       output: structuredOutput,
       ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
     };
-    this.commitNodeOutput(
-      context,
-      containerNode.id,
-      structuredOutput,
-      completedOutput,
-    );
+    this.commitNodeOutput(context, containerNode.id, {
+      flat: structuredOutput,
+      structured: completedOutput,
+    });
     return completedOutput;
   }
 
