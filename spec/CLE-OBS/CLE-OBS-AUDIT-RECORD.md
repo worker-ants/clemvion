@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT-RECORD"
 title: "감사 로그 — 기록과 조회"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "940671bdf6f47cd4f8e04f0eea6e3670c8370b45d0fb13e2bd9b943297c4cbc0"
+content_hash: "63a8c4d1bfda2211e0ad2a4c3f9d346aa30b0da2ee062bd2e09fd8caeeff94f9"
 read_as: "approved_fallback"
-task: "CLE-T-Q6E11N"
+task: "CLE-T-YAHNQ6"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "e8230699ec09ff9b26f37352a8b30cf03c8bfd14a33848d9cde7aac9fc0499e3"
-etag: "sha256-0e797e25bbf7f4bf7eeb9a1f58f50d8bbf95b95cf4ddedf1d9f9aae192038436"
+mirror_sha256: "d4c356972e61c5091cdfd563f9bad0e52bc9f412a179da1fdd8f02321ba4bfd9"
+etag: "sha256-3a09444089727961a0b771813b140228aba3c7bbc0ed96832bbedce351136278"
 ---
 > 구현 상태: 구현됨 · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/5-system/1-auth.md` (§4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -56,7 +56,7 @@ sequenceDiagram
 - 로그인한 세션에서 일어나는 사용자 보안 동작(`user.password_changed`, `user.2fa_enabled`, `user.2fa_disabled`, `user.email_changed`)은 **행위자의 현재 워크스페이스**(인증 요청 JWT 의 워크스페이스)에 귀속한다. 이 동작들은 모두 로그인한 세션에서만 일어난다(`POST /users/me/change-password`, TOTP `verifyAndEnable`·`disable`, WebAuthn 등록·삭제, 이메일 변경 확인). 그래서 항상 현재 워크스페이스가 있고 스키마를 바꾸지 않아도 NOT NULL 제약을 채운다. `resourceType` 은 `'user'`, `resourceId` 는 사용자 ID 다. 기록은 현재 워크스페이스를 알 수 있는 컨트롤러 경계(`users.controller`·`auth.controller`·`webauthn.controller`)에서 한다.
 - 워크스페이스 없이 일어나는 인증 이벤트(로그인, 로그아웃, 로그인 실패 등)는 감사 로그가 아니라 [로그인 이력](CLE-OBS-AUDIT-LOGIN.md) 에 남는다.
 - 로그인 없이 토큰으로 하는 비밀번호 재설정(`POST /auth/reset-password`)은 현재 워크스페이스가 없어 `user.password_changed` 감사 대상이 아니다. 재설정 완료를 따로 남길지는 로그인 이력 이벤트 신설과 `chk_login_history_event` CHECK 마이그레이션이 따르는 별개 결정이며 이 문서 범위 밖이다.
-- 비밀번호 변경은 모든 로그인 세션 무효화와 현재 기기 재발급을 함께 한다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md)). 그래서 감사 행 `user.password_changed` 와 함께 로그인 이력 `session_revoked`(일괄, `familyId=null`) 한 행이 남는다. 이메일 변경 확인도 같다.
+- 비밀번호 변경은 모든 로그인 세션 무효화와 현재 기기 재발급을 함께 한다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md)). 그래서 감사 행 `user.password_changed` 가 남고 무효화한 리프레시 토큰 행이 있으면 로그인 이력 `session_revoked`(일괄, `familyId=null`) 한 행도 남는다([세션 정책](../CLE-ACCT/CLE-ACCT-SESSION-POLICY.md#세션-정책)). 이메일 변경 확인도 같다.
 
 ## 감사 로그 조회
 

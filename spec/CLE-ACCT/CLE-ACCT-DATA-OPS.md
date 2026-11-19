@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-OPS"
 title: "계정과 워크스페이스 데이터 흐름 — 테이블 쓰기 · 배치 · 외부 의존"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "e5d42512e131bf3eab7b03aa64b05f31f2efaa378d915fa9e48bc066474e338f"
+content_hash: "81b1feee220a263c59027f2809c704c9dbbb97c0c3637a8c284a21468bfcb986"
 read_as: "approved_fallback"
-task: "CLE-T-VYNVGP"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "a982c68bda571a2b8f5ea7aafa153d28fae82a6d56a8a1608dc5a9263236183d"
-etag: "sha256-3e497f1cfc6fbe3ae14901ca0bc2d4720d09ac141f8296e77c0ec139224115da"
+mirror_sha256: "e444958fba1ad76e55bc555358e12f1e7a775f20adbc5c7d22b5ad7537da40a3"
+etag: "sha256-e9435c72d4886c65602e8fecbb101ade78a500f9aea42fb4fdd6784fa1d0d95d"
 ---
 ## 개요
 
@@ -137,32 +137,40 @@ STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 �
 
 코드를 예전 문서에 맞춰 모든 요청을 IP 로 세는 안은 기각했다. 사무실처럼 한 IP 를 여러 사용자가 함께 쓰면 서로의 한도를 깎는다. 한 사용자가 IP 를 바꿔 가며 한도를 피할 수도 있다. `register`·`login` 처럼 인증 전 라우트는 사용자를 알 수 없어 IP 로 센다.
 
-### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)
+### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다
+
+결정일: 2026-10-22
 
 NERV Task `CLE-T-A3W8B8` 에서 고쳤다. NestJS 12 부터 전역 가드가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard` 하나가 맡는다. 그래서 요청 빈도 제한 표의 전역 행 범위를 HTTP API 로 적고 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 으로 넘겼다.
 
 2026-10-10 [「요청 한도의 집계 기준을 코드에 맞췄다」](#요청-한도의-집계-기준을-코드에-맞췄다) 의 집계 기준은 HTTP 요청에 그대로 유효하다. 기각한 대안은 [HTTP API 규약 「전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)」](../CLE-API/CLE-API-CONV.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다-2026-10-22) 에 있다. 경위는 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」 에 있다.
 
-### TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다 (2026-11-01)
+### TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다
 
-NERV Task `CLE-T-94FTMV` 에서 바꿨다. 규칙과 근거, 기각한 안은 [가입과 로그인 「TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다」](CLE-ACCT-SIGNIN.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다-2026-11-01) 에 있다. 이 문서에는 테이블 쓰기와 요청 한도만 적는다.
+결정일: 2026-11-01
+
+NERV Task `CLE-T-94FTMV` 에서 바꿨다. 규칙과 근거, 기각한 안은 [2단계 인증 설정과 TOTP 「TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다」](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다) 에 있다. 이 문서에는 테이블 쓰기와 요청 한도만 적는다.
 
 - 그 전에는 TOTP 가 켜진 계정에서도 설정 시작이 `two_factor_secret` 을 새 값으로 바꿨고 활성화 검증이 `totp_recovery_codes` 를 다시 발급했다. 이제 둘 다 켜진 계정을 409 `TOTP_ALREADY_ENABLED` 로 거부하고 컬럼을 쓰지 않는다.
 - 켜짐 여부를 읽은 뒤 저장하기 전에 다른 요청이 TOTP 를 켤 수 있다. 조건 없이 쓰는 `UsersService.update` 로 쓰면 막 켜진 계정의 secret 과 복구 코드를 덮어쓴다. 그래서 두 쓰기를 조건부 UPDATE 로 바꾸고 `TotpService` 가 `User` 저장소로 직접 쓴다. 판정을 DB 단일 UPDATE 의 원자성에 맡기는 것은 [인증 흐름 「토큰 회전은 트랜잭션과 조건부 UPDATE 로 원자화한다」](CLE-ACCT-DATA-AUTH.md#토큰-회전은-트랜잭션과-조건부-update-로-원자화한다) 와 같다.
 - 설정 시작의 조건은 `two_factor_enabled = false` 하나라서 영향 행이 0 이면 바로 409 다. 활성화 검증은 `two_factor_secret` 도 조건에 넣는다. 확인한 코드가 그 사이 다른 설정 시작이 바꾼 secret 과 맞지 않을 수 있기 때문이다. 영향 행이 0 이면 다시 읽어 켜져 있으면 409, 아니면 401 `TOTP_INVALID` 로 가른다.
 - 끄기는 바꾸지 않았다. 비밀번호와 코드를 확인한 뒤 조건 없이 세 컬럼을 비운다. 2026-11-02 부터는 `two_factor_setup_started_at` 도 함께 비운다.
-- 설정 시작은 계정 비밀번호를 bcrypt 로 대조하는 경로가 됐다. 그래서 TOTP 끄기와 같은 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 활성화 검증 등 나머지 비밀번호 재확인 라우트의 한도는 2026-11-02 사람 결정으로 맞췄다(아래 「TOTP 대기 secret 에 10분 수명을 두고 2단계 인증 라우트의 요청 빈도 제한을 맞췄다 (2026-11-02)」).
+- 설정 시작은 계정 비밀번호를 bcrypt 로 대조하는 경로가 됐다. 그래서 TOTP 끄기와 같은 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 활성화 검증 등 나머지 비밀번호 재확인 라우트의 한도는 2026-11-02 사람 결정으로 맞췄다(아래 「TOTP 대기 secret 에 10분 수명을 두고 2단계 인증 라우트의 요청 빈도 제한을 맞췄다」).
 
-### TOTP 대기 secret 에 10분 수명을 두고 2단계 인증 라우트의 요청 빈도 제한을 맞췄다 (2026-11-02)
+### TOTP 대기 secret 에 10분 수명을 두고 2단계 인증 라우트의 요청 빈도 제한을 맞췄다
 
-NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거, 기각한 안은 [가입과 로그인 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)」](CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 에 있다. 이 문서에는 컬럼과 테이블 쓰기, 요청 빈도 제한만 적는다.
+결정일: 2026-11-02
+
+NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거, 기각한 안은 [Passkey 기능과 등록 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다」](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다) 에 있다. 이 문서에는 컬럼과 테이블 쓰기, 요청 빈도 제한만 적는다.
 
 - 그 전에는 대기 secret 에 수명이 없었다. 수명을 재려고 `user.two_factor_setup_started_at`(timestamptz, NULL 허용)을 더했다. 설정 시작이 secret 과 같은 조건부 UPDATE 로 쓰므로 secret 과 시각이 따로 바뀌지 않는다. 켜기와 끄기는 시각을 비운다.
-- 만료된 대기 secret 을 비우는 UPDATE 는 `two_factor_enabled = false` 이고 `two_factor_secret` 이 읽은 값 그대로일 때만 쓴다. 그 사이 다른 설정 시작이 쓴 새 secret 과 시각을 지우지 않기 위해서다. 판정을 DB 단일 UPDATE 에 맡기는 방식은 「TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다 (2026-11-01)」 와 같다.
+- 만료된 대기 secret 을 비우는 UPDATE 는 `two_factor_enabled = false` 이고 `two_factor_secret` 이 읽은 값 그대로일 때만 쓴다. 그 사이 다른 설정 시작이 쓴 새 secret 과 시각을 지우지 않기 위해서다. 판정을 DB 단일 UPDATE 에 맡기는 방식은 「TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다」 와 같다.
 - 마이그레이션은 기존 행을 바꾸지 않는다. 컬럼을 더하기 전에 설정 시작한 대기 secret 은 시각이 NULL 이라 활성화 검증이 만료로 보고 비운다. 사용자는 설정 시작부터 다시 하면 된다.
 - 이 컬럼은 응답에 싣지 않는다. 비밀이 아니라서 [「응답에 싣지 않는 민감 컬럼 7개」](CLE-ACCT-DATA-MODEL.md#응답에-싣지-않는-민감-컬럼-7개) 에는 넣지 않았다.
 - 활성화 검증, Passkey 등록 옵션, Passkey 복구 코드 재발급에 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 세 라우트 모두 로그인한 사용자만 부르므로 사용자 기준으로 센다. 수치의 정본은 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이다.
 
-### Passkey 복구 코드 쓰기에 사용자 행 잠금을 적었다 (2026-11-14)
+### Passkey 복구 코드 쓰기에 사용자 행 잠금을 적었다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-HQQNEA`. `user` 행의 Passkey 복구 코드 쓰기에 사용자가 마지막 credential 을 지울 때 비우는 것과 사용자 행 잠금을 적었다. 복구 코드를 읽고 쓰는 경로가 모두 이 잠금에서 차례로 돌아야 credential 없이 코드가 남지 않는다. 범위와 근거의 정본은 [Passkey 기능과 등록 「복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다」](CLE-ACCT-SIGNIN-PASSKEY.md#복구-코드를-읽고-쓰는-경로도-사용자-행-잠금-아래-둔다) 다.

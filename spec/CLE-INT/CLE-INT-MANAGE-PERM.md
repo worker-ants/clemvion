@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-PERM"
 title: "통합 관리 — 권한과 멤버 퇴장"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "f7386c92c148a19077dea4ac6469490a3d7c669d5b1da383c963a6300e6b4aad"
+content_hash: "bbfa5d1ca06df22b01c7d1dfed2f94227e5d189a970d597a16c4a2ac40ee2c9e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "1791613f6cf22c646b9350e7ca2d16812a3d1161a2b436312d49b614da15265c"
-etag: "sha256-48a446bb4432669943df7eabe6d6ab76293e1d979285c0910c77b5e1b5faf199"
+mirror_sha256: "bc7cdadb8b2b64f537706993582b66db750fee9a1a3fa1639c146360a0a12367"
+etag: "sha256-dc6522c8c9c4a257b613875cf6452bf2e8ab3d73a748e16672002d1282f5bd61"
 ---
 ## 개요
 
@@ -105,7 +105,7 @@ MCP 서버 통합을 개인 공개 범위로 등록할 수 있는지는 [미결 
 - 조직 통합은 지우지 않는다. 조직 통합은 통합 소유자와 상관없이 관리자 이상이 관리한다.
 - 제거는 멤버십을 끝내는 동작이고 개인 통합 삭제는 통합 소유자가 이 워크스페이스에서 사라진 결과다. 관리자가 남의 개인 통합을 보거나 고르는 권한을 얻는 것은 아니다.
 - 일반 삭제와 같이 캐시를 무효화하고 통합마다 `integration.deleted` 를 남긴다. 일반 삭제와는 `details.mode` 로 구분한다. 키 이름과 값을 `member.removed` 와 같게 둬서 두 기록을 `mode`·`memberUserId` 로 이을 수 있다. 감사 액션을 따로 두지 않는다. 제공자 쪽 앱 해지는 하지 않는다. 일반 삭제도 하지 않는다.
-- 나가기와 제거 확인 다이얼로그에서 개인 통합도 지워진다고 알린다. 안내 규칙과 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#나가기와-제거는-개인-통합도-지운다-2026-10-29) 가 정한다.
+- 나가기와 제거 확인 다이얼로그에서 개인 통합도 지워진다고 알린다. 안내 규칙과 근거는 [워크스페이스와 멤버 — 멤버 관리와 역할](../CLE-ACCT/CLE-ACCT-WS-MEMBER.md#나가기와-제거는-개인-통합도-지운다) 이 정한다.
 - 다시 초대해도 지운 통합은 돌아오지 않는다. 다시 들어온 멤버는 새로 등록한다.
 - 만료 알림과 Cafe24 백그라운드 갱신은 따로 막지 않는다. 행이 지워지면 둘 다 그 행을 다루지 않는다.
 

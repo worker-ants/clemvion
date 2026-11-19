@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-INTMGMT"
 title: "에러 코드 카탈로그 — 통합 관리 · OAuth"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "fd51724ef288ed76ef119d22e6ee2221c472bbb99ff1e86dc56879ad042c2229"
+content_hash: "8de896d950bbbfe60836f9c685759fbe217a538081dd3fdfe9158992d2b8e03a"
 read_as: "approved_fallback"
-task: "CLE-T-2ZZ3D2"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "44a786cabff7d3f777fc22d33300244cadb2f2bbc561104e9303b60c458e846a"
-etag: "sha256-ceb6ffe87d54354003d238d6495bb80c87b36fecb5d3912d19ef70c7541fe4af"
+mirror_sha256: "8c61616623c7f38c98dafca7d14aa53bdab6884a3fb5ca6d633fe48af8f033af"
+etag: "sha256-44df026f903be6cb1d8ef9d4cf38526375a5e6e2d8ecfbe7ed72195ff973e384"
 ---
 ## 개요
 
@@ -120,7 +120,7 @@ NERV Task `CLE-T-6G3084` · `CLE-T-NFNMZG` · `CLE-T-FCN55B` · `CLE-T-4F33EZ` �
 
 - **`INTEGRATION_SCOPE_UNSUPPORTED`**: 통합 관리 「에러 코드」 표에도 이 코드 행이 있어 정의 문서에 두 문서를 함께 적었다. 통합 관리 쪽은 판정 순서를, OAuth 연결 쪽은 요청 흐름을 적는다.
 - **`INTEGRATION_TEST_FAILED`**: NERV Task `CLE-T-XCMNP6` 의 구현으로 결과에 `code` 가 있으면 `details.testCode` 를 싣는다. 「지금 구현은 싣지 않는다」 문장을 지우고 `code` 가 없을 때의 모양을 적었다.
-- **소셜 로그인 콜백의 `OAUTH_ACCOUNT_AMBIGUOUS`**: 연결할 계정을 정하지 못한 실패도 다른 내부 코드처럼 행 없이 `server_error` 로 바뀐다고 적었다. 새 `error=` 값을 두지 않은 이유는 [가입과 로그인 — 가입 · 재설정 · 이메일 변경 Rationale 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05) 에 있다.
+- **소셜 로그인 콜백의 `OAUTH_ACCOUNT_AMBIGUOUS`**: 연결할 계정을 정하지 못한 실패도 다른 내부 코드처럼 행 없이 `server_error` 로 바뀐다고 적었다. 새 `error=` 값을 두지 않은 이유는 [가입과 로그인 — 가입 · 재설정 · 이메일 변경 Rationale 「대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다) 에 있다.
 - **`INTEGRATION_SCOPE_UNSUPPORTED` · `INTEGRATION_ROTATE_UNSUPPORTED` 의 판정 순서**: 두 행에 가시성(404) · 역할(403) 판정 뒤에 본다고 적었다. 추가 권한 요청은 NERV Task `CLE-T-RW69WZ`, 자격 증명 교체는 `CLE-T-4F33EZ` 로 이 순서가 됐다. 그래서 관리자 미만이 조직 통합에 보낸 요청은 인증 유형과 관계없이 `ADMIN_REQUIRED` 다.
 - **정의 문서 링크**: 통합 관리를 하위 문서로 나누며 에러 코드 표를 [통합 관리 — API 와 에러 코드](../CLE-INT/CLE-INT-MANAGE-API.md#에러-코드) 로 옮겼다. `INTEGRATION_INVALID_CREDENTIALS` · `INTEGRATION_CREDENTIALS_INVALID` 는 그 표에 행이 없었다. 그 표에 두 행을 더하고 정의 문서를 그 표로 고쳤다. 판정 순서를 더한 두 UNSUPPORTED 행의 통합 관리 링크도 그 표로 옮겼다. `INTEGRATION_SCOPE_UNSUPPORTED` 의 OAuth 링크는 요청 흐름을 적은 하위 문서 [재인증과 추가 권한 요청](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#통합-재인증과-추가-권한-요청) 으로 고쳤다(NERV Task `CLE-T-FCN55B`).
 - **통합 관리 표와의 차이**: [통합 관리 — API 와 에러 코드 「에러 코드」](../CLE-INT/CLE-INT-MANAGE-API.md#에러-코드) 는 콜백 코드를 HTTP 400 으로 적었고 설치 코드의 조건이 이 표와 달랐다. NERV Task `CLE-T-2ZZ3D2` 에서 그 표를 통합 관리 API 의 JSON 에러 코드로 좁혔다. 콜백 · 설치 코드의 정본은 이 문서 하나다. 남은 행의 통합 관리 링크는 부모 문서(`CLE-INT-MANAGE`)가 아니라 그 표로 고쳤다. 부모 문서의 「에러 코드」 절은 그 표로 넘기는 한 줄뿐이다. 그 표에서 뺀 설치 · 콜백 코드 행의 통합 관리 링크는 지우거나 [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) 로 바꿨다.

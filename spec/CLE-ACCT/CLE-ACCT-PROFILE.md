@@ -2,19 +2,19 @@
 id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027", "REQ-PROFILE-028", "REQ-PROFILE-029"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "76eb01faff78b199810f61793782a81f8d8bb2ef228895241bae4af3b0c929d1"
+content_hash: "491db84f0bdf28320e05e544648022a3e386622821c03f6f80ceffdcb590d8cf"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-M3Z08T"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "1bfca1a5ac9324b681952b4d35832157b019c5559c9e59bd245ba845668bb99d"
-etag: "sha256-20a20af670fd4a12395584a5a57de614b74917593dc33d9db395f0cc022ef2b0"
+mirror_sha256: "73ea7d0ef8e9d7d40883c65ff7307ec10ff2e404915b326a8dac94673c530052"
+etag: "sha256-892290f2fc8c36072ff9e95df11167dc80ae50797585ae4dfc95a6a65ee3a3b8"
 ---
 > 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목은 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -274,7 +274,9 @@ etag: "sha256-20a20af670fd4a12395584a5a57de614b74917593dc33d9db395f0cc022ef2b0"
 - 기각: 로그인 화면은 늘 라이트로 그린다. 로그인 직후 테마가 바뀌며 화면이 깜빡인다. UI 언어와도 다르게 동작한다.
 - 미리보기는 기억한 값에 쓰지 않는다. 저장하지 않은 미리보기가 다음 새로 고침의 첫 화면에 남으면 저장된 테마와 다른 테마가 잠깐 보인다.
 
-### 응답 표기와 외부 아바타 요청 범위를 정리했다 (2026-11-13)
+### 응답 표기와 외부 아바타 요청 범위를 정리했다
+
+결정일: 2026-11-13
 
 동작과 응답 형식은 바뀌지 않았다(NERV Task `CLE-T-YG34W6`).
 

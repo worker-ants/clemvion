@@ -127,6 +127,8 @@ The following actions are limited to 10 requests per minute per user.
 - Verifying a TOTP code
 - Turning off two-factor authentication
 
+Actions that check your password (Passkey registration, deletion and recovery code reissue, starting TOTP setup, turning off two-step verification) also count wrong passwords separately from the limit above. If you enter a wrong password 10 times within a minute on any screen, password checks stay blocked until that minute passes, even if you then enter the correct password.
+
 Over the limit, the screen shows "Too many requests. Please try again in a moment." The screen does not resend automatically, so wait a moment and try again yourself.
 
 ## Self-hosting

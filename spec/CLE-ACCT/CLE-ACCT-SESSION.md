@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 20
+version: 21
 status: "approved"
 requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047", "REQ-SESSION-048"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "e1b3155fdd723c9495e546f250bd37d968bfbc13f245eec8b7208978c5ec297c"
+content_hash: "fa7c67a06f334f19ae3b5bca72316044639f0890de5ea3a320eaa089bb6a9440"
 read_as: "approved_fallback"
-task: "CLE-T-Y2C5F4"
+task: "CLE-T-YAHNQ6"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "10be7a266b20b5c3f2b8ffc72cd97d9380b1e202765c11abd80387c7eb8b6668"
-etag: "sha256-8d83237976a96a3dab5b220508fc7cc7ba59ed1effb8581c5a6b012ce81e28db"
+mirror_sha256: "4e0848d17c6c5e56b591bf8deee3123e5c94786ccb775f6ace91ff0abb63af81"
+etag: "sha256-d044567ad3c0ed8e7d069478cbf9b45145b8e69cb4b08bc304b55b5023235183"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -60,7 +60,7 @@ etag: "sha256-8d83237976a96a3dab5b220508fc7cc7ba59ed1effb8581c5a6b012ce81e28db"
 - REQ-SESSION-025 WHEN 계정 재인증을 하면 THE SYSTEM SHALL 비밀번호가 있는 계정은 비밀번호, 비밀번호가 없는 계정은 등록된 TOTP 코드로 확인하고 둘 다 있으면 하나만 통과해도 받는다.
 - REQ-SESSION-026 IF 비밀번호도 TOTP 도 없는 계정이 계정 재인증을 하려 하면 THE SYSTEM SHALL Passkey 등록 여부와 상관없이 403 `REAUTH_NOT_AVAILABLE` 로 막는다.
 - REQ-SESSION-027 WHEN 비밀번호 변경이 성공하면 THE SYSTEM SHALL 사용자의 모든 로그인 세션을 무효화하고 현재 기기에 7일짜리 새 로그인 세션을 발급한다.
-- REQ-SESSION-028 WHEN 비밀번호 변경이나 이메일 변경으로 모든 로그인 세션을 무효화하면 THE SYSTEM SHALL 로그인 이력에 `session_revoked`(`familyId=null`) 1건을 남긴다.
+- REQ-SESSION-028 WHEN 비밀번호 변경 · 이메일 변경 확인 · 이메일 인증 전 계정의 소셜 로그인 연결로 사용자의 모든 로그인 세션을 무효화하면 THE SYSTEM SHALL 무효화한 리프레시 토큰 행이 하나 이상일 때만 로그인 이력에 `session_revoked`(`familyId=null`) 1건을 남긴다. 계기별 규칙은 [세션 정책](CLE-ACCT-SESSION-POLICY.md#세션-정책) 표가 정한다.
 - REQ-SESSION-029 IF 비밀번호 변경 뒤 로그인 세션 무효화나 재발급이 실패하면 THE SYSTEM SHALL 이미 커밋한 비밀번호 변경을 유지하고 실패를 서버 로그에 남긴다.
 - REQ-SESSION-030 WHEN 사용자가 로그아웃하면 THE SYSTEM SHALL 호출한 기기의 로그인 세션 전체를 무효화하고 리프레시 쿠키를 지우고 로그인 이력에 `logout` 을 남긴다.
 - REQ-SESSION-031 WHEN 리프레시 쿠키 없이 로그아웃을 요청하면 THE SYSTEM SHALL 200 으로 응답한다.
@@ -181,6 +181,18 @@ REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않
 - 요구사항 REQ-SESSION-018 · 019 에 이 경로가 두 순서 밖이라고 적었다.
 - 요구사항 REQ-SESSION-019 의 대상을 공개 웹훅 호출 수 제한(`PublicWebhookThrottleGuard`)·`ip_whitelist`·실행 기록 소스 IP(`Execution.source_ip`)로 고쳐 적었다. 요청 한도는 공개 웹훅 호출 수 제한으로 좁혔다. `/api/hooks/*` 의 전역 요청 한도는 `req.ip` 로 세므로 이 요구사항의 대상이 아니다. 실행 기록 소스 IP 는 웹훅 · 채팅 채널 트리거가 실행을 만들 때 같은 `extractClientIpFromHeaders` 로 읽어서 더했다([실행 데이터와 흐름 — 데이터 모델](../CLE-EXEC/CLE-EXEC-DATA-MODEL.md#실행)).
 - NERV Task `CLE-T-E90KGZ` 에서 고쳤다.
+
+### 일괄 무효화 이력의 계기에 미인증 계정의 소셜 로그인 연결을 더했다
+
+결정일: 2026-11-15
+
+동작은 바뀌지 않았고 요구사항 줄을 구현에 맞췄다.
+
+- NERV Task `CLE-T-327K37` 에서 소셜 로그인 콜백이 이메일 인증 전 계정에 연결하면 그 사용자의 로그인 세션을 모두 무효화하게 했다. 이 경로도 비밀번호 변경 · 이메일 변경 확인과 같은 일괄 이력을 남긴다. 계기별 규칙의 정본은 [세션 정책](CLE-ACCT-SESSION-POLICY.md#세션-정책) 표다.
+- 요구사항 REQ-SESSION-028 에 이 세 번째 계기를 더했다.
+- 세 경로 모두 무효화한 리프레시 토큰 행이 하나 이상일 때만 이력을 남긴다(`SessionsService.revokeAllFamilies` · `recordBulkRevoked`). 비밀번호 변경과 이메일 변경 확인도 원래 이렇게 동작했지만 요구사항 줄에는 이 조건이 없었다. 이번에 함께 적었다.
+- 미인증 계정 연결은 무효화를 계정 연결과 같은 트랜잭션에서 하고 이력은 커밋한 뒤에 남긴다.
+- NERV Task `CLE-T-YAHNQ6` 에서 고쳤다.
 
 다른 문서가 링크하던 Rationale 절은 아래 이름 그대로 남기고 하위 문서로 잇는다.
 

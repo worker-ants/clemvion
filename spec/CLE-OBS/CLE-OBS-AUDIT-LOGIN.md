@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT-LOGIN"
 title: "감사 로그 — 로그인 이력"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "cc135429d32acd562e22d934362efeb46938a3323268e4feb019a983ed8ef339"
+content_hash: "ccf5ccbc3a793b9c5c0559e3fe3ef98b8f95e5ec49f2737275543774d0208b13"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-YAHNQ6"
 source_paths: ["spec/5-system/1-auth.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "4dfc0aeb531e26becd2679ce1705f06c7d4f1b2b1648bb0011de78b6790df293"
-etag: "sha256-b18d2ff69f7d07022a466bad0b70610017911882c96e94ba7cb9f0685b0dc2aa"
+mirror_sha256: "f10cc0a22a4efcf4731b3d32d96a6ed21a2038eee1fd9c3eb64e84510de930b5"
+etag: "sha256-563e51c97918ffd067a500a2d24832ba659c2caff14a7d0bc0ec219a4d8b8c76"
 ---
 > 구현 상태: 구현됨 · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/5-system/1-auth.md` (§4), `spec/data-flow/1-audit.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -33,7 +33,7 @@ etag: "sha256-b18d2ff69f7d07022a466bad0b70610017911882c96e94ba7cb9f0685b0dc2aa"
 | `totp_failed` | 〃 | 2단계 인증 TOTP 코드 검증 실패 |
 | `webauthn_failed` | `auth/webauthn/webauthn.service.ts` | 2단계 인증 WebAuthn 검증 실패. `failure_reason` 으로 `WEBAUTHN_INVALID`·`WEBAUTHN_COUNTER_REGRESSION` 을 구분한다 |
 | `logout` | `auth/auth.service.ts` | 사용자가 `/auth/logout` 을 부름. 부른 기기의 로그인 세션 전체를 무효로 한다 |
-| `session_revoked` | `auth/sessions.service.ts` | 활성 세션 목록에서 다른 로그인 세션을 하나씩 강제 종료, `revoke-others` 일괄 종료, 비밀번호 변경·이메일 변경 확정 때의 전체 무효화(일괄, `familyId=null`). 모두 `SessionsService` 를 거친다. 기존 enum 값을 다시 써서 CHECK 제약과 마이그레이션이 필요 없다 |
+| `session_revoked` | `auth/sessions.service.ts` (`revokeFamily` · `revokeOtherFamilies` · `revokeAllFamilies` · `recordBulkRevoked`) | 활성 세션 목록에서 다른 로그인 세션을 하나씩 강제 종료(`familyId` 포함), `revoke-others` 일괄 종료, 비밀번호 변경 · 이메일 변경 확정 때의 전체 무효화, 소셜 로그인 콜백이 이메일 인증 전 계정에 연결할 때의 전체 무효화. 일괄 종료와 전체 무효화는 무효화한 행이 있을 때만 `familyId=null`(일괄)로 1건 남긴다. 미인증 계정 연결은 무효화를 계정 연결과 같은 트랜잭션에서 하고 이력은 커밋 뒤에 `auth/auth-oauth.service.ts` 가 `recordBulkRevoked` 를 불러 남긴다. 모두 `SessionsService` 를 거친다. 계기별 규칙은 [세션 정책](../CLE-ACCT/CLE-ACCT-SESSION-POLICY.md#세션-정책) 표가 정한다. 기존 enum 값을 다시 써서 CHECK 제약과 마이그레이션이 필요 없다 |
 | `token_reuse_detected` | `auth/auth.service.ts` | 무효가 된 refresh token 의 재사용을 감지함. 그 로그인 세션 전체를 무효로 한다 |
 
 `webauthn_failed` 는 V058 에서 CHECK 제약을 지웠다가 다시 만드는 방식으로 더했다.

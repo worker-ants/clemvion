@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN"
 title: "가입과 로그인"
 type: "feature"
-version: 22
+version: 23
 status: "approved"
 requirements: ["REQ-SIGNIN-001", "REQ-SIGNIN-002", "REQ-SIGNIN-003", "REQ-SIGNIN-004", "REQ-SIGNIN-005", "REQ-SIGNIN-006", "REQ-SIGNIN-007", "REQ-SIGNIN-008", "REQ-SIGNIN-009", "REQ-SIGNIN-010", "REQ-SIGNIN-011", "REQ-SIGNIN-012", "REQ-SIGNIN-013", "REQ-SIGNIN-014", "REQ-SIGNIN-015", "REQ-SIGNIN-016", "REQ-SIGNIN-017", "REQ-SIGNIN-018", "REQ-SIGNIN-019", "REQ-SIGNIN-020", "REQ-SIGNIN-021", "REQ-SIGNIN-022", "REQ-SIGNIN-023", "REQ-SIGNIN-024", "REQ-SIGNIN-025", "REQ-SIGNIN-026", "REQ-SIGNIN-027", "REQ-SIGNIN-028", "REQ-SIGNIN-029", "REQ-SIGNIN-030", "REQ-SIGNIN-031", "REQ-SIGNIN-032", "REQ-SIGNIN-033", "REQ-SIGNIN-034", "REQ-SIGNIN-035", "REQ-SIGNIN-036", "REQ-SIGNIN-037", "REQ-SIGNIN-038", "REQ-SIGNIN-039", "REQ-SIGNIN-040", "REQ-SIGNIN-041", "REQ-SIGNIN-042", "REQ-SIGNIN-043", "REQ-SIGNIN-044", "REQ-SIGNIN-045", "REQ-SIGNIN-046", "REQ-SIGNIN-047", "REQ-SIGNIN-048", "REQ-SIGNIN-049", "REQ-SIGNIN-050", "REQ-SIGNIN-051", "REQ-SIGNIN-052", "REQ-SIGNIN-053", "REQ-SIGNIN-054", "REQ-SIGNIN-055", "REQ-SIGNIN-056", "REQ-SIGNIN-057", "REQ-SIGNIN-058", "REQ-SIGNIN-059", "REQ-SIGNIN-060", "REQ-SIGNIN-061", "REQ-SIGNIN-062", "REQ-SIGNIN-063", "REQ-SIGNIN-064", "REQ-SIGNIN-065", "REQ-SIGNIN-066", "REQ-SIGNIN-067", "REQ-SIGNIN-068", "REQ-SIGNIN-069", "REQ-SIGNIN-070", "REQ-SIGNIN-071", "REQ-SIGNIN-072", "REQ-SIGNIN-073", "REQ-SIGNIN-074", "REQ-SIGNIN-075", "REQ-SIGNIN-076", "REQ-SIGNIN-077", "REQ-SIGNIN-078", "REQ-SIGNIN-079", "REQ-SIGNIN-080", "REQ-SIGNIN-081", "REQ-SIGNIN-082", "REQ-SIGNIN-083", "REQ-SIGNIN-084", "REQ-SIGNIN-085", "REQ-SIGNIN-086", "REQ-SIGNIN-087", "REQ-SIGNIN-088", "REQ-SIGNIN-089", "REQ-SIGNIN-090", "REQ-SIGNIN-091", "REQ-SIGNIN-092", "REQ-SIGNIN-093", "REQ-SIGNIN-094", "REQ-SIGNIN-095", "REQ-SIGNIN-096"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "d9ceae91daae8b306141ba14e12d63e79d0a600954abb943558f4627123acd6c"
+content_hash: "6b0664af08bc86a7f5a197fcf48104f11b5835e3fea6506ae74376d308b78b97"
 read_as: "approved_fallback"
-task: "CLE-T-6F4W2A"
+task: "CLE-T-M3Z08T"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "d725bbe91bb475303468d1414b3050e2b4c0b6452d32f486af6c97b2deec5163"
-etag: "sha256-2afc47c8ede6b414a94a7e41535fd1c76f718540d30de076b89f90c99ea42713"
+mirror_sha256: "e463e18b24a7b762b7a0f16fd34e6f682a82890933d3dfee7e66e77d5583a14b"
+etag: "sha256-bcf0645c0de3cac106235ea283ee9877a24057a8419e94acafaf37bee2d9d5fd"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -202,15 +202,21 @@ etag: "sha256-2afc47c8ede6b414a94a7e41535fd1c76f718540d30de076b89f90c99ea42713"
 
 → [Passkey 기능이 꺼져도 credential 목록 조회는 빈 목록을 준다](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-기능이-꺼져도-credential-목록-조회는-빈-목록을-준다)
 
-### Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다 (2026-10-17)
+### Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다
+
+결정일: 2026-10-17
 
 → [Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다](CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다)
 
-### Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다 (2026-11-02)
+### Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다
+
+결정일: 2026-11-02
 
 → [Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다)
 
-### Passkey 인증 챌린지는 한 번만 쓴다 (2026-10-17)
+### Passkey 인증 챌린지는 한 번만 쓴다
+
+결정일: 2026-10-17
 
 → [Passkey 인증 챌린지는 한 번만 쓴다](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지는-한-번만-쓴다)
 
@@ -226,7 +232,9 @@ etag: "sha256-2afc47c8ede6b414a94a7e41535fd1c76f718540d30de076b89f90c99ea42713"
 
 → [TOTP 켜기](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기)
 
-### TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다 (2026-11-01)
+### TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다
+
+결정일: 2026-11-01
 
 → [TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다)
 
@@ -234,7 +242,7 @@ etag: "sha256-2afc47c8ede6b414a94a7e41535fd1c76f718540d30de076b89f90c99ea42713"
 
 결정일: 2026-11-05
 
-→ [대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다 (2026-11-05)](CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)
+→ [대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다](CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다)
 
 ### 로그인 처리
 
@@ -260,7 +268,9 @@ etag: "sha256-2afc47c8ede6b414a94a7e41535fd1c76f718540d30de076b89f90c99ea42713"
 
 → [에러 코드](CLE-ACCT-SIGNIN-API.md#에러-코드)
 
-### 역행은 서명 검증을 통과한 응답에서만 판정한다 (2026-10-30)
+### 역행은 서명 검증을 통과한 응답에서만 판정한다
+
+결정일: 2026-10-30
 
 → [역행은 서명 검증을 통과한 응답에서만 판정한다](CLE-ACCT-SIGNIN-PKAUTH.md#역행은-서명-검증을-통과한-응답에서만-판정한다)
 
@@ -276,7 +286,9 @@ etag: "sha256-2afc47c8ede6b414a94a7e41535fd1c76f718540d30de076b89f90c99ea42713"
 
 → [이메일 비교 규칙](CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙)
 
-### 이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다 (2026-10-17)
+### 이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다
+
+결정일: 2026-10-17
 
 → [이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다](CLE-ACCT-SIGNIN-LOGIN.md#이메일-인증-전-계정은-비밀번호가-맞을-때만-알린다)
 

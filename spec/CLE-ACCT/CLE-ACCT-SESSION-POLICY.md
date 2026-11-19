@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION-POLICY"
 title: "세션과 토큰 — 세션 정책과 세션 관리"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SESSION"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SESSION"]
 area: "CLE-ACCT"
-content_hash: "a95a5d51356eefe229820b57aa417e2645999a214e77e4ebd8dc39cc2083c14c"
+content_hash: "df74993b949546781f4d53989e2efdd8e790e7d4741159d47b2187a2ed410208"
 read_as: "approved_fallback"
-task: "CLE-T-Y2C5F4"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "c695a90d280115c1644f9017599c0e6a9385d7205d8b8ff31f8d8b03548c6f29"
-etag: "sha256-a74cbb58ee5b5b3f39a67d7b5b21910b9ba649e42b279fd6d137c0adcaf95bae"
+mirror_sha256: "ea06a7ecce6fe82bc72e66528c72406d728445da93c0f41dedff08fa7393494a"
+etag: "sha256-b6f2e49b034de7c7f89f9a7c5db3f898f326ec1ea9be50e4f6ece6525c64c95b"
 ---
 > 구현 상태: 부분 구현 (동시 세션 한도와 초과 시 가장 오래된 세션 종료는 미구현) · 상위: [세션과 토큰](CLE-ACCT-SESSION.md)
 
@@ -31,9 +31,9 @@ etag: "sha256-a74cbb58ee5b5b3f39a67d7b5b21910b9ba649e42b279fd6d137c0adcaf95bae"
 | 초과 시 | 가장 오래된 로그인 세션을 자동 종료한다. 미구현이다 |
 | 세션 강제 종료 | 사용자가 활성 세션 목록에서 로그인 세션을 하나씩 끝낼 수 있다. 그 `family_id` 전체를 무효화한다 |
 | 강제 종료 재인증 | `SessionsService.verifyReauth` 로 본인을 확인한다. 비밀번호가 있는 계정은 비밀번호, 비밀번호가 없고 TOTP 가 켜진 계정은 등록된 TOTP 코드로 확인한다. 둘 다 있으면 비밀번호, TOTP 순으로 하나만 통과하면 된다. 복구 코드는 받지 않는다. 지금은 요청 DTO 의 `totpCode` 길이 제한(6~8자)이 복구 코드를 막는다. 비밀번호도 TOTP 도 없는 OAuth 전용 계정은 `REAUTH_NOT_AVAILABLE` 로 막는다. Passkey 만 등록한 계정도 여기에 든다. Passkey 와 이메일 OTP 로 하는 계정 재인증은 현재 지원하지 않는다. 이메일 변경과 일괄 종료도 같은 `verifyReauth` 를 쓴다 |
-| 비밀번호 변경 시 | `POST /api/users/me/change-password` 가 성공하면 사용자의 모든 활성 로그인 세션을 무효화하고 변경한 현재 기기에 새 로그인 세션(새 액세스 토큰과 리프레시 쿠키)을 바로 발급한다. 로그인 이력에 `session_revoked`(일괄, `familyId=null`) 1건을 남긴다. 새 로그인 세션은 표준 7일(`rememberMe=false`)이다. 이 요청은 `/api/users/me/*` 경로라 리프레시 쿠키가 붙지 않는다. 그래서 현재 로그인 세션을 식별할 수 없어 직전 로그인 세션의 로그인 유지 여부를 이어받지 않는다 |
-| 이메일 변경 시 | `POST /api/users/me/email-change/verify` 가 성공하면 비밀번호 변경과 같게 모든 로그인 세션을 무효화하고 현재 기기에 다시 발급한다. 이 요청도 `/api/users/me/*` 경로라 현재 로그인 세션을 식별할 수 없다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 기존 enum 값을 다시 쓰므로 DB CHECK·마이그레이션이 필요 없다 |
-| 미인증 계정에 소셜 로그인을 연결할 때 | 소셜 로그인 콜백이 이메일 인증 전 계정에 연결하면 그 사용자의 모든 로그인 세션을 무효화한다. 폐기한 행이 있으면 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 그다음 콜백이 새 로그인 세션을 발급한다. 인증된 계정에 연결할 때는 무효화하지 않는다. 연결 규칙은 [로그인과 소셜 로그인 「소셜 로그인」](CLE-ACCT-SIGNIN-LOGIN.md#소셜-로그인) 이 정한다 |
+| 비밀번호 변경 시 | `POST /api/users/me/change-password` 가 성공하면 사용자의 모든 활성 로그인 세션을 무효화하고 변경한 현재 기기에 새 로그인 세션(새 액세스 토큰과 리프레시 쿠키)을 바로 발급한다. 무효화한 리프레시 토큰 행이 하나 이상일 때만 로그인 이력에 `session_revoked`(일괄, `familyId=null`) 1건을 남긴다. 새 로그인 세션은 표준 7일(`rememberMe=false`)이다. 이 요청은 `/api/users/me/*` 경로라 리프레시 쿠키가 붙지 않는다. 그래서 현재 로그인 세션을 식별할 수 없어 직전 로그인 세션의 로그인 유지 여부를 이어받지 않는다 |
+| 이메일 변경 시 | `POST /api/users/me/email-change/verify` 가 성공하면 비밀번호 변경과 같게 모든 로그인 세션을 무효화하고 현재 기기에 다시 발급한다. 이 요청도 `/api/users/me/*` 경로라 현재 로그인 세션을 식별할 수 없다. 무효화한 리프레시 토큰 행이 하나 이상일 때만 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 기존 enum 값을 다시 쓰므로 DB CHECK·마이그레이션이 필요 없다 |
+| 미인증 계정에 소셜 로그인을 연결할 때 | 소셜 로그인 콜백이 이메일 인증 전 계정에 연결하면 그 사용자의 모든 로그인 세션을 무효화한다. 무효화한 리프레시 토큰 행이 하나 이상일 때만 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건. 그다음 콜백이 새 로그인 세션을 발급한다. 인증된 계정에 연결할 때는 무효화하지 않는다. 연결 규칙은 [로그인과 소셜 로그인 「소셜 로그인」](CLE-ACCT-SIGNIN-LOGIN.md#소셜-로그인) 이 정한다 |
 | 현재 로그인 세션 식별 | 서버가 요청의 리프레시 쿠키 해시를 조회해 `isCurrent` 로 응답한다. 원래 토큰은 JS 에 노출하지 않는다. 브라우저가 쿠키를 보내도록 세션 API 는 쿠키 Path 아래 `/api/auth/sessions` 에 둔다. 쿠키가 없거나 맞는 로그인 세션이 없으면 모든 로그인 세션의 `isCurrent` 가 false 이고 일괄 종료는 400 `CURRENT_SESSION_REQUIRED` 로 거부한다 |
 | 메타데이터 | 발급 시점의 IP·User-Agent·기기 라벨과 마지막 사용 시각·IP 를 리프레시 토큰 행에 기록한다 |
 | 클라이언트 IP | `CF-Connecting-IP` 는 `TRUST_CF_CONNECTING_IP` 가 `true` 나 `1` 일 때만 1순위로 쓴다(기본 off, 위조 가능한 헤더). off 면 `X-Forwarded-For` 첫 IP, `req.ip`(trust proxy), `req.socket.remoteAddress` 순이다. 이 네 단계 순서는 로그인 세션·감사 IP 경로(`extractClientIp(req)`)에만 쓴다. 공개 웹훅 요청 한도·`ip_whitelist`·실행 기록 소스 IP(`Execution.source_ip`) 경로는 헤더 기반(CF 허용 시 `CF-Connecting-IP`, 그다음 `X-Forwarded-For` 첫 IP)만 쓰고 `req.ip`·socket 폴백이 없다(`extractClientIpFromHeaders`). 헤더로 IP 를 알 수 없으면 공개 웹훅 요청 한도는 거부하지 않고 단일 공유 버킷의 완화 한도를 쓴다. `ip_whitelist` 는 반대로 거부한다. 실행 기록 소스 IP 는 비워 저장한다(NULL 허용 컬럼, [실행 데이터와 흐름 — 데이터 모델](../CLE-EXEC/CLE-EXEC-DATA-MODEL.md#실행)). Cloudflare(Tunnel 포함) 뒤에 배포할 때만 켠다. 채팅 채널 서명 검증 실패 한도는 보내는 쪽이 정할 수 없는 출처만 쓴다. CF 허용 시 `CF-Connecting-IP`, 그다음 `req.ip` 순이고 `X-Forwarded-For` 첫 IP 와 socket 폴백은 쓰지 않는다(`extractUnspoofableClientIp`). 이 경로에서 IP 를 알 수 없으면 그 한도를 보지도 세지도 않는다. 규칙과 근거는 [채팅 채널 「R-CC-34」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#r-cc-34-서명-검증-실패는-트리거와-ip-쌍으로-세고-한도에-닿으면-401-로-답한다) 에 있다 |
@@ -58,7 +58,7 @@ etag: "sha256-a74cbb58ee5b5b3f39a67d7b5b21910b9ba649e42b279fd6d137c0adcaf95bae"
 - 비밀번호 재확인 헬퍼를 부르는 다섯 라우트는 모두 그 라우트의 다른 검사보다 비밀번호를 먼저 확인한다. 예외는 Passkey 기능이 꺼졌을 때의 503 `WEBAUTHN_DISABLED` 하나다(아래 Passkey 등록 옵션 항목). 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 이고 그 뒤 단계는 하지 않는다. 그래서 OAuth 전용 계정은 비밀번호 재설정으로 비밀번호를 만들기 전에는 TOTP 를 켜거나 Passkey 를 등록 · 삭제할 수 없다.
   - 2단계 인증 끄기(`POST /api/auth/2fa/disable`): 비밀번호가 맞으면 인증 코드를 확인한다(`TotpService.verifyForDisable`). 인증 코드는 로그인 2단계와 같이 인증 앱의 6자리 코드나 TOTP 복구 코드이고, 복구 코드로 통과하면 그 코드를 소비한다. 코드가 맞지 않거나 TOTP 가 켜져 있지 않으면 401 `TOTP_INVALID` 다. 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md#totp-끄기) 이 정한다.
   - 2단계 인증 설정 시작(`POST /api/auth/2fa/setup { password }`): 비밀번호 확인이 실패하면 TOTP secret 을 만들지 않는다. 비밀번호 확인은 TOTP 가 켜져 있는지 보기 전에 한다. 비밀번호가 맞고 TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED` 이고 secret 을 바꾸지 않는다. 규칙은 [가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기) 이 정한다.
-  - Passkey 등록 옵션(`POST /api/auth/2fa/webauthn/register/options { password }`): 비밀번호 확인이 실패하면 등록 옵션과 `optionsToken` 을 만들지 않는다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 거부한다. 복구 코드 재발급과 Passkey 삭제(`POST /api/auth/2fa/webauthn/credentials/:id/delete { password }`)도 같다. Passkey 삭제는 비밀번호를 확인한 뒤에 대상 credential 을 찾는다. 규칙과 이유는 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 과 [같은 문서의 Rationale](CLE-ACCT-SIGNIN.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다-2026-11-02) 에 있다.
+  - Passkey 등록 옵션(`POST /api/auth/2fa/webauthn/register/options { password }`): 비밀번호 확인이 실패하면 등록 옵션과 `optionsToken` 을 만들지 않는다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 거부한다. 복구 코드 재발급과 Passkey 삭제(`POST /api/auth/2fa/webauthn/credentials/:id/delete { password }`)도 같다. Passkey 삭제는 비밀번호를 확인한 뒤에 대상 credential 을 찾는다. 규칙과 이유는 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 과 [Passkey 기능과 등록 Rationale 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다」](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다) 에 있다.
 - 비밀번호 재확인 헬퍼를 부르는 라우트는 모두 `SENSITIVE_ACTION_THROTTLE` 로 요청 빈도를 제한한다. 라우트 목록 · 한도 · 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) §7 이 정한다.
 - 비밀번호 변경은 비밀번호 재확인 헬퍼와 같은 두 코드를 쓰지만 헬퍼는 다르다. 이유는 「[비밀번호 변경이 비밀번호 재확인 헬퍼를 재사용하지 않는 이유](#비밀번호-변경이-비밀번호-재확인-헬퍼를-재사용하지-않는-이유)」 에 있다.
 - OAuth 전용 계정이 비밀번호를 추가하려면 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 비밀번호 재설정 경로를 쓴다.
