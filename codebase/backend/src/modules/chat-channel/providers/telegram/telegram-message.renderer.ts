@@ -705,8 +705,9 @@ function renderChartFallback(
       ? `\n(전체 ${seriesArr.length}개 시리즈 중 "${firstName}" 만 표시)`
       : '';
 
-  const body = `📊 ${title}\n\n${wrapMonospace(lines.join('\n'))}${seriesNote}`;
-  // body 에 wrapMonospace 가 있으므로 일반 renderText (escape 적용) 사용 불가 — 직접 chunk.
+  // 코드 블록이 섞여 renderText 를 쓸 수 없으므로 블록 밖의 제목과 안내만 escape 하고 직접 나눈다.
+  // escape 를 빼먹으면 괄호 · 마침표 · 하이픈이 든 제목을 Telegram 이 거절한다(NERV Task `CLE-T-YC85SD`).
+  const body = `📊 ${escapeMarkdownV2(title)}\n\n${wrapMonospace(lines.join('\n'))}${escapeMarkdownV2(seriesNote)}`;
   return chunkRichText(body);
 }
 
@@ -807,7 +808,8 @@ function renderTableFallback(
         ? `\n(상위 ${cappedRows.length}행 표시 — 전체 ${totalCount}행)`
         : '';
 
-  const body = `📋 ${title}\n\n${wrapMonospace([headerLine, separator, ...dataLines].join('\n'))}${footer}`;
+  // 차트와 같다. 코드 블록 밖의 제목과 꼬리 문구만 escape 한다(NERV Task `CLE-T-YC85SD`).
+  const body = `📋 ${escapeMarkdownV2(title)}\n\n${wrapMonospace([headerLine, separator, ...dataLines].join('\n'))}${escapeMarkdownV2(footer)}`;
   return chunkRichText(body);
 }
 
