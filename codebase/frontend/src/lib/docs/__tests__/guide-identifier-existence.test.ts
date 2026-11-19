@@ -202,10 +202,15 @@ const envExampleTexts = [
 ];
 
 /**
- * `where` 에서 `파일.ts:줄` 참조를 **전부** 뽑고, **뽑히지 않고 남은 것**을 함께 낸다.
+ * `where` 에서 `파일.ts:줄` · `파일.ts#심볼` 참조를 **전부** 뽑고, **뽑히지 않고 남은 것**을
+ * 함께 낸다.
  *
  * 형식은 `<위치들> — <산문>` 이고, 같은 파일의 여러 줄은 `a.ts:10·20` 처럼 가운뎃점으로
  * 잇는다 — 실제 등록 항목이 그 형태를 쓴다.
+ *
+ * `파일.ts#심볼` 은 줄 번호 대신 식별자로 위치를 가리킨다. 다른 작업이 그 파일의 줄을
+ * 옮겨도 깨지지 않는다(줄 번호 항목은 실제로 엔진 수정 때마다 함께 고쳐 왔다). 검증은
+ * 그 심볼이 있는 줄 중 하나가 토큰도 담는지 본다.
  *
  * **왜 잔여를 함께 내는가**: 정규식만 두면 다음 항목이 `a.ts:10, 20` 처럼 다른 구분자를
  * 쓸 때 **앞쪽만 먹고 나머지를 조용히 버린다**. `refs.length === 0` 가드는 그것을 못 잡는다 —
@@ -216,16 +221,22 @@ const envExampleTexts = [
  * 원리적으로 틀렸다 — 다음 구분자를 또 모른다. 대신 **머리 부분(` — ` 앞)에 참조와
  * 구분자 말고는 아무것도 남지 않을 것**을 요구한다. 남으면 그게 잔여다.
  */
+type WhereRef = { file: string; line: number } | { file: string; symbol: string };
+
 function parseWhereRefs(where: string): {
-  refs: { file: string; line: number }[];
+  refs: WhereRef[];
   residue: string;
 } {
   const head = where.split(" — ")[0];
-  const refs: { file: string; line: number }[] = [];
+  const refs: WhereRef[] = [];
   let rest = head;
-  for (const m of head.matchAll(/([\w./-]+\.ts):(\d+(?:·\d+)*)/g)) {
+  for (const m of head.matchAll(/([\w./-]+\.ts)(?::(\d+(?:·\d+)*)|#(\w+))/g)) {
     const file = m[1];
-    for (const n of m[2].split("·")) refs.push({ file, line: Number(n) });
+    if (m[3] !== undefined) {
+      refs.push({ file, symbol: m[3] });
+    } else {
+      for (const n of m[2].split("·")) refs.push({ file, line: Number(n) });
+    }
     rest = rest.replace(m[0], "");
   }
   return { refs, residue: rest.replace(/[\s·]/g, "") };
@@ -517,7 +528,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       }
     });
 
-    it("`where` 의 `파일:줄` 이 **실제로 그 토큰을 담는다** (프리텍스트 방지)", () => {
+    it("`where` 의 `파일:줄` · `파일#심볼` 이 **실제로 그 토큰을 담는다** (프리텍스트 방지)", () => {
       // `/ai-review`(`review/code/2026/09/13/19_23_22` testing WARNING#6):
       // `where` 가 단언 없는 산문이면
       // 소스가 움직여도 아무도 모른다. 이 저장소는 자매 축(`impl-anchor-existence`)에서
@@ -537,10 +548,13 @@ describe("유저 가이드 식별자 실재성 가드", () => {
           continue;
         }
         if (refs.length === 0) {
-          broken.push(`${entry.token}: where 에 '파일.ts:줄' 이 없다 — ${entry.where}`);
+          broken.push(
+            `${entry.token}: where 에 '파일.ts:줄' · '파일.ts#심볼' 이 없다 — ${entry.where}`,
+          );
           continue;
         }
-        for (const { file, line: lineNo } of refs) {
+        for (const ref of refs) {
+          const { file } = ref;
           // **파일당 한 번만 순회한다.** 종전엔 참조마다 `backend/src` 1,304 파일을 다시
           // 걸었고, 등록 3항목·참조 4개 중 **3개가 같은 파일**이었다
           // (`/ai-review` `review/code/2026/09/13/21_19_46` performance WARNING#1).
@@ -550,10 +564,20 @@ describe("유저 가이드 식별자 실재성 가드", () => {
             broken.push(`${entry.token}: ${file} 을 유일하게 특정할 수 없다`);
             continue;
           }
-          const src = lines[lineNo - 1] ?? "";
+          if ("symbol" in ref) {
+            const symbolRe = new RegExp(`\\b${ref.symbol}\\b`);
+            const symbolLines = lines.filter((l) => symbolRe.test(l));
+            if (symbolLines.length === 0) {
+              broken.push(`${entry.token}: ${file} 에 심볼 ${ref.symbol} 이 없다`);
+            } else if (!symbolLines.some((l) => l.includes(entry.token))) {
+              broken.push(`${entry.token}: ${file}#${ref.symbol} 의 줄에 토큰이 없다`);
+            }
+            continue;
+          }
+          const src = lines[ref.line - 1] ?? "";
           if (!src.includes(entry.token)) {
             broken.push(
-              `${entry.token}: ${file}:${lineNo} 에 토큰이 없다 — ${src.trim().slice(0, 60)}`,
+              `${entry.token}: ${file}:${ref.line} 에 토큰이 없다 — ${src.trim().slice(0, 60)}`,
             );
           }
         }
@@ -582,7 +606,16 @@ describe("유저 가이드 식별자 실재성 가드", () => {
         ],
         residue: "",
       });
+      expect(parseWhereRefs("a.ts#FOO_BAR · b.ts:30 — 설명")).toEqual({
+        refs: [
+          { file: "a.ts", symbol: "FOO_BAR" },
+          { file: "b.ts", line: 30 },
+        ],
+        residue: "",
+      });
       expect(parseWhereRefs("줄 번호 없는 산문").refs).toEqual([]);
+      // 줄도 심볼도 없는 파일 이름만 적으면 잔여로 남는다.
+      expect(parseWhereRefs("a.ts — 설명").residue).not.toBe("");
     });
 
     it("[대조군] 구분자를 `·` 가 아닌 것으로 적으면 **잔여로 드러난다**", () => {

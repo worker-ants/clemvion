@@ -685,9 +685,9 @@ describe('MakeshopHandler', () => {
     });
   });
 
-  // Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — makeshop mocks POST and
-  // the state-changing GETs, and passes other GET operations through.
-  describe('execute — dry-run (§7)', () => {
+  // Re-run dry-run (CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」) — makeshop mocks POST
+  // and the state-changing GETs, and passes other GET operations through.
+  describe('execute — dry-run', () => {
     function makeDryRunContext(): ExecutionContext {
       const ctx = makeContext();
       ctx.variables = { ...ctx.variables, __dryRun: true };

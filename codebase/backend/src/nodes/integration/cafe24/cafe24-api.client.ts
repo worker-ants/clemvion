@@ -1259,158 +1259,205 @@ export class Cafe24ApiClient {
     // execution-wide signal — and `executeWithRateLimit` recurses on 429/401, so
     // retries multiply them.
     //
-    // The listener comes off as soon as `fetchImpl` returns the headers, and the
-    // body is read after that (`safeReadJson` swallows every error), so a
-    // cancellation DURING the body read is not seen here. HTTP Request reads the
-    // body before it unlinks and does see it.
+    // The timer and the listener stay until the response body has been read
+    // (`readResponseBody`), so a cancellation or the local timeout DURING the
+    // body read still aborts it. `release()` runs before a 429 sleep and before
+    // the 401 refresh, because the recursive call links its own controller —
+    // otherwise the old timer would fire into a request that is already done.
     const upstream = opts.signal;
     const unlinkUpstream = linkUpstreamAbort(controller, upstream);
-
-    let response: Response;
-    try {
-      response = await this.fetchImpl(url, {
-        method: opts.method,
-        headers,
-        body: bodyString,
-        signal: controller.signal,
-      });
-    } catch (err) {
-      // REQ-C2: 연속 transport 실패 카운터 +1. 3 도달 시 markStatus
-      // `error(network)` 로 전이 (spec §6). recordNetworkFailure 내부에서
-      // 실패하더라도 본 throw 는 그대로 진행 — caller 가 transport 오류로
-      // 처리. 카운터 갱신 실패는 best-effort.
-      // A cancelled execution is not a transport fault. Two things follow, and
-      // both were wrong before: (1) rule 19 — the engine only classifies a node
-      // `cancelled` if AbortError reaches it, so wrapping it here would surface
-      // `*_TRANSPORT_FAILED` on `port:'error'` instead; (2) counting it would
-      // let three cancelled sibling branches demote a healthy integration to
-      // `error(network)`. `upstream.aborted` is what separates a cancellation
-      // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
-      // its counter. Same shape as `database-query.handler.ts`.
-      if (isUpstreamAbort(err, upstream)) throw err;
-      await this.recordNetworkFailure(integration, err);
-      throw new Cafe24TransportFailedError(err);
-    } finally {
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
       clearTimeout(timer);
       unlinkUpstream();
-    }
+    };
 
-    const respHeaders = readHeaderMap(response.headers);
-    const callMeta = parseRateLimitHeaders(respHeaders);
+    try {
+      let response: Response;
+      try {
+        response = await this.fetchImpl(url, {
+          method: opts.method,
+          headers,
+          body: bodyString,
+          signal: controller.signal,
+        });
+      } catch (err) {
+        // REQ-C2: 연속 transport 실패 카운터 +1. 3 도달 시 markStatus
+        // `error(network)` 로 전이 (spec §6). recordNetworkFailure 내부에서
+        // 실패하더라도 본 throw 는 그대로 진행 — caller 가 transport 오류로
+        // 처리. 카운터 갱신 실패는 best-effort.
+        // A cancelled execution is not a transport fault. Two things follow, and
+        // both were wrong before: (1) rule 19 — the engine only classifies a node
+        // `cancelled` if AbortError reaches it, so wrapping it here would surface
+        // `*_TRANSPORT_FAILED` on `port:'error'` instead; (2) counting it would
+        // let three cancelled sibling branches demote a healthy integration to
+        // `error(network)`. `upstream.aborted` is what separates a cancellation
+        // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
+        // its counter. Same shape as `database-query.handler.ts`.
+        if (isUpstreamAbort(err, upstream)) throw err;
+        await this.recordNetworkFailure(integration, err);
+        throw new Cafe24TransportFailedError(err);
+      }
 
-    // REQ-C2: HTTP 응답이 정상적으로 돌아왔다 = transport 레벨은 성공.
-    // 다음 단계의 status 분기와 무관하게 카운터 리셋. 401/403 인 경우는
-    // markAuthFailed 가 별도로 status='error(auth_failed)' 로 전이하므로
-    // 카운터 리셋은 무해 (그 행은 이미 connected 가 아님).
-    await this.resetNetworkFailures(integration);
+      const respHeaders = readHeaderMap(response.headers);
+      const callMeta = parseRateLimitHeaders(respHeaders);
 
-    // Rate-limited — retry per spec policy with random jitter so multiple
-    // concurrent callers sharing the same Integration don't all wake up
-    // at the same instant and hammer the server in lockstep (thundering
-    // herd → another 429 → another batched retry).
-    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
-      const baseSec = Math.max(
-        callMeta.callRemain ?? 0,
-        callMeta.timeRemain ?? 0,
-        1,
-      );
-      const jitterMs = Math.floor(Math.random() * 500);
-      const sleepMs = baseSec * 1000 + jitterMs;
-      this.logger.debug(
-        `Cafe24 429 (attempt ${attempt + 1}) — sleeping ${baseSec}s (+${jitterMs}ms jitter) for mall=${mallId}`,
-      );
-      await this.sleepImpl(sleepMs);
-      return this.executeWithRateLimit(
-        integration,
-        mallId,
-        accessToken,
-        opts,
-        attempt + 1,
-      );
-    }
-    if (response.status === 429) {
-      throw new Cafe24RateLimitedError(
-        attempt,
-        Math.max(callMeta.callRemain ?? 0, callMeta.timeRemain ?? 0, 0),
-        mallId,
-      );
-    }
+      // REQ-C2: HTTP 응답이 정상적으로 돌아왔다 = transport 레벨은 성공.
+      // 다음 단계의 status 분기와 무관하게 카운터 리셋. 401/403 인 경우는
+      // markAuthFailed 가 별도로 status='error(auth_failed)' 로 전이하므로
+      // 카운터 리셋은 무해 (그 행은 이미 connected 가 아님).
+      await this.resetNetworkFailures(integration);
 
-    if (response.status === 401 || response.status === 403) {
-      const errBody = await safeReadJson(response);
-      // Server-side diagnostic — Cafe24's error code/description rarely
-      // contains sensitive info (it never echoes tokens), and without this
-      // log there is no way to tell APP_NOT_INSTALLED from EXPIRED_TOKEN
-      // from INSUFFICIENT_SCOPE — every cause surfaces to the user as
-      // "auth failed (403)". Trimmed to 500 chars so an unexpectedly large
-      // body cannot blow up the log line. SEC-C2: 보호 차원으로
-      // `sanitizeLastErrorMessage` 적용 — Cafe24 가 echo 하는 비정상
-      // 시크릿 조각을 운영 로그에 평문 기록하지 않는다.
-      const bodyForLog = sanitizeLastErrorMessage(
-        typeof errBody === 'string'
-          ? errBody.slice(0, 500)
-          : JSON.stringify(errBody).slice(0, 500),
-      );
-      this.logger.warn(
-        `Cafe24 API ${response.status} mall=${mallId} ${opts.method} ${opts.path}: ${bodyForLog}`,
-      );
-
-      // Spec §6.1 401 자가 회복 — proactive ensureFreshToken 이 race
-      // window (NULL legacy row, 다중 인스턴스 cache miss, DB-wall clock
-      // skew) 로 빗나간 경우의 최후 안전망. pingConnection() (§5.8) 과
-      // 정책 통일. 403 은 refresh 로 회복 불가 (스코프/앱 미설치) — 즉시
-      // 격하로 직진. refresh 자체가 401/403 이면 performAuthRefresh 내부
-      // (refreshAccessToken / refreshViaQueue) 가 이미 markAuthFailed +
-      // Cafe24AuthFailedError throw 하므로 자동 propagate.
-      if (response.status === 401 && !triedAuthRetry) {
-        // 401 자가 회복 진입 로그 — 운영에서 "프로액티브 갱신이 빗나갔는데
-        // reactive 401 으로 회복되는 케이스" 의 빈도/시점을 추적. retryCount
-        // 는 attempt (rate-limit retry) 가 아닌 reactive retry 의 의미상 1.
-        this.logger.log(
-          `Cafe24 401 detected — performAuthRefresh + retry (integrationId=${integration.id} mall_id=${mallId} ${opts.method} ${opts.path} source=reactive_401)`,
+      // Rate-limited — retry per spec policy with random jitter so multiple
+      // concurrent callers sharing the same Integration don't all wake up
+      // at the same instant and hammer the server in lockstep (thundering
+      // herd → another 429 → another batched retry).
+      if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+        const baseSec = Math.max(
+          callMeta.callRemain ?? 0,
+          callMeta.timeRemain ?? 0,
+          1,
         );
-        await this.performAuthRefresh(integration);
-        // performAuthRefresh contract 상 새 토큰이 integration.credentials
-        // 에 mutate 되어 있음 (refreshAccessToken / refreshViaQueue 둘 다).
-        // performAuthRefresh 의 side-effect contract 상 integration.credentials
-        // .access_token 은 새 토큰으로 갱신됨. fallback `?? accessToken` 은
-        // 만일 contract 가 깨질 경우 무한 401 루프 (triedAuthRetry=true 가
-        // 차단) 로 가지 않고 옛 토큰으로 한 번 더 시도 후 격하되는 방어선.
-        const refreshedToken =
-          (integration.credentials as Cafe24Credentials | null)?.access_token ??
-          accessToken;
-        // attempt counter 리셋: 401 자가 회복은 429 rate limit retry 와
-        // 별개의 단발성 흐름. triedAuthRetry=true 로 재귀 차단.
+        const jitterMs = Math.floor(Math.random() * 500);
+        const sleepMs = baseSec * 1000 + jitterMs;
+        this.logger.debug(
+          `Cafe24 429 (attempt ${attempt + 1}) — sleeping ${baseSec}s (+${jitterMs}ms jitter) for mall=${mallId}`,
+        );
+        release();
+        await this.sleepImpl(sleepMs);
         return this.executeWithRateLimit(
           integration,
           mallId,
-          refreshedToken,
+          accessToken,
           opts,
-          0,
-          true,
+          attempt + 1,
+        );
+      }
+      if (response.status === 429) {
+        throw new Cafe24RateLimitedError(
+          attempt,
+          Math.max(callMeta.callRemain ?? 0, callMeta.timeRemain ?? 0, 0),
+          mallId,
         );
       }
 
-      // 403 또는 401-after-retry — 격하 확정.
-      // REQ-C3: 403 + scope 시그널 시 status_reason='insufficient_scope'
-      // 로 분기. 401 은 항상 auth_failed (토큰 자체 문제).
-      const reason: 'auth_failed' | 'insufficient_scope' =
-        response.status === 403 && this.detectInsufficientScope(errBody)
-          ? 'insufficient_scope'
-          : 'auth_failed';
-      await this.markAuthFailed(integration, reason, errBody);
-      throw new Cafe24AuthFailedError(response.status, mallId, errBody);
+      if (response.status === 401 || response.status === 403) {
+        const errBody = await this.readResponseBody(
+          integration,
+          response,
+          controller.signal,
+          upstream,
+        );
+        // Server-side diagnostic — Cafe24's error code/description rarely
+        // contains sensitive info (it never echoes tokens), and without this
+        // log there is no way to tell APP_NOT_INSTALLED from EXPIRED_TOKEN
+        // from INSUFFICIENT_SCOPE — every cause surfaces to the user as
+        // "auth failed (403)". Trimmed to 500 chars so an unexpectedly large
+        // body cannot blow up the log line. SEC-C2: 보호 차원으로
+        // `sanitizeLastErrorMessage` 적용 — Cafe24 가 echo 하는 비정상
+        // 시크릿 조각을 운영 로그에 평문 기록하지 않는다.
+        const bodyForLog = sanitizeLastErrorMessage(
+          typeof errBody === 'string'
+            ? errBody.slice(0, 500)
+            : JSON.stringify(errBody).slice(0, 500),
+        );
+        this.logger.warn(
+          `Cafe24 API ${response.status} mall=${mallId} ${opts.method} ${opts.path}: ${bodyForLog}`,
+        );
+
+        // Spec §6.1 401 자가 회복 — proactive ensureFreshToken 이 race
+        // window (NULL legacy row, 다중 인스턴스 cache miss, DB-wall clock
+        // skew) 로 빗나간 경우의 최후 안전망. pingConnection() (§5.8) 과
+        // 정책 통일. 403 은 refresh 로 회복 불가 (스코프/앱 미설치) — 즉시
+        // 격하로 직진. refresh 자체가 401/403 이면 performAuthRefresh 내부
+        // (refreshAccessToken / refreshViaQueue) 가 이미 markAuthFailed +
+        // Cafe24AuthFailedError throw 하므로 자동 propagate.
+        if (response.status === 401 && !triedAuthRetry) {
+          // 401 자가 회복 진입 로그 — 운영에서 "프로액티브 갱신이 빗나갔는데
+          // reactive 401 으로 회복되는 케이스" 의 빈도/시점을 추적. retryCount
+          // 는 attempt (rate-limit retry) 가 아닌 reactive retry 의 의미상 1.
+          this.logger.log(
+            `Cafe24 401 detected — performAuthRefresh + retry (integrationId=${integration.id} mall_id=${mallId} ${opts.method} ${opts.path} source=reactive_401)`,
+          );
+          release();
+          await this.performAuthRefresh(integration);
+          // performAuthRefresh contract 상 새 토큰이 integration.credentials
+          // 에 mutate 되어 있음 (refreshAccessToken / refreshViaQueue 둘 다).
+          // performAuthRefresh 의 side-effect contract 상 integration.credentials
+          // .access_token 은 새 토큰으로 갱신됨. fallback `?? accessToken` 은
+          // 만일 contract 가 깨질 경우 무한 401 루프 (triedAuthRetry=true 가
+          // 차단) 로 가지 않고 옛 토큰으로 한 번 더 시도 후 격하되는 방어선.
+          const refreshedToken =
+            (integration.credentials as Cafe24Credentials | null)
+              ?.access_token ?? accessToken;
+          // attempt counter 리셋: 401 자가 회복은 429 rate limit retry 와
+          // 별개의 단발성 흐름. triedAuthRetry=true 로 재귀 차단.
+          return this.executeWithRateLimit(
+            integration,
+            mallId,
+            refreshedToken,
+            opts,
+            0,
+            true,
+          );
+        }
+
+        // 403 또는 401-after-retry — 격하 확정.
+        // REQ-C3: 403 + scope 시그널 시 status_reason='insufficient_scope'
+        // 로 분기. 401 은 항상 auth_failed (토큰 자체 문제).
+        const reason: 'auth_failed' | 'insufficient_scope' =
+          response.status === 403 && this.detectInsufficientScope(errBody)
+            ? 'insufficient_scope'
+            : 'auth_failed';
+        await this.markAuthFailed(integration, reason, errBody);
+        throw new Cafe24AuthFailedError(response.status, mallId, errBody);
+      }
+
+      const body = await this.readResponseBody(
+        integration,
+        response,
+        controller.signal,
+        upstream,
+      );
+
+      return {
+        status: response.status,
+        body,
+        headers: respHeaders,
+        ...callMeta,
+        retries: attempt,
+      };
+    } finally {
+      release();
     }
+  }
 
-    const body = await safeReadJson(response);
-
-    return {
-      status: response.status,
-      body,
-      headers: respHeaders,
-      ...callMeta,
-      retries: attempt,
-    };
+  /**
+   * Reads the response body while this request's controller is still armed
+   * ([노드 취소](CLE-EXEC-CANCEL-NODES#fetch-자체-타임아웃과의-연쇄)).
+   * A node cancellation rethrows its AbortError so the engine marks the node
+   * `cancelled` without counting a transport fault. The local `timeoutMs`
+   * abort is a real fault: it counts and becomes `Cafe24TransportFailedError`.
+   * Any other read failure keeps the old best-effort `null`.
+   */
+  private async readResponseBody(
+    integration: Integration,
+    response: Response,
+    signal: AbortSignal,
+    upstream: AbortSignal | undefined,
+  ): Promise<unknown> {
+    try {
+      return await readJsonOrText(response);
+    } catch (err) {
+      if (isUpstreamAbort(err, upstream)) throw err;
+      if (signal.aborted) {
+        await this.recordNetworkFailure(integration, err);
+        throw new Cafe24TransportFailedError(err);
+      }
+      return null;
+    }
   }
 
   private buildUrl(
@@ -1541,15 +1588,20 @@ function parseRateLimitHeaders(h: Record<string, string>): {
 
 async function safeReadJson(response: Response): Promise<unknown> {
   try {
-    const text = await response.text();
-    if (!text) return null;
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
+    return await readJsonOrText(response);
   } catch {
     return null;
+  }
+}
+
+/** Parsed JSON, the raw text when it is not JSON, or `null` when empty. Read errors propagate. */
+async function readJsonOrText(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
   }
 }
 

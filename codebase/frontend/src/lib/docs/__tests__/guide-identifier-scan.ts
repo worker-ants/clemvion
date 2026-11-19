@@ -362,13 +362,16 @@ export const GUIDE_EXTERNAL_VOCABULARY: readonly {
  */
 export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
   token: string;
-  /** 접두를 붙이는 자리. 사유가 "어디서" 를 지목하지 못하면 등록이 통행증이 된다. */
+  /**
+   * 접두를 붙이는 자리. 사유가 "어디서" 를 지목하지 못하면 등록이 통행증이 된다.
+   * `파일.ts:줄` 이나 줄 번호가 움직여도 깨지지 않는 `파일.ts#심볼` 로 적는다.
+   */
   where: string;
   why: string;
 }[] = [
   {
     token: "MAKESHOP_UNRESOLVED_PATH_PARAM",
-    where: "makeshop.handler.ts:520 — 일반 `Error` 메시지 접두",
+    where: "makeshop.handler.ts#MAKESHOP_UNRESOLVED_PATH_PARAM — 일반 `Error` 메시지 접두",
     why: "catch 가 `err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED'` 라 `output.error.code` 에는 공용 fallback 이 들어간다. 가이드는 이미 '전용 코드가 없어요 … 코드가 아니라 메시지를 봐야 해요' 라고 정확히 적고 있어 문장 수정이 아니라 등록이 맞다.",
   },
   {

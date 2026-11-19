@@ -50,18 +50,23 @@ export const CAFE24_TIMEZONE_SUFFIX =
 /**
  * 메서드는 GET 인데 상점 상태를 바꾸는 operation. dry-run 재실행은 GET 을 실제로
  * 호출하므로 이 목록의 operation 은 따로 모의 응답으로 대신한다
- * (`isCafe24DryRunMocked`, CLE-EXEC-RERUN 「부수효과 판정」).
+ * (`isCafe24DryRunMocked`, CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」).
  *
- * 지금은 그런 operation 이 없어 비어 있다. 새로 생기면 여기에 올린다. 메타데이터를
- * 다시 생성할 때 후보는 `dry-run-state-changing-get.spec.ts` 가 잡는다.
+ * 2026-10-23 에 전체 GET operation 을 확인했고 그런 operation 이 없어 비어 있다.
+ * 새로 생기면 여기에 올린다. 메타데이터를 다시 생성할 때 후보는
+ * `dry-run-state-changing-get.spec.ts` 가 잡지만 신호가 휴리스틱이라 사람이 함께
+ * 확인한다(`codebase/api-catalogs/README.md`). 원본 배열을 얼리고 `ReadonlySet` 으로
+ * 내보낸다. 목록을 바꾸는 코드는 타입 검사에서 걸린다. `Set` 자체는 얼지 않으므로
+ * 캐스트한 코드가 실행 중에 바꾸는 것까지 막지는 않는다.
  */
 export const CAFE24_STATE_CHANGING_GET_OPERATION_IDS: ReadonlySet<string> =
-  new Set<string>();
+  new Set(Object.freeze<string[]>([]));
 
 /**
  * dry-run 에서 이 Cafe24 operation 을 모의 응답으로 대신할지 판정한다. Cafe24
  * 통합 노드 핸들러와 `Cafe24McpToolProvider` 가 이 함수 하나를 부른다. 예외 목록을
- * 이 함수가 묶어 두므로 호출 지점은 목록을 따로 넘기지 않는다.
+ * 이 함수가 묶어 두므로 호출 지점은 목록을 따로 넘기지 않는다. 판정 규칙은
+ * `isDryRunMockedOperation` doc 에 있다.
  */
 export function isCafe24DryRunMocked(operation: {
   id: string;

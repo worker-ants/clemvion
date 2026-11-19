@@ -21,7 +21,7 @@ import type { IntegrationUse } from '../../../../modules/integrations/personal-i
 import type { ExecutionLookupScope } from '../../../../modules/integrations/execution-lookup-scope.js';
 import { mcpServerUseAt } from '../mcp-server-ref-use.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
-import { buildDryRunSkippedToolResult } from './dry-run-tool-result.js';
+import { buildDryRunMockedToolResult } from './dry-run-tool-result.js';
 import {
   buildOperationJsonSchema,
   makeEnabledToolsFilter,
@@ -499,12 +499,11 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
       };
     }
 
-    // dry-run 재실행 — 통합 노드와 같은 판정으로 GET 이 아니거나 상태를 바꾸는 GET
-    // 인 operation 은 MakeShop API 를 부르지 않고 모의 응답을 돌려준다. 나머지 GET 은
-    // 아래로 내려가 실제로 호출하고 평소처럼 logUsage 를 남긴다. 모의 처리한 호출은
-    // logUsage 를 남기지 않는다. 근거: CLE-EXEC-RERUN 「부수효과 판정」.
+    // dry-run 재실행 — 분류는 통합 노드와 같은 `isMakeshopDryRunMocked` 가 정한다. 모의
+    // 처리한 호출은 logUsage 를 남기지 않는다. 판정 규칙은 `isDryRunMockedOperation` doc 과
+    // CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」.
     if (ctx.dryRun && isMakeshopDryRunMocked(operation)) {
-      return buildDryRunSkippedToolResult(call.id, 'makeshop_tool', {
+      return buildDryRunMockedToolResult(call.id, 'makeshop_tool', {
         operation: operation.id,
         method: operation.method,
         resource,

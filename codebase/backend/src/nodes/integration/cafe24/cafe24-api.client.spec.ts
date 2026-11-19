@@ -49,6 +49,32 @@ function makeJsonResponse(
   });
 }
 
+/**
+ * A response whose body never arrives until `signal` aborts, then rejects the
+ * read with AbortError — what undici does when the request's controller fires
+ * mid-body. `onRead` runs once the client has started reading.
+ */
+function makeBodyPendingResponse(
+  signal: AbortSignal,
+  onRead?: () => void,
+  status = 200,
+): Response {
+  const res = new Response(null, { status });
+  Object.defineProperty(res, 'text', {
+    value: () =>
+      new Promise<string>((_resolve, reject) => {
+        const fail = () =>
+          reject(
+            Object.assign(new Error('body aborted'), { name: 'AbortError' }),
+          );
+        if (signal.aborted) return fail();
+        signal.addEventListener('abort', fail, { once: true });
+        onRead?.();
+      }),
+  });
+  return res;
+}
+
 // 테스트 전용 JWT 빌더는 `modules/integrations/__test-utils__/make-fake-jwt`
 // 의 공유 helper 사용. ai-review (2026-05-18) W2 조치로 중복 제거.
 
@@ -286,6 +312,92 @@ describe('Cafe24ApiClient', () => {
 
       const [, init] = fetchMock.mock.calls[0];
       expect((init.signal as AbortSignal).aborted).toBe(false);
+    });
+
+    // CLE-T-WMH3EK — the timer and the listener used to come off as soon as the
+    // headers arrived, and `safeReadJson` swallowed every body-read error, so a
+    // cancellation or a stalled body during the read went unnoticed.
+    describe('while the response body is being read', () => {
+      it('rethrows AbortError and does NOT count a network failure when the execution is cancelled mid-body', async () => {
+        const upstream = new AbortController();
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            makeBodyPendingResponse(init.signal as AbortSignal, () =>
+              upstream.abort(),
+            ),
+          ),
+        );
+
+        await expect(
+          client.call(makeIntegration(), {
+            method: 'GET',
+            path: 'products',
+            signal: upstream.signal,
+          }),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+        expect(repo.update).not.toHaveBeenCalled();
+      });
+
+      it('rethrows a mid-body cancellation on the 401/403 error-body read too', async () => {
+        const upstream = new AbortController();
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(
+            makeBodyPendingResponse(
+              init.signal as AbortSignal,
+              () => upstream.abort(),
+              403,
+            ),
+          ),
+        );
+
+        await expect(
+          client.call(makeIntegration(), {
+            method: 'GET',
+            path: 'products',
+            signal: upstream.signal,
+          }),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+        // No auth demotion either: the cancelled call never judged the 403.
+        expect(repo.update).not.toHaveBeenCalled();
+      });
+
+      it('counts a network failure when the LOCAL timeout fires mid-body', async () => {
+        const upstream = new AbortController(); // never fires
+        fetchMock.mockImplementationOnce((_url: string, init: RequestInit) =>
+          Promise.resolve(makeBodyPendingResponse(init.signal as AbortSignal)),
+        );
+
+        await expect(
+          client.call(makeIntegration(), {
+            method: 'GET',
+            path: 'products',
+            signal: upstream.signal,
+            timeoutMs: 5,
+          }),
+        ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+        expect(repo.update).toHaveBeenCalledWith(
+          'int-cafe24-1',
+          expect.objectContaining({ consecutiveNetworkFailures: 1 }),
+        );
+      });
+
+      it('keeps the best-effort null body for a read failure that is not an abort', async () => {
+        // The boundary of the change: only aborts surface. A body that fails
+        // for any other reason resolves as before.
+        const upstream = new AbortController();
+        const res = new Response(null, { status: 200 });
+        Object.defineProperty(res, 'text', {
+          value: () => Promise.reject(new TypeError('terminated')),
+        });
+        fetchMock.mockResolvedValueOnce(res);
+
+        const result = await client.call(makeIntegration(), {
+          method: 'GET',
+          path: 'products',
+          signal: upstream.signal,
+        });
+        expect(result.body).toBeNull();
+      });
     });
   });
 

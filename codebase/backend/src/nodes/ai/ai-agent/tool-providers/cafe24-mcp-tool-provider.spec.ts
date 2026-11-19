@@ -16,6 +16,7 @@ import {
   Cafe24TransportFailedError,
 } from '../../../integration/cafe24/cafe24-api.client';
 import {
+  CAFE24_STATE_CHANGING_GET_OPERATION_IDS,
   listAllCafe24Operations,
   scopeForOperation,
 } from '../../../integration/cafe24/metadata/index';
@@ -1084,6 +1085,10 @@ describe('Cafe24McpToolProvider', () => {
         );
 
         expect(apiClient.call).toHaveBeenCalledTimes(1);
+        expect(apiClient.call).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'abcdef1234567890' }),
+          expect.objectContaining({ method: 'GET', path: 'products' }),
+        );
         const parsed = JSON.parse(res.content);
         expect(parsed._dryRun).toBeUndefined();
         expect(parsed.response).toEqual({ products: [{ product_no: 1 }] });
@@ -1091,6 +1096,42 @@ describe('Cafe24McpToolProvider', () => {
           expect.objectContaining({ id: 'abcdef1234567890' }),
           expect.objectContaining({ status: 'success', api: PRODUCT_LIST_API }),
         );
+      });
+
+      // 예외 목록은 지금 비어 있다. GET 하나를 테스트 안에서만 올려 두고 끝나면 뺀다.
+      describe('GET listed as state-changing', () => {
+        const exceptions =
+          CAFE24_STATE_CHANGING_GET_OPERATION_IDS as Set<string>;
+        let added = false;
+        beforeEach(() => {
+          added = !exceptions.has('product_list');
+          exceptions.add('product_list');
+        });
+        afterEach(() => {
+          if (added) exceptions.delete('product_list');
+        });
+
+        it('mocks it without calling Cafe24ApiClient', async () => {
+          const { sid } = await setup();
+
+          const res = await provider.execute(
+            makeCall(`mcp_${sid}__product_list`, { shop_no: 1 }),
+            dryCtx,
+          );
+
+          expect(apiClient.call).not.toHaveBeenCalled();
+          expect(integrationsService.logUsage).not.toHaveBeenCalled();
+          expect(res.status).toBe('success');
+          expect(JSON.parse(res.content)).toMatchObject({
+            _dryRun: true,
+            executed: false,
+            wouldHaveCalled: {
+              kind: 'cafe24_tool',
+              operation: 'product_list',
+              method: 'GET',
+            },
+          });
+        });
       });
 
       it('still reports CAFE24_MISSING_FIELDS before the dry-run skip', async () => {

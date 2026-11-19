@@ -1130,7 +1130,9 @@ describe('McpToolProvider', () => {
         expect(parsed.message).toMatch(/dry-run/);
       });
 
-      it('does not trust a readOnlyHint annotation from the server', async () => {
+      // annotation 신뢰를 막는 가드(회귀 방지). 서버가 붙인 annotation 은 서버의 자기
+      // 신고라서 dry-run 판정에 쓰지 않는다(CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」).
+      it('does not trust a readOnlyHint annotation from the server (regression guard against trusting annotations)', async () => {
         const session = makeSession({
           listTools: jest.fn().mockResolvedValue({
             tools: [

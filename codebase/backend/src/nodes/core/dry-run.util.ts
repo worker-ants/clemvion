@@ -10,7 +10,7 @@ import type { ExecutionContext } from './node-handler.interface';
  * dry-run 노드를 시각 구분한다.
  */
 
-/** dry-run mock 출력 객체 (§7.2). */
+/** dry-run mock 출력 객체. 근거: CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」. */
 export interface DryRunMock {
   _dryRun: true;
   skippedReason: string;
@@ -44,17 +44,22 @@ export function buildDryRunMock(
 
 /**
  * dry-run 에서 HTTP API operation 을 모의 응답으로 대신할지 판정한다.
- * 근거: CLE-EXEC-RERUN 「부수효과 판정」.
+ * 근거: CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」. 호출 지점 주석은 이 doc 을 가리키므로
+ * 판정 규칙은 여기에만 적는다.
  *
- * GET 이 아니면 부수효과로 보고 모의 처리한다. GET 은 실제로 호출하되, 메서드는
- * GET 인데 상점 상태를 바꾸는 operation(`stateChangingGetIds`)은 모의 처리한다.
- * 메서드 철자가 `'GET'` 과 다르면 부수효과로 본다. `scopeType` 은 OAuth scope
- * 분류라 쓰지 않는다(예: Cafe24 `carts_setting_update` 는 scope 가 read 인 PUT).
+ * - GET 이 아니면 부수효과로 보고 모의 처리한다. 읽기 의도인 POST · PUT 도 메서드로
+ *   판정한다(예: Cafe24 `orders_calculation_total` 은 금액만 계산하는 POST 지만 모의 처리한다).
+ * - GET 은 실제로 호출한다. 다만 메서드는 GET 인데 상점 상태를 바꾸는 operation
+ *   (`stateChangingGetIds`, 벤더별 예외 목록)은 모의 처리한다.
+ * - 메서드 철자가 `'GET'` 과 다르면 부수효과로 본다.
+ * - `scopeType` 은 OAuth scope 분류라 쓰지 않는다(예: Cafe24 `carts_setting_update` 는
+ *   scope 가 read 인 PUT).
  *
  * 벤더 코드는 이 함수를 직접 부르지 않는다. 벤더 메타데이터 모듈이 자기 예외 목록을
  * 묶어 내보내는 판정 함수(`isCafe24DryRunMocked` · `isMakeshopDryRunMocked`)를 부르고,
  * 통합 노드 핸들러와 AI 에이전트의 내부 MCP 브리지가 그 함수 하나를 함께 쓴다.
- * 예외 목록 인자는 필수라서 새 벤더가 넘기지 않으면 컴파일이 실패한다.
+ * 호출 지점이 벤더 판정 함수를 거치는지는 `integration/dry-run-state-changing-get.spec.ts`
+ * 가 소스로 확인한다. 예외 목록 인자는 필수라서 새 벤더가 넘기지 않으면 컴파일이 실패한다.
  *
  * @param stateChangingGetIds 상태를 바꾸는 GET 의 operation id. 없으면 빈 집합을 넘긴다.
  */

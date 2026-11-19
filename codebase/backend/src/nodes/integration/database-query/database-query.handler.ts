@@ -29,6 +29,7 @@ import {
   assertSafeOutboundHostResolved,
 } from '../http-request/http-safety.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
+import { isAbortErrorLike } from '../../core/abort-error.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
 import {
   DB_HOST_BLOCKED_MESSAGE,
@@ -318,6 +319,16 @@ export class DatabaseQueryHandler
         port: 'success',
       };
     } catch (err) {
+      // [노드 취소](CLE-EXEC-CANCEL#노드-핸들러-의무) — in-flight 취소로
+      // `executePostgres`/`executeMysql` 이 던진 `AbortError` (쿼리 취소로 driver 가
+      // reject → AbortError 승격)는 D4 error-포트 매핑을 우회해 그대로 재throw →
+      // 엔진이 노드를 `cancelled` 로 분류(규칙 19). 취소된 호출은 활동 로그를 남기지
+      // 않으므로(규칙 3) `logUsage` 보다 먼저 판정한다. `abortSignal.aborted` 광의
+      // 판정이 아니라 **실제 AbortError 만** 재throw 해, 취소와 무관한 실패
+      // (resolve/SSRF/파라미터 파싱 등)를 오분류하지 않는다.
+      if (isAbortErrorLike(err)) {
+        throw err;
+      }
       const durationMs = Date.now() - start;
       if (integration) {
         await this.logUsage(integration, context, {
@@ -326,14 +337,6 @@ export class DatabaseQueryHandler
           error: toLogError(err),
           api: { method: apiMethod, path: driver },
         }).catch(() => {});
-      }
-      // node-cancellation §5 — in-flight 취소로 `executePostgres`/`executeMysql`
-      // 이 던진 `AbortError` (쿼리 취소로 driver 가 reject → AbortError 승격)는 D4
-      // error-포트 매핑을 우회해 그대로 재throw → 엔진이 노드를 `cancelled` 로 분류.
-      // `abortSignal.aborted` 광의 판정이 아니라 **실제 AbortError 만** 재throw 해,
-      // 취소와 무관한 실패(resolve/SSRF/파라미터 파싱 등)를 오분류하지 않는다.
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw err;
       }
       // D4 — IntegrationError (resolve / missingDbFields / parseParameters /
       // SSRF 차단 → `DB_HOST_BLOCKED` 등) 는 그대로 code 를 surface, 그 외 (SQL

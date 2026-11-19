@@ -33,7 +33,7 @@ import {
   ProviderCleanupCtx,
   ProviderExecCtx,
 } from './agent-tool-provider.interface';
-import { buildDryRunSkippedToolResult } from './dry-run-tool-result';
+import { buildDryRunMockedToolResult } from './dry-run-tool-result';
 
 const SID_LENGTHS = [8, 12, 32] as const;
 const SEP = '__';
@@ -449,7 +449,7 @@ export class McpToolProvider implements AgentToolProvider {
     // 은 믿지 않는다. 위 메타 도구(resources/prompts)는 프로토콜상 읽기 전용이라
     // 그대로 보낸다. 근거: CLE-EXEC-RERUN 「부수효과 판정」.
     if (ctx.dryRun) {
-      return buildDryRunSkippedToolResult(call.id, 'mcp_tool', {
+      return buildDryRunMockedToolResult(call.id, 'mcp_tool', {
         integrationId: entry.integrationId,
         server: entry.integrationName,
         tool: originalName,

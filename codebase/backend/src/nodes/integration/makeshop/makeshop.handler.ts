@@ -13,7 +13,7 @@ import {
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import type { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
-import { isAbortErrorLike } from '../_base/abort-cascade.util.js';
+import { isAbortErrorLike } from '../../core/abort-error.util.js';
 import {
   MakeshopApiClient,
   MakeshopAuthFailedError,
@@ -237,10 +237,10 @@ export class MakeshopHandler
       apiInfo.method = operation.method;
       apiInfo.path = operation.path;
 
-      // 1b. Re-run dry-run (CLE-EXEC-RERUN 「부수효과 판정」) — WRITE operations
-      // (POST) and the state-changing GETs mock-short-circuit to block external
-      // state changes; other READ operations (GET) pass through. A mocked call
-      // reaches no external API, so it leaves no activity log.
+      // 1b. Re-run dry-run — `isMakeshopDryRunMocked` decides (method + the
+      // state-changing GET list). A mocked call reaches no external API, so it
+      // leaves no activity log. Rules: `isDryRunMockedOperation` doc and
+      // CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」.
       if (isDryRun(context) && isMakeshopDryRunMocked(operation)) {
         const durationMs = Date.now() - started;
         return {

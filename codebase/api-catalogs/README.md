@@ -20,7 +20,8 @@
 
 1. 생성기를 다시 돌리거나 행을 고친다. 형식과 절차는 각 `_overview.md` 를 따른다.
 2. 같은 PR 에서 backend 메타데이터와 frontend 라벨 사전을 맞춘다. 대조 테스트는 backend `catalog-sync` · `catalog-docs-drift` · `catalog-required-fields` · `api-catalog-index-frontmatter`(색인의 `id` · `status` · `code:`), frontend `cafe24-catalog-sync` · `makeshop-catalog-sync` 다. 이 디렉터리만 바꿔도 `backend-checks` · `frontend-checks` · `spec-link-checks` 가 돈다.
-3. 바뀐 파일의 NERV 사본을 고친다. 같은 작업에서 고칠 범위는 아래 「사본 갱신 범위」를 따른다. main 세션이 `/nerv:spec edit <KEY>` 로 초안을 쓰고 승인은 사람이 한다. 파일과 키는 이렇게 대응한다.
+3. 새로 생긴 GET operation 중 설정이나 상점 상태를 바꾸는 것이 있는지 확인한다. 있으면 그 벤더의 상태를 바꾸는 GET 예외 목록(backend `nodes/integration/<vendor>/metadata/index.ts` 의 `CAFE24_STATE_CHANGING_GET_OPERATION_IDS` · `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)에 올린다. dry-run 재실행은 이 목록에 없는 GET 을 실제로 부른다. backend `dry-run-state-changing-get.spec.ts` 가 `scopeType: write` 와 id 의 변경 낱말로 후보를 잡지만 두 신호 모두 휴리스틱이다. 붙여 쓴 id(`autoupdate` 등)나 설명에만 드러나는 경우는 놓친다.
+4. 바뀐 파일의 NERV 사본을 고친다. 같은 작업에서 고칠 범위는 아래 「사본 갱신 범위」를 따른다. main 세션이 `/nerv:spec edit <KEY>` 로 초안을 쓰고 승인은 사람이 한다. 파일과 키는 이렇게 대응한다.
    - Cafe24 색인 `<resource>.md` → `CLE-C24-<RESOURCE>` (예: `customer.md` → `CLE-C24-CUSTOMER`)
    - Cafe24 필드 파일 `<resource>/<entity>.md` → `CLE-C24-<RESOURCE>-<ENTITY>`. 대문자로 쓰고 `__` 는 `--` 로 바꾼다(예: `customer/customers__memos.md` → `CLE-C24-CUSTOMER-CUSTOMERS--MEMOS`).
    - 주의: 이름이 `-` 와 `__` 로만 갈리는 필드 파일이 5쌍 있다. 키도 `-` 하나와 `--` 둘로만 갈리고 사본 제목은 같다. 예를 들어 `order/orders-memos.md`(`/orders/memos`)는 `CLE-C24-ORDER-ORDERS-MEMOS` 이고, `order/orders__memos.md`(`/orders/{order_id}/memos`)는 `CLE-C24-ORDER-ORDERS--MEMOS` 다. 나머지 4쌍은 `product/products-<x>.md` 와 `product/products__<x>.md` 다(`<x>` 는 `customproperties` · `decorationimages` · `icons` · `images`). 초안을 쓰기 전에 사본 머리 `원문:` 줄의 파일 이름이 고친 파일과 같은지 확인한다.

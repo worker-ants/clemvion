@@ -9,6 +9,7 @@
  * that succeeds never aborts its own controller, so cleanup hung off that
  * controller's abort event leaks one listener per call.
  */
+import { isAbortErrorLike } from '../../core/abort-error.util.js';
 
 const noop = (): void => {};
 
@@ -18,11 +19,8 @@ const noop = (): void => {};
  * aborted aborts the controller immediately and adds no listener.
  *
  * The caller decides when the listener comes off, and that is also how far a
- * cancellation reaches. HTTP Request reads the response body inside its `try`
- * and unlinks afterwards, so a cancellation during the body read still aborts
- * the read. The Cafe24 and MakeShop clients unlink as soon as `fetchImpl`
- * returns the headers and read the body afterwards (`safeReadJson`, which
- * swallows every error), so a cancellation during their body read is not seen.
+ * cancellation reaches. All three callers unlink only after the response body
+ * has been read, so a cancellation during the body read still aborts the read.
  */
 export function linkUpstreamAbort(
   controller: AbortController,
@@ -36,25 +34,6 @@ export function linkUpstreamAbort(
   const onAbort = (): void => controller.abort();
   upstream.addEventListener('abort', onAbort, { once: true });
   return () => upstream.removeEventListener('abort', onAbort);
-}
-
-/**
- * True when `err` looks like an `AbortError`. Matches on `name` instead of
- * `instanceof Error`: a real `fetch` rejects with a DOMException that may come
- * from another realm (jest's VM sandbox), and `instanceof Error` would miss it.
- * HTTP Request · Cafe24 · MakeShop use this check for an abort, and so does
- * the AI nodes' `rethrowIfNodeCancelled` (`nodes/ai/shared`). The engine's
- * `isAbortError` (`execution-engine.service.ts`) decides the same way. The two
- * stay separate so node modules do not import the execution-engine module, and
- * `abort-error-parity.spec.ts` next to the engine fails when their verdicts
- * drift apart.
- */
-export function isAbortErrorLike(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    (err as { name?: unknown }).name === 'AbortError'
-  );
 }
 
 /**

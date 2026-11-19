@@ -896,112 +896,163 @@ export class MakeshopApiClient {
     // execution-wide signal — and `executeWithRetry` recurses on 429/401, so
     // retries multiply them.
     //
-    // The listener comes off as soon as `fetchImpl` returns the headers, and the
-    // body is read after that (`safeReadJson` swallows every error), so a
-    // cancellation DURING the body read is not seen here. HTTP Request reads the
-    // body before it unlinks and does see it.
+    // The timer and the listener stay until the response body has been read
+    // (`readResponseBody`), so a cancellation or the local timeout DURING the
+    // body read still aborts it. `release()` runs before a 429 sleep and before
+    // the 401 refresh, because the recursive call links its own controller —
+    // otherwise the old timer would fire into a request that is already done.
     const upstream = opts.signal;
     const unlinkUpstream = linkUpstreamAbort(controller, upstream);
-
-    let response: Response;
-    try {
-      response = await this.fetchImpl(url, {
-        method: opts.method,
-        headers,
-        body: bodyString,
-        signal: controller.signal,
-      });
-    } catch (err) {
-      // A cancelled execution is not a transport fault. Two things follow, and
-      // both were wrong before: (1) rule 19 — the engine only classifies a node
-      // `cancelled` if AbortError reaches it, so wrapping it here would surface
-      // `*_TRANSPORT_FAILED` on `port:'error'` instead; (2) counting it would
-      // let three cancelled sibling branches demote a healthy integration to
-      // `error(network)`. `upstream.aborted` is what separates a cancellation
-      // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
-      // its counter. Same shape as `database-query.handler.ts`.
-      if (isUpstreamAbort(err, upstream)) throw err;
-      await this.recordNetworkFailure(integration, err);
-      throw new MakeshopTransportFailedError(err);
-    } finally {
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
       clearTimeout(timer);
       unlinkUpstream();
-    }
+    };
 
-    const respHeaders = readHeaderMap(response.headers);
+    try {
+      let response: Response;
+      try {
+        response = await this.fetchImpl(url, {
+          method: opts.method,
+          headers,
+          body: bodyString,
+          signal: controller.signal,
+        });
+      } catch (err) {
+        // A cancelled execution is not a transport fault. Two things follow, and
+        // both were wrong before: (1) rule 19 — the engine only classifies a node
+        // `cancelled` if AbortError reaches it, so wrapping it here would surface
+        // `*_TRANSPORT_FAILED` on `port:'error'` instead; (2) counting it would
+        // let three cancelled sibling branches demote a healthy integration to
+        // `error(network)`. `upstream.aborted` is what separates a cancellation
+        // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
+        // its counter. Same shape as `database-query.handler.ts`.
+        if (isUpstreamAbort(err, upstream)) throw err;
+        await this.recordNetworkFailure(integration, err);
+        throw new MakeshopTransportFailedError(err);
+      }
 
-    await this.resetNetworkFailures(integration);
+      const respHeaders = readHeaderMap(response.headers);
 
-    // 429 — MakeShop has no documented rate-limit headers (spec §9.7). Honour
-    // `Retry-After` (seconds) if present, else a fixed backoff; max 2 retries.
-    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
-      const retryAfterSec = parseRetryAfter(respHeaders['retry-after']);
-      const baseMs =
-        retryAfterSec !== null
-          ? retryAfterSec * 1000
-          : MAKESHOP_DEFAULT_BACKOFF_MS;
-      const jitterMs = Math.floor(Math.random() * 500);
-      const sleepMs = baseMs + jitterMs;
-      this.logger.debug(
-        `MakeShop 429 (attempt ${attempt + 1}) — sleeping ${baseMs}ms (+${jitterMs}ms jitter) for shop=${shopUid}`,
-      );
-      await this.sleepImpl(sleepMs);
-      return this.executeWithRetry(
-        integration,
-        shopUid,
-        accessToken,
-        opts,
-        attempt + 1,
-        triedAuthRetry,
-      );
-    }
-    if (response.status === 429) {
-      const retryAfterSec = parseRetryAfter(respHeaders['retry-after']);
-      throw new MakeshopRateLimitedError(attempt, retryAfterSec ?? 0, shopUid);
-    }
+      await this.resetNetworkFailures(integration);
 
-    if (response.status === 401 || response.status === 403) {
-      const errBody = await safeReadJson(response);
-      const bodyForLog = sanitizeLastErrorMessage(
-        typeof errBody === 'string'
-          ? errBody.slice(0, 500)
-          : JSON.stringify(errBody).slice(0, 500),
-      );
-      this.logger.warn(
-        `MakeShop API ${response.status} shop=${shopUid} ${opts.method} ${opts.path}: ${bodyForLog}`,
-      );
-
-      // 401 자가 회복 — refresh + 1회 재시도. 403 은 즉시 격하 (spec §6.1).
-      if (response.status === 401 && !triedAuthRetry) {
-        this.logger.log(
-          `MakeShop 401 detected — performAuthRefresh + retry (integrationId=${integration.id} shop_uid=${shopUid} ${opts.method} ${opts.path} source=reactive_401)`,
+      // 429 — MakeShop has no documented rate-limit headers (spec §9.7). Honour
+      // `Retry-After` (seconds) if present, else a fixed backoff; max 2 retries.
+      if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+        const retryAfterSec = parseRetryAfter(respHeaders['retry-after']);
+        const baseMs =
+          retryAfterSec !== null
+            ? retryAfterSec * 1000
+            : MAKESHOP_DEFAULT_BACKOFF_MS;
+        const jitterMs = Math.floor(Math.random() * 500);
+        const sleepMs = baseMs + jitterMs;
+        this.logger.debug(
+          `MakeShop 429 (attempt ${attempt + 1}) — sleeping ${baseMs}ms (+${jitterMs}ms jitter) for shop=${shopUid}`,
         );
-        await this.performAuthRefresh(integration);
-        const refreshedToken =
-          (integration.credentials as MakeshopCredentials | null)
-            ?.access_token ?? accessToken;
+        release();
+        await this.sleepImpl(sleepMs);
         return this.executeWithRetry(
           integration,
           shopUid,
-          refreshedToken,
+          accessToken,
           opts,
-          0,
-          true,
+          attempt + 1,
+          triedAuthRetry,
+        );
+      }
+      if (response.status === 429) {
+        const retryAfterSec = parseRetryAfter(respHeaders['retry-after']);
+        throw new MakeshopRateLimitedError(
+          attempt,
+          retryAfterSec ?? 0,
+          shopUid,
         );
       }
 
-      await this.markAuthFailed(integration);
-      throw new MakeshopAuthFailedError(response.status, shopUid, errBody);
+      if (response.status === 401 || response.status === 403) {
+        const errBody = await this.readResponseBody(
+          integration,
+          response,
+          controller.signal,
+          upstream,
+        );
+        const bodyForLog = sanitizeLastErrorMessage(
+          typeof errBody === 'string'
+            ? errBody.slice(0, 500)
+            : JSON.stringify(errBody).slice(0, 500),
+        );
+        this.logger.warn(
+          `MakeShop API ${response.status} shop=${shopUid} ${opts.method} ${opts.path}: ${bodyForLog}`,
+        );
+
+        // 401 자가 회복 — refresh + 1회 재시도. 403 은 즉시 격하 (spec §6.1).
+        if (response.status === 401 && !triedAuthRetry) {
+          this.logger.log(
+            `MakeShop 401 detected — performAuthRefresh + retry (integrationId=${integration.id} shop_uid=${shopUid} ${opts.method} ${opts.path} source=reactive_401)`,
+          );
+          release();
+          await this.performAuthRefresh(integration);
+          const refreshedToken =
+            (integration.credentials as MakeshopCredentials | null)
+              ?.access_token ?? accessToken;
+          return this.executeWithRetry(
+            integration,
+            shopUid,
+            refreshedToken,
+            opts,
+            0,
+            true,
+          );
+        }
+
+        await this.markAuthFailed(integration);
+        throw new MakeshopAuthFailedError(response.status, shopUid, errBody);
+      }
+
+      const body = await this.readResponseBody(
+        integration,
+        response,
+        controller.signal,
+        upstream,
+      );
+
+      return {
+        status: response.status,
+        body,
+        headers: respHeaders,
+        retries: attempt,
+      };
+    } finally {
+      release();
     }
+  }
 
-    const body = await safeReadJson(response);
-
-    return {
-      status: response.status,
-      body,
-      headers: respHeaders,
-      retries: attempt,
-    };
+  /**
+   * Reads the response body while this request's controller is still armed
+   * ([노드 취소](CLE-EXEC-CANCEL-NODES#fetch-자체-타임아웃과의-연쇄)).
+   * A node cancellation rethrows its AbortError so the engine marks the node
+   * `cancelled` without counting a transport fault. The local `timeoutMs`
+   * abort is a real fault: it counts and becomes `MakeshopTransportFailedError`.
+   * Any other read failure keeps the old best-effort `null`.
+   */
+  private async readResponseBody(
+    integration: Integration,
+    response: Response,
+    signal: AbortSignal,
+    upstream: AbortSignal | undefined,
+  ): Promise<unknown> {
+    try {
+      return await readJsonOrText(response);
+    } catch (err) {
+      if (isUpstreamAbort(err, upstream)) throw err;
+      if (signal.aborted) {
+        await this.recordNetworkFailure(integration, err);
+        throw new MakeshopTransportFailedError(err);
+      }
+      return null;
+    }
   }
 
   /**
@@ -1076,15 +1127,20 @@ function readHeaderMap(h: Headers): Record<string, string> {
 
 async function safeReadJson(response: Response): Promise<unknown> {
   try {
-    const text = await response.text();
-    if (!text) return null;
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
+    return await readJsonOrText(response);
   } catch {
     return null;
+  }
+}
+
+/** Parsed JSON, the raw text when it is not JSON, or `null` when empty. Read errors propagate. */
+async function readJsonOrText(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
   }
 }
 
