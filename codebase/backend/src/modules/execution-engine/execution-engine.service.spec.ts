@@ -15987,36 +15987,39 @@ describe('ExecutionEngineService', () => {
             service as unknown as { contextService: ExecutionContextService }
           ).contextService;
           const root = ctxService.createContext('exec-branch', 'wf-branch');
-          root.structuredOutputCache.bg = {
-            config: {},
-            output: { k: 1 },
-            meta: { forkedAt: 'x' },
-          };
-          const branchCopy = {
-            ...root,
-            structuredOutputCache: { ...root.structuredOutputCache },
-          };
+          try {
+            root.structuredOutputCache.bg = {
+              config: {},
+              output: { k: 1 },
+              meta: { forkedAt: 'x' },
+            };
+            const branchCopy = {
+              ...root,
+              structuredOutputCache: { ...root.structuredOutputCache },
+            };
 
-          (
-            service as unknown as {
-              stampStructuredMetaJobId: (
-                c: unknown,
-                nodeId: string,
-                jobId: string,
-              ) => void;
-            }
-          ).stampStructuredMetaJobId(branchCopy, 'bg', 'job-p');
+            (
+              service as unknown as {
+                stampStructuredMetaJobId: (
+                  c: unknown,
+                  nodeId: string,
+                  jobId: string,
+                ) => void;
+              }
+            ).stampStructuredMetaJobId(branchCopy, 'bg', 'job-p');
 
-          expect(branchCopy.structuredOutputCache.bg.meta).toEqual({
-            forkedAt: 'x',
-            jobId: 'job-p',
-          });
-          expect(root.structuredOutputCache.bg.meta).toEqual({
-            forkedAt: 'x',
-            jobId: 'job-p',
-          });
-          expect(root.structuredOutputCache.bg.output).toEqual({ k: 1 });
-          ctxService.deleteContext('exec-branch');
+            expect(branchCopy.structuredOutputCache.bg.meta).toEqual({
+              forkedAt: 'x',
+              jobId: 'job-p',
+            });
+            expect(root.structuredOutputCache.bg.meta).toEqual({
+              forkedAt: 'x',
+              jobId: 'job-p',
+            });
+            expect(root.structuredOutputCache.bg.output).toEqual({ k: 1 });
+          } finally {
+            ctxService.deleteContext('exec-branch');
+          }
         });
       });
     });

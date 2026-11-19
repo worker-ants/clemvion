@@ -2366,6 +2366,26 @@ describe('AiTurnOrchestrator', () => {
       expectPortOnlyInFlat();
     });
 
+    it('핸들러가 대화를 끝낸(status ended) 턴에서 두 캐시의 표지 분리가 유지된다', async () => {
+      registerHandler({
+        processMultiTurnMessage: jest.fn().mockResolvedValue({
+          config: { mode: 'multi_turn' },
+          output: {
+            result: { response: 'done', messages: [], turnCount: 2 },
+          },
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        }),
+      });
+      contextService.createContext(executionId, workflowId);
+
+      const result = await callHandleAiMessageTurn();
+
+      expect(result.ended).toBe(true);
+      expectPortOnlyInFlat();
+    });
+
     it('대화 종료(ai_end_conversation)에서 두 캐시의 표지 분리가 유지된다', async () => {
       registerHandler({});
       const context = contextService.createContext(executionId, workflowId);
