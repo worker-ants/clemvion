@@ -1016,7 +1016,7 @@ export class HooksService {
   private async conversationMovedToAnotherExecution(
     triggerId: string,
     conversationKey: string,
-    readExecutionId: string | undefined,
+    readExecutionId: string | null | undefined,
   ): Promise<boolean> {
     const current = await this.channelConversationService.lookup(
       triggerId,
