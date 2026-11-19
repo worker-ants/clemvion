@@ -135,13 +135,13 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   // 04 M-1 — 게이팅 판정을 부팅당 1회만 평가해 마운트·로그 두 곳이 동일 결정을 공유한다.
   const swaggerEnabled = isSwaggerEnabled(process.env);
-  // Fail-closed (refactor 04 C-1·M-4·M-7 + 기존 OAUTH/LLM stub): NODE_ENV=production
+  // Fail-closed (서명 비밀 · 암호화 키 · 보안 우회 플래그 + 기존 OAUTH/LLM stub): NODE_ENV=production
   // 에서 비보안 stub·미설정/예시 secret·위험 플래그가 켜진 채 기동하면 즉시 throw 한다.
   // 전 분기는 production-guards.ts 단위 테스트로 검증. (비-production 은 no-op.)
   assertProductionConfig(process.env);
 
-  // 04 M-7 — ALLOW_PRIVATE_HOST_TARGETS 는 정당한 self-host 용도(VPC 내부 DB/SMTP 등,
-  // spec http-request §4)가 있어 throw 가 아닌 warn 으로 분리한다 — 운영자가 의도적으로
+  // ALLOW_PRIVATE_HOST_TARGETS 는 정당한 self-host 용도(VPC 내부 DB/SMTP 등,
+  // 스펙 `CLE-NODE-INT-COMMON` 사설망 차단)가 있어 throw 가 아닌 warn 으로 분리한다 — 운영자가 의도적으로
   // 켰을 수 있으나 SSRF 표면을 넓히므로 가시화한다.
   if (
     process.env.NODE_ENV === 'production' &&

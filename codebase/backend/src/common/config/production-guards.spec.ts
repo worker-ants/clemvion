@@ -1,5 +1,5 @@
 /**
- * production fail-closed 가드 단위 테스트 (refactor 04 C-1·M-4·M-7).
+ * production fail-closed 가드 단위 테스트. 검사 대상의 정본은 NERV 스펙 `CLE-ACCT-SESSION-GUARD` 「운영 환경 가드」다.
  * 순수 함수라 env 맵을 주입해 전 분기를 검증한다 — 실제 부팅 불필요.
  */
 import * as fs from 'node:fs';
@@ -118,7 +118,7 @@ describe('assertProductionConfig', () => {
     });
   });
 
-  describe('JWT_SECRET (04 C-1)', () => {
+  describe('JWT_SECRET', () => {
     it('throws when unset', () => {
       expect(() =>
         assertProductionConfig(prodEnv({ JWT_SECRET: undefined })),
@@ -197,7 +197,7 @@ describe('assertProductionConfig', () => {
     });
   });
 
-  describe('ENCRYPTION_KEY (04 M-4)', () => {
+  describe('ENCRYPTION_KEY', () => {
     it('throws when unset', () => {
       expect(() =>
         assertProductionConfig(prodEnv({ ENCRYPTION_KEY: undefined })),
