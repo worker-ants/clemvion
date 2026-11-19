@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT-STORAGE"
 title: "실행 컨텍스트 — 저장 전략과 재개"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CONTEXT"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CONTEXT"]
 area: "CLE-EXEC"
-content_hash: "486d6277936c5dfbb8da59b04b10ec4838a2f2e73941b1ba5ea094879f613042"
+content_hash: "59359d3db51a04108210a89e300af9887b91fddd4cf32db493863919457df3d6"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-AGBPHW"
 source_paths: []
-mirror_sha256: "485c2f223ef7327ba78542c100d626c8aa4cbebe710da05550ac3919e1d29c8b"
-etag: "sha256-0b6c3cc8be087cf561fddd0657869cf0840647812dac492eff4ae4d4d9d4a424"
+mirror_sha256: "3ea86fd6cd9cb24f58f18a46a02c14dba206acc1a79d326e0b237172ec8eab2d"
+etag: "sha256-7ea4342f636383da27898d8e56c2ee08e064242759586ebef950d5763c420dc4"
 ---
 ## 개요
 
@@ -91,7 +91,7 @@ etag: "sha256-0b6c3cc8be087cf561fddd0657869cf0840647812dac492eff4ae4d4d9d4a424"
 
 남는 손실은 세그먼트 누적 시간 추적(`segmentStartMs`)이 메모리에 있다는 점이다. 이는 안전 종료 때 누적 시간을 덜 세는 것을 받아들인 결정이고 세그먼트 시작 시각 저장은 확정되지 않은 후속 후보로 남긴다([큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md), [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)). 전면적인 Redis 컨텍스트 저장소는 기준이 둘로 갈릴 위험 때문에 채택하지 않는다.
 
-### 멀티턴 설정은 턴마다 새로 만든다 (D3)
+### 멀티턴 설정은 턴마다 새로 만든다
 
 턴마다 rehydration 이 `buildRetryReentryState` 로 `node.config` 를 새로 만들므로 park 중 워크플로우 편집이 다음 턴부터 반영된다. 체크포인트에 원본 설정을 저장해 대화 전체를 고정하는 대안은 구현 복잡도를 더하고 최신 정의를 반영하는 편이 더 자연스러워 택하지 않았다. 같은 입력의 재현성이 턴 단위로 약해지는 것은 모든 재개를 rehydration 한 경로로 모으기 위한 trade-off 다. park 해제 결정의 전체 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 

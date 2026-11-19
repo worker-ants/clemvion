@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA-FLOW"
 title: "트리거 데이터와 흐름 — 진입 흐름과 저장소"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-DATA"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-DATA"]
 area: "CLE-TRIG"
-content_hash: "042ae7bcae9946e96ea1dd59edfde9eb0ee462c40b5f1c48897f7099619e8ff4"
+content_hash: "1bbd424fd32f84b5920a3ef10503b110599c0d9d27056f857fca86af0d730f8a"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-AGBPHW"
 source_paths: []
-mirror_sha256: "affcb1e3eebc6c64f5ea239353933e7e17c49a9c48efe8fc2a4eecaaa2a62ba4"
-etag: "sha256-45581c593be341065985dcf9f7e0b929b8f2e9b1b718b805a64d948e90663c2a"
+mirror_sha256: "d887c040bc9a1daa9d88ba6f02b75d8d5b4c40627b784dedf414ae2c48fda160"
+etag: "sha256-f4d85a36202adbc6d12960656c6c0bed49e2b5b0d785bbc06d35e1aa7a5c85d0"
 ---
 ## 개요
 
@@ -127,10 +127,10 @@ sequenceDiagram
 ```
 
 - 큐 payload 는 `{ scheduleId, workspaceId }` 이고 processor 는 두 키로 스케줄을 조회한다.
-- 마지막 UPDATE 는 `execute()` 가 `executionId` 를 돌려준 뒤에만 한다. 스케줄이 없거나 비활성이거나 워크플로우가 연결되지 않아 건너뛸 때와 실행을 시작하지 못했을 때는 `last_run_at` · `next_run_at` 을 바꾸지 않는다. 워크플로우가 비활성이라 건너뛸 때는 `next_run_at` 만 다음 Cron 발화 시각으로 옮긴다([워크플로우 활성 관문](CLE-TRIG-DATA.md#워크플로우-활성-관문)).
+- 마지막 UPDATE 는 `execute()` 가 `executionId` 를 돌려준 뒤에만 한다. 스케줄이 없거나 비활성이거나 워크플로우가 연결되지 않아 건너뛸 때와 실행을 시작하지 못했을 때는 `last_run_at` · `next_run_at` 을 바꾸지 않는다. 워크플로우가 비활성이라 건너뛸 때는 `next_run_at` 만 다음 Cron 발사 시각으로 옮긴다([워크플로우 활성 관문](CLE-TRIG-DATA.md#워크플로우-활성-관문)).
 - `next_run_at` 은 발사를 일으키지 않는다. 발사는 BullMQ job scheduler 가 전부 맡고 `next_run_at` 은 processor 가 화면 표시용으로 다시 계산해 저장하는 정보성 컬럼이다([다음 실행 계산](#다음-실행-계산)).
 - processor 는 `trigger.is_active` 를 직접 보지 않고 `schedule.is_active` 만 확인한다. 양방향 동기화가 트리거 쪽 토글도 `schedule.is_active` 에 반영하므로 어느 화면에서 토글해도 발사가 일관되게 제어된다.
-- processor 는 그다음 워크플로우 활성 상태를 확인하고 비활성이면 실행을 만들지 않는다. 건너뛸 때의 처리(`next_run_at` 갱신, 재시도와 알림 없음, 다음 발화의 재확인)는 [워크플로우 활성 관문](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
+- processor 는 그다음 워크플로우 활성 상태를 확인하고 비활성이면 실행을 만들지 않는다. 건너뛸 때의 처리(`next_run_at` 갱신, 재시도와 알림 없음, 다음 발사의 재확인)는 [워크플로우 활성 관문](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
 - `trigger_id` 를 넘겨야 실행 내역 화면이 출처를 `schedule` 로 분류한다([스케줄](CLE-TRIG-SCHEDULE.md)).
 
 ### 채팅 채널 분기
@@ -206,7 +206,7 @@ sequenceDiagram
 | `workflow` | 웹훅 · 채팅 채널 · 스케줄 진입(워크플로우 활성 관문) | SELECT `id, is_active` WHERE `id` 와 `workspace_id`(실행을 시작하는 쪽의 워크스페이스) | PK `(id)` |
 | `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` | 복합 FK `(trigger_id, workspace_id)` CASCADE |
 | `schedule` | 발사 뒤 | UPDATE `last_run_at, next_run_at`(정보성 재계산, 발사를 일으키지 않음) | `(workspace_id, next_run_at)`(V110) |
-| `schedule` | 비활성 워크플로우로 발화를 건너뜀 | UPDATE `next_run_at` 만, WHERE `id` 와 `workspace_id`. Cron 을 해석하지 못하면 NULL | `(workspace_id, next_run_at)`(V110) |
+| `schedule` | 비활성 워크플로우로 발사를 건너뜀 | UPDATE `next_run_at` 만, WHERE `id` 와 `workspace_id`. Cron 을 해석하지 못하면 NULL | `(workspace_id, next_run_at)`(V110) |
 | `auth_config` | 웹훅 인증(읽기) | SELECT `type, config(복호화), ip_whitelist, is_active` | 복합 FK from `trigger (auth_config_id, workspace_id)` |
 | `auth_config` | 인증 성공(쓰기) | UPDATE `last_used_at`(fire-and-forget, 트랜잭션 밖) | 없음 |
 | `execution` | 진입 | INSERT([실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md)) | `trigger_id` FK SET NULL(트리거를 지워도 실행 기록 보존) |
@@ -251,7 +251,7 @@ stateDiagram-v2
 
 ### 다음 실행 계산
 
-`cron-parser`(`CronExpressionParser.parse`)로 `cron_expression + timezone` 을 해석한다. 실제 발사 시각은 BullMQ job scheduler 가 정하고 `next_run_at` 은 화면 표시용 정보성 컬럼이다. 다시 계산해 저장하는 때는 세 가지다. 스케줄 생성·수정 때(`computeNextRuns`), processor 가 실행을 시작한 직후, 워크플로우가 비활성이라 발화를 건너뛴 직후다. 뒤의 둘은 `now` 기준 다음 Cron tick 이다(`schedule-runner` `nextRunAtAfter`).
+`cron-parser`(`CronExpressionParser.parse`)로 `cron_expression + timezone` 을 해석한다. 실제 발사 시각은 BullMQ job scheduler 가 정하고 `next_run_at` 은 화면 표시용 정보성 컬럼이다. 다시 계산해 저장하는 때는 세 가지다. 스케줄 생성·수정 때(`computeNextRuns`), processor 가 실행을 시작한 직후, 워크플로우가 비활성이라 발사를 건너뛴 직후다. 뒤의 둘은 `now` 기준 다음 Cron tick 이다(`schedule-runner` `nextRunAtAfter`).
 
 Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. processor 의 재계산(실행 직후, 건너뛴 직후)에서 파서가 던지거나(`schedule-runner`), Cron·시간대 수정 때 다음 발생 시각을 구하지 못하면(`computeNextRuns` 가 빈 결과) NULL 로 저장한다. 건너뛴 직후의 UPDATE 는 NULL 을 값으로 넣는다. 값을 비워 두면 그 컬럼이 SET 에서 빠져 지난 시각이 남기 때문이다. 정보성 컬럼이므로 NULL 이어도 발사에는 영향이 없다. 발사는 BullMQ job scheduler 가 하고 이 컬럼을 읽지 않는다.
 

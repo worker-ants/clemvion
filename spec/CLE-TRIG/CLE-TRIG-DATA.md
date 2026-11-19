@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "f5e585f031b91aef439e82ff528be83ac9cd6cc6f7a3092e9a9763827c3455c7"
+content_hash: "3005090e66ec1cc5c8ebaef5e477c32551b6cceb1f55cfb84d5477d727965861"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-AGBPHW"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "81d1ca6ac42dc8dd4fdf6a7bfe5973283df9626b38cb885ecadec0a55d4f909d"
-etag: "sha256-9d1d6fa93c1d16b36097a3932c68c1c9d5c904d3874e989e38f349f08bb70188"
+mirror_sha256: "212afa09ee7730c8697ae6a9f2cb3a6a2ba1ddd8d24a9daca5a0dae5fff1780b"
+etag: "sha256-8a2af4b72b9a1a84e12ba8751fe8bcca9903168c0d6acf5f993f0e805b0922ca"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,7 +77,7 @@ erDiagram
 |------|-----------|----------------------|--------------------------|
 | 일반 웹훅 | 트리거 활성 확인 바로 뒤. 인증 설정 인증 · IP 화이트리스트 · 파라미터 검증 · 실행 생성보다 앞 | `410 Gone`, `TRIGGER_INACTIVE` | `410 Gone`, `WORKFLOW_INACTIVE`(메시지 `Workflow of this webhook trigger is inactive`) |
 | 채팅 채널 인입 | 새 실행을 시작하기 직전. `/start` 의 기존 실행 취소보다 앞 | 서명 검증 직후 `202` 와 `{ executionId: 'ignored' }`. 인터랙션 요청이면 `200` 과 기본 인터랙션 응답. handshake 를 포함해 모든 update 를 무시하므로 진행 중인 대화도 끊긴다. 프로바이더 API 는 부르지 않는다 | 새 실행만 막는다. 활성 실행이 없을 때 온 첫 메시지와 `/start` 는 `202` 와 `{ executionId: 'ignored' }`. 인터랙션 요청이면 `200` 과 기본 인터랙션 응답([채팅 채널 분기](CLE-TRIG-DATA-FLOW.md#채팅-채널-분기)). handshake 에 답하고 진행 중인 대화는 이어진다 |
-| 스케줄 발사 | 스케줄 비활성 확인 · 워크플로우 미연결 확인 다음. `execute()` 보다 앞 | 토글이 job scheduler 를 해제한다. 이미 들어온 작업은 `schedule.is_active=false` 로 건너뛴다 | 건너뛴다. `next_run_at` 만 다음 Cron 발화 시각으로 옮기고 로그를 남긴 뒤 job 을 정상 완료한다 |
+| 스케줄 발사 | 스케줄 비활성 확인 · 워크플로우 미연결 확인 다음. `execute()` 보다 앞 | 토글이 job scheduler 를 해제한다. 이미 들어온 작업은 `schedule.is_active=false` 로 건너뛴다 | 건너뛴다. `next_run_at` 만 다음 Cron 발사 시각으로 옮기고 로그를 남긴 뒤 job 을 정상 완료한다 |
 
 채팅 채널 인입의 단계 전체 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 를 따른다.
 
@@ -85,8 +85,8 @@ erDiagram
 - 채팅 채널은 새 실행을 시작하는 경우만 막는다. 막히는 것은 활성 실행이 없을 때 온 첫 메시지와 `/start` 다. 활성 실행이 있을 때 온 `/start` 도 ignored 이고 기존 실행은 취소하지 않는다. 확인이 기존 실행 취소보다 앞이기 때문이다.
 - 진행 중인 대화는 워크플로우가 비활성이어도 이어진다. handshake(Slack `url_verification` challenge, Discord PING type 1), update 파싱, `/help`, 대화 조회와 `/cancel`, 폼 모달, 입력 전달은 워크플로우가 활성일 때와 같다. 입력을 기다리는 실행에는 답장 · 버튼 · 폼 제출이 그대로 전달된다.
 - 비활성 트리거는 다르다. 서명 검증 직후 모든 update 를 무시하므로 handshake 에 답하지 않고 진행 중인 대화도 끊긴다. 입력을 기다리는 실행이 있어도 메시지를 전달하지 않는다. 이 순서를 바꿀지는 [미결 사항](#미결-사항)에 있다.
-- 스케줄: 건너뛸 때 `next_run_at` 만 다음 Cron 발화 시각으로 옮긴다. Cron 을 해석하지 못하면 NULL 로 둔다. UPDATE 는 그 컬럼 하나만 쓰므로 그사이 사용자가 고친 다른 컬럼을 덮어쓰지 않는다. `last_run_at` 은 바꾸지 않는다. 스케줄 목록의 「다음 실행」 칸에 지난 시각이 남지 않게 하려는 것이다([스케줄](CLE-TRIG-SCHEDULE.md)).
-- 스케줄: 재시도하지 않고 `schedule_failed` 알림도 보내지 않는다. 스케줄 행의 활성 상태와 BullMQ job scheduler 는 그대로 둔다. 다음 Cron tick 에 다시 확인하므로 워크플로우를 활성으로 바꾸면 다음 발화부터 실행된다. 비활성인 동안 건너뛴 발화는 보충하지 않는다.
+- 스케줄: 건너뛸 때 `next_run_at` 만 다음 Cron 발사 시각으로 옮긴다. Cron 을 해석하지 못하면 NULL 로 둔다. UPDATE 는 그 컬럼 하나만 쓰므로 그사이 사용자가 고친 다른 컬럼을 덮어쓰지 않는다. `last_run_at` 은 바꾸지 않는다. 스케줄 목록의 「다음 실행」 칸에 지난 시각이 남지 않게 하려는 것이다([스케줄](CLE-TRIG-SCHEDULE.md)).
+- 스케줄: 재시도하지 않고 `schedule_failed` 알림도 보내지 않는다. 스케줄 행의 활성 상태와 BullMQ job scheduler 는 그대로 둔다. 다음 Cron tick 에 다시 확인하므로 워크플로우를 활성으로 바꾸면 다음 발사부터 실행된다. 비활성인 동안 건너뛴 발사는 보충하지 않는다.
 - 조회 범위: 실행을 시작하는 쪽(트리거 · 스케줄)의 워크스페이스 안에서만 워크플로우를 찾는다. `execute()` 에 넘기는 워크스페이스와 같은 값이다. 그 워크스페이스에 없으면 관문은 통과시키고 뒤의 `execute()` 가 기존 응답으로 거부한다. 일반 웹훅은 404 `TRIGGER_NOT_FOUND`, 채팅 채널은 `202` ignored 와 `degraded`, 스케줄은 에러 로그를 남기고 건너뛴다. 채팅 채널의 인터랙션 요청은 `202` 대신 `200` 과 기본 인터랙션 응답으로 답한다([채팅 채널 분기](CLE-TRIG-DATA-FLOW.md#채팅-채널-분기)).
 - 빈 `workspaceId`: 값은 트리거 · 스케줄 행의 `workspace_id`(NOT NULL)에서 온다. 빈 문자열이 오면 맞는 워크플로우가 없으므로 관문은 통과하고 `execute()` 의 워크스페이스 대조가 거부한다. 엔진 대조와 같은 쪽(거부)으로 닫힌다.
 - 관문을 거치지 않는 경로: 에디터 수동 실행(`POST /api/workflows/:id/execute`), 재실행, 스케줄 "지금 실행"(`POST /api/schedules/:id/run-now`), 워크플로우 호출 노드의 서브 워크플로우 실행([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)), External Interaction API 의 진행 중 실행 명령, 채팅 채널의 진행 중인 대화. 이미 진행 중인 실행은 워크플로우를 비활성으로 바꿔도 취소하지 않는다.

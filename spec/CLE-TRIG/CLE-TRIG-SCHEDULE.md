@@ -2,19 +2,19 @@
 id: "CLE-TRIG-SCHEDULE"
 title: "스케줄"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033", "REQ-SCHED-034", "REQ-SCHED-035", "REQ-SCHED-036", "REQ-SCHED-037", "REQ-SCHED-038", "REQ-SCHED-039", "REQ-SCHED-040"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "6d7e937a19f0523228212be2dfb535685ca312887524db8fce2412c5329d0706"
+content_hash: "c0f6211a4bb15dedac92a9d7afa8fd2383d077d05241ffbffc0e358bd16a5ef3"
 read_as: "approved_fallback"
-task: "CLE-T-6YY7KY"
+task: "CLE-T-AGBPHW"
 source_paths: ["spec/2-navigation/3-schedule.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "d0dc212059d6f91cd7ed38dbeddca709b7cb9a1888307da630f24317ba820312"
-etag: "sha256-e3c5e7b33995567bdf292f8e8d26fa1478d86ccbb86dafaa12b7bc40f91ca232"
+mirror_sha256: "8e981c8eae5f11715473b6ff421b2eb29bb67cb48ce78d7c356c51c80dce6778"
+etag: "sha256-d21e796f7882056c8c08fbd644da79a447c9aac1e98ec7a3945de2b18b0b772c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/3-schedule.md`, `spec/2-navigation/_product-overview.md` (§3.3 Schedule) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -69,11 +69,11 @@ etag: "sha256-e3c5e7b33995567bdf292f8e8d26fa1478d86ccbb86dafaa12b7bc40f91ca232"
 - REQ-SCHED-033 WHEN `POST /api/schedules/preview` 가 호출되면 THE SYSTEM SHALL 받은 Cron 과 시간대로 다음 실행 시각을 계산해 돌려준다.
 - REQ-SCHED-034 IF Cron 이 발사할 때 연결된 트리거의 워크플로우가 스케줄의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 재시도와 `schedule_failed` 알림 없이 건너뛴 뒤 서버 에러 로그를 남긴다.
 - REQ-SCHED-035 IF 지금 실행(`run-now`)에서 연결된 트리거의 워크플로우가 요청의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 연결된 워크플로우가 없을 때와 같은 `400` 으로 응답한다.
-- REQ-SCHED-036 IF Cron 이 발사할 때 연결된 트리거의 워크플로우가 비활성이면(`workflow.is_active=false`) THE SYSTEM SHALL 실행을 만들지 않고 재시도와 `schedule_failed` 알림 없이 그 발화를 건너뛴 뒤 로그를 남긴다.
-- REQ-SCHED-037 WHEN 워크플로우가 비활성이라 발화를 건너뛰면 THE SYSTEM SHALL 스케줄 활성 상태와 BullMQ job scheduler 를 그대로 두고 다음 Cron 발화에서 워크플로우 활성 상태를 다시 확인한다.
-- REQ-SCHED-038 WHEN 비활성 워크플로우를 다시 활성으로 바꾸면 THE SYSTEM SHALL 다음 Cron 발화부터 실행하고 비활성인 동안 건너뛴 발화는 보충하지 않는다.
+- REQ-SCHED-036 IF Cron 이 발사할 때 연결된 트리거의 워크플로우가 비활성이면(`workflow.is_active=false`) THE SYSTEM SHALL 실행을 만들지 않고 재시도와 `schedule_failed` 알림 없이 그 발사를 건너뛴 뒤 로그를 남긴다.
+- REQ-SCHED-037 WHEN 워크플로우가 비활성이라 발사를 건너뛰면 THE SYSTEM SHALL 스케줄 활성 상태와 BullMQ job scheduler 를 그대로 두고 다음 Cron 발사에서 워크플로우 활성 상태를 다시 확인한다.
+- REQ-SCHED-038 WHEN 비활성 워크플로우를 다시 활성으로 바꾸면 THE SYSTEM SHALL 다음 Cron 발사부터 실행하고 비활성인 동안 건너뛴 발사는 보충하지 않는다.
 - REQ-SCHED-039 WHEN 사용자가 지금 실행(`run-now`)을 요청하면 THE SYSTEM SHALL 워크플로우가 비활성이어도 수동 실행으로 시작한다.
-- REQ-SCHED-040 WHEN 워크플로우가 비활성이라 발화를 건너뛰면 THE SYSTEM SHALL `next_run_at` 만 다음 Cron 발화 시각으로 갱신하고(Cron 을 해석하지 못하면 NULL) `last_run_at` 은 바꾸지 않는다.
+- REQ-SCHED-040 WHEN 워크플로우가 비활성이라 발사를 건너뛰면 THE SYSTEM SHALL `next_run_at` 만 다음 Cron 발사 시각으로 갱신하고(Cron 을 해석하지 못하면 NULL) `last_run_at` 은 바꾸지 않는다.
 
 ## 화면 구조
 
@@ -228,14 +228,14 @@ Cron 자동 발사에서 `trigger_id` 가 비어 있으면 실행 내역 화면�
 
 | 발사 경로 | 워크플로우가 비활성일 때 |
 |-----------|--------------------------|
-| Cron 자동 발사 | 실행을 만들지 않고 로그를 남긴 뒤 job 을 정상 완료한다. 재시도하지 않고 `schedule_failed` 알림을 보내지 않는다(REQ-SCHED-036). `next_run_at` 만 다음 Cron 발화 시각으로 옮기고 `last_run_at` 은 바꾸지 않는다(REQ-SCHED-040). 스케줄과 BullMQ job scheduler 는 그대로 두므로 다음 Cron 발화에서 다시 확인한다(REQ-SCHED-037). 워크플로우를 활성으로 바꾸면 다음 발화부터 실행되고 비활성인 동안 건너뛴 발화는 보충하지 않는다(REQ-SCHED-038) |
+| Cron 자동 발사 | 실행을 만들지 않고 로그를 남긴 뒤 job 을 정상 완료한다. 재시도하지 않고 `schedule_failed` 알림을 보내지 않는다(REQ-SCHED-036). `next_run_at` 만 다음 Cron 발사 시각으로 옮기고 `last_run_at` 은 바꾸지 않는다(REQ-SCHED-040). 스케줄과 BullMQ job scheduler 는 그대로 두므로 다음 Cron 발사에서 다시 확인한다(REQ-SCHED-037). 워크플로우를 활성으로 바꾸면 다음 발사부터 실행되고 비활성인 동안 건너뛴 발사는 보충하지 않는다(REQ-SCHED-038) |
 | "지금 실행" | 확인하지 않는다. 사용자가 직접 시작하는 수동 실행이라 워크플로우가 비활성이어도 실행한다(REQ-SCHED-039) |
 
 - `next_run_at` 을 옮기는 것은 목록의 「다음 실행」 칸(REQ-SCHED-004)에 지난 시각이 남지 않게 하려는 것이다. Cron 을 해석하지 못해 NULL 이 되면 그 칸은 `-` 다(REQ-SCHED-005). UPDATE 는 `next_run_at` 한 컬럼만 쓴다.
-- 발화를 건너뛴 것은 실행 시작 실패가 아니다. 그래서 `schedule_failed` 알림 대상이 아니다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)).
+- 발사를 건너뛴 것은 실행 시작 실패가 아니다. 그래서 `schedule_failed` 알림 대상이 아니다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)).
 - 워크플로우가 스케줄의 워크스페이스에 없으면 이 확인은 통과하고 [다른 워크스페이스의 워크플로우](#다른-워크스페이스의-워크플로우) 의 규칙을 따른다.
 
-## 건너뛴 발화
+## 건너뛴 발사
 
 Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 경우나 재시도하지 않고 `schedule_failed` 알림을 보내지 않으며 job 은 정상 완료로 끝난다(`ScheduleRunnerService.process`).
 
@@ -244,7 +244,7 @@ Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 
 | 스케줄 행이 없다 | 아무것도 바꾸지 않는다. 경고 로그를 남긴다 |
 | 스케줄이 비활성이다 | 아무것도 바꾸지 않는다 |
 | 연결된 트리거에 워크플로우가 없다 | 아무것도 바꾸지 않는다. 경고 로그를 남긴다 |
-| 워크플로우가 비활성이다 | `next_run_at` 만 다음 Cron 발화 시각으로 옮기고 `last_run_at` 은 그대로 둔다(REQ-SCHED-040, [꺼진 워크플로우](#꺼진-워크플로우)) |
+| 워크플로우가 비활성이다 | `next_run_at` 만 다음 Cron 발사 시각으로 옮기고 `last_run_at` 은 그대로 둔다(REQ-SCHED-040, [꺼진 워크플로우](#꺼진-워크플로우)) |
 | 워크플로우가 없거나 스케줄의 워크스페이스에 없다(엔진의 `WorkflowNotFoundError`, NERV Task `CLE-T-XYR067`) | 아무것도 바꾸지 않는다. 에러 로그를 남긴다(REQ-SCHED-034, [다른 워크스페이스의 워크플로우](#다른-워크스페이스의-워크플로우)) |
 
 워크플로우가 비활성일 때만 `next_run_at` 을 옮긴다. 워크플로우 비활성은 사용자가 평소에 고르는 상태라 그동안에도 목록의 「다음 실행」 칸이 맞아야 한다. 나머지 넷은 스케줄이 비활성이거나 저장된 행을 고쳐야 하는 경우라 기존 동작을 바꾸지 않았다.
@@ -260,7 +260,7 @@ Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 
 - `codebase/frontend/src/lib/utils/cron-to-visual.ts`
 - `codebase/backend/src/modules/schedules/schedules.controller.ts`
 - `codebase/backend/src/modules/schedules/schedules.service.ts`
-- `codebase/backend/src/modules/schedules/schedule-runner.service.ts` (Cron 발화 처리 `process()`. 워크플로우 활성 관문을 부르고 워크플로우가 비활성이면 `nextRunAtAfter()` 로 `next_run_at` 만 다시 계산한다)
+- `codebase/backend/src/modules/schedules/schedule-runner.service.ts` (Cron 발사 처리 `process()`. 워크플로우 활성 관문을 부르고 워크플로우가 비활성이면 `nextRunAtAfter()` 로 `next_run_at` 만 다시 계산한다)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문 `isWorkflowInactive`. 웹훅 · 채팅 채널과 함께 쓴다)
 - `codebase/backend/src/modules/schedules/schedules.module.ts`
 - `codebase/backend/src/modules/workspaces/workspaces.service.ts`
@@ -269,7 +269,7 @@ Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 
 - `codebase/backend/src/modules/schedules/dto/**`
 - `codebase/backend/test/schedule-trigger.e2e-spec.ts` (응답 형태 네 가지를 양성 3과 생성 음성 대조 1로 고정)
 - `codebase/backend/src/shared/testing/schedule-trigger-ref*.ts` (위 e2e 단언의 정본: 좁힌 참조 키셋과 비밀 컬럼 목록)
-- `codebase/backend/src/modules/schedules/schedule-runner.service.spec.ts` (비활성 워크플로우의 발화를 건너뛰고 `next_run_at` 만 옮긴다. Cron 을 해석하지 못하면 NULL 로 둔다)
+- `codebase/backend/src/modules/schedules/schedule-runner.service.spec.ts` (비활성 워크플로우의 발사를 건너뛰고 `next_run_at` 만 옮긴다. Cron 을 해석하지 못하면 NULL 로 둔다)
 - `codebase/backend/test/workflow-inactive-gate.e2e-spec.ts` (워크플로우가 비활성이면 job 이 와도 실행하지 않고 활성으로 바꾸면 실행한다)
 
 ## Rationale
@@ -289,12 +289,12 @@ Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 
 - 스케줄 → 트리거(`/triggers?triggerId=`): 트리거 상세 드로어를 자동으로 연다. 상세 드로어는 트리거 id 로 단건 리소스를 바로 조회하므로 목록 로드나 페이지와 상관없이 언제나 열 수 있다([트리거 관리](CLE-TRIG-MANAGE.md)).
 - 트리거 → 스케줄(`/schedules?triggerId=`): 목록을 서버 `?triggerId=` 필터로 그 트리거의 스케줄로 좁히고 행을 강조·스크롤한다. 서버 필터라 페이지 위치와 상관없이 대상을 찾는다. 드로어 자동 열기 대신 목록 필터와 강조를 고른 이유는 두 가지다. 스케줄 편집은 다음 실행·활성 상태 같은 목록 맥락 안에서 하는 편이 자연스럽다. 그리고 "전체 보기" 해제 경로를 분명히 둘 수 있다. 편집 대화상자는 자동으로 열지 않는다.
 
-### 꺼진 워크플로우의 발화를 건너뛰고 스케줄은 그대로 둔다 (2026-10-10)
+### 꺼진 워크플로우의 발사를 건너뛰고 스케줄은 그대로 둔다 (2026-10-10)
 
 워크플로우를 비활성으로 바꾸면 Cron 자동 발사로 실행이 생기지 않는다. 이 미결은 사용자가 2026-10-10 에 정했다(NERV Task `CLE-T-XRWFMJ`). 결정과 기각한 대안은 [트리거 데이터와 흐름](CLE-TRIG-DATA.md#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 이 기준이다. 이 절은 스케줄 쪽 선택만 적는다.
 
-- 발화 때 확인한다. 워크플로우를 비활성으로 바꿔도 스케줄의 활성 상태와 BullMQ job scheduler 는 바뀌지 않는다. 스케줄의 활성 상태는 사용자가 스케줄 화면이나 트리거 화면에서 정한 값으로 남는다. 그래서 워크플로우를 다시 활성으로 바꾸면 다른 조작 없이 다음 발화부터 돈다. 비활성인 동안 건너뛴 발화는 보충하지 않는다.
-- 기각한 대안: 워크플로우를 토글할 때 job scheduler 를 해제하고 다시 등록하는 안. 워크플로우 토글이 스케줄 등록까지 바꾸게 되고 해제나 재등록이 실패하면 스케줄의 활성 상태와 BullMQ 등록이 어긋난다. 발화 때 확인하면 스케줄 등록을 건드리지 않는다.
+- 발사 때 확인한다. 워크플로우를 비활성으로 바꿔도 스케줄의 활성 상태와 BullMQ job scheduler 는 바뀌지 않는다. 스케줄의 활성 상태는 사용자가 스케줄 화면이나 트리거 화면에서 정한 값으로 남는다. 그래서 워크플로우를 다시 활성으로 바꾸면 다른 조작 없이 다음 발사부터 돈다. 비활성인 동안 건너뛴 발사는 보충하지 않는다.
+- 기각한 대안: 워크플로우를 토글할 때 job scheduler 를 해제하고 다시 등록하는 안. 워크플로우 토글이 스케줄 등록까지 바꾸게 되고 해제나 재등록이 실패하면 스케줄의 활성 상태와 BullMQ 등록이 어긋난다. 발사 때 확인하면 스케줄 등록을 건드리지 않는다.
 - 재시도와 알림은 비활성 스케줄을 건너뛸 때와 같다. 재시도하지 않고 `schedule_failed` 알림도 보내지 않으며 job 은 정상 완료로 끝난다. 다른 점은 `next_run_at` 을 옮기는 것이다(다음 항목).
 - `next_run_at` 을 옮기는 이유(2026-10-10 일관성 검토 뒤): 처음 구현은 건너뛸 때 `next_run_at` 도 바꾸지 않았다. 그러면 워크플로우가 비활성인 동안 목록의 「다음 실행」 칸에 이미 지난 시각이 남는다. `next_run_at` 은 표시용 정보성 컬럼이라 옮겨도 발사에 영향이 없다. 실제로 실행한 시각은 `last_run_at` 이 기록하므로 그 값은 바꾸지 않는다. UPDATE 는 `next_run_at` 한 컬럼만 써서 그사이 사용자가 고친 다른 컬럼을 덮어쓰지 않는다. 기각한 대안: 화면에서만 지난 시각을 감추는 안. 목록 API 응답과 `next_run_at` 정렬에는 지난 시각이 그대로 남는다.
 - "지금 실행" 은 사용자가 직접 시작하는 수동 실행이라 관문을 거치지 않는다. 에디터 수동 실행 · 재실행과 같은 쪽이다. 관문을 거치지 않는 경로의 목록은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 에 있다.
