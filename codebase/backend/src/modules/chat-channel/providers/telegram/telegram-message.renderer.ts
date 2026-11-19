@@ -8,6 +8,7 @@ import {
 import { Logger } from '@nestjs/common';
 import type { PresentationPayload } from '../../../../shared/conversation-thread/conversation-thread.types';
 import { classifyExecutionFailure } from '../../shared/execution-failure-classifier';
+import { joinFencedChunks, splitKeepingCodeFences } from '../code-fence-chunk';
 import {
   resolveLanguageHint,
   resolveSessionExpiredMessage,
@@ -17,7 +18,12 @@ import {
 const logger = new Logger('ChatChannelTelegram');
 
 const TELEGRAM_MESSAGE_LIMIT = 4096;
-const CONTINUED_SUFFIX = '\n_(continued…)_';
+/**
+ * 이어짐 접미사. MarkdownV2 본문에 붙으므로 괄호를 escape 한다. escape 하지 않으면 Telegram 이
+ * `400 can't parse entities` 로 조각을 거절한다(NERV Task `CLE-T-V4GYE4`). 보이는 글은 Slack ·
+ * Discord 의 `\n_(continued…)_` 와 같다.
+ */
+const CONTINUED_SUFFIX = '\n_\\(continued…\\)_';
 
 /**
  * Telegram MarkdownV2 escape rule per Bot API docs.
@@ -553,42 +559,48 @@ function keyboardHintForFieldType(
 /**
  * Telegram 4096자 한계 분할.
  *
- * 단순 size-based — 마지막 chunk 전까지는 CONTINUED_SUFFIX (`\n_(continued…)_`) 가
+ * 단순 size-based — 마지막 chunk 전까지는 CONTINUED_SUFFIX (`\n_\\(continued…\\)_`) 가
  * 본문에 포함. 단어 경계 splitting 은 v1 best-effort — 너무 긴 단일 단어는 그대로 자른다.
- *
- * Telegram MarkdownV2 escape 가 적용된 텍스트 가정 — `\\.` 같은 escape sequence 의 중간을
- * 자르지 않도록 cut 위치를 한 글자 뒤로 이동.
+ * 조각 경계가 렌더러가 감싼 코드 블록(```) 안이면 닫고 다시 여는 표식도 4096자 안에 넣는다
+ * (NERV Task `CLE-T-RYXCFX`). LLM 본문의 ``` 는 escape 되어 표식으로 보지 않는다.
  */
 function splitByLimit(text: string, limit: number): string[] {
   if (text.length <= limit) return [text];
-  const chunks: string[] = [];
-  let cursor = 0;
-  const reserve = CONTINUED_SUFFIX.length;
-  while (cursor < text.length) {
-    const remaining = text.length - cursor;
-    if (remaining <= limit) {
-      chunks.push(text.slice(cursor));
+  const chunks = splitKeepingCodeFences(text, {
+    lastLimit: limit,
+    midLimit: limit - CONTINUED_SUFFIX.length,
+    pickEnd: pickTelegramCut,
+  });
+  return joinFencedChunks(chunks, CONTINUED_SUFFIX);
+}
+
+/**
+ * `cursor` 에서 `maxLength` 글자 뒤 자리부터 뒤로 80자 안의 공백 · 줄바꿈 앞에서 자른다. 없으면 그
+ * 자리에서 자른다.
+ *
+ * Telegram MarkdownV2 escape 가 적용된 텍스트 가정 — `\\.` 같은 escape sequence 의 중간을
+ * 자르지 않도록 cut 위치를 한 글자 앞으로 이동.
+ */
+function pickTelegramCut(
+  text: string,
+  cursor: number,
+  maxLength: number,
+): number {
+  const naive = cursor + maxLength;
+  let cut = naive;
+  // 단어 경계 탐색 (뒤로 최대 80자).
+  for (let i = naive; i > naive - 80 && i > cursor; i -= 1) {
+    const ch = text.charAt(i);
+    if (ch === ' ' || ch === '\n') {
+      cut = i;
       break;
     }
-    // 다음 chunk = (limit - reserve) 만큼, 단어 경계로 정렬 시도.
-    const naive = cursor + (limit - reserve);
-    let cut = naive;
-    // 단어 경계 탐색 (뒤로 최대 80자).
-    for (let i = naive; i > naive - 80 && i > cursor; i -= 1) {
-      const ch = text.charAt(i);
-      if (ch === ' ' || ch === '\n') {
-        cut = i;
-        break;
-      }
-    }
-    // escape sequence 중간 회피 — `\\` 의 직후 글자가 잘려도 chunk 의 끝이 backslash 가
-    // 되지 않게 한 글자 추가 이동.
-    if (text.charAt(cut - 1) === '\\') cut -= 1;
-    if (cut <= cursor) cut = naive; // fallback — 전혀 자를 곳이 없으면 그냥 자른다.
-    chunks.push(text.slice(cursor, cut) + CONTINUED_SUFFIX);
-    cursor = cut;
   }
-  return chunks;
+  // escape sequence 중간 회피 — `\\` 의 직후 글자가 잘려도 chunk 의 끝이 backslash 가
+  // 되지 않게 한 글자 추가 이동.
+  if (text.charAt(cut - 1) === '\\') cut -= 1;
+  if (cut <= cursor) cut = naive; // fallback — 전혀 자를 곳이 없으면 그냥 자른다.
+  return cut;
 }
 
 // ----------------------------------------------------------------------------

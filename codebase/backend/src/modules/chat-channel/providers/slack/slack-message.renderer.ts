@@ -14,6 +14,7 @@ import {
 } from '../../shared/language-hint-defaults';
 import { decideFormMode, extractFormFields } from '../../shared/form-mode';
 import { findChunkEnd } from '../text-chunk-boundary';
+import { joinFencedChunks, splitKeepingCodeFences } from '../code-fence-chunk';
 
 /**
  * Slack mrkdwn / Block Kit renderer (pure, side-effect free).
@@ -477,20 +478,25 @@ function renderFailedMessage(
   return applyPlaceholders(template, placeholders);
 }
 
+/**
+ * 3500자를 넘는 본문을 나눈다. 마지막이 아닌 조각 끝에는 `CONTINUED_SUFFIX` 를 붙이고 접미사는
+ * 3500자 한도 밖이다(메시지는 4000자 안). 조각 경계가 열린 코드 블록 안이면 닫고 다시 여는 표식을
+ * 3500자 안에 넣는다(NERV Task `CLE-T-RYXCFX`).
+ */
 function chunkText(text: string): ChannelMessage[] {
   if (text.length <= SLACK_TEXT_LIMIT) return [textMessage(text)];
-  const chunks: string[] = [];
-  let cursor = 0;
-  while (cursor < text.length) {
-    const end = chunkEnd(text, cursor);
-    const isLast = end >= text.length;
-    const suffix = isLast ? '' : CONTINUED_SUFFIX;
-    chunks.push(text.slice(cursor, end) + suffix);
-    cursor = end;
-  }
-  return chunks.map((c) => ({
+  const chunks = splitKeepingCodeFences(text, {
+    lastLimit: SLACK_TEXT_LIMIT,
+    midLimit: SLACK_TEXT_LIMIT,
+    pickEnd: chunkEnd,
+  });
+  return joinFencedChunks(chunks, CONTINUED_SUFFIX).map((text) => ({
     conversationKey: '',
-    body: { kind: 'text', text: c, chunked: true } as const,
+    body: {
+      kind: 'text',
+      text,
+      chunked: true,
+    } as const,
   }));
 }
 
@@ -505,13 +511,13 @@ const SLACK_ENTITY_MAX_LENGTH = '&amp;'.length;
 const SLACK_ENTITY_LOOKBACK = SLACK_ENTITY_MAX_LENGTH - 1;
 
 /**
- * `start` 에서 시작하는 조각의 끝 위치. 3500자 안의 줄바꿈 · 공백 경계를 {@link findChunkEnd} 로 고른다
+ * `start` 에서 시작하는 조각의 끝 위치. `maxLength` 글자 안의 줄바꿈 · 공백 경계를 {@link findChunkEnd} 로 고른다
  * (NERV Task `CLE-T-ZEWGJP`). 경계가 없어 고정 길이로 자른 자리가 escape 결과(`&amp;` `&lt;` `&gt;`)의
  * 가운데를 지나면 그 엔티티 앞으로 당긴다. 잘린 엔티티는 Slack 에서 `&l` · `t;` 같은 글자로 보인다.
  * 엔티티 안에는 공백이 없어서 줄바꿈 · 공백 경계는 엔티티를 자르지 않는다.
  */
-function chunkEnd(text: string, start: number): number {
-  const end = findChunkEnd(text, start, SLACK_TEXT_LIMIT);
+function chunkEnd(text: string, start: number, maxLength: number): number {
+  const end = findChunkEnd(text, start, maxLength);
   if (end >= text.length) return text.length;
   const windowStart = Math.max(start + 1, end - SLACK_ENTITY_LOOKBACK);
   const offset = text.slice(windowStart, end).lastIndexOf('&');

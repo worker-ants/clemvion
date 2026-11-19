@@ -2,23 +2,23 @@
 id: "CLE-CHAT-ADAPTER-RENDER"
 title: "채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "6934169f106e510a8294891b20927d283e72171c7646e380866493d75b8e8ad4"
+content_hash: "938e0eb4076fb8786a67437727afc91d9f88195f5c6bc126c7a2600addfdb674"
 read_as: "approved_fallback"
-task: "CLE-T-D78VKM"
+task: "CLE-T-RYXCFX"
 source_paths: []
-mirror_sha256: "5fe4b37ffe287a37acf50945fd90fadf21b63071dc1626a51afd4832164c59ad"
-etag: "sha256-a61df7b0f82eb0bb76c747833df88d19afede876c7aa58b6bbb19b24cbfb0211"
+mirror_sha256: "0d371ef28896987095c9c53521470fb1c9ea352b1ecd1d622587a148f0a3cb55"
+etag: "sha256-87229842c6484785f53c5c38e2a059390ab0dfe20fccd9ec47ac6d063984bf5d"
 ---
 ## 개요
 
-이 문서는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 하위 문서로 `renderNode` 가 이벤트마다 만드는 출력 메시지, 시각형 렌더 입력을 찾는 순서, 사용자 입력이 섞이는 본문의 멘션 무력화, 실행 실패 안내 분류 함수 `classifyExecutionFailure` 를 정한다.
+이 문서는 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 하위 문서로 `renderNode` 가 이벤트마다 만드는 출력 메시지, 시각형 렌더 입력을 찾는 순서, 사용자 입력이 섞이는 본문의 멘션 무력화, 긴 본문 나누기, 실행 실패 안내 분류 함수 `classifyExecutionFailure` 를 정한다.
 
 ## 이벤트별 렌더 매핑
 
@@ -63,17 +63,17 @@ escape 하는 프로바이더는 escape 한 뒤에 [긴 본문 나누기](#긴-�
 
 ### 긴 본문 나누기
 
-`text` 메시지 본문이 조각 한도를 넘으면 여러 메시지로 나눠 차례로 보낸다. 마지막이 아닌 조각 끝에는 이어짐 접미사 `\n_(continued…)_`(15자)를 붙인다. 접미사를 빼고 조각을 이으면 원문과 같다.
+`text` 메시지 본문이 조각 한도를 넘으면 여러 메시지로 나눠 차례로 보낸다. 마지막이 아닌 조각 끝에는 이어짐 접미사 `\n_(continued…)_`(15자)를 붙인다. Telegram 은 MarkdownV2 예약 문자인 괄호를 escape 한 `\n_\(continued…\)_`(17자)를 붙인다. 접미사와 코드 블록을 닫고 다시 연 표식을 빼고 조각을 이으면 원문과 같다.
 
 | 프로바이더 | 조각 한도 | 자르는 자리 | 접미사 |
 |---|---|---|---|
 | Slack | 3500자 | `findChunkEnd`. 그 자리가 escape 엔티티(`&amp;` 등) 가운데면 엔티티 앞 | 한도 밖. 메시지는 4000자 안 |
 | Discord | 2000 − 15자 | `findChunkEnd` | 한도 안 |
-| Telegram | 4096 − 15자 | 한도 자리에서 뒤로 80자 안의 공백 · 줄바꿈 앞. 없으면 한도 자리. 바로 앞 글자가 `\` 면 한 칸 앞 | 한도 안 |
+| Telegram | 4096 − 17자 | 한도 자리에서 뒤로 80자 안의 공백 · 줄바꿈 앞. 없으면 한도 자리. 바로 앞 글자가 `\` 면 한 칸 앞 | 한도 안 |
 
-`findChunkEnd`(`providers/text-chunk-boundary.ts`)는 한도 안의 마지막 줄바꿈 뒤 → 마지막 공백 뒤 → 한도 자리 순서로 고른다. 줄바꿈 · 공백에서 자르면 조각이 한도의 절반보다 짧아질 때는 한도 자리에서 자르고, 그 자리가 서로게이트 쌍 가운데면 한 칸 앞에서 자른다. 프로바이더 문서의 「단어·문장 경계」는 이 표의 줄바꿈 · 공백 경계다(R-CCA-17).
+`findChunkEnd`(`providers/text-chunk-boundary.ts`)는 한도 안의 마지막 줄바꿈 뒤 → 마지막 공백 뒤 → 한도 자리 순서로 고른다. 줄바꿈 · 공백에서 자르면 조각이 한도의 절반보다 짧아질 때는 한도 자리에서 자르고, 그 자리가 서로게이트 쌍 가운데면 한 칸 앞에서 자른다.
 
-조각 경계가 열린 코드 블록(```) 안을 지나면 앞 조각 끝(접미사 앞)에서 ``` 로 닫고 다음 조각 맨 앞에서 같은 언어 태그로 다시 연다. 표식을 더해도 메시지는 프로바이더 한도를 넘지 않는다. 구현은 NERV Task `CLE-T-RYXCFX` 가 맡고 그 전까지 렌더러는 코드 블록을 모르고 나눈다.
+조각 경계가 열린 코드 블록(`` ``` ``) 안을 지나면 앞 조각 끝(접미사 앞)에서 `` ``` `` 로 닫고 다음 조각 맨 앞에서 같은 언어 태그로 다시 연다. 닫고 다시 연 표식은 조각 한도 안에 넣으므로 Slack 도 3500자를 넘지 않는다. 여는 표식이 있는 줄과 닫는 표식 가운데에서는 자르지 않는다. 구현은 `providers/code-fence-chunk.ts` 다.
 
 ## 실행 실패 안내 분류
 
@@ -122,8 +122,7 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 | `WORKER_HEARTBEAT_TIMEOUT` | 분류 미정([미결 사항](CLE-CHAT-ADAPTER.md#미결-사항)) | 현재는 아래 행과 같이 `executionFailedInternal` | `{}`(백엔드 `warn` 로그) |
 | 그 밖의 모든 code(`error.code === null` 포함) | 알 수 없음 | `executionFailedInternal` | `{}`(백엔드 `warn` 로그. 요구사항은 [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE.md#실행-실패-안내)) |
 
-- **`HTTP_TIMEOUT`(발행 안 됨)**: HTTP Request 노드 핸들러는 timeout reject 를 `HTTP_TRANSPORT_FAILED` 로 합쳐 발행하므로 EIA 페이로드에 `HTTP_TIMEOUT` 이 올 경로는 지금 없다. enum 보존과 방어를 위해 행을 둔다. 카탈로그도 이 코드와 `LLM_TIMEOUT` 을 enum 에 남기고 발행하지 않는 코드로 적는다([에러 코드 카탈로그 — 워크플로우 실행 §6.6](../CLE-API/CLE-API-ERRCODES-EXEC.md#66-워크플로우-실행-노드-수준-런타임)). 두 코드를 카탈로그에서 지우거나 «예약» 으로 표시하는 정리는 NERV Task `CLE-T-8WXV7T` 가 맡고, 그때 이 두 행도 함께 고친다.
-- **`LLM_TIMEOUT`(발행 안 됨)**: 어느 LLM 호출 경로도 이 코드를 내지 않는다([에러 코드 카탈로그 — 워크플로우 실행 §6.6](../CLE-API/CLE-API-ERRCODES-EXEC.md#66-워크플로우-실행-노드-수준-런타임)). LLM 타임아웃이 `LLM_CALL_FAILED` 로 오면 `executionFailedThirdParty` 로 안내된다. 단일 턴 AI 에이전트의 LLM 호출 실패는 `error` 포트 연결선이 있으면 안내가 생기지 않고, 없으면 `ERROR_PORT_FALLBACK` 행으로 안내된다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md)). 경로별 결과는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 이 모아 적는다. `HTTP_TIMEOUT` 과 같은 이유로 행을 둔다.
+- **`HTTP_TIMEOUT` · `LLM_TIMEOUT`(발행 안 됨)**: 지금 두 코드가 EIA 페이로드로 올 경로는 없다. HTTP Request 노드는 timeout 을 `HTTP_TRANSPORT_FAILED` 로 합쳐 내고, LLM 타임아웃은 `LLM_CALL_FAILED` 나 `ERROR_PORT_FALLBACK` 행으로 안내된다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md). 경로별 결과는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃)). 카탈로그가 두 코드를 enum 에 남기고 발행하지 않는 코드로 적으므로([에러 코드 카탈로그 — 워크플로우 실행 §6.6](../CLE-API/CLE-API-ERRCODES-EXEC.md#66-워크플로우-실행-노드-수준-런타임)) 방어로 행을 둔다. 카탈로그 정리(NERV Task `CLE-T-8WXV7T`) 때 두 행도 함께 고친다.
 - **timeout 행의 층 구분**: 입력은 엔진 수준의 `execution.failed.error.code` 다. Code 노드 스크립트가 시간을 넘기면 엔진은 `EXECUTION_TIMEOUT` 을 발행한다. 노드 출력 층의 `output.error.code` 는 같은 상황을 `CODE_TIMEOUT` 으로 정규화하며, 이 토큰이 EIA 페이로드로 오는 경우까지 방어적으로 함께 매핑한다(두 층의 구분 기준은 에러 코드 카탈로그). `EXECUTION_TIME_LIMIT_EXCEEDED` 는 엔진 누적 실행 시간 초과로 다른 코드다. 세 코드 모두 `executionFailedTimeout` 으로 모이므로 사용자 영향은 같다.
 - **`statusCode` 생략**: `details.statusCode` 가 없거나 정수가 아니면 4xx·5xx 분기는 `error.code` 만으로 정한다(HTTP Request 노드 핸들러는 두 값을 일관되게 넣는다고 가정한다). 자리표시자가 빠지면 채널 어댑터는 `{statusCode}` 를 `"?"` 로 바꾸거나 `({statusCode})` 괄호 구간을 통째로 지운다(채널 어댑터 재량). 사용자 영향은 거의 없다.
 - **위치**: `codebase/backend/src/modules/chat-channel/shared/execution-failure-classifier.ts` 한 파일이다. 채널 어댑터는 부르기만 하고 프로바이더별 분기는 없다.
@@ -190,7 +189,7 @@ AI 에이전트 핸들러가 빈 `ai_message` 를 내지 못하게 막는 안은
 
 어댑터 인터페이스는 바꾸지 않았다. Slack 은 렌더러 안에서 escape 하고 Discord 는 API 클라이언트와 인터랙션 응답을 만드는 함수 안에서 `allowed_mentions` 를 붙인다. `renderNode` 시그니처와 어댑터 함수 목록은 그대로라 [R2](CLE-CHAT-ADAPTER-IFACE.md#r2-필수-함수에-ack-와-escapecontroltext-를-따로-둔다) 의 인터페이스 최소주의와 [R-CCA-7](#r-cca-7-rendernode-시그니처를-union-으로-넓혀-내부-이벤트를-받는다) 의 union 입력을 그대로 지킨다. 멘션을 막는 함수를 인터페이스에 따로 두면 모든 프로바이더 계약이 바뀐다. 방법이 프로바이더마다 달라 공통 시그니처로 묶을 이득도 없다. R-CCA-5 가 `renderError` 를 기각한 이유와 같다.
 
-escape 하면 본문이 길어지므로 길이 한도에 맞춘 분할은 escape 한 뒤에 한다. 조각 경계가 escape 결과의 가운데를 지나면 받는 쪽에 깨진 글자가 보이므로 경계를 그 앞으로 당긴다.
+escape 한 뒤에 나누는 까닭은 escape 가 본문을 늘리기 때문이다. escape 결과 가운데에서 자르면 받는 쪽에 깨진 글자가 보인다. 규칙은 [긴 본문 나누기](#긴-본문-나누기) 에 있다.
 
 대가로 워크플로우 작성자가 일부러 넣은 멘션도 알림이 가지 않고 Slack 에서는 `<url|라벨>` 링크 문법도 글자로 보인다. 사람이 이 대가를 받아들였다. Template 만 막고 AI 응답은 후속 작업으로 미루는 안과 `{{ }}` 치환값만 막는 안은 기각했다. 근거는 [Slack 어댑터 — Web API 와 노드 UI 매핑](CLE-CHAT-SLACK-OUTBOUND.md#rationale) 과 [Discord 어댑터 — API 호출과 UI 매핑](CLE-CHAT-DISCORD-API.md#rationale) 의 Rationale 에 있다.
 
@@ -206,4 +205,8 @@ HTTP Request 노드는 따라가지 않은 3xx 응답도 `HTTP_4XX` 로 낸다. 
 
 Telegram 은 2026-11-15 사람 결정으로 현행 방식을 유지한다(NERV 질문 `01a1dda9-44c0-72d3-96fd-03732737983e` 의 A안). 줄바꿈을 공백보다 앞세우지 않고 80자 안에 경계가 없으면 단어 가운데서 자른다. Discord 가 접미사를 한도 안에 넣는 근거는 [Discord 어댑터 — API 호출과 UI 매핑](CLE-CHAT-DISCORD-API.md#rationale) 에 있다.
 
-코드 블록 규칙은 2026-11-15 사람 결정이다(NERV 질문 `01a1dda9-42bf-713c-8d2d-2680a385a9bc` 의 B안). 닫히지 않은 채 잘리면 앞 조각은 끝까지 코드로, 다음 조각은 블록 밖 글로 보인다. 현행 동작만 적고 미결로 두는 안과 블록 앞에서 자르고 한도를 넘는 블록만 다시 여는 안은 고르지 않았다.
+코드 블록 규칙은 2026-11-15 사람 결정이다(NERV 질문 `01a1dda9-42bf-713c-8d2d-2680a385a9bc` 의 B안). 닫히지 않은 채 잘리면 앞 조각은 끝까지 코드로, 다음 조각은 블록 밖 글로 보인다. 현행 동작만 적고 미결로 두는 안과 블록 앞에서 자르고 한도를 넘는 블록만 다시 여는 안은 고르지 않았다. 여는 표식 줄 가운데에서 자르면 언어 태그가 잘려 다음 조각을 같은 태그로 다시 열 수 없으므로 그 줄 앞으로 당긴다.
+
+표식은 세 프로바이더 모두 조각 한도 안에 넣는다(NERV Task `CLE-T-RYXCFX`). Slack 은 접미사를 3500자 밖에 붙이지만 표식까지 밖에 두면 프로바이더마다 계산이 갈린다. 그래서 한 함수(`code-fence-chunk.ts`)가 표식 자리를 빼고 경계를 고른다. Telegram 접미사는 괄호를 escape 하지 않으면 `400 can't parse entities` 로 조각이 거절되므로 escape 한 17자를 쓴다(NERV Task `CLE-T-V4GYE4`).
+
+2026-11-19 에 요구사항 문장도 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`). 위에서 요구사항 문장은 그대로 두고 뜻만 정한 결정을 뒤집었다. 그 결정 때문에 프로바이더 문서마다 「단어·문장 경계」를 이 규칙으로 읽으라는 보정 문장이 남았고, 문장 끝 부호를 찾는다고 잘못 읽을 여지도 있었다. 동작은 바뀌지 않는다. 고친 곳은 REQ-SLACK-018 · REQ-DISCORD-010 · REQ-TGRAM-008 과 세 프로바이더의 아웃바운드 문서다.

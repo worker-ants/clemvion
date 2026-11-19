@@ -18,6 +18,30 @@ const BASE_EVENT_FIELDS = {
   timestamp: '2026-05-21T00:00:00.000Z',
 };
 
+/**
+ * MarkdownV2 본문에서 코드 블록(```) 밖에 escape 없이 남은 예약 문자를 찾는다. 서식 표식
+ * `_` `*` `~` `` ` `` 은 짝을 맞춰 쓰므로 세지 않는다. Telegram 은 이런 글자가 있으면
+ * `400 can't parse entities` 로 거절한다.
+ */
+function unescapedReservedOutsideCode(text: string): string[] {
+  const found: string[] = [];
+  let inPre = false;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.startsWith('```', i)) {
+      inPre = !inPre;
+      i += 2;
+      continue;
+    }
+    const ch = text[i];
+    if (ch === '\\') {
+      i += 1;
+      continue;
+    }
+    if (!inPre && '[]()>#+-=|{}.!'.includes(ch)) found.push(`${ch}@${i}`);
+  }
+  return found;
+}
+
 describe('escapeMarkdownV2', () => {
   it('special 글자를 backslash escape', () => {
     expect(escapeMarkdownV2('hello.world')).toBe('hello\\.world');
@@ -85,6 +109,48 @@ describe('renderTelegramMessages', () => {
         (m) => m.body.kind !== 'text' && m.body.kind !== 'typing',
       ),
     ).toHaveLength(0);
+  });
+
+  // NERV Task CLE-T-V4GYE4 — 이어짐 접미사도 MarkdownV2 본문이라 괄호를 escape 해야 Telegram 이 받는다.
+  it('ai_message 4096자 초과 → 앞 조각의 이어짐 접미사가 MarkdownV2 규칙에 맞다', () => {
+    const long = 'word. '.repeat(1500);
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: long,
+      turnCount: 1,
+    };
+    const texts = renderTelegramMessages(event, BASE_CONFIG).flatMap((m) =>
+      m.body.kind === 'text' ? [m.body.text] : [],
+    );
+    expect(texts.length).toBeGreaterThan(1);
+    texts.slice(0, -1).forEach((t) => {
+      expect(t.endsWith('\n_\\(continued…\\)_')).toBe(true);
+    });
+    texts.forEach((t) => {
+      expect(t.length).toBeLessThanOrEqual(4096);
+      expect(unescapedReservedOutsideCode(t)).toEqual([]);
+    });
+  });
+
+  // NERV Task CLE-T-RYXCFX — ai_message 본문은 escape 뒤에 나누므로 LLM 이 쓴 ``` 는 표식이 아니다.
+  it('ai_message 의 ``` 는 escape 되어 4096자 초과로 나눠도 닫고 다시 여는 표식이 붙지 않는다', () => {
+    const long = '```python\n' + 'print(1)\n'.repeat(600) + '```';
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: long,
+      turnCount: 1,
+    };
+    const texts = renderTelegramMessages(event, BASE_CONFIG).flatMap((m) =>
+      m.body.kind === 'text' ? [m.body.text] : [],
+    );
+    expect(texts.length).toBeGreaterThan(1);
+    texts.forEach((t) => {
+      expect(t).not.toContain('```');
+      expect(t.length).toBeLessThanOrEqual(4096);
+      expect(unescapedReservedOutsideCode(t)).toEqual([]);
+    });
   });
 
   it('completed → languageHints.executionCompleted', () => {
@@ -961,5 +1027,40 @@ describe('execution.node.completed — handler structured return shape 처리 (�
       .join('\n');
     expect(all).toContain('카드 1');
     expect(all).toContain('카드 2');
+  });
+});
+
+// NERV Task CLE-T-RYXCFX — 렌더러가 ``` 로 감싼 표가 4096자를 넘으면 앞 조각을 닫고 다음 조각을 다시 연다.
+describe('visual fallback — 4096자를 넘는 표의 분할', () => {
+  it('조각마다 ``` 짝이 맞고 표식과 접미사를 더해도 4096자 이하다', () => {
+    const columns = Array.from({ length: 20 }, (_, i) => ({
+      key: `c${i}`,
+      label: `column${i}`,
+    }));
+    const rows = Array.from({ length: 20 }, (_, r) =>
+      Object.fromEntries(columns.map((c) => [c.key, `value-${r}-${c.key}`])),
+    );
+    const event = buttonsEvent({
+      nodeType: 'table',
+      title: 'wide',
+      payload: { columns, rows },
+    });
+    const texts = renderTelegramMessages(event, BASE_CONFIG).flatMap((m) =>
+      m.body.kind === 'text' ? [m.body.text] : [],
+    );
+    const tableChunks = texts.filter(
+      (t) => t.includes('column0') || t.includes('value-'),
+    );
+    expect(tableChunks.length).toBeGreaterThan(1);
+    tableChunks.forEach((t) => {
+      expect(t.length).toBeLessThanOrEqual(4096);
+      expect(t.split('```').length % 2).toBe(1);
+    });
+    tableChunks
+      .slice(1)
+      .forEach((t) => expect(t.startsWith('```\n')).toBe(true));
+    tableChunks
+      .slice(0, -1)
+      .forEach((t) => expect(t.endsWith('```\n_\\(continued…\\)_')).toBe(true));
   });
 });

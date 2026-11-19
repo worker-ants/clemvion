@@ -2,25 +2,25 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 10
+version: 12
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035", "REQ-DISCORD-036", "REQ-DISCORD-037"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "0a33c5f1c186b0072ca4a2a8ddd281b449c110bdc3373f84f14249911416520c"
+content_hash: "cf64d81a11b249b6440b3b7946ab4decaf5bbf827cf04c9ba60f637da9a3a86a"
 read_as: "approved_fallback"
-task: "CLE-T-ZGF71P"
+task: "CLE-T-B9CRCF"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "febc4242b651ad75d04221d0040f4d0e10a4d1e8bfc72e9a1589f8d5ac6fcd20"
-etag: "sha256-3925e60164c1035a9c05e8a1feb46a7349222633b05c68586e7a83370d9de549"
+mirror_sha256: "f6addd314be597418320a752ab7882a24f120b4911ae55f5482bfe055e280894"
+etag: "sha256-6303186093aab4f2d1fd7c2e9d4d370d6a3f756d61cb118f955d07276e33c163"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-`provider: "discord"` 채널 어댑터는 [Discord REST API](https://discord.com/developers/docs/reference) 와 [Interactions Webhook](https://discord.com/developers/docs/interactions/receiving-and-responding) 위에서 동작한다. 사용자가 Discord Developer Portal 에서 Application 과 Bot 을 만들고 봇 토큰과 application public key 를 등록하면, 어댑터가 slash command 를 일괄 덮어쓰기로 등록한다. 그리고 [채팅 채널](CLE-CHAT-CORE.md) 의 UI 매핑 요구사항(CCH-MP-01~06)이 다루는 노드를 Discord UI(Message Components, Embeds, Modal)로 바꾼다.
+`provider: "discord"` 채널 어댑터는 [Discord REST API](https://discord.com/developers/docs/reference) 와 [Interactions Webhook](https://discord.com/developers/docs/interactions/receiving-and-responding) 위에서 동작한다. 사용자가 Discord Developer Portal 에서 Application 과 Bot 을 만들고 봇 토큰과 application public key 를 등록하면, 어댑터가 slash command 를 일괄 덮어쓰기로 등록한다. 그리고 [채팅 채널](CLE-CHAT-CORE.md) 의 UI 매핑 요구사항(REQ-CHAT-018~030)이 다루는 노드를 Discord UI(Message Components, Embeds, Modal)로 바꾼다.
 
 v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://discord.com/developers/docs/topics/gateway) 은 봇마다 오래 유지되는 연결과 heartbeat 관리가 필요해 v2 옵션이다(R-D-3). 그래서 v1 사용자는 자유 텍스트 대신 slash command, 버튼, 모달로 워크플로우와 주고받는다. 멀티턴 AI 의 사용자 답장도 모달·명령 입력으로 받는다.
 
@@ -42,10 +42,10 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-004 WHEN `teardownChannel` 이 불리면 THE SYSTEM SHALL `PUT /applications/{app_id}/commands` 에 `[]` 를 보내 명령을 지우고 실패해도 트리거 삭제를 막지 않는다. (원본: discord §3.2)
 - REQ-DISCORD-005 WHEN `type: 1`(PING)이 오면 THE SYSTEM SHALL 어댑터의 `handshakeResponse` 가 정한 `{ type: 1 }` 을 호출자가 `200 OK` 로 보내고 `parseUpdate` 는 `null` 을 돌려준다. (원본: discord §3.1, R-D-8)
 - REQ-DISCORD-006 WHEN Interactions payload 가 오면 THE SYSTEM SHALL [명령 매핑](#명령-매핑) 표에 따라 `ChannelUpdate` 로 바꾸고 `interaction.id` 를 중복 제거 키로 쓴다. (원본: discord §4)
-- REQ-DISCORD-007 IF `channel.type !== 1`(DM 이 아님)이면 THE SYSTEM SHALL `null` 을 돌려주고 호출자가 `groupChatRefusal` 안내를 보낸다. (원본: discord §4, §6)
+- REQ-DISCORD-007 IF `channel.type` 이 숫자이고 `1`(DM)이 아니면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려 실행으로 보내지 않는다. 슬래시 명령이면 기본 응답이 본인에게만 보이는 `groupChatRefusal` 안내이고(REQ-DISCORD-036) 컴포넌트 클릭·모달 제출은 안내 없이 `{ type: 6 }` 으로 답한다. 별도 메시지는 보내지 않는다. (원본: discord §4, §6)
 - REQ-DISCORD-008 IF `member.user.bot === true` 이거나 DM 의 `user.bot === true` 이면 THE SYSTEM SHALL `null` 을 돌려준다. (원본: discord §4, §6)
 - REQ-DISCORD-009 WHEN 서명 검증을 통과한 슬래시 명령(APPLICATION_COMMAND)·컴포넌트(MESSAGE_COMPONENT)·모달 제출(MODAL_SUBMIT)이 오면 THE SYSTEM SHALL 3초 안에 `200 OK` 와 `{ type: 4, data }`·`{ type: 6 }`·`{ type: 9, data }` 가운데 [인바운드 응답](#인바운드-응답) 이 정한 응답을 `{ data }` 봉투 없이 돌려준다. (원본: discord §3, §4)
-- REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내되 `allowed_mentions: {"parse": []}` 로 멘션 알림을 끄고 2000자를 넘으면 단어·문장 경계로 나누고 마지막 조각 전까지 붙이는 `\n_(continued…)_` 를 포함해 조각마다 2000자를 넘지 않게 한다. (원본: discord §5.1)
+- REQ-DISCORD-010 WHEN `execution.ai_message` 를 보내면 THE SYSTEM SHALL `POST /channels/{id}/messages` 의 `content` 로 escape 없이 보내되 `allowed_mentions: {"parse": []}` 로 멘션 알림을 끄고 2000자를 넘으면 줄바꿈 · 공백 경계로 나누고 마지막 조각 전까지 붙이는 `\n_(continued…)_` 를 포함해 조각마다 2000자를 넘지 않게 한다. (원본: discord §5.1)
 - REQ-DISCORD-011 WHEN AI 응답을 보내면 THE SYSTEM SHALL 마지막 텍스트 조각에 "Reply" 버튼(`__reply__`)을 붙인다. (원본: discord §5.1)
 - REQ-DISCORD-012 WHEN "Reply" 버튼이 눌리면 THE SYSTEM SHALL `custom_id` 가 `clemvion_reply` 인 단일 TEXT_INPUT 모달을 열고 제출 값을 `text_message` 로 바꿔 EIA `submit_message` 로 보낸다. (원본: discord §5.1)
 - REQ-DISCORD-013 WHEN `/<prefix> reply <message>` 가 오면 THE SYSTEM SHALL `{ kind: "text_message", text: <message> }` 로 바꾼다. (원본: discord §5.1)
@@ -71,7 +71,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-033 WHEN Discord 가 `429` 와 `Retry-After` 를 돌려주면 THE SYSTEM SHALL 그만큼 기다린 뒤 다시 시도한다. (원본: discord §8)
 - REQ-DISCORD-034 WHILE Discord rate limit 안에서 보내는 동안 THE SYSTEM SHALL bucket 단위 큐와 응답 헤더 기반 throttle 로 발송 속도를 맞춘다. (원본: discord §8) (미구현)
 - REQ-DISCORD-035 WHEN 같은 `interaction.id` 가 30초 안에 다시 오면 THE SYSTEM SHALL 두 번째 update 를 무시한다. (원본: discord §8)
-- REQ-DISCORD-036 WHEN `help` 밖의 슬래시 명령이 오면 THE SYSTEM SHALL 새 실행·취소·답장 전달·중복·분당 한도 초과·실행 중·워크플로우 비활성·파싱 실패·DM 밖 채널 어느 경로로 끝나도 3초 안에 `200 OK` 와 본인에게만 보이는 `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }` 로 답하며 `content` 는 `languageHints.commandReceived`(없으면 `languageLocale` 기본 문구)로 채운다. (R-D-12)
+- REQ-DISCORD-036 WHEN `help` 밖의 슬래시 명령이 오면 THE SYSTEM SHALL 새 실행·취소·답장 전달·중복·분당 한도 초과·실행 중·워크플로우 비활성·파싱 실패 어느 경로로 끝나도 3초 안에 `200 OK` 와 본인에게만 보이는 `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }` 로 답하며 `content` 는 `languageHints.commandReceived`(없으면 `languageLocale` 기본 문구)로 채운다. DM 밖 채널(`channel.type` 이 숫자이고 `1` 이 아님)에서 친 슬래시 명령은 `help` 를 포함해 하위 명령과 관계없이 같은 모양으로 답하되 `content` 를 `languageHints.groupChatRefusal`(없거나 비어 있으면 기본 문구 `이 봇은 1:1 대화만 지원합니다.`)로 채운다. (R-D-12)
 - REQ-DISCORD-037 WHEN 비활성 트리거로 슬래시 명령·컴포넌트·모달 제출이 오고 서명 검증을 통과하면 THE SYSTEM SHALL 실행을 시작하지 않고 외부 API 를 부르지 않으며 활성일 때와 같은 기본 응답(`200 OK` 와 슬래시 명령 `{ type: 4 }`, 컴포넌트·모달 제출 `{ type: 6 }`)으로 답한다. (R-D-12)
 
 요구사항 보충 설명은 다음과 같다.
@@ -88,7 +88,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - 관련 REQ-DISCORD-031: `parseUpdate` 는 `help` 하위 명령에 `null` 을 돌려주고 `ChannelUpdate` 에 help kind 를 두지 않는다. 도움말은 어댑터의 기본 응답 본문으로만 나간다. 그래서 `HooksService` 의 `/help` 텍스트 분기(Telegram·Slack 용)를 타지 않고, 트리거가 비활성이어도 도움말로 답한다. (R-D-12)
 - 관련 REQ-DISCORD-032·035: 재시도 정책과 중복 제거 키·TTL 은 [채팅 채널](CLE-CHAT-CORE.md)·[채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 대기는 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않는다(`discord-client.ts`).
 - 관련 REQ-DISCORD-034: 현재 구현은 `429` 의 `Retry-After` 대기만 한다. bucket 단위 큐는 확인되지 않았다.
-- 관련 REQ-DISCORD-036·037: 슬래시 명령은 경로마다 다른 안내를 두지 않고 한 문구로 답한다(2026-11-12 사람 결정, R-D-12). DM 밖 채널의 슬래시 명령도 파서가 버린 뒤 이 문구로 답한다.
+- 관련 REQ-DISCORD-036·037: DM 안의 슬래시 명령은 경로마다 다른 안내를 두지 않고 한 문구로 답한다(2026-11-12 사람 결정, R-D-12). DM 밖 채널의 슬래시 명령은 파서가 버리고 기본 응답이 `groupChatRefusal` 안내다(REQ-DISCORD-007, [Slack 어댑터](CLE-CHAT-SLACK.md) REQ-SLACK-045 와 같은 규칙). 2026-11-19 사람 결정(NERV 질문 `01a1f1d3-f3ba-702d-9689-121062b39a9d`, NERV Task `CLE-T-B9CRCF`).
 
 ## 하위 문서
 
@@ -158,7 +158,11 @@ Gateway 도입은 사용자 요청이 있을 때 v2 후보로 진입한다.
 
 ### R-D-4 DM 만 받고 guild 채널은 거부한다
 
-v1 정책(CCH-CV-05)과 맞다. guild 채널은 여러 사용자가 있어 대화 매핑이 깨진다. guild 봇 UX 는 v2 여러 사용자 대화와 함께 간다.
+1차 범위 정책([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-017)과 맞다. guild 채널은 여러 사용자가 있어 대화 매핑이 깨진다. guild 봇 UX 는 v2 여러 사용자 대화와 함께 간다.
+
+### REQ-DISCORD-010 의 나누는 경계를 줄바꿈 · 공백 경계로 적는다 (2026-11-19)
+
+「단어·문장 경계」를 실제 규칙인 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`). 요구사항 문장을 두고 뜻만 정했던 결정을 뒤집었고 동작은 같다. 근거는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) 의 R-CCA-17 다.
 
 ### 다른 Rationale 항목의 위치
 

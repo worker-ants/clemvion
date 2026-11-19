@@ -169,7 +169,10 @@ describe('Workflow Execution (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({});
-    const executionId = execA.body.executionId;
+    const executionId = execA.body.data.executionId;
+    // 응답 봉투의 data 아래에 있다. 봉투 밖을 읽으면 `undefined` 라 경로 검증 400 으로 끝나
+    // 소유권 확인까지 가지 않는다.
+    expect(typeof executionId).toBe('string');
 
     // 다른 owner / 워크스페이스 준비.
     const intruder = await registerAndLogin(
@@ -187,13 +190,12 @@ describe('Workflow Execution (e2e)', () => {
       .post(`/api/executions/${executionId}/stop`)
       .set('Authorization', `Bearer ${intruder.accessToken}`)
       .set('X-Workspace-Id', otherWs);
-    // verifyOwnership 가 NotFoundException, ForbiddenException, 또는
-    // BadRequest (이미 terminal) 형태로 모두 cross-workspace 접근을 막는다 —
-    // 어느 쪽이든 외부 워크스페이스가 자원을 조작할 수 없는 invariant 충족.
-    expect([400, 403, 404]).toContain(stop.status);
+    // 컨트롤러가 상태를 보기 전에 verifyOwnership 으로 소속 워크스페이스를 확인한다. 다른
+    // 워크스페이스의 실행은 존재를 드러내지 않도록 404 다.
+    expect(stop.status).toBe(404);
   });
 
-  it('D. terminal 상태 실행에 stop → 400 (이미 완료된 실행)', async () => {
+  it('D. terminal 상태 실행에 stop → 422 INVALID_STATE (이미 완료된 실행)', async () => {
     const id = await createWorkflow();
     const exec = await request(BASE_URL)
       .post(`/api/workflows/${id}/execute`)
@@ -215,9 +217,10 @@ describe('Workflow Execution (e2e)', () => {
       .post(`/api/executions/${executionId}/stop`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId);
-    // 이미 terminal 인 execution 은 stop 불가 — 구현에 따라 400 (bad transition)
-    // 또는 404 (재조회 시 stop-able 후보가 아님) 로 모두 거부 가능.
-    expect([400, 404]).toContain(stop.status);
+    // 이미 terminal 인 execution 은 stop 불가. 카탈로그 §6.4 대로 422 INVALID_STATE 다
+    // (NERV Task `CLE-T-B9CRCF`).
+    expect(stop.status).toBe(422);
+    expect(stop.body.error.code).toBe('INVALID_STATE');
   }, 30_000);
 
   it('D-2. 실행 중(running) 실행 stop → 200 + 응답이 ExecutionDto 계약과 맞는다', async () => {

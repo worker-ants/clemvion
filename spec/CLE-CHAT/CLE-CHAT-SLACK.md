@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK"
 title: "Slack 어댑터"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-SLACK-001", "REQ-SLACK-002", "REQ-SLACK-003", "REQ-SLACK-004", "REQ-SLACK-005", "REQ-SLACK-006", "REQ-SLACK-007", "REQ-SLACK-008", "REQ-SLACK-009", "REQ-SLACK-010", "REQ-SLACK-011", "REQ-SLACK-012", "REQ-SLACK-013", "REQ-SLACK-014", "REQ-SLACK-015", "REQ-SLACK-016", "REQ-SLACK-017", "REQ-SLACK-018", "REQ-SLACK-019", "REQ-SLACK-020", "REQ-SLACK-021", "REQ-SLACK-022", "REQ-SLACK-023", "REQ-SLACK-024", "REQ-SLACK-025", "REQ-SLACK-026", "REQ-SLACK-027", "REQ-SLACK-028", "REQ-SLACK-029", "REQ-SLACK-030", "REQ-SLACK-031", "REQ-SLACK-032", "REQ-SLACK-033", "REQ-SLACK-034", "REQ-SLACK-035", "REQ-SLACK-036", "REQ-SLACK-037", "REQ-SLACK-038", "REQ-SLACK-039", "REQ-SLACK-040", "REQ-SLACK-041", "REQ-SLACK-042", "REQ-SLACK-043", "REQ-SLACK-044", "REQ-SLACK-045"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "208860552037f8cc690c6ca7c00f407c473b931743812b0643b25f6eab35af96"
+content_hash: "6806b30807b3c89cdf9154251f09e73767f5382d6526ba6ddc705aee79264eb1"
 read_as: "approved_fallback"
-task: "CLE-T-JK3ERX"
+task: "CLE-T-VKNJ4B"
 source_paths: []
-mirror_sha256: "938ac9ba0d1db807a8d9be5fc9bb5b3b188eb54c8bbf729257c817af8d7f182c"
-etag: "sha256-bd23edcdb8cc12cf6e564c5465dbfa0c7018aa0c7a3f6e0d0db8d2c33f57d952"
+mirror_sha256: "152f7275ca6147cb722f6b9ebfe8a79dce9bdd46ad4aa0e904f022ea86bf4d44"
+etag: "sha256-4cb5cc5fd8c3c4fc02c829df525d5a3c1bc5935230d7280954ce2350aa2a72ea"
 ---
 > 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,7 +53,7 @@ etag: "sha256-bd23edcdb8cc12cf6e564c5465dbfa0c7018aa0c7a3f6e0d0db8d2c33f57d952"
 - REQ-SLACK-015 WHEN 설정한 slash command 가 `start` 나 빈 text 로 오면 THE SYSTEM SHALL `start` 로, `cancel` 이면 `cancel` 로, 그 밖이면 `text_message` 로 바꾸되 `help` 이면 update 를 만들지 않는다(`null`).
 - REQ-SLACK-016 WHEN 활성 실행이 없는 DM 에 첫 메시지가 오면 THE SYSTEM SHALL slash command 없이 새 실행을 시작한다. (R-S-9)
 - REQ-SLACK-017 WHEN update 를 파싱하면 THE SYSTEM SHALL 중복 제거 키를 Events API 는 `event_id`, Interactivity 는 `payload.trigger_id`, Slash Commands 는 `body.trigger_id` 로 만들고 만들지 못하면 `null` 을 돌려준다.
-- REQ-SLACK-018 WHEN `execution.ai_message` 의 본문(`message`)이나 Template 결과(`template` 노드 본문, AI 표시물의 `template`)를 보내면 THE SYSTEM SHALL `<`·`>`·`&` 만 escape 한 `chat.postMessage` 로 보내고 3500자를 넘으면 escape 결과(`&amp;`·`&lt;`·`&gt;`)의 가운데를 피해 나눠(`message` 는 단어·문장 경계로) 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
+- REQ-SLACK-018 WHEN `execution.ai_message` 의 본문(`message`)이나 Template 결과(`template` 노드 본문, AI 표시물의 `template`)를 보내면 THE SYSTEM SHALL `<`·`>`·`&` 만 escape 한 `chat.postMessage` 로 보내고 3500자를 넘으면 escape 결과(`&amp;`·`&lt;`·`&gt;`)의 가운데를 피해 나눠(`message` 는 줄바꿈 · 공백 경계로) 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
 - REQ-SLACK-019 WHEN typing 메시지를 보내야 하면 THE SYSTEM SHALL 아무것도 보내지 않는다. (R-S-5)
 - REQ-SLACK-020 WHEN 버튼 대기를 보내면 THE SYSTEM SHALL Block Kit `actions` 블록의 `button` 요소로 만들고 `value` 에 `buttonId` 를, `style` 에 `primary`·`danger` 를 넣는다.
 - REQ-SLACK-021 WHEN 버튼 `block_actions` 가 오면 THE SYSTEM SHALL EIA `click_button` 요청을 큐에 넣고 `response_url` 에 `replace_original: true` 로 "선택 완료" 를 보내 키보드를 지운 뒤 3초 안에 빈 `200 OK` 로 답한다.
@@ -88,7 +88,7 @@ etag: "sha256-bd23edcdb8cc12cf6e564c5465dbfa0c7018aa0c7a3f6e0d0db8d2c33f57d952"
 - 관련 REQ-SLACK-008: 보강 경로와 Form `file` 필드 MIME 검증(Planned)은 [「Events API」](CLE-CHAT-SLACK-INBOUND.md#events-api) 에 있다.
 - 관련 REQ-SLACK-014·021: 응답은 Slack 어댑터의 기본 인터랙션 응답(`defaultInteractionResponse`)이 정한다. 경로가 정한 응답(`view_submission` 검증 실패의 `response_action: "errors"`)이 있으면 그것이 먼저다. 슬래시 명령의 기본 응답은 빈 본문이 아니고 REQ-SLACK-043 이 정한다([「Interactivity」](CLE-CHAT-SLACK-INBOUND.md#interactivity)).
 - 관련 REQ-SLACK-016·034·035: 활성 실행이 있을 때 기존 실행을 취소하고 새로 시작하는 입력은 `/<prefix> start` 뿐이다. 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 활성 실행이 있는 DM 의 일반 텍스트는 실행 상태 분기(REQ-CHAT-013·014)를 따른다(R-S-10). 워크플로우가 비활성이면 새 실행을 시작할 입력은 버리고 기존 실행도 취소하지 않는다(REQ-CHAT-066). 취소와 새 시작은 구현됐고 시작 안내와 재시작 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`).
-- 관련 REQ-SLACK-018: escape 하는 본문의 범위와 `mrkdwn` 인자를 보내지 않고 escape 로 멘션을 막는 이유는 [「멘션 무력화」](CLE-CHAT-SLACK-OUTBOUND.md#멘션-무력화) 에 있다. 멘션과 `<url|라벨>` 링크는 글자 그대로 보이고 bare URL 자동 링크와 `*굵게*` 같은 서식은 그대로 쓸 수 있다.
+- 관련 REQ-SLACK-018: escape 하는 본문의 범위와 `mrkdwn` 인자를 보내지 않고 escape 로 멘션을 막는 이유는 [「멘션 무력화」](CLE-CHAT-SLACK-OUTBOUND.md#멘션-무력화) 에 있다.
 - 관련 REQ-SLACK-025: [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 `validation.preset` 이 아직 없다. Slack 에는 연락처 공유에 해당하는 기능이 없다.
 - 관련 REQ-SLACK-027: 현재 구현(`slack-message.renderer.ts`)은 Carousel 카드를 제목·설명 텍스트로만 만든다.
 - 관련 REQ-SLACK-035·036: 활성 실행이 있는 대화에 실행 소유자가 아닌 사람이 보낸 `/<prefix> start`·`/<prefix> cancel` 은 실행을 건드리지 않고 안내 메시지 없이 버린다. 응답은 다른 슬래시 명령과 같은 수신 문구다(REQ-SLACK-043, [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-083). 슬래시 명령은 DM 에서만 받고(REQ-SLACK-045) DM 대화에는 사용자가 한 명이라 이 경우는 드물다. 근거는 [채팅 채널 처리 흐름 「R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다」](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다.
@@ -204,9 +204,9 @@ Events API 와 Interactivity Request URL 만 쓰는 무상태 HTTP 라 여러 �
 
 검토한 다른 선택은 비활성 트리거에 이전처럼 `202` 로 답하는 안이다([채팅 채널](CLE-CHAT-CORE.md) 인바운드 HTTP 응답 계약의 비활성 트리거 행). 트리거를 끈 뒤 누른 버튼마다 사용자 화면에 에러가 보일 수 있어 택하지 않았다.
 
-### R-S-13 옛 문서 절 표기를 지우고 머리 줄과 범위 표기를 고쳤다
+### R-S-13 요구사항 줄과 머리 줄의 표기를 고쳤다
 
-NERV Task `CLE-T-1FCGJ1` 에서 옛 저장소 문서를 가리키던 `(원본: slack §n)` 표기와 머리 줄 «원문» 경로를 지우고([용어 사전](../CLE-GLOSSARY.md) 원칙 11) 범위 표기 `v1` · `v2` 를 「1차 범위」 · 「후속 범위」 로 바꿨다(원칙 6). 구현 상태는 [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 에 따라 `부분 구현` 으로 고쳤다.
+NERV Task `CLE-T-1FCGJ1` 에서 옛 저장소 문서를 가리키던 `(원본: slack §n)` 표기와 머리 줄 «원문» 경로를 지우고([용어 사전](../CLE-GLOSSARY.md) 원칙 11) 범위 표기 `v1` · `v2` 를 「1차 범위」 · 「후속 범위」 로 바꿨다(원칙 6). 구현 상태는 [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 에 따라 `부분 구현` 으로 고쳤다. 2026-11-19 에는 REQ-SLACK-018 의 「단어·문장 경계」를 실제 규칙인 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`, R-CCA-17 번복). 동작은 같다.
 
 ### R-S-14 슬래시 명령은 본인에게만 보이는 문구와 200 으로 답한다
 

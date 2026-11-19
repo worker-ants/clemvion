@@ -135,8 +135,9 @@ export class ExecutionsController {
   @ApiOkWrappedResponse(ExecutionDto, {
     description: '중지 처리된 실행 정보',
   })
-  @ApiBadRequestResponse({
-    description: '중지 불가능한 상태 (이미 완료/실패/취소된 실행)',
+  @ApiUnprocessableEntityResponse({
+    description:
+      'INVALID_STATE — 중지할 수 없는 상태 (이미 완료/실패/취소된 실행)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })

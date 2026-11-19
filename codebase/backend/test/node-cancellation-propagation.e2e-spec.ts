@@ -367,12 +367,14 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
       'execution to reach a terminal status',
     );
 
-    // terminal 이 된 뒤의 stop 은 400 — "이미 완료/실패/취소된 실행" 계약.
+    // terminal 이 된 뒤의 stop 은 422 INVALID_STATE — "이미 완료/실패/취소된 실행" 계약
+    // (카탈로그 CLE-API-ERRCODES §6.4, NERV Task `CLE-T-B9CRCF`).
     const second = await request(BASE_URL)
       .post(`/api/executions/${executionId}/stop`)
       .set(authHeader())
       .set('X-Workspace-Id', workspaceId)
       .send({});
-    expect(second.status).toBe(400);
+    expect(second.status).toBe(422);
+    expect(second.body.error.code).toBe('INVALID_STATE');
   }, 120_000);
 });

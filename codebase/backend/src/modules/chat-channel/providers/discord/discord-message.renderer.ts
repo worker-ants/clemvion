@@ -14,6 +14,7 @@ import {
 } from '../../shared/language-hint-defaults';
 import { decideFormMode, extractFormFields } from '../../shared/form-mode';
 import { findChunkEnd } from '../text-chunk-boundary';
+import { joinFencedChunks, splitKeepingCodeFences } from '../code-fence-chunk';
 
 /**
  * Discord renderer (pure, side-effect free).
@@ -488,29 +489,23 @@ function renderFailedMessage(
 /**
  * `content` 한도(2000자) 안에서 나눈다. 마지막이 아닌 조각은 `CONTINUED_SUFFIX` 를 더한 길이가
  * 한도를 넘지 않도록 본문을 `한도 - 접미사 길이` 안에 담는다(NERV Task `CLE-T-ZGF71P`). 그 안에서
- * 줄바꿈 · 공백 경계를 {@link findChunkEnd} 로 고른다(NERV Task `CLE-T-ZEWGJP`).
+ * 줄바꿈 · 공백 경계를 {@link findChunkEnd} 로 고른다(NERV Task `CLE-T-ZEWGJP`). 조각 경계가 열린
+ * 코드 블록 안이면 닫고 다시 여는 표식도 같은 한도 안에 넣는다(NERV Task `CLE-T-RYXCFX`).
  */
 function chunkText(text: string): ChannelMessage[] {
   if (text.length <= DISCORD_TEXT_LIMIT) return [textMessage(text)];
-  const chunks: string[] = [];
-  let cursor = 0;
-  while (cursor < text.length) {
-    const isLast = text.length - cursor <= DISCORD_TEXT_LIMIT;
-    if (isLast) {
-      chunks.push(text.slice(cursor));
-      break;
-    }
-    const end = findChunkEnd(
-      text,
-      cursor,
-      DISCORD_TEXT_LIMIT - CONTINUED_SUFFIX.length,
-    );
-    chunks.push(text.slice(cursor, end) + CONTINUED_SUFFIX);
-    cursor = end;
-  }
-  return chunks.map((c) => ({
+  const chunks = splitKeepingCodeFences(text, {
+    lastLimit: DISCORD_TEXT_LIMIT,
+    midLimit: DISCORD_TEXT_LIMIT - CONTINUED_SUFFIX.length,
+    pickEnd: findChunkEnd,
+  });
+  return joinFencedChunks(chunks, CONTINUED_SUFFIX).map((text) => ({
     conversationKey: '',
-    body: { kind: 'text', text: c, chunked: true } as const,
+    body: {
+      kind: 'text',
+      text,
+      chunked: true,
+    } as const,
   }));
 }
 

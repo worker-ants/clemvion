@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "91604fdb9f723294abca57411100e646a4a3f0e5b14630a3615874f2f1cd2ed6"
+content_hash: "f277c2d8aa80e99957204dd5b662d2cb77cc4ecafd86e66bc2569f5467ccd19d"
 read_as: "approved_fallback"
-task: "CLE-T-D78VKM"
+task: "CLE-T-B9CRCF"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "93aec744630dd7285f120f67fa8b7b12a79c8cf939dfed3401cb714f80266a1d"
-etag: "sha256-14172139bb27461fc4e560d20632542eb35a588ed48f9bbecc48fe7f95bfbc67"
+mirror_sha256: "99f5015cac2e3b0216a223f9211aeb4425855d8e8dc71f93c6013b1b68f7fcc2"
+etag: "sha256-6bbef36bcf65678717aa882aaeb2120c1a30198b6182816965b2accbbfd8bd88"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -111,7 +111,6 @@ interface ChannelAdapterRegistry {
 - **시각형 렌더러 입력 모양과 노드 출력의 불일치**: 세 프로바이더 문서의 시각형 매트릭스는 Chart 입력을 `output.payload.{title, series, labels}`, Carousel 카드를 `imageUrl` 로 적고 "노드가 무엇을 만드나" 기준이라고 못박았다. 그러나 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md) 출력은 `output.data`(`{ x, y? }[]`, 제목은 `config.title`)이고, [Carousel 노드](../CLE-NODE-PRES/CLE-NODE-CAROUSEL.md) 출력은 `output.items[].image`(동적 모드, 정적 모드는 `config.items`)다. 현재 구현(렌더러)도 `series`·`labels`·`imageUrl` 을 찾으므로 그래프의 Chart 노드 출력이 채팅 채널에서 비어 보일 수 있다. 노드 출력 계약에 맞춰 매트릭스와 렌더러를 고칠지, 렌더러 앞에 변환 층을 둘지 정해야 한다. 같은 충돌이 [Presentation 노드 공통 §미결 사항](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#미결-사항) 에도 올라 있다.
 - **버튼 달린 Template 의 입력 대기 처리**: Template 도 버튼이 있으면 입력 대기로 들어간다([Template 노드](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md)). 그런데 [이벤트별 렌더 매핑](CLE-CHAT-ADAPTER-RENDER.md#이벤트별-렌더-매핑) 의 버튼 입력 대기 행과 [채팅 채널 「노드와 채널 UI 매핑」](CLE-CHAT-CORE.md#노드와-채널-ui-매핑) 의 시각형 노드 요구사항은 시각형 앞 메시지를 carousel·table·chart 로만 열거한다. 현재 구현(Telegram 렌더러)은 template 도 처리한다. 두 곳에 template 을 더할지 정해야 한다. 같은 충돌이 [Template 노드 §미결 사항](../CLE-NODE-PRES/CLE-NODE-TEMPLATE.md#미결-사항) 에도 올라 있다.
 - **Form 필드 `description`**: 다단계 질문의 둘째 줄과 Discord 모달 placeholder 가 `field.description` 을 쓰지만 [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 의 필드 정의와 `formFieldSchema` 에는 없다. 현재 구현은 스키마 passthrough 로 통과한 값을 `form-mode.ts` 가 읽는다. 설정 화면에서 넣을 방법도 없다. 정식 필드로 둘지 프로바이더 문서에서 뺄지 정해야 한다.
-- **`revokeBotToken` 이 `code` 를 던지는지**: 실패 판별 절은 `revokeBotToken` 도 `BOT_TOKEN_INVALID` 를 실어 던진다고 적었고, 인터페이스와 함수 책임 표는 내부 에러를 흡수해 호출자에 전파하지 않는다고 적었다. 흡수로 정리해 판별 대상에서 뺄지 정해야 한다.
 - **`sendMessage` 의 중복 제거 책임**: 옛 규약은 "호출자가 EIA `seq` 와 `X-Clemvion-Delivery` 로 중복을 거른다" 고 적었다. 채널 어댑터는 서버 안 `executionEvents$` 를 받아 웹훅 헤더가 없다. 현재 구현(chat-channel 모듈)에서 해당 헤더 참조는 0건이고 `seq` 는 전달만 된다. 중복 제거는 [채팅 채널 「R-CC-20 인바운드 중복 제거는 전용 서비스로 한다」](CLE-CHAT-CORE.md#r-cc-20-인바운드-중복-제거는-전용-서비스로-한다) 가 인바운드 쪽만 정했다. [채팅 채널](CLE-CHAT-CORE.md) 의 미결 사항과 함께 정해야 한다.
 - **`WORKER_HEARTBEAT_TIMEOUT` 등 분류 표에 없는 코드**: EIA 는 `execution.failed` 가 `WORKER_HEARTBEAT_TIMEOUT` 을 실을 수 있다고 적었다. 그런데 분류 표에 행이 없어 매번 알 수 없는 코드(`executionFailedInternal` 과 warn 로그)로 처리된다. 이 코드는 stalled 재배달을 모두 소진한 워커 쪽 최종 실패다([장애 복구와 안전 종료 「운영 중 stalled 재배달」](../CLE-EXEC/CLE-EXEC-RECOVERY.md#운영-중-stalled-재배달)). [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `SUB_WORKFLOW_NOT_FOUND`·`SUB_WORKFLOW_TIMEOUT`·`SUB_WORKFLOW_QUEUE_FAILED`·`EMAIL_HOST_BLOCKED` 도 분류 표에 없어 같은 경로를 탄다. 지금 구현(`execution-failure-classifier.ts`)도 이 다섯 코드를 따로 매핑하지 않는다. 행을 더할지와 어느 키로 보낼지(`SUB_WORKFLOW_TIMEOUT` 은 시간 초과 안내 후보) 정해야 한다.
 - **`render_form` 임시 텍스트의 답변 안내**: 임시 텍스트는 "답변을 메시지로 보내주세요." 로 끝난다. 이 안내를 따른 답은 늘 폼 호출 취소 경로를 탄다([AI 에이전트 노드 「멀티턴」](../CLE-NODE-AI/CLE-NODE-AGENT.md#멀티턴)). LLM 이 취소를 보고 폼을 다시 부르는 반복도 생길 수 있다. 안내 문구를 이 의미에 맞출지 정해야 한다(R-CCA-13 (b)).

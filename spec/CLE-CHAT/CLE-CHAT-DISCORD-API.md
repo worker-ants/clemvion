@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD-API"
 title: "Discord 어댑터 — API 호출과 UI 매핑"
 type: "design"
-version: 4
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DISCORD"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
-content_hash: "9656a2c845cc504aa89190131b68bcbb6b5efb32d580c91c1ce05e27d4f7f1de"
+content_hash: "d78dd5c791c01642dfe128876667793ec686ecfafbb2ce4e9ab08959c76196dc"
 read_as: "approved_fallback"
-task: "CLE-T-D78VKM"
+task: "CLE-T-B9CRCF"
 source_paths: []
-mirror_sha256: "5be029c7d768ff6a93b9f74a9dbee94c919c4de02652cd2b44b35026ede4402f"
-etag: "sha256-897bf83fe6e65d5e27367c6a5150e6d4c9ac3359e5252b51dce7484f88f80ee4"
+mirror_sha256: "f607232f7d359172501120690a27bd73eb055126fe898b290a67e3cc88884238"
+etag: "sha256-053b3244a660eb571e6c509e3446dfb910dcd7bd61ee77a3a0203223dc273a6c"
 ---
 ## 개요
 
@@ -36,7 +36,7 @@ Rationale 의 R-D-1·R-D-3·R-D-4 는 [Discord 어댑터](CLE-CHAT-DISCORD.md#ra
 | `sendMessage`(image) | 현재 v1 은 `content` 에 caption(없으면 `fallbackText`)만 보내고 이미지는 첨부하지 않는다. `attachments` multipart 업로드나 `embeds: [{image: {url}}]` 는 미구현 |
 | `sendMessage`(typing) | [`POST /channels/{channel_id}/typing`](https://discord.com/developers/docs/resources/channel#trigger-typing-indicator). 10초 유지 뒤 자동 만료 |
 | `ackInteraction` | 빈 구현이다. 3초 안 Interactions 응답은 웹훅 HTTP 응답이 맡는다([인바운드 응답](CLE-CHAT-DISCORD-INBOUND.md#인바운드-응답)). [`PATCH /webhooks/{app_id}/{interaction_token}/messages/@original`](https://discord.com/developers/docs/interactions/receiving-and-responding#edit-original-interaction-response)(15분 유효, 5회 한도)은 지금 부르지 않는다 |
-| `defaultInteractionResponse` | API 를 부르지 않는다. 원본 본문의 `type` 과 하위 명령 이름으로 3초 기본 응답 본문을 만든다(`buildDiscordDefaultInteractionResponse`). 컴포넌트·모달 제출은 `{ type: 6 }`, 슬래시 명령은 본인에게만 보이는 `{ type: 4 }`, 그 밖은 응답 없음([인바운드 응답](CLE-CHAT-DISCORD-INBOUND.md#인바운드-응답)) |
+| `defaultInteractionResponse` | API 를 부르지 않는다. 원본 본문의 `type`·`channel.type`·하위 명령으로 3초 기본 응답 본문을 만든다(`buildDiscordDefaultInteractionResponse`). 컴포넌트·모달 제출은 `{ type: 6 }`, 슬래시 명령은 본인에게만 보이는 `{ type: 4 }`, 그 밖은 응답 없음([인바운드 응답](CLE-CHAT-DISCORD-INBOUND.md#인바운드-응답)) |
 | `ackDroppedUpdate` | 구현하지 않는다. 버린 인터랙션도 3초 응답이 수신 확인이다 |
 | `openFormModal` | `__open_form__`·`__reply__` 클릭 때 웹훅 HTTP 응답 본문 `{ type: 9, data: <modal> }`(MODAL)을 만든다. `__open_form__` 은 `clemvion_form` 폼 모달, `__reply__` 는 `clemvion_reply` 답장 모달이다([MODAL](#modal)) |
 
@@ -137,13 +137,13 @@ Discord 로 보내는 메시지는 본문 글자를 바꾸지 않는다. 대신 
 
 ### 멀티턴 AI
 
-아웃바운드는 CCH-MP-01 을 모두 만족한다.
+아웃바운드는 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-018~020 을 모두 만족한다.
 
 - `execution.ai_message.message` 를 `POST /channels/{id}/messages`(content, 평문 markdown)로 보낸다. Discord 는 자체 markdown 을 지원해 escape 하지 않는다. 멘션 알림은 [멘션 무력화](#멘션-무력화) 대로 막는다.
-- 2000자(`content` 한도)를 넘으면 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 접미사까지 2000자 안에 넣는다. 규칙은 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
+- 2000자(`content` 한도)를 넘으면 줄바꿈 · 공백 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 접미사와 코드 블록 표식까지 2000자 안에 넣는다. 규칙은 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
 - 응답 직전 `POST /channels/{id}/typing` 을 한 번 보낸다(10초 자동 만료). 응답이 10초를 넘으면 5초마다 다시 보낸다.
 
-인바운드는 CCH-MP-01 을 일부 미룬다. v1 은 Interactions Webhook 만 써서 DM `MESSAGE_CREATE` 를 받지 못하므로 답장 경로는 둘로 제한된다([채팅 채널](CLE-CHAT-CORE.md) R-CC-13 이 이 부분 유예의 기준이다).
+인바운드는 멀티턴 AI 의 답장 경로를 일부 미룬다. v1 은 Interactions Webhook 만 써서 DM `MESSAGE_CREATE` 를 받지 못하므로 답장 경로는 둘로 제한된다([채팅 채널](CLE-CHAT-CORE.md) R-CC-13 이 이 부분 유예의 기준이다).
 
 - (a) `/<prefix> reply <message>` slash command: text option 으로 자유 입력한다. 멀티턴 AI 진행 중에만 의미가 있다. `parseUpdate` 가 `{ kind: "text_message", text }` 로 돌려주고 EIA `submit_message` 로 간다. 숙련 사용자용 보조 옵션이다.
 - (b) "Reply" 버튼 → 모달 TEXT_INPUT(v1 기본 UX): 어댑터(`renderAiMessage`)가 AI 응답의 마지막 텍스트 조각을 버튼 메시지로 바꿔 "Reply" 버튼(`id: "__reply__"`, style none·SECONDARY)을 붙인다. 누르면 `parseUpdate` 가 `open_form_modal`(`openContext.modal: "reply"`)을 돌려주고, `HooksService` 가 `openFormModal(modalKind='reply')` 로 `{ type: 9 }` 모달(`custom_id: "clemvion_reply"`, TEXT_INPUT `custom_id: "message"`)을 연다. 제출(`clemvion_reply` MODAL_SUBMIT)의 값을 `parseUpdate` 가 `text_message` 로 바꿔 EIA `submit_message` 로 보낸다. 폼 모달은 `clemvion_form`, AI 답장 모달은 `clemvion_reply` 로 두 MODAL_SUBMIT 경로를 나눈다.
@@ -178,7 +178,7 @@ Discord 는 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 �
 | `text` + `validation.preset: 'phone'` | style 1 과 어댑터 형식 검증. 미구현 | content 질문과 TEXT_INPUT 모달. 연락처 공유는 없다 |
 | `select`·`radio` | 모달이 받지 않는다. 있으면 다단계 질문 | `SELECT_MENU`(type 3) 단일 선택 |
 | `checkbox` | 모달이 받지 않는다. 있으면 다단계 질문 | BUTTON(style 2) N개 토글과 "Done" 버튼 |
-| `file` | 모달이 받지 않는다. 있으면 다단계 질문(Discord 파일 v1 미지원, R-D-7·R-D-9) | content 질문과 "DM 으로 파일 업로드…" 안내. v1 에서는 사실상 지원하지 않는다. 우회로는 외부 저장소 URL 을 `text` 필드로 받고 `validation.pattern` 에 URL 정규식을 지정하는 것이다. Form 에는 URL 검증 preset 이 없다 |
+| `file` | 모달이 받지 않는다. 있으면 다단계 질문(Discord 파일 v1 미지원, R-D-7·R-D-9) | content 질문과 "DM 으로 파일 업로드…" 안내. v1 에서는 사실상 지원하지 않는다. 우회로는 외부 저장소 URL 을 `text` 필드로 받고 `validation.pattern` 에 URL 정규식을 지정한다. Form 에는 URL 검증 preset 이 없다 |
 
 서버 쪽 검증이 실패하면 모달은 후속 메시지의 버튼으로 다시 열게 하고, 다단계 질문은 `currentFieldIdx` 를 되돌려 그 필드만 다시 묻는다. 질문 본문 형식은 어댑터 규약을 따른다.
 
@@ -199,7 +199,7 @@ Discord 는 `supportsNativeForm = true` 이고 어댑터 규약의 폼 모드 �
 
 ### 실행 실패
 
-`execution.failed` 는 어댑터 규약의 `classifyExecutionFailure(event)` 결과로 문구를 찾아 채운 뒤 `POST /channels/{id}/messages` 한 번(평문)으로 보낸다. 민감 정보 제외는 [채팅 채널](CLE-CHAT-CORE.md) 의 CCH-ERR-03 을 따른다.
+`execution.failed` 는 어댑터 규약의 `classifyExecutionFailure(event)` 결과로 문구를 찾아 채운 뒤 `POST /channels/{id}/messages` 한 번(평문)으로 보낸다. 민감 정보 제외는 [채팅 채널](CLE-CHAT-CORE.md)  REQ-CHAT-041 을 따른다.
 
 | 항목 | Discord 매핑 |
 |---|---|
@@ -261,4 +261,6 @@ Form 의 `file` 추상화는 그대로 두고 Discord 프로바이더만 v1 구�
 
 ### continued 접미사도 2000자 한도 안에 넣는다 (2026-11-14)
 
-예전 구현은 마지막이 아닌 조각에 본문 2000자를 담고 접미사 `\n_(continued…)_`(15자)를 더해 2015자 조각을 보냈다. Discord 는 2000자를 넘는 `content` 를 거부할 수 있다. 그래서 접미사까지 포함해 조각마다 2000자 안에 넣는다(NERV Task `CLE-T-ZGF71P`).
+예전 구현은 마지막이 아닌 조각에 본문 2000자를 담고 접미사 `\n_(continued…)_`(15자)를 더해 2015자 조각을 보냈다. Discord 는 2000자를 넘는 `content` 를 거부할 수 있다. 그래서 접미사까지 포함해 조각마다 2000자 안에 넣는다(NERV Task `CLE-T-ZGF71P`). 코드 블록을 닫고 다시 연 표식도 같은 2000자 안에 넣는다(NERV Task `CLE-T-RYXCFX`).
+
+「단어·문장 경계」는 2026-11-19 에 「줄바꿈 · 공백 경계」로 고쳤다(R-CCA-17 번복, NERV Task `CLE-T-VKNJ4B`). 동작은 같다.
