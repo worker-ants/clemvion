@@ -23,6 +23,7 @@ NERV 쓰기 도구가 없다(결정 D9). 그래서 applier 는 처분을 파일�
     {"version": 1,
      "dispositions": [
        {"finding_id": "...", "resolution": "fixed", "commit_sha": "<40자>", "rationale": "..."},
+       {"finding_id": "...", "resolution": "spec_change", "spec_version_id": "<UUID>", "rationale": "..."},
        {"finding_id": "...", "resolution": "wont_fix|dismissed", "rationale": "..."},
        {"finding_id": "...", "resolution": "escalated",
         "escalate_reason": "user-decision|infra|e2e-fail-3x|sensitive-fix|spec", "rationale": "..."}],
@@ -35,7 +36,8 @@ NERV 쓰기 도구가 없다(결정 D9). 그래서 applier 는 처분을 파일�
     전체 해시(SHA-1 저장소에서는 40자)를 `commit_sha` 로 단다. 전체 해시의 정의는 `git_probe.is_full_commit_id` 하나다.
   - critical 발견은 `wont_fix` · `dismissed` 로 처분하지 않는다(사람 승인이 필요하다).
   - `spec_change` 는 applier 가 쓰지 않는다. 스펙 결함은 `spec_proposals` 로 넘기고 main 이 NERV 초안을
-    저장한 뒤 `spec_change` 로 처분한다. 초안을 쓸 수 없으면 main 이 `escalated(spec)` 로 넘긴다.
+    저장한 뒤 그 처분을 이 파일에 더한다. `spec_version_id` 에 초안 저장의 `spec_version_id`(전체 UUID)를 단다
+    (`fixed` 의 `commit_sha` 와 같은 근거 필드다). 초안을 쓸 수 없으면 main 이 `escalated(spec)` 로 넘긴다.
   - 제안 파일은 세션 디렉터리 바로 아래 `_spec-proposal-<area>.md` 다. `<area>` 는 대상 NERV 스펙 키를
     소문자로 쓴 값이다(예: `cle-eng-reviewcite`, `[a-z0-9-]`). 스펙 하나에 파일 하나이고, 같은 스펙의 발견
     여럿이 한 파일을 가리켜도 된다. `_` 로 시작해야 제출 도구(`nerv_review_payload.py`)가 역할 리포트로
@@ -56,8 +58,8 @@ NERV 쓰기 도구가 없다(결정 D9). 그래서 applier 는 처분을 파일�
        "severity": "critical", "idempotency_key": "resolve:<finding_id>:fixed:<12자>"}],
      "already_recorded": ["..."], "unknown": []}
 
-  - 처분마다 `nerv_finding_resolve` 인자(`finding_id` · `resolution` · `commit_sha` · `escalate_reason` ·
-    `rationale`)만 남긴다. `severity` 는 `_nerv_findings.json` 에서 붙인다(critical 을 낮추는 처분은 사람
+  - 처분마다 `nerv_finding_resolve` 인자(`finding_id` · `resolution` · `commit_sha` · `spec_version_id` ·
+    `escalate_reason` · `rationale`)만 남긴다. `severity` 는 `_nerv_findings.json` 에서 붙인다(critical 을 낮추는 처분은 사람
     승인을 받는다). 멱등 키는 그 인자의 해시라서 같은 처분을 다시 보내도 한 번만 기록된다.
   - 처분 목록은 쓰기 전에 `check` 의 검사를 모두 통과해야 한다(처분이 없는 발견을 세는 검사만 뺀다. 덜 모인
     목록에서 통과한 처분까지 막지 않으려는 것이다). 근거 · 40자 해시 · 브랜치 도달성 · critical 하향 거부를 main 이
@@ -93,9 +95,11 @@ VERSION = 1
 FINDINGS_FILE = "_nerv_findings.json"
 DISPOSITIONS_FILE = "_dispositions.json"
 
-RESOLUTIONS = ("fixed", "wont_fix", "dismissed", "escalated")
+RESOLUTIONS = ("fixed", "spec_change", "wont_fix", "dismissed", "escalated")
 # `pending --out` 이 처분마다 남기는 `nerv_finding_resolve` 인자.
-RESOLVE_FIELDS = ("finding_id", "resolution", "commit_sha", "escalate_reason", "rationale")
+RESOLVE_FIELDS = ("finding_id", "resolution", "commit_sha", "spec_version_id", "escalate_reason", "rationale")
+# 멱등 키에 늘 넣는 인자. `spec_version_id` 는 값이 있을 때만 넣어서 그 인자를 더하기 전에 만든 처분의 키가 바뀌지 않게 한다.
+_KEY_FIELDS = ("finding_id", "resolution", "commit_sha", "escalate_reason", "rationale")
 ESCALATE_REASONS = ("user-decision", "infra", "e2e-fail-3x", "sensitive-fix", "spec")
 SEVERITIES = ("critical", "warning", "info")
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -212,6 +216,10 @@ def _check_disposition(d, where: str, claims: _Claims, target: str, cwd: str) ->
             errors.append(f"{where}: fixed 는 40자 commit_sha 를 단다 — {sha!r}")
         elif not git_probe.is_ancestor(sha, target, cwd):
             errors.append(f"{where}: commit_sha {sha[:12]} 가 리뷰한 브랜치({target})에서 닿지 않는다")
+    if res == "spec_change":
+        vid = d.get("spec_version_id")
+        if not isinstance(vid, str) or not _UUID.match(vid):
+            errors.append(f"{where}: spec_change 는 초안 저장의 spec_version_id(전체 UUID)를 단다 — {vid!r}")
     if res == "escalated" and d.get("escalate_reason") not in ESCALATE_REASONS:
         errors.append(f"{where}: escalated 는 escalate_reason 을 단다({', '.join(ESCALATE_REASONS)})")
     if known and claims.severity.get(fid) == "critical" and res in ("wont_fix", "dismissed"):
@@ -290,7 +298,10 @@ def pending(session_dir: str, branch: str, client) -> dict:
 
 def resolve_key(d: dict) -> str:
     """처분 하나의 `nerv_finding_resolve` 멱등 키. 기록할 인자가 같으면 같은 키다."""
-    payload = json.dumps({k: d.get(k) for k in RESOLVE_FIELDS}, ensure_ascii=False, sort_keys=True)
+    args = {k: d.get(k) for k in _KEY_FIELDS}
+    if d.get("spec_version_id") is not None:
+        args["spec_version_id"] = d["spec_version_id"]
+    payload = json.dumps(args, ensure_ascii=False, sort_keys=True)
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
     return f"resolve:{d.get('finding_id')}:{d.get('resolution')}:{digest}"
 

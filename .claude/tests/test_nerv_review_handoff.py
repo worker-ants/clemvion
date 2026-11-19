@@ -14,11 +14,11 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`). 두 LLM 이 손으로 옮
   - FetchTest — 커서를 따라 열린 발견을 모두 읽는다(순회 자체는 `_shared/nerv_read.py` 의 것이다). 필드 이름을 인계 스키마로
     바꾼다. escalated 는 뺀다. 응답 이상 · 끝나지 않는 커서는 `HandoffError`.
   - CheckTest — `_dispositions.json` 불변식 전부(전체 ID · 한 번씩 · resolution · rationale · fixed 의 전체 해시와 도달성 ·
-    escalate_reason · critical 하향 거부 · 제안 파일 이름 · 전수 처분). fixed 는 리뷰한 브랜치 기준으로 판정하고 없으면
+    spec_change 의 spec_version_id · escalate_reason · critical 하향 거부 · 제안 파일 이름 · 전수 처분). fixed 는 리뷰한 브랜치 기준으로 판정하고 없으면
     HEAD. 전체 해시의 정의는 `git_probe` 하나다.
   - PendingTest — NERV 에 이미 기록된 처분은 다시 내지 않는다. 모르는 ID 는 `unknown` 이고 exit 1.
   - PendingOutTest(NERV Task `CLE-T-CD9131`) — `pending --out` 이 `nerv_finding_resolve` 인자 · 심각도 · 멱등 키만 쓴다
-    (인자가 바뀌면 키도 바뀐다). 요약은 근거 문장 없이 `<ID 끝 8자> <resolution> <severity>`. `check` 를 통과하지 못한
+    (인자가 바뀌면 키도 바뀐다). spec_change 는 spec_version_id 를 싣고, 다른 처분의 키는 그 인자를 더하기 전과 같다. 요약은 근거 문장 없이 `<ID 끝 8자> <resolution> <severity>`. `check` 를 통과하지 못한
     목록은 `ok: false`. 덜 모인 목록은 통과한 것만 기록한다. NERV 설정 없음 · 읽기 실패 · 인계 파일 없음 · 쓸 수 없는 경로는
     앞 실행의 파일을 `ok: false` 문서나 보고된 오류로 바꾼다.
   - OutPathTest — 입력 파일을 `--out` 으로 줘도 거절하고 지키며(exit 2) `pending` 이 죽어도 앞 문서가 남지 않는다.
@@ -47,6 +47,7 @@ TOOL_PATH = _harness.CLAUDE_DIR / "tools" / "nerv_review_handoff.py"
 tool = _harness.load_module_by_path("nerv_review_handoff_under_test", TOOL_PATH)
 
 CRIT = "01a0f648-f601-7000-8000-000000000001"
+SPEC_VERSION = "01a1f1d3-4ecd-7000-8000-00000000000a"
 WARN = "01a0f648-f602-7000-8000-000000000002"
 INFO = "01a0f648-f603-7000-8000-000000000003"
 
@@ -165,7 +166,8 @@ class CheckTest(_SessionCase):
             "없다": [self.fixed(CRIT), ok_warn, {"finding_id": "01a0f648-0000-7000-8000-000000000009",
                                                  "resolution": "dismissed", "rationale": "x"}],
             "두 번": [self.fixed(CRIT), ok_warn, dict(ok_warn)],
-            "resolution 은": [self.fixed(CRIT), dict(ok_warn, resolution="spec_change")],
+            "resolution 은": [self.fixed(CRIT), dict(ok_warn, resolution="defer")],
+            "spec_version_id": [self.fixed(CRIT), dict(ok_warn, resolution="spec_change")],
             "rationale": [self.fixed(CRIT), dict(ok_warn, rationale=" ")],
             "40자": [self.fixed(CRIT, self.head[:12]), ok_warn],
             "닿지 않는다": [self.fixed(CRIT, "ab" * 20), ok_warn],
@@ -178,6 +180,17 @@ class CheckTest(_SessionCase):
                 self.write_dispositions(dispositions)
                 errors = self.errors()
                 self.assertTrue(any(needle in e for e in errors), errors)
+
+    def test_spec_change_needs_the_saved_draft_version_id(self):
+        # NERV Task `CLE-T-CR0XQT`: main 이 스펙 초안을 저장한 뒤 그 `spec_version_id` 로 처분한다.
+        # fixed 의 commit_sha 처럼 근거가 빠지거나 전체 ID 가 아니면 거절한다. critical 도 받는다(하향이 아니다).
+        good = {"finding_id": WARN, "resolution": "spec_change", "spec_version_id": SPEC_VERSION, "rationale": "초안"}
+        self.write_dispositions([dict(good, finding_id=CRIT), good])
+        self.assertEqual(self.errors(), [])
+        for bad in (None, "", SPEC_VERSION[:8], SPEC_VERSION.upper(), 7):
+            with self.subTest(spec_version_id=bad):
+                self.write_dispositions([self.fixed(CRIT), dict(good, spec_version_id=bad)])
+                self.assertTrue(any("spec_version_id" in e for e in self.errors()), self.errors())
 
     def test_a_full_hash_is_whatever_git_probe_says_it_is(self):
         # "전체 해시" 의 정의는 `git_probe.is_full_commit_id` 하나다. SHA-256 길이(64자)는 형식 검사를 지나 도달성에서 걸린다.
@@ -329,6 +342,29 @@ class PendingOutTest(_SessionCase):
         self.assertFalse(doc["ok"])
         self.assertEqual(doc["dispositions"], [])
         self.assertEqual(json.loads(r.stdout)["unknown"], [CRIT[:8]])
+
+    def test_a_spec_change_disposition_is_written_with_its_version_id(self):
+        self.write_findings(item(WARN, "warning"))
+        self.write_dispositions([{"finding_id": WARN, "resolution": "spec_change", "spec_version_id": SPEC_VERSION,
+                                  "rationale": "초안 v3 에 반영"}])
+        r = self.run_pending([item(WARN, "warning")])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        row = json.loads(self.out.read_text(encoding="utf-8"))["dispositions"][0]
+        self.assertEqual(set(row), {"finding_id", "resolution", "spec_version_id", "rationale", "severity",
+                                    "idempotency_key"})
+        self.assertEqual(row["spec_version_id"], SPEC_VERSION)
+        self.assertRegex(row["idempotency_key"], rf"^resolve:{WARN}:spec_change:[0-9a-f]{{12}}$")
+        self.assertEqual(json.loads(r.stdout)["items"], [f"{WARN[-8:]} spec_change warning"])
+
+    def test_the_key_of_other_resolutions_does_not_change_with_spec_version_id(self):
+        # spec_version_id 를 인자에 더하기 전에 만든 키와 같아야 한다. 다시 보낸 처분이 다른 키로 두 번 기록되지 않는다.
+        a = self.fixed(CRIT)
+        before = json.dumps({k: a.get(k) for k in ("finding_id", "resolution", "commit_sha", "escalate_reason",
+                                                   "rationale")}, ensure_ascii=False, sort_keys=True)
+        digest = tool.hashlib.sha256(before.encode("utf-8")).hexdigest()[:12]
+        self.assertEqual(tool.resolve_key(a), f"resolve:{CRIT}:fixed:{digest}")
+        b = {"finding_id": WARN, "resolution": "spec_change", "spec_version_id": SPEC_VERSION, "rationale": "x"}
+        self.assertNotEqual(tool.resolve_key(b), tool.resolve_key(dict(b, spec_version_id=SPEC_VERSION[:-1] + "b")))
 
     def test_the_key_follows_the_recorded_arguments(self):
         a = self.fixed(CRIT)
