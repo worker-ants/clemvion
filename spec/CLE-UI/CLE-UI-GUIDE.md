@@ -2,19 +2,19 @@
 id: "CLE-UI-GUIDE"
 title: "사용자 가이드"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-GUIDE-001", "REQ-GUIDE-002", "REQ-GUIDE-003", "REQ-GUIDE-004", "REQ-GUIDE-005", "REQ-GUIDE-006", "REQ-GUIDE-007", "REQ-GUIDE-008", "REQ-GUIDE-009", "REQ-GUIDE-010", "REQ-GUIDE-011", "REQ-GUIDE-012", "REQ-GUIDE-013", "REQ-GUIDE-014", "REQ-GUIDE-015", "REQ-GUIDE-016", "REQ-GUIDE-017", "REQ-GUIDE-018", "REQ-GUIDE-019", "REQ-GUIDE-020", "REQ-GUIDE-021", "REQ-GUIDE-022", "REQ-GUIDE-023", "REQ-GUIDE-024", "REQ-GUIDE-025", "REQ-GUIDE-026", "REQ-GUIDE-027", "REQ-GUIDE-028", "REQ-GUIDE-029", "REQ-GUIDE-030", "REQ-GUIDE-031", "REQ-GUIDE-032", "REQ-GUIDE-033"]
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "9001868367aeed85771237a6f7da70d1a5277a6f68ebb30a8872dcfa3939e0d2"
+content_hash: "500d0f317f83014eb5dcf12fc36a92a39a15bd868ebbfd21d5952034d88967f7"
 read_as: "approved_fallback"
-task: "CLE-T-RGZBCQ"
+task: "CLE-T-VTA8KJ"
 source_paths: ["spec/2-navigation/13-user-guide.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "3bbef15884013ea3afc653d2f500ed56921cb806cbef4f43dc6bcb68fc6e41e9"
-etag: "sha256-16869de5310b403291149f812921e9e357c9e9bdeac208a445e88ea3f45c440a"
+mirror_sha256: "c6cfd61742db8d7cf3249d84af80918a5f5ea19cc862d0e6fcd3db5a1f50dd13"
+etag: "sha256-c9bc7ebfe94716baebad93a7143d9b638e47b8d2359edab813136b22aecbf84f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/13-user-guide.md` (전체), `spec/2-navigation/_product-overview.md` (§3.11 User Guide) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -199,7 +199,7 @@ code: ["codebase/backend/src/nodes/ai", "codebase/frontend/src/components/editor
 배포 전에는 다음을 점검한다.
 
 - 모든 MDX 프론트매터의 `spec:` 키와 `code:` 경로가 있는가
-- 용어 사전의 금지어를 쓰지 않았는가
+- 가이드 용어집(`_glossary.md`)의 금지어를 쓰지 않았는가
 - 내부 `/docs/...` 링크가 모두 실제 슬러그인가
 - `FieldHelp` 딥링크 앵커가 있는가
 - 페이지마다 3층 구조를 지켰는가

@@ -2,19 +2,19 @@
 id: "CLE-ENG-SPECEVIDENCE"
 title: "스펙과 구현 근거 규약"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "4fd98a750035b5341a90c05c8ee3ebdd93c1d940a2894ae1b4671df3935ba591"
+content_hash: "948d8ba654dc679a2cd7e07f2f59ac073884ffe37846107b2706c5d5118fde5a"
 read_as: "approved_fallback"
-task: "CLE-T-0TBB0Z"
+task: "CLE-T-4H77EB"
 source_paths: ["spec/conventions/spec-impl-evidence.md"]
-mirror_sha256: "4813e0fa126e3573d044cd292b19cd2db2701a7bfb5c74e38b2188f28b9fc119"
-etag: "sha256-74b10774ad6ad49e585dd3cc7cff245ee01f9af0813aab847065ea8becb974da"
+mirror_sha256: "590bf47d06f821357ec0d67c1919dd81cd118ec59f4e8080db1dae587cd9e6d4"
+etag: "sha256-c09c41690eb8f22f880f4adb59962e2d3239ead78f7d98d1caa9639fc0234147"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/spec-impl-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,10 @@ etag: "sha256-74b10774ad6ad49e585dd3cc7cff245ee01f9af0813aab847065ea8becb974da"
 - 규칙 1 ~ 7 · 13 · 14(옛 트리 frontmatter 의 `id` · `status` · `code:` · 폐기 사유 · `user_guide:`)는 전환 단계 5 에서 옛 트리와 함께 걷었다(R-16). `code:` 의 자리는 규칙 19 ~ 21 의 `## 구현 위치` 가 잇는다. 옛 규칙 6 의 취지(넓은 트리 글로브로 가드만 통과시키지 않는다)는 규칙 19 가, 옛 규칙 7 의 준수 예시 파일은 규칙 21 이 잇는다.
 - 규칙 8 ~ 12 · 15 ~ 17(`pending_plans:` · `spec-only` TTL · `backlog` 등재 · 승격 · Gate C · `plan/**` 링크)은 전환 단계 3 에서 `plan/` 과 함께 걷었다(R-13). 남은 표면과 `spec_impact` 선언은 NERV Task 가 맡는다.
 
-18. 코드 주석이 스펙을 가리킬 때는 키 링크 `[글](<키>#앵커)` 를 쓴다. 미러에 없는 키는 같은 PR 에서 미러로 받는다. 미러하지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)은 키 링크로 쓸 수 없다. 코드 주석은 카탈로그를 `codebase/api-catalogs/<vendor>/` 경로나 링크 없는 언급으로 가리킨다. 이 제한은 링크 무결성 가드가 보는 범위 2 · 3(코드 소스 주석 · 거버넌스 문서)에만 걸린다. 카탈로그 정본 마크다운(`codebase/api-catalogs/**.md`)은 그 가드 밖이라 NERV 사본과 같은 키 링크로 카탈로그 문서를 가리킨다(`codebase/api-catalogs/README.md` 「링크」). 공개 OpenAPI 채널(`*.dto.ts` · `*.controller.ts` 의 `/** */` 블록과 데코레이터 `description` · `summary`)에는 링크 없는 키도 포함해 키를 쓰지 않는다. 근거는 바로 위 `//` 주석에 키 링크로 쓴다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17, 백엔드 가드 `openapi-internal-ref`, R-14). 링크로 감싸지 않은 언급은 키와 절 제목으로 쓴다(예: `CLE-API-ERRCODES` 「워크플로우 실행: 엔진 수준」). NERV 제목에 번호가 붙어 있어도 번호를 빼고 제목 글자만 쓴다(예시의 실제 제목은 `6.5 워크플로우 실행: 엔진 수준`). 옛 § 번호는 옮기지 않는다. 그 키도 미러에 있어야 한다. 미러하지 않는 카탈로그 영역의 키는 가드가 확인하지 않고 통과시킨다(R-15).
+18. 코드 주석이 스펙을 가리킬 때는 키 링크 `[글](<키>#앵커)` 를 쓴다. 미러에 없는 키는 같은 PR 에서 미러로 받는다.
+    - 카탈로그: 미러하지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)은 키 링크로 쓸 수 없다. 코드 주석은 카탈로그를 `codebase/api-catalogs/<vendor>/` 경로나 링크 없는 언급으로 가리킨다. 이 제한은 링크 무결성 가드가 보는 범위 2 · 3(코드 소스 주석 · 거버넌스 문서)에만 걸린다. 카탈로그 정본 마크다운(`codebase/api-catalogs/**.md`)은 그 가드 밖이라 NERV 사본과 같은 키 링크로 카탈로그 문서를 가리킨다(`codebase/api-catalogs/README.md` 「링크」).
+    - 공개 OpenAPI 채널(`*.dto.ts` · `*.controller.ts` 의 `/** */` 블록과 데코레이터 `description` · `summary`)에는 링크 없는 키도 포함해 키를 쓰지 않는다. 근거는 바로 위 `//` 주석에 키 링크로 쓴다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17, 백엔드 가드 `openapi-internal-ref`, R-14).
+    - 링크 없는 언급: 키와 절 제목으로 쓴다(예: `CLE-API-ERRCODES` 「워크플로우 실행: 엔진 수준」). NERV 제목에 번호가 붙어 있어도 번호를 빼고 제목 글자만 쓴다(예시의 실제 제목은 `6.5 워크플로우 실행: 엔진 수준`). 옛 § 번호는 옮기지 않는다. 그 키도 미러에 있어야 한다. 미러하지 않는 카탈로그 영역의 키는 가드가 확인하지 않고 통과시킨다(R-15).
 19. 구현이 있는 스펙 문서는 본문 `## 구현 위치` 절에 그 표면의 구현 경로를 목록으로 적는다. 경로는 저장소 루트 기준이다. 글로브는 그 표면을 맡은 범위로 좁힌다. 넓은 트리 글로브(`codebase/backend/src/**` 같은)는 아무것도 가리키지 않는 것과 같다. 영역 문서 · 제품 개요(`CLE-VISION`) · 구성 개요 문서는 절을 두지 않아도 된다. 그 아래 문서가 구현 경로를 적는다(옛 트리에서도 개요 · 영역 진입 문서는 대상이 아니었다, R-16). 절을 적었는지와 글로브의 넓이는 빌드 가드도 NERV done 게이트도 보지 않는다. 구현 PR 의 사전 체크리스트(저장소 `PROJECT.md` 동반 갱신 매트릭스와 DOCUMENTATION 단계 체크리스트)와 코드 리뷰가 본다(R-16 「약해지는 곳」).
 20. `## 구현 위치` 절의 코드 스팬 가운데 `codebase/` · `.claude/` · `.github/` · `scripts/` 로 시작하는 것은 저장소 경로로 읽는다. 빌드가 그 경로의 실재를 확인한다(가드 `spec-impl-locations`). 절은 제목이 `## 구현 위치` 와 글자가 같은 H2 이고 다음 H2 에서 끝난다. 코드 펜스 안은 읽지 않는다. 판정은 다음과 같다.
     - 글로브(`*` · `**` · `?`)는 파일 1개 이상에 매치해야 한다.

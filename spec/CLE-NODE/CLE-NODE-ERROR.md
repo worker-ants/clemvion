@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "2d6e52d319e21a8b98e111081e75f4eb359175a56d16962264fade21daa0a057"
-read_as: "approved"
-task: null
+content_hash: "c7b6ae48813074f8cb294ec983442cc9182feefe5284ac99ac96e88e89d3dfa1"
+read_as: "approved_fallback"
+task: "CLE-T-VTA8KJ"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "cafc5e0eaeff44ff35d68077588f97319924d5ba00912ffc9a2703881fb86e13"
-etag: "sha256-f4bb1f35a29bfa0f0f568dc9fd97d13ffc95ee6de46b885ec200cb73e535fbfd"
+mirror_sha256: "b36887842143b7b05c47ab7d9c970189116d3833cd35d2bb8c1d4239373ecbc2"
+etag: "sha256-2ceefe95c5dfb6b7fe7c31e0f1e40774f67d1facd359f693f88b8b45da4c7c60"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,15 +52,7 @@ etag: "sha256-f4bb1f35a29bfa0f0f568dc9fd97d13ffc95ee6de46b885ec200cb73e535fbfd"
 
 ### 1. 에러 처리 정책 다섯 가지
 
-노드 설정에서 아래 다섯 정책 가운데 하나를 고른다. 화면 라벨은 "오류 처리" 다.
-
-| enum | 화면 라벨 | 본문 표기 |
-| --- | --- | --- |
-| `stop_workflow` | 워크플로우 중단 | 워크플로우 중단(기본) |
-| `skip_node` | 노드 건너뛰기 | 노드 건너뛰기 |
-| `use_default_output` | 기본 출력 사용 | 기본 출력 사용 |
-| `retry` | 재시도 | 노드 재시도 |
-| `route_to_error_port` | 에러 포트로 라우팅 | 에러 포트로 라우팅 |
+노드 설정에서 다섯 정책 가운데 하나를 고른다. 화면 라벨은 "오류 처리" 다. 값은 `stop_workflow`(기본) · `skip_node` · `use_default_output` · `retry` · `route_to_error_port` 다. 값마다의 화면 라벨과 본문 표기는 [용어 사전](../CLE-GLOSSARY.md) 「상태값과 enum 표기」 의 「에러 처리 정책」 표가 정한다.
 
 노드에서 에러가 나면 엔진은 정책에 따라 다르게 진행한다.
 

@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OPEN"
 title: "용어 사전 — 결정이 필요한 표기"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "46576bec642c0db984457481f40e7d9dba81110b482ad0e4fc4936878754ec4f"
+content_hash: "be3f5153fd26866566a78013797a8a369f00398aaf35bd28e8c6e420d640d502"
 read_as: "approved_fallback"
-task: "CLE-T-693G4E"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "ac3debf3df27858e4650735d0e529e6e0ebc7551e7f2c1fa2d9cfa866112ce57"
-etag: "sha256-b95c5b01290216adf54e4c710304a4c26b65edd754123948ddac4c8ad009639d"
+mirror_sha256: "2800f5bf5c8deecae5277c7e2238f2caff87e09f9a6faf48ec5a6e1aaa060c21"
+etag: "sha256-5bb613ba85b5a272fa5d1d1fbcba2794b083430dee2659bb21daf56c51ab1791"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-b95c5b01290216adf54e4c710304a4c26b65edd754123948ddac4c8ad009639d"
 
 | 번호 | 항목 | 갈리는 표기 | 임시 표준 | 심각도 |
 | --- | --- | --- | --- | --- |
-| D01 | 실행 내역·실행 이력·실행 히스토리 표기가 갈린다 | 실행 내역 / 실행 이력 / 실행 히스토리 / 실행 기록 | 실행 내역(에디터 안 패널은 "실행 내역 패널") | info |
+| D01 | 실행 내역·실행 이력·실행 히스토리 표기가 갈린다 | 실행 내역 / 실행 이력 / 실행 히스토리 / 실행 기록(화면 이름으로) | 실행 내역(에디터 안 패널은 "실행 내역 패널") | info |
 | D02 | 버전 기록·버전 히스토리·버전 이력 표기가 갈린다 | 버전 기록(화면·NERV 문서 제목) / 버전 히스토리(가이드 용어집) / 버전 이력(스펙) | 버전 기록 | info |
 | D03 | 워크플로우와 워크플로 표기가 섞인다 | 워크플로우 / 워크플로 | 워크플로우 | info |
 | D04 | 연결선과 엣지 표기가 갈린다 | 연결선 / 엣지 / 에지 / Edge | 연결선 | info |
@@ -111,3 +111,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - R13 은 2026-10-10 사용자 결정이다(NERV Task `CLE-T-2V7SBC`). 통합 암호화 키는 `INTEGRATION_ENCRYPTION_KEY`, 마스터키는 `ENCRYPTION_KEY` 로 따로 둔다. 임시 표준과 결론이 같다.
 - 임시 표준이 「시크릿 저장소 키」 로 부른 `ENCRYPTION_KEY` 를 R13 은 마스터키로 부른다.
 - 다른 항목의 번호는 바꾸지 않았다. 하위 문서의 용어 행과 Rationale 이 번호로 이 표를 가리키기 때문이다. D40 은 다른 항목에 다시 쓰지 않는다.
+
+### 결정 항목 D58 의 「갈리는 표기」 칸을 고쳤다
+
+버전 3 에서 «(발송·채널)» 을 «(발송 건강도 · 채널 건강도)» 로 고쳤다. [용어 사전](CLE-GLOSSARY.md) 의 상태값 표가 건강도 행을 둘로 나눈 것(2026-10-05)에 맞췄다.

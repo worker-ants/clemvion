@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N"
 title: "다국어와 화면 문구"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "a819d7b740d1ab687055aa8e4e3168d23fbe01f61a320b9e9925c2cb4ccd2638"
+content_hash: "2fd2a96365970c22df2fd5a31c15d2b6ce1a9eba0621a8097663746b7b799dd7"
 read_as: "approved_fallback"
-task: "CLE-T-0TBB0Z"
+task: "CLE-T-4H77EB"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "4334f18624139505956e45f46d50e08b14db71565861a5e3c98f517ce2f51428"
-etag: "sha256-2431dc707f5a34f02bc20e564499fc2da250906f9e04c0135a206e71b5636411"
+mirror_sha256: "cf3e41f26c25c2ba0948e88b17ec0d4e0a9c7389220f0a6461abae396eef8893"
+etag: "sha256-44feb778a3e289371532bd8b5d26da681cc972bf9c002437f3ed402d2410b59b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,14 +40,14 @@ etag: "sha256-2431dc707f5a34f02bc20e564499fc2da250906f9e04c0135a206e71b5636411"
 | `codebase/frontend/**` | 전면 적용. 메인 앱 화면·운영 콘솔·사용자 가이드(`/docs`)가 화면 문구 사전 경유(규칙 1·2)를 따른다 |
 | `codebase/backend/**` | 사용자에게 보이는 문자열의 영문 원문을 내보내는 곳이다(정적 경고 `warningRules[].message`, 그래프 경고 메시지, 노드 `label`·`hint` 등). 한국어 매핑은 프론트엔드 `backend-labels.ts` 가 맡는다(규칙 3~5). 어시스턴트 SSE `error` 코드와 통합 화면 에러 코드는 예외로 화면 모듈의 표(`ERROR_MESSAGE_KEYS`, `integration-error-codes.ts` 의 `INTEGRATION_ERROR_CODE_TO_I18N`)가 사전 키로 매핑한다(규칙 5, [백엔드 문구 매핑](CLE-UI-I18N-BACKEND.md)). 백엔드는 영문만 내보내고 매핑 파일은 프론트엔드에 있다 |
 | `codebase/packages/**` | 지금은 화면 문자열(TSX)이 없다. 화면 문자열이 생기면 이 범위를 다시 본다 |
-| `codebase/channel-web-chat/**` (웹채팅 위젯 SPA) | 일부만 적용. 아래 참조 |
+| `codebase/channel-web-chat/**` (웹채팅 위젯) | 일부만 적용. 아래 참조 |
 
 웹채팅 위젯의 적용 범위:
 
 - **메인 앱 사전 기구는 범위 밖이다.** 위젯은 따로 빌드되는 정적 번들이라 메인 앱 사전(`frontend/src/lib/i18n/dict`)과 `translate()`·`t()` 를 불러올 수 없다.
 - **위젯 화면 틀 문자열도 ko/en 동등성 원칙을 따른다(2026-07-12 영어 활성).** 다만 메인 앱 사전 파일과 `translate()` 대신 위젯 로컬 카탈로그를 쓴다. 카탈로그 구조·동등성 검사·대상 문구는 [웹채팅 위젯 §위젯 고유 문구 다국어](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md#위젯-고유-문구-다국어), `locale` 활성은 [웹채팅 SDK](../CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) 가 정한다.
 - **여전히 제외**: 운영자가 입력한 콘텐츠(`headerTitle`, `welcome`, `launcher.suggestions`, `disclaimer`), 백엔드 페이로드, AI 본문은 카탈로그 밖이다. 입력한 언어 그대로 보인다.
-- **경계**: 웹채팅 운영 콘솔(`codebase/frontend/src/app/(main)/w/[slug]/web-chat/**`)은 프론트엔드 화면이라 메인 앱 사전 대상이다([웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md)). 위젯 로컬 카탈로그를 쓰는 것은 위젯 SPA 뿐이다.
+- **경계**: 웹채팅 운영 콘솔(`codebase/frontend/src/app/(main)/w/[slug]/web-chat/**`)은 프론트엔드 화면이라 메인 앱 사전 대상이다([웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md)). 위젯 로컬 카탈로그를 쓰는 것은 웹채팅 위젯뿐이다.
 - **문체는 공유한다**: 위젯 화면 틀도 해요체(ko)·정중하고 간결한 영어(en)·용어 사전·금지어를 따른다. 제품 화면 사이의 말투를 맞추기 위해서다. 단 개발용 시뮬레이터(`codebase/channel-web-chat/src/app/demo/**`)는 배포되는 위젯이 아니라 개발자용 데모라 문체 규칙 밖이다(합쇼체가 남아 있어도 된다). 이 경로의 문체를 지적하는 것은 오탐이다.
 
 ## 규칙
@@ -89,7 +89,7 @@ etag: "sha256-2431dc707f5a34f02bc20e564499fc2da250906f9e04c0135a206e71b5636411"
    - 영어 형제 파일이 없는 것은 위반이 아니다. 한국어 본문과 안내 배너로 폴백하는 것이 의도한 동작이다.
    - 새 섹션 디렉터리(`<NN>-<name>/`)를 더하면 `codebase/frontend/src/lib/docs/locale.ts` 의 `SECTION_LABELS_BY_LOCALE` 두 로케일과 `codebase/frontend/src/lib/docs/registry.ts` 의 `SECTION_LABELS` 에 모두 등록한다([사용자 가이드](CLE-UI-GUIDE.md)).
 
-7. **용어와 문체(원본: Principle 6).** 사용자 가이드 본문(`codebase/frontend/src/content/docs/**`)과 화면에 보이는 한국어 문자열은 가이드 용어집(`codebase/frontend/src/content/docs/_glossary.md`)의 표기·문체·금지어를 따른다.
+7. **용어와 문체(원본: Principle 6).** 사용자 가이드 본문(`codebase/frontend/src/content/docs/**`)과 화면에 보이는 한국어 문자열은 가이드 용어집(`codebase/frontend/src/content/docs/_glossary.md`)의 표기·문체·금지어를 따른다. 스펙 본문의 표기는 [용어 사전](../CLE-GLOSSARY.md) 표기 원칙 1 이 따로 정한다.
    - 해요체로 통일한다. "~합니다", "~한다" 는 쓰지 않는다.
    - 예외: 누르면 그 문구를 사용자 메시지로 바로 보내는 예시 · 요청문(어시스턴트 예시 칩, "이어서 진행" 버튼)은 사용자 발화라서 사용자가 실제로 칠 말투를 따른다. 근거는 [사용자 발화 예시를 해요체에서 빼는 이유](#사용자-발화-예시를-해요체에서-빼는-이유-2026-11-14) 에 있다.
    - 금지어를 쓰지 않는다. 예: "엣지" → "연결선", "작업 흐름" → "워크플로우", "아웃풋" → "결과·출력".
@@ -126,11 +126,11 @@ etag: "sha256-2431dc707f5a34f02bc20e564499fc2da250906f9e04c0135a206e71b5636411"
 
 | 규칙 | 가드 위치 | 가드 종류 |
 | --- | --- | --- |
-| 1(화면 문자열 하드코딩) | `hardcoded-korean-ratchet.test.ts` 의 baseline ratchet(`hardcoded-korean-baseline.json`) | ratchet. 파일별 한국어 수가 baseline 을 넘거나 새 파일에 한국어 줄이 생기면 실패한다 |
+| 1(화면 문자열 하드코딩) | `hardcoded-korean-ratchet.test.ts` 의 baseline 단방향 래칫(`hardcoded-korean-baseline.json`) | 단방향 래칫. 파일별 한국어 수가 baseline 을 넘거나 새 파일에 한국어 줄이 생기면 실패한다 |
 | 2(ko/en 동등성) | `i18n.test.ts` 의 `dict parity (ko ↔ en)` | 빌드 실패 |
 | 2(위젯 화면 틀 ko/en 동등성) | 위젯 로컬 카탈로그 동등성 테스트(`catalog.test.ts`, [웹채팅 위젯](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md)) | 빌드 실패 |
 | 3(백엔드 라벨 매핑) | `backend-labels.test.ts` 의 `backend-labels parity`. 백엔드 `*.schema.ts` 에서 정적으로 뽑은 `warningRules[].message`·`NodeMetadata.label`·`NodeMetadata.description` 과 매핑 표 키의 차집합을 본다. 정적 파싱이라 동적 메시지(`` `${...}` ``), 명령형 `validateConfig` 반환, import 한 상수는 보지 못한다 | 빌드 실패 |
-| 4(`ui.*` 메타 매핑) | `ui-label-parity.test.ts`. 백엔드 `*.schema.ts` 를 문자열로 읽어 정규식으로 `label`·`hint`·`group`·`itemLabel` 리터럴을 뽑고(`z.toJSONSchema` 런타임 덤프가 아니라 정적 파싱이라 `label: someConst` 같은 동적 표현은 보지 못한다), `LABEL_KO`·`OPTION_LABEL_KO`·`NODE_LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO` 에 있는지 본다. [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 와 같은 "갱신 위치 여럿을 함께 바꾼다" 원칙이다 | ratchet. `KNOWN_MISSES` baseline 을 넘으면 빌드 실패 |
+| 4(`ui.*` 메타 매핑) | `ui-label-parity.test.ts`. 백엔드 `*.schema.ts` 를 문자열로 읽어 정규식으로 `label`·`hint`·`group`·`itemLabel` 리터럴을 뽑고(`z.toJSONSchema` 런타임 덤프가 아니라 정적 파싱이라 `label: someConst` 같은 동적 표현은 보지 못한다), `LABEL_KO`·`OPTION_LABEL_KO`·`NODE_LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO` 에 있는지 본다. [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 와 같은 "갱신 위치 여럿을 함께 바꾼다" 원칙이다 | 단방향 래칫. `KNOWN_MISSES` baseline 을 넘으면 빌드 실패 |
 | 5(코드·동적 메시지 매핑) | `backend-labels.test.ts` 의 그래프 경고 규칙 ID 동등성(`GRAPH_WARNING_RULES_BY_TYPE` 의 규칙, 그래프 수준 규칙(`UNESCAPABLE_CYCLE_RULE_ID`), 테스트의 백엔드 전용 목록에 등록한 규칙의 `ruleId` 가 모두 `GRAPH_WARNING_KO` 에 있는가. 백엔드 전용 규칙은 그 목록에 등록해야 가드가 본다. [그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md) 참고)과 등록 에러 코드 동등성(사용자 노출용으로 등록한 코드, 처음은 `GRAPH_VALIDATION_FAILED`, 이 `ERROR_KO` 에 있는가). 어시스턴트 SSE `error` 코드는 위 등록 코드 집합에 들어가지 않는다. 백엔드 문구 표와 프론트엔드 `ERROR_MESSAGE_KEYS` 의 코드 집합은 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 프론트엔드 소스의 `ERROR_MESSAGE_KEYS` 리터럴을 읽어 맞춘다. `backend-checks` 의 경로 목록에 그 프론트엔드 파일이 있어 프론트엔드만 바꾼 변경에서도 이 테스트가 돈다. 코드마다 사전 문구가 나오는지는 프론트엔드 테스트(`assistant-message-error.test.tsx`)가 따로 본다. 통합 화면 에러 코드는 `integration-error-codes.test.ts` 가 코드마다 사전 키를 단언하고 매핑 값의 타입(`TranslationKey`)이 사전에 없는 키를 타입 검사에서 막는다 | 빌드 실패 |
 | 5(원천 표 4행인 통합 화면 에러 토스트의 괄호에 붙는 서버 `message`, [백엔드 문구 매핑 §코드와 동적 메시지 매핑 (규칙 5)](CLE-UI-I18N-BACKEND.md#코드와-동적-메시지-매핑-규칙-5)) | 없음 | 사람 검수. 표에 코드를 더하는 리뷰에서 확인한다 |
 | 6(섹션 라벨) | `locale.test.ts` 의 `SECTION_LABELS_BY_LOCALE coverage` | 빌드 실패 |
@@ -166,17 +166,17 @@ etag: "sha256-2431dc707f5a34f02bc20e564499fc2da250906f9e04c0135a206e71b5636411"
 
 사전 키 동등성 가드는 사전만 본다. 백엔드에 노드를 더하고 `02-nodes/<cat>.mdx` 카탈로그에 노드 항목을 더하는 것을 잊는 일이 가드를 통과해 뒤 변경으로 메워져 왔다. 백엔드 노드 디렉터리와 MDX 본문의 차집합 검증이 이것을 확실하게 막는다.
 
-### 하드코딩 한국어 가드를 ratchet 으로 둔 이유
+### 하드코딩 한국어 가드를 단방향 래칫으로 둔 이유
 
-기존 코드에는 하드코딩 한국어가 남아 있어(주석·JSDoc 같은 정당한 잔존 포함) 한 번에 0 으로 만들 수 없다. baseline 허용 목록 ratchet 으로 "지금보다 늘지 않는다" 만 강제하면 점진적으로 0 에 다가갈 수 있다. ESLint 사용자 규칙은 후속 과제다.
+기존 코드에는 하드코딩 한국어가 남아 있어(주석·JSDoc 같은 정당한 잔존 포함) 한 번에 0 으로 만들 수 없다. baseline 허용 목록 단방향 래칫(줄면 통과한다)으로 "지금보다 늘지 않는다" 만 강제하면 점진적으로 0 에 다가갈 수 있다. ESLint 사용자 규칙은 후속 과제다.
 
 ### 영어 형제 파일 누락을 위반으로 보지 않는 이유
 
-가이드 로케일 규약이 한국어 본문과 안내 배너 폴백을 정상 동작으로 정한다. 영어 번역은 점진적으로 늘어나는 자산이다. 형제 파일이 없다고 빌드를 실패시키면 한국어 작성까지 막혀 작성 동력이 떨어진다. 영어 비율은 경고만 하는 ratchet 으로 따로 둘 수 있다.
+가이드 로케일 규약이 한국어 본문과 안내 배너 폴백을 정상 동작으로 정한다. 영어 번역은 점진적으로 늘어나는 자산이다. 형제 파일이 없다고 빌드를 실패시키면 한국어 작성까지 막혀 작성 동력이 떨어진다. 영어 비율은 경고만 하는 단방향 래칫으로 따로 둘 수 있다.
 
 ### 웹채팅 위젯이 메인 앱 사전 밖에서 자체 카탈로그를 쓰는 이유
 
-위젯(`codebase/channel-web-chat`)은 따로 빌드 · 배포하는(정적 export → CDN) 독립 SPA 라 메인 앱 사전과 `translate()` 를 불러올 수 없다. 처음에는 위젯이 한국어만 보여 사전 경유의 이득이 없어 메인 앱 사전 범위 밖에 두었다. 하드코딩 ratchet 과 문서 동기화 매트릭스 가드도 위젯을 보지 않았다.
+위젯(`codebase/channel-web-chat`)은 따로 빌드 · 배포하는(정적 export) 독립 앱이라 메인 앱 사전과 `translate()` 를 불러올 수 없다. 처음에는 위젯이 한국어만 보여 사전 경유의 이득이 없어 메인 앱 사전 범위 밖에 두었다. 하드코딩 한국어 래칫과 문서 동기화 매트릭스 가드도 위젯을 보지 않았다.
 
 2026-07-12 위젯 화면 틀의 영어 다국어화를 시작하면서 "이득이 없다" 는 전제는 폐기됐다. 이제 위젯 화면 틀에도 ko/en 동등성이 필요하다. 그러나 물리적 분리라는 근거는 그대로라, 위젯은 메인 앱 사전으로 들어가지 않고 위젯 로컬 카탈로그와 자체 동등성 테스트를 쓴다. 이 로컬 가드가, 위젯을 보지 않던 기존 가드의 빈자리를 메운다. 문체는 계속 공유한다.
 

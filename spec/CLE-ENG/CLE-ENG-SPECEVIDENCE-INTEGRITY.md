@@ -2,19 +2,19 @@
 id: "CLE-ENG-SPECEVIDENCE-INTEGRITY"
 title: "스펙과 구현 근거 규약 — 스펙 문서 저장소 무결성 가드"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG-SPECEVIDENCE"
 ancestors: ["CLE-VISION", "CLE-ENG", "CLE-ENG-SPECEVIDENCE"]
 area: "CLE-ENG"
-content_hash: "20c20cd9e977c7e55e5cf93fd4ce86587f3207b8100e6dd5b63e185337f7d32a"
+content_hash: "8c06598fe246a4aec2eaedbfe4e02d2d4508a2813227e69096e4e94083b574de"
 read_as: "approved_fallback"
-task: "CLE-T-0TBB0Z"
+task: "CLE-T-4H77EB"
 source_paths: []
-mirror_sha256: "48abe7267c8dd0bb54b3c20af4c64ed5bceb9cb908411df784312fdef1e85651"
-etag: "sha256-756910bac814c92b55a1d787b15cdf5714bba5d3ca4a32ca30774d9a77968f80"
+mirror_sha256: "d104a1ac62c98de05090377cef83537572975b697dab1ac342e3ecb3be08134b"
+etag: "sha256-f9c8ded94de111001254c40548fe60426b3f0ff7096c286f8d8fd2ba76217d72"
 ---
 ## 개요
 
@@ -103,9 +103,9 @@ NERV 정본 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 링크 무결성 �
 
 NERV 정본 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 링크가 아닌 언급을 보는 가드 두 개를 더했다. 옛 스펙 트리는 전환 단계 5 에서 지웠다. 그 트리를 경로로 적은 줄은 그때 모두 대상을 잃었다.
 
-한꺼번에 키로 바꾸는 안은 전환 계획에서 기각했다(주석 속 옛 경로는 래칫으로 막는다는 결정, NERV Task `CLE-T-M7K35H`). 계획은 옛 경로 언급이 늘지 않게만 막기로 정했다. 계획을 세운 2026-09-28 에 codebase 의 옛 경로 언급은 1,990줄 · 860개 파일이었다. `.md` 로 끝나는 경로만 센 값이다. 그 절반쯤은 여러 NERV 문서로 갈라진 옛 파일을 § 번호와 함께 가리킨다. 대부분의 NERV 제목에는 번호가 없다. 번호가 있어도 옛 § 번호와 1:1 로 대응하지 않는다. 그래서 기계로 옮길 수 없다. 860개 파일을 한 번에 고치면 리뷰할 범위도 지나치게 커진다. 전환 단계 4c 에서는 공개 표면과 경로 링크 43개만 바꿨다(R-14). 나머지는 늘지 않게만 막는다. 파일을 고칠 때 그 파일의 언급을 바꾼다.
+한꺼번에 키로 바꾸는 안은 전환 계획에서 기각했다(주석 속 옛 경로는 양방향 래칫으로 막는다는 결정, NERV Task `CLE-T-M7K35H`). 계획은 옛 경로 언급이 늘지 않게만 막기로 정했다. 계획을 세운 2026-09-28 에 codebase 의 옛 경로 언급은 1,990줄 · 860개 파일이었다. `.md` 로 끝나는 경로만 센 값이다. 그 절반쯤은 여러 NERV 문서로 갈라진 옛 파일을 § 번호와 함께 가리킨다. 대부분의 NERV 제목에는 번호가 없다. 번호가 있어도 옛 § 번호와 1:1 로 대응하지 않는다. 그래서 기계로 옮길 수 없다. 860개 파일을 한 번에 고치면 리뷰할 범위도 지나치게 커진다. 전환 단계 4c 에서는 공개 표면과 경로 링크 43개만 바꿨다(R-14). 나머지는 늘지 않게만 막는다. 파일을 고칠 때 그 파일의 언급을 바꾼다.
 
-- **옛 경로 래칫** `legacy-path-ratchet`: 래칫(ratchet)은 여기서 파일별 기준값보다 늘거나 줄면 실패하는 판정을 말한다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md) 의 양방향 래칫). 이 가드는 옛 스펙 트리 경로를 적은 줄과 지운 `plan/` 경로를 적은 줄을 파일별로 세어 기준값과 견준다. 줄었는데 기준값을 그대로 두면 줄어든 만큼 새 언급이 늘어도 실패하지 않는다. 그래서 줄어도 실패로 본다. 백엔드 · 프론트엔드 타입체크 래칫(`scripts/_typecheck_ratchet.py`)과 같은 판정이다. 형제 래칫 `hardcoded-korean-ratchet` 은 판정이 다르다(단방향 래칫). 그 래칫은 기준값보다 줄면 통과하고 낡은 기준값에는 경고만 낸다.
+- **옛 경로 래칫** `legacy-path-ratchet`: 래칫(ratchet)은 여기서 파일별 기준값보다 늘거나 줄면 실패하는 판정을 말한다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md) 의 양방향 래칫). 이 가드는 옛 스펙 트리 경로를 적은 줄과 지운 `plan/` 경로를 적은 줄을 파일별로 세어 기준값과 견준다. 줄었는데 기준값을 그대로 두면 줄어든 만큼 새 언급이 늘어도 실패하지 않는다. 그래서 줄어도 실패로 본다. 백엔드 · 프론트엔드 타입체크 래칫(`scripts/_typecheck_ratchet.py`, 양방향 래칫)과 같은 판정이다. 형제 가드 `hardcoded-korean-ratchet` 은 판정이 다르다(단방향 래칫). 그 래칫은 기준값보다 줄면 통과하고 낡은 기준값에는 경고만 낸다.
 - **세는 경로**: 옛 스펙 트리 경로는 옛 트리의 최상위 이름(`spec/<번호>-<영역>/` · `spec/conventions/` · `spec/data-flow/` · 루트 `spec/<번호>-<이름>.md`)으로 시작하는 경로다. 확장자는 요구하지 않는다. `.md` 를 뺀 인용(`spec/5-system/13-replay-rerun §7.2`), 줄 끝에서 끊긴 경로, 영역 이름만 적은 언급(`spec/7-channel-web-chat`), 글로브도 단계 5 뒤에는 가리킬 대상이 없기 때문이다. NERV 미러 경로(`spec/CLE-*` · `spec/README.md`)는 이 이름에 들지 않는다. `spec/` 없이 파일 이름만 적은 언급(`review-citations.md §3`)은 세지 않는다. 지운 `plan/` 경로는 `plan/in-progress/` · `plan/complete/` · `plan/research/` 로 시작하는 경로다.
 - **`plan/` 경로도 세는 이유**: `plan/` 은 전환 단계 3 에서 지운 트리라 옛 스펙 경로와 같은 문제가 있다. 남은 작업은 NERV Task 키(`CLE-T-…`)로 가리킨다. 끝난 일은 PR 번호나 커밋으로 가리킨다. 리뷰 지적을 가리키던 줄은 [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 을 따른다. 옛 커밋 산출물 `review/<종류>/<날짜>/<시각>` 인용은 그 규약의 규칙 1 이 유지하는 인용이라 래칫 밖이다.
 - **기준값**: 들일 때 기준값은 옛 스펙 경로 1,729줄 · 722개 파일과 `plan/` 경로 116줄 · 93개 파일이다(2026-10-03). 확장자 없는 인용까지 센 값이다.

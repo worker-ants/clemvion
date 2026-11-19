@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OBS"
 title: "용어 사전 — 관측과 운영"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "4d1a712a2ab7fab19584275ae13b9df7d6149e74f4af39d45bc38f40879d2bff"
+content_hash: "f91021b6ba31a15c8ff048a20cd202c6f0bf5761b0627581cbb1b11a2f9a780e"
 read_as: "approved_fallback"
-task: "CLE-T-42VJAY"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "58214d3f753e159b175f8d99e4b50f1118b01c2bc9eeb73dcea9d633b8219089"
-etag: "sha256-14d824f0a523853b522c2b86c6eab149b1ebb3f8ad678a74572299a5f9c4fdd7"
+mirror_sha256: "4a319ff2f798074abdf6fece13b2d935839e48398dba16ad556b3a40f8d900d3"
+etag: "sha256-09a6545a5eb627b405111708628209257ee6bab0ac71ec5c11a0d600768e3854"
 ---
 ## 개요
 
@@ -59,7 +59,6 @@ etag: "sha256-14d824f0a523853b522c2b86c6eab149b1ebb3f8ad678a74572299a5f9c4fdd7"
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「큐 건강도」 · 「알림 채널」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다. 「알림 유형」 은 값 개수(열 가지)를 지우고 대표 값만 남겼다. 값이 늘 때마다 정의가 낡는다.
 - 「최근 실패·누적 보관」 · 「로그인 이력」 · 「평가 기간」 · 「보존 배치」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).
 

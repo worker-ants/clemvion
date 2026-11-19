@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-NODE"
 title: "용어 사전 — 노드"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "217729ad5acc97ba7a027c8ed7ca6a3c6a1d3bfc655906b8e1d7c80c8353a4ba"
+content_hash: "3a67afaceabbf75f602c7bc5772c9171f4d280c728314b1706030792787e087c"
 read_as: "approved_fallback"
-task: "CLE-T-KPDDKB"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "3d09d6f2f6b736348292ad2e940b2417f44ba17ae16bf7ea66e8ea75357d0422"
-etag: "sha256-326dcb4e8f24ce41d6c2156db78c8f19b538a5d75464563fb5693f467c517e41"
+mirror_sha256: "7068b1fee6474d6cd9e627d22ce7351afd0e95d9a35e9c209ec5edadbf2ca7f1"
+etag: "sha256-711536343770f66e7cbd6feaae1b217de78e3641c6a75dc9eae393f90cfebb62"
 ---
 ## 개요
 
@@ -39,7 +39,7 @@ etag: "sha256-326dcb4e8f24ce41d6c2156db78c8f19b538a5d75464563fb5693f467c517e41"
 | 패스스루 | pass-through | 입력을 바꾸지 않고 출력으로 넘기는 노드 규약. If/Else·Switch·변수 선언·변수 수정·Background 가 따른다. | 패스 스루, Pass-through(본문) | [Logic 노드 공통](CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md) |
 | 사전 검증 에러 | pre-flight error, `handler.validate` | 설정이나 그래프 문제로 핸들러가 시작하기 전에 던지는 에러. 에러 포트로 가지 않고 실행을 실패로 끝낸다. | Pre-flight(본문), pre-flight throw | [노드 에러 처리 정책](CLE-NODE/CLE-NODE-ERROR.md) |
 | 런타임 에러 | runtime error, `output.error` | 외부 호출 실패처럼 실행 중에 난 에러. 에러 포트와 `output.error` 로 내보낸다. | 없음 | [노드 에러 처리 정책](CLE-NODE/CLE-NODE-ERROR.md) |
-| 에러 처리 정책 | Error Handling, `config.errorHandling.policy` | 노드가 실패했을 때의 동작. 값과 본문 표기는 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. 화면 라벨은 "오류 처리" 다. | 에러 정책, 실패 정책, errorPolicy(이 뜻으로) | [노드 에러 처리 정책](CLE-NODE/CLE-NODE-ERROR.md) |
+| 에러 처리 정책 | Error Handling, `config.errorHandling.policy` | 노드가 실패했을 때의 동작. 값과 본문 표기는 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. 화면 라벨은 "오류 처리" 다. | 에러 정책, 실패 정책(이 뜻으로), errorPolicy(이 뜻으로) | [노드 에러 처리 정책](CLE-NODE/CLE-NODE-ERROR.md) |
 | 항목 에러 정책 | item error policy, `config.errorPolicy` | ForEach·Map·Parallel 이 항목이나 분기 하나가 실패할 때 쓰는 정책. 노드별 값은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. 에러 처리 정책과 다른 설정이다. | errorPolicy(본문 단독) | [Logic 노드 공통](CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md) |
 | 기본 출력 | default output, `defaultOutput` | 에러 처리 정책이 "기본 출력 사용" 일 때 실패 대신 내보내는 JSON. | 기본 출력값 | [노드 에러 처리 정책](CLE-NODE/CLE-NODE-ERROR.md) |
 | 노드 재시도 | node retry, `retryConfig` | 에러 처리 정책의 재시도. 최대 횟수와 간격을 정해 같은 노드를 다시 부른다. | 리트라이 정책 | [노드 에러 처리 정책](CLE-NODE/CLE-NODE-ERROR.md) |
@@ -97,7 +97,7 @@ etag: "sha256-326dcb4e8f24ce41d6c2156db78c8f19b538a5d75464563fb5693f467c517e41"
 | 표시물 페이로드 | `PresentationPayload` | 표시 도구가 만든 결과. 대화 기록 항목의 `presentations[]` 에 담긴다. | 없음 | [AI 에이전트 노드 출력과 디버그](CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) |
 | 도구 호출 한도 | `maxToolCalls` | AI 노드 한 번 실행에서 허용하는 도구 호출 횟수. 조건 도구는 세지 않는다. | 없음 | [AI 에이전트 노드](CLE-NODE-AI/CLE-NODE-AGENT.md) |
 | 도구 정의 크기 예산 | tool-definition payload budget | LLM 요청에 싣는 도구 정의 전체의 직렬화 크기 상한. 넘으면 LLM 을 부르기 전에 에러 포트로 보낸다. | 없음 | [AI 에이전트 노드](CLE-NODE-AI/CLE-NODE-AGENT.md) |
-| 메모리 전략 | `memoryStrategy` | 대화 맥락을 다루는 방식. `manual` 은 대화 맥락 설정대로, `summary_buffer` 는 실행 안 롤링 요약, `persistent` 는 요약에 에이전트 메모리를 더한다. | 관리 축, 자동 컨텍스트 메모리 전략 | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
+| 메모리 전략 | `memoryStrategy` | 대화 맥락을 다루는 방식. `manual` 은 대화 맥락 설정대로, `summary_buffer` 는 실행 안 롤링 요약, `persistent` 는 요약에 에이전트 메모리를 더한다. 노드마다 쓸 수 있는 값이 다르다. | 관리 축, 자동 컨텍스트 메모리 전략 | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
 | 대화 맥락 설정 | Conversation Context, `contextScope` | 대화 스레드를 LLM 입력에 얼마나, 어떤 형식으로 넣을지 정하는 AI 노드 공통 설정. | 범위 축, contextScope 계열 5필드 | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
 | 롤링 요약 | running summary, `runningSummary` | 한 실행 안에서 오래된 대화 턴을 줄여 둔 요약. | working-memory 압축, 요약 블록 | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
 | 시스템 컨텍스트 접두 | `includeSystemContext` | AI 노드 시스템 프롬프트 앞에 현재 시각과 시간대를 자동으로 붙이는 옵션. | System Context Prefix(본문) | [AI 노드 공통](CLE-NODE-AI/CLE-NODE-AI-COMMON.md) |
@@ -145,7 +145,6 @@ etag: "sha256-326dcb4e8f24ce41d6c2156db78c8f19b538a5d75464563fb5693f467c517e41"
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「노드 출력」: 한 문장에 담긴 저장 위치 두 곳을 풀어 썼다.
 - 「흐름 지시 상태」 · 「항목 에러 정책」 · 「에러 처리 정책」 · 「사용자 입력 기록」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다.
 - 「재귀 깊이」 · 「도구 호출 한도」 · 「종료 사유」 · 「표시 전용」 · 「출력 크기 한도」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14). 「폼 필드」 는 유형 개수를 지웠다.

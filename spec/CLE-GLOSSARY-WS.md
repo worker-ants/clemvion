@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WS"
 title: "용어 사전 — 제품과 작업 공간"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "2be166e283c674ce50171bae46e26f4f5ee6cc9490a244e4ab76015cd10f37fd"
+content_hash: "1c22827aead21c4aa52dfcc219a65729134da4ac2195987ec3ccf4c4aefcf9f8"
 read_as: "approved_fallback"
-task: "CLE-T-2NQ857"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "42d23c2af5713d17731049d8e4599669c571c774a967f9ea5563d02615cc50ca"
-etag: "sha256-d326864946b3690c0a87e3853276ce5717be3f192c99ec715bfcafe75ffcbdd0"
+mirror_sha256: "cb26c9e4f7fc72a8c50dcde61cd169008332ffaa759cb398daaa6bde5fcc0a2b"
+etag: "sha256-98078da80f81e0e0b60b4cfad2153c7163471f84b96ee40d90e0495e58f007d1"
 ---
 ## 개요
 
@@ -75,7 +75,7 @@ etag: "sha256-d326864946b3690c0a87e3853276ce5717be3f192c99ec715bfcafe75ffcbdd0"
 | 내 프로필 | profile | 이름·비밀번호·언어·테마·보안 설정을 바꾸는 화면. | 없음 | [내 프로필](CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | 사용자 가이드 | User Guide, `/docs` | 앱 안에서 보는 한국어·영어 사용 설명서. | 유저 가이드, 사용자 매뉴얼, 매뉴얼, User Guide(본문) | [사용자 가이드](CLE-UI/CLE-UI-GUIDE.md) |
 | 빈 상태 | empty state, `EmptyState` | 데이터가 없거나 필터 결과가 0건일 때 보이는 안내와 버튼. | Empty State(본문) | [오류 화면과 빈 상태](CLE-UI/CLE-UI-ERRORS.md) |
-| 전체 화면 오류 | error page variant | 세션 만료·권한 없음·페이지 없음·서버 에러·네트워크 오류 다섯 경우에 보이는 전체 화면 안내. | 없음 | [오류 화면과 빈 상태](CLE-UI/CLE-UI-ERRORS.md) |
+| 전체 화면 오류 | error page variant | 세션 만료·권한 없음·페이지 없음·서버 에러·네트워크 에러 때 보이는 전체 화면 안내. | 없음 | [오류 화면과 빈 상태](CLE-UI/CLE-UI-ERRORS.md) |
 | 인라인 안내 | inline alert | 화면 안에 계속 보이는 안내 상자. 인앱 알림과 다르다. | Inline Alert, 인라인 알림 | [레이아웃과 내비게이션](CLE-UI/CLE-UI-LAYOUT.md) |
 | 상세 드로어 | detail drawer, `SlideDrawer` | 목록 행을 누르면 오른쪽에서 열리는 상세 패널. | 상세 패널, 우측 슬라이드 패널, drawer(본문) | [레이아웃과 내비게이션](CLE-UI/CLE-UI-LAYOUT.md) |
 | 딥링크 | deep link | 특정 리소스 화면을 곧바로 여는 링크. 알림에서 리소스로, 스케줄에서 트리거로 이동할 때 쓴다. | drill-down | [레이아웃과 내비게이션](CLE-UI/CLE-UI-LAYOUT.md) |
@@ -95,7 +95,6 @@ etag: "sha256-d326864946b3690c0a87e3853276ce5717be3f192c99ec715bfcafe75ffcbdd0"
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「편집자」 의 결정 항목에 번호를 붙였다. D10(editor 역할의 화면 라벨)이다.
 - 「현재 워크스페이스」 · 「참조의 소속」: 비문과 한 칸에 몰린 정보를 문장으로 나눴다. 「현재 워크스페이스」 의 옛 정의는 지금의 우선순위(헤더 먼저)만 적었다. 이번에 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 장기 기준(토큰 클레임이 정본)을 함께 적었다. 지금 인가가 헤더를 먼저 보는 것은 그대로다. 2026-10-04 에 이 우선순위 설명은 정의 칸에서 뺐다(위 소절).
 - 「초대」 · 「초대 토큰」 · 「복구 코드」 · 「계정 잠금」 · 「액세스 토큰」 · 「로그인 유지」 · 「로그인 힌트 쿠키」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).

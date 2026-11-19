@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-IX"
 title: "용어 사전 — 외부 상호작용과 채널"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "062b39cb0bd57184336806998f5f0e767f686d8aa9e325cd3ce9699d6da504dc"
+content_hash: "021dae648c6b86cc174353a06a4d0a563b716bb88744d687b84a14beb206e56d"
 read_as: "approved_fallback"
-task: "CLE-T-5NBJKP"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "bdf9e3ebd24a836c67d8698256f212f092680670720a14c9cbbf116d3988c376"
-etag: "sha256-0e40dd545610e88aaac282f39521db62aa2f12233d9a167f73413391e9be181d"
+mirror_sha256: "d465f44d3ecd148534be9a9b2230f0cf5cfb2bd1ee5eac6a7873906ef28cf7da"
+etag: "sha256-72a95b86fb17821c941c598dad2791ea4d515d098a3e022fda9de02b22a2f6a1"
 ---
 ## 개요
 
@@ -25,7 +25,7 @@ etag: "sha256-0e40dd545610e88aaac282f39521db62aa2f12233d9a167f73413391e9be181d"
 | 표준 용어 | 영문 · 코드 식별자 | 정의 | 쓰지 않는 표기 | 기준 문서 |
 | --- | --- | --- | --- | --- |
 | External Interaction API | External Interaction API, EIA, `/api/external/*` | 실행 중인 워크플로우와 외부 시스템이 주고받는 공개 API. 나가는 EIA 알림 웹훅과 들어오는 REST·SSE 두 채널로 되어 있다. 화면 라벨은 "외부 인터랙션" 이다. | 외부 상호작용 API, 외부 표면(이 뜻으로), 트리거-원격 인터랙션 채널 | [External Interaction API](CLE-IX/CLE-EIA.md) |
-| EIA 알림 웹훅 | Outbound Notification Webhook, `config.notification` | 실행 이벤트 다섯 종류를 트리거에 등록한 외부 URL 로 HMAC 서명해 보내는 채널. 인앱 알림과 다르다. | notification webhook, outbound notification, 알림(단독) | [EIA 알림 웹훅](CLE-IX/CLE-EIA-NOTIFY.md) |
+| EIA 알림 웹훅 | Outbound Notification Webhook, `config.notification` | 실행 이벤트를 트리거에 등록한 외부 URL 로 HMAC 서명해 보내는 채널. 인앱 알림과 다르다. | notification webhook, outbound notification, 알림(단독) | [EIA 알림 웹훅](CLE-IX/CLE-EIA-NOTIFY.md) |
 | 인바운드 인터랙션 | Inbound Interaction | 외부 클라이언트가 REST 로 명령을 보내고 SSE 로 이벤트를 받는 채널. | 없음 | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
 | 인터랙션 명령 | interaction commands | `submit_form`, `click_button`, `submit_message`, `end_conversation`, `cancel`. 앞의 넷은 재개 명령이다. | 없음 | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
 | 인터랙션 토큰 | interaction token | EIA 인바운드 요청을 인증하는 토큰. 실행 단위 토큰과 트리거 단위 토큰이 있다. | 없음 | [External Interaction API](CLE-IX/CLE-EIA.md) |
@@ -43,12 +43,12 @@ etag: "sha256-0e40dd545610e88aaac282f39521db62aa2f12233d9a167f73413391e9be181d"
 | 표시 메시지 이벤트 | `execution.message` | 버튼 없는 Presentation 노드 결과를 SSE 로 알리는 이벤트. AI 응답 이벤트(`execution.ai_message`)와 다르다. | 없음 | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
 | 대기 노드 ID | `waitingNodeId` | 입력 대기 중인 노드를 가리키는 wire 필드. 문서의 논리 표기 `node.id` 와 같은 값이다. | 없음 | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
 | 대기 표면 | `WaitingInteractionType` | 입력 대기 노드가 무엇을 기다리는지 나타내는 값. 값과 본문 표기는 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | interactionType(이 뜻으로 단독), 인터랙션 표면 | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
-| 사용자 행동 기록 | `interaction_data.interactionType` | 사용자가 실제로 한 행동(form_submitted, button_click, button_continue). 대기 표면과 이름만 같은 별개 값이다. | interactionType(이 뜻으로 단독) | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
-| 인터랙션 유형 레지스트리 | interaction type registry | 여러 계층이 함께 쓰는 인터랙션 값의 단일 목록. | 없음 | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
+| 사용자 행동 기록 | `interaction_data.interactionType` | 사용자가 실제로 한 행동(`form_submitted`, `button_click`, `button_continue`). 대기 표면과 이름만 같은 별개 값이다. | interactionType(이 뜻으로 단독) | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
+| 인터랙션 타입 레지스트리 | interaction type registry | 여러 계층이 함께 쓰는 인터랙션 값의 단일 목록. | 인터랙션 유형 레지스트리 | [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) |
 | 대화 스레드 | ConversationThread | 실행 동안 사용자 인터랙션과 AI 대화를 시간순으로 쌓는 기록. park 할 때 실행에 저장한다. | Conversation Thread, conversation thread, thread(본문) | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
 | 대화 기록 항목 | `ConversationTurn` | 대화 스레드에 쌓이는 바뀌지 않는 기록 한 건. AI 대화 턴 하나가 항목 여러 개를 만든다. | turn(이 뜻으로) | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
-| 항목 출처 | `ConversationTurnSource` | 대화 기록 항목이 어디서 왔는지 나타내는 값. 화면은 백엔드 값에 두 값을 더한다. 값은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | source(단독) | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
-| 사용자 입력 마커 | `[user-input]` | 사용자 텍스트를 감싸 프롬프트 주입을 막는 표시. 화면에서는 지운다. | 마커(단독) | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
+| 항목 출처 | `ConversationTurnSource` | 대화 기록 항목이 어디서 왔는지 나타내는 값. 화면은 백엔드 값에 화면 전용 값을 더한다. 값은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | source(단독) | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
+| 사용자 입력 마커 | `[user-input]` | Presentation 노드를 거친 사용자 텍스트를 LLM 쪽에서 감싸 프롬프트 주입을 막는 표시. 화면에서는 지운다. | 마커(단독) | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
 | 출처 접두 | `[from <nodeLabel>]` | LLM 에 보낼 때만 붙이는 노드 출처 표시. | 없음 | [대화 스레드](CLE-IX/CLE-IX-THREAD.md) |
 | 채팅 채널 | Chat Channel, `config.chatChannel` | Telegram·Slack·Discord 봇을 웹훅 트리거에 연결해 워크플로우를 대화로 돌리는 기능. 새 트리거 유형이 아니라 웹훅 트리거 설정이다. 화면 라벨은 "Chat Channel" 이다. | 챗 채널, chat channel(본문), Chat Channel(본문), 채널(단독) | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 채널 프로바이더 | `provider` | 채팅 채널이 붙는 외부 메신저. 만든 뒤 바꿀 수 없다. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. 채팅 채널 영역 문서는 개요에서 단독 「프로바이더」 를 이 뜻으로 정의하면 그렇게 줄여 쓸 수 있다. | provider(본문 단독) | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
@@ -67,14 +67,14 @@ etag: "sha256-0e40dd545610e88aaac282f39521db62aa2f12233d9a167f73413391e9be181d"
 | 중복 제거 키 | `idempotencyKey` | 메신저가 같은 update 를 다시 보낼 때 짧은 기간 안에 다시 온 것을 거르는 키. EIA 멱등 키와 다르다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 실행 실패 안내 분류 | `classifyExecutionFailure` | 실패 원인을 채널 안내 문구 키 가운데 하나로 고르는 함수. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 제어 안내 | control-plane message | 도움말·그룹 채팅 거절처럼 노드 렌더를 거치지 않고 바로 보내는 봇 안내. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
-| 웹채팅 | Web Chat, `channel-web-chat` | 고객 사이트에 넣는 임베드형 채팅 위젯과 그 SDK·운영 콘솔 전체. 사이드바 메뉴 이름과 같다. | 웹챗, Web Chat(본문), Channel Web Chat, 채팅 위젯 | [웹채팅](CLE-WEBCHAT/CLE-WEBCHAT.md) |
-| 웹채팅 위젯 | web chat widget | iframe 안에서 도는 채팅 화면 SPA. | 위젯 SPA, 동봉 위젯, 공개 위젯, 임베드 위젯, 익명 위젯 | [웹채팅 위젯](CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md) |
+| 웹채팅 | Web Chat, `channel-web-chat` | 외부 웹페이지에 넣는 웹채팅 위젯과 웹채팅 SDK·운영 콘솔 전체. 사이드바 메뉴 이름과 같다. | 웹챗, Web Chat(본문), Channel Web Chat, 채팅 위젯 | [웹채팅](CLE-WEBCHAT/CLE-WEBCHAT.md) |
+| 웹채팅 위젯 | web chat widget | iframe 안에서 도는 채팅 화면 앱(SPA). | 위젯 SPA, 동봉 위젯, 공개 위젯, 임베드 위젯, 익명 위젯 | [웹채팅 위젯](CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md) |
 | 웹채팅 SDK | `@workflow/web-chat`, `ClemvionChat` | 호스트 페이지가 위젯을 넣고 조작하는 SDK. | 위젯 SDK | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
-| 스니펫 로더 | `loader.js` | 설치 스크립트가 불러오는 SDK 파일. | 없음 | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
+| 스니펫 로더 | `loader.js` | 설치 스크립트가 불러오는 웹채팅 SDK 파일. | 없음 | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
 | EIA 클라이언트 SDK | `@workflow/sdk` | EIA HTTP·SSE 를 직접 부르는 별도 클라이언트. 웹채팅 SDK 와 다르다. | SDK(단독), headless client | [웹채팅 구조](CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) |
 | 웹채팅 운영 콘솔 | admin console, `/web-chat` | 제품 안에서 웹채팅을 만들고 외형·설치 스크립트·미리보기를 다루는 화면. | admin 콘솔, 콘솔(단독) | [웹채팅 운영 콘솔](CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) |
 | 웹채팅 인스턴스 | web chat instance | 인터랙션이 켜진 웹훅 트리거와 연결 워크플로우 한 쌍. 새 엔티티를 만들지 않는다. | 인스턴스(단독) | [웹채팅 운영 콘솔](CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) |
-| 제어 인스턴스 | `ChatInstance` | SDK `boot()` 가 돌려주는 JS 제어 객체. | 공개 인스턴스 | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
+| 제어 인스턴스 | `ChatInstance` | 웹채팅 SDK `boot()` 가 돌려주는 JS 제어 객체. | 공개 인스턴스 | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
 | 부팅 설정 | `BootConfig` | 위젯을 띄울 때 넘기는 설정 객체. 인증 토큰은 넣지 않는다. | boot 옵션 | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
 | 외형 | appearance, `config.interaction.appearance` | 운영 콘솔이 저장하는 위젯 색·위치·봇 이름·환영 메시지 같은 표시 설정. 화면 라벨은 "외형 · 콘텐츠" 다. | 외형/콘텐츠 | [웹채팅 운영 콘솔](CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) |
 | 설치 스크립트 | install snippet | 호스트 사이트 `</body>` 앞에 붙이는 설치 코드. 큐 스텁과 로더 두 블록이다. | 설치 스니펫, 스니펫(단독) | [웹채팅 운영 콘솔](CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) |
@@ -87,9 +87,9 @@ etag: "sha256-0e40dd545610e88aaac282f39521db62aa2f12233d9a167f73413391e9be181d"
 | 위젯 세션 | widget session | 위젯이 sessionStorage 에 보관하는 대화 한 건(실행 ID·토큰·API 주소). 로그인 세션과 다르다. | 저장 세션, 세션(단독) | [웹채팅 인증과 세션](CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md) |
 | 임베드 허용 도메인 | `interactionAllowedOrigins` | 위젯을 넣을 수 있는 호스트 origin 이면서 EIA CORS 추가 허용 목록인 워크스페이스 설정. | CORS allowlist, 임베드 allowlist | [웹채팅 보안](CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) |
 | 임베드 검증 | embed check, `embed-config` | 위젯이 뜰 때 호스트 origin 을 임베드 허용 도메인과 비교하는 클라이언트 검증. 맞지 않으면 차단(`blocked`) 상태가 된다. | soft 검증 | [웹채팅 보안](CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) |
-| 위젯 배포 주소 | widget CDN base | 위젯 SPA 와 로더를 서빙하는 origin. 기본값은 배포 자신의 주소다. | 위젯 CDN(기본 배포를 가리킬 때) | [웹채팅 구조](CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) |
+| 위젯 배포 주소 | widget CDN base | 웹채팅 위젯과 로더를 서빙하는 origin. 기본값은 배포 자신의 주소다. | 위젯 CDN(기본 배포를 가리킬 때) | [웹채팅 구조](CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) |
 | 동봉 배포 | co-deploy | 위젯을 제품과 같은 릴리스로 묶어 같은 origin 에서 서빙하는 배포 방식. | 동봉(이 뜻으로 단독) | [웹채팅 구조](CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) |
-| 호스트 페이지 | host page | 위젯을 올리는 고객 웹페이지. | 호스트(단독), 고객 사이트 | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
+| 호스트 페이지 | host page | 웹채팅 위젯을 올리는 외부 웹페이지. | 호스트(단독), 고객 사이트 | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
 | postMessage 프로토콜 | `wc:*` | 호스트 페이지와 위젯 iframe 사이의 메시지 규약. | 브리지(단독) | [웹채팅 SDK](CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) |
 | 위젯 고유 문구 | widget chrome | 위젯이 스스로 그리는 UI 문자열. 운영자가 넣은 콘텐츠와 AI 응답은 빠진다. | chrome, 위젯 chrome | [웹채팅 위젯](CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md) |
 | 유휴 실행 회수 | `WEBCHAT_IDLE_TIMEOUT` | 버려진 웹채팅 위젯 실행을, 토큰이 모두 만료되고 유예 시간이 지나면 취소하는 장치. | idle reaper, backstop, B-2 | [웹채팅 인증과 세션](CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md) |
@@ -99,6 +99,11 @@ etag: "sha256-0e40dd545610e88aaac282f39521db62aa2f12233d9a167f73413391e9be181d"
 ## Rationale
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「외부 상호작용과 채널」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
+
+### 웹채팅 위젯 정의를 다듬었다 (2026-11-19)
+
+- 「웹채팅」 · 「웹채팅 위젯」 · 「호스트 페이지」 · 「위젯 배포 주소」: 「웹채팅」 은 외부 웹페이지에 넣는 위젯을 포함한다고 적고 「웹채팅 위젯」 은 「채팅 화면 앱(SPA)」 으로 정의했다. 웹채팅 SDK 표기도 맞췄다. 쓰지 않는 표기(공개 · 익명 · 임베드 · 동봉 위젯, 위젯 SPA, 고객 사이트)는 「웹채팅 위젯」 · 「호스트 페이지」 행에 둔다. 사전 밖 본문 17편의 정리는 NERV Task `CLE-T-JNXZWY` 가 맡는다.
+- 「인터랙션 타입 레지스트리」: 행 이름을 문서 제목과 같은 「타입」 으로 맞추고 「유형」 을 쓰지 않는 표기로 옮겼다.
 
 ### 「실행 소유자」 를 더했다 (2026-11-14)
 
@@ -125,13 +130,12 @@ NERV Task `CLE-T-6YY7KY` 가 고쳤다. 옛 정의는 `rotate-secret` 동작 하
 
 ### 미러 반영 리뷰 뒤 고친 행 (2026-10-04)
 
-- 「대기 표면」: 「EIA 밖으로 나가는 값이 따로 있다」 를 지웠다. 값과 본문 표기는 그대로 색인 「상태값과 enum 표기」 를 가리킨다(색인 「정의 보정 (2026-10-03)」 의 「상태값의 정본」, 개요의 한 줄 정의 원칙). 외부에 나가는 값의 구분은 색인 행에만 적는다.
+- 「대기 표면」: 「EIA 밖으로 나가는 값이 따로 있다」 를 지웠다. 값과 본문 표기는 그대로 색인 「상태값과 enum 표기」 를 가리킨다(색인 「정의 보정 (2026-10-03)」 의 「상태값의 정본」, 개요의 한 줄 정의 원칙). 경로별로 나가는 값은 [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) 가 적는다(2026-11-19 색인 행도 그 문서를 가리키게 고쳤다).
 
 ### 정의 보정 (2026-10-03)
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 정의에서 기준 문서의 수치(토큰 수명 · 재전송 기간 · Redis 수명 · 중복 제거 창 · 회수 대기)를 뺐다(색인 표기 원칙 14). 비밀을 함께 받는 기간은 표준 용어 「24시간 유예」 로 부른다.
 - 「폼 모드」 · 「대기 표면」 · 「발송 건강도」 · 「채널 건강도」 · 「채널 프로바이더」 · 「항목 출처」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다. 「실행 실패 안내 분류」 는 안내 문구 키의 개수를 지웠다. 키가 늘 때마다 정의가 낡는다. 「사용자 행동 기록」(`interactionType`)은 색인 표에 없는 값이라 목록을 둔다.
 

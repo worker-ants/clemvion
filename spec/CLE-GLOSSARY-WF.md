@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WF"
 title: "용어 사전 — 워크플로우 작성"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "413b1af8d50450f6a47a84042a8611401bcfa20e18157d72fff2c408a02819fb"
+content_hash: "d81d69799c1519e21e3f73ccf54e6432028eea8ea58281032df861cd3a4f7b2f"
 read_as: "approved_fallback"
-task: "CLE-T-D6C9HJ"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "b775e3c7401ce83eec6cefad9806bac0c0a13c6c11089310fe61054312cd9821"
-etag: "sha256-3d61e700e09a671dcc8fc029b8d3b44522425ee5e9c5d46ef52be06b8331ce18"
+mirror_sha256: "6e3a15285f85c44da203a1d58ff09bbff9ccb93141fd4610066663f37b322701"
+etag: "sha256-61bc530756437ee9062bf914c38d8268482aa3bbfa212fea13db60c4fa791207"
 ---
 ## 개요
 
@@ -109,7 +109,6 @@ etag: "sha256-3d61e700e09a671dcc8fc029b8d3b44522425ee5e9c5d46ef52be06b8331ce18"
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「노드 메모」 · 「컨테이너」 · 「계획 카드」 의 결정 항목에 번호를 붙였다. D48(노드 메모 저장 필드), D17(컨테이너의 범위), D38(계획 카드의 화면 제목)이다.
 - 「소유 필터」: 「공유된 워크플로우」 는 필터 값 이름이고 팀 배지가 따르는 「공유」 정의는 팀 워크스페이스 단위라고 적었다([워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) Rationale).
 - 「폴더」 · 「시작 가이드 카드」 · 「자동 이어서 진행」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).

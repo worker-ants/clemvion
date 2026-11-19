@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "8db555fdd708ec7e4ccd20727a36f0c4d87834a23d5c576fc501272cddce73fe"
+content_hash: "484ce31942e5dcd19d5c6a2d0f3c4ec33578d7f39c091e7e42b311abe60ae8af"
 read_as: "approved_fallback"
-task: "CLE-T-10N47M"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "005283160aabeede8811ca37b56380ca8f91dda08dd074598fcad3951e55947e"
-etag: "sha256-f7430af7707b4f8089d07946e938299c204616ef81e8531ca7dccb55311c82bb"
+mirror_sha256: "b1cf6270b74308a74faf1bbc8164f7164c67a663b7a7568e716bfca1fce1c9a1"
+etag: "sha256-76106607d2c1664871f5be73cdcee01983ec51a1585994a071769efb8dcf0834"
 ---
 ## 개요
 
@@ -108,7 +108,6 @@ etag: "sha256-f7430af7707b4f8089d07946e938299c204616ef81e8531ca7dccb55311c82bb"
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 금지어를 정의에서 뺐다. 「서비스 유형」 의 「서비스 종류」, 「Cafe24」 · 「MakeShop」 의 한국어 서비스명, 「별도 승인」 의 「본사 승인」 이다(표기 원칙 6 · 12).
 - 「자동 갱신 표시」 · 「통합 암호화 키」 의 결정 항목에 번호를 붙였다. D41(「자동 갱신」 의 두 판정), D40(통합 자격 증명 암호화 키 이름)이다.
 - 정의에서 기준 문서의 수치(만료 임계 · 보존 기간 · 수명 · 횟수 · 토큰 길이 · 분류 개수)를 뺐다(색인 표기 원칙 14).

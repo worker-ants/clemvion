@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-ARCH"
 title: "웹채팅 구조"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "39ad7f8363f814f2fcd34b08926a5a2622ae0ec2e851003c3ae5caca6654510b"
+content_hash: "90c27bb718fea8000bf44fb1ff48579dee6ca318256e9a94cb205409296c10f8"
 read_as: "approved_fallback"
-task: "CLE-T-7MSJJR"
+task: "CLE-T-VTA8KJ"
 source_paths: ["spec/7-channel-web-chat/0-architecture.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "fa4c79560fd72e4e173e50d742cf833d4e234c2df7d79b868df441a239e01078"
-etag: "sha256-a7fcef40b4191f61362d0af5f8ed8c779e191cc5f24c62c8c037c84b8f432323"
+mirror_sha256: "bdd5981eccfa30a1ec86a471c32ccf86b692a2b8a73a1cb8e589822ceecb5e59"
+etag: "sha256-66c070dc2b41249d084990bc7c18457e33db66d3d3172948a027e30814674418"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/0-architecture.md`, `spec/7-channel-web-chat/5-admin-console.md` (R4·R6 의 배포 결정 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,7 +58,7 @@ flowchart TB
 
 ### iframe 문서는 정적 자산이다
 
-- 로더가 iframe 을 만들지만 `src` 는 정적이고 바뀌지 않는 CDN 파일(`output:'export'` 산출물)이다. CDN 캐시가 맞으면 클라이언트가 늘어도 서버에 요청마다 부담이 생기지 않는다. 동적 렌더링이 아니다.
+- 로더가 iframe 을 만들지만 `src` 는 정적이고 바뀌지 않는 파일(`output:'export'` 산출물)이다. 기본 배포는 이 파일을 배포 자신의 origin 에서 서빙하고(동봉 배포) 엣지 CDN 은 선택이다. 캐시가 맞으면 클라이언트가 늘어도 서버에 요청마다 부담이 생기지 않는다. 동적 렌더링이 아니다.
 - `srcdoc`·`about:blank` 로 문서를 직접 만드는 방식은 기각한다. 그런 iframe 은 호스트 origin 을 물려받아 cross-origin 격리가 깨진다. 격리하려면 iframe 은 반드시 다른 origin 의 실제 `src` 여야 한다.
 - 예외: [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)의 라이브 미리보기는 cross-origin 격리가 목적이 아니다. 그래서 same-origin 동봉 위젯을 실제 `src` iframe 으로 불러온다. 여기서도 `srcdoc` 로 문서를 만드는 것은 금지다.
 - 워크스페이스·트리거·외형은 문서를 워크스페이스별로 렌더링해서 넣지 않는다. 쿼리 파라미터, postMessage, 캐시할 수 있는 워크스페이스별 JSON 으로 넣는다.
@@ -184,7 +184,7 @@ v1 은 구현 단순성을 먼저 봐 (A)를 쓴다. 초기 로드 무게가 측
 
 ### iframe 문서는 정적 cross-origin 자산이고 임베드 제어는 부팅 때 한다
 
-"클라이언트가 많아지면 워크스페이스별 문서를 서버에서 주는 부담이 크다" 는 우려는 맞다. 그래서 동적 문서 렌더링은 쓰지 않는다. 위젯은 `output:'export'` 정적 산출물이라 CDN 정적 파일로 나가고 요청마다 서버 렌더링이 없다. `srcdoc`·`about:blank` 로 문서를 만들면 iframe 이 호스트 origin 을 물려받아 격리가 무너지므로 기각한다. "로더가 클라이언트에서 iframe 을 만들고 문서는 정적 cross-origin 자산" 으로 두면 동적 서버 렌더링을 피하면서 격리도 지킨다. 임베드 제어는 문서 CSP 가 아니라 부팅 때 호스트 origin 을 비교하는 임베드 검증으로 옮겼다([웹채팅 보안](CLE-WEBCHAT-SECURITY.md)). CORS 도 워크스페이스별 동적 처리가 필요 없는 경계로 둔다. Hosted iframe 모드는 위젯 배포 주소 하나이고 BYO-UI 모드만 워크스페이스 허용 목록을 쓴다.
+"클라이언트가 많아지면 워크스페이스별 문서를 서버에서 주는 부담이 크다" 는 우려는 맞다. 그래서 동적 문서 렌더링은 쓰지 않는다. 위젯은 `output:'export'` 정적 산출물이라 정적 파일로 나가고 요청마다 서버 렌더링이 없다. `srcdoc`·`about:blank` 로 문서를 만들면 iframe 이 호스트 origin 을 물려받아 격리가 무너지므로 기각한다. "로더가 클라이언트에서 iframe 을 만들고 문서는 정적 cross-origin 자산" 으로 두면 동적 서버 렌더링을 피하면서 격리도 지킨다. 임베드 제어는 문서 CSP 가 아니라 부팅 때 호스트 origin 을 비교하는 임베드 검증으로 옮겼다([웹채팅 보안](CLE-WEBCHAT-SECURITY.md)). CORS 도 워크스페이스별 동적 처리가 필요 없는 경계로 둔다. Hosted iframe 모드는 위젯 배포 주소 하나이고 BYO-UI 모드만 워크스페이스 허용 목록을 쓴다.
 
 **예외: 운영 콘솔 미리보기의 same-origin iframe.** 위 기각은 고객 사이트 임베드(외부 origin 에서 위젯을 호스트와 격리)에 대한 것이다. 운영 콘솔의 라이브 미리보기는 사정이 다르다. 우리 앱이 우리 위젯을 미리 보는 것이라 cross-origin 격리가 목적이 아니다. 셀프호스팅과 여러 버전이 섞이는 환경에서 버전을 맞추고 외부 의존을 없애는 것이 목적이다. 그래서 미리보기는 동봉 위젯을 same-origin 실제 `src` iframe 으로 불러온다(`srcdoc` 아님). 위젯 CSS·JS 격리는 iframe 으로 유지하고 외부 CDN 요청은 없으며 그 배포 버전과 항상 맞는다. 고객 임베드 경로(로더 + cross-origin iframe)는 그대로다. 미리보기 쪽 결정은 [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)에 있다.
 

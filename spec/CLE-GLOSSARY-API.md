@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-API"
 title: "용어 사전 — API 와 개발 규약"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "f0c9bfd772863e74edc3c8838d11fb646741b9e59567f7b8ec7ee79bbe85c129"
+content_hash: "d7f0cf6b9a5cb95bcf963edb4e512baad2f821db0920a81eb133e51580975214"
 read_as: "approved_fallback"
-task: "CLE-T-EVGA56"
+task: "CLE-T-4H77EB"
 source_paths: []
-mirror_sha256: "462a6a6622a07a6af8d0bf49573bd62d6c3ee1e151c172abee9b50208e711696"
-etag: "sha256-3007fddecf5b74db697ca5182c7c04ea691f88aad56b5de72af4b27e97ecad85"
+mirror_sha256: "38d105a8a2837599e5f97efbb77265a39009ccb5765e1f8662b85b8bfadb0049"
+etag: "sha256-3c5fc26b68c4329118134e72e4841e27c47f6f3ee014ee4ff55ec90459a0ae63"
 ---
 ## 개요
 
@@ -56,13 +56,14 @@ etag: "sha256-3007fddecf5b74db697ca5182c7c04ea691f88aad56b5de72af4b27e97ecad85"
 | 문서 상태 | `doc_status` | NERV 문서의 승인 단계. 초안은 사람이 승인해야 승인본이 된다. 값은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 스펙 상태(이 뜻으로) | [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) |
 | 구현 상태 | implementation status | 문서가 약속한 기능이 코드에 있는지를 본문 머리 줄에 적는 값. 값은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 스펙 상태(이 뜻으로) | [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) |
 | 옛 스펙 상태 | spec status | 옛 스펙 트리 frontmatter 의 `status` 값. 값은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. 구현 단계를 뜻했고 NERV 문서에서는 구현 상태로 옮겼다. 전환 단계 5 에서 옛 트리와 함께 걷었다. | 없음 | [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) |
-| 구현 위치 | `## 구현 위치` | 스펙 문서 본문에서 그 문서가 약속한 표면을 구현한 저장소 경로를 적는 절. 빌드 가드는 `codebase/` · `.claude/` · `.github/` · `scripts/` 로 시작하는 코드 스팬의 실재만 확인한다. 옛 트리 frontmatter `code:` 의 자리다. | 없음 | [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) |
+| 구현 위치 | `## 구현 위치` | 스펙 문서 본문에서 그 문서가 약속한 표면을 구현한 저장소 경로를 적는 절. 빌드 가드가 실재를 확인하는 경로의 범위는 [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 20 이 정한다. 옛 트리 frontmatter `code:` 의 자리다. | 없음 | [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) |
 | 키 링크 | key link, `[글](<키>#앵커)` | NERV 스펙 키를 대상으로 하는 마크다운 링크. NERV 본문과 코드 주석이 같은 표기로 문서를 가리킨다. 코드 주석의 키 링크는 저장소 미러 파일로 키와 앵커를 확인한다. | 스펙 경로 링크(코드 주석에서) | [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) |
 | 리뷰 산출물 인용 | review citation | 코드 주석이 리뷰 결과를 가리키는 형식. 전환 단계 2 뒤 리뷰는 발견 전체 ID(`finding <ID>`)로 가리키고, 옛 `review/**` 세션 경로 인용은 git 이력으로 되짚는다. | 없음 | [리뷰 산출물 인용 규약](CLE-ENG/CLE-ENG-REVIEWCITE.md) |
 | 리뷰 라운드 | review round | 한 브랜치 · 커밋 · changeset 을 두고 리뷰 역할(code)이나 검토 checker(consistency)가 낸 결과를 NERV 에 모은 단위. 같은 커밋 · changeset 을 다시 제출하면 같은 라운드에 합쳐진다. push 게이트와 Task done 게이트가 라운드 판정을 본다. | 리뷰 세션(이 뜻으로) | [리뷰 산출물 인용 규약](CLE-ENG/CLE-ENG-REVIEWCITE.md) |
 | 리뷰 발견 | finding | 리뷰 라운드가 낸 지적 한 건. 같은 지적은 지문으로 한 발견에 합쳐지고 전체 ID 로 가리킨다. | 지적 번호(W1 등, 옛 산출물 형식) | [리뷰 산출물 인용 규약](CLE-ENG/CLE-ENG-REVIEWCITE.md) |
 | 처분 | resolution | 발견마다 남기는 처리 결과(`fixed` · `spec_change` · `dismissed` · `wont_fix` · `escalated`). critical 을 낮추는 처분은 사람이 승인한다. | RESOLUTION.md(옛 형식) | [리뷰 산출물 인용 규약](CLE-ENG/CLE-ENG-REVIEWCITE.md) |
 | 단일 기준 | single source of truth | 한 사실을 한 문서에만 정의하고 나머지는 링크하는 원칙. | 단일 진실, SoT(본문), single source of truth(본문) | [Clemvion 제품 개요](CLE-VISION.md) |
+| 글로브 | glob | 파일 경로를 `*` · `**` 같은 와일드카드로 고르는 패턴. 처음 나올 때 「글로브(glob)」 로 병기한다. | 없음 | [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) |
 | BullMQ 큐 | BullMQ queue | Redis 위에서 도는 비동기 작업 큐. 전체 목록은 한 문서에 둔다. | Message Queue | [비동기 큐와 Redis 키 목록](CLE-PLAT/CLE-PLAT-QUEUE.md) |
 | 반복 작업 | job scheduler, repeatable job | BullMQ job scheduler 로 주기 실행하는 내부 작업(정리·교체·회수). 사용자 스케줄도 실행 수단으로 job scheduler 를 쓰지만 본문에서는 "스케줄" 로 부르고 등록 수단은 "job scheduler" 로 적는다. | repeatable job(본문) | [비동기 큐와 Redis 키 목록](CLE-PLAT/CLE-PLAT-QUEUE.md) |
 | 파일 저장소 | file storage, S3 | 지식 저장소 원본 문서와 프로필 이미지를 두는 S3 호환 저장소. 개발·셀프 호스팅은 MinIO, SaaS 는 AWS S3 를 쓴다. | 객체 저장소, Object Storage | [파일 저장소](CLE-PLAT/CLE-PLAT-STORAGE.md) |
@@ -85,7 +86,6 @@ NERV Task `CLE-T-GNTWP9` 에서 사람 결정(NERV 질문 `01a1d025-94b3-7448-b9
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「요청 빈도 제한」: 세는 단위(사용자 · IP · 실행 · 채팅방 · WebSocket 소켓)와 SSE 동시 연결 상한, 전송별 초과 응답(HTTP 429, 채팅 채널 인바운드 202, WebSocket 명령 `RATE_LIMITED`)을 적었다([HTTP API 규약](CLE-API/CLE-API-CONV.md) 「요청 빈도 제한」 표).
 - 「응답 마스킹」: 표면에 EIA 알림 웹훅 · 채팅 채널을 더했다. 쓰지 않는 표기에서 「egress-only」 를 뺐다. 기준 문서가 그 말을 원칙 이름(1.1 절)으로 쓴다. 「값-패턴 마스킹」 은 정책 이름으로 쓸 때만 막는다. 기준 문서는 「값 패턴」 을 판정 방식 이름으로 쓴다. 정책 전체를 부르는 이름은 「응답 마스킹」 하나다. 「마스킹 값 재제출 거부」 는 수동 실행 경로로 한정했다([응답 자격 증명 마스킹](CLE-API/CLE-API-EGRESS.md) 규칙 10).
 - 「append-only」: 대상을 쌓기만 하는 테이블(감사 로그 · 사용량 · 이력 · 체크포인트)로 넓혔다. 기준 문서 칸에 그 테이블을 append-only 로 선언한 문서 넷을 더했다(감사 로그 · 사용량 · 이력 · 체크포인트 순).
@@ -112,3 +112,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 ### 채팅 채널 전역 한도 면제에 서명 참조 조건을 붙였다 (2026-11-14)
 
 NERV Task `CLE-T-EVGA56` 에서 고쳤다. 「요청 빈도 제한」 의 면제 조건을 [HTTP API 규약 — 요청 빈도 제한](CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 머리 콜아웃과 맞췄다. 서명 참조(`config.chatChannel.inboundSigningRef`)가 없는 채팅 채널 트리거는 서명을 검증하지 않아서 전역 한도를 그대로 받는다. 코드 후속인 NERV Task `CLE-T-ZC34Y0` 이 끝나서 2026-11-12 항목에 남아 있던 「코드는 아직 전역 한도를 건다」 문장을 지웠다. 「요청 빈도 제한」 의 기준 문서 칸은 한도 표가 있는 하위 문서 §7 로 바꿨다. 「클라이언트 IP 추출」 에는 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) 과 [채팅 채널 — 인바운드 관문](CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 이 적은 대로 채팅 채널 서명 검증 실패 한도의 별도 IP 읽기를 더했다.
+
+### 「글로브」 행을 더했다 (2026-11-19)
+
+스펙 본문이 파일 경로 패턴을 「글로브」 로 쓰는데 이 사전에 행이 없었다. 본문 표기는 그대로 두고 이 행에서 뜻을 정했다(NERV Task `CLE-T-4H77EB`).

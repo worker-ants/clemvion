@@ -2,21 +2,21 @@
 id: "CLE-ENG-MIGRATION"
 title: "DB 마이그레이션 규약"
 type: "convention"
-version: 4
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "bd61a1ffb820911e082cef0042946cf422754dc27aa836de0ada1d55af97f1a9"
+content_hash: "18cb8974edc4b79af98ecb1711d61b7f4e6b4eb1b2f232713aae7e9b44081679"
 read_as: "approved_fallback"
-task: "CLE-T-E7MF3Q"
+task: "CLE-T-4H77EB"
 source_paths: ["spec/0-overview.md", "spec/conventions/migrations.md"]
-mirror_sha256: "35e023a5dc14e934a443f7c184cf2c1a1661aa0b5e8b1c97b7415d2875025ff7"
-etag: "sha256-e4d96f30e1f60a80319a8c7634f93e4248a0c520a68ce8ff3e22d9518bad16a3"
+mirror_sha256: "0cb9adcb48c16183a27ce4725bfaaa5e518c1eeaac6c6f062ef7327c0109c57e"
+etag: "sha256-523f728b00e37f09fd6b09fcd5fdc4c24096ceb85b4ab94c7b3bb5083d0074ee"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/conventions/migrations.md`, `spec/0-overview.md` (§2.8 DB 마이그레이션, Rationale «DB 마이그레이션 도구로 Flyway 채택») · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/conventions/migrations.md`, `spec/0-overview.md` (§2.8 DB 마이그레이션, Rationale 「DB 마이그레이션 도구로 Flyway 채택」) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -45,7 +45,7 @@ PostgreSQL 스키마를 바꾸는 마이그레이션(migration, `V<N>__*.sql`)�
 | 도구 | **Flyway** |
 | 버전 관리 | SQL 기반 마이그레이션 파일. 이름은 `V{version}__{description}.sql` |
 | 롤백 정책 | **forward-only**. 별도 undo 스크립트(`U{version}__...sql`)를 두지 않는다. 운영 사고에 대비한 롤백 SQL 은 각 마이그레이션 파일 하단에 `-- DOWN:` 주석으로 남긴다(`codebase/backend/migrations/README.md` §2) |
-| CI/CD 연동 | 배포 파이프라인에서 `flyway migrate` 를 자동 실행한다. 마이그레이션이 실패하면 배포를 멈춘다. 저장소에는 배포 파이프라인이 아직 없다([비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 NF-DP-05, 부분 구현) |
+| CI/CD 연동 | 배포 파이프라인에서 `flyway migrate` 를 자동 실행한다. 마이그레이션이 실패하면 배포를 멈춘다. 저장소에는 배포 파이프라인이 아직 없다([비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md#미결-사항)) |
 | 실행 방식 | 전용 Flyway Docker 이미지(`codebase/backend/migrations/Dockerfile`, `flyway/flyway:10-alpine`)에 `V*.sql` 과 마이그레이션별 `V*.conf` 를 COPY 한다. DB 접속 정보는 CLI 인자(`-url` / `-user` / `-password`)로 넣는다. 환경별 `flyway-{env}.conf` 파일은 쓰지 않는다 |
 | 기준선 | 최초 배포 때 `flyway baseline` 으로 기준점을 정한다 |
 
@@ -77,7 +77,7 @@ Flyway 는 부팅할 때 적용된 마이그레이션마다 SQL 내용의 checks
 
 적용된 마이그레이션의 주석에 남은 옛 스펙 경로와 지운 `plan/` 경로도 고치지 않는다. `.sql` 은 주석만 바꿔도 checksum 이 달라져 부팅이 실패한다. `.conf` 는 규칙 9(append-only)를 따라 고치지 않는다. 규칙 10 의 `migrate-repair` 는 운영 사고로 checksum 을 어쩔 수 없이 다시 맞출 때 쓴다. 주석 정리는 그 범위에 들지 않는다.
 
-아래 옛 경로 래칫은 파일별 기준값보다 늘어도 줄어도 실패하는 양방향 래칫이다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md)). 줄면 통과하는 단방향 래칫과의 차이는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 에 있다. codebase 텍스트 파일에서 옛 스펙 경로나 지운 `plan/` 경로를 적은 줄은 옛 경로 래칫(`legacy-path-ratchet.test.ts`, [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 «codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다»)이 파일별로 센다. 적용된 마이그레이션(`V*.sql` · `V*.conf`)의 언급은 이 기준값에 영구히 남는다. 수치는 스펙과 구현 근거 규약 R-15 에 있다. 새 마이그레이션의 주석에는 옛 경로 대신 미러에 있는 문서의 NERV 키와 절 제목을 쓴다. 새 마이그레이션이 옛 경로를 적으면 래칫이 실패한다.
+아래 옛 경로 래칫은 파일별 기준값보다 늘어도 줄어도 실패하는 양방향 래칫이다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md)). 줄면 통과하는 단방향 래칫과의 차이는 [스펙과 구현 근거 규약 — 스펙 문서 저장소 무결성 가드](CLE-ENG-SPECEVIDENCE-INTEGRITY.md) 의 R-15 「codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다」 에 있다. codebase 텍스트 파일에서 옛 스펙 경로나 지운 `plan/` 경로를 적은 줄은 옛 경로 래칫(`legacy-path-ratchet.test.ts`, [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 「codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다」)이 파일별로 센다. 적용된 마이그레이션(`V*.sql` · `V*.conf`)의 언급은 이 기준값에 영구히 남는다. 수치는 스펙과 구현 근거 규약 R-15 에 있다. 새 마이그레이션의 주석에는 옛 경로 대신 미러에 있는 문서의 NERV 키와 절 제목을 쓴다. 새 마이그레이션이 옛 경로를 적으면 래칫이 실패한다.
 
 ### `outOfOrder=false` 를 유지하는 이유
 
@@ -138,7 +138,7 @@ python3 scripts/check-migration-versions.py --base origin/main
 
 ### 머지 직전 최신화
 
-PR CI 가 통과한 바로 뒤에 다른 PR 이 먼저 머지되면 main 의 max(V) 가 앞질러질 수 있다(merge race). 저장소 설정으로 "머지 전 브랜치 최신화" 를 강제할 수 없어(Rationale «운영 규약으로 race 를 막는 이유» 참조) 아래 운영 규약으로 대신한다.
+PR CI 가 통과한 바로 뒤에 다른 PR 이 먼저 머지되면 main 의 max(V) 가 앞질러질 수 있다(merge race). 저장소 설정으로 "머지 전 브랜치 최신화" 를 강제할 수 없어(Rationale 「운영 규약으로 race 를 막는 이유」 참조) 아래 운영 규약으로 대신한다.
 
 작성자는 머지 직전에 다음을 확인한다.
 
@@ -152,9 +152,9 @@ PR CI 가 통과한 바로 뒤에 다른 PR 이 먼저 머지되면 main 의 max
 
 마이그레이션 파일은 `codebase/**` 아래라 push 훅과 CI `review-gate` 가 NERV 코드 리뷰 라운드를 요구한다(전환 단계 2 부터). 게이트는 리뷰 라운드의 head 커밋이 지금 HEAD 의 조상이어야 통과시킨다.
 
-- `git merge origin/main` 은 라운드 head 를 조상으로 남긴다. 기준 브랜치에서 온 커밋과 충돌 없이 끝난 merge 커밋은 게이트가 리뷰 뒤 변경으로 세지 않는다. 변경 종류에 따라 붙는 강제 리뷰어도 라운드가 본 파일(라운드 head 와 기준 브랜치의 merge-base 이후)로만 판정하므로 main 에서 들어온 파일 때문에 리뷰어가 더 필요해지지 않는다. 그래서 리뷰를 낸 PR 은 merge 로 최신화한다.
+- `git merge origin/main` 은 라운드 head 를 조상으로 남긴다. 기준 브랜치에서 온 커밋은 게이트가 리뷰 뒤 변경으로 세지 않는다. merge 커밋도 그 merge 가 새로 들인 `codebase/**` 변경이 없으면 세지 않는다. 양쪽이 같은 파일의 다른 줄을 고쳐 git 이 자동으로 합친 merge 가 여기에 든다. 깨끗이 합쳐졌는데도 세는 모양이 몇 가지 남는다(`review_guard.py` 의 `_commits_after` docstring 이 '알려진 과다 계수' 로 적은 것). 변경 종류에 따라 붙는 강제 리뷰어도 라운드가 본 파일(라운드 head 와 기준 브랜치의 merge-base 이후)로만 판정하므로 main 에서 들어온 파일 때문에 리뷰어가 더 필요해지지 않는다. 그래서 리뷰를 낸 PR 은 merge 로 최신화한다.
 - `git rebase origin/main` 은 커밋을 다시 써서 라운드 head 가 조상이 아니게 된다. 코드 리뷰를 지금 HEAD 로 다시 내야 한다. 다시 낼 때는 필수 6역할에 더해 변경 종류에 따라 붙는 강제 리뷰어(마이그레이션 SQL 이면 database, 문서를 바꿨으면 documentation 등)도 함께 낸다.
-- merge 충돌을 손으로 풀었거나 V번호를 바꾸려고 파일 이름을 바꾸거나 고친 커밋은 리뷰 뒤 변경이다. 리뷰 발견을 고친 커밋으로 처분했거나 커밋 메시지가 그 발견을 `finding <발견 전체 ID>` 로 인용했거나 새 라운드를 내야 게이트가 통과시킨다.
+- 다음 커밋은 리뷰 뒤 변경이다. merge 충돌을 손으로 풀어 결과가 어느 한쪽과도 같지 않은 hunk 가 남는 merge(양쪽 줄을 이어 붙인 해소 포함), git 이 합친 결과에서 줄이나 파일을 더하거나 바꾸거나 지운 merge(파일 모드 변경 포함), V번호를 바꾸려고 파일 이름을 바꾸거나 고친 커밋이다. 충돌 hunk 를 한쪽 그대로 두고 푼 merge 는 새로 들인 변경이 없어 세지 않는다. 리뷰 발견을 고친 커밋으로 처분했거나 커밋 메시지가 그 발견을 `finding <발견 전체 ID>` 로 인용했거나 새 라운드를 내야 게이트가 통과시킨다.
 
 판정 규칙의 정본은 저장소 `.claude/hooks/_lib/review_guard.py` docstring 이다.
 
@@ -165,7 +165,7 @@ PR CI 가 통과한 바로 뒤에 다른 PR 이 먼저 머지되면 main 의 max
 - **머지 뒤 점검**: main 에서 `python3 scripts/check-migration-versions.py --base HEAD~1` 를 실행한다. 중복·gap·단조성·`.conf` 짝 위반이 main 에 실제로 들어왔으면 CI 워크플로우가 실패해 Actions 탭에 빨간불이 켜진다. Slack·이메일 알림이 연동돼 있으면 자동으로 알린다.
 - **자동 알림 코멘트**: 열린 PR 중 변경 목록에 `codebase/backend/migrations/**` 파일이 있는 PR 에 최신화하고 CI 를 다시 돌리라는 코멘트를 자동으로 단다. 작성자가 race 가능성을 바로 알고 머지 직전 최신화 규약을 따르게 한다. 코멘트는 `git merge origin/main` 으로 최신화하라고 안내한다. 코드 리뷰를 내기 전이면 rebase 도 된다([리뷰 게이트와의 관계](#리뷰-게이트와의-관계)).
 
-두 작업 모두 머지 자체를 막지는 못한다. 지금 환경에서 가능한 최대 강도는 즉시 드러내고 알리는 것이다. 유료 플랜으로 바꾸면 branch protection 을 머지 직전 규약 자리로 올리고 이 안전망은 백업으로 둘 수 있다(Rationale «기각한 대안 4»).
+두 작업 모두 머지 자체를 막지는 못한다. 지금 환경에서 가능한 최대 강도는 즉시 드러내고 알리는 것이다. 유료 플랜으로 바꾸면 branch protection 을 머지 직전 규약 자리로 올리고 이 안전망은 백업으로 둘 수 있다(Rationale 「기각한 대안 4」).
 
 ### 빌드 시점 가드 (`check-duplicate-versions.sh`)
 
@@ -190,7 +190,7 @@ Add a new migration with a unique V<N+1> prefix instead.
 
 출력의 `Policy:` 줄은 이 문서의 키와 저장소 미러 경로를 찍는다. 경로는 편의 표시이고 기준은 키다. 이 문서의 미러 경로가 바뀌면(다른 영역으로 옮기면) 스크립트의 출력도 함께 고친다. 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 옛 저장소 문서 경로를 바꿨다.
 
-코드도 이 문서를 인용한다. 절 제목(「충돌 검출과 머지 race 안전망」 · 「빌드 시점 가드」 · «기각한 대안 4»)은 `check-duplicate-versions.sh` · 마이그레이션 `Dockerfile` · `README.md` · `codebase/backend/src/migrations.spec.ts` · 두 CI 워크플로우가 적는다. 미러 경로는 `scripts/check-migration-versions.py` 의 안내에도 있다. `.github/PULL_REQUEST_TEMPLATE.md` 와 `migration-recheck-on-main` 알림 코멘트는 미러 경로와 앵커로 링크한다. 이 문서의 절 제목이나 미러 경로를 바꾸면 이 인용도 함께 고친다.
+코드도 이 문서를 인용한다. 절 제목(「충돌 검출과 머지 race 안전망」 · 「빌드 시점 가드」 · 「기각한 대안 4」)은 `check-duplicate-versions.sh` · 마이그레이션 `Dockerfile` · `README.md` · `codebase/backend/src/migrations.spec.ts` · 두 CI 워크플로우가 적는다. 미러 경로는 `scripts/check-migration-versions.py` 의 안내에도 있다. `.github/PULL_REQUEST_TEMPLATE.md` 와 `migration-recheck-on-main` 알림 코멘트는 미러 경로와 앵커로 링크한다. 이 문서의 절 제목이나 미러 경로를 바꾸면 이 인용도 함께 고친다.
 
 로컬에서 이미지를 빌드하지 않고 같은 검사를 돌리려면 다음을 실행한다.
 
@@ -208,6 +208,7 @@ codebase/backend/migrations/check-duplicate-versions.sh codebase/backend/migrati
 - `.github/workflows/migration-check.yml`
 - `.github/workflows/migration-recheck-on-main.yml`
 - `.github/PULL_REQUEST_TEMPLATE.md` (Migration checklist)
+- `.claude/hooks/_lib/review_guard.py` · `scripts/check-review-gate.py` (「리뷰 게이트와의 관계」 의 merge 판정. 테스트는 `.claude/tests/test_review_guard.py`)
 
 ## Rationale
 
@@ -227,17 +228,25 @@ codebase/backend/migrations/check-duplicate-versions.sh codebase/backend/migrati
 
 ### 운영 규약으로 race 를 막는 이유
 
-이 결정을 내릴 때 저장소는 GitHub 무료 플랜의 private 저장소였다. 이 환경에서는 branch protection 의 "Require branches to be up to date before merging" 옵션을 쓸 수 없다. 그래서 머지 직전 최신화(작성자 책임)와 `migration-recheck-on-main`(머지 뒤 안전망)으로 race 를 대신 막는다. 자세한 제약은 아래 «기각한 대안 4» 에 있다.
+이 결정을 내릴 때 저장소는 GitHub 무료 플랜의 private 저장소였다. 이 환경에서는 branch protection 의 "Require branches to be up to date before merging" 옵션을 쓸 수 없다. 그래서 머지 직전 최신화(작성자 책임)와 `migration-recheck-on-main`(머지 뒤 안전망)으로 race 를 대신 막는다. 자세한 제약은 아래 「기각한 대안 4」 에 있다.
 
 ### 최신화에 merge 를 허용한 이유 (2026-10-01)
 
 처음 규약은 머지 직전 최신화를 `git rebase origin/main` 하나로 적었다. 그때 리뷰 게이트는 커밋된 리뷰 산출물의 시각과 코드 커밋의 author 시각을 견줬다. rebase 는 author 시각을 그대로 두므로 게이트는 일부러 rebase 에 영향받지 않게 설계돼 있었다. 전환 단계 2 의 NERV 판정은 그렇지 않다. rebase 는 커밋을 다시 써서 리뷰 라운드의 `head_sha` 를 HEAD 의 조상에서 빼고, `fixed` 처분에 적힌 `commit_sha` 도 브랜치에서 닿지 않게 만든다. 그래서 리뷰를 낸 PR 이 rebase 하면 전체 재리뷰가 필요하다. merge 는 두 해시를 그대로 둔다. 단계 2 의 일관성 검토(finding 01a0f6c1-82ed-755d-b6ae-6c3af354438a)가 이 충돌을 찾았다.
 
-race 를 막는 데 필요한 것은 base 를 최신으로 맞추는 일이고 그 방법이 rebase 일 필요는 없다. 그래서 merge 를 허용했다. 2026-10-03(NERV Task `CLE-T-VP5KDJ`)에 PR 템플릿 Migration checklist · `migration-recheck-on-main` 알림 코멘트 · PR CI 가드 `scripts/check-migration-versions.py` 의 안내 문구를 같은 내용으로 맞췄다. 빌드 시점 가드(`check-duplicate-versions.sh`)의 안내는 그때 바꾸지 않았다. 그 안내와 `Dockerfile` · `README.md` · `migrations.spec.ts` 의 정책 인용은 전환 단계 4g(2026-10-03, NERV Task `CLE-T-M7K35H`)에서 옛 경로 래칫과 함께 이 문서 키로 바꿨다. 게이트가 rebase 를 받아 주게 하는 안은 «기각한 대안 5» 에 있다.
+race 를 막는 데 필요한 것은 base 를 최신으로 맞추는 일이고 그 방법이 rebase 일 필요는 없다. 그래서 merge 를 허용했다. 2026-10-03(NERV Task `CLE-T-VP5KDJ`)에 PR 템플릿 Migration checklist · `migration-recheck-on-main` 알림 코멘트 · PR CI 가드 `scripts/check-migration-versions.py` 의 안내 문구를 같은 내용으로 맞췄다. 빌드 시점 가드(`check-duplicate-versions.sh`)의 안내는 그때 바꾸지 않았다. 그 안내와 `Dockerfile` · `README.md` · `migrations.spec.ts` 의 정책 인용은 전환 단계 4g(2026-10-03, NERV Task `CLE-T-M7K35H`)에서 옛 경로 래칫과 함께 이 문서 키로 바꿨다. 게이트가 rebase 를 받아 주게 하는 안은 「기각한 대안 5」 에 있다.
+
+### merge 커밋은 combined diff 의 hunk 로 센다 (2026-10-10)
+
+게이트는 처음에 라운드 뒤 merge 커밋을 `git diff-tree --cc --name-only` 로 봤다. 이 출력은 hunk 를 거르지 않고 모든 부모와 다른 파일을 낸다. 그래서 양쪽이 같은 파일의 다른 줄을 고쳐 git 이 자동으로 합친 merge 도 손으로 푼 merge 로 셌다. PR #1520 세션이 main 을 merge 하자 게이트 검사(`scripts/check-review-gate.py`)가 그 merge 를 리뷰 뒤 변경으로 셌다. 그대로 push 했으면 push 훅과 CI `review-gate` 가 PR 을 막았을 것이다(NERV Task `CLE-T-QT69YT`).
+
+지금은 combined diff(`git diff-tree --cc -U0`)에 `codebase/**` hunk 가 남는 merge 만 센다. git 은 결과가 어느 한 부모와 같은 hunk 를 combined diff 에서 뺀다. 그래서 충돌 hunk 를 한쪽 그대로 두고 푼 merge 도 더는 세지 않는다. 그 merge 가 새로 들인 변경이 없기 때문이다. 기준 브랜치가 아닌 쪽에서 merge 로 들어온 커밋은 merge 와 따로 하나씩 센다. context 를 0 으로 둔 이유는 기본 3줄이면 몇 줄 떨어진 양쪽 변경이 한 hunk 로 묶여 깨끗한 merge 에도 hunk 가 남기 때문이다. 두 부모와 결과를 견주는 일은 git 이 하고 게이트는 남은 hunk 가 있는지만 본다. 커밋을 짝짓지 않으므로 「기각한 대안 5」 의 patch-id 짝짓기와는 다른 판정이다.
+
+깨끗이 합쳐졌는데도 세는 모양 셋이 남는다. 한쪽이 줄을 지우고 상대가 두 줄 안쪽을 고친 경우, 한쪽은 모드만 다른 쪽은 내용만 바꾼 파일, 한쪽이 파일을 옮기고 다른 쪽이 옛 경로를 고친 경우다. 이 목록은 이 날짜 기준이고 정본은 `_commits_after` docstring 이다. 셋 모두 막는 쪽으로 틀리므로 게이트가 열리지는 않는다. 2026-10-10 에 로컬 저장소의 모든 ref 에서 merge 커밋 227개를 대조했다. 옛 판정은 5개를 셌고 새 판정은 하나도 세지 않았다. `git merge-tree --write-tree` 로 두 부모가 충돌 없이 합쳐지는지 보면 셋을 없앨 수 있다. 이 명령은 git 2.38 이상이 필요하고 같은 날 CI 는 2.55, 로컬은 2.54 였다. 그래도 지금은 넣지 않는다. 그 명령을 쓰면 읽기만 하던 게이트가 저장소에 객체를 쓴다. 남은 세 모양은 막는 쪽 오탐이고 위 대조에서 해당하는 merge 가 없었다. 이 모양으로 PR 이 막힌 사례가 나오면 다시 본다.
 
 ### 적용된 마이그레이션의 옛 경로 주석을 고치지 않는다 (2026-10-03)
 
-전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 codebase 의 옛 스펙 경로와 지운 `plan/` 경로를 옛 경로 래칫으로 막았다. 다른 파일은 고칠 때 그 언급을 바꾼다. 적용된 마이그레이션의 주석은 바꾸지 않고 래칫 기준값에 남긴다. 규칙 9(append-only)가 적용된 파일의 수정을 막는다. `.sql` 은 주석 한 글자만 바뀌어도 checksum 이 어긋나 부팅이 실패한다. 규칙 10 의 `migrate-repair` 는 운영 사고 때 checksum 을 다시 맞추는 수단이라 주석 정리에는 쓰지 않는다. 래칫의 판정과 기준값은 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 에 있다.
+전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 codebase 의 옛 스펙 경로와 지운 `plan/` 경로를 옛 경로 래칫(양방향 래칫)으로 막았다. 다른 파일은 고칠 때 그 언급을 바꾼다. 적용된 마이그레이션의 주석은 바꾸지 않고 래칫 기준값에 남긴다. 규칙 9(append-only)가 적용된 파일의 수정을 막는다. `.sql` 은 주석 한 글자만 바뀌어도 checksum 이 어긋나 부팅이 실패한다. 규칙 10 의 `migrate-repair` 는 운영 사고 때 checksum 을 다시 맞추는 수단이라 주석 정리에는 쓰지 않는다. 래칫의 판정과 기준값은 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 에 있다.
 
 ### 기각한 대안 1: 타임스탬프 접두 (`V<YYYYMMDDHHMMSS>__...`)
 
