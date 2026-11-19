@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-ERROR"
 title: "워크플로우 AI 어시스턴트 — 에러 처리와 모델 설정"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
-content_hash: "d1e5c8117a7cd7c558ecabfde988bc755818a89ccce79a69ee7c1f9c29e49122"
+content_hash: "4e8a2c5bb6396f27fdd08ffb9f7f5b75173051c15b606932781fea72d8221910"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-ZN111F"
 source_paths: []
-mirror_sha256: "6ce99aee0693901246a9a829e1f7cfe79b442b89acaaa9aae7ca1a9524a06fb4"
-etag: "sha256-6ccfd174d486753e27bc62d60eea3fcd6b8b5957d3d29cb8451c39d0665d9efc"
+mirror_sha256: "e17ec531e8378698f7e5571bfad1ec4455665aaa7cbba6ec6b140ed146788a75"
+etag: "sha256-14d54cd0bfe3a6de96950acd43a21ae86586690409f427f8383700b62ec9bdf0"
 ---
 ## 개요
 
@@ -26,15 +26,17 @@ etag: "sha256-6ccfd174d486753e27bc62d60eea3fcd6b8b5957d3d29cb8451c39d0665d9efc"
 |------|------|-------------|
 | `ASSISTANT_NO_LLM_CONFIG` | 쓸 모델 설정이 없다. 지정한 설정이 없는데 워크스페이스 기본 설정도 없거나, 지정한 설정을 찾지 못해 기본 설정으로 대신하려 했는데 기본 설정도 없을 때다([모델 설정](#모델-설정)). 설정 조회 자체가 실패하면(DB 장애 등) 이 코드가 아니라 `ASSISTANT_STREAM_FAILED` 다 | `assistant.errorNoLlmConfig` 문구와 모델 설정 화면 링크 `assistant.errorNoLlmConfigLink` |
 | `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 [어시스턴트 도구 호출 한도](CLE-WF-ASSIST-LOOP.md#어시스턴트-도구-호출-한도)를 넘었다 | `assistant.errorTooManyToolCalls` 문구와 에러 버블의 "이어서 진행" 버튼. 다음 턴에 남은 단계를 이어서 한다 |
-| `ASSISTANT_STREAM_FAILED` | `LlmService.chatStream` 이 스트림 `error` 이벤트가 아닌 예외를 던졌거나(클라이언트 생성 실패 등), 모델 설정 조회가 실패했거나(DB 장애 등), 턴 처리 중 서비스 안에서 실패했다. 스트림을 열 때의 LLM 실패(429, SDK 요청 타임아웃 포함)는 모델 프로바이더와 상관없이 아래 LLM 클라이언트 코드로 온다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)). 스트리밍 미지원 예외는 따로 `LLM_STREAMING_UNSUPPORTED` 로 보낸다 | `assistant.errorStreamFailed` 문구로 재시도 안내. 이 코드 하나에 클라이언트 생성 실패 · 설정 조회 실패 · 서버 내부 실패가 함께 담기고 코드는 원인을 나누지 않는다. 그래서 두 문구 모두 원인을 단정하지 않는다. 서버 문구는 재시도만 안내한다. 사전 문구는 잠시 뒤 같은 메시지를 다시 보내라고 안내한다. 계속 실패하면 모델 설정을 확인하라는 안내도 함께 보인다 |
-| `LLM_RATE_LIMIT` | 429 ([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)). 스트림을 열 때와 연 뒤 모두 모델 프로바이더와 상관없이 이 코드로 온다 | `assistant.errorRateLimit` 문구로 재시도 안내. 재시도 버튼은 정의가 갈린다([미결 사항](CLE-WF-ASSIST.md#미결-사항)) |
-| `LLM_CONNECTION_ERROR` | 스트림을 열 때나 연 뒤에 429 가 아닌 이유로 실패했다(모든 모델 프로바이더. OpenAI 계열의 harmony 토큰 오류는 아래 행). OpenAI 계열과 Anthropic 의 SDK 요청 타임아웃(응답 헤더가 오기 전)도 여기에 든다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)) | `assistant.errorConnection` 문구로 재시도 안내(네트워크 오류) |
+| `ASSISTANT_STREAM_FAILED` | `LlmService.chatStream` 이 스트림 `error` 이벤트가 아닌 예외를 던졌거나(클라이언트 생성 실패 등), 모델 설정 조회가 실패했거나(DB 장애 등), 턴 처리 중 서비스 안에서 실패했다. 스트림을 열 때의 LLM 실패(429, SDK 요청 타임아웃 포함)는 모델 프로바이더와 상관없이 아래 LLM 클라이언트 코드로 온다([LLM 클라이언트 — 에러 처리와 스트리밍](../CLE-AI/CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)). 스트리밍 미지원 예외는 따로 `LLM_STREAMING_UNSUPPORTED` 로 보낸다 | `assistant.errorStreamFailed` 문구로 재시도 안내. 이 코드 하나에 클라이언트 생성 실패 · 설정 조회 실패 · 서버 내부 실패가 함께 담기고 코드는 원인을 나누지 않는다. 그래서 두 문구 모두 원인을 단정하지 않는다. 서버 문구는 재시도만 안내한다. 사전 문구는 잠시 뒤 같은 메시지를 다시 보내라고 안내한다. 계속 실패하면 모델 설정을 확인하라는 안내도 함께 보인다 |
+| `LLM_RATE_LIMIT` | 429 ([LLM 클라이언트 — 에러 처리와 스트리밍](../CLE-AI/CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)). 스트림을 열 때와 연 뒤 모두 모델 프로바이더와 상관없이 이 코드로 온다 | `assistant.errorRateLimit` 문구로 재시도 안내. 재시도 버튼은 정의가 갈린다([미결 사항](CLE-WF-ASSIST.md#미결-사항)) |
+| `LLM_CONNECTION_ERROR` | 스트림을 열 때나 연 뒤에 429 가 아닌 이유로 실패했다(모든 모델 프로바이더. OpenAI 계열의 harmony 토큰 오류는 아래 행). OpenAI 계열과 Anthropic 의 SDK 요청 타임아웃(응답 헤더가 오기 전)도 여기에 든다([LLM 클라이언트 — 에러 처리와 스트리밍](../CLE-AI/CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)) | `assistant.errorConnection` 문구로 재시도 안내(네트워크 오류) |
 | `LLM_OUTPUT_MALFORMED` | OpenAI 계열 스트림에 gpt-oss 계열 모델의 harmony 제어 토큰이 드러났다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 의 harmony 제어 토큰 거르기) | `assistant.errorOutputMalformed` 문구 |
-| `LLM_STREAMING_UNSUPPORTED` | 선택한 모델 설정의 프로바이더가 스트리밍을 지원하지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던진 예외의 코드를 그대로 보낸다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#스트리밍-에러-매핑)). 지금의 다섯 프로바이더는 모두 스트리밍을 지원해 운영 환경의 발동 경로가 없다 | `assistant.errorStreamingUnsupported` 문구로 다른 모델 설정을 고르라고 안내한다. 재시도 안내와 "이어서 진행" 버튼은 없다 |
+| `LLM_STREAMING_UNSUPPORTED` | 선택한 모델 설정의 프로바이더가 스트리밍을 지원하지 않는다. `LlmService.chatStream` 이 스트림을 열기 전에 던진 예외의 코드를 그대로 보낸다([LLM 클라이언트 — 에러 처리와 스트리밍](../CLE-AI/CLE-AI-LLM-STREAM.md#스트리밍-에러-매핑)). 지금의 다섯 프로바이더는 모두 스트리밍을 지원해 운영 환경의 발동 경로가 없다 | `assistant.errorStreamingUnsupported` 문구로 다른 모델 설정을 고르라고 안내한다. 재시도 안내와 "이어서 진행" 버튼은 없다 |
 | `ASSISTANT_SESSION_NOT_FOUND` | 세션이 삭제됐다 | "세션이 만료되었어요. 새 대화를 시작할게요." 와 새 세션 자동 생성 (미구현, NERV Task `CLE-T-ZWQ4K2`) |
 | `ASSISTANT_SESSION_NOT_YOURS` | 같은 워크스페이스의 다른 사용자 세션이다. 다른 워크스페이스의 세션은 `ASSISTANT_SESSION_NOT_FOUND` 로 온다([AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md#세션-rest-api)) | 접근 거부 |
 
 편집 도구 실패에는 에러 코드가 없다. 편집 도구가 Shadow 검증에 실패해도 SSE `error` 이벤트는 나가지 않는다. 실패는 `tool_call` 이벤트의 `result.ok: false` 와 `result.error` 로 오고, 배지에 구체 사유([AI 어시스턴트 도구](CLE-WF-ASSIST-TOOLS.md#shadow-검증-규칙))가 보인다. 턴은 이어지고 LLM 이 다음 라운드에 복구를 시도한다.
+
+실행 중 편집 거부도 SSE `error` 이벤트가 아니라 편집 도구 결과 `ASSISTANT_WORKFLOW_RUNNING` 으로 온다. 에러 버블은 뜨지 않고 턴은 이어진다. 실행 중 판정과 사용자 안내는 [워크플로우 AI 어시스턴트 「실행과 디버깅」](CLE-WF-ASSIST.md#실행과-디버깅)이 정한다.
 
 에러 버블 동작과 코드별 사전 키는 이 표가 기준이다. 에러 버블에는 제목(`assistant.errorBubbleTitle`), 에러 코드, 안내 문구가 보인다(`assistant-message.tsx`). 안내 문구는 `ERROR_MESSAGE_KEYS` 가 에러 코드로 고른 `assistant.*` 사전 문구다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 1). 이 표에서 사전 키를 적은 일곱 코드가 `ERROR_MESSAGE_KEYS` 에 있다. 사전 문구가 없는 코드는 서버가 보낸 영문 `message` 로 폴백한다. 그 `message` 는 아래 문단대로 코드별 고정 영문이거나 공통 폴백 문구다.
 

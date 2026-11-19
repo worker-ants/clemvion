@@ -15,8 +15,11 @@ import { extractApiCode } from "@/lib/api/errors";
 import { USER_PROFILE_QUERY_KEY, usersApi } from "@/lib/api/users";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useT } from "@/lib/i18n";
-import { MIN_ACCOUNT_PASSWORD_LENGTH } from "@/lib/utils/password";
 import { PasskeyCard } from "./passkey-card";
+import {
+  PasswordConfirmField,
+  confirmPasswordOrToast,
+} from "./password-confirm-field";
 import {
   isRateLimited,
   isTotpSetupExpired,
@@ -133,7 +136,9 @@ export default function SecurityPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{t("profile.security.pageTitle")}</h1>
+        <h1 className="text-3xl font-bold">
+          {t("profile.security.pageTitle")}
+        </h1>
         <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
           {t("profile.security.pageDescription")}
         </p>
@@ -150,16 +155,11 @@ export default function SecurityPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm">
-              {t("profile.security.activeMessage")}
-            </p>
+            <p className="text-sm">{t("profile.security.activeMessage")}</p>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (disablePassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
-                  toast.error(t("profile.security.passwordRequired"));
-                  return;
-                }
+                if (!confirmPasswordOrToast(disablePassword, t)) return;
                 const trimmedCode = disableCode.trim();
                 if (!trimmedCode) {
                   toast.error(t("profile.security.disableCodeRequired"));
@@ -172,11 +172,9 @@ export default function SecurityPage() {
               }}
               className="flex flex-col gap-2 sm:flex-row sm:items-center"
             >
-              <Input
-                type="password"
-                placeholder={t("profile.security.accountPasswordPlaceholder")}
+              <PasswordConfirmField
                 value={disablePassword}
-                onChange={(e) => setDisablePassword(e.target.value)}
+                onChange={setDisablePassword}
                 className="sm:max-w-xs"
               />
               {/* 복구 코드에는 영문이 섞여 있어 숫자 키패드(inputMode numeric)를 쓰지 않는다. */}
@@ -202,7 +200,9 @@ export default function SecurityPage() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold">{t("profile.security.setupCardTitle")}</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              {t("profile.security.setupCardTitle")}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {!qrDataUrl && !recoveryCodes && (
@@ -210,10 +210,7 @@ export default function SecurityPage() {
                 className="space-y-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (setupPassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
-                    toast.error(t("profile.security.passwordRequired"));
-                    return;
-                  }
+                  if (!confirmPasswordOrToast(setupPassword, t)) return;
                   setupMutation.mutate(setupPassword);
                 }}
               >
@@ -221,12 +218,9 @@ export default function SecurityPage() {
                   {t("profile.security.setupPasswordHint")}
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Input
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder={t("profile.security.accountPasswordPlaceholder")}
+                  <PasswordConfirmField
                     value={setupPassword}
-                    onChange={(e) => setSetupPassword(e.target.value)}
+                    onChange={setSetupPassword}
                     className="sm:max-w-xs"
                   />
                   <Button type="submit" disabled={setupMutation.isPending}>
@@ -265,7 +259,9 @@ export default function SecurityPage() {
                   }}
                 >
                   <div className="flex-1">
-                    <Label htmlFor="verify-code">{t("profile.security.codeLabel")}</Label>
+                    <Label htmlFor="verify-code">
+                      {t("profile.security.codeLabel")}
+                    </Label>
                     <Input
                       id="verify-code"
                       inputMode="numeric"

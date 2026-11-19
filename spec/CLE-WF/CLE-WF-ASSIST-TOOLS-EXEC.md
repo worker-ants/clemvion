@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS-EXEC"
 title: "AI 어시스턴트 도구 — 실행 조회"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST-TOOLS"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST-TOOLS"]
 area: "CLE-WF"
-content_hash: "a991b961f1d628049c0c2d307a605313cc7432e1260703fd58ec3e82f43bbd95"
+content_hash: "baaae9756c927a070c41d0c985fe3d4bc7133c4dda1f6e2f1a2863a60a79bb5a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZN111F"
 source_paths: []
-mirror_sha256: "415619d3be6137f4444aed98a4368e284814c1309364f027ad188a3e341299b6"
-etag: "sha256-ea7b1a6a65bf03e7adacbc14d28b9e0098928e8034ca7edf711a32ffbc3b87b6"
+mirror_sha256: "fccb843a52485f48c6a468e39732b945e6bc13f02a3579f34347f2dbedcbe9a5"
+etag: "sha256-3ce394e573f1e329c5bf233927db77208cad7ae43a743b9192380ab6a22bc4ba"
 ---
 ## 개요
 
@@ -118,7 +118,7 @@ interface ExecutionDetailsResponse {
 | `running`, `waiting_for_input` | 지금까지 기록된 부분 타임라인을 돌려준다. 아직 돌지 않은 노드는 빠지고 진행 중인 노드는 `running`·`waiting_for_input` 으로 표시된다. `execution.finishedAt`·`durationMs` 는 `null` 이다 |
 | `pending` | 첫 노드도 시작하지 않은 상태다. `timeline` 은 빈 배열이고 `execution` 필드만 채운다 |
 
-실행 중 편집 도구를 거부하는 규칙([AI 어시스턴트 요구사항](CLE-WF-ASSIST.md#요구사항)의 `ASSISTANT_WORKFLOW_RUNNING`, 미구현)은 조회 도구에는 적용하지 않는다. AI 어시스턴트는 실행 중인 워크플로우도 진단 목적으로 조회할 수 있다.
+실행 중 편집 도구를 거부하는 규칙(편집 도구 결과 `ASSISTANT_WORKFLOW_RUNNING`. [워크플로우 AI 어시스턴트 「실행과 디버깅」](CLE-WF-ASSIST.md#실행과-디버깅))은 조회 도구에는 적용하지 않는다. AI 어시스턴트는 실행 중인 워크플로우도 진단 목적으로 조회할 수 있다.
 
 ## 에러 코드
 

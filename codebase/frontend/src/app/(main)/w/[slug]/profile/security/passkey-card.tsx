@@ -11,12 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -28,9 +23,12 @@ import {
 import { authApi } from "@/lib/api/auth";
 import type { WebAuthnCredentialSummary } from "@/lib/api/auth";
 import { useT } from "@/lib/i18n";
-import { MIN_ACCOUNT_PASSWORD_LENGTH } from "@/lib/utils/password";
 import { formatDate } from "@/lib/utils/date";
 import { passwordRecheckErrorKey } from "./security-errors";
+import {
+  PasswordConfirmField,
+  confirmPasswordOrToast,
+} from "./password-confirm-field";
 
 const QK_LIST = ["webauthn", "credentials"] as const;
 
@@ -136,7 +134,10 @@ export function PasskeyCard() {
     onError: (err) =>
       toast.error(
         t(
-          passwordRecheckErrorKey(err, "profile.security.webauthn.deleteFailed"),
+          passwordRecheckErrorKey(
+            err,
+            "profile.security.webauthn.deleteFailed",
+          ),
         ),
       ),
   });
@@ -161,7 +162,9 @@ export function PasskeyCard() {
     },
     onError: (err) =>
       toast.error(
-        t(passwordRecheckErrorKey(err, "profile.security.webauthn.regenFailed")),
+        t(
+          passwordRecheckErrorKey(err, "profile.security.webauthn.regenFailed"),
+        ),
       ),
   });
 
@@ -193,10 +196,7 @@ export function PasskeyCard() {
             className="flex flex-col gap-2 sm:flex-row sm:items-end"
             onSubmit={(e) => {
               e.preventDefault();
-              if (registerPassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
-                toast.error(t("profile.security.passwordRequired"));
-                return;
-              }
+              if (!confirmPasswordOrToast(registerPassword, t)) return;
               registerMutation.mutate({
                 name: deviceName,
                 password: registerPassword,
@@ -209,23 +209,20 @@ export function PasskeyCard() {
               </Label>
               <Input
                 id="webauthn-device-name"
-                placeholder={t("profile.security.webauthn.deviceNamePlaceholder")}
+                placeholder={t(
+                  "profile.security.webauthn.deviceNamePlaceholder",
+                )}
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
                 maxLength={100}
               />
             </div>
             <div className="flex-1">
-              <Label htmlFor="webauthn-register-pw">
-                {t("profile.security.webauthn.registerPasswordLabel")}
-              </Label>
-              <Input
+              <PasswordConfirmField
                 id="webauthn-register-pw"
-                type="password"
-                autoComplete="current-password"
-                placeholder={t("profile.security.accountPasswordPlaceholder")}
+                label={t("profile.security.webauthn.registerPasswordLabel")}
                 value={registerPassword}
-                onChange={(e) => setRegisterPassword(e.target.value)}
+                onChange={setRegisterPassword}
               />
             </div>
             <Button type="submit" disabled={registerMutation.isPending}>
@@ -309,23 +306,16 @@ export function PasskeyCard() {
             className="flex flex-col gap-2 sm:flex-row sm:items-end border-t border-[hsl(var(--border))] pt-4"
             onSubmit={(e) => {
               e.preventDefault();
-              if (regenPassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
-                toast.error(t("profile.security.passwordRequired"));
-                return;
-              }
+              if (!confirmPasswordOrToast(regenPassword, t)) return;
               regenMutation.mutate(regenPassword);
             }}
           >
             <div className="flex-1">
-              <Label htmlFor="webauthn-regen-pw">
-                {t("profile.security.webauthn.regenLabel")}
-              </Label>
-              <Input
+              <PasswordConfirmField
                 id="webauthn-regen-pw"
-                type="password"
-                placeholder={t("profile.security.accountPasswordPlaceholder")}
+                label={t("profile.security.webauthn.regenLabel")}
                 value={regenPassword}
-                onChange={(e) => setRegenPassword(e.target.value)}
+                onChange={setRegenPassword}
               />
             </div>
             <Button
@@ -353,10 +343,7 @@ export function PasskeyCard() {
             onSubmit={(e) => {
               e.preventDefault();
               if (deleteTargetId === null) return;
-              if (deletePassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
-                toast.error(t("profile.security.passwordRequired"));
-                return;
-              }
+              if (!confirmPasswordOrToast(deletePassword, t)) return;
               deleteMutation.mutate({
                 id: deleteTargetId,
                 password: deletePassword,
@@ -372,16 +359,11 @@ export function PasskeyCard() {
               </DialogDescription>
             </DialogHeader>
             <div>
-              <Label htmlFor="webauthn-delete-pw">
-                {t("profile.security.webauthn.deletePasswordLabel")}
-              </Label>
-              <Input
+              <PasswordConfirmField
                 id="webauthn-delete-pw"
-                type="password"
-                autoComplete="current-password"
-                placeholder={t("profile.security.accountPasswordPlaceholder")}
+                label={t("profile.security.webauthn.deletePasswordLabel")}
                 value={deletePassword}
-                onChange={(e) => setDeletePassword(e.target.value)}
+                onChange={setDeletePassword}
               />
             </div>
             <DialogFooter>

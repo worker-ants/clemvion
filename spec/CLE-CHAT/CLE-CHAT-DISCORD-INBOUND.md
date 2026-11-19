@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD-INBOUND"
 title: "Discord 어댑터 — 인바운드 처리와 응답"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DISCORD"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
-content_hash: "072d59c4079832eb428dae0727e8d304223230fb46d14407c858d8c706cde28d"
+content_hash: "04d65aa5f3d70c43995508b21cb365a285e696890e25afbefa126bdf637d4916"
 read_as: "approved_fallback"
-task: "CLE-T-FQTQ7K"
+task: "CLE-T-K57S4N"
 source_paths: []
-mirror_sha256: "cac8ed9288f8d02bc3f4bad26ebce90ae15f3a198fea71c9b461251e68dc9886"
-etag: "sha256-075b62d58c03b19c5c81bc6db4073ba628ea80ee468f17cc31f38c515aaaff91"
+mirror_sha256: "2367c4713d90d83cd63ee019bf1efaff4544db73340f323cd9afab17efb5a7dd"
+etag: "sha256-7cd47f6278684c1cb335d09cd9b163822098851fdc82bdcc25ec968877fe051d"
 ---
 ## 개요
 
@@ -183,3 +183,5 @@ NERV Task `CLE-T-7XWVC5` 의 결정이다. Discord 는 interaction response 객�
 - 슬래시 명령에 `{ type: 5 }`(DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)로 미룬 뒤 `PATCH /webhooks/{app_id}/{interaction_token}/messages/@original` 로 원본 응답을 고치는 안: 명령마다 외부 호출이 하나 더 든다. 버린 경로(중복, 분당 한도 초과)에도 그 호출을 해야 하고, 호출이 없거나 실패하면 사용자는 로딩 표시를 보다가 실패를 본다.
 - 슬래시 명령은 `202` 를 유지하는 안: 처리한 명령에도 실패가 뜨는 결함이 남는다.
 - 비활성 트리거는 인터랙션에도 `202` 로 답하는 안: 트리거를 끈 동안 누른 버튼과 보낸 명령마다 실패가 뜬다.
+
+DM 밖 채널의 슬래시 명령도 결정 1 대로 수신 문구로 답한다. Slack 은 같은 경우에 `groupChatRefusal` 로 답하지만([Slack 어댑터 — 인바운드 파싱과 명령 「R-S-14」](CLE-CHAT-SLACK-INBOUND.md#r-s-14-슬래시-명령은-본인에게만-보이는-문구와-200-으로-답한다)) 이 차이는 의도한 것이다(NERV Task `CLE-T-K57S4N`). 두 프로바이더 모두 DM 밖 명령으로 실행을 시작하거나 취소하지 않으므로 보안 성질은 같고 사용자에게 보이는 문구만 다르다. Discord 쪽도 거절 문구로 맞추는 안은 고르지 않았다. 기본 응답 함수가 원본 본문의 `channel.type` 까지 읽도록 코드를 바꿔야 하고, 결정 1 이 슬래시 명령의 응답을 경로와 관계없는 한 문구로 정한 것과도 어긋난다.

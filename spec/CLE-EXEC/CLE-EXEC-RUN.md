@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN"
 title: "에디터 실행과 디버깅"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-EXECRUN-001", "REQ-EXECRUN-002", "REQ-EXECRUN-003", "REQ-EXECRUN-004", "REQ-EXECRUN-005", "REQ-EXECRUN-006", "REQ-EXECRUN-007", "REQ-EXECRUN-008", "REQ-EXECRUN-009", "REQ-EXECRUN-010", "REQ-EXECRUN-011", "REQ-EXECRUN-012", "REQ-EXECRUN-013", "REQ-EXECRUN-014", "REQ-EXECRUN-015", "REQ-EXECRUN-016", "REQ-EXECRUN-017", "REQ-EXECRUN-018", "REQ-EXECRUN-019", "REQ-EXECRUN-020", "REQ-EXECRUN-021", "REQ-EXECRUN-022", "REQ-EXECRUN-023", "REQ-EXECRUN-024", "REQ-EXECRUN-025", "REQ-EXECRUN-026", "REQ-EXECRUN-027", "REQ-EXECRUN-028", "REQ-EXECRUN-029", "REQ-EXECRUN-030", "REQ-EXECRUN-031", "REQ-EXECRUN-032", "REQ-EXECRUN-033", "REQ-EXECRUN-034", "REQ-EXECRUN-035", "REQ-EXECRUN-036", "REQ-EXECRUN-037", "REQ-EXECRUN-038", "REQ-EXECRUN-039", "REQ-EXECRUN-040", "REQ-EXECRUN-041", "REQ-EXECRUN-042", "REQ-EXECRUN-043", "REQ-EXECRUN-044", "REQ-EXECRUN-045", "REQ-EXECRUN-046", "REQ-EXECRUN-047", "REQ-EXECRUN-048", "REQ-EXECRUN-049", "REQ-EXECRUN-050", "REQ-EXECRUN-051", "REQ-EXECRUN-052", "REQ-EXECRUN-053", "REQ-EXECRUN-054", "REQ-EXECRUN-055", "REQ-EXECRUN-056", "REQ-EXECRUN-057", "REQ-EXECRUN-058", "REQ-EXECRUN-059"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "a7d66448c028666cb139f9115361147db5c4ade3452fc52f93de26808f205c41"
+content_hash: "b9766362d411dd24f2c6416ad15e45ff4e0f5ae52e3cc5b9f422ac127ed2b944"
 read_as: "approved_fallback"
-task: "CLE-T-5P1ADY"
+task: "CLE-T-88KRHT"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/3-workflow-editor/3-execution.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "13ae1f16e7e9869433f4b54fc73562d1c809038b803c344d5ec9bd9e66f59786"
-etag: "sha256-3cac8a93f88cad258daeb69113505cd6be648c2c5dfb78bc00f3aaca25896dbe"
+mirror_sha256: "c944f7549d577affd50de1be821b1b6313a597fbb35eb27d45bf15342315bf9c"
+etag: "sha256-e32c0f2463d0776183479ef9ed2bac66bf14a90d81405d526c027f577ec7f8bb"
 ---
 > 구현 상태: 구현됨 (브레이크포인트만 미구현 로드맵) · 원문: `spec/3-workflow-editor/3-execution.md`, `spec/3-workflow-editor/_product-overview.md` (§7 워크플로우 실행, §8 실행 디버깅), `spec/2-navigation/14-execution-history.md` (§3.4.1·§3.4.2 AI 탭 설명과 R-3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -113,7 +113,7 @@ etag: "sha256-3cac8a93f88cad258daeb69113505cd6be648c2c5dfb78bc00f3aaca25896dbe"
 - **Table 최대 표시 행 수**: 옛 에디터 실행 문서는 드로어의 Table 을 "최대 50행 표시" 라고 적는다. [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md) 은 같은 드로어 Table 에 "페이지네이션 강제(최대 200행/페이지)" 를 적는다. 현재 구현(`presentation-renderers.tsx`)은 앞 50행만 렌더한다. 어느 쪽을 규칙으로 둘지 결정이 필요하다.
 - **드로어 재실행 버튼의 표시 상태**: 옛 에디터 실행 문서는 드로어의 재실행 버튼을 "completed·failed·cancelled·waiting_for_input 종료" 상태에서 보인다고 적으면서, 같은 표에서 진행 중 멀티턴(입력 대기 상태)은 숨긴다고 적는다. `waiting_for_input` 은 엔진에서 종결 상태가 아니다([실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md)). [재실행](CLE-EXEC-RERUN.md) 은 재실행할 수 있는 원본 상태를 제한하지 않는다. 현재 구현(`run-results-drawer.tsx`)은 store 상태가 `completed`·`failed` 일 때만 버튼을 보인다. 드로어에서 버튼을 보일 상태 집합을 결정해야 한다.
 - **컨테이너 안 Presentation 노드의 반복 표시**: 옛 에디터 실행 문서 §10.5 는 컨테이너 본문 노드의 반복 회차마다 실행 트리 항목을 따로 만들고 라벨에 `(iter N)` 을 붙인다고 적는다. 같은 문서 §10.9 는 Loop·ForEach 안 Presentation 노드를 `"Table (Iteration 3/5)"` 처럼 표시하고 기본으로 마지막 회차 결과를 보이며 이전 회차는 결과 상세의 반복 드롭다운으로 탐색한다고 적는다. 현재 구현(`timeline-tree.ts`, `result-timeline.tsx`)은 Presentation 노드도 §10.5 방식으로 `(iter N)` 항목을 따로 만들고 반복 드롭다운은 없다. §10.9 를 Presentation 노드 예외로 구현할지, §10.9 서술을 지울지 결정이 필요하다.
-- **`subscribed` 실패 응답의 `channel` 필드**: [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 `subscribed` 실패 응답에는 `channel` 이 없어 에디터는 어느 구독이 실패했는지 가리지 못한다([노드 결과 수집](CLE-EXEC-RUN-SYNC.md#노드-결과-수집) 의 「바로 켜는 경우」). 실패 응답에 `channel` 을 더할지는 NERV Task `CLE-T-7MBBA7` 에서 정한다.
+- **`subscribed` 실패 응답의 `channel` 필드**: [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 `subscribed` 실패 응답에는 `channel` 이 없어 에디터는 어느 구독이 실패했는지 가리지 못한다([노드 결과 수집](CLE-EXEC-RUN-SYNC.md#노드-결과-수집) 의 「바로 켜는 경우」). 실패 응답에 `channel` 을 더할지는 NERV Task `CLE-T-A338CH` 에서 정한다.
 - **교차 출처 배포의 `Retry-After`**: 프런트엔드가 API 를 다른 출처로 부르는 배포에서는 백엔드 CORS 가 `Retry-After` 를 노출하지 않는다. 그래서 브라우저가 이 헤더를 숨기고, [노드 결과 수집](CLE-EXEC-RUN-SYNC.md#노드-결과-수집) 의 REST 폴링 대체 경로는 429 에도 늘리는 간격으로 대신한다. 헤더를 노출할지는 NERV Task `CLE-T-1XDNY3` 에서 정한다.
 
 ## 구현 위치

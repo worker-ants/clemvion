@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-SIGNUP"
 title: "가입과 로그인 — 가입 · 재설정 · 이메일 변경"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "a01bbc964de58434fc00e1b1745e9988043fe82a29371d32527ae00527aa2a44"
+content_hash: "f20c9b682f134d7e7f07ae0e8192cb690bbc58dffb27c9f74f0ff740ce3061d5"
 read_as: "approved_fallback"
-task: "CLE-T-6F4W2A"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "a3d1ce87a943c5d0ff16ecea7e84391f981a1874c67a6995b704e8a1de7ecdaa"
-etag: "sha256-7506a23985066d89aa92a062ee874a1bedffc9687faeace849926ff66f8a0323"
+mirror_sha256: "700dec92c8c9346e82f49d50adf7c3a86f0964c03964149d098962b7edefaa81"
+etag: "sha256-f1a154be88b3f65ecec8b63ba410f4def1dfbc1ff392895ffa3a037316ac9578"
 ---
 ## 개요
 
@@ -125,7 +125,7 @@ etag: "sha256-7506a23985066d89aa92a062ee874a1bedffc9687faeace849926ff66f8a0323"
 
 가입 중복 검사와 `check-email` 은 대소문자만 다른 계정이 하나라도 있으면 이미 쓰는 이메일로 본다. 가입은 409 `RESOURCE_CONFLICT`, `check-email` 은 `available: false` 다. 이메일 변경도 다른 계정이 대소문자만 다른 이메일을 쓰면 409 `RESOURCE_CONFLICT` 다.
 
-근거와 기각한 안은 Rationale 「[대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다](#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05)」 에 있다. 대소문자를 무시하는 유일 인덱스는 NERV Task `CLE-T-6QZCYD` 가 맡는다.
+근거와 기각한 안은 Rationale 「[대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다](#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다)」 에 있다. 대소문자를 무시하는 유일 인덱스는 NERV Task `CLE-T-6QZCYD` 가 맡는다.
 
 ## 비밀번호 재설정
 
@@ -191,7 +191,7 @@ sequenceDiagram
 - 계정 재인증 수단이 없는 계정은 막는다. 비밀번호도 TOTP 도 없는 OAuth 전용 계정은 Passkey 를 등록했어도 `REAUTH_NOT_AVAILABLE` 로 변경할 수 없다. 이 계정은 [비밀번호 재설정](#비밀번호-재설정) 으로 비밀번호를 설정한 뒤 이메일을 바꿀 수 있다. TOTP 를 켜려면 비밀번호가 먼저 있어야 한다([TOTP 켜기](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기)). Passkey 를 새로 등록할 때도 비밀번호가 필요하므로 이런 계정의 Passkey 는 Passkey 등록에 비밀번호 재확인이 생기기 전에 등록한 것이다([Passkey 등록 흐름](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록-흐름)).
 - 변경 확인 토큰(`emailChangeToken`)은 SHA-256 해시로만 저장하고 원래 토큰은 메일 링크로만 전달한다. 유효 시간은 1시간이다.
 - 확인은 인증이 필요하다. 새 이메일의 확인 토큰은 본인의 로그인 세션에서 부른 `POST /api/users/me/email-change/verify` 로만 소비한다. 토큰이 사용자에 묶여 있어 새어 나간 링크만으로는 쓸모가 없다. 가입 인증 `verify-email`(`@Public`)보다 강한 가드다.
-- 확인이 성공하면 비밀번호 변경과 같이 모든 로그인 세션을 무효화하고 현재 기기에 새 로그인 세션을 발급한다. 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건과 감사 로그 `user.email_changed` 1건이 함께 남는다. 로그인 세션 처리 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
+- 확인이 성공하면 비밀번호 변경과 같이 모든 로그인 세션을 무효화하고 현재 기기에 새 로그인 세션을 발급한다. 감사 로그 `user.email_changed` 1건이 남고 무효화한 리프레시 토큰 행이 있으면 로그인 이력 `session_revoked`(일괄, `familyId=null`) 1건도 남는다([세션 정책](CLE-ACCT-SESSION-POLICY.md#세션-정책)). 로그인 세션 처리 이유는 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있다.
 - 기존 OAuth 제공자 연결은 제공자 계정 ID 기준이라 이메일 변경과 독립이다.
 
 ### 동작 표
@@ -277,7 +277,9 @@ sequenceDiagram
 
 `user.email_changed` 는 변경을 확정한 요청의 현재 워크스페이스 관리자가 조회할 수 있다. 바꾸기 전후 주소를 details 에 넣으면 필요 이상으로 개인정보가 드러난다. 그래서 변경이 일어났다는 사실과 포렌식용 `ipAddress` 만 남긴다. 액션 이름 규칙은 [감사 action 명명](../CLE-OBS/CLE-OBS-AUDITNAME.md) 을 따른다.
 
-### 대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다 (2026-11-05)
+### 대소문자만 다른 기존 계정은 대소문자까지 같은 계정만 쓰고 나머지는 모호로 거부한다
+
+결정일: 2026-11-05
 
 NERV Task `CLE-T-SFWX84` 에서 사람 결정으로 정했다. 그 전에는 가입 · 로그인 · 이메일 확인 · 소셜 로그인 연결이 이메일을 대소문자까지 같아야 같은 이메일로 봤다. 그래서 대문자를 섞어 가입한 사용자가 소문자로 입력하면 없는 계정으로 거부됐고 대소문자만 다른 이메일로 계정을 하나 더 만들 수도 있었다.
 

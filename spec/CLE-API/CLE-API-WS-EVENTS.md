@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS"
 title: "WebSocket 이벤트와 명령"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "5594187cc44267a207164252e8074fa1f31146e4200abc9ee09b5689fa0bdecd"
+content_hash: "911c7003003837f078deb18b6c63159040465ff4222ba15831e9d4ef017cb73d"
 read_as: "approved_fallback"
-task: "CLE-T-GA8ZXQ"
+task: "CLE-T-SKDWWG"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "d1376d006a38321ff38ee03e4f2b6e51075ed51cfbfc63d015ae3dcfaca8b620"
-etag: "sha256-95124e623afa536759c7e40f9f25bfe16cd9a37757ea9fd7a2fb7106f5d0a24f"
+mirror_sha256: "fcd617c1ad09c5e288daf31bf7ed1c76fd5815880951b53f3483a8bbe891931c"
+etag: "sha256-560c3354006cb4c588ed2bfe34ba68615f15343b2a891c15aa59c51636213c44"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -35,7 +35,7 @@ etag: "sha256-95124e623afa536759c7e40f9f25bfe16cd9a37757ea9fd7a2fb7106f5d0a24f"
 - 에러 코드 카탈로그: [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)
 - 대화 스레드 자료구조: [대화 스레드](../CLE-IX/CLE-IX-THREAD.md). 화면이 이벤트를 store 로 바꾸는 규칙: [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md)
 
-JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제 wire 는 이벤트 이름이 Socket.IO 이벤트 이름이고 서버 이벤트 페이로드는 평면 봉투다. 예시의 `id` 도 논리 표기라 wire 에 실리지 않는다([WebSocket 연결과 채널 구독 「기본 프레임 (논리 구조)」](CLE-API-WS.md#31-기본-프레임-논리-구조)).
+JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제 wire 는 이벤트 이름이 Socket.IO 이벤트 이름이고 서버 이벤트 페이로드는 평면 봉투다. 예시의 `id` 도 논리 표기라 wire 에 실리지 않는다([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「3.1 기본 프레임 (논리 구조)」](CLE-API-WS-MSG.md#31-기본-프레임-논리-구조)).
 
 ## 하위 문서
 
@@ -57,7 +57,7 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 | `execution.failed` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 실패 |
 | `execution.cancelled` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 취소 |
 | `execution.resumed` | `{ executionId, status, seq, timestamp }` | 입력 대기에서 재개됨. 재개 명령 ack 이후 실제 재개를 알리는 후행 이벤트다([재개 명령 ack 의 공통 필드](CLE-API-WS-EVENTS-COMMANDS.md#22-재개-명령-ack-의-공통-필드)). 현재 구현은 폼·버튼·AI 재개 경로가 `{ status: 'running' }` 을 싣는다 |
-| `execution.snapshot` | `{ executionId, execution, timestamp }` | 다시 구독할 때 보내는 1회성 현재 상태(실행 스냅샷 이벤트). `execution` 은 실행 상세 응답(`GET /api/executions/:id`)과 같은 객체이고(필드는 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md) 의 API 절) 그 안에 `status`·`nodeExecutions[]` 등이 중첩된다. 최상위에 `status`·`nodeExecutions` 가 평면으로 있는 것이 아니라 `payload.execution.*` 다. 발행 시점은 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 의 놓친 이벤트 복구. 중첩된 `execution.error` 와 `execution.nodeExecutions[].error` 는 `findById` 의 마스킹 관문을 이어받는다 |
+| `execution.snapshot` | `{ executionId, execution, timestamp }` | 다시 구독할 때 보내는 1회성 현재 상태(실행 스냅샷 이벤트). `execution` 은 실행 상세 응답(`GET /api/executions/:id`)과 같은 객체이고(필드는 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md) 의 API 절) 그 안에 `status`·`nodeExecutions[]` 등이 중첩된다. 최상위에 `status`·`nodeExecutions` 가 평면으로 있는 것이 아니라 `payload.execution.*` 다. 발행 시점은 [WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「6.2 놓친 이벤트 복구」](CLE-API-WS-CONN.md#62-놓친-이벤트-복구) 가 정한다. 중첩된 `execution.error` 와 `execution.nodeExecutions[].error` 는 `findById` 의 마스킹 관문을 이어받는다 |
 | `execution.paused` _(계획, 미구현)_ | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지. 기능은 [에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md) 의 브레이크포인트 로드맵 소관이다. 구현할 때 `nodeLabel` 로 맞춘다 |
 | `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, nodeType }` | 노드 실행 시작. `nodeExecutionId` 는 노드 실행(`NodeExecution`) 행의 PK 로, 컨테이너 본문 노드의 회차별 타임라인 행을 가르는 식별자다 |
 | `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, output, duration }` | 노드 실행 완료. wire 의 `output` 은 `NodeExecution.outputData` 전체, 즉 노드 출력(`NodeHandlerOutput`) 래퍼다. 도메인 값은 한 겹 아래 `output.output` 이고 노드 출력 규약의 `output.error` 는 wire 에서 **`output.output.error`** 다(예: AI 에이전트 멀티턴의 `port: 'error'` 종결). `details.retryable`·`retryAfterSec` 표준 필드는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 이 정한다. fanout(외부)에서는 이 래퍼에 fail-closed 허용 목록이 걸린다 |

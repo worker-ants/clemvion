@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052", "REQ-WEBHOOK-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "713d1a010d59dd900aab8813381dbd0b3e380b01231295898c5a65a66dff55c2"
+content_hash: "4bf5b4f6f5f8c353364ccb9e31e0acca3b874e591bbb6bb9dae943cd08366871"
 read_as: "approved_fallback"
-task: "CLE-T-289XDB"
+task: "CLE-T-W020BQ"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "d6ea95b2550925656dc24b893e201be317e8f37002a43fe7cd89a430dbc0dd3d"
-etag: "sha256-01e53f1bc84f1894af4baadc69a4798e210dd250046404f596d2b9ac274d141e"
+mirror_sha256: "c32385377dbec287cd0e6b8cbb9afc6b8fe99402b8f7e0107f6c3c21f915187f"
+etag: "sha256-bd800c69c1cf7d225937b23f1bfed827e69333b98b6d315092e489083d3fbd57"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -53,10 +53,10 @@ etag: "sha256-01e53f1bc84f1894af4baadc69a4798e210dd250046404f596d2b9ac274d141e"
 - REQ-WEBHOOK-007 IF required 파라미터가 없거나 타입 강제 변환이 실패하면 THE SYSTEM SHALL 실행을 만들지 않고 `400 INVALID_WEBHOOK_PAYLOAD` 로 응답하며 필드별 사유를 `error.details[]` 에 싣는다. (원본: WH-EP-05-2)
 - REQ-WEBHOOK-008 WHEN 웹훅이 실행을 시작하면 THE SYSTEM SHALL `headers`·`method`·`query` 를 메타데이터로 넘기고 민감 헤더 값은 저장 전에 `[REDACTED]` 로 가린다. (원본: WH-EP-06)
 - REQ-WEBHOOK-009 IF 비활성 트리거로 요청이 오면 THE SYSTEM SHALL `410 Gone`(`TRIGGER_INACTIVE`)으로 응답한다. (원본: WH-EP-07)
-- REQ-WEBHOOK-010 IF 채팅 채널이 설정된 트리거가 비활성이면 THE SYSTEM SHALL provider inbound 서명 검증을 먼저 하고 통과한 요청으로는 실행을 시작하지 않는다. 응답은 인터랙션 요청(Discord 컴포넌트 · 모달 제출 · 슬래시 명령, Slack Interactivity · 슬래시 명령)이면 `200 OK` 와 기본 인터랙션 응답이고 그 밖의 요청(Discord PING, Slack `url_verification` · Events API 메시지, Telegram update)이면 `202 Accepted` 와 `{ executionId: 'ignored' }` 다. 버린 버튼 클릭의 수신 확인을 포함해 프로바이더 API 는 부르지 않는다([채팅 채널 분기](#채팅-채널-분기)). (원본: WH-EP-07)
+- REQ-WEBHOOK-010 IF 채팅 채널이 설정된 트리거가 비활성이면 THE SYSTEM SHALL provider inbound 서명 검증을 먼저 하고 통과한 요청으로는 실행을 시작하지 않는다. 응답은 인터랙션 요청(Discord 컴포넌트 · 모달 제출 · 슬래시 명령, Slack Interactivity · 슬래시 명령)이면 `200 OK` 와 기본 인터랙션 응답이고 그 밖의 요청(Discord PING, Slack `url_verification` · Events API 메시지, Telegram update)이면 `202 Accepted` 와 `{ executionId: 'ignored' }` 다. 버린 버튼 클릭의 수신 확인을 포함해 프로바이더 API 는 부르지 않는다([채팅 채널 분기](#채팅-채널-분기)). 저장된 설정에 인바운드 서명 자료 참조(`inboundSigningRef`)가 없는 행은 서명 검증을 건너뛴다([채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](../CLE-CHAT/CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행)). (원본: WH-EP-07)
 - REQ-WEBHOOK-048 IF 채팅 채널이 아닌 웹훅 트리거의 워크플로우가 비활성이면(`workflow.is_active=false`) THE SYSTEM SHALL 인증과 파라미터 검증 전에 `410 Gone`(`WORKFLOW_INACTIVE`)으로 응답하고 실행 행을 만들지 않으며 `last_triggered_at` 을 갱신하지 않는다.
 - REQ-WEBHOOK-049 IF 채팅 채널이 설정된 트리거의 워크플로우가 비활성일 때 새 실행을 시작할 update 가 오면 THE SYSTEM SHALL 일반 웹훅의 `410 Gone`(`WORKFLOW_INACTIVE`) 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답하고 새 실행을 만들지 않는다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 응답한다([채팅 채널 분기](#채팅-채널-분기)). 막는 update 는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 확인 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
-- REQ-WEBHOOK-050 WHEN 활성 채팅 채널 트리거로 Slack `url_verification` 이나 Discord PING(type 1) handshake 가 오면 THE SYSTEM SHALL 워크플로우가 비활성이어도 서명 검증 뒤 handshake 에 답한다.
+- REQ-WEBHOOK-050 WHEN 활성 채팅 채널 트리거로 Slack `url_verification` 이나 Discord PING(type 1) handshake 가 오면 THE SYSTEM SHALL 워크플로우가 비활성이어도 서명 검증 뒤 handshake 에 답한다. 저장된 설정에 인바운드 서명 자료 참조(`inboundSigningRef`)가 없는 행은 서명 검증을 건너뛴다([채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](../CLE-CHAT/CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행)).
 - REQ-WEBHOOK-051 WHEN 워크플로우 활성 상태를 확인하면 THE SYSTEM SHALL 트리거의 워크스페이스 안에서만 워크플로우를 찾고 거기에 없으면 확인을 통과시켜 워크플로우가 그 워크스페이스에 없을 때의 응답(REQ-WEBHOOK-047, 채팅 채널은 `202` ignored)을 따른다. 채팅 채널의 인터랙션 요청이면 그 응답은 `200 OK` 와 기본 인터랙션 응답이다([채팅 채널 분기](#채팅-채널-분기)).
 - REQ-WEBHOOK-052 WHILE 활성 채팅 채널 트리거의 워크플로우가 비활성인 동안 THE SYSTEM SHALL 진행 중인 대화의 update 를 워크플로우가 활성일 때와 같이 처리하고 일반 웹훅의 `410 Gone`(`WORKFLOW_INACTIVE`)이나 새 실행을 막을 때 쓰는 `202` ignored 로 응답하지 않는다. 대상 update 는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
 - REQ-WEBHOOK-011 WHEN 트리거에 인증 설정이 연결되지 않았으면 THE SYSTEM SHALL 인증 없이 요청을 받는다. (원본: WH-SC-01)
@@ -66,7 +66,7 @@ etag: "sha256-01e53f1bc84f1894af4baadc69a4798e210dd250046404f596d2b9ac274d141e"
 - REQ-WEBHOOK-015 IF HMAC `config.algorithm` 이 `sha256`·`sha512` 가 아니면 THE SYSTEM SHALL 인증 실패로 처리한다.
 - REQ-WEBHOOK-016 WHEN 인증 설정 유형이 `bearer_token` 이면 THE SYSTEM SHALL `Authorization: Bearer <token>` 값을 `config.token` 과 비교한다. (원본: WH-SC-03)
 - REQ-WEBHOOK-017 IF 인증이 실패하면 THE SYSTEM SHALL 유형과 사유를 가리지 않고 `401 AUTH_FAILED` 하나로 응답하고 진단은 서버 로그에만 남긴다. (원본: WH-SC-04)
-- REQ-WEBHOOK-018 WHEN 웹훅 요청이 오면 THE SYSTEM SHALL 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 채팅 채널 트리거의 요청만 빼고 전역 throttler 로 분당 100건을 넘는 요청을 막는다. 채팅 채널이 아닌 트리거와 서명 참조가 없는 채팅 채널 트리거의 요청은 이 한도를 받는다. (원본: WH-SC-05)
+- REQ-WEBHOOK-018 WHEN 웹훅 요청이 오면 THE SYSTEM SHALL 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 채팅 채널 트리거의 요청만 빼고 전역 throttler 로 분당 100건을 넘는 요청을 막는다. 채팅 채널이 아닌 트리거와 서명 참조가 없는 채팅 채널 트리거의 요청은 이 한도를 받는다. 서명 참조가 있는 채팅 채널 트리거의 판정은 [채팅 채널 — 인바운드 관문 「핸들러 앞 라우트 가드」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#핸들러-앞-라우트-가드) 가 정한다. (원본: WH-SC-05)
 - REQ-WEBHOOK-019 WHEN 채팅 채널 트리거가 아닌 공개 웹훅에 요청이 오면 THE SYSTEM SHALL 클라이언트 IP 단위로 분당 시작 10건과 시간당 누적 신규 20건(기본값)을 넘는 요청을 429 로 막는다. (원본: WH-SC-05)
 - REQ-WEBHOOK-020 IF 공개 웹훅 요청의 클라이언트 IP 를 헤더에서 알 수 없으면 THE SYSTEM SHALL 그런 요청을 하나의 공유 버킷으로 묶어 같은 한도를 건다. (원본: WH-SC-05)
 - REQ-WEBHOOK-021 WHEN 인증 설정 유형이 `api_key` 이면 THE SYSTEM SHALL `config.headerName`(기본 `X-API-Key`) 헤더 값을 `config.key` 와 비교한다. (원본: WH-SC-06)

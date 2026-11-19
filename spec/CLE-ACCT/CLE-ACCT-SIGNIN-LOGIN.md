@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-LOGIN"
 title: "가입과 로그인 — 로그인과 소셜 로그인"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "fd8fa0c91c510a3d35a80855cc8910b0612d1f40d64a17d92040ba8701ef99f0"
+content_hash: "657045e6120536d264d92248d947f7a2d737144175de95ed8d493cce469939dd"
 read_as: "approved_fallback"
-task: "CLE-T-327K37"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "d0f38cd20d8b56fd19940f96e8a0f94f494b0eb29b37177b6a84d310a1d3eaba"
-etag: "sha256-605841185eb8f87edf3a0db99f1917007223d0f2eae3da4d360c6fd228c3500f"
+mirror_sha256: "56660f1812368220967b090ea095c5894225aca713618da4aa211eb400759abe"
+etag: "sha256-0b586577e9e049a246fad56707e5f6f1c571ee98cb8ce4e9ea30a597bef7195d"
 ---
 ## 개요
 
@@ -213,7 +213,7 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 
 `error=` 값은 응답 봉투의 `error.code` 가 아니라 리다이렉트 URL 쿼리 파라미터라서 `lower_snake_case` 다. 이 예외는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 예외 등록 코드 목록에 올라 있다.
 
-연결할 계정을 정하지 못한 경우는 새 `error=` 값을 두지 않고 `server_error` 를 쓴다. 서버 내부 코드 `OAUTH_ACCOUNT_AMBIGUOUS` 는 컨트롤러가 리다이렉트로 바꾸므로 응답 봉투로 나가지 않고 카탈로그에도 올리지 않는다. 이유는 [가입 · 재설정 · 이메일 변경 Rationale](CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다-2026-11-05) 에 있다.
+연결할 계정을 정하지 못한 경우는 새 `error=` 값을 두지 않고 `server_error` 를 쓴다. 서버 내부 코드 `OAUTH_ACCOUNT_AMBIGUOUS` 는 컨트롤러가 리다이렉트로 바꾸므로 응답 봉투로 나가지 않고 카탈로그에도 올리지 않는다. 이유는 [가입 · 재설정 · 이메일 변경 Rationale](CLE-ACCT-SIGNIN-SIGNUP.md#대소문자만-다른-기존-계정은-대소문자까지-같은-계정만-쓰고-나머지는-모호로-거부한다) 에 있다.
 
 프론트엔드 `/callback` 페이지는 다음처럼 동작한다.
 

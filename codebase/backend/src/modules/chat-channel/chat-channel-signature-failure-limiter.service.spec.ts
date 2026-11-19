@@ -192,4 +192,74 @@ describe('ChatChannelSignatureFailureLimiterService', () => {
       ).resolves.toBe(false);
     });
   });
+  // 근거: NERV Task `CLE-T-TB33HY`. 두 fail-open 경로를 `clemvion.redis.fail_open` 에 센다
+  // (CLE-OBS-LOGGING-METRICS 「Redis fail-open 라벨」). Redis 가 없어 기능을 끈 상태는 장애가 아니라 세지 않는다.
+  describe('Redis fail-open 지표', () => {
+    const metricsMock = () => ({ recordRedisFailOpen: jest.fn() });
+
+    it('조회가 실패하면 get_failed 로 한 번 센다', async () => {
+      const metrics = metricsMock();
+      const limiter = new ChatChannelSignatureFailureLimiterService(
+        { get: jest.fn().mockRejectedValue(new Error('redis down')) } as never,
+        undefined,
+        metrics as never,
+      );
+
+      await limiter.isBlocked(TRIGGER_ID, IP);
+
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+        'chat_signature_failure_limit',
+        'get_failed',
+      );
+    });
+
+    it('기록이 실패하면 incr_failed 로 한 번 센다', async () => {
+      const metrics = metricsMock();
+      const limiter = new ChatChannelSignatureFailureLimiterService(
+        { eval: jest.fn().mockRejectedValue(new Error('boom')) } as never,
+        undefined,
+        metrics as never,
+      );
+
+      await limiter.recordFailure(TRIGGER_ID, IP);
+
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledTimes(1);
+      expect(metrics.recordRedisFailOpen).toHaveBeenCalledWith(
+        'chat_signature_failure_limit',
+        'incr_failed',
+      );
+    });
+
+    it('조회 · 기록이 성공하면 세지 않는다', async () => {
+      const metrics = metricsMock();
+      const limiter = new ChatChannelSignatureFailureLimiterService(
+        {
+          get: jest.fn().mockResolvedValue(null),
+          eval: jest.fn().mockResolvedValue(1),
+        } as never,
+        undefined,
+        metrics as never,
+      );
+
+      await limiter.isBlocked(TRIGGER_ID, IP);
+      await limiter.recordFailure(TRIGGER_ID, IP);
+
+      expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+    });
+
+    it('Redis 가 없으면 세지 않는다', async () => {
+      const metrics = metricsMock();
+      const limiter = new ChatChannelSignatureFailureLimiterService(
+        undefined,
+        undefined,
+        metrics as never,
+      );
+
+      await limiter.isBlocked(TRIGGER_ID, IP);
+      await limiter.recordFailure(TRIGGER_ID, IP);
+
+      expect(metrics.recordRedisFailOpen).not.toHaveBeenCalled();
+    });
+  });
 });

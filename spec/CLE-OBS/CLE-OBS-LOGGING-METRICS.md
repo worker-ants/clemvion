@@ -2,19 +2,19 @@
 id: "CLE-OBS-LOGGING-METRICS"
 title: "로깅과 헬스 체크 — 메트릭과 트레이싱"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-LOGGING"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-LOGGING"]
 area: "CLE-OBS"
-content_hash: "7d53aff79361847971d3e08e2a74cfcd1ceb881a335b279233141f716e639cd9"
+content_hash: "8d9e280b77092f99a367ccbbb43506c3976164d348e2364b3007e83bcb192605"
 read_as: "approved_fallback"
-task: "CLE-T-5GVB9N"
+task: "CLE-T-TB33HY"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "9c89f15c2569def32f93a8ca9840087d98af6e1682ed5dabdc6d08ace7feb704"
-etag: "sha256-e68ebb6c72fdc7cdf93d9ee4de2e8503ade544e4f9dea828614c0437911d1b9c"
+mirror_sha256: "f449be50e76e2443c2f04d3196fb8e530c154ec3c68b56c96f921924d42fbb9f"
+etag: "sha256-3ee08dae8ed1bb22586bfe0e2439217a8040027f19fb043195b11609cb71cb7b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md`, `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,7 +52,7 @@ etag: "sha256-e68ebb6c72fdc7cdf93d9ee4de2e8503ade544e4f9dea828614c0437911d1b9c"
 | `clemvion.node.duration` | Histogram(ms) | `node_type`, `status` | 노드 실행 지연. 실행이 끝날 때 그 실행의 `node_execution.duration_ms` 로 기록한다 |
 | `clemvion.redis.fail_open` | Counter | `component`, `reason`(쌍은 [Redis fail-open 라벨](#redis-fail-open-라벨)) | Redis 에 기대는 기능이 fail-open 으로 물러난 횟수. fail-open 은 "요청을 살린다" 와 "장애를 보이게 한다" 가 한 쌍인데 경고 로그만으로는 비율·추세로 경보를 걸 수 없어 둔다. 경보 예: `rate(clemvion_redis_fail_open[5m]) > 0` |
 | `clemvion.audit.write_failed` | Counter | `resource_type`(감사 대상 리소스 종류. 코드가 정하는 값이고 실측으로 서로 다른 값 10종: `user`·`trigger`·`workflow`·`schedule`·`member`·`workspace`·`integration`·`model_config`·`auth_config`·`execution`. 감사 기록 위치 파일 수 12 와 다른 수치다. 소스 시그니처가 `string` 이라 64자로 잘라 방어한다) | 감사 로그 적재가 실패해 흡수된 횟수. `AuditLogsService.record()` 는 감사 실패가 본 요청(교체·삭제 같은 특권 작업)을 깨지 않도록 예외를 흡수한다. 경고 로그만으로는 "작업은 200 으로 성공했는데 감사 행만 조용히 비어 있음" 이 보이지 않는다. 감사 로그가 지탱하는 "계정 탈취 뒤 조용한 시크릿 교체를 재구성한다" 는 신뢰는 적재가 실제로 됐을 때만 성립한다. 경보 예: `rate(clemvion_audit_write_failed[5m]) > 0` |
-| `clemvion.chat_channel.signature_failure_limit` | Counter | `provider`(`telegram`·`slack`·`discord`. 트리거 설정에 문자열로 저장된 값이라 이 셋 밖의 값은 `other` 로 접는다), `event`(`reached`·`rejected`) | 채팅 채널 인바운드의 [서명 검증 실패 한도](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 에 걸린 횟수. `reached` 는 (트리거, 클라이언트 IP) 쌍의 실패가 이번 60초 창에서 한도 20회에 닿은 순간이고 창마다 한 번 센다. `rejected` 는 한도에 닿은 쌍의 요청을 서명 검증 없이 `401` 로 돌려보낸 수이고 요청마다 센다. Redis 가 없거나 IP 를 읽지 못해 한도를 적용하지 않은 요청은 세지 않는다. 트리거 id 와 IP 는 라벨에 넣지 않는다. 어느 트리거인지는 같은 시각의 경고 로그(`trigger=<id>`)로 찾는다. 경보 예: `rate(clemvion_chat_channel_signature_failure_limit{event="reached"}[5m]) > 0` |
+| `clemvion.chat_channel.signature_failure_limit` | Counter | `provider`(`telegram`·`slack`·`discord`. 트리거 설정에 문자열로 저장된 값이라 이 셋 밖의 값은 `other` 로 접는다), `event`(`reached`·`rejected`) | 채팅 채널 인바운드의 [서명 검증 실패 한도](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 에 걸린 횟수. `reached` 는 (트리거, 클라이언트 IP) 쌍의 실패가 이번 60초 창에서 한도 20회에 닿은 순간이고 창마다 한 번 센다. `rejected` 는 한도에 닿은 쌍의 요청을 서명 검증 없이 `401` 로 돌려보낸 수이고 요청마다 센다. Redis 가 없거나 IP 를 읽지 못해 한도를 적용하지 않은 요청은 세지 않는다. Redis 에러로 한도를 적용하지 못한 경우는 `clemvion.redis.fail_open`(`component=chat_signature_failure_limit`)이 센다. 트리거 id 와 IP 는 라벨에 넣지 않는다. 어느 트리거인지는 같은 시각의 경고 로그(`trigger=<id>`)로 찾는다. 경보 예: `rate(clemvion_chat_channel_signature_failure_limit{event="reached"}[5m]) > 0` |
 | `clemvion.chat_channel.inbound_error_absorbed` | Counter | `provider`(값은 `clemvion.chat_channel.signature_failure_limit` 과 같다) | 채팅 채널 인바운드가 서명 검증 뒤 처리에서 예상하지 못한 오류(DB · Redis 장애 등)를 잡아 `202` 로 답하고 버린 update 로 끝낸 횟수([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) REQ-CHAT-056, [인바운드 관문](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#관문-목록)). 5xx 는 프로바이더의 재전송과 웹훅 자동 비활성화를 불러 오류를 응답에 드러내지 않는다. 에러 로그만으로는 비율 · 추세로 경보를 걸 수 없어 둔다. `/start` 의 기존 실행 취소 실패(REQ-CHAT-064)는 그 에러로 답하므로 세지 않는다. 어느 트리거인지는 같은 시각의 에러 로그(`trigger=<id>`)로 찾는다. 경보 예: `rate(clemvion_chat_channel_inbound_error_absorbed[5m]) > 0` |
 
 ### Redis fail-open 라벨
@@ -65,6 +65,7 @@ etag: "sha256-e68ebb6c72fdc7cdf93d9ee4de2e8503ade544e4f9dea828614c0437911d1b9c"
 | `chat_conversation` | 채팅 채널 대화 상태와 폼 제출 잠금 | `get_failed` · `set_failed` · `del_failed` · `cas_failed` · `lock_failed` · `unlock_failed` |
 | `chat_dedup` | 채팅 채널 update 중복 억제 | `set_failed` · `del_failed` |
 | `chat_rate_limit` | 채팅 채널 대화별 rate limit | `incr_failed` |
+| `chat_signature_failure_limit` | 채팅 채널 인바운드 서명 검증 실패 한도([인바운드 관문 「서명 검증 실패 한도」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도)) | `get_failed` · `incr_failed` |
 | `chat_listener_bus` | 채팅 채널 리스너 등록을 인스턴스 사이에 알리는 pub/sub | `publish_failed` · `subscribe_failed` |
 | `interaction_rate_limit` | EIA 인터랙션 rate limit | `incr_failed` |
 | `token_blacklist` | EIA 인터랙션 토큰 blacklist | `get_failed` · `set_failed` |
@@ -108,7 +109,7 @@ OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터�
 - `modules/metrics/business-metrics.service.ts` (비즈니스 메트릭 카탈로그, `RedisFailOpenReasonMap`)
 - Redis fail-open 기록 호출부(`recordRedisFailOpen`):
   - `modules/external-interaction/`: `idempotency.interceptor.ts` · `interaction-rate-limiter.service.ts` · `interaction-token.service.ts` · `outbound-notification-rate-limiter.service.ts` · `sse-fanout.service.ts`
-  - `modules/chat-channel/`: `channel-conversation.service.ts` · `chat-channel-dedup.service.ts` · `chat-channel-rate-limiter.service.ts` · `channel-listener.bus.ts`
+  - `modules/chat-channel/`: `channel-conversation.service.ts` · `chat-channel-dedup.service.ts` · `chat-channel-rate-limiter.service.ts` · `chat-channel-signature-failure-limiter.service.ts` · `channel-listener.bus.ts`
   - `modules/hooks/public-webhook-quota.service.ts`
   - `modules/integrations/`: `cafe24-install-rate-limit.service.ts` · `cafe24-install-nonce-cache.service.ts`
   - `modules/websocket/execution-seq-allocator.service.ts`
@@ -138,6 +139,8 @@ OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터�
 - **가드는 이 표를 읽지 않는다.** 가드가 이 문서 미러의 표를 읽게 되살리는 안을 기각했다. 사람 결정이다(NERV Task `CLE-T-DM3AXQ` 항목 14, 2026-11-12). 미러는 구현 PR 이 받은 스냅샷이라 승인 시점과 코드 머지 시점을 맞춰야 하고 표기도 사람이 쓰는 문서 형식에 묶인다.
 - **구독 오류는 장애 건수가 아니라 이벤트 수로 센다.** 장애 건수를 세려면 구독 연결의 상태를 따로 추적해야 한다. 경보는 증가율로 걸므로 이벤트 수로 충분하다.
 - **기각: 서비스마다 카운터를 따로 둔다.** 경보 규칙이 서비스 수만큼 늘고 새 서비스를 연결할 때마다 경보를 새로 걸어야 한다. 카운터 하나에 `component` 라벨을 두면 `rate(clemvion_redis_fail_open[5m]) > 0` 하나로 전부를 본다.
+
+13곳은 그날 연결한 수다. 2026-11-15 에 채팅 채널 서명 검증 실패 한도(`chat_signature_failure_limit`, `get_failed` · `incr_failed`)를 같은 방법으로 더 연결했다. 같은 영역의 `chat_rate_limit` · `chat_dedup` 은 이미 세고 있었는데 이 한도는 경고 로그만 남기고 있었다(NERV Task `CLE-T-TB33HY`).
 
 ### 채팅 채널 인바운드의 한도 도달과 오류 흡수를 카운터로 센다 (2026-11-14)
 

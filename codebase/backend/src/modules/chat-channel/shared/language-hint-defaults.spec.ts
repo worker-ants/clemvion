@@ -13,12 +13,12 @@ import {
   COMMAND_RECEIVED_DEFAULTS,
   makeLocaleResolver,
   pickLocaleDefault,
+  GROUP_CHAT_REFUSAL_DEFAULT,
+  FORM_VALIDATION_FAILED_DEFAULT,
+  formNextFieldDefault,
   readLanguageHintOverride,
   type LanguageLocale,
 } from './language-hint-defaults';
-// canonical MarkdownV2 escaper 를 재사용 — 특수문자 집합을 손으로 재선언하면 telegram
-// renderer 쪽 정의가 갱신될 때 이 테스트의 안전성 보증이 stale 되어 조용히 무력화된다.
-import { escapeMarkdownV2 } from '../providers/telegram/telegram-message.renderer';
 
 describe('makeLocaleResolver (F-4 3-level lookup factory)', () => {
   const resolve = makeLocaleResolver('demoKey', { ko: '한글', en: 'english' });
@@ -110,15 +110,29 @@ describe('resolveSurfaceMismatchMessage (§4.1.1 F-2 표면 불일치 안내)', 
       SURFACE_MISMATCH_DEFAULTS.ko,
     );
   });
-  // control-plane 경로(렌더러 escape 미적용)라 default 는 MarkdownV2 특수문자를 포함하면 안 됨.
-  // canonical escapeMarkdownV2 를 통과시켜도 원문과 동일 = 이스케이프 대상 문자가 없음.
-  it('KO / EN default 는 telegram MarkdownV2 특수문자를 포함하지 않는다 (raw 발송 안전)', () => {
-    expect(escapeMarkdownV2(SURFACE_MISMATCH_DEFAULTS.ko)).toBe(
-      SURFACE_MISMATCH_DEFAULTS.ko,
+  // CLE-CHAT-DATA-CONFIG 「안내 문구 기본값」 표와 글자 그대로 같다(KO 는 합쇼체, CLE-T-A0G1FB).
+  // 마침표가 있어도 된다. 발송 경로(HooksService.sendBestEffortNotice)가 adapter.escapeControlText 로
+  // 프로바이더별 escape 를 한다.
+  it('KO / EN default 는 스펙 표의 문구다', () => {
+    expect(SURFACE_MISMATCH_DEFAULTS.ko).toBe(
+      '지금은 이 입력을 받을 수 없습니다. 화면에 표시된 양식이나 버튼을 사용해 주세요.',
     );
-    expect(escapeMarkdownV2(SURFACE_MISMATCH_DEFAULTS.en)).toBe(
-      SURFACE_MISMATCH_DEFAULTS.en,
+    expect(SURFACE_MISMATCH_DEFAULTS.en).toBe(
+      "This input can't be accepted here right now, please use the form or buttons shown above",
     );
+  });
+});
+
+describe('locale 과 상관없는 안내 기본 문구 (CLE-CHAT-DATA-CONFIG 「안내 문구 기본값」)', () => {
+  // 처음부터 있던 키의 영어 기본값은 스펙 범위 밖이라 locale 과 상관없이 한국어 문구 하나다.
+  it('groupChatRefusal 기본 문구', () => {
+    expect(GROUP_CHAT_REFUSAL_DEFAULT).toBe('이 봇은 1:1 대화만 지원합니다.');
+  });
+  it('formValidationFailed 기본 문구는 «~해 주세요» 로 띄어 쓴다', () => {
+    expect(FORM_VALIDATION_FAILED_DEFAULT).toBe('입력값을 다시 확인해 주세요.');
+  });
+  it('formNextField 기본 문구는 «~해 주세요» 로 띄어 쓰고 1부터 센 항목 번호를 붙인다', () => {
+    expect(formNextFieldDefault(2)).toBe('다음 항목을 입력해 주세요. (2)');
   });
 });
 

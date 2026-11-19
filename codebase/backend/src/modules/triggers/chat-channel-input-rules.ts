@@ -250,6 +250,20 @@ export function extractInboundSigningRef(config: unknown): string | undefined {
     ?.chatChannel?.inboundSigningRef;
 }
 
+/**
+ * `inboundSigningRef` 를 `chatChannel` 에 싣는지 정한다. 바인더와 `rotateBotToken` 이 함께 쓴다.
+ *
+ * 이번에 서명 자료를 새로 썼거나, 이미 저장된 참조가 있을 때만 싣는다. 참조가 없는 옛 행에 참조만
+ * 붙이면 시크릿 저장소에 값이 없는 참조가 생겨 인바운드가 모두 401 이 된다(NERV Task `CLE-T-TJAHCN`).
+ * 두 서비스가 같은 규칙을 따로 구현하면 한쪽만 바뀌어 서명 검증이 조용히 꺼질 수 있어 한 곳에 둔다.
+ */
+export function shouldKeepInboundSigningRef(
+  issuedNow: boolean,
+  existingRef: string | undefined,
+): boolean {
+  return issuedNow || Boolean(existingRef);
+}
+
 export function stripChatChannelPlaintext(
   chatChannel: ChatChannelInput,
 ): ChatChannelInput {

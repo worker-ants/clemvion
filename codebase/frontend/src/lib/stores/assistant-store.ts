@@ -13,6 +13,7 @@ import {
 } from "@/lib/api/assistant";
 import { translate } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
 import { dispatchAssistantEditorOperation } from "@/lib/stores/assistant-editor-bridge";
 
 export interface AssistantPlanCard {
@@ -368,6 +369,7 @@ export const useAssistantStore = create<AssistantState>((set, get) => ({
           content,
           currentWorkflow: snapshot,
           llmConfigId: state.llmConfigId ?? undefined,
+          workflowRunning: isEditorExecutionActive(),
         },
         (event) => {
           if (event.event === "config_fallback") {
@@ -792,4 +794,14 @@ export function summarizePlanState(
     return { status: "completed", completedActionable };
   }
   return { status: "pending", completedActionable };
+}
+
+/**
+ * 에디터가 워크플로우를 실행 중인지(REQ-ASSIST-028). 노드 삭제 버튼을 숨기는
+ * 기준(REQ-EDITOR-043)과 같이 `running` · `waiting_for_input` 을 실행 중으로 본다.
+ * 메시지를 보내는 순간의 상태를 읽어 요청의 `workflowRunning` 에 싣는다.
+ */
+function isEditorExecutionActive(): boolean {
+  const status = useExecutionStore.getState().status;
+  return status === "running" || status === "waiting_for_input";
 }

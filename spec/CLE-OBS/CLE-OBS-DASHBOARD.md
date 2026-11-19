@@ -2,19 +2,19 @@
 id: "CLE-OBS-DASHBOARD"
 title: "대시보드"
 type: "feature"
-version: 3
+version: 4
 status: "approved"
 requirements: ["REQ-DASH-001", "REQ-DASH-002", "REQ-DASH-003", "REQ-DASH-004", "REQ-DASH-005", "REQ-DASH-006", "REQ-DASH-007", "REQ-DASH-008", "REQ-DASH-009", "REQ-DASH-010", "REQ-DASH-011", "REQ-DASH-012", "REQ-DASH-013", "REQ-DASH-014", "REQ-DASH-015", "REQ-DASH-016", "REQ-DASH-017", "REQ-DASH-018"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "f6965435e0ee3c936b19f65fe9fda942efec5c0b3187531b23ce1edc50a43bc0"
+content_hash: "de98862a171c47dd583cec400e6125b3088e748f5fbd84619deafea8a52cb092"
 read_as: "approved_fallback"
-task: "CLE-T-7704WC"
+task: "CLE-T-Z7QRQP"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "b60dec1569bbede06b2711664396d39b2282239daaee52c4b6b6a8a2e167cf95"
-etag: "sha256-641d5e6fa20aea4d87f88a286e8ec1939e92b23e2b9de4dd1eb24dc42e13f849"
+mirror_sha256: "bffa3012e32f8cdd6e0df285ce975465deda6f4d23d5b68d6a083946bbed5573"
+etag: "sha256-143a77ed2fa70aaf8417ea3ef977f8599ea1ed9346d608236752eb2e03480d0c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/0-dashboard.md`, `spec/data-flow/9-observability.md` (§1.2 의 대시보드 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -155,16 +155,22 @@ etag: "sha256-641d5e6fa20aea4d87f88a286e8ec1939e92b23e2b9de4dd1eb24dc42e13f849"
 
 ## Rationale
 
-### 요약 카드에 평균 실행 시간을 두지 않는다
+### 요약 카드에 평균 전체 경과를 두지 않는다
 
-요약 카드는 Total, Active, Runs(7d), Success 네 가지다. 초기 초안에 있던 평균 실행 시간 카드는 보이지 않는다(`dashboard/page.tsx`). 평균 전체 경과는 요약 응답(`avgExecutionTime`, 밀리초)에 들어 있지만 따로 카드로 그리지 않는 현재 구현을 따른다.
+요약 카드는 Total, Active, Runs(7d), Success 네 가지다. 초기 초안에 있던 평균 카드(당시 이름 「평균 실행 시간」)는 보이지 않는다(`dashboard/page.tsx`). 평균 전체 경과는 요약 응답(`avgExecutionTime`, 밀리초)에 들어 있지만 따로 카드로 그리지 않는 현재 구현을 따른다.
 
 이 절과 아래 지표 관련 결정은 2026-06-03 명세와 코드 동기화 때 코드 현실에 맞춰 정정한 근거다. 대안을 비교한 결정 기록이 아니라 코드 동기화 근거다.
 
 ### 지표 정의를 통계 문서에 모은다
 
-성공률 분모를 최근 7일 전체 실행 수로 둔 결정과 평균 실행 시간을 완료된 실행만으로 집계하는 결정(2026-08-15)은 처음에 이 화면의 명세에 적혀 있었다. 같은 결정이 통계의 `avgDurationMs` 집계에도 걸리고 통계 명세가 이 절을 가리키고 있었다. 두 화면이 같은 정의를 쓰므로 정의와 근거를 [통계](CLE-OBS-STATS.md) 의 지표 정의 한 곳에 모았다. 2026-11-14 에 이 평균의 이름을 「평균 전체 경과」로 바꾼 근거도 그 문서에 있다.
+성공률 분모를 최근 7일 전체 실행 수로 둔 결정과 평균 전체 경과를 완료된 실행만으로 집계하는 결정(2026-08-15, 당시 이름 「평균 실행 시간」)은 처음에 이 화면의 명세에 적혀 있었다. 같은 결정이 통계의 `avgDurationMs` 집계에도 걸리고 통계 명세가 이 절을 가리키고 있었다. 두 화면이 같은 정의를 쓰므로 정의와 근거를 [통계](CLE-OBS-STATS.md) 의 지표 정의 한 곳에 모았다. 2026-11-14 에 이 평균의 이름을 「평균 전체 경과」로 바꾼 근거도 그 문서에 있다.
 
 ### 최근 실행은 시작 시각 순으로 보인다
 
 원문 화면 절은 최근 실행을 "완료·실패 기준 10건" 으로, 시각 열을 "실행 완료 시각" 으로 적었다. 같은 문서의 API 절과 구현(`dashboard.service.ts`)은 상태로 거르지 않고 `startedAt` 내림차순 10건을 돌려주며 화면도 `startedAt` 을 상대 시간으로 보인다. 상태 아이콘 표에도 실행 중·입력 대기가 있어 "완료·실패 기준" 과 맞지 않았다. API 절과 구현을 기준으로 바로잡았다.
+
+### 「평균 실행 시간」 표기를 「평균 전체 경과」로 맞췄다
+
+결정일: 2026-11-15
+
+2026-11-14 에 [통계](CLE-OBS-STATS.md) 가 이 평균의 이름을 「평균 전체 경과」로 바꿨는데 이 문서의 Rationale 두 곳에 옛 이름이 남아 있었다(NERV Task `CLE-T-Z7QRQP`). 값 · 필드 이름(`avgExecutionTime`)은 그대로다. 옛 결정을 가리킬 때는 당시 이름을 괄호로 함께 적었다.

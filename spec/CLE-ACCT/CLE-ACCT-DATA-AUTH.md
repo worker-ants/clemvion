@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-AUTH"
 title: "계정과 워크스페이스 데이터 흐름 — 인증 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "ec4b8cc2206a7ee46951557159613d068120067fd3b48edab7f2e0e05a02ead2"
+content_hash: "557f4c6054a1af6b2159116ec7b97cb58f8cced64e167fa960688515ff738a3c"
 read_as: "approved_fallback"
-task: "CLE-T-VYNVGP"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "7f702482ddfe62499b17ee18cda83d3300c3754a18cd7f5db5b82c1174b24c32"
-etag: "sha256-1f732ae9c4e159da7c45203e5dc5f50ba91d0648a223e7a847fc2a10924011ce"
+mirror_sha256: "64aa157e883050542a6333750d8a9a61b12b2148d050c87fbd91d488499d05b3"
+etag: "sha256-aa64c1ab6dcc65c80fc820ef5e768631ba676a4d85584d960cf21efed4e8b383"
 ---
 ## 개요
 
@@ -215,7 +215,7 @@ sequenceDiagram
 모두 JWT 인증이 필요하다. `users.controller.ts` 가 받아 `AuthService` 로 넘긴다. 규칙과 이유는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 에 있다.
 
 1. `POST .../request { newEmail, password? | totpCode? }`(request·resend 사용자당 분당 5회): `SessionsService.reauthenticate`(내부 `verifyReauth`)로 비밀번호 또는 TOTP 로 계정 재인증을 하고 새 이메일을 검증(현재와 같음, 중복)한다. `pending_email` 과 `email_change_token`(SHA-256, 1시간)을 저장하고 새 이메일로 확인 메일을 보낸다. 발송이 실패하면 대기 필드 3개를 되돌리고(`clearPendingEmailChange`) 에러를 전파한다.
-2. `POST .../verify { token }`(로그인한 본인 세션): 토큰 SHA-256 이 `email_change_token` 과 같고 만료되지 않았는지 확인한다. 트랜잭션에서 선점을 다시 검사하고 `email = pending_email`, `email_verified=true`, 대기 필드 3개 NULL 로 바꾼다. 이어서 모든 로그인 세션을 무효화(`revokeAllFamilies`)하고 현재 기기에 다시 발급한다(`{ accessToken }` 과 리프레시 쿠키 회전). 옛 이메일 통지(best-effort, 실패하면 `logger.warn`), 감사 로그 `user.email_changed`, `login_history` `session_revoked`(일괄, `family_id=null`)가 뒤따른다.
+2. `POST .../verify { token }`(로그인한 본인 세션): 토큰 SHA-256 이 `email_change_token` 과 같고 만료되지 않았는지 확인한다. 트랜잭션에서 선점을 다시 검사하고 `email = pending_email`, `email_verified=true`, 대기 필드 3개 NULL 로 바꾼다. 이어서 모든 로그인 세션을 무효화(`revokeAllFamilies`)하고 현재 기기에 다시 발급한다(`{ accessToken }` 과 리프레시 쿠키 회전). 옛 이메일 통지(best-effort, 실패하면 `logger.warn`)와 감사 로그 `user.email_changed` 가 뒤따르고 무효화한 행이 있으면 `login_history` `session_revoked`(일괄, `family_id=null`)도 남는다([세션 정책](CLE-ACCT-SESSION-POLICY.md#세션-정책)).
 3. `POST .../resend`: 토큰을 다시 발급한다. 발송이 실패해도 토큰을 유지하고 재시도로 복구한다.
 4. `POST .../cancel`: 대기 필드 3개를 NULL 로 지운다. 재인증이 필요 없고 멱등이다.
 
@@ -303,8 +303,10 @@ CSRF 와 재전송을 막기 위해 `auth_oauth_state` 는 콜백 한 번에 소
 
 2026-10-10 변경이다(NERV Task `CLE-T-75TDTN`). `POST /api/auth/2fa/disable` 은 예전에 비밀번호만 받았다. 이제 `{ password, code }` 를 받고 둘 다 맞아야 `two_factor_enabled`·`two_factor_secret`·`totp_recovery_codes` 를 지운다. `code` 는 6자리 TOTP 코드나 TOTP 복구 코드이고 로그인 2단계와 같은 검증을 쓴다(`TotpService.verifyForDisable`). 틀리면 401 `TOTP_INVALID` 다.
 
-비밀번호만 받던 방식은 비밀번호와 로그인 세션을 함께 빼앗기면 2단계 인증까지 꺼질 수 있어 바꿨다. 이 변경 때는 켜진 계정에서도 setup/verify 로 secret 을 바꿀 수 있어서 효과가 부분적이었다. 2026-11-01 에 NERV Task `CLE-T-94FTMV` 가 그 길을 닫았다([TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다](CLE-ACCT-DATA-OPS.md#totp-켜기-쓰기를-조건부-update-로-바꾸고-설정-시작에-요청-한도를-걸었다-2026-11-01)). 복구 코드를 받지 않는 안은 기각했다. 기기를 잃고 복구 코드로 로그인한 사용자가 2단계 인증을 끌 방법이 없어진다. 규칙의 정본은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이다.
+비밀번호만 받던 방식은 비밀번호와 로그인 세션을 함께 빼앗기면 2단계 인증까지 꺼질 수 있어 바꿨다. 이 변경 때는 켜진 계정에서도 setup/verify 로 secret 을 바꿀 수 있어서 효과가 부분적이었다. 2026-11-01 에 NERV Task `CLE-T-94FTMV` 가 그 길을 닫았다([TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다](CLE-ACCT-DATA-OPS.md#totp-켜기-쓰기를-조건부-update-로-바꾸고-설정-시작에-요청-한도를-걸었다)). 복구 코드를 받지 않는 안은 기각했다. 기기를 잃고 복구 코드로 로그인한 사용자가 2단계 인증을 끌 방법이 없어진다. 규칙의 정본은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이다.
 
-### Passkey 인증 챌린지 기록을 Redis 키에 둔다 (2026-10-30)
+### Passkey 인증 챌린지 기록을 Redis 키에 둔다
+
+결정일: 2026-10-30
 
 NERV Task `CLE-T-GK9J2B` 에서 Passkey 인증 챌린지 기록을 테이블이 아니라 Redis 키에 두기로 정했다. 근거와 기각한 안은 [Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지는 한 번만 쓴다」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지는-한-번만-쓴다) 에 있다. 같은 문서의 [OAuth state 를 한 번의 DELETE 로 소비한다](#oauth-state-를-한-번의-delete-로-소비한다) 와 저장소가 다른 것은 OAuth state 는 시작할 때 만든 행을 콜백에서 지워 소비하지만 이 기록은 검증할 때마다 새로 쓰고 TTL 로 사라지기만 하면 되기 때문이다.

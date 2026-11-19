@@ -24,6 +24,9 @@ const RECOVERABLE_ERROR_CODES: ReadonlySet<string> = new Set([
   "NODE_NOT_FOUND",
 ]);
 
+/** 실행 중 편집 거부 도구 결과 코드(REQ-ASSIST-028, 서버 `WORKFLOW_RUNNING_EDIT_REJECTION`). */
+const WORKFLOW_RUNNING_ERROR_CODE = "ASSISTANT_WORKFLOW_RUNNING";
+
 /**
  * Compact badge summarizing one tool call in the chat transcript. Edit tools
  * show the acted-upon label when available so the user doesn't have to match
@@ -57,10 +60,15 @@ export function ToolCallBadge({
     ? t("assistant.toolCallBadgeRetryRecovered")
     : null;
   const retrySuffix = retrySuffixText ? ` (${retrySuffixText})` : "";
+  // REQ-ASSIST-028: 워크플로우 실행 중이라 서버가 거부한 편집은 실패 색에 이유를 덧붙인다.
+  const runningSuffix =
+    failed && errorCodeOf(call) === WORKFLOW_RUNNING_ERROR_CODE
+      ? ` (${t("assistant.toolCallBadgeWorkflowRunning")})`
+      : "";
   const label =
     typeof count === "number" && count > 1
-      ? `${base} × ${count}${retrySuffix}`
-      : `${base}${retrySuffix}`;
+      ? `${base} × ${count}${retrySuffix}${runningSuffix}`
+      : `${base}${retrySuffix}${runningSuffix}`;
   const iconName = pickIconName(call.name, failed);
   const color = failed
     ? "bg-red-500/10 text-red-600 border-red-500/30"

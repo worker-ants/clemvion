@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-DRAWER"
 title: "에디터 실행과 디버깅 — 실행 결과 드로어"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "0a0888f3499791280dfc868c2b744e6ec34ad261f490f9f3ce86008faa63a4da"
+content_hash: "56cfd5a1348f8cb72af1c9aa94e00e5f8ac97b4a8a5a0e7d6ea584d46eda65e6"
 read_as: "approved_fallback"
-task: "CLE-T-VXPW7G"
+task: "CLE-T-88KRHT"
 source_paths: []
-mirror_sha256: "d5807a65582c4d4baa660b75444e881882d8a33d6253069c9df68f90708440dd"
-etag: "sha256-272f595886e78e5a6d4d89a8f3567d4e530bb16225f09204c8fd7c90d1a15a59"
+mirror_sha256: "d6077a804dd9be9c803c9285349c057aca72e9c28afa935435aa141a51c7e823"
+etag: "sha256-e27fd64cc4c3316519957cee71c3983edaaf389f15b6526204958a8b8ddd92fa"
 ---
 ## 개요
 
@@ -109,7 +109,7 @@ etag: "sha256-272f595886e78e5a6d4d89a8f3567d4e530bb16225f09204c8fd7c90d1a15a59"
 
 결과 상세의 머리에는 카테고리 색 점, 노드 라벨, 노드 유형 이름, 상태 배지, 실행 시간이 표시된다.
 
-completed·failed·cancelled·waiting_for_input 상태 노드는 머리 아래에 탭 바를 표시한다. `cancelled` 노드는 `failed` 와 같은 입력·출력·오류 탭 배치를 쓰고 오류 탭에 취소(`AbortError`) 내용을 표시한다. AI 에이전트·정보 추출기·텍스트 분류기 같은 AI 노드도 같은 탭 UI 를 쓴다. 대화형 노드는 미리보기 탭 안에 대화 미리보기를 렌더한다.
+completed·failed·cancelled·waiting_for_input 상태 노드는 머리 아래에 탭 바를 표시한다. `cancelled` 노드는 `failed` 와 같은 입력·출력·오류 탭 배치를 쓴다. 오류 탭은 에러가 있을 때만 나오므로 취소 경로에 따라 표시가 갈린다. 외부 `abortSignal` 로 멈춘 노드는 오류 탭에 취소(`AbortError`) 내용을 표시한다. 엔진이 DB 에서 실행 취소를 관측해 멈춘 노드(`ExecutionCancelledError`)는 출력과 에러가 모두 비어 있어 오류 탭이 나오지 않는다. 이 노드가 취소됐다는 것은 머리의 상태 배지로 보여 준다. 두 경로는 [라이프사이클](#라이프사이클) 의 「노드 취소」 행에 있다. AI 에이전트·정보 추출기·텍스트 분류기 같은 AI 노드도 같은 탭 UI 를 쓴다. 대화형 노드는 미리보기 탭 안에 대화 미리보기를 렌더한다.
 
 탭 구성은 선택 대상에 따라 세 가지다.
 
@@ -241,7 +241,7 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 | 실행 시작 | 드로어를 표시하고 실행 트리를 비운다. "Waiting for nodes..." 를 표시한다 |
 | 노드 실행 시작 | 실행 트리에 running 항목을 추가하고 자동으로 스크롤한다 |
 | 노드 실행 완료 | 항목 상태를 completed·failed·skipped 로 바꾼다. `output.error` 가 채워진 멀티턴 AI 에이전트 종료면 대화 스레드 마지막에 `system_error` 항목을 붙인다 |
-| 노드 취소(`execution.node.cancelled`) | 외부 `abortSignal`(AbortError)로 멈춘 노드를 종료 상태로 처리한다. 항목이 running 에 남지 않는다 ([실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md)) |
+| 노드 취소(`execution.node.cancelled`) | 멈춘 노드를 종료 상태(`cancelled`)로 처리한다. 항목이 running 에 남지 않는다. 취소 경로는 둘이다. 외부 `abortSignal`(AbortError)로 멈춘 노드는 행의 `error` 가 `{ code: 'AbortError', message }` 이고 이벤트에도 같은 `error` 가 실린다. 엔진이 DB 에서 실행 취소를 관측해 `ExecutionCancelledError` 로 멈춘 노드(Sub-Workflow 노드, 동시 중지와 겹친 Form·버튼·AI 대화 노드)는 행의 `outputData` 와 `error` 가 모두 비고 이벤트에도 `error` 가 없다. 이 오류의 메시지에는 실행 ID 가 들어 있어 클라이언트에 보내지 않는다([실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md), [노드 취소 — DB 관측 취소 가드](CLE-EXEC-CANCEL-DBGUARD.md#db-관측-취소-가드)) |
 | Form 노드 입력 대기 진입 | 그 노드를 자동으로 고르고 결과 상세에 폼 UI 를 표시한다 |
 | Form 제출 | 실행이 재개되고 상태 바가 "🔄 Running..." 으로 바뀐다 |
 | 버튼 Presentation 노드 입력 대기 진입 | 그 노드를 자동으로 고르고 결과 상세에 렌더된 콘텐츠와 버튼 바를 표시한다. 캔버스에는 `⏸` 아이콘과 분홍 테두리 펄스 |

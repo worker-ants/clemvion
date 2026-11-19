@@ -1672,6 +1672,87 @@ describe('HooksService', () => {
         },
       );
 
+      // REQ-DISCORD-036(R-D-12): `help` 밖의 슬래시 명령은 어느 경로로 끝나도 수신 응답(type 4)으로 답한다.
+      // 위 type 3 · 5 테스트와 같은 경로를 type 2 로 지난다(NERV Task `CLE-T-3HYK6R`).
+      describe('슬래시 명령(type 2)의 경로별 기본 응답', () => {
+        beforeEach(() => {
+          defaultInteractionResponse.mockReturnValue({
+            body: COMMAND_RECEIVED,
+          });
+        });
+
+        it('/workflow reply 를 입력을 기다리는 실행에 전달해도 수신 응답으로 답한다', async () => {
+          mockAdapter.parseUpdate.mockResolvedValue(
+            updateOf({ kind: 'text_message', text: 'my answer' }),
+          );
+          conversationService.lookup.mockResolvedValue(waitingState());
+          markExecutionStatus('waiting_for_input');
+
+          const res = await service.handleWebhook('abc', interactionInput(2));
+
+          expect(interactionService.interact).toHaveBeenCalled();
+          expect(res).toEqual({
+            executionId: 'exec-active',
+            providerResponse: { body: COMMAND_RECEIVED },
+          });
+          expect(engine.execute).not.toHaveBeenCalled();
+        });
+
+        it('대화별 분당 한도(CCH-NF-03)를 넘긴 /workflow start 도 수신 응답으로 답한다', async () => {
+          mockAdapter.parseUpdate.mockResolvedValue(
+            updateOf({ kind: 'start' }),
+          );
+          (
+            moduleRef.get(ChatChannelRateLimiterService) as {
+              consume: jest.Mock;
+            }
+          ).consume.mockResolvedValue(false);
+
+          const res = await service.handleWebhook('abc', interactionInput(2));
+
+          expect(res).toEqual({
+            executionId: 'ignored',
+            providerResponse: { body: COMMAND_RECEIVED },
+          });
+          expect(engine.execute).not.toHaveBeenCalled();
+        });
+
+        it('실행이 입력 대기가 아니라 버린 /workflow reply 도 수신 응답으로 답한다', async () => {
+          mockAdapter.parseUpdate.mockResolvedValue(
+            updateOf({ kind: 'text_message', text: 'too early' }),
+          );
+          conversationService.lookup.mockResolvedValue(waitingState());
+          markExecutionStatus('running');
+
+          const res = await service.handleWebhook('abc', interactionInput(2));
+
+          expect(res).toEqual({
+            executionId: 'ignored',
+            providerResponse: { body: COMMAND_RECEIVED },
+          });
+          expect(interactionService.interact).not.toHaveBeenCalled();
+          expect(engine.execute).not.toHaveBeenCalled();
+        });
+
+        it('워크플로우가 꺼져 있어 새 실행을 막은 /workflow start 도 수신 응답으로 답한다', async () => {
+          mockAdapter.parseUpdate.mockResolvedValue(
+            updateOf({ kind: 'start' }),
+          );
+          workflowRepo.findOne.mockResolvedValue({
+            id: 'wf1',
+            isActive: false,
+          } as Workflow);
+
+          const res = await service.handleWebhook('abc', interactionInput(2));
+
+          expect(res).toEqual({
+            executionId: 'ignored',
+            providerResponse: { body: COMMAND_RECEIVED },
+          });
+          expect(engine.execute).not.toHaveBeenCalled();
+        });
+      });
+
       it('기본 응답이 없으면(PING 외 type 등) 지금처럼 202 로 답한다', async () => {
         defaultInteractionResponse.mockReturnValue(undefined);
         mockAdapter.parseUpdate.mockResolvedValue(updateOf({ kind: 'start' }));

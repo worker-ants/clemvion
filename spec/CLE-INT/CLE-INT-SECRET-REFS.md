@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-REFS"
 title: "시크릿 저장소 — 참조 소유와 교차 행"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "8842b79be247bea9d20eeadb70da530314d9ce1dd609e454c471f5435af2ae4a"
+content_hash: "0110a2d7fa52c6377fa156c42e7abd664c98cadacb19c4c731c0b47fcc82168e"
 read_as: "approved_fallback"
-task: "CLE-T-AAGZRW"
+task: "CLE-T-TJAHCN"
 source_paths: []
-mirror_sha256: "f8cbef38a2991a8948324d1fb8c27ef66d5aa571f50db5bb0956ed65d233c12d"
-etag: "sha256-f086b3387706b4679349ffd2c5e8ff6973907aa6cd3a9ce6192e668cfcacc64c"
+mirror_sha256: "3980725c9c0563752e297862908bcf3da878bb6a6f344e1f07107c00a5b243a7"
+etag: "sha256-832e32ff50ec5ae2c508e797a7cfd934b1df6c9e3829df08d0da6f725026bbc3"
 ---
 ## 개요
 
@@ -50,7 +50,7 @@ etag: "sha256-f086b3387706b4679349ffd2c5e8ff6973907aa6cd3a9ce6192e668cfcacc64c"
 - **거부를 택했다.** 견준 안은 둘이었다. (a) 자기 리소스 접두의 참조면 받는다. 생성 요청에는 아직 리소스 id 가 없어 이 검사가 의미가 없다. 접두만 보면 `bot-token` 슬롯에 `inbound-signing` 참조를 넣는 혼동도 통과한다. 타입 필드는 값과 상관없이 막으므로 같은 필드가 위치에 따라 다르게 동작한다. (b) 받은 값을 버리고 리소스 id 로 다시 만든다. 사용자가 보낸 값을 말없이 바꾸는 것은 [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 가 기각한 «무시» 와 같은 모양이다.
 - **400 으로 거부하고 조용히 지우지 않는다.** 같은 원시 `config` 의 옛 인라인 인증 키는 구현(`stripInlineAuthKeys`)이 저장 전에 지운다. 그 입력은 폐기됐고 남은 행에 있어도 코드가 무시한다([웹훅 「트리거 필드와 config」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#트리거-필드와-config)). 그래서 지워도 사용자가 잃는 것이 없다. 시크릿 참조와 평문은 사용자가 무언가를 설정했다고 믿게 만드는 값이라 지우면 같은 «무시» 가 된다. 전역 파이프의 `forbidNonWhitelisted`(모르는 키는 400)와도 같은 방향이다.
 - **거부 대상은 경로 목록이 기본이다. R16 이 타입 키와 `secret://` 값 검사를 더했다.** 원시 `config` 의 `chatChannel` · `notification` · `interaction` 키를 통째로 막는 안도 있었다. 그 안은 원시 `config` 의 다른 계약(옛 평문 `notification.signing.secret` 입력 등)을 함께 바꾸므로 사람 결정으로 이번 범위에서 뺐다(NERV Task `CLE-T-EA7B5M`). `chatChannel` 쪽은 타입 필드의 차단 필드 단일 기준에서 유도한다. `notification.signing.secretRef` 는 목록에 직접 적었다. 새 참조 슬롯이 생기면 사람이 목록에 더해야 하고(규칙 22) 그것을 잡는 구조적 가드는 없다. 원시 `config` 아래의 `secret://` 값을 직접 거르는 안이 후보이고 같은 Task 가 검토한다. 2026-10-31 에 사람이 세 키를 통째로 막는 안과 `secret://` 값 검사를 채택했다. 경로 목록은 그대로 두고 두 검사보다 먼저 돈다([R16](#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31)).
-- **다시 만드는 것은 쓰기 경로뿐이다.** 봇 토큰 재발급은 저장된 참조를 믿지 않고 리소스 id 로 참조를 만든다. 채널 프로바이더 재등록에 넘기는 설정도 같다. 단 저장된 행에 `inboundSigningRef` 가 없으면 채널 어댑터에 넘기는 설정(`pinChatChannelSecretRefs`)에는 전처럼 그 참조를 넣지 않는다. 구현(`chat-channel-inbound-authenticator.ts`)은 그 참조가 없는 행에서 인바운드 서명 검증을 건너뛰므로(현행 동작은 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](../CLE-CHAT/CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다) 없는 행에 참조를 붙이면 검증 동작이 바뀐다. 재발급이 행에 저장하는 설정은 이와 다르다. 저장하는 `chatChannel` 델타에는 두 참조가 늘 들어간다. 그래서 참조가 없던 행이 재발급을 거치면 시크릿 저장소에 값이 없는 `inboundSigningRef` 를 얻을 수 있다. 참조가 없는 행은 검증을 건너뛰는 동작을 유지한다는 2026-11-14 결정은 이 재발급 경로를 다루지 않고, 재발급이 참조가 없는 행에 참조를 붙이지 않게 맞출지는 NERV Task `CLE-T-TJAHCN` 이 정한다. 이 차이는 알려진 동작이고 같은 절과 NERV Task `CLE-T-TJAHCN` 이 다룬다. 정상 행의 참조는 같은 규칙으로 만든 값이라 결과가 같다. 저장 경계가 막기 전에 저장된 행에서 다른 리소스의 비밀을 읽거나 덮어쓰지 않게 하는 방어다. «쓰기 경로뿐» 은 이 결정 때의 범위다. 읽기 경로는 R10 이 같은 규칙으로 넓혔다.
+- **다시 만드는 것은 쓰기 경로뿐이다.** 봇 토큰 재발급은 저장된 참조를 믿지 않고 리소스 id 로 참조를 만든다. 채널 프로바이더 재등록에 넘기는 설정도 같다. 단 저장된 행에 `inboundSigningRef` 가 없으면 채널 어댑터에 넘기는 설정(`pinChatChannelSecretRefs`)에는 전처럼 그 참조를 넣지 않는다. 구현(`chat-channel-inbound-authenticator.ts`)은 그 참조가 없는 행에서 인바운드 서명 검증을 건너뛰므로(현행 동작은 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](../CLE-CHAT/CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다) 없는 행에 참조를 붙이면 검증 동작이 바뀐다. 재발급이 행에 저장하는 `chatChannel` 델타도 같은 규칙을 따른다(2026-11-15, NERV Task `CLE-T-TJAHCN`). `botTokenRef` 는 늘 넣는다. `inboundSigningRef` 는 이번 재발급이 서명 자료를 시크릿 저장소에 새로 썼거나 요청 시작 때 읽은 행 또는 락 안에서 다시 읽은 행에 참조가 이미 있을 때만 넣는다. 바인더의 참조 보존 규칙과 같다. 그래서 참조가 없던 행이 재발급을 거쳐도 값 없는 참조가 붙지 않는다. 자세한 동작은 위에 링크한 같은 절에 있다. 정상 행의 참조는 같은 규칙으로 만든 값이라 결과가 같다. 저장 경계가 막기 전에 저장된 행에서 다른 리소스의 비밀을 읽거나 덮어쓰지 않게 하는 방어다. «쓰기 경로뿐» 은 이 결정 때의 범위다. 읽기 경로는 R10 이 같은 규칙으로 넓혔다.
 - **막는 자리를 호출자로 두었다.** `resolve` 는 참조만 받으므로 소유 확인을 넣으려면 시그니처가 바뀌어 규칙 21 에 따라 네 소비 모듈을 같은 변경에서 고쳐야 한다. `rotate` 는 이미 `workspaceId` 를 받으므로 기존 행의 `workspace_id` 가 다르면 거부하는 확인은 시그니처를 바꾸지 않는다. 다만 지금 계약은 UPSERT 가 `workspace_id` 까지 덮어쓰는 것이고 호출자가 그 실패를 처리하지 않는다. 그 의미를 바꾸는 일은 읽기 경로 방어와 함께 정한다(아래 «남긴 것»). 이번에는 입력 경계와 쓰기 경로를 닫는 것으로 범위를 좁혔다. 그 의미는 R10 이 정했다.
 - **채팅 채널의 PATCH 비밀 결정과 다른 축이다.** 원시 `config` 거부는 필드를 누가 소유하는가를 기준으로 한다. [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-21-patch-는-비밀을-쓰지-않는다) 의 «PATCH 요청자가 자기 비밀로 값을 바꾸는가» 와 다른 축이라 그 결정(서명 자료 재발급 등)과 독립이다.
 - **남긴 것**: 이미 저장된 행의 읽기 경로 방어, `rotate` 의 워크스페이스 대조, 운영 데이터 점검은 R10 이 정했다(NERV Task `CLE-T-XYR067`). 원시 `config` 의 다른 계약(타입 키를 원시 `config` 로 받는 경로, `config` 교체 의미, `interaction.triggerToken`)은 이 결정 밖이었다. `interaction.triggerToken` 경로는 2026-10-17 에(NERV Task `CLE-T-EQDYC1`), 나머지는 2026-10-31 에 [R16](#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31) 이(NERV Task `CLE-T-EA7B5M`) 닫았다.

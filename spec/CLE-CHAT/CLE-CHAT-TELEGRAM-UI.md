@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM-UI"
 title: "Telegram 어댑터 — 노드 UI 매핑"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-TELEGRAM"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-TELEGRAM"]
 area: "CLE-CHAT"
-content_hash: "65676b0ccb7db952e7a25d708d7ee2c15187b95ff8a85a48508088c9b31424df"
+content_hash: "0277ce7f70294cc2891456bc0a2a90242e329a278b9ff2717700b1e8cd92b72d"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-D78VKM"
 source_paths: []
-mirror_sha256: "d2a4bf1662a47e58fb44815325fc1ac9d58cec1af42c13580df198639f6a7a8b"
-etag: "sha256-60674ee398dccbd9f07efa0c8921929b20243e3fc3ec2ccfc6c63c311c2ec8dd"
+mirror_sha256: "77ba7fa0088a10b6b468bdb672d6db2433f511d8dd688e3ac12acf12fff9aabe"
+etag: "sha256-b1682221387b288dc9efea6d84621bc6055cb835c80b3206bbbace48d9ee528c"
 ---
 ## 개요
 
@@ -25,7 +25,7 @@ etag: "sha256-60674ee398dccbd9f07efa0c8921929b20243e3fc3ec2ccfc6c63c311c2ec8dd"
 ## 멀티턴 AI
 
 - `execution.ai_message.message` 를 `sendMessage`(`parse_mode=MarkdownV2`, Bot API 규칙대로 escape)로 보낸다.
-- 4096자(Telegram 메시지 한도)를 넘으면 단어·문장 경계로 나눈다. 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다.
+- 4096자(Telegram 메시지 한도)를 넘으면 단어·문장 경계로 나눈다. 마지막 조각 전까지 `\n_(continued…)_` 를 붙이고 접미사까지 4096자 안에 넣는다. 자르는 자리는 Slack · Discord 와 다르다. 규칙과 코드 블록 처리는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
 - 응답 직전에 `sendChatAction(action=typing)` 을 한 번 보낸다(5초 뒤 자동 만료). `telegram-message.renderer.ts` 의 `renderAiMessage` 가 본문이 있는 `ai_message` 에서 텍스트 앞에 `{ kind: 'typing' }` 메시지를 넣고, 어댑터 `sendMessage` 의 `typing` 분기가 `sendChatAction` 으로 보낸다. 긴 실행 동안 주기적으로 보내는 typing 은 [채팅 채널 「R9 처리 중 메시지는 큐에 쌓지 않고 바로 안내한다」](CLE-CHAT-CORE.md#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 의 후속 범위 검토 항목이다.
 - 사용자 답장(`text_message`)은 EIA `submit_message` 로 보낸다.
 

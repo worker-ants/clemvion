@@ -84,7 +84,8 @@ export function renderSlackEvent(
  * 표시 순서 보장.
  *
  * SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표 `execution.ai_message`
- *      행. R-CC-16 / R-CC-17 (chat-channel-form-template-render-fix).
+ *      행. CLE-CHAT-CORE-RENDER R-CC-16 · CLE-CHAT-ADAPTER-RENDER R-CCA-13
+ *      (chat-channel-form-template-render-fix).
  */
 function renderAiMessage(
   event: Extract<EiaEvent, { type: 'execution.ai_message' }>,

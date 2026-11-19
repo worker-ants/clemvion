@@ -7,6 +7,10 @@ import { randomUUID } from 'node:crypto';
 import { createDbClient } from './helpers/db';
 import { nextE2eClientIp } from './helpers/e2e-client-ip';
 import {
+  addManualTriggerNode,
+  countExecutions,
+} from './helpers/e2e-workflow-rows';
+import {
   insertChatChannelTriggerRow,
   setupChatChannelTrigger,
 } from './helpers/e2e-chat-channel-fixture';
@@ -267,11 +271,7 @@ describe('Discord Chat Channel e2e', () => {
 
     it('DM /workflow start → 200 + 수신 문구이고 새 실행의 response_code 는 200 이다', async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
-      await db.query(
-        `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
-         VALUES ($1, $2, 'manual_trigger', 'trigger', 'trg', $3, 0, 0, NOW(), NOW())`,
-        [randomUUID(), setup.workflowId, JSON.stringify({ parameters: [] })],
-      );
+      await addManualTriggerNode(db, setup.workflowId);
       try {
         const res = await post(
           setup.endpointPath,
@@ -285,6 +285,93 @@ describe('Discord Chat Channel e2e', () => {
           [setup.workflowId],
         );
         expect(rows.rows.map((r) => r.response_code)).toEqual(['200']);
+      } finally {
+        await db
+          .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+          .catch(() => undefined);
+      }
+    });
+
+    // REQ-DISCORD-036(R-D-12): `help` 밖의 슬래시 명령은 중복 · 파싱 실패로 끝나도 200 과 수신 응답이다.
+    // `content` 는 `languageHints.commandReceived` 가 있으면 그 문구다(NERV Task `CLE-T-3HYK6R`).
+    it('같은 /workflow start 가 다시 와도 200 + 수신 문구이고 실행은 하나다', async () => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
+      await addManualTriggerNode(db, setup.workflowId);
+      try {
+        const body = interaction(
+          `I-dup-start-${Date.now()}`,
+          2,
+          1,
+          slash('start'),
+        );
+        const first = await post(setup.endpointPath, body);
+        const second = await post(setup.endpointPath, body);
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+        expect(second.body).toEqual(RECEIVED);
+
+        expect(await countExecutions(db, setup.workflowId)).toBe('1');
+      } finally {
+        await db
+          .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+          .catch(() => undefined);
+      }
+    });
+
+    it.each([
+      [
+        '빈 /workflow reply',
+        {
+          name: 'workflow',
+          options: [
+            {
+              name: 'reply',
+              type: 1,
+              options: [{ name: 'message', type: 3, value: '' }],
+            },
+          ],
+        },
+      ],
+      ['메시지 없는 /workflow reply', slash('reply')],
+      ['모르는 하위 명령', slash('unknown')],
+    ])(
+      'DM 의 %s(파싱 실패) → 200 + 수신 문구 { type: 4 }',
+      async (_label, data) => {
+        const res = await post(
+          endpointPath,
+          interaction(`I-parse-fail-${randomUUID()}`, 2, 1, data),
+        );
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual(RECEIVED);
+      },
+    );
+
+    it('languageHints.commandReceived 가 있으면 그 문구로 답한다', async () => {
+      const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
+      await db.query(`UPDATE trigger SET config = $1::jsonb WHERE id = $2`, [
+        JSON.stringify({
+          chatChannel: {
+            provider: 'discord',
+            botTokenRef: `secret://triggers/${setup.triggerId}/bot-token`,
+            languageHints: { commandReceived: '명령을 접수했습니다.' },
+          },
+        }),
+        setup.triggerId,
+      ]);
+      try {
+        const res = await post(
+          setup.endpointPath,
+          interaction(`I-hint-${Date.now()}`, 2, 1, slash('cancel')),
+        );
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({
+          type: 4,
+          data: {
+            content: '명령을 접수했습니다.',
+            flags: 64,
+            allowed_mentions: ALLOWED_MENTIONS_NONE,
+          },
+        });
       } finally {
         await db
           .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])

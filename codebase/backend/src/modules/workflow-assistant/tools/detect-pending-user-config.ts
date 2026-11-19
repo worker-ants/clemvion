@@ -76,7 +76,10 @@ const SUPPORTED_INTEGRATION_SERVICE_TYPE_SET: ReadonlySet<string> = new Set(
 export interface CandidateEntry {
   /** 실제 id (integration.id · llm_config.id · knowledge_base.id · workflow.id). */
   id: string;
-  /** 드롭다운에 표시할 주 텍스트. */
+  /**
+   * 드롭다운에 표시할 주 텍스트. 원본 이름이 비어 있으면 빈 문자열일 수 있다
+   * (예: 이름 · provider 가 모두 빈 LLM Config). 표시 쪽이 대체 문구를 정한다.
+   */
   label: string;
   /** 보조 텍스트 (예: integration 의 serviceType, LLM Config 의 model). */
   sublabel?: string;

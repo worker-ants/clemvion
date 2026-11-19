@@ -14,7 +14,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -31,7 +30,7 @@ import { ApiOkWrappedResponse } from '../../../common/swagger';
 import { Public, CurrentUser } from '../../../common/decorators';
 import type { JwtPayload } from '../../../common/decorators';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { SENSITIVE_ACTION_THROTTLE } from '../../../common/constants/throttle';
+import { RequirePasswordRecheck } from '../decorators/require-password-recheck.decorator';
 
 import { AuthService } from '../auth.service';
 import { AccessTokenDto } from '../dto/responses/auth-response.dto';
@@ -98,8 +97,8 @@ export class WebAuthnController {
   @Post('register/options')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  // 계정 비밀번호를 대조하는 경로라 비밀번호 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
-  @Throttle(SENSITIVE_ACTION_THROTTLE)
+  // 계정 비밀번호를 대조한다. 민감 tier(분당 10회, 사용자 기준)와 사용자 단위 실패 한도가 걸린다.
+  @RequirePasswordRecheck()
   @ApiOperation({
     summary: 'WebAuthn 등록 options 발급',
     description:
@@ -355,8 +354,8 @@ export class WebAuthnController {
   @Post('credentials/:id/delete')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  // 계정 비밀번호를 대조하는 경로라 비밀번호 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
-  @Throttle(SENSITIVE_ACTION_THROTTLE)
+  // 계정 비밀번호를 대조한다. 민감 tier(분당 10회, 사용자 기준)와 사용자 단위 실패 한도가 걸린다.
+  @RequirePasswordRecheck()
   @ApiOperation({
     summary: 'WebAuthn credential 삭제',
     description:
@@ -414,8 +413,8 @@ export class WebAuthnController {
   @Post('recovery-codes/regenerate')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  // 계정 비밀번호를 대조하는 경로라 비밀번호 추측을 막는다. 분당 10회(사용자 기준) 민감 tier.
-  @Throttle(SENSITIVE_ACTION_THROTTLE)
+  // 계정 비밀번호를 대조한다. 민감 tier(분당 10회, 사용자 기준)와 사용자 단위 실패 한도가 걸린다.
+  @RequirePasswordRecheck()
   @ApiOperation({
     summary: 'WebAuthn 복구 코드 재발급',
     description:

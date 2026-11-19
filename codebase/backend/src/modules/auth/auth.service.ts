@@ -5,6 +5,8 @@ import {
   UnauthorizedException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -33,6 +35,7 @@ import { deriveDeviceLabel } from './utils/device-label';
 import type { AuthContext } from './types/auth-context';
 import { SessionsService } from './sessions.service';
 import { TotpService } from './totp.service';
+import { PasswordRecheckFailureLimiterService } from './password-recheck-failure-limiter.service';
 
 export type { AuthContext };
 
@@ -57,6 +60,7 @@ export class AuthService {
     private readonly loginHistory: LoginHistoryService,
     private readonly sessionsService: SessionsService,
     private readonly totpService: TotpService,
+    private readonly passwordRecheckLimiter: PasswordRecheckFailureLimiterService,
   ) {}
 
   // ========== PASSWORD RE-VERIFICATION (레이어 정렬 — refactor 02 C-3) ==========
@@ -68,6 +72,11 @@ export class AuthService {
    * `AuthService` 에 배치한다(레이어 정렬). 검증은 login 과 동일한 `comparePassword`
    * 헬퍼를 쓰며, 실패 시 에러 코드(`PASSWORD_REQUIRED`/`PASSWORD_INVALID`)·메시지·
    * 401 shape 은 옛 컨트롤러 동작 그대로 보존한다.
+   *
+   * 틀린 비밀번호는 사용자 단위로 센다. 어느 재확인 라우트에서 틀렸든 같은 카운터다. 창 안에서 한도에 닿은 사용자는 창이 끝날
+   * 때까지 비밀번호를 대조하지 않고 429(`RATE_LIMITED`)로 답한다. 라우트마다 따로 세는 `@Throttle` 만으로는 재확인 라우트 수만큼
+   * 추측 예산이 늘기 때문이다([HTTP API 규약 — 요청 빈도 제한](CLE-API-CONV-RATE), NERV Task `CLE-T-CJ7HB1`).
+   * 비밀번호가 없는 계정(`PASSWORD_REQUIRED`)과 맞힌 시도는 세지 않는다.
    */
   async verifyPasswordForUser(
     userId: string,
@@ -81,8 +90,19 @@ export class AuthService {
         message: '비밀번호 확인이 필요합니다.',
       });
     }
+    if (await this.passwordRecheckLimiter.isBlocked(user.id)) {
+      throw new HttpException(
+        {
+          code: 'RATE_LIMITED',
+          message:
+            '비밀번호를 너무 많이 틀렸습니다. 잠시 후 다시 시도해 주세요.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const ok = await comparePassword(plainPassword, user.passwordHash);
     if (!ok) {
+      await this.passwordRecheckLimiter.recordFailure(user.id);
       throw new UnauthorizedException({
         code: PASSWORD_VERIFY_CODES.INVALID,
         message: '비밀번호가 일치하지 않습니다.',

@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-COMMANDS"
 title: "WebSocket 이벤트와 명령 — 실행 제어 명령과 ack"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "5184a9b0091248e4133e83c0548780f38b7698e53c77bff6b0180273d4d091da"
+content_hash: "d4f6ee92f25e74d4dbd4220c325da41262bd8a0f7eeb4e2ea639b2f72e80e650"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-SKDWWG"
 source_paths: []
-mirror_sha256: "26bb942cde7141af8b153e6ba6c5dc624a9ab231d9f56d7eca35d55e9bbee5d1"
-etag: "sha256-698a133269b2a5c2a6586aa67e4ab2fc1f30fc5ff62e11c2f1a32aabc5337aa9"
+mirror_sha256: "d535180cf81debb0472484628b10c41ee30e3d8f8971e7f3d33dfaccfd814c8c"
+etag: "sha256-e11e8da1bff75d25a37f56af4727950561f7a40a507476d7dd5807e6251d4467"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 명령 `execution.continue`·`execution.step` 은 미구현, 실행 시작·중단 명령은 비채택) · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -42,7 +42,7 @@ etag: "sha256-698a133269b2a5c2a6586aa67e4ab2fc1f30fc5ff62e11c2f1a32aabc5337aa9"
 
 재개 명령 넷과 `retry_last_turn` 의 ack 는 명령 응답 이벤트(ack 이벤트)로 온다. 핸들러(`handleClickButton` 등)가 돌려준 `{ event, data: { success, ... } }` 는 `event` 필드 값을 이름으로 하는 Socket.IO 이벤트로 `data` 만 나간다. ack 이벤트의 정의와 전송 규칙은 [WebSocket 연결과 채널 구독 「전송 계층」](CLE-API-WS.md#1-전송-계층) 이 정한다. 재개 명령 넷과 `retry_last_turn` 의 ack 이벤트 이름은 `<명령>.ack` 이고 폼 제출만 `execution.form_submitted` 다. 구독과 ping 의 ack 이벤트(`subscribed`·`unsubscribed`·`pong`)는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 이 정한다. 클라이언트는 ack 이벤트 이름을 구독해 받는다(예: `socket.once('execution.click_button.ack', …)`).
 
-**ack 이벤트는 요청별 짝짓기를 제공하지 않는다.** 같은 명령을 두 번 보내면 두 ack 는 이름이 같고 어느 요청의 응답인지 표시하는 필드가 없다. 성공 ack 와 `retry_last_turn` 의 ack 에는 `executionId` 가 있지만 재개 명령 넷의 실패 ack 에는 없다. 프론트엔드 로컬 헬퍼 `emitWithAck`(`use-execution-interaction-commands.ts`)는 이 값으로 맞추지 않는다. 명령을 한 번에 하나만 보낸다는 전제로 보내기 전에 그 ack 이벤트 이름에 일회성 리스너를 걸고 다음에 오는 ack 를 그 명령의 응답으로 본다. 실패인지는 `success === false` 로만 가른다.
+**ack 이벤트는 요청별 짝짓기를 제공하지 않는다.** 같은 명령을 두 번 보내면 두 ack 는 이름이 같고 어느 요청의 응답인지 표시하는 필드가 없다. 성공 ack 와 `retry_last_turn` 의 ack 에는 `executionId` 가 있지만 재개 명령 넷의 실패 ack 에는 없다. 프론트엔드 로컬 헬퍼 `emitAndAwaitAckEvent`(`use-execution-interaction-commands.ts`)는 이 값으로 맞추지 않는다. 명령을 한 번에 하나만 보낸다는 전제로 보내기 전에 그 ack 이벤트 이름에 일회성 리스너를 걸고 다음에 오는 ack 를 그 명령의 응답으로 본다. 실패인지는 `success === false` 로만 가른다.
 
 아래 예시는 핸들러 반환 형태 `{ event, data }` 다. 비채택인 `execution.start.ack` 만 논리 구조 표기 `{ type, id, payload }` 로 남긴다.
 
@@ -145,7 +145,7 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 - ack payload 는 재개 명령 넷과 같이 `success: boolean` 을 담는다. §2.3 의 평면 `{ success, error }` 관례를 따르고 실패 때 평면 `errorCode` 대신 중첩 `error: { code, message }` 를 쓰는 것만 다르다.
 - ack 의 `resumed: false` 는 네 명령과 달리 발행 쪽 **동기** 실패를 반영한다. `failed` 상태 기대 불충족 같은 검증 실패와 큐 적재 실패(아래 표의 `INTERNAL_ERROR`)가 여기에 든다. `RESUME_*` 비동기 경로와 무관하다.
 
-아래 표는 `retry_last_turn` 이 돌려주는 코드다. 전송 수준 코드 전체는 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 에 있다. 코드의 출처는 셋이다. `RETRY_*` 는 `ErrorCode`(`nodes/core/error-codes.ts`)의 값이다. `INVALID_EXECUTION_STATE` 는 `InvalidExecutionStateError` 의 `code` 리터럴이다. `UNAUTHENTICATED`·`NOT_FOUND`·`INTERNAL_ERROR` 는 전송 수준 `WsErrorCode`(`ws-error-codes.ts`)다.
+아래 표는 `retry_last_turn` 이 돌려주는 코드다. 전송 수준 코드 전체는 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「7.1 에러 코드」](CLE-API-WS-MSG.md#71-에러-코드) 에 있다. 코드의 출처는 셋이다. `RETRY_*` 는 `ErrorCode`(`nodes/core/error-codes.ts`)의 값이다. `INVALID_EXECUTION_STATE` 는 `InvalidExecutionStateError` 의 `code` 리터럴이다. `UNAUTHENTICATED`·`NOT_FOUND`·`INTERNAL_ERROR` 는 전송 수준 `WsErrorCode`(`ws-error-codes.ts`)다.
 
 | 코드 | 설명 |
 |------|------|
@@ -168,7 +168,7 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 ## 구현 위치
 
 - `codebase/backend/src/modules/websocket/websocket.gateway.ts` (명령 핸들러 여덟 개)
-- `codebase/frontend/src/lib/websocket/use-execution-interaction-commands.ts` (재개 명령 발신. `emitWithAck` 는 ack 이벤트를 한 번 기다리는 로컬 헬퍼이고 Socket.IO 내장 `Socket#emitWithAck` 와 다르다)
+- `codebase/frontend/src/lib/websocket/use-execution-interaction-commands.ts` (재개 명령 발신. `emitAndAwaitAckEvent` 는 ack 이벤트를 한 번 기다리는 로컬 헬퍼이고 Socket.IO 내장 `Socket#emitWithAck` 와 다르다)
 
 ## Rationale
 
@@ -184,9 +184,9 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 
 ### ack 의 `resumed` 뜻을 "재개 성공" 에서 "재개 수락" 으로 바꾼 이유 (2026-06-10)
 
-옛 공통 ack 표는 `resumed` 를 "재개 성공 여부" 로 적었다. 모든 진입점이 늘 BullMQ 에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md))을 채택한 뒤 네 재개 핸들러는 큐에 넣으면 바로 `resumed: true` 를 돌려준다. 이 시점에는 어느 워커의 rehydration 도 일어나지 않아 동기 ack 로 재개 성공을 판정할 수 없다. 그래서 정의를 "재개 시작 수락(enqueue)" 으로 바꾸고 최종 확인은 뒤따르는 이벤트로 모았다. **기각한 대안**: 게이트웨이가 워커 처리를 동기로 기다리는 안. ack 지연을 워커에 묶어 큐를 들인 취지와 충돌한다. 코드는 바뀌지 않았다. 프론트엔드 `emitWithAck` 는 `success === false` 만 쓰고 `resumed` 로 상태를 바꾸지 않는다.
+옛 공통 ack 표는 `resumed` 를 "재개 성공 여부" 로 적었다. 모든 진입점이 늘 BullMQ 에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md))을 채택한 뒤 네 재개 핸들러는 큐에 넣으면 바로 `resumed: true` 를 돌려준다. 이 시점에는 어느 워커의 rehydration 도 일어나지 않아 동기 ack 로 재개 성공을 판정할 수 없다. 그래서 정의를 "재개 시작 수락(enqueue)" 으로 바꾸고 최종 확인은 뒤따르는 이벤트로 모았다. **기각한 대안**: 게이트웨이가 워커 처리를 동기로 기다리는 안. ack 지연을 워커에 묶어 큐를 들인 취지와 충돌한다. 코드는 바뀌지 않았다. 프론트엔드 `emitAndAwaitAckEvent` 는 `success === false` 만 쓰고 `resumed` 로 상태를 바꾸지 않는다.
 
-2026-10-17 정정: 이 문서는 큐 적재 실패가 성공 ack 의 `queued: false` 로 드러난다고 적었다. 코드는 그 경우 성공 ack 를 보내지 않고 `errorCode` 없는 실패 ack 를 보낸다. 문서를 코드에 맞춰 §2.2 와 §2.3 을 고쳤다. 기각한 대안은 코드를 바꿔 성공 ack 에 `queued: false` 를 싣는 안이다. 프론트엔드 `emitWithAck` 는 `success === false` 만 실패로 보므로 그 안에서는 실패가 화면에 보이지 않는다. 진입점마다 다른 표면의 근거는 [큐 워커와 동시 실행 제한 「진입점마다 큐 적재 실패를 다르게 알린다」](../CLE-EXEC/CLE-EXEC-WORKER.md#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
+2026-10-17 정정: 이 문서는 큐 적재 실패가 성공 ack 의 `queued: false` 로 드러난다고 적었다. 코드는 그 경우 성공 ack 를 보내지 않고 `errorCode` 없는 실패 ack 를 보낸다. 문서를 코드에 맞춰 §2.2 와 §2.3 을 고쳤다. 기각한 대안은 코드를 바꿔 성공 ack 에 `queued: false` 를 싣는 안이다. 프론트엔드 `emitAndAwaitAckEvent` 는 `success === false` 만 실패로 보므로 그 안에서는 실패가 화면에 보이지 않는다. 진입점마다 다른 표면의 근거는 [큐 워커와 동시 실행 제한 「진입점마다 큐 적재 실패를 다르게 알린다」](../CLE-EXEC/CLE-EXEC-WORKER.md#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
 
 ### ack callback 표기를 ack 이벤트로 바로잡은 이유 (2026-10-22)
 
@@ -196,4 +196,4 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 - «클라이언트는 `executionId` 만으로 ack 를 맞춘다» 는 프론트엔드 코드와 달라 지우고 실제 짝짓기 방식을 §2.1 에 적었다.
 - 재시도 코드 표와 시스템 이벤트의 `error`·`exception` 행도 코드에 맞췄다(시스템 이벤트 표는 [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「시스템 이벤트」](CLE-API-WS-EVENTS-CHANNELS.md#6-시스템-이벤트) 에 있다).
 
-기각한 대안은 둘이다. 핸들러가 `event` 없이 `data` 만 돌려 ack callback 으로 맞추는 안은 프론트엔드 로컬 헬퍼 `emitWithAck` 와 e2e 가 이미 ack 이벤트에 기대고 있어 호환만 깨진다. callback 과 이벤트를 함께 보내는 안은 callback 을 기다리는 소비자가 없고 응답 표면만 늘어 기각했다.
+기각한 대안은 둘이다. 핸들러가 `event` 없이 `data` 만 돌려 ack callback 으로 맞추는 안은 프론트엔드 로컬 헬퍼 `emitAndAwaitAckEvent` 와 e2e 가 이미 ack 이벤트에 기대고 있어 호환만 깨진다. callback 과 이벤트를 함께 보내는 안은 callback 을 기다리는 소비자가 없고 응답 표면만 늘어 기각했다.

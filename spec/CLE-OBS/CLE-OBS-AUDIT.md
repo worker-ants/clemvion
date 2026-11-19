@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-018", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031", "REQ-AUDIT-032"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "91cb173a05623d358fec2a57ab0bd9e8d4e79693ee8d0878a465028cde22faa8"
+content_hash: "a152f001522280b23349405aadff297ece6a867114526ead75dcdda11ec346a3"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-YAHNQ6"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "a24ea94ed82b39d8fc5c365a841676e2e0294f00ea098b90c34306789818b2e7"
-etag: "sha256-89b2617479d9ba5d209f5b8e0262d2585eaa9a7683274f489ac8d27cc2791cd1"
+mirror_sha256: "5fec113ee2e6c2a4d3f9054f5fc1f0d176a455fe77d3335c250fa60630ea42af"
+etag: "sha256-afbe6e52c57e8974028987b7e918de44b0f9741e867034b830c3c310be016e34"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -64,7 +64,7 @@ etag: "sha256-89b2617479d9ba5d209f5b8e0262d2585eaa9a7683274f489ac8d27cc2791cd1"
 - REQ-AUDIT-018 WHILE 감사 로그 보존 정책이 정해지지 않은 동안 THE SYSTEM SHALL 감사 로그 행을 지우지 않는다. (원본: 1-auth §4.2)
 - REQ-AUDIT-019 WHEN 감사 로그 행이 보관 기간(기본 90일, 설정 가능)을 넘으면 THE SYSTEM SHALL 그 행을 지운다. (원본: 1-auth §4.2) (미구현)
 - REQ-AUDIT-020 WHEN 로그인 성공·로그인 실패·TOTP 실패·WebAuthn 실패·로그아웃·세션 강제 종료·refresh token 재사용 감지가 일어나면 THE SYSTEM SHALL `login_history` 에 한 행 남긴다. (원본: 1-auth §4.3)
-- REQ-AUDIT-021 WHEN 비밀번호 변경이나 이메일 변경이 확정되면 THE SYSTEM SHALL `session_revoked` 로그인 이력 한 행을 `familyId=null`(일괄)로 남긴다. (원본: 1-auth §4.3)
+- REQ-AUDIT-021 WHEN 비밀번호 변경이나 이메일 변경이 확정되거나 소셜 로그인 콜백이 이메일 인증 전 계정에 연결해 사용자의 모든 로그인 세션을 무효화하면 THE SYSTEM SHALL 무효화한 리프레시 토큰 행이 있을 때 `session_revoked` 로그인 이력 한 행을 `familyId=null`(일괄)로 남긴다. 계기별 규칙은 [세션 정책](../CLE-ACCT/CLE-ACCT-SESSION-POLICY.md#세션-정책) 표가 정한다. (원본: 1-auth §4.3)
 - REQ-AUDIT-022 WHEN 로그인 이력을 남기면 THE SYSTEM SHALL User-Agent 에서 기기 라벨을 만들어 함께 저장한다. (원본: data-flow/1-audit §1.2)
 - REQ-AUDIT-023 WHEN 인증 코드가 로그인 이력을 남기면 THE SYSTEM SHALL 적재가 끝난 뒤에 다음 단계로 넘어간다. (원본: data-flow/1-audit §1.2)
 - REQ-AUDIT-024 IF 로그인 이력 적재가 실패하면 THE SYSTEM SHALL 예외를 흡수하고 에러 로그를 남긴다. (원본: data-flow/1-audit Overview)
@@ -145,3 +145,13 @@ etag: "sha256-89b2617479d9ba5d209f5b8e0262d2585eaa9a7683274f489ac8d27cc2791cd1"
 ### 트리거 생성의 감사 행은 커밋 직후 트랜잭션 밖에서 남긴다
 
 다른 문서가 이 앵커로 링크하므로 제목을 남긴다. 결정과 근거는 [감사 로그 — 기록과 조회](CLE-OBS-AUDIT-RECORD.md#트리거-생성의-감사-행은-커밋-직후-트랜잭션-밖에서-남긴다) 에 있다.
+
+### 일괄 무효화 이력의 계기에 미인증 계정의 소셜 로그인 연결을 더했다
+
+결정일: 2026-11-15
+
+동작은 바뀌지 않았고 요구사항 줄을 구현에 맞췄다.
+
+- NERV Task `CLE-T-327K37` 에서 소셜 로그인 콜백이 이메일 인증 전 계정에 연결하면 그 사용자의 로그인 세션을 모두 무효화하고 일괄 `session_revoked` 이력을 남기게 했다. 계기별 규칙의 정본은 [세션 정책](../CLE-ACCT/CLE-ACCT-SESSION-POLICY.md#세션-정책) 표다.
+- 요구사항 REQ-AUDIT-021 에 이 계기를 더했다. 비밀번호 변경 · 이메일 변경 확인도 무효화한 행이 있을 때만 이력을 남기므로 그 조건도 함께 적었다.
+- NERV Task `CLE-T-YAHNQ6` 에서 고쳤다.

@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-RESP"
 title: "HTTP API 규약 — 응답 형식과 상태 코드"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "eadc116c2b1bfc06e9382f8bd51b171e0be13f072f42a66016e79e716516f28f"
+content_hash: "d2f7ec2d77c81e5630f5a135036ab328f99f7279ed58ac74af43056cb9c395be"
 read_as: "approved_fallback"
-task: "CLE-T-4YVJSR"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "773332b01b8ed103a358094595711fe0c4833dca13940cc633057ec0b8af6d17"
-etag: "sha256-6b45db3b5127c035d5e7f5e6a72e073df9de76d2f7c2871c4c5b234fb0593627"
+mirror_sha256: "9ea5f54391d243b23b706e5bdbbdaa99ee0dfabb83895796d92efbf8362fd6cf"
+etag: "sha256-154831b387b68eb19916c7e2b35c947cca77831a85b3638ad320efaa86a33b70"
 ---
 ## 개요
 
@@ -224,7 +224,7 @@ NERV Task `CLE-T-V4WVF2` 의 결정이다. 채팅 채널 `/start` 는 활성 실
 
 ### Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다 (2026-10-17)
 
-NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 가용성 조회와 credential 목록 조회를 뺀 Passkey 엔드포인트는 503 `WEBAUTHN_DISABLED` 를 돌려준다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수)). 규칙 11 은 `503` 을 인프라 의존성의 일시 장애에 쓴다고만 적어 이 응답이 규칙 밖에 있었다. 같은 날 사람 결정으로 Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)도 이 응답으로 막게 됐다([가입과 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다-2026-10-17)). 예외의 범위는 코드 하나 그대로다.
+NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 가용성 조회와 credential 목록 조회를 뺀 Passkey 엔드포인트는 503 `WEBAUTHN_DISABLED` 를 돌려준다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수)). 규칙 11 은 `503` 을 인프라 의존성의 일시 장애에 쓴다고만 적어 이 응답이 규칙 밖에 있었다. 같은 날 사람 결정으로 Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)도 이 응답으로 막게 됐다([로그인과 소셜 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다)). 예외의 범위는 코드 하나 그대로다.
 
 - 상태 코드는 그대로 두고 규칙 11 과 §6 의 `503` 행에 예외로 적었다. [채팅 채널 「setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다) 는 4xx · 5xx 경계를 누가 고칠 수 있는가로 정했다. 같은 결정은 `503` 사용처에 `WEBAUTHN_DISABLED` 를 이미 들었다. 서버 설정은 운영자만 고칠 수 있으므로 5xx 가 맞다.
 - 저장소 안에서는 로그인 화면만 이 코드로 분기해 안내 문구를 고른다(`codebase/frontend/src/components/auth/login-form.tsx`). Passkey 설정 화면은 가용성 조회로 기능을 미리 숨기고 이 코드로 분기하지 않는다. 저장소 밖 호출자가 이 상태에 기대는지는 배제할 수 없어 상태 코드를 바꾸지 않았다.

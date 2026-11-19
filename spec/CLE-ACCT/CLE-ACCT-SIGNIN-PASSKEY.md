@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-PASSKEY"
 title: "가입과 로그인 — Passkey 기능과 등록"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "d36306d132ed0dad137900492feee02ef752c5a550398a10afca3f55a24ea7f5"
+content_hash: "c2dbd832d62e324e5a6bc72e02db60545324a50d0c77f5c02b0c2c413590e8b9"
 read_as: "approved_fallback"
-task: "CLE-T-VYNVGP"
+task: "CLE-T-M3Z08T"
 source_paths: []
-mirror_sha256: "c03d0ad9ba84374e335a02d3af5fecf3211d80bf63eb1c299c11b50908915e7a"
-etag: "sha256-7d7115fb1f153a5c70af0a40a4c4a3335d0e58fc250bd09f4615a0a9eaea0e1e"
+mirror_sha256: "dc4a523a2999024eea552bf79a6ddb3d0b40e0b77ae5ae07f90a860d9b7e648c"
+etag: "sha256-96c23568bfeb703fee5489d0b2fcd9c60152610d3acffb08c0f259886b5ad2a3"
 ---
 ## 개요
 
@@ -204,7 +204,7 @@ Passkey 등록 옵션의 비밀번호 재확인:
 - **등록 옵션에서 비밀번호를 재확인한다.** 로그인 세션만 가진 사람이 자기 인증기를 Passkey 로 등록하면 원래 사용자는 다음 로그인에서 막힌다. Passkey 가 하나라도 있으면 로그인 2단계는 Passkey 로만 통과하기 때문이다. 첫 등록의 Passkey 복구 코드도 등록한 사람에게만 보인다. TOTP 설정 시작에서 막은 공격과 같아서 본문 · 확인 함수 · 에러 코드를 TOTP 설정 시작과 맞췄다.
 - **등록 옵션 한 곳에서만 받는다.** `optionsToken` 은 발급받은 사용자(`sub`)에 묶이고 5분 안에만 유효해서 재확인 한 번이 그 등록을 덮는다.
 - **기능이 꺼져 있으면 비밀번호를 확인하기 전에 거부한다.** 기능을 끈 서버에서 비밀번호 대조를 돌리지 않는다. 복구 코드 재발급도 같다.
-- **이미 등록한 Passkey 는 그대로 쓴다.** 등록 옵션만 막고(삭제는 2026-11-14 결정) 기존 credential 에 확인을 다시 요구하지 않는다. Passkey 삭제 · 이름 변경에는 비밀번호 재확인을 더하지 않았다. 삭제에는 2026-11-14 에 더했다([아래](#passkey-삭제에도-비밀번호-재확인을-둔다-2026-11-14)).
+- **이미 등록한 Passkey 는 그대로 쓴다.** 등록 옵션만 막고(삭제는 2026-11-14 결정) 기존 credential 에 확인을 다시 요구하지 않는다. Passkey 삭제 · 이름 변경에는 비밀번호 재확인을 더하지 않았다. 삭제에는 2026-11-14 에 더했다([아래](#passkey-삭제에도-비밀번호-재확인을-둔다)).
 - **비용**: OAuth 전용 사용자는 비밀번호 재설정으로 비밀번호를 만든 뒤 Passkey 를 등록한다. 그래서 비밀번호 없이 Passkey 만 등록한 OAuth 전용 계정은 이 결정 전에 등록한 경우만 남는다.
 - **기각: 비밀번호 또는 TOTP 로 계정 재인증(`SessionsService.reauthenticate`)을 받는다.** 비밀번호 없이 TOTP 만 있는 계정은 TOTP 코드로 등록할 수 있게 되어 비밀번호만 받는 TOTP 설정 시작과 규칙이 갈린다.
 - **기각: 이번에도 더하지 않고 미결로 남긴다.** 로그인 세션을 탈취한 사람이 자기 인증기를 등록해 원래 사용자를 잠그는 공격이 남는다.
@@ -240,7 +240,9 @@ NERV Task `CLE-T-9KCQ7Y` 에서 정했다. 전에는 credential 과 복구 코�
 - **기각: 잠금 없이 트랜잭션만 둔다.** READ COMMITTED 에서는 두 요청이 모두 credential 0개를 읽어 둘 다 첫 등록이 된다.
 - **기각: 복구 코드를 `IS NULL` 조건부 UPDATE 로 저장한다.** 덮어쓰기는 막지만 credential 과 복구 코드가 따로 커밋되고 삭제와의 경합도 남는다.
 
-### Passkey 삭제에도 비밀번호 재확인을 둔다 (2026-11-14)
+### Passkey 삭제에도 비밀번호 재확인을 둔다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-Q6E11N` 에서 사람이 정했다(NERV 질문 `01a1d82c-12ac-7097-b633-c750fb3db127`). 토큰만으로 지울 수 있으면 로그인 세션만 손에 넣은 사람이 credential 을 모두 지워 Passkey 2단계 인증을 끌 수 있다.
 

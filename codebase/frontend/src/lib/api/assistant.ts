@@ -320,6 +320,11 @@ export const assistantApi = {
       content: string;
       currentWorkflow: AssistantWorkflowSnapshot;
       llmConfigId?: string;
+      /**
+       * 에디터가 이 워크플로우를 실행 중인지. true 인 턴은 서버가 편집 도구를
+       * `ASSISTANT_WORKFLOW_RUNNING` 결과로 거부한다(REQ-ASSIST-028).
+       */
+      workflowRunning?: boolean;
     },
     onEvent: (event: AssistantSseEvent) => void,
     signal?: AbortSignal,

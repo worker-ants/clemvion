@@ -22,6 +22,7 @@ import type {
 } from "@/lib/api/assistant";
 import { assistantApi } from "@/lib/api/assistant";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
 
 /**
  * `handleSseEvent` 의 done 분기는 "이번 턴이 어떤 형태로 끝났는가" 를 보고
@@ -780,6 +781,51 @@ describe("assistant-store", () => {
         edges: [],
       });
       expect(sent).toBe("Continue.");
+    });
+  });
+
+  // REQ-ASSIST-028: 에디터 실행 상태가 running · waiting_for_input 이면
+  // 메시지 요청에 workflowRunning: true 를 실어 서버가 편집 도구를 거부하게 한다.
+  describe("workflowRunning request field", () => {
+    // 위 continueAfterBudget 테스트가 sendMessage 를 가짜로 바꿔 둔다.
+    // 수집 시점(테스트 실행 전)의 실제 action 을 잡아 매번 되돌린다.
+    const realSendMessage = useAssistantStore.getState().sendMessage;
+
+    beforeEach(() => {
+      useAssistantStore.setState({
+        sendMessage: realSendMessage,
+        currentWorkflowId: "wf-1",
+        sessionId: "sess-1",
+        llmConfigId: null,
+        isStreaming: false,
+      });
+      vi.spyOn(assistantApi, "listSessions").mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+      useExecutionStore.setState({ status: "idle" });
+      vi.restoreAllMocks();
+    });
+
+    it.each([
+      ["running", true],
+      ["waiting_for_input", true],
+      ["idle", false],
+      ["completed", false],
+      ["failed", false],
+    ] as const)("sends workflowRunning=%s → %s", async (status, expected) => {
+      useExecutionStore.setState({ status } as never);
+      const stream = vi
+        .spyOn(assistantApi, "streamMessage")
+        .mockResolvedValue(undefined);
+
+      await useAssistantStore.getState().sendMessage("hello", {
+        nodes: [],
+        edges: [],
+      } as never);
+
+      expect(stream).toHaveBeenCalledTimes(1);
+      expect(stream.mock.calls[0][1].workflowRunning).toBe(expected);
     });
   });
 });

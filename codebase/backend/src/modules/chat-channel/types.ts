@@ -69,7 +69,12 @@ export interface ChatChannelConfig {
      * SoT: spec/conventions/chat-channel-adapter.md §2.3 / §4.1 / R-CCA-8.
      */
     formMode?: 'multi_step' | 'native_modal' | 'auto';
-    visualNode?: 'photo' | 'text_only';
+    /**
+     * 시각형 노드 출력의 발송 형태. default "auto". 예전 값 "text_only" 는 DTO 가 "text" 로 바꾸고,
+     * DB 에 남은 옛 값은 렌더러가 읽을 때 바꾼다.
+     * SoT: CLE-CHAT-ADAPTER-RENDER R-CCA-12.
+     */
+    visualNode?: 'text' | 'photo' | 'auto';
     buttonLayout?: 'auto' | 'vertical' | 'horizontal';
   };
 
@@ -431,6 +436,10 @@ export interface EiaFailedEvent extends EiaEventBase {
 
 export interface EiaCancelledEvent extends EiaEventBase {
   type: 'execution.cancelled';
+  // 발행 타입은 `cancelledBy` 를 필수로 싣는다(CLE-EIA-NOTIFY-EVENTS 「종결 이벤트 필드 집합」).
+  // 그래도 여기서는 `?` 를 유지한다. dispatcher 가 타입 없는 WS 페이로드에서 `result ?? {}` 로
+  // 이 이벤트를 만들고 값을 검증하지 않으므로, 필수로 두면 확인하지 않은 보장을 타입이 주장한다.
+  // 위 `durationMs` 와 같은 판단이다. 이 필드를 읽는 렌더러는 없다.
   result: { cancelledBy?: 'user' | 'system' | 'timeout' };
   /**
    * §7.5 rehydration 실패로 인한 system cancel 의 사유 코드. `RESUME_*`
@@ -720,7 +729,7 @@ export function isNativeFormAdapter(
   );
 }
 
-/** Redis ChannelConversation 레코드 — Spec §4.3. */
+/** Redis ChannelConversation 레코드 — CLE-CHAT-DATA 「채널 대화 상태」(CLE-CHAT-DATA-STORE). */
 export interface ChannelConversationState {
   /** 활성 execution. terminal 후 null. */
   executionId: string | null;

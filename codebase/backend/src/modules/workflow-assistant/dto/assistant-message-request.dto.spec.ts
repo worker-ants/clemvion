@@ -65,3 +65,32 @@ describe('AssistantWorkflowNodeDto — width/height validation', () => {
     expect(errs.some((e) => e.property === 'width')).toBe(true);
   });
 });
+
+describe('AssistantMessageRequestDto — workflowRunning validation', () => {
+  function makeReq(extra: Record<string, unknown>) {
+    return plainToInstance(AssistantMessageRequestDto, {
+      content: '안녕',
+      ...extra,
+    });
+  }
+
+  it.each([[true], [false]])('accepts boolean %s', async (v) => {
+    const errs = await validateDto(makeReq({ workflowRunning: v }));
+    expect(errs.some((e) => e.property === 'workflowRunning')).toBe(false);
+  });
+
+  it('accepts omission (undefined)', async () => {
+    const dto = makeReq({});
+    const errs = await validateDto(dto);
+    expect(errs.some((e) => e.property === 'workflowRunning')).toBe(false);
+    expect(dto.workflowRunning).toBeUndefined();
+  });
+
+  it.each([['true'], [1], ['false'], [0]])(
+    'rejects non-boolean %p',
+    async (v) => {
+      const errs = await validateDto(makeReq({ workflowRunning: v }));
+      expect(errs.some((e) => e.property === 'workflowRunning')).toBe(true);
+    },
+  );
+});

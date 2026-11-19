@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS-EDITRESULT"
 title: "AI 어시스턴트 도구 — 편집 응답의 포트와 선택 후보"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST-TOOLS"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST-TOOLS"]
 area: "CLE-WF"
-content_hash: "08c95c61fba7cfcfa9eee74450bc8ba649a59c41babc10fa619468b8a47fa5cf"
+content_hash: "2225836ac7697fd97380858a3d087ff8618729502f255c789d861f20709a66ed"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-P3SKS4"
 source_paths: []
-mirror_sha256: "c1212f97486b906d991055f090704c62e50e780ac9098cfbfc3226f484693503"
-etag: "sha256-e109741ea3ad960afe197c26cbfedc9d4284a7a00dad2ff66c8f08a9c149c63d"
+mirror_sha256: "a93c12ced387ba38bf9e131400de34be14ec6bf97570465968db170ccef6c6ec"
+etag: "sha256-d1426f5f045f45034a156a7f55b3dc787b9969b7ecb763cd31eaf56f801e5cb9"
 ---
 ## 개요
 
@@ -28,7 +28,10 @@ etag: "sha256-e109741ea3ad960afe197c26cbfedc9d4284a7a00dad2ff66c8f08a9c149c63d"
 interface PendingUserConfigField {
   /** config 안 경로 (예: 'integrationId', 'llmConfigId'). */
   field: string;
-  /** 스키마 meta 의 ui.label (i18n 을 거친 최종 문구가 아닌 raw key/label). */
+  /**
+   * 스키마 meta 의 ui.label (i18n 을 거친 최종 문구가 아닌 raw key/label).
+   * ui.label 이 없으면 필드 키로 만든 이름을 넣으므로 비지 않는다.
+   */
   label: string;
   widget:
     | 'integration-selector'
@@ -47,7 +50,11 @@ interface PendingUserConfigField {
 interface CandidateEntry {
   /** 실제 ID (integration.id · llm_config.id · knowledge_base.id · workflow.id). */
   id: string;
-  /** 드롭다운에 보일 주 텍스트. */
+  /**
+   * 드롭다운에 보일 주 텍스트.
+   * 이름이 없으면 빈 문자열이다(모델 설정은 프로바이더로 먼저 채운다).
+   * 화면은 빈 라벨을 assistant.candidateUnnamed 문구로 채운다.
+   */
   label: string;
   /** 보조 텍스트 (예: serviceType='smtp', model='gpt-4o'). 없을 수 있다. */
   sublabel?: string;

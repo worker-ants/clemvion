@@ -26,6 +26,7 @@ import { UsersModule } from '../users/users.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { MailModule } from '../mail/mail.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { PasswordRecheckFailureLimiterService } from './password-recheck-failure-limiter.service';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     LoginHistoryService,
     SessionsService,
     LoginHistoryPrunerService,
+    PasswordRecheckFailureLimiterService,
   ],
   // `TotpService` 는 export 하지 않는다 — `setup` 과 `disableUnchecked` 가 재인증을 확인하지 않아, 이 모듈 밖에서 주입받으면
   // 2FA 설정 시작의 비밀번호 확인(`AuthService.startTwoFactorSetup`)과 해제의 재인증(`AuthService.disableTwoFactor`)을

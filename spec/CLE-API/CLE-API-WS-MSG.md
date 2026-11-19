@@ -2,19 +2,19 @@
 id: "CLE-API-WS-MSG"
 title: "WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "e04ee21244ce76338efba54a3d9286b71659d74548192e082ef4037d4ac47b9b"
+content_hash: "1baafe99a5a3e91a5329231d1954d770a2c2b63802d8b6c46997c6d5dc026315"
 read_as: "approved_fallback"
-task: "CLE-T-4YT18G"
+task: "CLE-T-7PTJAS"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "da84dd6683227f707afef3a562bdaf77cadbdde0861ce17eaed8c1920b7ea411"
-etag: "sha256-33d05013087463af2f97043ebc4893ccaadbb6526b23eaf9685d6e3d70891c3f"
+mirror_sha256: "95c012c1c7e1d7d86c0eba740bda46c1a21db61441972e83890df0a589fa6b92"
+etag: "sha256-3d586a3c37b2bdcbf065bc9d938b31be049757d293ad7d5d6966e0a520b644f4"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§3 · §4 · §7 · §8, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -70,6 +70,7 @@ etag: "sha256-33d05013087463af2f97043ebc4893ccaadbb6526b23eaf9685d6e3d70891c3f"
 - `execution:{executionId}` 채널에서는 실행 안에서 1씩 늘어나는 카운터다(`ExecutionSeqAllocator`, Redis `INCR exec:seq:<executionId>`). 키 정의와 TTL 은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다. 슬라이딩 TTL 은 환경 변수 `EXECUTION_SEQ_TTL_SECONDS`(기본 86400)다.
 - 외부 SSE 의 `id:` 와 EIA 알림 웹훅의 `seq` 가 같은 값을 쓴다([External Interaction API 「이벤트 순번을 SSE 와 알림이 같이 쓴다」](../CLE-IX/CLE-EIA.md#이벤트-순번을-sse-와-알림이-같이-쓴다)).
 - **저장 정책은 Redis 전용이다(2026-06-02 결정, DB 폴백 없음).** Redis 를 쓸 수 없으면 인스턴스별 메모리 카운터로 내려가 발행을 멈추지 않는다. 그 구간에는 인스턴스 사이 단조 증가를 보장하지 않는다(받아들인 trade-off, `logger.warn` 기록). 정상 경로에서도 자기 인스턴스가 발급한 값을 미러링해 장애 전환 때 최고값을 이어받는다.
+- **메모리 미러의 회수**: 메모리 미러는 종료 이벤트를 보낸 서버 인스턴스에서 풀린다. 실행을 park 한 서버 인스턴스와 끝낸 서버 인스턴스가 다르면 park 한 쪽에 미러가 남는다. 그래서 유휴 TTL 과 서버 인스턴스당 상한으로도 회수한다. 유휴 TTL 은 Redis 키의 슬라이딩 TTL 과 같은 `EXECUTION_SEQ_TTL_SECONDS`(기본 86400초)이고 마지막으로 값을 읽거나 쓴 시각부터 잰다. 같은 값을 쓰는 것은 미러가 Redis 키보다 먼저 사라지지 않게 하려는 것이다. 상한은 10,000건이다. 넘치면 가장 오래 만지지 않은 항목부터 지우고 경고 로그를 남긴다. 정리는 타이머 없이 값을 넣을 때 한다. Redis 를 쓸 수 없는 구간에 상한 때문에 미러를 잃은 실행은 `seq` 가 1부터 다시 나갈 수 있다. 그 구간에 인스턴스 사이 단조 증가를 보장하지 않는 위 trade-off 와 같은 범주다.
 
 
 ## 4. 채널 구독
@@ -154,6 +155,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 - **전달 방식**: 게이트웨이(namespace `/ws`)에 Socket.IO Redis adapter(`@socket.io/redis-adapter`)를 건다. 채널 발행(`server.to(channel).emit()`)은 자기 서버 인스턴스의 구독 소켓에 보내고 같은 패킷을 Redis pub/sub 로 PUBLISH 한다. 다른 서버 인스턴스는 받은 패킷을 자기 쪽의 같은 채널 구독 소켓에 보낸다. §4.2 의 모든 채널이 이 경로를 지난다.
 - **Redis 채널**: 이름은 라이브러리가 정하는 형식이고 접두는 `ws:sio` 다(예: 채널 하나로 보내는 패킷은 `ws:sio#/ws#<채널>#`). 모든 서버 인스턴스가 이 접두의 채널을 모두 구독하므로 구독자가 없는 서버 인스턴스도 패킷을 받는다. Redis 트래픽은 이벤트 수에 서버 인스턴스 수를 곱한 만큼이다.
 - **보내는 것은 wire 봉투뿐이다.** 다른 서버 인스턴스로 가는 것은 클라이언트가 받는 이벤트 봉투(§3.2)다. 같은 서버 인스턴스 안의 외부 fanout(SSE · 채팅 채널 · EIA 알림 웹훅이 받는 내부 스트림)과 그쪽 봉투에만 붙는 실행 라우팅 정보는 이 경로로 보내지 않는다. SSE 의 서버 인스턴스 사이 전달은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다.
+- **실행 라우팅 정보의 회수**: 외부 fanout 봉투에 붙는 실행 라우팅 정보(`triggerId` · `chatChannel`)는 서버 인스턴스 메모리에 두고 종료 이벤트를 보낸 서버 인스턴스에서 푼다. 실행을 park 한 서버 인스턴스와 끝낸 서버 인스턴스가 다르면 park 한 쪽에 항목이 남는다. 남은 항목은 §3.2 의 `seq` 메모리 미러와 같은 유휴 TTL · 상한으로 회수한다. park 뒤 재개는 늘 rehydration 경로이고 재개한 서버 인스턴스가 라우팅 정보를 다시 등록한다([장애 복구와 안전 종료 — 체크포인트와 rehydration 「재개 절차」](../CLE-EXEC/CLE-EXEC-RECOVERY-REHYDRATE.md#재개-절차) 3단계). 그래서 park 동안 회수돼도 재개 뒤 fanout 봉투에는 영향이 없다. 진행 중인 실행의 항목이 상한 때문에 지워지면 그 뒤 이벤트의 외부 fanout 봉투에 `triggerId` · `chatChannel` 이 빠진다. 그러면 이 값으로 대상을 찾는 외부 알림 fanout 과 채팅 채널 응답은 그 이벤트를 건너뛴다. EIA SSE 이벤트를 Redis 에 쓸지는 `triggerId` 가 없으면 DB 로 판정하므로 영향이 없다([EIA 데이터와 흐름 — SSE 스트림 「SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다」](../CLE-IX/CLE-EIA-DATA-SSE.md#sse-의-redis-쓰기를-줄이고-구독-공백을-메운다-2026-11-05)). wire 봉투는 바뀌지 않는다.
 - **서버 인스턴스 로컬로 두는 것**: 소켓, 구독 목록(join · leave), 구독 한도(§4.5), 명령 빈도 제한(§7.1 `RATE_LIMITED`), 토큰 만료 타이머([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「2.2 인증」](CLE-API-WS-CONN.md#22-인증))는 소켓이 붙은 서버 인스턴스에만 둔다. 모두 소켓 단위라 다른 서버 인스턴스와 맞출 필요가 없다. WebSocket 연결 상태는 Redis 에 두지 않고 옛 `ws:{wsId}:session:{connId}` 키도 되살리지 않는다.
 - **sticky session 에 기대지 않는다.** transport 가 websocket 하나라([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「2.1 엔드포인트」](CLE-API-WS-CONN.md#21-엔드포인트)) 소켓 하나는 연결한 서버 인스턴스를 떠나지 않는다.
 - **Redis 가 없거나 끊겼을 때**: Redis 설정이 없으면 adapter 를 걸지 않고 메모리 adapter 로 돈다(서버 인스턴스 하나 전제). 돌던 중 Redis 에 닿지 못하면 다른 서버 인스턴스로 가는 전달만 멈춘다. 자기 서버 인스턴스의 구독자는 계속 받고 발행하는 쪽 처리도 멈추지 않는다. 그동안 다른 서버 인스턴스의 구독자가 놓친 이벤트는 다시 보내지 않는다. 화면은 다음 이벤트나 다음 구독 때 받는 `execution.snapshot`([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「6.2 놓친 이벤트 복구」](CLE-API-WS-CONN.md#62-놓친-이벤트-복구))으로 상태를 맞춘다.
@@ -217,6 +219,8 @@ raw WebSocket close code(1000·1001·1008·4000·4001 등)를 애플리케이션
 - `codebase/backend/src/modules/websocket/ws-error-codes.ts` (`WsErrorCode`)
 - `codebase/backend/src/modules/websocket/ws-rate-limit.guard.ts` (`WsRateLimitGuard`. 소켓당 명령 빈도 제한)
 - `codebase/backend/src/modules/websocket/ws-redis-adapter.ts` (§4.6 Redis adapter 연결)
+- `codebase/backend/src/modules/websocket/execution-memory.policy.ts` (실행 단위 메모리 항목의 유휴 TTL · 상한)
+- `codebase/backend/src/modules/websocket/idle-expiring-map.ts` (유휴 TTL 과 상한이 있는 Map)
 
 ## Rationale
 
@@ -235,4 +239,14 @@ NERV Task `CLE-T-4YT18G` 에서 사람이 정한 결정이다. 그 전에는 채
 - **기각한 대안**: EIA SSE 와 같은 방식의 자체 Redis 중계(채널에 로컬 구독자가 있는 동안만 SUBSCRIBE). 구독자가 있는 서버 인스턴스만 패킷을 받아 트래픽이 적다. 대신 채널별 참조 수를 구독 · 해제 · 연결 끊김마다 맞춰야 해서 코드와 테스트가 크다. 새 의존성을 받는 대신 라이브러리 표준 경로를 골랐다.
 - **기각한 대안**: sticky session. 이벤트를 만드는 곳은 소켓이 붙은 서버 인스턴스가 아니라 세그먼트를 가져간 워커라 sticky 로는 이벤트가 구독자에게 모이지 않는다. [시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md) 의 EIA SSE 결정과 같은 이유다.
 - **받아들인 비용**: 모든 서버 인스턴스가 모든 채널 패킷을 받는다. 서버 인스턴스가 늘어 Redis 트래픽이 문제가 되면 채널별 구독 방식을 다시 검토한다.
-- **채널 등재는 후속이다**: `ws:sio` 접두를 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 과 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 에 올리는 일은 두 문서를 맡은 작업에서 한다(NERV Task `CLE-T-GDR39Z`). 채널 이름은 라이브러리가 정하는 `#` 구분 형식이라 명명 규약의 키 형태 규칙(규칙 1)을 따르지 않는다. websocket 모듈은 이미 `exec:seq` 접두를 쓰므로 접두를 늘리지 않는다는 규칙 6 의 예외이기도 하다. 두 예외는 그 작업에서 규약 문서에 적는다.
+- **채널 등재**: `ws:sio` 접두를 [비동기 큐와 Redis 키 목록 「pub/sub 채널」](../CLE-PLAT/CLE-PLAT-QUEUE.md#pubsub-채널) 의 채널 목록과 [Redis 키 명명 규약 「라이브러리가 이름을 정하는 것」](../CLE-ENG/CLE-ENG-REDIS.md#라이브러리가-이름을-정하는-것) 에 올렸다(NERV Task `CLE-T-GDR39Z`). 채널 이름은 라이브러리가 정하는 `#` 구분 형식이라 명명 규약의 키 형태 규칙(규칙 1)을 따르지 않는다. websocket 모듈은 이미 `exec:seq` 접두를 쓰므로 접두를 늘리지 않는다는 규칙 6 의 예외이기도 하다. 두 예외는 명명 규약의 「라이브러리가 이름을 정하는 것」 절과 규칙 6 에 적었다.
+
+### 실행 단위 메모리 항목을 유휴 TTL 과 상한으로 회수하는 이유
+
+결정일: 2026-11-15
+
+NERV Task `CLE-T-4J965H` 가 구현했고 `CLE-T-7PTJAS` 가 스펙에 적었다. `seq` 메모리 미러(§3.2)와 실행 라우팅 정보(§4.6)는 종료 이벤트를 보낸 서버 인스턴스에서만 풀린다. 실행 세그먼트와 재개는 아무 서버 인스턴스에서나 돌므로 실행을 park 한 서버 인스턴스와 끝낸 서버 인스턴스가 다를 수 있다. 그러면 park 한 쪽의 항목은 풀리지 않고 쌓인다.
+
+- **유휴 TTL 을 Redis 키의 TTL 과 같게 둔 이유**: 미러가 Redis 키보다 먼저 사라지면 Redis 를 쓸 수 없게 됐을 때 이어받을 최고값을 잃는다. 두 값이 같으면 유휴 TTL 이 지났을 때 Redis 키도 이미 만료됐으므로 미러를 잃어 생기는 차이가 없다.
+- **상한을 둔 이유**: 유휴 TTL 만으로는 그 시간(기본 24시간) 안에 쌓이는 항목 수를 묶지 못한다. 상한이 서버 인스턴스 하나가 붙드는 항목 수를 묶는다.
+- **받아들인 비용**: 상한 때문에 항목을 지우면 두 가지를 잃을 수 있다. Redis 를 쓸 수 없는 구간에 미러를 잃은 실행은 `seq` 가 1부터 다시 나갈 수 있다. 진행 중인 실행의 라우팅 정보를 잃으면 그 뒤 이벤트의 외부 전달이 빠진다. 상한은 서버 인스턴스 하나가 동시에 붙드는 실행 수보다 훨씬 크게 잡았으므로 두 경우 모두 드물다.
