@@ -210,12 +210,10 @@ export class DatabaseQueryHandler
     // 확정된 driver 토큰 — 그 전엔 default 'postgres'.
     const apiMethod = extractSqlVerb(query);
 
-    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7.1) — config 검증/echo
-    // 직후, DB 연결을 열기 전에 WRITE(INSERT/UPDATE/DELETE/UPSERT)만 mock 으로
-    // 단락한다. READ(SELECT)는 부수효과가 아니므로 dry-run 에서도 아래 실제
-    // 실행 경로로 그대로 흐른다 (§7.1 L153). mock 경로는 pool/connect 를 절대
-    // 호출하지 않으며 success 포트로 흐름을 정상 진행시킨다. sqlPreview 는 SQL
-    // 앞 ~200자만 노출(바인딩 파라미터 값은 미포함).
+    // dry-run 재실행([Database Query 「dry-run」](CLE-NODE-DBQUERY#dry-run)): config 검증 · 에코
+    // 직후, DB 연결을 열기 전에 쓰기와 판정이 애매한 쿼리를 mock 으로 끝낸다. 읽기 동사(SELECT 등)만
+    // 아래 실제 실행 경로로 흐른다. 판정은 `isWriteOperation` 이 한다. mock 경로는 pool/connect 를
+    // 부르지 않고 success 포트로 흐른다. sqlPreview 는 SQL 앞 ~200자만 노출(바인딩 값은 미포함).
     if (isDryRun(context) && isWriteOperation(configEcho.queryType, query)) {
       const sqlPreview =
         typeof query === 'string' ? query.slice(0, 200) : undefined;
@@ -662,35 +660,56 @@ export function extractSqlVerb(query: string | undefined): string | null {
 }
 
 /**
- * Re-run dry-run (spec/5-system/13-replay-rerun.md §7.1, L148/L153) —
- * WRITE 작업(INSERT/UPDATE/DELETE/UPSERT)만 부수효과로 분류해 mock 으로 단락하고,
- * READ(SELECT)는 dry-run 에서도 실제로 실행한다.
- *
- * 분류는 두 신호를 결합한다:
- *  1. `config.queryType` (`select`/`insert`/`update`/`delete`/`raw`) — UI 가
- *     명시한 1차 신호. insert/update/delete 는 곧바로 write.
- *  2. SQL 첫 토큰(`extractSqlVerb`) — `queryType` 이 `raw` 이거나 누락된 경우의
- *     보조 신호. UPSERT(`INSERT ... ON CONFLICT`/`MERGE`/`REPLACE`)와 DDL/DML
- *     write 동사도 여기서 포착한다.
- *
- * 모호하면 read 로 떨어뜨려(=실제 실행) dry-run 의 안전 기본값(부수효과 차단)
- * 보다 결과 재현성을 우선한다 — write 동사 화이트리스트 명시.
+ * dry-run 부수효과 판정에서 읽기로 보는 SQL 첫 동사. 이 목록에 있으면 dry-run 에서도 실제로 실행한다.
+ * `EXPLAIN` 은 넣지 않는다. PostgreSQL `EXPLAIN ANALYZE` 는 대상 문장을 실제로 실행한다.
  */
-const SQL_WRITE_VERBS = new Set([
-  'INSERT',
-  'UPDATE',
-  'DELETE',
-  'UPSERT',
-  'MERGE',
-  'REPLACE',
-  'TRUNCATE',
-  'DROP',
-  'CREATE',
-  'ALTER',
-  'GRANT',
-  'REVOKE',
+const SQL_READ_VERBS = new Set([
+  'SELECT',
+  'SHOW',
+  'DESCRIBE',
+  'DESC',
+  'VALUES',
+  'TABLE',
 ]);
 
+/**
+ * 맨 앞 공백과 주석(`-- …` 줄 주석, `/* … *\/` 블록 주석)을 건너뛴 SQL 첫 동사를 대문자로 돌려준다.
+ * 동사를 찾지 못하면(빈 쿼리, 닫히지 않은 주석, 괄호 · 숫자로 시작) NULL 이다. dry-run 판정 전용이다.
+ * 활동 로그 `api_method` 는 주석을 건너뛰지 않는 {@link extractSqlVerb} 를 그대로 쓴다.
+ */
+function leadingSqlVerb(query: string | undefined): string | null {
+  if (!query) return null;
+  let rest = query;
+  for (;;) {
+    rest = rest.trimStart();
+    if (rest.startsWith('--')) {
+      const nl = rest.indexOf('\n');
+      if (nl < 0) return null;
+      rest = rest.slice(nl + 1);
+    } else if (rest.startsWith('/*')) {
+      const close = rest.indexOf('*/', 2);
+      if (close < 0) return null;
+      rest = rest.slice(close + 2);
+    } else {
+      break;
+    }
+  }
+  return extractSqlVerb(rest);
+}
+
+/**
+ * dry-run 재실행의 부수효과 판정([Database Query 「dry-run」](CLE-NODE-DBQUERY#dry-run)).
+ * true 면 DB 에 연결하지 않고 mock 으로 끝낸다(REQ-DBQ-025), false 면 실제로 실행한다(REQ-DBQ-026).
+ *
+ * - `queryType` 이 `insert` · `update` · `delete` 면 SQL 과 관계없이 쓰기다.
+ * - 그 밖(`select` · `raw` · 누락)은 `queryType` 을 믿지 않고 SQL 첫 동사를 본다. 기본값 `select` 로 둔
+ *   `DELETE` 가 dry-run 에서 실행되던 결함을 막는다(CLE-T-KH11HA).
+ * - 첫 동사가 {@link SQL_READ_VERBS} 에 있을 때만 읽기다. 쓰기 동사와 판정이 애매한 쿼리
+ *   (`WITH` · `CALL` · `DO` · `COPY` · `EXPLAIN`, 괄호로 시작 등)는 안전 쪽(mock)으로 본다. 사람이 정했다.
+ *
+ * 한계: `SELECT write_func()` · `SELECT … INTO new_table` 처럼 SELECT 로 시작하지만 데이터를 바꾸는
+ * 쿼리는 읽기로 보고 실행한다.
+ */
 export function isWriteOperation(
   queryType: QueryType,
   query: string | undefined,
@@ -702,10 +721,8 @@ export function isWriteOperation(
   ) {
     return true;
   }
-  if (queryType === 'select') return false;
-  // queryType === 'raw' 또는 누락 — SQL 동사로 판정.
-  const verb = extractSqlVerb(query);
-  return verb !== null && SQL_WRITE_VERBS.has(verb);
+  const verb = leadingSqlVerb(query);
+  return verb === null || !SQL_READ_VERBS.has(verb);
 }
 
 function parseParameters(raw: unknown): unknown[] {
