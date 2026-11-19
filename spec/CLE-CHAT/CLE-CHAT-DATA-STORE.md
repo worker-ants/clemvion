@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-STORE"
 title: "채팅 채널 데이터와 흐름 — 저장 모델과 상태"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "6335cf59dee1bb7514fb8e17405859b00f7ad3e5ae7bba78a1c56cf9e045e8c5"
+content_hash: "12dfa8e3ca9f8e9b8c6d8f7caa285f0b3fabb57223e76442f7164495f4daedcb"
 read_as: "approved_fallback"
-task: "CLE-T-CC3GPN"
+task: "CLE-T-CVJXDE"
 source_paths: []
-mirror_sha256: "ef88bc4ffa9fa2bcbee21baff633133994664565416f2bdb5a728649cec1f18c"
-etag: "sha256-b5bf374f2d69ee8f60603ed19c3b32bcc6850f87f0d1c37f6a977f9829ec9fff"
+mirror_sha256: "5c5dd36d58260b0c01597ec633d3aafe1c17de1f8b5ca469cbfb7791483308cf"
+etag: "sha256-96f9f02b1783d068e09df7c30b9f71bbd138b059d1e32d86b2305a1990ba43bb"
 ---
 ## 개요
 
@@ -81,9 +81,9 @@ TTL: 7일(저장할 때마다 다시 건다)
 
 | key·큐 | 쓰는 쪽 | 읽는 쪽 | 내용 |
 |---|---|---|---|
-| `chat-channel:{triggerId}:{conversationKey}` | `HooksService`(저장, `/cancel` 의 `executionId` 정리), `ChatChannelDispatcher`(그 실행을 가리킬 때만 `pendingFormModal`·`formState` 갱신, 종결 이벤트의 `executionId` 정리) | 양쪽 조회 | 채널 대화 상태 JSON. TTL 7일(저장마다 갱신). Redis 가 없으면 기능을 낮춘다. `executionId` 를 비우는 쓰기는 compare-and-set 이다([아웃바운드 흐름](CLE-CHAT-DATA-FLOW.md#아웃바운드-흐름)) |
+| `chat-channel:{triggerId}:{conversationKey}` | `HooksService`(저장, `/cancel` 의 `executionId` 정리), `ChatChannelDispatcher`(그 실행을 가리킬 때만 `pendingFormModal`·`formState` 갱신, 종결 이벤트의 `executionId` 정리) | 양쪽 조회 | 채널 대화 상태 JSON. TTL 7일(저장마다 갱신). Redis 가 없으면 기능을 낮춘다. `executionId` 를 비우는 쓰기와 dispatcher 의 Form 입력 대기 갱신은 compare-and-set 이다([아웃바운드 흐름](CLE-CHAT-DATA-FLOW.md#아웃바운드-흐름)) |
 | `chat-channel-lock:{triggerId}:{conversationKey}:formsubmit` | `form_submission` 처리(`SET NX EX 30`) | 같다 | 네이티브 모달 중복 제출 방지 잠금. Lua 로 소유권을 확인하고 푼다. Redis 가 없으면 통과 |
-| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`), `/start` 의 기존 실행 취소 실패 때 `ChatChannelDedupService.release`(`DEL`) | 같다(반환값이 곧 판정) | 인바운드 중복 제거([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. TTL 30초. Redis 가 없으면 통과하고 warn. `/start` 의 기존 실행 취소가 실패해 에러로 응답할 때는 그 키를 지워 프로바이더의 재전송을 받는다. 지우지 못하면 warn 을 남기고 TTL 로 풀린다. `/cancel` 의 취소나 재개 명령을 재개 큐에 넣지 못했을 때는 `202` 로 답하므로 키를 지우지 않는다([Rationale](CLE-CHAT-DATA-FLOW.md#rationale) 의 「`/cancel` 과 재개 명령의 큐 적재 실패에서 중복 제거 키를 지우지 않는다 (2026-10-17)」) |
+| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`), `/start` 의 기존 실행 취소 실패 때 `ChatChannelDedupService.release`(`DEL`) | 같다(반환값이 곧 판정) | 인바운드 중복 제거([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. TTL 30초. Redis 가 없으면 통과하고 warn. `/start` 의 기존 실행 취소가 실패해 에러로 응답할 때는 그 키를 지워 프로바이더의 재전송을 받는다. 지우지 못하면 warn 을 남기고 TTL 로 풀린다. `/cancel` 의 취소나 재개 명령을 재개 큐에 넣지 못했을 때는 `202` 로 답하므로 키를 지우지 않는다([Rationale](CLE-CHAT-DATA-FLOW.md#rationale) 의 「`/cancel` 과 재개 명령의 큐 적재 실패에서 중복 제거 키를 지우지 않는다」) |
 | `cc:rl:{triggerId}:{conversationKey}` | `ChatChannelRateLimiterService.consume`(`INCR`+`EXPIRE NX` 를 한 pipeline 으로) | 같다 | 대화 단위 분당 한도([채팅 채널 「비기능」](CLE-CHAT-CORE.md#비기능)). TTL 60초(fixed-window). 넘치면 건너뛰고 `degraded`. Redis 가 없으면 통과 |
 | `cc:sigfail:{triggerId}:{clientIp}` | `ChatChannelSignatureFailureLimiterService.recordFailure`(Lua 스크립트 하나로 `INCR` 과 TTL 확인을 함께 한다). `ChatChannelInboundAuthenticator.verify` 가 서명 검증이 `UnauthorizedException`(401)으로 실패했을 때만 부른다 | `ChatChannelSignatureFailureLimiterService.isBlocked`(`GET`). 같은 `ChatChannelInboundAuthenticator.verify` 가 서명 검증 앞에서 부른다 | 인바운드 서명 검증 실패 한도([채팅 채널 「서명 검증 실패 한도」](CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도), NERV Task `CLE-T-ZC34Y0`). (트리거, 클라이언트 IP) 쌍마다 센다. 첫 실패이거나 TTL 이 없는 키면 60초 TTL 을 건다. 이미 TTL 이 있으면 늘리지 않는다(fixed-window). 값이 20 이상이면 창이 끝날 때까지 그 쌍의 요청에 시크릿 조회와 서명 계산 없이 `401`(`AUTH_FAILED`)로 답한다. 한도에 닿으면 창마다 warn 로그를 한 번 남긴다. 이 로그에는 트리거 id 만 싣고 IP 는 싣지 않는다. 막힌 요청은 세지 않으므로 창이 늘어나지 않는다. 서명이 맞는 요청과 401 이 아닌 오류도 세지 않는다. 클라이언트 IP 는 `extractUnspoofableClientIp` 로 `CF-Connecting-IP`(신뢰 설정일 때), `req.ip` 순서로 읽는다. `X-Forwarded-For` 첫 값은 쓰지 않는다. IP 를 읽지 못하면 세지도 막지도 않는다. Redis 가 없거나 오류면 막지 않는다(fail-open). 오류는 warn 로그로 남긴다 |
 | `chat-channel-token-rotator`(BullMQ) | repeatable job scheduler(`0 * * * *`) | `ChatChannelTokenRotatorService` | payload 없음. 매시간 정리 |
@@ -120,7 +120,7 @@ pub/sub 채널 이름은 키 공간과 따로라 같은 접두의 `chat-channel:
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: Redis 채널 대화 상태 CRUD, `executionId` 의 compare-and-set 정리(`clearExecutionIdIfMatches`), Form 제출 잠금
+- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: Redis 채널 대화 상태 CRUD, 실행이 일치할 때의 compare-and-set 갱신(`updateIfExecutionMatches`)과 `executionId` 정리(`clearExecutionIdIfMatches`), Form 제출 잠금
 - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 인바운드 중복 제거 선점(`claim`)과 해제(`release`)
 - `codebase/backend/src/modules/chat-channel/chat-channel-signature-failure-limiter.service.ts`: 서명 검증 실패 한도(`cc:sigfail:` 키의 판정 `isBlocked` 와 기록 `recordFailure`). 기록은 Lua 스크립트 `RECORD_SIGNATURE_FAILURE_LUA` 로 한다. 부르는 쪽은 `chat-channel-inbound-authenticator.ts` 의 `verify` 다
 
@@ -138,7 +138,7 @@ TTL 7일이 지나면 사용자가 떠난 대화의 라우팅 값이 지워진�
 
 2026-10-10 결정이다(NERV Task `CLE-T-V4WVF2`). `/start` 가 기존 실행을 취소하고 새 실행을 대화에 이으면 옛 실행의 `execution.cancelled` 가 그 뒤에 올 수 있다. 종결 이벤트가 `executionId` 를 무조건 비우면 새 실행의 매핑이 지워지고, 다음 메시지는 입력 대기 실행인 새 실행에 가지 않고 또 다른 실행을 시작한다. 그래서 읽은 값의 `executionId` 가 그 실행일 때만 비운다. 읽은 뒤 다른 요청이 대화를 새 실행에 이었을 수 있으므로 저장된 값이 읽은 문자열과 같을 때만 바꾸고, 다르면 다시 읽는다. JSON 을 Lua 안에서 다시 만들지 않고 문자열 그대로 비교한다. Redis Lua 의 cjson 은 빈 배열을 객체로 바꿔 `pendingFormModal.fields` 같은 값을 망가뜨린다. 결정의 근거는 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
 
-Form 입력 대기의 대화 상태 갱신도 같은 이유로 그 실행을 가리킬 때만 한다. 옛 실행의 늦은 Form 입력 대기 이벤트가 `pendingFormModal`·`formState` 를 덮어쓰면 새 실행의 다음 폼 제출이 옛 실행의 노드 id 를 싣고 간다. compare-and-set 이 아니라서 남는 경합은 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 의 미룬 문제에 있다.
+Form 입력 대기의 대화 상태 갱신도 같은 이유로 그 실행을 가리킬 때만 한다. 옛 실행의 늦은 Form 입력 대기 이벤트가 `pendingFormModal`·`formState` 를 덮어쓰면 새 실행의 다음 폼 제출이 옛 실행의 노드 id 를 싣고 간다. 2026-11-19 부터 이 갱신도 같은 compare-and-set(`updateIfExecutionMatches`)으로 한다. 조회 뒤 저장 전에 `/start` 가 끼는 경합까지 막는다(NERV Task `CLE-T-CVJXDE`).
 
 ### `chat_channel_health` 의 공용 DB 타입 검토 문구를 거둔다 (2026-10-17)
 

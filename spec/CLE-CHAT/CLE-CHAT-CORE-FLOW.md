@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-FLOW"
 title: "채팅 채널 — 처리 흐름과 대화"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "3acd4ae9f3368be5a9f601cccad9592e65da3d2ecb65d65329d8fd0573fefbe1"
+content_hash: "86ad3d06def8b930b197571bdfab69c7e1ba4706ebae626c7286f05a31a25e50"
 read_as: "approved_fallback"
-task: "CLE-T-JK3ERX"
+task: "CLE-T-CVJXDE"
 source_paths: []
-mirror_sha256: "5005f9ea532c017706f6e35ab0ef4aa00fb3d2acbc04c67f4054d2c8e60cee26"
-etag: "sha256-d9720263ba459722edcbf6c5bb1caa2fc8e15b1766fcf5b2efd45a1cdffec7f7"
+mirror_sha256: "9b9b869c76dea408a9a746c319e6301e07f8bca79e96010eeb2a83dc7c9ccc81"
+etag: "sha256-992874c1699b53de58cbc8a7530acd000d63f5fe2939d4dceeabd732c728978b"
 ---
 ## 개요
 
@@ -70,7 +70,7 @@ sequenceDiagram
 - **실행 중 메시지**: 같은 대화의 다음 메시지가 왔는데 활성 실행이 `running`·`pending` 이면 `languageHints.executionStillRunning` 안내를 보낸다. 기본 문구는 "워크플로우가 처리 중입니다. 잠시만 기다려 주세요." 이고 한국어 기본값만 있다. 현재 구현은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태를 돌려주고, 입력 대기일 때만 전달한다. `running`·`pending` 이면 `sendExecutionStillRunningNotice` 로 안내하고 `{ executionId: 'ignored' }` 로 끝낸다. 입력 대기 · 실행 중 · 종결 세 갈래 모두 구현됐다. 근거는 [R9](#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 에 있다.
 - **그룹 대화 거부**: 안내 발송 책임은 채널 어댑터가 아니라 호출자(`HooksService`)에 있다. `parseUpdate` 는 부수 효과 없는 계약을 지킨다. 근거는 [R3](#r3-1차-범위는-11-dm-만-지원한다) 에 있다.
 - **종결 이벤트의 대화 상태 정리**: 채널 대화 상태의 키는 `chat-channel:{triggerId}:{conversationKey}` 다. `executionId` 를 비우는 것은 읽은 값과 저장된 값을 비교해 바꾸는 compare-and-set 이고 다른 쓰기에 밀리면 최대 3회 다시 읽는다. Redis 를 쓸 수 없거나 끝내 비우지 못하면 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 새 실행을 시작한다. `/cancel` 도 취소한 실행을 가리킬 때만 같은 방식으로 비운다.
-- **폼 입력 대기 상태 갱신**: 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 `pendingFormModal`·`formState` 를 갱신하지 않는다. 렌더한 메시지의 발송은 이 조건과 관계없다. 조회한 값을 그대로 고쳐 다시 저장하므로 compare-and-set 이 아니다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 이 저장이 덮어쓸 수 있다. 이 한계는 [R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 의 미룬 문제에 있다.
+- **폼 입력 대기 상태 갱신**: 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 `pendingFormModal`·`formState` 를 갱신하지 않는다. 렌더한 메시지의 발송은 이 조건과 관계없다. 갱신은 종결 이벤트의 정리와 같은 compare-and-set 이다. 읽은 뒤 `/start` 가 대화를 새 실행에 이으면 저장하지 않고, 같은 실행의 다른 필드만 바뀌었으면 다시 읽어 그 값 위에 고친다.
 
 ## 활성 실행 중 다시 시작
 
@@ -144,7 +144,7 @@ sequenceDiagram
 ## 구현 위치
 
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 종결 이벤트에서 대화 상태 정리, 폼 입력 대기 상태 갱신 가드
-- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: 채널 대화 상태, compare-and-set 정리 `clearExecutionIdIfMatches`
+- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: 채널 대화 상태, compare-and-set 갱신 `updateIfExecutionMatches` 와 그것을 쓰는 정리 `clearExecutionIdIfMatches`
 - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 선점 해제 `release`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`: 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`), `/start`·`/cancel` 의 실행 소유자 확인(대화 상태 조회 바로 뒤, `/cancel` 처리 앞)
 - 테스트: `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`(활성 실행 중 `/start`, 소유자가 아닌 사람의 `/start`·`/cancel`), `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(세 프로바이더의 `/start`, 소유자가 아닌 사람의 `/start`·`/cancel`), `codebase/backend/src/modules/chat-channel/channel-conversation.service.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts`
@@ -193,11 +193,11 @@ non-2xx 응답이 이어지면 프로바이더가 웹훅을 끌 수 있다. 어�
 
 시작 안내와 재시작 안내는 아직 보내지 않는다. 취소와 새 시작을 먼저 맞췄고 안내는 NERV Task `CLE-T-0400J6` 가 맡는다.
 
-미룬 문제가 셋이었다. 첫째는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 로 닫았고 나머지 둘은 NERV Task `CLE-T-QZ8RFC` 가 다룬다.
+미룬 문제가 셋이었다. 첫째는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 로, 셋째는 NERV Task `CLE-T-CVJXDE` 로 닫았다. 둘째는 NERV Task `CLE-T-QZ8RFC` 가 다룬다.
 
 - 대화의 어느 참여자가 보낸 `/start` 든 기존 실행을 취소하고 대화를 이어받았다. 보낸 사람이 대화를 시작한 사용자(`channelUserKey`)인지 확인하지 않았다. 2026-11-14 결정으로 활성 실행이 있으면 실행 소유자의 `/start`·`/cancel` 만 실행을 취소한다([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)).
 - 같은 대화에 `/start` 두 개가 거의 동시에 오면 경합한다. 둘 다 같은 옛 실행을 읽고 각자 새 실행을 시작할 수 있다. 채널 대화 상태는 나중에 저장한 실행을 가리키고 먼저 시작한 실행에는 입력이 닿지 않는다. 재시작(취소, 새 실행, 대화 상태 저장)을 대화 단위로 직렬화하지 않기 때문이다. 분당 한도와 update id 중복 제거(같은 update 의 재전송)가 경합 창을 좁힌다. NERV Task `CLE-T-QZ8RFC` 가 다룬다.
-- 폼 입력 대기 이벤트의 상태 갱신은 조회한 값을 고쳐 그대로 다시 저장한다. compare-and-set 이 아니다. 대화 상태가 다른 실행을 가리키면 저장하지 않는 가드가 들어간 뒤 남은 경합은 조회와 저장 사이의 창뿐이다. 그 사이에 `/start` 가 대화를 새 실행에 이으면 이 저장이 대화 상태의 `executionId` 를 옛 실행으로 되돌릴 수 있다. 이 창의 크기는 재지 않았다. NERV Task `CLE-T-QZ8RFC` 가 다룬다.
+- 폼 입력 대기 이벤트의 상태 갱신은 조회한 값을 고쳐 그대로 다시 저장했다. 조회와 저장 사이에 `/start` 가 대화를 새 실행에 이으면 이 저장이 대화 상태의 `executionId` 를 옛 실행으로 되돌릴 수 있었다. 2026-11-19 에 종결 이벤트 정리와 같은 compare-and-set 으로 바꿔 닫았다(NERV Task `CLE-T-CVJXDE`).
 
 ### R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다
 

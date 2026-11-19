@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-DRAWER"
 title: "에디터 실행과 디버깅 — 실행 결과 드로어"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "56cfd5a1348f8cb72af1c9aa94e00e5f8ac97b4a8a5a0e7d6ea584d46eda65e6"
+content_hash: "936cfea1a59f26cd9bfbc207226ee4d0b9a27b31cdbf8078fe400593457c0fc0"
 read_as: "approved_fallback"
-task: "CLE-T-88KRHT"
+task: "CLE-T-T9HZX7"
 source_paths: []
-mirror_sha256: "d6077a804dd9be9c803c9285349c057aca72e9c28afa935435aa141a51c7e823"
-etag: "sha256-e27fd64cc4c3316519957cee71c3983edaaf389f15b6526204958a8b8ddd92fa"
+mirror_sha256: "06ca581bde1ebb05e1ddff7561b49120f0559d1ed530f28fb7b4bab406bc3a7c"
+etag: "sha256-953c7d135dc679072df48b5753c193494cb19ed2319901b8e1afc39a592a23fe"
 ---
 ## 개요
 
@@ -216,7 +216,8 @@ flowchart TD
 
 1. 누르면 `execution.retry_last_turn` 명령을 보낸다. 노드 상태가 `running` 으로 바뀌고 버튼 자리가 스피너로 바뀐다.
 2. 새 `ai_assistant` 턴이 오면 스레드에 자연 순서로 추가되고 입력 영역이 일반 textarea 로 돌아온다.
-3. `retryable === false` 이거나 `system_error` 가 스레드 마지막이 아니면 일반 입력 영역을 표시한다.
+3. 서버가 재시도 턴을 들이지 않으면(같은 실행의 다른 재시도 턴이 먼저 들어갔거나 실행이 더는 `failed` 가 아님) ack 는 성공이어도 그 노드의 새 노드 실행 행에 `node.failed` 만 온다. 이때 스피너와 응답 대기 표시를 끝낸다. 새 행은 실행 트리에 `failed` 로 남는다. 서버 규칙은 [마지막 턴 재시도](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) 에 있다.
+4. `retryable === false` 이거나 `system_error` 가 스레드 마지막이 아니면 일반 입력 영역을 표시한다.
 
 이 매핑의 시각 규칙과 회귀 시나리오(CT-S9~S11)는 [대화 미리보기](CLE-EXEC-PREVIEW.md) 가 정한다.
 

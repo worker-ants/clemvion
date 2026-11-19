@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE-RETRY"
 title: "실행 상태 머신과 대기·재개 — 마지막 턴 재시도"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-STATE"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-STATE"]
 area: "CLE-EXEC"
-content_hash: "dcec0ebb3733a1285ca4f42da3a3a93497d1706e137ccfa27ef3a3171edbfed7"
+content_hash: "15676772db556adceae7ac74b20c18e3a04aa6c0dd6957bd2eba718e5b2cc178"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-T9HZX7"
 source_paths: []
-mirror_sha256: "ee5979c958f5be9956170e56f79fc2653308001eb826e5c1acb33abfe2677587"
-etag: "sha256-a39bd98d7519fadb1ab836d75ccd2a0e6469440ac848474be17a865bb1132305"
+mirror_sha256: "d79fc5f0809df4f987b1cc9d209a91ed058713dfc0aa5042a0bc06bf420169b3"
+etag: "sha256-15ec470c20c273a997c45b0e75cccd77445c05aec4da5663f3a686404bfb9d3d"
 ---
 ## 개요
 
@@ -44,7 +44,8 @@ sequenceDiagram
   R->>Q: retry_last_turn 작업 발행
   Q->>R: applyRetryLastTurn
   R->>R: 새 행의 inputData._retryState 원자 소비(claim)
-  R->>R: 실행 failed 재확인, 옛 실패 필드 비움
+  R->>R: 실행 failed 재확인
+  R->>R: 실행 단위 claim(finished_at 등 옛 실패 필드 비움)
   R->>R: 실행 failed → running, 마지막 턴 다시 실행
   alt 대화 종료·성공
     R->>R: 실행 completed
@@ -73,15 +74,24 @@ sequenceDiagram
 ### 재시도 전제와 재시도 턴 시작
 
 - **실행이 `failed` 일 때만 재시도한다**: 이 조건을 두 번 확인한다.
-  - 명령 시점: `retryLastTurn` 이 `_retryState` 를 소비하기 전에 실행을 읽는다. `failed` 가 아니면 `INVALID_EXECUTION_STATE` 로 거절한다. 새 행을 만들지 않고 `_retryState` 도 소비하지 않는다.
-  - 워커 진입 시점: `applyRetryLastTurn` 이 배달 claim 뒤 실행을 다시 읽는다. 명령과 워커 사이에 실행이 `failed` 에서 벗어났으면 새 행을 `failed` 로 마감하고 작업을 버린다. 같은 실행의 다른 재시도 턴이 먼저 시작했거나 실행이 취소된 경우다. `node.started` 를 내기 전이라 노드 이벤트는 내지 않는다.
+  - 명령 시점: `retryLastTurn` 이 `_retryState` 를 소비하기 전에 실행을 읽는다. `failed` 가 아니거나 `finishedAt` 이 비어 있으면 `INVALID_EXECUTION_STATE` 로 거절한다. `finishedAt` 이 빈 `failed` 실행은 같은 실행의 다른 재시도 턴이 도는 중이다(아래 실행 단위 claim). 새 행을 만들지 않고 `_retryState` 도 소비하지 않는다.
+  - 워커 진입 시점: `applyRetryLastTurn` 이 배달 claim 뒤 실행을 다시 읽는다. 명령과 워커 사이에 실행이 `failed` 에서 벗어났으면 새 행을 `failed` 로 마감하고 `node.failed` 를 낸 뒤 작업을 버린다. 같은 실행의 다른 재시도 턴이 park 했거나 실행이 취소된 경우다. 실행은 건드리지 않는다. 새 행 마감은 조건부 UPDATE(`status = 'running'`)라 이미 닫힌 행이면 이벤트도 내지 않는다.
 - 이 확인은 재시도 턴이 살아 있는 본 흐름과 같은 실행에서 함께 도는 것을 막는다.
   - 노드가 에러로 끝나도 에러 포트로 흐름이 이어지면 실행은 `failed` 가 아니다(`running`·`waiting_for_input`·`completed`). 이때 [다시 시도] 버튼이 보여도 재시도는 거절된다.
   - [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 의 병렬 분기 안에서 실패했고 `errorPolicy` 가 `continue` 면 다른 분기가 도는 동안 실행은 `running` 이라 거절된다. 다른 정책에서는 모든 분기가 끝난 뒤에 실행이 `failed` 가 되므로 재시도 턴이 형제 분기와 겹치지 않는다.
-- **재시도 턴을 시작할 때 옛 실패 필드를 비운다**: 워커 진입 확인을 통과하면 실행의 `error`·`finishedAt`·`durationMs` 를 비운다. 앞선 실패가 남긴 값이다. 재시도 턴 끝의 전이(`failed → running` 또는 `failed → waiting_for_input`)가 빈 값을 함께 저장한다. 그래서 재시도 턴이 park 하거나 그래프를 이어 도는 동안 실행에 옛 에러와 종료 시각이 남지 않고, 다시 종결할 때 옛 `durationMs` 를 그대로 쓰지 않는다.
-- **재시도 턴이 예외로 끝나면 새 행을 마감한다**: 예외가 났는데 새 행이 아직 `running` 이면 조건부 UPDATE(`status = 'running'`)로 새 행을 `failed`(취소로 끝났으면 `cancelled`)로 마감하고 노드 종결 이벤트를 낸다. 그다음 실행을 마감한다. 턴 끝 전이가 거절돼 예외가 난 경우에도 새 행이 `running` 으로 남지 않는다. 턴 안에서 이미 마감한 행은 조건에 걸리지 않아 덮지 않는다.
+- **실행 단위 claim**: 워커 진입 확인을 통과하면 같은 실행의 재시도 턴을 하나만 들여보내는 조건부 UPDATE 를 한다. affected=1 인 재시도만 턴에 들어간다.
 
-같은 실행의 재시도 둘이 서로 다른 워커에서 함께 도는 경우는 [미결 사항](#미결-사항) 에 있다.
+  ```sql
+  UPDATE execution SET finished_at = NULL, error = NULL, duration_ms = NULL
+   WHERE id = :id AND status = 'failed' AND finished_at IS NOT NULL
+  ```
+
+  - 표지는 `finished_at` 이다. `failed` 로 끝나는 전이는 언제나 `finished_at` 을 함께 쓰므로 비어 있는 `failed` 실행은 재시도 턴이 도는 중이다. 새 컬럼과 마이그레이션이 없다.
+  - 진 쪽은 실행을 건드리지 않는다. 새 행만 `failed` 로 마감하고 `node.failed` 를 낸 뒤 작업을 버린다. 실행 컨텍스트를 만들기 전에 거절하므로 이긴 쪽의 인스턴스 로컬 컨텍스트도 건드리지 않는다.
+  - 이긴 턴이 다시 실패로 끝나면 `finished_at` 이 다시 채워져 같은 실행의 다른 재시도를 받는다. park 하거나 `completed` 로 끝나면 실행이 `failed` 가 아니라 거절된다.
+  - 이긴 쪽이 턴 중에 크래시하면 실행은 `failed` 이고 `finished_at` 이 빈 채로 남아 같은 실행의 재시도가 모두 거절된다. 부팅 복구 스캔은 `failed` 실행을 재구동하지 않는다. 남은 `_retryState` 도 TTL(기본 60분)이 지나면 쓸 수 없으므로 이 창은 TTL 안에 머문다. 받아들인다.
+- **재시도 턴을 시작할 때 옛 실패 필드를 비운다**: 실행 단위 claim 이 DB 의 `error`·`finishedAt`·`durationMs` 를 비우고 워커는 메모리의 실행 엔티티에서도 비운다. 앞선 실패가 남긴 값이다. 재시도 턴 끝의 전이(`failed → running` 또는 `failed → waiting_for_input`)가 빈 값을 함께 저장한다. 그래서 재시도 턴이 park 하거나 그래프를 이어 도는 동안 실행에 옛 에러와 종료 시각이 남지 않고, 다시 종결할 때 옛 `durationMs` 를 그대로 쓰지 않는다.
+- **재시도 턴이 예외로 끝나면 새 행을 마감한다**: 예외가 났는데 새 행이 아직 `running` 이면 조건부 UPDATE(`status = 'running'`)로 새 행을 `failed`(취소로 끝났으면 `cancelled`)로 마감하고 노드 종결 이벤트를 낸다. 그다음 실행을 마감한다. 턴 끝 전이가 거절돼 예외가 난 경우에도 새 행이 `running` 으로 남지 않는다. 턴 안에서 이미 마감한 행은 조건에 걸리지 않아 덮지 않는다.
 
 ### 재시도 턴 중 취소
 
@@ -92,7 +102,7 @@ sequenceDiagram
 
 ## 미결 사항
 
-- **같은 실행의 재시도 둘이 서로 다른 워커에서 함께 도는 경우**: 같은 실행 안 서로 다른 노드 실행(예: 병렬 분기 둘이 모두 재시도 가능한 에러로 실패)의 재시도가 거의 동시에 들어오면 둘 다 명령 시점과 워커 진입 시점에 실행 `failed` 를 볼 수 있다. 재시도 턴이 끝날 때까지 실행은 `failed` 이기 때문이다. 배달 claim 은 새 행 단위라 둘을 가르지 않는다. 워커가 하나면 두 번째 작업은 첫 번째 턴이 끝난 뒤 들어와 워커 진입 확인에서 거절된다. 인스턴스가 여럿이거나 `CONTINUATION_WORKER_CONCURRENCY` 를 올린 경우에만 남는다. 막으려면 실행 단위로 재시도 턴을 하나만 받는 claim 이 필요하고 진 쪽은 실행을 건드리지 않고 물러나야 한다. 후속은 NERV Task `CLE-T-T9HZX7` 다.
+없다. 같은 실행의 재시도 둘이 서로 다른 워커에서 함께 도는 경우는 [같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다-2026-11-19) 로 닫았다.
 
 ## 구현 위치
 
@@ -136,12 +146,25 @@ sequenceDiagram
 
 - 명령 시점 확인은 사용자에게 바로 `INVALID_EXECUTION_STATE` 를 돌려주고 `_retryState` 를 남긴다. 이것만 두면 명령과 워커 사이에 실행이 바뀌는 창이 남는다.
 - 워커 진입 확인은 그 창을 닫는다. 이것만 두면 명령은 성공 ack 를 받고 `_retryState` 도 소비된 뒤에 재시도 턴이 버려져 사용자가 다시 시도할 수 없다.
-- 두 확인을 함께 둬도 명령과 워커 사이에 실행이 바뀌면 같은 일이 생긴다. 워커 진입 거절은 성공 ack 뒤라 클라이언트에 알려지지 않는다. 이 창은 대부분 같은 실행의 재시도끼리 겹칠 때 생겨서 [미결 사항](#미결-사항) 의 후속에서 함께 다룬다.
+- 두 확인을 함께 둬도 명령과 워커 사이에 실행이 바뀌면 같은 일이 생긴다. 워커 진입 거절은 성공 ack 뒤라 명령 응답으로는 알려지지 않는다. 이 창은 대부분 같은 실행의 재시도끼리 겹칠 때 생긴다. 2026-11-19 에 실행 단위 claim 을 더하면서 거절된 새 행의 `node.failed` 로 알리게 했다([같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다-2026-11-19)).
 - 거절 코드는 새로 만들지 않는다. [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 과 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 가 이미 `execution.retry_last_turn` 의 기대 상태를 `failed` 로 두고 이 코드를 쓴다.
 - 이 결정으로 [재시도 가능한 에러로 끝나면 `_retryState` 를 남긴다](#재시도-가능한-에러로-끝나면-_retrystate-를-남긴다) 에서 정한 별도 사용자 행동(`execution.retry_last_turn`)은 실행이 `failed` 인 경우로 한정된다.
 - 옛 필드는 재시도 턴 시작 때 실행 엔티티에서 비우고 턴 끝 전이가 함께 저장하게 한다. 모든 전이가 함께 쓰는 `updateExecutionStatus` 의 SET 절을 재시도 전용으로 바꾸는 방법은 다른 전이까지 영향이 넓어 택하지 않았다.
 
-같은 실행의 재시도 둘이 서로 다른 워커에서 함께 들어오는 경우는 이 결정으로 막히지 않는다. 실행 단위 claim 과 진 쪽의 물러남 규칙이 필요해 [미결 사항](#미결-사항) 에 남겼다.
+같은 실행의 재시도 둘이 서로 다른 워커에서 함께 들어오는 경우는 이 결정으로 막히지 않았다. 다음 결정이 막는다.
+
+### 같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다 (2026-11-19)
+
+**문제**: 같은 실행 안 서로 다른 노드 실행(예: 병렬 분기 둘이 모두 재시도 가능한 에러로 실패)의 재시도가 거의 동시에 들어오면 둘 다 명령 시점과 워커 진입 시점에 실행 `failed` 를 봤다. 재시도 턴이 끝날 때까지 실행은 `failed` 였기 때문이다. 배달 claim 은 새 행 단위라 둘을 가르지 않는다. 인스턴스가 여럿이거나 `CONTINUATION_WORKER_CONCURRENCY` 를 올리면 두 턴이 함께 돌았다. 한 쪽이 끝나며 실행 컨텍스트를 지우면 다른 쪽의 컨텍스트도 사라졌고, 턴 끝 전이가 서로의 상태를 덮었다.
+
+**결정**: 워커 진입 확인 뒤 `finished_at` 을 표지로 쓰는 조건부 UPDATE 로 실행 단위 claim 을 한다. 진 쪽은 실행을 건드리지 않고 새 행만 마감한 뒤 물러난다. 명령 시점에도 `finished_at` 이 빈 `failed` 실행을 거절해 형제 재시도의 `_retryState` 가 헛되이 소비되지 않게 한다. 거절된 새 행은 `node.failed` 로 알려 클라이언트가 재시도 대기 표시를 풀게 한다.
+
+- **턴 끝 전이에 가드를 더하는 안 기각**: 턴 끝에서 거르면 두 턴의 LLM 호출과 도구 실행(실제 부수 효과)이 이미 두 번 일어난 뒤다. 턴에 들어가기 전에 갈라야 한다.
+- **새 컬럼으로 claim 을 표시하는 안 기각**: 마이그레이션이 필요하다. `failed` 로 끝나는 전이가 늘 `finished_at` 을 쓰므로 비어 있는 `finished_at` 만으로 "재시도 턴이 도는 중" 을 나타낼 수 있다. 재시도 턴 시작 때 비우던 값이라 쓰는 지점도 늘지 않는다.
+- **거절을 알리는 방법**: 예전처럼 이벤트 없이 새 행만 마감하면 클라이언트의 재시도 대기 표시가 꺼지지 않는다. 거절 전용 이벤트를 새로 두는 안은 이벤트 목록과 클라이언트 핸들러를 늘려서 택하지 않았다. 행 마감을 알리는 기존 `node.failed` 를 쓴다. 새 행은 `node.started` 없이 바로 `node.failed` 로 끝나는데, 클라이언트는 `nodeExecutionId` 로 행을 찾고 없으면 결과 행을 새로 더하므로 짝이 없어도 처리된다.
+- **대가**: 이긴 쪽이 턴 중에 크래시하면 표지가 남아 같은 실행의 재시도가 모두 거절된다. `_retryState` TTL(기본 60분)이 재시도 상한이라 이 창도 그 안에 머문다. 남은 새 행은 [부팅 복구 스캔의 종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 가 닫는다.
+
+NERV Task `CLE-T-T9HZX7`.
 
 ### 재시도 턴의 설정 표현식을 다시 평가하되 설정 에코는 원본으로 둔다
 
