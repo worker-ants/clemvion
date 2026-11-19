@@ -1969,7 +1969,10 @@ describe("cancelled 노드 — REST 스냅샷 매핑", () => {
 
   it("REST 의 cancelled 행은 store 의 노드 상태와 결과 행에 cancelled 로 들어간다", () => {
     applyExecutionSnapshot(
-      createExec({ status: "cancelled", nodeExecutions: [cancelledRow()] }),
+      createExec({
+        status: "cancelled",
+        nodeExecutions: [cancelledRow()],
+      }) as unknown as ExecutionData,
     );
 
     const state = useExecutionStore.getState();
@@ -1987,7 +1990,7 @@ describe("cancelled 노드 — REST 스냅샷 매핑", () => {
       createExec({
         status: "running",
         nodeExecutions: [cancelledRow({ status: "running", finishedAt: null })],
-      }),
+      }) as unknown as ExecutionData,
     );
 
     expect(
