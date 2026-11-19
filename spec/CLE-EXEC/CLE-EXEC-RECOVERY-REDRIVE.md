@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REDRIVE"
 title: "장애 복구와 안전 종료 — 크래시 재구동과 부팅 복구 스캔"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "3a436ce6f63a21a34ff289f46fccf7d8370c625a7f9ed38290a9092821453128"
+content_hash: "197dee4e1f8a5794ec2407aad0cc2e3eb4d02586827875a9b8a4f0eab0ae0380"
 read_as: "approved_fallback"
 task: "CLE-T-K9RZQV"
 source_paths: []
-mirror_sha256: "8f12d860619c4c464271f6060923631f579edfa3374c989532e7fd45de4762a9"
-etag: "sha256-a593be77abe734816a6195282e4d7bbc62046feded2499ff4062e997a11ae4e0"
+mirror_sha256: "1b0506988f97a20d486bdfdc3aa0e23ef636aa58b6050e60a4cf768101b0a01d"
+etag: "sha256-f60a8e13a4b2825a296e87ff21671f825fd46db160fbb502205bc1d4da660b89"
 ---
 ## 개요
 
@@ -39,7 +39,7 @@ etag: "sha256-a593be77abe734816a6195282e4d7bbc62046feded2499ff4062e997a11ae4e0"
 - 서버가 뜰 때 `recoverStuckExecutions()` 가 `status='running' AND started_at < now() - STUCK_RECOVERY_STALE_MS(30분)` 인 실행을 찾는다.
 - 일괄 `failed` 로 표시하지 않는다. 행마다 **원자 re-claim** 을 한다. `UPDATE … SET started_at=now() WHERE status='running' AND started_at < :threshold RETURNING` 에서 affected=1 인 인스턴스만 그 실행을 맡는다.
 - 가진 실행을 case B 로 재구동한다. rehydrate 한 뒤 마지막 완료 노드 다음부터 `runNodeDispatchLoop` 로 진행한다.
-- **PR4 뒤에도 은퇴하지 않고 함께 둔다.** stalled 재배달은 stall 된 작업이 있을 때만 동작한다. 전체 재시작(모든 워커가 동시에 내려감), Redis 비영속(작업 자체 소실), 작업 유실은 stall 된 작업이 없어 이 스캔이 맡는다.
+- **[stalled 재배달](#운영-중-stalled-자동-재배달은-한-번만)을 켠 뒤에도 은퇴하지 않고 함께 둔다.** stalled 재배달은 stall 된 작업이 있을 때만 동작한다. 전체 재시작(모든 워커가 동시에 내려감), Redis 비영속(작업 자체 소실), 작업 유실은 stall 된 작업이 없어 이 스캔이 맡는다.
 
 ### heartbeat 채널을 두지 않는다
 
@@ -120,33 +120,37 @@ lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
 
 - stalled 재배달은 **세그먼트 작업에만** 걸린다. 입력 대기는 작업이 없으므로 stall, 재발행, 만료에 걸리지 않고 기한 없이 park 한다.
 - 절대 시간 방식은 (a) 정상적으로 오래 도는 실행을 일찍 실패시키는 오탐과 (b) 입력 대기 실행을 일괄 종결하는 운영 회귀의 원인이었다. stalled 는 "워커가 실제로 죽었을 때만" 다시 배달하므로 둘 다 사라진다. 살아 있는 워커의 긴 세그먼트는 stall 로 판정되지 않는다.
-- 부팅 복구 스캔의 "절대 시간 30분 일괄 실패" 는 PR3(2026-07-04)에서 제어된 재구동으로 바뀌었다. PR4(2026-07-04)에서 운영 중 즉시 재배달(`maxStalledCount:1`)이 더해졌다. 부팅 복구 스캔은 은퇴하지 않고 함께 둔다.
-- `WORKER_HEARTBEAT_TIMEOUT` 코드는 유지하되 PR4 에서 뜻을 바꿨다. "30분 절대 stale" 이 아니라 "세그먼트가 stalled 재배달 시도를 모두 소진함(워커 쪽 최종 실패)" 이다. 재구동이 불가하면 `RESUME_CHECKPOINT_MISSING` 이다.
+- 부팅 복구 스캔의 "절대 시간 30분 일괄 실패" 는 2026-07-04 에 [제어된 재구동](#크래시-세그먼트는-실패-대신-제어된-재구동)으로 바뀌었고 같은 날 [운영 중 즉시 재배달](#운영-중-stalled-자동-재배달은-한-번만)(`maxStalledCount:1`)이 더해졌다. 부팅 복구 스캔은 은퇴하지 않고 함께 둔다.
+- `WORKER_HEARTBEAT_TIMEOUT` 코드는 유지하되 stalled 재배달을 켜면서 뜻을 바꿨다. "30분 절대 stale" 이 아니라 "세그먼트가 stalled 재배달 시도를 모두 소진함(워커 쪽 최종 실패)" 이다. 재구동이 불가하면 `RESUME_CHECKPOINT_MISSING` 이다.
 
-### 크래시 세그먼트는 실패 대신 제어된 재구동 (PR3, 2026-07-04)
+### 크래시 세그먼트는 실패 대신 제어된 재구동
 
-크래시나 재시작으로 멈춘 `running`(입력 대기가 아닌) 세그먼트를 부팅 복구 스캔이 원자 re-claim 한 뒤 case B rehydration 으로 **재구동**하도록 바꿨다. 옛 "일괄 `failed` 표시" 를 대체한다. 사용자 결정(2026-07-03): Q1 = 제어된 재구동(당시 BullMQ 자동 stalled 는 끔), Q2 = 에러 처리 정책 `continue` 는 미룸.
+결정일: 2026-07-04
+
+크래시나 재시작으로 멈춘 `running`(입력 대기가 아닌) 세그먼트를 부팅 복구 스캔이 원자 re-claim 한 뒤 case B rehydration 으로 **재구동**하도록 바꿨다. 옛 "일괄 `failed` 표시" 를 대체한다. 사용자 결정(2026-07-03)으로 제어된 재구동을 택하고(당시 BullMQ 자동 stalled 는 끔) 에러 처리 정책 `continue` 는 미뤘다.
 
 - **재구동인 이유**: 체크포인트 기반 재개는 "재시작 때 `running` 을 체크포인트에서 이어 간다" 고 이미 약속했는데 부팅 복구 스캔이 **일괄 실패** 처리해 약속을 어기고 있었다. 입력 대기 재개(`dispatchResumeTurn`)는 이미 모든 노드 타입으로 일반화돼 있었다. 크래시 세그먼트는 dispatch 도중의 `running` 이라 turn 핸들러가 아닌 그래프 진행으로 재구동해야 했다. `rehydrateContext` 와 `runNodeDispatchLoop` 가 노드 타입을 가리지 않아 다룰 만했다. 노드 단위 큐를 다시 들이는 것이 아니며 "한 세그먼트 = 한 프로세스" 전제는 유지한다.
-- **PR3 에서 stalled 자동 재배달을 켜지 않은 이유(PR4 로 분리)**: `maxStalledCount>0` 자동 재배달은 **poison 이나 비멱등 세그먼트를 운영 중 사람 없이 다시 실행**시켜 크래시 시점의 통합 노드 부수효과를 자동으로 불릴 위험이 있다. PR3 는 제어된 트리거(부팅 스캔)로 먼저 들어가 멱등 재구동 메커니즘과 경계를 검증했다.
+- **이 결정에서 stalled 자동 재배달을 켜지 않은 이유(다음 결정으로 분리)**: `maxStalledCount>0` 자동 재배달은 **poison 이나 비멱등 세그먼트를 운영 중 사람 없이 다시 실행**시켜 크래시 시점의 통합 노드 부수효과를 자동으로 불릴 위험이 있다. 이 결정은 제어된 트리거(부팅 스캔)로 먼저 들어가 멱등 재구동 메커니즘과 경계를 검증했다.
 - **세그먼트 직렬화 불변식 재검증(필수)**: 크래시 재구동은 원래 작업이 끝나지 않은 채 같은 실행에 새 세그먼트를 시작하는 재진입 경로다. 정상 경우(원래 워커가 정말 죽음)에는 `jobId=executionId` 중복 제거, `started_at` re-claim, 노드 실행별 `completed` 건너뛰기로 같은 턴 이중 실행 0 이 유지된다. 남은 한계는 [남은 zombie race](#남은-zombie-race) 에 있다.
 - **종결 경계(무한 재구동 방지)**: 1차 경계는 실행 시간 한도가 아니라 **트리거 자체**다. 부팅 때 한 번 도는 스캔이므로 poison 세그먼트는 부팅마다 최대 1회만 재구동된다. 빠른 반복이 아니며 배포가 버그를 고칠 수도 있다. 실행 시간 한도(`active_running_ms` 누적)는 크래시 때 시간이 덜 세어지므로 **best-effort 2차** 경계로만 작동한다. rehydration 자체가 불가하면 `RESUME_CHECKPOINT_MISSING` 으로 끝낸다.
 - **새 마이그레이션 없음**: re-claim 은 기존 `started_at`(부팅 복구 스캔 stale 판정과 같은 컬럼) 조건부 UPDATE 다. 완료 노드 건너뛰기는 기존 노드 실행 순서 로그(V035/V036), 2차 경계는 기존 `active_running_ms`(V083)를 쓴다.
 - **at-least-once 경계**: 엔진은 완료 노드 미재실행(exactly-once)만 보장하고 크래시 시점 미완료 노드는 at-least-once 로 다시 실행한다. 통합 노드의 멱등을 노드 설정에 맡기는 기존 모델과 맞는다.
-- **에러 처리 정책 `continue` 세그먼트 재개는 하지 않는다**: PR3 당시 안전 종료 절차의 `continue` 분기에는 장애물이 셋 있었다(에러 처리 정책 스키마 노출 선행 미충족, `continue` 가 실제 enum 에 없음, 인스턴스 사이 재개 인프라 부재). 셋 다 크래시 재구동과 관계가 없어 PR3 는 이 분기를 따로 미뤘다. 2026-11-14 결정(CLE-T-GQ7WHS)으로 그 약속 자체를 거뒀다([안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료)).
-- **기각한 대안**: (a) 새 owner·heartbeat 컬럼으로 정확히 크래시를 검출: 마이그레이션과 heartbeat 인프라 비용이 크고 BullMQ stalled 가 같은 역할을 표준으로 주므로 PR4 로 흡수했다. (b) 복구 반복문에 주기 스캔 추가: 부팅 트리거로 재시작 재개는 성립하고 운영 중 크래시는 PR4 stalled 가 본래 담당이라 범위 밖이다.
+- **에러 처리 정책 `continue` 세그먼트 재개는 하지 않는다**: 이 결정 당시 안전 종료 절차의 `continue` 분기에는 장애물이 셋 있었다(에러 처리 정책 스키마 노출 선행 미충족, `continue` 가 실제 enum 에 없음, 인스턴스 사이 재개 인프라 부재). 셋 다 크래시 재구동과 관계가 없어 이 결정은 이 분기를 따로 미뤘다. 2026-11-14 결정(CLE-T-GQ7WHS)으로 그 약속 자체를 거뒀다([안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료)).
+- **기각한 대안**: (a) 새 owner·heartbeat 컬럼으로 정확히 크래시를 검출: 마이그레이션과 heartbeat 인프라 비용이 크고 BullMQ stalled 가 같은 역할을 표준으로 주므로 stalled 재배달 결정으로 흡수했다. (b) 복구 반복문에 주기 스캔 추가: 부팅 트리거로 재시작 재개는 성립하고 운영 중 크래시는 stalled 재배달이 본래 담당이라 범위 밖이다.
 
-### 운영 중 stalled 자동 재배달은 한 번만 (PR4, 2026-07-04)
+### 운영 중 stalled 자동 재배달은 한 번만
 
-PR3 로 멱등 재구동 메커니즘을 검증한 뒤 운영 중 워커 크래시를 다른 워커가 바로 이어받는 **BullMQ 기본 stalled 재배달**을 켰다. 사용자 결정(2026-07-03): Q1 = 진행(횟수 제한), Q2 = 세그먼트 시작 시각 영속은 미룸(마이그레이션 없이).
+결정일: 2026-07-04
+
+[제어된 재구동](#크래시-세그먼트는-실패-대신-제어된-재구동)으로 멱등 재구동 메커니즘을 검증한 뒤 운영 중 워커 크래시를 다른 워커가 바로 이어받는 **BullMQ 기본 stalled 재배달**을 켰다. 사용자 결정(2026-07-03)으로 횟수를 제한해 진행하고 세그먼트 시작 시각 영속은 마이그레이션 없이 미뤘다.
 
 - **기본 stalled 는 같은 jobId 재처리라 seq·재발행이 필요 없다**: 처음 스케치는 크래시 재개를 `<executionId>:run:<seq>` 재발행으로 그렸다. BullMQ stalled 검출은 lock 이 만료된 **같은 작업을 그대로 다시 처리**한다(새 발행이 아니다). 그래서 `exec:run:seq` 키는 쓰지 않고 jobId=executionId 를 유지한다. `runExecutionFromQueue` 는 다시 처리하는 작업의 실행이 이미 `running` 이면 case B 재구동으로 나눈다(`pending` = 첫 실행, 종료 상태 = ack 후 버림과 함께 세 갈래).
 - **`maxStalledCount=1`(피해 범위를 묶는다)**: `maxStalledCount>1` 은 poison·비멱등 세그먼트를 운영 중 사람 없이 여러 번 다시 실행해 크래시 시점 통합 노드의 중복 부수효과를 키운다. 1이면 재배달은 정확히 1회다. 소진하면 `onFailed → finalizeStalledExhausted` 가 `status='running'` 조건부로 `failed` + `WORKER_HEARTBEAT_TIMEOUT` 으로 DLQ 에 보낸다. setup 단계 throw 경로는 이미 종료 상태라 affected=0 no-op 이다. 관측은 `ExecutionRunDlqMonitorService`(재개 큐 DLQ 모니터와 같은 구조, failed ≥ 임계 경고 + cooldown)가 한다.
 - **부팅 복구 스캔은 은퇴하지 않는다**: stalled 재배달은 **stall 된 작업이 있을 때만** 동작한다. 전체 재시작(재배달할 살아 있는 워커가 없음), Redis 비영속(작업 자체 소실), 작업 유실은 stall 된 작업이 없다. 그래서 부팅 때 한 번 도는 스캔을 둔다. 지식 저장소 파이프라인(`graph-extraction` stalled + `stuck-document-recovery` 부팅 스캔)도 두 메커니즘을 함께 두는 선례다.
 - **DLQ 마감의 원자성(2026-08-15 원자화)**: `finalizeStalledExhausted` 는 실행 `FAILED` UPDATE 와 자식 `running` 노드 실행 cascade UPDATE **둘**을 쓴다. 둘이 각각 autocommit 이면 **일부만 커밋될 때 자식이 영원히 `running` 으로 남을** 수 있었다. 같은 두 테이블 쓰기를 하는 `cancelParkedExecution` · `markWebChatIdleTimeout` 은 이미 `dataSource.transaction` 으로 원자화돼 있었고 **이 경로만 열려 있었다.** 트랜잭션 하나로 통일했다(트랜잭션 안에서 두 UPDATE, 커밋 뒤 발행).
 - **`updateExecutionStatus` else 분기 원자화(2026-08-30)는 위 DLQ 건과 목적이 다르다**: DLQ 마감 원자화는 두 테이블의 부분 커밋을 막는다. else 분기 원자화는 결과 확인 코드의 throw 가 자기 UPDATE 를 되돌리게 한다. 결정은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) Rationale 의 "짝 없는 직접 마감도 트랜잭션 안에서 한다" 에 있다.
-- **at-least-once 경계는 PR3 모델을 이어받는다**: PR4 는 완료 노드 exactly-once · 미완료 노드 at-least-once 경계를 바꾸지 않는다.
-- **Q2 미룸, 시간 과소 계산은 남는다**: 세그먼트 시작 시각 영속(`active_running_ms` 정밀 flush)은 마이그레이션이 필요해 PR4 범위에서 뺐다. [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#rationale) 의 시간 과소 계산 항목 참조.
+- **at-least-once 경계는 제어된 재구동 모델을 이어받는다**: 이 결정은 완료 노드 exactly-once · 미완료 노드 at-least-once 경계를 바꾸지 않는다.
+- **시작 시각 영속을 미뤄 시간 과소 계산은 남는다**: 세그먼트 시작 시각 영속(`active_running_ms` 정밀 flush)은 마이그레이션이 필요해 이 결정 범위에서 뺐다. [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#rationale) 의 시간 과소 계산 항목 참조.
 - **남은 zombie race**: 본문 [남은 zombie race](#남은-zombie-race) 참조. 같은 종류의 좁은 race 가 하나 더 있다. `finalizeStalledExhausted` 가 발동하는 순간 부팅 복구 스캔이 같은 stale `running` 을 re-claim 해 재구동 중이면 조건부 UPDATE(`WHERE status='running'`)가 정상 재구동을 `WORKER_HEARTBEAT_TIMEOUT` 으로 잘못 마감할 수 있다. "작업 stalled 소진" 과 "부팅 스캔" 이 겹치는 아주 좁은 창에 한정되며 노드 실행별 건너뛰기로 완료 노드는 보존된다. 완전한 차단은 세그먼트 시작 시각·owner 토큰 영속(미룸)에 달려 있다.
 
 ### 작업을 잃은 대기 중 실행은 부팅 스캔이 취소한다 (2026-07-04)
@@ -157,7 +161,7 @@ PR3 로 멱등 재구동 메커니즘을 검증한 뒤 운영 중 워커 크래�
   - **원칙의 범위는 작업이 있는 엔진 복구에 한정된다**: "새 주기 스캐너를 두지 않는다" 는 BullMQ 작업이 있는 `running`/`pending` 의 엔진 복구에 대한 원칙이다(stalled 재배달이 본래 담당이라 주기 스캔이 필요 없다). 입력 대기 park 의 클라이언트 이탈 회수(공개 위젯 토큰 영구 만료, EIA-RL-07)는 이 원칙과 **관계없다.** park 는 정의상 작업이 없어 엔진 복구 대상이 아니다. 그 회수는 EIA 계층의 토큰 수명 반복 sweep(EIA-RL-06 의 짝, `execution_token` 만료 기반)이 맡는다. 원칙의 예외가 아니라 원칙이 다루지 않는 다른 층·다른 신호의 작업이다.
 - **`pending` 은 취소, `running` 은 재구동(상태마다 다름)**: `running` stale 은 부분 완료 노드라는 **진행 흔적**이 있어 case B 로 손실 없이 재구동한다. `pending` 은 첫 세그먼트도 시작하지 않아 재구동할 흔적이 없고 큐 대기 한도를 **이미 넘었다.** 그래서 큐 대기 한도의 `cancelled`(`EXECUTION_QUEUE_WAIT_TIMEOUT`)를 그대로 적용한다. 소비자가 가져갔을 때의 결과(재발행 → 재검사 → 취소)와 같으므로 바로 취소하는 편이 단순하고 안전하다. 오래된 실행을 `running` 으로 되살리지 않는다.
 - **멱등하고 race 에 안전하다**: 대상은 `queued_at < now − EXECUTION_QUEUE_WAIT_TIMEOUT_MS` 인 `pending` 뿐이다. 회수는 기존 `markQueueWaitTimeout` 을 다시 쓴다. 동시에 소비자가 들이거나 취소해도 affected=0 no-op 으로 끝난다.
-- **한도 안쪽의 작업 없는 실행**: 아직 한도 전인 실행은 다음 부팅 스캔에서 회수한다. 운영 중 필요할 때 도는 복구 트리거는 PR4 관측성과 함께 따로 검토한다.
+- **한도 안쪽의 작업 없는 실행**: 아직 한도 전인 실행은 다음 부팅 스캔에서 회수한다. 운영 중 필요할 때 도는 복구 트리거는 stalled 재배달 관측성과 함께 따로 검토한다.
 
 ### 종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다 (2026-11-12, CLE-T-CCEQEC)
 

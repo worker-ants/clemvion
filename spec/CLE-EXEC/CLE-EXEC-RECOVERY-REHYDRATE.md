@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REHYDRATE"
 title: "장애 복구와 안전 종료 — 체크포인트와 rehydration"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "2bdce2ecb8797b7517910f49504d92c9a0f581acc74dae87a532ecb77c1251a7"
+content_hash: "499dab6325e6b06fd58aecd0182cf4f8da72d1687cb934e1e9ed8afd0cfcec1a"
 read_as: "approved_fallback"
 task: "CLE-T-K9RZQV"
 source_paths: []
-mirror_sha256: "c276378e251c07f30406177a18223326568670c9695370d68aa2a7213ac31a7b"
-etag: "sha256-bc14831434b29841977efabf0f0b3fff9faff8515837e562c14302a3d81a6e6f"
+mirror_sha256: "068f0368592587dc395f6653d10b5d1c1fdc4ee77bb630898ff8db57fcb9a706"
+etag: "sha256-82bc3ddf32014164200b70477313f952dd376b9ff9f9ba2817d5dbc363cbac11"
 ---
 ## 개요
 
@@ -66,7 +66,7 @@ rehydration 은 두 트리거로 들어온다. 둘 다 `rehydrateContext` 로 DB
 - **case A, 입력 대기 노드 재개**: 입력 대기 상태에서 인스턴스가 내려간 뒤 **사용자 입력이 도착**한다. BullMQ 가 임의 인스턴스에 재개 큐 작업을 배달한다. `waiting_for_input → running` 원자 claim(`claimResumeEntry`) 뒤 rehydrate 한다. 도착 입력을 `dispatchResumeTurn`(form·button·ai turn 핸들러)으로 처리한 다음 진행한다.
 - **case B, 크래시·재시작 `running` 세그먼트 재구동**: 도착 입력도 입력 대기 노드도 **없다.** 부팅 복구 스캔은 `running → running` `started_at` 조건부 re-claim 으로, 운영 중 stalled 재배달은 `runExecutionFromQueue` 가 `status==='running'` 을 보고 `recordRunningSegmentStart` + `redriveStuckExecution` 으로 들어온다. 이후는 [재구동 절차](#재구동-절차) 와 같다. 재개 턴 중 크래시한 멀티턴 AI 노드는 도착 입력 대신 옛 행에 남은 재개 입력으로 그 턴을 다시 돈다(재구동 절차 3단계의 예외).
 
-모든 재개는 rehydration 한 경로로 간다. 같은 인스턴스가 우연히 작업을 가져가도 마찬가지다. park 에서 코루틴을 바로 풀어 주므로 in-process resolver 가 없기 때문이다(Phase B).
+모든 재개는 rehydration 한 경로로 간다. 같은 인스턴스가 우연히 작업을 가져가도 마찬가지다. park 에서 코루틴을 바로 풀어 주므로 in-process resolver 가 없기 때문이다.
 
 ### 재개 절차
 
@@ -96,8 +96,6 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
    - **완료 노드 목록**: 각 frame 의 완료 노드 집합(`executedNodes`)은 따로 노드 실행 순서 로그에서 읽지 않는다. `rehydrateContext` 가 되살린 `context._executedNodes` 를 다시 쓴다. 그 Set 도 같은 executionId 의 노드 실행 순서 로그에서 왔으므로 결과는 같다. 완료 노드는 다시 실행하지 않는다.
 
 **선형 스택 불변식**: 컨테이너(Loop/ForEach/Map/Parallel) 본문에 블로킹 노드를 둘 수 없으므로 `frames` 는 항상 **선형**이다(분기나 반복 회차 상태가 없다). 금지 규칙은 [컨테이너 실행](CLE-EXEC-CONTAINER.md) 에 있다. 깊이는 `recursionDepth` 한도 안이다. `resume_call_stack IS NULL`(최상위 park, park 한 적 없는 실행, 배포 이전 행)이면 단일 수준 절차로 재개한다.
-
-`exec-park D6` 라는 이름은 `exec-park-durable-resume` plan 의 결정 D6(중첩 호출 스택 영속)이다. AI 노드 문서의 같은 이름 `D6`(AI 노드 출력 경로 단일화)와 관계없다.
 
 ### 재개 진입 원자 claim
 
@@ -159,21 +157,21 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 
 **결정, park = 세그먼트 종료, 모든 재개 = rehydration**: park 때 영속한 뒤 `runExecution` 세그먼트를 **바로 반환하고 풀어 준다.** in-process resolver 가 없으므로 **모든 재개가 rehydration 한 경로**다. 효과는 두 가지다. (a) **메모리가 제한된다**: park 수와 관계없이 코루틴과 컨텍스트가 메모리를 쓰지 않는다. (b) **재개 경로가 하나다**: 빠른 경로와 느린 경로의 이원화를 없애 추론, 테스트, 운영이 단순해지고 여러 인스턴스·재시작·스케일 아웃에 똑같이 동작한다.
 
-- **B1 과 B2 는 나눌 수 없다**: "코루틴 해제"(B1)는 park 에서 `await` 를 없애는 것이다. 그러면 코루틴을 깨울 메모리 resolve 가 사라져 "모든 재개 = rehydration"(B2)이 **강제된다.** `firstSegmentBarriers` / `armFirstSegmentBarrier` / `settleFirstSegment` / `signalParkBarrier` 와 `pendingContinuations` Map(워커 쪽 빠른 경로)은 필요 없어져 제거됐다(B3).
+- **코루틴 해제와 rehydration 일원화는 나눌 수 없다**: "코루틴 해제"는 park 에서 `await` 를 없애는 것이다. 그러면 코루틴을 깨울 메모리 resolve 가 사라져 "모든 재개 = rehydration" 이 **강제된다.** `firstSegmentBarriers` / `armFirstSegmentBarrier` / `settleFirstSegment` / `signalParkBarrier` 와 `pendingContinuations` Map(워커 쪽 빠른 경로)은 필요 없어져 제거됐다.
 - **워커 쪽과 발행 쪽은 다르다**: [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#영속-재개-큐와-안전-종료-durable-continuation) 의 sticky fast-path 제거는 **발행 쪽**("내 인스턴스에 키가 있으면 큐를 건너뜀")을 없앴다. 이 결정은 그 **워커 쪽** 짝(작업을 가져간 뒤 로컬 Map 에 키가 있으면 바로 resolve)을 마저 없애 "항상 rehydration" 을 완성한다.
-- **손실 없는 재개의 전제, 영속(Phase A)**: 대화 스레드(`Execution.conversation_thread` V084, A1), 멀티턴 AI 재개 체크포인트(A2a, 정보 추출기 노드 A2b), 사용자 정의 변수(`Execution.user_variables` V085, A3)가 먼저 영속됐다. 그래서 모든 재개를 rehydration 으로 돌려도 상태를 잃지 않는다.
-- **D4, 멀티턴은 턴 단위로 park 한다**: `runAiConversationLoop` 의 오래 도는 반복문을 **턴마다 입력 대기에서 풀어 준다.** 한 턴 처리가 한 세그먼트이고 다음 메시지가 오면 rehydration 으로 재개한다. 응답 없는 대화도 메모리를 쓰지 않는다. 기각한 대안("대화 전체를 한 입력 대기로 두고 코루틴 누적을 받아들임")은 메모리 제한 목표와 정면으로 부딪친다. 턴마다 rehydration 비용은 사람 속도라 받아들인다.
-- **D3, 턴마다 새 설정**: 매 턴 rehydration 이 `node.config` 를 새로 유도하므로 park 중 편집이 다음 턴부터 반영된다. 결정과 기각한 대안은 [실행 컨텍스트 — 저장 전략과 재개](CLE-EXEC-CONTEXT-STORAGE.md) Rationale 의 "멀티턴 설정은 턴마다 새로 만든다" 에 있다.
+- **손실 없는 재개의 전제, 영속**: 대화 스레드(`Execution.conversation_thread` V084), 멀티턴 AI 재개 체크포인트(정보 추출기 노드 포함), 사용자 정의 변수(`Execution.user_variables` V085)가 먼저 영속됐다. 그래서 모든 재개를 rehydration 으로 돌려도 상태를 잃지 않는다.
+- **멀티턴은 턴 단위로 park 한다**: `runAiConversationLoop` 의 오래 도는 반복문을 **턴마다 입력 대기에서 풀어 준다.** 한 턴 처리가 한 세그먼트이고 다음 메시지가 오면 rehydration 으로 재개한다. 응답 없는 대화도 메모리를 쓰지 않는다. 기각한 대안("대화 전체를 한 입력 대기로 두고 코루틴 누적을 받아들임")은 메모리 제한 목표와 정면으로 부딪친다. 턴마다 rehydration 비용은 사람 속도라 받아들인다.
+- **턴마다 새 설정**: 매 턴 rehydration 이 `node.config` 를 새로 유도하므로 park 중 편집이 다음 턴부터 반영된다. 결정과 기각한 대안은 [실행 컨텍스트 — 저장 전략과 재개](CLE-EXEC-CONTEXT-STORAGE.md) Rationale 의 "멀티턴 설정은 턴마다 새로 만든다" 에 있다.
 - **불변식은 유지된다**: 같은 턴 이중 실행 0(영속된 `WAITING_FOR_INPUT` + 재개 진입 **DB 원자 claim**, 비원자 재확인 가드를 대체), 재개 명령 유실 0(영속 재개 큐), 멱등(jobId). park → 워커 종료 → 손실 없는 재개는 dockerized e2e 회귀 테스트로 보증한다.
-- **단계 적용(B1 → B2a → B2b, 2026-06-05/06, 완료)**: park 지점 단위로 해제와 느린 경로를 함께 적용했다. B1 은 form·button, B2a 는 최상위 멀티턴 AI, B2b 는 중첩 `executeInline` 블로킹의 영속(아래 D6)과 메모리 머신 제거를 맡았다.
+- **단계 적용(2026-06-05/06, 완료)**: park 지점 단위로 해제와 느린 경로를 함께 적용했다. form·button, 최상위 멀티턴 AI, 중첩 `executeInline` 블로킹의 영속(아래 항목)과 메모리 머신 제거 순서다.
 - **재개 turn 분기와 park 진입 분기의 registry 추출**: form·buttons·ai 분기를 순서 있는 registry 와 단일 진입점(`dispatchResumeTurn`·`dispatchParkEntry`)으로 뽑은 동작 보존 리팩터링이다. 결정은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) Rationale 의 "입력 대기 분기를 registry 로 모은다 (#507, M-4)" 에 있다.
 - **`runNodeDispatchLoop` 반환 계약**: park 로 끝났는지를 `{ parked: boolean }` 으로 돌려준다. 계약과 경위는 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 에 있다.
-- **exec-park D6, 중첩 서브 워크플로우 블로킹 영속(2026-06-06, 사용자 결정 "호출 스택 영속 정공법")**: 중첩 서브 워크플로우(`executeInline`) 안의 블로킹 노드도 park 해제 + rehydration 으로 모아 **메모리 의존을 완전히 없앴다.** 빠진 조각은 **호출 체인 구조뿐**이었다. 노드 출력은 같은 executionId 타임라인으로, 대화 스레드·변수는 V084/V085 로 DB 에 남는다. 그래서 새 `Execution.resume_call_stack jsonb`(V087)로 호출 체인을 영속하고 frame 단위로 재진입한다.
+- **중첩 서브 워크플로우 블로킹 영속(2026-06-06, 사용자 결정 "호출 스택 영속 정공법")**: 중첩 서브 워크플로우(`executeInline`) 안의 블로킹 노드도 park 해제 + rehydration 으로 모아 **메모리 의존을 완전히 없앴다.** 빠진 조각은 **호출 체인 구조뿐**이었다. 노드 출력은 같은 executionId 타임라인으로, 대화 스레드·변수는 V084/V085 로 DB 에 남는다. 그래서 새 `Execution.resume_call_stack jsonb`(V087)로 호출 체인을 영속하고 frame 단위로 재진입한다.
   - **선형 스택으로 충분한 이유**: 본문 「선형 스택 불변식」과 같다.
   - **`_continuationCheckpoint` 컬럼 기각과 다른 범주**: 저장 전략이 기각한 `_continuationCheckpoint` 는 재개 명령을 *운반*하는 컬럼이었다(운반은 영속 재개 큐가 맡는다). `resume_call_stack` 은 **park 시점의 중첩 실행 위치**(호출 체인)를 남긴다. 목적이 달라 그 기각을 뒤집은 것이 아니다.
-  - **노드 단위 큐 기각과 다른 범주**: 기각된 것은 *모든 노드*를 워커로 나누는(노드마다 컨텍스트 전체를 직렬화하는) 노드 단위 큐다. D6 는 **park 지점에서만** 직렬화하는 "입력 대기 뒤 재개" 의 중첩 확장이다. 한 세그먼트 = 한 프로세스가 호출 스택을 **재귀 in-process** 로 구동하는 전제를 유지한다.
-  - **함께 고친 틈**: 예전 `driveResumeAwaited` 는 `executeInline` 스택에 다시 들어가지 않아 중첩 블로킹은 재시작 뒤 재개할 수 없었다(같은 인스턴스 메모리 한정). D6 가 이 틈도 닫았다.
-  - **직접 구동과 `executeInline` 재호출(W2)**: 가장 안쪽 frame 부터 직접 구동하는 이유다. `executeInline` 재호출은 frame 마다 `_callStack` push/pop, 서브 워크플로우 DB 조회, 재귀 깊이 증가 같은 초기화 비용이 들고 재진입 시점의 호출 스택 상태가 영속 스냅샷과 어긋나는 재진입 위험(중첩 park 스냅샷 시점 race)도 있다. `driveResumeFrame` 은 이미 rehydrate 된 컨텍스트와 영속된 frame 정보로 그래프만 진행하므로 더 안전하고 단순하다.
+  - **노드 단위 큐 기각과 다른 범주**: 기각된 것은 *모든 노드*를 워커로 나누는(노드마다 컨텍스트 전체를 직렬화하는) 노드 단위 큐다. 이 결정은 **park 지점에서만** 직렬화하는 "입력 대기 뒤 재개" 의 중첩 확장이다. 한 세그먼트 = 한 프로세스가 호출 스택을 **재귀 in-process** 로 구동하는 전제를 유지한다.
+  - **함께 고친 틈**: 예전 `driveResumeAwaited` 는 `executeInline` 스택에 다시 들어가지 않아 중첩 블로킹은 재시작 뒤 재개할 수 없었다(같은 인스턴스 메모리 한정). 이 결정이 이 틈도 닫았다.
+  - **직접 구동과 `executeInline` 재호출**: 가장 안쪽 frame 부터 직접 구동하는 이유다. `executeInline` 재호출은 frame 마다 `_callStack` push/pop, 서브 워크플로우 DB 조회, 재귀 깊이 증가 같은 초기화 비용이 들고 재진입 시점의 호출 스택 상태가 영속 스냅샷과 어긋나는 재진입 위험(중첩 park 스냅샷 시점 race)도 있다. `driveResumeFrame` 은 이미 rehydrate 된 컨텍스트와 영속된 frame 정보로 그래프만 진행하므로 더 안전하고 단순하다.
 
 ### rehydration 실패의 종결 상태는 실행 `cancelled`, 노드 실행 `failed`
 
