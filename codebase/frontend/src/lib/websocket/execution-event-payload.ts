@@ -48,7 +48,8 @@ export function asRecord(v: unknown): Record<string, unknown> | null {
  * **`output.output.error`** 다.
  *
  * top-level `error` 는 **문자열**(message only)이다 — emit 4곳 전수 실측
- * (CLE-API-WS-EVENTS §1.2, 2026-08-24 정정). 그래서 이 함수는 `error` 를
+ * (CLE-API-WS-EVENTS 「`execution.node.failed` 의 `error` 와 `output`」,
+ * 2026-08-24 정정). 그래서 이 함수는 `error` 를
  * **보지 않는다**.
  *
  * > **종전 서술이 결함을 낳았다**: ~~*"`error` 또는 `output.error` 중 어디로 오든"*~~ 이라
@@ -60,7 +61,8 @@ export function asRecord(v: unknown): Record<string, unknown> | null {
  * > 문자열/`undefined`), 그 분기가 **이 버그를 낳은 계약을 그대로 인코딩**하고 있었다.
  * > 남겨 두면 다음 사람이 "객체로 보내면 되겠네" 로 읽는다.
  *
- * SoT: CLE-API-WS-EVENTS §1.2 · CLE-NODE-OUTPUT Principle 0
+ * SoT: CLE-API-WS-EVENTS 「`execution.node.failed` 의 `error` 와 `output`」 ·
+ * CLE-NODE-OUTPUT Principle 0
  */
 export function extractNodeErrorPayload(rawOutput: unknown): {
   code: string;
@@ -84,7 +86,7 @@ export function extractNodeErrorPayload(rawOutput: unknown): {
  * Build a `system_error` ConversationItem from a node lifecycle event's
  * error payload. Applied to the conversation thread when the host node is a
  * multi-turn AI Agent that already accumulated turns (live conversation
- * context — spec §9.7 WS event → store mutation contract).
+ * context — CLE-EXEC-PREVIEW-STORE 「이벤트별 store 변환」).
  *
  * `retryable` defaults to `false` when the LLM provider adapter hasn't
  * classified the error yet — the UI then suppresses the `[다시 시도]`
