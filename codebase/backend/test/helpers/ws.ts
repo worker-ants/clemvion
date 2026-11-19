@@ -75,6 +75,15 @@ export function waitForEvent<T>(
   });
 }
 
+export interface ConnectWsOptions {
+  /**
+   * 소켓을 만든 직후 `connect` 를 기다리기 전에 부른다. 서버가 연결 직후 보내는 이벤트(예:
+   * `auth.token_expired`)를 기다리려면 여기서 리스너를 붙인다. 이벤트는 비동기로 오므로 이 안에서
+   * 동기로 붙인 리스너는 놓치지 않는다.
+   */
+  readonly onCreated?: (socket: Socket) => void;
+}
+
 /**
  * access token 으로 `/ws` 에 붙고 `connect` 를 기다린다. 서버가 handshake 를 거절하면(`connect_error`) 그
  * 사유로 실패하고 소켓을 닫는다. 재연결은 끈다. 다시 붙는 흐름은 테스트가 새 소켓으로 직접 만든다.
@@ -82,12 +91,14 @@ export function waitForEvent<T>(
 export async function connectWs(
   baseUrl: string,
   accessToken: string,
+  { onCreated }: ConnectWsOptions = {},
 ): Promise<Socket> {
   const socket = io(`${baseUrl}/ws`, {
     auth: { token: accessToken },
     transports: ['websocket'],
     reconnection: false,
   });
+  onCreated?.(socket);
   try {
     await waitForEvent(socket, 'connect', { failOn: ['connect_error'] });
   } catch (err) {
