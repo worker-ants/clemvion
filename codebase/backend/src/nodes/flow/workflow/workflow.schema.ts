@@ -56,7 +56,9 @@ export const workflowNodeOutputSchema = z
       .passthrough()
       .optional(),
     output: z.unknown().optional(),
-    // `meta` reserved for engine-injected metrics (e.g. `durationMs`).
+    // `meta` carries handler-measured metrics (e.g. `durationMs`, set by
+    // WorkflowHandler on sync success; the engine only rewrites it on Form
+    // resume).
     // Async progress markers live on the top-level `status` field instead
     // of `meta.status`, so we do not declare a `status` shape here.
     meta: z.object({}).partial().passthrough().optional(),
