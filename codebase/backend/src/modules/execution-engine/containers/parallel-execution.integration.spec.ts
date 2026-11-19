@@ -1283,6 +1283,45 @@ describe('ExecutionEngineService', () => {
           expect(parEvents('execution.node.completed')).toHaveLength(0);
         });
 
+        // CLE-T-JQHZ99 — 본문 실행 전 사전 검사에서 던지면 `runParallel` 은 행을 마감하지
+        // 않는다. `executeAndDispatchNode` 가 열린 행을 FAILED 로 마감해 RUNNING 으로 남지 않는다.
+        it('사전 검사 실패(PARALLEL_INVALID_CHILD)면 Parallel 행을 FAILED 로 한 번 마감하고 failed 이벤트를 한 번 보낸다', async () => {
+          handlerRegistry.register(
+            'form_like',
+            {
+              validate: () => ({ valid: true, errors: [] }),
+              execute: jest.fn(async () => mockOutput({ form: true })),
+            },
+            { kind: 'blocking', interaction: 'form' },
+          );
+          registerHandler('ok_node', async () => mockOutput({ ok: true }));
+          await runGraph(
+            {},
+            [
+              pNode('a', 'ok_node'),
+              pNode('f', 'form_like'),
+              pNode('sink', 'sink_node'),
+            ],
+            [
+              pEdge('par', 'branch_0', 'a'),
+              pEdge('par', 'branch_1', 'f'),
+              pEdge('par', 'done', 'sink'),
+            ],
+          );
+
+          expect(parRows(NodeExecutionStatus.COMPLETED)).toHaveLength(0);
+          const failed = parRows(NodeExecutionStatus.FAILED);
+          expect(failed).toHaveLength(1);
+          expect(failed[0].id).toBe('ne-par');
+          expect(failed[0].error).toEqual({
+            message: expect.stringMatching(/^PARALLEL_INVALID_CHILD: /),
+          });
+          const failedEvents = parEvents('execution.node.failed');
+          expect(failedEvents).toHaveLength(1);
+          expect(parEvents('execution.node.completed')).toHaveLength(0);
+          expect(doneReceived).toEqual([]);
+        });
+
         it('continue 정책의 분기 실패는 Parallel 행을 done 완료 출력으로 COMPLETED 저장한다', async () => {
           const g = failingGraph(() => {
             throw new Error('notify failed');

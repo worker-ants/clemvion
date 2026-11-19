@@ -390,9 +390,28 @@ interface NodeKindDispatchOptions {
   >;
   /**
    * `executeNode` 가 돌려준 열린 노드 실행 행. 주면 이 메서드가 어느 실행 경로로 넘기든
-   * 행을 반드시 마감한다.
+   * 행을 반드시 마감한다. {@link ExecutionEngineService.executeAndDispatchNode} 만 넘긴다.
    */
   pendingCompletion?: DeferredNodeCompletion;
+}
+
+/**
+ * {@link ExecutionEngineService.executeAndDispatchNode} 인자. `dispatchByNodeKind` 인자에
+ * `executeNode` 만 쓰는 두 값을 더했다. 열린 행은 그 메서드 안에서만 오가므로 받지 않는다.
+ */
+interface NodeRunOptions extends Omit<
+  NodeKindDispatchOptions,
+  'pendingCompletion'
+> {
+  /** `$node` 표현식을 해석할 노드 맵. */
+  nodeMap: Map<string, Node> | undefined;
+  /** 그 노드가 놓인 그래프의 출력 연결선 맵. error 포트 연결 여부를 판정한다. */
+  outgoingEdgeMap: Map<string, GraphEdge[]>;
+  /**
+   * 핸들러 단계가 끝난 직후, 실행 경로로 넘기기 전에 부른다. 병렬 분기 루프가 그 노드가
+   * 핸들러 단계에서 출력을 남겼는지 본다(`skip_node` 는 남기지 않는다).
+   */
+  afterExecute?: () => void;
 }
 
 /** {@link ExecutionEngineService.executeParallelBranchBody} 인자. */
@@ -2003,18 +2022,7 @@ export class ExecutionEngineService
           input,
           incomingEdgeMap,
         );
-        const pendingCompletion = await this.executeNode(
-          executionId,
-          node,
-          nodeInput,
-          context,
-          executedNodes,
-          nodeMap,
-          dispatchMeta,
-          outgoingEdgeMap,
-          { completeAfterDispatch: true },
-        );
-        const ranParallel = await this.dispatchByNodeKind({
+        const ranParallel = await this.executeAndDispatchNode({
           node,
           allNodes: nodes,
           allEdges: edges,
@@ -2023,7 +2031,8 @@ export class ExecutionEngineService
           executedNodes,
           executionMeta: dispatchMeta,
           nodeInput,
-          pendingCompletion,
+          nodeMap,
+          outgoingEdgeMap,
           // PR #364 (default ON) 정책 정합 — runExecution / resumeFromCheckpoint
           // 가 모두 'v1' default. helper 도 동일 default 사용해 retry 경로의
           // 우연한 'off' default (PR #365 잔재) 도 동시 통일.
@@ -4065,22 +4074,10 @@ export class ExecutionEngineService
         this.logger.log(
           `[executeInline] Executing node "${node.label}" (type=${node.type}, id=${node.id})`,
         );
-        const pendingCompletion = await this.executeNode(
-          executionId,
-          node,
-          nodeInput,
-          context,
-          executedNodes,
-          subNodeMap,
-          executionMeta,
-          outgoingEdgeMap,
-          { completeAfterDispatch: true },
-        );
-
         // PR-G — metadata flag dispatch (CRIT #3 시나리오 D). 노드 종류별 실행 경로는
         // `dispatchByNodeKind` 하나가 고른다. CLE-T-0DGHGF — 메인 루프와 같이 Parallel 을
         // 엔진의 Parallel 실행 경로로 넘긴다.
-        const ranParallel = await this.dispatchByNodeKind({
+        const ranParallel = await this.executeAndDispatchNode({
           node,
           allNodes: subNodes,
           allEdges: subEdges,
@@ -4089,7 +4086,8 @@ export class ExecutionEngineService
           executedNodes,
           executionMeta,
           nodeInput,
-          pendingCompletion,
+          nodeMap: subNodeMap,
+          outgoingEdgeMap,
           parallel:
             this.resolveParallelEngineFlag() === 'v1'
               ? { forwardEdges, backEdges, outgoingEdgeMap, reachable }
@@ -4602,30 +4600,29 @@ export class ExecutionEngineService
           incomingEdgeMap,
         );
 
-        // Execute the node. 단일 노드 실행은 dispatch 없이 끝나므로 완료를 미루지 않는다
-        // (CLE-T-JXD0W5).
-        const pendingCompletion = await this.executeNode(
-          executionId,
-          node,
-          nodeInput,
-          context,
-          executedNodes,
-          nodeMap,
-          {
-            startedAt: savedExecution.startedAt?.toISOString(),
-            mode: 'manual',
-          },
-          outgoingEdgeMap,
-          { completeAfterDispatch: !singleNodeId },
-        );
+        const nodeExecutionMeta = {
+          startedAt: savedExecution.startedAt?.toISOString(),
+          mode: 'manual',
+        };
 
         // 단일 노드 실행 (§1.3) — 대상 노드 1개만 실행하고 종결한다. container body
         // 순회·parallel branch·downstream 전파·back-edge 재진입을 일절 수행하지 않는다
         // (§1.2 Run-from-Selected 와 구분). blocking(form/buttons/AI 멀티턴) 대화형
         // 노드의 park 도 진입하지 않으므로 — 단일 노드 테스트는 표준/AI/코드/HTTP 등
         // 비-blocking 노드를 대상으로 한다(blocking 노드는 향후 확장). break 직후
-        // 완료 분기가 outputData 를 대상 노드 출력으로 마감한다.
+        // 완료 분기가 outputData 를 대상 노드 출력으로 마감한다. dispatch 가 없으므로
+        // 행을 열어 두지 않고 핸들러 반환값으로 마감한다(CLE-T-JXD0W5).
         if (singleNodeId) {
+          await this.executeNode(
+            executionId,
+            node,
+            nodeInput,
+            context,
+            executedNodes,
+            nodeMap,
+            nodeExecutionMeta,
+            outgoingEdgeMap,
+          );
           break;
         }
 
@@ -4638,19 +4635,17 @@ export class ExecutionEngineService
         // propagateReachability behavior — the Parallel handler's
         // `port: string[]` return value is still handled there, preserving
         // existing semantics as a rollback card.
-        const ranParallel = await this.dispatchByNodeKind({
+        const ranParallel = await this.executeAndDispatchNode({
           node,
           allNodes: nodes,
           allEdges: edges,
           context,
           executionId,
           executedNodes,
-          executionMeta: {
-            startedAt: savedExecution.startedAt?.toISOString(),
-            mode: 'manual',
-          },
+          executionMeta: nodeExecutionMeta,
           nodeInput,
-          pendingCompletion,
+          nodeMap,
+          outgoingEdgeMap,
           parallel:
             this.resolveParallelEngineFlag() === 'v1'
               ? { forwardEdges, backEdges, outgoingEdgeMap, reachable }
@@ -5910,8 +5905,8 @@ export class ExecutionEngineService
    * 아니라 호출 측 (waitForFormSubmission / waitForButtonInteraction /
    * waitForAiConversation) 가 별도로 다룬다.
    *
-   * @param options.completeAfterDispatch 바로 뒤에 `dispatchByNodeKind` 를 부르는 루프만
-   *   켠다. 켜면 엔진 덮어쓰기를 받는 노드(Loop · ForEach · Map, Parallel 실행 경로가 켜진
+   * @param options.completeAfterDispatch 바로 뒤에 `dispatchByNodeKind` 를 부르는
+   *   {@link executeAndDispatchNode} 만 켠다(CLE-T-JQHZ99). 켜면 엔진 덮어쓰기를 받는 노드(Loop · ForEach · Map, Parallel 실행 경로가 켜진
    *   Parallel)는 핸들러가 성공해도 행을 COMPLETED 로 저장하지 않고 `execution.node.completed`
    *   도 보내지 않는다. 열린 행을 돌려주고, 받은 실행 경로가 본문이 끝난 뒤 완료 출력과 노드
    *   전체 실행 시간으로 마감한다(CLE-T-JXD0W5). 단일 노드 실행처럼 본문을 돌리지 않는 경로는
@@ -6463,16 +6458,16 @@ export class ExecutionEngineService
   }
 
   /**
-   * Parallel 실행 경로가 실패했을 때 열린 행을 마감한다. 외부 취소면 CANCELLED, 그 밖의
-   * 실패면 FAILED + `execution.node.failed` 다. 열린 행이 없으면(핸들러 단계에서 마감)
-   * 건드리지 않는다. 원래 에러를 다시 던지는 것은 호출부가 한다(CLE-T-JXD0W5).
+   * 엔진 덮어쓰기 실행 경로(컨테이너 · Parallel)가 실패했을 때 `executeNode` 가 열어 둔 행을
+   * 마감한다. 외부 취소면 CANCELLED, 그 밖의 실패면 FAILED + `execution.node.failed` 다.
+   * 원래 에러를 다시 던지는 것은 호출부가 한다(CLE-T-JXD0W5 · CLE-T-JQHZ99).
    */
-  private async markParallelNodeFailed(
+  private async markDeferredNodeFailed(
     executionId: string,
     node: Node,
     context: ExecutionContext,
     err: unknown,
-    pending: DeferredNodeCompletion | undefined,
+    pending: DeferredNodeCompletion,
   ): Promise<void> {
     if (err instanceof ExecutionCancelledError) {
       await this.markEngineOverrideNodeCancelled(
@@ -6483,14 +6478,13 @@ export class ExecutionEngineService
       );
       return;
     }
-    if (!pending) return;
     await this.markNodeRowFailed(executionId, node, pending.nodeExecution, err);
   }
 
   /**
-   * 컨테이너(Loop · ForEach · Map) 실행 경로가 실패했을 때 그 노드의 행을 마감한다. 외부
-   * 취소면 열린 행을 CANCELLED 로 마감한다. 그 밖의 실패면 FAILED + `execution.node.failed`
-   * 이고, 열린 행이 없으면 그 노드의 최근 행을 찾아 바꾼다(예전 동작).
+   * 컨테이너(Loop · ForEach · Map) 실행 경로가 실패했을 때 그 노드의 행을 마감한다. 열린 행이
+   * 있으면 {@link markDeferredNodeFailed} 로 마감한다. 열린 행이 없을 때 외부 취소면 두고,
+   * 그 밖의 실패면 그 노드의 최근 행을 찾아 FAILED 로 바꾼다(예전 동작).
    */
   private async markContainerNodeFailed(
     executionId: string,
@@ -6499,21 +6493,21 @@ export class ExecutionEngineService
     err: unknown,
     pending: DeferredNodeCompletion | undefined,
   ): Promise<void> {
-    if (err instanceof ExecutionCancelledError) {
-      await this.markEngineOverrideNodeCancelled(
+    if (pending) {
+      await this.markDeferredNodeFailed(
         executionId,
         node,
         context,
+        err,
         pending,
       );
       return;
     }
-    const nodeExec =
-      pending?.nodeExecution ??
-      (await this.nodeExecutionRepository.findOne({
-        where: { executionId, nodeId: node.id },
-        order: { startedAt: 'DESC' },
-      }));
+    if (err instanceof ExecutionCancelledError) return;
+    const nodeExec = await this.nodeExecutionRepository.findOne({
+      where: { executionId, nodeId: node.id },
+      order: { startedAt: 'DESC' },
+    });
     await this.markNodeRowFailed(executionId, node, nodeExec, err);
   }
 
@@ -7194,18 +7188,6 @@ export class ExecutionEngineService
         iterInput,
       );
 
-      const pendingCompletion = await this.executeNode(
-        executionId,
-        node,
-        nodeInput,
-        context,
-        executedNodes,
-        nodeMap,
-        executionMeta,
-        outgoingEdgeMap,
-        { completeAfterDispatch: true },
-      );
-
       // CLE-T-MR6ZH3 — 메인 루프 · 병렬 분기 루프와 같은 `dispatchByNodeKind` 를 쓴다.
       // 본문 안 Loop · ForEach · Map 은 회차 컨텍스트를 그대로 받아 자기 본문을 반복한다.
       // 반복 변수는 안쪽 실행기가 바깥 값을 저장했다가 되돌린다. Background 는 이번 회차에
@@ -7214,7 +7196,7 @@ export class ExecutionEngineService
       // Parallel 에는 본문 안 연결선만 넘기므로 병렬 분기 탐색은 본문 안에 머문다.
       // 되돌아가는 연결선은 `planContainerBody` 가 이미 막았다. `runParallel` 이 `done`
       // 포트와 출구 노드의 다음 노드를 `reachable` 에 넣으므로 아래 전파는 건너뛴다.
-      const written = await this.dispatchByNodeKind({
+      const written = await this.executeAndDispatchNode({
         node,
         allNodes: plan.allNodes,
         allEdges: plan.allEdges,
@@ -7223,7 +7205,8 @@ export class ExecutionEngineService
         executedNodes,
         executionMeta,
         nodeInput,
-        pendingCompletion,
+        nodeMap,
+        outgoingEdgeMap,
         parallel: parallelEngineV1
           ? {
               forwardEdges: internalEdges,
@@ -7409,9 +7392,58 @@ export class ExecutionEngineService
   }
 
   /**
+   * 노드 하나를 실행하고 종류에 따라 넘긴다. {@link executeNode} 가 노드 실행 행을 만들고
+   * 핸들러를 돌린 뒤 {@link dispatchByNodeKind} 가 컨테이너 · Background · Parallel 실행
+   * 경로로 넘긴다. 맨 바깥 실행 · 재개 · `executeInline` · 컨테이너 본문 · 병렬 분기 루프가
+   * 모두 이 메서드로 노드를 실행한다(CLE-T-JQHZ99).
+   *
+   * 엔진 덮어쓰기를 받는 노드(Loop · ForEach · Map, Parallel 실행 경로가 켜진 Parallel)의 행은
+   * `executeNode` 가 열어 두고 받은 실행 경로가 본문이 끝난 뒤 마감한다(CLE-T-JXD0W5). 열린
+   * 행은 이 메서드 밖으로 나가지 않는다. 실행 경로가 행을 마감하기 전에 던지면(예: Parallel
+   * 의 설정 해석 · 사전 검사 실패) 여기서 FAILED 나 CANCELLED 로 마감하고 다시 던진다.
+   *
+   * 단일 노드 실행은 본문을 돌리지 않으므로 이 메서드를 쓰지 않고 `executeNode` 만 부른다.
+   *
+   * @returns {@link dispatchByNodeKind} 의 반환값
+   */
+  private async executeAndDispatchNode(
+    options: NodeRunOptions,
+  ): Promise<ReadonlySet<string> | undefined> {
+    const { nodeMap, outgoingEdgeMap, afterExecute, ...dispatch } = options;
+    const pendingCompletion = await this.executeNode(
+      dispatch.executionId,
+      dispatch.node,
+      dispatch.nodeInput,
+      dispatch.context,
+      dispatch.executedNodes,
+      nodeMap,
+      dispatch.executionMeta,
+      outgoingEdgeMap,
+      { completeAfterDispatch: true },
+    );
+    try {
+      afterExecute?.();
+      return await this.dispatchByNodeKind({ ...dispatch, pendingCompletion });
+    } catch (err) {
+      if (
+        pendingCompletion?.nodeExecution.status === NodeExecutionStatus.RUNNING
+      ) {
+        await this.markDeferredNodeFailed(
+          dispatch.executionId,
+          dispatch.node,
+          dispatch.context,
+          err,
+          pendingCompletion,
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
    * 방금 실행한 노드를 종류(핸들러 메타데이터의 `kind`)에 따라 넘긴다. 맨 바깥 실행 ·
-   * 재개 · `executeInline` · 컨테이너 본문 · 병렬 분기 루프가 모두 이 규칙을 쓴다
-   * (CLE-T-TDAV1G).
+   * 재개 · `executeInline` · 컨테이너 본문 · 병렬 분기 루프가 모두
+   * {@link executeAndDispatchNode} 를 거쳐 이 규칙을 쓴다(CLE-T-TDAV1G).
    *
    * - container: {@link runContainer} 가 본문을 반복하고 완료 출력을 캐시에 쓴다. 호출한
    *   루프의 전파가 `done` 뒤 노드를 연다.
@@ -7453,36 +7485,18 @@ export class ExecutionEngineService
       return undefined;
     }
     if (kind === 'parallel' && parallel) {
-      try {
-        return await this.runParallel({
-          parallelNode: node,
-          allNodes,
-          allEdges,
-          ...parallel,
-          context,
-          executionId,
-          executedNodes,
-          executionMeta,
-          input: nodeInput,
-          pendingCompletion,
-        });
-      } catch (err) {
-        // 열린 행이 있는데 `runParallel` 의 본문 실행 전 단계(설정 해석 · 사전 검사)에서 던지면
-        // 행이 RUNNING 으로 남는다. 아직 열려 있을 때만 FAILED · CANCELLED 로 마감한다.
-        if (
-          pendingCompletion?.nodeExecution.status ===
-          NodeExecutionStatus.RUNNING
-        ) {
-          await this.markParallelNodeFailed(
-            executionId,
-            node,
-            context,
-            err,
-            pendingCompletion,
-          );
-        }
-        throw err;
-      }
+      return this.runParallel({
+        parallelNode: node,
+        allNodes,
+        allEdges,
+        ...parallel,
+        context,
+        executionId,
+        executedNodes,
+        executionMeta,
+        input: nodeInput,
+        pendingCompletion,
+      });
     }
     // 열린 행을 받을 실행 경로가 없다. `completesAfterEngineOverride` 와 호출부의 `parallel`
     // 판정이 같아 닿지 않지만, 닿으면 행이 RUNNING 으로 남지 않게 핸들러 반환값으로 마감한다.
@@ -7812,20 +7826,6 @@ export class ExecutionEngineService
         branchInput,
       );
 
-      const pendingCompletion = await this.executeNode(
-        executionId,
-        node,
-        nodeInput,
-        context,
-        executedNodes,
-        nodeMap,
-        executionMeta,
-        plan.outgoingEdgeMap,
-        { completeAfterDispatch: true },
-      );
-      // `skip_node` 는 출력을 남기지 않으므로 후보에서 빠진다.
-      if (writtenNodeIds.has(nodeId)) resultNodeId = nodeId;
-
       // PR-G — metadata flag dispatch (CRIT #3 시나리오 D). 메인 루프와 같은
       // `dispatchByNodeKind` 를 쓴다. 병렬 분기 안 ForEach · Loop · Map 도 본문을 반복하고,
       // Background 는 본문을 큐에 넣은 뒤 이 병렬 분기를 기다리지 않고 이어 간다.
@@ -7838,7 +7838,7 @@ export class ExecutionEngineService
       // `planParallelBody` 가 바깥 본문에서 이미 막았다. `runParallel` 이 `done`
       // 포트와 안쪽 출구 노드의 다음 노드까지 `reachable` 에 넣으므로 아래 전파는
       // 건너뛴다.
-      const ranParallel = await this.dispatchByNodeKind({
+      const ranParallel = await this.executeAndDispatchNode({
         node,
         allNodes,
         allEdges,
@@ -7847,7 +7847,12 @@ export class ExecutionEngineService
         executedNodes,
         executionMeta,
         nodeInput,
-        pendingCompletion,
+        nodeMap,
+        outgoingEdgeMap: plan.outgoingEdgeMap,
+        // `skip_node` 는 출력을 남기지 않으므로 후보에서 빠진다.
+        afterExecute: () => {
+          if (writtenNodeIds.has(nodeId)) resultNodeId = nodeId;
+        },
         parallel: {
           forwardEdges: plan.internalEdges,
           backEdges: [],
@@ -8201,13 +8206,15 @@ export class ExecutionEngineService
     } catch (err) {
       // CLE-T-JXD0W5 — 열린 행이 RUNNING 으로 남지 않게 마감한다. 실패면 FAILED, 외부
       // 취소면 CANCELLED 다. 열린 행이 없으면(핸들러 단계에서 마감) 예전처럼 두고 다시 던진다.
-      await this.markParallelNodeFailed(
-        executionId,
-        parallelNode,
-        context,
-        err,
-        pendingCompletion,
-      );
+      if (pendingCompletion) {
+        await this.markDeferredNodeFailed(
+          executionId,
+          parallelNode,
+          context,
+          err,
+          pendingCompletion,
+        );
+      }
       throw err;
     }
 
