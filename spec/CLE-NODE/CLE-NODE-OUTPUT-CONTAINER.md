@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-CONTAINER"
 title: "노드 출력 규약 — 컨테이너 출력과 빈 입력"
 type: "convention"
-version: 1
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "bdffefd7d094612a170b373130c21e07bcb206cfec31c703d49f7dc75dac6eae"
+content_hash: "86337105fcee7421788aca55da2aaa4ff14ef5ad648ac6e6babae4e8cbdd5576"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JXD0W5"
 source_paths: []
-mirror_sha256: "15a433bcb1bde940fe69ec5d50383c0fea842ddfbe69366fcebb507367687658"
-etag: "sha256-b93f36d89c8849aa8345d086ceeb593833ac5424025dc9f13c93cdd9efef78da"
+mirror_sha256: "5abb587e6ca49d63c4a10973e5bce18cc506bfd86a82fc12fab8535dc7c94412"
+etag: "sha256-928822a35ef6e61f6dbeda61b115a7799f89a71949c3ae9bb96a2653cce6aa68"
 ---
 ## 개요
 
@@ -28,9 +28,9 @@ etag: "sha256-b93f36d89c8849aa8345d086ceeb593833ac5424025dc9f13c93cdd9efef78da"
 
 1. 다음 노드가 보는 최종 출력 값에 입력을 그대로 복사하는 pass-through 는 혼란을 주므로 금지한다.
 2. 엔진은 모든 반복 회차나 병렬 분기가 끝나면 핸들러 반환값과 상관없이 `output` 을 [9.2](#92-노드별-최종-출력-값) 의 형태로 덮어쓴다. 핸들러를 다시 부르지 않는다. Parallel 의 `PARALLEL_ENGINE=off` 되돌림 경로는 예외다. 이 경로에서는 덮어쓰기가 없고 시작 시점 출력이 남는다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)).
-3. 핸들러의 시작 시점 반환값은 노드마다 다르다. Loop·Parallel 은 `output: null` 을, ForEach·Map 은 본문에 나눠 줄 배열을 돌려준다. 이 배열은 엔진 안에서만 쓰는 중간 표현이라 1번의 pass-through 에 해당하지 않는다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약)). 다음 노드 표현식이 이 값을 보지 않는 범위는 5번에 적었다.
+3. 핸들러의 시작 시점 반환값은 노드마다 다르다. Loop·Parallel 은 `output: null` 을, ForEach·Map 은 본문에 나눠 줄 배열을 돌려준다. 이 배열은 엔진 안에서만 쓰는 중간 표현이라 1번의 pass-through 에 해당하지 않는다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약)). 다음 노드 표현식은 이 값을 보지 않는다(5번).
 4. 덮어쓰기는 `output` 을 바꾼다. Parallel 은 `port` 도 `'done'` 으로 바꾼다. Loop · ForEach · Map 의 완료 출력에는 `port` 가 없다. `meta` 는 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약) 규칙 6 대로 합친다. `config` 는 핸들러가 돌려준 그대로 남는다.
-5. 덮어쓴 `output` 과 완료 `meta` 는 park · 재구동 없이 이어진 실행에서 다음 노드 표현식(`$node["X"].output` · `$node["X"].meta`)이 읽는다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 반환값이 남는다. 재개 · 재구동 때는 이 저장값으로 실행 컨텍스트를 rehydration 하므로 그 뒤 노드 표현식도 시작 시점 반환값을 읽는다(미구현, [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)). 이 동작은 모든 재개를 손실 없이 되살린다는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md#park-즉시-해제와-rehydration-단일-경로-phase-b) 의 전제를 지금 어기는 결함이다.
+5. 덮어쓴 `output` 과 완료 `meta` 는 다음 노드 표현식(`$node["X"].output` · `$node["X"].meta`)이 읽는다. 엔진은 본문이 끝난 뒤 노드 실행 기록(`node_execution.output_data`)을 이 완료 출력으로 한 번 마감하고, `execution.node.completed` 이벤트도 그때 같은 값으로 한 번 보낸다. 재개 · 재구동 때는 이 저장값으로 실행 컨텍스트를 rehydration 하므로 그 뒤 노드 표현식도 완료 출력을 읽는다. [단일 노드 실행](../CLE-EXEC/CLE-EXEC-RUN.md)과 Parallel 의 `PARALLEL_ENGINE=off` 되돌림 경로는 본문을 돌지 않아 핸들러 반환값으로 기록을 마감한다. 행 마감 · 이벤트 · 실패와 취소 처리는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기) 이 정한다.
 
 ### 9.2 노드별 최종 출력 값
 
@@ -54,7 +54,7 @@ etag: "sha256-b93f36d89c8849aa8345d086ceeb593833ac5424025dc9f13c93cdd9efef78da"
 
 ### 컨테이너와 Parallel 의 완료 `meta`
 
-Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣지 않는다(잠정). 완료 `meta` 에 싣는 필드는 [Principle 2](CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 「컨테이너 · Parallel」 행이 정한다. 네 노드의 `node_execution.duration_ms` 에는 지금 핸들러 실행 시간만 있고 반복 회차 · 병렬 분기 시간은 없다. 노드 전체 실행 시간을 어디에 둘지는 아직 정하지 않았고 이 제외도 그때까지 잠정이다([Rationale](#컨테이너와-parallel-의-완료-출력에-durationms-를-싣지-않는다-잠정-2026-10-24), [미결 사항](#미결-사항)).
+Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣지 않는다. 완료 `meta` 에 싣는 필드는 [Principle 2](CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 「컨테이너 · Parallel」 행이 정한다. 네 노드의 노드 전체 실행 시간(핸들러와 반복 회차 · 병렬 분기를 합친 시간)은 노드 실행 기록의 `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 에 있다. 엔진이 본문이 끝난 뒤 기록을 마감하기 때문이다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)). 이 값을 읽는 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 의 `clemvion.node.duration` 메트릭과 [통계](../CLE-OBS/CLE-OBS-STATS.md) 의 노드 평균 전체 경과도 노드 전체 시간을 쓴다. 싣지 않는 이유는 [Rationale](#컨테이너와-parallel-의-완료-출력에-durationms-를-싣지-않는다-잠정-2026-10-24) 에 있다.
 
 ## Principle 10. 비었거나 null 인 입력의 대체 값
 
@@ -72,7 +72,6 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 ## 미결 사항
 
 - **컨테이너 완료 출력의 `port`(Principle 5)**: `port: undefined` 는 출력이 하나인 노드용이다. Loop·ForEach·Map 은 출력 포트가 `body`·`done` 둘인데 완료 출력에 `port` 를 싣지 않고 엔진이 `done` 연결선을 직접 활성화한다. Parallel 은 완료 출력에 `port: 'done'` 을 싣는다([Principle 5](CLE-NODE-OUTPUT-FLOW.md#principle-5-출력-포트-선택-모델)). 결정은 [Logic 노드 공통 미결 사항](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항) 의 같은 항목에서 한다.
-- **컨테이너 · Parallel 노드의 실행 시간(Principle 2)**: Loop · ForEach · Map · Parallel 은 핸들러가 시작 시점 값을 돌려주면 엔진이 바로 노드 실행 기록을 완료로 저장한다. 그래서 기록의 `node_execution.finished_at` · `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 핸들러 실행 시간이고 반복 회차 · 병렬 분기 시간은 들어 있지 않다. 성공한 실행에서는 이 기록을 다시 갱신하지 않는다. 그래서 네 노드의 기록 행에는 노드 전체 실행 시간이 없고 본문 노드 행(Parallel 은 병렬 분기 행)의 시각으로 따로 계산해야 한다. `node_execution.duration_ms` 를 노드 실행 시간으로 쓰는 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 의 `clemvion.node.duration` 메트릭과 [통계](../CLE-OBS/CLE-OBS-STATS.md) 의 노드별 평균 실행 시간과 병목 강조에서도 네 노드가 실제보다 짧게 잡힌다. 결정 필요: 완료 시점에 실행 기록의 끝 시각과 실행 시간을 갱신할지, 완료 `meta` 에 `meta.durationMs` 를 더할지. 실행 기록의 완료 출력 갱신과 함께 NERV Task `CLE-T-JXD0W5` 가 다룬다.
 
 ## Rationale
 
@@ -82,7 +81,7 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 
 ### 엔진 덮어쓰기 대상 노드는 핸들러 반환값과 상관없이 덮어쓴다 (2026-10-24)
 
-옛 9.1 은 "핸들러가 null 을 돌려주면 엔진이 반드시 덮어쓰고 null 이 아닌 값을 돌려주면 덮어쓰지 않는다" 고 적었다. ForEach·Map 핸들러는 시작 시점에 본문에 나눠 줄 배열을 돌려준다. 노드 출력 다섯 필드를 깨지 않고 분배용 데이터를 엔진에 넘기려고 정한 형태다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale). 엔진은 완료 시점에 이 배열을 `{ <컬렉션 키>, count }` 로 덮어쓴다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#완료-시점-덮어쓰기를-엔진이-한다) 과 현재 구현(`execution-engine.service.ts` 의 컨테이너 완료 처리)도 그렇다. 그래서 9.1 을 그 결정과 구현에 맞췄다(NERV Task `CLE-T-3HJ8MM`). 다만 현재 구현은 다음 노드 표현식이 읽는 실행 컨텍스트만 덮어쓴다. 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에는 아직 반영하지 않는다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+옛 9.1 은 "핸들러가 null 을 돌려주면 엔진이 반드시 덮어쓰고 null 이 아닌 값을 돌려주면 덮어쓰지 않는다" 고 적었다. ForEach·Map 핸들러는 시작 시점에 본문에 나눠 줄 배열을 돌려준다. 노드 출력 다섯 필드를 깨지 않고 분배용 데이터를 엔진에 넘기려고 정한 형태다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale). 엔진은 완료 시점에 이 배열을 `{ <컬렉션 키>, count }` 로 덮어쓴다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#완료-시점-덮어쓰기를-엔진이-한다) 과 현재 구현(`execution-engine.service.ts` 의 컨테이너 완료 처리)도 그렇다. 그래서 9.1 을 그 결정과 구현에 맞췄다(NERV Task `CLE-T-3HJ8MM`). 2026-10-24 구현 확인 때는 덮어쓰기가 실행 컨텍스트에만 반영되고 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에는 반영되지 않는다는 조건을 붙여 적었다. 2026-11-15 NERV Task `CLE-T-JXD0W5` 가 엔진이 본문이 끝난 뒤 실행 기록을 완료 출력으로 마감하게 해 그 갭을 닫았다. 그래서 9.1 의 5번을 원래 서술로 돌렸다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)).
 
 기각한 대안은 옛 서술대로 `null` 일 때만 덮어쓰는 안이다. 그렇게 구현하면 ForEach·Map 의 최종 `output` 이 원래 배열로 남아 다음 노드가 [9.2](#92-노드별-최종-출력-값) 의 형태를 볼 수 없다.
 
@@ -111,6 +110,8 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 
 이 개정에서 기각한 대안은 없다. 엔진이 컨테이너와 Parallel 의 완료 `meta` 에 `meta.durationMs` 를 더하는 안과 완료 시점에 노드 실행 기록을 갱신하는 안은 둘 다 엔진 코드를 바꿔야 한다. 지금은 어느 쪽도 정하지 않았고 NERV Task `CLE-T-JXD0W5` 가 정한다. 엔진이 일반 노드에도 모두 넣도록 구현을 옛 서술에 맞추는 안도 미결로 남겼다. 노드마다 측정 지점을 확인해야 해서 이 개정의 범위를 넘는다.
 
+2026-11-15 확정: 완료 `meta` 에 `meta.durationMs` 를 싣지 않는 것으로 확정했다(NERV Task `CLE-T-JXD0W5`). 위 문단이 미룬 두 안 가운데 노드 실행 기록 쪽 안을 구현했다. 시작 때 저장한 기록을 나중에 갱신하지 않고 기록 마감을 본문이 끝난 뒤로 옮겼다. 그래서 `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 에 노드 전체 실행 시간이 담긴다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)). 완료 `meta` 에 `meta.durationMs` 를 더하는 안은 기각했다. 같은 키가 일반 노드에서는 핸들러가 잰 시간이고 컨테이너 · Parallel 에서는 노드 전체 시간이 돼 뜻이 갈린다. 노드 전체 시간은 행의 `duration_ms` 와 이벤트 `duration` 으로 충분하다. 그래서 「컨테이너와 Parallel 의 완료 `meta`」 절의 잠정 표시와 미결 사항의 실행 시간 항목을 지웠다. 다른 문서가 이 절을 앵커로 가리키므로 제목은 바꾸지 않았다. 일반 노드의 `meta.durationMs` 를 채우는 주체는 이 확정과 별개로 여전히 [부모 문서의 미결 사항](CLE-NODE-OUTPUT.md#미결-사항) 에 있다.
+
 ### 완료 출력 표에 `skipped` 와 Parallel 의 `port: 'done'` 을 올린다 (2026-11-02)
 
 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#완료-출력은-병렬-분기-결과를-그대로-두고-실패를-따로-모은다-2026-11-01) 는 2026-11-01 에 완료 출력을 `{ branches, count, skipped? }` 로, 완료 `port` 를 `'done'` 문자열로 정했다(구현 NERV Task `CLE-T-2HD471`). ForEach 는 그 전부터 실패 항목이 있으면 `skipped` 를 실어 왔다. 이 규약의 9.2 표와 Principle 5 표만 이 내용과 Parallel 의 실패 자리 `null` 을 빠뜨려 노드 문서 · [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기) 과 갈렸다. 그래서 두 표를 노드 문서와 구현에 맞췄다. 출력 형태는 노드 문서가 정했으므로 기각한 대안이 없다. `port` 를 배열이 아닌 문자열로 둔 이유는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#완료-출력-port-는-done-문자열이다-2026-11-01) 에 있다.
@@ -118,3 +119,9 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 ### `skipped[].error.code` 의 임시 예외를 닫는다 (2026-11-05)
 
 2026-11-02 에는 `skipped[].error.code` 가 `UPPER_SNAKE_CASE` 규칙([3.2](CLE-NODE-OUTPUT-FLOW.md#32-outputerror-표준-형태))을 따르지 않아 9.2 에 임시 예외로 적었다. Parallel 만 고치면 ForEach 와 값이 갈려서 함께 정리하도록 미뤘다. 당시 예외의 정본 서술은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#errorcode-의-값-2026-11-01) 에 있다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 실패 회차 `error.code` 를 한 규칙으로 정리했다. 값은 이제 백엔드가 직접 싣는 카탈로그 코드, [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 `AbortError`, 대체값 `UNKNOWN_ERROR` 중 하나다. 그래서 9.2 의 임시 예외 문장을 지우고 그 규칙을 가리키게 했다. 규칙과 근거, 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다. 이 개정은 규약 문장을 그 결정에 맞추기만 하므로 따로 기각한 대안이 없다.
+
+### 「노드별 평균 실행 시간」 을 「노드 평균 전체 경과」로 고쳤다
+
+결정일: 2026-11-15
+
+[통계](../CLE-OBS/CLE-OBS-STATS.md) 가 2026-11-14 에 이 지표의 이름을 「노드 평균 전체 경과」로 바꿨다. 미결 사항의 실행 시간 항목에 옛 이름이 남아 있어 맞췄다(NERV Task `CLE-T-Z7QRQP`). 미결 사항의 결정 내용과 NERV Task `CLE-T-JXD0W5` 의 범위는 바꾸지 않았다.

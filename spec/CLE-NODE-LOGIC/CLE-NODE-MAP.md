@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 6
+version: 8
 status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020", "REQ-MAP-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "38c79b000c401d04d5fe40d4e1692dfab6b76b9a701e65972208d30963157597"
+content_hash: "8a9d67951519094842d5f97a6e566d3fa1c0a58ec60aaf588bdcf902672b1b24"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-JXD0W5"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "aedd33c922f16656255c387342d5511acc0438236e3224e64de10b88210c0873"
-etag: "sha256-ca8bd6e43e9820e73b100368cac50fac373d548ff83c642df4265e08196a6c32"
+mirror_sha256: "64176d91180d88071c3d5220bb121ccda5efbf32bafa5f910f26a2ea38e546f5"
+etag: "sha256-218e17ead79f0659b0ae228c648fe95480a205dfc952c013a53e8a615ea3adca"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -37,7 +37,7 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 - REQ-MAP-009 IF 본문 회차가 실패하고 항목 에러 정책이 `stop` 이면 THE SYSTEM SHALL 회차의 에러 메시지를 그대로 전파해 실행을 실패시킨다.
 - REQ-MAP-010 IF 본문 회차가 실패하고 항목 에러 정책이 `skip` 이나 `continue` 면 THE SYSTEM SHALL 그 인덱스에 `{ _skipped: true, error: { code, message } }` 를 넣고 노드를 정상 종료한다.
 - REQ-MAP-011 WHEN 노드 출력을 만들면 THE SYSTEM SHALL 컬렉션 키로 반드시 `mapped` 를 쓴다.
-- REQ-MAP-012 WHEN 다음 노드가 Map 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 `{ mapped, count }` 형태만 보여 준다. (부분 구현)
+- REQ-MAP-012 WHEN 다음 노드가 Map 노드 출력을 읽으면 THE SYSTEM SHALL 시작 시점의 원래 배열을 드러내지 않고 `{ mapped, count }` 형태만 보여 준다.
 - REQ-MAP-013 IF `inputField` 가 없거나 빈 문자열이거나 `null` / `undefined` 면 THE SYSTEM SHALL 캔버스에 경고 배지를 표시하고 `handler.validate` 에서 거부한다.
 - REQ-MAP-014 IF `errorPolicy` 가 `stop` / `skip` / `continue` 가 아니면 THE SYSTEM SHALL `handler.validate` 에서 거부한다.
 - REQ-MAP-015 IF `emit` 포트에 본문 노드가 없거나 2개 이상이면 THE SYSTEM SHALL 엔진 사전 검증에서 메시지가 `CONTAINER_MISSING_EMIT: ` 나 `CONTAINER_MULTIPLE_EMIT: ` 로 시작하는 에러로 실행을 실패시킨다.
@@ -75,7 +75,7 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 | 출력 | `body` | Body | data | false | 항목을 본문 첫 노드로 넘긴다(회차마다 1번) |
 | 출력 | `done` | Done | data | false | 모든 반복 회차가 끝난 뒤 `{ mapped, count }` 형태로 다음 노드에 넘긴다 |
 
-Map 은 동적 포트가 없다. 포트 표와 REQ-MAP-018 은 노드 정의에 둔 포트만 다룬다. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 동적 에러 포트는 노드 공통 규칙이고 아직 구현되지 않았다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5).
+Map 은 동적 포트가 없다. 포트 표와 REQ-MAP-018 은 노드 정의에 둔 포트만 다룬다. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 동적 에러 포트는 노드 공통 규칙이다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5).
 
 ## 실행 로직
 
@@ -158,9 +158,9 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 | `meta.iterations` | number | 엔진 주입 | 본문 실행 횟수. 실패로 `_skipped` 표시가 된 인덱스도 본문이 돌았으므로 센다. Loop 의 `output.iterations`(배열)와 다르다 |
 | `meta.skippedCount?` | number | 엔진 주입 | `mapped` 안의 `_skipped` 마커 수(`skip` / `continue` 로 처리한 실패 항목 수). 0건이면 필드 자체를 뺀다 |
 
-완료 `output` 과 `meta` 는 park · 재구동 없이 이어진 실행에서 다음 노드 표현식이 읽는 값이다. 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에는 아직 시작 시점 반환값이 남는다. 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓴다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+완료 `output` 과 `meta` 는 다음 노드 표현식이 읽는 값이다. 엔진은 본문이 다 돈 뒤에 노드 실행 행을 한 번 마감하므로 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에도 이 완료 출력이 남는다. 본문이 도는 동안 행은 `running` 이다. 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓰므로 완료 출력을 본다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
 
-완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간은 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항)). ForEach · Loop · Parallel 도 같다.
+완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 반복 회차까지 포함한 노드 전체 실행 시간이다. `meta.durationMs` 를 두지 않는 이유는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다. ForEach · Loop · Parallel 도 같다.
 
 표현식 접근 예:
 
@@ -182,7 +182,7 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 | 모든 회차 완료(`done`) | `{ mapped: [...], count: N }` | **엔진이 덮어쓴다** |
 
 1. 핸들러는 시작 시점에 한 번만 실행돼 `output: items` (배열)를 반환한다(`map.handler.ts`). 엔진의 `ForEachExecutor` 는 이 배열을 본문 분배 입력으로 쓰고 모든 회차가 끝나면 핸들러를 다시 부르지 않고 `{ mapped, count }` 로 노드 출력의 `output` 을 덮어쓴다.
-2. park · 재구동 없이 이어진 실행에서 다음 노드는 완료 시점 형태(`output.mapped[i]` / `output.count`)만 보고 시작 시점의 원래 배열은 보지 않는다. rehydration 뒤에는 시작 시점 배열을 본다(미구현, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#미결-사항)).
+2. 다음 노드는 완료 시점 형태(`output.mapped[i]` / `output.count`)만 보고 시작 시점의 원래 배열은 보지 않는다. park 뒤 재개나 재구동으로 rehydration 한 뒤에도 같다. 엔진이 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하기 때문이다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
 3. 컬렉션 키는 ForEach 의 `items`, Loop 의 `iterations`, Parallel 의 `branches` 와 모두 다르다. Map 의 컬렉션 키는 반드시 `mapped` 다.
 
 핸들러가 `null` 이 아닌 배열을 반환해도 엔진이 덮어쓰는 규칙은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#91-계약) 의 9.1 이 정한다.
@@ -243,3 +243,15 @@ Map 은 `inputField` 가 배열이 아니면 원시값 · 객체까지 모두 `[
 ### 실패한 회차의 `error.code` 를 ForEach · Parallel 과 같은 규칙으로 고른다 (2026-11-05)
 
 Map 은 ForEach 실행기를 함께 써서 `mapped[i]` 의 `_skipped` 표시에 실행기가 고른 `error.code` 를 그대로 싣는다. 그전 값은 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-MAP-021). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. Map 만 따로 바꾸면 같은 실행기의 ForEach 와 값이 갈려 함께 바꿨다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.
+
+### 동적 에러 포트 미구현 서술을 지운다
+
+결정일: 2026-11-15
+
+포트 절은 에러 처리 정책 "에러 포트로 라우팅" 으로 생기는 동적 에러 포트가 아직 구현되지 않았다고 적었다. NERV Task `CLE-T-K0Y546` 이 이 포트를 구현해서 그 서술을 지웠다. 문서가 정하는 동작은 바뀌지 않는다. 기존 워크플로우 영향은 없다.
+
+### 완료 출력의 범위 단서를 걷는다 (2026-11-15)
+
+2026-10-24 구현 확인 때 이 문서는 완료 출력이 park · 재구동 없이 이어진 실행에서만 보인다는 조건을 붙여 적었다. 노드 실행 기록 · completed 이벤트 · rehydration 에 시작 시점 배열이 남았기 때문이다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았다. 그래서 범위 단서와 `(부분 구현)` 표시를 걷고 원래 서술로 돌렸다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
+
+기존 워크플로우 영향: 결과 값과 다음 노드 표현식은 바뀌지 않는다. 실행 내역 · 통계에 보이는 이 노드의 실행 시간은 노드 전체 기준으로 길어진다.

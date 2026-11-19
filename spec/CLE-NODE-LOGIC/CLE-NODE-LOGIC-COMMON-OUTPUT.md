@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON-OUTPUT"
 title: "Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기"
 type: "convention"
-version: 2
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-LOGIC-COMMON"]
 area: "CLE-NODE-LOGIC"
-content_hash: "1d7f92c2460bfde82c56cd631d6f0a5598d13263650009248f43c9963b90d6cb"
+content_hash: "09be7dc98ee9c8f70ba3df9b71e9fc173c031d8de0ed0b0b89e1776e256401b1"
 read_as: "approved_fallback"
-task: "CLE-T-0R8F99"
+task: "CLE-T-JXD0W5"
 source_paths: []
-mirror_sha256: "7660d9d5fa33b67757d57bfb5a603ae4d7b0f56c711e9852c252d5dab16ac1a4"
-etag: "sha256-7ce0a999c0a8178032cb218eb7282fb5c1f75efe16c572cf684684bf6e947a96"
+mirror_sha256: "06b4aaedf86d18ef8ea14d997be4355a3e1a3028a6733b616f2180d667613eaf"
+etag: "sha256-d6ba0a3ee7f60abed8a74eef1f2cd9fe433535394c27922e5539ecd986a67168"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-7ce0a999c0a8178032cb218eb7282fb5c1f75efe16c572cf684684bf6e947a96"
 2. 일반 노드의 에러 처리 정책은 별개 설정인 `config.errorHandling.{policy, retryConfig, defaultOutput}` (5값 enum)이다. 자세한 규칙은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 정한다.
 3. 한 노드에서 `config.errorPolicy` 와 `config.errorHandling` 을 같은 뜻으로 섞어 쓰지 않는다. ForEach · Map · Parallel 에는 두 키가 함께 있을 수 있다. 현재 구현은 이 세 노드의 `config.errorHandling` 을 그 노드의 핸들러 호출이 실패할 때만 적용한다. 반복 회차나 병렬 분기를 실행하는 단계에서 그 노드 자신이 실패하면 `config.errorHandling` 을 적용하지 않는다. 다만 Parallel 은 `config.errorPolicy` 가 비었을 때만 `config.errorHandling.policy` 를 읽어 항목 에러 정책 값으로 바꿔 쓴다([Parallel 노드](CLE-NODE-PARALLEL.md)). Logic 노드도 다른 노드처럼 에러 처리 정책 다섯 가지를 모두 고를 수 있다. 카테고리로 선택지를 막지 않는다([Logic 노드의 에러 처리 정책 선택지를 막지 않는다](CLE-NODE-LOGIC-COMMON.md#logic-노드의-에러-처리-정책-선택지를-막지-않는다-2026-10-24)).
 4. 설정 패널은 ForEach · Map · Parallel 의 `config.errorPolicy` 를 에러 처리 정책으로 옮기지 않는다. 저장할 때 지우지도 않는다(`node-settings-panel.tsx` 의 `ITEM_ERROR_POLICY_NODE_TYPES`). 다른 노드에서 이 키를 옛 키로 보고 옮기는 규칙과 결정 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
-5. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 노드에 생기는 동적 에러 포트는 노드 공통 규칙이고 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 이 정한다. 이 동적 에러 포트는 아직 구현되지 않았다. Logic 노드에는 고정 `error` 포트도 없으므로 지금은 `error` 연결선을 이을 수 없다. 이 정책을 고른 Logic 노드가 실패하면 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 의 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다. 각 Logic 노드 문서의 "에러 포트 · 동적 포트를 두지 않는다" 요구는 노드 정의에 둔 고정 포트와 데이터 동적 포트만 가리킨다. 에러 처리 정책으로 생기는 동적 에러 포트는 이 규칙과 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다.
+5. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 노드에 생기는 동적 에러 포트는 노드 공통 규칙이고 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 이 정한다. 고정 `error` 포트가 없는 Logic 노드도 이 정책을 고르면 동적 에러 포트가 생기고 `error` 연결선을 이을 수 있다. 노드가 실패하면 엔진은 이 연결선으로 보낸다. 연결선이 없으면 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 의 연결선이 없을 때 규칙을 따른다. 각 Logic 노드 문서의 "에러 포트 · 동적 포트를 두지 않는다" 요구는 노드 정의에 둔 고정 포트와 데이터 동적 포트만 가리킨다. 에러 처리 정책으로 생기는 동적 에러 포트는 이 규칙과 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다.
 
 **Map / ForEach** — `stop` / `skip` / `continue` (`map.schema.ts`, `foreach.schema.ts`):
 
@@ -70,7 +70,7 @@ Logic 노드는 모두 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) �
 |------|---------------------------|
 | `config` | 설정 에코(config echo). `conditions[]` 같은 표현식 `{{ }}` 은 평가 전 형태로 남긴다. Logic 카테고리에는 자격 증명·민감 필드가 없다 |
 | `output` | If/Else · Switch · 변수 선언 · 변수 수정 · Background(`main` 포트)는 입력을 그대로 넘긴다([패스스루 규약](CLE-NODE-LOGIC-COMMON.md#패스스루-규약)). Filter 는 입력 배열을 두 부분집합으로 나눈 결과다. 엔진 덮어쓰기 대상 노드(loop, foreach, map, parallel)는 [엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 을 따른다. Split · Merge 는 계산 결과다 |
-| `meta` | 실행 메트릭만 싣는다. Loop · ForEach · Map 은 완료 시점에 `meta.iterations` 를 싣는다. ForEach · Map 은 실패 항목이 있을 때 `meta.skippedCount` 를 더 싣는다. Loop 는 `meta.maxIterationsReached` · `meta.exitReason` 을 더 싣는다. Split · ForEach · Map · Filter 는 `meta.fellBackToEmpty` 를 싣는다([배열이 아닌 입력 처리](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리)). Filter 는 `meta.matchedCount` · `unmatchedCount` · `totalCount` 도 싣는다([Filter 노드](CLE-NODE-FILTER.md)). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency` 를 싣는다. 조건 노드는 `meta.conditionResult?` / `matchedConditions?` 를 싣는다. `meta.durationMs` 를 누가 채우는지는 노드 문서가 정한다. 엔진 덮어쓰기 대상 노드의 완료 `meta` 에는 `meta.durationMs` 가 없다. `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 핸들러 실행 시간이고 노드 전체 실행 시간을 둘 곳은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#미결-사항) 의 미결 사항에서 정한다 |
+| `meta` | 실행 메트릭만 싣는다. Loop · ForEach · Map 은 완료 시점에 `meta.iterations` 를 싣는다. ForEach · Map 은 실패 항목이 있을 때 `meta.skippedCount` 를 더 싣는다. Loop 는 `meta.maxIterationsReached` · `meta.exitReason` 을 더 싣는다. Split · ForEach · Map · Filter 는 `meta.fellBackToEmpty` 를 싣는다([배열이 아닌 입력 처리](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리)). Filter 는 `meta.matchedCount` · `unmatchedCount` · `totalCount` 도 싣는다([Filter 노드](CLE-NODE-FILTER.md)). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency` 를 싣는다. 조건 노드는 `meta.conditionResult?` / `matchedConditions?` 를 싣는다. `meta.durationMs` 를 누가 채우는지는 노드 문서가 정한다. 엔진 덮어쓰기 대상 노드의 완료 `meta` 에는 `meta.durationMs` 를 싣지 않는다. 이 노드들의 노드 전체 실행 시간(핸들러와 본문)은 `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 에 있다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)) |
 | `port` | If/Else 는 `'true'` / `'false'`, Switch 는 케이스 ID 또는 `'default'`, Background 는 `'main'`. Parallel 은 시작할 때 `string[]`(병렬 분기 전부), 끝날 때 `'done'`. Loop · ForEach · Map 은 노드 출력에 `port` 를 싣지 않고 엔진이 `done` 연결선을 활성화한다. Filter 는 `port` 없이 두 포트를 모두 활성화한다. 출력이 하나인 노드는 `undefined` |
 | `status` | Logic 노드는 모두 블로킹하지 않으므로 `undefined` 다 |
 
@@ -80,8 +80,8 @@ Logic 노드는 모두 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) �
 
 1. **시작 시점**(본문 진입 직전): 핸들러가 한 번 실행된다. ForEach 와 Map 은 `output: items[]` 를 반환하고 엔진은 이 배열을 본문 반복 회차 입력으로 나눠 준다. Loop 와 Parallel 은 `output: null` 을 반환한다.
 2. **완료 시점**(모든 반복 회차가 끝난 뒤): 엔진이 핸들러를 다시 부르지 않고 `output` 을 `{ <컬렉션 키>: [...], count: N }` 으로 직접 덮어쓴다. 핸들러는 두 번째로 호출되지 않는다. ForEach 와 Parallel 은 실패가 있을 때 `skipped` 를 더 싣는다([반복 결과 출력 구조](#반복-결과-출력-구조) 3번).
-3. 시작 시점의 `output: items[]` 는 엔진 안에서만 쓰는 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 park · 재구동 없이 이어진 실행에서는 다음 노드 표현식(`$node["X"].output.*`)에 이 배열이 드러나지 않는다. 실행 내역 API 가 읽는 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트(엔진 상수 `NODE_COMPLETED`)에는 아직 시작 시점 배열이 남는다. 재개 · 재구동 때는 이 저장값으로 실행 컨텍스트를 rehydration 하므로 그 뒤 노드 표현식도 시작 시점 배열을 읽는다. 이 부분은 구현되지 않았고 부모 문서의 [미결 사항](CLE-NODE-LOGIC-COMMON.md#미결-사항) 에서 다룬다. (부분 구현)
-4. 다음 노드는 `done` 포트 뒤에서 `{ <컬렉션 키>, count }` 형태를 본다. 지금은 규칙 3 대로 park · 재구동 없이 이어진 실행에서만 그렇다.
+3. 시작 시점의 `output: items[]` 는 엔진 안에서만 쓰는 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 다음 노드 표현식(`$node["X"].output.*`)에 이 배열이 드러나지 않는다. 엔진은 노드 실행 기록(`node_execution`)을 본문이 끝난 뒤 한 번 마감한다. 그래서 실행 내역 API 가 읽는 `output_data` 와 `execution.node.completed` 이벤트(엔진 상수 `NODE_COMPLETED`)에도 완료 출력이 남는다. 재개 · 재구동 때는 이 저장값으로 실행 컨텍스트를 rehydration 하므로 그 뒤 노드 표현식도 완료 출력을 읽는다. [단일 노드 실행](../CLE-EXEC/CLE-EXEC-RUN.md) 은 본문을 돌지 않으므로 핸들러 반환값이 그대로 남는다. 행 마감 규칙은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기) 이 정한다.
+4. 다음 노드는 `done` 포트 뒤에서 `{ <컬렉션 키>, count }` 형태를 본다. park 뒤 재개와 크래시 뒤 재구동 다음에도 같다.
 5. 덮어쓰기는 `output` 을 바꾼다. `meta` 는 규칙 6 대로 합친다. `config` 는 핸들러가 반환한 그대로 남는다. Parallel 은 `port` 도 `'done'` 문자열로 바꾼다. Loop · ForEach · Map 은 노드 출력에 `port` 를 싣지 않는다.
 6. Loop · ForEach · Map 의 완료 시점 `meta` 는 핸들러가 시작 시점에 돌려준 `meta` 에 엔진이 잰 반복 메트릭을 합친 값이다. 같은 키가 겹치면 엔진 값을 쓴다. 그래서 ForEach · Map 의 `meta.fellBackToEmpty` 는 완료 출력에도 남는다. Parallel 은 핸들러 `meta` 를 합치지 않고 `clampedConcurrency` 만 싣는다. 이 값도 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 싣는다.
 7. Parallel 은 `PARALLEL_ENGINE=off` 되돌림 경로에서 덮어쓰기를 받지 않는다. 노드 출력은 시작 시점 형태(`output: null`, `port: string[]`)로 남는다([Parallel 노드](CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)).
@@ -109,6 +109,7 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하지만 엔진은 완료
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (엔진 덮어쓰기)
 - `codebase/backend/src/modules/execution-engine/containers/iteration-error-code.ts` (실패한 회차와 병렬 분기의 `error.code` 규칙 `resolveIterationErrorCode`)
 - `codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx` (`ITEM_ERROR_POLICY_NODE_TYPES`: 레거시 평면 키 이전에서 뺄 노드 유형)
+- `codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts` (동적 에러 포트, 항목 에러 정책 규칙 5)
 
 ## Rationale
 
@@ -116,7 +117,7 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하지만 엔진은 완료
 
 ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 다음 노드 표현식에 드러나게 하려는 형태는 `{ <컬렉션 키>, count }` 다. 핸들러 시그니처와 외부 노출 형태가 다른 것은 의도한 설계다. 노드 출력 5필드를 깨지 않고 나눠 줄 데이터를 엔진에 넘기는 방법이 이것이기 때문이다.
 
-이 배열을 다음 노드 표현식과 외부에 드러내지 않는 것은 지금도 목표다. 2026-10-24 에 확인한 범위에서 park · 재구동 없이 이어진 실행의 다음 노드 표현식에는 이 배열이 드러나지 않는다. 노드 실행 기록 · 실행 이벤트와 rehydration 한 실행 컨텍스트에는 아직 남는다. 이 구현 갭은 부모 문서의 [미결 사항](CLE-NODE-LOGIC-COMMON.md#미결-사항) 이 맡는다.
+이 배열은 다음 노드 표현식과 외부에 드러내지 않는다. 노드 실행 기록 · 실행 이벤트와 rehydration 한 실행 컨텍스트에도 완료 출력이 남는다. 2026-10-24 구현 확인으로 이 서술을 조건부로 적었고 2026-11-15 NERV Task `CLE-T-JXD0W5` 가 갭을 닫아 원래 서술로 돌렸다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)).
 
 기각한 대안은 핸들러가 `null` 을 반환하고 별도 엔진 내부 채널로 배열을 넘기는 방식이다. 동작은 같은데 5필드 계약을 바꾸는 비용이 더 커서 채택하지 않았다.
 
@@ -152,3 +153,9 @@ ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code`
 ### Parallel `stop` 설명을 실행기 동작에 맞춘다 (2026-11-06)
 
 이 표는 Parallel 의 `stop` 을 "첫 병렬 분기가 실패하면 에러를 던진다" 로 적었다. 실행기는 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기 가운데 번호가 가장 작은 것의 에러를 던진다. [Parallel 노드](CLE-NODE-PARALLEL.md#stop-은-모든-병렬-분기를-기다린-뒤-실패를-던진다-2026-11-06) 가 같은 날 요구사항 문장을 이 동작에 맞췄고 이 표도 같은 말로 고쳤다. 동작을 바꾸지 않은 이유와 기각한 대안은 그 Rationale 에 있다. 기존 워크플로우 영향은 없다.
+
+### 동적 에러 포트 서술을 구현에 맞춘다
+
+결정일: 2026-11-15
+
+항목 에러 정책 규칙 5 는 동적 에러 포트가 아직 구현되지 않아 Logic 노드에 `error` 연결선을 이을 수 없다고 적었다. NERV Task `CLE-T-K0Y546` 이 고정 `error` 포트가 없는 노드에 동적 에러 포트를 구현해서 이 서술을 구현된 규칙으로 바꿨다(`CLE-T-RWHTXC`). 동작을 새로 정하지 않았고 연결선이 없을 때의 처리는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 그대로 정한다. 기존 워크플로우 영향은 없다.
