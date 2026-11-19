@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD-API"
 title: "Discord 어댑터 — API 호출과 UI 매핑"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DISCORD"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
-content_hash: "0d17a71ffde4956125992635740bf915e751433fd70bcf103f6165fe250b9dbb"
+content_hash: "9656a2c845cc504aa89190131b68bcbb6b5efb32d580c91c1ce05e27d4f7f1de"
 read_as: "approved_fallback"
-task: "CLE-T-ZGF71P"
+task: "CLE-T-D78VKM"
 source_paths: []
-mirror_sha256: "76a80104bcb2f0ae86fa13cffb0ab327a92a36e3fceffd4b57c92da53747fd60"
-etag: "sha256-0184f8f4c7272e863234e9f1781aec30f5b85b4df72052271b14c9bf3419d01d"
+mirror_sha256: "5be029c7d768ff6a93b9f74a9dbee94c919c4de02652cd2b44b35026ede4402f"
+etag: "sha256-897bf83fe6e65d5e27367c6a5150e6d4c9ac3359e5252b51dce7484f88f80ee4"
 ---
 ## 개요
 
@@ -140,7 +140,7 @@ Discord 로 보내는 메시지는 본문 글자를 바꾸지 않는다. 대신 
 아웃바운드는 CCH-MP-01 을 모두 만족한다.
 
 - `execution.ai_message.message` 를 `POST /channels/{id}/messages`(content, 평문 markdown)로 보낸다. Discord 는 자체 markdown 을 지원해 escape 하지 않는다. 멘션 알림은 [멘션 무력화](#멘션-무력화) 대로 막는다.
-- 2000자(`content` 한도)를 넘으면 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 마지막이 아닌 조각은 본문을 `2000 - 접미사 길이` 까지만 담아 접미사를 붙여도 2000자를 넘지 않는다.
+- 2000자(`content` 한도)를 넘으면 단어·문장 경계로 나누고 마지막 조각 전까지 `\n_(continued…)_` 를 붙인다. 접미사까지 2000자 안에 넣는다. 규칙은 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내 「긴 본문 나누기」](CLE-CHAT-ADAPTER-RENDER.md#긴-본문-나누기) 를 따른다.
 - 응답 직전 `POST /channels/{id}/typing` 을 한 번 보낸다(10초 자동 만료). 응답이 10초를 넘으면 5초마다 다시 보낸다.
 
 인바운드는 CCH-MP-01 을 일부 미룬다. v1 은 Interactions Webhook 만 써서 DM `MESSAGE_CREATE` 를 받지 못하므로 답장 경로는 둘로 제한된다([채팅 채널](CLE-CHAT-CORE.md) R-CC-13 이 이 부분 유예의 기준이다).

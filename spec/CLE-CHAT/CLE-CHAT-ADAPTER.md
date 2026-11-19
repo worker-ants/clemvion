@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER"
 title: "채팅 채널 어댑터 규약"
 type: "convention"
-version: 16
+version: 17
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "fb6903de8e9ce6abdfcdc418dbcb96f47d03917a834d8dc283903b887eb21191"
+content_hash: "91604fdb9f723294abca57411100e646a4a3f0e5b14630a3615874f2f1cd2ed6"
 read_as: "approved_fallback"
-task: "CLE-T-AAGZRW"
+task: "CLE-T-D78VKM"
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "ef31f9b5b5ac10a870dab1ba2b1c11e72da69504f3b44b4200c25b4cee58ad3e"
-etag: "sha256-a6daed13ca1a7b5fbb57f64c35a04f2bfafc958075307996058503f2b8c59521"
+mirror_sha256: "93aec744630dd7285f120f67fa8b7b12a79c8cf939dfed3401cb714f80266a1d"
+etag: "sha256-14172139bb27461fc4e560d20632542eb35a588ed48f9bbecc48fe7f95bfbc67"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -52,7 +52,7 @@ etag: "sha256-a6daed13ca1a7b5fbb57f64c35a04f2bfafc958075307996058503f2b8c59521"
 | [인터페이스와 함수 책임](CLE-CHAT-ADAPTER-IFACE.md) | `ChatChannelAdapter` 시그니처, 함수 책임 표, 인터랙션 기본 응답과 수신 확인, 인터랙션 기본 응답 타입 | 없음 |
 | [채널 등록 실패와 토큰 폐기](CLE-CHAT-ADAPTER-SETUP.md) | `setupChannel` 멱등의 뜻, 실패 판별(`BOT_TOKEN_INVALID`), 클라이언트 실패 판정(`ok: false`), 이전 봇 토큰 폐기 | 없음 |
 | [이벤트와 데이터 타입](CLE-CHAT-ADAPTER-TYPES.md) | `EiaEvent`, `ChatChannelInternalEvent`, `ChannelUpdate`, `ChannelMessage`, `ChatChannelConfig`, `SetupResult`·`SendResult` | 없음 |
-| [이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md) | 이벤트별 렌더 매핑, 시각형 렌더 입력, 실행 실패 안내 분류 | 없음 |
+| [이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md) | 이벤트별 렌더 매핑, 시각형 렌더 입력, 긴 본문 나누기, 실행 실패 안내 분류 | 없음 |
 | [Form 입력 흐름](CLE-CHAT-ADAPTER-FORM.md) | 네이티브 모달 경로, 다단계 질문, 네이티브 모달 타입 | 없음 |
 
 ## 채널 어댑터 인터페이스
@@ -131,10 +131,10 @@ interface ChannelAdapterRegistry {
 
 | 하위 문서 | Rationale 항목 |
 |---|---|
-| [인터페이스와 함수 책임](CLE-CHAT-ADAPTER-IFACE.md#rationale) | R1 책임 분리, R2 ack 와 escapeControlText, R-CCA-14 인터랙션 기본 응답과 버린 update 수신 확인 |
+| [인터페이스와 함수 책임](CLE-CHAT-ADAPTER-IFACE.md#rationale) | R1 책임 분리, R2 ack 와 escapeControlText, R-CCA-14 인터랙션 기본 응답과 버린 update 수신 확인, R-CCA-15 핸드셰이크 응답 선택 함수와 Telegram `answerCallbackQuery` 한 번 |
 | [채널 등록 실패와 토큰 폐기](CLE-CHAT-ADAPTER-SETUP.md#rationale) | R-CCA-9 실패 사유를 code 로 선언, R-CCA-10 이전 봇 토큰 폐기 시점, R-CCA-11 클라이언트 실패 `ok:false` 판정 |
 | [이벤트와 데이터 타입](CLE-CHAT-ADAPTER-TYPES.md#rationale) | R3 EiaEvent 를 EIA 에 맡긴다 |
-| [이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) | R-CCA-5 실행 실패 분류 함수, R-CCA-6 ai_conversation 입력 대기, R-CCA-7 renderNode union, R-CCA-12 uiMapping.visualNode, R-CCA-13 render_form 임시 텍스트 |
+| [이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) | R-CCA-5 실행 실패 분류 함수, R-CCA-6 ai_conversation 입력 대기, R-CCA-7 renderNode union, R-CCA-12 uiMapping.visualNode, R-CCA-13 render_form 임시 텍스트, 멘션 알림 끄기(번호 없음, 2026-11-14), R-CCA-16 따라가지 않은 3xx 안내, R-CCA-17 긴 본문 나누기와 코드 블록 |
 | [Form 입력 흐름](CLE-CHAT-ADAPTER-FORM.md#rationale) | R4 다단계 질문 강제, R-CCA-8 네이티브 폼 모달 예외 |
 
 다른 문서가 가리키는 항목은 다음과 같다.

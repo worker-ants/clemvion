@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK-INBOUND"
 title: "Slack 어댑터 — 인바운드 파싱과 명령"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-SLACK"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-SLACK"]
 area: "CLE-CHAT"
-content_hash: "ade4ac09a09f931204fc4429e15a15f83e9106948f724cf0c3ddc1859231586d"
+content_hash: "354d57096bfba2f5bbecacaae06b5f4ec00c219d8e0bc4c4b7dacba0e093aca5"
 read_as: "approved_fallback"
-task: "CLE-T-JK3ERX"
+task: "CLE-T-K57S4N"
 source_paths: []
-mirror_sha256: "1fc522531c8b5260f2fb7bb0a3cd24ed71fdf849be905ee8881d82976a9698ec"
-etag: "sha256-2d240ffe8ede89fc3d4169378a73d66b5b6b78a1eef316ac7b8fe5451d3bed97"
+mirror_sha256: "27bb5190dde7acdcd020e14baab62cb0417126685dab98545e7b896ccb037aee"
+etag: "sha256-4bd55fd33d25f14b79cbfaf4a68eb865b7512abbe94059ce564c98f612d60691"
 ---
 ## 개요
 
@@ -161,7 +161,7 @@ Telegram `/start` 와 뜻이 같고 slash command prefix 가 워크스페이스�
 
 이 결정 전에는 슬래시 명령에 `202` 와 `{ data }` 봉투로 답했다. Slack 은 슬래시 명령에 3초 안에 `200` 을 받지 못하면 사용자 화면에 오류를 표시해서 명령을 처리해도 오류가 떴다. `/<prefix> help` 는 파서가 `text_message`("help")로 바꿨는데 `HooksService` 는 텍스트가 정확히 `/help` 일 때만 도움말을 보내서 Slack 에서는 도움말이 나가지 않았다.
 
-이제 슬래시 명령에는 어느 경로로 끝나도 `200` 과 `{ response_type: 'ephemeral', text }` 로 답한다. [Discord 어댑터 「R-D-12 슬래시 명령은 본인에게만 보이는 type 4 로 바로 답하고 비활성 트리거도 인터랙션 응답으로 답한다」](CLE-CHAT-DISCORD.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다) 의 2026-11-12 결정과 같은 모양이라 두 프로바이더의 슬래시 명령이 같은 수신 문구와 같은 기본 도움말을 쓴다. 트리거가 비활성이어도 같은 응답으로 답한다. 응답은 요청 본문만 보고 외부 호출 없이 만들므로 비활성 트리거에서 외부 호출을 하지 않는다는 규칙을 그대로 지킨다([Slack 어댑터 「R-S-12」](CLE-CHAT-SLACK.md#r-s-12-interactivity-는-처리-결과와-트리거-상태에-관계없이-200-으로-답한다) 와 같은 근거).
+이제 슬래시 명령에는 어느 경로로 끝나도 `200` 과 `{ response_type: 'ephemeral', text }` 로 답한다. [Discord 어댑터 「R-D-12 슬래시 명령은 본인에게만 보이는 type 4 로 바로 답하고 비활성 트리거도 인터랙션 응답으로 답한다」](CLE-CHAT-DISCORD.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다) 의 2026-11-12 결정과 같은 모양이라 두 프로바이더의 슬래시 명령이 DM 에서는 같은 수신 문구와 같은 기본 도움말을 쓴다. DM 밖에서 친 명령의 응답은 다르고 이 절 끝 문단에 그 차이를 적는다. 트리거가 비활성이어도 같은 응답으로 답한다. 응답은 요청 본문만 보고 외부 호출 없이 만들므로 비활성 트리거에서 외부 호출을 하지 않는다는 규칙을 그대로 지킨다([Slack 어댑터 「R-S-12」](CLE-CHAT-SLACK.md#r-s-12-interactivity-는-처리-결과와-트리거-상태에-관계없이-200-으로-답한다) 와 같은 근거).
 
 도움말은 `ChannelUpdate` 의 새 kind 로 두지 않았다. 파서는 `help` 에 update 를 만들지 않고 어댑터의 기본 응답이 도움말을 싣는다. 파서와 어댑터는 같은 함수(`readSlackSlashInvocation`)로 하위 명령을 읽어 응답 문구와 파서가 만드는 명령이 서로 어긋나지 않는다.
 
@@ -170,3 +170,5 @@ Telegram `/start` 와 뜻이 같고 slash command prefix 가 워크스페이스�
 escape 는 `languageHints` 문구의 `<…>` 가 링크나 멘션 문법으로 해석되지 않게 하려는 것이다. Discord 슬래시 명령의 응답 문구는 escape 하지 않고 멘션 알림만 `allowed_mentions` 로 끈다([Discord 어댑터 — API 호출과 UI 매핑 「멘션 무력화」](CLE-CHAT-DISCORD-API.md#멘션-무력화)).
 
 기각한 대안은 빈 본문 `200` 만 돌려주는 안이다. 오류는 표시되지 않지만 사용자 화면에 아무것도 남지 않아 명령이 받아들여졌는지 알 수 없고 `help` 의 도움말도 실을 곳이 없어 메시지를 따로 보내야 한다. 이전처럼 `202` 와 `{ data }` 봉투로 답하는 안은 Slack 이 오류로 표시하므로 남길 수 없었다.
+
+DM 밖에서 친 명령의 응답은 Discord 와 다르다(NERV Task `CLE-T-K57S4N` 에서 의도한 차이로 정했다). Slack 은 `groupChatRefusal` 로 답하고([Slack 어댑터 「R-S-4」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 의 2026-11-14 결정), Discord 는 DM 밖 명령에도 수신 문구로 답한다([Discord 어댑터 — 인바운드 처리와 응답 「R-D-12」](CLE-CHAT-DISCORD-INBOUND.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다)). 두 프로바이더 모두 DM 밖 명령으로 실행을 시작하거나 취소하지 않으므로 보안 성질은 같고 사용자에게 보이는 문구만 다르다. Slack 은 앱의 슬래시 명령을 채널에서도 칠 수 있어서 봇과의 DM 으로 옮기라는 안내를 응답에 싣는다.
