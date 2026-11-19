@@ -2,19 +2,19 @@
 id: "CLE-API-WS-MSG"
 title: "WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "1baafe99a5a3e91a5329231d1954d770a2c2b63802d8b6c46997c6d5dc026315"
+content_hash: "c9ea983ff9dad0eeb48379bae57c68b57bdfd3180e6db107469cacce6c9fc67b"
 read_as: "approved_fallback"
-task: "CLE-T-7PTJAS"
+task: "CLE-T-A338CH"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "95c012c1c7e1d7d86c0eba740bda46c1a21db61441972e83890df0a589fa6b92"
-etag: "sha256-3d586a3c37b2bdcbf065bc9d938b31be049757d293ad7d5d6966e0a520b644f4"
+mirror_sha256: "8c105bc2b67032c308d06ce0f36ef313d4ba142fadc56fa1b5d255f4f14665aa"
+etag: "sha256-6bf711be144f8619494589280c88004b3ae109d7526f0d9b673fcd0f76bc556a"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§3 · §4 · §7 · §8, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -126,10 +126,10 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 - 워크스페이스 소유를 보는 구독 채널 인가기는 토큰 클레임의 워크스페이스가 그 리소스를 소유하는지만 확인한다(예: `execution:` 의 `verifyOwnership(executionId, workspaceId)`). 멤버십을 DB 에서 다시 확인하지 않는다([§2.2](CLE-API-WS-CONN.md#22-인증)).
 - `execution:` 구독 인가는 워크스페이스 소유만 보고 역할을 구분하지 않는다. 그래서 이 채널의 수신 인구는 `GET /api/executions/:id` 와 같고 이벤트 페이로드 마스킹 범위가 이 사실에서 나온다([응답 자격 증명 마스킹](CLE-API-EGRESS.md)).
 - `kb:`·`background:run:` 구독 인가도 워크스페이스 소유만 보고 역할을 구분하지 않는다. 뷰어도 받으므로 수신 인구가 `execution:` 과 같다. 그래서 두 채널의 발행에도 `execution:` wire 와 같은 값 마스킹(`maskWireEnvelope`)을 건다([응답 자격 증명 마스킹](CLE-API-EGRESS.md) §3.11).
-- 권한이 없으면 별도 `error` 메시지가 아니라 같은 `subscribed` ack 에 `success: false`, 평문 `error` 문자열, 구조화 `code` 를 실어 돌려준다. `code` 는 평문 `error` 에 **더해** 붙는 확장이라 옛 클라이언트는 계속 `error` 로 동작한다. 새 클라이언트는 `code` 로 분기한다. 아래는 핸들러 반환 형태이고 wire 에는 `data` 만 `subscribed` ack 이벤트로 간다(§4.3).
+- 권한이 없으면 별도 `error` 메시지가 아니라 같은 `subscribed` ack 에 `success: false`, 평문 `error` 문자열, 구조화 `code` 를 실어 돌려준다. `code` 는 평문 `error` 에 **더해** 붙는 확장이라 옛 클라이언트는 계속 `error` 로 동작한다. 새 클라이언트는 `code` 로 분기한다. 실패 응답에도 요청한 `channel` 을 싣는다. 요청의 `channel` 이 문자열이면 형식이 틀렸거나 빈 문자열이어도 그대로 돌려준다. 문자열이 아니거나 없으면 `channel` 필드를 뺀다. 클라이언트는 이 값으로 어느 구독의 실패인지 가린다. `channel` 이 없는 실패 응답(옛 서버)은 클라이언트가 자기 구독의 실패로 본다. 아래는 핸들러 반환 형태이고 wire 에는 `data` 만 `subscribed` ack 이벤트로 간다(§4.3).
 
 ```json
-{ "event": "subscribed", "data": { "success": false, "error": "Not authorized for this execution", "code": "FORBIDDEN" } }
+{ "event": "subscribed", "data": { "success": false, "error": "Not authorized for this execution", "code": "FORBIDDEN", "channel": "execution:550e8400-e29b-41d4-a716-446655440000" } }
 ```
 
 **거부 코드 매핑** (`handleSubscribe`, §7.1)
@@ -142,10 +142,12 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | 구독 한도(20) 초과 | `SUBSCRIPTION_LIMIT_EXCEEDED` (§4.5) |
 | join 실패 | `INTERNAL_ERROR` |
 
+표의 모든 거부 응답에 같은 규칙으로 `channel` 이 실린다.
+
 ### 4.5 최대 구독 수
 
 - 연결당 최대 동시 구독은 **20개**다(`MAX_SUBSCRIPTIONS_PER_CONNECTION`).
-- 넘으면 구독 ack 에 `{ success: false, error: "Maximum subscriptions (20) reached", code: "SUBSCRIPTION_LIMIT_EXCEEDED" }` 를 돌려준다. 평문 `error` 에 더해 구조화 `code` 를 싣는다.
+- 넘으면 구독 ack 에 `{ success: false, error: "Maximum subscriptions (20) reached", code: "SUBSCRIPTION_LIMIT_EXCEEDED", channel: "<요청한 채널>" }` 를 돌려준다. 평문 `error` 에 더해 구조화 `code` 를 싣는다.
 - 한도는 소켓 단위라 그 소켓이 붙은 서버 인스턴스가 센다. 다른 서버 인스턴스와 맞추지 않는다(§4.6).
 
 ### 4.6 여러 서버 인스턴스에서의 전달
@@ -185,7 +187,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 ### 7.2 에러 메시지 형식
 
 - 명령 ack 의 실패도 성공과 같은 ack 이벤트(`<명령>.ack` 등)로 온다. 핸들러 반환은 `{ event, data }` 이고 wire payload 는 `data` 다. 재개 명령 넷은 평면 `{ success: false, error, errorCode? }`, `retry_last_turn` 은 중첩 `{ success: false, ..., error: { code, message } }` 를 쓴다([WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)).
-- 구독 거부는 `subscribed` 이벤트의 payload `{ success: false, error, code }` 다(§4.4).
+- 구독 거부는 `subscribed` 이벤트의 payload `{ success: false, error, code, channel? }` 다. `channel` 을 싣는 규칙은 §4.4 가 정한다.
 - **빈도 제한 초과(`RATE_LIMITED`)와 등록되지 않은 이벤트(`UNKNOWN_TYPE`)** 는 ack 이벤트가 아니라 각각 NestJS `exception` 이벤트와 `error` 이벤트의 `{ code, message }` 로 나간다.
 - `error` 이벤트는 페이로드가 두 가지다. 핸드셰이크 에러는 `{ message }` 이고 `UNKNOWN_TYPE` 은 `{ code, message }` 다. 클라이언트는 `code` 가 있는지로 둘을 가른다.
 
@@ -250,3 +252,15 @@ NERV Task `CLE-T-4J965H` 가 구현했고 `CLE-T-7PTJAS` 가 스펙에 적었다
 - **유휴 TTL 을 Redis 키의 TTL 과 같게 둔 이유**: 미러가 Redis 키보다 먼저 사라지면 Redis 를 쓸 수 없게 됐을 때 이어받을 최고값을 잃는다. 두 값이 같으면 유휴 TTL 이 지났을 때 Redis 키도 이미 만료됐으므로 미러를 잃어 생기는 차이가 없다.
 - **상한을 둔 이유**: 유휴 TTL 만으로는 그 시간(기본 24시간) 안에 쌓이는 항목 수를 묶지 못한다. 상한이 서버 인스턴스 하나가 붙드는 항목 수를 묶는다.
 - **받아들인 비용**: 상한 때문에 항목을 지우면 두 가지를 잃을 수 있다. Redis 를 쓸 수 없는 구간에 미러를 잃은 실행은 `seq` 가 1부터 다시 나갈 수 있다. 진행 중인 실행의 라우팅 정보를 잃으면 그 뒤 이벤트의 외부 전달이 빠진다. 상한은 서버 인스턴스 하나가 동시에 붙드는 실행 수보다 훨씬 크게 잡았으므로 두 경우 모두 드물다.
+
+### 구독 실패 응답에 요청한 채널을 싣는 이유 (2026-11-19)
+
+NERV Task `CLE-T-A338CH` 에서 정한 결정이다. 같은 소켓이 실행 채널과 Background 카드 채널을 함께 구독한다. 그런데 실패 응답에는 채널이 없었다. 그래서 에디터는 다른 채널의 실패를 이 실행의 실패로 읽고 REST 폴링을 켰다. 예를 들면 `background:run:` 구독이 한도(20)나 인가로 거부된 경우다.
+
+- **결정**: 실패 응답에도 요청한 `channel` 을 싣는다(§4.4). 성공 응답 형식 `{ success: true, channel }` 과 `error` 문자열, `code` 는 바꾸지 않는다.
+- **옛 클라이언트**: 추가 필드라 옛 클라이언트에는 영향이 없다.
+- **형식이 틀린 문자열도 그대로 돌려주는 이유**: 클라이언트는 자기가 보낸 값과 응답의 `channel` 을 비교한다.
+- **문자열이 아닌 값을 빼는 이유**: 문자열이 아닌 값은 채널로 돌려줄 수 없다.
+- **`channel` 이 없는 응답을 자기 실패로 보는 이유**: 서버와 클라이언트를 어느 순서로 배포해도 옛 서버와 함께 동작하게 하려는 것이다.
+- **받아들인 비용**: 클라이언트는 `channel` 이 없는 실패 응답을 자기 실패로 본다. 그래서 옛 서버와 새 클라이언트가 함께 도는 동안에는 다른 채널의 실패로 폴링이 켜지는 일이 남는다. 이 실행의 데이터가 오면 폴링이 꺼지므로 이 비용을 받아들인다.
+- **존재 추론**: 돌려주는 `channel` 은 클라이언트가 보낸 값 그대로다. 서버가 아는 정보를 더하지 않으므로 리소스가 있는지 드러내지 않는다. 거부 사유는 지금처럼 `code` 와 `error` 로만 알린다.
