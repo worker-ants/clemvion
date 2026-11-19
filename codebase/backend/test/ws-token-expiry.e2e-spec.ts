@@ -27,7 +27,7 @@ const JWT_SECRET =
   process.env.JWT_SECRET ?? 'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7';
 
 /** 짧은 토큰의 남은 수명(초). 연결 · 통지 확인을 마치기에 넉넉하고 기다리기에 짧은 값이다. */
-const SHORT_TOKEN_TTL_S = 5;
+const SHORT_TOKEN_TTL_S = 10;
 
 /** 컨테이너 사이 시계와 타이머 지연을 감안한 허용 오차. */
 const CLOCK_TOLERANCE_MS = 1_000;
@@ -80,6 +80,7 @@ describe('WebSocket 연결 중 토큰 만료 (e2e)', () => {
       {
         onCreated: (socket) => {
           notice$ = waitForEvent(socket, 'auth.token_expired');
+          notice$.catch(() => undefined);
           disconnect$ = waitForEvent(socket, 'disconnect', {
             timeoutMs: SHORT_TOKEN_TTL_S * 1000 + 10_000,
           });
@@ -102,6 +103,8 @@ describe('WebSocket 연결 중 토큰 만료 (e2e)', () => {
     const reason = await disconnect$;
     expect(reason).toBe('io server disconnect');
     expect(Date.now()).toBeGreaterThanOrEqual(expMs - CLOCK_TOLERANCE_MS);
+    // 서버가 exp 보다 한참 늦게 끊는 경우도 잡는다.
+    expect(Date.now()).toBeLessThanOrEqual(expMs + 5_000);
 
     // 새 토큰(로그인으로 받은 정상 토큰)으로 다시 붙는다.
     const socket = await connectWs(BASE_URL, accessToken);

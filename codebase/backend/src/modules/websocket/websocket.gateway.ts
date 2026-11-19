@@ -98,6 +98,15 @@ function subscribeRejected(
   };
 }
 
+/** 연결당 구독 한도 초과 거부. 한도 검사 세 곳이 같은 응답을 쓴다. */
+function subscriptionLimitRejected(requested: unknown) {
+  return subscribeRejected(
+    requested,
+    `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
+    WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
+  );
+}
+
 /**
  * refactor 03 C-4 — 인증된 WS 소켓. `handleConnection` 이 JWT 검증 성공 시
  * `userId`/`workspaceId` 를 enrich 한다(실패 시 즉시 disconnect). 명령·구독
@@ -400,11 +409,7 @@ export class WebsocketGateway
     }
 
     if (clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION) {
-      return subscribeRejected(
-        channel,
-        `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
-        WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
-      );
+      return subscriptionLimitRejected(channel);
     }
 
     // W-13: 채널별 인가는 strategy 맵을 lookup — 새 채널 추가 시 본 함수
@@ -458,11 +463,7 @@ export class WebsocketGateway
       isNewSubscription &&
       clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION
     ) {
-      return subscribeRejected(
-        channel,
-        `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
-        WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
-      );
+      return subscriptionLimitRejected(channel);
     }
     clientSubs.add(channel);
     if (clientSubs.size > MAX_SUBSCRIPTIONS_PER_CONNECTION) {
@@ -470,11 +471,7 @@ export class WebsocketGateway
       // 즉시 롤백하고 거부. Set.add 가 이미 있는 키면 size 증가 없으므로
       // 재구독 경로에는 영향 없음.
       clientSubs.delete(channel);
-      return subscribeRejected(
-        channel,
-        `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
-        WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
-      );
+      return subscriptionLimitRejected(channel);
     }
     // M-3 (06 concurrency) — join 을 await 하고 실패 시 tentative-add 를 롤백한다.
     // 메모리 adapter 와 지금 쓰는 Redis adapter(CLE-API-WS-MSG §4.6) 모두 join 이 로컬

@@ -7,16 +7,7 @@ import {
   UserThrottlerGuard,
 } from './user-throttler.guard';
 
-/**
- * UserThrottlerGuard.getTracker 4분기 단위 테스트 (사용자당 요청 빈도 제한,
- * [HTTP API 요청 빈도 제한](CLE-API-CONV-RATE#7-요청-빈도-제한)).
- * getTracker 는 protected 라 서브클래스로 노출해 직접 호출한다. ThrottlerGuard
- * 의 생성자 의존성은 본 테스트에서 사용하지 않으므로 Object.create 로 우회한다.
- */
-/**
- * 한도 1 의 전역 가드를 만든다. 저장소는 정리 타이머(`sweepInterval`)를 띄우므로 테스트마다
- * `afterEach` 에서 `onApplicationShutdown` 으로 멈춘다. 멈추지 않으면 Jest 가 열린 핸들을 남긴다.
- */
+// 테스트마다 만든 저장소. afterEach 에서 정리 타이머를 멈춘다.
 const openStorages: ThrottlerStorageService[] = [];
 
 afterEach(() => {
@@ -25,6 +16,10 @@ afterEach(() => {
   }
 });
 
+/**
+ * 한도 1 의 전역 가드를 만든다. 저장소는 정리 타이머(`sweepInterval`)를 띄우므로 테스트마다
+ * `afterEach` 에서 `onApplicationShutdown` 으로 멈춘다. 멈추지 않으면 Jest 가 열린 핸들을 남긴다.
+ */
 async function buildLimitOneGuard(): Promise<UserThrottlerGuard> {
   const storage = new ThrottlerStorageService();
   openStorages.push(storage);
@@ -43,6 +38,12 @@ class TestableGuard extends UserThrottlerGuard {
   }
 }
 
+/**
+ * UserThrottlerGuard.getTracker 4분기 단위 테스트 (사용자당 요청 빈도 제한,
+ * [HTTP API 요청 빈도 제한](CLE-API-CONV-RATE#7-요청-빈도-제한)).
+ * getTracker 는 protected 라 서브클래스로 노출해 직접 호출한다. ThrottlerGuard
+ * 의 생성자 의존성은 본 테스트에서 사용하지 않으므로 Object.create 로 우회한다.
+ */
 describe('UserThrottlerGuard.getTracker', () => {
   let guard: TestableGuard;
 
