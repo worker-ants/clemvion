@@ -572,6 +572,131 @@ describe('마지막 턴 재시도 · 종결 가드의 조건부 UPDATE (실제 P
     });
   });
 
+  // CLE-T-T9HZX7 — 같은 실행의 형제 재시도(서로 다른 노드 실행 행)는 G2 의 배달 claim 이 행마다 따로라 서로 막지 못한다.
+  // 실행 행의 조건부 UPDATE(`status = 'failed' AND finished_at IS NOT NULL`)가 하나만 들여보내고, 비운 finished_at 이
+  // 「재시도 턴이 도는 중」 표시가 된다.
+  describe('G6 · applyRetryLastTurn 의 실행 단위 claim (`status = failed` + `finished_at IS NOT NULL`)', () => {
+    /** 같은 실행 아래 spawn 된 새 행 두 개. 서로 다른 노드 실행 행의 재시도다. */
+    async function seedSiblingSpawnedRows(): Promise<{
+      executionId: string;
+      spawnedIds: [string, string];
+    }> {
+      const { executionId, spawnedId } = await seedSpawnedRetryRow();
+      const sibling = await insertNodeExecution(
+        executionId,
+        NodeExecutionStatus.RUNNING,
+        { inputData: { _retryState: retryStateFixture() } },
+      );
+      return { executionId, spawnedIds: [spawnedId, sibling] };
+    }
+
+    it('형제 재시도 둘이 함께 와도 한 배달만 턴을 처리하고 다른 배달은 새 행을 failed 로 마감한다', async () => {
+      const { executionId, spawnedIds } = await seedSiblingSpawnedRows();
+      orchestrator.processAiResumeTurn.mockResolvedValue(PARK_RELEASED);
+      const fire = (id: string) => () =>
+        retry.applyRetryLastTurn(executionId, id).then(() => id);
+
+      // 두 배달 모두 각자의 배달 claim 과 무락 실행 조회(`failed`)를 지나 실행 claim UPDATE 에서 locker 를 기다린다.
+      // 풀린 뒤 먼저 커밋한 쪽이 finished_at 을 비우고, 다음 쪽은 다시 평가한 `finished_at IS NOT NULL` 이 거짓이라 0행이다.
+      await raceUnderHeldLock(locker, lockExecutionRow(executionId), [
+        fire(spawnedIds[0]),
+        fire(spawnedIds[1]),
+      ]);
+
+      expect(orchestrator.processAiResumeTurn).toHaveBeenCalledTimes(1);
+      const started = emitter.emitNode.mock.calls.filter(
+        (call) => call[2] === NodeEventType.NODE_STARTED,
+      );
+      const failed = emitter.emitNode.mock.calls.filter(
+        (call) => call[2] === NodeEventType.NODE_FAILED,
+      );
+      expect(started).toHaveLength(1);
+      expect(failed).toHaveLength(1);
+      const winner = (started[0][3] as { nodeExecutionId: string })
+        .nodeExecutionId;
+      const loser = spawnedIds.find((id) => id !== winner)!;
+      expect(failed[0][3]).toMatchObject({
+        nodeExecutionId: loser,
+        status: NodeExecutionStatus.FAILED,
+        error:
+          'Retry re-entry rejected: another retry of this execution is running',
+      });
+
+      const loserRow = await db.query<{
+        status: string;
+        error: Record<string, unknown> | null;
+        finished_at: Date | null;
+      }>(
+        'SELECT status, error, finished_at FROM node_execution WHERE id = $1',
+        [loser],
+      );
+      expect(loserRow.rows[0]).toMatchObject({
+        status: NodeExecutionStatus.FAILED,
+        error: {
+          message:
+            'Retry re-entry rejected: another retry of this execution is running',
+        },
+      });
+      expect(loserRow.rows[0].finished_at).toBeInstanceOf(Date);
+      expect((await readNodeExecution(winner)).status).toBe(
+        NodeExecutionStatus.RUNNING,
+      );
+
+      // 이긴 쪽이 옛 실패 필드를 DB 에서 비웠다. 상태는 턴 끝 전이 전이라 아직 `failed` 다.
+      expect(await readExecution(executionId)).toMatchObject({
+        status: ExecutionStatus.FAILED,
+        finished_at: null,
+        duration_ms: null,
+        error: null,
+      });
+    });
+
+    it('재시도 턴이 도는 동안(finished_at 없음) 들어온 형제 재시도 명령은 `_retryState` 를 소비하지 않고 거절된다', async () => {
+      const { executionId, failedNodeExecutionId, retryState } =
+        await seedRetryableFailure();
+      // 다른 행의 재시도 턴이 실행 claim 을 쥔 상태.
+      await db.query(
+        'UPDATE execution SET finished_at = NULL, error = NULL, duration_ms = NULL WHERE id = $1',
+        [executionId],
+      );
+
+      await expect(
+        retry.retryLastTurn(executionId, failedNodeExecutionId),
+      ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_STATE' });
+
+      const original = await readNodeExecution(failedNodeExecutionId);
+      expect(original.output_data).toMatchObject({ _retryState: retryState });
+      const rows = await db.query(
+        'SELECT id FROM node_execution WHERE execution_id = $1',
+        [executionId],
+      );
+      expect(rows.rowCount).toBe(1);
+    });
+
+    it('이긴 턴이 다시 실패하면 finished_at 이 다시 써져 표시가 풀리고 형제 재시도를 받는다', async () => {
+      const { executionId, spawnedIds } = await seedSiblingSpawnedRows();
+      orchestrator.processAiResumeTurn.mockRejectedValueOnce(
+        new Error('rate limited again'),
+      );
+
+      await retry.applyRetryLastTurn(executionId, spawnedIds[0]);
+
+      const afterFailure = await readExecution(executionId);
+      expect(afterFailure.status).toBe(ExecutionStatus.FAILED);
+      expect(afterFailure.finished_at).toBeInstanceOf(Date);
+      expect(afterFailure.error).toEqual({ message: 'rate limited again' });
+
+      orchestrator.processAiResumeTurn.mockResolvedValueOnce(PARK_RELEASED);
+      await retry.applyRetryLastTurn(executionId, spawnedIds[1]);
+
+      expect(orchestrator.processAiResumeTurn).toHaveBeenCalledTimes(2);
+      expect(await readExecution(executionId)).toMatchObject({
+        status: ExecutionStatus.FAILED,
+        finished_at: null,
+      });
+    });
+  });
+
   describe('G3 · finalizeGuarded 의 취소 멱등 분기 (`COALESCE` + `setParameter` + `.returning`)', () => {
     it('먼저 커밋된 Stop 의 finished_at · duration_ms 를 보존하고 그 값을 이벤트에 싣는다', async () => {
       const { executionId, spawnedId } = await seedSpawnedRetryRow();

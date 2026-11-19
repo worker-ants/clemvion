@@ -1191,6 +1191,61 @@ describe("마지막 턴 재시도 대기 표시", () => {
   });
 });
 
+// CLE-T-T9HZX7 — 워커가 재진입을 거절하면 실행 이벤트 없이 새 행의 `node.failed` 만 온다.
+// 실행은 처음부터 `failed` 라 `failExecution` 이 다시 불리지 않는다. 새 행의 실패 결과가 들어올
+// 때 재시도 대기와 응답 대기 표시를 끝내야 스피너가 남지 않는다.
+describe("마지막 턴 재시도의 새 행이 실패로 끝나면", () => {
+  beforeEach(() => {
+    useExecutionStore.getState().reset();
+    useExecutionStore.getState().startExecution("exec-1");
+    useExecutionStore
+      .getState()
+      .addNodeResult(
+        makeResult({ nodeId: "ai", nodeExecutionId: "ne-r", status: "failed" }),
+      );
+    useExecutionStore.getState().failExecution("LLM 429");
+    useExecutionStore.getState().setWaitingAiResponse(true);
+    useExecutionStore.getState().markLastTurnRetryPending("ne-r");
+  });
+
+  it.each(["failed", "cancelled"] as const)(
+    "같은 노드의 다른 행이 %s 로 들어오면 재시도 대기와 응답 대기를 끝내고 대화는 남긴다",
+    (status) => {
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "안녕",
+        turnIndex: 1,
+      } as ConversationItem);
+      useExecutionStore
+        .getState()
+        .addNodeResult(
+          makeResult({ nodeId: "ai", nodeExecutionId: "ne-new", status }),
+        );
+      const state = useExecutionStore.getState();
+      expect(state.pendingLastTurnRetry).toBeNull();
+      expect(state.isWaitingAiResponse).toBe(false);
+      expect(state.status).toBe("failed");
+      expect(state.conversationMessages).toHaveLength(1);
+      expect(state.nodeResults.map((r) => r.nodeExecutionId)).toEqual([
+        "ne-r",
+        "ne-new",
+      ]);
+    },
+  );
+
+  it.each([
+    ["새 행이 아직 running", { nodeId: "ai", nodeExecutionId: "ne-new", status: "running" }],
+    ["다른 노드의 실패", { nodeId: "other", nodeExecutionId: "ne-x", status: "failed" }],
+    ["재시도한 행 자신의 갱신", { nodeId: "ai", nodeExecutionId: "ne-r", status: "failed" }],
+    ["행 id 없는 갱신", { nodeId: "ai", nodeExecutionId: undefined, status: "failed" }],
+  ] as const)("%s 이면 대기를 그대로 둔다", (_name, row) => {
+    useExecutionStore.getState().addNodeResult(makeResult({ ...row }));
+    const state = useExecutionStore.getState();
+    expect(state.pendingLastTurnRetry).toEqual({ nodeExecutionId: "ne-r" });
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+});
+
 describe("selectShouldPoll", () => {
   it.each([
     ["idle", null, true],
