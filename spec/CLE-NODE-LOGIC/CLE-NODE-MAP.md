@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020", "REQ-MAP-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "38c79b000c401d04d5fe40d4e1692dfab6b76b9a701e65972208d30963157597"
+content_hash: "3310f13e93a6fcd7a23837fd4c462c2621f5d976d389132b3f37ed1199aa6e7a"
 read_as: "approved_fallback"
-task: "CLE-T-1W44RD"
+task: "CLE-T-RWHTXC"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "aedd33c922f16656255c387342d5511acc0438236e3224e64de10b88210c0873"
-etag: "sha256-ca8bd6e43e9820e73b100368cac50fac373d548ff83c642df4265e08196a6c32"
+mirror_sha256: "63a073a0919a51c6bacb0ee46843a29c3b44265f741e8294f1c583797cb5af64"
+etag: "sha256-ef5aefa4e2c7af113d6500de141cc5d0c9a9e2e5274bffa87f1fbf182e8c01f7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -75,7 +75,7 @@ Map 노드(Map, `map`)는 배열의 항목마다 컨테이너 본문을 실행�
 | 출력 | `body` | Body | data | false | 항목을 본문 첫 노드로 넘긴다(회차마다 1번) |
 | 출력 | `done` | Done | data | false | 모든 반복 회차가 끝난 뒤 `{ mapped, count }` 형태로 다음 노드에 넘긴다 |
 
-Map 은 동적 포트가 없다. 포트 표와 REQ-MAP-018 은 노드 정의에 둔 포트만 다룬다. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 동적 에러 포트는 노드 공통 규칙이고 아직 구현되지 않았다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5).
+Map 은 동적 포트가 없다. 포트 표와 REQ-MAP-018 은 노드 정의에 둔 포트만 다룬다. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 생기는 동적 에러 포트는 노드 공통 규칙이다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#항목-에러-정책) 규칙 5).
 
 ## 실행 로직
 
@@ -243,3 +243,9 @@ Map 은 `inputField` 가 배열이 아니면 원시값 · 객체까지 모두 `[
 ### 실패한 회차의 `error.code` 를 ForEach · Parallel 과 같은 규칙으로 고른다 (2026-11-05)
 
 Map 은 ForEach 실행기를 함께 써서 `mapped[i]` 의 `_skipped` 표시에 실행기가 고른 `error.code` 를 그대로 싣는다. 그전 값은 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-MAP-021). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. Map 만 따로 바꾸면 같은 실행기의 ForEach 와 값이 갈려 함께 바꿨다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.
+
+### 동적 에러 포트 미구현 서술을 지운다
+
+결정일: 2026-11-15
+
+포트 절은 에러 처리 정책 "에러 포트로 라우팅" 으로 생기는 동적 에러 포트가 아직 구현되지 않았다고 적었다. NERV Task `CLE-T-K0Y546` 이 이 포트를 구현해서 그 서술을 지웠다. 문서가 정하는 동작은 바뀌지 않는다. 기존 워크플로우 영향은 없다.

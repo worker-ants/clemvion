@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "6516361d6e9ebd56b0813553d943c0ab19f47b7a05e0db1cf1294276b24ee477"
+content_hash: "a59b3ca5b9d2cd82a67fac26a92c841c4398f46233da311d56344360e93755cc"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-RWHTXC"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "425b3a1940ced7e0636f8fe3ba03d81563a7bb4b142dd53ebd744fd0e841f4df"
-etag: "sha256-6cf7d912fe26114a7da62162f893b99352d5c2bb9833b1c7ede9721e0c3ba0ee"
+mirror_sha256: "4edaa2b4a28c5ef0c9f6af0eeb471d60dd692038133c42d3c67c5cfc39747e79"
+etag: "sha256-2f7c755348598434ce369089c3279197394af7e1117be294a19a74c8f2c7d1eb"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -244,7 +244,7 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
 
 ### Logic 노드의 에러 처리 정책 선택지를 막지 않는다 (2026-10-24)
 
-옛 노드 문서 12종은 런타임 에러 포트가 없다고 적었고 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 은 어떤 노드든 "에러 포트로 라우팅" 을 고르면 에러 포트가 생긴다고 적었다. 현재 설정 패널과 엔진은 노드 카테고리를 가리지 않고 다섯 정책을 모두 받는다. 그래서 현행대로 Logic 노드도 다섯 정책을 모두 고를 수 있게 둔다. 동적 에러 포트가 구현되기 전까지 "에러 포트로 라우팅" 은 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다.
+옛 노드 문서 12종은 런타임 에러 포트가 없다고 적었고 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 은 어떤 노드든 "에러 포트로 라우팅" 을 고르면 에러 포트가 생긴다고 적었다. 현재 설정 패널과 엔진은 노드 카테고리를 가리지 않고 다섯 정책을 모두 받는다. 그래서 현행대로 Logic 노드도 다섯 정책을 모두 고를 수 있게 둔다. 동적 에러 포트가 구현되기 전까지 "에러 포트로 라우팅" 은 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다. 2026-11-15 기준으로 동적 에러 포트가 구현됐다(NERV Task `CLE-T-K0Y546`). Logic 노드도 이 정책을 고르면 `error` 연결선을 이을 수 있다. 그 규칙은 [반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#항목-에러-정책) 규칙 5 가 정한다.
 
 기각한 대안은 두 가지다.
 

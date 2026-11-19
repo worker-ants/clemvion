@@ -211,10 +211,6 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
     [data.type, data.config, summaryContext, locale],
   );
   const showHeaderAdvisory = showSummary && advisoryWarnings.length > 0;
-  // 헤더 우측 정렬(`ml-auto`)을 이미 앞선 요소가 맡고 있는지. 헤더 아이콘이
-  // 늘면 여기만 고친다.
-  const headerHasLeadingItem =
-    showHeaderSummary || showHeaderWarning || showHeaderAdvisory;
 
   // §5 ⚠ Missing integration — category=integration 노드가 참조하는
   // integrationId. http_request 만 integrationId 가 `authentication ===
@@ -230,6 +226,19 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
     usesIntegrationId && typeof data.config.integrationId === "string"
       ? data.config.integrationId
       : "";
+
+  // 헤더 우측 요소는 아래 순서로 놓이고 우측 정렬(`ml-auto`)은 첫 요소만 받는다.
+  // 헤더 아이콘이 늘면 이 목록만 고친다. Missing integration 배지는 목록에 없는
+  // integration 일 때만 그려지지만 맨 끝이라 뒤 요소에 영향이 없다.
+  const headerRightLead = (
+    [
+      ["summary", showHeaderSummary],
+      ["warning", showHeaderWarning],
+      ["advisory", showHeaderAdvisory],
+      ["graphWarning", graphWarningSeverity !== null],
+      ["missingIntegration", integrationId !== ""],
+    ] as const
+  ).find(([, visible]) => Boolean(visible))?.[0];
 
   return (
     <div
@@ -282,7 +291,13 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         {showHeaderSummary && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="ml-auto shrink-0 truncate text-[10px] text-white/70" style={{ maxWidth: "60px" }}>
+              <span
+                className={cn(
+                  "shrink-0 truncate text-[10px] text-white/70",
+                  headerRightLead === "summary" && "ml-auto",
+                )}
+                style={{ maxWidth: "60px" }}
+              >
                 {displayText}
               </span>
             </TooltipTrigger>
@@ -295,7 +310,10 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
           <Tooltip>
             <TooltipTrigger asChild>
               <span
-                className="ml-auto shrink-0 inline-flex items-center justify-center text-white/70 hover:text-white transition-colors"
+                className={cn(
+                  "shrink-0 inline-flex items-center justify-center text-white/70 hover:text-white transition-colors",
+                  headerRightLead === "warning" && "ml-auto",
+                )}
                 role="img"
                 aria-label="warning"
               >
@@ -311,7 +329,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
               <span
                 className={cn(
                   "shrink-0 inline-flex items-center justify-center text-white/70 hover:text-white transition-colors",
-                  !showHeaderSummary && "ml-auto",
+                  headerRightLead === "advisory" && "ml-auto",
                 )}
                 role="img"
                 aria-label="advisory warning"
@@ -327,15 +345,14 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         )}
         {/* Cross-node graph-warning badge — distinct from the single-node
             config-summary warning above. Red for error, amber for warning.
-            `ml-auto` only when no header summary/warning already pushed to the
-            right, so the two never double up on the same slot. */}
+            `ml-auto` follows `headerRightLead`. */}
         {graphWarningSeverity && (
           <Tooltip>
             <TooltipTrigger asChild>
               <span
                 className={cn(
                   "shrink-0 inline-flex items-center justify-center rounded-full p-0.5",
-                  !headerHasLeadingItem && "ml-auto",
+                  headerRightLead === "graphWarning" && "ml-auto",
                   graphWarningSeverity === "error"
                     ? "bg-red-500 text-white"
                     : "bg-amber-400 text-amber-950",
@@ -359,12 +376,12 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         )}
         {/* §5 Missing integration 배지 — 참조하던 Integration 이 삭제된 잔존
             참조일 때. graph-warning(AlertTriangle) 배지와 구분되는 Unplug 아이콘·
-            별도 슬롯. integrationId 가 유효할 때만 mount 한다. ml-auto 는 앞선
-            우측 정렬 요소가 없을 때만 부여해 슬롯 중복을 피한다. */}
+            별도 슬롯. integrationId 가 유효할 때만 mount 한다. ml-auto 는
+            `headerRightLead` 를 따른다. */}
         {integrationId !== "" && (
           <MissingIntegrationBadge
             integrationId={integrationId}
-            pushToRight={!headerHasLeadingItem && !graphWarningSeverity}
+            pushToRight={headerRightLead === "missingIntegration"}
           />
         )}
       </div>

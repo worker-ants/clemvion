@@ -47,8 +47,8 @@ import {
   BUTTON_NODE_TYPES,
   isButtonNodeType,
   nextErrorReplacementId,
-  RESERVED_ERROR_PORT_ID,
 } from '../nodes/core/button-slug.util';
+import { RESERVED_ERROR_PORT_ID } from '../nodes/core/port-id.util';
 import { parseCliFlag } from './cli-utils';
 import { updateReturningRows } from '../common/utils/update-returning-rows';
 
@@ -196,7 +196,7 @@ export function renameReservedErrorButtonIds(
  * 버튼 연결선인지 에러 연결선인지 데이터만으로는 가를 수 없다.
  * 레거시 평면 키(`errorPolicy: 'error_port'`)도 같은 정책으로 본다.
  *
- * 프런트 `resolve-dynamic-ports.ts` 의 `routesToErrorPortOrLegacy` 는 엔진이 읽는
+ * 프런트 `resolve-dynamic-ports.ts` 의 `routesToErrorPort` 는 엔진이 읽는
  * `errorHandling.policy` 만 본다. 이 스크립트는 아직 옮기지 못한 저장 데이터를
  * 읽으므로 레거시 키까지 보고, 그래서 이름을 달리했다.
  */

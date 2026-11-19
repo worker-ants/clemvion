@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON-OUTPUT"
 title: "Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-LOGIC-COMMON"]
 area: "CLE-NODE-LOGIC"
-content_hash: "1d7f92c2460bfde82c56cd631d6f0a5598d13263650009248f43c9963b90d6cb"
+content_hash: "335a825aed1a5f578825ca2ebfe96d44d853de1935386c648a450b4c381808cf"
 read_as: "approved_fallback"
-task: "CLE-T-0R8F99"
+task: "CLE-T-RWHTXC"
 source_paths: []
-mirror_sha256: "7660d9d5fa33b67757d57bfb5a603ae4d7b0f56c711e9852c252d5dab16ac1a4"
-etag: "sha256-7ce0a999c0a8178032cb218eb7282fb5c1f75efe16c572cf684684bf6e947a96"
+mirror_sha256: "ba64173640b23ffa96b8e57e5c6881fcf76f917b4a3c0f302711b407cc8411da"
+etag: "sha256-13db851d3e8184a23a9c49b7f7a25f80da16801e3ce6ef4a357479c686d08f96"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-7ce0a999c0a8178032cb218eb7282fb5c1f75efe16c572cf684684bf6e947a96"
 2. 일반 노드의 에러 처리 정책은 별개 설정인 `config.errorHandling.{policy, retryConfig, defaultOutput}` (5값 enum)이다. 자세한 규칙은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 정한다.
 3. 한 노드에서 `config.errorPolicy` 와 `config.errorHandling` 을 같은 뜻으로 섞어 쓰지 않는다. ForEach · Map · Parallel 에는 두 키가 함께 있을 수 있다. 현재 구현은 이 세 노드의 `config.errorHandling` 을 그 노드의 핸들러 호출이 실패할 때만 적용한다. 반복 회차나 병렬 분기를 실행하는 단계에서 그 노드 자신이 실패하면 `config.errorHandling` 을 적용하지 않는다. 다만 Parallel 은 `config.errorPolicy` 가 비었을 때만 `config.errorHandling.policy` 를 읽어 항목 에러 정책 값으로 바꿔 쓴다([Parallel 노드](CLE-NODE-PARALLEL.md)). Logic 노드도 다른 노드처럼 에러 처리 정책 다섯 가지를 모두 고를 수 있다. 카테고리로 선택지를 막지 않는다([Logic 노드의 에러 처리 정책 선택지를 막지 않는다](CLE-NODE-LOGIC-COMMON.md#logic-노드의-에러-처리-정책-선택지를-막지-않는다-2026-10-24)).
 4. 설정 패널은 ForEach · Map · Parallel 의 `config.errorPolicy` 를 에러 처리 정책으로 옮기지 않는다. 저장할 때 지우지도 않는다(`node-settings-panel.tsx` 의 `ITEM_ERROR_POLICY_NODE_TYPES`). 다른 노드에서 이 키를 옛 키로 보고 옮기는 규칙과 결정 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
-5. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 노드에 생기는 동적 에러 포트는 노드 공통 규칙이고 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 이 정한다. 이 동적 에러 포트는 아직 구현되지 않았다. Logic 노드에는 고정 `error` 포트도 없으므로 지금은 `error` 연결선을 이을 수 없다. 이 정책을 고른 Logic 노드가 실패하면 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 의 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다. 각 Logic 노드 문서의 "에러 포트 · 동적 포트를 두지 않는다" 요구는 노드 정의에 둔 고정 포트와 데이터 동적 포트만 가리킨다. 에러 처리 정책으로 생기는 동적 에러 포트는 이 규칙과 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다.
+5. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 노드에 생기는 동적 에러 포트는 노드 공통 규칙이고 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 이 정한다. 고정 `error` 포트가 없는 Logic 노드도 이 정책을 고르면 동적 에러 포트가 생기고 `error` 연결선을 이을 수 있다. 노드가 실패하면 엔진은 이 연결선으로 보낸다. 연결선이 없으면 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 의 연결선이 없을 때 규칙을 따른다. 각 Logic 노드 문서의 "에러 포트 · 동적 포트를 두지 않는다" 요구는 노드 정의에 둔 고정 포트와 데이터 동적 포트만 가리킨다. 에러 처리 정책으로 생기는 동적 에러 포트는 이 규칙과 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다.
 
 **Map / ForEach** — `stop` / `skip` / `continue` (`map.schema.ts`, `foreach.schema.ts`):
 
@@ -109,6 +109,7 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하지만 엔진은 완료
 - `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (엔진 덮어쓰기)
 - `codebase/backend/src/modules/execution-engine/containers/iteration-error-code.ts` (실패한 회차와 병렬 분기의 `error.code` 규칙 `resolveIterationErrorCode`)
 - `codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx` (`ITEM_ERROR_POLICY_NODE_TYPES`: 레거시 평면 키 이전에서 뺄 노드 유형)
+- `codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts` (동적 에러 포트, 항목 에러 정책 규칙 5)
 
 ## Rationale
 
@@ -152,3 +153,9 @@ ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code`
 ### Parallel `stop` 설명을 실행기 동작에 맞춘다 (2026-11-06)
 
 이 표는 Parallel 의 `stop` 을 "첫 병렬 분기가 실패하면 에러를 던진다" 로 적었다. 실행기는 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기 가운데 번호가 가장 작은 것의 에러를 던진다. [Parallel 노드](CLE-NODE-PARALLEL.md#stop-은-모든-병렬-분기를-기다린-뒤-실패를-던진다-2026-11-06) 가 같은 날 요구사항 문장을 이 동작에 맞췄고 이 표도 같은 말로 고쳤다. 동작을 바꾸지 않은 이유와 기각한 대안은 그 Rationale 에 있다. 기존 워크플로우 영향은 없다.
+
+### 동적 에러 포트 서술을 구현에 맞춘다
+
+결정일: 2026-11-15
+
+항목 에러 정책 규칙 5 는 동적 에러 포트가 아직 구현되지 않아 Logic 노드에 `error` 연결선을 이을 수 없다고 적었다. NERV Task `CLE-T-K0Y546` 이 고정 `error` 포트가 없는 노드에 동적 에러 포트를 구현해서 이 서술을 구현된 규칙으로 바꿨다(`CLE-T-RWHTXC`). 동작을 새로 정하지 않았고 연결선이 없을 때의 처리는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 그대로 정한다. 기존 워크플로우 영향은 없다.

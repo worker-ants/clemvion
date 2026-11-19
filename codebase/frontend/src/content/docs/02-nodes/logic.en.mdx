@@ -178,7 +178,9 @@ Like ForEach, a non-array path is treated as an empty array and `meta.fellBackTo
 ### Ports
 
 - `match` — array of items that satisfy the conditions.
-- `unmatched` — array of items that don't. Even with zero matches the array is emitted as `[]`, so both ports are always active.
+- `unmatched` — array of items that don't.
+
+The next nodes wired to the two ports always both run, even when a result array is empty. The `$input` both nodes receive is the whole Filter output, `{ match: [...], unmatched: [...] }`, regardless of the port. Read the matching items with `$input.match` and the rest with `$input.unmatched`. From other nodes, use `$node["<Filter name>"].output.match`. If the input is empty or `null`, the output is `{ match: [], unmatched: [] }`. To skip a next node when the array is empty, put an If/Else before it with the condition `{{ $input.match.length }}` `gt` 0.
 
 ### Example
 
@@ -190,8 +192,8 @@ Like ForEach, a non-array path is treated as an empty array and `meta.fellBackTo
   { field: "{{ $item.status }}", operator: "eq", value: "active" },
   { field: "{{ $item.age }}", operator: "gte", value: 18 }
 ]
-// match port: array of matching items
-// unmatched port: array of the rest
+// $input.match in the next node: array of matching items
+// $input.unmatched in the next node: array of the rest
 ```
 </Example>
 
