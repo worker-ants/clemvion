@@ -70,6 +70,7 @@ export interface RedisFailOpenReasonMap {
   chat_dedup: 'set_failed' | 'del_failed';
   chat_rate_limit: 'incr_failed';
   chat_signature_failure_limit: 'get_failed' | 'incr_failed';
+  password_recheck_failure_limit: 'get_failed' | 'incr_failed';
   interaction_rate_limit: 'incr_failed';
   token_blacklist: 'get_failed' | 'set_failed';
   outbound_rate_limit: 'incr_failed';

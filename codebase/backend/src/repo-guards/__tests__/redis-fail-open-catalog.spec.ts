@@ -91,6 +91,7 @@ describe('clemvion.redis.fail_open (component, reason) 선언 · 실배선 정�
       'integration_cache_bus',
       'interaction_rate_limit',
       'outbound_rate_limit',
+      'password_recheck_failure_limit',
       'public_webhook_quota',
       'sse_fanout',
       'token_blacklist',

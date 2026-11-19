@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 
 /** 비밀번호 재확인 실패 카운터 키. 사용자마다 하나다. 어느 라우트에서 틀렸든 같은 키를 센다. */
 export const makePasswordRecheckFailureKey = (userId: string): string =>
@@ -40,7 +41,9 @@ return c
  * 따로 세므로 재확인 라우트가 늘수록 추측 예산도 는다. 그래서 실패를 사용자 하나에 묶어 세고, 한도에 닿은 사용자는 창이 끝날 때까지
  * 비밀번호를 대조하지 않는다. 맞힌 시도는 세지 않는다.
  *
- * Redis 가 없거나 오류면 막지 않는다(fail-open). 이때는 라우트별 `@Throttle` 만 남는다. Redis 오류는 경고 로그로만 남긴다.
+ * Redis 가 없거나 오류면 막지 않는다(fail-open). 이때는 라우트별 `@Throttle` 만 남는다. Redis 오류는 경고 로그를 남기고
+ * `clemvion.redis.fail_open{component=password_recheck_failure_limit}` 에 센다(NERV Task `CLE-T-0KZ7S3`). Redis 가 없어
+ * 기능을 끈 상태는 장애가 아니라 세지 않는다.
  * 한 사용자가 한도에 닿으면 그 창에서 한 번 경고 로그를 남긴다.
  */
 @Injectable()
@@ -55,6 +58,7 @@ export class PasswordRecheckFailureLimiterService {
     @Inject('PASSWORD_RECHECK_FAILURE_REDIS')
     injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
   }
@@ -76,6 +80,10 @@ export class PasswordRecheckFailureLimiterService {
     } catch (err) {
       this.logger.warn(
         `비밀번호 재확인 실패 한도 조회 실패 (fail-open): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.metrics?.recordRedisFailOpen(
+        'password_recheck_failure_limit',
+        'get_failed',
       );
       return false;
     }
@@ -103,6 +111,10 @@ export class PasswordRecheckFailureLimiterService {
     } catch (err) {
       this.logger.warn(
         `비밀번호 재확인 실패 기록 실패 (fail-open): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.metrics?.recordRedisFailOpen(
+        'password_recheck_failure_limit',
+        'incr_failed',
       );
     }
   }

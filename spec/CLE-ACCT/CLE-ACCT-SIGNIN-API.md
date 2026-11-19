@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-API"
 title: "가입과 로그인 — API 와 에러 코드"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "b0b74a9aece34809ee441652cb71bb5cbc50d7b6dd437b66e821429fac548d38"
+content_hash: "73a1da7222abe7532d59b6d38ca87fcaabb8e3322dc9154eb9fe0c22d96271fa"
 read_as: "approved_fallback"
-task: "CLE-T-2M6Q02"
+task: "CLE-T-P39GDK"
 source_paths: []
-mirror_sha256: "905a67bf7ec123824d78656386f728c4c582438b737c285977211cc70da4510b"
-etag: "sha256-5fc1c49ff2f8f7d068bb2dae4262bc5645735296b5ce9a8c043b16c267ed867a"
+mirror_sha256: "25860cd4137627d79ea48898d39305e8606823f1ec6eda24d5e5e4e9b5b8a2ed"
+etag: "sha256-a2d9082902544f90f830397cd0bc293c75da267e737f6544ef4ddc20ed72f32e"
 ---
 ## 개요
 
@@ -43,19 +43,19 @@ etag: "sha256-5fc1c49ff2f8f7d068bb2dae4262bc5645735296b5ce9a8c043b16c267ed867a"
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| POST | `/api/auth/2fa/setup` | TOTP 설정 시작. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password }`(8자 이상). 비밀번호를 먼저 확인한 뒤 secret 을 발급하고 `{ otpauthUrl, qrCodeDataUrl }`(QR 코드 data URL)를 돌려준다. 활성화 검증 전에는 켜지지 않는다. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`, TOTP 가 이미 켜짐 409 `TOTP_ALREADY_ENABLED`(secret 을 바꾸지 않는다). 순서와 규칙은 [TOTP 켜기](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기) |
+| POST | `/api/auth/2fa/setup` | TOTP 설정 시작. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password }`(8~128자). 비밀번호를 먼저 확인한 뒤 secret 을 발급하고 `{ otpauthUrl, qrCodeDataUrl }`(QR 코드 data URL)를 돌려준다. 활성화 검증 전에는 켜지지 않는다. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`, TOTP 가 이미 켜짐 409 `TOTP_ALREADY_ENABLED`(secret 을 바꾸지 않는다). 순서와 규칙은 [TOTP 켜기](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기) |
 | POST | `/api/auth/2fa/verify` | TOTP 활성화 검증. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ code }`(인증 앱의 6자리 코드). 켜고 TOTP 복구 코드 10개를 한 번 돌려준다(`{ recoveryCodes }`). 본문 형식 에러 400 `VALIDATION_ERROR`, 설정 시작 전이거나 설정 시작 뒤 10분이 지남 400 `TOTP_NOT_INITIALIZED`(10분이 지났으면 코드를 확인하지 않고 대기 secret 을 비운다), TOTP 가 이미 켜짐 409 `TOTP_ALREADY_ENABLED`(코드를 확인하지 않고 복구 코드를 다시 발급하지 않는다), 코드 불일치 401 `TOTP_INVALID`. 순서와 규칙은 [TOTP 켜기](CLE-ACCT-SIGNIN-TOTP.md#totp-켜기) |
 | POST | `/api/auth/2fa/disable` | TOTP 끄기. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password, code }`. `code` 는 6~32자 문자열이고 로그인 2단계의 `code` 와 같이 인증 앱의 6자리 코드나 TOTP 복구 코드를 받는다. 비밀번호를 먼저 확인하고 이어서 코드를 확인한다. 성공하면 TOTP secret 과 TOTP 복구 코드를 비우고 200 `{ ok: true }`. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`, 코드 불일치·TOTP 꺼짐 401 `TOTP_INVALID`. 순서와 규칙은 [TOTP 끄기](CLE-ACCT-SIGNIN-TOTP.md#totp-끄기) |
 | GET | `/api/auth/2fa/webauthn/availability` | Passkey 기능 켜짐 여부. 인증 불요(`@Public`). 응답 `{ enabled: boolean }` |
-| POST | `/api/auth/2fa/webauthn/register/options` | Passkey 등록 옵션. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password }`(8자 이상). 비밀번호를 먼저 확인한 뒤 등록 옵션과 `optionsToken` JWT(`kind=webauthn_register`, 5분)를 준다. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`(등록 옵션과 `optionsToken` 을 만들지 않는다). 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. 순서와 규칙은 [Passkey 등록 흐름](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록-흐름) |
+| POST | `/api/auth/2fa/webauthn/register/options` | Passkey 등록 옵션. 인증 필수(JWT), 사용자당 분당 10회. 본문 `{ password }`(8~128자). 비밀번호를 먼저 확인한 뒤 등록 옵션과 `optionsToken` JWT(`kind=webauthn_register`, 5분)를 준다. 본문 누락·형식 에러 400 `VALIDATION_ERROR`, 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`(등록 옵션과 `optionsToken` 을 만들지 않는다). 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. 순서와 규칙은 [Passkey 등록 흐름](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록-흐름) |
 | POST | `/api/auth/2fa/webauthn/register/verify` | Passkey 등록 검증. 인증 필수(JWT). credential 을 저장하고 첫 등록이면 복구 코드 10개를 평문으로 돌려준다. 이후에는 SHA-256 해시만 보관한다. 본문 `{ optionsToken, response, deviceName? }`. credential 과 첫 등록의 복구 코드는 한 트랜잭션에서 저장한다. 실패 400 `WEBAUTHN_VERIFY_FAILED`, `optionsToken` 무효 400 `INVALID_OPTIONS_TOKEN`, 표시 이름 형식 에러 400 `VALIDATION_ERROR`, 이미 저장된 credential(동시 등록 포함) 409 `WEBAUTHN_CREDENTIAL_EXISTS`([Passkey 등록 흐름](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록-흐름)) |
 | POST | `/api/auth/2fa/webauthn/authenticate/options` | 로그인 2단계 Passkey 옵션. 인증 불요(`@Public`). 본문의 `challengeToken` 으로 사용자를 식별한다. `optionsToken`(`kind=webauthn_auth`)을 준다. 챌린지 검증 실패 401 `CHALLENGE_INVALID`, TOTP 챌린지로 받은 챌린지 토큰 401 `CHALLENGE_METHOD_MISMATCH`, 등록한 Passkey 가 없음 400 `WEBAUTHN_NOT_REGISTERED` |
 | POST | `/api/auth/2fa/webauthn/authenticate/verify` | 로그인 2단계 Passkey 검증. 인증 불요(`@Public`). `challengeToken` 과 `optionsToken` 을 함께 검증한다. 성공하면 액세스·리프레시 토큰 발급. 실패 401 `WEBAUTHN_INVALID`(서명 불일치, 이미 쓴 Passkey 인증 챌린지 포함. credential 을 지우지 않는다). 응답의 credential 이 그 사용자의 것이 아니어도(없는 credential 포함) 401 `WEBAUTHN_INVALID` 이고 로그인 이력을 남기지 않는다. 처음 쓰는 Passkey 인증 챌린지에서 서명이 맞는데 counter 가 역행하면 credential 행을 지우고 401 `WEBAUTHN_COUNTER_REGRESSION`, 로그인 이력 `webauthn_failed`(`failure_reason=WEBAUTHN_COUNTER_REGRESSION`). 챌린지 토큰 실패는 options 와 같다. Passkey 인증 챌린지를 기록하지 못하면 서명과 counter 를 판정하지 않고 503 `SERVICE_UNAVAILABLE`([Passkey 인증 챌린지 기록](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록)) |
 | POST | `/api/auth/2fa/webauthn/recovery` | Passkey 복구 코드로 2단계 통과. 인증 불요(`@Public`). 본문 `{ challengeToken, code }`. 실패 401 `RECOVERY_CODE_INVALID`. 챌린지 토큰 실패는 options 와 같다 |
 | GET | `/api/auth/2fa/webauthn/credentials` | 내 Passkey 목록. 인증 필수(JWT). 응답 `{ items: [{ id, deviceName, transports, lastUsedAt, createdAt }] }`. 페이지 없는 고정 컬렉션이다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). `publicKey`·`counter` 는 싣지 않는다. Passkey 기능이 꺼져 있으면 저장된 credential 이 있어도 200 `{ items: [] }` 다 |
 | PATCH | `/api/auth/2fa/webauthn/credentials/:id` | credential `device_name` 수정. 인증 필수(JWT). `:id` 는 UUID. 본문 `{ deviceName }`. 200 과 갱신된 행. 없거나 내 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지). 이름이 비었거나 공백 문자로만 돼 있거나 형식이 틀리면 400 `VALIDATION_ERROR`([Passkey 등록 흐름](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록-흐름)) |
-| POST | `/api/auth/2fa/webauthn/credentials/:id/delete` | credential 삭제. 인증 필수(JWT), 사용자당 분당 10회. `:id` 는 UUID. 본문 `{ password }`(8자 이상). 본문 누락·형식 에러와 `:id` 형식 에러 400 `VALIDATION_ERROR`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`(credential 을 지우지 않는다). 없거나 내 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지). 성공 204. 마지막 credential 을 지우면 같은 트랜잭션에서 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 순서와 규칙은 [Passkey 삭제](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제) |
-| POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 사용자당 분당 10회, 본문 `{ password }`(8자 이상)로 비밀번호 재확인. 본문 누락·형식 에러 400 `VALIDATION_ERROR`. 기존 미사용 코드를 버리고 10개를 새로 발급한다. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`. 비밀번호 확인 뒤 등록한 Passkey 가 없으면 403 `WEBAUTHN_NOT_REGISTERED`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
+| POST | `/api/auth/2fa/webauthn/credentials/:id/delete` | credential 삭제. 인증 필수(JWT), 사용자당 분당 10회. `:id` 는 UUID. 본문 `{ password }`(8~128자). 본문 누락·형식 에러와 `:id` 형식 에러 400 `VALIDATION_ERROR`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`(credential 을 지우지 않는다). 없거나 내 것이 아니면 404 `WEBAUTHN_CREDENTIAL_NOT_FOUND`(존재 노출 방지). 성공 204. 마지막 credential 을 지우면 같은 트랜잭션에서 `user.webauthn_recovery_codes` 를 NULL 로 바꾼다(DB 트리거가 아니다). 순서와 규칙은 [Passkey 삭제](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제) |
+| POST | `/api/auth/2fa/webauthn/recovery-codes/regenerate` | Passkey 복구 코드 재발급. 인증 필수(JWT), 사용자당 분당 10회, 본문 `{ password }`(8~128자)로 비밀번호 재확인. 본문 누락·형식 에러 400 `VALIDATION_ERROR`. 기존 미사용 코드를 버리고 10개를 새로 발급한다. 비밀번호 실패 401 `PASSWORD_REQUIRED`·`PASSWORD_INVALID`. 비밀번호 확인 뒤 등록한 Passkey 가 없으면 403 `WEBAUTHN_NOT_REGISTERED`. 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED`. TOTP 의 `/api/auth/2fa/disable` 과 같은 네임스페이스에 둔다 |
 
 2단계 인증 활성화 API 는 `/api/auth/2fa/*` 만 있다. `/api/users/me/enable-2fa`·`/api/users/me/confirm-2fa` 같은 별칭 경로는 없다.
 

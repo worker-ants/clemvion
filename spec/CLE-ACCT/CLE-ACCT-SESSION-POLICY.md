@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION-POLICY"
 title: "세션과 토큰 — 세션 정책과 세션 관리"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SESSION"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SESSION"]
 area: "CLE-ACCT"
-content_hash: "df74993b949546781f4d53989e2efdd8e790e7d4741159d47b2187a2ed410208"
+content_hash: "8c37368f50b5f1a352e5f1846bfe22a201529730bb30d8e55d7a3d9a80bc0e77"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-P39GDK"
 source_paths: []
-mirror_sha256: "ea06a7ecce6fe82bc72e66528c72406d728445da93c0f41dedff08fa7393494a"
-etag: "sha256-b6f2e49b034de7c7f89f9a7c5db3f898f326ec1ea9be50e4f6ece6525c64c95b"
+mirror_sha256: "f838a1887aa6ba6e1d82194c1da06bfc17f0823f4b6145b41646e7c28fb8c8f2"
+etag: "sha256-614c146f05a2843cbc056812b88a2edd2a6fccb3290b21f3284767972cdb50e7"
 ---
 > 구현 상태: 부분 구현 (동시 세션 한도와 초과 시 가장 오래된 세션 종료는 미구현) · 상위: [세션과 토큰](CLE-ACCT-SESSION.md)
 
@@ -51,15 +51,15 @@ etag: "sha256-b6f2e49b034de7c7f89f9a7c5db3f898f326ec1ea9be50e4f6ece6525c64c95b"
 | 헬퍼 | 쓰는 곳 | 에러 코드 |
 | --- | --- | --- |
 | 계정 재인증 `SessionsService.verifyReauth` | 세션 강제 종료, 일괄 종료, 이메일 변경 | 요청에 비밀번호·TOTP 어느 쪽도 없거나 충족 안 됨(비밀번호가 없는 계정에 비밀번호만 보낸 경우 포함) `REAUTH_REQUIRED`(400), 비밀번호 불일치 `PASSWORD_INVALID`(401), TOTP 불일치 `TOTP_INVALID`(401), 계정 재인증 수단 없음(계정에 비밀번호도 TOTP 도 없음. Passkey 만 등록한 계정 포함) `REAUTH_NOT_AVAILABLE`(403) |
-| 비밀번호 재확인 `AuthService.verifyPasswordForUser` | 2단계 인증 설정 시작(`/api/auth/2fa/setup`), 2단계 인증 끄기(`/api/auth/2fa/disable`), Passkey 등록 옵션(`/api/auth/2fa/webauthn/register/options`), Passkey 복구 코드 재발급, Passkey 삭제(`/api/auth/2fa/webauthn/credentials/:id/delete`) | 비밀번호 미설정(OAuth 전용)·미입력 `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401). 위 라우트에서는 본문 검증이 미입력을 먼저 400 `VALIDATION_ERROR` 로 거른다. 그래서 라우트가 내는 `PASSWORD_REQUIRED` 는 계정에 비밀번호가 없다는 뜻이다. 라우트별로 뒤따르는 검사와 코드는 표 아래 목록에 있다 |
+| 비밀번호 재확인 `AuthService.verifyPasswordForUser` | 2단계 인증 설정 시작(`/api/auth/2fa/setup`), 2단계 인증 끄기(`/api/auth/2fa/disable`), Passkey 등록 옵션(`/api/auth/2fa/webauthn/register/options`), Passkey 복구 코드 재발급, Passkey 삭제(`/api/auth/2fa/webauthn/credentials/:id/delete`) | 비밀번호 미설정(OAuth 전용)·미입력 `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401), 사용자 단위 실패 한도 도달 `RATE_LIMITED`(429). 위 라우트에서는 본문 검증이 미입력을 먼저 400 `VALIDATION_ERROR` 로 거른다. 그래서 라우트가 내는 `PASSWORD_REQUIRED` 는 계정에 비밀번호가 없다는 뜻이다. 라우트별로 뒤따르는 검사와 코드는 표 아래 목록에 있다 |
 | 비밀번호 변경 `UsersService.changePassword` | `POST /api/users/me/change-password` 의 현재 비밀번호 확인 | 비밀번호 미설정(`passwordHash` 없음) `PASSWORD_REQUIRED`(401), 불일치 `PASSWORD_INVALID`(401), 사용자 없음 `USER_NOT_FOUND`(404) |
 
 - `PASSWORD_INVALID` 는 세 헬퍼가 같은 코드를 쓴다. `TOTP_INVALID` 는 로그인 2단계 TOTP 검증, TOTP 활성화 검증, 2단계 인증 끄기에서도 같은 코드다.
-- 비밀번호 재확인 헬퍼를 부르는 다섯 라우트는 모두 그 라우트의 다른 검사보다 비밀번호를 먼저 확인한다. 예외는 Passkey 기능이 꺼졌을 때의 503 `WEBAUTHN_DISABLED` 하나다(아래 Passkey 등록 옵션 항목). 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED`, 틀리면 401 `PASSWORD_INVALID` 이고 그 뒤 단계는 하지 않는다. 그래서 OAuth 전용 계정은 비밀번호 재설정으로 비밀번호를 만들기 전에는 TOTP 를 켜거나 Passkey 를 등록 · 삭제할 수 없다.
+- 비밀번호 재확인 헬퍼를 부르는 다섯 라우트는 모두 그 라우트의 다른 검사보다 비밀번호를 먼저 확인한다. 예외는 Passkey 기능이 꺼졌을 때의 503 `WEBAUTHN_DISABLED` 하나다(아래 Passkey 등록 옵션 항목). 비밀번호가 없는 계정은 401 `PASSWORD_REQUIRED` 다. 그다음 실패 한도를 대조보다 먼저 확인해 한도에 닿았으면 429 `RATE_LIMITED`, 틀리면 401 `PASSWORD_INVALID` 이고 그 뒤 단계는 하지 않는다. 그래서 OAuth 전용 계정은 비밀번호 재설정으로 비밀번호를 만들기 전에는 TOTP 를 켜거나 Passkey 를 등록 · 삭제할 수 없다.
   - 2단계 인증 끄기(`POST /api/auth/2fa/disable`): 비밀번호가 맞으면 인증 코드를 확인한다(`TotpService.verifyForDisable`). 인증 코드는 로그인 2단계와 같이 인증 앱의 6자리 코드나 TOTP 복구 코드이고, 복구 코드로 통과하면 그 코드를 소비한다. 코드가 맞지 않거나 TOTP 가 켜져 있지 않으면 401 `TOTP_INVALID` 다. 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md#totp-끄기) 이 정한다.
   - 2단계 인증 설정 시작(`POST /api/auth/2fa/setup { password }`): 비밀번호 확인이 실패하면 TOTP secret 을 만들지 않는다. 비밀번호 확인은 TOTP 가 켜져 있는지 보기 전에 한다. 비밀번호가 맞고 TOTP 가 이미 켜져 있으면 409 `TOTP_ALREADY_ENABLED` 이고 secret 을 바꾸지 않는다. 규칙은 [가입과 로그인 「TOTP 켜기」](CLE-ACCT-SIGNIN.md#totp-켜기) 이 정한다.
   - Passkey 등록 옵션(`POST /api/auth/2fa/webauthn/register/options { password }`): 비밀번호 확인이 실패하면 등록 옵션과 `optionsToken` 을 만들지 않는다. Passkey 기능이 꺼져 있으면 비밀번호를 확인하기 전에 503 `WEBAUTHN_DISABLED` 로 거부한다. 복구 코드 재발급과 Passkey 삭제(`POST /api/auth/2fa/webauthn/credentials/:id/delete { password }`)도 같다. Passkey 삭제는 비밀번호를 확인한 뒤에 대상 credential 을 찾는다. 규칙과 이유는 [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 과 [Passkey 기능과 등록 Rationale 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다」](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다) 에 있다.
-- 비밀번호 재확인 헬퍼를 부르는 라우트는 모두 `SENSITIVE_ACTION_THROTTLE` 로 요청 빈도를 제한한다. 라우트 목록 · 한도 · 집계 키는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) §7 이 정한다.
+- 비밀번호 재확인 헬퍼를 부르는 라우트는 모두 `SENSITIVE_ACTION_THROTTLE` 로 요청 빈도를 제한한다. 라우트 목록 · 한도 · 집계 키와 사용자 단위 실패 한도(「비밀번호 재확인 실패 한도」)는 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
 - 비밀번호 변경은 비밀번호 재확인 헬퍼와 같은 두 코드를 쓰지만 헬퍼는 다르다. 이유는 「[비밀번호 변경이 비밀번호 재확인 헬퍼를 재사용하지 않는 이유](#비밀번호-변경이-비밀번호-재확인-헬퍼를-재사용하지-않는-이유)」 에 있다.
 - OAuth 전용 계정이 비밀번호를 추가하려면 [가입과 로그인](CLE-ACCT-SIGNIN.md) 의 비밀번호 재설정 경로를 쓴다.
 - 로그인 이력 `failure_reason` 의 `INVALID_PASSWORD` 는 로그인 실패 기록값(`AuthService.login`)이라 층이 다르다. 같은 이름의 wire 에러 코드는 2026-09-02 에 은퇴했다.
@@ -162,8 +162,6 @@ OAuth 전용 계정은 비밀번호가 없어 `POST /api/users/me/change-passwor
 
 세션 API 가 `/api/users/me/sessions` 에 있을 때는 현재 세션에 걸린 약속 셋이 동작하지 않았다. 리프레시 쿠키의 Path 가 `/api/auth` 라서 브라우저가 그 경로로 가는 요청에 쿠키를 붙이지 않았기 때문이다. `isCurrent` 가 늘 false 였고, 일괄 종료는 늘 400 `CURRENT_SESSION_REQUIRED` 로 끝났고, 현재 세션 강제 종료를 막는 규칙이 걸리지 않았다.
 
-e2e 는 이 결함을 잡지 못했다. 테스트가 Cookie 헤더를 모든 요청에 손으로 붙였기 때문이다. 지금 `session-revocation.e2e-spec.ts` 는 `test/helpers/auth.ts` 의 `browserCookieFor` 로 브라우저처럼 Path 가 맞는 요청에만 쿠키를 붙인다.
-
 그래서 세션 라우트 셋을 `/api/auth/sessions…` 로 옮겼다. 쿠키 Path 는 `/api/auth` 그대로다. 로그인 이력 조회는 쿠키가 필요 없어 `/api/users/me/login-history` 에 남겼다.
 
 기각한 대안은 세 가지다.
@@ -171,8 +169,6 @@ e2e 는 이 결함을 잡지 못했다. 테스트가 Cookie 헤더를 모든 요
 - (a) 쿠키 Path 를 `/api` 로 넓히는 안. 모든 API 요청에 리프레시 쿠키가 붙는다. 쿠키 Path 를 좁혀 쿠키가 붙는 표면을 줄인 원칙(「[`SameSite=none` 의 CSRF 는 Origin 검증으로 막는다](#samesitenone-의-csrf-는-origin-검증으로-막는다)」)과 어긋난다.
 - (b) 액세스 토큰에 로그인 세션(`family_id`) 클레임을 넣는 안. 토큰 구조가 바뀌고 액세스 토큰을 발급하는 경로마다 그 값을 채워야 한다. 쿠키로 이미 알 수 있는 사실을 위해 토큰 계약을 바꿀 까닭이 없다.
 - (c) 옛 경로를 별칭으로 남기는 안. 옛 경로에는 여전히 쿠키가 붙지 않는다. 그 경로로 오는 요청은 `isCurrent` 를 틀리게 보고하고 현재 세션 강제 종료를 막지 못한다. 경로마다 핸들러를 두면 요청 한도 버킷도 갈린다. 옛 경로를 부르던 곳은 이 저장소의 프런트엔드와 e2e 뿐이어서 별칭 없이 지웠다.
-
-URL 명명 규칙의 예외는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 명명 규칙 표에 따로 등재했다.
 
 ### 리프레시 쿠키를 읽는 라우트가 늘었다
 

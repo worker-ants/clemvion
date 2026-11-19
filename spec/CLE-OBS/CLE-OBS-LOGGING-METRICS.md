@@ -2,19 +2,19 @@
 id: "CLE-OBS-LOGGING-METRICS"
 title: "로깅과 헬스 체크 — 메트릭과 트레이싱"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-LOGGING"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-LOGGING"]
 area: "CLE-OBS"
-content_hash: "8d9e280b77092f99a367ccbbb43506c3976164d348e2364b3007e83bcb192605"
+content_hash: "b6d0f0937bb91b993c27228769d1d3053dbab5b61a2f19d0a10586a1e35d501d"
 read_as: "approved_fallback"
-task: "CLE-T-TB33HY"
+task: "CLE-T-0KZ7S3"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "f449be50e76e2443c2f04d3196fb8e530c154ec3c68b56c96f921924d42fbb9f"
-etag: "sha256-3ee08dae8ed1bb22586bfe0e2439217a8040027f19fb043195b11609cb71cb7b"
+mirror_sha256: "4cfd9f768aca06ca7c03b0527c3ef9a7ff610afe068f6d8fc403fff6d978ec50"
+etag: "sha256-4e821f4f9e52c62941a90c8e844076aad667642b6b56512e93bb74fb6bce9cc9"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md`, `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -74,6 +74,7 @@ etag: "sha256-3ee08dae8ed1bb22586bfe0e2439217a8040027f19fb043195b11609cb71cb7b"
 | `public_webhook_quota` | 공개 웹훅 quota | `incr_failed` |
 | `cafe24_install_lockout` | Cafe24 앱 설치 실패 잠금 | `get_failed` · `incr_failed` |
 | `cafe24_install_nonce` | Cafe24 앱 설치 nonce | `set_failed` |
+| `password_recheck_failure_limit` | 비밀번호 재확인 실패 한도([HTTP API 규약 — 요청 빈도 제한 「비밀번호 재확인 실패 한도」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한)) | `get_failed` · `incr_failed` |
 | `execution_seq` | WebSocket 실행 이벤트 순번 할당 | `incr_failed` · `del_failed` |
 | `integration_cache_bus` | 통합 캐시 무효화를 인스턴스 사이에 알리는 pub/sub | `publish_failed` · `subscribe_failed` |
 
@@ -90,7 +91,7 @@ etag: "sha256-3ee08dae8ed1bb22586bfe0e2439217a8040027f19fb043195b11609cb71cb7b"
 - component 마다 낼 수 있는 `reason` 이 정해져 있다. 표에 없는 쌍은 나오지 않는다.
 - SSE fanout 은 같은 동작의 경고 로그를 복구될 때까지 한 번만 남긴다. 카운터는 실패마다 센다.
 - 구독 연결의 오류는 오류 이벤트마다 센다. ioredis 는 재연결을 시도할 때마다 오류를 내고, 같은 장애로 SUBSCRIBE 가 거부되면 그것도 센다. 그래서 장애 한 번이 여러 번 세질 수 있다. `subscribe_failed` 는 건수보다 증가율로 본다.
-- 보안 판단이 함께 물러나는 쌍이 있다. `token_blacklist`/`get_failed` 이면 취소한 인터랙션 토큰이 통과하고, `cafe24_install_lockout`/`get_failed` 이면 설치 실패 잠금이 풀린다. 이 둘은 component 를 지정한 경보를 따로 두는 편이 낫다. 경보 예: `rate(clemvion_redis_fail_open{component="token_blacklist"}[5m]) > 0`
+- 보안 판단이 함께 물러나는 쌍이 있다. `token_blacklist`/`get_failed` 이면 취소한 인터랙션 토큰이 통과하고, `cafe24_install_lockout`/`get_failed` 이면 설치 실패 잠금이 풀린다. `password_recheck_failure_limit` 이면(두 reason 모두) 비밀번호 추측을 라우트별 요청 빈도 제한만 막는다. 이 셋은 component 를 지정한 경보를 따로 두는 편이 낫다. 경보 예: `rate(clemvion_redis_fail_open{component="token_blacklist"}[5m]) > 0`
 
 ## 통계 API 와 역할을 나눈다
 
@@ -112,6 +113,7 @@ OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터�
   - `modules/chat-channel/`: `channel-conversation.service.ts` · `chat-channel-dedup.service.ts` · `chat-channel-rate-limiter.service.ts` · `chat-channel-signature-failure-limiter.service.ts` · `channel-listener.bus.ts`
   - `modules/hooks/public-webhook-quota.service.ts`
   - `modules/integrations/`: `cafe24-install-rate-limit.service.ts` · `cafe24-install-nonce-cache.service.ts`
+  - `modules/auth/password-recheck-failure-limiter.service.ts`
   - `modules/websocket/execution-seq-allocator.service.ts`
   - `common/redis/integration-cache-bus.service.ts`
 - 채팅 채널 인바운드 지표 기록 호출부:
@@ -140,7 +142,7 @@ OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터�
 - **구독 오류는 장애 건수가 아니라 이벤트 수로 센다.** 장애 건수를 세려면 구독 연결의 상태를 따로 추적해야 한다. 경보는 증가율로 걸므로 이벤트 수로 충분하다.
 - **기각: 서비스마다 카운터를 따로 둔다.** 경보 규칙이 서비스 수만큼 늘고 새 서비스를 연결할 때마다 경보를 새로 걸어야 한다. 카운터 하나에 `component` 라벨을 두면 `rate(clemvion_redis_fail_open[5m]) > 0` 하나로 전부를 본다.
 
-13곳은 그날 연결한 수다. 2026-11-15 에 채팅 채널 서명 검증 실패 한도(`chat_signature_failure_limit`, `get_failed` · `incr_failed`)를 같은 방법으로 더 연결했다. 같은 영역의 `chat_rate_limit` · `chat_dedup` 은 이미 세고 있었는데 이 한도는 경고 로그만 남기고 있었다(NERV Task `CLE-T-TB33HY`).
+13곳은 그날 연결한 수다. 2026-11-15 에 채팅 채널 서명 검증 실패 한도(`chat_signature_failure_limit`, `get_failed` · `incr_failed`)를 같은 방법으로 더 연결했다. 같은 영역의 `chat_rate_limit` · `chat_dedup` 은 이미 세고 있었는데 이 한도는 경고 로그만 남기고 있었다(NERV Task `CLE-T-TB33HY`). 2026-11-19 에 비밀번호 재확인 실패 한도(`password_recheck_failure_limit`)도 같은 방법으로 연결했다. 한도가 물러나면 탈취한 토큰으로 비밀번호를 추측하는 예산이 라우트별 한도로 돌아가서 보안 판단이 물러나는 쌍에 올렸다(NERV Task `CLE-T-0KZ7S3`).
 
 ### 채팅 채널 인바운드의 한도 도달과 오류 흡수를 카운터로 센다 (2026-11-14)
 
