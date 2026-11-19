@@ -206,7 +206,12 @@ import { ButtonInteractionService } from './button-interaction.service';
 // `./ai-conversation-helpers` 단일이며, 모든 소비자(엔진·orchestrator·spec)가 거기서
 // 직접 import 한다 — re-export 체인 제거(impl-done Critical 해소: `RehydrationError`
 // 단일 클래스 식별성으로 `instanceof` 일관 보장). 엔진은 내부 사용분만 값 import.
-import { RehydrationError } from './ai-conversation-helpers';
+import {
+  type CrashedAiTurn,
+  isAiResumedWaitingEnvelope,
+  readCrashedAiTurn,
+  RehydrationError,
+} from './ai-conversation-helpers';
 import { findBrokenCallStackFrame } from './call-stack-frame';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import {
@@ -3285,11 +3290,16 @@ export class ExecutionEngineService
    * 재실행하므로(§7.3 at-least-once) 옛 RUNNING row 는 이 시점에 닫아야 부모 Execution
    * 종결 후 유령 "running" 노드가 남지 않는다 (옛 recoverStuckExecutions cascade 복원).
    * 완료 노드는 이미 COMPLETED 라 대상 아님.
+   *
+   * `nodeExecutionId` 를 주면 그 행 하나만 마감한다. 크래시한 AI 재개 턴을 다시 돌리는
+   * 경로({@link replayCrashedAiTurn})가 쓴다. 중첩 실행에서는 호출 노드 행이 park 중에도
+   * RUNNING 이고 재생 뒤 bubble-up 이 그 아래에서 이어 가므로 닫지 않는다.
    */
   private async failOrphanRunningNodeExecutions(
     executionId: string,
+    nodeExecutionId?: string,
   ): Promise<void> {
-    await this.nodeExecutionRepository
+    const qb = this.nodeExecutionRepository
       .createQueryBuilder()
       .update(NodeExecution)
       .set({
@@ -3302,8 +3312,174 @@ export class ExecutionEngineService
       .where('execution_id = :executionId', { executionId })
       .andWhere('status = :running', {
         running: NodeExecutionStatus.RUNNING,
-      })
-      .execute();
+      });
+    if (nodeExecutionId) {
+      qb.andWhere('id = :nodeExecutionId', { nodeExecutionId });
+    }
+    await qb.execute();
+  }
+
+  /**
+   * §7.5 case B — 재개 턴의 LLM 호출 중 크래시한 멀티턴 AI 노드를 RUNNING 행에서 찾는다.
+   * 정본은 NERV `CLE-EXEC-STATE-RESUME` 「크래시 재구동에서 처리 중이던 턴을 다시 돌린다」다.
+   *
+   * 아래가 모두 맞을 때만 후보를 돌려준다. 하나라도 어긋나면 `null` 이고 호출 측은 기존
+   * 재구동(그 노드를 처음부터)으로 간다.
+   * - RUNNING 행 가운데 출력이 AI 대화 재개 스냅샷인 행이 정확히 하나다.
+   * - 최상위(`resume_call_stack` 없음)면 그 행에 부모가 없고 다른 RUNNING 행이 없다.
+   * - 중첩이면 호출 스택이 지원 버전 이하로 온전하고, 나머지 RUNNING 행이 프레임마다
+   *   하나씩인 호출 노드 행이며, AI 행의 부모가 가장 안쪽 호출 노드 행이다. park 한 중첩
+   *   실행의 행 모양이 이렇다(`executeNode` 의 `ParkReleaseSignal` 분기).
+   * - 노드 정의가 있고 체크포인트 대상 타입이다.
+   * - 스냅샷에서 처리 중이던 입력을 읽을 수 있고 `_resumeCheckpoint` 가 객체이며 버전이
+   *   지원 범위다(case A {@link resumeFromCheckpoint} 와 같은 검사).
+   */
+  private async findCrashedAiTurn(savedExecution: Execution): Promise<{
+    oldRow: NodeExecution;
+    node: Node;
+    turn: CrashedAiTurn;
+    checkpoint: Record<string, unknown>;
+  } | null> {
+    const executionId = savedExecution.id;
+    const skip = (reason: string): null => {
+      this.logger.log(
+        `[crash-redrive] execution ${executionId} AI 재개 턴 재생 안 함(${reason}) — 처음부터 재구동.`,
+      );
+      return null;
+    };
+    const running = await this.nodeExecutionRepository.find({
+      where: { executionId, status: NodeExecutionStatus.RUNNING },
+    });
+    const aiRows = running.filter((r) =>
+      isAiResumedWaitingEnvelope(r.outputData),
+    );
+    if (aiRows.length === 0) return null;
+    if (aiRows.length > 1) return skip('재개 스냅샷 행이 여럿');
+    const oldRow = aiRows[0];
+    const others = running.filter((r) => r.id !== oldRow.id);
+
+    const callStack = savedExecution.resumeCallStack;
+    const frames = callStack?.frames;
+    if (Array.isArray(frames) && frames.length) {
+      if (
+        typeof callStack?.version === 'number' &&
+        callStack.version > CALL_STACK_SCHEMA_VERSION
+      ) {
+        return skip('호출 스택 미래 버전');
+      }
+      if (findBrokenCallStackFrame(frames)) return skip('호출 스택 손상');
+      const invokerIds = frames.map((f) => f.invokerNodeId).sort();
+      const rowNodeIds = others.map((r) => r.nodeId).sort();
+      const innermostRow = others.find(
+        (r) => r.id === oldRow.parentNodeExecutionId,
+      );
+      if (
+        invokerIds.length !== rowNodeIds.length ||
+        invokerIds.some((id, i) => id !== rowNodeIds[i]) ||
+        innermostRow?.nodeId !== frames[frames.length - 1].invokerNodeId
+      ) {
+        return skip('호출 노드 행이 호출 스택과 다름');
+      }
+    } else if (oldRow.parentNodeExecutionId || others.length) {
+      return skip('최상위 행 모양이 다름');
+    }
+
+    const node = await this.nodeRepository.findOneBy({ id: oldRow.nodeId });
+    if (!node || !this.isCheckpointEligibleNodeType(node.type)) {
+      return skip('노드 정의 없음 또는 체크포인트 비대상');
+    }
+    const turn = readCrashedAiTurn(oldRow.outputData);
+    if (!turn) return skip('처리 중이던 입력 없음');
+    const checkpoint = turn.waitingEnvelope._resumeCheckpoint;
+    if (
+      checkpoint === null ||
+      typeof checkpoint !== 'object' ||
+      Array.isArray(checkpoint)
+    ) {
+      return skip('_resumeCheckpoint 없음 · 손상');
+    }
+    const version = (checkpoint as { schemaVersion?: unknown }).schemaVersion;
+    if (typeof version === 'number' && version > CHECKPOINT_SCHEMA_VERSION) {
+      return skip('_resumeCheckpoint 미래 버전');
+    }
+    return {
+      oldRow,
+      node,
+      turn,
+      checkpoint: checkpoint as Record<string, unknown>,
+    };
+  }
+
+  /**
+   * §7.5 case B — {@link findCrashedAiTurn} 이 찾은 턴을 새 행으로 다시 돌린다.
+   *
+   * 1. 옛 AI 행 하나만 마감한다(출력은 지우지 않는다). 중첩 호출 노드 행은 둔다.
+   * 2. 같은 부모 · 같은 입력으로 새 RUNNING 행을 만들고 `NODE_STARTED` 를 보낸다.
+   * 3. 턴 이전 대기 봉투를 컨텍스트에 싣는다. case A 가 대기 행 출력을 싣는 것과 같다.
+   * 4. 스냅샷의 입력을 continuation payload 로 바꿔 {@link resumeFromCheckpoint} 에
+   *    넘긴다. 최상위는 `driveResumeAwaited`, 중첩은 `driveCallStackResume` 로 갈린다.
+   *    새 사용자 메시지를 기다리지 않는다.
+   *
+   * 재생 진입의 사전 검사(그래프 위치 등)가 실패하면 새 행을 `RESUME_*` 로 마감하고
+   * 다시 던진다. 호출 측 catch 가 실행을 마감한다(case A 와 같은 처리).
+   */
+  private async replayCrashedAiTurn(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    found: { oldRow: NodeExecution; node: Node; turn: CrashedAiTurn },
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    const { oldRow, node, turn } = found;
+    await this.failOrphanRunningNodeExecutions(executionId, oldRow.id);
+    const parentNodeExecutionId = oldRow.parentNodeExecutionId ?? undefined;
+    const nodeExec = await this.createNodeExecution(
+      executionId,
+      node.id,
+      NodeExecutionStatus.RUNNING,
+      parentNodeExecutionId,
+      oldRow.inputData,
+    );
+    this.contextService.setNodeOutput(
+      this.contextKeyOf(context),
+      node.id,
+      turn.waitingEnvelope,
+    );
+    await this.eventEmitter.emitNode(
+      executionId,
+      node.id,
+      NodeEventType.NODE_STARTED,
+      {
+        nodeExecutionId: nodeExec.id,
+        parentNodeExecutionId,
+        status: NodeExecutionStatus.RUNNING,
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+        input: oldRow.inputData,
+        startedAt: nodeExec.startedAt?.toISOString?.(),
+      },
+    );
+    const payload: ContinuationPayload =
+      turn.interaction.type === 'message_received'
+        ? { type: 'ai_message', message: turn.interaction.content }
+        : { type: 'form_submitted', formData: turn.interaction.data };
+    this.logger.log(
+      `[crash-redrive] execution ${executionId} AI 재개 턴 재생 — node=${node.id} oldRow=${oldRow.id} newRow=${nodeExec.id}`,
+    );
+    try {
+      await this.resumeFromCheckpoint(savedExecution, context, {
+        node,
+        nodeExec,
+        payload,
+      });
+    } catch (err) {
+      await this.markNodeExecutionFailed(
+        nodeExec.id,
+        err instanceof RehydrationError
+          ? err.code
+          : 'RESUME_CHECKPOINT_MISSING',
+      );
+      throw err;
+    }
   }
 
   /**
@@ -3473,6 +3649,46 @@ export class ExecutionEngineService
       // COMPLETED 로 마감된 뒤에도 그 노드만 영구 `running` orphan 으로 남아 타임라인/
       // 진행률 집계를 오염시킨다. 옛 recoverStuckExecutions 의 cascade FAILED 보장을
       // re-drive 진입 시점으로 옮겨 복원한다.
+      // 재개 턴의 LLM 호출 중 크래시한 멀티턴 AI 노드는 그 턴을 새 행으로 다시 돌린다
+      // (CLE-T-K9RZQV). 재료가 온전하지 않으면 아래 기존 재구동(처음부터)으로 간다.
+      const crashedTurn = await this.findCrashedAiTurn(savedExecution);
+      if (crashedTurn) {
+        const replayContext = await this.rehydrateContext(savedExecution, null);
+        let reconstructible = true;
+        try {
+          // 재구성 가능 여부를 재생 전에 같은 재구성기로 확인한다. 재생 중에 실패하면
+          // case A 처럼 RESUME_INCOMPATIBLE_STATE 로 끝나므로, 여기서 걸러 처음부터 돈다.
+          this.buildRetryReentryState(
+            savedExecution,
+            crashedTurn.node,
+            replayContext,
+            crashedTurn.checkpoint,
+            { resumeMode: true },
+          );
+        } catch (probeErr) {
+          reconstructible = false;
+          this.logger.warn(
+            `[crash-redrive] execution ${executionId} AI 재개 턴 재구성 불가 — 처음부터 재구동: ${
+              probeErr instanceof Error ? probeErr.message : String(probeErr)
+            }`,
+          );
+        }
+        if (reconstructible) {
+          await this.replayCrashedAiTurn(
+            savedExecution,
+            replayContext,
+            crashedTurn,
+          );
+          return;
+        }
+        await this.failOrphanRunningNodeExecutions(executionId);
+        const graphState = await this.loadAndBuildGraph(
+          savedExecution.workflowId,
+        );
+        await this.driveStuckRedrive(savedExecution, replayContext, graphState);
+        return;
+      }
+
       await this.failOrphanRunningNodeExecutions(executionId);
 
       // 완료 노드 복원 — waiting 노드가 없으므로 null. execution_node_log +

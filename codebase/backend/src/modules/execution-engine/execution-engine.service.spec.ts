@@ -58,7 +58,10 @@ import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
 import { ParallelExecutor } from './containers/parallel-executor';
 import { WebsocketService } from '../websocket/websocket.service';
-import { ExecutionEventType } from '../websocket/websocket-events.types';
+import {
+  ExecutionEventType,
+  NodeEventType,
+} from '../websocket/websocket-events.types';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
@@ -1414,6 +1417,397 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // CLE-T-K9RZQV — §7.5 case B 에서 재개 턴 중 크래시한 멀티턴 AI 노드는 처리 중이던 턴을
+  // 새 행으로 다시 돌린다(CLE-EXEC-STATE-RESUME 「크래시 재구동에서 처리 중이던 턴을 다시
+  // 돌린다」). 재료가 온전하지 않으면 그 노드를 처음부터 다시 실행한다(기존 재구동).
+  describe('redriveStuckExecution — 크래시한 AI 재개 턴 재생 (CLE-T-K9RZQV)', () => {
+    type Internals = {
+      redriveStuckExecution: (id: string) => Promise<void>;
+      failOrphanRunningNodeExecutions: (...a: unknown[]) => Promise<void>;
+      driveStuckRedrive: (...a: unknown[]) => Promise<void>;
+      rehydrateContext: (...a: unknown[]) => Promise<unknown>;
+      loadAndBuildGraph: (...a: unknown[]) => Promise<unknown>;
+      markExecutionCancelled: (...a: unknown[]) => Promise<void>;
+      markNodeExecutionFailed: (...a: unknown[]) => Promise<void>;
+      resumeFromCheckpoint: (...a: unknown[]) => Promise<void>;
+      createNodeExecution: (...a: unknown[]) => Promise<unknown>;
+      buildRetryReentryState: (...a: unknown[]) => unknown;
+      contextKeyOf: (...a: unknown[]) => string;
+      eventEmitter: { emitNode: (...a: unknown[]) => Promise<void> };
+      contextService: { setNodeOutput: (...a: unknown[]) => void };
+    };
+    const internals = (): Internals => service as unknown as Internals;
+    const checkpoint = { schemaVersion: 1, turnCount: 1, messages: [] };
+    const context = { nodeOutputCache: {}, _executedNodes: new Set() };
+    const newRow = {
+      id: 'ne-new',
+      startedAt: new Date('2026-11-19T00:00:00Z'),
+    };
+    const aiNode = { id: 'n-ai', type: 'ai_agent', label: 'Agent' };
+    const resumedOutput = (
+      interaction: Record<string, unknown> = {
+        type: 'message_received',
+        data: { content: 'turn-two', role: 'user' },
+        receivedAt: 'now',
+      },
+      extra: Record<string, unknown> = {},
+    ) => ({
+      config: {},
+      output: {
+        result: {
+          messages: [
+            { role: 'user', content: 'turn-one' },
+            { role: 'assistant', content: 'reply-one' },
+            { role: 'user', content: 'turn-two' },
+          ],
+        },
+        interaction,
+      },
+      meta: { interactionType: 'ai_conversation', durationMs: 0 },
+      status: 'resumed',
+      _resumeCheckpoint: checkpoint,
+      ...extra,
+    });
+    const aiRow = (over: Record<string, unknown> = {}) => ({
+      id: 'ne-old',
+      nodeId: 'n-ai',
+      status: NodeExecutionStatus.RUNNING,
+      parentNodeExecutionId: null,
+      inputData: { in: 1 },
+      outputData: resumedOutput(),
+      ...over,
+    });
+    const execStartedAt = new Date('2026-11-19T00:00:00Z');
+    const execution = (over: Record<string, unknown> = {}) =>
+      ({
+        id: 'e1',
+        status: ExecutionStatus.RUNNING,
+        workflowId: 'wf1',
+        startedAt: execStartedAt,
+        resumeCallStack: null,
+        ...over,
+      }) as unknown as Execution;
+
+    let orphanSpy: jest.SpyInstance;
+    let driveSpy: jest.SpyInstance;
+    let resumeSpy: jest.SpyInstance;
+    let createSpy: jest.SpyInstance;
+    let buildSpy: jest.SpyInstance;
+    let emitSpy: jest.SpyInstance;
+    let seedSpy: jest.SpyInstance;
+    let cancelSpy: jest.SpyInstance;
+    let nodeFailSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      const svc = internals();
+      orphanSpy = jest
+        .spyOn(svc, 'failOrphanRunningNodeExecutions')
+        .mockResolvedValue(undefined);
+      driveSpy = jest
+        .spyOn(svc, 'driveStuckRedrive')
+        .mockResolvedValue(undefined);
+      jest.spyOn(svc, 'rehydrateContext').mockResolvedValue(context);
+      jest
+        .spyOn(svc, 'loadAndBuildGraph')
+        .mockResolvedValue({ sortedNodeIds: [] });
+      cancelSpy = jest
+        .spyOn(svc, 'markExecutionCancelled')
+        .mockResolvedValue(undefined);
+      nodeFailSpy = jest
+        .spyOn(svc, 'markNodeExecutionFailed')
+        .mockResolvedValue(undefined);
+      resumeSpy = jest
+        .spyOn(svc, 'resumeFromCheckpoint')
+        .mockResolvedValue(undefined);
+      createSpy = jest
+        .spyOn(svc, 'createNodeExecution')
+        .mockResolvedValue(newRow);
+      buildSpy = jest
+        .spyOn(svc, 'buildRetryReentryState')
+        .mockReturnValue({ resumeState: {}, initialAction: undefined });
+      jest.spyOn(svc, 'contextKeyOf').mockReturnValue('e1');
+      emitSpy = jest
+        .spyOn(svc.eventEmitter, 'emitNode')
+        .mockResolvedValue(undefined);
+      seedSpy = jest
+        .spyOn(svc.contextService, 'setNodeOutput')
+        .mockImplementation(() => undefined);
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(aiNode);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    const run = async (exec: Execution, rows: unknown[]) => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(exec);
+      mockNodeExecutionRepo.find = jest.fn().mockResolvedValue(rows);
+      await internals().redriveStuckExecution('e1');
+    };
+    const expectFallback = () => {
+      expect(resumeSpy).not.toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(orphanSpy).toHaveBeenCalledWith('e1');
+      expect(driveSpy).toHaveBeenCalled();
+    };
+
+    it('최상위 메시지 턴: 옛 행만 마감하고 새 행으로 그 턴을 다시 돌린다', async () => {
+      await run(execution(), [aiRow()]);
+
+      expect(mockNodeExecutionRepo.find).toHaveBeenCalledWith({
+        where: { executionId: 'e1', status: NodeExecutionStatus.RUNNING },
+      });
+      expect(orphanSpy).toHaveBeenCalledWith('e1', 'ne-old');
+      expect(createSpy).toHaveBeenCalledWith(
+        'e1',
+        'n-ai',
+        NodeExecutionStatus.RUNNING,
+        undefined,
+        { in: 1 },
+      );
+      // 턴 이전 대기 봉투를 캐시에 싣는다(사용자 메시지를 두 번 싣지 않는다).
+      const [, seededNodeId, seeded] = seedSpy.mock.calls[0] as [
+        string,
+        string,
+        { status: string; output: { result: { messages: unknown[] } } },
+      ];
+      expect(seededNodeId).toBe('n-ai');
+      expect(seeded.status).toBe('waiting_for_input');
+      expect(seeded.output.result.messages).toHaveLength(2);
+      expect(seeded.output).not.toHaveProperty('interaction');
+      expect(emitSpy).toHaveBeenCalledWith(
+        'e1',
+        'n-ai',
+        NodeEventType.NODE_STARTED,
+        expect.objectContaining({
+          nodeExecutionId: 'ne-new',
+          status: NodeExecutionStatus.RUNNING,
+          nodeType: 'ai_agent',
+        }),
+      );
+      expect(resumeSpy).toHaveBeenCalledWith(execution(), context, {
+        node: aiNode,
+        nodeExec: newRow,
+        payload: { type: 'ai_message', message: 'turn-two' },
+      });
+      // 재구성 가능 여부는 재생 전에 같은 재구성기로 확인한다.
+      expect(buildSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'e1' }),
+        aiNode,
+        context,
+        checkpoint,
+        expect.objectContaining({ resumeMode: true }),
+      );
+      expect(driveSpy).not.toHaveBeenCalled();
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('폼 제출 턴은 form_submitted 입력으로 다시 돌린다', async () => {
+      await run(execution(), [
+        aiRow({
+          outputData: resumedOutput({
+            type: 'form_submitted',
+            data: { email: 'a@b.c' },
+            receivedAt: 'now',
+          }),
+        }),
+      ]);
+      expect(resumeSpy.mock.calls[0][2]).toMatchObject({
+        payload: { type: 'form_submitted', formData: { email: 'a@b.c' } },
+      });
+    });
+
+    it('중첩: 호출 노드 행은 두고 AI 행만 마감한 뒤 같은 부모 아래 새 행으로 다시 돌린다', async () => {
+      const callStack = {
+        version: 1,
+        frames: [
+          { workflowId: 'sub1', invokerNodeId: 'inv1', recursionDepth: 1 },
+          { workflowId: 'sub2', invokerNodeId: 'inv2', recursionDepth: 2 },
+        ],
+      };
+      await run(execution({ resumeCallStack: callStack }), [
+        { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
+        { id: 'ne-inv2', nodeId: 'inv2', parentNodeExecutionId: 'ne-inv1' },
+        aiRow({ parentNodeExecutionId: 'ne-inv2' }),
+      ]);
+      expect(orphanSpy).toHaveBeenCalledTimes(1);
+      expect(orphanSpy).toHaveBeenCalledWith('e1', 'ne-old');
+      expect(createSpy).toHaveBeenCalledWith(
+        'e1',
+        'n-ai',
+        NodeExecutionStatus.RUNNING,
+        'ne-inv2',
+        { in: 1 },
+      );
+      expect(emitSpy.mock.calls[0][3]).toMatchObject({
+        parentNodeExecutionId: 'ne-inv2',
+      });
+      expect(resumeSpy).toHaveBeenCalled();
+      expect(driveSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        '체크포인트 미래 버전',
+        () => [
+          aiRow({
+            outputData: resumedOutput(undefined, {
+              _resumeCheckpoint: { schemaVersion: 999 },
+            }),
+          }),
+        ],
+        () => execution(),
+      ],
+      [
+        '체크포인트 없음',
+        () => [
+          aiRow({
+            outputData: resumedOutput(undefined, {
+              _resumeCheckpoint: undefined,
+            }),
+          }),
+        ],
+        () => execution(),
+      ],
+      [
+        '체크포인트가 객체 아님',
+        () => [
+          aiRow({
+            outputData: resumedOutput(undefined, { _resumeCheckpoint: 'x' }),
+          }),
+        ],
+        () => execution(),
+      ],
+      [
+        '입력을 읽을 수 없음',
+        () => [aiRow({ outputData: resumedOutput({ type: 'button_click' }) })],
+        () => execution(),
+      ],
+      [
+        '재개 스냅샷이 아님',
+        () => [aiRow({ outputData: { status: 'waiting_for_input' } })],
+        () => execution(),
+      ],
+      [
+        '최상위인데 다른 running 행이 있음',
+        () => [
+          aiRow(),
+          { id: 'ne-x', nodeId: 'x', parentNodeExecutionId: null },
+        ],
+        () => execution(),
+      ],
+      [
+        '최상위인데 부모 행이 있음',
+        () => [aiRow({ parentNodeExecutionId: 'ne-p' })],
+        () => execution(),
+      ],
+      [
+        '재개 스냅샷 행이 둘',
+        () => [aiRow(), aiRow({ id: 'ne-old2' })],
+        () => execution(),
+      ],
+      [
+        '중첩인데 호출 노드 행이 프레임과 맞지 않음',
+        () => [
+          { id: 'ne-inv9', nodeId: 'inv9', parentNodeExecutionId: null },
+          aiRow({ parentNodeExecutionId: 'ne-inv9' }),
+        ],
+        () =>
+          execution({
+            resumeCallStack: {
+              version: 1,
+              frames: [
+                {
+                  workflowId: 'sub1',
+                  invokerNodeId: 'inv1',
+                  recursionDepth: 1,
+                },
+              ],
+            },
+          }),
+      ],
+      [
+        '중첩인데 AI 행의 부모가 가장 안쪽 호출 노드 행이 아님',
+        () => [
+          { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
+          aiRow({ parentNodeExecutionId: 'ne-other' }),
+        ],
+        () =>
+          execution({
+            resumeCallStack: {
+              version: 1,
+              frames: [
+                {
+                  workflowId: 'sub1',
+                  invokerNodeId: 'inv1',
+                  recursionDepth: 1,
+                },
+              ],
+            },
+          }),
+      ],
+      [
+        '중첩 호출 스택 미래 버전',
+        () => [
+          { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
+          aiRow({ parentNodeExecutionId: 'ne-inv1' }),
+        ],
+        () =>
+          execution({
+            resumeCallStack: {
+              version: 999,
+              frames: [
+                {
+                  workflowId: 'sub1',
+                  invokerNodeId: 'inv1',
+                  recursionDepth: 1,
+                },
+              ],
+            },
+          }),
+      ],
+    ])(
+      '재료가 온전하지 않으면 처음부터 다시 실행한다: %s',
+      async (_l, rows, exec) => {
+        await run(exec(), rows());
+        expectFallback();
+      },
+    );
+
+    it('노드 정의가 없거나 체크포인트 대상 타입이 아니면 처음부터 다시 실행한다', async () => {
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ ...aiNode, type: 'form' });
+      await run(execution(), [aiRow()]);
+      expectFallback();
+      orphanSpy.mockClear();
+      driveSpy.mockClear();
+      await run(execution(), [aiRow()]);
+      expectFallback();
+    });
+
+    it('재구성기가 실패하면 처음부터 다시 실행한다 (RESUME_INCOMPATIBLE_STATE 로 끝내지 않는다)', async () => {
+      buildSpy.mockImplementation(() => {
+        throw new Error('bad checkpoint');
+      });
+      await run(execution(), [aiRow()]);
+      expectFallback();
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('재생 진입 사전 검사가 실패하면 새 행과 실행을 RESUME_* 로 마감한다', async () => {
+      resumeSpy.mockRejectedValueOnce(
+        new RehydrationError('RESUME_CHECKPOINT_MISSING', 'not in graph'),
+      );
+      await run(execution(), [aiRow()]);
+      expect(nodeFailSpy).toHaveBeenCalledWith(
+        'ne-new',
+        'RESUME_CHECKPOINT_MISSING',
+      );
+      expect(cancelSpy).toHaveBeenCalledWith('e1', 'RESUME_CHECKPOINT_MISSING');
+      expect(driveSpy).not.toHaveBeenCalled();
+    });
+  });
+
   // PR3 — failOrphanRunningNodeExecutions: 크래시 orphan RUNNING NodeExecution 마감.
   describe('failOrphanRunningNodeExecutions (PR3 orphan cascade)', () => {
     it('executionId 의 RUNNING NodeExecution 만 FAILED 로 마감한다', async () => {
@@ -1442,6 +1836,28 @@ describe('ExecutionEngineService', () => {
         'status = :running',
         expect.objectContaining({ running: NodeExecutionStatus.RUNNING }),
       );
+    });
+
+    it('행 id 를 주면 그 RUNNING 행 하나만 마감한다 (CLE-T-K9RZQV 재생 경로)', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+      await (
+        service as unknown as {
+          failOrphanRunningNodeExecutions: (
+            id: string,
+            nodeExecutionId?: string,
+          ) => Promise<void>;
+        }
+      ).failOrphanRunningNodeExecutions('e1', 'ne-old');
+      expect(qb.andWhere).toHaveBeenCalledWith('id = :nodeExecutionId', {
+        nodeExecutionId: 'ne-old',
+      });
     });
   });
 
