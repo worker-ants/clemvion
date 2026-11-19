@@ -76,14 +76,14 @@ Carousel, Table, Chart, Template 네 노드는 공통 `buttons` 필드를 갖고
   layout: "card"
 }
 
-// 아이템 버튼 클릭 시 동적 포트로 출력
+// 아이템 버튼을 누른 뒤의 출력이에요($input · $node["Carousel"].output). 동적 포트로 다음 노드에 전달돼요
 {
-  type: "button_click",
-  buttonId: "…",
-  buttonLabel: "선택",
-  clickedAt: "…",
-  selectedItem: { title: "…", description: "…" },
-  nodeOutput: { type: "carousel", items: [...], layout: "card", rendered: "<html>…" }
+  type: "carousel", items: [...], layout: "card", rendered: "<html>…",  // 입력 대기 때의 출력 값에 interaction 이 더해져요
+  interaction: {
+    type: "button_click",
+    data: { buttonId: "…", buttonLabel: "선택", selectedItem: { title: "…", description: "…" } },
+    receivedAt: "…"
+  }
 }
 ```
 </Example>

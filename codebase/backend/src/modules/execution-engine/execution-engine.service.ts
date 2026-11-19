@@ -167,13 +167,9 @@ import {
 import {
   adaptHandlerReturn,
   isCanonicalHandlerOutput,
-  isWrappedValueEnvelope,
-  markWrappedValueEnvelope,
   resolveExecutionOutputValue,
   resolveNodeResultValue,
-  toDownstreamValue,
   toEngineFlatShape,
-  unwrapEngineFlatValue,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -2021,7 +2017,7 @@ export class ExecutionEngineService
           nodeId,
           graphEdges,
           executedNodes,
-          context.nodeOutputCache,
+          context,
           input,
           incomingEdgeMap,
         );
@@ -2906,10 +2902,10 @@ export class ExecutionEngineService
       config: invokerNode.config ?? {},
       output: { result: subOutput },
     };
-    this.contextService.setStructuredOutput(ctxKey, invokerNode.id, structured);
-    this.contextService.setNodeOutput(
+    this.contextService.setNodeOutputs(
       ctxKey,
       invokerNode.id,
+      structured,
       toEngineFlatShape(structured),
     );
   }
@@ -4070,7 +4066,7 @@ export class ExecutionEngineService
           nodeId,
           graphEdges,
           executedNodes,
-          context.nodeOutputCache,
+          context,
           cleanInput,
           incomingEdgeMap,
         );
@@ -4601,7 +4597,7 @@ export class ExecutionEngineService
           nodeId,
           graphEdges,
           executedNodes,
-          context.nodeOutputCache,
+          context,
           input,
           incomingEdgeMap,
         );
@@ -6870,11 +6866,18 @@ export class ExecutionEngineService
     return result;
   }
 
+  /**
+   * 다음 노드의 `$input` 을 조립한다. 연결선을 열지는 flat 캐시의 `_selectedPort` 로
+   * 판정하고, 넘기는 값은 앞 노드의 핸들러 `output`(구조화 출력 캐시)이다. 그래서
+   * `$input` 과 `$node["X"].output` 이 같다(CLE-NODE-OUTPUT Principle 0 7번, NERV Task
+   * CLE-T-ZJR3AF). 구조화 출력이 없는 노드만 flat 값에서 제어 필드를 떼어 쓴다
+   * ({@link resolveNodeResultValue}).
+   */
   private gatherNodeInput(
     nodeId: string,
     edges: GraphEdge[],
     executedNodes: Set<string>,
-    nodeOutputCache: Record<string, unknown>,
+    caches: Pick<ExecutionContext, 'nodeOutputCache' | 'structuredOutputCache'>,
     workflowInput: unknown,
     incomingEdgeMap?: Map<string, GraphEdge[]>,
   ): unknown {
@@ -6893,18 +6896,17 @@ export class ExecutionEngineService
     if (incomingEdges.length === 1) {
       const sourceId = incomingEdges[0].sourceNodeId;
       if (executedNodes.has(sourceId)) {
-        const sourceOutput = nodeOutputCache[sourceId];
         // Port-aware filtering: if source has _selectedPort, only pass data
         // if the edge's sourcePort matches the selected port
         if (
           this.graphTraversal.isPortFiltered(
-            sourceOutput,
+            caches.nodeOutputCache[sourceId],
             incomingEdges[0].sourcePort,
           )
         ) {
           return undefined;
         }
-        return this.stripControlFields(sourceOutput);
+        return resolveNodeResultValue(caches, sourceId);
       }
       // No executed predecessor (e.g., back-edge target on first run) → use workflow input
       return workflowInput;
@@ -6915,12 +6917,19 @@ export class ExecutionEngineService
     let hasAnyInput = false;
     for (const edge of incomingEdges) {
       if (executedNodes.has(edge.sourceNodeId)) {
-        const sourceOutput = nodeOutputCache[edge.sourceNodeId];
         // Port-aware filtering for multi-input nodes
-        if (this.graphTraversal.isPortFiltered(sourceOutput, edge.sourcePort)) {
+        if (
+          this.graphTraversal.isPortFiltered(
+            caches.nodeOutputCache[edge.sourceNodeId],
+            edge.sourcePort,
+          )
+        ) {
           continue;
         }
-        merged[edge.sourceNodeId] = this.stripControlFields(sourceOutput);
+        merged[edge.sourceNodeId] = resolveNodeResultValue(
+          caches,
+          edge.sourceNodeId,
+        );
         hasAnyInput = true;
       }
     }
@@ -6943,9 +6952,8 @@ export class ExecutionEngineService
    * 따라서 **`data` 가 plain object 일 때만 unwrap**, array/primitive 는 `data`
    * 키 그대로 보존하고 `port → _selectedPort` 만 변환.
    *
-   * 어댑터가 배열 · 원시값 output 을 싣으려고 만든 봉투라면 새 객체에도 봉투 표지를
-   * 옮긴다. 다운스트림 `$input` · `$node[X].output` 이 그 표지를 보고 `data` 를
-   * 푼다(`isWrappedValueEnvelope`, NERV Task CLE-T-T30D5S).
+   * 이 값은 연결선 라우팅과 대기 판정에만 쓴다. 다음 노드 `$input` 은 구조화 출력
+   * 캐시에서 읽는다({@link gatherNodeInput}, NERV Task CLE-T-ZJR3AF).
    */
   // C-1 step2 — EngineDriver member (port 라우팅, orchestrator 가 driver 경유).
   public applyPortSelection(output: unknown): unknown {
@@ -6964,43 +6972,9 @@ export class ExecutionEngineService
       }
       // data 가 array / primitive / null: unwrap 시 array spread 가 발생해
       // next input 이 `{0:..., 1:...}` 로 깨지므로 키 보존.
-      const routed = { ...extra, data, _selectedPort: port };
-      return isWrappedValueEnvelope(output)
-        ? markWrappedValueEnvelope(routed)
-        : routed;
+      return { ...extra, data, _selectedPort: port };
     }
     return output;
-  }
-
-  /**
-   * Strip routing / lifecycle control fields from output before passing it
-   * as input to the next node.
-   *
-   * These fields are metadata for the current node's engine-level bookkeeping
-   * and must not leak into downstream `$input`:
-   *  - `_selectedPort`: routing marker for the current node's outgoing edges.
-   *    Leaking it causes pass-through successors (e.g. Variable) to have
-   *    their own successors incorrectly skipped.
-   *  - `port`: handler's declared output port. Leaking it into downstream
-   *    `output: input` pass-throughs makes the adapter think a stale port
-   *    is the new node's routing decision.
-   *  - `status`: lifecycle marker (`waiting_for_input` / `resumed` / `ended`).
-   *    Leaking `"resumed"` confuses blocking detection on successors.
-   *  - `_resumeState`: per-node interaction state. Strictly owned by the
-   *    node that emitted it.
-   *  - `_resumeCheckpoint`: DB-persisted credential-strip subset of
-   *    `_resumeState` (§7.5 rehydration). Internal-only — downstream nodes
-   *    must not receive it (same policy as `_resumeState`).
-   *
-   * The `structuredOutputCache` (what `$node["X"].port` resolves against)
-   * is not touched — downstream expressions can still read the predecessor's
-   * control fields explicitly by node reference.
-   *
-   * 배열 · 원시값 output 을 실은 엔진 봉투면 제어 필드를 지우는 대신 안의 값을
-   * 그대로 돌려준다. 다운스트림은 핸들러 `output` 을 받는다(NERV Task CLE-T-T30D5S).
-   */
-  private stripControlFields(output: unknown): unknown {
-    return toDownstreamValue(output);
   }
 
   /**
@@ -7174,7 +7148,7 @@ export class ExecutionEngineService
         nodeId,
         internalEdges,
         executedNodes,
-        context.nodeOutputCache,
+        context,
         iterInput,
       );
 
@@ -7236,9 +7210,9 @@ export class ExecutionEngineService
     ) {
       return undefined;
     }
-    // 배열 · 원시값 emit 은 엔진 봉투가 아니라 그 안의 값을 모은다. 객체 emit 은
-    // 지금처럼 flat 값 그대로다(NERV Task CLE-T-T30D5S).
-    return unwrapEngineFlatValue(context.nodeOutputCache[emitSourceNodeId]);
+    // emit 노드의 핸들러 `output` 을 모은다. flat 캐시의 엔진 봉투 · `_selectedPort` 는
+    // 모으지 않는다(CLE-EXEC-HANDLER §포트 선택, NERV Task CLE-T-ZJR3AF).
+    return resolveNodeResultValue(context, emitSourceNodeId);
   }
 
   /**
@@ -7889,7 +7863,7 @@ export class ExecutionEngineService
         nodeId,
         plan.internalEdges,
         executedNodes,
-        context.nodeOutputCache,
+        context,
         branchInput,
       );
 
@@ -8307,8 +8281,7 @@ export class ExecutionEngineService
         branchResults.push(null);
         continue;
       }
-      const rawOutput = context.nodeOutputCache[resultNodeId];
-      branchResults.push(this.stripControlFields(rawOutput) ?? null);
+      branchResults.push(resolveNodeResultValue(context, resultNodeId) ?? null);
     }
     const skipped = parallelResult.failures.map((f) => ({
       index: f.branchIndex,
@@ -8721,12 +8694,12 @@ export class ExecutionEngineService
       output: structuredOutput,
       ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
     };
-    this.contextService.setStructuredOutput(
-      this.contextKeyOf(context),
+    this.commitNodeOutput(
+      context,
       containerNode.id,
+      structuredOutput,
       completedOutput,
     );
-    this.commitNodeOutput(context, containerNode.id, structuredOutput);
     return completedOutput;
   }
 

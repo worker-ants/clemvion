@@ -1,13 +1,10 @@
 import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
 import {
   adaptHandlerReturn,
-  isWrappedValueEnvelope,
-  markWrappedValueEnvelope,
   resolveExecutionOutputValue,
   resolveNodeResultValue,
   toDownstreamValue,
   toEngineFlatShape,
-  unwrapEngineFlatValue,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -411,7 +408,6 @@ describe('toEngineFlatShape', () => {
       meta: { durationMs: 3 },
     });
     expect(flat).toBe(output);
-    expect(isWrappedValueEnvelope(flat)).toBe(false);
   });
 
   it('still wraps an array output when a control field rides with meta', () => {
@@ -422,7 +418,6 @@ describe('toEngineFlatShape', () => {
       port: 'body',
     });
     expect(flat).toEqual({ data: [1, 2], port: 'body' });
-    expect(isWrappedValueEnvelope(flat)).toBe(true);
   });
 
   it('does not change an object output when meta is present', () => {
@@ -547,9 +542,9 @@ describe('toEngineFlatShape', () => {
 });
 
 // 배열 · 원시값 output 이 제어 필드와 함께 오면 엔진 flat 캐시에는 `{ data, ...control }`
-// 봉투로 실린다. 사용자가 직접 돌려준 `{ data: [...] }` 객체와 모양이 같아서 봉투에는
-// 표지를 붙이고, 다운스트림 `$input` · `$node[X].output` 은 표지를 보고 `data` 를 푼다
-// (NERV Task CLE-T-T30D5S).
+// 봉투로 실린다(NERV Task CLE-T-T30D5S). 사용자가 직접 돌려준 `{ data: [...] }` 객체와
+// 모양이 같으므로 다운스트림 `$input` · `$node[X].output` 은 flat 값이 아니라 구조화 캐시를
+// 읽는다(NERV Task CLE-T-ZJR3AF).
 describe('wrapped value envelope', () => {
   it.each([
     ['array', [{ v: 1 }, { v: 2 }]],
@@ -557,65 +552,46 @@ describe('wrapped value envelope', () => {
     ['number', 42],
     ['zero', 0],
     ['boolean false', false],
-  ])('marks the envelope for a %s output with a port', (_label, output) => {
-    const flat = toEngineFlatShape({ config: {}, output, port: 'success' });
-    expect(flat).toEqual({ data: output, port: 'success' });
-    expect(isWrappedValueEnvelope(flat)).toBe(true);
-    expect(unwrapEngineFlatValue(flat)).toBe(output);
-  });
+  ])(
+    'wraps a %s output with a port in a { data, port } envelope',
+    (_label, output) => {
+      const flat = toEngineFlatShape({ config: {}, output, port: 'success' });
+      expect(flat).toEqual({ data: output, port: 'success' });
+    },
+  );
 
-  it('marks the envelope when status alone triggers wrapping', () => {
+  it('wraps the output when status alone triggers wrapping', () => {
     const flat = toEngineFlatShape({
       config: {},
       output: ['a'],
       status: 'waiting_for_input',
     });
     expect(flat).toEqual({ data: ['a'], status: 'waiting_for_input' });
-    expect(isWrappedValueEnvelope(flat)).toBe(true);
   });
 
-  it('does not mark a user object that happens to carry a data key', () => {
+  it('keeps a user object that happens to carry a data key as the object itself', () => {
     const output = { data: [1, 2] };
     const flat = toEngineFlatShape({ config: {}, output, port: 'success' });
     expect(flat).toEqual({ data: [1, 2], port: 'success' });
-    expect(isWrappedValueEnvelope(flat)).toBe(false);
-    expect(unwrapEngineFlatValue(flat)).toBe(flat);
   });
 
-  it('does not mark bare values or plain objects', () => {
-    expect(isWrappedValueEnvelope([1])).toBe(false);
-    expect(isWrappedValueEnvelope('x')).toBe(false);
-    expect(isWrappedValueEnvelope(null)).toBe(false);
-    expect(isWrappedValueEnvelope({ data: 1 })).toBe(false);
-    expect(unwrapEngineFlatValue([1])).toEqual([1]);
-    expect(unwrapEngineFlatValue(undefined)).toBeUndefined();
-  });
-
-  it('lets a caller carry the mark over to a re-shaped envelope', () => {
-    const routed = markWrappedValueEnvelope({
-      data: [1],
-      _selectedPort: 'success',
-    });
-    expect(isWrappedValueEnvelope(routed)).toBe(true);
-    expect(unwrapEngineFlatValue(routed)).toEqual([1]);
-  });
-
-  it('wrapBareAsNodeHandlerOutput restores the raw value from a marked envelope', () => {
-    const output = [{ v: 1 }];
+  // 봉투에는 표지가 없다. flat 값만으로는 엔진 봉투와 사용자 `{ data }` 객체를 가를 수
+  // 없어서 다음 노드 값은 구조화 캐시에서 읽는다(NERV Task CLE-T-ZJR3AF).
+  it('wrapBareAsNodeHandlerOutput keeps an engine envelope as the output and lifts control fields', () => {
     const flat = toEngineFlatShape({
       config: {},
-      output,
+      output: [{ v: 1 }],
       port: 'success',
       status: 'waiting_for_input',
     });
     const derived = wrapBareAsNodeHandlerOutput(flat);
-    expect(derived.output).toBe(output);
+    expect(derived.output).toBe(flat);
     expect(derived.port).toBe('success');
     expect(derived.status).toBe('waiting_for_input');
     expect(derived.config).toEqual({});
   });
 
-  it('wrapBareAsNodeHandlerOutput keeps an unmarked { data } object as the output', () => {
+  it('wrapBareAsNodeHandlerOutput keeps a { data } object as the output', () => {
     const userObject = { data: [1, 2], port: 'success' };
     expect(wrapBareAsNodeHandlerOutput(userObject).output).toBe(userObject);
   });
@@ -624,7 +600,7 @@ describe('wrapped value envelope', () => {
 // Code 가 `null` 을 돌려주거나 값을 돌려주지 않으면 output 이 null · undefined 이고 port 는
 // 'success' 다. 이때 설정 에코를 펼친 객체를 만들면 `data` 키가 없어 `applyPortSelection` 이
 // `_selectedPort` 를 달지 못하고 success · error 포트가 함께 열렸다. 포트 하나를 고른 null ·
-// undefined 출력도 배열 · 원시값과 같은 표지 봉투로 싣는다(NERV Task CLE-T-X3AH4F).
+// undefined 출력도 배열 · 원시값과 같은 봉투로 싣는다(NERV Task CLE-T-X3AH4F).
 describe('null · undefined output 의 포트 봉투', () => {
   const codeConfig = { code: 'return null;', language: 'javascript' };
 
@@ -632,7 +608,7 @@ describe('null · undefined output 의 포트 봉투', () => {
     ['null', null],
     ['undefined', undefined],
   ])(
-    '%s output 에 포트 하나가 있으면 설정 에코 없이 표지 봉투로 싣는다',
+    '%s output 에 포트 하나가 있으면 설정 에코 없이 봉투로 싣는다',
     (_label, output) => {
       const flat = toEngineFlatShape({
         config: codeConfig,
@@ -643,9 +619,6 @@ describe('null · undefined output 의 포트 봉투', () => {
       expect(Object.keys(flat).sort()).toEqual(['data', 'port']);
       expect(flat.data).toBe(output);
       expect(flat.port).toBe('success');
-      expect(isWrappedValueEnvelope(flat)).toBe(true);
-      expect(unwrapEngineFlatValue(flat)).toBe(output);
-      expect(wrapBareAsNodeHandlerOutput(flat).output).toBe(output);
     },
   );
 
@@ -660,7 +633,6 @@ describe('null · undefined output 의 포트 봉투', () => {
     });
 
     expect(flat).toEqual({ fields, status: 'waiting_for_input' });
-    expect(isWrappedValueEnvelope(flat)).toBe(false);
   });
 
   it('포트와 입력 대기 선언이 함께 있어도 설정 에코를 펼친 모양을 그대로 둔다', () => {
@@ -676,7 +648,6 @@ describe('null · undefined output 의 포트 봉투', () => {
       port: 'submitted',
       status: 'waiting_for_input',
     });
-    expect(isWrappedValueEnvelope(flat)).toBe(false);
   });
 
   // 재개 상태만 싣고 status 가 없는 출력도 봉투 조건에서 빠진다. 재개 경로가
@@ -695,7 +666,6 @@ describe('null · undefined output 의 포트 봉투', () => {
       port: 'success',
       _resumeState: resumeState,
     });
-    expect(isWrappedValueEnvelope(flat)).toBe(false);
   });
 
   // 봉투 조건은 status 값을 가리지 않는다. 대기가 아닌 status(`ended` 등)도 엔진이 최상위
@@ -709,7 +679,6 @@ describe('null · undefined output 의 포트 봉투', () => {
     });
 
     expect(flat).toEqual({ mode: 'multi', port: 'error', status: 'ended' });
-    expect(isWrappedValueEnvelope(flat)).toBe(false);
   });
 
   // Parallel 핸들러는 output: null 에 분기 포트 전부를 배열로 싣는다. 완료 출력은 엔진이
@@ -723,7 +692,6 @@ describe('null · undefined output 의 포트 봉투', () => {
     });
 
     expect(flat).toEqual({ branchCount: 2, port: ['branch_0', 'branch_1'] });
-    expect(isWrappedValueEnvelope(flat)).toBe(false);
   });
 
   it('제어 필드도 설정 에코도 없으면 output 을 그대로 돌려준다', () => {
@@ -735,14 +703,15 @@ describe('null · undefined output 의 포트 봉투', () => {
 });
 
 describe('toDownstreamValue', () => {
-  it('표지가 붙은 봉투는 그 안의 data 를 꺼낸다', () => {
+  // 구조화 출력이 없는 옛 컨텍스트의 대체 경로다. 봉투는 사용자 `{ data }` 객체와 가를 수
+  // 없어 제어 필드만 떼고 풀지 않는다(NERV Task CLE-T-ZJR3AF).
+  it('엔진 봉투도 풀지 않고 제어 필드만 뗀다', () => {
     const envelope = toEngineFlatShape({
       config: {},
       output: [1, 2],
       port: 'default',
     });
-    expect(isWrappedValueEnvelope(envelope)).toBe(true);
-    expect(toDownstreamValue(envelope)).toEqual([1, 2]);
+    expect(toDownstreamValue(envelope)).toEqual({ data: [1, 2] });
   });
 
   it('객체 출력에서 엔진 제어 필드만 뗀다', () => {

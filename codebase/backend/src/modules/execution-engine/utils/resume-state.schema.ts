@@ -19,7 +19,7 @@ import type { PresentationPayload } from '../../../shared/conversation-thread/co
  *
  * 라이프사이클 구분 (spec/5-system/4-execution-engine.md §1.3, impl-prep I-8):
  * - `ResumeState`      — in-memory only. multi-turn 핸들러가 턴 간 보관하는 전체
- *                        상태(credential/context-binding 필드 포함). `stripControlFields`
+ *                        상태(credential/context-binding 필드 포함). `toDownstreamValue`
  *                        가 DB 영속 전 제거.
  * - `ResumeCheckpoint` — DB 영속. `ResumeState` 의 **credential-strip 부분집합** +
  *                        `schemaVersion`. `expiresAt`(TTL)·`lastUserMessage` 없음.

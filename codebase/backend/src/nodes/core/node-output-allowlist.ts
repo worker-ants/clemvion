@@ -38,7 +38,7 @@ import type { NodeHandlerOutput } from './node-handler.interface';
  * 반대 방향(allowlist 가 타입보다 넓은 것)은 **의도적으로 허용**한다: `formConfig` 등
  * wire 전용 키는 핸들러 계약에 없지만 위젯 파서가 top-level 로 읽는다.
  *
- * `_resumeCheckpoint`(`stripControlFields` 에만 등장, 이 타입의 키 아님)처럼 **목록에 없는
+ * `_resumeCheckpoint`(엔진 제어 필드 목록 `toDownstreamValue` 에만 등장, 이 타입의 키 아님)처럼 **목록에 없는
  * 것은 전부** 떨어진다 — fail-closed 라 열거하지 않아도 닫힌다.
  *
  * | 그룹 | 키 | 근거 |

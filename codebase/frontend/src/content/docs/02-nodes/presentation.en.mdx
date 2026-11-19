@@ -65,14 +65,14 @@ Up to **10 buttons per node**. If a port button's dynamic port has no downstream
   layout: "card"
 }
 
-// Output via dynamic port when an item button is clicked
+// Output after an item button click ($input · $node["Carousel"].output), sent through the dynamic port
 {
-  type: "button_click",
-  buttonId: "…",
-  buttonLabel: "Select",
-  clickedAt: "…",
-  selectedItem: { title: "…", description: "…" },
-  nodeOutput: { type: "carousel", items: [...], layout: "card", rendered: "<html>…" }
+  type: "carousel", items: [...], layout: "card", rendered: "<html>…",  // The waiting-time output plus `interaction`
+  interaction: {
+    type: "button_click",
+    data: { buttonId: "…", buttonLabel: "Select", selectedItem: { title: "…", description: "…" } },
+    receivedAt: "…"
+  }
 }
 ```
 </Example>

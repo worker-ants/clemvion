@@ -10,6 +10,7 @@ import {
   EXECUTION_RUN_QUEUE,
   EXECUTION_RUN_PRIORITY,
 } from './queues/execution-run.queue';
+import { toDownstreamValue } from './handler-output.adapter';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionEngineService } from './execution-engine.service';
 import { SUB_WORKFLOW_MAX_RECURSION_DEPTH } from '../../nodes/core/node-types.constants';
@@ -11484,10 +11485,7 @@ describe('ExecutionEngineService', () => {
       const routerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () =>
-          mockOutput({
-            port: 'port1',
-            data: { routed: true },
-          }),
+          mockOutput({ routed: true }, { port: 'port1' }),
         ),
       };
       const leafHandler: NodeHandler = {
@@ -11825,7 +11823,7 @@ describe('ExecutionEngineService', () => {
       const routerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () =>
-          mockOutput({ port: 'port2', data: { branch: 2 } }),
+          mockOutput({ branch: 2 }, { port: 'port2' }),
         ),
       };
       const branchHandler: NodeHandler = {
@@ -12114,6 +12112,21 @@ describe('ExecutionEngineService', () => {
           fromInput: expected,
           port: 'success',
         }),
+      );
+      expect(errorCalls).toHaveLength(0);
+    });
+
+    // 포트와 함께 온 객체 output 안에 `data` 키가 있어도(예: HTTP 응답 `{ status, data }`)
+    // 다음 노드는 핸들러 output 그대로 받는다. 예전에는 flat 캐시에서 `data` 안의 키를
+    // 펼치고 `status` 를 뗀 값을 받았다(NERV Task CLE-T-ZJR3AF, 질문 답 A).
+    it('포트와 객체 data 를 함께 내도 다음 노드 $input 은 핸들러 output 그대로다', async () => {
+      const expected = { status: 200, data: { a: 1 } };
+      await runValueGraph(expected, valueSinkConfig);
+
+      expect(successCalls).toHaveLength(1);
+      expect(successCalls[0].input).toEqual(expected);
+      expect(successCalls[0].config).toEqual(
+        expect.objectContaining({ fromNode: expected, fromInput: expected }),
       );
       expect(errorCalls).toHaveLength(0);
     });
@@ -14762,6 +14775,28 @@ describe('ExecutionEngineService', () => {
         },
       );
 
+      // 객체 emit 도 핸들러 output 을 모은다. flat 캐시의 `_selectedPort` 나 `data` 펼침이
+      // 섞이지 않는다(CLE-EXEC-HANDLER §포트 선택, NERV Task CLE-T-ZJR3AF).
+      it('Map: collects an object emit with a port as the handler output', async () => {
+        const { sinkCalls } = await runContainer(
+          'map',
+          { items: [1, 2] },
+          { inputField: 'items' },
+          async (input) => ({
+            config: {},
+            output: { status: 200, data: { v: input } },
+            port: 'out',
+          }),
+        );
+        expect(sinkCalls[0]).toEqual({
+          mapped: [
+            { status: 200, data: { v: 1 } },
+            { status: 200, data: { v: 2 } },
+          ],
+          count: 2,
+        });
+      });
+
       it('Map: iterations + fellBackToEmpty=false for an array input', async () => {
         const { sinkCalls, meta } = await runContainer(
           'map',
@@ -16976,7 +17011,10 @@ describe('ExecutionEngineService', () => {
         nodeId: string,
         edges: unknown[],
         executedNodes: Set<string>,
-        nodeOutputCache: Record<string, unknown>,
+        caches: {
+          nodeOutputCache: Record<string, unknown>;
+          structuredOutputCache: Record<string, { output?: unknown }>;
+        },
         workflowInput: unknown,
         incomingEdgeMap?: Map<string, unknown[]>,
       ) => unknown;
@@ -17024,7 +17062,7 @@ describe('ExecutionEngineService', () => {
           'next',
           [edge],
           ctx._executedNodes ?? new Set(),
-          ctx.nodeOutputCache,
+          ctx,
           WORKFLOW_INPUT,
           new Map([['next', [edge]]]),
         );
@@ -19585,28 +19623,14 @@ describe('ExecutionEngineService', () => {
     });
 
     // ── injectInvokerOutput: output 주입 형태 검증 ───────────────────
-    it('injectInvokerOutput: setStructuredOutput + setNodeOutput 호출로 output.result wrapping', () => {
-      const structuredCalls: unknown[][] = [];
-      const flatCalls: unknown[][] = [];
+    it('injectInvokerOutput: setNodeOutputs 한 번으로 두 캐시에 output.result wrapping 을 쓴다', () => {
+      const outputsCalls: unknown[][] = [];
       (
         service as unknown as {
-          contextService: {
-            setStructuredOutput: jest.Mock;
-            setNodeOutput: jest.Mock;
-          };
+          contextService: { setNodeOutputs: jest.Mock };
         }
-      ).contextService.setStructuredOutput = jest.fn((...args) =>
-        structuredCalls.push(args),
-      );
-      (
-        service as unknown as {
-          contextService: {
-            setStructuredOutput: jest.Mock;
-            setNodeOutput: jest.Mock;
-          };
-        }
-      ).contextService.setNodeOutput = jest.fn((...args) =>
-        flatCalls.push(args),
+      ).contextService.setNodeOutputs = jest.fn((...args) =>
+        outputsCalls.push(args),
       );
 
       const invokerNode = {
@@ -19618,14 +19642,14 @@ describe('ExecutionEngineService', () => {
 
       driveSubject().injectInvokerOutput(mockContext, invokerNode, subOutput);
 
-      // setStructuredOutput 은 { config, output: { result: subOutput } } 형태
-      expect(structuredCalls).toHaveLength(1);
-      expect(structuredCalls[0][2]).toMatchObject({
+      // 구조화 출력은 { config, output: { result: subOutput } } 형태이고 flat 값과 함께 쓴다.
+      // flat 값으로 구조화 출력을 다시 만들지 않는다(NERV Task CLE-T-ZJR3AF).
+      expect(outputsCalls).toHaveLength(1);
+      expect(outputsCalls[0][2]).toMatchObject({
         config: invokerNode.config,
         output: { result: subOutput },
       });
-      // setNodeOutput 도 호출됨
-      expect(flatCalls).toHaveLength(1);
+      expect(outputsCalls[0][3]).toEqual({ result: subOutput });
     });
   });
 
@@ -21224,13 +21248,106 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // spec node-output §4.2.1 — stripControlFields preserves _retryState while
-  // stripping _resumeState.
-  describe('stripControlFields _retryState preservation', () => {
-    function strip(output: unknown): unknown {
+  // 다음 노드 `$input` 은 구조화 출력 캐시의 핸들러 output 이다. 구조화 출력이 없는 노드
+  // (구조화 캐시가 없던 옛 컨텍스트 · 옛 큐 작업)만 flat 값에서 제어 필드를 뗀다. 연결선
+  // 판정은 flat 값의 `_selectedPort` 로 한다(NERV Task CLE-T-ZJR3AF).
+  describe('gatherNodeInput — 구조화 캐시 읽기와 대체 경로 (CLE-T-ZJR3AF)', () => {
+    type Caches = {
+      nodeOutputCache: Record<string, unknown>;
+      structuredOutputCache: Record<string, unknown>;
+    };
+    const gather = (
+      caches: Caches,
+      sources: Array<{ id: string; port: string }>,
+    ): unknown => {
+      const edges = sources.map((src) => ({
+        sourceNodeId: src.id,
+        sourcePort: src.port,
+        targetNodeId: 'next',
+        targetPort: 'in',
+      }));
       return (
-        service as unknown as { stripControlFields(o: unknown): unknown }
-      ).stripControlFields(output);
+        service as unknown as {
+          gatherNodeInput: (
+            nodeId: string,
+            edges: unknown[],
+            executedNodes: Set<string>,
+            caches: Caches,
+            workflowInput: unknown,
+          ) => unknown;
+        }
+      ).gatherNodeInput(
+        'next',
+        edges,
+        new Set(sources.map((src) => src.id)),
+        caches,
+        { from: 'workflow' },
+      );
+    };
+
+    it('구조화 출력이 있으면 flat 봉투 대신 핸들러 output 을 준다', () => {
+      const output = { data: [1, 2] };
+      expect(
+        gather(
+          {
+            nodeOutputCache: { a: { data: [1, 2], _selectedPort: 'ok' } },
+            structuredOutputCache: { a: { config: {}, output, port: 'ok' } },
+          },
+          [{ id: 'a', port: 'ok' }],
+        ),
+      ).toBe(output);
+    });
+
+    it('구조화 출력이 없으면 flat 값에서 제어 필드만 떼고 봉투는 풀지 않는다', () => {
+      expect(
+        gather(
+          {
+            nodeOutputCache: {
+              a: { v: 1, _selectedPort: 'ok', status: 'resumed' },
+            },
+            structuredOutputCache: {},
+          },
+          [{ id: 'a', port: 'ok' }],
+        ),
+      ).toEqual({ v: 1 });
+      expect(
+        gather(
+          {
+            nodeOutputCache: { a: { data: [1, 2], _selectedPort: 'ok' } },
+            structuredOutputCache: {},
+          },
+          [{ id: 'a', port: 'ok' }],
+        ),
+      ).toEqual({ data: [1, 2] });
+    });
+
+    it('연결선 판정은 flat 값의 _selectedPort 로 하고 여러 입력도 구조화 출력을 모은다', () => {
+      const caches: Caches = {
+        nodeOutputCache: {
+          a: { x: 1, _selectedPort: 'ok' },
+          b: { y: 2, _selectedPort: 'other' },
+        },
+        structuredOutputCache: {
+          a: { config: {}, output: { x: 1 }, port: 'ok' },
+          b: { config: {}, output: { y: 2 }, port: 'other' },
+        },
+      };
+      expect(gather(caches, [{ id: 'b', port: 'ok' }])).toBeUndefined();
+      expect(
+        gather(caches, [
+          { id: 'a', port: 'ok' },
+          { id: 'b', port: 'ok' },
+        ]),
+      ).toEqual({ a: { x: 1 } });
+    });
+  });
+
+  // spec node-output §4.2.1 — 구조화 출력이 없는 노드의 대체 경로(toDownstreamValue)는
+  // _resumeState 를 떼고 _retryState 를 남긴다. 다음 노드 값은 보통 구조화 캐시에서
+  // 읽는다(NERV Task CLE-T-ZJR3AF).
+  describe('toDownstreamValue _retryState preservation', () => {
+    function strip(output: unknown): unknown {
+      return toDownstreamValue(output);
     }
 
     it('preserves _retryState but strips _resumeState / control fields', () => {

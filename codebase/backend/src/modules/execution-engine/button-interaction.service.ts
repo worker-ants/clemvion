@@ -61,11 +61,9 @@ export function isButtonClickPayload(
  * 않으며, {@link ButtonInteractionService.processButtonResumeTurn} 이 이 값으로
  * (기존과 동일한 순서의) context/DB/emit 부수효과를 수행한다.
  *
- * `updatedStructured`(structured NodeHandlerOutput)는 의도적으로 **여기 없다**:
- * 원본 메서드가 그것을 `setNodeOutput()` **이후**의 `structuredOutputCache[nodeId]`
- * (= setNodeOutput 이 `updatedOutput` 으로 재파생한 view) 로부터 구성하므로,
- * read-timing 이 동작의 일부다. 따라서 structured 구성은 메서드에 잔류하되 순수
- * 헬퍼 {@link buildResumedStructuredOutput} 로 분리했다.
+ * `updatedStructured`(structured NodeHandlerOutput)는 여기 없다. 입력 대기 시점의
+ * 구조화 출력(`structuredOutputCache[nodeId]`)이 필요해서 메서드가 순수 헬퍼
+ * {@link buildResumedStructuredOutput} 로 만든다.
  */
 export interface ButtonInteractionResolution {
   /** 라우팅 포트 (`continue` 또는 base def port). */
@@ -237,13 +235,11 @@ export function resolveButtonInteraction(
 /**
  * **순수함수** — 재개 tick 의 structured NodeHandlerOutput 을 구성한다. 직전
  * structured view (`prevStructured`)·통합 상호작용·선택 포트로부터 파생하며
- * 부수효과 없음. 원본 메서드는 이것을 `setNodeOutput()` **이후**의
- * `structuredOutputCache[nodeId]` 로부터 구성했으므로, 호출자는 반드시 그
- * 시점(= setNodeOutput 호출 후)의 view 를 `prevStructured` 로 넘겨 read-timing
- * 동작을 보존한다.
+ * 부수효과 없음. 호출자는 캐시를 쓰기 **전**의 `structuredOutputCache[nodeId]`, 곧 입력
+ * 대기 시점의 구조화 출력을 `prevStructured` 로 넘긴다. 캐시를 쓴 뒤에 읽으면 flat 값의
+ * `_selectedPort` 가 출력에 섞인다(NERV Task CLE-T-ZJR3AF).
  *
- * @param prevStructured `setNodeOutput()` 직후의 structured view (config/meta/output
- *   보존 원천).
+ * @param prevStructured 입력 대기 시점의 구조화 출력 (config/meta/output 보존 원천).
  * @param structuredInteraction `output.interaction` 에 append 될 통합 형태.
  * @param selectedPort 결정된 포트 (`NodeHandlerOutput.port`).
  * @param cleanNodeOutput `prevStructured?.output` 부재 시 fallback.
@@ -256,10 +252,8 @@ export function buildResumedStructuredOutput(
 ): NodeHandlerOutput {
   // Mirror the interaction result into the structured NodeHandlerOutput
   // cache so `$node["<label>"].output.interaction.buttonId` and
-  // `.output.selectedItem` resolve predictably. `setNodeOutput` (called by
-  // the caller before this helper) already derived a legacy structured view;
-  // we overwrite it with a richer shape that preserves the handler's original
-  // `config`/`meta`.
+  // `.output.selectedItem` resolve predictably. The handler's original
+  // `config`/`meta` are preserved from the waiting-time structured view.
   const prevConfig = prevStructured?.config ?? {};
   const prevMeta = prevStructured?.meta;
   const rawPrevOutput = prevStructured?.output ?? cleanNodeOutput;
@@ -519,31 +513,21 @@ export class ButtonInteractionService {
       now,
     );
 
-    // Update node output cache with port selection. The flat-shape
-    // `updatedOutput` carries `_selectedPort` so existing routing logic
-    // (applyPortSelection / hasPortMismatch / stripControlFields) keeps
-    // operating without changes.
-    this.contextService.setNodeOutput(
-      this.driver.contextKeyOf(context),
-      node.id,
-      updatedOutput,
-    );
-
-    // `setNodeOutput` above re-derived `structuredOutputCache[node.id]` from
-    // the flat `updatedOutput`; read it back (post-write) so the structured
-    // shape is built from the exact same value the pre-refactor method used
-    // (read-timing is part of the behavior — see buildResumedStructuredOutput).
-    const prevStructured = context.structuredOutputCache?.[node.id];
+    // 재개 출력은 입력 대기 시점의 구조화 출력에 `interaction` 을 더한 값이다. 그래서
+    // 캐시를 쓰기 전에 읽은 `structured` 로 만든다. flat `updatedOutput` 은 라우팅
+    // (`_selectedPort`)에만 쓰고 구조화 출력에 섞지 않는다. 다음 노드 `$input` 이 구조화
+    // 출력을 읽기 때문이다(NERV Task CLE-T-ZJR3AF).
     const updatedStructured = buildResumedStructuredOutput(
-      prevStructured,
+      structured,
       structuredInteraction,
       selectedPort,
       cleanNodeOutput,
     );
-    this.contextService.setStructuredOutput(
+    this.contextService.setNodeOutputs(
       this.driver.contextKeyOf(context),
       node.id,
       updatedStructured,
+      updatedOutput,
     );
     // Append the button interaction to the ConversationThread so downstream
     // AI Agent nodes with `contextScope` can auto-inject it (single mutation
