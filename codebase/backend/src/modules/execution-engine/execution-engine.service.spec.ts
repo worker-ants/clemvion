@@ -1745,6 +1745,20 @@ describe('ExecutionEngineService', () => {
           }),
       ],
       [
+        '중첩 호출 스택 프레임에 invokerNodeId 가 없음',
+        () => [
+          { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
+          aiRow({ parentNodeExecutionId: 'ne-inv1' }),
+        ],
+        () =>
+          execution({
+            resumeCallStack: {
+              version: 1,
+              frames: [{ workflowId: 'sub1', recursionDepth: 1 }],
+            } as unknown as Execution['resumeCallStack'],
+          }),
+      ],
+      [
         '중첩 호출 스택 미래 버전',
         () => [
           { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
@@ -1792,6 +1806,17 @@ describe('ExecutionEngineService', () => {
       await run(execution(), [aiRow()]);
       expectFallback();
       expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('재생 진입이 RehydrationError 가 아닌 오류로 실패하면 RESUME_CHECKPOINT_MISSING 으로 마감한다', async () => {
+      resumeSpy.mockRejectedValueOnce(new Error('boom'));
+      await run(execution(), [aiRow()]);
+      expect(nodeFailSpy).toHaveBeenCalledWith(
+        'ne-new',
+        'RESUME_CHECKPOINT_MISSING',
+      );
+      expect(cancelSpy).toHaveBeenCalledWith('e1', 'RESUME_CHECKPOINT_MISSING');
+      expect(driveSpy).not.toHaveBeenCalled();
     });
 
     it('재생 진입 사전 검사가 실패하면 새 행과 실행을 RESUME_* 로 마감한다', async () => {
@@ -3283,7 +3308,9 @@ describe('ExecutionEngineService', () => {
       // Execution 은 이미 RUNNING 으로 바꿨다. 경합에서 졌으므로 롤백해야 늦게 온
       // 메시지가 WFI 실행을 RUNNING 으로 뒤집지 않는다 — tx 콜백이 던진다.
       expect(order).toEqual(['Execution', 'NodeExecution']);
-      await expect(tx.mock.results[0].value).rejects.toBeInstanceOf(Error);
+      await expect(tx.mock.results[0].value).rejects.toMatchObject({
+        name: 'ResumeClaimNodeLostError',
+      });
       expect(segmentStarted()).toBe(false);
     });
 

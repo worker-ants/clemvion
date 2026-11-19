@@ -484,6 +484,47 @@ const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
 const CHECKPOINT_SCHEMA_VERSION = 1;
 
 /**
+ * 크래시한 AI 턴의 행 모양이 영속 호출 스택과 맞는지 본다(순수 함수). 나머지 RUNNING 행이
+ * 프레임마다 하나씩인 호출 노드 행이고, AI 행의 부모가 가장 안쪽 호출 노드 행이면 참이다.
+ */
+function matchesCallStackRowShape(
+  aiRow: Pick<NodeExecution, 'parentNodeExecutionId'>,
+  others: ReadonlyArray<Pick<NodeExecution, 'id' | 'nodeId'>>,
+  frames: ReadonlyArray<{ invokerNodeId: string }>,
+): boolean {
+  const invokerIds = frames.map((f) => f.invokerNodeId).sort();
+  const rowNodeIds = others.map((r) => r.nodeId).sort();
+  const innermostRow = others.find((r) => r.id === aiRow.parentNodeExecutionId);
+  return (
+    invokerIds.length === rowNodeIds.length &&
+    invokerIds.every((id, i) => id === rowNodeIds[i]) &&
+    innermostRow?.nodeId === frames[frames.length - 1].invokerNodeId
+  );
+}
+
+/**
+ * 대기 봉투의 `_resumeCheckpoint` 를 읽는다. 객체가 아니면 `'missing'`, 스키마 버전이
+ * 지원 범위를 넘으면 `'future'` 다(case A 의 버전 검사와 같은 기준).
+ */
+function readValidCheckpoint(
+  envelope: Record<string, unknown>,
+): Record<string, unknown> | 'missing' | 'future' {
+  const checkpoint = envelope._resumeCheckpoint;
+  if (
+    checkpoint === null ||
+    typeof checkpoint !== 'object' ||
+    Array.isArray(checkpoint)
+  ) {
+    return 'missing';
+  }
+  const version = (checkpoint as { schemaVersion?: unknown }).schemaVersion;
+  if (typeof version === 'number' && version > CHECKPOINT_SCHEMA_VERSION) {
+    return 'future';
+  }
+  return checkpoint as Record<string, unknown>;
+}
+
+/**
  * `_resumeCheckpoint` 저장·재개 허용 노드 타입 allow-list (spec §1.3 합집합).
  * 새 멀티턴 타입 추가 시 이 한 곳만 갱신하면 3개 가드 모두 반영된다.
  */
@@ -3320,6 +3361,39 @@ export class ExecutionEngineService
   }
 
   /**
+   * §7.5 case B — 크래시한 AI 재개 턴이 있으면 그 턴을 다시 돌린다. 돌렸으면 `true`,
+   * 대상이 아니거나 재구성이 안 되면 `false` 이고 호출 측이 기존 재구동(처음부터)으로 간다.
+   * 재구성 가능 여부는 재생 전에 같은 재구성기로 확인한다. 재생 중에 실패하면 case A 처럼
+   * RESUME_INCOMPATIBLE_STATE 로 끝나므로, 여기서 걸러 처음부터 돈다.
+   */
+  private async tryReplayCrashedAiTurn(
+    savedExecution: Execution,
+  ): Promise<boolean> {
+    const crashedTurn = await this.findCrashedAiTurn(savedExecution);
+    if (!crashedTurn) return false;
+    const executionId = savedExecution.id;
+    const replayContext = await this.rehydrateContext(savedExecution, null);
+    try {
+      this.buildRetryReentryState(
+        savedExecution,
+        crashedTurn.node,
+        replayContext,
+        crashedTurn.checkpoint,
+        { resumeMode: true },
+      );
+    } catch (probeErr) {
+      this.logger.warn(
+        `[crash-redrive] execution ${executionId} AI 재개 턴 재구성 불가 — 처음부터 재구동: ${
+          probeErr instanceof Error ? probeErr.message : String(probeErr)
+        }`,
+      );
+      return false;
+    }
+    await this.replayCrashedAiTurn(savedExecution, replayContext, crashedTurn);
+    return true;
+  }
+
+  /**
    * §7.5 case B — 재개 턴의 LLM 호출 중 크래시한 멀티턴 AI 노드를 RUNNING 행에서 찾는다.
    * 정본은 NERV `CLE-EXEC-STATE-RESUME` 「크래시 재구동에서 처리 중이던 턴을 다시 돌린다」다.
    *
@@ -3368,16 +3442,7 @@ export class ExecutionEngineService
         return skip('호출 스택 미래 버전');
       }
       if (findBrokenCallStackFrame(frames)) return skip('호출 스택 손상');
-      const invokerIds = frames.map((f) => f.invokerNodeId).sort();
-      const rowNodeIds = others.map((r) => r.nodeId).sort();
-      const innermostRow = others.find(
-        (r) => r.id === oldRow.parentNodeExecutionId,
-      );
-      if (
-        invokerIds.length !== rowNodeIds.length ||
-        invokerIds.some((id, i) => id !== rowNodeIds[i]) ||
-        innermostRow?.nodeId !== frames[frames.length - 1].invokerNodeId
-      ) {
+      if (!matchesCallStackRowShape(oldRow, others, frames)) {
         return skip('호출 노드 행이 호출 스택과 다름');
       }
     } else if (oldRow.parentNodeExecutionId || others.length) {
@@ -3390,24 +3455,10 @@ export class ExecutionEngineService
     }
     const turn = readCrashedAiTurn(oldRow.outputData);
     if (!turn) return skip('처리 중이던 입력 없음');
-    const checkpoint = turn.waitingEnvelope._resumeCheckpoint;
-    if (
-      checkpoint === null ||
-      typeof checkpoint !== 'object' ||
-      Array.isArray(checkpoint)
-    ) {
-      return skip('_resumeCheckpoint 없음 · 손상');
-    }
-    const version = (checkpoint as { schemaVersion?: unknown }).schemaVersion;
-    if (typeof version === 'number' && version > CHECKPOINT_SCHEMA_VERSION) {
-      return skip('_resumeCheckpoint 미래 버전');
-    }
-    return {
-      oldRow,
-      node,
-      turn,
-      checkpoint: checkpoint as Record<string, unknown>,
-    };
+    const checkpoint = readValidCheckpoint(turn.waitingEnvelope);
+    if (checkpoint === 'missing') return skip('_resumeCheckpoint 없음 · 손상');
+    if (checkpoint === 'future') return skip('_resumeCheckpoint 미래 버전');
+    return { oldRow, node, turn, checkpoint };
   }
 
   /**
@@ -3651,43 +3702,7 @@ export class ExecutionEngineService
       // re-drive 진입 시점으로 옮겨 복원한다.
       // 재개 턴의 LLM 호출 중 크래시한 멀티턴 AI 노드는 그 턴을 새 행으로 다시 돌린다
       // (CLE-T-K9RZQV). 재료가 온전하지 않으면 아래 기존 재구동(처음부터)으로 간다.
-      const crashedTurn = await this.findCrashedAiTurn(savedExecution);
-      if (crashedTurn) {
-        const replayContext = await this.rehydrateContext(savedExecution, null);
-        let reconstructible = true;
-        try {
-          // 재구성 가능 여부를 재생 전에 같은 재구성기로 확인한다. 재생 중에 실패하면
-          // case A 처럼 RESUME_INCOMPATIBLE_STATE 로 끝나므로, 여기서 걸러 처음부터 돈다.
-          this.buildRetryReentryState(
-            savedExecution,
-            crashedTurn.node,
-            replayContext,
-            crashedTurn.checkpoint,
-            { resumeMode: true },
-          );
-        } catch (probeErr) {
-          reconstructible = false;
-          this.logger.warn(
-            `[crash-redrive] execution ${executionId} AI 재개 턴 재구성 불가 — 처음부터 재구동: ${
-              probeErr instanceof Error ? probeErr.message : String(probeErr)
-            }`,
-          );
-        }
-        if (reconstructible) {
-          await this.replayCrashedAiTurn(
-            savedExecution,
-            replayContext,
-            crashedTurn,
-          );
-          return;
-        }
-        await this.failOrphanRunningNodeExecutions(executionId);
-        const graphState = await this.loadAndBuildGraph(
-          savedExecution.workflowId,
-        );
-        await this.driveStuckRedrive(savedExecution, replayContext, graphState);
-        return;
-      }
+      if (await this.tryReplayCrashedAiTurn(savedExecution)) return;
 
       await this.failOrphanRunningNodeExecutions(executionId);
 
