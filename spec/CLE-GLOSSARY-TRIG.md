@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-TRIG"
 title: "용어 사전 — 트리거"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "a00d834428c0e39ae28889ed57dcf1f1bf032a60b8cdabcd9a7a3d5f12ef1a51"
+content_hash: "8d76ec5f1cd958449a8604d15d0e77dc42542d3cd7d061248694ae619d7afa65"
 read_as: "approved_fallback"
-task: "CLE-T-GNTWP9"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "aa3fcd87abf48909487a05cfd795232b896b73ac0cf4b5beb74a459fea915aa2"
-etag: "sha256-7f885b16a3c8399ab6b2ea127d1c6bf823f7778534adaf30131e37abe4254d14"
+mirror_sha256: "bb6acb7fbd3d1cd51a1143ec74d2a64f8070fb401efdd355d201edaabb6ca4c8"
+etag: "sha256-3c7864e06b1b9f52f2ec102e4f3ecb1287466b93df656dadd68cb2064208e00c"
 ---
 ## 개요
 
@@ -40,7 +40,7 @@ etag: "sha256-7f885b16a3c8399ab6b2ea127d1c6bf823f7778534adaf30131e37abe4254d14"
 | 평문 보기 | Reveal, `POST /api/auth-configs/:id/reveal` | 관리자 이상이 비밀번호 재확인을 거쳐 인증 설정 비밀 값을 한 번 보는 기능. 화면은 잠시 뒤 다시 가린다. | Reveal(본문), 평문 노출 | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
 | 키 재생성 | regenerate | 인증 설정의 비밀 값을 새로 발급하고 옛 값을 바로 무효로 만드는 동작. | 없음 | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
 | 사용 내역 | usage | 인증 설정을 쓴 최근 호출과 기간별 호출 수. | 호출 이력(이 뜻으로) | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
-| 필드 마스킹 | `***<last4>` | 인증 설정·모델 설정 응답에서 비밀 필드를 끝 네 글자만 보이게 가리는 방식. 응답 마스킹과 다르다. | 없음 | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
+| 필드 마스킹 | `***<last4>` | 인증 설정·모델 설정 응답에서 비밀 필드를 끝 몇 글자만 보이게 가리는 방식. 응답 마스킹과 다르다. | 없음 | [외부 호출 인증 설정](CLE-TRIG/CLE-TRIG-AUTHCFG.md) |
 | 스케줄 | Schedule, `schedule` | Cron 표현식으로 워크플로우를 주기 실행하는 설정. 스케줄 유형 트리거와 1:1 로 묶이고 이름은 트리거에 있다. | Cron Job, 스케줄 관리(개념 이름으로) | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | Cron 표현식 | cron expression, `cron_expression` | 분·시·일·월·요일 다섯 필드로 주기를 적는 식. 표현식 언어와 다르다. 본문과 화면 라벨은 «Cron» 으로 쓰고 코드 식별자는 백틱으로 쓴다. 일반 명사로서의 주기 작업(«정리 cron» 등)은 이 표기 밖이다. | cronExpression(본문), cron 표현식(소문자), 크론 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | 발사 | fire | 트리거 · 스케줄이 실행을 시작시키는 일. 밖으로 내보내는 «발송» 과 다르다. 알림 쪽 뜻은 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 이 가른다. | 발화(트리거 · 스케줄 뜻으로) | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
@@ -64,7 +64,6 @@ etag: "sha256-7f885b16a3c8399ab6b2ea127d1c6bf823f7778534adaf30131e37abe4254d14"
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「공개 웹훅」 · 「웹훅 남용 방어」 의 「IP 호출 수 제한」 · 「IP 호출 빈도 제한」 을 표준 「요청 빈도 제한」 으로 맞췄다.
 - 「평문 보기」: 다시 가리는 시간을 정의에서 뺐다(색인 표기 원칙 14).
 - 「트리거 유형」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다. 「트리거」 의 유형 열거도 그 행을 가리킨다.

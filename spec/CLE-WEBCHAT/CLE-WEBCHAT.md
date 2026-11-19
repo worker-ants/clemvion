@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT"
 title: "웹채팅"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "580860e6dba720f06ee8bbb9dc532b33a56c0223da358497cf5c24a5786baf1f"
-read_as: "approved"
-task: null
+content_hash: "16ba2bcd0ba31fda418b688fbf03bfc46e5186a01faa17e2d6e84d2a0f98e91a"
+read_as: "approved_fallback"
+task: "CLE-T-4H77EB"
 source_paths: ["spec/7-channel-web-chat/_product-overview.md"]
-mirror_sha256: "2c9814a9d1ba50c45fedcb9acd31f30d55c3febde4bde0d7c3431f06d67dd239"
-etag: "sha256-38b96e263422208dbb258d21d09f54339f35c08db358ed00622d8fb6bd489c29"
+mirror_sha256: "251067c9b7f08daeb45cdf792caa3640295f3180705ee51428d95bcd4177cf5c"
+etag: "sha256-a72fe7876d0ebfce9aee4f7ff68555d0b9cffc5bf0c77680a4322884a4766cae"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,7 +38,7 @@ etag: "sha256-38b96e263422208dbb258d21d09f54339f35c08db358ed00622d8fb6bd489c29"
 - 두 배포 표면을 준다. (a) CDN `<script>` 설치 스크립트와 스니펫 로더(비개발자·마케터용), (b) `@workflow/web-chat` npm(개발자용).
 - 두 사용 모드([웹채팅 구조](CLE-WEBCHAT-ARCH.md))를 둔다. Hosted iframe 모드(주력)와 BYO-UI 모드(개발자가 EIA 를 부르는 클라이언트로 자체 UI 를 만들고 자기 도메인에서 서빙)다. 두 모드 모두 같은 EIA 표면과 실행 단위 토큰을 쓰고 차이는 렌더링 위치와 요청 Origin 이다. BYO-UI 클라이언트를 어느 패키지가 주는지는 정의가 갈린다([웹채팅 SDK 미결 사항](CLE-WEBCHAT-SDK.md#미결-사항)).
 - 위젯은 `codebase/channel-web-chat/` 의 Next.js 앱이다. CSR 전용이며 SSR 과 서버 컴포넌트를 끈다.
-- EIA 인터랙션을 모두 그린다. 멀티턴 AI(`submit_message`), 버튼(`click_button`), Form(`submit_form`), `ai_form_render`, 그리고 표시물(carousel·table·chart·template)을 말풍선 안에 그린다.
+- EIA 인터랙션을 모두 그린다. 멀티턴 AI(`submit_message`), 버튼(`click_button`), Form(`submit_form`), `ai_form_render`(계약상 EIA 는 `ai_conversation` 에 합쳐 보낸다. [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 미결 사항), 그리고 표시물(carousel·table·chart·template)을 말풍선 안에 그린다.
 - SDK 를 쓰는 샘플 프로젝트를 준다.
 - 위젯 고유 문구(widget chrome)를 영어로도 낸다(`BootConfig.locale` 활성, 결정 2026-07-12). 위젯이 소유한 UI 틀 문자열을 ko·en 으로 낸다. 명시한 `locale` → 브라우저 자동 감지 → `ko` 순서로 정하고 위젯 로컬 catalog(ko·en parity)를 쓴다. 위젯 고유 문구는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md)의 적용 범위상 위젯 로컬 parity 대상이다. 메인 앱 dict 기구의 구체 형식은 적용하지 않고 문체 원칙은 적용한다. 운영자 콘텐츠와 AI 생성 본문은 대상이 아니다. 방식은 [웹채팅 위젯](CLE-WEBCHAT-WIDGET.md), `locale` 계약은 [웹채팅 SDK](CLE-WEBCHAT-SDK.md)가 정한다.
 

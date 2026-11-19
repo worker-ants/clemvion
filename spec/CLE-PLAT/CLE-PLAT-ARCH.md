@@ -2,19 +2,19 @@
 id: "CLE-PLAT-ARCH"
 title: "시스템 아키텍처"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "f91d64cebdc47ca1ecb12813e74078fcae68dcd4811ee7c5e9989b03f5ed7a5d"
+content_hash: "48ce7d8a7e4f97a0c88debb8df0de7afefd3f25ebbe32a970324d7bf5ab47d8e"
 read_as: "approved_fallback"
-task: "CLE-T-4YT18G"
+task: "CLE-T-4H77EB"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "2a21e79e45aaca4a31bdde525fddf1580480342cf9ae92a0daaf1cfdedfdf48b"
-etag: "sha256-bb1d91c967833c380b9bb6660d93d52521aafa632e0c676842b7797d3eaef5da"
+mirror_sha256: "e4ed925d7fd7327260c6475d7008554a6b8990097d1904b498a8038bb7730004"
+etag: "sha256-d1d0da1c677bd86bb9da2fb5a57727be21a333182dc7e2fccae887d45c032026"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -32,7 +32,7 @@ etag: "sha256-bb1d91c967833c380b9bb6660d93d52521aafa632e0c676842b7797d3eaef5da"
 
 다루지 않는 것은 각 문서가 정한다. BullMQ 큐 전체 목록과 Redis 키 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md), 엔티티 관계와 인덱스 전략은 [데이터 모델 개요](CLE-PLAT-DATA.md), 파일 저장소의 키 규칙과 수명주기는 [파일 저장소](CLE-PLAT-STORAGE.md), 성능·보안 같은 품질 목표는 [비기능 요구사항](CLE-PLAT-NFR.md) 이 소유한다. 실행 엔진 내부 동작은 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) 와 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 이 정한다.
 
-이 문서에는 `## 구현 위치` 절을 두지 않는다. [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 19 가 구성 개요 문서를 예외로 둔다. 컴포넌트마다 그 표면을 정한 문서가 구현 경로를 적는다. 큐와 Redis 는 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md), 엔티티와 마이그레이션은 [데이터 모델 개요](CLE-PLAT-DATA.md), 파일 저장소는 [파일 저장소](CLE-PLAT-STORAGE.md), 실행 엔진은 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) 와 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md), 웹채팅 위젯은 [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) 가 맡는다. API 진입 계층과 핵심 API 서비스는 [API 공통 규약](../CLE-API/CLE-API.md) 영역, 통합 서비스는 [통합](../CLE-INT/CLE-INT.md) 영역, 앱 클라이언트는 [앱 셸과 공통 화면](../CLE-UI/CLE-UI.md) 영역의 문서가 맡는다. 이유는 Rationale 「구현 위치 절을 두지 않은 이유」 에 있다.
+이 문서에는 `## 구현 위치` 절을 두지 않는다. [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 19 가 구성 개요 문서를 예외로 둔다. 구현 경로는 컴포넌트마다 그 표면을 정한 문서가 적는다. 위 문단의 문서들과 웹채팅 위젯의 [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md) 가 그 문서다. API 진입 계층과 핵심 API 서비스는 [API 공통 규약](../CLE-API/CLE-API.md) 영역, 통합 서비스는 [통합](../CLE-INT/CLE-INT.md) 영역, 앱 클라이언트는 [앱 셸과 공통 화면](../CLE-UI/CLE-UI.md) 영역의 문서가 맡는다. 이유는 Rationale 「구현 위치 절을 두지 않은 이유」 에 있다.
 
 ## 컴포넌트 구성
 
@@ -42,7 +42,7 @@ etag: "sha256-bb1d91c967833c380b9bb6660d93d52521aafa632e0c676842b7797d3eaef5da"
 flowchart LR
   subgraph Client["클라이언트 (Next.js SPA)"]
     UI["메인 앱 화면과 에디터"]
-    WIDGET["웹채팅 위젯 SPA"]
+    WIDGET["웹채팅 위젯"]
   end
   subgraph Backend["백엔드 (NestJS)"]
     GW["인증 가드와 REST 컨트롤러"]
@@ -90,7 +90,7 @@ flowchart LR
 
 ### 클라이언트
 
-- 기술: Next.js(React 기반) SPA. 메인 앱(`codebase/frontend`)과 임베드형 웹채팅 위젯 SPA(`codebase/channel-web-chat`)가 있다.
+- 기술: Next.js(React 기반) SPA. 메인 앱(`codebase/frontend`)과 웹채팅 위젯(`codebase/channel-web-chat`)이 있다.
 - 역할: 내비게이션 화면, 워크플로우 에디터(캔버스), 설정 화면을 그린다. 화면 틀은 [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md) 이 정한다.
 - 통신: 목록·저장 같은 조회와 변경은 REST API, 실행 상태 같은 실시간 갱신은 WebSocket(Socket.IO) 을 쓴다. 웹채팅 위젯은 REST 로 명령을 보내고 SSE 로 이벤트를 받는다([웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md)).
 
@@ -112,7 +112,7 @@ flowchart LR
 ### 실행 엔진
 
 - 워크플로우 실행을 조율하고 노드 그래프를 순회한다([실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md)).
-- 스케줄러: cron 기반 트리거를 BullMQ 반복 작업으로 발사한다([스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md)).
+- 스케줄러: cron 기반 스케줄을 BullMQ job scheduler 로 발사한다([스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md)).
 - 시작 큐(`execution-run`): `execute()` 가 실행 시작을 큐에 넣고, 워커가 실행 1건의 세그먼트(시작부터 첫 입력 대기나 종료까지)를 통째로 처리한다. 세그먼트 안의 노드는 같은 프로세스에서 차례로 부른다. 노드 단위 작업 큐는 없다.
 - 재개 큐(`execution-continuation`): 재개 세그먼트를 운반한다. 입력 대기(`waiting_for_input`)는 큐 없이 DB 에만 남는 park 다.
 - 워커 풀: 인스턴스 N 개가 두 큐를 work-stealing 방식으로 나눠 소비하며 수평으로 늘어난다.
@@ -192,7 +192,7 @@ flowchart LR
 
 1. **역할**: 그 영역이 시스템 안에서 맡는 일을 한 문단으로 쓴다. 비즈니스 목적·시작 계기·동작 책임을 담는다.
 2. **흐름 그림**: mermaid `sequenceDiagram` 또는 `flowchart` 로 요청자 → API → 서비스 → 저장소의 흐름을 그린다. 가능하면 호출 경로의 핵심 파일과 메서드를 함께 적는다.
-3. **저장소 매핑 표**: 데이터 객체마다 `저장소 | 테이블 또는 키 | 갱신 컬럼 또는 패턴 | 인덱스·제약` 표를 둔다. PostgreSQL 은 테이블·컬럼·PK·FK·기본값·인덱스를, Redis 는 BullMQ 큐 이름·반복 작업 키·캐시 키 패턴을, 파일 저장소는 버킷·접두·키 패턴을 적는다. 그 흐름에서 실제로 읽고 쓰는 컬럼만 발췌하고, 전체 정의는 엔티티를 소유한 문서를 링크한다. 컬럼 이름·타입·제약은 엔티티 파일(`codebase/backend/src/modules/<domain>/entities/*.entity.ts`)이나 마이그레이션(`codebase/backend/migrations/V*.sql`)에서 직접 옮긴다. 둘이 다르면 마이그레이션이 기준이다.
+3. **저장소 매핑 표**: 데이터 객체마다 `저장소 | 테이블 또는 키 | 갱신 컬럼 또는 패턴 | 인덱스·제약` 표를 둔다. PostgreSQL 은 테이블·컬럼·PK·FK·기본값·인덱스를, Redis 는 BullMQ 큐 이름·job scheduler 키·캐시 키 패턴을, 파일 저장소는 버킷·접두·키 패턴을 적는다. 그 흐름에서 실제로 읽고 쓰는 컬럼만 발췌하고, 전체 정의는 엔티티를 소유한 문서를 링크한다. 컬럼 이름·타입·제약은 엔티티 파일(`codebase/backend/src/modules/<domain>/entities/*.entity.ts`)이나 마이그레이션(`codebase/backend/migrations/V*.sql`)에서 직접 옮긴다. 둘이 다르면 마이그레이션이 기준이다.
 4. **상태 전이**: 엔티티에 상태 enum 이 있으면 mermaid `stateDiagram-v2` 로 전이를 그린다. 단계형 흐름이면 표나 번호 목록으로 나눈다.
 5. **외부 의존**: 외부 API(모델 프로바이더·OAuth 제공자·SMTP·MCP 서버 등), 다른 BullMQ 큐(영역을 넘는 작업 등록), 다른 영역 문서로의 링크를 적는다.
 
@@ -229,7 +229,7 @@ SaaS 와 셀프 호스팅은 같은 코드를 쓰고 설정으로 갈린다. 배
 
 ### 구현 위치 절을 두지 않은 이유 (2026-10-03)
 
-이 문서는 컴포넌트를 나열하는 구성 개요다. 컴포넌트마다 그 표면을 정한 문서가 있고 그 문서의 `## 구현 위치` 가 경로를 적는다. 여기에 같은 경로를 다시 적으면 두 곳을 함께 고쳐야 한다. [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 19 는 구성 개요 문서를 이 절의 예외로 둔다. 그 규약 R-16 「약해지는 곳」 이 머리 줄이 구현됨인데 절이 없는 잎 문서 5편을 짚었다. 후속 Task `CLE-T-RGZBCQ` 가 그중 이 문서는 절 없이 두기로 정했다.
+이 문서는 컴포넌트를 나열하는 구성 개요다. 컴포넌트마다 그 표면을 정한 문서가 있고 그 문서의 `## 구현 위치` 가 경로를 적는다. 여기에 같은 경로를 다시 적으면 두 곳을 함께 고쳐야 한다. [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 19 는 구성 개요 문서를 이 절의 예외로 둔다. 그 규약의 R-16 「옛 트리를 지우고 frontmatter 근거를 `## 구현 위치` 검사로 바꾼 이유」 가운데 「약해지는 곳」 이 머리 줄이 구현됨인데 절이 없는 잎 문서 5편을 짚었다. 후속 Task `CLE-T-RGZBCQ` 가 그중 이 문서는 절 없이 두기로 정했다.
 
 ### 실행 엔진: Redis 큐 + 분산 워커 풀
 

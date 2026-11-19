@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-AI"
 title: "용어 사전 — AI 와 지식 저장소"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "0ea02cc398bfb52c5f17f7f94bbba80a17620cea6ce5783a7f1bad3e2594197c"
+content_hash: "bae79147e18ad015f46669f7dcb0ff03f34b8d60f473f576eef8853429071fd0"
 read_as: "approved_fallback"
-task: "CLE-T-V22XN8"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "4d2d6aa6252443ecfb620d32ab041f2f91b2197fa52840752f276d925bf7ddf8"
-etag: "sha256-64c0a87b049200dd1485f1d1655f94d15c7cbfeba75e0d6b7d45f00142b41365"
+mirror_sha256: "cf9947a39ea2677403ca2d2aac656462e99ea1ce5c55ab96c6b0fd172facb2ea"
+etag: "sha256-8c864865bb3591753e548df9a2349355bb63b8f6c6de2c0aee7cda6b13719368"
 ---
 ## 개요
 
@@ -91,6 +91,5 @@ etag: "sha256-64c0a87b049200dd1485f1d1655f94d15c7cbfeba75e0d6b7d45f00142b41365"
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「모델 종류」 · 「재처리 잠금」 · 「임베딩 상태」 · 「검색 모드」 · 「리랭킹」 · 「메모리 종류」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다. 값의 정본은 색인이다. 「모델 설정」 의 종류 열거도 「모델 종류」 행을 가리킨다.
 - 「처리 중 문서 회수」 · 「유사도 임계값」 · 「메모리 정리」: 정의에서 기준 문서의 수치(시간 · 기본값 · 건수)를 뺐다(색인 표기 원칙 14).

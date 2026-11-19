@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-EXEC"
 title: "용어 사전 — 실행"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "d88520f0f23198c9f57ce31adbad8fbe5bd944c86606604d55c087e979311859"
+content_hash: "dff7cf5ca958f88d945b4dd2a069dbe997a15284a2425f9380810d9e44d6cc88"
 read_as: "approved_fallback"
-task: "CLE-T-7MBBA7"
+task: "CLE-T-VTA8KJ"
 source_paths: []
-mirror_sha256: "83613e87f3fab0d79962e5c7c10634378c6b74c3300fd79d852b19439bb686bd"
-etag: "sha256-75f1ed0ca33905e31cca70fd6f96fc85a414504288d91a091043a0bb4c2d91bc"
+mirror_sha256: "254745f6436faf6549a2031ba85743b60b70b690c5b054040dcfc2c761766cde"
+etag: "sha256-421e81fa576214e0189852aaa6efd69a458c0902c63d404f29019c0791dfd995"
 ---
 ## 개요
 
@@ -75,7 +75,7 @@ etag: "sha256-75f1ed0ca33905e31cca70fd6f96fc85a414504288d91a091043a0bb4c2d91bc"
 | 실행 스냅샷 이벤트 | `execution.snapshot` | 다시 구독할 때 실행 전체 상태를 한 번 보내는 이벤트. | 스냅샷(단독) | [WebSocket 이벤트와 명령](CLE-API/CLE-API-WS-EVENTS.md) |
 | 상태 불일치 에러 | invalid execution state | 입력 대기가 아닌 실행에 재개 명령을 보냈을 때의 거부. WebSocket 은 `INVALID_EXECUTION_STATE`, REST 는 `INVALID_STATE`(422), EIA 는 `STATE_MISMATCH`(409)로 같은 뜻이다. | 없음 | [실행 상태 머신과 대기·재개](CLE-EXEC/CLE-EXEC-STATE.md) |
 | 엔진 에러 코드 | `EngineErrorCode` | 실행 자체를 끝내는 에러 코드(`EXECUTION_TIME_LIMIT_EXCEEDED`, `SERVER_INTERRUPTED`, `RESUME_*` 등). 노드 에러 코드는 `output.error.code` 로 에러 포트에 실린다. | 엔진 수준 에러(코드 이름으로) | [에러 코드 규약과 카탈로그](CLE-API/CLE-API-ERRCODES.md) |
-| 실행 화면 복원 | hydration | 저장된 노드 출력을 실시간·대기·내역 화면에 되살리는 프론트엔드 동작. 엔진의 rehydration 과 다르다. | 하이드레이션 | [실행 화면 복원 규약](CLE-EXEC/CLE-EXEC-HYDRATION.md) |
+| 실행 화면 복원 | hydration | 저장된 노드 출력을 실시간·대기·내역 화면에 되살리는 프론트엔드 동작. 엔진의 rehydration 과 다르다. | 하이드레이션(이 뜻으로) | [실행 화면 복원 규약](CLE-EXEC/CLE-EXEC-HYDRATION.md) |
 | WebSocket | WebSocket, Socket.IO, `/ws` | 서버와 화면 사이 실시간 채널. 구현은 Socket.IO 다. | 웹소켓 | [WebSocket 연결과 채널 구독](CLE-API/CLE-API-WS.md) |
 | 구독 채널 | subscription channel, `execution:<id>` | WebSocket 이벤트를 받으려고 구독하는 이름(`execution:`, `workflow:`, `kb:`, `notifications:`, `background:run:`). | room, 채널(단독) | [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.2 채널 패턴」](CLE-API/CLE-API-WS-MSG.md#42-채널-패턴) |
 | SSE | Server-Sent Events | 서버에서 클라이언트로 한 방향으로 흐르는 스트림. AI 어시스턴트 응답과 EIA 이벤트 스트림이 쓴다. 둘은 재연결 규칙이 다르다. | 스트리밍(단독) | [EIA 수신 API와 SSE](CLE-IX/CLE-EIA-INBOUND.md) |
@@ -88,7 +88,6 @@ etag: "sha256-75f1ed0ca33905e31cca70fd6f96fc85a414504288d91a091043a0bb4c2d91bc"
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 개요의 안내 문단(영역 소개 · 열 순서)과 Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다. 같은 문단이 하위 문서 열 곳에 복사돼 있었다.
 - 「실행 내역」 의 쓰지 않는 표기 「실행 기록」 에 「화면 이름으로」 조건을 붙였다. 실행 행을 뜻하는 「실행 기록」 은 다른 정의가 쓴다.
 - 「동시 실행 제한」 · 「큐 대기 한도」 · 「실행 시간 한도」 · 「재실행 체인」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).
 - 「실행 상태」 · 「취소 주체」 · 「실행 출처」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다.

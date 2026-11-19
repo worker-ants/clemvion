@@ -2,19 +2,19 @@
 id: "CLE-IX-TYPES"
 title: "인터랙션 타입 레지스트리"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "2ba1f28f29da929eecc64297b9d99113ed652a175636cb56d4a7ebd34858b275"
+content_hash: "601d8a0e6369c6512b2408c0344c43fc75d4130a103c1657d6c546c87503d29a"
 read_as: "approved_fallback"
-task: "CLE-T-YR4EK5"
+task: "CLE-T-4H77EB"
 source_paths: ["spec/conventions/interaction-type-registry.md"]
-mirror_sha256: "e7ab36de036613da635c60d47ee0c6181aa8a6d20ecc47d02bc807c9b47bd7ec"
-etag: "sha256-58e1b2343a952e3240a4787ae010c6d9a98783c6bdb7259dc1758b223b36f618"
+mirror_sha256: "f420801886af36e25e741c9f97666ea1cb892ac23726b95fa02176e5cb4c85e7"
+etag: "sha256-1844719efa487534ea438adc518a61291069b2dd9fe90ae315bc7326b9fe5f15"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/interaction-type-registry.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -56,7 +56,7 @@ etag: "sha256-58e1b2343a952e3240a4787ae010c6d9a98783c6bdb7259dc1758b223b36f618"
 
 ### 엔진 네 값과 외부 세 값
 
-`WaitingInteractionType` 은 엔진 내부의 네 값이다. EIA HTTP 쪽은 `ai_form_render` 를 `ai_conversation` 에 합쳐 세 값(`form`·`buttons`·`ai_conversation`)만 내보낸다([EIA 알림 웹훅](CLE-EIA-NOTIFY.md), [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md)). 채팅 채널은 서버 안 소비자라 합치지 않고 네 값을 그대로 받는다([서버 안 소비자: 채팅 채널](#서버-안-소비자-채팅-채널)). 외부 경로(상태 조회·SSE·알림 웹훅)에서 실제로 어디서 합치는지와 `ai_form_render` 가 외부에서 어떻게 보이는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+`WaitingInteractionType` 은 엔진 내부의 네 값이다. EIA HTTP 쪽은 계약상 `ai_form_render` 를 `ai_conversation` 에 합쳐 세 값(`form`·`buttons`·`ai_conversation`)만 내보낸다([EIA 알림 웹훅](CLE-EIA-NOTIFY.md), [웹채팅 구조](../CLE-WEBCHAT/CLE-WEBCHAT-ARCH.md)). 채팅 채널은 서버 안 소비자라 합치지 않고 네 값을 그대로 받는다([서버 안 소비자: 채팅 채널](#서버-안-소비자-채팅-채널)). 외부 경로(상태 조회·SSE·알림 웹훅)에서 실제로 어디서 합치는지와 `ai_form_render` 가 외부에서 어떻게 보이는지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
 
 에디터 실행 화면처럼 내부 관점의 문서가 네 값을 모두 적지 않아도 외부 세 값과 모순이 아니다. 관점이 다를 뿐이다.
 
@@ -156,7 +156,7 @@ AI Agent 표시 도구(`render_*`)의 `PresentationType` 이다. 값은 다섯 �
 
 ## 미결 사항
 
-- **`ai_form_render` 가 외부 경로에서 어떻게 보이는가**: 원문은 네 값 → 세 값 합침을 채팅 채널 디스패처와 EIA 응답 DTO(`execution-status-response.dto.ts`) 계층의 책임이라 적었다. 채팅 채널 쪽은 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 과 현재 구현에 맞춰 네 값을 받는 서버 안 소비자로 바로잡았다([서버 안 소비자: 채팅 채널](#서버-안-소비자-채팅-채널)). 외부 경로는 계약과 구현이 어긋난다. [EIA 알림 웹훅](CLE-EIA-NOTIFY.md) 과 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 는 외부 `interactionType` 을 세 값으로 적는다. 현재 구현은 경로마다 다르다(코드 확인). (1) 상태 조회(`interaction.service.ts` 의 `getStatus`)는 `ai_form_render` 를 `ai_conversation` 으로 합치지 않고 `null` 로 바꿔 `currentNode.interactionType` 과 `context` 가 `null` 이 된다. (2) SSE 어댑터(`sse-adapter.service.ts`)와 알림 발송(`notification-fanout.service.ts` 가 `event.payload` 를 그대로 싣는다)은 단일 싱크의 payload 를 바꾸지 않으므로 `interactionType: 'ai_form_render'` 가 그대로 나간다. `external-interaction` 모듈 안에 네 값을 세 값으로 합치는 코드는 없다. 외부 경로마다 `ai_form_render` 를 `ai_conversation` 으로 합칠지, 네 값을 외부 계약으로 올릴지 결정 필요.
+- **`ai_form_render` 가 외부 경로에서 어떻게 보이는가**: 원문은 네 값 → 세 값 합침을 채팅 채널 디스패처와 EIA 응답 DTO(`execution-status-response.dto.ts`) 계층의 책임이라 적었다. 채팅 채널 쪽은 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 과 현재 구현에 맞춰 네 값을 받는 서버 안 소비자로 바로잡았다([서버 안 소비자: 채팅 채널](#서버-안-소비자-채팅-채널)). 외부 경로는 계약과 구현이 어긋난다. [EIA 알림 웹훅](CLE-EIA-NOTIFY.md) 과 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 는 계약상 외부 `interactionType` 을 세 값으로 적는다. 현재 구현은 경로마다 다르다(코드 확인). (1) 상태 조회(`interaction.service.ts` 의 `getStatus`)는 `ai_form_render` 를 `ai_conversation` 으로 합치지 않고 `null` 로 바꿔 `currentNode.interactionType` 과 `context` 가 `null` 이 된다. (2) SSE 어댑터(`sse-adapter.service.ts`)와 알림 발송(`notification-fanout.service.ts` 가 `event.payload` 를 그대로 싣는다)은 단일 싱크의 payload 를 바꾸지 않으므로 `interactionType: 'ai_form_render'` 가 그대로 나간다. `external-interaction` 모듈 안에 네 값을 세 값으로 합치는 코드는 없다. 외부 경로마다 `ai_form_render` 를 `ai_conversation` 으로 합칠지, 네 값을 외부 계약으로 올릴지 결정 필요.
 
 ## 구현 위치
 

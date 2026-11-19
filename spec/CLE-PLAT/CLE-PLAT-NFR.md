@@ -2,19 +2,19 @@
 id: "CLE-PLAT-NFR"
 title: "비기능 요구사항"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-NFR-001", "REQ-NFR-002", "REQ-NFR-003", "REQ-NFR-004", "REQ-NFR-005", "REQ-NFR-006", "REQ-NFR-007", "REQ-NFR-008", "REQ-NFR-009", "REQ-NFR-010", "REQ-NFR-011", "REQ-NFR-012", "REQ-NFR-013", "REQ-NFR-014", "REQ-NFR-015", "REQ-NFR-016", "REQ-NFR-017", "REQ-NFR-018", "REQ-NFR-019", "REQ-NFR-020", "REQ-NFR-021", "REQ-NFR-022", "REQ-NFR-023", "REQ-NFR-024", "REQ-NFR-025", "REQ-NFR-026", "REQ-NFR-027", "REQ-NFR-028", "REQ-NFR-029", "REQ-NFR-030", "REQ-NFR-031", "REQ-NFR-032", "REQ-NFR-033", "REQ-NFR-034", "REQ-NFR-035", "REQ-NFR-036", "REQ-NFR-037", "REQ-NFR-038", "REQ-NFR-039", "REQ-NFR-040", "REQ-NFR-041", "REQ-NFR-042", "REQ-NFR-043", "REQ-NFR-044", "REQ-NFR-045", "REQ-NFR-046", "REQ-NFR-047", "REQ-NFR-048"]
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "a763fbead00aef384291b205ecc52f91ea111e3187fbf3e77d516a7d882dbbba"
+content_hash: "be9f9f5a1fe70b9a0b47e4b37ffb8c88882f73c9399368ea21a10512e3c1bd0e"
 read_as: "approved_fallback"
-task: "CLE-T-693G4E"
+task: "CLE-T-4H77EB"
 source_paths: ["spec/5-system/_product-overview.md"]
-mirror_sha256: "31974173f7c08b482e43f2b8012a3cd88721b1d165192e8dd0a1c5bf6aa9c75e"
-etag: "sha256-7c744e7b791fb13eedc90e98690bb670653354822a3cfef7c6000d0d3228ae49"
+mirror_sha256: "7398dbf1685557ebe3843da1adcea4b180a37d9d4d19c798a5fe49b7d410d1d0"
+etag: "sha256-a725f16d4b66515c93f1fadf60d8e4e3f0c18007de974104da7fe7575807834a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/_product-overview.md` (§1~§7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -138,11 +138,12 @@ etag: "sha256-7c744e7b791fb13eedc90e98690bb670653354822a3cfef7c6000d0d3228ae49"
 ### 배포와 운영
 
 - 배포 환경별 차이는 [시스템 아키텍처](CLE-PLAT-ARCH.md) 의 배포 환경 분리 절에 있다.
-- **CI/CD(NF-DP-05)**: CI 빌드 검증(backend · frontend 검사 워크플로)만 있다. 저장소에 배포 워크플로가 없어서 이 문서는 부분 구현으로 적는다(2026-10-03 실측).
+- **CI/CD(REQ-NFR-046)**: CI 빌드 검증(backend · frontend 검사 워크플로)만 있다. 부분 구현인 이유는 「미결 사항」 에 있다.
 - 마이그레이션 전략(NF-EX-06)은 [DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md) 이 정한다.
 
 ## 미결 사항
 
+- **배포 파이프라인(REQ-NFR-046)**: 저장소에 배포 워크플로가 없어 REQ-NFR-046 은 부분 구현이다(2026-10-03 실측). [DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md) 의 CI/CD 연동도 이 줄을 가리킨다.
 - **워크플로우 수준 자동 재시도의 근거(NF-AV-02)**: 원문 요구사항 표는 구현 완료(✅)로 적는다. [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 은 트리거·스케줄 자동 실행에 워크플로우 설정의 재시도(기본 0, 최대 5)를 약속한다. 그러나 워크플로우 설정(`Workflow.settings`)에는 재시도 키가 없고, 시작 큐(`execution-run`)는 `attempts:1` 이라 애플리케이션 수준 재시도를 하지 않는다([비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md)). 분석 단계에서 워크플로우 수준 재시도 구현을 찾지 못했다. 소유 문서가 이 기능을 미구현으로 표시하므로 이 문서도 요구 상태를 부분 구현으로 낮췄다. 이 요구를 노드 수준 재시도 기준으로 다시 쓸지 워크플로우 수준 재시도를 구현할지 결정 필요.
 
 ## 구현 위치
@@ -154,7 +155,7 @@ etag: "sha256-7c744e7b791fb13eedc90e98690bb670653354822a3cfef7c6000d0d3228ae49"
 - `codebase/frontend/src/components/ui/slide-drawer.tsx` (NF-A11Y-03 상세 드로어 포커스 가두기)
 - `codebase/frontend/src/components/__tests__/accessibility.test.tsx` (UI 기본 컴포넌트의 접근성 회귀)
 - `codebase/{backend,frontend}/Dockerfile` (NF-DP-01 컨테이너 이미지)
-- `.github/workflows/backend-checks.yml`, `.github/workflows/frontend-checks.yml` (NF-DP-05 CI 빌드 검증. 배포 워크플로가 없어 부분 구현이다)
+- `.github/workflows/backend-checks.yml`, `.github/workflows/frontend-checks.yml` (REQ-NFR-046 의 CI 빌드 검증)
 
 ## Rationale
 

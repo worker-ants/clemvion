@@ -2,19 +2,19 @@
 id: "CLE-OBS-LOGGING"
 title: "로깅과 헬스 체크"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "2f7fd79f15be50017f6cff924a2ae87a85bf2b0424d7dfaf63299f9fffef43d6"
+content_hash: "7f1820bc9157341401c4f8f0e3ef1acd2537f547302f139f7353f7f57fea823e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-VTA8KJ"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "25602c99fbc07916b158f892d17af8acc5e24b015513aa59aab195b42e591246"
-etag: "sha256-4bd4a0eebf60d0ffd83e61364d00b0be73b3523f847f32bd22de89e4aa823b24"
+mirror_sha256: "82516d8b5e167c47052969dd207e14bc27faf3c83ef86559ee6da522f8ee103f"
+etag: "sha256-bb0679e55b35598de1f4a0aa99cbb76fcb7569f361aa62aafd9e769dcc31fc75"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md` (§6 로깅 정책, §7 헬스 체크, Rationale 의 `Error.cause` 항목), `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -155,7 +155,7 @@ REST 표준 응답 경로에서는 [에러 응답과 클라이언트 처리](../
 
 | 경로 | 용도 | 점검 | HTTP 상태 |
 | --- | --- | --- | --- |
-| `GET /api/health` | 준비 상태(readiness) probe 전용. 사용자가 직접 불러도 된다 | `database`(SELECT 1), `redis`(PING) | 전체 `status` 가 `healthy` 면 200, 그 밖(`unhealthy`, Redis 미설정 `unconfigured` 포함)은 503 |
+| `GET /api/health` | 준비 상태(readiness) probe 전용. 사용자가 직접 불러도 된다 | `database`(SELECT 1), `redis`(PING) | 전체 `status` 가 `healthy` 면 200, 그 밖(`unhealthy`. Redis 설정이 없어 구성 요소 `redis` 가 `unconfigured` 인 경우 포함)은 503 |
 | `GET /api/health/live` | 생존 확인(liveness) probe 전용 | 없음. 프로세스가 살아 있는지만 본다 | 항상 200, 본문 `{ "data": { "status": "ok" } }` |
 
 ```mermaid
@@ -235,10 +235,11 @@ probe 는 자주 불린다(준비 상태 10초, 생존 확인 30초). 성공 로
 
 | 표면 | 값 | 용어 | 기준 문서 |
 | --- | --- | --- | --- |
-| 헬스 체크 `status` | `healthy`, `unhealthy`(Redis 미설정 `unconfigured` 포함) | 헬스 체크 | 이 문서 |
+| 헬스 체크 `status` | `healthy`, `unhealthy`(구성 요소 `redis` 는 Redis 미설정이면 `unconfigured`) | 헬스 체크 | 이 문서 |
 | 생존 확인 `status` | `ok` 하나 | 생존 확인 | 이 문서 |
 | 큐 건강도 `health` | `healthy`, `degraded`, `down` | 큐 건강도 | [시스템 상태](CLE-OBS-STATUS.md) |
-| EIA 알림 웹훅의 발송 건강도, 채팅 채널의 채널 건강도 | `unknown`, `healthy`, `degraded` | 발송 건강도, 채널 건강도 | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md), [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
+| EIA 알림 웹훅의 발송 건강도 | `unknown`, `healthy`, `degraded` | 발송 건강도 | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) |
+| 채팅 채널의 채널 건강도 | `unknown`, `healthy`, `degraded` | 채널 건강도 | [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
 
 큐 건강도가 `unhealthy` 를 `degraded`·`down` 두 단계로 나눈 이유는 [시스템 상태](CLE-OBS-STATUS.md) 에 있다.
 

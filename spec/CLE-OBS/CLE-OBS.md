@@ -2,19 +2,19 @@
 id: "CLE-OBS"
 title: "관측과 운영"
 type: "area"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "8a3bea325bbdcc63c245ee1ca47c6608beb2e1ae0e22cbc918ea9c8009d45035"
+content_hash: "69cc065818f33ff0653aa15115a4eb5afad5a05520c0ec5d913d6e9e552160a3"
 read_as: "approved_fallback"
-task: "CLE-T-42VJAY"
+task: "CLE-T-GTG3NQ"
 source_paths: []
-mirror_sha256: "0d744db5367663a190cf393f852828eab400dafa7701dfb488abc29fcbefb5c6"
-etag: "sha256-2d7372a788ccd8488087e40e78190ee7710894e98ea8bd8b4c13752898b3a54f"
+mirror_sha256: "d97061ebd7a8e955e4b8765e6ba3ed7d52200f6c5d7ccf14a85e4438cb208cae"
+etag: "sha256-84b05d405cc2c9757f3279dc4ca48dc23e95eb304c1b2bf78982a681f7e10bb0"
 ---
 > 구현 상태: 부분 구현 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -27,7 +27,7 @@ etag: "sha256-2d7372a788ccd8488087e40e78190ee7710894e98ea8bd8b4c13752898b3a54f"
 
 이 영역은 대부분 읽기 위주다. 새 행을 만드는 쪽은 실행·통합·인증 같은 다른 도메인이고 이 영역은 그 행을 집계하거나 평가해 보여 준다. 예외는 알림(발사원이 저장을 요청한다)과 감사 로그·로그인 이력(각 도메인이 기록을 요청한다)이다. 관측 영역 전체의 데이터 흐름은 [로깅과 헬스 체크](CLE-OBS-LOGGING.md) 에 있다.
 
-"건강도" 라는 말은 이 영역 안에서도 표면마다 값 집합이 다르다. 헬스 체크는 `healthy`·`unhealthy`, 큐 건강도는 `healthy`·`degraded`·`down` 이다. 섞어 쓰지 않는다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md) 의 「건강도」, [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「건강도 값 집합」 항목(D58)).
+"건강도" 라는 말은 이 영역 안에서도 표면마다 값 집합이 다르다. 헬스 체크는 `healthy`·`unhealthy`(구성 요소 `redis` 는 Redis 미설정이면 `unconfigured`), 큐 건강도는 `healthy`·`degraded`·`down`, 발송 건강도와 채널 건강도는 `unknown`·`healthy`·`degraded` 이다. 섞어 쓰지 않는다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md) 의 「건강도」, [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「건강도 값 집합」 항목(D58)).
 
 ## 문서
 
