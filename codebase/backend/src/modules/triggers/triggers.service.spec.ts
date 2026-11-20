@@ -43,7 +43,7 @@ import {
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
 import type { InteractionConfigDto } from './dto/interaction-config.dto';
 import type { NotificationConfigDto } from './dto/notification-config.dto';
-import { NOTIFICATION_URL_CREDENTIALS_REASON } from './dto/notification-config.dto';
+import { NOTIFICATION_URL_CREDENTIALS_REASON } from './notification-url.util';
 import { INTERACTION_STREAM_CLOSER } from '../external-interaction/interaction-stream-closer';
 import {
   CHAT_CHANNEL_BLOCKED_FIELDS,

@@ -8,7 +8,7 @@ import {
   NotificationWebhookProcessor,
   REDIRECT_NOT_FOLLOWED_HINT,
 } from './notification-webhook.processor';
-import { NOTIFICATION_URL_CREDENTIALS_REASON } from '../triggers/dto/notification-config.dto';
+import { NOTIFICATION_URL_CREDENTIALS_REASON } from '../triggers/notification-url.util';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import {
   Execution,

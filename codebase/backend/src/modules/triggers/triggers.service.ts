@@ -32,10 +32,12 @@ import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
+import { NotificationConfigDto } from './dto/notification-config.dto';
 import {
-  NotificationConfigDto,
+  maskNotificationLastErrorUserinfo,
+  maskNotificationUrlUserinfo,
   validateNotificationUrl,
-} from './dto/notification-config.dto';
+} from './notification-url.util';
 import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChatChannelConfig, SetupResult } from '../chat-channel/types';
@@ -51,10 +53,7 @@ import { NotificationSigningSecretService } from './notification-signing-secret.
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
-import {
-  redactSecrets,
-  VALUE_MASK_MARKER,
-} from '../../shared/utils/sanitize-error-message';
+import { redactSecrets } from '../../shared/utils/sanitize-error-message';
 import { assertReferenceInScope } from '../../common/utils/reference-in-scope';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import {
@@ -274,14 +273,6 @@ const TRIGGER_RESPONSE_REDACT_COLUMNS = [
 ] as const satisfies readonly (keyof Trigger)[];
 
 /**
- * 알림 마지막 오류에만 거는 userinfo 국소 패턴. 공유 값 패턴(`redactSecrets`)은 `user:pass@` 만 가리고 사용자명만
- * 있는 형태(`https://tok@host`)와 빈 사용자명(`https://:pw@host`)은 두는데, 이 칸에는 fetch 가 알림 URL 원문을 담아
- * 저장한 옛 값이 남아 있을 수 있어 비어 있지 않은 userinfo 를 모두 `***` 로 바꾼다. 공유 패턴을 넓히지 않는 이유는
- * CLE-API-EGRESS-TRIGGER Rationale 에 있다(NERV Task `CLE-T-RCQGCC`).
- */
-const NOTIFICATION_LAST_ERROR_USERINFO_PATTERN = /(?<=:\/\/)[^/\s@]+(?=@)/g;
-
-/**
  * 진단 원문의 응답 마스킹. `redactSecrets`(값 패턴)를 걸어 자격 증명 모양만 `***` 로 바꾼다.
  * `notificationLastError` 에는 userinfo 국소 패턴을 더 건다.
  * 자르지 않는다. **제자리 변형**이라 정화 *사본*에만 부른다. 저장값은 원문으로 남는다.
@@ -293,39 +284,9 @@ function redactDiagnosticColumns(target: Record<string, unknown>): void {
     const redacted = redactSecrets(value);
     target[column] =
       column === 'notificationLastError'
-        ? redacted.replace(
-            NOTIFICATION_LAST_ERROR_USERINFO_PATTERN,
-            VALUE_MASK_MARKER,
-          )
+        ? maskNotificationLastErrorUserinfo(redacted)
         : redacted;
   }
-}
-
-/**
- * 응답의 `config.notification.url` 에서 userinfo 를 `***` 로 가린다. 나머지(호스트 · 경로 · 쿼리 · 조각)는 글자 그대로
- * 둔다. 등록 검사(`validateNotificationUrl`)가 userinfo 를 거부하기 전에 저장된 행이 대상이다. 편집 폼이 가린 값을
- * 다시 보내면 같은 검사가 400 으로 거부하므로 마커가 저장되지 않는다(CLE-API-EGRESS 규칙 9, NERV Task `CLE-T-RCQGCC`).
- *
- * userinfo 여부는 WHATWG URL 파서로 정한다(`https://@host` 처럼 빈 userinfo 는 그대로 둔다). 가리는 자리는 스킴 뒤
- * authority 의 마지막 `@` 까지다. 파서도 authority 안의 마지막 `@` 를 userinfo 끝으로 본다.
- */
-function maskNotificationUrlUserinfo(url: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return url;
-  }
-  if (parsed.username === '' && parsed.password === '') return url;
-  const masked = url.replace(
-    /^([A-Za-z][A-Za-z0-9+.-]*:\/\/)[^/?#\\]*@/,
-    `$1${VALUE_MASK_MARKER}@`,
-  );
-  if (masked !== url) return masked;
-  // 원문 모양이 위 패턴과 다르면(역슬래시 구분자 등) 파서 결과로 다시 쓴다. 이때는 정규화된 모양이 나간다.
-  parsed.username = VALUE_MASK_MARKER;
-  parsed.password = '';
-  return parsed.href;
 }
 
 /**

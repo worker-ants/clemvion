@@ -23,7 +23,7 @@ import {
   checkResolvedHostIp,
   isNotificationDnsGuardEnabled,
 } from '../../common/utils/ssrf-safe-url.util';
-import { validateNotificationUrl } from '../triggers/dto/notification-config.dto';
+import { validateNotificationUrl } from '../triggers/notification-url.util';
 import { discardBody } from '../../nodes/integration/http-request/http-redirect';
 import {
   ResolvedHostBlockedError,

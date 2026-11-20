@@ -12,7 +12,7 @@ import { Client } from 'pg';
 import crypto from 'node:crypto';
 import request from 'supertest';
 
-import { NOTIFICATION_URL_CREDENTIALS_REASON } from '../src/modules/triggers/dto/notification-config.dto';
+import { NOTIFICATION_URL_CREDENTIALS_REASON } from '../src/modules/triggers/notification-url.util';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
