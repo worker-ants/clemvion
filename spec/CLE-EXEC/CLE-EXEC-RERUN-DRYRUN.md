@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-DRYRUN"
 title: "재실행 — dry-run"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "152ab318e1df6a54bc80b4f56dee13ce5e23b16f799944f1097edee21e05a25a"
+content_hash: "48adb9b8ea9c66f22e340b354798eb86f2ba6f243384b2a16a3a8873c1127e8f"
 read_as: "approved_fallback"
-task: "CLE-T-KH11HA"
+task: "CLE-T-5WK8QA"
 source_paths: []
-mirror_sha256: "7f07e8f9808c96be6e5449ef6aa745cf9b49525e3c38aa052e347bcd127c326d"
-etag: "sha256-6cae1e0b29b6cbedba9e27774a1de461708501a48c61d8220139eaff56abd417"
+mirror_sha256: "7577fe673af006322aa4af648d8347daa03597ec2132809be6f8887c007ac732"
+etag: "sha256-5178ced8595f5f394157945b77f390f774915253aab358395fa7cff9f5f111e2"
 ---
 ## 개요
 
@@ -41,7 +41,7 @@ AI 에이전트 노드 자체는 그대로 실행한다. 이 노드가 부르는
 
 분류 기준은 노드 메타 `category`([노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md))와 노드별 boolean 메타 `supportsDryRun` 이다. `supportsDryRun` 은 노드가 모의 출력을 낼 수 있는지를 나타내는 노드 단위 값이다(노드 스키마 필드, `nodes/core/node-component.interface.ts`). 모든 부수효과 노드는 v1 에서 `supportsDryRun: true` 를 기본으로 제공하고 각 핸들러가 모의 출력을 돌려줄 수 있어야 한다. 현재 구현에서 `supportsDryRun: true` 를 선언한 노드 스키마는 위 다섯 노드뿐이다(각 노드의 `*.schema.ts`). 위 표의 노드 목록은 이 메타에서 나온다. 부수효과 노드를 새로 더하면 이 표도 함께 고친다.
 
-모달의 부수효과 노드 수(화면 문구 "외부 호출 노드 N개")와 사전 점검(`assertDryRunSupported`)도 이 메타만 본다. AI 에이전트 도구의 판정은 호출마다 따로 하고 이 메타와 무관하므로 모달 집계에 들지 않는다([미결 사항](CLE-EXEC-RERUN.md#미결-사항)).
+모달의 부수효과 노드 수(화면 문구 "부수효과 노드 N개")와 사전 점검(`assertDryRunSupported`)도 이 메타만 본다. AI 에이전트 도구의 판정은 호출마다 따로 하고 이 메타와 무관하다. 그래서 AI 에이전트 도구는 부수효과 노드 수에 들지 않는다. 모달은 MCP 서버를 연결한 AI 에이전트 노드를 따로 한 줄로 센다([재실행 모달](CLE-EXEC-RERUN-UI.md#재실행-모달)).
 
 ## 부수효과 판정
 
