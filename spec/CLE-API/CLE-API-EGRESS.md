@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "aeae0bf559002e02b09e7ab056517d658c8444bc17aacf29d3d5d29f5fa09895"
+content_hash: "db04a18967914c1996841083ce0d42f37ef6ec52ce7148862bf823fd6c5795fa"
 read_as: "approved_fallback"
 task: "CLE-T-RCQGCC"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "f5f0a4305ee2dadda8694bf70d7fbbdcd3c0f4e9c8f2dd748e2f26f997bd08bc"
-etag: "sha256-ad80b795db01a6fc2d7b053974c47fab6bb7601661351462db2722f0878a0c29"
+mirror_sha256: "492716259269bf376907f511a365dfcee73831348a325cad5d803fbc490f433c"
+etag: "sha256-548fdb65b4744e3b2c760abb0518dcd1faf5eca1c11a15aea84e6a745fc55b74"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -160,7 +160,8 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 - `codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts`
 - `codebase/backend/src/common/utils/mask-sensitive-fields.util.ts` (`maskSensitiveFields`, `DEFAULT_SENSITIVE_KEYS`)
 - `codebase/frontend/src/lib/utils/masked-markers.ts` (`hasMaskedMarkerLeaf`)
-- `codebase/backend/src/modules/triggers/triggers.service.ts` (`sanitizeForResponse`, `TRIGGER_RESPONSE_REDACT_COLUMNS`, `maskNotificationUrlUserinfo`)
+- `codebase/backend/src/modules/triggers/triggers.service.ts` (`sanitizeForResponse`, `TRIGGER_RESPONSE_REDACT_COLUMNS`)
+- `codebase/backend/src/modules/triggers/notification-url.util.ts` (`maskNotificationUrlUserinfo`, `maskNotificationLastErrorUserinfo`)
 - `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts`, `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts`, `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts` (알려진 비밀 치환, §1.1)
 
 ## Rationale
