@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "66608509d23b556ffa86674a9290433963687aa6fb516e6e1d91a2a5b0e0f2bb"
+content_hash: "1de615c0ec1780a10163bd46faf3406e9dc2c3f47714ce98987abcfec77ea6f9"
 read_as: "approved_fallback"
-task: "CLE-T-KH11HA"
+task: "CLE-T-EANRHY"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7ac6f1c1c2b8cb37363dcf11afef82cecfd6c7699e1fe2477e700252fec11a5d"
-etag: "sha256-29988ec61dd0466126d13d23a46e69fe01c8c7673a85cdbe5450a41dc65c6411"
+mirror_sha256: "ced8a3a6778e8f6a557c636c32942c3f6dc35f438e42ca096b5419ba61ec4641"
+etag: "sha256-4478f7b7c38f069579ea5201d6d208b9091a5b4e673fcab5195f970775a4082d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -136,11 +136,12 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 이 노드는 dry-run 을 지원하는 부수효과 노드다(`metadata.supportsDryRun=true`, [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md)). 설정 검증과 에코 직후, 통합을 얻고 DB 에 연결하기 전에 판정한다. **읽기 작업으로 확인된 쿼리만** 실제로 실행하고 나머지는 mock 으로 끝낸다.
 
 - `queryType` 이 `insert`·`update`·`delete` 이면 SQL 과 관계없이 쓰기로 본다.
-- `queryType` 이 `select`·`raw` 거나 없으면 평가된 SQL 의 첫 동사로 가린다. `queryType` 기본값이 `select` 라 쿼리 유형을 그대로 두고 쓰기 SQL 을 적은 노드가 있어서 `select` 도 SQL 을 본다.
-- 첫 동사를 뽑기 전에 맨 앞 공백과 주석(`-- …` 줄 주석, `/* … */` 블록 주석)을 건너뛴다. 닫히지 않은 블록 주석과 MySQL 실행 주석 · 힌트(`/*!` · `/*+` 로 시작하는 블록 주석)는 판정할 수 없는 쿼리로 본다.
-- 문장이 둘 이상이면(문자열 리터럴 · 따옴표 식별자 · 주석 밖의 `;` 뒤에 내용이 더 있으면) 판정할 수 없는 쿼리로 본다. `SELECT 1; DELETE FROM t` 처럼 첫 문장이 읽기여도 뒤 문장이 실행되기 때문이다. 끝에 붙은 `;` 하나는 문장을 늘리지 않는다. PostgreSQL 달러 인용(`$$ … $$`) 속 `;` 도 문장 끝으로 보지 않는다.
-- 닫히지 않은 따옴표 · 달러 인용은 판정할 수 없는 쿼리다. DB 마다 해석이 갈리는 형태(백슬래시가 든 작은따옴표 리터럴, 중첩 블록 주석, 공백 없이 붙은 `--`)도 문장 경계를 확실히 알 수 없어 판정할 수 없는 쿼리로 본다.
-- 첫 동사가 읽기 동사(`SELECT`·`SHOW`·`DESCRIBE`·`DESC`·`VALUES`·`TABLE`)면 읽기로 보고 실제로 실행한다. 읽기는 부수효과가 없어 dry-run 에서도 결과를 재현한다.
+- `queryType` 이 `select`·`raw` 거나 없으면 평가된 SQL 의 첫 동사로 가린다.
+- 첫 동사를 뽑기 전에 맨 앞 공백과 주석(`-- …` 줄 주석, `/* … */` 블록 주석)을 건너뛴다. 닫히지 않은 블록 주석과 동사 앞의 힌트(`/*+` 로 시작하는 블록 주석)는 판정할 수 없는 쿼리로 본다.
+- 문장이 둘 이상이면(문자열 리터럴 · 따옴표 식별자 · 주석 밖의 `;` 뒤에 내용이 더 있으면) 판정할 수 없는 쿼리로 본다. 끝에 붙은 `;` 하나는 문장을 늘리지 않는다.
+- 닫히지 않은 따옴표 · 달러 인용은 판정할 수 없는 쿼리다. DB 마다 해석이 갈리는 형태(백슬래시가 든 작은따옴표 리터럴, 큰따옴표 안 백슬래시, 중첩 블록 주석, 공백 없이 붙은 `--`, MySQL 실행 주석 `/*!`)도 문장 경계를 확실히 알 수 없어 판정할 수 없는 쿼리로 본다.
+- 드라이버를 모르는 시점이라 같은 SQL 을 PostgreSQL · MySQL 두 방언 규칙으로 한 번씩 읽고 둘 다 읽기 동사 하나로 된 한 문장일 때만 실행한다. MySQL `#` 줄 주석이나 PostgreSQL 달러 인용처럼 한 방언에서만 리터럴 · 주석인 곳에 `;` 가 있으면 mock 이다.
+- 첫 동사가 읽기 동사(`SELECT`·`SHOW`·`DESCRIBE`·`DESC`·`VALUES`·`TABLE`)면 읽기로 보고 실제로 실행한다.
 - 그 밖은 모두 mock 이다. 쓰기 동사(`INSERT`·`UPDATE`·`DELETE`·`UPSERT`·`MERGE`·`REPLACE`·`TRUNCATE`·`DROP`·`CREATE`·`ALTER`·`GRANT`·`REVOKE`)와 첫 동사로 쓰기 여부를 판정할 수 없는 쿼리(`WITH` CTE, `CALL`, `DO`, `COPY`, `EXPLAIN`, 괄호로 시작하는 쿼리, 빈 쿼리)가 여기 든다. PostgreSQL 의 `EXPLAIN ANALYZE` 는 문장을 실제로 실행하므로 `EXPLAIN` 도 읽기로 보지 않는다. 판정할 근거가 없으면 부수효과로 보는 [부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)의 공통 규칙과 같다.
 - 한계: 첫 동사만 보므로 `SELECT write_func()` 처럼 데이터를 바꾸는 함수를 부르는 SELECT 와 `SELECT … INTO new_table` 은 읽기로 보고 실제로 실행한다.
 - mock 경로는 풀 연결을 절대 부르지 않고 `port: 'success'` 와 `buildDryRunMock('database_query', { operation, sqlPreview })` 로 흐른다. `sqlPreview` 는 SQL 앞 약 200자이며 바인딩 값은 넣지 않는다. mock 경로는 활동 로그를 남기지 않는다(REQ-DBQ-027).
@@ -212,7 +213,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 사람이 정했다(NERV 질문 `01a1f2b8-529a-7479-8631-6e8fc96f5879`, Task `CLE-T-KH11HA`). 이전 규칙에는 구멍이 둘 있었다. `queryType` 이 `select`(기본값)이면 SQL 을 보지 않고 실제로 실행해서, 쿼리 유형을 그대로 두고 `DELETE FROM …` 을 적은 노드는 dry-run 에서도 데이터를 지웠다. 또 첫 동사가 쓰기 목록에 없으면 읽기로 봐서 `WITH … DELETE …` 같은 CTE 도 실제로 실행했다.
 
-이제 `queryType` 이 `select` 여도 SQL 첫 동사를 보고, 읽기 동사로 확인된 쿼리만 실제로 실행한다. [부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)의 공통 규칙(판정할 근거가 없으면 부수효과로 본다)에서 이 노드만 빠져 있던 예외도 없앴다.
+이제 `queryType` 이 `select` 여도 SQL 첫 동사를 보고 읽기 동사로 확인된 쿼리만 실제로 실행한다. [부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)의 공통 규칙에서 이 노드만 빠져 있던 예외도 없앴다.
 
 | 선택지 | 내용 | 결정 |
 | --- | --- | --- |
@@ -220,7 +221,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 | B | A 와 같되 `WITH` 로 시작하는 쿼리는 본문에 쓰기 동사(`INSERT`·`UPDATE`·`DELETE`·`MERGE`)가 단어로 있을 때만 mock | 기각. 읽기 CTE 의 재현성은 지키지만 문자열 리터럴 · 식별자 안의 단어도 쓰기로 잡힌다 |
 | C | `select` 우회만 막고 판정이 모호하면 실제로 실행(이전 REQ-DBQ-026) | 기각. `WITH … DELETE` 가 dry-run 에서도 실행된다 |
 
-코드 리뷰에서 첫 동사만 보면 `SELECT 1; DELETE FROM t` 같은 다중 문장이 읽기로 통과한다는 지적이 나왔다(PostgreSQL 은 바인딩 값이 없으면 여러 문장을 한 번에 실행한다). 그래서 문장이 둘 이상인 쿼리, MySQL 실행 주석 · 힌트(`/*!` · `/*+`), 문장 경계를 확실히 알 수 없는 쿼리도 판정할 수 없는 쿼리로 묶었다.
+코드 리뷰에서 `SELECT 1; DELETE FROM t` 같은 다중 문장이 첫 동사만 보면 읽기로 통과한다는 지적이 나왔다(PostgreSQL 은 바인딩 값이 없으면 여러 문장을 한 번에 실행한다). 그래서 다중 문장과 문장 경계를 확실히 알 수 없는 쿼리도 판정할 수 없는 쿼리로 묶었다.
 
 비용: 읽기 CTE(`WITH … SELECT`)와 `CALL` 로 값을 읽는 쿼리도 mock 이 되어 dry-run 의 재현성이 조금 떨어진다. dry-run 이 데이터를 바꾸지 않는 쪽을 골랐다.
 
@@ -230,4 +231,13 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 결정일: 2026-11-19
 
-[재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) REQ-RERUN-053 이 정한 예외(모의 출력은 활동 로그를 남기지 않는다)를 REQ-DBQ-027 에도 적었다(NERV Task `CLE-T-M6W7RE`). 동작은 바뀌지 않았다. mock 경로는 통합을 얻기 전에 끝나서 이전 문구로도 활동 로그를 남기지 않았다. 요구사항만 읽는 사람이 예외를 놓치지 않게 적었다.
+[재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) REQ-RERUN-053 의 예외(모의 출력은 활동 로그를 남기지 않는다)를 REQ-DBQ-027 에도 적었다(NERV Task `CLE-T-M6W7RE`). mock 경로는 통합을 얻기 전에 끝나서 동작은 바뀌지 않았다. 요구사항만 읽는 사람이 예외를 놓치지 않게 적었다.
+
+### dry-run 판정은 두 방언 규칙으로 읽는다
+
+결정일: 2026-11-20
+
+한 방언 규칙으로만 읽으면 다른 방언에서 문장 끝인 `;` 를 놓친다. 판정 시점에는 드라이버를 모르므로 두 방언으로 모두 읽는다(NERV Task `CLE-T-EANRHY`).
+
+- 기각: 판정을 통합 조회 뒤로 옮겨 드라이버를 알아낸다. 통합을 얻기 전에 판정해 mock 이 활동 로그를 남기지 않는다는 지금 규칙이 바뀐다.
+- 기각: `#` 가 있으면 모두 mock 으로 둔다. jsonb 연산자(`#>` · `#>>`)를 쓴 PostgreSQL 읽기 쿼리도 mock 이 된다.
