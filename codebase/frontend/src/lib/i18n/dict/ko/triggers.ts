@@ -187,6 +187,8 @@ export const triggers = {
     secretAutoHideNote: "이 값은 1회만 표시되며 60초 후 자동으로 사라져요.",
     notificationUrlInvalid:
       "수신 URL 은 https:// 로 시작하는 올바른 URL 이어야 해요.",
+    notificationUrlCredentials:
+      "수신 URL 에 사용자명이나 비밀번호(user:password@)를 넣을 수 없어요.",
     copy: "복사",
     copied: "복사했어요",
     eventChoices: "이벤트 선택",
@@ -238,7 +240,7 @@ export const triggers = {
       "languageHints 미설정 키에 적용되는 default 문구 언어 (default ko). 실행 실패 안내(CCH-ERR-*) 등 봇 자체 안내에 사용.",
     languageHints: "안내 메시지 i18n (languageHints)",
     languageHintsHelp:
-      "봇이 보내는 자체 안내 메시지 키 — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help / formOpenLabel / sessionExpired / surfaceMismatch / commandReceived / noActiveExecution. " +
+      "봇이 보내는 자체 안내 메시지 키 — groupChatRefusal / executionStarted / executionRestarted / executionCompleted / executionStillRunning / help / formOpenLabel / sessionExpired / surfaceMismatch / commandReceived / noActiveExecution. " +
       "실행 실패 안내(CCH-ERR-*) 6 키: executionFailedThirdParty4xx / executionFailedThirdParty5xx / executionFailedThirdParty / executionFailedTimeout / executionFailedRateLimit / executionFailedInternal. " +
       "CCH-ERR-* 키에서 허용되는 placeholder: {statusCode} 1종.",
     health: "채널 건강도",

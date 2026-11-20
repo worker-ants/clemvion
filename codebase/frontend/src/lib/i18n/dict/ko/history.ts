@@ -11,7 +11,7 @@ export const history = {
     useOriginalInput: "원본 입력 그대로 사용",
     maskedInputBlocked:
       "자격증명으로 판별돼 가려진 입력이 있어요. 해당 항목을 직접 입력하거나 '원본 입력 그대로 사용'을 켜 주세요.",
-    dryRunToggle: "dry-run 모드 (외부 호출 skip)",
+    dryRunToggle: "dry-run 모드 (부수효과 호출은 모의 처리)",
     dryRunDisabledTooltip: "이 워크플로는 dry-run 미지원 노드를 포함합니다",
     confirmButton: "재실행",
     cancelButton: "취소",

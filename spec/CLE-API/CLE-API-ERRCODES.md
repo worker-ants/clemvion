@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 40
+version: 41
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "8e629587e5df7fc1d96fdc2f51a43115f400d928fa79fd36199cff6726afc1b7"
+content_hash: "eaa02a81f4c57b8332cf37c1648d81918dea552958d34f15e925067b4544fa6c"
 read_as: "approved_fallback"
-task: "CLE-T-TS239H"
+task: "CLE-T-GTSEDT"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "27c076dd4593adf81478f902c1e466698ec132a50fb6159cd8353bc30112a4ea"
-etag: "sha256-af4710199b75175142b92edd78eafc153c870ce2e9869ac934cfc7390b8c2895"
+mirror_sha256: "33a7f3315e852983aa7848df36fbdd228950fc392f9a460c10fc0c5a75a0770c"
+etag: "sha256-555063cc770d09d3eb9105aa66e873db159d814e9200d84b5333260d1709f25f"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -94,6 +94,8 @@ etag: "sha256-af4710199b75175142b92edd78eafc153c870ce2e9869ac934cfc7390b8c2895"
 
 **HTTP 진입점에서만 쓰는 `EXECUTION_ENQUEUE_FAILED` 는 표면마다 나누지 않는다.** REST `stop`, EIA REST `/interact`, 채팅 채널 인바운드의 `/start` 가 이 503 을 같은 코드로 낸다(§6.7). 세 진입점 모두 재개 메시지를 큐에 넣지 못했다는 같은 뜻이다. 클라이언트가 할 일도 다시 보내기 하나다. 이 코드는 실행 엔진 사전 검증의 결과가 아니라 큐 상태를 알린다. 그래서 위에서 표면마다 나눈 코드와 부류가 다르다. 같은 503 선례인 `SERVER_SHUTTING_DOWN`(§6.7)은 REST 의 실행 시작 진입점만 낸다. 근거는 [`EXECUTION_ENQUEUE_FAILED` 를 EIA `/interact` 재개 명령에도 쓴다](CLE-API-ERRCODES-WSEIA.md#execution_enqueue_failed-를-eia-interact-재개-명령에도-쓴다-2026-10-09) Rationale 에 있다.
 
+**이 절 제목은 가이드 가드가 읽는다.** 사용자 가이드가 인용한 에러 코드를 검사하는 가드(`guide-identifier-existence`)는 이 절과 하위 문서의 `## 6.N` 절을 탈출구로 읽는다(`CATALOG_SECTION_HEADING`). 제목이 없으면 가드가 멈추므로 이 절 제목을 바꾸는 초안은 그 상수를 함께 고치는 구현 PR 을 낸다. 가드의 소유와 판정은 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md#가이드--코드-대조-가드) 이 정한다.
+
 다른 문서가 절 앵커로 가리키는 절은 아래에 제목을 남기고 하위 문서로 잇는다. 나머지 절은 「하위 문서」 절의 목록에서 찾는다.
 
 ### 6.4 유효성 검증
@@ -151,7 +153,6 @@ etag: "sha256-af4710199b75175142b92edd78eafc153c870ce2e9869ac934cfc7390b8c2895"
 - **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
 - **`LLM_TIMEOUT` 의 등재**: 2026-10-10 에 LLM 타임아웃을 이 코드로 내지 않기로 정했고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 약속도 거뒀다(§6.6). 남은 것은 `HTTP_TIMEOUT` 처럼 enum 에 남길지, 규칙 9 에 따라 등재를 지울지다. 정리는 NERV Task `CLE-T-8WXV7T` 가 다른 미발행 코드와 함께 한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 예시와 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 분류 표의 행도 그때 함께 정리한다.
 - **`RECURSION_DEPTH_EXCEEDED` 의 발행 형태**: 카탈로그는 이 코드를 등재하지만 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 는 재귀 깊이 초과를 코드 없이 메시지 `Maximum recursion depth exceeded (limit: 10)` 로 throw 한다고 적는다. 코드를 붙일지 카탈로그에서 뺄지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
-- **가이드 식별자 실재 가드의 소유**: `PROJECT.md` 는 가이드가 인용한 에러 코드·환경 변수가 코드에 실재하는지 보는 가드(`guide-identifier-existence`)의 기준 문서로 이 규약을 지목한다. 원문 규약에는 가이드 인용 규칙도 이 가드도 없어 여기 싣지 않았다. 어느 문서가 이 가드를 소유할지는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md#미결-사항) 의 미결에서 정한다. 소유와 별개로 이 가드는 지금 이 문서 미러의 `## 6. 카탈로그` 절 제목을 찾아 그 아래 행을 읽는다(`guide-identifier-existence.test.ts` 의 `CATALOG_SECTION_HEADING`). 제목이 없으면 가드가 멈춘다. 그래서 이 절 제목을 바꾸는 초안은 `CATALOG_SECTION_HEADING` 을 함께 고치는 구현 PR 을 낸다.
 
 ## 구현 위치
 

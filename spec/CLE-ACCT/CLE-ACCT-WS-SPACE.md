@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-SPACE"
 title: "워크스페이스와 멤버 — 생성 · 전환 · 설정 · API"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "0144162c6ecea259a319bec146ff9ae672d16e34f32d6a7bcfd7de6dd48d1150"
+content_hash: "0346bbd8a737a6fdbfd61f353ebd8c35f18574fa6468ce654c9d442fa014e474"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-9Q304H"
 source_paths: []
-mirror_sha256: "c75d21ff4e56106727d1a57109327a019997c5b8cbc2993113e7464f6cc44d7f"
-etag: "sha256-a35dd9ec09fb69c6a5e534351e26a7ae9f450fda9e6b8679cb68e38a7378df23"
+mirror_sha256: "7c1a1009ee67c8865f6389680efa3472b6e03223cf54ecc6b6bb063966569a2c"
+etag: "sha256-f8f92a73c1ee17beb3b14c18005ffbac0ea881e9a90e8e49204d8f308fb2a4d0"
 ---
 ## 개요
 
@@ -46,7 +46,7 @@ etag: "sha256-a35dd9ec09fb69c6a5e534351e26a7ae9f450fda9e6b8679cb68e38a7378df23"
 | 슬러그 | 사용자 이메일 로컬 파트 + 랜덤 4자리 (예: `gehrig-a1b2`) |
 | 종류 | `personal` |
 | 멤버 역할 | `owner` |
-| 기본 시간대 | 정의가 갈린다. [미결 사항](CLE-ACCT-WS.md#미결-사항) 참조 |
+| 기본 시간대 | 채우지 않는다. `settings` 는 빈 객체이고 제품 기본 시간대 `'Asia/Seoul'` 을 쓴다([기본 시간대](CLE-ACCT-WS.md#기본-시간대)) |
 
 개인 워크스페이스가 사용자마다 하나라는 규칙은 DB 부분 유니크 인덱스와 앱의 `WorkspacesService.findOrCreatePersonalWorkspace` 가 함께 지킨다. 자세한 내용은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 에 있다.
 
@@ -104,12 +104,14 @@ etag: "sha256-a35dd9ec09fb69c6a5e534351e26a7ae9f450fda9e6b8679cb68e38a7378df23"
 
 | 키 | 뜻 | 기준 문서 |
 | --- | --- | --- |
-| `timezone` | 기본 시간대(default timezone). IANA 식별자. 서비스 계층이 `Intl.DateTimeFormat` 으로 검증하고 빈 문자열은 설정 해제다. 값이 없을 때의 폴백은 소비하는 쪽이 정한다: AI 노드 시스템 컨텍스트는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md), 스케줄은 [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md). 폴백 값은 [미결 사항](CLE-ACCT-WS.md#미결-사항) 참조 | 이 문서 |
+| `timezone` | 기본 시간대(default timezone). IANA 식별자. 서비스 계층이 `Intl.DateTimeFormat` 으로 검증하고 빈 문자열은 설정 해제다. 값이 없으면 [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md) 과 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 시스템 컨텍스트 모두 제품 기본 시간대 `'Asia/Seoul'` 을 쓴다. 소비하는 쪽마다의 구현 상태는 [기본 시간대](CLE-ACCT-WS.md#기본-시간대) 에 있다 | 이 문서 |
 | `interactionAllowedOrigins` | 임베드 허용 도메인. `/api/external/*` CORS 추가 허용 목록이면서 임베드 origin 허용 목록 | [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md) |
-| `maxConcurrentExecutions` | 워크스페이스당 동시 `running` 실행 상한. 없으면 기본 10 | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) |
+| `maxConcurrentExecutions` | 워크스페이스당 동시 `running` 실행 상한. 양의 정수. 없으면 기본 10. `null` 을 보내면 키를 지워 기본값으로 돌아간다 | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) |
 
 - 설정은 `PATCH /api/workspaces/:id/settings` 로 바꾼다. 관리자 이상만 할 수 있다. 서비스 계층 `assertAdmin` 이 소유자·관리자가 아니면 403 `ADMIN_REQUIRED` 로 거부한다.
 - 보낸 키만 기존 `settings` 에 병합한다(`settings = { ...settings, 보낸 키 }`). 다른 키는 보존한다.
+- `maxConcurrentExecutions: null` 은 상한 해제다. 서버는 `null` 을 저장하지 않고 그 키를 지운다. 그래서 조회 응답에서 키가 빠지고 실행 상한은 기본 10 으로 돌아간다. OpenAPI 는 이 키를 `nullable: true` 로 적는다.
+- `timezone` 과 `interactionAllowedOrigins` 는 `null` 을 받지 않는다. 400 `VALIDATION_ERROR` 로 거부한다. 지울 때는 빈 문자열이나 빈 배열을 보낸다. 근거는 [설정 키의 null 은 지울 다른 방법이 없을 때만 받는다](#설정-키의-null-은-지울-다른-방법이-없을-때만-받는다) 에 있다.
 - 조회 `GET /api/workspaces/:id/settings` 는 뷰어를 포함한 모든 멤버가 할 수 있다. 설정 화면 표시에 쓴다.
 
 ## API
@@ -122,7 +124,7 @@ etag: "sha256-a35dd9ec09fb69c6a5e534351e26a7ae9f450fda9e6b8679cb68e38a7378df23"
 | POST | `/api/workspaces` | 로그인 | 팀 워크스페이스 생성. 본문 `{ name }`. 요청자가 소유자. 201 `{ id, name, type, slug }` |
 | PATCH | `/api/workspaces/:id` | 관리자 이상 | 이름 변경 전용. 본문 `{ name: string }`(2~100자) |
 | GET | `/api/workspaces/:id/settings` | 멤버(뷰어 포함) | 설정 조회. 응답 `{ interactionAllowedOrigins: string[]; timezone?: string; maxConcurrentExecutions?: number }`. 비멤버 403 `NOT_A_MEMBER` |
-| PATCH | `/api/workspaces/:id/settings` | 관리자 이상 | 설정 변경. 본문 키는 모두 선택: `interactionAllowedOrigins?: string[]`, `timezone?: string`, `maxConcurrentExecutions?: number`. 보낸 키만 부분 병합한다. 키별 검증은 [워크스페이스 설정](#워크스페이스-설정) 과 [임베드 허용 도메인](#임베드-허용-도메인). 응답 200 `{ id, name, type, slug, settings }`. 권한 부족 403 `ADMIN_REQUIRED` |
+| PATCH | `/api/workspaces/:id/settings` | 관리자 이상 | 설정 변경. 본문 키는 모두 선택: `interactionAllowedOrigins?: string[]`, `timezone?: string`, `maxConcurrentExecutions?: number \| null`. 보낸 키만 부분 병합한다. `maxConcurrentExecutions: null` 은 저장하지 않고 키를 지워 기본값으로 돌린다. 다른 두 키의 `null` 은 400 `VALIDATION_ERROR` 다. 키별 검증은 [워크스페이스 설정](#워크스페이스-설정) 과 [임베드 허용 도메인](#임베드-허용-도메인). 응답 200 `{ id, name, type, slug, settings }`. 권한 부족 403 `ADMIN_REQUIRED` |
 | DELETE | `/api/workspaces/:id` | 소유자 | 팀 워크스페이스 삭제. 트랜잭션 처리 |
 | POST | `/api/workspaces/:id/leave` | 본인 | 스스로 탈퇴. 유일한 소유자는 막는다 |
 | POST | `/api/workspaces/:id/transfer-ownership` | 소유자 | 소유자 이양. 본문 `{ newOwnerMemberId }`(멤버 ID). 대상은 소유자가 아닌 멤버. 트랜잭션 안에서 역할 교환과 `ownerId` 동기화 |
@@ -144,7 +146,8 @@ etag: "sha256-a35dd9ec09fb69c6a5e534351e26a7ae9f450fda9e6b8679cb68e38a7378df23"
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/workspaces.service.ts` (워크스페이스 CRUD, 멤버 관리, 설정)
+- `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/workspaces.service.ts` (워크스페이스 CRUD, 멤버 관리, 설정. `updateWorkspaceSettings` 의 null 키 삭제)
+- `codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts` (설정 키 검증과 `null` 허용 여부)
 - `codebase/backend/src/modules/auth/auth.service.ts` (`switchWorkspace`, `registerWithInvitation`, `resolveTokenWorkspaceContext`)
 - `codebase/frontend/src/components/workspace/**`
 - `codebase/frontend/src/lib/stores/workspace-store.ts`
@@ -168,3 +171,18 @@ etag: "sha256-a35dd9ec09fb69c6a5e534351e26a7ae9f450fda9e6b8679cb68e38a7378df23"
 - 프론트의 멤버십 확인은 편의 기능이다. `[slug]` layout 이 무효·비멤버 슬러그를 기본 워크스페이스로 보내는 것은 인가 경계가 아니다. 헤더 위조는 `RolesGuard` 가 403 `NOT_A_MEMBER` 로 막는다.
 - 재조정은 URL 이 우선이다. 처음 불러올 때 `[slug]` layout 이 URL 워크스페이스로 스토어와 토큰을 맞춘다. 경쟁을 막으려고 AuthProvider 는 경로가 `/w/` 로 시작하면 저장된 값 기준의 재조정을 건너뛴다.
 - 슬러그는 바뀌지 않는다(`workspace.slug` UNIQUE). 이름을 바꿔도 URL 이 그대로라 딥링크가 안정적이다.
+
+### 설정 키의 null 은 지울 다른 방법이 없을 때만 받는다
+
+결정일: 2026-11-20
+
+워크스페이스 `settings` 와 워크플로우 `settings` 는 JSONB 키 묶음이다. 쓰기 경로는 키에 온 `null` 을 키의 성격에 따라 둘로 나눠 다룬다(NERV Task `CLE-T-9Q304H`).
+
+- 다른 값으로 지울 수 있는 키는 `null` 을 400 `VALIDATION_ERROR` 로 거부한다. `timezone` 은 빈 문자열로 지우고 `interactionAllowedOrigins` 는 빈 배열로 비운다. 여기서 `null` 까지 받으면 같은 뜻의 값이 둘이 된다.
+- `null` 말고는 지울 방법이 없는 숫자 키는 `null` 을 받고 그 키를 지운다. `maxConcurrentExecutions` 가 이 경우다. 양의 정수만 받는 키라 「설정 없음」을 나타낼 다른 값이 없다.
+- 받은 `null` 은 저장하지 않는다. 키를 지우면 조회 응답과 실행 상한 계산은 「키 없음」 한 경우만 다루면 된다. 워크플로우 `settings` 도 같은 규칙이다([내보내기 · 가져오기 형식](../CLE-WF/CLE-WF-LIST-IMPORT.md)).
+
+기각한 대안:
+
+- 숫자 키도 `null` 을 거부한다: 한 번 정한 상한을 API 로 기본값에 되돌릴 방법이 없어진다.
+- 모든 키에서 `null` 을 해제로 받는다: 문자열 · 배열 키는 이미 빈 값으로 지운다. 해제 값이 두 가지가 된다.

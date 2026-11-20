@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-TOOLS"
 title: "MCP 클라이언트 — 도구 노출과 진단"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "b94d2dcb3149f06fe397c18956cd5b1ca730f8bf5971852fba5048b6d6e898d6"
+content_hash: "e07374674de03723725f066a9050e652622321f7a7012cab20dba4bbf3a556f5"
 read_as: "approved_fallback"
-task: "CLE-T-7BNDT8"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "1714c7d5aa2e9301f33d19268ec4600e7825116064147774145bdf135f8e73a9"
-etag: "sha256-7c9a08ae233465d2274fd0cabb8443e6c478ad14f95366410d1eea1167e64005"
+mirror_sha256: "d761d6779b6d30b56107081c9215dbe66bc8f8a0104505982e95b2fe8627cdc6"
+etag: "sha256-eac829db221beb82f7986525bc2157f7c4b0fd727b86aad94fcd8ccdc2adde20"
 ---
 ## 개요
 
@@ -163,7 +163,7 @@ AI 에이전트 설정의 노출 도구 목록(`mcpServers[].enabledTools`)으�
 
 ### 도구 호출 한도
 
-MCP 도구 호출은 AI 에이전트의 도구 호출 한도(`maxToolCalls`)에 들어간다. 지식 저장소 도구와 같은 정책이다. 한도 값과 한도에 닿았을 때의 처리는 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#단일-턴)가 정한다. dry-run 재실행에서 외부로 보내지 않고 건너뛴 호출도 한도에 들어간다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md)).
+MCP 도구 호출은 AI 에이전트의 도구 호출 한도(`maxToolCalls`)에 들어간다. 지식 저장소 도구와 같은 정책이다. 한도 값과 한도에 닿았을 때의 처리는 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#단일-턴)가 정한다. dry-run 재실행에서 모의 응답으로 대신한 호출도 한도에 들어간다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md)).
 
 ### 도구 정의 크기 예산
 
@@ -182,7 +182,7 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 | `key` | `'mcp'` |
 | `matches(name)` | `name.startsWith('mcp_')` |
 | `buildTools(ctx)` | `ctx.config.mcpServers` 를 돌며 서버마다 connect·initialize 하고 [도구 노출 모델](#도구-노출-모델) 규칙으로 `ToolDef[]` 를 만든다. 실패한 서버는 건너뛰고 진단 정보를 쌓는다 |
-| `execute(call, ctx)` | `name` 에서 `<sid>` 를 꺼내 그 서버 세션에서 일반 도구·Resources·Prompts 분기에 따라 RPC 를 부르고, 결과를 `AgentToolResult.content` 로 직렬화한다. `ctx.dryRun` 이 참이면 일반 도구의 `tools/call` 은 보내지 않고 건너뛴 호출의 결과를 돌려준다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md)) |
+| `execute(call, ctx)` | `name` 에서 `<sid>` 를 꺼내 그 서버 세션에서 일반 도구·Resources·Prompts 분기에 따라 RPC 를 부르고, 결과를 `AgentToolResult.content` 로 직렬화한다. `ctx.dryRun` 이 참이면 일반 도구의 `tools/call` 은 보내지 않고 모의 응답을 돌려준다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md)) |
 
 ### 진단 누적 (`mcpDiagnostics`)
 
@@ -194,7 +194,7 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
   - **호출 단계**(`tools/call`·`resources/read`·`prompts/get`·`resources/list`·`prompts/list`): 서버 쪽 실패다. 프로바이더가 `AgentToolResult.mcpErrorDelta` 로 보고하면 핸들러가 execute 한 지점에서 쌓는다. 외부 MCP 는 `MCP_TIMEOUT`·`MCP_TOOL_ERROR`·`MCP_AUTH_FAILED`·`MCP_CALL_FAILED`, 내부 MCP 브리지는 `CAFE24_*`·`MAKESHOP_*` 어휘다.
   - 클라이언트 쪽 실패(`INVALID_TOOL_ARGUMENTS`·`MCP_UNKNOWN_TOOL`·`*_MISSING_FIELDS` 등)는 `errors[]` 에 넣지 않고 `tool_result` 로만 돌려준다.
 - `attempted` 는 서버 요약·에러·카운터 중 하나라도 있으면 true 다.
-- `toolCalls`·`resourceReads`·`promptGets` 는 노드 실행의 도구 실행 지점에서 `mcp_*` 호출을 종류별(`tools/call`·`read_resource`·`get_prompt`)로 센다. 성공과 실패를 가리지 않고 시도 1회를 1로 센다. `list_resources`·`list_prompts` 탐색 메타 도구는 세지 않는다([활동 로그](CLE-INT-MCP-ERROR.md#활동-로그)에서 빼는 것과 같다). dry-run 재실행에서 건너뛴 호출도 시도 1회로 센다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md)).
+- `toolCalls`·`resourceReads`·`promptGets` 는 노드 실행의 도구 실행 지점에서 `mcp_*` 호출을 종류별(`tools/call`·`read_resource`·`get_prompt`)로 센다. 성공과 실패를 가리지 않고 시도 1회를 1로 센다. `list_resources`·`list_prompts` 탐색 메타 도구는 세지 않는다([활동 로그](CLE-INT-MCP-ERROR.md#활동-로그)에서 빼는 것과 같다). dry-run 재실행에서 모의 응답으로 대신한 호출도 시도 1회로 센다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md)).
 
 **입력 자리와 출력 모양의 구분**: 프로바이더(`AgentToolProvider.buildTools`)는 진단을 배열 자리 두 개에만 쌓는다. `ProviderBuildCtx.mcpDiagnostics`(= `serverSummaries[]`, `McpServerSummary[]`)와 `ProviderBuildCtx.mcpDiagnosticErrors`(= `errors[]`, `McpDiagnosticError[]`)다. 최종 `meta.mcpDiagnostics`(구조화 `McpDiagnostics` 객체)는 핸들러(executor)가 두 배열과 실행 카운터를 모아 만든다. 이름은 비슷해도 입력 자리(배열)와 출력(객체)은 계층과 모양이 다르다.
 

@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-IX"
 title: "용어 사전 — 외부 상호작용과 채널"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "021dae648c6b86cc174353a06a4d0a563b716bb88744d687b84a14beb206e56d"
+content_hash: "fe199c4b2f521c18a7328bff94808e9b1396993ecd0d8c9373fa2d94fe48246e"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-3E7Q1T"
 source_paths: []
-mirror_sha256: "d465f44d3ecd148534be9a9b2230f0cf5cfb2bd1ee5eac6a7873906ef28cf7da"
-etag: "sha256-72a95b86fb17821c941c598dad2791ea4d515d098a3e022fda9de02b22a2f6a1"
+mirror_sha256: "24ba574a761098eb4df730ca8ba1fabe9c726dd211e12139bd511f1309f46609"
+etag: "sha256-26e90afdb65889fea069aed5a4df2b0805cac4780566cc38bae8f6ce4711369d"
 ---
 ## 개요
 
@@ -62,7 +62,7 @@ etag: "sha256-72a95b86fb17821c941c598dad2791ea4d515d098a3e022fda9de02b22a2f6a1"
 | 채널 건강도 | `chat_channel_health` | 채팅 채널의 동작 상태. 저하돼도 트리거를 끄지 않는다. 저하 원인은 [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) 이 정한다. 값과 화면 라벨은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 채널 대화 상태 | `ChannelConversation`(개념 이름), `ChannelConversationState`(타입), `ChannelConversationService`(서비스) | 채팅방과 진행 중인 실행을 잇는 만료가 있는 Redis 값. 대화 스레드와 다르다. | conversation thread(이 뜻으로), 대화 상태(단독) | [채팅 채널 데이터와 흐름](CLE-CHAT/CLE-CHAT-DATA.md) |
 | 대화 키·채널 사용자 키 | `conversationKey`, `channelUserKey` | 채널 안의 대화와 사용자를 구분하는 키. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
-| 실행 소유자 | `channelUserKey` | 채팅 채널에서 `channelUserKey` 가 채널 대화 상태의 값과 같은 채널 사용자. 그 대화에서 실행을 시작한 사람이다. [용어 사전 — 제품과 작업 공간](CLE-GLOSSARY-WS.md) 의 워크스페이스 역할 「소유자」(`owner`)와 다르다. 메신저 사용자를 가리키므로 워크스페이스 멤버 권한과 관계없다. 채팅 채널 영역 문서는 「실행 소유자」 를 정의한 뒤 단독 「소유자」 로 줄여 쓸 수 있다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
+| 실행 소유자 | `channelUserKey` | 채팅 채널에서 `channelUserKey` 가 채널 대화 상태의 값과 같은 채널 사용자. 그 대화에서 실행을 시작한 사람이다. [용어 사전 — 제품과 워크스페이스](CLE-GLOSSARY-WS.md) 의 워크스페이스 역할 「소유자」(`owner`)와 다르다. 메신저 사용자를 가리키므로 워크스페이스 멤버 권한과 관계없다. 채팅 채널 영역 문서는 「실행 소유자」 를 정의한 뒤 단독 「소유자」 로 줄여 쓸 수 있다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 채널 업데이트·채널 메시지 | `ChannelUpdate`, `ChannelMessage` | 어댑터의 입력과 출력을 공통 형태로 정한 타입. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |
 | 중복 제거 키 | `idempotencyKey` | 메신저가 같은 update 를 다시 보낼 때 짧은 기간 안에 다시 온 것을 거르는 키. EIA 멱등 키와 다르다. | 없음 | [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) |
 | 실행 실패 안내 분류 | `classifyExecutionFailure` | 실패 원인을 채널 안내 문구 키 가운데 하나로 고르는 함수. | 없음 | [채팅 채널 어댑터 규약](CLE-CHAT/CLE-CHAT-ADAPTER.md) |

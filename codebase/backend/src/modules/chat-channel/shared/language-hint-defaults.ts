@@ -266,6 +266,45 @@ export const resolveNoActiveExecutionMessage = makeLocaleResolver(
 );
 
 /**
+ * `/start` 가 새 실행을 시작했을 때 보내는 시작 안내의 기본 문구(KO/EN, 합쇼체). 대화에 활성 실행이 없던
+ * 경우다. Slack · Discord 슬래시 명령은 본인에게만 보이는 즉시 응답의 내용으로, Telegram 은 대화에 보내는
+ * 제어 안내로 싣는다. 2026-11-20 사람 결정(NERV 질문 `01a1f7b4-2295-754e-8aaf-685d64148fb9`, Task `CLE-T-0400J6`).
+ */
+export const EXECUTION_STARTED_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '워크플로우를 시작합니다.',
+  en: 'Started the workflow.',
+};
+
+/**
+ * 시작 안내 3-level lookup — (1) languageHints.executionStarted override →
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
+ */
+export const resolveExecutionStartedMessage = makeLocaleResolver(
+  'executionStarted',
+  EXECUTION_STARTED_DEFAULTS,
+);
+
+/**
+ * 활성 실행이 있던 대화에서 `/start` 가 기존 실행을 취소하고 새 실행을 시작했을 때 보내는 재시작 안내의
+ * 기본 문구(KO/EN, 합쇼체). 취소할 실행이 이미 끝나 있어 취소 없이 시작한 경우도 이 문구다. 전달 방식은
+ * {@link EXECUTION_STARTED_DEFAULTS} 와 같다. 2026-11-20 사람 결정(NERV 질문
+ * `01a1f7b4-2468-7172-8504-4918e82d8396`, Task `CLE-T-0400J6`).
+ */
+export const EXECUTION_RESTARTED_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '기존 대화를 종료하고 새로 시작합니다.',
+  en: 'Ended the previous conversation and started a new one.',
+};
+
+/**
+ * 재시작 안내 3-level lookup — (1) languageHints.executionRestarted override →
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
+ */
+export const resolveExecutionRestartedMessage = makeLocaleResolver(
+  'executionRestarted',
+  EXECUTION_RESTARTED_DEFAULTS,
+);
+
+/**
  * 슬래시 명령 `help` 의 기본 도움말(KO/EN). `{prefix}` 는 호출한 쪽이 명령 이름으로 바꾼다. Discord 는
  * 등록한 명령 이름(`languageHints.slashPrefix`), Slack 은 요청의 `command` 를 넣는다.
  * `languageHints.help` override 가 있으면 이 문구를 쓰지 않는다.

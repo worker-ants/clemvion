@@ -155,6 +155,33 @@ describe('SseFanoutService', () => {
       ]);
     });
 
+    // 근거: CLE-API-EGRESS-PIPELINE §6 (NERV Task `CLE-T-DV6PN7`). 라우팅 정보는 서버 안 dispatcher 만
+    // 읽는다. 버퍼와 live 채널에 실리면 SSE 재전송과 다른 서버 인스턴스를 거쳐 외부로 나갈 수 있다.
+    it('이벤트의 routing 은 버퍼와 live 채널 메시지에 싣지 않는다', async () => {
+      const { service } = boot(server);
+      expect(
+        await service.append({
+          ...ev(1),
+          routing: {
+            chatChannel: {
+              provider: 'telegram',
+              conversationKey: 'conv-1',
+              channelUserKey: 'user-1',
+            },
+          },
+        }),
+      ).toBe('stored');
+
+      const [, fields] = server.streams.get(sseBufferKey('exec-1'))![0];
+      expect(fields[3]).not.toContain('routing');
+      expect(fields[3]).not.toContain('user-1');
+      expect(JSON.parse(fields[3])).toMatchObject({ event: ev(1) });
+      expect(server.published).toHaveLength(1);
+      const live = server.published[0].message;
+      expect(live).not.toContain('routing');
+      expect(live).not.toContain('user-1');
+    });
+
     describe('크기 상한', () => {
       /** 직렬화한 메시지가 상한을 넘는 이벤트. 한글은 UTF-8 로 3바이트라 문자 수로는 상한 안이다. */
       function big(seq: number, eventType = 'execution.node.completed') {

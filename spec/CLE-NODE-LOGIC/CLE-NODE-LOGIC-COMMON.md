@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "d894b916ef89439b7e4b8268e2dbb60cab1aa2545f0a1b95d8474def52226843"
+content_hash: "d4733afa38455b76742b33eab2393d13f717d13c87302a2ef3ca05ab1029aac1"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d42860ce4da2a2f72b9ee140e8025e550ca4d127c728ba792ece5f9b63a12887"
-etag: "sha256-61ea1588d37163e7d18830df244b65cfe9e05af14d363d98a371148f1862db8e"
+mirror_sha256: "cea7eff3b307e62e3eb3636803abf5e8d8049868bb0a259929819e1e145626e8"
+etag: "sha256-a0b7e3070ceee9182c1e08aba26e870cc7aced588af86fe3466e19fcb2f7e248"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -272,10 +272,10 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
 
 결정일: 2026-11-05
 
-→ [Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05)
+→ [Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#실패한-회차와-병렬-분기의-errorcode)
 
 ### Parallel `stop` 설명을 실행기 동작에 맞춘다
 
 결정일: 2026-11-06
 
-→ [Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#parallel-stop-설명을-실행기-동작에-맞춘다-2026-11-06)
+→ [Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#parallel-stop-설명을-실행기-동작에-맞춘다)

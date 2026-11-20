@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REHYDRATE"
 title: "장애 복구와 안전 종료 — 체크포인트와 rehydration"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "499dab6325e6b06fd58aecd0182cf4f8da72d1687cb934e1e9ed8afd0cfcec1a"
+content_hash: "c2b1ffe248dcc4f7bb91dc0000121e915d413ff1f41daab6fa3cc7e3a139e525"
 read_as: "approved_fallback"
-task: "CLE-T-E6PW00"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "fa33a11c3bcd1585a96515237fb544a4c4ceb7c8d1f70c6b5e533235751891fa"
-etag: "sha256-a754e7b4f0388166e8a54daab4a6a670c2bb28e326d283026e658b3683ebef3b"
+mirror_sha256: "dc3fc5bf84064efde130bd428c82e20fd4eae27e07efd9d905fe982a9eabd367"
+etag: "sha256-4515d78be0263bcece959427c25c803991c238ec3de7323917b4507b5753d7c4"
 ---
 ## 개요
 
@@ -43,7 +43,7 @@ etag: "sha256-a754e7b4f0388166e8a54daab4a6a670c2bb28e326d283026e658b3683ebef3b"
 5. 크래시 시점에 아직 완료되지 않은 노드는 다시 실행된다(at-least-once).
 6. 재구동 도중 새 블로킹 노드에 닿으면 정상적으로 park 하고 세그먼트를 끝낸다.
 
-이 절차는 노드 타입과 관계없다. `rehydrateContext` 와 `runNodeDispatchLoop` 가 이미 노드 타입을 가리지 않는다. 입력 대기 노드 재개(case A, `dispatchResumeTurn`)와 달리 도착 입력과 turn 핸들러를 거치지 않고 바로 그래프를 진행한다. 3단계의 멀티턴 AI 노드 예외만 다르다.
+이 절차는 노드 타입과 관계없다. `rehydrateContext` 와 `runNodeDispatchLoop` 가 이미 노드 타입을 가리지 않는다.
 
 ### 멱등성 계약
 
@@ -136,7 +136,9 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 
 ## Rationale
 
-### 재개 진입을 DB 원자 claim 으로 (2026-07-02)
+### 재개 진입을 DB 원자 claim 으로
+
+결정일: 2026-07-02
 
 옛 재확인 가드는 비원자 SELECT 로 확인한 뒤 실행하는 방식이라 여러 인스턴스와 재개 큐 동시성 상향에서 "같은 턴 이중 실행 0" 불변식을 **기계적으로 보장하지 못했다.** 확인과 실행 사이 틈에 두 워커가 함께 통과할 수 있었다. 재개 **진입**을 조건부 원자 UPDATE(affected=0 → ack 후 버림)로 막아 이 틈을 닫는다.
 
@@ -147,11 +149,13 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 - **구현**: 재개 진입 claim 은 affected 기반 race 판정이 필요해 `updateExecutionStatus`/`assertTransition` choke point 를 **거치지 않는** raw 조건부 UPDATE 로 실행과 노드 실행을 `waiting_for_input → running` 짝 전이한다. `ALLOWED_TRANSITIONS` 는 실행 전용이고 `waiting_for_input → running` 은 이미 표에 있다. 새 전이를 더한 것이 아니라 claim 이 그 전이를 조건부·원자로 하는 것이다. 실행 짝 UPDATE 가 종료 상태(동시 취소 등) 때문에 affected=0 이면 노드 claim 도 트랜잭션을 롤백해 버린다.
 - **착수 조건**: 같은 (executionId, nodeExecutionId) 를 동시에 두 번 재개하면 한쪽만 진행하는 unit 테스트와, form park 에 재개 작업 2건을 인위로 넣고 턴 이중 실행 0 을 확인하는 dockerized e2e. 사용자 승인 2026-07-02(Option A).
 
-### 마지막 턴 재시도에도 원자 claim 을 둔다 (2026-07-28)
+### 마지막 턴 재시도에도 원자 claim 을 둔다
+
+결정일: 2026-07-28
 
 재개 claim 은 `waiting_for_input → running` 조건부 전이로 race 를 판정하지만 마지막 턴 재시도(`retry_last_turn`)는 대상이 이미 `running` 인 새 행이라 그 전이가 성립하지 않는다. 그래서 `applyRetryLastTurn` 이 새 행의 `inputData._retryState` 키를 조건부 UPDATE 로 원자 소비하는 배달 단위 claim 을 따로 둔다. 남는 `running` 행은 부팅 복구 스캔의 (d) 단계가 닫는다. 2026-11-19 에 같은 실행의 형제 재시도를 가르는 실행 단위 claim(`finished_at` 표지)을 더했다. 결정 경위와 대가는 [마지막 턴 재시도](CLE-EXEC-STATE-RETRY.md) 의 Rationale 에 있다.
 
-### park 즉시 해제와 rehydration 단일 경로 (Phase B)
+### park 즉시 해제와 rehydration 단일 경로
 
 **배경, 코루틴이 쌓이는 위험**: 초기 모델은 park 뒤 `runExecution` 코루틴을 in-process 로 **살려 두고**(detached 코루틴 + `firstSegmentBarriers` 단발 배리어) 같은 인스턴스 재개는 메모리 `pendingContinuations` resolve 빠른 경로, 그 밖은 rehydration 느린 경로로 **나뉘어** 있었다. 사용자 입력 시점을 알 수 없어 **응답 없는 park 실행의 코루틴과 컨텍스트가 메모리에 끝없이 쌓이는** 운영 위험이 있었다.
 
@@ -163,7 +167,7 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 - **멀티턴은 턴 단위로 park 한다**: `runAiConversationLoop` 의 오래 도는 반복문을 **턴마다 입력 대기에서 풀어 준다.** 한 턴 처리가 한 세그먼트이고 다음 메시지가 오면 rehydration 으로 재개한다. 응답 없는 대화도 메모리를 쓰지 않는다. 기각한 대안("대화 전체를 한 입력 대기로 두고 코루틴 누적을 받아들임")은 메모리 제한 목표와 정면으로 부딪친다. 턴마다 rehydration 비용은 사람 속도라 받아들인다.
 - **턴마다 새 설정**: 매 턴 rehydration 이 `node.config` 를 새로 유도하므로 park 중 편집이 다음 턴부터 반영된다. 결정과 기각한 대안은 [실행 컨텍스트 — 저장 전략과 재개](CLE-EXEC-CONTEXT-STORAGE.md) Rationale 의 "멀티턴 설정은 턴마다 새로 만든다" 에 있다.
 - **불변식은 유지된다**: 같은 턴 이중 실행 0(영속된 `WAITING_FOR_INPUT` + 재개 진입 **DB 원자 claim**, 비원자 재확인 가드를 대체), 재개 명령 유실 0(영속 재개 큐), 멱등(jobId). park → 워커 종료 → 손실 없는 재개는 dockerized e2e 회귀 테스트로 보증한다.
-- **단계 적용(2026-06-05/06, 완료)**: park 지점 단위로 해제와 느린 경로를 함께 적용했다. form·button, 최상위 멀티턴 AI, 중첩 `executeInline` 블로킹의 영속(아래 항목)과 메모리 머신 제거 순서다.
+- **단계 적용(2026-06-05/06, 완료)**: 작업 이름은 Phase B 였다. park 지점 단위로 해제와 느린 경로를 함께 적용했다. form·button, 최상위 멀티턴 AI, 중첩 `executeInline` 블로킹의 영속(아래 항목)과 메모리 머신 제거 순서다.
 - **재개 turn 분기와 park 진입 분기의 registry 추출**: form·buttons·ai 분기를 순서 있는 registry 와 단일 진입점(`dispatchResumeTurn`·`dispatchParkEntry`)으로 뽑은 동작 보존 리팩터링이다. 결정은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) Rationale 의 "입력 대기 분기를 registry 로 모은다 (#507, M-4)" 에 있다.
 - **`runNodeDispatchLoop` 반환 계약**: park 로 끝났는지를 `{ parked: boolean }` 으로 돌려준다. 계약과 경위는 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 에 있다.
 - **중첩 서브 워크플로우 블로킹 영속(2026-06-06, 사용자 결정 "호출 스택 영속 정공법")**: 중첩 서브 워크플로우(`executeInline`) 안의 블로킹 노드도 park 해제 + rehydration 으로 모아 **메모리 의존을 완전히 없앴다.** 빠진 조각은 **호출 체인 구조뿐**이었다. 노드 출력은 같은 executionId 타임라인으로, 대화 스레드·변수는 V084/V085 로 DB 에 남는다. 그래서 새 `Execution.resume_call_stack jsonb`(V087)로 호출 체인을 영속하고 frame 단위로 재진입한다.
@@ -177,7 +181,9 @@ park 한 노드가 중첩 서브 워크플로우(`executeInline`) 안에 있으�
 
 rehydration 실패 3종(`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`)은 인프라 실패라 실행을 `cancelled` 로, 정상 완료하지 못한 짝 노드 실행을 `failed` 로 끝낸다. 상태 분류의 결정 근거와 기각한 대안은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) Rationale 의 "rehydration 실패의 종결 상태를 실행 `cancelled`, 노드 실행 `failed` 로 나눈다" 에 있다.
 
-### 호출 스택 frame 결손도 `RESUME_CHECKPOINT_MISSING` 으로 마감한다 (2026-10-04)
+### 호출 스택 frame 결손도 `RESUME_CHECKPOINT_MISSING` 으로 마감한다
+
+결정일: 2026-10-04
 
 엔진은 빈 frame 목록, 호출 노드 부재, frame 에서 재개를 시작할 노드의 부재에 이미 이 코드를 냈다. frame 의 `workflowId` · `invokerNodeId` 결손은 확인하지 않았다. TypeORM 1 이 where 의 undefined 를 예외로 막은 뒤로 그 경우는 일반 실패 경로(실행 `failed`)로 끝났다. 그래서 재개 진입 claim 뒤, 조회 전에 확인해 [rehydration 실패](#rehydration-실패) 로 옮겼다.
 

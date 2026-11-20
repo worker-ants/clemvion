@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
-version: 6
+version: 8
 status: "approved"
 requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026", "REQ-BGRUN-027", "REQ-BGRUN-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "39821dac1d3f88f008b8e49d47460796d8ddd4b1a68e77be8c2e3fda5d111f6d"
+content_hash: "562ece59517787e5e971bac78401907ced5b3042c773e79a1d46d6fded3856c4"
 read_as: "approved_fallback"
-task: "CLE-T-JDYHCF"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "853847b26402ce7d3319355993d3182b6d1a7589de08369655e1dbb924f99f9f"
-etag: "sha256-aace84af7457f57b506c149f158914a05f00d9fb99450358372f75ec4bfaa1d4"
+mirror_sha256: "6e69417d05dce1493ab0bb186ae90cd3ad6f96f48e1acf06a9c414ceea10ad16"
+etag: "sha256-f9cb7fab044784104a90af1130f1c864dc0d5df0a984111384c366f9a439a81e"
 ---
 > 구현 상태: 부분 구현 (REQ-BGRUN-026 AI 어시스턴트 조회 도구는 미구현) · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -175,9 +175,10 @@ sequenceDiagram
 | `meta.durationMs` | number | 런타임, 핸들러 측정 | 핸들러 자체의 처리 시간(ms). fire-and-forget 이라 보통 0~수 ms. 본문 실행 시간이 아니다 |
 | `meta.backgroundRunId` | string (UUID v4) | 런타임, 핸들러 발급 | 실행 안에서 Background 본문 실행을 구별하는 값. [모니터링 API](CLE-NODE-BACKGROUND-RUNS.md) 의 조회 키 |
 | `meta.forkedAt` | ISO8601 string | 런타임, 핸들러 측정 | 갈라진 시각(핸들러 진입 시각). enqueue 직후와 거의 같다 |
+| `meta.jobId` | string | 런타임, 엔진 기록 | 본문 BullMQ 작업 ID. 아래 참조 |
 | `port` | `'main'` | 핸들러 반환 | 항상 `main` (핸들러는 `background` 포트를 활성화하지 않는다) |
 
-`meta.jobId` (BullMQ job ID)는 핸들러가 큐를 모르므로 출력에 없다. `scheduleBackgroundBody()` 가 큐에 넣은 뒤 노드 실행 기록의 `outputData` 에 기록하는 것은 앞으로 넓힐 지점이다.
+`meta.jobId`(BullMQ 작업 ID)는 핸들러가 큐를 모르므로 엔진이 본문을 큐에 넣은 뒤 더한다. 완료된 노드 실행 기록의 `outputData.meta` 와 구조화 출력 캐시(병렬 분기 안이면 루트 캐시도)에 써서 뒤 노드가 `$node["X"].meta.jobId` 로 읽는다. `execution.node.completed` 이벤트와 큐 작업 스냅샷에는 없다. 쓰다 실패하면 경고 로그만 남긴다.
 
 표현식 접근 예:
 
@@ -278,7 +279,9 @@ Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행
 
 사용자에게 보이는 동작이 바뀌었다. 전에는 시간 초과 실패로 보였지만 지금은 에러 없이 그 지점에서 조용히 끝난다(실패로 세지 않고 알림도 보내지 않는다). 본문에 블로킹 노드를 두는 구성 자체를 권하지 않는다. 사용자 입력을 기다려야 하면 메인 흐름에 둔다.
 
-### 컨테이너 본문 안 Background 는 컨테이너 단계 그래프로 실행한다 (2026-11-12)
+### 컨테이너 본문 안 Background 는 컨테이너 단계 그래프로 실행한다
+
+결정일: 2026-11-12
 
 컨테이너 본문 안 Background 는 회차마다 본문을 큐에 넣는다. 본문 노드는 에디터 규칙에 따라 Background 와 같은 컨테이너 소속을 받는다. 그런데 워커가 맨 바깥 노드로만 그래프를 만들어 이 노드를 실행하지 못했다. 그래서 작업에 컨테이너 ID 를 싣고 워커가 그 단계의 그래프를 만든다. 본문은 계속 `background` 포트 연결선으로 찾는다.
 
@@ -288,9 +291,11 @@ Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행
 
 - **반복 변수를 비우는 안**: 본문에서 `$item` · `$loop` 같은 반복 변수가 비어 회차별 처리를 할 수 없다.
 
-결정 경위와 나머지 기각 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#본문-안-컨테이너와-background-도-실행-경로로-넘긴다-2026-11-12) 의 Rationale 에 있다(NERV Task `CLE-T-MR6ZH3`).
+결정 경위와 나머지 기각 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#본문-안-컨테이너와-background-도-실행-경로로-넘긴다) 의 Rationale 에 있다(NERV Task `CLE-T-MR6ZH3`).
 
-### 본문 진입 노드는 Background 노드가 받은 입력을 받는다 (2026-11-12)
+### 본문 진입 노드는 Background 노드가 받은 입력을 받는다
+
+결정일: 2026-11-12
 
 예전에는 `scheduleBackgroundBody` 를 부르는 다섯 곳이 본문 진입 노드에 서로 다른 값을 넘겼다. 맨 바깥 실행은 실행 원본 입력을, 입력 대기 뒤 재개 경로는 빈 객체(`{}`)를, `executeInline`(서브 워크플로우 · Background 워커)은 그 실행의 원본 입력을, 병렬 분기는 Parallel 이 받은 입력을 넘겼다. 컨테이너 본문만 그 회차에 Background 노드가 받은 입력을 넘겼다.
 

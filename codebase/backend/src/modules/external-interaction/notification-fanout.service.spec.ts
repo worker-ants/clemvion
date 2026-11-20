@@ -96,6 +96,37 @@ describe('NotificationFanout — terminal revoke 게이트 [EIA-AU-04]', () => {
     expect(dispatcher.enqueue).toHaveBeenCalledTimes(1);
   });
 
+  // 근거: CLE-API-EGRESS-PIPELINE §6 (NERV Task `CLE-T-DV6PN7`). 알림 웹훅 본문은 payload 만 싣는다.
+  it('이벤트의 routing 은 알림 웹훅 본문에 싣지 않는다', async () => {
+    const { fanout, dispatcher } = makeFanout({
+      triggerRepository: {
+        findOne: jest.fn().mockResolvedValue({
+          id: 'trg-1',
+          workflowId: 'wf-1',
+          config: {
+            notification: { events: ['execution.completed'] },
+          },
+        }),
+      },
+    });
+    await invoke(fanout, {
+      ...event('execution.completed', { triggerId: 'trg-1' }),
+      routing: {
+        chatChannel: {
+          provider: 'telegram',
+          conversationKey: 'conv-1',
+          channelUserKey: 'user-1',
+        },
+      },
+    });
+    expect(dispatcher.enqueue).toHaveBeenCalledTimes(1);
+    const [job] = dispatcher.enqueue.mock.calls[0] as [
+      { eventBody: Record<string, unknown> },
+    ];
+    expect(job.eventBody).not.toHaveProperty('routing');
+    expect(JSON.stringify(job)).not.toContain('user-1');
+  });
+
   it('terminal + notification 설정됐으나 해당 event 미구독 → revoke 는 호출, enqueue 는 skip', async () => {
     const { fanout, dispatcher, tokenService } = makeFanout({
       triggerRepository: {

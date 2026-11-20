@@ -2,23 +2,23 @@
 id: "CLE-API-EGRESS-TRIGGER"
 title: "응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "c443084472a5d8565db11ff239835c34f7c0830ac87b28de2150609e2f33f5ec"
+content_hash: "50f41e30ee567bd2b71eb380d5a310799858c75beeb1b3a99257db56da50e46c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-RCQGCC"
 source_paths: []
-mirror_sha256: "ef44c775ebfa430dd12a51cea7eede44ba536bd192392d5a9d9eb810f72c4235"
-etag: "sha256-6e7b966c536224ce3edc5a0e56087c62450aec7aff49ca3bb28899099c6009df"
+mirror_sha256: "dbc54fd6488bc7152f3e37b1605768b121e1d33199ae21ac59cd1a621d41b504"
+etag: "sha256-e809123003f4df815b52d031322afa4386e49837aee4ec1e0afc7c263a03fab3"
 ---
 ## 개요
 
-이 문서는 [응답 자격 증명 마스킹](CLE-API-EGRESS.md) 의 하위 문서로 트리거 응답의 두 마지막 오류 필드의 응답 마스킹과 그 한계를 정한다. §N 은 원문 절 번호이고 「규칙 N」 · §1 · §2 는 부모에, 나머지 절은 부모의 [하위 문서](CLE-API-EGRESS.md#하위-문서) 가 가리키는 문서에 있다.
+이 문서는 [응답 자격 증명 마스킹](CLE-API-EGRESS.md) 의 하위 문서로 트리거 응답의 두 마지막 오류 필드의 응답 마스킹, 알림 URL 의 userinfo 가림과 그 한계를 정한다. §N 은 원문 절 번호이고 「규칙 N」 · §1 · §2 는 부모에, 나머지 절은 부모의 [하위 문서](CLE-API-EGRESS.md#하위-문서) 가 가리키는 문서에 있다.
 
 ## 3.10 트리거 응답의 마지막 오류 (2026-10-05)
 
@@ -34,7 +34,7 @@ etag: "sha256-6e7b966c536224ce3edc5a0e56087c62450aec7aff49ca3bb28899099c6009df"
 - **수신 인구**: 두 GET 은 `@Roles` 게이트가 없어 뷰어를 포함한 워크스페이스 멤버가 받는다. 실행 상세(§2.1)와 같은 사람들이라 같은 값 패턴 마스커 `redactSecrets`(`codebase/backend/src/shared/utils/sanitize-error-message.ts`, 자르지 않는다)를 건다.
 - **알려진 비밀 치환과 나가는 시점 마스킹**:
   1. 만든 자리(§1.1): 채팅 채널의 프로바이더 API 클라이언트(Slack · Discord · Telegram)가 자기가 만든 실패 문장(fetch 예외, 재시도 소진 사유)을 돌려주거나 로그에 남기기 전에 그 호출에 쓴 봇 토큰을 지운다. 세부는 [채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10 이 정한다. 프로바이더가 돌려준 4xx 본문은 실패 판별 입력이라 바꾸지 않는다. 봇 토큰에 CR · LF · NUL 이 있으면 fetch 가 `Headers.append: "Bearer <토큰 전체>" is an invalid header value.`(Discord 는 `Bot <토큰>`)로 거부해 토큰 전체가 실패 원문에 실린다. Slack 은 그 토큰이 이 필드 · 로그 · 응답까지 갔다(Node 24 실측). Discord 는 그때 어댑터가 클라이언트의 합성 실패를 성공으로 판정해 이 필드에 닿지 않고 로그에 남았다. 2026-11-06 부터 어댑터가 클라이언트의 `ok: false` 로 실패를 판정하므로 Discord 의 같은 실패 문장도 이 필드에 닿는다(NERV Task `CLE-T-KX2Q2N`). 그 문장의 봇 토큰은 Discord 클라이언트가 알려진 비밀 치환으로 이미 지운 것이다.
-  2. 나가는 시점: `sanitizeForResponse` 가 두 필드에 `redactSecrets` 를 건다. 프로바이더가 되돌려 준 자격 증명, `user:pass@` URL(알림 URL 이 같은 응답에 원문으로 남는 동안은 부분적이다), JWT, `Authorization:` 헤더, fetch 헤더 값 검증 오류처럼 미리 알 수 없는 모양을 막는다.
+  2. 나가는 시점: `sanitizeForResponse` 가 두 필드에 `redactSecrets` 를 건다. 프로바이더가 되돌려 준 자격 증명, `user:pass@` URL, JWT, `Authorization:` 헤더, fetch 헤더 값 검증 오류처럼 미리 알 수 없는 모양을 막는다. `notificationLastError` 에는 그 뒤에 userinfo 국소 패턴을 더 건다(아래 「알림 URL 의 userinfo」).
 - **마커**: 알려진 비밀 치환과 나가는 시점 마스킹은 같은 값 마커를 쓴다. 저장값 `Headers.append: "Bearer ***" is an invalid header value.` 는 응답에서 `Headers.append: "***" is an invalid header value.` 가 된다. 이 패턴은 따옴표 안에 다른 마커(`[REDACTED]` 등)가 있어도 값 마커 하나로 바꾼다. 규칙 5 의 하나뿐인 예외이고 이유는 Rationale 에 있다.
 - **서명 자료**: 인바운드 서명 자료는 요청 헤더나 URL 에 싣지 않는다. Telegram `secret_token` 은 `setWebhook` 요청 본문에 있고 fetch 오류 원문은 본문을 싣지 않는다. 그래서 알려진 비밀 치환의 대상은 봇 토큰이다.
 - **로그**: 이 문서의 대상이 아니다([로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 「로그 마스킹」). 시크릿 저장소 평문을 로그 전에 지우는 규칙은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 14 가 정한다.
@@ -47,7 +47,7 @@ etag: "sha256-6e7b966c536224ce3edc5a0e56087c62450aec7aff49ca3bb28899099c6009df"
   - 프로바이더가 돌려준 4xx 본문은 알려진 비밀 치환을 거치지 않는다. 본문에 토큰이 실리면 나가는 층의 값 패턴만 남는다.
   - 두 필드는 `TRIGGER_RESPONSE_REDACT_COLUMNS` 에 이름으로 올라 있다. `trigger` 에 마지막 오류 같은 진단 텍스트 컬럼을 더하면 이 목록과 위 표를 함께 고친다.
   - 생성 · 재발급은 보이는 ASCII(U+0021~U+007E) 밖 문자(공백 · 제어 문자 등)가 든 봇 토큰을 프로바이더를 부르기 전에 400 으로 거부한다([채팅 채널 「R-CC-32 봇 토큰 입력은 보이는 ASCII 만 받는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-32-봇-토큰-입력은-보이는-ascii-만-받는다), NERV Task `CLE-T-FX354C`). 이미 저장된 토큰은 바뀌지 않는다. 그런 토큰이 남은 트리거는 여전히 `degraded` 로 드러나고 토큰을 재발급해 고친다. 그래서 입력 거부가 있어도 알려진 비밀 치환은 그대로 필요하다.
-- **남는 표면 `config.notification.url`**: 같은 응답의 알림 URL 은 원문으로 나간다. URL 에 `user:pass@` 가 있으면 마지막 오류에서는 가려도 이 필드에는 남는다. §3.5 가 «같은 응답 안의 원문이 방어를 우회한다» 고 보고 닫은 형태와 같다. 이번에 닫지 않은 이유는 이 필드가 편집 폼이 다시 보내는 왕복 값이라 규칙 9 와 함께 정해야 해서다. 그런 URL 은 fetch 가 요청을 만들지 않아 한 번도 발송되지 않으므로 등록에서 거부하는 안을 먼저 본다(NERV Task `CLE-T-RCQGCC`). 그때까지 알림 URL 의 userinfo 차단은 완전하지 않다. 사용자명만 있는 형태(`https://tok@host`)와 빈 사용자명(`https://:pw@host`)은 마지막 오류에서도 가려지지 않는다.
+- **알림 URL 의 userinfo** (2026-11-20, NERV Task `CLE-T-RCQGCC`): userinfo 가 든 알림 URL 은 등록 · 수정에서 거부한다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md#ssrf-방지)). 그 전에 저장된 행이 남아 있어 같은 응답의 `config.notification.url` 에서 userinfo 를 `***@` 로 가린다(`maskNotificationUrlUserinfo`). 호스트 · 경로 · 쿼리는 원문 글자 그대로 두고 저장값은 바꾸지 않는다. 편집 폼이 가린 URL 을 PATCH 로 되보내면 등록 검사의 userinfo 거부로 `400 INVALID_NOTIFICATION_URL` 이 나서 마커가 저장되지 않는다. 이 거부가 규칙 9 의 소비 쪽 가드이고 마커 가드는 따로 두지 않는다. 가린 URL(`***@`)이 다시 저장되지 않는 것은 등록 · 수정의 userinfo 거부(REQ-EIANOTI-039)에 기대므로 그 거부를 없애거나 좁히면 규칙 9 의 마커 재제출 가드([재제출 거부와 마스커 좌표계 「다시 쓰이는 값과 재제출 거부」](CLE-API-EGRESS-PIPELINE.md#4-다시-쓰이는-값과-재제출-거부))도 함께 사라진다. `notificationLastError` 에는 `redactSecrets` 뒤에 국소 패턴(`://` 바로 뒤에서 `@` 앞까지, `/` · 공백 · `@` 가 없는 구간)을 더 걸어 사용자명만 있는 형태(`https://tok@host`)와 빈 사용자명(`https://:pw@host`)도 `***` 로 가린다. `chatChannelLastError` 에는 이 패턴을 걸지 않고 공유 패턴만 건다.
 
 ## Rationale
 
@@ -63,13 +63,13 @@ NERV Task `CLE-T-H0GF4K` 가 Node 24 의 fetch 로 두 경로를 재현했다. S
 - **비대상으로 적기**: 토큰이 실리는 경로를 재현했다.
 - **원인 분류 코드와 고정 문구로 좁히기**: 채팅 채널의 R-CC-25 방식이다. 프로바이더 오류 코드(`channel_not_found`, `missing_scope`, `not_in_channel` 등)가 사용자가 고칠 원인을 알려 주는데 그 정보를 잃는다. 근거는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-26 에 있다.
 - **봇 토큰 입력에서 제어 문자만 거부하기**: 이미 저장된 토큰과 다른 모양의 유입을 막지 못한다. 알려진 비밀 치환은 입력 모양과 무관하게 닫는다. 2026-11-06 의 봇 토큰 입력 거부(보이는 ASCII 만, NERV Task `CLE-T-FX354C`)는 사용자가 고칠 입력 오류를 4xx 로 돌려주려고 치환 앞에 더한 것이라 이 기각을 뒤집지 않는다.
-- **두 마지막 오류 필드에만 거는 국소 userinfo 패턴**: `config.notification.url` 이 같은 응답에 원문으로 남는 한 효과가 없다. 두 필드는 NERV Task `CLE-T-RCQGCC` 에서 함께 맞춘다.
-- **공유 userinfo 패턴을 사용자명만 있는 형태까지 넓히기**(시도 뒤 철회): 이 패턴은 대화 스레드 · 실행 에러 · 재실행 입력에도 걸린다. 사용자명만 있는 URL 은 워크플로우 입력에 흔해 재제출 표면(§4)에서 부분 치환된 값이 그대로 실행될 수 있다. 알림 URL 의 자격 증명은 `config.notification.url` 과 함께 NERV Task `CLE-T-RCQGCC` 에서 다룬다.
+- **국소 userinfo 패턴을 `chatChannelLastError` 에도 건다**: 처음에는 두 마지막 오류 필드에 함께 거는 안이었다. `config.notification.url` 이 같은 응답에 원문으로 남는 동안은 효과가 없어 미뤘고, 2026-11-20 에 `notificationLastError` 에만 채택했다(아래 해소 기록). `chatChannelLastError` 는 채팅 채널 어댑터 실패를 담고 알림 URL 을 담지 않아 걸지 않는다.
+- **공유 userinfo 패턴을 사용자명만 있는 형태까지 넓히기**(시도 뒤 철회): 이 패턴은 대화 스레드 · 실행 에러 · 재실행 입력에도 걸린다. 사용자명만 있는 URL 은 워크플로우 입력에 흔해 재제출 표면(§4)에서 부분 치환된 값이 그대로 실행될 수 있다. 알림 URL 의 자격 증명은 NERV Task `CLE-T-RCQGCC` 에서 `notificationLastError` 의 국소 패턴으로 다뤘다.
 
 공유 마스커에 더한 헤더 값 검증 오류 패턴은 fetch 를 쓰는 다른 경로(HTTP Request 노드 등)의 오류와, MCP 진단처럼 저장 전에 가리는 경로에도 걸린다. 수량자에는 2048자 상한을 뒀다. 상한이 없으면 종결 문구 없는 큰 입력에서 이차 시간이 걸린다(§3.10 한계). 자격 증명이 아닌 사용자 헤더 값도 `***` 로 보인다. 오류 종류(`is an invalid header value`)는 남아 원인을 읽을 수 있고 헤더 값은 자격 증명일 때가 많아 이 오탐을 받아들였다.
 
 이 패턴은 따옴표 안을 통째로 값 마커 하나로 바꿔 안에 든 다른 마커도 덮는다. 규칙 5 를 이 패턴 하나에서 좁힌 이유다. 마커를 건너뛰려면 패턴이 마커 경계를 알아야 해 복잡해진다. 이 오류 원문에 다른 마커가 들 일은 드물고(알려진 비밀 치환의 값 마커 정도) 들어도 그 구간은 가려야 할 헤더 값이다. 키 마커(`[REDACTED]`)까지 덮는 것은 알려진 부산물이다. 이 오류 문장은 받는 층을 거쳐 온 값이 아니라서 표면 사이에 마커가 갈리는 일은 생기지 않는다. 동작은 캐너리로 고정했다. MCP 클라이언트는 소비자 전용 모양을 자기 훅에 두었지만 이 패턴은 fetch 가 모든 소비자에 내는 일반 형태라 공유 목록에 둔다.
 
-`config.notification.url` 이 원문으로 남는 동안 `notificationLastError` 의 `user:pass@` 가림은 실효가 작다(§3.10 「남는 표면」). 왕복 값이라 규칙 9 와 함께 정해야 해서 §3.5 원칙의 한시 예외로 남겼다. 같은 이유(왕복 값)로 세웠다가 소비 쪽 마커 가드가 선 뒤 닫은 `inputData` 카브아웃([재제출 거부와 마스커 좌표계 문서 Rationale 「`inputData` 카브아웃을 닫은 이유」](CLE-API-EGRESS-PIPELINE.md#inputdata-카브아웃을-닫은-이유-2026-08-20))과 같은 길을 밟는다. 해소 조건은 NERV Task `CLE-T-RCQGCC` 가 userinfo 가 든 알림 URL 을 등록에서 거부하거나 응답에서 가리는 것이다. 그때 이 문서의 §3.10 · 이 문단과 부모 문서 개요의 「잔여 갭」 항목을 같은 변경에서 고친다.
+2026-11-20 해소 기록: `config.notification.url` 이 원문으로 남는 동안 `notificationLastError` 의 `user:pass@` 가림은 실효가 작았다. 왕복 값이라 규칙 9 와 함께 정해야 해서 §3.5 원칙의 한시 예외로 남겼었다. 해소 조건은 userinfo 가 든 알림 URL 을 등록에서 거부하거나 응답에서 가리는 것이었다. NERV Task `CLE-T-RCQGCC` 에서 사람이 등록 거부 안(B)을 골랐고 두 조건을 모두 채웠다. Node fetch 는 userinfo 가 든 URL 로 요청을 만들지 않아 그런 알림 URL 은 한 번도 발송되지 않으므로 등록에서 거부해도 잃는 발송이 없다([EIA 알림 웹훅 Rationale](../CLE-IX/CLE-EIA-NOTIFY.md#알림-url-의-userinfo-를-받지-않는다-2026-11-20)). 그 전에 저장된 행은 마이그레이션하지 않고 응답에서 가린다. 가린 URL 을 되보내면 등록 검사가 거부하므로 그 거부가 규칙 9 의 소비 쪽 가드가 된다. 소비 쪽 거부가 선 뒤 카브아웃을 닫은 `inputData`([재제출 거부와 마스커 좌표계 문서 Rationale 「`inputData` 카브아웃을 닫은 이유」](CLE-API-EGRESS-PIPELINE.md#inputdata-카브아웃을-닫은-이유-2026-08-20))와 같은 길이다. `notificationLastError` 에는 국소 userinfo 패턴을 더 걸었다. 응답의 URL 을 가린 뒤라 이제 효과가 있다. 이 칼럼은 알림 웹훅 발송 오류만 담아서 공유 패턴을 넓힐 때처럼 대화 스레드나 재제출 표면에 닿지 않는다.
 
 2026-10-17 보강: 생성 · 수정 응답의 `data.secrets` 를 §3.10 비대상에 적었다(NERV Task `CLE-T-EMB0YG`). 이 묶음은 서버가 그 요청에서 발급한 평문(첫 알림 서명 시크릿, 트리거 단위 토큰 `itk_*`)을 한 번 싣기 때문에 `sanitizeForResponse` 를 지난 응답에 붙인다. 이 묶음을 마스커에 통과시키는 안은 택하지 않았다. 키 이름 판정이나 값 패턴에 걸리면 호출자가 다시 받을 수 없는 평문이 가려진다. 면제 대상 응답의 목록은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 4 한 곳에 둔다.

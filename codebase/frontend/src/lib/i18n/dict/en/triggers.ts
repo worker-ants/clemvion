@@ -195,6 +195,8 @@ export const triggers: Dict["triggers"] = {
     secretAutoHideNote: "Shown once; automatically hidden after 60 seconds.",
     notificationUrlInvalid:
       "The destination URL must be a valid https:// URL.",
+    notificationUrlCredentials:
+      "The destination URL must not include a username or password (user:password@).",
     copy: "Copy",
     copied: "Copied",
     eventChoices: "Event selection",
@@ -246,7 +248,7 @@ export const triggers: Dict["triggers"] = {
       "Default-phrase language for languageHints keys left unset (default ko). Used by bot-sent guidance such as execution failure notices (CCH-ERR-*).",
     languageHints: "Bot guidance i18n (languageHints)",
     languageHintsHelp:
-      "Keys for bot-sent guidance messages — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help / formOpenLabel / sessionExpired / surfaceMismatch / commandReceived / noActiveExecution. " +
+      "Keys for bot-sent guidance messages — groupChatRefusal / executionStarted / executionRestarted / executionCompleted / executionStillRunning / help / formOpenLabel / sessionExpired / surfaceMismatch / commandReceived / noActiveExecution. " +
       "Execution failure guidance (CCH-ERR-*) 6 keys: executionFailedThirdParty4xx / executionFailedThirdParty5xx / executionFailedThirdParty / executionFailedTimeout / executionFailedRateLimit / executionFailedInternal. " +
       "Allowed placeholder in CCH-ERR-* keys: {statusCode} only.",
     health: "Channel health",

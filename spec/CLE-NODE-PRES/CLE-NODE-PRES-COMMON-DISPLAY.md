@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON-DISPLAY"
 title: "Presentation 노드 공통 — 표시 표면"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES", "CLE-NODE-PRES-COMMON"]
 area: "CLE-NODE-PRES"
-content_hash: "65ed2af110f674ac7f3199445891c9fadb17514ab184ef7e8aedd6d4c537926b"
+content_hash: "d1e0c520e46690a5e2ad06543ef3313722b39f2e8e6b0b6dcc09218eafef9703"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "ff3c02e6f5dc1fa9c2c0983333b0bc0fee98199be2904fd1852d71374a95c78e"
-etag: "sha256-f98fc4f9d5ba00dd6cc955a647a97a3e816dfe5167310ef91348c10db4ae4c38"
+mirror_sha256: "2f288de9525ecbc116b35f6430aa14b48688af928291c5f882e0e72b3a69bf66"
+etag: "sha256-0a5ea72e96f6ea45937291afd927a9ccf0e5ca0b1540fff64b16de5d748f434a"
 ---
 ## 개요
 
@@ -54,7 +54,7 @@ etag: "sha256-f98fc4f9d5ba00dd6cc955a647a97a3e816dfe5167310ef91348c10db4ae4c38"
 | 인터랙션 | 데이터 포인트에 마우스를 올리면 값 툴팁. 축 라벨(`config.xAxis.label`·`config.yAxis.label`)은 에디터가 아직 그리지 않는다(미구현, CLE-T-ETS2WE) |
 | 차트 유형 | bar·line·area 는 X-Y 축 차트, pie·donut 은 라벨-값 차트 |
 | 시리즈와 색 | bar·line·area 는 포인트의 `series` 이름별로 시리즈를 나눠 그리고 범례를 보여 준다. 시리즈 묶음과 색 순서는 [Chart 노드](CLE-NODE-CHART.md#시리즈와-색) 가 정한다 |
-| 빈 데이터 | 그릴 포인트가 없으면 차트 대신 받은 출력 값을 JSON 으로 보여 준다. `output.data` 가 배열이 아니거나 빈 배열이거나 객체인 항목이 하나도 없는 경우다. 객체가 아닌 항목은 건너뛰고 나머지로 그린다. 빈 차트 대신 JSON 을 보여 주는 이유는 [Chart 노드](CLE-NODE-CHART.md#그릴-포인트가-없으면-에디터는-출력-값을-json-으로-보여-준다-2026-11-05) 에 있다 |
+| 빈 데이터 | 그릴 포인트가 없으면 차트 대신 받은 출력 값을 JSON 으로 보여 준다. `output.data` 가 배열이 아니거나 빈 배열이거나 객체인 항목이 하나도 없는 경우다. 객체가 아닌 항목은 건너뛰고 나머지로 그린다. 빈 차트 대신 JSON 을 보여 주는 이유는 [Chart 노드](CLE-NODE-CHART.md#그릴-포인트가-없으면-에디터는-출력-값을-json-으로-보여-준다) 에 있다 |
 | 크기 변경 | 드로어 크기가 바뀌면 차트도 따라 바뀐다 |
 | 버튼 대기 중(`waiting_for_input`) | 차트 아래에 버튼 바를 보여 준다. 동작은 Carousel 과 같다 |
 | 버튼 클릭 후 | Carousel 과 같다 |

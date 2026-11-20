@@ -74,11 +74,12 @@ Every slash command gets an ephemeral reply (visible only to the sender) within 
 | Command | Reply shown to the sender | Key to change the text |
 |---|---|---|
 | `help` | Command list (`/workflow start - Start a new conversation` · `/workflow cancel - Cancel the active conversation` · `/workflow reply - Reply to the active conversation` · `/workflow help - Show help`) | `languageHints.help` |
-| `start` · `cancel` · `reply` | Receipt text (default `Request received.`) | `languageHints.commandReceived` |
+| `start` that began a new execution | Start notice (default `Started the workflow.`). If it ended the previous conversation and started a new one, restart notice (default `Ended the previous conversation and started a new one.`) | `languageHints.executionStarted` · `languageHints.executionRestarted` |
+| `cancel` · `reply`, and a `start` that did not begin an execution (duplicate request · inactive workflow, etc.) | Receipt text (default `Request received.`) | `languageHints.commandReceived` |
 | `cancel` sent when there is no active conversation | Notice that there is nothing to cancel (default `There is no active conversation.`). The same applies when the conversation has already ended | `languageHints.noActiveExecution` |
 | Any command sent outside a DM (server channel · thread · group DM) | One-on-one notice (default `이 봇은 1:1 대화만 지원합니다.` in every locale; there is no English default yet). No execution is started | `languageHints.groupChatRefusal` |
 
-The `workflow` in the command list follows `languageHints.slashPrefix`. Commands are only processed in DMs. Even when the trigger is turned off, button clicks, modal submissions, and slash commands are still answered, so no failure indicator appears. No execution is started in that case.
+The `workflow` in the command list follows `languageHints.slashPrefix`. Commands are only processed in DMs. The notice for a `start` that began an execution replaces the receipt text, and no separate message is sent to the channel. If a conversation is active when `start` arrives, the existing execution is cancelled and a new one starts. While the workflow is inactive, a `start` that would begin a new conversation is ignored, and replies, buttons, and modals in an active conversation, `cancel`, and `help` keep working. Even when the trigger is turned off, button clicks, modal submissions, and slash commands are still answered, so no failure indicator appears. No execution is started in that case.
 
 ### 5.2 Buttons / Modals
 

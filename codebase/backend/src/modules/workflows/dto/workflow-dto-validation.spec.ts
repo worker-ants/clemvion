@@ -315,3 +315,27 @@ describe('UpdateWorkflowDto.description — null 을 받는다', () => {
     expect(schema.properties?.description).toHaveProperty('nullable', true);
   });
 });
+
+// CLE-T-9Q304H — `maxConcurrentExecutions` 는 숫자라 null 말고는 지울 값이 없다. null 은 「상한 해제(기본값 복귀)」
+// 계약이라 받는다. 저장 때 키를 지우는 쪽은 서비스가 맡는다(`workflows.service.spec.ts` 같은 태그).
+describe('[9Q304H] settings.maxConcurrentExecutions: null 은 해제 계약으로 받는다', () => {
+  it('UpdateWorkflowDto 는 null 을 통과시킨다', async () => {
+    const errors = await validate(
+      plainToInstance(UpdateWorkflowDto, {
+        settings: { maxConcurrentExecutions: null },
+      }),
+      VALIDATE_OPTIONS,
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it('ImportWorkflowDto 의 settings 도 null 을 통과시킨다', async () => {
+    const errors = await validate(
+      plainToInstance(ImportWorkflowDto, {
+        settings: { maxConcurrentExecutions: null },
+      }),
+      VALIDATE_OPTIONS,
+    );
+    expect(errors.some((e) => e.property === 'settings')).toBe(false);
+  });
+});

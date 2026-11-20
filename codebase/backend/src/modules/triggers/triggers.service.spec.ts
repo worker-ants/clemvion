@@ -43,6 +43,7 @@ import {
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
 import type { InteractionConfigDto } from './dto/interaction-config.dto';
 import type { NotificationConfigDto } from './dto/notification-config.dto';
+import { NOTIFICATION_URL_CREDENTIALS_REASON } from './notification-url.util';
 import { INTERACTION_STREAM_CLOSER } from '../external-interaction/interaction-stream-closer';
 import {
   CHAT_CHANNEL_BLOCKED_FIELDS,
@@ -408,6 +409,167 @@ describe('TriggersService.findOneDetail', () => {
     expect(entity.chatChannelLastError).toBe(chatRaw);
     expect(entity.notificationLastError).toBe(notificationRaw);
   });
+
+  /**
+   * 등록 거부가 생기기 전에 저장된 userinfo 알림 URL 은 응답에서 `***@` 로 가린다(NERV Task `CLE-T-RCQGCC`, 사람 결정 B).
+   * 편집 폼이 가린 값을 다시 보내면 userinfo 거부(400)에 걸려 마커가 저장되지 않는다(CLE-API-EGRESS 규칙 9).
+   */
+  it.each([
+    [
+      'https://alice:s3cr3t@hooks.example.com/in?x=1#f',
+      'https://***@hooks.example.com/in?x=1#f',
+    ],
+    ['https://tok3n@hooks.example.com/in', 'https://***@hooks.example.com/in'],
+    [
+      'https://:s3cr3t@hooks.example.com:8443/in',
+      'https://***@hooks.example.com:8443/in',
+    ],
+  ])(
+    '응답의 config.notification.url %s 는 userinfo 를 가리고 저장값은 두다',
+    async (stored, expected) => {
+      const entity = {
+        id: 't1',
+        workspaceId: 'ws',
+        type: 'webhook',
+        name: 'hook',
+        config: {
+          notification: { url: stored, events: ['execution.completed'] },
+        },
+      } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(entity);
+      scheduleRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.findOneDetail('t1', 'ws');
+
+      const notification = (result.config as Record<string, unknown>)
+        .notification as Record<string, unknown>;
+      expect(notification.url).toBe(expected);
+      expect(notification.events).toEqual(['execution.completed']);
+      expect(
+        (entity.config as { notification: { url: string } }).notification.url,
+      ).toBe(stored);
+    },
+  );
+
+  it.each([
+    'https://hooks.example.com/in',
+    'https://@hooks.example.com/in',
+    'https://hooks.example.com/in?next=https://a:b@x.example.com',
+  ])(
+    'userinfo 가 없는 config.notification.url %s 는 그대로 둔다',
+    async (url) => {
+      triggerRepo.findOne.mockResolvedValue({
+        id: 't1',
+        workspaceId: 'ws',
+        type: 'webhook',
+        name: 'hook',
+        config: { notification: { url, events: [] } },
+      } as unknown as Trigger);
+      scheduleRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.findOneDetail('t1', 'ws');
+
+      expect(
+        (
+          (result.config as Record<string, unknown>).notification as {
+            url: string;
+          }
+        ).url,
+      ).toBe(url);
+    },
+  );
+
+  it('서명 설정과 userinfo URL 이 함께 있으면 둘 다 정화한다', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      config: {
+        notification: {
+          url: 'https://a:b@hooks.example.com/in',
+          events: [],
+          signing: { algorithm: 'hmac-sha256', secretRef: 'secret://x' },
+        },
+      },
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = await service.findOneDetail('t1', 'ws');
+
+    expect((result.config as Record<string, unknown>).notification).toEqual({
+      url: 'https://***@hooks.example.com/in',
+      events: [],
+      signing: { algorithm: 'hmac-sha256' },
+    });
+  });
+
+  it('응답에서 가린 알림 URL 을 그대로 PATCH 하면 INVALID_NOTIFICATION_URL 로 거부한다', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      config: {
+        notification: {
+          url: 'https://alice:s3cr3t@hooks.example.com/in',
+          events: ['execution.failed'],
+        },
+      },
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+    const shown = await service.findOneDetail('t1', 'ws');
+    const shownUrl = (
+      (shown.config as Record<string, unknown>).notification as { url: string }
+    ).url;
+
+    await expect(
+      service.update(
+        't1',
+        'ws',
+        { notification: { url: shownUrl, events: ['execution.failed'] } },
+        'u-spec',
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'INVALID_NOTIFICATION_URL' },
+    });
+    expect(triggerRepo.save).not.toHaveBeenCalled();
+  });
+
+  // 공유 값 패턴은 `user:pass@` 만 가린다. 알림 마지막 오류에는 사용자명만 · 빈 사용자명 형태도 가리는 국소 패턴을 더 건다.
+  // 채팅 채널 마지막 오류에는 걸지 않는다(NERV Task `CLE-T-RCQGCC`).
+  it.each([
+    [
+      'network: Request cannot be constructed from a URL that includes credentials: https://tok3n@hooks.example.com/in',
+      'network: Request cannot be constructed from a URL that includes credentials: https://***@hooks.example.com/in',
+    ],
+    [
+      'network: Request cannot be constructed from a URL that includes credentials: https://:s3cr3t@hooks.example.com/in',
+      'network: Request cannot be constructed from a URL that includes credentials: https://***@hooks.example.com/in',
+    ],
+  ])(
+    'notificationLastError 의 사용자명만 · 빈 사용자명 userinfo 도 가린다 (%s)',
+    async (stored, expected) => {
+      triggerRepo.findOne.mockResolvedValue({
+        id: 't1',
+        workspaceId: 'ws',
+        type: 'webhook',
+        name: 'hook',
+        chatChannelLastError:
+          'Slack failed: see https://tok3n@slack.example.com',
+        notificationLastError: stored,
+        config: {},
+      } as unknown as Trigger);
+      scheduleRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.findOneDetail('t1', 'ws');
+
+      expect(result.notificationLastError).toBe(expected);
+      expect(result.chatChannelLastError).toBe(
+        'Slack failed: see https://tok3n@slack.example.com',
+      );
+    },
+  );
 
   /**
    * 이 변경 전에는 시크릿 저장소의 «없음» 오류가 참조를 실었다(`Secret not found: secret://…`).
@@ -1274,6 +1436,67 @@ describe('TriggersService — notification/interaction config 병합 (External I
     } finally {
       if (orig !== undefined) process.env.ALLOW_HTTP_HOOKS = orig;
     }
+  });
+
+  // userinfo 가 있는 알림 URL 은 Node fetch 가 요청을 만들지 않아 발송이 늘 실패한다(NERV Task `CLE-T-RCQGCC`).
+  it.each([
+    ['https://user:pass@customer.example.com/cb', '사용자명과 비밀번호'],
+    ['https://tok@customer.example.com/cb', '사용자명만'],
+    ['https://:pw@customer.example.com/cb', '빈 사용자명'],
+  ])(
+    'create — notification.url %s (%s) 면 INVALID_NOTIFICATION_URL',
+    async (url) => {
+      await expect(
+        service.create(
+          'ws',
+          {
+            workflowId: 'wf-1',
+            type: 'webhook',
+            name: 'hook',
+            notification: { url, events: ['execution.completed'] },
+          },
+          'u-spec',
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'INVALID_NOTIFICATION_URL',
+          message: NOTIFICATION_URL_CREDENTIALS_REASON,
+        },
+      });
+      expect(triggerRepo.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('update — notification.url 에 userinfo 를 넣으면 INVALID_NOTIFICATION_URL', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'old',
+      config: {
+        notification: {
+          url: 'https://old.example.com',
+          events: ['execution.failed'],
+        },
+      },
+    } as unknown as Trigger);
+
+    await expect(
+      service.update(
+        't1',
+        'ws',
+        {
+          notification: {
+            url: 'https://tok@old.example.com/x',
+            events: ['execution.failed'],
+          },
+        },
+        'u-spec',
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'INVALID_NOTIFICATION_URL' },
+    });
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
   it('update — notification 미명시면 기존 config.notification 유지', async () => {

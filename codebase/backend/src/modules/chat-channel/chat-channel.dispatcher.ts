@@ -19,6 +19,7 @@ import {
   ChatChannelAdapter,
   ChatChannelInternalEvent,
   EiaAiMessageEvent,
+  EiaCancelledEvent,
   EiaEvent,
   EiaFailedEvent,
 } from './types';
@@ -172,19 +173,20 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // execution 의 conversation 매핑 — payload 안에 conversationKey 가 있어야 함 (HooksService 가
-    // execute() 시 input.chatChannel.conversationKey 로 주입 → WebsocketService 의 routing
-    // context registry → fanout envelope 에 자동 첨부 [PR #314]).
-    const conversationKey = readConversationKey(event.payload);
+    // execution 의 conversation 매핑 — 이벤트의 `routing.chatChannel` 에 conversationKey 가 있어야
+    // 함 (HooksService 가 execute() 시 input.chatChannel.conversationKey 로 주입 → WebsocketService 의
+    // routing context registry → fanout 이벤트의 `routing` 에 자동 첨부 [PR #314]). payload 에는
+    // 싣지 않는다 — SSE · 알림 웹훅이 payload 를 외부로 내보내기 때문이다 (CLE-API-EGRESS-PIPELINE §6).
+    const conversationKey = readConversationKey(event.routing);
     if (!conversationKey) {
-      // **회귀 신호** (2026-05-25): trigger 가 chatChannel cfg 까지 가졌는데 envelope 에
+      // **회귀 신호** (2026-05-25): trigger 가 chatChannel cfg 까지 가졌는데 이벤트에
       // conversationKey 없음 ⇒ PR #314 의 routing context 첨부가 작동 안 함.
-      // 가능 원인: (a) ExecutionEngine 이 register 호출 안 함, (b) WebsocketService 의
-      // attachRoutingContext 가 chatChannel 미첨부, (c) sanitize 가 conversationKey 제거.
+      // 가능 원인: (a) ExecutionEngine 이 register 호출 안 함, (b) WebsocketService 가
+      // 이벤트에 routing 을 붙이지 않음, (c) sanitize 가 conversationKey 제거.
       // logger.warn 으로 즉시 가시화.
       this.logger.warn(
         `event ${event.eventType} (trigger=${triggerId}, provider=${chatChannelCfg.provider}) — ` +
-          `event.payload.chatChannel.conversationKey 없음. routing context 미첨부 회귀 신호. outbound skip.`,
+          `event.routing.chatChannel.conversationKey 없음. routing context 미첨부 회귀 신호. outbound skip.`,
       );
       return;
     }
@@ -376,15 +378,15 @@ export function isEmptyTextBody(body: ChannelMessage['body']): boolean {
   return false;
 }
 
-/** Execution payload 또는 input 에서 conversationKey 추출. */
-function readConversationKey(payload: Record<string, unknown>): string | null {
-  // 1) payload 자체에 chatChannel.conversationKey 가 들어 있는 경우 (HooksService 가 주입).
-  const chatChannel = (payload as { chatChannel?: unknown }).chatChannel;
-  if (chatChannel && typeof chatChannel === 'object') {
-    const key = (chatChannel as { conversationKey?: unknown }).conversationKey;
-    if (typeof key === 'string' && key.length > 0) return key;
-  }
-  return null;
+/**
+ * fanout 이벤트의 `routing.chatChannel` 에서 conversationKey 추출 (CLE-API-EGRESS-PIPELINE §6).
+ * payload 의 같은 이름 필드는 보지 않는다.
+ */
+function readConversationKey(
+  routing: ExecutionChannelEvent['routing'],
+): string | null {
+  const key: unknown = routing?.chatChannel?.conversationKey;
+  return typeof key === 'string' && key.length > 0 ? key : null;
 }
 
 /**
@@ -577,11 +579,26 @@ export function toChatChannelEvent(
     case 'execution.cancelled': {
       // §7.5 / 방안 D — rehydration 실패 system cancel 은 payload.error.code 에
       // `RESUME_*` 를 싣는다. 어댑터가 graceful "세션 만료" 안내로 분기하도록 전달.
+      // 시스템 취소의 `error` 는 `{ code, message }` 이고 둘 다 문자열이다(CLE-EIA-NOTIFY-EVENTS,
+      // NERV Task `CLE-T-M42X2A`). 모양이 다르면 싣지 않고 경고한다. 빠지면 렌더러는 일반 취소
+      // 안내로 간다. 객체가 아닌 값(옛 문자열 등)은 지금처럼 조용히 버린다.
       const errRaw = (event.payload as { error?: unknown }).error;
-      const error =
-        errRaw && typeof errRaw === 'object'
-          ? (errRaw as { code: string; message?: string })
-          : undefined;
+      let error: EiaCancelledEvent['error'];
+      if (errRaw && typeof errRaw === 'object') {
+        const { code, message } = errRaw as {
+          code?: unknown;
+          message?: unknown;
+        };
+        if (typeof code === 'string' && typeof message === 'string') {
+          error = { code, message };
+        } else {
+          Logger.warn(
+            `execution.cancelled 의 error 가 { code, message } 문자열 모양이 아니라 싣지 않는다 ` +
+              `(execution=${event.executionId})`,
+            ChatChannelDispatcher.name,
+          );
+        }
+      }
       return {
         ...base,
         type: 'execution.cancelled',

@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
-version: 6
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "a2174e247f6a8699c120ad8282c57fc92fb05f67728fa79d96e2f3dc1b15caef"
+content_hash: "db04a18967914c1996841083ce0d42f37ef6ec52ce7148862bf823fd6c5795fa"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-RCQGCC"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "fd27532e6277575b6b6ea3803e8748fb0af39f5efbbd710eed11a88cfcefd642"
-etag: "sha256-2da45a5c507f95a1f6b61abaa6566627bb56bf4d2e06546084798df52712fae5"
+mirror_sha256: "492716259269bf376907f511a365dfcee73831348a325cad5d803fbc490f433c"
+etag: "sha256-548fdb65b4744e3b2c760abb0518dcd1faf5eca1c11a15aea84e6a745fc55b74"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -37,7 +37,6 @@ etag: "sha256-2da45a5c507f95a1f6b61abaa6566627bb56bf4d2e06546084798df52712fae5"
 - **비대상: 필드 마스킹(`***<last4>`).** 인증 설정·모델 설정 응답 DTO 가 저장된 자격 증명 필드를 끝 네 글자만 보이게 가리는 필드 단위 정책은 이 문서의 대상이 아니다. 기준은 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 과 [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 의 마스킹·노출 정책이다. 이 문서는 나가는 페이로드를 훑어 값 패턴과 키 이름으로 바꾸는 메커니즘만 다룬다. 둘 다 "마스킹" 이라 혼동하기 쉬워 적어 둔다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 도 같은 콜아웃을 둔다). 트리거 응답의 마지막 오류 필드는 필드 마스킹이 아니라 이 문서의 응답 마스킹(값 패턴 판정)이다(§3.10).
 - **비대상: 로그 마스킹.** 서버 로그에 자격 증명이 남지 않게 하는 규칙은 [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md) 가 정한다.
 - **인접 정책: 알려진 비밀 치환.** 프로바이더 API 클라이언트가 실패 원문에서 그 호출의 시크릿 평문을 지우는 일은 나가는 시점 마스킹이 아니다. 경계는 §1.1, 동작은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 14 와 [채팅 채널 어댑터 규약 「규칙」](../CLE-CHAT/CLE-CHAT-ADAPTER.md#규칙) 10 이 정한다.
-- **잔여 갭: 알림 URL 의 자격 증명.** 트리거 응답의 `config.notification.url` 은 원문으로 나간다. 같은 응답의 마지막 오류에서는 `user:pass@` 를 가리므로 §3.5 가 막은 «같은 응답 안의 원문이 방어를 우회하는» 형태가 남아 있다(§3.10, NERV Task `CLE-T-RCQGCC`). 해소되면 이 항목과 트리거 하위 문서의 §3.10 · Rationale 을 같은 변경에서 고친다.
 - **네트워크 egress 와 무관하다.** [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 사설망 차단(SSRF guard)이 말하는 egress 는 나가는 네트워크 목적지 제한이다. 이 문서의 egress 는 응답·이벤트 페이로드가 나가는 시점을 뜻한다. 같은 단어가 두 도메인에 있다.
 
 ## 규칙
@@ -144,7 +143,7 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 | 하위 문서 | 맡는 것 | 요구사항 |
 |---|---|---|
 | [응답 자격 증명 마스킹 — 실행 표면](CLE-API-EGRESS-SURFACE.md) | 실행·노드 데이터가 나가는 표면(§3.1~§3.9, §3.11: 대화 스레드, AI 응답, 입력 대기·종결 payload, 내부 읽기 경로, 이벤트 발행, 워크플로우 AI 어시스턴트 도구, `nodeOutput` 허용 목록, 설정 에코, 지식 저장소 · Background 채널)과 그 Rationale | 없음 |
-| [응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](CLE-API-EGRESS-TRIGGER.md) | 트리거 응답의 마지막 오류 마스킹(§3.10), 알려진 비밀 치환과의 관계, 규칙 5 의 예외와 그 Rationale | 없음 |
+| [응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](CLE-API-EGRESS-TRIGGER.md) | 트리거 응답의 마지막 오류 마스킹(§3.10), 알림 URL 의 userinfo 가림, 알려진 비밀 치환과의 관계, 규칙 5 의 예외와 그 Rationale | 없음 |
 | [응답 자격 증명 마스킹 — 재제출 거부와 마스커 좌표계](CLE-API-EGRESS-PIPELINE.md) | 다시 쓰이는 값과 재제출 거부(§4), `llmCalls` strip-only(§5), 호출 순서(§6), 마스커 좌표계(§7), 기계 강제의 한계(§8)와 그 Rationale | 없음 |
 
 ## 구현 위치
@@ -162,6 +161,7 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 - `codebase/backend/src/common/utils/mask-sensitive-fields.util.ts` (`maskSensitiveFields`, `DEFAULT_SENSITIVE_KEYS`)
 - `codebase/frontend/src/lib/utils/masked-markers.ts` (`hasMaskedMarkerLeaf`)
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (`sanitizeForResponse`, `TRIGGER_RESPONSE_REDACT_COLUMNS`)
+- `codebase/backend/src/modules/triggers/notification-url.util.ts` (`maskNotificationUrlUserinfo`, `maskNotificationLastErrorUserinfo`)
 - `codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts`, `codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts`, `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts` (알려진 비밀 치환, §1.1)
 
 ## Rationale

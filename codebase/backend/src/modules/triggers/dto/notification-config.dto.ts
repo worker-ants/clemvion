@@ -11,7 +11,6 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { checkSsrfSafeUrl } from '../../../common/utils/ssrf-safe-url.util';
 
 // 근거: [EIA 알림 웹훅 「구독 이벤트」](CLE-EIA-NOTIFY-EVENTS#구독-이벤트)
 /**
@@ -90,12 +89,14 @@ export class NotificationRetryDto {
  *
  * SSRF 정책: URL 은 register-time 에 protocol/hostname 검사 (literal IP 사설 대역 차단).
  * post-resolve 검증은 NotificationDispatcher (P3) 가 발송 시점에 추가로 수행.
+ * userinfo(`user:password@`)가 든 URL 은 등록 · 수정 · 발송 직전에 거부한다(`validateNotificationUrl`,
+ * `../notification-url.util.ts`).
  */
 export class NotificationConfigDto {
   /** 이벤트 수신 URL. https 만 허용 (개발 ALLOW_HTTP_HOOKS=1 예외). */
   @ApiProperty({
     description:
-      'Outbound notification 수신 URL. https 만 허용. 사설 IP/loopback/metadata IP 는 차단. 리다이렉트(3xx)는 따라가지 않고 발송 실패로 보므로 최종 주소를 등록해야 한다.',
+      'Outbound notification 수신 URL. https 만 허용. 사설 IP/loopback/metadata IP 는 차단. 리다이렉트(3xx)는 따라가지 않고 발송 실패로 보므로 최종 주소를 등록해야 한다. userinfo(user:password@)가 든 URL 은 400 INVALID_NOTIFICATION_URL 로 거부하고, 이미 저장된 URL 의 userinfo 는 응답에서 *** 로 가린다.',
     example: 'https://customer.example/webhook/wf-callback',
   })
   @IsString()
@@ -132,17 +133,4 @@ export class NotificationConfigDto {
   @ValidateNested()
   @Type(() => NotificationRetryDto)
   retry?: NotificationRetryDto;
-}
-
-/**
- * DTO 외부에서 url 검증 시 사용하는 헬퍼. NestJS pipe 안에서 manual 호출 (class-validator
- * 의 custom validator 사용 시 환경변수 의존이 테스트 격리에 불편하여 호출 측에서 명시 검증).
- *
- * 검증 실패 시 `BadRequestException` 호출 측이 throw.
- */
-export function validateNotificationUrl(url: string): {
-  ok: boolean;
-  reason?: string;
-} {
-  return checkSsrfSafeUrl(url);
 }

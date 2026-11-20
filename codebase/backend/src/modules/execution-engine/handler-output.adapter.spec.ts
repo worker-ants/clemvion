@@ -6,6 +6,8 @@ import {
   toDownstreamValue,
   toEngineFlatShape,
   wrapBareAsNodeHandlerOutput,
+  storedOutputAsStructured,
+  withoutSelectedPort,
 } from './handler-output.adapter';
 import {
   NodeHandler,
@@ -803,5 +805,47 @@ describe('resolveNodeResultValue · resolveExecutionOutputValue', () => {
         ),
       ).toBe(v);
     }
+  });
+});
+
+describe('withoutSelectedPort · storedOutputAsStructured (CLE-T-CE5YR3)', () => {
+  it('withoutSelectedPort: `_selectedPort` 만 떼고 나머지 필드는 남긴다', () => {
+    const value = { result: 1, port: 'yes', _selectedPort: 'yes' };
+    expect(withoutSelectedPort(value)).toEqual({ result: 1, port: 'yes' });
+    // 원본은 바꾸지 않는다.
+    expect(value).toHaveProperty('_selectedPort', 'yes');
+  });
+
+  it('withoutSelectedPort: 표지가 없거나 객체가 아니면 받은 값 그대로다', () => {
+    const plain = { result: 1 };
+    expect(withoutSelectedPort(plain)).toBe(plain);
+    const arr = [1, 2];
+    expect(withoutSelectedPort(arr)).toBe(arr);
+    expect(withoutSelectedPort(null)).toBeNull();
+    expect(withoutSelectedPort('x')).toBe('x');
+  });
+
+  it('storedOutputAsStructured: 정규 모양이면 표지만 떼고 그대로 쓴다', () => {
+    const stored = {
+      config: { a: 1 },
+      output: { messages: [] },
+      status: 'waiting_for_input',
+      _selectedPort: 'default',
+    };
+    expect(storedOutputAsStructured(stored)).toEqual({
+      config: { a: 1 },
+      output: { messages: [] },
+      status: 'waiting_for_input',
+    });
+  });
+
+  it('storedOutputAsStructured: 평면 값이면 output 으로 감싸고 표지는 싣지 않는다', () => {
+    const structured = storedOutputAsStructured({
+      value: 'x',
+      _selectedPort: 'out',
+    });
+    expect(structured.config).toEqual({});
+    expect(structured.output).toEqual({ value: 'x' });
+    expect(JSON.stringify(structured)).not.toContain('_selectedPort');
   });
 });

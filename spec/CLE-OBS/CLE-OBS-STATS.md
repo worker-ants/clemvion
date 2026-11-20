@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATS"
 title: "통계"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-STATS-001", "REQ-STATS-002", "REQ-STATS-003", "REQ-STATS-004", "REQ-STATS-005", "REQ-STATS-006", "REQ-STATS-007", "REQ-STATS-008", "REQ-STATS-009", "REQ-STATS-010", "REQ-STATS-011", "REQ-STATS-012", "REQ-STATS-013", "REQ-STATS-014", "REQ-STATS-015", "REQ-STATS-016", "REQ-STATS-017", "REQ-STATS-018", "REQ-STATS-019", "REQ-STATS-020", "REQ-STATS-021"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "efeced8d435a4c9bfcafa686020c0aff0bb8bfd47ec96e97631bbb39100e4ca9"
+content_hash: "14ebcc875475c57d2d643860c632fbcfcb77660a1630ae7ed0b17d63dcd8a3ed"
 read_as: "approved_fallback"
-task: "CLE-T-DKB2TD"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "6615121f98c588c51c1ad4878c3de38fabd6e6eb83d98158ea445e878ab833a8"
-etag: "sha256-564d60adba13f6261de12313abd0bf6ce76ae1831715ab498044bce8eb8c3703"
+mirror_sha256: "9ad25fc865af40c2b8f2b390e07945b79c4a7a48e85323d2e87fb23e83b45d80"
+etag: "sha256-62625f9dea33c76cd178f9ec586d066deb378eb19a3cbb1f4ccabe140151906c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -218,4 +218,4 @@ LLM 토큰 사용량 위젯에는 집계 축이 다른 두 뷰가 있다. 표는
 - 실행 화면의 「실행 시간」은 입력 대기를 뺀 시간이다([실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md#api)). 그래서 요약 · 상위 워크플로우 평균처럼 노드 평균도 「평균 전체 경과」(영문 라벨 Avg Total Elapsed)로 부른다. 값 · 계산식 · 응답 필드 이름(`avgDurationMs`)은 그대로다.
 - 기각한 대안: 「평균 실행 시간」을 유지한다. 입력 대기 노드는 대기 시간이 들어가서 실행 화면의 「실행 시간」과 기준이 갈린다.
 - 기각한 대안: 값을 순수 실행 시간으로 바꾼다. 노드 실행 기록에는 입력 대기를 뺀 시간을 따로 저장하지 않아서 새 컬럼과 측정 코드가 필요하다.
-- 컨테이너(Loop · ForEach · Map)와 Parallel 노드의 `duration_ms` 는 2026-11-15 부터 본문 · 병렬 분기까지 포함한 노드 전체 시간이다(NERV Task CLE-T-JXD0W5, [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)). 그 전 실행의 행은 핸들러 실행 시간이라 기간에 걸친 평균은 섞인 값이다.
+- 컨테이너(Loop · ForEach · Map)와 Parallel 노드의 `duration_ms` 는 2026-11-15 부터 본문 · 병렬 분기까지 포함한 노드 전체 시간이다(NERV Task CLE-T-JXD0W5, [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다)). 그 전 실행의 행은 핸들러 실행 시간이라 기간에 걸친 평균은 섞인 값이다.

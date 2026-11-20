@@ -247,6 +247,7 @@ To replace a lost or exposed token, call `POST /api/triggers/:id/interaction/rev
 - `retry.maxAttempts` is the total number of attempts, including the first. The default is 5 and the maximum is 10; 0 is treated as 1 (no resend). At the maximum of 10, the last retry goes out about 3.4 hours after the first attempt.
 - After the final retry fails, the trigger's `notificationHealth` flips to `degraded` and the trigger detail panel shows the state. **The trigger itself is not auto-disabled** — workflow execution keeps accepting webhooks. You toggle it off explicitly if that's what you want.
 - URLs must be `https://` (dev exception with `ALLOW_HTTP_HOOKS=1`). Private IPs, metadata IPs, and loopback are blocked as SSRF protection.
+- URLs must not include a username or password (`https://user:pass@host/…`). Notifications cannot be sent to such URLs, so saving is rejected. Have the receiving server verify the sender with the `X-Clemvion-Signature` signature.
 
 <Callout type="note">
 If a secret is suspected leaked, rotate it via `POST /api/triggers/:id/notification/rotate-secret`. The old and new secrets both work for 24 hours, giving the external system a grace window to switch over. Rotating again within those 24 hours replaces the earlier new secret with the latest one and restarts the 24-hour window.

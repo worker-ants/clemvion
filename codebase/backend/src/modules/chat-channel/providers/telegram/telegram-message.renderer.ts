@@ -596,9 +596,17 @@ function pickTelegramCut(
       break;
     }
   }
-  // escape sequence 중간 회피 — `\\` 의 직후 글자가 잘려도 chunk 의 끝이 backslash 가
-  // 되지 않게 한 글자 추가 이동.
-  if (text.charAt(cut - 1) === '\\') cut -= 1;
+  // escape sequence 중간 회피 — 자를 자리 바로 앞의 연속 백슬래시가 홀수 개면 마지막 `\` 가 자를 자리의
+  // 글자를 escape 하므로 한 글자 앞에서 자른다. 짝수 개면 `\\`(escape 한 백슬래시) 짝이 끝난 자리라 그대로
+  // 둔다. 당기면 그 짝을 쪼갠다(NERV Task `CLE-T-ZEWR8V`).
+  let backslashes = 0;
+  while (
+    cut - 1 - backslashes >= cursor &&
+    text.charAt(cut - 1 - backslashes) === '\\'
+  ) {
+    backslashes += 1;
+  }
+  if (backslashes % 2 === 1) cut -= 1;
   if (cut <= cursor) cut = naive; // fallback — 전혀 자를 곳이 없으면 그냥 자른다.
   return cut;
 }
@@ -612,9 +620,16 @@ const TABLE_CELL_MAX_WIDTH = 16;
 const CAROUSEL_CARD_CAP = 10;
 const CHART_BAR_WIDTH = 24;
 
-/** MarkdownV2 monospace code block 으로 감싼다. ``` 자체는 escape 미적용. */
+/**
+ * MarkdownV2 monospace code block 으로 감싼다. 블록 안에서는 `\` 와 `` ` `` 만 escape 한다(Bot API
+ * MarkdownV2 「pre · code 안의 `` ` `` 와 `\` 는 `\` 로 escape」). 백슬래시를 먼저 바꿔야 백틱 앞에 붙인
+ * `\` 가 다시 escape 되지 않는다. 열 너비는 escape 전 원문 길이로 맞춘다. Telegram 은 escape 문자를
+ * 보여 주지 않는다. escape 한 본문에는 ``` 가 이어 나오지 않으므로 분할이 블록 경계로 잡지 않는다
+ * (NERV Task `CLE-T-ZEWR8V`).
+ */
 function wrapMonospace(text: string): string {
-  return '```\n' + text + '\n```';
+  const escaped = text.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+  return '```\n' + escaped + '\n```';
 }
 
 /** 텍스트를 cell width 에 맞춰 padEnd (다국어 문자도 대략 정렬 — surrogate 무시). */

@@ -32,10 +32,12 @@ import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
+import { NotificationConfigDto } from './dto/notification-config.dto';
 import {
-  NotificationConfigDto,
+  maskNotificationLastErrorUserinfo,
+  maskNotificationUrlUserinfo,
   validateNotificationUrl,
-} from './dto/notification-config.dto';
+} from './notification-url.util';
 import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChatChannelConfig, SetupResult } from '../chat-channel/types';
@@ -272,12 +274,18 @@ const TRIGGER_RESPONSE_REDACT_COLUMNS = [
 
 /**
  * 진단 원문의 응답 마스킹. `redactSecrets`(값 패턴)를 걸어 자격 증명 모양만 `***` 로 바꾼다.
+ * `notificationLastError` 에는 userinfo 국소 패턴을 더 건다.
  * 자르지 않는다. **제자리 변형**이라 정화 *사본*에만 부른다. 저장값은 원문으로 남는다.
  */
 function redactDiagnosticColumns(target: Record<string, unknown>): void {
   for (const column of TRIGGER_RESPONSE_REDACT_COLUMNS) {
     const value = target[column];
-    if (typeof value === 'string') target[column] = redactSecrets(value);
+    if (typeof value !== 'string') continue;
+    const redacted = redactSecrets(value);
+    target[column] =
+      column === 'notificationLastError'
+        ? maskNotificationLastErrorUserinfo(redacted)
+        : redacted;
   }
 }
 
@@ -1199,6 +1207,18 @@ export class TriggersService {
           notification as Record<string, unknown>,
         );
         configTouched = true;
+      }
+      const notificationUrl = (notification as { url?: unknown } | undefined)
+        ?.url;
+      if (typeof notificationUrl === 'string') {
+        const maskedUrl = maskNotificationUrlUserinfo(notificationUrl);
+        if (maskedUrl !== notificationUrl) {
+          nextConfig.notification = {
+            ...(nextConfig.notification as Record<string, unknown>),
+            url: maskedUrl,
+          };
+          configTouched = true;
+        }
       }
 
       if (configTouched) overrides.config = nextConfig;

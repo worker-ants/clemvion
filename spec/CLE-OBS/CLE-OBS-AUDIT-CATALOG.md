@@ -2,21 +2,21 @@
 id: "CLE-OBS-AUDIT-CATALOG"
 title: "감사 로그 — 감사 액션 카탈로그"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "e6a7330075a87c0767eb69be16be916ab1139640fee5dc2e47d86ddedd0b8447"
+content_hash: "7d0334e25fac8a826d6776da550d710c255dd5c50ecb2ee31e3e05e202bdf7d5"
 read_as: "approved_fallback"
-task: "CLE-T-7BNDT8"
+task: "CLE-T-N93N9K"
 source_paths: ["spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "38ba1392a74c05fef77d9cf22941b57636bc707d873f0b2c5012bbed2d7e0a24"
-etag: "sha256-a4269d53d1799579a3f00d923349d0f21af5a166764df366e40dc491603f465c"
+mirror_sha256: "2404491677ce4a5f9bf8be61b6d3a5888da08781dc73dbe3c8b5c0beda3002ad"
+etag: "sha256-9dd547a52c549c7b5d1fb140f2719e7f710772c7b3c4370eb683e57a02158403"
 ---
-> 구현 상태: 부분 구현(`workflow.executed` 미구현, `alerts` 모듈 커버리지 갭) · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/5-system/1-auth.md` (§4), `spec/data-flow/1-audit.md`, `spec/conventions/audit-actions.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현(`workflow.version_restored` 미구현, `alerts` 모듈 커버리지 갭) · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/5-system/1-auth.md` (§4), `spec/data-flow/1-audit.md`, `spec/conventions/audit-actions.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -56,7 +56,8 @@ etag: "sha256-a4269d53d1799579a3f00d923349d0f21af5a166764df366e40dc491603f465c"
 | `workflow.created` | workflow | `workflows/workflows.service.ts` | 워크플로우 생성 | 구현됨 |
 | `workflow.updated` | workflow | 〃 | 워크플로우 수정 | 구현됨 |
 | `workflow.deleted` | workflow | 〃 | 워크플로우 삭제 | 구현됨 |
-| `workflow.executed` | workflow | 없음 | 워크플로우 실행. 보존 정책 결정 뒤로 미룬다(아래 Rationale) | 미구현 |
+| `workflow.version_restored` | workflow | 〃 | 버전 복원(`restoreVersion`, `POST /workflows/:id/versions/:versionId/restore`). `resource_id` 는 워크플로우 ID 다. `details.originalVersionId`(복원한 원본 버전 ID)·`newVersionId`(복원으로 새로 생긴 버전 ID). 캔버스 저장(`saveCanvas`)은 남기지 않는다([Rationale](#캔버스-저장은-감사-로그에-남기지-않고-버전-복원만-남긴다)) | 미구현(CLE-T-28MDF3) |
+| `workflow.executed` | workflow | 없음 | 워크플로우 실행. 실행 기록은 `execution` 행이 맡으므로 감사 로그에 남기지 않는다(아래 Rationale). `AUDIT_ACTIONS` 에도 두지 않는다 | 기록하지 않음 |
 | `trigger.created` | trigger | `triggers/triggers.service.ts` | 트리거 생성. `details.type`(트리거 종류). 그 요청이 일회성 평문을 발급했으면 `details.issuedSecrets` 에 발급한 비밀의 종류 이름 배열을 싣는다. 값은 `notificationSigningSecret` 과 `interactionToken` 이고 발급한 것만 이 순서로 싣는다. 평문은 싣지 않는다. 발급하지 않았으면 키가 없다 | 구현됨 |
 | `trigger.updated` | trigger | 〃 | 트리거 수정. 켜기·끄기도 이 감사 액션이다(토글 전용 동사가 없다). `details.type`. 그 요청이 일회성 평문을 발급했으면 `details.issuedSecrets` 를 싣는다(`trigger.created` 와 같다) | 구현됨 |
 | `trigger.deleted` | trigger | 〃 | 트리거 삭제 | 구현됨 |
@@ -75,11 +76,12 @@ etag: "sha256-a4269d53d1799579a3f00d923349d0f21af5a166764df366e40dc491603f465c"
 
 - 워크스페이스·멤버 감사 액션은 결정4(B, 2026-07-07)로 구현됐다. 워크플로우·트리거·스케줄·모델 설정 CRUD 는 2026-08-01, 트리거 시크릿·토큰 세 감사 액션은 2026-08-11 에 구현됐다.
 - **`workspace.deleted` 는 남기지 않는다.** 결정4 는 워크스페이스 CRUD 전체의 감사를 의도했다. 그런데 `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)다. 삭제 전에 남기면 삭제와 함께 cascade 로 지워지고 삭제 뒤에 남기면 FK 위반이 난다. 그래서 `AUDIT_ACTIONS` 에 두지 않는다. 삭제 이력을 남기려면 워크스페이스에 묶이지 않은 별도 저장소가 필요하고 이는 범위 밖이다. 근거 원본은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 Rationale 이다.
+- **워크플로우 실행과 캔버스 저장은 남기지 않는다.** 실행은 `execution` 행이 실행자와 시작 시각을 남긴다. 캔버스 저장은 저장마다 생기는 `workflow_version` 스냅샷이 저장한 사람과 시각을 남긴다. 워크플로우 쪽에서 새로 남기는 것은 버전 복원(`workflow.version_restored`) 하나다([실행](#워크플로우-실행은-감사-로그에-남기지-않는다), [캔버스 저장](#캔버스-저장은-감사-로그에-남기지-않고-버전-복원만-남긴다)).
 - **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다. 멤버가 나가거나 제거될 때 남는 `member.removed` 한 행과 `integration.deleted` 여러 행은 이 규칙의 대상이 아니다. 지운 개인 통합은 멤버십과 서로의 행을 맞추는 짝 리소스가 아니고 그 요청으로 실제로 지워진 리소스라서 통합마다 남긴다([Rationale](#나가기와-제거가-지운-개인-통합은-통합마다-한-행씩-남긴다-2026-10-29)).
 - **트리거 시크릿·토큰 교체는 CRUD 와 다른 축이다.** 편집자 이상이 부를 수 있는 특권 작업이고 실행하면 기존 자격 증명이 무효가 된다. 무효가 되는 대상은 감사 액션마다 다르다. 계정 탈취 뒤의 조용한 교체를 `audit_log` 만으로 재구성할 수 있어야 해서 기록한다. 세 감사 액션으로 나눈 근거는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 에 있다. 트리거 생성 · 수정 요청이 첫 알림 서명 시크릿이나 트리거 단위 토큰을 발급하는 일에는 전용 감사 액션을 두지 않는다. 그 요청의 `trigger.created` · `trigger.updated` 행이 `details.issuedSecrets` 로 발급을 표시한다([Rationale](#첫-발급-표시는-생성과-수정-기록에-싣는다)).
 - **Telegram 인바운드 서명의 서버 재발급에는 전용 감사 액션이 없다.** Telegram 어댑터는 `setupChannel()` 이 불릴 때마다 `secret_token` 을 새로 만들어 등록한다. 서버는 그 값을 다시 저장한다([채팅 채널 「인바운드 서명 자료 변경」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-서명-자료-변경)). 이 재발급은 사용자가 고른 자격 증명 교체가 아니라 프로바이더 등록의 일부라서 위 세 교체 감사 액션의 대상이 아니다. 재발급을 일으킨 요청의 감사 액션(`trigger.created`, `trigger.updated`, `trigger.chat_channel_bot_token_rotated`)이 그 기록을 겸한다. 감사 로그 조회에서 서명 재발급만 따로 거를 수는 없다(알려진 한계, [Rationale](#telegram-서버-발급-서명에-전용-감사-액션을-두지-않는다)).
 - **모델 설정 레거시 행**: 모델 설정 통합(2026-08-01) 전에 `llm_config.*`·`rerank_config.*` 로 남은 행은 append-only 로 보존하고 다시 쓰지 않는다. 모델 설정 감사를 조회할 때는 두 집합(`model_config.*` 또는 `llm_config.*`·`rerank_config.*`)을 OR 로 묶는다.
-- **남은 커버리지 갭**: `workflow.executed` 외에 알림 규칙 CRUD 를 맡는 `alerts` 모듈이 감사 로그를 남기지 않는다(`AuditLogsService` 를 가져다 쓰지 않는다). 알림 규칙 평가가 알림을 보낼 때도 감사 행은 없다([알림](CLE-OBS-NOTIFY.md)).
+- **남은 커버리지 갭**: 알림 규칙 CRUD 를 맡는 `alerts` 모듈이 감사 로그를 남기지 않는다(`AuditLogsService` 를 가져다 쓰지 않는다). 알림 규칙 평가가 알림을 보낼 때도 감사 행은 없다([알림](CLE-OBS-NOTIFY.md)).
 
 ## 구현 위치
 
@@ -94,11 +96,42 @@ etag: "sha256-a4269d53d1799579a3f00d923349d0f21af5a166764df366e40dc491603f465c"
 
 기록 위치도 한정해서 적는다. 예전에는 감사 로그를 "모든 도메인 서비스가 부르는 공통 관심사" 로 적었다. 실제로 기록하는 곳은 카탈로그에 적은 서비스와 컨트롤러뿐이라 그 서술은 버렸다.
 
-### `workflow.executed` 를 보존 정책 결정 뒤로 미룬다
+### 워크플로우 실행은 감사 로그에 남기지 않는다
 
-`workflow.executed` 는 다른 감사 액션과 빈도가 다르다. CRUD 는 드물지만 `executed` 는 트리거와 웹훅이 발동할 때마다 쌓인다. 그런데 `audit_log` 은 보존 정책이 정해지지 않았고 정리 배치도 없다([보존](CLE-OBS-AUDIT.md#보존)). 로그인 이력에 보존 배치가 있는 것과 대비된다. 무제한 테이블에 고빈도 감사 액션을 넣는 일은 보존 정책 결정과 묶어야 해서 따로 떼어 미뤘다.
+결정일: 2026-11-20
 
-이 유예 원칙의 축은 특권성이 아니라 "빈도 × 보존 정책 미정" 이다. 그래서 트리거 시크릿·토큰 교체에는 적용하지 않는다. 교체와 재발급은 드문 특권 작업이고 같은 이유로 `integration.rotated`·`auth_config.regenerate` 가 이미 구현돼 있다.
+NERV Task `CLE-T-N93N9K` 에서 사람이 정했다. 예전에는 `workflow.executed` 의 이름만 정해 두고 기록을 보존 정책 결정 뒤로 미뤘다. `executed` 는 CRUD 와 빈도가 다르다. CRUD 는 드물지만 실행은 트리거와 웹훅이 발동할 때마다 쌓인다. 보존 정책이 없는 테이블에 고빈도 감사 액션을 넣을 수 없어서 미뤘다.
+
+이제 보존 정책은 정해졌다(365일, [보존](CLE-OBS-AUDIT.md#보존)). 남은 축인 빈도를 보고 기록하지 않기로 했다.
+
+- `execution` 행이 이미 실행자(`executed_by`) · 시작 시각 · 워크플로우를 남긴다. 같은 사실을 감사 로그에 또 적을 이유가 없다.
+- 재실행은 `execution.re_run` 으로 감사 로그에 남는다.
+- 모든 실행을 남기면 감사 조회 화면이 실행 기록으로 찬다. 드문 변경을 찾는 관리자가 그 기록을 헤쳐 봐야 한다.
+- 고빈도 기록을 넣지 않으므로 365일 보존의 저장 비용도 작게 유지된다.
+
+기각한 대안:
+
+- **모든 실행을 `workflow.executed` 로 남긴다**: 위 근거.
+- **수동 실행만 남긴다**: 누가 손으로 실행했는지는 실행 목록 필터로 찾을 일이다. 감사 로그가 맡을 일이 아니다.
+
+이 판단의 축은 특권성이 아니라 "빈도 × 보존 정책" 이다. 그래서 트리거 시크릿·토큰 교체에는 적용하지 않는다. 교체와 재발급은 드문 특권 작업이고 같은 이유로 `integration.rotated`·`auth_config.regenerate` 가 이미 구현돼 있다.
+
+### 캔버스 저장은 감사 로그에 남기지 않고 버전 복원만 남긴다
+
+결정일: 2026-11-20
+
+NERV Task `CLE-T-N93N9K` 에서 사람이 정했다.
+
+- 캔버스 저장(`saveCanvas`)은 저장할 때마다 `workflow_version` 스냅샷을 같은 트랜잭션에서 만든다. 스냅샷에 저장한 사람(`created_by`)과 시각이 남는다([버전 기록](../CLE-WF/CLE-WF-VERSION.md) 「자동 스냅샷」). 감사 행을 더 남기면 같은 사실이 두 곳에 적힌다. 편집이 잦은 워크플로우에서는 감사 조회가 저장 기록으로 찬다.
+- 버전 복원(`restoreVersion`)도 같은 쓰기 경로로 새 스냅샷을 만든다. 그 스냅샷에는 변경 요약 문자열(`Restored from v<번호>`)만 남아 감사 필터로 복원을 고를 수 없다. 복원은 워크플로우 전체를 옛 상태로 되돌리는 드문 동작이라 전용 감사 액션으로 남긴다.
+- `details` 키는 카탈로그의 기존 키처럼 camelCase 로 쓰고 다른 행을 가리키는 값은 `Id` 로 끝낸다(`originalExecutionId`, `memberUserId`, `credentialId`). 재실행의 `originalExecutionId` 에 맞춰 복원한 원본 버전은 `originalVersionId`, 복원으로 새로 생긴 버전은 `newVersionId` 로 정했다. 행의 `resource_id` 는 다른 `workflow.*` 행처럼 워크플로우 ID 다.
+- 이름 `version_restored` 는 [감사 action 명명](CLE-OBS-AUDITNAME.md) 규칙 5-1 의 합성 과거분사(`scope_changed` 와 같은 꼴)다.
+
+기각한 대안:
+
+- **캔버스 저장마다 `workflow.updated` 를 남긴다**: 위 근거.
+- **복원도 남기지 않는다**: 스냅샷 변경 요약 문자열을 읽어야만 복원을 찾을 수 있다.
+- **`workflow.updated` 에 `details.mode='restore'` 를 싣는다**: 무엇이 일어났는지 `details` 를 열어야 알 수 있다. [감사 action 명명](CLE-OBS-AUDITNAME.md) 이 피하는 형태다.
 
 ### Telegram 서버 발급 서명에 전용 감사 액션을 두지 않는다
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM-UI"
 title: "Telegram 어댑터 — 노드 UI 매핑"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-TELEGRAM"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-TELEGRAM"]
 area: "CLE-CHAT"
-content_hash: "36e8c17d9e2999b3868c3d3bf66c103fb67ca3fb0f8aeebff770eefd1b2d0fff"
+content_hash: "2a97a19bed098fa2fc194f71df1d025dc708c789183b11144b7365b7ee8e3f8e"
 read_as: "approved_fallback"
-task: "CLE-T-V4GYE4"
+task: "CLE-T-0400J6"
 source_paths: []
-mirror_sha256: "2bb34d2e7116cf0bfbeab9c2275d14312ba1ac926c286b278c34365279736b92"
-etag: "sha256-cb78a23bd92ca480abaea362743444022d0601a0a82998c08adaf3e3e4c6d34a"
+mirror_sha256: "84062f2ac73a5b33d7db034367eb1208c42a020a2e304fd04ceebe0b0fa6fb65"
+etag: "sha256-4743bcfb7cdcacca5d58ce4a1727148b183669b4af4aa4fb0a0a09b53b97aa09"
 ---
 ## 개요
 
@@ -111,7 +111,7 @@ Telegram 은 `supportsNativeForm = false`(네이티브 모달 미지원, Mini Ap
 | 분기 | 서버 안 전달(`forwardToInteractionService`)이 `STATE_MISMATCH` 를 흡수할 때 `sendSurfaceMismatchNotice` 로 보낸다. 발송 실패는 흡수하고 warn 을 남겨 재시도 루프를 만들지 않는다 |
 | 본문 | `surfaceMismatch` 문구(평문). `renderNode` 를 거치지 않으므로 발송 직전 `adapter.escapeControlText`(Telegram 은 `escapeMarkdownV2`)로 escape 한다 |
 
-제어 안내 일곱 개의 escape 규칙은 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 예전에는 이 경로가 escape 를 거치지 않아 Telegram 기본 문구에 `\.` 를 미리 넣었고, 그 문구가 Slack·Discord 에서 그대로 보였다. 운영자 덮어쓰기는 등록 검증으로 막았다. 발송 직전 escape 로 근본을 고쳐 기본 문구와 덮어쓰기 모두 평문으로 쓴다.
+제어 안내(렌더러를 거치지 않고 바로 보내는 봇 안내)의 escape 규칙은 [채팅 채널 데이터와 흐름 — 설정과 안내 문구 「제어 안내의 프로바이더별 escape」](CLE-CHAT-DATA-CONFIG.md#제어-안내의-프로바이더별-escape) 가 정한다. 예전에는 이 경로가 escape 를 거치지 않아 Telegram 기본 문구에 `\.` 를 미리 넣었고, 그 문구가 Slack·Discord 에서 그대로 보였다. 운영자 덮어쓰기는 등록 검증으로 막았다. 발송 직전 escape 로 근본을 고쳐 기본 문구와 덮어쓰기 모두 평문으로 쓴다.
 
 ## 미결 사항
 

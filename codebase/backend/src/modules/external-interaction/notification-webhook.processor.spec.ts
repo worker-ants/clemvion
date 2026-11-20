@@ -8,6 +8,7 @@ import {
   NotificationWebhookProcessor,
   REDIRECT_NOT_FOLLOWED_HINT,
 } from './notification-webhook.processor';
+import { NOTIFICATION_URL_CREDENTIALS_REASON } from '../triggers/notification-url.util';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import {
   Execution,
@@ -866,6 +867,144 @@ describe('NotificationWebhookProcessor.process', () => {
         'trg-1',
         expect.objectContaining({ notificationHealth: 'degraded' }),
       );
+    });
+  });
+
+  // userinfo 가 있는 URL 은 Node fetch 가 요청을 만들지 않고 URL 원문을 담은 오류를 던진다. 발송 직전에 막고 URL 없는
+  // 고정 사유로 degraded 로 둔다(NERV Task `CLE-T-RCQGCC`).
+  describe('알림 URL 의 userinfo', () => {
+    it.each([
+      'https://alice:s3cr3t@customer.example.com/webhook',
+      'https://tok3n@customer.example.com/webhook',
+      'https://:s3cr3t@customer.example.com/webhook',
+    ])('%s 는 보내지 않고 고정 사유로 degraded 로 둔다', async (url) => {
+      triggerRepo.findOne.mockResolvedValue(
+        makeTrigger({
+          config: {
+            notification: {
+              url,
+              events: ['execution.completed'],
+              signing: { algorithm: 'hmac-sha256', secret: SECRET },
+            },
+          },
+        }),
+      );
+
+      await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+        notificationHealth: 'degraded',
+        notificationLastError: `outbound URL 거부: ${NOTIFICATION_URL_CREDENTIALS_REASON}`,
+      });
+    });
+  });
+
+  // 응답 본문은 읽지 않으므로 취소해 연결을 놓는다. 본문을 느리게 흘리는 수신 서버가 재시도마다 소켓을 붙잡지 않게 한다
+  // (NERV Task `CLE-T-WTWPZS`).
+  describe('응답 본문 취소', () => {
+    function responseWithBody(status: number, statusText: string) {
+      const cancel = jest.fn().mockResolvedValue(undefined);
+      return { response: { status, statusText, body: { cancel } }, cancel };
+    }
+
+    it.each([
+      [200, 'OK'],
+      [302, 'Found'],
+      [404, 'Not Found'],
+      [503, 'Unavailable'],
+    ])('HTTP %s 응답의 본문을 취소한다', async (status, statusText) => {
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      const { response, cancel } = responseWithBody(status, statusText);
+      fetchSpy.mockResolvedValue(response);
+
+      await processor
+        .process(
+          makeJob(
+            { eventType: 'execution.completed' },
+            { attempts: 5, attemptsMade: 1 },
+          ),
+        )
+        .catch(() => undefined);
+
+      expect(cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('본문 취소가 실패해도 2xx 아닌 응답은 같은 오류로 재시도한다', async () => {
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      const cancel = jest.fn().mockRejectedValue(new Error('cancel failed'));
+      fetchSpy.mockResolvedValue({
+        status: 500,
+        statusText: 'Internal',
+        body: { cancel },
+      });
+
+      await expect(
+        processor.process(
+          makeJob(
+            { eventType: 'execution.completed' },
+            { attempts: 5, attemptsMade: 1 },
+          ),
+        ),
+      ).rejects.toThrow(new Error('HTTP 500 Internal'));
+      expect(cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('본문 취소가 실패해도 2xx 는 healthy 로 둔다', async () => {
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+      const cancel = jest.fn().mockRejectedValue(new Error('cancel failed'));
+      fetchSpy.mockResolvedValue({
+        status: 200,
+        statusText: 'OK',
+        body: { cancel },
+      });
+
+      await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        'trg-1',
+        expect.objectContaining({ notificationHealth: 'healthy' }),
+      );
+    });
+
+    it('실제 fetch — 본문을 흘리기만 하는 503 응답의 연결을 바로 끊는다', async () => {
+      let socketClosed!: Promise<void>;
+      let drip: NodeJS.Timeout | undefined;
+      const server = createServer((_req, res) => {
+        socketClosed = new Promise((resolve) =>
+          res.socket?.once('close', () => resolve()),
+        );
+        res.writeHead(503, { 'Content-Type': 'text/plain' });
+        res.write('x');
+        drip = setInterval(() => res.write('x'), 50);
+      });
+      const serverUrl = await listen(server);
+      (globalThis as unknown as { fetch: typeof fetch }).fetch = (
+        _input,
+        init,
+      ) => realFetch(serverUrl, init);
+      triggerRepo.findOne.mockResolvedValue(makeTrigger());
+
+      try {
+        await expect(
+          processor.process(
+            makeJob(
+              { eventType: 'execution.completed' },
+              { attempts: 5, attemptsMade: 1 },
+            ),
+          ),
+        ).rejects.toThrow(/HTTP 503/);
+        // 취소하지 않으면 서버가 계속 흘리는 동안 연결이 남아 아래 대기가 시간 초과로 실패한다.
+        await expect(
+          Promise.race([
+            socketClosed.then(() => 'closed'),
+            new Promise((resolve) => setTimeout(() => resolve('open'), 2_000)),
+          ]),
+        ).resolves.toBe('closed');
+      } finally {
+        clearInterval(drip);
+        await close(server);
+      }
     });
   });
 });

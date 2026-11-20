@@ -13,7 +13,7 @@ export const history: Dict["history"] = {
     useOriginalInput: "Use original input",
     maskedInputBlocked:
       "Some inputs were masked as credentials. Enter them directly, or turn on \"Use original input\".",
-    dryRunToggle: "Dry-run mode (skip external calls)",
+    dryRunToggle: "Dry-run mode (mock side-effect calls)",
     dryRunDisabledTooltip:
       "This workflow contains nodes that don't support dry-run",
     confirmButton: "Re-run",

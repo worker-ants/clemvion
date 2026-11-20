@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER"
 title: "큐 워커와 동시 실행 제한"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "ba302ac5fbb5b515595415281d5ec8318adb9f73011e978bd72b40160c694c9b"
+content_hash: "3ce6c5906870d22ba22b380167f4e4e51ee94d91e677e802bd257718ee6627fb"
 read_as: "approved_fallback"
-task: "CLE-T-E6PW00"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "280d9f22ef8bbf86622d30c4a35cb9f4f6a5be00d2ca2bf3edea3f74fc95d3cf"
-etag: "sha256-b29726cd8d5e49716745ef5300f758d7f9d3a052b8ae006937b6e6d127700771"
+mirror_sha256: "b7dfea7ad2aa51c16748f0f57ece46f1ccc2656b52cc2f2c5e438731909b44f7"
+etag: "sha256-1cf148bb0eed019593baf286ef27e8422ca4bacf73f50b0f38208b7265ddb9f0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -214,10 +214,14 @@ flowchart LR
 - 분산은 재개 큐(재개 신호)와 게이트웨이의 Redis adapter(이벤트 전달)가 맡으므로 이벤트 발행 추상화와 관계가 없다.
 - 테스트에서는 `Partial<WebsocketService>` mock 으로 충분하다. 추상화 인터페이스용 noop 구현체가 필요 없다.
 
-### 재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다 (2026-10-17)
+### 재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다
 
-→ [재개 큐와 사전 검증 Rationale](CLE-EXEC-WORKER-RESUME.md#재개-큐-재시도-간격을-사용자-정의-전략으로-4배씩-늘린다-2026-10-17)
+결정일: 2026-10-17
 
-### 진입점마다 큐 적재 실패를 다르게 알린다 (2026-10-17)
+→ [재개 큐와 사전 검증 Rationale](CLE-EXEC-WORKER-RESUME.md#재개-큐-재시도-간격을-사용자-정의-전략으로-4배씩-늘린다)
 
-→ [재개 ack 에러 표면 Rationale](CLE-EXEC-WORKER-ACK.md#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17)
+### 진입점마다 큐 적재 실패를 다르게 알린다
+
+결정일: 2026-10-17
+
+→ [재개 ack 에러 표면 Rationale](CLE-EXEC-WORKER-ACK.md#진입점마다-큐-적재-실패를-다르게-알린다)

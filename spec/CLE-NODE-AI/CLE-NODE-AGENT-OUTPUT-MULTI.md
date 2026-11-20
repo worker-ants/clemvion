@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-OUTPUT-MULTI"
 title: "AI 에이전트 노드 출력 — 멀티턴"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT-OUTPUT"]
 area: "CLE-NODE-AI"
-content_hash: "e7a142c351b6e6e937633ba3f3c3572e72ff6f8a9c0b2e4503a16f0bde4c9d1f"
+content_hash: "cf2835f4282f1b224c205dd6ed0768763dc16b11ac1177acc67914e14884a667"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-0ZHAC4"
 source_paths: []
-mirror_sha256: "6d77febe7e1403f682a433d027ca42040a31d35dc76fb75e260dfe2ff21e6a59"
-etag: "sha256-b74092c0536f13fe84c47038babfc974d890f6100cad3d8e882709b25c1a396f"
+mirror_sha256: "5d64585a23621cdef6104066a1c5dc4c9e71be26b2872bb0f2062264f96ee97c"
+etag: "sha256-177ccfa1f9777de2bd4d6ceb8ddd88b02ce828c748c0bc796abfedd07a1c8ba2"
 ---
 ## 개요
 
@@ -103,11 +103,11 @@ etag: "sha256-b74092c0536f13fe84c47038babfc974d890f6100cad3d8e882709b25c1a396f"
 
 | 필드 | 수명 주기 | 영속 | 소비 |
 | --- | --- | --- | --- |
-| `_resumeState` | 한 턴 처리 구간 안에서만 있다. park 는 늘 코루틴·컨텍스트를 풀므로 턴 사이에 메모리에 남지 않는다. DB 영속 때 `stripControlFields()` 가 전체 상태를 무조건 지운다(자격 증명·rawConfig·턴 디버그를 담을 수 있음) | 비영속 | 다음 턴 재개 때 rehydration 이 `_resumeCheckpoint` 에서 다시 만든다. 턴 처리 뒤 새 `_resumeCheckpoint` 로 갱신한다 |
-| `_resumeCheckpoint` (AI 에이전트·정보 추출기, 정보 추출기는 `partialResult`·`collectionRetryCount` 추가) | 입력 대기 진입과 매 턴 영속 시점에 엔진이 `_resumeState` 의 자격 증명을 뺀 부분집합을 싣는다. `stripControlFields()` 가 보존한다. `_retryState` 와 같은 배제 정책이지만 TTL(`expiresAt`)이 없고(대화는 오래 뒤에도 재개 가능) `lastUserMessage` 가 없다(재개 때 도착한 메시지를 그대로 처리) | `NodeExecution.outputData._resumeCheckpoint` | 매 턴 재개 때 엔진이 읽는다. 같은 인스턴스·재시작·다른 인스턴스 모두 rehydration 한 경로다. `schemaVersion` 검사 → 맥락 결합 필드 재유도(조작 필드는 `node.config` 재평가, 식별 필드 `workflowId`·`nodeExecutionId`·`workspaceId` 는 호출 측 컨텍스트) → `_resumeState` 재구성(핵심 필드가 없으면 기본값 보강) → 멀티턴 반복 재진입. 없거나 손상되거나 미래 버전이면 우아하게 초기화한다(`RESUME_INCOMPATIBLE_STATE`) |
-| `_retryState` | 재시도 가능 에러로 끝날 때 `buildMultiTurnFinalOutput` 이 싣는다. `stripControlFields()` 가 보존한다 | `NodeExecution.outputData._retryState` | WS `execution.retry_last_turn` 이 `nodeExecutionId` 로 찾아 `expiresAt` 을 확인하고 새 NodeExecution 행을 만들어 멀티턴 반복에 다시 들어간다. TTL 이 지나거나 한 번 쓰면 `RETRY_STATE_NOT_FOUND` 로 응답한다 |
+| `_resumeState` | 한 턴 처리 구간 안에서만 있다. park 는 늘 코루틴·컨텍스트를 풀므로 턴 사이에 메모리에 남지 않는다. DB 영속 때 AI 턴 처리(`AiTurnOrchestratorService`)가 전체 상태를 무조건 지운다(자격 증명·rawConfig·턴 디버그를 담을 수 있음) | 비영속 | 다음 턴 재개 때 rehydration 이 `_resumeCheckpoint` 에서 다시 만든다. 턴 처리 뒤 새 `_resumeCheckpoint` 로 갱신한다 |
+| `_resumeCheckpoint` (AI 에이전트·정보 추출기, 정보 추출기는 `partialResult`·`collectionRetryCount` 추가) | 입력 대기 진입과 매 턴 영속 시점에 엔진이 `_resumeState` 의 자격 증명을 뺀 부분집합을 싣는다. 저장 때 지우지 않고 남긴다. `_retryState` 와 같은 배제 정책이지만 TTL(`expiresAt`)이 없고(대화는 오래 뒤에도 재개 가능) `lastUserMessage` 가 없다(재개 때 도착한 메시지를 그대로 처리) | `NodeExecution.outputData._resumeCheckpoint` | 매 턴 재개 때 엔진이 읽는다. 같은 인스턴스·재시작·다른 인스턴스 모두 rehydration 한 경로다. `schemaVersion` 검사 → 맥락 결합 필드 재유도(조작 필드는 `node.config` 재평가, 식별 필드 `workflowId`·`nodeExecutionId`·`workspaceId` 는 호출 측 컨텍스트, `dryRun` 은 `variables.__dryRun`) → `_resumeState` 재구성(핵심 필드가 없으면 기본값 보강) → 멀티턴 반복 재진입. 없거나 손상되거나 미래 버전이면 우아하게 초기화한다(`RESUME_INCOMPATIBLE_STATE`) |
+| `_retryState` | 재시도 가능 에러로 끝날 때 `buildMultiTurnFinalOutput` 이 싣는다. 저장 때 지우지 않고 남긴다 | `NodeExecution.outputData._retryState` | WS `execution.retry_last_turn` 이 `nodeExecutionId` 로 찾아 `expiresAt` 을 확인하고 새 NodeExecution 행을 만들어 멀티턴 반복에 다시 들어간다. TTL 이 지나거나 한 번 쓰면 `RETRY_STATE_NOT_FOUND` 로 응답한다 |
 
-세 필드 모두 자격 증명과 맥락 결합 필드(`llmConfigId` 가 가리키는 provider secret, `workspaceId` 등)를 싣지 않는다. `buildRetryState`·`buildResumeState` 가 옮길 키를 열거하는 허용 목록 방식으로 애초에 뺀다. 재개할 때는 두 경로로 다시 유도한다. 조작 필드(`llmConfigId`·`maxTurns` 등)는 `node.config` 재평가로, 식별 필드(`workflowId`·`nodeExecutionId`·`workspaceId`)는 호출 측 컨텍스트에서 가져온다. 두 경로의 상세와 사용량 귀속 불변식은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 에 있다. `_resumeCheckpoint` 와 `_retryState` 는 재구성 로직(`buildRetryReentryState`)을 함께 쓰고, 계기(재시작 재개 대 재시도 명령)와 수명(상시 대 에러 1회)만 다르다.
+세 필드 모두 자격 증명과 맥락 결합 필드(`llmConfigId` 가 가리키는 provider secret, `workspaceId` 등)를 싣지 않는다. `buildRetryState`·`buildResumeState` 가 옮길 키를 열거하는 허용 목록 방식으로 애초에 뺀다. 재개할 때는 두 경로로 다시 유도한다. 조작 필드(`llmConfigId`·`maxTurns` 등)는 `node.config` 재평가로, 식별 필드(`workflowId`·`nodeExecutionId`·`workspaceId`)는 호출 측 컨텍스트에서 가져온다. dry-run 여부(`dryRun`)도 체크포인트에 싣지 않고 실행 컨텍스트의 `variables.__dryRun` 에서 가져온다. 이 값이 빠지면 dry-run 재실행의 재개·재시도 턴이 부수효과 도구를 실제로 부른다. 두 경로의 상세와 사용량 귀속 불변식은 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 에 있다. `_resumeCheckpoint` 와 `_retryState` 는 재구성 로직(`buildRetryReentryState`)을 함께 쓰고, 계기(재시작 재개 대 재시도 명령)와 수명(상시 대 에러 1회)만 다르다.
 
 ## 멀티턴 재개 (`status: "resumed"`, 일시)
 

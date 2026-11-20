@@ -2,19 +2,19 @@
 id: "CLE-NODE-CHART"
 title: "Chart 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-CHART-001", "REQ-CHART-002", "REQ-CHART-003", "REQ-CHART-004", "REQ-CHART-005", "REQ-CHART-006", "REQ-CHART-007", "REQ-CHART-008", "REQ-CHART-009", "REQ-CHART-010", "REQ-CHART-011", "REQ-CHART-012", "REQ-CHART-013", "REQ-CHART-014", "REQ-CHART-015", "REQ-CHART-016", "REQ-CHART-017", "REQ-CHART-018", "REQ-CHART-019", "REQ-CHART-020", "REQ-CHART-021"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "40b7a3453f0389c9454a6e27a9fab392780bedba8656200326dcc0ad7b40ba43"
+content_hash: "0476f9d0ae8b24fb28447d6467d625f6300878fd2bb5e927ef30a0349314fec5"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/6-presentation/3-chart.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "1a3953cc6a9135ab6a871ef8e2b8ef4fd1f397d29ad1596dfa3ec91eeabcac4b"
-etag: "sha256-7828b235bb3b4b8e76af06abc9e98961f6109b14132a506231a8496b23757e15"
+mirror_sha256: "84dd918f24fc432f406fc12d4a713250d8a7c7b0f15fd08fcfdd14ee3629d6b9"
+etag: "sha256-7ecb0eed95c1274b70da96714dafa71db04b4168f64bc9bbd948f8d78933d3e7"
 ---
 > 구현 상태: 부분 구현 (미구현: 설정 화면의 Colors 입력 · Preview, 설정 요약 `summaryTemplate`, 에디터 렌더러의 축 라벨은 CLE-T-ETS2WE, 포인트가 없을 때 웹채팅 위젯의 버튼 바는 CLE-T-670711) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -204,7 +204,9 @@ Chart 는 **런타임 에러 포트가 없다**. 모든 검증 실패는 실행 
 
 기각한 대안은 스키마 enum 과 렌더러를 세 유형으로 줄이는 안이다. 이미 `area`·`donut` 으로 저장된 노드가 스키마 검증에서 깨지므로 택하지 않았다.
 
-### 데이터 키는 `dataField` 가 정식이고 `dataSource` 는 호환용으로만 읽는다 (2026-11-01)
+### 데이터 키는 `dataField` 가 정식이고 `dataSource` 는 호환용으로만 읽는다
+
+결정일: 2026-11-01
 
 이전에는 데이터 키가 둘이었다. 설정 화면은 표현식 입력으로 `dataSource` 만 저장했고, 스키마는 `dataField` 만 선언했고, 핸들러는 `dataSource` 를 먼저 읽었다. 사람이 `dataField` 를 정식으로 두고 설정 화면을 `dataField` 입력으로 바꾸는 안을 골랐다(NERV 질문 `01a19677-22d3-7731-a9b2-ec4a7a0903c1`, 2026-11-01).
 
@@ -216,10 +218,10 @@ Data Field 는 데이터를 가리키는 표현식이 아니라 키 이름을 �
 
 기각한 대안은 `dataSource` 를 정식으로 올리는 안(Table 과 키가 같아지고 화면을 바꾸지 않아도 된다. 사람은 승인본 v2 가 이미 정식 경로로 적은 `dataField` 를 유지하는 쪽을 골랐다)과 두 키를 모두 정식으로 두는 안(같은 일을 하는 입력이 둘이라 설정이 헷갈린다)이다.
 
-### `dataField` 가 배열이 아니면 빈 배열로 그린다 (2026-10-24)
+### `dataField` 가 배열이 아니면 빈 배열로 그린다
 
 → [Chart 노드 — 실행 로직과 렌더링](CLE-NODE-CHART-EXEC.md#datafield-가-배열이-아니면-빈-배열로-그린다)
 
-### 그릴 포인트가 없으면 에디터는 출력 값을 JSON 으로 보여 준다 (2026-11-05)
+### 그릴 포인트가 없으면 에디터는 출력 값을 JSON 으로 보여 준다
 
 → [Chart 노드 — 실행 로직과 렌더링](CLE-NODE-CHART-EXEC.md#그릴-포인트가-없으면-에디터는-출력-값을-json-으로-보여-준다)

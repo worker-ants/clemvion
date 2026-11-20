@@ -2,19 +2,19 @@
 id: "CLE-NODE-MERGE"
 title: "Merge 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-MERGE-001", "REQ-MERGE-002", "REQ-MERGE-003", "REQ-MERGE-004", "REQ-MERGE-005", "REQ-MERGE-006", "REQ-MERGE-007", "REQ-MERGE-008", "REQ-MERGE-009", "REQ-MERGE-010", "REQ-MERGE-011", "REQ-MERGE-012", "REQ-MERGE-013", "REQ-MERGE-014", "REQ-MERGE-015", "REQ-MERGE-016", "REQ-MERGE-017", "REQ-MERGE-018"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "f224ed538749d5aa525505934bcae45ef3f03db9def34802a2608a1c45773617"
+content_hash: "f4f67dc155638e7499b1c8afbe3f5c9905bf301d9249ab75ff9d59d6c9edd809"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/1-logic/11-merge.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "55b220ccc832dbd5d67e0f23944adcb0176bc6bc6c6b61f59a01d071b792c7fd"
-etag: "sha256-9e1278456fdf72c1a6b24719128bfe8a98779acd084b3c658ae8d706924d9eb6"
+mirror_sha256: "ac96ecafd3c073f0ca9d4aafea5c6924921719090fbc695bcf9b65747f49559d"
+etag: "sha256-5ab933204d66c77f8b5660ca98098fd7033467886b95795cc138fdda39fa69fe"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/11-merge.md`, `spec/4-nodes/_product-overview.md` (§4.11) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -65,7 +65,7 @@ Merge 노드(Merge, `merge`)는 여러 입력 경로의 데이터를 하나로 �
 
 코드 기준: `codebase/backend/src/nodes/logic/merge/merge.schema.ts` (export `mergeNodeConfigSchema`)
 
-`timeout` 기본값은 `0` 이다. 새 노드의 기본 설정(`defaultConfig`)은 레지스트리의 `resolveDefaultConfig` 가 스키마 기본값으로 채운다. `defaultConfig` 는 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md#노드-정의-속성) 의 노드 정의 속성이다. 가져오기(`applyConfigDefaults`)도 빈 필드를 스키마 기본값으로 채운다. 기본값이 경고를 켜지 않아야 새 노드와 가져온 노드가 기본 설정 그대로 실행된다. 결정과 근거는 [Rationale](#timeout-기본값을-0-으로-두고-필드와-차단-경고는-유지한다-2026-10-10) 에 있다.
+`timeout` 기본값은 `0` 이다. 새 노드의 기본 설정(`defaultConfig`)은 레지스트리의 `resolveDefaultConfig` 가 스키마 기본값으로 채운다. `defaultConfig` 는 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md#노드-정의-속성) 의 노드 정의 속성이다. 가져오기(`applyConfigDefaults`)도 빈 필드를 스키마 기본값으로 채운다. 기본값이 경고를 켜지 않아야 새 노드와 가져온 노드가 기본 설정 그대로 실행된다. 결정과 근거는 [Rationale](#timeout-기본값을-0-으로-두고-필드와-차단-경고는-유지한다) 에 있다.
 
 ### 병합 전략
 
@@ -75,7 +75,7 @@ Merge 노드(Merge, `merge`)는 여러 입력 경로의 데이터를 하나로 �
 | `first` | 입력 객체의 키(선행 노드 ID)를 문자열로 정렬한 순서에서 첫 입력 하나만 남긴다. 도착 순서가 아니다. 노드 ID 는 무작위 UUID 라서 어느 선행 노드가 골라질지 사용자가 정할 수 없고 노드를 복사해 붙여 넣으면 바뀔 수 있다. 연결선이 하나면 엔진이 선행 노드의 출력을 그대로 넘기므로 그 출력을 정규화한 첫 항목이 남는다([입력 정규화](CLE-NODE-MERGE-OUTPUT.md#입력-정규화)) |
 | `append` | 결과가 `wait_all` 과 같다. 모든 입력을 [입력 정규화](CLE-NODE-MERGE-OUTPUT.md#입력-정규화) 순서대로 쌓는다. 도착 순서가 아니다 |
 
-`first` · `append` 를 고르면 캔버스에 `advisory` 경고 배지를 띄운다. 실행과 `handler.validate` 는 막지 않는다(REQ-MERGE-018, [에러](#에러)). 배지는 노드 헤더의 경고 아이콘이고 툴팁에 문구가 나온다. 요약 줄은 가리지 않는다. `blocking` 노드 경고가 함께 있으면 `blocking` 경고만 보인다. 이 의미로 정한 이유는 [Rationale](#first-와-append-를-지금-의미로-정하고-advisory-경고로-알린다-2026-11-12) 에 있다.
+`first` · `append` 를 고르면 캔버스에 `advisory` 경고 배지를 띄운다. 실행과 `handler.validate` 는 막지 않는다(REQ-MERGE-018, [에러](#에러)). 배지는 노드 헤더의 경고 아이콘이고 툴팁에 문구가 나온다. 요약 줄은 가리지 않는다. `blocking` 노드 경고가 함께 있으면 `blocking` 경고만 보인다. 이 의미로 정한 이유는 [Rationale](#first-와-append-를-지금-의미로-정하고-advisory-경고로-알린다) 에 있다.
 
 ### 출력 형식
 
@@ -159,7 +159,9 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 
 ## Rationale
 
-### 비동기 fan-in barrier 활성화를 재검토 과제로 미룬다 (2026-07-17)
+### 비동기 fan-in barrier 활성화를 재검토 과제로 미룬다
+
+결정일: 2026-07-17
 
 **결정**: Merge 의 비동기 fan-in barrier(`timeout` / `partialOnTimeout` 활성화)를 "다음 단계 예정" 에서 "엔진이 노드 단위 비동기 dispatch 를 도입할 경우 재검토" 로 낮춘다. `timeout` / `partialOnTimeout` 은 무기한 dormant 로 둔다.
 
@@ -176,11 +178,13 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 
 **재검토 조건**: 엔진이 노드 단위 비동기 dispatch 를 도입하기로 결정을 뒤집을 때만 이 결정을 다시 연다. 그 결정은 Merge 가 아니라 실행 엔진 차원의 사안이다.
 
-**남은 UX 이슈(이 결정의 범위 밖)**: 영구 dormant 필드를 화면에 보이면서 설정하면 막는 것이 맞는지(필드 제거, severity 완화, 현행 유지)는 제품 결정이라 여기서 정하지 않았다. NERV Task `CLE-T-AGDM92` 가 맡아 2026-10-10 결정으로 닫혔다([timeout 기본값을 0 으로 두고 필드와 차단 경고는 유지한다](#timeout-기본값을-0-으로-두고-필드와-차단-경고는-유지한다-2026-10-10)).
+**남은 UX 이슈(이 결정의 범위 밖)**: 영구 dormant 필드를 화면에 보이면서 설정하면 막는 것이 맞는지(필드 제거, severity 완화, 현행 유지)는 제품 결정이라 여기서 정하지 않았다. NERV Task `CLE-T-AGDM92` 가 맡아 2026-10-10 결정으로 닫혔다([timeout 기본값을 0 으로 두고 필드와 차단 경고는 유지한다](#timeout-기본값을-0-으로-두고-필드와-차단-경고는-유지한다)).
 
-### timeout 기본값을 0 으로 두고 필드와 차단 경고는 유지한다 (2026-10-10)
+### timeout 기본값을 0 으로 두고 필드와 차단 경고는 유지한다
 
-**결정**: `timeout` 기본값을 `300` 에서 `0` 으로 바꾼다. `timeout` · `partialOnTimeout` 필드는 지우지 않는다. 두 dormant 경고 규칙의 severity 는 `blocking` 그대로 둔다. 스키마는 음수 `timeout` 을 거부한다(`.nonnegative()`). 경고 문구와 핸들러 warn 로그에서 "Phase P2 barrier 가 값을 반영한다" 는 안내를 뺐다. 이 안내는 barrier 를 만들지 않기로 한 [2026-07-17 결정](#비동기-fan-in-barrier-활성화를-재검토-과제로-미룬다-2026-07-17) 과 맞지 않았다. 새 문구는 [에러](#에러) 표에 있다.
+결정일: 2026-10-10
+
+**결정**: `timeout` 기본값을 `300` 에서 `0` 으로 바꾼다. `timeout` · `partialOnTimeout` 필드는 지우지 않는다. 두 dormant 경고 규칙의 severity 는 `blocking` 그대로 둔다. 스키마는 음수 `timeout` 을 거부한다(`.nonnegative()`). 경고 문구와 핸들러 warn 로그에서 "Phase P2 barrier 가 값을 반영한다" 는 안내를 뺐다. 이 안내는 barrier 를 만들지 않기로 한 [「비동기 fan-in barrier 활성화를 재검토 과제로 미룬다」 결정](#비동기-fan-in-barrier-활성화를-재검토-과제로-미룬다) 과 맞지 않았다. 새 문구는 [에러](#에러) 표에 있다.
 
 **근거**: 기본값 `300` 이 기본 설정에서 dormant 경고 `merge:timeout-dormant` 를 켰다. 이 규칙은 `severity` 가 없어 `blocking` 으로 평가된다. 레지스트리의 `resolveDefaultConfig` 는 `safeParse({})` 결과(`timeout: 300`)를 새 노드의 기본 설정으로 내보냈다. 가져오기도 `applyConfigDefaults` 로 같은 값을 채웠다. 엔진은 노드를 실행하기 직전에 `handler.validate` 를 부른다. 검증이 실패하면 에러 메시지가 `INVALID_NODE_CONFIG:` 로 시작하는 에러로 실행이 실패한다([노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#노드-실행-흐름)). 2026-10-10 에 기본 설정을 `evaluateMetadataBlockingErrors` 로 평가하니 차단 에러가 1건 나왔다. 따라서 설정을 건드리지 않은 Merge 노드는 실행 전 검증에서 막혔다. 저장(`saveCanvas`)은 경고 규칙을 보지 않아서 막히지 않았다.
 
@@ -190,7 +194,7 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 - 필드를 없앤다(필드 제거): 저장된 노드 config 와 가져오기 JSON 의 호환을 따로 다뤄야 한다. 세 안 가운데 변경 범위가 가장 크다.
 - 기본값 `300` 을 그대로 둔다(현행 유지): 설정을 건드리지 않은 Merge 노드가 실행 전 검증에서 계속 막힌다.
 
-세 안은 [2026-07-17 결정](#비동기-fan-in-barrier-활성화를-재검토-과제로-미룬다-2026-07-17) 의 남은 UX 이슈에 적은 필드 제거 · severity 완화 · 현행 유지다. 기본값 `0` 은 현행 유지안을 고친 안이다. 필드와 차단 경고는 그대로 두고 기본값만 바꾼다. 사용자는 변경이 가장 작은 이 안을 골랐다.
+세 안은 [「비동기 fan-in barrier 활성화를 재검토 과제로 미룬다」 결정](#비동기-fan-in-barrier-활성화를-재검토-과제로-미룬다) 의 남은 UX 이슈에 적은 필드 제거 · severity 완화 · 현행 유지다. 기본값 `0` 은 현행 유지안을 고친 안이다. 필드와 차단 경고는 그대로 두고 기본값만 바꾼다. 사용자는 변경이 가장 작은 이 안을 골랐다.
 
 **저장된 데이터**: Flyway `V148__merge_node_timeout_default_zero.sql` 이 `node` 테이블에서 `type='merge' AND config @> '{"timeout":300}'` 인 행만 `timeout` 을 `0` 으로 바꾼다. 어느 행을 바꿀지는 옛 기본값과 구분되는 값인지로 정했다. 300 이 아닌 값은 사용자가 의도해 넣었을 가능성이 높아서 건드리지 않는다. 300 은 옛 기본값과 구분할 수 없다. 그래서 사용자가 일부러 넣은 300 도 0 으로 바뀐다. 이 비용은 받아들인다. 바꾼 행은 `timeout` 이 `0` 이라서 다시 돌려도 바뀌는 행이 없다. 롤백 SQL 은 두지 않고 `-- DOWN:` 주석에 사유만 남긴다. 바꾼 뒤에는 원래 300 이던 행과 원래 0 이던 행을 구분할 수 없다. 바꾼 값은 실행 결과에도 영향이 없다(dormant 필드). 가져오기(`applyConfigDefaults`)는 적힌 값을 바꾸지 않는다. 그래서 옛 기본값 시절에 내보낸 워크플로우 JSON 에 `"timeout": 300` 이 적혀 있으면 가져온 노드에도 300 이 남고 캔버스 경고로 드러난다.
 
@@ -202,17 +206,21 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 
 **소유**: 결정 NERV Task `CLE-T-AGDM92`, 구현 `CLE-T-HSHW71`.
 
-### 입력 정규화는 노드 출력 규약 Principle 10 의 대상이 아니다 (2026-10-24)
+### 입력 정규화는 노드 출력 규약 Principle 10 의 대상이 아니다
+
+결정일: 2026-10-24
 
 → [Merge 노드 — 실행 로직과 출력 구조](CLE-NODE-MERGE-OUTPUT.md#입력-정규화는-노드-출력-규약-principle-10-의-대상이-아니다)
 
-### `first` 와 `append` 를 지금 의미로 정하고 advisory 경고로 알린다 (2026-11-12)
+### `first` 와 `append` 를 지금 의미로 정하고 advisory 경고로 알린다
+
+결정일: 2026-11-12
 
 **결정**: `strategy` 의 `first` · `append` 를 지금 동작 그대로 정식 의미로 정한다. `first` 는 선행 노드 ID 를 정렬한 순서의 첫 입력 하나를 남기고 `append` 는 `wait_all` 과 결과가 같다. 두 값을 고르면 캔버스에 `advisory` 노드 경고를 띄우고 실행은 막지 않는다(REQ-MERGE-018). 이름이 뜻하는 동작(먼저 도착한 입력, 도착 순서대로 쌓기)은 만들지 않는다(NERV Task `CLE-T-3XGCYA`, 경고 규칙 구현 `CLE-T-1J0F6R`).
 
-**근거**: 엔진은 앞쪽 선행 노드의 실행 여부가 모두 정해진 뒤 Merge 를 실행한다. 노드 단위 비동기 dispatch 를 두지 않는 [2026-07-17 결정](#비동기-fan-in-barrier-활성화를-재검토-과제로-미룬다-2026-07-17) 이 유지되는 한 Merge 는 도착 순서를 알 수 없다. 그래서 이름대로의 동작은 만들 수 없다. 두 값은 같은 입력이면 같은 결과를 낸다. 다만 `first` 가 고르는 선행 노드는 무작위 노드 ID 의 정렬 순서로 정해져 사용자가 고를 수 없고 노드를 복사해 붙여 넣으면 바뀔 수 있다. 이름과 다르게 도는 값이라 사용자가 알 수 있게 경고를 띄운다.
+**근거**: 엔진은 앞쪽 선행 노드의 실행 여부가 모두 정해진 뒤 Merge 를 실행한다. 노드 단위 비동기 dispatch 를 두지 않는 [「비동기 fan-in barrier 활성화를 재검토 과제로 미룬다」 결정](#비동기-fan-in-barrier-활성화를-재검토-과제로-미룬다) 이 유지되는 한 Merge 는 도착 순서를 알 수 없다. 그래서 이름대로의 동작은 만들 수 없다. 두 값은 같은 입력이면 같은 결과를 낸다. 다만 `first` 가 고르는 선행 노드는 무작위 노드 ID 의 정렬 순서로 정해져 사용자가 고를 수 없고 노드를 복사해 붙여 넣으면 바뀔 수 있다. 이름과 다르게 도는 값이라 사용자가 알 수 있게 경고를 띄운다.
 
-**`timeout` 과 달리 막지 않는 이유**: `timeout > 0` · `partialOnTimeout` 은 값이 결과에 아무 영향이 없는데 사용자는 무언가를 기다린다고 믿는다. 그래서 `blocking` 으로 막는다([2026-10-10 결정](#timeout-기본값을-0-으로-두고-필드와-차단-경고는-유지한다-2026-10-10)). `first` 는 결과를 바꾸는 값이고 `append` 는 기본값 `wait_all` 과 같은 결과를 낸다. 막으면 이 값으로 저장된 노드가 실행 전 검증에서 실패한다. 2026-10-10 에 기각한 「severity 완화」 는 `timeout` · `partialOnTimeout` 두 규칙에 대한 것이고 이 결정의 두 경고 규칙은 새 규칙이다.
+**`timeout` 과 달리 막지 않는 이유**: `timeout > 0` · `partialOnTimeout` 은 값이 결과에 아무 영향이 없는데 사용자는 무언가를 기다린다고 믿는다. 그래서 `blocking` 으로 막는다([「timeout 기본값을 0 으로 두고 필드와 차단 경고는 유지한다」 결정](#timeout-기본값을-0-으로-두고-필드와-차단-경고는-유지한다)). `first` 는 결과를 바꾸는 값이고 `append` 는 기본값 `wait_all` 과 같은 결과를 낸다. 막으면 이 값으로 저장된 노드가 실행 전 검증에서 실패한다. 2026-10-10 에 기각한 「severity 완화」 는 `timeout` · `partialOnTimeout` 두 규칙에 대한 것이고 이 결정의 두 경고 규칙은 새 규칙이다.
 
 **Parallel 결정 K 와 다른 점**: [Parallel 노드](CLE-NODE-PARALLEL.md#waitallfalse-를-지원하지-않는다) 는 `waitAll=false` 를 검증에서 거부한다. 그 값이 기대한 동작(병렬 분기가 끝나는 대로 다음 노드 시작)과 실제 동작의 차이는 실행 시점에만 생겨 출력만 봐서는 알 수 없다. 대신 쓸 Background 노드가 있어서 거부 메시지로 안내할 수도 있다. `first` 는 결과에 입력 하나만 남아서 다른 입력이 빠졌다는 것이 출력에 바로 드러난다. 도착 순서를 지키는 다른 노드가 없어서 거부해도 안내할 대안이 없다. 그래서 막지 않고 경고로 알린다.
 
@@ -224,7 +232,9 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 - `blocking` 으로 거부한다([Parallel 노드](CLE-NODE-PARALLEL.md#waitallfalse-를-지원하지-않는다) 의 `waitAll=false` 선례): 이 값으로 저장된 노드가 실행 전 검증에서 실패하고 사용자가 에디터에서 하나씩 고쳐야 한다. 결과가 정해진 값을 막을 만큼의 위험은 아니라고 봤다.
 - `append` 를 없애고 `first` 를 의미에 맞는 이름으로 바꾼다: 저장된 노드 config 와 가져오기 JSON 을 이전해야 한다. 세 안 가운데 변경 범위가 가장 크다.
 
-### meta 에 전략과 출력 형식을 설정 에코와 함께 둔다 (2026-11-12)
+### meta 에 전략과 출력 형식을 설정 에코와 함께 둔다
+
+결정일: 2026-11-12
 
 → [Merge 노드 — 실행 로직과 출력 구조](CLE-NODE-MERGE-OUTPUT.md#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다)
 
