@@ -429,6 +429,10 @@ export class MailService {
     // 랜딩(`/dashboard`, auth redirect 의 canonical 타겟)으로 보낸다 — 거기서
     // 벨 팝오버로 알림을 확인. 전용 `/notifications` 라우트는 존재하지 않는다.
     const notificationsUrl = `${this.frontendUrl}/dashboard`;
+    // 하단 수신 거부 링크는 알림 설정 화면으로 간다. 로그인 없이 끄는 공개 엔드포인트는 두지 않는다
+    // ([알림 설정 「알림 설정 화면과 수신 거부 링크」](CLE-OBS-NOTIFY-SETTINGS#알림-설정-화면과-수신-거부-링크)).
+    // slug 없는 경로는 프런트 catch-all 이 현재 워크스페이스로 보낸다.
+    const settingsUrl = `${this.frontendUrl}/profile/notifications`;
 
     if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       this.logger.debug(
@@ -443,8 +447,16 @@ export class MailService {
         // 워크플로/통합 이름 등 사용자 입력에서 유래할 수 있으므로 개행을 공백으로
         // 치환해 봉합한다 (본문 HTML 은 escapeHtml 이 별도로 방어).
         subject: notification.title.replace(/[\r\n]+/g, ' '),
-        html: this.buildNotificationHtml(notification, notificationsUrl),
-        text: this.buildNotificationText(notification, notificationsUrl),
+        html: this.buildNotificationHtml(
+          notification,
+          notificationsUrl,
+          settingsUrl,
+        ),
+        text: this.buildNotificationText(
+          notification,
+          notificationsUrl,
+          settingsUrl,
+        ),
       });
       this.logger.log(
         `Notification email sent to ${email} (${notification.type})`,
@@ -461,6 +473,7 @@ export class MailService {
   private buildNotificationHtml(
     notification: { title: string; message: string },
     notificationsUrl: string,
+    settingsUrl: string,
   ): string {
     const safeTitle = this.escapeHtml(notification.title);
     const safeMessage = this.escapeHtml(notification.message);
@@ -481,7 +494,8 @@ export class MailService {
               <a href="${notificationsUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;">알림 보기</a>
             </td></tr>
           </table>
-          <p style="margin:0;font-size:12px;color:#999;word-break:break-all;">${notificationsUrl}</p>
+          <p style="margin:0 0 24px;font-size:12px;color:#999;word-break:break-all;">${notificationsUrl}</p>
+          <p style="margin:0;font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;">이 메일을 받고 싶지 않으면 <a href="${settingsUrl}" style="color:#999;">알림 설정</a>에서 끌 수 있어요.</p>
         </td></tr>
       </table>
     </td></tr>
@@ -493,8 +507,9 @@ export class MailService {
   private buildNotificationText(
     notification: { title: string; message: string },
     notificationsUrl: string,
+    settingsUrl: string,
   ): string {
     // plain text 파트라 HTML escape 불요 (렌더 컨텍스트가 마크업 아님).
-    return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}`;
+    return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}\n\n이 메일을 받고 싶지 않으면 알림 설정에서 끌 수 있어요:\n${settingsUrl}`;
   }
 }

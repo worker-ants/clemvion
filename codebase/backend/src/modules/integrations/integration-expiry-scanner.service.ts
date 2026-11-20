@@ -28,6 +28,10 @@ import {
   Cafe24RefreshJobData,
   REFRESH_PROACTIVE_THRESHOLD_DAYS,
 } from './cafe24-token-refresh.constants';
+import {
+  NotificationChannel,
+  computeNotificationChannel,
+} from '../notifications/notification-channel';
 
 export const INTEGRATION_EXPIRY_QUEUE = 'integration-expiry-scanner';
 
@@ -380,7 +384,7 @@ export class IntegrationExpiryScannerService
       message: string;
       resourceType: string;
       resourceId: string;
-      channel: 'in_app' | 'both';
+      channel: NotificationChannel;
     }> = [];
     const integrationsToUpdate: Integration[] = [];
 
@@ -466,8 +470,14 @@ export class IntegrationExpiryScannerService
       if (recipients.length === 0) continue;
 
       for (const userId of recipients) {
-        const prefs = prefsByUser.get(userId) ?? {};
-        const wantsEmail = prefs.integrationExpiryEmail === true;
+        // 인앱 키(opt-out)와 이메일 키(opt-in)로 채널을 고른다. 둘 다 끈 수신자는 건너뛴다
+        // ([알림 설정 「채널 계산」](CLE-OBS-NOTIFY-SETTINGS#채널-계산), CLE-T-EJFQ1Y).
+        // claim 과 0d 격하는 수신자와 무관하게 위에서 이미 끝났다.
+        const channel = computeNotificationChannel(
+          prefsByUser.get(userId),
+          'integration_expired',
+        );
+        if (channel === null) continue;
         notifications.push({
           workspaceId: integration.workspaceId,
           userId,
@@ -476,7 +486,7 @@ export class IntegrationExpiryScannerService
           message: messageFor(threshold, integration),
           resourceType: 'integration',
           resourceId: integration.id,
-          channel: wantsEmail ? 'both' : 'in_app',
+          channel,
         });
       }
     }

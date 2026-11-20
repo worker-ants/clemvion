@@ -157,7 +157,7 @@ describe('마지막 턴 재시도 · 종결 가드의 조건부 UPDATE (실제 P
     recordNodeDuration: jest.fn(),
   };
   const notifications = {
-    resolveOptOutEmailChannels: jest
+    resolveNotificationChannels: jest
       .fn<AsyncFn>()
       .mockResolvedValue(new Map<string, string>()),
     createMany: jest.fn<AsyncFn>().mockResolvedValue(undefined),

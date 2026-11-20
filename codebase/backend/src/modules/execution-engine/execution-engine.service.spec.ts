@@ -214,13 +214,13 @@ describe('ExecutionEngineService', () => {
     async function callDispatch(
       execution: Record<string, unknown>,
       createMany: jest.Mock,
-      channelMap: Map<string, 'both' | 'in_app'> = new Map(),
+      channelMap: Map<string, 'both' | 'in_app' | 'email' | null> = new Map(),
     ): Promise<void> {
       (
         service as unknown as { notificationsService: unknown }
       ).notificationsService = {
         createMany,
-        resolveOptOutEmailChannels: jest.fn().mockResolvedValue(channelMap),
+        resolveNotificationChannels: jest.fn().mockResolvedValue(channelMap),
       };
       await (
         service as unknown as {
@@ -296,6 +296,59 @@ describe('ExecutionEngineService', () => {
       const byUser = new Map(entries.map((e) => [e.userId, e.channel]));
       expect(byUser.get('owner')).toBe('in_app');
       expect(byUser.get('runner')).toBe('both');
+    });
+
+    it('인앱만 끈 수신자는 채널 email, 둘 다 끈 수신자는 건너뛴다 (CLE-T-EJFQ1Y)', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'wf',
+        name: 'W',
+        workspaceId: 'ws',
+        createdBy: 'owner',
+      });
+
+      await callDispatch(
+        {
+          id: 'ex-off',
+          workflowId: 'wf',
+          executedBy: 'runner',
+          parentExecutionId: null,
+        },
+        createMany,
+        new Map<string, 'both' | 'in_app' | 'email' | null>([
+          ['owner', 'email'],
+          ['runner', null],
+        ]),
+      );
+
+      const entries = createMany.mock.calls[0][0] as Array<
+        Record<string, unknown>
+      >;
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ userId: 'owner', channel: 'email' });
+    });
+
+    it('수신자가 모두 둘 다 껐으면 알림을 만들지 않는다', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'wf',
+        name: 'W',
+        workspaceId: 'ws',
+        createdBy: 'owner',
+      });
+
+      await callDispatch(
+        {
+          id: 'ex-none',
+          workflowId: 'wf',
+          executedBy: 'owner',
+          parentExecutionId: null,
+        },
+        createMany,
+        new Map<string, 'both' | 'in_app' | 'email' | null>([['owner', null]]),
+      );
+
+      expect(createMany).not.toHaveBeenCalled();
     });
 
     it('owner==executor 는 dedup 되어 1건', async () => {
@@ -402,7 +455,7 @@ describe('ExecutionEngineService', () => {
         service as unknown as { notificationsService: unknown }
       ).notificationsService = {
         createMany,
-        resolveOptOutEmailChannels: jest
+        resolveNotificationChannels: jest
           .fn()
           .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
       };
@@ -447,7 +500,7 @@ describe('ExecutionEngineService', () => {
         service as unknown as { notificationsService: unknown }
       ).notificationsService = {
         createMany,
-        resolveOptOutEmailChannels: jest
+        resolveNotificationChannels: jest
           .fn()
           .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
       };
@@ -511,7 +564,7 @@ describe('ExecutionEngineService', () => {
         service as unknown as { notificationsService: unknown }
       ).notificationsService = {
         createMany,
-        resolveOptOutEmailChannels: jest
+        resolveNotificationChannels: jest
           .fn()
           .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
       };

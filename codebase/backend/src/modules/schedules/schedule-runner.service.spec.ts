@@ -22,7 +22,7 @@ describe('ScheduleRunnerService', () => {
   let engine: jest.Mocked<ExecutionEngineService>;
   let notifications: {
     notify: jest.Mock;
-    resolveOptOutEmailChannels: jest.Mock;
+    resolveNotificationChannels: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -61,7 +61,7 @@ describe('ScheduleRunnerService', () => {
           provide: NotificationsService,
           useValue: {
             notify: jest.fn().mockResolvedValue(undefined),
-            resolveOptOutEmailChannels: jest
+            resolveNotificationChannels: jest
               .fn()
               .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
           },
@@ -468,19 +468,45 @@ describe('ScheduleRunnerService', () => {
         name: 'W',
         createdBy: 'owner-1',
       } as unknown as Workflow);
-      notifications.resolveOptOutEmailChannels.mockResolvedValue(
+      notifications.resolveNotificationChannels.mockResolvedValue(
         new Map<string, 'both' | 'in_app'>([['owner-1', 'in_app']]),
       );
 
       await expect(service.process(job)).rejects.toThrow('enqueue boom');
 
-      expect(notifications.resolveOptOutEmailChannels).toHaveBeenCalledWith(
+      expect(notifications.resolveNotificationChannels).toHaveBeenCalledWith(
         ['owner-1'],
-        'scheduleFailedEmail',
+        'schedule_failed',
       );
       expect(notifications.notify).toHaveBeenCalledWith(
         expect.objectContaining({ channel: 'in_app' }),
       );
+    });
+
+    it('인앱과 이메일을 둘 다 끈 owner 에게는 알림을 만들지 않는다 (CLE-T-EJFQ1Y)', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(new Error('enqueue boom'));
+      workflowRepo.findOne.mockResolvedValue({
+        id: 'wf1',
+        name: 'W',
+        createdBy: 'owner-1',
+      } as unknown as Workflow);
+      notifications.resolveNotificationChannels.mockResolvedValue(
+        new Map<string, 'both' | 'in_app' | 'email' | null>([
+          ['owner-1', null],
+        ]),
+      );
+
+      await expect(service.process(job)).rejects.toThrow('enqueue boom');
+
+      expect(notifications.notify).not.toHaveBeenCalled();
     });
 
     it('알림 발사 실패해도 process 는 원래 engine 에러로 rethrow (best-effort)', async () => {

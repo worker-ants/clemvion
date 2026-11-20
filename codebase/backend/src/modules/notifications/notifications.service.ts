@@ -11,6 +11,11 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { pickSortColumn } from '../../common/utils/list-sort';
 import { WebsocketService } from '../websocket/websocket.service';
 import { MailService } from '../mail/mail.service';
+import {
+  ChannelToggleType,
+  NotificationChannel,
+  computeNotificationChannel,
+} from './notification-channel';
 
 /**
  * 벨 조회 범위에서 워크스페이스 조건을 따르지 않는 유형 (CLE-T-NE4KKZ).
@@ -29,12 +34,31 @@ function inboxScopeClause(alias?: string): string {
   return `(${p}workspace_id = :workspaceId OR ${p}type = :crossWorkspaceType)`;
 }
 
+/**
+ * 벨에서 빼는 채널. 인앱을 끈 유형은 채널 `email` 로 저장하므로 벨 목록 · 미읽음 수 ·
+ * 모두 읽음 · 모두 닫기에서 뺀다([알림 설정 「인앱 끄기」](CLE-OBS-NOTIFY-SETTINGS#인앱-끄기), CLE-T-EJFQ1Y).
+ */
+function bellChannelClause(alias?: string): string {
+  const p = alias ? `${alias}.` : '';
+  return `${p}channel <> 'email'`;
+}
+
 function inboxScopeParams(workspaceId: string): {
   workspaceId: string;
   crossWorkspaceType: string;
 } {
   return { workspaceId, crossWorkspaceType: CROSS_WORKSPACE_TYPE };
 }
+
+/** 알림 설정 API 가 저장하는 키. 정본은 CLE-OBS-NOTIFY-SETTINGS 「설정 키」 표다. */
+const SETTINGS_KEYS = [
+  'integrationExpiryEmail',
+  'executionFailedEmail',
+  'scheduleFailedEmail',
+  'executionFailedInApp',
+  'scheduleFailedInApp',
+  'integrationExpiryInApp',
+] as const;
 
 @Injectable()
 export class NotificationsService {
@@ -104,6 +128,7 @@ export class NotificationsService {
       .createQueryBuilder('n')
       .where('n.user_id = :userId', { userId })
       .andWhere(inboxScopeClause('n'), inboxScopeParams(workspaceId))
+      .andWhere(bellChannelClause('n'))
       .andWhere('n.dismissed_at IS NULL');
 
     if (type) {
@@ -134,6 +159,7 @@ export class NotificationsService {
       .createQueryBuilder('n')
       .where('n.user_id = :userId', { userId })
       .andWhere(inboxScopeClause('n'), inboxScopeParams(workspaceId))
+      .andWhere(bellChannelClause('n'))
       .andWhere('n.is_read = false')
       .andWhere('n.dismissed_at IS NULL')
       .getCount();
@@ -165,6 +191,7 @@ export class NotificationsService {
       .set({ isRead: true })
       .where('user_id = :userId', { userId })
       .andWhere(inboxScopeClause(), inboxScopeParams(workspaceId))
+      .andWhere(bellChannelClause())
       .andWhere('is_read = false')
       .execute();
 
@@ -249,6 +276,7 @@ export class NotificationsService {
       .set({ dismissedAt: () => 'NOW()' })
       .where('user_id = :userId', { userId })
       .andWhere(inboxScopeClause(), inboxScopeParams(workspaceId))
+      .andWhere(bellChannelClause())
       .andWhere('dismissed_at IS NULL')
       .execute();
 
@@ -403,11 +431,7 @@ export class NotificationsService {
       });
     }
     const merged = { ...(user.notificationPreferences ?? {}) };
-    for (const key of [
-      'integrationExpiryEmail',
-      'executionFailedEmail',
-      'scheduleFailedEmail',
-    ] as const) {
+    for (const key of SETTINGS_KEYS) {
       if (patch[key] !== undefined) merged[key] = patch[key];
     }
     await this.userRepository.update(userId, {
@@ -424,32 +448,37 @@ export class NotificationsService {
       integrationExpiryEmail: p.integrationExpiryEmail ?? false, // opt-in
       executionFailedEmail: p.executionFailedEmail ?? true, // opt-out
       scheduleFailedEmail: p.scheduleFailedEmail ?? true, // opt-out
+      executionFailedInApp: p.executionFailedInApp ?? true, // opt-out
+      scheduleFailedInApp: p.scheduleFailedInApp ?? true, // opt-out
+      integrationExpiryInApp: p.integrationExpiryInApp ?? true, // opt-out
     };
   }
 
   /**
-   * opt-out 이메일 타입(실행/스케줄 실패)의 발사원 dispatch 가 **caller-side** 로
-   * 채널을 계산할 때 쓰는 헬퍼 — 수신자별 `<prefKey> === false` 면 이메일 제외
-   * (`in_app`), 아니면 기본 `both`(§5.1). "channel 계산은 호출자 책임"
-   * (data-flow/8-notifications §1) 불변식을 지키며(발사원이 결과 channel 을 넘김)
-   * prefs 조회만 재사용한다 — `notify()`/`createMany` 의 적재 경로엔 개입하지 않는다.
+   * 발사원이 수신자마다 알림 채널을 계산할 때 쓰는 헬퍼. 인앱 키와 이메일 키로
+   * `both` · `in_app` · `email` · `null`(보내지 않음) 가운데 하나를 고른다
+   * ([알림 설정 「채널 계산」](CLE-OBS-NOTIFY-SETTINGS#채널-계산), CLE-T-EJFQ1Y).
+   *
+   * 설정을 조회만 하고 저장 경로(`notify` · `createMany`)에는 끼어들지 않는다. 채널 계산은
+   * 발사원 책임이다. 조회되지 않은 사용자는 설정이 없는 것으로 보고 기본값을 채운다.
+   * 값이 `null` 인 수신자는 발사원이 건너뛴다.
    */
-  async resolveOptOutEmailChannels(
+  async resolveNotificationChannels(
     userIds: string[],
-    prefKey: 'executionFailedEmail' | 'scheduleFailedEmail',
-  ): Promise<Map<string, 'both' | 'in_app'>> {
-    const map = new Map<string, 'both' | 'in_app'>();
+    type: ChannelToggleType,
+  ): Promise<Map<string, NotificationChannel | null>> {
+    const map = new Map<string, NotificationChannel | null>();
     const ids = [...new Set(userIds)];
     if (ids.length === 0) return map;
     const users = await this.userRepository.find({
       where: { id: In(ids) },
       select: { id: true, notificationPreferences: true },
     });
-    for (const u of users) {
-      map.set(
-        u.id,
-        u.notificationPreferences?.[prefKey] === false ? 'in_app' : 'both',
-      );
+    const prefsById = new Map(
+      users.map((u) => [u.id, u.notificationPreferences]),
+    );
+    for (const id of ids) {
+      map.set(id, computeNotificationChannel(prefsById.get(id), type));
     }
     return map;
   }
@@ -536,6 +565,8 @@ export class NotificationsService {
    * 할 수 있어 여기서 통째로 감싼다 — 해석 실패든 broadcast 실패든 warn 만 남기고 삼킨다.
    */
   private emitNew(row: Notification): void {
+    // 채널 email 행은 벨에 보이지 않으므로 실시간 전송도 하지 않는다 (CLE-T-EJFQ1Y).
+    if (row.channel === 'email') return;
     try {
       this.getWebsocket().emitNotificationEvent(row.userId, {
         id: row.id,

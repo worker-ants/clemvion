@@ -283,13 +283,15 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       });
       if (!workflow?.createdBy) return;
       const owner = workflow.createdBy;
-      // §5.1 기본 인앱+이메일(opt-out) — 사용자가 `scheduleFailedEmail=false` 로 끄면
-      // 인앱만. channel 계산은 호출자 책임(data-flow/8-notifications §1).
+      // 채널은 인앱 · 이메일 키로 계산한다. 둘 다 끄면(null) 보내지 않는다
+      // ([알림 설정 「채널 계산」](CLE-OBS-NOTIFY-SETTINGS#채널-계산)). 채널 계산은 발사원 책임이다.
       const channelByUser =
-        await this.notificationsService.resolveOptOutEmailChannels(
+        await this.notificationsService.resolveNotificationChannels(
           [owner],
-          'scheduleFailedEmail',
+          'schedule_failed',
         );
+      const channel = channelByUser.get(owner);
+      if (channel === null) return;
       await this.notificationsService.notify({
         workspaceId,
         userId: owner,
@@ -303,7 +305,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         // `/workflows/<resource_id>` 로 라우팅되며 resource_id 가 workflow id 임에 의존.
         resourceType: 'workflow',
         resourceId: workflow.id,
-        channel: channelByUser.get(owner) ?? 'both',
+        channel: channel ?? 'both',
       });
     } catch (err) {
       this.logger.error(

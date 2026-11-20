@@ -184,6 +184,40 @@ describe('IntegrationExpiryScannerService.run', () => {
     );
   });
 
+  // CLE-T-EJFQ1Y: 인앱 키(opt-out)와 이메일 키(opt-in)로 네 결과 가운데 하나를 고른다.
+  it.each([
+    [{ integrationExpiryInApp: false, integrationExpiryEmail: true }, 'email'],
+    [{ integrationExpiryInApp: false }, null],
+  ])(
+    '인앱 키를 끄면 채널이 바뀐다 (prefs=%j → %s)',
+    async (prefs, expected) => {
+      integrationRepo.find.mockResolvedValue([
+        {
+          id: 'int-1',
+          workspaceId: 'ws-1',
+          name: 'My Service',
+          scope: 'personal',
+          status: 'connected',
+          createdBy: 'user-1',
+          tokenExpiresAt: new Date('2026-04-14T00:00:00Z'),
+        },
+      ]);
+      userRepo.find.mockResolvedValue([
+        { id: 'user-1', notificationPreferences: prefs },
+      ]);
+      await scanner.run(new Date('2026-04-12T00:00:00Z'));
+      const sent = notificationsService.createMany.mock.calls[0][0] as Array<{
+        channel: string;
+      }>;
+      if (expected === null) {
+        // 둘 다 끈 수신자는 알림 행을 만들지 않는다.
+        expect(sent).toEqual([]);
+      } else {
+        expect(sent).toEqual([expect.objectContaining({ channel: expected })]);
+      }
+    },
+  );
+
   it('escalates to expired status and notifies at 0d (non-cafe24 / no refresh_token)', async () => {
     const now = new Date('2026-04-12T00:00:00Z');
     integrationRepo.find.mockResolvedValue([

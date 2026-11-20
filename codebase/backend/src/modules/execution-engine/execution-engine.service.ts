@@ -5320,16 +5320,19 @@ export class ExecutionEngineService
         ),
       ];
       if (recipients.length === 0) return;
-      // §5.1 기본 채널 = 인앱+이메일(opt-out). 사용자가 `executionFailedEmail=false`
-      // 로 끄면 인앱만. channel 계산은 호출자 책임(data-flow/8-notifications §1)이라
-      // 발사원이 prefs 를 해소해 per-recipient channel 을 넘긴다.
+      // 채널은 수신자마다 인앱 · 이메일 키로 계산한다. 둘 다 끈 수신자(null)는 건너뛴다
+      // ([알림 설정 「채널 계산」](CLE-OBS-NOTIFY-SETTINGS#채널-계산)). 채널 계산은 발사원 책임이다.
       const channelByUser =
-        await notificationsService.resolveOptOutEmailChannels(
+        await notificationsService.resolveNotificationChannels(
           recipients,
-          'executionFailedEmail',
+          'execution_failed',
         );
+      const targets = recipients.filter(
+        (userId) => channelByUser.get(userId) !== null,
+      );
+      if (targets.length === 0) return;
       await notificationsService.createMany(
-        recipients.map((userId) => ({
+        targets.map((userId) => ({
           workspaceId: workflow.workspaceId,
           userId,
           type: 'execution_failed',

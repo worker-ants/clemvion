@@ -343,6 +343,19 @@ describe('MailService', () => {
       expect(args.text).toContain('run xyz failed');
     });
 
+    it('하단에 알림 설정 화면 링크를 둔다 (수신 거부, CLE-T-EJFQ1Y)', async () => {
+      await service.sendNotificationEmail('user@example.com', {
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        type: 'execution_failed',
+      });
+
+      const args = transporter.sendMail.mock.calls[0][0];
+      const settingsUrl = 'http://localhost:3000/profile/notifications';
+      expect(args.html).toContain(`href="${settingsUrl}"`);
+      expect(args.text).toContain(settingsUrl);
+    });
+
     it('console transport 이면 debug 로그 후 정상 발송', async () => {
       const { service: consoleService, transporter: consoleTransporter } =
         await createService({ 'mail.transport': 'console' });
