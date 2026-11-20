@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-POLY"
 title: "용어 사전 — 다의어 구분"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "44df6d48abb65c27624b7b8b090a51ec9bd163fdedf68b466a29197dd6f76a33"
+content_hash: "1d3d7a8cb3d7c0af77c265c4a7a0269705d9842b3fce3e4e3c283fa5e9306584"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-3E7Q1T"
 source_paths: []
-mirror_sha256: "2273aaabf3b9fe1340b52dd75f7f6464e1c279238918fca0a12de61c9cdca6d2"
-etag: "sha256-03f59809f65337c581f08a483e239c45c387e2c1bb850d2c5fedf7887e0a2569"
+mirror_sha256: "1da429d0e7435b547fa0e8879e7577eb2b9c77eac052f1a76ceec1915e43bceb"
+etag: "sha256-04cd22a4bdc54f6f09fb7b3c8f83d08e3f167628461773e6c1273c13d05d8148"
 ---
 ## 개요
 
@@ -202,7 +202,7 @@ etag: "sha256-03f59809f65337c581f08a483e239c45c387e2c1bb850d2c5fedf7887e0a2569"
 | 관리자 | 워크스페이스 `admin` 역할 | 관리자 |
 | 관리자 | 제품을 배포·운영하는 사람 | 운영자 |
 | 관리자 | 관리용 화면·API(권한은 뷰어 이상일 수 있음). 예: 에이전트 메모리 관리 화면 | 관리 화면 |
-| 소유자 | 워크스페이스 최상위 역할(`owner`, [용어 사전 — 제품과 작업 공간](CLE-GLOSSARY-WS.md)) | 소유자 |
+| 소유자 | 워크스페이스 최상위 역할(`owner`, [용어 사전 — 제품과 워크스페이스](CLE-GLOSSARY-WS.md)) | 소유자 |
 | 소유자 | 채팅 채널에서 채널 대화 상태의 `channelUserKey` 와 같은 채널 사용자([용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md)). 메신저 사용자라 워크스페이스 멤버 권한과 관계없다. 채팅 채널 영역 문서는 「실행 소유자」 를 정의한 뒤 단독 「소유자」 로 줄여 쓸 수 있다 | 실행 소유자 |
 | 라벨 · 레이블 | 노드 이름(`Node.label`) | 노드 레이블 |
 | 라벨 · 레이블 | 화면에 보이는 문자열(예: 버튼 라벨) | 라벨 |

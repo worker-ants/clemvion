@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY"
 title: "용어 사전"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "b318cf5b7ef23f772b6e220865bb463791c23966bb0a27e083b1c47dbd54968f"
+content_hash: "6415fc6b589ef25f1920f813b43c9c426591aa584689cb9b594c457d8540a4ac"
 read_as: "approved_fallback"
-task: "CLE-T-649054"
+task: "CLE-T-3E7Q1T"
 source_paths: []
-mirror_sha256: "df073b2219db6619fb3a09f3afcc2e9d85338621a13fe86cbee05bf8ef5fb6cc"
-etag: "sha256-8dffe2103aefe56953cb6e75a6aa384d67c831e6fc7deec54fe2559936ff90b5"
+mirror_sha256: "bbf0aa09ba16c825f0e5ea3fee61b025b8e1bc6c640610b7e81d57189486a904"
+etag: "sha256-2b7cc108b9f27a4ffa548352f2507ded358d8a709765de1fb1913ef8bd286088"
 ---
 ## 개요
 
@@ -54,7 +54,7 @@ etag: "sha256-8dffe2103aefe56953cb6e75a6aa384d67c831e6fc7deec54fe2559936ff90b5"
 
 용어 표는 영역별 하위 문서에 있다. 표는 `표준 용어 · 영문 · 코드 식별자 · 정의 · 쓰지 않는 표기 · 기준 문서` 순서다. "쓰지 않는 표기" 에 괄호로 붙은 조건은 그 뜻일 때만 쓰지 않는다는 뜻이다.
 
-- [용어 사전 — 제품과 작업 공간](CLE-GLOSSARY-WS.md) (`CLE-GLOSSARY-WS`)
+- [용어 사전 — 제품과 워크스페이스](CLE-GLOSSARY-WS.md) (`CLE-GLOSSARY-WS`)
 - [용어 사전 — 워크플로우 작성](CLE-GLOSSARY-WF.md) (`CLE-GLOSSARY-WF`)
 - [용어 사전 — 노드](CLE-GLOSSARY-NODE.md) (`CLE-GLOSSARY-NODE`)
 - [용어 사전 — 실행](CLE-GLOSSARY-EXEC.md) (`CLE-GLOSSARY-EXEC`)
