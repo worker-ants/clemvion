@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-EXEC"
 title: "용어 사전 — 실행"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "dff7cf5ca958f88d945b4dd2a069dbe997a15284a2425f9380810d9e44d6cc88"
+content_hash: "1424b6624d7d7b4ac76bfd01f51a7d6397fbdc4d07630c04c5640bfe90780873"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "254745f6436faf6549a2031ba85743b60b70b690c5b054040dcfc2c761766cde"
-etag: "sha256-421e81fa576214e0189852aaa6efd69a458c0902c63d404f29019c0791dfd995"
+mirror_sha256: "a8dfd1506e82f857b8412710876aabb829129a847bf1cdd22afbf8721866f8f4"
+etag: "sha256-42bbd1699ef99852fab84d53d00393e5e8575b54f85438bd4ae7610d1f98761e"
 ---
 ## 개요
 
@@ -51,8 +51,12 @@ etag: "sha256-421e81fa576214e0189852aaa6efd69a458c0902c63d404f29019c0791dfd995"
 | 재실행 | Re-run | 끝난 실행을 바탕으로 새 실행을 만드는 기능. 원본 실행과 재실행 체인으로 묶인다. | Re-run(본문), 리플레이, replay(이 뜻으로), 다시 실행(기능 이름으로) | [재실행](CLE-EXEC/CLE-EXEC-RERUN.md) |
 | 원본 실행 | `re_run_of` | 재실행이 가리키는 바로 앞 실행. | 없음 | [재실행](CLE-EXEC/CLE-EXEC-RERUN.md) |
 | 재실행 체인 | re-run chain, `chain_id` | 재실행으로 이어진 실행 묶음. 깊이에 상한이 있다. | chain(본문) | [재실행](CLE-EXEC/CLE-EXEC-RERUN.md) |
-| dry-run | dry-run, `dry_run` | 외부 부수효과가 있는 노드를 실제로 부르지 않고 모의 출력으로 대신하는 재실행 모드. | dryRun(본문), 드라이런 | [재실행](CLE-EXEC/CLE-EXEC-RERUN.md) |
-| 부수효과 노드 | `supportsDryRun` | 외부 시스템 상태를 바꿀 수 있어 dry-run 때 모의 출력으로 바꾸는 노드. | 외부 호출 노드 | [재실행](CLE-EXEC/CLE-EXEC-RERUN.md) |
+| dry-run | dry-run, `dry_run` | 부수효과로 판정된 노드 호출과 AI 에이전트 도구 호출을 외부로 보내지 않는 재실행 모드. 노드는 모의 출력을, 도구는 모의 응답을 받는다. 판정 기준은 [재실행 — dry-run 「부수효과 판정」](CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정) 에 있다. | dryRun(본문), 드라이런 | [재실행](CLE-EXEC/CLE-EXEC-RERUN.md) |
+| 부수효과 노드 | `supportsDryRun` | 외부 시스템 상태를 바꿀 수 있어 dry-run 때 외부 호출을 모의 출력으로 대신하는 노드. Database Query 노드는 읽기 동사로 확인된 한 문장만 실제로 실행한다. Cafe24 · MakeShop 노드는 operation 의 HTTP 메서드와 상태를 바꾸는 GET 예외 목록으로 대신할 호출을 고른다. | 외부 호출 노드 | [재실행 — dry-run 「부수효과 판정」](CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정) |
+| 부수효과 도구 | side-effect tool | dry-run 때 외부로 보내지 않고 모의 응답으로 대신하는 AI 에이전트 도구. 외부 MCP 서버의 도구는 늘 부수효과 도구다. Cafe24 · MakeShop 내부 MCP 브리지 도구는 operation 의 HTTP 메서드와 상태를 바꾸는 GET 예외 목록으로 가린다. | 쓰기 도구, 외부 호출 도구 | [재실행 — dry-run 「부수효과 판정」](CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정) |
+| 모의 출력 | dry-run mock, `buildDryRunMock` | dry-run 에서 부수효과 노드가 외부 호출 대신 돌려주는 노드 출력. `output._dryRun` 이 `true` 다. | 없음 | [재실행 — dry-run 「동작」](CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#동작) |
+| 모의 응답 | `buildDryRunMockedToolResult` | dry-run 에서 부수효과 도구를 부르는 대신 LLM 에 돌려주는 도구 결과. status 는 `success` 이고 본문에 `executed: false` 가 있다. | 없음 | [MCP 클라이언트 — dry-run 재실행](CLE-INT/CLE-INT-MCP-DRYRUN.md) |
+| 모의 응답으로 대신한 호출 | mocked tool call | 모의 응답을 받고 외부로 나가지 않은 AI 에이전트 도구 호출. | 건너뛴 호출(이 뜻으로), 모의 처리한 호출 | [MCP 클라이언트 — dry-run 재실행](CLE-INT/CLE-INT-MCP-DRYRUN.md) |
 | 마지막 턴 재시도 | `retry_last_turn` | 재시도 가능한 에러로 끝난 멀티턴 AI 노드의 마지막 LLM 호출을 같은 실행 안에서 다시 돌리는 명령. 재실행과 다르다. | 재진입(단독), replay(이 뜻으로) | [실행 상태 머신과 대기·재개](CLE-EXEC/CLE-EXEC-STATE.md) |
 | 전체 실행 | Run | 에디터에서 워크플로우 전체를 실행하는 기본 방식. | 없음 | [에디터 실행과 디버깅](CLE-EXEC/CLE-EXEC-RUN.md) |
 | 입력과 함께 실행 | Run with Input | 테스트 입력 JSON 을 넣어 실행하는 방식. | Run with Input(본문) | [에디터 실행과 디버깅](CLE-EXEC/CLE-EXEC-RUN.md) |
@@ -91,3 +95,15 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「실행 내역」 의 쓰지 않는 표기 「실행 기록」 에 「화면 이름으로」 조건을 붙였다. 실행 행을 뜻하는 「실행 기록」 은 다른 정의가 쓴다.
 - 「동시 실행 제한」 · 「큐 대기 한도」 · 「실행 시간 한도」 · 「재실행 체인」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).
 - 「실행 상태」 · 「취소 주체」 · 「실행 출처」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다.
+
+### dry-run 용어를 AI 에이전트 도구까지 넓혔다
+
+결정일: 2026-11-20
+
+NERV Task `CLE-T-M6W7RE` 가 고쳤다. 2026-10-23 부터 AI 에이전트 도구도 [부수효과 판정](CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정) 을 받는다. 옛 「dry-run」 · 「부수효과 노드」 정의는 노드만 적어서 도구가 모의 응답을 받는 경우를 담지 못했다.
+
+- 「모의 출력」 과 「모의 응답」 을 나눴다. 모의 출력은 노드 출력(`output`)에 남는다. 모의 응답은 LLM 에 돌려주는 도구 결과 본문에만 있다. 남는 곳이 달라 배지 판정과 실행 기록에서 다르게 보인다.
+- 모의 응답을 받은 도구 호출은 «모의 응답으로 대신한 호출» 하나로 부른다(2026-11-20 사용자 결정). «건너뛴 호출» 은 노드 실행 상태 건너뜀(`skipped`)으로 읽히기 쉽다. 이 호출의 결과 상태는 `success` 다.
+- «쓰기 도구» 는 쓰지 않는다. 판정은 HTTP 메서드와 예외 목록으로 한다. 그래서 상태를 바꾸는 GET 도 부수효과 도구이고 읽기 의도인 POST 도 모의 응답을 받는다.
+- «외부 호출 도구» 도 쓰지 않는다. 읽기로 판정된 도구도 외부를 부른다.
+- 판정 기준은 정의에 줄여 적고 세부는 기준 문서 칸이 가리킨다. 기준이 바뀌면 사전이 뒤처지는 것을 막으려는 것이다(색인 표기 원칙 14 와 같은 이유).

@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-HANDLER"
 title: "통합 노드 공통 — 핸들러 실행 계약"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "492f6f36be34020d2258040fee4a7c66db9d3d3e41d0593b8f94ff7778af8cfb"
+content_hash: "f5d7011184ce3874891fda6d3e70e6e743239d4545cc111baedf13ae8d859232"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "5432b6f71a11dc42ac0b520c175484dc541366e02e1b4033ef25a422b8d9e84d"
-etag: "sha256-968324d324d5d8ca9653fe6878cb791eb0e28d11216949ef21ae6565738d8432"
+mirror_sha256: "f8f2dc8195e58baba7aeda1da08b9120578972a15b79bfe3ced6058ed4fcf3bb"
+etag: "sha256-bf3d52a68f386f7714002d0f097272e5b2a3495cf9eca7c8f8b444287f6a9434"
 ---
 ## 개요
 
@@ -33,7 +33,7 @@ etag: "sha256-968324d324d5d8ca9653fe6878cb791eb0e28d11216949ef21ae6565738d8432"
 | 3. 유형·상태 검증 | `serviceType` 이 노드 기대값과 같은지, `status === 'connected'` 인지 확인한다 |
 | 4. 자격 증명 충족 검증 | 서비스별 필수 필드가 빠지면 `INTEGRATION_INCOMPLETE` |
 | 5. 외부 호출 | 노드마다 정해진 클라이언트로 부른다. HTTP Request 는 `fetch`, Database Query 는 DB 드라이버(`pg`·`mysql2`), Send Email 은 SMTP 라이브러리(`nodemailer`), Cafe24·MakeShop 은 서비스별 API 클라이언트(`Cafe24ApiClient`·`MakeshopApiClient`)를 쓴다 |
-| 6. 활동 로그 기록 | 통합을 얻은 뒤에는 성공·실패와 관계없이 `IntegrationsService.logUsage` 에 얻은 통합과 `{nodeExecutionId, workflowId, status, durationMs, error?, api?}` 를 넘긴다. 노드 취소로 끝난 호출은 성공도 실패도 아니라서 기록하지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md) 규칙 7). 1·2단계에서 끝난 실패(조회 거절, 조회 중 일시 에러, 자격 증명 읽기 실패 포함)는 얻은 통합이 없어 기록하지 않는다. 전체 목록은 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 에 있다 |
+| 6. 활동 로그 기록 | 통합을 얻은 뒤에는 성공·실패와 관계없이 `IntegrationsService.logUsage` 에 얻은 통합과 `{nodeExecutionId, workflowId, status, durationMs, error?, api?}` 를 넘긴다. 노드 취소로 끝난 호출은 성공도 실패도 아니라서 기록하지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md) 규칙 7). 1·2단계에서 끝난 실패(조회 거절, 조회 중 일시 에러, 자격 증명 읽기 실패 포함)는 얻은 통합이 없어 기록하지 않는다. 전체 목록은 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 에 있다. dry-run 재실행의 모의 출력도 외부 호출이 아니라서 기록하지 않는다([재실행 — dry-run 「부수효과 판정」](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)) |
 
 6단계의 `api` 식별 정보(`{ label?, method?, path? }`)는 동반이 의무다. 이 값은 `integration_usage_log.api_label`·`api_method`·`api_path`(`varchar(128)`·`varchar(8)`·`varchar(256)`)에 저장된다. 통합별로 무엇을 채우는지는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](../CLE-INT/CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 이 정하고, 각 노드 문서는 자기 노드의 값만 적는다. 값이 길면 백엔드(`logUsage` 내부)가 컬럼 한도로 자르고 끝에 `…` 를 붙인다(`clampMessage` 패턴). 호출하는 쪽이 직접 자를 필요는 없다.
 

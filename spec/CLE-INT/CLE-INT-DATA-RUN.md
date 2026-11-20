@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-RUN"
 title: "통합 데이터와 흐름 — 실행과 정리 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "eba414243b87e2bd85741c8b4f6d925feb668dbe6267d0de760d512e10a50e16"
+content_hash: "e0501e47e059357a3d43d81e50ff20b449bcb17cb24f4459a822f0a4c5de3415"
 read_as: "approved_fallback"
-task: "CLE-T-BDPE71"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "d29ab14d213a617f6e17990738d8a2a10aee5d7c79a350c47bf40b5cce862ed1"
-etag: "sha256-b46887e0cd59702230d2269ec79c6cdcce63ce33721c80f4faa0f4a6d40be64f"
+mirror_sha256: "34fdb7d08361802db063ea87de018dda8ea07422ead93e696674e29a46d141a8"
+etag: "sha256-6b1ad5e4b86586b75d01cb7cd5df11d81b57d4103ca98c29e68bfea4f2e46879"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -57,7 +57,7 @@ sequenceDiagram
   end
 ```
 
-통합을 얻지 못한 두 갈래(없음 · 다른 워크스페이스 · 사용 판정 거절, 복호화 불가)는 노드 에러로 끝난다. 활동 로그를 쓰지 않고 그 통합의 `last_used_at` · `last_error` 도 바꾸지 않는다. 3단계 검증에서 끝난 실패는 통합을 얻은 뒤라 외부 호출 없이 활동 로그를 남긴다.
+통합을 얻지 못한 두 갈래(없음 · 다른 워크스페이스 · 사용 판정 거절, 복호화 불가)는 노드 에러로 끝난다. 활동 로그를 쓰지 않고 그 통합의 `last_used_at` · `last_error` 도 바꾸지 않는다. 3단계 검증에서 끝난 실패는 통합을 얻은 뒤라 외부 호출 없이 활동 로그를 남긴다. dry-run 재실행의 모의 출력 · 모의 응답은 `logUsage` 를 부르지 않는다. 그래서 활동 로그를 쓰지 않고 `last_used_at` 도 바꾸지 않는다([재실행 — dry-run 「부수효과 판정」](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
 
 - 토큰 만료가 가깝거나 지난 것은 조회 실패 조건이 아니다. Cafe24·MakeShop 클라이언트가 호출 직전에 토큰을 갱신하고, 401 을 받으면 갱신 뒤 다시 시도한다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)).
 - `IntegrationsService.logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다. 활동 로그 행의 `integration_id` 와 통합 행 UPDATE 는 그 통합의 `id` 로 하고 받은 엔티티를 저장하지 않는다. 통합을 얻기 전에 끝난 실행은 넘길 통합이 없어 기록하지 않는다. 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)도 `getForExecution` 이 통합을 돌려주지 않으므로 기록하지 않는다([통합 노드 공통 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05)). 얻기 전에 끝나는 실패의 목록은 [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드) 의 «통합을 얻기 전에 끝난 실행의 기록» 이 정본이다. 서명은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용) 에 있다.

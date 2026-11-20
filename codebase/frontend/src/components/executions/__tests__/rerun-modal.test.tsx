@@ -180,6 +180,22 @@ describe("ReRunModal", () => {
     });
   });
 
+  // dry-run 은 부수효과 호출만 모의 처리하고 읽기 호출은 실제로 보낸다
+  // (CLE-EXEC-RERUN-DRYRUN 「부수효과 판정」). 라벨이 «외부 호출을 모두 건너뛴다» 로
+  // 읽히지 않게 고정한다(CLE-T-X8GPEK).
+  it("dry-run toggle 라벨은 부수효과 호출만 모의 처리한다고 적는다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [{ id: "n1", type: "http-request", category: "integration" }],
+      },
+    });
+    seedDefinitions([def("http-request", "integration", true)]);
+    renderModal();
+    const label = await screen.findByText(/Dry-run mode/);
+    expect(label.textContent).toBe("Dry-run mode (mock side-effect calls)");
+    expect(label.textContent).not.toMatch(/skip/i);
+  });
+
   it("Use original input 토글 ON 시 입력 폼이 read-only(disabled) 된다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-AGENT"
 title: "재실행 — dry-run 의 AI 에이전트 도구"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "e9eafa424a3e26ae48eb3e0d4bc4cbde02883d02bc4ce6c805134e441749f25e"
+content_hash: "81813cf5ef16701e5314b0960b70ea9bb4001c77d9d9ae619ac5e537fdc9412a"
 read_as: "approved_fallback"
-task: "CLE-T-2V3P8D"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "c13c2b97b4cc1d7d0d9fd586a4be7ac661ef69bd7d5e728c064e28357fa318b8"
-etag: "sha256-8371728620a2f85b171a0540d4f729b92e2226b1387a119575257d1adb867fbd"
+mirror_sha256: "f85d6f17d64ea4bf1aa1da5923a986dd6c4bda5696dd97ebfe87b15f738ce702"
+etag: "sha256-41bc8fccb38164b3e00ea6d9fa3534ab4639bfeb440e2e88cb8d6f5e4041a44c"
 ---
 ## 개요
 
@@ -101,7 +101,7 @@ AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([
 - **설명 문구로 탐지하지 않는다(CLE-T-APWJ05)**: operation 설명에서 상태 변경을 찾는 세 번째 테스트 신호는 넣지 않았다. 대신 카탈로그 재생성 절차(`codebase/api-catalogs/README.md`)에 «새 GET 중 설정 변경 후보 확인» 단계를 두어 사람이 새 GET 을 훑는다. 설명 문구 신호도 기존 두 신호(이름 낱말 · `scopeType`)처럼 후보만 잡는 휴리스틱이다. 판정에 쓸 수 없고, 설명은 두 언어로 쓴 자유 서술이라 누락을 막지도 못한다. 카탈로그에 새 GET 이 생기는 때는 카탈로그를 다시 만들 때뿐이다. 그래서 재생성 절차에서 사람이 새 GET 을 확인하면 새 항목을 빠짐없이 볼 수 있다. 2026-10-23 리뷰에서 지금 카탈로그(Cafe24 GET 약 232건, MakeShop GET 81건)를 훑었을 때 빠진 예외는 없었다.
 - **읽기 의도인 POST 는 모의 응답을 받아들였다**: MakeShop `post-cpik_member-check` 처럼 POST 로 조회하는 operation 도 모의 응답을 받는다. 반대 방향 예외 목록(읽기 POST)을 두면 판단이 하나 더 늘고 틀렸을 때 쓰기가 나간다. 재현 충실도가 조금 떨어지는 쪽을 골랐다.
 
-**외부 MCP 도구는 늘 부수효과로 본다**: `tools/call` 은 서버가 무엇을 하는지 알 수 없다. MCP 도구 annotation 의 `readOnlyHint` 는 서버가 스스로 알리는 힌트이고 MCP 명세도 신뢰할 수 없는 서버의 annotation 을 판정 근거로 쓰지 말라고 한다. dry-run 은 사용자가 외부를 바꾸지 않으려고 켜는 안전장치라 틀렸을 때 비용이 큰 쪽을 막는다. [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 가 모호한 쿼리를 읽기로 보는 것은 노드가 직접 파싱한 SQL 이 근거라서다. 외부 MCP 도구에는 그런 근거가 없어 같은 기본값을 쓰지 않았다. 외부 MCP 도구를 도구별로 나누는 정책(예: 신뢰하는 서버의 allow-list)은 필요해지면 따로 결정한다. 그때까지 읽기 전용 외부 MCP 도구도 dry-run 에서 데이터를 받지 못한다.
+**외부 MCP 도구는 늘 부수효과로 본다**: `tools/call` 은 서버가 무엇을 하는지 알 수 없다. MCP 도구 annotation 의 `readOnlyHint` 는 서버가 스스로 알리는 힌트이고 MCP 명세도 신뢰할 수 없는 서버의 annotation 을 판정 근거로 쓰지 말라고 한다. dry-run 은 사용자가 외부를 바꾸지 않으려고 켜는 안전장치라 틀렸을 때 비용이 큰 쪽을 막는다. [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md#dry-run-에서-판정할-수-없는-쿼리는-mock-으로-끝낸다) 도 2026-11-19 부터 판정할 수 없는 쿼리를 부수효과로 본다. 그 노드는 직접 파싱한 SQL 에서 읽기 동사로 확인된 한 문장만 읽기로 본다. 외부 MCP 도구에는 그렇게 확인할 근거가 없어 모든 호출을 부수효과로 본다. 외부 MCP 도구를 도구별로 나누는 정책(예: 신뢰하는 서버의 allow-list)은 필요해지면 따로 결정한다. 그때까지 읽기 전용 외부 MCP 도구도 dry-run 에서 데이터를 받지 못한다.
 
 **활동 로그를 남기지 않는 쪽으로 맞췄다**: 이전에는 Cafe24 노드 dry-run 이 모의 출력을 내면서 활동 로그를 1건 남겼고 도구 경로는 남기지 않았다. 2026-10-23 에 사람이 «둘 다 남기지 않음» 을 골랐다. 활동 로그는 실제로 나간 외부 호출을 적는 기록이고 통합의 활동 탭과 `lastUsedAt` 이 이 기록에서 나온다. 나가지 않은 호출을 적으면 집계가 부풀고 사용자는 dry-run 이 실제로 무엇을 불렀는지 가를 수 없다. [MCP 클라이언트 Rationale](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10) 이 적은 이 1건의 목적(활동 탭 추적)은 요구사항 문서에 근거가 없었다. HTTP Request · Send Email · Database Query 노드의 모의 출력은 처음부터(2026-05-31) 활동 로그를 남기지 않았고 Cafe24 · MakeShop 노드만 달랐다. 모의 실행의 추적은 노드 출력의 `_dryRun` 과 도구 결과 본문의 `executed: false` 가 맡는다.
 
