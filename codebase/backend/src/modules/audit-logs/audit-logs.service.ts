@@ -11,8 +11,9 @@ import type { User } from '../users/entities/user.entity';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** 보존 배치 한 번에 지우는 행 수. 잠금 경합과 WAL 증가를 줄인다. */
-const PRUNE_BATCH = 1000;
-const PRUNE_MAX_BATCHES = 50;
+export const AUDIT_LOG_PRUNE_BATCH = 1000;
+/** 한 번 실행에서 지우는 최대 배치 수. 한 실행의 삭제 상한은 BATCH × MAX_BATCHES 행이다. */
+export const AUDIT_LOG_PRUNE_MAX_BATCHES = 50;
 
 /**
  * `findAll` 이 실제로 내보내는 형태.
@@ -171,12 +172,12 @@ export class AuditLogsService {
   ): Promise<number> {
     const cutoff = new Date(now.getTime() - retentionDays * DAY_MS);
     let total = 0;
-    for (let i = 0; i < PRUNE_MAX_BATCHES; i++) {
+    for (let i = 0; i < AUDIT_LOG_PRUNE_MAX_BATCHES; i++) {
       const sub = this.auditLogRepository
         .createQueryBuilder('al')
         .select('al.id')
         .where('al.created_at < :cutoff', { cutoff })
-        .limit(PRUNE_BATCH);
+        .limit(AUDIT_LOG_PRUNE_BATCH);
 
       const result = await this.auditLogRepository
         .createQueryBuilder()
@@ -188,7 +189,13 @@ export class AuditLogsService {
 
       const removed = result.affected ?? 0;
       total += removed;
-      if (removed < PRUNE_BATCH) break;
+      if (removed < AUDIT_LOG_PRUNE_BATCH) break;
+      if (i === AUDIT_LOG_PRUNE_MAX_BATCHES - 1) {
+        this.logger.warn(
+          `audit_log prune hit the per-run cap (${total} rows); ` +
+            `older rows may remain and are deleted by the next run`,
+        );
+      }
     }
     return total;
   }

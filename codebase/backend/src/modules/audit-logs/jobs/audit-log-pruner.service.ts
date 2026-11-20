@@ -7,10 +7,18 @@ import { PRODUCT_DEFAULT_TIMEZONE } from '../../../common/utils/timezone';
 export const AUDIT_LOG_PRUNER_QUEUE = 'audit-log-pruner';
 export const AUDIT_LOG_PRUNE_JOB = 'prune-audit-log';
 export const AUDIT_LOG_RETENTION_DEFAULT_DAYS = 365;
+/** 보존 일수 상한. 이보다 크면 `now - days * DAY_MS` 가 Date 범위를 벗어나 매일 쿼리가 실패한다. */
+export const AUDIT_LOG_RETENTION_MAX_DAYS = 1_000_000;
+/** 매일 03:30 (`PRODUCT_DEFAULT_TIMEZONE` 기준). */
+export const AUDIT_LOG_PRUNE_CRON = '30 3 * * *';
+/** 완료한 반복 작업 기록을 남기는 기간(초). */
+export const AUDIT_LOG_COMPLETED_JOB_TTL_SEC = 7 * 24 * 60 * 60;
+/** 실패한 반복 작업 기록을 남기는 기간(초). */
+export const AUDIT_LOG_FAILED_JOB_TTL_SEC = 30 * 24 * 60 * 60;
 
 /**
  * `AUDIT_LOG_RETENTION_DAYS` 를 보존 일수로 바꾼다. 값이 없거나 비면 기본값이다.
- * 양의 정수(10진 숫자만)가 아니면 기본값으로 돌아가고 `invalid` 로 알린다. 부팅은 막지 않는다
+ * 양의 정수(10진 숫자만, 상한 `AUDIT_LOG_RETENTION_MAX_DAYS`)가 아니면 기본값으로 돌아가고 `invalid` 로 알린다. 부팅은 막지 않는다
  * ([감사 로그 「감사 로그 보존 배치」](CLE-OBS-AUDIT#감사-로그-보존-배치)).
  */
 export function resolveAuditLogRetentionDays(raw: string | undefined): {
@@ -22,7 +30,11 @@ export function resolveAuditLogRetentionDays(raw: string | undefined): {
     return { days: AUDIT_LOG_RETENTION_DEFAULT_DAYS, invalid: false };
   }
   const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : NaN;
-  if (Number.isSafeInteger(parsed) && parsed > 0) {
+  if (
+    Number.isSafeInteger(parsed) &&
+    parsed > 0 &&
+    parsed <= AUDIT_LOG_RETENTION_MAX_DAYS
+  ) {
     return { days: parsed, invalid: false };
   }
   return { days: AUDIT_LOG_RETENTION_DEFAULT_DAYS, invalid: true };
@@ -62,12 +74,12 @@ export class AuditLogPrunerService extends WorkerHost implements OnModuleInit {
     // process 가 에러를 삼켜 작업은 늘 성공으로 끝나므로 removeOnFail 은 방어용이다.
     await this.queue.upsertJobScheduler(
       `${AUDIT_LOG_PRUNER_QUEUE}-daily`,
-      { pattern: '30 3 * * *', tz: PRODUCT_DEFAULT_TIMEZONE },
+      { pattern: AUDIT_LOG_PRUNE_CRON, tz: PRODUCT_DEFAULT_TIMEZONE },
       {
         name: AUDIT_LOG_PRUNE_JOB,
         opts: {
-          removeOnComplete: { age: 7 * 24 * 60 * 60 },
-          removeOnFail: { age: 30 * 24 * 60 * 60 },
+          removeOnComplete: { age: AUDIT_LOG_COMPLETED_JOB_TTL_SEC },
+          removeOnFail: { age: AUDIT_LOG_FAILED_JOB_TTL_SEC },
         },
       },
     );

@@ -4,6 +4,8 @@ import { getQueueToken } from '@nestjs/bullmq';
 import {
   AUDIT_LOG_PRUNER_QUEUE,
   AUDIT_LOG_RETENTION_DEFAULT_DAYS,
+  AUDIT_LOG_RETENTION_MAX_DAYS,
+  AUDIT_LOG_PRUNE_CRON,
   AuditLogPrunerService,
   resolveAuditLogRetentionDays,
 } from './audit-log-pruner.service';
@@ -33,6 +35,7 @@ describe('resolveAuditLogRetentionDays', () => {
     ['30', 30],
     [' 730 ', 730],
     ['1', 1],
+    [String(AUDIT_LOG_RETENTION_MAX_DAYS), AUDIT_LOG_RETENTION_MAX_DAYS],
   ])('양의 정수 %p 는 그대로 쓴다', (raw, days) => {
     expect(resolveAuditLogRetentionDays(raw)).toEqual({
       days,
@@ -40,15 +43,23 @@ describe('resolveAuditLogRetentionDays', () => {
     });
   });
 
-  it.each(['abc', '0', '-5', '1.5', '1e3', '30d', '00'])(
-    '양의 정수가 아닌 %p 는 기본값으로 돌아가고 invalid 로 알린다',
-    (raw) => {
-      expect(resolveAuditLogRetentionDays(raw)).toEqual({
-        days: 365,
-        invalid: true,
-      });
-    },
-  );
+  it.each([
+    'abc',
+    '0',
+    '-5',
+    '1.5',
+    '1e3',
+    '30d',
+    '00',
+    '99999999999999999999',
+    '9007199254740991',
+    String(AUDIT_LOG_RETENTION_MAX_DAYS + 1),
+  ])('양의 정수가 아닌 %p 는 기본값으로 돌아가고 invalid 로 알린다', (raw) => {
+    expect(resolveAuditLogRetentionDays(raw)).toEqual({
+      days: 365,
+      invalid: true,
+    });
+  });
 });
 
 describe('AuditLogPrunerService', () => {
@@ -87,7 +98,7 @@ describe('AuditLogPrunerService', () => {
     expect(queue.upsertJobScheduler).toHaveBeenCalledTimes(1);
     expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
       'audit-log-pruner-daily',
-      { pattern: '30 3 * * *', tz: 'Asia/Seoul' },
+      { pattern: AUDIT_LOG_PRUNE_CRON, tz: 'Asia/Seoul' },
       expect.objectContaining({ name: expect.any(String) }),
     );
   });
