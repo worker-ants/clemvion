@@ -11,6 +11,7 @@ import {
   resolveLanguageHint,
   applyPlaceholders,
   resolveFormOpenLabel,
+  readLanguageHintOverride,
 } from '../../shared/language-hint-defaults';
 import { decideFormMode, extractFormFields } from '../../shared/form-mode';
 import { findChunkEnd } from '../text-chunk-boundary';
@@ -56,8 +57,10 @@ export function renderSlackEvent(
     case 'execution.completed':
       return [
         textMessage(
-          config.languageHints?.executionCompleted ??
-            '워크플로우가 완료되었습니다.',
+          readLanguageHintOverride(
+            config.languageHints,
+            'executionCompleted',
+          ) ?? '워크플로우가 완료되었습니다.',
         ),
       ];
     case 'execution.failed':
@@ -65,8 +68,10 @@ export function renderSlackEvent(
     case 'execution.cancelled':
       return [
         textMessage(
-          config.languageHints?.executionCancelled ??
-            '워크플로우가 취소되었습니다.',
+          readLanguageHintOverride(
+            config.languageHints,
+            'executionCancelled',
+          ) ?? '워크플로우가 취소되었습니다.',
         ),
       ];
     case 'execution.waiting_for_input':

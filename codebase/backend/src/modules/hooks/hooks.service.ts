@@ -604,7 +604,7 @@ export class HooksService {
       // (escapeControlText 강제 + 발송 실패 swallow). 평문 default 를 넘긴다.
       await this.sendBestEffortNotice(
         update.conversationKey,
-        config.languageHints?.help ??
+        readLanguageHintOverride(config.languageHints, 'help') ??
           '/start - 새 대화 시작\n/cancel - 진행 중인 대화 취소\n/help - 도움말',
         'help',
         config,
@@ -1541,8 +1541,10 @@ export class HooksService {
         // control-plane 직접 발송 — sendBestEffortNotice 단일 chokepoint(escapeControlText 강제).
         await this.sendBestEffortNotice(
           update.conversationKey,
-          config.languageHints?.formValidationFailed ??
-            FORM_VALIDATION_FAILED_DEFAULT,
+          readLanguageHintOverride(
+            config.languageHints,
+            'formValidationFailed',
+          ) ?? FORM_VALIDATION_FAILED_DEFAULT,
           'formValidationFailed',
           config,
           adapter,
@@ -1553,7 +1555,7 @@ export class HooksService {
       // placeholder 안내 발송 (control-plane — sendBestEffortNotice 경유).
       await this.sendBestEffortNotice(
         update.conversationKey,
-        config.languageHints?.formNextField ??
+        readLanguageHintOverride(config.languageHints, 'formNextField') ??
           formNextFieldDefault(formState.currentFieldIdx + 1),
         'formNextField',
         config,
@@ -1695,7 +1697,7 @@ export class HooksService {
     adapter: ChatChannelAdapter,
   ): Promise<void> {
     const text =
-      config.languageHints?.executionStillRunning ??
+      readLanguageHintOverride(config.languageHints, 'executionStillRunning') ??
       '워크플로우가 처리 중입니다. 잠시만 기다려 주세요.';
     await this.sendBestEffortNotice(
       update.conversationKey,

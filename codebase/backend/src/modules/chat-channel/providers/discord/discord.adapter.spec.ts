@@ -112,6 +112,26 @@ describe('DiscordAdapter', () => {
       expect(result.issuedInboundSigning).toBeUndefined();
     });
 
+    // NERV Task `CLE-T-J8M86K` — 빈 slashPrefix 는 「없는 것」 이라 기본 prefix 로 슬래시 명령을 등록한다.
+    it('languageHints.slashPrefix 가 빈 문자열이면 기본 prefix 로 슬래시 명령을 등록한다', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        id: 'A123',
+        name: 'workflow-bot',
+        verify_key: 'pk',
+      });
+      const cmdSpy = jest
+        .spyOn(client, 'putApplicationCommands')
+        .mockResolvedValue([]);
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      await adapter.setupChannel(
+        { ...DISCORD_CONFIG, languageHints: { slashPrefix: '' } },
+        'https://x/hook',
+      );
+      const commands = cmdSpy.mock.calls[0][2] as Array<{ name: string }>;
+      expect(commands[0].name).toBe('workflow');
+    });
+
     // C-11 §3.1: 응답 verify_key 가 등록된 public key 와 불일치하면 BOT_TOKEN_INVALID.
     // 판별자는 **message 접두가 아니라 `code` 프로퍼티**다 (§1.1.2) — 접두는 호출자의
     // 숫자 판별식에 안 걸려 이 실패를 조용히 502 로 보냈다.
@@ -694,6 +714,26 @@ describe('DiscordAdapter', () => {
       expect(modal.data.title).toBe('Form!');
     });
 
+    // NERV Task `CLE-T-J8M86K` — 빈 문자열 덮어쓰기는 「없는 것」 이라 기본 문구로 넘어간다.
+    it('§3.3 title 미지정 + languageHints.formModalTitle 이 빈 문자열 → 기본 "양식"', async () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: {
+          ...DISCORD_CONFIG,
+          languageHints: { formModalTitle: '' },
+        },
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [{ name: 'name', label: 'Name', type: 'text' }],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+      });
+      const modal = result.httpResponse as { data: { title: string } };
+      expect(modal.data.title).toBe('양식');
+    });
+
     it('§3.3 min/max 4000 초과 → 4000 clamp', async () => {
       const adapter = new DiscordAdapter(
         new DiscordClient(),
@@ -809,6 +849,44 @@ describe('DiscordAdapter', () => {
       expect(modal.data.custom_id).toBe('clemvion_reply');
       expect(modal.data.components).toHaveLength(1);
       expect(modal.data.components[0].components[0].custom_id).toBe('message');
+    });
+  });
+
+  // NERV Task `CLE-T-J8M86K` — reply 모달의 빈 replyModalTitle · replyModalLabel 은 기본 문구로 넘어간다.
+  describe('§5.1(b) reply 모달 — languageHints 빈 문자열 덮어쓰기 → 기본 문구', () => {
+    async function openReplyModal(languageHints: Record<string, string>) {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const result = await adapter.openFormModal({
+        config: { ...DISCORD_CONFIG, languageHints },
+        openContext: {
+          interactionId: 'I1',
+          interactionToken: 'tok',
+          modal: 'reply',
+        },
+        fields: [],
+        conversationKey: 'C1',
+        nodeId: '',
+        modalKind: 'reply',
+      });
+      return result.httpResponse as {
+        data: {
+          title: string;
+          components: Array<{ components: Array<{ label: string }> }>;
+        };
+      };
+    }
+
+    it('replyModalTitle 이 빈 문자열이면 기본 제목 "답변"', async () => {
+      const modal = await openReplyModal({ replyModalTitle: '' });
+      expect(modal.data.title).toBe('답변');
+    });
+
+    it('replyModalLabel 이 빈 문자열이면 기본 라벨 "메시지"', async () => {
+      const modal = await openReplyModal({ replyModalLabel: '' });
+      expect(modal.data.components[0].components[0].label).toBe('메시지');
     });
   });
 
