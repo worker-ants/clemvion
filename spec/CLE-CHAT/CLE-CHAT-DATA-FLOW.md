@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-FLOW"
 title: "채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "b51e0e4bd3ead5932f482b8e71de535fd2bfb46db3b130c160456923d23b0d37"
+content_hash: "555101ef937b56211819175ef80c515f6f55d0133c18a96d610e222d11ac93ba"
 read_as: "approved_fallback"
-task: "CLE-T-DV6PN7"
+task: "CLE-T-8A055H"
 source_paths: []
-mirror_sha256: "3d23c92072b77da117ff12fafd3899f85bd5dae9098c39f468b6b8f32586cc81"
-etag: "sha256-34daa9e9f16b4ea69f85938c5f25150af15a0099acc7e6e50cef0549bb86ef5d"
+mirror_sha256: "fe8bfa74c5f1f86b1ad1d608f15f1a5af3c6a2ed536adc28fec4d24bde5746ba"
+etag: "sha256-7ce3401c44a779b829b3fbb3e3697d790cf1c7bbd57c00762b2c89facca1b5a4"
 ---
 ## 개요
 
@@ -62,8 +62,8 @@ sequenceDiagram
       Hk-->>Ext: 202 ignored, 채널 대화 상태와 기존 실행은 그대로
       Note over Hk,Ext: 이 분기도 여기서 끝난다. ackDroppedUpdate 를 부르고 ackInteraction 과 아래 응답으로 가지 않는다
     else 워크플로우가 활성
+      Note over Hk,R: 시작 잠금을 못 잡으면 202 ignored
       opt 활성 실행이 있는 대화의 /start
-        Note over Hk,R: 시작 잠금을 못 잡으면 202 ignored
         Hk->>X: stop(기존 실행)
       end
       Hk->>Eng: execute(workflowId, chatChannel 입력)
@@ -96,7 +96,7 @@ sequenceDiagram
 | `open_form_modal` | 채널 대화 상태의 `pendingFormModal.fields` 와 프로바이더 openContext 로 `adapter.openFormModal`. Discord 는 웹훅 HTTP 응답 본문으로 모달을 돌려준다. `channelUserKey` 가 다르면 거부한다(그룹 안 가로채기 방어) |
 | `form_submission` | 대화 단위 Redis 잠금(`SET NX EX 30`)을 잡고 필드 허용 목록 필터와 클라이언트 쪽 검증을 한 뒤 `interact(submit_form)`. 성공하면 `pendingFormModal` 을 지운다. 실패하면 "양식 작성하기" 버튼을 다시 보내고 `pendingFormModal` 은 둔다. 재개 명령을 재개 큐에 넣지 못했을 때도 `pendingFormModal` 을 두고 버튼을 다시 보낸다. 그때의 HTTP 응답은 표 아래에 있다 |
 | `start`(활성 실행) | 워크플로우가 비활성이면 아무것도 바꾸지 않고 `202 ignored` 로 끝낸다. 활성이면 대화 단위 시작 잠금(`cc:startlock`)을 잡고 기존 실행을 `executionsService.stop` 으로 취소하고(이미 끝났거나 없으면 취소 없이 진행) 새 대화와 같이 `execute()` 한 뒤 채널 대화 상태를 새 실행으로 다시 저장한다(`startedAt` 은 그대로). 취소가 그 밖의 에러로 실패하면 그 update 의 `cc:dedup:` 키를 지우고 새 실행 없이 그 에러로 응답한다([채팅 채널](CLE-CHAT-CORE.md)). 잠금을 못 잡았거나 다시 읽은 대화가 다른 실행으로 이어졌으면 아무것도 바꾸지 않고 `202 ignored` 로 끝낸다([R-CC-38](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)) |
-| 새 대화(그 밖) | 워크플로우가 비활성이면 실행 없이 `202 ignored` 로 끝내고 채널 대화 상태와 채널 건강도를 바꾸지 않는다([채팅 채널](CLE-CHAT-CORE.md)). 활성이면 `execute()` 와 채널 대화 상태 저장. 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 `202 ignored` 로 끝낸다. 채널 대화 상태는 저장하지 않는다([채팅 채널](CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」) |
+| 새 대화(그 밖) | 워크플로우가 비활성이면 `202 ignored` 로 끝내고 채널 대화 상태와 건강도를 바꾸지 않는다. 활성이면 `start` 행과 같이 시작 잠금을 잡고 `execute()` 와 채널 대화 상태 저장. 잠금을 못 잡았거나 다른 실행으로 이어졌으면 `executionStillRunning` 안내 뒤 `202 ignored`. 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 `202 ignored` 로 끝낸다. 채널 대화 상태는 저장하지 않는다([채팅 채널](CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다)) |
 
 활성 실행으로 가는 재개 명령(`submit_message`·`click_button`·`submit_form`)을 재개 큐에 넣지 못하면(`queued:false`) 내부 신뢰 호출이라 `503` 이 나지 않는다. 이때 `HooksService` 는 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 warn 로그를 쓴 뒤 `202` 로 답한다. 인터랙션이면 `200` 과 그 어댑터의 기본 응답이다. 고정 문구는 `/cancel` 의 큐 적재 실패와 같다. 입력이 실행에 닿지 않았으므로 실행은 입력 대기에 그대로 남는다. 사용자가 같은 입력을 다시 보내면 새 update 로 들어와 다시 처리된다. 규칙은 [채팅 채널](CLE-CHAT-CORE.md) 과 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다.
 
@@ -117,7 +117,7 @@ sequenceDiagram
 **참조가 없는 행이 생기는 길**: 운영 DB 에 이런 행이 실제로 있는지는 재지 않았다.
 
 - 지금의 참조 보존 규칙이 생기기 전에 만들거나 고친 옛 행. 예를 들어 `chatChannel` 이 실린 PATCH 가 Slack · Discord 행의 `inboundSigningRef` 를 잃던 결함을 고치기 전에 그 PATCH 를 거친 행이다(`chat-channel-binder.service.ts` 의 참조 보존 주석).
-- 원시 `config` 로 `chatChannel` 을 붙인 행. 생성 · 수정은 요청 본문의 최상위 필드 `chatChannel` 이 있을 때만 `setupChatChannel` 을 부르므로 이 길로 붙인 설정에는 참조가 실리지 않았다. 원시 `config` 는 이제 `chatChannel` 키를 받지 않으므로 이 길로는 새 행이 생기지 않는다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 행은 남는다.
+- 원시 `config` 로 `chatChannel` 을 붙인 행. 생성 · 수정은 타입 필드 `chatChannel` 이 있을 때만 `setupChatChannel` 을 부르므로 이 길로 붙인 설정에는 참조가 실리지 않았다. 원시 `config` 는 이제 `chatChannel` 키를 받지 않으므로 이 길로는 새 행이 생기지 않는다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 이미 저장된 행은 남는다.
 - Telegram 생성에서 `setupChannel()` 이 실패한 행. 이 길은 가설이다. Telegram 의 서명 자료는 사용자에게 받지 않고 `setupChannel()` 이 발급한 값만 저장한다. 코드를 읽으면 생성 때 `setupChannel()` 이 실패해 `degraded` 로 저장되는 행에는 참조가 실리지 않는다. 테스트로 확인하지 않았고 이런 행의 수도 재지 않았다.
 
 Slack · Discord 는 생성 때 서명 자료(`inboundSigningPlaintext`)를 필수로 받고 `setupChannel()` 앞에서 시크릿 저장소에 넣는다. 그래서 지금 생성 경로에서는 `setupChannel()` 의 성공 여부와 상관없이 참조가 실린다.

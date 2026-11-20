@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-STORE"
 title: "채팅 채널 데이터와 흐름 — 저장 모델과 상태"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "e326b0c4781206d9072ce8be5105f0500bb96a9c7c3f9e692f9a46a839659162"
+content_hash: "de7bcdbac6dd9e28ce73fb880aa96e4610c477671fba9b83f1337361d8edca62"
 read_as: "approved_fallback"
-task: "CLE-T-SKZABF"
+task: "CLE-T-8A055H"
 source_paths: []
-mirror_sha256: "3265a9fab1baa59fdccae219bdaebddc7e66df1d9924f18304644a565ee71581"
-etag: "sha256-a840f16f0dbf2d429315a75103cc96156d8ab844142343424d63f0c34bbc9a0f"
+mirror_sha256: "c7b7f1144982838f2b5851859104b304894ebc1956f2940cbbf898cbd6a9d0c0"
+etag: "sha256-bbb2cce7c86c9f9731cd18a2d943b08953f0dccb7de4c53233c4689665b7e46e"
 ---
 ## 개요
 
@@ -83,7 +83,7 @@ TTL: 7일(저장할 때마다 다시 건다)
 |---|---|---|---|
 | `chat-channel:{triggerId}:{conversationKey}` | `HooksService`(저장, `/cancel` 의 `executionId` 정리), `ChatChannelDispatcher`(그 실행을 가리킬 때만 `pendingFormModal`·`formState` 갱신, 종결 이벤트의 `executionId` 정리) | 양쪽 조회 | 채널 대화 상태 JSON. TTL 7일(저장마다 갱신). Redis 가 없으면 기능을 낮춘다. `executionId` 를 비우는 쓰기와 dispatcher 의 Form 입력 대기 갱신은 compare-and-set 이다([아웃바운드 흐름](CLE-CHAT-DATA-FLOW.md#아웃바운드-흐름)) |
 | `chat-channel-lock:{triggerId}:{conversationKey}:formsubmit` | `form_submission` 처리(`SET NX EX 30`) | 같다 | 네이티브 모달 중복 제출 방지 잠금. Lua 로 소유권을 확인하고 푼다. Redis 가 없으면 통과 |
-| `cc:startlock:{triggerId}:{conversationKey}` | `HooksService` 의 `/start` 처리(`SET NX EX 30`, `ChannelConversationService.acquireLock(…, 'start')`) | 같다 | 같은 대화의 `/start` 를 직렬화하는 시작 잠금. 기존 실행 취소 · 새 실행 시작 · 대화 상태 저장을 감싼다. 못 잡으면 그 `/start` 를 버린다. 토큰은 요청마다 무작위 UUID 이고 폼 제출 잠금과 같은 Lua 로 소유권을 확인하고 푼다. TTL 30초. 잠금 구간은 웹훅 응답 전에 끝나고 프로세스가 잠금을 쥔 채 죽어도 30초 뒤 풀린다. Redis 가 없거나 오류면 통과(fail-open)하고 지표 `recordRedisFailOpen('chat_conversation', 'lock_failed' \| 'unlock_failed')` 로 센다. 근거는 [채팅 채널 — 처리 흐름과 대화 「R-CC-38 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다」](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다 |
+| `cc:startlock:{triggerId}:{conversationKey}` | `HooksService` 의 새 실행 시작 입력 처리(`/start` 와 활성 실행이 없는 대화의 일반 입력. `SET NX EX 30`, `ChannelConversationService.acquireLock(…, 'start')`) | 같다 | 같은 대화의 새 실행 시작 입력을 직렬화하는 시작 잠금. `/start` 와 일반 입력이 같은 키 · 같은 용도로 잡으므로 둘이 겹쳐도 직렬화된다. 기존 실행 취소 · 새 실행 시작 · 대화 상태 저장을 감싼다. 못 잡거나 잠금 뒤 다시 읽은 대화가 다른 실행을 가리키면 그 입력을 버린다(`/start` 는 안내 없이, 일반 입력은 `executionStillRunning` 안내 뒤). 토큰은 요청마다 무작위 UUID 이고 폼 제출 잠금과 같은 Lua 로 소유권을 확인하고 푼다. TTL 30초. 잠금 구간은 웹훅 응답 전에 끝나고 프로세스가 잠금을 쥔 채 죽어도 30초 뒤 풀린다. Redis 가 없거나 오류면 통과(fail-open)하고 지표 `recordRedisFailOpen('chat_conversation', 'lock_failed' \| 'unlock_failed')` 로 센다. 근거는 [채팅 채널 — 처리 흐름과 대화 「R-CC-38 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다」](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다 |
 | `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`), `/start` 의 기존 실행 취소 실패 때 `ChatChannelDedupService.release`(값이 그 요청의 토큰일 때만 지운다) | 같다(반환값이 곧 판정) | 인바운드 중복 제거([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. 값은 요청마다 만든 무작위 UUID 토큰이다. TTL 30초. Redis 가 없으면 통과하고 warn. `/start` 의 기존 실행 취소가 실패해 에러로 응답할 때는 그 요청이 잡은 선점을 풀어 프로바이더의 재전송을 받는다. 해제는 시작 잠금과 같은 Lua 로 값이 그 요청의 토큰일 때만 지운다. 지우지 못하면 warn 을 남기고 지표 `recordRedisFailOpen('chat_dedup', 'del_failed')` 로 센 뒤 TTL 로 풀린다. 새 실행 시작(`execute()`)이 실패하면 `202` 로 답해 재전송이 없으므로 풀지 않는다. 근거는 [Rationale](#rationale) 의 「중복 제거 선점은 그 요청의 토큰일 때만 푼다」 에 있다. `/cancel` 의 취소나 재개 명령을 재개 큐에 넣지 못했을 때는 `202` 로 답하므로 키를 지우지 않는다([Rationale](CLE-CHAT-DATA-FLOW.md#rationale) 의 「`/cancel` 과 재개 명령의 큐 적재 실패에서 중복 제거 키를 지우지 않는다」) |
 | `cc:rl:{triggerId}:{conversationKey}` | `ChatChannelRateLimiterService.consume`(`INCR`+`EXPIRE NX` 를 한 pipeline 으로) | 같다 | 대화 단위 분당 한도([채팅 채널 「비기능」](CLE-CHAT-CORE.md#비기능)). TTL 60초(fixed-window). 넘치면 건너뛰고 `degraded`. Redis 가 없으면 통과 |
 | `cc:sigfail:{triggerId}:{clientIp}` | `ChatChannelSignatureFailureLimiterService.recordFailure`(Lua 스크립트 하나로 `INCR` 과 TTL 확인을 함께 한다). `ChatChannelInboundAuthenticator.verify` 가 서명 검증이 `UnauthorizedException`(401)으로 실패했을 때만 부른다 | `ChatChannelSignatureFailureLimiterService.isBlocked`(`GET`). 같은 `ChatChannelInboundAuthenticator.verify` 가 서명 검증 앞에서 부른다 | 인바운드 서명 검증 실패 한도([채팅 채널 「서명 검증 실패 한도」](CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도), NERV Task `CLE-T-ZC34Y0`). (트리거, 클라이언트 IP) 쌍마다 센다. 첫 실패이거나 TTL 이 없는 키면 60초 TTL 을 건다. 이미 TTL 이 있으면 늘리지 않는다(fixed-window). 값이 20 이상이면 창이 끝날 때까지 그 쌍의 요청에 시크릿 조회와 서명 계산 없이 `401`(`AUTH_FAILED`)로 답한다. 한도에 닿으면 창마다 warn 로그를 한 번 남긴다. 이 로그에는 트리거 id 만 싣고 IP 는 싣지 않는다. 막힌 요청은 세지 않으므로 창이 늘어나지 않는다. 서명이 맞는 요청과 401 이 아닌 오류도 세지 않는다. 클라이언트 IP 는 `extractUnspoofableClientIp` 로 `CF-Connecting-IP`(신뢰 설정일 때), `req.ip` 순서로 읽는다. `X-Forwarded-For` 첫 값은 쓰지 않는다. IP 를 읽지 못하면 세지도 막지도 않는다. Redis 가 없거나 오류면 막지 않는다(fail-open). 오류는 warn 로그로 남긴다 |
