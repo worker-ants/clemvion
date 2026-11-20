@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-ERROR"
 title: "통합 노드 공통 — 에러 코드와 사설망 차단"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "dcf387d01c7a92f25e44b31f0cbfb8e5786c79b4368da16a652b7680117b9aca"
+content_hash: "4f75b27d7ce4025e8c0843df145d1f3fd1867c9766ddd69d399fc77d356ee135"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-PT5YB5"
 source_paths: []
-mirror_sha256: "8dc33bb99848cf9c769f213fb42e462552edb587c1d911cc2f6981ab13353ac5"
-etag: "sha256-b590cd4b80711aaf14cbef9291e7c27fea3655ee3e9cff1d31ebc2ab2cb32d28"
+mirror_sha256: "e53fb7f37a21daf6914ce152132305521475b4d96bf9c2583994f6ff66380d70"
+etag: "sha256-fc0ce18ed82816b06159723064d2da13deae1de0d0a2b9f615dac3242abdc380"
 ---
 ## 개요
 
@@ -27,7 +27,7 @@ etag: "sha256-b590cd4b80711aaf14cbef9291e7c27fea3655ee3e9cff1d31ebc2ab2cb32d28"
 | `INTEGRATION_TYPE_MISMATCH` | 참조한 통합의 `serviceType` 이 노드 기대 유형과 다르다. `assertUsable` 이 `IntegrationError` 를 던진다 |
 | `INTEGRATION_NOT_CONNECTED` | 통합 상태가 `connected` 가 아니다(`expired`, `error`, `pending_install`). `assertUsable` 이 `IntegrationError` 를 던진다 |
 | `INTEGRATION_INCOMPLETE` | credentials JSONB 에 서비스별 필수 필드가 없다. 각 핸들러가 자격 증명을 검증할 때 `IntegrationError` 를 던진다 |
-| `INTEGRATION_CALL_FAILED` | 분류되지 않은 그 밖의 실패. `IntegrationError` 가 아닌 예외의 기본 코드다(`toLogError` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 자체의 고장)도 이 코드로 나온다. 노드마다 시점 차이가 있다(HTTP Request 는 preflight 와 리다이렉트 홉이 다르다) |
+| `INTEGRATION_CALL_FAILED` | 분류되지 않은 그 밖의 실패. `IntegrationError` 가 아닌 예외의 기본 코드다(`toLogError` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 자체의 고장)도 이 코드로 나온다. HTTP Request 는 preflight 와 리다이렉트 홉에서 모두 이 코드를 낸다([사설망 차단](#사설망-차단)) |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입 또는 workspace context 누락(배포 구성 에러). 에러 포트로 내보낸다 |
 
 - **통합이 없거나 다른 워크스페이스 소속일 때**: `IntegrationsService.getForExecution` 안의 `requireEntity` 가 `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 던진다. 이 예외는 `IntegrationError` 가 아니므로 전용 코드로 보존되지 않는다. 대부분의 노드는 `INTEGRATION_CALL_FAILED` 로, Send Email 노드는 `EMAIL_SEND_FAILED` 로 내보낸다. 별도의 `INTEGRATION_NOT_FOUND` 코드는 현재 코드에 없다(`integrations.service.ts` `requireEntity`, `_base/integration-handler-base.ts` `toLogError`).
@@ -66,12 +66,21 @@ etag: "sha256-b590cd4b80711aaf14cbef9291e7c27fea3655ee3e9cff1d31ebc2ab2cb32d28"
 | Database Query | `credentials.host` | 자격 증명 충족 검증 직후, 풀 연결 전 | `DB_HOST_BLOCKED` |
 | Send Email | `credentials.host` (SMTP 호스트) | 통합 조회 직후, SMTP 발송 전 | `EMAIL_HOST_BLOCKED` |
 
-- 막는 대역은 loopback, RFC1918 사설 대역, link-local, CGNAT, IPv6 link-local·ULA 다. 호스트 이름은 DNS 로 해석한 뒤 IP 를 다시 검사한다(DNS rebinding 방어, `assertSafeOutboundHostResolved`). HTTP Request 는 그 전에 호스트 리터럴도 검사한다(`assertSafeOutboundUrl`).
-- DNS rebinding 방어의 범위는 노드마다 다르다. 위 검사는 연결 전에 한 번 푼 결과를 본다. HTTP Request 와 HTTP 통합 연결 테스트는 요청이 연결할 때 푼 주소도 같은 대역으로 다시 판정한다(`safeOutboundDispatcher`). 그래서 검사와 연결 사이에 DNS 응답이 바뀌어도 막힌 대역에 연결하지 않는다([HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) 8단계). Database Query · Send Email 은 연결 시점 판정이 없어서 검사와 연결 사이의 응답 변경은 egress 방화벽으로 막아야 한다. 외부 MCP 서버의 연결 시점 판정은 [MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md), LLM 엔드포인트의 한계는 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) 가 정한다.
+- 막는 대역은 네 SSRF 가드가 함께 쓰는 공용 표(`common/utils/ssrf/ip-classifier.ts`) 하나로 정한다. 네 가드는 통합 노드(`common/utils/ssrf/outbound-guard.ts`), 알림 웹훅, 외부 MCP 서버, LLM 엔드포인트다. 가드마다 다른 것은 우회 플래그 · 막는 호스트 이름 · 오류 문구다.
+  - IPv4: `0.0.0.0/8`, RFC1918(`10.0.0.0/8` · `172.16.0.0/12` · `192.168.0.0/16`), CGNAT `100.64.0.0/10`, loopback `127.0.0.0/8`, link-local `169.254.0.0/16`(클라우드 메타데이터 포함), `192.0.0.0/24`, `198.18.0.0/15`, 멀티캐스트 `224.0.0.0/4`, 예약 `240.0.0.0/4`.
+  - IPv6: 미지정 주소 `::` 와 loopback `::1`, link-local `fe80::/10`, ULA `fc00::/7`, 옛 site-local `fec0::/10`, 멀티캐스트 `ff00::/8`, NAT64 로컬 용도 `64:ff9b:1::/48`.
+  - IPv4 를 품은 IPv6 표기(IPv4-mapped · IPv4-compatible · SIIT · NAT64 `64:ff9b::/96` · 6to4 `2002::/16`)는 품은 IPv4 를 위 IPv4 표로 판정한다. 정규화하지 못하는 IPv6 리터럴은 막는다.
+- 호스트 이름은 DNS 로 해석한 뒤 IP 를 다시 검사한다(DNS rebinding 방어, `assertSafeOutboundHostResolved`). HTTP Request 는 그 전에 호스트 리터럴도 검사한다(`assertSafeOutboundUrl`).
+- DNS rebinding 방어의 범위는 경로마다 다르다. 위 검사는 연결 전에 한 번 푼 결과를 본다. 연결 시점 판정은 요청이 연결할 때 푼 주소를 같은 대역표로 다시 판정한다. 그래서 검사와 연결 사이에 DNS 응답이 바뀌어도 막힌 대역에 연결하지 않는다. 이 판정이 있는 경로는 다음과 같다.
+  - HTTP Request 와 HTTP 통합 연결 테스트(`safeOutboundDispatcher`, [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) 8단계)
+  - 외부 MCP 서버([MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md))
+  - 알림 웹훅. DNS 가드 플래그가 켜져 있을 때만 판정한다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md))
+  - LLM 엔드포인트의 OpenAI · Azure OpenAI · Cohere 리랭크 호출([LLM 클라이언트 「SSRF 가드」](../CLE-AI/CLE-AI-LLM.md#ssrf-가드))
+- Database Query · Send Email 은 아직 연결 전 사전 검사만 한다. 검사와 연결 사이의 응답 변경은 egress 방화벽으로 막아야 한다. 이유는 [Rationale 「Database Query · Send Email 에는 연결 시점 판정을 아직 넣지 않는다」](#database-query--send-email-에는-연결-시점-판정을-아직-넣지-않는다-2026-11-20) 에 있다.
 - 기본은 차단이다(secure-by-default). 셀프 호스팅에서 내부 DB·on-prem API·내부 SMTP relay 같은 사설망 대상을 정당하게 불러야 할 때만 사설망 허용 플래그 `ALLOW_PRIVATE_HOST_TARGETS=true` 를 켠다. 외부 egress 방화벽이 있다는 전제다.
 - 세 노드는 이 플래그 하나를 함께 쓴다. AI 에이전트의 외부 MCP 서버는 별도 정책(`MCP_ALLOW_INSECURE_URL`)을 따른다. [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)에서 정한다.
 - MakeShop 노드는 호출 호스트가 `connect.makeshop.co.kr` 하나로 고정돼 사용자 입력이 호스트를 정하지 않는다. 그래서 이 가드를 쓰지 않고 `shop_uid` 형식 검증으로 경로 주입을 막는다([MakeShop 노드](CLE-NODE-MAKESHOP.md)).
-- 차단 코드는 차단 판정(`SsrfBlockedError`)에만 쓴다. 가드가 판정이 아닌 오류를 던지면(예: DNS 해석기가 낸 예기치 않은 예외) `INTEGRATION_CALL_FAILED` 로 내보낸다. HTTP Request 의 리다이렉트 홉에서 같은 고장이 나면 `HTTP_TRANSPORT_FAILED` 가 된다. 두 시점의 코드를 통일할지는 [HTTP Request 노드](CLE-NODE-HTTP.md)의 미결 사항이다. Send Email 노드는 `IntegrationError` 가 아닌 실패를 모두 `EMAIL_SEND_FAILED` 로 흡수하므로 `INTEGRATION_CALL_FAILED` 를 출력하지 않는다.
+- 차단 코드는 차단 판정(`SsrfBlockedError`)에만 쓴다. 가드가 판정이 아닌 오류를 던지면(예: DNS 해석기가 낸 예기치 않은 예외) 가드의 고장으로 보고 분류되지 않은 실패 코드로 내보낸다. HTTP Request · Database Query 노드는 `INTEGRATION_CALL_FAILED`, HTTP 통합 연결 테스트는 `HTTP_CONNECT_FAILED`, Database 연결 테스트는 `DB_CONNECT_FAILED` 를 낸다. 메시지는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남긴다. HTTP Request 노드는 preflight 와 리다이렉트 홉에서 같은 코드와 문구를 낸다. Send Email 노드는 `IntegrationError` 가 아닌 실패를 모두 `EMAIL_SEND_FAILED` 로 흡수하므로 `INTEGRATION_CALL_FAILED` 를 출력하지 않는다.
 - 위 규칙의 예외가 하나 있다. HTTP Request 노드는 통합 인증에서 리다이렉트를 5홉 넘게 따라가야 하면 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 메시지는 차단 판정과 같은 일반화 문구다. 사람이 2026-11-14 에 이 예외를 받아들이기로 정했다. 이 예외는 그 경우에만 쓰고 다른 실패로 넓히지 않는다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md) Rationale 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」 에 있다.
 - 클라이언트에 나가는 `output.error.message` 에는 차단된 호스트나 IP 를 넣지 않는다. 일반화된 문구만 쓴다(내부망 정찰 방지, CWE-209). 원본 상세를 어디에 남기는지는 정의가 갈린다. [미결 사항](CLE-NODE-INT-COMMON.md#미결-사항) 참조.
 
@@ -85,11 +94,24 @@ HTTP Request·Database Query·Send Email 노드는 노드별 플래그를 새로
 
 막힌 적 없는 요청을 "막혔다" 고 보고하면 없는 사실을 사용자에게 알리고 활동 로그에도 남기게 된다. 그래서 가드 자체의 고장은 차단 코드가 아니라 분류되지 않은 실패(`INTEGRATION_CALL_FAILED`)로 내보낸다.
 
+전에는 HTTP Request 노드의 리다이렉트 홉에서 난 고장이 `HTTP_TRANSPORT_FAILED` 로 나가 preflight 와 코드가 달랐다. 2026-11-20 NERV Task `CLE-T-E991S1` 에서 두 시점을 `INTEGRATION_CALL_FAILED` 로 맞췄다. 같은 Task 에서 고장 메시지를 고정 문구 `The outbound address check failed.` 로 바꿨다. 고장 원문에는 해석기가 낸 호스트나 IP 가 들어갈 수 있어서 차단 판정의 메시지와 같은 규칙(CWE-209)을 따른다. Database Query 노드와 HTTP · Database 연결 테스트도 같은 문구를 쓴다.
+
 HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외다. 판정 없이 `HTTP_BLOCKED` 를 낸다. 2026-11-13 에 지금 동작을 그대로 적었고, 2026-11-14 에 NERV Task `CLE-T-43KCNP` 에서 사람이 전용 코드를 만들지 않고 받아들인 예외로 두기로 정했다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) Rationale 에 있다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `HTTP_BLOCKED` 행에는 NERV Task `CLE-T-6G3084` 가 이 예외를 적었다.
 
 ### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다 (2026-11-14)
 
-NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. NERV Task `CLE-T-NESSYD` 에서 HTTP 통합 연결 테스트도 HTTP Request 와 같은 판정 dispatcher 를 쓰게 했다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
+> 2026-11-20 NERV Task `CLE-T-753725` 에서 네 가드의 대역표를 공용 표(`common/utils/ssrf/ip-classifier.ts`) 하나로 합쳤다. 우회 플래그는 지금도 경로마다 다르다. 같은 날 NERV Task `CLE-T-PT5YB5` 가 LLM 호출에도 같은 헬퍼로 연결 시점 판정을 넣었다. 아래는 결정 당시 기록이다.
+
+NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. NERV Task `CLE-T-NESSYD` 에서 HTTP 통합 연결 테스트도 HTTP Request 와 같은 판정 dispatcher 를 쓰게 했다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. 그 결정 뒤 2026-11-20 에 대역표는 공용 판정(`codebase/backend/src/common/utils/ssrf/ip-classifier.ts`)으로 합쳤다(NERV Task `CLE-T-753725` · `CLE-T-63RSH6`). 우회 플래그는 합치지 않았다. 근거는 [대역표를 SSRF 가드 넷이 함께 쓴다 (2026-11-20)](../CLE-INT/CLE-INT-MCP-CONN.md#대역표를-ssrf-가드-넷이-함께-쓴다-2026-11-20) 에 있다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
+
+### Database Query · Send Email 에는 연결 시점 판정을 아직 넣지 않는다 (2026-11-20)
+
+NERV Task `CLE-T-PT5YB5` 에서 연결 시점 판정이 없던 경로(LLM · Database Query · Send Email)의 범위를 정했다. 2026-11-20 에 사람이 LLM 의 OpenAI · Azure OpenAI · Cohere 리랭크 호출에만 넣고 Database Query · Send Email 은 미루기로 정했다.
+
+- 드라이버마다 소켓을 바꿀 길은 있다. pg · mysql2 는 `stream` 팩토리를, nodemailer 는 `getSocket` 훅을 받는다(2026-11-20 로컬 설치본 pg 8.22 · mysql2 3.23 · nodemailer 9.0 기준). 그런데 소켓을 바꾸면 TLS 래핑과 연결 풀 동작을 다시 검증해야 해서 경로마다 작업이 크다.
+- nodemailer 는 `dns.resolve4` · `dns.resolve6` 을 먼저 쓰는 자체 해석을 한다. 공용 헬퍼(`createGuardedLookupDispatcher`)는 OS 해석기(getaddrinfo)로 푼 주소를 판정하므로 해석 경로가 다르다.
+- 그동안은 연결 전 사전 검사(`assertSafeOutboundHostResolved`)와 egress 방화벽으로 보완한다.
+- 후속 Task 는 경로마다 하나다. Database Query 는 NERV Task `CLE-T-691T4G`, Send Email 은 NERV Task `CLE-T-PTCRM4` 다.
 
 ### 거절된 조회는 임시 장치로 건너뛴다 (2026-10-25)
 

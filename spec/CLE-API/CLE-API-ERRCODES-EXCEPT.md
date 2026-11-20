@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXCEPT"
 title: "에러 코드 — 예외 · 내부 분류 · 은퇴 코드"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "7172961392c674247d498aa47df4de84545d966bac7f52e692a4babfb29d126f"
+content_hash: "67fd101b26af20b1a5ee680f51e6e962e061fac6c750101c2395a86adc9af02a"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-DDN3MS"
 source_paths: []
-mirror_sha256: "b19a193430dd80f748adce2eb6054c233bc4e344d58664bd1a600f516cdf22ec"
-etag: "sha256-21502d2326aa7a3ff73e2ddf1f14eb3af07663ef461546f28ffed91b614df2a6"
+mirror_sha256: "f789a471984982edaa763ae9ab0ceb4d0c7db520ef4c40fc5c6271aebdc402f3"
+etag: "sha256-3a45297d75dd89ea79eaa35421b9eb26d1d846872b7d359393866f20e9d0ded6"
 ---
 ## 개요
 
@@ -33,7 +33,7 @@ etag: "sha256-21502d2326aa7a3ff73e2ddf1f14eb3af07663ef461546f28ffed91b614df2a6"
 | `CAFE24_404` · `CAFE24_422` · `CAFE24_4XX` · `CAFE24_5XX` · `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX` | 없음 (노드 `output.error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 번호를 적는다(규칙 1). 노드 출력 값이라 워크플로우가 이 값으로 분기할 수 있고 바꾸면 호환이 깨진다(§2) | Cafe24 · MakeShop API 가 2xx 가 아닌 상태로 답했다. `*_404` · `*_422` 는 그 상태이고 `*_5XX` 는 500~599, `*_4XX` 는 그 밖의 4xx 다. 401 · 403 · 429 는 API 클라이언트가 먼저 처리해 인증 실패 · 빈도 제한 코드가 된다(§6.22). AI 에이전트 도구 호출에서는 이 코드를 도구 결과에 싣지 않고 `mcpDiagnostics.errors[].code` 와 활동 로그, 통합 `last_error.code` 에 남긴다 | [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `HTTP_4XX` · `HTTP_5XX` | 없음 (노드 `output.error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 범주를 적는다(규칙 1). `HTTP_4XX` 는 이름과 달리 따라가지 않은 3xx 도 담는다. 노드 출력 값이라 워크플로우가 이 값으로 분기할 수 있고 바꾸면 호환이 깨진다(§2) | HTTP Request 노드가 받은 응답이 2xx 가 아니다. 상태가 500 이상이면 `HTTP_5XX`, 그 밖(3xx · 4xx)은 `HTTP_4XX` 다. 상태 번호는 `output.error.details.statusCode` 에 있다. 같은 실패의 활동 로그와 통합 `last_error.code` 에는 아래 `HTTP_{status}` 가 남는다 | [HTTP Request 노드 — 출력과 에러 「에러 코드」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#에러-코드) |
 | `HTTP_{status}` (예: `HTTP_404` · `HTTP_502`) | 없음 (통합 활동 로그 `error.code` · 통합 `last_error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 번호를 적는다(규칙 1). 활동 로그 API(`GET /api/integrations/:id/activity`)와 통합 `last_error.code` 로 클라이언트에 나가고 이미 쌓인 활동 로그 행에도 남아 있다. 바꾸면 옛 행과 새 행의 값이 갈린다(§2) | `integration` 인증의 HTTP Request 노드가 보낸 요청에 서버가 2xx 가 아닌 상태(3xx · 4xx · 5xx)로 답했다. 번호는 응답 상태 그대로다. 같은 실패의 노드 출력 `output.error.code` 는 `HTTP_4XX` · `HTTP_5XX` 다(§6.6) | [HTTP Request 노드 — 실행 로직 「활동 로그」](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#활동-로그) |
-| `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | 이름은 `https://` 가 아닌 URL 만 말한다. 실제로는 파싱할 수 없는 URL 과 사설 · loopback · 메타데이터 호스트(SSRF 차단)에도 난다. 코드를 나누는 일은 NERV Task `CLE-T-DDN3MS` 가 한다 | MCP 서버 URL 이 안전한 HTTPS 주소가 아니다. 두 연결 테스트(`POST /api/integrations/:id/test` · `POST /api/integrations/preview-test`)가 이 코드를 돌려준다. 노드 실행의 도구 목록 구성(`buildTools`)에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 남는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「연결 테스트」](../CLE-INT/CLE-INT-MCP.md#연결-테스트) |
+| `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | 이름은 `https://` 가 아닌 URL 만 말한다. 실제로는 파싱할 수 없는 URL 에도 난다 | MCP 서버 URL 이 https 가 아니거나 파싱할 수 없다. 두 연결 테스트(`POST /api/integrations/:id/test` · `POST /api/integrations/preview-test`)가 이 코드를 돌려준다. 노드 실행의 도구 목록 구성(`buildTools`)에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 남는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「연결 테스트」](../CLE-INT/CLE-INT-MCP.md#연결-테스트) |
 | `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` · `rate_limited` | 404 · 410 · 410 · 400 · 429 (순서대로) | `lower_snake_case` 로 표기 규칙을 어긴다. 워크스페이스 초대 흐름 v1 에서 이 형태로 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR`)와 백엔드(`workspace-invitations.service.ts`, `auth.service.ts`)가 `code` 값으로 분기한다. 바꾸면 호환이 깨진다(§2) | 초대 토큰 없음·만료·사용됨·이메일 불일치·빈도 제한. **초대 API 한정**이다. 이 소문자 `rate_limited` 는 초대 흐름 전용이고 다른 영역의 `RATE_LIMITED` 와 별개다. 2026-09-25 에 발행처가 없던 `forbidden` 을 이 행에서 뺐다(`code: 'forbidden'` 0건). 초대 권한 부족은 `RolesGuard` 의 `ADMIN_REQUIRED` 다. 소유자가 아닌 요청자의 관리자 역할 초대 거부는 서비스 계층이 내는 대문자 `OWNER_REQUIRED`(§6.2)라 이 예외에 들지 않는다. `rate_limited` 발행처는 [미결 사항](CLE-API-ERRCODES.md#미결-사항) 참조 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
 | `workspace_type_mismatch` · `already_a_member` · `invitation_already_pending` · `invitation_already_accepted` | 403 · 409 · 409 · 409 | `lower_snake_case`. 위 초대 토큰 코드와 같은 모듈(`workspace-invitations.service.ts`)의 초대 발급·재발송 흐름 코드다. 프론트엔드는 `code` 로 분기하지 않고 `message` 만 보이지만 정규화하면 같은 모듈의 다른 소문자 코드와 대소문자가 섞이고 호환 이득이 0이라 소문자를 유지한다(2026-06-28 결정) | non-team 워크스페이스에 초대 / 이미 멤버 / 같은 이메일의 대기 초대 경합(partial UNIQUE) / 이미 수락된 초대의 재발송·취소. **초대 발급·재발송·취소 API 한정**이다. 직접 추가 경로의 대문자 코드와 같은 뜻의 **별개 코드**다(§6.12) | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
 | `workspace_not_found` · `user_not_found` · `admin_required` | 404 · 404 · 403 | `lower_snake_case`. 위 두 행과 같은 초대 모듈이 조회·RBAC 단계에서 발행한다. 모듈 안 소문자 일관성을 위해 유지한다(등록부 완전성 차원의 등재) | 워크스페이스 없음 / 대상 사용자 없음 / 관리자 미만 권한. 2026-09-25 이후 `admin_required` 는 HTTP 로 나가지 않는다. 초대 라우트가 `RolesGuard` 의 `@Roles('admin')` 를 먼저 거쳐 `ADMIN_REQUIRED` 가 나기 때문이다. 서비스 계층의 `admin_required` 는 가드가 빠졌을 때만 닿는 두 번째 방어선이다. **초대 모듈 한정**이고 직접 추가·관리 경로의 `WORKSPACE_NOT_FOUND`·`USER_NOT_FOUND`(§6.4)와 별개 코드다 | [계정과 워크스페이스 데이터 흐름 「초대 발급」](../CLE-ACCT/CLE-ACCT-DATA.md#초대-발급). 세 코드는 도메인 문서에 적혀 있지 않아 이 행이 유일한 등재다 |
@@ -153,3 +153,10 @@ NERV Task `CLE-T-43KCNP` 다. 사람이 따라가지 않은 3xx 를 계속 `HTTP
 결정일: 2026-11-19
 
 NERV Task `CLE-T-GZRYQ3` 다. 옛 행은 fetch · SDK · DB 드라이버가 모두 이 이름으로 던진다고 적었다. 실제로 이 이름으로 던지는 것은 fetch 뿐이다. DB 드라이버는 쿼리 취소 코드로 끝나고 Anthropic · OpenAI SDK 의 `APIUserAbortError` 는 `name` 이 `'Error'` 라 엔진의 이름 판정을 비껴간다. 그래서 Database Query 노드와 AI 노드가 이 이름으로 바꿔 던진다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). 값과 이름을 유지하는 근거는 그대로다. 기록 위치도 노드 출력이 아니라 노드 실행의 `error.code` 로 적었다. 노드 취소는 에러 포트로 가지 않아 `output.error` 가 없다.
+
+### `MCP_HTTPS_REQUIRED` 행을 줄였다 (2026-11-20)
+
+NERV Task `CLE-T-DDN3MS` 가 MCP 서버의 주소 차단을 새 코드 `MCP_HOST_BLOCKED` 로 갈랐다. `MCP_HTTPS_REQUIRED` 에는 https 위반과 파싱할 수 없는 URL 만 남는다. 이름이 파싱 실패를 담지 못하므로 행은 남기고 이유와 뜻만 줄였다.
+
+- `MCP_HOST_BLOCKED` 는 이 등록부에 올리지 않는다. 이름이 조건의 뜻을 적고(규칙 1) `MCP_` 도메인 접두를 쓰며(규칙 3) `DB_HOST_BLOCKED` · `EMAIL_HOST_BLOCKED` 와 같은 꼴이라 이름 규칙을 따른다. 카탈로그 행은 [통합 노드 · MCP](CLE-API-ERRCODES-INTNODE.md) §6.23 에 있다.
+- 코드를 가른 근거와 파싱 실패용 새 코드를 두지 않은 이유는 [MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md) Rationale 「주소 차단을 `MCP_HOST_BLOCKED` 로 가른다 (2026-11-20)」 에 있다.

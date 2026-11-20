@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP"
 title: "HTTP Request 노드"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-HTTP-001", "REQ-HTTP-002", "REQ-HTTP-003", "REQ-HTTP-004", "REQ-HTTP-005", "REQ-HTTP-006", "REQ-HTTP-007", "REQ-HTTP-008", "REQ-HTTP-009", "REQ-HTTP-010", "REQ-HTTP-011", "REQ-HTTP-012", "REQ-HTTP-013", "REQ-HTTP-014", "REQ-HTTP-015", "REQ-HTTP-016", "REQ-HTTP-017", "REQ-HTTP-018", "REQ-HTTP-019", "REQ-HTTP-020", "REQ-HTTP-021", "REQ-HTTP-022", "REQ-HTTP-023", "REQ-HTTP-024", "REQ-HTTP-025", "REQ-HTTP-026", "REQ-HTTP-027", "REQ-HTTP-028", "REQ-HTTP-029", "REQ-HTTP-030", "REQ-HTTP-031", "REQ-HTTP-032", "REQ-HTTP-033", "REQ-HTTP-034", "REQ-HTTP-035", "REQ-HTTP-036", "REQ-HTTP-037"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "27d585541ec01ca3c79dc53ddc2840935cc2ff15385041930e3628f72eecf9a1"
+content_hash: "2196a0bb868f8ea84d50fb2b9a62de04a917e133b75a39a04e25037261f3dc5b"
 read_as: "approved_fallback"
-task: "CLE-T-EFE3BW"
+task: "CLE-T-PT5YB5"
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "7acd6975a559cd98b835279df411b2cd3c6b9fd14f93b4db2d42fe546bc1d9e7"
-etag: "sha256-cc056bf9ffa3ccf53404c8d1e3df77d20ab91d6d820edec9b750e42236b90a52"
+mirror_sha256: "95b12311c20b0a67d7a0211d9d72eb408d7a48874691b054487f9effaafcdc5d"
+etag: "sha256-bb8bc9b878db5c5a17bf0a2ccfcf0cfd862f9a38b4cdddf3ab3cb75b27e57155"
 ---
 > 구현 상태: 부분 구현 (바이너리 처리·리다이렉트 토글·SSL 검증 토글은 미구현) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 - REQ-HTTP-018 WHEN 헤더를 병합하면 THE SYSTEM SHALL 통합 자격 증명 헤더가 사용자 입력 헤더를 덮어쓰게 한다.
 - REQ-HTTP-019 WHEN 요청을 보내기 전이면 THE SYSTEM SHALL 인증 방식과 관계없이 사설망 차단을 적용한다.
 - REQ-HTTP-020 IF 대상 호스트가 사설망 대역으로 판정되면 THE SYSTEM SHALL `HTTP_BLOCKED` 와 호스트를 드러내지 않는 일반화 메시지로 에러 포트에 내보낸다.
-- REQ-HTTP-021 IF 사설망 차단 가드가 차단 판정이 아닌 오류를 preflight 에서 던지면 THE SYSTEM SHALL `INTEGRATION_CALL_FAILED` 로 에러 포트에 내보낸다.
+- REQ-HTTP-021 IF 사설망 차단 가드가 차단 판정이 아닌 오류를 preflight 또는 리다이렉트 홉에서 던지면 THE SYSTEM SHALL `INTEGRATION_CALL_FAILED` 로 에러 포트에 내보낸다.
 - REQ-HTTP-022 WHILE 인증 방식이 `integration` 인 동안 THE SYSTEM SHALL 3xx 응답을 최대 5홉까지 직접 따라가고 홉마다 사설망 차단을 다시 검사한다.
 - REQ-HTTP-023 IF 리다이렉트가 5홉을 넘거나 리다이렉트 대상이 차단되면 THE SYSTEM SHALL `HTTP_BLOCKED` 로 에러 포트에 내보낸다.
 - REQ-HTTP-024 WHILE 인증 방식이 `none` 이나 `custom` 인 동안 THE SYSTEM SHALL 3xx 응답을 따라가지 않고 그대로 에러 포트로 반환한다.
@@ -126,16 +126,16 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 
 ## 미결 사항
 
-- **사설망 차단 가드 고장의 코드가 시점마다 다름**: preflight 에서 가드가 판정이 아닌 오류를 던지면 `INTEGRATION_CALL_FAILED`, 리다이렉트 홉에서 던지면 전송 catch 로 떨어져 `HTTP_TRANSPORT_FAILED` 가 된다. 두 시점을 통일할지 아직 정하지 않았다. 통일할 때는 채팅 채널 파급을 함께 봐야 한다. `HTTP_TRANSPORT_FAILED` 는 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)에서 `executionFailedThirdParty`(«외부 서비스 응답을 받지 못했습니다»)로 안내된다. 그래서 홉의 가드 고장이 이 코드로 합류하는 동안은 내부 가드의 고장이 외부 서비스 탓으로 전달된다.
 - **HTTP 통합의 `auth_type=none` 허용 여부**: 통합 화면 쪽 원문은 HTTP 통합에 `auth_type` `none`(`base_url`·`default_headers` 만)을 허용한다. 이 노드는 `api_key`·`bearer_token`·`basic` 밖의 값을 `INTEGRATION_AUTH_UNSUPPORTED` 로 처리하고 현재 구현(`resolveHttpCredentials` default 분기)도 같다. 그래서 `none` 통합을 이 노드에서 쓰면 실패한다. `none` 을 허용해 이 노드에 행을 더할지, 통합 화면 선택지에서 뺄지 결정 필요(관련: [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md)).
 
 ## 구현 위치
 
 - `codebase/backend/src/nodes/integration/http-request/http-request.handler.ts` (실행 흐름은 [실행 로직](CLE-NODE-HTTP-EXEC.md), 출력은 [출력과 에러](CLE-NODE-HTTP-OUTPUT.md))
 - `codebase/backend/src/nodes/integration/http-request/http-request.schema.ts`
-- `codebase/backend/src/nodes/integration/http-request/http-safety.ts` (사설망 차단 가드, 연결 시점 주소 판정 dispatcher `safeOutboundDispatcher`)
+- `codebase/backend/src/common/utils/ssrf/outbound-guard.ts` (사설망 차단 가드 `assertSafeOutboundUrl`·`assertSafeOutboundHostResolved`, 연결 시점 주소 판정 dispatcher `safeOutboundDispatcher`, 차단 · 가드 고장의 고정 문구. Database Query · Send Email 과 공용)
+- `codebase/backend/src/common/utils/ssrf/ip-classifier.ts` (IP 리터럴의 대역 판정. MCP · 알림 웹훅 · LLM 가드와 공용)
 - `codebase/backend/src/common/utils/guarded-lookup-dispatcher.ts` (연결할 때 푼 주소를 판정하는 undici dispatcher, MCP · 알림 웹훅과 공용)
-- `codebase/backend/src/nodes/integration/http-request/http-redirect.ts` (리다이렉트 직접 추적, 출처가 바뀐 홉의 자격 증명 제거, 리다이렉트 method 규칙)
+- `codebase/backend/src/nodes/integration/http-request/http-redirect.ts` (리다이렉트 직접 추적, 홉마다의 사설망 차단 재검사와 가드 고장 처리 `outboundBlockReason`, 출처가 바뀐 홉의 자격 증명 제거, 리다이렉트 method 규칙)
 - `codebase/backend/src/nodes/integration/http-request/http-credentials.ts` (`auth_type` 별 자격 증명)
 - `codebase/backend/src/nodes/integration/_base/sanitize-response-headers.util.ts` (응답 헤더 가림)
 - `codebase/backend/src/nodes/integration/_base/abort-cascade.util.ts` (노드 취소 신호 연쇄 `linkUpstreamAbort`·`isUpstreamAbort`, Cafe24·MakeShop 과 공용)
@@ -143,6 +143,25 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 ## Rationale
 
 실행 흐름(사설망 차단 적용 범위 · 노드 취소 · 리다이렉트 홉 자격 증명 · 활동 로그 범위)의 Rationale 은 [실행 로직](CLE-NODE-HTTP-EXEC.md#rationale), 출력 · 에러 코드(`Location` 가림 · 3xx 코드 · `details`)의 Rationale 은 [출력과 에러](CLE-NODE-HTTP-OUTPUT.md#rationale) 에 있다.
+
+### 가드 고장은 시점과 상관없이 같은 코드와 문구로 낸다
+
+결정일: 2026-11-20
+
+사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지는 경우를 가드의 고장이라 한다(예: DNS 해석기가 낸 예기치 않은 예외). 전에는 고장이 난 시점에 따라 코드와 문구가 달랐다. NERV Task `CLE-T-E991S1` 에서 둘을 맞췄다.
+
+- **코드가 시점마다 달랐다.** preflight 의 고장은 `INTEGRATION_CALL_FAILED` 로 나갔다. 리다이렉트 홉의 고장은 전송 catch 로 떨어져 `HTTP_TRANSPORT_FAILED` 로 나갔다. 그래서 내부 가드의 고장이 DNS 실패 · 연결 거부 같은 전송 오류와 섞였다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)은 `HTTP_TRANSPORT_FAILED` 를 `executionFailedThirdParty`(«외부 서비스 응답을 받지 못했습니다»)로 안내하므로 우리 쪽 고장이 외부 서비스 탓으로 전달됐다.
+- **고장 문구에 호스트 · IP 가 실렸다.** 고장 메시지는 가드 원문에서 자격 증명 패턴만 가린 값이었다. 원문에는 호스트 이름이나 IP 가 들어 있을 수 있다. 이 메시지는 `output.error.message` 와 활동 로그로 워크스페이스 사용자에게 나간다. [「사설망 차단 메시지 일반화」](#사설망-차단-메시지-일반화-2026-07-05)가 차단 판정에서 막은 정찰 통로가 고장 경로에는 남아 있었다.
+
+이제 두 시점 모두 `INTEGRATION_CALL_FAILED` 와 고정 문구 `The outbound address check failed.` 로 낸다. 원문은 서버 경고 로그(`logger.warn`)에만 남긴다. 근거는 [통합 노드 공통 — 에러](CLE-NODE-INT-COMMON-ERROR.md#차단-코드를-판정에만-쓰는-이유)의 원칙 «차단 코드는 판정에만, 고장은 분류되지 않은 실패» 다. 홉의 고장도 판정이 아니므로 preflight 와 같은 분류되지 않은 실패 코드로 낸다. 채팅 채널은 `INTEGRATION_CALL_FAILED` 를 따로 분류하지 않아 내부 실패(`executionFailedInternal`)로 안내한다. 같은 고정 문구를 Database Query 노드와 HTTP · Database 연결 테스트도 쓴다.
+
+- 요구사항 변경: REQ-HTTP-021 의 «preflight 에서» 를 «preflight 또는 리다이렉트 홉에서» 로 넓혔다.
+- 미결 사항 「사설망 차단 가드 고장의 코드가 시점마다 다름」을 지웠다.
+
+기각한 대안(2026-11-20):
+
+- 홉의 고장을 `HTTP_TRANSPORT_FAILED` 로 두고 그 사실만 적는다: 판정 원칙과 어긋나고 채팅 채널이 내부 고장을 외부 서비스 탓으로 안내하는 문제가 남는다.
+- 원문을 유지하고 메시지 가림(`sanitizeMessage`)에 호스트 · IP 패턴을 더한다: 이 함수는 모든 통합 노드의 오류 문구에 쓰이므로 가림이 다른 노드의 정상 오류 문구까지 번진다. 가드가 앞으로 어떤 원문을 던질지 모르는 문제도 남는다.
 
 ### 노드 자체 타임아웃이 응답 본문 읽기까지 덮는다
 
@@ -160,7 +179,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 
 ### 사설망 차단 메시지 일반화 (2026-07-05)
 
-`http-safety.ts` 가드가 던지는 원본 메시지(`SSRF_BLOCKED: hostname "…" resolves to a restricted network range` 등)에는 차단된 호스트 이름·IP 가 들어 있다. 이를 `output.error.message` 로 클라이언트에 보이면 내부망 구조를 정찰하는 통로(CWE-209)가 된다. Database Query(`DB_HOST_BLOCKED`)와 Send Email(`EMAIL_HOST_BLOCKED`)은 이미 일반화 문구를 쓰고 있었고 HTTP Request 만 원본을 보이는 비대칭 상태였다.
+사설망 차단 가드(`codebase/backend/src/common/utils/ssrf/outbound-guard.ts`)가 던지는 원본 메시지(`SSRF_BLOCKED: hostname "…" resolves to a restricted network range` 등)에는 차단된 호스트 이름·IP 가 들어 있다. 이를 `output.error.message` 로 클라이언트에 보이면 내부망 구조를 정찰하는 통로(CWE-209)가 된다. Database Query(`DB_HOST_BLOCKED`)와 Send Email(`EMAIL_HOST_BLOCKED`)은 이미 일반화 문구를 쓰고 있었고 HTTP Request 만 원본을 보이는 비대칭 상태였다.
 
 `HTTP_BLOCKED` 의 `output.error.message` 를 호스트·IP 를 담지 않는 `Request blocked by SSRF policy.` 로 통일했다. 원본 상세는 모든 인증 방식 공통으로 서버 로그(`logger.warn`)에만 남긴다. 활동 로그는 `GET /integrations/:id/activity` 로 워크스페이스 사용자에게 그대로 나가므로 거기에도 일반화 메시지를 기록한다. 클라이언트 UI 는 `output.error.code` 로 지역화 문구를 렌더하므로 사용성 손실은 없다. 같은 결정으로 리다이렉트 대상·한도 초과의 차단도 `HTTP_BLOCKED` 로 보낸다. 이전에는 리다이렉트 홉의 차단 예외가 바깥 일반 catch 로 떨어져 `HTTP_TRANSPORT_FAILED`·`INTEGRATION_CALL_FAILED` 로 잘못 분류됐다.
 
