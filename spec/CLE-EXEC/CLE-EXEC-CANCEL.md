@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL"
 title: "노드 취소"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "fab82ec6f503d6bec395df75a107998cfa092efe9fd5414e9f423eb1e63904e0"
+content_hash: "6d16f43c355360f9e5aba630755318cbf7a84651fb22946d39d8bfac2a061cb2"
 read_as: "approved_fallback"
-task: "CLE-T-WMH3EK"
+task: "CLE-T-DA04F4"
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "77bda8e768372bfa78760c766f4bba4f0929c696aeaaa8934eba83bc13dc2db8"
-etag: "sha256-87c472eac3cebe87a8c284869b9ffa5df7f4f0b10eabb98072bbcd188af2b772"
+mirror_sha256: "78ddf08d28d4de50e53ec44df132e13a8451223370dc8557807d6b623f172976"
+etag: "sha256-8092387534bbd70728bb894a8e9151f866c96b29ad4088a14caa94b37986ef5d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -130,7 +130,7 @@ flowchart LR
 - 주요 SDK·fetch·드라이버가 모두 표준으로 지원해 별도 래퍼가 필요 없다.
 - 외부 타임아웃과의 연쇄가 표준 패턴이다(`AbortController` 의 취소가 이어진다).
 - `AbortSignal.any([...])`(Node.js 18+)나 `AbortSignal.timeout(ms)` 같은 표준 도구를 나중에 쓸 수 있다.
-- 지금 연쇄는 `AbortSignal.any` 대신 공용 헬퍼(`linkUpstreamAbort`)로 직접 잇는다(fetch 노드인 HTTP Request·Cafe24·MakeShop 한정). 직접 이으면 리스너를 떼는 시점을 호출자가 `finally` 로 정한다. 세 노드 모두 리스너를 응답 본문을 다 읽은 뒤에 뗀다. Cafe24·MakeShop 은 자체 타임아웃 타이머도 본문까지 유지한다. HTTP Request 는 타이머를 본문을 읽기 전에 지우므로 본문 읽기에 자체 타임아웃이 없다([노드별 적용 §미결 사항](CLE-EXEC-CANCEL-NODES.md#미결-사항)). `AbortSignal.any` 로 바꾸면 그 해제를 런타임이 맡으므로 옮기기 전에 이 시점이 지켜지는지 확인한다. LLM 호출의 연쇄는 다르다. `LlmService.chat` 은 타임아웃을 건 호출에서 타임아웃 신호와 호출자 신호를 `AbortSignal.any` 로 합쳐 프로바이더 클라이언트에 넘긴다.
+- 지금 연쇄는 `AbortSignal.any` 대신 공용 헬퍼(`linkUpstreamAbort`)로 직접 잇는다(fetch 노드인 HTTP Request·Cafe24·MakeShop 한정). 직접 이으면 리스너를 떼는 시점을 호출자가 `finally` 로 정한다. 세 노드 모두 자체 타임아웃 타이머와 리스너를 응답 본문을 다 읽은 뒤에 정리한다. `AbortSignal.any` 로 바꾸면 리스너 해제를 런타임이 맡으므로 옮기기 전에 이 시점이 지켜지는지 확인한다. LLM 호출의 연쇄는 다르다. `LlmService.chat` 은 타임아웃을 건 호출에서 타임아웃 신호와 호출자 신호를 `AbortSignal.any` 로 합쳐 프로바이더 클라이언트에 넘긴다.
 
 ### 핸들러 시그니처를 바꾸지 않고 실행 컨텍스트 필드로 전파한다
 
