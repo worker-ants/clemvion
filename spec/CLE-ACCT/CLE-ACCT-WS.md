@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 28
+version: 29
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072", "REQ-WSPACE-073"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "78b30444ece603cc47ea97b297a8f762a366084a82dbf61d0f1cfc12878e2dee"
+content_hash: "62e57b60c702dd1ed9c4e02cb805e425b2ecc34152fc418a58998f3b5eefa0b5"
 read_as: "approved_fallback"
-task: "CLE-T-TNZ3J9"
+task: "CLE-T-TV4VA8"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "82a8cbf62c77a4be8f1715889d4d6bc5a2c5a790665bdf13cf77cc72c4181ea6"
-etag: "sha256-9ce08f36fb10491ec0dac2b5029d85e557e2fd71fdda5b86a9eb2ab2416f7469"
+mirror_sha256: "6f48eb9a29922516737b90753743fb603230c29737385a10ef35d691b1f85fd9"
+etag: "sha256-02076359e65c60cbb18f322a918132846a05b38cfbfa91cff2fddcd939f9ee74"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -133,7 +133,7 @@ etag: "sha256-9ce08f36fb10491ec0dac2b5029d85e557e2fd71fdda5b86a9eb2ab2416f7469"
 | 소비자 | `settings.timezone` 이 없을 때 | 구현 상태 |
 | --- | --- | --- |
 | 시간대를 지정하지 않은 스케줄 | `'Asia/Seoul'` ([스케줄 「생성·수정 대화상자」](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#생성수정-대화상자)) | 구현됨 |
-| AI 노드 시스템 컨텍스트 접두 | `'Asia/Seoul'` ([AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](../CLE-NODE-AI/CLE-NODE-AI-COMMON-CONTEXT.md)) | 미구현(CLE-T-TV4VA8). 지금 코드는 `process.env.TZ` 다음 `UTC` 로 떨어진다 |
+| AI 노드 시스템 컨텍스트 접두 | `'Asia/Seoul'` ([AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](../CLE-NODE-AI/CLE-NODE-AI-COMMON-CONTEXT.md)) | 구현됨 |
 
 개인 워크스페이스를 만들 때 시간대를 채우지 않는다. `settings` 를 빈 객체로 만들고 위 폴백을 쓴다.
 
@@ -197,7 +197,7 @@ etag: "sha256-9ce08f36fb10491ec0dac2b5029d85e557e2fd71fdda5b86a9eb2ab2416f7469"
 
 ## 미결 사항
 
-- **초대 요청 한도 초과 코드 `rate_limited`**: 초대 에러 표와 에러 코드 예외 목록은 초대 429 를 소문자 `rate_limited` 로 적고 예외 등록 코드로 올려 둔다. 원문 분석에 따르면 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾸며, 백엔드·프론트엔드 소스에 `'rate_limited'` 문자열은 0건이다(관련: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 같은 표에서 발행처 없는 `forbidden` 을 뺀 선례가 있다. 표와 예외 목록에서 `rate_limited` 를 빼고 `RATE_LIMITED` 로 적을지 결정 필요.
+지금 열린 항목은 없다. 초대 요청 한도 초과 코드는 2026-11-20 에 `RATE_LIMITED` 로 적기로 정했다. 표와 예외 목록은 [초대 「초대 에러 코드」](CLE-ACCT-WS-INVITE.md#초대-에러-코드) 와 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에서 고친다(NERV Task `CLE-T-8WXV7T`).
 
 
 ## Rationale

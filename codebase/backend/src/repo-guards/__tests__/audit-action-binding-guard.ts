@@ -294,3 +294,231 @@ function normalizeResource(
   if (quoted) return quoted[2];
   return consts.get(text) ?? null;
 }
+
+// ─── 인라인 `record()` 호출 ─────────────────────────────────────────────────
+//
+// 위 검사는 `recordAudit` helper **선언**만 본다. 그런데 helper 를 두지 않고
+// `this.auditLogsService.record({ action, resourceType, ... })` 를 직접 부르는 자리가 더 많다.
+// 거기서 `action` 은 `AuditAction` 합집합 전체를 받으므로 `resourceType` 과 접두가 어긋나도
+// 컴파일러가 잡지 못한다. 아래 검사가 그 자리를 같은 불변식(액션 접두 = resourceType)으로 본다.
+
+/** `AUDIT_ACTIONS` 정의 파일 (저장소 루트 기준). */
+export const AUDIT_ACTION_CONST_FILE =
+  'codebase/backend/src/modules/audit-logs/audit-action.const.ts';
+
+/** 인라인 호출에서 액션 상수를 꺼낼 때 쓰는 객체 이름. */
+const AUDIT_ACTIONS_NAME = 'AUDIT_ACTIONS';
+
+/**
+ * `audit-action.const.ts` 의 `AUDIT_ACTIONS` 객체 리터럴을 키→액션 문자열로 읽는다.
+ *
+ * 모듈을 import 하지 않고 파싱하는 이유: 가드의 다른 입력과 같은 방식(소스 파싱)으로 읽어야
+ * fixture 로 같은 함수를 검증할 수 있다. 객체를 찾지 못하거나 비어 있으면 던진다.
+ * 빈 맵을 돌려주면 모든 `AUDIT_ACTIONS.X` 가 "모르는 키" 가 되거나 조용히 판정에서 빠진다.
+ */
+export function parseAuditActionsConst(
+  sourceText: string,
+  fileLabel: string,
+): Map<string, string> {
+  const sf = ts.createSourceFile(
+    fileLabel,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  let literal: ts.ObjectLiteralExpression | null = null;
+  const visit = (node: ts.Node): void => {
+    if (literal) return;
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === AUDIT_ACTIONS_NAME &&
+      node.initializer
+    ) {
+      const init = unwrapExpression(node.initializer);
+      if (ts.isObjectLiteralExpression(init)) literal = init;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  if (!literal) {
+    throw new Error(
+      `${fileLabel}: ${AUDIT_ACTIONS_NAME} 객체 리터럴을 찾지 못했다`,
+    );
+  }
+  const out = new Map<string, string>();
+  for (const prop of (literal as ts.ObjectLiteralExpression).properties) {
+    if (
+      ts.isPropertyAssignment(prop) &&
+      ts.isIdentifier(prop.name) &&
+      ts.isStringLiteralLike(prop.initializer)
+    ) {
+      out.set(prop.name.text, prop.initializer.text);
+    }
+  }
+  if (out.size === 0) {
+    throw new Error(
+      `${fileLabel}: ${AUDIT_ACTIONS_NAME} 에서 액션을 하나도 읽지 못했다`,
+    );
+  }
+  return out;
+}
+
+/** `{...} as const` · `satisfies` · 괄호를 벗겨 안쪽 식을 돌려준다. */
+function unwrapExpression(expr: ts.Expression): ts.Expression {
+  let cur = expr;
+  while (
+    ts.isAsExpression(cur) ||
+    ts.isSatisfiesExpression(cur) ||
+    ts.isParenthesizedExpression(cur)
+  ) {
+    cur = cur.expression;
+  }
+  return cur;
+}
+
+export interface AuditRecordCallSite {
+  /** 저장소 루트 기준 경로. */
+  file: string;
+  /** 1-based 줄 번호 (`record(` 호출 위치). */
+  line: number;
+  /** `action` 값을 소스 그대로. */
+  actionText: string;
+  /** 해석한 액션 문자열. 해석할 수 없으면 `null`(판정 보류). */
+  action: string | null;
+  /** 해석한 `resourceType`. 해석할 수 없으면 `null`(판정 보류). */
+  resourceType: string | null;
+}
+
+/**
+ * 한 소스에서 인라인 감사 기록 호출 `X.record({ action, resourceType, ... })` 을 찾는다.
+ *
+ * **이름이 아니라 인자 형태로 고른다.** `.record(` 를 부르는 곳은 로그인 이력 · LLM 사용량 ·
+ * 메트릭 히스토그램처럼 감사와 무관한 곳이 많다. 인자가 객체 리터럴 하나이고 그 안에
+ * `action` 과 `resourceType` 이 함께 있을 때만 감사 기록으로 본다.
+ *
+ * `action` 은 문자열 리터럴과 `AUDIT_ACTIONS.<KEY>` 만 푼다. `params.action` 처럼 helper 가
+ * 넘겨받은 값은 `null` 로 남긴다(그 자리는 위의 helper 선언 검사가 맡는다). `AUDIT_ACTIONS`
+ * 에 없는 키는 던진다. 조용히 `null` 로 두면 오탈자나 이름 변경이 판정에서 빠진다.
+ */
+export function findInlineAuditRecords(
+  sourceText: string,
+  fileLabel: string,
+  auditActions: Map<string, string>,
+): AuditRecordCallSite[] {
+  const sf = ts.createSourceFile(
+    fileLabel,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const consts = collectStringConsts(sf);
+  const found: AuditRecordCallSite[] = [];
+
+  const visit = (node: ts.Node): void => {
+    const arg = auditRecordArgument(node);
+    if (arg) {
+      const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+      const actionExpr = propertyValue(arg, 'action');
+      const resourceExpr = propertyValue(arg, 'resourceType');
+      found.push({
+        file: fileLabel,
+        line,
+        actionText: actionExpr?.getText(sf) ?? '(shorthand)',
+        action: resolveAction(actionExpr, auditActions, `${fileLabel}:${line}`),
+        resourceType: normalizeResource(
+          resourceExpr?.getText(sf) ?? null,
+          consts,
+        ),
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+}
+
+/** 감사 기록 호출이면 그 객체 리터럴 인자를, 아니면 `null`. */
+function auditRecordArgument(node: ts.Node): ts.ObjectLiteralExpression | null {
+  if (
+    !ts.isCallExpression(node) ||
+    !ts.isPropertyAccessExpression(node.expression) ||
+    node.expression.name.text !== 'record' ||
+    node.arguments.length !== 1
+  ) {
+    return null;
+  }
+  const arg = node.arguments[0];
+  if (!ts.isObjectLiteralExpression(arg)) return null;
+  if (!hasProperty(arg, 'action') || !hasProperty(arg, 'resourceType')) {
+    return null;
+  }
+  return arg;
+}
+
+function hasProperty(obj: ts.ObjectLiteralExpression, name: string): boolean {
+  return obj.properties.some(
+    (p) =>
+      (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) &&
+      ts.isIdentifier(p.name) &&
+      p.name.text === name,
+  );
+}
+
+/** `name: <expr>` 의 `<expr>`. shorthand(`{ action }`)면 `null`(값을 모른다). */
+function propertyValue(
+  obj: ts.ObjectLiteralExpression,
+  name: string,
+): ts.Expression | null {
+  for (const p of obj.properties) {
+    if (
+      ts.isPropertyAssignment(p) &&
+      ts.isIdentifier(p.name) &&
+      p.name.text === name
+    ) {
+      return p.initializer;
+    }
+  }
+  return null;
+}
+
+/** 문자열 리터럴과 `AUDIT_ACTIONS.<KEY>` 를 액션 문자열로. 그 밖에는 `null`. */
+function resolveAction(
+  expr: ts.Expression | null,
+  auditActions: Map<string, string>,
+  where: string,
+): string | null {
+  if (!expr) return null;
+  if (ts.isStringLiteralLike(expr)) return expr.text;
+  if (
+    ts.isPropertyAccessExpression(expr) &&
+    ts.isIdentifier(expr.expression) &&
+    expr.expression.text === AUDIT_ACTIONS_NAME
+  ) {
+    const key = expr.name.text;
+    const value = auditActions.get(key);
+    if (value === undefined) {
+      throw new Error(
+        `${where}: ${AUDIT_ACTIONS_NAME}.${key} 는 ${AUDIT_ACTIONS_NAME} 에 없는 키다`,
+      );
+    }
+    return value;
+  }
+  return null;
+}
+
+/**
+ * 액션 접두(첫 `.` 앞)가 `resourceType` 과 다른 호출만 남긴다. 한쪽이라도 해석되지
+ * 않았으면 판정하지 않는다. 모르는 것을 위반으로 세면 가드가 거짓 경보로 죽는다.
+ */
+export function findMisboundRecordCalls(
+  sites: AuditRecordCallSite[],
+): AuditRecordCallSite[] {
+  return sites.filter(
+    (s) =>
+      s.action !== null &&
+      s.resourceType !== null &&
+      s.action.split('.')[0] !== s.resourceType,
+  );
+}

@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT-RECORD"
 title: "감사 로그 — 기록과 조회"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "63a8c4d1bfda2211e0ad2a4c3f9d346aa30b0da2ee062bd2e09fd8caeeff94f9"
+content_hash: "a4c12d79f23b6799b0b7bc503e4c177e304813f2b6956d49ed72c7605147a285"
 read_as: "approved_fallback"
-task: "CLE-T-YAHNQ6"
+task: "CLE-T-28MDF3"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "d4c356972e61c5091cdfd563f9bad0e52bc9f412a179da1fdd8f02321ba4bfd9"
-etag: "sha256-3a09444089727961a0b771813b140228aba3c7bbc0ed96832bbedce351136278"
+mirror_sha256: "41fca91ceb5fdf1949b0f6a09a22d138f829d4c4c44c2d79b89bd04d77524605"
+etag: "sha256-e06bd65e1f566c26e76dbed494caf0b2ec18c8e9a1ab61d400873ad7c22e0837"
 ---
 > 구현 상태: 구현됨 · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/5-system/1-auth.md` (§4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -89,7 +89,9 @@ sequenceDiagram
 | ip_address | String? | 요청 IP. IP 를 알 수 없거나 시스템 내부 동작이면 없다 |
 | created_at | Timestamp | 발생 시각 |
 
-- 테이블은 V001 에서 만들었다. 인덱스는 V002 의 `idx_audit_log_workspace_created (workspace_id, created_at DESC)` 다.
+- 테이블은 V001 에서 만들었다. 인덱스는 둘이다.
+  - V002 의 `idx_audit_log_workspace_created (workspace_id, created_at DESC)` 는 워크스페이스 범위 조회용이다.
+  - V157 의 `idx_audit_log_created (created_at)` 는 보존 배치의 `created_at < 기준 시각` 삭제용이다([감사 로그 보존 배치](CLE-OBS-AUDIT.md#감사-로그-보존-배치)).
 - `AuditLog.details` 는 에러 응답의 `details` 와 이름만 같은 다른 필드다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)).
 
 ## 구현 위치

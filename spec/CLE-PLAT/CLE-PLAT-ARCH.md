@@ -2,19 +2,19 @@
 id: "CLE-PLAT-ARCH"
 title: "시스템 아키텍처"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "48ce7d8a7e4f97a0c88debb8df0de7afefd3f25ebbe32a970324d7bf5ab47d8e"
+content_hash: "042cfe1464898fe2dd03fd27bae427b0c96243dd39d5bfbf1eccd9f18a21c6a9"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-28MDF3"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "e4ed925d7fd7327260c6475d7008554a6b8990097d1904b498a8038bb7730004"
-etag: "sha256-d1d0da1c677bd86bb9da2fb5a57727be21a333182dc7e2fccae887d45c032026"
+mirror_sha256: "54ab3d9c926f2db3751669962bdb6d74a12490cd664db6b5c2f74889973ec0e7"
+etag: "sha256-eb92f3bc50c9a8c0182e9976e301aa45d624ec210afac366a820a74ab8c70cc8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -157,7 +157,7 @@ flowchart LR
 
 | 항목 | 사실 |
 | --- | --- |
-| 큐 | Redis 7 + BullMQ. 현재 등록된 큐는 18개다. 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 이 단일 기준이다 |
+| 큐 | Redis 7 + BullMQ. 등록된 큐 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 이 단일 기준이다 |
 | 파일 저장소 | 지식 저장소 원본 문서(`kb/{kbId}/{documentId}/{sanitizedFilename}`)와 프로필 이미지(`avatars/{userId}/{uuid}.{ext}`)를 쓴다. Form 첨부 키는 정의만 있고 구현하지 않았다 |
 | WebSocket | Socket.IO. 실행 상태·노드 이벤트·지식 저장소 진행률·Background 실행 이벤트를 보낸다. 보내는 곳은 `WebsocketService` 하나다. 같은 서비스의 `executionEvents$` 스트림을 EIA SSE 어댑터(`SseAdapter`)·채팅 채널 디스패처(`ChatChannelDispatcher`)·EIA 알림 발송기(`NotificationDispatcher`)가 구독한다 |
 | SSE | `text/event-stream` 을 두 곳에서 쓴다. ① 워크플로우 AI 어시스턴트 스트리밍(WebSocket 을 거치지 않고 컨트롤러가 직접 쓴다, [AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md)) ② External Interaction API 이벤트 스트림([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) |

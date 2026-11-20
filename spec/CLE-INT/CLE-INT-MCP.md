@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 19
+version: 20
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "0c2b842c32c70037d5182a3a1f237219e20431ac220067a94a122b13e8a2fdbf"
+content_hash: "8174039d5da2c557350cc29113d6678543f887e3313cf417abc58f841d36e89a"
 read_as: "approved_fallback"
-task: "CLE-T-DDN3MS"
+task: "CLE-T-GKDPVQ"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "c65388cb51c185ccf28f64eda4a939c373c92a93783293b51986df2ae4dcbaba"
-etag: "sha256-a7103010f8cd2f5fd5f23950b113ea5e6b47bda808dc8b255501e83fb70b86ee"
+mirror_sha256: "e7eadfafb53c2d99cf7b08facc8afe4ead73fc252507cd6507668cb6283039e6"
+etag: "sha256-5a9a1d6f7f29d609518eada15eb3b1973707d4c448cad17d125d8b2a0d35ae85"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -41,7 +41,7 @@ MVP 에 넣지 않은 것은 stdio MCP 서버 spawn(멀티테넌트 SaaS 에서 
 - 통합 상태 전이 전체: [통합 상태와 만료 알림](CLE-INT-STATUS.md)
 - 활동 로그 컬럼과 API 식별 채우기 규칙: [통합 데이터와 흐름](CLE-INT-DATA.md#호출-api-식별-채우기-규칙)
 - 도구 프로바이더 확장 지점(첫 구현체 `KbToolProvider`): [RAG 검색](../CLE-KB/CLE-KB-SEARCH.md#확장-지점)
-- dry-run 재실행 정책: [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출), 부수효과 판정 기준: [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정). 이 문서는 MCP 도구 쪽 동작과 건너뛴 호출의 결과 형식만 정한다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md))
+- dry-run 재실행 정책: [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출), 부수효과 판정 기준: [재실행 §부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정). 이 문서는 MCP 도구 쪽 동작과 모의 응답 형식만 정한다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md))
 
 ## Transport
 
@@ -113,7 +113,7 @@ MCP 서버는 새 노드가 아니라 기존 통합 엔티티의 새 `service_ty
 | [MCP 클라이언트 — 연결과 URL 검증](CLE-INT-MCP-CONN.md) | Streamable HTTP transport, 자격 증명과 URL 검증(SSRF 차단 · 해석 주소 검사 · 우회 플래그), 환경 변수, capabilities 캐시 비채택, 연결 수명 · 타임아웃, 연결 테스트, 클라이언트 라이브러리 | 없음 |
 | [MCP 클라이언트 — 도구 노출과 진단](CLE-INT-MCP-TOOLS.md) | 도구 노출 모델(노출 규칙 · 이름 규칙 · 일반 · 메타 도구 · 노출 도구 목록 · 호출 한도 · 정의 크기 예산), `McpToolProvider`, 진단 누적(`mcpDiagnostics` · `skipReason`), 통합 조회 기준, 실행 흐름 | 없음 (참조: [통합 관리](CLE-INT-MANAGE.md) REQ-INTMGMT-052) |
 | [MCP 클라이언트 — 에러 처리](CLE-INT-MCP-ERROR.md) | 격리 원칙, 에러 코드, 활동 로그, 인증 실패 상태 전환 | 없음 |
-| [MCP 클라이언트 — dry-run 재실행](CLE-INT-MCP-DRYRUN.md) | MCP 도구의 부수효과 판정 적용, 도구 목록 구성 단계, 건너뛴 호출의 결과 형식, 확인 순서, 기록과 집계, dry-run 여부 전달 | 없음 (참조: [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) REQ-RERUN-052 · REQ-RERUN-053 · REQ-RERUN-054, [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) REQ-CAFENODE-035 · REQ-CAFENODE-039, [통합 관리](CLE-INT-MANAGE.md) REQ-INTMGMT-021) |
+| [MCP 클라이언트 — dry-run 재실행](CLE-INT-MCP-DRYRUN.md) | MCP 도구의 부수효과 판정 적용, 도구 목록 구성 단계, 모의 응답 형식, 확인 순서, 기록과 집계, dry-run 여부 전달 | 없음 (참조: [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) REQ-RERUN-052 · REQ-RERUN-053 · REQ-RERUN-054, [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) REQ-CAFENODE-035 · REQ-CAFENODE-039, [통합 관리](CLE-INT-MANAGE.md) REQ-INTMGMT-021) |
 
 ## 하위 문서로 옮긴 절
 
@@ -169,7 +169,7 @@ MCP 서버는 새 노드가 아니라 기존 통합 엔티티의 새 `service_ty
 
 ## 데이터 모델 영향
 
-새 컬럼이나 새 엔티티는 없다. [통합 데이터와 흐름](CLE-INT-DATA.md#통합-integration)의 `service_type` 문자열 컬럼에 이 문서 영역의 값 `mcp`(외부 HTTP transport)와 `cafe24`·`makeshop`(내부 MCP 브리지)을 쓴다. 세 값 모두 문자열 컬럼이라 enum 마이그레이션이 필요 없다. 활동 로그 사용 방식(`tools/call` 1회당 1행)은 두 transport 에 모두 적용한다. dry-run 재실행의 건너뛴 호출은 제외한다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md)).
+새 컬럼이나 새 엔티티는 없다. [통합 데이터와 흐름](CLE-INT-DATA.md#통합-integration)의 `service_type` 문자열 컬럼에 이 문서 영역의 값 `mcp`(외부 HTTP transport)와 `cafe24`·`makeshop`(내부 MCP 브리지)을 쓴다. 세 값 모두 문자열 컬럼이라 enum 마이그레이션이 필요 없다. 활동 로그 사용 방식(`tools/call` 1회당 1행)은 두 transport 에 모두 적용한다. dry-run 재실행의 모의 응답으로 대신한 호출은 제외한다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md)).
 
 ## 확장 지점
 
@@ -187,7 +187,7 @@ MCP 서버는 새 노드가 아니라 기존 통합 엔티티의 새 `service_ty
 
 - MCP 통합의 개인 공개 범위 허용 여부는 [통합 관리](CLE-INT-MANAGE.md#미결-사항) 의 미결 사항에서 다룬다. 이 문서 원문은 «기본 `organization`, 개인 등록 미지원» 쪽이다.
 - **`<sid>` 길이 규칙과 현재 구현의 차이**: 이 문서 원문은 `<sid>` 를 `Integration.id` 앞 8자로 두고 워크스페이스 안에서 겹치면 12자로 늘린다고 적는다. 현재 구현은 외부 `McpToolProvider` 가 한 노드의 `mcpServers` 안에서만 겹침을 보고 8 → 12 → 32자 순으로 늘리며(`assignSids`, `buildTools` 시점), 내부 MCP 브리지 프로바이더는 늘 앞 16자를 쓴다(`sanitizeSid`). 문서를 구현에 맞출지, 구현을 문서에 맞출지 정해야 한다. 결정 필요.
-- **외부 MCP 도구 인자의 `inputSchema` 검증**: [격리 원칙](CLE-INT-MCP-ERROR.md#격리-원칙) 표와 [에러 코드](CLE-INT-MCP-ERROR.md#에러-코드)의 `INVALID_TOOL_ARGUMENTS` 는 인자가 `inputSchema` 를 어기면 호출하지 않는다고 적는다. 현재 `McpToolProvider.execute` 는 일반 도구 인자의 JSON 파싱만 확인하고 `inputSchema` 검증은 하지 않는다. 메타 도구는 `uri`·`name` 같은 필수 인자만 확인한다. 그래서 dry-run 재실행에서는 형식이 틀린 인자도 건너뛴 호출의 결과를 받는다. 검증을 구현할지, 문서를 서버 쪽 검증에 맡기는 쪽으로 고칠지 결정 필요. 담당 NERV Task `CLE-T-RBMJP0`.
+- **외부 MCP 도구 인자의 `inputSchema` 검증**: [격리 원칙](CLE-INT-MCP-ERROR.md#격리-원칙) 표와 [에러 코드](CLE-INT-MCP-ERROR.md#에러-코드)의 `INVALID_TOOL_ARGUMENTS` 는 인자가 `inputSchema` 를 어기면 호출하지 않는다고 적는다. 현재 `McpToolProvider.execute` 는 일반 도구 인자의 JSON 파싱만 확인하고 `inputSchema` 검증은 하지 않는다. 메타 도구는 `uri`·`name` 같은 필수 인자만 확인한다. 그래서 dry-run 재실행에서는 형식이 틀린 인자도 모의 응답을 받는다. 검증을 구현할지, 문서를 서버 쪽 검증에 맡기는 쪽으로 고칠지 결정 필요. 담당 NERV Task `CLE-T-RBMJP0`.
 
 ## 구현 위치
 
@@ -202,7 +202,7 @@ MCP 서버는 새 노드가 아니라 기존 통합 엔티티의 새 `service_ty
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts` (Cafe24 내부 MCP 브리지)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/makeshop-mcp-tool-provider.ts` (MakeShop 내부 MCP 브리지)
 - `codebase/backend/src/nodes/ai/ai-agent/mcp-server-ref-use.ts` (서버마다의 표현식 여부 배열 `mcpServerFromExpression` 을 정하고 통합 조회에 넘길 인자를 만든다. [통합 조회 기준](CLE-INT-MCP-TOOLS.md#통합-조회-기준))
-- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (dry-run 재실행에서 건너뛴 호출의 결과)
+- `codebase/backend/src/nodes/ai/ai-agent/tool-providers/dry-run-tool-result.ts` (dry-run 재실행의 모의 응답)
 - `codebase/backend/src/nodes/core/dry-run.util.ts` (내부 MCP 브리지 operation 의 부수효과 판정 `isDryRunMockedOperation`)
 - `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` (상태를 바꾸는 GET 예외 목록 `MAKESHOP_STATE_CHANGING_GET_OPERATION_IDS`)
 - `codebase/backend/src/common/config/mcp.config.ts` (`mcp.*` 설정 namespace)

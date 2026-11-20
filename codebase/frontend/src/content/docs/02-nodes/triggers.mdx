@@ -258,6 +258,11 @@ POST /api/triggers
 - `retry.maxAttempts` 는 첫 시도를 포함한 총 시도 횟수예요. 기본 5, 최대 10이고 0은 1(다시 보내지 않음)로 봐요. 최대인 10이면 마지막 재시도는 첫 시도 뒤 약 3.4시간에 나가요.
 - 최종 실패 시 트리거의 `notificationHealth` 가 `degraded`로 바뀌고 트리거 상세 화면에 표시돼요. **트리거 본체는 자동으로 비활성화되지 않아요** — 워크플로우 실행은 계속 받아요. 사용자가 직접 비활성화 토글을 눌러야 멈춰요.
 - URL은 `https://`만 허용해요 (개발 환경에서 `ALLOW_HTTP_HOOKS=1`일 때만 예외). 사설 IP·메타데이터 IP·loopback은 SSRF 방지로 차단돼요.
+- 인터랙션을 켠 트리거의 `execution.waiting_for_input` 알림에는 페이로드에 `interaction` 블록이 함께 실려요. 알림만 받고도 바로 응답할 수 있도록 하는 블록이에요. `endpoints` 에 엔드포인트 다섯 개(`stream` · `submit` · `status` · `cancel` · `refresh`)가 있고, `expectedCommands` 에는 이 입력 대기에 보내면 좋은 명령이 담겨요. 서버가 허용하는 명령을 그대로 나열한 목록이 아니라 권장 힌트예요.
+  - `tokenStrategy="per_execution"` 이면 알림마다 새 `iext_*` 토큰과 `expiresAt`(만료 시각)이 함께 실려요. 이 토큰은 실행이 끝나면 무효가 돼요.
+  - `tokenStrategy="per_trigger"` 이면 `token` 과 `expiresAt` 이 빠지고 엔드포인트와 `expectedCommands` 만 실려요. 트리거 생성 때 한 번 받은 `itk_*` 토큰을 쓰세요.
+  - 이 블록은 알림 웹훅에만 있고 SSE 스트림 이벤트에는 실리지 않아요.
+  - 토큰을 발급하지 못해도 알림은 막히지 않아요. 이때는 `interaction` 블록 없이 알림이 나가요.
 - URL에 사용자명이나 비밀번호(`https://user:pass@host/…`)를 넣을 수 없어요. 이런 URL로는 알림을 보낼 수 없어서 저장할 때 거부해요. 수신 서버는 `X-Clemvion-Signature` 서명으로 발신자를 확인하세요.
 
 <Callout type="note">

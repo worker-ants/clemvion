@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-AGENT"
 title: "재실행 — dry-run 의 AI 에이전트 도구"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "81813cf5ef16701e5314b0960b70ea9bb4001c77d9d9ae619ac5e537fdc9412a"
+content_hash: "93ab2e55c436e1cf8240c3f0d01d208c97aa4a6afbdde7d795431b309cdcb994"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-GKDPVQ"
 source_paths: []
-mirror_sha256: "f85d6f17d64ea4bf1aa1da5923a986dd6c4bda5696dd97ebfe87b15f738ce702"
-etag: "sha256-41bc8fccb38164b3e00ea6d9fa3534ab4639bfeb440e2e88cb8d6f5e4041a44c"
+mirror_sha256: "3703f373091db9d07f6d69fed6b31aff0ee9cf4d18d95b958c8c4655d3122f2d"
+etag: "sha256-87e16cf9f37062316c94450bef846632ea8cbc2fd52e96d126963ec3734814ae"
 ---
 ## 개요
 
@@ -106,8 +106,8 @@ AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([
 **활동 로그를 남기지 않는 쪽으로 맞췄다**: 이전에는 Cafe24 노드 dry-run 이 모의 출력을 내면서 활동 로그를 1건 남겼고 도구 경로는 남기지 않았다. 2026-10-23 에 사람이 «둘 다 남기지 않음» 을 골랐다. 활동 로그는 실제로 나간 외부 호출을 적는 기록이고 통합의 활동 탭과 `lastUsedAt` 이 이 기록에서 나온다. 나가지 않은 호출을 적으면 집계가 부풀고 사용자는 dry-run 이 실제로 무엇을 불렀는지 가를 수 없다. [MCP 클라이언트 Rationale](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10) 이 적은 이 1건의 목적(활동 탭 추적)은 요구사항 문서에 근거가 없었다. HTTP Request · Send Email · Database Query 노드의 모의 출력은 처음부터(2026-05-31) 활동 로그를 남기지 않았고 Cafe24 · MakeShop 노드만 달랐다. 모의 실행의 추적은 노드 출력의 `_dryRun` 과 도구 결과 본문의 `executed: false` 가 맡는다.
 
 - **기각한 안**: «둘 다 1건 남김» 은 dry-run 표시가 없는 `success` 행이 남고 `lastUsedAt` 이 실제 호출 없이 바뀌어 기각했다. 노드만 남기는 차이를 그대로 두는 안은 같은 dry-run 에서 두 경로의 규칙이 갈려 선택지에 넣지 않았다.
-- **다른 문서에 남은 문구**: 활동 로그를 정하는 문서와 용어 사전은 아직 이 예외를 적지 않는다. 그 정리는 CLE-T-M6W7RE 가 맡는다([미결 사항](CLE-EXEC-RERUN.md#미결-사항)).
+- **다른 문서에 남은 문구**: 활동 로그를 정하는 문서와 용어 사전의 정리는 NERV Task `CLE-T-M6W7RE` 가 맡았고 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) · [MCP 클라이언트 — 에러 처리](../CLE-INT/CLE-INT-MCP-ERROR.md) 의 표기는 NERV Task `CLE-T-GKDPVQ` 가 맞췄다.
 
 **모의 응답 안내 문구를 바꿨다**: 임시 가드의 안내는 «외부 시스템을 읽지도 바꾸지도 않았다» 였다. 이제 읽기 도구는 실제로 호출되므로 이 문장은 틀린다. 안내를 «이 호출은 보내지 않았고 아무것도 바뀌지 않았다, 성공한 것으로 보고 이어 가라, 같은 호출을 다시 하지 마라» 로 바꿨다. LLM 이 같은 쓰기를 반복하지 않고 흐름을 끝까지 진행하게 하려는 것이다. `executed: false` 는 `render_form` 선례가 기각한 `rendered: false` 와 모양이 같지만 실제 결과와 모의 응답을 가를 값이 이것뿐이라 두었고, 실패로 읽히는 위험은 status `success` 와 이 안내로 막는다. 실제로 부른 호출의 결과에는 이 키를 붙이지 않는다.
 
-**재실행 창 집계는 따로 정한다**: 재실행 창의 외부 호출 안내(RR-PL-01)에 AI 에이전트 도구를 넣는 일은 화면과 문구를 바꾸는 제품 결정이라 이 결정에 넣지 않았다(CLE-T-5WK8QA). 이 판정이 A4 를 대신하지 않는 이유는 [왜 A5](CLE-EXEC-RERUN-POLICY.md#왜-a5확인-모달과-dry-run-토글인가) 에 있다.
+**재실행 창 집계는 따로 정한다**: 재실행 창의 외부 호출 안내(RR-PL-01)에 AI 에이전트 도구를 넣는 일은 화면과 문구를 바꾸는 제품 결정이라 이 결정에 넣지 않았다(CLE-T-5WK8QA). 이 판정이 A4 를 대신하지 않는 이유는 [왜 A5](CLE-EXEC-RERUN-POLICY.md#왜-a5확인-모달과-dry-run-토글인가) 에 있다. 재실행 창이 MCP 서버를 연결한 AI 에이전트 노드를 어떻게 안내하는지는 [재실행 UI](CLE-EXEC-RERUN-UI.md#재실행-창은-mcp-서버를-연결한-ai-에이전트-노드를-따로-센다) 가 정한다.

@@ -115,6 +115,15 @@ describe('BusinessMetricsService (NF-OB-07)', () => {
     expect(labels.resource_type).toHaveLength(64);
   });
 
+  it('recordExecutionError → 라벨을 64자로 클램핑한다 (cardinality 방어)', () => {
+    // 위 recordAuditWriteFailed 와 같은 경계다. 이쪽만 클램핑을 빼도 통과하던 비대칭을 막는다.
+    const long = 'x'.repeat(65);
+    service.recordExecutionError(long);
+    const [, labels] = mock.counters['clemvion.execution.errors'].add.mock
+      .calls[0] as [number, { error_code: string }];
+    expect(labels.error_code).toHaveLength(64);
+  });
+
   /**
    * 인터셉터 쪽 테스트는 이 메서드를 `jest.fn()` 스텁으로 대체하므로, **이 구현 자체는
    * 어느 테스트도 실행하지 않았다** — 카운터 이름 오탈자·라벨 키 뒤바뀜·`add` 누락이

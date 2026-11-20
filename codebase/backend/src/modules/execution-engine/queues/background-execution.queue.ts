@@ -8,6 +8,19 @@ import type { ConversationThread } from '../../../shared/conversation-thread/con
 export const BACKGROUND_EXECUTION_QUEUE = 'background-execution';
 
 /**
+ * Background 작업을 큐에 넣을 때 쓰는 BullMQ 옵션. 끝난 작업은 건수가 아니라 나이로 지운다.
+ *
+ * 작업 데이터에는 큐에 넣을 때의 노드 출력 스냅샷(`nodeOutputCache` · `structuredOutputCache`)이
+ * 실려 한 건이 수 MB 가 될 수 있다. 건수 기준(완료 · 실패 각 100건)이면 Background 가 드문 환경에서
+ * 큰 작업이 오래 남는다. 완료 작업은 24시간, 실패 작업은 조사할 시간을 두고 7일 남긴다
+ * (NERV Task `CLE-T-9XMCS6`). 같은 기간을 쓰는 큐: `external-interaction/notification-dispatcher.service.ts`.
+ */
+export const BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS = {
+  removeOnComplete: { age: 24 * 60 * 60 },
+  removeOnFail: { age: 7 * 24 * 60 * 60 },
+};
+
+/**
  * 큐에 enqueue되는 작업 페이로드.
  *
  * 컨텍스트는 enqueue 시점에 메인 흐름에서 **스냅샷**(얕은 복사)으로 떠서 함께 전달한다.

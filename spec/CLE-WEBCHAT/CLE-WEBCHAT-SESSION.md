@@ -2,25 +2,25 @@
 id: "CLE-WEBCHAT-SESSION"
 title: "웹채팅 인증과 세션"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-WCSESS-001", "REQ-WCSESS-002", "REQ-WCSESS-003", "REQ-WCSESS-004", "REQ-WCSESS-005", "REQ-WCSESS-006", "REQ-WCSESS-007", "REQ-WCSESS-008", "REQ-WCSESS-009", "REQ-WCSESS-010", "REQ-WCSESS-011", "REQ-WCSESS-012", "REQ-WCSESS-013", "REQ-WCSESS-014", "REQ-WCSESS-015", "REQ-WCSESS-016", "REQ-WCSESS-017", "REQ-WCSESS-018", "REQ-WCSESS-019", "REQ-WCSESS-020", "REQ-WCSESS-021", "REQ-WCSESS-022", "REQ-WCSESS-023", "REQ-WCSESS-024", "REQ-WCSESS-025", "REQ-WCSESS-026", "REQ-WCSESS-027", "REQ-WCSESS-028", "REQ-WCSESS-029", "REQ-WCSESS-030", "REQ-WCSESS-031", "REQ-WCSESS-032", "REQ-WCSESS-033", "REQ-WCSESS-034", "REQ-WCSESS-035", "REQ-WCSESS-036", "REQ-WCSESS-037", "REQ-WCSESS-038", "REQ-WCSESS-039", "REQ-WCSESS-040"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "f345c0a8184a7838b3b2253dba4a0d660fb3311e026d85c05b4f6158aefb4c15"
+content_hash: "2261f59cf2beb4ffc36619acbc23c0956f3d4e2a47fcfbec9730edf6aa44ef6b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JNXZWY"
 source_paths: ["spec/7-channel-web-chat/3-auth-session.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "7a26b6cbc10b92773d9d065299cf4ad0a35932ff315a4f1feb8534ac33b28bac"
-etag: "sha256-df272c88563757ff9ce37faed3b2c28321ce61273c13f0711b047fdac8fb507c"
+mirror_sha256: "a7a24a46bb1fefc52e110deeb451950d86dd9ff4edf9bf1c85146a282920f8c1"
+etag: "sha256-25ea17a1003af59fe526bed6398a67b9e28b27a79a33e3d2b8ab32cc1aef456d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/3-auth-session.md`, `spec/7-channel-web-chat/5-admin-console.md` (§6 첫 노드 race 보정) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 공개 임베드 위젯의 인증과 세션 모델을 정한다. 위젯이 붙는 트리거는 인증 없는 공개 웹훅(public webhook, `auth_config_id IS NULL`)이다. 대화는 웹훅 `202` 응답에 함께 오는 실행 단위 토큰(per_execution token, `iext_*`)으로만 진행하고 클라이언트에 오래 사는 비밀을 두지 않는다.
+이 문서는 웹채팅 위젯의 인증과 세션 모델을 정한다. 위젯이 붙는 트리거는 인증 없는 공개 웹훅(public webhook, `auth_config_id IS NULL`)이다. 대화는 웹훅 `202` 응답에 함께 오는 실행 단위 토큰(per_execution token, `iext_*`)으로만 진행하고 클라이언트에 오래 사는 비밀을 두지 않는다.
 
 다루는 것은 세션 시퀀스(부팅 → 시작 → SSE → 명령 → 갱신 → 종료), 첫 노드를 놓치지 않는 시작 보정, 위젯 세션(widget session)을 sessionStorage 에 두고 새로고침 때 복원하는 절차, 버려진 실행의 유휴 실행 회수다. 이 문서는 시퀀스와 공통 규칙을 두고, 재로드 복원 · 토큰 갱신 · 명령 실패 처리의 세부와 그 근거, 위젯 세션 저장소 선택(sessionStorage, localStorage 기각) · 표면 되감기 방어 · 위젯 세션의 발급 주소(`apiBase`) 바인딩의 근거는 하위 문서가 정한다. 실행 단위 토큰 채택과 응답 봉투 처리의 근거는 이 문서의 Rationale 에 있다.
 
@@ -136,7 +136,7 @@ sequenceDiagram
 
 ## 유휴 실행 회수
 
-유휴 실행 회수(`WEBCHAT_IDLE_TIMEOUT`)는 버려진 공개 위젯 실행을 서버가 거두는 장치다. 사용자가 명시 종료 없이 떠나면(탭 닫기, "닫기") 그 실행은 입력 대기로 남는다. 위젯의 새 대화 전 `cancel`([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md))은 정상 경로만 즉시 닫으므로 놓친 경로에 남은 실행을 서버가 거둔다.
+유휴 실행 회수(`WEBCHAT_IDLE_TIMEOUT`)는 버려진 웹채팅 위젯 실행을 서버가 거두는 장치다. 사용자가 명시 종료 없이 떠나면(탭 닫기, "닫기") 그 실행은 입력 대기로 남는다. 위젯의 새 대화 전 `cancel`([웹채팅 위젯](CLE-WEBCHAT-WIDGET.md))은 정상 경로만 즉시 닫으므로 놓친 경로에 남은 실행을 서버가 거둔다.
 
 - 대상: 공개 웹훅(`auth_config_id IS NULL`) 트리거가 시작하고 실행 단위 토큰으로만 접근하는 입력 대기 실행.
 - 판정: 그 실행의 인터랙션 토큰 행이 하나 이상 있고 그 토큰이 모두 만료되고(`execution_token.exp_at` 이 모두 `< now`) 유예 시간(env `WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 1시간)이 지남. 토큰 행이 하나도 없는 실행은 회수하지 않는다([External Interaction API](../CLE-IX/CLE-EIA.md) REQ-EIA-030).

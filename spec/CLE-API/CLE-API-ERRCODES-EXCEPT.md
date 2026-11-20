@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXCEPT"
 title: "에러 코드 — 예외 · 내부 분류 · 은퇴 코드"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "67fd101b26af20b1a5ee680f51e6e962e061fac6c750101c2395a86adc9af02a"
+content_hash: "4a0550cc25edf60c98133d99e8861cd241ae816cc2f38fbb18017c4653bf9f6f"
 read_as: "approved_fallback"
-task: "CLE-T-DDN3MS"
+task: "CLE-T-8WXV7T"
 source_paths: []
-mirror_sha256: "f789a471984982edaa763ae9ab0ceb4d0c7db520ef4c40fc5c6271aebdc402f3"
-etag: "sha256-3a45297d75dd89ea79eaa35421b9eb26d1d846872b7d359393866f20e9d0ded6"
+mirror_sha256: "5e79a64683d35528f11f1647e647beb9807c6c2d8c26dfb3484930db247e0cf9"
+etag: "sha256-d8fb78f00b1c9133717bf5380e464ff8a401ad324169469e97996ee2821adc2c"
 ---
 ## 개요
 
@@ -34,7 +34,7 @@ etag: "sha256-3a45297d75dd89ea79eaa35421b9eb26d1d846872b7d359393866f20e9d0ded6"
 | `HTTP_4XX` · `HTTP_5XX` | 없음 (노드 `output.error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 범주를 적는다(규칙 1). `HTTP_4XX` 는 이름과 달리 따라가지 않은 3xx 도 담는다. 노드 출력 값이라 워크플로우가 이 값으로 분기할 수 있고 바꾸면 호환이 깨진다(§2) | HTTP Request 노드가 받은 응답이 2xx 가 아니다. 상태가 500 이상이면 `HTTP_5XX`, 그 밖(3xx · 4xx)은 `HTTP_4XX` 다. 상태 번호는 `output.error.details.statusCode` 에 있다. 같은 실패의 활동 로그와 통합 `last_error.code` 에는 아래 `HTTP_{status}` 가 남는다 | [HTTP Request 노드 — 출력과 에러 「에러 코드」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#에러-코드) |
 | `HTTP_{status}` (예: `HTTP_404` · `HTTP_502`) | 없음 (통합 활동 로그 `error.code` · 통합 `last_error.code`) | 이름이 조건의 뜻 대신 HTTP 상태 번호를 적는다(규칙 1). 활동 로그 API(`GET /api/integrations/:id/activity`)와 통합 `last_error.code` 로 클라이언트에 나가고 이미 쌓인 활동 로그 행에도 남아 있다. 바꾸면 옛 행과 새 행의 값이 갈린다(§2) | `integration` 인증의 HTTP Request 노드가 보낸 요청에 서버가 2xx 가 아닌 상태(3xx · 4xx · 5xx)로 답했다. 번호는 응답 상태 그대로다. 같은 실패의 노드 출력 `output.error.code` 는 `HTTP_4XX` · `HTTP_5XX` 다(§6.6) | [HTTP Request 노드 — 실행 로직 「활동 로그」](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#활동-로그) |
 | `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | 이름은 `https://` 가 아닌 URL 만 말한다. 실제로는 파싱할 수 없는 URL 에도 난다 | MCP 서버 URL 이 https 가 아니거나 파싱할 수 없다. 두 연결 테스트(`POST /api/integrations/:id/test` · `POST /api/integrations/preview-test`)가 이 코드를 돌려준다. 노드 실행의 도구 목록 구성(`buildTools`)에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 남는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「연결 테스트」](../CLE-INT/CLE-INT-MCP.md#연결-테스트) |
-| `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` · `rate_limited` | 404 · 410 · 410 · 400 · 429 (순서대로) | `lower_snake_case` 로 표기 규칙을 어긴다. 워크스페이스 초대 흐름 v1 에서 이 형태로 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR`)와 백엔드(`workspace-invitations.service.ts`, `auth.service.ts`)가 `code` 값으로 분기한다. 바꾸면 호환이 깨진다(§2) | 초대 토큰 없음·만료·사용됨·이메일 불일치·빈도 제한. **초대 API 한정**이다. 이 소문자 `rate_limited` 는 초대 흐름 전용이고 다른 영역의 `RATE_LIMITED` 와 별개다. 2026-09-25 에 발행처가 없던 `forbidden` 을 이 행에서 뺐다(`code: 'forbidden'` 0건). 초대 권한 부족은 `RolesGuard` 의 `ADMIN_REQUIRED` 다. 소유자가 아닌 요청자의 관리자 역할 초대 거부는 서비스 계층이 내는 대문자 `OWNER_REQUIRED`(§6.2)라 이 예외에 들지 않는다. `rate_limited` 발행처는 [미결 사항](CLE-API-ERRCODES.md#미결-사항) 참조 | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
+| `invitation_not_found` · `invitation_expired` · `invitation_already_used` · `invitation_email_mismatch` | 404 · 410 · 410 · 400 (순서대로) | `lower_snake_case` 로 표기 규칙을 어긴다. 워크스페이스 초대 흐름 v1 에서 이 형태로 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR`)와 백엔드(`workspace-invitations.service.ts`, `auth.service.ts`)가 `code` 값으로 분기한다. 바꾸면 호환이 깨진다(§2) | 초대 토큰 없음·만료·사용됨·이메일 불일치. **초대 API 한정**이다. 초대 빈도 제한은 전역 필터의 대문자 `RATE_LIMITED`(429)다. 2026-11-20 에 발행처가 없던 소문자 `rate_limited` 를 이 행에서 뺐다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)). 2026-09-25 에 발행처가 없던 `forbidden` 을 이 행에서 뺐다(`code: 'forbidden'` 0건). 초대 권한 부족은 `RolesGuard` 의 `ADMIN_REQUIRED` 다. 소유자가 아닌 요청자의 관리자 역할 초대 거부는 서비스 계층이 내는 대문자 `OWNER_REQUIRED`(§6.2)라 이 예외에 들지 않는다. | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
 | `workspace_type_mismatch` · `already_a_member` · `invitation_already_pending` · `invitation_already_accepted` | 403 · 409 · 409 · 409 | `lower_snake_case`. 위 초대 토큰 코드와 같은 모듈(`workspace-invitations.service.ts`)의 초대 발급·재발송 흐름 코드다. 프론트엔드는 `code` 로 분기하지 않고 `message` 만 보이지만 정규화하면 같은 모듈의 다른 소문자 코드와 대소문자가 섞이고 호환 이득이 0이라 소문자를 유지한다(2026-06-28 결정) | non-team 워크스페이스에 초대 / 이미 멤버 / 같은 이메일의 대기 초대 경합(partial UNIQUE) / 이미 수락된 초대의 재발송·취소. **초대 발급·재발송·취소 API 한정**이다. 직접 추가 경로의 대문자 코드와 같은 뜻의 **별개 코드**다(§6.12) | [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#초대-에러-코드) 의 초대 에러 코드 |
 | `workspace_not_found` · `user_not_found` · `admin_required` | 404 · 404 · 403 | `lower_snake_case`. 위 두 행과 같은 초대 모듈이 조회·RBAC 단계에서 발행한다. 모듈 안 소문자 일관성을 위해 유지한다(등록부 완전성 차원의 등재) | 워크스페이스 없음 / 대상 사용자 없음 / 관리자 미만 권한. 2026-09-25 이후 `admin_required` 는 HTTP 로 나가지 않는다. 초대 라우트가 `RolesGuard` 의 `@Roles('admin')` 를 먼저 거쳐 `ADMIN_REQUIRED` 가 나기 때문이다. 서비스 계층의 `admin_required` 는 가드가 빠졌을 때만 닿는 두 번째 방어선이다. **초대 모듈 한정**이고 직접 추가·관리 경로의 `WORKSPACE_NOT_FOUND`·`USER_NOT_FOUND`(§6.4)와 별개 코드다 | [계정과 워크스페이스 데이터 흐름 「초대 발급」](../CLE-ACCT/CLE-ACCT-DATA.md#초대-발급). 세 코드는 도메인 문서에 적혀 있지 않아 이 행이 유일한 등재다 |
 | `invalid_state` · `token_exchange_failed` · `email_required` · `server_error` (OAuth 콜백 `?error=`) | 없음 (302 리다이렉트) | `lower_snake_case`. 봉투의 `error.code` 가 아니라 로그인 OAuth 콜백이 `{frontend_url}/callback?error=<값>` 으로 보내는 **URL query 값**이다. v1 에서 굳었고 콜백 페이지가 이 값으로 분기한다(§2) | 소셜 로그인 콜백 실패 사유(state 불일치 / 코드 교환 실패 / 이메일 미제공 / 서버 에러 · 연결할 계정을 정하지 못함). 연결할 계정을 정하지 못한 경우는 이메일이 대소문자만 다른 기존 계정 여럿과 맞고 대소문자까지 같은 계정이 없을 때다([가입과 로그인 — 가입 · 재설정 · 이메일 변경 「이메일 비교 규칙」](../CLE-ACCT/CLE-ACCT-SIGNIN-SIGNUP.md#이메일-비교-규칙)). 새 값을 두지 않고 `server_error` 를 쓴다. **로그인 OAuth 콜백 URL 한정**이고 통합 OAuth 의 `OAUTH_*` 봉투 코드와 별개다. `invalid_state` 는 §6.4 의 봉투 코드 `INVALID_STATE`(422, 상태 전이 불가)와 대소문자만 같고 뜻이 다른 별개 값이다 | [가입과 로그인 — 로그인과 소셜 로그인 「에러 처리」](../CLE-ACCT/CLE-ACCT-SIGNIN-LOGIN.md#에러-처리) |

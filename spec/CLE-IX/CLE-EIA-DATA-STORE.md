@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-STORE"
 title: "EIA 데이터와 흐름 — 엔티티와 저장소"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "f60e8268f4161ae5104a913138be28a8dc91aca030b7235dc7b05c84889fcfef"
+content_hash: "940a01d0af4f200d3d9048da1c57b9f05a294cf72bca399f1c0a9faa3d985079"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-NXPWZZ"
 source_paths: []
-mirror_sha256: "9fd5b683b5c8f4f0b26ff79860aa627170f699528ab7040ec5561418901c5c3a"
-etag: "sha256-1b7d212d9c02f7470a0fcec5ad9ac721c05aeab1c3f36df01bcf11f22daa0116"
+mirror_sha256: "0a4c7e29a8adab154ca4ff35beaec201c2aee88296770ae32d635efdb8a106a5"
+etag: "sha256-c7b8ee562828485b001d577012990839d51fddc2b4a30dbe9fe9e552fa9e8319"
 ---
 ## 개요
 
@@ -69,8 +69,8 @@ etag: "sha256-1b7d212d9c02f7470a0fcec5ad9ac721c05aeab1c3f36df01bcf11f22daa0116"
 - `interaction.appearance` 는 [External Interaction API](CLE-EIA.md) 의 트리거 등록 페이로드로 받아 저장하는 표시용 값이다. 토큰 발급·검증과 관계없다. 필드는 위 일곱 개이고 모두 선택이다. 허용 값(enum·hex·길이)은 현재 구현의 `WebChatAppearanceDto`(`web-chat-appearance.dto.ts`)가 강제한다. 콘솔 폼과 같은 평면 모양(`welcomeText`, 추천 질문 문자열 하나)으로 저장하고, 위젯 부팅 설정의 중첩 모양(`welcome.text`, `welcome.suggestions[]`)으로 옮기는 일은 클라이언트가 한다. 필드의 뜻과 변환은 [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) 이 정한다. PATCH 는 `interaction` 객체를 통째로 바꾸므로 `appearance` 없이 보내면 저장된 외형이 사라진다.
 - **PATCH 와 서버가 만든 값**: PATCH 가 `config.interaction` 이나 `config.notification` 을 통째로 바꿀 때 서버가 만든 두 값은 트리거 설정 잠금(`acquireTriggerConfigLock`) 안에서 다시 읽은 행을 기준으로 다룬다.
   - `notification.signing.secretRef` 는 잠금 안에서 다시 읽은 행에 참조가 있으면 행의 값을 복사하지 않고 트리거 id 로 다시 만든 참조(`notificationSigningSecretRef(triggerId)`)를 싣는다. 참조가 있는지는 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24 로 판정한다. 참조가 없을 때 옛 평문을 옮길지 첫 시크릿을 발급할지는 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다. 판정, 시크릿 저장소 쓰기(발급이나 옮기기), `config` 쓰기는 같은 트리거 설정 잠금 안에서 한다.
-  - `interaction.triggerToken`(`itk_*`)은 PATCH 가 top-level `interaction` 을 실을 때 정한다. 결과의 `interaction.tokenStrategy` 가 `per_trigger` 이면 저장된 토큰을 이어받는다. 결과가 인터랙션 켜짐(`enabled === true`)과 `per_trigger` 인데 저장된 토큰이 없으면 서버가 새 `itk_*` 를 발급한다. 평문은 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. 결과의 전략이 `per_trigger` 가 아니거나 결과에 `interaction` 이 없으면 저장된 토큰을 지운다. 그 토큰으로 연 SSE 스트림도 닫는다([트리거 단위 토큰](CLE-EIA-DATA-TOKEN.md#트리거-단위-토큰)). 그래서 전략을 바꿨다가 다시 `per_trigger` 로 바꾸면 새 토큰을 받는다. 옛 토큰은 다시 살아나지 않는다. 인터랙션을 끄는 PATCH 는 토큰을 지우지 않는다. 그 토큰으로 연 SSE 스트림만 닫는다.
-  - 두 값은 요청 본문으로 받지 않는다. top-level `interaction` · `notification` 본문에 실으면 전역 검증 파이프(`whitelist` + `forbidNonWhitelisted`)가 400 `VALIDATION_ERROR` 로 거부한다. 원시 `config` 에 `notification.signing.secretRef` 나 `interaction.triggerToken` 을 실으면 생성과 PATCH 모두 400 `VALIDATION_ERROR` 로 거부한다(`CONFIG_INTERNAL_FIELDS`, [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 두 값이 없어도 원시 `config` 바로 아래의 `interaction` · `notification` 키는 값과 상관없이 400 `VALIDATION_ERROR` 로 거부한다. 거부 순서와 `details.field` 는 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이 정한다.
+  - `interaction.triggerToken`(`itk_*`)은 PATCH 가 타입 필드 `interaction` 을 실을 때 정한다. 결과의 `interaction.tokenStrategy` 가 `per_trigger` 이면 저장된 토큰을 이어받는다. 결과가 인터랙션 켜짐(`enabled === true`)과 `per_trigger` 인데 저장된 토큰이 없으면 서버가 새 `itk_*` 를 발급한다. 평문은 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. 결과의 전략이 `per_trigger` 가 아니거나 결과에 `interaction` 이 없으면 저장된 토큰을 지운다. 그 토큰으로 연 SSE 스트림도 닫는다([트리거 단위 토큰](CLE-EIA-DATA-TOKEN.md#트리거-단위-토큰)). 그래서 전략을 바꿨다가 다시 `per_trigger` 로 바꾸면 새 토큰을 받는다. 옛 토큰은 다시 살아나지 않는다. 인터랙션을 끄는 PATCH 는 토큰을 지우지 않는다. 그 토큰으로 연 SSE 스트림만 닫는다.
+  - 두 값은 요청 본문으로 받지 않는다. 타입 필드 `interaction` · `notification` 본문에 실으면 전역 검증 파이프(`whitelist` + `forbidNonWhitelisted`)가 400 `VALIDATION_ERROR` 로 거부한다. 원시 `config` 에 `notification.signing.secretRef` 나 `interaction.triggerToken` 을 실으면 생성과 PATCH 모두 400 `VALIDATION_ERROR` 로 거부한다(`CONFIG_INTERNAL_FIELDS`, [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 두 값이 없어도 원시 `config` 바로 아래의 `interaction` · `notification` 키는 값과 상관없이 400 `VALIDATION_ERROR` 로 거부한다. 거부 순서와 `details.field` 는 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이 정한다.
   - 채팅 채널 `botTokenRef` 보존과 목적이 같다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)). 방식도 같다. 두 참조 모두 행의 값을 쓰지 않고 트리거 id 로 다시 만든다.
 - **`notification.retry`**: 발송할 때 `maxAttempts` 를 발송 큐 작업의 BullMQ `attempts` 로 넘긴다. `maxAttempts` 와 `backoff` 의 뜻은 [EIA 알림 웹훅](CLE-EIA-NOTIFY.md#재시도와-실패-처리) 의 「재시도와 실패 처리」 가 정한다.
 - 설정 JSONB 는 키가 없으면 쓰지 않는 것으로 읽는다. 그래서 기존 트리거에 영향이 없다.

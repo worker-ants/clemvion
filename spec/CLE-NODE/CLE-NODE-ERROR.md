@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "c7b6ae48813074f8cb294ec983442cc9182feefe5284ac99ac96e88e89d3dfa1"
+content_hash: "6f0cbe3a22c84b1a5295e36e85b1479df59b1bbf9250deba0448d2778030d2c0"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-1639BP"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "b36887842143b7b05c47ab7d9c970189116d3833cd35d2bb8c1d4239373ecbc2"
-etag: "sha256-2ceefe95c5dfb6b7fe7c31e0f1e40774f67d1facd359f693f88b8b45da4c7c60"
+mirror_sha256: "b8a4296e919902c03dfe91073497f733f2d6e406e70fb90b82a5595f7426ded3"
+etag: "sha256-4763091032e377ebe086b1b5fc41276269309082b115960f019baa1539e04b2c"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -109,9 +109,9 @@ flowchart TD
 에러 포트는 두 가지다.
 
 - 고정 에러 포트: 노드 정의에 원래 있는 `error` 포트. 어떤 노드에 있는지는 [노드 출력 규약 Principle 3](CLE-NODE-OUTPUT.md#principle-3-에러-계약)의 3.3 이 정한다.
-- 동적 에러 포트: 고정 에러 포트가 없는 노드에서 에러 처리 정책을 "에러 포트로 라우팅" 으로 고를 때 생기는 `error` 포트. 고정 에러 포트가 있는 노드에는 생기지 않는다([노드 출력 규약](CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14)). 노드 오른쪽 아래에 빨간 원으로 그린다. 정책을 다른 값으로 바꿔 저장하면 동적 에러 포트와 그 연결선이 사라진다([노드 포트와 설정 패널 「에러 처리 정책 설정」](../CLE-WF/CLE-WF-NODEPANEL.md#에러-처리-정책-설정)).
+- 동적 에러 포트: 고정 에러 포트가 없는 노드에서 에러 처리 정책을 "에러 포트로 라우팅" 으로 고를 때 생기는 `error` 포트. 고정 에러 포트가 있는 노드에는 생기지 않는다([노드 출력 규약](CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다)). 노드 오른쪽 아래에 빨간 원으로 그린다. 정책을 다른 값으로 바꿔 저장하면 동적 에러 포트와 그 연결선이 사라진다([노드 포트와 설정 패널 「에러 처리 정책 설정」](../CLE-WF/CLE-WF-NODEPANEL.md#에러-처리-정책-설정)).
 
-노드가 성공해서 포트를 고르지 않은 출력은 `error` 연결선을 열지 않는다. 엔진은 노드 출력에 고른 포트(`_selectedPort`)가 없거나 빈 배열이면 `error` 연결선만 막고 나머지 연결선은 연다(`graph-traversal.service.ts` 의 `isPortFiltered`). 이 규칙은 모든 노드와 정책에 같고 노드 건너뛰기 · 기본 출력 사용 노드에도 걸린다. 근거는 [고른 포트가 없는 출력은 `error` 연결선을 열지 않는다](#고른-포트가-없는-출력은-error-연결선을-열지-않는다-2026-11-14) 에 있다.
+노드가 성공해서 포트를 고르지 않은 출력은 `error` 연결선을 열지 않는다. 엔진은 노드 출력에 고른 포트(`_selectedPort`)가 없거나 빈 배열이면 `error` 연결선만 막고 나머지 연결선은 연다(`graph-traversal.service.ts` 의 `isPortFiltered`). 이 규칙은 모든 노드와 정책에 같고 노드 건너뛰기 · 기본 출력 사용 노드에도 걸린다. 근거는 [고른 포트가 없는 출력은 `error` 연결선을 열지 않는다](#고른-포트가-없는-출력은-error-연결선을-열지-않는다) 에 있다.
 
 노드 핸들러는 런타임 실패를 `port: 'error'` 출력으로 보낸다. `output.error`(`code`, `message`, `details`)의 형태는 [노드 출력 규약 3.2](CLE-NODE-OUTPUT.md#32-outputerror-표준-형태)가 정하고 `details` 의 공통 필드와 노드별 스키마는 [3.2.1](CLE-NODE-OUTPUT.md#321-details-의-공통-표준-필드) · [3.2.2](CLE-NODE-OUTPUT.md#322-details-의-노드별-선택-스키마)가 정한다.
 
@@ -130,9 +130,9 @@ flowchart TD
 - `code` 는 ForEach · Map · Parallel 이 실패한 회차의 `error.code` 를 고르는 규칙(`resolveIterationErrorCode`)과 같다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4번). 던진 Error 가 백엔드가 직접 싣는 카탈로그 코드(예: `CAFE24_RATE_LIMITED` · `INTEGRATION_NOT_CONNECTED`)를 문자열 `code` 로 실으면 그 값이다. 그 밖은 `UNKNOWN_ERROR` 다.
 - 취소(`AbortError` · `ExecutionCancelledError`)에는 정책을 적용하지 않으므로([1. 에러 처리 정책 다섯 가지](#1-에러-처리-정책-다섯-가지)) 이 출력이 생기지 않는다.
 - `error` 연결선만 활성화한다. `out` 같은 다른 출력 포트의 연결선은 열리지 않는다.
-- 노드 실행 기록에는 이 출력과 `error.code` · `error.message` 가 남고 노드 실패 이벤트(`NODE_FAILED`)도 낸다. 마감은 `port: 'error'` 출력과 같은 함수(`execution-engine.service.ts` 의 `finalizeErrorPortNode`)가 맡는다. 이렇게 맞춘 이유는 [throw 한 실패도 `error` 포트를 고른다](#throw-한-실패도-error-포트를-고른다-2026-11-14) 에 있다.
+- 노드 실행 기록에는 이 출력과 `error.code` · `error.message` 가 남고 노드 실패 이벤트(`NODE_FAILED`)도 낸다. 마감은 `port: 'error'` 출력과 같은 함수(`execution-engine.service.ts` 의 `finalizeErrorPortNode`)가 맡는다. 이렇게 맞춘 이유는 [throw 한 실패도 `error` 포트를 고른다](#throw-한-실패도-error-포트를-고른다) 에 있다.
 
-`code` 를 이 규칙으로 고른 이유는 [throw 한 실패의 `error.code` 를 반복 결과와 같은 규칙으로 고른다](#throw-한-실패의-errorcode-를-반복-결과와-같은-규칙으로-고른다-2026-11-13) 에 있다.
+`code` 를 이 규칙으로 고른 이유는 [throw 한 실패의 `error.code` 를 반복 결과와 같은 규칙으로 고른다](#throw-한-실패의-errorcode-를-반복-결과와-같은-규칙으로-고른다) 에 있다.
 
 노드 카테고리별 대표 에러 코드는 아래와 같다. 전체 목록은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에 있다.
 
@@ -217,15 +217,19 @@ Parallel 이 `config.errorPolicy` 가 비었을 때 `config.errorHandling.policy
 - [용어 사전 — 노드](../CLE-GLOSSARY-NODE.md)의 「항목 에러 정책」 행과 [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md)의 「에러·오류와 에러 처리 정책 이름이 갈린다」 항목(D09)이 가리키는 키 표기를 함께 고쳐야 한다.
 - 저장된 워크플로우의 노드 설정을 옮기는 데이터 마이그레이션이 필요하다.
 
-### 노드 카테고리별 기본 재시도를 두지 않는다 (2026-10-24)
+### 노드 카테고리별 기본 재시도를 두지 않는다
+
+결정일: 2026-10-24
 
 모든 노드의 기본 정책은 워크플로우 중단이고 재시도는 사용자가 고를 때만 `maxRetries` 기본값 3 으로 적용한다. 현재 구현이 그렇게 동작해서 그대로 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`). 엔진 원문의 카테고리별 기본 재시도 표와 옮기지 않은 이유는 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#노드-카테고리별-기본-재시도-표를-옮기지-않는다) 에 있다.
 
 기각한 대안은 Logic 노드에서 재시도를 막는 안이다. Logic 노드도 다섯 정책을 모두 고를 수 있게 둔 결정([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#rationale))과 맞지 않고 설정 패널과 엔진에 카테고리 검사를 새로 넣어야 한다.
 
-### `error` 포트로 돌려준 실패에 정책을 걸지 않는다 (2026-11-01)
+### `error` 포트로 돌려준 실패에 정책을 걸지 않는다
 
-엔진은 핸들러가 throw 한 실패에만 에러 처리 정책을 건다. AI 에이전트 단일 턴의 LLM 호출 실패를 `error` 포트로 옮기면서(NERV Task `CLE-T-ZHBMAC`) 이 규칙이 사용자에게 보이게 돼 문서에 적었다. [카테고리별 기본 재시도를 두지 않는다](#노드-카테고리별-기본-재시도를-두지-않는다-2026-10-24)는 결정은 그대로이고 이 규칙은 작성자가 고른 정책이 걸리는 범위만 정한다.
+결정일: 2026-11-01
+
+엔진은 핸들러가 throw 한 실패에만 에러 처리 정책을 건다. AI 에이전트 단일 턴의 LLM 호출 실패를 `error` 포트로 옮기면서(NERV Task `CLE-T-ZHBMAC`) 이 규칙이 사용자에게 보이게 돼 문서에 적었다. [카테고리별 기본 재시도를 두지 않는다](#노드-카테고리별-기본-재시도를-두지-않는다)는 결정은 그대로이고 이 규칙은 작성자가 고른 정책이 걸리는 범위만 정한다.
 
 기존 워크플로우에는 영향이 있다. AI 에이전트 단일 턴에 `retry` · `skip_node` · `use_default_output` 을 걸어 둔 워크플로우는 LLM 호출이 실패해도 그 정책이 걸리지 않는다. `error` 연결선이 없으면 엔진은 `ERROR_PORT_FALLBACK` 을 남기고 워크플로우 중단으로 처리한다. 같은 처리가 필요하면 `error` 포트에 에이전트를 다시 실행하거나 기본값을 내는 분기를 잇는다.
 
@@ -234,15 +238,19 @@ Parallel 이 `config.errorPolicy` 가 비었을 때 `config.errorHandling.policy
 - 엔진이 `error` 포트 출력에도 `retry` 정책을 적용하는 안. [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md)와 [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md)처럼 이미 `error` 포트를 쓰는 노드의 동작까지 바뀐다. 작성자가 `error` 연결선으로 고른 처리와 엔진 재시도가 겹친다.
 - `error` 포트를 쓰는 노드에서 정책 선택 UI 를 막는 안. AI 에이전트에는 아직 throw 경로가 남아 있다. 단일 턴의 노드 LLM 설정(`llmConfigId`) 조회 실패가 그렇다(NERV Task `CLE-T-T8FVCG`). 이 실패에는 지금도 정책이 걸린다.
 
-### 노드 건너뛰기는 출력을 쓰지 않는다 (2026-11-06)
+### 노드 건너뛰기는 출력을 쓰지 않는다
 
-이 문서는 노드 건너뛰기(`skip_node`)의 출력을 `null` 로 적었지만 엔진은 건너뛴 노드의 출력을 실행 캐시에 쓰지 않는다. 그래서 문서를 엔진 동작에 맞췄다(NERV Task `CLE-T-HW2GKD`). 다음 노드가 받는 값은 `null` 이 아니라 빈 값(`undefined`)이다. 고른 포트도 없으므로 출력 연결선 가운데 `error` 를 뺀 연결선이 활성화된다([고른 포트가 없는 출력은 `error` 연결선을 열지 않는다](#고른-포트가-없는-출력은-error-연결선을-열지-않는다-2026-11-14)).
+결정일: 2026-11-06
+
+이 문서는 노드 건너뛰기(`skip_node`)의 출력을 `null` 로 적었지만 엔진은 건너뛴 노드의 출력을 실행 캐시에 쓰지 않는다. 그래서 문서를 엔진 동작에 맞췄다(NERV Task `CLE-T-HW2GKD`). 다음 노드가 받는 값은 `null` 이 아니라 빈 값(`undefined`)이다. 고른 포트도 없으므로 출력 연결선 가운데 `error` 를 뺀 연결선이 활성화된다([고른 포트가 없는 출력은 `error` 연결선을 열지 않는다](#고른-포트가-없는-출력은-error-연결선을-열지-않는다)).
 
 기각한 대안은 엔진이 `null` 을 쓰게 바꾸는 안이다. 출력을 쓰면 Parallel 결과 노드 판정(REQ-PARALLEL-030)이 건너뛴 노드를 후보로 보게 되고 실행 캐시를 읽는 다른 규칙도 함께 바뀐다.
 
 **기존 워크플로우 영향**: 엔진 동작은 바꾸지 않았으므로 실행 결과는 그대로다. 건너뛴 노드의 출력을 `null` 과 엄격하게 비교하던 표현식은 처음부터 빈 값을 받아 왔으므로 빈 값도 함께 검사하도록 고쳐야 한다.
 
-### throw 한 실패의 `error.code` 를 반복 결과와 같은 규칙으로 고른다 (2026-11-13)
+### throw 한 실패의 `error.code` 를 반복 결과와 같은 규칙으로 고른다
+
+결정일: 2026-11-13
 
 **결정**: 핸들러가 throw 한 실패에 `route_to_error_port` 가 걸릴 때 `output.error.code` 를 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4번 규칙(`resolveIterationErrorCode`)으로 고른다. 카탈로그 코드는 그대로 내고 그 밖은 `UNKNOWN_ERROR` 다. 사람이 정했다(NERV 질문 `01a1d2f4-3808-72c5-b859-5a6c7b295c9d`, NERV Task `CLE-T-KXARNK`).
 
@@ -256,7 +264,9 @@ Parallel 이 `config.errorPolicy` 가 비었을 때 `config.errorHandling.policy
 - 바꾸지 않고 `error.name` 을 예외로 둔다: 카탈로그 밖 값이 계속 나가고 반복 결과와 값이 갈린다.
 - 카탈로그에 없는 실패에 이 정책 전용 새 코드를 쓴다: 카탈로그 등재를 먼저 해야 하고 같은 실패가 반복 결과(`UNKNOWN_ERROR`)와 다른 코드를 낸다. 질문에 예로 든 `NODE_EXECUTION_FAILED` 는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.6 이 노드 출력에 더 이상 쓰지 않는다고 적은 옛 코드라 그대로 쓸 수도 없다.
 
-### throw 한 실패도 `error` 포트를 고른다 (2026-11-14)
+### throw 한 실패도 `error` 포트를 고른다
+
+결정일: 2026-11-14
 
 **결정**: 핸들러가 throw 한 실패에 `route_to_error_port` 가 걸리면 엔진은 출력에 `error` 포트를 고르고 `port: 'error'` 출력과 같은 마감(`finalizeErrorPortNode`)을 쓴다. `error` 연결선만 활성화하고 연결선이 없으면 `ERROR_PORT_FALLBACK` 으로 중단한다. 노드 실행 기록에 출력과 `error.code` 를 남기고 `NODE_FAILED` 를 낸다. 사람이 정했다(NERV 질문 `01a1d82a-3276-741c-a192-1e10ec498e81`, NERV Task `CLE-T-0R8F99`).
 
@@ -270,7 +280,9 @@ Parallel 이 `config.errorPolicy` 가 비었을 때 `config.errorHandling.policy
 - 고정 `error` 포트가 있는 노드만 고친다: 고정 포트가 없는 노드는 연결선이 없어도 다음 노드가 실행되는 동작이 남고 문서에 예외를 하나 더 적어야 한다.
 - 동적 에러 포트를 구현할 때까지 미룬다: 그동안 고정 포트가 있는 노드에서 두 분기가 함께 실행된다.
 
-### 고른 포트가 없는 출력은 `error` 연결선을 열지 않는다 (2026-11-14)
+### 고른 포트가 없는 출력은 `error` 연결선을 열지 않는다
+
+결정일: 2026-11-14
 
 **결정**: 엔진은 노드 출력에 고른 포트(`_selectedPort`)가 없거나 빈 배열이면 `error` 연결선만 막고 나머지 연결선은 연다(`graph-traversal.service.ts` 의 `isPortFiltered`). 모든 노드와 정책에 같은 규칙을 쓴다. 그래서 정상 성공한 노드, 노드 건너뛰기 노드, 기본 출력 사용 노드의 `error` 연결선은 열리지 않는다. 사람이 정했다(NERV 질문 `01a1da28-58f8-75d5-a951-bf90afb0a263` 의 (a), NERV Task `CLE-T-K0Y546`).
 

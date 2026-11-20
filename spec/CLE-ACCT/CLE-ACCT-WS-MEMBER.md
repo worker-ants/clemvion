@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-MEMBER"
 title: "워크스페이스와 멤버 — 멤버 관리와 역할"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "2632eaf3f909f713e47e182596ec5a7908e8d64ce61b0857524e5d1b32a2407e"
+content_hash: "ed5f50c0ee673562c2e1353853485bc45b943707d49cad6015dc62efec48d637"
 read_as: "approved_fallback"
-task: "CLE-T-6F4W2A"
+task: "CLE-T-AQQMY1"
 source_paths: []
-mirror_sha256: "b44df409e8a3e8d04ec054c94d46cc519ca387345f382c9e9ea22be27330fcfa"
-etag: "sha256-8d5ce8300e099f3496374b2c55f51a3d4f8f7f2f06f17e653202b45bc6187f36"
+mirror_sha256: "c91d64b0e269261189bec3350ed40df0d57b81609fc9d3846ab5f6796e107ef3"
+etag: "sha256-be248689b36cd01d68da4c8ca431929436f9ced0bacd232b6fcb2b22f6617e87"
 ---
 ## 개요
 
@@ -126,6 +126,8 @@ etag: "sha256-8d5ce8300e099f3496374b2c55f51a3d4f8f7f2f06f17e653202b45bc6187f36"
 | 관리자 역할 부여·회수 | ✅ | — | — | — |
 | 워크플로우 | CRUD | CRUD | CRUD | R |
 | 워크플로우 실행 | ✅ | ✅ | ✅ | — |
+| 실행 내역 · 체인 조회 | R | R | R | R |
+| 재실행 § | ✅ | ✅ | ✅ | — |
 | 폴더 | CRUD | CRUD | CRUD | R |
 | 트리거 | CRUD | CRUD | CRUD | R |
 | 스케줄 | CRUD | CRUD | CRUD | R |
@@ -147,6 +149,7 @@ etag: "sha256-8d5ce8300e099f3496374b2c55f51a3d4f8f7f2f06f17e653202b45bc6187f36"
 - ※ 시스템 상태는 큐 적체 집계만 보여 주는 시스템 전역 읽기 API(`/api/system-status/overview`)라 워크스페이스 경계가 없다. 개별 job·payload·워크스페이스 식별자를 드러내지 않으므로 모든 역할이 똑같이 읽기만 한다(별도 관리자 가드 없음). [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md).
 - 워크스페이스 설정·멤버 관리의 편집자·뷰어 R 은 조회 권한이다. 변경 권한 관점의 요약에서는 편집자·뷰어가 둘 다 변경할 수 없다고 적는다.
 - 뷰어는 워크플로우를 실행할 수 없다. `POST /api/workflows/:id/execute` 가 `@Roles('editor')` 이고 역할 계층상 뷰어(1)가 편집자(2)보다 낮다.
+- § 재실행(`POST /api/executions/:id/re-run`)은 `@Roles('editor')` 다. 편집자는 자기가 시작한 실행과 시작자가 없는 자동 실행만 재실행하고 남이 시작한 실행은 소유자 · 관리자만 재실행한다. 실행 내역(`GET /api/executions/workflow/:workflowId` · `GET /api/executions/:id`)과 체인 조회(`GET /api/executions/:id/chain`)에는 역할 게이트가 없어 뷰어를 포함한 멤버 모두가 읽는다. 기준은 [재실행 정책](../CLE-EXEC/CLE-EXEC-RERUN-POLICY.md#rr-pl-06-권한-f) 과 [체인 조회 권한](../CLE-EXEC/CLE-EXEC-RERUN-POLICY.md#체인-조회-권한) 이다.
 - 인증 설정의 R(편집자·뷰어)은 마스킹된 응답 조회(`***<last4>`)를 포함한다. 평문 보기(`POST /api/auth-configs/:id/reveal`)는 별도 동작으로 관리자 이상만 할 수 있고 로그인 비밀번호 재확인과 감사 기록이 필요하다. 인증 설정 API 는 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 이 정한다.
 - 폴더·스케줄 지금 실행·에이전트 메모리 행은 각 API 의 권한을 옮긴 것이다([워크플로우 목록과 폴더 §폴더 API](../CLE-WF/CLE-WF-LIST.md#폴더-api), [스케줄 §API](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#api), [에이전트 메모리 §관리 API](../CLE-AI/CLE-AI-MEMORY.md#관리-api)). 에이전트 메모리는 추출이 만들므로 API 에는 조회와 삭제만 있다. 지금 실행 버튼의 화면 노출은 [스케줄의 미결 사항](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#미결-사항) 이다.
 - 이 표에 없는 리소스의 권한은 그 리소스 문서가 정한다.

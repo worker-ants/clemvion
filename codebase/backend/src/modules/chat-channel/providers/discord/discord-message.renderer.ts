@@ -11,6 +11,7 @@ import {
   resolveLanguageHint,
   applyPlaceholders,
   resolveFormOpenLabel,
+  readLanguageHintOverride,
 } from '../../shared/language-hint-defaults';
 import { decideFormMode, extractFormFields } from '../../shared/form-mode';
 import { findChunkEnd } from '../text-chunk-boundary';
@@ -46,8 +47,10 @@ export function renderDiscordEvent(
     case 'execution.completed':
       return [
         textMessage(
-          config.languageHints?.executionCompleted ??
-            '워크플로우가 완료되었습니다.',
+          readLanguageHintOverride(
+            config.languageHints,
+            'executionCompleted',
+          ) ?? '워크플로우가 완료되었습니다.',
         ),
       ];
     case 'execution.failed':
@@ -55,8 +58,10 @@ export function renderDiscordEvent(
     case 'execution.cancelled':
       return [
         textMessage(
-          config.languageHints?.executionCancelled ??
-            '워크플로우가 취소되었습니다.',
+          readLanguageHintOverride(
+            config.languageHints,
+            'executionCancelled',
+          ) ?? '워크플로우가 취소되었습니다.',
         ),
       ];
     case 'execution.waiting_for_input':
@@ -93,7 +98,7 @@ function renderAiMessage(
     const replyButton: ChannelButton = {
       id: '__reply__',
       label:
-        config.languageHints?.replyButtonLabel ??
+        readLanguageHintOverride(config.languageHints, 'replyButtonLabel') ??
         (config.languageLocale === 'en' ? 'Reply' : '답변하기'),
       type: 'callback',
       style: 'none',

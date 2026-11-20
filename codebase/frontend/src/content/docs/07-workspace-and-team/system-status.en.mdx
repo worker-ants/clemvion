@@ -4,7 +4,7 @@ The **System Status** page (sidebar menu) gives you a real-time overview of the 
 
 ### Overall status header
 
-The card at the top summarises the worst queue state across all 18 monitored queues.
+The card at the top summarises the worst queue state across all 19 monitored queues.
 
 | Indicator | Meaning |
 |-----------|---------|
@@ -19,14 +19,14 @@ Two failure metrics are shown side by side in the header.
 
 ### Queue group cards
 
-The 18 BullMQ queues are grouped into four sections.
+The 19 BullMQ queues are grouped into four sections.
 
 | Group | Queues |
 |-------|--------|
 | Execution | execution-run, background-execution, execution-continuation |
 | Knowledge Base | document-embedding, graph-extraction |
 | Integration | notification-webhook, cafe24-token-refresh, makeshop-token-refresh |
-| System | schedule-execution, login-history-pruner, workspace-invitations-pruner, notification-secret-rotator, terminal-revoke-reconcile, webchat-idle-reaper, chat-channel-token-rotator, integration-expiry-scanner, alerts-evaluator, notification-digest |
+| System | schedule-execution, login-history-pruner, audit-log-pruner, workspace-invitations-pruner, notification-secret-rotator, terminal-revoke-reconcile, webchat-idle-reaper, chat-channel-token-rotator, integration-expiry-scanner, alerts-evaluator, notification-digest |
 
 Each queue card shows:
 

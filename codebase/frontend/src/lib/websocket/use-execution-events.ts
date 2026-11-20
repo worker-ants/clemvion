@@ -390,7 +390,9 @@ export function useExecutionEvents({
           // would otherwise duplicate).
           const { conversationMessages } = useExecutionStore.getState();
           if (conversationMessages.length === 0) {
-            const turnDebug = (payload as Record<string, unknown>).turnDebug as
+            // 첫 AI 대기의 Turn 1 디버그. 백엔드는 `nodeOutput.meta.turnDebug`(배열)와 이름이 겹치지 않게
+            // `initialTurnDebug` 로 싣는다(NERV Task CLE-T-3SMSHG).
+            const turnDebug = (payload as Record<string, unknown>).initialTurnDebug as
               | {
                   llmCalls?: {
                     llmCalls?: Array<{

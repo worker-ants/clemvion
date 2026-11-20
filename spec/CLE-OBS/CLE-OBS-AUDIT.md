@@ -2,19 +2,19 @@
 id: "CLE-OBS-AUDIT"
 title: "감사 로그"
 type: "feature"
-version: 12
+version: 14
 status: "approved"
 requirements: ["REQ-AUDIT-001", "REQ-AUDIT-002", "REQ-AUDIT-003", "REQ-AUDIT-004", "REQ-AUDIT-005", "REQ-AUDIT-006", "REQ-AUDIT-007", "REQ-AUDIT-008", "REQ-AUDIT-009", "REQ-AUDIT-010", "REQ-AUDIT-011", "REQ-AUDIT-012", "REQ-AUDIT-013", "REQ-AUDIT-014", "REQ-AUDIT-015", "REQ-AUDIT-016", "REQ-AUDIT-017", "REQ-AUDIT-019", "REQ-AUDIT-020", "REQ-AUDIT-021", "REQ-AUDIT-022", "REQ-AUDIT-023", "REQ-AUDIT-024", "REQ-AUDIT-025", "REQ-AUDIT-026", "REQ-AUDIT-027", "REQ-AUDIT-028", "REQ-AUDIT-029", "REQ-AUDIT-030", "REQ-AUDIT-031", "REQ-AUDIT-032"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "dbf737be1e9c9fab0f4f1942424c00882851e637a0896eb48a8d1232e2b50306"
-read_as: "approved_fallback"
-task: "CLE-T-TNZ3J9"
+content_hash: "72c27ab1123b98f09c38d04f163ef084d2ea072d7611eca71f0877aee93062b9"
+read_as: "approved"
+task: null
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "377c7ce0be3767b6123033d6977cce367e6e0f916e084878b96f92c8405b4696"
-etag: "sha256-b148e9bae44706a62f10b7fd6dae8f49f5e8edecf2a14a344dfb6e444c4a5d9a"
+mirror_sha256: "e43a4311fb96fa684d56690196f2686f7115150f79fbd823ee393a7fa1d6aac1"
+etag: "sha256-80903d341eb1843bab8322ab1d35d6254af3a423c53cca141ad50609f2252fc6"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,7 +61,7 @@ etag: "sha256-b148e9bae44706a62f10b7fd6dae8f49f5e8edecf2a14a344dfb6e444c4a5d9a"
 - REQ-AUDIT-015 IF 관리자 미만이거나 그 워크스페이스의 멤버가 아닌 사용자가 감사 로그를 조회하면 THE SYSTEM SHALL 거부한다. (원본: 1-auth §4.2)
 - REQ-AUDIT-016 WHEN 감사 로그를 조회하면 THE SYSTEM SHALL 기간·행위자·감사 액션·리소스 종류 필터와 offset 페이지네이션을 제공한다. (원본: 1-auth §4.2)
 - REQ-AUDIT-017 WHEN 감사 로그 조회 응답을 만들면 THE SYSTEM SHALL 과거 행의 레거시 감사 액션 값을 바꾸지 않고 그대로 싣는다. (원본: 1-auth §4.1)
-- REQ-AUDIT-019 WHEN 매일 03:30(Asia/Seoul)이 되면 THE SYSTEM SHALL 보존 기간(기본 365일, 환경 변수 `AUDIT_LOG_RETENTION_DAYS` 로 조정)이 지난 감사 로그 행을 지운다. 배치 규칙은 [감사 로그 보존 배치](#감사-로그-보존-배치) 가 정한다. (미구현, CLE-T-28MDF3)
+- REQ-AUDIT-019 WHEN 매일 03:30(Asia/Seoul)이 되면 THE SYSTEM SHALL 보존 기간(기본 365일, 환경 변수 `AUDIT_LOG_RETENTION_DAYS` 로 조정)이 지난 감사 로그 행을 지운다. 배치 규칙은 [감사 로그 보존 배치](#감사-로그-보존-배치) 가 정한다.
 - REQ-AUDIT-020 WHEN 로그인 성공·로그인 실패·TOTP 실패·WebAuthn 실패·로그아웃·세션 강제 종료·refresh token 재사용 감지가 일어나면 THE SYSTEM SHALL `login_history` 에 한 행 남긴다. (원본: 1-auth §4.3)
 - REQ-AUDIT-021 WHEN 비밀번호 변경이나 이메일 변경이 확정되거나 소셜 로그인 콜백이 이메일 인증 전 계정에 연결해 사용자의 모든 로그인 세션을 무효화하면 THE SYSTEM SHALL 무효화한 리프레시 토큰 행이 있을 때 `session_revoked` 로그인 이력 한 행을 `familyId=null`(일괄)로 남긴다. 계기별 규칙은 [세션 정책](../CLE-ACCT/CLE-ACCT-SESSION-POLICY.md#세션-정책) 표가 정한다. (원본: 1-auth §4.3)
 - REQ-AUDIT-022 WHEN 로그인 이력을 남기면 THE SYSTEM SHALL User-Agent 에서 기기 라벨을 만들어 함께 저장한다. (원본: data-flow/1-audit §1.2)
@@ -94,21 +94,21 @@ etag: "sha256-b148e9bae44706a62f10b7fd6dae8f49f5e8edecf2a14a344dfb6e444c4a5d9a"
 
 | 테이블 | 보존 | 정리 |
 | --- | --- | --- |
-| `audit_log` | 365일. 운영 환경 변수 `AUDIT_LOG_RETENTION_DAYS` 로 조정한다 | 매일 배치로 자동 삭제([감사 로그 보존 배치](#감사-로그-보존-배치)). 미구현이고 그동안은 지우지 않는다(CLE-T-28MDF3) |
+| `audit_log` | 365일. 운영 환경 변수 `AUDIT_LOG_RETENTION_DAYS` 로 조정한다 | 매일 배치로 자동 삭제([감사 로그 보존 배치](#감사-로그-보존-배치)) |
 | `login_history` | 180일(`RETENTION_DAYS`) | 매일 배치로 자동 삭제([로그인 이력 보존 배치](CLE-OBS-AUDIT-LOGIN.md#보존-배치)) |
 
 두 테이블 모두 외부 시스템으로 내보내지 않는다. 알림 규칙 평가(`alerts/alerts-evaluator.service.ts`)도 두 테이블을 읽지 않는다.
 
 ### 감사 로그 보존 배치
 
-미구현이다. NERV Task `CLE-T-28MDF3` 이 구현한다. 규칙은 [로그인 이력 보존 배치](CLE-OBS-AUDIT-LOGIN.md#보존-배치) 를 따른다.
+규칙은 [로그인 이력 보존 배치](CLE-OBS-AUDIT-LOGIN.md#보존-배치) 를 따른다.
 
-- **보존 기간**: 기본 365일이다. 운영 환경 변수 `AUDIT_LOG_RETENTION_DAYS`(일 단위)로 바꾼다. 모든 워크스페이스에 같은 값을 쓴다. 워크스페이스별 보존 설정은 두지 않는다.
+- **보존 기간**: 기본 365일이다. 운영 환경 변수 `AUDIT_LOG_RETENTION_DAYS`(일 단위)로 바꾼다. 모든 워크스페이스에 같은 값을 쓴다. 워크스페이스별 보존 설정은 두지 않는다. 값이 10진 숫자로만 된 양의 정수가 아니거나(0, 음수, 소수, `1e3` 같은 지수 표기 포함) 1,000,000일보다 크면 기본 365일을 쓰고 경고 로그를 한 번 남긴다. 1,000,000일보다 큰 값은 삭제 기준 시각이 날짜 범위를 벗어나 매일 삭제가 실패하므로 받지 않는다.
 - **실행 시각**: 매일 03:30(Asia/Seoul)에 돈다. 로그인 이력 보존 배치(03:00)와 초대 정리 배치(04:00) 사이의 시각이다.
 - **한 번에 지우는 양**: 1000행씩 지우고 한 실행에서 최대 50번까지만 지운다. 남은 행은 다음 실행에 넘긴다.
-- **전역 1회 실행**: BullMQ 반복 작업(큐 `audit-log-pruner`)으로 등록한다. 서버 인스턴스가 여럿이어도 전역에서 한 번만 돈다.
+- **전역 1회 실행**: BullMQ 반복 작업(큐 `audit-log-pruner`, 패턴 `30 3 * * *`, 시간대 Asia/Seoul)으로 등록한다. `AuditLogPrunerService` 가 반복 작업을 등록하고 처리한다. 서버 인스턴스가 여럿이어도 전역에서 한 번만 돈다.
 - **실패 처리**: 삭제가 실패하면 예외를 흡수하고 에러 로그를 남긴다.
-- **삭제 조건과 인덱스**: 워크스페이스를 가리지 않고 `created_at` 이 기준 시각보다 이른 행을 지운다. 지금 `audit_log` 의 인덱스는 `idx_audit_log_workspace_created (workspace_id, created_at DESC)` 하나뿐이다(`codebase/backend/migrations/V002__indexes.sql`). 선두 컬럼이 `workspace_id` 라서 이 삭제 조건에 맞지 않는다. 그래서 `audit_log (created_at)` 단독 인덱스를 새 마이그레이션으로 더한다. 로그인 이력의 `idx_login_history_created`(V040)와 같은 꼴이다.
+- **삭제 조건과 인덱스**: 워크스페이스를 가리지 않고 `created_at` 이 기준 시각보다 이른 행을 지운다. 이 삭제는 `audit_log (created_at)` 단독 인덱스 `idx_audit_log_created` 를 쓴다(`codebase/backend/migrations/V157__audit_log_created_at_index.sql`, `CREATE INDEX CONCURRENTLY`). 조회용 인덱스 `idx_audit_log_workspace_created (workspace_id, created_at DESC)`(V002)는 선두 컬럼이 `workspace_id` 라서 이 삭제 조건에 맞지 않는다. 로그인 이력의 `idx_login_history_created`(V040)와 같은 꼴이다.
 
 ## 외부 의존
 
@@ -116,15 +116,16 @@ etag: "sha256-b148e9bae44706a62f10b7fd6dae8f49f5e8edecf2a14a344dfb6e444c4a5d9a"
 | --- | --- | --- |
 | 9개 도메인 서비스(integrations·workspaces·workspace-invitations·executions·auth-configs·workflows·triggers·schedules·model-config)와 3개 컨트롤러(users·auth·webauthn) | 상류 | `audit_log` 를 쓰는 곳 전부. 목록은 [감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG.md#감사-액션-카탈로그) |
 | 인증 도메인(`AuthService`·`SessionsService`·`WebAuthnService`) | 상류 | `login_history` 를 쓰는 유일한 곳 |
-| BullMQ(Redis) | 기반 | `login-history-pruner` 반복 작업. `audit-log-pruner` 반복 작업(미구현) |
+| BullMQ(Redis) | 기반 | `login-history-pruner` 반복 작업. `audit-log-pruner` 반복 작업 |
 
 ## 구현 위치
 
 하위 문서마다 자기 범위의 구현 위치를 다시 적는다. 이 목록은 영역 전체다.
 
-- `codebase/backend/src/modules/audit-logs/audit-logs.service.ts` (`record`, `findAll`)
+- `codebase/backend/src/modules/audit-logs/audit-logs.service.ts` (`record`, `findAll`, `pruneOlderThanRetention`)
 - `codebase/backend/src/modules/audit-logs/audit-action.const.ts` (`AUDIT_ACTIONS`)
 - `codebase/backend/src/modules/audit-logs/audit-logs.controller.ts`
+- `codebase/backend/src/modules/audit-logs/jobs/audit-log-pruner.service.ts`
 - `codebase/backend/src/modules/auth/login-history.service.ts` (`record`, `findForUser`, `pruneOlderThanRetention`)
 - `codebase/backend/src/modules/auth/jobs/login-history-pruner.service.ts`
 - `codebase/backend/src/modules/auth/sessions.controller.ts` (로그인 이력 조회)
@@ -177,9 +178,11 @@ NERV Task `CLE-T-N93N9K` 에서 사람이 정했다. 그전에는 보존 정책�
 - `audit_log` 에는 드문 변경만 쌓인다. 실행처럼 자주 일어나는 동작은 넣지 않는다([워크플로우 실행은 감사 로그에 남기지 않는다](CLE-OBS-AUDIT-CATALOG.md#워크플로우-실행은-감사-로그에-남기지-않는다)). 그래서 1년을 두어도 저장 비용이 작다.
 - 환경 변수 이름은 다른 숫자 설정과 같은 `<도메인>_<대상>_<단위>` 꼴이다(`EXECUTION_SEQ_TTL_SECONDS`, `AI_RETRY_STATE_TTL_MINUTES`). 로그인 이력의 보존 상수 이름 `RETENTION_DAYS` 앞에 테이블 이름을 붙였다.
 - 배치는 로그인 이력 보존 배치와 같은 방식으로 돈다. 한 번에 지우는 양을 묶어 테이블 잠금과 부하를 줄이고, 인스턴스가 여럿이어도 한 번만 돈다. 시각은 다른 정리 배치(03:00 로그인 이력, 04:00 초대 정리)와 겹치지 않게 03:30 으로 정했다.
+- 환경 변수 값이 잘못돼도 부팅을 막지 않는다. 기본 365일을 쓰고 경고 로그를 남긴다. 감사 로그 정리는 부가 작업이라 설정 실수로 서버가 뜨지 못하면 본 기능까지 멈추기 때문이다. 같은 저장소의 DLQ 모니터 설정도 양의 정수가 아닌 값을 이렇게 처리한다. 이 처리는 2026-11-20 에 NERV Task `CLE-T-28MDF3` 을 구현하며 사람이 정했다.
 
 기각한 대안:
 
 - **기본 90일(예전 예정값)**: 위 근거로 짧다.
 - **워크스페이스별 보존 설정**: 지금은 워크스페이스마다 기간을 달리 둘 기준이 없다. 요금제처럼 워크스페이스를 가르는 구분이 생기면 다시 본다.
 - **계속 무제한으로 둔다**: 테이블이 끝없이 커진다. 지우지 않는다는 규칙은 정책이 정해질 때까지 둔 임시 규칙이었다.
+- **잘못된 환경 변수 값이면 부팅을 실패시킨다**: 위 근거로 택하지 않았다. 부가 작업의 설정 실수가 서비스 전체를 멈춘다.

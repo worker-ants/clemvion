@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "3005090e66ec1cc5c8ebaef5e477c32551b6cceb1f55cfb84d5477d727965861"
+content_hash: "982b017166b12692fda2ac78407156fa9df1702eb4120564a7ca90dca7eb18ce"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-2M0591"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "212afa09ee7730c8697ae6a9f2cb3a6a2ba1ddd8d24a9daca5a0dae5fff1780b"
-etag: "sha256-8a2af4b72b9a1a84e12ba8751fe8bcca9903168c0d6acf5f993f0e805b0922ca"
+mirror_sha256: "cf069c558c37b1702214c27698c4b0d3795acd631786dd74e5729da662fc8971"
+etag: "sha256-525b8e41d154ad396ee3a5b988ed2c96f8b61f3760b0f36b96cc03d22fde6b28"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -71,7 +71,7 @@ erDiagram
 
 ## 워크플로우 활성 관문
 
-워크플로우가 비활성이면(`workflow.is_active=false`) 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행이 생기지 않는다. 이 규칙의 기준은 이 절이다. 경로별 응답, 확인 위치, 조회 범위, 관문을 거치지 않는 경로를 여기서 정한다. [웹훅](CLE-TRIG-WEBHOOK.md) · [스케줄](CLE-TRIG-SCHEDULE.md) · [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 은 자기 경로에만 있는 차이를 적고 나머지는 이 절을 가리킨다. 응답은 트리거가 비활성일 때와 같은 규칙을 따른다. 채팅 채널의 인터랙션 요청은 두 경우 모두 `200` 과 기본 인터랙션 응답이다([채팅 채널 분기](CLE-TRIG-DATA-FLOW.md#채팅-채널-분기)). 세 경로는 공용 함수 `isWorkflowInactive(repo, workflowId, workspaceId)` 로 확인한다. 결정의 배경은 [Rationale](#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 에 있다.
+워크플로우가 비활성이면(`workflow.is_active=false`) 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행이 생기지 않는다. 이 규칙의 기준은 이 절이다. 경로별 응답, 확인 위치, 조회 범위, 관문을 거치지 않는 경로를 여기서 정한다. [웹훅](CLE-TRIG-WEBHOOK.md) · [스케줄](CLE-TRIG-SCHEDULE.md) · [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 은 자기 경로에만 있는 차이를 적고 나머지는 이 절을 가리킨다. 응답은 트리거가 비활성일 때와 같은 규칙을 따른다. 채팅 채널의 인터랙션 요청은 두 경우 모두 `200` 과 기본 인터랙션 응답이다([채팅 채널 분기](CLE-TRIG-DATA-FLOW.md#채팅-채널-분기)). 세 경로는 공용 함수 `isWorkflowInactive(repo, workflowId, workspaceId)` 로 확인한다. 결정의 배경은 [Rationale](#비활성-워크플로우를-실행-관문으로-둔-결정) 에 있다.
 
 | 경로 | 확인 위치 | 트리거가 비활성일 때 | 워크플로우가 비활성일 때 |
 |------|-----------|----------------------|--------------------------|
@@ -89,8 +89,11 @@ erDiagram
 - 스케줄: 재시도하지 않고 `schedule_failed` 알림도 보내지 않는다. 스케줄 행의 활성 상태와 BullMQ job scheduler 는 그대로 둔다. 다음 Cron tick 에 다시 확인하므로 워크플로우를 활성으로 바꾸면 다음 발사부터 실행된다. 비활성인 동안 건너뛴 발사는 보충하지 않는다.
 - 조회 범위: 실행을 시작하는 쪽(트리거 · 스케줄)의 워크스페이스 안에서만 워크플로우를 찾는다. `execute()` 에 넘기는 워크스페이스와 같은 값이다. 그 워크스페이스에 없으면 관문은 통과시키고 뒤의 `execute()` 가 기존 응답으로 거부한다. 일반 웹훅은 404 `TRIGGER_NOT_FOUND`, 채팅 채널은 `202` ignored 와 `degraded`, 스케줄은 에러 로그를 남기고 건너뛴다. 채팅 채널의 인터랙션 요청은 `202` 대신 `200` 과 기본 인터랙션 응답으로 답한다([채팅 채널 분기](CLE-TRIG-DATA-FLOW.md#채팅-채널-분기)).
 - 빈 `workspaceId`: 값은 트리거 · 스케줄 행의 `workspace_id`(NOT NULL)에서 온다. 빈 문자열이 오면 맞는 워크플로우가 없으므로 관문은 통과하고 `execute()` 의 워크스페이스 대조가 거부한다. 엔진 대조와 같은 쪽(거부)으로 닫힌다.
-- 관문을 거치지 않는 경로: 에디터 수동 실행(`POST /api/workflows/:id/execute`), 재실행, 스케줄 "지금 실행"(`POST /api/schedules/:id/run-now`), 워크플로우 호출 노드의 서브 워크플로우 실행([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)), External Interaction API 의 진행 중 실행 명령, 채팅 채널의 진행 중인 대화. 이미 진행 중인 실행은 워크플로우를 비활성으로 바꿔도 취소하지 않는다.
-- 새 진입 경로: 실행을 시작하는 진입 경로를 새로 만들면 두 목록 가운데 한쪽에 더한다. 관문을 거치는 경로는 이 절의 경로 표와 `isWorkflowInactive` JSDoc 의 호출 지점 목록에 함께 더하고 거치지 않는 경로는 위 「관문을 거치지 않는 경로」 에 더한다. 빠뜨려도 자동으로 잡는 테스트는 없다([Rationale](#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 「왜 엔진이 아니라 호출부에서 확인하는가」).
+- 관문을 거치지 않는 경로: 에디터 수동 실행(`POST /api/workflows/:id/execute`), 에디터 단일 노드 실행(`POST /api/workflows/:id/nodes/:nodeId/execute`), 재실행, 스케줄 "지금 실행"(`POST /api/schedules/:id/run-now`), 워크플로우 호출 노드의 서브 워크플로우 실행([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)), [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 워커(이미 시작된 실행의 본문을 같은 실행 안에서 돌린다), External Interaction API 의 진행 중 실행 명령, 채팅 채널의 진행 중인 대화. 이미 진행 중인 실행은 워크플로우를 비활성으로 바꿔도 취소하지 않는다.
+- 새 진입 경로: 실행을 시작하는 진입 경로를 새로 만들면 두 목록 가운데 한쪽에 더한다. 관문을 거치는 경로는 이 절의 경로 표와 `isWorkflowInactive` JSDoc 의 호출 지점 목록에 더한다. 거치지 않는 경로는 위 「관문을 거치지 않는 경로」 에 더한다. 어느 쪽이든 정적 가드의 허용 목록 `ENGINE_ENTRY_CALLERS` 에도 함께 더한다. 이 절이 두 목록의 정본이고 가드 파일과 `isWorkflowInactive` JSDoc 은 이 절을 가리킨다.
+  - 정적 가드 `codebase/backend/src/repo-guards/__tests__/engine-execute-callers-guard.ts`(NERV Task `CLE-T-BMRXCS`)는 엔진 진입 메서드(`execute` · `executeSync` · `executeAsync` · `executeInline`)를 부르는 지점을 모두 세어 `ENGINE_ENTRY_CALLERS` 와 맞춘다. 목록에 없는 지점이 생기면 CI 가 실패한다.
+  - 목록의 각 지점은 관문을 거치는 지점(`gated`)과 거치지 않는 지점(`exempt`, 이유 포함)으로 나뉜다. `gated` 지점은 같은 함수 안에서 `isWorkflowInactive` 를 불러야 한다. `isWorkflowInactive` 를 부르는 함수는 모두 `gated` 지점이어야 한다.
+  - 가드가 무엇을 잡고 무엇을 놓치는지는 [Rationale](#비활성-워크플로우를-실행-관문으로-둔-결정) 「왜 엔진이 아니라 호출부에서 확인하는가」 에 있다.
 - 워크플로우는 비활성 상태로 만들어진다([워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md)). 웹훅 · 채팅 채널 · 스케줄로 돌리려면 워크플로우를 활성으로 바꿔야 한다.
 
 ## Trigger
@@ -125,7 +128,7 @@ erDiagram
 
 ## 미결 사항
 
-- **비활성 트리거의 handshake**: 비활성 트리거는 서명 검증 직후 모든 update 를 무시한다. Slack `url_verification` 과 Discord PING 에도 handshake 응답 대신 `202` ignored 로 답한다. 비활성 워크플로우에서 handshake 에 답하는 이유(프로바이더가 맞는 답을 받지 못하면 URL 등록이 실패하고 Discord 는 등록 뒤에도 PING 을 보낸다)는 비활성 트리거에도 같다. 2026-11-12 결정(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f`)은 비활성 트리거의 인터랙션 요청 응답만 `200` 으로 바꾸고 handshake 는 `202` 로 남겼다([Rationale](#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다-2026-11-12)). 비활성 트리거도 handshake 에 답하도록 순서를 바꿀지 정해야 한다. 바꾸면 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 도 함께 고친다.
+- **비활성 트리거의 handshake**: 비활성 트리거는 서명 검증 직후 모든 update 를 무시한다. Slack `url_verification` 과 Discord PING 에도 handshake 응답 대신 `202` ignored 로 답한다. 비활성 워크플로우에서 handshake 에 답하는 이유(프로바이더가 맞는 답을 받지 못하면 URL 등록이 실패하고 Discord 는 등록 뒤에도 PING 을 보낸다)는 비활성 트리거에도 같다. 비활성 트리거도 handshake 에 답하도록 순서를 바꿀지 정해야 한다. 바꾸면 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 도 함께 고친다.
 
 ## 구현 위치
 
@@ -136,6 +139,7 @@ erDiagram
 - `codebase/backend/src/modules/hooks/hooks.service.ts` (일반 웹훅 `handleWebhook` 과 채팅 채널 `handleChatChannelWebhook` 의 워크플로우 활성 관문. 채팅 채널은 새 실행을 시작하기 직전에 확인한다. 기본 인터랙션 응답은 서명 검증 뒤 채널 어댑터의 `defaultInteractionResponse` 로 구해 비활성 트리거 응답과 처리 결과에 덧씌운다(`withDefaultInteractionResponse`))
 - `codebase/backend/src/modules/chat-channel/types.ts` (채널 어댑터 훅 `defaultInteractionResponse` 의 계약)
 - `codebase/backend/src/modules/execution-engine/utils/is-workflow-inactive.ts` (워크플로우 활성 관문 `isWorkflowInactive(repo, workflowId, workspaceId)`. 부르는 곳은 일반 웹훅, 채팅 채널, 스케줄 processor 세 곳이다. 호출 규칙과 호출 지점 목록이 JSDoc 에 있다)
+- `codebase/backend/src/repo-guards/__tests__/engine-execute-callers-guard.ts`, `codebase/backend/src/repo-guards/__tests__/engine-execute-callers.spec.ts` (엔진 진입 메서드를 부르는 지점 허용 목록 `ENGINE_ENTRY_CALLERS` 와 그 정적 가드)
 - `codebase/backend/src/modules/triggers/entities/trigger.entity.ts`, `codebase/backend/src/modules/triggers/entities/webhook-endpoint-reservation.entity.ts`, `codebase/backend/src/modules/schedules/entities/schedule.entity.ts`, `codebase/backend/src/modules/auth-configs/entities/auth-config.entity.ts` (엔티티 네 개)
 - 트리거 테이블 마이그레이션(`codebase/backend/migrations/`): V001(세 테이블 생성), V002, V059, V061, V062, V066, V102, V103, V111, V126, V131, V132, V133(엔드포인트 경로 예약 테이블과 DB 트리거), V139, V141, V142, V145, V147
 - 스케줄 테이블 마이그레이션(`codebase/backend/migrations/`): V011, V106, V110
@@ -148,9 +152,11 @@ erDiagram
 
 ## Rationale
 
-### 꺼진 워크플로우를 실행 관문으로 둔 결정 (2026-10-10)
+### 비활성 워크플로우를 실행 관문으로 둔 결정
 
-`workflow.is_active` 의 뜻을 문서마다 다르게 적었다. [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) 의 상태 전이와 [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md) 는 워크플로우를 끄면 웹훅 · 스케줄이 멈춘다고 적었다. 이 문서의 흐름과 구현은 트리거 · 스케줄 플래그만 봤다. 제품 안내 문서(UI 둘러보기)도 "비활성 상태에서는 트리거가 들어와도 실행되지 않아요" 라고 적는다. [대시보드](../CLE-OBS/CLE-OBS-DASHBOARD.md) 는 활성 워크플로우 수를 셀 뿐이고 이 결정을 이 문서에 맡긴다. 결정은 NERV Task `CLE-T-XRWFMJ` 에서 했다. 제목의 「꺼진」 은 다른 문서의 링크 앵커를 지키려고 남겼다.
+결정일: 2026-10-10
+
+`workflow.is_active` 의 뜻을 문서마다 다르게 적었다. [워크플로우 데이터와 저장 흐름](../CLE-WF/CLE-WF-DATA.md) 의 상태 전이와 [워크플로우 목록과 폴더](../CLE-WF/CLE-WF-LIST.md) 는 워크플로우를 끄면 웹훅 · 스케줄이 멈춘다고 적었다. 이 문서의 흐름과 구현은 트리거 · 스케줄 플래그만 봤다. 제품 안내 문서(UI 둘러보기)도 "비활성 상태에서는 트리거가 들어와도 실행되지 않아요" 라고 적는다. [대시보드](../CLE-OBS/CLE-OBS-DASHBOARD.md) 는 활성 워크플로우 수를 셀 뿐이고 이 결정을 이 문서에 맡긴다. 결정은 NERV Task `CLE-T-XRWFMJ` 에서 했다.
 
 결정(2026-10-10 사용자):
 
@@ -165,18 +171,25 @@ handshake 에 답하는 이유(2026-10-10 사용자 결정): 채팅 채널에서
 
 워크스페이스 안에서만 찾는 이유: 관문은 실행을 시작하는 쪽(트리거 · 스케줄)의 워크스페이스 안에서만 워크플로우를 찾는다. 저장 경계 이전에 남은 교차 행은 트리거와 워크플로우의 워크스페이스가 다르다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 워크스페이스를 가리지 않고 찾으면 그런 행에서 다른 워크스페이스 워크플로우의 활성 상태가 응답으로 샌다. 비활성이면 410, 활성이면 404 로 갈리기 때문이다. 그래서 그 워크스페이스에 없으면 관문을 통과시키고 뒤의 `execute()` 가 기존 응답으로 거부한다(NERV Task `CLE-T-XYR067`). `execute()` 에 넘기는 워크스페이스와 같은 값이라 두 확인의 범위가 어긋나지 않는다.
 
-관문 밖에 둔 것: 이미 진행 중인 실행은 취소하지 않는다. 채팅 채널의 진행 중인 대화도 이어진다. 사용자가 직접 시작하는 실행(에디터 수동 실행, 재실행, 스케줄 "지금 실행")과 External Interaction API 의 진행 중 실행 명령은 관문을 거치지 않는다. 수동 실행이 비활성 워크플로우도 실행하는 동작은 이 결정 전부터 있었고 그대로 둔다. 워크플로우 호출 노드의 서브 워크플로우 실행도 관문을 거치지 않는다(지금 동작). 호출은 이미 시작된 부모 실행의 한 단계이고 관문은 외부 이벤트로 새 실행이 생기는 것만 막는다.
+관문 밖에 둔 것: 이미 진행 중인 실행은 취소하지 않는다. 채팅 채널의 진행 중인 대화도 이어진다. 사용자가 직접 시작하는 실행(에디터 수동 실행, 에디터 단일 노드 실행, 재실행, 스케줄 "지금 실행")과 External Interaction API 의 진행 중 실행 명령은 관문을 거치지 않는다. 수동 실행이 비활성 워크플로우도 실행하는 동작은 이 결정 전부터 있었고 그대로 둔다. 워크플로우 호출 노드의 서브 워크플로우 실행도 관문을 거치지 않는다(지금 동작). 호출은 이미 시작된 부모 실행의 한 단계이고 관문은 외부 이벤트로 새 실행이 생기는 것만 막는다. Background 노드 워커도 같은 이유로 관문을 거치지 않는다. 이미 시작된 실행의 본문을 같은 실행 안에서 돌린다.
 
 왜 엔진이 아니라 호출부에서 확인하는가: 관문은 엔진 `execute()` 안에 두지 않았다. 진입점 세 곳이 각자 공용 함수 `isWorkflowInactive` 를 부른다. [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md#실행을-시작하는-워크스페이스를-진입-api-의-필수-옵션으로-둔다-2026-10-05) 의 「실행을 시작하는 워크스페이스를 진입 API 의 필수 옵션으로 둔다」 는 워크스페이스 대조를 엔진 한 곳에 두었다. 진입 경로마다 대조하면 새 경로가 대조를 빠뜨려도 막을 수단이 없다는 이유였다(그 절의 「엔진 한 곳에서 본다」). 이 관문을 엔진에 두지 않은 이유는 막아야 하는 자리다. 두 경로는 `execute()` 보다 앞에서 막아야 한다.
 
 - 일반 웹훅은 인증보다 먼저 답한다. 비활성 트리거의 410 과 같은 자리에 두어 인증 설정 `last_used_at` 이 바뀌지 않게 했다. 엔진은 인증과 파라미터 검증 뒤에 불리므로 이 자리를 지킬 수 없다.
 - 채팅 채널은 update 마다 갈린다. 진행 중인 대화의 update 는 통과시키고 새 실행을 시작하는 update 만 막는다. 또 `/start` 의 기존 실행 취소보다 앞에서 막아야 한다. 엔진에서 막으면 기존 실행을 취소한 뒤에 새 실행이 거부돼 그 대화에 실행이 하나도 남지 않는다.
 
-관문을 거치지 않는 경로는 엔진에서도 가를 수 있다. [실행 컨텍스트 「트리거 입력 파라미터 싣기」](../CLE-EXEC/CLE-EXEC-CONTEXT.md#트리거-입력-파라미터-싣기) 의 진입 경로 표대로 트리거 경로는 `triggerId` 를 넘기고 에디터 수동 실행 · 재실행 · 스케줄 "지금 실행" 은 `executedBy` 를 넘긴다. 엔진에 확인을 두더라도 호출자를 가르는 인자를 새로 더할 필요는 없다. 서브 워크플로우 실행은 `execute()` 가 아니라 `executeInline` · `executeSync` · `executeAsync` 로 만들어지므로 `execute()` 에 둔 확인과 상관이 없다.
+관문을 거치지 않는 경로는 엔진에서도 가를 수 있다. [실행 컨텍스트 「트리거 입력 파라미터 싣기」](../CLE-EXEC/CLE-EXEC-CONTEXT.md#트리거-입력-파라미터-싣기) 의 진입 경로 표대로 트리거 경로는 `triggerId` 를 넘기고 에디터 수동 실행 · 재실행 · 스케줄 "지금 실행" 은 `executedBy` 를 넘긴다. 엔진에 확인을 두더라도 호출자를 가르는 인자를 새로 더할 필요는 없다. 워크플로우 호출 노드는 서브 워크플로우를 `executeInline` · `executeAsync` 로 실행한다. Background 노드 워커도 `executeInline` 을 쓴다. `executeSync` 는 엔진에 있지만 부르는 곳이 없다. 그래서 이 경로들은 `execute()` 에 둔 확인과 상관이 없다.
 
-기각한 대안: 호출부 관문에 더해 엔진 `execute()` 에도 백스톱을 두는 안. 새 진입 경로가 관문을 빠뜨려도 엔진이 막는다. 기각한 이유는 순서다. 일반 웹훅은 인증보다 먼저, 채팅 채널은 `/start` 의 기존 실행 취소보다 먼저 막아야 하는데 `execute()` 는 둘 다 지난 뒤에 불린다. 그 자리에서 막으면 늦어서 관문이 정한 응답과 남지 않는 기록을 지킬 수 없다.
+기각한 대안: 호출부 관문에 더해 엔진 `execute()` 에도 백스톱을 두는 안. 새 진입 경로가 관문을 빠뜨려도 엔진이 막는다. 2026-11-20 에 사용자가 기각을 유지했다(조율 세션에서 「권장안으로 진행」 으로 받은 결정). 이유는 다음과 같다.
 
-새 진입 경로가 관문을 빠뜨릴 위험은 실행 컨텍스트의 「엔진 한 곳에서 본다」 에 적은 문제와 같다. 대비는 두 가지다. 하나는 세 경로가 같은 공용 함수 `isWorkflowInactive` 를 부르는 것이다. 다른 하나는 [워크플로우 활성 관문](#워크플로우-활성-관문) 의 경로 표와 「관문을 거치지 않는 경로」 목록이다. 실행을 시작하는 진입 경로를 새로 만들면 두 목록 가운데 한쪽에 더하고 관문을 거치는 경로면 `isWorkflowInactive` JSDoc 의 호출 지점 목록도 함께 고친다. 이를 자동으로 확인하는 테스트는 없다. 지금 세 경로는 경로마다 단위 테스트가 있고 e2e(`codebase/backend/test/workflow-inactive-gate.e2e-spec.ts`)도 세 경로를 확인한다. 이 테스트는 이미 있는 경로만 지킨다. 새 경로의 누락은 잡지 못한다.
+- 호출부 관문은 `execute()` 보다 앞 자리를 지켜야 한다. 그래서 백스톱이 있어도 호출부 관문을 없앨 수 없다.
+- 백스톱이 더 잡을 수 있는 것은 관문을 빠뜨린 새 진입 경로뿐이다. 그 누락은 정적 가드(NERV Task `CLE-T-BMRXCS`)가 CI 에서 잡는다.
+- 런타임 백스톱은 관문을 거친 경로에 워크플로우 조회를 한 번 더 더한다.
+- 백스톱은 늦은 자리(인증 뒤, `/start` 의 기존 실행 취소 뒤)에서 막는다. 그때의 응답을 따로 정해야 한다.
+
+엔진이 경로를 가르지 못한다는 것은 기각 이유가 아니다. 바로 앞 문단대로 엔진도 `triggerId` · `executedBy` 판별 유니온으로 경로를 가를 수 있다.
+
+새 진입 경로가 관문을 빠뜨릴 위험은 실행 컨텍스트의 「엔진 한 곳에서 본다」 에 적은 문제와 같다. 대비는 세 가지다. 하나는 세 경로가 같은 공용 함수 `isWorkflowInactive` 를 부르는 것이다. 둘째는 [워크플로우 활성 관문](#워크플로우-활성-관문) 의 경로 표와 「관문을 거치지 않는 경로」 목록이다. 셋째는 정적 가드 `engine-execute-callers-guard.ts` 다. 엔진 진입 메서드를 부르는 지점이 허용 목록 `ENGINE_ENTRY_CALLERS` 에 없으면 CI 가 실패한다. `gated` 지점이 `isWorkflowInactive` 를 부르지 않아도 실패한다. 그래서 새 경로의 누락은 이 가드가 잡는다. 가드는 엔진 타입(`ExecutionEngineService` · `WorkflowExecutor`)으로 선언된 수신자의 호출과 엔진 클래스 안의 `this.execute…()` 호출만 센다. 형 주석 없이 엔진을 받는 지점은 놓친다. 지금 저장소에는 그런 지점이 없다. 실행을 시작하는 진입 경로를 새로 만들면 두 목록 가운데 한쪽과 `ENGINE_ENTRY_CALLERS` 에 더하고 관문을 거치는 경로면 `isWorkflowInactive` JSDoc 의 호출 지점 목록도 함께 고친다. 지금 세 경로는 경로마다 단위 테스트가 있고 e2e(`codebase/backend/test/workflow-inactive-gate.e2e-spec.ts`)도 세 경로를 확인한다. 이 테스트들은 이미 있는 경로의 동작을 지킨다.
 
 ### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다 (2026-11-12)
 

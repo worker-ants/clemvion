@@ -44,12 +44,12 @@ import type { NodeDefinition } from "@/lib/node-definitions/types";
 /**
  * Re-run modal (spec/5-system/13-replay-rerun.md §10.2).
  *
- * 원본 실행을 기반으로 새 Execution 을 트리거하는 모달. 외부 호출(dry-run
- * 지원) 노드 개수를 안내하고, 입력 편집 / dry-run toggle 을 제공한다. 성공
- * 시 새 실행 상세 페이지로 라우팅한다.
+ * 원본 실행을 기반으로 새 Execution 을 트리거하는 모달. 부수효과 노드(dry-run 지원)와
+ * MCP 서버를 연결한 AI 에이전트 노드 개수를 안내하고, 입력 편집 / dry-run toggle 을
+ * 제공한다. 성공 시 새 실행 상세 페이지로 라우팅한다.
  */
 export interface ReRunModalProps {
-  /** 원본 실행 — 모달 헤더 + 입력 default + 워크플로 노드 로딩에 사용. */
+  /** 원본 실행 — 모달 헤더 + 입력 default + 워크플로우 노드 로딩에 사용. */
   original: {
     id: string;
     workflowId: string;
@@ -205,6 +205,25 @@ function coerceInput(type: TriggerParameterType, raw: string): unknown {
   return raw;
 }
 
+/** AI 에이전트 노드 타입. 백엔드 `nodes/ai/ai-agent` 의 노드 타입과 같다. */
+const AI_AGENT_NODE_TYPE = "ai_agent";
+
+/**
+ * MCP 서버를 연결한 AI 에이전트 노드인지 config 만으로 판정한다.
+ *
+ * 외부 MCP 서버와 Cafe24 · MakeShop 도구가 모두 `config.mcpServers` 로 연결된다. 비지 않은 배열이나
+ * 비지 않은 표현식 문자열이면 연결된 것으로 본다. 표현식은 실행 전에 값을 알 수 없어 평가하지 않고
+ * 안전한 쪽으로 센다(CLE-EXEC-RERUN-UI 「재실행 모달」).
+ */
+export function hasConnectedMcpServers(
+  node: Pick<NodeData, "type" | "config">,
+): boolean {
+  if (node.type !== AI_AGENT_NODE_TYPE) return false;
+  const servers = node.config?.mcpServers;
+  if (Array.isArray(servers)) return servers.length > 0;
+  return typeof servers === "string" && servers.trim().length > 0;
+}
+
 export function ReRunModal({
   original,
   open,
@@ -215,7 +234,7 @@ export function ReRunModal({
   const slug = useWorkspaceSlug();
   const router = useRouter();
 
-  // Node definitions — external-call 카운트 + dry-run 적용성 판정에 필요.
+  // Node definitions — 부수효과 노드 카운트 + dry-run 적용성 판정에 필요.
   const loadDefinitions = useNodeDefinitionsStore((s) => s.load);
   const definitions = useNodeDefinitionsStore((s) => s.definitions);
   useEffect(() => {
@@ -265,11 +284,11 @@ export function ReRunModal({
     }
   }, [open, originalParameters]);
 
-  // External-call 노드 — 워크플로 노드 중 정의의 supportsDryRun === true.
-  // spec §10.2 — 단순 카운트 + node type/label 별 breakdown ("Send Email × 1,
-  // HTTP × 2") 을 함께 제공한다. label 은 node 정의 메타데이터(이미 로컬라이즈
-  // 됐거나 영문 type label)를 그대로 사용한다.
-  const externalCall = useMemo(() => {
+  // 부수효과 노드 — 워크플로우 노드 중 정의의 supportsDryRun === true.
+  // 단순 카운트 + node type/label 별 breakdown ("Send Email × 1, HTTP × 2") 을
+  // 함께 제공한다(CLE-EXEC-RERUN-UI 「재실행 모달」). label 은 node 정의
+  // 메타데이터(이미 로컬라이즈됐거나 영문 type label)를 그대로 사용한다.
+  const sideEffect = useMemo(() => {
     const counts = new Map<string, number>();
     let count = 0;
     for (const node of workflowNodes) {
@@ -285,6 +304,13 @@ export function ReRunModal({
       .join(", ");
     return { count, breakdown };
   }, [workflowNodes, definitions]);
+
+  // MCP 서버를 연결한 AI 에이전트 노드 수 — 부수효과 노드 수와 따로 센다
+  // (CLE-EXEC-RERUN-UI 「재실행 모달」, NERV Task CLE-T-5WK8QA).
+  const agentToolNodeCount = useMemo(
+    () => workflowNodes.filter(hasConnectedMcpServers).length,
+    [workflowNodes],
+  );
 
   // dry-run 미적용: integration category 인데 supportsDryRun !== true 인 노드가
   // 하나라도 있으면 (spec §7.2 — 백엔드 RERUN_DRY_RUN_NOT_APPLICABLE 와 동일).
@@ -342,7 +368,10 @@ export function ReRunModal({
       const declaredNames = new Set(declared.map((f) => f.name));
       const orphanMasked = maskedKeys
         .filter((name) => !declaredNames.has(name))
-        .map((name) => ({ name, type: inferTypeFromValue(originalParameters[name]) }));
+        .map((name) => ({
+          name,
+          type: inferTypeFromValue(originalParameters[name]),
+        }));
       return [...declared, ...orphanMasked];
     }
     return Object.keys(originalParameters).map((name) => ({
@@ -353,9 +382,7 @@ export function ReRunModal({
 
   const setParam = (key: string, value: unknown) => {
     setParamValues((prev) => ({ ...prev, [key]: value }));
-    setTouchedKeys((prev) =>
-      prev.has(key) ? prev : new Set(prev).add(key),
-    );
+    setTouchedKeys((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
   };
 
   // 스키마가 비동기 로드되면 fields 가 fallback(all-string)에서 스키마 기반(typed)으로
@@ -436,9 +463,7 @@ export function ReRunModal({
       if (onSuccess) {
         onSuccess(result.id);
       } else {
-        router.push(
-          buildExecutionHref(slug, original.workflowId, result.id),
-        );
+        router.push(buildExecutionHref(slug, original.workflowId, result.id));
       }
       onClose();
     } catch (err) {
@@ -466,7 +491,11 @@ export function ReRunModal({
             <div className="flex flex-wrap items-center gap-2">
               {/* spec §10.2 — ID 클릭 시 새 탭으로 원본 실행 상세 페이지. */}
               <a
-                href={buildExecutionHref(slug, original.workflowId, original.id)}
+                href={buildExecutionHref(
+                  slug,
+                  original.workflowId,
+                  original.id,
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-mono text-xs text-[hsl(var(--primary))] underline underline-offset-2 hover:opacity-80"
@@ -480,13 +509,21 @@ export function ReRunModal({
             </div>
           </div>
 
-          {/* External-call 노드 안내 — lead 문장 + node type 별 breakdown. */}
+          {/* 부수효과 노드 안내 — lead 문장 + node type 별 breakdown,
+              MCP 서버를 연결한 AI 에이전트 노드가 있으면 그 수를 한 줄 더. */}
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {t("history.rerun.modal.sideEffectWarning", {
-              count: externalCall.count,
+              count: sideEffect.count,
             })}
-            {externalCall.breakdown && (
-              <span className="block text-xs">{externalCall.breakdown}</span>
+            {sideEffect.breakdown && (
+              <span className="block text-xs">{sideEffect.breakdown}</span>
+            )}
+            {agentToolNodeCount > 0 && (
+              <span className="block text-xs">
+                {t("history.rerun.modal.agentToolWarning", {
+                  count: agentToolNodeCount,
+                })}
+              </span>
             )}
           </p>
 
@@ -539,7 +576,10 @@ export function ReRunModal({
                       disabled={useOriginalInput}
                       readOnly={useOriginalInput}
                       onChange={(e) =>
-                        setParam(field.name, coerceInput(field.type, e.target.value))
+                        setParam(
+                          field.name,
+                          coerceInput(field.type, e.target.value),
+                        )
                       }
                     />
                     {field.description && (
@@ -582,10 +622,7 @@ export function ReRunModal({
         </div>
 
         {blockedByMaskedInput && (
-          <p
-            role="alert"
-            className="text-xs text-[hsl(var(--destructive))]"
-          >
+          <p role="alert" className="text-xs text-[hsl(var(--destructive))]">
             {t("history.rerun.maskedInputBlocked")}
           </p>
         )}

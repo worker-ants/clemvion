@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS-SURFACE"
 title: "응답 자격 증명 마스킹 — 실행 표면"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "8cd4b5e64dff5fd8f75e6176d2d40210753b9ab289169ed91595e458342d93bf"
+content_hash: "b98ef14c7e140731e3809be58b8f6aff2d4b74feb26d74e5229c195cc0819894"
 read_as: "approved_fallback"
-task: "CLE-T-CYTWVC"
+task: "CLE-T-GGDQSJ"
 source_paths: []
-mirror_sha256: "c3672307cbbf03677fc1a08518aa678102e7f2c7176707170d26cbe768b2c099"
-etag: "sha256-f55b0121abad6af8e942446f8c703c72b580289aea201a1764f89eefcca25160"
+mirror_sha256: "ffdf2fb841c81097afb4d9d11dac44e36889d0756378e4cfa1a78bdd6fc6b7e4"
+etag: "sha256-16226dc0f70afb329c7e833c187ea607403bc33d0b7c040c3c16015eb5a14545"
 ---
 ## 개요
 
@@ -63,7 +63,7 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 - `error` 는 `redact-stored-error.ts` 의 `redactStoredErrorForResponse`(`deepRedactSecrets` 위임, 형태 보존)가, `outputData` 는 `redactStoredDataForResponse` 가 맡는다. `inputData` 도 대상이다(2026-08-20, §4).
 - 걸리는 표면은 다음 **여섯**이다. 소스 정본은 `ExecutionsService.toResponseExecution` 의 표다.
   1. `findById`
-  2. `getChain`
+  2. `getChain`(`GET /executions/:id/chain`)
   3. `stop`
   4. `findByWorkflow`(목록)
   5. `findById` 의 `nodeExecutions[]`

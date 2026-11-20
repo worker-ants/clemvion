@@ -154,6 +154,7 @@ import {
 } from '../../nodes/ai/llm-provider-rule';
 import { restoreMcpServerOrigins } from '../../nodes/ai/ai-agent/mcp-server-ref-use';
 import {
+  BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS,
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
 } from './queues/background-execution.queue';
@@ -4733,7 +4734,7 @@ export class ExecutionEngineService
 
       // 8. Create execution context (inject workspaceId + workspace timezone
       // for AI handlers — spec/4-nodes/3-ai/0-common.md §11.3 SoT precedence:
-      // Workspace.settings.timezone → process.env.TZ → 'UTC'. 엔진이 한 번만
+      // Workspace.settings.timezone → PRODUCT_DEFAULT_TIMEZONE('Asia/Seoul'). 엔진이 한 번만
       // 조회해 핸들러에 전달한다 (3 AI 핸들러가 각자 조회하면 N+1 발생).
       const workflow = await this.workflowRepository.findOne({
         where: { id: workflowId },
@@ -7860,10 +7861,11 @@ export class ExecutionEngineService
     // 같은 규칙이다(CLE-NODE-BACKGROUND, CLE-T-6V9957).
     let enqueuedJobId: string | undefined;
     try {
-      const enqueued = await this.backgroundQueue.add('background-run', job, {
-        removeOnComplete: 100,
-        removeOnFail: 100,
-      });
+      const enqueued = await this.backgroundQueue.add(
+        'background-run',
+        job,
+        BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS,
+      );
       enqueuedJobId = enqueued?.id;
     } catch (err) {
       this.logger.error(

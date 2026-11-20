@@ -11,7 +11,10 @@
  */
 
 import type { ExecutionContext } from '../../core/node-handler.interface.js';
-import { isValidIanaTimezone as checkIanaTimezone } from '../../../common/utils/timezone.js';
+import {
+  isValidIanaTimezone as checkIanaTimezone,
+  PRODUCT_DEFAULT_TIMEZONE,
+} from '../../../common/utils/timezone.js';
 
 export type SystemContextSection = 'time' | 'timezone' | 'workspace' | 'node';
 
@@ -38,7 +41,7 @@ const ALL_SECTIONS: readonly SystemContextSection[] = [
 export interface BuildSystemContextPrefixArgs {
   /** Execution 단위 frozen 시각. `$now` 와 동일 epoch. UTC absolute. */
   now: Date;
-  /** Workspace.settings.timezone (IANA) → process.env.TZ → 'UTC' SoT 결과. */
+  /** Workspace.settings.timezone (IANA) → PRODUCT_DEFAULT_TIMEZONE 결정 결과. */
   timezone: string;
   workspace?: {
     id?: string;
@@ -54,19 +57,18 @@ export interface BuildSystemContextPrefixArgs {
 }
 
 /**
- * §11.3 SoT precedence: Workspace.settings.timezone → process.env.TZ → 'UTC'.
- * 각 단계의 결과 IANA name 으로 Intl.DateTimeFormat 검증하고 실패 시 다음 단계로
- * fall through.
+ * 시간대 결정 순서(CLE-NODE-AI-COMMON-CONTEXT): Workspace.settings.timezone →
+ * 제품 기본값 `PRODUCT_DEFAULT_TIMEZONE`('Asia/Seoul'). 워크스페이스 값이 비었거나
+ * IANA 검증에 실패하면 제품 기본값을 쓴다. 서버 `process.env.TZ` 는 읽지 않는다 —
+ * 스케줄의 폴백과 같은 값이어야 같은 워크스페이스에서 시각이 어긋나지 않는다.
  */
 export function resolveSystemContextTimezone(
   workspaceTimezone?: string,
 ): string {
-  const candidates = [workspaceTimezone, process.env.TZ, 'UTC'];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    if (isValidIanaTimezone(candidate)) return candidate;
+  if (workspaceTimezone && isValidIanaTimezone(workspaceTimezone)) {
+    return workspaceTimezone;
   }
-  return 'UTC';
+  return PRODUCT_DEFAULT_TIMEZONE;
 }
 
 // ai-review I4 / I5 — Intl.DateTimeFormat 인스턴스 생성은 V8 에서 µs 단위

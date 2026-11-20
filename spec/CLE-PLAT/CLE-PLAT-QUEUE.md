@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "8929d42795efecd640c49a65cfa050ce78e8b889549ebbafd7dcc29421d7a6a2"
+content_hash: "ac8ff0b1c878632e59dd1e07a1c9b39e1ecb5cd855cf88983670f7edc2c504fa"
 read_as: "approved_fallback"
-task: "CLE-T-QZ8RFC"
+task: "CLE-T-28MDF3"
 source_paths: []
-mirror_sha256: "90cdbca190bff4913ecd76d150711f719a091276488200e9386d007a43282004"
-etag: "sha256-a4640d58f0c31358c985a46f3d66fb473caca4f14432a9cbde791d29e4c29731"
+mirror_sha256: "69d48503cd18e5d9b074218399157031e03e3f412f52a43f52006e94d8b7a047"
+etag: "sha256-6f1983c426225b0b4f1600ab6eb221d99766aa1a544622265ed610fc969c26db"
 ---
 > 구현 상태: 구현됨 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -25,11 +25,11 @@ etag: "sha256-a4640d58f0c31358c985a46f3d66fb473caca4f14432a9cbde791d29e4c29731"
 - 큐를 더하거나 빼면 먼저 이 문서의 [BullMQ 큐 목록](#bullmq-큐-목록) 을 고친다. 그다음 그 큐를 쓰는 영역 데이터 문서의 외부 의존 절과 코드의 큐 모니터링 레지스트리(`MONITORED_QUEUES`, `codebase/backend/src/modules/system-status/system-status.constants.ts`)를 맞춘다.
 - Redis 키나 pub/sub 채널을 새로 만들면 [Redis 키 목록](#redis-키-목록) 에 한 줄을 더한다. 키 이름의 형태 규칙과 등재 의무는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
 
-범위 밖: 큐를 쓰는 동작 자체는 각 큐의 상세 문서가 정한다. 시스템 상태 화면의 큐 그룹·동시 처리 수·건강도 판정은 [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md) 가 정한다. 큐와 Redis 가 전체 구성에서 차지하는 자리는 [시스템 아키텍처](CLE-PLAT-ARCH.md) 에 있다.
+범위 밖: 큐를 쓰는 동작 자체는 각 큐의 상세 문서가 정한다. 실행 엔진 큐의 옵션과 DLQ 모니터링은 하위 문서 [실행 엔진 큐 옵션과 DLQ 모니터링](CLE-PLAT-QUEUE-ENGINE.md) 이 정한다. 시스템 상태 화면의 큐 그룹·동시 처리 수·건강도 판정은 [시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md) 가 정한다. 큐와 Redis 가 전체 구성에서 차지하는 자리는 [시스템 아키텍처](CLE-PLAT-ARCH.md) 에 있다.
 
 ## BullMQ 큐 목록
 
-현재 등록된 BullMQ 큐는 18개다. "반복 작업" 은 BullMQ job scheduler(`upsertJobScheduler`)로 주기 실행하는 내부 작업이다. 사용자가 만드는 스케줄과 다르다.
+현재 등록된 BullMQ 큐는 19개다. "반복 작업" 은 BullMQ job scheduler(`upsertJobScheduler`)로 주기 실행하는 내부 작업이다. 사용자가 만드는 스케줄과 다르다.
 
 | 큐 | 등록 모듈 | 생산자 | 소비자 | 작업 단위 | 상세 |
 | --- | --- | --- | --- | --- | --- |
@@ -46,6 +46,7 @@ etag: "sha256-a4640d58f0c31358c985a46f3d66fb473caca4f14432a9cbde791d29e4c29731"
 | `makeshop-token-refresh` | `makeshop.module.ts` | 세 곳: `MakeshopApiClient` 의 호출 직전 갱신과 401 뒤 갱신, `MakeshopMcpToolProvider` 의 `refreshTokenViaQueue` (source `background` 자가 회복). 스캐너 반복 작업은 없다. 리프레시 토큰 수명은 30~90일이다 | `MakeshopTokenRefreshProcessor` | MakeShop 통합 1건 토큰 갱신. source 별 jobId 전략과 보존 옵션은 상세 문서의 갱신 큐 표가 기준이다 | [OAuth 연결과 토큰 갱신 §갱신 큐](../CLE-INT/CLE-INT-OAUTH.md#갱신-큐) · [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) |
 | `notification-webhook` | `external-interaction.module.ts` | `NotificationDispatcher` | `NotificationWebhookProcessor` | EIA 알림 웹훅 1건 발송 | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) |
 | `login-history-pruner` | `auth.module.ts` | `LoginHistoryPrunerService` (매일 반복 작업, `0 3 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 180일 지난 로그인 이력 정리 | [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
+| `audit-log-pruner` | `audit-logs.module.ts` | `AuditLogPrunerService` (매일 반복 작업, `30 3 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 보존 기간(기본 365일, `AUDIT_LOG_RETENTION_DAYS`)이 지난 감사 로그 정리 | [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
 | `workspace-invitations-pruner` | `workspaces.module.ts` | `WorkspaceInvitationsPrunerService` (매일 반복 작업, `0 4 * * *` Asia/Seoul) | 같은 서비스 (`@Processor`) | 만료·미수락 초대 정리 | [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) |
 | `chat-channel-token-rotator` | `triggers.module.ts` | `ChatChannelTokenRotatorService` (매시간 반복 작업) | 같은 서비스 (`@Processor`) | `chat_channel_token_v2` 의 24시간 유예 정리 | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
 | `notification-secret-rotator` | `triggers.module.ts` | `NotificationSecretRotatorService` (매시간 반복 작업). 회전 유예가 끝난 알림 서명 시크릿을 승격하는 스케줄러다. 알림 서명 시크릿(`wsk_*`)을 발급해 저장하는 `NotificationSigningSecretService` 와 다르다 | 같은 서비스 (`@Processor`) | `notification_secret_v2` 의 24시간 유예 뒤 승격 | [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
@@ -54,38 +55,7 @@ etag: "sha256-a4640d58f0c31358c985a46f3d66fb473caca4f14432a9cbde791d29e4c29731"
 
 모니터링 레지스트리 `MONITORED_QUEUES` 는 이 표를 기준으로 삼는다. 현재 구현은 레지스트리에 `agent-memory-extraction` 이 빠져 있다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)).
 
-### 실행 엔진 큐의 옵션
-
-아래 표는 요약이다. 시작 큐·재개 큐의 계약(jobId, attempts, 작업 옵션)은 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 이 기준이다.
-
-시작 큐와 재개 큐가 함께 실행 세그먼트를 운반한다. 입력 대기(`waiting_for_input`)는 두 세그먼트 사이에 큐 없이 DB 에만 남는 park 다. 한 세그먼트 안의 노드는 `runExecution` 의 같은 프로세스 반복문이 부른다. 노드 단위 작업 큐(`task-queue`)는 없다.
-
-| 큐 | 역할 | 재시도 | 비고 |
-| --- | --- | --- | --- |
-| `execution-run` | 실행 시작. 첫 세그먼트를 워커에 work-stealing 으로 나눈다 | `attempts:1`, `maxStalledCount:1`, `stalledInterval:30초`. 워커가 죽으면 세그먼트를 한 번 더 배달하고, 멱등 rehydration 으로 다시 구동한다. 다 쓰면 `WORKER_HEARTBEAT_TIMEOUT` 으로 끝난다. 부팅 때 도는 `recoverStuckExecutions` 도 함께 있다 | `execute()` 의 같은 프로세스 비동기 호출을 대체했다. `removeOnComplete:true`, `removeOnFail:false`. **jobId = executionId** 로 실행 1건에 작업 1개를 넣는다. stalled 재배달은 같은 jobId 를 다시 처리하므로 다시 넣지 않고 순번도 쓰지 않는다. 작업 우선순위는 수동 실행(1) > 웹훅(2) > 스케줄(3) 이다(`ExecuteOptions.triggerType`, `executedBy` 가 있으면 수동 우선). 관측: `ExecutionRunDlqMonitorService`. 우선순위와 재배달의 세부는 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 과 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| `execution-continuation` | 사용자 입력 전달과 AI 에이전트 마지막 턴 재시도의 재진입. 매 재개 세그먼트 | `RESUME_BULLMQ_ATTEMPTS` (기본 3) | 옛 Redis pub/sub 채널 `execution:continuation` 을 대체했다. 메시지 타입 6종: `continue` · `cancel` · `button_click` · `ai_message` · `ai_end_conversation` · `retry_last_turn`. 마지막 `retry_last_turn` 만 입력 대기 행이 아니라 새로 만든 실행 중(`running`) 행을 대상으로 한다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)) |
-| `background-execution` | Background 노드 본문 실행 | 코드 기본값(현재 `BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS`) | [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) |
-
-### DLQ 모니터링
-
-재개 큐는 `removeOnFail: false` 로 운영한다. 그래서 재시도(`RESUME_BULLMQ_ATTEMPTS`)를 다 쓴 작업이 `failed` 상태, 곧 DLQ 로 쌓인다. rehydration 이 구조적으로 실패하는 회귀는 DLQ 깊이 급증으로 나타난다. 배포 뒤 `_resumeCheckpoint` 스키마가 어긋나 `buildRetryReentryState` 재구성이 실패하거나 체크포인트가 손상된 경우가 그 예다. 그래서 다음을 둔다.
-
-- **`ContinuationDlqMonitorService`**: DLQ 깊이(`failed`)와 재시도 적체(`delayed`)를 주기적으로 조회한다. 임계를 넘으면 구조화된 `logger.error` 경고를 cooldown 당 1회 남긴다. 임계 초과 경고는 로그 기반을 유지한다. 큐 깊이(waiting·active·delayed·failed)는 `registerQueueDepthProvider` 로 `clemvion.queue.depth` ObservableGauge 에도 노출한다([비기능 요구사항 「관측성」](CLE-PLAT-NFR.md#관측성) REQ-NFR-036). 관측(gauge)과 능동 통지(경고)를 나눈다.
-- **`ExecutionRunDlqMonitorService`**: 시작 큐에 대한 같은 모니터다. 환경 변수 `EXECUTION_RUN_DLQ_*` 를 주입받아 임계·주기·cooldown 을 정한다(서비스가 `process.env` 를 직접 읽지 않는다). stalled 재배달을 다 써서(`WORKER_HEARTBEAT_TIMEOUT`) DLQ 로 쌓이는 작업을 본다.
-- **워커 `onFailed`**(`@OnWorkerEvent('failed')`): 실패 1건마다 `RETRY`(재시도 남음) 또는 `DEAD-LETTER`(재시도 소진) 태그와 시도 횟수를 로그에 남긴다.
-
-경고를 OTel 메트릭이 아니라 로그로 남기는 결정의 근거는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 Rationale «DLQ 경고는 로그로 남긴다» 에 있다.
-
-| 환경 변수 | 기본값 | 설명 |
-| --- | --- | --- |
-| `CONTINUATION_DLQ_ALARM_THRESHOLD` | `50` | 재개 큐 DLQ(`failed`) 작업 수 경고 임계 |
-| `CONTINUATION_DLQ_MONITOR_INTERVAL_MS` | `60000` | 깊이 조회 주기 |
-| `CONTINUATION_DLQ_ALARM_COOLDOWN_MS` | `300000` | 경고 재발 최소 간격 |
-| `CONTINUATION_DLQ_MONITOR_ENABLED` | `true` | `'false'` 면 모니터를 끈다 |
-| `EXECUTION_RUN_DLQ_ALARM_THRESHOLD` | `20` | 시작 큐 DLQ(`failed`) 작업 수 경고 임계 |
-| `EXECUTION_RUN_DLQ_MONITOR_INTERVAL_MS` | `60000` | 시작 큐 깊이 조회 주기 |
-| `EXECUTION_RUN_DLQ_ALARM_COOLDOWN_MS` | `300000` | 시작 큐 경고 재발 최소 간격 |
-| `EXECUTION_RUN_DLQ_MONITOR_ENABLED` | `true` | `'false'` 면 시작 큐 모니터를 끈다 |
+실행 엔진 큐(`execution-run` · `execution-continuation` · `background-execution`)의 재시도 · 작업 옵션과 DLQ 모니터링은 [실행 엔진 큐 옵션과 DLQ 모니터링](CLE-PLAT-QUEUE-ENGINE.md) 이 정한다.
 
 ## Redis 키 목록
 
@@ -167,6 +137,7 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 - `codebase/backend/src/modules/integrations/**/*.ts`
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts`
 - `codebase/backend/src/modules/auth/password-recheck-failure-limiter.service.ts`
+- `codebase/backend/src/modules/audit-logs/jobs/audit-log-pruner.service.ts`
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts`
 - `codebase/backend/src/modules/websocket/ws-redis-adapter.ts`
 - `codebase/backend/src/common/redis/**/*.ts`
@@ -176,7 +147,7 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 
 ### 큐와 Redis 키 목록을 한 문서에 둔 이유
 
-옛 문서 체계에서는 큐 목록이 데이터 흐름 개요 · 실행 엔진 문서 · Redis 키 규약 세 곳에 나뉘어 기준이 어긋났다. 이 문서는 전체 큐 목록과 엔진 큐의 옵션을 함께 두어 목록을 하나로 모은다. Redis 키 목록도 여기로 모았다. 실행 엔진 키의 용도와 TTL 은 이 문서가, 다른 모듈 키의 상세는 각 소유 문서가 정한다.
+옛 문서 체계에서는 큐 목록이 데이터 흐름 개요 · 실행 엔진 문서 · Redis 키 규약 세 곳에 나뉘어 기준이 어긋났다. 이 문서는 전체 큐 목록을 한곳에 두어 목록을 하나로 모은다. 엔진 큐의 옵션은 하위 문서 [실행 엔진 큐 옵션과 DLQ 모니터링](CLE-PLAT-QUEUE-ENGINE.md) 이 정한다. Redis 키 목록도 여기로 모았다. 실행 엔진 키의 용도와 TTL 은 이 문서가, 다른 모듈 키의 상세는 각 소유 문서가 정한다.
 
 ### 작업 단위를 코드 동작 기준으로 적는 이유
 
@@ -196,10 +167,6 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 ### 순번 발급이 실패할 때 두 키가 다르게 동작하는 이유
 
 `exec:cont:seq` 는 `INCR` 이 실패하면 발행을 멈추고(fail-fast), `exec:seq` 는 메모리 카운터로 강등한다. 의도한 비대칭이다. 재개 순번은 작업 ID 중복 제거 계약이 가용성보다 먼저다. 게다가 BullMQ 자체가 Redis 위에 있어, `INCR` 이 실패할 만한 장애에서는 바로 뒤의 `queue.add` 도 실패하므로 대체값의 실익이 거의 없다. 근거는 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 의 Rationale «발행 실패를 `queued:false` 하나로 알린다» 에 있다. 이벤트 순번의 강등 근거는 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 에 있다.
-
-### DLQ 경고를 로그 기반으로 둔 이유
-
-DLQ 임계 초과 경고는 구조화 로그로 남기고, 큐 깊이는 OTel gauge 로 따로 노출한다. 관측과 능동 통지를 나눈 것이다. 결정의 근거는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 Rationale «DLQ 경고는 로그로 남긴다» 에 있다.
 
 ### WebSocket adapter 채널을 목록에 올린 이유 (2026-11-14)
 

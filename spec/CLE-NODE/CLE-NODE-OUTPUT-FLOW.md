@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-FLOW"
 title: "노드 출력 규약 — 포트 · 흐름 상태 · 에러"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "7861a32e2a8ed8f76b4cd139b0b52eed9fdbc7ec7ee1593e3816c47f3bf9a1fa"
+content_hash: "ce8b5623ca8b7cc060e3352b54cbb751c19a2ef0ca093309d6deb0bea5e97e72"
 read_as: "approved_fallback"
-task: "CLE-T-0ZHAC4"
+task: "CLE-T-1639BP"
 source_paths: []
-mirror_sha256: "4901f9db70b030da9c4988ca6aef4df2c3e6e40f11e4b6dc1fc91e74faeeb957"
-etag: "sha256-953d3f75a591cfd9322a37b911bc056693c51147cdddd27fe77e1fc47c82950b"
+mirror_sha256: "633aa330fb2c575ead5f19543726b4f1c701f65f2602a5ffac1ae28baaee58b2"
+etag: "sha256-318a38a9a1e1ba9f613c7b10d12f4d9e06c6a30007397c1c1da54817dcd16a1e"
 ---
 ## 개요
 
@@ -31,7 +31,7 @@ etag: "sha256-953d3f75a591cfd9322a37b911bc056693c51147cdddd27fe77e1fc47c82950b"
 | 예상 가능한 비즈니스 실패: 매칭 없음, 빈 결과 등 | 정상 `port` 를 유지하고 결과가 비었음을 드러낸다. |
 | 노드 취소: 노드 취소 신호(`context.abortSignal`)로 끝난 외부 I/O | `AbortError` 를 그대로 던진다. 엔진이 노드 실행을 `cancelled` 로 기록하고 `output_data` 는 쓰지 않는다. 에러 포트로 가지 않는다. 통합 노드와 AI 노드가 같다([노드 에러 처리 정책](CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지), [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3 · 19). |
 
-통합 노드(HTTP Request·Database Query·Send Email)의 사설망 차단(`HTTP_BLOCKED`)과 자격 증명 해석 실패(`INTEGRATION_INCOMPLETE` 등)는 사전 검증 throw 가 아니라 런타임 에러 포트로 보낸다([Rationale](#사설망-차단과-자격-증명-해석-실패를-에러-포트로-보낸다-2026-05-17)). 설정 형식 자체의 오류(`handler.validate` 실패)만 throw 로 남는다. 자세한 규칙은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)에 있다.
+통합 노드(HTTP Request·Database Query·Send Email)의 사설망 차단(`HTTP_BLOCKED`)과 자격 증명 해석 실패(`INTEGRATION_INCOMPLETE` 등)는 사전 검증 throw 가 아니라 런타임 에러 포트로 보낸다([Rationale](#사설망-차단과-자격-증명-해석-실패를-에러-포트로-보낸다)). 설정 형식 자체의 오류(`handler.validate` 실패)만 throw 로 남는다. 자세한 규칙은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)에 있다.
 
 ### 3.2 `output.error` 표준 형태
 
@@ -75,7 +75,7 @@ etag: "sha256-953d3f75a591cfd9322a37b911bc056693c51147cdddd27fe77e1fc47c82950b"
 2. `transform`, `if_else`, `switch` 같은 노드는 설정 검증만 하고 실패하면 throw 한다. 고정 에러 포트가 없다.
 3. 이 가운데 AI 노드(`ai_agent`, `text_classifier`, `information_extractor`)는 에러로 끝날 때 `output.error.details.retryable` 을 분류할 의무가 있다. 기준은 [3.2.1](#321-details-의-공통-표준-필드)이다.
 4. 포트 구성의 기준은 각 노드 문서의 포트 절이다. 에러 처리 정책으로 생기는 동적 에러 포트는 [노드 에러 처리 정책](CLE-NODE-ERROR.md)이 다룬다.
-5. 노드 정의에 포트 ID 가 `error` 인 포트가 이미 있는 노드(위 1번 목록의 노드)에는 동적 에러 포트를 따로 만들지 않는다. 에러 처리 정책을 「에러 포트로 라우팅」으로 골라도 그 포트를 쓴다. 그래서 한 노드에 `error` 포트는 하나다([Rationale](#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14)).
+5. 노드 정의에 포트 ID 가 `error` 인 포트가 이미 있는 노드(위 1번 목록의 노드)에는 동적 에러 포트를 따로 만들지 않는다. 에러 처리 정책을 「에러 포트로 라우팅」으로 골라도 그 포트를 쓴다. 그래서 한 노드에 `error` 포트는 하나다([Rationale](#error-포트-id-를-한-노드에-하나만-둔다)).
 
 ## Principle 4. 블로킹과 재개 계약
 
@@ -217,22 +217,30 @@ stateDiagram-v2
 
 ## Rationale
 
-### 사설망 차단과 자격 증명 해석 실패를 에러 포트로 보낸다 (2026-05-17)
+### 사설망 차단과 자격 증명 해석 실패를 에러 포트로 보낸다
+
+결정일: 2026-05-17
 
 통합 노드의 사설망 차단과 자격 증명 해석 실패를 사전 검증 throw 가 아니라 런타임 에러 포트로 보낸다. 사용자가 `error` 포트로 분기해 복구할 수 있게 하려는 것이다. 설정 형식 오류만 throw 로 남긴다.
 
-### `_resumeState` · `_retryState` 의 자격 증명 제외 방식 (2026-08-24)
+### `_resumeState` · `_retryState` 의 자격 증명 제외 방식
+
+결정일: 2026-08-24
 
 예전 서술은 `maskSensitiveFields` 경계로 가린다고 했지만 그 경계는 없어졌다([설정 에코](CLE-NODE-OUTPUT-ECHO.md#설정을-원문으로-저장하고-나가는-곳에서만-가린다)). 지금은 `buildRetryState`·`buildResumeState` 가 옮길 키를 나열하므로 자격 증명이 처음부터 들어가지 않는다. 이 배제는 경계 제거와 관계없다.
 
-### 에러 `details` 예를 구현에 맞춘다 (2026-11-13)
+### 에러 `details` 예를 구현에 맞춘다
+
+결정일: 2026-11-13
 
 서술만 고쳤고 동작은 바뀌지 않는다.
 
 - 3.2.2 의 HTTP Request 예를 핸들러(`http-request.handler.ts`)가 싣는 필드에 맞췄다. 응답을 받은 에러는 `statusCode`·`statusText`·`url`·`method` 를 싣고 응답이 없는 에러는 `url`·`method` 만 싣는다. 옛 예에 있던 응답 헤더와 응답 본문은 `details` 가 아니라 `output.responseHeaders` 와 `output.response` 에 있다. 짝이 되는 개정은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md#rationale) Rationale 의 2026-11-13 항목에 있다.
 - 3.2.2 의 Database Query 예를 핸들러(`database-query.handler.ts` 의 `mapDbError`)에 맞췄다. `details` 에는 드라이버가 준 에러 코드 `driverCode` 하나만 있다. 드라이버가 코드를 주지 않으면 `details` 를 싣지 않는다. 옛 예의 `pgErrorCode` · `query` 는 구현이 싣지 않는 필드였다.
 
-### `error` 포트 ID 를 한 노드에 하나만 둔다 (2026-11-14)
+### `error` 포트 ID 를 한 노드에 하나만 둔다
+
+결정일: 2026-11-14
 
 **문제**: 엔진은 포트를 문자열로 고른다. 버튼을 누르면 `_selectedPort` 에 버튼 id 를 넣고, 에러 포트는 `_selectedPort === 'error'` 로, 연결선은 `sourcePort === 'error'` 로 판정한다. 그래서 같은 노드에 id 가 `error` 인 버튼과 에러 포트가 함께 있으면 두 연결선을 구분할 수 없다. Switch · 텍스트 분류기 · AI 에이전트는 `error` 를 이미 거부했지만 Presentation 버튼은 어디서도 막지 않았다. AI 어시스턴트는 빈 버튼 id 를 label slug 로 채워서 label 이 "Error" 인 버튼의 id 가 `error` 가 됐다. 에러 처리 정책의 동적 에러 포트를 구현하면 고정 `error` 포트가 있는 노드에 같은 ID 의 포트가 둘 생길 수도 있었다.
 
@@ -249,6 +257,8 @@ stateDiagram-v2
 - 예약만 정하기: 고정 포트가 있는 노드에 고정 · 동적 `error` 포트가 함께 그려질 수 있다.
 - 저장 시점에도 거부하기(저장 API 에 노드별 포트 ID 검증 추가): 범위가 커서 따로 정한다.
 
-### AI 대화 노드의 재개 출력을 규약에 올린다 (2026-11-12)
+### AI 대화 노드의 재개 출력을 규약에 올린다
+
+결정일: 2026-11-12
 
 AI 대화 경로가 재개 스냅샷을 내고 노드 실행 행에 저장하게 됐다(NERV Task `CLE-T-TBJ863`). 그래서 4.5 의 `message_received` 행에서 미구현 문장을 지우고 4.1 의 재개 규칙에 AI 대화 노드가 다른 점 두 가지를 적었다. 사용자 메시지를 `output.result.messages` 에 더하면 저장된 스냅샷만 보고도 이번 턴에 받은 발화를 알 수 있다. `meta.interactionType` 을 고정하는 것은 읽기 쪽 대기 판정이 이 값으로 form · buttons 의 `resumed` 와 AI 재개 스냅샷을 가르기 때문이다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md#rationale) Rationale 의 2026-11-12 항목). 결정과 기각한 대안은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md#rationale) Rationale 의 2026-11-12 항목에 있다.

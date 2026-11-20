@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "822cd00c24c23c144b0ce81e9515a2cea26cf341f81248e912a513c7a61ce4c7"
+content_hash: "8e0377d07a3ed183b0f3b1daed1ade67cda40151184e102741a8f2aa1c461d9c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-NXPWZZ"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "afc1247d1349e04ae840cc48f1b880bed994d810ca898b52131a8d1d67330d9d"
-etag: "sha256-bbeff335640d4b9fc870af1ecd8373216fcbc2d272af162477f20fa6621480ad"
+mirror_sha256: "8b0086ffc9483b66764f1832878e8347a83c4ac237fbbb1e22148950e38731fa"
+etag: "sha256-8be047abb6fdcf41c1c9d87e214542eb178527417282f085d5f7d88e89e6f199"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -65,7 +65,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 - REQ-EIA-011 WHEN `POST /api/triggers/:id/interaction/revoke-token` 이 호출되면 THE SYSTEM SHALL 새 트리거 단위 토큰을 발급하고 옛 토큰을 새 요청에 대해 즉시 무효로 만들며 옛 토큰으로 연 SSE 스트림을 닫는다. (원본: EIA-AU-07)
 - REQ-EIA-012 WHEN 트리거 단위 토큰을 재발급하면 THE SYSTEM SHALL 감사 로그에 `trigger.interaction_token_revoked` 를 남긴다. (원본: EIA-AU-07)
 - REQ-EIA-038 WHEN 인터랙션을 켜고(`interaction.enabled=true`) 전략이 `per_trigger` 인 트리거를 만들면 THE SYSTEM SHALL 트리거 단위 토큰(`itk_*`)을 발급해 그 평문을 생성 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정 · [생성과 PATCH 응답에 싣는 일회성 비밀](#생성과-patch-응답에-싣는-일회성-비밀-2026-10-17))
-- REQ-EIA-039 WHEN 최상위 `interaction` 을 바꾼 PATCH 의 결과가 인터랙션을 켠 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 트리거 단위 토큰을 발급해 그 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정)
+- REQ-EIA-039 WHEN 타입 필드 `interaction` 을 바꾼 PATCH 의 결과가 인터랙션을 켠 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 트리거 단위 토큰을 발급해 그 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정)
 - REQ-EIA-040 WHEN PATCH 결과가 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 있으면 THE SYSTEM SHALL 그 토큰을 이어받고 새 토큰을 발급하지 않는다. (2026-10-17 결정)
 - REQ-EIA-041 WHEN PATCH 가 전략을 `per_trigger` 에서 다른 값으로 바꾸면 THE SYSTEM SHALL 저장된 트리거 단위 토큰을 지우고 그 토큰으로 연 SSE 스트림을 닫는다. (2026-10-09 결정 · [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약))
 - REQ-EIA-042 WHEN PATCH 가 `per_trigger` 전략인 트리거의 인터랙션을 끄면 THE SYSTEM SHALL 트리거 단위 토큰 값은 남기고 그 토큰으로 오는 요청을 401 로 거부하며 그 토큰으로 연 SSE 스트림을 닫는다. (2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답(finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`))

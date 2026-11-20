@@ -6,20 +6,26 @@ import { Workflow } from '../../workflows/entities/workflow.entity';
  * 워크플로우를 끄면 이 이벤트들로 실행이 생기지 않는다(NERV Task `CLE-T-XRWFMJ`).
  *
  * **호출 규칙: 외부 이벤트로 실행을 시작하는 진입점은 `execute()` 를 부르기 직전에 이 관문을 거친다.**
- * 새 진입점을 만들면 여기에 더한다. 지금 호출하는 곳은 셋이다.
+ * 새 진입점을 만들면 여기에 더한다. 지금 호출하는 곳은 셋이다. 엔진 진입 메서드를 부르는 지점 전체(관문을
+ * 거치는 곳과 거치지 않는 곳)는 정적 가드 `repo-guards/__tests__/engine-execute-callers-guard.ts` 의
+ * `ENGINE_ENTRY_CALLERS` 가 CLE-TRIG-DATA 「워크플로우 활성 관문」 과 맞춰 세고, 목록에 없는 지점이 생기면 CI 가
+ * 실패한다(NERV Task `CLE-T-BMRXCS`).
  * - 일반 웹훅: `HooksService.handleWebhook` — 꺼진 트리거 검사 바로 뒤, 인증 앞. 410 `WORKFLOW_INACTIVE`.
- * - 채팅 채널: `HooksService.handleChatChannelWebhook` — 새 실행을 시작하기 직전. 202 ignored.
+ * - 채팅 채널: `HooksService.dispatchChatChannelUpdate`(`handleChatChannelWebhook` 이 부른다) — 새 실행을
+ *   시작하기 직전. 202 ignored.
  *   이미 진행 중인 실행으로 가는 입력과 `/cancel` · `/help` 는 이 관문 앞에서 처리한다. 관문 앞의
  *   미지원 update 안내 · 재도착 억제(dedup) · rate limit · 첨부 보강(`enrichInbound`)도 그대로 거친다.
  *   그래서 비활성 워크플로우로 오는 새 시작 입력도 이 단계의 외부 호출과 Redis · DB 쓰기를 탄다.
  * - 스케줄: `ScheduleRunnerService.process` — job 을 받은 뒤 건너뛴다.
  *
- * 거치지 않는 경로는 사람이 직접 시작하거나 이미 시작된 실행에 쓰는 것이다. 에디터 수동 실행 ·
- * 재실행 · 스케줄 "지금 실행"(`SchedulesService.runNow`) · External Interaction 의 진행 중 실행 명령은
- * 워크플로우가 꺼져 있어도 동작한다.
+ * 거치지 않는 경로는 사람이 직접 시작하거나 이미 시작된 실행에 쓰는 것이다. 에디터 수동 실행 · 에디터
+ * 단일 노드 실행 · 재실행 · 스케줄 "지금 실행"(`SchedulesService.runNow`) · External Interaction 의 진행 중
+ * 실행 명령은 워크플로우가 꺼져 있어도 동작한다. 워크플로우 호출 노드의 서브 워크플로우와 Background 노드
+ * 워커도 이미 시작된 실행의 한 단계라 관문을 거치지 않는다.
  *
  * Rationale: 엔진 `execute()` 에 백스톱을 두는 안은 택하지 않았다. 일반 웹훅은 인증보다 먼저, 채팅
- * 채널은 `/start` 의 기존 실행 취소보다 먼저 막아야 하는데 `execute()` 는 둘 다 지난 뒤에 불린다.
+ * 채널은 `/start` 의 기존 실행 취소보다 먼저 막아야 하므로 관문은 호출부에 있어야 한다. 백스톱이 더 잡을 수
+ * 있는 것은 관문을 빠뜨린 새 진입 경로뿐인데, 그 누락은 위 정적 가드가 CI 에서 잡는다.
  * 근거와 기각한 대안은 CLE-TRIG-DATA Rationale 「왜 엔진이 아니라 호출부에서 확인하는가」 에 있다.
  *
  * `workspaceId` 는 실행을 시작하는 쪽의 워크스페이스다(`execute()` 에 넘기는 값과 같다). 워크플로우가

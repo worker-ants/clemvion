@@ -74,7 +74,8 @@ export interface ExecutionContext {
    *   `(unnamed)` 폴백.
    * - `__workspaceTimezone?: string` — `Workspace.settings.timezone` (IANA)
    *   복제값. AI 노드의 System Context Prefix (spec/4-nodes/3-ai/0-common.md §11.3)
-   *   가 timezone SoT 로 사용. 빈 string 또는 부재면 `process.env.TZ` / UTC fallback.
+   *   가 timezone SoT 로 사용. 빈 string 또는 부재면 제품 기본값 `PRODUCT_DEFAULT_TIMEZONE`
+   *   (`'Asia/Seoul'`) fallback. 서버 `process.env.TZ` 는 읽지 않는다.
    * - `__dryRun?: boolean` — Re-run dry-run 모드 (spec/5-system/13-replay-rerun.md
    *   §7.2). `true` 면 외부 부수효과 노드(HTTP/Email/DB-write/cafe24-write)가 실제
    *   호출 대신 mock 출력(`{ _dryRun: true, skippedReason, wouldHaveCalled }`)을

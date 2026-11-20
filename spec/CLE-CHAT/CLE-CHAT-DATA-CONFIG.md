@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-CONFIG"
 title: "채팅 채널 데이터와 흐름 — 설정과 안내 문구"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "a301a07ed367ffc0cc4f761e7c65fe80ba6e234d684be638d5ea87dc2b45a7a0"
+content_hash: "f5def75abe0d0476f5e05a1c7801285c3f15466ece6c0aad8d193121af9aa380"
 read_as: "approved_fallback"
-task: "CLE-T-0400J6"
+task: "CLE-T-8A055H"
 source_paths: []
-mirror_sha256: "7833dbac289b409db8c81c1fe827180065bff8661f03c456157f785a9dea4034"
-etag: "sha256-e79fb9f23450ef218a2fad47dc40228e39e7120989ef7d2adaa3cc1af3dfe2ce"
+mirror_sha256: "d3e70c08abde0bb389c6e847c6c513fb7242aba70f254640b1549f054a7acf83"
+etag: "sha256-9d7cdf6c87e5aaeaa013108db4c8499592bf39176d49f13c3ee6d0a6e25ed0a8"
 ---
 ## 개요
 
@@ -24,7 +24,7 @@ etag: "sha256-e79fb9f23450ef218a2fad47dc40228e39e7120989ef7d2adaa3cc1af3dfe2ce"
 
 `chatChannel` 이 없으면 일반 웹훅 트리거다(기존 동작 그대로). 이 필드는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 트리거의 `config` JSONB 안에 있다. 메모리 표현 타입(`ChatChannelConfig`)은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 정하고, 필드 계약은 이 절이 정한다. `languageLocale` 을 포함한 `chatChannel` 필드 전체 목록의 기준도 이 절이다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 여기를 가리킨다).
 
-요청 본문에서는 이 설정을 최상위 필드 `chatChannel` 로만 받는다. 생성 · 수정 요청 본문의 `config` 키(원시 `config`) 아래에 `chatChannel` 키가 있으면 값과 상관없이 400 `VALIDATION_ERROR`(`details.field='config.chatChannel'`)다. 그 아래에 내부 필드 경로(`config.chatChannel.botTokenRef` 등)가 함께 실렸으면 그 경로의 거부가 먼저 걸린다. 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다.
+요청 본문에서는 이 설정을 [타입 필드](../CLE-GLOSSARY-TRIG.md) `chatChannel` 로만 받는다. 생성 · 수정 요청 본문의 `config` 키(원시 `config`) 아래에 `chatChannel` 키가 있으면 값과 상관없이 400 `VALIDATION_ERROR`(`details.field='config.chatChannel'`)다. 그 아래에 내부 필드 경로(`config.chatChannel.botTokenRef` 등)가 함께 실렸으면 그 경로의 거부가 먼저 걸린다. 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이다.
 
 ```jsonc
 {
@@ -79,7 +79,7 @@ etag: "sha256-e79fb9f23450ef218a2fad47dc40228e39e7120989ef7d2adaa3cc1af3dfe2ce"
 | `executionStarted` | `/start` 로 새 실행을 시작했을 때의 시작 안내. Telegram 은 대화에 보내고 Discord · Slack 슬래시 명령은 즉시 응답에 싣는다 |
 | `executionRestarted` | 활성 실행을 취소하고 `/start` 로 다시 시작했을 때의 재시작 안내. 전달 방식은 `executionStarted` 와 같다 |
 | `executionCompleted` | 실행 완료 안내 |
-| `executionStillRunning` | 실행 중 · 대기 중(`running`·`pending`)에 온 메시지 안내 |
+| `executionStillRunning` | 실행 중 · 대기 중(`running`·`pending`)에 온 메시지 안내. 시작 잠금을 잡지 못했거나 잠금 뒤 다시 읽은 대화가 다른 실행을 가리켜 밀린 새 실행 시작 입력에도 보낸다([처리 흐름과 대화 「R-CC-38」](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)). `/start` 에는 보내지 않는다([처리 흐름과 대화 「R-CC-27」](CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)) |
 | `help` | `/help` 기본 도움말. Discord 의 `/<prefix> help` 와 Slack 의 `/<명령> help` 는 슬래시 명령의 즉시 응답에 이 값을 그대로 싣는다(`{prefix}` 를 바꾸지 않는다). 값이 없으면 두 프로바이더가 함께 쓰는 locale 기본 도움말에 명령 이름을 넣어 쓴다. Discord 는 등록한 명령 이름(`languageHints.slashPrefix`, 없으면 `workflow`)을 넣는다([Discord 어댑터](CLE-CHAT-DISCORD.md)). Slack 은 명령 이름을 앱 manifest 에서 정하므로 `slashPrefix` 를 쓰지 않는다. 요청의 `command` 에서 앞의 `/` 를 뺀 값(비면 `workflow`)을 넣는다([Slack 어댑터](CLE-CHAT-SLACK.md)) |
 | `commandReceived` | Discord · Slack 슬래시 명령의 즉시 응답(본인에게만 보이는 메시지)에 싣는 공통 수신 문구. `help`, 활성 실행이 없는 대화의 `cancel`, 새 실행을 시작한 `start` 를 뺀 슬래시 명령에 쓴다([채팅 채널 「인터랙션 기본 응답」](CLE-CHAT-CORE.md#인터랙션-기본-응답)) |
 | `noActiveExecution` | 활성 실행이 없는 대화의 `/cancel` 안내([채팅 채널 「요구사항」](CLE-CHAT-CORE.md#요구사항) REQ-CHAT-084). Telegram 은 대화에 보내고 Discord · Slack 슬래시 명령은 즉시 응답에 싣는다 |
@@ -95,7 +95,7 @@ etag: "sha256-e79fb9f23450ef218a2fad47dc40228e39e7120989ef7d2adaa3cc1af3dfe2ce"
 
 ## 안내 문구 기본값
 
-실행 실패 안내 키 여섯 개의 기본 문구는 한국어와 영어 두 locale 모두 백엔드가 가진다. 채널 어댑터가 문구를 찾는 순서는 (1) `languageHints[key]` 사용자 덮어쓰기, (2) `languageLocale` 의 기본 문구, (3) locale 이 없을 때 `ko` 다. 처음부터 있던 다섯 키(`groupChatRefusal` 등)의 영어 기본값은 범위 밖이다. 그 가운데 `executionStarted` 는 2026-11-20 부터 두 locale 기본값이 모두 있다. `formOpenLabel`, Discord · Slack 슬래시 명령 응답의 `commandReceived`, `noActiveExecution`, `executionStarted`, `executionRestarted` 도 두 locale 을 모두 가지고 찾는 순서가 같다. 슬래시 명령 `help` 의 기본 도움말(`SLASH_HELP_DEFAULTS`)도 두 locale 을 가진다(위 키 표의 `help`).
+실행 실패 안내 키 여섯 개의 기본 문구는 한국어와 영어 두 locale 모두 백엔드가 가진다. 채널 어댑터가 문구를 찾는 순서는 (1) `languageHints[key]` 사용자 덮어쓰기, (2) `languageLocale` 의 기본 문구, (3) locale 이 없을 때 `ko` 다. (1) 의 값이 빈 문자열이면 덮어쓰기가 없는 것으로 보고 (2) 로 넘어간다. 모든 키에 같은 규칙이고 `slashPrefix` 처럼 표시 문구가 아닌 키도 같다(빈 값이면 기본 이름 `workflow` 를 쓴다). 처음부터 있던 다섯 키(`groupChatRefusal` 등)는 `executionStarted` 를 빼고 영어 기본값이 범위 밖이다. `formOpenLabel`, Discord · Slack 슬래시 명령 응답의 `commandReceived`, `noActiveExecution`, `executionStarted`, `executionRestarted` 도 두 locale 을 모두 가지고 찾는 순서가 같다. 슬래시 명령 `help` 의 기본 도움말(`SLASH_HELP_DEFAULTS`)도 두 locale 을 가진다(위 키 표의 `help`).
 
 | key | KO 기본값 | EN 기본값 |
 |---|---|---|
@@ -123,9 +123,9 @@ etag: "sha256-e79fb9f23450ef218a2fad47dc40228e39e7120989ef7d2adaa3cc1af3dfe2ce"
 
 `commandReceived` 는 Discord · Slack 슬래시 명령이 어느 경로로 끝나든(새 실행, 취소, 답장 전달, 중복, 분당 한도 초과, 워크플로우 비활성, 파싱 실패, 트리거 비활성) 같은 문구로 나간다. 예외는 셋이다. `help` 하위 명령은 도움말로 답한다. 활성 트리거에서 활성 실행이 없는 대화의 `cancel` 은 `noActiveExecution` 으로 답한다. 새 실행을 시작한 `start` 는 수신 문구 자리를 시작 · 재시작 안내(`executionStarted` · `executionRestarted`)로 바꿔 답한다. 실행을 시작하지 않고 끝난 `start` 는 수신 문구 그대로다. 그 밖의 문구는 처리 전에 정하므로 경로에 따라 달라지지 않는다.
 
-`noActiveExecution` 은 `/cancel` 이 왔는데 대화에 활성 실행이 없을 때 보낸다. 채널 대화 상태가 없거나 `executionId` 가 없거나 그 실행이 `running`·`pending`·`waiting_for_input` 이 아닌 경우다. 취소 요청이 `INVALID_STATE`·`RESOURCE_NOT_FOUND` 로 실패해 실행이 이미 끝난 것으로 본 경우도 같다. 찾는 순서는 `commandReceived` 와 같고 빈 문자열은 값이 없는 것으로 본다. Telegram 은 제어 안내로 대화에 보낸다. 발송 실패는 로그만 남긴다. Discord · Slack 슬래시 명령은 즉시 응답의 수신 문구 자리에 이 안내를 싣고 채널에 따로 보내지 않는다. 활성 실행이 있는데 소유자가 아닌 사람이 보낸 `/cancel`, 트리거가 꺼져 있을 때, 실제로 취소한 경우, 취소를 큐에 넣지 못한 경우에는 쓰지 않는다.
+`noActiveExecution` 은 `/cancel` 이 왔는데 대화에 활성 실행이 없을 때 보낸다. 채널 대화 상태가 없거나 `executionId` 가 없거나 그 실행이 `running`·`pending`·`waiting_for_input` 이 아닌 경우다. 취소 요청이 `INVALID_STATE`·`RESOURCE_NOT_FOUND` 로 실패해 실행이 이미 끝난 것으로 본 경우도 같다. Telegram 은 제어 안내로 대화에 보낸다. 발송 실패는 로그만 남긴다. Discord · Slack 슬래시 명령은 즉시 응답의 수신 문구 자리에 이 안내를 싣고 채널에 따로 보내지 않는다. 활성 실행이 있는데 소유자가 아닌 사람이 보낸 `/cancel`, 트리거가 꺼져 있을 때, 실제로 취소한 경우, 취소를 큐에 넣지 못한 경우에는 쓰지 않는다.
 
-`executionStarted` 와 `executionRestarted` 는 `/start`(Slack · Discord 는 `/<prefix> start`)가 새 실행을 시작하고 대화 상태를 저장했을 때 보낸다. 대화에 활성 실행이 있어 기존 실행 취소를 거쳤으면 `executionRestarted` 이고 아니면 `executionStarted` 다. 취소가 `INVALID_STATE` · 404 로 끝나 실제로는 취소 없이 시작한 경우도 `executionRestarted` 다. 사용자는 진행 중인 대화를 보고 `/start` 를 보냈기 때문이다. 찾는 순서는 `noActiveExecution` 과 같고 빈 문자열은 값이 없는 것으로 본다. Telegram 은 시작 잠금을 푼 뒤 제어 안내로 대화에 보낸다. 발송 실패는 경고 로그만 남기고 응답(`202`, 새 실행 id)은 바뀌지 않는다. 안내와 워크플로우가 보내는 첫 메시지의 순서는 보장하지 않는다. Discord · Slack 슬래시 명령은 즉시 응답의 수신 문구 자리에 안내를 싣고 채널에 따로 보내지 않는다. 실행을 시작하지 않고 끝난 `start`(소유자 아님, 워크플로우 비활성, 시작 잠금 실패 · 재확인 버림, 중복, 분당 한도 초과, 트리거 비활성, 파싱 실패)는 `commandReceived` 로 답한다. 기존 실행 취소 실패(`503`)는 에러로 답한다. `/start` 가 아닌 메시지로 새 실행이 시작될 때(Slack DM 첫 메시지, Telegram 일반 텍스트 첫 메시지)는 안내하지 않는다. 그 경로는 NERV Task `CLE-T-8A055H` 가 다룬다. 근거는 [「시작과 재시작 안내를 안내 문구 키로 둔다」](#시작과-재시작-안내를-안내-문구-키로-둔다-2026-11-20) 에 있다.
+`executionStarted` 와 `executionRestarted` 는 `/start`(Slack · Discord 는 `/<prefix> start`)가 새 실행을 시작하고 대화 상태를 저장했을 때 보낸다. 대화에 활성 실행이 있어 기존 실행 취소를 거쳤으면 `executionRestarted` 이고 아니면 `executionStarted` 다. 취소가 `INVALID_STATE` · 404 로 끝나 실제로는 취소 없이 시작한 경우도 `executionRestarted` 다. 사용자는 진행 중인 대화를 보고 `/start` 를 보냈기 때문이다. Telegram 은 시작 잠금을 푼 뒤 제어 안내로 대화에 보낸다. 발송 실패는 경고 로그만 남기고 응답(`202`, 새 실행 id)은 바뀌지 않는다. 안내와 워크플로우가 보내는 첫 메시지의 순서는 보장하지 않는다. Discord · Slack 슬래시 명령은 즉시 응답의 수신 문구 자리에 안내를 싣고 채널에 따로 보내지 않는다. 실행을 시작하지 않고 끝난 `start`(소유자 아님, 워크플로우 비활성, 시작 잠금 실패 · 재확인 버림, 중복, 분당 한도 초과, 트리거 비활성, 파싱 실패)는 `commandReceived` 로 답한다. 기존 실행 취소 실패(`503`)는 에러로 답한다. `/start` 가 아닌 메시지로 새 실행이 시작될 때(Slack DM 첫 메시지, Telegram 일반 텍스트 첫 메시지)는 안내하지 않는다. 근거는 [「시작과 재시작 안내를 안내 문구 키로 둔다」](#시작과-재시작-안내를-안내-문구-키로-둔다-2026-11-20) 에 있다.
 
 ### 제어 안내의 프로바이더별 escape
 
@@ -182,6 +182,12 @@ Discord · Slack 슬래시 명령의 즉시 응답에 싣는 `commandReceived` �
 
 - (a) 재시작 안내를 서버가 고정한 문구로 보낸다. 운영자가 바꿀 수 없고 `languageLocale` 도 따르지 못한다.
 - (b) 재시작에도 `executionStarted` 를 다시 쓴다. 사용자는 기존 대화가 끝난 것을 알 수 없다.
+
+### 빈 문자열 덮어쓰기는 없는 것으로 본다
+
+결정일: 2026-11-20
+
+조율 세션에서 사용자가 권장안을 받아 정했다(NERV Task `CLE-T-J8M86K`). 빈 문자열을 덮어쓰기로 그대로 쓰면 빈 안내가 나가고 `slashPrefix` 는 빈 이름이라 Discord 명령 등록이 실패한다. 그래서 키별로 따로 적던 «빈 문자열은 값이 없는 것으로 본다» 를 [안내 문구 기본값](#안내-문구-기본값) 의 찾는 순서에 모든 키에 걸리는 규칙 하나로 모았다. 영어 기본 문구는 새로 더하지 않았다. 생성 · 수정 요청에서 빈 문자열을 거절하는 안은 택하지 않았다.
 
 ### 봇 안내 문구의 문체 (2026-11-12)
 

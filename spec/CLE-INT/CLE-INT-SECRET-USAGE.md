@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-USAGE"
 title: "시크릿 저장소 — 사용 패턴과 시크릿 발급"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "4bfd1ff5ea99426d0a63aefe980c2fee6e6cbd8f8f4f28d22f3bcd7654e198f8"
+content_hash: "21e81ba3299e049dfbd40186182a7c81c37f19f9ea1e9974c026c54433f33497"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-NXPWZZ"
 source_paths: []
-mirror_sha256: "f16ae149ffdb5b565a69c940b88cdb727dd0e4a82076365390ca84cc2f074d6a"
-etag: "sha256-8c1318d8e03235921f67d9a26547e8af1782de83cde5ea19718a8e3c4f0143df"
+mirror_sha256: "3ffef621df6663acd33097ce1adbc6f897674b708e3bc6bef8c5fd65639564e9"
+etag: "sha256-ad0971a9d5f8451186d28a901fe026f617f7ae9f4ed848cd88627fd0a3ab0eac"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ async createTrigger(dto: CreateTriggerDto, workspaceId: string) {
     // PATCH · 시크릿 승격과 같은 트리거 설정 잠금을 잡는다.
     await acquireTriggerConfigLock(manager, trigger.id);
     const secrets: { notificationSigningSecret?: string; interactionToken?: string } = {};
-    // top-level notification 으로 받은 EIA 알림 웹훅 설정. 원시 config 의 notification 키는 400 이다(규칙 23).
+    // 타입 필드 notification 으로 받은 EIA 알림 웹훅 설정. 원시 config 의 notification 키는 400 이다(규칙 23).
     const notification = trigger.config.notification;
     if (notification) {
       // 생성에는 옮길 옛 평문이 없으므로 늘 발급한다. 이미 저장된 옛 평문은 PATCH 가 옮긴다(아래 단락).

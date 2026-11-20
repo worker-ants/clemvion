@@ -5277,6 +5277,233 @@ describe('HooksService', () => {
       });
     });
 
+    // 근거: NERV Task `CLE-T-8A055H`. 활성 실행이 없는 대화에 일반 입력 두 건이 거의 동시에 오면 둘 다 새 실행을
+    // 만들고 대화 상태는 나중에 저장한 실행을 가리켰다. 새 실행을 시작하는 입력은 모두 `/start` 와 같은 시작 잠금을
+    // 잡는다. 밀린 일반 입력은 새 실행으로 보내지 않고 `executionStillRunning` 안내 뒤 버린다(2026-11-20 사람 답 (a)).
+    describe('같은 대화에 새 실행을 시작하는 일반 입력이 겹쳐 오면', () => {
+      const STILL_RUNNING_DEFAULT =
+        '워크플로우가 처리 중입니다. 잠시만 기다려 주세요.';
+      let dedup: { release: jest.Mock };
+      let ackDroppedUpdate: jest.Mock;
+      const otherState = {
+        executionId: 'exec-other',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: '2026-10-10T00:00:00.000Z',
+        lastUpdateAt: '2026-10-10T00:00:00.000Z',
+      };
+      const inputUpdate = (
+        idempotencyKey: string,
+        command: Record<string, unknown> = {
+          kind: 'text_message',
+          text: '안녕하세요',
+        },
+      ) => ({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command,
+        idempotencyKey,
+        receivedAt: new Date().toISOString(),
+      });
+      const expectStillRunningNotice = () =>
+        expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            conversationKey: 'chat-123',
+            body: { kind: 'text', text: STILL_RUNNING_DEFAULT },
+          }),
+          expect.anything(),
+        );
+
+      beforeEach(() => {
+        dedup = moduleRef.get(ChatChannelDedupService) as unknown as {
+          release: jest.Mock;
+        };
+        ackDroppedUpdate = jest.fn().mockResolvedValue(undefined);
+        Object.assign(mockAdapter, { ackDroppedUpdate });
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(inputUpdate('4001'));
+        conversationService.lookup.mockResolvedValue(null);
+        engine.execute.mockResolvedValue('exec-new');
+      });
+
+      it("활성 실행이 없는 대화의 일반 텍스트도 시작 잠금을 'start' 용도로 잡고 대화 상태 저장 뒤 푼다", async () => {
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'exec-new', status: 'pending' });
+        expect(conversationService.acquireLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          expect.any(String),
+          30,
+          'start',
+        );
+        expect(conversationService.releaseLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          conversationService.acquireLock.mock.calls[0][2],
+          'start',
+        );
+        expect(
+          conversationService.acquireLock.mock.invocationCallOrder[0],
+        ).toBeLessThan(engine.execute.mock.invocationCallOrder[0]);
+        expect(
+          conversationService.upsert.mock.invocationCallOrder[0],
+        ).toBeLessThan(
+          conversationService.releaseLock.mock.invocationCallOrder[0],
+        );
+        // 첫 메시지로 시작한 실행에는 시작 안내도, 처리 중 안내도 보내지 않는다.
+        expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ['text_message', { kind: 'text_message', text: '안녕하세요' }],
+        [
+          'button_callback',
+          {
+            kind: 'button_callback',
+            callbackData: 'opt-1',
+            callbackQueryId: 'cq-1',
+          },
+        ],
+        ['contact_share', { kind: 'contact_share', phone: '+821012345678' }],
+        [
+          'file_upload',
+          { kind: 'file_upload', fileId: 'f1', mimeType: 'image/png' },
+        ],
+      ])(
+        '시작 잠금을 잡지 못한 %s 는 새 실행 없이 executionStillRunning 안내 뒤 버린다',
+        async (_kind, command) => {
+          mockAdapter.parseUpdate.mockResolvedValue(
+            inputUpdate('4002', command),
+          );
+          conversationService.acquireLock.mockResolvedValueOnce(false);
+
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'ignored' });
+          expect(engine.execute).not.toHaveBeenCalled();
+          expect(interactionService.interact).not.toHaveBeenCalled();
+          expect(conversationService.upsert).not.toHaveBeenCalled();
+          expect(conversationService.releaseLock).not.toHaveBeenCalled();
+          expectStillRunningNotice();
+          // 버린 update 는 수신 확인을 받는다(Telegram 버튼 로딩 표시를 푼다).
+          expect(ackDroppedUpdate).toHaveBeenCalledTimes(1);
+          expect(ackDroppedUpdate).toHaveBeenCalledWith(
+            chatInput.body,
+            expect.objectContaining({ provider: 'telegram' }),
+          );
+          // 버린 update 와 같이 dedup 선점은 풀지 않는다(재전송을 다시 처리하지 않는다).
+          expect(dedup.release).not.toHaveBeenCalled();
+        },
+      );
+
+      it('잠금을 잡은 뒤 다시 읽은 대화 상태가 다른 실행을 가리키면 그 실행으로 보내지 않고 안내 뒤 버리며 잠금을 푼다', async () => {
+        // 처음 읽을 때 대화 상태가 없었다. 먼저 잠금을 잡은 입력이 대화를 exec-other 에 이었다.
+        conversationService.lookup
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(otherState);
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(engine.execute).not.toHaveBeenCalled();
+        // 다시 읽은 실행이 입력 대기여도 전달하지 않는다(기각된 선택지 (c)).
+        expect(interactionService.interact).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+        expectStillRunningNotice();
+        // 다시 읽기에서 버린 update 도 수신 확인을 받는다.
+        expect(ackDroppedUpdate).toHaveBeenCalledTimes(1);
+        expect(conversationService.releaseLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          conversationService.acquireLock.mock.calls[0][2],
+          'start',
+        );
+      });
+
+      it('다시 읽은 대화 상태를 읽지 못하면(Redis 장애로 null) 그대로 새로 시작한다', async () => {
+        // fail-open — 잠금 서비스는 Redis 가 없으면 잠금을 잡은 것으로 답하고 lookup 은 null 을 돌려준다.
+        conversationService.lookup.mockResolvedValue(null);
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'exec-new', status: 'pending' });
+        expect(engine.execute).toHaveBeenCalledTimes(1);
+        expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+      });
+
+      it('잠금을 쥔 일반 입력 사이 온 /start 는 지금처럼 안내 없이 버린다', async () => {
+        mockAdapter.parseUpdate.mockResolvedValue(
+          inputUpdate('4003', { kind: 'start' }),
+        );
+        conversationService.acquireLock.mockResolvedValueOnce(false);
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+      });
+
+      it('동시에 온 일반 텍스트 두 건 중 하나만 새 실행을 만들고 대화는 그 실행을 가리키며 다른 하나는 안내를 받는다', async () => {
+        // 실제 서비스처럼 동작하는 대화 상태 저장소와 SET NX 잠금.
+        let stored: typeof otherState | null = null;
+        const locks = new Map<string, string>();
+        conversationService.lookup.mockImplementation(() =>
+          Promise.resolve(stored ? { ...stored } : null),
+        );
+        conversationService.upsert.mockImplementation(
+          (_t: string, _c: string, value: typeof otherState) => {
+            stored = { ...value };
+            return Promise.resolve();
+          },
+        );
+        conversationService.acquireLock.mockImplementation(
+          (t: string, c: string, token: string) => {
+            const key = `${t}:${c}`;
+            if (locks.has(key)) return Promise.resolve(false);
+            locks.set(key, token);
+            return Promise.resolve(true);
+          },
+        );
+        conversationService.releaseLock.mockImplementation(
+          (t: string, c: string, token: string) => {
+            const key = `${t}:${c}`;
+            if (locks.get(key) === token) locks.delete(key);
+            return Promise.resolve();
+          },
+        );
+        // 새 실행 시작이 끝나기 전에 두 번째 입력이 들어오도록 한 틱 늦춘다.
+        let seq = 0;
+        engine.execute.mockImplementation(
+          () =>
+            new Promise((resolve) =>
+              setImmediate(() => resolve(`exec-new-${(seq += 1)}`)),
+            ),
+        );
+        mockAdapter.parseUpdate
+          .mockResolvedValueOnce(inputUpdate('4011'))
+          .mockResolvedValueOnce(inputUpdate('4012'));
+
+        const results = await Promise.all([
+          service.handleWebhook('abc', chatInput),
+          service.handleWebhook('abc', chatInput),
+        ]);
+
+        expect(engine.execute).toHaveBeenCalledTimes(1);
+        expect(results).toEqual(
+          expect.arrayContaining([
+            { executionId: 'exec-new-1', status: 'pending' },
+            { executionId: 'ignored' },
+          ]),
+        );
+        expect(stored).toMatchObject({ executionId: 'exec-new-1' });
+        expect(locks.size).toBe(0);
+        expectStillRunningNotice();
+        expect(mockAdapter.sendMessage).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it('Authenticator 가 401 throw 시 HooksService 도 전파', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       authenticator.verify.mockRejectedValueOnce(

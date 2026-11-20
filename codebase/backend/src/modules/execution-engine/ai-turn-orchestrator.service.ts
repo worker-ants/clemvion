@@ -553,8 +553,9 @@ export class AiTurnOrchestrator {
           // 그대로 보내지 않는다.
           meta: buildConversationMetaFromResumeState(resumeState),
         },
-        // Include Turn 1 debug data for initial AI response
-        turnDebug: {
+        // 첫 AI 응답의 Turn 1 디버그. `nodeOutput.meta.turnDebug`(배열)와 이름이 겹쳐 `initialTurnDebug` 로
+        // 바꿨다(NERV Task CLE-T-3SMSHG). 외부 채널로는 fanout 이 `llmCalls` 를 걷어 `metadata` 만 나간다.
+        initialTurnDebug: {
           llmCalls:
             ((resumeState.turnDebugHistory as unknown[]) ?? [])[0] ?? undefined,
           metadata: {

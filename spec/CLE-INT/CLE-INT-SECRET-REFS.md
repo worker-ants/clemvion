@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-REFS"
 title: "시크릿 저장소 — 참조 소유와 교차 행"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "5fbee71b65aaf73a78014f2d24052fc3ca20fc48dc84a396d50a25b6b4dd1796"
+content_hash: "bec17e669a795691d192a146f3bce5f1a97badb92a242189c9e551b7909c6706"
 read_as: "approved_fallback"
-task: "CLE-T-G2C0E6"
+task: "CLE-T-FTSKJW"
 source_paths: []
-mirror_sha256: "a01220d2ce910703968003eb973d2faea9e259221a673c5f29b26431cd868124"
-etag: "sha256-a3a21021cff5f783cc74a33263ea7ac3140c9f85f8826d1a5547954a18f4e5fd"
+mirror_sha256: "6be8db97d9152eec5a5651d33d2c8c2672450d7b35cd07928a7de3a6ea7d5c7a"
+etag: "sha256-e1aa292071907ba5be918c7678c9246945e8746d471ec5a849c5716ef2e1ccd2"
 ---
 ## 개요
 
@@ -78,7 +78,7 @@ R9 는 원시 `config`(트리거 생성 · 수정 본문의 `config` 키)에 실
 
 - **타입 키를 받지 않는다.** 원시 `config` 바로 아래에 `notification` · `interaction` · `chatChannel` 키가 있으면 값과 상관없이 400 이다. R9 가 범위에서 뺀 안이다. 기각이 아니라 유보였고 이번에 채택했다. 이 결정으로 옛 평문 `notification.signing.secret` 을 새로 받는 경로가 닫혔다. 그 키는 원시 `config` 로만 들어왔기 때문이다. 견준 두 안은 `notification` 만 계속 받는 안과 세 키를 받되 요청 본문의 최상위 타입 필드와 같은 검사를 거치게 하는 안이었다. 둘 다 옛 평문 입력 경로를 남긴다.
 - **`secret://` 값은 위치와 상관없이 거부한다.** 원시 `config` 아래 어디든(중첩 객체 · 배열 원소 포함) `secret://` 로 시작하는 문자열 값이 있으면 400 이다. 경로 목록은 사람이 더하는 목록이라 새 참조 슬롯을 빠뜨려도 테스트가 실패하지 않는다. R9 가 남긴 위험이고 규칙 22 가 사람에게 맡긴 일이다. 타입 키 거부로 그 아래 슬롯은 모두 막히지만 다른 키 아래에 참조를 심는 경로는 남는다. 값 검사는 슬롯 이름과 상관없이 잡는다. 경로 목록 거부는 그대로 두고 먼저 돈다. 견준 안은 값 검사를 더하지 않고 경로 목록만 두는 것이었다.
-- **이미 저장된 옛 평문은 계속 읽고 옮긴다.** 닫은 것은 새로 받는 경로뿐이다. 저장된 행의 옛 평문 `signing.secret` 은 발송 때 서명에 쓰고 PATCH 가 시크릿 저장소로 옮긴다. 지우면 수신 측이 쓰던 시크릿이 유예 없이 바뀐다. 그래서 규칙 14 의 알려진 예외는 그런 행으로 좁혀졌고, [저장소 예외 필드 「`Trigger.config.interaction.triggerToken`」](CLE-INT-SECRET-EXPOSE.md#triggerconfiginteractiontriggertoken-2026-08-16-결정) 끝 단락의 비대칭 근거는 그 전에 호출자가 고른 평문이 남아 있다는 사실로 바뀌었다. 규칙 9 의 되돌리기 경우는 «저장된 옛 평문을 옮기는 PATCH 정규화» 가 되었다. 그런 행에 남은 옛 평문은 저장소 밖에 사는 필드라 규칙 4 의 응답 비노출 목록에 더했다(구현은 전부터 `triggers.service.ts` 의 `NOTIFICATION_SIGNING_STRIP_KEYS` 로 걷어 냈다).
+- **이미 저장된 옛 평문은 계속 읽고 옮긴다.** 닫은 것은 새로 받는 경로뿐이다. 저장된 행의 옛 평문 `signing.secret` 은 발송 때 서명에 쓰고 PATCH 가 시크릿 저장소로 옮긴다. 지우면 수신 측이 쓰던 시크릿이 유예 없이 바뀐다. 그래서 규칙 14 의 알려진 예외는 그런 행으로 좁혀졌고, [저장소 예외 필드 「`Trigger.config.interaction.triggerToken`」](CLE-INT-SECRET-EXPOSE.md#triggerconfiginteractiontriggertoken) 끝 단락의 비대칭 근거는 그 전에 호출자가 고른 평문이 남아 있다는 사실로 바뀌었다. 규칙 9 의 되돌리기 경우는 «저장된 옛 평문을 옮기는 PATCH 정규화» 가 되었다. 그런 행에 남은 옛 평문은 저장소 밖에 사는 필드라 규칙 4 의 응답 비노출 목록에 더했다(구현은 트리거 응답 분류 표의 `CONFIG_KEY_AXES.notificationSigning` 축이 걷어 낸다. 근거는 [저장소 예외 필드와 응답 노출 R21](CLE-INT-SECRET-EXPOSE.md#r21-응답-스트립을-필드-전수-분류-표로-바꾼다)).
 - **원시 `config` 는 `config` 바로 아래 키 단위로 병합한다.** 종전 구현은 `config ?? fresh.config` 라 원시 `config` 를 보낸 PATCH 가 저장된 `config` 를 통째로 바꿨다. 그래서 저장된 `chatChannel.inboundSigningRef` · `notification.signing.secretRef` 가 지워질 수 있었다. 이제 타입 키는 원시 `config` 로 바뀌지 않아 저장값이 남는다. 통째 교체를 계약으로 남기는 안은 `inboundSigningRef` 가 사라지면 인바운드 서명 검증이 열리므로 택하지 않았다. 병합 규칙은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이 정한다.
 
 R9 「남긴 것」 과 R10 「이번에 정하지 않은 것」 이 이 Task 로 넘긴 원시 `config` 계약은 여기서 닫혔다.

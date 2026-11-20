@@ -2206,6 +2206,41 @@ describe('AiTurnOrchestrator', () => {
       );
     });
 
+    // NERV Task CLE-T-3SMSHG — 첫 대기의 Turn 1 디버그는 최상위 `initialTurnDebug` 로 싣는다.
+    // `nodeOutput.meta.turnDebug`(배열)와 같은 이름을 쓰지 않는다.
+    it('첫 대기의 Turn 1 디버그는 initialTurnDebug 로 싣고 최상위 turnDebug 는 없다', async () => {
+      const context = contextService.createContext(executionId, workflowId);
+      context.structuredOutputCache[aiNode.id as string] = {
+        config: {},
+        output: { result: { message: 'hi', messages: [] } },
+        meta: {},
+      } as never;
+      const turn1 = { llmCalls: [{ durationMs: 7 }] };
+
+      await invoke(
+        context as never,
+        { id: 'ne-debug' },
+        {
+          messages: [],
+          turnCount: 1,
+          turnDebugHistory: [turn1],
+          model: 'model-x',
+          totalInputTokens: 3,
+          totalOutputTokens: 4,
+        },
+      );
+
+      const waitingCall = mockEventEmitter.emitExecution.mock.calls.find(
+        (c) => c[1] === ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      );
+      const payload = waitingCall![2] as Record<string, unknown>;
+      expect(payload.initialTurnDebug).toEqual({
+        llmCalls: turn1,
+        metadata: { model: 'model-x', inputTokens: 3, outputTokens: 4 },
+      });
+      expect(payload).not.toHaveProperty('turnDebug');
+    });
+
     // checkpoint 조건부 영속 — checkpoint-ineligible 노드 타입이면
     // buildResumeCheckpoint 를 호출하지 않고 _resumeCheckpoint 도 set 하지 않는다.
     // (driver.isCheckpointEligibleNodeType mock 기본값 false).
