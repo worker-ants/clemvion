@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-NOTIFY"
 title: "EIA 데이터와 흐름 — 알림 웹훅 발송과 서명 시크릿"
 type: "design"
-version: 1
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "31f3d10841b4ceb41af7c3aebb5ed52a0c3dd54a999e6623f68e0f20f1fa696e"
+content_hash: "acf4154c66471fbac4632937ef54c43373acac8ac71e474db7f2db612b7b06da"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-RCQGCC"
 source_paths: []
-mirror_sha256: "cc77610d31c86503b35bf1ea289b25bc44ed6ef10aa25ce755bad16d19d3c556"
-etag: "sha256-2136cf69027c9e0287f5271312703071f7c9318d552e4036a8c21d4c3d982775"
+mirror_sha256: "cc63f7debb0e3da2e28f58dd20e6d2aea18a0a558247f2d1eda3b36c73ba9154"
+etag: "sha256-680baf5093532d7990ea8a9e3dc045e24b0e0bf20829758201665df4ec469d93"
 ---
 ## 개요
 
@@ -61,7 +61,7 @@ sequenceDiagram
 
 - **fanout 대상 이벤트 다섯 가지**: `execution.waiting_for_input`·`completed`·`failed`·`cancelled`·`ai_message`. 종료 때의 jti 폐기는 EIA 알림 웹훅 설정(`config.notification`) 유무와 관계없다. 인터랙션만 켠 트리거도 종료 때 토큰이 무효가 된다.
 - **낡은 알림 웹훅 차단**: 진행 중 성격의 `waiting_for_input`·`ai_message` 는 보내기 직전 실행 상태를 다시 확인해 이미 종료면 건너뛴다(재시도해도 의미 없음).
-- **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`checkSsrfSafeUrl`) 두 번 검증한다. 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 발송 직전에 호스트 이름을 DNS 로 풀어 보는 검사(DNS rebinding 가드)는 운영 환경(`NODE_ENV=production`)에서 기본으로 켜져 있고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 이면 꺼진다. 운영 밖에서는 기본으로 꺼져 있고 `1` 이면 켜진다. 범위는 [EIA 알림 웹훅 「SSRF 방지」](CLE-EIA-NOTIFY.md#ssrf-방지) 가 정한다.
+- **SSRF**: 등록 때(`TriggersService.assertNotificationUrlSafe`)와 발송 직전(`NotificationWebhookProcessor`) 모두 같은 검사 `validateNotificationUrl` 을 쓴다. 이 검사는 SSRF 판정(`checkSsrfSafeUrl`) 뒤에 userinfo 가 든 URL 을 거부한다([EIA 알림 웹훅 — SSRF 방지](CLE-EIA-NOTIFY-SSRF.md#ssrf-방지)). 두 지점의 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 발송 직전에 호스트 이름을 DNS 로 풀어 보는 검사(DNS rebinding 가드)는 운영 환경(`NODE_ENV=production`)에서 기본으로 켜져 있고 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=0` 이면 꺼진다. 운영 밖에서는 기본으로 꺼져 있고 `1` 이면 켜진다. 같은 플래그가 발송 요청의 연결 시점 판정(`notificationWebhookDispatcher`)도 함께 켜고 끈다. 켜져 있으면 발송 fetch 가 연결할 때 푼 주소를 다시 판정하므로 검사와 연결 사이에 DNS 응답이 바뀌어도 막힌 대역으로 연결하지 않는다. 범위는 [EIA 알림 웹훅 「SSRF 방지」](CLE-EIA-NOTIFY.md#ssrf-방지) 가 정한다.
 - **서명**: `X-Clemvion-Signature: t=<unix>,v1=<hex>[,v1=<v2hex>]`(`notification-signature.util.ts`). 정규형 `{timestamp}.{rawBody}`, 알고리즘 `hmac-sha256`(기본)·`hmac-sha512`. 시크릿이 없거나 가져오지 못하면 서명 없이 보내지 않는다. 이때 발송 건강도를 `degraded`(저하됨)로 바꾼다. 주 시크릿이 없으면 v2 가 있어도 같다. v2 는 주 시크릿이 있을 때 보조 서명으로만 쓴다. 교체 유예 중에는 `notification_secret_v2` 로도 서명해 `v1=` 를 두 개 싣는다.
 - **주 시크릿 읽기**: 발송 처리기(`resolveSigningSecret`)는 저장된 `signing.secretRef` 값으로 시크릿을 읽지 않는다. 참조(`secret://` 형식의 문자열)가 있으면 트리거 id 로 다시 만든 정식 참조(`notificationSigningSecretRef`)로 시크릿 저장소에서 읽는다. 저장값이 다시 만든 참조와 다르면 에러 로그를 남긴다. 참조가 있는데 시크릿 저장소에서 읽지 못하면 옛 평문 `signing.secret` 으로 내려가지 않는다. 그 알림 웹훅은 보내지 않고 발송 건강도를 `degraded` 로 바꾼다. 옛 평문은 참조가 없을 때만 주 시크릿으로 쓴다. 기준은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24 다.
 - **적재 실패**: fanout 이 트리거를 다시 읽거나 발송 큐에 적재하다 실패하면 경고 로그를 남기고 그 알림을 버린다. 다시 적재하지 않는다. 실행과 단일 싱크는 영향을 받지 않는다. Redis 연결이 끊긴 동안에는 적재가 바로 실패하지 않는다. 연결된 적이 있으면 재연결을 20번 시도한 뒤(약 4분) 실패하고, 기동 때부터 닿지 않았으면 연결될 때까지 기다린다. 근거는 [알림 적재 실패를 경고 로그로 받는다](#알림-적재-실패를-경고-로그로-받는다-2026-11-06) 에 있다.
