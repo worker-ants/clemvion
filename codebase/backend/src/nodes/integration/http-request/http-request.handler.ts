@@ -518,16 +518,18 @@ export class HttpRequestHandler
         res = followed.response;
         url = followed.url;
       }
-      clearTimeout(timeoutId);
 
       const durationMs = Date.now() - start;
 
+      // 자체 타임아웃 타이머는 본문을 다 읽을 때까지 살려 두고 finally 에서 지운다(Cafe24 · MakeShop 의
+      // `readResponseBody` 와 같다). 헤더만 오고 본문이 끝나지 않는 서버도 `timeout` 에서 끊긴다.
       let responseData: unknown;
       if (responseType === 'json') {
-        // 파싱할 수 없는 본문은 null 이다. 본문을 읽다가 실행이 취소된 것은 null 로 삼키지 않고
-        // 아래 catch 로 올려 취소로 처리한다.
+        // 파싱할 수 없는 본문은 null 이다. 본문을 읽다가 끊긴 것은 null 로 삼키지 않고 아래 catch 로
+        // 올린다. 실행 취소는 다시 던지고, 자체 타임아웃은 헤더 전 타임아웃과 같은 HTTP_TRANSPORT_FAILED 다.
         responseData = await res.json().catch((err: unknown) => {
           if (isUpstreamAbort(err, upstream)) throw err;
+          if (controller.signal.aborted) throw err;
           return null;
         });
       } else if (responseType === 'text') {
@@ -589,7 +591,6 @@ export class HttpRequestHandler
         port: 'error',
       };
     } catch (err: unknown) {
-      clearTimeout(timeoutId);
       // [노드 취소](CLE-EXEC-CANCEL#취소-에러-분류) 규칙 19: 노드 취소 신호로 생긴 AbortError 는 error 포트로 보내지 않고 다시 던진다.
       // 엔진이 노드를 cancelled 로 기록한다. 끝난 호출이 아니므로 활동 로그도 남기지 않는다(Cafe24 ·
       // MakeShop 과 같다). 노드 자체 타임아웃의 AbortError 는 upstream 이 열려 있어서 아래
@@ -667,6 +668,7 @@ export class HttpRequestHandler
         port: 'error',
       };
     } finally {
+      clearTimeout(timeoutId);
       unlinkUpstream();
     }
   }

@@ -2449,6 +2449,122 @@ describe('HttpRequestHandler', () => {
         ).rejects.toMatchObject({ name: 'AbortError' });
       });
 
+      describe('own timeout covers the body read (CLE-T-EFE3BW)', () => {
+        // The server sends headers and never finishes the body. Before this
+        // change the timer was cleared before the body read, so the node hung
+        // until the execution was cancelled, whatever `timeout` said. Now the
+        // timer stays armed until the body has been read (same as Cafe24 ·
+        // MakeShop `readResponseBody`), and its abort ends the node on the
+        // error port with the same HTTP_TRANSPORT_FAILED as a header timeout.
+        const hangingBodyFetch = () => {
+          let observedSignal: AbortSignal | undefined;
+          const hang = () =>
+            new Promise((_, reject) => {
+              const fail = () => reject(abortError());
+              if (observedSignal!.aborted) fail();
+              else observedSignal!.addEventListener('abort', fail);
+            });
+          global.fetch = jest
+            .fn()
+            .mockImplementation((_url, init: RequestInit) => {
+              observedSignal = init.signal as AbortSignal | undefined;
+              return Promise.resolve(
+                okResponse({
+                  json: jest.fn().mockImplementation(hang),
+                  text: jest.fn().mockImplementation(hang),
+                }),
+              );
+            });
+        };
+
+        it.each(['json', 'text'] as const)(
+          'a body that never finishes ends on the error port when the timeout fires (%s)',
+          async (responseType) => {
+            hangingBodyFetch();
+            const upstream = new AbortController();
+
+            const result = (await handler.execute(
+              null,
+              {
+                method: 'GET',
+                url: 'https://api.example.com/stalled',
+                responseType,
+                timeout: 20,
+              },
+              withUpstream(upstream),
+            )) as unknown as ErrorResult & {
+              meta: { statusCode: number };
+            };
+
+            expect(upstream.signal.aborted).toBe(false);
+            expect(result.port).toBe('error');
+            expect(result.output.error.code).toBe('HTTP_TRANSPORT_FAILED');
+            expect(result.meta.statusCode).toBe(0);
+          },
+        );
+
+        it('a body-read timeout on an integration request logs one failed HTTP_TRANSPORT_FAILED entry', async () => {
+          hangingBodyFetch();
+          const logUsage = jest.fn().mockResolvedValue(undefined);
+          const service = {
+            getForExecution: jest.fn().mockResolvedValue({
+              id: 'int-1',
+              name: 'API',
+              serviceType: 'http',
+              authType: 'bearer_token',
+              status: 'connected',
+              credentials: { token: 't' },
+            }),
+            logUsage,
+          };
+
+          const result = (await new HttpRequestHandler(
+            service as never,
+          ).execute(
+            null,
+            {
+              method: 'GET',
+              url: 'https://api.example.com/stalled',
+              authentication: 'integration',
+              integrationId: 'int-1',
+              timeout: 20,
+            },
+            {
+              ...withUpstream(new AbortController()),
+              nodeExecutionId: 'ne-1',
+              variables: { __workspaceId: 'ws-1' },
+            },
+          )) as unknown as ErrorResult;
+
+          expect(result.output.error.code).toBe('HTTP_TRANSPORT_FAILED');
+          expect(logUsage).toHaveBeenCalledTimes(1);
+          expect(logUsage.mock.calls[0][1]).toMatchObject({
+            status: 'failed',
+            error: { code: 'HTTP_TRANSPORT_FAILED' },
+          });
+        });
+
+        it('a finished request clears its timer, so the controller never aborts afterwards', async () => {
+          let observedSignal: AbortSignal | undefined;
+          global.fetch = jest
+            .fn()
+            .mockImplementation((_url, init: RequestInit) => {
+              observedSignal = init.signal as AbortSignal | undefined;
+              return Promise.resolve(okResponse());
+            });
+
+          const result = (await handler.execute(
+            null,
+            { method: 'GET', url: 'https://api.example.com/data', timeout: 20 },
+            context,
+          )) as unknown as { port: string };
+          await new Promise((resolve) => setTimeout(resolve, 60));
+
+          expect(result.port).toBe('success');
+          expect(observedSignal!.aborted).toBe(false);
+        });
+      });
+
       it('a cancelled integration request writes no activity log', async () => {
         // Same as Cafe24 · MakeShop: a cancel is neither success nor failure of
         // the external call (REQ-HTTP-029 counts finished calls only).
