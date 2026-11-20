@@ -388,7 +388,7 @@ describe('WebsocketService', () => {
     // nextFanoutEvent / collectFanoutEvents 는 상위 describe('WebsocketService')
     // 스코프에서 공유 (W-5: 중복 정의 해소).
 
-    it('register 된 execution 의 fanout envelope 에 triggerId + workflowId + chatChannel 첨부', async () => {
+    it('register 된 execution 의 fanout payload 에 triggerId + workflowId, 이벤트 routing 에 chatChannel 을 싣는다', async () => {
       service.registerExecutionRouting('exec-1', {
         triggerId: 'trg-A',
         workflowId: 'wf-A',
@@ -413,10 +413,16 @@ describe('WebsocketService', () => {
       // workflowId 도 첨부 — ChatChannelDispatcher.toChatChannelEvent 가 EiaEvent.base
       // 의 필수 필드로 요구. 누락 시 silent skip 회귀 (PR #318 fix).
       expect(payload.workflowId).toBe('wf-A');
-      expect(payload.chatChannel).toEqual({
-        provider: 'telegram',
-        conversationKey: '12345',
-        channelUserKey: 'user-1',
+      // chatChannel 은 payload 밖 routing 에만 있다(CLE-API-EGRESS-PIPELINE §6). SSE · 알림 웹훅은
+      // payload 만 직렬화하므로 외부 소비자에는 channelUserKey 가 실리지 않는다.
+      expect(payload).not.toHaveProperty('chatChannel');
+      expect(JSON.stringify(payload)).not.toContain('user-1');
+      expect(fanout.routing).toEqual({
+        chatChannel: {
+          provider: 'telegram',
+          conversationKey: '12345',
+          channelUserKey: 'user-1',
+        },
       });
     });
 
@@ -439,6 +445,7 @@ describe('WebsocketService', () => {
       >;
       expect(wire).not.toHaveProperty('triggerId');
       expect(wire).not.toHaveProperty('chatChannel');
+      expect(wire).not.toHaveProperty('routing');
       // wire envelope 의 다른 field 는 그대로 유지
       expect(wire.message).toBe('hi');
       expect(wire.executionId).toBe('exec-1');
@@ -457,6 +464,7 @@ describe('WebsocketService', () => {
       const fanout = await eventP;
       expect(fanout.payload).not.toHaveProperty('triggerId');
       expect(fanout.payload).not.toHaveProperty('chatChannel');
+      expect(fanout.routing).toBeUndefined();
     });
 
     it('triggerId 만 register 된 경우 (chatChannel 미설정 webhook trigger) chatChannel 미주입', async () => {
@@ -477,6 +485,7 @@ describe('WebsocketService', () => {
       const fanout = await eventP;
       expect(fanout.payload.triggerId).toBe('trg-webhook');
       expect(fanout.payload).not.toHaveProperty('chatChannel');
+      expect(fanout.routing).toBeUndefined();
     });
 
     it('terminal event 발송 후 routing context 자동 release — 같은 executionId 재사용 시 첨부 안 됨', async () => {
@@ -571,14 +580,15 @@ describe('WebsocketService', () => {
       );
       const fanout = await eventP;
       expect(fanout.payload.triggerId).toBe('trg-N');
-      expect(fanout.payload.chatChannel).toEqual({
+      expect(fanout.payload).not.toHaveProperty('chatChannel');
+      expect(fanout.routing?.chatChannel).toEqual({
         provider: 'telegram',
         conversationKey: '999',
       });
       expect(fanout.payload.nodeId).toBe('node-1');
     });
 
-    it('credential-shape 키가 chatChannel 안에 있으면 sanitize 가 마스킹 (defense in depth)', async () => {
+    it('credential-shape 키가 routing.chatChannel 안에 있으면 sanitize 가 마스킹 (defense in depth)', async () => {
       // chatChannel 자체는 conversationKey/channelUserKey 같은 비-secret 만 담는 게
       // 정상이지만, 호출자 회귀로 secret 이 섞일 위험에 대비해 fanout envelope 의
       // sanitize 가 일관 적용되는지 확인.
@@ -588,7 +598,7 @@ describe('WebsocketService', () => {
           provider: 'telegram',
           conversationKey: '12345',
           api_key: 'should-not-leak',
-        } as Record<string, unknown>,
+        },
       });
       const eventP = nextFanoutEvent(service);
       await service.emitExecutionEvent(
@@ -600,7 +610,7 @@ describe('WebsocketService', () => {
         },
       );
       const fanout = await eventP;
-      const chatChannel = fanout.payload.chatChannel as Record<string, unknown>;
+      const chatChannel = fanout.routing?.chatChannel as Record<string, unknown>;
       expect(chatChannel.api_key).toBe('[REDACTED]');
       expect(chatChannel.conversationKey).toBe('12345');
     });
