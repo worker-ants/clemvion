@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-EXPOSE"
 title: "시크릿 저장소 — 저장소 예외 필드와 응답 노출"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "56b01f218f21d1ffe5dc5506db1251ca1bd336ff50329ad0edf2308cd83eb58b"
+content_hash: "3ddd1fcfa19661cfa82a2b04e4958e1bb3a98f5890833b7b1bb8c247c4c28f1b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-SND9K2"
 source_paths: []
-mirror_sha256: "e9ecaea0025d11a9c2d916e811b36095d4ac9a81f8771b46de3977d36e390aaa"
-etag: "sha256-260a80ccc7eef62c368c5a618fa095b9ac59576d9851b60594f005f4a317770e"
+mirror_sha256: "7ca06cdc3de45d8151ea2bdabfb14e72f5adcadc0ed8284c215e15760d97b26b"
+etag: "sha256-a2e2f06ab3c4a0ac8b1b879c68e3cbf497d06368a07b4d13541cbd9af7b009e3"
 ---
 ## 개요
 
@@ -49,7 +49,7 @@ EIA 알림 웹훅 HMAC 서명 시크릿을 교체하는 24시간 유예 동안 *
 위 `itk_*` 항목의 (a)~(c) 를 근거로 삼지 않는다. 근거는 따로 세운다. 아래 3 은 (c) 를 인용하지 않고 이 필드의 값(`wsk_*`)에서 따로 확인했다.
 
 1. **평문이 종착지가 아니라 경유지다.** 승격되면 값은 `secrets.rotate` 로 저장소에 들어가고 컬럼은 `null` 로 비운다([EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 의 승격 경로). `AuthConfig.config`(영구·암호화)와 `itk_*`(영구·평문) 어느 쪽과도 다른 세 번째 형태다.
-2. **노출 창이 정책으로 닫혀 있다.** 유예 종료 cron 이 컬럼을 비운다. EIA 알림 웹훅 설정이 없는 트리거도 승격하지 않고 컬럼만 비운다([EIA 데이터와 흐름 「서명 시크릿 교체와 승격」](../CLE-IX/CLE-EIA-DATA.md#서명-시크릿-교체와-승격)). 비우지 않고 건너뛰는 분기는 [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 의 워크스페이스 불일치 하나이고 방어용이다. 응답으로 새지 않도록 `TriggersService` 의 `TRIGGER_RESPONSE_STRIP_COLUMNS` 가 응답 경계에서 이 컬럼을 지운다. 부재는 두 자리에서 단언한다. 트리거 직접 응답은 `shared/testing/trigger-workflow-ref.ts`, 스케줄 조인 응답은 `shared/testing/schedule-trigger-ref.ts` 가 같은 컬럼 목록으로 확인한다.
+2. **노출 창이 정책으로 닫혀 있다.** 유예 종료 cron 이 컬럼을 비운다. EIA 알림 웹훅 설정이 없는 트리거도 승격하지 않고 컬럼만 비운다([EIA 데이터와 흐름 「서명 시크릿 교체와 승격」](../CLE-IX/CLE-EIA-DATA.md#서명-시크릿-교체와-승격)). 비우지 않고 건너뛰는 분기는 [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 의 워크스페이스 불일치 하나이고 방어용이다. 응답으로 새지 않도록 트리거 응답 분류 표(`trigger-response-strip.ts` 의 `TRIGGER_COLUMN_RESPONSE`)가 이 컬럼을 `strip` 으로 두고 `TriggersService` 가 응답 경계에서 지운다. 부재는 두 자리에서 단언한다. 트리거 직접 응답은 `shared/testing/trigger-workflow-ref.ts`, 스케줄 조인 응답은 `shared/testing/schedule-trigger-ref.ts` 가 같은 컬럼 목록으로 확인한다.
 3. **서버가 발급하고 영향 범위가 트리거 하나다.** `wsk_` + `randomBytes(32)` 이며 사용자가 입력한 외부 자격 증명이 아니다.
 4. **기본 경로는 그대로다.** 이 예외는 유예 기간의 보조 키에만 적용되며 `signing.secretRef` 정책을 건드리지 않는다.
 
@@ -57,6 +57,7 @@ EIA 알림 웹훅 HMAC 서명 시크릿을 교체하는 24시간 유예 동안 *
 
 ## 구현 위치
 
+- 규칙 4~6 의 응답 경계 스트립: `codebase/backend/src/modules/triggers/trigger-response-strip.ts`(트리거 엔티티의 모든 필드와 `config` 의 `chatChannel` · `notification.signing` · `interaction` 키를 분류한 표), 대조 테스트 `codebase/backend/src/modules/triggers/trigger-response-strip.spec.ts`. 정화는 `TriggersService.sanitizeForResponse` 가 한다
 - 규칙 4 의 면제 응답 DTO: `codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts`(`TriggerIssuedSecretsDto`), `codebase/backend/src/modules/triggers/dto/responses/trigger-response.dto.ts`(생성 · PATCH 응답의 `secrets`)
 - 저장소 예외 필드의 응답 부재 단언(규칙 4 · 6, 최상위 컬럼): `codebase/backend/src/shared/testing/trigger-workflow-ref.ts`, `codebase/backend/src/shared/testing/schedule-trigger-ref.ts`
 - 열린 맵 `config` 안 비밀의 응답 부재 단언(규칙 5 · R19): `codebase/backend/test/trigger-issued-secrets.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`, `codebase/backend/src/modules/triggers/triggers.service.spec.ts`(옛 평문 `signing.secret`)
@@ -90,7 +91,7 @@ NERV Task `CLE-T-H0GF4K` 가 채팅 채널의 마지막 에러 필드를 점검�
 
 ### R19. 열린 맵 안의 비밀은 응답 부재를 테스트로 단언한다 (2026-11-07)
 
-규칙 5 의 두 축은 DTO 에 선언한 스키마를 기준으로 본다. 응답-계약 검증(`codebase/backend/src/shared/testing/response-contract.ts`)은 `$ref` 로 이어진 스키마만 따라 내려간다. `TriggerDto.config` 처럼 `additionalProperties: true` 로 선언한 인라인 객체는 열어 보지 않으므로 그 안에 어떤 키가 실려도 위반이 아니다. 정적 가드는 선언끼리만 대조하므로 맵 안의 키를 모른다. 그런데 저장소 예외 필드 둘(`config.interaction.triggerToken`, 옛 평문 `config.notification.signing.secret`)과 시크릿 참조(`config.notification.signing.secretRef`, `config.*.botTokenRef`, `config.*.inboundSigningRef`)가 바로 이 맵 안에 있다. 응답 경계의 스트립(`TriggersService` 의 `INTERACTION_RESPONSE_STRIP_KEYS` · `NOTIFICATION_SIGNING_STRIP_KEYS` · `CHAT_CHANNEL_RESPONSE_STRIP_KEYS`)에서 키 하나가 빠져도 두 축은 알아채지 못한다. 보호는 손으로 쓴 부재 단언에만 기대고 같은 자리에 새 비밀을 넣는 사람이 그 사실을 알아야 이어진다.
+규칙 5 의 두 축은 DTO 에 선언한 스키마를 기준으로 본다. 응답-계약 검증(`codebase/backend/src/shared/testing/response-contract.ts`)은 `$ref` 로 이어진 스키마만 따라 내려간다. `TriggerDto.config` 처럼 `additionalProperties: true` 로 선언한 인라인 객체는 열어 보지 않으므로 그 안에 어떤 키가 실려도 위반이 아니다. 정적 가드는 선언끼리만 대조하므로 맵 안의 키를 모른다. 그런데 저장소 예외 필드 둘(`config.interaction.triggerToken`, 옛 평문 `config.notification.signing.secret`)과 시크릿 참조(`config.notification.signing.secretRef`, `config.*.botTokenRef`, `config.*.inboundSigningRef`)가 바로 이 맵 안에 있다. 응답 경계의 스트립(당시 `TriggersService` 에 손으로 적은 키 목록 `INTERACTION_RESPONSE_STRIP_KEYS` · `NOTIFICATION_SIGNING_STRIP_KEYS` · `CHAT_CHANNEL_RESPONSE_STRIP_KEYS`)에서 키 하나가 빠져도 두 축은 알아채지 못한다. 보호는 손으로 쓴 부재 단언에만 기댔고 같은 자리에 새 비밀을 넣는 사람이 그 사실을 알아야 이어졌다. 목록은 [R21](#r21-응답-스트립을-필드-전수-분류-표로-바꾼다-2026-11-20) 에서 분류 표로 바뀌었다.
 
 그래서 열린 맵 안에 두는 비밀은 응답에 그 키가 없음을 단언하는 e2e 를 함께 둔다(규칙 5). 2026-11-07 에는 다음 테스트가 맡는다.
 
@@ -102,4 +103,18 @@ NERV Task `CLE-T-H0GF4K` 가 채팅 채널의 마지막 에러 필드를 점검�
 
 `## 구현 위치` 의 두 헬퍼(`trigger-workflow-ref.ts` · `schedule-trigger-ref.ts`)는 최상위 컬럼(`notificationSecretV2` · `chatChannelTokenV2`)의 부재를 본다. 맵 안의 키는 위 테스트가 맡는다.
 
-이 규칙을 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 검증 층에 두는 안도 있었다(NERV Task `CLE-T-F7J4V4`). 지키려는 것이 비밀이라 노출 경계(규칙 4~6)를 정한 이 규약에 뒀다. 스트립을 선언으로 바꾸는 일은 이 결정에 들지 않는다.
+이 규칙을 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 검증 층에 두는 안도 있었다(NERV Task `CLE-T-F7J4V4`). 지키려는 것이 비밀이라 노출 경계(규칙 4~6)를 정한 이 규약에 뒀다. 스트립을 선언으로 바꾸는 일은 이 결정에 들지 않았고 R21 이 다룬다.
+
+### R21. 응답 스트립을 필드 전수 분류 표로 바꾼다 (2026-11-20)
+
+트리거 응답에서 지울 이름은 손으로 적은 목록 다섯 벌(지울 엔티티 컬럼, 가릴 진단 컬럼, JSONB 축마다 지울 키)에 있었다. 지울 것만 적는 목록은 새 비밀 자리를 넣지 않아도 아무 신호가 없다. 실제로 엔티티 컬럼 · `notification.signing` · `interaction` 세 자리가 차례로 빠졌다가 뒤늦게 더해졌다(엔티티 컬럼은 R7, 나머지는 `TriggersService.sanitizeForResponse` 주석의 이력). NERV Task `CLE-T-SND9K2` 가 목록을 `trigger-response-strip.ts` 의 분류 표로 옮겼다.
+
+- 엔티티 표는 `Trigger` 의 모든 필드를 `expose` · `strip` · `redact` · `narrow` · `keys` 중 하나로 분류한다. 표의 키 타입이 `keyof Trigger` 라서 컬럼을 더하고 분류하지 않으면 컴파일되지 않는다. 표의 키와 TypeORM 이 매핑한 컬럼 · 관계가 같은지는 단위 테스트가 본다.
+- JSONB 표 셋(`chatChannel` · `notification.signing` · `interaction`)은 저장 모양 타입, 요청 DTO, 서버가 쓰는 키를 합친 키 집합을 모두 분류한다. DTO 에 키를 더하고 분류하지 않아도 컴파일되지 않는다.
+- 서버가 DTO 밖의 새 키를 JSONB 에 쓰면 타입에 나타나지 않는다. 그런 키는 원시 `config` 로 받지 않는 내부 필드 목록(`trigger-config-internal-fields.ts` 의 `CONFIG_INTERNAL_FIELDS`)에도 넣어야 하고, 그 목록의 경로가 표에서 `strip` 인지 단위 테스트가 대조한다. 두 목록 어디에도 넣지 않은 키는 여전히 잡지 못하므로 R19 의 e2e 부재 단언은 그대로 둔다.
+- 표에 없는 키는 지금처럼 응답에 나간다. 응답 모양을 바꾸지 않으려고 기본값을 노출로 두었다.
+
+기각한 대안:
+
+- **엔티티 데코레이터로 선언한다.** `sanitizeForResponse` 의 옛 주석이 제안한 방식이다. 컬럼에는 붙일 수 있지만 JSONB 안의 키에는 데코레이터를 붙일 자리가 없어 비밀의 절반이 남는다.
+- **응답 DTO 의 허용 목록으로 내보낸다.** `TriggerDto.config` 는 `additionalProperties: true` 인 열린 맵이라(R19) 허용 목록을 만들려면 응답 스키마부터 바꿔야 한다. 응답 계약이 바뀌는 일이라 이 작업 범위를 넘는다.
