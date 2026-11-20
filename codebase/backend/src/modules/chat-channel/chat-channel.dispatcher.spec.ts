@@ -1289,4 +1289,35 @@ describe('ChatChannelDispatcher.handle — 라우팅 정보는 event.routing 에
     }
     expect(adapter.sendMessage).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['chatChannel 이 비어 있다', { chatChannel: {} }],
+    [
+      'conversationKey 가 빈 문자열이다',
+      { chatChannel: { conversationKey: '' } },
+    ],
+    ['conversationKey 가 숫자다', { chatChannel: { conversationKey: 123 } }],
+  ])(
+    'routing 이 비정상이면(%s) 발송하지 않고 경고를 남긴다',
+    async (_name, routing) => {
+      const { dispatcher, adapter } = buildDispatcherHarness({
+        renderResult: [textMessage],
+      });
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        await callHandle(
+          dispatcher,
+          aiMessage({
+            routing: routing as unknown as ExecutionChannelEvent['routing'],
+          }),
+        );
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('routing.chatChannel.conversationKey 없음'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+      expect(adapter.sendMessage).not.toHaveBeenCalled();
+    },
+  );
 });

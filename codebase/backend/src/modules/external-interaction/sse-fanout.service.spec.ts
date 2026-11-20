@@ -176,6 +176,10 @@ describe('SseFanoutService', () => {
       expect(fields[3]).not.toContain('routing');
       expect(fields[3]).not.toContain('user-1');
       expect(JSON.parse(fields[3])).toMatchObject({ event: ev(1) });
+      expect(server.published).toHaveLength(1);
+      const live = server.published[0].message;
+      expect(live).not.toContain('routing');
+      expect(live).not.toContain('user-1');
     });
 
     describe('크기 상한', () => {
