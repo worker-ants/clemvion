@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, MoreThanOrEqual, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { QueryNotificationDto } from './dto/query-notification.dto';
@@ -11,6 +11,30 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { pickSortColumn } from '../../common/utils/list-sort';
 import { WebsocketService } from '../websocket/websocket.service';
 import { MailService } from '../mail/mail.service';
+
+/**
+ * 벨 조회 범위에서 워크스페이스 조건을 따르지 않는 유형 (CLE-T-NE4KKZ).
+ *
+ * 초대 알림은 초대한 워크스페이스로 저장되지만 받는 사람은 아직 그 워크스페이스 멤버가 아니다.
+ * 그래서 이 유형만 워크스페이스와 무관하게 본인 알림으로 보여 준다. 나머지 유형은 현재 워크스페이스로 묶는다.
+ */
+const CROSS_WORKSPACE_TYPE = 'team_invite';
+
+/**
+ * 벨 조회 · 미읽음 수 · 모두 읽음 · 모두 닫기가 함께 쓰는 범위 조건.
+ * `alias` 가 없으면 별칭 없는 UPDATE 빌더용이다. 매개변수는 {@link inboxScopeParams} 로 넘긴다.
+ */
+function inboxScopeClause(alias?: string): string {
+  const p = alias ? `${alias}.` : '';
+  return `(${p}workspace_id = :workspaceId OR ${p}type = :crossWorkspaceType)`;
+}
+
+function inboxScopeParams(workspaceId: string): {
+  workspaceId: string;
+  crossWorkspaceType: string;
+} {
+  return { workspaceId, crossWorkspaceType: CROSS_WORKSPACE_TYPE };
+}
 
 @Injectable()
 export class NotificationsService {
@@ -78,8 +102,8 @@ export class NotificationsService {
     // hasRecentByResource (중복 방지) 는 본 필터를 적용하지 않는다 (spec §4.4).
     const qb = this.notificationRepository
       .createQueryBuilder('n')
-      .where('n.workspace_id = :workspaceId', { workspaceId })
-      .andWhere('n.user_id = :userId', { userId })
+      .where('n.user_id = :userId', { userId })
+      .andWhere(inboxScopeClause('n'), inboxScopeParams(workspaceId))
       .andWhere('n.dismissed_at IS NULL');
 
     if (type) {
@@ -106,9 +130,13 @@ export class NotificationsService {
     userId: string,
   ): Promise<{ count: number }> {
     // dismissed 알림은 미읽음 카운트에서 제외 — spec §4.3.
-    const count = await this.notificationRepository.count({
-      where: { workspaceId, userId, isRead: false, dismissedAt: IsNull() },
-    });
+    const count = await this.notificationRepository
+      .createQueryBuilder('n')
+      .where('n.user_id = :userId', { userId })
+      .andWhere(inboxScopeClause('n'), inboxScopeParams(workspaceId))
+      .andWhere('n.is_read = false')
+      .andWhere('n.dismissed_at IS NULL')
+      .getCount();
     return { count };
   }
 
@@ -135,8 +163,8 @@ export class NotificationsService {
       .createQueryBuilder()
       .update(Notification)
       .set({ isRead: true })
-      .where('workspace_id = :workspaceId', { workspaceId })
-      .andWhere('user_id = :userId', { userId })
+      .where('user_id = :userId', { userId })
+      .andWhere(inboxScopeClause(), inboxScopeParams(workspaceId))
       .andWhere('is_read = false')
       .execute();
 
@@ -207,7 +235,7 @@ export class NotificationsService {
 
   /**
    * 일괄 dismiss — 현재 워크스페이스에서 로그인 사용자의 모든 visible 알림을
-   * dismiss 처리한다. 이미 dismissed 인 행은 건드리지 않으므로 affected count 에서 제외.
+   * dismiss 처리한다. 초대 알림은 워크스페이스와 무관하게 포함한다 ({@link inboxScopeClause}). 이미 dismissed 인 행은 건드리지 않으므로 affected count 에서 제외.
    *
    * spec/data-flow/8-notifications.md §4.2.
    */
@@ -219,8 +247,8 @@ export class NotificationsService {
       .createQueryBuilder()
       .update(Notification)
       .set({ dismissedAt: () => 'NOW()' })
-      .where('workspace_id = :workspaceId', { workspaceId })
-      .andWhere('user_id = :userId', { userId })
+      .where('user_id = :userId', { userId })
+      .andWhere(inboxScopeClause(), inboxScopeParams(workspaceId))
       .andWhere('dismissed_at IS NULL')
       .execute();
 

@@ -1,5 +1,4 @@
 import { NotFoundException } from '@nestjs/common';
-import { IsNull } from 'typeorm';
 import { NotificationsService } from './notifications.service';
 
 /**
@@ -96,6 +95,83 @@ describe('NotificationsService — dismiss', () => {
     });
   });
 
+  // CLE-T-NE4KKZ: 초대받은 사람은 그 워크스페이스 멤버가 아니라서 초대 알림이 워크스페이스 조건에 걸려
+  // 보이지 않았다. team_invite 만 워크스페이스 조건에서 빼고 나머지 유형은 현재 워크스페이스로 묶는다.
+  describe('벨 조회 범위 — team_invite 는 워크스페이스와 무관하게 보인다', () => {
+    const SCOPE = '(workspace_id = :workspaceId OR type = :crossWorkspaceType)';
+    const SCOPE_N =
+      '(n.workspace_id = :workspaceId OR n.type = :crossWorkspaceType)';
+    const PARAMS = { workspaceId: 'ws-1', crossWorkspaceType: 'team_invite' };
+
+    function filters(qb: any): unknown[][] {
+      return [...qb.where.mock.calls, ...qb.andWhere.mock.calls];
+    }
+
+    it('findAll 은 본인 알림 가운데 현재 워크스페이스 것과 team_invite 를 고른다', async () => {
+      const qb = makeQb(0, []);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAll('ws-1', 'user-1', {} as any);
+
+      expect(filters(qb)).toContainEqual([
+        'n.user_id = :userId',
+        { userId: 'user-1' },
+      ]);
+      expect(filters(qb)).toContainEqual([SCOPE_N, PARAMS]);
+      expect(filters(qb).map((c) => c[0])).not.toContain(
+        'n.workspace_id = :workspaceId',
+      );
+    });
+
+    it('getUnreadCount 도 같은 범위에서 미읽음 · 닫지 않은 알림을 센다', async () => {
+      const qb = makeQb(4, []);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.getUnreadCount('ws-1', 'user-1');
+
+      expect(filters(qb)).toContainEqual([
+        'n.user_id = :userId',
+        { userId: 'user-1' },
+      ]);
+      expect(filters(qb)).toContainEqual([SCOPE_N, PARAMS]);
+      const clauses = filters(qb).map((c) => c[0]);
+      expect(clauses).toContain('n.is_read = false');
+      expect(clauses).toContain('n.dismissed_at IS NULL');
+      expect(repo.count).not.toHaveBeenCalled();
+      expect(result).toEqual({ count: 4 });
+    });
+
+    it('markAllRead 는 같은 범위의 미읽음만 읽음으로 바꾼다', async () => {
+      const qb = makeQb(0, [], 2);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.markAllRead('ws-1', 'user-1');
+
+      expect(filters(qb)).toContainEqual([
+        'user_id = :userId',
+        { userId: 'user-1' },
+      ]);
+      expect(filters(qb)).toContainEqual([SCOPE, PARAMS]);
+      expect(filters(qb).map((c) => c[0])).toContain('is_read = false');
+      expect(result).toEqual({ affected: 2 });
+    });
+
+    it('dismissAll 은 같은 범위의 닫지 않은 알림만 닫는다', async () => {
+      const qb = makeQb(0, [], 3);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.dismissAll('ws-1', 'user-1');
+
+      expect(filters(qb)).toContainEqual([
+        'user_id = :userId',
+        { userId: 'user-1' },
+      ]);
+      expect(filters(qb)).toContainEqual([SCOPE, PARAMS]);
+      expect(filters(qb).map((c) => c[0])).toContain('dismissed_at IS NULL');
+      expect(result).toEqual({ affected: 3 });
+    });
+  });
+
   describe('findAll — 정렬 허용 목록', () => {
     it('허용 sort=type 은 n.type 으로 정렬한다', async () => {
       const qb = makeQb(0, []);
@@ -122,26 +198,6 @@ describe('NotificationsService — dismiss', () => {
         expect(qb.orderBy).toHaveBeenCalledWith('n.created_at', 'ASC');
       },
     );
-  });
-
-  describe('getUnreadCount — dismissed_at IS NULL 필터', () => {
-    it('count where 절에 dismissedAt: IsNull() 을 포함한다', async () => {
-      repo.count.mockResolvedValue(3);
-
-      const result = await service.getUnreadCount('ws-1', 'user-1');
-
-      expect(repo.count).toHaveBeenCalledTimes(1);
-      const where = repo.count.mock.calls[0][0].where;
-      expect(where).toEqual(
-        expect.objectContaining({
-          workspaceId: 'ws-1',
-          userId: 'user-1',
-          isRead: false,
-          dismissedAt: IsNull(),
-        }),
-      );
-      expect(result).toEqual({ count: 3 });
-    });
   });
 
   describe('dismiss — 단건 (atomic UPDATE)', () => {
@@ -204,18 +260,17 @@ describe('NotificationsService — dismiss', () => {
   });
 
   describe('dismissAll — 일괄', () => {
-    it('workspace + user + dismissed_at IS NULL 만 갱신하고 affected 반환', async () => {
+    it('user + dismissed_at IS NULL 인 행만 갱신하고 affected 반환', async () => {
       const qb = makeQb(0, [], 5);
       repo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await service.dismissAll('ws-1', 'user-1');
 
-      expect(qb.where).toHaveBeenCalledWith('workspace_id = :workspaceId', {
-        workspaceId: 'ws-1',
-      });
-      const andWhereArgs = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
-      expect(andWhereArgs).toContain('user_id = :userId');
-      expect(andWhereArgs).toContain('dismissed_at IS NULL');
+      const clauses = [...qb.where.mock.calls, ...qb.andWhere.mock.calls].map(
+        (c: unknown[]) => c[0],
+      );
+      expect(clauses).toContain('user_id = :userId');
+      expect(clauses).toContain('dismissed_at IS NULL');
       expect(result).toEqual({ affected: 5 });
     });
 
