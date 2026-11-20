@@ -29,9 +29,9 @@ describe('Notifications — 인앱 토글 · email 행 벨 제외 e2e', () => {
   async function insertRow(channel: string, title: string): Promise<string> {
     const r = await db.query<{ id: string }>(
       `INSERT INTO notification (workspace_id, user_id, type, title, message, is_read, channel)
-       VALUES ($1, $2, 'execution_failed', $3, $3, false, $4)
+       VALUES ($1, $2, 'execution_failed', $3, $4, false, $5)
        RETURNING id`,
-      [workspaceId, user.userId, title, channel],
+      [workspaceId, user.userId, title, title, channel],
     );
     return r.rows[0].id;
   }
