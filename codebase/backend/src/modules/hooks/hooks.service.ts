@@ -387,8 +387,12 @@ export class HooksService {
    *    입력도 미지원 update 안내 · dedup · rate limit · `enrichInbound` 를 거친 뒤 여기서 끝난다.
    * 8. `/start` 이고 활성 execution 이 있으면 취소(NERV Task `CLE-T-V4WVF2`)
    * 9. 새 execution 시작 (start 또는 활성 없음 / terminal 상태), ackInteraction
+   *    `/start` 로 시작했으면 시작 잠금을 푼 뒤 `notifyExecutionStarted` 로 시작 안내
+   *    (`executionStarted`) 또는 재시작 안내(`executionRestarted`, 활성 실행이 있던 대화)를 보낸다
+   *    (NERV Task `CLE-T-0400J6`)
    * 10. 프로바이더가 3초 안 200 을 요구하는 인터랙션(Discord 컴포넌트 클릭 · 모달 제출 · 슬래시 명령,
-   *     Slack Interactivity)은 따로 정한 응답이 없으면 어댑터의 `defaultInteractionResponse` 로 답한다
+   *     Slack Interactivity)은 따로 정한 응답이 없으면 어댑터의 `defaultInteractionResponse` 로 답한다.
+   *     `/start` 는 `commandReceived` 자리에 위 시작 · 재시작 안내를 넣은 응답이다
    *
    * 버린 update(ignored)에는 어댑터의 `ackDroppedUpdate` 를 부른다(Telegram `answerCallbackQuery`).
    * 꺼진 트리거는 외부 호출을 하지 않으므로 부르지 않는다.
