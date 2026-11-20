@@ -128,6 +128,12 @@ function parseReply(reply: unknown): ThrottlerStorageRecord {
  * - 실패 뒤 {@link REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS} 동안. Redis 를 부르지 않아 실패가 아니므로
  *   지표를 세지 않는다.
  *
+ * 복구 규칙(`degraded` 상태): 대기가 끝나면 한 요청만(probe) Redis 를 다시 부르고, 그 응답을 기다리는 동안
+ * 온 요청은 메모리로 센다. probe 가 성공하면 `다시 Redis 로 센다` 로그를 남기고 상태를 푼다. 실패하면
+ * 경고를 다시 남기고 대기를 새로 건다. 경고는 장애마다 한 번(장애 시작과 probe 실패)이고, 동시에 실패한
+ * 요청의 지표는 요청마다 센다. 장애 전에 시작한 요청이 장애 중에 늦게 성공해도 상태는 풀지 않는다.
+ * 복구는 probe 의 성공으로만 판정한다.
+ *
  * Redis 쪽은 고정 창이다. 창은 그 키의 첫 요청부터 `ttl` 동안이다. 메모리 저장소는 요청마다 `ttl` 뒤에
  * 빠지는 미끄럼 창이라 경계 근처의 허용 수가 조금 다르다.
  *
@@ -169,7 +175,7 @@ export class RedisThrottlerStorage
     // 실패 뒤 대기가 끝난 첫 요청만 Redis 를 다시 부른다. 그 응답을 기다리는 동안 들어온 요청은 메모리로 센다.
     const probing = this.degraded;
     if (probing) {
-      this.redisRetryAt = Date.now() + REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
+      this.scheduleRetry();
     }
     try {
       const reply = await withTimeout(
@@ -186,7 +192,8 @@ export class RedisThrottlerStorage
         'throttler redis increment',
       );
       const record = parseReply(reply);
-      if (this.degraded) {
+      // 복구는 probe 의 성공으로만 판정한다. 장애 전에 시작한 요청이 늦게 성공한 것은 근거로 삼지 않는다.
+      if (probing) {
         this.degraded = false;
         this.redisRetryAt = 0;
         this.logger.log('요청 빈도 제한을 다시 Redis 로 센다');
@@ -195,17 +202,7 @@ export class RedisThrottlerStorage
     } catch (err) {
       // 제한 시간이 지난 뒤 Redis 가 늦게 스크립트를 실행하면 그 요청이 Redis 와 메모리에 한 번씩 세질 수 있다.
       // 한도를 더 빨리 채우는 쪽이라 그대로 둔다.
-      this.redisRetryAt = Date.now() + REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
-      this.metrics?.recordRedisFailOpen('throttler', 'incr_failed');
-      // 동시에 실패한 요청마다 경고를 남기지 않도록 장애가 시작될 때와 재시도가 실패할 때만 남긴다.
-      if (!this.degraded || probing) {
-        this.logger.warn(
-          `요청 빈도 제한을 메모리 저장소로 센다(${REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS}ms 뒤 Redis 재시도): ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      }
-      this.degraded = true;
+      this.recordFailure(err, probing);
       return this.memory.increment(
         key,
         ttl,
@@ -214,6 +211,25 @@ export class RedisThrottlerStorage
         throttlerName,
       );
     }
+  }
+
+  private scheduleRetry(): void {
+    this.redisRetryAt = Date.now() + REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
+  }
+
+  private recordFailure(err: unknown, probing: boolean): void {
+    this.scheduleRetry();
+    this.metrics?.recordRedisFailOpen('throttler', 'incr_failed');
+    // 동시에 실패한 요청마다 경고를 남기지 않도록 장애가 시작될 때와 재시도가 실패할 때만 남긴다.
+    const isNewOutage = !this.degraded;
+    if (isNewOutage || probing) {
+      this.logger.warn(
+        `요청 빈도 제한을 메모리 저장소로 센다(${REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS}ms 뒤 Redis 재시도): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    this.degraded = true;
   }
 
   onApplicationShutdown(): void {

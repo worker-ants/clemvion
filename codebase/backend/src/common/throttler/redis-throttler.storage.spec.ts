@@ -277,6 +277,13 @@ describe('RedisThrottlerStorage', () => {
         .mockResolvedValue([2, 60_000, 0, 0]);
       const memory = jest.spyOn(ThrottlerStorageService.prototype, 'increment');
       const { storage } = makeStorage({ client: { eval: evalMock } });
+      const logger = (
+        storage as unknown as {
+          logger: { warn: (m: string) => void; log: (m: string) => void };
+        }
+      ).logger;
+      jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      const log = jest.spyOn(logger, 'log').mockImplementation(() => undefined);
 
       await storage.increment('k1', 60_000, 100, 60_000, 'default');
       now += REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
@@ -286,13 +293,101 @@ describe('RedisThrottlerStorage', () => {
       expect(memory).toHaveBeenCalledTimes(2);
 
       resolveProbe([1, 60_000, 0, 0]);
+      expect(log).not.toHaveBeenCalled();
       await expect(probe).resolves.toMatchObject({ totalHits: 1 });
+      expect(log).toHaveBeenCalledTimes(1);
       // 다시 붙은 뒤에는 대기 없이 Redis 로 센다.
       await expect(
         storage.increment('k1', 60_000, 100, 60_000, 'default'),
       ).resolves.toMatchObject({ totalHits: 2 });
       expect(evalMock).toHaveBeenCalledTimes(3);
       expect(memory).toHaveBeenCalledTimes(2);
+      // 복구 뒤 일반 성공 요청은 복구 로그를 다시 남기지 않는다.
+      expect(log).toHaveBeenCalledTimes(1);
+      storage.onApplicationShutdown();
+    });
+
+    it('장애 전에 시작한 요청이 장애 중에 늦게 성공해도 대기를 풀지 않는다', async () => {
+      let now = 1_000_000;
+      jest.spyOn(Date, 'now').mockImplementation(() => now);
+      let rejectA: (err: Error) => void = () => undefined;
+      let resolveB: (value: unknown) => void = () => undefined;
+      const evalMock = jest
+        .fn<EvalFn>()
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectA = reject;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveB = resolve;
+            }),
+        )
+        .mockResolvedValue([1, 60_000, 0, 0]);
+      const { storage } = makeStorage({ client: { eval: evalMock } });
+      const logger = (
+        storage as unknown as {
+          logger: { warn: (m: string) => void; log: (m: string) => void };
+        }
+      ).logger;
+      jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      const log = jest.spyOn(logger, 'log').mockImplementation(() => undefined);
+
+      const a = storage.increment('k1', 60_000, 100, 60_000, 'default');
+      const b = storage.increment('k1', 60_000, 100, 60_000, 'default');
+      rejectA(new Error('ECONNRESET'));
+      await a;
+      resolveB([1, 60_000, 0, 0]);
+      await b;
+
+      // B 가 성공했어도 probe 가 아니므로 복구 로그도 없고 대기도 그대로다.
+      expect(log).not.toHaveBeenCalled();
+      await storage.increment('k1', 60_000, 100, 60_000, 'default');
+      expect(evalMock).toHaveBeenCalledTimes(2);
+
+      now += REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
+      await storage.increment('k1', 60_000, 100, 60_000, 'default');
+      expect(evalMock).toHaveBeenCalledTimes(3);
+      expect(log).toHaveBeenCalledTimes(1);
+      storage.onApplicationShutdown();
+    });
+
+    it('재시도(probe)가 제한 시간을 넘기면 대기를 새로 걸고 경고를 다시 남긴다', async () => {
+      jest.useFakeTimers();
+      let now = Date.now();
+      jest.spyOn(Date, 'now').mockImplementation(() => now);
+      const evalMock = jest
+        .fn<EvalFn>()
+        .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+        .mockImplementationOnce(() => new Promise(() => undefined))
+        .mockResolvedValue([1, 60_000, 0, 0]);
+      const recordRedisFailOpen = jest.fn();
+      const { storage } = makeStorage({
+        client: { eval: evalMock },
+        metrics: { recordRedisFailOpen },
+      });
+      const warn = jest
+        .spyOn(
+          (storage as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      await storage.increment('k1', 60_000, 100, 60_000, 'default');
+      now += REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
+      const probe = storage.increment('k1', 60_000, 100, 60_000, 'default');
+      await jest.advanceTimersByTimeAsync(REDIS_THROTTLER_COMMAND_TIMEOUT_MS);
+      await probe;
+
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(recordRedisFailOpen).toHaveBeenCalledTimes(2);
+      // 대기가 새로 걸렸다.
+      await storage.increment('k1', 60_000, 100, 60_000, 'default');
+      expect(evalMock).toHaveBeenCalledTimes(2);
       storage.onApplicationShutdown();
     });
 
