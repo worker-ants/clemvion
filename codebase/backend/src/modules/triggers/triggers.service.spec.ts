@@ -6399,8 +6399,9 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(auditRecord).not.toHaveBeenCalled();
     });
 
-    // `@IsOptional()` 이라 `interaction: null` 이 검증을 통과한다. 종전엔 그 null 을 그대로 저장했다.
-    it('interaction: null 은 빈 객체로 바꾸지 않고 그대로 저장하며 토큰이 사라졌으니 스트림을 닫는다', async () => {
+    // `interaction: null` 은 블록 해제 계약이다(`nullable: true`). 빈 객체나 null 로 저장하지 않고 `config` 에서 키를 지운다.
+    // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE-API#patch-본문-계약). NERV Task `CLE-T-73W6NQ`.
+    it('interaction: null 은 키를 지우고 토큰이 사라졌으니 스트림을 닫는다', async () => {
       triggerRepo.findOne.mockResolvedValue(
         stored({
           interaction: {
@@ -6410,14 +6411,23 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
           },
         }),
       );
-      await service.update(
-        't1',
-        'ws',
-        { interaction: null as unknown as InteractionConfigDto },
-        'u',
-      );
-      expect(savedConfig().interaction).toBeNull();
+      await service.update('t1', 'ws', { interaction: null }, 'u');
+      expect(savedConfig()).not.toHaveProperty('interaction');
       expect(closer.closeTriggerTokenStreams).toHaveBeenCalledWith(['t1']);
+    });
+
+    it('interaction: null 은 다른 타입 키를 건드리지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({
+          interaction: { enabled: true, tokenStrategy: 'per_execution' },
+          notification: { url: 'https://hooks.example.com/n' },
+        }),
+      );
+      await service.update('t1', 'ws', { interaction: null }, 'u');
+      expect(savedConfig()).not.toHaveProperty('interaction');
+      expect(savedConfig().notification).toEqual(
+        expect.objectContaining({ url: 'https://hooks.example.com/n' }),
+      );
     });
 
     it('interaction: null 이어도 저장된 토큰이 없었으면 스트림을 닫지 않는다', async () => {
@@ -6426,13 +6436,8 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
           interaction: { enabled: true, tokenStrategy: 'per_execution' },
         }),
       );
-      await service.update(
-        't1',
-        'ws',
-        { interaction: null as unknown as InteractionConfigDto },
-        'u',
-      );
-      expect(savedConfig().interaction).toBeNull();
+      await service.update('t1', 'ws', { interaction: null }, 'u');
+      expect(savedConfig()).not.toHaveProperty('interaction');
       expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
     });
 
@@ -6809,18 +6814,39 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(issued(result)).toMatch(/^wsk_[a-f0-9]{64}$/);
     });
 
-    // `@IsOptional()` 이라 `notification: null` 이 검증을 통과한다. 종전엔 그 null 을 그대로 저장했다.
+    // `notification: null` 은 블록 해제 계약이다(`nullable: true`). null 로 저장하지 않고 `config` 에서 키를 지운다.
     // `(next ?? {})` 로 껍데기를 만들면 지우려던 설정이 `{ signing }` 으로 남고 시크릿까지 발급된다.
-    it('notification: null 은 껍데기를 만들지도 시크릿을 발급하지도 않고 그대로 저장한다', async () => {
+    // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE-API#patch-본문-계약). NERV Task `CLE-T-73W6NQ`.
+    it('notification: null 은 껍데기를 만들지도 시크릿을 발급하지도 않고 키를 지운다', async () => {
       triggerRepo.findOne.mockResolvedValue(stored({}));
       const result = await service.update(
         't1',
         'ws',
-        { notification: null as unknown as NotificationConfigDto },
+        { notification: null },
         'u',
       );
       expect(secrets.rotate).not.toHaveBeenCalled();
-      expect(savedConfig().notification).toBeNull();
+      expect(savedConfig()).not.toHaveProperty('notification');
+      expect(result).not.toHaveProperty('secrets');
+    });
+
+    it('notification: null 은 저장된 알림 설정을 지우고 시크릿을 발급하지 않는다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({
+          notification: {
+            url: 'https://hooks.example.com/n',
+            signing: { secretRef: REF },
+          },
+        }),
+      );
+      const result = await service.update(
+        't1',
+        'ws',
+        { notification: null },
+        'u',
+      );
+      expect(secrets.rotate).not.toHaveBeenCalled();
+      expect(savedConfig()).not.toHaveProperty('notification');
       expect(result).not.toHaveProperty('secrets');
     });
 

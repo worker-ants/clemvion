@@ -95,21 +95,40 @@ export class UpdateTriggerDto {
 
   /**
    * Outbound notification webhook 설정. [Spec EIA §4]. 부분 갱신 — 전체 객체를 다시 보내야 한다.
+   *
+   * `null` 은 해제 계약이다 — 키 단위 병합이라 `null` 말고는 블록을 지울 방법이 없다. 그래서 `@IsOptionalNonNull` 로
+   * 거부하지 않고 `@IsOptional()` + `nullable: true` 로 받으며, 서비스(`mergeExternalConfig`)가 `null` 을 저장하지 않고
+   * `config` 에서 키를 지운다. 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE-API#patch-본문-계약).
    */
-  @ApiPropertyOptional({ type: () => NotificationConfigDto })
+  @ApiPropertyOptional({
+    type: () => NotificationConfigDto,
+    nullable: true,
+    description:
+      'EIA 알림 웹훅 설정. 보내면 객체를 통째로 교체한다. null 은 알림 설정 해제 — 저장된 `config.notification` 키를 지운다. 생략하면 그대로 둔다.',
+  })
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => NotificationConfigDto)
-  notification?: NotificationConfigDto;
+  notification?: NotificationConfigDto | null;
 
-  /** Inbound interaction 채널 설정. [Spec EIA §4]. */
-  @ApiPropertyOptional({ type: () => InteractionConfigDto })
+  /**
+   * Inbound interaction 채널 설정. [Spec EIA §4].
+   *
+   * `null` 은 `notification` 과 같은 해제 계약이다. 키를 지우면 저장된 트리거 단위 토큰도 함께 사라지므로 서비스가 커밋 뒤
+   * 그 토큰으로 연 스트림을 닫는다.
+   */
+  @ApiPropertyOptional({
+    type: () => InteractionConfigDto,
+    nullable: true,
+    description:
+      'EIA 인터랙션 설정. 보내면 객체를 통째로 교체한다. null 은 인터랙션 설정 해제 — 저장된 `config.interaction` 키(트리거 단위 토큰 포함)를 지운다. 생략하면 그대로 둔다.',
+  })
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => InteractionConfigDto)
-  interaction?: InteractionConfigDto;
+  interaction?: InteractionConfigDto | null;
 
   /** Chat Channel 어댑터 설정. [Spec Chat Channel §4.1]. 부분 갱신 — 전체 객체 다시 send. */
   /**
