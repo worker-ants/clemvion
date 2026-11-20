@@ -911,9 +911,9 @@ describe('ChatChannelDispatcher.handle — toChatChannelEvent null 의 로그 �
         triggerId: 'trig-1',
         workflowId: 'wf-1',
         timestamp: '2026-05-28T00:00:00Z',
-        chatChannel: { conversationKey: 'D1' },
         ...extra,
       },
+      routing: { chatChannel: { provider: 'slack', conversationKey: 'D1' } },
     } as ExecutionChannelEvent;
   }
 
@@ -989,7 +989,6 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
       triggerId: 'trig-1',
       workflowId: 'wf-1',
       timestamp: '2026-05-28T00:00:00Z',
-      chatChannel: { conversationKey: 'D1' },
       waitingNodeId: 'node-form',
       waitingNodeType: 'form',
       interactionType: 'form',
@@ -997,6 +996,7 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
         config: { fields: [{ name: 'email', label: 'Email', type: 'email' }] },
       },
     },
+    routing: { chatChannel: { provider: 'slack', conversationKey: 'D1' } },
   };
 
   it('renderNode → form_modal → pendingFormModal persist (formState 미설정)', async () => {
@@ -1116,9 +1116,9 @@ describe('ChatChannelDispatcher.handle — 저장된 시크릿 참조', () => {
       triggerId: 'trig-1',
       workflowId: 'wf-1',
       timestamp: '2026-05-28T00:00:00Z',
-      chatChannel: { conversationKey: 'D1' },
       message: 'hi',
     },
+    routing: { chatChannel: { provider: 'slack', conversationKey: 'D1' } },
   };
   const textMessage: ChannelMessage = {
     conversationKey: '',
@@ -1173,9 +1173,9 @@ describe('ChatChannelDispatcher.handle — 종결 이벤트의 대화 매핑 정
         triggerId: 'trig-1',
         workflowId: 'wf-1',
         timestamp: '2026-10-10T00:00:00Z',
-        chatChannel: { conversationKey: 'D1' },
         ...payload,
       },
+      routing: { chatChannel: { provider: 'slack', conversationKey: 'D1' } },
     } as ExecutionChannelEvent;
   }
 
@@ -1219,4 +1219,105 @@ describe('ChatChannelDispatcher.handle — 종결 이벤트의 대화 매핑 정
     ).not.toHaveBeenCalled();
     expect(conversationService.upsert).not.toHaveBeenCalled();
   });
+});
+
+// 근거: [응답 자격 증명 마스킹 §6 「라우팅 정보는 payload 밖에 둔다」](CLE-API-EGRESS-PIPELINE). NERV Task `CLE-T-DV6PN7`.
+// 발송 대상은 이벤트의 `routing.chatChannel` 에서만 찾는다. payload 에 같은 모양의 값이 있어도 쓰지 않는다.
+describe('ChatChannelDispatcher.handle — 라우팅 정보는 event.routing 에서 읽는다', () => {
+  const textMessage: ChannelMessage = {
+    conversationKey: '',
+    body: { kind: 'text', text: 'hi' },
+  };
+  function aiMessage(
+    extra: Partial<ExecutionChannelEvent>,
+  ): ExecutionChannelEvent {
+    return {
+      executionId: 'exec-1',
+      eventType: 'execution.ai_message',
+      seq: 1,
+      payload: {
+        triggerId: 'trig-1',
+        workflowId: 'wf-1',
+        timestamp: '2026-11-20T00:00:00Z',
+        message: 'hi',
+      },
+      ...extra,
+    };
+  }
+
+  it('routing.chatChannel.conversationKey 로 발송한다', async () => {
+    const { dispatcher, adapter } = buildDispatcherHarness({
+      renderResult: [textMessage],
+    });
+    await callHandle(
+      dispatcher,
+      aiMessage({
+        routing: { chatChannel: { provider: 'slack', conversationKey: 'D1' } },
+      }),
+    );
+
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
+    expect(adapter.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationKey: 'D1' }),
+      expect.anything(),
+    );
+  });
+
+  it('routing 이 없으면 payload 의 chatChannel 이 있어도 발송하지 않고 경고를 남긴다', async () => {
+    const { dispatcher, adapter } = buildDispatcherHarness({
+      renderResult: [textMessage],
+    });
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      await callHandle(
+        dispatcher,
+        aiMessage({
+          payload: {
+            triggerId: 'trig-1',
+            workflowId: 'wf-1',
+            timestamp: '2026-11-20T00:00:00Z',
+            message: 'hi',
+            chatChannel: { provider: 'slack', conversationKey: 'D1' },
+          },
+        }),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('routing.chatChannel.conversationKey 없음'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+    expect(adapter.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['chatChannel 이 비어 있다', { chatChannel: {} }],
+    [
+      'conversationKey 가 빈 문자열이다',
+      { chatChannel: { conversationKey: '' } },
+    ],
+    ['conversationKey 가 숫자다', { chatChannel: { conversationKey: 123 } }],
+  ])(
+    'routing 이 비정상이면(%s) 발송하지 않고 경고를 남긴다',
+    async (_name, routing) => {
+      const { dispatcher, adapter } = buildDispatcherHarness({
+        renderResult: [textMessage],
+      });
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        await callHandle(
+          dispatcher,
+          aiMessage({
+            routing: routing as unknown as ExecutionChannelEvent['routing'],
+          }),
+        );
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('routing.chatChannel.conversationKey 없음'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+      expect(adapter.sendMessage).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -35,6 +35,7 @@ import {
 import type {
   ExecutionChannelEvent,
   ChatChannelRoutingInfo,
+  ExecutionEventRouting,
   ExecutionRoutingContext,
   FanoutEnvelope,
   FanoutExecutionChannelEvent,
@@ -54,6 +55,7 @@ export {
 export type {
   ExecutionChannelEvent,
   ChatChannelRoutingInfo,
+  ExecutionEventRouting,
   ExecutionRoutingContext,
   ToolCallStartedPayload,
   UserMessagePayload,
@@ -79,9 +81,11 @@ export type {
  *
  * `shared/utils/sanitize-error-message.ts` 의 동명 상수와 **의도된 미러**다 — 한쪽만
  * 고치면 그쪽 JSDoc 의 "같은 클래스를 방어한다" 서술이 거짓이 되므로 함께 갱신한다.
- * **미러의 범위는 자격증명 키 계열까지다**: 공용 쪽 `x[_-]api[_-]?key` 는 LLM/tool
- * structured output 을 받는 REST 표면 전용 확장이라 여기 없는 것이 정상이고, 동기화
- * 대상이 아니다.
+ * **미러의 범위는 자격증명 키 계열까지다**: 공용 쪽 `x[_-]api[_-]?key` 는 여기 없는 것이
+ * 정상이고 동기화 대상이 아니다. WS payload 는 {@link WebsocketService.maskWireEnvelope}
+ * (공용 패턴)를 함께 지나므로 이 패턴만 받는 것은 값 마스킹 뒤에 붙는 서버 조립 객체, 곧
+ * fanout 이벤트의 `routing.chatChannel` 뿐이다. 그 객체는 서버 안 dispatcher 만 읽는다
+ * (CLE-API-EGRESS-PIPELINE §7 표 4행 · §6).
  */
 const CREDENTIAL_KEY_PATTERN =
   /^(password|passwd|pwd|api[_-]?key|secret|[a-z0-9_-]*token|private[_-]?key|client[_-]?secret|authorization|cookie)$/i;
@@ -294,13 +298,14 @@ export class WebsocketService {
     this.executionEventSubject.asObservable();
 
   /**
-   * Execution 단위 라우팅 컨텍스트 — `executionId → {triggerId?, chatChannel?}`.
+   * Execution 단위 라우팅 컨텍스트 — `executionId → {triggerId?, workflowId?, chatChannel?}`.
    *
    * [Spec Chat Channel §3.1 CCH-AD-05 / §3.2]: `ChatChannelDispatcher` 와
-   * `NotificationFanout` 은 `event.payload.triggerId` / `event.payload.chatChannel.conversationKey`
-   * 를 가드로 사용한다. ExecutionEngine 이 execute() 진입 시 본 Map 에 등록하면,
-   * 이후 모든 `emitExecutionEvent` / `emitNodeEvent` 가 만드는 **fanout envelope**
-   * 에만 자동 첨부된다. **wire envelope** (`gateway.broadcastToChannel`) 에는
+   * `NotificationFanout` 은 `event.payload.triggerId` 를, `ChatChannelDispatcher` 는
+   * `event.routing.chatChannel.conversationKey` 를 가드로 사용한다. ExecutionEngine 이 execute()
+   * 진입 시 본 Map 에 등록하면, 이후 모든 `emitExecutionEvent` / `emitNodeEvent` 가 만드는
+   * **fanout 이벤트**에만 자동 첨부된다(`triggerId` · `workflowId` 는 payload, `chatChannel` 은
+   * payload 밖 `routing`. EGRESS-PIPELINE §6). **wire envelope** (`gateway.broadcastToChannel`) 에는
    * 첨부하지 않아 WS spec §4.4 의 frontend wire shape 호환성을 유지한다.
    *
    * Lifecycle 은 seq allocator 의 키와 동일 — terminal event 발송 후 자동
@@ -326,8 +331,8 @@ export class WebsocketService {
   ) {}
 
   /**
-   * Execution 시작 시 호출 — 이후 emit 되는 모든 이벤트의 fanout envelope 에
-   * `triggerId` / `chatChannel` 이 자동 첨부된다.
+   * Execution 시작 시 호출 — 이후 emit 되는 모든 fanout 이벤트에
+   * `triggerId` · `workflowId`(payload) 와 `chatChannel`(`routing`) 이 자동 첨부된다.
    *
    * 같은 executionId 로 재호출하면 덮어쓰기. 일반 webhook (chatChannel 미설정)
    * 경로는 `triggerId` 만 전달해도 무관 (NotificationFanout 가드는 통과,
@@ -394,6 +399,7 @@ export class WebsocketService {
       eventType,
       seq,
       payload: fanoutEnvelope,
+      routing: this.routingFor(executionId),
     });
     // 진단 log — dispatcher 가 못 받는다는 보고 (2026-05-25) 의 emit-vs-subscribe
     // 분리 가설 검증용. ai_message / waiting_for_input 만 log (noise 회피).
@@ -467,6 +473,7 @@ export class WebsocketService {
       eventType,
       seq,
       payload: fanoutEnvelope,
+      routing: this.routingFor(executionId),
     });
   }
 
@@ -521,9 +528,10 @@ export class WebsocketService {
    * 세 번째 emit 경로가 생겨도 여기를 부르면 마스킹·strip 이 구조적으로 빠지지 않는다.
    *
    * 순서는 **strip → nodeOutput allowlist → routing 첨부**다. 값 마스킹은 이미
-   * {@link maskWireEnvelope} 가 wire 단계에서 끝냈으므로 여기서 다시 걸지 않는다 —
-   * 다시 걸면 {@link attachRoutingContext} 가 붙인 `chatChannel` 의 `[REDACTED]`
-   * 마커를 `***` 로 덮는다(그 마커는 기존 테스트가 고정하는 계약이다).
+   * {@link maskWireEnvelope} 가 wire 단계에서 끝냈으므로 여기서 다시 걸지 않는다.
+   * {@link attachRoutingContext} 가 붙이는 것은 서버가 만든 식별자 `triggerId` ·
+   * `workflowId` 뿐이다. `chatChannel` 은 payload 밖 이벤트의 `routing` 에 실린다
+   * ({@link routingFor}, EGRESS-PIPELINE §6).
    *
    * ## `nodeOutput` 은 deny-list 가 아니라 allowlist 로 좁힌다
    *
@@ -574,10 +582,10 @@ export class WebsocketService {
   }
 
   /**
-   * wire envelope 에 execution routing context (`triggerId` / `chatChannel`) 를
+   * wire envelope 에 execution routing context 의 `triggerId` / `workflowId` 를
    * shallow-merge 한 새 fanout envelope 반환. context 미등록이면 wire envelope
-   * 동일 참조 반환 (allocation 없음). chatChannel 은 sanitize 한 사본을 첨부 —
-   * 호출자 회귀로 secret 이 섞이는 케이스의 defense-in-depth.
+   * 동일 참조 반환 (allocation 없음). `chatChannel` 은 여기서 붙이지 않는다
+   * ({@link routingFor}).
    */
   private attachRoutingContext(
     executionId: string,
@@ -588,11 +596,29 @@ export class WebsocketService {
     const additions: Record<string, unknown> = {};
     if (ctx.triggerId) additions.triggerId = ctx.triggerId;
     if (ctx.workflowId) additions.workflowId = ctx.workflowId;
-    if (ctx.chatChannel) {
-      additions.chatChannel = sanitizePayloadForWs(ctx.chatChannel);
-    }
     if (Object.keys(additions).length === 0) return wireEnvelope;
     return { ...wireEnvelope, ...additions };
+  }
+
+  /**
+   * fanout 이벤트의 `routing`. 채팅 채널로 시작한 실행이 아니면 `undefined` 다. 두 emit 경로가
+   * payload 와 나란히 붙인다.
+   *
+   * `chatChannel` 을 payload 밖에 두는 이유 (EGRESS-PIPELINE §6 「라우팅 정보는 payload 밖에
+   * 둔다」): `routing` 을 읽는 것은 `ChatChannelDispatcher` 뿐이고 SSE · EIA 알림 웹훅은 payload
+   * 만 직렬화한다. 그래서 메신저 최종 사용자 식별자(`channelUserKey`)가 외부 소비자에게
+   * 실리지 않는다.
+   *
+   * `chatChannel` 은 키 이름 마스킹(`sanitizePayloadForWs`)을 거친 사본이다 — 호출자 회귀로
+   * secret 이 섞이는 경우의 defense-in-depth. 받는 쪽이 서버 안 dispatcher 뿐이라 값 마스킹은
+   * 더 걸지 않는다 (EGRESS-PIPELINE §7 표 4행).
+   */
+  private routingFor(executionId: string): ExecutionEventRouting | undefined {
+    const chatChannel = this.executionRouting.get(executionId)?.chatChannel;
+    if (!chatChannel) return undefined;
+    return {
+      chatChannel: sanitizePayloadForWs(chatChannel) as ChatChannelRoutingInfo,
+    };
   }
 
   /**

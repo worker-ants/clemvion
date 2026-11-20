@@ -2,19 +2,19 @@
 id: "CLE-API-WS-MSG"
 title: "WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "c9ea983ff9dad0eeb48379bae57c68b57bdfd3180e6db107469cacce6c9fc67b"
+content_hash: "fde9e69e9ae98db5422565fff8ed11715acbbc3a634d4dac631659b70afcc943"
 read_as: "approved_fallback"
-task: "CLE-T-A338CH"
+task: "CLE-T-DV6PN7"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "8c105bc2b67032c308d06ce0f36ef313d4ba142fadc56fa1b5d255f4f14665aa"
-etag: "sha256-6bf711be144f8619494589280c88004b3ae109d7526f0d9b673fcd0f76bc556a"
+mirror_sha256: "38d843d8965f5cccd0227225e06728978f7f32e56fc8436da6f979153f93d2cf"
+etag: "sha256-50c3e6b0057200fb2b5b6cc62286bb512150b973f15ddf587af0cb537ce02247"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§3 · §4 · §7 · §8, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -156,8 +156,8 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 
 - **전달 방식**: 게이트웨이(namespace `/ws`)에 Socket.IO Redis adapter(`@socket.io/redis-adapter`)를 건다. 채널 발행(`server.to(channel).emit()`)은 자기 서버 인스턴스의 구독 소켓에 보내고 같은 패킷을 Redis pub/sub 로 PUBLISH 한다. 다른 서버 인스턴스는 받은 패킷을 자기 쪽의 같은 채널 구독 소켓에 보낸다. §4.2 의 모든 채널이 이 경로를 지난다.
 - **Redis 채널**: 이름은 라이브러리가 정하는 형식이고 접두는 `ws:sio` 다(예: 채널 하나로 보내는 패킷은 `ws:sio#/ws#<채널>#`). 모든 서버 인스턴스가 이 접두의 채널을 모두 구독하므로 구독자가 없는 서버 인스턴스도 패킷을 받는다. Redis 트래픽은 이벤트 수에 서버 인스턴스 수를 곱한 만큼이다.
-- **보내는 것은 wire 봉투뿐이다.** 다른 서버 인스턴스로 가는 것은 클라이언트가 받는 이벤트 봉투(§3.2)다. 같은 서버 인스턴스 안의 외부 fanout(SSE · 채팅 채널 · EIA 알림 웹훅이 받는 내부 스트림)과 그쪽 봉투에만 붙는 실행 라우팅 정보는 이 경로로 보내지 않는다. SSE 의 서버 인스턴스 사이 전달은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다.
-- **실행 라우팅 정보의 회수**: 외부 fanout 봉투에 붙는 실행 라우팅 정보(`triggerId` · `chatChannel`)는 서버 인스턴스 메모리에 두고 종료 이벤트를 보낸 서버 인스턴스에서 푼다. 실행을 park 한 서버 인스턴스와 끝낸 서버 인스턴스가 다르면 park 한 쪽에 항목이 남는다. 남은 항목은 §3.2 의 `seq` 메모리 미러와 같은 유휴 TTL · 상한으로 회수한다. park 뒤 재개는 늘 rehydration 경로이고 재개한 서버 인스턴스가 라우팅 정보를 다시 등록한다([장애 복구와 안전 종료 — 체크포인트와 rehydration 「재개 절차」](../CLE-EXEC/CLE-EXEC-RECOVERY-REHYDRATE.md#재개-절차) 3단계). 그래서 park 동안 회수돼도 재개 뒤 fanout 봉투에는 영향이 없다. 진행 중인 실행의 항목이 상한 때문에 지워지면 그 뒤 이벤트의 외부 fanout 봉투에 `triggerId` · `chatChannel` 이 빠진다. 그러면 이 값으로 대상을 찾는 외부 알림 fanout 과 채팅 채널 응답은 그 이벤트를 건너뛴다. EIA SSE 이벤트를 Redis 에 쓸지는 `triggerId` 가 없으면 DB 로 판정하므로 영향이 없다([EIA 데이터와 흐름 — SSE 스트림 「SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다」](../CLE-IX/CLE-EIA-DATA-SSE.md#sse-의-redis-쓰기를-줄이고-구독-공백을-메운다-2026-11-05)). wire 봉투는 바뀌지 않는다.
+- **보내는 것은 wire 봉투뿐이다.** 다른 서버 인스턴스로 가는 것은 클라이언트가 받는 이벤트 봉투(§3.2)다. 같은 서버 인스턴스 안의 외부 fanout(SSE · 채팅 채널 · EIA 알림 웹훅이 받는 내부 스트림)과 그쪽 이벤트에만 붙는 실행 라우팅 정보는 이 경로로 보내지 않는다. SSE 의 서버 인스턴스 사이 전달은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다.
+- **실행 라우팅 정보의 회수**: 외부 fanout 이벤트에 붙는 실행 라우팅 정보(payload 의 `triggerId` · `workflowId` 와 별도 필드 `routing` 의 `chatChannel`)는 서버 인스턴스 메모리에 두고 종료 이벤트를 보낸 서버 인스턴스에서 푼다. `routing` 은 서버 안 채팅 채널 dispatcher 만 읽고 SSE 와 EIA 알림 웹훅에는 실리지 않는다([응답 자격 증명 마스킹 — 재제출 거부와 마스커 좌표계 「6. 호출 순서」](CLE-API-EGRESS-PIPELINE.md#6-호출-순서-마스킹은-한-번이다)). 실행을 park 한 서버 인스턴스와 끝낸 서버 인스턴스가 다르면 park 한 쪽에 항목이 남는다. 남은 항목은 §3.2 의 `seq` 메모리 미러와 같은 유휴 TTL · 상한으로 회수한다. park 뒤 재개는 늘 rehydration 경로이고 재개한 서버 인스턴스가 라우팅 정보를 다시 등록한다([장애 복구와 안전 종료 — 체크포인트와 rehydration 「재개 절차」](../CLE-EXEC/CLE-EXEC-RECOVERY-REHYDRATE.md#재개-절차) 3단계). 그래서 park 동안 회수돼도 재개 뒤 fanout 이벤트에는 영향이 없다. 진행 중인 실행의 항목이 상한 때문에 지워지면 그 뒤 외부 fanout 이벤트에 `triggerId` · `routing.chatChannel` 이 빠진다. 그러면 이 값으로 대상을 찾는 외부 알림 fanout 과 채팅 채널 응답은 그 이벤트를 건너뛴다. EIA SSE 이벤트를 Redis 에 쓸지는 `triggerId` 가 없으면 DB 로 판정하므로 영향이 없다([EIA 데이터와 흐름 — SSE 스트림 「SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다」](../CLE-IX/CLE-EIA-DATA-SSE.md#sse-의-redis-쓰기를-줄이고-구독-공백을-메운다-2026-11-05)). wire 봉투는 바뀌지 않는다.
 - **서버 인스턴스 로컬로 두는 것**: 소켓, 구독 목록(join · leave), 구독 한도(§4.5), 명령 빈도 제한(§7.1 `RATE_LIMITED`), 토큰 만료 타이머([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「2.2 인증」](CLE-API-WS-CONN.md#22-인증))는 소켓이 붙은 서버 인스턴스에만 둔다. 모두 소켓 단위라 다른 서버 인스턴스와 맞출 필요가 없다. WebSocket 연결 상태는 Redis 에 두지 않고 옛 `ws:{wsId}:session:{connId}` 키도 되살리지 않는다.
 - **sticky session 에 기대지 않는다.** transport 가 websocket 하나라([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「2.1 엔드포인트」](CLE-API-WS-CONN.md#21-엔드포인트)) 소켓 하나는 연결한 서버 인스턴스를 떠나지 않는다.
 - **Redis 가 없거나 끊겼을 때**: Redis 설정이 없으면 adapter 를 걸지 않고 메모리 adapter 로 돈다(서버 인스턴스 하나 전제). 돌던 중 Redis 에 닿지 못하면 다른 서버 인스턴스로 가는 전달만 멈춘다. 자기 서버 인스턴스의 구독자는 계속 받고 발행하는 쪽 처리도 멈추지 않는다. 그동안 다른 서버 인스턴스의 구독자가 놓친 이벤트는 다시 보내지 않는다. 화면은 다음 이벤트나 다음 구독 때 받는 `execution.snapshot`([WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결 「6.2 놓친 이벤트 복구」](CLE-API-WS-CONN.md#62-놓친-이벤트-복구))으로 상태를 맞춘다.
