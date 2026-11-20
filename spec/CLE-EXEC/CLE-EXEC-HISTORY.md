@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY"
 title: "실행 내역"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-EXHIST-001", "REQ-EXHIST-002", "REQ-EXHIST-003", "REQ-EXHIST-004", "REQ-EXHIST-005", "REQ-EXHIST-006", "REQ-EXHIST-007", "REQ-EXHIST-008", "REQ-EXHIST-009", "REQ-EXHIST-010", "REQ-EXHIST-011", "REQ-EXHIST-012", "REQ-EXHIST-013", "REQ-EXHIST-014", "REQ-EXHIST-015", "REQ-EXHIST-016", "REQ-EXHIST-017", "REQ-EXHIST-018", "REQ-EXHIST-019", "REQ-EXHIST-020", "REQ-EXHIST-021", "REQ-EXHIST-022", "REQ-EXHIST-023", "REQ-EXHIST-024", "REQ-EXHIST-025", "REQ-EXHIST-026", "REQ-EXHIST-027", "REQ-EXHIST-028", "REQ-EXHIST-029", "REQ-EXHIST-030", "REQ-EXHIST-031", "REQ-EXHIST-032", "REQ-EXHIST-033", "REQ-EXHIST-034", "REQ-EXHIST-035", "REQ-EXHIST-036", "REQ-EXHIST-037", "REQ-EXHIST-038", "REQ-EXHIST-039", "REQ-EXHIST-040", "REQ-EXHIST-041", "REQ-EXHIST-042", "REQ-EXHIST-043", "REQ-EXHIST-044", "REQ-EXHIST-045"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "b22b0889dfff4f6d7bf342e9ca026fbbe6458c835eef05714a1d1738cc067875"
+content_hash: "2ebeaaf77efa78e1d105038ebffe818e68e2c958b4db8b094a9c5eac3478c074"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-GGDQSJ"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "345eec5fcc31bc90f2ed366cadedbbebdaa7b7b4edbecdd5d266dd324cf39cdd"
-etag: "sha256-f16a9c25396c768690da06babb94e3b9cd112ae091b5d504c190721c6273b634"
+mirror_sha256: "d95f88078774bcc93a7c64d6201143308c7603e1a473c4f96849c7c41ee2f267"
+etag: "sha256-56991177a21fb1d4c8e09196462b656429892bac5e321726257c80b7575c3ca6"
 ---
 > 구현 상태: 구현됨 (EH-DETAIL-12 여러 노드 대화 재구성 보기만 v2 미구현) · 원문: `spec/2-navigation/14-execution-history.md`, `spec/2-navigation/_product-overview.md` (§3.15 Execution History) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -63,7 +63,7 @@ etag: "sha256-f16a9c25396c768690da06babb94e3b9cd112ae091b5d504c190721c6273b634"
 - REQ-EXHIST-028 WHEN 실행 상세 화면을 열면 THE SYSTEM SHALL 머리에 재실행 버튼을 항상 표시한다. (원본: EH-DETAIL-10)
 - REQ-EXHIST-029 IF 사용자에게 재실행 권한이 없으면 THE SYSTEM SHALL 재실행 버튼을 비활성화하고 권한 안내 툴팁을 단다. (원본: EH-DETAIL-10)
 - REQ-EXHIST-030 IF 실행의 `reRunOf` 가 비어 있지 않으면 THE SYSTEM SHALL 요약 카드에 재실행 체인 배지를 표시한다. (원본: EH-DETAIL-11)
-- REQ-EXHIST-031 IF 재실행 체인의 실행이 2개 이상이면 THE SYSTEM SHALL "View chain" 드롭다운을 표시한다. (원본: EH-DETAIL-11)
+- REQ-EXHIST-031 IF 재실행 체인의 실행이 2개 이상이면 THE SYSTEM SHALL 체인 보기 드롭다운(i18n 키 `history.rerun.viewChain`)을 표시한다. (원본: EH-DETAIL-11)
 - REQ-EXHIST-032 WHEN 사용자가 체인 배지의 원본 실행 ID 를 누르면 THE SYSTEM SHALL 같은 탭에서 원본 실행 상세로 이동한다.
 - REQ-EXHIST-033 WHEN 재실행 모달이 새 실행 ID 를 받으면 THE SYSTEM SHALL 현재 워크스페이스의 새 실행 상세 화면으로 이동한다.
 - REQ-EXHIST-034 WHEN 사용자가 여러 노드를 가로지르는 대화 재구성 보기를 열면 THE SYSTEM SHALL 여러 노드의 Presentation·AI 턴을 순번·시각·출처로 섞어 한 대화로 보여 준다. (원본: EH-DETAIL-12) (미구현)
@@ -77,7 +77,7 @@ etag: "sha256-f16a9c25396c768690da06babb94e3b9cd112ae091b5d504c190721c6273b634"
 - REQ-EXHIST-042 IF 화면 폭이 768px 이상 1279px 이하면 THE SYSTEM SHALL 노드 결과의 좌우 2분할을 세로로 쌓는다.
 - REQ-EXHIST-043 IF 화면 폭이 768px 미만이면 THE SYSTEM SHALL 모든 영역을 세로로 쌓고 테이블을 카드형 목록으로 바꾼다.
 - REQ-EXHIST-044 WHEN 뷰어가 실행 상세의 설정 탭을 열면 THE SYSTEM SHALL 응답 마스킹을 거친 설정 에코를 보여 준다.
-- REQ-EXHIST-045 IF 워크스페이스 멤버(뷰어 포함)에게 재실행 권한이 없으면 THE SYSTEM SHALL 체인 배지와 "View chain" 드롭다운을 권한이 있을 때와 같은 조건으로 표시한다. (체인 조회 권한: REQ-RERUN-047)
+- REQ-EXHIST-045 IF 워크스페이스 멤버(뷰어 포함)에게 재실행 권한이 없으면 THE SYSTEM SHALL 체인 배지와 체인 보기 드롭다운을 권한이 있을 때와 같은 조건으로 표시한다. (체인 조회 권한: REQ-RERUN-047)
 
 ## 하위 문서
 
@@ -114,8 +114,8 @@ etag: "sha256-f16a9c25396c768690da06babb94e3b9cd112ae091b5d504c190721c6273b634"
 | --- | --- | --- | --- |
 | GET | `/api/executions/workflow/:workflowId` | 워크플로우별 실행 목록 | 페이지네이션·상태 필터·정렬 지원. 응답 형식은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 목록 응답을 따른다. **노드 실행은 싣지 않는다**(N+1 회피, [Rationale](#목록-api-는-노드-실행을-빼고-배치-집계-세-값만-싣는다)) |
 | GET | `/api/executions/:id` | 실행 상세 | `nodeExecutions` 배열 포함. 실리는 필드는 아래 「실행 응답 필드」 |
-| POST | `/api/executions/:executionId/re-run` | 원본 실행을 바탕으로 새 실행 시작 | EH-DETAIL-10. 명세는 [재실행](CLE-EXEC-RERUN.md) |
-| GET | `/api/executions/:executionId/chain` | 같은 체인의 모든 실행을 시간순으로 반환 | EH-DETAIL-11. 명세는 [재실행](CLE-EXEC-RERUN.md) |
+| POST | `/api/executions/:id/re-run` | 원본 실행을 바탕으로 새 실행 시작 | EH-DETAIL-10. 명세는 [재실행](CLE-EXEC-RERUN.md) |
+| GET | `/api/executions/:id/chain` | 같은 체인의 모든 실행을 시간순으로 반환 | EH-DETAIL-11. 명세는 [재실행](CLE-EXEC-RERUN.md) |
 
 `GET /api/executions/:id` 는 따로 `@Roles` 게이트가 없어 워크스페이스 멤버 전원(뷰어 포함)이 조회한다. 응답의 `Execution.error`·`nodeExecutions[].error`·`config` 등은 응답 단계에서 마스킹된다. 기준은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이다.
 

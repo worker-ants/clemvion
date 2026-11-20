@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 19
+version: 20
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "3801fec729f4d2f6a1a174e196263a042ef408d8f9c229184930d2a31e2379a9"
+content_hash: "70128ae7098db3ee7f37821101c5def13ddd132534fd717205e332c99d690311"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-GGDQSJ"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "2e2af1780efaf2d3407c293220cf1b51d3c07dd9702c7b2f53a2510513d93c2a"
-etag: "sha256-0f277aa7e87b541459803f4e4d47b8c520eb627d129233458509509016d4a2c1"
+mirror_sha256: "914ad8dafe64e486dc32df2e1c6b3544bf6f90940e541854c884bd6ee228084e"
+etag: "sha256-b276ff19b653f4255f8c83b194ef8563837f1f20c7ebcb88f4f27e244e60d546"
 ---
 > 구현 상태: 부분 구현 (WebSocket `execution.continue` 는 미구현) · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -41,10 +41,10 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 2. 자원 액션 경로 `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 동사(구)다. 목적어는 경로에 두고 액션 이름에 넣지 않는다.
 3. Boolean 상태 필드를 바꿀 때는 전용 엔드포인트를 만들지 않는다. `PATCH /:id { field: value }` 로 바꾼다. 예외는 [§12.1](CLE-API-CONV-URL.md#121-상태-토글-패턴) 에 등록한다.
 4. 리소스 API 는 현재 워크스페이스 안에서만 동작한다. 현재 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 정한다.
-5. 성공 응답은 `{ data: ... }` 로 감싼다. 페이지 목록은 `{ data: [...], pagination }` 이고 작은 본인 목록은 `{ data: { items } }` 다. 영역 문서의 API 표와 본문은 봉투를 빼고 `data` 안의 내용만 적는다.
+5. 성공 응답은 `{ data: ... }` 로 감싼다. 페이지 목록은 `{ data: [...], pagination }` 이고 작은 본인 목록은 `{ data: { items } }` 다. 페이지를 나누지 않는 배열 응답 가운데 이미 `{ data: [...] }` 로 감싼 경로는 그 형식을 그대로 쓴다([OpenAPI 문서화 — 컨트롤러와 응답 DTO §5-2](CLE-API-SWAGGER-ROUTE.md#5-2-공용-래퍼-헬퍼) 의 `ApiOkWrappedArrayResponse` 를 쓰는 경로다). 작은 본인 목록을 `{ data: [...] }` 로 바꾸는 일은 미뤘다([응답 형식과 상태 코드](CLE-API-CONV-RESP.md) 의 Rationale 「고정 목록 응답을 `{ data: { items } }` 로 유지」). 영역 문서의 API 표와 본문은 봉투를 빼고 `data` 안의 내용만 적는다.
 6. 응답에서 값이 없을 때 기본 표현은 `null` 이다. 키를 빼는 것은 [§5.5](CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 의 두 기준 중 하나에 해당할 때만이고 그 필드를 문서화하는 절에 사유를 적는다.
 7. DTO 선언은 wire 를 그대로 반영한다. TS 타입이 `| null` 이면 OpenAPI 에 `nullable: true` 를 반드시 선언한다.
-8. 요청 PATCH 는 키 생략·`null`·값이 각각 다른 뜻인 PATCH 삼중 상태(tri-state)다. 응답 부재 표현 규칙을 요청 DTO 에 적용하지 않는다.
+8. 요청 PATCH 는 키 생략·`null`·값이 각각 다른 뜻인 PATCH 삼중 상태(tri-state)다. `null` 에 줄 뜻이 없는 필드는 `null` 을 거부하고 `null` 말고는 지울 방법이 없는 필드만 `null` 을 해제로 받는다([§5.5](CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략)). 응답의 부재 표현 규칙(규칙 6 · 7)을 요청 DTO 에 적용하지 않는다.
 9. 큐에 넣고 바로 돌아오는 요청은 `202 Accepted` 와 ack 본문을 돌려준다. `202` 는 no-content 가 아니다.
 10. `410 Gone` 은 존재했으나 사라졌거나 비활성인 리소스에 쓴다. 처음부터 없던 리소스는 `404` 다. 예외는 [§6](CLE-API-CONV-RESP.md#6-http-상태-코드) 의 `404` · `410` 행에 있다.
 11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다. 예외로 Passkey 환경 변수가 없을 때의 `WEBAUTHN_DISABLED` 도 `503` 이다. 이 응답은 다시 시도해도 회복되지 않는다([§6](CLE-API-CONV-RESP.md#6-http-상태-코드)). 언제 나는지는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) 이 정한다.
@@ -122,3 +122,9 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 다른 문서가 이 제목으로 링크해서 제목만 남겼다. 본문은 하위 문서에 있다.
 
 → [HTTP API 규약 — 요청 빈도 제한](CLE-API-CONV-RATE.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다-2026-10-22)
+
+### 규칙 5 에 감싼 배열 응답을, 규칙 8 에 요청 `null` 기준을 적었다 (2026-11-20)
+
+규칙 5 는 페이지 목록과 작은 본인 목록만 적어서 여러 컨트롤러가 `ApiOkWrappedArrayResponse` 로 돌려주는 `{ data: [...] }` 형식이 규칙에 없었다. 작은 본인 목록을 이 형식으로 바꾸는 결정은 [응답 형식과 상태 코드](CLE-API-CONV-RESP.md) 의 Rationale 이 미뤄 두었다. 그래서 새 형식을 정하지 않고 지금 쓰는 형식만 적었다(NERV Task `CLE-T-GGDQSJ`).
+
+규칙 8 에는 요청 `null` 을 언제 거부하고 언제 해제로 받는지가 없었다. [§5.5](CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 의 요청 PATCH 기준을 한 문장으로 줄여 옮겼다(NERV Task `CLE-T-WT4MBY`). 규칙 8 은 그 기준을 요약할 뿐이라 §5.5 의 기준이 바뀌면 이 문장도 함께 고친다.
