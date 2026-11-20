@@ -17,13 +17,21 @@ import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
  */
 export class WebChatAppearanceDto {
   /** 위젯 기본 로케일. */
-  @ApiPropertyOptional({ enum: ['ko', 'en'], example: 'ko' })
+  @ApiPropertyOptional({
+    enum: ['ko', 'en'],
+    example: 'ko',
+    description: '생략하면 값을 유지하고 null 은 400 으로 거부한다.',
+  })
   @IsOptionalNonNull()
   @IsIn(['ko', 'en'])
   locale?: 'ko' | 'en';
 
   /** 위젯 primary 색상(#RRGGBB). */
-  @ApiPropertyOptional({ example: '#5B4FE9', pattern: '^#[0-9a-fA-F]{6}$' })
+  @ApiPropertyOptional({
+    example: '#5B4FE9',
+    pattern: '^#[0-9a-fA-F]{6}$',
+    description: '생략하면 값을 유지하고 null 은 400 으로 거부한다.',
+  })
   @IsOptionalNonNull()
   @IsString()
   @Matches(/^#[0-9a-fA-F]{6}$/, {
@@ -32,34 +40,49 @@ export class WebChatAppearanceDto {
   primaryColor?: string;
 
   /** 런처 위치. */
-  @ApiPropertyOptional({ enum: ['bottom-right', 'bottom-left'] })
+  @ApiPropertyOptional({
+    enum: ['bottom-right', 'bottom-left'],
+    description: '생략하면 값을 유지하고 null 은 400 으로 거부한다.',
+  })
   @IsOptionalNonNull()
   @IsIn(['bottom-right', 'bottom-left'])
   position?: 'bottom-right' | 'bottom-left';
 
   /** 헤더(봇 표시명). */
-  @ApiPropertyOptional({ maxLength: 80 })
+  @ApiPropertyOptional({
+    maxLength: 80,
+    description: '생략하면 값을 유지하고 null 은 400 으로 거부한다.',
+  })
   @IsOptionalNonNull()
   @IsString()
   @MaxLength(80)
   headerTitle?: string;
 
   /** 첫 환영 메시지. */
-  @ApiPropertyOptional({ maxLength: 500 })
+  @ApiPropertyOptional({
+    maxLength: 500,
+    description: '생략하면 값을 유지하고 null 은 400 으로 거부한다.',
+  })
   @IsOptionalNonNull()
   @IsString()
   @MaxLength(500)
   welcomeText?: string;
 
   /** 추천 질문(줄바꿈 구분, 콘솔 textarea 원문 그대로 보존). */
-  @ApiPropertyOptional({ maxLength: 1000 })
+  @ApiPropertyOptional({
+    maxLength: 1000,
+    description: '생략하면 값을 유지하고 null 은 400 으로 거부한다.',
+  })
   @IsOptionalNonNull()
   @IsString()
   @MaxLength(1000)
   suggestions?: string;
 
   /** 면책 고지. */
-  @ApiPropertyOptional({ maxLength: 500 })
+  @ApiPropertyOptional({
+    maxLength: 500,
+    description: '생략하면 값을 유지하고 null 은 400 으로 거부한다.',
+  })
   @IsOptionalNonNull()
   @IsString()
   @MaxLength(500)

@@ -13,7 +13,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 위반(23502)이 나거나(500), 서비스가 null 에서 메서드를 불러 TypeError(500)가 나거나, 엉뚱한 409 · 조용한 경로 삭제가 됐다. 이제
  * 그 필드들은 `IsOptionalNonNull()` 로 키 생략(= 값 불변)만 허용하고 null 은 입구에서 거부한다.
  *
- * 라우트마다 대표 필드를 고른다(픽스처가 가벼운 12개 라우트). 43필드 전수는 DTO 단위 테스트가 본다(`src/repo-guards/__tests__/patch-null-rejection.spec.ts`).
+ * 라우트마다 대표 필드를 고른다(픽스처가 가벼운 12개 라우트). 46필드 전수는 DTO 단위 테스트가 본다(`src/repo-guards/__tests__/patch-null-rejection.spec.ts`).
  * 통합 · 지식 베이스는 픽스처가 무거워 단위로만.
  */
 

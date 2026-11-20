@@ -19,7 +19,7 @@ export class WorkflowSettingsDto {
    * defaultCap 으로 무시하는 backstop 을 갖지만, 본 DTO 가 write 경계에서 선차단한다.
    * Parallel 노드 `config.maxConcurrency`(노드 내 branch 동시성)와는 스코프가 다른 별개 설정.
    *
-   * `null` 은 「상한 해제」다(CLE-T-9Q304H). 숫자라 null 말고는 지울 값이 없어서 받는다. 서비스가 null 을 저장하지
+   * `null` 은 「상한 해제」다. 숫자라 null 말고는 지울 값이 없어서 받는다. 서비스가 null 을 저장하지
    * 않고 키를 지워 기본값으로 돌아간다.
    */
   @ApiPropertyOptional({
