@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-TYPES"
 title: "채팅 채널 어댑터 규약 — 이벤트와 데이터 타입"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "a89b3f261e6385f37c6131d1d1d8824f174b2c47fb65441869dde86bd6a616f9"
+content_hash: "db1afed2e8530a79e9fa6e33bbf900e830a0df51695c8dbc95f2755a47d1b561"
 read_as: "approved_fallback"
-task: "CLE-T-M42X2A"
+task: "CLE-T-T2RK53"
 source_paths: []
-mirror_sha256: "7f4ad131f6b0e30d6f7a092a85f015c8d1555c4f41abeea0695c3945b9680c06"
-etag: "sha256-28a222fbbf81d0d4a90eeae0d8c1ca7ba4801af3a16aaa787a3d0495c4c822e0"
+mirror_sha256: "dc357d4bb32b77f084e96fa5114834522bf61b637028bc405df82a4460113d04"
+etag: "sha256-7da240d156d5adf122947b60e8da00a56500325abdb8ba8d410d537084d4361f"
 ---
 ## 개요
 
@@ -211,7 +211,8 @@ interface ChatChannelConfig {
    * 안내 문구 덮어쓰기. 키와 기본 문구는 채팅 채널 데이터와 흐름의 안내 문구 기본값이 정한다.
    * 메시지로 보내는 문구 말고 웹훅 HTTP 응답 본문에 싣는 문구도 있다
    * (defaultInteractionResponse 가 쓰는 Discord · Slack 슬래시 명령의 commandReceived·help,
-   * 실행이 없는 슬래시 명령 /cancel 의 noActiveExecution).
+   * 실행이 없는 슬래시 명령 /cancel 의 noActiveExecution,
+   * 새 실행을 시작한 슬래시 명령 /start 의 executionStarted · executionRestarted).
    */
   languageHints?: Record<string, string>;
 }
@@ -227,9 +228,9 @@ interface ChatChannelConfig {
 
 1차 범위의 세 채널 프로바이더는 모두 서명 자료가 필수다. 참조가 없는 옛 행의 예외는 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다.
 
-`languageHints` 의 키 가운데 웹훅 HTTP 응답 본문에 싣는 문구(슬래시 명령의 `commandReceived` 와 `help`, 실행이 없는 슬래시 명령 `/cancel` 의 `noActiveExecution`)는 `sendMessage` 로 보내지 않으므로 `escapeControlText` 를 거치지 않는다. Discord 는 이 문구를 그대로 싣는다. Slack 은 응답 `text` 가 mrkdwn 으로 렌더되므로 채널 어댑터가 `escapeControlText` 와 같은 규칙(`&` `<` `>`)으로 escape 해 싣는다. 기본값과 찾는 순서는 다른 키와 같다([채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값)).
+`languageHints` 의 키 가운데 웹훅 HTTP 응답 본문에 싣는 문구(슬래시 명령의 `commandReceived` 와 `help`, 실행이 없는 슬래시 명령 `/cancel` 의 `noActiveExecution`, 새 실행을 시작한 슬래시 명령 `/start` 의 `executionStarted` · `executionRestarted`)는 `sendMessage` 로 보내지 않으므로 `escapeControlText` 를 거치지 않는다. Discord 는 이 문구를 그대로 싣는다. Slack 은 응답 `text` 가 mrkdwn 으로 렌더되므로 채널 어댑터가 `escapeControlText` 와 같은 규칙(`&` `<` `>`)으로 escape 해 싣는다. 기본값과 찾는 순서는 다른 키와 같다([채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값)).
 
-실행이 없는 `/cancel` 의 응답은 `HooksService` 가 `commandReceived` 자리를 `noActiveExecution` 안내로 바꾼 설정을 넘겨 `defaultInteractionResponse` 를 다시 불러 만든다. 그래서 Slack 에서도 같은 mrkdwn escape 를 거친다. Telegram 은 이 안내를 `sendMessage` 로 보내므로 `escapeControlText` 를 거친다. 근거는 [채팅 채널 「R-CC-36」](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 에 있다.
+실행이 없는 `/cancel` 과 새 실행을 시작한 `/start` 의 응답은 `HooksService` 가 `commandReceived` 자리를 `noActiveExecution` 안내나 시작 안내(`executionStarted`, 활성 실행이 없었음) · 재시작 안내(`executionRestarted`, 활성 실행을 취소하고 다시 시작함)로 바꾼 설정을 넘겨 `defaultInteractionResponse` 를 다시 불러 만든다. 그래서 Slack 에서도 같은 mrkdwn escape 를 거친다. Telegram 은 이 안내를 `sendMessage` 로 보내므로 `escapeControlText` 를 거친다. 근거는 [인바운드 HTTP 응답 계약 「R-CC-36」](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 과 [설정과 안내 문구 「시작과 재시작 안내를 안내 문구 키로 둔다」](CLE-CHAT-DATA-CONFIG.md#시작과-재시작-안내를-안내-문구-키로-둔다-2026-11-20) 에 있다.
 
 ### SetupResult와 SendResult
 
