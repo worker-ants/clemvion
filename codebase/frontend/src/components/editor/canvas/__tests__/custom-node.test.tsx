@@ -561,6 +561,15 @@ describe("CustomNode", () => {
     expect(node?.className).toContain("opacity-40");
   });
 
+  it("applies a gray ring for cancelled status", () => {
+    mockNodeStatus = { status: "cancelled" };
+    const { container } = renderNode();
+    const node = container.firstElementChild;
+    expect(node?.className).toContain("ring-2");
+    expect(node?.className).toContain("ring-gray-400");
+    expect(node?.className).not.toContain("opacity-40");
+  });
+
   // --- Visual states ---
 
   it("applies opacity-50 when node is disabled", () => {
