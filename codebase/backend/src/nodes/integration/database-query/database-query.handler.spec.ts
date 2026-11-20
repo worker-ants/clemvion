@@ -5,14 +5,19 @@ import {
   extractSqlVerb,
   isWriteOperation,
 } from './database-query.handler.js';
-import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
+import {
+  assertSafeOutboundHostResolved,
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+} from '../../../common/utils/ssrf/outbound-guard.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 // 가드는 **실물 그대로** 쓴다(아래 차단 테스트들이 실제 대역 판정을 본다) — `jest.fn` 으로 감싸기만 해 한 테스트에서만
 // «판정 아닌 오류» 를 주입한다. `SsrfBlockedError` 도 실물이라 핸들러의 판정 분기가 그대로 동작한다.
-jest.mock('../http-request/http-safety.js', () => {
-  const actual = jest.requireActual('../http-request/http-safety.js');
+jest.mock('../../../common/utils/ssrf/outbound-guard.js', () => {
+  const actual = jest.requireActual(
+    '../../../common/utils/ssrf/outbound-guard.js',
+  );
   return {
     ...actual,
     assertSafeOutboundHostResolved: jest.fn(
@@ -24,7 +29,7 @@ jest.mock('../http-request/http-safety.js', () => {
 // DNS 는 가짜로 둔다. 실물 해석 가드는 literal IP · localhost 가 아닌 host(`db.example.com` 등)마다 `lookup` 을 부르고
 // 시한이 없다. 그래서 DNS 가 느린 환경에서는 테스트가 jest 시한(5초)을 넘겨 flaky 가 된다(NERV Task `CLE-T-WC482N`).
 // 기본값은 공인 주소 하나로 답하게 해 가드를 통과시키고, 해석 결과로 막는 경로는 테스트마다 따로 정한다.
-// `http-safety.spec.ts` 와 같은 방식이다.
+// `outbound-guard.spec.ts` 와 같은 방식이다.
 jest.mock('node:dns/promises', () => ({
   lookup: jest.fn(),
 }));
@@ -1265,7 +1270,13 @@ describe('DatabaseQueryHandler', () => {
 
         expect(out.port).toBe('error');
         expect(out.output.error.code).toBe('INTEGRATION_CALL_FAILED');
-        expect(out.output.error.message).toContain('hostname.toLowerCase');
+        // 원문은 서버 로그에만 남기고 고정 문구를 내보낸다(CLE-T-E991S1).
+        expect(out.output.error.message).toBe(
+          'The outbound address check failed.',
+        );
+        expect(out.output.error.message).toBe(SSRF_GUARD_FAILED_CLIENT_MESSAGE);
+        // 가드 오류 원문은 사용자 응답에 실리지 않는다(서버 로그 전용).
+        expect(JSON.stringify(out.output.error)).not.toContain('toLowerCase');
         expect(connectMock).not.toHaveBeenCalled();
         expect(logUsage).toHaveBeenCalledWith(
           expect.objectContaining({ id: 'int-1' }),

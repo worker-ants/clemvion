@@ -8,6 +8,7 @@ import { fetch as undiciFetch } from 'undici';
 import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
 import {
   McpClientService,
+  McpHostBlockedError,
   McpHttpsRequiredError,
   McpInvalidHeaderError,
 } from './mcp-client.service';
@@ -142,6 +143,22 @@ describe('McpClientService', () => {
       expect(mockTransportInstances).toHaveLength(0);
     });
 
+    // 주소 차단과 https 위반은 다른 코드로 나간다(NERV Task `CLE-T-DDN3MS`).
+    it('https 위반은 주소 차단 오류가 아니다', async () => {
+      await expect(
+        service.connect({ url: 'http://example.com/mcp', authType: 'none' }),
+      ).rejects.not.toThrow(McpHostBlockedError);
+    });
+
+    it('주소 차단은 https 위반 오류가 아니다', async () => {
+      const err = await service
+        .connect({ url: 'https://127.0.0.1/mcp', authType: 'none' })
+        .catch((err_: unknown) => err_);
+      expect(err).toBeInstanceOf(McpHostBlockedError);
+      expect(err).not.toBeInstanceOf(McpHttpsRequiredError);
+      expect((err as McpHostBlockedError).code).toBe('MCP_HOST_BLOCKED');
+    });
+
     it('rejects malformed URLs', async () => {
       await expect(
         service.connect({ url: 'not-a-url', authType: 'none' }),
@@ -153,7 +170,7 @@ describe('McpClientService', () => {
         const url = `https://${host}/mcp`;
         await expect(
           service.connect({ url, authType: 'none' }),
-        ).rejects.toThrow(McpHttpsRequiredError);
+        ).rejects.toThrow(McpHostBlockedError);
       }
     });
 
@@ -167,7 +184,7 @@ describe('McpClientService', () => {
       ]) {
         await expect(
           service.connect({ url: `https://${host}/mcp`, authType: 'none' }),
-        ).rejects.toThrow(McpHttpsRequiredError);
+        ).rejects.toThrow(McpHostBlockedError);
       }
     });
 
@@ -179,7 +196,7 @@ describe('McpClientService', () => {
       ]) {
         await expect(
           service.connect({ url: `https://${host}/`, authType: 'none' }),
-        ).rejects.toThrow(McpHttpsRequiredError);
+        ).rejects.toThrow(McpHostBlockedError);
       }
     });
 
@@ -198,7 +215,7 @@ describe('McpClientService', () => {
     ])('blocks IPv6 literal %s (%s)', async (host) => {
       await expect(
         service.connect({ url: `https://${host}/mcp`, authType: 'none' }),
-      ).rejects.toThrow(McpHttpsRequiredError);
+      ).rejects.toThrow(McpHostBlockedError);
       expect(mockTransportInstances).toHaveLength(0);
     });
 
@@ -212,7 +229,7 @@ describe('McpClientService', () => {
             url: 'https://[::ffff:7f00:1]/mcp',
             authType: 'none',
           }),
-        ).rejects.toThrow(McpHttpsRequiredError);
+        ).rejects.toThrow(McpHostBlockedError);
         expect(mockTransportInstances).toHaveLength(0);
       } finally {
         if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
@@ -300,7 +317,7 @@ describe('McpClientService', () => {
             url: 'https://mcp.example.com/mcp',
             authType: 'none',
           }),
-        ).rejects.toThrow(McpHttpsRequiredError);
+        ).rejects.toThrow(McpHostBlockedError);
         expect(mockedLookup).toHaveBeenCalledWith('mcp.example.com', {
           all: true,
           verbatim: true,
@@ -317,7 +334,7 @@ describe('McpClientService', () => {
 
       await expect(
         service.connect({ url: 'https://mcp.example.com', authType: 'none' }),
-      ).rejects.toThrow(McpHttpsRequiredError);
+      ).rejects.toThrow(McpHostBlockedError);
       expect(mockTransportInstances).toHaveLength(0);
     });
 
@@ -331,7 +348,7 @@ describe('McpClientService', () => {
           .connect({ url: 'https://mcp.example.com/mcp', authType: 'none' })
           .catch((err_: unknown) => err_)) as Error;
 
-        expect(err).toBeInstanceOf(McpHttpsRequiredError);
+        expect(err).toBeInstanceOf(McpHostBlockedError);
         expect(err.message).toContain('mcp.example.com');
         expect(err.message).not.toContain('10.9.8.7');
         expect(warnSpy).toHaveBeenCalledWith(
@@ -422,7 +439,7 @@ describe('McpClientService', () => {
       try {
         await expect(
           service.connect({ url: 'https://mcp.example.com', authType: 'none' }),
-        ).rejects.toThrow(McpHttpsRequiredError);
+        ).rejects.toThrow(McpHostBlockedError);
       } finally {
         if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
         else process.env.ALLOW_PRIVATE_HOST_TARGETS = orig;
@@ -485,7 +502,7 @@ describe('McpClientService', () => {
     });
 
     it('연결 단계 오류의 cause 에 있는 SSRF 판정을 그대로 던진다', async () => {
-      const blocked = new McpHttpsRequiredError(
+      const blocked = new McpHostBlockedError(
         'MCP server host is blocked by SSRF policy (host=mcp.example.com)',
       );
       jest.mocked(Client).mockImplementationOnce(
@@ -554,7 +571,7 @@ describe('McpClientService', () => {
             `http://rebind.test:${port}/mcp`,
           ).catch((err: unknown) => err);
 
-          const blocked = findCause(failure, McpHttpsRequiredError);
+          const blocked = findCause(failure, McpHostBlockedError);
           expect(blocked?.message).toBe(
             'MCP server host is blocked by SSRF policy (host=rebind.test)',
           );

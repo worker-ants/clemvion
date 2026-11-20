@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH"
 title: "서비스별 인증 방식과 자격 증명"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "1dc9d43abe5efe3ab5fda3944cccc38d2a58722abedde61b6af5adbd092955b2"
+content_hash: "5655a3dabfda1325535c5e787c203f2c13a7cf58e6e0ade8f326b583aa3383be"
 read_as: "approved_fallback"
-task: "CLE-T-NESSYD"
+task: "CLE-T-E991S1"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "27d89e70ea73405df6f55573937abdd57d2af6d633be5c74cdf32b575af6156e"
-etag: "sha256-718f4b2355149d52b30dac5636a6756b3912fff4c843eda7cee5ef8c29f702cf"
+mirror_sha256: "4c67fa04e9de8618e7e4a4056c178cc5ffbd7a11c8a9f31ebb61d8e90e82b10f"
+etag: "sha256-b88fd6e3d51a1f4dc9349c187ae41288beb351259c5b8a870ac2d0599b1e5281"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -133,7 +133,7 @@ GitHub 는 인증 유형 두 가지 중 하나를 고른다.
 | 그 밖의 4xx(404·405 등) | `success: true`. 다만 메시지로 «서버에는 닿았지만 `base_url` 이 이 요청을 처리하지 않아 자격 증명은 확인하지 못했다» 고 알린다. `base_url` 은 대개 API 의 뿌리라 그 자체가 자원이 아니다 |
 | 5xx | `HTTP_SERVER_ERROR` |
 | host(첫 요청 또는 리다이렉트 대상)가 SSRF 가드에 차단됨(연결할 때 푼 주소가 막힌 대역인 경우 포함), 또는 리다이렉트가 5홉을 넘음 | `HTTP_BLOCKED` |
-| 네트워크·타임아웃·TLS 실패 | `HTTP_CONNECT_FAILED`. SSRF 가드가 차단 판정이 아닌 오류를 낸 경우(가드 고장)도 같은 코드다. `HTTP_BLOCKED` 는 차단 판정에만 쓴다 |
+| 네트워크·타임아웃·TLS 실패 | `HTTP_CONNECT_FAILED`. SSRF 가드가 차단 판정이 아닌 오류를 낸 경우(가드 고장)도 같은 코드다. 가드 고장의 메시지는 첫 요청이든 리다이렉트 홉이든 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. `HTTP_BLOCKED` 는 차단 판정에만 쓴다 |
 | 자격 증명을 붙이기 전 실패(필수 필드 누락, 지원하지 않는 인증 유형) | `INTEGRATION_INCOMPLETE`·`INTEGRATION_AUTH_UNSUPPORTED`. 요청을 보내지 않는다. 노드와 같은 `resolveHttpCredentials` 를 쓰므로 같은 자격 증명으로 노드가 낼 코드와 같다 |
 
 `base_url` 이 비어 있으면(노드가 URL 전체를 적는 통합) 부르지 않고 `success: true` 에 «`base_url` 이 없어 연결을 확인하지 않았다» 는 메시지를 돌려준다. 자격 증명 거부를 알 수 있는 것은 `base_url` 이 401·403 을 돌려줄 때뿐이다.
@@ -156,10 +156,11 @@ GitHub 는 인증 유형 두 가지 중 하나를 고른다.
 | --- | --- |
 | 성공 | `success: true` |
 | host 가 SSRF 가드에 차단됨 | `DB_HOST_BLOCKED` |
+| SSRF 가드가 차단 판정이 아닌 오류를 냄(가드 고장) | `DB_CONNECT_FAILED`. 메시지는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. 연결을 열지 않는다 |
 | 인증 거부(PostgreSQL SQLSTATE class 28, MySQL `ER_ACCESS_DENIED_ERROR`·`ER_DBACCESS_DENIED_ERROR`) | `DB_AUTH_FAILED` |
 | 그 밖(네트워크·타임아웃·TLS·없는 database 등) | `DB_CONNECT_FAILED` |
 
-메시지에는 드라이버 원문을 길이를 제한해 싣는다. 비밀번호는 드라이버 원문에 없다. `DB_CONNECT_FAILED` 는 노드 실행의 `DB_CONNECTION_ERROR`(핸드셰이크 인증 실패까지 포함)와 모집합이 다르다. 연결 테스트는 인증 실패를 `DB_AUTH_FAILED` 로 먼저 가른다. 이 일회성 연결은 노드 실행의 커넥션 풀과 별개이며 풀에 남지 않는다.
+메시지에는 드라이버 원문을 길이를 제한해 싣는다. 가드 고장은 드라이버를 부르기 전에 끝나므로 이 규칙에 들지 않고 위 고정 문구를 싣는다. 비밀번호는 드라이버 원문에 없다. `DB_CONNECT_FAILED` 는 노드 실행의 `DB_CONNECTION_ERROR`(핸드셰이크 인증 실패까지 포함)와 모집합이 다르다. 연결 테스트는 인증 실패를 `DB_AUTH_FAILED` 로 먼저 가른다. 이 일회성 연결은 노드 실행의 커넥션 풀과 별개이며 풀에 남지 않는다.
 
 ## Email (SMTP)
 
@@ -271,3 +272,9 @@ SMTP host 도 사설·loopback 주소를 가리킬 수 있어 SSRF 표면이 된
 ### 연결 테스트는 401 만 토큰 문제로 본다 (2026-11-06)
 
 → [서비스별 인증 방식과 자격 증명 — Cafe24 · MakeShop](CLE-INT-AUTH-COMMERCE.md#연결-테스트는-401-만-토큰-문제로-본다-2026-11-06)
+
+### 연결 테스트도 가드 고장을 고정 문구로 알린다
+
+결정일: 2026-11-20
+
+HTTP · Database 연결 테스트에서 SSRF 가드가 차단 판정이 아닌 오류를 내면 전에는 가드 원문을 메시지에 실었다. 원문에는 host 이름이나 IP 가 들어 있을 수 있다. NERV Task `CLE-T-E991S1` 에서 코드(`HTTP_CONNECT_FAILED` · `DB_CONNECT_FAILED`)는 그대로 두고 메시지만 노드와 같은 고정 문구로 바꿨다. 결정의 근거는 [HTTP Request 노드 「가드 고장은 시점과 상관없이 같은 코드와 문구로 낸다」](../CLE-NODE-INT/CLE-NODE-HTTP.md#가드-고장은-시점과-상관없이-같은-코드와-문구로-낸다) 에 있다.

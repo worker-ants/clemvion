@@ -3,16 +3,16 @@ import { Client as PgClient } from 'pg';
 import { createConnection as mysqlCreateConnection } from 'mysql2/promise';
 
 import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
-} from '../../nodes/integration/http-request/http-safety';
+} from '../../common/utils/ssrf/outbound-guard';
 import {
   DB_HOST_BLOCKED_MESSAGE,
   buildMysqlSsl,
   buildPgConnection,
   type DbCredentials,
 } from '../../nodes/integration/database-query/database-connection';
-import { sanitizeMessage } from '../../nodes/integration/_base/integration-handler-base';
 import { clampMessage } from './clamp-message';
 import { CONNECTION_TEST_CODES } from './connection-test-codes';
 import type { IntegrationTestResult } from './integrations.service';
@@ -149,7 +149,8 @@ export async function testDatabaseConnection(
         return {
           success: false,
           code: CONNECTION_TEST_CODES.DB_CONNECT_FAILED,
-          message: clampMessage(sanitizeMessage(detail)),
+          // 원문은 위 경고 로그에만 남기고 고정 문구를 낸다(CLE-T-E991S1).
+          message: SSRF_GUARD_FAILED_CLIENT_MESSAGE,
         };
       }
       logger.warn(`SSRF block (database connection test): ${detail}`);

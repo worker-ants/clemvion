@@ -19,7 +19,7 @@ export const ErrorCode = {
   HTTP_TIMEOUT: 'HTTP_TIMEOUT',
   // SSRF block (private/loopback/link-local/CGNAT target or redirect-hop /
   // non-http(s) scheme). Applies to ALL auth methods (refactor 04 C-3).
-  // 가드 정책의 SoT 는 `http-request/http-safety.ts` (HTTP/DB/Email 공용); 기본 ON,
+  // 가드 정책의 SoT 는 `common/utils/ssrf/outbound-guard.ts` (HTTP/DB/Email 공용); 기본 ON,
   // `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out (EMAIL_HOST_BLOCKED 와 대칭).
   HTTP_BLOCKED: 'HTTP_BLOCKED',
   // Database
@@ -34,7 +34,7 @@ export const ErrorCode = {
   DB_PERMISSION_DENIED: 'DB_PERMISSION_DENIED',
   // DB host 가 사설/loopback/link-local/CGNAT 대역으로 해석돼 SSRF 가드에 차단된 경우
   // (기본 ON, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out). 가드 SoT 는 공용
-  // `http-request/http-safety.ts`. HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 대칭.
+  // `common/utils/ssrf/outbound-guard.ts`. HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 대칭.
   DB_HOST_BLOCKED: 'DB_HOST_BLOCKED',
   // Email
   EMAIL_SEND_FAILED: 'EMAIL_SEND_FAILED',

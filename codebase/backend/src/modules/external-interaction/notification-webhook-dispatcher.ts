@@ -8,6 +8,9 @@ import { resolvedAddressBlockReason } from '../../common/utils/ssrf-safe-url.uti
 /**
  * 알림 웹훅 연결 시점 판정이 연결을 막았다. `reason` 은 `checkResolvedHostIp` 의 거부 사유와 같은 문구다.
  * `fetch` 는 `TypeError('fetch failed')` 로 끝나고 이 오류는 그 `cause` 에 있다.
+ *
+ * 통합 노드 가드의 `SsrfBlockedError`(`common/utils/ssrf/outbound-guard.ts`)와 판정 대역은 같지만 계층이 다르다. 그쪽은 노드
+ * 오류 코드(`HTTP_BLOCKED` 등)로 승격되고, 이쪽은 알림 발송을 degraded 로 두는 사유가 된다. 그래서 클래스를 따로 둔다.
  */
 export class ResolvedHostBlockedError extends Error {
   constructor(readonly reason: string) {

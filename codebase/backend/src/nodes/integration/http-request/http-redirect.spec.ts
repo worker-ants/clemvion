@@ -1,24 +1,28 @@
+import { Logger } from '@nestjs/common';
 import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
-} from './http-safety.js';
+} from '../../../common/utils/ssrf/outbound-guard.js';
+import { IntegrationError } from '../_base/integration-handler-base.js';
 import type { HttpCredentials } from './http-credentials.js';
 import { followRedirectsSafely, outboundBlockReason } from './http-redirect.js';
 
 // 가드 함수 **둘 다** mock 한다 — DNS 해석 가드를 실물로 두면 통과 케이스가 `node:dns` 로 실제 조회를 나가 네트워크 없는
 // 환경에서 flaky·hang 이 된다. `SsrfBlockedError` 는 실물을 남긴다: 판정을 그 클래스로 가르므로 클래스를 가리면 어떤
 // 오류도 «판정 아님» 이 되어 차단 테스트가 통과 이유를 잃는다.
-jest.mock('./http-safety.js', () => ({
-  ...jest.requireActual('./http-safety.js'),
+jest.mock('../../../common/utils/ssrf/outbound-guard.js', () => ({
+  ...jest.requireActual('../../../common/utils/ssrf/outbound-guard.js'),
   assertSafeOutboundUrl: jest.fn(),
   assertSafeOutboundHostResolved: jest.fn(),
 }));
 
 /**
  * `outboundBlockReason` 은 나가는 URL 을 두 가드로 검사해 «막힌 사유 또는 null» 을 돌려준다. 여기서 보는 것은 그 계약의 경계다 —
- * **차단 판정만 사유가 된다**. 가드가 판정 아닌 오류를 던지면(가드의 고장) 사유로 둔갑시키지 않고 그대로 던져, 호출자가 각자의
- * 실패 경로(노드 `HTTP_TRANSPORT_FAILED` · 연결 테스트 `HTTP_CONNECT_FAILED`)로 분류하게 한다.
+ * **차단 판정만 사유가 된다**. 가드가 판정 아닌 오류를 던지면(가드의 고장) 사유로 둔갑시키지 않는다. 원문은 서버 로그에만 남기고
+ * 고정 문구의 `INTEGRATION_CALL_FAILED` 로 던진다. 그래서 노드는 검사 시점(preflight · 리다이렉트 홉)과 상관없이 같은 코드를 낸다
+ * (NERV Task `CLE-T-E991S1`).
  */
 describe('outboundBlockReason', () => {
   const mockedUrlGuard = assertSafeOutboundUrl as unknown as jest.Mock;
@@ -45,14 +49,30 @@ describe('outboundBlockReason', () => {
     expect(reason).toBe('SSRF_BLOCKED: hostname "10.0.0.9" is restricted');
   });
 
-  it('판정 아닌 오류는 사유로 삼키지 않고 그대로 던진다', async () => {
+  it('판정 아닌 오류는 사유로 삼키지 않고 고정 문구의 INTEGRATION_CALL_FAILED 로 던진다', async () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     mockedUrlGuard.mockImplementation(() => {
       throw new TypeError('hostname.toLowerCase is not a function');
     });
 
-    await expect(
-      outboundBlockReason('https://api.example.com/v1'),
-    ).rejects.toThrow(TypeError);
+    const err = await outboundBlockReason('https://api.example.com/v1').catch(
+      (err_: unknown) => err_,
+    );
+
+    expect(err).toBeInstanceOf(IntegrationError);
+    expect(err).toMatchObject({
+      code: 'INTEGRATION_CALL_FAILED',
+      message: 'The outbound address check failed.',
+    });
+    expect((err as Error).message).toBe(SSRF_GUARD_FAILED_CLIENT_MESSAGE);
+    expect((err as Error).message).not.toContain('toLowerCase');
+    // 원문은 서버 로그에만 남는다.
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('hostname.toLowerCase'),
+    );
+    warnSpy.mockRestore();
   });
 });
 

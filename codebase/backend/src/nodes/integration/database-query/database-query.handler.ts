@@ -25,9 +25,10 @@ import { IntegrationsService } from '../../../modules/integrations/integrations.
 import type { Integration } from '../../../modules/integrations/entities/integration.entity.js';
 import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus.service.js';
 import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
-} from '../http-request/http-safety.js';
+} from '../../../common/utils/ssrf/outbound-guard.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../../core/abort-error.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
@@ -272,10 +273,11 @@ export class DatabaseQueryHandler
             logger.warn(`SSRF guard failed (database-query): ${detail}`);
             // 원본 객체를 `cause` 로 붙이지 않는다 — 가드가 앞으로 어떤 오류를 던질지 모르고
             // (`spec/5-system/3-error-handling.md` §6.3.1 C2: message·name 밖의 속성이 통째로 딸려 온다),
-            // 이 에러는 Activity API 로 나가는 노드 에러다. 원본 상세는 위 `logger.warn` 에만 남는다.
+            // 이 에러는 Activity API 로 나가는 노드 에러다. 원본 상세는 위 `logger.warn` 에만 남고 사용자에게는
+            // 고정 문구를 낸다(CLE-T-E991S1).
             throw new IntegrationError(
               'INTEGRATION_CALL_FAILED',
-              sanitizeMessage(detail),
+              SSRF_GUARD_FAILED_CLIENT_MESSAGE,
             );
           }
           // 차단 판정의 원문에는 차단된 host/IP 가 들어 있어 `cause` 로도 싣지 않는다(정찰 면 축소 — 일반화

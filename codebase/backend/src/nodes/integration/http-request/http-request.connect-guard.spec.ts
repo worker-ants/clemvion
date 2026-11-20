@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { Logger } from '@nestjs/common';
 import { fetch as undiciFetch } from 'undici';
 import { HttpRequestHandler } from './http-request.handler.js';
-import { resetSafeOutboundDispatcherForTesting } from './http-safety.js';
+import { resetSafeOutboundDispatcherForTesting } from '../../../common/utils/ssrf/outbound-guard.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 

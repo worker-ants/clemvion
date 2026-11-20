@@ -1,10 +1,10 @@
 import {
   assertSafeOutboundHostResolved,
   SsrfBlockedError,
-} from '../http-request/http-safety.js';
+} from '../../../common/utils/ssrf/outbound-guard.js';
 
 /**
- * SMTP SSRF 가드 — HTTP Request · DB Query 노드와 **같은 구현**(`http-request/http-safety.ts`)을 쓴다: 사설(RFC1918) · loopback ·
+ * SMTP SSRF 가드 — HTTP Request · DB Query 노드와 **같은 구현**(`common/utils/ssrf/outbound-guard.ts`)을 쓴다: 사설(RFC1918) · loopback ·
  * link-local · CGNAT · IPv6 사설 대역(IPv4-mapped 표기 포함) host 를 기본 차단하고, self-host 환경은
  * `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out 한다(내부 SMTP relay 사용 사례 보존). spec 4-integration §5.5 · 3-send-email §4.
  *

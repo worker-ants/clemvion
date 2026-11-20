@@ -8,6 +8,10 @@ import { AzureOpenAIClient } from './azure-openai.client';
 import { LocalClient } from './local.client';
 import type { ChatStreamEvent } from '../interfaces/llm-client.interface';
 import { LLM_SDK_MAX_RETRIES } from './sdk-options';
+import {
+  llmEndpointDispatcher,
+  resetLlmEndpointDispatcherForTest,
+} from '../llm-endpoint-fetch';
 
 // Helper: build an async iterable from an array of SDK chunks so the
 // production code can iterate it with `for await` exactly as it would the
@@ -577,6 +581,62 @@ describe.each(OPENAI_FAMILY)('%s — SDK 재전송 횟수', (_name, makeClient) 
     expect(sdk._options.maxRetries).toBe(LLM_SDK_MAX_RETRIES);
     expect(LLM_SDK_MAX_RETRIES).toBe(2);
   });
+});
+
+// 사용자 baseUrl 을 쓰는 비-local 경로는 소켓을 열기 전에 푼 주소를 다시 판정한다(CLE-T-PT5YB5).
+// `local` 은 사설망 엔드포인트용 프로바이더라 판정하지 않는다. SDK 가 실제로 부르는 fetch 의
+// 두 번째 인자에 dispatcher 가 실렸는지 본다.
+describe.each([
+  ['OpenAIClient', () => new OpenAIClient('sk-test', 'gpt-4o'), true],
+  [
+    'OpenAIClient(baseUrl)',
+    () => new OpenAIClient('sk-test', 'gpt-4o', 'https://llm.example.com/v1'),
+    true,
+  ],
+  [
+    'AzureOpenAIClient',
+    () =>
+      new AzureOpenAIClient(
+        'azure-key',
+        'gpt-4o',
+        'https://example.openai.azure.com/',
+      ),
+    true,
+  ],
+  [
+    'LocalClient',
+    () => new LocalClient('llama3', 'http://localhost:1234/v1'),
+    false,
+  ],
+] as const)('%s — 연결 시점 주소 판정', (_name, makeClient, guarded) => {
+  afterEach(async () => {
+    jest.restoreAllMocks();
+    await resetLlmEndpointDispatcherForTest();
+  });
+
+  it(
+    guarded
+      ? '요청에 판정 dispatcher 를 싣는다'
+      : '판정 dispatcher 를 싣지 않는다',
+    async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ object: 'list', data: [] }), {
+            headers: { 'content-type': 'application/json' },
+          }),
+      );
+      await makeClient().listModels();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, init] = fetchSpy.mock.calls[0];
+      const dispatcher = (init as { dispatcher?: unknown } | undefined)
+        ?.dispatcher;
+      if (guarded) {
+        expect(dispatcher).toBe(llmEndpointDispatcher());
+      } else {
+        expect(dispatcher).toBeUndefined();
+      }
+    },
+  );
 });
 
 describe('OpenAIClient.listModels', () => {

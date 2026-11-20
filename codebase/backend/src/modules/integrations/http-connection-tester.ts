@@ -15,7 +15,7 @@ import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
   SsrfBlockedError,
   safeOutboundDispatcher,
-} from '../../nodes/integration/http-request/http-safety';
+} from '../../common/utils/ssrf/outbound-guard';
 import { clampMessage } from './clamp-message';
 import { CONNECTION_TEST_CODES } from './connection-test-codes';
 import type { IntegrationTestResult } from './integrations.service';

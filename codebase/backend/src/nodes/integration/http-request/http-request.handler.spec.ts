@@ -4,17 +4,20 @@ import { Logger } from '@nestjs/common';
 import { HttpRequestHandler, extractApiPath } from './http-request.handler.js';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
   assertSafeOutboundUrl,
   safeOutboundDispatcher,
-} from './http-safety.js';
+} from '../../../common/utils/ssrf/outbound-guard.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 // 가드는 **실물 그대로** 쓴다(아래 차단 테스트들이 실제 대역 판정을 본다) — `jest.fn` 으로 감싸기만 해 한 테스트에서만
 // «판정 아닌 오류» 를 주입한다. `SsrfBlockedError` 도 실물이라 핸들러의 판정 분기가 그대로 동작한다.
-jest.mock('./http-safety.js', () => {
-  const actual = jest.requireActual('./http-safety.js');
+jest.mock('../../../common/utils/ssrf/outbound-guard.js', () => {
+  const actual = jest.requireActual(
+    '../../../common/utils/ssrf/outbound-guard.js',
+  );
   return {
     ...actual,
     assertSafeOutboundUrl: jest.fn(actual.assertSafeOutboundUrl),
@@ -24,7 +27,7 @@ jest.mock('./http-safety.js', () => {
 // DNS 는 가짜로 둔다. 실물 해석 가드(`assertSafeOutboundHostResolved`)는 literal IP · localhost 가 아닌 호스트마다
 // `lookup` 을 부르고 시한이 없다. 그래서 DNS 가 느린 환경에서는 `api.example.com` 을 쓰는 테스트가 jest 시한(5초)을
 // 넘겨 flaky 가 된다(NERV Task `CLE-T-WC482N`). 기본값은 공인 주소 하나로 답하게 해 가드를 통과시키고, 해석 결과로
-// 막는 경로는 테스트마다 따로 정한다. `http-safety.spec.ts` · `http-redirect.spec.ts` 와 같은 이유다.
+// 막는 경로는 테스트마다 따로 정한다. `outbound-guard.spec.ts` · `http-redirect.spec.ts` 와 같은 이유다.
 jest.mock('node:dns/promises', () => ({
   lookup: jest.fn(),
 }));
@@ -1009,14 +1012,89 @@ describe('HttpRequestHandler', () => {
         error: { code: string; message: string };
       };
       expect(output.error.code).toBe('INTEGRATION_CALL_FAILED');
-      expect(output.error.message).toContain('hostname.toLowerCase');
+      // 원문은 서버 로그에만 남기고 고정 문구를 내보낸다(CLE-T-E991S1). 차단 판정의 일반화 문구와 같은 규칙이다.
+      expect(output.error.message).toBe('The outbound address check failed.');
+      expect(output.error.message).toBe(SSRF_GUARD_FAILED_CLIENT_MESSAGE);
+      expect(JSON.stringify(output.error)).not.toContain('toLowerCase');
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
-          error: expect.objectContaining({ code: 'INTEGRATION_CALL_FAILED' }),
+          error: {
+            code: 'INTEGRATION_CALL_FAILED',
+            message: 'The outbound address check failed.',
+          },
         }),
       );
+    });
+
+    /**
+     * 리다이렉트 홉 검사에서 가드가 고장 나도 preflight 와 같은 코드 · 문구로 나간다(CLE-T-E991S1). 전에는 홉에서만
+     * `HTTP_TRANSPORT_FAILED` 였고, 채팅 채널은 이를 «외부 서비스 응답을 받지 못했습니다» 로 전했다.
+     */
+    it('리다이렉트 홉에서 가드가 판정 아닌 오류를 던져도 INTEGRATION_CALL_FAILED 와 고정 문구', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const urlGuard = assertSafeOutboundUrl as unknown as jest.Mock;
+      const actualGuard = jest.requireActual(
+        '../../../common/utils/ssrf/outbound-guard.js',
+      ).assertSafeOutboundUrl as (u: string) => URL;
+      // preflight 는 실물로 통과시키고, 홉 검사에서만 고장을 낸다.
+      urlGuard
+        .mockImplementationOnce(actualGuard)
+        .mockImplementationOnce(() => {
+          throw new TypeError('hostname.toLowerCase is not a function');
+        });
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: {
+          get: (h: string) =>
+            h.toLowerCase() === 'location'
+              ? 'https://cdn.example.net/next'
+              : null,
+        },
+        body: null,
+        text: jest.fn(),
+        json: jest.fn(),
+      });
+      const { service, logUsage } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/start',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+
+      expect(result.port).toBe('error');
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
+      expect(output.error).toMatchObject({
+        code: 'INTEGRATION_CALL_FAILED',
+        message: 'The outbound address check failed.',
+      });
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
+        expect.objectContaining({
+          status: 'failed',
+          error: {
+            code: 'INTEGRATION_CALL_FAILED',
+            message: 'The outbound address check failed.',
+          },
+        }),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('hostname.toLowerCase'),
+      );
+      warnSpy.mockRestore();
     });
 
     it('blocks localhost by name (D4 — port:error + HTTP_BLOCKED)', async () => {

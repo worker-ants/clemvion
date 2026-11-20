@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "7f1e7c541989400fd81401eedfe76ba725409dc28659898eb51d6371f223b1bc"
+content_hash: "d275bc35413fbfcbadc76d4144c5809e81a63a50c871d55cf329edcc805a1959"
 read_as: "approved_fallback"
-task: "CLE-T-0R5SYN"
+task: "CLE-T-PT5YB5"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "ec3e766676475c3e5d3ae246556cd15d69b8ddc0a6c13aeae74c779167b104e9"
-etag: "sha256-d9699cd24697eb58f819da174b257d6fb8cacbc9cb780b9a55045d24d3a0bfa1"
+mirror_sha256: "23100b283ca44477afac23edb22dd35b8449dcdd604a2fa5941d00eaeeeea15c"
+etag: "sha256-579904ef2d9fa92b7e85f1ff456aad1fdcdce08749a53d9a187951dae175ede8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -80,13 +80,17 @@ flowchart LR
 
 모델 설정의 `baseUrl` 과 미리보기 요청의 `baseUrl` 은 SSRF 가드를 거친다. 모델 설정을 만들고 고칠 때와 미리보기에서 같은 규칙을 쓴다.
 
-- 차단 대상: loopback(`127.0.0.0/8`, `::1`), RFC1918(`10/8`·`172.16/12`·`192.168/16`), link-local(`169.254/16`, `fe80::/10`), IPv6 ULA(`fc00::/7`), IPv4-mapped IPv6, `0.0.0.0/8`. 걸리면 `MODEL_CONFIG_INVALID` 로 거부한다.
-- 도메인 hostname 은 `dns.lookup` 으로 먼저 해석한 뒤 같은 규칙을 다시 적용한다(DNS rebinding 1차 방어).
+- 차단 대상: 통합 노드 · 알림 웹훅 · MCP 의 SSRF 가드와 같은 공용 대역표(`common/utils/ssrf/ip-classifier.ts`) 하나로 판정한다. loopback(`127.0.0.0/8`, `::1`), 미지정 주소(`0.0.0.0/8`, `::`), RFC1918(`10/8`·`172.16/12`·`192.168/16`), CGNAT(`100.64.0.0/10`), link-local(`169.254/16`, `fe80::/10`), IPv6 ULA(`fc00::/7`)가 들어간다. IPv4 를 품은 IPv6 표기(IPv4-mapped 등)는 품은 IPv4 로 판정한다. 정규화하지 못하는 IPv6 리터럴은 막는다. 표 전체는 [통합 노드 공통 — 사설망 차단](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 에 있다. 걸리면 `MODEL_CONFIG_INVALID` 로 거부한다.
+- 도메인 hostname 은 `dns.lookup` 으로 먼저 해석한 뒤 같은 규칙을 다시 적용한다(DNS rebinding 1차 방어). 해석이 실패하면 막지 않고 넘긴다(fail-open). 로컬 DNS 문제를 SSRF 로 오인하면 정상 엔드포인트도 저장할 수 없기 때문이다.
 - 예외: 자가호스팅 프로바이더는 사설망·localhost 를 허용한다. Chat·Embedding 에서는 `local`(자가호스팅 Ollama·vLLM), Rerank 에서는 `tei` 가 해당한다. Rerank 에는 `local` 프로바이더가 없다.
+- 이 가드에는 우회 플래그가 없다. Tailscale 너머처럼 사설망 · CGNAT 주소에 있는 엔드포인트는 Chat·Embedding 이면 `local`, Rerank 면 `tei` 로 등록한다. `local` 은 API 키를 선택으로 받는다.
 - 외부 프로바이더(`cohere` 등)의 `baseUrl` 로는 복호화한 Bearer 키가 전송되므로 사설망·loopback 주소를 막는다.
-- 한계: TTL 이 지난 뒤 다시 해석하는 DNS rebinding 2차 공격은 연결 시점에 개입해야 막을 수 있어 지금은 차단하지 않는다. 실제 차단이 필요하면 나가는 트래픽을 막는 방화벽이나 클라우드 네트워크 정책으로 보완한다.
+- 연결 시점 판정: OpenAI(`openai`) · Azure OpenAI(`azure`) SDK 호출과 Cohere 리랭크(`cohere`) 호출은 연결할 때 푼 주소를 같은 대역표로 다시 판정한다(`modules/llm/llm-endpoint-fetch.ts` 의 `guardedLlmFetch`). 그래서 사전 검사 뒤에 DNS 응답이 바뀌어도(DNS rebinding) 판정을 거치지 않은 주소로는 연결하지 않는다.
+- IP 리터럴 호스트는 연결할 때 주소를 풀지 않으므로 요청 전에 판정한다. 그래서 대역표가 넓어지기 전에 저장된 자가호스팅이 아닌 설정(예: CGNAT 리터럴 `baseUrl`)도 실행 중에 막힌다.
+- 판정하지 않는 호출: `local` · `tei` 는 사설망 엔드포인트용이라 연결 시점 판정을 하지 않는다. Anthropic · Google 클라이언트는 `baseUrl` 을 받지 않아 호스트가 고정이므로 판정하지 않는다.
+- 막혔을 때: OpenAI · Azure OpenAI 호출은 SDK 의 연결 오류로 끝난다. 판정 오류(`LlmEndpointBlockedError`)의 메시지에는 호스트 이름만 싣고 풀린 주소는 서버 경고 로그에만 남긴다. Cohere 리랭크 호출은 다른 네트워크 실패와 같은 고정 문구 `Cohere rerank request failed` 로 끝난다.
 
-현재 구현은 `LlmPreviewService` 의 `isPrivateHost`·`resolvesToPrivate` 와 `ModelConfigService` 의 생성·수정 경로가 이 가드를 적용한다.
+현재 구현은 `common/utils/ssrf.util.ts` 의 `isPrivateHost`·`resolvesToPrivate` 가 사전 검사를 하고 대역 판정은 `common/utils/ssrf/ip-classifier.ts` 에 맡긴다. `LlmPreviewService` 와 `ModelConfigService` 의 생성·수정 경로가 이 두 함수를 부른다. 연결 시점 판정은 `modules/llm/llm-endpoint-fetch.ts` 가 한다.
 
 ## API 키 보안
 
@@ -145,6 +149,7 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 - `codebase/backend/src/modules/llm/embedding-input-type.ts`
 - `codebase/backend/src/modules/llm/llm-preview.service.ts`
 - `codebase/backend/src/modules/llm/llm-model-config.controller.ts`
+- `codebase/backend/src/modules/llm/llm-endpoint-fetch.ts` (연결 시점 주소 판정 `guardedLlmFetch`)
 - `codebase/backend/src/modules/llm/list-models-cap.ts`
 - `codebase/backend/src/modules/llm/llm-usage-log.service.ts`
 - `codebase/backend/src/modules/llm/pricing.ts`
@@ -152,6 +157,8 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 - `codebase/backend/src/modules/llm/rerank/rerank-client.interface.ts`
 - `codebase/backend/src/modules/llm/rerank/clients/*.ts`
 - `codebase/backend/src/modules/llm/utils/*.ts`
+- `codebase/backend/src/common/utils/ssrf.util.ts` (저장 · 미리보기 사전 검사 `isPrivateHost` · `resolvesToPrivate`)
+- `codebase/backend/src/common/utils/ssrf/ip-classifier.ts` (네 SSRF 가드가 함께 쓰는 대역표)
 
 ## Rationale
 
@@ -162,6 +169,30 @@ LLM 스텁 모드(`LLM_STUB_MODE`)는 dockerized e2e(`execution-park-resume.e2e-
 ### SSRF 가드를 재사용하는 이유
 
 자가호스팅 `tei` 리랭커는 사설망 엔드포인트를 받으므로 LLM 과 같은 SSRF 공격 면이 있다. Chat·Embedding 의 `local` 에 쓰는 사설망 예외 규칙을 그대로 적용해 인프라를 두 번 만들지 않는다. 시크릿 암호화 인프라도 같은 이유로 공유한다.
+
+### LLM 가드도 CGNAT 와 `::` 를 막는다 (2026-11-20)
+
+LLM 가드(`ssrf.util.ts`)는 따로 만든 좁은 대역표를 써서 CGNAT `100.64.0.0/10` 과 미지정 주소 `::` 를 통과시켰다. 통합 노드 · 알림 웹훅 · MCP 가드는 둘 다 막았다. 2026-11-20 에 사람이 LLM 가드도 둘을 막기로 정했다(NERV Task `CLE-T-63RSH6`). 같은 날 네 가드의 IP 리터럴 판정을 공용 표 하나로 모았다(NERV Task `CLE-T-753725` · `CLE-T-4YHEKF`).
+
+- CGNAT 대역은 통신사 · 클라우드 내부망과 Tailscale 같은 오버레이 망 주소로 쓰인다. 외부 프로바이더의 `baseUrl` 이 이 대역을 가리키면 복호화한 API 키가 내부망으로 나간다.
+- Linux 에서 `::` 로 연결하면 자기 호스트로 간다. `0.0.0.0/8` 을 막는 이유와 같다.
+- 네 가드가 표 하나를 쓰면 대역을 고칠 때 한 곳만 바꾸면 된다. 가드마다 다른 것은 우회 플래그 · 막는 호스트 이름 · 오류 문구뿐이다.
+
+기각한 대안(2026-11-20):
+
+- **LLM 가드에 우회 플래그를 둔다**: 사설망 엔드포인트를 써야 하는 경우는 이미 `local` · `tei` 프로바이더가 받는다. `local` 은 API 키를 선택으로 받으므로 키가 필요한 OpenAI 호환 엔드포인트도 등록할 수 있다. 플래그를 두면 외부 프로바이더 경로에서 키가 사설망으로 나가는 길이 다시 열린다.
+
+### 연결 시점 판정을 OpenAI · Azure OpenAI · Cohere 경로에만 둔다 (2026-11-20)
+
+저장 · 미리보기 검사는 그때 한 번 푼 결과만 본다. 그 뒤 DNS 응답이 바뀌면 실행할 때 막는 대역으로 연결할 수 있었다. 2026-11-20 에 사람이 LLM 호출에도 연결 시점 판정을 넣기로 정했다(NERV Task `CLE-T-PT5YB5`). 판정 함수는 HTTP Request · MCP · 알림 웹훅과 같은 공용 헬퍼(`createGuardedLookupDispatcher`)에 넘긴다.
+
+- 사용자가 준 `baseUrl` 로 복호화한 키를 보내는 자가호스팅이 아닌 경로는 OpenAI · Azure OpenAI SDK 호출과 Cohere 리랭크 호출 셋이다. 그래서 이 셋에만 넣는다.
+- Anthropic · Google 은 호스트가 고정이라 사용자 입력이 연결 주소를 정하지 않는다.
+- `local` · `tei` 는 사설망 엔드포인트를 부르는 용도다. 막는 대역이 정상 대상이라 판정을 넣으면 정상 호출이 막힌다.
+- IP 리터럴 호스트에는 연결 조회가 일어나지 않는다. 그래서 요청 전에 따로 판정한다.
+- 사전 검사의 해석 실패 fail-open 은 바꾸지 않았다. 해석에 실패해 저장된 설정도 실행할 때는 연결 시점 판정을 거친다.
+
+Database Query · Send Email 노드에 연결 시점 판정을 아직 넣지 않은 이유는 [통합 노드 공통 — 에러 코드와 사설망 차단](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md) Rationale 에 있다.
 
 ### 운영 환경 가드 대상은 세션과 토큰 문서를 가리킨다 (2026-10-31)
 

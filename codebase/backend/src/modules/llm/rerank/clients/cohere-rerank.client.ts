@@ -1,4 +1,5 @@
 import { RerankClient, RerankScore } from '../rerank-client.interface';
+import { guardedLlmFetch } from '../../llm-endpoint-fetch';
 
 const RERANK_TIMEOUT_MS = 30_000;
 const COHERE_DEFAULT_BASE_URL = 'https://api.cohere.com';
@@ -38,7 +39,8 @@ export class CohereRerankClient implements RerankClient {
 
     let response: Response;
     try {
-      response = await fetch(`${base}/v2/rerank`, {
+      // 연결할 때 푼 주소를 다시 판정한다(CLE-T-PT5YB5). 막히면 아래 catch 의 고정 문구로 나간다.
+      response = await guardedLlmFetch(`${base}/v2/rerank`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

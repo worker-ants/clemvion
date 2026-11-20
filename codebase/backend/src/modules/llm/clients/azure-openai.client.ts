@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { OpenAIClient } from './openai.client';
 import { LLM_SDK_MAX_RETRIES } from './sdk-options';
+import { guardedLlmFetch } from '../llm-endpoint-fetch';
 
 export class AzureOpenAIClient extends OpenAIClient {
   constructor(apiKey: string, defaultModel: string, baseUrl: string) {
@@ -13,6 +14,8 @@ export class AzureOpenAIClient extends OpenAIClient {
       baseURL: baseUrl,
       timeout: 120_000,
       maxRetries: LLM_SDK_MAX_RETRIES,
+      // 연결할 때 푼 주소를 다시 판정한다(CLE-T-PT5YB5).
+      fetch: guardedLlmFetch,
       defaultHeaders: {
         'api-key': apiKey,
       },

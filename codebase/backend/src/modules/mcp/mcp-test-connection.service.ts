@@ -4,6 +4,7 @@ import {
   McpAuthError,
   McpClientService,
   McpConnectParams,
+  McpHostBlockedError,
   McpHttpsRequiredError,
   McpInvalidHeaderError,
   McpSession,
@@ -42,6 +43,7 @@ export interface ConnectionPreview {
  */
 export type McpFailureCode =
   | 'MCP_HTTPS_REQUIRED'
+  | 'MCP_HOST_BLOCKED'
   | 'MCP_AUTH_FAILED'
   | 'MCP_CONNECT_FAILED'
   | 'MCP_LIST_FAILED'
@@ -152,6 +154,14 @@ export class McpTestConnectionService {
         code: 'MCP_HTTPS_REQUIRED',
         // McpHttpsRequiredError messages are deterministic and don't carry
         // network detail — safe to echo to the client.
+        message: err.message,
+      };
+    }
+    if (err instanceof McpHostBlockedError) {
+      return {
+        success: false,
+        code: 'MCP_HOST_BLOCKED',
+        // 사용자가 적은 호스트 이름만 싣는다. 해석된 주소는 McpClientService 가 서버 로그에만 남긴다.
         message: err.message,
       };
     }

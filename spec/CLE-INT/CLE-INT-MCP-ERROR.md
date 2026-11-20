@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-ERROR"
 title: "MCP 클라이언트 — 에러 처리"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "ffa5a27b55914edccf1813aea905446355d174de46af59f83dec3b85044b588b"
+content_hash: "334609dc0d858293b9ce460c06f14a471d5eb17a6510301ec8a6c93f59c799f9"
 read_as: "approved_fallback"
-task: "CLE-T-7BNDT8"
+task: "CLE-T-DDN3MS"
 source_paths: []
-mirror_sha256: "e4c6d8c59c909e0aa48c087edb2a5793a73a0d90ae4abc929e3bc0bfb9cdd55c"
-etag: "sha256-9ad9981fedeeee58708bf6ccab4e2570e795613aeaa6438dbd5020e786556df8"
+mirror_sha256: "400dc00674d9de13655d331c679d350c9041161c1ead4889c96122711e7d0541"
+etag: "sha256-e925bbd91db1d08a36ffa8857a6e63874d28eed71d9a808c6f321970906baa74"
 ---
 ## 개요
 
@@ -44,7 +44,8 @@ MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 �
 | `MCP_TOOL_ERROR` | `tools/call` 응답이 MCP `isError: true` 인 도구 수준 실패. 전송은 성공했지만 도구가 에러를 보고했다. `tool_result.content` 에 서버 content 를 함께 싣고 `mcpDiagnostics.errors[]`(`phase='tools/call'`)에도 남긴다 |
 | `MCP_TIMEOUT` | [타임아웃](CLE-INT-MCP-CONN.md#타임아웃) 초과. `withTimeout` 의 `TimeoutError`(와 connect 단계 AbortController 만료, connect 직전 DNS 해석의 시간 초과)로 판정하며 모든 단계에서 드러난다. 도구 목록 구성 단계(connect·`tools/list`)와 호출 단계(`tools/call`·`resources/read`·`prompts/get` 등)는 `mcpDiagnostics.errors[].code = MCP_TIMEOUT`(해당 phase), 연결 테스트는 응답 `code = MCP_TIMEOUT` 이다 |
 | `MCP_AUTH_FAILED` | 자격 증명 누락·형식 오류, 또는 401·403. `Integration.status` 변경이 따른다 |
-| `MCP_HTTPS_REQUIRED` | URL 이 `https://` 가 아니거나, 파싱할 수 없거나, 사설·내부망 호스트(SSRF 차단)다. 호스트 이름이 막히는 주소로 풀리는 경우([자격 증명과 URL 검증](CLE-INT-MCP-CONN.md#자격-증명과-url-검증) 3항)도 같다. 미리보기 테스트(`preview-test`) 단계에서 잡는다. 노드 실행 `buildTools` 에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 모인다 |
+| `MCP_HTTPS_REQUIRED` | URL 이 `https://` 가 아니거나 파싱할 수 없다. 연결 테스트(`preview-test` · `:id/test`)에서 낸다. 노드 실행 `buildTools` 에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 모인다 |
+| `MCP_HOST_BLOCKED` | 호스트가 사설 · 내부망 · 메타데이터 주소라 막았다(SSRF 차단). 리터럴 판정, connect 직전 해석 주소 검사, 연결 시점 판정 세 곳이 낸다([자격 증명과 URL 검증](CLE-INT-MCP-CONN.md#자격-증명과-url-검증) 2 · 3항). message 에는 호스트 이름만 싣는다. 연결 테스트에서 낸다. 노드 실행 `buildTools` 에서는 같은 실패가 `MCP_CONNECT_FAILED` 로 모인다 |
 | `MCP_UNKNOWN_TOOL` | `execute` 단계에서 `<sid>` 에 맞는 활성 세션이 없거나, 세션이 노출하지 않은 도구 이름을 LLM 이 불렀다(`buildTools` 미실행, 도구 없음) |
 | `INVALID_TOOL_ARGUMENTS` | 인자 스키마 검증 실패 또는 인자 JSON 파싱 실패. 호출 자체는 일어나지 않는다. 외부 MCP 도구는 JSON 파싱만 한다. `inputSchema` 검증은 미구현이다([미결 사항](CLE-INT-MCP.md#미결-사항) 참조) |
 | `MCP_RESPONSE_TOO_LARGE` | content 크기 상한 초과. 잘라 냈음을 알린다 |

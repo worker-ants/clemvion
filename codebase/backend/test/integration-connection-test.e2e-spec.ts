@@ -21,7 +21,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
-describe('Integration connection test — Database · HTTP (e2e)', () => {
+describe('Integration connection test — Database · HTTP · MCP (e2e)', () => {
   let db: Client;
   let token: string;
   let workspaceId: string;
@@ -115,7 +115,32 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
   });
 
   /**
-   * **표기만 바꾼 대상도 같은 가드에 걸린다** — HTTP · DB · Email 은 한 가드(`http-safety`)를 쓴다(spec 4-integration §5.5).
+   * MCP 는 주소 차단과 https 위반을 다른 코드로 돌려준다(NERV Task `CLE-T-DDN3MS`). e2e 환경은 `MCP_ALLOW_INSECURE_URL` 을
+   * 켜지 않는다. 메시지에는 사용자가 적은 호스트 이름만 싣는다.
+   */
+  it.each([
+    ['https://127.0.0.1/mcp', 'MCP_HOST_BLOCKED'],
+    ['https://[::ffff:100.64.0.1]/mcp', 'MCP_HOST_BLOCKED'],
+    ['http://mcp.example.com/mcp', 'MCP_HTTPS_REQUIRED'],
+  ])('F. preview-test — MCP url %s 는 %s', async (url, code) => {
+    const res = await post('/api/integrations/preview-test').send({
+      serviceType: 'mcp',
+      authType: 'none',
+      credentials: { url },
+    });
+
+    expect(res.status).toBe(200);
+    const data = res.body.data as {
+      success: boolean;
+      code?: string;
+      message: string;
+    };
+    expect(data.success).toBe(false);
+    expect(data.code).toBe(code);
+  });
+
+  /**
+   * **표기만 바꾼 대상도 같은 가드에 걸린다** — HTTP · DB · Email 은 한 가드(`common/utils/ssrf/outbound-guard.ts`)를 쓴다(spec 4-integration §5.5).
    * 종전 HTTP · DB 가드는 IPv4-mapped IPv6 를 통과시켜, 아래 HTTP 입력은 백엔드 자신의 health 에 실제로 닿았다(127.0.0.1 에만
    * 바인드한 서버에 `[::ffff:127.0.0.1]` 이 200 — 실측). SMTP 가드는 CGNAT 를 통과시켰다.
    */
