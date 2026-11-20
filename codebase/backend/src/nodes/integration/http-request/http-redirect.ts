@@ -3,7 +3,7 @@ import {
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
-} from './http-safety.js';
+} from '../../../common/utils/ssrf/outbound-guard.js';
 
 /**
  * 리다이렉트 추종 상한 — HTTP Request 노드(spec/4-nodes/4-integration/1-http-request.md §4)와 HTTP 통합 연결 테스트
@@ -23,7 +23,7 @@ function isRedirectWithLocation(res: Response): boolean {
  * 나가는 요청 대상 URL 을 두 SSRF 가드(리터럴 · DNS 해석)로 검사한다. 통과하면 `null`, 막히면 사유. 사유에는 차단된
  * host/IP 가 들어 있을 수 있으므로 서버 로그에만 남긴다.
  *
- * **판정만 사유가 된다** — 가드가 던지는 차단 판정은 `SsrfBlockedError` 하나뿐이고(`http-safety.ts`), 그 밖의 오류는 가드의
+ * **판정만 사유가 된다** — 가드가 던지는 차단 판정은 `SsrfBlockedError` 하나뿐이고(`common/utils/ssrf/outbound-guard.ts`), 그 밖의 오류는 가드의
  * 고장이지 차단이 아니다. 삼켜 사유로 둔갑시키면 막힌 적 없는 요청이 «SSRF 로 막혔다» 로 보고된다 — 그대로 던져 호출자가
  * 각자의 실패 경로(노드 `HTTP_TRANSPORT_FAILED` · 연결 테스트 `HTTP_CONNECT_FAILED`)로 분류하게 한다. SMTP 가드
  * (`send-email/smtp-host-guard.ts`)와 같은 규약이다.

@@ -8,7 +8,7 @@ import { fetch as undiciFetch } from 'undici';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
   resetSafeOutboundDispatcherForTesting,
-} from '../../nodes/integration/http-request/http-safety';
+} from '../../common/utils/ssrf/outbound-guard';
 import { testHttpConnection } from './http-connection-tester';
 
 // DNS rebinding 을 재현한다(CLE-T-NESSYD). 사전 검사(`assertSafeOutboundHostResolved`, `node:dns/promises`)에는 공인 주소를,

@@ -5,7 +5,7 @@ import {
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
   safeOutboundDispatcher,
-} from '../../nodes/integration/http-request/http-safety';
+} from '../../common/utils/ssrf/outbound-guard';
 import { appendQueryParams } from '../../nodes/integration/http-request/http-credentials';
 import { MAX_REDIRECT_HOPS } from '../../nodes/integration/http-request/http-redirect';
 import { MCP_ERROR_MESSAGE_MAX_LEN } from '../mcp/mcp-error-codes';
@@ -14,8 +14,8 @@ import {
   testHttpConnection,
 } from './http-connection-tester';
 
-jest.mock('../../nodes/integration/http-request/http-safety', () => ({
-  ...jest.requireActual('../../nodes/integration/http-request/http-safety'),
+jest.mock('../../common/utils/ssrf/outbound-guard', () => ({
+  ...jest.requireActual('../../common/utils/ssrf/outbound-guard'),
   assertSafeOutboundUrl: jest.fn(),
   assertSafeOutboundHostResolved: jest.fn(),
   safeOutboundDispatcher: jest.fn(),

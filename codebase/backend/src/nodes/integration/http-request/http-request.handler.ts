@@ -28,7 +28,7 @@ import {
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
   safeOutboundDispatcher,
-} from './http-safety.js';
+} from '../../../common/utils/ssrf/outbound-guard.js';
 import { findCause } from '../../../common/utils/guarded-lookup-dispatcher.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
 import {
@@ -400,7 +400,7 @@ export class HttpRequestHandler
     // 169.254.169.254) targets are blocked by default (secure-by-default,
     // spec §4 step 8). Legitimate internal access is opt-in via
     // ALLOW_PRIVATE_HOST_TARGETS=true (spec §105) — already wired inside
-    // http-safety, so no auth-method gating is needed here (refactor 04 C-3).
+    // the shared SSRF guard (common/utils/ssrf/outbound-guard), so no auth-method gating is needed here (refactor 04 C-3).
     //
     // Two-layer 검증: 호스트 리터럴 (IP 직접 지정 차단) → DNS resolve 후 IP
     // 재검사 (DNS rebinding 차단). hostname literal 검사만으로는 공격자가 통제하는

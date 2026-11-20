@@ -27,7 +27,7 @@ import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus
 import {
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
-} from '../http-request/http-safety.js';
+} from '../../../common/utils/ssrf/outbound-guard.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../../core/abort-error.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';

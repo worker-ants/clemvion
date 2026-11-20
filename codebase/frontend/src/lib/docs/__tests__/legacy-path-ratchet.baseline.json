@@ -728,7 +728,6 @@
     "codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts": 1,
     "codebase/backend/src/nodes/integration/database-query/database-query.handler.ts": 1,
     "codebase/backend/src/nodes/integration/http-request/http-request.handler.ts": 2,
-    "codebase/backend/src/nodes/integration/http-request/http-safety.ts": 1,
     "codebase/backend/src/repo-guards/__tests__/audit-action-binding.spec.ts": 1,
     "codebase/backend/src/repo-guards/__tests__/fixtures/openapi-internal-ref/sample.dto.ts": 1,
     "codebase/backend/src/repo-guards/__tests__/nullable-type-lie-cast.spec.ts": 2,

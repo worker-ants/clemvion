@@ -5,7 +5,7 @@ import { createConnection } from 'mysql2/promise';
 import {
   assertSafeOutboundHostResolved,
   SsrfBlockedError,
-} from '../../nodes/integration/http-request/http-safety';
+} from '../../common/utils/ssrf/outbound-guard';
 import { DB_HOST_BLOCKED_MESSAGE } from '../../nodes/integration/database-query/database-connection';
 import { MCP_ERROR_MESSAGE_MAX_LEN } from '../mcp/mcp-error-codes';
 import {
@@ -18,8 +18,8 @@ jest.mock('pg', () => ({ Client: jest.fn() }));
 jest.mock('mysql2/promise', () => ({ createConnection: jest.fn() }));
 // 가드 함수만 mock 하고 `SsrfBlockedError` 는 실물을 남긴다 — 테스터가 판정을 그 클래스로 가르므로, mock 이 클래스를 가리면
 // 어떤 오류를 던져도 «판정 아님» 이 되어 차단 테스트가 통과 이유를 잃는다.
-jest.mock('../../nodes/integration/http-request/http-safety', () => ({
-  ...jest.requireActual('../../nodes/integration/http-request/http-safety'),
+jest.mock('../../common/utils/ssrf/outbound-guard', () => ({
+  ...jest.requireActual('../../common/utils/ssrf/outbound-guard'),
   assertSafeOutboundHostResolved: jest.fn(),
 }));
 
@@ -178,7 +178,7 @@ describe('testDatabaseConnection', () => {
     });
 
     /**
-     * 가드가 던지는 «판정» 은 `SsrfBlockedError` 하나뿐이다(`http-safety.ts`). 그 밖의 오류는 가드의 고장이지 차단이 아니므로
+     * 가드가 던지는 «판정» 은 `SsrfBlockedError` 하나뿐이다(`common/utils/ssrf/outbound-guard.ts`). 그 밖의 오류는 가드의 고장이지 차단이 아니므로
      * `DB_HOST_BLOCKED`(= 사용자에게 «당신의 host 가 막혔다») 로 보고하면 거짓이다 — 분류되지 않은 실패로 돌린다.
      * 던지지 않는 계약은 그대로다(`dispatchTest` 의 tester 계약).
      */

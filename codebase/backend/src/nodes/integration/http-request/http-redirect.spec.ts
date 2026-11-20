@@ -2,15 +2,15 @@ import {
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
-} from './http-safety.js';
+} from '../../../common/utils/ssrf/outbound-guard.js';
 import type { HttpCredentials } from './http-credentials.js';
 import { followRedirectsSafely, outboundBlockReason } from './http-redirect.js';
 
 // 가드 함수 **둘 다** mock 한다 — DNS 해석 가드를 실물로 두면 통과 케이스가 `node:dns` 로 실제 조회를 나가 네트워크 없는
 // 환경에서 flaky·hang 이 된다. `SsrfBlockedError` 는 실물을 남긴다: 판정을 그 클래스로 가르므로 클래스를 가리면 어떤
 // 오류도 «판정 아님» 이 되어 차단 테스트가 통과 이유를 잃는다.
-jest.mock('./http-safety.js', () => ({
-  ...jest.requireActual('./http-safety.js'),
+jest.mock('../../../common/utils/ssrf/outbound-guard.js', () => ({
+  ...jest.requireActual('../../../common/utils/ssrf/outbound-guard.js'),
   assertSafeOutboundUrl: jest.fn(),
   assertSafeOutboundHostResolved: jest.fn(),
 }));

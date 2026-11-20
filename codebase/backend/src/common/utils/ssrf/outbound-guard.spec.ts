@@ -7,7 +7,7 @@ import {
   resetSafeOutboundDispatcherForTesting,
   safeOutboundDispatcher,
   SsrfBlockedError,
-} from './http-safety';
+} from './outbound-guard';
 
 jest.mock('node:dns/promises', () => ({
   lookup: jest.fn(),
@@ -18,7 +18,7 @@ const mockedLookup = lookup as unknown as jest.MockedFunction<
   (hostname: string, options: { all: true }) => Promise<LookupAddress[]>
 >;
 
-describe('http-safety — assertSafeOutboundUrl (synchronous literal check)', () => {
+describe('outbound-guard — assertSafeOutboundUrl (synchronous literal check)', () => {
   beforeEach(() => {
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
   });
@@ -65,7 +65,7 @@ describe('http-safety — assertSafeOutboundUrl (synchronous literal check)', ()
   });
 });
 
-describe('http-safety — assertSafeOutboundHostResolved (DNS-aware)', () => {
+describe('outbound-guard — assertSafeOutboundHostResolved (DNS-aware)', () => {
   beforeEach(() => {
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
     mockedLookup.mockReset();
@@ -120,7 +120,7 @@ describe('http-safety — assertSafeOutboundHostResolved (DNS-aware)', () => {
   });
 });
 
-describe('http-safety — isBlockedHostname', () => {
+describe('outbound-guard — isBlockedHostname', () => {
   it('각 private CIDR 대표 IP 블록', () => {
     for (const ip of [
       '10.1.2.3',
@@ -206,7 +206,7 @@ describe('http-safety — isBlockedHostname', () => {
   });
 });
 
-describe('http-safety — IPv4-mapped IPv6 가 두 층을 모두 지나지 못한다', () => {
+describe('outbound-guard — IPv4-mapped IPv6 가 두 층을 모두 지나지 못한다', () => {
   beforeEach(() => {
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
     mockedLookup.mockReset();
@@ -254,7 +254,7 @@ describe('http-safety — IPv4-mapped IPv6 가 두 층을 모두 지나지 못�
   });
 });
 
-describe('http-safety — safeOutboundDispatcher (연결 시점 판정 dispatcher)', () => {
+describe('outbound-guard — safeOutboundDispatcher (연결 시점 판정 dispatcher)', () => {
   const previous = process.env.ALLOW_PRIVATE_HOST_TARGETS;
 
   afterEach(async () => {

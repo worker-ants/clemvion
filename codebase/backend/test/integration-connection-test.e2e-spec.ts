@@ -115,7 +115,7 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
   });
 
   /**
-   * **표기만 바꾼 대상도 같은 가드에 걸린다** — HTTP · DB · Email 은 한 가드(`http-safety`)를 쓴다(spec 4-integration §5.5).
+   * **표기만 바꾼 대상도 같은 가드에 걸린다** — HTTP · DB · Email 은 한 가드(`common/utils/ssrf/outbound-guard.ts`)를 쓴다(spec 4-integration §5.5).
    * 종전 HTTP · DB 가드는 IPv4-mapped IPv6 를 통과시켜, 아래 HTTP 입력은 백엔드 자신의 health 에 실제로 닿았다(127.0.0.1 에만
    * 바인드한 서버에 `[::ffff:127.0.0.1]` 이 200 — 실측). SMTP 가드는 CGNAT 를 통과시켰다.
    */

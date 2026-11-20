@@ -25,17 +25,13 @@
  * layers — required when the deployment legitimately needs to reach private
  * networks (internal DB / on-prem API). Set only when egress is otherwise
  * constrained by an external firewall.
- *
- * 공용인데 `http-request/` 폴더에 있는 이유: HTTP Request 가 먼저 만든 것을 DB · Email 이 가져다 썼고, spec
- * `4-nodes/4-integration/1-http-request.md` frontmatter `code:` 가 이 경로를 가리킨다. 중립 위치로 옮기는 것은 그 spec 경로와
- * 함께 바꿔야 해서 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 항목으로 둔다.
  */
 import { lookup } from 'node:dns/promises';
 import type { Dispatcher } from 'undici';
 import {
   createGuardedLookupDispatcher,
   createLazyGuardedDispatcher,
-} from '../../../common/utils/guarded-lookup-dispatcher.js';
+} from '../guarded-lookup-dispatcher.js';
 
 /**
  * SSRF 가드가 요청을 막았을 때의 클라이언트 문구 — 차단된 host/IP 를 싣지 않는다(정찰 면 축소, CWE-209). 원본 상세

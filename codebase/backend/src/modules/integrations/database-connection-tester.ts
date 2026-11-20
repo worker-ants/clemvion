@@ -5,7 +5,7 @@ import { createConnection as mysqlCreateConnection } from 'mysql2/promise';
 import {
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
-} from '../../nodes/integration/http-request/http-safety';
+} from '../../common/utils/ssrf/outbound-guard';
 import {
   DB_HOST_BLOCKED_MESSAGE,
   buildMysqlSsl,
