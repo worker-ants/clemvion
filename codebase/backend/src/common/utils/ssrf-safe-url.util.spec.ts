@@ -4,11 +4,9 @@ import {
   checkResolvedHostIp,
   checkSsrfSafeUrl,
   DNS_LOOKUP_TIMEOUT_MS,
-  embeddedIpv4FromIpv6,
   isNotificationDnsGuardEnabled,
   isPrivateIpv4,
   isPrivateIpv6,
-  normalizeIpv6Literal,
   resolvedAddressBlockReason,
   shouldWarnNotificationDnsGuardOff,
 } from './ssrf-safe-url.util';
@@ -215,69 +213,6 @@ describe('IPv4 를 품은 IPv6 리터럴', () => {
     expect(isPrivateIpv6(host)).toBe(false);
   });
 
-  /**
-   * 품은 IPv4 의 hi/lo 16비트 순서를 직접 고정한다. 앞뒤가 같은 값이나 하위 16비트가 0 인 값으로는 순서가 바뀌어도 판정이
-   * 같아서 위 판정 표만으로는 이 변환의 회귀를 잡지 못한다.
-   */
-  it.each([
-    ['::ffff:c0a8:101', '192.168.1.1'],
-    ['::ffff:ac10:505', '172.16.5.5'],
-    ['::ffff:a01:203', '10.1.2.3'],
-    ['::ffff:101:a00', '1.1.10.0'],
-    ['::c0a8:101', '192.168.1.1'],
-    ['::ffff:0:c0a8:101', '192.168.1.1'],
-    ['64:ff9b::c0a8:101', '192.168.1.1'],
-    ['64:ff9b::101:a00', '1.1.10.0'],
-    ['0:0:0:0:0:ffff:c0a8:101', '192.168.1.1'],
-  ])('embeddedIpv4FromIpv6 — %s → %s', (host, expected) => {
-    expect(embeddedIpv4FromIpv6(host)).toBe(expected);
-  });
-
-  /**
-   * 6to4 · NAT64 로컬 접두는 `isPrivateIpv6` 가 따로 본다(아래 「특수 용도 대역」). 이 함수는 MCP 가드(`mcp-client.service.ts`)도
-   * 쓰므로 두 대역을 여기서 꺼내면 MCP 의 판정 범위가 함께 바뀐다. MCP 를 맞추는 일은 NERV Task `CLE-T-753725` 의 몫이라 고정한다.
-   */
-  it.each([
-    ['2002:c0a8:101::', '6to4'],
-    ['64:ff9b:1::c0a8:101', 'NAT64 로컬 접두'],
-    ['2001:db8::1', '공인 IPv6'],
-    ['fe80::1', 'link-local'],
-  ])('embeddedIpv4FromIpv6 — /96 표기가 아니면 null: %s (%s)', (host) => {
-    expect(embeddedIpv4FromIpv6(host)).toBeNull();
-  });
-
-  /**
-   * export 된 함수가 "정규화된 입력" 이라는 전제에 기대지 않는다. 정규화되지 않은 입력에서 `parseInt` 가 앞쪽 16진수만 읽으면
-   * 점 표기 `::ffff:127.0.0.1` 이 `255.255.1.39` 로 읽혀 공인으로 보인다. 틀린 IPv4 를 돌려주는 대신 null 이다.
-   */
-  it.each([
-    ['::ffff:127.0.0.1', '점 표기'],
-    ['::127.0.0.1', 'IPv4-compatible 점 표기'],
-    ['64:ff9b::169.254.169.254', 'NAT64 점 표기'],
-    ['::FFFF:7F00:1', '대문자'],
-    ['[::ffff:7f00:1]', '대괄호'],
-    ['::ffff:7f00:1%eth0', 'zone id'],
-    ['::ffff:12345:1', '5자리 그룹'],
-    ['::ffff:7f00:zz', '16진수가 아닌 그룹'],
-    ['::ffff:7f00:', '빈 그룹'],
-    ['0:0:0:0:0:ffff:7f00', '그룹 7개'],
-    ['0:0:0:0:0:0:ffff:7f00:1', '그룹 9개'],
-    ['::1::2', '`::` 둘'],
-    [':::', '`:` 셋'],
-    ['1:2:3:4:5:6:7::8:9', '`::` 가 줄일 자리가 없다'],
-    ['1:2:3:4:5:6:7::8', '`::` 가 0 그룹을 줄인다'],
-    ['', '빈 문자열'],
-    ['example.com', '호스트 이름'],
-  ])('embeddedIpv4FromIpv6 — 정규화되지 않은 입력은 null: %s (%s)', (host) => {
-    expect(embeddedIpv4FromIpv6(host)).toBeNull();
-  });
-
-  it('normalizeIpv6Literal 을 거친 값은 점 표기 입력도 같은 IPv4 를 돌려준다', () => {
-    const normalized = normalizeIpv6Literal('::ffff:192.168.1.1');
-    expect(normalized).toBe('::ffff:c0a8:101');
-    expect(embeddedIpv4FromIpv6(normalized as string)).toBe('192.168.1.1');
-  });
-
   it('zone id 가 붙은 link-local 도 사설로 본다', () => {
     expect(isPrivateIpv6('fe80::1%eth0')).toBe(true);
   });
@@ -286,23 +221,25 @@ describe('IPv4 를 품은 IPv6 리터럴', () => {
     expect(isPrivateIpv6('fcbar.example.com')).toBe(false);
   });
 
-  it('URL 파서가 거부하는 IPv6 문자열은 사설로 보지 않는다', () => {
-    expect(isPrivateIpv6('fe80:::1')).toBe(false);
-  });
-
   /**
-   * 파서에 넘기기 전에 문자 집합(`/^[0-9a-fA-F:.]+$/`)을 묶는 가드를 고정한다. 가드가 없으면 `::1]@xfd.example/` 이
-   * `http://[::1]@xfd.example//]/` 로 읽혀 hostname 이 `xfd.example` 이 되고, `slice(1, -1)` 로 잘린 `fd.exampl` 이 ULA(`fd`)
-   * 접두로 보여 true 가 된다. 가드가 있으면 null 이라 false 다. 입력 끝이 `evil.example` 처럼 사설 접두가 아니면 가드가 없어도
-   * false 가 되어 이 가드를 고정하지 못한다.
+   * 정규화하지 못한 IPv6 모양 문자열은 막는다(fail-closed, NERV Task `CLE-T-753725`). 판정 모듈을 합치기 전에는 알림 웹훅이
+   * 통과, MCP 가 차단으로 달랐다.
    */
-  it('문자 집합 가드: `]` · `@` · `/` 가 섞인 문자열은 다른 URL 로 읽히지 않는다', () => {
-    expect(isPrivateIpv6('::1]@xfd.example/')).toBe(false);
-    expect(normalizeIpv6Literal('::1]@xfd.example/')).toBeNull();
+  it('URL 파서가 거부하는 IPv6 문자열은 막는다', () => {
+    expect(isPrivateIpv6('fe80:::1')).toBe(true);
+    expect(resolvedAddressBlockReason('fe80:::1')).toMatch(/resolved IPv6/);
   });
 
   /**
-   * `ALLOW_PRIVATE_HOST_TARGETS` 는 HTTP Request · Database Query · Send Email 통합 노드의 가드(`http-safety.ts`) 전용이다.
+   * 문자 집합(`/^[0-9a-fA-F:.]+$/`) 밖의 문자가 섞인 문자열은 IPv6 리터럴로 보지 않는다(`ssrf/ip-classifier.spec.ts` 가 판정을
+   * 고정한다). 가드가 없으면 `::1]@xfd.example/` 이 `http://[::1]@xfd.example//]/` 로 읽혀 다른 호스트로 정규화된다.
+   */
+  it('문자 집합 가드: `]` · `@` · `/` 가 섞인 문자열은 IPv6 리터럴이 아니다', () => {
+    expect(isPrivateIpv6('::1]@xfd.example/')).toBe(false);
+  });
+
+  /**
+   * `ALLOW_PRIVATE_HOST_TARGETS` 는 HTTP Request · Database Query · Send Email 통합 노드의 가드(`common/utils/ssrf/outbound-guard.ts`) 전용이다.
    * 알림 웹훅 가드(`checkSsrfSafeUrl`)는 이 플래그를 읽지 않고 사설망 허용 우회 플래그도 없다. `ALLOW_HTTP_HOOKS` 는
    * `http:` 스킴만 연다.
    */
@@ -625,6 +562,20 @@ describe('checkResolvedHostIp — DNS rebinding 방어 [Spec EIA §8.1]', () => 
       expect(r.ok).toBe(false);
       expect(r.reason).toContain(address);
     });
+
+    // 해석기가 IPv4-mapped 로 돌려준 공인 IPv4 는 통과한다. 품은 IPv4 의 hi/lo 를 바꿔 읽으면 10.0.1.1(사설)이 된다.
+    it.each([
+      ['::ffff:101:a00', 6],
+      ['::ffff:1.1.10.0', 6],
+    ])(
+      '공인 IPv4 를 품은 IPv6 %s 로 풀리면 ok:true',
+      async (address, family) => {
+        mockedLookup.mockResolvedValue([{ address, family }]);
+        expect(await checkResolvedHostIp('hooks.example.com')).toEqual({
+          ok: true,
+        });
+      },
+    );
 
     it('주소 하나라도 사설이면 ok:false (공인 · 사설 섞임)', async () => {
       mockedLookup.mockResolvedValue([

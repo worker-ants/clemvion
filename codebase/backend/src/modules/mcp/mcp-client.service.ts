@@ -13,10 +13,7 @@ import {
   createLazyGuardedDispatcher,
   findCause,
 } from '../../common/utils/guarded-lookup-dispatcher';
-import {
-  embeddedIpv4FromIpv6,
-  normalizeIpv6Literal,
-} from '../../common/utils/ssrf-safe-url.util';
+import { isBlockedIpLiteral } from '../../common/utils/ssrf/ip-classifier';
 
 /**
  * Identifier sent to MCP servers in `clientInfo`. The MCP spec is happy with
@@ -463,50 +460,9 @@ export class McpClientService {
     if (host === 'metadata.google.internal') return true;
     if (host === 'metadata.azure.com') return true;
     if (host === 'metadata.amazonaws.com') return true;
-    // IPv4 literal
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
-      return this.isBlockedIPv4(host);
-    }
-    // IPv6 literal (URL hostname strips brackets)
-    if (host.includes(':')) {
-      return this.isBlockedIPv6(host);
-    }
-    return false;
-  }
-
-  private isBlockedIPv4(host: string): boolean {
-    const parts = host.split('.').map(Number);
-    if (parts.length !== 4 || parts.some((n) => n < 0 || n > 255 || isNaN(n)))
-      return true;
-    const [a, b] = parts;
-    // 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8
-    if (a === 0 || a === 10 || a === 127) return true;
-    // 172.16.0.0/12
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    // 192.168.0.0/16
-    if (a === 192 && b === 168) return true;
-    // 169.254.0.0/16 (link-local incl. AWS metadata 169.254.169.254)
-    if (a === 169 && b === 254) return true;
-    // 100.64.0.0/10 (carrier-grade NAT — also avoid)
-    if (a === 100 && b >= 64 && b <= 127) return true;
-    return false;
-  }
-
-  private isBlockedIPv6(host: string): boolean {
-    // URL.hostname is already canonical (`[::ffff:127.0.0.1]` becomes
-    // `::ffff:7f00:1`), so a dotted-only pattern never matches it.
-    const lower = normalizeIpv6Literal(host);
-    // Unparseable literal — fail closed like isBlockedIPv4.
-    if (lower === null) return true;
-    if (lower === '::1' || lower === '::') return true;
-    // fc00::/7 unique-local, fe80::/10 link-local
-    if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
-    if (lower.startsWith('fe8') || lower.startsWith('fe9')) return true;
-    if (lower.startsWith('fea') || lower.startsWith('feb')) return true;
-    // IPv4-mapped / -compatible / SIIT / NAT64 — enforce v4 rules on the
-    // embedded address
-    const v4 = embeddedIpv4FromIpv6(lower);
-    return v4 !== null && this.isBlockedIPv4(v4);
+    // IP 리터럴은 SSRF 가드 네 벌이 함께 쓰는 판정(`common/utils/ssrf/ip-classifier.ts`)으로 본다. 정규화하지 못한 IPv6
+    // 모양 문자열과 255 를 넘는 octet 은 막는다(fail-closed).
+    return isBlockedIpLiteral(host);
   }
 
   /**

@@ -173,26 +173,34 @@ describe('outbound-guard — isBlockedHostname', () => {
   });
 
   /**
-   * IPv4 를 품는 **다른** 표기는 의도적으로 막지 않는다 — 같은 실측(macOS · `node:24-alpine`)에서 127.0.0.1 전용 서버에 닿지
-   * 않았다(`EHOSTUNREACH`/`ENETUNREACH`). mapped 판정을 넓히는 변경이 이 경계를 조용히 옮기지 못하게 고정한다 — 막기로 정하면
-   * 이 표를 함께 바꾼다.
+   * IPv4 를 품는 다른 표기도 품은 IPv4 로 판정한다(NERV Task `CLE-T-63RSH6` · `CLE-T-753725`). macOS · `node:24-alpine` 실측에서는
+   * 127.0.0.1 전용 서버에 닿지 않았지만(`EHOSTUNREACH`/`ENETUNREACH`), NAT64 · 6to4 망에서는 게이트웨이 · 릴레이를 거쳐 품은
+   * IPv4 로 간다. 네 가드가 한 대역표를 쓰도록 맞췄다. 공인 IPv4 를 품었으면 통과한다.
    */
   it.each([
     ['::7f00:1', 'IPv4-compatible ::127.0.0.1'],
     ['::ffff:0:7f00:1', 'SIIT ::ffff:0:127.0.0.1'],
     ['64:ff9b::7f00:1', 'NAT64 64:ff9b::127.0.0.1'],
     ['2002:7f00:1::', '6to4 2002:7f00:1::'],
-  ])('mapped 가 아닌 IPv4 내장 표기는 통과(현 정책): %s — %s', (host) => {
+  ])('mapped 가 아닌 IPv4 내장 표기도 막는다: %s — %s', (host) => {
+    expect(isBlockedHostname(host)).toBe(true);
+  });
+
+  it.each([
+    ['::808:808', 'IPv4-compatible ::8.8.8.8'],
+    ['64:ff9b::808:808', 'NAT64 64:ff9b::8.8.8.8'],
+    ['2002:808:808::', '6to4 2002:808:808::'],
+  ])('공인 IPv4 를 품은 표기는 통과: %s — %s', (host) => {
     expect(isBlockedHostname(host)).toBe(false);
   });
 
   /**
-   * URL 파서가 거부하는 입력(zone id)은 정규화 없이 원문으로 판정한다 — 폴백이 빈 문자열 등으로 깨지면 link-local 이 통과한다.
+   * zone id 는 떼고 판정한다. URL 파서는 zone id 가 붙은 리터럴을 거부하므로 떼지 않으면 정규화에 실패한다.
    */
   it.each([
     ['fe80::1%eth0', 'link-local + zone id'],
     ['[fe80::1%25en0]', 'link-local + URL 인코딩 zone id'],
-  ])('정규화할 수 없는 입력도 원문으로 판정: %s — %s', (host) => {
+  ])('zone id 가 붙은 입력도 같은 대역으로 판정: %s — %s', (host) => {
     expect(isBlockedHostname(host)).toBe(true);
   });
 
