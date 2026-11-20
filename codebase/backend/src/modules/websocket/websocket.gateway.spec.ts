@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
-import { WebsocketGateway } from './websocket.gateway';
+import {
+  MAX_SUBSCRIPTIONS_PER_CONNECTION,
+  WebsocketGateway,
+} from './websocket.gateway';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { WsErrorCode } from './ws-error-codes';
@@ -652,7 +655,7 @@ describe('WebsocketGateway', () => {
     it('should reject when max subscriptions reached', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
       const subs = new Set<string>();
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < MAX_SUBSCRIPTIONS_PER_CONNECTION; i++) {
         subs.add(`execution:exec-${i}`);
       }
       getSubscriptions().set('client-1', subs);
@@ -668,14 +671,16 @@ describe('WebsocketGateway', () => {
     });
 
     it('enforces MAX_SUBSCRIPTIONS across concurrent subscribe with deferred authorize (TOCTOU race)', async () => {
-      // 시나리오: clientSubs.size === 19, MAX === 20.
+      // 시나리오: clientSubs.size === 한도 - 1.
       // 동시에 두 개의 인가 대상 채널(kb:<uuidA>, kb:<uuidB>) 을 subscribe 한다.
       // authorize 가 둘 다 yield 한 뒤 차례로 resolve 될 때, recheck + add 의
       // 원자성이 깨지면 size 가 21 까지 증가할 수 있다.
       const { socket, join } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
       const subs = new Set<string>();
-      for (let i = 0; i < 19; i++) subs.add(`execution:exec-${i}`);
+      for (let i = 0; i < MAX_SUBSCRIPTIONS_PER_CONNECTION - 1; i++) {
+        subs.add(`execution:exec-${i}`);
+      }
       getSubscriptions().set('client-1', subs);
 
       // kb:doc 채널은 verifyDocumentOwnership 으로 인가 (async).
@@ -699,15 +704,18 @@ describe('WebsocketGateway', () => {
         { channel: 'kb:bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb' },
         socket,
       );
-      // 둘 다 authorize 단계에 진입한 뒤 동시 resolve.
+      // 둘 다 authorize 단계에 들어간 것을 확인한 뒤 resolve 한다. 확인하지 않으면 authorizer 가
+      // 서비스를 다음 tick 에 부르게 바뀔 때 resolveA · resolveB 가 아직 빈 함수라 시간 초과로만 실패한다.
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(kbService.verifyDocumentOwnership).toHaveBeenCalledTimes(2);
       resolveA(true);
       resolveB(true);
       const [rA, rB] = await Promise.all([pA, pB]);
 
-      // 정확히 한 개만 성공해야 한다 (20 한도). 둘 다 실패도 안 됨.
+      // 정확히 한 개만 성공해야 한다. 둘 다 실패도 안 됨.
       const successes = [rA, rB].filter((r) => r.data.success).length;
       expect(successes).toBe(1);
-      expect(subs.size).toBeLessThanOrEqual(20);
+      expect(subs.size).toBe(MAX_SUBSCRIPTIONS_PER_CONNECTION);
       // 실패한 쪽은 채널에 join 하지 않는다 (롤백/거부).
       expect(join).toHaveBeenCalledTimes(successes);
     });
@@ -753,6 +761,7 @@ describe('WebsocketGateway', () => {
       ['null', { channel: null }],
       ['키 없음', {}],
       ['본문 없음', undefined],
+      ['본문 null', null],
     ])('문자열이 아닌 값(%s)이면 channel 필드를 뺀다', async (_label, body) => {
       const { socket } = authedSocket();
       const result = await subscribe(body, socket);
@@ -777,7 +786,9 @@ describe('WebsocketGateway', () => {
     it('구독 한도에 걸리면 SUBSCRIPTION_LIMIT_EXCEEDED 와 channel 을 싣는다', async () => {
       const { socket } = authedSocket();
       const subs = getSubscriptions().get('client-1')!;
-      for (let i = 0; i < 20; i++) subs.add(`execution:exec-${i}`);
+      for (let i = 0; i < MAX_SUBSCRIPTIONS_PER_CONNECTION; i++) {
+        subs.add(`execution:exec-${i}`);
+      }
       const result = await subscribe({ channel: EXEC_CHANNEL }, socket);
       expect(result.data).toMatchObject({
         success: false,
@@ -840,7 +851,9 @@ describe('WebsocketGateway', () => {
     it('인가 뒤 한도 재확인에서 진 구독은 자기 channel 을 싣는다', async () => {
       const { socket } = authedSocket();
       const subs = getSubscriptions().get('client-1')!;
-      for (let i = 0; i < 19; i++) subs.add(`execution:exec-${i}`);
+      for (let i = 0; i < MAX_SUBSCRIPTIONS_PER_CONNECTION - 1; i++) {
+        subs.add(`execution:exec-${i}`);
+      }
       const kbService = module.get(KnowledgeBaseService);
       let resolveA: (v: boolean) => void = () => undefined;
       let resolveB: (v: boolean) => void = () => undefined;
@@ -855,6 +868,9 @@ describe('WebsocketGateway', () => {
       const channelB = 'kb:bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb';
       const pA = subscribe({ channel: channelA }, socket);
       const pB = subscribe({ channel: channelB }, socket);
+      // 둘 다 authorize 단계에 들어간 뒤 resolve 한다(위 TOCTOU 테스트와 같은 이유).
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(kbService.verifyDocumentOwnership).toHaveBeenCalledTimes(2);
       resolveA(true);
       resolveB(true);
       const results = await Promise.all([pA, pB]);

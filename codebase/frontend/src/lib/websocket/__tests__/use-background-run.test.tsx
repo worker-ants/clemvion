@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useBackgroundRun } from "../use-background-run";
@@ -171,11 +171,14 @@ describe("useBackgroundRun (W-20 — WS lifecycle)", () => {
 
 /**
  * 구독 실패 ack 거르기(CLE-API-WS-MSG §4.4). 싱글턴 소켓이라 다른 채널의 실패 ack 도 온다. 이 구독의
- * channel 이거나 channel 이 없는(실패 응답에 channel 을 싣기 전 서버) 실패만 경고한다.
+ * channel 이거나 channel 이 문자열이 아닌(실패 응답에 channel 을 싣기 전 서버) 실패만 경고한다.
  */
 describe("useBackgroundRun — 구독 실패 ack", () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     wsClientMock.isConnected.mockReturnValue(true);
     vi.spyOn(api.backgroundRunsApi, "getById").mockResolvedValue({
       backgroundRunId: "bg-1",
@@ -188,6 +191,11 @@ describe("useBackgroundRun — 구독 실패 ack", () => {
       nodeExecutions: { data: [], nextCursor: null, hasMore: false },
       notifications: [],
     });
+  });
+
+  // 단언이 실패해도 spy 를 되돌린다. 테스트 안에서 되돌리면 단언 실패 때 다음 테스트로 새어 나간다.
+  afterEach(() => {
+    warn.mockRestore();
   });
 
   async function mountAndGetAckHandler(): Promise<(ack: unknown) => void> {
@@ -204,11 +212,13 @@ describe("useBackgroundRun — 구독 실패 ack", () => {
     return call![1] as (ack: unknown) => void;
   }
 
+  // channel 이 문자열이 아니면(null · 숫자) channel 이 없는 실패와 같이 이 구독의 실패로 본다.
   it.each([
     ["이 구독의 channel", { channel: "background:run:bg-1" }],
     ["channel 없음", {}],
+    ["channel 이 null", { channel: null }],
+    ["channel 이 숫자", { channel: 123 }],
   ])("%s 실패 ack 는 경고한다", async (_label, extra) => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const ackHandler = await mountAndGetAckHandler();
     const ack = { success: false, error: "denied", code: "FORBIDDEN", ...extra };
     ackHandler(ack);
@@ -216,18 +226,17 @@ describe("useBackgroundRun — 구독 실패 ack", () => {
       "[useBackgroundRun] subscribe rejected:",
       ack,
     );
-    warn.mockRestore();
   });
 
+  // 빈 문자열은 문자열이라 이 구독의 channel 과 비교하고, 다르므로 거른다.
   it.each([
     ["다른 채널 실패", { success: false, channel: "background:run:bg-2" }],
     ["실행 채널 실패", { success: false, channel: "execution:exec-1" }],
+    ["channel 이 빈 문자열인 실패", { success: false, channel: "" }],
     ["성공", { success: true, channel: "background:run:bg-1" }],
   ])("%s ack 로는 경고하지 않는다", async (_label, ack) => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const ackHandler = await mountAndGetAckHandler();
     ackHandler(ack);
     expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
   });
 });
