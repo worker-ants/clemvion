@@ -15,6 +15,7 @@ import {
   collectCatalogCodes,
   isMessagePrefixOnly,
   computeNonEmittedOffenders,
+  matchTokens,
   GUIDE_EXTERNAL_VOCABULARY,
   GUIDE_NON_EMITTED_VOCABULARY,
   type CitationAxis,
@@ -224,12 +225,12 @@ function symbolRefProblem(
  * `where` 에서 `파일.ts:줄` · `파일.ts#심볼` 참조를 **전부** 뽑고, **뽑히지 않고 남은 것**을
  * 함께 낸다.
  *
- * 형식은 `<위치들> — <산문>` 이고, 같은 파일의 여러 줄은 `a.ts:10·20` 처럼 가운뎃점으로
- * 잇는다 — 실제 등록 항목이 그 형태를 쓴다.
+ * 형식은 `<위치들> — <산문>` 이고, 위치 여럿은 가운뎃점(`·`)으로 잇는다.
  *
  * `파일.ts#심볼` 은 줄 번호 대신 식별자로 위치를 가리킨다. 다른 작업이 그 파일의 줄을
  * 옮겨도 깨지지 않는다(줄 번호 항목은 실제로 엔진 수정 때마다 함께 고쳐 왔다). 검증은
- * 그 심볼이 있는 줄 중 하나가 토큰도 담는지 본다.
+ * 그 심볼이 있는 줄 중 하나가 토큰도 담는지 본다. 등록 항목은 `파일.ts#심볼` 만 쓴다.
+ * 파서가 `파일.ts:줄` 도 읽는 것은 그 표기를 잔여 없이 집어내 거부하기 위해서다.
  *
  * **왜 잔여를 함께 내는가**: 정규식만 두면 다음 항목이 `a.ts:10, 20` 처럼 다른 구분자를
  * 쓸 때 **앞쪽만 먹고 나머지를 조용히 버린다**. `refs.length === 0` 가드는 그것을 못 잡는다 —
@@ -676,6 +677,16 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       expect(
         GUIDE_NON_EMITTED_VOCABULARY.filter(
           (e) => parseWhereRefs(e.where).residue !== "",
+        ).map((e) => e.token),
+      ).toEqual([]);
+    });
+
+    it("등록된 항목의 `where` 는 줄 번호(`파일.ts:줄`)를 쓰지 않는다", () => {
+      // 줄 번호 항목은 엔진 서비스에 줄이 더해질 때마다 따로 고쳐야 했다(NERV Task
+      // `CLE-T-C0DK0Q`). 위치는 `파일.ts#심볼` 로만 적는다.
+      expect(
+        GUIDE_NON_EMITTED_VOCABULARY.filter((e) =>
+          parseWhereRefs(e.where).refs.some((r) => "line" in r),
         ).map((e) => e.token),
       ).toEqual([]);
     });
@@ -1180,6 +1191,31 @@ describe("발행 축 수집기 — 경계 대조군", () => {
     expect([
       ...collectQuotedLiterals(["'Q_ONE'", "'Q_ONE'", "'R_TWO'"]),
     ]).toEqual(["Q_ONE", "R_TWO"]);
+  });
+});
+
+describe("matchTokens — 매치를 꺼내는 한 곳", () => {
+  it("`matchTokens` 는 정규식의 `lastIndex` 에 기대지 않는다", () => {
+    // 손으로 쓴 `exec` 루프와 맨 `matchAll` 은 `lastIndex` 가 남아 있으면 그 위치부터 찾아
+    // 앞 매치를 놓친다. 앞 호출이 끝까지 돌면 `exec` 가 null 에서 스스로 0 으로 되돌리므로,
+    // 리셋 줄만 지워서는 이 차이가 드러나지 않는다. 그래서 `lastIndex` 를 직접 옮겨 놓고 본다.
+    const rx = new RegExp("(?<token>[A-Z]+_[A-Z]+)", "g");
+    const text = "A_ONE B_TWO C_THREE";
+    rx.lastIndex = text.indexOf("C_THREE");
+    expect(matchTokens(text, rx)).toEqual(["A_ONE", "B_TWO", "C_THREE"]);
+    // 모듈 상수를 공유해도 호출부 상태가 바뀌지 않는다.
+    expect(rx.lastIndex).toBe(text.indexOf("C_THREE"));
+  });
+
+  it("같은 정규식으로 두 텍스트를 이어 걸어도 두 번째의 앞 매치를 놓치지 않는다", () => {
+    const rx = new RegExp("(?<token>[A-Z]+_[A-Z]+)", "g");
+    expect(matchTokens("X_ONE Y_TWO", rx)).toEqual(["X_ONE", "Y_TWO"]);
+    expect(matchTokens("Z_ONE", rx)).toEqual(["Z_ONE"]);
+  });
+
+  it("이름 붙은 그룹 `token` 이 없는 정규식은 조용히 넘기지 않고 throw 한다", () => {
+    // 그룹 번호를 정수로 넘기던 때는 그룹이 어긋나면 `undefined` 가 `Set` 에 섞였다.
+    expect(() => matchTokens("A_ONE", /([A-Z]+_[A-Z]+)/g)).toThrow(/token/);
   });
 });
 
