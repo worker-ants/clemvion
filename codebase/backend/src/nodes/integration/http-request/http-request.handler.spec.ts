@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { HttpRequestHandler, extractApiPath } from './http-request.handler.js';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
   assertSafeOutboundUrl,
   safeOutboundDispatcher,
@@ -1013,6 +1014,8 @@ describe('HttpRequestHandler', () => {
       expect(output.error.code).toBe('INTEGRATION_CALL_FAILED');
       // 원문은 서버 로그에만 남기고 고정 문구를 내보낸다(CLE-T-E991S1). 차단 판정의 일반화 문구와 같은 규칙이다.
       expect(output.error.message).toBe('The outbound address check failed.');
+      expect(output.error.message).toBe(SSRF_GUARD_FAILED_CLIENT_MESSAGE);
+      expect(JSON.stringify(output.error)).not.toContain('toLowerCase');
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({

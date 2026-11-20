@@ -5,7 +5,10 @@ import {
   extractSqlVerb,
   isWriteOperation,
 } from './database-query.handler.js';
-import { assertSafeOutboundHostResolved } from '../../../common/utils/ssrf/outbound-guard.js';
+import {
+  assertSafeOutboundHostResolved,
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+} from '../../../common/utils/ssrf/outbound-guard.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -1254,6 +1257,9 @@ describe('DatabaseQueryHandler', () => {
         expect(out.output.error.message).toBe(
           'The outbound address check failed.',
         );
+        expect(out.output.error.message).toBe(SSRF_GUARD_FAILED_CLIENT_MESSAGE);
+        // 가드 오류 원문은 사용자 응답에 실리지 않는다(서버 로그 전용).
+        expect(JSON.stringify(out.output.error)).not.toContain('toLowerCase');
         expect(connectMock).not.toHaveBeenCalled();
         expect(logUsage).toHaveBeenCalledWith(
           expect.objectContaining({ id: 'int-1' }),

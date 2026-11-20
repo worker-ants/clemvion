@@ -435,6 +435,22 @@ describe('특수 용도 대역 (CLE-T-W95HND)', () => {
     });
 
     it.each([
+      ['::ffff:10.0.0.1', 6],
+      ['::ffff:a00:1', 6],
+      ['::FFFF:7F00:1', 6],
+      ['::ffff:169.254.169.254', 6],
+      ['fe80::1%eth0', 6],
+      ['::ffff:10.0.0.1%lo0', 6],
+    ])(
+      '도메인이 사설 mapped/zone 주소 %s 로 풀리면 ok:false',
+      async (address, family) => {
+        mockedLookup.mockResolvedValue([{ address, family }]);
+        const r = await checkResolvedHostIp('hooks.example.com');
+        expect(r.ok).toBe(false);
+      },
+    );
+
+    it.each([
       ['192.0.1.0', 4],
       ['198.20.0.0', 4],
       ['223.255.255.255', 4],

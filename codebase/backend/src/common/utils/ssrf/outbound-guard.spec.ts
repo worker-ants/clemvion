@@ -6,6 +6,8 @@ import {
   isBlockedHostname,
   resetSafeOutboundDispatcherForTesting,
   safeOutboundDispatcher,
+  SSRF_BLOCKED_CLIENT_MESSAGE,
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
 } from './outbound-guard';
 
@@ -307,5 +309,17 @@ describe('outbound-guard — safeOutboundDispatcher (연결 시점 판정 dispat
 
     expect(second).toBeDefined();
     expect(second).not.toBe(first);
+  });
+});
+
+describe('outbound-guard — 사용자 노출 고정 문구', () => {
+  it('가드 고장 문구와 차단 문구는 서로 다르고 host/IP 를 담지 않는다', () => {
+    expect(SSRF_GUARD_FAILED_CLIENT_MESSAGE).toBe(
+      'The outbound address check failed.',
+    );
+    expect(SSRF_BLOCKED_CLIENT_MESSAGE).toBe('Request blocked by SSRF policy.');
+    expect(SSRF_GUARD_FAILED_CLIENT_MESSAGE).not.toBe(
+      SSRF_BLOCKED_CLIENT_MESSAGE,
+    );
   });
 });

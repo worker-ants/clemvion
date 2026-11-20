@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
@@ -65,6 +66,8 @@ describe('outboundBlockReason', () => {
       code: 'INTEGRATION_CALL_FAILED',
       message: 'The outbound address check failed.',
     });
+    expect((err as Error).message).toBe(SSRF_GUARD_FAILED_CLIENT_MESSAGE);
+    expect((err as Error).message).not.toContain('toLowerCase');
     // 원문은 서버 로그에만 남는다.
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('hostname.toLowerCase'),
