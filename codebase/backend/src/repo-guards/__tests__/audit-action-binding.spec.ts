@@ -35,15 +35,25 @@ import * as path from 'node:path';
 import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 
 import {
+  AUDIT_ACTION_CONST_FILE,
   AUDIT_HELPER_NAMES,
   BOUND_TYPE_NAME,
   collectSourceFiles,
   findAuditHelpers,
+  findInlineAuditRecords,
   findMisboundHelpers,
+  findMisboundRecordCalls,
   findUnboundHelpers,
+  parseAuditActionsConst,
 } from './audit-action-binding-guard';
 import {
   ARROW_FIELD_BARE_SOURCE,
+  AUDIT_ACTIONS_CONST_SOURCE,
+  INLINE_GOOD_SOURCE,
+  INLINE_MISBOUND_SOURCE,
+  INLINE_UNKNOWN_KEY_SOURCE,
+  INLINE_UNRELATED_RECORD_SOURCE,
+  INLINE_UNRESOLVABLE_SOURCE,
   ARROW_FIELD_BOUND_SOURCE,
   BARE_UNION_SOURCE,
   BOUND_SOURCE,
@@ -193,5 +203,114 @@ describe('[대조군] AuditHelperSite.file 이 REPO_ROOT 기준 상대경로인�
     );
     expect(nodePath.resolve(REPO_ROOT, site.file)).toBe(withHelper);
     expect(site.file).not.toContain('\\');
+  });
+});
+
+/**
+ * ## 인라인 `record()` 호출도 같은 불변식을 지킨다
+ *
+ * helper 를 두지 않고 `auditLogsService.record({ action, resourceType })` 를 직접 부르는 자리는
+ * `action` 이 `AuditAction` 합집합 전체라서 `resourceType` 과 어긋나도 컴파일러가 잡지 못한다.
+ * 위 helper 검사는 선언만 보므로 이 자리는 비어 있었다. 실제 호출 하나의 `resourceType` 을
+ * 다른 리소스로 바꾼 뮤턴트가 종전 가드에서 19/19 GREEN 이었다.
+ */
+describe('인라인 감사 기록 호출의 action 접두는 resourceType 과 같아야 한다', () => {
+  const auditActions = parseAuditActionsConst(
+    fs.readFileSync(path.join(REPO_ROOT, AUDIT_ACTION_CONST_FILE), 'utf-8'),
+    AUDIT_ACTION_CONST_FILE,
+  );
+  const calls = collectSourceFiles(REPO_ROOT).flatMap((f) =>
+    findInlineAuditRecords(
+      fs.readFileSync(f, 'utf-8'),
+      toPosixRelative(REPO_ROOT, f),
+      auditActions,
+    ),
+  );
+  const resolved = calls.filter(
+    (c) => c.action !== null && c.resourceType !== null,
+  );
+
+  it('[전제] AUDIT_ACTIONS 를 실제로 읽었다', () => {
+    expect(auditActions.size).toBeGreaterThanOrEqual(30);
+  });
+
+  it('[전제] 양쪽이 해석된 인라인 호출을 실제로 찾았다 — 적으면 아래 단언이 vacuous 하다', () => {
+    // 2026-11-20 기준 22곳. 파서가 회귀해 아무것도 풀지 못하면 "위반 0건" 으로 통과하므로
+    // 실제 수보다 조금 낮은 하한을 건다. 호출을 helper 로 옮겨 수가 줄면 하한을 함께 내린다.
+    expect(resolved.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it('모든 인라인 호출의 action 이 자기 resourceType 에 속한다', () => {
+    const misbound = findMisboundRecordCalls(calls).map(
+      (c) =>
+        `${c.file}:${c.line} — action=${String(c.action)} resourceType=${String(c.resourceType)}`,
+    );
+    expect(misbound).toEqual([]);
+  });
+});
+
+describe('인라인 record() 판정 — fixture', () => {
+  const actions = parseAuditActionsConst(
+    AUDIT_ACTIONS_CONST_SOURCE,
+    'audit-action.const.ts',
+  );
+  const parse = (src: string) =>
+    findInlineAuditRecords(src, 'fixture.ts', actions);
+
+  it('AUDIT_ACTIONS 의 `as const` 객체를 키→값으로 읽는다', () => {
+    expect([...actions.entries()]).toEqual([
+      ['FOO_CREATED', 'foo.created'],
+      ['FOO_DELETED', 'foo.deleted'],
+      ['BAR_UPDATED', 'bar.updated'],
+    ]);
+  });
+
+  it('AUDIT_ACTIONS 를 찾지 못하면 던진다 (빈 맵으로 조용히 넘어가지 않는다)', () => {
+    expect(() =>
+      parseAuditActionsConst('export const OTHER = {};', 'x.ts'),
+    ).toThrow(/AUDIT_ACTIONS/);
+  });
+
+  it('접두가 맞는 호출은 통과한다 — 상수 · 리터럴 · 로컬 상수 resourceType 모두 푼다', () => {
+    const sites = parse(INLINE_GOOD_SOURCE);
+    expect(sites.map((s) => [s.action, s.resourceType])).toEqual([
+      ['foo.created', 'foo'],
+      ['bar.updated', 'bar'],
+      ['foo.deleted', 'foo'],
+    ]);
+    expect(findMisboundRecordCalls(sites)).toEqual([]);
+  });
+
+  it('다른 리소스의 액션을 기록하는 호출을 잡고 그 줄을 보고한다', () => {
+    const misbound = findMisboundRecordCalls(parse(INLINE_MISBOUND_SOURCE));
+    expect(misbound).toHaveLength(1);
+    expect(misbound[0]).toMatchObject({
+      file: 'fixture.ts',
+      line: 10,
+      action: 'foo.deleted',
+      resourceType: 'bar',
+    });
+  });
+
+  it('값을 정적으로 모르는 호출은 수집하되 판정하지 않는다', () => {
+    const sites = parse(INLINE_UNRESOLVABLE_SOURCE);
+    // 수집을 단언하지 않으면 "안 찾았다" 와 "찾았는데 보류했다" 가 구분되지 않는다.
+    expect(sites).toHaveLength(3);
+    expect(sites.map((s) => [s.action, s.resourceType])).toEqual([
+      [null, 'bar'],
+      [null, null],
+      ['foo.created', null],
+    ]);
+    expect(findMisboundRecordCalls(sites)).toEqual([]);
+  });
+
+  it('action 과 resourceType 이 함께 있는 객체 하나가 아니면 수집하지 않는다', () => {
+    expect(parse(INLINE_UNRELATED_RECORD_SOURCE)).toEqual([]);
+  });
+
+  it('AUDIT_ACTIONS 에 없는 키는 조용히 건너뛰지 않고 던진다', () => {
+    expect(() => parse(INLINE_UNKNOWN_KEY_SOURCE)).toThrow(
+      /fixture\.ts:4: AUDIT_ACTIONS\.FOO_RENAMED/,
+    );
   });
 });

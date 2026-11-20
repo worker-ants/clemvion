@@ -104,8 +104,14 @@ export class AuditLogsService {
   }
 
   /**
-   * Record an audit event. Failures are swallowed — audit logging must never
-   * break the primary action.
+   * 감사 이벤트 한 건을 기록한다.
+   *
+   * 저장에 실패해도 예외를 던지지 않는다. 감사 기록 실패로 본 요청이 깨지면 안 되기 때문이다.
+   * 실패하면 두 가지를 남긴다.
+   * - 감사 기록 실패 카운터를 올린다(`recordAuditWriteFailed(resourceType)`). 이 호출도
+   *   best-effort 라서 여기서 난 예외도 삼킨다.
+   * - warn 로그 한 줄에 `action` · `resourceType` · `resourceId` · `workspaceId` 네 필드와
+   *   오류 메시지를 남긴다. 어느 감사 행이 유실됐는지 로그만으로 알 수 있게 하려는 것이다.
    */
   async record(entry: {
     workspaceId: string;
