@@ -96,7 +96,7 @@ describe('Notifications — 일일 요약 e2e', () => {
     await db.query(
       `INSERT INTO notification
          (workspace_id, user_id, type, title, message, is_read, channel, created_at, dismissed_at)
-       VALUES ($1, $2, $3, $7, $7, false, $4,
+       VALUES ($1, $2, $3, $7::text, $7::text, false, $4,
                NOW() - make_interval(mins => $5::int),
                CASE WHEN $6::boolean THEN NOW() ELSE NULL END)`,
       [
