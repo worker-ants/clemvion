@@ -704,8 +704,8 @@ function skipToLineEnd(sql: string, pos: number): SqlSkip {
 /**
  * `pos` 에서 시작하는 주석 하나를 건너뛴다.
  *
- * - `--` 뒤에 공백이 아닌 문자가 붙어 있으면 `ambiguous` 다. MySQL 은 `--` 뒤에 공백 · 제어 문자가 있어야
- *   주석으로 읽고 PostgreSQL 은 늘 주석으로 읽는다.
+ * - `--` 뒤에 공백이 아닌 문자가 붙어 있으면 `ambiguous` 다. MySQL 은 `--` 뒤에 ASCII 공백 · 제어 문자가 있어야
+ *   주석으로 읽고(NBSP · U+2028 · U+3000 같은 유니코드 공백은 공백이 아니다) PostgreSQL 은 늘 주석으로 읽는다.
  * - `#` 는 MySQL 에서만 줄 주석이다. PostgreSQL 에서는 연산자(`#>` 등)라 주석이 아니다.
  * - 블록 주석이 닫히지 않았거나 안에 `/*` 가 또 있으면(PostgreSQL 만 중첩을 허용) `ambiguous` 다.
  * - MySQL 실행 주석 `/*!` 는 안쪽을 SQL 로 실행하므로 MySQL 에서 `ambiguous` 다.
@@ -719,7 +719,8 @@ function skipSqlComment(
 ): SqlSkip {
   if (sql.startsWith('--', pos)) {
     const next = sql[pos + 2];
-    if (next !== undefined && !/\s/.test(next)) return SQL_AMBIGUOUS;
+    if (next !== undefined && !/[\x00-\x20\x7f]/.test(next))
+      return SQL_AMBIGUOUS;
     return skipToLineEnd(sql, pos);
   }
   if (dialect === 'mysql' && sql[pos] === '#') return skipToLineEnd(sql, pos);

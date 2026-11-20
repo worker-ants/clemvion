@@ -396,6 +396,23 @@ describe('DatabaseQueryHandler', () => {
         await handler.shutdown();
       });
 
+      it('MySQL: 풀을 만들 때 multipleStatements 를 켜지 않는다 (dry-run 판정의 마지막 방어선)', async () => {
+        const { service } = makeService({ integration: mysqlIntegration });
+        mysqlQueryMock.mockResolvedValue([[], []]);
+        const handler = new DatabaseQueryHandler(service as never);
+        await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        );
+        const create = jest.requireMock('mysql2/promise').createPool;
+        expect(create).toHaveBeenCalled();
+        for (const [options] of create.mock.calls) {
+          expect(options.multipleStatements ?? false).toBe(false);
+        }
+        await handler.shutdown();
+      });
+
       it('정상 완료 시 cancel 미발행 + abort 리스너 해제(누수 방지)', async () => {
         const { service } = makeService();
         queryMock.mockResolvedValue({ rows: [{ id: 1 }], rowCount: 1 });
@@ -1578,12 +1595,32 @@ describe('isWriteOperation', () => {
   describe('boundaries (CLE-T-EANRHY)', () => {
     it.each([
       ['`--` at the end of the text', 'SELECT 1 --', false],
+      [
+        '`--` before an ASCII space then a statement',
+        'SELECT 1 -- ; DELETE FROM t',
+        false,
+      ],
+      [
+        '`--` before a no-break space',
+        'SELECT 1 --\u00a0; DELETE FROM t',
+        true,
+      ],
+      [
+        '`--` before an ideographic space',
+        'SELECT 1 --\u3000; DELETE FROM t',
+        true,
+      ],
+      [
+        '`--` before a line separator',
+        'SELECT 1 --\u2028; DELETE FROM t',
+        true,
+      ],
       ['`--` before a tab', 'SELECT 1 --\t; DELETE FROM t', false],
       ['`--` before a newline', 'SELECT 1 --\n; DELETE FROM t', true],
       [
         '`--` before a control character',
         'SELECT 1 --\u0001; DELETE FROM t',
-        true,
+        false,
       ],
       ['identifier ending in `$$`', 'SELECT a$$x FROM t', false],
       [
