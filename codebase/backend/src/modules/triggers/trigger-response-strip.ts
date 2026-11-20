@@ -147,6 +147,7 @@ export interface ConfigKeyAxis {
   readonly stripKeys: ReadonlySet<string>;
 }
 
+/** 축 하나를 만든다. `stripKeys` 는 `table` 에서 `strip` 으로 분류한 키를 뽑아 채운다. */
 function configKeyAxis(
   prefix: readonly string[],
   table: Readonly<Record<string, ConfigKeyResponse>>,
@@ -155,8 +156,10 @@ function configKeyAxis(
 }
 
 /**
- * JSONB 축 레지스트리. 접두사 · 표 · 지울 키가 한 곳에 있고 `TriggersService.sanitizeForResponse` 와
- * 단위 테스트가 이것을 함께 쓴다. 축을 더하거나 접두사를 바꾸면 서비스와 테스트가 같이 따라온다.
+ * JSONB 축 레지스트리. 접두사 · 표 · 지울 키가 한 곳에 있다. `TriggersService.sanitizeForResponse` 는
+ * 여기서 `stripKeys` 만 읽고 축의 경로는 축마다 따로 적는다. 그래서 축을 더하거나 접두사를 바꾸면 서비스의
+ * 경로도 함께 고쳐야 한다. 둘이 어긋나면 컴파일은 통과하고 `triggers.service.spec.ts` 의 축 순회 테스트가
+ * 실패한다(이 레지스트리의 `prefix` 로 응답을 만들어 확인한다).
  */
 export const CONFIG_KEY_AXES = {
   chatChannel: configKeyAxis(['chatChannel'], CHAT_CHANNEL_CONFIG_KEY_RESPONSE),
