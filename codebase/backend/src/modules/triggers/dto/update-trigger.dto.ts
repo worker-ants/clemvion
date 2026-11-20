@@ -40,7 +40,7 @@ export class UpdateTriggerDto {
   isActive?: boolean;
 
   // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
-  // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE#patch-본문-계약)
+  // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE-API#patch-본문-계약)
   /** 타입별 설정값 */
   @ApiPropertyOptional({
     description: `타입별 부가 설정값. ${RAW_CONFIG_MERGE_SUMMARY} ${RAW_CONFIG_REJECTION_SUMMARY}`,

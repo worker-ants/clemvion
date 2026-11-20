@@ -6441,6 +6441,20 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
     });
 
+    // 이 계약 전에 저장된 `null` 값은 옮기지 않는다. 다른 필드만 바꾸는 PATCH 는 그 값을 그대로 둔다.
+    it('저장된 interaction · notification 이 null 인 행에서 이름만 바꾸면 두 값을 그대로 둔다', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        stored({ interaction: null, notification: null }),
+      );
+      const result = await service.update('t1', 'ws', { name: 'renamed' }, 'u');
+      expect(savedConfig()).toEqual(
+        expect.objectContaining({ interaction: null, notification: null }),
+      );
+      expect(secrets.rotate).not.toHaveBeenCalled();
+      expect(closer.closeTriggerTokenStreams).not.toHaveBeenCalled();
+      expect(result).not.toHaveProperty('secrets');
+    });
+
     it('이어받는 값은 잠금 안에서 다시 읽은 행의 것이다', async () => {
       await build({
         freshFindOne: () =>

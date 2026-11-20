@@ -106,6 +106,24 @@ describe('UpdateTriggerDto', () => {
       const errors = await validate(dto, VALIDATE_OPTIONS);
       expect(errors.map((e) => e.property)).toEqual(['config']);
     });
+
+    // 타입 필드 `notification` · `interaction` 의 `null` 은 해제다(`nullable: true`). 서비스가 그 키를 지운다.
+    // `@IsOptionalNonNull` 로 바뀌면 400 이 되어 해제할 방법이 사라지므로 DTO 단에서 고정한다(NERV Task `CLE-T-73W6NQ`).
+    it.each([['notification'], ['interaction']])(
+      '%s 가 null 이어도 검증을 통과한다',
+      async (field) => {
+        const dto = plainToInstance(UpdateTriggerDto, { [field]: null });
+        const errors = await validate(dto, VALIDATE_OPTIONS);
+        expect(errors).toEqual([]);
+      },
+    );
+
+    // 대조: NOT NULL 컬럼인 `name` 의 null 은 `@IsOptionalNonNull` 이 거부한다.
+    it('name 이 null 이면 거부한다', async () => {
+      const dto = plainToInstance(UpdateTriggerDto, { name: null });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.map((e) => e.property)).toEqual(['name']);
+    });
   });
 });
 
