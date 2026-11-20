@@ -154,16 +154,27 @@ export interface GetPromptResult {
 }
 
 /**
- * URL or host is rejected by transport policy — `https://` strictly required
- * and SSRF-blocked hosts (loopback / link-local / RFC1918 / IPv6 ULA / cloud
- * metadata endpoints) cannot be used. See
- * `spec/5-system/11-mcp-client.md §3.2`.
+ * MCP 서버 URL 이 `https://` 가 아니거나(`MCP_ALLOW_INSECURE_URL` 이 켜져 있으면 http(s) 가 아닌 스킴) 파싱할 수 없다.
+ * 주소 차단은 {@link McpHostBlockedError} 가 따로 맡는다. 근거는 [MCP 연결](CLE-INT-MCP-CONN) 「자격 증명과 URL 검증」.
  */
 export class McpHttpsRequiredError extends Error {
   readonly code = 'MCP_HTTPS_REQUIRED';
   constructor(reason: string) {
     super(reason);
     this.name = 'McpHttpsRequiredError';
+  }
+}
+
+/**
+ * MCP 서버 호스트가 SSRF 정책으로 막혔다. 리터럴 판정 · DNS 해석 주소 판정 · 연결 시점 판정 세 곳이 이 오류를 낸다
+ * (NERV Task `CLE-T-DDN3MS`). message 에는 사용자가 적은 호스트 이름만 싣는다. 해석된 주소는 서버 로그에만 남긴다.
+ * 연결 테스트는 `MCP_HOST_BLOCKED` 로 돌려주고, 노드 실행의 도구 목록 구성은 다른 connect 실패처럼 `MCP_CONNECT_FAILED` 로 모은다.
+ */
+export class McpHostBlockedError extends Error {
+  readonly code = 'MCP_HOST_BLOCKED';
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'McpHostBlockedError';
   }
 }
 
@@ -249,7 +260,7 @@ export class McpClientService {
       this.logger.warn(
         `[mcp] SSRF block at connect: host ${hostname} resolved to ${address}`,
       );
-      return new McpHttpsRequiredError(
+      return new McpHostBlockedError(
         `MCP server host is blocked by SSRF policy (host=${hostname})`,
       );
     }),
@@ -320,7 +331,7 @@ export class McpClientService {
         throw new TimeoutError(`connect ${url.host}`, this.connectTimeoutMs);
       }
       // 연결 시점 판정이 막으면 fetch 오류의 `cause` 에 판정 오류가 있다. 사전 검사 차단과 같은 오류로 올린다.
-      throw findCause(err, McpHttpsRequiredError) ?? err;
+      throw findCause(err, McpHostBlockedError) ?? err;
     } finally {
       clearTimeout(timer);
     }
@@ -379,7 +390,7 @@ export class McpClientService {
         ? rawHost.slice(1, -1)
         : rawHost;
     if (this.isBlockedHost(host)) {
-      throw new McpHttpsRequiredError(
+      throw new McpHostBlockedError(
         `MCP server host is blocked by SSRF policy (host=${host})`,
       );
     }
@@ -388,7 +399,7 @@ export class McpClientService {
 
   /**
    * 호스트 이름(IP literal 이 아닌 것)을 연결 직전에 DNS 로 해석해, 나온 주소 가운데 하나라도
-   * {@link isBlockedHost} 에 걸리면 literal 차단과 같은 {@link McpHttpsRequiredError} 를 던진다
+   * {@link isBlockedHost} 에 걸리면 literal 차단과 같은 {@link McpHostBlockedError} 를 던진다
    * (CLE-INT-MCP 「자격 증명과 URL 검증」 3항, NERV Task `CLE-T-RAPNHB`).
    *
    * - 오류 메시지에는 사용자가 적은 호스트 이름만 싣는다. 해석된 주소는 내부망 정찰에 쓰일 수 있어 서버 로그에만 남긴다.
@@ -425,7 +436,7 @@ export class McpClientService {
       this.logger.warn(
         `[mcp] SSRF block: host ${host} resolved to ${blocked.address}`,
       );
-      throw new McpHttpsRequiredError(
+      throw new McpHostBlockedError(
         `MCP server host is blocked by SSRF policy (host=${host})`,
       );
     }
@@ -433,7 +444,7 @@ export class McpClientService {
 
   /**
    * SDK transport 에 넘기는 fetch. 실제 연결이 쓰는 주소 조회에 {@link isBlockedHost} 판정을 넣은 dispatcher 를 붙인다.
-   * 연결할 때 푼 주소가 막힌 대역이면 연결하지 않고, `fetch` 오류의 `cause` 에 {@link McpHttpsRequiredError} 를 싣는다.
+   * 연결할 때 푼 주소가 막힌 대역이면 연결하지 않고, `fetch` 오류의 `cause` 에 {@link McpHostBlockedError} 를 싣는다.
    *
    * - 메시지는 사전 검사와 같이 사용자가 적은 호스트 이름만 싣는다. 해석된 주소는 서버 로그에만 남긴다.
    * - `MCP_ALLOW_INSECURE_URL` 이 켜져 있으면 `undefined` 다. SDK 는 전역 fetch 를 쓴다.

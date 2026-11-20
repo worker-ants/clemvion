@@ -15,6 +15,7 @@ import {
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
 import { ExecutionLookupScope } from '../../../../modules/integrations/execution-lookup-scope';
 import { TimeoutError } from '../../../../common/utils/with-timeout';
+import { McpHostBlockedError } from '../../../../modules/mcp/mcp-client.service';
 
 function makeIntegration(overrides: Partial<Integration> = {}): Integration {
   return {
@@ -336,6 +337,32 @@ describe('McpToolProvider', () => {
           phase: 'connect',
           code: 'MCP_CONNECT_FAILED',
           message: expect.stringContaining('connection refused'),
+        },
+      ]);
+    });
+
+    // 연결 테스트는 주소 차단을 MCP_HOST_BLOCKED 로 가르지만 노드 실행은 다른 connect 실패와 같이 모은다(CLE-T-DDN3MS).
+    it('§8.2 주소 차단(McpHostBlockedError) → errors[] 에 MCP_CONNECT_FAILED / phase=connect', async () => {
+      mcpClient.connect.mockRejectedValueOnce(
+        new McpHostBlockedError(
+          'MCP server host is blocked by SSRF policy (host=10.0.0.1)',
+        ),
+      );
+      const mcpDiagnostics: Array<Record<string, unknown>> = [];
+      const mcpDiagnosticErrors: Array<Record<string, unknown>> = [];
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-err-host-blocked',
+        mcpDiagnostics,
+        mcpDiagnosticErrors,
+      } as unknown as Parameters<typeof provider.buildTools>[0]);
+      expect(mcpDiagnosticErrors).toEqual([
+        {
+          integrationId: integration.id,
+          phase: 'connect',
+          code: 'MCP_CONNECT_FAILED',
+          message: expect.stringContaining('blocked by SSRF policy'),
         },
       ]);
     });

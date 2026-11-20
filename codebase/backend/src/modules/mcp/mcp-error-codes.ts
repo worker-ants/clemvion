@@ -14,6 +14,7 @@ import { redactSecrets } from '../../shared/utils/sanitize-error-message';
 
 export const MCP_ERROR_CODES = {
   HTTPS_REQUIRED: 'MCP_HTTPS_REQUIRED',
+  HOST_BLOCKED: 'MCP_HOST_BLOCKED',
   AUTH_FAILED: 'MCP_AUTH_FAILED',
   CONNECT_FAILED: 'MCP_CONNECT_FAILED',
   LIST_FAILED: 'MCP_LIST_FAILED',

@@ -21,7 +21,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
-describe('Integration connection test — Database · HTTP (e2e)', () => {
+describe('Integration connection test — Database · HTTP · MCP (e2e)', () => {
   let db: Client;
   let token: string;
   let workspaceId: string;
@@ -112,6 +112,31 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
     expect(data.success).toBe(false);
     expect(data.code).toBe('HTTP_BLOCKED');
     expect(data.message).not.toContain('127.0.0.1');
+  });
+
+  /**
+   * MCP 는 주소 차단과 https 위반을 다른 코드로 돌려준다(NERV Task `CLE-T-DDN3MS`). e2e 환경은 `MCP_ALLOW_INSECURE_URL` 을
+   * 켜지 않는다. 메시지에는 사용자가 적은 호스트 이름만 싣는다.
+   */
+  it.each([
+    ['https://127.0.0.1/mcp', 'MCP_HOST_BLOCKED'],
+    ['https://[::ffff:100.64.0.1]/mcp', 'MCP_HOST_BLOCKED'],
+    ['http://mcp.example.com/mcp', 'MCP_HTTPS_REQUIRED'],
+  ])('F. preview-test — MCP url %s 는 %s', async (url, code) => {
+    const res = await post('/api/integrations/preview-test').send({
+      serviceType: 'mcp',
+      authType: 'none',
+      credentials: { url },
+    });
+
+    expect(res.status).toBe(200);
+    const data = res.body.data as {
+      success: boolean;
+      code?: string;
+      message: string;
+    };
+    expect(data.success).toBe(false);
+    expect(data.code).toBe(code);
   });
 
   /**

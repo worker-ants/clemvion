@@ -5,6 +5,7 @@ import {
 } from './mcp-test-connection.service';
 import {
   McpAuthError,
+  McpHostBlockedError,
   McpHttpsRequiredError,
   McpSession,
 } from './mcp-client.service';
@@ -92,6 +93,22 @@ describe('McpTestConnectionService', () => {
       authType: 'none',
     });
     expectFailure(result, 'MCP_HTTPS_REQUIRED');
+  });
+
+  it('translates McpHostBlockedError to MCP_HOST_BLOCKED', async () => {
+    connect.mockRejectedValueOnce(
+      new McpHostBlockedError(
+        'MCP server host is blocked by SSRF policy (host=127.0.0.1)',
+      ),
+    );
+    const result = await service.test({
+      url: 'https://127.0.0.1/mcp',
+      authType: 'none',
+    });
+    expectFailure(result, 'MCP_HOST_BLOCKED');
+    expect(result.message).toBe(
+      'MCP server host is blocked by SSRF policy (host=127.0.0.1)',
+    );
   });
 
   it('translates McpAuthError to MCP_AUTH_FAILED', async () => {
