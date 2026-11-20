@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
 content_hash: "84fd59f00d70c43294be41047a3346e6ffd4f58f0335a7801928806649f923be"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-5WK8QA"
 source_paths: ["spec/5-system/13-replay-rerun.md"]
-mirror_sha256: "e6ce0ec1e1e237223c6ecb90e5400219dc7d8d067d391460be43a4e59fb3a3fc"
-etag: "sha256-79f53e53c1ee793d4a7eafe8bd52e7317316803159b766cb83072b551f32644b"
+mirror_sha256: "aae2cfe1e9adda5ed0f2b8983548315a84680036d165a8c5c674a48142f938fd"
+etag: "sha256-1a0da6d8a210e2194ac47affe5e3240f3fa6a4fb6f112e975c413bbdeaa0971d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
