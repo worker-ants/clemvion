@@ -35,8 +35,36 @@ describe('NotificationsController _test/send-daily-digest', () => {
       recipients: 1,
       sent: 1,
       failed: 0,
+      digests: [],
     });
-    expect(digestService.sendDigests).toHaveBeenCalledWith(expect.any(Date));
+    expect(digestService.sendDigests).toHaveBeenCalledWith(expect.any(Date), {
+      userIds: undefined,
+      collected: [],
+    });
+  });
+
+  it('본문 userIds 를 서비스에 넘기고 보낸 요약을 응답에 싣는다', async () => {
+    process.env.NODE_ENV = 'test';
+    process.env.E2E_TEST_HOOKS = '1';
+    const digest = { total: 1 };
+    digestService.sendDigests.mockImplementationOnce(
+      async (_now: Date, opts: { collected: unknown[] }) => {
+        opts.collected.push({ userId: 'u-1', digest });
+        return { recipients: 1, sent: 1, failed: 0 };
+      },
+    );
+    await expect(
+      controller.sendDailyDigestForTest({ userIds: ['u-1'] }),
+    ).resolves.toEqual({
+      recipients: 1,
+      sent: 1,
+      failed: 0,
+      digests: [{ userId: 'u-1', digest }],
+    });
+    expect(digestService.sendDigests).toHaveBeenCalledWith(
+      expect.any(Date),
+      expect.objectContaining({ userIds: ['u-1'] }),
+    );
   });
 
   it('NODE_ENV 이 test 가 아니면 404 이고 요약을 돌리지 않는다', async () => {

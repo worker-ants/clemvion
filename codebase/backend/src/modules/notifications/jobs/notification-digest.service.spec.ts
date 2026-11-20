@@ -84,6 +84,20 @@ describe('NotificationDigestService', () => {
     expect(mail.sendDailyDigestEmail).not.toHaveBeenCalled();
   });
 
+  it('userIds 를 주면 받는 사람 조회를 그 사용자로 좁히고 보낸 요약을 collected 에 쌓는다', async () => {
+    userQb.getMany.mockResolvedValueOnce([{ id: 'u-1', email: 'a@x.test' }]);
+    notificationRepo.query.mockResolvedValue([
+      row({ workspace_id: 'ws-1', workspace_name: 'Alpha', title: 'a1' }),
+    ]);
+    const collected: { userId: string; digest: unknown }[] = [];
+    await service.sendDigests(NOW, { userIds: ['u-1'], collected });
+    expect(userQb.andWhere).toHaveBeenCalledWith('u.id IN (:...userIds)', {
+      userIds: ['u-1'],
+    });
+    expect(collected).toHaveLength(1);
+    expect(collected[0].userId).toBe('u-1');
+  });
+
   it('직전 24시간 · 모으는 유형으로 조회하고 수신자마다 워크스페이스별로 묶어 한 통 보낸다', async () => {
     userQb.getMany.mockResolvedValueOnce([
       { id: 'u-1', email: 'a@x.test' },

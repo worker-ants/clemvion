@@ -41,10 +41,12 @@ import { DismissNotificationResponseDto } from './dto/responses/dismiss-notifica
 import { DismissAllNotificationsResponseDto } from './dto/responses/dismiss-all-notifications-response.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
+import { SendDailyDigestTestDto } from './dto/send-daily-digest-test.dto';
 import {
   NotificationDigestService,
   type DigestRunResult,
 } from './jobs/notification-digest.service';
+import type { DailyDigest } from '../mail/mail.service';
 
 @ApiTags('Notifications')
 @ApiBearerAuth('access-token')
@@ -60,6 +62,9 @@ export class NotificationsController {
    * in-network e2e 러너가 HTTP 로 검증할 길이 없다. test 환경에서만 지금 시각으로 한 번 돌린다
    * (CLE-T-BAXAN4).
    *
+   * 본문 `userIds` 를 주면 그 사용자만 대상으로 돌고 응답에 보낸 요약(`digests`)을 싣는다. 공유 DB 에서
+   * 병렬로 도는 다른 스펙의 사용자를 건드리지 않고, 메일 내용을 읽을 길이 없는 e2e 가 요약을 단언하기 위해서다.
+   *
    * 게이트는 `_test/recover-stuck-executions` 와 같다. `NODE_ENV==='test'` 와 `E2E_TEST_HOOKS==='1'`
    * 이 모두 맞을 때만 동작하고 아니면 404 다. `@Roles('owner')` 로 인가를 한 번 더 건다.
    */
@@ -68,11 +73,20 @@ export class NotificationsController {
   @Roles('owner')
   @ApiExcludeEndpoint()
   @ApiForbiddenResponse({ description: forbiddenForRole('owner') })
-  async sendDailyDigestForTest(): Promise<DigestRunResult> {
+  async sendDailyDigestForTest(
+    @Body() body?: SendDailyDigestTestDto,
+  ): Promise<
+    DigestRunResult & { digests: { userId: string; digest: DailyDigest }[] }
+  > {
     if (process.env.NODE_ENV !== 'test' || process.env.E2E_TEST_HOOKS !== '1') {
       throw new NotFoundException();
     }
-    return this.digestService.sendDigests(new Date());
+    const collected: { userId: string; digest: DailyDigest }[] = [];
+    const result = await this.digestService.sendDigests(new Date(), {
+      userIds: body?.userIds,
+      collected,
+    });
+    return { ...result, digests: collected };
   }
 
   @Get()

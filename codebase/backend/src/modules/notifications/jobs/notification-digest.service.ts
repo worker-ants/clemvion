@@ -29,6 +29,14 @@ export interface DigestRow {
   workspace_total: number;
 }
 
+/** `sendDigests` 의 선택 인자. 운영 반복 작업은 쓰지 않는다. */
+export interface DigestRunOptions {
+  /** 주어지면 이 사용자만 받는 사람 후보로 삼는다(e2e 훅 전용). */
+  userIds?: string[];
+  /** 주어지면 보낸 요약을 이 배열에 쌓는다(e2e 훅 전용. 메일 내용을 읽을 길이 없어서다). */
+  collected?: { userId: string; digest: DailyDigest }[];
+}
+
 export interface DigestRunResult {
   recipients: number;
   sent: number;
@@ -96,13 +104,16 @@ export class NotificationDigestService
     }
   }
 
-  async sendDigests(now: Date): Promise<DigestRunResult> {
+  async sendDigests(
+    now: Date,
+    options: DigestRunOptions = {},
+  ): Promise<DigestRunResult> {
     const from = new Date(now.getTime() - DIGEST_WINDOW_MS);
     const result: DigestRunResult = { recipients: 0, sent: 0, failed: 0 };
     let after: string | null = null;
 
     for (;;) {
-      const users = await this.findRecipients(after);
+      const users = await this.findRecipients(after, options.userIds);
       if (users.length === 0) break;
       result.recipients += users.length;
 
@@ -111,6 +122,7 @@ export class NotificationDigestService
       for (const user of users) {
         const digest = byUser.get(user.id);
         if (!digest) continue;
+        options.collected?.push({ userId: user.id, digest });
         if (await this.sendOne(user, digest)) result.sent += 1;
         else result.failed += 1;
       }
@@ -121,13 +133,17 @@ export class NotificationDigestService
     return result;
   }
 
-  /** 일일 요약을 켠 사용자를 id 순으로 한 배치 읽는다. */
-  private async findRecipients(after: string | null): Promise<User[]> {
+  /** 일일 요약을 켠 사용자를 id 순으로 한 배치 읽는다. `userIds` 가 있으면 그 안에서만 읽는다. */
+  private async findRecipients(
+    after: string | null,
+    userIds?: string[],
+  ): Promise<User[]> {
     const qb = this.userRepository
       .createQueryBuilder('u')
       .select(['u.id', 'u.email'])
       .where("u.notification_preferences ->> 'dailyDigestEmail' = 'true'");
     if (after) qb.andWhere('u.id > :after', { after });
+    if (userIds) qb.andWhere('u.id IN (:...userIds)', { userIds });
     return qb.orderBy('u.id', 'ASC').limit(DIGEST_RECIPIENT_BATCH).getMany();
   }
 
