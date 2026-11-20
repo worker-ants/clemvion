@@ -62,7 +62,8 @@ export class AuditLogPrunerService extends WorkerHost implements OnModuleInit {
     const { days, invalid } = resolveAuditLogRetentionDays(raw);
     if (invalid) {
       this.logger.warn(
-        `AUDIT_LOG_RETENTION_DAYS=${JSON.stringify(raw)} is not a positive integer; ` +
+        `AUDIT_LOG_RETENTION_DAYS=${JSON.stringify(raw)} is not a positive integer ` +
+          `up to ${AUDIT_LOG_RETENTION_MAX_DAYS}; ` +
           `falling back to ${days} days`,
       );
     }

@@ -54,12 +54,15 @@ describe('resolveAuditLogRetentionDays', () => {
     '99999999999999999999',
     '9007199254740991',
     String(AUDIT_LOG_RETENTION_MAX_DAYS + 1),
-  ])('양의 정수가 아닌 %p 는 기본값으로 돌아가고 invalid 로 알린다', (raw) => {
-    expect(resolveAuditLogRetentionDays(raw)).toEqual({
-      days: 365,
-      invalid: true,
-    });
-  });
+  ])(
+    '양의 정수가 아니거나 상한을 넘는 %p 는 기본값으로 돌아가고 invalid 로 알린다',
+    (raw) => {
+      expect(resolveAuditLogRetentionDays(raw)).toEqual({
+        days: 365,
+        invalid: true,
+      });
+    },
+  );
 });
 
 describe('AuditLogPrunerService', () => {
@@ -145,6 +148,25 @@ describe('AuditLogPrunerService', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('AUDIT_LOG_RETENTION_DAYS'),
+    );
+  });
+
+  it('상한을 넘는 값은 365일로 돌아가고 경고에 상한을 적는다', async () => {
+    process.env.AUDIT_LOG_RETENTION_DAYS = String(
+      AUDIT_LOG_RETENTION_MAX_DAYS + 1,
+    );
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const service = await build();
+    auditLogs.pruneOlderThanRetention.mockResolvedValue(0);
+
+    await service.prune();
+
+    expect(auditLogs.pruneOlderThanRetention).toHaveBeenCalledWith(365);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(`up to ${AUDIT_LOG_RETENTION_MAX_DAYS}`),
     );
   });
 
