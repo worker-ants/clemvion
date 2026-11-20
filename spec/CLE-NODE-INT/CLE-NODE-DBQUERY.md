@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
-requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029"]
+requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029", "REQ-DBQ-030", "REQ-DBQ-031", "REQ-DBQ-032"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "1de615c0ec1780a10163bd46faf3406e9dc2c3f47714ce98987abcfec77ea6f9"
+content_hash: "a3cf0dc67d5fa9574a6c1586be2a3639ea702d2a99c5202d8920e67c91ababaa"
 read_as: "approved_fallback"
-task: "CLE-T-691T4G"
+task: "CLE-T-3M0KRA"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "9f0dcf3c6dd52b5d780b32141ee7c7e83c9c6b1bfeb005814356e78d3b7df4de"
-etag: "sha256-09cd51ca6b7553d7d9ee2d1f7898f1359585f60877f3e52d86d3e65eaa244dda"
+mirror_sha256: "be27fb9a800b85980565d0d6cf46b95857c2bc28390c44710232a844db82e96b"
+etag: "sha256-770dbe9a4ff3cef3484a65ea4ce6f5341d0bc73242d275c5d26b4d8a23eca3de"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -43,7 +43,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 - REQ-DBQ-015 WHEN `credentials.ssl` 이 `require` 나 `verify-full` 이면 THE SYSTEM SHALL 인증서 검증을 강제한다.
 - REQ-DBQ-016 WHEN 풀에 연결하기 전이면 THE SYSTEM SHALL `credentials.host` 에 사설망 차단을 적용한다.
 - REQ-DBQ-017 IF `credentials.host` 가 사설망 대역으로 해석되면 THE SYSTEM SHALL `DB_HOST_BLOCKED` 와 호스트를 드러내지 않는 메시지로 에러 포트에 내보낸다.
-- REQ-DBQ-018 IF 사설망 차단 가드가 차단 판정이 아닌 오류를 던지면 THE SYSTEM SHALL `INTEGRATION_CALL_FAILED` 로 에러 포트에 내보낸다.
+- REQ-DBQ-018 IF 사설망 차단 가드가 차단 판정이 아닌 오류를 던지면 THE SYSTEM SHALL `INTEGRATION_CALL_FAILED` 와 고정 문구 `The outbound address check failed.` 로 에러 포트에 내보내고 원문은 서버 경고 로그에만 남긴다.
 - REQ-DBQ-019 WHEN 실행에 들어올 때 `context.abortSignal` 이 이미 취소 상태면 THE SYSTEM SHALL 즉시 `AbortError` 를 던진다.
 - REQ-DBQ-020 WHEN 쿼리가 도는 중에 취소 신호가 오면 THE SYSTEM SHALL 별도 연결로 PostgreSQL `pg_cancel_backend` 나 MySQL `KILL QUERY` 를 보내 진행 중인 쿼리만 끊는다.
 - REQ-DBQ-021 WHEN 취소 때문에 드라이버 에러(PostgreSQL `57014`, MySQL `ER_QUERY_INTERRUPTED`)가 나면 THE SYSTEM SHALL 이를 `AbortError` 로 다시 던져 노드 실행이 `cancelled` 로 분류되게 한다.
@@ -55,6 +55,9 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 - REQ-DBQ-027 WHEN 통합을 얻은 뒤 실행이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 1건 남긴다. 실행 취소로 끝난 호출은 활동 로그를 남기지 않고 `AbortError` 를 그대로 던져 노드가 `cancelled` 로 끝난다([통합 노드 공통 규칙 7](CLE-NODE-INT-COMMON.md#규칙), [노드 취소 규칙 3](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무)). dry-run 재실행의 모의 출력은 활동 로그를 남기지 않는다([부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
 - REQ-DBQ-028 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 NULL, `api_method` 를 SQL 동사, `api_path` 를 드라이버 토큰으로 채운다.
 - REQ-DBQ-029 IF 설정 형식이 잘못되면 THE SYSTEM SHALL 사전 검증 에러로 실행을 실패시킨다.
+- REQ-DBQ-030 WHEN 노드 실행의 풀이나 진행 중 쿼리를 끊는 일회성 연결이 데이터베이스에 새 연결을 맺으면 THE SYSTEM SHALL 연결할 때 푼 주소를 사설망 차단 대역표로 다시 판정하고 통과한 주소로만 연결한다.
+- REQ-DBQ-031 IF 연결 시점 판정이 쿼리를 실행할 연결을 막으면 THE SYSTEM SHALL `DB_HOST_BLOCKED` 와 고정 문구 `Database host resolves to a private/loopback address blocked by SSRF policy.` 로 에러 포트에 내보낸다.
+- REQ-DBQ-032 WHEN 사설망 차단이 연결을 막으면 THE SYSTEM SHALL 차단된 host · IP 원문을 서버 경고 로그에만 남기고 노드 에러와 활동 로그에는 싣지 않는다.
 
 ## 하위 문서
 
@@ -148,7 +151,13 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 ### 사설망 차단
 
-자격 증명 충족 검증 직후, 풀 연결 전에 `credentials.host` 를 검사한다(`assertSafeOutboundHostResolved`). 사설(RFC1918)·loopback·link-local·CGNAT·IPv6 사설 대역으로 해석되면 막고 `DB_HOST_BLOCKED` 로 에러 포트에 보낸다. 셀프 호스팅(예: VPC 안 RDS, 내부 DB)은 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 해제한다. 메커니즘과 플래그는 HTTP Request·Send Email 노드와 같으며 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 사설망 차단 절이 정한다. 클라이언트 메시지는 차단된 호스트·IP 를 담지 않는 일반화 문구다. 원본 상세를 남기는 위치는 [미결 사항](#미결-사항) 참조.
+막는 대역 · 우회 플래그 · 차단 코드의 공통 규칙은 [통합 노드 공통 — 에러 코드와 사설망 차단 「사설망 차단」](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다. 대역표의 구현은 `common/utils/ssrf/ip-classifier.ts` 다. 이 노드는 두 번 판정한다.
+
+- **연결 전 검사**: 자격 증명 충족 검증 직후, 풀 연결 전에 `credentials.host` 를 해석해 검사한다(`assertSafeOutboundHostResolved`). IP 리터럴 host 는 이 검사만 판정한다.
+- **연결 시점 판정**: 드라이버가 새 연결을 맺을 때 푼 주소를 같은 대역표로 다시 판정한다. pg · mysql2 의 `stream` 팩토리로 소켓을 직접 열고 공용 조회 함수(`safeOutboundLookup`)를 쓴다. 연결 옵션 빌더(`database-connection.ts`) 하나를 노드 실행의 풀, 진행 중 쿼리를 끊는 일회성 연결, [Database 연결 테스트](../CLE-INT/CLE-INT-AUTH.md#database) 가 함께 쓴다. 풀은 새 연결을 맺을 때마다 판정하고 이미 열린 연결은 다시 판정하지 않는다. SSL 매핑(7단계)은 그대로다. TLS 는 드라이버가 그 소켓 위에서 원래 host 이름으로 맺는다.
+- **차단되면**: 두 판정 모두 `DB_HOST_BLOCKED` 와 고정 문구 `Database host resolves to a private/loopback address blocked by SSRF policy.` 로 에러 포트에 보낸다. 드라이버가 감싸 올린 오류는 `cause` 사슬에서 판정 오류를 찾는다. 차단된 host · IP 원문은 서버 경고 로그에만 남기고 노드 에러와 활동 로그에는 싣지 않는다. 취소용 연결이 막히면 취소만 실패한다(0단계의 best-effort).
+- **가드 고장**: 연결 전 검사가 판정이 아닌 오류로 끝나면 `INTEGRATION_CALL_FAILED` 와 고정 문구 `The outbound address check failed.` 로 에러 포트에 보낸다. 원문은 서버 경고 로그에만 남긴다([출력 구조와 에러 코드](CLE-NODE-DBQUERY-OUTPUT.md#런타임-에러-port-error)).
+- 셀프 호스팅(예: VPC 안 RDS, 내부 DB)은 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 두 판정을 함께 끈다. 그러면 드라이버가 기본 연결을 그대로 쓴다. 플래그는 HTTP Request · Send Email 노드와 같다.
 
 ## 에러 코드
 
@@ -165,12 +174,14 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 ## 미결 사항
 
-- **사설망 차단 원본 상세를 남기는 위치**: 이 노드 원문은 차단 상세(원본 호스트)를 "서버 활동 로그(`logUsage`)" 에만 남긴다고 적는다. [HTTP Request 노드](CLE-NODE-HTTP.md)는 활동 로그가 사용자에게 그대로 나가므로 활동 로그에도 일반화 문구만 남긴다고 적는다. 두 쪽과 현재 구현은 [통합 노드 공통 미결 사항](CLE-NODE-INT-COMMON.md#미결-사항)에 정리했다. 결정 필요.
+- **사설망 차단 원본 상세를 남기는 위치**: 이 노드 원문은 차단 상세(원본 호스트)를 "서버 활동 로그(`logUsage`)" 에만 남긴다고 적는다. [HTTP Request 노드](CLE-NODE-HTTP.md)는 활동 로그가 사용자에게 그대로 나가므로 활동 로그에도 일반화 문구만 남긴다고 적는다. 두 쪽과 현재 구현은 [통합 노드 공통 미결 사항](CLE-NODE-INT-COMMON.md#미결-사항)에 정리했다. 결정 필요. 지금 구현은 HTTP Request 노드와 같은 쪽이다. 연결 전 검사와 연결 시점 판정 모두 원문을 서버 경고 로그에만 남긴다(REQ-DBQ-032). 이 항목은 통합 노드 공통의 미결 사항과 함께 닫는다.
 
 ## 구현 위치
 
 - `codebase/backend/src/nodes/integration/database-query/database-query.handler.ts` (실행 로직. catch 첫머리의 실행 취소 판정과 다시 던지기 포함)
 - `codebase/backend/src/nodes/integration/database-query/database-query.schema.ts`
+- `codebase/backend/src/nodes/integration/database-query/database-connection.ts` (연결 옵션 빌더와 연결 시점 판정 `stream` 팩토리. 노드 실행 · 취소 연결 · 연결 테스트가 함께 쓴다)
+- `codebase/backend/src/common/utils/ssrf/outbound-guard.ts` (연결 전 검사 `assertSafeOutboundHostResolved` 와 연결 시점 판정 `safeOutboundLookup`)
 - `codebase/backend/src/nodes/core/abort-error.util.ts` (`AbortError` 공용 판정 `isAbortErrorLike`)
 - `codebase/backend/src/common/redis/integration-cache-bus.service.ts` (무효화 버스. 이 노드는 처리 함수를 등록해 구독한다. 채널 정의는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화))
 
@@ -241,3 +252,12 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 - 기각: 판정을 통합 조회 뒤로 옮겨 드라이버를 알아낸다. 통합을 얻기 전에 판정해 mock 이 활동 로그를 남기지 않는다는 지금 규칙이 바뀐다.
 - 기각: `#` 가 있으면 모두 mock 으로 둔다. jsonb 연산자(`#>` · `#>>`)를 쓴 PostgreSQL 읽기 쿼리도 mock 이 된다.
+
+### 연결할 때 푼 주소도 판정한다
+
+결정일: 2026-11-20
+
+전에는 풀 연결 전에 한 번만 검사해서 검사와 연결 사이에 DNS 응답이 바뀌면(DNS rebinding) 막지 못했다. NERV Task `CLE-T-691T4G` 에서 드라이버가 새 연결을 맺을 때도 같은 대역표로 판정하게 했다. 방식과 기각한 대안은 [통합 노드 공통 — 에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
+
+- 취소용 일회성 연결도 같은 연결 옵션 빌더를 쓴다. 이 연결만 판정에서 빠지면 막힌 대역에 닿는 길이 하나 남는다.
+- 요구사항 변경: REQ-DBQ-018 에 고정 문구와 서버 경고 로그를 적었다. 동작은 NERV Task `CLE-T-E991S1` 이 바꾼 그대로다. REQ-DBQ-030 · REQ-DBQ-031 · REQ-DBQ-032 를 새로 두었다.

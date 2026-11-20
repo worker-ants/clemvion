@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 19
+version: 20
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "85b3f547e42660409882782e3ca1a46b970df3195aaa01b0c1890d7de7812c5a"
+content_hash: "4612c18cca6c4247f74bcfbc6dc30d5c7026ddf9a3090fdd2d28ffeba222767f"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-3M0KRA"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "8ecc3148764640c920902920e0716f582e5133344449897cec1858acbec942d2"
-etag: "sha256-3ab0424a7162508dc31d311c58fff7576bb53de9a0eab833d95dd3b00e64fa99"
+mirror_sha256: "178716890337323b9cede3464be8b7b2593408773e041fec0bd32e1e112f12f7"
+etag: "sha256-957c416a27e40ae169ed8c4cd512796e11988cf24ca264f8f895e05e4a088080"
 ---
 > 구현 상태: 부분 구현 (워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -42,7 +42,7 @@ etag: "sha256-3ab0424a7162508dc31d311c58fff7576bb53de9a0eab833d95dd3b00e64fa99"
 6. 사전 검증 에러(`handler.validate()` 실패)만 throw 로 실행을 실패시킨다. `execute()` 안에서 난 실패는 모두 에러 포트(`port: 'error'`)와 `output.error.{code, message, details?}` 로 내보낸다. 근거는 [Rationale 「핸들러 실패를 에러 포트로 통일」](#핸들러-실패를-에러-포트로-통일-2026-05-17) 에 있다. 예외는 상위 취소 신호(`context.abortSignal`) 때문에 생긴 `AbortError` 하나다. 다섯 노드 모두 이 예외를 에러 포트로 바꾸지 않고 다시 던지므로 노드 실행이 `cancelled` 로 분류된다([노드 취소 「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류)). Send Email 노드는 실행을 시작할 때 신호가 이미 켜져 있는 경우에만 이 예외를 던진다.
 7. 통합을 얻은 뒤의 외부 호출마다 성공·실패와 관계없이 활동 로그를 1건 남긴다. 이때 API 식별 정보(`api`)를 함께 넘긴다. HTTP Request 노드는 통합 인증일 때만 활동 로그를 남긴다. 통합을 얻기 전에 끝난 실행은 활동 로그를 남기지 않는다. 조회 거절과 조회 앞 단계의 실패가 모두 해당한다. `logUsage` 는 얻은 통합만 받으므로 얻지 못한 통합에는 기록할 수 없다. 통합을 얻기 전에 끝나는 실패의 목록은 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 에 있다. dry-run 재실행의 모의 출력도 외부로 나가지 않아 활동 로그를 남기지 않는다([재실행 — dry-run 「부수효과 판정」](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
    - 노드 취소로 끝난 호출도 활동 로그를 남기지 않는다. 그 호출은 끝나지 않아서 성공도 실패도 아니다. 활동 로그 `status` 에 `cancelled` 값은 두지 않는다. 그래서 이 호출은 통합 관리 화면의 호출 수 차트에도 잡히지 않는다. 취소 사실은 엔진이 노드 실행을 `cancelled` 로 기록해 남긴다. HTTP Request·Cafe24·MakeShop·Database Query 노드가 같다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3, [「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19). 근거는 [Rationale 「노드 취소로 끝난 호출은 활동 로그를 남기지 않는다」](#노드-취소로-끝난-호출은-활동-로그를-남기지-않는다) 에 있다.
-8. HTTP Request·Database Query·Send Email 노드는 사설망 차단을 기본으로 켠다. 끄는 방법은 `ALLOW_PRIVATE_HOST_TARGETS=true` 하나뿐이다.
+8. HTTP Request·Database Query·Send Email 노드는 사설망 차단을 기본으로 켠다. 끄는 방법은 `ALLOW_PRIVATE_HOST_TARGETS=true` 하나뿐이다. 막는 대역과 판정 시점은 [사설망 차단](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다.
 9. 차단 코드(`HTTP_BLOCKED`·`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)는 차단 판정에만 쓴다. 예외는 HTTP Request 노드가 리다이렉트 한도를 넘겼을 때 내는 `HTTP_BLOCKED` 하나다([사설망 차단](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단)). 클라이언트에 나가는 차단 메시지에는 차단된 호스트나 IP 를 넣지 않는다.
 10. 캔버스 요약은 노드 스키마의 `summaryTemplate` 으로 렌더하고, 렌더된 한 줄을 40자에서 자른다.
 11. 삭제된 통합 표시는 캔버스 렌더러가 판정한다. 노드 스키마의 경고 규칙(`warningRules`)으로 판정하지 않는다.
