@@ -216,4 +216,28 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
       keepAlive.mockRestore();
     }
   });
+
+  it('mysql2 팩토리: config 에 host · port 가 없으면 mysql2 기본값(localhost · 3306)으로 연결한다', () => {
+    // 실제로 3306 에 연결하지 않도록 소켓의 connect 만 가로챈다.
+    const connectSpy = jest
+      .spyOn(Socket.prototype, 'connect')
+      .mockImplementation(function (this: Socket) {
+        return this;
+      });
+    try {
+      const lookup = loopbackLookup([]);
+      const socket = createGuardedMysqlStream(lookup)({ config: {} });
+      socket.destroy();
+
+      // `net.connect` 는 정규화한 인자 배열([옵션, 연결 리스너])을 첫 인자로 넘겨 `socket.connect` 를 부른다.
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      expect(connectSpy.mock.calls[0][0]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ host: 'localhost', port: 3306, lookup }),
+        ]),
+      );
+    } finally {
+      connectSpy.mockRestore();
+    }
+  });
 });

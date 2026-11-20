@@ -80,7 +80,12 @@ export function createGuardedMysqlStream(
   lookup: LookupFunction,
 ): MysqlStreamFactory {
   return ({ config }) => {
-    const socket = connect({ host: config.host, port: config.port, lookup });
+    // mysql2 `ConnectionConfig` 가 채우는 기본값과 같다(`localhost` · 3306). 타입상 비어 있을 수 있어 여기서도 둔다.
+    const socket = connect({
+      host: config.host ?? 'localhost',
+      port: config.port ?? 3306,
+      lookup,
+    });
     if (config.enableKeepAlive) {
       socket.on('connect', () => {
         socket.setKeepAlive(true, config.keepAliveInitialDelay);
