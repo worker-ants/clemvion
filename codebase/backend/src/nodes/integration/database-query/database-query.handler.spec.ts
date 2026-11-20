@@ -1398,6 +1398,17 @@ describe('extractSqlVerb', () => {
 // CLE-T-KH11HA: queryType 과 관계없이 SQL 첫 동사를 본다. 읽기 동사만 실제로 실행하고 쓰기 동사와
 // 판정이 애매한 쿼리(WITH · CALL · DO · COPY · EXPLAIN 등)는 mock 으로 끝낸다.
 describe('isWriteOperation', () => {
+  // queryType 이 insert · update · delete 가 아니면 SQL 로만 판정한다. 세 값 모두에서 같은 결과인지 본다.
+  const SQL_JUDGED_QUERY_TYPES = ['select', 'raw', undefined] as const;
+  function expectWrite(query: string | undefined, expected: boolean): void {
+    for (const queryType of SQL_JUDGED_QUERY_TYPES) {
+      expect({ queryType, write: isWriteOperation(queryType, query) }).toEqual({
+        queryType,
+        write: expected,
+      });
+    }
+  }
+
   it('classifies queryType insert/update/delete as write', () => {
     expect(isWriteOperation('insert', undefined)).toBe(true);
     expect(isWriteOperation('update', undefined)).toBe(true);
@@ -1426,9 +1437,7 @@ describe('isWriteOperation', () => {
     'GRANT SELECT ON t TO u',
     'REVOKE SELECT ON t FROM u',
   ])('write verb is write regardless of queryType: %s', (query) => {
-    expect(isWriteOperation('raw', query)).toBe(true);
-    expect(isWriteOperation('select', query)).toBe(true);
-    expect(isWriteOperation(undefined, query)).toBe(true);
+    expectWrite(query, true);
   });
 
   it.each([
@@ -1440,9 +1449,7 @@ describe('isWriteOperation', () => {
     'VALUES (1), (2)',
     'TABLE t',
   ])('read verb runs for real: %s', (query) => {
-    expect(isWriteOperation('raw', query)).toBe(false);
-    expect(isWriteOperation('select', query)).toBe(false);
-    expect(isWriteOperation(undefined, query)).toBe(false);
+    expectWrite(query, false);
   });
 
   it.each([
@@ -1456,25 +1463,20 @@ describe('isWriteOperation', () => {
     '123 not sql',
     '',
   ])('ambiguous query is mocked (safe side): %s', (query) => {
-    expect(isWriteOperation('select', query)).toBe(true);
-    expect(isWriteOperation('raw', query)).toBe(true);
+    expectWrite(query, true);
   });
 
   it('skips leading comments before reading the verb', () => {
-    expect(isWriteOperation('select', '-- purge\nDELETE FROM t')).toBe(true);
-    expect(isWriteOperation('select', '/* a */ /* b */ DELETE FROM t')).toBe(
-      true,
-    );
-    expect(isWriteOperation('select', '-- report\n  SELECT * FROM t')).toBe(
-      false,
-    );
-    expect(isWriteOperation('select', '/* note */SELECT 1')).toBe(false);
+    expectWrite('-- purge\nDELETE FROM t', true);
+    expectWrite('/* a */ /* b */ DELETE FROM t', true);
+    expectWrite('-- report\n  SELECT * FROM t', false);
+    expectWrite('/* note */SELECT 1', false);
     // 닫히지 않은 블록 주석은 동사를 찾지 못해 애매함 → mock.
-    expect(isWriteOperation('select', '/* open SELECT 1')).toBe(true);
+    expectWrite('/* open SELECT 1', true);
   });
 
-  it('missing queryType and no query is mocked', () => {
-    expect(isWriteOperation(undefined, undefined)).toBe(true);
+  it('missing query is mocked', () => {
+    expectWrite(undefined, true);
   });
 
   describe('multi-statement queries (CLE-T-KH11HA)', () => {
@@ -1491,8 +1493,7 @@ describe('isWriteOperation', () => {
       'SELECT `a;b` FROM t; DELETE FROM t',
       'SELECT $$a$$; DELETE FROM t',
     ])('statement after a semicolon makes it write: %s', (query) => {
-      expect(isWriteOperation('select', query)).toBe(true);
-      expect(isWriteOperation('raw', query)).toBe(true);
+      expectWrite(query, true);
     });
 
     it.each([
@@ -1503,25 +1504,24 @@ describe('isWriteOperation', () => {
       'SELECT 1; /* trailing */',
       'SELECT 1; -- only comment\n  /* more */ ',
     ])('a single trailing semicolon stays read: %s', (query) => {
-      expect(isWriteOperation('select', query)).toBe(false);
-      expect(isWriteOperation('raw', query)).toBe(false);
+      expectWrite(query, false);
     });
 
     it.each([
       "SELECT ';' FROM t",
       "SELECT 'it''s; fine' FROM t",
       'SELECT "a;b" FROM t',
+      'SELECT "a"";b" FROM t',
       'SELECT `a;b` FROM t',
       'SELECT 1 -- a; b',
       'SELECT 1 /* a; b */',
-      'SELECT $$a; DELETE FROM t$$',
-      'SELECT $tag$a; DELETE FROM t$tag$',
+      'SELECT $$a$$ FROM t',
       'SELECT $1, $2 FROM t',
       "SELECT ';';",
     ])(
       'semicolon inside a literal, identifier or comment stays read: %s',
       (query) => {
-        expect(isWriteOperation('select', query)).toBe(false);
+        expectWrite(query, false);
       },
     );
 
@@ -1536,7 +1536,69 @@ describe('isWriteOperation', () => {
       'SELECT 1 /*! ; DELETE FROM t */',
       'SELECT 1 --;\nDELETE FROM t',
     ])('ambiguous or unterminated text is mocked: %s', (query) => {
-      expect(isWriteOperation('select', query)).toBe(true);
+      expectWrite(query, true);
+    });
+  });
+
+  // 판정 시점에는 드라이버를 모른다. PostgreSQL · MySQL 두 방언으로 읽어 둘 다 읽기 한 문장일 때만
+  // 실행한다(CLE-T-EANRHY).
+  describe('two-dialect reading (CLE-T-EANRHY)', () => {
+    it.each([
+      // MySQL 기본 모드에서 큰따옴표는 백슬래시 이스케이프가 있는 문자열이다. `\"` 뒤의 `;` 가 문장 끝이 된다.
+      'SELECT "a\\" , "; DELETE FROM t; -- "',
+      'SELECT "a\\b" FROM t',
+      // MySQL `#` 줄 주석이 PostgreSQL 에서는 연산자라 작은따옴표 리터럴이 줄을 넘는다.
+      "SELECT 1 # '\n; DELETE FROM t; -- '",
+      'SELECT 1 # c\n; DELETE FROM t',
+      // PostgreSQL 은 `#` 를 주석으로 읽지 않아 동사를 찾지 못한다.
+      '# c\nSELECT 1',
+      // 달러 인용은 PostgreSQL 에만 있다. MySQL 에서는 `;` 가 문장 끝이다.
+      'SELECT $$a; DELETE FROM t$$',
+      'SELECT $tag$a; DELETE FROM t$tag$',
+    ])(
+      'a semicolon that one dialect sees as a statement end is mocked: %j',
+      (query) => {
+        expectWrite(query, true);
+      },
+    );
+
+    it.each([
+      // PostgreSQL jsonb 연산자. MySQL 에서는 줄 주석이지만 뒤에 다른 문장이 없다.
+      "SELECT data #>> '{a,b}' FROM t",
+      "SELECT data #> '{a}' FROM t",
+      'SELECT 1 # trailing note',
+      'SELECT 1 # note\n',
+      // PostgreSQL 큰따옴표 식별자는 백슬래시 없이 `""` 로만 따옴표를 쓴다.
+      'SELECT "col" FROM "t"',
+    ])('reads the same in both dialects and stays read: %j', (query) => {
+      expectWrite(query, false);
+    });
+  });
+
+  describe('boundaries (CLE-T-EANRHY)', () => {
+    it.each([
+      ['`--` at the end of the text', 'SELECT 1 --', false],
+      ['`--` before a tab', 'SELECT 1 --\t; DELETE FROM t', false],
+      ['`--` before a newline', 'SELECT 1 --\n; DELETE FROM t', true],
+      [
+        '`--` before a control character',
+        'SELECT 1 --\u0001; DELETE FROM t',
+        true,
+      ],
+      ['identifier ending in `$$`', 'SELECT a$$x FROM t', false],
+      [
+        'identifier ending in `$$` then a statement',
+        'SELECT a$$x; DELETE FROM t',
+        true,
+      ],
+      ['`$1$` is not a dollar tag', 'SELECT $1$ FROM t', false],
+      ['`$1$` then a statement', 'SELECT $1$; DELETE FROM t', true],
+      ['`/*!` after the semicolon', 'SELECT 1; /*! DELETE FROM t */', true],
+      ['unterminated comment after the semicolon', 'SELECT 1; /* open', true],
+      ['nested comment after the semicolon', 'SELECT 1; /* /* n */ */', true],
+      ['`#` comment after the semicolon', 'SELECT 1; # note', true],
+    ] as const)('%s', (_name, query, expected) => {
+      expectWrite(query, expected);
     });
   });
 
@@ -1546,15 +1608,17 @@ describe('isWriteOperation', () => {
       '/*!50000 DELETE FROM t */ SELECT 1',
       '/*+ HINT */ SELECT 1',
       '/* a */ /*! SELECT 1 */',
+      '/* a */ /*+ HINT */ SELECT 1',
     ])('leading /*! or /*+ block is mocked: %s', (query) => {
-      expect(isWriteOperation('select', query)).toBe(true);
-      expect(isWriteOperation('raw', query)).toBe(true);
+      expectWrite(query, true);
     });
 
     it('a hint after the verb stays read', () => {
-      expect(isWriteOperation('select', 'SELECT /*+ INDEX(t i) */ 1')).toBe(
-        false,
-      );
+      expectWrite('SELECT /*+ INDEX(t i) */ 1', false);
+    });
+
+    it('`/*+` inside a leading line comment is only a comment (CLE-T-EANRHY)', () => {
+      expectWrite('-- /*+ not a hint\nSELECT 1', false);
     });
   });
 
@@ -1562,13 +1626,13 @@ describe('isWriteOperation', () => {
     it.each(['-- only comment', '-- only comment\n', '/* only */', '  \r\n'])(
       'no verb is mocked: %j',
       (query) => {
-        expect(isWriteOperation('select', query)).toBe(true);
+        expectWrite(query, true);
       },
     );
 
     it('handles CRLF line comments before the verb', () => {
-      expect(isWriteOperation('select', '-- c\r\nSELECT 1')).toBe(false);
-      expect(isWriteOperation('select', '-- c\r\nDELETE FROM t')).toBe(true);
+      expectWrite('-- c\r\nSELECT 1', false);
+      expectWrite('-- c\r\nDELETE FROM t', true);
     });
   });
 });

@@ -617,6 +617,9 @@ export class DatabaseQueryHandler
       void existing.pool.end().catch(() => {});
     }
 
+    // `multipleStatements` 는 켜지 않는다(mysql2 기본값 false). 켜면 `;` 뒤 두 번째 문장도 실행된다.
+    // dry-run 판정(`isWriteOperation`)은 판정할 수 없는 모양을 mock 으로 보내지만 문자 단위 스캔이라
+    // 이 설정이 마지막 방어선이다.
     const pool = mysqlCreatePool({
       host: creds.host,
       port: creds.port,
@@ -673,119 +676,176 @@ const SQL_READ_VERBS = new Set([
 ]);
 
 /**
- * 주석 하나를 건너뛴 뒤의 위치를 돌려준다. `pos` 가 주석 시작이 아니면 `pos` 그대로다.
- * 판정하기 어려운 주석(닫히지 않음, 중첩 블록, MySQL 실행 주석 `/*!`, 공백 없이 붙은 `--`)이면
- * `'ambiguous'` 다. 같은 문자열을 PostgreSQL · MySQL 이 다르게 읽을 수 있는 경우를 모두 여기로 모은다.
+ * dry-run 판정 스캐너가 SQL 을 읽는 방언. 판정은 통합을 얻기 전이라 드라이버를 모른다. 그래서 같은 SQL 을
+ * 두 방언으로 한 번씩 읽고 둘 다 «읽기 한 문장» 일 때만 실행한다({@link isWriteOperation}).
  */
-function skipSqlComment(sql: string, pos: number): number | 'ambiguous' {
-  if (sql.startsWith('--', pos)) {
-    // MySQL 은 `--` 뒤에 공백 · 제어 문자가 있어야 주석이다. 붙어 있으면 두 엔진이 다르게 읽는다.
-    const next = sql[pos + 2];
-    if (next !== undefined && !/\s/.test(next)) return 'ambiguous';
-    const nl = sql.indexOf('\n', pos);
-    return nl < 0 ? sql.length : nl + 1;
-  }
-  if (sql.startsWith('/*', pos)) {
-    // `/*!` 는 MySQL 이 안쪽을 SQL 로 실행한다.
-    if (sql[pos + 2] === '!') return 'ambiguous';
-    const close = sql.indexOf('*/', pos + 2);
-    if (close < 0) return 'ambiguous';
-    // PostgreSQL 은 블록 주석이 중첩되고 MySQL 은 아니라서 중첩 모양은 판정하지 않는다.
-    if (sql.slice(pos + 2, close).includes('/*')) return 'ambiguous';
-    return close + 2;
-  }
-  return pos;
+type SqlDialect = 'postgres' | 'mysql';
+
+const SQL_DIALECTS: readonly SqlDialect[] = ['postgres', 'mysql'];
+
+/**
+ * 스캐너 한 걸음의 결과.
+ * - `none`: 그 위치에 해당 구문(주석 · 인용 등)이 없다.
+ * - `skip`: 그 구문을 건너뛴 다음 위치가 `next` 다.
+ * - `ambiguous`: 두 엔진이 다르게 읽을 수 있거나 닫히지 않아 판정할 수 없다. 호출한 쪽은 mock 으로 본다.
+ */
+type SqlSkip =
+  { kind: 'none' } | { kind: 'skip'; next: number } | { kind: 'ambiguous' };
+
+const SQL_NONE: SqlSkip = { kind: 'none' };
+const SQL_AMBIGUOUS: SqlSkip = { kind: 'ambiguous' };
+
+/** `pos` 부터 줄 끝(다음 `\n` 뒤)까지 건너뛴다. */
+function skipToLineEnd(sql: string, pos: number): SqlSkip {
+  const nl = sql.indexOf('\n', pos);
+  return { kind: 'skip', next: nl < 0 ? sql.length : nl + 1 };
 }
 
-/** 공백과 주석을 건너뛴다. 판정하기 어려운 주석을 만나면 `'ambiguous'` 다. */
-function skipSqlBlank(sql: string, from: number): number | 'ambiguous' {
+/**
+ * `pos` 에서 시작하는 주석 하나를 건너뛴다.
+ *
+ * - `--` 뒤에 공백이 아닌 문자가 붙어 있으면 `ambiguous` 다. MySQL 은 `--` 뒤에 공백 · 제어 문자가 있어야
+ *   주석으로 읽고 PostgreSQL 은 늘 주석으로 읽는다.
+ * - `#` 는 MySQL 에서만 줄 주석이다. PostgreSQL 에서는 연산자(`#>` 등)라 주석이 아니다.
+ * - 블록 주석이 닫히지 않았거나 안에 `/*` 가 또 있으면(PostgreSQL 만 중첩을 허용) `ambiguous` 다.
+ * - MySQL 실행 주석 `/*!` 는 안쪽을 SQL 로 실행하므로 MySQL 에서 `ambiguous` 다.
+ * - `leading` 이면(동사 앞) 힌트 `/*+` 블록도 `ambiguous` 다. 힌트는 동사 뒤에만 둔다.
+ */
+function skipSqlComment(
+  sql: string,
+  pos: number,
+  dialect: SqlDialect,
+  leading: boolean,
+): SqlSkip {
+  if (sql.startsWith('--', pos)) {
+    const next = sql[pos + 2];
+    if (next !== undefined && !/\s/.test(next)) return SQL_AMBIGUOUS;
+    return skipToLineEnd(sql, pos);
+  }
+  if (dialect === 'mysql' && sql[pos] === '#') return skipToLineEnd(sql, pos);
+  if (sql.startsWith('/*', pos)) {
+    if (dialect === 'mysql' && sql[pos + 2] === '!') return SQL_AMBIGUOUS;
+    if (leading && sql[pos + 2] === '+') return SQL_AMBIGUOUS;
+    const close = sql.indexOf('*/', pos + 2);
+    if (close < 0) return SQL_AMBIGUOUS;
+    if (sql.slice(pos + 2, close).includes('/*')) return SQL_AMBIGUOUS;
+    return { kind: 'skip', next: close + 2 };
+  }
+  return SQL_NONE;
+}
+
+/**
+ * `from` 부터 공백과 주석을 모두 건너뛴 위치를 `skip` 으로 돌려준다(건너뛸 것이 없으면 `next === from`).
+ * 판정할 수 없는 주석을 만나면 `ambiguous` 다.
+ */
+function skipSqlBlank(
+  sql: string,
+  from: number,
+  dialect: SqlDialect,
+  leading: boolean,
+): SqlSkip {
   let pos = from;
   for (;;) {
     while (pos < sql.length && /\s/.test(sql[pos])) pos += 1;
-    const after = skipSqlComment(sql, pos);
-    if (after === 'ambiguous') return 'ambiguous';
-    if (after === pos) return pos;
-    pos = after;
+    const comment = skipSqlComment(sql, pos, dialect, leading);
+    if (comment.kind === 'ambiguous') return comment;
+    if (comment.kind === 'none') return { kind: 'skip', next: pos };
+    pos = comment.next;
   }
 }
 
 /**
- * `pos` 에서 시작하는 문자열 리터럴 · 따옴표 식별자 · 달러 인용의 끝 다음 위치를 돌려준다.
- * 그 자리가 이런 시작이 아니면 `pos` 그대로, 닫히지 않았거나 백슬래시가 든 작은따옴표 리터럴
- * (PostgreSQL 과 MySQL 이 이스케이프로 읽는지가 달라서)이면 `'ambiguous'` 다.
+ * `pos` 에서 시작하는 문자열 리터럴 · 따옴표 식별자 · 달러 인용 하나를 건너뛴다.
+ *
+ * - 작은따옴표 리터럴 안에 백슬래시가 있으면 `ambiguous` 다. MySQL 은 이스케이프로 읽고 PostgreSQL 은
+ *   (`E'…'` 가 아니면) 글자로 읽는다.
+ * - 큰따옴표는 PostgreSQL 에서 식별자(백슬래시 이스케이프 없음)다. MySQL 기본 모드에서는 백슬래시
+ *   이스케이프가 있는 문자열이고 `ANSI_QUOTES` 모드에서는 식별자다. 그래서 MySQL 에서 큰따옴표 안에
+ *   백슬래시가 있으면 `ambiguous` 다.
+ * - 백틱은 두 방언 모두 따옴표로 본다. MySQL 식별자이고, PostgreSQL 은 백틱을 구문 오류로 거절해 문자열
+ *   전체가 실행되지 않는다.
+ * - 달러 인용(`$$…$$` · `$tag$…$tag$`)은 PostgreSQL 에서만 인용이다. MySQL 에서 `$` 는 식별자 글자다.
+ * - 같은 따옴표를 두 번 쓰면 따옴표 글자 하나다. 닫히지 않았으면 `ambiguous` 다.
  */
-function skipSqlQuoted(sql: string, pos: number): number | 'ambiguous' {
+function skipSqlQuoted(sql: string, pos: number, dialect: SqlDialect): SqlSkip {
   const ch = sql[pos];
   if (ch === "'" || ch === '"' || ch === '`') {
+    const backslashAmbiguous =
+      ch === "'" || (ch === '"' && dialect === 'mysql');
     let i = pos + 1;
     for (;;) {
       const close = sql.indexOf(ch, i);
-      if (close < 0) return 'ambiguous';
-      if (ch === "'" && sql.slice(pos + 1, close).includes('\\')) {
-        return 'ambiguous';
+      if (close < 0) return SQL_AMBIGUOUS;
+      if (backslashAmbiguous && sql.slice(pos + 1, close).includes('\\')) {
+        return SQL_AMBIGUOUS;
       }
-      // 같은 따옴표를 두 번 쓰면 따옴표 문자 하나다.
       if (sql[close + 1] === ch) {
         i = close + 2;
         continue;
       }
-      return close + 1;
+      return { kind: 'skip', next: close + 1 };
     }
   }
-  if (ch === '$') {
+  if (ch === '$' && dialect === 'postgres') {
     const prev = pos > 0 ? sql[pos - 1] : '';
-    if (/[A-Za-z0-9_$]/.test(prev)) return pos;
+    if (/[A-Za-z0-9_$]/.test(prev)) return SQL_NONE;
     const tag = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(pos));
-    if (!tag) return pos;
+    if (!tag) return SQL_NONE;
     const close = sql.indexOf(tag[0], pos + tag[0].length);
-    return close < 0 ? 'ambiguous' : close + tag[0].length;
+    return close < 0
+      ? SQL_AMBIGUOUS
+      : { kind: 'skip', next: close + tag[0].length };
   }
-  return pos;
+  return SQL_NONE;
 }
 
 /**
- * dry-run 판정용으로 SQL 을 읽는다. 첫 문장의 동사(대문자)와, 첫 문장 뒤에 다른 내용이 이어지는지(`multi`)를
- * 돌려준다. 동사를 못 찾거나 판정할 수 없는 모양이면 NULL 이다. 호출한 쪽은 NULL 을 쓰기로 본다.
+ * dry-run 판정용으로 SQL 을 한 방언으로 읽는다. 첫 문장의 동사(대문자)와 `multi` 를 돌려준다. `multi` 는
+ * 첫 문장을 끝내는 `;` 뒤에 공백 · 주석이 아닌 내용이 더 있으면 true 다. 동사를 못 찾거나 판정할 수 없는
+ * 모양이면 NULL 이다. 호출한 쪽은 NULL 을 쓰기로 본다.
  *
- * - 동사 앞의 공백 · 주석은 건너뛴다. `/*!` · `/*+` 로 시작하는 맨 앞 블록 주석은 건너뛰지 않는다.
- * - 첫 문장 안에서 문자열 리터럴 · 따옴표 식별자 · 주석 · PostgreSQL 달러 인용 속의 `;` 는 문장 끝이 아니다.
+ * - 동사 앞의 공백 · 주석은 건너뛴다. 동사 앞의 `/*+` 힌트 블록은 건너뛰지 않고 NULL 이다.
+ * - 첫 문장 안에서 문자열 리터럴 · 따옴표 식별자 · 주석 · (PostgreSQL) 달러 인용 속의 `;` 는 문장 끝이 아니다.
  * - 끝에 붙은 `;` 하나와 그 뒤 공백 · 주석은 `multi` 를 바꾸지 않는다.
  *
  * 활동 로그 `api_method` 는 이 함수를 쓰지 않고 {@link extractSqlVerb} 를 그대로 쓴다.
  */
 function scanSql(
-  query: string | undefined,
+  query: string,
+  dialect: SqlDialect,
 ): { verb: string; multi: boolean } | null {
-  if (!query) return null;
-  const start = skipSqlBlank(query, 0);
-  if (start === 'ambiguous') return null;
-  // 건너뛴 주석이 `/*+` 힌트면 동사 앞에서 쓰지 않는다. MySQL 은 힌트를 맨 앞에 두지 않는다.
-  if (query.slice(0, start).includes('/*+')) return null;
-  if (query.startsWith('/*+', start)) return null;
-  const verb = extractSqlVerb(query.slice(start));
+  const start = skipSqlBlank(query, 0, dialect, true);
+  if (start.kind !== 'skip') return null;
+  const verb = extractSqlVerb(query.slice(start.next));
   if (verb === null) return null;
-  let pos = start + verb.length;
+  let pos = start.next + verb.length;
   while (pos < query.length) {
-    const quoted = skipSqlQuoted(query, pos);
-    if (quoted === 'ambiguous') return null;
-    if (quoted !== pos) {
-      pos = quoted;
+    const quoted = skipSqlQuoted(query, pos, dialect);
+    if (quoted.kind === 'ambiguous') return null;
+    if (quoted.kind === 'skip') {
+      pos = quoted.next;
       continue;
     }
-    const comment = skipSqlComment(query, pos);
-    if (comment === 'ambiguous') return null;
-    if (comment !== pos) {
-      pos = comment;
+    const comment = skipSqlComment(query, pos, dialect, false);
+    if (comment.kind === 'ambiguous') return null;
+    if (comment.kind === 'skip') {
+      pos = comment.next;
       continue;
     }
     if (query[pos] === ';') {
-      const tail = skipSqlBlank(query, pos + 1);
-      if (tail === 'ambiguous') return null;
-      return { verb, multi: tail < query.length };
+      const tail = skipSqlBlank(query, pos + 1, dialect, false);
+      if (tail.kind !== 'skip') return null;
+      return { verb, multi: tail.next < query.length };
     }
     pos += 1;
   }
   return { verb, multi: false };
+}
+
+/** 한 방언으로 읽었을 때 읽기 동사 하나로 된 한 문장인지 본다. */
+function isSingleReadStatement(query: string, dialect: SqlDialect): boolean {
+  const scanned = scanSql(query, dialect);
+  return scanned !== null && !scanned.multi && SQL_READ_VERBS.has(scanned.verb);
 }
 
 /**
@@ -797,13 +857,15 @@ function scanSql(
  *   `DELETE` 가 dry-run 에서 실행되던 결함을 막는다(CLE-T-KH11HA).
  * - 첫 동사가 {@link SQL_READ_VERBS} 에 있을 때만 읽기다. 쓰기 동사와 판정이 애매한 쿼리
  *   (`WITH` · `CALL` · `DO` · `COPY` · `EXPLAIN`, 괄호로 시작 등)는 안전 쪽(mock)으로 본다.
- *   근거: NERV 질문 01a1f2b8-529a-7479-8631-6e8fc96f5879 에서 사람이 「애매하면 mock」 으로 정했다
- *   (CLE-NODE-DBQUERY 「dry-run」).
+ *   «애매하면 mock» 은 [Database Query 「dry-run」](CLE-NODE-DBQUERY#dry-run) 의 결정이다.
  * - 첫 문장 뒤에 `;` 로 이어지는 다른 내용이 있으면(`SELECT 1; DELETE …`) mock 이다. 끝에 붙은 `;` 하나와
- *   그 뒤 공백 · 주석은 읽기 판정을 바꾸지 않는다. 리터럴 · 따옴표 식별자 · 주석 · 달러 인용 속의 `;` 는
- *   문장 끝이 아니다.
- * - 맨 앞이 MySQL 실행 주석 `/*!` 이거나 힌트 `/*+` 이면 건너뛰지 않고 mock 이다. 닫히지 않은 따옴표 ·
- *   주석, 백슬래시가 든 작은따옴표 리터럴, 중첩 블록 주석처럼 엔진마다 읽는 법이 다를 수 있는 모양도 mock 이다.
+ *   그 뒤 공백 · 주석은 읽기 판정을 바꾸지 않는다.
+ * - 판정 시점에는 드라이버를 모른다. 그래서 PostgreSQL · MySQL 두 방언으로 한 번씩 읽고 둘 다 읽기 한
+ *   문장일 때만 실행한다. 한 방언에서 리터럴 · 주석이고 다른 방언에서 문장 끝인 `;`(MySQL `#` 줄 주석,
+ *   큰따옴표 안 백슬래시, PostgreSQL 달러 인용)는 이 규칙으로 mock 이 된다.
+ * - 맨 앞이 MySQL 실행 주석 `/*!` 이거나 힌트 `/*+` 이면 mock 이다. 닫히지 않은 따옴표 · 주석, 백슬래시가
+ *   든 작은따옴표 리터럴, 중첩 블록 주석, 공백 없이 붙은 `--` 처럼 엔진마다 읽는 법이 다를 수 있는 모양도
+ *   mock 이다.
  *
  * 한계: `SELECT write_func()` · `SELECT … INTO new_table` 처럼 SELECT 로 시작하지만 데이터를 바꾸는
  * 쿼리는 읽기로 보고 실행한다. 파서가 아니라 문자 단위 스캔이라 위에 적은 모양 밖의 방언 문법은 모른다.
@@ -819,8 +881,10 @@ export function isWriteOperation(
   ) {
     return true;
   }
-  const scanned = scanSql(query);
-  return scanned === null || scanned.multi || !SQL_READ_VERBS.has(scanned.verb);
+  if (!query) return true;
+  return !SQL_DIALECTS.every((dialect) =>
+    isSingleReadStatement(query, dialect),
+  );
 }
 
 function parseParameters(raw: unknown): unknown[] {
