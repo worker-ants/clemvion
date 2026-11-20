@@ -1306,10 +1306,17 @@ describe('ExecutionEngineService', () => {
 
       try {
         expect(context.nodeOutputCache['node-w']).toEqual(outputData);
-        const structured = context.structuredOutputCache['node-w'];
-        expect(structured).toBeDefined();
-        expect(structured).not.toHaveProperty('_selectedPort');
-        expect(structured.output).not.toHaveProperty('_selectedPort');
+        // 대기 봉투는 핸들러 출력 모양이 아니라서 `output` 으로 감싼다. 표지만 빠지고
+        // 나머지 필드는 값까지 그대로 옮겨야 한다.
+        expect(context.structuredOutputCache['node-w']).toEqual({
+          config: {},
+          output: {
+            status: 'waiting_for_input',
+            meta: { interactionType: 'form' },
+            output: { answer: 'x' },
+          },
+          status: 'waiting_for_input',
+        });
       } finally {
         contextService.deleteContext(executionId);
       }

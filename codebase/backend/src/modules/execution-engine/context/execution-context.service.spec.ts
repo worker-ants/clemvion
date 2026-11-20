@@ -505,7 +505,6 @@ describe('ExecutionContextService', () => {
       expect(structured.config).toEqual({ model: 'm1' });
       expect(structured.output).toEqual({ result: 'ok' });
       expect(structured).not.toHaveProperty('_selectedPort');
-      expect(structured.output).not.toHaveProperty('_selectedPort');
     });
   });
 
