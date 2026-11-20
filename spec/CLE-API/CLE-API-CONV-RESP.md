@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-RESP"
 title: "HTTP API 규약 — 응답 형식과 상태 코드"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "d2f7ec2d77c81e5630f5a135036ab328f99f7279ed58ac74af43056cb9c395be"
+content_hash: "df131a2febd4364b51fbe0bd71c9d145fb142e9644af7b5271ad2e3b23cce7e0"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-WT4MBY"
 source_paths: []
-mirror_sha256: "9ea5f54391d243b23b706e5bdbbdaa99ee0dfabb83895796d92efbf8362fd6cf"
-etag: "sha256-154831b387b68eb19916c7e2b35c947cca77831a85b3638ad320efaa86a33b70"
+mirror_sha256: "93d6070e009109f406b2c52c1db8f7a1c9f0fcf8c8b0e0152e98a0cb104796e1"
+etag: "sha256-947e39680754e10adcc128030e4a5034cb70e9f37074849464f9898ae8a3b67a"
 ---
 ## 개요
 
@@ -73,6 +73,9 @@ HTTP 에러 응답은 에러 응답 봉투(error envelope) `{ "error": { "code",
 
 - 특히 PATCH 부분 수정은 키 생략(값 유지)·`null`(초기화)·값(설정)이 각각 뜻을 갖는 PATCH 삼중 상태 계약이다. 아래 "DTO 선언 형태" 규칙을 요청 DTO 에 그대로 적용하면 `?` 가 사라져 "필드를 생략하면 값이 유지된다" 는 계약이 깨진다.
 - 요청 DTO 에서는 `@ApiPropertyOptional({ nullable: true })` 와 `field?: T | null` 조합이 정당하다. 선례는 `UpdateAssistantSessionDto.llmConfigId` 다("null 전달 시 workspace default 로 폴백").
+- 요청 PATCH 의 `null` 을 받을지는 필드마다 정한다. 기준은 `null` 말고 그 값을 지울 다른 방법이 있는가다.
+  - 다른 방법이 없으면 `null` 을 해제로 받는다. 위 `nullable: true` 조합으로 선언하고 서버는 값을 비우거나 JSONB 키를 지운다. 예: 워크스페이스 · 워크플로우 `settings.maxConcurrentExecutions`, 트리거 타입 필드 `notification` · `interaction`.
+  - 다른 방법이 있거나 `null` 에 줄 뜻이 없으면(NOT NULL 컬럼, 기본값이나 빈 값으로 지울 수 있는 JSONB 설정 키) `@IsOptionalNonNull()` 로 400 `VALIDATION_ERROR` 를 낸다. 예: 사용자 알림 설정 키(`integrationExpiryEmail` 등), 웹채팅 외형 필드, `chatChannel.languageHints`.
 
 값이 없음을 나타내는 방식은 두 가지다. 한 응답 안에 섞여도 되지만 필드마다 근거가 있어야 한다.
 
@@ -255,3 +258,7 @@ NERV Task `CLE-T-VJQZSW` 다. [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.
 - **트리거 단위 토큰 경로의 `401 EXECUTION_NOT_FOUND`**: 규칙 10 과 `404` 행만 보면 없는 실행은 `404` 다. 트리거 단위 토큰 경로에서는 가드가 핸들러 전에 실행과 그 트리거를 찾아 토큰을 견준다. 그래서 부재도 다른 토큰 검증 실패와 같은 `401` 로 거부한다. 코드의 뜻과 두 상태를 하나로 맞추지 않은 이유는 [에러 코드 규약과 카탈로그 「트리거 단위 토큰 경로의 부재는 401 `EXECUTION_NOT_FOUND` 로 적는다 (2026-10-17)」](CLE-API-ERRCODES.md#트리거-단위-토큰-경로의-부재는-401-execution_not_found-로-적는다-2026-10-17) 에 있다. 이 문서의 `401` · `404` 행은 그쪽을 가리키기만 한다.
 - **토큰 갱신의 `410`**: 토큰 갱신은 없는 실행에도 `410 EXECUTION_TERMINATED` 를 돌려준다. 규칙 10 대로라면 처음부터 없던 실행은 `404` 다. 클라이언트에게는 어느 쪽이든 그 실행을 더 이을 수 없다는 같은 결론이다. 있고 없음을 가르지 않는 편이 정보 노출도 줄인다. 그래서 `410` 행의 예외 목록에 더했다.
 - **`/cancel` 과 `/refresh-token` 의 한도**: `/cancel` 은 `interact` 의 `command: "cancel"` 과 뜻이 같은 별칭이고 `/interact` 와 같은 실행 단위 카운터를 센다. `/refresh-token` 에는 실행 단위 한도가 없고 전역 기본값만 걸린다. 수치는 규칙 12 대로 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 표에만 적는다. [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 는 두 사실을 수치 없이 적고 있어 고치지 않았다.
+
+### 요청 PATCH 의 `null` 거부와 해제를 가르는 기준 (2026-11-20)
+
+§5.5 는 요청 PATCH 삼중 상태만 적었다. 저장소는 `null` 을 400 으로 거부하는 필드(`@IsOptionalNonNull`)도 쓴다. 리뷰어가 그 근거를 규약에서 찾지 못해 CLE-T-9Q304H 의 정합 검토에서 경고가 났다(CLE-T-WT4MBY). 기준은 [워크스페이스 공간 「설정 키의 null 은 지울 다른 방법이 없을 때만 받는다」](../CLE-ACCT/CLE-ACCT-WS-SPACE.md#설정-키의-null-은-지울-다른-방법이-없을-때만-받는다) 의 결정을 옮겼다. 트리거 타입 필드는 [트리거 관리 API](../CLE-TRIG/CLE-TRIG-MANAGE-API.md#타입-필드-notification--interaction-의-null-은-해제다-2026-11-20) 에서 해제로 정했다.
