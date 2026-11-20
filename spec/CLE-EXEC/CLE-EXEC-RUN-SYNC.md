@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-SYNC"
 title: "에디터 실행과 디버깅 — 실시간 수신·내역·Background"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "cfc2055c40837d5bfb1c9509d7970325276ec2eeb1c031fe45e1ce9f82f2ea33"
+content_hash: "eca5a9bdaa51318ac5b38163c1082c0b760de6c7bf5f396c2d6e79ce3d704735"
 read_as: "approved_fallback"
-task: "CLE-T-A338CH"
+task: "CLE-T-YWSS9K"
 source_paths: []
-mirror_sha256: "d12e53a72bcd915757d9c8bf677cb2c42d9cc1d7c06ec767cb3c37b78535b749"
-etag: "sha256-c88ea83e915f6af73a3e36c21d4cf2df42873859d07bcdd8c69b6825df792232"
+mirror_sha256: "baaf2be07a9f986ce088e6302ec1932eb1ae0dae87d1e0c1deddef5d23b13405"
+etag: "sha256-2d8a35344c3e90f1cf6f951fdda1c47904bd4ac057bea87e34a5b5f334ee1681"
 ---
 ## 개요
 
@@ -96,7 +96,7 @@ etag: "sha256-c88ea83e915f6af73a3e36c21d4cf2df42873859d07bcdd8c69b6825df792232"
 
 ## Background 본문 결과
 
-실행 트리에서 Background 노드 카드를 고르면 결과 상세에 본문 서브그래프의 실행 결과가 펼침 섹션으로 표시된다. 데이터는 Background 모니터링 API 로 가져온다. API·채널·권한은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 가 정한다.
+실행 트리에서 Background 노드 카드를 고르면 결과 상세에 본문 서브그래프의 실행 결과가 펼침 섹션으로 표시된다. 데이터는 Background 모니터링 API 로 가져온다. API · 권한은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 가, 채널 이벤트는 [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](../CLE-API/CLE-API-WS-EVENTS-CHANNELS.md#8-background-본문-실행-이벤트-server--client) 가 정한다.
 
 **카드 표시(실행 트리)**:
 
@@ -118,7 +118,7 @@ etag: "sha256-c88ea83e915f6af73a3e36c21d4cf2df42873859d07bcdd8c69b6825df792232"
 - Background 노드 카드가 처음 표시되면 `background:run:<backgroundRunId>` 채널을 자동으로 구독한다.
 - 카드의 run 상태는 REST(`backgroundRunsApi.getById`, React Query)로 받고 받은 상태가 `running` · `pending` 이면 5초마다 다시 받는다. 채널 이벤트는 이 조회를 앞당기는 캐시 무효화일 뿐이다(`use-background-run.ts`). 그래서 구독이 거부되면([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.5 최대 구독 수」](../CLE-API/CLE-API-WS-MSG.md#45-최대-구독-수) 의 연결당 구독 상한 20개를 넘은 `SUBSCRIPTION_LIMIT_EXCEEDED`, 인가 실패 등) 콘솔 경고만 남기고 5초 조회가 최종 상태를 맞춘다. 콘솔 경고는 실패 응답의 `channel` 이 이 카드의 채널(`background:run:<id>`)이거나 `channel` 이 없을 때만 남긴다. 실행 구독 쪽은 실패 응답의 `channel` 을 보고 이 거부를 무시한다([Rationale](#에디터의-rest-폴링은-실시간-경로가-막혔을-때만-켠다-2026-10-22) 의 「실패 응답의 `channel` 로 구독 채널을 가린다」).
 - 본문 안 개별 노드 이벤트(`execution.node.started`·`completed`·`failed`)는 기존 `execution:<id>` 채널로 받는다. 에디터는 `parentNodeExecutionId === <Background 노드의 NodeExecution.id>` 로 걸러 본문 타임라인을 갱신한다.
-- `execution.background_run.completed` 를 받으면 카드 배지를 최종 상태로 바꾸고 `background:run:<id>` 채널 구독을 해제한다. 최종 상태 값은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 이벤트 정의를 따른다.
+- `execution.background_run.completed` 를 받으면 카드 배지를 최종 상태로 바꾸고 `background:run:<id>` 채널 구독을 해제한다. 최종 상태 값은 [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](../CLE-API/CLE-API-WS-EVENTS-CHANNELS.md#8-background-본문-실행-이벤트-server--client) 를 따른다.
 - 드로어를 닫거나 다른 실행으로 옮기면 활성 Background 채널을 모두 구독 해제한다.
 
 **페이지네이션**: 본문 노드가 50개를 넘으면 "Load more" 버튼을 표시한다. 누르면 `?cursor=<nextCursor>` 로 다음 페이지를 이어 붙인다. 무한 스크롤이 아니라 명시적 버튼이다. 사용자가 본문 노드 수를 알아차리게 하려는 것이다.
