@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-API"
 title: "재실행 — API 와 데이터 모델"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "5fbfd20ca53641f1c98e5fc44a29a898e8e2f17d6a04a3f6b97bfa6c9ca34bcf"
+content_hash: "60b48669a20ba2a79280b11a7e6d985fbe66b38da381b3af4950800a461fb290"
 read_as: "approved_fallback"
-task: "CLE-T-PHTH9N"
+task: "CLE-T-AQQMY1"
 source_paths: []
-mirror_sha256: "9d8bce304e2377c63087b61aead7d17f4cb184ed7641ab397f7eacf6f54f7c7c"
-etag: "sha256-3680ba1df3b2c2cd8ffa97d175c13539cd4cf4e4e0927bf0d4ae7a982db39e39"
+mirror_sha256: "e2fd5e4cbe26c78786e983811ae72b8e304b11519d53865a1ec3b60d45af1add"
+etag: "sha256-2c957a361833cc222b0ce73dc5af7f756bcbca161b57d756c4cb29b53ecae051"
 ---
 ## 개요
 
@@ -24,11 +24,11 @@ etag: "sha256-3680ba1df3b2c2cd8ffa97d175c13539cd4cf4e4e0927bf0d4ae7a982db39e39"
 
 API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 의 에러 모양을 따른다.
 
-### POST /api/executions/:executionId/re-run
+### POST /api/executions/:id/re-run
 
 원본 실행을 바탕으로 새 실행을 시작한다.
 
-**경로 파라미터**: `executionId`(UUID, 필수). 재실행할 원본 실행 ID. 같은 체인의 어느 실행이어도 된다(그 실행이 직계 부모가 된다).
+**경로 파라미터**: `id`(UUID, 필수). 재실행할 원본 실행 ID. 같은 체인의 어느 실행이어도 된다(그 실행이 직계 부모가 된다).
 
 **원본 실행 상태**: 재실행할 수 있는 원본 실행의 상태(`status`)를 제한하지 않는다. 현재 구현(`executions.service.ts` 의 `reRun`)도 원본 상태를 검사하지 않는다. 화면에서 재실행 버튼을 어느 상태에서 보일지는 진입점 문서가 정한다([진입점](CLE-EXEC-RERUN-UI.md#진입점)).
 
@@ -71,7 +71,7 @@ API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에�
 | 403 | `NOT_A_MEMBER` | RR-PL-06 첫 조건. 워크스페이스 멤버가 아님(`RolesGuard`) |
 | 403 | `EDITOR_REQUIRED` | RR-PL-06 첫 조건. 뷰어(`RolesGuard`, 라우트가 `@Roles('editor')`) |
 | 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 둘째 조건. 다른 사용자가 시작한 실행이고 소유자·관리자가 아님(서비스) |
-| 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 가 없거나 다른 워크스페이스의 실행 |
+| 404 | `RERUN_EXECUTION_NOT_FOUND` | `id` 가 없거나 다른 워크스페이스의 실행 |
 | 404 | `RERUN_WORKFLOW_DELETED` | 원본 실행의 워크플로우가 삭제됨(재실행의 전제인 현재 워크플로우 정의가 없다). 방어용이다. 데이터 모델에서 `Execution.workflow_id` 는 워크플로우 삭제 시 CASCADE 라([실행 데이터와 흐름 §삭제와 보존](CLE-EXEC-DATA.md#삭제와-보존)) 원본 실행도 함께 지워진다. 그래서 정상 경로에서는 `RERUN_EXECUTION_NOT_FOUND` 가 먼저 나고 이 코드에는 도달하지 않는다 |
 | 409 | `RERUN_CHAIN_DEPTH_EXCEEDED` | RR-PL-05 체인 깊이 32 초과 |
 | 400 | `RERUN_DRY_RUN_NOT_APPLICABLE` | dry-run 요청인데 워크플로우나 그 워크플로우가 부르는 서브 워크플로우에 `supportsDryRun: false` 노드가 있음 |
@@ -79,7 +79,7 @@ API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에�
 
 `INVALID_TRIGGER_PARAMETERS` 만 `RERUN_` 접두가 없는 이유는 [Rationale](#invalid_trigger_parameters-만-rerun_-접두가-없다) 에 있다.
 
-### GET /api/executions/:executionId/chain
+### GET /api/executions/:id/chain
 
 같은 체인의 모든 실행을 시간순으로 돌려준다. 실행 상세 화면의 체인 배지가 쓴다.
 
@@ -105,7 +105,7 @@ API 는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투와 [에�
 | --- | --- | --- |
 | 401 | `AUTH_REQUIRED` | 인증 토큰이 없거나 만료됨 |
 | 403 | `NOT_A_MEMBER` | 헤더로 지정한 워크스페이스의 멤버가 아님(`RolesGuard`. 이 라우트는 `@Roles()` 없이 `@WorkspaceId()` 만 쓴다) |
-| 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 가 없거나 다른 워크스페이스의 실행 |
+| 404 | `RERUN_EXECUTION_NOT_FOUND` | `id` 가 없거나 다른 워크스페이스의 실행 |
 
 ## 데이터 모델
 
@@ -201,3 +201,11 @@ E1(`re_run_of` 만)은 직계 부모 조회는 빠르지만 체인 전체 조회
 ### `INVALID_TRIGGER_PARAMETERS` 만 `RERUN_` 접두가 없다
 
 형제 코드(권한, 체인 깊이, 워크플로우 삭제, dry-run 부적용 등)는 재실행 **고유** 실패라 경로 이름을 붙였다. 이 코드는 반대로 수동 실행(`POST /workflows/:id/execute`)·저장(`POST /workflows/:id/save`) 경로와 **같은 검증 실패를 같은 코드로 내기 위한** 것이다. 경로별 접두를 붙이면 통일이 의미 없어진다. 2026-08-22 이전에는 이 자리가 `INVALID_INPUT` 이었다. 이름 변경 이력은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
+
+### 경로 변수는 컨트롤러와 같은 `:id` 로 적는다
+
+결정일: 2026-11-20
+
+이전 판은 두 절 제목과 [실행 내역](CLE-EXEC-HISTORY.md) · [재실행 정책](CLE-EXEC-RERUN-POLICY.md) 의 API 표기를 `:executionId` 로 적었다. 코드와 실행 상세 `GET /api/executions/:id` 표기는 `:id` 였다. 그래서 코드와 대다수 표기에 맞춰 `:id` 로 통일했다. 제목이 바뀌어 앵커가 `#post-apiexecutionsidre-run` · `#get-apiexecutionsidchain` 이 됐고 이 앵커를 인용하는 코드 주석(`executions.controller.ts` 의 재실행 · 체인 조회 핸들러, `dto/re-run.dto.ts`)은 같은 변경에서 고친다. background-runs 경로는 코드가 `:executionId` 라 그대로 둔다.
+
+기각한 대안: 스펙 쪽 `:executionId` 로 맞추는 안은 코드 · Swagger 의 `@ApiParam({ name: 'id' })` 와 계속 어긋나서 버렸다.
