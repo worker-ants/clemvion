@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY-OUTPUT"
 title: "Database Query 노드 — 출력 구조와 에러 코드"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-DBQUERY"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-DBQUERY"]
 area: "CLE-NODE-INT"
-content_hash: "ae87c0e0d74f16bbf40cd05608a65fc5da9331992e87cfb95d2a02c83c33221c"
+content_hash: "5f45780e31e754a2d7a69b121cf901e35b1aae2739cc13ca857a845f1e36678f"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E991S1"
 source_paths: []
-mirror_sha256: "8bec0b976b1960209d0d6d795b4df97540151ec6aa3578ff36ba1b6adc716278"
-etag: "sha256-4750a3e993fb125a6f5f1ec609fe5a94b9ed5a1cdd9b2eeb995f0c0d3bf34a00"
+mirror_sha256: "4429b68049cb2dba5258ba54bb8f0db1b8d5618ba9f24893ecdd98420d698da2"
+etag: "sha256-d6b18217c88840dfb0954eb2b13b286ccf765cae60e4d33ba5d315be7064b922"
 ---
 ## 개요
 
@@ -146,7 +146,7 @@ INSERT(MySQL `ResultSetHeader`):
 |------|------|------|------|
 | `config.*` | 정상 케이스와 같음 | 설정 에코 | 자격 증명은 에코하지 않고 `integrationId` 만 |
 | `output.error.code` | enum | 핸들러 반환 | `DB_QUERY_FAILED` / `DB_CONNECTION_ERROR` / `DB_CONSTRAINT_VIOLATION` / `DB_PERMISSION_DENIED` / `DB_HOST_BLOCKED`, 또는 [통합 노드 공통](CLE-NODE-INT-COMMON.md)의 `IntegrationError` 코드(예: `INTEGRATION_NOT_CONNECTED`). UPPER_SNAKE_CASE |
-| `output.error.message` | string | 핸들러 반환 | 드라이버 원문 메시지. `sanitizeMessage` 로 password·secret 토큰을 가린 뒤 내보낸다 |
+| `output.error.message` | string | 핸들러 반환 | 드라이버 원문 메시지. `sanitizeMessage` 로 password·secret 토큰을 가린 뒤 내보낸다. 사설망 차단 가드의 고장은 드라이버 원문이 아니라 고정 문구다([런타임 에러](#런타임-에러-port-error) 표의 `INTEGRATION_CALL_FAILED`) |
 | `output.error.details` | object? | 핸들러 반환 | 드라이버 native 코드 등(예: PostgreSQL SQLSTATE `{ driverCode: "23505" }`, MySQL `{ driverCode: "ER_DUP_ENTRY" }`). 매핑할 수 있으면 항상 넣는다 |
 | `meta.durationMs` | number | 핸들러 반환 | 실패까지 걸린 시간(ms) |
 | `port` | `'error'` | 핸들러 반환 | 런타임 실패 분기 |
@@ -173,7 +173,7 @@ INSERT(MySQL `ResultSetHeader`):
 | `DB_PERMISSION_DENIED` | 인증된 세션의 객체 권한 부족(실행 중 발견) | pg `42501`(insufficient_privilege), mysql `ER_TABLEACCESS_DENIED_ERROR`·`ER_COLUMNACCESS_DENIED_ERROR`·`ER_DBACCESS_DENIED_ERROR`·`ER_SPECIFIC_ACCESS_DENIED_ERROR` |
 | `DB_HOST_BLOCKED` | 사설망 차단 가드가 `credentials.host` 를 사설·loopback·link-local·CGNAT·IPv6 사설 대역으로 판정해 막음(풀 연결 전). 기본 켜짐, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 해제. 메시지는 호스트·IP 를 담지 않는다 | — (가드 차단, 드라이버 관여 없음) |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 누락 실패(D4) | — |
-| `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 고장)도 이 코드다. `DB_HOST_BLOCKED` 는 판정에만 쓴다. 이 노드는 리다이렉트가 없어 HTTP Request 와 달리 시점 구분이 없다 | — |
+| `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 고장)도 이 코드다. 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. `DB_HOST_BLOCKED` 는 판정에만 쓴다. 이 노드는 리다이렉트가 없어 HTTP Request 와 달리 시점 구분이 없다 | — |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 가 핸들러에 주입되지 않음(배포 누락, D4) | — |
 | `INVALID_PARAMETERS` | `config.parameters` JSON 파싱 실패 또는 배열이 아닌 형태(D4) | — |
 
@@ -192,3 +192,9 @@ INSERT(MySQL `ResultSetHeader`):
 - 해제 플래그 재사용: 별도 플래그를 만들지 않고 `ALLOW_PRIVATE_HOST_TARGETS` 를 재사용한다. 통합 노드 전체의 보안 자세(기본 차단, 셀프 호스팅만 해제)를 일관되게 유지하기 위해서다.
 - 채팅 채널 분류: `DB_HOST_BLOCKED` 는 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)의 `DB_*` 매핑에 들어가 `executionFailedInternal` 로 분류된다. 차단은 우리 쪽 정책 결정이므로 내부 실패다.
 - 호환성: 차단 케이스의 `output.error.code` 가 `INTEGRATION_CALL_FAILED` 에서 `DB_HOST_BLOCKED` 로 바뀌었다. 이 경우를 일반 코드로 분기하던 저장된 워크플로우에는 breaking 이다. 영향 범위는 "DB 사설망 차단" 이라는 드문 경로에 한정된다.
+
+### 가드 고장은 고정 문구로 알린다
+
+결정일: 2026-11-20
+
+전에는 가드 고장의 `INTEGRATION_CALL_FAILED` 메시지에 가드 원문을 `sanitizeMessage` 로 가려 실었다. 이 함수는 password · 토큰 형태만 가리므로 원문에 든 host 이름이나 IP 가 남을 수 있었다. 이 메시지는 노드 출력과 활동 로그로 워크스페이스 사용자에게 나간다. NERV Task `CLE-T-E991S1` 에서 코드는 그대로 두고 메시지를 HTTP Request 노드와 같은 고정 문구로 바꿨다. 결정의 근거는 [HTTP Request 노드 「가드 고장은 시점과 상관없이 같은 코드와 문구로 낸다」](CLE-NODE-HTTP.md#가드-고장은-시점과-상관없이-같은-코드와-문구로-낸다) 에 있다.

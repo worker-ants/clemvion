@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY-SSRF"
 title: "EIA 알림 웹훅 — SSRF 방지"
 type: "design"
-version: 3
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-NOTIFY"]
 area: "CLE-IX"
-content_hash: "00e8b4412205d79b719fb5ea042eed26742a74c3574a134d15bff1f6975e9dec"
+content_hash: "cd5a9ed99df9df9c8e2c1e2e5427c0319d5ce7d0e647e666286d7ce44a72f37a"
 read_as: "approved_fallback"
-task: "CLE-T-GAQCF9"
+task: "CLE-T-753725"
 source_paths: []
-mirror_sha256: "57d1a3b74c0357c9694b9362e1fd551da3721cc6eb1f966efa1e634fed5217b9"
-etag: "sha256-2d0713848df341e93c1b65370d0cbd25be6161e73a87cf80e42997bb992a6d2a"
+mirror_sha256: "fa833e5774d9a9e6215b6fc08960ae5b616a373e8547c34575168e2841163897"
+etag: "sha256-f2ebd2a6babe49fccbdfb2a8aeff68c5aa97f9576a5777eb765c27f2e941fd9d"
 ---
 ## 개요
 
@@ -22,12 +22,12 @@ etag: "sha256-2d0713848df341e93c1b65370d0cbd25be6161e73a87cf80e42997bb992a6d2a"
 
 ## SSRF 방지
 
-`notification.url` 을 등록할 때(`TriggersService.assertNotificationUrlSafe`)와 보내기 직전(`checkSsrfSafeUrl`)에 두 번 검증한다.
+`notification.url` 을 등록할 때(`TriggersService.assertNotificationUrlSafe`)와 보내기 직전(`NotificationWebhookProcessor`)에 같은 검사 `validateNotificationUrl` 로 두 번 검증한다. 이 검사는 SSRF 판정 `checkSsrfSafeUrl` 을 먼저 하고, 통과한 URL 에 userinfo 가 있는지 본다.
 
 등록할 때 걸리면 트리거 생성 · 수정 요청이 `400 INVALID_NOTIFICATION_URL` 로 실패한다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증) §6.4). 보내기 직전 검사는 발송 작업 안에서 돌아서 응답할 HTTP 요청이 없다. 걸리면 그 알림 웹훅을 보내지 않고 재시도하지도 않는다. 발송 건강도를 `degraded` 로 바꾸고 `notification_last_error` 에 거부 사유를 남긴다. 아래 DNS 결과 검사에 걸려도 같다.
 
 - 호스트가 사설 · 특수 대역(10/8, 172.16/12, 192.168/16, 100.64/10, 0/8, 192.0.0/24, 198.18/15, 멀티캐스트 224/4, 예약 · 브로드캐스트 240/4, fc00::/7, 옛 site-local fec0::/10, 멀티캐스트 ff00::/8, NAT64 local-use prefix 64:ff9b:1::/48, 미지정 주소 ::), loopback(127/8, ::1), link-local · 메타데이터 서비스 IP(169.254/16, fe80::/10, 169.254.169.254 등)의 IP 리터럴이면 거부한다. `localhost` 와 `0.0.0.0` 도 거부한다. 이 두 검사는 DNS 를 풀지 않고 URL 의 호스트 문자열만 본다. 그래서 사설 IP 로 풀리는 호스트 이름은 아래 DNS 결과 검사가 켜져 있을 때만 막힌다. 이 검사는 운영 환경에서 기본으로 켜져 있다.
-- IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다. 마지막 32비트에 IPv4 를 품은 IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), SIIT(`::ffff:0:0:0/96`), NAT64 well-known prefix(`64:ff9b::/96`)와 둘째 · 셋째 16비트에 IPv4 를 품은 6to4(`2002::/16`)가 대상이다. 점 표기(`::ffff:127.0.0.1`)와 16진 표기(`::ffff:7f00:1`)를 같게 본다. 공인 IPv4 를 품었으면 통과한다. NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 자리가 망마다 달라서 품은 IPv4 를 꺼내지 않고 첫째 불릿대로 대역 전체를 막는다. [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)는 6to4 · NAT64 local-use prefix 와 192.0.0/24 · 198.18/15 · 224/4 · 240/4 · fec0::/10 · ff00::/8 을 아직 막지 않는다. 두 가드를 맞추는 일은 NERV Task `CLE-T-753725` 가 맡는다. 범위를 정한 이유는 [Rationale](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 과 [특수 용도 대역 · 6to4 · NAT64 local-use prefix 를 막는다](#특수-용도-대역--6to4--nat64-local-use-prefix-를-막는다-2026-11-12) 에 있다.
+- IPv4 를 품은 IPv6 리터럴은 품은 IPv4 로 판정한다. 마지막 32비트에 IPv4 를 품은 IPv4-mapped(`::ffff:0:0/96`), IPv4-compatible(`::/96`), SIIT(`::ffff:0:0:0/96`), NAT64 well-known prefix(`64:ff9b::/96`)와 둘째 · 셋째 16비트에 IPv4 를 품은 6to4(`2002::/16`)가 대상이다. 점 표기(`::ffff:127.0.0.1`)와 16진 표기(`::ffff:7f00:1`)를 같게 본다. 공인 IPv4 를 품었으면 통과한다. NAT64 local-use prefix(`64:ff9b:1::/48`)는 IPv4 자리가 망마다 달라서 품은 IPv4 를 꺼내지 않고 첫째 불릿대로 대역 전체를 막는다. 정규화하지 못한 IPv6 모양 리터럴은 막는다. 이 대역표와 판정은 SSRF 가드 넷(통합 노드 · [외부 MCP](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증) · LLM · 알림 웹훅)이 함께 쓴다. 범위를 정한 이유는 [Rationale](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01) 과 [특수 용도 대역 · 6to4 · NAT64 local-use prefix 를 막는다](#특수-용도-대역--6to4--nat64-local-use-prefix-를-막는다-2026-11-12) 에 있다.
 - DNS 결과 검사(DNS rebinding 방어): 보내기 직전에 호스트 이름을 OS 해석기로 풀어(`dns.lookup`, 나온 주소 전부) 하나라도 위 대역에 들면 발송을 거부하고 발송 건강도를 `degraded` 로 둔다(`checkResolvedHostIp`). 발송(`fetch`)이 연결할 때 쓰는 해석기와 같아서 `/etc/hosts` 와 검색 도메인도 같게 본다. 켜짐 여부는 환경과 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD` 로 정한다.
   - 운영 환경(`NODE_ENV=production`): 기본으로 켠다. 값이 정확히 `0` 일 때만 끈다. 끈 채로 기동하면 `main.ts` 가 `[SECURITY]` 경고 로그를 한 번 남긴다(`shouldWarnNotificationDnsGuardOff`). 기동을 막지는 않는다.
   - 운영 밖: 기본으로 끈다. 값이 정확히 `1` 일 때만 켠다.
@@ -39,14 +39,18 @@ etag: "sha256-2d0713848df341e93c1b65370d0cbd25be6161e73a87cf80e42997bb992a6d2a"
 - 발송은 리다이렉트를 따라가지 않는다. 등록 때와 발송 직전의 검사는 등록 URL 의 호스트만 본다. 리다이렉트가 가리키는 주소는 어느 검사도 보지 않는다. 따라가면 공개 호스트가 3xx 로 사설 · loopback · 메타데이터 주소를 가리켜 이 검사들을 통과한다. 307 · 308 이면 서명한 본문도 그 주소로 간다. 3xx 응답의 처리는 [재시도와 실패 처리](CLE-EIA-NOTIFY-DELIVERY.md#재시도와-실패-처리) 가 정한다.
 - 워크스페이스 단위 허용·차단 목록(원문 표기 `workspace_settings.notification_url_allow_pattern`)을 설정할 수 있어야 한다. [미결 사항](CLE-EIA-NOTIFY.md#미결-사항) 참조.
 - URL 은 `https://` 만 받는다. 개발 환경에서 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 를 허용한다. 운영 환경(`NODE_ENV=production`)에서 이 플래그가 `1` 이나 `true` 이면 서버가 기동하지 않는다([운영 환경 가드](../CLE-ACCT/CLE-ACCT-SESSION.md#운영-환경-가드)). 이 플래그는 스킴만 연다. 호스트 검사를 끄는 플래그는 없다. [통합 노드](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단)의 사설망 허용 플래그(`ALLOW_PRIVATE_HOST_TARGETS`)도 이 검사에는 적용되지 않는다.
+- URL 에 userinfo(사용자명이나 비밀번호, 한쪽만 있어도. `user:pass@` · `tok@` · `:pw@`)가 있으면 거부한다. 거부 사유는 고정 문구 `URL must not include credentials (user:password@)` 이고 URL 원문과 자격 증명을 싣지 않는다. `https://@host` 처럼 userinfo 가 비어 있으면 fetch 가 받으므로 통과한다. SSRF 판정이 먼저 거부한 URL 은 그 사유로 거부한다. 이미 저장된 행이 보내기 직전에 걸리면 요청을 만들지 않고 `notification_last_error` 에 `outbound URL 거부: URL must not include credentials (user:password@)` 를 남긴다. 편집 화면(외부 인터랙션 카드)도 저장하기 전에 같은 조건을 막고 토스트를 띄운다. 이유는 [EIA 알림 웹훅 Rationale](CLE-EIA-NOTIFY.md#알림-url-의-userinfo-를-받지-않는다-2026-11-20) 에 있다.
 
 ## 구현 위치
 
-- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp` 와 켜짐 판정 `isNotificationDnsGuardEnabled`, 운영에서 끈 경우의 기동 경고 판정 `shouldWarnNotificationDnsGuardOff`(`main.ts` 가 부른다), 발송 직전 검사와 연결 시점 판정이 함께 쓰는 대역 판정 `resolvedAddressBlockReason`, IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`. 두 헬퍼는 MCP 가드 `McpClientService.isBlockedIPv6` 도 쓴다)
-- `codebase/backend/src/modules/triggers/triggers.service.ts` (등록 거부 `assertNotificationUrlSafe`(`400 INVALID_NOTIFICATION_URL`))
-- `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (보내기 직전 검사, 연결 시점 판정을 붙인 발송, 거부 시 발송 건강도 기록)
+- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (등록 · 발송 직전 URL 검사 `checkSsrfSafeUrl`, DNS 결과 검사 `checkResolvedHostIp` 와 켜짐 판정 `isNotificationDnsGuardEnabled`, 운영에서 끈 경우의 기동 경고 판정 `shouldWarnNotificationDnsGuardOff`(`main.ts` 가 부른다), 발송 직전 검사와 연결 시점 판정이 함께 쓰는 거부 사유 `resolvedAddressBlockReason`)
+- `codebase/backend/src/common/utils/ssrf/ip-classifier.ts` (대역표 · IPv6 정규화 · 품은 IPv4 판정 `classifyIpLiteral`. SSRF 가드 넷이 함께 쓴다)
+- `codebase/backend/src/modules/triggers/dto/notification-config.dto.ts` (등록 · 발송 직전이 함께 쓰는 검사 `validateNotificationUrl`: `checkSsrfSafeUrl` 뒤에 userinfo 를 거부한다. 고정 거부 사유 `NOTIFICATION_URL_CREDENTIALS_REASON`)
+- `codebase/backend/src/modules/triggers/triggers.service.ts` (등록 거부 `assertNotificationUrlSafe`(`validateNotificationUrl` 로 판정, `400 INVALID_NOTIFICATION_URL`))
+- `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts` (보내기 직전 검사 `validateNotificationUrl`, 연결 시점 판정을 붙인 발송, 거부 시 발송 건강도 기록)
 - `codebase/backend/src/modules/external-interaction/notification-webhook-dispatcher.ts` (연결 시점 판정 dispatcher `notificationWebhookDispatcher` 와 연결 때 막힌 주소의 판정 오류 `ResolvedHostBlockedError`)
 - `codebase/backend/src/common/utils/guarded-lookup-dispatcher.ts` (연결할 때 푼 주소를 판정하는 undici dispatcher, HTTP Request 노드 · 외부 MCP 와 공용)
+- `codebase/frontend/src/lib/utils/url-validation.ts` (`hasNotificationUrlCredentials`: 외부 인터랙션 카드가 저장 전에 userinfo 를 막는다)
 
 ## Rationale
 
@@ -55,12 +59,12 @@ etag: "sha256-2d0713848df341e93c1b65370d0cbd25be6161e73a87cf80e42997bb992a6d2a"
 마지막 32비트에 IPv4 를 품은 IPv6 리터럴은 품은 IPv4 를 IPv4 대역표로 다시 판정한다. IPv4-mapped 리터럴(`[::ffff:7f00:1]`)이 loopback · 메타데이터 주소를 두 검사에 통과시킨다는 코드 리뷰 발견이 계기다. 작업은 NERV Task `CLE-T-DCQWEB` 다.
 
 - Node.js 의 `URL` 은 `https://[::ffff:127.0.0.1]/` 의 hostname 을 `[::ffff:7f00:1]` 로, `https://[::ffff:169.254.169.254]/` 를 `[::ffff:a9fe:a9fe]` 로 바꾼다. 그때까지 검사는 IPv6 에서 `::1` · `::` · fe80::/10 · fc00::/7 만 막았다. 그래서 두 주소가 등록 검사와 발송 직전 검사를 모두 지났다.
-- IPv4-mapped 주소는 IPv4 대상에 그대로 닿는다. 통합 노드 가드 코드(`http-safety.ts` 의 `mappedIPv4`)도 같은 이유로 IPv4-mapped 를 품은 IPv4 로 판정한다. 그 판정 범위와 실측은 아직 스펙에 없고 코드 주석에만 있다. 알림 웹훅에서는 서명한 POST 가 loopback · 메타데이터 주소로 가고 그 응답 코드가 `notification_last_error` 에 보인다.
+- IPv4-mapped 주소는 IPv4 대상에 그대로 닿는다. 그때 통합 노드 가드도 같은 이유로 IPv4-mapped 를 품은 IPv4 로 판정했다. 알림 웹훅에서는 서명한 POST 가 loopback · 메타데이터 주소로 가고 그 응답 코드가 `notification_last_error` 에 보인다.
 - DNS 결과 검사도 같은 판정을 쓴다. 해석기는 mapped 주소를 점 표기(`::ffff:127.0.0.1`)로 돌려줄 수 있지만, 판정 함수가 점 표기와 16진 표기를 같은 정규화로 읽으므로 판정 결과는 같다. 이 결정 때 검사는 `dns.resolve4` · `dns.resolve6` 를 썼고 2026-11-06 에 `dns.lookup` 으로 바뀌었다.
-- IPv4-compatible · SIIT · NAT64 표기도 같은 방식으로 본다. 통합 노드 가드는 이 셋을 막지 않는다. 그 코드 주석은 macOS · `node:24-alpine` 실측에서 이 표기로 IPv4 대상에 닿지 않았다고 적는다. 그러나 NAT64 는 `64:ff9b::a.b.c.d` 를 IPv4 `a.b.c.d` 로 바꿔 보내는 변환이다(RFC 6052 · RFC 6146). NAT64 게이트웨이가 있는 IPv6 전용 망에 배포하면 닿을 수 있다. 품은 IPv4 가 사설 · 특수 대역일 때만 막으므로 공인 주소로 가는 수신 서버는 영향이 없다.
+- IPv4-compatible · SIIT · NAT64 표기도 같은 방식으로 본다. 그때 통합 노드 가드는 이 셋을 막지 않았다. 그 코드 주석은 macOS · `node:24-alpine` 실측에서 이 표기로 IPv4 대상에 닿지 않았다고 적었다. 그러나 NAT64 는 `64:ff9b::a.b.c.d` 를 IPv4 `a.b.c.d` 로 바꿔 보내는 변환이다(RFC 6052 · RFC 6146). NAT64 게이트웨이가 있는 IPv6 전용 망에 배포하면 닿을 수 있다. 품은 IPv4 가 사설 · 특수 대역일 때만 막으므로 공인 주소로 가는 수신 서버는 영향이 없다.
 - 이 결정 때는 6to4(`2002::/16`)와 NAT64 local-use prefix(`64:ff9b:1::/48`)를 판정하지 않았다. 6to4 주소로 보낸 패킷은 그 IPv4 의 6to4 라우터가 받아 뒤쪽 IPv6 망으로 넘긴다. 품은 IPv4 의 TCP 서비스로는 가지 않는다. local-use prefix 는 운영자가 접두 길이를 정한다(RFC 8215). 그래서 IPv4 가 놓이는 자리가 망마다 다르다. 마지막 32비트를 읽으면 엉뚱한 IPv4 로 판정하게 된다. 2026-11-12 에 두 대역을 막기로 바꿨다([특수 용도 대역 · 6to4 · NAT64 local-use prefix 를 막는다](#특수-용도-대역--6to4--nat64-local-use-prefix-를-막는다-2026-11-12)).
-- [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 같은 정규화 · 추출 헬퍼를 쓰고 판정 범위가 같다. 꺼낸 IPv4 를 판정하는 대역표는 가드마다 따로 있다. 2026-11-12 부터는 알림 웹훅 가드가 더 넓게 막는다. 두 가드를 맞추는 일은 NERV Task `CLE-T-753725` 가 맡는다.
-- 알림 웹훅 · MCP 가드와 통합 노드 · LLM 가드의 판정 범위를 맞출지, 공용 가드를 어디에 둘지는 NERV Task `CLE-T-63RSH6` 가 정한다. 정하면 그 결정과 실측을 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) Rationale 과 [통합 노드 공통 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단)에 남긴다. 판정 코드를 한 모듈로 모으는 일은 NERV Task `CLE-T-753725` 가 맡는다. 공용 판정을 쓰더라도 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 는 알림 웹훅 가드에 닿지 않는다. 알림 웹훅의 호스트 검사에는 우회 플래그가 없다. `ALLOW_HTTP_HOOKS` 는 `http://` 스킴만 연다.
+- [외부 MCP 서버 URL 검사](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증)도 그때 같은 정규화 · 추출 헬퍼를 썼고 대역표는 따로 두었다.
+- 2026-11-20 에 SSRF 가드 넷(통합 노드 · 알림 웹훅 · MCP · LLM)의 IP 리터럴 판정을 공용 `ip-classifier.ts` 하나로 모았다(NERV Task `CLE-T-753725`). 범위는 가장 넓은 이 문서의 표로 맞췄다(NERV Task `CLE-T-63RSH6`). 통합 노드 쪽 변경은 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) 와 [통합 노드 공통 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#사설망-차단) 이 다룬다. 정규화하지 못한 IPv6 모양 리터럴은 막는다(fail-closed). 그전에는 알림 웹훅 가드만 통과시켰다. 공용 판정은 환경 변수를 읽지 않으므로 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 는 알림 웹훅 가드에 닿지 않는다. 알림 웹훅의 호스트 검사에는 우회 플래그가 없다. `ALLOW_HTTP_HOOKS` 는 `http://` 스킴만 연다.
 
 기각한 대안:
 
@@ -123,7 +127,7 @@ NERV Task `CLE-T-W95HND` 에서 알림 웹훅 가드(`ssrf-safe-url.util.ts`)의
 - IPv4 192.0.0.0/24(IETF 프로토콜 할당), 198.18.0.0/15(벤치마크), 224.0.0.0/4(멀티캐스트), 240.0.0.0/4(예약 · 브로드캐스트)와 IPv6 fec0::/10(옛 site-local), ff00::/8(멀티캐스트)는 공인 수신 서버가 쓰지 않는 특수 용도 대역이다. 막아도 정상 수신 서버가 잃는 것이 없다. 192.0.0.0/24 와 fec0::/10 은 내부망 장비가 쓸 수 있다.
 - 6to4 는 [2026-11-01 결정](#ipv4-를-품은-ipv6-리터럴을-품은-ipv4-로-판정한다-2026-11-01)에서 판정하지 않았다. 6to4 주소로 보낸 패킷이 품은 IPv4 의 TCP 서비스가 아니라 그 IPv4 의 6to4 라우터로 가기 때문이다. 이번에 판정하기로 바꾼 이유는 그 라우터가 내부망에 있을 수 있어서다. 품은 IPv4 가 사설 대역이면 서버가 보낸 IPv6 패킷이 IPv4 에 담겨(프로토콜 41) 내부 주소로 가고, 그 라우터 뒤의 IPv6 망에 닿을 수 있다. IPv4 자리는 둘째 · 셋째 16비트로 고정이라 잘못 읽을 일이 없다. 6to4 는 RFC 7526 이 폐기했다. 공인 IPv4 를 품은 주소는 통과시키므로 잃는 수신 서버가 거의 없다.
 - NAT64 local-use prefix(`64:ff9b:1::/48`, RFC 8215)는 운영자가 접두 길이(/48 ~ /96)를 고르고 그에 따라 IPv4 자리가 달라진다(RFC 6052 §2.2). 2026-11-01 결정은 자리를 알 수 없어서 판정하지 않았다. 그러면 NAT64 local-use 를 쓰는 망에서 사설 IPv4 로 가는 경로가 열린다. 자리를 추측해 꺼내면 사설 IPv4 를 품은 주소를 공인으로 볼 수 있다. 그래서 꺼내지 않고 대역 전체를 막는다. 이 대역은 사설 NAT64 배포용이라 공인 수신 서버가 쓰지 않는다.
-- MCP 가드(`mcp-client.service.ts`)는 바꾸지 않았다. MCP 는 IPv6 정규화와 마지막 32비트 추출 헬퍼만 알림 웹훅 가드와 같이 쓰고 IPv4 대역표는 따로 둔다. 이번 작업은 묶음 경계 때문에 알림 웹훅 가드만 고쳤다. 두 가드를 맞추는 일은 NERV Task `CLE-T-753725` 가 맡는다.
+- MCP 가드(`mcp-client.service.ts`)는 묶음 경계 때문에 이때 바꾸지 않았다. 2026-11-20 에 공용 판정으로 같은 대역을 막게 됐다.
 
 기각한 대안(NERV 질문 `01a1d020…` 의 다른 선택지):
 
@@ -140,7 +144,7 @@ NERV Task `CLE-T-GAQCF9` 의 변경이다. 발송 직전 DNS 결과 검사가 �
 - **발송 직전 검사는 남겼다.** 그 검사의 차단 사유 · 경고 로그 · 3초 상한 동작을 바꾸지 않으려는 것이다. 연결 시점 판정은 그 검사를 지난 발송에만 일한다.
 - **조회 횟수와 스레드풀 점유는 그대로다.** 전에도 발송 직전 검사와 발송 연결이 각자 조회했다. 이번 변경은 연결의 조회에 판정만 더했다. 그래서 2026-11-06 결정이 남긴 문제(3초를 넘긴 `getaddrinfo` 가 libuv 스레드풀 자리를 잡는다)도 그대로 남는다.
 - **해석 실패는 전처럼 통과시킨다(fail-open).** NERV 질문 `01a1d828-b873-76d8-81d0-788df1c213f1` 에서 사람이 정했다(2026-11-14). 연결할 때도 풀리지 않으면 다른 연결 오류처럼 재시도한다. 「검사 때는 조회 실패, 연결 때는 내부 주소」 변형과 「검사 때 답을 3초 넘게 늦추는」 변형은 연결 시점 판정이 막는다. 연결할 때 다시 푼 주소가 막힌 대역이면 연결하지 않기 때문이다.
-- **대역표와 우회 규칙은 알림 웹훅 것을 쓴다.** 헬퍼는 판정 함수만 받고 환경 변수를 읽지 않는다. 그래서 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 는 여기에도 닿지 않는다([통합 노드 공통 — 에러](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md) Rationale 「연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다」). 가드끼리 대역표를 맞추는 일은 NERV Task `CLE-T-753725` · `CLE-T-63RSH6` 가 맡는다.
+- **대역표와 우회 규칙은 알림 웹훅 것을 쓴다.** 헬퍼는 판정 함수만 받고 환경 변수를 읽지 않는다. 그래서 통합 노드의 `ALLOW_PRIVATE_HOST_TARGETS` 는 여기에도 닿지 않는다([통합 노드 공통 — 에러](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md) Rationale 「연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다」). 대역표는 2026-11-20 부터 SSRF 가드 넷이 같다.
 - IP 리터럴 호스트는 연결할 때 조회하지 않으므로 이 판정을 거치지 않는다. 리터럴은 발송 직전 URL 검사(`checkSsrfSafeUrl`)가 본다. 발송은 리다이렉트를 따라가지 않으므로 판정할 리다이렉트 홉도 없다.
 
 기각한 대안:

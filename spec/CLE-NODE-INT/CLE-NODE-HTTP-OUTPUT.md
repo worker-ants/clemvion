@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-OUTPUT"
 title: "HTTP Request 노드 — 출력과 에러"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "01bd11d1ca354280bc98dd9351844be377e5552c755c6f49cf6d88e322249544"
+content_hash: "39dddb46ad75c45ebdf15cb74eccb55098eb453dd7b5f056ff44f0104ba7ff16"
 read_as: "approved_fallback"
-task: "CLE-T-43KCNP"
+task: "CLE-T-E991S1"
 source_paths: []
-mirror_sha256: "0e92342f64dd8fa48102c324ce85aba8752739fbda8610ce2375d9c0da8aa31b"
-etag: "sha256-86aa53980c3f0c227c0561201752d033aec7fb1ae07c20263be2a0840c68f2bc"
+mirror_sha256: "23911001c19644b89ec50c23f8196dba4a075564fea258afa03dd091c5067935"
+etag: "sha256-44de24082c990be3413109d7c53079d9ff8b1dd30648ff7e8e4052d140c47d7a"
 ---
 ## 개요
 
@@ -205,18 +205,18 @@ etag: "sha256-86aa53980c3f0c227c0561201752d033aec7fb1ae07c20263be2a0840c68f2bc"
 |------|------|------------------------|-------------------|--------------------------|-------------------|
 | `HTTP_4XX` | `300 ≤ statusCode < 500`. 3xx 는 `none`·`custom` 인증의 3xx 와 `integration` 인증에서 `Location` 이 없는 3xx 다 | `statusCode`·`statusText`·`url`·`method` | 서버 본문 보존 | 응답 헤더(가림 적용) | 응답 상태 |
 | `HTTP_5XX` | `500 ≤ statusCode < 600` | `statusCode`·`statusText`·`url`·`method` | 서버 본문 보존 | 응답 헤더(가림 적용) | 응답 상태 |
-| `HTTP_TRANSPORT_FAILED` | 요청 reject(DNS·연결 거부·소켓·노드 자체 타임아웃). 리다이렉트 홉에서 사설망 차단 가드가 판정이 아닌 오류를 던진 경우도 여기로 합류한다 | `url`·`method` | `{ error: <message> }` (옛 호환) | — | `0` |
+| `HTTP_TRANSPORT_FAILED` | 요청 reject(DNS·연결 거부·소켓·노드 자체 타임아웃) | `url`·`method` | `{ error: <message> }` (옛 호환) | — | `0` |
 | `HTTP_BLOCKED` | 사설망 차단 판정(`SsrfBlockedError`: 호스트 검사·DNS rebinding·연결 시점 주소 판정·리다이렉트 대상 재검사·http(s) 가 아닌 프로토콜), 또는 판정이 아닌 리다이렉트 한도 초과(5홉을 따라간 뒤에도 `Location` 이 있는 3xx). 두 경우 모두 `output.error.message` 는 `Request blocked by SSRF policy.` 다. 한도 초과는 받아들인 예외다([Rationale](#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14)) | `url`·`method` | — | — | `0` |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 실패([통합 노드 공통](CLE-NODE-INT-COMMON.md)) | `url`·`method` | — | — | `0` |
 | `INTEGRATION_AUTH_UNSUPPORTED` | 지원하지 않는 `auth_type` | `url`·`method` | — | — | `0` |
-| `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback), 또는 preflight 사설망 차단 가드의 고장 | `url`·`method` | — | — | `0` |
+| `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback), 또는 사설망 차단 가드의 고장(preflight 또는 리다이렉트 홉에서 가드가 차단 판정이 아닌 오류를 던진 경우). 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다([Rationale](CLE-NODE-HTTP.md#가드-고장은-시점과-상관없이-같은-코드와-문구로-낸다)) | `url`·`method` | — | — | `0` |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입(`Integration-based authentication is not available in this environment`) 또는 workspace context 누락. 워크스페이스 누락의 현재 구현 차이는 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 미결 사항 참조 | `url`·`method` | — | — | `0` |
 
 `output.error.details` 의 `url` 은 실패한 시점에 따라 다르다. 모든 `url` 에 4xx·5xx 응답과 같은 `sanitizeUrlCredentials` 가림을 적용한다.
 
 - 통합 해소 단계([실행 로직](CLE-NODE-HTTP-EXEC.md#실행-로직) 3단계)에서 끝난 실패(`INTEGRATION_*`, 통합 조회 실패의 `INTEGRATION_CALL_FAILED`)는 `base_url` 을 합치기 전 설정의 `url` 이다.
 - 그 뒤의 실패는 `base_url` 과 쿼리(통합 자격 증명 쿼리 포함)를 붙인 요청 URL 이다. 붙인 자격 증명 쿼리의 값은 가린다. preflight 의 `HTTP_BLOCKED`·`INTEGRATION_CALL_FAILED` 가 여기에 든다.
-- 리다이렉트를 따라가는 중에 난 `HTTP_BLOCKED` 와 `HTTP_TRANSPORT_FAILED` 는 첫 요청 URL 이다. 리다이렉트를 따라간 뒤 받은 응답의 `HTTP_4XX`·`HTTP_5XX` 는 마지막 홉의 URL 이다.
+- 리다이렉트를 따라가는 중에 난 `HTTP_BLOCKED` · `HTTP_TRANSPORT_FAILED` · 가드 고장의 `INTEGRATION_CALL_FAILED` 는 첫 요청 URL 이다. 리다이렉트를 따라간 뒤 받은 응답의 `HTTP_4XX`·`HTTP_5XX` 는 마지막 홉의 URL 이다.
 
 ## Rationale
 

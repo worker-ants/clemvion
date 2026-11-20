@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 18
+version: 19
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "db6f83869551fabdf5bb4c76a214a708f8464e76d16737c35ec52876c02d7e9e"
+content_hash: "0c2b842c32c70037d5182a3a1f237219e20431ac220067a94a122b13e8a2fdbf"
 read_as: "approved_fallback"
-task: "CLE-T-BS1WD1"
+task: "CLE-T-DDN3MS"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "452118a2299913e2265e9726030a9f36c0418e7d256cc84f17a22a29cf17d543"
-etag: "sha256-a3d6a5f1bc3b1883b56970ac5bbaabfd17223a928d933d7e097b2711de8d91f8"
+mirror_sha256: "c65388cb51c185ccf28f64eda4a939c373c92a93783293b51986df2ae4dcbaba"
+etag: "sha256-a7103010f8cd2f5fd5f23950b113ea5e6b47bda808dc8b255501e83fb70b86ee"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -191,9 +191,9 @@ MCP 서버는 새 노드가 아니라 기존 통합 엔티티의 새 `service_ty
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/mcp/mcp-client.service.ts` (Streamable HTTP 클라이언트, URL 검증, connect 직전 해석 주소 검사 `requireSafeResolvedHost`, 연결 시점 주소 판정 fetch `guardedFetch`)
+- `codebase/backend/src/modules/mcp/mcp-client.service.ts` (Streamable HTTP 클라이언트, URL 검증, connect 직전 해석 주소 검사 `requireSafeResolvedHost`, 연결 시점 주소 판정 fetch `guardedFetch`, 주소 차단 오류 `McpHostBlockedError` 와 https 위반 오류 `McpHttpsRequiredError`)
 - `codebase/backend/src/common/utils/guarded-lookup-dispatcher.ts` (연결할 때 푼 주소를 판정하는 undici dispatcher, HTTP Request 노드 · 알림 웹훅과 공용)
-- `codebase/backend/src/common/utils/ssrf-safe-url.util.ts` (URL 검증이 쓰는 IPv6 리터럴 정규화 `normalizeIpv6Literal` 과 IPv4 를 품은 IPv6 판정 `embeddedIpv4FromIpv6`)
+- `codebase/backend/src/common/utils/ssrf/ip-classifier.ts` (URL 검증과 해석 주소 판정이 쓰는 IP 리터럴 판정 `isBlockedIpLiteral`. 대역표 · IPv6 정규화 · 품은 IPv4 판정을 SSRF 가드 넷이 함께 쓴다)
 - `codebase/backend/src/modules/mcp/mcp-test-connection.service.ts` (연결 테스트)
 - `codebase/backend/src/modules/mcp/mcp-error-codes.ts` (`MCP_ERROR_CODES`, `sanitizeMcpErrorMessage`)
 - `codebase/backend/src/nodes/ai/ai-agent/tool-providers/agent-tool-provider.interface.ts` (도구 프로바이더 인터페이스, `ProviderExecCtx.dryRun`)

@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-EXEC"
 title: "HTTP Request 노드 — 실행 로직"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "1cd801adaa4035b68691d94eb204a191e11bd1b6cff10d7631bdacfbb3fbcc6b"
+content_hash: "18d9e3a7b10d7093e9d47ff20009345e546cea2ad034358735f2841b7914bfb7"
 read_as: "approved_fallback"
-task: "CLE-T-EFE3BW"
+task: "CLE-T-E991S1"
 source_paths: []
-mirror_sha256: "49102ebb0be77f493dd3577a24d24e5e4e85f1131a987d6955e0d430fd56ba0a"
-etag: "sha256-4af7cde3a7f76921c09c98c7fc3450d4f03157286c62e58d3c298899c25e0a08"
+mirror_sha256: "f600f446af733fc6da7eb45ad14bafab8fc9fdcfba84e3d6d7d9aacc455c18b1"
+etag: "sha256-678f378440fc16bfa315e152399c7745dad7eb72ce353ee9fc80791dc94a49e8"
 ---
 ## 개요
 
@@ -34,7 +34,7 @@ etag: "sha256-4af7cde3a7f76921c09c98c7fc3450d4f03157286c62e58d3c298899c25e0a08"
 5. **쿼리 병합**: 노드 `queryParams` 를 URL 에 붙인다. 그 뒤 `auth_type='api_key'` 이고 `location='query'` 인 자격 증명을 붙인다.
 6. **헤더 병합**(뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 통합 자격 증명 헤더가 사용자 입력을 덮어쓴다. 사용자가 `Authorization` 을 위조해 자격 증명을 무력화하는 경로를 막는다.
 7. **본문 직렬화**: `GET`·`HEAD` 가 아니면 `bodyType` 에 따라 직렬화한다. `form-data` 는 multipart boundary 를 자동으로 붙인다(Content-Type 을 지정하지 않는다).
-8. **사설망 차단**(모든 인증 방식 공통): `assertSafeOutboundUrl(url)` 로 호스트 리터럴을 검사하고, 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS 를 해석한 IP 를 다시 검사한다. 차단되면 `HTTP_BLOCKED` 로 에러 포트에 보낸다. 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지면 `INTEGRATION_CALL_FAILED` 로 보낸다. 9단계의 요청(리다이렉트 홉 포함)은 연결 시점 주소 판정 dispatcher(`safeOutboundDispatcher`)로 보낸다. 연결할 때 호스트 이름을 다시 풀어 나온 주소가 하나라도 같은 대역에 들면 연결하지 않고 `HTTP_BLOCKED` 로 끝낸다. 판정을 통과한 주소로만 연결하므로 검사와 연결 사이에 DNS 응답이 바뀌어도(DNS rebinding) 막힌 대역에 닿지 않는다. 연결할 때 이름이 풀리지 않으면 `HTTP_TRANSPORT_FAILED` 다. `ALLOW_PRIVATE_HOST_TARGETS=true` 면 이 판정도 하지 않는다([Rationale](#연결할-때-푼-주소를-다시-판정한다-2026-11-14)). 대역·플래그·메시지 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 사설망 차단 절이 정한다. dry-run 실행([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md))은 실제 요청이 없으므로 이 가드 전에 mock 을 반환하고 가드를 건너뛴다.
+8. **사설망 차단**(모든 인증 방식 공통): `assertSafeOutboundUrl(url)` 로 호스트 리터럴을 검사하고, 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS 를 해석한 IP 를 다시 검사한다. 차단되면 `HTTP_BLOCKED` 로 에러 포트에 보낸다. 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지면 `INTEGRATION_CALL_FAILED` 로 보낸다. 이 가드 고장의 메시지는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남긴다. 9단계의 리다이렉트 홉 재검사에서 가드가 고장 나도 같은 코드와 문구로 끝난다([Rationale](CLE-NODE-HTTP.md#가드-고장은-시점과-상관없이-같은-코드와-문구로-낸다)). 9단계의 요청(리다이렉트 홉 포함)은 연결 시점 주소 판정 dispatcher(`safeOutboundDispatcher`)로 보낸다. 연결할 때 호스트 이름을 다시 풀어 나온 주소가 하나라도 같은 대역에 들면 연결하지 않고 `HTTP_BLOCKED` 로 끝낸다. 판정을 통과한 주소로만 연결하므로 검사와 연결 사이에 DNS 응답이 바뀌어도(DNS rebinding) 막힌 대역에 닿지 않는다. 연결할 때 이름이 풀리지 않으면 `HTTP_TRANSPORT_FAILED` 다. `ALLOW_PRIVATE_HOST_TARGETS=true` 면 이 판정도 하지 않는다([Rationale](#연결할-때-푼-주소를-다시-판정한다-2026-11-14)). 대역·플래그·메시지 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 사설망 차단 절이 정한다. dry-run 실행([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md))은 실제 요청이 없으므로 이 가드 전에 mock 을 반환하고 가드를 건너뛴다.
 9. **요청 보내기**: `AbortController` 로 `timeout` 을 걸고 `redirect: 'manual'` 로 보낸다. 이 타이머는 리다이렉트 홉과 응답 본문 읽기까지 덮고 13단계에서 지운다. 노드 취소 신호(`context.abortSignal`)는 공용 헬퍼 `linkUpstreamAbort` 로 같은 controller 에 잇는다. 신호가 이미 취소됐으면 `controller.abort()` 를 바로 부른다. `integration` 인증이면 `Location` 헤더가 있는 3xx 를 최대 5홉까지 직접 따라가며 홉마다 사설망 차단을 다시 검사한다. 5홉을 따라간 뒤에도 `Location` 이 있는 3xx 가 오면 차단 판정 없이 `HTTP_BLOCKED` 로 끝낸다. 메시지는 사설망 차단과 같은 일반화 문구다([Rationale](CLE-NODE-HTTP-OUTPUT.md#리다이렉트-한도-초과와-3xx-응답의-출력-코드-2026-11-13)). 홉 대상의 출처가 첫 요청과 다르면 그 홉부터 자격 증명을 싣지 않고, 303 과 301·302 의 `POST` 는 본문 없는 `GET` 으로 바꾼다(아래 [리다이렉트 홉의 자격 증명과 method](#리다이렉트-홉의-자격-증명과-method)). 리다이렉트 홉(`followRedirectsSafely`)도 같은 controller 의 신호를 쓴다. `none`·`custom` 인증은 3xx 를 따라가지 않고 그대로 에러 케이스로 반환한다. `followRedirects`·`verifySsl` 은 반영하지 않는다(Planned). 3단계의 통합 조회와 8단계의 사설망 차단 검사·DNS 해석은 노드 취소 신호를 잇기 전에 돈다. 신호가 이미 취소된 노드는 엔진이 dispatch 직전에 거르므로([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 19) 이 틈은 좁다. 이 틈에서 신호가 취소돼도 대상이 차단 호스트면 `HTTP_BLOCKED` 가 먼저 나온다. 진입할 때 신호를 따로 확인하지 않는 이유는 [Rationale](#진입할-때-노드-취소-신호를-따로-확인하지-않는다-2026-10-10) 에 있다.
 10. **응답 파싱**: `responseType='json'` 이면 `res.json()`(실패하면 `null`), 그 밖(`text`·`binary`)은 `res.text()` 다. 본문을 읽다가 노드 취소 신호가 취소되면 `null` 로 삼키지 않고 `AbortError` 를 다시 던진다. 본문을 읽다가 노드 자체 타임아웃이 지나도 `null` 로 삼키지 않고 전송 실패(`HTTP_TRANSPORT_FAILED`)로 보낸다. 헤더만 보내고 본문을 끝내지 않는 서버도 `timeout` 에서 끊긴다.
 11. **활동 로그 기록**: `integration` 인증일 때만 `success`·`failed` 를 남긴다(아래 "활동 로그"). 노드 취소 신호로 끝난 호출과 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)).
@@ -94,9 +94,11 @@ HTTP 통합에서 `auth_type` 을 `none` 으로 저장할 수 있는지는 정�
 | 3xx·4xx·5xx | `failed` | `HTTP_{status}` (예: `HTTP_502`) |
 | 요청 reject (네트워크·노드 자체 타임아웃. 본문을 읽다가 지난 타임아웃 포함) | `failed` | `HTTP_TRANSPORT_FAILED` |
 | 사설망 차단·리다이렉트 한도 초과 | `failed` | `HTTP_BLOCKED` |
-| 사설망 차단 가드의 고장 (preflight) | `failed` | `INTEGRATION_CALL_FAILED` |
+| 사설망 차단 가드의 고장 (preflight · 리다이렉트 홉) | `failed` | `INTEGRATION_CALL_FAILED` |
 
 활동 로그의 `error.code` 는 상태 코드별(`HTTP_{status}`)이고, 노드 출력의 `output.error.code` 는 범주별(`HTTP_4XX`·`HTTP_5XX`)이다. 두 값을 섞지 않는다.
+
+가드 고장 행의 `error.message` 는 노드 출력의 `output.error.message` 와 같은 고정 문구 `The outbound address check failed.` 다. 가드 원문은 활동 로그에도 남기지 않는다.
 
 API 식별 정보는 다음처럼 채운다. 통합별 채우기 정책의 전체 표는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](../CLE-INT/CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 에 있다.
 
