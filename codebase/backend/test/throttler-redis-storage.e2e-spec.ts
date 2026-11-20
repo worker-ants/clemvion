@@ -144,6 +144,10 @@ describe('요청 빈도 제한 Redis 저장소 (e2e)', () => {
     });
     connA = connectionFor(REDIS_PORT);
     connB = connectionFor(REDIS_PORT);
+    // 공유 연결은 lazyConnect 라 첫 명령 때 연결한다. 느린 CI 에서는 그 첫 eval 이 제한 시간
+    // (REDIS_THROTTLER_COMMAND_TIMEOUT_MS)을 넘겨 저장소가 재시도 대기 동안 메모리로 센다.
+    // 그러면 Redis 를 보는 테스트가 전부 깨지므로 테스트 전에 두 연결을 미리 맺어 둔다.
+    await Promise.all([connA.getClient().ping(), connB.getClient().ping()]);
     // 아무것도 듣지 않는 포트. 재연결하지 않게 해서 Redis 명령이 곧바로 실패하고 메모리 저장소로 내려간다.
     // 응답이 늦는 경우(제한 시간)는 단위 테스트가 본다.
     downClient = new Redis({
