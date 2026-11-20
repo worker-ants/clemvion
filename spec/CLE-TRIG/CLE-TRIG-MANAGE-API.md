@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-API"
 title: "트리거 관리 — API 와 PATCH 계약"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "ced54d05e65a5741ad1db592532b66642c21deabd46ae299be0eb87878af5532"
+content_hash: "c38e1a8b619ef5f85d0c5eb9698fb3278124074aad365ddf9ad5c8bdb3529616"
 read_as: "approved_fallback"
-task: "CLE-T-YQMP4N"
+task: "CLE-T-73W6NQ"
 source_paths: []
-mirror_sha256: "011b47086a4bb89003e516d45ef5ee8a8638ba6a34d8fe238786b2a63d858608"
-etag: "sha256-4eef01c380f8838dfd7b0e125f15765b6dc4e02445f548bae399f43cee4f51f2"
+mirror_sha256: "d074a486e4df90947524056b8f55db17b046f3872680334b439ef7572f3b4ddb"
+etag: "sha256-713fc28def4259964ab4a5a56ce32f68c3b564a4b4e3e785821fec29e2e6eb02"
 ---
 ## 개요
 
@@ -53,7 +53,7 @@ etag: "sha256-4eef01c380f8838dfd7b0e125f15765b6dc4e02445f548bae399f43cee4f51f2"
 | `endpointPath` | 엔드포인트 경로. v4 UUID |
 | `authConfigId` | 인증 설정 연결. `null` 을 받는다. 소속 검증은 백엔드 `triggers.service` 가 `authConfigsService.findById(id, workspaceId)` 로 한다. 호출자 워크스페이스의 인증 설정이 아니면(없거나 다른 워크스페이스 소속이면 둘을 구분하지 않음) 400 `AUTH_CONFIG_NOT_FOUND`, `details: { field: 'authConfigId', code: 'INVALID_FIELD' }`. 코드 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) |
 | `config` | 그 밖의 JSONB 키. 트리거 설정 잠금 안에서 다시 읽은 행의 `config` 위에 `config` 바로 아래 키 단위로 병합한다(아래 원시 `config` 항목). 타입 키(`notification` · `interaction` · `chatChannel`), 시크릿 참조 · 평문 필드와 서버가 만든 값, `secret://` 로 시작하는 값은 받지 않는다(아래). `config` 자체가 `null` 이면 보내지 않은 것으로 보고 저장된 `config` 를 바꾸지 않는다. 조회 응답의 `config` 에는 저장된 타입 키가 들어 있어 그대로 되보내면 400 이다. 타입 설정은 [타입 필드](../CLE-GLOSSARY-TRIG.md)로 보낸다 |
-| `notification` / `interaction` / `chatChannel` | EIA 알림 웹훅 · 인터랙션 · 채팅 채널 설정. `config.*` 아래가 아니라 [타입 필드](../CLE-GLOSSARY-TRIG.md)로 받는다. 원시 `config` 아래로 보내면 400 이다(아래). 백엔드 `triggers.service`(`mergeExternalConfig`)가 `config` JSONB 안의 같은 이름 키로 합친다. 키를 보내면 그 객체를 통째로 교체한다. 부분 병합이 아니므로 사용자가 정하는 필드는 전체를 다시 보내야 한다. 서버가 만든 값(`interaction.triggerToken`, `notification.signing.secretRef`, 채팅 채널의 시크릿 참조)은 요청으로 받지 않고 서버가 정한다(아래). 기준은 `update-trigger.dto.ts` 와 `triggers.service.ts mergeExternalConfig` 다 |
+| `notification` / `interaction` / `chatChannel` | EIA 알림 웹훅 · 인터랙션 · 채팅 채널 설정. `config.*` 아래가 아니라 [타입 필드](../CLE-GLOSSARY-TRIG.md)로 받는다. 원시 `config` 아래로 보내면 400 이다(아래). 백엔드 `triggers.service`(`mergeExternalConfig`)가 `config` JSONB 안의 같은 이름 키로 합친다. 키를 보내면 그 객체를 통째로 교체한다. 부분 병합이 아니므로 사용자가 정하는 필드는 전체를 다시 보내야 한다. 서버가 만든 값(`interaction.triggerToken`, `notification.signing.secretRef`, 채팅 채널의 시크릿 참조)은 요청으로 받지 않고 서버가 정한다(아래). `notification` · `interaction` 에 `null` 을 보내면 설정 해제로 보고 `config` 에서 그 키를 지운다. `null` 을 저장하지는 않는다. `chatChannel` 의 `null` 은 생략과 같게 보고 저장된 값을 그대로 둔다. 기준은 `update-trigger.dto.ts` 와 `triggers.service.ts mergeExternalConfig` 다 |
 
 - 인라인 인증 키(`config.authType` / `hmacHeader` / `hmacSecret` / `bearerToken`)는 없다. 웹훅 인증은 `authConfigId` 연결로만 받는다.
 - 채팅 채널의 비밀은 PATCH 로 바꿀 수 없다. `chatChannel.botTokenRef`(ref), `chatChannel.botToken`(평문), `chatChannel.inboundSigning`, `inboundSigningPlaintext` 를 바꾸려 하면 400 `VALIDATION_ERROR` 다. 봇 토큰은 재발급 API(`POST /api/triggers/:id/chat-channel/rotate-bot-token`)로만 바꾼다. 거부 응답의 모양과 이 규칙의 기준은 [채팅 채널 §봇 토큰 변경 단일 경로](../CLE-CHAT/CLE-CHAT-CORE.md#봇-토큰-변경-단일-경로) 다. Slack signing secret·Discord public key 회전 API 는 v1 에 정의되지 않았다.
@@ -65,7 +65,7 @@ etag: "sha256-4eef01c380f8838dfd7b0e125f15765b6dc4e02445f548bae399f43cee4f51f2"
   - 결과 전략이 `per_trigger` 이고 행에 토큰이 있으면 그 토큰을 이어받는다. 인터랙션을 끈 뒤 다시 켜도 같은 토큰이 통한다.
   - 결과 전략이 `per_trigger` 이고 인터랙션이 켜져 있는데(`enabled: true`) 행에 토큰이 없으면 새 토큰을 발급한다. 인터랙션을 `per_trigger` 로 처음 켤 때와 다른 전략에서 `per_trigger` 로 돌아올 때가 이 경우다. 평문은 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 실린다.
   - 결과 전략이 `per_trigger` 가 아니면 저장된 토큰을 지운다. 그래서 `per_trigger` 로 돌아와도 옛 토큰은 되살아나지 않고 새 토큰이 발급된다.
-  - 결과 `interaction` 이 객체가 아니면 그 값을 그대로 저장하고 저장된 토큰도 함께 사라진다. `interaction: null` 을 보냈을 때가 이 경우다.
+  - `interaction: null` 을 보내면 `config.interaction` 키를 지우므로 저장된 토큰도 함께 사라진다. 그 뒤 `per_trigger` 로 다시 켜면 새 토큰을 발급한다.
   - 인터랙션을 끄는 PATCH(결과 `enabled` 가 `true` 가 아님)는 토큰 값을 남긴다. 인터랙션 가드는 `interaction.enabled === true` 인 트리거에서만 토큰을 받으므로 꺼 둔 동안 그 토큰은 통하지 않는다.
   - 토큰을 지우거나 인터랙션을 끈 PATCH 는 커밋 뒤 그 토큰으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다([EIA 데이터와 흐름 「트리거 단위 토큰」](../CLE-IX/CLE-EIA-DATA.md#트리거-단위-토큰)).
   - 발급된 토큰을 바꾸려면 트리거 단위 토큰 재발급(`revoke-token`)을 쓴다. 첫 발급 응답을 받지 못했을 때도 같다.
@@ -153,3 +153,11 @@ etag: "sha256-4eef01c380f8838dfd7b0e125f15765b6dc4e02445f548bae399f43cee4f51f2"
 - **원시 `config` 는 `config` 바로 아래 키 단위로 병합한다.** 표의 «부분 갱신» 문구에 구현을 맞췄다. 병합의 기준은 다른 `config` 쓰기와 같이 잠금 안에서 다시 읽은 행이다. 타입 키는 늘 저장값이 남는다. 본문의 `config` 자체가 `null` 이면 보내지 않은 것으로 본다(수정 DTO 가 `null` 을 통과시키고 종전에도 200 · 무변경이었다). 조회 응답의 `config` 를 그대로 되보내는 저장소 밖 클라이언트는 이제 타입 키 때문에 400 을 받으므로 배포 안내에 적었다. 기각한 대안 A: 교체를 유지하되 세 타입 키만 저장값을 지키는 안. 원시 `config` 가 그 밖의 키 전체를 바꾸고 표의 문구를 «그 밖의 키 전체 교체» 로 고친다. 기각한 대안 B: 통째 교체를 유지하고 스펙 문구만 고치는 안(비권장). 세 키가 사라지는 동작이 계약으로 남고 `chatChannel.inboundSigningRef` 가 사라지면 인바운드 서명 검증이 fail-open 된다. 이미 저장된 행에 참조가 없는 경우는 [채팅 채널 데이터 「인바운드 서명 자료 참조가 없는 행」](../CLE-CHAT/CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 이 다룬다.
 - **`secret://` 값을 위치와 상관없이 거부한다.** 내부 필드 거부(`CONFIG_INTERNAL_FIELDS`)는 사람이 더하는 경로 목록이라 새 `*Ref` 슬롯을 목록에 넣지 않아도 테스트가 실패하지 않는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 22 와 R9 가 남긴 위험). 타입 키 거부로 타입 키 아래의 참조 슬롯은 모두 막히지만 다른 키 아래에 참조를 심는 길은 남는다. 값 검사는 슬롯 이름과 상관없이 잡는다. 경로 목록 거부는 그대로 두고 먼저 검사하므로 기존 거부의 `details.field` 는 바뀌지 않는다. 기각한 대안은 값 검사 없이 경로 목록만 유지하는 안이다.
 - 이 결정으로 지운 요구사항과 번호 처리는 [트리거 관리](CLE-TRIG-MANAGE.md#원시-config-계약-2026-10-31) 에 적었다.
+
+### 타입 필드 `notification` · `interaction` 의 `null` 은 해제다 (2026-11-20)
+
+두 필드는 보내면 통째로 바꾸고 보내지 않으면 그대로 둔다. 그래서 설정 블록을 지울 방법이 `null` 뿐이다. [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 기준대로 `null` 을 거부하지 않고 해제로 받는다. 전에는 `null` 을 그대로 저장해서 키는 있는데 값이 없는 행이 생겼다. 이제는 키를 지운다.
+
+`interaction: null` 은 저장된 트리거 단위 토큰도 함께 지운다. 그래서 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는 규칙(REQ-TRIG-059)을 그대로 따른다. `notification: null` 은 `config` 의 키만 지운다. 알림 서명 시크릿과 알림 상태 컬럼은 남는다. 그 뒤 `notification` 을 다시 보내면 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 규칙대로 서명 시크릿을 새로 발급한다. 남은 시크릿을 지울지는 CLE-T-919WVA 에서 정한다. `chatChannel` 은 이 결정에 넣지 않았다. 지금처럼 `null` 을 생략과 같게 본다.
+
+이 결정 전에 저장된 `null` 값은 옮기지 않는다. 읽는 쪽(트리거 단위 토큰 판정, 웹훅 응답의 인터랙션 블록, 알림 발송)은 객체가 아닌 값을 설정이 없는 것으로 다룬다. 결정은 2026-11-20 조율 세션에서 사용자가 권장안으로 받았다(CLE-T-73W6NQ).
