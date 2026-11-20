@@ -2,23 +2,23 @@
 id: "CLE-INT-STATUS-SCAN"
 title: "통합 상태와 만료 알림 — 만료 스캐너와 알림"
 type: "design"
-version: 3
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "ac729df8e2b5823cffce56cd3eded224bb47eed3ee396b8c2eb7ab1e73379616"
+content_hash: "c4b84ab2f80382f7aa23735756f89e01a89a93c7f91897955a9867391a51b637"
 read_as: "approved_fallback"
-task: "CLE-T-184JJD"
+task: "CLE-T-EJFQ1Y"
 source_paths: []
-mirror_sha256: "787232c24c5e2c5ebb548602e2ee3e632044fff5b1f9c748e5524e4a33b63811"
-etag: "sha256-b6ff077e213f4167adc3788ea339c0ec4435031f30afeb298f02d0ad08bf26b8"
+mirror_sha256: "48a2da16ab41624d6b37ec3a8179212454eff7845cdbc22d162a027bb1e276b6"
+etag: "sha256-1dcd8a582579e2e598d6b7b0eb0762626f45b9daa9c534d6423a2663898623d6"
 ---
 ## 개요
 
-이 문서는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 하위 문서로 만료 스캐너(`integration-expiry-scanner`)의 네 작업과 만료 알림(`integration_expired`) · 조치 필요 알림(`integration_action_required`)의 발사 조건 · 문구 · 수신자 · 채널을 정한다. 인앱 알림 저장, 채널 계산 헬퍼, 중복 방지 헬퍼, 알림 설정 화면은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다.
+이 문서는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 하위 문서로 만료 스캐너(`integration-expiry-scanner`)의 네 작업과 만료 알림(`integration_expired`) · 조치 필요 알림(`integration_action_required`)의 발사 조건 · 문구 · 수신자 · 채널을 정한다. 인앱 알림 저장과 중복 방지 헬퍼는 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다. 채널 계산과 알림 설정 화면은 [알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md) 이 정한다.
 
 ## 만료 스캐너
 
@@ -35,7 +35,7 @@ etag: "sha256-b6ff077e213f4167adc3788ea339c0ec4435031f30afeb298f02d0ad08bf26b8"
 
 ### `connected-expiry` 흐름
 
-갱신 가능 통합(`isRefreshCapable`)은 `service_type ∈ {cafe24, makeshop}` 이면서 `credentials.refresh_token` 이 있는 통합이다. 이 판정은 화면용 자동 갱신 표시(`autoRefresh`)와 대상이 다르다. Google 은 자동 갱신 표시는 true 지만 갱신 가능 통합이 아니다. [미결 사항](CLE-INT-STATUS.md#미결-사항) 참조.
+갱신 가능 통합(`isRefreshCapable`)은 `service_type ∈ {cafe24, makeshop}` 이면서 `credentials.refresh_token` 이 있는 통합이다. 화면용 자동 갱신 표시(`autoRefresh`)도 같은 두 서비스만 true 다. 표시는 서비스 유형만 보고 refresh token 유무는 보지 않는다. Google 은 갱신 경로가 없어 어느 쪽에도 들지 않으므로 만료 알림과 당일 격하를 받는다([Google 을 자동 갱신 표시에서 뺀다](CLE-INT-STATUS-DISPLAY.md#google-을-자동-갱신-표시에서-뺀다)).
 
 ```mermaid
 flowchart TD
@@ -50,7 +50,7 @@ flowchart TD
   G -- 예 --> I{남은 시간 0 이하인가}
   I -- 예 --> J[expired, token_expired 로 격하]
   I -- 아니오 --> K[상태 유지]
-  J --> L[만료 알림 발사]
+  J --> L[수신자별 채널로 만료 알림 발사]
   K --> L
 ```
 
@@ -94,11 +94,12 @@ flowchart TD
 
 ### 채널과 이메일
 
-- 수신자의 `notification_preferences.integrationExpiryEmail` 이 켜져 있으면 `Notification.channel='both'` 로, 아니면 `'in_app'` 으로 만든다. 조치 필요 알림도 같은 토글을 쓴다(전용 토글은 없다).
+- 만료 알림(`integration_expired`)은 수신자의 인앱 키 `integrationExpiryInApp` 과 이메일 키 `integrationExpiryEmail` 로 [알림 설정 「채널 계산」](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md#채널-계산) 의 네 결과(`both` · `in_app` · `email` · 보내지 않음) 가운데 하나를 고른다. 둘 다 끈 수신자에게는 알림 행을 만들지 않는다. 발사 기록 선점과 당일(0d) 격하는 수신자 설정과 상관없이 진행한다.
+- 조치 필요 알림(`integration_action_required`)은 늘 인앱으로 보낸다. 이메일만 `integrationExpiryEmail` 을 따른다. 켰으면 `both`, 아니면 `in_app` 이다. 전용 토글은 없다.
 - 통합 소유자가 워크스페이스를 떠난 개인 통합은 노드에서 쓸 수 없다. 통합 소유자가 나가거나 제거되면 그 개인 통합을 지우므로([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)) 그 통합의 알림과 Cafe24 백그라운드 갱신도 끝난다.
 - 뷰어가 소유한 개인 통합도 같은 알림을 받는다. 뷰어는 통합 재인증과 자격 증명 교체를 할 수 없으므로 알림을 받고 할 수 있는 일은 통합 삭제와 역할 변경 요청뿐이다. 알림 문구는 역할로 나누지 않는다([통합 관리](CLE-INT-MANAGE.md) Rationale 의 받아들인 잔여).
-- 이 토글은 opt-in 이고 기본값은 꺼짐이다. 저장 위치는 `User.notification_preferences` JSONB 이고 설정 화면은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다.
-- `channel='both'` 인 알림은 `NotificationsService.dispatchEmails`(`MailService` 주입)가 이메일을 best-effort 로 보낸다.
+- 이메일 키는 opt-in(기본 꺼짐)이고 인앱 키는 opt-out(기본 켬)이다. 저장 위치는 `User.notification_preferences` JSONB 이고 설정 화면은 [알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md) 이 정한다.
+- 채널이 `both` · `email` 인 알림은 `NotificationsService.dispatchEmails`(`MailService` 주입)가 이메일을 best-effort 로 보낸다.
 
 ### 알림을 보내지 않는 경우
 
@@ -111,6 +112,7 @@ flowchart TD
 - `codebase/backend/src/modules/integrations/integration-action-required-notifier.service.ts` (조치 필요 알림. 계기 `api_call` · `oauth_callback` · `mcp_call` 로 `auth_failed` 문구를 나눈다)
 - `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (콜백 실패 기록 `markIntegrationCallbackError`. 연결됨 통합을 `error(auth_failed)` 로 바꾸면 저장한 뒤 조치 필요 알림을 부른다)
 - `codebase/backend/src/modules/integrations/integrations.service.ts` (`IntegrationsService.logUsage`. MCP 도구 호출의 `MCP_AUTH_FAILED` 를 조건부 UPDATE 로 `error(auth_failed)` 로 바꾸고 행이 바뀌면 조치 필요 알림을 부른다)
+- `codebase/backend/src/modules/notifications/notification-channel.ts` (`computeNotificationChannel`. 만료 알림의 채널 계산)
 
 ## Rationale
 

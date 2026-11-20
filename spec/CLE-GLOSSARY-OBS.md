@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OBS"
 title: "용어 사전 — 관측과 운영"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "f91021b6ba31a15c8ff048a20cd202c6f0bf5761b0627581cbb1b11a2f9a780e"
+content_hash: "6d031c8cfb3791951b1e234ff7a73e501df66b701b026c7aa3083902e0f00e4b"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-EJFQ1Y"
 source_paths: []
-mirror_sha256: "4a319ff2f798074abdf6fece13b2d935839e48398dba16ad556b3a40f8d900d3"
-etag: "sha256-09a6545a5eb627b405111708628209257ee6bab0ac71ec5c11a0d600768e3854"
+mirror_sha256: "2383d98be6cc67109cd392546726fb7dd1cc547feedda430cb030da481aeb249"
+etag: "sha256-ef1d11b7dd9f66a26c4edd87bb2a1e46cd9e0893726d2431f62be2fc04149e14"
 ---
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-09a6545a5eb627b405111708628209257ee6bab0ac71ec5c11a0d600768e3854"
 | 알림 필터 | notification filter | 알림 팝오버의 분류 칩(전체, 일반, 통합 액션 필요). | 없음 | [알림](CLE-OBS/CLE-OBS-NOTIFY.md) |
 | 알림 규칙 | Alert Rule, `AlertRule` | 실패율·평균 전체 경과·LLM 비용이 임계치를 넘으면 인앱 알림을 보내는 워크스페이스 규칙. | 알람, 알림 룰, Alert Rule(본문) | [알림](CLE-OBS/CLE-OBS-NOTIFY.md) |
 | 평가 기간 | `window_iso` | 알림 규칙이 지표를 모으는 기간(ISO 8601 기간). 화면 라벨은 "기간", "윈도우" 다. | 없음 | [알림](CLE-OBS/CLE-OBS-NOTIFY.md) |
-| 알림 설정 | notification preferences, `notification_preferences` | 알림 유형별 이메일 수신 여부. 실행·스케줄 실패 메일은 기본 켜짐, 통합 만료 메일은 기본 꺼짐이다. 알림 규칙과 다르다. | 없음 | [알림](CLE-OBS/CLE-OBS-NOTIFY.md) |
+| 알림 설정 | notification preferences, `notification_preferences` | 알림 유형별 인앱(벨) · 이메일 수신 여부와 일일 요약 메일 수신 여부. 인앱은 기본 켜짐, 실행·스케줄 실패 메일은 기본 켜짐, 통합 만료 메일과 일일 요약 메일은 기본 꺼짐이다. 알림 규칙과 다르다. | 없음 | [알림 설정과 이메일](CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md) |
 | 부수 기록 실패 흡수 | best-effort | 감사 로그·로그인 이력·사용량 기록이 실패해도 주 동작을 막지 않는 방식. | swallow, 삼킨다 | [로깅과 헬스 체크](CLE-OBS/CLE-OBS-LOGGING.md) |
 | 보존 배치 | pruner | 로그인 이력과 활동 로그의 오래된 행을 지우는 반복 작업. 감사 로그에는 없다. | 없음 | [감사 로그](CLE-OBS/CLE-OBS-AUDIT.md) |
 | 비즈니스 메트릭 | business metrics, `clemvion.*` | OTel 로 내보내는 운영 지표. | 없음 | [로깅과 헬스 체크](CLE-OBS/CLE-OBS-LOGGING.md) |
@@ -70,3 +70,9 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 노드 통계의 평균(`node_execution.duration_ms` 평균. `completed` 한정이 아니다)도 같은 이름을 쓴다. 입력 대기 노드는 재개할 때 대기 시간까지 들어간다.
 - 값 · 계산식 · 필드 이름(`avgExecutionTime` · `avgDurationMs` · `AlertRule.type` 의 `duration`)은 바꾸지 않았다.
 - 옛 이름을 그대로 두는 안은 택하지 않았다. 실행 화면의 「실행 시간」과 기준이 갈리는 문제가 남는다.
+
+### 「알림 설정」 정의를 넓혔다
+
+결정일: 2026-11-20
+
+알림 설정에 유형별 인앱(벨) 키(NERV Task `CLE-T-EJFQ1Y`)와 일일 요약 메일 키(NERV Task `CLE-T-BAXAN4`)가 생겼다. 옛 정의는 이메일 수신 여부만 적어 두 키를 담지 못했다. 그래서 정의에 두 키와 기본값을 더했다. 키 목록과 화면은 [알림 설정과 이메일](CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md) 이 정하므로 기준 문서도 그 문서로 바꿨다.

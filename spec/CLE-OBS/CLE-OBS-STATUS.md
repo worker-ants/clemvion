@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATUS"
 title: "시스템 상태"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-SYSSTAT-001", "REQ-SYSSTAT-002", "REQ-SYSSTAT-003", "REQ-SYSSTAT-004", "REQ-SYSSTAT-005", "REQ-SYSSTAT-006", "REQ-SYSSTAT-007", "REQ-SYSSTAT-008", "REQ-SYSSTAT-009", "REQ-SYSSTAT-010", "REQ-SYSSTAT-011", "REQ-SYSSTAT-012", "REQ-SYSSTAT-013", "REQ-SYSSTAT-014", "REQ-SYSSTAT-015", "REQ-SYSSTAT-016", "REQ-SYSSTAT-017", "REQ-SYSSTAT-018", "REQ-SYSSTAT-019", "REQ-SYSSTAT-020", "REQ-SYSSTAT-021", "REQ-SYSSTAT-022", "REQ-SYSSTAT-023", "REQ-SYSSTAT-024", "REQ-SYSSTAT-025"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "1478b8510d0dc5d1997e7011c3538a770653956b43c81d297450f3bae4fa7782"
+content_hash: "e333c0c1b23dd53646fa31553928a2108ec66055fed22ba2167541a1766ada7d"
 read_as: "approved_fallback"
-task: "CLE-T-28MDF3"
+task: "CLE-T-BAXAN4"
 source_paths: ["spec/2-navigation/15-system-status.md", "spec/2-navigation/_product-overview.md", "spec/5-system/16-system-status-api.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "807bd7a3a6130e5a3536e233a021203c2413828b6b8b032e5811945f92a51bd8"
-etag: "sha256-f7907ed05eb774cfdcfadef777bc1d5e1b1e683bc2a0a819c308be16dd9e6c13"
+mirror_sha256: "973958825ecfdb8174106b2993117d580ff9f66f915dbe6c6450f1b2cce840d4"
+etag: "sha256-2cfcb3cd0f57086161fd015b5fd0db6925024a6ef870ac4fc0b062636d74bc41"
 ---
 > 구현 상태: 부분 구현(`agent-memory-extraction` 모니터링 미등재) · 원문: `spec/2-navigation/15-system-status.md`, `spec/5-system/16-system-status-api.md`, `spec/2-navigation/_product-overview.md` (§3.9), `spec/data-flow/9-observability.md` (§1.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -122,6 +122,7 @@ etag: "sha256-f7907ed05eb774cfdcfadef777bc1d5e1b1e683bc2a0a819c308be16dd9e6c13"
 | `schedule-execution` | system | 1 | 스케줄 트리거 실행 |
 | `login-history-pruner` | system | 1 | 정기 작업 |
 | `audit-log-pruner` | system | 1 | 정기 작업(매일 `30 3 * * *` Asia/Seoul). 감사 로그 보존 배치 |
+| `notification-digest` | system | 1 | 정기 작업(매일 `0 9 * * *` Asia/Seoul). 일일 요약 메일([알림 설정과 이메일](CLE-OBS-NOTIFY-SETTINGS.md)) |
 | `workspace-invitations-pruner` | system | 1 | 정기 작업(매일 `0 4 * * *` Asia/Seoul) |
 | `notification-secret-rotator` | system | 1 | 정기 작업 |
 | `terminal-revoke-reconcile` | system | 1 | 정기 작업(1분). 외부 서비스 호출이 아니라 내부 정합을 맞추는 작업이라 `system` 그룹이다 |
