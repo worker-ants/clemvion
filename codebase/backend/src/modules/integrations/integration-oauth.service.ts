@@ -64,6 +64,7 @@ import {
   resolveOAuthStrategy,
   ALLOWED_OAUTH_PROVIDERS,
   type OAuthProvider,
+  type OAuthProviderStrategy,
   type Cafe24BeginMeta,
   type MakeshopBeginMeta,
   type TokenExchangeResult,
@@ -1450,7 +1451,74 @@ export class IntegrationOAuthService {
       for (const line of diagnostics.info) this.logger.log(line);
     }
 
+    const identity = await this.fetchAccountIdentity(
+      provider,
+      strategy,
+      result.accessToken,
+    );
+    if (identity) {
+      result.providerMeta = { ...result.providerMeta, ...identity };
+    }
+
     return result;
+  }
+
+  /**
+   * 토큰을 받은 뒤 계정 식별자를 조회한다(CLE-T-81270P). Google `account_email` · GitHub `login` 은 저장의 필수
+   * 필드인데 토큰 응답에 없다. 조회가 실패하거나 식별자가 없으면 토큰 교환 실패와 같은 `OAUTH_TOKEN_EXCHANGE_FAILED`
+   * 로 콜백을 끝낸다. 식별자 없이 넘기면 저장에서 `INTEGRATION_INVALID_CREDENTIALS` 로 막혀 원인을 알기 어렵다.
+   * 계정 조회를 두지 않는 제공자(Cafe24 · MakeShop)는 null 을 돌려준다.
+   */
+  private async fetchAccountIdentity(
+    provider: OAuthProvider,
+    strategy: OAuthProviderStrategy,
+    accessToken: string,
+  ): Promise<Record<string, string> | null> {
+    if (!strategy.buildIdentityRequest || !strategy.extractIdentity) {
+      return null;
+    }
+    const fail = (reason: string): never => {
+      this.logger.warn(
+        `OAuth account lookup failed for ${provider}: ${reason}`,
+      );
+      throw new BadRequestException({
+        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
+        message: 'Failed to read the connected account from the provider',
+      });
+    };
+
+    const { url, headers } = strategy.buildIdentityRequest(accessToken);
+    // 토큰 교환과 같은 10초 상한이다.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    let data: Record<string, unknown>;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        // 응답 본문은 남기지 않는다. 상태 코드만으로 원인을 가를 수 있다.
+        return fail(`HTTP ${response.status}`);
+      }
+      data = (await response.json()) as Record<string, unknown>;
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      const aborted = err instanceof Error && err.name === 'AbortError';
+      return fail(
+        aborted
+          ? 'timed out'
+          : `transport error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+
+    return (
+      strategy.extractIdentity(data ?? {}) ??
+      fail('response has no account identifier')
+    );
   }
 
   // ---------------------------------------------------------------------

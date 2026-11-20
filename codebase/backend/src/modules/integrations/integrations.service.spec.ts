@@ -603,10 +603,10 @@ describe('IntegrationsService', () => {
         expect(result.autoRefresh).toBe(true);
       });
 
-      it('returns true for google (refresh_token 발급 provider)', async () => {
+      it('returns false for google (갱신 경로가 없어 만료를 주의 필요에 드러낸다 — CLE-T-81270P)', async () => {
         // Default makeIntegration uses serviceType='google'.
         const result = await service.findById('int-1', 'ws-1', 'user-1');
-        expect(result.autoRefresh).toBe(true);
+        expect(result.autoRefresh).toBe(false);
       });
 
       it('returns true for makeshop (auth-code + refresh rotation — spec §5.9)', async () => {
@@ -3385,12 +3385,13 @@ describe('IntegrationsService', () => {
         const expected = SERVICE_REGISTRY.filter(
           (s) => s.supportsTokenAutoRefresh === true,
         ).map((s) => s.type);
-        // 파라미터는 registry 에서 파생 — 현재 cafe24/google/makeshop.
+        // 파라미터는 registry 에서 파생 — 현재 cafe24/makeshop. google 은 갱신 경로가 없어 빠진다(CLE-T-81270P).
         expect(expected.length).toBeGreaterThan(0);
         expect(notInCall?.[1]).toEqual({ autoRefreshServiceTypes: expected });
         expect(expected).toEqual(
-          expect.arrayContaining(['cafe24', 'google', 'makeshop']),
+          expect.arrayContaining(['cafe24', 'makeshop']),
         );
+        expect(expected).not.toContain('google');
       },
     );
 

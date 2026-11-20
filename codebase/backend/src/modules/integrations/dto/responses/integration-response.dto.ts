@@ -105,8 +105,8 @@ export class IntegrationDto {
   /**
    * 자동 갱신 가능 통합 식별자 (derived 가상 필드, DB 컬럼 아님).
    * `ServiceDefinition.supportsTokenAutoRefresh` (service registry)
-   * 에서 매 응답 시점에 계산. 현재 cafe24·google 만 true,
-   * github (Refresh ✗) 포함 그 외는 false.
+   * 에서 매 응답 시점에 계산. 현재 cafe24·makeshop 만 true,
+   * google(갱신 경로 없음)·github(Refresh ✗) 포함 그 외는 false.
    * UI 의 attention/expiring 술어 제외, 상세 페이지 헤더의 "Auto-renews"
    * 보조 라벨, Reauthorize hover 안내 분기 신호로 사용된다.
    */

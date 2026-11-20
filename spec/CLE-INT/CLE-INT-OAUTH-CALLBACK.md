@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
 content_hash: "24aa86c14951ed58693dd792b13b57abb15dab833eff972a885f67727e1bafde"
 read_as: "approved_fallback"
-task: "CLE-T-ZCEZ46"
+task: "CLE-T-81270P"
 source_paths: []
-mirror_sha256: "7940f191f7c5bb78f2dbe862a84fd1410f8d6ebed528180d3bff87a3c45d35b1"
-etag: "sha256-2d115912d089226251641bb80fd21fb0e2d169d42eac401c3c6c5443f30ee825"
+mirror_sha256: "740bcfacb33a61606f953fb33b91e3269ba5dc97d06800aad51712ea3f45f8e3"
+etag: "sha256-a7f62426503b94374d7ed0ea4044ca6d3058d6184a6a99049e85241fa544988e"
 ---
 ## 개요
 

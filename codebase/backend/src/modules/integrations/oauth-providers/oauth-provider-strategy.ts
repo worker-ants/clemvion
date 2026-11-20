@@ -100,6 +100,12 @@ export interface TokenRequestSpec {
   body: URLSearchParams;
 }
 
+/** Account lookup request the facade executes after the token exchange. */
+export interface IdentityRequestSpec {
+  url: string;
+  headers: Record<string, string>;
+}
+
 /** Provider-specific post-exchange diagnostics (logged by the facade). */
 export interface ExchangeDiagnostics {
   warnings: string[];
@@ -143,6 +149,17 @@ export interface OAuthProviderStrategy {
     requestedScopes: string[],
     beginMeta: Record<string, unknown> | null,
   ): TokenExchangeResult;
+
+  /**
+   * 계정 식별자 조회(CLE-T-81270P). 토큰 응답에 계정 식별자가 없는 제공자(google · github)만 구현한다.
+   * facade 가 토큰을 받은 뒤 이 요청을 보내고 `extractIdentity` 결과를 자격 증명에 합친다.
+   */
+  buildIdentityRequest?(accessToken: string): IdentityRequestSpec;
+
+  /** 계정 조회 응답에서 저장할 식별자 필드를 뽑는다. 필요한 값이 없으면 null 이다. */
+  extractIdentity?(
+    data: Record<string, unknown>,
+  ): Record<string, string> | null;
 
   /**
    * Optional post-exchange diagnostics (e.g. cafe24 mall_id / scope mismatch).
