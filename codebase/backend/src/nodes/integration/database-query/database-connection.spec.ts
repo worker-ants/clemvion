@@ -186,6 +186,31 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
     }
   });
 
+  it.each([
+    ['객체 인자', [{ port: 5432, host: 'rebind.test' }]],
+    ['host 없는 (port, undefined)', [5432, undefined]],
+    ['인자 없음', []],
+  ])(
+    'pg 팩토리: 알 수 없는 connect 호출 형태(%s)는 lookup 없이 연결하지 않고 오류로 닫는다(fail-closed)',
+    async (_label, args) => {
+      const calls: string[] = [];
+      const original = jest.spyOn(Socket.prototype, 'connect').mockReturnThis();
+      const socket = createGuardedPgStream(loopbackLookup(calls))();
+      try {
+        const errored = new Promise<Error>((resolve) =>
+          socket.once('error', resolve),
+        );
+        (socket.connect as (...a: unknown[]) => Socket)(...args);
+
+        await expect(errored).resolves.toBeInstanceOf(Error);
+        expect(original).not.toHaveBeenCalled();
+      } finally {
+        original.mockRestore();
+        socket.destroy();
+      }
+    },
+  );
+
   it('mysql2 팩토리: lookup 을 거쳐 연결하고 기본 연결과 같이 noDelay · keep-alive 를 건다', async () => {
     const before = accepted;
     const calls: string[] = [];

@@ -149,6 +149,30 @@ describe('smtp-host-guard — 연결 시점 판정 (실제 nodemailer)', () => {
     }
   });
 
+  it('secure: true(직접 TLS)면 getSocket 이 준 소켓 위에서 TLS 를 맺으려 시도한다', async () => {
+    // 서버는 평문이라 TLS 핸드셰이크는 실패한다. 소켓이 lookup 을 거쳐 서버에 닿고 nodemailer 가 TLS 단계까지 가는지만 본다.
+    const before = accepted;
+    const calls: string[] = [];
+    const transporter = createTransport({
+      host: 'smtp.rebind.test',
+      port,
+      secure: true,
+      connectionTimeout: 2_000,
+      getSocket: createSmtpGetSocket(loopbackLookup(calls)),
+      tls: { rejectUnauthorized: true },
+    });
+
+    try {
+      await expect(transporter.verify()).rejects.toMatchObject({
+        message: expect.any(String),
+      });
+      expect(calls).toContain('smtp.rebind.test');
+      expect(accepted).toBe(before + 1);
+    } finally {
+      transporter.close();
+    }
+  });
+
   it('TCP 연결이 상한 안에 맺히지 않으면 소켓을 닫고 ETIMEDOUT 오류를 넘긴다', async () => {
     // 답하지 않는 lookup — 연결이 시작되지 않은 채 머문다.
     const hanging = (() => undefined) as unknown as LookupFunction;

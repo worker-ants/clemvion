@@ -35,7 +35,7 @@ export type PgStreamFactory = () => Socket;
  * pg 연결 시점 판정 소켓 팩토리. pg 는 받은 소켓에 `connect(port, host)` 를 부르므로 그 호출을
  * `connect({ port, host, lookup })` 로 바꿔 연결할 때 푼 주소를 공용 대역표로 다시 판정한다. 그 밖의 소켓 동작(`setNoDelay` ·
  * keep-alive · 연결 타임아웃의 `destroy`)은 pg 가 그대로 한다. TLS 는 pg 가 이 소켓 위에서 `servername: host` 로 맺는다.
- * 호스트가 없는 호출(유닉스 소켓 경로)은 원래 `connect` 로 넘긴다.
+ * 유닉스 소켓 경로(문자열 인자 하나)는 원래 `connect` 로 넘기고, 그 밖의 알 수 없는 형태는 소켓을 오류로 닫는다.
  */
 export function createGuardedPgStream(lookup: LookupFunction): PgStreamFactory {
   return () => {
@@ -51,7 +51,17 @@ export function createGuardedPgStream(lookup: LookupFunction): PgStreamFactory {
       ) {
         return originalConnect({ port: Number(port), host, lookup });
       }
-      return originalConnect(...args);
+      // 유닉스 소켓 경로(`connect(path)`, 문자열 하나)만 원래 연결로 넘긴다. 그 밖의 형태는 pg 호출 규약이 바뀐 것이라
+      // lookup 없이 연결하면 판정이 빠진다. 소켓을 오류로 닫아 연결하지 않는다(fail-closed).
+      if (args.length === 1 && typeof args[0] === 'string') {
+        return originalConnect(...args);
+      }
+      socket.destroy(
+        new Error(
+          'Unsupported pg socket connect call; refusing to connect without SSRF lookup',
+        ),
+      );
+      return socket;
     };
     return socket;
   };
