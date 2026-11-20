@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-HANDLER-001", "REQ-HANDLER-002", "REQ-HANDLER-003", "REQ-HANDLER-004"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "c1c3a0c4334b06745a649eaa2568a291a50bc2636acdeec074841a7ef39fce04"
+content_hash: "946a8c9e48952625a219c5c445185975566beab3a0dc21614518c353f9660189"
 read_as: "approved_fallback"
-task: "CLE-T-YAFECM"
+task: "CLE-T-T4DJ3F"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "e64d70f93ca81b55564709bddc127ae844f7b8a739554e1b8059c61d76899493"
-etag: "sha256-539601e0e2f809b2d8d6276795e00de1793e79d6cd941e98318391cf22d9607b"
+mirror_sha256: "3c4323017fcb1c05347b24e0fc9c911dbd642b79c96ebb550f9bdfa2a9d818ca"
+etag: "sha256-221a08e41e1a0328dadf0b99c3904845e6caaa83dc481686df3f94542da31663"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -51,11 +51,11 @@ interface NodeHandlerOutput {
   config: Record<string, unknown>;
   /** 실제로 만든 결과. 배열·객체·원시값 모두 된다. */
   output: unknown;
-  /** 실행 부가 정보. durationMs, statusCode, tokensUsed 같은 관측 메타데이터. */
+  /** 실행 부가 정보. 통합 노드의 durationMs · statusCode, AI 노드의 tokensUsed 처럼 노드마다 싣는 키가 다르다. */
   meta?: Record<string, unknown>;
   /** 라우팅 지시. 값은 노드 정의의 출력 포트 ID. 여러 포트를 한 번에 열면 string[]. */
   port?: string | string[];
-  /** 흐름 지시 상태. 'waiting_for_input' | 'requires_integration' | 'requires_playwright' 등. */
+  /** 흐름 지시 상태. 'waiting_for_input' | 'requires_integration' | 'ended' 등. */
   status?: string;
 }
 ```
@@ -89,7 +89,7 @@ interface NodeHandlerOutput {
 - REQ-HANDLER-003 WHEN 엔진이 핸들러의 `execute` 를 부르면 THE SYSTEM SHALL 평가 후 설정을 `config` 인자로, 평가 전 원본을 `context.rawConfig` 로 함께 넘겨 핸들러가 에코할 값과 동작에 쓸 값을 나눌 수 있게 한다. (원본: ENG-RC-03)
 - REQ-HANDLER-004 WHEN 원본 설정 에코 방식을 도입하면 THE SYSTEM SHALL 모든 핸들러에 한 번에 같은 방식을 적용한다. (원본: ENG-RC-04)
 
-엔진은 표현식이 있는지와 관계없이 모든 호출에 `node.config` 의 얕은 복사본을 얼려 `rawConfig` 로 넣는다. 표현식이 없는 필드(예: `mode`, `chartType`)는 원본과 평가 결과가 같아 영향이 없다. 표현식을 쓰는 필드(템플릿·표현식 위젯)만 뜻이 바뀐다. 옛 레이블 `ENG-RC-01`~`04` 와 새 번호의 대응은 [Rationale](#원본-설정-노출-요구를-요구사항-줄로-옮겼다-2026-11-13) 에 있다.
+엔진은 표현식이 있는지와 관계없이 모든 호출에 `node.config` 의 얕은 복사본을 얼려 `rawConfig` 로 넣는다. 표현식이 없는 필드(예: `mode`, `chartType`)는 원본과 평가 결과가 같아 영향이 없다. 표현식을 쓰는 필드(템플릿·표현식 위젯)만 뜻이 바뀐다. 옛 레이블 `ENG-RC-01`~`04` 와 새 번호의 대응은 [Rationale](#원본-설정-노출-요구를-요구사항-줄로-옮겼다) 에 있다.
 
 영향 범위:
 
@@ -133,7 +133,9 @@ return {
 
 핸들러가 실패를 throw 하고 에러 처리 정책이 「에러 포트로 라우팅」이면 핸들러 반환값이 없어도 엔진이 출력 `{ error: { code, message } }` 를 만들고 `_selectedPort` 에 `error` 를 기록한다. 이 경로의 규칙은 [에러 처리 정책 §2](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 에 있다.
 
-출력 값이 배열이나 원시값이면 엔진은 `port` · `status` 를 함께 들고 다니려고 엔진 안에서만 `{ data: <출력 값>, _selectedPort, … }` 객체를 만든다. 이 객체는 포트 라우팅과 대기 판정에만 쓴다. 다음 노드의 `$input`(`gatherNodeInput`), `$node["X"].output`, 컨테이너 본문이 `emit` 으로 넘기는 값, Parallel 분기 결과에는 이 객체 대신 핸들러가 `output` 에 둔 값이 간다. 사용자 코드가 돌려준 `{ data: ... }` 객체와 모양이 같으므로 엔진은 자기가 만든 객체에 표지를 붙여 둘을 가른다. 재개 때 DB 완료 행에서 캐시를 되살리는 경로도 정상 실행과 같은 경로로 이 객체를 다시 만들고 표지를 붙인다. `meta` 만 있을 때는 이 객체를 만들지 않는다. 출력 값이 `null` 이거나 없으면 핸들러가 포트 하나(문자열)를 고르고 `status` 와 재개 상태(`_resumeState`)를 싣지 않았을 때만 이 객체를 만든다. 그 밖의 경우는 설정 에코와 제어 필드를 펼친 모양 그대로 들고 다닌다. 입력 대기 선언, `status: 'ended'` 같은 다른 `status`, 재개 상태, Parallel 의 분기 선언(포트 배열)이 그렇다. 출력 쪽 규칙은 [노드 출력 규약 Principle 0](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드) 7번이다. 연결선 라우팅과 다음 노드 입력 조립(`gatherNodeInput`)은 이 객체가 든 flat 캐시(`nodeOutputCache`)를 읽는다. `$node["X"]` · 실행 결과(`Execution.outputData`) · 동기 서브워크플로 결과 · Background 본문 스냅샷 · Parallel 분기 결과는 구조화 출력 캐시(`structuredOutputCache[X].output`)를 읽는다. flat 캐시의 표지를 없애는 정리는 NERV Task `CLE-T-ZJR3AF` 가 맡는다.
+출력 값이 배열이나 원시값이면 엔진은 `port` · `status` 를 함께 들고 다니려고 flat 캐시(`nodeOutputCache`)에 `{ data: <출력 값>, _selectedPort, … }` 객체를 둔다. 이 객체는 포트 라우팅과 대기 판정에만 쓴다. `meta` 만 있을 때는 이 객체를 만들지 않는다. 출력 값이 `null` 이거나 없으면 핸들러가 포트 하나(문자열)를 고르고 `status` 와 재개 상태(`_resumeState`)를 싣지 않았을 때만 이 객체를 만든다. 그 밖의 경우는 설정 에코와 제어 필드를 펼친 모양 그대로 둔다. 입력 대기 선언, `status: 'ended'` 같은 다른 `status`, 재개 상태, Parallel 의 분기 선언(포트 배열)이 그렇다. 출력 쪽 규칙은 [노드 출력 규약 Principle 0](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드) 7번이다.
+
+라우팅과 값은 읽는 캐시가 다르다. 연결선 라우팅은 flat 캐시를 읽는다. 다음 노드의 `$input`(`gatherNodeInput`), `$node["X"]`, 실행 결과(`Execution.outputData`), 동기 서브워크플로 결과, Background 본문 스냅샷, 컨테이너 본문이 `emit` 으로 넘기는 값, Parallel 분기 결과는 구조화 출력 캐시(`structuredOutputCache[X].output`)를 읽어 핸들러가 `output` 에 둔 값을 받는다. 구조화 항목이 없는 옛 컨텍스트 · 옛 큐 작업만 flat 값에서 제어 필드(`_selectedPort` · `port` · `status` · `_resumeState` · `_resumeCheckpoint`)를 뺀 값을 대신 쓰고(`toDownstreamValue`), 이 경로는 `{ data }` 객체를 풀지 않는다.
 
 옛 `{ port, data }` 반환 방식은 없앴다. 핸들러 반환값에 `config` 와 `output` 이 없으면 엔진 경계(`adaptHandlerReturn`)가 에러를 낸다. 엔진은 사용자 출력 값 안의 `data` 키를 보정하지도 풀지도 않는다.
 
@@ -235,7 +237,7 @@ flowchart TD
 
 ### 핸들러용 실행 컨텍스트는 노드 실행마다 하나다
 
-`executeNode` 는 핸들러에 넘길 실행 컨텍스트 복사본을 노드 실행마다 한 번 만든다. 이 절 제목의 «핸들러용 실행 컨텍스트» 는 이 복사본을 말한다. 복사본은 `{ ...context, rawConfig }` 에 `nodeId` · `nodeExecutionId` 같은 노드 실행 값을 더한 객체다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 모든 시도에서 이 복사본으로 핸들러를 다시 부른다. 시도마다 새 복사본을 만들지 않는다. 그래서 핸들러가 이 복사본을 키로 둔 값은 같은 노드 실행의 재시도 사이에 남고 다른 노드 실행이나 병렬 분기의 값과는 섞이지 않는다. 이 단위로 만드는 이유는 [Rationale](#실행-컨텍스트-복사본은-노드-실행-단위로-만든다-2026-10-25) 에 있다.
+`executeNode` 는 핸들러에 넘길 실행 컨텍스트 복사본을 노드 실행마다 한 번 만든다. 이 절 제목의 «핸들러용 실행 컨텍스트» 는 이 복사본을 말한다. 복사본은 `{ ...context, rawConfig }` 에 `nodeId` · `nodeExecutionId` 같은 노드 실행 값을 더한 객체다. 노드 재시도 정책이면 `ExecutionEngineService.executeWithRetry` 가 모든 시도에서 이 복사본으로 핸들러를 다시 부른다. 시도마다 새 복사본을 만들지 않는다. 그래서 핸들러가 이 복사본을 키로 둔 값은 같은 노드 실행의 재시도 사이에 남고 다른 노드 실행이나 병렬 분기의 값과는 섞이지 않는다. 이 단위로 만드는 이유는 [Rationale](#실행-컨텍스트-복사본은-노드-실행-단위로-만든다) 에 있다.
 
 ## 노드 재시도 기본값
 
@@ -248,8 +250,8 @@ flowchart TD
 - `codebase/backend/src/nodes/core/node-type-metadata.ts`
 - `codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.ts`
 - `codebase/backend/src/modules/execution-engine/expression/expression-exclusions.ts`
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeNode`, `executeWithRetry`, `applyPortSelection`, `stripControlFields`, Template 입력 펼치기)
-- `codebase/backend/src/modules/execution-engine/handler-output.adapter.ts` (`toEngineFlatShape`, `isWrappedValueEnvelope`)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`executeNode`, `executeWithRetry`, `applyPortSelection`, Template 입력 펼치기)
+- `codebase/backend/src/modules/execution-engine/handler-output.adapter.ts` (`toEngineFlatShape`, `resolveNodeResultValue`, `toDownstreamValue`)
 
 ## Rationale
 
@@ -267,7 +269,7 @@ flowchart TD
 - 정보 추출기는 종결 출력(`multiTurnConfigEcho`)과 입력 대기 출력(`buildWaitingResponse`) 모두 `state.rawConfig` 를 에코한다. 입력 대기 출력은 2026-11-14 까지 평가된 상태 값을 싣고 있어서 원본으로 바꿨다. 원본이 없는 옛 상태 행만 평가된 상태 값을 대신 쓴다.
 - Carousel·Table 출력 상한은 256KB 가 아니라 1MB 로 정했다([Presentation 노드 공통 §출력 크기 한도](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#출력-크기-한도)).
 
-### 노드 유형 분기를 메타데이터로 바꾼다 (PR-G)
+### 노드 유형 분기를 메타데이터로 바꾼다
 
 엔진 dispatch 에 노드 유형 이름을 하드코딩하면 새 특수 노드를 넣을 때마다 엔진 분기를 고쳐야 한다. 등록 때 `kind` 를 함께 받으면 엔진은 `kind` 만 보고 경로를 고른다. 메타데이터가 없는 유형은 `standard` 로 처리해 명시 분기 없이도 안전하다.
 
@@ -277,45 +279,42 @@ flowchart TD
 
 엔진 원문 §5.7 에는 카테고리별 기본 재시도 표가 있었다. Integration 은 최대 3회, AI 는 최대 2회, Flow 는 최대 1회를 지수 백오프로 재시도하고 Logic·Data·Presentation 은 재시도하지 않으며 설정도 막는다는 내용이다. 노드 에러 처리 정책을 소유한 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 과 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 은 모든 노드의 기본 정책을 워크플로우 중단으로 두고 재시도는 사용자가 고를 때만 적용한다. 현재 구현(`error-policy.handler.ts`)에도 카테고리별 기본값은 없고 Retry 를 고를 때의 `maxRetries` 기본값 3 만 있다. 그래서 이 문서는 소유 문서를 따르고 카테고리 표는 옮기지 않았다.
 
-### 실행 컨텍스트 복사본은 노드 실행 단위로 만든다 (2026-10-25)
+### 실행 컨텍스트 복사본은 노드 실행 단위로 만든다
+
+결정일: 2026-10-25
 
 노드 실행마다 만드는 실행 컨텍스트 복사본을 시도 단위나 실행 전체 단위로 만들지 않는 이유다.
 
 - 시도마다 새 복사본을 만들면 복사본을 키로 둔 값이 시도 사이에 이어지지 않는다. 결정 당시에는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 `rejectedLookups` 가 그런 값이었다. 이 임시 장치는 2026-11-05 NERV Task `CLE-T-PTC4SF` 에서 지웠다.
 - 노드 실행을 넘어 복사본을 공유하면 병렬 분기의 노드 실행이 같은 복사본을 쓰게 되어 값이 섞인다.
 
-### 배열 · 원시값 출력의 엔진 내부 객체를 표지로 가른다 (2026-11-05)
+### 다음 노드 값은 구조화 캐시에서 읽는다
 
-[포트 선택](#포트-선택)의 엔진 내부 `{ data }` 객체를 다음 노드에 넘기지 않으려고 고른 방식이다(NERV Task `CLE-T-T30D5S`).
+결정일: 2026-11-19
 
-- 엔진은 라우팅(`_selectedPort`)과 대기 판정(`status`)을 값의 최상위 키로 읽는다. 배열 · 원시값에는 키를 달 수 없어 엔진 안에서는 `{ data }` 객체가 필요하다.
-- 모양(`data` 키와 제어 필드)으로 이 객체를 알아보는 안은 기각했다. 사용자가 `{ data: [...] }` 객체를 돌려주고 `port` 가 붙으면 같은 모양이 되어 사용자 객체를 잘못 풀게 된다.
-- 엔진 캐시에 제어 필드를 따로 두어 `{ data }` 객체를 없애는 안은 미뤘다. 라우팅 · 대기 판정 · 재개 · 서브워크플로 경로를 모두 바꿔야 하고, 객체 출력과 분기 노드의 포트 라우팅을 바꾸지 않는다는 작업 경계를 넘는다.
-- 컨테이너 입력에 한해 `meta` 만 있을 때 감싸지 않게 한 앞선 수정(NERV Task `CLE-T-3HJ8MM`)은 일반 노드에 같은 결함을 남겼다. 라우팅은 `meta` 를 읽지 않으므로 모든 노드에서 `meta` 만으로는 감싸지 않게 바꿨다.
-- 표지는 `WeakSet` 이라 값의 모양과 JSON 직렬화를 바꾸지 않는다. 대신 객체를 새로 만들면 표지가 따라가지 않으므로 객체를 새로 만드는 `applyPortSelection` 이 표지를 옮긴다.
+[포트 선택](#포트-선택)의 엔진 내부 `{ data }` 객체를 다음 노드에 넘기지 않으려고 고른 방식이다(NERV Task `CLE-T-ZJR3AF`).
 
-2026-11-19 에 실행 결과 · 서브워크플로 결과 · Background 본문 · 재개 값도 구조화 출력 캐시에서 읽도록 바꿔 이 객체가 새는 경로를 닫았다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다), NERV Task `CLE-T-JDYHCF`).
+- 엔진은 라우팅(`_selectedPort`)과 대기 판정(`status`)을 값의 최상위 키로 읽는다. 배열 · 원시값에는 키를 달 수 없어 flat 캐시에는 `{ data }` 객체가 필요하다.
+- 2026-11-05 에는 이 객체에 `WeakSet` 표지를 붙이고 값을 넘길 때 풀었다(NERV Task `CLE-T-T30D5S`). 모양(`data` 키와 제어 필드)으로 알아보는 안은 사용자가 돌려준 `{ data: [...] }` 객체를 잘못 풀어서 기각했다. 표지는 객체를 새로 만들 때마다 옮겨야 했다.
+- 2026-11-19 에 실행 결과 · 서브워크플로 결과 · Background 본문(NERV Task `CLE-T-JDYHCF`)에 이어 다음 노드 `$input` 도 구조화 캐시의 `output` 을 읽게 하고 표지를 지웠다. 값을 읽는 곳이 모두 핸들러가 둔 `output` 을 받으므로 표지가 필요 없다.
+- 구조화 항목이 없는 옛 컨텍스트 · 옛 큐 작업만 flat 값에서 제어 필드를 뺀 값을 쓴다. 표지가 없어 사용자 객체와 가를 수 없으므로 이 경로는 `{ data }` 객체를 풀지 않는다. 배포 전환 동안만 생기는 경로라 받아들였다.
+- 엔진 캐시에 제어 필드를 따로 두어 flat 캐시의 `{ data }` 객체를 없애는 안은 2026-11-05 에 미룬 채로 둔다. 값은 이제 구조화 캐시에서 읽으므로 flat 의 `{ data }` 객체는 라우팅 · 대기 판정에만 쓰인다. 이 객체를 없애려면 라우팅 · 대기 판정 · 재개 · 서브워크플로 경로를 모두 바꿔야 한다.
+- `meta` 만 있을 때는 감싸지 않는다. 라우팅은 `meta` 를 읽지 않는다. 컨테이너 입력에 한한 앞선 수정(NERV Task `CLE-T-3HJ8MM`)을 모든 노드로 넓혔다.
+- `null` 출력도 포트 하나를 고르면 같은 객체에 싣는다(NERV Task `CLE-T-X3AH4F`). 펼치면 `_selectedPort` 가 없어 출력 포트가 모두 열렸고 다음 노드가 설정 에코를 받았다. 입력 대기 선언 · 다른 `status` · 재개 상태 · Parallel 분기 선언은 엔진이 최상위에서 읽으므로 펼친 모양을 둔다. 핸들러마다 고치는 안은 `output: input` 으로 넘기는 분기 노드(If/Else · Switch · Background)를 빠뜨려서 기각했다.
+- 고른 포트가 없는 출력(`_selectedPort` 가 없거나 빈 배열)은 `error` 연결선만 열지 않고 나머지를 연다(`GraphTraversalService.isPortFiltered`, NERV 질문 `01a1da28` 의 답 (a), NERV Task `CLE-T-K0Y546`).
 
-### `null` 출력도 같은 객체에 싣는다 (2026-11-05)
+### 원본 설정 노출 요구를 요구사항 줄로 옮겼다
 
-Code 노드가 `null` 을 돌려주거나 아무것도 돌려주지 않을 때 `success` 포트만 열리게 하려고 고른 방식이다(NERV Task `CLE-T-X3AH4F`).
-
-- 전에는 `null` 출력에 설정 에코와 제어 필드를 펼쳤다. 그 값에는 `data` 가 없어서 엔진이 고른 포트(`_selectedPort`)를 두지 않았고 출력 포트가 모두 열렸다. 다음 노드도 설정 에코를 입력으로 받았다.
-- 배열 · 원시값과 같은 표지 객체에 싣는 쪽을 골랐다. 다음 노드의 `$input` 과 `$node["X"].output` 은 핸들러가 둔 값(`null` · `undefined`)을 받는다.
-- 모든 `null` 출력을 감싸는 안은 기각했다. 입력 대기 노드는 `output` 을 `null` 로 두고 대기 선언을 설정 쪽에 싣는다. 엔진이 이 선언을 최상위에서 읽으므로 펼친 모양을 유지한다. 다른 `status` 값과 재개 상태(`_resumeState`)를 실은 출력도 엔진이 최상위 키로 읽어서 그대로 둔다.
-- Parallel 의 분기 선언(포트 배열)은 포트 하나를 고르는 출력이 아니어서 이 규칙에서 뺐다.
-- 핸들러마다 `null` 출력을 고치는 안도 기각했다. `output: input` 으로 입력을 넘기는 분기 노드(If/Else · Switch · Background)도 앞 노드가 `null` 을 내면 같은 결함이 있다. 엔진 한 곳에서 고쳐야 빠지는 노드가 없다.
-
-이후 엔진 규칙이 바뀌어 고른 포트가 없는 출력은 `error` 연결선만 열지 않고 나머지 연결선을 연다. `_selectedPort` 가 없거나 `undefined` 이거나 빈 배열인 경우다. 기준 코드는 `codebase/backend/src/modules/execution-engine/graph/graph-traversal.service.ts` 의 `GraphTraversalService.isPortFiltered` 다. NERV 질문 `01a1da28` 의 답 (a) 로 정했고 NERV Task `CLE-T-K0Y546` 이 구현했다.
-
-### 원본 설정 노출 요구를 요구사항 줄로 옮겼다 (2026-11-13)
+결정일: 2026-11-13
 
 NERV Task `CLE-T-VQX844` 에서 [원본 설정 노출 요구](#원본-설정-노출-요구) 의 표를 요구사항 줄 형식으로 옮겼다. 표의 옛 레이블은 `ENG-RC-01` → REQ-HANDLER-001, `ENG-RC-02` → REQ-HANDLER-002, `ENG-RC-03` → REQ-HANDLER-003, `ENG-RC-04` → REQ-HANDLER-004 로 대응한다. 다른 문서와 코드 주석이 옛 레이블을 인용하므로 각 줄 끝에 원본 레이블을 남겼다.
 
 - `ENG-RC-01` 은 «`node.config` 에 표현식이 들어 있으면» 원본을 보존한다고 적었다. 엔진은 표현식이 있는지 보지 않고 모든 호출에 원본의 얕은 복사본을 얼려 넣는다. 2026-11-13 에 그 조건을 빼고 구현에 맞췄다.
 - 표의 우선순위 칸(모두 필수)과 상태 칸(모두 구현)은 옮기지 않았다. 요구사항 줄에 미구현 표시가 없으면 구현된 요구다.
 
-### 엔진 에러 이름을 메시지 접두로 적는다 (2026-11-13)
+### 엔진 에러 이름을 메시지 접두로 적는다
+
+결정일: 2026-11-13
 
 이전 판은 [노드 실행 흐름](#노드-실행-흐름) 에서 `INVALID_NODE_CONFIG` 를 실패 코드처럼 적었고, 레지스트리 절은 `UNKNOWN_NODE_TYPE` 을 에러 이름으로만 적었다. 두 이름 모두 엔진이 일반 `Error` 메시지 앞에 붙이는 접두이고 `error.code` 로 실리지 않는다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.5 도 `INVALID_NODE_CONFIG` 를 행이 없는 메시지 접두로 둔다. 2026-11-13 에 두 이름을 메시지 접두로 고쳐 적었다.
 

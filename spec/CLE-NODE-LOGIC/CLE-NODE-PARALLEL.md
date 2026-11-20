@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 15
+version: 16
 status: "approved"
 requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032", "REQ-PARALLEL-033", "REQ-PARALLEL-034", "REQ-PARALLEL-035", "REQ-PARALLEL-036", "REQ-PARALLEL-037"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "132aa8abf359c6a40b233ebc59d8ca6caec572a3c2455a1bd9aeb66d9928e963"
+content_hash: "069c23be1b041e471f5716f2cd9b147f1e188d4c65672fddddfd12e3d763ab8d"
 read_as: "approved_fallback"
-task: "CLE-T-ECETZR"
+task: "CLE-T-0ZHAC4"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "9c6367c171c5d53402e3ef6eae51b0b3b945f125e69ff79486bfd32f637947c2"
-etag: "sha256-01b82766af5b7353332f6b89ce663d32d0045ef82e01c64ec81db2590f7a20d2"
+mirror_sha256: "901291811c16a3feff38eb35f4ba0b59af1cbe916ec4fcb70a48c862160f4f5e"
+etag: "sha256-5c3e513f335d6fd386751d2d16627ef739a67cd4ebf5dc8564708a2577d99e52"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -57,7 +57,7 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 - REQ-PARALLEL-027 WHEN `PARALLEL_ENGINE=off` 로 설정하면 THE SYSTEM SHALL 병렬 분기를 위상 순서로 차례로 실행하고 완료 출력(`branches` · `count` · `skipped`)을 만들지 않으며 Parallel 노드 출력을 핸들러의 시작 시점 출력(`output: null`, `port: ['branch_0', …]`)으로 둔다.
 - REQ-PARALLEL-028 WHEN Parallel 노드를 정의하면 THE SYSTEM SHALL 런타임 에러 포트를 두지 않는다(에러 처리 정책으로 생기는 동적 에러 포트는 제외).
 - REQ-PARALLEL-029 IF 실패한 병렬 분기가 없으면 THE SYSTEM SHALL 완료 출력에 `output.skipped` 를 싣지 않는다.
-- REQ-PARALLEL-030 WHEN 병렬 분기의 결과를 정하면 THE SYSTEM SHALL 이번 Parallel 실행에서 그 병렬 분기가 출력을 쓴 노드 가운데 [위상 순서](#병렬-분기의-노드-집합과-위상-순서)가 가장 늦은 노드의 출력을 엔진 제어 필드(`_selectedPort` 등)를 빼고 `output.branches[i]` 에 담고 그런 노드가 없거나 그 출력이 `undefined` 면 `null` 을 담는다.
+- REQ-PARALLEL-030 WHEN 병렬 분기의 결과를 정하면 THE SYSTEM SHALL 이번 Parallel 실행에서 그 병렬 분기가 출력을 쓴 노드 가운데 [위상 순서](#병렬-분기의-노드-집합과-위상-순서)가 가장 늦은 노드가 낸 `output`([다음 노드가 받는 값](../CLE-NODE/CLE-NODE-OUTPUT-VALUE.md))을 `output.branches[i]` 에 담고 그런 노드가 없거나 그 값이 `undefined` 면 `null` 을 담는다.
 - REQ-PARALLEL-031 WHEN 병렬 분기 안의 노드가 출력을 쓰면 THE SYSTEM SHALL 그 출력을 병렬 분기의 캐시 사본에도 옮겨 같은 병렬 분기의 다음 노드 입력과 포트 라우팅이 그 출력을 쓰게 한다.
 - REQ-PARALLEL-032 IF 병렬 분기 안의 노드가 실행 중에 `waiting_for_input` 상태를 내면 THE SYSTEM SHALL 메시지가 `PARALLEL_INVALID_CHILD:` 로 시작하는 에러로 그 병렬 분기를 실패시키고 항목 에러 정책대로 처리한다.
 - REQ-PARALLEL-033 WHEN 실패한 병렬 분기를 `output.skipped` 에 더하면 THE SYSTEM SHALL `error.code` 를 ForEach · Map 과 같은 규칙으로 고른다. 백엔드가 직접 싣는 카탈로그 코드는 그대로 두고 `name` 이 `AbortError` 인 에러는 `AbortError` 로, 그 밖은 `UNKNOWN_ERROR` 로 둔다.
@@ -104,7 +104,7 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 ## 미결 사항
 
 - **정수가 아닌 `branchCount` 의 캔버스 배지** (info): 노드 경고 규칙은 범위만 보므로 REQ-PARALLEL-019 의 정수 아님 배지는 표시되지 않는다. `handler.validate` 는 거부한다. 배지를 더할지 요구사항을 고칠지 결정 필요.
-- **`PARALLEL_ENGINE=off` 에서 `done` 뒤 노드의 실행 시점** (info): 되돌림 경로에서 `done` 연결선 뒤 노드가 병렬 분기 완료를 기다리는지 정하지 않았다. 핸들러가 `port: ['branch_0', …]` 를 돌려주면 엔진이 `done` 을 포함한 모든 연결선을 활성화하므로 `done` 뒤 노드는 실행되고 Parallel 의 시작 시점 출력을 받는다(2026-11-06 확인). 실행 순서 확인과 결정 필요.
+- **`PARALLEL_ENGINE=off` 에서 `done` 뒤 노드의 실행 시점** (info): 되돌림 경로에서 `done` 연결선 뒤 노드가 병렬 분기 완료를 기다리는지 정하지 않았다. 핸들러가 `port: ['branch_0', …]` 를 돌려주면 엔진이 `done` 을 포함한 모든 연결선을 활성화하므로 `done` 뒤 노드는 실행되고 `$input` 으로 Parallel 시작 시점 출력의 `output`(`null`)을 받는다(2026-11-06 확인, 받는 값은 2026-11-19 바뀜). 실행 순서 확인과 결정 필요.
 - **k8s 기본 매니페스트의 `PARALLEL_ENGINE`** (warning): 코드 기본값과 `.env.example` 은 `v1` 이다. k8s 기본 매니페스트(`k8s/base/configmap.yaml`)는 `PARALLEL_ENGINE: "off"` 다. 그래서 지금 k8s 기본 매니페스트로 배포하면 되돌림 경로(REQ-PARALLEL-027)로 실행되고 완료 출력(`branches` · `count` · `skipped`)이 나오지 않는다. 매니페스트를 `v1` 로 바꿀지 결정 필요.
 - **입력 대기로 실패한 자식 노드의 실행 기록 상태** (info): REQ-PARALLEL-032 로 병렬 분기가 실패할 때 `waiting_for_input` 을 낸 자식 노드의 실행 기록이 어느 상태로 끝나는지 정하지 않았다. 지금 테스트도 이 상태를 확인하지 않는다. 종결 상태를 정하고 [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 전이 표에 넣을지 결정 필요.
 

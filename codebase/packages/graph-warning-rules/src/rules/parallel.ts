@@ -12,20 +12,20 @@ const BACKGROUND_NODE_TYPE = 'background';
 const BACKGROUND_PORT = 'background';
 
 /**
- * Parallel 노드의 병렬 분기 본문 노드 ID 를 모두 모은다. `branch_N` 연결선 대상에서 시작해
- * 연결선을 앞으로 따라간다. 다른 Parallel 의 분기 본문과 섞지 않는다.
- *
+ * `starts` 에서 연결선을 앞으로 따라 닿는 노드 ID 를 모두 모은다. 시작 노드도 넣는다.
  * Background 노드의 `background` 연결선은 따라가지 않는다. 그 뒤 본문은 워커가 새
- * 컨텍스트에서 실행하므로 병렬 분기 본문이 아니다. 본문 안 Parallel 은 깊이 1부터 센다
- * (REQ-PARALLEL-036, NERV Task CLE-T-B7A8B2). Background 본문에서 다시 병렬 분기 쪽으로
- * 이어지는 노드도 다른 경로로 닿지 않으면 넣지 않는다. 실행 시 사전 검사가 쓰는
- * `collectBackgroundOnlyNodeIds`(backend `graph/background-body-membership.ts`)와 같은
- * 범위다.
+ * 컨텍스트에서 실행하므로 시작 노드가 속한 본문이 아니다.
+ *
+ * 저장 규칙의 병렬 분기 본문({@link collectParallelBranchBodyNodeIds})과 실행 사전
+ * 검사의 Background 본문 판정(backend `graph/background-body-membership.ts` 의
+ * `collectBackgroundOnlyNodeIds`)이 이 함수 하나로 도달 범위를 구한다(NERV Task
+ * CLE-T-HH61D6). 두 쪽의 입력 모양과 Background 판별 방법이 달라도 이 판정은 같아야
+ * 한다(CLE-NODE-PARALLEL-NEST 「저장 규칙과 실행 검사의 범위」).
  *
  * @param isBackgroundNode 노드가 Background 인지. 주지 않으면 모든 연결선을 따라간다.
  */
-export function collectParallelBranchBodyNodeIds(
-  parallelNodeId: string,
+export function reachSkippingBackgroundEdges(
+  starts: Iterable<string>,
   edges: readonly GraphRuleEdge[],
   isBackgroundNode: (nodeId: string) => boolean = () => false,
 ): Set<string> {
@@ -36,18 +36,7 @@ export function collectParallelBranchBodyNodeIds(
     list.push(e);
     adj.set(e.source, list);
   }
-  // branch_N entry points
-  const entries: string[] = [];
-  for (const e of edges) {
-    if (e.source !== parallelNodeId) continue;
-    if (e.sourceHandle != null && /^branch_\d+$/.exec(e.sourceHandle)) {
-      entries.push(e.target);
-    }
-  }
-  // BFS 는 entries (각 branch_N 분기의 entrypoint) 에서만 시작하고 adjacency 를
-  // 따라 forward 로만 확장하므로, 실제 방문 범위는 해당 Parallel 분기 body 이후로
-  // 한정된다 (entrypoint 이전의 그래프나 다른 컨테이너 분기는 도달하지 않음).
-  const queue = [...entries];
+  const queue = [...starts];
   let head = 0;
   while (head < queue.length) {
     const id = queue[head++];
@@ -60,6 +49,33 @@ export function collectParallelBranchBodyNodeIds(
     }
   }
   return out;
+}
+
+/**
+ * Parallel 노드의 병렬 분기 본문 노드 ID 를 모두 모은다. `branch_N` 연결선 대상에서 시작해
+ * 연결선을 앞으로 따라간다. 다른 Parallel 의 분기 본문과 섞지 않는다. 시작 노드에서만
+ * 앞으로 따라가므로 진입 전 그래프나 다른 컨테이너 분기에는 닿지 않는다.
+ *
+ * Background 노드의 `background` 연결선은 따라가지 않는다({@link reachSkippingBackgroundEdges}).
+ * 본문 안 Parallel 은 깊이 1부터 센다(REQ-PARALLEL-036, NERV Task CLE-T-B7A8B2).
+ * Background 본문에서 다시 병렬 분기 쪽으로 이어지는 노드도 다른 경로로 닿지 않으면 넣지
+ * 않는다.
+ *
+ * @param isBackgroundNode 노드가 Background 인지. 주지 않으면 모든 연결선을 따라간다.
+ */
+export function collectParallelBranchBodyNodeIds(
+  parallelNodeId: string,
+  edges: readonly GraphRuleEdge[],
+  isBackgroundNode: (nodeId: string) => boolean = () => false,
+): Set<string> {
+  const entries: string[] = [];
+  for (const e of edges) {
+    if (e.source !== parallelNodeId) continue;
+    if (e.sourceHandle != null && /^branch_\d+$/.exec(e.sourceHandle)) {
+      entries.push(e.target);
+    }
+  }
+  return reachSkippingBackgroundEdges(entries, edges, isBackgroundNode);
 }
 
 /** 노드 인덱스로 Background 여부를 묻는 함수를 만든다. */

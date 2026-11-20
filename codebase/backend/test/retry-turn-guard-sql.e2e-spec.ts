@@ -163,7 +163,7 @@ describe('마지막 턴 재시도 · 종결 가드의 조건부 UPDATE (실제 P
     createMany: jest.fn<AsyncFn>().mockResolvedValue(undefined),
   };
   const contextService = {
-    setNodeOutput: jest.fn(),
+    seedNodeOutput: jest.fn(),
     deleteContext: jest.fn(),
   };
 

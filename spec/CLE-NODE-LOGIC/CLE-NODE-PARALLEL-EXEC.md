@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL-EXEC"
 title: "Parallel 노드 — 실행 로직"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PARALLEL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-PARALLEL"]
 area: "CLE-NODE-LOGIC"
-content_hash: "a03b7fad5019dea36910c9bb61c80e42064221d242fca1459fb29868656d0b9f"
+content_hash: "dcfc41d9cd5cc37ad1e6d374f7fd81c8d615ee184023fd3e410511294448a43d"
 read_as: "approved_fallback"
-task: "CLE-T-ECETZR"
+task: "CLE-T-CE5YR3"
 source_paths: []
-mirror_sha256: "3dba516ac78a4dfd503d08506c6d7ede7679161ed816c67cb4d826f1be4b2306"
-etag: "sha256-51d08b968a67a23b33826c9a086cc10521f2938495e1f612b0d5ad7d14de9053"
+mirror_sha256: "3202c7f5b124f9a523f5ec64ab8727468fa9fc29883a7e948a7b1695f6080bd2"
+etag: "sha256-63000796beef294653336110b4e5f20abdd5cb9cf69d6f8b1cd55cc552c101fd"
 ---
 ## 개요
 
@@ -34,7 +34,7 @@ etag: "sha256-51d08b968a67a23b33826c9a086cc10521f2938495e1f612b0d5ad7d14de9053"
    - 합류 노드는 병렬 분기 본문이 아니므로 후보가 아니다.
    - 같은 실행에서 Parallel 이 다시 실행될 때 앞 실행이 남긴 출력은 후보가 아니다. 엔진은 값을 비교하지 않고 이번에 출력을 쓴 노드 ID 를 기록해 판정한다.
    - 끝나는 노드가 둘 이상이면 3번 순서가 결과를 정한다. 이 순서는 노드 ID 로 갈리므로 그래프를 고치면 바뀔 수 있다. 결과를 하나로 정하려면 끝나는 노드들을 Merge 로 모은다.
-   - 결과 노드 출력에서 `_selectedPort` 같은 엔진 제어 필드를 뺀다. 결과 노드가 없거나 그 출력이 `undefined` 면 `null` 이다. 실패한 병렬 분기도 `null` 이다.
+   - 결과는 결과 노드가 구조화 출력 캐시에 둔 `output` 이다([다음 노드가 받는 값](../CLE-NODE/CLE-NODE-OUTPUT-VALUE.md)). `_selectedPort` 같은 엔진 제어 필드는 flat 캐시에만 있어 결과에 섞이지 않는다. 결과 노드가 없거나 그 출력이 `undefined` 면 `null` 이다. 실패한 병렬 분기도 `null` 이다.
 
 `PARALLEL_ENGINE=off` 되돌림 경로는 이 절을 쓰지 않는다([`off` 되돌림 경로](CLE-NODE-PARALLEL-OUTPUT.md#off-되돌림-경로는-완료-출력을-만들지-않는다)).
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "e72ea58f6802aa0996b72fb1b77fb91da0122deddbc284df7f27dec9d5756bc2"
+content_hash: "e8086a2019db4e06712346e21228b35ee3087039d20ede7c843e6e65bc8cd4f4"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-0ZHAC4"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "d5b1a6558ab08e1dffada9f5f782b4203a95d81fb2b4c34b6f806a18d61d60e3"
-etag: "sha256-84cbbbcd01140cecdae57f5848d02bc171a5c5ebf0576076e5d2b97f8905ab94"
+mirror_sha256: "579fb45440fc11cd5c072180206d1bec75df5308639841480e6f8b088f386b50"
+etag: "sha256-bd1bdb7b4f2ead27ae87a1e0b2270c6fca750bc0d69e4320b6d0c68f7856cc78"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,6 +39,7 @@ etag: "sha256-84cbbbcd01140cecdae57f5848d02bc171a5c5ebf0576076e5d2b97f8905ab94"
 
 - [노드 출력 규약 — 포트 · 흐름 상태 · 에러](CLE-NODE-OUTPUT-FLOW.md): Principle 3(에러 계약 · `output.error` 형태 · 에러 포트), Principle 4(블로킹 · 재개 상태 전이, `_resumeCheckpoint` · `_retryState` 보존 예외, 입력 대기 · 재개 출력 값, `interaction.data`), Principle 5(출력 포트 선택 모델), Principle 6(동적 포트 ID 이름). 맡는 요구사항: 없음.
 - [노드 출력 규약 — 설정 에코](CLE-NODE-OUTPUT-ECHO.md): Principle 7(설정 에코에 싣는 값 · 싣지 않는 값, egress 마스킹, 명시 나열 방식)과 출력 표의 설정 에코 범례. 맡는 요구사항: 없음.
+- [노드 출력 규약 — 다음 노드가 받는 값](CLE-NODE-OUTPUT-VALUE.md): Principle 0 7번(다음 노드 · 실행 결과가 받는 값과 그 출처)의 상세, 배포 전환 동안의 대체 값, 결정 이력. 맡는 요구사항: 없음.
 - [노드 출력 규약 — 컨테이너 출력과 빈 입력](CLE-NODE-OUTPUT-CONTAINER.md): Principle 9(컨테이너와 Parallel 의 엔진 덮어쓰기)와 Principle 10(비었거나 null 인 입력의 대체 값), 컨테이너 · Parallel 의 완료 `meta` 와 실행 시간. 맡는 요구사항: 없음.
 
 ## 규칙
@@ -67,7 +68,7 @@ etag: "sha256-84cbbbcd01140cecdae57f5848d02bc171a5c5ebf0576076e5d2b97f8905ab94"
    이 8키는 `nodeOutput` 안(노드 출력 층)의 키다. 봉투 층에도 `interactionType` · `buttonConfig` 같은 키가 있다. 봉투 키는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)과 [입력 대기 이벤트](../CLE-API/CLE-API-WS-EVENTS-WAITING.md)가 정한다.
 5. 다섯 필드 목록을 넓히지 않는다. wire 전용 키는 핸들러가 만드는 값이 아니라 전송 조립 계층이 만드는 값이다. 정본 목록은 `codebase/backend/src/nodes/core/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS` 다. 컴파일 타임 assertion 이 다섯 필드를 묶고 나머지 8키는 리터럴 테스트가 지킨다. 범위 표는 [응답 자격 증명 마스킹 §3.8](../CLE-API/CLE-API-EGRESS.md#38-외부-nodeoutput-의-fail-closed-허용-목록-2026-08-23-2026-08-24)이 가진다. 갈래 라벨은 그 표와 같은 문구를 쓴다.
 6. 내부 최상위 필드 세 개는 다섯 필드 밖 최상위 위치를 예외로 허용한다. `_resumeState`(멀티턴 입력 대기·재개 중 내부 전달), `_resumeCheckpoint`(재시작 뒤 재개용 DB 보존 부분집합), `_retryState`(재시도 가능 에러로 끝날 때 DB 보존)다. 세 필드는 표현식 해석기와 자동완성에 노출하지 않고, 자격 증명 제외 정책도 같다. 자세한 규칙은 [4.2.1](CLE-NODE-OUTPUT-FLOW.md#421-보존-예외--_resumecheckpoint--_retrystate)에 있다.
-7. 출력 값이 배열이나 원시값(문자열 · 숫자 · 불리언 · `null`)이어도 다음 노드는 그 값을 그대로 받는다. `$input` 과 `$node["X"].output` 은 핸들러가 `output` 에 둔 값과 같다. `port` · `status` · `meta` 가 함께 있어도 `{ data: … }` 같은 객체로 감싸지 않는다. 사용자 코드가 `{ data: [...] }` 객체를 돌려주면 그 객체가 출력 값이다. 엔진이 포트 라우팅을 위해 이 값을 어떻게 들고 다니는지는 [노드 핸들러 계약 §포트 선택](../CLE-EXEC/CLE-EXEC-HANDLER.md#포트-선택)에 있다. 실행 결과(`Execution.outputData`) · 동기 서브워크플로 결과 · Background 본문 · 재개 뒤의 값도 같고 `_selectedPort` 같은 엔진 내부 키가 붙지 않는다([Rationale](#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다)).
+7. 출력 값이 배열이나 원시값(문자열 · 숫자 · 불리언 · `null`)이어도 다음 노드는 그 값을 그대로 받는다. `$input` 과 `$node["X"].output` 은 핸들러가 `output` 에 둔 값과 같다. `port` · `status` · `meta` 가 함께 있어도 `{ data: … }` 같은 객체로 감싸지 않는다. 사용자 코드가 `{ data: [...] }` 객체를 돌려주면 그 객체가 출력 값이다. 엔진이 포트 라우팅을 위해 이 값을 어떻게 들고 다니는지는 [노드 핸들러 계약 §포트 선택](../CLE-EXEC/CLE-EXEC-HANDLER.md#포트-선택)에 있다. 실행 결과(`Execution.outputData`) · 동기 서브워크플로 결과 · Background 본문 · 재개 뒤의 값 · 컨테이너 emit · Parallel 분기 결과도 같고 `_selectedPort` 같은 엔진 내부 키가 붙지 않는다([다음 노드가 받는 값](CLE-NODE-OUTPUT-VALUE.md)).
 
 ### Principle 1. 출력 값에는 비즈니스 결과만 둔다
 
@@ -299,6 +300,7 @@ AI 노드의 `meta` 필드는 다음과 같다.
 
 - 사설망 차단과 자격 증명 해석 실패를 에러 포트로 보낸다 (2026-05-17), `_resumeState` · `_retryState` 의 자격 증명 제외 방식 (2026-08-24), 에러 `details` 예를 구현에 맞춘다 (2026-11-13), AI 대화 노드의 재개 출력을 규약에 올린다 (2026-11-12): [포트 · 흐름 상태 · 에러의 Rationale](CLE-NODE-OUTPUT-FLOW.md#rationale)
 - 설정 에코의 원문 저장 · egress 마스킹 · 명시 나열 · 범례: [설정 에코의 Rationale](CLE-NODE-OUTPUT-ECHO.md#rationale)
+- 배열 · 원시값 출력을 감싸지 않는다 (2026-11-05), 실행 결과와 서브워크플로 결과도 핸들러 output 을 싣는다 (2026-11-19), 다음 노드 입력도 핸들러 output 을 받는다 (2026-11-19): [다음 노드가 받는 값의 Rationale](CLE-NODE-OUTPUT-VALUE.md#rationale)
 - 엔진 덮어쓰기 형태 · 빈 입력 대체 · 완료 `meta` 의 `durationMs` · 완료 출력 표의 `skipped` · `skipped[].error.code` 예외 종료: [컨테이너 출력과 빈 입력의 Rationale](CLE-NODE-OUTPUT-CONTAINER.md#rationale)
 
 ### 노드 종류를 몰라도 값 위치를 예측할 수 있게 한다
@@ -329,23 +331,11 @@ wire 전용 키 8개는 핸들러가 아니라 전송 조립 계층이 만든다
 
 ### 배열 · 원시값 출력을 감싸지 않는다
 
-결정일: 2026-11-05
-
-이 결정 전에는 엔진이 배열 · 원시값 출력에 `port` · `status` · `meta` 가운데 하나라도 있으면 `{ data: <값> }` 으로 감쌌다. 그래서 Code 의 `return [...]` 도 다음 노드가 `$input.data` 로 읽어야 했다. 값 위치를 예측한다는 목표와 [Principle 8.2](#82-통일된-1차-이름)에 맞지 않았다. 2026-11-05 에 이 감싸기를 없앴다(NERV Task `CLE-T-T30D5S`). 감싼 값을 `$input.data` · `$node["X"].output.data` 로 읽던 워크플로우는 이 결정 뒤 `undefined` 를 읽는다. 호환이 깨지는 변경이다. 엔진 쪽 구현 결정은 [노드 핸들러 계약](../CLE-EXEC/CLE-EXEC-HANDLER.md#배열--원시값-출력의-엔진-내부-객체를-표지로-가른다-2026-11-05)에 있다. 같은 날 Code 가 `null` 을 돌려주거나 값을 돌려주지 않는 경우도 맞췄다(NERV Task `CLE-T-X3AH4F`). 전에는 다음 노드가 설정 에코를 받고 success · error 포트가 함께 열렸으나 이제 success 포트만 열리고 다음 노드는 `null` 을 받는다.
-
-기각한 대안은 둘이다. 첫째, `$input.data` 도 같은 값을 주는 별칭은 원시값에 속성을 붙일 수 없고 배열에 `data` 속성을 붙이면 사용자 값의 모양이 바뀐다. 둘째, Code 만 감싸지 않는 노드별 적용은 노드 종류를 알아야 값 위치를 알 수 있어 규약의 목표와 맞지 않는다. 저장된 워크플로우의 `$input.data` 를 자동으로 고치는 마이그레이션도 두지 않았다. 앞 노드의 출력이 배열 · 원시값인지는 실행해 봐야 알 수 있어 표현식만 보고 고칠 곳을 가를 수 없다.
+→ [다음 노드가 받는 값](CLE-NODE-OUTPUT-VALUE.md#배열--원시값-출력을-감싸지-않는다)
 
 ### 실행 결과와 서브워크플로 결과도 핸들러 output 을 싣는다
 
-결정일: 2026-11-19
-
-[앞 결정](#배열--원시값-출력을-감싸지-않는다) 뒤에도 실행 결과와 동기 서브워크플로 결과에는 마지막 노드의 엔진 내부 값이 실렸다. 배열 · 원시값에 `port` 가 있으면 `{ data, _selectedPort }` 였고 객체에는 `_selectedPort` 키가 붙었다. `$node["X"].output` 의 `port` 있는 객체 출력, Background 본문, 재개 뒤의 값도 같았다.
-
-사람이 두 가지를 정했다(NERV Task `CLE-T-JDYHCF`). 첫째, 두 결과에 마지막 노드의 핸들러 `output` 을 그대로 싣는다(NERV 질문 `01a1f1cf-c0f1-7445-bd83-6a823030cb73`, 답 a). 마지막 노드가 출력 없이 끝나면 실행 결과는 `{}` 이고 서브워크플로 결과는 `undefined` 다. 둘째, 이 값은 구조화 출력 캐시(`structuredOutputCache[X].output`)에서 읽고 봉투 표지는 JSON 에 싣지 않는다(NERV 질문 `01a1f1cf-c250-748c-a58a-ef45e2d530c6`, 답 A). 재개 때 DB 에서 되살리는 경로는 정상 실행과 같은 경로로 두 캐시를 채우고 Background 큐 작업은 이 캐시의 스냅샷을 싣는다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#실행-로직)).
-
-기각한 대안은 둘이다. 실행 결과에 노드 출력 다섯 필드 전체를 싣는 안은 서브워크플로 결과를 읽는 표현식이 모두 `.result.output.…` 으로 바뀌어 호환 영향이 크다. 값 안 전용 필드(`__engineEnvelope`)로 표지를 남기는 안은 DB 노드 실행 `outputData` 와 WS 이벤트에 그 필드가 보이고 저장 값의 모양이 바뀐다.
-
-호환이 깨지는 변경이다. 실행 결과, [EIA 상태 조회](../CLE-IX/CLE-EIA-INBOUND-STATUS.md#단발-상태-조회)의 `result`, [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#최종-노드-출력)의 `output.result` 가 배열 · 원시값을 그대로 담고 `_selectedPort` 키가 사라진다. `$node["Workflow"].output.result._selectedPort` 나 `.result.data` 로 봉투를 읽던 표현식은 고쳐야 한다. flat 캐시의 봉투 표지 제거 같은 내부 정리는 NERV Task `CLE-T-ZJR3AF` 가 맡고 사용자에게 보이는 값은 바뀌지 않는다.
+→ [다음 노드가 받는 값](CLE-NODE-OUTPUT-VALUE.md#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다)
 
 ### 예외 표에서 정한 노드만 배열이 아닌 입력을 빈 배열로 바꾼다
 
