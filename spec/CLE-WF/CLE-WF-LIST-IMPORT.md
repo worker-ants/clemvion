@@ -2,19 +2,19 @@
 id: "CLE-WF-LIST-IMPORT"
 title: "워크플로우 목록 — 내보내기 · 가져오기 형식"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-LIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-LIST"]
 area: "CLE-WF"
-content_hash: "b8c4dc51549699813a2a393b30ac9f1d92dd9a67ef6ff9c08ccd7040838a5447"
+content_hash: "736ee6c132872851c4b84517983957798efa3c27bd30881feea5479eb12d9d6a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-9Q304H"
 source_paths: []
-mirror_sha256: "4db7f9cc412f45aadd1f53116693773dfb0e9f296ed499e026ba3fb6f4644d75"
-etag: "sha256-c3958c3f85776a416a1ad3de0224071c1e632be2c4e7309a2f0d1e69e98eab8e"
+mirror_sha256: "bf595bed1bbb1361a2afc5fbcdff3248824f1b32ce2273b4d5de85a97ae67b89"
+etag: "sha256-f2666c4df6c8af7e544fba749bc7c97f951f48a9d59879e703c72f59d56ee862"
 ---
 ## 개요
 
@@ -39,7 +39,7 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 4. AI 노드에 `llmConfigId` 가 없으면 워크스페이스 기본 모델 설정을 채운다.
 5. 노드 `config` 의 통합 참조 가운데 이 워크스페이스에 없는 통합(지워진 통합 · 다른 워크스페이스의 통합)이나 요청 사용자가 통합 소유자가 아닌 개인 통합을 가리키는 것을 비운다. 그래서 다른 워크스페이스에서 내보낸 파일이면 조직 통합을 포함해 그 워크스페이스의 통합 ID 는 모두 비워진다. 3단계에서 parse 에 실패해 보존한 설정도 같은 위치에서 비운다. 고르지 않은 자리(키 없음 · `null` · 빈 문자열)는 대상이 아니다. 고르지 않은 자리가 아닌데 문자열도 아닌 값은 없는 통합과 같이 비우고 표현식 값은 판정하지 않고 둔다. 어떤 값이 참조인지는 [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다. 거부하지 않는다([통합 참조 비우기](#통합-참조-비우기)). 응답에 싣는 비운 노드의 `nodeId` 는 6단계에서 발급한 id 다.
 6. 인덱스 참조(`containerIndex`·`toolOwnerIndex`·`sourceNodeIndex`·`targetNodeIndex`)를 새로 발급한 UUID 로 바꿔 저장한다.
-7. 워크플로우 `settings` 는 엄격한 중첩 DTO(`WorkflowSettingsDto`)로 검사한다. 지금 허용하는 키는 `maxConcurrentExecutions`(양의 정수, 워크플로우당 동시 실행 상한) 하나다. 모르는 키, 양수가 아닌 값, 정수가 아닌 값은 400 `VALIDATION_ERROR` 다. `UpdateWorkflowDto.settings`(PATCH)도 같은 규칙을 쓴다. 동시 실행 상한의 동작은 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 에 있다.
+7. 워크플로우 `settings` 는 엄격한 중첩 DTO(`WorkflowSettingsDto`)로 검사한다. 지금 허용하는 키는 `maxConcurrentExecutions`(양의 정수, 워크플로우당 동시 실행 상한) 하나다. 모르는 키, 양수가 아닌 값, 정수가 아닌 값은 400 `VALIDATION_ERROR` 다. `maxConcurrentExecutions: null` 은 거부하지 않고 상한 해제로 받는다. 서버는 `null` 을 저장하지 않고 키를 지운다. 그래서 조회 응답에서 키가 빠지고 상한은 기본값 3 으로 돌아간다. 가져오기에서는 키를 두지 않은 것과 같고 PATCH 에서는 저장된 상한을 지운다. OpenAPI 는 이 키를 `nullable: true` 로 적는다. `UpdateWorkflowDto.settings`(PATCH)도 같은 규칙을 쓴다. 동시 실행 상한의 동작은 [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) 에 있다.
 
 가져오기 전체를 한 트랜잭션으로 저장하는 흐름은 [워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md) 에 있다.
 
@@ -57,6 +57,7 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 - `codebase/frontend/src/app/(main)/w/[slug]/workflows/page.tsx` (복제 · 가져오기 성공 뒤 비운 통합 참조 경고 토스트)
 - `codebase/frontend/src/lib/integrations/cleared-integration-refs.ts` (`clearedIntegrationRefs` 에서 경고에 적을 노드 레이블을 모은다)
 - `codebase/backend/src/modules/workflows/dto/import-workflow.dto.ts`
+- `codebase/backend/src/modules/workflows/dto/workflow-settings.dto.ts`, `codebase/backend/src/modules/workflows/workflows.service.ts` (`settings` 검사와 `dropNullSettingKeys` 의 null 키 삭제)
 - `codebase/backend/src/modules/integrations/node-integration-refs.ts`, `codebase/backend/src/modules/integrations/node-integration-ref-check.ts` (복제 · 가져오기의 통합 참조 비우기)
 - `codebase/backend/test/integration-personal-use.e2e-spec.ts` (복제 · 가져오기가 쓸 수 없는 참조를 비우고 응답으로 알리는 e2e)
 
@@ -70,6 +71,7 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 - 노드 `type` 허용 목록과 레이블 유일성은 워크플로우 구조 자체의 무결성이다. 그래서 DTO 단계에서 400·409 로 거부한다. 설정 내용(느슨함)과 구조(엄격함)를 나눈 결정이다.
 - `applyConfigDefaults` 가 모르는 노드 유형의 설정을 그대로 통과시키는 분기는 앞으로 올 유형에 대비한 방어 코드다. 실제로는 1단계 허용 목록 검사가 먼저 막는다.
 - 워크플로우 `settings` 는 이 느슨한 예외에 들지 않는다. 느슨한 정책은 사용자가 손으로 고친 뒤 에디터에서 복구할 수 있는 노드 `config` 에만 쓴다. `settings.maxConcurrentExecutions` 는 동시 실행 상한이라 잘못된 값을 조용히 무시하면 상한 정책이 어긋난다. 그래서 쓰기 경계에서 엄격한 중첩 DTO(`WorkflowSettingsDto`)로 거부한다. 가져오기와 PATCH(`UpdateWorkflowDto`)가 같은 규칙을 쓰고 데이터 모델도 `Workflow.settings` 를 이 키로 한정한다(2026-07-04 결정).
+- `maxConcurrentExecutions: null` 은 받는다. 숫자 키라서 `null` 말고는 상한을 지울 방법이 없기 때문이다(2026-11-20, NERV Task `CLE-T-9Q304H`). 같은 규칙을 쓰는 워크스페이스 설정의 근거는 [생성 · 전환 · 설정](../CLE-ACCT/CLE-ACCT-WS-SPACE.md) 의 Rationale 에 있다.
 
 ### 2. 가져오기·복제는 쓸 수 없는 통합 참조를 비우고 경고한다 (2026-10-24)
 

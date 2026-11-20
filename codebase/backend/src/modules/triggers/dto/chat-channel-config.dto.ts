@@ -25,6 +25,7 @@ import {
   BOT_TOKEN_MAX_LENGTH,
   BOT_TOKEN_OPENAPI_PATTERN,
 } from './chat-channel-bot-token';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 
 // 근거:
 //   - [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel)
@@ -369,11 +370,12 @@ export class ChatChannelConfigDto {
       '실행 실패 안내 키의 template 안에서 허용되는 placeholder 는 {statusCode} 1종. ' +
       '다른 {...} placeholder 발견 시 400 VALIDATION_ERROR (code=UNKNOWN_PLACEHOLDER). ' +
       '문구는 평문으로 입력한다 — 발송 시 provider 별 escape 는 어댑터가 수행한다 ' +
-      '(telegram MarkdownV2 / slack mrkdwn / discord 평문).',
+      '(telegram MarkdownV2 / slack mrkdwn / discord 평문). ' +
+      '생략하면 값을 유지하고 null 은 400 으로 거부한다.',
     type: 'object',
     additionalProperties: { type: 'string' },
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsObject()
   @Validate(LanguageHintsPlaceholderValidator)
   languageHints?: Record<string, string>;

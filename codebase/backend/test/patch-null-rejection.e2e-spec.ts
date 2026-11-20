@@ -13,7 +13,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 위반(23502)이 나거나(500), 서비스가 null 에서 메서드를 불러 TypeError(500)가 나거나, 엉뚱한 409 · 조용한 경로 삭제가 됐다. 이제
  * 그 필드들은 `IsOptionalNonNull()` 로 키 생략(= 값 불변)만 허용하고 null 은 입구에서 거부한다.
  *
- * 라우트마다 대표 필드를 고른다(픽스처가 가벼운 12개 라우트). 43필드 전수는 DTO 단위 테스트가 본다(`src/repo-guards/__tests__/patch-null-rejection.spec.ts`).
+ * 라우트마다 대표 필드를 고른다(픽스처가 가벼운 12개 라우트). 46필드 전수는 DTO 단위 테스트가 본다(`src/repo-guards/__tests__/patch-null-rejection.spec.ts`).
  * 통합 · 지식 베이스는 픽스처가 무거워 단위로만.
  */
 
@@ -203,6 +203,12 @@ describe('PATCH 의 NOT NULL 필드에 null (e2e)', () => {
       url: () => `/api/workspaces/${workspaceId}/settings`,
       field: 'interactionAllowedOrigins',
     },
+    // CLE-T-9Q304H — JSONB 설정 키도 다른 값으로 정할 수 있으면 null 을 거부한다.
+    {
+      label: '알림 설정',
+      url: () => '/api/notifications/settings',
+      field: 'executionFailedEmail',
+    },
     { label: '내 프로필', url: () => '/api/users/me', field: 'name' },
     { label: '내 프로필', url: () => '/api/users/me', field: 'locale' },
     { label: '내 프로필', url: () => '/api/users/me', field: 'theme' },
@@ -261,6 +267,45 @@ describe('PATCH 의 NOT NULL 필드에 null (e2e)', () => {
       expect(fields).toContain(field);
     },
   );
+
+  // CLE-T-9Q304H — 숫자 설정 키 `maxConcurrentExecutions` 는 null 말고는 지울 값이 없어 null 을 「상한 해제」로 받는다.
+  // 서버는 null 을 저장하지 않고 키를 지운다.
+  it('[9Q304H] 워크스페이스 설정 maxConcurrentExecutions: null 은 200 이고 키가 지워진다', async () => {
+    const url = `/api/workspaces/${workspaceId}/settings`;
+    const set = await authed(request(BASE_URL).patch(url)).send({
+      maxConcurrentExecutions: 4,
+    });
+    expect(set.status).toBe(200);
+    const cleared = await authed(request(BASE_URL).patch(url)).send({
+      maxConcurrentExecutions: null,
+    });
+    expect(cleared.status).toBe(200);
+    const got = await authed(request(BASE_URL).get(url));
+    expect(got.status).toBe(200);
+    expect(got.body.data).not.toHaveProperty('maxConcurrentExecutions');
+    const row = await db.query<{ settings: Record<string, unknown> }>(
+      'SELECT settings FROM workspace WHERE id = $1',
+      [workspaceId],
+    );
+    expect(row.rows[0].settings).not.toHaveProperty('maxConcurrentExecutions');
+  });
+
+  it('[9Q304H] 워크플로우 settings.maxConcurrentExecutions: null 은 200 이고 키가 지워진다', async () => {
+    const url = `/api/workflows/${ids.workflow}`;
+    const set = await authed(request(BASE_URL).patch(url)).send({
+      settings: { maxConcurrentExecutions: 2 },
+    });
+    expect(set.status).toBe(200);
+    const cleared = await authed(request(BASE_URL).patch(url)).send({
+      settings: { maxConcurrentExecutions: null },
+    });
+    expect(cleared.status).toBe(200);
+    const row = await db.query<{ settings: Record<string, unknown> }>(
+      'SELECT settings FROM workflow WHERE id = $1',
+      [ids.workflow],
+    );
+    expect(row.rows[0].settings).not.toHaveProperty('maxConcurrentExecutions');
+  });
 
   // null 을 막은 데코레이터가 유효 값 · 키 생략까지 막지 않는지 — 모델 설정 PATCH 는 다른 e2e 가 값 경로를 밟지 않는다
   // (나머지 라우트는 각자 e2e 가 유효 값 PATCH 를 이미 돈다).

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 27
+version: 28
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072", "REQ-WSPACE-073"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "23f7f332c4ac2216210910e0a4c4fdd30defa74720f12c99323b282e48c7c3b3"
+content_hash: "78b30444ece603cc47ea97b297a8f762a366084a82dbf61d0f1cfc12878e2dee"
 read_as: "approved_fallback"
-task: "CLE-T-2M6Q02"
+task: "CLE-T-TNZ3J9"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "35ba7522d34c2e6fbb8b7ae299737b4a6b4d4e7c45f89cba568fe5d5330f0adc"
-etag: "sha256-79b54d417ee8b02387413b264110233e527d20a1e67125345299eb237a489b72"
+mirror_sha256: "82a8cbf62c77a4be8f1715889d4d6bc5a2c5a790665bdf13cf77cc72c4181ea6"
+etag: "sha256-9ce08f36fb10491ec0dac2b5029d85e557e2fd71fdda5b86a9eb2ab2416f7469"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -126,6 +126,17 @@ etag: "sha256-79b54d417ee8b02387413b264110233e527d20a1e67125345299eb237a489b72"
 - 역할은 소유자 > 관리자 > 편집자 > 뷰어 계층이다. 권한 매트릭스의 단일 기준은 [멤버 관리와 역할 「권한 매트릭스」](CLE-ACCT-WS-MEMBER.md#권한-매트릭스) 다.
 - 화면의 역할 · 슬러그 제한은 편의 기능이고 인가 경계는 서버의 403 이다.
 
+## 기본 시간대
+
+워크스페이스 기본 시간대는 `settings.timezone` 에 IANA 식별자로 둔다. 설정 화면과 검증은 [생성 · 전환 · 설정 「워크스페이스 설정」](CLE-ACCT-WS-SPACE.md#워크스페이스-설정) 이 정한다. 이 값이 없으면 아래 두 소비자 모두 제품 기본 시간대 `'Asia/Seoul'` 을 쓴다.
+
+| 소비자 | `settings.timezone` 이 없을 때 | 구현 상태 |
+| --- | --- | --- |
+| 시간대를 지정하지 않은 스케줄 | `'Asia/Seoul'` ([스케줄 「생성·수정 대화상자」](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#생성수정-대화상자)) | 구현됨 |
+| AI 노드 시스템 컨텍스트 접두 | `'Asia/Seoul'` ([AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](../CLE-NODE-AI/CLE-NODE-AI-COMMON-CONTEXT.md)) | 미구현(CLE-T-TV4VA8). 지금 코드는 `process.env.TZ` 다음 `UTC` 로 떨어진다 |
+
+개인 워크스페이스를 만들 때 시간대를 채우지 않는다. `settings` 를 빈 객체로 만들고 위 폴백을 쓴다.
+
 ## 절 위치
 
 ### 전환 API 와 토큰
@@ -186,7 +197,6 @@ etag: "sha256-79b54d417ee8b02387413b264110233e527d20a1e67125345299eb237a489b72"
 
 ## 미결 사항
 
-- **개인 워크스페이스의 기본 시간대와 설정이 없을 때의 폴백**: 가입 화면 원문은 개인 워크스페이스를 만들 때 시간대를 "브라우저 타임존(Accept-Language 헤더에서 추론) 또는 UTC" 로 채운다고 적는다. 데이터 모델은 그런 컬럼 없이 `settings.timezone` 이 없으면 서버 기본 `process.env.TZ`, 없으면 `UTC` 이고 AI 노드 시스템 컨텍스트와 스케줄 기본 시간대가 이 값을 쓴다고 적는다. 스케줄 원문은 `settings.timezone` 다음 `'Asia/Seoul'` 로 폴백한다고 적는다(관련: [스케줄 §미결 사항](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#미결-사항), [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md)). 현재 구현의 `createPersonalWorkspace` 는 `settings={}` 로 만든다. Accept-Language 헤더로는 시간대를 추론할 수도 없다. 기본값 하나를 정할지, 스케줄과 AI 가 서로 다른 폴백을 써도 되는지 결정 필요.
 - **초대 요청 한도 초과 코드 `rate_limited`**: 초대 에러 표와 에러 코드 예외 목록은 초대 429 를 소문자 `rate_limited` 로 적고 예외 등록 코드로 올려 둔다. 원문 분석에 따르면 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾸며, 백엔드·프론트엔드 소스에 `'rate_limited'` 문자열은 0건이다(관련: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 같은 표에서 발행처 없는 `forbidden` 을 뺀 선례가 있다. 표와 예외 목록에서 `rate_limited` 를 빼고 `RATE_LIMITED` 로 적을지 결정 필요.
 
 
@@ -249,3 +259,16 @@ etag: "sha256-79b54d417ee8b02387413b264110233e527d20a1e67125345299eb237a489b72"
 ### `X-Workspace-Id` 헤더는 경로 파라미터보다 느슨하게 검사한다
 
 → [API 인가](CLE-ACCT-WS-AUTHZ.md#x-workspace-id-헤더는-경로-파라미터보다-느슨하게-검사한다)
+
+### 워크스페이스 시간대가 없으면 제품 기본 시간대를 쓴다
+
+결정일: 2026-11-20
+
+`settings.timezone` 이 없을 때 스케줄과 AI 노드 시스템 컨텍스트가 같은 값 `'Asia/Seoul'` 을 쓴다([기본 시간대](#기본-시간대)). 그전에는 스케줄만 `'Asia/Seoul'` 로 떨어졌다. AI 접두는 `process.env.TZ` 다음 `UTC` 로 떨어져 두 값이 달랐다. 1차 타겟은 한국 사용자다. 운영 배치(로그인 이력 정리 03:00, 초대 정리 04:00)도 이미 Asia/Seoul 로 고정돼 있다. 그래서 제품 기본값 하나를 두고 두 소비자가 함께 쓴다(NERV Task `CLE-T-TNZ3J9`).
+
+개인 워크스페이스를 만들 때 시간대를 채우지 않는다. 옛 가입 화면 원문은 브라우저 시간대로 채운다고 적었지만 구현은 빈 `settings` 로 만들었다. Accept-Language 헤더는 언어 정보라서 시간대를 추론할 수 없다. 빈 값은 위 폴백이 받는다.
+
+기각한 대안:
+
+- 두 폴백을 나눈 채 일부러 다르다고 적는다: 같은 워크스페이스에서 스케줄은 09:00 KST 에 도는데 AI 는 현재 시각을 00:00 UTC 라고 말한다. 사용자에게 이 어긋남이 보인다.
+- 둘 다 `process.env.TZ` 다음 `UTC` 로 맞춘다: 새 스케줄의 발사 시각이 배포 환경 변수에 따라 9시간 달라진다. 같은 설정이 환경마다 다르게 돌아 재현성이 나쁘다.

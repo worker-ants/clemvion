@@ -37,3 +37,16 @@ describe('UpdateWorkspaceSettingsDto validation', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 });
+
+// CLE-T-9Q304H — 숫자라 null 말고는 지울 값이 없다. null 은 「상한 해제(기본값 복귀)」 계약이라 받는다.
+describe('[9Q304H] maxConcurrentExecutions: null', () => {
+  it('null 을 통과시킨다(해제 계약)', async () => {
+    const errors = await validate(
+      plainToInstance(UpdateWorkspaceSettingsDto, {
+        maxConcurrentExecutions: null,
+      }),
+      { whitelist: true, forbidNonWhitelisted: true },
+    );
+    expect(errors).toHaveLength(0);
+  });
+});

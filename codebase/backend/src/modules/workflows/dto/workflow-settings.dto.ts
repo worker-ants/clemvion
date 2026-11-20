@@ -18,15 +18,19 @@ export class WorkflowSettingsDto {
    * 유효하며 미설정 시 시스템 기본값(3). 런타임의 `resolveConcurrencyCap` 이 부적합 값을
    * defaultCap 으로 무시하는 backstop 을 갖지만, 본 DTO 가 write 경계에서 선차단한다.
    * Parallel 노드 `config.maxConcurrency`(노드 내 branch 동시성)와는 스코프가 다른 별개 설정.
+   *
+   * `null` 은 「상한 해제」다. 숫자라 null 말고는 지울 값이 없어서 받는다. 서비스가 null 을 저장하지
+   * 않고 키를 지워 기본값으로 돌아간다.
    */
   @ApiPropertyOptional({
     type: Number,
+    nullable: true,
     example: 3,
     description:
-      '워크플로우당 동시 실행(running Execution) 상한. 양의 정수, 미설정 시 기본 3 (spec §8 admission gate).',
+      '워크플로우당 동시 실행(running Execution) 상한. 양의 정수, 미설정 시 기본 3 (spec §8 admission gate). null 을 보내면 설정을 지워 기본값으로 돌아간다.',
   })
   @IsOptional()
   @IsInt()
   @Min(1)
-  maxConcurrentExecutions?: number;
+  maxConcurrentExecutions?: number | null;
 }

@@ -2,19 +2,19 @@
 id: "CLE-TRIG-SCHEDULE"
 title: "스케줄"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033", "REQ-SCHED-034", "REQ-SCHED-035", "REQ-SCHED-036", "REQ-SCHED-037", "REQ-SCHED-038", "REQ-SCHED-039", "REQ-SCHED-040"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "a4813fb507420650bd093231bbe87422edc775a980d16801d32def7e35f2fbc3"
+content_hash: "9a82c6519ae8288efd2353c50c0705a3131b48e5917a56e809e5f0637c6e853a"
 read_as: "approved_fallback"
-task: "CLE-T-9YZ9BN"
+task: "CLE-T-BW72A8"
 source_paths: ["spec/2-navigation/3-schedule.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "d40291c57e85cc8e4d556059116d5d05e0c11bb657f403dbdd0c2fd8eb9ccf30"
-etag: "sha256-65c36fcdc068c778facbc8615f857277b8a5ba867af4b91329b5391c8d7b003a"
+mirror_sha256: "c1325c7d2da279bfd6dc0db1fc3f08c5ff70bdb7f3aa951fd835aa7f20a1cd75"
+etag: "sha256-d305da1f7298fb905cf92e7dbb0f4a1c45798c2c54342aed4a72f555170d9b88"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/3-schedule.md`, `spec/2-navigation/_product-overview.md` (§3.3 Schedule) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -57,7 +57,7 @@ etag: "sha256-65c36fcdc068c778facbc8615f857277b8a5ba867af4b91329b5391c8d7b003a"
 - REQ-SCHED-021 WHEN Cron 값이 비어 있는 채로 시각 편집 탭에 들어오면 THE SYSTEM SHALL 기본 상태(매일 09:00)의 Cron 을 바로 적용한다.
 - REQ-SCHED-022 IF 시각 편집이 Cron 표현식을 표현할 수 없으면 THE SYSTEM SHALL 안내 메시지를 보이고 사용자가 시각 컨트롤을 바꿀 때까지 표현식을 보존한다.
 - REQ-SCHED-023 WHEN 스케줄 시간대를 지정하지 않으면 THE SYSTEM SHALL 워크스페이스 설정의 시간대(`settings.timezone`)를 쓴다.
-- REQ-SCHED-024 IF 워크스페이스 시간대도 없으면 THE SYSTEM SHALL 기본 시간대를 쓴다(기본값은 미결 사항 참조).
+- REQ-SCHED-024 IF 워크스페이스 시간대도 없으면 THE SYSTEM SHALL 제품 기본 시간대 `'Asia/Seoul'` 을 쓴다.
 - REQ-SCHED-025 WHEN 관리자 이상이 워크스페이스 시간대를 설정하면 THE SYSTEM SHALL IANA 형식을 검증해 `settings.timezone` 에 저장한다.
 - REQ-SCHED-026 WHEN 스케줄 삭제 확인 대화상자를 띄우면 THE SYSTEM SHALL "연결된 트리거도 함께 삭제됩니다" 안내를 보인다.
 - REQ-SCHED-027 WHEN `GET /api/schedules` 가 `sort`·`order` 를 받으면 THE SYSTEM SHALL 허용 값 목록 안의 값만 정렬에 반영하고 기본은 `created_at DESC` 로 한다.
@@ -126,7 +126,7 @@ etag: "sha256-65c36fcdc068c778facbc8615f857277b8a5ba867af4b91329b5391c8d7b003a"
 | 다음 5회 실행 시각 | 설정한 Cron 에 따른 예정 실행 시각 미리보기 |
 | 시간대 | IANA 시간대 선택. 지정하지 않을 때의 폴백은 아래 참조 |
 
-시간대를 지정하지 않으면 서버는 워크스페이스 설정의 시간대(`settings.timezone`)를 쓴다. 워크스페이스 기본 시간대의 기준 문서는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 다. 워크스페이스 시간대도 없을 때의 기본값은 정의가 갈린다([미결 사항](#미결-사항), [워크스페이스와 멤버 §미결 사항](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항)). 워크스페이스 시간대는 `PATCH /api/workspaces/:id/settings` 의 `timezone`(IANA 검증)으로 설정한다. 화면에서는 워크스페이스 설정 Overview 탭의 시간대 카드(IANA 입력, 관리자 이상)에서 편집한다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)).
+시간대를 지정하지 않으면 서버는 워크스페이스 설정의 시간대(`settings.timezone`)를 쓴다. 워크스페이스 기본 시간대의 기준 문서는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 다. 워크스페이스 시간대도 없으면 제품 기본 시간대 `'Asia/Seoul'` 을 쓴다(`SchedulesService.resolveTimezone`, DB 기본값도 같다). AI 노드 시스템 컨텍스트도 같은 폴백을 쓴다([워크스페이스와 멤버 「기본 시간대」](../CLE-ACCT/CLE-ACCT-WS.md#기본-시간대)). 워크스페이스 시간대는 `PATCH /api/workspaces/:id/settings` 의 `timezone`(IANA 검증)으로 설정한다. 화면에서는 워크스페이스 설정 Overview 탭의 시간대 카드(IANA 입력, 관리자 이상)에서 편집한다([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)).
 
 ### 표현식과 시각 편집 변환
 
@@ -251,7 +251,6 @@ Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 
 
 ## 미결 사항
 
-- **스케줄 기본 시간대 폴백**: 스케줄 원문과 현재 구현(`SchedulesService.resolveTimezone`)은 명시값 → 워크스페이스 `settings.timezone` → `'Asia/Seoul'` 순으로 대체한다. DB 기본값도 `'Asia/Seoul'` 이다. 반면 데이터 모델의 `Workspace.settings.timezone` 서술은 워크스페이스 시간대가 없으면 서버 `process.env.TZ` → `UTC` 로 대체하고 스케줄 기본 시간대도 이 값을 따른다고 적는다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)). [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 은 AI 시스템 컨텍스트만 `process.env.TZ` → `UTC` 이고 스케줄 시간대는 별개라고 적는다. 개인 워크스페이스를 만들 때 브라우저 시간대로 채운다는 서술도 있으나 현재 구현은 `settings={}` 로 만든다. 데이터 모델을 따르면 Cron 발사 시각이 9시간 달라질 수 있다. 스케줄과 AI 컨텍스트가 서로 다른 기본값을 써도 되는지 결정해야 한다. 워크스페이스 시간대의 기준 문서인 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 에 같은 미결이 있고 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 도 이 결정을 따르므로 세 문서를 함께 정한다.
 - **지금 실행 버튼의 노출 권한**: 스케줄 원문은 지금 실행(Run) 버튼의 권한을 적지 않는다. 권한 매트릭스([워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md))는 뷰어의 워크플로우 실행을 막고 백엔드 `run-now` 도 `@Roles('editor')` 다. 현재 프런트엔드는 Run 버튼을 RoleGate 밖에 두어 뷰어가 누르면 403 을 받는다. 화면 노출을 편집자 이상으로 맞출지 결정해야 한다.
 
 ## 구현 위치
@@ -298,3 +297,9 @@ Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 
 - 재시도와 알림은 비활성 스케줄을 건너뛸 때와 같다. 재시도하지 않고 `schedule_failed` 알림도 보내지 않으며 job 은 정상 완료로 끝난다. 다른 점은 `next_run_at` 을 옮기는 것이다(다음 항목).
 - `next_run_at` 을 옮기는 이유(2026-10-10 일관성 검토 뒤): 처음 구현은 건너뛸 때 `next_run_at` 도 바꾸지 않았다. 그러면 워크플로우가 비활성인 동안 목록의 「다음 실행」 칸에 이미 지난 시각이 남는다. `next_run_at` 은 표시용 정보성 컬럼이라 옮겨도 발사에 영향이 없다. 실제로 실행한 시각은 `last_run_at` 이 기록하므로 그 값은 바꾸지 않는다. UPDATE 는 `next_run_at` 한 컬럼만 써서 그사이 사용자가 고친 다른 컬럼을 덮어쓰지 않는다. 기각한 대안: 화면에서만 지난 시각을 감추는 안. 목록 API 응답과 `next_run_at` 정렬에는 지난 시각이 그대로 남는다.
 - "지금 실행" 은 사용자가 직접 시작하는 수동 실행이라 관문을 거치지 않는다. 에디터 수동 실행 · 재실행과 같은 쪽이다. 관문을 거치지 않는 경로의 목록은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 에 있다.
+
+### 워크스페이스 시간대가 없으면 제품 기본 시간대를 쓴다
+
+결정일: 2026-11-20
+
+→ [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스-시간대가-없으면-제품-기본-시간대를-쓴다)
