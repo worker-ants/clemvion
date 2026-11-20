@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL-NODES"
 title: "노드 취소 — 노드별 적용과 구현 현황"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CANCEL"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CANCEL"]
 area: "CLE-EXEC"
-content_hash: "c756093c3df235091a401665a82246f35695fa955e7c33fbc7d523418e1a7827"
+content_hash: "14eed65d2fe104653ee4eb978ab2f7adcda2df1222d9e0c48819cd45da33df58"
 read_as: "approved_fallback"
-task: "CLE-T-EFE3BW"
+task: "CLE-T-DA04F4"
 source_paths: []
-mirror_sha256: "1d7060cc038f277bb5a9e1345266d011ff41d714193151147e6f29517324f16e"
-etag: "sha256-db39778ef3115beb6ca94d689c8233ae2a2b34fbd8c76f9af1b5ca2582f9d77a"
+mirror_sha256: "150a170028ed4778d5d9dacb87ce3d4de6c99c1ddae2210a4f46c756dd3007c5"
+etag: "sha256-66190b7a6b003057c7a8f7c35687e8ede0aa5fdb30af7ad848748b19e9afbdfc"
 ---
 ## 개요
 
@@ -87,10 +87,6 @@ dry-run 에서 모의 응답으로 대신한 호출은 외부 I/O 가 없어 진
 chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel` 변형이고 구현체는 실행 이벤트를 구독하는 나가는 어댑터다. 그래서 신호 연쇄 대상이 아니다. 취소 때 이 어댑터가 할 일은 `execution.cancelled` 를 채널로 보내는 것이다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)).
 
 남은 과제는 NERV Task 가 추적한다. 시간 한도·안전 종료의 신호 연동(`CLE-T-6WSCPE`)은 [노드 취소 §미결 사항](CLE-EXEC-CANCEL.md#미결-사항), 가드 쪽 과제는 [DB 관측 취소 가드 구현 현황](CLE-EXEC-CANCEL-DBGUARD.md#구현-현황) 에 있다.
-
-## 미결 사항
-
-없음. 남아 있던 「HTTP Request 본문 읽기의 자체 타임아웃」 은 2026-11-19 에 NERV Task `CLE-T-EFE3BW` 가 해결했다([Rationale](#응답-본문을-다-읽을-때까지-연쇄를-유지한다)).
 
 ## 구현 위치
 

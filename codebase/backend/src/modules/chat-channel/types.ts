@@ -447,8 +447,13 @@ export interface EiaCancelledEvent extends EiaEventBase {
    * (CHECKPOINT_MISSING / FAILED / INCOMPATIBLE_STATE) 면 어댑터가 generic
    * "취소" 대신 graceful "세션 만료 — 새 대화 시작" 안내를 렌더한다. 사용자
    * cancel 등 일반 취소에는 부재.
+   *
+   * `message` 는 필수다(CLE-EIA-NOTIFY-EVENTS 「`execution.cancelled` 행동 계약」, NERV Task
+   * `CLE-T-M42X2A`). 위 `result` · `durationMs` 는 dispatcher 가 검증하지 않아 `?` 를 남겼지만
+   * 이 필드는 dispatcher(`toChatChannelEvent`)가 `code` · `message` 가 둘 다 문자열일 때만 싣는다.
+   * 그래서 필수로 적어도 확인하지 않은 보장을 주장하지 않는다.
    */
-  error?: { code: string; message?: string };
+  error?: { code: string; message: string };
   // EIA §6 — producer 는 **항상** 이 키를 싣고, 값을 모르면 `null` 이다.
   // **그런데 `?` 는 유지한다** — 이 타입은 producer 가 아니라 **consumer 계약**이고,
   // 배포 경계에서 재생되는 레거시 이벤트에는 키가 없다. 필수로 만들면 타입이 현실보다

@@ -50,6 +50,7 @@ import {
   FORM_VALIDATION_FAILED_DEFAULT,
   formNextFieldDefault,
   GROUP_CHAT_REFUSAL_DEFAULT,
+  readLanguageHintOverride,
   resolveFormOpenLabel,
   resolveNoActiveExecutionMessage,
   resolveExecutionStartedMessage,
@@ -554,8 +555,16 @@ export class HooksService {
     //
     // 이 자리가 필요한 이유: chat-channel inbound 는 `in_process_trusted` 로 서비스를 직접
     // 호출해 **HTTP `IdempotencyInterceptor` 를 통과하지 않는다**(EIA-AU-08).
+    //
+    // 선점 값은 이 요청의 토큰이다. 선점을 푸는 쪽(`stopForRestart`)이 자기 선점만 지우게 한다(NERV Task
+    // `CLE-T-SKZABF`).
+    const dedupToken = randomUUID();
     if (
-      !(await this.chatChannelDedup.claim(trigger.id, parsed.idempotencyKey))
+      !(await this.chatChannelDedup.claim(
+        trigger.id,
+        parsed.idempotencyKey,
+        dedupToken,
+      ))
     ) {
       this.logger.warn(
         `chat-channel update 재도착 무시 (CCH-SE-02, trigger=${trigger.id})`,
@@ -972,6 +981,7 @@ export class HooksService {
         await this.stopForRestart(
           trigger.id,
           parsed.idempotencyKey,
+          dedupToken,
           state.executionId!,
         );
       }
@@ -1097,12 +1107,14 @@ export class HooksService {
    *
    * 프로바이더는 non-2xx 를 받으면 같은 update 를 다시 보낸다. 그 재전송이 되살아나도록 오류를 전파하기
    * 전에 update 의 dedup 선점을 푼다. 풀지 않으면 30초 동안 재전송이 `ignored` 로 끝나 `/start` 가
-   * 유실된다. 새 실행을 시작하다 실패하는 경로(`execute()`)는 선점을 풀지 않는다. 기존 동작이라 이번
-   * 변경에서 바꾸지 않았다.
+   * 유실된다. 이 요청이 잡은 선점만 푼다(`dedupToken`). `stop()` 이 선점 만료(30초)를 넘긴 뒤 실패하면
+   * 그 사이 재전송이 새로 잡은 선점이 있을 수 있어서다(NERV Task `CLE-T-SKZABF`). 새 실행을 시작하다
+   * 실패하는 경로(`execute()`)는 선점을 풀지 않는다. 그 경로는 202 로 답해 재전송이 없다(CLE-CHAT-CORE-FLOW).
    */
   private async stopForRestart(
     triggerId: string,
     idempotencyKey: string,
+    dedupToken: string,
     executionId: string,
   ): Promise<void> {
     try {
@@ -1114,7 +1126,11 @@ export class HooksService {
         );
         return;
       }
-      await this.chatChannelDedup.release(triggerId, idempotencyKey);
+      await this.chatChannelDedup.release(
+        triggerId,
+        idempotencyKey,
+        dedupToken,
+      );
       throw new ChatChannelErrorResponse(err);
     }
   }
@@ -1409,6 +1425,9 @@ export class HooksService {
    * 안내 없이 버린다. 채널에 안내를 쓰려면 봇에게 그 채널의 쓰기 권한이 있어야 하고 다른 구성원에게 소음이
    * 된다. DM 밖 슬래시 명령은 어댑터의 기본 응답이 본인에게만 보이는 groupChatRefusal 을 싣는다.
    * 2026-11-19 사람 결정(NERV 질문 `01a1f2b8-1979-7137-b882-faf2d0563083`), NERV Task `CLE-T-800D2Q` · `CLE-T-T8ZTG8`.
+   *
+   * 빈 문자열 override 는 없는 것으로 보고 기본 문구를 보낸다. Slack · Discord 의 DM 밖 슬래시 명령 응답과
+   * 같은 처리다(NERV Task `CLE-T-X4NPWC`).
    */
   private async maybeNotifyIgnored(
     rawBody: unknown,
@@ -1425,9 +1444,12 @@ export class HooksService {
     const chatType = chat.type ?? '';
     const isGroup = ['group', 'supergroup', 'channel'].includes(chatType);
     const announcement = isGroup
-      ? (config.languageHints?.groupChatRefusal ?? GROUP_CHAT_REFUSAL_DEFAULT)
-      : (config.languageHints?.unsupportedMessageKind ??
-        '지원하지 않는 메시지 형식입니다.');
+      ? (readLanguageHintOverride(config.languageHints, 'groupChatRefusal') ??
+        GROUP_CHAT_REFUSAL_DEFAULT)
+      : (readLanguageHintOverride(
+          config.languageHints,
+          'unsupportedMessageKind',
+        ) ?? '지원하지 않는 메시지 형식입니다.');
     await this.sendBestEffortNotice(
       String(chat.id),
       announcement,
