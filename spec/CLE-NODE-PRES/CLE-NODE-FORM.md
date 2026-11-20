@@ -2,19 +2,19 @@
 id: "CLE-NODE-FORM"
 title: "Form 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-FORM-001", "REQ-FORM-002", "REQ-FORM-003", "REQ-FORM-004", "REQ-FORM-005", "REQ-FORM-006", "REQ-FORM-007", "REQ-FORM-008", "REQ-FORM-009", "REQ-FORM-010", "REQ-FORM-011", "REQ-FORM-012", "REQ-FORM-013", "REQ-FORM-014", "REQ-FORM-015", "REQ-FORM-016", "REQ-FORM-017", "REQ-FORM-018", "REQ-FORM-019", "REQ-FORM-020", "REQ-FORM-021", "REQ-FORM-022", "REQ-FORM-023"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "052838aaff218e946ef5a1e31ec3c99c7c73ab9b8367c7276121a45700907d06"
+content_hash: "48077218b93cfd36dc289cbd53512cf9ca0cc98816fef4f9e10c9a8178b28c84"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/6-presentation/4-form.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "d4f1f299c64acfd871e64ea136aaa077ec082ee9b645ca98c39db875ad380e8e"
-etag: "sha256-fda670d78ac3f57dcef73a3e71aa5a80216fcd53b63d0ac72ba8061829a8bbe9"
+mirror_sha256: "cfa7c8511667658359574b0e0c9df098177cf03948ffe6d9bed5f422af19a987"
+etag: "sha256-1c4b450c9a73f0f175213802163765b23add52c161528d949c8a15f27749d831"
 ---
 > 구현 상태: 구현됨 (검증 preset 카탈로그와 캔버스 설정 요약은 미구현) · 원문: `spec/4-nodes/6-presentation/4-form.md`, `spec/4-nodes/_product-overview.md` (§9.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -60,7 +60,7 @@ Form 노드는 버튼 정의(`ButtonDef`)를 쓰지 않고 자체 폼 필드(`Fo
 
 입력 대기에는 기한이 없다. 사용자가 폼을 제출하거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-옛 제품 요구사항의 우선순위는 모두 필수다. 다만 대기 타임아웃 요구사항은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
+옛 제품 요구사항의 우선순위는 모두 필수다. 다만 대기 타임아웃 요구사항은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다)).
 
 ## 설정
 

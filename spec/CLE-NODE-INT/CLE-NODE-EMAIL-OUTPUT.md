@@ -2,19 +2,19 @@
 id: "CLE-NODE-EMAIL-OUTPUT"
 title: "Send Email 노드 — 출력 구조"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-EMAIL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-EMAIL"]
 area: "CLE-NODE-INT"
-content_hash: "48e8ac2ebe36f91db040761d0e3c2018760499824378a1d20ec13e68a752d6e9"
+content_hash: "02e25685123b3534a65fb85339c1bbf780c1708ec4ccd6db3a145b4fe85e2f51"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-6R7VRR"
 source_paths: []
-mirror_sha256: "13f8da9ef0a53cce1c4f7eebe3318463f3f9926c74deca1919925596d4821a75"
-etag: "sha256-4bacf051766ab86dceb3527aec67cd034d14c6714a2ce0b0b3de1b6444851fad"
+mirror_sha256: "777f1bf144966a4ce970f90f19a22d656c6d5a25f26c552e0b4aa3a532770f7e"
+etag: "sha256-3ad7c8caa06100306465be2145931e6d40f0e733468dc8b8a5509c3d325f2dfb"
 ---
 ## 개요
 
@@ -22,7 +22,7 @@ etag: "sha256-4bacf051766ab86dceb3527aec67cd034d14c6714a2ce0b0b3de1b6444851fad"
 
 ## 공통 규칙
 
-노드 출력은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 11 형식을 따른다. JSON 예시는 `undefined` 필드를 생략하고, 다섯 필드 밖의 최상위 키는 두지 않는다. `config` 는 사용자가 입력한 원본을 에코한다(Principle 7). `{{ }}` 를 보존하고, `to`·`cc`·`bcc` 는 배열 원형 그대로이며, 자격 증명은 싣지 않는다. `output.subject`·`output.body`·`output.bodyType` 은 실제로 SMTP 에 보낸 평가된 값이다(Principle 1). `meta` 는 실행 메트릭만 둔다(Principle 2). 공통 규칙과 다른 두 곳은 [Rationale 「`meta` 가 공통 규칙과 다른 두 곳」](CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) 에 있다.
+노드 출력은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 11 형식을 따른다. JSON 예시는 `undefined` 필드를 생략하고, 다섯 필드 밖의 최상위 키는 두지 않는다. `config` 는 사용자가 입력한 원본을 에코한다(Principle 7). `{{ }}` 를 보존하고, `to`·`cc`·`bcc` 는 배열 원형 그대로이며, 자격 증명은 싣지 않는다. `output.subject`·`output.body`·`output.bodyType` 은 실제로 SMTP 에 보낸 평가된 값이다(Principle 1). `meta` 는 실행 메트릭만 둔다(Principle 2). 공통 규칙과 다른 두 곳은 [Rationale 「`meta` 가 공통 규칙과 다른 두 곳」](CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳) 에 있다.
 
 ## 정상 발송 (`out`)
 
@@ -207,4 +207,4 @@ etag: "sha256-4bacf051766ab86dceb3527aec67cd034d14c6714a2ce0b0b3de1b6444851fad"
 
 ## Rationale
 
-출력 구조를 정한 근거는 부모 문서 [Send Email 노드](CLE-NODE-EMAIL.md) 의 Rationale 에 있다. `meta` 가 공통 규칙과 다른 두 곳의 근거는 [「`meta` 가 공통 규칙과 다른 두 곳」](CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) 을 본다.
+출력 구조를 정한 근거는 부모 문서 [Send Email 노드](CLE-NODE-EMAIL.md) 의 Rationale 에 있다. `meta` 가 공통 규칙과 다른 두 곳의 근거는 [「`meta` 가 공통 규칙과 다른 두 곳」](CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳) 을 본다.

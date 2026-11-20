@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 16
+version: 17
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "6ffaf7c0a2fc5f3c7566f41428f0af5348d5bc0a445d1874051fdb4ad2e0e5c6"
+content_hash: "e72ea58f6802aa0996b72fb1b77fb91da0122deddbc284df7f27dec9d5756bc2"
 read_as: "approved_fallback"
-task: "CLE-T-JDYHCF"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "1aeec15b46b7b420f3a6c7e838d1c58ca79f56a729932703b26e47501f39bfdd"
-etag: "sha256-c0e8d5188837947301f710c9db18aa71152a1a759bbc1036b19de6614587f45e"
+mirror_sha256: "d5b1a6558ab08e1dffada9f5f782b4203a95d81fb2b4c34b6f806a18d61d60e3"
+etag: "sha256-84cbbbcd01140cecdae57f5848d02bc171a5c5ebf0576076e5d2b97f8905ab94"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -117,7 +117,7 @@ etag: "sha256-c0e8d5188837947301f710c9db18aa71152a1a759bbc1036b19de6614587f45e"
 
 | 분류 | 필수·권장 필드 |
 | --- | --- |
-| 공통 | `meta.durationMs?: number`. 넣는다면 핸들러가 넣고, 없을 수 있다. 엔진은 Form 재개 때 실제 대기 시간으로 고치기만 한다. 노드 전체 실행 시간은 노드 실행 기록의 `node_execution.duration_ms` 에 있다([Rationale](#metadurationms-는-핸들러가-넣는다)). Loop·ForEach·Map·Parallel 의 완료 출력([완료 `meta`](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-meta))과 Send Email 의 dry-run 출력([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) Rationale, NERV Task `CLE-T-22PSME`)에는 없다 |
+| 공통 | `meta.durationMs?: number`. 넣는다면 핸들러가 넣고, 없을 수 있다. 엔진은 Form 재개 때 실제 대기 시간으로 고치기만 한다. 노드 전체 실행 시간은 노드 실행 기록의 `node_execution.duration_ms` 에 있다([Rationale](#metadurationms-는-핸들러가-넣는다)). Loop·ForEach·Map·Parallel 의 완료 출력([완료 `meta`](CLE-NODE-OUTPUT-CONTAINER.md#컨테이너와-parallel-의-완료-meta))과 Send Email 의 dry-run 출력([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳) Rationale, NERV Task `CLE-T-22PSME`)에는 없다 |
 | AI 노드 | 아래 목록 |
 | HTTP | `meta.statusCode`, `meta.durationMs` |
 | DB | `meta.durationMs`, `meta.rowCount` |

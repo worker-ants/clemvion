@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAROUSEL"
 title: "Carousel 노드"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-CAROUSEL-001", "REQ-CAROUSEL-002", "REQ-CAROUSEL-003", "REQ-CAROUSEL-004", "REQ-CAROUSEL-005", "REQ-CAROUSEL-006", "REQ-CAROUSEL-007", "REQ-CAROUSEL-008", "REQ-CAROUSEL-009", "REQ-CAROUSEL-010", "REQ-CAROUSEL-011", "REQ-CAROUSEL-012", "REQ-CAROUSEL-013", "REQ-CAROUSEL-014", "REQ-CAROUSEL-015", "REQ-CAROUSEL-016", "REQ-CAROUSEL-017", "REQ-CAROUSEL-018", "REQ-CAROUSEL-019", "REQ-CAROUSEL-020", "REQ-CAROUSEL-021", "REQ-CAROUSEL-022", "REQ-CAROUSEL-023", "REQ-CAROUSEL-024", "REQ-CAROUSEL-025", "REQ-CAROUSEL-026"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "e392d1e1591afcb58349e83330e9a8505c16dd9205139960a46109a9cf9cdd15"
+content_hash: "404237e68cf6be5fa5135134f908c03d493076fa8943e84b29b5174f238492bd"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/6-presentation/1-carousel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "cc199610bed04451256409e5db862a7409161eed832b46371fd185f7ef9a8db0"
-etag: "sha256-5d30112ea0fafe9d068a7f6388ee9afa3e52a7032891c7252edc31c091822e5e"
+mirror_sha256: "17225fb0d981f4ac78ae27c3a0bd5c99ab0e44d86bf27a19340236970d2f765e"
+etag: "sha256-e5f4e99dcf194d9d381bc3ddc000f92e5fc89dc9b5b38cd15c5446e3f0847338"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/1-carousel.md`, `spec/4-nodes/_product-overview.md` (§9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -62,7 +62,7 @@ Carousel 노드(Carousel, `carousel`)는 데이터를 슬라이드 목록으로 
 
 입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-제품 요구사항 원문(ND-CL-01~10)의 우선순위는 모두 필수다. 다만 ND-CL-07 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
+제품 요구사항 원문(ND-CL-01~10)의 우선순위는 모두 필수다. 다만 ND-CL-07 의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다)).
 
 ## 설정
 
