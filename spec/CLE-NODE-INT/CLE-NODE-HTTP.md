@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP"
 title: "HTTP Request 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-HTTP-001", "REQ-HTTP-002", "REQ-HTTP-003", "REQ-HTTP-004", "REQ-HTTP-005", "REQ-HTTP-006", "REQ-HTTP-007", "REQ-HTTP-008", "REQ-HTTP-009", "REQ-HTTP-010", "REQ-HTTP-011", "REQ-HTTP-012", "REQ-HTTP-013", "REQ-HTTP-014", "REQ-HTTP-015", "REQ-HTTP-016", "REQ-HTTP-017", "REQ-HTTP-018", "REQ-HTTP-019", "REQ-HTTP-020", "REQ-HTTP-021", "REQ-HTTP-022", "REQ-HTTP-023", "REQ-HTTP-024", "REQ-HTTP-025", "REQ-HTTP-026", "REQ-HTTP-027", "REQ-HTTP-028", "REQ-HTTP-029", "REQ-HTTP-030", "REQ-HTTP-031", "REQ-HTTP-032", "REQ-HTTP-033", "REQ-HTTP-034", "REQ-HTTP-035", "REQ-HTTP-036", "REQ-HTTP-037"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "0631b95cb05fe7311d67838324b069a667018d730ccc2ed15de3fd5471786666"
+content_hash: "27d585541ec01ca3c79dc53ddc2840935cc2ff15385041930e3628f72eecf9a1"
 read_as: "approved_fallback"
-task: "CLE-T-6H2AKH"
+task: "CLE-T-EFE3BW"
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "619bb77e022fcbfed6e50453ce70c8b5e47b64cf4c26acf3c742859f7f022b2f"
-etag: "sha256-0b08decc5e57b4d96d73afe1877db8f2a1065a9e47d8a9bde4177d24ea750cfa"
+mirror_sha256: "7acd6975a559cd98b835279df411b2cd3c6b9fd14f93b4db2d42fe546bc1d9e7"
+etag: "sha256-cc056bf9ffa3ccf53404c8d1e3df77d20ab91d6d820edec9b750e42236b90a52"
 ---
 > 구현 상태: 부분 구현 (바이너리 처리·리다이렉트 토글·SSL 검증 토글은 미구현) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -34,7 +34,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 - REQ-HTTP-006 WHEN `responseType` 이 `binary` 이면 THE SYSTEM SHALL 응답을 바이너리 전용으로 디코딩한다. (미구현) (원본: ND-HR-04)
 - REQ-HTTP-007 WHEN 응답이 2xx 이면 THE SYSTEM SHALL `success` 포트로 내보낸다. (원본: ND-HR-05)
 - REQ-HTTP-008 WHEN 응답이 3xx·4xx·5xx 이거나 전송이 실패하면 THE SYSTEM SHALL `error` 포트로 내보낸다. 노드 취소 신호로 끝난 요청은 전송 실패로 보지 않는다(REQ-HTTP-033). (원본: ND-HR-05)
-- REQ-HTTP-009 WHEN 노드 자체 `timeout`(ms)이 지나면 THE SYSTEM SHALL 요청을 중단하고 `HTTP_TRANSPORT_FAILED` 로 에러 포트에 내보낸다. (원본: ND-HR-06)
+- REQ-HTTP-009 WHEN 응답 본문을 다 읽기 전에 노드 자체 `timeout`(ms)이 지나면 THE SYSTEM SHALL 요청(리다이렉트 홉과 응답 본문 읽기 포함)을 중단하고 `HTTP_TRANSPORT_FAILED` 로 에러 포트에 내보낸다. (원본: ND-HR-06)
 - REQ-HTTP-010 WHEN 사용자가 `followRedirects` 를 끄면 THE SYSTEM SHALL 리다이렉트를 따라가지 않는다. (미구현) (원본: ND-HR-06)
 - REQ-HTTP-011 WHEN 사용자가 `verifySsl` 을 끄면 THE SYSTEM SHALL SSL 인증서 검증을 건너뛴다. (미구현) (원본: ND-HR-06)
 - REQ-HTTP-012 WHEN `bodyType` 이 `binary` 이면 THE SYSTEM SHALL 본문을 바이너리 전용으로 직렬화한다. (미구현)
@@ -54,7 +54,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 - REQ-HTTP-026 WHEN 설정의 `url` 을 에코하면 THE SYSTEM SHALL URL 의 `user:pass@` 를 지우고 자격 증명 후보 쿼리 값을 `[REDACTED]` 로 바꾼다.
 - REQ-HTTP-027 WHEN 응답 헤더를 출력하면 THE SYSTEM SHALL key 를 소문자로 바꾸고 자격 증명 형태의 헤더와 `Location` 값을 `[REDACTED]` 로 바꾼다.
 - REQ-HTTP-028 WHEN 실제로 보낸 요청 본문이 256KB 를 넘으면 THE SYSTEM SHALL `output.requestBody` 를 자르고 `output.bodyTruncated` 를 `true` 로 둔다.
-- REQ-HTTP-029 WHILE 인증 방식이 `integration` 인 동안 THE SYSTEM SHALL 통합을 얻은 뒤의 호출 가운데 노드 취소 신호로 끝난 호출을 빼고 성공·실패마다 활동 로그를 1건 남긴다.
+- REQ-HTTP-029 WHILE 인증 방식이 `integration` 인 동안 THE SYSTEM SHALL 통합을 얻은 뒤의 호출 가운데 노드 취소 신호로 끝난 호출을 빼고 성공·실패마다 활동 로그를 1건 남긴다. dry-run 재실행의 모의 출력은 활동 로그를 남기지 않는다([부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
 - REQ-HTTP-030 WHILE 인증 방식이 `none` 이나 `custom` 인 동안 THE SYSTEM SHALL 활동 로그를 남기지 않는다.
 - REQ-HTTP-031 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 NULL, `api_method` 를 정규화한 method, `api_path` 를 query string 을 뺀 호스트+경로로 채운다.
 - REQ-HTTP-032 WHEN dry-run 으로 실행되면 THE SYSTEM SHALL 외부 요청 없이 mock 결과를 반환하고 사설망 차단 검사를 건너뛴다.
@@ -84,7 +84,7 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 | `body` | unknown | — | — | 요청 본문. `bodyType` 에 따라 JSON 객체·문자열·KeyValue[] 등 |
 | `bodyType` | Enum | — | `json` | `json` / `form-data` / `x-www-form-urlencoded` / `raw` / `binary`. 옛 값 `form` 은 `x-www-form-urlencoded` 로 읽는다. `raw` 와 `binary` 는 현재 같은 처리다(문자열은 그대로, 객체는 `JSON.stringify`). `binary` 전용 처리는 미구현(Planned) |
 | `responseType` | Enum | — | `json` | `json` / `text` / `binary`. `binary` 는 현재 `text` 와 같이 `res.text()` 로 처리한다. 전용 바이너리 디코딩은 미구현(Planned) |
-| `timeout` | Integer | — | `30000` | 요청 타임아웃(ms). 0 보다 커야 한다 |
+| `timeout` | Integer | — | `30000` | 요청 타임아웃(ms). 리다이렉트 홉과 응답 본문 읽기까지 포함한다. 0 보다 커야 한다 |
 | `followRedirects` | Boolean | — | `true` | 리다이렉트 따라가기. **현재 런타임에 반영하지 않는다(Planned)**. 실제 동작은 [실행 로직](CLE-NODE-HTTP-EXEC.md#실행-로직) 9단계(`integration` 만 최대 5홉 직접 추적, `none`·`custom` 은 3xx 그대로 반환). 토글로 끄거나 홉 수를 바꾸는 기능은 미구현 |
 | `verifySsl` | Boolean | — | `true` | SSL 인증서 검증. **현재 런타임에 반영하지 않는다(Planned)**. 핸들러가 이 값을 읽지 않으며(`rejectUnauthorized`·custom dispatcher 미설정) 검증은 항상 켜져 있다 |
 
@@ -143,6 +143,20 @@ HTTP Request 노드(`http_request`)는 외부 HTTP API 를 부르는 범용 통�
 ## Rationale
 
 실행 흐름(사설망 차단 적용 범위 · 노드 취소 · 리다이렉트 홉 자격 증명 · 활동 로그 범위)의 Rationale 은 [실행 로직](CLE-NODE-HTTP-EXEC.md#rationale), 출력 · 에러 코드(`Location` 가림 · 3xx 코드 · `details`)의 Rationale 은 [출력과 에러](CLE-NODE-HTTP-OUTPUT.md#rationale) 에 있다.
+
+### 노드 자체 타임아웃이 응답 본문 읽기까지 덮는다
+
+결정일: 2026-11-19
+
+이전에는 응답 헤더를 받자마자 자체 타임아웃 타이머를 지워서 본문이 멈추면 `timeout` 이 지나도 노드가 끝나지 않았다. 타이머를 본문을 다 읽을 때까지 유지하도록 고쳤다(NERV Task `CLE-T-EFE3BW`). 근거와 동작은 [실행 로직 Rationale](CLE-NODE-HTTP-EXEC.md#노드-자체-타임아웃이-응답-본문-읽기까지-덮는다) 에 있다.
+
+- 요구사항 변경: REQ-HTTP-009 를 «노드 자체 `timeout` 이 지나면» 에서 «응답 본문을 다 읽기 전에 노드 자체 `timeout` 이 지나면» 으로 바꾸고 중단 범위에 리다이렉트 홉과 응답 본문 읽기를 적었다.
+
+### dry-run 모의 출력의 활동 로그 예외를 요구사항에 적었다
+
+결정일: 2026-11-19
+
+[재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) REQ-RERUN-053 이 정한 예외(모의 출력은 활동 로그를 남기지 않는다)를 REQ-HTTP-029 에도 적었다(NERV Task `CLE-T-M6W7RE`). 동작은 바뀌지 않았다. 요구사항만 읽는 사람이 예외를 놓치지 않게 적었다.
 
 ### 사설망 차단 메시지 일반화 (2026-07-05)
 
