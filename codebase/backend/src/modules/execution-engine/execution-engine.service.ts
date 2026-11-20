@@ -4732,7 +4732,7 @@ export class ExecutionEngineService
 
       // 8. Create execution context (inject workspaceId + workspace timezone
       // for AI handlers — spec/4-nodes/3-ai/0-common.md §11.3 SoT precedence:
-      // Workspace.settings.timezone → process.env.TZ → 'UTC'. 엔진이 한 번만
+      // Workspace.settings.timezone → PRODUCT_DEFAULT_TIMEZONE('Asia/Seoul'). 엔진이 한 번만
       // 조회해 핸들러에 전달한다 (3 AI 핸들러가 각자 조회하면 N+1 발생).
       const workflow = await this.workflowRepository.findOne({
         where: { id: workflowId },
