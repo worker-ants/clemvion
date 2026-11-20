@@ -1161,3 +1161,110 @@ describe('visual fallback — 제목과 꼬리 문구의 MarkdownV2 escape', () 
     expect(unescapedReservedOutsideCode(text)).toEqual([]);
   });
 });
+
+/**
+ * 코드 블록(```) 안에서 escape 규칙을 어긴 자리를 찾는다. Telegram MarkdownV2 는 pre 안의 `` ` `` 와
+ * `\` 를 `\` 로 escape 하라고 요구한다. 그래서 블록 안의 `\` 는 바로 뒤가 `\` 나 `` ` `` 여야 하고,
+ * escape 되지 않은 `` ` `` 는 없어야 한다.
+ */
+function codeBlockEscapeViolations(text: string): string[] {
+  const found: string[] = [];
+  let inPre = false;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.startsWith('```', i)) {
+      inPre = !inPre;
+      i += 2;
+      continue;
+    }
+    if (!inPre) continue;
+    const ch = text[i];
+    if (ch === '\\') {
+      const next = text[i + 1];
+      if (next !== '\\' && next !== '`') found.push(`\\${next ?? 'EOF'}@${i}`);
+      i += 1;
+      continue;
+    }
+    if (ch === '`') found.push(`\`@${i}`);
+  }
+  return found;
+}
+
+// NERV Task CLE-T-ZEWR8V — 코드 블록 안의 백틱 · 백슬래시도 MarkdownV2 규칙대로 escape 한다. 그대로 두면
+// 블록이 일찍 닫히거나 Telegram 이 `400 can't parse entities` 로 메시지를 거절한다.
+describe('visual fallback — 코드 블록 안의 백틱 · 백슬래시 escape', () => {
+  function texts(event: EiaEvent): string[] {
+    return renderTelegramMessages(event, BASE_CONFIG).flatMap((m) =>
+      m.body.kind === 'text' ? [m.body.text] : [],
+    );
+  }
+
+  it('차트 — 레이블의 백틱 · 백슬래시를 escape 하고 열 너비는 원문 길이로 맞춘다', () => {
+    const [text] = texts(
+      buttonsEvent({
+        nodeType: 'chart',
+        title: 't',
+        payload: {
+          labels: ['a`b\\c', 'd'],
+          series: [{ name: 'S', data: [10, 20] }],
+        },
+      }),
+    );
+    expect(text).toBe(
+      '📊 t\n\n' +
+        '```\n' +
+        `a\\\`b\\\\c ${'█'.repeat(12)} 10\n` +
+        `d     ${'█'.repeat(24)} 20\n` +
+        '```',
+    );
+    expect(codeBlockEscapeViolations(text)).toEqual([]);
+  });
+
+  it('표 — 셀의 ``` 는 escape 되어 코드 블록을 닫지 않는다', () => {
+    const [text] = texts(
+      buttonsEvent({
+        nodeType: 'table',
+        title: 't',
+        payload: {
+          columns: [{ key: 'c', label: '```' }],
+          rows: [{ c: 'a\\b' }],
+        },
+      }),
+    );
+    expect(text).toBe(
+      '📋 t\n\n' + '```\n' + '\\`\\`\\`\n' + '───\n' + 'a\\\\b\n' + '```',
+    );
+    expect(text.split('```').length).toBe(3);
+    expect(codeBlockEscapeViolations(text)).toEqual([]);
+  });
+
+  it('4096자를 넘겨 나뉘어도 escape 된 백틱을 블록 경계로 보지 않고 escape 짝을 쪼개지 않는다', () => {
+    // 레이블과 셀이 모두 `` `\ `` 두 글자라 패딩이 없다. escape 한 `\\` 바로 뒤에 공백이 오므로 분할이
+    // 그 공백 앞에서 자르는 경우가 생긴다. 열 수에는 상한이 없어 줄 하나가 수백 자다.
+    const columns = Array.from({ length: 150 }, (_, i) => ({
+      key: `c${i}`,
+      label: '`\\',
+    }));
+    const rows = Array.from({ length: 20 }, () =>
+      Object.fromEntries(columns.map((c) => [c.key, '`\\'])),
+    );
+    const chunks = texts(
+      buttonsEvent({
+        nodeType: 'table',
+        title: 'wide',
+        payload: { columns, rows },
+      }),
+    ).filter((t) => t.includes('│'));
+    expect(chunks.length).toBeGreaterThan(1);
+    chunks.forEach((t) => {
+      expect(t.length).toBeLessThanOrEqual(4096);
+      expect(t.split('```').length % 2).toBe(1);
+      expect(codeBlockEscapeViolations(t)).toEqual([]);
+    });
+    // 자른 자리 바로 앞이 escape 된 백슬래시(`\\`)인 조각이 있어야 이 테스트가 그 경우를 지난다.
+    expect(
+      chunks
+        .slice(0, -1)
+        .some((t) => t.endsWith('\\\\\n```\n_\\(continued…\\)_')),
+    ).toBe(true);
+  });
+});
