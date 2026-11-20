@@ -149,7 +149,7 @@ export const NOTIFICATION_URL_CREDENTIALS_REASON =
  * SSRF 판정(`checkSsrfSafeUrl`)을 지난 URL 에 userinfo(사용자명 · 비밀번호, 한쪽만 있어도)가 있으면 거부한다. Node
  * fetch 는 그런 URL 로 요청을 만들지 않고 URL 원문을 담은 오류를 던지므로 발송이 늘 실패한다. userinfo 는 SSRF 판정이
  * 아니라서 `ssrf-safe-url.util.ts` 밖에 둔다. `https://@host` 처럼 userinfo 가 비면 파싱 결과에 남지 않고 fetch 도
- * 받으므로 통과한다(NERV Task `CLE-T-RCQGCC`).
+ * 받으므로 통과한다.
  *
  * 검증 실패 시 `BadRequestException` 호출 측이 throw.
  */
