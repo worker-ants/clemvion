@@ -224,6 +224,78 @@ describe('NotificationDigestService', () => {
     expect(result.recipients).toBe(501);
   });
 
+  it('userIds 가 빈 배열이면 조회 없이 0 을 돌려준다', async () => {
+    const result = await service.sendDigests(NOW, { userIds: [] });
+    expect(result).toEqual({ recipients: 0, sent: 0, failed: 0 });
+    expect(userRepo.createQueryBuilder).not.toHaveBeenCalled();
+    expect(notificationRepo.query).not.toHaveBeenCalled();
+    expect(mail.sendDailyDigestEmail).not.toHaveBeenCalled();
+  });
+
+  it('수신자에게 24시간 행이 없으면 그 사람에게는 보내지 않는다', async () => {
+    userQb.getMany.mockResolvedValueOnce([
+      { id: 'u-1', email: 'a@x.test' },
+      { id: 'u-2', email: 'b@x.test' },
+    ]);
+    // u-2 의 행은 하나도 없다.
+    notificationRepo.query.mockResolvedValue([row({ user_id: 'u-1' })]);
+
+    const result = await service.sendDigests(NOW);
+
+    expect(mail.sendDailyDigestEmail).toHaveBeenCalledTimes(1);
+    expect(mail.sendDailyDigestEmail).not.toHaveBeenCalledWith(
+      'b@x.test',
+      expect.anything(),
+    );
+    expect(result).toEqual({ recipients: 2, sent: 1, failed: 0 });
+  });
+
+  describe('process', () => {
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(NOW);
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('지금 시각 기준 24시간 창으로 돌려 행이 있는 사람에게만 보내고 결과를 로그에 남긴다', async () => {
+      const log = jest
+        .spyOn((service as any).logger, 'log')
+        .mockImplementation(() => undefined);
+      userQb.getMany.mockResolvedValueOnce([
+        { id: 'u-1', email: 'a@x.test' },
+        { id: 'u-2', email: 'b@x.test' },
+        { id: 'u-3', email: 'c@x.test' },
+      ]);
+      notificationRepo.query.mockResolvedValue([
+        row({ user_id: 'u-1' }),
+        row({ user_id: 'u-3' }),
+      ]);
+
+      await service.process({} as any);
+
+      const [, params] = notificationRepo.query.mock.calls[0];
+      expect(params[2]).toEqual(FROM);
+      expect(params[3]).toEqual(NOW);
+      expect(mail.sendDailyDigestEmail.mock.calls.map((c) => c[0])).toEqual([
+        'a@x.test',
+        'c@x.test',
+      ]);
+      expect(log).toHaveBeenCalledWith(
+        'daily digest: recipients=3 sent=2 failed=0',
+      );
+    });
+
+    it('받는 사람이 없으면 로그를 남기지 않는다', async () => {
+      const log = jest
+        .spyOn((service as any).logger, 'log')
+        .mockImplementation(() => undefined);
+      await service.process({} as any);
+      expect(log).not.toHaveBeenCalled();
+      expect(mail.sendDailyDigestEmail).not.toHaveBeenCalled();
+    });
+  });
+
   it('process 는 예외를 삼키고 로그만 남긴다', async () => {
     userQb.getMany.mockRejectedValue(new Error('db down'));
     await expect(service.process({} as any)).resolves.toBeUndefined();

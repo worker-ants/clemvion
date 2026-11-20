@@ -111,6 +111,8 @@ export class NotificationDigestService
   ): Promise<DigestRunResult> {
     const from = new Date(now.getTime() - DIGEST_WINDOW_MS);
     const result: DigestRunResult = { recipients: 0, sent: 0, failed: 0 };
+    // 빈 배열은 `IN ()` 이 되어 SQL 오류가 난다. 받을 사람이 없다는 뜻이므로 바로 끝낸다.
+    if (options.userIds?.length === 0) return result;
     let after: string | null = null;
 
     for (;;) {
