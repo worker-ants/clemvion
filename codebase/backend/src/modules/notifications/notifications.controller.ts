@@ -46,7 +46,7 @@ import {
   NotificationDigestService,
   type DigestRunResult,
 } from './jobs/notification-digest.service';
-import type { DailyDigest } from '../mail/mail.service';
+import type { DailyDigest } from '../mail/daily-digest.types';
 
 @ApiTags('Notifications')
 @ApiBearerAuth('access-token')

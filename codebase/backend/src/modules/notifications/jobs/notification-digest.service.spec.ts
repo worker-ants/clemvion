@@ -7,7 +7,7 @@ import {
   DIGEST_TYPES,
   NOTIFICATION_DIGEST_QUEUE,
 } from './notification-digest.constants';
-import type { DailyDigest } from '../../mail/mail.service';
+import type { DailyDigest } from '../../mail/daily-digest.types';
 import { PRODUCT_DEFAULT_TIMEZONE } from '../../../common/utils/timezone';
 
 /**

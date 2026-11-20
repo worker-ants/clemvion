@@ -5,14 +5,8 @@
  */
 export const NOTIFICATION_DIGEST_QUEUE = 'notification-digest';
 
-/** 요약에 모으는 알림 유형. 통합 알림과 알림 규칙 알림은 넣지 않는다. */
-export const DIGEST_TYPES = [
-  'execution_failed',
-  'schedule_failed',
-  'background_failed',
-] as const;
-
-export type DigestType = (typeof DIGEST_TYPES)[number];
+/** 요약에 모으는 알림 유형(정의는 메일 쪽 공유 타입 파일). */
+export { DIGEST_TYPES, type DigestType } from '../../mail/daily-digest.types';
 
 /** 보낼 때 모으는 창. 보내는 시각부터 거꾸로 24시간이다. */
 export const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;

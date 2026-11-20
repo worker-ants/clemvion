@@ -3,24 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MAIL_TRANSPORT_CONSOLE, MAIL_TRANSPORTER } from './mail.constants';
 import type { MailTransporter } from './mail.transporter';
 import { PRODUCT_DEFAULT_TIMEZONE } from '../../common/utils/timezone';
-import type { DigestType } from '../notifications/jobs/notification-digest.constants';
-
-/** 일일 요약 메일 한 통의 내용. 묶는 일은 `NotificationDigestService` 가 한다. */
-export interface DailyDigest {
-  windowStart: Date;
-  windowEnd: Date;
-  /** 창 안의 알림 전체 건수(메일에 싣지 못한 것 포함). */
-  total: number;
-  workspaces: DailyDigestWorkspace[];
-}
-
-export interface DailyDigestWorkspace {
-  id: string;
-  name: string;
-  total: number;
-  /** 메일에 싣는 항목. 최신 순이고 `total` 보다 적을 수 있다. */
-  items: { type: string; title: string; createdAt: Date }[];
-}
+import type { DailyDigest, DigestType } from './daily-digest.types';
 
 /** 요약에 모으는 유형(`DIGEST_TYPES`)마다 라벨이 있어야 컴파일된다. */
 const DIGEST_TYPE_LABELS: Record<DigestType, string> = {
@@ -467,11 +450,11 @@ export class MailService {
     // 알림은 전용 페이지가 아니라 사이드바 벨 팝오버로 노출되므로, CTA 는 인증
     // 랜딩(`/dashboard`, auth redirect 의 canonical 타겟)으로 보낸다 — 거기서
     // 벨 팝오버로 알림을 확인. 전용 `/notifications` 라우트는 존재하지 않는다.
-    const notificationsUrl = `${this.frontendUrl}/dashboard`;
+    const notificationsUrl = this.notificationsUrl;
     // 하단 수신 거부 링크는 알림 설정 화면으로 간다. 로그인 없이 끄는 공개 엔드포인트는 두지 않는다
     // ([알림 설정 「알림 설정 화면과 수신 거부 링크」](CLE-OBS-NOTIFY-SETTINGS#알림-설정-화면과-수신-거부-링크)).
     // slug 없는 경로는 프런트 catch-all 이 현재 워크스페이스로 보낸다.
-    const settingsUrl = `${this.frontendUrl}/profile/notifications`;
+    const settingsUrl = this.notificationSettingsUrl;
 
     if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       this.logger.debug(
@@ -509,6 +492,24 @@ export class MailService {
     }
   }
 
+  /** 알림 메일의 CTA 대상. 인증 랜딩이고 거기서 벨 팝오버로 알림을 본다. */
+  private get notificationsUrl(): string {
+    return `${this.frontendUrl}/dashboard`;
+  }
+
+  /** 수신 거부 링크 대상. slug 없는 경로는 프런트 catch-all 이 현재 워크스페이스로 보낸다. */
+  private get notificationSettingsUrl(): string {
+    return `${this.frontendUrl}/profile/notifications`;
+  }
+
+  private unsubscribeFooterHtml(settingsUrl: string): string {
+    return `<p style="margin:0;font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;">이 메일을 받고 싶지 않으면 <a href="${settingsUrl}" style="color:#999;">알림 설정</a>에서 끌 수 있어요.</p>`;
+  }
+
+  private unsubscribeFooterText(settingsUrl: string): string {
+    return `이 메일을 받고 싶지 않으면 알림 설정에서 끌 수 있어요:\n${settingsUrl}`;
+  }
+
   private buildNotificationHtml(
     notification: { title: string; message: string },
     notificationsUrl: string,
@@ -534,7 +535,7 @@ export class MailService {
             </td></tr>
           </table>
           <p style="margin:0 0 24px;font-size:12px;color:#999;word-break:break-all;">${notificationsUrl}</p>
-          <p style="margin:0;font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;">이 메일을 받고 싶지 않으면 <a href="${settingsUrl}" style="color:#999;">알림 설정</a>에서 끌 수 있어요.</p>
+          ${this.unsubscribeFooterHtml(settingsUrl)}
         </td></tr>
       </table>
     </td></tr>
@@ -549,7 +550,7 @@ export class MailService {
     settingsUrl: string,
   ): string {
     // plain text 파트라 HTML escape 불요 (렌더 컨텍스트가 마크업 아님).
-    return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}\n\n이 메일을 받고 싶지 않으면 알림 설정에서 끌 수 있어요:\n${settingsUrl}`;
+    return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}\n\n${this.unsubscribeFooterText(settingsUrl)}`;
   }
 
   /**
@@ -560,8 +561,8 @@ export class MailService {
     email: string,
     digest: DailyDigest,
   ): Promise<void> {
-    const notificationsUrl = `${this.frontendUrl}/dashboard`;
-    const settingsUrl = `${this.frontendUrl}/profile/notifications`;
+    const notificationsUrl = this.notificationsUrl;
+    const settingsUrl = this.notificationSettingsUrl;
     const subject = `[Clemvion] 지난 24시간 실패 알림 ${digest.total}건`;
 
     if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
@@ -633,7 +634,7 @@ export class MailService {
               <a href="${notificationsUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;">알림 보기</a>
             </td></tr>
           </table>
-          <p style="margin:0;font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;">이 메일을 받고 싶지 않으면 <a href="${settingsUrl}" style="color:#999;">알림 설정</a>에서 끌 수 있어요.</p>
+          ${this.unsubscribeFooterHtml(settingsUrl)}
         </td></tr>
       </table>
     </td></tr>
@@ -665,7 +666,7 @@ export class MailService {
       '',
       `알림 보기:\n${notificationsUrl}`,
       '',
-      `이 메일을 받고 싶지 않으면 알림 설정에서 끌 수 있어요:\n${settingsUrl}`,
+      this.unsubscribeFooterText(settingsUrl),
     );
     return lines.join('\n');
   }

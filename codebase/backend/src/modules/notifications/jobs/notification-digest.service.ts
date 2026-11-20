@@ -5,7 +5,8 @@ import { Job, Queue } from 'bullmq';
 import { Repository } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Notification } from '../entities/notification.entity';
-import { MailService, type DailyDigest } from '../../mail/mail.service';
+import { MailService } from '../../mail/mail.service';
+import type { DailyDigest } from '../../mail/daily-digest.types';
 import { PRODUCT_DEFAULT_TIMEZONE } from '../../../common/utils/timezone';
 import {
   DIGEST_ITEMS_PER_WORKSPACE,
