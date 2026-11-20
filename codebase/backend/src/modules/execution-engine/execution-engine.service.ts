@@ -153,6 +153,7 @@ import {
 } from '../../nodes/ai/llm-provider-rule';
 import { restoreMcpServerOrigins } from '../../nodes/ai/ai-agent/mcp-server-ref-use';
 import {
+  BACKGROUND_EXECUTION_JOB_OPTS,
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
 } from './queues/background-execution.queue';
@@ -7851,10 +7852,11 @@ export class ExecutionEngineService
     // 같은 규칙이다(CLE-NODE-BACKGROUND, CLE-T-6V9957).
     let enqueuedJobId: string | undefined;
     try {
-      const enqueued = await this.backgroundQueue.add('background-run', job, {
-        removeOnComplete: 100,
-        removeOnFail: 100,
-      });
+      const enqueued = await this.backgroundQueue.add(
+        'background-run',
+        job,
+        BACKGROUND_EXECUTION_JOB_OPTS,
+      );
       enqueuedJobId = enqueued?.id;
     } catch (err) {
       this.logger.error(
