@@ -1,14 +1,12 @@
 // 유저 가이드가 이름으로 적은 **식별자가 실재하는가** 를 판정하는 순수 스캐너.
 // 테스트는 `guide-identifier-existence.test.ts`.
 //
-// SoT: NERV `CLE-API-ERRCODES` (코드 명명·안정성·은퇴 이력 ·
-//      「6. 카탈로그」. 가드는 미러 spec/CLE-API/CLE-API-ERRCODES.md 와 카탈로그 표를 맡은
-//      하위 문서 미러 spec/CLE-API/CLE-API-ERRCODES-*.md 를 읽는다)
-// 가드 «가족» 규약은 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
-// 「빌드 가드」 표에 없다**(「빌드 가드 (3건)」 절의 표 아래 문단과 「미결 사항」 에만 나온다).
-// 소유 문서는 아직 미정이다(GUIDEEVIDENCE · ERRCODES 「미결 사항」, NERV Task `CLE-T-R2Q21Q`
-// 항목 19). 그래서 «SoT» 로 단정하지 않고 여기 적는다. 위 4행의 범위 표기는 `CLE-API-ERRCODES`
-// Overview 의 자기 선언(명명 · rename 안정성 · 예외 레지스트리)에 맞춘 것이니 «발행» 까지 넓히지 않는다.
+// SoT: NERV `CLE-ENG-GUIDEEVIDENCE` 「빌드 가드」 의 「가이드 → 코드 대조 가드」 표
+//      (소유 결정은 같은 문서 R-6, NERV Task `CLE-T-GTSEDT`).
+// 카탈로그: NERV `CLE-API-ERRCODES` 「6. 카탈로그」 를 탈출구로만 읽는다. 가드는 미러
+//      spec/CLE-API/CLE-API-ERRCODES.md 와 카탈로그 표를 맡은 하위 문서 미러
+//      spec/CLE-API/CLE-API-ERRCODES-*.md 를 읽는다. 그 문서의 범위(명명 · rename 안정성 ·
+//      예외 레지스트리)는 「발행」 까지 넓히지 않는다.
 //
 // ## 왜 "에러 코드" 가 아니라 "식별자" 인가
 //

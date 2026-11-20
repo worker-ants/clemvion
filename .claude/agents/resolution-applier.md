@@ -126,7 +126,7 @@ spec 항목이 있으면:
    ## 제안 변경
    (구체적인 spec 본문/Rationale 변경안. SPEC-DRIFT 면 코드가 이미 구현한 동작/flow 를 어느 문서·절·표 행에 어떻게 반영할지 — before/after.)
    ```
-2. 그 발견은 처분하지 않는다. `_dispositions.json` 의 `spec_proposals` 에 `{"finding_id": <전체 ID>, "file": "_spec-proposal-<area>.md"}` 를 넣는다. main 이 초안을 저장한 뒤 `spec_change` 로 처분한다(초안을 쓸 수 없으면 `escalated`(spec)).
+2. 그 발견은 처분하지 않는다. `_dispositions.json` 의 `spec_proposals` 에 `{"finding_id": <전체 ID>, "file": "_spec-proposal-<area>.md"}` 를 넣는다. main 이 초안을 저장한 뒤 그 `spec_version_id` 로 `spec_change` 처분한다(초안을 쓸 수 없으면 `escalated`(spec)).
 3. 모든 spec 항목을 쓴 뒤 STATUS line 의 `ESCALATE=spec NEEDS_SPEC=<첫 제안 파일 경로>` 로 반환.
 4. **spec 항목과 코드 항목이 섞여 있는 경우**: 코드 항목을 먼저 끝내고 e2e 까지 실행한다. 그 다음 spec 제안을 남기고 `ESCALATE=spec` 로 반환한다. spec 처리는 main 이 끝내므로 이 sub-agent 를 다시 부를 일은 없다.
 5. **SPEC-DRIFT 는 코드 무수정**: SPEC-DRIFT 항목에 대해서는 §2 코드 fix 를 하지 않고 제안만 쓴다. 코드를 spec 에 맞춰 되돌리는 것은 의도적 개선을 지우는 사고이므로 금지.
@@ -172,7 +172,9 @@ spec 항목이 있으면:
 applier 는 build 를 돌리지 않는다(fix 마다 lint · unit, 마지막에 e2e). `tests.build` 는 늘 `not_run` 으로 적는다.
 main 은 이 값을 보고 fix 뒤 build 를 직접 돌린다(developer SKILL REVIEW WORKFLOW 6).
 
-`resolution` 은 `fixed` · `dismissed` · `wont_fix` · `escalated` 중 하나다. `spec_change` 는 쓰지 않는다. 반환하기 전에 검사한다:
+`resolution` 은 `fixed` · `dismissed` · `wont_fix` · `escalated` 중 하나다. `spec_change` 는 쓰지 않는다.
+spec_change 처분은 main 이 스펙 초안을 저장한 뒤 그 `spec_version_id` 와 함께 이 파일에 더한다(정본: `nerv_review_handoff.py` docstring).
+반환하기 전에 검사한다:
 
 ```bash
 python3 .claude/tools/nerv_review_handoff.py check <session_dir>   # exit 1 = errors 를 고친다

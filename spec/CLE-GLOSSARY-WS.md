@@ -1,24 +1,24 @@
 ---
 id: "CLE-GLOSSARY-WS"
-title: "용어 사전 — 제품과 작업 공간"
+title: "용어 사전 — 제품과 워크스페이스"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "1c22827aead21c4aa52dfcc219a65729134da4ac2195987ec3ccf4c4aefcf9f8"
+content_hash: "4a45b32f5b4f8e92e8c5283f7852c6de8333b40069ac359bbba5e6e43db1575a"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-3E7Q1T"
 source_paths: []
-mirror_sha256: "cb26c9e4f7fc72a8c50dcde61cd169008332ffaa759cb398daaa6bde5fcc0a2b"
-etag: "sha256-98078da80f81e0e0b60b4cfad2153c7163471f84b96ee40d90e0495e58f007d1"
+mirror_sha256: "bd08e18c5a7ef2a0e42584250c1e2524523b2c5edaaa9afd8a5cf5446742c9f8"
+etag: "sha256-06020feb4a22dacb109db90d84d6c7cd909a92911c18cf50ebd0bbeecce44e97"
 ---
 ## 개요
 
-[용어 사전](CLE-GLOSSARY.md) 의 「제품과 작업 공간」 영역 용어다. 표기 원칙 · 약어 · 상태값 표기와 표의 열 순서는 [용어 사전](CLE-GLOSSARY.md) 에 있다. 여러 영역에 걸친 같은 말은 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 이 가른다.
+[용어 사전](CLE-GLOSSARY.md) 의 「제품과 워크스페이스」 영역 용어다. 표기 원칙 · 약어 · 상태값 표기와 표의 열 순서는 [용어 사전](CLE-GLOSSARY.md) 에 있다. 여러 영역에 걸친 같은 말은 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 이 가른다.
 
 ## 용어
 
