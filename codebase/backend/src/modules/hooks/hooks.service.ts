@@ -52,6 +52,8 @@ import {
   GROUP_CHAT_REFUSAL_DEFAULT,
   resolveFormOpenLabel,
   resolveNoActiveExecutionMessage,
+  resolveExecutionStartedMessage,
+  resolveExecutionRestartedMessage,
   resolveSurfaceMismatchMessage,
 } from '../chat-channel/shared/language-hint-defaults';
 import { randomUUID } from 'crypto';
@@ -381,7 +383,7 @@ export class HooksService {
    *    (CCH-CV-03): (a) waiting_for_input → interact() in-process 호출, (b) running/pending →
    *    executionStillRunning 안내 + ignored (대기 큐 미적재, R9)
    * 7. **워크플로우가 꺼져 있으면 ignored** — 새 실행을 시작하는 입력만 막는다. 위 4~6 의 처리는
-   *    워크플로우가 꺼져 있어도 한다(NERV Task `CLE-T-XRWFMJ`). 그래서 꺼진 워크플로우로 오는 새 시작
+   *    워크플로우가 꺼져 있어도 한다(NERV Task `CLE-T-XRWFMJ`). 그래서 비활성 워크플로우로 오는 새 시작
    *    입력도 미지원 update 안내 · dedup · rate limit · `enrichInbound` 를 거친 뒤 여기서 끝난다.
    * 8. `/start` 이고 활성 execution 이 있으면 취소(NERV Task `CLE-T-V4WVF2`)
    * 9. 새 execution 시작 (start 또는 활성 없음 / terminal 상태), ackInteraction
@@ -463,8 +465,8 @@ export class HooksService {
     } catch (err) {
       // `/start` 의 기존 실행 취소 실패는 그 에러로 답한다(REQ-CHAT-064). 인터랙션이어도 같다.
       if (err instanceof ChatChannelErrorResponse) throw err.cause;
-      // 그 밖의 예상하지 못한 오류(DB · Redis 장애 등)는 5xx 로 내지 않는다. 5xx 는 프로바이더의 재전송과
-      // 웹훅 자동 비활성화를 부른다(R-CC-12). 에러 로그를 남기고 버린 update 로 끝낸다(REQ-CHAT-056).
+      // 그 밖의 예상하지 못한 오류(DB · Redis 장애 등)는 5xx 로 내지 않는다. 5xx 를 받으면 Telegram 은
+      // 같은 update 를 다시 보내고 Slack · Discord 사용자에게는 실패로 보인다(R-CC-12, R-CC-27). 에러 로그를 남기고 버린 update 로 끝낸다(REQ-CHAT-056).
       // 채널 건강도는 바꾸지 않는다. `degraded` 의 원인은 스펙이 정한 넷뿐이다. 오류를 숨기는 대신 지표로
       // 센다(NERV Task `CLE-T-5GVB9N`). 에러 로그만으로는 비율 · 추세로 경보를 걸 수 없다.
       this.metrics?.recordChatChannelInboundErrorAbsorbed(config.provider);
@@ -908,7 +910,7 @@ export class HooksService {
     // 채널을 연결해도 프로바이더의 URL 등록이 실패하지 않게 하려는 것이다(사용자 결정 2026-10-10).
     // 인터랙션에는 기본 응답(200)으로, 나머지는 202 로 답한다. 버린 클릭의 수신 확인은 보낸다.
     // dedup claim 은 풀지 않는다. rate limit 으로 ignored 가 되는 경로와 같다.
-    // 이 관문이 뒤에 있어서 꺼진 워크플로우로 오는 새 시작 입력도 위의 미지원 update 안내 · dedup ·
+    // 이 관문이 뒤에 있어서 비활성 워크플로우로 오는 새 시작 입력도 위의 미지원 update 안내 · dedup ·
     // rate limit(한도를 넘으면 트리거 health 를 degraded 로 쓴다) · `enrichInbound`(Slack `files.info`
     // 같은 외부 호출)를 모두 거친다. 대기 실행으로 가는 입력과 같은 순서를 지키려는 것이다.
     if (
@@ -926,6 +928,7 @@ export class HooksService {
     // 대화 상태에 남고 먼저 만든 실행은 입력이 닿지 않는 채 계속 돈다. 잠금을 잡지 못한 `/start` 는
     // 겹쳐 온 것으로 보고 버린다. Redis 가 없거나 오류면 잠금 없이 진행한다(fail-open).
     let startLockToken: string | undefined;
+    let started: { executionId: string; restarted: boolean };
     if (update.command.kind === 'start') {
       startLockToken = randomUUID();
       const acquired = await this.channelConversationService.acquireLock(
@@ -1001,7 +1004,7 @@ export class HooksService {
         );
       } catch (err) {
         // 트리거의 워크플로우가 트리거의 워크스페이스에 없다(저장 경계 이전의 교차 행). 채팅 채널은
-        // non-2xx 가 프로바이더의 재시도 · 비활성화를 부르므로(R-CC-12) 202 ignored 로 답하고 운영
+        // non-2xx 면 프로바이더가 재전송하거나 사용자에게 실패로 보이므로(R-CC-12) 202 ignored 로 답하고 운영
         // 신호로 degraded 를 남긴다. 메시지는 고정 문구다.
         if (err instanceof WorkflowNotFoundError) {
           await this.markChatChannelDegraded(
@@ -1028,7 +1031,7 @@ export class HooksService {
       await this.touchLastTriggeredAt(trigger);
 
       await adapter.ackInteraction(update, config);
-      return { executionId, status: 'pending' as const };
+      started = { executionId, restarted: hasActiveExecution };
     } finally {
       if (startLockToken !== undefined) {
         await this.channelConversationService.releaseLock(
@@ -1039,6 +1042,22 @@ export class HooksService {
         );
       }
     }
+
+    const result: ChatChannelWebhookResult = {
+      executionId: started.executionId,
+      status: 'pending',
+    };
+    // `/start` 로 새 실행을 시작했으면 시작 잠금을 푼 뒤 시작 · 재시작 안내로 답한다(NERV Task `CLE-T-0400J6`).
+    // `/start` 가 아닌 첫 메시지로 시작한 실행에는 안내하지 않는다(NERV Task `CLE-T-8A055H` 가 다룬다).
+    if (update.command.kind !== 'start') return result;
+    const providerResponse = await this.notifyExecutionStarted(
+      input,
+      update,
+      config,
+      adapter,
+      started.restarted,
+    );
+    return providerResponse ? { ...result, providerResponse } : result;
   }
 
   /**
@@ -1135,14 +1154,7 @@ export class HooksService {
 
   /**
    * 취소할 실행이 없는 대화의 `/cancel` 에 `noActiveExecution` 안내로 답한다(NERV Task `CLE-T-A78V0M`,
-   * 2026-11-19 사람 결정). 즉시 응답이 있는 프로바이더(Slack · Discord 슬래시 명령)는 그 응답의 내용을
-   * 수신 문구 대신 이 안내로 채워 돌려준다. 채널에 따로 보내지 않는다. 즉시 응답이 없는 프로바이더
-   * (Telegram)는 대화에 제어 안내를 보내고 `undefined` 를 돌려준다.
-   *
-   * 즉시 응답은 어댑터의 `defaultInteractionResponse` 에 수신 문구(`commandReceived`) 자리를 이 안내로 바꾼
-   * 설정을 넘겨 만든다. `/cancel` 슬래시 명령의 기본 응답이 수신 문구라 그 자리만 바꾸면 프로바이더별 응답
-   * 모양(Slack ephemeral · mrkdwn escape, Discord type 4 · flags 64 · 멘션 무력화)을 어댑터가 그대로 정한다.
-   * 어댑터 인터페이스에 메서드를 더하지 않으려는 선택이다.
+   * 2026-11-19 사람 결정). 전달 방식은 {@link respondWithCommandNotice} 가 정한다.
    */
   private async notifyNoActiveExecution(
     input: WebhookInput,
@@ -1150,10 +1162,63 @@ export class HooksService {
     config: ChatChannelConfig,
     adapter: ChatChannelAdapter,
   ): Promise<InboundInteractionResponse | undefined> {
-    const text = resolveNoActiveExecutionMessage(
-      config.languageHints,
-      config.languageLocale,
+    return this.respondWithCommandNotice(
+      input,
+      update,
+      config,
+      adapter,
+      resolveNoActiveExecutionMessage(
+        config.languageHints,
+        config.languageLocale,
+      ),
+      'noActiveExecution',
     );
+  }
+
+  /**
+   * `/start` 가 새 실행을 시작했을 때 시작 안내(`executionStarted`)나 재시작 안내(`executionRestarted`)로 답한다
+   * (NERV Task `CLE-T-0400J6`, 2026-11-20 사람 결정). 대화에 활성 실행이 있었으면 재시작 안내다. 기존 실행이
+   * 그사이 끝나 취소 없이 시작한 경우도 사용자는 진행 중인 대화를 보고 `/start` 를 보냈으므로 재시작 안내다.
+   * 전달 방식은 {@link notifyNoActiveExecution} 과 같다. 호출자는 시작 잠금을 푼 뒤 부른다.
+   */
+  private async notifyExecutionStarted(
+    input: WebhookInput,
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+    restarted: boolean,
+  ): Promise<InboundInteractionResponse | undefined> {
+    const resolve = restarted
+      ? resolveExecutionRestartedMessage
+      : resolveExecutionStartedMessage;
+    return this.respondWithCommandNotice(
+      input,
+      update,
+      config,
+      adapter,
+      resolve(config.languageHints, config.languageLocale),
+      restarted ? 'executionRestarted' : 'executionStarted',
+    );
+  }
+
+  /**
+   * 명령의 처리 결과를 알리는 안내로 답한다. 즉시 응답이 있는 프로바이더(Slack · Discord 슬래시 명령)는 그
+   * 응답의 내용을 수신 문구 대신 이 안내로 채워 돌려준다. 채널에 따로 보내지 않는다. 즉시 응답이 없는
+   * 프로바이더(Telegram)는 대화에 제어 안내를 보내고 `undefined` 를 돌려준다.
+   *
+   * 즉시 응답은 어댑터의 `defaultInteractionResponse` 에 수신 문구(`commandReceived`) 자리를 이 안내로 바꾼
+   * 설정을 넘겨 만든다. 슬래시 명령의 기본 응답이 수신 문구라 그 자리만 바꾸면 프로바이더별 응답
+   * 모양(Slack ephemeral · mrkdwn escape, Discord type 4 · flags 64 · 멘션 무력화)을 어댑터가 그대로 정한다.
+   * 어댑터 인터페이스에 메서드를 더하지 않으려는 선택이다.
+   */
+  private async respondWithCommandNotice(
+    input: WebhookInput,
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+    text: string,
+    label: string,
+  ): Promise<InboundInteractionResponse | undefined> {
     const immediate = adapter.defaultInteractionResponse?.(input.body, {
       ...config,
       languageHints: { ...config.languageHints, commandReceived: text },
@@ -1162,7 +1227,7 @@ export class HooksService {
     await this.sendBestEffortNotice(
       update.conversationKey,
       text,
-      'noActiveExecution',
+      label,
       config,
       adapter,
     );
@@ -1562,7 +1627,7 @@ export class HooksService {
    * `renderNode` 를 우회하는 **모든 control-plane 텍스트 직접 발송의 단일 chokepoint** (F-4).
    * 소비처: `sendExecutionStillRunningNotice` · `sendSurfaceMismatchNotice` · `maybeNotifyIgnored`
    * (groupChatRefusal/unsupportedMessageKind) · `/help` · `formValidationFailed` · `formNextField` ·
-   * `notifyNoActiveExecution`(Telegram 의 `noActiveExecution`).
+   * `respondWithCommandNotice`(Telegram 의 `noActiveExecution` · `executionStarted` · `executionRestarted`).
    * try/catch/warn 골격을 여기 모아, 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가
    * 안내 루프를 유발하지 않도록 한다.
    *
