@@ -679,4 +679,60 @@ describe('Workflow CRUD (e2e)', () => {
       await contractForDto(RestoreVersionResultDto),
     );
   });
+  /**
+   * [감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG) `workflow.version_restored`. 복원은 감사 행을 하나 남기고
+   * `details` 에 원본 버전과 복원으로 새로 생긴 버전을 적는다. 캔버스 저장은 남기지 않는다.
+   */
+  it('J. 버전 복원은 workflow.version_restored 감사를 남기고 캔버스 저장은 남기지 않는다', async () => {
+    const auth = (r: request.Test) =>
+      r
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .set('X-Workspace-Id', workspaceId);
+    const created = await auth(request(BASE_URL).post('/api/workflows')).send({
+      name: uniqueName('wf-restore-audit'),
+    });
+    expect(created.status).toBe(201);
+    const workflowId = (created.body.data as { id: string }).id;
+
+    const saved = await auth(
+      request(BASE_URL).post(`/api/workflows/${workflowId}/save`),
+    ).send(buildFiveNodeGraphPayload());
+    expect(saved.status).toBe(200);
+    const before = await auth(
+      request(BASE_URL).get(`/api/workflows/${workflowId}/versions`),
+    );
+    const originalVersionId = (before.body.data as Array<{ id: string }>)[0].id;
+
+    const restored = await auth(
+      request(BASE_URL).post(
+        `/api/workflows/${workflowId}/versions/${originalVersionId}/restore`,
+      ),
+    );
+    expect(restored.status).toBe(200);
+    // 새 버전 ID 는 감사 details 에만 쓰고 응답에는 싣지 않는다.
+    expect(restored.body.data).not.toHaveProperty('versionId');
+
+    const after = await auth(
+      request(BASE_URL).get(`/api/workflows/${workflowId}/versions`),
+    );
+    const newVersionId = (after.body.data as Array<{ id: string }>)[0].id;
+    expect(newVersionId).not.toBe(originalVersionId);
+
+    const logs = await db.query<{
+      action: string;
+      user_id: string;
+      details: Record<string, unknown>;
+    }>(
+      `SELECT action, user_id, details FROM audit_log
+        WHERE workspace_id = $1 AND resource_type = 'workflow' AND resource_id = $2
+        ORDER BY created_at`,
+      [workspaceId, workflowId],
+    );
+    // 생성 1행 + 복원 1행. 저장(`/save`)은 행을 남기지 않는다.
+    expect(logs.rows.map((r) => r.action)).toEqual([
+      'workflow.created',
+      'workflow.version_restored',
+    ]);
+    expect(logs.rows[1].details).toEqual({ originalVersionId, newVersionId });
+  });
 });

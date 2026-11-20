@@ -9,6 +9,11 @@ import { AuditAction } from './audit-action.const';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import type { User } from '../users/entities/user.entity';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** 보존 배치 한 번에 지우는 행 수. 잠금 경합과 WAL 증가를 줄인다. */
+const PRUNE_BATCH = 1000;
+const PRUNE_MAX_BATCHES = 50;
+
 /**
  * `findAll` 이 실제로 내보내는 형태.
  *
@@ -147,6 +152,39 @@ export class AuditLogsService {
           `${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  /**
+   * 보존 일수가 지난 감사 로그를 워크스페이스와 무관하게 지운다(REQ-AUDIT-019).
+   * 1000행씩 지우고 한 번 호출에 50배치까지만 지운다. 남은 행은 다음 실행이 지운다.
+   * `idx_audit_log_created (created_at)`(V157)를 쓴다. 실패는 던지고 배치 서비스가 흡수한다.
+   */
+  async pruneOlderThanRetention(
+    retentionDays: number,
+    now: Date = new Date(),
+  ): Promise<number> {
+    const cutoff = new Date(now.getTime() - retentionDays * DAY_MS);
+    let total = 0;
+    for (let i = 0; i < PRUNE_MAX_BATCHES; i++) {
+      const sub = this.auditLogRepository
+        .createQueryBuilder('al')
+        .select('al.id')
+        .where('al.created_at < :cutoff', { cutoff })
+        .limit(PRUNE_BATCH);
+
+      const result = await this.auditLogRepository
+        .createQueryBuilder()
+        .delete()
+        .from(AuditLog)
+        .where(`id IN (${sub.getQuery()})`)
+        .setParameters(sub.getParameters())
+        .execute();
+
+      const removed = result.affected ?? 0;
+      total += removed;
+      if (removed < PRUNE_BATCH) break;
+    }
+    return total;
   }
 
   private getSortColumn(sort: string): string {
