@@ -218,6 +218,28 @@ export const profile: Dict["profile"] = {
     eventTokenReuseDetected: "Token reuse detected",
     failureReasonLabel: "Reason",
   },
+  notifications: {
+    pageTitle: "Notification settings",
+    pageDescription:
+      "Turn bell notifications and emails on or off for each notification type.",
+    cardDescription:
+      "Turn bell notifications and emails on or off for each type.",
+    columnType: "Notification type",
+    columnInApp: "Bell",
+    columnEmail: "Email",
+    typeExecutionFailed: "Workflow run failed",
+    typeScheduleFailed: "Schedule run failed",
+    typeIntegrationExpired: "Integration connection expiring",
+    inAppAria: "{{type}} bell notification",
+    emailAria: "{{type}} email",
+    bothOff:
+      "With both bell and email off, you won't receive this notification.",
+    alwaysOnNote:
+      "Team invitations, Background failures, alert rules, and integration action-required notifications can't be turned off here.",
+    saved: "Notification settings saved",
+    saveFailed: "Couldn't save notification settings",
+    loadFailed: "Couldn't load notification settings",
+  },
   alerts: {
     title: "Alert rules",
     description: "Set up alert rules for failure rate, execution time, and LLM cost thresholds",

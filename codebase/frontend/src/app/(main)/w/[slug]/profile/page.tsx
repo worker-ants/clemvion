@@ -10,7 +10,7 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card";
-import { Loader2, ShieldCheck, History, KeyRound } from "lucide-react";
+import { Loader2, ShieldCheck, History, KeyRound, Bell } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useT } from "@/lib/i18n";
@@ -153,6 +153,31 @@ export default function ProfilePage() {
               <p className="font-medium">{t("profile.sessions.pageTitle")}</p>
               <p className="text-sm text-[hsl(var(--muted-foreground))]">
                 {t("profile.sessions.pageDescription")}
+              </p>
+            </div>
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            {t("profile.notifications.pageTitle")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* REQ-PROFILE-005 — 알림 설정 화면으로 가는 링크 (CLE-T-EJFQ1Y) */}
+          <Link
+            href={buildWorkspaceHref(slug, "/profile/notifications")}
+            className="flex items-center gap-3 rounded-md border border-[hsl(var(--border))] p-4 transition-colors hover:bg-[hsl(var(--accent))]"
+          >
+            <Bell className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+            <div>
+              <p className="font-medium">
+                {t("profile.notifications.pageTitle")}
+              </p>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                {t("profile.notifications.cardDescription")}
               </p>
             </div>
           </Link>
