@@ -44,12 +44,12 @@ import type { NodeDefinition } from "@/lib/node-definitions/types";
 /**
  * Re-run modal (spec/5-system/13-replay-rerun.md §10.2).
  *
- * 원본 실행을 기반으로 새 Execution 을 트리거하는 모달. 외부 호출(dry-run
- * 지원) 노드 개수를 안내하고, 입력 편집 / dry-run toggle 을 제공한다. 성공
- * 시 새 실행 상세 페이지로 라우팅한다.
+ * 원본 실행을 기반으로 새 Execution 을 트리거하는 모달. 부수효과 노드(dry-run 지원)와
+ * MCP 서버를 연결한 AI 에이전트 노드 개수를 안내하고, 입력 편집 / dry-run toggle 을
+ * 제공한다. 성공 시 새 실행 상세 페이지로 라우팅한다.
  */
 export interface ReRunModalProps {
-  /** 원본 실행 — 모달 헤더 + 입력 default + 워크플로 노드 로딩에 사용. */
+  /** 원본 실행 — 모달 헤더 + 입력 default + 워크플로우 노드 로딩에 사용. */
   original: {
     id: string;
     workflowId: string;
