@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
 content_hash: "579a3bd39127ff4a7739ec4ae85657c9e7d0d027c7ecc18036c852dee5f22bec"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-PTCRM4"
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "32b97939122dcf9277db60d5962779a06222097e8802b36257c8aee534c82e34"
-etag: "sha256-d38b049601fda20ad83e841315feccc8f89baa6d9b6c6ce79e5b4895dc0d2ae0"
+mirror_sha256: "803cd35aa06423c63d0c552e9bd725ac042caa2522f86473633c1eab2175e0e0"
+etag: "sha256-9ccacd88da1ada6730f96acb70a8a8f96541d67558bbcede7c30d80039eba378"
 ---
 > 구현 상태: 부분 구현 (워크스페이스 누락의 `INTEGRATION_SERVICE_UNAVAILABLE` 은 미구현) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
