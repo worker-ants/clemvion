@@ -1062,8 +1062,8 @@ describe('RetryTurnService', () => {
       mockNodeRepo.findOneBy.mockResolvedValue(node);
       // rehydrateContext 는 실제로 contextService 의 Map 에 context 를 등록한다.
       // 따라서 mock 도 real contextService.createContext 로 등록해 후속
-      // setNodeOutput / contextKeyOf / deleteContext 가 동일 Map 에 작동하게 한다
-      // (그렇지 않으면 real setNodeOutput 이 "context not found" throw).
+      // seedNodeOutput / contextKeyOf / deleteContext 가 동일 Map 에 작동하게 한다
+      // (그렇지 않으면 real seedNodeOutput 이 "context not found" throw).
       (mockDriver.rehydrateContext as jest.Mock).mockImplementation(() =>
         Promise.resolve(contextService.createContext(EXEC, 'wf-1')),
       );

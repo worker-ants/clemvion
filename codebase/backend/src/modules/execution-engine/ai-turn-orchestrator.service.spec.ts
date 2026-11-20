@@ -2062,9 +2062,9 @@ describe('AiTurnOrchestrator', () => {
       const node = makeNode('node-resumed-noctx', 'ai_agent');
       registerCapturingHandler('ai_agent', node.id);
       const context = contextService.createContext(executionId, workflowId);
-      // 컨텍스트 소실을 흉내 낸다. 가드가 없으면 setNodeOutput 이 throw 한다.
+      // 컨텍스트 소실을 흉내 낸다. 가드가 없으면 setNodeOutputs 가 throw 한다.
       contextService.deleteContext(executionId);
-      const setNodeOutputSpy = jest.spyOn(contextService, 'setNodeOutput');
+      const setNodeOutputsSpy = jest.spyOn(contextService, 'setNodeOutputs');
 
       // 컨텍스트 소실 뒤의 기존 graceful 경로는 노드를 실패로 종결하며 그 오류를 던진다.
       // 스냅샷 쪽이 다른 오류(TypeError 등)를 새로 만들지 않아야 한다.
@@ -2085,7 +2085,7 @@ describe('AiTurnOrchestrator', () => {
         ),
       ).rejects.toThrow('AI Agent turn failed');
 
-      expect(setNodeOutputSpy).not.toHaveBeenCalled();
+      expect(setNodeOutputsSpy).not.toHaveBeenCalled();
 
       expect(mockNodeExecutionRepo.update).not.toHaveBeenCalled();
     });
