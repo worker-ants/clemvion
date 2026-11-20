@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-GATE"
 title: "채팅 채널 — 인바운드 관문"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "2af43c40897a6a7114701efbd7be545cdbdc34ab02b7b0e668473562693ee803"
+content_hash: "4a9dc463d2b54127e49973cfcd6dcb0454a85f7c8dc9e80e575a4d36ccccd4ff"
 read_as: "approved_fallback"
-task: "CLE-T-A78V0M"
+task: "CLE-T-Y1FMCH"
 source_paths: []
-mirror_sha256: "7cd65a405c6bfc3402374170fc5687c4e1694601a87b75c02d9ae9c1943e71b0"
-etag: "sha256-72da7702fddb7ae7f85bc9dc9ecb638474e309964dc141c3095fc2f311e405f4"
+mirror_sha256: "2fda6056f553f1d77e0ef30bad972605687ee2413a94b0edf6f0f9776a5ac206"
+etag: "sha256-6afe545c40bd4199b81b4d6cd4bb16306e074f072e4031ce2bc19303a9d2e83a"
 ---
 ## 개요
 
@@ -54,7 +54,13 @@ flowchart TD
   M -- "예" --> FW["입력 대기 실행에 전달하거나 실행 중 안내"]
   M -- "아니오" --> W{"워크플로우 활성 관문: 워크플로우가 활성인가"}
   W -- "비활성" --> I2["202 ignored, 기존 실행은 그대로"]
-  W -- "활성 또는 워크스페이스에 없음" --> S["/start 면 기존 실행 취소, 새 실행 시작"]
+  W -- "활성 또는 워크스페이스에 없음" --> ST{"/start 인가"}
+  ST -- "아니오" --> S["새 실행 시작"]
+  ST -- "예" --> K{"대화 단위 시작 잠금을 잡았나"}
+  K -- "못 잡음" --> I4["202 ignored, 수신 확인만, 중복 제거 선점은 그대로"]
+  K -- "잡음" --> RC{"다시 읽은 대화가 다른 실행을 가리키나"}
+  RC -- "예" --> I4
+  RC -- "아니오" --> SS["활성 실행이 있으면 취소, 새 실행 시작, 잠금 해제 뒤 시작 · 재시작 안내"]
 ```
 
 ### 핸들러 앞 라우트 가드
@@ -62,7 +68,7 @@ flowchart TD
 핸들러 앞에서는 라우트 가드 둘이 차례로 돈다. 공개 웹훅 가드의 한도는 채팅 채널 트리거 요청에 걸지 않는다. 전역 요청 한도는 서명 참조가 저장된 채팅 채널 트리거 요청에만 걸지 않는다. 두 가드 모두 트리거를 조회한 뒤에 판정한다.
 
 - **공개 웹훅 가드**(`PublicWebhookThrottleGuard`): `endpointPath` 로 트리거를 조회해 요청에 붙인다. 컨트롤러는 이 조회 결과를 다시 쓴다. 이 가드의 IP 단위 시작 한도와 본문 32KB 상한은 채팅 채널 트리거를 통과시킨다. 서명 참조가 있는지는 보지 않는다.
-- **전역 요청 한도 가드**(`HookTriggerThrottlerGuard`): 공개 웹훅 가드가 붙인 트리거가 서명 참조가 저장된 채팅 채널 트리거면 세지 않는다. 서명 참조가 저장된 채팅 채널 트리거는 `config.chatChannel` 에 `provider` 와 `inboundSigningRef` 가 함께 있는 트리거다. 인바운드 인증기가 서명을 검증하는 조건과 같은 판정이고 저장된 참조만 보며 시크릿을 읽지 않는다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거, 채널 연결 전 트리거)의 요청과 그 밖의 요청은 전역 요청 빈도 제한(`UserThrottlerGuard`, 로그인 없는 요청은 IP 단위 분당 100건)과 같은 한도 · 같은 저장소 · 같은 키로 세고, 한도를 넘으면 서명 검증 전에 `429` 로 거부한다. 트리거가 없거나 조회에 실패한 요청도 센다. 전역 가드는 이 라우트를 세지 않는다(`@DeferGlobalThrottle()`). 그래서 이 라우트에서는 전역 한도를 넘은 요청도 트리거 조회 한 번을 거친 뒤 `429` 로 거절된다. 공개 웹훅은 본문 크기(`413`)와 IP 시작 한도(`429`)를 전역 `429` 보다 먼저 받는다.
+- **전역 요청 한도 가드**(`HookTriggerThrottlerGuard`): 공개 웹훅 가드가 붙인 트리거가 서명 참조가 저장된 채팅 채널 트리거면 세지 않는다. 서명 참조가 저장된 채팅 채널 트리거는 `config.chatChannel` 에 `provider` 와 `inboundSigningRef` 가 함께 있는 트리거다. 인바운드 인증기가 서명을 검증하는 조건과 같은 판정이고 저장된 참조만 보며 시크릿을 읽지 않는다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거, 채널 연결 전 트리거)의 요청과 그 밖의 요청은 전역 요청 빈도 제한(`UserThrottlerGuard`, 로그인 없는 요청은 IP 단위 분당 100건)과 같은 한도 · 같은 저장소 · 같은 키로 세고, 한도를 넘으면 서명 검증 전에 `429` 로 거부한다. 트리거가 없거나 조회에 실패한 요청도 센다. 전역 가드는 이 라우트를 세지 않는다(`@DeferGlobalThrottle()`). 공개 웹훅은 본문 크기(`413`)와 IP 시작 한도(`429`)를 전역 `429` 보다 먼저 받는다.
 
 남용은 1번 관문의 서명 검증과 서명 검증 실패 한도, 4번 관문의 대화 단위 분당 한도가 막는다. 서명 참조가 없는 채팅 채널 트리거는 서명을 검증하지 않아 앞의 둘이 걸리지 않는다. 그래서 그 요청에는 전역 요청 한도가 남는다. 근거는 [R-CC-12](CLE-CHAT-CORE-RESPONSE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 에 있다.
 
@@ -76,9 +82,9 @@ flowchart TD
 6. **대화 조회, 실행 소유자 확인과 취소 명령**: 채널 대화 상태를 조회해 활성 실행이 있는지 판단한다. 활성 실행이 있는 대화에 실행 소유자(`channelUserKey` 가 대화 상태의 값과 같은 사용자)가 아닌 사람이 `/start` 나 `/cancel` 을 보내면 여기서 버린다. 기존 실행을 취소하지 않고 새 실행도 시작하지 않으며 안내 문구도 보내지 않는다([활성 실행 중 다시 시작](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작)). 이 확인은 `/cancel` 처리와 8번 워크플로우 활성 관문보다 앞이다. 그 밖의 `/cancel` 이면 활성 실행을 취소한다. 취소를 재개 큐에 넣지 못해도 `202` 로 답하고 채널 건강도를 `degraded` 로 바꾼다. 실행이 이미 끝났으면 건강도를 바꾸지 않는다([큐 적재 실패](CLE-CHAT-CORE-INTERACT.md#큐-적재-실패)). 활성 실행이 없거나 실행이 이미 끝났으면 `languageHints.noActiveExecution` 안내를 보낸다. Slack · Discord 슬래시 명령이면 이 안내가 1번에서 정한 기본 응답의 수신 문구를 대신한다([R-CC-36](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)).
 7. **진행 중인 대화의 전달**: 네이티브 폼 모달 열기와 제출, 활성 실행이 있는 대화의 `/start` 가 아닌 메시지는 입력 대기 실행에 전달하거나 실행 중 안내로 끝낸다. 새 실행을 시작하지 않는다. 재개 명령을 재개 큐에 넣지 못해도 `202` 로 답하고 채널 건강도를 `degraded` 로 바꾼다. 네이티브 폼 모달 제출이면 모달 대기를 남기고 「양식 작성하기」 버튼을 다시 보낸다. 응답은 폼 제출 결과가 아니라 기본 응답이다.
 8. **워크플로우 활성 관문**: 남은 update 는 새 실행을 시작할 update 다. 워크플로우가 비활성이면 여기서 `202`·`{ executionId: 'ignored' }` 다. `/start` 의 기존 실행 취소보다 앞이라 기존 실행은 그대로 남는다. 워크플로우가 트리거의 워크스페이스에 없으면 이 관문을 지나 [R-CC-25](#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 처리에서 걸린다. 자세한 규칙은 [워크플로우 활성 관문](#워크플로우-활성-관문) 에 있다.
-9. **재시작과 새 실행**: `/start` 이고 활성 실행이 있으면 기존 실행을 취소한 뒤 새 실행을 시작한다([활성 실행 중 다시 시작](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작)). 그 밖의 update 는 새 실행을 시작한다.
+9. **재시작과 새 실행**: `/start` 면 활성 실행이 없어도 대화 단위 시작 잠금(`cc:startlock`)을 먼저 잡는다. 잡지 못하면 같은 대화의 다른 `/start` 와 겹친 것으로 보고 경고 로그를 남긴 뒤 버린다. 잡으면 대화 상태를 다시 읽는다. `executionId` 가 처음 읽은 값과 다른 실행을 가리키면 같은 방식으로 버린다. 두 경우 모두 중복 제거 선점은 풀지 않는다. Redis 가 없거나 오류면 잠금을 잡은 것으로 본다([R-CC-38](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)). 그 다음 활성 실행이 있으면 기존 실행을 취소하고 새 실행을 시작한다([활성 실행 중 다시 시작](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작)). 대화 상태를 저장하고 잠금을 푼 뒤 시작 · 재시작 안내를 보낸다. Telegram 은 제어 안내로 보내고 Slack · Discord 슬래시 명령은 즉시 응답에 싣는다. 그 밖의 update 는 새 실행을 시작한다.
 
-4번부터 9번까지의 관문에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 분당 한도 초과, 실행 소유자가 아닌 사람의 `/start`·`/cancel`, 실행 중 안내, 워크플로우 비활성, 워크플로우 없음) 채널 어댑터의 `ackDroppedUpdate` 로 수신 확인을 보낸다([버린 update 의 수신 확인](CLE-CHAT-CORE-INTERACT.md#버린-update-의-수신-확인)). 5번의 도움말 경로는 수신 확인을 보내지 않는다.
+4번부터 9번까지의 관문에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 분당 한도 초과, 실행 소유자가 아닌 사람의 `/start`·`/cancel`, 실행 중 안내, 워크플로우 비활성, 시작 잠금을 잡지 못했거나 다시 읽은 대화가 다른 실행을 가리키는 `/start`, 워크플로우 없음) 채널 어댑터의 `ackDroppedUpdate` 로 수신 확인을 보낸다([버린 update 의 수신 확인](CLE-CHAT-CORE-INTERACT.md#버린-update-의-수신-확인)). 5번의 도움말 경로는 수신 확인을 보내지 않는다.
 
 4번부터 9번까지에서 예상하지 못한 오류(DB · Redis 장애 등)가 나면 에러 로그를 남기고 버린 update 로 끝낸다. 응답은 `202`·`{ executionId: 'ignored' }` 이고 인터랙션이면 `200` 과 기본 응답이다. 수신 확인도 보낸다. 채널 건강도는 바꾸지 않는다. `/start` 의 기존 실행 취소 실패는 이 처리에 들지 않고 그 에러로 답한다. 이렇게 흡수한 오류는 `clemvion.chat_channel.inbound_error_absorbed` 로 센다([비즈니스 메트릭 카탈로그](../CLE-OBS/CLE-OBS-LOGGING-METRICS.md#비즈니스-메트릭-카탈로그)).
 
@@ -127,7 +133,7 @@ flowchart TD
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(대화 조회 뒤 `/start`·`/cancel` 의 실행 소유자 확인, 새 실행 시작 앞의 워크플로우 활성 관문 포함), 인바운드 인증기 호출(컨트롤러가 `req.ip` 를 넘기고 서비스가 인증기를 한 번 부른다), 핸드셰이크 응답(Slack · Discord 어댑터의 `handshakeResponse` 를 부른다), 컨트롤러의 `@DeferGlobalThrottle()` 과 라우트 가드 순서. 4번의 버리기 전 안내는 `maybeNotifyIgnored`(Telegram 모양의 본문만 읽는다), 6번의 실행 없는 `/cancel` 안내는 `notifyNoActiveExecution` 이다
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(대화 조회 뒤 `/start`·`/cancel` 의 실행 소유자 확인, 새 실행 시작 앞의 워크플로우 활성 관문, 그 뒤 `/start` 의 시작 잠금과 대화 상태 재확인 `conversationMovedToAnotherExecution` 포함), 인바운드 인증기 호출(컨트롤러가 `req.ip` 를 넘기고 서비스가 인증기를 한 번 부른다), 핸드셰이크 응답(Slack · Discord 어댑터의 `handshakeResponse` 를 부른다), 컨트롤러의 `@DeferGlobalThrottle()` 과 라우트 가드 순서. 4번의 버리기 전 안내는 `maybeNotifyIgnored`(Telegram 모양의 본문만 읽는다), 6번의 실행 없는 `/cancel` 안내는 `notifyNoActiveExecution` 이다
 - `codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts`: 공개 웹훅 가드. 트리거를 조회해 요청에 붙이고 채팅 채널 트리거는 서명 참조와 상관없이 통과시킨다
 - `codebase/backend/src/modules/hooks/hook-trigger-throttler.guard.ts`, `codebase/backend/src/common/guards/user-throttler.guard.ts`: `POST /hooks/:endpointPath` 의 전역 요청 한도. 서명 참조가 저장된 채팅 채널 트리거는 세지 않는다(판정은 `isSignedChatChannelTrigger`). 전역 가드는 `@DeferGlobalThrottle()` 이 붙은 라우트를 세지 않는다
 - `codebase/backend/src/modules/chat-channel/`: 인바운드 서명 검증과 서명 검증 실패 한도 적용(`chat-channel-inbound-authenticator.ts` 의 `verify` 가 한도 판정 · 서명 검증 · 실패 기록을 한곳에서 한다), 서명 검증 실패 한도(`chat-channel-signature-failure-limiter.service.ts`), 서명 참조가 저장된 채팅 채널 트리거 판정(`chat-channel-secret-refs.ts` 의 `isSignedChatChannelTrigger`), 중복 제거(`chat-channel-dedup.service.ts`), 분당 한도(`chat-channel-rate-limiter.service.ts`)
@@ -147,13 +153,13 @@ flowchart TD
 
 ### R-CC-25 워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다
 
-2026-10-05 결정이다. R-CC-24 는 옮기지 않은 옛 번호라 다시 쓰지 않는다. 저장 경계 이전에 저장된 트리거의 `workflow_id` 는 다른 워크스페이스의 워크플로우를 가리킬 수 있다. 실행 엔진은 그런 워크플로우를 실행하지 않는다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 일반 웹훅은 이때 엔드포인트가 없을 때와 같은 404 다. 채팅 채널은 404 를 쓰지 않는다. non-2xx 는 프로바이더의 재전송과 웹훅 자동 비활성화를 부른다(R-CC-12). R-CC-12 (e) 의 404 는 엔드포인트가 없을 때의 규칙이다. 여기서는 트리거가 있다. 조용히 버린 뒤 그 워크스페이스 관리자가 트리거를 바로잡게 한다.
+2026-10-05 결정이다. R-CC-24 는 옮기지 않은 옛 번호라 다시 쓰지 않는다. 저장 경계 이전에 저장된 트리거의 `workflow_id` 는 다른 워크스페이스의 워크플로우를 가리킬 수 있다. 실행 엔진은 그런 워크플로우를 실행하지 않는다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 일반 웹훅은 이때 엔드포인트가 없을 때와 같은 404 다. 채팅 채널은 404 를 쓰지 않는다. non-2xx 는 프로바이더의 재전송을 부를 수 있다(R-CC-12). R-CC-12 (e) 의 404 는 엔드포인트가 없을 때의 규칙이다. 여기서는 트리거가 있다. 조용히 버린 뒤 그 워크스페이스 관리자가 트리거를 바로잡게 한다.
 
-대신 실행이 막혔다는 것을 워크스페이스 관리자가 보도록 `degraded` 를 남긴다. 분당 한도 초과(R-CC-19)에 이은 세 번째 원인이다. [트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) 이 경로 변경 정리의 근거로 적었던 «외부 API 호출 실패 신호» 는 2026-10-05 에 고쳐 적었다. R-CC-19 와 같은 갱신 경로이고 이미 `degraded` 면 다시 쓰지 않는다. `chat_channel_last_error` 는 화면에 보이는 필드라 워크플로우 · 워크스페이스 id 를 싣지 않는 고정 문구를 쓴다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다. `degraded` 는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 의 «다음 성공 때 다시 `healthy`» 규칙을 그대로 따른다. 정리 전에 시작된 실행의 발송이나 채널 재설정이 성공하면 `healthy` 로 돌아갈 수 있다. id 참조 교차 행이 남아 있는 동안에는 다음 인바운드가 다시 `degraded` 로 바꾼다. 이미 다른 원인으로 `degraded` 면 `chat_channel_last_error` 는 그 원인의 문구로 남는다.
+대신 실행이 막혔다는 것을 워크스페이스 관리자가 보도록 `degraded` 를 남긴다. 분당 한도 초과(R-CC-19)에 이은 세 번째 원인이다. R-CC-19 와 같은 갱신 경로이고 이미 `degraded` 면 다시 쓰지 않는다. `chat_channel_last_error` 는 화면에 보이는 필드라 워크플로우 · 워크스페이스 id 를 싣지 않는 고정 문구를 쓴다. 없는 워크플로우와 다른 워크스페이스의 워크플로우를 구분하지 않는다. `degraded` 는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 의 «다음 성공 때 다시 `healthy`» 규칙을 그대로 따른다. 정리 전에 시작된 실행의 발송이나 채널 재설정이 성공하면 `healthy` 로 돌아갈 수 있다. id 참조 교차 행이 남아 있는 동안에는 다음 인바운드가 다시 `degraded` 로 바꾼다. 이미 다른 원인으로 `degraded` 면 `chat_channel_last_error` 는 그 원인의 문구로 남는다.
 
 ### R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다
 
-2026-10-10 결정이다. 워크플로우가 비활성이면(`workflow.is_active=false`) 웹훅 · 채팅 채널 · 스케줄 이벤트로 실행이 생기지 않는다. 세 경로에 공통인 관문 규칙은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 이 항목에는 채팅 채널만의 결정을 적는다. 채팅 채널의 응답은 비활성 트리거와 같은 `202`·`{ executionId: 'ignored' }` 다. non-2xx 는 프로바이더의 재전송과 웹훅 자동 비활성화를 부르기 때문이다(R-CC-12). 채팅 채널이 아닌 웹훅 경로의 응답은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
+2026-10-10 결정이다. 워크플로우가 비활성이면(`workflow.is_active=false`) 웹훅 · 채팅 채널 · 스케줄 이벤트로 실행이 생기지 않는다. 세 경로에 공통인 관문 규칙은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 이 항목에는 채팅 채널만의 결정을 적는다. 채팅 채널의 응답은 비활성 트리거와 같은 `202`·`{ executionId: 'ignored' }` 다. non-2xx 는 프로바이더의 재전송을 부를 수 있기 때문이다(R-CC-12). 채팅 채널이 아닌 웹훅 경로의 응답은 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 이 정한다.
 
 기각한 대안: 활성 플래그를 표시용으로 보고 문서만 고치는 안. 화면 문구대로 사용자는 워크플로우를 비활성으로 바꾸면 멈춘다고 생각한다.
 
@@ -168,8 +174,6 @@ flowchart TD
 비활성 트리거는 이 결정 전과 같이 서명 검증 직후에 버리므로 진행 중인 대화도 끊긴다. 이 결정은 트리거 쪽을 바꾸지 않는다.
 
 handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비활성이어도 답한다(사용자 결정). 워크플로우가 비활성인 채로 채팅 채널을 연결해도 프로바이더의 URL 등록이 실패하지 않게 하려는 것이다. 비활성 트리거는 지금처럼 handshake 전에 버린다.
-
-워크플로우를 트리거의 워크스페이스 안에서만 찾는 규칙과 그 이유는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 그 워크스페이스에 없는 워크플로우는 R-CC-25 대로 처리한다.
 
 워크플로우는 비활성 상태로 만들어진다. 그래서 이 결정 전에 비활성인 채 채팅 채널로 돌던 워크플로우는 이 결정 뒤에 새 실행을 시작하지 않는다.
 
@@ -203,4 +207,4 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 
 ### DM 밖 안내와 실행 없는 /cancel 안내 (2026-11-19)
 
-관문 4번과 6번의 두 안내는 2026-11-19 사람 결정을 따른다. DM 밖 거절 안내를 채널에 보내는 것은 Telegram 메시지뿐이다(NERV 질문 `01a1f2b8-1979-7137-b882-faf2d0563083`, [R-CC-37](CLE-CHAT-CORE-RESPONSE.md#r-cc-37-dm-밖-거절-안내는-telegram-만)). 활성 실행이 없는 `/cancel` 에는 `noActiveExecution` 안내를 보낸다(NERV 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf`, [R-CC-36](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)). 관문 순서는 바뀌지 않는다. 기각한 대안(Slack · Discord 채널 메시지로 거절 안내, 슬래시 명령의 수신 문구를 두고 DM 에 따로 안내)과 그 이유는 두 항목에 있다.
+관문 4번과 6번의 두 안내는 2026-11-19 사람 결정이고 근거와 기각한 대안은 [R-CC-37](CLE-CHAT-CORE-RESPONSE.md#r-cc-37-dm-밖-거절-안내는-telegram-만) 과 [R-CC-36](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 에 있다. 관문 순서는 바뀌지 않는다.

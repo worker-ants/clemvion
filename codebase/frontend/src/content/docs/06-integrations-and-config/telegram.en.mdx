@@ -89,6 +89,10 @@ Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in
 | `/cancel` | Cancel the current execution. If there is no active conversation, the bot sends a notice (`languageHints.noActiveExecution`) |
 | `/help` | Display help text |
 
+When `/start` begins a new conversation, the bot sends a notice into the chat. A first start sends the start notice (default `Started the workflow.`); restarting after ending the previous conversation sends the restart notice (default `Ended the previous conversation and started a new one.`). Override them with `languageHints.executionStarted` and `languageHints.executionRestarted`. The order of this notice relative to the workflow's first message is not guaranteed. Starting with plain text instead of `/start` sends no notice.
+
+While the workflow is inactive, input that would start a new conversation and `/start` are ignored. Replies, buttons, and forms in an active conversation, `/cancel`, and `/help` keep working.
+
 When a button click is dropped without being processed, the bot still sends an acknowledgement to Telegram so the button's loading indicator clears right away. This covers a re-delivered update, exceeding the per-conversation per-minute limit, an execution that is still running and not accepting input, and a workflow that is turned off. The inline keyboard stays in place, so the user can press again shortly after. If the acknowledgement fails, the webhook response is unchanged. When the trigger itself is turned off, no external call is made, so no acknowledgement is sent either.
 
 ## 5. Health monitoring
