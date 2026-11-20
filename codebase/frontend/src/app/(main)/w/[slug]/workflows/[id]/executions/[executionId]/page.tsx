@@ -13,6 +13,7 @@ import {
   Clock,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  Ban,
 } from "lucide-react";
 import {
   executionsApi,
@@ -62,11 +63,11 @@ import { useResultDetailWaiting } from "@/components/editor/run-results/use-resu
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
+import { applyExecutionSnapshot } from "@/lib/websocket/apply-execution-snapshot";
 import {
-  applyExecutionSnapshot,
+  EXECUTION_POLL_INTERVAL_MS,
   nextExecutionRefetchInterval,
-} from "@/lib/websocket/apply-execution-snapshot";
-import { EXECUTION_POLL_INTERVAL_MS } from "@/lib/websocket/use-execution-polling-fallback";
+} from "@/lib/websocket/execution-polling-policy";
 
 function NodeStatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -78,6 +79,8 @@ function NodeStatusIcon({ status }: { status: string }) {
       return <XCircle className="h-4 w-4 text-red-500" />;
     case "waiting_for_input":
       return <PauseCircle className="h-4 w-4 text-amber-500" />;
+    case "cancelled":
+      return <Ban className="h-4 w-4 text-gray-400" />;
     default:
       return <Clock className="h-4 w-4 text-gray-400" />;
   }
@@ -119,44 +122,21 @@ export default function ExecutionDetailPage({
   });
 
   // 실행 상세 화면의 상시 REST 폴링(CLE-EXEC-RUN). 요약 카드 · 노드 목록이 이 응답을 쓰고,
-  // 아래 effect 가 같은 응답을 store 에도 넣는다. 에디터의 폴링 대체 경로
-  // (useExecutionPollingFallback)와 같은 간격이다.
+  // 아래 effect 가 같은 응답을 store 에도 넣는다. 종결 상태가 오면 멈추고 대기 중에는 계속
+  // 받는다(정책은 `execution-polling-policy.ts`).
   const executionQuery = useQuery<ExecutionData>({
     queryKey: ["execution", executionId],
     queryFn: () => executionsApi.getById(executionId),
-    refetchInterval: (query) => {
-      // Refresh summary data while the execution is mid-flight. Polling stops
-      // once a terminal status is reached; `waiting_for_input` continues to
-      // poll so the summary card reflects the resumed run in real time.
-      return nextExecutionRefetchInterval(
+    refetchInterval: (query) =>
+      nextExecutionRefetchInterval(
         query.state.data?.status,
         EXECUTION_POLL_INTERVAL_MS,
-      );
-    },
+      ),
   });
 
-  // REST → store bridge (Carousel buttons-disabled stuck 버그 fix).
-  //
-  // 이전: executionQuery.data 는 summary card / node list 표시용으로만
-  // 사용되고 useExecutionStore 와 분리. WS 가 끊기면 store 의 waiting state
-  // (waitingNodeId / waitingInteractionType) 가 영영 update 안 되어
-  // Preview 탭 buttons 가 disabled stuck.
-  //
-  // 변경: REST 폴링 결과도 같은 applyExecutionSnapshot 으로 store 에 넣는다. 이 페이지는
-  // WS 상태와 관계없이 종결까지 `EXECUTION_POLL_INTERVAL_MS` 마다 받는다. WS 가 살아 있으면
-  // 양쪽이 같은 상태를 넣고(idempotent), WS 가 끊겨도 REST 응답이 store 를 채운다.
-  //
-  // 에디터의 폴링 대체 경로(useExecutionPollingFallback 의 decidePollResponse)처럼 늦은 응답을
-  // 거르지 않는다.
-  //  - 실행 ID: store 의 executionId 는 reset 뒤 null 이다. WS `execution.started` 나 idle
-  //    store 에 들어온 `running` 스냅샷(REST · WS)만 채우므로, 대기 · 종결 상태로 연 실행은
-  //    계속 null 이다. 에디터처럼 실행 ID 를 비교하면 그런 실행의 응답을 첫 번째부터 버린다.
-  //    응답은 query key 의 executionId 로 묶여 있고 실행이 바뀌면 위 effect 가 store 를 비운다.
-  //  - 종결: 종결 응답을 받으면 refetchInterval 이 멈춘다. store 가 이미 끝난 뒤의 `running` 응답은
-  //    applyExecutionSnapshot 이 반영하지 않는다.
-  //  - 요청 뒤 store 변경: WS 가 먼저 채운 노드 결과를 옛 응답이 덮어도 이 페이지는 종결까지
-  //    다시 받으므로 다음 응답이 바로잡는다. 에디터는 WS 가 살아나면 폴링을 멈춰 덮인 값이
-  //    남기 때문에 거른다.
+  // REST 응답도 WS 스냅샷과 같은 applyExecutionSnapshot 으로 store 에 넣어 WS 가 끊겨도 대기 UI 가
+  // 갱신되게 한다. 에디터 폴링과 달리 늦은 응답을 거르지 않는다. 그 이유는
+  // `execution-polling-policy.ts` 모듈 설명에 있다.
   useEffect(() => {
     if (executionQuery.data) {
       applyExecutionSnapshot(executionQuery.data);

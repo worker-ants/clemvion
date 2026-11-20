@@ -61,14 +61,14 @@ code: ["codebase/frontend/src/components/editor/run-results", "codebase/frontend
 ]} />
 
 <Callout type="note">
-**cancelled 상태**: 병렬 분기의 `cancel-others-on-fail` 또는 사용자 Stop 버튼으로 노드가 외부에서 중단되면 `failed`가 아닌 `cancelled`로 표시돼요. 에러 정책(Retry, Skip 등)이 적용되지 않는 별도 terminal 상태예요.
+**cancelled 상태**: 병렬 분기의 `cancel-others-on-fail` 또는 사용자 Stop 버튼으로 노드가 외부에서 중단되면 `failed`가 아닌 `cancelled`로 표시돼요. 에러 정책(Retry, Skip 등)이 적용되지 않는 별도 terminal 상태예요. 결과 상세 상단에 **Cancelled** 배지가 붙어요. 출력과 에러가 모두 비어 있는 취소 노드에는 오류 탭이 나오지 않으니 배지로 취소를 확인하세요.
 </Callout>
 
 타임라인 항목을 클릭하면 오른쪽 상세 뷰에 해당 노드의 결과가 표시돼요.
 
 ## 노드 상세 뷰: 서브 탭
 
-완료·실패·대기 상태의 노드는 상세 뷰 상단에 서브 탭이 나와요. AI 노드(AI Agent, Information Extractor, Text Classifier)도 동일한 탭 UI를 써요. 이 서브 탭 UI는 에디터의 Run Results 드로어뿐 아니라 [전용 실행 내역 페이지](#전용-실행-내역-페이지-상세-탐색)의 실행 상세 화면에서도 완전히 동일하게 제공돼요.
+완료·실패·취소·대기 상태의 노드는 상세 뷰 상단에 서브 탭이 나와요. AI 노드(AI Agent, Information Extractor, Text Classifier)도 동일한 탭 UI를 써요. 이 서브 탭 UI는 에디터의 Run Results 드로어뿐 아니라 [전용 실행 내역 페이지](#전용-실행-내역-페이지-상세-탐색)의 실행 상세 화면에서도 완전히 동일하게 제공돼요.
 
 <FieldTable rows={[
   { name: "Preview", type: "조건부", description: "Table·Carousel·Chart·Template·Form의 시각적 프리뷰, 또는 AI 대화형 노드의 ConversationInspector, Form/버튼 대기 UI를 보여줘요." },
