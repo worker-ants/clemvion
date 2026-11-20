@@ -58,6 +58,17 @@ describe('llm-endpoint-fetch — LLM 연결 시점 주소 판정 (CLE-T-PT5YB5)'
       );
     });
 
+    it('SDK 가 redirect 를 넘겨도 error 로 고정한다(리다이렉트 홉이 가드를 우회하지 못한다)', async () => {
+      const fetchSpy = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(new Response('{}'));
+      await guardedLlmFetch('https://llm.example.com/v1', {
+        redirect: 'follow',
+      });
+      const [, init] = fetchSpy.mock.calls[0];
+      expect(init?.redirect).toBe('error');
+    });
+
     it('Request · URL 입력도 같은 dispatcher 로 넘긴다', async () => {
       const fetchSpy = jest
         .spyOn(global, 'fetch')

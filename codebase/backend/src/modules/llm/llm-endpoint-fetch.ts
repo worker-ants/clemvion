@@ -63,6 +63,7 @@ function requestHostname(input: string | URL | Request): string {
  *   사전 검사 뒤에 DNS 응답이 바뀌어도(DNS rebinding) 판정을 거치지 않은 주소로는 연결하지 않는다.
  * - 연결 조회는 IP 리터럴 호스트에서 불리지 않는다. 그래서 리터럴은 여기서 먼저 본다. 대역표가 넓어지기 전에
  *   저장된 설정(예: CGNAT 리터럴)도 실행 중에 막힌다.
+ * - 리다이렉트는 따라가지 않는다(`redirect: 'error'`). 3xx 를 받으면 fetch 가 오류로 끝난다.
  * - `local` · `tei` 프로바이더는 사설망 엔드포인트용이라 이 함수를 쓰지 않는다. 호스트가 고정인 anthropic ·
  *   google 도 쓰지 않는다.
  *
@@ -78,8 +79,11 @@ export async function guardedLlmFetch(
     logger.warn(`LLM endpoint blocked (IP literal): ${hostname}`);
     throw new LlmEndpointBlockedError(hostname);
   }
+  // 리다이렉트 대상이 IP 리터럴이면 연결 조회 훅이 불리지 않아 판정을 건너뛴다. 따라가지 않고 오류로 끝낸다.
+  // SDK 가 init.redirect 를 넘겨도 덮어쓰지 못하게 `...init` 뒤에 둔다.
   return fetch(input, {
     ...init,
+    redirect: 'error',
     dispatcher: llmEndpointDispatcher(),
   } as RequestInit);
 }
