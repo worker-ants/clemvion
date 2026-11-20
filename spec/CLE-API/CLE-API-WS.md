@@ -2,19 +2,19 @@
 id: "CLE-API-WS"
 title: "WebSocket 연결과 채널 구독"
 type: "design"
-version: 6
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "5cfcea1b336a729f0b39f43792b6ffb14ecda3d948639b0e68d7fe2ee74b91c3"
+content_hash: "c34e61751545699a575f800761db9fcb424475c08c26883031ce4560e6edb14e"
 read_as: "approved_fallback"
-task: "CLE-T-7MBBA7"
+task: "CLE-T-KYPH36"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "cd080f54e111cf1835247edadcd5a1947360ed16388e4dca6ea90174a99dfd21"
-etag: "sha256-9a540e3bdd679ff3bb29fce1bc38f99069d3d097a9aa8931c4f52f3aa49c02f8"
+mirror_sha256: "127e14f6915d235faa0485502e6b800675b682bd92c521759def684076b77fd9"
+etag: "sha256-5d1f58b0f4b301086dc068d7a2b095da9bd6d4fcf02434da30939ec7ce70ff7f"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -56,7 +56,7 @@ etag: "sha256-9a540e3bdd679ff3bb29fce1bc38f99069d3d097a9aa8931c4f52f3aa49c02f8"
 - ack 이벤트는 Socket.IO ack callback 으로 오지 않는다. 어댑터는 핸들러 반환값에 `event` 가 없을 때만 클라이언트가 넘긴 callback 을 부른다. 지금 핸들러는 모두 `event` 를 돌려주므로 `socket.emit('<event>', data, callback)` 의 callback 은 불리지 않는다. 같은 이유로 클라이언트는 Socket.IO 내장 `Socket#emitWithAck` 를 쓰지 않는다. 내장은 ack callback 을 기다리므로 응답을 받지 못한다.
 - `{ type, id, payload }` JSON 프레임 표기는 논리 구조의 추상화다. 실제 wire 는 Socket.IO 가 감싼다. raw WebSocket 프레임, `Sec-WebSocket-Protocol` 서브프로토콜, raw close code 를 직접 다루지 않는다.
 - **HTTP 전용 전역 enhancer(전역 가드 · 파이프 · 인터셉터)는 WebSocket 핸들러에서 동작하지 않는다.** NestJS 12 부터 전역 `APP_GUARD`·`APP_PIPE`·`APP_INTERCEPTOR` 가 게이트웨이 핸들러에도 붙는다. 전역 예외 필터는 붙지 않는다.
-  - HTTP 요청을 전제한 `LoggingInterceptor`·`TransformInterceptor`·`UserThrottlerGuard` 는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. 세 enhancer 가 같은 판정 함수(`common/utils/http-context.ts`)를 쓴다. 그래서 전역 요청 빈도 제한은 WebSocket 메시지를 세지 않는다([HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한)).
+  - HTTP 요청을 전제한 `LoggingInterceptor`·`TransformInterceptor`·`UserThrottlerGuard` 는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. 세 enhancer 가 같은 판정 함수(`common/utils/http-context.ts`)를 쓴다. 그래서 전역 요청 빈도 제한은 WebSocket 명령을 세지 않는다([HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한)).
   - `CustomValidationPipe` 는 커스텀 데코레이터 인자(`@ConnectedSocket()` 소켓)를 검증하지 않는다. 이 제외(`ArgumentMetadata.type === 'custom'`)는 HTTP 의 커스텀 파라미터 데코레이터에도 걸리는 전역 동작이다(NestJS 기본 `ValidationPipe` 의 `validateCustomDecorators: false` 와 같다). 파이프는 NestJS `ExecutionContext` 를 받지 못해서 `isHttpContext` 대신 인자 종류로 가른다. `@MessageBody()` 는 DTO 클래스 타입이면 검증한다. 지금 게이트웨이 핸들러의 `@MessageBody()` 는 모두 인라인 객체 타입이라 검증 대상이 아니다. DTO 클래스를 쓰는 `@MessageBody()` 의 검증 실패 wire 는 [미결 사항](#미결-사항) 에 있다.
   - `JwtAuthGuard` 는 게이트웨이의 `@Public()` 으로 통과한다. WebSocket 인증은 `handleConnection` 의 JWT 검증이 맡는다([§2.2](CLE-API-WS-CONN.md#22-인증)).
   - `RolesGuard` 는 `@Public()` 을 보지 않는다. 소켓은 핸드셰이크에서 검증한 사용자 ID 를 소켓 속성 `userId` 에 두고 `request.user` 는 채우지 않는다. 그래서 소켓 요청은 `request.user` 가 없어 `!userId` 분기로 통과한다. 이 분기는 `@Roles()` 가 없는 핸들러만 통과시킨다. 그래서 게이트웨이 핸들러에 `@Roles()` 를 붙이면 모든 요청이 거부된다. 구독 채널 접근 인가는 `handleConnection` 과 구독 채널 인가기(`channelAuthorizers`, [§4.4](CLE-API-WS-MSG.md#44-구독-인가))가 맡는다. 이 동작은 [워크스페이스와 멤버 「멤버십 검증은 가드가 무조건 한다」](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드가-무조건-한다) 의 제외 대상 (a) 가운데 `request.user` 가 없는 미인증 요청의 경우에 준한다. 소켓은 인증된 연결이지만 가드가 보는 자리에 사용자가 없다. 인증 판정은 `handleConnection` 이 맡고 멤버십은 토큰 클레임을 그대로 쓴다([§2.2](CLE-API-WS-CONN.md#22-인증)).
@@ -101,7 +101,6 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 ## 미결 사항
 
 - **구독 인가 실패 코드 `FORBIDDEN` 과 IDOR 차단 `NOT_FOUND` 관례**: [§4.4](CLE-API-WS-MSG.md#44-구독-인가) 는 구독 인가 실패(IDOR 차단 목적)에 `FORBIDDEN` 을 돌려준다고 적는다. [§7.1](CLE-API-WS-MSG.md#71-에러-코드) 은 IDOR 차단 핸들러가 존재 추론을 막으려 일부러 `NOT_FOUND` 를 쓴다고 적는다. 구독 경로만 예외인지, 그렇다면 왜 존재 추론 방지를 적용하지 않는지 문서에 이유가 없다. 구독 경로를 `NOT_FOUND` 로 맞출지, 예외로 두고 이유를 적을지 결정이 필요하다. 결정이 나면 [WebSocket 이벤트와 명령 「마지막 턴 재시도」](CLE-API-WS-EVENTS.md#24-마지막-턴-재시도-executionretry_last_turn) 의 §2.4 코드 표와 [에러 코드 규약과 카탈로그 「WebSocket 전송」](CLE-API-ERRCODES.md#68-websocket-전송-도메인-문서-참조) 의 §6.8 도 함께 고친다.
-- **소켓의 멤버십 재검증**: 워크스페이스에서 제거된 멤버의 소켓은 액세스 토큰 `exp`(최대 15분)까지 그 워크스페이스의 구독 채널을 구독하고 이벤트를 받는다. HTTP 는 요청마다 멤버십을 다시 읽는다. 이것은 관측된 현재 동작이고 사람이 승인한 수용이 아니다. 즉시 재검증을 둘지는 사람이 정한다(후속 NERV Task `CLE-T-KYPH36`). 경위는 [「소켓 수명을 토큰 수명에 묶는다 (2026-09-02)」](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02) 의 「닫지 않는 것」에 있다.
 - **DTO 클래스 `@MessageBody()` 의 검증 실패 wire**: 지금 게이트웨이 핸들러의 `@MessageBody()` 는 모두 인라인 객체 타입이라 `CustomValidationPipe` 가 검증하지 않는다(§1). 검증 실패가 wire 에서 어떻게 보이는지는 아직 정하지 않았다. 게이트웨이에 DTO 클래스 타입의 `@MessageBody()` 를 처음 들일 때 이 wire 와 `INVALID_MESSAGE` 와의 매핑을 먼저 정한다.
 
 
@@ -146,7 +145,7 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 
 - NestJS 12(`@nestjs/websockets` 12.1.2)부터 전역 `APP_GUARD`·`APP_PIPE`·`APP_INTERCEPTOR` 가 게이트웨이 핸들러에도 붙는다. 끄는 옵션은 없다. 전역 예외 필터는 붙지 않는다. 이 동작은 NestJS 12 상향(NERV Task `CLE-T-3X627J`)과 함께 들어왔다.
 - HTTP 요청을 전제한 `LoggingInterceptor` 가 소켓 요청에서 던졌다(소켓에는 `url` 이 없다). 그래서 `subscribe` 가 `exception` 으로 끝났고 구독이 성립하지 않아 실행 패널이 비었다.
-- 같은 원인으로 `CustomValidationPipe` 는 `@ConnectedSocket()` 소켓을 검증 대상으로 보고 변환했다. `UserThrottlerGuard` 는 소켓에 `user`·`ip` 가 없어서 모든 사용자의 WebSocket 메시지를 한 버킷(`unknown`)으로 셌다.
+- 같은 원인으로 `CustomValidationPipe` 는 `@ConnectedSocket()` 소켓을 검증 대상으로 보고 변환했다. `UserThrottlerGuard` 는 소켓에 `user`·`ip` 가 없어서 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다.
 - 단위 테스트는 핸들러를 직접 불러 이 파이프라인을 지나지 않았다. 장애는 e2e 에서야 드러났다.
 
 **결정**
@@ -157,7 +156,7 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 - `JwtAuthGuard` 를 `@Public()` 으로 우회하는 것은 2026-09-02 결정 [「소켓 수명을 토큰 수명에 묶는다」](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02) 와 같은 선이다. 그 결정은 명령마다 다시 검증하는 안을 기각했고 만료 집행은 `armExpiryTimers` 하나다.
 - 그 절의 실측 «게이트웨이에 인증 가드 0건» 은 NestJS 12 상향 전(2026-09-02) 기준이다. 지금은 전역 `JwtAuthGuard` 가 게이트웨이 핸들러에도 붙지만 `@Public()` 으로 통과한다.
 - 저장소 가드 `global-enhancer-ws-safety.spec.ts` 가 이 분류를 고정한다. 전역 enhancer 는 «HTTP 가 아니면 건너뜀»(`skips-non-http`) 이나 «WebSocket 핸들러에서 통과하도록 설계됨»(`ws-safe-by-design`) 중 하나로 분류돼야 한다. 지금은 `JwtAuthGuard`·`RolesGuard` 가 뒤쪽이고 나머지 넷이 앞쪽이다. 분류 없이 새 enhancer 를 등록하면 가드가 실패한다. 분류가 사실인지는 WebSocket 호출 모양으로 enhancer 를 직접 불러 확인한다.
-- 그 결과 WebSocket 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건) 하나다. 전역 요청 빈도 제한은 WebSocket 메시지를 세지 않는다([§7.1](CLE-API-WS-MSG.md#71-에러-코드)). 이 규칙의 핵심 결정은 [HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한) 에 있다.
+- 그 결과 WebSocket 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건) 하나다. 전역 요청 빈도 제한은 WebSocket 명령을 세지 않는다([§7.1](CLE-API-WS-MSG.md#71-에러-코드)). 이 규칙의 핵심 결정은 [HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한) 에 있다.
 
 **기각한 대안 (전역 enhancer)**
 

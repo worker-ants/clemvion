@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-WSEIA"
 title: "에러 코드 카탈로그 — WebSocket · EIA · Background Runs"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "19124c66e2a509013fe7f937cbd092f213c8cd2ccd1ac7191c4488de1ecf30fc"
+content_hash: "93ffbd619127e6dd1f151f9696cb77df6a01b803cb2781086228eee7b979401e"
 read_as: "approved_fallback"
-task: "CLE-T-8WXV7T"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "111ab993b8ad334be2bac03c2c459300cb1f925c75191e1fb3cde31b7f5048be"
-etag: "sha256-ebbd395b779b3d9afab9cf8c4a1faf46265ad8d44360f8ee513c29df57272245"
+mirror_sha256: "28769a562857065ba1d2bb00d677f5ab95b5833103c28923fc070bafddb007c9"
+etag: "sha256-44cdd22cddced539b26cdab7f438e784bdfb1a5ef561318b6a0e198591237c1b"
 ---
 ## 개요
 
@@ -45,18 +45,18 @@ etag: "sha256-ebbd395b779b3d9afab9cf8c4a1faf46265ad8d44360f8ee513c29df57272245"
 
 ## 6.8 WebSocket 전송 (도메인 문서 참조)
 
-`ws-error-codes.ts` 의 `WsErrorCode` 가 정의하는 전송·구독 층 코드다. 형태와 전달 경로는 [WebSocket 연결과 채널 구독](CLE-API-WS.md) 의 에러 절이 정한다.
+`ws-error-codes.ts` 의 `WsErrorCode` 가 정의하는 전송·구독 층 코드다. 형태와 전달 경로는 [메시지 · 구독 · 에러 「7. 에러 처리」](CLE-API-WS-MSG.md#7-에러-처리) 가 정한다.
 
 | 코드 | 설명 | 정의 문서 |
 |------|------|-----------|
-| `UNAUTHENTICATED` | 소켓에 사용자 ID 가 없음(구독 ack 의 `code`) | [WebSocket 연결과 채널 구독](CLE-API-WS.md) |
-| `FORBIDDEN` (WebSocket) | 권한 없음(일반) | [WebSocket 연결과 채널 구독](CLE-API-WS.md) |
-| `NOT_FOUND` (WebSocket) | 리소스가 없거나 소유 검증 실패 | [WebSocket 연결과 채널 구독](CLE-API-WS.md) |
-| `INTERNAL_ERROR` (WebSocket) | 서버·전송 내부 실패(큐 적재 실패 등). `retry_last_turn` 의 중첩 `error.code` 등에 쓴다. 재개 명령 평면 ack 의 `EXECUTION_INTERNAL_ERROR`(§6.7)와 별개 범위다 | [WebSocket 연결과 채널 구독](CLE-API-WS.md) |
-| `INVALID_MESSAGE` | 구독 등 WebSocket 메시지의 채널이 유효하지 않거나 필수 필드가 없음. 구독 ack 의 `code`(평문 `error` 에 더해 싣는다) | [WebSocket 연결과 채널 구독](CLE-API-WS.md) |
-| `UNKNOWN_TYPE` | 등록되지 않은 이벤트 이름. 게이트웨이 `onAny` 가 `error` 이벤트 `{ code, message }` 로 알린다(Socket.IO 가 조용히 버리는 것을 보완) | [WebSocket 연결과 채널 구독](CLE-API-WS.md) |
-| `SUBSCRIPTION_LIMIT_EXCEEDED` | 소켓당 구독 한도(20) 초과. 구독 ack 의 `code` | [WebSocket 연결과 채널 구독](CLE-API-WS.md) |
-| `RATE_LIMITED` (WebSocket) | WebSocket 명령 빈도 제한(소켓당 분당 60건) 초과. `WsRateLimitGuard` 가 `WsException` 을 던지고 클라이언트는 `exception` 이벤트 `{ code, message }` 로 받는다. EIA REST `/interact` 의 같은 이름 `RATE_LIMITED`(HTTP 429)와는 표면과 전송이 다른 별개 발행이다 | [WebSocket 연결과 채널 구독](CLE-API-WS.md) |
+| `UNAUTHENTICATED` | 소켓에 사용자 ID 가 없음(구독 ack 의 `code`). `retry_last_turn` 의 중첩 `error.code` 로도 쓴다 | [메시지 · 구독 · 에러 §7.1](CLE-API-WS-MSG.md#71-에러-코드) |
+| `FORBIDDEN` (WebSocket) | 권한 없음(일반) | [메시지 · 구독 · 에러 §7.1](CLE-API-WS-MSG.md#71-에러-코드) |
+| `NOT_FOUND` (WebSocket) | 리소스가 없거나 소유 검증 실패. `retry_last_turn` 의 중첩 `error.code` 로도 쓴다 | [메시지 · 구독 · 에러 §7.1](CLE-API-WS-MSG.md#71-에러-코드) |
+| `INTERNAL_ERROR` (WebSocket) | 서버·전송 내부 실패(큐 적재 실패 등). `retry_last_turn` 의 중첩 `error.code` 등에 쓴다. 재개 명령 평면 ack 의 `EXECUTION_INTERNAL_ERROR`(§6.7)와 별개 범위다 | [메시지 · 구독 · 에러 §7.1](CLE-API-WS-MSG.md#71-에러-코드) |
+| `INVALID_MESSAGE` | 구독 등 WebSocket 메시지의 채널이 유효하지 않거나 필수 필드가 없음. 구독 ack 의 `code`(평문 `error` 에 더해 싣는다) | [메시지 · 구독 · 에러 §7.1](CLE-API-WS-MSG.md#71-에러-코드) |
+| `UNKNOWN_TYPE` | 등록되지 않은 이벤트 이름. 게이트웨이 `onAny` 가 `error` 이벤트 `{ code, message }` 로 알린다(Socket.IO 가 조용히 버리는 것을 보완). `onAny` 는 등록되지 않은 이벤트를 `RATE_LIMITED` 와 같은 소켓 예산에서 센다. 예산이 남아 있을 때만 이 이벤트를 보내고 예산을 넘으면 응답 없이 버린다 | [메시지 · 구독 · 에러 §7.1](CLE-API-WS-MSG.md#71-에러-코드) |
+| `SUBSCRIPTION_LIMIT_EXCEEDED` | 소켓당 구독 한도(20) 초과. 구독 ack 의 `code` | [메시지 · 구독 · 에러 §7.1](CLE-API-WS-MSG.md#71-에러-코드) |
+| `RATE_LIMITED` (WebSocket) | WebSocket 명령 빈도 제한(소켓당 분당 60건) 초과. `WsRateLimitGuard` 가 `WsException` 을 던지고 클라이언트는 `exception` 이벤트 `{ code, message }` 로 받는다. 클래스 수준 가드라 `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 걸린다. EIA REST `/interact` 의 같은 이름 `RATE_LIMITED`(HTTP 429)와는 표면과 전송이 다른 별개 발행이다 | [메시지 · 구독 · 에러 §7.1](CLE-API-WS-MSG.md#71-에러-코드) |
 
 ## 6.9 EIA REST 외부 표면 (도메인 문서 참조)
 

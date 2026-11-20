@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-WAITING"
 title: "WebSocket 이벤트와 명령 — 입력 대기 이벤트"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "caf9be2c62f662036326fe6289112d130a5b07b3a9f93c6c3c50e613ccc1ec37"
+content_hash: "f524364b15b980cc070a3e452d655d85264f57111ea2fc27ebc20c62d41a3c11"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "3692614414edc3aff8d8fa0dae3797c2667c1ff1c0be9eb06e20d983f80f998c"
-etag: "sha256-5ff595744dbca3c4f395986db7f1624c9ee0bf488b572e00bc881e585662413a"
+mirror_sha256: "fe502c8ed46cf321d8e08453251979da2ede3600880ae308eb45e51588649f21"
+etag: "sha256-ff3cdf6f07647b46de17bc4ec47eda533f5cadf53bd6455a25ae0c167c65faf0"
 ---
 > 구현 상태: 구현됨 · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -91,15 +91,15 @@ etag: "sha256-5ff595744dbca3c4f395986db7f1624c9ee0bf488b572e00bc881e585662413a"
 | `nodeOutput.meta.turnDebug` | `interactionType ∈ {ai_conversation, ai_form_render}` 일 때 있다. **진행 중 누적 관측 델타**다. `_resumeState` 의 누적치를 `meta.*` 로 펼쳐 실행 결과 화면의 참조·LLM 사용량 탭이 **대기 중에도** 동작하게 한다(`_resumeState` 자체는 시스템 프롬프트·`llmConfigId` 같은 내부 필드를 담아 클라이언트로 보내지 않는다). 항목 형태: `{ turnIndex, ragSources[], ragDiagnostics?, llmCalls?, toolCalls?, totalDurationMs? }`. **소비 경계**: `ragSources` 는 대화 미리보기의 보조 관측 레인(🔎 `rag` 행, 📚 칩)도 쓸 수 있고([대화 스레드](../CLE-IX/CLE-IX-THREAD.md)), **`llmCalls` 는 디버그 탭 전용**(원본 요청·응답)이다. 발행 기준은 `ai-turn-orchestrator.service.ts` 의 `buildConversationMetaFromResumeState` 이고 내역 대응물은 영속된 `outputData.meta` 다. 두 표면이 같은 형태라 화면이 분기하지 않는다 |
 | `conversationConfig.pendingFormToolCall` | **`interactionType = ai_form_render` 한정**. 형태 `{ toolCallId: string, formConfig: object }`. `toolCallId` 는 화면이 렌더할 폼 페이로드를 찾는 매칭 키다(제출 때 클라이언트가 되돌려 보내는 필드가 아니다. `submit_form` payload 는 `{ executionId, formData }` 뿐이고 서버가 보관한 값으로 맞춘다). `formConfig` 는 LLM 페이로드에 `presentationTools[*].defaults` 를 덮어쓴 결과(Form 노드 입력 스키마 형태)다. 화면의 `AssistantPresentationsBlock` 이 assistant 턴의 `presentations[*]` 중 `payload.toolCallId === pendingFormToolCall.toolCallId` 인 폼 페이로드를 입력 가능한 `DynamicFormUI` 로 렌더한다([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)) |
 
-**`nodeOutput.nodeType` 에 대해 (2026-08-24)**: 엔진은 `nodeType` 을 `nodeOutput` 안에 넣지 않는다. `nodeOutput` 안의 `nodeType` 은 값 공간이 `chart`·`table`·`carousel` 로 payload 의 노드 종류와 같다. 즉 Rationale "`buttonConfig` 예시 정정" 의 C3 가 "상위에서 이미 식별되므로 불필요하고 중복" 이라며 기각한 바로 그 판별자다.
+**`nodeOutput.nodeType` 에 대해 (2026-08-24)**: 엔진은 `nodeType` 을 `nodeOutput` 안에 넣지 않는다. `nodeOutput` 안의 `nodeType` 은 값 공간이 `chart`·`table`·`carousel` 로 payload 의 노드 종류와 같다. 즉 Rationale "`buttonConfig` 예시 정정" 의 `nodeOutput` 판별자 폐지 결정이 "상위에서 이미 식별되므로 불필요하고 중복" 이라며 기각한 바로 그 판별자다.
 
 | 층 | 상태 |
 |---|---|
-| 엔진(발행·영속) | `nodeOutput` 안에 `nodeType` 을 **넣지 않는다**(C3 준수). `nodeType:` 대입은 모두 봉투 수준이고 실 DB 조회(e2e 285건, `node_execution.output_data` object 84행)에서도 최상위 `nodeType` 은 0행이다 |
+| 엔진(발행·영속) | `nodeOutput` 안에 `nodeType` 을 **넣지 않는다**(`nodeOutput` 판별자 폐지 규칙을 지킨다). `nodeType:` 대입은 모두 봉투 수준이고 실 DB 조회(e2e 285건, `node_execution.output_data` object 84행)에서도 최상위 `nodeType` 은 0행이다 |
 | 채팅 채널 렌더러 | `nodeOutput?.nodeType` 을 **읽는다**(프로바이더 셋). 옛 평탄 형태를 만나도 죽지 않으려는 방어적 읽기다 |
 | fanout 허용 목록 | `nodeType` 을 통과 목록에 둔다. 그 방어를 깨지 않으려는 예방적 허용이지 계약 편입이 아니다 |
 
-읽는 쪽이 있다고 넣어도 된다는 뜻은 아니다. 새 코드가 `nodeOutput.nodeType` 을 **쓰는** 것은 여전히 C3 위반이다. 노드 종류를 읽어야 하면 봉투 쪽을 쓰되 소비자에 따라 갈린다.
+읽는 쪽이 있다고 넣어도 된다는 뜻은 아니다. 새 코드가 `nodeOutput.nodeType` 을 **쓰는** 것은 여전히 `nodeOutput` 판별자 폐지 규칙을 어긴다. 노드 종류를 읽어야 하면 봉투 쪽을 쓰되 소비자에 따라 갈린다.
 
 - **내부(에디터 WebSocket 타임라인)**: 입력 대기 이벤트의 실제 wire 필드 `waitingNodeType`.
 - **외부 클라이언트(SSE, 채팅 채널, SDK)**: **`interactionType` 으로 분기한다.** [External Interaction API](../CLE-IX/CLE-EIA.md) 는 `node.type` 에 외부 소비 매핑이 없고 `waitingNodeType` 은 WebSocket 내부 부가 식별자라고 정한다.
@@ -174,7 +174,7 @@ Background 본문에는 따로 떨어진 대화 스레드가 있다. 메인 흐�
 
 - **C2 타임아웃 제거**: [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md) 은 버튼 클릭까지 "외부 취소·종료 외에는 제한 없이 대기" 를 정하고 엔진(`waitForButtonInteraction`)도 타이머 없이 무한 대기한다(`timeoutAction` 은 코드에 없다). 예시의 두 필드만 낡았으므로 지웠다. 기각한 대안: 공통 규약에 타임아웃 정책을 정식으로 들이기. 현 구현과 다른 문서가 모두 무제한 대기라 기각했다.
 - **C3 `nodeOutput` 판별자 폐지**: 노드 출력 규약의 `type` 판별자 래퍼 금지에 따라 엔진은 `buttonConfig.nodeOutput` 으로 노드 출력(`{ config, output, meta?, port?, status }`)을 그대로 싣는다(`nodeOutputForEvent = structured ?? flatNodeOutput`). 노드 종류는 상위 `payload.nodeType` 으로 이미 식별되므로 `nodeOutput` 안의 `type` 판별자는 불필요하고 중복이다. 예시를 실제 다섯 필드 구조로 바꿨다. 기각한 대안: `nodeOutput` 전용 스키마를 따로 적기. 판별자 래퍼 금지와 충돌해 기각했다.
-- 2026-08-24: `nodeOutput.nodeType` 을 "렌더 서브타입" 으로 따로 보는 구분은 코드에 없고 C3 를 되살리는 해석이라 §4 의 층별 사실 표로 적었다. 외부 클라이언트용 노드 종류는 EIA 정책에 맞춰 소비자별로 갈라 적었다.
+- 2026-08-24: `nodeOutput.nodeType` 을 "렌더 서브타입" 으로 따로 보는 구분은 코드에 없고 폐지한 `nodeOutput` 판별자를 되살리는 해석이라 §4 의 층별 사실 표로 적었다. 외부 클라이언트용 노드 종류는 EIA 정책에 맞춰 소비자별로 갈라 적었다.
 
 ### 입력 대기 wire 필드: 예시를 다시 쓰지 않고 주의 문구와 소유 분리로 (2026-07-14)
 
