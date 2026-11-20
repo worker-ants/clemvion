@@ -1274,6 +1274,48 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // CLE-T-CE5YR3 — rehydrate 의 waiting 노드 복원은 `setNodeOutputs` 로 두 캐시를 쓴다.
+  // 평면 캐시는 저장 값 그대로, 구조화 캐시는 라우팅 표지 `_selectedPort` 를 떼고 둔다.
+  describe('rehydrateContext — waiting 노드 복원 (CLE-T-CE5YR3)', () => {
+    it('평면 캐시에는 저장 값 그대로, 구조화 캐시에는 `_selectedPort` 없이 쓴다', async () => {
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+      mockExecutionNodeLogRepo.find.mockResolvedValueOnce([]);
+      const outputData = {
+        status: 'waiting_for_input',
+        meta: { interactionType: 'form' },
+        output: { answer: 'x' },
+        _selectedPort: 'default',
+      };
+
+      const context = await service.rehydrateContext(
+        {
+          id: executionId,
+          workflowId,
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+          recursionDepth: 0,
+        } as unknown as Execution,
+        {
+          id: 'ne-waiting',
+          executionId,
+          nodeId: 'node-w',
+          outputData,
+        } as unknown as NodeExecution,
+      );
+
+      try {
+        expect(context.nodeOutputCache['node-w']).toEqual(outputData);
+        const structured = context.structuredOutputCache['node-w'];
+        expect(structured).toBeDefined();
+        expect(structured).not.toHaveProperty('_selectedPort');
+        expect(structured.output).not.toHaveProperty('_selectedPort');
+      } finally {
+        contextService.deleteContext(executionId);
+      }
+    });
+  });
+
   // PR3 — redriveStuckExecution (case B 진입) 단위. 재구동 setup 분기.
   describe('redriveStuckExecution (PR3 case B)', () => {
     let driveSpy: jest.SpyInstance;

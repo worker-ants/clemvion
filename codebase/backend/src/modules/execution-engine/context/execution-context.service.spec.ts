@@ -484,6 +484,31 @@ describe('ExecutionContextService', () => {
     });
   });
 
+  describe('seedNodeOutput — 기존 구조화 항목이 있을 때 라우팅 표지 (CLE-T-CE5YR3)', () => {
+    it('항목을 병합하면서 config 는 보존하고 `_selectedPort` 는 구조화 값에 싣지 않는다', () => {
+      service.setStructuredOutput(executionId, nodeId, {
+        config: { model: 'm1' },
+        output: { before: 1 },
+      });
+
+      service.seedNodeOutput(executionId, nodeId, {
+        result: 'ok',
+        _selectedPort: 'yes',
+      });
+
+      const ctx = service.getContext(executionId)!;
+      expect(ctx.nodeOutputCache[nodeId]).toEqual({
+        result: 'ok',
+        _selectedPort: 'yes',
+      });
+      const structured = ctx.structuredOutputCache[nodeId];
+      expect(structured.config).toEqual({ model: 'm1' });
+      expect(structured.output).toEqual({ result: 'ok' });
+      expect(structured).not.toHaveProperty('_selectedPort');
+      expect(structured.output).not.toHaveProperty('_selectedPort');
+    });
+  });
+
   describe('setNodeOutputs', () => {
     it('평면 캐시와 구조화 캐시를 함께 쓰고 평면 값에서 구조화 값을 다시 만들지 않는다', () => {
       const structured = { config: {}, output: [1, 2] };
