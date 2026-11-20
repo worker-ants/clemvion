@@ -4732,6 +4732,8 @@ describe('HooksService', () => {
 
         // 프로바이더의 재전송 — 이번에는 취소가 통과한다.
         const retry = await service.handleWebhook('abc', chatInput);
+        // 재전송은 새 요청이라 소유 토큰도 새로 만든다.
+        expect(dedup.claim.mock.calls[1][2]).not.toBe(claimToken);
 
         expect(executionsService.stop).toHaveBeenCalledTimes(2);
         expect(retry).toEqual({ executionId: 'exec-new', status: 'pending' });

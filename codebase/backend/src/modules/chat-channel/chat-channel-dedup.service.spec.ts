@@ -164,6 +164,8 @@ describe('ChatChannelDedupService (CCH-SE-02)', () => {
       await svc.release('trig-1', 'update-42', TOKEN);
 
       expect(redis.store.get(key)).toBe('token-other');
+      // 토큰을 보지 않는 평범한 DEL 로 지우지 않았다.
+      expect(redis.del).not.toHaveBeenCalled();
       expect(await svc.claim('trig-1', 'update-42', 'token-retry')).toBe(false);
     });
 
