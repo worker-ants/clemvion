@@ -11,7 +11,7 @@ import { IsDefined, ValidateIf, type ValidationOptions } from 'class-validator';
  * PATCH 의 `null` 계약은 둘이고 기준은 «`null` 말고 그 값을 지울 다른 방법이 있는가» 다. 기준의 정본은
  * [HTTP API 규약 §5.5](CLE-API-CONV-RESP#55-부재-표현-null-과-키-생략) 다.
  * - **거부**(이 데코레이터): NOT NULL 컬럼, 다른 값으로 지울 수 있는 JSONB 설정 키처럼 `null` 에 줄 뜻이 없는 필드.
- *   예: 알림 설정 키, 웹채팅 외형 필드, `chatChannel.languageHints`.
+ *   예: 사용자 알림 설정 키(`integrationExpiryEmail` 등), 웹채팅 외형 필드, `chatChannel.languageHints`.
  * - **해제**: `null` 말고는 값을 지울 방법이 없는 필드. 이 데코레이터를 쓰지 않는다. `@IsOptional()` + `nullable: true` 로 받고
  *   서비스가 `null` 을 저장하지 않고 키를 지운다. 예: 워크스페이스 · 워크플로우 `settings.maxConcurrentExecutions`
  *   (`workflows.service.ts` `dropNullSettingKeys`), 트리거 타입 필드 `notification` · `interaction`
