@@ -193,6 +193,9 @@ export class User {
     executionFailedInApp?: boolean;
     scheduleFailedInApp?: boolean;
     integrationExpiryInApp?: boolean;
+    // 일일 요약 메일 — **opt-in**(누락/false = 보내지 않음). 매일 09:00 제품 기본 시간대에 지난 24시간의
+    // 실패 알림을 모아 보낸다. 정본은 CLE-OBS-NOTIFY-SETTINGS 「일일 요약」(CLE-T-BAXAN4).
+    dailyDigestEmail?: boolean;
   };
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

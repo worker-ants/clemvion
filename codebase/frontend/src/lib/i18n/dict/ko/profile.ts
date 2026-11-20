@@ -232,6 +232,11 @@ export const profile = {
     saved: "알림 설정을 저장했어요",
     saveFailed: "알림 설정을 저장하지 못했어요",
     loadFailed: "알림 설정을 불러오지 못했어요",
+    digestTitle: "일일 요약",
+    digestLabel: "일일 요약 메일 받기",
+    digestDescription:
+      "매일 오전 9시(한국 시간)에 지난 24시간 동안의 워크플로우 실행 · 스케줄 실행 · Background 실패 알림을 한 통으로 모아 보내요. 보낼 알림이 없는 날은 보내지 않아요.",
+    digestExcludedNote: "벨과 이메일을 모두 끈 알림은 요약에도 들어가지 않아요.",
   },
   alerts: {
     title: "알림 규칙",

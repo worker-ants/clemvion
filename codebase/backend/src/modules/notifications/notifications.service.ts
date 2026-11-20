@@ -58,6 +58,7 @@ const SETTINGS_KEYS = [
   'executionFailedInApp',
   'scheduleFailedInApp',
   'integrationExpiryInApp',
+  'dailyDigestEmail',
 ] as const;
 
 @Injectable()
@@ -451,6 +452,7 @@ export class NotificationsService {
       executionFailedInApp: p.executionFailedInApp ?? true, // opt-out
       scheduleFailedInApp: p.scheduleFailedInApp ?? true, // opt-out
       integrationExpiryInApp: p.integrationExpiryInApp ?? true, // opt-out
+      dailyDigestEmail: p.dailyDigestEmail ?? false, // opt-in
     };
   }
 

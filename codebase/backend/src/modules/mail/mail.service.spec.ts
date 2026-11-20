@@ -407,4 +407,99 @@ describe('MailService', () => {
       ).rejects.toThrow('SMTP down');
     });
   });
+
+  describe('sendDailyDigestEmail (CLE-T-BAXAN4)', () => {
+    const digest = {
+      windowStart: new Date('2026-11-19T00:00:00Z'),
+      windowEnd: new Date('2026-11-20T00:00:00Z'),
+      total: 13,
+      workspaces: [
+        {
+          id: 'ws-a',
+          name: 'Alpha <b>',
+          total: 12,
+          items: [
+            {
+              type: 'execution_failed',
+              title: '<script>x</script> 실패',
+              createdAt: new Date('2026-11-19T23:30:00Z'),
+            },
+            {
+              type: 'schedule_failed',
+              title: '야간 스케줄 실패',
+              createdAt: new Date('2026-11-19T15:00:00Z'),
+            },
+          ],
+        },
+        {
+          id: 'ws-b',
+          name: 'Beta',
+          total: 1,
+          items: [
+            {
+              type: 'background_failed',
+              title: '동기화 실패',
+              createdAt: new Date('2026-11-19T01:00:00Z'),
+            },
+          ],
+        },
+      ],
+    };
+
+    it('제목에 건수를, 본문에 워크스페이스별 항목을 싣는다', async () => {
+      await service.sendDailyDigestEmail('user@example.com', digest);
+
+      expect(transporter.sendMail).toHaveBeenCalledTimes(1);
+      const args = transporter.sendMail.mock.calls[0][0];
+      expect(args.to).toBe('user@example.com');
+      expect(args.subject).toContain('13건');
+      expect(args.html).toContain('야간 스케줄 실패');
+      expect(args.html).toContain('Beta');
+      expect(args.text).toContain('동기화 실패');
+      expect(args.text).toContain('Alpha <b>');
+    });
+
+    it('싣지 못한 항목은 건수로 적는다', async () => {
+      await service.sendDailyDigestEmail('user@example.com', digest);
+
+      const args = transporter.sendMail.mock.calls[0][0];
+      // Alpha 는 12건 중 2건만 실었다.
+      expect(args.html).toContain('외 10건');
+      expect(args.text).toContain('외 10건');
+    });
+
+    it('시각을 제품 기본 시간대(Asia/Seoul)로 적는다', async () => {
+      await service.sendDailyDigestEmail('user@example.com', digest);
+
+      const args = transporter.sendMail.mock.calls[0][0];
+      // 2026-11-19T23:30Z = 11월 20일 08:30 KST
+      expect(args.text).toContain('08:30');
+      expect(args.text).not.toContain('23:30');
+    });
+
+    it('워크스페이스 이름과 알림 제목을 HTML escape 한다', async () => {
+      await service.sendDailyDigestEmail('user@example.com', digest);
+
+      const args = transporter.sendMail.mock.calls[0][0];
+      expect(args.html).not.toContain('<script>');
+      expect(args.html).toContain('&lt;script&gt;');
+      expect(args.html).toContain('Alpha &lt;b&gt;');
+    });
+
+    it('하단에 알림 설정 링크를 둔다', async () => {
+      await service.sendDailyDigestEmail('user@example.com', digest);
+
+      const args = transporter.sendMail.mock.calls[0][0];
+      const settingsUrl = 'http://localhost:3000/profile/notifications';
+      expect(args.html).toContain(`href="${settingsUrl}"`);
+      expect(args.text).toContain(settingsUrl);
+    });
+
+    it('발송 실패는 호출자에게 던진다', async () => {
+      transporter.sendMail.mockRejectedValueOnce(new Error('SMTP down'));
+      await expect(
+        service.sendDailyDigestEmail('user@example.com', digest),
+      ).rejects.toThrow('SMTP down');
+    });
+  });
 });

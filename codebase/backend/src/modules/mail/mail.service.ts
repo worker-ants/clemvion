@@ -2,6 +2,39 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MAIL_TRANSPORT_CONSOLE, MAIL_TRANSPORTER } from './mail.constants';
 import type { MailTransporter } from './mail.transporter';
+import { PRODUCT_DEFAULT_TIMEZONE } from '../../common/utils/timezone';
+
+/** 일일 요약 메일 한 통의 내용. 묶는 일은 `NotificationDigestService` 가 한다. */
+export interface DailyDigest {
+  windowStart: Date;
+  windowEnd: Date;
+  /** 창 안의 알림 전체 건수(메일에 싣지 못한 것 포함). */
+  total: number;
+  workspaces: DailyDigestWorkspace[];
+}
+
+export interface DailyDigestWorkspace {
+  id: string;
+  name: string;
+  total: number;
+  /** 메일에 싣는 항목. 최신 순이고 `total` 보다 적을 수 있다. */
+  items: { type: string; title: string; createdAt: Date }[];
+}
+
+const DIGEST_TYPE_LABELS: Record<string, string> = {
+  execution_failed: '실행 실패',
+  schedule_failed: '스케줄 실패',
+  background_failed: '백그라운드 작업 실패',
+};
+
+const digestTimeFormat = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: PRODUCT_DEFAULT_TIMEZONE,
+  month: 'long',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
 
 @Injectable()
 export class MailService {
@@ -511,5 +544,123 @@ export class MailService {
   ): string {
     // plain text 파트라 HTML escape 불요 (렌더 컨텍스트가 마크업 아님).
     return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}\n\n이 메일을 받고 싶지 않으면 알림 설정에서 끌 수 있어요:\n${settingsUrl}`;
+  }
+
+  /**
+   * 하루치 실패 알림 요약을 보낸다([알림 설정 「일일 요약」](CLE-OBS-NOTIFY-SETTINGS#일일-요약), CLE-T-BAXAN4).
+   * 시각은 제품 기본 시간대로 적는다. 실패하면 던지고, 호출자가 경고만 남긴다(재시도 없음).
+   */
+  async sendDailyDigestEmail(
+    email: string,
+    digest: DailyDigest,
+  ): Promise<void> {
+    const notificationsUrl = `${this.frontendUrl}/dashboard`;
+    const settingsUrl = `${this.frontendUrl}/profile/notifications`;
+    const subject = `[Clemvion] 지난 24시간 실패 알림 ${digest.total}건`;
+
+    if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
+      this.logger.debug(
+        `Daily digest email for ${email}: total=${digest.total}`,
+      );
+    }
+
+    try {
+      await this.transporter.sendMail({
+        to: email,
+        subject,
+        html: this.buildDigestHtml(digest, notificationsUrl, settingsUrl),
+        text: this.buildDigestText(digest, notificationsUrl, settingsUrl),
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to send daily digest email to ${email}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+      throw err;
+    }
+  }
+
+  private buildDigestHtml(
+    digest: DailyDigest,
+    notificationsUrl: string,
+    settingsUrl: string,
+  ): string {
+    const sections = digest.workspaces
+      .map((ws) => {
+        const rows = ws.items
+          .map(
+            (item) =>
+              `<li style="margin:0 0 6px;font-size:14px;color:#333;">` +
+              `<span style="color:#999;">${this.escapeHtml(digestTimeFormat.format(item.createdAt))}</span> ` +
+              `[${this.escapeHtml(DIGEST_TYPE_LABELS[item.type] ?? item.type)}] ` +
+              `${this.escapeHtml(item.title)}</li>`,
+          )
+          .join('');
+        const rest = ws.total - ws.items.length;
+        const more =
+          rest > 0
+            ? `<li style="margin:0;font-size:13px;color:#999;list-style:none;">외 ${rest}건</li>`
+            : '';
+        return (
+          `<p style="margin:16px 0 8px;font-size:15px;color:#111;font-weight:600;">` +
+          `${this.escapeHtml(ws.name)} (${ws.total}건)</p>` +
+          `<ul style="margin:0;padding-left:20px;">${rows}${more}</ul>`
+        );
+      })
+      .join('');
+    const range = `${digestTimeFormat.format(digest.windowStart)} ~ ${digestTimeFormat.format(digest.windowEnd)}`;
+    return `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td>
+          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
+          <p style="margin:0 0 4px;font-size:16px;color:#111;font-weight:600;">지난 24시간 실패 알림 ${digest.total}건</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#999;">${this.escapeHtml(range)}</p>
+          ${sections}
+          <table cellpadding="0" cellspacing="0" style="margin:24px 0;">
+            <tr><td style="background:#111;border-radius:6px;padding:12px 32px;">
+              <a href="${notificationsUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;">알림 보기</a>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;">이 메일을 받고 싶지 않으면 <a href="${settingsUrl}" style="color:#999;">알림 설정</a>에서 끌 수 있어요.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`.trim();
+  }
+
+  private buildDigestText(
+    digest: DailyDigest,
+    notificationsUrl: string,
+    settingsUrl: string,
+  ): string {
+    const lines = [
+      `지난 24시간 실패 알림 ${digest.total}건`,
+      `${digestTimeFormat.format(digest.windowStart)} ~ ${digestTimeFormat.format(digest.windowEnd)}`,
+    ];
+    for (const ws of digest.workspaces) {
+      lines.push('', `${ws.name} (${ws.total}건)`);
+      for (const item of ws.items) {
+        lines.push(
+          `- ${digestTimeFormat.format(item.createdAt)} [${DIGEST_TYPE_LABELS[item.type] ?? item.type}] ${item.title}`,
+        );
+      }
+      const rest = ws.total - ws.items.length;
+      if (rest > 0) lines.push(`  외 ${rest}건`);
+    }
+    lines.push(
+      '',
+      `알림 보기:\n${notificationsUrl}`,
+      '',
+      `이 메일을 받고 싶지 않으면 알림 설정에서 끌 수 있어요:\n${settingsUrl}`,
+    );
+    return lines.join('\n');
   }
 }

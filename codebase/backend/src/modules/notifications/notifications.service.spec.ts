@@ -1040,7 +1040,20 @@ describe('NotificationsService — dismiss', () => {
         executionFailedInApp: true,
         scheduleFailedInApp: true,
         integrationExpiryInApp: true,
+        dailyDigestEmail: false,
       });
+    });
+
+    it('updateSettings — dailyDigestEmail 을 저장한다 (일일 요약, CLE-T-BAXAN4)', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 'u-1',
+        notificationPreferences: {},
+      });
+      const s = await service.updateSettings('u-1', { dailyDigestEmail: true });
+      expect(userRepo.update).toHaveBeenCalledWith('u-1', {
+        notificationPreferences: { dailyDigestEmail: true },
+      });
+      expect(s.dailyDigestEmail).toBe(true);
     });
 
     it('getSettings — 저장된 값이 기본값보다 우선', async () => {

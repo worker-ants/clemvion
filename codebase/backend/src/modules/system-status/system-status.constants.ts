@@ -19,6 +19,7 @@ import { WORKSPACE_INVITATIONS_PRUNER_QUEUE } from '../workspaces/jobs/workspace
 import { NOTIFICATION_SECRET_ROTATOR_QUEUE } from '../triggers/notification-secret-rotator.service';
 import { CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE } from '../triggers/chat-channel-token-rotator.service';
 import { ALERTS_EVALUATOR_QUEUE } from '../alerts/alerts-evaluator.service';
+import { NOTIFICATION_DIGEST_QUEUE } from '../notifications/jobs/notification-digest.constants';
 
 /**
  * 시스템 상태 화면이 모니터링하는 큐의 그룹.
@@ -87,6 +88,7 @@ export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
   { name: CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE, group: 'system', concurrency: 1 },
   { name: INTEGRATION_EXPIRY_QUEUE, group: 'system', concurrency: 1 },
   { name: ALERTS_EVALUATOR_QUEUE, group: 'system', concurrency: 1 },
+  { name: NOTIFICATION_DIGEST_QUEUE, group: 'system', concurrency: 1 },
 ];
 
 /** BullModule.registerQueue 및 DI factory 의 inject 순서에 쓰이는 큐 이름 목록. */

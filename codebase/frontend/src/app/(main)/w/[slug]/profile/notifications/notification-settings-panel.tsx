@@ -143,6 +143,27 @@ export function NotificationSettingsPanel() {
       <p className="text-xs text-[hsl(var(--muted-foreground))]">
         {t("profile.notifications.alwaysOnNote")}
       </p>
+      {/* 일일 요약 (CLE-OBS-NOTIFY-SETTINGS 「일일 요약」, CLE-T-BAXAN4) */}
+      <section className="space-y-2 rounded-md border border-[hsl(var(--border))] p-4">
+        <h3 className="text-sm font-medium">
+          {t("profile.notifications.digestTitle")}
+        </h3>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={settings.dailyDigestEmail}
+            disabled={mutation.isPending}
+            onChange={(e) => toggle("dailyDigestEmail", e.target.checked)}
+          />
+          {t("profile.notifications.digestLabel")}
+        </label>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          {t("profile.notifications.digestDescription")}
+        </p>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          {t("profile.notifications.digestExcludedNote")}
+        </p>
+      </section>
     </div>
   );
 }

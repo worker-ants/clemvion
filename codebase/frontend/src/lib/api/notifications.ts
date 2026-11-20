@@ -11,6 +11,8 @@ export interface NotificationSettings {
   scheduleFailedEmail: boolean;
   integrationExpiryInApp: boolean;
   integrationExpiryEmail: boolean;
+  /** 일일 요약 메일(opt-in). CLE-T-BAXAN4. */
+  dailyDigestEmail: boolean;
 }
 
 export type NotificationSettingKey = keyof NotificationSettings;

@@ -46,6 +46,7 @@ const DEFAULTS = {
   scheduleFailedEmail: true,
   integrationExpiryInApp: true,
   integrationExpiryEmail: false,
+  dailyDigestEmail: false,
 };
 
 function renderPanel() {
@@ -82,7 +83,8 @@ describe("NotificationSettingsPanel", () => {
     expect(box(n.typeIntegrationExpired, "inApp").checked).toBe(true);
     // 통합 만료 이메일은 opt-in 이라 기본 꺼짐.
     expect(box(n.typeIntegrationExpired, "email").checked).toBe(false);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(6);
+    // 유형별 6개 + 일일 요약 1개.
+    expect(screen.getAllByRole("checkbox")).toHaveLength(7);
     expect(screen.getByText(n.alwaysOnNote)).toBeTruthy();
     expect(screen.queryByText(n.bothOff)).toBeNull();
   });
@@ -141,5 +143,25 @@ describe("NotificationSettingsPanel", () => {
     renderPanel();
 
     await waitFor(() => expect(screen.getByText(n.loadFailed)).toBeTruthy());
+  });
+
+  // 근거: CLE-OBS-NOTIFY-SETTINGS 「일일 요약」 (CLE-T-BAXAN4)
+  it("일일 요약 토글은 기본 꺼짐이고 켜면 dailyDigestEmail 만 PATCH 한다", async () => {
+    getSettings.mockResolvedValue(DEFAULTS);
+    updateSettings.mockResolvedValue({ ...DEFAULTS, dailyDigestEmail: true });
+    renderPanel();
+
+    const digest = await screen.findByLabelText<HTMLInputElement>(
+      n.digestLabel,
+    );
+    expect(digest.checked).toBe(false);
+    expect(screen.getByText(n.digestDescription)).toBeTruthy();
+    expect(screen.getByText(n.digestExcludedNote)).toBeTruthy();
+
+    fireEvent.click(digest);
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenCalledWith({ dailyDigestEmail: true }),
+    );
+    await waitFor(() => expect(digest.checked).toBe(true));
   });
 });

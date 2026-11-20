@@ -39,4 +39,10 @@ export class NotificationSettingsDto {
       'Integration 만료 인앱(벨) 알림 (opt-out — 기본 true). 조치 필요 알림은 이 키와 무관하게 인앱으로 보낸다',
   })
   integrationExpiryInApp: boolean;
+
+  @ApiProperty({
+    description:
+      '일일 요약 메일 (opt-in — 기본 false). 매일 09:00(Asia/Seoul)에 지난 24시간의 실패 알림을 한 통으로 보낸다',
+  })
+  dailyDigestEmail: boolean;
 }

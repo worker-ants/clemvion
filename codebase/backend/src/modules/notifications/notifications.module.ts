@@ -5,6 +5,9 @@ import { User } from '../users/entities/user.entity';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { MailModule } from '../mail/mail.module';
+import { BullModule } from '@nestjs/bullmq';
+import { NotificationDigestService } from './jobs/notification-digest.service';
+import { NOTIFICATION_DIGEST_QUEUE } from './jobs/notification-digest.constants';
 
 // WebsocketModule 을 여기서 import 하지 않는다 — NotificationsModule 은
 // nodes 배럴 초기화 경로(integrations→notifications→…) 안에 있어, WebsocketModule
@@ -14,9 +17,14 @@ import { MailModule } from '../mail/mail.module';
 // MailModule 은 전역 ConfigService 와 nodemailer 만 의존(앱 모듈 순환 없음)이라 직접 import 안전.
 // User 는 이메일 조회용 repository (forFeature — 엔티티 등록만, 순환 무관).
 @Module({
-  imports: [TypeOrmModule.forFeature([Notification, User]), MailModule],
+  imports: [
+    TypeOrmModule.forFeature([Notification, User]),
+    MailModule,
+    // 일일 요약 반복 작업 큐(CLE-T-BAXAN4). 큐 등록은 BullMQ 전역 연결만 쓴다.
+    BullModule.registerQueue({ name: NOTIFICATION_DIGEST_QUEUE }),
+  ],
   controllers: [NotificationsController],
-  providers: [NotificationsService],
+  providers: [NotificationsService, NotificationDigestService],
   exports: [NotificationsService],
 })
 export class NotificationsModule {}

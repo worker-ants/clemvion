@@ -239,6 +239,12 @@ export const profile: Dict["profile"] = {
     saved: "Notification settings saved",
     saveFailed: "Couldn't save notification settings",
     loadFailed: "Couldn't load notification settings",
+    digestTitle: "Daily digest",
+    digestLabel: "Get the daily digest email",
+    digestDescription:
+      "Every day at 9 AM (Korea time), we send one email that collects the past 24 hours of workflow run, schedule run, and Background failure notifications. No email is sent on days with nothing to report.",
+    digestExcludedNote:
+      "Notifications with both bell and email turned off aren't included in the digest.",
   },
   alerts: {
     title: "Alert rules",

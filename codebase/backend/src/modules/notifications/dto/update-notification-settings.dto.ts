@@ -14,6 +14,7 @@ import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
  * - `integrationExpiryEmail`: **opt-in** (기본 off).
  * - `executionFailedEmail`/`scheduleFailedEmail`: **opt-out** (기본 on).
  * - `*InApp` 세 키: **opt-out** (기본 on). 인앱과 이메일을 둘 다 끄면 그 유형은 보내지 않는다.
+ * - `dailyDigestEmail`: **opt-in** (기본 off). 하루치 실패 알림을 매일 한 통으로 모아 보낸다.
  *
  * `null` 은 400 이다. `true` · `false` 로 값을 정할 수 있어 null 에 따로 줄 뜻이 없고, 받으면
  * null 이 저장된 뒤 읽을 때 기본값으로 바뀐다.
@@ -66,4 +67,12 @@ export class UpdateNotificationSettingsDto {
   @IsOptionalNonNull()
   @IsBoolean()
   integrationExpiryInApp?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      '일일 요약 메일 (opt-in — 기본 off). 매일 09:00(Asia/Seoul)에 지난 24시간의 실행 · 스케줄 · 백그라운드 실패 알림을 한 통으로 보낸다. 생략하면 값을 유지하고 null 은 400 으로 거부한다.',
+  })
+  @IsOptionalNonNull()
+  @IsBoolean()
+  dailyDigestEmail?: boolean;
 }

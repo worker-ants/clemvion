@@ -80,6 +80,7 @@ describe('Notifications — 인앱 토글 · email 행 벨 제외 e2e', () => {
       executionFailedInApp: true,
       scheduleFailedInApp: true,
       integrationExpiryInApp: true,
+      dailyDigestEmail: false,
     });
   });
 
