@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS-EXEC"
 title: "AI 어시스턴트 도구 — 실행 조회"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST-TOOLS"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST-TOOLS"]
 area: "CLE-WF"
-content_hash: "baaae9756c927a070c41d0c985fe3d4bc7133c4dda1f6e2f1a2863a60a79bb5a"
+content_hash: "73fe5c8f9aa5b7eb7f42ca18445e768512a334be67543d717dbaa57ae6580d82"
 read_as: "approved_fallback"
-task: "CLE-T-ZN111F"
+task: "CLE-T-2Q4KRF"
 source_paths: []
-mirror_sha256: "fccb843a52485f48c6a468e39732b945e6bc13f02a3579f34347f2dbedcbe9a5"
-etag: "sha256-3ce394e573f1e329c5bf233927db77208cad7ae43a743b9192380ab6a22bc4ba"
+mirror_sha256: "dd999e308e2ab05722e0f28bce82b803279c2fd5bb6db09c157031ddf0f514ca"
+etag: "sha256-1021cde7c94b73b020394e3eddfbd7d63adf67d27710a13406e61987247dc3f6"
 ---
 ## 개요
 
@@ -54,7 +54,7 @@ interface ExecutionDetailsResponse {
     workflowName: string;
     status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'waiting_for_input';
     startedAt: string;            // ISO 8601
-    finishedAt: string | null;    // 진행 중·입력 대기 동안 null
+    finishedAt: string | null;    // 진행 중·입력 대기 동안 null. 마지막 턴 재시도 턴이 도는 failed 실행도 null 일 수 있다
     durationMs: number | null;
     inputData: unknown;           // 마스킹
     outputData: unknown | null;   // 마스킹
@@ -114,7 +114,7 @@ interface ExecutionDetailsResponse {
 
 | `execution.status` | 동작 |
 |--------------------|------|
-| `completed`, `failed`, `cancelled` | 완결된 타임라인을 돌려준다 |
+| `completed`, `failed`, `cancelled` | 완결된 타임라인을 돌려준다. 마지막 턴 재시도 턴이 도는 `failed` 실행은 예외다. 새 노드 실행 행이 `running` 으로 보이고 `execution.finishedAt`·`durationMs`·`error` 가 `null` 일 수 있다([실행 단위 claim](../CLE-EXEC/CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작)) |
 | `running`, `waiting_for_input` | 지금까지 기록된 부분 타임라인을 돌려준다. 아직 돌지 않은 노드는 빠지고 진행 중인 노드는 `running`·`waiting_for_input` 으로 표시된다. `execution.finishedAt`·`durationMs` 는 `null` 이다 |
 | `pending` | 첫 노드도 시작하지 않은 상태다. `timeline` 은 빈 배열이고 `execution` 필드만 채운다 |
 

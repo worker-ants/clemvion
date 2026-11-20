@@ -4,6 +4,7 @@ import {
   buildAiResumedSnapshot,
   buildConversationMetaFromResumeState,
   isAiResumedWaitingEnvelope,
+  readCrashedAiTurn,
 } from './ai-conversation-helpers';
 
 describe('buildAiResumedSnapshot', () => {
@@ -150,5 +151,119 @@ describe('AI 재개 판정 계약 (생산자 ↔ 판정자)', () => {
     ],
   ])('대기가 아니다: %s', (_label, envelope) => {
     expect(isAiResumedWaitingEnvelope(envelope)).toBe(false);
+  });
+});
+
+describe('readCrashedAiTurn — 크래시 재구동이 처리 중이던 턴을 다시 돌릴 재료', () => {
+  const checkpoint = { schemaVersion: 1, turnCount: 1, messages: [] };
+  const waiting = {
+    config: { model: 'm' },
+    output: {
+      result: {
+        messages: [
+          { role: 'user', content: 'turn-one' },
+          { role: 'assistant', content: 'reply-one' },
+        ],
+        turnCount: 1,
+      },
+    },
+    meta: { interactionType: AI_CONVERSATION_INTERACTION_TYPE, turnCount: 1 },
+    status: 'waiting_for_input',
+    _resumeCheckpoint: checkpoint,
+  };
+  const persisted = (
+    interaction:
+      | { type: 'message_received'; content: string }
+      | { type: 'form_submitted'; data: Record<string, unknown> },
+  ): Record<string, unknown> => {
+    // 저장소에 남는 재개 스냅샷과 같은 모양: `_resumeState` 는 빼고 체크포인트를 싣는다.
+    const { _resumeState: _drop, ...rest } = buildAiResumedSnapshot({
+      previous: waiting,
+      fallbackConfig: {},
+      interaction,
+      receivedAt: '2026-11-19T00:00:00.000Z',
+      resumeState: { turnCount: 1 },
+    }) as unknown as Record<string, unknown>;
+    void _drop;
+    return { ...rest, _resumeCheckpoint: checkpoint };
+  };
+
+  it('메시지 턴: 입력을 돌려주고 턴 이전 대기 봉투를 되살린다', () => {
+    const turn = readCrashedAiTurn(
+      persisted({ type: 'message_received', content: 'turn-two' }),
+    );
+    expect(turn?.interaction).toEqual({
+      type: 'message_received',
+      content: 'turn-two',
+    });
+    // 스냅샷이 끝에 더한 사용자 메시지를 걷어 내야 재생 턴이 같은 메시지를 두 번 싣지 않는다.
+    expect(turn?.waitingEnvelope).toEqual({
+      ...waiting,
+      meta: { ...waiting.meta, durationMs: 0 },
+    });
+    expect(isAiResumedWaitingEnvelope(turn?.waitingEnvelope)).toBe(false);
+  });
+
+  it('폼 제출 턴: 폼 값을 돌려주고 messages 는 그대로 둔다', () => {
+    const turn = readCrashedAiTurn(
+      persisted({ type: 'form_submitted', data: { email: 'a@b.c' } }),
+    );
+    expect(turn?.interaction).toEqual({
+      type: 'form_submitted',
+      data: { email: 'a@b.c' },
+    });
+    expect(
+      (turn?.waitingEnvelope.output as { result: { messages: unknown[] } })
+        .result.messages,
+    ).toHaveLength(2);
+    expect(turn?.waitingEnvelope.output).not.toHaveProperty('interaction');
+    expect(turn?.waitingEnvelope._resumeCheckpoint).toBe(checkpoint);
+  });
+
+  it('스냅샷 끝 메시지가 입력과 다르면 messages 를 건드리지 않는다', () => {
+    const snap = persisted({ type: 'message_received', content: 'turn-two' });
+    const output = snap.output as {
+      interaction: { data: { content: string } };
+    };
+    output.interaction.data.content = 'other';
+    const turn = readCrashedAiTurn(snap);
+    expect(
+      (turn?.waitingEnvelope.output as { result: { messages: unknown[] } })
+        .result.messages,
+    ).toHaveLength(3);
+  });
+
+  it.each([
+    ['재개 스냅샷 아님', { ...waiting }],
+    ['null', null],
+    [
+      'interaction 없음',
+      { ...persisted({ type: 'message_received', content: 'x' }), output: {} },
+    ],
+    [
+      'content 가 문자열 아님',
+      {
+        ...persisted({ type: 'message_received', content: 'x' }),
+        output: {
+          interaction: { type: 'message_received', data: { content: 1 } },
+        },
+      },
+    ],
+    [
+      '폼 data 가 객체 아님',
+      {
+        ...persisted({ type: 'form_submitted', data: {} }),
+        output: { interaction: { type: 'form_submitted', data: 'x' } },
+      },
+    ],
+    [
+      '모르는 interaction',
+      {
+        ...persisted({ type: 'message_received', content: 'x' }),
+        output: { interaction: { type: 'button_click', data: {} } },
+      },
+    ],
+  ])('재료가 없으면 null: %s', (_label, outputData) => {
+    expect(readCrashedAiTurn(outputData)).toBeNull();
   });
 });

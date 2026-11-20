@@ -58,7 +58,10 @@ import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
 import { ParallelExecutor } from './containers/parallel-executor';
 import { WebsocketService } from '../websocket/websocket.service';
-import { ExecutionEventType } from '../websocket/websocket-events.types';
+import {
+  ExecutionEventType,
+  NodeEventType,
+} from '../websocket/websocket-events.types';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
@@ -1414,6 +1417,422 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // CLE-T-K9RZQV — §7.5 case B 에서 재개 턴 중 크래시한 멀티턴 AI 노드는 처리 중이던 턴을
+  // 새 행으로 다시 돌린다(CLE-EXEC-STATE-RESUME 「크래시 재구동에서 처리 중이던 턴을 다시
+  // 돌린다」). 재료가 온전하지 않으면 그 노드를 처음부터 다시 실행한다(기존 재구동).
+  describe('redriveStuckExecution — 크래시한 AI 재개 턴 재생 (CLE-T-K9RZQV)', () => {
+    type Internals = {
+      redriveStuckExecution: (id: string) => Promise<void>;
+      failOrphanRunningNodeExecutions: (...a: unknown[]) => Promise<void>;
+      driveStuckRedrive: (...a: unknown[]) => Promise<void>;
+      rehydrateContext: (...a: unknown[]) => Promise<unknown>;
+      loadAndBuildGraph: (...a: unknown[]) => Promise<unknown>;
+      markExecutionCancelled: (...a: unknown[]) => Promise<void>;
+      markNodeExecutionFailed: (...a: unknown[]) => Promise<void>;
+      resumeFromCheckpoint: (...a: unknown[]) => Promise<void>;
+      createNodeExecution: (...a: unknown[]) => Promise<unknown>;
+      buildRetryReentryState: (...a: unknown[]) => unknown;
+      contextKeyOf: (...a: unknown[]) => string;
+      eventEmitter: { emitNode: (...a: unknown[]) => Promise<void> };
+      contextService: { setNodeOutput: (...a: unknown[]) => void };
+    };
+    const internals = (): Internals => service as unknown as Internals;
+    const checkpoint = { schemaVersion: 1, turnCount: 1, messages: [] };
+    const context = { nodeOutputCache: {}, _executedNodes: new Set() };
+    const newRow = {
+      id: 'ne-new',
+      startedAt: new Date('2026-11-19T00:00:00Z'),
+    };
+    const aiNode = { id: 'n-ai', type: 'ai_agent', label: 'Agent' };
+    const resumedOutput = (
+      interaction: Record<string, unknown> = {
+        type: 'message_received',
+        data: { content: 'turn-two', role: 'user' },
+        receivedAt: 'now',
+      },
+      extra: Record<string, unknown> = {},
+    ) => ({
+      config: {},
+      output: {
+        result: {
+          messages: [
+            { role: 'user', content: 'turn-one' },
+            { role: 'assistant', content: 'reply-one' },
+            { role: 'user', content: 'turn-two' },
+          ],
+        },
+        interaction,
+      },
+      meta: { interactionType: 'ai_conversation', durationMs: 0 },
+      status: 'resumed',
+      _resumeCheckpoint: checkpoint,
+      ...extra,
+    });
+    const aiRow = (over: Record<string, unknown> = {}) => ({
+      id: 'ne-old',
+      nodeId: 'n-ai',
+      status: NodeExecutionStatus.RUNNING,
+      parentNodeExecutionId: null,
+      inputData: { in: 1 },
+      outputData: resumedOutput(),
+      ...over,
+    });
+    const execStartedAt = new Date('2026-11-19T00:00:00Z');
+    const execution = (over: Record<string, unknown> = {}) =>
+      ({
+        id: 'e1',
+        status: ExecutionStatus.RUNNING,
+        workflowId: 'wf1',
+        startedAt: execStartedAt,
+        resumeCallStack: null,
+        ...over,
+      }) as unknown as Execution;
+
+    let orphanSpy: jest.SpyInstance;
+    let driveSpy: jest.SpyInstance;
+    let resumeSpy: jest.SpyInstance;
+    let createSpy: jest.SpyInstance;
+    let buildSpy: jest.SpyInstance;
+    let emitSpy: jest.SpyInstance;
+    let seedSpy: jest.SpyInstance;
+    let cancelSpy: jest.SpyInstance;
+    let nodeFailSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      const svc = internals();
+      orphanSpy = jest
+        .spyOn(svc, 'failOrphanRunningNodeExecutions')
+        .mockResolvedValue(undefined);
+      driveSpy = jest
+        .spyOn(svc, 'driveStuckRedrive')
+        .mockResolvedValue(undefined);
+      jest.spyOn(svc, 'rehydrateContext').mockResolvedValue(context);
+      jest
+        .spyOn(svc, 'loadAndBuildGraph')
+        .mockResolvedValue({ sortedNodeIds: [] });
+      cancelSpy = jest
+        .spyOn(svc, 'markExecutionCancelled')
+        .mockResolvedValue(undefined);
+      nodeFailSpy = jest
+        .spyOn(svc, 'markNodeExecutionFailed')
+        .mockResolvedValue(undefined);
+      resumeSpy = jest
+        .spyOn(svc, 'resumeFromCheckpoint')
+        .mockResolvedValue(undefined);
+      createSpy = jest
+        .spyOn(svc, 'createNodeExecution')
+        .mockResolvedValue(newRow);
+      buildSpy = jest
+        .spyOn(svc, 'buildRetryReentryState')
+        .mockReturnValue({ resumeState: {}, initialAction: undefined });
+      jest.spyOn(svc, 'contextKeyOf').mockReturnValue('e1');
+      emitSpy = jest
+        .spyOn(svc.eventEmitter, 'emitNode')
+        .mockResolvedValue(undefined);
+      seedSpy = jest
+        .spyOn(svc.contextService, 'setNodeOutput')
+        .mockImplementation(() => undefined);
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(aiNode);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    const run = async (exec: Execution, rows: unknown[]) => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(exec);
+      mockNodeExecutionRepo.find = jest.fn().mockResolvedValue(rows);
+      await internals().redriveStuckExecution('e1');
+    };
+    const expectFallback = () => {
+      expect(resumeSpy).not.toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(orphanSpy).toHaveBeenCalledWith('e1');
+      expect(driveSpy).toHaveBeenCalled();
+    };
+
+    it('최상위 메시지 턴: 옛 행만 마감하고 새 행으로 그 턴을 다시 돌린다', async () => {
+      await run(execution(), [aiRow()]);
+
+      expect(mockNodeExecutionRepo.find).toHaveBeenCalledWith({
+        where: { executionId: 'e1', status: NodeExecutionStatus.RUNNING },
+      });
+      expect(orphanSpy).toHaveBeenCalledWith('e1', 'ne-old');
+      expect(createSpy).toHaveBeenCalledWith(
+        'e1',
+        'n-ai',
+        NodeExecutionStatus.RUNNING,
+        undefined,
+        { in: 1 },
+      );
+      // 턴 이전 대기 봉투를 캐시에 싣는다(사용자 메시지를 두 번 싣지 않는다).
+      const [, seededNodeId, seeded] = seedSpy.mock.calls[0] as [
+        string,
+        string,
+        { status: string; output: { result: { messages: unknown[] } } },
+      ];
+      expect(seededNodeId).toBe('n-ai');
+      expect(seeded.status).toBe('waiting_for_input');
+      expect(seeded.output.result.messages).toHaveLength(2);
+      expect(seeded.output).not.toHaveProperty('interaction');
+      expect(emitSpy).toHaveBeenCalledWith(
+        'e1',
+        'n-ai',
+        NodeEventType.NODE_STARTED,
+        expect.objectContaining({
+          nodeExecutionId: 'ne-new',
+          status: NodeExecutionStatus.RUNNING,
+          nodeType: 'ai_agent',
+        }),
+      );
+      expect(resumeSpy).toHaveBeenCalledWith(execution(), context, {
+        node: aiNode,
+        nodeExec: newRow,
+        payload: { type: 'ai_message', message: 'turn-two' },
+      });
+      // 재구성 가능 여부는 재생 전에 같은 재구성기로 확인한다.
+      expect(buildSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'e1' }),
+        aiNode,
+        context,
+        checkpoint,
+        expect.objectContaining({ resumeMode: true }),
+      );
+      expect(driveSpy).not.toHaveBeenCalled();
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('폼 제출 턴은 form_submitted 입력으로 다시 돌린다', async () => {
+      await run(execution(), [
+        aiRow({
+          outputData: resumedOutput({
+            type: 'form_submitted',
+            data: { email: 'a@b.c' },
+            receivedAt: 'now',
+          }),
+        }),
+      ]);
+      expect(resumeSpy.mock.calls[0][2]).toMatchObject({
+        payload: { type: 'form_submitted', formData: { email: 'a@b.c' } },
+      });
+    });
+
+    it('중첩: 호출 노드 행은 두고 AI 행만 마감한 뒤 같은 부모 아래 새 행으로 다시 돌린다', async () => {
+      const callStack = {
+        version: 1,
+        frames: [
+          { workflowId: 'sub1', invokerNodeId: 'inv1', recursionDepth: 1 },
+          { workflowId: 'sub2', invokerNodeId: 'inv2', recursionDepth: 2 },
+        ],
+      };
+      await run(execution({ resumeCallStack: callStack }), [
+        { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
+        { id: 'ne-inv2', nodeId: 'inv2', parentNodeExecutionId: 'ne-inv1' },
+        aiRow({ parentNodeExecutionId: 'ne-inv2' }),
+      ]);
+      expect(orphanSpy).toHaveBeenCalledTimes(1);
+      expect(orphanSpy).toHaveBeenCalledWith('e1', 'ne-old');
+      expect(createSpy).toHaveBeenCalledWith(
+        'e1',
+        'n-ai',
+        NodeExecutionStatus.RUNNING,
+        'ne-inv2',
+        { in: 1 },
+      );
+      expect(emitSpy.mock.calls[0][3]).toMatchObject({
+        parentNodeExecutionId: 'ne-inv2',
+      });
+      expect(resumeSpy).toHaveBeenCalled();
+      expect(driveSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        '체크포인트 미래 버전',
+        () => [
+          aiRow({
+            outputData: resumedOutput(undefined, {
+              _resumeCheckpoint: { schemaVersion: 999 },
+            }),
+          }),
+        ],
+        () => execution(),
+      ],
+      [
+        '체크포인트 없음',
+        () => [
+          aiRow({
+            outputData: resumedOutput(undefined, {
+              _resumeCheckpoint: undefined,
+            }),
+          }),
+        ],
+        () => execution(),
+      ],
+      [
+        '체크포인트가 객체 아님',
+        () => [
+          aiRow({
+            outputData: resumedOutput(undefined, { _resumeCheckpoint: 'x' }),
+          }),
+        ],
+        () => execution(),
+      ],
+      [
+        '입력을 읽을 수 없음',
+        () => [aiRow({ outputData: resumedOutput({ type: 'button_click' }) })],
+        () => execution(),
+      ],
+      [
+        '재개 스냅샷이 아님',
+        () => [aiRow({ outputData: { status: 'waiting_for_input' } })],
+        () => execution(),
+      ],
+      [
+        '최상위인데 다른 running 행이 있음',
+        () => [
+          aiRow(),
+          { id: 'ne-x', nodeId: 'x', parentNodeExecutionId: null },
+        ],
+        () => execution(),
+      ],
+      [
+        '최상위인데 부모 행이 있음',
+        () => [aiRow({ parentNodeExecutionId: 'ne-p' })],
+        () => execution(),
+      ],
+      [
+        '재개 스냅샷 행이 둘',
+        () => [aiRow(), aiRow({ id: 'ne-old2' })],
+        () => execution(),
+      ],
+      [
+        '중첩인데 호출 노드 행이 프레임과 맞지 않음',
+        () => [
+          { id: 'ne-inv9', nodeId: 'inv9', parentNodeExecutionId: null },
+          aiRow({ parentNodeExecutionId: 'ne-inv9' }),
+        ],
+        () =>
+          execution({
+            resumeCallStack: {
+              version: 1,
+              frames: [
+                {
+                  workflowId: 'sub1',
+                  invokerNodeId: 'inv1',
+                  recursionDepth: 1,
+                },
+              ],
+            },
+          }),
+      ],
+      [
+        '중첩인데 AI 행의 부모가 가장 안쪽 호출 노드 행이 아님',
+        () => [
+          { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
+          aiRow({ parentNodeExecutionId: 'ne-other' }),
+        ],
+        () =>
+          execution({
+            resumeCallStack: {
+              version: 1,
+              frames: [
+                {
+                  workflowId: 'sub1',
+                  invokerNodeId: 'inv1',
+                  recursionDepth: 1,
+                },
+              ],
+            },
+          }),
+      ],
+      [
+        '중첩 호출 스택 프레임에 invokerNodeId 가 없음',
+        () => [
+          { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
+          aiRow({ parentNodeExecutionId: 'ne-inv1' }),
+        ],
+        () =>
+          execution({
+            resumeCallStack: {
+              version: 1,
+              frames: [{ workflowId: 'sub1', recursionDepth: 1 }],
+            } as unknown as Execution['resumeCallStack'],
+          }),
+      ],
+      [
+        '중첩 호출 스택 미래 버전',
+        () => [
+          { id: 'ne-inv1', nodeId: 'inv1', parentNodeExecutionId: null },
+          aiRow({ parentNodeExecutionId: 'ne-inv1' }),
+        ],
+        () =>
+          execution({
+            resumeCallStack: {
+              version: 999,
+              frames: [
+                {
+                  workflowId: 'sub1',
+                  invokerNodeId: 'inv1',
+                  recursionDepth: 1,
+                },
+              ],
+            },
+          }),
+      ],
+    ])(
+      '재료가 온전하지 않으면 처음부터 다시 실행한다: %s',
+      async (_l, rows, exec) => {
+        await run(exec(), rows());
+        expectFallback();
+      },
+    );
+
+    it('노드 정의가 없거나 체크포인트 대상 타입이 아니면 처음부터 다시 실행한다', async () => {
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ ...aiNode, type: 'form' });
+      await run(execution(), [aiRow()]);
+      expectFallback();
+      orphanSpy.mockClear();
+      driveSpy.mockClear();
+      await run(execution(), [aiRow()]);
+      expectFallback();
+    });
+
+    it('재구성기가 실패하면 처음부터 다시 실행한다 (RESUME_INCOMPATIBLE_STATE 로 끝내지 않는다)', async () => {
+      buildSpy.mockImplementation(() => {
+        throw new Error('bad checkpoint');
+      });
+      await run(execution(), [aiRow()]);
+      expectFallback();
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
+
+    it('재생 진입이 RehydrationError 가 아닌 오류로 실패하면 RESUME_CHECKPOINT_MISSING 으로 마감한다', async () => {
+      resumeSpy.mockRejectedValueOnce(new Error('boom'));
+      await run(execution(), [aiRow()]);
+      expect(nodeFailSpy).toHaveBeenCalledWith(
+        'ne-new',
+        'RESUME_CHECKPOINT_MISSING',
+      );
+      expect(cancelSpy).toHaveBeenCalledWith('e1', 'RESUME_CHECKPOINT_MISSING');
+      expect(driveSpy).not.toHaveBeenCalled();
+    });
+
+    it('재생 진입 사전 검사가 실패하면 새 행과 실행을 RESUME_* 로 마감한다', async () => {
+      resumeSpy.mockRejectedValueOnce(
+        new RehydrationError('RESUME_CHECKPOINT_MISSING', 'not in graph'),
+      );
+      await run(execution(), [aiRow()]);
+      expect(nodeFailSpy).toHaveBeenCalledWith(
+        'ne-new',
+        'RESUME_CHECKPOINT_MISSING',
+      );
+      expect(cancelSpy).toHaveBeenCalledWith('e1', 'RESUME_CHECKPOINT_MISSING');
+      expect(driveSpy).not.toHaveBeenCalled();
+    });
+  });
+
   // PR3 — failOrphanRunningNodeExecutions: 크래시 orphan RUNNING NodeExecution 마감.
   describe('failOrphanRunningNodeExecutions (PR3 orphan cascade)', () => {
     it('executionId 의 RUNNING NodeExecution 만 FAILED 로 마감한다', async () => {
@@ -1442,6 +1861,28 @@ describe('ExecutionEngineService', () => {
         'status = :running',
         expect.objectContaining({ running: NodeExecutionStatus.RUNNING }),
       );
+    });
+
+    it('행 id 를 주면 그 RUNNING 행 하나만 마감한다 (CLE-T-K9RZQV 재생 경로)', async () => {
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
+      await (
+        service as unknown as {
+          failOrphanRunningNodeExecutions: (
+            id: string,
+            nodeExecutionId?: string,
+          ) => Promise<void>;
+        }
+      ).failOrphanRunningNodeExecutions('e1', 'ne-old');
+      expect(qb.andWhere).toHaveBeenCalledWith('id = :nodeExecutionId', {
+        nodeExecutionId: 'ne-old',
+      });
     });
   });
 
@@ -2750,115 +3191,151 @@ describe('ExecutionEngineService', () => {
   // 06 C-2 — 재개 진입 DB 원자 claim (§7.5). 비원자 SELECT 재검증을 조건부
   // UPDATE(waiting_for_input → running, affected=0 → ack-and-discard)로 대체.
   describe('claimResumeEntry — §7.5 재개 진입 원자 claim (06 C-2)', () => {
-    const makeQb = (affected: number) => ({
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      setParameter: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected }),
-    });
+    // qb 가 어느 엔티티를 UPDATE 하는지는 `update()` 인자로 판별한다. 그래야 잠금
+    // 순서(Execution → NodeExecution, CLE-T-9JBVQK)를 단언할 수 있다.
+    type ClaimQb = Record<string, jest.Mock> & { target: string };
+    const makeQb = (
+      affectedOf: (target: string) => number,
+      order: string[],
+    ): ClaimQb => {
+      const qb = { target: '' } as ClaimQb;
+      qb.update = jest.fn((entity: { name: string }) => {
+        qb.target = entity.name;
+        return qb;
+      });
+      for (const m of [
+        'set',
+        'setParameter',
+        'where',
+        'andWhere',
+        'returning',
+      ]) {
+        qb[m] = jest.fn().mockReturnValue(qb);
+      }
+      qb.execute = jest.fn(async () => {
+        order.push(qb.target);
+        return { affected: affectedOf(qb.target) };
+      });
+      return qb;
+    };
     const ds = () =>
       service as unknown as { dataSource: { transaction: jest.Mock } };
-    // claim 은 dataSource.transaction 안에서 manager.createQueryBuilder 를 2회 호출:
-    // (1) NodeExecution 조건부 claim, (2) 짝 전이 Execution. tx 콜백을 in-memory 즉시
-    // 실행하고 두 qb 를 순서대로 반환한다.
-    const installTx = (nodeAffected: number, execAffected: number) => {
-      const nodeQb = makeQb(nodeAffected);
-      const execQb = makeQb(execAffected);
-      const qbs = [nodeQb, execQb];
-      ds().dataSource.transaction = jest.fn(
-        async (cb: (m: unknown) => Promise<unknown>) => {
-          let i = 0;
-          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
-        },
+    // tx 콜백을 바로 실행한다. 콜백이 던지면 tx mock 도 reject 한다(실제 트랜잭션의
+    // 롤백 자리).
+    const txWith = (
+      affectedOf: (target: string) => number,
+      order: string[],
+      byEntity: Record<string, ClaimQb> = {},
+    ) =>
+      jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
+        cb({
+          createQueryBuilder: jest.fn(() => {
+            const qb = makeQb(affectedOf, order);
+            const update = qb.update;
+            qb.update = jest.fn((entity: { name: string }) => {
+              update(entity);
+              byEntity[qb.target] = qb;
+              return qb;
+            });
+            return qb;
+          }),
+        }),
       );
-      return { nodeQb, execQb };
+    const installTx = (nodeAffected: number, execAffected: number) => {
+      const order: string[] = [];
+      const byEntity: Record<string, ClaimQb> = {};
+      const tx = txWith(
+        (t) => (t === 'NodeExecution' ? nodeAffected : execAffected),
+        order,
+        byEntity,
+      );
+      ds().dataSource.transaction = tx;
+      return { order, byEntity, tx };
     };
+    const segmentStarted = () =>
+      (
+        service as unknown as { segmentStartMs: Map<string, number> }
+      ).segmentStartMs.has('exec-1');
+    const clearSegment = () =>
+      (
+        service as unknown as { segmentStartMs: Map<string, number> }
+      ).segmentStartMs.delete('exec-1');
 
-    it('node affected>=1 → true + Execution 짝 전이 (단일 트랜잭션)', async () => {
-      const { nodeQb, execQb } = installTx(1, 1);
+    it('둘 다 affected=1 → true. Execution 을 먼저 잠그고 NodeExecution 을 claim 한다 (형제 경로와 같은 순서)', async () => {
+      const { order, byEntity } = installTx(1, 1);
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
         true,
       );
 
-      // (1) NodeExecution: waiting_for_input 조건 → running.
-      expect(nodeQb.set).toHaveBeenCalledWith(
+      // 잠금 순서 — 형제 cancelParkedExecution · markWebChatIdleTimeout ·
+      // finalizeStalledExhausted 와 같은 Execution → NodeExecution (CLE-T-9JBVQK).
+      expect(order).toEqual(['Execution', 'NodeExecution']);
+      // Execution: 재개 가능 상태(WFI ∪ RUNNING)만 RUNNING 으로.
+      expect(byEntity.Execution.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.RUNNING }),
+      );
+      expect(byEntity.Execution.andWhere).toHaveBeenCalledWith(
+        'status IN (:...resumable)',
+        expect.objectContaining({
+          resumable: [
+            ExecutionStatus.WAITING_FOR_INPUT,
+            ExecutionStatus.RUNNING,
+          ],
+        }),
+      );
+      // NodeExecution: 경합 판정 — waiting_for_input 조건 → running.
+      expect(byEntity.NodeExecution.set).toHaveBeenCalledWith(
         expect.objectContaining({ status: NodeExecutionStatus.RUNNING }),
       );
-      expect(nodeQb.andWhere).toHaveBeenCalledWith(
+      expect(byEntity.NodeExecution.andWhere).toHaveBeenCalledWith(
         'status = :waiting',
         expect.objectContaining({
           waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
         }),
       );
-      // (2) 짝 전이: Execution 도 같은 tx 로 WFI→RUNNING (crash-consistency).
-      expect(execQb.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: ExecutionStatus.RUNNING }),
-      );
-      expect(execQb.execute).toHaveBeenCalled();
       // 부수효과: claim 성공 시 active-running 세그먼트 시작 기록(PR2a/§8 보정).
-      expect(
-        (
-          service as unknown as { segmentStartMs: Map<string, number> }
-        ).segmentStartMs.has('exec-1'),
-      ).toBe(true);
+      expect(segmentStarted()).toBe(true);
     });
 
-    it('node affected=0 → false + Execution 짝 전이 미실행 + segmentStartMs 미기록', async () => {
-      const { execQb } = installTx(0, 1);
-      (
-        service as unknown as { segmentStartMs: Map<string, number> }
-      ).segmentStartMs.delete('exec-1');
+    it('node affected=0 → false + 트랜잭션 롤백(Execution 변경 취소) + segmentStartMs 미기록', async () => {
+      const { order, tx } = installTx(0, 1);
+      clearSegment();
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
         false,
       );
-      // node claim 실패 → 짝 Execution UPDATE 도달 전 return.
-      expect(execQb.execute).not.toHaveBeenCalled();
-      // 부수효과 미발생 — claim 실패 시 세그먼트 기록 없음.
-      expect(
-        (
-          service as unknown as { segmentStartMs: Map<string, number> }
-        ).segmentStartMs.has('exec-1'),
-      ).toBe(false);
+      // Execution 은 이미 RUNNING 으로 바꿨다. 경합에서 졌으므로 롤백해야 늦게 온
+      // 메시지가 WFI 실행을 RUNNING 으로 뒤집지 않는다 — tx 콜백이 던진다.
+      expect(order).toEqual(['Execution', 'NodeExecution']);
+      await expect(tx.mock.results[0].value).rejects.toMatchObject({
+        name: 'ResumeClaimNodeLostError',
+      });
+      expect(segmentStarted()).toBe(false);
     });
 
-    it('node claim 성공하나 Execution terminal(짝 UPDATE affected=0) → 롤백·false (동시 cancel 방어)', async () => {
+    it('Execution terminal(affected=0) → false + NodeExecution claim 미실행 (동시 cancel 방어)', async () => {
       // 일반 방어 시나리오: 어떤 경로로든 exec=CANCELLED(또는 다른 terminal)·
-      // node=WAITING 상태에서 claim 이 node 만 잡으면 짝 불일치 → exec 짝 UPDATE
-      // affected=0 → throw 로 tx 롤백 → false. (ai-review WARNING #1, 2026-07-27
-      // — `cancelParkedExecution` 자신의 비원자 창은 트랜잭션 원자화로 이미
-      // 닫혔다; 이 테스트는 claimResumeEntry 자체의 일반 방어를 가드한다.)
-      const { execQb } = installTx(1, 0);
-      (
-        service as unknown as { segmentStartMs: Map<string, number> }
-      ).segmentStartMs.delete('exec-1');
+      // node=WAITING 이면 Execution UPDATE 가 affected=0 이다. 바뀐 행이 없으므로
+      // 롤백 없이 false 이고 node 는 건드리지 않는다.
+      const { order, tx } = installTx(1, 0);
+      clearSegment();
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
         false,
       );
-      // exec 짝 UPDATE 는 시도됨(affected=0 확인) — 그 결과로 abort.
-      expect(execQb.execute).toHaveBeenCalled();
-      // claim 실패 → 세그먼트 미기록.
-      expect(
-        (
-          service as unknown as { segmentStartMs: Map<string, number> }
-        ).segmentStartMs.has('exec-1'),
-      ).toBe(false);
+      expect(order).toEqual(['Execution']);
+      await expect(tx.mock.results[0].value).resolves.toBe(false);
+      expect(segmentStarted()).toBe(false);
     });
 
-    it('동시 재개 — 두 claim 중 하나만 승리 (레이스 결정자=node claim)', async () => {
-      // 첫 tx 만 node affected=1(승리), 두번째는 status 불일치로 affected=0.
+    it('동시 재개 — 두 claim 중 하나만 승리 (경합 판정=node claim)', async () => {
+      // 둘 다 Execution UPDATE 는 통과한다(WFI ∪ RUNNING). 첫 tx 만 node affected=1.
       let txCall = 0;
       ds().dataSource.transaction = jest.fn(
         async (cb: (m: unknown) => Promise<unknown>) => {
           const nodeAff = txCall++ === 0 ? 1 : 0;
-          let i = 0;
-          const qbs = [makeQb(nodeAff), makeQb(1)];
-          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
+          return txWith((t) => (t === 'NodeExecution' ? nodeAff : 1), [])(cb);
         },
       );
 
@@ -2868,6 +3345,15 @@ describe('ExecutionEngineService', () => {
       ]);
 
       expect([a, b].filter(Boolean)).toHaveLength(1); // 정확히 하나만 승리
+    });
+
+    it('센티널이 아닌 DB 오류는 전파한다', async () => {
+      ds().dataSource.transaction = jest.fn(async () => {
+        throw new Error('db down');
+      });
+      await expect(service.claimResumeEntry('exec-1', 'ne-1')).rejects.toThrow(
+        'db down',
+      );
     });
 
     it('__no_node_exec__ / 빈 id → true (legacy 우회, 트랜잭션 미실행)', async () => {

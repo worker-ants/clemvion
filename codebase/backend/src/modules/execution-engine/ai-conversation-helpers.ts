@@ -356,3 +356,67 @@ export function buildAiResumedSnapshot(params: {
     _resumeState: resumeState,
   };
 }
+
+/** AI 대화 노드가 다음 입력을 기다릴 때 출력 봉투의 `status` 값. */
+const AI_WAITING_OUTPUT_STATUS = 'waiting_for_input';
+
+/** {@link readCrashedAiTurn} 결과. */
+export interface CrashedAiTurn {
+  /** 처리 중이던 턴의 입력. 재생 턴에 그대로 넘긴다. */
+  interaction: AiResumeInteraction;
+  /**
+   * 그 턴을 받기 직전의 대기 봉투. 재생 턴이 이 봉투를 직전 대기 스냅샷으로 삼아
+   * 재개 스냅샷을 다시 만든다. `_resumeCheckpoint` 는 스냅샷의 값을 그대로 둔다.
+   */
+  waitingEnvelope: Record<string, unknown>;
+}
+
+/**
+ * 크래시 재구동(§7.5 case B)이 처리 중이던 AI 턴을 다시 돌릴 재료를 옛 행 출력에서 읽는다.
+ * 정본은 NERV `CLE-EXEC-STATE-RESUME` 「크래시 재구동에서 처리 중이던 턴을 다시 돌린다」다.
+ *
+ * 옛 행 출력은 {@link buildAiResumedSnapshot} 이 LLM 호출 전에 저장한 재개 스냅샷이다.
+ * 거기서 입력(`output.interaction`)을 꺼내고 대기 봉투를 되살린다.
+ * - 일반 메시지 턴이면 스냅샷이 `output.result.messages` 끝에 더한 사용자 메시지를 뺀다.
+ *   끝 메시지가 입력과 다르면 건드리지 않는다.
+ * - `output.interaction` 을 지우고 `status` 를 대기로 되돌린다.
+ * - 스냅샷이 지운 `meta.contextInjection` 과 원래 `meta.durationMs` 는 되살리지 못한다.
+ *   재생 턴이 곧 새 스냅샷으로 덮는 관찰용 값이다.
+ *
+ * 재개 스냅샷이 아니거나 입력을 읽을 수 없으면 `null` 이다. 호출 측은 그 노드를 처음부터
+ * 다시 실행한다.
+ */
+export function readCrashedAiTurn(outputData: unknown): CrashedAiTurn | null {
+  if (!isAiResumedWaitingEnvelope(outputData)) return null;
+  const snapshot = outputData as Record<string, unknown>;
+  const output = { ...(asPlainRecord(snapshot.output) ?? {}) };
+  const raw = asPlainRecord(output.interaction);
+  const data = asPlainRecord(raw?.data);
+  let interaction: AiResumeInteraction;
+  if (raw?.type === 'message_received' && typeof data?.content === 'string') {
+    interaction = { type: 'message_received', content: data.content };
+    const result = asPlainRecord(output.result);
+    const messages = Array.isArray(result?.messages)
+      ? (result.messages as unknown[])
+      : undefined;
+    const last = asPlainRecord(messages?.[messages.length - 1]);
+    if (
+      messages &&
+      last?.role === 'user' &&
+      last.content === interaction.content
+    ) {
+      output.result = { ...result, messages: messages.slice(0, -1) };
+    }
+  } else if (raw?.type === 'form_submitted' && data) {
+    interaction = { type: 'form_submitted', data };
+  } else {
+    return null;
+  }
+  delete output.interaction;
+  const { _resumeState: _dropped, ...rest } = snapshot;
+  void _dropped;
+  return {
+    interaction,
+    waitingEnvelope: { ...rest, output, status: AI_WAITING_OUTPUT_STATUS },
+  };
+}

@@ -206,7 +206,12 @@ import { ButtonInteractionService } from './button-interaction.service';
 // `./ai-conversation-helpers` 단일이며, 모든 소비자(엔진·orchestrator·spec)가 거기서
 // 직접 import 한다 — re-export 체인 제거(impl-done Critical 해소: `RehydrationError`
 // 단일 클래스 식별성으로 `instanceof` 일관 보장). 엔진은 내부 사용분만 값 import.
-import { RehydrationError } from './ai-conversation-helpers';
+import {
+  type CrashedAiTurn,
+  isAiResumedWaitingEnvelope,
+  readCrashedAiTurn,
+  RehydrationError,
+} from './ai-conversation-helpers';
 import { findBrokenCallStackFrame } from './call-stack-frame';
 import { ParkReleaseSignal } from '../../shared/execution-resume/park-release-signal';
 import {
@@ -447,15 +452,16 @@ class ErrorPortFallbackError extends Error {
   }
 }
 
-/** §7.5 재개 진입 원자 claim(06 C-2) 내부 sentinel — NodeExecution claim 성공 후
- *  Execution 짝 전이가 affected=0(동시 cancel 등으로 Execution 이 이미 terminal)일 때,
- *  트랜잭션을 롤백해 node claim 도 취소하기 위해 throw 한다. `claimResumeEntry` 의
- *  catch 가 `instanceof` 로 판별해 정상 discard(false)로 흡수하며 외부로 전파하지
- *  않는다 (그 외 DB 오류는 전파). */
-class ResumeClaimExecTerminalError extends Error {
+/** §7.5 재개 진입 원자 claim(06 C-2) 내부 sentinel — Execution 짝 전이를 먼저 한 뒤
+ *  NodeExecution claim 이 affected=0(다른 worker 가 이미 claim 했거나 terminal)일 때,
+ *  트랜잭션을 롤백해 앞선 Execution 전이를 취소하기 위해 throw 한다. 롤백하지 않으면
+ *  늦게 온 재개 메시지가 다른 worker 의 claim 을 잃은 채 Execution 상태만 바꾼다.
+ *  `claimResumeEntry` 의 catch 가 `instanceof` 로 판별해 정상 discard(false)로
+ *  흡수하며 외부로 전파하지 않는다 (그 외 DB 오류는 전파). */
+class ResumeClaimNodeLostError extends Error {
   constructor() {
-    super('resume claim aborted — paired Execution is terminal');
-    this.name = 'ResumeClaimExecTerminalError';
+    super('resume claim aborted — NodeExecution already claimed or terminal');
+    this.name = 'ResumeClaimNodeLostError';
   }
 }
 
@@ -476,6 +482,47 @@ const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
  * (spec: 4-execution-engine §1.3 보존 예외 / §7.5 실패 케이스 표)
  */
 const CHECKPOINT_SCHEMA_VERSION = 1;
+
+/**
+ * 크래시한 AI 턴의 행 모양이 영속 호출 스택과 맞는지 본다(순수 함수). 나머지 RUNNING 행이
+ * 프레임마다 하나씩인 호출 노드 행이고, AI 행의 부모가 가장 안쪽 호출 노드 행이면 참이다.
+ */
+function matchesCallStackRowShape(
+  aiRow: Pick<NodeExecution, 'parentNodeExecutionId'>,
+  others: ReadonlyArray<Pick<NodeExecution, 'id' | 'nodeId'>>,
+  frames: ReadonlyArray<{ invokerNodeId: string }>,
+): boolean {
+  const invokerIds = frames.map((f) => f.invokerNodeId).sort();
+  const rowNodeIds = others.map((r) => r.nodeId).sort();
+  const innermostRow = others.find((r) => r.id === aiRow.parentNodeExecutionId);
+  return (
+    invokerIds.length === rowNodeIds.length &&
+    invokerIds.every((id, i) => id === rowNodeIds[i]) &&
+    innermostRow?.nodeId === frames[frames.length - 1].invokerNodeId
+  );
+}
+
+/**
+ * 대기 봉투의 `_resumeCheckpoint` 를 읽는다. 객체가 아니면 `'missing'`, 스키마 버전이
+ * 지원 범위를 넘으면 `'future'` 다(case A 의 버전 검사와 같은 기준).
+ */
+function readValidCheckpoint(
+  envelope: Record<string, unknown>,
+): Record<string, unknown> | 'missing' | 'future' {
+  const checkpoint = envelope._resumeCheckpoint;
+  if (
+    checkpoint === null ||
+    typeof checkpoint !== 'object' ||
+    Array.isArray(checkpoint)
+  ) {
+    return 'missing';
+  }
+  const version = (checkpoint as { schemaVersion?: unknown }).schemaVersion;
+  if (typeof version === 'number' && version > CHECKPOINT_SCHEMA_VERSION) {
+    return 'future';
+  }
+  return checkpoint as Record<string, unknown>;
+}
 
 /**
  * `_resumeCheckpoint` 저장·재개 허용 노드 타입 allow-list (spec §1.3 합집합).
@@ -1205,6 +1252,10 @@ export class ExecutionEngineService
    * 트랜잭션**으로 묶는다. 비-트랜잭션 2단계였을 때는 첫 UPDATE 커밋 후 둘째가
    * 실패(또는 그 사이 크래시)하면 NodeExecution 이 영구 WAITING 으로 잔류하고
    * Execution 만 CANCELLED 로 남는 불일치가 있었다.
+   *
+   * 잠금 순서는 Execution → NodeExecution 이다. 같은 두 행을 바꾸는 형제 경로
+   * (`markWebChatIdleTimeout` · `finalizeStalledExhausted` · `claimResumeEntry`)도
+   * 이 순서를 지킨다. 순서를 바꾸면 동시 실행 시 데드락이 날 수 있다.
    */
   private async cancelParkedExecution(executionId: string): Promise<void> {
     try {
@@ -1332,6 +1383,9 @@ export class ExecutionEngineService
    * - **best-effort**: emit 실패는 warn(취소는 DB 반영됨). DB 오류는 내부 흡수(reaper 를 죽이지 않음).
    * - **public**: EIA reaper(`WebChatIdleReaperService`)가 다른 모듈에서 호출한다.
    *
+   * - **잠금 순서**: Execution → NodeExecution. 형제 `cancelParkedExecution` ·
+   *   `finalizeStalledExhausted` · `claimResumeEntry` 와 같다(데드락 방지).
+   *
    * @returns 실제로 이 호출이 `waiting_for_input → cancelled` 전이를 일으켰으면 `true`.
    */
   async markWebChatIdleTimeout(executionId: string): Promise<boolean> {
@@ -1340,7 +1394,7 @@ export class ExecutionEngineService
       'Execution cancelled: public web-chat widget idle-wait timeout';
     try {
       // Execution + 동반 WAITING NodeExecution 을 **단일 트랜잭션**으로 마감한다(형제
-      // `claimResumeEntry` 와 동일 패턴, review W1). 비-트랜잭션 2단계면 첫 UPDATE 커밋 후 둘째가
+      // `cancelParkedExecution` 과 같은 Execution → NodeExecution 순서, review W1). 비-트랜잭션 2단계면 첫 UPDATE 커밋 후 둘째가
       // 실패할 때 NodeExecution 이 영구 WAITING 잔류하고 Execution 만 cancelled 로 남아, 다음 tick
       // (status=waiting_for_input 필터)에서도 재선정 안 돼 복구 경로가 없다 → 트랜잭션으로 원자화해
       // 롤백 시 execution 이 waiting 으로 남아 다음 tick 이 재시도하게 한다.
@@ -1425,6 +1479,12 @@ export class ExecutionEngineService
    * 막혀 영구 stuck 된다. 페어링으로 크래시 시 둘 다 RUNNING → `recoverStuckExecutions`
    * 가 Execution(+자식 NodeExecution) 을 30분 stale 회수한다.
    *
+   * **잠금 순서 Execution → NodeExecution**: 같은 두 행을 한 트랜잭션에서 바꾸는 형제
+   * 경로(`cancelParkedExecution` · `markWebChatIdleTimeout` · `finalizeStalledExhausted`)
+   * 와 같은 순서로 잠근다. Execution 을 먼저 전이하고, NodeExecution claim 이
+   * affected=0 이면 sentinel 로 롤백해 Execution 전이를 취소한다. 레이스 결정은
+   * 여전히 NodeExecution `affected=1` 이 한다.
+   *
    * check-then-act 창이 없어 멀티 인스턴스(인스턴스당 concurrency=1 이어도 인스턴스
    * 간 병렬)·§7.4 concurrency 상향 양쪽에서 "동일 turn 이중 실행 0" 불변식을
    * 기계적으로 보장한다 (§1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화).
@@ -1443,25 +1503,12 @@ export class ExecutionEngineService
     }
     const claimed = await this.dataSource
       .transaction(async (manager) => {
-        // (1) 레이스 결정자 — NodeExecution 조건부 claim.
-        const nodeRes = await manager
-          .createQueryBuilder()
-          .update(NodeExecution)
-          .set({ status: NodeExecutionStatus.RUNNING })
-          .where('id = :id', { id: nodeExecutionId })
-          .andWhere('status = :waiting', {
-            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
-          })
-          .execute();
-        if ((nodeRes.affected ?? 0) === 0) return false;
-        // (2) 짝 전이 — 같은 tx 로 Execution 도 WFI→RUNNING (§1.1). 재개 가능
-        //     상태(WAITING_FOR_INPUT ∪ RUNNING)만 대상. affected=0 이면 Execution 이
-        //     이미 terminal(동시 cancel 등) → node 만 claim 되면 짝 불일치가 남으므로
-        //     throw(ResumeClaimExecTerminalError)로 tx 롤백해 node claim 도 취소한다
-        //     (→ discard). (ai-review WARNING #1, 2026-07-27 — `cancelParkedExecution`
-        //     은 이제 exec/node UPDATE 를 단일 트랜잭션으로 원자화해 그 경로발
-        //     "exec=CANCELLED·node=WAITING" 창은 닫혔다. 이 discard 분기는 다른
-        //     동시 취소 경로에 대한 일반 방어로 남긴다.)
+        // (1) 짝 전이 — Execution 을 먼저 WFI→RUNNING (§1.1). 형제 경로
+        //     (`cancelParkedExecution` · `markWebChatIdleTimeout` ·
+        //     `finalizeStalledExhausted`)와 같은 Execution → NodeExecution 잠금
+        //     순서를 지켜 데드락 표면을 없앤다. 재개 가능 상태(WAITING_FOR_INPUT ∪
+        //     RUNNING)만 대상. affected=0 이면 Execution 이 이미 terminal(동시 cancel
+        //     등) → 바뀐 행이 없으므로 그대로 discard 한다.
         const execRes = await manager
           .createQueryBuilder()
           .update(Execution)
@@ -1474,14 +1521,28 @@ export class ExecutionEngineService
             ],
           })
           .execute();
-        if ((execRes.affected ?? 0) === 0) {
-          throw new ResumeClaimExecTerminalError();
+        if ((execRes.affected ?? 0) === 0) return false;
+        // (2) 레이스 결정자 — NodeExecution 조건부 claim. 동시 claim 은 (1) 의
+        //     Execution 행 잠금에서 직렬화되고, 뒤에 온 쪽은 여기서 affected=0 이
+        //     된다. 그때 throw(ResumeClaimNodeLostError)로 tx 를 롤백해 (1) 의
+        //     Execution 전이도 취소한다 (→ discard).
+        const nodeRes = await manager
+          .createQueryBuilder()
+          .update(NodeExecution)
+          .set({ status: NodeExecutionStatus.RUNNING })
+          .where('id = :id', { id: nodeExecutionId })
+          .andWhere('status = :waiting', {
+            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        if ((nodeRes.affected ?? 0) === 0) {
+          throw new ResumeClaimNodeLostError();
         }
         return true;
       })
       .catch((err: unknown) => {
-        // 짝 불일치 abort(sentinel)는 정상 discard 경로(false). 그 외 DB 오류는 전파.
-        if (err instanceof ResumeClaimExecTerminalError) return false;
+        // claim 패배 abort(sentinel)는 정상 discard 경로(false). 그 외 DB 오류는 전파.
+        if (err instanceof ResumeClaimNodeLostError) return false;
         throw err;
       });
     if (claimed) {
@@ -3270,11 +3331,16 @@ export class ExecutionEngineService
    * 재실행하므로(§7.3 at-least-once) 옛 RUNNING row 는 이 시점에 닫아야 부모 Execution
    * 종결 후 유령 "running" 노드가 남지 않는다 (옛 recoverStuckExecutions cascade 복원).
    * 완료 노드는 이미 COMPLETED 라 대상 아님.
+   *
+   * `nodeExecutionId` 를 주면 그 행 하나만 마감한다. 크래시한 AI 재개 턴을 다시 돌리는
+   * 경로({@link replayCrashedAiTurn})가 쓴다. 중첩 실행에서는 호출 노드 행이 park 중에도
+   * RUNNING 이고 재생 뒤 bubble-up 이 그 아래에서 이어 가므로 닫지 않는다.
    */
   private async failOrphanRunningNodeExecutions(
     executionId: string,
+    nodeExecutionId?: string,
   ): Promise<void> {
-    await this.nodeExecutionRepository
+    const qb = this.nodeExecutionRepository
       .createQueryBuilder()
       .update(NodeExecution)
       .set({
@@ -3287,8 +3353,184 @@ export class ExecutionEngineService
       .where('execution_id = :executionId', { executionId })
       .andWhere('status = :running', {
         running: NodeExecutionStatus.RUNNING,
-      })
-      .execute();
+      });
+    if (nodeExecutionId) {
+      qb.andWhere('id = :nodeExecutionId', { nodeExecutionId });
+    }
+    await qb.execute();
+  }
+
+  /**
+   * §7.5 case B — 크래시한 AI 재개 턴이 있으면 그 턴을 다시 돌린다. 돌렸으면 `true`,
+   * 대상이 아니거나 재구성이 안 되면 `false` 이고 호출 측이 기존 재구동(처음부터)으로 간다.
+   * 재구성 가능 여부는 재생 전에 같은 재구성기로 확인한다. 재생 중에 실패하면 case A 처럼
+   * RESUME_INCOMPATIBLE_STATE 로 끝나므로, 여기서 걸러 처음부터 돈다.
+   */
+  private async tryReplayCrashedAiTurn(
+    savedExecution: Execution,
+  ): Promise<boolean> {
+    const crashedTurn = await this.findCrashedAiTurn(savedExecution);
+    if (!crashedTurn) return false;
+    const executionId = savedExecution.id;
+    const replayContext = await this.rehydrateContext(savedExecution, null);
+    try {
+      this.buildRetryReentryState(
+        savedExecution,
+        crashedTurn.node,
+        replayContext,
+        crashedTurn.checkpoint,
+        { resumeMode: true },
+      );
+    } catch (probeErr) {
+      this.logger.warn(
+        `[crash-redrive] execution ${executionId} AI 재개 턴 재구성 불가 — 처음부터 재구동: ${
+          probeErr instanceof Error ? probeErr.message : String(probeErr)
+        }`,
+      );
+      return false;
+    }
+    await this.replayCrashedAiTurn(savedExecution, replayContext, crashedTurn);
+    return true;
+  }
+
+  /**
+   * §7.5 case B — 재개 턴의 LLM 호출 중 크래시한 멀티턴 AI 노드를 RUNNING 행에서 찾는다.
+   * 정본은 NERV `CLE-EXEC-STATE-RESUME` 「크래시 재구동에서 처리 중이던 턴을 다시 돌린다」다.
+   *
+   * 아래가 모두 맞을 때만 후보를 돌려준다. 하나라도 어긋나면 `null` 이고 호출 측은 기존
+   * 재구동(그 노드를 처음부터)으로 간다.
+   * - RUNNING 행 가운데 출력이 AI 대화 재개 스냅샷인 행이 정확히 하나다.
+   * - 최상위(`resume_call_stack` 없음)면 그 행에 부모가 없고 다른 RUNNING 행이 없다.
+   * - 중첩이면 호출 스택이 지원 버전 이하로 온전하고, 나머지 RUNNING 행이 프레임마다
+   *   하나씩인 호출 노드 행이며, AI 행의 부모가 가장 안쪽 호출 노드 행이다. park 한 중첩
+   *   실행의 행 모양이 이렇다(`executeNode` 의 `ParkReleaseSignal` 분기).
+   * - 노드 정의가 있고 체크포인트 대상 타입이다.
+   * - 스냅샷에서 처리 중이던 입력을 읽을 수 있고 `_resumeCheckpoint` 가 객체이며 버전이
+   *   지원 범위다(case A {@link resumeFromCheckpoint} 와 같은 검사).
+   */
+  private async findCrashedAiTurn(savedExecution: Execution): Promise<{
+    oldRow: NodeExecution;
+    node: Node;
+    turn: CrashedAiTurn;
+    checkpoint: Record<string, unknown>;
+  } | null> {
+    const executionId = savedExecution.id;
+    const skip = (reason: string): null => {
+      this.logger.log(
+        `[crash-redrive] execution ${executionId} AI 재개 턴 재생 안 함(${reason}) — 처음부터 재구동.`,
+      );
+      return null;
+    };
+    const running = await this.nodeExecutionRepository.find({
+      where: { executionId, status: NodeExecutionStatus.RUNNING },
+    });
+    const aiRows = running.filter((r) =>
+      isAiResumedWaitingEnvelope(r.outputData),
+    );
+    if (aiRows.length === 0) return null;
+    if (aiRows.length > 1) return skip('재개 스냅샷 행이 여럿');
+    const oldRow = aiRows[0];
+    const others = running.filter((r) => r.id !== oldRow.id);
+
+    const callStack = savedExecution.resumeCallStack;
+    const frames = callStack?.frames;
+    if (Array.isArray(frames) && frames.length) {
+      if (
+        typeof callStack?.version === 'number' &&
+        callStack.version > CALL_STACK_SCHEMA_VERSION
+      ) {
+        return skip('호출 스택 미래 버전');
+      }
+      if (findBrokenCallStackFrame(frames)) return skip('호출 스택 손상');
+      if (!matchesCallStackRowShape(oldRow, others, frames)) {
+        return skip('호출 노드 행이 호출 스택과 다름');
+      }
+    } else if (oldRow.parentNodeExecutionId || others.length) {
+      return skip('최상위 행 모양이 다름');
+    }
+
+    const node = await this.nodeRepository.findOneBy({ id: oldRow.nodeId });
+    if (!node || !this.isCheckpointEligibleNodeType(node.type)) {
+      return skip('노드 정의 없음 또는 체크포인트 비대상');
+    }
+    const turn = readCrashedAiTurn(oldRow.outputData);
+    if (!turn) return skip('처리 중이던 입력 없음');
+    const checkpoint = readValidCheckpoint(turn.waitingEnvelope);
+    if (checkpoint === 'missing') return skip('_resumeCheckpoint 없음 · 손상');
+    if (checkpoint === 'future') return skip('_resumeCheckpoint 미래 버전');
+    return { oldRow, node, turn, checkpoint };
+  }
+
+  /**
+   * §7.5 case B — {@link findCrashedAiTurn} 이 찾은 턴을 새 행으로 다시 돌린다.
+   *
+   * 1. 옛 AI 행 하나만 마감한다(출력은 지우지 않는다). 중첩 호출 노드 행은 둔다.
+   * 2. 같은 부모 · 같은 입력으로 새 RUNNING 행을 만들고 `NODE_STARTED` 를 보낸다.
+   * 3. 턴 이전 대기 봉투를 컨텍스트에 싣는다. case A 가 대기 행 출력을 싣는 것과 같다.
+   * 4. 스냅샷의 입력을 continuation payload 로 바꿔 {@link resumeFromCheckpoint} 에
+   *    넘긴다. 최상위는 `driveResumeAwaited`, 중첩은 `driveCallStackResume` 로 갈린다.
+   *    새 사용자 메시지를 기다리지 않는다.
+   *
+   * 재생 진입의 사전 검사(그래프 위치 등)가 실패하면 새 행을 `RESUME_*` 로 마감하고
+   * 다시 던진다. 호출 측 catch 가 실행을 마감한다(case A 와 같은 처리).
+   */
+  private async replayCrashedAiTurn(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    found: { oldRow: NodeExecution; node: Node; turn: CrashedAiTurn },
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    const { oldRow, node, turn } = found;
+    await this.failOrphanRunningNodeExecutions(executionId, oldRow.id);
+    const parentNodeExecutionId = oldRow.parentNodeExecutionId ?? undefined;
+    const nodeExec = await this.createNodeExecution(
+      executionId,
+      node.id,
+      NodeExecutionStatus.RUNNING,
+      parentNodeExecutionId,
+      oldRow.inputData,
+    );
+    this.contextService.setNodeOutput(
+      this.contextKeyOf(context),
+      node.id,
+      turn.waitingEnvelope,
+    );
+    await this.eventEmitter.emitNode(
+      executionId,
+      node.id,
+      NodeEventType.NODE_STARTED,
+      {
+        nodeExecutionId: nodeExec.id,
+        parentNodeExecutionId,
+        status: NodeExecutionStatus.RUNNING,
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+        input: oldRow.inputData,
+        startedAt: nodeExec.startedAt?.toISOString?.(),
+      },
+    );
+    const payload: ContinuationPayload =
+      turn.interaction.type === 'message_received'
+        ? { type: 'ai_message', message: turn.interaction.content }
+        : { type: 'form_submitted', formData: turn.interaction.data };
+    this.logger.log(
+      `[crash-redrive] execution ${executionId} AI 재개 턴 재생 — node=${node.id} oldRow=${oldRow.id} newRow=${nodeExec.id}`,
+    );
+    try {
+      await this.resumeFromCheckpoint(savedExecution, context, {
+        node,
+        nodeExec,
+        payload,
+      });
+    } catch (err) {
+      await this.markNodeExecutionFailed(
+        nodeExec.id,
+        err instanceof RehydrationError
+          ? err.code
+          : 'RESUME_CHECKPOINT_MISSING',
+      );
+      throw err;
+    }
   }
 
   /**
@@ -3306,6 +3548,7 @@ export class ExecutionEngineService
    * 첫 문장이 커밋된 뒤 둘째가 실패하면 자식이 **영구 `RUNNING`** 으로 잔류했다 — 자매 두
    * 함수의 주석이 경고하는 바로 그 실패 모드이고, 셋 중 이 하나만 열려 있었다.
    * emit·cleanup 은 **커밋 이후** best-effort 로 실행한다(자매와 같은 순서).
+   * 잠금 순서도 자매 · `claimResumeEntry` 와 같은 Execution → NodeExecution 이다.
    *
    * **함수 레벨 `try/catch` 는 의도적으로 없다** — 자매 둘과 다른 유일한 점이다. 유일
    * 호출부(`ExecutionRunProcessor.onFailed`)가 `.catch()` 로 흡수하므로 최종 동작은
@@ -3457,6 +3700,10 @@ export class ExecutionEngineService
       // COMPLETED 로 마감된 뒤에도 그 노드만 영구 `running` orphan 으로 남아 타임라인/
       // 진행률 집계를 오염시킨다. 옛 recoverStuckExecutions 의 cascade FAILED 보장을
       // re-drive 진입 시점으로 옮겨 복원한다.
+      // 재개 턴의 LLM 호출 중 크래시한 멀티턴 AI 노드는 그 턴을 새 행으로 다시 돌린다
+      // (CLE-T-K9RZQV). 재료가 온전하지 않으면 아래 기존 재구동(처음부터)으로 간다.
+      if (await this.tryReplayCrashedAiTurn(savedExecution)) return;
+
       await this.failOrphanRunningNodeExecutions(executionId);
 
       // 완료 노드 복원 — waiting 노드가 없으므로 null. execution_node_log +
