@@ -19,7 +19,8 @@
  * 응답에 **절대 실려서는 안 되는** 트리거 비밀 컬럼.
  *
  * 아래 키 목록 등가 단언이 이미 이들을 배제하지만, 이름을 남겨 실패 메시지가 *무엇이*
- * 샜는지 바로 말하게 한다 (`TRIGGER_RESPONSE_STRIP_COLUMNS` 와 같은 목록).
+ * 샜는지 바로 말하게 한다. 정본은 `trigger-response-strip.ts` 분류 표의 `'strip'` 컬럼이고 같은지는
+ * repo-guard `trigger-secret-columns.spec.ts` 가 본다.
  */
 const TRIGGER_SECRET_COLUMNS = [
   'notificationSecretV2',

@@ -6,8 +6,10 @@ import {
   CANONICAL_CONST,
   CANONICAL_SOURCE,
   MIRROR_CONST,
+  CANONICAL_LABEL,
   MIRROR_SOURCES,
   readAllTriggerSecretColumnLists,
+  readObjectKeysLabelled,
   readStringArrayConst,
 } from './trigger-secret-columns-guard';
 
@@ -16,15 +18,14 @@ import {
  *
  * | 자리 | 상수 | 성격 |
  * |---|---|---|
- * | `modules/triggers/triggers.service.ts` | `TRIGGER_RESPONSE_STRIP_COLUMNS` | **정본** — 실제로 응답에서 지운다 |
+ * | `modules/triggers/trigger-response-strip.ts` | `TRIGGER_COLUMN_RESPONSE` 에서 값이 `'strip'` 인 키 | **정본** — 서비스가 이 키를 응답에서 지운다 |
  * | `shared/testing/schedule-trigger-ref.ts` | `TRIGGER_SECRET_COLUMNS` | 사본 |
  * | `shared/testing/trigger-workflow-ref.ts` | `TRIGGER_SECRET_COLUMNS` | 사본 |
  *
  * ## 왜 런타임 공유가 아니라 정적 가드인가
  *
- * 정본이 `export` 가 아니고, 서비스 모듈을 테스트 헬퍼로 끌어오는 것은 의존 그래프상 과하다
- * (헬퍼는 `shared/testing/` 이고 `modules/` 를 향한 역방향 의존을 만든다). 그래서 값을
- * 공유하는 대신 **세 리터럴이 같다는 사실만** 정적으로 고정한다.
+ * 헬퍼는 `shared/testing/` 이고 정본은 `modules/triggers/` 다. 헬퍼가 정본을 import 하면 `modules/` 를
+ * 향한 역방향 의존이 생긴다. 그래서 값을 공유하는 대신 **세 리터럴이 같다는 사실만** 정적으로 고정한다.
  *
  * ## 왜 필요한가 — 오늘 일치한다는 사실이 내일을 보장하지 않는다
  *
@@ -70,16 +71,16 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
     }
   });
 
-  it('[대조군] 정본은 `as const satisfies …`, 사본은 `as const` — 둘 다 읽는다', () => {
+  it('[대조군] 정본은 `{…} as const satisfies …` 표, 사본은 `[…] as const` — 둘 다 읽는다', () => {
     // **이 가드의 판별 자리다.** `AsExpression` 하나만 벗기는 리더는 정본에서 `null` 을 낸다
-    // (`satisfies` 노드에서 멈춰 배열 리터럴에 도달하지 못한다 — 뮤턴트 실측).
+    // (`satisfies` 노드에서 멈춰 리터럴에 도달하지 못한다 — 뮤턴트 실측).
     // 실제 파일이 그 두 형태를 실제로 쓰고 있음을 먼저 고정하고(전제가 바뀌면 여기서 터진다),
     // 그 다음 둘 다 읽히는지 본다.
     const canonicalText = fs.readFileSync(
       path.join(repoRoot, CANONICAL_SOURCE),
       'utf8',
     );
-    expect(canonicalText).toContain(`${CANONICAL_CONST} = [`);
+    expect(canonicalText).toContain(`${CANONICAL_CONST} = {`);
     expect(canonicalText).toContain('as const satisfies');
 
     const mirrorText = fs.readFileSync(
@@ -221,6 +222,90 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
         "const BASE = ['a'] as const;\nconst X = [...BASE, 'b'] as const;\nexport default X;",
       );
       expect(readStringArrayConst(tmp, rel, 'X')).toBeNull();
+    });
+  });
+
+  /**
+   * **`readObjectKeysLabelled` 의 분기 ↔ 대조군 대응표.** 파일 부재는 위 리더와 같은 `parseSource` 를 지난다.
+   *
+   * | # | 분기 | 결과 | 대조군 |
+   * |---|---|---|---|
+   * | 1 | 선언 없음 · 객체 리터럴 아님 | `null` | *객체 리터럴이 아니면…* |
+   * | 2 | 스프레드 · 계산된 키 | `null` | *스프레드가 섞이면…* · *계산된 키는…* |
+   * | 3 | 값이 문자열 리터럴이 아님 | `null` | *값이 문자열이 아니면…* |
+   * | 4 | 모두 `키: '문자열'` | 값이 label 인 키 | *label 인 키만…* |
+   * | 5 | label 인 키 없음 | `[]` | *label 인 키가 없으면…* |
+   */
+  describe('[대조군] `readObjectKeysLabelled` 가 무엇을 읽고 무엇을 거절하는가', () => {
+    let tmp: string;
+
+    beforeAll(() => {
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'trigger-column-table-'));
+    });
+    afterAll(() => {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    });
+
+    const write = (name: string, body: string): string => {
+      fs.writeFileSync(path.join(tmp, name), body, 'utf8');
+      return name;
+    };
+    const read = (rel: string): string[] | null =>
+      readObjectKeysLabelled(tmp, rel, 'T', CANONICAL_LABEL);
+
+    it('label 인 키만 선언 순서대로 읽고 따옴표 키도 읽는다 (주석은 값이 아니다)', () => {
+      const rel = write(
+        'table.ts',
+        [
+          "// ghost: 'strip' 은 주석이다",
+          'const T = {',
+          "  b: 'strip',",
+          "  a: 'expose',",
+          "  'c': 'strip',",
+          '} as const satisfies Record<string, string>;',
+          'export default T;',
+        ].join('\n'),
+      );
+      expect(read(rel)).toEqual(['b', 'c']);
+    });
+
+    it('label 인 키가 없으면 `[]` — «못 읽음» 이 아니다', () => {
+      const rel = write(
+        'none.ts',
+        "const T = { a: 'expose' } as const;\nexport default T;",
+      );
+      expect(read(rel)).toEqual([]);
+    });
+
+    it('객체 리터럴이 아니면 `null` — 선언이 없어도 `null`', () => {
+      expect(
+        read(write('array.ts', "const T = ['strip'];\nexport default T;")),
+      ).toBeNull();
+      expect(read(write('absent.ts', 'export {};'))).toBeNull();
+    });
+
+    it('스프레드가 섞이면 `null` — 조용히 짧아지지 않는다', () => {
+      const rel = write(
+        'spread.ts',
+        "const BASE = { x: 'strip' };\nconst T = { ...BASE, a: 'strip' };\nexport default T;",
+      );
+      expect(read(rel)).toBeNull();
+    });
+
+    it('계산된 키는 `null`', () => {
+      const rel = write(
+        'computed.ts',
+        "const K = 'x';\nconst T = { [K]: 'strip' };\nexport default T;",
+      );
+      expect(read(rel)).toBeNull();
+    });
+
+    it('값이 문자열이 아니면 `null`', () => {
+      const rel = write(
+        'nonstring.ts',
+        "const S = 'strip';\nconst T = { a: S };\nexport default T;",
+      );
+      expect(read(rel)).toBeNull();
     });
   });
 });
