@@ -446,7 +446,47 @@ describe('toChatChannelEvent — execution.cancelled error 전파 (방안 D)', (
     const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.cancelled') throw new Error();
-    expect(eia.error?.code).toBe('RESUME_INCOMPATIBLE_STATE');
+    expect(eia.error).toEqual({
+      code: 'RESUME_INCOMPATIBLE_STATE',
+      message: 'expired',
+    });
+  });
+
+  // 시스템 취소의 `error` 는 `{ code, message }` 이고 둘 다 문자열이다(CLE-EIA-NOTIFY-EVENTS,
+  // NERV Task `CLE-T-M42X2A`). 타입이 `message` 를 필수로 적으므로 모양이 다른 값은 싣지 않는다.
+  // 빠지면 렌더러는 일반 취소 안내로 간다.
+  describe('error 모양이 계약과 다르면 싣지 않고 경고한다', () => {
+    let warn: jest.SpyInstance;
+
+    beforeEach(() => {
+      warn = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it.each([
+      ['message 가 없다', { code: 'RESUME_INCOMPATIBLE_STATE' }],
+      ['code 가 문자열이 아니다', { code: 42, message: 'expired' }],
+      ['message 가 문자열이 아니다', { code: 'RESUME_FAILED', message: null }],
+    ])('%s', (_label, error) => {
+      const event: ExecutionChannelEvent = {
+        ...baseEnvelope,
+        payload: {
+          ...baseRouting,
+          status: 'cancelled',
+          result: { cancelledBy: 'system' },
+          error,
+        },
+      };
+      const eia = toChatChannelEvent(event);
+      expect(eia).not.toBeNull();
+      if (eia?.type !== 'execution.cancelled') throw new Error();
+      expect(eia.error).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('exec-1');
+    });
   });
 
   it('payload.error 부재 (일반 cancel) → error 미포함', () => {
