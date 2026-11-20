@@ -91,6 +91,25 @@ describe('ssrf.util — LLM · S3 엔드포인트 가드 (CLE-T-63RSH6 · CLE-T-
       );
     });
 
+    it.each([
+      ['점 표기 mapped', '::ffff:10.0.0.1'],
+      ['mapped 16진 표기', '::ffff:a00:1'],
+      ['zone id 가 붙은 link-local', 'fe80::1%eth0'],
+      ['정규화하지 못하는 주소(fail-closed)', 'fe80:::1'],
+    ])('해석 결과가 %s(%s)이면 막는다', async (_l, address) => {
+      mockedLookup.mockResolvedValue([{ address, family: 6 }]);
+      await expect(resolvesToPrivate('https://llm.example.com')).resolves.toBe(
+        true,
+      );
+    });
+
+    it('해석 결과가 빈 배열이면 통과시킨다', async () => {
+      mockedLookup.mockResolvedValue([]);
+      await expect(resolvesToPrivate('https://llm.example.com')).resolves.toBe(
+        false,
+      );
+    });
+
     it('모두 공인이면 통과시킨다', async () => {
       mockedLookup.mockResolvedValue([
         { address: '8.8.8.8', family: 4 },
