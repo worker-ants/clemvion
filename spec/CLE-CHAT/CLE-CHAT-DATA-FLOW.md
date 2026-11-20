@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-FLOW"
 title: "채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "3e69e5ccff3d16bbb0e740abc0464ab32e5a3c2a03bd9bf69dabd4a6e0e5df24"
+content_hash: "b51e0e4bd3ead5932f482b8e71de535fd2bfb46db3b130c160456923d23b0d37"
 read_as: "approved_fallback"
 task: "CLE-T-DV6PN7"
 source_paths: []
-mirror_sha256: "164f7438a0d63a574ed9f2a1b16c0e0e0df3df9f09865d4a1803713459bfb18c"
-etag: "sha256-a818bd712bdbaff5c37795c3d00b68415d6fcc1cd56e5435023774aad04764ea"
+mirror_sha256: "3d23c92072b77da117ff12fafd3899f85bd5dae9098c39f468b6b8f32586cc81"
+etag: "sha256-34daa9e9f16b4ea69f85938c5f25150af15a0099acc7e6e50cef0549bb86ef5d"
 ---
 ## 개요
 
@@ -151,7 +151,7 @@ sequenceDiagram
   participant R as Redis 채널 대화 상태
   participant Ad as 채널 어댑터
   participant Ext as 프로바이더 API
-  WS-->>D: 실행 이벤트(triggerId, conversationKey 첨부)
+  WS-->>D: 실행 이벤트(triggerId, routing 첨부)
   D->>Reg: has(triggerId), 없으면 건너뜀
   D->>PG: SELECT trigger(config.chatChannel, 채널 건강도), 행이 없으면 건너뜀
   D->>Ad: renderNode(toChatChannelEvent(event), config)

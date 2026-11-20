@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-LISTENER"
 title: "채팅 채널 — 어댑터 라이프사이클과 listener 레지스트리"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "f63dece504eb5be625546e2811daa1df0792766c27b0edebbb622d0e82b5fae7"
+content_hash: "4eafadd060fc65178dc63719ea42ed035497aecf7823b35b614f3e88780eb47a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-DV6PN7"
 source_paths: []
-mirror_sha256: "1bbb036eebf5b63f1e02e841142d5b2ee61971c7a25abb46c1e0f80f94d82e8d"
-etag: "sha256-12305e19f605d232af8689d3e34fdc2c73ee094d8412c1c8f05f2bd49e195f72"
+mirror_sha256: "d4305d50a55e1a12094b9c08c6394ba9befa0a8f6e595df934c80908ecd697cc"
+etag: "sha256-45602a6c97c92bfe9ce2554a688ab107f0268ed8a4b9be0c68ee163f446c3142"
 ---
 ## 개요
 
@@ -153,7 +153,7 @@ fan-out 원천은 `executionEvents$` 이고 listener 는 셋이다. (1) `Notific
 
 **R4 와의 관계.** [R4](CLE-CHAT-CORE-FLOW.md#r4-단일-sink-를-직접-구독한다) 는 실행 이벤트를 Redis pub/sub 로 돌리지 않는다고 정했다. 이 결정도 실행 이벤트는 그대로 프로세스 안 `executionEvents$` 로 받는다. pub/sub 로 오가는 것은 레지스트리의 등록 · 해제뿐이고 트리거를 만들고 켜고 지울 때만 생긴다.
 
-**기각한 대안.** dispatcher 가 레지스트리에 없는 트리거를 만나면 DB(`is_active AND config.chatChannel`)를 한 번 확인하는 안. 레지스트리의 용도 하나가 레지스트리에 없는 트리거의 이벤트를 DB 를 거치지 않고 건너뛰는 것이다(R8 의 효과 (c)). 채팅 채널이 아닌 실행의 이벤트도 모두 레지스트리에 없으므로 이벤트마다 DB 조회가 생긴다. 코드를 다시 보면 이 근거는 약하다. 이벤트 `payload` 의 `chatChannel` 은 채팅 채널 인바운드로 시작한 실행에만 실린다(`HooksService` 가 실행 입력에 넣고 `WebsocketService` 가 라우팅 문맥으로 이벤트에 붙인다). dispatcher 가 `payload.chatChannel.conversationKey` 를 먼저 보면 채팅 채널이 아닌 실행은 DB 를 읽지 않고 거를 수 있다. 결정은 바꾸지 않는다. 「선행 기준의 예외」 의 재검토 조건이 생기면 이 안도 다시 본다. 주기적 일괄 등록(`bulkRegister` 를 일정 간격으로 부르는 안)도 기각했다. 바뀐 것이 없어도 모든 서버 인스턴스가 주기마다 DB 를 읽고, 그래도 다음 주기까지는 빈틈이 남는다. 레지스트리를 Redis 집합 같은 공유 저장소로 옮기는 안은 미뤘다. 그러면 dispatcher 가 이벤트마다 Redis 를 읽는다. Redis 가 응답하지 않는 동안에는 레지스트리로 거르지도 못한다. 연결이 이어진 동안의 유실이 관찰되면 그때 함께 본다.
+**기각한 대안.** dispatcher 가 레지스트리에 없는 트리거를 만나면 DB(`is_active AND config.chatChannel`)를 한 번 확인하는 안. 레지스트리의 용도 하나가 레지스트리에 없는 트리거의 이벤트를 DB 를 거치지 않고 건너뛰는 것이다(R8 의 효과 (c)). 채팅 채널이 아닌 실행의 이벤트도 모두 레지스트리에 없으므로 이벤트마다 DB 조회가 생긴다. 코드를 다시 보면 이 근거는 약하다. 이벤트의 `routing.chatChannel` 은 채팅 채널 인바운드로 시작한 실행에만 실린다(`HooksService` 가 실행 입력에 넣고 `WebsocketService` 가 라우팅 문맥으로 이벤트의 `routing` 필드에 붙인다). dispatcher 가 `routing.chatChannel.conversationKey` 를 먼저 보면 채팅 채널이 아닌 실행은 DB 를 읽지 않고 거를 수 있다. 결정은 바꾸지 않는다. 「선행 기준의 예외」 의 재검토 조건이 생기면 이 안도 다시 본다. 주기적 일괄 등록(`bulkRegister` 를 일정 간격으로 부르는 안)도 기각했다. 바뀐 것이 없어도 모든 서버 인스턴스가 주기마다 DB 를 읽고, 그래도 다음 주기까지는 빈틈이 남는다. 레지스트리를 Redis 집합 같은 공유 저장소로 옮기는 안은 미뤘다. 그러면 dispatcher 가 이벤트마다 Redis 를 읽는다. Redis 가 응답하지 않는 동안에는 레지스트리로 거르지도 못한다. 연결이 이어진 동안의 유실이 관찰되면 그때 함께 본다.
 
 **놓친 메시지.** pub/sub 는 메시지를 저장하지 않아서 구독 연결이 끊긴 사이의 변경은 사라진다. 통합 자격 증명 캐시를 비우는 pub/sub 채널은 핸들러가 자격 증명 해시를 비교해 놓친 메시지를 메우지만 레지스트리에는 그런 보정이 없다. 그래서 구독이 확립될 때마다 활성 트리거를 DB 에서 다시 일괄 등록한다. DB 를 구독 응답 뒤에 읽는 이유는 구독이 확립되기 전에만 읽으면 그 사이 커밋하고 발행한 등록을 둘 다 놓칠 수 있어서다. 서버 인스턴스가 시작할 때는 복원 서비스(`ChannelListenerRestorer`)가 구독 확립 handler 를 먼저 등록하고 곧바로 일괄 등록을 시작한다. 첫 구독 응답이 handler 를 등록하기 전에 오면 시작 때의 일괄 등록이 응답 뒤에 DB 를 읽는다. 나중에 오면 handler 가 응답 뒤에 읽는다. 그래서 어느 쪽이든 응답 뒤에 DB 를 한 번은 읽는다. 놓친 해제를 보정하지 않는 이유는 [레지스트리 변경의 전파](#레지스트리-변경의-전파) 에 있다. 메시지에는 보낸 프로세스의 id 를 싣고 자기 메시지는 건너뛴다. 자기 변경은 이미 반영했고 등록 뒤 곧바로 해제했을 때 늦게 돌아온 자기 등록 메시지가 항목을 되살릴 수 있기 때문이다.
 
