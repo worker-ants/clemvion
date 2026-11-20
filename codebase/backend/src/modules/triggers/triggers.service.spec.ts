@@ -22,6 +22,7 @@ import {
 } from './trigger-config-internal-fields';
 import { credentialRejectedError } from '../chat-channel/types';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
+import { CONFIG_KEY_AXES } from './trigger-response-strip';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
 import { NotificationSigningSecretService } from './notification-signing-secret.service';
 import { Trigger } from './entities/trigger.entity';
@@ -375,6 +376,54 @@ describe('TriggersService.findOneDetail', () => {
     expect(chatChannel.provider).toBe('telegram');
     expect(chatChannel.hasBotToken).toBe(true);
   });
+
+  /**
+   * 분류 표의 JSONB 축 전부를 서비스 응답으로 확인한다. 축마다 모든 키에 센티널을 채워 `strip` 키는 사라지고
+   * `expose` 키는 남는지 본다. 서비스가 축의 경로를 바꾸거나 표를 쓰지 않으면 여기서 실패한다.
+   */
+  it.each(Object.entries(CONFIG_KEY_AXES))(
+    '응답에서 JSONB 축 %s 의 strip 키는 사라지고 expose 키는 남는다',
+    async (_name, axis) => {
+      const block: Record<string, unknown> = {};
+      for (const key of Object.keys(axis.table)) block[key] = `sentinel-${key}`;
+      const config: Record<string, unknown> = {};
+      let cursor = config;
+      axis.prefix.forEach((segment, i) => {
+        if (i === axis.prefix.length - 1) {
+          cursor[segment] = block;
+        } else {
+          const next: Record<string, unknown> = {};
+          cursor[segment] = next;
+          cursor = next;
+        }
+      });
+      triggerRepo.findOne.mockResolvedValue({
+        id: 't1',
+        workspaceId: 'ws',
+        type: 'webhook',
+        name: 'hook',
+        config,
+      } as unknown as Trigger);
+      scheduleRepo.findOne.mockResolvedValue(null);
+
+      const result = (await service.findOneDetail('t1', 'ws')) as unknown as {
+        config: Record<string, unknown>;
+      };
+      let out: unknown = result.config;
+      for (const segment of axis.prefix) {
+        out = (out as Record<string, unknown>)[segment];
+      }
+      const outBlock = out as Record<string, unknown>;
+
+      for (const [key, response] of Object.entries(axis.table)) {
+        if (response === 'strip') {
+          expect(outBlock).not.toHaveProperty(key);
+        } else {
+          expect(outBlock[key]).toBe(`sentinel-${key}`);
+        }
+      }
+    },
+  );
 
   /**
    * 마지막 오류 칸의 응답 마스킹(NERV Task `CLE-T-H0GF4K`). 두 칸은 진단 원문이라 저장값은 그대로

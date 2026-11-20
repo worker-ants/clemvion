@@ -33,14 +33,10 @@ import { isUuidShaped } from '../../common/utils/uuid';
  *
  * 이름을 남겨 실패 메시지가 *무엇이* 샜는지 바로 말하게 한다.
  *
- * > **이 목록은 정본의 세 번째 독립 사본이다 — 드리프트 위험이 있다.**
- * > 정본은 `modules/triggers/triggers.service.ts` 의 `TRIGGER_RESPONSE_STRIP_COLUMNS` 이고
- * > 자매 `./schedule-trigger-ref.ts` 에 두 번째 사본이 있다. 값·순서가 현재 완전히 일치함을
- * > 실측 확인했지만 **결속 장치가 없다** — 정본이 네 번째 비밀 컬럼을 추가해도 두 헬퍼는 조용히
- * > 통과한다. 정본이 `export` 되지 않아 여기서 import 할 수 없고, 그 서비스 모듈을 테스트 헬퍼로
- * > 끌어오는 것은 의존 그래프상 과하다. **repo-guard 로 세 목록 동일성을 강제하는 것이 처방이고
- * > 후속으로 등재했다** — `CREATOR_PROJECTION` 선례(동일 리터럴 4중 복사가 실제 Critical 로 터진
- * > 뒤 단일 상수로 통합)가 이 형태의 가까운 이력이다.
+ * > **이 목록은 정본의 사본이다.** 정본은 `modules/triggers/trigger-response-strip.ts` 의 분류 표
+ * > `TRIGGER_COLUMN_RESPONSE` 에서 값이 `'strip'` 인 컬럼이고 자매 `./schedule-trigger-ref.ts` 에 또 하나의
+ * > 사본이 있다. 테스트 헬퍼가 `modules/` 를 import 하면 역방향 의존이 생겨서 값을 공유하지 않는다. 셋이
+ * > 같은지는 repo-guard `repo-guards/__tests__/trigger-secret-columns.spec.ts` 가 값 · 순서까지 본다.
  */
 const TRIGGER_SECRET_COLUMNS = [
   'notificationSecretV2',

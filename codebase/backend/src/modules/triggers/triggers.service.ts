@@ -66,6 +66,11 @@ import {
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { assertRawConfigAccepted } from './trigger-config-internal-fields';
+import {
+  CONFIG_KEY_AXES,
+  TRIGGER_RESPONSE_REDACT_COLUMNS,
+  TRIGGER_RESPONSE_STRIP_COLUMNS,
+} from './trigger-response-strip';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
@@ -123,75 +128,6 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/**
- * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01] 응답에서 strip 해야 하는
- * chat-channel 필드 allow-list. 신규 plaintext / 내부 ref 필드 추가 시 본 상수에
- * 반드시 키 추가 — destructure 누락 위험 회피. `sanitizeForResponse` 가
- * 단일 진실로 참조한다.
- */
-const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
-  // 내부 secret store ref — UI 에 노출 X. derived `hasBotToken` 만 제공.
-  'botTokenRef',
-  'inboundSigningRef',
-  // 입력 전용 plaintext — 응답에 절대 노출 X (SS-SE-01).
-  'botToken',
-  'inboundSigning',
-  'inboundSigningPlaintext',
-]);
-
-/**
- * `config.notification.signing` 에서 제거할 키.
- *
- * `secretRef` 는 secret store 참조이고 `secret` 은 정규화 전 평문이 스쳐 가는 자리다
- * (`NotificationSigningSecretService.migrateLegacyPlaintext` 참조). `botTokenRef`/`inboundSigningRef` 를 이미
- * 빼는 것과 **같은 등급·같은 이유**인데 chat-channel 쪽만 목록에 있었다
- * (`review/code/2026/09/05/18_23_02` W1).
- *
- * 파생 플래그(`hasBotToken` 같은)는 두지 않는다 — 프런트엔드 소비처가 0곳이라
- * 새 필드를 만들 이유가 없다.
- */
-const NOTIFICATION_SIGNING_STRIP_KEYS = new Set<string>([
-  'secret',
-  'secretRef',
-]);
-
-/**
- * 응답에서 제거할 **엔티티 컬럼**. `CHAT_CHANNEL_RESPONSE_STRIP_KEYS` ·
- * `NOTIFICATION_SIGNING_STRIP_KEYS` 가 `config` JSONB **안의 키**를 지우는 것과 달리
- * 이쪽은 `trigger` 행의 **컬럼**이다 — 같은 등급의 비밀이 **세 곳**에 산다.
- *
- * `notification_secret_v2` 는 참조가 아니라 **평문 서명 secret** 이다(24h rotation grace
- * 동안 non-null; 엔티티 주석 "본 컬럼이 새 secret 으로 승격" 참조). `chat_channel_token_v2`
- * 는 secret store ref 라 등급이 한 단계 낮지만, 내부 저장 위치를 드러내므로 같이 뺀다 —
- * `botTokenRef` 를 이미 빼는 것과 같은 이유다.
- *
- * **왜 `select: false` 가 아닌가**: 로테이션 스윕(`sweepNotificationRotation` ·
- * `sweepChatChannelRotation`)이 이 컬럼들을 읽어 승격/정리한다. 컬럼 수준에서 끄면 그
- * 경로가 `undefined` 를 받고 **예외 없이** 조용히 오작동한다 — fail-safe 가 아니라
- * fail-silent 다. 응답 경계에서 지우면 읽는 쪽은 그대로 둔 채 나가는 쪽만 막힌다.
- */
-const TRIGGER_RESPONSE_STRIP_COLUMNS = [
-  'notificationSecretV2',
-  'chatChannelTokenV2',
-] as const satisfies readonly (keyof Trigger)[];
-
-/**
- * `config.interaction` 에서 제거할 키.
- *
- * `triggerToken`(`itk_*`)은 **영구 평문**으로 JSONB 에 보관되는 per-trigger bearer 토큰이고,
- * [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 이 응답 노출을
- * **명시적으로 금지**한 세 필드 중 하나다. 나머지 둘(`notification_secret_v2` ·
- * `chat_channel_token_v2`)은 이 PR 이 닫았는데 **이것만 남아 있었다**
- * (`review/consistency/2026/09/05/22_25_00` Critical 1).
- *
- * `§1` 이 이 필드를 secret store 비대상으로 인정한 근거 (c) 가 *"발급 응답에 1회만 노출"*
- * 인데, 목록·상세 응답에 매번 실리면 **그 근거 자체가 무너진다.**
- *
- * 발급·재발급 경로(`revokePerTriggerToken`)의 1회성 평문 반환은 이 스트립과 무관하다 —
- * 그쪽은 서비스가 값을 **직접 반환**하지 트리거 엔티티를 거치지 않는다.
- */
-const INTERACTION_RESPONSE_STRIP_KEYS = new Set<string>(['triggerToken']);
-
 /** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 const TRIGGER_RESOURCE_TYPE = 'trigger';
 
@@ -222,7 +158,7 @@ function stripChatChannelSecrets(
   chatChannel: Record<string, unknown>,
 ): Record<string, unknown> {
   const botTokenRef = chatChannel.botTokenRef;
-  const out = omitKeys(chatChannel, CHAT_CHANNEL_RESPONSE_STRIP_KEYS);
+  const out = omitKeys(chatChannel, CONFIG_KEY_AXES.chatChannel.stripKeys);
   out.hasBotToken = typeof botTokenRef === 'string' && botTokenRef.length > 0;
   return out;
 }
@@ -231,7 +167,7 @@ function stripChatChannelSecrets(
 function stripInteractionSecrets(
   interaction: Record<string, unknown>,
 ): Record<string, unknown> {
-  return omitKeys(interaction, INTERACTION_RESPONSE_STRIP_KEYS);
+  return omitKeys(interaction, CONFIG_KEY_AXES.interaction.stripKeys);
 }
 
 /**
@@ -245,7 +181,7 @@ function stripNotificationSigningSecrets(
     ...notification,
     signing: omitKeys(
       notification.signing as Record<string, unknown>,
-      NOTIFICATION_SIGNING_STRIP_KEYS,
+      CONFIG_KEY_AXES.notificationSigning.stripKeys,
     ),
   };
 }
@@ -263,17 +199,8 @@ function deleteSecretColumns(target: Record<string, unknown>): void {
 }
 
 /**
- * 응답에서 값을 가릴 **진단 원문 컬럼**. 비밀 필드가 아니라 실패 원인을 담은 텍스트라 지우지
- * 않고 값 안의 자격 증명 모양만 가린다(`TRIGGER_RESPONSE_STRIP_COLUMNS` 와 갈래가 다르다).
- * 어댑터 · 알림 발송 실패 원문(프로바이더 응답 포함)이 그대로 저장되는 필드다.
- */
-const TRIGGER_RESPONSE_REDACT_COLUMNS = [
-  'chatChannelLastError',
-  'notificationLastError',
-] as const satisfies readonly (keyof Trigger)[];
-
-/**
- * 진단 원문의 응답 마스킹. `redactSecrets`(값 패턴)를 걸어 자격 증명 모양만 `***` 로 바꾼다.
+ * 진단 원문의 응답 마스킹. 대상은 분류 표에서 `redact` 인 컬럼(`TRIGGER_RESPONSE_REDACT_COLUMNS`)이다.
+ * 비밀 필드가 아니라 어댑터 · 알림 발송 실패 원문(프로바이더 응답 포함)을 담은 텍스트라 지우지 않는다. `redactSecrets`(값 패턴)를 걸어 자격 증명 모양만 `***` 로 바꾼다.
  * `notificationLastError` 에는 userinfo 국소 패턴을 더 건다.
  * 자르지 않는다. **제자리 변형**이라 정화 *사본*에만 부른다. 저장값은 원문으로 남는다.
  */
@@ -1126,19 +1053,19 @@ export class TriggersService {
    * 근거: [채팅 채널 「인증과 보안」](CLE-CHAT-CORE-FLOW#인증과-보안),
    * [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙), [응답 자격 증명 마스킹 「규칙」](CLE-API-EGRESS#규칙)
    *
-   * | 축 | 어디 | 목록 | 정화 함수 |
+   * | 축 | 어디 | 목록(분류 표에서 파생) | 정화 함수 |
    * |---|---|---|---|
-   * | 1 | `config.chatChannel` JSONB | `CHAT_CHANNEL_RESPONSE_STRIP_KEYS` | `stripChatChannelSecrets` |
-   * | 2 | `config.notification.signing` | `NOTIFICATION_SIGNING_STRIP_KEYS` | `stripNotificationSigningSecrets` |
-   * | 3 | `config.interaction` | `INTERACTION_RESPONSE_STRIP_KEYS` | `stripInteractionSecrets` |
+   * | 1 | `config.chatChannel` JSONB | `CONFIG_KEY_AXES.chatChannel` | `stripChatChannelSecrets` |
+   * | 2 | `config.notification.signing` | `CONFIG_KEY_AXES.notificationSigning` | `stripNotificationSigningSecrets` |
+   * | 3 | `config.interaction` | `CONFIG_KEY_AXES.interaction` | `stripInteractionSecrets` |
    * | 4 | `trigger` 행의 **엔티티 컬럼** | `TRIGGER_RESPONSE_STRIP_COLUMNS` | `deleteSecretColumns` |
    *
    * **이 메서드는 얇은 오케스트레이터다** — 축마다 이름 있는 순수 함수를 부르고, 조인된
    * `workflow` 좁히기(`narrowWorkflowRef`)와 진단 원문의 응답 마스킹(`redactDiagnosticColumns`)
    * 까지 책임마다 함수가 갈려 있다(`review/code/2026/09/06/00_00_23` W2 — 78줄 단일 메서드였다).
    *
-   * 신규 plaintext / 내부 ref 필드를 추가할 때는 해당 상수에 키를 넣어야 정화가 걸린다
-   * (destructure 대신 목록 — 누락 위험 회피).
+   * 목록은 `trigger-response-strip.ts` 의 분류 표에서 뽑는다. 표는 엔티티의 모든 필드와 세 JSONB 축의 모든
+   * 키(설정 타입 · 요청 DTO · 서버가 쓰는 키)를 분류하므로, 필드나 키를 더하고 분류하지 않으면 컴파일되지 않는다.
    *
    * **엔티티를 변경하지 않는다 — 항상 새 객체를 돌려준다** (DB 저장에 영향이 없도록).
    * 조기 return 을 없앤 뒤로는 정화할 것이 없는 트리거도 새 참조를 받는다, 그러니 호출부는
@@ -1148,12 +1075,11 @@ export class TriggersService {
    *
    * 표의 축은 비밀 필드를 **지운다**. 마지막 오류 두 필드(`TRIGGER_RESPONSE_REDACT_COLUMNS`)는
    * 지우지 않고 값 안의 자격 증명 모양만 `redactSecrets` 로 가린다. 비밀 필드가 아니라 실패
-   * 원인을 보여 주는 진단 텍스트라 strip 목록에 넣지 않았다. 그래서 아래 절 끝의 «비밀 축이 하나
-   * 더 생기면 선언적 SoT 로 옮길 것» 에도 해당하지 않는다. 이 조회는 역할 게이트가 없어 뷰어도
+   * 원인을 보여 주는 진단 텍스트라 분류 표에서 `redact` 로 둔다. 이 조회는 역할 게이트가 없어 뷰어도
    * 받는다. 저장값은 원문이다. 시크릿 저장소 평문(봇 토큰)은 채팅 채널 클라이언트가 원문을 만들 때
    * 이미 지운다(`replaceKnownSecret`). 이 마스킹은 미리 알 수 없는 모양을 막는 두 번째 층이다.
    *
-   * ## 왜 세 목록인가 — 이 메서드가 두 번 좁게 틀렸다
+   * ## 왜 분류 표인가 — 이 메서드가 세 번 좁게 틀렸다
    *
    * 처음엔 (1) 만 했고 `config.chatChannel` 이 없으면 **조기 return** 했다. 그래서
    * chat-channel 이 아닌 트리거는 정화를 아예 거치지 않았고, chat-channel 트리거도 컬럼 쪽
@@ -1166,8 +1092,9 @@ export class TriggersService {
    * 그리고 (3) 이 또 빠져 있었다 — `secret-store.md §1.1` 이 **이름으로 열거한** 세 필드 중
    * 둘만 닫은 상태였다 (`review/consistency/2026/09/05/22_25_00` Critical 1).
    *
-   * **세 번 같은 형태로 좁았다.** 다음에 비밀 축이 하나 더 생기면 목록을 늘리지 말고
-   * 선언적 SoT(엔티티 데코레이터)로 옮길 것.
+   * **세 번 같은 형태로 좁았다.** 지울 이름만 적는 목록은 새 비밀 자리를 넣지 않아도 아무 신호가 없다.
+   * 그래서 지울 것만이 아니라 모든 필드를 분류하는 표(`trigger-response-strip.ts`)로 옮겼다(NERV Task
+   * `CLE-T-SND9K2`). 엔티티 데코레이터 대신 표를 쓴 이유는 JSONB 안의 키에는 데코레이터를 붙일 자리가 없어서다.
    */
   private sanitizeForResponse<T extends Trigger>(trigger: T): T {
     const cfg = trigger.config as
