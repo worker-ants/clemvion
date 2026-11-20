@@ -2,19 +2,19 @@
 id: "CLE-WF-LIST"
 title: "워크플로우 목록과 폴더"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-WFLIST-001", "REQ-WFLIST-002", "REQ-WFLIST-003", "REQ-WFLIST-004", "REQ-WFLIST-005", "REQ-WFLIST-006", "REQ-WFLIST-007", "REQ-WFLIST-008", "REQ-WFLIST-009", "REQ-WFLIST-010", "REQ-WFLIST-011", "REQ-WFLIST-012", "REQ-WFLIST-013", "REQ-WFLIST-014", "REQ-WFLIST-015", "REQ-WFLIST-016", "REQ-WFLIST-017", "REQ-WFLIST-018", "REQ-WFLIST-019", "REQ-WFLIST-020", "REQ-WFLIST-021", "REQ-WFLIST-022", "REQ-WFLIST-023", "REQ-WFLIST-024", "REQ-WFLIST-025", "REQ-WFLIST-026", "REQ-WFLIST-027", "REQ-WFLIST-028", "REQ-WFLIST-029", "REQ-WFLIST-030", "REQ-WFLIST-031", "REQ-WFLIST-032", "REQ-WFLIST-033", "REQ-WFLIST-034", "REQ-WFLIST-035", "REQ-WFLIST-036", "REQ-WFLIST-037", "REQ-WFLIST-038", "REQ-WFLIST-039", "REQ-WFLIST-040", "REQ-WFLIST-041", "REQ-WFLIST-042", "REQ-WFLIST-043", "REQ-WFLIST-044", "REQ-WFLIST-045", "REQ-WFLIST-046", "REQ-WFLIST-047", "REQ-WFLIST-048", "REQ-WFLIST-049", "REQ-WFLIST-050", "REQ-WFLIST-051", "REQ-WFLIST-052", "REQ-WFLIST-053", "REQ-WFLIST-054", "REQ-WFLIST-055", "REQ-WFLIST-056"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "ea9d761a0882c4fb798fe7743a0d4a9edd31cc174626f470eea291d86036703c"
+content_hash: "3989a71f9b056de2daa29a10f4561de62ccfc069fc4db9ee524073b3f2311a8e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-9YZ9BN"
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/2-navigation/_product-overview.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "3a367a2f753dee84a4e817e4f9ae02365d4fed1dc7eff0acaf2bfbb80fe83dfd"
-etag: "sha256-361c9b1407f69e1f03e342245dcc78dde91d4bc8fb2e758096efd9ad832a9aea"
+mirror_sha256: "507b1f1e1a18d18ffa8951748201bd0e4aa972dd4908806d86b63a08297164a4"
+etag: "sha256-c21464336ee6b3bc99e82c4a489942298aa9eadf875ca91a63499a096f8183b7"
 ---
 > 구현 상태: 부분 구현 (마켓플레이스 템플릿 추천, 폴더 관리 화면, 파일 형식 버전, 목록 표의 마지막 실행 시각 · 생성일 열은 미구현) · 원문: `spec/2-navigation/1-workflow-list.md`, `spec/2-navigation/_product-overview.md` (§3.1), `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-05·06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -144,6 +144,8 @@ etag: "sha256-361c9b1407f69e1f03e342245dcc78dde91d4bc8fb2e758096efd9ad832a9aea"
 | 최근 수정순 | 내림차순 | `updated_at` |
 | 이름순 | 오름차순 | `name` |
 | 마지막 실행순 | 내림차순 | `last_run`. `execution` 테이블에서 워크플로우별 `MAX(started_at)` 를 correlated subquery 로 구하고 실행한 적 없는 워크플로우는 `NULLS LAST` 로 둔다. |
+
+서버는 표의 네 값만 정렬에 반영한다. 그 밖의 값은 거부하지 않고 `created_at` 으로 정렬한다([HTTP API 규약 §4.1](../CLE-API/CLE-API-CONV-URL.md#41-목록-조회-쿼리-파라미터) 규칙 2).
 
 ## 새 워크플로우 만들기
 

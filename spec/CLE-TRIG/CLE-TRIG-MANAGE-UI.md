@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-UI"
 title: "트리거 관리 — 화면"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "48e2b70868e0a084846b8fa6915427350675d0ed7dcea51abffb808eea22df62"
+content_hash: "da7f729c79c371a2d412eeb0e3a85ee8783e5d6980e76f09e66d9cf6e90a4b9a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-YQMP4N"
 source_paths: []
-mirror_sha256: "31e552567ff8849cd0ea32a592df11113852342506ca95f7bd574f3c4e2c98dc"
-etag: "sha256-fd8107a9c2c1c7f429c435a61378dff9b8f3527d5b0c216a5193544e83a93114"
+mirror_sha256: "d184941e4a196dc5ec36ca103eddb4d1416cfde84c982e9adef3bb7939403714"
+etag: "sha256-5d4ede33d4f43796ab58aa3a0438877883f07219093351372239d6035ea646b7"
 ---
 ## 개요
 
@@ -94,7 +94,7 @@ etag: "sha256-fd8107a9c2c1c7f429c435a61378dff9b8f3527d5b0c216a5193544e83a93114"
 | 웹훅 설정 | 웹훅 URL | 읽기 전용(자동 계산) | 엔드포인트 경로를 바꾸면 따라 바뀐다. 직접 입력할 수 없다 |
 | 스케줄 설정 | `cronExpression` | 읽기 전용 | 편집은 [스케줄](CLE-TRIG-SCHEDULE.md) 화면에서만 한다. 이 카드는 "스케줄 관리에서 편집" 링크만 보여 준다 |
 | 스케줄 설정 | `timezone` | 읽기 전용 | 위와 같다 |
-| 스케줄 설정 | `nextRunAt` | 읽기 전용(시스템 계산) | 스케줄 생성·수정 때와 실행이 끝난 직후 다시 계산한다. Cron 파싱이 실패하면 비어 있을 수 있다(`-` 표시). 발사와 상관없는 정보성 값이다 |
+| 스케줄 설정 | `nextRunAt` | 읽기 전용(시스템 계산) | 스케줄 생성·수정 때와 실행이 끝난 직후 다시 계산한다. 다음 실행 시각이 없으면(Cron 파싱 실패 등) 응답(`TriggerDto`)은 `null` 을 싣지 않고 키를 뺀다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 기준 (b)). `cronExpression` · `timezone` 과 같은 형태다. 화면은 이때 `-` 로 표시한다. 발사와 상관없는 정보성 값이다 |
 | 외부 인터랙션 (EIA 알림 웹훅) | `url` / `events` / `signing` / `retry` | 편집 | 필드 정의는 [External Interaction API](../CLE-IX/CLE-EIA.md). `retry` 의 뜻과 범위(총 시도 횟수, 상한, 간격)는 [EIA 알림 웹훅 「재시도와 실패 처리」](../CLE-IX/CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다. 읽기 모드는 `retry.maxAttempts` 를 «최대 시도 횟수» 로 보여 준다 |
 | 외부 인터랙션 (EIA 알림 웹훅) | `notificationHealth` / `notificationLastError` | 읽기 전용(시스템 계산) | `notificationHealth` 는 트리거 상세에 배지로 보인다([웹훅](CLE-TRIG-WEBHOOK.md) 의 상세 화면 요구사항). `notificationLastError` 는 API 응답에만 실리고 화면에 그리지 않는다. 자격 증명 모양은 가려 내보낸다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
 | 외부 인터랙션 (인터랙션) | `enabled` / `tokenStrategy` | 편집 | 위와 같다 |
@@ -122,7 +122,7 @@ etag: "sha256-fd8107a9c2c1c7f429c435a61378dff9b8f3527d5b0c216a5193544e83a93114"
 | 이름(`name`) | 필수 텍스트 | |
 | 연결 워크플로우(`workflowId`) | 필수 셀렉트 | 워크스페이스 워크플로우 목록 |
 | 인증(`authConfigId`) | 선택(인증 설정 셀렉터) | `null` 은 인증 없음이며 목록에서 경고 대상이다. 인라인 인증 입력 필드는 없다 |
-| 채팅 채널(토글) | 선택 | 켜면 `provider`(telegram / slack / discord), `botToken`(입력 전용), Slack·Discord 는 `inboundSigningPlaintext` 를 받는다. 요청 본문의 top-level `chatChannel` 필드로 보내며 서버가 `setupChannel()` 을 자동으로 부른다. `uiMapping` 은 `{ formMode: "auto", visualNode: "auto", buttonLayout: "auto" }` 로 만든다 |
+| 채팅 채널(토글) | 선택 | 켜면 `provider`(telegram / slack / discord), `botToken`(입력 전용), Slack·Discord 는 `inboundSigningPlaintext` 를 받는다. 요청 본문의 타입 필드 `chatChannel` 로 보내며 서버가 `setupChannel()` 을 자동으로 부른다. `uiMapping` 은 `{ formMode: "auto", visualNode: "auto", buttonLayout: "auto" }` 로 만든다 |
 
 - 엔드포인트 경로(`endpointPath`)는 클라이언트가 `crypto.randomUUID()` 로 만들어 보낸다. 인증 없는 웹훅에서는 이 UUID 가 사실상 호출 권한을 주는 비밀 역할을 한다([웹훅](CLE-TRIG-WEBHOOK.md)). 다만 웹채팅(공개 설치 스크립트) 트리거는 설치 스크립트에 경로가 들어가 공개된다. 이 예외 관계를 어디에 둘지는 [웹채팅 인증과 세션](../CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md#미결-사항) 의 미결 사항이다.
 - 웹채팅 인스턴스는 별도 자원이 아니라 인터랙션이 켜진 웹훅 트리거를 [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) 에서 보여 주는 다른 표현이다.

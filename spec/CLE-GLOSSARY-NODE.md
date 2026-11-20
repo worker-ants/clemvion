@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-NODE"
 title: "용어 사전 — 노드"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "3a67afaceabbf75f602c7bc5772c9171f4d280c728314b1706030792787e087c"
+content_hash: "e3ae4b9443c7cfb053c4a202448b35a0ce053ff8a265eaad142617676728ff98"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-YQMP4N"
 source_paths: []
-mirror_sha256: "7068b1fee6474d6cd9e627d22ce7351afd0e95d9a35e9c209ec5edadbf2ca7f1"
-etag: "sha256-711536343770f66e7cbd6feaae1b217de78e3641c6a75dc9eae393f90cfebb62"
+mirror_sha256: "c662597b5844398c9ce97024184130ea5ce70dd5cd15cb0cbcf6388c4c334de0"
+etag: "sha256-428ed3d055035a732f8d190efbd8e08d6772a6da64f826cf8e7df7672f441785"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ etag: "sha256-711536343770f66e7cbd6feaae1b217de78e3641c6a75dc9eae393f90cfebb62"
 | 노드 출력 | node output, `NodeHandlerOutput` | 핸들러가 돌려주는 다섯 필드 객체(`config` · `output` · `meta` · `port` · `status`). 이 객체가 그대로 DB 의 `NodeExecution.outputData` 와 실시간 이벤트의 `output` 에 실린다. | 봉투(이 뜻으로), envelope(이 뜻으로), 래퍼, 5필드 invariant, 노드 출력 envelope | [노드 출력 규약](CLE-NODE/CLE-NODE-OUTPUT.md) |
 | 출력 값 | output value, `output` 필드 | 노드 출력 안의 주 데이터. 다음 노드는 `$node["X"].output` 으로 읽는다. 실시간 이벤트에서는 한 겹 아래 `output.output` 에 있다. | output(본문 단독) | [노드 출력 규약](CLE-NODE/CLE-NODE-OUTPUT.md) |
 | 설정 에코 | config echo, `config` 필드 | 표현식을 평가하기 전 원래 설정을 노드 출력 `config` 에 다시 싣는 규칙. 자격 증명은 싣지 않는다. | raw echo, config echo(본문) | [노드 출력 규약](CLE-NODE/CLE-NODE-OUTPUT.md) |
-| 원본 설정 | raw config, `rawConfig` | 표현식을 평가하기 전 노드 설정. 평가한 뒤의 설정은 "평가된 설정(`resolvedConfig`)" 이다. | pre-evaluation config | [실행 컨텍스트](CLE-EXEC/CLE-EXEC-CONTEXT.md) |
+| 원본 설정 | raw config, `rawConfig` | 표현식을 평가하기 전 노드 설정. 평가한 뒤의 설정은 "평가된 설정(`resolvedConfig`)" 이다. 트리거 요청 본문의 「원시 `config`」([용어 사전 — 트리거](CLE-GLOSSARY-TRIG.md))와 다르다. | pre-evaluation config | [실행 컨텍스트](CLE-EXEC/CLE-EXEC-CONTEXT.md) |
 | 실행 메트릭 | `meta` 필드 | 소요 시간·토큰·상태 코드처럼 관측용 값. | 실행 메타데이터 | [노드 출력 규약](CLE-NODE/CLE-NODE-OUTPUT.md) |
 | 출력 포트 선택 | `port` 필드 | 노드가 이번에 값을 내보낼 출력 포트 ID. | 없음 | [노드 출력 규약](CLE-NODE/CLE-NODE-OUTPUT.md) |
 | 흐름 지시 상태 | `status` 필드 | 엔진 흐름을 바꾸는 핸들러 반환 값. 값은 [용어 사전](CLE-GLOSSARY.md) 의 「상태값과 enum 표기」 에 있다. 실행·노드 실행 기록의 상태와 층이 다르다. | status(단독), 흐름 제어 상태 | [노드 출력 규약](CLE-NODE/CLE-NODE-OUTPUT.md) |
@@ -148,3 +148,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「노드 출력」: 한 문장에 담긴 저장 위치 두 곳을 풀어 썼다.
 - 「흐름 지시 상태」 · 「항목 에러 정책」 · 「에러 처리 정책」 · 「사용자 입력 기록」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다.
 - 「재귀 깊이」 · 「도구 호출 한도」 · 「종료 사유」 · 「표시 전용」 · 「출력 크기 한도」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14). 「폼 필드」 는 유형 개수를 지웠다.
+
+### 「원본 설정」 에 원시 `config` 와 다르다는 안내를 더했다 (2026-11-19)
+
+NERV Task `CLE-T-YQMP4N` 이 더했다. 두 말 모두 영문으로 «raw config» 라 부를 수 있어서다. [용어 사전 — 트리거](CLE-GLOSSARY-TRIG.md) 의 「원시 `config`」 도 이 행과 다르다고 적고 있어 양쪽에서 갈리게 했다.

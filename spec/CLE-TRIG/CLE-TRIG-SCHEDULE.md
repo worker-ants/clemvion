@@ -2,19 +2,19 @@
 id: "CLE-TRIG-SCHEDULE"
 title: "스케줄"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-SCHED-001", "REQ-SCHED-002", "REQ-SCHED-003", "REQ-SCHED-004", "REQ-SCHED-005", "REQ-SCHED-006", "REQ-SCHED-007", "REQ-SCHED-008", "REQ-SCHED-009", "REQ-SCHED-010", "REQ-SCHED-011", "REQ-SCHED-012", "REQ-SCHED-013", "REQ-SCHED-014", "REQ-SCHED-015", "REQ-SCHED-016", "REQ-SCHED-017", "REQ-SCHED-018", "REQ-SCHED-019", "REQ-SCHED-020", "REQ-SCHED-021", "REQ-SCHED-022", "REQ-SCHED-023", "REQ-SCHED-024", "REQ-SCHED-025", "REQ-SCHED-026", "REQ-SCHED-027", "REQ-SCHED-028", "REQ-SCHED-029", "REQ-SCHED-030", "REQ-SCHED-031", "REQ-SCHED-032", "REQ-SCHED-033", "REQ-SCHED-034", "REQ-SCHED-035", "REQ-SCHED-036", "REQ-SCHED-037", "REQ-SCHED-038", "REQ-SCHED-039", "REQ-SCHED-040"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "c0f6211a4bb15dedac92a9d7afa8fd2383d077d05241ffbffc0e358bd16a5ef3"
+content_hash: "a4813fb507420650bd093231bbe87422edc775a980d16801d32def7e35f2fbc3"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-9YZ9BN"
 source_paths: ["spec/2-navigation/3-schedule.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "8e981c8eae5f11715473b6ff421b2eb29bb67cb48ce78d7c356c51c80dce6778"
-etag: "sha256-d21e796f7882056c8c08fbd644da79a447c9aac1e98ec7a3945de2b18b0b772c"
+mirror_sha256: "d40291c57e85cc8e4d556059116d5d05e0c11bb657f403dbdd0c2fd8eb9ccf30"
+etag: "sha256-65c36fcdc068c778facbc8615f857277b8a5ba867af4b91329b5391c8d7b003a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/3-schedule.md`, `spec/2-navigation/_product-overview.md` (§3.3 Schedule) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -178,7 +178,7 @@ etag: "sha256-d21e796f7882056c8c08fbd644da79a447c9aac1e98ec7a3945de2b18b0b772c"
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | `/api/schedules` | 목록. 쿼리: `page`, `limit`, `search`, `sort`, `order`, `triggerId`. `sort`·`order` 는 `findAll` 이 허용 값 목록으로 걸러 반영한다(기본 `created_at DESC`). `triggerId`(UUID, 선택)는 그 트리거에 연결된 스케줄만 돌려주는 필터로, 트리거에서 스케줄로 가는 딥링크가 페이지와 상관없이 대상을 찾는 데 쓴다 |
+| GET | `/api/schedules` | 목록. 쿼리: `page`, `limit`, `search`, `sort`, `order`, `triggerId`. `sort`·`order` 는 `findAll` 이 허용 값 목록(`created_at` · `updated_at` · `next_run_at` · `last_run_at` · `name`)으로 걸러 반영한다(기본 `created_at DESC`). 허용 밖 값은 거부하지 않고 `created_at` 으로 정렬한다([HTTP API 규약 §4.1](../CLE-API/CLE-API-CONV-URL.md#41-목록-조회-쿼리-파라미터) 규칙 2). `triggerId`(UUID, 선택)는 그 트리거에 연결된 스케줄만 돌려주는 필터로, 트리거에서 스케줄로 가는 딥링크가 페이지와 상관없이 대상을 찾는 데 쓴다 |
 | POST | `/api/schedules` | 스케줄 생성. 본문 `workflowId` 는 연결 트리거의 `workflow_id` 가 된다. 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`)다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)) |
 | GET | `/api/schedules/:id` | 상세 |
 | PATCH | `/api/schedules/:id` | 수정. `{ isActive }` 만 보내면 활성/비활성 토글로 동작한다. 별도 `/toggle` 라우트는 없다(`schedules.controller.ts` 의 PATCH 핸들러) |
@@ -276,7 +276,7 @@ Cron 이 발사해도 다음 경우에는 실행을 만들지 않는다. 어느 
 
 ### 목록 정렬 반영
 
-`GET /api/schedules` 의 `sort`·`order` 는 한동안 DTO 로 받기만 하고 `findAll` 이 무시해서 미구현으로 표시했다. 그 뒤 `findAll` 이 허용 값 목록 기반 `orderBy` 를 구현해 표시를 현행화했다(2026-06-10). 미구현 표시를 푼 것은 기능 약속을 뒤집은 것이 아니라 구현이 끝나 문서를 맞춘 것이다.
+`GET /api/schedules` 의 `sort`·`order` 는 한동안 DTO 로 받기만 하고 `findAll` 이 무시해서 미구현으로 표시했다. 그 뒤 `findAll` 이 허용 값 목록 기반 `orderBy` 를 구현해 표시를 현행화했다(2026-06-10). 미구현 표시를 푼 것은 기능 약속을 뒤집은 것이 아니라 구현이 끝나 문서를 맞춘 것이다. 허용 밖 값을 `created_at` 으로 정렬하는 폴백은 이 문서에 적혀 있지 않았다. 2026-11-19 에 목록 공통 규칙으로 [HTTP API 규약 §4.1](../CLE-API/CLE-API-CONV-URL.md#41-목록-조회-쿼리-파라미터) 에 적고 API 표에서 가리켰다(NERV Task `CLE-T-9YZ9BN`).
 
 ### 스케줄 유형 트리거의 생성 경로를 스케줄 화면으로 한정한 이유
 
