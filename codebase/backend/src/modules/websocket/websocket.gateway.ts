@@ -34,7 +34,8 @@ import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { CHANNEL_AUTHORIZER, ChannelAuthorizer } from './channel-authorizer';
 
-const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
+/** 연결 하나가 동시에 가질 수 있는 구독 수 상한([WebSocket 메시지 「최대 구독 수」](CLE-API-WS-MSG#45-최대-구독-수)). */
+export const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
 /**
  * §7.1 UNKNOWN_TYPE 판정용 — 등록된 `@SubscribeMessage` 이벤트 화이트리스트.
@@ -69,13 +70,19 @@ function isValidChannel(channel: unknown): channel is string {
   );
 }
 
-/** `subscribed` ack 의 payload. 실패면 평문 `error` 에 더해 구조화 `code` 를 싣는다. */
-interface SubscribedAckData {
+/**
+ * `subscribed` ack 의 payload. 실패면 평문 `error` 에 더해 구조화 `code` 를 싣는다. e2e 헬퍼
+ * (`test/helpers/ws.ts`)도 이 타입으로 응답을 받는다.
+ */
+export interface SubscribedAckData {
   success: boolean;
   channel?: string;
   error?: string;
-  code?: string;
+  code?: WsErrorCodeValue;
 }
+
+/** `subscribe` 핸들러가 돌려주는 `subscribed` 응답. */
+type SubscribedAckResponse = { event: 'subscribed'; data: SubscribedAckData };
 
 /**
  * `subscribed` 실패 응답을 만든다. 요청한 `channel` 이 문자열이면 형식이 틀렸거나 빈 문자열이어도 그대로
@@ -86,7 +93,7 @@ function subscribeRejected(
   requested: unknown,
   error: string,
   code: WsErrorCodeValue,
-): { event: 'subscribed'; data: SubscribedAckData } {
+): SubscribedAckResponse {
   return {
     event: 'subscribed',
     data: {
@@ -99,7 +106,7 @@ function subscribeRejected(
 }
 
 /** 연결당 구독 한도 초과 거부. 한도 검사 세 곳이 같은 응답을 쓴다. */
-function subscriptionLimitRejected(requested: unknown) {
+function subscriptionLimitRejected(requested: unknown): SubscribedAckResponse {
   return subscribeRejected(
     requested,
     `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
@@ -391,7 +398,8 @@ export class WebsocketGateway
     // 본문은 검증 파이프를 지나지 않는다(인라인 타입). 문자열이 아닌 값도 올 수 있다.
     const channel: unknown = (data as { channel?: unknown } | null)?.channel;
 
-    if (!channel || !isValidChannel(channel)) {
+    // `isValidChannel` 이 문자열이 아니거나 빈 값인 경우도 거른다(빈 문자열은 어느 접두에도 맞지 않는다).
+    if (!isValidChannel(channel)) {
       return subscribeRejected(
         channel,
         'Invalid channel',
@@ -449,11 +457,9 @@ export class WebsocketGateway
       return subscribeRejected(channel, rejection.error, WsErrorCode.FORBIDDEN);
     }
 
-    // 원자 블록: authorize() await 이후의 한도 검사와 Set add 를 한 동기 구간
-    // 안에 묶는다. JS event-loop 가 single-thread 라 이 두 동작 사이에 다른
-    // subscribe 핸들러가 끼어들 수 없지만, tentative-add + 사후 검증 패턴으로
-    // 만에 하나 향후 add 후 다른 await 가 들어가는 리팩토링이 일어나도
-    // last-write-wins 가 한도를 초과하지 않도록 가드한다.
+    // 원자 블록: authorize() await 이후의 한도 재검사와 Set add 를 한 동기 구간 안에 묶는다. 이 사이에
+    // await 가 없어서 다른 subscribe 핸들러가 끼어들지 못한다. 동시 구독은 앞선 await(authorize) 에서만
+    // 겹치고, 먼저 깨어난 핸들러가 add 한 결과를 뒤의 핸들러가 이 재검사에서 본다.
     // Detect first-time subscription so we only send the snapshot once. A
     // re-subscribe (e.g. after the hook re-binds without actually
     // disconnecting) must not re-emit — the client's store would merge
@@ -467,9 +473,10 @@ export class WebsocketGateway
     }
     clientSubs.add(channel);
     if (clientSubs.size > MAX_SUBSCRIPTIONS_PER_CONNECTION) {
-      // tentative-add 사후 가드. add 가 size 를 한도 너머로 밀어 올렸다면
-      // 즉시 롤백하고 거부. Set.add 가 이미 있는 키면 size 증가 없으므로
-      // 재구독 경로에는 영향 없음.
+      // tentative-add 사후 가드. 지금 코드로는 도달하지 못한다. clientSubs 에 더하는 곳은 위 add 하나뿐이고,
+      // 바로 앞 재검사와 add 사이에 await 가 없다. 새 채널이면 재검사가 size < 한도를 보장해 add 뒤에도
+      // size <= 한도이고, 이미 있는 채널이면 add 가 size 를 바꾸지 않는다. 재검사와 add 사이에 await 를
+      // 넣는 리팩토링이 생기면 그때 이 가드가 한도를 지킨다. 그래서 지우지 않는다.
       clientSubs.delete(channel);
       return subscriptionLimitRejected(channel);
     }

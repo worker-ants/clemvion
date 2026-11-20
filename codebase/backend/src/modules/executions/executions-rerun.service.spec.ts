@@ -440,6 +440,45 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(res.chainId).toBe('root-id');
   });
 
+  // NERV Task CLE-T-NX58QY: 엔진은 실행 행의 `triggerId` 가 있을 때만 입력의 `chatChannel` 로 봇 발송
+  // 라우팅을 등록하고 그 `triggerId` 는 `execute()` 옵션에서만 온다. 재실행이 원본 트리거를 넘기면
+  // 입력의 `chatChannel` 이 가리키는 대화로 봇 메시지가 나갈 수 있으므로 넘기지 않음을 고정한다.
+  it('[회귀] 채팅 채널 실행을 재실행해도 원본 triggerId 를 execute 옵션에 넘기지 않는다', async () => {
+    const chatInput = {
+      text: 'hi',
+      chatChannel: {
+        provider: 'telegram',
+        conversationKey: 'chat-original',
+        channelUserKey: 'user-original',
+      },
+    };
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: null,
+        triggerId: 'trigger-chat',
+        inputData: chatInput,
+        chainId: null,
+      },
+    ];
+    jest
+      .spyOn(service, 'findById')
+      .mockResolvedValue({ id: 'new-exec-id' } as never);
+
+    await service.reRun('e1', 'ws-1', user, dto);
+
+    expect(engine.execute).toHaveBeenCalledTimes(1);
+    const [, input, options] = engine.execute.mock.calls[0] as [
+      string,
+      unknown,
+      Record<string, unknown>,
+    ];
+    expect(input).toEqual(chatInput);
+    expect(options).not.toHaveProperty('triggerId');
+  });
+
   it('uses inputOverride path when useOriginalInput=false (no trigger schema → {})', async () => {
     getOneQueue = [
       {

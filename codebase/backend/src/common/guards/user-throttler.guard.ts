@@ -38,7 +38,7 @@ export class UserThrottlerGuard extends ThrottlerGuard {
    * HTTP 요청만 센다. 전역 가드는 WebSocket 게이트웨이 핸들러에도 붙는다(근거는 `isHttpContext`). 그
    * 컨텍스트의 요청은 소켓이라 `user` · `ip` 가 없어 모든 사용자가 `'unknown'` 한 버킷을 나눠 쓴다.
    * WebSocket 빈도 제한은 소켓 단위 `WsRateLimitGuard` 가 맡는다
-   * ([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS#71-에러-코드)).
+   * ([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「에러 코드」](CLE-API-WS-MSG#71-에러-코드)).
    *
    * `@DeferGlobalThrottle()` 이 붙은 라우트도 세지 않는다. 그 라우트의 라우트 가드가 같은 설정 ·
    * 저장소 · 키로 센다.
