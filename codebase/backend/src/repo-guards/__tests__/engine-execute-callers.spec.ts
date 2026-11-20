@@ -158,6 +158,24 @@ describe('scanEngineCalls', () => {
       ['a::executeAsync'],
     ],
     [
+      '괄호로 감싼 수신자',
+      `class S {
+         constructor(private readonly engine: ExecutionEngineService) {}
+         async a() { await (this.engine).execute(id); }
+       }`,
+      ['a::execute'],
+    ],
+    [
+      '앵글 괄호 형 단언',
+      `async function a(x: unknown) { await (<WorkflowExecutor>x).executeInline(id, {}, o); }`,
+      ['a::executeInline'],
+    ],
+    [
+      '엔진 형 이름을 단언 밖에서 받은 수신자의 any 단언',
+      `async function a(engine: ExecutionEngineService) { await (engine as any).execute(id); }`,
+      ['a::execute'],
+    ],
+    [
       '한 함수 안의 같은 진입 호출 두 번은 한 지점',
       `async function a(engine: ExecutionEngineService) { await engine.execute(1); await engine.execute(2); }`,
       ['a::execute'],
@@ -178,6 +196,14 @@ describe('scanEngineCalls', () => {
     [
       '엔진이 아닌 클래스의 this.execute',
       `class Other { async a() { await this.execute(); } async execute() {} }`,
+    ],
+    [
+      '엔진이 아닌 형으로 단언한 수신자',
+      `async function a(x: unknown) { await (x as Other).execute(); }`,
+    ],
+    [
+      '이중 단언으로 엔진이 아닌 형이 된 수신자',
+      `async function a(x: unknown) { await (x as unknown as Foo).execute(); }`,
     ],
     [
       '엔진 서비스의 다른 메서드',
@@ -209,6 +235,35 @@ describe('scanEngineCalls', () => {
       'late::execute',
       'none::execute',
     ]);
+  });
+
+  it.each<[string, string, string[]]>([
+    [
+      '관문이 둘이면 가장 앞선 관문을 기준으로 삼는다',
+      `class S {
+        constructor(private readonly engine: ExecutionEngineService) {}
+        async a() {
+          if (await isWorkflowInactive(r, id, ws)) return;
+          await this.engine.execute(id);
+          if (await isWorkflowInactive(r, id2, ws)) return;
+        }
+      }`,
+      [],
+    ],
+    [
+      '진입 호출 사이에 관문이 끼면 앞선 진입 호출을 낸다',
+      `class S {
+        constructor(private readonly engine: ExecutionEngineService) {}
+        async a() {
+          await this.engine.executeAsync(id, {});
+          if (await isWorkflowInactive(r, id, ws)) return;
+          await this.engine.execute(id);
+        }
+      }`,
+      ['a::executeAsync'],
+    ],
+  ])('%s', (_label, source, expected) => {
+    expect(scanEngineCalls(source).entryCallsBeforeGate).toEqual(expected);
   });
 
   it('[알려진 한계] 구조분해로 꺼낸 진입 메서드는 잡지 못한다', () => {
