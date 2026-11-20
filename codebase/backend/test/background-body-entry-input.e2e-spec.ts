@@ -194,6 +194,68 @@ describe('Background body entry input (e2e)', () => {
     );
   }, 60_000);
 
+  // CLE-T-6V9957 — 엔진이 큐에 넣은 뒤 BullMQ 작업 ID 를 완료된 Background 행의
+  // `output_data.meta.jobId` 와 뒤 노드가 읽는 `$node["Background"].meta` 에 넣는다.
+  it('stamps the BullMQ job id into the completed Background row and $node meta', async () => {
+    const [startId, bgId, afterId, bgBodyId] = Array.from({ length: 4 }, () =>
+      randomUUID(),
+    );
+    const after: SaveNode = {
+      id: afterId,
+      type: 'transform',
+      category: 'data',
+      label: 'After',
+      config: {
+        operations: [
+          {
+            type: 'set_field',
+            field: 'seenJobId',
+            value: '{{ $node["Background"].meta.jobId }}',
+          },
+        ],
+      },
+    };
+
+    const { executionId, status } = await saveAndRun(
+      'bgentry-jobid',
+      [
+        trigger(startId),
+        background(bgId),
+        after,
+        transform(bgBodyId, 'BgBody'),
+      ],
+      [
+        [startId, 'out', bgId, 'in'],
+        [bgId, 'main', afterId, 'in'],
+        [bgId, 'background', bgBodyId, 'in'],
+      ],
+    );
+
+    expect(status).toBe('completed');
+    const r = await db.query<{
+      output_data: { meta?: Record<string, unknown> };
+    }>(
+      `SELECT output_data FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2 AND status = 'completed'`,
+      [executionId, bgId],
+    );
+    expect(r.rows).toHaveLength(1);
+    const meta = r.rows[0].output_data.meta ?? {};
+    // 핸들러가 낸 meta 는 그대로 두고 jobId 만 더한다.
+    expect(meta).toEqual(
+      expect.objectContaining({
+        jobId: expect.any(String),
+        backgroundRunId: expect.any(String),
+        forkedAt: expect.any(String),
+      }),
+    );
+    expect(meta.jobId).not.toBe('');
+    const afterOutput = await waitForOutput(executionId, afterId);
+    expect(afterOutput).toEqual(
+      expect.objectContaining({ seenJobId: meta.jobId }),
+    );
+  }, 60_000);
+
   it('feeds the Background node input, not the Parallel input, inside a Parallel branch', async () => {
     const [startId, seedId, parId, branchCodeId, bgId, otherId, bgBodyId] =
       Array.from({ length: 7 }, () => randomUUID());

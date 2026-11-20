@@ -10,6 +10,7 @@ import {
   EXECUTION_RUN_QUEUE,
   EXECUTION_RUN_PRIORITY,
 } from './queues/execution-run.queue';
+import { toDownstreamValue } from './handler-output.adapter';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionEngineService } from './execution-engine.service';
 import { SUB_WORKFLOW_MAX_RECURSION_DEPTH } from '../../nodes/core/node-types.constants';
@@ -6896,7 +6897,7 @@ describe('ExecutionEngineService', () => {
 
       // 오직 node-2 만 실행 — node-1(상류) 및 node-3(하류) 미실행.
       expect(mockHandler.execute).toHaveBeenCalledTimes(1);
-      // node-2 입력 = node-1 의 seed 출력(flat + stripControlFields).
+      // node-2 입력 = node-1 의 seed 출력(구조화 캐시의 핸들러 output).
       expect(seenInputs[0]).toEqual({ seeded: 42 });
       // predecessor 조회가 previousExecutionId 로 수행됐는지.
       expect(mockNodeExecutionRepo.find).toHaveBeenCalledWith(
@@ -11970,10 +11971,7 @@ describe('ExecutionEngineService', () => {
       const routerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () =>
-          mockOutput({
-            port: 'port1',
-            data: { routed: true },
-          }),
+          mockOutput({ routed: true }, { port: 'port1' }),
         ),
       };
       const leafHandler: NodeHandler = {
@@ -12311,7 +12309,7 @@ describe('ExecutionEngineService', () => {
       const routerHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () =>
-          mockOutput({ port: 'port2', data: { branch: 2 } }),
+          mockOutput({ branch: 2 }, { port: 'port2' }),
         ),
       };
       const branchHandler: NodeHandler = {
@@ -12600,6 +12598,21 @@ describe('ExecutionEngineService', () => {
           fromInput: expected,
           port: 'success',
         }),
+      );
+      expect(errorCalls).toHaveLength(0);
+    });
+
+    // 포트와 함께 온 객체 output 안에 `data` 키가 있어도(예: HTTP 응답 `{ status, data }`)
+    // 다음 노드는 핸들러 output 그대로 받는다. 예전에는 flat 캐시에서 `data` 안의 키를
+    // 펼치고 `status` 를 뗀 값을 받았다(NERV Task CLE-T-ZJR3AF, 질문 답 A).
+    it('포트와 객체 data 를 함께 내도 다음 노드 $input 은 핸들러 output 그대로다', async () => {
+      const expected = { status: 200, data: { a: 1 } };
+      await runValueGraph(expected, valueSinkConfig);
+
+      expect(successCalls).toHaveLength(1);
+      expect(successCalls[0].input).toEqual(expected);
+      expect(successCalls[0].config).toEqual(
+        expect.objectContaining({ fromNode: expected, fromInput: expected }),
       );
       expect(errorCalls).toHaveLength(0);
     });
@@ -15248,6 +15261,28 @@ describe('ExecutionEngineService', () => {
         },
       );
 
+      // 객체 emit 도 핸들러 output 을 모은다. flat 캐시의 `_selectedPort` 나 `data` 펼침이
+      // 섞이지 않는다(CLE-EXEC-HANDLER §포트 선택, NERV Task CLE-T-ZJR3AF).
+      it('Map: collects an object emit with a port as the handler output', async () => {
+        const { sinkCalls } = await runContainer(
+          'map',
+          { items: [1, 2] },
+          { inputField: 'items' },
+          async (input) => ({
+            config: {},
+            output: { status: 200, data: { v: input } },
+            port: 'out',
+          }),
+        );
+        expect(sinkCalls[0]).toEqual({
+          mapped: [
+            { status: 200, data: { v: 1 } },
+            { status: 200, data: { v: 2 } },
+          ],
+          count: 2,
+        });
+      });
+
       it('Map: iterations + fellBackToEmpty=false for an array input', async () => {
         const { sinkCalls, meta } = await runContainer(
           'map',
@@ -16310,6 +16345,169 @@ describe('ExecutionEngineService', () => {
           expect(queuedInputs()).toEqual([preOutput]);
         });
       });
+
+      // CLE-T-6V9957 — 핸들러는 큐를 몰라 `meta.jobId` 를 내지 않는다. 엔진이 큐에 넣은 뒤
+      // `add()` 가 돌려준 작업 ID 를 이미 COMPLETED 인 행의 `output_data.meta.jobId` 와
+      // 구조화 출력 캐시의 `meta` 에 넣는다. 큐 넣기나 스탬프가 실패해도 메인 흐름은 이어진다.
+      describe('Background 큐 작업 ID 스탬프 (CLE-T-6V9957)', () => {
+        const nodeExecutionQuery = () => {
+          const query = jest.fn().mockResolvedValue([]);
+          mockNodeExecutionRepo.query = query;
+          return query;
+        };
+        // bg 뒤 after 노드가 실행될 때 본 bg 의 구조화 출력 meta 를 남긴다.
+        const runBackgroundGraph = async () => {
+          handlerRegistry.register('background', new BackgroundHandler(), {
+            kind: 'background',
+          });
+          recordingHandler('test_node', () => ({ marker: 'trigger-output' }));
+          const seenMeta: Record<string, unknown>[] = [];
+          const afterCalls = recordingHandler('after_node', (input, ctx) => {
+            seenMeta.push({ ...(ctx.structuredOutputCache.bg?.meta ?? {}) });
+            return input;
+          });
+          recordingHandler('bg_body_node', (input) => input);
+          await runGraph(
+            [
+              cNode('src', 'test_node', null),
+              cNode('bg', 'background', null),
+              cNode('after', 'after_node', null),
+              cNode('bgBody', 'bg_body_node', null),
+            ],
+            [
+              cEdge('src', 'out', 'bg'),
+              cEdge('bg', 'main', 'after'),
+              cEdge('bg', 'background', 'bgBody'),
+            ],
+          );
+          return { afterCalls, seenMeta };
+        };
+        const stampCalls = (query: jest.Mock) =>
+          query.mock.calls.filter(
+            (call: unknown[]) =>
+              typeof call[0] === 'string' &&
+              call[0].includes('UPDATE node_execution'),
+          );
+
+        beforeEach(() => {
+          backgroundQueueAdd().mockClear();
+        });
+
+        it('add() 가 돌려준 작업 ID 를 COMPLETED 행의 output_data.meta.jobId 와 구조화 출력 meta 에 넣는다', async () => {
+          const query = nodeExecutionQuery();
+          backgroundQueueAdd().mockResolvedValueOnce({ id: 'job-7' });
+
+          const { afterCalls, seenMeta } = await runBackgroundGraph();
+
+          expect(backgroundQueueAdd()).toHaveBeenCalledTimes(1);
+          const calls = stampCalls(query);
+          expect(calls).toHaveLength(1);
+          const [sql, params] = calls[0] as [string, unknown[]];
+          // 완료된 행만 바꾸고 meta 의 다른 키는 그대로 둔다.
+          expect(sql).toContain('jsonb_set');
+          expect(sql).toContain("jsonb_build_object('jobId'");
+          expect(params).toEqual([
+            'ne-bg',
+            'job-7',
+            NodeExecutionStatus.COMPLETED,
+          ]);
+          // 뒤 노드의 `$node["bg"].meta` 에도 보인다. 핸들러가 낸 meta 는 그대로다.
+          expect(afterCalls).toHaveLength(1);
+          expect(seenMeta).toEqual([
+            expect.objectContaining({
+              jobId: 'job-7',
+              backgroundRunId: expect.any(String),
+              forkedAt: expect.any(String),
+            }),
+          ]);
+          // 큐에 넣은 스냅샷은 스탬프 전에 만들어 작업 ID 가 없다.
+          const job = backgroundQueueAdd().mock
+            .calls[0][1] as BackgroundExecutionJob;
+          expect(job.structuredOutputCache?.bg?.meta).not.toHaveProperty(
+            'jobId',
+          );
+        });
+
+        it('add() 가 작업 ID 를 돌려주지 않으면 스탬프하지 않는다', async () => {
+          const query = nodeExecutionQuery();
+          backgroundQueueAdd().mockResolvedValueOnce(undefined);
+
+          const { afterCalls, seenMeta } = await runBackgroundGraph();
+
+          expect(stampCalls(query)).toHaveLength(0);
+          expect(afterCalls).toHaveLength(1);
+          expect(seenMeta[0]).not.toHaveProperty('jobId');
+        });
+
+        it('스탬프 UPDATE 가 실패해도 메인 흐름은 다음 노드로 이어지고 캐시 meta 에는 작업 ID 가 남는다', async () => {
+          const query = nodeExecutionQuery();
+          query.mockRejectedValue(new Error('db down'));
+          backgroundQueueAdd().mockResolvedValueOnce({ id: 'job-8' });
+
+          const { afterCalls, seenMeta } = await runBackgroundGraph();
+
+          expect(stampCalls(query)).toHaveLength(1);
+          expect(afterCalls).toHaveLength(1);
+          expect(seenMeta[0]).toEqual(
+            expect.objectContaining({ jobId: 'job-8' }),
+          );
+        });
+
+        it('큐 넣기가 실패해도 메인 흐름은 다음 노드로 이어지고 스탬프하지 않는다', async () => {
+          const query = nodeExecutionQuery();
+          backgroundQueueAdd().mockRejectedValueOnce(new Error('redis down'));
+
+          const { afterCalls, seenMeta } = await runBackgroundGraph();
+
+          expect(backgroundQueueAdd()).toHaveBeenCalledTimes(1);
+          expect(stampCalls(query)).toHaveLength(0);
+          expect(afterCalls).toHaveLength(1);
+          expect(seenMeta[0]).not.toHaveProperty('jobId');
+        });
+
+        // Background 노드는 병렬 분기 안에도 놓일 수 있다. 그때 `context` 는 분기 사본이라
+        // 등록된 루트 컨텍스트의 캐시와 다른 객체다. 두 캐시의 `meta.jobId` 가 같아야 분기
+        // 안 뒤 노드와 분기 뒤 노드가 같은 값을 본다.
+        it('병렬 분기 사본 컨텍스트면 등록된 루트 컨텍스트의 구조화 출력 meta 에도 작업 ID 를 넣는다', () => {
+          const ctxService = (
+            service as unknown as { contextService: ExecutionContextService }
+          ).contextService;
+          const root = ctxService.createContext('exec-branch', 'wf-branch');
+          try {
+            root.structuredOutputCache.bg = {
+              config: {},
+              output: { k: 1 },
+              meta: { forkedAt: 'x' },
+            };
+            const branchCopy = {
+              ...root,
+              structuredOutputCache: { ...root.structuredOutputCache },
+            };
+
+            (
+              service as unknown as {
+                stampStructuredMetaJobId: (
+                  c: unknown,
+                  nodeId: string,
+                  jobId: string,
+                ) => void;
+              }
+            ).stampStructuredMetaJobId(branchCopy, 'bg', 'job-p');
+
+            expect(branchCopy.structuredOutputCache.bg.meta).toEqual({
+              forkedAt: 'x',
+              jobId: 'job-p',
+            });
+            expect(root.structuredOutputCache.bg.meta).toEqual({
+              forkedAt: 'x',
+              jobId: 'job-p',
+            });
+            expect(root.structuredOutputCache.bg.output).toEqual({ k: 1 });
+          } finally {
+            ctxService.deleteContext('exec-branch');
+          }
+        });
+      });
     });
 
     // CLE-T-JXD0W5 — 컨테이너는 본문을 다 돈 뒤 출력을 완료 출력으로 덮어쓴다. 노드 실행 행과
@@ -17342,7 +17540,10 @@ describe('ExecutionEngineService', () => {
         nodeId: string,
         edges: unknown[],
         executedNodes: Set<string>,
-        nodeOutputCache: Record<string, unknown>,
+        caches: {
+          nodeOutputCache: Record<string, unknown>;
+          structuredOutputCache: Record<string, { output?: unknown }>;
+        },
         workflowInput: unknown,
         incomingEdgeMap?: Map<string, unknown[]>,
       ) => unknown;
@@ -17390,7 +17591,7 @@ describe('ExecutionEngineService', () => {
           'next',
           [edge],
           ctx._executedNodes ?? new Set(),
-          ctx.nodeOutputCache,
+          ctx,
           WORKFLOW_INPUT,
           new Map([['next', [edge]]]),
         );
@@ -19951,28 +20152,14 @@ describe('ExecutionEngineService', () => {
     });
 
     // ── injectInvokerOutput: output 주입 형태 검증 ───────────────────
-    it('injectInvokerOutput: setStructuredOutput + setNodeOutput 호출로 output.result wrapping', () => {
-      const structuredCalls: unknown[][] = [];
-      const flatCalls: unknown[][] = [];
+    it('injectInvokerOutput: setNodeOutputs 한 번으로 두 캐시에 output.result wrapping 을 쓴다', () => {
+      const outputsCalls: unknown[][] = [];
       (
         service as unknown as {
-          contextService: {
-            setStructuredOutput: jest.Mock;
-            setNodeOutput: jest.Mock;
-          };
+          contextService: { setNodeOutputs: jest.Mock };
         }
-      ).contextService.setStructuredOutput = jest.fn((...args) =>
-        structuredCalls.push(args),
-      );
-      (
-        service as unknown as {
-          contextService: {
-            setStructuredOutput: jest.Mock;
-            setNodeOutput: jest.Mock;
-          };
-        }
-      ).contextService.setNodeOutput = jest.fn((...args) =>
-        flatCalls.push(args),
+      ).contextService.setNodeOutputs = jest.fn((...args) =>
+        outputsCalls.push(args),
       );
 
       const invokerNode = {
@@ -19984,14 +20171,14 @@ describe('ExecutionEngineService', () => {
 
       driveSubject().injectInvokerOutput(mockContext, invokerNode, subOutput);
 
-      // setStructuredOutput 은 { config, output: { result: subOutput } } 형태
-      expect(structuredCalls).toHaveLength(1);
-      expect(structuredCalls[0][2]).toMatchObject({
+      // 구조화 출력은 { config, output: { result: subOutput } } 형태이고 flat 값과 함께 쓴다.
+      // flat 값으로 구조화 출력을 다시 만들지 않는다(NERV Task CLE-T-ZJR3AF).
+      expect(outputsCalls).toHaveLength(1);
+      expect(outputsCalls[0][2]).toMatchObject({
         config: invokerNode.config,
         output: { result: subOutput },
       });
-      // setNodeOutput 도 호출됨
-      expect(flatCalls).toHaveLength(1);
+      expect(outputsCalls[0][3]).toEqual({ result: subOutput });
     });
   });
 
@@ -21590,13 +21777,106 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // spec node-output §4.2.1 — stripControlFields preserves _retryState while
-  // stripping _resumeState.
-  describe('stripControlFields _retryState preservation', () => {
-    function strip(output: unknown): unknown {
+  // 다음 노드 `$input` 은 구조화 출력 캐시의 핸들러 output 이다. 구조화 출력이 없는 노드
+  // (구조화 캐시가 없던 옛 컨텍스트 · 옛 큐 작업)만 flat 값에서 제어 필드를 뗀다. 연결선
+  // 판정은 flat 값의 `_selectedPort` 로 한다(NERV Task CLE-T-ZJR3AF).
+  describe('gatherNodeInput — 구조화 캐시 읽기와 대체 경로 (CLE-T-ZJR3AF)', () => {
+    type Caches = {
+      nodeOutputCache: Record<string, unknown>;
+      structuredOutputCache: Record<string, unknown>;
+    };
+    const gather = (
+      caches: Caches,
+      sources: Array<{ id: string; port: string }>,
+    ): unknown => {
+      const edges = sources.map((src) => ({
+        sourceNodeId: src.id,
+        sourcePort: src.port,
+        targetNodeId: 'next',
+        targetPort: 'in',
+      }));
       return (
-        service as unknown as { stripControlFields(o: unknown): unknown }
-      ).stripControlFields(output);
+        service as unknown as {
+          gatherNodeInput: (
+            nodeId: string,
+            edges: unknown[],
+            executedNodes: Set<string>,
+            caches: Caches,
+            workflowInput: unknown,
+          ) => unknown;
+        }
+      ).gatherNodeInput(
+        'next',
+        edges,
+        new Set(sources.map((src) => src.id)),
+        caches,
+        { from: 'workflow' },
+      );
+    };
+
+    it('구조화 출력이 있으면 flat 봉투 대신 핸들러 output 을 준다', () => {
+      const output = { data: [1, 2] };
+      expect(
+        gather(
+          {
+            nodeOutputCache: { a: { data: [1, 2], _selectedPort: 'ok' } },
+            structuredOutputCache: { a: { config: {}, output, port: 'ok' } },
+          },
+          [{ id: 'a', port: 'ok' }],
+        ),
+      ).toBe(output);
+    });
+
+    it('구조화 출력이 없으면 flat 값에서 제어 필드만 떼고 봉투는 풀지 않는다', () => {
+      expect(
+        gather(
+          {
+            nodeOutputCache: {
+              a: { v: 1, _selectedPort: 'ok', status: 'resumed' },
+            },
+            structuredOutputCache: {},
+          },
+          [{ id: 'a', port: 'ok' }],
+        ),
+      ).toEqual({ v: 1 });
+      expect(
+        gather(
+          {
+            nodeOutputCache: { a: { data: [1, 2], _selectedPort: 'ok' } },
+            structuredOutputCache: {},
+          },
+          [{ id: 'a', port: 'ok' }],
+        ),
+      ).toEqual({ data: [1, 2] });
+    });
+
+    it('연결선 판정은 flat 값의 _selectedPort 로 하고 여러 입력도 구조화 출력을 모은다', () => {
+      const caches: Caches = {
+        nodeOutputCache: {
+          a: { x: 1, _selectedPort: 'ok' },
+          b: { y: 2, _selectedPort: 'other' },
+        },
+        structuredOutputCache: {
+          a: { config: {}, output: { x: 1 }, port: 'ok' },
+          b: { config: {}, output: { y: 2 }, port: 'other' },
+        },
+      };
+      expect(gather(caches, [{ id: 'b', port: 'ok' }])).toBeUndefined();
+      expect(
+        gather(caches, [
+          { id: 'a', port: 'ok' },
+          { id: 'b', port: 'ok' },
+        ]),
+      ).toEqual({ a: { x: 1 } });
+    });
+  });
+
+  // spec node-output §4.2.1 — 구조화 출력이 없는 노드의 대체 경로(toDownstreamValue)는
+  // _resumeState 를 떼고 _retryState 를 남긴다. 다음 노드 값은 보통 구조화 캐시에서
+  // 읽는다(NERV Task CLE-T-ZJR3AF).
+  describe('toDownstreamValue _retryState preservation', () => {
+    function strip(output: unknown): unknown {
+      return toDownstreamValue(output);
     }
 
     it('preserves _retryState but strips _resumeState / control fields', () => {

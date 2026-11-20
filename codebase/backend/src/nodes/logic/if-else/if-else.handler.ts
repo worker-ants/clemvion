@@ -67,8 +67,10 @@ export class IfElseHandler implements NodeHandler {
     // CONVENTIONS Principle 2 — meta carries execution metrics. `conditionResult`
     // lets downstream expressions read the boolean directly without parsing
     // `port`; `matchedConditions` exposes per-condition results for `or` mode
-    // debugging. `meta.durationMs` is injected by the engine, not here
-    // (sibling switch handler follows the same pattern). Spec §5.1 / §5.2.
+    // debugging. `meta.durationMs` is not set here (sibling switch handler
+    // follows the same pattern): it is optional and handler-owned, and the
+    // engine only rewrites it on Form resume (CLE-NODE-OUTPUT Principle 2).
+    // Spec §5.1 / §5.2.
     return Promise.resolve({
       config: {
         conditions: rawConfig.conditions,

@@ -123,7 +123,8 @@ export class MergeHandler implements NodeHandler {
     //    barrier 활성화를 재검토 과제로 미룬다 (2026-07-17)»). Mirrors the
     //    warn log.
     //    Always present (empty array when none) for consumer simplicity.
-    // `meta.durationMs` is injected by the engine, not here.
+    // `meta.durationMs` is not set here. It is optional and handler-owned
+    // (CLE-NODE-OUTPUT Principle 2); the engine only rewrites it on Form resume.
 
     // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
     // schema field; `timeout` / `partialOnTimeout` were previously missing.

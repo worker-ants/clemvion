@@ -263,10 +263,7 @@ describe('FormInteractionService', () => {
         conversationThreadService,
         'appendPresentationInteraction',
       );
-      const setStructuredSpy = jest.spyOn(
-        contextService,
-        'setStructuredOutput',
-      );
+      const setStructuredSpy = jest.spyOn(contextService, 'setNodeOutputs');
 
       await service.processFormResumeTurn(
         saved,
@@ -298,6 +295,10 @@ describe('FormInteractionService', () => {
       expect(structuredOut?.output?.interaction?.data).not.toHaveProperty(
         'evil',
       );
+      // 다음 노드 `$input` 은 구조화 출력 그대로다. flat 값의 `data` · `status` · `port` 가
+      // 섞이지 않는다(NERV Task CLE-T-ZJR3AF).
+      expect(Object.keys(structuredOut?.output ?? {})).toEqual(['interaction']);
+      expect(ctx.structuredOutputCache[nodeId]).toBe(structuredOut);
     });
 
     // W-3(b) config.fields = [] (빈 배열) → allowedFieldNames.size === 0 분기로
@@ -521,7 +522,7 @@ describe('FormInteractionService', () => {
           meta: { durationMs: 0, interactionType: 'form' },
         },
       };
-      const setSpy = jest.spyOn(contextService, 'setStructuredOutput');
+      const setSpy = jest.spyOn(contextService, 'setNodeOutputs');
 
       await service.processFormResumeTurn(
         {
@@ -573,7 +574,7 @@ describe('FormInteractionService', () => {
       (
         context as { structuredOutputCache: Record<string, unknown> }
       ).structuredOutputCache = cache;
-      const setSpy = jest.spyOn(contextService, 'setStructuredOutput');
+      const setSpy = jest.spyOn(contextService, 'setNodeOutputs');
       await service.processFormResumeTurn(
         {
           id: opts.execId,

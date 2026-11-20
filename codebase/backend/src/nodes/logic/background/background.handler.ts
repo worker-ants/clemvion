@@ -29,10 +29,10 @@ import { backgroundNodeMetadata } from './background.schema';
  *                            가능성 회피).
  *  - `meta.forkedAt`       — fork 시점의 ISO8601 타임스탬프.
  *  - `meta.jobId?`         — 실제 BullMQ job ID. 핸들러는 큐 시스템에 대한 지식이
- *                            없으므로 항상 미발행 (선택 필드). 큐 발행은
+ *                            없으므로 항상 미발행 (선택 필드). 큐 발행을 맡은
  *                            `ExecutionEngineService.scheduleBackgroundBody()` 가
- *                            담당하며 향후 그쪽에서 NodeExecution.outputData 로
- *                            stamp 할 수 있다.
+ *                            큐에 넣은 뒤 완료된 NodeExecution.outputData 와 구조화
+ *                            출력 캐시의 meta 에 넣는다 (CLE-T-6V9957).
  */
 export class BackgroundHandler implements NodeHandler {
   metadata = backgroundNodeMetadata;

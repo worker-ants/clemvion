@@ -103,12 +103,7 @@ export function wrapBareAsNodeHandlerOutput(raw: unknown): NodeHandlerOutput {
   }
 
   const obj = raw as Record<string, unknown>;
-  // 엔진이 배열 · 원시값을 싣던 봉투면 `output` 은 봉투가 아니라 그 안의 값이다.
-  // 제어 필드는 객체와 같은 규칙으로 꺼낸다({@link isWrappedValueEnvelope}).
-  const adapted: NodeHandlerOutput = {
-    config: {},
-    output: isWrappedValueEnvelope(raw) ? raw.data : raw,
-  };
+  const adapted: NodeHandlerOutput = { config: {}, output: raw };
   if (typeof obj.status === 'string') adapted.status = obj.status;
   if (typeof obj.port === 'string' || Array.isArray(obj.port))
     adapted.port = obj.port as string | string[];
@@ -116,57 +111,6 @@ export function wrapBareAsNodeHandlerOutput(raw: unknown): NodeHandlerOutput {
     adapted._resumeState = obj._resumeState;
   }
   return adapted;
-}
-
-/**
- * 배열 · 원시값 `output` 을 제어 필드(`port` · `status` · `_resumeState`)와 함께 엔진
- * flat 캐시에 싣는 봉투 `{ data, ...control }` 를 기억한다.
- *
- * 봉투는 엔진 안에서만 쓴다. 라우팅(`_selectedPort`)과 대기 판정(`status`)이 객체의
- * 최상위 키를 읽기 때문이다. 다운스트림 `$input` · `$node[X].output` 에는 봉투가 아니라
- * 핸들러 `output` 이 그대로 가야 한다(CLE-NODE-OUTPUT Principle 0 · 8, CLE-NODE-CODE
- * 「output 루트에 바로 배치」). 그런데 사용자가 돌려준 `{ data: [...] }` 객체에 `port`
- * 가 붙은 flat 값과 봉투는 모양이 같다. 그래서 모양으로 가르지 않고 봉투를 만든 곳에서
- * 표지를 붙인다(NERV Task CLE-T-T30D5S).
- *
- * `WeakSet` 이라 값을 바꾸지 않고 JSON · 테스트 비교에도 드러나지 않는다. 대신 객체를
- * 새로 만들면 표지가 따라가지 않는다. 봉투 모양을 바꿔 새 객체를 만드는 곳
- * (`ExecutionEngineService.applyPortSelection`)은 {@link markWrappedValueEnvelope} 로
- * 표지를 옮긴다. DB 에서 되살린 값에는 표지가 없다.
- */
-const wrappedValueEnvelopes = new WeakSet<object>();
-
-/** 표지가 붙은 봉투. `data` 가 핸들러의 배열 · 원시값 `output` 이다. */
-export type WrappedValueEnvelope = Record<string, unknown> & {
-  readonly data: unknown;
-};
-
-/** 값이 {@link toEngineFlatShape} 가 배열 · 원시값을 싣으려고 만든 봉투인지 본다. */
-export function isWrappedValueEnvelope(
-  value: unknown,
-): value is WrappedValueEnvelope {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    wrappedValueEnvelopes.has(value)
-  );
-}
-
-/**
- * 봉투 표지를 붙이고 같은 객체를 돌려준다. 봉투에서 제어 필드만 바꿔 새 객체를 만든
- * 곳이 쓴다. `data` 키가 없는 객체에는 붙이지 않는다.
- */
-export function markWrappedValueEnvelope<T extends object>(value: T): T {
-  if ('data' in value) wrappedValueEnvelopes.add(value);
-  return value;
-}
-
-/**
- * 다운스트림에 넘길 값을 돌려준다. 봉투면 그 안의 `data`, 아니면 받은 값 그대로다.
- * 객체 출력의 제어 필드는 건드리지 않는다.
- */
-export function unwrapEngineFlatValue(value: unknown): unknown {
-  return isWrappedValueEnvelope(value) ? value.data : value;
 }
 
 /** flat 값에서 떼는 엔진 제어 필드. 이유는 {@link toDownstreamValue} 참조. */
@@ -179,15 +123,17 @@ const ENGINE_CONTROL_FIELDS = [
 ] as const;
 
 /**
- * 엔진 flat 캐시 값에서 다음 노드에 넘길 값을 꺼낸다. 봉투면 그 안의 `data`, 객체면
- * 엔진 제어 필드(`_selectedPort` · `port` · `status` · `_resumeState` ·
- * `_resumeCheckpoint`)를 뗀 값이다. 제어 필드는 이 노드의 라우팅 · 대기 판정에만 쓰고
+ * 구조화 출력이 없는 노드의 flat 캐시 값에서 다음 노드에 넘길 값을 꺼낸다. 객체면 엔진
+ * 제어 필드(`_selectedPort` · `port` · `status` · `_resumeState` · `_resumeCheckpoint`)를
+ * 뗀 값이고 그 밖에는 받은 값 그대로다. 제어 필드는 이 노드의 라우팅 · 대기 판정에만 쓰고
  * 다음 노드 `$input` 에 새면 그 노드의 라우팅과 대기 판정이 틀어진다.
+ *
+ * 배열 · 원시값을 실은 엔진 봉투 `{ data, ... }` 는 풀지 않는다. 봉투는 사용자가 돌려준
+ * `{ data: [...] }` 객체와 모양이 같아 flat 값만 보고는 가를 수 없다. 정상 경로는
+ * {@link resolveNodeResultValue} 가 구조화 캐시를 읽으므로 이 함수에 닿지 않는다
+ * (NERV Task CLE-T-ZJR3AF).
  */
 export function toDownstreamValue(flat: unknown): unknown {
-  if (isWrappedValueEnvelope(flat)) {
-    return flat.data;
-  }
   if (!flat || typeof flat !== 'object' || Array.isArray(flat)) {
     return flat;
   }
@@ -201,13 +147,14 @@ export function toDownstreamValue(flat: unknown): unknown {
 }
 
 /**
- * 노드의 결과 값, 곧 핸들러가 돌려준 `output` 을 꺼낸다. 실행 결과
- * (`Execution.outputData`)와 동기 서브워크플로 결과(`$node["Workflow"].output.result`)가
- * 이 값을 싣는다. `$node[X].output` 과 같은 값이다(NERV Task CLE-T-JDYHCF 결정 1).
+ * 노드의 결과 값, 곧 핸들러가 돌려준 `output` 을 꺼낸다. 다음 노드 `$input`, 컨테이너
+ * `emit` 수집, Parallel 분기 결과, 실행 결과(`Execution.outputData`), 동기 서브워크플로
+ * 결과(`$node["Workflow"].output.result`)가 이 값을 쓴다. `$node[X].output` 과 같은
+ * 값이다(NERV Task CLE-T-JDYHCF 결정 1, CLE-T-ZJR3AF).
  *
- * 구조화 출력 캐시가 정본이다. flat 캐시 값에는 엔진 봉투와 `_selectedPort` 가 섞여 있고
- * 봉투 표지는 JSON 을 거치면 사라진다. 구조화 출력이 없는 노드(구조화 캐시가 없던 옛
- * 컨텍스트)만 flat 값을 {@link toDownstreamValue} 로 풀어 쓴다.
+ * 구조화 출력 캐시가 정본이다. flat 캐시 값에는 엔진 봉투와 `_selectedPort` 가 섞여 있다.
+ * 구조화 출력이 없는 노드(구조화 캐시가 없던 옛 컨텍스트 · 옛 큐 작업)만 flat 값을
+ * {@link toDownstreamValue} 로 풀어 쓴다.
  */
 export function resolveNodeResultValue(
   caches: {
@@ -238,18 +185,19 @@ export function resolveExecutionOutputValue(
 
 /**
  * Collapses a {@link NodeHandlerOutput} back into the pre-migration flat
- * shape so that existing engine internals (`applyPortSelection`,
- * `stripControlFields`, downstream `$input.<field>` access) keep working
- * without per-call-site refactors. Phase 3 will remove this function along
+ * shape so that engine internals (`applyPortSelection`, port routing,
+ * blocking detection) keep working without per-call-site refactors.
+ * Downstream `$input` reads the structured cache instead
+ * ({@link resolveNodeResultValue}). Phase 3 will remove this function along
  * with the legacy cache.
  *
  * 배열 · 원시값 output 은 `port` · `status` · `_resumeState` 중 하나라도 있으면
- * `{ data, ...control }` 봉투로 감싸고 표지를 붙인다({@link isWrappedValueEnvelope}).
- * `meta` 는 봉투에 실리지 않으므로 `meta` 만으로는 감싸지 않는다. 예전에는 컨테이너만
- * 그랬고(`ignoreMetaForWrap`) 이제 모든 노드의 규칙이다(NERV Task CLE-T-T30D5S).
+ * `{ data, ...control }` 봉투로 감싼다. `meta` 는 봉투에 실리지 않으므로 `meta` 만으로는
+ * 감싸지 않는다(NERV Task CLE-T-T30D5S). 봉투는 라우팅과 대기 판정에만 쓰고 다음 노드
+ * 값은 구조화 캐시에서 읽는다({@link resolveNodeResultValue}, NERV Task CLE-T-ZJR3AF).
  *
  * `null` · `undefined` output 은 포트 하나(문자열)만 있고 `status` · `_resumeState` 가
- * 없을 때 같은 표지 봉투 `{ data, port }` 로 싣는다. 그 밖에는 설정 에코와 제어 필드를
+ * 없을 때 같은 봉투 `{ data, port }` 로 싣는다. 그 밖에는 설정 에코와 제어 필드를
  * 펼친 옛 모양을 유지한다(입력 대기 선언 · Parallel 배열 포트, NERV Task CLE-T-X3AH4F).
  */
 export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
@@ -272,7 +220,7 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
       adapted.status === undefined &&
       adapted._resumeState === undefined
     ) {
-      return markWrappedValueEnvelope({ data: output, port: adapted.port });
+      return { data: output, port: adapted.port };
     }
     const hasConfig =
       adapted.config !== null &&
@@ -296,16 +244,16 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
     if (adapted.port || adapted.status || adapted._resumeState) {
       // Engine expects top-level `status` / port metadata on an object. Keep
       // the raw output under `data` and surface control fields to emulate
-      // the legacy `{ port, data, status }` envelope. 표지는 다운스트림에서
-      // 봉투를 풀 때 쓴다.
-      return markWrappedValueEnvelope({
+      // the legacy `{ port, data, status }` envelope. 다운스트림은 이 봉투가
+      // 아니라 구조화 캐시의 `output` 을 읽는다({@link resolveNodeResultValue}).
+      return {
         data: output,
         ...(adapted.port !== undefined ? { port: adapted.port } : {}),
         ...(adapted.status !== undefined ? { status: adapted.status } : {}),
         ...(adapted._resumeState !== undefined
           ? { _resumeState: adapted._resumeState }
           : {}),
-      });
+      };
     }
     return output;
   }

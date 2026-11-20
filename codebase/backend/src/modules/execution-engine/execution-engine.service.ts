@@ -167,13 +167,9 @@ import {
 import {
   adaptHandlerReturn,
   isCanonicalHandlerOutput,
-  isWrappedValueEnvelope,
-  markWrappedValueEnvelope,
   resolveExecutionOutputValue,
   resolveNodeResultValue,
-  toDownstreamValue,
   toEngineFlatShape,
-  unwrapEngineFlatValue,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
 import {
@@ -2082,7 +2078,7 @@ export class ExecutionEngineService
           nodeId,
           graphEdges,
           executedNodes,
-          context.nodeOutputCache,
+          context,
           input,
           incomingEdgeMap,
         );
@@ -2967,10 +2963,10 @@ export class ExecutionEngineService
       config: invokerNode.config ?? {},
       output: { result: subOutput },
     };
-    this.contextService.setStructuredOutput(ctxKey, invokerNode.id, structured);
-    this.contextService.setNodeOutput(
+    this.contextService.setNodeOutputs(
       ctxKey,
       invokerNode.id,
+      structured,
       toEngineFlatShape(structured),
     );
   }
@@ -4317,7 +4313,7 @@ export class ExecutionEngineService
           nodeId,
           graphEdges,
           executedNodes,
-          context.nodeOutputCache,
+          context,
           cleanInput,
           incomingEdgeMap,
         );
@@ -4848,7 +4844,7 @@ export class ExecutionEngineService
           nodeId,
           graphEdges,
           executedNodes,
-          context.nodeOutputCache,
+          context,
           input,
           incomingEdgeMap,
         );
@@ -6334,7 +6330,10 @@ export class ExecutionEngineService
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
       const finalOutput = this.applyPortSelection(flatForCache);
-      this.commitNodeOutput(context, node.id, finalOutput, adapted);
+      this.commitNodeOutput(context, node.id, {
+        flat: finalOutput,
+        structured: adapted,
+      });
       executedNodes.add(node.id);
 
       // Check if this is a blocking node (waiting_for_input).
@@ -6505,7 +6504,7 @@ export class ExecutionEngineService
           break;
 
         case 'use_default':
-          this.commitNodeOutput(context, node.id, result.output);
+          this.commitNodeOutput(context, node.id, { flat: result.output });
           nodeExecution.status = NodeExecutionStatus.COMPLETED;
           nodeExecution.outputData =
             (result.output as Record<string, unknown>) ?? {};
@@ -6528,10 +6527,13 @@ export class ExecutionEngineService
             _selectedPort: RESERVED_ERROR_PORT_ID,
           };
           // 라우팅 표지는 평면 캐시에만 둔다. `$node[X].output` 은 에러 데이터 그대로다.
-          this.commitNodeOutput(context, node.id, routedOutput, {
-            config: {},
-            output: result.output,
-            port: RESERVED_ERROR_PORT_ID,
+          this.commitNodeOutput(context, node.id, {
+            flat: routedOutput,
+            structured: {
+              config: {},
+              output: result.output,
+              port: RESERVED_ERROR_PORT_ID,
+            },
           });
           executedNodes.add(node.id);
           errorPortFallbackMessage = await this.finalizeErrorPortNode(
@@ -7117,11 +7119,18 @@ export class ExecutionEngineService
     return result;
   }
 
+  /**
+   * 다음 노드의 `$input` 을 조립한다. 연결선을 열지는 flat 캐시의 `_selectedPort` 로
+   * 판정하고, 넘기는 값은 앞 노드의 핸들러 `output`(구조화 출력 캐시)이다. 그래서
+   * `$input` 과 `$node["X"].output` 이 같다(CLE-NODE-OUTPUT Principle 0 7번, NERV Task
+   * CLE-T-ZJR3AF). 구조화 출력이 없는 노드만 flat 값에서 제어 필드를 떼어 쓴다
+   * ({@link resolveNodeResultValue}).
+   */
   private gatherNodeInput(
     nodeId: string,
     edges: GraphEdge[],
     executedNodes: Set<string>,
-    nodeOutputCache: Record<string, unknown>,
+    caches: Pick<ExecutionContext, 'nodeOutputCache' | 'structuredOutputCache'>,
     workflowInput: unknown,
     incomingEdgeMap?: Map<string, GraphEdge[]>,
   ): unknown {
@@ -7140,18 +7149,17 @@ export class ExecutionEngineService
     if (incomingEdges.length === 1) {
       const sourceId = incomingEdges[0].sourceNodeId;
       if (executedNodes.has(sourceId)) {
-        const sourceOutput = nodeOutputCache[sourceId];
         // Port-aware filtering: if source has _selectedPort, only pass data
         // if the edge's sourcePort matches the selected port
         if (
           this.graphTraversal.isPortFiltered(
-            sourceOutput,
+            caches.nodeOutputCache[sourceId],
             incomingEdges[0].sourcePort,
           )
         ) {
           return undefined;
         }
-        return this.stripControlFields(sourceOutput);
+        return resolveNodeResultValue(caches, sourceId);
       }
       // No executed predecessor (e.g., back-edge target on first run) → use workflow input
       return workflowInput;
@@ -7162,12 +7170,19 @@ export class ExecutionEngineService
     let hasAnyInput = false;
     for (const edge of incomingEdges) {
       if (executedNodes.has(edge.sourceNodeId)) {
-        const sourceOutput = nodeOutputCache[edge.sourceNodeId];
         // Port-aware filtering for multi-input nodes
-        if (this.graphTraversal.isPortFiltered(sourceOutput, edge.sourcePort)) {
+        if (
+          this.graphTraversal.isPortFiltered(
+            caches.nodeOutputCache[edge.sourceNodeId],
+            edge.sourcePort,
+          )
+        ) {
           continue;
         }
-        merged[edge.sourceNodeId] = this.stripControlFields(sourceOutput);
+        merged[edge.sourceNodeId] = resolveNodeResultValue(
+          caches,
+          edge.sourceNodeId,
+        );
         hasAnyInput = true;
       }
     }
@@ -7190,9 +7205,8 @@ export class ExecutionEngineService
    * 따라서 **`data` 가 plain object 일 때만 unwrap**, array/primitive 는 `data`
    * 키 그대로 보존하고 `port → _selectedPort` 만 변환.
    *
-   * 어댑터가 배열 · 원시값 output 을 싣으려고 만든 봉투라면 새 객체에도 봉투 표지를
-   * 옮긴다. 다운스트림 `$input` · `$node[X].output` 이 그 표지를 보고 `data` 를
-   * 푼다(`isWrappedValueEnvelope`, NERV Task CLE-T-T30D5S).
+   * 이 값은 연결선 라우팅과 대기 판정에만 쓴다. 다음 노드 `$input` 은 구조화 출력
+   * 캐시에서 읽는다({@link gatherNodeInput}, NERV Task CLE-T-ZJR3AF).
    */
   // C-1 step2 — EngineDriver member (port 라우팅, orchestrator 가 driver 경유).
   public applyPortSelection(output: unknown): unknown {
@@ -7211,43 +7225,9 @@ export class ExecutionEngineService
       }
       // data 가 array / primitive / null: unwrap 시 array spread 가 발생해
       // next input 이 `{0:..., 1:...}` 로 깨지므로 키 보존.
-      const routed = { ...extra, data, _selectedPort: port };
-      return isWrappedValueEnvelope(output)
-        ? markWrappedValueEnvelope(routed)
-        : routed;
+      return { ...extra, data, _selectedPort: port };
     }
     return output;
-  }
-
-  /**
-   * Strip routing / lifecycle control fields from output before passing it
-   * as input to the next node.
-   *
-   * These fields are metadata for the current node's engine-level bookkeeping
-   * and must not leak into downstream `$input`:
-   *  - `_selectedPort`: routing marker for the current node's outgoing edges.
-   *    Leaking it causes pass-through successors (e.g. Variable) to have
-   *    their own successors incorrectly skipped.
-   *  - `port`: handler's declared output port. Leaking it into downstream
-   *    `output: input` pass-throughs makes the adapter think a stale port
-   *    is the new node's routing decision.
-   *  - `status`: lifecycle marker (`waiting_for_input` / `resumed` / `ended`).
-   *    Leaking `"resumed"` confuses blocking detection on successors.
-   *  - `_resumeState`: per-node interaction state. Strictly owned by the
-   *    node that emitted it.
-   *  - `_resumeCheckpoint`: DB-persisted credential-strip subset of
-   *    `_resumeState` (§7.5 rehydration). Internal-only — downstream nodes
-   *    must not receive it (same policy as `_resumeState`).
-   *
-   * The `structuredOutputCache` (what `$node["X"].port` resolves against)
-   * is not touched — downstream expressions can still read the predecessor's
-   * control fields explicitly by node reference.
-   *
-   * 배열 · 원시값 output 을 실은 엔진 봉투면 제어 필드를 지우는 대신 안의 값을
-   * 그대로 돌려준다. 다운스트림은 핸들러 `output` 을 받는다(NERV Task CLE-T-T30D5S).
-   */
-  private stripControlFields(output: unknown): unknown {
-    return toDownstreamValue(output);
   }
 
   /**
@@ -7421,7 +7401,7 @@ export class ExecutionEngineService
         nodeId,
         internalEdges,
         executedNodes,
-        context.nodeOutputCache,
+        context,
         iterInput,
       );
 
@@ -7483,9 +7463,9 @@ export class ExecutionEngineService
     ) {
       return undefined;
     }
-    // 배열 · 원시값 emit 은 엔진 봉투가 아니라 그 안의 값을 모은다. 객체 emit 은
-    // 지금처럼 flat 값 그대로다(NERV Task CLE-T-T30D5S).
-    return unwrapEngineFlatValue(context.nodeOutputCache[emitSourceNodeId]);
+    // emit 노드의 핸들러 `output` 을 모은다. flat 캐시의 엔진 봉투 · `_selectedPort` 는
+    // 모으지 않는다(CLE-EXEC-HANDLER §포트 선택, NERV Task CLE-T-ZJR3AF).
+    return resolveNodeResultValue(context, emitSourceNodeId);
   }
 
   /**
@@ -7858,10 +7838,107 @@ export class ExecutionEngineService
       },
     };
 
-    await this.backgroundQueue.add('background-run', job, {
-      removeOnComplete: 100,
-      removeOnFail: 100,
-    });
+    // 큐 넣기가 실패해도 메인 흐름은 이어진다. 본문 실패를 메인에 올리지 않는 격리 계약과
+    // 같은 규칙이다(CLE-NODE-BACKGROUND, CLE-T-6V9957).
+    let enqueuedJobId: string | undefined;
+    try {
+      const enqueued = await this.backgroundQueue.add('background-run', job, {
+        removeOnComplete: 100,
+        removeOnFail: 100,
+      });
+      enqueuedJobId = enqueued?.id;
+    } catch (err) {
+      this.logger.error(
+        `Background 본문 큐 넣기 실패 — execution=${executionId} node=${node.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return;
+    }
+    if (enqueuedJobId) {
+      await this.stampBackgroundJobId(
+        executionId,
+        node.id,
+        context,
+        parentNodeExecutionId,
+        enqueuedJobId,
+      );
+    }
+  }
+
+  /**
+   * 큐에 넣은 Background 본문의 BullMQ 작업 ID 를 노드 출력의 `meta.jobId` 로 남긴다. 핸들러는
+   * 큐를 몰라 이 값을 내지 않는다(CLE-T-6V9957).
+   *
+   * 큐에 넣는 시점에는 행이 이미 COMPLETED 이고 `execution.node.completed` 도 나갔다. 그래서
+   * 순서를 바꾸지 않고 완료된 행의 `output_data.meta` 에 키 하나를 더한다. 행이 COMPLETED 가
+   * 아니거나 `output_data` · `meta` 가 객체가 아니면 바꾸지 않는다. 뒤 노드가 `$node["X"].meta`
+   * 로 읽도록 구조화 출력 캐시의 `meta` 에도 넣는다. 큐 작업 스냅샷은 그 전에 만들었으므로
+   * 본문 쪽에는 이 값이 없다. 스탬프가 실패해도 메인 흐름은 이어진다.
+   *
+   * 구조화 출력 캐시 쓰기는 {@link stampStructuredMetaJobId} 가 맡는다. Background 노드가 병렬
+   * 분기 안에 있으면 `context` 는 분기 사본이라 등록된 루트 컨텍스트의 캐시에도 같이 적어야 한다.
+   * 행 갱신은 엔진이 이미 원시 SQL 을 쓰는 다른 지점(`manager.query`, `executionRepository.query`)과
+   * 같은 층에서 한다.
+   */
+  private async stampBackgroundJobId(
+    executionId: string,
+    nodeId: string,
+    context: ExecutionContext,
+    nodeExecutionId: string,
+    jobId: string,
+  ): Promise<void> {
+    this.stampStructuredMetaJobId(context, nodeId, jobId);
+    if (!nodeExecutionId) return;
+    try {
+      await this.nodeExecutionRepository.query(
+        `UPDATE node_execution
+            SET output_data = jsonb_set(
+                  output_data,
+                  '{meta}',
+                  COALESCE(output_data -> 'meta', '{}'::jsonb)
+                    || jsonb_build_object('jobId', $2::text)
+                )
+          WHERE id = $1
+            AND status = $3
+            AND jsonb_typeof(output_data) = 'object'
+            AND jsonb_typeof(COALESCE(output_data -> 'meta', '{}'::jsonb)) = 'object'`,
+        [nodeExecutionId, jobId, NodeExecutionStatus.COMPLETED],
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Background 작업 ID 스탬프 실패 — execution=${executionId} node=${nodeId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * 구조화 출력 캐시 항목의 `meta.jobId` 를 쓴다(CLE-T-6V9957). `context` 의 캐시에 쓰고, 병렬
+   * 분기 사본이라 등록된 루트 컨텍스트의 캐시가 다른 객체면 거기에도 같은 값을 쓴다. 그래야 분기
+   * 안 뒤 노드와 분기 뒤 노드가 같은 `meta.jobId` 를 본다. 항목이 없으면 아무것도 하지 않는다.
+   */
+  private stampStructuredMetaJobId(
+    context: ExecutionContext,
+    nodeId: string,
+    jobId: string,
+  ): void {
+    const stamp = (cache: ExecutionContext['structuredOutputCache']): void => {
+      const structured = cache[nodeId];
+      if (!structured) return;
+      cache[nodeId] = {
+        ...structured,
+        meta: { ...(structured.meta ?? {}), jobId },
+      };
+    };
+    stamp(context.structuredOutputCache);
+    const registered = this.contextService.getContext(
+      this.contextKeyOf(context),
+    )?.structuredOutputCache;
+    if (registered && registered !== context.structuredOutputCache) {
+      stamp(registered);
+    }
   }
 
   /**
@@ -8065,7 +8142,7 @@ export class ExecutionEngineService
         nodeId,
         plan.internalEdges,
         executedNodes,
-        context.nodeOutputCache,
+        context,
         branchInput,
       );
 
@@ -8148,14 +8225,20 @@ export class ExecutionEngineService
   private commitNodeOutput(
     context: ExecutionContext,
     nodeId: string,
-    output: unknown,
-    structured?: NodeHandlerOutput,
+    outputs: { flat: unknown; structured?: NodeHandlerOutput },
   ): void {
     const ctxKey = this.contextKeyOf(context);
-    if (structured) {
-      this.contextService.setNodeOutputs(ctxKey, nodeId, structured, output);
+    // 이름 있는 인자로 받는다. `setNodeOutputs(key, id, structured, flat)` 와 인자 순서가 달라
+    // 둘 다 unknown 계열이면 컴파일러가 순서 실수를 잡지 못한다.
+    if (outputs.structured) {
+      this.contextService.setNodeOutputs(
+        ctxKey,
+        nodeId,
+        outputs.structured,
+        outputs.flat,
+      );
     } else {
-      this.contextService.setNodeOutput(ctxKey, nodeId, output);
+      this.contextService.setNodeOutput(ctxKey, nodeId, outputs.flat);
     }
     this.syncParallelBranchCacheEntry(context, nodeId);
   }
@@ -8483,8 +8566,7 @@ export class ExecutionEngineService
         branchResults.push(null);
         continue;
       }
-      const rawOutput = context.nodeOutputCache[resultNodeId];
-      branchResults.push(this.stripControlFields(rawOutput) ?? null);
+      branchResults.push(resolveNodeResultValue(context, resultNodeId) ?? null);
     }
     const skipped = parallelResult.failures.map((f) => ({
       index: f.branchIndex,
@@ -8582,8 +8664,7 @@ export class ExecutionEngineService
     },
   ): NodeHandlerOutput {
     this.commitNodeOutput(context, parallelNodeId, {
-      _selectedPort: 'done',
-      ...done.output,
+      flat: { _selectedPort: 'done', ...done.output },
     });
     const completedOutput: NodeHandlerOutput = {
       config: done.config,
@@ -8897,12 +8978,10 @@ export class ExecutionEngineService
       output: structuredOutput,
       ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
     };
-    this.contextService.setStructuredOutput(
-      this.contextKeyOf(context),
-      containerNode.id,
-      completedOutput,
-    );
-    this.commitNodeOutput(context, containerNode.id, structuredOutput);
+    this.commitNodeOutput(context, containerNode.id, {
+      flat: structuredOutput,
+      structured: completedOutput,
+    });
     return completedOutput;
   }
 

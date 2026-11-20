@@ -253,11 +253,7 @@ describe('ButtonInteractionService', () => {
         conversationThreadService,
         'appendPresentationInteraction',
       );
-      const setNodeSpy = jest.spyOn(contextService, 'setNodeOutput');
-      const setStructuredSpy = jest.spyOn(
-        contextService,
-        'setStructuredOutput',
-      );
+      const setOutputsSpy = jest.spyOn(contextService, 'setNodeOutputs');
 
       await service.processButtonResumeTurn(
         makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
@@ -267,17 +263,14 @@ describe('ButtonInteractionService', () => {
         { type: 'button_click', buttonId: 'approve' },
       );
 
-      // flat output 에 _selectedPort=approve 로 라우팅 반영.
-      const flatCall = setNodeSpy.mock.calls.find((c) => c[1] === nodeId);
-      expect((flatCall?.[2] as { _selectedPort?: string })._selectedPort).toBe(
-        'approve',
-      );
+      // 두 캐시를 한 번에 쓴다. flat output 에 _selectedPort=approve 로 라우팅 반영.
+      const outputsCall = setOutputsSpy.mock.calls.find((c) => c[1] === nodeId);
+      expect(
+        (outputsCall?.[3] as { _selectedPort?: string })._selectedPort,
+      ).toBe('approve');
       // Fix 2 — structured output 도 동일 노드에 set 됨: buildResumedStructuredOutput
       // 결과의 핵심 필드(interaction.type, port, status='resumed')를 단언.
-      const structCall = setStructuredSpy.mock.calls.find(
-        (c) => c[1] === nodeId,
-      );
-      const structured = structCall?.[2] as {
+      const structured = outputsCall?.[2] as {
         port?: string;
         status?: string;
         output?: { interaction?: { type?: string } };
@@ -315,6 +308,52 @@ describe('ButtonInteractionService', () => {
       );
     });
 
+    // 재개 출력은 입력 대기 시점의 출력에 interaction 을 더한 값이다. flat 값의
+    // `_selectedPort` 가 구조화 출력(= 다음 노드 `$input` · `$node[X].output`)에 섞이지
+    // 않는다(NERV Task CLE-T-ZJR3AF).
+    it('재개 구조화 출력은 대기 시점 출력 + interaction 이고 _selectedPort 가 섞이지 않는다', async () => {
+      const nodeId = 'node-btn-shape';
+      const buttonConfig: ButtonConfig = {
+        buttons: [{ id: 'approve', type: 'port', label: 'Approve' }],
+      };
+      const waitingOutput = { type: 'carousel', items: [{ title: 'A' }] };
+      const ctx = seedButtonContext(nodeId, buttonConfig, waitingOutput);
+      mockNodeExecutionRepository.findOne.mockResolvedValueOnce({
+        id: 'ne-btn-shape',
+        nodeId,
+        executionId: execId,
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+
+      await service.processButtonResumeTurn(
+        makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
+        execId,
+        makeButtonNode(nodeId),
+        ctx,
+        { type: 'button_click', buttonId: 'approve' },
+      );
+
+      const structuredOut = ctx.structuredOutputCache[nodeId].output as Record<
+        string,
+        unknown
+      >;
+      expect(structuredOut).toEqual({
+        ...waitingOutput,
+        interaction: expect.objectContaining({
+          type: 'button_click',
+          data: expect.objectContaining({ buttonId: 'approve' }),
+        }),
+        previousOutput: waitingOutput,
+      });
+      expect(structuredOut).not.toHaveProperty('_selectedPort');
+      // 라우팅 표지는 flat 캐시에만 있다.
+      expect(
+        (ctx.nodeOutputCache[nodeId] as { _selectedPort?: string })
+          ._selectedPort,
+      ).toBe('approve');
+    });
+
     it('button_click(link) — _selectedPort=continue (button_continue)', async () => {
       const nodeId = 'node-btn-link';
       const buttonConfig: ButtonConfig = {
@@ -330,7 +369,7 @@ describe('ButtonInteractionService', () => {
         status: NodeExecutionStatus.WAITING_FOR_INPUT,
         startedAt: new Date(),
       });
-      const setNodeSpy = jest.spyOn(contextService, 'setNodeOutput');
+      const setNodeSpy = jest.spyOn(contextService, 'setNodeOutputs');
 
       await service.processButtonResumeTurn(
         makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
@@ -341,7 +380,7 @@ describe('ButtonInteractionService', () => {
       );
 
       const flatCall = setNodeSpy.mock.calls.find((c) => c[1] === nodeId);
-      expect((flatCall?.[2] as { _selectedPort?: string })._selectedPort).toBe(
+      expect((flatCall?.[3] as { _selectedPort?: string })._selectedPort).toBe(
         'continue',
       );
     });
@@ -359,7 +398,7 @@ describe('ButtonInteractionService', () => {
         status: NodeExecutionStatus.WAITING_FOR_INPUT,
         startedAt: new Date(),
       });
-      const setNodeSpy = jest.spyOn(contextService, 'setNodeOutput');
+      const setNodeSpy = jest.spyOn(contextService, 'setNodeOutputs');
 
       await service.processButtonResumeTurn(
         makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
@@ -370,7 +409,7 @@ describe('ButtonInteractionService', () => {
       );
 
       const flatCall = setNodeSpy.mock.calls.find((c) => c[1] === nodeId);
-      expect((flatCall?.[2] as { _selectedPort?: string })._selectedPort).toBe(
+      expect((flatCall?.[3] as { _selectedPort?: string })._selectedPort).toBe(
         'continue',
       );
     });
@@ -391,7 +430,7 @@ describe('ButtonInteractionService', () => {
         status: NodeExecutionStatus.WAITING_FOR_INPUT,
         startedAt: new Date(),
       });
-      const setNodeSpy = jest.spyOn(contextService, 'setNodeOutput');
+      const setNodeSpy = jest.spyOn(contextService, 'setNodeOutputs');
 
       await service.processButtonResumeTurn(
         makeExecution(ExecutionStatus.WAITING_FOR_INPUT),
@@ -402,7 +441,7 @@ describe('ButtonInteractionService', () => {
       );
 
       const flatCall = setNodeSpy.mock.calls.find((c) => c[1] === nodeId);
-      const out = flatCall?.[2] as {
+      const out = flatCall?.[3] as {
         _selectedPort?: string;
         selectedItem?: { title?: string };
       };
@@ -825,8 +864,8 @@ describe('resolveButtonInteraction', () => {
 // ────────────────────────────────────────────────────────────────────────────
 // buildResumedStructuredOutput — 재개 tick 의 structured NodeHandlerOutput 구성
 // 순수함수. (prevStructured, structuredInteraction, selectedPort, cleanNodeOutput)
-// 만으로 config/meta/output 을 보존·파생하는지 변형별로 단언한다. 호출자는 반드시
-// setNodeOutput() 직후의 view 를 prevStructured 로 넘긴다 (read-timing 행위).
+// 만으로 config/meta/output 을 보존·파생하는지 변형별로 단언한다. 호출자는 캐시를
+// 쓰기 전, 곧 입력 대기 시점의 구조화 출력을 prevStructured 로 넘긴다(CLE-T-ZJR3AF).
 // ────────────────────────────────────────────────────────────────────────────
 describe('buildResumedStructuredOutput', () => {
   const NOW = '2026-06-19T00:00:00.000Z';

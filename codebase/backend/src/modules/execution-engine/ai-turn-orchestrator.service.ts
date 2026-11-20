@@ -935,11 +935,17 @@ export class AiTurnOrchestrator {
       // is enforced and the structured cache stays consistent for the
       // next emit cycle / REST polling reconciliation.
       const adaptedNext = adaptHandlerReturn(result);
-      this.contextService.setStructuredOutput(contextKey, node.id, adaptedNext);
       const flatNext = this.driver.applyPortSelection(
         toEngineFlatShape(adaptedNext),
       );
-      this.contextService.setNodeOutput(contextKey, node.id, flatNext);
+      // 두 캐시를 한 번에 쓴다. `setNodeOutput` 은 flat 값으로 구조화 출력을 다시 만들어
+      // `$input` 에 `_selectedPort` 가 섞인다(NERV Task CLE-T-ZJR3AF).
+      this.contextService.setNodeOutputs(
+        contextKey,
+        node.id,
+        adaptedNext,
+        flatNext,
+      );
 
       // Persist the accumulated turn snapshot to `NodeExecution.outputData`
       // (DB SoT — spec/5-system/4-execution-engine.md §646). Without this,
@@ -1179,11 +1185,15 @@ export class AiTurnOrchestrator {
     );
 
     const adaptedConv = adaptHandlerReturn(resultObj);
-    this.contextService.setStructuredOutput(contextKey, node.id, adaptedConv);
     const portRouted = this.driver.applyPortSelection(
       toEngineFlatShape(adaptedConv),
     );
-    this.contextService.setNodeOutput(contextKey, node.id, portRouted);
+    this.contextService.setNodeOutputs(
+      contextKey,
+      node.id,
+      adaptedConv,
+      portRouted,
+    );
     return { resumeState, ended: true };
   }
 
@@ -1222,10 +1232,14 @@ export class AiTurnOrchestrator {
     // legacy bare return (ai_agent) persist uniformly through the
     // structured cache + port selector path.
     const adaptedEnd = adaptHandlerReturn(finalOutput);
-    this.contextService.setStructuredOutput(contextKey, node.id, adaptedEnd);
     const flatEnd = toEngineFlatShape(adaptedEnd);
     const routedEnd = this.driver.applyPortSelection(flatEnd);
-    this.contextService.setNodeOutput(contextKey, node.id, routedEnd);
+    this.contextService.setNodeOutputs(
+      contextKey,
+      node.id,
+      adaptedEnd,
+      routedEnd,
+    );
   }
 
   /**
@@ -1287,11 +1301,15 @@ export class AiTurnOrchestrator {
       failedUserMessageSource,
     );
     const adapted = adaptHandlerReturn(errorResult);
-    this.contextService.setStructuredOutput(contextKey, node.id, adapted);
     const portRouted = this.driver.applyPortSelection(
       toEngineFlatShape(adapted),
     );
-    this.contextService.setNodeOutput(contextKey, node.id, portRouted);
+    this.contextService.setNodeOutputs(
+      contextKey,
+      node.id,
+      adapted,
+      portRouted,
+    );
 
     if (nodeExec) {
       // WARN #6 — `_resumeState` 는 DB 영속 페이로드에서 strip. 정상 finalize

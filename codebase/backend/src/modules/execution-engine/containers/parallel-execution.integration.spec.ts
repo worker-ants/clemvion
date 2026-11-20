@@ -2058,10 +2058,11 @@ describe('ExecutionEngineService', () => {
         );
 
         expect(executed).toEqual(['ok', 'ok']);
-        // done 뒤 노드는 Parallel 자신의 출력을 받는다. 완료 출력(branches · count ·
+        // done 뒤 노드는 Parallel 자신의 출력(핸들러 output = null)을 받는다. 설정 에코를
+        // 펼친 flat 값이 아니다(NERV Task CLE-T-ZJR3AF). 완료 출력(branches · count ·
         // skipped)은 v1 경로만 만든다.
         expect(doneReceived).toHaveLength(1);
-        expect(doneReceived[0]).not.toHaveProperty('branches');
+        expect(doneReceived[0]).toBeNull();
         expect(parallelStructured()).toMatchObject({
           output: null,
           port: ['branch_0', 'branch_1'],
@@ -3207,7 +3208,8 @@ describe('ExecutionEngineService', () => {
             await runFromTrigger(g.nodes, g.edges);
 
             // 메인 루프의 되돌림 경로와 같다. done 뒤 노드도 회차마다 위상 순서대로
-            // 실행되지만 완료 출력(branches · count)이 아니라 Parallel 자신의 출력을 받는다.
+            // 실행되지만 완료 출력(branches · count)이 아니라 Parallel 자신의 출력(핸들러
+            // output = null)을 받는다(NERV Task CLE-T-ZJR3AF).
             expect([...runs].sort()).toEqual([
               'a',
               'a',
@@ -3218,7 +3220,7 @@ describe('ExecutionEngineService', () => {
             ]);
             expect(inputs.after).toHaveLength(2);
             for (const input of inputs.after) {
-              expect(input).not.toHaveProperty('branches');
+              expect(input).toBeNull();
             }
             expect(structuredOf('cpar')).toMatchObject({
               output: null,

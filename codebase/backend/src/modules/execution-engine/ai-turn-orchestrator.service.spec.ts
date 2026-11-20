@@ -2273,6 +2273,157 @@ describe('AiTurnOrchestrator', () => {
       ).toBeUndefined();
     });
   });
+
+  // CLE-T-ZJR3AF — AI 턴의 캐시 쓰기는 `setNodeOutputs(key, id, structured, flat)` 로 두 캐시를
+  // 한 번에 쓴다. 라우팅 표지(`_selectedPort`)는 flat 에만 있고 구조화 `output`(= 다음 노드
+  // `$input`)에는 섞이지 않아야 한다. 두 인자가 모두 unknown 계열이라 순서가 뒤바뀌어도 컴파일이
+  // 통과하므로 경로마다 단언으로 고정한다.
+  describe('캐시 쓰기 — _selectedPort 는 flat 에만 있고 구조화 output 에는 섞이지 않는다', () => {
+    const portNode: Partial<Node> = {
+      id: 'node-port',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+    const SELECTED = 'selected-port';
+
+    beforeEach(() => {
+      // 엔진의 포트 라우팅처럼 flat 값에만 표지를 붙인다.
+      driver.applyPortSelection.mockImplementation((o: unknown) =>
+        o !== null && typeof o === 'object' && !Array.isArray(o)
+          ? { ...(o as Record<string, unknown>), _selectedPort: SELECTED }
+          : o,
+      );
+    });
+
+    const registerHandler = (
+      overrides: Record<string, unknown>,
+    ): NodeHandler => {
+      const handler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(),
+        processMultiTurnMessage: jest.fn(),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: { mode: 'multi_turn' },
+          output: { result: { message: 'bye' } },
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        })),
+        ...overrides,
+      } as unknown as NodeHandler;
+      // 오케스트레이터는 등록 metadata 를 읽지 않는다. `ai_conversation` 은
+      // NodeTypeMetadata 의 blocking interaction 타입이 아니라서 넘기지 않는다.
+      handlerRegistry.register('ai_agent', handler);
+      return handler;
+    };
+
+    const expectPortOnlyInFlat = () => {
+      const ctx = contextService.getContext(executionId);
+      const structured = ctx?.structuredOutputCache['node-port'];
+      expect(structured).toBeDefined();
+      expect(structured?.output).not.toHaveProperty('_selectedPort');
+      expect(structured).not.toHaveProperty('_selectedPort');
+      expect(
+        (ctx?.nodeOutputCache['node-port'] as { _selectedPort?: string })
+          ._selectedPort,
+      ).toBe(SELECTED);
+    };
+
+    const callHandleAiMessageTurn = () =>
+      (
+        orchestrator as unknown as {
+          handleAiMessageTurn: (
+            ...args: unknown[]
+          ) => Promise<{ ended: boolean }>;
+        }
+      ).handleAiMessageTurn(
+        executionId,
+        executionId,
+        portNode as Node,
+        'user message',
+        { messages: [], turnCount: 0 },
+        { id: 'ne-port' },
+        undefined,
+      );
+
+    it('다음 턴(waiting_for_input)에서 두 캐시의 표지 분리가 유지된다', async () => {
+      registerHandler({
+        processMultiTurnMessage: jest.fn().mockResolvedValue({
+          config: { mode: 'multi_turn' },
+          output: { result: { message: 'hi', messages: [], turnCount: 1 } },
+          meta: {},
+          status: 'waiting_for_input',
+          _resumeState: { messages: [], turnCount: 1, model: 'gpt' },
+        }),
+      });
+      contextService.createContext(executionId, workflowId);
+
+      await callHandleAiMessageTurn();
+
+      expectPortOnlyInFlat();
+    });
+
+    it('핸들러가 대화를 끝낸(status ended) 턴에서 두 캐시의 표지 분리가 유지된다', async () => {
+      registerHandler({
+        processMultiTurnMessage: jest.fn().mockResolvedValue({
+          config: { mode: 'multi_turn' },
+          output: {
+            result: { response: 'done', messages: [], turnCount: 2 },
+          },
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        }),
+      });
+      contextService.createContext(executionId, workflowId);
+
+      const result = await callHandleAiMessageTurn();
+
+      expect(result.ended).toBe(true);
+      expectPortOnlyInFlat();
+    });
+
+    it('대화 종료(ai_end_conversation)에서 두 캐시의 표지 분리가 유지된다', async () => {
+      registerHandler({});
+      const context = contextService.createContext(executionId, workflowId);
+
+      await orchestrator.processAiResumeTurn(
+        { id: executionId, status: ExecutionStatus.RUNNING } as never,
+        executionId,
+        portNode as Node,
+        context,
+        { id: 'ne-port', nodeId: 'node-port', startedAt: new Date() } as never,
+        { messages: [], turnCount: 1 },
+        { type: 'ai_end_conversation' },
+      );
+
+      expectPortOnlyInFlat();
+    });
+
+    it('턴 에러 종결에서 두 캐시의 표지 분리가 유지된다', async () => {
+      registerHandler({
+        processMultiTurnMessage: jest
+          .fn()
+          .mockRejectedValue(new Error('llm down')),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: { mode: 'multi_turn' },
+          output: { result: { message: '' } },
+          meta: {},
+          port: 'error',
+          status: 'error',
+        })),
+      });
+      contextService.createContext(executionId, workflowId);
+
+      const result = await callHandleAiMessageTurn();
+
+      expect(result.ended).toBe(true);
+      expectPortOnlyInFlat();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
