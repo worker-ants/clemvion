@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATS"
 title: "통계"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-STATS-001", "REQ-STATS-002", "REQ-STATS-003", "REQ-STATS-004", "REQ-STATS-005", "REQ-STATS-006", "REQ-STATS-007", "REQ-STATS-008", "REQ-STATS-009", "REQ-STATS-010", "REQ-STATS-011", "REQ-STATS-012", "REQ-STATS-013", "REQ-STATS-014", "REQ-STATS-015", "REQ-STATS-016", "REQ-STATS-017", "REQ-STATS-018", "REQ-STATS-019", "REQ-STATS-020", "REQ-STATS-021"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "b18c1d5b0a512206a712638d6cb7b09e7767ff761a324fb57e2755ac8208917a"
+content_hash: "efeced8d435a4c9bfcafa686020c0aff0bb8bfd47ec96e97631bbb39100e4ca9"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-DKB2TD"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "6d7af022da587d86c27c414128bd2820bcddf9056b541611301a6a4e07135b2d"
-etag: "sha256-fa4213ec97ee3c3e0d73af45a31eb18bc5039f4778165d557bb216c7a14520ab"
+mirror_sha256: "6615121f98c588c51c1ad4878c3de38fabd6e6eb83d98158ea445e878ab833a8"
+etag: "sha256-564d60adba13f6261de12313abd0bf6ce76ae1831715ab498044bce8eb8c3703"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -145,7 +145,7 @@ etag: "sha256-fa4213ec97ee3c3e0d73af45a31eb18bc5039f4778165d557bb216c7a14520ab"
 | GET | `/api/statistics/top-workflows` | 실행 횟수 기준 상위 10개 워크플로우 |
 | GET | `/api/statistics/node-stats` | 노드별 통계(쿼리 `workflowId`) |
 | GET | `/api/statistics/llm-usage/summary` | LLM 토큰 사용량 요약. 모델 프로바이더 × 모델별 합계와 추정 비용 |
-| GET | `/api/statistics/llm-usage/timeseries` | LLM 토큰 사용량 시계열. 일자 × 모델 프로바이더별 |
+| GET | `/api/statistics/llm-usage/timeseries` | LLM 토큰 사용량 시계열. 일자 × 모델 프로바이더별. 응답 `data` 는 `LlmUsageTimeseriesItemDto` 배열이다(`{ items: [...] }` 래퍼 없음) |
 | GET | `/api/statistics/export` | 데이터 내보내기(쿼리 `format=csv` 또는 `json`) |
 
 모든 엔드포인트는 쿼리 파라미터 `QueryStatisticsDto`(`period`·`workflowId`·`startDate`·`endDate`)를 함께 쓴다. `workflow_id` 가 아니라 camelCase `workflowId` 다.

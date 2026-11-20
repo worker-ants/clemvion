@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK-OUTBOUND"
 title: "Slack 어댑터 — Web API 와 노드 UI 매핑"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-SLACK"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-SLACK"]
 area: "CLE-CHAT"
-content_hash: "58f3859825b8a06de0372fca7dfd21b959b6ad6e846723ec2b632ba526bc988a"
+content_hash: "90d948f426d2a5f25167f63c041cd61f1f06e17b55f933d0201657c3b9b5bfa9"
 read_as: "approved_fallback"
-task: "CLE-T-VKNJ4B"
+task: "CLE-T-6R7VRR"
 source_paths: []
-mirror_sha256: "a89969fd7538ceb0c37ffbe5300338daade3ccd12894006f246f53a4b19cb9c2"
-etag: "sha256-c3f543d17b9e6cb343f25ce69ed2170393c4f220677ee2b8a45c2a74058b57ef"
+mirror_sha256: "d8123a3aea25414ce49ccec8962f30785891c7a0d69ab339c9677c7f11739193"
+etag: "sha256-728404158ca9cce3257f66d5ce922b07b0f0686429a3422c55b271ddcbb90054"
 ---
 ## 개요
 
@@ -222,7 +222,7 @@ escape 하면 본문이 길어지므로 3500자 분할은 escape 한 뒤에 한�
 **기각한 대안**:
 
 - **Template 만 escape 하고 AI 응답은 후속 작업으로 미룬다**: LLM 응답에도 사용자 발화나 도구 결과가 그대로 들어갈 수 있어 같은 위험이 있다. 미루면 Slack 어댑터의 요구사항과 코드가 어긋난 채로 남는다.
-- **`{{ }}` 치환값만 escape 하고 작성자가 쓴 글자는 그대로 둔다**: 렌더러가 받는 값은 완성된 `output.rendered` 라 어느 글자가 치환값인지 알 수 없다. Template 노드나 표현식 해석기가 치환할 때 escape 하거나 치환 경계를 출력에 실어 넘겨야 한다. 이것은 백엔드와 표현식 해석기가 본문을 escape 하지 않고 소비처가 처리한다는 2026-11-12 결정([Presentation 노드 공통 — 표시 표면 「Template 본문은 그리는 쪽이 정화한다 (2026-11-12)」](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다-2026-11-12), NERV Task `CLE-T-MBGDA4`)과 겹친다. AI 응답에는 치환 경계가 아예 없다.
+- **`{{ }}` 치환값만 escape 하고 작성자가 쓴 글자는 그대로 둔다**: 렌더러가 받는 값은 완성된 `output.rendered` 라 어느 글자가 치환값인지 알 수 없다. Template 노드나 표현식 해석기가 치환할 때 escape 하거나 치환 경계를 출력에 실어 넘겨야 한다. 이것은 백엔드와 표현식 해석기가 본문을 escape 하지 않고 소비처가 처리한다는 2026-11-12 결정([Presentation 노드 공통 — 표시 표면 「Template 본문은 그리는 쪽이 정화한다 (2026-11-12)」](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다), NERV Task `CLE-T-MBGDA4`)과 겹친다. AI 응답에는 치환 경계가 아예 없다.
 - **`mrkdwn: false` 로 서식 해석을 끈다**: 위에 적은 대로 서식까지 사라져 AI 응답의 표현이 바뀐다.
 
 ### 나누는 경계를 줄바꿈 · 공백 경계로 적는다 (2026-11-19)

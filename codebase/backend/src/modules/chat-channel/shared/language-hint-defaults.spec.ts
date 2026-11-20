@@ -11,6 +11,8 @@ import {
   SURFACE_MISMATCH_DEFAULTS,
   resolveCommandReceivedMessage,
   COMMAND_RECEIVED_DEFAULTS,
+  resolveNoActiveExecutionMessage,
+  NO_ACTIVE_EXECUTION_DEFAULTS,
   makeLocaleResolver,
   pickLocaleDefault,
   GROUP_CHAT_REFUSAL_DEFAULT,
@@ -343,5 +345,36 @@ describe('resolveCommandReceivedMessage (슬래시 명령 수신 응답)', () =>
     expect(resolveCommandReceivedMessage({ commandReceived: '' }, 'en')).toBe(
       COMMAND_RECEIVED_DEFAULTS.en,
     );
+  });
+});
+
+// 근거: NERV 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf`(2026-11-19) — 진행 중인 실행이 없는 대화의 `/cancel`
+// 안내는 새 `languageHints` 키 `noActiveExecution` 에 합쇼체 기본값을 둔다. NERV Task `CLE-T-A78V0M`.
+describe('resolveNoActiveExecutionMessage (진행 중인 실행이 없을 때 /cancel 안내)', () => {
+  it('기본 문구는 KO 합쇼체 · EN 이다', () => {
+    expect(resolveNoActiveExecutionMessage(undefined, 'ko')).toBe(
+      '진행 중인 대화가 없습니다.',
+    );
+    expect(resolveNoActiveExecutionMessage(undefined, 'en')).toBe(
+      'There is no active conversation.',
+    );
+  });
+  it('locale 이 없으면 ko 문구다', () => {
+    expect(resolveNoActiveExecutionMessage(undefined, undefined)).toBe(
+      NO_ACTIVE_EXECUTION_DEFAULTS.ko,
+    );
+  });
+  it('languageHints.noActiveExecution 이 있으면 그 문구다', () => {
+    expect(
+      resolveNoActiveExecutionMessage(
+        { noActiveExecution: '취소할 대화 없음' },
+        'en',
+      ),
+    ).toBe('취소할 대화 없음');
+  });
+  it('빈 문자열 override 는 무시한다', () => {
+    expect(
+      resolveNoActiveExecutionMessage({ noActiveExecution: '' }, 'en'),
+    ).toBe(NO_ACTIVE_EXECUTION_DEFAULTS.en);
   });
 });

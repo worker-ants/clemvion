@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-FLOW"
 title: "노드 출력 규약 — 포트 · 흐름 상태 · 에러"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "cb7b668121a6fd804c4be5f68ac42930ea9568048ace437dc2966621521bf31a"
+content_hash: "e796e334fef7e3d89ef849767270b1257f3362568d5f6017e4847b6722f51cee"
 read_as: "approved_fallback"
-task: "CLE-T-A4RCZ3"
+task: "CLE-T-6R7VRR"
 source_paths: []
-mirror_sha256: "97d7cf5ca43907048c0781efc4d5b31bcd40110a456d9df522560805458e6d48"
-etag: "sha256-3bbb0410359d2cd5439c413f1b6cf9d9ce092042e7ba7b1833f6416309947574"
+mirror_sha256: "6b356dafb2ea7d139ef3ccc4425280ad91e994b60de23433ae8688da891733c8"
+etag: "sha256-37b85b5232083ffbe587c024f5a63854d57c846158d664f40b8c320020979f12"
 ---
 ## 개요
 
@@ -196,7 +196,7 @@ stateDiagram-v2
 | `port: string` | 여러 출력 가운데 하나를 고른다. | `if_else`, `switch`, `http_request`, `database_query`, `send_email`, `ai_agent`, `parallel`(완료 시점 `'done'`) 등 |
 | `port: string[]` | 여러 출력을 동시에 활성화한다(fan-out). | `parallel`(핸들러), `text_classifier`(다중 레이블) |
 
-엔진 덮어쓰기 대상 노드 가운데 노드 출력에 `port` 를 직접 싣는 것은 Parallel 뿐이다. 시작 시점은 `string[]`(fan-out)이고 완료 시점은 `'done'` 문자열이다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#완료-출력-port-는-done-문자열이다-2026-11-01)). Loop · ForEach · Map 의 완료 시점 `port` 는 [컨테이너 출력과 빈 입력의 미결 사항](CLE-NODE-OUTPUT-CONTAINER.md#미결-사항)에서 다룬다.
+엔진 덮어쓰기 대상 노드 가운데 노드 출력에 `port` 를 직접 싣는 것은 Parallel 뿐이다. 시작 시점은 `string[]`(fan-out)이고 완료 시점은 `'done'` 문자열이다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#완료-출력-port-는-done-문자열이다)). Loop · ForEach · Map 의 완료 시점 `port` 는 [컨테이너 출력과 빈 입력의 미결 사항](CLE-NODE-OUTPUT-CONTAINER.md#미결-사항)에서 다룬다.
 
 `port` 에는 출력 포트 ID 만 쓴다. 예를 들어 `ai_agent` 가 `output.port` 로 조건 ID 를 고르던 방식은 [Principle 8](CLE-NODE-OUTPUT.md#principle-8-불필요한-중첩을-없앤다)과 함께 없앤다.
 
@@ -223,7 +223,7 @@ stateDiagram-v2
 
 ### `_resumeState` · `_retryState` 의 자격 증명 제외 방식 (2026-08-24)
 
-예전 서술은 `maskSensitiveFields` 경계로 가린다고 했지만 그 경계는 없어졌다([설정 에코](CLE-NODE-OUTPUT-ECHO.md#설정을-원문으로-저장하고-나가는-곳에서만-가린다-2026-08-24)). 지금은 `buildRetryState`·`buildResumeState` 가 옮길 키를 나열하므로 자격 증명이 처음부터 들어가지 않는다. 이 배제는 경계 제거와 관계없다.
+예전 서술은 `maskSensitiveFields` 경계로 가린다고 했지만 그 경계는 없어졌다([설정 에코](CLE-NODE-OUTPUT-ECHO.md#설정을-원문으로-저장하고-나가는-곳에서만-가린다)). 지금은 `buildRetryState`·`buildResumeState` 가 옮길 키를 나열하므로 자격 증명이 처음부터 들어가지 않는다. 이 배제는 경계 제거와 관계없다.
 
 ### 에러 `details` 예를 구현에 맞춘다 (2026-11-13)
 

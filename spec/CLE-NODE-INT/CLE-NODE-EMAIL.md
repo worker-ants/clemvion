@@ -2,19 +2,19 @@
 id: "CLE-NODE-EMAIL"
 title: "Send Email 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-EMAIL-001", "REQ-EMAIL-002", "REQ-EMAIL-003", "REQ-EMAIL-004", "REQ-EMAIL-005", "REQ-EMAIL-006", "REQ-EMAIL-007", "REQ-EMAIL-008", "REQ-EMAIL-010", "REQ-EMAIL-011", "REQ-EMAIL-012", "REQ-EMAIL-013", "REQ-EMAIL-014", "REQ-EMAIL-015", "REQ-EMAIL-016", "REQ-EMAIL-017", "REQ-EMAIL-018", "REQ-EMAIL-019", "REQ-EMAIL-020", "REQ-EMAIL-021", "REQ-EMAIL-022", "REQ-EMAIL-023", "REQ-EMAIL-024", "REQ-EMAIL-025", "REQ-EMAIL-026", "REQ-EMAIL-027"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "f890079f6c34203a1ca591d45d7dc900005277d20af9d92906f6952418559b81"
+content_hash: "6b99d764149d0136e7d19f1a67a217791b1af3b95dc81f8e7cb3cac3f5367a1d"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "fcbe292927ec40daf7621df5ed30487c101f3ab405a68b68207194aa03a0ff66"
-etag: "sha256-25bd0777da01724e461cf5fe95593b0bd682f04c783473ba7931e3fdc4f7e360"
+mirror_sha256: "b9290632aefcaeb75ec33cc56b23ee5947a84731c58098897993445444b52032"
+etag: "sha256-6d874aa5192ee223fac316a44a9a809594a590c20ddb34651eacec0be831e8d6"
 ---
 > 구현 상태: 부분 구현 (워크스페이스 누락의 `INTEGRATION_SERVICE_UNAVAILABLE` 은 미구현) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -222,7 +222,9 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 - 통합 없음은 REQ-EMAIL-022 에서 뺐다. 카탈로그와 코드에 전용 코드가 없고, 통합 노드 공통은 없는 통합 · 다른 워크스페이스 통합 · 남의 개인 통합을 같은 실패로 둔다. 전용 코드를 새로 둘지는 이 문서에서 정하지 않는다. 지금 동작은 REQ-EMAIL-021 이 정한다.
 - 핸들러는 `IntegrationError` 에만 `toLogError` 를 쓰고 그 밖은 `EMAIL_SEND_FAILED` 로 직접 정한다. 활동 로그에 공통 fallback `INTEGRATION_CALL_FAILED` 가 남는다고 적었던 이전 서술을 구현에 맞춰 고치고 REQ-EMAIL-027 을 더했다.
 
-### `meta` 가 공통 규칙과 다른 두 곳 (2026-11-13)
+### `meta` 가 공통 규칙과 다른 두 곳
+
+결정일: 2026-11-13
 
 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 규칙 3 과 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 2 는 `meta` 에 관측한 실행 메트릭만 두고 모든 통합 노드에 `meta.durationMs` 를 둔다. 이 노드는 두 곳이 다르다.
 

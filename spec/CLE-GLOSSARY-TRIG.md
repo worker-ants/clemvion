@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-TRIG"
 title: "용어 사전 — 트리거"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "8d76ec5f1cd958449a8604d15d0e77dc42542d3cd7d061248694ae619d7afa65"
+content_hash: "7c41a52264f8da5e7a1884cabc930e7a9b11620cd3df22d61a59e6343e6513fc"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-YQMP4N"
 source_paths: []
-mirror_sha256: "bb6acb7fbd3d1cd51a1143ec74d2a64f8070fb401efdd355d201edaabb6ca4c8"
-etag: "sha256-3c7864e06b1b9f52f2ec102e4f3ecb1287466b93df656dadd68cb2064208e00c"
+mirror_sha256: "46bfeea4b3e7e195ea9a829c9c184da6fad4c315be6a609ca0f42f06b4a38456"
+etag: "sha256-3cd1886fa31780b66c5fef6b93c486140a27cc7db49de7c70bda8311124ffe8a"
 ---
 ## 개요
 
@@ -53,7 +53,7 @@ etag: "sha256-3c7864e06b1b9f52f2ec102e4f3ecb1287466b93df656dadd68cb2064208e00c"
 | 트리거 외부 자원 정리 | teardown | 트리거를 지울 때 그 트리거에 딸린 자원을 정리하는 절차. 정리 순서와 시점은 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다. | 비밀 정리 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#자원-정리) |
 | 트리거 설정 잠금 | `trigger-config:<id>` | 트리거 설정과 알림 서명 시크릿의 쓰기를 트리거마다 한 번에 하나만 돌게 하는 DB 잠금. 잠금을 잡는 시점은 [트리거 데이터와 흐름 「config 서브 필드」](CLE-TRIG/CLE-TRIG-DATA.md#config-서브-필드) 가 정한다. | 없음 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) |
 | 원시 `config` | request body `config`, `CreateTriggerDto.config` · `UpdateTriggerDto.config` | 트리거 생성(`POST /api/triggers`) · 수정(`PATCH /api/triggers/:id`) 요청 본문의 `config` 필드. 저장 위치 `Trigger.config` 와 다르고 노드의 원본 설정(`rawConfig`)과도 다르다. | 원본 설정(이 뜻으로), raw config(이 뜻으로) | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) |
-| 타입 필드 | top-level `notification` · `interaction` · `chatChannel` | 트리거 생성 · 수정 요청 본문 최상위의 `notification` · `interaction` · `chatChannel` 필드. 본문 검증 형식이 따로 정해져 있어 «타입» 이라 부른다. 트리거 유형(`Trigger.type`)과는 관계없다. | 없음 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) |
+| 타입 필드 | request body `notification` · `interaction` · `chatChannel` (outside `config`) | 트리거 생성 · 수정 요청 본문 최상위의 `notification` · `interaction` · `chatChannel` 필드. 본문 검증 형식이 따로 정해져 있어 «타입» 이라 부른다. 트리거 유형(`Trigger.type`)과는 관계없다. | top-level `X`, 최상위 `X`, 최상위 필드(이 뜻으로) | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) |
 | 타입 키 | `notification` · `interaction` · `chatChannel` directly under request body `config`, `RAW_CONFIG_TYPED_KEYS` | 원시 `config` 바로 아래에 온 `notification` · `interaction` · `chatChannel` 키. 저장된 `Trigger.config` 의 같은 이름 키와 다르다. 트리거 유형(`Trigger.type`)과도 관계없다. | 없음 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) |
 
 ## Rationale
@@ -86,12 +86,22 @@ NERV Task `CLE-T-6YY7KY` 의 두 항목을 반영했다. 두 정의가 기준 �
 
 NERV Task `CLE-T-EA7B5M` 이 트리거 생성 · 수정 요청 본문의 원시 `config` 계약을 정했다. 결정의 근거는 [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md) Rationale 의 「원시 `config` 계약 (2026-10-31)」 에 있다. 그 초안의 검토에서 세 말이 이 사전에 없다는 지적이 나와 행을 더했다. 정의에는 이름과 뜻만 적었다. 거부 조건 · 병합 · 검사 순서는 기준 문서 칸이 가리키는 [트리거 관리 「PATCH 본문 계약」](CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 과 REQ-TRIG-061 ~ 063 이 정한다.
 
-- 이 초안의 첫 저장은 거부 조건과 병합 단위를 정의 칸에 적고 기준 문서 칸이 날짜가 붙은 Rationale 소절을 가리켰다. 2026-10-31 스펙 초안 일관성 검토(NERV 리뷰 라운드 3, head `0e3c31ad4`)가 2026-10-17 에 기각한 «정의 칸에 규칙을 그대로 두는 안» 과 같다고 짚었다. 이미 어긋난 곳도 있었다. 정의는 거부 사유를 둘만 적었는데 기준 문서는 내부 필드 · 타입 키 · `secret://` 값 세 검사를 정한다. 그래서 정의를 줄이고 기준 문서 칸을 본문 절 `#patch-본문-계약` 으로 바꿨다. 이 앵커는 승인본에도 있어 트리거 관리 초안보다 이 문서가 먼저 승인돼도 링크가 끊기지 않는다.
+- 이 초안의 첫 저장은 거부 조건과 병합 단위를 정의 칸에 적고 기준 문서 칸이 날짜가 붙은 Rationale 소절을 가리켰다. 2026-10-31 스펙 초안 일관성 검토(finding 01a190a7-53fd-77d9-9e3e-135e468c8368)가 2026-10-17 에 기각한 «정의 칸에 규칙을 그대로 두는 안» 과 같다고 짚었다. 이미 어긋난 곳도 있었다. 정의는 거부 사유를 둘만 적었는데 기준 문서는 내부 필드 · 타입 키 · `secret://` 값 세 검사를 정한다. 그래서 정의를 줄이고 기준 문서 칸을 본문 절 `#patch-본문-계약` 으로 바꿨다. 이 앵커는 승인본에도 있어 트리거 관리 초안보다 이 문서가 먼저 승인돼도 링크가 끊기지 않는다.
 - 기각한 대안: 「원시 `config`」 의 영문 칸에 «raw config» 를 쓰는 안. [용어 사전 — 노드](CLE-GLOSSARY-NODE.md) 의 「원본 설정」 이 이미 그 영문 이름을 쓴다. 두 말은 뜻이 다르다. 노드의 원본 설정은 표현식을 평가하기 전의 노드 설정이다. 그래서 정의에 둘이 다르다고 적고 «원본 설정» · «raw config» 를 이 뜻으로는 쓰지 않는 표기에 넣었다. 코드 함수 이름(`mergeRawConfig` · `assertRawConfigAccepted`)은 코드 식별자라 이 규칙 밖이다.
 - 표준 용어 「원시 `config`」 에는 필드 이름 `config` 가 들어 있다. 표기 원칙 3 은 API 필드를 본문 용어로 쓰지 않게 하지만 이 말은 예외로 두었다. 2026-10-31 미러에 이미 85번(7편) 나오고 모두 같은 뜻이다. 한국어로만 부르면 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「설정(config)」 의 다른 뜻과 다시 겹친다.
-- 문서에서 `config.<키>` 만 쓰면 저장된 `Trigger.config` 의 키를 가리킨다([용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 「채팅 채널」, [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「알림」). 거부 응답의 `details.field` 값(예: `config.chatChannel`)은 요청 본문의 경로인데 저장 위치와 글자가 같다. 그래서 문서는 요청 본문 쪽을 «원시 `config`» 라고 불러 둘을 가른다. 첫 저장은 「타입 키」 영문 칸에 `config.chatChannel`(요청 본문) 처럼 괄호로만 갈랐다. 검토가 괄호를 빼고 읽으면 저장 위치로 읽힌다고 짚어서 영문 칸에는 위치를 말로 적었다.
-- «타입 필드» · «타입 키» 의 «타입» 은 본문 검증 형식이 따로 정해진 필드라는 뜻이다(구현 `RAW_CONFIG_TYPED_KEYS`). 이 사전은 type 을 «유형» 으로 쓰므로 트리거 유형과 섞이지 않도록 정의에 관계없다고 적었다. 이름을 «전용 필드» · «전용 키» 처럼 바꾸는 안은 이번 초안 묶음에서 두 말이 41번(«타입 필드» 8 · «타입 키» 33, 이 문서 제외) 쓰여 함께 고쳐야 한다. 그래서 후속 NERV Task `CLE-T-YQMP4N` 로 넘겼다.
-- 요청 본문 최상위 세 필드는 «타입 필드» 말고도 «top-level `X`» · «최상위 `X`» · «최상위 필드» 로 불린다. 2026-10-31 에 이번 초안 묶음(이 문서 제외)에서 «top-level» 22번, «최상위 …» 13번이 나왔고 미러 전체에는 «top-level» 34번 · «최상위 필드» 16번이 있다(다른 뜻 포함). 이번에는 표준만 정하고 쓰지 않는 표기 칸은 비웠다. 지금 둘을 금지하면 같은 묶음의 초안이 바로 표기 원칙 6 에 어긋난다. 사용처를 맞추는 일과 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「설정(config)」 에 요청 본문 `config` 행을 더하는 일은 `CLE-T-YQMP4N` 이 한다.
+- 문서에서 `config.<키>` 만 쓰면 저장된 `Trigger.config` 의 키를 가리킨다([용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 「채팅 채널」, [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「알림」). 거부 응답의 `details.field` 값(예: `config.chatChannel`)은 요청 본문의 경로인데 저장 위치와 글자가 같다. 그래서 문서는 요청 본문 쪽을 «원시 `config`» 라고 불러 둘을 가른다. 첫 저장은 「타입 키」 영문 칸에 `config.chatChannel`(요청 본문) 처럼 괄호로만 갈랐다. 같은 검토가 괄호를 빼고 읽으면 저장 위치로 읽힌다고 짚어서(finding 01a190a7-0abd-75a8-b0f8-7d882cce8274 · 01a190a6-b7b1-7109-b955-612af43acdbb) 영문 칸에는 위치를 말로 적었다.
+- «타입 필드» · «타입 키» 의 «타입» 은 본문 검증 형식이 따로 정해진 필드라는 뜻이다(구현 `RAW_CONFIG_TYPED_KEYS`). 이 사전은 type 을 «유형» 으로 쓰므로 트리거 유형과 섞이지 않도록 정의에 관계없다고 적었다. 이름을 «전용 필드» · «전용 키» 처럼 바꾸는 안은 이번 초안 묶음에서 두 말이 41번(«타입 필드» 8 · «타입 키» 33, 이 문서 제외) 쓰여 함께 고쳐야 한다. 그래서 후속 NERV Task `CLE-T-YQMP4N` 로 넘겼다(finding 01a190a7-0abe-77df-be36-9058e987ce30). 2026-11-19 결정은 아래 소절에 있다.
+- 요청 본문 최상위 세 필드는 «타입 필드» 말고도 «top-level `X`» · «최상위 `X`» · «최상위 필드» 로 불린다(finding 01a190a7-0abf-74fb-8de7-c75b932d01b9 · 01a190a7-0ac0-7292-ae32-665cb9f650a8). 2026-10-31 에 이번 초안 묶음(이 문서 제외)에서 «top-level» 22번, «최상위 …» 13번이 나왔고 미러 전체에는 «top-level» 34번 · «최상위 필드» 16번이 있다(다른 뜻 포함). 이번에는 표준만 정하고 쓰지 않는 표기 칸은 비웠다. 지금 둘을 금지하면 같은 묶음의 초안이 바로 표기 원칙 6 에 어긋난다. 사용처를 맞추는 일과 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「설정(config)」 에 요청 본문 `config` 행을 더하는 일은 `CLE-T-YQMP4N` 이 한다.
+
+### «타입 필드» · «타입 키» 를 유지하고 다른 이름을 쓰지 않는 표기로 넣었다 (2026-11-19)
+
+NERV Task `CLE-T-YQMP4N` 이 위 소절에서 넘긴 일을 마쳤다. 이름은 사람 결정(NERV 질문 `01a1f2b8-aaca-73bb-91bd-5b59ea858d63` 답 A)으로 «타입 필드» · «타입 키» 를 유지했다.
+
+- **이름을 바꾸지 않은 이유**: 2026-11-19 미러에서 두 말은 10편에 54번 쓰였다. 대안 «전용 필드» 는 이미 19번 다른 뜻(«디버그 전용 필드» · «입력 전용 필드» 등)으로 쓰여 새 이름도 다른 말과 겹친다. 트리거 유형과 섞이지 않도록 정의에 적은 «관계없다» 는 그대로 둔다.
+- **쓰지 않는 표기를 채웠다**: 「타입 필드」 행에 «top-level `X`» · «최상위 `X`» · «최상위 필드(이 뜻으로)» 를 넣고 영문 칸도 «top-level» 없이 위치를 말로 적었다. 응답 봉투의 최상위 코드나 대화 기록 항목의 최상위 `presentations[]` 같은 다른 뜻의 «최상위» 는 이 조건에 들지 않는다. 트리거 관리 문서의 사용처는 이번에 고쳤고 EIA · 채팅 채널 · 시크릿 · 웹채팅 문서는 NERV Task `CLE-T-NXPWZZ` 가 고친다.
+- **원칙 3 예외를 색인으로 옮겼다**: 위 소절 셋째 항목의 예외(「원시 `config`」)는 같은 결정의 둘째 질문(`01a1f2b8-ac3c-7470-9ba1-affbf6e0df56` 답 A)에 따라 [용어 사전](CLE-GLOSSARY.md) 표기 원칙 3 에 «사전 표에 등재된 이름은 예외» 로 적었다.
+- **다의어 사전에 행을 더했다**: [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「설정(config)」 에 원시 `config` 행을 더했고 [용어 사전 — 노드](CLE-GLOSSARY-NODE.md) 「원본 설정」 에 이 말과 다르다는 안내를 더했다.
+- **`config.<키>` 표기는 그대로 두었다**: 사전에서 트리거 키를 이렇게 쓴 행은 [용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 「채팅 채널」 · 「EIA 알림 웹훅」 · 「외형」 과 [용어 사전 — 다의어 구분](CLE-GLOSSARY-POLY.md) 「알림」 넷이다. 2026-11-19 에 확인했을 때 모두 위 소절 넷째 항목의 규칙대로 저장된 `Trigger.config` 의 키를 가리켰다. 노드 행의 `config.<키>` 는 노드 설정(`Node.config`)의 키라 이 규칙과 관계없다.
 
 ### 「공개 웹훅」 에서 채팅 채널 트리거를 뺐다 (2026-11-12)
 

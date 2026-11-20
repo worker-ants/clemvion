@@ -24,6 +24,19 @@ import {
   type ConversationTurn,
 } from "@/lib/conversation/conversation-utils";
 import { tryParseJson } from "@/lib/utils/parse-json";
+import {
+  REALTIME_TIMEOUT_MS,
+  nextRealtimePhase,
+  type RealtimePhase,
+  type RealtimeSignal,
+} from "./realtime-phase";
+import {
+  asRecord,
+  extractNodeErrorPayload,
+  isSnapshotFor,
+  makeSystemErrorItem,
+  sanitizeUuid,
+} from "./execution-event-payload";
 import { assertNever } from "@/lib/utils/exhaustive";
 import { useT } from "@/lib/i18n";
 
@@ -43,163 +56,6 @@ interface UseExecutionEventsReturn {
    * 바로 켜지고 토스트는 10초를 기다린다.
    */
   needsRestPolling: boolean;
-}
-
-/** 스냅샷 · 이벤트가 이 시간 안에 오지 않으면 REST 폴링으로 넘기고 지연 토스트를 띄운다. */
-const REALTIME_TIMEOUT_MS = 10_000;
-
-/**
- * 이 실행의 실시간 경로 상태(CLE-EXEC-RUN 「REST 폴링 대체 경로」).
- * - `awaiting`: 이 실행의 스냅샷 · 이벤트를 기다린다(구독 직후, 연결이 끊긴 뒤).
- * - `receiving`: 이 실행의 스냅샷이나 이벤트를 받았다. 실시간 경로가 살아 있다.
- * - `fallback`: 구독 · 연결이 실패했거나 10초 동안 받지 못했다. REST 폴링이 store 를 채운다.
- */
-export type RealtimePhase = "awaiting" | "receiving" | "fallback";
-
-/**
- * 실시간 경로 상태를 바꾸는 신호.
- * - `received`: 이 실행의 스냅샷이나 실행 이벤트가 왔다.
- * - `disconnected`: 소켓 연결이 끊겼다.
- * - `failed`: 구독 실패 응답(`subscribed` 의 `success: false`)이 왔거나 연결 대기가 실패했다.
- * - `timedOut`: 기다리기 시작한 뒤 `REALTIME_TIMEOUT_MS` 가 지났다.
- */
-export type RealtimeSignal = "received" | "disconnected" | "failed" | "timedOut";
-
-/**
- * 신호를 받은 뒤의 실시간 경로 상태.
- *
- * 실패와 10초 경과는 아직 받은 데이터가 없을 때(`awaiting`)만 폴링으로 넘긴다. 실패 응답에는
- * 채널이 없어 어느 구독의 실패인지 가릴 수 없으므로(CLE-API-WS 「구독 인가」) 이 실행의
- * 데이터를 이미 받은 뒤에 온 실패는 이 실행의 것으로 보지 않는다. 연결이 끊기면 수신 표시만
- * 지우고 10초를 다시 잰다. 이미 폴링 중이면 끊겨도 폴링을 이어 간다.
- */
-export function nextRealtimePhase(
-  phase: RealtimePhase,
-  signal: RealtimeSignal,
-): RealtimePhase {
-  switch (signal) {
-    case "received":
-      return "receiving";
-    case "disconnected":
-      return phase === "receiving" ? "awaiting" : phase;
-    case "failed":
-    case "timedOut":
-      return phase === "awaiting" ? "fallback" : phase;
-    default:
-      return assertNever(signal, "RealtimeSignal");
-  }
-}
-
-/**
- * 스냅샷이 이 실행의 것인지. 같은 소켓으로 앞 실행 채널의 늦은 스냅샷이 올 수 있어서 서버가
- * 싣는 `executionId`(없으면 `execution.id`)로 거른다.
- */
-function isSnapshotFor(
-  payload: { executionId?: unknown; execution?: ExecutionData } | null,
-  executionId: string,
-): boolean {
-  return (payload?.executionId ?? payload?.execution?.id) === executionId;
-}
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Accept only well-formed UUIDs. Timeline IDs (`nodeExecutionId`,
- * `parentNodeExecutionId`) flow directly into React keys and selection
- * state; a malformed/over-long value from an upstream bug or a malicious
- * payload would otherwise be persisted verbatim.
- */
-function sanitizeUuid(v: unknown): string | undefined {
-  return typeof v === "string" && UUID_REGEX.test(v) ? v : undefined;
-}
-
-/** 객체(배열 아님)면 레코드로, 아니면 `null`. 아래 중첩 접근을 읽을 만하게 만든다. */
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v && typeof v === "object" && !Array.isArray(v)
-    ? (v as Record<string, unknown>)
-    : null;
-}
-
-/**
- * 노드 라이프사이클 이벤트의 **구조화 에러**(`{code, message, details?}`)를 꺼낸다.
- * 없으면 `null`.
- *
- * ## 어디에 있나 — 래퍼 한 겹 아래다
- *
- * 이벤트의 `output` 은 `NodeHandlerOutput` **래퍼**(`nodeExec.outputData`)이고 도메인
- * 값은 그 아래 `output` 이다 (node-output.md Principle 0). 그래서 구조화 에러의 자리는
- * **`output.output.error`** 다.
- *
- * top-level `error` 는 **문자열**(message only)이다 — emit 4곳 전수 실측
- * (6-websocket-protocol.md **§4.1-a**, 2026-08-24 정정). 그래서 이 함수는 `error` 를
- * **보지 않는다**.
- *
- * > **종전 서술이 결함을 낳았다**: ~~*"`error` 또는 `output.error` 중 어디로 오든"*~~ 이라
- * > 적혀 있었고 코드도 그렇게 (a) `error` 를 객체로 파싱하고 (b) `output.error` 를 한 겹
- * > 얕게 봤다. 실제로는 (a) 문자열이라 못 잡고 (b) 래퍼를 못 뚫어 **항상 `null`** 이었다 —
- * > `system_error` 배너가 라이브 WS 에서 한 번도 뜨지 않았다.
- * >
- * > 객체 `error` 를 받던 분기는 **지웠다**. 도달하지 않을 뿐 아니라(호출부 2곳 모두
- * > 문자열/`undefined`), 그 분기가 **이 버그를 낳은 계약을 그대로 인코딩**하고 있었다.
- * > 남겨 두면 다음 사람이 "객체로 보내면 되겠네" 로 읽는다.
- *
- * SoT: spec/5-system/6-websocket-protocol.md §4.1-a ·
- * spec/conventions/node-output.md Principle 0
- */
-function extractNodeErrorPayload(rawOutput: unknown): {
-  code: string;
-  message: string;
-  details?: { retryable?: boolean; retryAfterSec?: number; [k: string]: unknown };
-} | null {
-  const domain = asRecord(rawOutput)?.output;
-  const source = asRecord(asRecord(domain)?.error);
-  if (!source) return null;
-  const code = typeof source.code === "string" ? source.code : null;
-  const message = typeof source.message === "string" ? source.message : null;
-  if (!code || !message) return null;
-  const details =
-    source.details && typeof source.details === "object"
-      ? (source.details as Record<string, unknown>)
-      : undefined;
-  return { code, message, details };
-}
-
-/**
- * Build a `system_error` ConversationItem from a node lifecycle event's
- * error payload. Applied to the conversation thread when the host node is a
- * multi-turn AI Agent that already accumulated turns (live conversation
- * context — spec §9.7 WS event → store mutation contract).
- *
- * `retryable` defaults to `false` when the LLM provider adapter hasn't
- * classified the error yet — the UI then suppresses the `[다시 시도]`
- * button (CT-S10) so users don't trigger a hopeless retry.
- */
-function makeSystemErrorItem(args: {
-  code: string;
-  message: string;
-  retryable?: boolean;
-  retryAfterSec?: number;
-  nodeId: string;
-  nodeLabel: string;
-  nodeExecutionId?: string;
-  timestamp?: string;
-}): ConversationItem {
-  return {
-    type: "system_error",
-    content: args.message,
-    turnIndex: 0,
-    systemError: {
-      code: args.code,
-      message: args.message,
-      retryable: args.retryable ?? false,
-      retryAfterSec: args.retryAfterSec,
-      nodeId: args.nodeId,
-      nodeLabel: args.nodeLabel,
-      nodeExecutionId: args.nodeExecutionId,
-    },
-    timestamp: args.timestamp,
-  };
 }
 
 /**

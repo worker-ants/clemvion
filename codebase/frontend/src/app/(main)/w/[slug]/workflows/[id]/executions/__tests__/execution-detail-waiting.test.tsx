@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -53,6 +53,7 @@ vi.mock("@/lib/node-definitions", () => ({
 
 import ExecutionDetailPage from "../[executionId]/page";
 import { useExecutionStore } from "@/lib/stores/execution-store";
+import { EXECUTION_POLL_INTERVAL_MS } from "@/lib/websocket/execution-polling-policy";
 
 function makeWaitingExecution(interactionType: "form" | "buttons" | "ai_conversation") {
   const baseNode = {
@@ -472,5 +473,132 @@ describe("ExecutionDetailPage - 소켓이 끊겼을 때 입력 대기", () => {
     expect(emitMock).not.toHaveBeenCalled();
     expect(textarea.value).toBe("Hello AI");
     expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+  });
+});
+
+// CLE-T-V6KWEE — 실행 상세 페이지의 상시 REST 폴링과 REST → store 배선(CLE-EXEC-RUN).
+// 이 페이지는 에디터와 달리 store 의 실행 ID 로 응답을 거르지 않는다. 대기 · 종결 상태로 연 실행은
+// store executionId 가 null 로 남으므로, 실행 ID 비교를 넣으면 첫 응답부터 버려진다.
+describe("ExecutionDetailPage - 상시 REST 폴링", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // 타이머만 가짜로 둔다. Promise 는 실제로 풀려야 react-query 와 `use(params)` 가 진행한다.
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    isConnectedMock.mockReturnValue(true);
+    useExecutionStore.getState().reset();
+    mockGetByWorkflow.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 100, totalItems: 0, totalPages: 0 },
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function makeRunningExecution() {
+    const exec = makeWaitingExecution("form");
+    return {
+      ...exec,
+      status: "running",
+      nodeExecutions: [{ ...exec.nodeExecutions[0], status: "running" }],
+    };
+  }
+
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  it("waiting_for_input 으로 연 실행의 첫 응답이 store 에 들어간다(store 실행 ID 가 null 이어도)", async () => {
+    mockGetById.mockResolvedValue(makeWaitingExecution("form"));
+    await renderPage();
+    await advance(0);
+
+    expect(mockGetById).toHaveBeenCalledTimes(1);
+    const state = useExecutionStore.getState();
+    // 전제: 대기 상태 스냅샷은 store 의 실행 ID 를 채우지 않는다.
+    expect(state.executionId).toBeNull();
+    expect(state.nodeStatuses.get("n1")?.status).toBe("waiting_for_input");
+    expect(state.nodeResults.some((r) => r.nodeId === "n1")).toBe(true);
+  });
+
+  it("폴링 간격은 EXECUTION_POLL_INTERVAL_MS 다", async () => {
+    mockGetById.mockResolvedValue(makeRunningExecution());
+    await renderPage();
+    await advance(0);
+    expect(mockGetById).toHaveBeenCalledTimes(1);
+
+    await advance(EXECUTION_POLL_INTERVAL_MS - 1);
+    expect(mockGetById).toHaveBeenCalledTimes(1);
+
+    await advance(1);
+    expect(mockGetById).toHaveBeenCalledTimes(2);
+
+    await advance(EXECUTION_POLL_INTERVAL_MS);
+    expect(mockGetById).toHaveBeenCalledTimes(3);
+  });
+
+  it("waiting_for_input 응답 뒤에도 폴링을 이어 간다", async () => {
+    mockGetById.mockResolvedValue(makeWaitingExecution("form"));
+    await renderPage();
+    await advance(0);
+
+    await advance(EXECUTION_POLL_INTERVAL_MS * 2);
+    expect(mockGetById).toHaveBeenCalledTimes(3);
+  });
+
+  it("종결 응답을 받으면 폴링이 멈춘다", async () => {
+    mockGetById
+      .mockResolvedValueOnce(makeRunningExecution())
+      .mockResolvedValue(makeCompletedExecution("http_request"));
+    await renderPage();
+    await advance(0);
+    expect(mockGetById).toHaveBeenCalledTimes(1);
+
+    await advance(EXECUTION_POLL_INTERVAL_MS);
+    expect(mockGetById).toHaveBeenCalledTimes(2);
+
+    await advance(EXECUTION_POLL_INTERVAL_MS * 5);
+    expect(mockGetById).toHaveBeenCalledTimes(2);
+    expect(useExecutionStore.getState().status).toBe("completed");
+  });
+});
+
+// CLE-T-99QHNG — 실행 상세 화면도 REST 로 받은 cancelled 노드를 종료 상태로 그린다
+// (CLE-EXEC-RUN-DRAWER 「결과 상세 탭」 · 「라이프사이클 · 노드 취소」).
+describe("ExecutionDetailPage - cancelled 노드", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useExecutionStore.getState().reset();
+    mockGetByWorkflow.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 100, totalItems: 0, totalPages: 0 },
+    });
+  });
+
+  it("노드 목록은 Ban 아이콘을, 결과 상세는 Cancelled 배지와 입력 · 출력 탭을 보여 준다", async () => {
+    const exec = makeCompletedExecution("http_request");
+    mockGetById.mockResolvedValue({
+      ...exec,
+      status: "cancelled",
+      nodeExecutions: [
+        { ...exec.nodeExecutions[0], status: "cancelled", outputData: null },
+      ],
+    });
+    await renderPage();
+
+    const nodeBtn = await screen.findByText("Fetch");
+    expect(
+      nodeBtn.closest("button")?.querySelector(".lucide-ban"),
+    ).not.toBeNull();
+
+    fireEvent.click(nodeBtn);
+    expect(await screen.findByText("Cancelled")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "입력" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "출력" })).toBeInTheDocument();
   });
 });

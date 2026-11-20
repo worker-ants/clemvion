@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER"
 title: "큐 워커와 동시 실행 제한"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "b9b69010f90bcebd4ac6fea5503d73b357fd1ae082a98101db3691d7e58d0438"
+content_hash: "ba302ac5fbb5b515595415281d5ec8318adb9f73011e978bd72b40160c694c9b"
 read_as: "approved_fallback"
-task: "CLE-T-2Q4KRF"
+task: "CLE-T-E6PW00"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "4b810a0c43a0f4eb952d5e988fca4eae1a95014d86c7bbbe238304977d35b04a"
-etag: "sha256-3e655ab2940e5559a6ea2acc505b92f5e35acf99533b9e2ca02fe8a1b48bb357"
+mirror_sha256: "280d9f22ef8bbf86622d30c4a35cb9f4f6a5be00d2ca2bf3edea3f74fc95d3cf"
+etag: "sha256-b29726cd8d5e49716745ef5300f758d7f9d3a052b8ae006937b6e6d127700771"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -164,7 +164,7 @@ flowchart LR
 
 - 재개 신호의 인스턴스 사이 전달은 재개 큐가 맡는다(옛 Redis pub/sub 채널 `execution:continuation` 은 폐기). 실행 이벤트를 다른 인스턴스의 WebSocket 구독자에게 보내는 일은 `WebsocketService` 뒤의 게이트웨이(Socket.IO Redis adapter)가 맡는다([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달)). 엔진은 그대로 `WebsocketService` 하나에만 발행하고 인스턴스 사이 전달을 알지 못한다.
 - `ExecutionEventEmitter` 는 발행 호출 지점을 한데 모은 **같은 모양의 얇은 래퍼**다. 이 절이 금지하는 외부 이벤트 발행 추상화 인터페이스가 아니므로 단일 발행 정책의 예외가 아니다. 이 래퍼가 생긴 배경(엔진 클래스 분할)은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 의 Rationale 에 있다.
-- External Interaction API 의 EIA 알림 웹훅(Outbound Notification Webhook)과 외부 SSE 어댑터가 생긴 뒤에도 엔진 수준 단일 발행 정책은 유지한다. NotificationDispatcher 와 SSE 어댑터(Redis 로 인스턴스 사이 fan-out 하는 부분 포함, [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md))는 모두 엔진 밖 facade 층에 둔다. 엔진 코드는 외부 발행 대상의 종류를 알 필요가 없다. 기준은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R10 이다.
+- External Interaction API 의 EIA 알림 웹훅(Outbound Notification Webhook)과 외부 SSE 어댑터가 생긴 뒤에도 엔진 수준 단일 발행 정책은 유지한다. NotificationDispatcher 와 SSE 어댑터(Redis 로 인스턴스 사이 fan-out 하는 부분 포함, [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md))는 모두 엔진 밖 facade 층에 둔다. 엔진 코드는 외부 발행 대상의 종류를 알 필요가 없다. 기준은 [External Interaction API 의 단일 싱크와 외부 facade](../CLE-IX/CLE-EIA.md#단일-싱크와-외부-facade) 다.
 - 외부 발행 대상(웹훅 콜백, 텔레메트리 export 등)이 실제로 더해지면 이 결정을 다시 검토한다.
 
 **순환 의존 처리**: 엔진의 DI 순환은 성격에 따라 두 표준 기법으로 푼다. 둘 다 NestJS 표준이며 회피용 안티패턴이 아니다.
@@ -196,7 +196,9 @@ flowchart LR
 
 ## Rationale
 
-### 노드 단위 큐 대신 실행 단위 시작 큐 (2026-06-04 결정, PR1)
+### 노드 단위 큐 대신 실행 단위 시작 큐
+
+결정일: 2026-06-04
 
 - **배경**: 초기 모델은 `execute()` 가 같은 인스턴스에서 바로 실행 반복문에 들어가는 fire-and-forget in-process 방식이었다. 웹훅이 몰려도 backpressure 가 없었다. 실행이 요청을 받은 인스턴스에 고정돼 수평 확장도 안 됐다. 원래 목표 그림은 노드 단위 큐(1 워커 = 1 노드 실행, 노드마다 `{taskId, nodeId, nodeType, input, context, timeout}` 태스크 발행)였으나 구현되지 않았다. 성능·안정성·대량·분산 처리 신뢰성이 사용 방식과 관계없는 기반 요건으로 확인돼 구현에 들어가면서 설계를 다시 검토했다.
 - **기각(노드 단위 큐)**: in-process dispatch 반복문은 컨테이너(Loop/ForEach/Map), 중첩 컨테이너 스코프 체인([컨테이너 실행](CLE-EXEC-CONTAINER.md). 원문은 `$parent` 로 적었으나 그 변수는 없다), back-edge 순환, Parallel(`p-limit` + `allSettled`)을 "한 실행이 한 프로세스 안에 있다" 는 전제로 처리한다. 노드를 워커로 나누려면 노드마다 실행 컨텍스트 전체(변수, loop·item 컨텍스트, 스코프 체인, 대화 스레드)를 직렬화하고 rehydration 해야 한다. rehydration 인프라는 "입력 대기 뒤 재개" 용이지 "실행 중 노드 인계" 용이 아니다. 엔진을 다시 쓰는 수준의 고위험 작업이다.

@@ -335,4 +335,21 @@ describe("ResultTimeline", () => {
     // final assistant 본문은 그대로 표시.
     expect(screen.getByText(/현재 진열되어/)).toBeDefined();
   });
+
+  // CLE-EXEC-RUN-DRAWER 「라이프사이클 · 노드 취소」 — cancelled 는 종료 상태라 running 스피너로
+  // 그리지 않는다(NERV Task CLE-T-99QHNG).
+  it("cancelled 노드는 회색 Ban 아이콘으로 그리고 스피너를 쓰지 않는다", () => {
+    const { container } = render(
+      <ResultTimeline results={[makeResult({ status: "cancelled", nodeLabel: "Sub" })]} selectedId={null} onSelect={vi.fn()} conversationMessages={[]} selectedConversationItemIndex={null} onSelectConversationItem={vi.fn()} isLiveConversation={false} />,
+    );
+
+    expect(container.querySelector(".lucide-ban")).not.toBeNull();
+    expect(container.querySelector(".lucide-loader-circle")).toBeNull();
+
+    // 위 부재 단언이 클래스 이름을 잘못 짚어 늘 통과하지 않도록 running 행의 스피너로 대조한다.
+    const running = render(
+      <ResultTimeline results={[makeResult({ status: "running", nodeLabel: "Run" })]} selectedId={null} onSelect={vi.fn()} conversationMessages={[]} selectedConversationItemIndex={null} onSelectConversationItem={vi.fn()} isLiveConversation={false} />,
+    );
+    expect(running.container.querySelector(".lucide-loader-circle")).not.toBeNull();
+  });
 });

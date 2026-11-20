@@ -1002,7 +1002,8 @@ describe("selectStoreExecutionFinished", () => {
   });
 });
 
-// CLE-T-TP2T6Q — REST 폴링 대체 경로(`use-execution-polling-fallback.ts`)는 요청을 보낸 뒤
+// CLE-T-TP2T6Q — REST 폴링 대체 경로(`use-execution-polling-fallback.ts`, 판정 함수는
+// `execution-polling-policy.ts` 의 `decidePollResponse`)는 요청을 보낸 뒤
 // store 가 바뀌었는지를 `nodeStatuses` · `nodeResults` 의 참조로 가른다. 그래서 두 필드를
 // 쓰는 액션은 값을 제자리에서 고치지 않고 매번 새 참조를 만들어야 한다. 이 계약을 고정한다.
 describe("nodeStatuses · nodeResults 쓰기마다 새 참조 (폴링 응답 폐기 판정의 계약)", () => {

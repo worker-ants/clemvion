@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HANDLER"
 title: "노드 핸들러 계약"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-HANDLER-001", "REQ-HANDLER-002", "REQ-HANDLER-003", "REQ-HANDLER-004"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "3d958e497ad4fc6f10694b1227fab2878ce26d8f9677680c9018b78d6cdef390"
+content_hash: "c1c3a0c4334b06745a649eaa2568a291a50bc2636acdeec074841a7ef39fce04"
 read_as: "approved_fallback"
-task: "CLE-T-JDYHCF"
+task: "CLE-T-YAFECM"
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "a724cf49c56c4dde844dc091784728ceda9f4d5526751047993cb3f47fa322cc"
-etag: "sha256-0d4e407528059e5b4410bebb9b8558b43e1cb27e238e6c46e84164964b88d73f"
+mirror_sha256: "e64d70f93ca81b55564709bddc127ae844f7b8a739554e1b8059c61d76899493"
+etag: "sha256-539601e0e2f809b2d8d6276795e00de1793e79d6cd941e98318391cf22d9607b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -205,7 +205,7 @@ interface NodeHandlerRegistry {
 
 ## 노드 실행 흐름
 
-이 흐름은 세그먼트 안에서 dispatch 루프가 노드마다 같은 프로세스에서 직접 돈다(in-process dispatch). 노드마다 큐 작업을 만들지 않는다([큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md)). 노드 단위 큐를 기각한 근거는 [큐 워커와 동시 실행 제한 §노드 단위 큐 대신 실행 단위 시작 큐](CLE-EXEC-WORKER.md#노드-단위-큐-대신-실행-단위-시작-큐-2026-06-04-결정-pr1) 에 있다.
+이 흐름은 세그먼트 안에서 dispatch 루프가 노드마다 같은 프로세스에서 직접 돈다(in-process dispatch). 노드마다 큐 작업을 만들지 않는다([큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md)). 노드 단위 큐를 기각한 근거는 [큐 워커와 동시 실행 제한 §노드 단위 큐 대신 실행 단위 시작 큐](CLE-EXEC-WORKER.md#노드-단위-큐-대신-실행-단위-시작-큐) 에 있다.
 
 1. dispatch 루프가 포인터를 옮겨 다음 노드를 고른다.
 2. `registry.get(nodeType)` 으로 핸들러를 찾는다. 등록되지 않은 유형이면 메시지가 `UNKNOWN_NODE_TYPE: ` 로 시작하는 에러를 던진다.

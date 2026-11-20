@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON-OUTPUT"
 title: "Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-LOGIC-COMMON"]
 area: "CLE-NODE-LOGIC"
-content_hash: "09be7dc98ee9c8f70ba3df9b71e9fc173c031d8de0ed0b0b89e1776e256401b1"
+content_hash: "c324a44124a18cd8e354c0ce6595a0ee19aba45a3dd1815d64af573c5d465599"
 read_as: "approved_fallback"
-task: "CLE-T-JXD0W5"
+task: "CLE-T-7AYYQC"
 source_paths: []
-mirror_sha256: "06b4aaedf86d18ef8ea14d997be4355a3e1a3028a6733b616f2180d667613eaf"
-etag: "sha256-d6ba0a3ee7f60abed8a74eef1f2cd9fe433535394c27922e5539ecd986a67168"
+mirror_sha256: "c1dd0cb5be5b1bff061f7be03428453f1b2c7d8c466904c71fe02f6f983eaaf3"
+etag: "sha256-b8082a01f6288d59cedc06e3850c058dc1f9bb892e163e582128c86dd49c94c0"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-d6ba0a3ee7f60abed8a74eef1f2cd9fe433535394c27922e5539ecd986a67168"
 
 1. `config.errorPolicy` 는 ForEach · Map · Parallel 전용이다. Loop 에는 이 필드가 없다.
 2. 일반 노드의 에러 처리 정책은 별개 설정인 `config.errorHandling.{policy, retryConfig, defaultOutput}` (5값 enum)이다. 자세한 규칙은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 이 정한다.
-3. 한 노드에서 `config.errorPolicy` 와 `config.errorHandling` 을 같은 뜻으로 섞어 쓰지 않는다. ForEach · Map · Parallel 에는 두 키가 함께 있을 수 있다. 현재 구현은 이 세 노드의 `config.errorHandling` 을 그 노드의 핸들러 호출이 실패할 때만 적용한다. 반복 회차나 병렬 분기를 실행하는 단계에서 그 노드 자신이 실패하면 `config.errorHandling` 을 적용하지 않는다. 다만 Parallel 은 `config.errorPolicy` 가 비었을 때만 `config.errorHandling.policy` 를 읽어 항목 에러 정책 값으로 바꿔 쓴다([Parallel 노드](CLE-NODE-PARALLEL.md)). Logic 노드도 다른 노드처럼 에러 처리 정책 다섯 가지를 모두 고를 수 있다. 카테고리로 선택지를 막지 않는다([Logic 노드의 에러 처리 정책 선택지를 막지 않는다](CLE-NODE-LOGIC-COMMON.md#logic-노드의-에러-처리-정책-선택지를-막지-않는다-2026-10-24)).
+3. 한 노드에서 `config.errorPolicy` 와 `config.errorHandling` 을 같은 뜻으로 섞어 쓰지 않는다. ForEach · Map · Parallel 에는 두 키가 함께 있을 수 있다. 현재 구현은 이 세 노드의 `config.errorHandling` 을 그 노드의 핸들러 호출이 실패할 때만 적용한다. 반복 회차나 병렬 분기를 실행하는 단계에서 그 노드 자신이 실패하면 `config.errorHandling` 을 적용하지 않는다. 다만 Parallel 은 `config.errorPolicy` 가 비었을 때만 `config.errorHandling.policy` 를 읽어 항목 에러 정책 값으로 바꿔 쓴다([Parallel 노드](CLE-NODE-PARALLEL.md)). Logic 노드도 다른 노드처럼 에러 처리 정책 다섯 가지를 모두 고를 수 있다. 카테고리로 선택지를 막지 않는다([Logic 노드의 에러 처리 정책 선택지를 막지 않는다](CLE-NODE-LOGIC-COMMON.md#logic-노드의-에러-처리-정책-선택지를-막지-않는다)).
 4. 설정 패널은 ForEach · Map · Parallel 의 `config.errorPolicy` 를 에러 처리 정책으로 옮기지 않는다. 저장할 때 지우지도 않는다(`node-settings-panel.tsx` 의 `ITEM_ERROR_POLICY_NODE_TYPES`). 다른 노드에서 이 키를 옛 키로 보고 옮기는 규칙과 결정 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#레거시-평면-키-이전-범위를-좁힌-이유) 에 있다.
 5. 에러 처리 정책이 "에러 포트로 라우팅" 일 때 노드에 생기는 동적 에러 포트는 노드 공통 규칙이고 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 이 정한다. 고정 `error` 포트가 없는 Logic 노드도 이 정책을 고르면 동적 에러 포트가 생기고 `error` 연결선을 이을 수 있다. 노드가 실패하면 엔진은 이 연결선으로 보낸다. 연결선이 없으면 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 의 연결선이 없을 때 규칙을 따른다. 각 Logic 노드 문서의 "에러 포트 · 동적 포트를 두지 않는다" 요구는 노드 정의에 둔 고정 포트와 데이터 동적 포트만 가리킨다. 에러 처리 정책으로 생기는 동적 에러 포트는 이 규칙과 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) 을 따른다.
 
@@ -70,7 +70,7 @@ Logic 노드는 모두 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) �
 |------|---------------------------|
 | `config` | 설정 에코(config echo). `conditions[]` 같은 표현식 `{{ }}` 은 평가 전 형태로 남긴다. Logic 카테고리에는 자격 증명·민감 필드가 없다 |
 | `output` | If/Else · Switch · 변수 선언 · 변수 수정 · Background(`main` 포트)는 입력을 그대로 넘긴다([패스스루 규약](CLE-NODE-LOGIC-COMMON.md#패스스루-규약)). Filter 는 입력 배열을 두 부분집합으로 나눈 결과다. 엔진 덮어쓰기 대상 노드(loop, foreach, map, parallel)는 [엔진 덮어쓰기 계약](#엔진-덮어쓰기-계약) 을 따른다. Split · Merge 는 계산 결과다 |
-| `meta` | 실행 메트릭만 싣는다. Loop · ForEach · Map 은 완료 시점에 `meta.iterations` 를 싣는다. ForEach · Map 은 실패 항목이 있을 때 `meta.skippedCount` 를 더 싣는다. Loop 는 `meta.maxIterationsReached` · `meta.exitReason` 을 더 싣는다. Split · ForEach · Map · Filter 는 `meta.fellBackToEmpty` 를 싣는다([배열이 아닌 입력 처리](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리)). Filter 는 `meta.matchedCount` · `unmatchedCount` · `totalCount` 도 싣는다([Filter 노드](CLE-NODE-FILTER.md)). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency` 를 싣는다. 조건 노드는 `meta.conditionResult?` / `matchedConditions?` 를 싣는다. `meta.durationMs` 를 누가 채우는지는 노드 문서가 정한다. 엔진 덮어쓰기 대상 노드의 완료 `meta` 에는 `meta.durationMs` 를 싣지 않는다. 이 노드들의 노드 전체 실행 시간(핸들러와 본문)은 `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 에 있다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)) |
+| `meta` | 실행 메트릭만 싣는다. Loop · ForEach · Map 은 완료 시점에 `meta.iterations` 를 싣는다. ForEach · Map 은 실패 항목이 있을 때 `meta.skippedCount` 를 더 싣는다. Loop 는 `meta.maxIterationsReached` · `meta.exitReason` 을 더 싣는다. Split · ForEach · Map · Filter 는 `meta.fellBackToEmpty` 를 싣는다([배열이 아닌 입력 처리](CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리)). Filter 는 `meta.matchedCount` · `unmatchedCount` · `totalCount` 도 싣는다([Filter 노드](CLE-NODE-FILTER.md)). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency` 를 싣는다. 조건 노드는 `meta.conditionResult?` / `matchedConditions?` 를 싣는다. `meta.durationMs` 를 누가 채우는지는 노드 문서가 정한다. 엔진 덮어쓰기 대상 노드의 완료 `meta` 에는 `meta.durationMs` 를 싣지 않는다. 이 노드들의 노드 전체 실행 시간은 `node_execution.duration_ms` 로 읽는다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)) |
 | `port` | If/Else 는 `'true'` / `'false'`, Switch 는 케이스 ID 또는 `'default'`, Background 는 `'main'`. Parallel 은 시작할 때 `string[]`(병렬 분기 전부), 끝날 때 `'done'`. Loop · ForEach · Map 은 노드 출력에 `port` 를 싣지 않고 엔진이 `done` 연결선을 활성화한다. Filter 는 `port` 없이 두 포트를 모두 활성화한다. 출력이 하나인 노드는 `undefined` |
 | `status` | Logic 노드는 모두 블로킹하지 않으므로 `undefined` 다 |
 
@@ -80,11 +80,11 @@ Logic 노드는 모두 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) �
 
 1. **시작 시점**(본문 진입 직전): 핸들러가 한 번 실행된다. ForEach 와 Map 은 `output: items[]` 를 반환하고 엔진은 이 배열을 본문 반복 회차 입력으로 나눠 준다. Loop 와 Parallel 은 `output: null` 을 반환한다.
 2. **완료 시점**(모든 반복 회차가 끝난 뒤): 엔진이 핸들러를 다시 부르지 않고 `output` 을 `{ <컬렉션 키>: [...], count: N }` 으로 직접 덮어쓴다. 핸들러는 두 번째로 호출되지 않는다. ForEach 와 Parallel 은 실패가 있을 때 `skipped` 를 더 싣는다([반복 결과 출력 구조](#반복-결과-출력-구조) 3번).
-3. 시작 시점의 `output: items[]` 는 엔진 안에서만 쓰는 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 다음 노드 표현식(`$node["X"].output.*`)에 이 배열이 드러나지 않는다. 엔진은 노드 실행 기록(`node_execution`)을 본문이 끝난 뒤 한 번 마감한다. 그래서 실행 내역 API 가 읽는 `output_data` 와 `execution.node.completed` 이벤트(엔진 상수 `NODE_COMPLETED`)에도 완료 출력이 남는다. 재개 · 재구동 때는 이 저장값으로 실행 컨텍스트를 rehydration 하므로 그 뒤 노드 표현식도 완료 출력을 읽는다. [단일 노드 실행](../CLE-EXEC/CLE-EXEC-RUN.md) 은 본문을 돌지 않으므로 핸들러 반환값이 그대로 남는다. 행 마감 규칙은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기) 이 정한다.
+3. 시작 시점의 `output: items[]` 는 엔진 안에서만 쓰는 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 다음 노드 표현식(`$node["X"].output.*`)에 이 배열이 드러나지 않는다. 실행 내역 API 가 읽는 노드 실행 기록 · `execution.node.completed` 이벤트(엔진 상수 `NODE_COMPLETED`) · 재개와 재구동 뒤의 rehydration 도 같은 완료 출력을 쓴다. 행 마감 규칙과 단일 노드 실행의 예외는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기) 이 정한다.
 4. 다음 노드는 `done` 포트 뒤에서 `{ <컬렉션 키>, count }` 형태를 본다. park 뒤 재개와 크래시 뒤 재구동 다음에도 같다.
 5. 덮어쓰기는 `output` 을 바꾼다. `meta` 는 규칙 6 대로 합친다. `config` 는 핸들러가 반환한 그대로 남는다. Parallel 은 `port` 도 `'done'` 문자열로 바꾼다. Loop · ForEach · Map 은 노드 출력에 `port` 를 싣지 않는다.
 6. Loop · ForEach · Map 의 완료 시점 `meta` 는 핸들러가 시작 시점에 돌려준 `meta` 에 엔진이 잰 반복 메트릭을 합친 값이다. 같은 키가 겹치면 엔진 값을 쓴다. 그래서 ForEach · Map 의 `meta.fellBackToEmpty` 는 완료 출력에도 남는다. Parallel 은 핸들러 `meta` 를 합치지 않고 `clampedConcurrency` 만 싣는다. 이 값도 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 싣는다.
-7. Parallel 은 `PARALLEL_ENGINE=off` 되돌림 경로에서 덮어쓰기를 받지 않는다. 노드 출력은 시작 시점 형태(`output: null`, `port: string[]`)로 남는다([Parallel 노드](CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)).
+7. Parallel 은 `PARALLEL_ENGINE=off` 되돌림 경로에서 덮어쓰기를 받지 않는다. 노드 출력은 시작 시점 형태(`output: null`, `port: string[]`)로 남는다([Parallel 노드](CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다)).
 
 | 노드 | 컬렉션 키 | 시작 시점 `output` (핸들러 반환) | 완료 시점 `output` (엔진 덮어쓰기) |
 |------|-----------|--------------------|----------------------------------------|
@@ -130,11 +130,11 @@ ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 
 
 그래서 두 형태를 하나로 합치지 않고 현재 정책을 유지한다.
 
-Parallel 의 `continue` 도 병렬 분기가 서로 독립이라 ForEach 형태를 따른다. `branches[]` 에는 병렬 분기 결과와 실패 자리의 `null` 만, `skipped[]` 에는 실패만 둔다(2026-11-01, [Parallel 노드](CLE-NODE-PARALLEL.md#완료-출력은-병렬-분기-결과를-그대로-두고-실패를-따로-모은다-2026-11-01)).
+Parallel 의 `continue` 도 병렬 분기가 서로 독립이라 ForEach 형태를 따른다. `branches[]` 에는 병렬 분기 결과와 실패 자리의 `null` 만, `skipped[]` 에는 실패만 둔다(2026-11-01, [Parallel 노드](CLE-NODE-PARALLEL.md#완료-출력은-병렬-분기-결과를-그대로-두고-실패를-따로-모은다)).
 
 ### 실패한 회차와 병렬 분기의 `error.code` (2026-11-05)
 
-ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code` 에 던진 Error 의 `name` 을 실어 왔다. 실제 값은 대부분 `Error` · `TypeError` 였고 일부는 `MakeshopRateLimitedError` 같은 클래스 이름이었다. 이 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 2 의 `UPPER_SNAKE_CASE` 를 따르지 않았다. Error 가 아닌 값에 쓰던 `UNKNOWN_ERROR` 는 카탈로그에 없었다. 그래서 [Parallel 노드](CLE-NODE-PARALLEL.md#errorcode-의-값-2026-11-01) 가 임시 예외로 적어 두었고 사람의 결정 두 번으로 이 예외를 닫았다(2026-11-05).
+ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code` 에 던진 Error 의 `name` 을 실어 왔다. 실제 값은 대부분 `Error` · `TypeError` 였고 일부는 `MakeshopRateLimitedError` 같은 클래스 이름이었다. 이 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 2 의 `UPPER_SNAKE_CASE` 를 따르지 않았다. Error 가 아닌 값에 쓰던 `UNKNOWN_ERROR` 는 카탈로그에 없었다. 그래서 [Parallel 노드](CLE-NODE-PARALLEL.md#errorcode-의-값) 가 임시 예외로 적어 두었고 사람의 결정 두 번으로 이 예외를 닫았다(2026-11-05).
 
 - 세 노드가 한 함수를 쓴다. 전에는 `name` 이 빈 문자열일 때 ForEach 는 빈 문자열을, Parallel 은 `UNKNOWN_ERROR` 를 냈다. 같은 모양의 실패 정보에서 값이 노드마다 갈리지 않게 했다.
 - 문자열 `code` 는 백엔드가 직접 싣는 코드의 허용 목록에 있을 때만 그대로 낸다. 첫 결정은 `UPPER_SNAKE_CASE` 모양이면 그대로 내는 안이었다. 구현하면서 Node 런타임 · DB 드라이버의 에러도 `ECONNREFUSED` · `ERR_INVALID_URL` · `ER_DUP_ENTRY` 처럼 같은 모양의 `code` 를 싣는다는 것을 찾았다. 이 값은 카탈로그에 없어 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 8 과 어긋난다. 그래서 다시 물어 허용 목록으로 좁혔다. 나가는 값은 늘 카탈로그 안에 있다.
@@ -152,7 +152,7 @@ ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code`
 
 ### Parallel `stop` 설명을 실행기 동작에 맞춘다 (2026-11-06)
 
-이 표는 Parallel 의 `stop` 을 "첫 병렬 분기가 실패하면 에러를 던진다" 로 적었다. 실행기는 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기 가운데 번호가 가장 작은 것의 에러를 던진다. [Parallel 노드](CLE-NODE-PARALLEL.md#stop-은-모든-병렬-분기를-기다린-뒤-실패를-던진다-2026-11-06) 가 같은 날 요구사항 문장을 이 동작에 맞췄고 이 표도 같은 말로 고쳤다. 동작을 바꾸지 않은 이유와 기각한 대안은 그 Rationale 에 있다. 기존 워크플로우 영향은 없다.
+이 표는 Parallel 의 `stop` 을 "첫 병렬 분기가 실패하면 에러를 던진다" 로 적었다. 실행기는 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기 가운데 번호가 가장 작은 것의 에러를 던진다. [Parallel 노드](CLE-NODE-PARALLEL.md#stop-은-모든-병렬-분기를-기다린-뒤-실패를-던진다) 가 같은 날 요구사항 문장을 이 동작에 맞췄고 이 표도 같은 말로 고쳤다. 동작을 바꾸지 않은 이유와 기각한 대안은 그 Rationale 에 있다. 기존 워크플로우 영향은 없다.
 
 ### 동적 에러 포트 서술을 구현에 맞춘다
 

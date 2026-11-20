@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-SHUTDOWN"
 title: "장애 복구와 안전 종료 — 안전 종료와 영속 재개 큐"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "bc4ce10dc3fc08afda591238950dce9f9e40517ba7bac0757332ab78543fe9d9"
+content_hash: "4ca2c382a29bba923e787400eb3ce9d0490ff64545b234585c628349bae1c766"
 read_as: "approved_fallback"
-task: "CLE-T-7H7VET"
+task: "CLE-T-E6PW00"
 source_paths: []
-mirror_sha256: "9f7a35e7711a1122f4b9c0772525089a4454b6e0003497ad3b10737c15ca619c"
-etag: "sha256-9a9373bbf958b24a44a2d2d86e71d0927803459a09250f7a0e9ee5c816e95044"
+mirror_sha256: "371b4c32f28c27c7001a9631a11f56aa1428d0993d2a9dd5667ec7ba7f1db33b"
+etag: "sha256-1f9848de6696e440f7ce7f033e412c44d7278a9f23c1cff56ee46ba1be77b8f0"
 ---
 ## 개요
 
@@ -77,18 +77,18 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 
 - **best-effort 교환**: 재등록이 예외를 던져도 rehydration 을 막지 않고 warn 로그만 남기고 진행한다. 등록 실패는 "안내가 채널에 닿지 못함" 이라는 부작용이 있지만 그것만으로 실행 재개(또는 취소 표시)를 실패시킬 이유는 아니다. 알림 전달과 실행 정합성을 나눈다.
 
-**안전 종료 때 세그먼트 시간이 덜 세어지는 것을 허용한다(PR2a 결정)**: 실행 시간 한도는 세그먼트 진행 경과분을 메모리의 `segmentStartMs` Map 에 두었다가 세그먼트가 끝날 때(`updateExecutionStatus` 가 `running` 을 떠날 때) `Execution.active_running_ms` 에 flush 한다. SIGTERM 안전 종료로 진행 중 세그먼트가 멈추면 그 경과분이 DB 에 쓰이지 않고 사라질 수 있다. 그 세그먼트가 stalled 로 다른 워커에 재배달되면 새 워커는 `segmentStartMs` 가 없어 그 구간을 세지 못한다. 크래시 재구동(PR3)과 stalled 재배달(PR4)도 세그먼트 시작 시각을 영속하지 않으므로 같은 과소 계산이 남는다. 이 교환을 일부러 허용한다.
+**안전 종료 때 세그먼트 시간이 덜 세어지는 것을 허용한다**: 실행 시간 한도는 세그먼트 진행 경과분을 메모리의 `segmentStartMs` Map 에 두었다가 세그먼트가 끝날 때(`updateExecutionStatus` 가 `running` 을 떠날 때) `Execution.active_running_ms` 에 flush 한다. SIGTERM 안전 종료로 진행 중 세그먼트가 멈추면 그 경과분이 DB 에 쓰이지 않고 사라질 수 있다. 그 세그먼트가 stalled 로 다른 워커에 재배달되면 새 워커는 `segmentStartMs` 가 없어 그 구간을 세지 못한다. [크래시 재구동](CLE-EXEC-RECOVERY-REDRIVE.md#크래시-세그먼트는-실패-대신-제어된-재구동)과 [stalled 재배달](CLE-EXEC-RECOVERY-REDRIVE.md#운영-중-stalled-자동-재배달은-한-번만)도 세그먼트 시작 시각을 영속하지 않으므로 같은 과소 계산이 남는다. 이 교환을 일부러 허용한다.
 
 - 안전 종료는 드문 인프라 이벤트이고 단일 세그먼트 길이(초~분)는 총 한도(기본 30분)보다 작다. 한도 우회 효과는 미미하다.
 - flush 훅(`OnModuleDestroy` + 부분 누적 + DB 저장)을 더하면 SIGTERM 경로가 복잡해지고 재배달 워커의 `segmentStart` 재기록과 경합한다.
-- 경합 없는 flush(세그먼트 시작 시각을 Redis·DB 에 영속)는 세그먼트 시작 시각 영속에 달려 있다. PR4 는 사용자 결정(Q2 미룸)으로 마이그레이션 없이 진행해 이를 영속하지 않았다. 과소 계산은 후속 후보로 남는다.
+- 경합 없는 flush(세그먼트 시작 시각을 Redis·DB 에 영속)는 세그먼트 시작 시각 영속에 달려 있다. stalled 재배달은 사용자 결정으로 마이그레이션 없이 진행해 이를 영속하지 않았다. 과소 계산은 후속 후보로 남는다.
 - 그래서 무한 재구동을 막는 1차 경계는 실행 시간 한도가 아니라 **트리거 자체**다(부팅 때 한 번, stalled 1회). 실행 시간 한도는 과소 계산을 감안한 best-effort 2차 경계다. 과소 계산은 "한도를 덜 적용" 하는 방향이라 fail-open 이 아니라 보수적인 과소 적용이며 조용히 과하게 끊을 위험은 없다.
 
-### DLQ 경고는 로그로 남긴다 (Phase 3.1)
+### DLQ 경고는 로그로 남긴다
 
 재개 큐 DLQ 모니터(`ContinuationDlqMonitorService`)가 OTel 메트릭 대신 구조화된 `logger.error` 경고를 쓰는 근거다.
 
-- Phase 3.1 당시 백엔드는 OTel traces 만 있었다(MeterProvider 미구성, custom 메트릭 0건). DLQ 적재량 경고 하나를 위해 metrics SDK 파이프라인 전체를 들이는 것은 지나쳤다. 지금은 MeterProvider 와 PrometheusExporter 가 구성돼 있고 큐 깊이(DLQ 의 `failed`/`delayed` 포함)는 `clemvion.queue.depth` ObservableGauge 로 나간다. 메트릭 카탈로그는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 NF-OB-07 에 있다. 그래도 **임계 초과 경고(능동 통지)는 로그 기반을 유지한다.** gauge 는 "관측" 이고 cooldown 경고는 "통지" 라 역할이 다르다. 경고 규칙은 Prometheus/Grafana 나 로그 경고 어느 쪽으로도 만들 수 있다.
+- 이 결정 당시 백엔드는 OTel traces 만 있었다(MeterProvider 미구성, custom 메트릭 0건). DLQ 적재량 경고 하나를 위해 metrics SDK 파이프라인 전체를 들이는 것은 지나쳤다. 지금은 MeterProvider 와 PrometheusExporter 가 구성돼 있고 큐 깊이(DLQ 의 `failed`/`delayed` 포함)는 `clemvion.queue.depth` ObservableGauge 로 나간다. 메트릭 카탈로그는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 NF-OB-07 에 있다. 그래도 **임계 초과 경고(능동 통지)는 로그 기반을 유지한다.** gauge 는 "관측" 이고 cooldown 경고는 "통지" 라 역할이 다르다. 경고 규칙은 Prometheus/Grafana 나 로그 경고 어느 쪽으로도 만들 수 있다.
 - 로그 기반 경고는 기존 운영 인프라에서 바로 쓸 수 있다. `logger.error('[DLQ ALARM] ...')` 는 로그 수집·경고 파이프라인(Sentry, 로그 기반 alert)이 별도 코드 없이 잡는다. cooldown 으로 경고 폭주를 막는다.
 - `/health` 엔드포인트에 DLQ 적재량을 싣지 않는다. readiness probe 가 DLQ 누적으로 unhealthy 가 되면 정상 트래픽까지 막힌다. 적재량은 gauge 관측과 경고의 대상이지 readiness 대상이 아니다.
 - DLQ 모니터 환경 변수 4종(`CONTINUATION_DLQ_*`)은 안전 종료 유예 시간과 같은 `useFactory` 주입 방식을 따른다. 서비스가 `process.env` 를 직접 읽지 않는다. 안전 종료 쪽의 DI 토큰 이름은 `SHUTDOWN_GRACE_MS` 이고 그 값을 주는 환경 변수는 `SIGTERM_GRACE_MS` 다.

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-DRYRUN"
 title: "재실행 — dry-run"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "84b3d225c340334999f302c08a833e28590cce182f159232db0cb577562306dd"
+content_hash: "152ab318e1df6a54bc80b4f56dee13ce5e23b16f799944f1097edee21e05a25a"
 read_as: "approved_fallback"
-task: "CLE-T-2V3P8D"
+task: "CLE-T-KH11HA"
 source_paths: []
-mirror_sha256: "84bc616d62befe8cf76b726aace15d711a9e20d3af58e085e5ab2fce97b26a54"
-etag: "sha256-33b477a6490dcfe7519193555302a93e8f26d2a93150c936fe5fbc61e7bdc56b"
+mirror_sha256: "7f07e8f9808c96be6e5449ef6aa745cf9b49525e3c38aa052e347bcd127c326d"
+etag: "sha256-6cae1e0b29b6cbedba9e27774a1de461708501a48c61d8220139eaff56abd417"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-33b477a6490dcfe7519193555302a93e8f26d2a93150c936fe5fbc61e7bdc56b"
 | --- | --- | --- | --- |
 | Integration | [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) | 외부 호출 | true |
 | Integration | [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) | 메일 발송 | true |
-| Integration | [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) | write 작업만. write 판정(쿼리 유형과 SQL 첫 동사 목록)은 노드 문서가 정한다. read(SELECT)는 부수효과가 없어 dry-run 에서도 그대로 호출한다 | true |
+| Integration | [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) | 읽기 작업으로 확인된 쿼리를 뺀 전부. 판정(쿼리 유형과 SQL 첫 동사)은 노드 문서가 정한다. 읽기(SELECT 등)는 부수효과가 없어 dry-run 에서도 그대로 호출한다 | true |
 | Integration | [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) | GET 이 아니거나 상태를 바꾸는 GET 인 operation. Cafe24 의 예외 목록은 비어 있어 POST·PUT·DELETE 가 대상이다([Cafe24 operation 메타데이터](CLE-C24-META)). GET 은 그대로 호출한다 | true |
 | Integration | [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) | GET 이 아니거나 상태를 바꾸는 GET 인 operation. MakeShop Shop API 는 GET·POST 만 쓰므로 POST 와 예외 목록의 GET 이 대상이다([MakeShop operation 메타데이터](CLE-MKS-META)). 나머지 GET 은 그대로 호출한다 | true |
 | Trigger 외부 발신 | 해당 없음(v1 트리거는 모두 수신 쪽이다) | 없음 | 없음 |
@@ -50,7 +50,7 @@ dry-run 이 모의 출력 · 응답으로 대신할 호출을 고르는 기준�
 | 호출 | 부수효과로 보는 조건 | 판정 근거 |
 | --- | --- | --- |
 | HTTP Request · Send Email 노드 | 늘 | 노드 종류 |
-| Database Query 노드 | write 작업. 판정이 모호한 쿼리는 읽기로 본다 | 노드 문서의 write 판정 |
+| Database Query 노드 | 읽기 작업으로 확인되지 않은 쿼리. 쓰기 작업과 쓰기 여부를 판정할 수 없는 쿼리(다중 문장 포함)가 여기 든다 | 노드 문서의 판정(쿼리 유형과 SQL 첫 동사) |
 | Cafe24 · MakeShop operation(노드와 내부 MCP 브리지 도구) | HTTP 메서드가 GET 이 아니거나, 메서드는 GET 인데 상태를 바꾸는 GET 예외 목록에 있다 | operation 메타데이터의 `method` 와 예외 목록 |
 | 외부 MCP 서버의 도구(`tools/call`) | 늘 | 무엇을 하는지 판정할 수 없어 부수효과로 본다 |
 | MCP 메타 도구 · `kb_*` · `render_*` · `cond_*` | 보지 않는다(그대로 실행) | 프로토콜상 읽기 전용이거나 외부 시스템에 닿지 않는다. `cond_*` 는 그래프 분기만 고른다 |
@@ -62,7 +62,7 @@ dry-run 이 모의 출력 · 응답으로 대신할 호출을 고르는 기준�
 - 메타데이터를 다시 생성할 때 id · path 에 쓰기를 뜻하는 낱말이 있는 GET 이 새로 생기면 단위 테스트(`dry-run-state-changing-get.spec.ts`)가 막는다. 같은 테스트는 `scopeType` 이 write 인 GET 도 후보로 잡아 예외 목록에서 빠졌는지 확인한다. 판정에는 `scopeType` 을 쓰지 않고, 쓰기 권한이 필요한 GET 을 예외 목록에 올릴 후보로만 본다.
 - 읽기 의도인 POST(예: MakeShop `post-cpik_member-check` 회원 연동 확인)도 메서드로 판정하므로 모의 응답을 받는다. 재현 충실도보다 안전을 고른 보수적 결과다.
 - 외부 MCP 서버가 도구에 붙인 annotation(`readOnlyHint` 등)은 판정에 쓰지 않는다.
-- 판정할 근거가 없으면 부수효과로 본다. 틀렸을 때 비용이 큰 쪽(외부 상태가 바뀌는 쪽)을 막는 것이다. Database Query 노드만 예외로 모호한 쿼리를 읽기로 본다(노드가 직접 파싱한 SQL 이 근거인 기존 규칙).
+- 판정할 근거가 없으면 부수효과로 본다. 틀렸을 때 비용이 큰 쪽(외부 상태가 바뀌는 쪽)을 막는 것이다. 예외는 없다.
 - Cafe24 · MakeShop 노드 핸들러와 내부 MCP 브리지 도구 프로바이더는 벤더마다 둔 판정 함수를 부른다. Cafe24 는 `isCafe24DryRunMocked`, MakeShop 은 `isMakeshopDryRunMocked` 다. 두 함수는 자기 예외 목록을 넘겨 공통 판정(`nodes/core/dry-run.util.ts` 의 `isDryRunMockedOperation`)을 부른다. 공통 판정은 예외 목록 인자를 꼭 받는다. 호출 지점이 벤더 판정 함수를 거치는지는 같은 단위 테스트가 소스에서 확인한다.
 - 모의 출력 · 응답으로 대신한 호출은 외부로 나가지 않았으므로 통합 활동 로그를 남기지 않는다. 실제로 부른 읽기 호출은 평소처럼 남긴다. 이 규칙의 기준은 [재실행](CLE-EXEC-RERUN.md) 의 REQ-RERUN-053 이다. 다른 문서에 이 예외를 적는 일은 [미결 사항](CLE-EXEC-RERUN.md#미결-사항) 에 있다.
 
@@ -155,3 +155,9 @@ dry-run 실행이 시작한 서브 워크플로우와 Background 본문도 dry-r
 **남은 한계**: 표현식 대상 호출과 모달 판정의 범위 한계([동작](#동작))가 남는다. v1 의 부수효과 노드는 모두 `supportsDryRun: true` 라 지금은 이 한계로 실제 호출이 나가지 않는다. `supportsDryRun` 이 true 가 아닌 부수효과 노드가 생기면 이 한계를 다시 본다.
 
 **기존 워크플로우 영향**: dry-run 재실행이 비동기 서브 워크플로우를 부르면 이제 자식 실행이 외부를 부르지 않는다. 일반 실행과 dry-run 을 끈 재실행은 바뀌지 않는다.
+
+### Database Query 노드도 판정할 수 없는 쿼리를 부수효과로 본다
+
+결정일: 2026-11-19
+
+이전에는 Database Query 노드만 판정이 모호한 쿼리를 읽기로 보고 실제로 실행했다. 그래서 `WITH … DELETE …` 같은 CTE 가 dry-run 에서도 데이터를 바꿨고, 쿼리 유형을 기본값 `select` 로 둔 노드는 SQL 을 보지 않아 `DELETE` 도 실행했다. 2026-11-19 에 사람이 이 예외를 없애기로 정했다(NERV 질문 `01a1f2b8-529a-7479-8631-6e8fc96f5879`, NERV Task `CLE-T-KH11HA`). 이제 이 노드도 읽기 동사로 확인된 쿼리만 실행하고 나머지는 모의 출력으로 대신한다. 판정 규칙과 기각한 대안은 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md#dry-run-에서-판정할-수-없는-쿼리는-mock-으로-끝낸다) Rationale 에 있다.
