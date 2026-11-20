@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24-INSTALL"
 title: "Cafe24 노드 — 앱 설치 엔드포인트"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CAFE24"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-CAFE24"]
 area: "CLE-NODE-INT"
-content_hash: "63209d51c88f42d36cb4ea12096ebefbb4075de23e438622d2a648134bdb8584"
+content_hash: "de2df6f443640c6f0401ffd7635756b78c3e703aeee61320dec51eb0a3f91b15"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JK1JFZ"
 source_paths: []
-mirror_sha256: "e477c4ba4c651c9592a7f8306dd550e448b384a6e2a15329a5287467cc69a58f"
-etag: "sha256-3562c630ccea4f29194e0a214404632b6db9aac24a95b567ebad68fd8672bf70"
+mirror_sha256: "aef1d5731fe0b80e0083fcb98c4a41f4b79f1aef877737e2a8240eadf8ec9200"
+etag: "sha256-0676a4e7ee6b118796bca7a4d5766264c973156a23f2ee778747d7f212b3ea35"
 ---
 ## 개요
 
@@ -78,7 +78,7 @@ function verifyHmac(rawQuery: string, clientSecret: string, receivedHmac: string
 - **nonce 캐시**(`Cafe24InstallNonceCache`): ±5분 윈도우와 HMAC 검증을 둘 다 통과한 (mall_id, timestamp, hmac) 튜플을 [Redis 키](#redis-키-normative) 표의 nonce 키에 10분 TTL 로 기록해 "유효한 HMAC + 같은 timestamp 재전송" 까지 막는다. Redis 가 없거나 통신이 실패하면 ±5분 윈도우 정책으로 돌아간다. 운영 환경에서는 BullMQ 가 이미 쓰는 Redis 를 함께 쓰므로 추가 비용이 없다.
 - **nonce 키 구성**: `cafe24:install:nonce:{mall_id}:{timestamp}:{hmac 앞 8자}`. base64 hmac(약 44자) 전체 대신 앞 8자만 써서 키 길이를 줄인다(충돌 확률은 [관련 코드 상수](#관련-코드-상수)). 충돌해도 이미 HMAC 검증을 통과한 요청이라 보안 영향은 없고, 드물게 정상 재시도가 재전송으로 거절될 뿐이다. 이 충돌은 nonce 키의 고유성 문제이며 `install_token` capability 가정이나 HMAC 암호 강도와는 무관하다.
 - **호출 제한(열거 공격 방어, 심층 방어)**: 설치 엔드포인트는 capability-token 가정(`install_token` 은 128bit 이상 무작위라 추측 불가) 위에 두 겹의 운영 방어를 더한다.
-  - 1층, IP 제한(IP 당 분당 30회): `@Throttle({ limit: 30, ttl: 60_000 })`. 인증 없는 경로라 `UserThrottlerGuard` 의 IP 대체 키를 쓴다. 현재는 `@nestjs/throttler` 기본 저장소라 인스턴스마다 메모리에 따로 세어 quota 가 인스턴스별로 나뉜다. Redis 분산 저장소로 옮기는 일은 모든 제한 엔드포인트에 영향을 주는 전역 저장소 교체라 미뤘다. 열거 방어의 핵심은 인스턴스를 넘나드는 2층이 맡으므로 1층 분산화는 보강 성격이다.
+  - 1층, IP 제한(IP 당 분당 30회): `@Throttle({ limit: 30, ttl: 60_000 })`. 인증 없는 경로라 `UserThrottlerGuard` 의 IP 대체 키를 쓴다. 카운터는 공유 Redis 에 세어 서버 인스턴스 사이에 한도를 함께 쓴다. Redis 를 쓸 수 없을 때만 서버 인스턴스마다 메모리로 세고 제한은 유지한다. 저장소의 동작은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「저장소」 가 정한다. 열거 방어의 핵심은 2층이 맡고 1층은 보강이다.
   - 2층, 실패 페널티 잠금: `install_token` 조회·HMAC 검증이 **실패**한 요청(`CAFE24_INSTALL_INVALID_TOKEN`·`CAFE24_INSTALL_INVALID_HMAC`)만 IP 별 카운터 `cafe24:install:fail:{ip}` 를 `INCR`(EX `INSTALL_FAIL_WINDOW_SEC`)한다. `INSTALL_FAIL_THRESHOLD` 를 넘으면 HMAC 검증과 행 조회 전에 `429 CAFE24_INSTALL_RATE_LIMITED` 로 즉시 거절한다. 성공한 설치(302 리다이렉트)는 세지 않으므로 정상 사용자(유효한 토큰, 적은 요청)는 영향이 없고 대량 실패인 열거만 겨냥한다. Redis 가 없으면 건너뛰고(fail-open) 기존 정책(±5분 윈도우 + capability-token)으로 돌아간다. 메모리 대체 수단이 없는 순수 강화 층이라 차단을 유지하면 정상 설치가 막히기 때문이며, 1층(메모리 대체)과 의도적으로 다른 저하 경로다.
 
 ### 식별 전략
@@ -114,3 +114,7 @@ Cafe24 의 `/oauth/authorize` 는 RFC 6749 §3.3 의 공백 구분이 아니라 
 - velog `@yl9517` 의 `mall.read_product` 하나를 콤마 구분으로 보낸 정상 동작 사례
 
 회귀 보호: `codebase/backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts` 가 인가 URL 에 `scope=...%2C...` 가 들어 있는지, `+`·`%20` 으로 돌아가지 않는지 검증한다.
+
+### 1층 IP 제한을 공유 Redis 에 센다 (2026-11-21)
+
+NERV Task `CLE-T-JK1JFZ`. 그전에는 1층이 `@nestjs/throttler` 기본 저장소라 인스턴스마다 메모리에 따로 셌고 한도가 인스턴스별로 나뉘었다. 저장소 교체는 모든 제한 엔드포인트에 걸리는 전역 변경이라 따로 검증할 작업으로 미뤘고 2026-11-21 에 들였다. Redis 장애 때 제한을 끄는 안은 기각했다. 설치 진입점과 로그인 · 인증 라우트의 방어가 함께 사라진다. 그래서 Redis 를 쓸 수 없으면 1층은 메모리로 내려가 제한을 유지한다. 2층과 nonce 캐시는 메모리 대체 수단이 없어 지금처럼 건너뛴다.

@@ -86,6 +86,7 @@ export interface RedisFailOpenReasonMap {
     | 'subscribe_failed';
   integration_cache_bus: 'publish_failed' | 'subscribe_failed';
   chat_listener_bus: 'publish_failed' | 'subscribe_failed';
+  throttler: 'incr_failed';
 }
 
 /** fail-open 으로 물러난 기능. */

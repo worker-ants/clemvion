@@ -94,6 +94,7 @@ describe('clemvion.redis.fail_open (component, reason) 선언 · 실배선 정�
       'password_recheck_failure_limit',
       'public_webhook_quota',
       'sse_fanout',
+      'throttler',
       'token_blacklist',
     ]);
   });

@@ -2,19 +2,19 @@
 id: "CLE-PLAT-ARCH"
 title: "시스템 아키텍처"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "042cfe1464898fe2dd03fd27bae427b0c96243dd39d5bfbf1eccd9f18a21c6a9"
+content_hash: "21adeb26f4c5aed31a6f34346e5630e3559829c760f9438be8f3c5fd60506311"
 read_as: "approved_fallback"
-task: "CLE-T-28MDF3"
+task: "CLE-T-JK1JFZ"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "54ab3d9c926f2db3751669962bdb6d74a12490cd664db6b5c2f74889973ec0e7"
-etag: "sha256-eb92f3bc50c9a8c0182e9976e301aa45d624ec210afac366a820a74ab8c70cc8"
+mirror_sha256: "d993f78922d64f746ef200acdabf71e142aa3dfcf63a8c1e7b4b9de697832958"
+etag: "sha256-3ab5a020f2eacf1b9ca072439794718132cf380e9965d451caf610f07bee32a8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -99,7 +99,7 @@ flowchart LR
 별도 게이트웨이 서버를 두지 않는다. 백엔드(NestJS) 안의 공통 계층이 다음을 맡는다.
 
 - 인증과 인가 검증: `JwtAuthGuard` 와 역할 가드. 규칙은 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 과 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md) 가 정한다.
-- 요청 빈도 제한(rate limit): `@nestjs/throttler` 를 storage 설정 없이 쓴다. 카운터가 프로세스 메모리에 있어 인스턴스마다 따로 센다. 한도와 응답은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 이 정한다.
+- 요청 빈도 제한(rate limit): `@nestjs/throttler` 의 카운터를 공유 Redis 에 둔다. 모든 서버 인스턴스가 한 카운터를 나눠 쓴다. Redis 를 쓸 수 없는 동안에는 서버 인스턴스마다 메모리로 세고 제한은 그대로 건다. 저장소 동작은 [HTTP API 규약 — 요청 빈도 제한 §7 「저장소」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 가 정한다. 한도와 응답은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 이 정한다.
 - 요청 라우팅과 CORS 관리.
 
 ### 핵심 API 서비스
@@ -143,7 +143,7 @@ flowchart LR
 | --- | --- |
 | PostgreSQL | 주 데이터베이스. 워크플로우·사용자·설정·실행 기록 등 모든 영속 데이터를 둔다. 기본 이미지는 `pgvector/pgvector:pg18`(`docker-compose.yml`)이고 TypeORM 으로 매핑한다. 스키마는 Flyway SQL 마이그레이션(`codebase/backend/migrations/V*.sql`)이 만든다([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)). k8s 로컬 오버레이(`k8s/overlays/local/infra-postgres.yaml`)는 아직 `pg16` 을 쓴다. **최소 버전은 15** 다. 범위 참조의 복합 FK(V141~V146)가 PostgreSQL 15 문법 `ON DELETE SET NULL (컬럼 목록)` 을 쓰고, 15 미만이면 V134 가 스키마를 바꾸기 전에 멈춘다([데이터 모델 개요](CLE-PLAT-DATA.md#참조의-소속)) |
 | pgvector | 지식 저장소 청크와 에이전트 메모리의 임베딩을 PostgreSQL 안에 저장하고 검색한다. 별도 벡터 DB 는 두지 않는다. 차원별 부분 인덱스 정책은 [데이터 모델 개요](CLE-PLAT-DATA.md) 가 정한다 |
-| Redis 7 | BullMQ 큐 백엔드(시작 큐·재개 큐·Background 큐 등), 운영 잠금(`exec:recover:lock`), pub/sub 채널(`integration:cache:invalidate` · `chat-channel:listener` · `eia:sse:live:<executionId>` · `eia:sse:close` · WebSocket 채널 전달용 `ws:sio` 접두 채널), EIA SSE 의 재연결 버퍼와 실행별 연결 수, 각 모듈의 요청 빈도 제한·멱등 키. 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 에 있다 |
+| Redis 7 | BullMQ 큐 백엔드(시작 큐·재개 큐·Background 큐 등), 운영 잠금(`exec:recover:lock`), pub/sub 채널(`integration:cache:invalidate` · `chat-channel:listener` · `eia:sse:live:<executionId>` · `eia:sse:close` · WebSocket 채널 전달용 `ws:sio` 접두 채널), EIA SSE 의 재연결 버퍼와 실행별 연결 수, 전역 요청 빈도 제한(`ThrottlerModule`)의 카운터, 각 모듈의 요청 빈도 제한·멱등 키. 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 에 있다 |
 | 파일 저장소 | S3 호환 저장소. 개발·셀프 호스팅은 MinIO, SaaS 는 AWS S3. 지식 저장소 원본 문서와 프로필 이미지를 둔다([파일 저장소](CLE-PLAT-STORAGE.md)) |
 
 다음 두 가지는 Redis 에 두지 않는다.
@@ -200,7 +200,7 @@ flowchart LR
 
 ## 다중 인스턴스와 동시성 모델
 
-- **상태 없는 백엔드**: 컨트롤러와 서비스는 요청 처리 상태를 서버 인스턴스에 두지 않는다. 서버 인스턴스 사이의 작업 조정은 Redis(BullMQ 영속 큐와 보조 pub/sub)가 맡는다. 서버 인스턴스마다 따로 두는 상태 가운데 통합 자격 증명 캐시 · 채팅 채널 listener 레지스트리 · EIA SSE 구독자 · WebSocket 채널 구독자는 아래 pub/sub 채널로 맞춘다. 그 밖의 서버 인스턴스 로컬 상태는 맞추지 않는다. 실행 컨텍스트를 담는 메모리 `Map`([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md)), Cafe24 API 호출을 통합마다 직렬화하는 메모리 mutex([Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md)), 요청 빈도 제한의 메모리 카운터([Redis 에 세션과 요청 빈도 카운터를 두지 않은 현재 구성](#redis-에-세션과-요청-빈도-카운터를-두지-않은-현재-구성))가 그 예다. 한계는 각 상태를 정한 문서에 있다.
+- **상태 없는 백엔드**: 컨트롤러와 서비스는 요청 처리 상태를 서버 인스턴스에 두지 않는다. 서버 인스턴스 사이의 작업 조정은 Redis(BullMQ 영속 큐와 보조 pub/sub)가 맡는다. 서버 인스턴스마다 따로 두는 상태 가운데 통합 자격 증명 캐시 · 채팅 채널 listener 레지스트리 · EIA SSE 구독자 · WebSocket 채널 구독자는 아래 pub/sub 채널로 맞춘다. 그 밖의 서버 인스턴스 로컬 상태는 맞추지 않는다. 실행 컨텍스트를 담는 메모리 `Map`([실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md)), Cafe24 API 호출을 통합마다 직렬화하는 메모리 mutex([Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md))가 그 예다. 한계는 각 상태를 정한 문서에 있다. 요청 빈도 제한의 카운터는 2026-11-21 부터 Redis 에 두어 서버 인스턴스 사이에 나눠 쓴다. Redis 를 쓸 수 없는 동안에만 서버 인스턴스마다 메모리로 센다([HTTP API 규약 — 요청 빈도 제한 §7 「저장소」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한)). 도입 경위는 Rationale [Redis 에 세션과 요청 빈도 카운터를 두지 않은 현재 구성](#redis-에-세션과-요청-빈도-카운터를-두지-않은-현재-구성) 에 있다.
 - **재개 전달**: 폼 제출·버튼 클릭 같은 비동기 재개 신호는 재개 큐(`execution-continuation`, `ContinuationBusService`)로 전달한다. 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스의 BullMQ 워커가 받아 재개할 수 있다. 재개는 rehydration 한 경로로만 한다. park 가 늘 코루틴을 놓아 주므로 메모리에서 깨울 대기자가 없다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)).
 - **인스턴스 사이 직렬화**: Redis 큐 말고도 PostgreSQL advisory lock 을 쓴다. 트리거 설정 잠금(`trigger-config:<triggerId>`), 워크스페이스 단위 동시 실행 제한(`exec-cap:<workspaceId>`), MakeShop 설치 대기 행 재사용의 begin 직렬화(`makeshop-pending:…`, [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한))가 그 예다. 트리거 설정 잠금은 트리거 `config` 를 다시 쓰는 경로만 잡지 않는다. 알림 서명 시크릿 교체(`rotate-secret`)가 `notification_secret_v2` 를 쓸 때와 승격이 그 값을 정식 참조로 옮기고 비울 때도 같은 잠금을 잡는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md), [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체)). 잠금 키 공간 규칙은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
 - **서버 인스턴스 로컬 캐시 무효화**: 통합 자격 증명을 교체하거나 삭제하면 pub/sub 채널 `integration:cache:invalidate` 로 모든 서버 인스턴스의 로컬 캐시(예: Database Query 노드 연결 풀)를 비운다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)).
@@ -254,7 +254,9 @@ SaaS 와 셀프 호스팅은 같은 코드를 쓰고 설정으로 갈린다. 배
 
 ### Redis 에 세션과 요청 빈도 카운터를 두지 않은 현재 구성
 
-옛 구성도는 별도 API 게이트웨이가 요청 빈도를 제한하고 Redis 가 세션을 관리하는 것처럼 그렸다. 실제로는 요청 빈도 제한이 앱 안의 메모리 카운터이고, 로그인 세션은 PostgreSQL 이 기준이며, WebSocket 연결 상태는 프로세스 로컬이다. 이 문서는 실제 구성을 기준으로 쓴다. 요청 빈도 카운터를 여러 인스턴스가 나눠 쓰는 분산 저장소는 후속 과제로 남아 있다. 지금은 메모리 카운터이고, 분산 저장소가 들어오면 Redis 키로 다시 등재하고 이 구성을 재검토한다([비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md)). 2026-11-14 부터 WebSocket 은 채널 이벤트 전달만 Redis 로 서버 인스턴스 사이를 맞춘다(Socket.IO Redis adapter). 연결 상태는 그대로 프로세스 로컬이고 세션 키는 두지 않는다.
+옛 구성도는 별도 API 게이트웨이가 요청 빈도를 제한하고 Redis 가 세션을 관리하는 것처럼 그렸다. 이 절을 처음 쓸 때의 실제 구성은 달랐다. 요청 빈도 제한은 앱 안의 메모리 카운터였다. 로그인 세션은 PostgreSQL 이 기준이었고 WebSocket 연결 상태는 프로세스 로컬이었다. 이 문서는 실제 구성을 기준으로 쓴다. 그때는 요청 빈도 카운터를 여러 인스턴스가 나눠 쓰는 분산 저장소를 후속 과제로 남겼다. 분산 저장소가 들어오면 Redis 키로 다시 등재하고 이 구성을 재검토하기로 했다([비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md)). 2026-11-14 부터 WebSocket 은 채널 이벤트 전달만 Redis 로 서버 인스턴스 사이를 맞춘다(Socket.IO Redis adapter). 연결 상태는 그대로 프로세스 로컬이고 세션 키는 두지 않는다.
+
+2026-11-21 에 요청 빈도 카운터를 공유 Redis 로 옮겼다(NERV Task `CLE-T-JK1JFZ`). 위에서 남긴 후속 과제를 이것으로 닫았다. 키는 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 에 다시 등재했다. 저장소 동작과 Redis 를 쓸 수 없을 때의 동작은 [HTTP API 규약 — 요청 빈도 제한 §7 「저장소」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 가 정한다. 로그인 세션과 WebSocket 연결 상태는 지금도 Redis 에 두지 않는다. 다른 문서의 링크가 깨지지 않도록 이 절의 제목은 바꾸지 않았다.
 
 ### EIA SSE 도 Redis 로 서버 인스턴스 사이를 맞춘다 (2026-10-17)
 
