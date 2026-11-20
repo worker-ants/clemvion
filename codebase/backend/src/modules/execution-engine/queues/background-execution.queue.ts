@@ -15,7 +15,7 @@ export const BACKGROUND_EXECUTION_QUEUE = 'background-execution';
  * 큰 작업이 오래 남는다. 완료 작업은 24시간, 실패 작업은 조사할 시간을 두고 7일 남긴다
  * (NERV Task `CLE-T-9XMCS6`). 같은 기간을 쓰는 큐: `external-interaction/notification-dispatcher.service.ts`.
  */
-export const BACKGROUND_EXECUTION_JOB_OPTS = {
+export const BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS = {
   removeOnComplete: { age: 24 * 60 * 60 },
   removeOnFail: { age: 7 * 24 * 60 * 60 },
 };

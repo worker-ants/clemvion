@@ -153,7 +153,7 @@ import {
 } from '../../nodes/ai/llm-provider-rule';
 import { restoreMcpServerOrigins } from '../../nodes/ai/ai-agent/mcp-server-ref-use';
 import {
-  BACKGROUND_EXECUTION_JOB_OPTS,
+  BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS,
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
 } from './queues/background-execution.queue';
@@ -7855,7 +7855,7 @@ export class ExecutionEngineService
       const enqueued = await this.backgroundQueue.add(
         'background-run',
         job,
-        BACKGROUND_EXECUTION_JOB_OPTS,
+        BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS,
       );
       enqueuedJobId = enqueued?.id;
     } catch (err) {
