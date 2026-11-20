@@ -2,19 +2,19 @@
 id: "CLE-NODE-ARCH"
 title: "노드 시스템 구조와 카탈로그"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "0de792ef374a15715cd860be72c9efac67966cfcf242a47ec6d64f18bec7da27"
+content_hash: "378fed0776866f14e00f82b0ecbb31ea810fec2219aaa1a1c14af4272e09d8bb"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-M6W7RE"
 source_paths: ["spec/4-nodes/0-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "356e329edf9b374f5f12a01712fd7fd0e59f87e5d1f1892983aa9ea7eb238730"
-etag: "sha256-80d8c9a6752c12b7ce4984044f420b784fef0130bcf022b6ea49da8b34f871ba"
+mirror_sha256: "2463a3b99f7f49e7879a03ad82a2aad13dbda7dd7a5564b304d8962ed18e4cf5"
+etag: "sha256-e2d0b3d5c9c481c026e5d70f81b0ae9a8f58806e2c8c6ecc11b44b32edaeb4ad"
 ---
 > 구현 상태: 부분 구현(플러그인·마켓플레이스와 파일 시스템 샌드박스 정책은 미구현) · 원문: `spec/4-nodes/0-overview.md`, `spec/4-nodes/_product-overview.md` (§1, §2, §10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -151,6 +151,7 @@ sequenceDiagram
 | `defaultConfig` | Object | 설정 기본값 |
 | `summaryTemplate` | String | 캔버스에 보이는 설정 요약 한 줄을 만드는 규칙. [캔버스 설정 요약](#캔버스-설정-요약-summarytemplate) 참조 |
 | `warningRules` | WarningRule[] | 노드 하나의 설정만 보는 노드 경고 규칙. 규칙마다 `id` · `when`(mini-DSL) · `message` 와 선택 필드 `severity` 를 둔다. `severity` 는 `blocking`(생략하면 이 값) 또는 `advisory` 다. 뜻은 [그래프 경고 규칙 §노드 경고 규칙의 심각도](../CLE-WF/CLE-WF-WARN.md#노드-경고-규칙의-심각도) 가 정한다 |
+| `supportsDryRun` | Boolean? | dry-run 재실행에서 외부 호출 대신 모의 출력을 낼 수 있는지. 생략하면 `false` 와 같다. 통합 노드가 `true` 가 아니면 dry-run 재실행을 거부한다. [재실행 — dry-run](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-노드-분류) 참조 |
 
 ### 포트 정의 (PortDef)
 

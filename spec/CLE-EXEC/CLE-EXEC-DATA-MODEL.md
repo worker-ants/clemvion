@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA-MODEL"
 title: "실행 데이터와 흐름 — 데이터 모델"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-DATA"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-DATA"]
 area: "CLE-EXEC"
-content_hash: "40f6de5fc7d0f34cdf580a6aab81873138164d0b2122819ec77b19f32b43d6ca"
+content_hash: "bee126e72e34a02f7d339bb79e1cee6da5c54bed6c1ccb95068f409a4bd2f86b"
 read_as: "approved_fallback"
-task: "CLE-T-CKJQZD"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "5682318b2e4fa33be00d96808e96e145ec294fcf25bfedf3f9fbe276a265733b"
-etag: "sha256-d8633346311969e9287ee4ab425cba510e5963c4e5eeb7d5892342452e9bd8ca"
+mirror_sha256: "c1a20df0d29d95bb35a7e48d62d52dcd36e76d88775a6a1dab70ab2d7716e2d9"
+etag: "sha256-2be6fa164d1db25eafeb5ed72cd49e09a28387f2823a3aa8ed9b582c496c5810"
 ---
 ## 개요
 
@@ -41,7 +41,7 @@ etag: "sha256-d8633346311969e9287ee4ab425cba510e5963c4e5eeb7d5892342452e9bd8ca"
 | recursion_depth | Integer | 서브 워크플로우 호출 깊이(root = 0) |
 | re_run_of | UUID? | FK → Execution (SET NULL). 재실행의 바로 앞 실행(원본 실행). NULL 이면 이 실행이 재실행 체인의 시작이다. 정책은 [재실행](CLE-EXEC-RERUN.md) |
 | chain_id | UUID? | NULL 허용(V067). v1 은 NULL 허용이 정식 모델이다. 같은 재실행 체인(re-run chain)의 실행을 모두 묶는 식별자다. 일반 실행(원본, 서브 워크플로우, Background)은 `chain_id = NULL` 이다. 재실행으로 만든 실행만 `chain_id = <체인 root id>`(= 원본 실행 id)다. 체인 전체 조회는 `id = rootId OR chain_id = rootId` 다. 체인 깊이 32 제한은 애플리케이션이 지킨다. 초기 설계(NOT NULL, 자기 참조)에서 NULL 허용으로 바꾼 근거는 [재실행](CLE-EXEC-RERUN.md#chain_id-는-nullable-이다-2026-05-31-결정-f2) 과 `migrations/V067__execution_re_run_chain.sql` 헤더에 있다. |
-| dry_run | Boolean | `NOT NULL DEFAULT false`(V068). dry-run 재실행(RR-PL-01)으로 만든 실행과 dry-run 실행이 시작한 비동기 서브 워크플로우의 자식 실행만 true 다. 엔진이 `createContext` 때 `variables.__dryRun` 으로 넣어 부수효과 노드가 모의 출력을 돌려주게 한다. rehydration 때도 되살린다. 기준은 [재실행](CLE-EXEC-RERUN.md) |
+| dry_run | Boolean | `NOT NULL DEFAULT false`(V068). dry-run 재실행(RR-PL-01)으로 만든 실행과 dry-run 실행이 시작한 비동기 서브 워크플로우의 자식 실행만 true 다. 엔진이 `createContext` 때 `variables.__dryRun` 으로 넣어 부수효과 노드가 모의 출력을 돌려주게 한다. rehydration 때도 되살린다. AI 에이전트 도구 프로바이더는 같은 값을 `ProviderExecCtx.dryRun` 으로 받아 부수효과 도구 호출을 모의 응답으로 대신한다([재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md)). 기준은 [재실행](CLE-EXEC-RERUN.md) |
 | conversation_thread | JSONB? | NULL 허용(V084). 입력 대기 park 에 들어갈 때 대화 스레드(`ExecutionContext.conversationThread`) 전체 스냅샷을 커밋하는 영속 재개 매체다. rehydration 이 여기서 대화 스레드를 손실 없이 되살린다(`runningSummary` / `summarizedUpToSeq` 포함). park 밖 단계에서는 낡을 수 있다(마지막 park 때 쓴 값). 실행 내역 타임라인의 분산 기준(`NodeExecution.output_data` / `interaction_data`)과 목적·소비처가 다르다. 정책은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) |
 | user_variables | JSONB? | NULL 허용(V085). park 에 들어갈 때 실행 컨텍스트 변수 중 **시스템 예약 변수(`__*`)를 뺀 사용자 정의분**(변수 선언 노드·변수 수정 노드 값)을 커밋하는 영속 재개 매체다. rehydration 이 되살려 park 뒤 노드가 park 전 변수를 손실 없이 참조한다(`$var.X`). 시스템 `__*` 변수는 rehydration 이 따로 다시 넣으므로 담지 않는다. park 밖 단계에서는 낡을 수 있다. 커밋 규칙은 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) |
 | resume_call_stack | JSONB? | NULL 허용(V087). **중첩 서브 워크플로우(`executeInline`) 안의 블로킹 노드**가 park 할 때 재개에 필요한 `executeInline` 호출 체인(바깥쪽부터 입력 대기 안쪽 직전까지, `{version, frames:[{workflowId, invokerNodeId, recursionDepth}]}`)을 커밋하는 영속 재개 매체다. rehydration 이 이 스택을 따라 가장 안쪽 입력 대기 노드부터 frame 단위로 재진입한다. **NULL = 최상위 park(중첩 깊이 0), park 한 적 없는 실행, 배포 이전 행**이며 단일 수준으로 재개한다. 컨테이너 본문 블로킹이 금지라 선형 스택만 담는다(반복 회차·분기 상태 없음). `version` 은 `CALL_STACK_SCHEMA_VERSION`(체크포인트와 독립)이다. 재진입 절차는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) |
@@ -52,7 +52,7 @@ etag: "sha256-d8633346311969e9287ee4ab425cba510e5963c4e5eeb7d5892342452e9bd8ca"
 
 **인증 설정 호출 집계**: 인증 설정 사용 내역(`GET /api/auth-configs/:id/usage`)의 `totalCalls` / `periodCounts` / `recentCalls` 는 **전용 로그 엔티티 없이** `Execution.trigger_id → Trigger.auth_config_id` 조인으로 계산한다. 인증 설정에 연결된 트리거들의 실행 행이 곧 "호출" 이다. `periodCounts` 는 `Execution.started_at` 의 롤링 윈도 조건부 집계(`COUNT(*) FILTER`), `recentCalls` 는 최근 20건의 `triggerName` / `status` / `source_ip` / `response_code` / `started_at` 이다. 화면과 API 는 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 에 있다.
 
-**`dryRun` 응답 필드의 출처**는 `dry_run` 컬럼(V068)이다. 응답 DTO(`ExecutionDto.dryRun`)는 이 컬럼을 그대로 내보낸다. 노드 실행을 집계해 만든 값이 아니다. 노드 실행 수준의 `output_data._dryRun` 은 노드별 결과 표시용으로 별개다. 기준은 [재실행](CLE-EXEC-RERUN.md) 이다.
+**`dryRun` 응답 필드의 출처**는 `dry_run` 컬럼(V068)이다. 응답 DTO(`ExecutionDto.dryRun`)는 이 컬럼을 그대로 내보낸다. 노드 실행을 집계해 만든 값이 아니다. 노드 실행 수준의 `output_data.output._dryRun` 은 노드별 결과 표시용으로 별개다. 기준은 [재실행](CLE-EXEC-RERUN.md) 과 [재실행 — dry-run](CLE-EXEC-RERUN-DRYRUN.md#동작) 이다.
 
 **`error` 의 엔진 인프라 코드**: `error.code` 어휘는 노드 핸들러가 정한 코드([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `output.error` 표준 형태)에 더해 엔진 인프라 코드를 포함한다. 아래 여섯 코드는 **등재처가 서로 다르다.** 이 목록이 단일 등재처를 뜻하지 않는다.
 
