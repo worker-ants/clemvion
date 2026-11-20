@@ -284,7 +284,9 @@ export class SlackAdapter implements NativeFormAdapter {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           replace_original: true,
-          text: config.languageHints?.selectionDone ?? '선택 완료',
+          text:
+            readLanguageHintOverride(config.languageHints, 'selectionDone') ??
+            '선택 완료',
         }),
       });
     } catch (err) {

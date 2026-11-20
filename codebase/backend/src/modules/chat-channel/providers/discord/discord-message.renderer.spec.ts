@@ -580,3 +580,45 @@ describe('renderDiscordEvent — 코드 블록을 지나는 분할', () => {
     texts.slice(1).forEach((t) => expect(t.startsWith('```ts\n')).toBe(true));
   });
 });
+
+// NERV Task `CLE-T-J8M86K` — languageHints 의 빈 문자열 덮어쓰기는 「없는 것」 이라 기본 문구로 넘어간다.
+describe('renderDiscordEvent — languageHints 빈 문자열 덮어쓰기 → 기본 문구', () => {
+  it('executionCompleted 가 빈 문자열이면 완료 기본 문구를 보낸다', () => {
+    const msgs = renderDiscordEvent(
+      { ...BASE, type: 'execution.completed', result: {} },
+      { ...CONFIG, languageHints: { executionCompleted: '' } },
+    );
+    expect(msgs[0].body).toEqual({
+      kind: 'text',
+      text: '워크플로우가 완료되었습니다.',
+    });
+  });
+
+  it('executionCancelled 가 빈 문자열이면 취소 기본 문구를 보낸다', () => {
+    const msgs = renderDiscordEvent(
+      { ...BASE, type: 'execution.cancelled' } as EiaEvent,
+      { ...CONFIG, languageHints: { executionCancelled: '' } },
+    );
+    expect(msgs[0].body).toEqual({
+      kind: 'text',
+      text: '워크플로우가 취소되었습니다.',
+    });
+  });
+
+  it('replyButtonLabel 이 빈 문자열이면 답변 버튼에 기본 라벨을 붙인다', () => {
+    const msgs = renderDiscordEvent(
+      {
+        ...BASE,
+        type: 'execution.ai_message',
+        message: 'AI 응답입니다',
+        turnCount: 1,
+      } as Extract<EiaEvent, { type: 'execution.ai_message' }>,
+      { ...CONFIG, languageHints: { replyButtonLabel: '' } },
+    );
+    const last = msgs[msgs.length - 1];
+    expect(last.body.kind).toBe('buttons');
+    if (last.body.kind === 'buttons') {
+      expect(last.body.buttons[0].label).toBe('답변하기');
+    }
+  });
+});

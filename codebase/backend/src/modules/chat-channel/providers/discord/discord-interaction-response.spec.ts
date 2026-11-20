@@ -105,6 +105,24 @@ describe('buildDiscordDefaultInteractionResponse', () => {
     );
   });
 
+  // NERV Task `CLE-T-J8M86K` — 빈 slashPrefix 는 「없는 것」 이라 기본 prefix 로 넘어간다.
+  it('help 의 빈 languageHints.slashPrefix 는 무시하고 기본 prefix 를 넣는다', () => {
+    const res = buildDiscordDefaultInteractionResponse(slash('help'), {
+      ...config,
+      languageLocale: 'en',
+      languageHints: { slashPrefix: '' },
+    }) as { body: { data: { content: string } } };
+
+    expect(res.body.data.content).toBe(
+      [
+        '/workflow start - Start a new conversation',
+        '/workflow cancel - Cancel the active conversation',
+        '/workflow reply - Reply to the active conversation',
+        '/workflow help - Show help',
+      ].join('\n'),
+    );
+  });
+
   it('languageHints.help · commandReceived 가 있으면 그 문구다', () => {
     const hinted: ChatChannelConfig = {
       ...config,
