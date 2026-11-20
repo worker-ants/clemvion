@@ -58,3 +58,21 @@ export function computeNotificationChannel(
   if (email) return 'email';
   return null;
 }
+
+/**
+ * 발사원이 `resolveNotificationChannels` 결과에서 수신자 한 명의 채널을 꺼낸다.
+ * `null` 이면 그 수신자에게 알림 행을 만들지 않는다. 세 발사원(실행 실패 · 스케줄 실패 · 통합 만료)이
+ * 같은 규칙을 쓰도록 한 곳에 모았다(CLE-T-EJFQ1Y).
+ *
+ * 맵에 항목이 없으면(조회되지 않은 사용자) 설정이 없는 것으로 보고 유형별 기본값을 계산한다.
+ * 실행 · 스케줄 실패는 둘 다 켜짐이라 `both` 다.
+ */
+export function channelForRecipient(
+  channels: ReadonlyMap<string, NotificationChannel | null>,
+  userId: string,
+  type: ChannelToggleType,
+): NotificationChannel | null {
+  return channels.has(userId)
+    ? (channels.get(userId) ?? null)
+    : computeNotificationChannel(undefined, type);
+}

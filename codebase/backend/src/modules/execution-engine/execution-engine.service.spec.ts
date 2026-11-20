@@ -214,13 +214,20 @@ describe('ExecutionEngineService', () => {
     async function callDispatch(
       execution: Record<string, unknown>,
       createMany: jest.Mock,
-      channelMap: Map<string, 'both' | 'in_app' | 'email' | null> = new Map(),
+      channelMap?: Map<string, 'both' | 'in_app' | 'email' | null>,
     ): Promise<void> {
       (
         service as unknown as { notificationsService: unknown }
       ).notificationsService = {
         createMany,
-        resolveNotificationChannels: jest.fn().mockResolvedValue(channelMap),
+        // 지정이 없으면 수신자마다 기본 채널(both)을 채운다.
+        resolveNotificationChannels: jest
+          .fn()
+          .mockImplementation((ids: string[]) =>
+            Promise.resolve(
+              channelMap ?? new Map(ids.map((id) => [id, 'both' as const])),
+            ),
+          ),
       };
       await (
         service as unknown as {
@@ -457,7 +464,9 @@ describe('ExecutionEngineService', () => {
         createMany,
         resolveNotificationChannels: jest
           .fn()
-          .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
+          .mockImplementation((ids: string[]) =>
+            Promise.resolve(new Map(ids.map((id) => [id, 'both' as const]))),
+          ),
       };
       await (
         service as unknown as {
@@ -502,7 +511,9 @@ describe('ExecutionEngineService', () => {
         createMany,
         resolveNotificationChannels: jest
           .fn()
-          .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
+          .mockImplementation((ids: string[]) =>
+            Promise.resolve(new Map(ids.map((id) => [id, 'both' as const]))),
+          ),
       };
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
@@ -566,7 +577,9 @@ describe('ExecutionEngineService', () => {
         createMany,
         resolveNotificationChannels: jest
           .fn()
-          .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
+          .mockImplementation((ids: string[]) =>
+            Promise.resolve(new Map(ids.map((id) => [id, 'both' as const]))),
+          ),
       };
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }

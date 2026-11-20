@@ -23,6 +23,7 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { NotificationsService } from '../notifications/notifications.service';
+import { channelForRecipient } from '../notifications/notification-channel';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import {
   ExecutionCancelledError,
@@ -5327,12 +5328,17 @@ export class ExecutionEngineService
           recipients,
           'execution_failed',
         );
-      const targets = recipients.filter(
-        (userId) => channelByUser.get(userId) !== null,
-      );
+      const targets = recipients.flatMap((userId) => {
+        const channel = channelForRecipient(
+          channelByUser,
+          userId,
+          'execution_failed',
+        );
+        return channel === null ? [] : [{ userId, channel }];
+      });
       if (targets.length === 0) return;
       await notificationsService.createMany(
-        targets.map((userId) => ({
+        targets.map(({ userId, channel }) => ({
           workspaceId: workflow.workspaceId,
           userId,
           type: 'execution_failed',
@@ -5344,7 +5350,7 @@ export class ExecutionEngineService
           // 딥링크 계약(href.ts §3.1) — resource_id = workflow id.
           resourceType: 'workflow',
           resourceId: workflow.id,
-          channel: channelByUser.get(userId) ?? 'both',
+          channel,
         })),
       );
     } catch (err) {

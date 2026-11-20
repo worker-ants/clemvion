@@ -61,9 +61,14 @@ describe('ScheduleRunnerService', () => {
           provide: NotificationsService,
           useValue: {
             notify: jest.fn().mockResolvedValue(undefined),
+            // 수신자마다 기본 채널(both)을 채운다.
             resolveNotificationChannels: jest
               .fn()
-              .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
+              .mockImplementation((ids: string[]) =>
+                Promise.resolve(
+                  new Map(ids.map((id) => [id, 'both' as const])),
+                ),
+              ),
           },
         },
       ],
@@ -507,6 +512,30 @@ describe('ScheduleRunnerService', () => {
       await expect(service.process(job)).rejects.toThrow('enqueue boom');
 
       expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
+    it('채널 맵에 owner 항목이 없으면 기본값(both)으로 알림을 만든다 (조회 누락 폴백, 실행 실패 경로와 같다)', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(new Error('enqueue boom'));
+      workflowRepo.findOne.mockResolvedValue({
+        id: 'wf1',
+        name: 'W',
+        createdBy: 'owner-1',
+      } as unknown as Workflow);
+      notifications.resolveNotificationChannels.mockResolvedValue(new Map());
+
+      await expect(service.process(job)).rejects.toThrow('enqueue boom');
+
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'both' }),
+      );
     });
 
     it('알림 발사 실패해도 process 는 원래 engine 에러로 rethrow (best-effort)', async () => {

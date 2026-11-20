@@ -9,6 +9,7 @@ import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { WorkflowNotFoundError } from '../execution-engine/workflow-errors';
 import { NotificationsService } from '../notifications/notifications.service';
+import { channelForRecipient } from '../notifications/notification-channel';
 import { sanitizeErrorMessage } from '../execution-engine/sanitize-error-message';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
@@ -290,7 +291,11 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
           [owner],
           'schedule_failed',
         );
-      const channel = channelByUser.get(owner);
+      const channel = channelForRecipient(
+        channelByUser,
+        owner,
+        'schedule_failed',
+      );
       if (channel === null) return;
       await this.notificationsService.notify({
         workspaceId,
@@ -305,7 +310,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         // `/workflows/<resource_id>` 로 라우팅되며 resource_id 가 workflow id 임에 의존.
         resourceType: 'workflow',
         resourceId: workflow.id,
-        channel: channel ?? 'both',
+        channel,
       });
     } catch (err) {
       this.logger.error(
