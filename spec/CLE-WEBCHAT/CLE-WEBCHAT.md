@@ -2,25 +2,25 @@
 id: "CLE-WEBCHAT"
 title: "웹채팅"
 type: "area"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "16ba2bcd0ba31fda418b688fbf03bfc46e5186a01faa17e2d6e84d2a0f98e91a"
+content_hash: "6f68d8f26c548e00612efe33146223842e8b5958c3c54934dd0b39bbb0bdda7c"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-JNXZWY"
 source_paths: ["spec/7-channel-web-chat/_product-overview.md"]
-mirror_sha256: "251067c9b7f08daeb45cdf792caa3640295f3180705ee51428d95bcd4177cf5c"
-etag: "sha256-a72fe7876d0ebfce9aee4f7ff68555d0b9cffc5bf0c77680a4322884a4766cae"
+mirror_sha256: "4efeb2b2ba859e94e175c94c53a9796568739b44994bc0948430dec436fffcd0"
+etag: "sha256-60c52d68bbbde241c391bf2f3045d9c83a029b38343482c586115628700bb30c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-웹채팅(Web Chat, `channel-web-chat`) 영역은 고객 사이트에 넣는 임베드형 채팅 위젯과 그것을 움직이는 SDK, 샘플, 제품 안 운영 콘솔을 다룬다. 이 절은 영역이 푸는 문제를 적는다.
+웹채팅(Web Chat, `channel-web-chat`) 영역은 호스트 페이지에 넣는 웹채팅 위젯과 그것을 움직이는 SDK, 샘플, 제품 안 운영 콘솔을 다룬다. 이 절은 영역이 푸는 문제를 적는다.
 
 워크플로우를 웹훅 트리거와 [External Interaction API](../CLE-IX/CLE-EIA.md)(EIA)로 밖에 열면 외부 시스템이 워크플로우를 실행하고 실행 중 인터랙션(Form·버튼·멀티턴 AI)을 REST 와 SSE 로 주고받을 수 있다. 하지만 그 클라이언트 쪽 구현은 사용자가 직접 써야 한다. EIA 사용 시나리오 가운데 "외부 SaaS 가 내장 채팅 위젯 호스팅(인바운드 전용, SSE + REST)" 이 정확히 이 영역이 채우는 빈틈이다.
 

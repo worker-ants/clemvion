@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SESSION-RESTORE"
 title: "웹채팅 인증과 세션 — 재로드 복원과 실패 처리"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT-SESSION"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT", "CLE-WEBCHAT-SESSION"]
 area: "CLE-WEBCHAT"
-content_hash: "342f5af8553e8f7c8566d5c9dca984923bc3be1d873dac4621c79f67e8039c9e"
+content_hash: "4f4ab49cd1ae8a5550e9b3c8f83e1378717b5a47a08d8f087673e174f61cc9ca"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JNXZWY"
 source_paths: ["spec/7-channel-web-chat/3-auth-session.md"]
-mirror_sha256: "bf93111d420578ce22f31d56c081cdb19f881ec6dc853c9e856a9e5c5301ecd9"
-etag: "sha256-0d1c3f40e64bd7a4d800c60ebfe490b3efd22598848bd4a4e158de1b862c21d5"
+mirror_sha256: "752b6141380fe5fcb365f6efa556c3d951508624f6a36c672eae456602a4695d"
+etag: "sha256-c5077c80d83c211f921306ab466996213fe81e6a226fc62681cd8061fb6e1464"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/3-auth-session.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -117,7 +117,7 @@ etag: "sha256-0d1c3f40e64bd7a4d800c60ebfe490b3efd22598848bd4a4e158de1b862c21d5"
 
 - **다층 방어**: 실행 단위 토큰은 실행 하나로 범위가 좁은 단명 자격이라 원래 위험이 낮다. sessionStorage 는 탭을 닫으면 자동으로 지워져 비밀이 클라이언트에 남는 시간을 줄인다. localStorage 는 탭과 브라우저를 닫은 뒤에도 남아 XSS 등으로 빼앗길 수 있는 시간이 더 길다. 단명 토큰이라 영향은 작지만 비용이 거의 없는 방어다.
 - **재로드 복원은 유지된다**: sessionStorage 는 같은 탭의 새로고침과 같은 문서 안 이동에서 남는다. 호스트 새로고침 → iframe 재로드 경로(같은 최상위 세션)에서 항목이 그대로 남아 복원이 정상으로 된다. 탭을 닫거나 새 탭으로 열 때만 비워진다.
-- **트레이드오프: 탭끼리 대화를 나누지 않는다.** sessionStorage 는 탭(브라우징 컨텍스트) 단위라 같은 호스트 페이지를 새 탭에서 열면 대화가 공유되지 않고 따로 시작한다. 공개·익명 위젯에는 받아들일 수 있고 오히려 탭마다 따로 대화하는 것이 자연스럽다. 실행 단위 토큰·v1 익명 모델과도 맞는다. 여러 탭의 대화 공유가 필요해지면 그때 다시 본다.
+- **트레이드오프: 탭끼리 대화를 나누지 않는다.** sessionStorage 는 탭(브라우징 컨텍스트) 단위라 같은 호스트 페이지를 새 탭에서 열면 대화가 공유되지 않고 따로 시작한다. 인증 설정이 없는 웹채팅 위젯에는 받아들일 수 있고 오히려 탭마다 따로 대화하는 것이 자연스럽다. 실행 단위 토큰·v1 익명 모델과도 맞는다. 여러 탭의 대화 공유가 필요해지면 그때 다시 본다.
 - **위젯 세션 정리 책임은 그대로다.** 종료나 복구 불가를 받으면 바로 항목을 지우는 정책은 저장소 종류와 상관없이 유지한다.
 - **예전 localStorage 항목**: 이전 버전이 localStorage 에 남긴 `clemvion-web-chat:session:*` 키는 읽기·쓰기 경로가 모두 sessionStorage 로 바뀌었으므로 무시한다. 별도 이전이나 일회성 정리는 하지 않는다. 단명 토큰이라 남은 항목은 만료로 저절로 무효가 되고 복원에 쓰이지 않아 보안·기능 영향이 없다.
 - **서버 실행 회수는 별도 장치다**: 이탈로 버려진 서버의 입력 대기 실행 행은 [유휴 실행 회수](CLE-WEBCHAT-SESSION.md#유휴-실행-회수)가 거둔다.

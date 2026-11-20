@@ -2,23 +2,23 @@
 id: "CLE-EIA-FLOW"
 title: "External Interaction API — 처리 흐름과 한도"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA"]
 area: "CLE-IX"
-content_hash: "1dd06d7bb9a545a75a191bcaa8d2740bdffea363b29fc48eb997f05ae982c64a"
+content_hash: "349141688e02514b285fbd4cf850a31653a167d66f4b692ba58e2e3a845bc5da"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JNXZWY"
 source_paths: []
-mirror_sha256: "737617f6da5f7e9d7f802b7876a36d74ae0ddd1a1f0bb0cbfad222e1b437bae8"
-etag: "sha256-79b13a464967673b3354db6460dfaa6151d016ec2cf5662b81ca98c732833b6c"
+mirror_sha256: "712eb717e5e2ad89da8dc0961e530b5e4a520f6e5f804ed7e76ed6b91e196594"
+etag: "sha256-20745dd0851b404f8a5232c63645dec2c490932d5d82d8a7c9aa2e07ad6a1f6e"
 ---
 ## 개요
 
-이 문서는 [External Interaction API](CLE-EIA.md) 의 하위 문서로 실행별 레이트 리밋, CORS, 폼 입력 · AI 멀티턴 처리 흐름, 실행 종료 시 토큰 폐기, 공개 위젯의 방치된 입력 대기 회수, EIA 컨트롤러의 API 문서화를 정한다. 요구사항은 부모 문서의 [요구사항](CLE-EIA.md#요구사항) 절에 있고, 커밋 뒤 발송 규칙은 부모의 [트랜잭션과 발송 순서](CLE-EIA.md#트랜잭션과-발송-순서) 가 정한다.
+이 문서는 [External Interaction API](CLE-EIA.md) 의 하위 문서로 실행별 레이트 리밋, CORS, 폼 입력 · AI 멀티턴 처리 흐름, 실행 종료 시 토큰 폐기, 웹채팅 위젯의 방치된 입력 대기 회수, EIA 컨트롤러의 API 문서화를 정한다. 요구사항은 부모 문서의 [요구사항](CLE-EIA.md#요구사항) 절에 있고, 커밋 뒤 발송 규칙은 부모의 [트랜잭션과 발송 순서](CLE-EIA.md#트랜잭션과-발송-순서) 가 정한다.
 
 ## 레이트 리밋
 
@@ -123,7 +123,7 @@ sequenceDiagram
 
 공개 웹채팅 위젯(`auth_config_id IS NULL`, 실행 단위 토큰)은 패널을 열 때마다 실행을 바로 시작한다. 사용자가 탭을 닫거나 "닫기"로 떠나면 그 실행은 명시적 종료 없이 입력 대기로 남는다. 위젯의 "새 대화" 최선 노력 `cancel` 은 정상 경로만 닫는다. 그래서 놓친 실행을 서버가 회수하는 backstop 으로 웹채팅 위젯 유휴 실행 회수를 둔다(구현됨, `WebChatIdleReaperService`).
 
-- 판정: 실행 토큰 행이 하나 이상 있고 가장 늦은 `execution_token.exp_at` 뒤로 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 3600000ms=1시간)이 지난 입력 대기 실행이다. 익명 위젯은 만료 뒤 토큰을 갱신할 수 없다. 만료된 JWT 는 `InteractionGuard` 가 401 로 먼저 막아 갱신 핸들러에 닿지 못한다. 살아 있는 세션은 만료 전에 미리 갱신해 유지하므로, 모든 토큰이 만료됐다는 것은 입력이 올 경로가 사라졌다는 증명이다.
+- 판정: 실행 토큰 행이 하나 이상 있고 가장 늦은 `execution_token.exp_at` 뒤로 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 3600000ms=1시간)이 지난 입력 대기 실행이다. 인증 설정이 없는 웹채팅 위젯은 만료 뒤 토큰을 갱신할 수 없다. 만료된 JWT 는 `InteractionGuard` 가 401 로 먼저 막아 갱신 핸들러에 닿지 못한다. 살아 있는 세션은 만료 전에 미리 갱신해 유지하므로, 모든 토큰이 만료됐다는 것은 입력이 올 경로가 사라졌다는 증명이다.
 - 동작: BullMQ 반복 작업(`webchat-idle-reaper`, 분 단위, 전역 한 번)이 대상을 찾아 엔진 `markWebChatIdleTimeout` 으로 조건부 UPDATE(`cancelled`, `cancelledBy='timeout'`, `error.code='WEBCHAT_IDLE_TIMEOUT'`)하고 `revokeAllForExecution` 을 부른다.
 - 회수는 소프트 종료다. 행을 지우지 않고 `cancelled` 로 바꾼 뒤 토큰을 일괄 폐기한다. 이력과 상태 조회(`GET /api/external/executions/:id`)는 남는다.
 - 범위는 공개 웹훅이 시작했고 실행 토큰 행이 있는 실행뿐이다. 인증 설정이 연결된 트리거의 실행은 대상이 아니다. 토큰 행이 없는 실행도 대상이 아니다. 트리거 단위 토큰을 쓰는 실행, 채팅 채널 실행, 인터랙션을 켜지 않은 웹훅 실행이 여기 든다. 노드 설정에는 입력 대기 기한이 없고([Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#규칙) 규칙 10) 이 회수는 노드 설정과 관계없다.
@@ -148,7 +148,7 @@ EIA 컨트롤러는 워크스페이스 JWT(`access-token` scheme) 대신 별도 
   - `interaction-stream.controller.ts` (SSE)
   - `interaction.service.ts` (토큰 검증 뒤 명령을 내부 재개 경로로 넘김)
   - `terminal-revoke-reconciler.service.ts`, `terminal-revoke-reconciler.types.ts` (종료 토큰 정리 작업과 큐 이름 상수)
-  - `webchat-idle-reaper.service.ts`, `webchat-idle-reaper.types.ts` (공개 위젯 입력 대기 회수, `WEBCHAT_IDLE_REAP_GRACE_MS`)
+  - `webchat-idle-reaper.service.ts`, `webchat-idle-reaper.types.ts` (웹채팅 위젯 입력 대기 회수, `WEBCHAT_IDLE_REAP_GRACE_MS`)
   - `notification-fanout.service.ts`, `notification-dispatcher.service.ts`, `notification-webhook.processor.ts`, `notification-signature.util.ts` (알림 발송)
   - `sse-adapter.service.ts` (SSE 구독자 관리와 재전송 판정)
   - `sse-fanout.service.ts` (Redis Stream 재전송 버퍼, 실행별 실시간 채널, 전역 닫기 채널, 전역 동시 연결 상한)
@@ -173,7 +173,7 @@ EIA 컨트롤러는 워크스페이스 JWT(`access-token` scheme) 대신 별도 
 
 ### 공개 위젯 회수 신호는 토큰 만료다
 
-- 판정 신호는 토큰 영구 만료다. 일괄 유휴 타이머는 쓰지 않는다. "N일 동안 조용하면 종료" 같은 엔진 전역 정리는 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 위험이 있다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 무기한 보존). 익명 위젯 토큰은 만료 뒤 갱신할 수 없으므로 "발급한 토큰이 모두 만료됨" 은 익명 사용자가 그 실행을 영원히 이을 수 없다는 증명이다. 회수 대상과 불변식의 보호 대상이 겹치지 않으므로 보호를 약하게 만들지 않는다.
+- 판정 신호는 토큰 영구 만료다. 일괄 유휴 타이머는 쓰지 않는다. "N일 동안 조용하면 종료" 같은 엔진 전역 정리는 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 위험이 있다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 무기한 보존). 인증 설정이 없는 웹채팅 위젯의 토큰은 만료 뒤 갱신할 수 없으므로 "발급한 토큰이 모두 만료됨" 은 익명 사용자가 그 실행을 영원히 이을 수 없다는 증명이다. 회수 대상과 불변식의 보호 대상이 겹치지 않으므로 보호를 약하게 만들지 않는다.
 - 판정과 범위는 2026-10-17 에 지금 코드(`WebChatIdleReaperService`)에 맞춰 바로잡았다. 이 회수는 토큰 만료를 증거로 삼으므로 토큰 행이 없는 실행은 회수할 증거가 없어 뺀다.
 - `cancelledBy` 닫힌 union 을 넓히지 않는다. 입력 대기 회수도 시간 한도 초과라 큐 대기 초과와 같은 `cancelledBy='timeout'` 을 쓰고, 새 `error.code='WEBCHAT_IDLE_TIMEOUT'` 으로만 나눈다(선례: `'system'`+`RESUME_*`, `'timeout'`+`EXECUTION_QUEUE_WAIT_TIMEOUT`). 코드 prefix 를 `CHANNEL_` 대신 `WEBCHAT_` 으로 둔 것은 범위에서 뺀 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 모듈과 이름이 헷갈리지 않게 하려는 것이다.
 - 메커니즘은 새 구조를 만들지 않고 종료 토큰 정리 작업의 형제로 둔다. [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 전이표가 `waiting_for_input → cancelled` 사유로 "타임아웃" 을 이미 예약해 두었고, 이 회수가 그 사유의 첫 구현이다. EIA 층은 이미 종료 토큰 정리 작업(BullMQ 반복·실행 토큰 테이블·전역 한 번)을 운영하므로, 회수 작업은 같은 층·같은 데이터·같은 패턴의 형제다. 헷갈리지 않게 서비스·큐 이름만 나눈다. 따라서 실행 엔진의 "새 주기 스캐너 도입 안 함" 원칙(작업이 있는 RUNNING·대기 중 실행 복구 범위)과 관계없다. park 는 BullMQ 작업이 아예 없어 엔진 복구 대상이 아니다.

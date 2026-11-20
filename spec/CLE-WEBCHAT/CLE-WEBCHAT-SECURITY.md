@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SECURITY"
 title: "웹채팅 보안"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-WCSEC-001", "REQ-WCSEC-002", "REQ-WCSEC-003", "REQ-WCSEC-004", "REQ-WCSEC-005", "REQ-WCSEC-006", "REQ-WCSEC-007", "REQ-WCSEC-008", "REQ-WCSEC-009", "REQ-WCSEC-010", "REQ-WCSEC-011", "REQ-WCSEC-012", "REQ-WCSEC-013", "REQ-WCSEC-014", "REQ-WCSEC-015", "REQ-WCSEC-016", "REQ-WCSEC-017", "REQ-WCSEC-018", "REQ-WCSEC-019", "REQ-WCSEC-020", "REQ-WCSEC-021", "REQ-WCSEC-022", "REQ-WCSEC-023", "REQ-WCSEC-024", "REQ-WCSEC-025", "REQ-WCSEC-026", "REQ-WCSEC-027", "REQ-WCSEC-028", "REQ-WCSEC-029", "REQ-WCSEC-030", "REQ-WCSEC-031"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "559739186e78aa2e0cd3709ca0fa52750eb93f9239b15c9baf94c6f5f02848d1"
+content_hash: "57df3634c28b5ac22d621faa133a72d9cc3d61977386898936fa546542c683af"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-JNXZWY"
 source_paths: ["spec/7-channel-web-chat/4-security.md"]
-mirror_sha256: "8b47aa1a88949259f89e9764cbb8d7d65115f22dc816c983949dc821f97df2a5"
-etag: "sha256-7d35da4645ff8d8a2b38654980ffc38d64a4543feef136fc45e489194b494455"
+mirror_sha256: "afa3e489f6ba561c68f722ec0c0ed531a589302f02ca1f68db119adc06269df8"
+etag: "sha256-be64bf832bb1b081e16535064ad6225b6a63bce164719886220adfc0f3a8cde1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/4-security.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,7 +77,7 @@ etag: "sha256-7d35da4645ff8d8a2b38654980ffc38d64a4543feef136fc45e489194b494455"
 | iframe sandbox | `sandbox="allow-scripts allow-forms allow-same-origin"`(필요한 최소). `allow-same-origin` 은 위젯이 자기 쿠키·storage 에 접근하고 postMessage origin 고정을 유지하는 데 필요하다. 트레이드오프와 외부 CDN 환경의 판단은 [Rationale](#iframe-sandbox-의-allow-same-origin-은-완전-격리-원칙을-좁혀-적용한-것이다) |
 | postMessage | 양방향 `event.origin` 검증. 방향별 방식은 [웹채팅 SDK](CLE-WEBCHAT-SDK.md). 토큰과 대화 내용은 호스트 페이지로 보내지 않는다 |
 | 토큰 노출 | 실행 단위 토큰만 쓰므로 클라이언트에 오래 사는 비밀이 없다. 단명 토큰은 sessionStorage 에 두어 탭을 닫으면 지워진다(다층 방어, [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md)) |
-| 에러 메시지 노출 | 임베드 위젯은 다른 사이트에서 돌므로 서버·예외 원문을 화면에 보이지 않는다. 일반화 문구(`GENERIC_ERROR_MESSAGE`)만 보이고 진단 원문은 `console.warn` 으로만 남겨 내부 구현과 인프라 정보가 드러나는 것을 줄인다. 에러 뒤의 상태 전이(시작·복원 실패는 `[ended]` + "새 대화 시작", 명령 실패는 현재 표면 유지)는 그대로 두고 표시 문구만 일반화한다. 표시 문구는 위젯 로컬 catalog(`error.generic`·`error.commandFailed`)를 `panel` 이 `t()` 로 그 언어에 맞게 그린다. 코드 기준은 `use-widget.ts` 의 `errMessage`. 예외로 Form 검증 실패의 `details[].message` 는 원문 그대로 보인다. 폼 노드의 검증 규칙에서 만든 문장이라 사용자가 넣은 값은 담지 않고 방문자에게 이미 보이는 폼 설정의 한도만 담기 때문이다(2026-11-12 사람 결정, NERV 질문 `01a1d025-512d-70ef-9fcf-94334d80d79e`). 동작과 근거는 [웹채팅 위젯 「명령 실패」](CLE-WEBCHAT-WIDGET.md#명령-실패) |
+| 에러 메시지 노출 | 웹채팅 위젯은 다른 사이트에서 돌므로 서버·예외 원문을 화면에 보이지 않는다. 일반화 문구(`GENERIC_ERROR_MESSAGE`)만 보이고 진단 원문은 `console.warn` 으로만 남겨 내부 구현과 인프라 정보가 드러나는 것을 줄인다. 에러 뒤의 상태 전이(시작·복원 실패는 `[ended]` + "새 대화 시작", 명령 실패는 현재 표면 유지)는 그대로 두고 표시 문구만 일반화한다. 표시 문구는 위젯 로컬 catalog(`error.generic`·`error.commandFailed`)를 `panel` 이 `t()` 로 그 언어에 맞게 그린다. 코드 기준은 `use-widget.ts` 의 `errMessage`. 예외로 Form 검증 실패의 `details[].message` 는 원문 그대로 보인다. 폼 노드의 검증 규칙에서 만든 문장이라 사용자가 넣은 값은 담지 않고 방문자에게 이미 보이는 폼 설정의 한도만 담기 때문이다(2026-11-12 사람 결정, NERV 질문 `01a1d025-512d-70ef-9fcf-94334d80d79e`). 동작과 근거는 [웹채팅 위젯 「명령 실패」](CLE-WEBCHAT-WIDGET.md#명령-실패) |
 | `apiBase` 입력 검증 | 두 입력 경로(iframe 쿼리·`wc:boot`) 모두 http(s) 스킴만 받는다(`safeApiBase`). `javascript:`·`data:`·상대 경로를 fetch 기준 주소로 쓰지 않게 거른다. 맞지 않으면 그 필드만 무시하고 `console.warn` 을 남기며 부팅은 막지 않는다. 정상 임베드에서는 SDK 의 `resolveIframeTarget` 이 같은 값을 iframe `src` 쿼리에 실어 위젯이 마운트될 때 먼저 부팅을 시도하고, 이어 도착한 `wc:boot` 가 세대 판정으로 대체한다. 그래서 쿼리 경로를 "호스트 없는 직접 로드·샘플 전용" 으로 보고 없애면 모든 정상 임베드의 부트스트랩이 깨진다. 코드 기준은 `use-widget.ts` 의 `safeApiBase`·`configFromQuery`·`mergeBootConfig` |
 | 위젯 세션의 발급 주소 바인딩 | 저장된 위젯 세션(실행 ID + 토큰)은 발급할 때의 `apiBase` 에 묶인다. 재전송이 `apiBase` 를 바꾸면 옛 토큰을 새 주소로 보내지 않고 버린 뒤 다시 시작한다(`loadSession(path, apiBase)`). 호스트가 `apiBase` 만 바꿔 A 주소의 자격을 B 주소에 흘리는 것을 막는다. 판정할 수 없으면 버린다(fail-closed). 기준은 [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) |
 | 호출 수 제한·남용 | EIA 자체 한도([External Interaction API](../CLE-IX/CLE-EIA.md)) + [공개 웹훅 남용 방어](#공개-웹훅-남용-방어) |
@@ -125,7 +125,7 @@ AI 메시지와 표시물을 마크다운·HTML 로 그리는 표면은 위젯�
 
 ## 프라이버시와 데이터 처리
 
-공개 위젯이 받는 엔드유저 대화는 실행으로 저장된다. 동의 고지·보존 기간·개인정보 처리 정책은 서빙 주체마다 환경과 관할이 달라 배포자(워크스페이스 운영자) 책임이며 이 문서는 정하지 않는다. 위젯은 부팅 설정 `disclaimer` 고지 문구만 준다. 호스트의 자체 분석은 이벤트 구독(`on('message')` 등)으로만 할 수 있다.
+웹채팅 위젯이 받는 엔드유저 대화는 실행으로 저장된다. 동의 고지·보존 기간·개인정보 처리 정책은 서빙 주체마다 환경과 관할이 달라 배포자(워크스페이스 운영자) 책임이며 이 문서는 정하지 않는다. 위젯은 부팅 설정 `disclaimer` 고지 문구만 준다. 호스트의 자체 분석은 이벤트 구독(`on('message')` 등)으로만 할 수 있다.
 
 ## 접근성과 브라우저 지원
 
@@ -163,7 +163,7 @@ WCAG AA(키보드 내비게이션·ARIA·스크린리더)를 지향한다. 지�
 
 ### sanitize 는 deny-by-default 허용 목록이다 (차단 목록 기각)
 
-위젯의 DOMPurify sanitize 는 허용 목록(`ALLOWED_TAGS`·`ALLOWED_ATTR`·`ALLOWED_URI_REGEXP`) 기반이고, 알려진 위험만 막는 차단 목록(FORBID) 방식은 기각했다. 임베드 위젯은 다른 공개 사이트에서 돌아 XSS 가 성공하면 피해가 호스트 사이트로 번진다. 채팅 렌더에 필요한 태그와 속성만 허용하고 모르거나 새로운 벡터(svg·math 기반 mXSS 등)를 기본으로 막는 쪽이 안전 여유가 크다. 메인 앱은 `rehype-raw` 를 쓰지 않아 raw HTML 을 파싱하지 않고(escape) 같은 보장을 얻는다.
+위젯의 DOMPurify sanitize 는 허용 목록(`ALLOWED_TAGS`·`ALLOWED_ATTR`·`ALLOWED_URI_REGEXP`) 기반이고, 알려진 위험만 막는 차단 목록(FORBID) 방식은 기각했다. 웹채팅 위젯은 다른 공개 사이트에서 돌아 XSS 가 성공하면 피해가 호스트 사이트로 번진다. 채팅 렌더에 필요한 태그와 속성만 허용하고 모르거나 새로운 벡터(svg·math 기반 mXSS 등)를 기본으로 막는 쪽이 안전 여유가 크다. 메인 앱은 `rehype-raw` 를 쓰지 않아 raw HTML 을 파싱하지 않고(escape) 같은 보장을 얻는다.
 
 빈 문자열이나 공백뿐인 입력은 예외 없이 안전한 빈 문자열 또는 정상 문자열을 돌려준다(SSR·static export 단계에서는 `null` 폴백). 두 렌더러 모두 빈 입력 경계값을 단위 테스트로 검증한다.
 
@@ -173,7 +173,7 @@ WCAG AA(키보드 내비게이션·ARIA·스크린리더)를 지향한다. 지�
 
 - (a) 완전 분리는 cross-origin CDN 배포를 기준 모델로 한다. 위젯이 호스트와 다른 origin 에서 서빙되면 same-origin policy 만으로 호스트의 쿠키·storage·전역과 격리되고, `allow-same-origin` 은 위젯 자신의 origin 에 대한 것이라 sandbox 탈출 위협이 없다.
 - (b) 동봉 배포([웹채팅 구조](CLE-WEBCHAT-ARCH.md)) 기본 경로에서는 위젯이 배포 자신의 origin 에서 same-origin 으로 서빙된다. 이 속성이 없으면 iframe 문서가 opaque origin 으로 강등돼 자기 `localStorage`·`sessionStorage` 접근과 postMessage origin 고정(양방향 `event.origin` 검증)이 깨진다. 위젯 세션·토큰 보관과 origin 검증에 이 속성이 있어야 한다.
-- (c) same-origin 동봉 경로에서는 같은 origin 의 악성 스크립트가 sandbox 를 벗어날 수 있다. 동봉 위젯은 제품과 같은 릴리스로 나가므로(버전 잠금) iframe 문서의 출처가 제품 자신이라는 공급망 무결성이 전제돼 남는 위험을 받아들인다. 외부 CDN(`NEXT_PUBLIC_WIDGET_CDN_BASE`) 환경은 (a) 모델로 돌아가 위협이 사라진다.
+- (c) same-origin 동봉 경로에서는 같은 origin 의 악성 스크립트가 sandbox 를 벗어날 수 있다. 웹채팅 위젯은 제품과 같은 릴리스로 나가므로(버전 잠금) iframe 문서의 출처가 제품 자신이라는 공급망 무결성이 전제돼 남는 위험을 받아들인다. 외부 CDN(`NEXT_PUBLIC_WIDGET_CDN_BASE`) 환경은 (a) 모델로 돌아가 위협이 사라진다.
 - (d) 운영 콘솔 미리보기의 same-origin 동봉 iframe 도 같은 전제(우리 앱이 우리 위젯을, 버전 일치·외부 의존 0)에 서며 근거가 같다.
 
 ### 공개 웹훅에서 IP 를 알 수 없으면 공유 버킷 하나로 완화 한도를 건다 (결정 2026-06-28)
