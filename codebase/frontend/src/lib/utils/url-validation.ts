@@ -23,3 +23,20 @@ export function isValidNotificationUrl(url: string): boolean {
   }
   return parsed.protocol === "https:";
 }
+
+/**
+ * notification URL 에 userinfo(사용자명 · 비밀번호, 한쪽만 있어도)가 있는지 본다.
+ *
+ * 서버는 이런 URL 을 `400 INVALID_NOTIFICATION_URL` 로 거부한다(fetch 가 요청을 만들지 않아 발송이 늘 실패한다,
+ * NERV Task CLE-T-RCQGCC). 저장 전에 전용 안내를 보여 주려는 UX 가드다. 파싱되지 않는 값과 `https://@host` 처럼
+ * userinfo 가 빈 값은 `false` 다.
+ */
+export function hasNotificationUrlCredentials(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return false;
+  }
+  return parsed.username !== "" || parsed.password !== "";
+}

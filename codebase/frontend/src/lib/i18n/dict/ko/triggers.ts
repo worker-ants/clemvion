@@ -187,6 +187,8 @@ export const triggers = {
     secretAutoHideNote: "이 값은 1회만 표시되며 60초 후 자동으로 사라져요.",
     notificationUrlInvalid:
       "수신 URL 은 https:// 로 시작하는 올바른 URL 이어야 해요.",
+    notificationUrlCredentials:
+      "수신 URL 에 사용자명이나 비밀번호(user:password@)를 넣을 수 없어요.",
     copy: "복사",
     copied: "복사했어요",
     eventChoices: "이벤트 선택",

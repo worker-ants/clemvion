@@ -21,9 +21,10 @@ import {
 import type { Dispatcher } from 'undici';
 import {
   checkResolvedHostIp,
-  checkSsrfSafeUrl,
   isNotificationDnsGuardEnabled,
 } from '../../common/utils/ssrf-safe-url.util';
+import { validateNotificationUrl } from '../triggers/dto/notification-config.dto';
+import { discardBody } from '../../nodes/integration/http-request/http-redirect';
 import {
   ResolvedHostBlockedError,
   notificationWebhookDispatcher,
@@ -173,8 +174,9 @@ export class NotificationWebhookProcessor extends WorkerHost {
     }
     const url = config.url;
     // post-resolve SSRF 검증 — 등록 시점과 발송 시점 사이에 DNS 가 사설 IP 로 바뀌었거나 사용자가
-    // 직접 사설 IP 로 update 한 경우 차단 (Spec EIA §8.1).
-    const urlCheck = checkSsrfSafeUrl(url);
+    // 직접 사설 IP 로 update 한 경우 차단 (Spec EIA §8.1). 등록과 같은 판정이라 등록 검사가 생기기 전에 저장된
+    // userinfo URL 도 여기서 막는다. 사유는 URL 원문을 싣지 않는 고정 문구다(NERV Task `CLE-T-RCQGCC`).
+    const urlCheck = validateNotificationUrl(url);
     if (!urlCheck.ok) {
       const reason = `outbound URL 거부: ${urlCheck.reason ?? 'unsafe'}`;
       await this.markDegraded(triggerId, reason);
@@ -325,6 +327,9 @@ export class NotificationWebhookProcessor extends WorkerHost {
     } finally {
       clearTimeout(timer);
     }
+    // 응답 본문은 어느 상태든 읽지 않는다. 타이머는 헤더를 받으면 풀리므로 본문을 느리게 흘리는 수신 서버가 재시도마다
+    // 소켓을 붙잡지 않게 바로 취소한다. 취소 실패는 무시한다(NERV Task `CLE-T-WTWPZS`).
+    await discardBody(res);
 
     if (res.status >= 200 && res.status < 300) {
       // §8.4/EIA-NX-11 — 발송 성공. 단 이 trigger 의 outbound 발송 빈도가 분당 60 을

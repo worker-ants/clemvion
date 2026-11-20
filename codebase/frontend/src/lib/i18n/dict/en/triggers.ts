@@ -195,6 +195,8 @@ export const triggers: Dict["triggers"] = {
     secretAutoHideNote: "Shown once; automatically hidden after 60 seconds.",
     notificationUrlInvalid:
       "The destination URL must be a valid https:// URL.",
+    notificationUrlCredentials:
+      "The destination URL must not include a username or password (user:password@).",
     copy: "Copy",
     copied: "Copied",
     eventChoices: "Event selection",

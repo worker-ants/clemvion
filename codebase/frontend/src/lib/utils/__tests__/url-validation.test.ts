@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidNotificationUrl } from "../url-validation";
+import {
+  hasNotificationUrlCredentials,
+  isValidNotificationUrl,
+} from "../url-validation";
 
 describe("isValidNotificationUrl", () => {
   it("accepts a well-formed https URL", () => {
@@ -38,5 +41,27 @@ describe("isValidNotificationUrl", () => {
 
   it("trims surrounding whitespace before validating", () => {
     expect(isValidNotificationUrl("  https://example.com  ")).toBe(true);
+  });
+});
+
+// 서버는 userinfo 가 있는 알림 URL 을 400 INVALID_NOTIFICATION_URL 로 거부한다(NERV Task CLE-T-RCQGCC).
+// 저장 전에 같은 판정으로 전용 안내를 보여 준다.
+describe("hasNotificationUrlCredentials", () => {
+  it.each([
+    "https://user:pass@hooks.example.com/webhook",
+    "https://tok@hooks.example.com/webhook",
+    "https://:pw@hooks.example.com/webhook",
+    "  https://user:@hooks.example.com/webhook  ",
+  ])("detects userinfo in %s", (url) => {
+    expect(hasNotificationUrlCredentials(url)).toBe(true);
+  });
+
+  it.each([
+    "https://hooks.example.com/webhook",
+    "https://@hooks.example.com/webhook",
+    "",
+    "not a url",
+  ])("returns false for %s", (url) => {
+    expect(hasNotificationUrlCredentials(url)).toBe(false);
   });
 });

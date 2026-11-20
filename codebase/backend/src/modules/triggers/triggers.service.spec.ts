@@ -43,6 +43,7 @@ import {
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
 import type { InteractionConfigDto } from './dto/interaction-config.dto';
 import type { NotificationConfigDto } from './dto/notification-config.dto';
+import { NOTIFICATION_URL_CREDENTIALS_REASON } from './dto/notification-config.dto';
 import { INTERACTION_STREAM_CLOSER } from '../external-interaction/interaction-stream-closer';
 import {
   CHAT_CHANNEL_BLOCKED_FIELDS,
@@ -1274,6 +1275,67 @@ describe('TriggersService — notification/interaction config 병합 (External I
     } finally {
       if (orig !== undefined) process.env.ALLOW_HTTP_HOOKS = orig;
     }
+  });
+
+  // userinfo 가 있는 알림 URL 은 Node fetch 가 요청을 만들지 않아 발송이 늘 실패한다(NERV Task `CLE-T-RCQGCC`).
+  it.each([
+    ['https://user:pass@customer.example.com/cb', '사용자명과 비밀번호'],
+    ['https://tok@customer.example.com/cb', '사용자명만'],
+    ['https://:pw@customer.example.com/cb', '빈 사용자명'],
+  ])(
+    'create — notification.url %s (%s) 면 INVALID_NOTIFICATION_URL',
+    async (url) => {
+      await expect(
+        service.create(
+          'ws',
+          {
+            workflowId: 'wf-1',
+            type: 'webhook',
+            name: 'hook',
+            notification: { url, events: ['execution.completed'] },
+          },
+          'u-spec',
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'INVALID_NOTIFICATION_URL',
+          message: NOTIFICATION_URL_CREDENTIALS_REASON,
+        },
+      });
+      expect(triggerRepo.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('update — notification.url 에 userinfo 를 넣으면 INVALID_NOTIFICATION_URL', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'old',
+      config: {
+        notification: {
+          url: 'https://old.example.com',
+          events: ['execution.failed'],
+        },
+      },
+    } as unknown as Trigger);
+
+    await expect(
+      service.update(
+        't1',
+        'ws',
+        {
+          notification: {
+            url: 'https://tok@old.example.com/x',
+            events: ['execution.failed'],
+          },
+        },
+        'u-spec',
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'INVALID_NOTIFICATION_URL' },
+    });
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
   it('update — notification 미명시면 기존 config.notification 유지', async () => {
