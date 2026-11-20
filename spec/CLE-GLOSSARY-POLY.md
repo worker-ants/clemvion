@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-POLY"
 title: "용어 사전 — 다의어 구분"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "864b1fa93a2c5be75797f1b50e2ac355c66285e385363b196584ff611d083587"
+content_hash: "3e9fe5178e695b97e185172c63351bf20fc243e389fdd0a152968948ae8ad4d6"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-YQMP4N"
 source_paths: []
-mirror_sha256: "0c04c0f7086ea43c1509a1d577fee98bb85f61ed4921de458976d737a83f4783"
-etag: "sha256-98c42849808698f617d63ba9cbc1080731592cb4c67696682ca3c0f4d307f7f5"
+mirror_sha256: "0f17351922d9bc269f8ec67aad12aa329ac0dc0c90be973623fe9afc0966fe1f"
+etag: "sha256-c0dde15ffeaeda76064e25e1802a3b28c4ad504124da9ec54fd011da2075e9b5"
 ---
 ## 개요
 
@@ -266,6 +266,7 @@ etag: "sha256-98c42849808698f617d63ba9cbc1080731592cb4c67696682ca3c0f4d307f7f5"
 | 설정(config) | 노드에 저장한 설정 값(`Node.config`) | 노드 설정 |
 | 설정(config) | 노드 출력의 `config` 필드 | 설정 에코 |
 | 설정(config) | 트리거 `config` JSON | 트리거 설정 |
+| 설정(config) | 트리거 생성 · 수정 요청 본문의 `config`(저장 전 값) | 원시 `config` |
 | 설정(config) | 지금은 없는 옛 "Config" 메뉴 | 모델 설정, 인증 설정(해당 화면 이름) |
 | 기본(default) | 모델 설정 안의 모델 ID(`default_model`) | 기본 모델 |
 | 기본(default) | 종류별 기본 모델 설정(`is_default`) | 워크스페이스 기본 설정 |
@@ -326,16 +327,13 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
 전환 단계 5 에서 옛 스펙 트리를 지운 뒤 맞췄다(NERV Task `CLE-T-RGZBCQ`).
 
-- 「상태(status)」 의 옛 스펙 상태 행: "동결된 옛 스펙 트리" 를 현재형으로 적었다. 걷은 값으로 고쳤다.
 - 「래칫(ratchet)」 두 행: [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 의 Rationale 「codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다」 와 [DB 마이그레이션 규약](CLE-ENG/CLE-ENG-MIGRATION.md) 이 문서마다 래칫을 따로 정의했다. 형제 가드 `hardcoded-korean-ratchet` 은 판정이 반대였다. 판정 방향이 뜻을 가르므로 구분 표기를 양방향 · 단방향으로 정했다. 저장소 테스트 주석에도 「양방향 래칫」 이라는 표현이 이미 있다(`user-entity-exposure.spec.ts`).
 
 ### 분할 검토에서 고친 행 (2026-10-02)
 
 분할할 때와 분할한 초안의 일관성 검토에서 고친 행이다.
 
-- 「세션」 의 리뷰 용어 두 행: 「리뷰 세션」 을 로컬 `.review/**` 디렉터리로 좁히고 「리뷰 라운드」 행을 더했다. 이유는 [용어 사전](CLE-GLOSSARY.md) 의 Rationale 「리뷰 용어를 NERV 레코드 기준으로 고친 이유」 에 있다.
 - 「리뷰 세션」 뜻에 옛 `review/**` 디렉터리도 같은 이름이었음을 적었다. [리뷰 산출물 인용 규약](CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 옛 인용 대상을 그 이름으로 부르기 때문이다.
-- 「상태(status)」 의 스펙 상태 행은 NERV 이전 뒤 갈린 문서 상태 · 구현 상태 · 옛 스펙 상태 세 행으로 나눴다.
 
 ### 「교차 행」 을 다의어로 올리고 「건강도」 의 뜻을 고쳤다 (2026-10-05)
 
@@ -368,3 +366,7 @@ NERV Task `CLE-T-GNTWP9` 가 더했다.
 결정일: 2026-11-15
 
 NERV Task `CLE-T-QTQBJP` 가 더했다(계기는 `CLE-T-5NBJKP`). 워크스페이스 역할 「소유자」 와 채팅 채널의 「실행 소유자」 가 같은 말로 쓰인다. 채팅 채널 영역 문서에서 단독 「소유자」 를 허용하는 조건은 [용어 사전 — 외부 상호작용과 채널](CLE-GLOSSARY-IX.md) 의 「실행 소유자」 정의와 같다. 「provider」 의 채널 프로바이더 행과 같은 방식이다. 「통합 소유자」(`created_by`)는 [용어 사전 — 통합](CLE-GLOSSARY-INT.md) 의 합성어라 이 표에 넣지 않았다.
+
+### 「설정(config)」 에 원시 `config` 행을 더했다 (2026-11-19)
+
+NERV Task `CLE-T-YQMP4N` 이 더했다. 요청 본문의 `config` 는 저장된 트리거 설정과 글자가 같아서 행을 갈랐다. 표준 용어와 정의는 [용어 사전 — 트리거](CLE-GLOSSARY-TRIG.md) 의 「원시 `config`」 가 정한다.

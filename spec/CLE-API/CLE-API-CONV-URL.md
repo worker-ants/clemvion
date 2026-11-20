@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-URL"
 title: "HTTP API 규약 — URL 과 요청"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "0e27196ec736e8d9e0bfcbef495dd94f8c6100b17b10c356bb3da2c6dd08ce4a"
+content_hash: "e5db531cfcf4371086d732b7e79661486eb72fd21f3e53759520acfebf60ec1c"
 read_as: "approved_fallback"
-task: "CLE-T-SRXR5W"
+task: "CLE-T-9YZ9BN"
 source_paths: []
-mirror_sha256: "82a4977ed3a1071e8fba39d473b66f1e6e8a574a13b5469e1178b8c764c049f5"
-etag: "sha256-8ec2f998961eb338210287132421378420f06cdd5bb0b6acf81b0ae9a356bbb6"
+mirror_sha256: "1884532474e3baca667876023cadbf186071574260ab75f3d15df6727e424db0"
+etag: "sha256-50343a162905f6e543ed69f1e0766a2ce4c392d26edef87b7b81ff693445ab14"
 ---
 ## 개요
 
@@ -97,9 +97,15 @@ Authorization: Bearer {access-token}   (payload.activeWorkspaceId)
 |----------|------|------|--------|
 | page | Integer | 페이지 번호 (1부터) | 1 |
 | limit | Integer | 페이지 크기 (최대 100) | 20 |
-| sort | String | 정렬 필드 (예: `created_at`) | `created_at` |
+| sort | String | 정렬 필드 (예: `created_at`) | 목록마다 다름(아래 규칙 2, 대부분 `created_at`) |
 | order | `asc` / `desc` | 정렬 방향 | `desc` |
 | search | String | 검색 키워드 | 없음 |
+
+`sort` · `order` 는 아래 세 규칙으로 처리한다. 근거는 Rationale 「목록 정렬 값의 공통 처리를 §4.1 에 적었다」에 있다.
+
+1. **형식이 틀리면 400 이다**: `sort` 가 영문자로 시작하는 영문자 · 숫자 · `_` 64자 이하가 아니거나 `order` 가 `asc` · `desc` 가 아니면 공통 쿼리 DTO 가 400 `VALIDATION_ERROR` 로 막는다. 그래서 정렬 값이 SQL 식별자로 들어가는 길은 목록 구현과 관계없이 닫혀 있다.
+2. **허용 목록 밖의 값은 기본 정렬로 폴백한다**: 형식은 맞지만 그 목록이 정렬에 쓰지 않는 값은 거부하지 않고 그 목록의 기본 정렬 컬럼으로 정렬한다. `order` 는 그대로 반영한다. 허용 목록과 기본 컬럼은 목록마다 그 스펙이 정한다. 대부분 `created_at` 이고 실행 목록은 `started_at` 이다.
+3. **정렬을 반영하지 않는 목록이 있다**: 통합 · 모델 설정 · 지식 베이스(문서 · 그래프 목록 포함) · 인증 설정 목록은 `sort` · `order` 를 받기만 하고 각자 정한 고정 순서로 돌려준다. 이 목록들을 규칙 2 에 맞추는 일은 NERV Task `CLE-T-1G6VGJ` 가 맡는다.
 
 ### 4.2 필터 파라미터
 
@@ -211,3 +217,12 @@ NERV Task `CLE-T-SRXR5W` · `CLE-T-62B0J9` 와 `CLE-T-B9CRCF` 6번 항목을 한
 
 - 경로를 규칙에 맞게 옮기는 안. 벤더 등록값과 프런트엔드 호출을 함께 바꿔야 하고 동작은 같다. 경로를 바꿔 달라는 요구도 없다.
 - 컬렉션 수준 액션을 경로마다 예외 행으로 적는 안. 표가 길어지고 다음 미리 보기 경로가 생길 때마다 같은 예외를 또 더해야 한다.
+
+### 목록 정렬 값의 공통 처리를 §4.1 에 적었다 (2026-11-19)
+
+NERV Task `CLE-T-9YZ9BN` 의 정리다. 트리거 목록 정렬을 구현하면서(`CLE-T-FKYM4N`) 허용 밖 값을 400 대신 `created_at` 으로 정렬하기로 했는데, 같은 처리를 하는 스케줄 · 워크플로우 목록의 스펙에는 그 폴백이 적혀 있지 않았다. 목록마다 따로 적으면 다음 목록이 생길 때 또 빠진다. 그래서 §4.1 에 공통 규칙으로 적고 목록 스펙은 이 절을 가리키게 했다. 코드 동작은 바꾸지 않았다.
+
+- **폴백을 고른 이유**: 목록마다 거부 기준이 다르면 클라이언트가 화면마다 다른 에러를 다뤄야 한다. 형식 검사는 규칙 1 이 이미 400 으로 막으므로 폴백해도 주입 위험은 없다.
+- **고정 정렬 목록을 규칙 3 으로 남겼다**: 2026-11-19 측정에서 네 모듈이 `sort` 를 반영하지 않았다. 구현을 바꾸는 일은 문서 정리와 범위가 달라 `CLE-T-1G6VGJ` 로 떼었다. 그 Task 가 끝나면 규칙 3 을 고친다.
+
+기각한 대안은 허용 밖 값을 400 으로 거부하는 안이다. 이미 폴백하는 여섯 목록(트리거 · 스케줄 · 워크플로우 · 실행 · 감사 로그 · 알림)의 동작을 바꿔야 하고, 클라이언트가 목록마다 새 에러를 다뤄야 한다.

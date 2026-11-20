@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-TOKEN"
 title: "채팅 채널 — 봇 토큰 재발급"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "935b805497b0eefbb73702ccbcee7cbb2ee8f5e4361280628b5e4def43e19fe8"
+content_hash: "bf45cb8f67d4ec72e9a54f35372f9f97717a8c202d4ef2879033ffb7f0fc82b1"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-E8STMT"
 source_paths: []
-mirror_sha256: "92edccd0c8a47252551ec912ac5fef4a0af5d43351a9591c3ec321b22c422298"
-etag: "sha256-6752d5d2ec50df4ac0bd2deb9167434e4bd52e033fcaaabaa2c27c9bdac249f5"
+mirror_sha256: "fcf44e7231abf04e35c510970a9bd13086c5413148a49e283bb6d81de6546a23"
+etag: "sha256-5901d36d36d9881d1ff5ff70881abb42b65e8ccbc209e3a501a5f0f706e42395"
 ---
 ## 개요
 
@@ -71,7 +71,7 @@ etag: "sha256-6752d5d2ec50df4ac0bd2deb9167434e4bd52e033fcaaabaa2c27c9bdac249f5"
 |---|---|---|
 | 404 | `RESOURCE_NOT_FOUND` | 트리거가 없거나 워크스페이스 권한이 없다(`findById`). 재발급 도중 트리거가 삭제돼(워크플로우·워크스페이스 삭제의 외래 키 연쇄 삭제 포함, advisory lock 으로 못 막는다) 잠금 안 병합 쓰기가 0행에 맞은 경우도 같다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)) |
 | 400 | `INVALID_BOT_TOKEN` | `newBotToken` 이 없거나 문자열이 아니거나 256자를 넘거나 보이는 ASCII(U+0021~U+007E) 밖의 문자(공백 · 제어 문자 · ASCII 밖 문자)가 있다(controller 입력 검증, [봇 토큰 입력 형식](#봇-토큰-입력-형식)). 시크릿을 저장하거나 프로바이더를 부르기 전에 거부한다 |
-| 400 | `VALIDATION_ERROR` | `X-Workspace-Id` 헤더가 있으나 UUID 가 아니다(공용 헬퍼 `workspace-context.util.ts` 가 먼저 거부). 헤더와 JWT `workspaceId` 가 둘 다 없는 경우는 아래 403 `FORBIDDEN` 행이다. PATCH 본문 필드 거부의 같은 코드와도 다른 경우다 |
+| 400 | `VALIDATION_ERROR` | 두 경우다. 경로 파라미터 `:id` 가 UUID 형식이 아니다(`ParseUUIDPipe`). `X-Workspace-Id` 헤더가 있으나 UUID 가 아니다(공용 헬퍼 `workspace-context.util.ts` 가 먼저 거부). 헤더와 JWT `workspaceId` 가 둘 다 없는 경우는 아래 403 `FORBIDDEN` 행이다. PATCH 본문 필드 거부의 같은 코드와도 다른 경우다 |
 | 400 | `CHAT_CHANNEL_NOT_CONFIGURED` | `config.chatChannel` 이 없는 트리거 |
 | 400 | `CHAT_CHANNEL_PROVIDER_UNKNOWN` | 레지스트리에 없는 프로바이더 |
 | 400 | `CHAT_CHANNEL_ENDPOINT_REQUIRED` | 트리거에 `endpointPath` 가 없다 |

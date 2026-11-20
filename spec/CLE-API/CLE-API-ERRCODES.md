@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 39
+version: 40
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "8c017f53317cab0affa9a997f65e3df0271aec40b96acd3b0b0c022541edf57a"
+content_hash: "8e629587e5df7fc1d96fdc2f51a43115f400d928fa79fd36199cff6726afc1b7"
 read_as: "approved_fallback"
-task: "CLE-T-H5NJZ3"
+task: "CLE-T-TS239H"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "5117c8c6998398f814215193d75fa21a34cb9b061e0cc0c5b0a56b1234268ed6"
-etag: "sha256-1528f343e703f7cfd7090e8fe06e615c58bba044dc65885c59d1d57f794cd190"
+mirror_sha256: "27c076dd4593adf81478f902c1e466698ec132a50fb6159cd8353bc30112a4ea"
+etag: "sha256-af4710199b75175142b92edd78eafc153c870ce2e9869ac934cfc7390b8c2895"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -88,7 +88,7 @@ etag: "sha256-1528f343e703f7cfd7090e8fe06e615c58bba044dc65885c59d1d57f794cd190"
 
 제품 전체의 에러 코드 목록이다. 코드마다 그 코드를 정의하거나 발행하는 문서를 "정의 문서" 열에 적는다. 발생 조건의 상세는 정의 문서가 정하고 이 카탈로그는 제품 전체에서 코드를 찾을 수 있게 등재한다.
 
-**표의 열은 절마다 다르다.** 기본은 `코드 | HTTP | 설명 | 정의 문서` 다. §6.1 은 HTTP 열 대신 `이름` · `사용자 메시지` 열을 둔다. §6.2 는 `이름` 열을 더하고 HTTP 를 설명 뒤에 둔다. §6.4 도 HTTP 를 설명 뒤에 둔다. §6.5 ~ §6.8 에는 HTTP 열이 없다. 실행 상태나 WebSocket 으로 나가는 코드이기 때문이다. §6.25 도 SSE 이벤트로 나가는 코드라 HTTP 열이 없다. HTTP 로도 나가는 행은 설명에 상태 코드를 적는다(§6.7 의 `SERVER_SHUTTING_DOWN` · `EXECUTION_ENQUEUE_FAILED`). 더하는 열은 §6.5 첫 표의 `앵커`, §6.6 의 `부류`, §6.9 의 `비고`, §6.10 의 `상태` 다. §6.13 은 세부 코드(`details.code`)를 행으로 두고 봉투 `code` 와 HTTP 를 한 열에 적는다.
+**표의 열은 절마다 다르다.** 기본은 `코드 | HTTP | 설명 | 정의 문서` 다. §6.1 은 HTTP 열 대신 `이름` · `사용자 메시지` 열을 둔다. §6.2 는 `이름` 열을 더하고 HTTP 를 설명 뒤에 둔다. §6.4 도 HTTP 를 설명 뒤에 둔다. §6.5 ~ §6.8 에는 HTTP 열이 없다. 실행 상태나 WebSocket 으로 나가는 코드이기 때문이다. §6.25 는 SSE `error` 이벤트와 편집 도구 결과로 나가는 코드라 HTTP 열이 없다. HTTP 로도 나가는 행은 설명에 상태 코드를 적는다(§6.7 의 `SERVER_SHUTTING_DOWN` · `EXECUTION_ENQUEUE_FAILED`). 더하는 열은 §6.5 첫 표의 `앵커`, §6.6 의 `부류`, §6.9 의 `비고`, §6.10 의 `상태` 다. §6.13 은 세부 코드(`details.code`)를 행으로 두고 봉투 `code` 와 HTTP 를 한 열에 적는다.
 
 **같은 뜻을 표면마다 다른 코드로 적는다.** 상태 불일치는 REST 핵심 API 가 `INVALID_STATE`(422), WebSocket 이 `INVALID_EXECUTION_STATE`, EIA REST `/interact` 가 `STATE_MISMATCH`(409)다. 메시지 길이 초과도 WebSocket 은 `EXECUTION_MESSAGE_TOO_LONG`, EIA REST 는 `MESSAGE_TOO_LONG` 이다. 라우팅 분기를 드러내려고 일부러 나눴다([큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 의 「WS 코드와 EIA 코드는 경로마다 다르게 쓴다」 Rationale).
 
