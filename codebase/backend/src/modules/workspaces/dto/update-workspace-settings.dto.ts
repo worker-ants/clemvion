@@ -48,15 +48,19 @@ export class UpdateWorkspaceSettingsDto {
    * 워크스페이스당 동시 실행(`running` Execution) 상한 (§8 admission gate). 양의 정수만
    * 유효하며 미설정 시 시스템 기본값(10). Parallel 노드 `config.maxConcurrency`(노드 내
    * branch 동시성)와는 스코프가 다른 별개 설정이다.
+   *
+   * `null` 은 「상한 해제」다(CLE-T-9Q304H). 숫자라 null 말고는 지울 값이 없어서 받는다. 서비스가 null 을 저장하지
+   * 않고 키를 지워 기본값으로 돌아간다.
    */
   @ApiPropertyOptional({
     type: Number,
+    nullable: true,
     example: 10,
     description:
-      '워크스페이스당 동시 실행(running Execution) 상한. 양의 정수, 미설정 시 기본 10 (spec §8 admission gate).',
+      '워크스페이스당 동시 실행(running Execution) 상한. 양의 정수, 미설정 시 기본 10 (spec §8 admission gate). null 을 보내면 설정을 지워 기본값으로 돌아간다.',
   })
   @IsOptional()
   @IsInt()
   @Min(1)
-  maxConcurrentExecutions?: number;
+  maxConcurrentExecutions?: number | null;
 }

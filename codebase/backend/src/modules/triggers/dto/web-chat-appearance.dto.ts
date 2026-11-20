@@ -1,11 +1,6 @@
-import {
-  IsIn,
-  IsOptional,
-  IsString,
-  Matches,
-  MaxLength,
-} from 'class-validator';
+import { IsIn, IsString, Matches, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 
 // 근거:
 //   - [웹채팅 운영 콘솔 「외형 빌더」](CLE-WEBCHAT-CONSOLE#외형-빌더)
@@ -23,13 +18,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 export class WebChatAppearanceDto {
   /** 위젯 기본 로케일. */
   @ApiPropertyOptional({ enum: ['ko', 'en'], example: 'ko' })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsIn(['ko', 'en'])
   locale?: 'ko' | 'en';
 
   /** 위젯 primary 색상(#RRGGBB). */
   @ApiPropertyOptional({ example: '#5B4FE9', pattern: '^#[0-9a-fA-F]{6}$' })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @Matches(/^#[0-9a-fA-F]{6}$/, {
     message: 'primaryColor must be a #RRGGBB hex color',
@@ -38,34 +33,34 @@ export class WebChatAppearanceDto {
 
   /** 런처 위치. */
   @ApiPropertyOptional({ enum: ['bottom-right', 'bottom-left'] })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsIn(['bottom-right', 'bottom-left'])
   position?: 'bottom-right' | 'bottom-left';
 
   /** 헤더(봇 표시명). */
   @ApiPropertyOptional({ maxLength: 80 })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(80)
   headerTitle?: string;
 
   /** 첫 환영 메시지. */
   @ApiPropertyOptional({ maxLength: 500 })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(500)
   welcomeText?: string;
 
   /** 추천 질문(줄바꿈 구분, 콘솔 textarea 원문 그대로 보존). */
   @ApiPropertyOptional({ maxLength: 1000 })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(1000)
   suggestions?: string;
 
   /** 면책 고지. */
   @ApiPropertyOptional({ maxLength: 500 })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(500)
   disclaimer?: string;

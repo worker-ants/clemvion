@@ -25,6 +25,7 @@ import {
   BOT_TOKEN_MAX_LENGTH,
   BOT_TOKEN_OPENAPI_PATTERN,
 } from './chat-channel-bot-token';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 
 // 근거:
 //   - [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel)
@@ -373,7 +374,7 @@ export class ChatChannelConfigDto {
     type: 'object',
     additionalProperties: { type: 'string' },
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsObject()
   @Validate(LanguageHintsPlaceholderValidator)
   languageHints?: Record<string, string>;

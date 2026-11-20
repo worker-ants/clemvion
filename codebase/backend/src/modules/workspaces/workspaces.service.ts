@@ -492,7 +492,11 @@ export class WorkspacesService {
       }
     }
     // §8 동시성 cap — 제공 시 병합(DTO @IsInt @Min(1) 이 양의 정수 보장). 미제공은 보존.
-    if (dto.maxConcurrentExecutions !== undefined) {
+    // null 은 「상한 해제」라 키를 지운다(CLE-T-9Q304H). null 을 저장하지 않는다.
+    if (dto.maxConcurrentExecutions === null) {
+      const { maxConcurrentExecutions: _drop, ...rest } = nextSettings;
+      nextSettings = rest;
+    } else if (dto.maxConcurrentExecutions !== undefined) {
       nextSettings = {
         ...nextSettings,
         maxConcurrentExecutions: dto.maxConcurrentExecutions,
