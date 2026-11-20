@@ -247,7 +247,10 @@ describe('renderTelegramMessages', () => {
       ...BASE_EVENT_FIELDS,
       type: 'execution.cancelled',
       result: { cancelledBy: 'system' },
-      error: { code: 'RESUME_INCOMPATIBLE_STATE' },
+      error: {
+        code: 'RESUME_INCOMPATIBLE_STATE',
+        message: 'cancelled by system',
+      },
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
     expect(m).toHaveLength(1);
@@ -264,7 +267,10 @@ describe('renderTelegramMessages', () => {
       ...BASE_EVENT_FIELDS,
       type: 'execution.cancelled',
       result: { cancelledBy: 'system' },
-      error: { code: 'RESUME_CHECKPOINT_MISSING' },
+      error: {
+        code: 'RESUME_CHECKPOINT_MISSING',
+        message: 'cancelled by system',
+      },
     };
     const m = renderTelegramMessages(event, {
       ...BASE_CONFIG,
@@ -279,7 +285,10 @@ describe('renderTelegramMessages', () => {
       ...BASE_EVENT_FIELDS,
       type: 'execution.cancelled',
       result: { cancelledBy: 'system' },
-      error: { code: 'RESUME_INCOMPATIBLE_STATE' },
+      error: {
+        code: 'RESUME_INCOMPATIBLE_STATE',
+        message: 'cancelled by system',
+      },
     };
     const m = renderTelegramMessages(event, {
       ...BASE_CONFIG,
@@ -294,7 +303,7 @@ describe('renderTelegramMessages', () => {
       ...BASE_EVENT_FIELDS,
       type: 'execution.cancelled',
       result: { cancelledBy: 'system' },
-      error: { code: 'SOME_OTHER_CODE' },
+      error: { code: 'SOME_OTHER_CODE', message: 'cancelled by system' },
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
     const text = m[0].body.kind === 'text' ? m[0].body.text : '';

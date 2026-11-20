@@ -19,6 +19,7 @@ import {
   ChatChannelAdapter,
   ChatChannelInternalEvent,
   EiaAiMessageEvent,
+  EiaCancelledEvent,
   EiaEvent,
   EiaFailedEvent,
 } from './types';
@@ -577,11 +578,26 @@ export function toChatChannelEvent(
     case 'execution.cancelled': {
       // §7.5 / 방안 D — rehydration 실패 system cancel 은 payload.error.code 에
       // `RESUME_*` 를 싣는다. 어댑터가 graceful "세션 만료" 안내로 분기하도록 전달.
+      // 시스템 취소의 `error` 는 `{ code, message }` 이고 둘 다 문자열이다(CLE-EIA-NOTIFY-EVENTS,
+      // NERV Task `CLE-T-M42X2A`). 모양이 다르면 싣지 않고 경고한다. 빠지면 렌더러는 일반 취소
+      // 안내로 간다. 객체가 아닌 값(옛 문자열 등)은 지금처럼 조용히 버린다.
       const errRaw = (event.payload as { error?: unknown }).error;
-      const error =
-        errRaw && typeof errRaw === 'object'
-          ? (errRaw as { code: string; message?: string })
-          : undefined;
+      let error: EiaCancelledEvent['error'];
+      if (errRaw && typeof errRaw === 'object') {
+        const { code, message } = errRaw as {
+          code?: unknown;
+          message?: unknown;
+        };
+        if (typeof code === 'string' && typeof message === 'string') {
+          error = { code, message };
+        } else {
+          Logger.warn(
+            `execution.cancelled 의 error 가 { code, message } 문자열 모양이 아니라 싣지 않는다 ` +
+              `(execution=${event.executionId})`,
+            ChatChannelDispatcher.name,
+          );
+        }
+      }
       return {
         ...base,
         type: 'execution.cancelled',
