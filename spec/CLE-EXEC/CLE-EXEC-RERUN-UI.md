@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-UI"
 title: "재실행 — 화면"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "3de4d2d00a49a721ddaaec918ff453a78043c09c0ec19e44b037794bf74a6adf"
+content_hash: "68dadef7d06d6a7b566304ced20757856bceb59ebaa8607b2da49f89909284a0"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-X8GPEK"
 source_paths: []
-mirror_sha256: "b0565ef2c39684ba93ffc2d0d08d7b89e93b5c1775f8f3b7d5bb24eefed0ae74"
-etag: "sha256-a2b56d31d54c26a4b5c6c10dd4bfc0c2464cb79dbd3dca84bc5c9cdd4c5ec6cf"
+mirror_sha256: "64c26326695a5fa01132af14fb292f280cdc7cdfe7cc5f444a5d49b70d26ce06"
+etag: "sha256-8a58b51b28dee36846319ffdf2d8cc805b6a97a8930a87e13ddf05572fd21c6a"
 ---
 ## 개요
 
@@ -38,7 +38,7 @@ etag: "sha256-a2b56d31d54c26a4b5c6c10dd4bfc0c2464cb79dbd3dca84bc5c9cdd4c5ec6cf"
 | 머리 | 위 | 제목 "Re-run Execution", 원본 실행(`#1234 · 2026-05-12 14:02:30 · ✅ Completed`) |
 | 안내 | 머리 아래 | "이 워크플로는 외부 호출 노드 3개 — Send Email × 1, HTTP × 2 — 를 포함합니다." |
 | 입력 데이터 | 가운데 | "원본 입력 그대로 사용 (RR-PL-02)" 토글, 파라미터별 필드(예: `name`, `count`, `extra.flag`) |
-| dry-run | 입력 아래 | "dry-run 모드 (RR-PL-01) — 외부 호출 skip + mock 출력" 토글 |
+| dry-run | 입력 아래 | "dry-run 모드 (부수효과 호출은 모의 처리)" 토글(RR-PL-01). 부수효과 호출만 모의 출력 · 모의 응답으로 대신하고 읽기 호출은 실제로 실행한다([부수효과 판정](CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)) |
 | 버튼 | 아래 | 취소, 재실행 |
 
 | 요소 | 기본값 | 동작 |
@@ -81,7 +81,7 @@ etag: "sha256-a2b56d31d54c26a4b5c6c10dd4bfc0c2464cb79dbd3dca84bc5c9cdd4c5ec6cf"
 | `history.rerun.modal.sideEffectWarning` | 이 워크플로는 외부 호출 노드 {{count}}개를 포함합니다 | This workflow includes {{count}} external-call node(s) |
 | `history.rerun.useOriginalInput` | 원본 입력 그대로 사용 | Use original input |
 | `history.rerun.maskedInputBlocked` | 자격증명으로 판별돼 가려진 입력이 있어요. 해당 항목을 직접 입력하거나 '원본 입력 그대로 사용'을 켜 주세요. | Some inputs were masked as credentials. Enter them directly, or turn on "Use original input". |
-| `history.rerun.dryRunToggle` | dry-run 모드 (외부 호출 skip) | Dry-run mode (skip external calls) |
+| `history.rerun.dryRunToggle` | dry-run 모드 (부수효과 호출은 모의 처리) | Dry-run mode (mock side-effect calls) |
 | `history.rerun.dryRunDisabledTooltip` | 이 워크플로는 dry-run 미지원 노드를 포함합니다 | This workflow contains nodes that don't support dry-run |
 | `history.rerun.confirmButton` | 재실행 | Re-run |
 | `history.rerun.cancelButton` | 취소 | Cancel |
