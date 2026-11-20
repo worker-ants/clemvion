@@ -256,6 +256,17 @@ describe('SlackAdapter', () => {
       ).toEqual(ephemeral('Request received.'));
     });
 
+    // HooksService.notifyNoActiveExecution 은 commandReceived 자리를 noActiveExecution 안내로 바꿔 이 메서드를
+    // 다시 부른다. cancel 응답이 그 키를 읽고 escape 한다는 계약을 여기서 고정한다(NERV Task `CLE-T-A78V0M`).
+    it('cancel 응답은 바꾼 commandReceived 를 mrkdwn escape 해서 싣는다', () => {
+      expect(
+        adapter.defaultInteractionResponse(slash('cancel'), {
+          ...SLACK_CONFIG,
+          languageHints: { commandReceived: '진행 중인 대화가 없습니다 <&>' },
+        }),
+      ).toEqual(ephemeral('진행 중인 대화가 없습니다 &lt;&amp;&gt;'));
+    });
+
     // NERV Task CLE-T-JK3ERX — 슬래시 명령도 DM 에서만 받는다(R-S-4). DM 밖에서 친 명령은 하위 명령과
     // 상관없이 본인에게만 보이는 groupChatRefusal 안내로 답한다.
     describe('DM 밖 채널', () => {

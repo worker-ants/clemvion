@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "1e45823c7186e1f26c3f6638610e3bc12a939439127a936a4ac6f4c9e2ded09b"
+content_hash: "a9e1d906610a7c22e713a441725e4bc7b71b8d6fadc8485a09b4e21e2b75102c"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "e56f7e2004a2e4c16f042b411814a0e76e199b3a7a617ff6895cfb0fb6c90f48"
-etag: "sha256-6098fc3a863a765d8d248c49767ab04284b8490ff1fb0dc94bb01e43310a5996"
+mirror_sha256: "ffb397e2aa5577792553770a32ac28e1829563ba87fd7e95d308f628efaef771"
+etag: "sha256-20267e356e31a64828e3d81db401e9af2cac7547d2b4d4da45b9e091765c1c4f"
 ---
 > 구현 상태: 부분 구현 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -336,7 +336,9 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 
 **노드당 5개 + Carousel 항목당 5개**로 맞춘다. 사용자가 보는 모델을 "한 단위(노드 또는 캐러셀 항목)에 버튼 5개" 로 단순하게 만든다. 캐러셀 한 항목 화면에는 전역 5 + 항목 5 = **최대 10개**가 보인다. 이는 사용자가 뜻한 "노드 5 + 항목 5" 덧셈 모델과 같다. 노드와 항목에서 한도를 다르게 두면(예: 프런트엔드 10, 백엔드 `itemButtons` 4) 사용자가 설정한 버튼이 스키마 거부로 일부만 저장되거나 조용히 사라진다. 그래서 한 값 5 로 맞춘다.
 
-### 입력 대기에 기한을 두지 않는다 (2026-10-24)
+### 입력 대기에 기한을 두지 않는다
+
+결정일: 2026-10-24
 
 옛 제품 요구사항 표는 버튼 대기 네 노드에 "선택적 타임아웃 지원(무제한 가능)" 을, Form 에 "대기 타임아웃 설정(초 단위, 미지정 시 무제한)" 을 구현됨으로 적었다. 옛 에디터 실행 문서는 버튼 대기 중 남은 시간 카운트다운을 적었다. 실제로는 다섯 노드 설정 스키마에 타임아웃 필드가 없고 옛 `buttonTimeout` 입력은 무시한다(`button.types.spec.ts`). 옛 실행 엔진 · EIA 원문이 근거로 든 `formConfig.timeout` 도 없는 필드다.
 
@@ -357,7 +359,7 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 
 결정일: 2026-11-12
 
-→ [표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다-2026-11-12)
+→ [표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다)
 
 ### 버튼 id `error` 를 예약하고 저장된 id 를 옮긴다
 

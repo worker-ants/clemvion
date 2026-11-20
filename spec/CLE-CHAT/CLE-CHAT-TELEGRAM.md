@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM"
 title: "Telegram 어댑터"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031", "REQ-TGRAM-032", "REQ-TGRAM-033"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "9e9ad712e1d245c40729768735a8e111026b270a94666a6dcd6e406706d0ecd7"
+content_hash: "76c4f4a885cf9e211e3b965c1a8024d0f10404d452620dcaa39f59f45d2ff793"
 read_as: "approved_fallback"
-task: "CLE-T-VKNJ4B"
+task: "CLE-T-A78V0M"
 source_paths: []
-mirror_sha256: "76169c7e908e01a69966989d46b960d5e2ad4137bb835ae00dc63af049b19ca8"
-etag: "sha256-0506b12d106eae34b61923d52192e4c31c6469cd5a3cdb94877d268cac6bd2a4"
+mirror_sha256: "1811637481fdd4fd0984a3f6b166d10cda38878fd041d7e7bf93b6f67bba0bda"
+etag: "sha256-383fc4b22fcdcd3feefb5adf4d67b23a4e0068c136daed3cdb4f34e1e58aec1d"
 ---
 > 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -59,7 +59,7 @@ etag: "sha256-0506b12d106eae34b61923d52192e4c31c6469cd5a3cdb94877d268cac6bd2a4"
 - REQ-TGRAM-023 IF `X-Telegram-Bot-Api-Secret-Token` 헤더가 없거나 저장한 값과 다르면 THE SYSTEM SHALL `401` 로 답하고 워크플로우를 시작하지 않는다.
 - REQ-TGRAM-024 WHEN 활성 실행이 없는 대화에 `/start` 가 오면 THE SYSTEM SHALL 새 실행을 시작하고 `languageHints.executionStarted` 안내를 보낸다. (부분 구현)
 - REQ-TGRAM-025 WHEN 활성 실행이 있는 대화에 실행 소유자(채널 대화 상태의 `channelUserKey` 와 같은 사용자)가 `/start` 를 보내면 THE SYSTEM SHALL 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작하며 "기존 대화를 종료하고 새로 시작합니다." 를 안내한다. (부분 구현)
-- REQ-TGRAM-026 WHEN `/cancel` 이 오면 THE SYSTEM SHALL 활성 실행이 있고 보낸 사람이 실행 소유자이면 그 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 활성 실행이 없으면 "진행 중인 대화가 없습니다." 를 안내한다. (부분 구현)
+- REQ-TGRAM-026 WHEN `/cancel` 이 오면 THE SYSTEM SHALL 활성 실행이 있고 보낸 사람이 실행 소유자이면 그 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고, 활성 실행이 없거나 취소 요청에서 실행이 이미 끝난 것으로 판정되면 `languageHints.noActiveExecution` 안내(빈 문자열이면 `languageLocale` 기본 문구)를 대화에 보낸다.
 - REQ-TGRAM-027 WHEN `/help` 가 오면 THE SYSTEM SHALL 대화 조회 전에 `languageHints.help`(없으면 기본 문구)를 보내고 워크플로우는 시작하지 않는다.
 - REQ-TGRAM-028 IF `/start`·`/cancel`·`/help` 가 아닌 `/` 명령이 오면 THE SYSTEM SHALL 무시한다.
 - REQ-TGRAM-029 WHEN `sendMessage` 를 부르면 THE SYSTEM SHALL 5초 타임아웃과 지수 백오프로 총 3회까지 시도하고 끝내 실패하면 `chat_channel_health` 를 `degraded` 로 바꾼다.
@@ -76,7 +76,7 @@ etag: "sha256-0506b12d106eae34b61923d52192e4c31c6469cd5a3cdb94877d268cac6bd2a4"
 - 관련 REQ-TGRAM-018·019: 현재 구현(`telegram.adapter.ts` 의 `image` 분기, `renderCarouselFallback`)은 이미지 메시지를 caption·`fallbackText` 텍스트로 보내고 Carousel 카드도 모두 텍스트로 보낸다. multipart 업로드와 SSR PNG 인프라가 없다.
 - 관련 REQ-TGRAM-024·025: 활성 실행 중 `/start` 의 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 트리거의 워크플로우가 비활성이면 두 경우 모두 새 실행을 시작하지 않고 기존 실행도 취소하지 않는다(REQ-CHAT-066). 처리 세부와 구현 상태는 [명령 처리](#명령-처리) 표에 있다.
 - 관련 REQ-TGRAM-025·026: 활성 실행이 있는 대화에 실행 소유자가 아닌 사람이 보낸 `/start`·`/cancel` 은 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 문구 없이 `202 + { executionId: 'ignored' }` 로 버린다([채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-083). 두 명령은 텍스트 메시지라 수신 확인으로 보내는 것도 없다. Telegram 은 1:1 DM 만 받아 같은 대화에 다른 사용자가 없으므로 실제로는 이 경우가 생기지 않는다. 근거는 [채팅 채널 처리 흐름 「R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다」](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다.
-- 관련 REQ-TGRAM-026: EIA `cancel` 도 같은 `ExecutionsService.stop` 을 부르므로 취소 동작은 같다([채팅 채널 처리 흐름 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 취소한 뒤의 대화 상태 정리는 REQ-CHAT-065 를 따른다. 활성 실행이 없을 때의 안내는 아직 보내지 않고 ack 만 한다(현재 구현, `hooks.service.ts`).
+- 관련 REQ-TGRAM-026: EIA `cancel` 도 같은 `ExecutionsService.stop` 을 부르므로 취소 동작은 같다([채팅 채널 처리 흐름 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 취소한 뒤의 대화 상태 정리는 REQ-CHAT-065 를 따른다. 활성 실행이 없을 때와 취소 요청이 `INVALID_STATE`·`RESOURCE_NOT_FOUND` 로 실패해 실행이 이미 끝난 것으로 본 때는 `languageHints.noActiveExecution` 안내를 제어 안내로 보낸다(REQ-CHAT-075 · 084). 발송 직전 `escapeControlText` 로 escape 하고 발송 실패는 로그만 남긴다. 기본 문구는 ko "진행 중인 대화가 없습니다." · en "There is no active conversation." 이다([채팅 채널 데이터와 흐름 — 설정과 안내 문구](CLE-CHAT-DATA-CONFIG.md#안내-문구-기본값)). 구현은 `hooks.service.ts` 의 `/cancel` 분기와 `notifyNoActiveExecution` 이다.
 - 관련 REQ-TGRAM-029·030·031: [비기능](#비기능) 절을 본다.
 
 ## 하위 문서
@@ -162,7 +162,7 @@ Telegram 은 모든 update 에 단조 증가 `update_id` 를 붙이므로 그 �
 |---|---|
 | `/start`(활성 실행 없음) | 새 실행 시작, `languageHints.executionStarted` 안내. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
 | `/start`(활성 실행 있음, 실행 소유자) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064·066 이다. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
-| `/cancel`(활성 실행 없음, 또는 실행 소유자) | 활성 실행을 실행 중지 경로(`ExecutionsService.stop`, EIA `cancel` 과 같은 경로)로 취소. 없으면 아무것도 하지 않고 "진행 중인 대화가 없습니다." 안내. 이 안내는 아직 보내지 않는다 |
+| `/cancel`(활성 실행 없음, 또는 실행 소유자) | 활성 실행을 실행 중지 경로(`ExecutionsService.stop`, EIA `cancel` 과 같은 경로)로 취소. 활성 실행이 없거나 취소 요청에서 이미 끝난 것으로 판정되면 `languageHints.noActiveExecution` 안내를 보낸다(`hooks.service.ts` `notifyNoActiveExecution`) |
 | `/start`·`/cancel`(활성 실행 있음, 실행 소유자가 아님) | 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 없이 `202 + { executionId: 'ignored' }` 로 버린다. 1:1 DM 에서는 생기지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-083 이다 |
 | `/help` | 1차 범위의 정적 도움말(`languageHints.help` 나 기본 문구). `parseTelegramUpdate` 의 `readCommand` 가 `/help` 를 `text_message` 로 통과시키고(`/start`·`/cancel` 밖의 다른 `/` 명령은 `null`), `HooksService` 가 대화 조회 전에 `/help` 인지 검사해 안내한다. 워크플로우는 시작하지 않는다 |
 | 그 밖의 명령(`/...`) | 무시. 1차 범위는 `/start`·`/cancel`·`/help` 만 처리한다 |
@@ -179,7 +179,8 @@ Telegram 은 모든 update 에 단조 증가 `update_id` 를 붙이므로 그 �
 - `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-update.parser.ts`
 - `codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts`
 - `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터의 버린 update 수신 확인 함수(`ackDroppedUpdate`)
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: 명령 처리(`/help`, `/cancel`, 활성 실행 중 `/start` 의 기존 실행 취소, `/start`·`/cancel` 의 실행 소유자 확인), 버린 update 처리(`ackDroppedUpdateAndIgnore`)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: 명령 처리(`/help`, `/cancel`, 활성 실행 중 `/start` 의 기존 실행 취소, `/start`·`/cancel` 의 실행 소유자 확인), 활성 실행이 없는 `/cancel` 안내(`notifyNoActiveExecution`), 버린 update 처리(`ackDroppedUpdateAndIgnore`)
+- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: `noActiveExecution` 기본 문구 `NO_ACTIVE_EXECUTION_DEFAULTS` 와 해석 `resolveNoActiveExecutionMessage`
 - `codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.spec.ts`, `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(「버린 update 의 수신 확인」): 버린 클릭의 수신 확인, 비활성 트리거에서 부르지 않음
 - `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`: 활성 실행 중 `/start` 의 취소와 새 시작, 소유자가 아닌 사람의 `/start`·`/cancel`
 - `codebase/backend/test/chat-channel-telegram-dropped-callback.e2e-spec.ts`: 워크플로우 비활성 · 재도착으로 버린 클릭의 `202` 응답
@@ -204,3 +205,9 @@ Telegram 은 모든 update 에 단조 증가 `update_id` 를 붙이므로 그 �
 요구사항 줄 끝의 `(원본: telegram §n)` 표기와 머리 줄의 «원문» 경로는 지워진 옛 저장소 문서를 가리켜 찾아갈 수 없었다. 문서는 NERV 링크로 가리킨다는 [용어 사전](../CLE-GLOSSARY.md) 원칙 11 에 따라 지웠고 요구사항의 뜻은 바꾸지 않았다. 머리 줄의 구현 상태는 `부분 구현` 으로 고쳤다. REQ-TGRAM-014·018·019·030 이 미구현이고 024~026 이 부분 구현이라 [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 의 구현 상태 세 값(구현됨·부분 구현·미구현) 가운데 `구현됨` 이 맞지 않는다.
 
 2026-11-19 에는 REQ-TGRAM-008 의 「단어·문장 경계」를 실제 규칙인 「줄바꿈 · 공백 경계」로 고치고 접미사를 실제로 보내는 꼴(괄호를 escape 한 17자)로 적었다(NERV Task `CLE-T-VKNJ4B`, `CLE-T-V4GYE4`). 경계 쪽은 요구사항 문장을 두고 뜻만 정했던 결정을 뒤집은 것이고 동작은 같다. 근거는 [채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내](CLE-CHAT-ADAPTER-RENDER.md#rationale) 의 R-CCA-17 다.
+
+### R9 실행 없는 /cancel 안내를 languageHints 키로 보낸다
+
+2026-11-19 에 사람이 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf` 에 권장안대로 답해 정했다(NERV Task `CLE-T-A78V0M`). REQ-TGRAM-026 은 활성 실행이 없을 때 고정 문구 "진행 중인 대화가 없습니다." 를 적었지만 이 안내는 보내지 않았다. 이제 세 프로바이더가 같은 키 `languageHints.noActiveExecution` 을 쓰고 Telegram 은 그 안내를 대화에 보낸다. 다른 봇 안내처럼 운영자가 문구를 바꿀 수 있고 `languageLocale` 을 따른다. 실행이 이미 끝나 취소 요청이 실패한 경우도 사용자에게는 취소할 실행이 없는 상황이라 같은 안내를 보낸다. 안내를 구현해 REQ-TGRAM-026 의 «부분 구현» 표시를 뺐다. R8 의 «024~026 이 부분 구현» 가운데 026 은 이 결정으로 해당하지 않는다. 동작 근거는 [채팅 채널 「R-CC-36」](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 에 있다.
+
+기각한 대안은 고정 문구를 그대로 두고 보내는 안이다. 다른 봇 안내와 달리 운영자가 바꿀 수 없고 영어 봇에서도 한국어로 나간다.

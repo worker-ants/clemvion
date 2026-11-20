@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER"
 title: "큐 워커와 동시 실행 제한"
 type: "design"
-version: 6
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "09c4eb117fa4d227b898cfe69467b2dbb6936827c1980894e14c04659053ed15"
+content_hash: "ba302ac5fbb5b515595415281d5ec8318adb9f73011e978bd72b40160c694c9b"
 read_as: "approved_fallback"
-task: "CLE-T-4YT18G"
+task: "CLE-T-E6PW00"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "f292527610927002306cc6ab01342577d2915e1769b57350ac45314dce1dcac3"
-etag: "sha256-ed5f658828b3a9d392e17ca3e95743b465ad9e6f3a51b6ef434852b915b83471"
+mirror_sha256: "280d9f22ef8bbf86622d30c4a35cb9f4f6a5be00d2ca2bf3edea3f74fc95d3cf"
+etag: "sha256-b29726cd8d5e49716745ef5300f758d7f9d3a052b8ae006937b6e6d127700771"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -127,6 +127,7 @@ flowchart LR
 - 시작 큐의 `jobId = executionId` 중복 제거 때문에 한 실행의 세그먼트는 **항상 하나**다. 두 세그먼트가 동시에 돌지 않는다.
 - 실행 시간 한도는 `assertActiveTimeWithinLimit`(판정)와 `updateExecutionStatus`(누적) 사이에 잠금 없이 읽고 판단하고 쓴다. 이 불변식 때문에 그 사이에 다른 세그먼트가 끼어들 경로가 없어 실제 race 는 없다.
 - **마지막 턴 재시도 경로 재검증(2026-07-28)**: `retry_last_turn` 은 재개 큐 jobId(`${executionId}:${nodeExecutionId}:${seq}`)를 써서 `jobId = executionId` 중복 제거 밖에 있다. 그래서 이 불변식이 저절로 성립하지 않는다. `applyRetryLastTurn` 이 자체 원자 claim 으로 같은 보장을 만든다. `status='running'` 과 `jsonb_exists` 조건으로 `input_data - '_retryState'` 를 UPDATE 하고 affected=1 인 배달만 진행한다.
+- 이 배달 claim 은 새 행 단위라 같은 실행의 형제 재시도(서로 다른 노드 실행 행)를 가르지 않는다. 같은 실행의 재시도 턴을 하나만 들이는 일은 [실행 단위 claim](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) 이 맡는다.
 - 크래시 재구동 경로의 재검증과 남은 zombie race 는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 - 동시 실행 제한에 걸려 다시 넣는 작업은 jobId 없이 자동 id 를 받는다. 이 작업과 위 불변식의 관계는 [미결 사항](#미결-사항) 참조.
 
@@ -163,7 +164,7 @@ flowchart LR
 
 - 재개 신호의 인스턴스 사이 전달은 재개 큐가 맡는다(옛 Redis pub/sub 채널 `execution:continuation` 은 폐기). 실행 이벤트를 다른 인스턴스의 WebSocket 구독자에게 보내는 일은 `WebsocketService` 뒤의 게이트웨이(Socket.IO Redis adapter)가 맡는다([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달)). 엔진은 그대로 `WebsocketService` 하나에만 발행하고 인스턴스 사이 전달을 알지 못한다.
 - `ExecutionEventEmitter` 는 발행 호출 지점을 한데 모은 **같은 모양의 얇은 래퍼**다. 이 절이 금지하는 외부 이벤트 발행 추상화 인터페이스가 아니므로 단일 발행 정책의 예외가 아니다. 이 래퍼가 생긴 배경(엔진 클래스 분할)은 [실행 엔진 개요와 그래프 순회](CLE-EXEC-ENGINE.md) 의 Rationale 에 있다.
-- External Interaction API 의 EIA 알림 웹훅(Outbound Notification Webhook)과 외부 SSE 어댑터가 생긴 뒤에도 엔진 수준 단일 발행 정책은 유지한다. NotificationDispatcher 와 SSE 어댑터(Redis 로 인스턴스 사이 fan-out 하는 부분 포함, [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md))는 모두 엔진 밖 facade 층에 둔다. 엔진 코드는 외부 발행 대상의 종류를 알 필요가 없다. 기준은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R10 이다.
+- External Interaction API 의 EIA 알림 웹훅(Outbound Notification Webhook)과 외부 SSE 어댑터가 생긴 뒤에도 엔진 수준 단일 발행 정책은 유지한다. NotificationDispatcher 와 SSE 어댑터(Redis 로 인스턴스 사이 fan-out 하는 부분 포함, [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md))는 모두 엔진 밖 facade 층에 둔다. 엔진 코드는 외부 발행 대상의 종류를 알 필요가 없다. 기준은 [External Interaction API 의 단일 싱크와 외부 facade](../CLE-IX/CLE-EIA.md#단일-싱크와-외부-facade) 다.
 - 외부 발행 대상(웹훅 콜백, 텔레메트리 export 등)이 실제로 더해지면 이 결정을 다시 검토한다.
 
 **순환 의존 처리**: 엔진의 DI 순환은 성격에 따라 두 표준 기법으로 푼다. 둘 다 NestJS 표준이며 회피용 안티패턴이 아니다.
@@ -195,7 +196,9 @@ flowchart LR
 
 ## Rationale
 
-### 노드 단위 큐 대신 실행 단위 시작 큐 (2026-06-04 결정, PR1)
+### 노드 단위 큐 대신 실행 단위 시작 큐
+
+결정일: 2026-06-04
 
 - **배경**: 초기 모델은 `execute()` 가 같은 인스턴스에서 바로 실행 반복문에 들어가는 fire-and-forget in-process 방식이었다. 웹훅이 몰려도 backpressure 가 없었다. 실행이 요청을 받은 인스턴스에 고정돼 수평 확장도 안 됐다. 원래 목표 그림은 노드 단위 큐(1 워커 = 1 노드 실행, 노드마다 `{taskId, nodeId, nodeType, input, context, timeout}` 태스크 발행)였으나 구현되지 않았다. 성능·안정성·대량·분산 처리 신뢰성이 사용 방식과 관계없는 기반 요건으로 확인돼 구현에 들어가면서 설계를 다시 검토했다.
 - **기각(노드 단위 큐)**: in-process dispatch 반복문은 컨테이너(Loop/ForEach/Map), 중첩 컨테이너 스코프 체인([컨테이너 실행](CLE-EXEC-CONTAINER.md). 원문은 `$parent` 로 적었으나 그 변수는 없다), back-edge 순환, Parallel(`p-limit` + `allSettled`)을 "한 실행이 한 프로세스 안에 있다" 는 전제로 처리한다. 노드를 워커로 나누려면 노드마다 실행 컨텍스트 전체(변수, loop·item 컨텍스트, 스코프 체인, 대화 스레드)를 직렬화하고 rehydration 해야 한다. rehydration 인프라는 "입력 대기 뒤 재개" 용이지 "실행 중 노드 인계" 용이 아니다. 엔진을 다시 쓰는 수준의 고위험 작업이다.

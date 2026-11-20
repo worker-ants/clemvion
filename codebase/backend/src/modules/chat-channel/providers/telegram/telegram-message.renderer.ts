@@ -410,7 +410,7 @@ function renderButtons(
       ? buttonConfig.prompt
       : null) ??
     config.languageHints?.buttonPrompt ??
-    '선택해주세요.';
+    '선택해 주세요.';
   const out: ChannelMessage[] = [];
 
   // 시각형 노드 출력이 있으면 시각 ChannelMessage 시퀀스를 먼저 발송 (텔레그램 §5.4 / CCH-MP-04 v1).

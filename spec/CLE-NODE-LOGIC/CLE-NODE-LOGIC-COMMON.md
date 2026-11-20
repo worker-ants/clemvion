@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON"
 title: "Logic 노드 공통"
 type: "convention"
-version: 14
+version: 15
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "0a4d0958e560b811ef5d0744f7643424112d7197f57460639aae701b1fb2cf5a"
+content_hash: "d894b916ef89439b7e4b8268e2dbb60cab1aa2545f0a1b95d8474def52226843"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "37ca535402c3de6e2f736b51e839069e7981a1de4926f53a0645d4249e3380b6"
-etag: "sha256-f6051e37b77991c2742f64177b0dc0870842f080af344dec5e918eea977bd0ed"
+mirror_sha256: "d42860ce4da2a2f72b9ee140e8025e550ca4d127c728ba792ece5f9b63a12887"
+etag: "sha256-61ea1588d37163e7d18830df244b65cfe9e05af14d363d98a371148f1862db8e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -208,7 +208,7 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
   나머지 Logic 노드는 두 표의 형식이 같다. 다만 옛 캔버스 표에는 Filter 행이 없고 If/Else 는 첫 조건만 적고 `combineMode` 표시를 적지 않는다.
 - **실행 중 컨테이너 헤더의 진행 인덱스** (info): 이 문서와 Loop · Map 문서는 실행 중 헤더에 "Iteration 3/10" 같은 진행 인덱스를 보인다고 적는다. [워크플로우 에디터와 캔버스](../CLE-WF/CLE-WF-EDITOR.md) 의 컨테이너 절에는 이 요소가 없고 프론트엔드 캔버스 코드에서도 찾지 못했다. 캔버스 문서에 정의할지 미구현으로 표시할지 결정 필요.
 - **`skip` 과 `continue` 의 차이** (info): 노드 PRD 는 두 값을 다른 정책으로 보여 주지만 결과 형태는 같고 `continue` 가 노드 실행 기록에도 에러를 남긴다는 차이만 있다. 관측할 수 있는 차이를 더 적을지 하나로 합칠지 결정 필요.
-- **완료 출력의 `port` 가 노드 출력 규약 Principle 5 와 맞지 않는다** (info): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 5 는 `port: undefined` 를 노드 정의상 출력이 1개인 노드에, `port: string[]` 을 Parallel 핸들러와 텍스트 분류기에 둔다. Loop · ForEach · Map 은 출력 포트가 `body` 와 `done` 둘인데 완료 출력에 `port` 가 없다. 이 사실은 `execution-engine.service.ts` 의 컨테이너 완료 처리에서 확인했다. 규약과 이 문서 가운데 어느 쪽을 고칠지 결정 필요. Parallel 의 완료 `port` 는 [노드 출력 사용 패턴](CLE-NODE-LOGIC-COMMON-OUTPUT.md#노드-출력-사용-패턴) 표대로 `'done'` 문자열로 정했다(2026-11-01, [Parallel 노드](CLE-NODE-PARALLEL.md#완료-출력-port-는-done-문자열이다-2026-11-01)). 구현도 `'done'` 문자열을 싣는다.
+- **완료 출력의 `port` 가 노드 출력 규약 Principle 5 와 맞지 않는다** (info): [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 5 는 `port: undefined` 를 노드 정의상 출력이 1개인 노드에, `port: string[]` 을 Parallel 핸들러와 텍스트 분류기에 둔다. Loop · ForEach · Map 은 출력 포트가 `body` 와 `done` 둘인데 완료 출력에 `port` 가 없다. 이 사실은 `execution-engine.service.ts` 의 컨테이너 완료 처리에서 확인했다. 규약과 이 문서 가운데 어느 쪽을 고칠지 결정 필요. Parallel 의 완료 `port` 는 [노드 출력 사용 패턴](CLE-NODE-LOGIC-COMMON-OUTPUT.md#노드-출력-사용-패턴) 표대로 `'done'` 문자열로 정했다(2026-11-01, [Parallel 노드](CLE-NODE-PARALLEL.md#완료-출력-port-는-done-문자열이다)). 구현도 `'done'` 문자열을 싣는다.
 
 ## 구현 위치
 
@@ -240,7 +240,9 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
 
 [용어 사전 — 워크플로우 작성](../CLE-GLOSSARY-WF.md) 의 「컨테이너」 행은 컨테이너를 Loop · ForEach · Map 세 노드로 정했다(구분 표기는 [용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md), 결정은 [용어 사전 — 결정이 필요한 표기](../CLE-GLOSSARY-OPEN.md) 의 「컨테이너의 범위」 항목(D17)). 원문은 Parallel 과 Background 도 컨테이너로 불렀다. Parallel 은 캔버스 멤버십(`containerId`)이 없고 엔진 덮어쓰기만 함께 받으므로 "엔진 덮어쓰기 대상 노드" 로 부른다. Background 는 멤버십도 덮어쓰기도 없으므로 컨테이너로 부르지 않는다.
 
-### Logic 노드의 에러 처리 정책 선택지를 막지 않는다 (2026-10-24)
+### Logic 노드의 에러 처리 정책 선택지를 막지 않는다
+
+결정일: 2026-10-24
 
 옛 노드 문서 12종은 런타임 에러 포트가 없다고 적었고 [노드 포트와 설정 패널](../CLE-WF/CLE-WF-NODEPANEL.md) 은 어떤 노드든 "에러 포트로 라우팅" 을 고르면 에러 포트가 생긴다고 적었다. 현재 설정 패널과 엔진은 노드 카테고리를 가리지 않고 다섯 정책을 모두 받는다. 그래서 현행대로 Logic 노드도 다섯 정책을 모두 고를 수 있게 둔다. 동적 에러 포트가 구현되기 전까지 "에러 포트로 라우팅" 은 연결선이 없을 때 규칙대로 워크플로우 중단으로 대신 처리한다. 2026-11-15 기준으로 동적 에러 포트가 구현됐다(NERV Task `CLE-T-K0Y546`). Logic 노드도 이 정책을 고르면 `error` 연결선을 이을 수 있다. 그 규칙은 [반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#항목-에러-정책) 규칙 5 가 정한다.
 
@@ -266,7 +268,9 @@ Logic 노드는 경로 선택·반복·변수 관리 같은 프로그래밍식 �
 - 이 노드들도 예외 표에 올리는 안. 처리 방식이 표와 맞지 않는다. 표에 올려 달라는 요구도 없다.
 - 이 노드들도 throw 하게 바꾸는 안. 지금 성공하는 워크플로우가 실패하게 되고 동작을 바꿔 달라는 요구도 없다.
 
-### 실패한 회차와 병렬 분기의 `error.code` (2026-11-05)
+### 실패한 회차와 병렬 분기의 `error.code`
+
+결정일: 2026-11-05
 
 → [Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기](CLE-NODE-LOGIC-COMMON-OUTPUT.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05)
 

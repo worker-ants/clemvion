@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030", "REQ-SUBWF-031"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "b563fd4c1a8c357efa8ef9b8c8cafe3703cbe34c643e1df4505267fcade3718c"
+content_hash: "8f6542566539a53952967eea2c5cf1cfd7dbbcc211da4c79db3fa69e25af57d3"
 read_as: "approved_fallback"
-task: "CLE-T-JDYHCF"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c011185cd98d65f40fdcdb95dc0e55905da61451dc8587a4d8ff81254804cdc7"
-etag: "sha256-e3932735e03e0a9c30829fbe4a2c4f5e7f3ca68ed40024f39233a54ca2c339ce"
+mirror_sha256: "45810c1844564f81e7872389eb3c49b335e902819b9fb23356561721a4de9061"
+etag: "sha256-d0a1a419738c0bf577de6670a3157b1e75b53b583f9963f55dca684f9f8e0880"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -145,7 +145,7 @@ flowchart TD
    - 예외: `ParkReleaseSignal` 은 런타임 실패가 아니라서 그대로 다시 던진다. 엔진이 세그먼트를 끝내고 rehydration 으로 재개한다.
 5. 재귀 깊이(`recursionDepth`)는 자식을 부를 때 1 을 더해 넘긴다(동기는 실행 컨텍스트, 비동기는 `Execution` 행). 최대 깊이는 10 이고 자기 호출(A→A)도 한도 안에서 허용한다.
 6. 동기 호출한 서브 워크플로우의 진입점 트리거는 `manual_trigger` 만 허용한다. 다른 트리거 카테고리 노드를 만나면 엔진이 `INVALID_SUB_WORKFLOW_TRIGGER:` 로 시작하는 메시지를 throw 한다(`execution-engine.service.ts`). 지금 트리거 카테고리 노드는 `manual_trigger` 뿐이다.
-7. 동기 호출한 서브 워크플로우 안의 Parallel 도 엔진의 Parallel 실행 경로를 탄다(`PARALLEL_ENGINE=v1`, 코드 기본값). 병렬 분기를 동시에 실행하고 완료 시점 엔진 덮어쓰기(`{ branches, count, skipped? }`, `port: 'done'`)를 받는다. 실행 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다-2026-11-06) 가 정한다.
+7. 동기 호출한 서브 워크플로우 안의 Parallel 도 엔진의 Parallel 실행 경로를 탄다(`PARALLEL_ENGINE=v1`, 코드 기본값). 병렬 분기를 동시에 실행하고 완료 시점 엔진 덮어쓰기(`{ branches, count, skipped? }`, `port: 'done'`)를 받는다. 실행 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다) 가 정한다.
    - 서브 워크플로우는 Parallel 중첩 깊이를 1부터 새로 센다(REQ-SUBWF-031). 병렬 분기 안에서 불러도 맨 바깥 Parallel 은 깊이 1 이다(근거와 대가는 [Rationale](#서브-워크플로우의-parallel-은-깊이를-새로-센다-2026-11-06)). `executeInline` 은 실행하는 동안 `parentParallelConcurrency` 를 떼었다가 끝나면(실패해도) 되돌린다.
    - 서브 워크플로우 안 Parallel 의 깊이 위반(`PARALLEL_NESTED_DEPTH_EXCEEDED:`)·병렬 분기 안 블로킹 노드(`PARALLEL_INVALID_CHILD:`) 에러는 `executeInline` 이 던지고 이 노드가 `error` 포트로 보낸다(REQ-SUBWF-018, `code` 는 `SUB_WORKFLOW_FAILED`).
    - `PARALLEL_ENGINE=off` 되돌림 경로에서는 병렬 분기 노드를 서브 워크플로우 루프가 차례로 실행한다.

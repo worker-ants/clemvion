@@ -50,14 +50,14 @@ The left timeline lists **every executed node** in run order.
 ]} />
 
 <Callout type="note">
-**Cancelled status**: when a node is interrupted by an external abort — a parallel branch's `cancel-others-on-fail`, or the user clicking Stop — it records `cancelled` instead of `failed`. Error policies (Retry, Skip, etc.) do not apply to cancelled nodes.
+**Cancelled status**: when a node is interrupted by an external abort — a parallel branch's `cancel-others-on-fail`, or the user clicking Stop — it records `cancelled` instead of `failed`. Error policies (Retry, Skip, etc.) do not apply to cancelled nodes. The result detail header shows a **Cancelled** badge. A cancelled node with neither output nor error has no Error tab, so check the badge to confirm the cancellation.
 </Callout>
 
 Clicking a timeline entry shows that node's result in the detail pane.
 
 ## Node detail: sub-tabs
 
-For completed, failed, or waiting nodes, the detail pane exposes sub-tabs. The AI nodes (AI Agent, Information Extractor, Text Classifier) use the same tab UI. This sub-tab UI is identical whether you're in the editor's Run Results drawer or on the execution detail screen of the [dedicated executions page](#dedicated-executions-page-deep-browsing).
+For completed, failed, cancelled, or waiting nodes, the detail pane exposes sub-tabs. The AI nodes (AI Agent, Information Extractor, Text Classifier) use the same tab UI. This sub-tab UI is identical whether you're in the editor's Run Results drawer or on the execution detail screen of the [dedicated executions page](#dedicated-executions-page-deep-browsing).
 
 <FieldTable rows={[
   { name: "Preview", type: "Conditional", description: "Visual preview for Table, Carousel, Chart, Template, and Form. For conversational AI nodes, shows the ConversationInspector and the form/button wait UI." },
@@ -164,7 +164,7 @@ The **Nodes column** in the execution history list shows node run aggregates as 
 
 A run started with Re-run joins the same chain as the original run. The execution detail page shows a chain badge with the re-run number and a **View chain** list. Viewers can see the chain too. Only Editors and above can press **Re-run**, and only Owners and Admins can re-run a run someone else started.
 
-Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead. Cafe24·MakeShop read nodes are really called. An operation that is a read request but changes settings, such as MakeShop's "Update Cart Free Config", returns a mock result like a write.
+Turn on **Dry-run mode** in the Re-run dialog to check the flow without changing external systems. HTTP Request, Send Email, database write, and Cafe24·MakeShop write nodes are not called and return a mock result instead. Cafe24·MakeShop read nodes are really called. An operation that is a read request but changes settings, such as MakeShop's "Update Cart Free Config", returns a mock result like a write. The Database Query node really runs only read queries such as SELECT. Even when Query Type is left as SELECT, a write statement such as DELETE, or a query whose kind is unclear such as one that starts with WITH, returns a mock result.
 
 Dry-run also carries into sub-workflows, both synchronous and asynchronous. If a sub-workflow contains a node that does not support dry-run, the re-run is rejected and does not start.
 

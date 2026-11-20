@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "97e1f2a9ec3742979a2f0fe064f5611f955ae6f2c6a2d7572be5fe68db7ce100"
+content_hash: "fc7b2e6c23b13a2d72786eccdbf92c349184f7e14ce9cf1f24d142c13e7eb3a7"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-2Q4KRF"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "38b029fc5c47aac21373ddd78c8bb76e534c9de5e6a1287808393dfb6fbea3e2"
-etag: "sha256-9f39f97d5943d0a23f9885553bd2e763504316ad23743d8808547adc3cb56f79"
+mirror_sha256: "08c50e5186bc7c242beda7195f5c32260295ba5be983bc4f1295aa0193ddf29b"
+etag: "sha256-3c143056171988ededcc18e008d72cddaac10cfa520813f91c1bc708a512f463"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -97,6 +97,8 @@ stateDiagram-v2
 
 `failed → running` 과 `failed → waiting_for_input` 은 일반 노드 실패 경로에는 없다. 코드는 상태 머신의 `allowRetryReentry` opt-in 으로만 이 두 전이를 허용한다. 실패로 끝난 실행이 일반 `updateExecutionStatus` 경로로 우연히 되살아나는 것을 막기 위해서다.
 
+재시도 턴이 도는 동안 `failed` 실행의 `finished_at` · `error` · `duration_ms` 는 비어 있을 수 있다. 워커가 턴에 들어가기 전에 [실행 단위 claim](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) 으로 이 셋을 비우고, 비운 `finished_at` 을 재시도 턴이 도는 중이라는 표지로 쓰기 때문이다. 턴이 다시 실패로 끝나면 셋이 다시 채워진다.
+
 ### 원자성 보장
 
 1. `running ↔ waiting_for_input` 전이는 짝이 되는 노드 실행 상태 변경(`waiting_for_input` 또는 `completed`)과 **한 DB 트랜잭션**으로 묶어 함께 커밋하거나 함께 되돌린다. 두 저장 사이에 서버가 죽어도 실행과 노드 실행의 상태가 어긋나지 않는다(구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 인자). WebSocket 이벤트는 커밋 뒤에 발행한다.
@@ -104,10 +106,13 @@ stateDiagram-v2
 3. 재개 진입의 `waiting_for_input → running` claim 도 이 원자성에 들어간다. 조건부 UPDATE 가 실행과 노드 실행의 짝 상태를 한 트랜잭션으로 바꾼다. affected=0 이면 어느 쪽도 바꾸지 않고 작업을 받은 뒤 버린다. claim 뒤 rehydration 이 실패하면 `RESUME_*` 종결로 원자 마감해 `running` 이 남지 않게 한다. 절차는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 4. 짝 없이 `running`·`completed`·`failed`·`cancelled` 로 바로 마감하는 경로(else 분기)의 조건부 UPDATE 도 `dataSource.transaction` 안에서 돈다. 짝 전이와 목적이 다르다. 결과 모양 가드가 예외를 던질 때 그 UPDATE 도 함께 되돌리려는 것이다. 되돌리지 않으면 실행 행은 종결 상태로 커밋된 채 종결 이벤트만 사라진다. 부팅 복구 스캔에서 실행 행을 고르는 단계는 비종결 실행만 보므로 이 행을 고르지 않는다. 같은 스캔의 [종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 는 노드 실행 행만 닫고 이벤트를 내지 않아 사라진 종결 이벤트를 되살리지 못한다.
 5. 짝 전이는 방향과 상관없이 아무것도 하지 않고 끝날 수 있다. 재개 방향 claim 뿐 아니라 park 방향(`running → waiting_for_input`)도 대상 행이 이미 종결 상태면 적용하지 않는다. 짝 전이는 같은 트랜잭션 안에서 실행 행을 `SELECT … FOR UPDATE` 로 잠그고 비종결 상태를 확인한 뒤에만 두 행을 저장한다. 선점이 보이면 아무것도 쓰지 않고 `false` 를 돌려준다. 호출자는 이때 park·종결 이벤트 발행을 건너뛰고 짝 노드 실행을 `cancelled` 로 표시한 뒤 취소 전파 경로로 넘긴다.
-6. 마지막 턴 재시도 재진입은 예외다. 위 "비종결 확인" 의 종결 정의가 `allowRetryReentry` opt-in 에 따라 바뀐다. 마지막 턴 재시도에 한해 DB 가드(짝 전이의 `FOR UPDATE` 잠금과 else 분기 조건부 UPDATE)가 `failed` 행도 대상에 넣는다(`NON_TERMINAL_OR_FAILED_STATUSES_SQL`). DB 가드의 비종결 목록은 손으로 적지 않고 상태 머신의 `canTransition` 에서 계산한다(`nonTerminalStatuses(opts)`, `guardStatusesSql(opts)`). 나가는 전이가 하나라도 허용되는 상태가 비종결이다. opt-in 을 상태 머신(`canTransition`)에만 반영하고 DB 가드에 전달하지 않으면 마지막 턴 재시도의 짝 전이가 늘 0행이 돼 기능이 동작하지 않는다. opt-in 이어도 `completed`·`cancelled` 는 대상에서 빠지므로 실제 동시 취소는 계속 막힌다.
+6. 마지막 턴 재시도 재진입은 예외다. 위 "비종결 확인" 의 종결 정의가 `allowRetryReentry` opt-in 에 따라 바뀐다. 마지막 턴 재시도에 한해 DB 가드(짝 전이의 `FOR UPDATE` 잠금과 else 분기 조건부 UPDATE)가 `failed` 행도 대상에 넣는다(`NON_TERMINAL_OR_FAILED_STATUSES_SQL`). DB 가드의 비종결 목록은 손으로 적지 않고 상태 머신의 `canTransition` 에서 계산한다(`nonTerminalStatuses(opts)`, `guardStatusesSql(opts)`). 나가는 전이가 하나라도 허용되는 상태가 비종결이다. opt-in 을 상태 머신(`canTransition`)에만 반영하고 DB 가드에 전달하지 않으면 마지막 턴 재시도의 짝 전이가 늘 0행이 돼 기능이 동작하지 않는다. opt-in 이어도 `completed`·`cancelled` 는 대상에서 빠지므로 실제 동시 취소는 계속 막힌다. 턴에 들어가기 전의 실행 단위 claim 도 `failed` 행에 쓴다. 상태는 바꾸지 않고 종결 컬럼 셋을 비우는 조건부 UPDATE 다([재시도 전제와 재시도 턴 시작](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작)).
 7. 이 가드가 없으면 park·재개 경로가 실행을 다시 읽지 않아 메모리의 엔티티가 낡은 상태에서 전체 엔티티 저장이 동시에 도착한 취소를 덮어쓴다. 그러면 사용자의 실행 중지가 그대로 사라진다. 같은 이유로 `finalizeFailedExecution` 등 종결 마감 경로도 조건부 UPDATE(`status IN (비종결)`)를 거친다. 가드의 근거는 [노드 취소](CLE-EXEC-CANCEL.md) 에 있다.
 
-종결된 실행 행에 대한 쓰기의 예외는 하나다. 엔진은 REST 중지로 `cancelled` 가 된 행에 마지막 실행 구간을 `active_running_ms` 에만 더한다. 이 쓰기는 상태와 종결 컬럼(`finished_at` · `duration_ms`)을 바꾸지 않아 종결 가드 대상이 아니다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14) 에 있다.
+종결된 실행 행에 대한 쓰기의 예외는 둘이다.
+
+- 엔진은 REST 중지로 `cancelled` 가 된 행에 마지막 실행 구간을 `active_running_ms` 에만 더한다. 이 쓰기는 상태와 종결 컬럼(`finished_at` · `duration_ms`)을 바꾸지 않아 종결 가드 대상이 아니다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14) 에 있다.
+- 마지막 턴 재시도의 실행 단위 claim 은 `failed` 행의 종결 컬럼 셋(`finished_at` · `error` · `duration_ms`)을 비운다. 조건은 `status = 'failed' AND finished_at IS NOT NULL` 이고 상태는 `failed` 그대로다. 같은 실행의 재시도 턴을 하나만 들이려는 쓰기다. 규칙은 [재시도 전제와 재시도 턴 시작](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작), 근거는 [같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](CLE-EXEC-STATE-RETRY.md#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다) 에 있다.
 
 조건부 UPDATE 결과를 읽을 때는 `RETURNING` 결과가 `[rows, affectedCount]` 튜플이라는 점을 지켜야 한다. 이 규칙은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 에 있다.
 
@@ -173,7 +178,6 @@ stateDiagram-v2
 
 - **rehydration 실패를 실행 `cancelled` 로 두는 결정의 유지 여부**: 원문 결정은 재실행 버튼이 `cancelled` 상태에서 켜지므로 인프라 실패를 `cancelled` 로 두어야 다시 시도할 수 있다는 것을 근거로 들었다. 반면 [실행 내역](CLE-EXEC-HISTORY.md) 은 재실행 버튼을 상태와 상관없이 항상 보이고 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 의 드로어는 `failed` 에서도 보인다. [재실행](CLE-EXEC-RERUN.md) API 에도 상태 제한이 없다. 그래서 [Rationale](#rationale) 에서 그 근거를 뺐다. 남은 근거(인프라 실패와 비즈니스 실패의 뜻 구분, 재실행 진입점의 원인 판별 부담)만으로 실행 `cancelled` · 노드 실행 `failed` 로 나누는 결정을 유지할지 다시 판단해야 한다. 결정 전까지 본문 규칙은 이분 결정을 따른다.
 - **병렬 분기 안에서 입력 대기를 낸 노드 실행의 종결 상태** (info): [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 의 병렬 분기 안 노드가 실행 중에 `waiting_for_input` 을 내면 그 병렬 분기는 에러로 실패하고 그 에러 메시지는 `PARALLEL_INVALID_CHILD:` 로 시작한다(REQ-PARALLEL-032). `PARALLEL_INVALID_CHILD:` 는 에러 코드가 아니라 메시지 접두사다. 병렬 분기는 park 하지 않으므로 이 노드 실행은 재개로 끝나지 않는다. 그런데 이 노드 실행 행이 `waiting_for_input` 에서 어느 상태로 끝나는지는 위 전이도와 표에 없다. 종결 상태를 정해 전이도에 넣을지 [Parallel 노드 §미결 사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#미결-사항) 과 함께 결정 필요.
-- **같은 실행의 재시도 둘이 서로 다른 워커에서 함께 도는 경우**: [마지막 턴 재시도 — 미결 사항](CLE-EXEC-STATE-RETRY.md#미결-사항) 에 있다.
 
 ## 구현 위치
 

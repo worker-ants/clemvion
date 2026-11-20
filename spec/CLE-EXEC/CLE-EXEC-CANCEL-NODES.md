@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CANCEL-NODES"
 title: "노드 취소 — 노드별 적용과 구현 현황"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CANCEL"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CANCEL"]
 area: "CLE-EXEC"
-content_hash: "2ca84167d92295702d6ac0a61910b386073eb102da19795a6cf0f11301a281af"
+content_hash: "c756093c3df235091a401665a82246f35695fa955e7c33fbc7d523418e1a7827"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-EFE3BW"
 source_paths: []
-mirror_sha256: "c5160145189929aaa01ed041aef29b1a80546181ce35add6d86d95d9eee6f05a"
-etag: "sha256-08ea18f1f33b0294eee210d91d3fd5a87ed4af94aaedbdd6adcd75cbf86ea5f0"
+mirror_sha256: "1d7060cc038f277bb5a9e1345266d011ff41d714193151147e6f29517324f16e"
+etag: "sha256-db39778ef3115beb6ca94d689c8233ae2a2b34fbd8c76f9af1b5ca2582f9d77a"
 ---
 ## 개요
 
@@ -51,7 +51,7 @@ try {
 
 `linkUpstreamAbort(controller, upstream)` 는 `upstream` 이 이미 취소됐으면 `controller.abort()` 를 바로 부르고 리스너를 달지 않는다. 그렇지 않으면 `upstream` 에 `abort` 리스너를 달고 그 리스너를 떼는 함수를 돌려준다. 위쪽이나 자체 타임아웃 어느 쪽이 취소해도 fetch 는 바로 예외를 던진다.
 
-리스너는 `finally` 에서 뗀다. 성공한 요청은 자기 controller 의 `abort()` 를 부르지 않는다. 그래서 정리를 controller 의 `abort` 이벤트에 걸면 요청이 성공할 때마다 노드 취소 신호에 리스너가 하나씩 남는다. 자체 타이머와 리스너는 응답 본문까지 읽은 뒤에 정리한다. 본문 읽기도 취소와 자체 타임아웃의 대상이기 때문이다. 헤더를 받은 직후에 정리하면 본문을 읽는 동안에는 노드가 취소돼도 요청이 끊기지 않고 본문이 멈추면 노드가 끝없이 기다린다. Cafe24 · MakeShop 클라이언트가 이 형태를 따른다. HTTP Request 노드는 리스너를 본문까지 유지하지만 자체 타임아웃 타이머는 본문을 읽기 전에 지운다. 그래서 HTTP Request 노드의 본문 읽기에는 자체 타임아웃이 없다([미결 사항](#미결-사항)).
+리스너는 `finally` 에서 뗀다. 성공한 요청은 자기 controller 의 `abort()` 를 부르지 않는다. 그래서 정리를 controller 의 `abort` 이벤트에 걸면 요청이 성공할 때마다 노드 취소 신호에 리스너가 하나씩 남는다. 자체 타이머와 리스너는 응답 본문까지 읽은 뒤에 정리한다. 본문 읽기도 취소와 자체 타임아웃의 대상이기 때문이다. 헤더를 받은 직후에 정리하면 본문을 읽는 동안에는 노드가 취소돼도 요청이 끊기지 않고 본문이 멈추면 노드가 끝없이 기다린다. HTTP Request · Cafe24 · MakeShop 노드가 모두 이 형태를 따른다.
 
 catch 는 `isUpstreamAbort(err, upstream)` 로 두 `AbortError` 를 가른다. 에러의 `name` 이 `AbortError` 이고 `upstream.aborted` 가 참이면 노드 취소다. 노드는 이 에러를 다시 던지고 엔진이 노드 실행을 `cancelled` 로 기록한다(규칙 19). `upstream` 이 열려 있는데 `AbortError` 가 났으면 요청 자신의 타임아웃이다. 노드는 이 에러를 자기 전송 실패로 돌려준다. HTTP Request 노드는 `HTTP_TRANSPORT_FAILED` 로 에러 포트에 보낸다. 에러 판정은 `instanceof Error` 대신 `name` 으로 한다. realm 이 다른 에러도 같은 이름으로 잡기 위해서다. 이름 판정은 `nodes/core/abort-error.util.ts` 의 `isAbortErrorLike` 하나로 하고 `isUpstreamAbort` 도 이 판정을 쓴다. 자체 타임아웃을 별도 에러 코드로 매핑하는 노드는 노드 취소 신호가 취소된 경우에만 `AbortError` 를 다시 던진다(`isUpstreamAbort`). 엔진의 `isAbortError` 는 에러 이름만 보므로 노드가 두 `AbortError` 를 가를 때 쓰지 않는다.
 
@@ -65,13 +65,13 @@ Cafe24 · MakeShop 클라이언트는 본문 읽기 실패도 같은 기준으�
 
 ## 구현 현황
 
-2026-07-28 코드 대조 기준이다. 노드별 취소 에러 분류와 공용 연쇄 헬퍼에 관한 행은 2026-10-10, AI 노드 취소 에러 분류 행은 2026-10-31, AI 노드 신호 전파 행은 2026-11-14, Cafe24 · MakeShop · DB 노드 행은 2026-11-19 코드 대조 기준이다.
+2026-07-28 코드 대조 기준이다. 노드별 취소 에러 분류와 공용 연쇄 헬퍼에 관한 행은 2026-10-10, AI 노드 취소 에러 분류 행은 2026-10-31, AI 노드 신호 전파 행은 2026-11-14, Cafe24 · MakeShop · DB 노드 행과 HTTP 노드 신호 전파 행은 2026-11-19 코드 대조 기준이다.
 
 | 항목 | 상태 | 비고 |
 | --- | --- | --- |
 | `ExecutionContext.abortSignal?: AbortSignal` 필드 | ✅ | `node-handler.interface.ts`. 분류는 [실행 컨텍스트](CLE-EXEC-CONTEXT.md), 동작 계약은 [노드 취소](CLE-EXEC-CANCEL.md) |
 | 규약 신설 | ✅ | [노드 취소](CLE-EXEC-CANCEL.md) |
-| HTTP 노드 신호 전파(fetch 연쇄) | ✅ | `http-request.handler.ts` 가 공용 헬퍼 `linkUpstreamAbort` 로 잇는다. 리다이렉트 홉(`followRedirectsSafely`)과 응답 본문 읽기도 같은 controller 신호를 쓴다. 리스너는 응답 본문까지 읽은 뒤 `finally` 에서 뗀다. 자체 타임아웃 타이머는 본문을 읽기 전에 지운다([미결 사항](#미결-사항)). 단위 테스트 `http-request.handler.spec.ts` |
+| HTTP 노드 신호 전파(fetch 연쇄) | ✅ | `http-request.handler.ts` 가 공용 헬퍼 `linkUpstreamAbort` 로 잇는다. 리다이렉트 홉(`followRedirectsSafely`)과 응답 본문 읽기도 같은 controller 신호를 쓴다. 자체 타임아웃 타이머와 리스너는 응답 본문까지 읽은 뒤 `finally` 에서 함께 정리한다. 본문을 읽다가 자체 타임아웃이 지나면 `HTTP_TRANSPORT_FAILED` 로 에러 포트에 간다. 단위 테스트 `http-request.handler.spec.ts` |
 | HTTP 노드 취소 에러 분류(handler 가 `AbortError` 를 엔진까지 전달) | ✅ | catch 가 `isUpstreamAbort` 이면 `AbortError` 를 다시 던진다. 활동 로그는 남기지 않는다(규칙 3). JSON 본문을 읽는 중에 노드 취소 신호로 끊긴 것도 `null` 로 삼키지 않고 다시 던진다. 노드 자체 타임아웃은 `HTTP_TRANSPORT_FAILED` 로 에러 포트에 간다. 2026-10-10 결정(아래 Rationale) |
 | AI 노드 신호 전파 | ✅ | AI 에이전트(`ai-turn-executor.ts`)·텍스트 분류기(`text-classifier.handler.ts`)·정보 추출기(`information-extractor.handler.ts`)가 `llmService.chat` 에 `context.abortSignal` 을 넘긴다. AI 에이전트 단일 턴의 롤링 요약 호출도 노드 취소 신호를 받는다. 단일 턴은 `context.abortSignal` 을 `injectMemoryContext`(`ai-memory-manager.ts`)에 넘기고 이 신호는 요약 `chat` 의 `signal` 옵션으로 간다(`agent-memory-injection.ts`). 단서: 멀티턴 재개는 같은 자리에 `ResumableMessageOptions.signal` 을 넘기지만 이 값은 지금 늘 `undefined` 다. 재개 경로에는 신호 소스가 없어서 재개 턴의 요약 호출도 그 턴의 다른 `chat` 호출처럼 앱 타임아웃과 턴 경계의 취소 관측으로 끝난다. 단위 테스트가 세 노드에서 `context.abortSignal` 이 `llmService.chat` 으로 가는지 확인한다. 정보 추출기는 단일 턴과 멀티턴 첫 경로를 모두 확인한다. 롤링 요약 호출은 `ai-agent.memory.spec.ts` 가 확인한다. 단일 턴은 `context.abortSignal` 이 요약 `chat` 까지 가는지 보고, 멀티턴 재개는 `options.signal` 이 있을 때 요약 `chat` 까지 가는지만 본다 |
 | AI 노드 취소 에러 분류(handler 가 `AbortError` 를 엔진까지 전달) | ✅ | 세 노드가 LLM 호출의 catch 첫 줄에서 공용 헬퍼 `rethrowIfNodeCancelled`(`shared/llm-cancellation.ts`)를 부른다. 헬퍼는 노드 취소 신호가 켜져 있으면 규칙 3 대로 `AbortError` 를 던지고 신호가 열려 있으면 아무것도 하지 않는다. 부르는 곳은 텍스트 분류기의 chat 호출, 정보 추출기의 단일 턴 호출과 멀티턴 첫 경로(`runTurnWithCollectionRetries`), AI 에이전트 `executeSingleTurn` 의 첫 chat 과 도구 루프 chat 이다. 정보 추출기는 부분 결과를 돌려주기 전에 던지므로 취소된 멀티턴은 스레드 누적과 메모리 추출을 만들지 않는다. 멀티턴 재개 경로에는 신호가 없어 헬퍼가 아무것도 하지 않는다. 앱 수준 타임아웃은 노드 취소 신호를 켜지 않으므로 노드 자신의 실패로 남는다. 대응 요구사항은 [텍스트 분류기 노드](../CLE-NODE-AI/CLE-NODE-CLASSIFIER.md) 와 [정보 추출기 노드](../CLE-NODE-AI/CLE-NODE-EXTRACTOR.md) 에 있다. 단위 테스트 `llm-cancellation.spec.ts`·`text-classifier.handler.spec.ts`·`information-extractor.handler.spec.ts`·`ai-turn-executor.spec.ts` |
@@ -90,7 +90,7 @@ chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel
 
 ## 미결 사항
 
-- **HTTP Request 본문 읽기의 자체 타임아웃**: HTTP Request 노드는 자체 타임아웃 타이머를 응답 본문을 읽기 전에 지운다. 그래서 본문이 멈추면 노드 취소 신호가 없는 한 노드가 끝없이 기다린다. 「fetch 자체 타임아웃과의 연쇄」 의 형태(타이머를 본문까지 유지)로 맞추는 일은 후속 NERV Task `CLE-T-EFE3BW` 가 맡는다.
+없음. 남아 있던 「HTTP Request 본문 읽기의 자체 타임아웃」 은 2026-11-19 에 NERV Task `CLE-T-EFE3BW` 가 해결했다([Rationale](#응답-본문을-다-읽을-때까지-연쇄를-유지한다)).
 
 ## 구현 위치
 
@@ -142,6 +142,8 @@ chat-channel 은 노드가 아니다. `webhook` 트리거의 `config.chatChannel
 
 - 채택: 코드를 고친다. 두 클라이언트도 타이머와 리스너를 본문까지 유지하고 본문 읽기 실패를 노드 취소 · 자체 타임아웃 · 그 밖으로 가른다.
 - 기각: 규약을 HTTP Request 한정으로 좁힌다. 문서는 코드와 맞게 되지만 본문 읽기에 상한이 없는 결함이 그대로 남아 기각했다.
+
+HTTP Request 노드는 리스너만 본문까지 유지하고 자체 타임아웃 타이머는 본문을 읽기 전에 지우고 있었다. 같은 날 NERV Task `CLE-T-EFE3BW` 에서 타이머도 본문까지 유지하게 고쳐 세 노드가 같은 형태가 됐다([HTTP Request 노드 — 실행 로직](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#노드-자체-타임아웃이-응답-본문-읽기까지-덮는다)).
 
 노드 취소를 연속 전송 실패 카운터에 넣지 않는 것도 같은 작업에서 정했다. 취소된 형제 분기 셋이 건강한 통합을 `error(network)` 로 떨어뜨리면 안 되기 때문이다.
 

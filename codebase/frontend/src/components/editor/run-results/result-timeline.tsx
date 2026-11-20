@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Workflow,
   Wrench,
+  Ban,
 } from "lucide-react";
 import { getCategoryColor } from "@/lib/node-definitions";
 import type {
@@ -46,6 +47,8 @@ function StatusIcon({ status }: { status: string }) {
       return <MinusCircle className="h-3 w-3 text-gray-400" />;
     case "waiting_for_input":
       return <PauseCircle className="h-3 w-3 text-amber-500" />;
+    case "cancelled":
+      return <Ban className="h-3 w-3 text-gray-400" />;
     default:
       return <Loader2 className="h-3 w-3 text-gray-400" />;
   }
@@ -63,6 +66,7 @@ function statusAccentClass(status: string): string {
     case "waiting_for_input":
       return "border-l-amber-500";
     case "skipped":
+    case "cancelled":
       return "border-l-gray-400";
     default:
       return "border-l-[hsl(var(--border))]";

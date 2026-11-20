@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020", "REQ-MAP-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "ccb2cebe31b562c736c4bf7dddba30aa1336e88628795deeb102d6617e1d3cc3"
+content_hash: "871bf3dcf4a8d760701d32819951b36d73ef7a5bd8eaa69c4c8642c1fddb41b8"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-7AYYQC"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "3631382ace3b6354c15668e30751fc147cabdb9ec13f123c1cfaf49c50d883c4"
-etag: "sha256-ea0fad2f641e9570d077b626caeb58232df35f14d7c4b8518a47ec36544b731f"
+mirror_sha256: "76daa403a19ba2e95c000ef7b5e631e65292c2f1a9a813ee9540d33b7f1a1456"
+etag: "sha256-9af920895fca5b9633a2c0c2d3063203845f5892b9c701144a7b886701573110"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -160,9 +160,9 @@ Map 은 컨테이너라서 핸들러 시점 출력과 엔진 덮어쓰기 뒤 �
 | `meta.iterations` | number | 엔진 주입 | 본문 실행 횟수. 실패로 `_skipped` 표시가 된 인덱스도 본문이 돌았으므로 센다. Loop 의 `output.iterations`(배열)와 다르다 |
 | `meta.skippedCount?` | number | 엔진 주입 | `mapped` 안의 `_skipped` 마커 수(`skip` / `continue` 로 처리한 실패 항목 수). 0건이면 필드 자체를 뺀다 |
 
-완료 `output` 과 `meta` 는 다음 노드 표현식이 읽는 값이다. 엔진은 본문이 다 돈 뒤에 노드 실행 행을 한 번 마감하므로 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에도 이 완료 출력이 남는다. 본문이 도는 동안 행은 `running` 이다. 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓰므로 완료 출력을 본다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
+완료 `output` 과 `meta` 는 다음 노드 표현식이 읽는 값이다. 노드 실행 기록 · `execution.node.completed` 이벤트 · 재개와 재구동 뒤의 rehydration 도 같은 완료 출력을 쓴다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
 
-완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 반복 회차까지 포함한 노드 전체 실행 시간이다. `meta.durationMs` 를 두지 않는 이유는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다. ForEach · Loop · Parallel 도 같다.
+완료 출력 `meta` 에는 `durationMs` 가 없다. 반복 회차까지 포함한 노드 전체 실행 시간은 노드 실행 기록의 `duration_ms` 로 읽는다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
 
 표현식 접근 예:
 
@@ -238,7 +238,9 @@ Map 과 ForEach 는 같은 실행기를 쓰지만 뜻이 다르다. ForEach 는 
 
 항목 에러 정책 키를 `itemErrorPolicy` 같은 새 이름으로 바꾸는 안은 저장된 워크플로우의 노드 설정을 옮기는 데이터 마이그레이션이 필요해서 기각했다.
 
-### 배열이 아닌 입력을 빈 배열로 바꾸고 meta 로 알린다 (2026-10-24)
+### 배열이 아닌 입력을 빈 배열로 바꾸고 meta 로 알린다
+
+결정일: 2026-10-24
 
 Map 은 `inputField` 가 배열이 아니면 원시값 · 객체까지 모두 `[]` 로 바꿔 왔다. 2026-10-10 에 사용자가 승인한 규칙대로 이 동작을 [노드 출력 규약 Principle 10](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 예외로 두고, Split · ForEach 처럼 `meta.fellBackToEmpty` 로 대체 여부를 알린다(NERV Task `CLE-T-3HJ8MM` · `CLE-T-PEVD3R`). 다음 노드는 진짜 빈 배열과 대체한 빈 배열을 구분할 수 있다. 기각한 대안은 Map 만 throw 로 바꾸는 안이다. 지금 0회 실행으로 지나가는 워크플로우가 실패로 바뀐다.
 
@@ -248,7 +250,7 @@ Map 은 `inputField` 가 배열이 아니면 원시값 · 객체까지 모두 `[
 
 결정일: 2026-11-05
 
-Map 은 ForEach 실행기를 함께 써서 `mapped[i]` 의 `_skipped` 표시에 실행기가 고른 `error.code` 를 그대로 싣는다. 그전 값은 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-MAP-021). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. Map 만 따로 바꾸면 같은 실행기의 ForEach 와 값이 갈려 함께 바꿨다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.
+Map 은 ForEach 실행기를 함께 써서 `mapped[i]` 의 `_skipped` 표시에 실행기가 고른 `error.code` 를 그대로 싣는다. 그전 값은 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-MAP-021). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. Map 만 따로 바꾸면 같은 실행기의 ForEach 와 값이 갈려 함께 바꿨다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode) 의 Rationale 에 있다.
 
 ### 동적 에러 포트 미구현 서술을 지운다
 

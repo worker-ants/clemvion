@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOOP"
 title: "Loop 노드"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-LOOP-001", "REQ-LOOP-002", "REQ-LOOP-003", "REQ-LOOP-004", "REQ-LOOP-005", "REQ-LOOP-006", "REQ-LOOP-007", "REQ-LOOP-008", "REQ-LOOP-009", "REQ-LOOP-010", "REQ-LOOP-011", "REQ-LOOP-012", "REQ-LOOP-013", "REQ-LOOP-014", "REQ-LOOP-015", "REQ-LOOP-016", "REQ-LOOP-017", "REQ-LOOP-018", "REQ-LOOP-019", "REQ-LOOP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "a4a5dd6285b38a53956fd19e4fccd050916a213513af6793a3c622ac072c400b"
+content_hash: "b6278cc8ea2ee57e3d30d4fb164e2013372b603eac029c10976b8109fafdd2f2"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-7AYYQC"
 source_paths: ["spec/4-nodes/1-logic/3-loop.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "19316cb3a0cfc31968adbfe4e087838b2636c860cf1f230b4d81929bf1e67bb7"
-etag: "sha256-fa5a3feb8cdcf46d4c025014adfcfc693a89601db789483ce5d7b8a7eee4e0fb"
+mirror_sha256: "734a5927213db28c2635306087c51d7e66c3e2e5eb4a1560e5a88f18c7bb7883"
+etag: "sha256-d21400e5a2b2092988452567bfbac86a54e5d0a5bb8d32940c6954a2adce7eb7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -178,7 +178,7 @@ Loop 는 컨테이너라서 핸들러가 반환하는 출력과 엔진 덮어쓰
 | `meta.maxIterationsReached` | boolean | 엔진 주입 | `meta.exitReason === 'maxIterations'` 일 때만 `true`. 한도를 넘는 순간은 `MAX_ITERATIONS_EXCEEDED` 에러로 끝나므로 이 값은 "break 없이 한도까지 정상 완료" 만 가리킨다 |
 | `meta.exitReason` | `'completed' \| 'break' \| 'maxIterations'` | 엔진 주입 | 종료 이유. `'break'` 는 `breakCondition` 이 참이 되어 일찍 끝난 경우, `'maxIterations'` 는 `config.count === config.maxIterations` 로 한도까지 정상 완료한 경우, 나머지는 `'completed'` |
 
-완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 반복 회차까지 포함한 노드 전체 실행 시간이다. 엔진은 본문이 다 돈 뒤에 노드 실행 행을 한 번 마감한다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)). `meta.durationMs` 를 두지 않는 이유는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다. ForEach · Map · Parallel 도 같다.
+완료 출력 `meta` 에는 `durationMs` 가 없다. 반복 회차까지 포함한 노드 전체 실행 시간은 노드 실행 기록의 `duration_ms` 로 읽는다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
 
 `output.count` 는 실제 반복 수이고 `config.count` 는 사용자 설정값이다. `break` 로 일찍 끝나면 `output.count < config.count` 가 될 수 있다. 하나는 설정, 하나는 실행 결과 메트릭이라 서로 겹치지 않는다.
 

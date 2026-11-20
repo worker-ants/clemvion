@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE-RESUME"
 title: "실행 상태 머신과 대기·재개 — 입력 대기와 재개 상태"
 type: "design"
-version: 2
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-STATE"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-STATE"]
 area: "CLE-EXEC"
-content_hash: "f527c089cef2843b67c1412f2f1dbebd8ce70e599d6c20d572446b1f9ba2b75d"
+content_hash: "0915e8b45a23221411731b01e17cee2d89cda74423c776f49044fc622bfa0d70"
 read_as: "approved_fallback"
 task: "CLE-T-K9RZQV"
 source_paths: []
-mirror_sha256: "84ed0af6e867fca44eb3fe650451ef474d43cb88dea9c3e208fe6ac76e4eba1c"
-etag: "sha256-d0c54ea806857187cc1c7f236b0cc93df07cb155d8206899f670355a332b99c8"
+mirror_sha256: "820369dd985c0f9641c05a35888622537eb42b3e0e05c5547f02566c4735c97b"
+etag: "sha256-46930e2ba74c31aad345507003c90a149ce9f7423429917728029b948ce87ee7"
 ---
 ## 개요
 
@@ -114,18 +114,23 @@ sequenceDiagram
 
 ### 크래시 재구동에서 처리 중이던 턴을 다시 돌린다
 
-재개 턴의 LLM 호출 중 서버가 죽어 [크래시 재구동](CLE-EXEC-RECOVERY-REDRIVE.md#경계와-마감)(case B)이 멀티턴 AI 노드를 새 행으로 다시 실행할 때의 규칙이다. 구현은 NERV Task `CLE-T-K9RZQV` 가 한다.
+재개 턴의 LLM 호출 중 서버가 죽어 [크래시 재구동](CLE-EXEC-RECOVERY-REDRIVE.md#경계와-마감)(case B)이 멀티턴 AI 노드를 새 행으로 다시 실행할 때의 규칙이다.
 
 - **대상**: 옛 행 출력이 AI 대화 재개 스냅샷(출력 상태 `resumed`, `meta.interactionType` 이 `ai_conversation`)인 경우다. 스냅샷은 LLM 을 부르기 전에 저장되므로 체크포인트와 재개 입력(`output.interaction`)이 함께 남는다.
+- **대상 고르기**: 실행 아래 `running` 행 가운데 AI 대화 재개 스냅샷이 정확히 하나일 때만 다시 돌린다. 여럿이거나 그 밖의 `running` 행이 호출 체인(`resume_call_stack` 의 호출 노드)과 맞지 않으면 처음부터 다시 실행한다.
 - **재구성**: 옛 행의 `_resumeCheckpoint` 를 case A 와 같은 방법(위 스키마 버전 · 소비 항목)으로 버전 검사한 뒤 `buildRetryReentryState` 로 새 행의 `_resumeState` 를 만든다. 식별 필드 `nodeExecutionId` 는 새 행의 PK 다. case B 진입 때의 옛 행 마감(`failOrphanRunningNodeExecutions`)은 상태 · 에러 · 종료 시각만 쓰고 출력을 지우지 않으므로 마감 뒤에도 스냅샷을 읽을 수 있다.
-- **턴 다시 돌리기**: 스냅샷의 재개 입력을 그 턴의 입력으로 `processAiResumeTurn` 에 넘긴다. 새 사용자 메시지를 기다리지 않는다.
+- **턴 다시 돌리기**: 스냅샷의 재개 입력을 그 턴의 입력으로 `processAiResumeTurn` 에 넘긴다. 새 사용자 메시지를 기다리지 않는다. 새 행의 출력은 턴 이전 대기 출력으로 되돌려 둔다(스냅샷의 마지막 사용자 메시지와 `output.interaction` 을 뺀다). 그래서 그 메시지가 대화에 두 번 들어가지 않는다.
+- **서브 워크플로 안의 노드**: 호출 체인이 있으면 옛 행만 마감하고 호출 노드(Workflow 노드) 행은 park 중처럼 `running` 으로 둔다. 새 행은 옛 행과 같은 부모 아래에 만들고 case A 의 프레임 재진입으로 합류한다.
 - **되돌아가기**: 스냅샷이나 체크포인트가 없거나 손상됐거나 미래 버전이면 case A 와 달리 `RESUME_INCOMPATIBLE_STATE` 로 끝내지 않고 그 노드를 처음부터 다시 실행한다. 재구동의 기존 동작이다.
-- 근거와 기각안은 [재개 턴 중 크래시한 멀티턴 AI 노드는 그 턴을 다시 돌린다](CLE-EXEC-RECOVERY-REDRIVE.md#재개-턴-중-크래시한-멀티턴-ai-노드는-그-턴을-다시-돌린다) 에 있다.
+- **다시 크래시할 때**: 옛 행 마감과 새 행 생성은 한 트랜잭션이 아니다. 옛 행을 마감한 뒤 새 행에 재개 스냅샷이 다시 저장되기 전에 서버가 다시 죽으면 다음 재구동은 다시 돌릴 스냅샷을 찾지 못한다. 새 행이 `running` 이고 출력이 없거나 턴 이전 대기 출력뿐인 경우다. 그때는 위 되돌아가기처럼 그 노드를 처음부터 다시 실행한다. 데이터는 깨지지 않고 그 턴의 재료만 잃는다.
+- 근거와 기각안은 [재개 턴 중 크래시한 멀티턴 AI 노드는 그 턴을 다시 돌린다](CLE-EXEC-RECOVERY-REDRIVE.md#재개-턴-중-크래시한-멀티턴-ai-노드는-그-턴을-다시-돌린다) 에 있다. 대상 고르기 · 출력 되돌림 · 서브 워크플로 규칙의 근거는 [Rationale](#크래시-재구동-재생은-대상을-하나로-좁히고-턴-이전-출력에서-다시-시작한다) 에 있다.
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/execution-engine/utils/resume-state.schema.ts` (`resumeStateSchema` · `resumeCheckpointSchema`. 서버 목록과 `mcpServerFromExpression` 을 함께 싣는다)
 - `codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts`
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`findCrashedAiTurn` · `replayCrashedAiTurn`, case B 진입 `redriveStuckExecution`)
+- `codebase/backend/src/modules/execution-engine/ai-conversation-helpers.ts` (`readCrashedAiTurn`)
 - `codebase/backend/src/shared/execution-resume/park-release-signal.ts` (park 해제 신호 `ParkReleaseSignal`)
 - `codebase/backend/src/shared/execution-resume/process-turn-result.ts` (턴 처리 결과 `ProcessTurnResult` · `PARK_RELEASED`)
 - `codebase/backend/src/shared/execution-resume/resume-call-stack.types.ts` (중첩 재개 호출 스택 `ResumeCallStack` · `CALL_STACK_SCHEMA_VERSION`)
@@ -180,3 +185,14 @@ AI 대화 경로가 재개 스냅샷을 노드 실행 행에 저장하게 됐다
 - 두 노드의 타입 구조가 이미 다르다. 공용 헬퍼는 서로 다른 구조 위에 억지 공통 타입을 얹어 표면을 늘린다.
 - 세 조립 지점의 모양이 실제로 다르다(3필드, 5필드와 `?? ''` 대체값과 `workspaceId`, 조건부 `undefined` 3필드). 헬퍼 하나로 묶으면 이 차이를 인자로 되살려야 해 이득이 작다.
 - 막 안정된 코드를 흔드는 비용이 작은 이득보다 크다.
+
+### 크래시 재구동 재생은 대상을 하나로 좁히고 턴 이전 출력에서 다시 시작한다
+
+결정일: 2026-11-19
+
+[크래시 재구동에서 처리 중이던 턴을 다시 돌린다](#크래시-재구동에서-처리-중이던-턴을-다시-돌린다) 의 세 규칙(대상 고르기, 새 행 출력 되돌림, 서브 워크플로 안의 노드)은 NERV Task `CLE-T-K9RZQV` 를 구현하면서 정했다. 턴을 다시 돌린다는 결정 자체의 근거는 [크래시 재구동](CLE-EXEC-RECOVERY-REDRIVE.md#재개-턴-중-크래시한-멀티턴-ai-노드는-그-턴을-다시-돌린다) 에 있다.
+
+- **대상을 하나로 좁힌다**: 컨테이너 본문에서는 입력 대기를 금지하므로 한 실행에서 park 하는 노드는 하나다. 그래서 재개 턴 중 크래시하면 `running` 행은 재개 스냅샷 행 하나와 호출 체인의 Workflow 노드 행만 남는다. 이와 다른 모양이면 크래시 때 무엇이 진행 중이었는지 하나로 정할 수 없다. 기각한 대안은 가장 최근 스냅샷 행 하나를 골라 재생하는 안이다. 다른 `running` 행이 왜 남았는지 모른 채 그 행들의 진행을 버리게 된다.
+- **턴 이전 대기 출력에서 다시 시작한다**: 재개 스냅샷은 그 턴의 사용자 메시지를 `output.result.messages` 끝에 이미 더해 두었다. 재생 턴은 일반 재개 턴처럼 직전 대기 출력에 그 메시지를 더해 새 스냅샷을 만든다. 옛 스냅샷을 새 행 출력으로 그대로 쓰면 같은 메시지가 두 번 들어간다. 기각한 대안은 한 턴 처리기에 재생 플래그를 두어 메시지 추가를 건너뛰는 안이다. case A 와 함께 쓰는 처리기에 재생 전용 분기가 생긴다.
+- **서브 워크플로 안의 노드도 다시 돌린다(사람 결정)**: 최상위 노드만 다시 돌리고 중첩 노드는 처음부터 다시 실행하는 안을 권했지만 사람이 중첩까지 이번에 구현하기로 정했다(2026-11-19). 호출 노드 행까지 마감하면 프레임 재진입이 호출 노드부터 다시 실행해 서브 워크플로 앞쪽 노드가 다시 돈다. 그래서 호출 노드 행은 park 중처럼 `running` 으로 두고 새 행만 같은 부모 아래에 만든다.
+- **마감과 새 행 생성을 한 트랜잭션으로 묶지 않는다**: 묶어도 새 행에 재개 스냅샷이 저장되기까지 LLM 호출 앞뒤로 창이 남는다. 그 창에서 다시 크래시하면 처음부터 다시 실행하는 기존 동작으로 돌아갈 뿐 데이터는 깨지지 않는다. 그래서 줄어드는 창에 비해 트랜잭션을 넓히는 비용이 크다고 보고 묶지 않았다.

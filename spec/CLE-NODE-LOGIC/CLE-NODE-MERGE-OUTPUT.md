@@ -2,19 +2,19 @@
 id: "CLE-NODE-MERGE-OUTPUT"
 title: "Merge 노드 — 실행 로직과 출력 구조"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-MERGE"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-MERGE"]
 area: "CLE-NODE-LOGIC"
-content_hash: "a2b2c05d671c681a0f15358ad32b242e6264f806f1a7f43370bc6d63b68d2953"
+content_hash: "d6434841eb7ffb5f3ecedd9767cd744a79956f115d69f25366437e6a1457737a"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-6R7VRR"
 source_paths: []
-mirror_sha256: "bd2cf55f9ae82a07935d62e292067b011fe31097f7f29fb2b20b45648ec21baa"
-etag: "sha256-66e0d9cf7798ffea6ca5a1797916d876973582710234de74a3752308c464ad46"
+mirror_sha256: "ad7a198b39115a6a46c274878504168f9b0ae94b474a77828b75db89c9bfb8f8"
+etag: "sha256-5247555e9c93266024db86a254b1b59dcb60e4fe3d562156bdfe0b1124709572"
 ---
 > 구현 상태: 구현됨 · 상위: [Merge 노드](CLE-NODE-MERGE.md)
 
@@ -84,7 +84,7 @@ Merge 는 단일 출력 데이터 노드라서 정상 케이스 하나뿐이다.
 | `config.partialOnTimeout?` | boolean | 설정 에코 | `rawConfig.partialOnTimeout` 을 대체 없이 그대로 싣는다. 저장된 설정에 키가 없으면 `undefined` 라서 JSON 에서 빠진다 |
 | `output` | `unknown[]` / `Record<string, unknown>` | 런타임, `outputFormat` 별 | 병합 결과. 모양은 [형식별 결과](#형식별-결과) |
 | `meta.inputCount` | number | 런타임 | 실제로 합친 입력 수. `strategy: 'first'` 면 1(정규화 후 잘라 낸 길이) |
-| `meta.strategy` | `'wait_all'` / `'first'` / `'append'` | 런타임, 기본값 적용 | 적용한 전략. `meta` 는 평가한 설정에서, `config.strategy` 는 원문에서 기본값을 채운다. enum 이라 표현식을 쓰지 않으므로 두 값은 같다. [노드 출력 규약 Principle 2](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 예외로 둔다([Rationale](#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다-2026-11-12)) |
+| `meta.strategy` | `'wait_all'` / `'first'` / `'append'` | 런타임, 기본값 적용 | 적용한 전략. `meta` 는 평가한 설정에서, `config.strategy` 는 원문에서 기본값을 채운다. enum 이라 표현식을 쓰지 않으므로 두 값은 같다. [노드 출력 규약 Principle 2](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 의 예외로 둔다([Rationale](#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다)) |
 | `meta.outputFormat` | `'array'` / `'merge_object'` / `'indexed'` | 런타임, 기본값 적용 | 적용한 출력 형식. `config.outputFormat` 과 같은 값이고 `meta.strategy` 와 같은 예외다 |
 | `meta.skippedKeys` | `string[]` | 런타임, `merge_object` 한정 | prototype pollution 방지로 버린 키(정렬·중복 제거). 다른 출력 형식에서는 항상 `[]` |
 | `meta.dormantFields` | `string[]` | 런타임 | 동작하지 않아 무시한 설정 필드. `handler.validate` 를 거치지 않은 실행에서 `timeout > 0` 이면 `'timeout'`, `partialOnTimeout === true` 면 `'partialOnTimeout'` 이 들어간다. 해당이 없으면 `[]`. 엔진 경로에서는 dormant 값이 검증에서 먼저 막힌다([실행 로직](#실행-로직) 4번) |
@@ -157,13 +157,17 @@ Merge 는 단일 출력 데이터 노드라서 정상 케이스 하나뿐이다.
 
 ## Rationale
 
-### 입력 정규화는 노드 출력 규약 Principle 10 의 대상이 아니다 (2026-10-24)
+### 입력 정규화는 노드 출력 규약 Principle 10 의 대상이 아니다
+
+결정일: 2026-10-24
 
 원문은 입력 정규화에 Principle 10 을 인용했지만 `null` 을 `[null]` 로 감쌌다. Principle 10 대로면 `[]` 다. [입력 정규화](#입력-정규화) 에 적은 이유로 Merge 는 그 대상이 아니므로 지금 동작을 유지했다(NERV Task `CLE-T-3HJ8MM`).
 
 기각한 대안은 `null` 입력을 `[]` 로 바꾸는 안이다. 위쪽 노드가 `null` 을 낸 경우 `inputCount` 가 1 에서 0 으로 바뀌어 기존 워크플로우의 결과가 달라진다.
 
-### meta 에 전략과 출력 형식을 설정 에코와 함께 둔다 (2026-11-12)
+### meta 에 전략과 출력 형식을 설정 에코와 함께 둔다
+
+결정일: 2026-11-12
 
 **결정**: `meta.strategy` · `meta.outputFormat` 을 지우지 않는다. 두 값은 `config.strategy` · `config.outputFormat` 과 같다. [노드 출력 규약 Principle 2](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-2-실행-메트릭에는-관측-값만-둔다) 는 `meta` 에 관측 값만 둔다고 정한다. Merge 는 그 예외로 남기고 규약의 Principle 2 표에 Merge 행을 두었다. `meta.dormantFields` 는 설정 값을 옮긴 것이 아니라 핸들러가 무시한 필드를 모은 값이라 그대로 둔다(NERV Task `CLE-T-3XGCYA`).
 

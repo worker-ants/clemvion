@@ -86,7 +86,7 @@ Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in
 | Command | Behavior |
 |---|---|
 | `/start` | Start a new execution. Cancels any running one first. |
-| `/cancel` | Cancel the current execution |
+| `/cancel` | Cancel the current execution. If there is no active conversation, the bot sends a notice (`languageHints.noActiveExecution`) |
 | `/help` | Display help text |
 
 When a button click is dropped without being processed, the bot still sends an acknowledgement to Telegram so the button's loading indicator clears right away. This covers a re-delivered update, exceeding the per-conversation per-minute limit, an execution that is still running and not accepting input, and a workflow that is turned off. The inline keyboard stays in place, so the user can press again shortly after. If the acknowledgement fails, the webhook response is unchanged. When the trigger itself is turned off, no external call is made, so no acknowledgement is sent either.
@@ -206,9 +206,24 @@ en → This input can't be accepted here right now, please use the form or butto
 
 After receiving this notice, the user can retry using the **form** or **buttons** shown on screen.
 
+### 7.5 No-active-conversation notice key (`noActiveExecution`)
+
+If a user sends `/cancel` when there is no active conversation, the bot sends a **notice that there is nothing to cancel**. The same applies when the conversation has already ended. Operators can override the message via `languageHints.noActiveExecution`.
+
+| Key | Sent when | `{statusCode}` allowed |
+|---|---|---|
+| `noActiveExecution` | `/cancel` with no active conversation | no |
+
+**default messages**:
+
+```
+ko → 진행 중인 대화가 없습니다.
+en → There is no active conversation.
+```
+
 ## 8. Limitations
 
-- **1:1 (private) chats only** — messages in group chats are silently ignored.
+- **1:1 (private) chats only** — messages in group chats are ignored. The bot only sends a notice (`languageHints.groupChatRefusal`).
 - **Bot messages are ignored** — messages with `from.is_bot=true` are dropped to prevent bot loops.
 - **60 requests/minute per conversation** — requests above the cap are ignored.
 - **Bot token storage** — the bot token and webhook secret_token are encrypted with AES-256-GCM in the secret store. Only ciphertext lives in the DB; plaintext is transiently decrypted inside the backend process that holds the master key.

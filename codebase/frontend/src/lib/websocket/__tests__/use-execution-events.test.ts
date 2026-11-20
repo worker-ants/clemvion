@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import {
-  nextRealtimePhase,
-  useExecutionEvents,
-} from "../use-execution-events";
+import { useExecutionEvents } from "../use-execution-events";
+import { nextRealtimePhase } from "../realtime-phase";
 import {
   useExecutionStore,
   selectSortedNodeResults,
