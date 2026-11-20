@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS"
 title: "WebSocket 이벤트와 명령"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "911c7003003837f078deb18b6c63159040465ff4222ba15831e9d4ef017cb73d"
+content_hash: "a4c5da3af43705ccfafc3f287d2934f0f304c98e1e5db09f44e586f95d01bc0a"
 read_as: "approved_fallback"
-task: "CLE-T-SKDWWG"
+task: "CLE-T-2Q4KRF"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "fcd617c1ad09c5e288daf31bf7ed1c76fd5815880951b53f3483a8bbe891931c"
-etag: "sha256-560c3354006cb4c588ed2bfe34ba68615f15343b2a891c15aa59c51636213c44"
+mirror_sha256: "893e029e8473eac102b80bebaf347dd0e21d195930264bb0cf2c86cec32e672e"
+etag: "sha256-730b3b4a030bc1e9871baee63dafde898dcf8903a0ac6ac0dca5dd12c2cc98cf"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -87,9 +87,10 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 
 ### 1.2 `execution.node.failed` 의 `error` 와 `output` (2026-08-24 실측)
 
-- **`error` 는 문자열이다.** 발행 4곳 전수 실측 결과 최상위 `error` 는 늘 `string`(메시지만)이다. `execution-engine.service.ts` 3곳(사전 검증 throw, 에러 포트 종결, 컨테이너 실패)과 `ai-turn-orchestrator.service.ts` 1곳이다.
+- **`error` 는 문자열이다.** 발행 4곳 전수 실측 결과 최상위 `error` 는 늘 `string`(메시지만)이다. `execution-engine.service.ts` 3곳(사전 검증 throw, 에러 포트 종결, 컨테이너 실패)과 `ai-turn-orchestrator.service.ts` 1곳이다. 그 뒤 더해진 마지막 턴 재시도의 새 행 마감(`retry-turn.service.ts` 의 `closeSpawnedRowIfRunning`)도 메시지 문자열을 싣는다.
 - **구조화 에러 객체는 `output.output.error` 에만 있다.** 클라이언트는 재시도 가능 여부(`details.retryable`)와 대기 시간(`retryAfterSec`)을 거기서 읽는다.
-- **`output` 은 발행 경로에 따라 실린다.** 에러 포트 종결(`finalizeErrorPortNode`)과 AI 턴 종결 **2곳만** `output: <nodeExec>.outputData`(completed 와 같은 래퍼)를 싣는다. 일반 사전 검증 throw 와 컨테이너 실패 2곳은 키 자체가 없다. 실릴 때는 그 래퍼도 fanout 에서 같은 허용 목록을 지난다.
+- **`output` 은 발행 경로에 따라 실린다.** 에러 포트 종결(`finalizeErrorPortNode`)과 AI 턴 종결 **2곳만** `output: <nodeExec>.outputData`(completed 와 같은 래퍼)를 싣는다. 일반 사전 검증 throw 와 컨테이너 실패 2곳은 키 자체가 없다. 마지막 턴 재시도의 새 행 마감도 키가 없다. 실릴 때는 그 래퍼도 fanout 에서 같은 허용 목록을 지난다.
+- **`node.started` 없이 올 수 있다.** 워커가 마지막 턴 재시도를 거절하면 새 노드 실행 행은 `node.started` 를 내기 전에 `failed` 로 마감되고 `node.failed` 만 나간다. 실행이 더는 `failed` 가 아니거나 같은 실행의 다른 재시도에 실행 단위 claim 을 빼앗긴 경우다. 규칙은 [재시도 전제와 재시도 턴 시작](../CLE-EXEC/CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작), 짝 없는 `node.failed` 를 고른 근거는 [같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](../CLE-EXEC/CLE-EXEC-STATE-RETRY.md#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다) 에 있다.
 - 래퍼와 도메인 값의 구분은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 0 이 정본이다. wire 봉투의 `output`·`nodeOutput` 은 노드 출력 래퍼 전체이고 도메인 값은 한 겹 아래다.
 
 ## 2. 실행 제어 명령 (Client → Server)

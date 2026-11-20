@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA-MODEL"
 title: "실행 데이터와 흐름 — 데이터 모델"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-DATA"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-DATA"]
 area: "CLE-EXEC"
-content_hash: "ab9c707000837c02520c300979441e2a616bd6c7b20545b57eb0175d277fa77d"
+content_hash: "1ca3a2dbd8ef6133a3772f543727d3556068a2f8e7bd4df44cd790da43eb126a"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-2Q4KRF"
 source_paths: []
-mirror_sha256: "8443b1581d3148092fa4f733416b48387e7172308c97510e8a27246200317f71"
-etag: "sha256-958b7b4c5437ea78b8171b6c8d916865c887032135171bd20a2b58ad25c267b0"
+mirror_sha256: "5f15d9806d2bdd7f6ae5dcfe8e637dd6c13f9dc566ee9354d6fe0576afa6a908"
+etag: "sha256-26e4fb826ef22faaff83db95567253601dfa0f308c2c8920927f7864965197e0"
 ---
 ## 개요
 
@@ -30,12 +30,12 @@ etag: "sha256-958b7b4c5437ea78b8171b6c8d916865c887032135171bd20a2b58ad25c267b0"
 | status | Enum | pending / running / completed / failed / cancelled / waiting_for_input. 전이 규칙은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md) |
 | queued_at | Timestamp? | 시작 큐 대기에 들어간 시각(`execute()` 가 `pending` 행을 INSERT 한 시점). 큐 대기 한도(`now - queued_at` 가 5분 초과) 판정 기준이다. `started_at`(`running` 전이 시각)과 별개다. 마이그레이션 V104. 규칙은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) |
 | started_at | Timestamp | 실행 시작 시각. 부팅 복구 스캔의 stale 판정과 re-claim 에도 쓴다([장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)). |
-| finished_at | Timestamp? | 실행 종료 시각 |
+| finished_at | Timestamp? | 실행 종료 시각. 마지막 턴 재시도 턴이 도는 동안에는 `failed` 실행이어도 이 컬럼과 `error` · `duration_ms` 가 비어 있을 수 있다. 워커가 턴에 들어가기 전에 [실행 단위 claim](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) 으로 셋을 비우고 턴이 다시 실패로 끝나면 다시 채운다. |
 | duration_ms | Integer? | 실행 소요 시간(wall-clock, 시작부터 종료까지). **취소·타임아웃으로 끝난 경로에서는 실행 시간이 아니라 대기 경과 시간**이다. 기준은 [External Interaction API](../CLE-IX/CLE-EIA.md) §6.5 다. 컬럼이 `INTEGER`(int4, 약 24.8일)라 쓰는 쪽은 상한을 반드시 잘라야 한다. 화면과 API 에서는 「전체 경과」(`durationMs`)로 보인다. |
 | active_running_ms | Integer | 세그먼트 누적 시간(ms). 워커가 노드를 전진시킨 구간의 합이며 입력 대기 park 시간은 뺀다. 기본 0. 실행 시간 한도(`EXECUTION_TIME_LIMIT_EXCEEDED`)의 측정 기준이다(V083). 화면과 API 에서는 「실행 시간」(`activeRunningMs`)으로 보인다. 응답 값과 `null` 규칙은 [실행 내역](CLE-EXEC-HISTORY.md) 의 API 절이 정한다. 실행이 끝나기 전에는 끝난 구간만 더해져 있다. V083 이전 실행은 0 이고 백필하지 않는다. 실행 중(`running`)에 REST 중지로 끝나면 엔진이 취소를 알아채는 다음 경계(노드 · AI 턴)에서 마지막 구간을 중지 시각(`finished_at`)까지만 더한다. 이때 이 컬럼만 고치고 상태와 종결 컬럼은 그대로 둔다. 엔진이 그 전에 멈추면 마지막 구간은 빠진 채 남는다. 근거는 [Rationale](#rationale) 의 「REST 중지 실행의 마지막 구간은 중지 시각까지 센다」. |
 | input_data | JSONB? | 실행 입력. **응답·발행 때 자격 증명 값 패턴을 가린다**(DB 는 원문 보존). 자매 `NodeExecution.input_data` 와 같은 규칙이다. 범위는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다. 서버도 2층으로 거부한다. 수동 실행 경로(저작 주체 기준, 재제출뿐 아니라 직접 입력도 포함)에서 값 leaf 가 마스킹 마커와 정확히 같으면 `400` `details[].code = MASKED_VALUE_RESUBMITTED` 로 거부한다(UI 를 거치지 않은 API 직접 호출 대비). 프론트엔드 마커 가드(프리필 건너뜀, 제출 차단)는 [재실행](CLE-EXEC-RERUN.md) 과 [에디터 실행과 디버깅](CLE-EXEC-RUN.md) 에 있다. |
 | output_data | JSONB? | 실행 최종 출력. 응답·발행 때 자격 증명 값 패턴을 가린다(DB 는 원문 보존). 범위는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) |
-| error | JSONB? | 에러 정보. 최초 `failed` 노드 실행의 에러를 복사하거나 엔진이 직접 쓴다. [실행 에러와 노드 실행 에러](#실행-에러와-노드-실행-에러) 참조 |
+| error | JSONB? | 에러 정보. 최초 `failed` 노드 실행의 에러를 복사하거나 엔진이 직접 쓴다. [실행 에러와 노드 실행 에러](#실행-에러와-노드-실행-에러) 참조. 마지막 턴 재시도 턴이 도는 동안에는 `failed` 실행이어도 비어 있을 수 있다(`finished_at` 행 참조) |
 | executed_by | UUID? | FK → User (NO ACTION). 수동 실행 때 |
 | parent_execution_id | UUID? | FK → Execution (SET NULL). 서브 워크플로우 실행의 부모 실행 |
 | recursion_depth | Integer | 서브 워크플로우 호출 깊이(root = 0) |

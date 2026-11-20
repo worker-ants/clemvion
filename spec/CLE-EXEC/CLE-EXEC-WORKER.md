@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER"
 title: "큐 워커와 동시 실행 제한"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "09c4eb117fa4d227b898cfe69467b2dbb6936827c1980894e14c04659053ed15"
+content_hash: "b9b69010f90bcebd4ac6fea5503d73b357fd1ae082a98101db3691d7e58d0438"
 read_as: "approved_fallback"
-task: "CLE-T-4YT18G"
+task: "CLE-T-2Q4KRF"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "f292527610927002306cc6ab01342577d2915e1769b57350ac45314dce1dcac3"
-etag: "sha256-ed5f658828b3a9d392e17ca3e95743b465ad9e6f3a51b6ef434852b915b83471"
+mirror_sha256: "4b810a0c43a0f4eb952d5e988fca4eae1a95014d86c7bbbe238304977d35b04a"
+etag: "sha256-3e655ab2940e5559a6ea2acc505b92f5e35acf99533b9e2ca02fe8a1b48bb357"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -127,6 +127,7 @@ flowchart LR
 - 시작 큐의 `jobId = executionId` 중복 제거 때문에 한 실행의 세그먼트는 **항상 하나**다. 두 세그먼트가 동시에 돌지 않는다.
 - 실행 시간 한도는 `assertActiveTimeWithinLimit`(판정)와 `updateExecutionStatus`(누적) 사이에 잠금 없이 읽고 판단하고 쓴다. 이 불변식 때문에 그 사이에 다른 세그먼트가 끼어들 경로가 없어 실제 race 는 없다.
 - **마지막 턴 재시도 경로 재검증(2026-07-28)**: `retry_last_turn` 은 재개 큐 jobId(`${executionId}:${nodeExecutionId}:${seq}`)를 써서 `jobId = executionId` 중복 제거 밖에 있다. 그래서 이 불변식이 저절로 성립하지 않는다. `applyRetryLastTurn` 이 자체 원자 claim 으로 같은 보장을 만든다. `status='running'` 과 `jsonb_exists` 조건으로 `input_data - '_retryState'` 를 UPDATE 하고 affected=1 인 배달만 진행한다.
+- 이 배달 claim 은 새 행 단위라 같은 실행의 형제 재시도(서로 다른 노드 실행 행)를 가르지 않는다. 같은 실행의 재시도 턴을 하나만 들이는 일은 [실행 단위 claim](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) 이 맡는다.
 - 크래시 재구동 경로의 재검증과 남은 zombie race 는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 - 동시 실행 제한에 걸려 다시 넣는 작업은 jobId 없이 자동 id 를 받는다. 이 작업과 위 불변식의 관계는 [미결 사항](#미결-사항) 참조.
 

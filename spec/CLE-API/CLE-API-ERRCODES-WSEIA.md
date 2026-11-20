@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-WSEIA"
 title: "에러 코드 카탈로그 — WebSocket · EIA · Background Runs"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "0c4d46eb340eb9e55a11e464a9eb0415675aa22a94895099d5ef31ed1f566beb"
+content_hash: "007af53f8ff849f736fdad04a36ea456ae70aaba4bc093c0abbcf1ee4dd2752c"
 read_as: "approved_fallback"
-task: "CLE-T-CPZBVH"
+task: "CLE-T-2Q4KRF"
 source_paths: []
-mirror_sha256: "57d82c4200816a4c508c96b577ad6f9a98f3469f7f14ed2f529ac8fbd7249899"
-etag: "sha256-adfda0f4afddba55d0586568adbd93a91d6d5cfa9b9b7b565cb89ce6a83ddf08"
+mirror_sha256: "8c431d7083f377287f118f9e8216e615172e6f248a8e64c6a87b749dd0d518da"
+etag: "sha256-d09051be2d7d6c66944c3a27c90530887ba35715ffae1187b0e97dc014f37143"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-adfda0f4afddba55d0586568adbd93a91d6d5cfa9b9b7b565cb89ce6a83ddf08"
 
 | 코드 | 설명 | 정의 문서 |
 |------|------|-----------|
-| `INVALID_EXECUTION_STATE` | 실행이 기대한 상태가 아님(재개 명령 넷(`submit_form` · `click_button` · `submit_message` · `end_conversation`)은 입력 대기, `retry_last_turn` 은 `failed` 를 기대). 동기 ack 응답이고 BullMQ 에 넣지 않는다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
+| `INVALID_EXECUTION_STATE` | 실행이 기대한 상태가 아님(재개 명령 넷(`submit_form` · `click_button` · `submit_message` · `end_conversation`)은 입력 대기, `retry_last_turn` 은 대상 노드 실행이 `failed` 이고 실행은 `finishedAt` 이 채워진 `failed` 이기를 기대). `finishedAt` 이 빈 `failed` 실행은 같은 실행의 다른 재시도 턴이 도는 중이라 이 코드로 거절한다. 동기 ack 응답이고 BullMQ 에 넣지 않는다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md), [재시도 전제와 재시도 턴 시작](../CLE-EXEC/CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) |
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID(`click_button`) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `VALIDATION_ERROR` (ack) | `submit_form` 의 필드 검증 실패. ack 는 평면 `errorCode` 이고 필드별 `details[]` 가 없다. EIA REST 의 `400 VALIDATION_ERROR` 와 같은 뜻, 같은 검증 지점이다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
