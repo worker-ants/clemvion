@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-EXEC"
 title: "HTTP Request 노드 — 실행 로직"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "641ad7d28b1243f2f5a6fea5692389f3cb83c29fc7294d96cc73e073360a6731"
+content_hash: "1cd801adaa4035b68691d94eb204a191e11bd1b6cff10d7631bdacfbb3fbcc6b"
 read_as: "approved_fallback"
-task: "CLE-T-NESSYD"
+task: "CLE-T-EFE3BW"
 source_paths: []
-mirror_sha256: "06f4afa54b8445e508feba8a22af89ce4c9c913f3888492c14a316e3ad23ef0e"
-etag: "sha256-a23409c0b1931d941e3bd85e799b76778bb6751bfff4202de1ca5475db831749"
+mirror_sha256: "49102ebb0be77f493dd3577a24d24e5e4e85f1131a987d6955e0d430fd56ba0a"
+etag: "sha256-4af7cde3a7f76921c09c98c7fc3450d4f03157286c62e58d3c298899c25e0a08"
 ---
 ## 개요
 
@@ -35,15 +35,15 @@ etag: "sha256-a23409c0b1931d941e3bd85e799b76778bb6751bfff4202de1ca5475db831749"
 6. **헤더 병합**(뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 통합 자격 증명 헤더가 사용자 입력을 덮어쓴다. 사용자가 `Authorization` 을 위조해 자격 증명을 무력화하는 경로를 막는다.
 7. **본문 직렬화**: `GET`·`HEAD` 가 아니면 `bodyType` 에 따라 직렬화한다. `form-data` 는 multipart boundary 를 자동으로 붙인다(Content-Type 을 지정하지 않는다).
 8. **사설망 차단**(모든 인증 방식 공통): `assertSafeOutboundUrl(url)` 로 호스트 리터럴을 검사하고, 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS 를 해석한 IP 를 다시 검사한다. 차단되면 `HTTP_BLOCKED` 로 에러 포트에 보낸다. 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던지면 `INTEGRATION_CALL_FAILED` 로 보낸다. 9단계의 요청(리다이렉트 홉 포함)은 연결 시점 주소 판정 dispatcher(`safeOutboundDispatcher`)로 보낸다. 연결할 때 호스트 이름을 다시 풀어 나온 주소가 하나라도 같은 대역에 들면 연결하지 않고 `HTTP_BLOCKED` 로 끝낸다. 판정을 통과한 주소로만 연결하므로 검사와 연결 사이에 DNS 응답이 바뀌어도(DNS rebinding) 막힌 대역에 닿지 않는다. 연결할 때 이름이 풀리지 않으면 `HTTP_TRANSPORT_FAILED` 다. `ALLOW_PRIVATE_HOST_TARGETS=true` 면 이 판정도 하지 않는다([Rationale](#연결할-때-푼-주소를-다시-판정한다-2026-11-14)). 대역·플래그·메시지 규칙은 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 사설망 차단 절이 정한다. dry-run 실행([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md))은 실제 요청이 없으므로 이 가드 전에 mock 을 반환하고 가드를 건너뛴다.
-9. **요청 보내기**: `AbortController` 로 `timeout` 을 걸고 `redirect: 'manual'` 로 보낸다. 노드 취소 신호(`context.abortSignal`)는 공용 헬퍼 `linkUpstreamAbort` 로 같은 controller 에 잇는다. 신호가 이미 취소됐으면 `controller.abort()` 를 바로 부른다. `integration` 인증이면 `Location` 헤더가 있는 3xx 를 최대 5홉까지 직접 따라가며 홉마다 사설망 차단을 다시 검사한다. 5홉을 따라간 뒤에도 `Location` 이 있는 3xx 가 오면 차단 판정 없이 `HTTP_BLOCKED` 로 끝낸다. 메시지는 사설망 차단과 같은 일반화 문구다([Rationale](CLE-NODE-HTTP-OUTPUT.md#리다이렉트-한도-초과와-3xx-응답의-출력-코드-2026-11-13)). 홉 대상의 출처가 첫 요청과 다르면 그 홉부터 자격 증명을 싣지 않고, 303 과 301·302 의 `POST` 는 본문 없는 `GET` 으로 바꾼다(아래 [리다이렉트 홉의 자격 증명과 method](#리다이렉트-홉의-자격-증명과-method)). 리다이렉트 홉(`followRedirectsSafely`)도 같은 controller 의 신호를 쓴다. `none`·`custom` 인증은 3xx 를 따라가지 않고 그대로 에러 케이스로 반환한다. `followRedirects`·`verifySsl` 은 반영하지 않는다(Planned). 3단계의 통합 조회와 8단계의 사설망 차단 검사·DNS 해석은 노드 취소 신호를 잇기 전에 돈다. 신호가 이미 취소된 노드는 엔진이 dispatch 직전에 거르므로([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 19) 이 틈은 좁다. 이 틈에서 신호가 취소돼도 대상이 차단 호스트면 `HTTP_BLOCKED` 가 먼저 나온다. 진입할 때 신호를 따로 확인하지 않는 이유는 [Rationale](#진입할-때-노드-취소-신호를-따로-확인하지-않는다-2026-10-10) 에 있다.
-10. **응답 파싱**: `responseType='json'` 이면 `res.json()`(실패하면 `null`), 그 밖(`text`·`binary`)은 `res.text()` 다. 본문을 읽다가 노드 취소 신호가 취소되면 `null` 로 삼키지 않고 `AbortError` 를 다시 던진다.
+9. **요청 보내기**: `AbortController` 로 `timeout` 을 걸고 `redirect: 'manual'` 로 보낸다. 이 타이머는 리다이렉트 홉과 응답 본문 읽기까지 덮고 13단계에서 지운다. 노드 취소 신호(`context.abortSignal`)는 공용 헬퍼 `linkUpstreamAbort` 로 같은 controller 에 잇는다. 신호가 이미 취소됐으면 `controller.abort()` 를 바로 부른다. `integration` 인증이면 `Location` 헤더가 있는 3xx 를 최대 5홉까지 직접 따라가며 홉마다 사설망 차단을 다시 검사한다. 5홉을 따라간 뒤에도 `Location` 이 있는 3xx 가 오면 차단 판정 없이 `HTTP_BLOCKED` 로 끝낸다. 메시지는 사설망 차단과 같은 일반화 문구다([Rationale](CLE-NODE-HTTP-OUTPUT.md#리다이렉트-한도-초과와-3xx-응답의-출력-코드-2026-11-13)). 홉 대상의 출처가 첫 요청과 다르면 그 홉부터 자격 증명을 싣지 않고, 303 과 301·302 의 `POST` 는 본문 없는 `GET` 으로 바꾼다(아래 [리다이렉트 홉의 자격 증명과 method](#리다이렉트-홉의-자격-증명과-method)). 리다이렉트 홉(`followRedirectsSafely`)도 같은 controller 의 신호를 쓴다. `none`·`custom` 인증은 3xx 를 따라가지 않고 그대로 에러 케이스로 반환한다. `followRedirects`·`verifySsl` 은 반영하지 않는다(Planned). 3단계의 통합 조회와 8단계의 사설망 차단 검사·DNS 해석은 노드 취소 신호를 잇기 전에 돈다. 신호가 이미 취소된 노드는 엔진이 dispatch 직전에 거르므로([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙 19) 이 틈은 좁다. 이 틈에서 신호가 취소돼도 대상이 차단 호스트면 `HTTP_BLOCKED` 가 먼저 나온다. 진입할 때 신호를 따로 확인하지 않는 이유는 [Rationale](#진입할-때-노드-취소-신호를-따로-확인하지-않는다-2026-10-10) 에 있다.
+10. **응답 파싱**: `responseType='json'` 이면 `res.json()`(실패하면 `null`), 그 밖(`text`·`binary`)은 `res.text()` 다. 본문을 읽다가 노드 취소 신호가 취소되면 `null` 로 삼키지 않고 `AbortError` 를 다시 던진다. 본문을 읽다가 노드 자체 타임아웃이 지나도 `null` 로 삼키지 않고 전송 실패(`HTTP_TRANSPORT_FAILED`)로 보낸다. 헤더만 보내고 본문을 끝내지 않는 서버도 `timeout` 에서 끊긴다.
 11. **활동 로그 기록**: `integration` 인증일 때만 `success`·`failed` 를 남긴다(아래 "활동 로그"). 노드 취소 신호로 끝난 호출과 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)).
 12. **반환**:
     - `res.ok` 면 성공 케이스(`port: 'success'`).
     - 2xx 가 아닌 응답이면 에러 케이스다. `output.error.code` 는 상태가 500 이상이면 `HTTP_5XX`, 그 밖(3xx·4xx)은 `HTTP_4XX` 다. 3xx 가 여기로 오는 경우는 `none`·`custom` 인증의 3xx 와 `integration` 인증에서 `Location` 이 없는 3xx 다. `integration` 인증에서 리다이렉트가 5홉을 넘으면 3xx 가 아니라 `HTTP_BLOCKED` 가 나온다(9단계).
-    - 요청이 reject 되면(네트워크·노드 자체 타임아웃) `HTTP_TRANSPORT_FAILED`, `meta.statusCode = 0`.
+    - 요청이 reject 되면(네트워크·노드 자체 타임아웃. 응답 본문을 읽다가 지난 타임아웃 포함) `HTTP_TRANSPORT_FAILED`, `meta.statusCode = 0`.
     - 노드 취소 신호로 요청이 끝나면(`isUpstreamAbort`) 핸들러는 출력을 돌려주지 않고 `AbortError` 를 다시 던진다. 엔진 쪽 기록은 [출력 구조](CLE-NODE-HTTP-OUTPUT.md#출력-구조) 서두에 있다.
-13. **정리**: 노드 취소 신호의 리스너는 응답 본문까지 읽은 뒤 `finally` 에서 뗀다. 본문 읽기도 취소 대상이라 헤더를 받은 직후에 떼지 않는다. 성공한 요청은 `controller.abort()` 를 부르지 않으므로 정리를 controller 의 `abort` 이벤트에 걸면 리스너가 노드 취소 신호에 남는다.
+13. **정리**: 노드 취소 신호의 리스너는 응답 본문까지 읽은 뒤 `finally` 에서 뗀다. 본문 읽기도 취소 대상이라 헤더를 받은 직후에 떼지 않는다. 성공한 요청은 `controller.abort()` 를 부르지 않으므로 정리를 controller 의 `abort` 이벤트에 걸면 리스너가 노드 취소 신호에 남는다. 자체 타임아웃 타이머도 같은 `finally` 에서 지운다. Cafe24·MakeShop 의 `readResponseBody` 와 같은 형태다([fetch 자체 타임아웃과의 연쇄](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)).
 
 ### 인증 유형별 자격 증명 적용
 
@@ -92,7 +92,7 @@ HTTP 통합에서 `auth_type` 을 `none` 으로 저장할 수 있는지는 정�
 |------|----------|--------------|
 | 2xx | `success` | — |
 | 3xx·4xx·5xx | `failed` | `HTTP_{status}` (예: `HTTP_502`) |
-| 요청 reject (네트워크·노드 자체 타임아웃) | `failed` | `HTTP_TRANSPORT_FAILED` |
+| 요청 reject (네트워크·노드 자체 타임아웃. 본문을 읽다가 지난 타임아웃 포함) | `failed` | `HTTP_TRANSPORT_FAILED` |
 | 사설망 차단·리다이렉트 한도 초과 | `failed` | `HTTP_BLOCKED` |
 | 사설망 차단 가드의 고장 (preflight) | `failed` | `INTEGRATION_CALL_FAILED` |
 
@@ -162,3 +162,18 @@ API 식별 정보는 다음처럼 채운다. 통합별 채우기 정책의 전�
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 «통합을 얻기 전 실패는 기록하지 않는다» 요구사항).
 
 - 요구사항 변경: 활동 로그 기록 요구사항([활동 로그](#활동-로그))은 «노드 취소 신호로 끝난 호출을 빼고» 에서 «통합을 얻은 뒤의 호출 가운데 노드 취소 신호로 끝난 호출을 빼고» 로 범위를 좁혔다.
+
+### 노드 자체 타임아웃이 응답 본문 읽기까지 덮는다
+
+결정일: 2026-11-19
+
+이전에는 응답 헤더를 받자마자 자체 타임아웃 타이머를 지웠다. 그래서 헤더만 보내고 본문을 끝내지 않는 서버를 만나면 노드 취소 신호가 오지 않는 한 `timeout` 이 지나도 노드가 끝나지 않았다. 노드 취소 신호의 리스너는 이미 본문까지 유지했고, Cafe24 · MakeShop 클라이언트도 2026-11-19 에 타이머를 본문까지 유지하도록 고쳤다([노드 취소 — 노드별 구현](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#응답-본문을-다-읽을-때까지-연쇄를-유지한다)). HTTP Request 노드만 남아 있던 차이를 같은 형태로 맞췄다(NERV Task `CLE-T-EFE3BW`).
+
+- 타이머는 `finally` 에서 리스너와 함께 지운다. 끝난 요청의 타이머가 남아 뒤늦게 controller 를 취소하지 않는다.
+- `json` 모드의 본문 파싱 실패는 지금처럼 `output.response = null` 로 둔다(REQ-HTTP-004). 다만 자체 타임아웃으로 끊긴 읽기는 파싱 실패가 아니므로 삼키지 않고 전송 실패로 보낸다. 삼키면 `timeout` 이 지난 요청이 `success` 포트로 나간다.
+- `meta.durationMs` 는 지금처럼 응답 헤더를 받은 시점까지 잰다.
+
+기각한 대안:
+
+- 헤더를 받은 시점에 타이머를 지우는 지금 방식을 유지한다: 본문을 끝내지 않는 서버를 만나면 노드가 `timeout` 을 넘겨 멈춘다. Cafe24 · MakeShop 노드와도 규칙이 갈린다.
+- 본문 읽기에만 쓰는 타이머를 따로 둔다: 사용자가 정한 `timeout` 하나가 요청 전체의 상한이라는 뜻이 흐려지고 지울 타이머가 둘로 늘어난다.

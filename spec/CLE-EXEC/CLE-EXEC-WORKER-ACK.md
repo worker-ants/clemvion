@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER-ACK"
 title: "큐 워커 — 재개 ack 에러 표면"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-WORKER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-WORKER"]
 area: "CLE-EXEC"
-content_hash: "7b628a709caf1db03818f3a6bda90667f8a903d54c69006a7213ba5dd6d82145"
+content_hash: "8316615ff48c01b98382bd4f4c11dea79144515b791dc15b7d398f0f2c640e8f"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-E6PW00"
 source_paths: []
-mirror_sha256: "e5f8f1cf128b96e528c92bf909c48fd2e81ba1322b5a2d7f00c4ca5f0e5f834b"
-etag: "sha256-69c63fb2ad261e729f674dd967fc7489f98c4f53cf52acc68e4e378990fbdc87"
+mirror_sha256: "7092eef8421ba271520acfb301a0899b382b59ac5346420f41f9bd778fc5aad5"
+etag: "sha256-a9992f4415112de43e9cedaa27a13997ae351d0ce73100fd7c4013887d64395b"
 ---
 ## 개요
 
@@ -53,7 +53,7 @@ etag: "sha256-69c63fb2ad261e729f674dd967fc7489f98c4f53cf52acc68e4e378990fbdc87"
 - 새 client-safe 코드는 새 prefix 를 만들지 않고 중앙 `ErrorCode` enum 의 `EXECUTION_*` 이름공간을 넓힌다. 예: `EXECUTION_INTERNAL_ERROR`(일반 대체 코드), `EXECUTION_MESSAGE_TOO_LONG`(`submit_message` 의 `message` 가 최대 **10000자**(`ExecutionEngineService.MAX_MESSAGE_LENGTH = 10_000`)를 넘음). 길이 수치는 클라이언트에 보내지 않고 서버 로그(`serverDetail`)에만 남긴다.
 - `INVALID_EXECUTION_STATE`(prefix 없는 시스템 코드), 워커 쪽 `RESUME_*`, 마지막 턴 재시도 `RETRY_*` 는 안정성 정책에 따라 기존 이름을 유지한다. 명명 규칙은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
 - 프론트엔드는 백엔드의 안정 code 를 `code → i18n key` 맵으로 표시한다(`integration-error-codes` 선례). 맵에 없는 code 는 일반 문구로 표시한다. 백엔드는 i18n 층을 두지 않는다. WS ack 표면은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 의 재개 에러 코드 표와 맞춘다.
-- **EIA 진입점 매핑**: 같은 `MessageTooLongError` 가 EIA `submit_message`(`interaction.service`)에서 나면 `400 Bad Request` + `MESSAGE_TOO_LONG` 으로 바꾼다. `InvalidExecutionStateError` → `STATE_MISMATCH`(409)와 같은 방식이다. 응답에는 고정 메시지만 싣고 길이 수치는 싣지 않는다. 규칙의 기준은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R13 이다.
+- **EIA 진입점 매핑**: 같은 `MessageTooLongError` 가 EIA `submit_message`(`interaction.service`)에서 나면 `400 Bad Request` + `MESSAGE_TOO_LONG` 으로 바꾼다. `InvalidExecutionStateError` → `STATE_MISMATCH`(409)와 같은 방식이다. 응답에는 고정 메시지만 싣고 길이 수치는 싣지 않는다. 코드 표는 [인터랙션 명령 제출](../CLE-IX/CLE-EIA-INBOUND-COMMAND.md#명령-에러) 에 있다.
 - 워커 쪽 비동기 실패(`RESUME_*`)는 이 동기 변환 밖이다. 뒤따르는 `execution.cancelled` 이벤트로 알리며 같은 누출 차단 원칙(내부 message 를 싣지 않고 code 만)을 그 이벤트 빌더에도 적용한다. 그 이벤트 빌더의 점검은 후속 항목이다.
 
 ## 구현 위치

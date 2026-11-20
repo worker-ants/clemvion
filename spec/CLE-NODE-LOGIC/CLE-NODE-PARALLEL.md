@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL"
 title: "Parallel 노드"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-PARALLEL-001", "REQ-PARALLEL-002", "REQ-PARALLEL-003", "REQ-PARALLEL-004", "REQ-PARALLEL-005", "REQ-PARALLEL-006", "REQ-PARALLEL-007", "REQ-PARALLEL-008", "REQ-PARALLEL-009", "REQ-PARALLEL-010", "REQ-PARALLEL-011", "REQ-PARALLEL-012", "REQ-PARALLEL-013", "REQ-PARALLEL-014", "REQ-PARALLEL-015", "REQ-PARALLEL-016", "REQ-PARALLEL-017", "REQ-PARALLEL-018", "REQ-PARALLEL-019", "REQ-PARALLEL-020", "REQ-PARALLEL-021", "REQ-PARALLEL-022", "REQ-PARALLEL-023", "REQ-PARALLEL-024", "REQ-PARALLEL-025", "REQ-PARALLEL-026", "REQ-PARALLEL-027", "REQ-PARALLEL-028", "REQ-PARALLEL-029", "REQ-PARALLEL-030", "REQ-PARALLEL-031", "REQ-PARALLEL-032", "REQ-PARALLEL-033", "REQ-PARALLEL-034", "REQ-PARALLEL-035", "REQ-PARALLEL-036", "REQ-PARALLEL-037"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "ded8ce35f861f05ce16f5ae0a4f48e0ae89fa083e3a24787d1372650831d87ed"
+content_hash: "132aa8abf359c6a40b233ebc59d8ca6caec572a3c2455a1bd9aeb66d9928e963"
 read_as: "approved_fallback"
-task: "CLE-T-B7A8B2"
+task: "CLE-T-ECETZR"
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "025622970584a917a4a7acac8508798cc461b0f4878e05db6d1420111f2d393f"
-etag: "sha256-0f34590378527dd643cf4f4c660138855ab959db442cf057792d2616d08ab7d9"
+mirror_sha256: "9c6367c171c5d53402e3ef6eae51b0b3b945f125e69ff79486bfd32f637947c2"
+etag: "sha256-01b82766af5b7353332f6b89ce663d32d0045ef82e01c64ec81db2590f7a20d2"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -123,85 +123,125 @@ Parallel 노드(Parallel, `parallel`)는 같은 입력을 받는 병렬 분기(b
 
 결정 근거는 하위 문서마다 끝 `## Rationale` 에 있다. 아래 절은 옮긴 곳을 가리킨다.
 
-### 병렬 분기 캐시 격리: 얕은 복사와 개발·테스트 환경 동결 (2026-06-10)
+### 병렬 분기 캐시 격리: 얕은 복사와 개발·테스트 환경 동결
 
-→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기-캐시-격리-얕은-복사와-개발테스트-환경-동결-2026-06-10)
+결정일: 2026-06-10
 
-### `done` 출력에 `count` 를 싣는다 (2026-06-03 결정 B)
+→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기-캐시-격리-얕은-복사와-개발테스트-환경-동결)
 
-→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#done-출력에-count-를-싣는다-2026-06-03-결정-b)
+### `done` 출력에 `count` 를 싣는다
 
-### `waitAll=false` 를 지원하지 않는다 (2026-05-30 결정 K)
+결정일: 2026-06-03
 
-→ [Parallel 노드 — 설정과 에러](CLE-NODE-PARALLEL-CONFIG.md#waitallfalse-를-지원하지-않는다-2026-05-30-결정-k)
+→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#done-출력에-count-를-싣는다)
 
-### 중첩 Parallel 을 제한적으로 허용한다 (깊이 2, 동시 실행 수 곱 상한 32, 2026-05-30 결정 #3 · G · D)
+### `waitAll=false` 를 지원하지 않는다
 
-→ [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#중첩-parallel-을-제한적으로-허용한다-깊이-2-동시-실행-수-곱-상한-32-2026-05-30-결정-3--g--d)
+결정일: 2026-05-30
 
-### `cancel-others-on-fail` 항목 에러 정책 (2026-05-30, 결정 A · H)
+→ [Parallel 노드 — 설정과 에러](CLE-NODE-PARALLEL-CONFIG.md#waitallfalse-를-지원하지-않는다)
 
-→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#cancel-others-on-fail-항목-에러-정책-2026-05-30-결정-a--h)
+### 중첩 Parallel 을 제한적으로 허용한다 (깊이 2, 동시 실행 수 곱 상한 32)
 
-### 완료 `meta` 에 병렬 분기 수와 실패 수를 따로 싣지 않는다 (2026-10-24)
+결정일: 2026-05-30
 
-→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#완료-meta-에-병렬-분기-수와-실패-수를-따로-싣지-않는다-2026-10-24)
+→ [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#중첩-parallel-을-제한적으로-허용한다-깊이-2-동시-실행-수-곱-상한-32)
 
-### 완료 출력은 병렬 분기 결과를 그대로 두고 실패를 따로 모은다 (2026-11-01)
+### `cancel-others-on-fail` 항목 에러 정책
 
-→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#완료-출력은-병렬-분기-결과를-그대로-두고-실패를-따로-모은다-2026-11-01)
+결정일: 2026-05-30
 
-### 실패 목록 필드 이름은 `skipped` 다 (2026-11-01)
+→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#cancel-others-on-fail-항목-에러-정책)
 
-→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#실패-목록-필드-이름은-skipped-다-2026-11-01)
+### 완료 `meta` 에 병렬 분기 수와 실패 수를 따로 싣지 않는다
 
-### 병렬 분기 결과는 실제로 실행된 마지막 노드의 출력이다 (2026-11-01)
+결정일: 2026-10-24
 
-→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기-결과는-실제로-실행된-마지막-노드의-출력이다-2026-11-01)
+→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#완료-meta-에-병렬-분기-수와-실패-수를-따로-싣지-않는다)
 
-### 완료 출력 `port` 는 `'done'` 문자열이다 (2026-11-01)
+### 완료 출력은 병렬 분기 결과를 그대로 두고 실패를 따로 모은다
 
-→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#완료-출력-port-는-done-문자열이다-2026-11-01)
+결정일: 2026-11-01
 
-### `branchCount` 범위 검사는 경고 규칙 한 곳에 둔다 (2026-11-01)
+→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#완료-출력은-병렬-분기-결과를-그대로-두고-실패를-따로-모은다)
 
-→ [Parallel 노드 — 설정과 에러](CLE-NODE-PARALLEL-CONFIG.md#branchcount-범위-검사는-경고-규칙-한-곳에-둔다-2026-11-01)
+### 실패 목록 필드 이름은 `skipped` 다
 
-### `error.code` 의 값 (2026-11-01)
+결정일: 2026-11-01
 
-→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#errorcode-의-값-2026-11-01)
+→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#실패-목록-필드-이름은-skipped-다)
 
-### 병렬 분기 사본에 엔진 쓰기를 옮긴다 (2026-11-02)
+### 병렬 분기 결과는 실제로 실행된 마지막 노드의 출력이다
 
-→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기-사본에-엔진-쓰기를-옮긴다-2026-11-02)
+결정일: 2026-11-01
 
-### 결과 노드의 동률은 엔진 위상 순서로 가른다 (2026-11-02)
+→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기-결과는-실제로-실행된-마지막-노드의-출력이다)
 
-→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#결과-노드의-동률은-엔진-위상-순서로-가른다-2026-11-02)
+### 완료 출력 `port` 는 `'done'` 문자열이다
 
-### `off` 되돌림 경로는 완료 출력을 만들지 않는다 (2026-11-02)
+결정일: 2026-11-01
 
-→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)
+→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#완료-출력-port-는-done-문자열이다)
 
-### 병렬 분기 안 입력 대기는 실행 중에도 병렬 분기 실패로 다룬다 (2026-11-02)
+### `branchCount` 범위 검사는 경고 규칙 한 곳에 둔다
 
-→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기-안-입력-대기는-실행-중에도-병렬-분기-실패로-다룬다-2026-11-02)
+결정일: 2026-11-01
 
-### 병렬 분기 안의 안쪽 Parallel 을 Parallel 실행 경로로 넘긴다 (2026-11-06)
+→ [Parallel 노드 — 설정과 에러](CLE-NODE-PARALLEL-CONFIG.md#branchcount-범위-검사는-경고-규칙-한-곳에-둔다)
 
-→ [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#병렬-분기-안의-안쪽-parallel-을-parallel-실행-경로로-넘긴다-2026-11-06)
+### `error.code` 의 값
 
-### 컨테이너 본문과 서브 워크플로우의 Parallel 도 Parallel 실행 경로로 넘긴다 (2026-11-06)
+결정일: 2026-11-01
 
-→ [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다-2026-11-06)
+→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#errorcode-의-값)
 
-### `stop` 은 모든 병렬 분기를 기다린 뒤 실패를 던진다 (2026-11-06)
+### 병렬 분기 사본에 엔진 쓰기를 옮긴다
 
-→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#stop-은-모든-병렬-분기를-기다린-뒤-실패를-던진다-2026-11-06)
+결정일: 2026-11-02
 
-### 컨테이너 안 Background 본문의 Parallel 은 사전 검사도 깊이 1 부터 센다 (2026-11-12)
+→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기-사본에-엔진-쓰기를-옮긴다)
 
-→ [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#컨테이너-안-background-본문의-parallel-은-사전-검사도-깊이-1-부터-센다-2026-11-12)
+### 결과 노드의 동률은 엔진 위상 순서로 가른다
+
+결정일: 2026-11-02
+
+→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#결과-노드의-동률은-엔진-위상-순서로-가른다)
+
+### `off` 되돌림 경로는 완료 출력을 만들지 않는다
+
+결정일: 2026-11-02
+
+→ [Parallel 노드 — 출력 구조](CLE-NODE-PARALLEL-OUTPUT.md#off-되돌림-경로는-완료-출력을-만들지-않는다)
+
+### 병렬 분기 안 입력 대기는 실행 중에도 병렬 분기 실패로 다룬다
+
+결정일: 2026-11-02
+
+→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#병렬-분기-안-입력-대기는-실행-중에도-병렬-분기-실패로-다룬다)
+
+### 병렬 분기 안의 안쪽 Parallel 을 Parallel 실행 경로로 넘긴다
+
+결정일: 2026-11-06
+
+→ [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#병렬-분기-안의-안쪽-parallel-을-parallel-실행-경로로-넘긴다)
+
+### 컨테이너 본문과 서브 워크플로우의 Parallel 도 Parallel 실행 경로로 넘긴다
+
+결정일: 2026-11-06
+
+→ [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다)
+
+### `stop` 은 모든 병렬 분기를 기다린 뒤 실패를 던진다
+
+결정일: 2026-11-06
+
+→ [Parallel 노드 — 실행 로직](CLE-NODE-PARALLEL-EXEC.md#stop-은-모든-병렬-분기를-기다린-뒤-실패를-던진다)
+
+### 컨테이너 안 Background 본문의 Parallel 은 사전 검사도 깊이 1 부터 센다
+
+결정일: 2026-11-12
+
+→ [Parallel 노드 — 놓인 위치와 중첩](CLE-NODE-PARALLEL-NEST.md#컨테이너-안-background-본문의-parallel-은-사전-검사도-깊이-1-부터-센다)
 
 ### 동적 에러 포트 예외와 합류 노드 서술을 맞춘다
 

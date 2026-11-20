@@ -5,6 +5,7 @@ import {
   MinusCircle,
   PauseCircle,
   Loader2,
+  Ban,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
@@ -135,6 +136,16 @@ function StatusBadge({ status }: { status: string }) {
         >
           <PauseCircle className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
           Waiting
+        </Badge>
+      );
+    case "cancelled":
+      return (
+        <Badge
+          variant="outline"
+          className="text-[10px] px-1.5 py-0 text-gray-700 border-gray-300"
+        >
+          <Ban className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
+          Cancelled
         </Badge>
       );
     default:
@@ -1060,10 +1071,12 @@ export function ResultDetail({
   // the entire detail panel — losing access to Output/Config tabs. Now they
   // share NodeDetailTabs and the conversation view lives inside the Preview
   // tab so the user can still inspect the raw output.
+  // `cancelled` 는 `failed` 와 같은 탭 배치를 쓴다(CLE-EXEC-RUN-DRAWER 「결과 상세 탭」).
   const showTabs =
     isConversationNode ||
     result.status === "completed" ||
     result.status === "failed" ||
+    result.status === "cancelled" ||
     result.status === "waiting_for_input";
 
   // spec/conventions/conversation-thread.md §9.3 "오류 종결 · live" 행 — 동일

@@ -207,7 +207,7 @@ export const resolveSurfaceMismatchMessage = makeLocaleResolver(
 /**
  * `groupChatRefusal`(그룹 대화 거절 안내)의 기본 문구. 이 키는 처음부터 있던 키라 영어 기본값이
  * 스펙 범위 밖이다(CLE-CHAT-DATA-CONFIG 「안내 문구 기본값」). 그래서 locale 과 상관없이 이 문구 하나다.
- * Slack 어댑터의 DM 밖 슬래시 명령 응답과 `HooksService` 의 Telegram 그룹 대화 안내가 함께 읽는다.
+ * Slack · Discord 어댑터의 DM 밖 슬래시 명령 응답과 `HooksService` 의 Telegram 그룹 대화 안내가 함께 읽는다.
  */
 export const GROUP_CHAT_REFUSAL_DEFAULT = '이 봇은 1:1 대화만 지원합니다.';
 
@@ -243,6 +243,26 @@ export const COMMAND_RECEIVED_DEFAULTS: Record<LanguageLocale, string> = {
 export const resolveCommandReceivedMessage = makeLocaleResolver(
   'commandReceived',
   COMMAND_RECEIVED_DEFAULTS,
+);
+
+/**
+ * 진행 중인 실행이 없는 대화에 `/cancel` 이 왔을 때 보내는 안내의 기본 문구(KO/EN, 합쇼체). 대화 상태가
+ * 없거나 가리키는 실행이 이미 끝났을 때 쓴다. Slack · Discord 슬래시 명령은 본인에게만 보이는 즉시 응답의
+ * 내용으로, Telegram 은 대화에 보내는 제어 안내로 싣는다. 2026-11-19 사람 결정(NERV 질문
+ * `01a1f2b8-1ad7-7778-b15d-36c208d2accf`, Task `CLE-T-A78V0M`).
+ */
+export const NO_ACTIVE_EXECUTION_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '진행 중인 대화가 없습니다.',
+  en: 'There is no active conversation.',
+};
+
+/**
+ * `/cancel` 안내 3-level lookup — (1) languageHints.noActiveExecution override →
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
+ */
+export const resolveNoActiveExecutionMessage = makeLocaleResolver(
+  'noActiveExecution',
+  NO_ACTIVE_EXECUTION_DEFAULTS,
 );
 
 /**

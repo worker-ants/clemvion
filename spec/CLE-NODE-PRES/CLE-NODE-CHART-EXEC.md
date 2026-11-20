@@ -2,19 +2,19 @@
 id: "CLE-NODE-CHART-EXEC"
 title: "Chart 노드 — 실행 로직과 렌더링"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CHART"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES", "CLE-NODE-CHART"]
 area: "CLE-NODE-PRES"
-content_hash: "a92c1e84a799bb93cb5a7b9cc3aca8c63135db9871e1a550125dc3b635405eb6"
+content_hash: "1f2bffce065220701126151c45d9a47f8afe2b4363048f165baaad5492684d47"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-6R7VRR"
 source_paths: []
-mirror_sha256: "cbeb88708b46bc6e4102d929af9a4a6fa19070d8256ec4077d1845a2b1779c09"
-etag: "sha256-94c174161bd7e150fb40563f612dc82244cfeed8f138075bf7c8dcda849695a2"
+mirror_sha256: "3aa0e79b8a2be6492e21b4b7229312e9791f03c455f715aa7d6eac297fe26dd8"
+etag: "sha256-e723a1cec4aa69b92da75ae6f9239af307683f287bc7a2782095732644f3c997"
 ---
 ## 개요
 
@@ -72,7 +72,9 @@ X 값이 겹치면(예: 같은 월이 여러 행) `yAxis.aggregation` 에 따라
 
 ## Rationale
 
-### `dataField` 가 배열이 아니면 빈 배열로 그린다 (2026-10-24)
+### `dataField` 가 배열이 아니면 빈 배열로 그린다
+
+결정일: 2026-10-24
 
 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-10-비었거나-null-인-입력의-대체-값) 의 Principle 10 은 배열을 기대한 설정 필드에 배열이 아닌 값이 오면 throw 하라고 정한다. Chart 는 `dataField` 가 배열이 아닌 값을 가리키면 `[]` 로 그려 왔다. 이 동작은 승인본 요구사항이 이미 정한 동작이다. 반복·분리 노드는 아니지만 이 동작을 바꾸지 않고 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 의 예외 표에 넣었다(NERV Task `CLE-T-3HJ8MM`). 차트가 그려지지 않는 것이 화면에 바로 보여 사용자가 알아채므로 `meta.fellBackToEmpty` 를 더하지 않았다. 2026-10-10 에 사용자가 승인한 규칙은 입력 배열을 도는 반복·분리 노드만 다뤘다. Chart 를 예외 표에 함께 올린 경위는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#예외-표에서-정한-노드만-배열이-아닌-입력을-빈-배열로-바꾼다) 에 있다.
 
@@ -80,7 +82,9 @@ X 값이 겹치면(예: 같은 월이 여러 행) `yAxis.aggregation` 에 따라
 
 기각한 대안은 Principle 10 대로 throw 하는 안이다. 데이터가 아직 없어도 끝까지 돌던 워크플로우가 실패로 바뀐다.
 
-### 그릴 포인트가 없으면 에디터는 출력 값을 JSON 으로 보여 준다 (2026-11-05)
+### 그릴 포인트가 없으면 에디터는 출력 값을 JSON 으로 보여 준다
+
+결정일: 2026-11-05
 
 [Presentation 노드 공통](CLE-NODE-PRES-COMMON.md) 승인본 v2 는 실행 결과 드로어 Chart 의 빈 데이터를 축만 있는 빈 차트와 "No data" 메시지로 적었다. 에디터 렌더러(`presentation-renderers.tsx`)는 2026-05 이전부터 그릴 포인트가 없으면 차트 대신 받은 출력 값을 JSON 으로 보여 줬다. 이번 개정에서 문서를 구현에 맞췄다(NERV Task `CLE-T-9W8F72`).
 

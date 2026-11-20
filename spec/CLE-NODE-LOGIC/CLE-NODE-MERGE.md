@@ -2,19 +2,19 @@
 id: "CLE-NODE-MERGE"
 title: "Merge 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-MERGE-001", "REQ-MERGE-002", "REQ-MERGE-003", "REQ-MERGE-004", "REQ-MERGE-005", "REQ-MERGE-006", "REQ-MERGE-007", "REQ-MERGE-008", "REQ-MERGE-009", "REQ-MERGE-010", "REQ-MERGE-011", "REQ-MERGE-012", "REQ-MERGE-013", "REQ-MERGE-014", "REQ-MERGE-015", "REQ-MERGE-016", "REQ-MERGE-017", "REQ-MERGE-018"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "3481f732801f6705620fc58ac0b3fba58c870d1f06d40daea20461074dba703c"
+content_hash: "f224ed538749d5aa525505934bcae45ef3f03db9def34802a2608a1c45773617"
 read_as: "approved_fallback"
-task: "CLE-T-CE31NB"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/1-logic/11-merge.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "6221cc99775b12adf9878c21ea54a7566419798c713478361f43a0c0cc8493a2"
-etag: "sha256-a1e079c6a2e5416bb3bc0995e81f33dfd4534969f1f9462aa4705f251f946a02"
+mirror_sha256: "55b220ccc832dbd5d67e0f23944adcb0176bc6bc6c6b61f59a01d071b792c7fd"
+etag: "sha256-9e1278456fdf72c1a6b24719128bfe8a98779acd084b3c658ae8d706924d9eb6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/11-merge.md`, `spec/4-nodes/_product-overview.md` (§4.11) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -204,7 +204,7 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 
 ### 입력 정규화는 노드 출력 규약 Principle 10 의 대상이 아니다 (2026-10-24)
 
-→ [Merge 노드 — 실행 로직과 출력 구조](CLE-NODE-MERGE-OUTPUT.md#입력-정규화는-노드-출력-규약-principle-10-의-대상이-아니다-2026-10-24)
+→ [Merge 노드 — 실행 로직과 출력 구조](CLE-NODE-MERGE-OUTPUT.md#입력-정규화는-노드-출력-규약-principle-10-의-대상이-아니다)
 
 ### `first` 와 `append` 를 지금 의미로 정하고 advisory 경고로 알린다 (2026-11-12)
 
@@ -214,19 +214,19 @@ Merge 는 런타임 에러 포트가 없다(에러 처리 정책의 동적 에�
 
 **`timeout` 과 달리 막지 않는 이유**: `timeout > 0` · `partialOnTimeout` 은 값이 결과에 아무 영향이 없는데 사용자는 무언가를 기다린다고 믿는다. 그래서 `blocking` 으로 막는다([2026-10-10 결정](#timeout-기본값을-0-으로-두고-필드와-차단-경고는-유지한다-2026-10-10)). `first` 는 결과를 바꾸는 값이고 `append` 는 기본값 `wait_all` 과 같은 결과를 낸다. 막으면 이 값으로 저장된 노드가 실행 전 검증에서 실패한다. 2026-10-10 에 기각한 「severity 완화」 는 `timeout` · `partialOnTimeout` 두 규칙에 대한 것이고 이 결정의 두 경고 규칙은 새 규칙이다.
 
-**Parallel 결정 K 와 다른 점**: [Parallel 노드](CLE-NODE-PARALLEL.md#waitallfalse-를-지원하지-않는다-2026-05-30-결정-k) 는 `waitAll=false` 를 검증에서 거부한다. 그 값이 기대한 동작(병렬 분기가 끝나는 대로 다음 노드 시작)과 실제 동작의 차이는 실행 시점에만 생겨 출력만 봐서는 알 수 없다. 대신 쓸 Background 노드가 있어서 거부 메시지로 안내할 수도 있다. `first` 는 결과에 입력 하나만 남아서 다른 입력이 빠졌다는 것이 출력에 바로 드러난다. 도착 순서를 지키는 다른 노드가 없어서 거부해도 안내할 대안이 없다. 그래서 막지 않고 경고로 알린다.
+**Parallel 결정 K 와 다른 점**: [Parallel 노드](CLE-NODE-PARALLEL.md#waitallfalse-를-지원하지-않는다) 는 `waitAll=false` 를 검증에서 거부한다. 그 값이 기대한 동작(병렬 분기가 끝나는 대로 다음 노드 시작)과 실제 동작의 차이는 실행 시점에만 생겨 출력만 봐서는 알 수 없다. 대신 쓸 Background 노드가 있어서 거부 메시지로 안내할 수도 있다. `first` 는 결과에 입력 하나만 남아서 다른 입력이 빠졌다는 것이 출력에 바로 드러난다. 도착 순서를 지키는 다른 노드가 없어서 거부해도 안내할 대안이 없다. 그래서 막지 않고 경고로 알린다.
 
 **캔버스 표시 (2026-11-12, 구현 `CLE-T-1J0F6R`)**: 그때까지 캔버스에는 `advisory` 노드 경고가 표시되지 않았다. 설정 요약 배지에는 `blocking` 경고만 나왔고 `advisory` 는 어시스턴트 검토에만 나왔다. Merge 의 두 규칙이 `advisory` 를 쓰는 첫 노드 경고 규칙이라서 요약 줄은 그대로 두고 노드 헤더에 경고 아이콘을 띄워 툴팁으로 문구를 보이게 했다. `blocking` 경고가 함께 있으면 `blocking` 만 보인다. 사람이 정했다(NERV 질문 `01a1cefa-8407-76b4-b8d0-4c1511579abf`). 기각한 안은 둘이다. `blocking` 과 똑같이 보이면 요약 줄이 사라진다. 캔버스 표시를 미루면 REQ-MERGE-018 이 부분 구현으로 남는다. [워크플로우 에디터](../CLE-WF/CLE-WF-EDITOR.md#미설정-경고와-경고-배지) 에는 배지 조건이 아직 「필수 설정이 비었을 때」 로만 적혀 있다. 그 표에 `advisory` 행을 더하는 일은 NERV Task `CLE-T-D6C9HJ` 가 맡는다.
 
 **기각한 대안** (2026-11-12 사용자 선택):
 
 - 문서만 맞춘다(경고 없음): 이름과 동작이 다르다는 것을 사용자가 알 길이 문서뿐이다.
-- `blocking` 으로 거부한다([Parallel 노드](CLE-NODE-PARALLEL.md#waitallfalse-를-지원하지-않는다-2026-05-30-결정-k) 의 `waitAll=false` 선례): 이 값으로 저장된 노드가 실행 전 검증에서 실패하고 사용자가 에디터에서 하나씩 고쳐야 한다. 결과가 정해진 값을 막을 만큼의 위험은 아니라고 봤다.
+- `blocking` 으로 거부한다([Parallel 노드](CLE-NODE-PARALLEL.md#waitallfalse-를-지원하지-않는다) 의 `waitAll=false` 선례): 이 값으로 저장된 노드가 실행 전 검증에서 실패하고 사용자가 에디터에서 하나씩 고쳐야 한다. 결과가 정해진 값을 막을 만큼의 위험은 아니라고 봤다.
 - `append` 를 없애고 `first` 를 의미에 맞는 이름으로 바꾼다: 저장된 노드 config 와 가져오기 JSON 을 이전해야 한다. 세 안 가운데 변경 범위가 가장 크다.
 
 ### meta 에 전략과 출력 형식을 설정 에코와 함께 둔다 (2026-11-12)
 
-→ [Merge 노드 — 실행 로직과 출력 구조](CLE-NODE-MERGE-OUTPUT.md#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다-2026-11-12)
+→ [Merge 노드 — 실행 로직과 출력 구조](CLE-NODE-MERGE-OUTPUT.md#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다)
 
 ### 다중 입력 조립 계약을 인용하고 합류 동작을 적는다
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-IFACE"
 title: "채팅 채널 어댑터 규약 — 인터페이스와 함수 책임"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "f023f3f312f441d7893a3533e738cbc8e2516ed565804ebb0a22e84a8880d2c9"
+content_hash: "d97b736864eca3973663fbe898ff0aa81aa898375956472346eafb70f73c0c61"
 read_as: "approved_fallback"
-task: "CLE-T-0JEQRY"
+task: "CLE-T-A78V0M"
 source_paths: []
-mirror_sha256: "661484171abe14ab8f86dfc3a902cd242809c9e911d6ed78db7f21a777cbdcf0"
-etag: "sha256-a4cda6381c2f9d23448c86b32de02bf630d4b433605f9d86411fbc33c653d704"
+mirror_sha256: "02c24b49bf41ca7521c29c2aba1a19f1c8defa1fceec3836aa72b82ae336150c"
+etag: "sha256-bfdf3f845fd8850bd297ab7f4b89de4c0b7b99f68bd4e995fd7eccda5bdafb21"
 ---
 ## 개요
 
@@ -77,7 +77,8 @@ interface ChatChannelAdapter {
    * 제어 안내 텍스트를 프로바이더 표면에 맞게 escape 한다. 순수 함수.
    * HooksService 가 renderNode 를 거치지 않고 sendMessage 로 바로 보내는 문구
    * (surfaceMismatch, executionStillRunning, groupChatRefusal, unsupportedMessageKind,
-   * help, formValidationFailed, formNextField)에 발송 직전 적용한다.
+   * help, formValidationFailed, formNextField, noActiveExecution)에 발송 직전 적용한다.
+   * noActiveExecution 은 Telegram 에서만 sendMessage 로 보낸다(Slack·Discord 는 슬래시 명령의 즉시 응답).
    *   - telegram → MarkdownV2 escape(escapeMarkdownV2, renderNode 와 같은 규칙)
    *   - slack → mrkdwn escape(<, >, & 만)
    *   - discord → 그대로(렌더러도 escape 하지 않는다)
@@ -111,7 +112,8 @@ interface ChatChannelAdapter {
    * (선택) 인터랙션에 3초 안에 200 으로 돌려줄 기본 응답을 만든다. 순수 함수.
    * 프로바이더별 본문은 「인터랙션 기본 응답과 수신 확인」 절. 인터랙션이 아니면 undefined 이고 웹훅 응답은 202 다.
    * HooksService 가 서명 검증 직후, 트리거 활성 관문보다 먼저 부른다. 그래서 트리거가 비활성이어도 이 응답으로 답한다.
-   * 경로가 따로 만든 응답 본문(openFormModal 의 httpResponse, buildFormSubmissionResponse)이 있으면 그것이 먼저다.
+   * 경로가 따로 만든 응답 본문(openFormModal 의 httpResponse, buildFormSubmissionResponse,
+   * 실행 없는 /cancel 에서 commandReceived 자리를 noActiveExecution 으로 바꾼 설정으로 이 함수를 다시 불러 만든 응답)이 있으면 그것이 먼저다.
    * parseUpdate 보다 먼저 불리고 버린 update 에도 답해야 해서 raw body 를 받는다(R-CCA-14).
    */
   defaultInteractionResponse?(raw: unknown, config: ChatChannelConfig): InboundInteractionResponse | undefined;
@@ -184,7 +186,8 @@ interface ChatChannelAdapter {
 | Slack | 본문에 문자열 `payload` 필드가 있으면(Interactivity: `block_actions`·`view_submission`) `{}` 를 돌려줘 `200` 빈 본문으로 답한다. 슬래시 명령은 본인에게만 보이는 `{ response_type: 'ephemeral', text }` 다. `help` 하위 명령이면 도움말을, 그 밖의 하위 명령이면 수신 문구를 싣는다. `text` 는 mrkdwn 으로 렌더되므로 `&` `<` `>` 를 escape 한다. `help` 는 실행으로 보내지 않고 이 응답 하나로 끝난다. Events API 는 `undefined`(`202`)다. URL Verification 에도 `undefined` 를 돌려준다. 그 응답은 `handshakeResponse?` 가 만든다(활성 트리거면 `200` 과 `{ challenge }`) | `response_url` 이 있으면 원본 메시지를 "선택 완료" 문구로 바꾼다 | 구현하지 않는다. 3초 응답이 수신 확인이다 |
 | Discord | 컴포넌트·모달 제출은 `{ type: 6 }`, 슬래시 명령은 본인에게만 보이는 `{ type: 4 }`(도움말이나 수신 문구)다. PING, 자동완성, 알 수 없는 `type` 은 `undefined` 다. PING 응답은 `handshakeResponse?` 가 만든다(활성 트리거면 `200` 과 `{ type: 1 }`) | 빈 구현 | 구현하지 않는다. 3초 응답이 수신 확인이다 |
 
-- 웹훅 HTTP 응답은 이 순서로 정한다. (1) 경로가 만든 응답 본문(`openFormModal` 의 `httpResponse`, `buildFormSubmissionResponse`), (2) `defaultInteractionResponse?` 의 기본 응답, (3) 그 밖은 `202` 와 `{ data: { executionId } }`. 기본 응답에 `body` 가 있으면 `200` 과 그 본문을 `{ data }` 봉투 없이 보내고, `body` 가 없으면 `200` 빈 본문을 보낸다. 핸드셰이크 응답(`handshakeResponse?`)은 이 순서보다 먼저 정해진다.
+- 웹훅 HTTP 응답은 이 순서로 정한다. (1) 경로가 만든 응답 본문(`openFormModal` 의 `httpResponse`, `buildFormSubmissionResponse`, 실행 없는 `/cancel` 의 응답), (2) `defaultInteractionResponse?` 의 기본 응답, (3) 그 밖은 `202` 와 `{ data: { executionId } }`. 기본 응답에 `body` 가 있으면 `200` 과 그 본문을 `{ data }` 봉투 없이 보내고, `body` 가 없으면 `200` 빈 본문을 보낸다. 핸드셰이크 응답(`handshakeResponse?`)은 이 순서보다 먼저 정해진다.
+- 실행 없는 `/cancel` 의 응답은 `HooksService` 가 `languageHints.commandReceived` 자리를 `noActiveExecution` 안내로 바꾼 설정을 넘겨 `defaultInteractionResponse?` 를 다시 불러 만든다. 그래서 어댑터 인터페이스는 바뀌지 않는다. 근거는 [채팅 채널 「R-CC-36」](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 에 있다.
 - 트리거가 비활성이면 `HooksService` 는 실행을 시작하지 않고 외부 API 도 부르지 않는다. `defaultInteractionResponse?` 는 외부 호출이 없어 이때도 쓰고, `ackDroppedUpdate?` 는 부르지 않는다.
 - 핸드셰이크(Slack URL Verification, Discord PING)의 응답 본문은 선택 함수 `handshakeResponse?` 가 만든다. `HooksService` 는 이 함수를 트리거 활성 관문 뒤에서 부른다. 그래서 트리거가 비활성이면 핸드셰이크는 `202` 다. `HooksService` 에는 프로바이더 이름으로 핸드셰이크를 가르는 분기가 없다.
 - 기본 응답이 있는 update 로 새 실행을 시작하면 그 실행의 `response_code` 는 실제로 보낸 응답 코드인 `'200'` 이고, 없으면 `'202'` 다.

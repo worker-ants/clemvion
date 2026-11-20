@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "a6befee12ba117280fe7d70788cb9a1f8db21e54be2a80238fafbd5d2fb48efc"
+content_hash: "368653ca423d2940508cd286add42f56e81c293da73c7b93ba605a55bff94700"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "cee733e0b783acf5fd65d0b3507d5667ca6a1a0a579576f391fe7e1109c48ba3"
-etag: "sha256-1fa2b2de72535b468ed9e94fc69812d9e5c895a987809b125e7b4bfebf835f61"
+mirror_sha256: "a628618824d6adbdad441672bb29f5410ca45794eb35013eb0c6b5aba796f856"
+etag: "sha256-b7c3125f31f605547d66bb494fbe6e5393b646de659d04efa2a7dc9fa5ae563d"
 ---
 > 구현 상태: 부분 구현 (워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -81,7 +81,7 @@ etag: "sha256-1fa2b2de72535b468ed9e94fc69812d9e5c895a987809b125e7b4bfebf835f61"
 |------|---------------------------|
 | `config` | 사용자가 입력한 원본 설정을 에코한다(노드 출력 규약 Principle 7). HTTP Request 의 `headers`·`body`, Database Query 의 `query`, Send Email 의 `subject`·`body` 에 든 표현식 템플릿을 평가 전 모습 그대로 남긴다. 자격 증명은 싣지 않고 `integrationId` 만 싣는다 |
 | `output` | 외부 호출 결과의 도메인 데이터. HTTP Request 는 `output.response`·`output.responseHeaders`, Database Query 는 `output.rows`·`output.rowCount`·`output.insertId?`, Send Email 은 `output.messageId`, Cafe24·MakeShop 은 `output.response`. 실패하면 `output.error.{code, message, details?}` (Principle 3.2) |
-| `meta` | 실행 메트릭만 둔다(Principle 2). 공통은 `meta.durationMs`. HTTP Request·Cafe24·MakeShop 은 `meta.statusCode` 도 둔다. Database Query 의 `rowCount` 는 `output` 에만 두고 `meta` 에 복제하지 않는다. Send Email 은 두 곳이 다르다. `meta.deliveryStatus` 를 더 싣는다. dry-run 출력에는 `meta.durationMs` 가 없다. 근거는 [Send Email 노드 Rationale 「`meta` 가 공통 규칙과 다른 두 곳」](CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳-2026-11-13) 에 있다. dry-run 출력에 `meta.durationMs` 를 채우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다 |
+| `meta` | 실행 메트릭만 둔다(Principle 2). 공통은 `meta.durationMs`. HTTP Request·Cafe24·MakeShop 은 `meta.statusCode` 도 둔다. Database Query 의 `rowCount` 는 `output` 에만 두고 `meta` 에 복제하지 않는다. Send Email 은 두 곳이 다르다. `meta.deliveryStatus` 를 더 싣는다. dry-run 출력에는 `meta.durationMs` 가 없다. 근거는 [Send Email 노드 Rationale 「`meta` 가 공통 규칙과 다른 두 곳」](CLE-NODE-EMAIL.md#meta-가-공통-규칙과-다른-두-곳) 에 있다. dry-run 출력에 `meta.durationMs` 를 채우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다 |
 | `port` | 성공 포트 또는 `'error'`. 성공 포트 이름은 노드마다 다르다. HTTP Request·Database Query·Cafe24·MakeShop 은 `success`, Send Email 은 `out` 이다 |
 | `status` | 비워 둔다(비블로킹). 예외: Send Email 노드는 서비스가 주입되지 않은 환경에서 `requires_integration` 을 돌려준다 |
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-CONFIG"
 title: "채팅 채널 데이터와 흐름 — 설정과 안내 문구"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "f5c210fca2edf33d1ffce74ce0741255a3b999a23a89e4801d223b365d8d9791"
+content_hash: "920942823e8b4678fffa021d9360feb9dffebbd30c488d1b49776e0e7fcaf334"
 read_as: "approved_fallback"
-task: "CLE-T-A0G1FB"
+task: "CLE-T-800D2Q"
 source_paths: []
-mirror_sha256: "042357a58b0c8b39343dcd1b84e2abe782459731ffd99c25ee5162f924557ec3"
-etag: "sha256-fc70eaad6d3db81d3557430c5c93bb03691568895a9a77dad0efc6f6bb243bb5"
+mirror_sha256: "e77961a8c28177a9b8f765bdaa12db6a4be01a924bdfbb68335db5bc29c149d0"
+etag: "sha256-4c2611e8b649dcc680d50ccac638f863df9ae83eb9cadc3ac39b829339a047c9"
 ---
 ## 개요
 
@@ -61,7 +61,7 @@ etag: "sha256-fc70eaad6d3db81d3557430c5c93bb03691568895a9a77dad0efc6f6bb243bb5"
       "help":                          "사용 가능한 명령: /start, /cancel, /help",
       "formValidationFailed":          "입력값을 다시 확인해 주세요.",
       "formNextField":                 "다음 항목을 입력해 주세요."
-      // commandReceived · formOpenLabel · sessionExpired · surfaceMismatch · executionFailed* 여섯 개도 덮어쓸 수 있다. 예시 값은 「안내 문구 기본값」 표의 KO 기본값과 같다
+      // commandReceived · noActiveExecution · formOpenLabel · sessionExpired · surfaceMismatch · executionFailed* 여섯 개도 덮어쓸 수 있다. 예시 값은 「안내 문구 기본값」 표의 KO 기본값과 같다
     }
   }
 }
@@ -73,12 +73,13 @@ etag: "sha256-fc70eaad6d3db81d3557430c5c93bb03691568895a9a77dad0efc6f6bb243bb5"
 
 | 키 | 쓰임 |
 |---|---|
-| `groupChatRefusal` | 그룹 대화 거절 안내 |
+| `groupChatRefusal` | DM 밖 대화 거절 안내. Telegram group·supergroup·channel 메시지에 보내는 안내와 Slack · Discord 의 DM 밖 슬래시 명령의 즉시 응답에 쓴다. Slack 이벤트 메시지 · Discord 컴포넌트 클릭 · 모달 제출이 DM 밖에서 오면 안내하지 않는다([채팅 채널 「R-CC-37」](CLE-CHAT-CORE.md#r-cc-37-dm-밖-거절-안내는-telegram-만)) |
 | `unsupportedMessageKind` | 그룹이 아닌 미지원 update 안내 |
 | `executionStarted` · `executionCompleted` | 실행 시작·완료 안내 |
 | `executionStillRunning` | 실행 중 · 대기 중(`running`·`pending`)에 온 메시지 안내 |
 | `help` | `/help` 기본 도움말. Discord 의 `/<prefix> help` 와 Slack 의 `/<명령> help` 는 슬래시 명령의 즉시 응답에 이 값을 그대로 싣는다(`{prefix}` 를 바꾸지 않는다). 값이 없으면 두 프로바이더가 함께 쓰는 locale 기본 도움말에 명령 이름을 넣어 쓴다. Discord 는 등록한 명령 이름(`languageHints.slashPrefix`, 없으면 `workflow`)을 넣는다([Discord 어댑터](CLE-CHAT-DISCORD.md)). Slack 은 명령 이름을 앱 manifest 에서 정하므로 `slashPrefix` 를 쓰지 않는다. 요청의 `command` 에서 앞의 `/` 를 뺀 값(비면 `workflow`)을 넣는다([Slack 어댑터](CLE-CHAT-SLACK.md)) |
-| `commandReceived` | Discord · Slack 슬래시 명령의 즉시 응답(본인에게만 보이는 메시지)에 싣는 공통 수신 문구. `help` 가 아닌 모든 슬래시 명령에 쓴다([채팅 채널 「인터랙션 기본 응답」](CLE-CHAT-CORE.md#인터랙션-기본-응답)) |
+| `commandReceived` | Discord · Slack 슬래시 명령의 즉시 응답(본인에게만 보이는 메시지)에 싣는 공통 수신 문구. `help` 와 활성 실행이 없는 대화의 `cancel` 을 뺀 슬래시 명령에 쓴다([채팅 채널 「인터랙션 기본 응답」](CLE-CHAT-CORE.md#인터랙션-기본-응답)) |
+| `noActiveExecution` | 활성 실행이 없는 대화의 `/cancel` 안내([채팅 채널 「요구사항」](CLE-CHAT-CORE.md#요구사항) REQ-CHAT-084). Telegram 은 대화에 보내고 Discord · Slack 슬래시 명령은 즉시 응답에 싣는다 |
 | `formValidationFailed` · `formNextField` | 다단계 질문의 검증 실패 재질문, 다음 필드 질문 |
 | `formOpenLabel` | 네이티브 모달을 여는 `form_modal` 버튼 라벨 |
 | `sessionExpired` | 멀티턴 재개 실패(`RESUME_*`) 안내 |
@@ -91,7 +92,7 @@ etag: "sha256-fc70eaad6d3db81d3557430c5c93bb03691568895a9a77dad0efc6f6bb243bb5"
 
 ## 안내 문구 기본값
 
-실행 실패 안내 키 여섯 개의 기본 문구는 한국어와 영어 두 locale 모두 백엔드가 가진다. 채널 어댑터가 문구를 찾는 순서는 (1) `languageHints[key]` 사용자 덮어쓰기, (2) `languageLocale` 의 기본 문구, (3) locale 이 없을 때 `ko` 다. 처음부터 있던 다섯 키(`groupChatRefusal` 등)의 영어 기본값은 범위 밖이다. `formOpenLabel` 과 Discord · Slack 슬래시 명령 응답의 `commandReceived` 도 두 locale 을 모두 가지고 찾는 순서가 같다. 슬래시 명령 `help` 의 기본 도움말(`SLASH_HELP_DEFAULTS`)도 두 locale 을 가진다(위 키 표의 `help`).
+실행 실패 안내 키 여섯 개의 기본 문구는 한국어와 영어 두 locale 모두 백엔드가 가진다. 채널 어댑터가 문구를 찾는 순서는 (1) `languageHints[key]` 사용자 덮어쓰기, (2) `languageLocale` 의 기본 문구, (3) locale 이 없을 때 `ko` 다. 처음부터 있던 다섯 키(`groupChatRefusal` 등)의 영어 기본값은 범위 밖이다. `formOpenLabel`, Discord · Slack 슬래시 명령 응답의 `commandReceived`, `noActiveExecution` 도 두 locale 을 모두 가지고 찾는 순서가 같다. 슬래시 명령 `help` 의 기본 도움말(`SLASH_HELP_DEFAULTS`)도 두 locale 을 가진다(위 키 표의 `help`).
 
 | key | KO 기본값 | EN 기본값 |
 |---|---|---|
@@ -105,6 +106,7 @@ etag: "sha256-fc70eaad6d3db81d3557430c5c93bb03691568895a9a77dad0efc6f6bb243bb5"
 | `sessionExpired` | "대화 세션이 만료되어 재개할 수 없습니다. 새 메시지를 보내면 새 대화가 시작됩니다." | "This conversation session has expired and cannot be resumed. Send a new message to start a fresh conversation." |
 | `surfaceMismatch` | "지금은 이 입력을 받을 수 없습니다. 화면에 표시된 양식이나 버튼을 사용해 주세요." | "This input can't be accepted here right now, please use the form or buttons shown above" |
 | `commandReceived` | "요청을 받았습니다." | "Request received." |
+| `noActiveExecution` | "진행 중인 대화가 없습니다." | "There is no active conversation." |
 
 `{statusCode}` 는 두 locale 에서 같은 자리에 있다. 그래서 치환 코드가 locale 분기 없이 한 경로로 동작한다.
 
@@ -114,11 +116,13 @@ etag: "sha256-fc70eaad6d3db81d3557430c5c93bb03691568895a9a77dad0efc6f6bb243bb5"
 
 `surfaceMismatch` 는 인바운드 명령이 지금 입력을 기다리는 블로킹 노드의 대기 표면과 맞지 않아 재개 명령 발행기가 409 `STATE_MISMATCH` 로 거부했을 때 보내는 부수 안내다. 예를 들어 Form·버튼 입력 대기 중에 자유 텍스트가 오면 `text_message → submit_message` 고정 매핑이 거부된다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 의 표면 매트릭스). 로그만 남기던 경우에도 사용자에게 알려 주려는 것이다. 현재 구현은 `HooksService.forwardToInteractionService` 가 거부를 흡수하면서 `sendSurfaceMismatchNotice` 로 보낸다.
 
-`commandReceived` 는 Discord · Slack 슬래시 명령이 어느 경로로 끝나든(새 실행, 취소, 답장 전달, 중복, 분당 한도 초과, 워크플로우 비활성, 파싱 실패, 트리거 비활성) 같은 문구로 나간다. `help` 하위 명령만 이 문구 대신 도움말로 답한다. 문구는 처리 전에 정하므로 경로에 따라 달라지지 않는다. 새 실행의 시작 안내(`executionStarted`)를 대신하지 않는다. 시작 안내는 NERV Task `CLE-T-0400J6` 가 다룬다.
+`commandReceived` 는 Discord · Slack 슬래시 명령이 어느 경로로 끝나든(새 실행, 취소, 답장 전달, 중복, 분당 한도 초과, 워크플로우 비활성, 파싱 실패, 트리거 비활성) 같은 문구로 나간다. 예외는 둘이다. `help` 하위 명령은 도움말로 답하고 활성 트리거에서 활성 실행이 없는 대화의 `cancel` 은 `noActiveExecution` 으로 답한다. 그 밖의 문구는 처리 전에 정하므로 경로에 따라 달라지지 않는다. 새 실행의 시작 안내(`executionStarted`)를 대신하지 않는다. 시작 안내는 NERV Task `CLE-T-0400J6` 가 다룬다.
+
+`noActiveExecution` 은 `/cancel` 이 왔는데 대화에 활성 실행이 없을 때 보낸다. 채널 대화 상태가 없거나 `executionId` 가 없거나 그 실행이 `running`·`pending`·`waiting_for_input` 이 아닌 경우다. 취소 요청이 `INVALID_STATE`·`RESOURCE_NOT_FOUND` 로 실패해 실행이 이미 끝난 것으로 본 경우도 같다. 찾는 순서는 `commandReceived` 와 같고 빈 문자열은 값이 없는 것으로 본다. Telegram 은 제어 안내로 대화에 보낸다. 발송 실패는 로그만 남긴다. Discord · Slack 슬래시 명령은 즉시 응답의 수신 문구 자리에 이 안내를 싣고 채널에 따로 보내지 않는다. 활성 실행이 있는데 소유자가 아닌 사람이 보낸 `/cancel`, 트리거가 꺼져 있을 때, 실제로 취소한 경우, 취소를 큐에 넣지 못한 경우에는 쓰지 않는다.
 
 ### 제어 안내의 프로바이더별 escape
 
-`HooksService` 가 렌더러(`renderNode`)를 거치지 않고 `adapter.sendMessage` 로 바로 보내는 제어 안내 키는 `help`, `groupChatRefusal`, `unsupportedMessageKind`, `executionStillRunning`, `surfaceMismatch`, `formValidationFailed`, `formNextField` 일곱 개다. 발송 직전 `adapter.escapeControlText(text)` 로 프로바이더 표면에 맞게 escape 한다.
+`HooksService` 가 렌더러(`renderNode`)를 거치지 않고 `adapter.sendMessage` 로 바로 보내는 제어 안내 키는 `help`, `groupChatRefusal`, `unsupportedMessageKind`, `executionStillRunning`, `surfaceMismatch`, `formValidationFailed`, `formNextField`, `noActiveExecution` 여덟 개다. `noActiveExecution` 은 Telegram 에서만 이 경로로 보낸다. 발송 직전 `adapter.escapeControlText(text)` 로 프로바이더 표면에 맞게 escape 한다.
 
 - Telegram: `escapeMarkdownV2`(예약 문자 backslash escape, `renderNode` 경로와 같은 규칙)
 - Slack: `escapeSlackMrkdwn`(`<`, `>`, `&` 만)
@@ -126,7 +130,7 @@ etag: "sha256-fc70eaad6d3db81d3557430c5c93bb03691568895a9a77dad0efc6f6bb243bb5"
 
 그래서 기본 문구와 운영자 덮어쓰기는 모두 평문으로 쓴다. `\.` 같은 수동 escape 는 필요 없다. `formOpenLabel` 은 버튼 라벨이라 MarkdownV2 대상이 아니고, `sessionExpired` 와 실행 실패 안내는 `renderNode` 경로라 렌더러가 escape 한다. 함수 계약은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 이 정한다.
 
-Discord · Slack 슬래시 명령의 즉시 응답에 싣는 `commandReceived` 와 도움말(`languageHints.help` 나 기본 도움말)은 `adapter.sendMessage` 로 보내지 않고 인터랙션 응답 본문으로 나간다. 그래서 `adapter.escapeControlText` 를 거치지 않는다. escape 여부는 그 응답을 만드는 어댑터의 `defaultInteractionResponse` 가 프로바이더별로 정한다.
+Discord · Slack 슬래시 명령의 즉시 응답에 싣는 `commandReceived` · `noActiveExecution` 과 도움말(`languageHints.help` 나 기본 도움말)은 `adapter.sendMessage` 로 보내지 않고 인터랙션 응답 본문으로 나간다. 그래서 `adapter.escapeControlText` 를 거치지 않는다. escape 여부는 그 응답을 만드는 어댑터의 `defaultInteractionResponse` 가 프로바이더별로 정한다.
 
 - Discord: 응답 본문(`data.content`)을 escape 하지 않는다. 다른 Discord 제어 안내와 결과가 같다.
 - Slack: 응답의 `text` 는 mrkdwn 으로 렌더되므로 다른 Slack 제어 안내와 같이 `escapeSlackMrkdwn` 으로 `&`, `<`, `>` 를 escape 한다.
@@ -135,7 +139,8 @@ Discord · Slack 슬래시 명령의 즉시 응답에 싣는 `commandReceived` �
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 안내 문구의 locale 기본값과 덮어쓰기 해석. 공통 수신 문구 `COMMAND_RECEIVED_DEFAULTS` · `resolveCommandReceivedMessage` 와 Discord · Slack 이 함께 쓰는 슬래시 명령 기본 도움말 `SLASH_HELP_DEFAULTS` 를 포함한다. `groupChatRefusal` · `formValidationFailed` · `formNextField` 의 기본 문구 `GROUP_CHAT_REFUSAL_DEFAULT` · `FORM_VALIDATION_FAILED_DEFAULT` · `formNextFieldDefault` 도 여기 있고 Slack 어댑터와 `HooksService` 가 함께 쓴다
+- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 안내 문구의 locale 기본값과 덮어쓰기 해석. 공통 수신 문구 `COMMAND_RECEIVED_DEFAULTS` · `resolveCommandReceivedMessage`, 실행 없는 `/cancel` 안내 `NO_ACTIVE_EXECUTION_DEFAULTS` · `resolveNoActiveExecutionMessage`, Discord · Slack 이 함께 쓰는 슬래시 명령 기본 도움말 `SLASH_HELP_DEFAULTS` 를 포함한다. `groupChatRefusal` · `formValidationFailed` · `formNextField` 의 기본 문구 `GROUP_CHAT_REFUSAL_DEFAULT` · `FORM_VALIDATION_FAILED_DEFAULT` · `formNextFieldDefault` 도 여기 있고 Slack 어댑터와 `HooksService` 가 함께 쓴다
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: `/cancel` 분기와 `notifyNoActiveExecution`. 슬래시 명령이면 어댑터의 `defaultInteractionResponse` 에 수신 문구 자리를 `noActiveExecution` 으로 바꾼 설정을 넘겨 즉시 응답을 만들고, 즉시 응답이 없는 Telegram 은 제어 안내로 보낸다
 - `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.ts`, `codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts`, `codebase/backend/src/modules/chat-channel/providers/slack/slack-update.parser.ts`: 슬래시 명령의 즉시 응답. Discord 는 `buildDiscordDefaultInteractionResponse`, Slack 은 `defaultInteractionResponse` · `resolveSlackHelpText`(응답 `text` 의 mrkdwn escape 포함)다. Slack 의 `help` 판정은 파서와 같은 규칙의 `readSlackSlashInvocation` 이 한다
 
 ## Rationale
@@ -150,6 +155,15 @@ Discord · Slack 슬래시 명령의 즉시 응답에 싣는 `commandReceived` �
 - (b) 시작 안내 `executionStarted` 를 다시 쓴다. 이 응답은 새 실행뿐 아니라 취소, 답장 전달, 중복, 분당 한도 초과, 워크플로우 비활성처럼 실행을 시작하지 않는 경로에도 나간다. 그 경로에서 «워크플로우를 시작합니다» 는 사실과 다르다. 시작 안내는 NERV Task `CLE-T-0400J6` 가 따로 다룬다.
 
 2026-11-13 에 Slack 슬래시 명령에도 같은 키와 같은 기본 도움말을 쓰기로 했다(NERV Task `CLE-T-MGZRRP`, 질문 `01a1d2f3-e188-7354-8298-243092419a3c`). Slack 도 슬래시 명령에는 3초 안에 `200` 으로 답해야 한다. 그래서 Discord 와 같게 모든 경로에서 본인에게만 보이는 응답(`response_type: 'ephemeral'`)으로 답한다. Slack 은 명령 이름을 앱 manifest 에서 정하고 요청마다 `command` 로 보내 준다. 그래서 기본 도움말에 넣을 명령 이름을 `languageHints.slashPrefix` 로 받지 않는다.
+
+### 실행 없는 /cancel 안내를 안내 문구 키로 둔다 (2026-11-19)
+
+2026-11-19 에 사람이 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf` 에 권장안대로 답해 정했다(NERV Task `CLE-T-A78V0M`). 활성 실행이 없는 대화의 `/cancel` 에 안내가 없으면 사용자는 취소가 됐는지 알 수 없다. 그 안내를 `languageHints` 의 새 키 `noActiveExecution` 으로 둔다. 기본값은 ko "진행 중인 대화가 없습니다." · en "There is no active conversation." 이고 찾는 순서는 `commandReceived` 와 같다. 슬래시 명령은 즉시 응답의 수신 문구 자리에 이 안내를 싣는다. 동작 근거는 [채팅 채널 「R-CC-36」](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 에 있다.
+
+기각한 대안은 둘이다.
+
+- (a) 서버가 고정한 문구로 답한다. `commandReceived` 를 키로 둔 이유와 같이 운영자가 바꿀 수 없고 `languageLocale` 도 따르지 못한다.
+- (b) 슬래시 명령은 수신 문구를 유지하고 DM 에 이 안내를 따로 보낸다. 사용자가 받는 응답이 둘이 되고 두 내용이 엇갈린다.
 
 ### 봇 안내 문구의 문체 (2026-11-12)
 

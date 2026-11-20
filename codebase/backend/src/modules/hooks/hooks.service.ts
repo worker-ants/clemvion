@@ -51,6 +51,7 @@ import {
   formNextFieldDefault,
   GROUP_CHAT_REFUSAL_DEFAULT,
   resolveFormOpenLabel,
+  resolveNoActiveExecutionMessage,
   resolveSurfaceMismatchMessage,
 } from '../chat-channel/shared/language-hint-defaults';
 import { randomUUID } from 'crypto';
@@ -133,6 +134,26 @@ const CHAT_CHANNEL_WORKFLOW_MISSING_ERROR =
  * 근거: [채팅 채널 「채널 건강도」](CLE-CHAT-CORE#채널-건강도), NERV Task `CLE-T-EQDYC1`.
  */
 const CHAT_CHANNEL_ENQUEUE_FAILED_ERROR = 'Command could not be queued';
+
+/**
+ * `/cancel` 처리 결과. `stopped` 는 취소했다, `already_ended` 는 취소하려던 실행이 그사이 끝났다,
+ * `enqueue_failed` 는 취소를 큐에 넣지 못했다, `no_active` 는 처음부터 활성 실행이 없었다는 뜻이다.
+ * 매핑을 비우는 결과와 `noActiveExecution` 안내를 보내는 결과는 아래 두 집합이 정한다(NERV Task `CLE-T-A78V0M`).
+ */
+type CancelOutcome =
+  'stopped' | 'already_ended' | 'enqueue_failed' | 'no_active';
+
+/** 대화 매핑을 비우는 `/cancel` 결과. 읽은 실행이 더는 활성이 아니다. */
+const CANCEL_OUTCOMES_CLEARING_MAPPING: ReadonlySet<CancelOutcome> = new Set([
+  'stopped',
+  'already_ended',
+]);
+
+/** `noActiveExecution` 안내로 답하는 `/cancel` 결과. 취소할 실행이 없었다. */
+const CANCEL_OUTCOMES_WITHOUT_EXECUTION: ReadonlySet<CancelOutcome> = new Set([
+  'no_active',
+  'already_ended',
+]);
 
 /**
  * 같은 대화의 `/start` 를 직렬화하는 시작 잠금의 TTL(초)(NERV Task `CLE-T-QZ8RFC`). 잠금 구간(기존 실행 취소,
@@ -609,23 +630,37 @@ export class HooksService {
       return this.ackDroppedUpdateAndIgnore(input, config, adapter);
     }
 
-    // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop. 매핑은 읽은 실행을 가리킬 때만
+    // /cancel 명령 — 활성 execution 이 있으면 취소한다. 매핑은 읽은 실행을 가리킬 때만
     // 비운다. 취소하는 사이 `/start` 가 대화를 새 실행에 이었다면 그 매핑을 지우지 않는다
     // (NERV Task `CLE-T-V4WVF2`). 취소를 큐에 넣지 못했으면 실행이 입력 대기에 그대로 있으므로
-    // 매핑도 그대로 둔다(NERV Task `CLE-T-EQDYC1`).
+    // 매핑도 그대로 둔다(NERV Task `CLE-T-EQDYC1`). 취소할 실행이 없었으면(활성 실행이 없거나 그사이
+    // 끝남) `noActiveExecution` 안내로 답한다(NERV Task `CLE-T-A78V0M`).
     if (update.command.kind === 'cancel') {
-      if (
-        hasActiveExecution &&
-        (await this.stopForCancelCommand(trigger, state.executionId!))
-      ) {
+      const activeExecutionId = hasActiveExecution ? state.executionId : null;
+      const outcome: CancelOutcome = activeExecutionId
+        ? await this.stopForCancelCommand(trigger, activeExecutionId)
+        : 'no_active';
+      if (activeExecutionId && CANCEL_OUTCOMES_CLEARING_MAPPING.has(outcome)) {
         await this.channelConversationService.clearExecutionIdIfMatches(
           trigger.id,
           update.conversationKey,
-          state.executionId!,
+          activeExecutionId,
         );
       }
       await adapter.ackInteraction(update, config);
-      return { executionId: state?.executionId ?? 'ignored' };
+      const result: ChatChannelWebhookResult = {
+        executionId: state?.executionId ?? 'ignored',
+      };
+      if (CANCEL_OUTCOMES_WITHOUT_EXECUTION.has(outcome)) {
+        const providerResponse = await this.notifyNoActiveExecution(
+          input,
+          update,
+          config,
+          adapter,
+        );
+        if (providerResponse) return { ...result, providerResponse };
+      }
+      return result;
     }
 
     // §4.1 native modal — "양식 작성하기" 버튼 클릭. pendingFormModal 의 fields + provider
@@ -801,7 +836,7 @@ export class HooksService {
           const r = isNativeFormAdapter(adapter)
             ? adapter.buildFormSubmissionResponse({
                 config,
-                validationError: { message: '입력값을 다시 확인해주세요.' },
+                validationError: { message: FORM_VALIDATION_FAILED_DEFAULT },
               })
             : undefined;
           // §4.1 step 5: spec 에 따라 Discord 는 검증 실패 후 "양식 작성하기" 버튼을 재노출해
@@ -1062,11 +1097,12 @@ export class HooksService {
   }
 
   /**
-   * `/cancel` 로 대화의 활성 실행을 취소한다. 실행이 끝났으면 `true` 를 돌려 호출자가 매핑을 비우게 한다.
+   * `/cancel` 로 대화의 활성 실행을 취소한다. 취소했으면 `stopped` 를 돌린다.
    *
-   * 실행이 그사이 끝났거나(`INVALID_STATE`) 지워졌으면(404) 취소할 것이 없으므로 끝난 것으로 본다.
+   * 실행이 그사이 끝났거나(`INVALID_STATE`) 지워졌으면(404) 취소할 것이 없으므로 `already_ended` 를 돌린다.
+   * 호출자는 두 경우 모두 매핑을 비우고, `already_ended` 에는 `noActiveExecution` 안내도 보낸다.
    * 취소를 재개 큐에 넣지 못했으면(503 `EXECUTION_ENQUEUE_FAILED`) 프로바이더에 5xx 를 내지 않는다.
-   * 채널 건강도를 `degraded` 로 남기고 `false` 를 돌린다. 실행은 입력 대기에 그대로 있다. `/start` 의
+   * 채널 건강도를 `degraded` 로 남기고 `enqueue_failed` 를 돌린다. 실행은 입력 대기에 그대로 있다. `/start` 의
    * 같은 실패는 전파한다(`stopForRestart`). 그 밖의 실패도 전파하고 `handleChatChannelWebhook` 이 202 로
    * 답한다(REQ-CHAT-056).
    * 근거: [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE#인바운드-http-응답-계약), NERV Task `CLE-T-EQDYC1`.
@@ -1074,16 +1110,16 @@ export class HooksService {
   private async stopForCancelCommand(
     trigger: Trigger,
     executionId: string,
-  ): Promise<boolean> {
+  ): Promise<Exclude<CancelOutcome, 'no_active'>> {
     try {
       await this.executionsService.stop(executionId);
-      return true;
+      return 'stopped';
     } catch (err) {
       if (isAlreadyStoppedError(err)) {
         this.logger.log(
           `/cancel — 실행 ${executionId} 이 이미 끝나 취소할 것이 없다`,
         );
-        return true;
+        return 'already_ended';
       }
       if (isEnqueueFailedError(err)) {
         await this.markChatChannelEnqueueFailed(
@@ -1091,10 +1127,46 @@ export class HooksService {
           executionId,
           '/cancel',
         );
-        return false;
+        return 'enqueue_failed';
       }
       throw err;
     }
+  }
+
+  /**
+   * 취소할 실행이 없는 대화의 `/cancel` 에 `noActiveExecution` 안내로 답한다(NERV Task `CLE-T-A78V0M`,
+   * 2026-11-19 사람 결정). 즉시 응답이 있는 프로바이더(Slack · Discord 슬래시 명령)는 그 응답의 내용을
+   * 수신 문구 대신 이 안내로 채워 돌려준다. 채널에 따로 보내지 않는다. 즉시 응답이 없는 프로바이더
+   * (Telegram)는 대화에 제어 안내를 보내고 `undefined` 를 돌려준다.
+   *
+   * 즉시 응답은 어댑터의 `defaultInteractionResponse` 에 수신 문구(`commandReceived`) 자리를 이 안내로 바꾼
+   * 설정을 넘겨 만든다. `/cancel` 슬래시 명령의 기본 응답이 수신 문구라 그 자리만 바꾸면 프로바이더별 응답
+   * 모양(Slack ephemeral · mrkdwn escape, Discord type 4 · flags 64 · 멘션 무력화)을 어댑터가 그대로 정한다.
+   * 어댑터 인터페이스에 메서드를 더하지 않으려는 선택이다.
+   */
+  private async notifyNoActiveExecution(
+    input: WebhookInput,
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<InboundInteractionResponse | undefined> {
+    const text = resolveNoActiveExecutionMessage(
+      config.languageHints,
+      config.languageLocale,
+    );
+    const immediate = adapter.defaultInteractionResponse?.(input.body, {
+      ...config,
+      languageHints: { ...config.languageHints, commandReceived: text },
+    });
+    if (immediate?.body !== undefined) return immediate;
+    await this.sendBestEffortNotice(
+      update.conversationKey,
+      text,
+      'noActiveExecution',
+      config,
+      adapter,
+    );
+    return undefined;
   }
 
   /**
@@ -1263,6 +1335,11 @@ export class HooksService {
   /**
    * Spec I-6 — `parseUpdate` 가 null 반환 (group/bot/unsupported) 시 호출자가 안내 sendMessage 발송.
    * 봇 자기 메시지 (`from.is_bot=true`) 는 silent skip. 그 외 (group, unsupported) 는 안내 발송 후 무시.
+   *
+   * Telegram 모양(`message.chat`)만 읽는다. Slack Events API 의 DM 밖 메시지와 Discord 의 DM 밖 인터랙션은
+   * 안내 없이 버린다. 채널에 안내를 쓰려면 봇에게 그 채널의 쓰기 권한이 있어야 하고 다른 구성원에게 소음이
+   * 된다. DM 밖 슬래시 명령은 어댑터의 기본 응답이 본인에게만 보이는 groupChatRefusal 을 싣는다.
+   * 2026-11-19 사람 결정(NERV 질문 `01a1f2b8-1979-7137-b882-faf2d0563083`), NERV Task `CLE-T-800D2Q` · `CLE-T-T8ZTG8`.
    */
   private async maybeNotifyIgnored(
     rawBody: unknown,
@@ -1484,7 +1561,8 @@ export class HooksService {
   /**
    * `renderNode` 를 우회하는 **모든 control-plane 텍스트 직접 발송의 단일 chokepoint** (F-4).
    * 소비처: `sendExecutionStillRunningNotice` · `sendSurfaceMismatchNotice` · `maybeNotifyIgnored`
-   * (groupChatRefusal/unsupportedMessageKind) · `/help` · `formValidationFailed` · `formNextField`.
+   * (groupChatRefusal/unsupportedMessageKind) · `/help` · `formValidationFailed` · `formNextField` ·
+   * `notifyNoActiveExecution`(Telegram 의 `noActiveExecution`).
    * try/catch/warn 골격을 여기 모아, 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가
    * 안내 루프를 유발하지 않도록 한다.
    *

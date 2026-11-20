@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON-DISPLAY"
 title: "Presentation 노드 공통 — 표시 표면"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES", "CLE-NODE-PRES-COMMON"]
 area: "CLE-NODE-PRES"
-content_hash: "2e9fc9e9b26f1ca57693c5942a189fd5af1d7730c2ee551d9efa33c6100cb9b1"
+content_hash: "65ed2af110f674ac7f3199445891c9fadb17514ab184ef7e8aedd6d4c537926b"
 read_as: "approved_fallback"
-task: "CLE-T-FQTQ7K"
+task: "CLE-T-6R7VRR"
 source_paths: []
-mirror_sha256: "94dfe9a5a68f06c36ebcd47e4994981216b2a573d99c12a2e2cc058098534bce"
-etag: "sha256-0477e06b81a3a3fd4fed38adba46c0da3b2a3d54d994072e669a03751966f44e"
+mirror_sha256: "ff3c02e6f5dc1fa9c2c0983333b0bc0fee98199be2904fd1852d71374a95c78e"
+etag: "sha256-f98fc4f9d5ba00dd6cc955a647a97a3e816dfe5167310ef91348c10db4ae4c38"
 ---
 ## 개요
 
@@ -131,7 +131,9 @@ etag: "sha256-0477e06b81a3a3fd4fed38adba46c0da3b2a3d54d994072e669a03751966f44e"
 
 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 `form_submitted` payload `{ [fieldName]: value }` 는 value 자리에 어떤 타입이든 받으므로 파일 메타데이터 배열도 들어간다. 스키마를 바꿀 필요가 없다.
 
-### Template 본문은 그리는 쪽이 정화한다 (2026-11-12)
+### Template 본문은 그리는 쪽이 정화한다
+
+결정일: 2026-11-12
 
 **배경**: 이 문서의 원문은 드로어가 Template HTML 을 "샌드박스 iframe 안에서 그린다" 고 적었고 [Template 노드](CLE-NODE-TEMPLATE.md)는 정화를 "별도 보안 과제" 로 미뤄 두었다. 코드와 대조하니 드로어는 iframe 없이 DOMPurify 허용 목록으로 정화한 뒤 그리고, 웹채팅 위젯은 더 좁은 허용 목록으로 따로 정화한다. 백엔드는 정화하지 않는다. 문서만 보면 정화 책임이 어디에 있는지 알 수 없었다(NERV Task `CLE-T-MBGDA4`).
 

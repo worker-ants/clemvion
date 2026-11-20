@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-GATE"
 title: "채팅 채널 — 인바운드 관문"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "b9e7f37d51c272e1e12b67ab8841078bea0ab15c29af7929a25e02884161e78b"
+content_hash: "2af43c40897a6a7114701efbd7be545cdbdc34ab02b7b0e668473562693ee803"
 read_as: "approved_fallback"
-task: "CLE-T-B9CRCF"
+task: "CLE-T-A78V0M"
 source_paths: []
-mirror_sha256: "1ee2565ae791a6bffc80b795657b238715149561183d950166dc68b9ffc3edac"
-etag: "sha256-d207e3287eb1d12ed35f4b69d4d851ffac8d877b17b6d27cadba2575c70b86d8"
+mirror_sha256: "7cd65a405c6bfc3402374170fc5687c4e1694601a87b75c02d9ae9c1943e71b0"
+etag: "sha256-72da7702fddb7ae7f85bc9dc9ecb638474e309964dc141c3095fc2f311e405f4"
 ---
 ## 개요
 
@@ -49,7 +49,7 @@ flowchart TD
   L --> O{"활성 실행이 있는 대화에 실행 소유자가 아닌 사람의 /start 나 /cancel 인가"}
   O -- "예" --> I3["202 ignored, 수신 확인만, 기존 실행은 그대로"]
   O -- "아니오" --> X{"/cancel 인가"}
-  X -- "예" --> CAN["활성 실행 취소"]
+  X -- "예" --> CAN["활성 실행 취소, 실행이 없거나 이미 끝났으면 noActiveExecution 안내"]
   X -- "아니오" --> M{"활성 실행이 있고 /start 가 아닌가"}
   M -- "예" --> FW["입력 대기 실행에 전달하거나 실행 중 안내"]
   M -- "아니오" --> W{"워크플로우 활성 관문: 워크플로우가 활성인가"}
@@ -71,9 +71,9 @@ flowchart TD
 1. **서명 검증**: 먼저 [서명 검증 실패 한도](#서명-검증-실패-한도) 를 본다. 같은 트리거와 같은 클라이언트 IP 쌍의 실패가 60초 창 안에서 20번에 닿았으면 시크릿 조회와 서명 계산 없이 `401` 이다. 닿지 않았으면 프로바이더 서명을 검증한다. 틀리면 `401` 이고 그 실패를 센다. 통과하면 채널 어댑터의 `defaultInteractionResponse` 로 인터랙션 기본 응답을 먼저 정한다([인터랙션 기본 응답](CLE-CHAT-CORE-INTERACT.md#인터랙션-기본-응답)). 외부 호출이 없는 계산이라 트리거가 비활성이어도 한다. 저장된 `inboundSigningRef` 가 없는 행의 현행 동작은 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 에 적는다. 그런 행의 요청은 핸들러 앞에서 전역 요청 한도로 센다.
 2. **트리거 활성 관문**: 트리거가 비활성이면 `202`·`{ executionId: 'ignored' }` 다. 인터랙션이면 1번에서 정한 기본 응답과 `200` 으로 답한다. handshake 에도 답하지 않고 진행 중인 대화의 입력도 전달하지 않는다. 실행을 시작하지 않고 수신 확인을 포함한 외부 호출도 하지 않는다.
 3. **핸드셰이크 응답**: Slack `url_verification` 과 Discord PING 에 답한다. 워크플로우가 비활성이어도 답한다.
-4. **파싱과 중복 제거, 분당 한도**: `parseUpdate` 뒤 [중복 제거와 분당 한도](#중복-제거와-분당-한도) 를 지난다. 그룹 대화와 지원하지 않는 update 는 여기서 버린다. 버리기 전에 Telegram 메시지면 그룹 대화에는 `groupChatRefusal`, 1:1 대화에는 `unsupportedMessageKind` 안내를 보낸다. 봇이 보낸 메시지에는 보내지 않는다. Slack · Discord 의 DM 밖 메시지 거부 안내는 각 프로바이더 문서를 따른다. 그 밖의 지원하지 않는 update 에는 안내를 보내지 않는다([인바운드 HTTP 응답 계약](CLE-CHAT-CORE-RESPONSE.md#인바운드-http-응답-계약)). 분당 한도를 지난 update 는 채널 어댑터의 선택 함수 `enrichInbound` 로 첨부 정보를 보강한다(지금은 Slack 만. [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md)).
+4. **파싱과 중복 제거, 분당 한도**: `parseUpdate` 뒤 [중복 제거와 분당 한도](#중복-제거와-분당-한도) 를 지난다. 그룹 대화와 지원하지 않는 update 는 여기서 버린다. 버리기 전에 Telegram 메시지면 그룹 대화에는 `groupChatRefusal`, 1:1 대화에는 `unsupportedMessageKind` 안내를 보낸다. 봇이 보낸 메시지에는 보내지 않는다. Slack 이벤트 메시지와 Discord 컴포넌트 클릭 · 모달 제출이 DM 밖에서 오면 안내 없이 버린다. DM 밖 슬래시 명령은 1번에서 정한 기본 응답(`groupChatRefusal`)으로 답한다. 그 밖의 지원하지 않는 update 에도 안내를 보내지 않는다([인바운드 HTTP 응답 계약](CLE-CHAT-CORE-RESPONSE.md#인바운드-http-응답-계약)). 분당 한도를 지난 update 는 채널 어댑터의 선택 함수 `enrichInbound` 로 첨부 정보를 보강한다(지금은 Slack 만. [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md)).
 5. **도움말**: `/help` 면 도움말을 보낸다. Discord 와 Slack 슬래시 명령의 `help` 는 파서가 update 를 만들지 않아 4번에서 끝난다. 그 도움말은 HTTP 응답의 기본 응답에만 실린다([인터랙션 기본 응답](CLE-CHAT-CORE-INTERACT.md#인터랙션-기본-응답)).
-6. **대화 조회, 실행 소유자 확인과 취소 명령**: 채널 대화 상태를 조회해 활성 실행이 있는지 판단한다. 활성 실행이 있는 대화에 실행 소유자(`channelUserKey` 가 대화 상태의 값과 같은 사용자)가 아닌 사람이 `/start` 나 `/cancel` 을 보내면 여기서 버린다. 기존 실행을 취소하지 않고 새 실행도 시작하지 않으며 안내 문구도 보내지 않는다([활성 실행 중 다시 시작](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작)). 이 확인은 `/cancel` 처리와 8번 워크플로우 활성 관문보다 앞이다. 그 밖의 `/cancel` 이면 활성 실행을 취소한다. 취소를 재개 큐에 넣지 못해도 `202` 로 답하고 채널 건강도를 `degraded` 로 바꾼다. 실행이 이미 끝났으면 건강도를 바꾸지 않는다([큐 적재 실패](CLE-CHAT-CORE-INTERACT.md#큐-적재-실패)).
+6. **대화 조회, 실행 소유자 확인과 취소 명령**: 채널 대화 상태를 조회해 활성 실행이 있는지 판단한다. 활성 실행이 있는 대화에 실행 소유자(`channelUserKey` 가 대화 상태의 값과 같은 사용자)가 아닌 사람이 `/start` 나 `/cancel` 을 보내면 여기서 버린다. 기존 실행을 취소하지 않고 새 실행도 시작하지 않으며 안내 문구도 보내지 않는다([활성 실행 중 다시 시작](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작)). 이 확인은 `/cancel` 처리와 8번 워크플로우 활성 관문보다 앞이다. 그 밖의 `/cancel` 이면 활성 실행을 취소한다. 취소를 재개 큐에 넣지 못해도 `202` 로 답하고 채널 건강도를 `degraded` 로 바꾼다. 실행이 이미 끝났으면 건강도를 바꾸지 않는다([큐 적재 실패](CLE-CHAT-CORE-INTERACT.md#큐-적재-실패)). 활성 실행이 없거나 실행이 이미 끝났으면 `languageHints.noActiveExecution` 안내를 보낸다. Slack · Discord 슬래시 명령이면 이 안내가 1번에서 정한 기본 응답의 수신 문구를 대신한다([R-CC-36](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)).
 7. **진행 중인 대화의 전달**: 네이티브 폼 모달 열기와 제출, 활성 실행이 있는 대화의 `/start` 가 아닌 메시지는 입력 대기 실행에 전달하거나 실행 중 안내로 끝낸다. 새 실행을 시작하지 않는다. 재개 명령을 재개 큐에 넣지 못해도 `202` 로 답하고 채널 건강도를 `degraded` 로 바꾼다. 네이티브 폼 모달 제출이면 모달 대기를 남기고 「양식 작성하기」 버튼을 다시 보낸다. 응답은 폼 제출 결과가 아니라 기본 응답이다.
 8. **워크플로우 활성 관문**: 남은 update 는 새 실행을 시작할 update 다. 워크플로우가 비활성이면 여기서 `202`·`{ executionId: 'ignored' }` 다. `/start` 의 기존 실행 취소보다 앞이라 기존 실행은 그대로 남는다. 워크플로우가 트리거의 워크스페이스에 없으면 이 관문을 지나 [R-CC-25](#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 처리에서 걸린다. 자세한 규칙은 [워크플로우 활성 관문](#워크플로우-활성-관문) 에 있다.
 9. **재시작과 새 실행**: `/start` 이고 활성 실행이 있으면 기존 실행을 취소한 뒤 새 실행을 시작한다([활성 실행 중 다시 시작](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작)). 그 밖의 update 는 새 실행을 시작한다.
@@ -127,7 +127,7 @@ flowchart TD
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(대화 조회 뒤 `/start`·`/cancel` 의 실행 소유자 확인, 새 실행 시작 앞의 워크플로우 활성 관문 포함), 인바운드 인증기 호출(컨트롤러가 `req.ip` 를 넘기고 서비스가 인증기를 한 번 부른다), 핸드셰이크 응답(Slack · Discord 어댑터의 `handshakeResponse` 를 부른다), 컨트롤러의 `@DeferGlobalThrottle()` 과 라우트 가드 순서
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기, 인바운드 관문 순서(대화 조회 뒤 `/start`·`/cancel` 의 실행 소유자 확인, 새 실행 시작 앞의 워크플로우 활성 관문 포함), 인바운드 인증기 호출(컨트롤러가 `req.ip` 를 넘기고 서비스가 인증기를 한 번 부른다), 핸드셰이크 응답(Slack · Discord 어댑터의 `handshakeResponse` 를 부른다), 컨트롤러의 `@DeferGlobalThrottle()` 과 라우트 가드 순서. 4번의 버리기 전 안내는 `maybeNotifyIgnored`(Telegram 모양의 본문만 읽는다), 6번의 실행 없는 `/cancel` 안내는 `notifyNoActiveExecution` 이다
 - `codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts`: 공개 웹훅 가드. 트리거를 조회해 요청에 붙이고 채팅 채널 트리거는 서명 참조와 상관없이 통과시킨다
 - `codebase/backend/src/modules/hooks/hook-trigger-throttler.guard.ts`, `codebase/backend/src/common/guards/user-throttler.guard.ts`: `POST /hooks/:endpointPath` 의 전역 요청 한도. 서명 참조가 저장된 채팅 채널 트리거는 세지 않는다(판정은 `isSignedChatChannelTrigger`). 전역 가드는 `@DeferGlobalThrottle()` 이 붙은 라우트를 세지 않는다
 - `codebase/backend/src/modules/chat-channel/`: 인바운드 서명 검증과 서명 검증 실패 한도 적용(`chat-channel-inbound-authenticator.ts` 의 `verify` 가 한도 판정 · 서명 검증 · 실패 기록을 한곳에서 한다), 서명 검증 실패 한도(`chat-channel-signature-failure-limiter.service.ts`), 서명 참조가 저장된 채팅 채널 트리거 판정(`chat-channel-secret-refs.ts` 의 `isSignedChatChannelTrigger`), 중복 제거(`chat-channel-dedup.service.ts`), 분당 한도(`chat-channel-rate-limiter.service.ts`)
@@ -200,3 +200,7 @@ handshake(Slack `url_verification`, Discord PING)에는 워크플로우가 비�
 - (c) IP 만으로 세는 안. 「키에 트리거를 넣는 이유」 대로 한 트리거의 실패가 같은 IP 를 쓰는 다른 트리거를 막는다.
 - (d) `X-Forwarded-For` 첫 값을 그대로 두고 운영 조건만 적는 안. 위조 요청을 보내는 쪽이 키의 IP 를 골라 그 IP 의 정상 update 를 막을 수 있는 한계가 그대로 남는다.
 - (e) 프로바이더 발신 대역에서 온 요청을 한도에서 빼거나 따로 세는 안. Slack 과 Discord 는 고정 발신 대역을 공개하지 않는다. 그래서 세 프로바이더에 같은 규칙을 둘 수 없다. (a) 와 같은 이유다.
+
+### DM 밖 안내와 실행 없는 /cancel 안내 (2026-11-19)
+
+관문 4번과 6번의 두 안내는 2026-11-19 사람 결정을 따른다. DM 밖 거절 안내를 채널에 보내는 것은 Telegram 메시지뿐이다(NERV 질문 `01a1f2b8-1979-7137-b882-faf2d0563083`, [R-CC-37](CLE-CHAT-CORE-RESPONSE.md#r-cc-37-dm-밖-거절-안내는-telegram-만)). 활성 실행이 없는 `/cancel` 에는 `noActiveExecution` 안내를 보낸다(NERV 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf`, [R-CC-36](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)). 관문 순서는 바뀌지 않는다. 기각한 대안(Slack · Discord 채널 메시지로 거절 안내, 슬래시 명령의 수신 문구를 두고 DM 에 따로 안내)과 그 이유는 두 항목에 있다.

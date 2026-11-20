@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021", "REQ-FOREACH-022"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "27722316d6341fe27ae595c4dde14c4341f2cd74b0927afd8827c2c50f5e782d"
+content_hash: "e2b4caa0a71fafc51b97b0b99492951b2ec139e2d57159cd95ffa0d70ff583af"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-7AYYQC"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "b7de76b9778f854b6a0a30e818ebb2f23b1caa9cc83884c7a16ea8a1f46d13b4"
-etag: "sha256-0b70eff50a2a26bb68bf815d2897684cfc9c07ee216188e330471b16659b95d3"
+mirror_sha256: "3328ab54023d04ed463d69356a222094419da0986eb88dfaea271bf5d6b1afd7"
+etag: "sha256-54970ecf29d56a1bf2170dcb56c572bce9e54b6f2e587c1a19d50c66943baa45"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -165,9 +165,9 @@ ForEach 는 컨테이너라서 시작 시점(본문 진입)과 완료 시점(`do
 | `meta.iterations` | number | 엔진 주입 | 본문 실행 횟수(반복 메트릭). 현재 구현은 실패로 `null` 이 된 인덱스도 본문이 돌았으므로 센다. Loop 의 `output.iterations`(배열)와 다르다 |
 | `meta.fellBackToEmpty` | boolean | 핸들러 반환 | 시작 시점 값이 그대로 남는다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약) 규칙 6) |
 
-완료 `output` 과 `meta` 는 다음 노드 표현식이 읽는 값이다. 엔진은 본문이 다 돈 뒤에 노드 실행 행을 한 번 마감하므로 노드 실행 기록(`node_execution.output_data`)과 `execution.node.completed` 이벤트에도 이 완료 출력이 남는다. 본문이 도는 동안 행은 `running` 이다. 재개 · 재구동 때 rehydration 한 실행 컨텍스트도 이 저장값을 쓰므로 완료 출력을 본다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
+완료 `output` 과 `meta` 는 다음 노드 표현식이 읽는 값이다. 노드 실행 기록 · `execution.node.completed` 이벤트 · 재개와 재구동 뒤의 rehydration 도 같은 완료 출력을 쓴다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
 
-ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`execution-engine.service.ts` 의 컨테이너 완료 처리는 `port` 키를 쓰지 않는다). `done` 포트는 노드 출력의 `port` 필드가 아니라 엔진의 연결선 활성화로 열린다. 노드 출력에 `port` 를 직접 싣는 것은 엔진 덮어쓰기 대상 노드 가운데 Parallel 뿐이다. 완료 출력 `meta` 에는 `durationMs` 가 없다. 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 은 반복 회차까지 포함한 노드 전체 실행 시간이다. `meta.durationMs` 를 두지 않는 이유는 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다. Map · Loop · Parallel 도 같다.
+ForEach 의 완료 출력은 `config` / `output` / `meta` 세 키만 싣는다(`execution-engine.service.ts` 의 컨테이너 완료 처리는 `port` 키를 쓰지 않는다). `done` 포트는 노드 출력의 `port` 필드가 아니라 엔진의 연결선 활성화로 열린다. 노드 출력에 `port` 를 직접 싣는 것은 엔진 덮어쓰기 대상 노드 가운데 Parallel 뿐이다. 완료 출력 `meta` 에는 `durationMs` 가 없다. 반복 회차까지 포함한 노드 전체 실행 시간은 노드 실행 기록의 `duration_ms` 로 읽는다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기)).
 
 표현식 접근 예:
 
@@ -283,7 +283,7 @@ ForEach 는 `arrayField` 가 배열이 아니면 모두 `[]` 로 바꿔 왔다. 
 
 결정일: 2026-11-05
 
-그전 `skipped[].error.code` 는 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. Parallel 은 같은 자리에 빈 `name` 대신 `UNKNOWN_ERROR` 를 내서 두 노드가 달랐다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-FOREACH-022). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 의 Rationale 에 있다.
+그전 `skipped[].error.code` 는 던진 에러의 `name`(`Error` · `TypeError` 등)이었고 `name` 이 비면 빈 문자열이었다. Parallel 은 같은 자리에 빈 `name` 대신 `UNKNOWN_ERROR` 를 내서 두 노드가 달랐다. NERV Task `CLE-T-REC4X3` 이 ForEach · Map · Parallel 의 규칙을 하나로 모았다(REQ-FOREACH-022). 백엔드가 직접 싣는 카탈로그 코드는 그대로 내고 `name` 이 `AbortError` 면 `AbortError`, 그 밖은 `UNKNOWN_ERROR` 다. 근거와 기각한 대안은 [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode) 의 Rationale 에 있다.
 
 ### 동적 에러 포트 미구현 서술을 지운다
 

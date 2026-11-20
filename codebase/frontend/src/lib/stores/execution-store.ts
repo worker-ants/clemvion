@@ -232,7 +232,7 @@ interface ExecutionState {
   status: ExecutionStatus;
   /**
    * 쓰기마다 새 Map 이다. 값을 제자리에서 고치지 않는다. REST 폴링 대체 경로
-   * (`use-execution-polling-fallback.ts` 의 `decidePollResponse`)가 요청을 보낸 뒤 다른
+   * (`execution-polling-policy.ts` 의 `decidePollResponse`)가 요청을 보낸 뒤 다른
    * 경로가 store 를 바꿨는지를 이 참조로 가른다. 계약 테스트: `execution-store.test.ts`
    * 「nodeStatuses · nodeResults 쓰기마다 새 참조」.
    */

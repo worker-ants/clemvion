@@ -210,12 +210,10 @@ export class DatabaseQueryHandler
     // 확정된 driver 토큰 — 그 전엔 default 'postgres'.
     const apiMethod = extractSqlVerb(query);
 
-    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7.1) — config 검증/echo
-    // 직후, DB 연결을 열기 전에 WRITE(INSERT/UPDATE/DELETE/UPSERT)만 mock 으로
-    // 단락한다. READ(SELECT)는 부수효과가 아니므로 dry-run 에서도 아래 실제
-    // 실행 경로로 그대로 흐른다 (§7.1 L153). mock 경로는 pool/connect 를 절대
-    // 호출하지 않으며 success 포트로 흐름을 정상 진행시킨다. sqlPreview 는 SQL
-    // 앞 ~200자만 노출(바인딩 파라미터 값은 미포함).
+    // dry-run 재실행([Database Query 「dry-run」](CLE-NODE-DBQUERY#dry-run)): config 검증 · 에코
+    // 직후, DB 연결을 열기 전에 쓰기와 판정이 애매한 쿼리를 mock 으로 끝낸다. 읽기 동사(SELECT 등)만
+    // 아래 실제 실행 경로로 흐른다. 판정은 `isWriteOperation` 이 한다. mock 경로는 pool/connect 를
+    // 부르지 않고 success 포트로 흐른다. sqlPreview 는 SQL 앞 ~200자만 노출(바인딩 값은 미포함).
     if (isDryRun(context) && isWriteOperation(configEcho.queryType, query)) {
       const sqlPreview =
         typeof query === 'string' ? query.slice(0, 200) : undefined;
@@ -662,35 +660,154 @@ export function extractSqlVerb(query: string | undefined): string | null {
 }
 
 /**
- * Re-run dry-run (spec/5-system/13-replay-rerun.md §7.1, L148/L153) —
- * WRITE 작업(INSERT/UPDATE/DELETE/UPSERT)만 부수효과로 분류해 mock 으로 단락하고,
- * READ(SELECT)는 dry-run 에서도 실제로 실행한다.
- *
- * 분류는 두 신호를 결합한다:
- *  1. `config.queryType` (`select`/`insert`/`update`/`delete`/`raw`) — UI 가
- *     명시한 1차 신호. insert/update/delete 는 곧바로 write.
- *  2. SQL 첫 토큰(`extractSqlVerb`) — `queryType` 이 `raw` 이거나 누락된 경우의
- *     보조 신호. UPSERT(`INSERT ... ON CONFLICT`/`MERGE`/`REPLACE`)와 DDL/DML
- *     write 동사도 여기서 포착한다.
- *
- * 모호하면 read 로 떨어뜨려(=실제 실행) dry-run 의 안전 기본값(부수효과 차단)
- * 보다 결과 재현성을 우선한다 — write 동사 화이트리스트 명시.
+ * dry-run 부수효과 판정에서 읽기로 보는 SQL 첫 동사. 이 목록에 있으면 dry-run 에서도 실제로 실행한다.
+ * `EXPLAIN` 은 넣지 않는다. PostgreSQL `EXPLAIN ANALYZE` 는 대상 문장을 실제로 실행한다.
  */
-const SQL_WRITE_VERBS = new Set([
-  'INSERT',
-  'UPDATE',
-  'DELETE',
-  'UPSERT',
-  'MERGE',
-  'REPLACE',
-  'TRUNCATE',
-  'DROP',
-  'CREATE',
-  'ALTER',
-  'GRANT',
-  'REVOKE',
+const SQL_READ_VERBS = new Set([
+  'SELECT',
+  'SHOW',
+  'DESCRIBE',
+  'DESC',
+  'VALUES',
+  'TABLE',
 ]);
 
+/**
+ * 주석 하나를 건너뛴 뒤의 위치를 돌려준다. `pos` 가 주석 시작이 아니면 `pos` 그대로다.
+ * 판정하기 어려운 주석(닫히지 않음, 중첩 블록, MySQL 실행 주석 `/*!`, 공백 없이 붙은 `--`)이면
+ * `'ambiguous'` 다. 같은 문자열을 PostgreSQL · MySQL 이 다르게 읽을 수 있는 경우를 모두 여기로 모은다.
+ */
+function skipSqlComment(sql: string, pos: number): number | 'ambiguous' {
+  if (sql.startsWith('--', pos)) {
+    // MySQL 은 `--` 뒤에 공백 · 제어 문자가 있어야 주석이다. 붙어 있으면 두 엔진이 다르게 읽는다.
+    const next = sql[pos + 2];
+    if (next !== undefined && !/\s/.test(next)) return 'ambiguous';
+    const nl = sql.indexOf('\n', pos);
+    return nl < 0 ? sql.length : nl + 1;
+  }
+  if (sql.startsWith('/*', pos)) {
+    // `/*!` 는 MySQL 이 안쪽을 SQL 로 실행한다.
+    if (sql[pos + 2] === '!') return 'ambiguous';
+    const close = sql.indexOf('*/', pos + 2);
+    if (close < 0) return 'ambiguous';
+    // PostgreSQL 은 블록 주석이 중첩되고 MySQL 은 아니라서 중첩 모양은 판정하지 않는다.
+    if (sql.slice(pos + 2, close).includes('/*')) return 'ambiguous';
+    return close + 2;
+  }
+  return pos;
+}
+
+/** 공백과 주석을 건너뛴다. 판정하기 어려운 주석을 만나면 `'ambiguous'` 다. */
+function skipSqlBlank(sql: string, from: number): number | 'ambiguous' {
+  let pos = from;
+  for (;;) {
+    while (pos < sql.length && /\s/.test(sql[pos])) pos += 1;
+    const after = skipSqlComment(sql, pos);
+    if (after === 'ambiguous') return 'ambiguous';
+    if (after === pos) return pos;
+    pos = after;
+  }
+}
+
+/**
+ * `pos` 에서 시작하는 문자열 리터럴 · 따옴표 식별자 · 달러 인용의 끝 다음 위치를 돌려준다.
+ * 그 자리가 이런 시작이 아니면 `pos` 그대로, 닫히지 않았거나 백슬래시가 든 작은따옴표 리터럴
+ * (PostgreSQL 과 MySQL 이 이스케이프로 읽는지가 달라서)이면 `'ambiguous'` 다.
+ */
+function skipSqlQuoted(sql: string, pos: number): number | 'ambiguous' {
+  const ch = sql[pos];
+  if (ch === "'" || ch === '"' || ch === '`') {
+    let i = pos + 1;
+    for (;;) {
+      const close = sql.indexOf(ch, i);
+      if (close < 0) return 'ambiguous';
+      if (ch === "'" && sql.slice(pos + 1, close).includes('\\')) {
+        return 'ambiguous';
+      }
+      // 같은 따옴표를 두 번 쓰면 따옴표 문자 하나다.
+      if (sql[close + 1] === ch) {
+        i = close + 2;
+        continue;
+      }
+      return close + 1;
+    }
+  }
+  if (ch === '$') {
+    const prev = pos > 0 ? sql[pos - 1] : '';
+    if (/[A-Za-z0-9_$]/.test(prev)) return pos;
+    const tag = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(pos));
+    if (!tag) return pos;
+    const close = sql.indexOf(tag[0], pos + tag[0].length);
+    return close < 0 ? 'ambiguous' : close + tag[0].length;
+  }
+  return pos;
+}
+
+/**
+ * dry-run 판정용으로 SQL 을 읽는다. 첫 문장의 동사(대문자)와, 첫 문장 뒤에 다른 내용이 이어지는지(`multi`)를
+ * 돌려준다. 동사를 못 찾거나 판정할 수 없는 모양이면 NULL 이다. 호출한 쪽은 NULL 을 쓰기로 본다.
+ *
+ * - 동사 앞의 공백 · 주석은 건너뛴다. `/*!` · `/*+` 로 시작하는 맨 앞 블록 주석은 건너뛰지 않는다.
+ * - 첫 문장 안에서 문자열 리터럴 · 따옴표 식별자 · 주석 · PostgreSQL 달러 인용 속의 `;` 는 문장 끝이 아니다.
+ * - 끝에 붙은 `;` 하나와 그 뒤 공백 · 주석은 `multi` 를 바꾸지 않는다.
+ *
+ * 활동 로그 `api_method` 는 이 함수를 쓰지 않고 {@link extractSqlVerb} 를 그대로 쓴다.
+ */
+function scanSql(
+  query: string | undefined,
+): { verb: string; multi: boolean } | null {
+  if (!query) return null;
+  const start = skipSqlBlank(query, 0);
+  if (start === 'ambiguous') return null;
+  // 건너뛴 주석이 `/*+` 힌트면 동사 앞에서 쓰지 않는다. MySQL 은 힌트를 맨 앞에 두지 않는다.
+  if (query.slice(0, start).includes('/*+')) return null;
+  if (query.startsWith('/*+', start)) return null;
+  const verb = extractSqlVerb(query.slice(start));
+  if (verb === null) return null;
+  let pos = start + verb.length;
+  while (pos < query.length) {
+    const quoted = skipSqlQuoted(query, pos);
+    if (quoted === 'ambiguous') return null;
+    if (quoted !== pos) {
+      pos = quoted;
+      continue;
+    }
+    const comment = skipSqlComment(query, pos);
+    if (comment === 'ambiguous') return null;
+    if (comment !== pos) {
+      pos = comment;
+      continue;
+    }
+    if (query[pos] === ';') {
+      const tail = skipSqlBlank(query, pos + 1);
+      if (tail === 'ambiguous') return null;
+      return { verb, multi: tail < query.length };
+    }
+    pos += 1;
+  }
+  return { verb, multi: false };
+}
+
+/**
+ * dry-run 재실행의 부수효과 판정([Database Query 「dry-run」](CLE-NODE-DBQUERY#dry-run)).
+ * true 면 DB 에 연결하지 않고 mock 으로 끝낸다(REQ-DBQ-025), false 면 실제로 실행한다(REQ-DBQ-026).
+ *
+ * - `queryType` 이 `insert` · `update` · `delete` 면 SQL 과 관계없이 쓰기다.
+ * - 그 밖(`select` · `raw` · 누락)은 `queryType` 을 믿지 않고 SQL 첫 동사를 본다. 기본값 `select` 로 둔
+ *   `DELETE` 가 dry-run 에서 실행되던 결함을 막는다(CLE-T-KH11HA).
+ * - 첫 동사가 {@link SQL_READ_VERBS} 에 있을 때만 읽기다. 쓰기 동사와 판정이 애매한 쿼리
+ *   (`WITH` · `CALL` · `DO` · `COPY` · `EXPLAIN`, 괄호로 시작 등)는 안전 쪽(mock)으로 본다.
+ *   근거: NERV 질문 01a1f2b8-529a-7479-8631-6e8fc96f5879 에서 사람이 「애매하면 mock」 으로 정했다
+ *   (CLE-NODE-DBQUERY 「dry-run」).
+ * - 첫 문장 뒤에 `;` 로 이어지는 다른 내용이 있으면(`SELECT 1; DELETE …`) mock 이다. 끝에 붙은 `;` 하나와
+ *   그 뒤 공백 · 주석은 읽기 판정을 바꾸지 않는다. 리터럴 · 따옴표 식별자 · 주석 · 달러 인용 속의 `;` 는
+ *   문장 끝이 아니다.
+ * - 맨 앞이 MySQL 실행 주석 `/*!` 이거나 힌트 `/*+` 이면 건너뛰지 않고 mock 이다. 닫히지 않은 따옴표 ·
+ *   주석, 백슬래시가 든 작은따옴표 리터럴, 중첩 블록 주석처럼 엔진마다 읽는 법이 다를 수 있는 모양도 mock 이다.
+ *
+ * 한계: `SELECT write_func()` · `SELECT … INTO new_table` 처럼 SELECT 로 시작하지만 데이터를 바꾸는
+ * 쿼리는 읽기로 보고 실행한다. 파서가 아니라 문자 단위 스캔이라 위에 적은 모양 밖의 방언 문법은 모른다.
+ */
 export function isWriteOperation(
   queryType: QueryType,
   query: string | undefined,
@@ -702,10 +819,8 @@ export function isWriteOperation(
   ) {
     return true;
   }
-  if (queryType === 'select') return false;
-  // queryType === 'raw' 또는 누락 — SQL 동사로 판정.
-  const verb = extractSqlVerb(query);
-  return verb !== null && SQL_WRITE_VERBS.has(verb);
+  const scanned = scanSql(query);
+  return scanned === null || scanned.multi || !SQL_READ_VERBS.has(scanned.verb);
 }
 
 function parseParameters(raw: unknown): unknown[] {

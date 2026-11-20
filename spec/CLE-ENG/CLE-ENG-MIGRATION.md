@@ -2,19 +2,19 @@
 id: "CLE-ENG-MIGRATION"
 title: "DB 마이그레이션 규약"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "18cb8974edc4b79af98ecb1711d61b7f4e6b4eb1b2f232713aae7e9b44081679"
+content_hash: "84b72e4a923b03c1b3e828a672670e4141b272e8e1f30ac62394281444173178"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-FBCP2N"
 source_paths: ["spec/0-overview.md", "spec/conventions/migrations.md"]
-mirror_sha256: "0cb9adcb48c16183a27ce4725bfaaa5e518c1eeaac6c6f062ef7327c0109c57e"
-etag: "sha256-523f728b00e37f09fd6b09fcd5fdc4c24096ceb85b4ab94c7b3bb5083d0074ee"
+mirror_sha256: "1fa7979dbfaeb5921c37ac2d2473bb9639ad1d4e48691a0ca500a35b8d6b6a83"
+etag: "sha256-cdfd792f73929d49696ceb6dbff8ae93c32041f642bd203a73659746fa35e1e7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/migrations.md`, `spec/0-overview.md` (§2.8 DB 마이그레이션, Rationale 「DB 마이그레이션 도구로 Flyway 채택」) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -77,7 +77,7 @@ Flyway 는 부팅할 때 적용된 마이그레이션마다 SQL 내용의 checks
 
 적용된 마이그레이션의 주석에 남은 옛 스펙 경로와 지운 `plan/` 경로도 고치지 않는다. `.sql` 은 주석만 바꿔도 checksum 이 달라져 부팅이 실패한다. `.conf` 는 규칙 9(append-only)를 따라 고치지 않는다. 규칙 10 의 `migrate-repair` 는 운영 사고로 checksum 을 어쩔 수 없이 다시 맞출 때 쓴다. 주석 정리는 그 범위에 들지 않는다.
 
-아래 옛 경로 래칫은 파일별 기준값보다 늘어도 줄어도 실패하는 양방향 래칫이다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md)). 줄면 통과하는 단방향 래칫과의 차이는 [스펙과 구현 근거 규약 — 스펙 문서 저장소 무결성 가드](CLE-ENG-SPECEVIDENCE-INTEGRITY.md) 의 R-15 「codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다」 에 있다. codebase 텍스트 파일에서 옛 스펙 경로나 지운 `plan/` 경로를 적은 줄은 옛 경로 래칫(`legacy-path-ratchet.test.ts`, [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 「codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다」)이 파일별로 센다. 적용된 마이그레이션(`V*.sql` · `V*.conf`)의 언급은 이 기준값에 영구히 남는다. 수치는 스펙과 구현 근거 규약 R-15 에 있다. 새 마이그레이션의 주석에는 옛 경로 대신 미러에 있는 문서의 NERV 키와 절 제목을 쓴다. 새 마이그레이션이 옛 경로를 적으면 래칫이 실패한다.
+아래 옛 경로 래칫은 파일별 기준값보다 늘어도 줄어도 실패하는 양방향 래칫이다([용어 사전 — 다의어 구분](../CLE-GLOSSARY-POLY.md)). 줄면 통과하는 단방향 래칫과의 차이는 [스펙과 구현 근거 규약 — 스펙 문서 저장소 무결성 가드](CLE-ENG-SPECEVIDENCE-INTEGRITY.md) 의 R-15 「codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다」 에 있다. codebase 텍스트 파일에서 옛 스펙 경로나 지운 `plan/` 경로를 적은 줄은 옛 경로 래칫(`legacy-path-ratchet.test.ts`)이 파일별로 센다. 적용된 마이그레이션(`V*.sql` · `V*.conf`)의 언급은 이 기준값에 영구히 남는다. 수치는 같은 R-15 에 있다. 새 마이그레이션의 주석에는 옛 경로 대신 미러에 있는 문서의 NERV 키와 절 제목을 쓴다. 새 마이그레이션이 옛 경로를 적으면 래칫이 실패한다.
 
 ### `outOfOrder=false` 를 유지하는 이유
 

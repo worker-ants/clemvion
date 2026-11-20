@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXEC"
 title: "에러 코드 카탈로그 — 워크플로우 실행"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "f2d87fcb5d55b7583d6a53b9620ce5c0f2738f6b9413c190f472bd6d251aaea7"
+content_hash: "81467e61283ed48a510bd14a37ba8d0e4d9214b058c14640fd503bdd224fecb9"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-CKJQZD"
 source_paths: []
-mirror_sha256: "311712b87b1eefffd4b748f473bb6b3fd3f29f43875b5773a5a06254def5e692"
-etag: "sha256-0a3a083c7d8fb359999160ee2fbe7e867e4eeb8d54bb5fb365d148ba07c3fb08"
+mirror_sha256: "68a60e142ae3b88a73c6ed2ba1f24dc1820f99e890355d5e210096ac3ede849e"
+etag: "sha256-8d4dc92ed4b3358fa6142b14e5fcf18b5bd370ae9d4b8d5e46c24485f2d0be60"
 ---
 ## 개요
 
@@ -87,7 +87,7 @@ etag: "sha256-0a3a083c7d8fb359999160ee2fbe7e867e4eeb8d54bb5fb365d148ba07c3fb08"
 | `RERUN_EXECUTION_NOT_FOUND` | 404 | `executionId` 가 없거나 다른 워크스페이스의 실행 | [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
 | `RERUN_WORKFLOW_DELETED` | 404 | 원본 실행의 워크플로우가 삭제됨 | [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
 | `RERUN_CHAIN_DEPTH_EXCEEDED` | 409 | 재실행 체인 깊이 32 초과 | [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
-| `RERUN_DRY_RUN_NOT_APPLICABLE` | 400 | dry-run 요청인데 워크플로우에 dry-run 을 지원하지 않는 노드(`supportsDryRun: false`)가 있음 | [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
+| `RERUN_DRY_RUN_NOT_APPLICABLE` | 400 | dry-run 요청인데 워크플로우나 그 워크플로우가 부르는 서브 워크플로우(동기 · 비동기, 아래 단계 포함)에 dry-run 을 지원하지 않는 노드(`supportsDryRun: false`)가 있음 | [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
 
 입력 파라미터 검증 실패는 `INVALID_TRIGGER_PARAMETERS`(§6.4)다.
 
@@ -118,7 +118,7 @@ ForEach · Map · Parallel 은 `errorPolicy='continue'` 에서 실패한 회차 
 - 이름에 도메인 접두를 붙이지 않았다. 세 노드가 함께 쓰는 대체값이라 한 도메인의 조건이 아니다(규칙 3). Parallel 이 Error 가 아닌 값에 이미 내던 문자열이어서 그대로 썼다.
 - 클라이언트 대화 화면 코드(`conversation-utils.ts`)가 코드가 없는 에러에 같은 문자열을 화면 대체값으로 쓴다. 서버가 내는 값이 아니어서 이 행과 겹치지 않는다.
 - 허용 목록을 카탈로그와 대조하다가 §6.6 표에 없던 에러 포트 코드 둘(`INVALID_PARAMETERS`([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)), `TOOL_DEFINITION_PAYLOAD_EXCEEDED`([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)))을 더했다(규칙 8). `USER_CANCELLED` 는 `ErrorCode` 에 정의만 있고 내보내는 곳이 없어 표에 올리지 않았다. 목록과 카탈로그를 대조하는 테스트는 두지 않았다. 새 코드는 규칙 8 에 따라 등재한다.
-- 기각한 대안은 두 가지다. 하나는 `UPPER_SNAKE_CASE` 모양이면 그대로 내는 안이다. 런타임 · 드라이버의 `code`(`ECONNREFUSED` 등)가 카탈로그 밖 값으로 나간다. 다른 하나는 런타임 · 드라이버 모양을 걸러 내는 안이다. 휴리스틱이라 다른 드라이버의 값이 새어 나갈 수 있다. 자세한 근거는 [Logic 노드 공통 「실패한 회차와 병렬 분기의 `error.code`」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다.
+- 기각한 대안은 두 가지다. 하나는 `UPPER_SNAKE_CASE` 모양이면 그대로 내는 안이다. 런타임 · 드라이버의 `code`(`ECONNREFUSED` 등)가 카탈로그 밖 값으로 나간다. 다른 하나는 런타임 · 드라이버 모양을 걸러 내는 안이다. 휴리스틱이라 다른 드라이버의 값이 새어 나갈 수 있다. 자세한 근거는 [Logic 노드 공통 「실패한 회차와 병렬 분기의 `error.code`」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode) 에 있다.
 
 ### Send Email 의 빈 수신자에 `EMAIL_NO_RECIPIENTS` 를 등재했다 (2026-11-06)
 

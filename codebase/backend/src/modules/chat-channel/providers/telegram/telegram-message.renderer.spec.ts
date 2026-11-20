@@ -352,6 +352,29 @@ describe('renderTelegramMessages', () => {
     }
   });
 
+  // prompt · buttonPrompt 가 모두 없을 때의 기본 안내는 «~해 주세요» 로 띄어 쓴다
+  // (CLE-CHAT-DATA-CONFIG, NERV Task `CLE-T-P650QF`).
+  it('waiting_for_input(buttons) — prompt · buttonPrompt 가 없으면 기본 안내 «선택해 주세요.»', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.waiting_for_input',
+      node: { id: 'n2', type: 'button', interactionType: 'buttons' },
+      interaction: {},
+      context: {
+        buttonConfig: {
+          buttons: [{ id: 'b1', label: 'Yes', type: 'callback' }],
+        },
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m).toHaveLength(1);
+    // 렌더러가 MarkdownV2 로 이스케이프해 마침표 앞에 `\` 가 붙는다.
+    expect(m[0].body).toMatchObject({
+      kind: 'buttons',
+      text: '선택해 주세요\\.',
+    });
+  });
+
   it('waiting_for_input(form) → form_prompt body 첫 필드 (Phase 4 PR-C)', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,

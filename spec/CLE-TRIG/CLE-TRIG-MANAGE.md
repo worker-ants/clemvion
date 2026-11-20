@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-061", "REQ-TRIG-062", "REQ-TRIG-063"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "85dfba888d239456cd73f6be08f253d90d5ae255f0f480b5895ade5ad438321d"
+content_hash: "96c7bfa64f062eec6c38e8a1113a1265cf907b934e3ee6c711b57ba5ae211885"
 read_as: "approved_fallback"
-task: "CLE-T-FAEAVE"
+task: "CLE-T-YQMP4N"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "a01644fc56c861224a0315c780d93d39a20f58b9a787832f0a002495b43d4d52"
-etag: "sha256-7483389fc9ae24851010714927a6c3cc76d06fea9b91d3a51c716f586a49cdec"
+mirror_sha256: "410d89c8c01ebfb8f703027b8f327525a2eefb11b2e6d4a3059cb088750ee023"
+etag: "sha256-d04079b049a7aa0191956a7eb1302925ef2db2a261b2ab5de175b6ae8fac48d7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -93,7 +93,7 @@ etag: "sha256-7483389fc9ae24851010714927a6c3cc76d06fea9b91d3a51c716f586a49cdec"
 - REQ-TRIG-053 IF 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 `config` 키 아래에 `chatChannel` 의 차단 필드나 `notification.signing.secretRef` · `interaction.triggerToken` 이 있으면 THE SYSTEM SHALL 값과 상관없이 400 `VALIDATION_ERROR`(`details: { field: 'config.<경로>', code: 'INVALID_FIELD' }`)로 거부한다.
 - REQ-TRIG-054 WHEN 시크릿 교체(`rotate-secret`)가 `notification_secret_v2` 를 쓰면 THE SYSTEM SHALL `config` 를 쓰지 않더라도 트리거 설정 잠금을 잡는다. (승격 조건: [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체))
 - REQ-TRIG-055 WHEN 인터랙션이 켜져 있고(`interaction.enabled: true`) 전략이 `per_trigger` 인 트리거를 만들면 THE SYSTEM SHALL 트리거 단위 토큰(`itk_*`)을 발급해 `config.interaction.triggerToken` 에 저장하고 평문을 생성 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다.
-- REQ-TRIG-056 WHEN 최상위 필드 `interaction` 이 실린 PATCH 의 결과가 인터랙션이 켜져 있고 전략이 `per_trigger` 인데 잠금 안에서 다시 읽은 행에 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 새 토큰을 발급해 저장하고 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. 저장된 토큰이 있으면 인터랙션을 껐다 다시 켠 경우에도 새로 발급하지 않는다.
+- REQ-TRIG-056 WHEN 타입 필드 `interaction` 이 실린 PATCH 의 결과가 인터랙션이 켜져 있고 전략이 `per_trigger` 인데 잠금 안에서 다시 읽은 행에 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 새 토큰을 발급해 저장하고 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. 저장된 토큰이 있으면 인터랙션을 껐다 다시 켠 경우에도 새로 발급하지 않는다.
 - REQ-TRIG-057 WHEN 생성이나 PATCH 가 알림 서명 시크릿이나 트리거 단위 토큰을 처음 발급하면 THE SYSTEM SHALL 그 요청의 감사 기록(`trigger.created` · `trigger.updated`)의 `details.issuedSecrets` 에 발급한 비밀의 종류 이름(`notificationSigningSecret` · `interactionToken`)을 싣고 평문은 싣지 않는다. 발급하지 않은 요청의 기록에는 이 키가 없다.
 - REQ-TRIG-058 WHEN 트리거를 만들면 THE SYSTEM SHALL 행 INSERT · 시크릿 저장소 쓰기 · `config` 쓰기 · 첫 알림 서명 시크릿과 트리거 단위 토큰의 발급을 한 트랜잭션에서 하고 하나라도 실패하면 행을 남기지 않으며 감사 기록(`trigger.created`)은 커밋 직후 트랜잭션 밖에서 남긴다.
 - REQ-TRIG-059 WHEN `interaction` 이 실린 PATCH 가 전략을 `per_trigger` 밖으로 바꿔 저장된 트리거 단위 토큰을 지우거나 인터랙션을 끄면 THE SYSTEM SHALL 커밋 뒤 그 토큰으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다. 인터랙션만 끈 경우는 토큰 값을 남긴다. (출처: 2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답, finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`)
@@ -143,14 +143,14 @@ etag: "sha256-7483389fc9ae24851010714927a6c3cc76d06fea9b91d3a51c716f586a49cdec"
 → [트리거 관리 — API 와 PATCH 계약](CLE-TRIG-MANAGE-API.md#원시-config-계약-2026-10-31)
 
 - 이 결정이 REQ-TRIG-061 (타입 키 거부) · REQ-TRIG-062 (`secret://` 값 거부) · REQ-TRIG-063 (키 단위 병합)을 더했다.
-- 이 결정으로 REQ-TRIG-060 을 지웠다. 그 요구사항은 원시 `config` 로 `interaction` 을 바꾼 PATCH 가 토큰을 없애거나 인터랙션을 끄면 스트림을 닫는다고 정했다. 원시 `config` 의 `interaction` 이 400 이 되어 그 경로가 없어졌다. 같은 동작은 top-level `interaction` 쪽 REQ-TRIG-059 가 맡는다. 번호는 다시 쓰지 않는다. 같은 이유로 REQ-TRIG-056 에서 원시 `config` 갈래를 지웠다.
+- 이 결정으로 REQ-TRIG-060 을 지웠다. 그 요구사항은 원시 `config` 로 `interaction` 을 바꾼 PATCH 가 토큰을 없애거나 인터랙션을 끄면 스트림을 닫는다고 정했다. 원시 `config` 의 `interaction` 이 400 이 되어 그 경로가 없어졌다. 같은 동작은 타입 필드 `interaction` 쪽 REQ-TRIG-059 가 맡는다. 번호는 다시 쓰지 않는다. 같은 이유로 REQ-TRIG-056 에서 원시 `config` 갈래를 지웠다.
 
 ### 트리거 목록 정렬 규칙 (2026-11-19)
 
 `GET /api/triggers` 의 `sort`·`order` 는 DTO 로 받기만 하고 `findAll` 이 무시해서 REQ-TRIG-025 를 미구현으로 표시했다. NERV Task `CLE-T-FKYM4N` 이 정렬을 구현했고 허용 목록과 처리 규칙은 그 Task 질문의 사람 답으로 정했다. 이번 개정(`CLE-T-FAEAVE`)은 미구현 표시를 풀고 그 규칙을 [API](CLE-TRIG-MANAGE-API.md#api) 표에 적었다. 기능 약속을 바꾼 것이 아니라 구현이 끝나 문서를 맞춘 것이다. 형식은 [스케줄](CLE-TRIG-SCHEDULE.md) 의 REQ-SCHED-027 을 따랐다.
 
 - **허용 목록**: 엔티티에서 정렬할 만한 컬럼 전부(`created_at` · `updated_at` · `name` · `type` · `is_active` · `last_triggered_at`)다. 값은 [HTTP API 규약 §4.1](../CLE-API/CLE-API-CONV-URL.md#41-목록-조회-쿼리-파라미터) 의 표기(snake_case 컬럼 이름)를 따른다. 스케줄 행에만 붙는 `nextRunAt` 은 스케줄 표에서 읽어 응답에 붙이는 값이라 트리거 목록 쿼리로 정렬할 수 없어 넣지 않았다.
-- **허용 밖 값은 400 이 아니라 `created_at` 으로 정렬한다**: `schedules` · `workflows` 목록 구현(공통 `pickSortColumn`)과 같은 처리다. 이 폴백은 두 목록의 스펙에는 아직 적혀 있지 않다. 목록마다 거부 기준이 다르면 클라이언트가 화면마다 다른 에러를 다뤄야 한다. 형식이 틀린 값(`sort` 정규식 위반, `order` 가 `asc` · `desc` 밖)은 공통 DTO 가 400 으로 막으므로 SQL 식별자 주입은 폴백과 상관없이 닫혀 있다.
+- **허용 밖 값은 400 이 아니라 `created_at` 으로 정렬한다**: `schedules` · `workflows` 목록 구현(공통 `pickSortColumn`)과 같은 처리다. 이 폴백은 2026-11-19 에 목록 공통 규칙으로 [HTTP API 규약 §4.1](../CLE-API/CLE-API-CONV-URL.md#41-목록-조회-쿼리-파라미터) 에 적었다(`CLE-T-9YZ9BN`). 목록마다 거부 기준이 다르면 클라이언트가 화면마다 다른 에러를 다뤄야 한다. 형식이 틀린 값(`sort` 정규식 위반, `order` 가 `asc` · `desc` 밖)은 공통 DTO 가 400 으로 막으므로 SQL 식별자 주입은 폴백과 상관없이 닫혀 있다.
 - **`last_triggered_at` 은 방향과 상관없이 NULLS LAST**: 한 번도 실행되지 않은 트리거는 값이 없다. PostgreSQL 기본(ASC 는 NULLS LAST, DESC 는 NULLS FIRST)을 따르면 «최근 실행 순» 첫 페이지가 실행 이력 없는 트리거로 찬다.
 - **같은 값끼리는 `id` 로 고정한다**: `type` · `is_active` 처럼 값이 몇 개뿐인 컬럼은 같은 값이 많다. 보조 정렬이 없으면 offset 페이지 사이에서 행이 겹치거나 빠진다. 방향은 정렬 방향과 같게 둔다.
 

@@ -25,18 +25,6 @@ export function isTerminalServerExecutionStatus(
 }
 
 /**
- * 실행 상세 화면 REST 폴링의 다음 간격. 종결 상태면 `false`(폴링 중단), 상태가 없거나
- * 진행 중이면 `intervalMs`. `waiting_for_input` 도 계속 폴링한다.
- */
-export function nextExecutionRefetchInterval(
-  status: ExecutionData["status"] | undefined,
-  intervalMs: number,
-): number | false {
-  if (!status) return intervalMs;
-  return isTerminalServerExecutionStatus(status) ? false : intervalMs;
-}
-
-/**
  * Snapshot reconcile / REST polling 의 store hydration entry point.
  *
  * 본 helper 는 `handleSnapshot` 의 inline 로직을 추출한 standalone 함수로,
@@ -627,6 +615,8 @@ export function mapNodeStatus(
       return "failed";
     case "skipped":
       return "skipped";
+    case "cancelled":
+      return "cancelled";
     case "waiting_for_input":
       return "waiting_for_input";
     default:
@@ -671,6 +661,7 @@ const STATUS_PRIORITY: Record<string, number> = {
   completed: 3,
   failed: 3,
   skipped: 3,
+  cancelled: 3,
 };
 
 export function shouldUpdateStatus(

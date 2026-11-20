@@ -232,6 +232,16 @@ describe('buildDiscordDefaultInteractionResponse', () => {
     ).toEqual(refusal('DM 으로 불러 주세요.'));
   });
 
+  // REQ-DISCORD-036 «없거나 비어 있으면 기본 문구» 의 빈 문자열 쪽(NERV Task `CLE-T-BP79PK`).
+  it('DM 밖 슬래시 명령의 빈 languageHints.groupChatRefusal 은 무시하고 기본 문구다', () => {
+    expect(
+      buildDiscordDefaultInteractionResponse(inChannel(0, 'help'), {
+        ...config,
+        languageHints: { groupChatRefusal: '' },
+      }),
+    ).toEqual(refusal('이 봇은 1:1 대화만 지원합니다.'));
+  });
+
   it('DM(type 1)에서 친 슬래시 명령은 그대로 수신 문구다', () => {
     expect(
       buildDiscordDefaultInteractionResponse(inChannel(1, 'start'), config),

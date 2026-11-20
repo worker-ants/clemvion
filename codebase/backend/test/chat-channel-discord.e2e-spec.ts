@@ -268,13 +268,22 @@ describe('Discord Chat Channel e2e', () => {
       });
     });
 
-    it('DM /workflow cancel(진행 중인 대화 없음) → 200 + 수신 문구 { type: 4 }', async () => {
+    // 진행 중인 대화가 없는 `/cancel` 은 수신 문구 대신 noActiveExecution 안내로 답한다. 2026-11-19 사람 결정
+    // (NERV 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf`), NERV Task `CLE-T-A78V0M`.
+    it('DM /workflow cancel(진행 중인 대화 없음) → 200 + noActiveExecution 안내 { type: 4 }', async () => {
       const res = await post(
         endpointPath,
         interaction(`I-cancel-${Date.now()}`, 2, 1, slash('cancel')),
       );
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(RECEIVED);
+      expect(res.body).toEqual({
+        type: 4,
+        data: {
+          content: '진행 중인 대화가 없습니다.',
+          flags: 64,
+          allowed_mentions: ALLOWED_MENTIONS_NONE,
+        },
+      });
     });
 
     it('DM /workflow start → 200 + 수신 문구이고 새 실행의 response_code 는 200 이다', async () => {
@@ -354,14 +363,17 @@ describe('Discord Chat Channel e2e', () => {
       },
     );
 
-    it('languageHints.commandReceived 가 있으면 그 문구로 답한다', async () => {
+    it('languageHints.commandReceived · noActiveExecution 이 있으면 그 문구로 답한다', async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
       await db.query(`UPDATE trigger SET config = $1::jsonb WHERE id = $2`, [
         JSON.stringify({
           chatChannel: {
             provider: 'discord',
             botTokenRef: `secret://triggers/${setup.triggerId}/bot-token`,
-            languageHints: { commandReceived: '명령을 접수했습니다.' },
+            languageHints: {
+              commandReceived: '명령을 접수했습니다.',
+              noActiveExecution: '취소할 대화가 없어요.',
+            },
           },
         }),
         setup.triggerId,
@@ -369,13 +381,27 @@ describe('Discord Chat Channel e2e', () => {
       try {
         const res = await post(
           setup.endpointPath,
-          interaction(`I-hint-${Date.now()}`, 2, 1, slash('cancel')),
+          interaction(`I-hint-${Date.now()}`, 2, 1, slash('reply')),
         );
         expect(res.status).toBe(200);
         expect(res.body).toEqual({
           type: 4,
           data: {
             content: '명령을 접수했습니다.',
+            flags: 64,
+            allowed_mentions: ALLOWED_MENTIONS_NONE,
+          },
+        });
+
+        const cancel = await post(
+          setup.endpointPath,
+          interaction(`I-hint-cancel-${Date.now()}`, 2, 1, slash('cancel')),
+        );
+        expect(cancel.status).toBe(200);
+        expect(cancel.body).toEqual({
+          type: 4,
+          data: {
+            content: '취소할 대화가 없어요.',
             flags: 64,
             allowed_mentions: ALLOWED_MENTIONS_NONE,
           },

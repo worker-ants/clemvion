@@ -1063,6 +1063,33 @@ describe('DatabaseQueryHandler', () => {
         await handler.shutdown();
       });
 
+      it('mocks a DELETE left on the default queryType=select (CLE-T-KH11HA)', async () => {
+        const { service, logUsage } = makeService();
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          {
+            integrationId: 'int-1',
+            query: 'DELETE FROM users WHERE id = $1',
+            parameters: ['u_1'],
+            queryType: 'select',
+          },
+          dryRunCtx(),
+        )) as unknown as {
+          port: string;
+          output: { _dryRun: boolean; wouldHaveCalled: { kind: string } };
+        };
+        expect(out.port).toBe('success');
+        expect(out.output._dryRun).toBe(true);
+        expect(out.output.wouldHaveCalled.kind).toBe('database_query');
+        expect(jest.requireMock('pg').Pool).not.toHaveBeenCalled();
+        expect(connectMock).not.toHaveBeenCalled();
+        expect(queryMock).not.toHaveBeenCalled();
+        expect(service.getForExecution).not.toHaveBeenCalled();
+        expect(logUsage).not.toHaveBeenCalled();
+        await handler.shutdown();
+      });
+
       it('runs a READ (SELECT) normally even in dry-run', async () => {
         const { service } = makeService();
         queryMock.mockResolvedValue({
@@ -1367,17 +1394,22 @@ describe('extractSqlVerb', () => {
   });
 });
 
-// W8 — isWriteOperation unit tests (re-run dry-run WRITE/READ classification §7.1)
+// W8 — isWriteOperation unit tests (dry-run 부수효과 판정, CLE-NODE-DBQUERY 「dry-run」)
+// CLE-T-KH11HA: queryType 과 관계없이 SQL 첫 동사를 본다. 읽기 동사만 실제로 실행하고 쓰기 동사와
+// 판정이 애매한 쿼리(WITH · CALL · DO · COPY · EXPLAIN 등)는 mock 으로 끝낸다.
 describe('isWriteOperation', () => {
   it('classifies queryType insert/update/delete as write', () => {
     expect(isWriteOperation('insert', undefined)).toBe(true);
     expect(isWriteOperation('update', undefined)).toBe(true);
     expect(isWriteOperation('delete', undefined)).toBe(true);
+    // 명시한 쓰기 유형은 SQL 이 SELECT 여도 쓰기다.
+    expect(isWriteOperation('insert', 'SELECT 1')).toBe(true);
   });
 
-  it('classifies queryType select as read', () => {
-    // SQL 동사가 write 여도 명시 queryType select 가 우선 → read.
-    expect(isWriteOperation('select', 'DELETE FROM t')).toBe(false);
+  it('queryType select does not bypass the SQL verb check (CLE-T-KH11HA)', () => {
+    // 기본값 queryType=select 로 둔 DELETE 가 dry-run 에서 실제로 실행되던 결함.
+    expect(isWriteOperation('select', 'DELETE FROM t')).toBe(true);
+    expect(isWriteOperation('select', 'SELECT * FROM t')).toBe(false);
   });
 
   it.each([
@@ -1391,27 +1423,152 @@ describe('isWriteOperation', () => {
     'DROP TABLE t',
     'CREATE TABLE t (id int)',
     'ALTER TABLE t ADD col int',
-  ])('raw query with write verb is write: %s', (query) => {
+    'GRANT SELECT ON t TO u',
+    'REVOKE SELECT ON t FROM u',
+  ])('write verb is write regardless of queryType: %s', (query) => {
+    expect(isWriteOperation('raw', query)).toBe(true);
+    expect(isWriteOperation('select', query)).toBe(true);
+    expect(isWriteOperation(undefined, query)).toBe(true);
+  });
+
+  it.each([
+    'SELECT * FROM t',
+    'select id from t',
+    'SHOW TABLES',
+    'DESCRIBE t',
+    'DESC t',
+    'VALUES (1), (2)',
+    'TABLE t',
+  ])('read verb runs for real: %s', (query) => {
+    expect(isWriteOperation('raw', query)).toBe(false);
+    expect(isWriteOperation('select', query)).toBe(false);
+    expect(isWriteOperation(undefined, query)).toBe(false);
+  });
+
+  it.each([
+    'WITH gone AS (DELETE FROM t RETURNING id) SELECT * FROM gone',
+    'WITH cte AS (SELECT 1) SELECT * FROM cte',
+    'CALL refresh_stats()',
+    'DO $$ BEGIN DELETE FROM t; END $$',
+    "COPY t FROM '/tmp/x.csv'",
+    'EXPLAIN ANALYZE DELETE FROM t',
+    '(SELECT 1)',
+    '123 not sql',
+    '',
+  ])('ambiguous query is mocked (safe side): %s', (query) => {
+    expect(isWriteOperation('select', query)).toBe(true);
     expect(isWriteOperation('raw', query)).toBe(true);
   });
 
-  it('raw query with SELECT verb is read', () => {
-    expect(isWriteOperation('raw', 'SELECT * FROM t')).toBe(false);
-  });
-
-  it('raw query with unknown/non-verb first token is read', () => {
-    expect(isWriteOperation('raw', '123 not sql')).toBe(false);
-    expect(isWriteOperation('raw', 'WITH cte AS (SELECT 1) SELECT 1')).toBe(
+  it('skips leading comments before reading the verb', () => {
+    expect(isWriteOperation('select', '-- purge\nDELETE FROM t')).toBe(true);
+    expect(isWriteOperation('select', '/* a */ /* b */ DELETE FROM t')).toBe(
+      true,
+    );
+    expect(isWriteOperation('select', '-- report\n  SELECT * FROM t')).toBe(
       false,
     );
+    expect(isWriteOperation('select', '/* note */SELECT 1')).toBe(false);
+    // 닫히지 않은 블록 주석은 동사를 찾지 못해 애매함 → mock.
+    expect(isWriteOperation('select', '/* open SELECT 1')).toBe(true);
   });
 
-  it('missing queryType falls back to SQL verb (write verb → write)', () => {
-    expect(isWriteOperation(undefined, 'INSERT INTO t VALUES (1)')).toBe(true);
-    expect(isWriteOperation(undefined, 'SELECT 1')).toBe(false);
+  it('missing queryType and no query is mocked', () => {
+    expect(isWriteOperation(undefined, undefined)).toBe(true);
   });
 
-  it('missing queryType and no query is read', () => {
-    expect(isWriteOperation(undefined, undefined)).toBe(false);
+  describe('multi-statement queries (CLE-T-KH11HA)', () => {
+    it.each([
+      'SELECT 1; DELETE FROM t',
+      'SELECT 1;DELETE FROM t',
+      'SELECT 1;\r\nDROP TABLE t',
+      'SELECT 1; -- c\nDELETE FROM t',
+      'SELECT 1; /* c */ UPDATE t SET a = 1',
+      'SELECT 1; SELECT 2',
+      'SELECT 1;;',
+      "SELECT ';' ; DELETE FROM t",
+      'SELECT "a;b" FROM t; DELETE FROM t',
+      'SELECT `a;b` FROM t; DELETE FROM t',
+      'SELECT $$a$$; DELETE FROM t',
+    ])('statement after a semicolon makes it write: %s', (query) => {
+      expect(isWriteOperation('select', query)).toBe(true);
+      expect(isWriteOperation('raw', query)).toBe(true);
+    });
+
+    it.each([
+      'SELECT 1;',
+      'SELECT 1; ',
+      'SELECT 1;\r\n',
+      'SELECT 1; -- trailing',
+      'SELECT 1; /* trailing */',
+      'SELECT 1; -- only comment\n  /* more */ ',
+    ])('a single trailing semicolon stays read: %s', (query) => {
+      expect(isWriteOperation('select', query)).toBe(false);
+      expect(isWriteOperation('raw', query)).toBe(false);
+    });
+
+    it.each([
+      "SELECT ';' FROM t",
+      "SELECT 'it''s; fine' FROM t",
+      'SELECT "a;b" FROM t',
+      'SELECT `a;b` FROM t',
+      'SELECT 1 -- a; b',
+      'SELECT 1 /* a; b */',
+      'SELECT $$a; DELETE FROM t$$',
+      'SELECT $tag$a; DELETE FROM t$tag$',
+      'SELECT $1, $2 FROM t',
+      "SELECT ';';",
+    ])(
+      'semicolon inside a literal, identifier or comment stays read: %s',
+      (query) => {
+        expect(isWriteOperation('select', query)).toBe(false);
+      },
+    );
+
+    it.each([
+      "SELECT 'open; DELETE FROM t",
+      'SELECT "open; DELETE FROM t',
+      'SELECT `open; DELETE FROM t',
+      'SELECT $$open; DELETE FROM t',
+      'SELECT $tag$a$$; DELETE FROM t',
+      "SELECT 'a\\'; DELETE FROM t; SELECT ''",
+      'SELECT 1 /* /* nested */ ; DELETE FROM t */',
+      'SELECT 1 /*! ; DELETE FROM t */',
+      'SELECT 1 --;\nDELETE FROM t',
+    ])('ambiguous or unterminated text is mocked: %s', (query) => {
+      expect(isWriteOperation('select', query)).toBe(true);
+    });
+  });
+
+  describe('executable and hint comments (CLE-T-KH11HA)', () => {
+    it.each([
+      '/*! DELETE FROM t */',
+      '/*!50000 DELETE FROM t */ SELECT 1',
+      '/*+ HINT */ SELECT 1',
+      '/* a */ /*! SELECT 1 */',
+    ])('leading /*! or /*+ block is mocked: %s', (query) => {
+      expect(isWriteOperation('select', query)).toBe(true);
+      expect(isWriteOperation('raw', query)).toBe(true);
+    });
+
+    it('a hint after the verb stays read', () => {
+      expect(isWriteOperation('select', 'SELECT /*+ INDEX(t i) */ 1')).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('comment-only boundaries (CLE-T-KH11HA)', () => {
+    it.each(['-- only comment', '-- only comment\n', '/* only */', '  \r\n'])(
+      'no verb is mocked: %j',
+      (query) => {
+        expect(isWriteOperation('select', query)).toBe(true);
+      },
+    );
+
+    it('handles CRLF line comments before the verb', () => {
+      expect(isWriteOperation('select', '-- c\r\nSELECT 1')).toBe(false);
+      expect(isWriteOperation('select', '-- c\r\nDELETE FROM t')).toBe(true);
+    });
   });
 });
