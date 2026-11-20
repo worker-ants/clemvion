@@ -12,7 +12,9 @@ import { createEmptyConversationThread } from '../../../shared/conversation-thre
 // 가드는 **실물 그대로** 쓴다(아래 차단 테스트들이 실제 대역 판정을 본다) — `jest.fn` 으로 감싸기만 해 한 테스트에서만
 // «판정 아닌 오류» 를 주입한다. `SsrfBlockedError` 도 실물이라 핸들러의 판정 분기가 그대로 동작한다.
 jest.mock('../../../common/utils/ssrf/outbound-guard.js', () => {
-  const actual = jest.requireActual('../../../common/utils/ssrf/outbound-guard.js');
+  const actual = jest.requireActual(
+    '../../../common/utils/ssrf/outbound-guard.js',
+  );
   return {
     ...actual,
     assertSafeOutboundHostResolved: jest.fn(
@@ -1248,7 +1250,10 @@ describe('DatabaseQueryHandler', () => {
 
         expect(out.port).toBe('error');
         expect(out.output.error.code).toBe('INTEGRATION_CALL_FAILED');
-        expect(out.output.error.message).toContain('hostname.toLowerCase');
+        // 원문은 서버 로그에만 남기고 고정 문구를 내보낸다(CLE-T-E991S1).
+        expect(out.output.error.message).toBe(
+          'The outbound address check failed.',
+        );
         expect(connectMock).not.toHaveBeenCalled();
         expect(logUsage).toHaveBeenCalledWith(
           expect.objectContaining({ id: 'int-1' }),

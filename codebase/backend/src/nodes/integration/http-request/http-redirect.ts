@@ -1,9 +1,14 @@
+import { Logger } from '@nestjs/common';
 import type { HttpCredentials } from './http-credentials.js';
+import { IntegrationError } from '../_base/integration-handler-base.js';
 import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from '../../../common/utils/ssrf/outbound-guard.js';
+
+const logger = new Logger('HttpRedirect');
 
 /**
  * 리다이렉트 추종 상한 — HTTP Request 노드(spec/4-nodes/4-integration/1-http-request.md §4)와 HTTP 통합 연결 테스트
@@ -24,9 +29,11 @@ function isRedirectWithLocation(res: Response): boolean {
  * host/IP 가 들어 있을 수 있으므로 서버 로그에만 남긴다.
  *
  * **판정만 사유가 된다** — 가드가 던지는 차단 판정은 `SsrfBlockedError` 하나뿐이고(`common/utils/ssrf/outbound-guard.ts`), 그 밖의 오류는 가드의
- * 고장이지 차단이 아니다. 삼켜 사유로 둔갑시키면 막힌 적 없는 요청이 «SSRF 로 막혔다» 로 보고된다 — 그대로 던져 호출자가
- * 각자의 실패 경로(노드 `HTTP_TRANSPORT_FAILED` · 연결 테스트 `HTTP_CONNECT_FAILED`)로 분류하게 한다. SMTP 가드
- * (`send-email/smtp-host-guard.ts`)와 같은 규약이다.
+ * 고장이지 차단이 아니다. 삼켜 사유로 둔갑시키면 막힌 적 없는 요청이 «SSRF 로 막혔다» 로 보고된다.
+ *
+ * 고장은 원문을 서버 로그에만 남기고 고정 문구({@link SSRF_GUARD_FAILED_CLIENT_MESSAGE})의 `INTEGRATION_CALL_FAILED` 로 던진다
+ * (NERV Task `CLE-T-E991S1`). 그래서 HTTP Request 노드는 preflight 와 리다이렉트 홉에서 같은 코드를 내고, 연결 테스트는
+ * `HTTP_CONNECT_FAILED` 에 같은 문구를 싣는다.
  */
 export async function outboundBlockReason(url: string): Promise<string | null> {
   try {
@@ -35,7 +42,12 @@ export async function outboundBlockReason(url: string): Promise<string | null> {
     return null;
   } catch (err) {
     if (err instanceof SsrfBlockedError) return err.message;
-    throw err;
+    const detail = err instanceof Error ? err.message : String(err);
+    logger.warn(`SSRF guard failed (outbound check): ${detail}`);
+    throw new IntegrationError(
+      'INTEGRATION_CALL_FAILED',
+      SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+    );
   }
 }
 

@@ -14,7 +14,9 @@ import { createEmptyConversationThread } from '../../../shared/conversation-thre
 // 가드는 **실물 그대로** 쓴다(아래 차단 테스트들이 실제 대역 판정을 본다) — `jest.fn` 으로 감싸기만 해 한 테스트에서만
 // «판정 아닌 오류» 를 주입한다. `SsrfBlockedError` 도 실물이라 핸들러의 판정 분기가 그대로 동작한다.
 jest.mock('../../../common/utils/ssrf/outbound-guard.js', () => {
-  const actual = jest.requireActual('../../../common/utils/ssrf/outbound-guard.js');
+  const actual = jest.requireActual(
+    '../../../common/utils/ssrf/outbound-guard.js',
+  );
   return {
     ...actual,
     assertSafeOutboundUrl: jest.fn(actual.assertSafeOutboundUrl),
@@ -1009,14 +1011,87 @@ describe('HttpRequestHandler', () => {
         error: { code: string; message: string };
       };
       expect(output.error.code).toBe('INTEGRATION_CALL_FAILED');
-      expect(output.error.message).toContain('hostname.toLowerCase');
+      // 원문은 서버 로그에만 남기고 고정 문구를 내보낸다(CLE-T-E991S1). 차단 판정의 일반화 문구와 같은 규칙이다.
+      expect(output.error.message).toBe('The outbound address check failed.');
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'int-1' }),
         expect.objectContaining({
           status: 'failed',
-          error: expect.objectContaining({ code: 'INTEGRATION_CALL_FAILED' }),
+          error: {
+            code: 'INTEGRATION_CALL_FAILED',
+            message: 'The outbound address check failed.',
+          },
         }),
       );
+    });
+
+    /**
+     * 리다이렉트 홉 검사에서 가드가 고장 나도 preflight 와 같은 코드 · 문구로 나간다(CLE-T-E991S1). 전에는 홉에서만
+     * `HTTP_TRANSPORT_FAILED` 였고, 채팅 채널은 이를 «외부 서비스 응답을 받지 못했습니다» 로 전했다.
+     */
+    it('리다이렉트 홉에서 가드가 판정 아닌 오류를 던져도 INTEGRATION_CALL_FAILED 와 고정 문구', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const urlGuard = assertSafeOutboundUrl as unknown as jest.Mock;
+      const actualGuard = jest.requireActual(
+        '../../../common/utils/ssrf/outbound-guard.js',
+      ).assertSafeOutboundUrl as (u: string) => URL;
+      // preflight 는 실물로 통과시키고, 홉 검사에서만 고장을 낸다.
+      urlGuard
+        .mockImplementationOnce(actualGuard)
+        .mockImplementationOnce(() => {
+          throw new TypeError('hostname.toLowerCase is not a function');
+        });
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: {
+          get: (h: string) =>
+            h.toLowerCase() === 'location'
+              ? 'https://cdn.example.net/next'
+              : null,
+        },
+        body: null,
+        text: jest.fn(),
+        json: jest.fn(),
+      });
+      const { service, logUsage } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/start',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+
+      expect(result.port).toBe('error');
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
+      expect(output.error).toMatchObject({
+        code: 'INTEGRATION_CALL_FAILED',
+        message: 'The outbound address check failed.',
+      });
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'int-1' }),
+        expect.objectContaining({
+          status: 'failed',
+          error: {
+            code: 'INTEGRATION_CALL_FAILED',
+            message: 'The outbound address check failed.',
+          },
+        }),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('hostname.toLowerCase'),
+      );
+      warnSpy.mockRestore();
     });
 
     it('blocks localhost by name (D4 — port:error + HTTP_BLOCKED)', async () => {

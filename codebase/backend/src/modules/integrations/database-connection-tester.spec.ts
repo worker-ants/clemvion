@@ -195,7 +195,7 @@ describe('testDatabaseConnection', () => {
       expect(result).toEqual({
         success: false,
         code: 'DB_CONNECT_FAILED',
-        message: 'hostname.toLowerCase is not a function',
+        message: 'The outbound address check failed.',
       });
       expect(MockedClient).not.toHaveBeenCalled();
     });

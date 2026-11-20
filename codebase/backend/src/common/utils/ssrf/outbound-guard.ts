@@ -46,6 +46,16 @@ import { isBlockedIpLiteral } from './ip-classifier.js';
 export const SSRF_BLOCKED_CLIENT_MESSAGE = 'Request blocked by SSRF policy.';
 
 /**
+ * 가드가 판정이 아닌 오류로 끝났을 때(가드의 고장) 사용자에게 내보내는 고정 문구(NERV Task `CLE-T-E991S1`). 원문에 host/IP 가
+ * 들어 있을 수 있어 서버 로그에만 남긴다. 차단 판정의 {@link SSRF_BLOCKED_CLIENT_MESSAGE} 와 같은 규칙이다.
+ *
+ * HTTP Request · DB Query 노드(`INTEGRATION_CALL_FAILED`)와 HTTP · Database 연결 테스트(`HTTP_CONNECT_FAILED` ·
+ * `DB_CONNECT_FAILED`)가 같은 문구를 쓴다.
+ */
+export const SSRF_GUARD_FAILED_CLIENT_MESSAGE =
+  'The outbound address check failed.';
+
+/**
  * SSRF 가드의 차단 판정. 메시지는 `SSRF_BLOCKED: …` 그대로다(차단 host/IP 가 들어 있어 서버 로그 전용 — 클라이언트에는
  * {@link SSRF_BLOCKED_CLIENT_MESSAGE}). 판정인지 다른 오류인지는 메시지 접두어가 아니라 이 클래스로 가른다.
  *

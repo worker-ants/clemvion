@@ -287,8 +287,8 @@ describe('testHttpConnection', () => {
     expect(result).toMatchObject({
       success: false,
       code: 'HTTP_CONNECT_FAILED',
+      message: 'The outbound address check failed.',
     });
-    expect(result.message).toContain('hostname.toLowerCase');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
