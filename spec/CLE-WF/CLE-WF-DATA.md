@@ -2,19 +2,19 @@
 id: "CLE-WF-DATA"
 title: "워크플로우 데이터와 저장 흐름"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "883eff4992820af975851b3603f6e446617c2907cc9043933c594732ce02016f"
+content_hash: "d775e8a5ca49bfd26859a9010391a6b41fb949f89b5a4c1b8b2c004cd7474a32"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-2M0591"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "917a77eb481778c4c16013da77d3d4e42cdfd60e9ec3c621cc4daaed8c6ef203"
-etag: "sha256-c8b1c8c3eae3ecf5ab6af5f63ee8caa2ccb3445efb83d764937423ac577b3c97"
+mirror_sha256: "d61f99bec13d20a9ffddab7866ef2be91b207c82e87b7aa294bdc9847e0a1c0b"
+etag: "sha256-ae28346dfa03915c61a6561d3b7b260fd7b073915c021b61ff33c41c0bbddaab"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -99,7 +99,7 @@ stateDiagram-v2
   Inactive --> [*]: 워크플로우 삭제
 ```
 
-워크플로우는 비활성으로 만들어지고 목록의 상태 스위치로 켜고 끈다. 비활성 워크플로우는 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행이 시작되지 않는다. 진행 중인 실행은 그대로 이어지고 수동 실행 · 재실행 · 스케줄 "지금 실행" 은 비활성 워크플로우도 된다. 경로별 확인 위치와 응답은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 이 문서가 바뀐 이유는 [Rationale](#꺼진-워크플로우는-외부-이벤트로-실행하지-않는다-2026-10-10) 에 있다.
+워크플로우는 비활성으로 만들어지고 목록의 상태 스위치로 켜고 끈다. 비활성 워크플로우는 웹훅 · 채팅 채널 · 스케줄 이벤트로 새 실행이 시작되지 않는다. 진행 중인 실행은 그대로 이어지고 수동 실행 · 재실행 · 스케줄 "지금 실행" 은 비활성 워크플로우도 된다. 경로별 확인 위치와 응답은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다. 이 문서가 바뀐 이유는 [Rationale](#비활성-워크플로우는-외부-이벤트로-실행하지-않는다) 에 있다.
 
 ### 워크플로우 삭제의 FK 파급
 
@@ -148,13 +148,15 @@ stateDiagram-v2
 
 ## Rationale
 
-### 꺼진 워크플로우는 외부 이벤트로 실행하지 않는다 (2026-10-10)
+### 비활성 워크플로우는 외부 이벤트로 실행하지 않는다
+
+결정일: 2026-10-10
 
 NERV Task `CLE-T-XRWFMJ` 에서 사람이 정한 결정이다.
 
 이 문서와 [워크플로우 목록과 폴더](CLE-WF-LIST.md) 는 워크플로우를 끄면 스케줄 · 웹훅이 멈춘다고 적었다. 트리거 흐름과 구현은 `trigger.is_active` · `schedule.is_active` 만 보고 `workflow.is_active` 를 보지 않았다. 목록의 상태 스위치를 끈 사용자는 실행이 멈춘다고 생각한다. 그래서 문서를 거두지 않고 코드를 문서에 맞췄다.
 
-- 관문의 규칙(경로별 응답, 채팅 채널의 handshake 와 진행 중인 대화, 조회 범위)과 그 근거는 [트리거 데이터와 흐름 「꺼진 워크플로우를 실행 관문으로 둔 결정」](../CLE-TRIG/CLE-TRIG-DATA.md#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 에 있다. 이 문서는 `workflow.is_active` 의 뜻만 적는다. 같은 규칙을 여러 문서에 자세히 적으면 문서마다 두 번째 기준이 생긴다.
+- 관문의 규칙(경로별 응답, 채팅 채널의 handshake 와 진행 중인 대화, 조회 범위)과 그 근거는 [트리거 데이터와 흐름 「비활성 워크플로우를 실행 관문으로 둔 결정」](../CLE-TRIG/CLE-TRIG-DATA.md#비활성-워크플로우를-실행-관문으로-둔-결정) 에 있다. 이 문서는 `workflow.is_active` 의 뜻만 적는다. 같은 규칙을 여러 문서에 자세히 적으면 문서마다 두 번째 기준이 생긴다.
 - 수동 실행 · 재실행 · 스케줄 "지금 실행" 은 비활성 워크플로우도 된다는 이 문서의 기존 규칙을 그대로 둔다. 이미 진행 중인 실행도 취소하지 않는다.
 - 워크플로우는 지금처럼 비활성으로 만들어진다. 그래서 꺼 둔 채 외부 호출로 돌던 워크플로우는 이 변경을 배포한 뒤 멈춘다. 다시 돌리려면 켜야 한다.
 

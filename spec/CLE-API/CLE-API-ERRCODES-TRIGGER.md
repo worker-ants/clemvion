@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-TRIGGER"
 title: "에러 코드 카탈로그 — 웹훅 · 트리거 · 채팅 채널"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "e9f1d62195a1d0fe1e6de539c9303ba1f06fc3ac86102c6730f5361167a86aff"
+content_hash: "3cac29f5437d8fdf5adec7695b0305256c7f3dbce2e546eba91cf2e1ff73448a"
 read_as: "approved_fallback"
-task: "CLE-T-9Z0V2R"
+task: "CLE-T-2M0591"
 source_paths: []
-mirror_sha256: "f86ea3bf51bc0ea3b34bb288574c7b355c855ef3cd248dd433a3bf79aed9d72c"
-etag: "sha256-c630e6414019e962b7fa514e296304410056eb84dc1ad3969762fa9ced80169e"
+mirror_sha256: "8b8c471fe1d3d94c42d3ff906e86619dbaded6a6309ec91537f01917b93f0dcd"
+etag: "sha256-3c7153986e4084d54e88a630ef9a35ab839a7957702694d79eacedec41b4462e"
 ---
 ## 개요
 
@@ -97,7 +97,9 @@ etag: "sha256-c630e6414019e962b7fa514e296304410056eb84dc1ad3969762fa9ced80169e"
 
 웹훅 트리거는 있으나 그 워크플로우가 트리거의 워크스페이스에 없을 때(저장 경계 이전의 교차 행)도 `TRIGGER_NOT_FOUND` 다. 규칙 6 은 새 조건에 새 코드를 만들게 한다. 이 조건은 클라이언트가 가를 조건이 아니고 엔드포인트가 없을 때와 구분하지 않는 것이 목적이다. 새 코드를 만들면 그 워크플로우가 다른 워크스페이스에 있다는 것이 드러난다. 같은 카탈로그의 `ALERT_RULE_NOT_FOUND` · `RERUN_EXECUTION_NOT_FOUND`(없거나 다른 워크스페이스는 같은 404)와 `TRIGGER_ENDPOINT_PATH_CONFLICT`(예약과 중복을 한 코드로 묶음)도 같은 방식이다. 선례는 두 부류다. `ALERT_RULE_NOT_FOUND` · `RERUN_EXECUTION_NOT_FOUND` 는 요청한 리소스 자체가 없거나 다른 워크스페이스에 있는 부재다. `TRIGGER_ENDPOINT_PATH_CONFLICT` 는 부재가 아니라 두 조건(예약 · 중복)을 한 코드로 묶어 예약을 감추는 은닉이다. 이번은 요청한 트리거는 있고 연결된 리소스(트리거의 워크플로우)가 다른 워크스페이스에 있는 경우라 부재 선례를 한 칸 넓힌 해석이다. 연결된 리소스의 부재에 따로 코드를 둔 `AUTH_CONFIG_NOT_FOUND`(400)와는 시점이 다르다. 그쪽은 트리거를 저장할 때 소유자에게 알리는 코드라 소유자가 고칠 수 있게 구분해 알린다. 이쪽은 실행 때 워크스페이스 밖의 호출자에게 나가는 응답이라 감춘다. 2026-10-05 에 이 방식을 규칙 6 의 단서로 올렸다(NERV Task `CLE-T-K9S0TE`). 호출자에게 보이는 뜻은 그 엔드포인트의 트리거가 없다는 것이라 §3 예외 등록부에 올리지 않는다. 근거는 [데이터 모델 개요 「참조의 소속」](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 «없는 id 와 다른 워크스페이스의 id 를 구분하지 않는다» 이고 동작은 [웹훅 「에러 처리」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#에러-처리) 가 정한다(NERV Task `CLE-T-XYR067`).
 
-### 꺼진 워크플로우의 웹훅에 `WORKFLOW_INACTIVE` 를 새로 만들었다 (2026-10-10)
+### 비활성 워크플로우의 웹훅에 `WORKFLOW_INACTIVE` 를 새로 만들었다
+
+결정일: 2026-10-10
 
 NERV Task `CLE-T-XRWFMJ` 에서 사람이 정한 결정이다. 웹훅 트리거는 활성인데 그 워크플로우가 비활성이면 `410` 과 `WORKFLOW_INACTIVE` 를 돌려준다. 확인 순서와 경로별 동작은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
 
