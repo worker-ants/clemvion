@@ -2,21 +2,21 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "b27fa2a1ab8f31607548273701b5100932bbaa52e2a03fd381119a81ca581cb9"
+content_hash: "8929d42795efecd640c49a65cfa050ce78e8b889549ebbafd7dcc29421d7a6a2"
 read_as: "approved_fallback"
-task: "CLE-T-AVN7M2"
-source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "17a156612ce57b255218294a9f0fe5ec5c342c653ac0cba4ddaffeba7a8ce468"
-etag: "sha256-dbcbd85782e2aa9bb47fd9d0f5acd4187484d981eb29f607dafa1e9317402f76"
+task: "CLE-T-QZ8RFC"
+source_paths: []
+mirror_sha256: "90cdbca190bff4913ecd76d150711f719a091276488200e9386d007a43282004"
+etag: "sha256-a4640d58f0c31358c985a46f3d66fb473caca4f14432a9cbde791d29e4c29731"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -125,7 +125,7 @@ etag: "sha256-dbcbd85782e2aa9bb47fd9d0f5acd4187484d981eb29f607dafa1e9317402f76"
 | `eia:rl:interact:<executionId>` · `eia:rl:status:<executionId>` · `eia:notif:rl:<triggerId>` | `modules/external-interaction` | [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md). 한도는 [External Interaction API](../CLE-IX/CLE-EIA.md) |
 | `eia:sse:buf:<executionId>` · `eia:sse:subs:<executionId>` | `modules/external-interaction` | [EIA 데이터와 흐름 「Redis 와 BullMQ」](../CLE-IX/CLE-EIA-DATA.md#redis-와-bullmq). `eia:sse:subs:<executionId>` 는 연결 슬롯(동시 연결 상한 계산용)이다 |
 | `chat-channel:<triggerId>:<conversationKey>` · `chat-channel-lock:<triggerId>:<conversationKey>:formsubmit` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
-| `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` · `cc:sigfail:<triggerId>:<clientIp>` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md). `cc:sigfail:<triggerId>:<clientIp>` 는 서명 검증 실패 한도의 고정 창 카운터(60초)이고 정본은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키) 다 |
+| `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` · `cc:sigfail:<triggerId>:<clientIp>` · `cc:startlock:<triggerId>:<conversationKey>` | `modules/chat-channel` | [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md). `cc:sigfail:<triggerId>:<clientIp>` 는 서명 검증 실패 한도의 고정 창 카운터(60초)이고 `cc:startlock:<triggerId>:<conversationKey>` 는 `/start` 의 대화 단위 시작 잠금(30초)이다. 둘의 정본은 [채팅 채널 데이터와 흐름 「Redis 키」](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키) 다 |
 | `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
 | `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) |
 | `auth:webauthn-auth-challenge:<challenge>` | `modules/auth` | [가입과 로그인 — Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](../CLE-ACCT/CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록). 로그인 2단계 Passkey 인증 챌린지를 한 번만 쓰게 하는 기록이다 |
@@ -176,11 +176,11 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 
 ### 큐와 Redis 키 목록을 한 문서에 둔 이유
 
-옛 문서 체계에서는 큐 목록이 세 곳에 있었다. 데이터 흐름 개요가 18개 큐를 모두 적었고, 실행 엔진 문서는 엔진 큐 3개만 적으면서 "애플리케이션이 쓰는 큐" 라고 했고, Redis 키 규약은 큐 목록의 기준으로 실행 엔진 문서를 가리켰다. 코드 레지스트리는 데이터 흐름 개요의 표를 기준으로 삼았다. 이 문서는 전체 큐 목록과 엔진 큐의 옵션을 함께 두어 목록을 하나로 모은다. Redis 키 목록도 여기로 모았다. 실행 엔진 키의 용도와 TTL 은 이 문서가, 다른 모듈 키의 상세는 각 소유 문서가 정한다.
+옛 문서 체계에서는 큐 목록이 데이터 흐름 개요 · 실행 엔진 문서 · Redis 키 규약 세 곳에 나뉘어 기준이 어긋났다. 이 문서는 전체 큐 목록과 엔진 큐의 옵션을 함께 두어 목록을 하나로 모은다. Redis 키 목록도 여기로 모았다. 실행 엔진 키의 용도와 TTL 은 이 문서가, 다른 모듈 키의 상세는 각 소유 문서가 정한다.
 
 ### 작업 단위를 코드 동작 기준으로 적는 이유
 
-옛 큐 목록은 `alerts-evaluator` 의 작업 단위를 "규칙 1건 평가" 로, `integration-expiry-scanner` 를 "매일, 만료 후보 1건 처리" 로 적었다. 실제로는 두 큐 모두 반복 작업이 대상 전체를 일괄 처리한다. 이 문서는 소유 문서([알림 §알림 규칙 평가](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-규칙-평가), [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md))의 서술에 맞춰 적는다.
+두 반복 큐(`alerts-evaluator` · `integration-expiry-scanner`)는 작업 하나가 대상 전체를 일괄 처리한다. 소유 문서([알림 §알림 규칙 평가](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-규칙-평가), [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md))의 서술에 맞춰 적는다.
 
 ### 지운 키 두 개 (2026-08-13)
 

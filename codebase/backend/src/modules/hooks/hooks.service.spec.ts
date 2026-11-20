@@ -4665,6 +4665,247 @@ describe('HooksService', () => {
       });
     });
 
+    // 근거: NERV Task `CLE-T-QZ8RFC`. 같은 대화에 update id 가 다른 `/start` 두 건이 거의 동시에 오면 둘 다 같은
+    // 옛 실행을 읽고 새 실행을 각각 만들 수 있었다. 취소 · 새 실행 · 대화 상태 저장을 대화 단위 시작 잠금
+    // (`cc:startlock:{triggerId}:{conversationKey}`)으로 직렬화하고, 잠금을 잡지 못한 `/start` 는 버린다.
+    describe('같은 대화에 /start 가 겹쳐 오면', () => {
+      let executionsService: {
+        stop: jest.Mock;
+        executionRepository: { findOne: jest.Mock };
+      };
+      const oldState = {
+        executionId: 'exec-old',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: '2026-10-10T00:00:00.000Z',
+        lastUpdateAt: '2026-10-10T00:00:00.000Z',
+      };
+      const startUpdate = (idempotencyKey: string) => ({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'start' as const },
+        idempotencyKey,
+        receivedAt: new Date().toISOString(),
+      });
+
+      beforeEach(() => {
+        executionsService = moduleRef.get(ExecutionsService);
+        triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+        mockAdapter.parseUpdate.mockResolvedValue(startUpdate('3001'));
+        conversationService.lookup.mockResolvedValue(oldState);
+        executionsService.executionRepository.findOne.mockResolvedValue({
+          status: 'waiting_for_input',
+        });
+        engine.execute.mockResolvedValue('exec-new');
+      });
+
+      it("시작 잠금을 'start' 용도로 잡고 끝나면 같은 토큰으로 푼다", async () => {
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'exec-new', status: 'pending' });
+        expect(conversationService.acquireLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          expect.any(String),
+          30,
+          'start',
+        );
+        const token = conversationService.acquireLock.mock.calls[0][2];
+        expect(conversationService.releaseLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          token,
+          'start',
+        );
+        // 잠금은 취소 앞에서 잡고 대화 상태 저장 뒤에 푼다.
+        expect(
+          conversationService.acquireLock.mock.invocationCallOrder[0],
+        ).toBeLessThan(executionsService.stop.mock.invocationCallOrder[0]);
+        expect(
+          conversationService.upsert.mock.invocationCallOrder[0],
+        ).toBeLessThan(
+          conversationService.releaseLock.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('활성 실행이 없는 대화의 /start 도 시작 잠금을 잡는다', async () => {
+        conversationService.lookup.mockResolvedValue(null);
+
+        await service.handleWebhook('abc', chatInput);
+
+        expect(conversationService.acquireLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          expect.any(String),
+          30,
+          'start',
+        );
+        expect(engine.execute).toHaveBeenCalledTimes(1);
+      });
+
+      it('시작 잠금을 잡지 못하면 취소 · 새 실행 없이 버린 update 로 답한다', async () => {
+        conversationService.acquireLock.mockResolvedValueOnce(false);
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(executionsService.stop).not.toHaveBeenCalled();
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+        expect(conversationService.releaseLock).not.toHaveBeenCalled();
+      });
+
+      it('잠금을 잡은 뒤 다시 읽은 대화 상태가 다른 실행을 가리키면 버리고 잠금을 푼다', async () => {
+        // 처음 읽은 뒤 잠금을 잡기 전에 다른 `/start` 가 대화를 exec-other 에 이었다.
+        conversationService.lookup
+          .mockResolvedValueOnce(oldState)
+          .mockResolvedValueOnce({ ...oldState, executionId: 'exec-other' });
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(executionsService.stop).not.toHaveBeenCalled();
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+        expect(conversationService.releaseLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          conversationService.acquireLock.mock.calls[0][2],
+          'start',
+        );
+      });
+
+      it.each([[null], [undefined]])(
+        '다시 읽은 대화 상태의 실행이 그사이 비워졌으면(%p) 그대로 새로 시작한다',
+        async (emptied) => {
+          // 옛 실행이 끝나 종결 이벤트가 executionId 를 비웠다. 다른 /start 가 낀 것이 아니다.
+          conversationService.lookup
+            .mockResolvedValueOnce(oldState)
+            .mockResolvedValueOnce({
+              ...oldState,
+              executionId: emptied as unknown as string | null,
+            });
+
+          const res = await service.handleWebhook('abc', chatInput);
+
+          expect(res).toEqual({ executionId: 'exec-new', status: 'pending' });
+          expect(engine.execute).toHaveBeenCalledTimes(1);
+        },
+      );
+
+      it('처음 읽을 때 대화 상태가 없었는데 다시 읽은 상태가 다른 실행을 가리키면 버린다', async () => {
+        // 첫 /start 두 개가 겹쳤다. 먼저 잠금을 잡은 쪽이 대화를 exec-other 에 이었다.
+        conversationService.lookup
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ ...oldState, executionId: 'exec-other' });
+
+        const res = await service.handleWebhook('abc', chatInput);
+
+        expect(res).toEqual({ executionId: 'ignored' });
+        expect(executionsService.stop).not.toHaveBeenCalled();
+        expect(engine.execute).not.toHaveBeenCalled();
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+        expect(conversationService.releaseLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          conversationService.acquireLock.mock.calls[0][2],
+          'start',
+        );
+      });
+
+      it('취소가 503 으로 실패해 오류를 전파해도 시작 잠금을 푼다', async () => {
+        executionsService.stop.mockRejectedValueOnce(
+          new ServiceUnavailableException({
+            code: 'EXECUTION_ENQUEUE_FAILED',
+            message: 'Cancel could not be queued',
+          }),
+        );
+
+        await expect(
+          service.handleWebhook('abc', chatInput),
+        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+        expect(conversationService.releaseLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          conversationService.acquireLock.mock.calls[0][2],
+          'start',
+        );
+      });
+
+      it('새 실행 시작이 실패해도 시작 잠금을 푼다', async () => {
+        engine.execute.mockRejectedValueOnce(new Error('boom'));
+
+        // 예상하지 못한 오류는 상위에서 202 ignored 로 흡수된다(REQ-CHAT-056).
+        await expect(service.handleWebhook('abc', chatInput)).resolves.toEqual({
+          executionId: 'ignored',
+        });
+        expect(conversationService.upsert).not.toHaveBeenCalled();
+        expect(conversationService.releaseLock).toHaveBeenCalledTimes(1);
+        expect(conversationService.releaseLock).toHaveBeenCalledWith(
+          't1',
+          'chat-123',
+          conversationService.acquireLock.mock.calls[0][2],
+          'start',
+        );
+      });
+
+      it('동시에 온 /start 두 건 중 하나만 새 실행을 만들고 대화는 그 실행을 가리킨다', async () => {
+        // 실제 서비스처럼 동작하는 대화 상태 저장소와 SET NX 잠금.
+        let stored: typeof oldState | null = { ...oldState };
+        const locks = new Map<string, string>();
+        conversationService.lookup.mockImplementation(() =>
+          Promise.resolve(stored ? { ...stored } : null),
+        );
+        conversationService.upsert.mockImplementation(
+          (_t: string, _c: string, value: typeof oldState) => {
+            stored = { ...value };
+            return Promise.resolve();
+          },
+        );
+        conversationService.acquireLock.mockImplementation(
+          (t: string, c: string, token: string) => {
+            const key = `${t}:${c}`;
+            if (locks.has(key)) return Promise.resolve(false);
+            locks.set(key, token);
+            return Promise.resolve(true);
+          },
+        );
+        conversationService.releaseLock.mockImplementation(
+          (t: string, c: string, token: string) => {
+            const key = `${t}:${c}`;
+            if (locks.get(key) === token) locks.delete(key);
+            return Promise.resolve();
+          },
+        );
+        // 취소가 끝나기 전에 두 번째 /start 가 들어오도록 취소를 한 틱 늦춘다.
+        executionsService.stop.mockImplementation(
+          () => new Promise((resolve) => setImmediate(resolve)),
+        );
+        let seq = 0;
+        engine.execute.mockImplementation(() =>
+          Promise.resolve(`exec-new-${(seq += 1)}`),
+        );
+        mockAdapter.parseUpdate
+          .mockResolvedValueOnce(startUpdate('3001'))
+          .mockResolvedValueOnce(startUpdate('3002'));
+
+        const results = await Promise.all([
+          service.handleWebhook('abc', chatInput),
+          service.handleWebhook('abc', chatInput),
+        ]);
+
+        expect(engine.execute).toHaveBeenCalledTimes(1);
+        expect(results).toEqual(
+          expect.arrayContaining([
+            { executionId: 'exec-new-1', status: 'pending' },
+            { executionId: 'ignored' },
+          ]),
+        );
+        expect(stored?.executionId).toBe('exec-new-1');
+        expect(locks.size).toBe(0);
+      });
+    });
+
     it('Authenticator 가 401 throw 시 HooksService 도 전파', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       authenticator.verify.mockRejectedValueOnce(

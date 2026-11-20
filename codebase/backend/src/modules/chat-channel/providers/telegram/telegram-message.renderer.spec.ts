@@ -1087,3 +1087,77 @@ describe('visual fallback — 4096자를 넘는 표의 분할', () => {
       .forEach((t) => expect(t.endsWith('```\n_\\(continued…\\)_')).toBe(true));
   });
 });
+
+// NERV Task CLE-T-YC85SD — 차트 · 표 폴백의 제목과 꼬리 문구는 코드 블록 밖이라 MarkdownV2 escape 를
+// 거쳐야 한다. 괄호 · 마침표 · 하이픈이 escape 없이 나가면 Telegram 이 `400 can't parse entities` 로 거절한다.
+// 코드 블록 안(막대 · 표 본문)은 그대로 둔다.
+describe('visual fallback — 제목과 꼬리 문구의 MarkdownV2 escape', () => {
+  function firstText(event: EiaEvent): string {
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    return m[0].body.kind === 'text' ? m[0].body.text : '';
+  }
+
+  it('차트 — 제목과 시리즈 안내를 escape 하고 코드 블록은 그대로 둔다', () => {
+    const text = firstText(
+      buttonsEvent({
+        nodeType: 'chart',
+        title: '매출 (2026.Q1) - 최종!',
+        payload: {
+          labels: ['1월', '2월'],
+          series: [
+            { name: 'A.B (x)', data: [10, 20] },
+            { name: 'Y', data: [1, 2] },
+          ],
+        },
+      }),
+    );
+    expect(text).toBe(
+      '📊 매출 \\(2026\\.Q1\\) \\- 최종\\!\n\n' +
+        '```\n' +
+        `1월 ${'█'.repeat(12)} 10\n` +
+        `2월 ${'█'.repeat(24)} 20\n` +
+        '```\n' +
+        '\\(전체 2개 시리즈 중 "A\\.B \\(x\\)" 만 표시\\)',
+    );
+    expect(unescapedReservedOutsideCode(text)).toEqual([]);
+  });
+
+  it('표 — 제목과 상위 N행 안내를 escape 하고 코드 블록 안의 마침표는 그대로 둔다', () => {
+    const text = firstText(
+      buttonsEvent({
+        nodeType: 'table',
+        title: '주문 (1차).v2',
+        payload: {
+          columns: [{ key: 'id', label: 'v.1' }],
+          rows: [{ id: 1 }, { id: 2 }],
+          rowsTruncated: true,
+          rowsTotalCount: 100,
+        },
+      }),
+    );
+    expect(text).toBe(
+      '📋 주문 \\(1차\\)\\.v2\n\n' +
+        '```\n' +
+        'v.1\n' +
+        '───\n' +
+        '1  \n' +
+        '2  \n' +
+        '```\n' +
+        '\\(상위 2행 표시 — 전체 100행\\)',
+    );
+    expect(unescapedReservedOutsideCode(text)).toEqual([]);
+  });
+
+  it('표 — 행 상한을 넘을 때의 「외 N행」 안내도 escape 한다', () => {
+    const rows = Array.from({ length: 21 }, (_, i) => ({ id: i + 1 }));
+    const text = firstText(
+      buttonsEvent({
+        nodeType: 'table',
+        title: 't',
+        payload: { columns: [{ key: 'id', label: 'ID' }], rows },
+      }),
+    );
+    expect(text.endsWith('```\n\\(외 1행 — 전체 21행\\)')).toBe(true);
+    expect(unescapedReservedOutsideCode(text)).toEqual([]);
+  });
+});
