@@ -25,6 +25,8 @@ export interface DigestRow {
   type: string;
   title: string;
   created_at: Date;
+  /** 이 수신자 · 워크스페이스의 24시간 전체 건수. 행은 최신 상한 건만 온다. */
+  workspace_total: number;
 }
 
 export interface DigestRunResult {
@@ -100,45 +102,17 @@ export class NotificationDigestService
     let after: string | null = null;
 
     for (;;) {
-      const qb = this.userRepository
-        .createQueryBuilder('u')
-        .select(['u.id', 'u.email'])
-        .where("u.notification_preferences ->> 'dailyDigestEmail' = 'true'");
-      if (after) qb.andWhere('u.id > :after', { after });
-      const users = await qb
-        .orderBy('u.id', 'ASC')
-        .limit(DIGEST_RECIPIENT_BATCH)
-        .getMany();
+      const users = await this.findRecipients(after);
       if (users.length === 0) break;
       result.recipients += users.length;
 
-      const rows: DigestRow[] = await this.notificationRepository.query(
-        `SELECT n.user_id, n.workspace_id, w.name AS workspace_name,
-                n.type, n.title, n.created_at
-           FROM notification n
-           JOIN workspace w ON w.id = n.workspace_id
-          WHERE n.user_id = ANY($1)
-            AND n.type = ANY($2)
-            AND n.created_at >= $3 AND n.created_at < $4
-          ORDER BY n.user_id, w.name, n.workspace_id, n.created_at DESC`,
-        [users.map((u) => u.id), [...DIGEST_TYPES], from, now],
-      );
+      const rows = await this.findDigestRows(users, from, now);
       const byUser = groupDigests(rows, from, now);
-
       for (const user of users) {
         const digest = byUser.get(user.id);
         if (!digest) continue;
-        try {
-          await this.mailService.sendDailyDigestEmail(user.email, digest);
-          result.sent += 1;
-        } catch (err) {
-          result.failed += 1;
-          this.logger.warn(
-            `daily digest email failed (userId=${user.id}): ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        }
+        if (await this.sendOne(user, digest)) result.sent += 1;
+        else result.failed += 1;
       }
 
       if (users.length < DIGEST_RECIPIENT_BATCH) break;
@@ -146,9 +120,73 @@ export class NotificationDigestService
     }
     return result;
   }
+
+  /** 일일 요약을 켠 사용자를 id 순으로 한 배치 읽는다. */
+  private async findRecipients(after: string | null): Promise<User[]> {
+    const qb = this.userRepository
+      .createQueryBuilder('u')
+      .select(['u.id', 'u.email'])
+      .where("u.notification_preferences ->> 'dailyDigestEmail' = 'true'");
+    if (after) qb.andWhere('u.id > :after', { after });
+    return qb.orderBy('u.id', 'ASC').limit(DIGEST_RECIPIENT_BATCH).getMany();
+  }
+
+  /**
+   * 수신자 배치의 요약 행을 읽는다. 워크스페이스마다 최신 `DIGEST_ITEMS_PER_WORKSPACE` 건만 가져오고
+   * 전체 건수는 윈도 함수 `COUNT` 로 함께 얻어, 하루치 행을 모두 메모리에 올리지 않는다.
+   */
+  private async findDigestRows(
+    users: User[],
+    from: Date,
+    now: Date,
+  ): Promise<DigestRow[]> {
+    return this.notificationRepository.query(
+      `SELECT r.user_id, r.workspace_id, w.name AS workspace_name,
+              r.type, r.title, r.created_at, r.workspace_total
+         FROM (
+           SELECT n.user_id, n.workspace_id, n.type, n.title, n.created_at,
+                  ROW_NUMBER() OVER (PARTITION BY n.user_id, n.workspace_id
+                                     ORDER BY n.created_at DESC, n.id DESC) AS rn,
+                  COUNT(*) OVER (PARTITION BY n.user_id, n.workspace_id)::int
+                    AS workspace_total
+             FROM notification n
+            WHERE n.user_id = ANY($1)
+              AND n.type = ANY($2)
+              AND n.created_at >= $3 AND n.created_at < $4
+         ) r
+         JOIN workspace w ON w.id = r.workspace_id
+        WHERE r.rn <= $5
+        ORDER BY r.user_id, w.name, r.workspace_id, r.created_at DESC`,
+      [
+        users.map((u) => u.id),
+        [...DIGEST_TYPES],
+        from,
+        now,
+        DIGEST_ITEMS_PER_WORKSPACE,
+      ],
+    );
+  }
+
+  /** 한 통을 보낸다. 실패는 경고만 남기고 false 를 돌려준다(재시도하지 않는다). */
+  private async sendOne(user: User, digest: DailyDigest): Promise<boolean> {
+    try {
+      await this.mailService.sendDailyDigestEmail(user.email, digest);
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `daily digest email failed (userId=${user.id}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return false;
+    }
+  }
 }
 
-/** 조회 행을 수신자 → 워크스페이스 순으로 묶는다. 행 순서(워크스페이스 이름, 최신 순)를 그대로 따른다. */
+/**
+ * 조회 행을 수신자 → 워크스페이스 순으로 묶는다. 행 순서(워크스페이스 이름, 최신 순)를 그대로 따른다.
+ * 행은 워크스페이스마다 상한까지만 오므로 건수는 행 수가 아니라 `workspace_total` 로 잡는다.
+ */
 function groupDigests(
   rows: DigestRow[],
   windowStart: Date,
@@ -166,15 +204,15 @@ function groupDigests(
       ws = { id: r.workspace_id, name: r.workspace_name, total: 0, items: [] };
       digest.workspaces.push(ws);
     }
-    digest.total += 1;
-    ws.total += 1;
-    if (ws.items.length < DIGEST_ITEMS_PER_WORKSPACE) {
-      ws.items.push({
-        type: r.type,
-        title: r.title,
-        createdAt: new Date(r.created_at),
-      });
+    if (ws.items.length === 0) {
+      ws.total = Number(r.workspace_total);
+      digest.total += ws.total;
     }
+    ws.items.push({
+      type: r.type,
+      title: r.title,
+      createdAt: new Date(r.created_at),
+    });
   }
   return byUser;
 }

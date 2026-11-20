@@ -38,6 +38,7 @@ describe('NotificationDigestService', () => {
       type: 'execution_failed',
       title: 't',
       created_at: new Date('2026-11-19T12:00:00Z'),
+      workspace_total: 1,
       ...p,
     };
   }
@@ -89,14 +90,24 @@ describe('NotificationDigestService', () => {
       { id: 'u-2', email: 'b@x.test' },
     ]);
     notificationRepo.query.mockResolvedValue([
-      row({ workspace_id: 'ws-1', workspace_name: 'Alpha', title: 'a1' }),
+      row({
+        workspace_id: 'ws-1',
+        workspace_name: 'Alpha',
+        title: 'a1',
+        workspace_total: 2,
+      }),
       row({
         workspace_id: 'ws-2',
         workspace_name: 'Beta',
         type: 'background_failed',
         title: 'b1',
       }),
-      row({ workspace_id: 'ws-1', workspace_name: 'Alpha', title: 'a2' }),
+      row({
+        workspace_id: 'ws-1',
+        workspace_name: 'Alpha',
+        title: 'a2',
+        workspace_total: 2,
+      }),
     ]);
 
     const result = await service.sendDigests(NOW);
@@ -105,7 +116,17 @@ describe('NotificationDigestService', () => {
     expect(sql).toMatch(/n\.created_at >= \$3 AND n\.created_at < \$4/);
     // 채널과 닫힘 여부로 거르지 않는다.
     expect(sql).not.toMatch(/channel|dismissed_at/);
-    expect(params).toEqual([['u-1', 'u-2'], [...DIGEST_TYPES], FROM, NOW]);
+    // 상한은 SQL 에서 자른다(윈도 함수). 전체 건수는 COUNT 로 따로 얻는다.
+    expect(sql).toMatch(/ROW_NUMBER\(\) OVER/);
+    expect(sql).toMatch(/COUNT\(\*\) OVER/);
+    expect(sql).toMatch(/r\.rn <= \$5/);
+    expect(params).toEqual([
+      ['u-1', 'u-2'],
+      [...DIGEST_TYPES],
+      FROM,
+      NOW,
+      DIGEST_ITEMS_PER_WORKSPACE,
+    ]);
 
     // u-2 는 보낼 것이 없어 보내지 않는다.
     expect(mail.sendDailyDigestEmail).toHaveBeenCalledTimes(1);
@@ -134,11 +155,11 @@ describe('NotificationDigestService', () => {
     expect(result).toEqual({ recipients: 2, sent: 1, failed: 0 });
   });
 
-  it('워크스페이스마다 항목은 상한까지만 싣고 전체 건수는 따로 센다', async () => {
+  it('워크스페이스마다 상한 건만 읽고 전체 건수는 조회가 준 건수를 쓴다', async () => {
     userQb.getMany.mockResolvedValueOnce([{ id: 'u-1', email: 'a@x.test' }]);
-    const many = Array.from(
-      { length: DIGEST_ITEMS_PER_WORKSPACE + 3 },
-      (_, i) => row({ title: `t${i}` }),
+    // SQL 이 상한까지만 돌려주고 workspace_total 에 전체 건수를 싣는다.
+    const many = Array.from({ length: DIGEST_ITEMS_PER_WORKSPACE }, (_, i) =>
+      row({ title: `t${i}`, workspace_total: DIGEST_ITEMS_PER_WORKSPACE + 3 }),
     );
     notificationRepo.query.mockResolvedValue(many);
 
