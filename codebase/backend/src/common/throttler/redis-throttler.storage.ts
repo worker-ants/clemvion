@@ -25,7 +25,13 @@ export const REDIS_THROTTLER_COMMAND_TIMEOUT_MS = 250;
  */
 export const REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS = 5_000;
 
-/** 요청 수를 세는 키. `key` 는 `ThrottlerGuard` 가 만든 SHA-256 hex 라 IP · 사용자 id 원문이 없다. */
+/**
+ * 요청 수를 세는 키. `key` 는 `ThrottlerGuard` 가 만든 SHA-256 hex 라 IP · 사용자 id 원문이 없다.
+ *
+ * 두 키를 Lua 스크립트 하나에서 함께 쓰므로 단일 노드 Redis 를 전제한다. Redis Cluster 로 옮기면 두 키가
+ * 다른 슬롯에 들어가 스크립트가 CROSSSLOT 으로 실패하고 메모리 저장소로 센다. 그때는 키 규칙(NERV
+ * `CLE-ENG-REDIS`)에 해시 태그를 먼저 정한다.
+ */
 export function throttleHitKey(key: string): string {
   return `throttle:hit:${key}`;
 }
@@ -135,6 +141,8 @@ export class RedisThrottlerStorage
   private readonly memory = new ThrottlerStorageService();
   /** 이 시각(epoch ms) 전에는 Redis 를 부르지 않는다. */
   private redisRetryAt = 0;
+  /** 마지막 Redis 명령이 실패했고 아직 성공한 명령이 없다. */
+  private degraded = false;
 
   constructor(
     private readonly redisConn: RedisConnectionProvider,
@@ -158,6 +166,11 @@ export class RedisThrottlerStorage
         throttlerName,
       );
     }
+    // 실패 뒤 대기가 끝난 첫 요청만 Redis 를 다시 부른다. 그 응답을 기다리는 동안 들어온 요청은 메모리로 센다.
+    const probing = this.degraded;
+    if (probing) {
+      this.redisRetryAt = Date.now() + REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
+    }
     try {
       const reply = await withTimeout(
         client.eval(
@@ -172,15 +185,27 @@ export class RedisThrottlerStorage
         REDIS_THROTTLER_COMMAND_TIMEOUT_MS,
         'throttler redis increment',
       );
-      return parseReply(reply);
+      const record = parseReply(reply);
+      if (this.degraded) {
+        this.degraded = false;
+        this.redisRetryAt = 0;
+        this.logger.log('요청 빈도 제한을 다시 Redis 로 센다');
+      }
+      return record;
     } catch (err) {
+      // 제한 시간이 지난 뒤 Redis 가 늦게 스크립트를 실행하면 그 요청이 Redis 와 메모리에 한 번씩 세질 수 있다.
+      // 한도를 더 빨리 채우는 쪽이라 그대로 둔다.
       this.redisRetryAt = Date.now() + REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
       this.metrics?.recordRedisFailOpen('throttler', 'incr_failed');
-      this.logger.warn(
-        `요청 빈도 제한을 메모리 저장소로 센다(${REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS}ms 뒤 Redis 재시도): ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
+      // 동시에 실패한 요청마다 경고를 남기지 않도록 장애가 시작될 때와 재시도가 실패할 때만 남긴다.
+      if (!this.degraded || probing) {
+        this.logger.warn(
+          `요청 빈도 제한을 메모리 저장소로 센다(${REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS}ms 뒤 Redis 재시도): ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+      this.degraded = true;
       return this.memory.increment(
         key,
         ttl,
