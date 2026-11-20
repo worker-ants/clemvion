@@ -11,6 +11,7 @@ import {
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
 } from './outbound-guard';
+import { restoreEnvAfterEach } from '../../../shared/testing/env';
 
 jest.mock('node:dns/promises', () => ({
   lookup: jest.fn(),
@@ -20,6 +21,9 @@ jest.mock('node:dns/promises', () => ({
 const mockedLookup = lookup as unknown as jest.MockedFunction<
   (hostname: string, options: { all: true }) => Promise<LookupAddress[]>
 >;
+
+// 이 파일의 테스트는 `ALLOW_PRIVATE_HOST_TARGETS` 를 지우거나 켠다. 테스트마다 원래 값으로 되돌린다(CLE-T-F4Z845).
+restoreEnvAfterEach('ALLOW_PRIVATE_HOST_TARGETS');
 
 describe('outbound-guard — assertSafeOutboundUrl (synchronous literal check)', () => {
   beforeEach(() => {
@@ -266,14 +270,7 @@ describe('outbound-guard — IPv4-mapped IPv6 가 두 층을 모두 지나지 �
 });
 
 describe('outbound-guard — safeOutboundDispatcher (연결 시점 판정 dispatcher)', () => {
-  const previous = process.env.ALLOW_PRIVATE_HOST_TARGETS;
-
   afterEach(async () => {
-    if (previous === undefined) {
-      delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-    } else {
-      process.env.ALLOW_PRIVATE_HOST_TARGETS = previous;
-    }
     await resetSafeOutboundDispatcherForTesting();
   });
 
@@ -314,16 +311,6 @@ describe('outbound-guard — safeOutboundDispatcher (연결 시점 판정 dispat
 });
 
 describe('outbound-guard — safeOutboundLookup (DB · SMTP 소켓용 연결 시점 판정)', () => {
-  const previous = process.env.ALLOW_PRIVATE_HOST_TARGETS;
-
-  afterEach(() => {
-    if (previous === undefined) {
-      delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-    } else {
-      process.env.ALLOW_PRIVATE_HOST_TARGETS = previous;
-    }
-  });
-
   // IP 리터럴은 `dns.lookup` 이 질의 없이 그대로 돌려준다. 그래서 실제 `node:dns` 로도 네트워크를 쓰지 않는다.
   function resolveWith(
     host: string,

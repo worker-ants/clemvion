@@ -14,6 +14,7 @@ import {
 import { DB_HOST_BLOCKED_MESSAGE } from './database-connection.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import { setEnvForEach, withEnv } from '../../../shared/testing/env';
 
 // 가드는 **실물 그대로** 쓴다(아래 차단 테스트들이 실제 대역 판정을 본다) — `jest.fn` 으로 감싸기만 해 한 테스트에서만
 // «판정 아닌 오류» 를 주입한다. `SsrfBlockedError` 도 실물이라 핸들러의 판정 분기가 그대로 동작한다.
@@ -177,6 +178,10 @@ function makeService(
     logUsage,
   };
 }
+
+// 차단 테스트는 가드가 켜진 상태를 가정한다. 바깥 환경에서 `ALLOW_PRIVATE_HOST_TARGETS` 를 켜 두어도 테스트마다 꺼진 값에서
+// 시작하고 끝나면 되돌린다(CLE-T-F4Z845).
+setEnvForEach({ ALLOW_PRIVATE_HOST_TARGETS: undefined });
 
 describe('DatabaseQueryHandler', () => {
   beforeEach(() => {
@@ -1423,9 +1428,7 @@ describe('DatabaseQueryHandler', () => {
       });
 
       it('ALLOW_PRIVATE_HOST_TARGETS=true opt-out → guard 통과 (차단 안 함)', async () => {
-        const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
-        process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
-        try {
+        await withEnv({ ALLOW_PRIVATE_HOST_TARGETS: 'true' }, async () => {
           const { service } = makeService({
             integration: pgIntegrationWithHost('127.0.0.1'),
           });
@@ -1439,10 +1442,7 @@ describe('DatabaseQueryHandler', () => {
           // 차단되지 않고 실제 실행 경로로 진행 (opt-in self-host).
           expect(out.port).toBe('success');
           expect(connectMock).toHaveBeenCalled();
-        } finally {
-          if (prev === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-          else process.env.ALLOW_PRIVATE_HOST_TARGETS = prev;
-        }
+        });
       });
     });
 

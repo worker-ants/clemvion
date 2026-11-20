@@ -9,6 +9,7 @@ import {
 import { createTransport } from 'nodemailer';
 import { findCause } from '../../../common/utils/guarded-lookup-dispatcher';
 import { SsrfBlockedError } from '../../../common/utils/ssrf/outbound-guard';
+import { restoreEnvAfterEach } from '../../../shared/testing/env';
 import {
   createSmtpGetSocket,
   guardedSmtpGetSocket,
@@ -49,7 +50,7 @@ describe('smtp-host-guard — 연결 시점 판정 (실제 nodemailer)', () => {
   let server: Server;
   let port: number;
   let accepted = 0;
-  let originalAllow: string | undefined;
+  restoreEnvAfterEach('ALLOW_PRIVATE_HOST_TARGETS');
 
   beforeAll(async () => {
     // 최소 SMTP 서버. 인사 → EHLO → QUIT 만 답한다. 인증 없는 verify() 는 여기까지로 성공한다.
@@ -85,20 +86,11 @@ describe('smtp-host-guard — 연결 시점 판정 (실제 nodemailer)', () => {
   });
 
   beforeEach(() => {
-    originalAllow = process.env.ALLOW_PRIVATE_HOST_TARGETS;
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
     mockedConnect.mockReset();
     mockedConnect.mockImplementation((_host, _opts, cb) =>
       cb(null, [{ address: '127.0.0.1', family: 4 }]),
     );
-  });
-
-  afterEach(() => {
-    if (originalAllow === undefined) {
-      delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-    } else {
-      process.env.ALLOW_PRIVATE_HOST_TARGETS = originalAllow;
-    }
   });
 
   it('연결할 때 푼 주소가 막힌 대역이면 verify() 가 SsrfBlockedError 로 실패하고 서버에 닿지 않는다', async () => {

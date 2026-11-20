@@ -18,6 +18,7 @@ import {
   createGuardedPgStream,
   type DbCredentials,
 } from './database-connection';
+import { restoreEnvAfterEach } from '../../../shared/testing/env';
 
 // DNS rebinding 을 재현한다(CLE-T-691T4G). 연결할 때의 주소 조회(`node:dns` 의 `lookup`)가 loopback 을 답한다. 서버는
 // loopback 에 떠 있으므로 연결 시점 판정이 없으면 드라이버가 서버에 닿는다. 연결 전 판정(`node:dns/promises`)은 이
@@ -54,7 +55,7 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
   let server: Server;
   let port: number;
   let accepted = 0;
-  let originalAllow: string | undefined;
+  restoreEnvAfterEach('ALLOW_PRIVATE_HOST_TARGETS');
 
   beforeAll(async () => {
     // 연결을 받자마자 끊는다. 드라이버는 핸드셰이크 전에 실패하지만 «서버에 닿았는가» 는 accepted 로 센다.
@@ -82,20 +83,11 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
   }
 
   beforeEach(() => {
-    originalAllow = process.env.ALLOW_PRIVATE_HOST_TARGETS;
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
     mockedConnect.mockReset();
     mockedConnect.mockImplementation((_host, _opts, cb) =>
       cb(null, [{ address: '127.0.0.1', family: 4 }]),
     );
-  });
-
-  afterEach(() => {
-    if (originalAllow === undefined) {
-      delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-    } else {
-      process.env.ALLOW_PRIVATE_HOST_TARGETS = originalAllow;
-    }
   });
 
   function creds(driver: DbCredentials['driver']): DbCredentials {
