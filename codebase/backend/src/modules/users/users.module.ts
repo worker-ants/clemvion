@@ -12,7 +12,7 @@ import { S3Service } from '../../common/services/s3.service';
   // 감사 이벤트 기록 (액터 세션 workspaceId 귀속, §Rationale 4.1.B).
   // forwardRef(AuthModule): changePassword 가 변경 후 세션 회전(AuthService.
   // rotateSessionAfterPasswordChange)을 위해 AuthService 를 주입 — AuthModule 도
-  // UsersModule 을 import 하므로 순환을 forwardRef 로 해소 (refactor 04 A-1).
+  // UsersModule 을 import 하므로 순환을 forwardRef 로 해소 (CLE-ACCT-SESSION-TOKEN).
   imports: [
     TypeOrmModule.forFeature([User]),
     AuditLogsModule,

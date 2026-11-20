@@ -25,7 +25,7 @@ export const INTEGRATION_CACHE_INVALIDATE_CHANNEL =
   'integration:cache:invalidate';
 
 /**
- * integration 자격증명 회전의 멀티 인스턴스 캐시 무효화 bus (refactor 04 m-4).
+ * integration 자격증명 회전의 멀티 인스턴스 캐시 무효화 bus (CLE-NODE-DBQUERY 「풀 캐시 무효화」).
  *
  * **문제**: DB 연결 풀(`database-query.handler`)·이메일 transport(`send-email.handler`)
  * 등은 인스턴스-로컬 in-memory 캐시다. `IntegrationsService` 가 자격증명을 회전해도

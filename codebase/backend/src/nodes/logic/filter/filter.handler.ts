@@ -94,7 +94,7 @@ export class FilterHandler implements NodeHandler {
     // retry compilation each iteration.
     const regexCache = new Map<string, RegExp | null>();
     // Insertion-ordered set of pattern strings that failed to compile,
-    // exceeded MAX_REGEX_LENGTH, or were rejected as ReDoS-unsafe (04 M-3) —
+    // exceeded MAX_REGEX_LENGTH, or were rejected as ReDoS-unsafe (CLE-NODE-LOGIC-COMMON) —
     // surfaced via `meta.invalidRegexPatterns` so users can detect
     // silent-`false` regex behaviour.
     const invalidRegexPatterns = new Set<string>();
@@ -104,7 +104,7 @@ export class FilterHandler implements NodeHandler {
         // `null` marks a previously-rejected pattern so we don't retry it.
         return regexCache.get(pattern) ?? undefined;
       }
-      // 04 M-3 — 길이/ReDoS-안전성/문법을 단일 chokepoint(compileUserRegex)에서
+      // CLE-NODE-LOGIC-COMMON — 길이/ReDoS-안전성/문법을 단일 chokepoint(compileUserRegex)에서
       // 검사. too-long·unsafe·invalid 모두 silent-false + meta 가시화로 통일.
       const { regex } = compileUserRegex(pattern);
       regexCache.set(pattern, regex);

@@ -70,7 +70,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly auditLogsService: AuditLogsService,
-    // forwardRef: AuthModule↔UsersModule 순환 (refactor 04 A-1). 비밀번호 변경 후
+    // forwardRef: AuthModule↔UsersModule 순환 (CLE-ACCT-SESSION-TOKEN). 비밀번호 변경 후
     // 전 세션 revoke + 현재 디바이스 세션 재발급을 위임한다.
     @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
@@ -226,7 +226,7 @@ export class UsersController {
     @Req() req: ExpressNS.Request,
     @Res({ passthrough: true }) res: ExpressNS.Response,
   ) {
-    // 도메인 로직(현재 비밀번호 검증·강도·해시·저장)은 service 로 이전 (refactor 04 B-2).
+    // 도메인 로직(현재 비밀번호 검증·강도·해시·저장)은 service 로 이전 (컨트롤러는 입출력만 맡는다).
     await this.usersService.changePassword(
       payload.sub,
       dto.currentPassword,

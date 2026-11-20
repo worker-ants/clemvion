@@ -200,7 +200,7 @@ describe('AuthService', () => {
           },
         },
         {
-          // refactor 04 A-1 — AuthService.rotateSessionAfterPasswordChange 가 위임.
+          // CLE-ACCT-SESSION-TOKEN — AuthService.rotateSessionAfterPasswordChange 가 위임.
           // 이메일 변경(requestEmailChange)의 재인증도 reauthenticate 를 통해 위임.
           provide: SessionsService,
           useValue: {
@@ -2223,7 +2223,7 @@ describe('AuthService', () => {
     });
   });
 
-  describe('rotateSessionAfterPasswordChange (refactor 04 A-1 — 옵션 B)', () => {
+  describe('rotateSessionAfterPasswordChange', () => {
     it('revokes all families then issues a fresh session for the current device', async () => {
       usersService.findById.mockResolvedValue({
         ...mockUser,

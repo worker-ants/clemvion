@@ -175,7 +175,7 @@ export class SessionsService {
   }
 
   /**
-   * 사용자의 **모든** 활성 family 를 revoke 한다 (refactor 04 A-1 — 비밀번호 변경 후 호출).
+   * 사용자의 **모든** 활성 family 를 revoke 한다 (비밀번호 변경 후 호출, CLE-ACCT-SESSION-TOKEN).
    *
    * 비밀번호 변경(`POST /users/me/change-password`)은 변경 직전 `currentPassword` 로 본인
    * 확인이 끝났으므로 별도 재인증(`verifyReauth`)을 요구하지 않는다 — 현재 family 제외 없이
