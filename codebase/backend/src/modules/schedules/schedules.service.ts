@@ -24,7 +24,10 @@ import {
 import { cleanUpDeletedTriggersAfterCommit } from '../triggers/trigger-resource-release';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
-import { isValidIanaTimezone } from '../../common/utils/timezone';
+import {
+  isValidIanaTimezone,
+  PRODUCT_DEFAULT_TIMEZONE,
+} from '../../common/utils/timezone';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -64,10 +67,10 @@ export class SchedulesService {
   ) {}
 
   /**
-   * §2.2 — 스케줄 타임존 결정: 명시값 > 워크스페이스 설정(`settings.timezone`) > `'Asia/Seoul'`.
+   * §2.2 — 스케줄 타임존 결정: 명시값 > 워크스페이스 설정(`settings.timezone`) > `PRODUCT_DEFAULT_TIMEZONE`.
    *
-   * `'Asia/Seoul'` 은 Schedule 도메인 전용 제품 기본값이다 (서버 `process.env.TZ`/UTC 가 아니라 — 본
-   * 제품의 1차 타겟 사용자 기준). 명시값과 워크스페이스 값 모두 IANA 유효성을 검증해 무효면 다음 단계로
+   * `PRODUCT_DEFAULT_TIMEZONE`(`'Asia/Seoul'`)은 AI 시스템 컨텍스트 접두와 함께 쓰는 제품 기본값이다
+   * (서버 `process.env.TZ`/UTC 가 아니라 — 본 제품의 1차 타겟 사용자 기준). 명시값과 워크스페이스 값 모두 IANA 유효성을 검증해 무효면 다음 단계로
    * 폴백한다 (DTO/저장 검증을 우회한 레거시·직접 호출 방어). 모듈 경계상 Workspace 엔티티를 직접
    * 읽지 않고 `WorkspacesService.getWorkspaceTimezone` 위임 호출을 쓴다.
    */
@@ -86,7 +89,7 @@ export class SchedulesService {
       return requestedTimezone;
     }
     const wsTz = await this.workspacesService.getWorkspaceTimezone(workspaceId);
-    return wsTz ?? 'Asia/Seoul';
+    return wsTz ?? PRODUCT_DEFAULT_TIMEZONE;
   }
 
   async findAll(
@@ -431,7 +434,7 @@ export class SchedulesService {
 
   getPreviewFromExpression(
     cronExpression: string,
-    timezone: string = 'Asia/Seoul',
+    timezone: string = PRODUCT_DEFAULT_TIMEZONE,
     count: number = 5,
   ): { nextRuns: string[] } {
     const nextRuns = this.computeNextRuns(cronExpression, timezone, count);

@@ -8,6 +8,7 @@ import {
   SYSTEM_CONTEXT_DEFAULT_SECTIONS,
 } from './system-context-prefix.js';
 import type { ExecutionContext } from '../../core/node-handler.interface.js';
+import { PRODUCT_DEFAULT_TIMEZONE } from '../../../common/utils/timezone.js';
 
 // spec: spec/4-nodes/3-ai/0-common.md §11
 
@@ -64,36 +65,31 @@ describe('System Context Prefix', () => {
       expect(resolveSystemContextTimezone('Asia/Seoul')).toBe('Asia/Seoul');
     });
 
-    it('falls through to process.env.TZ when workspace is empty', () => {
+    it('falls back to PRODUCT_DEFAULT_TIMEZONE (Asia/Seoul) when workspace is empty', () => {
+      expect(PRODUCT_DEFAULT_TIMEZONE).toBe('Asia/Seoul');
+      expect(resolveSystemContextTimezone(undefined)).toBe('Asia/Seoul');
+      expect(resolveSystemContextTimezone('')).toBe('Asia/Seoul');
+    });
+
+    it('skips invalid workspace timezone and falls back to Asia/Seoul', () => {
+      expect(resolveSystemContextTimezone('Not/A_Real_Zone')).toBe(
+        'Asia/Seoul',
+      );
+    });
+
+    it('ignores process.env.TZ (server TZ never leaks into the prefix)', () => {
       const original = process.env.TZ;
       process.env.TZ = 'America/New_York';
       try {
-        expect(resolveSystemContextTimezone(undefined)).toBe(
-          'America/New_York',
-        );
-        expect(resolveSystemContextTimezone('')).toBe('America/New_York');
-      } finally {
-        process.env.TZ = original;
-      }
-    });
-
-    it('falls back to UTC when workspace and env are invalid', () => {
-      const original = process.env.TZ;
-      delete process.env.TZ;
-      try {
-        expect(resolveSystemContextTimezone('Not/A_Real_Zone')).toBe('UTC');
-      } finally {
-        process.env.TZ = original;
-      }
-    });
-
-    it('skips invalid workspace timezone and tries process.env.TZ', () => {
-      const original = process.env.TZ;
-      process.env.TZ = 'Asia/Seoul';
-      try {
+        expect(resolveSystemContextTimezone(undefined)).toBe('Asia/Seoul');
+        expect(resolveSystemContextTimezone('')).toBe('Asia/Seoul');
         expect(resolveSystemContextTimezone('Not/Real')).toBe('Asia/Seoul');
+        expect(resolveSystemContextTimezone('Europe/London')).toBe(
+          'Europe/London',
+        );
       } finally {
-        process.env.TZ = original;
+        if (original === undefined) delete process.env.TZ;
+        else process.env.TZ = original;
       }
     });
   });
@@ -254,18 +250,21 @@ describe('System Context Prefix', () => {
       expect(out).toBe('');
     });
 
-    it('falls back to env / UTC when workspace timezone missing', () => {
+    it('falls back to Asia/Seoul when workspace timezone missing, regardless of process.env.TZ', () => {
       const original = process.env.TZ;
-      delete process.env.TZ;
+      process.env.TZ = 'America/New_York';
       try {
         const out = buildSystemContextPrefixFromContext({
           context: makeContext({ variables: { __workspaceId: 'ws-1' } }),
           config: {},
           now: fixedNow,
         });
-        expect(out).toContain('Timezone: UTC (UTC)');
+        expect(out).toContain('Timezone: Asia/Seoul');
+        expect(out).not.toContain('America/New_York');
+        expect(out).not.toContain('Timezone: UTC');
       } finally {
-        process.env.TZ = original;
+        if (original === undefined) delete process.env.TZ;
+        else process.env.TZ = original;
       }
     });
 

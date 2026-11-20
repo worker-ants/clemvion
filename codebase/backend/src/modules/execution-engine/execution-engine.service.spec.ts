@@ -6756,7 +6756,7 @@ describe('ExecutionEngineService', () => {
     // workflow.workspace.settings.timezone 을 IANA name 그대로 `__workspaceTimezone`
     // 변수로 주입한다. 3 AI 핸들러는 이 값을 resolveSystemContextTimezone 으로
     // 받아 LLM prefix 를 생성하므로 엔진 레벨에서 실제 주입이 깨지면 prefix 가
-    // process.env.TZ 또는 UTC 로 silent fallback 한다. 본 케이스는 그 회귀 가드.
+    // 제품 기본값(Asia/Seoul)으로 silent fallback 한다. 본 케이스는 그 회귀 가드.
     it('Asia/Seoul workspace → __workspaceTimezone === "Asia/Seoul" on handler context', async () => {
       mockWorkflowRepo.findOne.mockResolvedValue({
         ...mockWorkflow,
@@ -6785,7 +6785,7 @@ describe('ExecutionEngineService', () => {
       }
     });
 
-    it('workspace.settings 가 비어있으면 __workspaceTimezone === "" (handler 가 process.env.TZ → UTC 로 fall through)', async () => {
+    it('workspace.settings 가 비어있으면 __workspaceTimezone === "" (handler 가 PRODUCT_DEFAULT_TIMEZONE 로 fall through)', async () => {
       // beforeEach default — mockWorkflowRepo.findOne 은 workspace.settings: {} 반환.
       const seenContexts: ExecutionContext[] = [];
       (mockHandler.execute as jest.Mock).mockImplementation(

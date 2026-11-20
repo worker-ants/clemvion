@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "4736dcc8ce925a8c1ffd4870aba92799e972ceb7986d130799ed5209811e8950"
+content_hash: "9d45e65f3adda43c9b0e0cb3d07f64a87be0a900235329e6561760c95cb23721"
 read_as: "approved_fallback"
-task: "CLE-T-CE5YR3"
+task: "CLE-T-TV4VA8"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "91056539cb7fbe5cd890e1a308c941a6642a44ff6c3765cd18bb31411f114d21"
-etag: "sha256-5ad3b7e25d9b60b8731adaad9663f09c3bf421d0416ea3122cb21be9d0781dee"
+mirror_sha256: "ffd2ac91fad26fed0cdc584b1e5e50477bc7cab3f467acc5f9af3dc03f17df6d"
+etag: "sha256-c3d54496c569ea377f592a709d72d17272fd232f5aebe9f90d13db0cbcee9d43"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -67,7 +67,7 @@ etag: "sha256-5ad3b7e25d9b60b8731adaad9663f09c3bf421d0416ea3122cb21be9d0781dee"
    - `_executedNodes` 와 `_contextKey` 는 이 분류가 생기기 전에 더해졌고 규칙 4 를 만들며 소급해 분류했다.
    - `_resumeState`·`_retryState` 는 `ExecutionContext` 필드가 아니고 핸들러 반환값(`NodeHandlerOutput`)의 최상위 내부 필드다. 정본은 [노드 출력 규약 Principle 0](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드) 이다.
 5. **`variables.__*` 시스템 예약 이름**: `ExecutionContext.variables` 는 사용자 정의 워크플로우 변수 맵이다. 엔진은 실행을 시작할 때 시스템 값을 `__`(밑줄 두 개) 접두 키로 이 맵에 넣는다. `__*` 는 예약 접두어이고 사용자 변수 이름에 `__` 를 쓸 수 없다.
-   - 지금 넣는 값(기준: `node-handler.interface.ts` JSDoc): `__workspaceId`(실행 시작 때 `workflow.workspaceId`, 통합 조회·모델 설정 등 워크스페이스 단위 리소스 해석), `__workspaceName`(`Workspace.name` 복제, AI 시스템 맥락 접두), `__workspaceTimezone`(`Workspace.settings.timezone`, IANA, 시스템 맥락 접두와 스케줄 기본 시간대 해석), `__dryRun`(재실행 dry-run 모드, [재실행](CLE-EXEC-RERUN.md)). 새 시스템 값은 반드시 `__` 접두를 쓴다.
+   - 지금 넣는 값(기준: `node-handler.interface.ts` JSDoc): `__workspaceId`(실행 시작 때 `workflow.workspaceId`, 통합 조회·모델 설정 등 워크스페이스 단위 리소스 해석), `__workspaceName`(`Workspace.name` 복제, AI 시스템 맥락 접두), `__workspaceTimezone`(`Workspace.settings.timezone`, IANA, 시스템 맥락 접두와 스케줄 기본 시간대 해석. 폴백 전 원본 값이고 값이 없으면 소비 지점이 제품 기본 시간대 `Asia/Seoul` 을 쓴다), `__dryRun`(재실행 dry-run 모드, [재실행](CLE-EXEC-RERUN.md)). 새 시스템 값은 반드시 `__` 접두를 쓴다.
    - 규칙 4 와 다르다. 규칙 4 는 `ExecutionContext` **최상위**의 엔진 전용 필드이고 이 규칙은 사용자에게 보이는 `variables` **맵 안**에 들어가는 시스템 값이다. 위치(최상위와 맵 안)와 접두(`_` 하나와 `__` 둘)가 모두 다르다.
    - 저장 정책: park 때 `Execution.user_variables` 에 저장하는 값은 시스템 `__*` 를 뺀 사용자 정의분이다(`filterUserVariables`, `!key.startsWith('__')`). 재개할 때 엔진이 `__*` 를 다시 넣는다.
    - 예약은 변수 선언 노드와 변수 수정 노드에서 `RESERVED_VARIABLE_NAME` 으로 강제한다. 세 층이 함께 강제한다.

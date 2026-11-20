@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON"
 title: "AI 노드 공통"
 type: "convention"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI"]
 area: "CLE-NODE-AI"
-content_hash: "265cd827d5acb3a97d043c47202fe3c7c2734d936b673c49f43c2977378a0709"
+content_hash: "c176e0e5f54971386833084b2c43d8f9656269c2ae96e8405078921628e1cc4a"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-TV4VA8"
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "34b03f6c95dc8377b8c210792df326af8f7091fb3f47d1e5a06ef81f91df1db6"
-etag: "sha256-13274d71a66871fcb5d9863b91b5403cc000b8fdab1a3c5832c90aa38836d27c"
+mirror_sha256: "1480481ac142f0fa8bcde44ef22d89a1f0009168e313e0c8ff0319a98cf8d99a"
+etag: "sha256-8122a4b662d27eb91513a1403994c95f9ab3bb5d2525314ad20088052ab66312"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -49,7 +49,7 @@ AI 노드(AI nodes)는 LLM 을 부르는 세 노드다. [AI 에이전트 노드]
 11. 대화 맥락 설정의 기본값은 `contextScope: 'none'` 이다. 사용자가 명시적으로 켤 때만 주입한다.
 12. 메모리 전략이 자동(`summary_buffer`·`persistent`)이면 범위 필드 4개(`contextScope`·`contextScopeN`·`contextInjectionMode`·`includeToolTurns`)는 무효다.
 13. 시스템 컨텍스트 접두는 기본으로 켜져 있고(`includeSystemContext: true`), 항상 시스템 프롬프트 맨 앞에 붙는다.
-14. 접두의 시간대는 워크스페이스 설정 → 서버 `process.env.TZ` → `UTC` 순서로 정한다.
+14. 접두의 시간대는 워크스페이스 설정을 쓰고, 없거나 무효면 제품 기본 시간대 `Asia/Seoul` 을 쓴다. 서버 `process.env.TZ` 는 읽지 않는다.
 15. 시스템 프롬프트 조립 순서의 단일 기준은 [AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트](CLE-NODE-AI-COMMON-CONTEXT.md#시스템-프롬프트-조립-순서) 절이다.
 16. `includeSystemContext`·`systemContextSections` 는 기본값과 같으면 설정 에코에서 뺀다.
 17. 노드 취소 신호(`context.abortSignal`)로 끝난 LLM 호출은 `output.error` 로 보내지 않는다. 노드는 이름이 `AbortError` 인 에러를 엔진에 그대로 던진다(`rethrowIfNodeCancelled`). Anthropic · OpenAI SDK 의 `APIUserAbortError` 처럼 이름이 다른 에러는 메시지 `LLM call was aborted` 로 고정한 `AbortError` 로 감싼다. 엔진은 노드 실행을 `cancelled` 로 기록하고 `output_data` 는 쓰지 않는다([노드 취소 「노드 핸들러 의무」](../CLE-EXEC/CLE-EXEC-CANCEL.md#노드-핸들러-의무) 규칙 3, [「취소 에러 분류」](../CLE-EXEC/CLE-EXEC-CANCEL.md#취소-에러-분류) 규칙 19). 그래서 에러 포트로 가지 않고 `retryable` 도 부분 결과도 없다. 새 에러 코드는 두지 않는다. LLM 호출 타임아웃(`withTimeout`)은 자기 controller 를 끊고 노드 신호는 그대로 두므로 노드 취소가 아니다.
