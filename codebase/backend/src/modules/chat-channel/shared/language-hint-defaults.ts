@@ -19,9 +19,13 @@ const logger = new Logger('ChatChannelLanguageHint');
 
 export type LanguageLocale = 'ko' | 'en';
 
-/** lookup (1) — `languageHints[key]` 가 비어 있지 않은 문자열이면 그 값, 아니면 `undefined` 다. */
+/**
+ * lookup (1) — `languageHints[key]` 가 비어 있지 않은 문자열이면 그 값, 아니면 `undefined` 다.
+ * `languageHints` 가 `null` 이어도 `undefined` 다. DTO 입구가 `null` 을 거부하기 전(NERV Task `CLE-T-9Q304H`)에
+ * 저장된 트리거에는 `null` 이 남아 있을 수 있다(NERV Task `CLE-T-CSVGX0`).
+ */
 export function readLanguageHintOverride(
-  languageHints: Record<string, string> | undefined,
+  languageHints: Record<string, string> | null | undefined,
   key: string,
 ): string | undefined {
   const override = languageHints?.[key];
@@ -49,7 +53,7 @@ export function makeLocaleResolver(
   overrideKey: string,
   defaults: Record<LanguageLocale, string>,
 ): (
-  languageHints: Record<string, string> | undefined,
+  languageHints: Record<string, string> | null | undefined,
   languageLocale: LanguageLocale | undefined,
 ) => string {
   return (languageHints, languageLocale) =>
@@ -102,14 +106,14 @@ export const DEFAULT_LANGUAGE_HINTS: Record<
  */
 export function resolveLanguageHint(
   key: ExecutionFailureClass['key'],
-  languageHints: Record<string, string> | undefined,
+  languageHints: Record<string, string> | null | undefined,
   languageLocale: LanguageLocale | undefined,
 ): string {
   // Deprecation guard (CCH-ERR-* 마이그레이션 안내):
   // 구 운영자 설정의 `executionFailed` 단일 키 + `{{code}}`/`{{message}}` 는 silently ignored.
   // 1회 경고 로그로 마이그레이션 필요성 알림 (CCH-ERR-04 연계 / W#13).
   if (
-    languageHints !== undefined &&
+    languageHints != null &&
     typeof (languageHints as Record<string, unknown>)['executionFailed'] ===
       'string'
   ) {
