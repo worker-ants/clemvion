@@ -9,7 +9,11 @@ import {
   DiscoveryModule,
 } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { shouldSkipThrottle } from './common/utils/throttler-skip';
+import {
+  buildThrottlerOptions,
+  ThrottlerStorageModule,
+} from './common/throttler/throttler-storage.module';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
 import { BullModule } from '@nestjs/bullmq';
 import {
@@ -125,12 +129,11 @@ export { ROOT_ENTITIES } from './database/root-entities';
     }),
 
     // Rate Limiting
-    ThrottlerModule.forRoot({
-      throttlers: [{ name: 'default', ttl: 60000, limit: 100 }],
-      // e2e: 단일 컨테이너 IP 에서 빠른 register 호출이 100/60s 한계에 걸려
-      // 14/15 suite 가 RATE_LIMITED 로 깨지는 사전 결함 해소. production /
-      // development 동작은 무변경 (NODE_ENV=test 일 때만 skip).
-      skipIf: shouldSkipThrottle,
+    // 저장소는 공유 Redis, Redis 를 쓸 수 없으면 메모리 (RedisThrottlerStorage).
+    ThrottlerModule.forRootAsync({
+      imports: [ThrottlerStorageModule],
+      inject: [RedisThrottlerStorage],
+      useFactory: buildThrottlerOptions,
     }),
 
     // 공유 인프라 — command Redis 단일 연결 (ai-review INFO-12). @Global.
