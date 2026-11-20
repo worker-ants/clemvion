@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA-FLOW"
 title: "실행 데이터와 흐름 — 흐름과 저장소 매핑"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-DATA"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-DATA"]
 area: "CLE-EXEC"
-content_hash: "dd099005f34c0a637f646fa4363574d44146a6f938dd232cd9bb98132295aa29"
+content_hash: "814c8ab25cb55c91abca672c24a08fef25de06809071821c6493d70f128bcd26"
 read_as: "approved_fallback"
-task: "CLE-T-2Q4KRF"
+task: "CLE-T-YWSS9K"
 source_paths: []
-mirror_sha256: "00e4e2590dfcf6cd457288e604b7c94581a75a00d414459d5a7eb1314cdb9665"
-etag: "sha256-e35d70629518873938c5acafcf0abfbdbc76261a2b2a81213b9ab29affd2d9f7"
+mirror_sha256: "12db7c74d5b63949363308b394a6975c6d6597bcd11e82bbf3a1b0431f22d43e"
+etag: "sha256-3933413013876c6f523e1e14d5b56b3267d01b06d53f7040c1dac13b4a12bf84"
 ---
 ## 개요
 
@@ -127,7 +127,7 @@ sequenceDiagram
 
 - `background_failed` 알림을 보내는 주체는 엔진이 아니라 **`BackgroundExecutionProcessor.process` 의 catch** 다(`dispatchFailureNotification`, 정리된 에러 메시지 포함). 알림 속성은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 에 있다.
 - 본문 실패는 메인 실행의 상태를 바꾸지 않는다(격리).
-- Processor 는 `background:run:<id>` WebSocket 채널로 `execution.background_run.started` / `completed` 이벤트도 발행한다(모니터링). 본문 실행 규칙과 모니터링은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 와 [컨테이너 실행](CLE-EXEC-CONTAINER.md) 에 있다.
+- Processor 는 `background:run:<id>` WebSocket 채널로 `execution.background_run.started` / `completed` 이벤트도 발행한다(모니터링). 이벤트 · payload 정의는 [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](../CLE-API/CLE-API-WS-EVENTS-CHANNELS.md#8-background-본문-실행-이벤트-server--client) 가 정본이다. 본문 실행 규칙과 모니터링은 [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 와 [컨테이너 실행](CLE-EXEC-CONTAINER.md) 에 있다.
 
 ### 입력으로 재개
 
@@ -209,12 +209,12 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 
 | 이벤트 | 발행 시점 | 구독 room |
 | --- | --- | --- |
-| `execution.started` / `completed` / `failed` / `cancelled` | 실행 상태 전이 | `workflow:<id>` 또는 `execution:<id>` |
+| `execution.started` / `completed` / `failed` / `cancelled` | 실행 상태 전이 | `execution:<id>` |
 | `execution.node.started` / `completed` / `failed` / `cancelled` / `skipped`, `execution.waiting_for_input` | 노드 실행 상태 전이 | 같음 |
 | `execution.snapshot` | 소켓이 `execution:<id>` 채널을 처음 구독할 때 한 번(재연결 뒤 재구독 포함). 연결 시점이 아니라 구독 시점이다. 같은 소켓이 이미 구독한 채널을 다시 구독하면 보내지 않는다. 규칙은 [WebSocket 연결과 채널 구독 §6.2](../CLE-API/CLE-API-WS.md#62-놓친-이벤트-복구) | `execution:<id>` |
 | `execution.background_run.started` / `completed` | Background 본문 시작·종료 | `background:run:<id>` |
 
-- 이벤트 이름과 발행 조건의 기준은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이다. 위 표는 요약이며 어긋나면 그 문서가 우선한다. room 이름(`workflow:<id>` / `execution:<id>`)은 socket.io room 이름공간으로 이벤트 이름과 별개다.
+- 이벤트 이름과 발행 조건의 기준은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이다. 위 표는 요약이며 어긋나면 그 문서가 우선한다. room 이름(`execution:<id>` 등)은 socket.io room 이름공간으로 이벤트 이름과 별개다. `workflow:<id>` 채널에는 구독 인가만 있고 서버가 보내는 이벤트가 없다([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.2 채널 패턴」](../CLE-API/CLE-API-WS-MSG.md#42-채널-패턴)).
 - 모든 발행은 `WebsocketService` 한 곳을 거친다. 정책은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) 의 실행 이벤트 발행 경로에 있다.
 
 
@@ -231,4 +231,4 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 
 Background 본문이 도는 동안 메인 흐름이 변수를 바꿔도 본문에 영향이 없어야 한다. 그래서 발송 시점에 메인의 `variables / nodeOutputCache / expressionContext` 를 얕은 복사로 떠서 payload 에 담는다(`background-execution.queue.ts` 주석). 소비자는 이 스냅샷으로 다시 만든 컨텍스트 위에서 `executeBackgroundSubgraph` 를 부른다.
 
-payload 에는 Background 노드가 받은 입력의 스냅샷(`input`)도 싣는다. 본문 진입 노드가 이 값을 입력으로 받는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문-진입-노드는-background-노드가-받은-입력을-받는다-2026-11-12)). 컨테이너 본문 안 Background 면 그 컨테이너 ID(`containerScopeId`)와 큐에 넣은 회차의 반복 변수(`itemContext` · `loopContext`)도 싣는다. 워커는 그 컨테이너 단계 그래프로 본문을 실행하고 본문 노드 식은 그 회차의 반복 변수를 읽는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#컨테이너-본문-안-background-는-컨테이너-단계-그래프로-실행한다-2026-11-12)).
+payload 에는 Background 노드가 받은 입력의 스냅샷(`input`)도 싣는다. 본문 진입 노드가 이 값을 입력으로 받는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문-진입-노드는-background-노드가-받은-입력을-받는다)). 컨테이너 본문 안 Background 면 그 컨테이너 ID(`containerScopeId`)와 큐에 넣은 회차의 반복 변수(`itemContext` · `loopContext`)도 싣는다. 워커는 그 컨테이너 단계 그래프로 본문을 실행하고 본문 노드 식은 그 회차의 반복 변수를 읽는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#컨테이너-본문-안-background-는-컨테이너-단계-그래프로-실행한다)).
