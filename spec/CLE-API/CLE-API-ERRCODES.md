@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 41
+version: 42
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "eaa02a81f4c57b8332cf37c1648d81918dea552958d34f15e925067b4544fa6c"
+content_hash: "b2dc8c0c59f350562651a9709794e1cbd9fdff34e97ece2527dcf08334cd4b56"
 read_as: "approved_fallback"
-task: "CLE-T-GTSEDT"
+task: "CLE-T-8WXV7T"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "33a7f3315e852983aa7848df36fbdd228950fc392f9a460c10fc0c5a75a0770c"
-etag: "sha256-555063cc770d09d3eb9105aa66e873db159d814e9200d84b5333260d1709f25f"
+mirror_sha256: "3c5f4ca97680eae7d9f64d6cac1b04e248cc2c69d169af8a641dbc58723a9cb1"
+etag: "sha256-d0792b9d2016489805e626375abf42de50c4449e80e7544e3d7bda4f16edcd5b"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ etag: "sha256-555063cc770d09d3eb9105aa66e873db159d814e9200d84b5333260d1709f25f"
    - MakeShop 통합의 통합 재인증(`POST /api/integrations/:id/reauthorize`)과 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)은 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절한다. 이 두 경로에만 쓴다. 근거는 [에러 코드 카탈로그 — 통합 관리 · OAuth 「MakeShop 통합 재인증 · 추가 권한 요청의 거절을 `MAKESHOP_CREDENTIALS_REQUIRED` 행에 더했다」](CLE-API-ERRCODES-INTMGMT.md#makeshop-통합-재인증--추가-권한-요청의-거절을-makeshop_credentials_required-행에-더했다-2026-11-14) 와 [OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청 「MakeShop 통합 재인증과 추가 권한 요청의 거절 코드를 정했다」](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13) 에 있다.
 7. 이름 규칙(규칙 1~3)을 따르지 않지만 유지하는 기존 코드는 §3 예외 등록부에 적는다. 새 코드는 예외를 선례로 삼지 않는다.
 8. 발행하는 코드는 모두 §6 카탈로그에 등재한다. 정의·발생 조건이 도메인 문서에 있으면 그 문서를 정의 문서로 적고 카탈로그는 공용 가시성을 위해 등재만 한다.
-9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다. 사람이 정했지만 아직 구현하지 않은 코드는 표에 넣지 않는다. 해당 절의 표 아래 문장에 상태 코드와 조건을 적고 구현 Task 가 있으면 함께 적는다. 발행과 함께 표에 등재한다. 그 코드를 정의하는 영역 문서는 자기 표에 미구현 표시를 붙여 먼저 적을 수 있다.
+9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다. 사람이 정했지만 아직 구현하지 않은 코드는 표에 넣지 않는다. 해당 절의 표 아래 문장에 상태 코드와 조건을 적고 구현 Task 가 있으면 함께 적는다. 발행과 함께 표에 등재한다. 그 코드를 정의하는 영역 문서는 자기 표에 미구현 표시를 붙여 먼저 적을 수 있다. 발행처가 없어도 enum 이나 소비자(채팅 채널 실행 실패 분류기 · 사용자 가이드 대조 테스트)가 이름을 싣고 있는 코드는 행을 남긴다. 그런 행은 설명에 «발행하지 않음» 을 적거나 앵커 열에 `분류기 인용` 을 적는다. 이 단서는 소비자 목록을 정리하는 NERV Task `CLE-T-P0W82J` 가 끝나면 걷는다.
 10. 교체한 옛 코드는 §5 은퇴 코드 표에 흡수 등급과 함께 남긴다.
 
 ## 1. 의미 기반 명명
@@ -148,11 +148,8 @@ etag: "sha256-555063cc770d09d3eb9105aa66e873db159d814e9200d84b5333260d1709f25f"
 
 ## 미결 사항
 
-- **발행처가 없는 등재 코드**: `DATABASE_ERROR`(§6.1)는 백엔드에서 발행처가 확인되지 않는다(grep 0건). 초대 흐름의 소문자 `rate_limited`(§3)도 백엔드·프론트엔드 소스에 문자열이 0건이다. 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 초대 에러 표에서 뺄지는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#미결-사항) 의 같은 미결과 함께 정한다. 규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정하지만 이 판단은 코드 실측에 기대므로 등재를 지울지 결정이 필요하다. `INTERACTION_TIMEOUT`(§6.7)도 `error-codes.ts` 에 정의만 있고 발행처가 없다(2026-11-12 grep 0건). [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 재개 명령 에러 표에도 있어 함께 정한다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 - **`ASSISTANT_STREAM_FAILED` 의 원인 묶음**: §6.25 의 `ASSISTANT_STREAM_FAILED` 한 코드에 클라이언트 생성 실패(모델 설정 값 오류 · 키 복호화 실패 등), 모델 설정 조회 실패(DB 장애 등), 서비스 내부 실패가 함께 담긴다. 설정 값 오류는 다시 보내도 같은 결과지만 나머지는 일시적일 수 있어 규칙 6 과 맞지 않을 수 있다. 코드를 나눌지 결정이 필요하다. 같은 429 · SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가던 규칙 4 의 어긋남은 2026-11-14 에 풀었다([LLM 클라이언트 · AI 어시스턴트 「어시스턴트 스트림 코드의 프로바이더 분기를 없앴다」](CLE-API-ERRCODES-LLM.md#어시스턴트-스트림-코드의-프로바이더-분기를-없앴다-2026-11-14)).
 - **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
-- **`LLM_TIMEOUT` 의 등재**: 2026-10-10 에 LLM 타임아웃을 이 코드로 내지 않기로 정했고 [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 의 약속도 거뒀다(§6.6). 남은 것은 `HTTP_TIMEOUT` 처럼 enum 에 남길지, 규칙 9 에 따라 등재를 지울지다. 정리는 NERV Task `CLE-T-8WXV7T` 가 다른 미발행 코드와 함께 한다. [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) §3.2 예시와 [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 분류 표의 행도 그때 함께 정리한다.
-- **`RECURSION_DEPTH_EXCEEDED` 의 발행 형태**: 카탈로그는 이 코드를 등재하지만 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 는 재귀 깊이 초과를 코드 없이 메시지 `Maximum recursion depth exceeded (limit: 10)` 로 throw 한다고 적는다. 코드를 붙일지 카탈로그에서 뺄지 결정이 필요하다. 정리는 NERV Task `CLE-T-8WXV7T` 에서 한다.
 
 ## 구현 위치
 
@@ -230,3 +227,16 @@ etag: "sha256-555063cc770d09d3eb9105aa66e873db159d814e9200d84b5333260d1709f25f"
 ### `new` 가 아닌 모드의 begin 이 대상 통합과 맞지 않는 요청에 `OAUTH_TARGET_MISMATCH` 를 새로 만들었다 (2026-11-06)
 
 → [에러 코드 카탈로그 — 통합 관리 · OAuth](CLE-API-ERRCODES-INTMGMT.md#new-가-아닌-모드의-begin-이-대상-통합과-맞지-않는-요청에-oauth_target_mismatch-를-새로-만들었다-2026-11-06)
+
+### 발행처가 없는 등재 코드를 코드별로 정리했다
+
+결정일: 2026-11-20
+
+규칙 9 는 발행된 적 없는 코드의 등재를 지우라고 정한다. 2026-11-20 에 사람이 미결로 남아 있던 코드를 하나씩 정했다(NERV Task `CLE-T-8WXV7T`).
+
+- **`DATABASE_ERROR` 는 지웠다.** 백엔드 어디에도 발행처가 없고 이 이름으로 분기하는 소비자도 없다.
+- **초대 흐름의 소문자 `rate_limited` 는 `RATE_LIMITED` 로 고쳤다.** 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 대문자 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 소문자 값은 소스에 0건이라 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 의 초대 행에서 뺐다.
+- **`HTTP_TIMEOUT` · `LLM_TIMEOUT` · `INTERACTION_TIMEOUT` 은 «발행하지 않음» 표시로 남겼다.** 세 코드는 `error-codes.ts` 의 enum 에 정의가 있고 사용자 가이드 대조 테스트와 채팅 채널 분류기가 이름을 싣고 있다. 그래서 행을 지우지 않고 행마다 발행하지 않는다고 적었다. 규칙 9 의 단서로 적었고 표시는 `HTTP_TIMEOUT` 이 쓰던 꼴에 맞췄다.
+- **엔진이 코드로 내지 않는 이름은 행을 남기고 앵커 열에 실측을 적었다.** `RECURSION_DEPTH_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` 는 채팅 채널 실행 실패 분류기(`execution-failure-classifier.ts`)가 싣고 있어 독자가 이 카탈로그에서 찾는다. 앵커 열은 `분류기 인용` 이다([실행 엔진 · 노드 런타임](CLE-API-ERRCODES-EXEC.md#65-워크플로우-실행-엔진-수준)). `CYCLE_DETECTED` · `INVALID_EXPRESSION` 은 AI 어시스턴트의 Shadow 검증이 도구 결과로 돌려주는 값이라 정의 문서를 어시스턴트 도구 문서로 옮겼다.
+
+기각한 대안은 발행처가 없는 등재를 모두 지우는 안이다. enum 과 분류기 목록을 함께 고쳐야 하는 코드 변경이라 문서만 맞추는 이 Task 의 범위를 넘는다. 분류기와 enum 을 걷고 남은 행을 지우는 일은 NERV Task `CLE-T-P0W82J` 가 맡는다.

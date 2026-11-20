@@ -2,19 +2,19 @@
 id: "CLE-WF-NODEPANEL"
 title: "노드 포트와 설정 패널"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-NODEUI-001", "REQ-NODEUI-002", "REQ-NODEUI-003", "REQ-NODEUI-004", "REQ-NODEUI-005", "REQ-NODEUI-006", "REQ-NODEUI-007", "REQ-NODEUI-008", "REQ-NODEUI-009", "REQ-NODEUI-010", "REQ-NODEUI-011", "REQ-NODEUI-012", "REQ-NODEUI-013", "REQ-NODEUI-014", "REQ-NODEUI-015", "REQ-NODEUI-016", "REQ-NODEUI-017", "REQ-NODEUI-018", "REQ-NODEUI-019", "REQ-NODEUI-020", "REQ-NODEUI-021", "REQ-NODEUI-022", "REQ-NODEUI-023", "REQ-NODEUI-024", "REQ-NODEUI-025", "REQ-NODEUI-026", "REQ-NODEUI-027", "REQ-NODEUI-028", "REQ-NODEUI-029", "REQ-NODEUI-030", "REQ-NODEUI-031", "REQ-NODEUI-032", "REQ-NODEUI-033", "REQ-NODEUI-034", "REQ-NODEUI-035", "REQ-NODEUI-036", "REQ-NODEUI-037", "REQ-NODEUI-038", "REQ-NODEUI-039", "REQ-NODEUI-040", "REQ-NODEUI-041", "REQ-NODEUI-042", "REQ-NODEUI-043", "REQ-NODEUI-044"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "3c4e9d03d6fedfabcb40b505259d620c54c01d207f143c12ccc33aad8fe1b2b8"
-read_as: "approved"
-task: null
+content_hash: "4d94033a4341a26401336ab7044fb67a3ffc00f13b435a10ff89808a97fa04b7"
+read_as: "approved_fallback"
+task: "CLE-T-1639BP"
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "832ccb2a4aa1ad09a81a9edf16c5f1981156d0cdc2fe7b729b019f7d0fd4f33d"
-etag: "sha256-e60a75f95fa650b30c6e033a5c4a932f6394b5c28dc06b53a53acce04126f08a"
+mirror_sha256: "38f95f7124928a0f5bbb1d9bf05b71aee8c70784c67cc07bc45df016f4774114"
+etag: "sha256-a686e738933fd5ff7d0bf110a74f93b77741ce25c3b3bede1ea67ff8938eef4a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -252,7 +252,7 @@ config.errorHandling = {
 
 **정책을 바꿀 때 동적 에러 포트의 연결선**: 고정 `error` 포트가 없는 노드에서 정책을 "에러 포트로 라우팅" 에서 다른 정책으로 바꿔 저장하면 동적 에러 포트가 사라진다. 설정 패널은 같은 저장에서 그 노드의 `error` 연결선을 지우고 지운 개수를 토스트로 알린다. 정책 변경과 연결선 삭제는 되돌리기 단위 하나로 묶여 되돌리기(Ctrl+Z) 한 번으로 함께 돌아온다. 노드 정의를 아직 받지 못했으면 연결선을 지우지 않는다. 동적 포트를 지우면 그 연결선도 지우는 REQ-NODEUI-020 과 같은 방향이지만 요구사항은 REQ-NODEUI-044 로 따로 둔다. 근거는 [R-8](#r-8-정책을-바꾸면-동적-에러-포트의-연결선을-저장할-때-지운다-2026-11-14) 에 있다.
 
-에러 처리 정책은 노드 핸들러가 던진 실패에만 적용된다. 노드가 런타임 실패를 `error` 포트 출력으로 돌려주면 정책이 적용되지 않는다. 예를 들어 AI 에이전트 단일 턴의 LLM 호출 실패에는 `retry` · `skip_node` · `use_default_output` 이 걸리지 않는다. 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#error-포트로-돌려준-실패에-정책을-걸지-않는다-2026-11-01) 에 있다.
+에러 처리 정책은 노드 핸들러가 던진 실패에만 적용된다. 노드가 런타임 실패를 `error` 포트 출력으로 돌려주면 정책이 적용되지 않는다. 예를 들어 AI 에이전트 단일 턴의 LLM 호출 실패에는 `retry` · `skip_node` · `use_default_output` 이 걸리지 않는다. 근거는 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#error-포트로-돌려준-실패에-정책을-걸지-않는다) 에 있다.
 
 `config.errorHandling.policy` 가 없는 노드를 불러오면 예전 평면 키 `config.errorPolicy` 의 단축값을 대응하는 에러 처리 정책으로 읽고 저장할 때 그 키를 지운다. ForEach·Map·Parallel 에서는 이 키가 항목 에러 정책(item error policy, `config.errorPolicy`)이라 옮기지도 지우지도 않는다. 저장 코드는 이 세 노드에서 `config.errorHandling` 과 `config.errorPolicy` 두 키를 모두 보존한다(`node-settings-panel.tsx`, REQ-NODEUI-041). 근거는 [R-4](#r-4-foreachmapparallel-의-configerrorpolicy-는-옮기지-않는다-2026-10-10) 에 있다.
 
@@ -333,11 +333,11 @@ R-2 · R-3 은 auto-form 결정이라 하위 문서 [노드 포트와 설정 패
 
 ### R-6. 노드 건너뛰기의 출력 설명을 엔진 동작에 맞춘다 (2026-11-06)
 
-엔진은 건너뛴 노드의 출력을 쓰지 않으므로 노드 건너뛰기의 출력을 `null` 로 적었던 표를 엔진 동작에 맞췄다. 동작은 바꾸지 않았다. 표현식에 미치는 영향은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#노드-건너뛰기는-출력을-쓰지-않는다-2026-11-06) 의 Rationale 에 있다.
+엔진은 건너뛴 노드의 출력을 쓰지 않으므로 노드 건너뛰기의 출력을 `null` 로 적었던 표를 엔진 동작에 맞췄다. 동작은 바꾸지 않았다. 표현식에 미치는 영향은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#노드-건너뛰기는-출력을-쓰지-않는다) 의 Rationale 에 있다.
 
 ### R-7. 에러 포트는 노드마다 하나다 (2026-11-14)
 
-고정 `error` 포트가 있는 노드에는 동적 에러 포트를 만들지 않는다. 사용자 정의 동적 포트 ID 에서는 `error` 를 예약한다(REQ-NODEUI-012 · 042 · 043). 엔진이 포트를 문자열로 고르므로 한 노드에 `error` 포트가 둘이면 연결선을 구분할 수 없다. 사람 결정(질문 `01a1d93e-312b-7176-89a0-cb1f3d34458c`)이고, 결정과 기각한 대안은 [노드 출력 규약 — 포트 · 흐름 상태 · 에러](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14) Rationale 에 있다.
+고정 `error` 포트가 있는 노드에는 동적 에러 포트를 만들지 않는다. 사용자 정의 동적 포트 ID 에서는 `error` 를 예약한다(REQ-NODEUI-012 · 042 · 043). 엔진이 포트를 문자열로 고르므로 한 노드에 `error` 포트가 둘이면 연결선을 구분할 수 없다. 사람 결정(질문 `01a1d93e-312b-7176-89a0-cb1f3d34458c`)이고, 결정과 기각한 대안은 [노드 출력 규약 — 포트 · 흐름 상태 · 에러](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다) Rationale 에 있다.
 
 ### R-8. 정책을 바꾸면 동적 에러 포트의 연결선을 저장할 때 지운다 (2026-11-14)
 

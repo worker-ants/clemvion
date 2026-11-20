@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-WSEIA"
 title: "에러 코드 카탈로그 — WebSocket · EIA · Background Runs"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "007af53f8ff849f736fdad04a36ea456ae70aaba4bc093c0abbcf1ee4dd2752c"
+content_hash: "19124c66e2a509013fe7f937cbd092f213c8cd2ccd1ac7191c4488de1ecf30fc"
 read_as: "approved_fallback"
-task: "CLE-T-2Q4KRF"
+task: "CLE-T-8WXV7T"
 source_paths: []
-mirror_sha256: "8c431d7083f377287f118f9e8216e615172e6f248a8e64c6a87b749dd0d518da"
-etag: "sha256-d09051be2d7d6c66944c3a27c90530887ba35715ffae1187b0e97dc014f37143"
+mirror_sha256: "111ab993b8ad334be2bac03c2c459300cb1f925c75191e1fb3cde31b7f5048be"
+etag: "sha256-ebbd395b779b3d9afab9cf8c4a1faf46265ad8d44360f8ee513c29df57272245"
 ---
 ## 개요
 
@@ -28,7 +28,7 @@ etag: "sha256-d09051be2d7d6c66944c3a27c90530887ba35715ffae1187b0e97dc014f37143"
 |------|------|-----------|
 | `INVALID_EXECUTION_STATE` | 실행이 기대한 상태가 아님(재개 명령 넷(`submit_form` · `click_button` · `submit_message` · `end_conversation`)은 입력 대기, `retry_last_turn` 은 대상 노드 실행이 `failed` 이고 실행은 `finishedAt` 이 채워진 `failed` 이기를 기대). `finishedAt` 이 빈 `failed` 실행은 같은 실행의 다른 재시도 턴이 도는 중이라 이 코드로 거절한다. 동기 ack 응답이고 BullMQ 에 넣지 않는다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md), [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md), [재시도 전제와 재시도 턴 시작](../CLE-EXEC/CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) |
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID(`click_button`) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
-| `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
+| `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태. 발행하지 않음(아래) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `VALIDATION_ERROR` (ack) | `submit_form` 의 필드 검증 실패. ack 는 평면 `errorCode` 이고 필드별 `details[]` 가 없다. EIA REST 의 `400 VALIDATION_ERROR` 와 같은 뜻, 같은 검증 지점이다 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 메시지가 최대 길이(10000자)를 넘음. 발행 쪽 동기 검증(typed `MessageTooLongError`) | [WebSocket 이벤트와 명령 「2.3 재개 명령의 에러」](CLE-API-WS-EVENTS.md#23-재개-명령의-에러), [큐 워커와 동시 실행 제한 「발행 결과와 ack 에러 표면」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면) |
 | `EXECUTION_INTERNAL_ERROR` | 재개 처리 중 typed `ExecutionError` 가 아닌 내부 에러의 일반 fallback. ack `error` 는 고정 일반 문자열이고 내부 메시지는 클라이언트에 보내지 않는다(서버 로그 전용) | [WebSocket 이벤트와 명령 「2.3 재개 명령의 에러」](CLE-API-WS-EVENTS.md#23-재개-명령의-에러), [큐 워커와 동시 실행 제한 「발행 결과와 ack 에러 표면」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면) |
@@ -40,6 +40,8 @@ etag: "sha256-d09051be2d7d6c66944c3a27c90530887ba35715ffae1187b0e97dc014f37143"
 | `RETRY_TOO_EARLY` | `outputData.output.error.details.retryAfterSec` 카운트다운이 끝나기 전에 호출함(서버 쪽 강제) | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
 | `SERVER_SHUTTING_DOWN` | 서버가 SIGTERM 을 받아 종료 중이라 수동 실행을 받지 않음. 수동 실행 진입점(`POST /api/workflows/:id/execute`, 단일 노드 실행 `POST /api/workflows/:id/nodes/:nodeId/execute`)만 503 으로 낸다. 503 응답에는 `Retry-After` 헤더를 싣는다. 값은 초 단위이고 유예 시간(`SIGTERM_GRACE_MS`)을 초로 올림한 값이다. 웹훅 · 스케줄처럼 실행을 영속 큐에 넣는 시작 경로는 거부하지 않는다 | [안전 종료와 영속 재개 큐 「안전 종료」](../CLE-EXEC/CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료) |
 | `EXECUTION_ENQUEUE_FAILED` | 입력 대기 실행에 보내는 취소와 재개 명령에서 재개 메시지 발행(BullMQ `queue.add`) 자체가 실패함. `publish` 가 `queued:false`(Redis 장애 등으로 큐에 들어가지 못함)를 돌려준 경우다. HTTP 진입점은 503 이고 실행은 입력 대기 상태를 유지한다(`failed` 아님). 다시 시도를 권한다. 이 코드를 내는 HTTP 진입점은 셋이다. REST `POST /executions/:id/stop`, External Interaction API `/interact`(별칭 `POST .../cancel` 포함), 채팅 채널 인바운드의 `/start` 다. External Interaction API 에서 어느 요청이 이 코드를 받는지는 [EIA 수신 API와 SSE 「명령 에러」](../CLE-IX/CLE-EIA-INBOUND.md#명령-에러) 가 정한다. 채팅 채널의 `/start` 는 활성 실행을 취소할 때 `ExecutionsService.stop` 을 직접 부르고 이 503 을 그대로 돌려준다. 이때 새 실행은 시작하지 않고 프로바이더는 non-2xx 를 받아 같은 update 를 다시 보낼 수 있다([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md)). 채팅 채널 인바운드의 `/cancel` 과 재개 입력은 이 코드를 내지 않는다. 큐에 넣지 못해도 `202` 로 응답하고 채널 건강도를 `degraded` 로 바꾼다([채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)). WebSocket 재개 명령 4종은 이 코드를 싣지 않는다. 같은 발행 실패는 `errorCode` 없는 실패 ack(`success:false`)로 알린다. `SERVER_SHUTTING_DOWN` 503 선례와 같은 형태이고 큐에 들어간 뒤 재개가 실패하는 워커 쪽 비동기 실패(`RESUME_*`)와 구분한다 | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-결과와-ack-에러-표면), [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개), [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) |
+
+- **`INTERACTION_TIMEOUT` 은 발행하지 않는다.** enum(`error-codes.ts`)에는 있지만 이 코드를 내는 경로가 없다(2026-11-20 grep). [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 재개 명령 에러 표에도 있어 `HTTP_TIMEOUT` 처럼 행을 남기고 발행하지 않는다고 표시한다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)).
 
 ## 6.8 WebSocket 전송 (도메인 문서 참조)
 

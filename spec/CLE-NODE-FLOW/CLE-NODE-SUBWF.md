@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030", "REQ-SUBWF-031"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "abe8552d7b1452f9a7b5f07738e7b8359dbfb554100afc7d62d350d2477c53ca"
+content_hash: "876c035f975bf4758d44ad13ac32600ddf98b59065883cbc4e16dc6022e99e53"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-1639BP"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0df05b33747a5efc0aba585e6afae05a54e3fa15e0c45faf25d8d5d8484b4a9c"
-etag: "sha256-d7e0e9bfb7c213e1cee2a01c743bb6d8f7ee41021da1395e30fec974d142c497"
+mirror_sha256: "4e1bd012093552433aeb13f32b54bcbadfb24df2d57ecc72c3fc6ce8c9ba2787"
+etag: "sha256-6bf177a4e83e947b6b29ef7dc7db034541a1077bf0b58ed3218b384574fa00ba"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -146,7 +146,7 @@ flowchart TD
 5. 재귀 깊이(`recursionDepth`)는 자식을 부를 때 1 을 더해 넘긴다(동기는 실행 컨텍스트, 비동기는 `Execution` 행). 최대 깊이는 10 이고 자기 호출(A→A)도 한도 안에서 허용한다.
 6. 동기 호출한 서브 워크플로우의 진입점 트리거는 `manual_trigger` 만 허용한다. 다른 트리거 카테고리 노드를 만나면 엔진이 `INVALID_SUB_WORKFLOW_TRIGGER:` 로 시작하는 메시지를 throw 한다(`execution-engine.service.ts`). 지금 트리거 카테고리 노드는 `manual_trigger` 뿐이다.
 7. 동기 호출한 서브 워크플로우 안의 Parallel 도 엔진의 Parallel 실행 경로를 탄다(`PARALLEL_ENGINE=v1`, 코드 기본값). 병렬 분기를 동시에 실행하고 완료 시점 엔진 덮어쓰기(`{ branches, count, skipped? }`, `port: 'done'`)를 받는다. 실행 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다) 가 정한다.
-   - 서브 워크플로우는 Parallel 중첩 깊이를 1부터 새로 센다(REQ-SUBWF-031). 병렬 분기 안에서 불러도 맨 바깥 Parallel 은 깊이 1 이다(근거와 대가는 [Rationale](#서브-워크플로우의-parallel-은-깊이를-새로-센다-2026-11-06)). `executeInline` 은 실행하는 동안 `parentParallelConcurrency` 를 떼었다가 끝나면(실패해도) 되돌린다.
+   - 서브 워크플로우는 Parallel 중첩 깊이를 1부터 새로 센다(REQ-SUBWF-031). 병렬 분기 안에서 불러도 맨 바깥 Parallel 은 깊이 1 이다(근거와 대가는 [Rationale](#서브-워크플로우의-parallel-은-깊이를-새로-센다)). `executeInline` 은 실행하는 동안 `parentParallelConcurrency` 를 떼었다가 끝나면(실패해도) 되돌린다.
    - 서브 워크플로우 안 Parallel 의 깊이 위반(`PARALLEL_NESTED_DEPTH_EXCEEDED:`)·병렬 분기 안 블로킹 노드(`PARALLEL_INVALID_CHILD:`) 에러는 `executeInline` 이 던지고 이 노드가 `error` 포트로 보낸다(REQ-SUBWF-018, `code` 는 `SUB_WORKFLOW_FAILED`).
    - `PARALLEL_ENGINE=off` 되돌림 경로에서는 병렬 분기 노드를 서브 워크플로우 루프가 차례로 실행한다.
 
@@ -311,7 +311,6 @@ flowchart TD
 ## 미결 사항
 
 - **비동기 호출의 최상위 `status: 'started'`**: [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#principle-0-노드-출력의-다섯-필드)은 `status` 를 흐름 지시 상태(`waiting_for_input`, `resumed`, `ended` 등)로 정의하고, Flow 노드 공통 규약의 옛 서술은 Flow 노드 `status` 를 `undefined` 로 적었다. 엔진이 모르는 값을 받는 셈이다. 결정 필요: `output.status` 만 남기고 최상위 `status` 를 없앨지, `started` 를 허용 값으로 규약에 더할지.
-- **재귀 깊이 초과의 에러 코드**: [에러 코드 카탈로그](../CLE-API/CLE-API-ERRCODES.md)에는 `RECURSION_DEPTH_EXCEEDED` 가 있지만 이 문서와 구현은 코드 없이 메시지만 throw 한다. 결정 필요: throw 에 코드를 붙일지, 카탈로그에서 뺄지.
 
 ## 구현 위치
 
@@ -324,7 +323,7 @@ flowchart TD
 
 ### 재귀 깊이 초과를 사전 검증 에러로 분류한 이유
 
-실행 중에 발견되지만 사용자 입력으로 회복할 비즈니스 실패가 아니라 실행 환경의 불변식 위반이다. 그래서 에러 포트로 보내지 않고 throw 한다.
+실행 중에 발견되지만 사용자 입력으로 회복할 비즈니스 실패가 아니라 실행 환경의 불변식 위반이다. 그래서 에러 포트로 보내지 않고 throw 한다. throw 에는 에러 코드 없이 메시지만 싣는다. 2026-11-20 에 사람이 이 형태를 유지하기로 정했고, 카탈로그의 `RECURSION_DEPTH_EXCEEDED` 행은 `분류기 인용` 으로 남겼다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](../CLE-API/CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)).
 
 ### 동기 호출의 진입점을 수동 트리거 노드로 제한한 이유
 
@@ -338,7 +337,9 @@ flowchart TD
 
 예전에는 호출자 워크스페이스 ID 가 없으면 로그만 남기고 통과시켰다(fail-open). 운영 호출처가 모두 이 값을 넘기는 것을 확인하고 값이 없어도 막도록 바꿨다. 경위는 [실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md)의 Rationale "C-1" 에 있다.
 
-### 최종 노드 출력은 마지막으로 실행한 노드의 출력이다 (2026-11-06)
+### 최종 노드 출력은 마지막으로 실행한 노드의 출력이다
+
+결정일: 2026-11-06
 
 Parallel 노드가 병렬 분기 결과를 「출력을 쓴 노드 가운데 위상 순서가 가장 늦은 노드」 로 정하면서 두 문서의 "마지막 노드" 가 다르게 읽힐 수 있게 됐다. 그래서 지금 엔진 동작(`executeInline` 이 노드를 실행할 때마다 반환값을 바꾼다)을 정의로 적었다.
 
@@ -346,7 +347,9 @@ Parallel 노드가 병렬 분기 결과를 「출력을 쓴 노드 가운데 위
 
 2026-11-19 에 이 값을 마지막 노드의 핸들러 `output` 으로 정했다(NERV Task `CLE-T-JDYHCF`). `output.result._selectedPort` · `output.result.data` 로 엔진 봉투를 읽던 표현식은 고쳐야 한다. 근거와 기각한 대안은 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#실행-결과와-서브워크플로-결과도-핸들러-output-을-싣는다)에 있다.
 
-### 서브 워크플로우의 Parallel 은 깊이를 새로 센다 (2026-11-06)
+### 서브 워크플로우의 Parallel 은 깊이를 새로 센다
+
+결정일: 2026-11-06
 
 서브 워크플로우 루프(`executeInline`)도 Parallel 을 엔진의 Parallel 실행 경로(`runParallel`)로 넘긴다. 전에는 핸들러만 부르고 병렬 분기 노드를 차례로 실행했다. 실행 경로의 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 가 정하고 컨테이너 본문 쪽은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문의-parallel-도-덮어쓰기를-받는다) 이 정한다.
 
