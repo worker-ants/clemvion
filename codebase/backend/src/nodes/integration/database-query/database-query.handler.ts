@@ -719,7 +719,12 @@ function skipSqlComment(
 ): SqlSkip {
   if (sql.startsWith('--', pos)) {
     const next = sql[pos + 2];
-    if (next !== undefined && !/[\x00-\x20\x7f]/.test(next))
+    // ASCII 공백 · 제어 문자(0x00-0x20, 0x7f)만 공백으로 본다.
+    if (
+      next !== undefined &&
+      next.charCodeAt(0) > 0x20 &&
+      next.charCodeAt(0) !== 0x7f
+    )
       return SQL_AMBIGUOUS;
     return skipToLineEnd(sql, pos);
   }
