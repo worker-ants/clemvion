@@ -148,3 +148,111 @@ class J {
   }
 }
 `;
+
+// ─── 인라인 `record()` 호출 fixture ─────────────────────────────────────────
+
+/** 인라인 검사가 액션 상수를 풀 때 쓰는 `AUDIT_ACTIONS` 정의 (실제 파일과 같은 `as const` 형태). */
+export const AUDIT_ACTIONS_CONST_SOURCE = `
+export const AUDIT_ACTIONS = {
+  FOO_CREATED: 'foo.created',
+  FOO_DELETED: 'foo.deleted',
+  BAR_UPDATED: 'bar.updated',
+} as const;
+`;
+
+/** 통과해야 하는 형태 — 상수 액션 · 리터럴 액션 · 상수 resourceType 이 모두 접두와 맞는다. */
+export const INLINE_GOOD_SOURCE = `
+const FOO_RESOURCE_TYPE = 'foo';
+class K {
+  async a() {
+    await this.auditLogsService.record({
+      workspaceId,
+      action: AUDIT_ACTIONS.FOO_CREATED,
+      resourceType: 'foo',
+      resourceId: id,
+    });
+  }
+  async b() {
+    await this.auditLogsService.record({
+      action: 'bar.updated',
+      resourceType: 'bar',
+    });
+  }
+  async c() {
+    await this.auditLogsService.record({
+      action: AUDIT_ACTIONS.FOO_DELETED,
+      resourceType: FOO_RESOURCE_TYPE,
+    });
+  }
+}
+`;
+
+/** 잡아야 하는 형태 — `foo.*` 액션을 `bar` 리소스로 기록한다. 둘째 호출만 어긋난다. */
+export const INLINE_MISBOUND_SOURCE = `
+class L {
+  async a() {
+    await this.auditLogsService.record({
+      action: AUDIT_ACTIONS.FOO_CREATED,
+      resourceType: 'foo',
+    });
+  }
+  async b() {
+    await this.auditLogsService.record({
+      action: AUDIT_ACTIONS.FOO_DELETED,
+      resourceType: 'bar',
+    });
+  }
+}
+`;
+
+/**
+ * 판정하지 않아야 하는 형태 — 값을 정적으로 모른다. helper 가 넘겨받은 `params.action`,
+ * shorthand, import 한 resourceType 상수. 수집은 하되 `null` 로 남긴다.
+ */
+export const INLINE_UNRESOLVABLE_SOURCE = `
+import { BAR_RESOURCE_TYPE } from './elsewhere';
+class M {
+  private recordAudit(params: { action: AuditActionFor<'foo'> }) {
+    return this.auditLogsService.record({
+      action: params.action,
+      resourceType: 'bar',
+    });
+  }
+  async b(action: AuditAction, resourceType: string) {
+    await this.auditLogsService.record({ action, resourceType });
+  }
+  async c() {
+    await this.auditLogsService.record({
+      action: AUDIT_ACTIONS.FOO_CREATED,
+      resourceType: BAR_RESOURCE_TYPE,
+    });
+  }
+}
+`;
+
+/**
+ * 수집하지 않아야 하는 형태 — 이름은 `record` 지만 감사 기록이 아니다. 로그인 이력 ·
+ * 메트릭 히스토그램처럼 `action` · `resourceType` 이 함께 있지 않거나 인자가 객체 하나가 아니다.
+ */
+export const INLINE_UNRELATED_RECORD_SOURCE = `
+class N {
+  async a() {
+    await this.loginHistory.record({ userId, action: 'login', success: true });
+    this.nodeDuration.record(durationMs, { resourceType: 'foo' });
+    await this.usageLogService.record({ workspaceId, model });
+    await this.auditLogsService.log({ action: 'foo.created', resourceType: 'bar' });
+  }
+}
+`;
+
+/** 던져야 하는 형태 — `AUDIT_ACTIONS` 에 없는 키. 조용히 판정에서 빠지면 오탈자가 숨는다. */
+export const INLINE_UNKNOWN_KEY_SOURCE = `
+class O {
+  async a() {
+    await this.auditLogsService.record({
+      action: AUDIT_ACTIONS.FOO_RENAMED,
+      resourceType: 'foo',
+    });
+  }
+}
+`;

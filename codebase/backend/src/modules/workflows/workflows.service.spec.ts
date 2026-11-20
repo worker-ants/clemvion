@@ -3356,6 +3356,161 @@ describe('WorkflowsService', () => {
       expect(result.clearedIntegrationRefs).toEqual([]);
     });
 
+    describe('workflow.version_restored 감사 (CLE-OBS-AUDIT-CATALOG)', () => {
+      const restorable = () => {
+        mockRepository.findOne.mockResolvedValue({
+          ...mockWorkflow,
+          currentVersion: 3,
+        });
+        mockWorkflowVersionsService.findOne.mockResolvedValue({
+          id: 'v-original',
+          workflowId: 'wf-uuid-1',
+          version: 2,
+          snapshot: {
+            name: 'Snapshot Name',
+            nodes: [
+              {
+                id: 'node-1',
+                type: 'manual_trigger',
+                category: NodeCategory.TRIGGER,
+                label: 'Manual Trigger',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+            ],
+            edges: [],
+          },
+        });
+        mockWorkflowVersionsService.createVersion.mockResolvedValueOnce({
+          id: 'v-new',
+          version: 4,
+        });
+      };
+
+      it('복원한 원본 버전 ID 와 새로 생긴 버전 ID 를 details 에 남긴다', async () => {
+        restorable();
+
+        await service.restoreVersion(
+          'wf-uuid-1',
+          'ws-uuid-1',
+          'v-original',
+          'user-uuid-1',
+        );
+
+        expect(auditLogs.record).toHaveBeenCalledTimes(1);
+        expect(auditLogs.record).toHaveBeenCalledWith({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: 'workflow.version_restored',
+          resourceType: 'workflow',
+          resourceId: 'wf-uuid-1',
+          details: { originalVersionId: 'v-original', newVersionId: 'v-new' },
+        });
+      });
+
+      it('응답에는 새 버전 ID 를 싣지 않는다', async () => {
+        restorable();
+
+        const result = await service.restoreVersion(
+          'wf-uuid-1',
+          'ws-uuid-1',
+          'v-original',
+          'user-uuid-1',
+        );
+
+        expect(Object.keys(result).sort()).toEqual([
+          'clearedIntegrationRefs',
+          'edges',
+          'nodes',
+          'workflow',
+        ]);
+      });
+
+      it('트랜잭션 커밋 뒤에 기록한다', async () => {
+        restorable();
+        const order: string[] = [];
+        const origTx = mockDataSource.transaction;
+        mockDataSource.transaction = jest.fn(
+          async (_iso: unknown, cb?: any) => {
+            const fn = typeof _iso === 'function' ? _iso : cb;
+            order.push('tx-start');
+            const r = await fn(mockTransactionManager);
+            order.push('tx-commit');
+            return r;
+          },
+        );
+        auditLogs.record.mockImplementation(async () => {
+          order.push('audit');
+        });
+
+        try {
+          await service.restoreVersion(
+            'wf-uuid-1',
+            'ws-uuid-1',
+            'v-original',
+            'user-uuid-1',
+          );
+          expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+        } finally {
+          mockDataSource.transaction = origTx;
+        }
+      });
+
+      it('트랜잭션이 실패하면 기록하지 않는다', async () => {
+        restorable();
+        const origTx = mockDataSource.transaction;
+        mockDataSource.transaction = jest.fn(
+          async (_iso: unknown, cb?: any) => {
+            const fn = typeof _iso === 'function' ? _iso : cb;
+            await fn(mockTransactionManager);
+            throw new Error('commit failed');
+          },
+        );
+
+        try {
+          await expect(
+            service.restoreVersion(
+              'wf-uuid-1',
+              'ws-uuid-1',
+              'v-original',
+              'user-uuid-1',
+            ),
+          ).rejects.toThrow('commit failed');
+          expect(auditLogs.record).not.toHaveBeenCalled();
+        } finally {
+          mockDataSource.transaction = origTx;
+        }
+      });
+
+      it('캔버스 저장은 감사를 남기지 않고 응답에 버전 ID 를 싣지 않는다', async () => {
+        restorable();
+
+        const result = await service.saveCanvas(
+          'wf-uuid-1',
+          'ws-uuid-1',
+          'user-uuid-1',
+          {
+            nodes: [
+              {
+                id: 'node-1',
+                type: 'manual_trigger',
+                category: NodeCategory.TRIGGER,
+                label: 'Manual Trigger',
+                positionX: 0,
+                positionY: 0,
+                config: {},
+              },
+            ],
+            edges: [],
+          } as any,
+        );
+
+        expect(auditLogs.record).not.toHaveBeenCalled();
+        expect(result).not.toHaveProperty('versionId');
+      });
+    });
+
     it('restores a snapshot with a malformed trigger parameter without a 400', async () => {
       mockRepository.findOne.mockResolvedValue({
         ...mockWorkflow,

@@ -718,15 +718,18 @@ export class WorkflowsService {
     userId: string,
     dto: SaveCanvasDto,
   ): Promise<{ workflow: Workflow; nodes: Node[]; edges: Edge[] }> {
-    const { clearedIntegrationRefs: _cleared, ...result } =
-      await this.writeCanvas(id, workspaceId, userId, dto, 'save');
+    const {
+      clearedIntegrationRefs: _cleared,
+      versionId: _versionId,
+      ...result
+    } = await this.writeCanvas(id, workspaceId, userId, dto, 'save');
     return result;
   }
 
   /**
    * 캔버스 저장과 버전 복원이 함께 쓰는 쓰기(CLE-WF-DATA 저장 흐름). 둘은 노드 `config` 의 통합 참조에서만 갈린다. 저장은 바뀐
    * 참조가 쓸 수 없으면 거절하고(REQ-INTMGMT-054), 복원은 지금 노드와 다른 참조 가운데 실행하면 실패할 것을 비운다(REQ-WFVER-026).
-   * 저장은 늘 빈 `clearedIntegrationRefs` 를 돌려준다.
+   * 저장은 늘 빈 `clearedIntegrationRefs` 를 돌려준다. `versionId` 는 이번 쓰기로 생긴 버전의 ID 이고 응답에는 싣지 않는다.
    */
   private async writeCanvas(
     id: string,
@@ -743,6 +746,7 @@ export class WorkflowsService {
     nodes: Node[];
     edges: Edge[];
     clearedIntegrationRefs: ClearedIntegrationRef[];
+    versionId: string;
   }> {
     await this.findById(id, workspaceId);
     const skipLegacyDataGates = origin === 'restore';
@@ -810,7 +814,7 @@ export class WorkflowsService {
       // Snapshot creation runs in the same transaction so canvas + version
       // either both commit or both roll back. The pessimistic lock inside
       // createVersion serialises concurrent saves on this workflow.
-      await this.workflowVersionsService.createVersion(
+      const version = await this.workflowVersionsService.createVersion(
         id,
         userId,
         this.buildSnapshot(workflow, savedNodes, savedEdges),
@@ -823,6 +827,7 @@ export class WorkflowsService {
         nodes: savedNodes,
         edges: savedEdges,
         clearedIntegrationRefs,
+        versionId: version.id,
       };
     });
   }
@@ -965,7 +970,23 @@ export class WorkflowsService {
       changeSummary: `Restored from v${target.version}`,
     };
 
-    return this.writeCanvas(workflowId, workspaceId, userId, dto, 'restore');
+    const { versionId: newVersionId, ...result } = await this.writeCanvas(
+      workflowId,
+      workspaceId,
+      userId,
+      dto,
+      'restore',
+    );
+    // 복원 트랜잭션이 커밋된 뒤에 남긴다. 기록 실패는 `record` 가 삼켜 복원 응답을 깨지 않는다
+    // ([감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG) `workflow.version_restored`).
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_VERSION_RESTORED,
+      resourceId: workflowId,
+      details: { originalVersionId: target.id, newVersionId },
+    });
+    return result;
   }
 
   private buildSnapshot(

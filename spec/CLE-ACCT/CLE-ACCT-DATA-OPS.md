@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-OPS"
 title: "계정과 워크스페이스 데이터 흐름 — 테이블 쓰기 · 배치 · 외부 의존"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "81b1feee220a263c59027f2809c704c9dbbb97c0c3637a8c284a21468bfcb986"
+content_hash: "f2591c53b8fafa22712bd6ea47accec36c41c48c7dcd5e094cd976050fe1bae6"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-28MDF3"
 source_paths: []
-mirror_sha256: "e444958fba1ad76e55bc555358e12f1e7a775f20adbc5c7d22b5ad7537da40a3"
-etag: "sha256-e9435c72d4886c65602e8fecbb101ade78a500f9aea42fb4fdd6784fa1d0d95d"
+mirror_sha256: "71c13818d3aaad01295eed21a99ff0d6b01d20dc69089499c53cd22f123b6b0b"
+etag: "sha256-2459ac3a49d5bb0eb16abaf92c78c7bf9543fea84d4d99a6ab09508440c53ab6"
 ---
 ## 개요
 
@@ -64,7 +64,7 @@ etag: "sha256-e9435c72d4886c65602e8fecbb101ade78a500f9aea42fb4fdd6784fa1d0d95d"
 | `login-history-pruner` | 매일 03:00 Asia/Seoul(`upsertJobScheduler` pattern `0 3 * * *`, 명시적 tz) | 180일이 지난 `login_history` 행을 배치 루프로 지운다(`login-history.service.ts` 의 `pruneOlderThanRetention`, `RETENTION_DAYS=180`). `auth.module.ts` 의 `BullModule.registerQueue`, `jobs/login-history-pruner.service.ts` |
 | `workspace-invitations-pruner` | 매일 04:00 Asia/Seoul | 만료되고(`expires_at < now`) 수락되지 않은(`accepted_at IS NULL`) 초대 행을 지운다(`WorkspaceInvitationsPrunerService`, 비즈니스 로직은 `WorkspaceInvitationsService.pruneExpired(now)`). `MONITORED_QUEUES` 에 등재 |
 
-두 큐 모두 멀티 인스턴스에서도 전역 1회만 돈다.
+두 큐 모두 멀티 인스턴스에서도 전역 1회만 돈다. 03:00 과 04:00 사이(03:30 Asia/Seoul)에는 감사 로그 영역이 등록한 보존 배치 `audit-log-pruner` 가 돈다([감사 로그 「감사 로그 보존 배치」](../CLE-OBS/CLE-OBS-AUDIT.md#감사-로그-보존-배치)).
 
 BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 인증 챌린지 기록 `auth:webauthn-auth-challenge:<challenge>` 가 있다. 챌린지 기록은 TTL 로 사라지므로 정리 배치가 없다. 이 기록의 보존 기간 · 용도 · 실패 정책은 [Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록) 이 정한다. 이 영역이 만드는 키의 목록은 [비동기 큐와 Redis 키 목록 「다른 모듈의 키」](../CLE-PLAT/CLE-PLAT-QUEUE.md#다른-모듈의-키) 가 정본이다.
 

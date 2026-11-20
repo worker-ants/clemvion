@@ -1,54 +1,19 @@
 /**
  * 감사 로그 `action` 식별자 — 현재 구현된 action 의 단일 SoT.
  *
- * SoT: spec/5-system/1-auth.md §4.1 "구현된 액션" 표.
+ * 이름 규칙(`<resource>.<verb>`, 도메인별 시제)은 [감사 action 명명](CLE-OBS-AUDITNAME),
+ * 액션마다 무엇을 언제 남기는지 · `details` · 의도적으로 남기지 않는 것은
+ * [감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG) 가 정한다. 새 action 은 이 const 에 더한 뒤
+ * 쓴다(인라인 문자열 금지). `AuditLogsService.record({ action })` 가 `AuditAction` 합집합으로,
+ * 서비스별 `recordAudit` 헬퍼는 `AuditActionFor<리소스>` 로 강제한다.
  *
- * Naming 규약: `<resource>.<verb>` — resource dot-prefix 가 필수다. verb 는
- * 도메인 관례를 따른다 (integration 은 발생 사건을 기록하므로 과거분사
- * `created`/`updated`, execution 은 `re_run`, auth_config 은 CRUD 동사 현재형
- * `create`/`update`/`delete`/`regenerate`/`reveal`, user 는 발생 사건이라 과거분사
- * `password_changed`/`2fa_enabled`/`2fa_disabled`). audit 는 "일어난 일" 의 기록이라
- * resource prefix 로 필터·그룹이 가능하면 충분하며, verb 시제는 도메인별로 일관
- * 유지한다. 새 action 은 반드시 본 const 에 추가한 뒤 사용한다 (인라인 문자열 금지)
- * — `AuditLogsService.record({ action })` 가 `AuditAction` union 으로 강제한다.
- *
- * 인증(`user.*`) 액션은 **액터의 현재 세션 `workspaceId`**(인증 요청 JWT 의 workspace)에
- * 귀속한다 — 세 액션 모두 인증 세션에서만 발생하므로 항상 세션 workspace 가 있어
- * `audit_log.workspaceId`(non-nullable)를 schema 변경 없이 충족한다. 기록은 세션
- * 컨텍스트가 있는 controller 경계(`users.controller`·`auth.controller`·`webauthn.controller`)
- * 에서 수행한다 (1-auth §4.1 + §Rationale 4.1.B; data-flow/1-audit.md §1.1).
- *
- * workspace.created/updated 와 member.invited/role_changed/removed 는
- * spec-sync-data-flow-12-workspace-gaps 결정4(B, 2026-07-07)로 구현됐다 —
- * workspaces.service 가 workspace/member CRUD 를, workspace-invitations.service 가
- * member.invited(초대 생성)를 기록한다 (data-flow/1-audit.md §1.1; 1-auth §4.1).
- *
- * **workspace.deleted 는 의도적으로 audit 하지 않는다**: `audit_log.workspace_id` 는
- * `REFERENCES workspace(id) ON DELETE CASCADE` (V001) 라, 워크스페이스 삭제 감사 row 는
- * 삭제와 함께 cascade 제거되어(또는 삭제 후 INSERT 시 FK 위반) 영속될 수 없다. 워크스페이스
- * 범위 audit 모델의 구조적 제약이며, 삭제 이력은 별도 비-scoped 저장소가 필요하다(범위 밖).
- * (data-flow/1-audit.md §1.1 Rationale; 12-workspace §4).
- *
- * workflow/trigger/schedule/model_config 의 **CRUD** 액션은 spec-sync-auth-gaps §4.1 로
- * 구현됐다 (2026-08-01). 시제는 도메인 관례를 따른다 — workflow/trigger/schedule 은 발생
- * 사건이라 과거분사(`created`/`updated`/`deleted`), model_config 은 auth_config 과 같은
- * 설정 CRUD 라 현재형(`create`/`update`/`delete`/`set_default`). `set_default` 가 과거분사로
- * 부자연스러워 resource 단위 현재형으로 통일한 것이 후자의 근거다 (1-auth §Rationale 4.1.A).
- *
- * **1:1 결합 리소스는 주(主) 리소스만 기록한다.** `Schedule` 과 `Trigger` 는 서로의 row 를
- * 직접 쓴다 — `SchedulesService` 가 짝 `Trigger` 를 만들고/지우고, `TriggersService` 의
- * `syncScheduleActivation` 이 짝 `Schedule.isActive` 를 바꾼다. 이때 **상대 리소스의 액션은
- * 남기지 않는다**: 사용자가 한 행위는 하나(스케줄 생성 / 트리거 비활성화)인데 양쪽을 다 남기면
- * 같은 조작이 감사에 2행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 만든다. 감사는 **호출된
- * 엔드포인트의 리소스** 기준이며, 짝 row 의 변화는 그 액션의 부수 효과로 읽는다.
- * (4차 리뷰 W4 — 라운드 사이에 유실됐던 항목이라 여기 명문화한다.)
- *
- * **`workflow.executed` 는 의도적으로 미구현이다.** spec §4.1 Planned 표에 있으나 나머지
- * 13개와 카디널리티 차원이 다르다 — CRUD 는 저빈도지만 `executed` 는 트리거·webhook 발동마다
- * 쌓인다. 그런데 `audit_log` 은 **보존 정책이 미정이고 pruner 가 없다**(§3 "현재 무제한";
- * `login_history` 는 pruner 가 있는 것과 대비). 무제한 테이블에 고빈도 액션을 넣는 것은 보존
- * 정책 결정과 묶여야 하므로 별도 항목으로 분리했다 (impl-prep consistency 2026/08/01 09_11_58
- * INFO 6 이 같은 결론).
+ * 카탈로그 결정 가운데 코드만 보고는 놓치기 쉬운 것:
+ * - `workspace.deleted` 는 남기지 않는다. `audit_log.workspace_id` 가 워크스페이스 삭제에
+ *   CASCADE 로 함께 지워져 행이 남을 수 없다.
+ * - 1:1 로 묶인 `schedule` · `trigger` 는 호출된 엔드포인트의 리소스만 남긴다.
+ * - `workflow.executed` 와 캔버스 저장은 남기지 않는다. 실행은 `execution` 행이, 저장은
+ *   `workflow_version` 스냅샷이 실행자 · 저장자와 시각을 남긴다. 워크플로우 쪽에서 더 남기는
+ *   것은 버전 복원(`workflow.version_restored`) 하나다.
  */
 export const AUDIT_ACTIONS = {
   INTEGRATION_CREATED: 'integration.created',
@@ -76,6 +41,7 @@ export const AUDIT_ACTIONS = {
   WORKFLOW_CREATED: 'workflow.created',
   WORKFLOW_UPDATED: 'workflow.updated',
   WORKFLOW_DELETED: 'workflow.deleted',
+  WORKFLOW_VERSION_RESTORED: 'workflow.version_restored',
   TRIGGER_CREATED: 'trigger.created',
   TRIGGER_UPDATED: 'trigger.updated',
   TRIGGER_DELETED: 'trigger.deleted',
@@ -85,12 +51,10 @@ export const AUDIT_ACTIONS = {
   // 만으로 재구성할 수 있어야 한다.
   //
   // 셋으로 가른 근거(폭발 반경이 서로 다르다)와 액션명이 sub-channel 을 담는 이유는
-  // `spec/conventions/audit-actions.md §3` Rationale.
+  // [감사 action 명명](CLE-OBS-AUDITNAME) Rationale 에 있다.
   //
-  // *(주의 — `notification_secret_rotated`·`interaction_token_revoked` 만 응답에 새 자격증명을
-  // 1회 평문 반환한다. `chat_channel_bot_token_rotated` 는 새 토큰이 **호출자 입력**이라 응답에
-  // 안 실린다. 이 주석의 첫 판은 셋 다 반환한다고 적었고
-  // 그건 사실이 아니었다 — ai-review `12_22_23` documentation.)*
+  // `notification_secret_rotated` · `interaction_token_revoked` 만 응답에 새 자격증명을 한 번
+  // 평문으로 싣는다. `chat_channel_bot_token_rotated` 는 새 토큰이 호출자 입력이라 응답에 없다.
   TRIGGER_NOTIFICATION_SECRET_ROTATED: 'trigger.notification_secret_rotated',
   TRIGGER_CHAT_CHANNEL_BOT_TOKEN_ROTATED:
     'trigger.chat_channel_bot_token_rotated',
@@ -110,7 +74,8 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 
 /**
  * 특정 resource prefix 에 속한 action 만 뽑는다 — `AuditActionFor<'workflow'>` 는
- * `'workflow.created' | 'workflow.updated' | 'workflow.deleted'` 로 좁혀진다.
+ * `'workflow.created' | 'workflow.updated' | 'workflow.deleted' | 'workflow.version_restored'`
+ * 로 좁혀진다.
  *
  * 각 서비스의 `recordAudit` 헬퍼는 `resourceType` 을 자기 리소스로 **고정**해 놓고 `action` 만
  * 인자로 받는다. 그런데 `action` 을 전체 `AuditAction` 합집합으로 받으면 `WorkflowsService` 에
