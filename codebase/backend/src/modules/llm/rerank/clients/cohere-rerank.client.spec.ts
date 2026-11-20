@@ -1,8 +1,13 @@
 import { CohereRerankClient } from './cohere-rerank.client';
+import {
+  llmEndpointDispatcher,
+  resetLlmEndpointDispatcherForTest,
+} from '../../llm-endpoint-fetch';
 
 describe('CohereRerankClient', () => {
-  afterEach(() => {
+  afterEach(async () => {
     jest.restoreAllMocks();
+    await resetLlmEndpointDispatcherForTest();
   });
 
   function mockFetchOnce(body: unknown, ok = true, status = 200) {
@@ -74,5 +79,33 @@ describe('CohereRerankClient', () => {
       'Cohere rerank request failed',
     );
     await expect(client.rerank('q', ['a'])).rejects.not.toThrow(/co-key/);
+  });
+
+  // 사용자 baseUrl 로 나가는 요청은 소켓을 열기 전에 푼 주소를 다시 판정한다(CLE-T-PT5YB5).
+  it('요청에 연결 시점 판정 dispatcher 를 싣는다', async () => {
+    const fetchSpy = mockFetchOnce({ results: [] });
+    const client = new CohereRerankClient(
+      'co-key',
+      'rerank-3.5',
+      'https://proxy.example.com',
+    );
+    await client.rerank('q', ['a']);
+    const [, init] = fetchSpy.mock.calls[0];
+    expect((init as { dispatcher?: unknown }).dispatcher).toBe(
+      llmEndpointDispatcher(),
+    );
+  });
+
+  it('막는 대역의 IP 리터럴 baseUrl 은 보내지 않고 고정 문구로 실패한다', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    const client = new CohereRerankClient(
+      'co-key',
+      'rerank-3.5',
+      'http://100.64.0.1',
+    );
+    await expect(client.rerank('q', ['a'])).rejects.toThrow(
+      'Cohere rerank request failed',
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

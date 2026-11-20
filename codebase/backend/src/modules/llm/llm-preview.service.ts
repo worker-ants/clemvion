@@ -42,8 +42,8 @@ export class LlmPreviewService {
             'Private/loopback addresses are only allowed for the local provider.',
         });
       }
-      // DNS rebinding 1차 방어 — 도메인이 사설 IP 로 해석되면 차단.
-      // 2차 (connect 시점 TTL 재해석) 는 egress 방화벽 필요 (spec §5.5).
+      // 도메인이 사설 IP 로 풀리면 막는다. 이 검사 뒤에 DNS 응답이 바뀌는 경우는 클라이언트의 연결 시점
+      // 판정(`llm-endpoint-fetch.ts`)이 막는다.
       if (await resolvesToPrivate(params.baseUrl)) {
         throw new BadRequestException({
           code: 'MODEL_CONFIG_INVALID',

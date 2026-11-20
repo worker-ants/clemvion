@@ -32,7 +32,8 @@ export function isPrivateHost(rawUrl: string): boolean {
  * hostname 이 DNS 이름이면 해석된 IP 들이 막는 대역인지 본다. `attacker.com → 10.0.0.1` 같은 A 레코드로 IP 리터럴 검사를
  * 우회하는 경우를 저장 · 미리보기 시점에 막는다.
  *
- * 한계: TTL 이 지난 뒤 다시 해석하는 DNS rebinding 2차 공격은 이 검사로 막지 못한다. egress 방화벽으로 보완한다.
+ * 이 검사 뒤에 DNS 응답이 바뀌는 경우(DNS rebinding)는 여기서 막지 못한다. openai · azure-openai · cohere rerank
+ * 호출은 연결할 때 푼 주소를 같은 표로 다시 판정한다(`modules/llm/llm-endpoint-fetch.ts`, CLE-T-PT5YB5).
  *
  * 해석 오류(ENOTFOUND · EAI_AGAIN · timeout)는 false 로 보고 다음 단계(SDK 호출)로 넘긴다. 로컬 DNS 문제를 SSRF 로 오인하면
  * 정상 엔드포인트도 저장할 수 없다.

@@ -13,6 +13,7 @@ import {
   type EmbedInputType,
 } from '../embedding-input-type';
 import { LLM_SDK_MAX_RETRIES } from './sdk-options';
+import { guardedLlmFetch } from '../llm-endpoint-fetch';
 import { abortedBeforeOpen } from './stream-open';
 
 /**
@@ -77,16 +78,22 @@ export class OpenAIClient implements LLMClient {
   private readonly logger = new Logger(OpenAIClient.name);
   protected client: OpenAI;
 
+  /**
+   * @param guardEndpoint 연결할 때 푼 주소를 막는 대역표로 다시 판정할지(CLE-T-PT5YB5). 사설망 엔드포인트용인
+   *   `local` 프로바이더(`LocalClient`)만 false 를 넘긴다.
+   */
   constructor(
     apiKey: string,
     private readonly defaultModel: string,
     baseUrl?: string,
+    guardEndpoint = true,
   ) {
     this.client = new OpenAI({
       apiKey,
       ...(baseUrl ? { baseURL: baseUrl } : {}),
       timeout: 120_000,
       maxRetries: LLM_SDK_MAX_RETRIES,
+      ...(guardEndpoint ? { fetch: guardedLlmFetch } : {}),
     });
   }
 
