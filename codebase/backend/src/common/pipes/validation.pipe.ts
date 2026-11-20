@@ -33,14 +33,13 @@ interface ValidationDetail {
  * 요청 인자를 DTO 클래스로 변환하고 class-validator 로 검증하는 전역 파이프(`APP_PIPE`).
  *
  * 검증하지 않고 값을 그대로 넘기는 경우는 둘이다.
- * - 커스텀 파라미터 데코레이터 인자(`type === 'custom'`). WebSocket 게이트웨이의 `@ConnectedSocket()`
- *   소켓이 여기로 온다. 전역 파이프가 게이트웨이 인자에도 붙는 근거는 `common/utils/http-context.ts`.
+ * - 커스텀 파라미터 데코레이터 인자(`type === 'custom'`). NestJS 기본 `ValidationPipe` 의
+ *   `validateCustomDecorators: false` 와 같은 동작이다. WebSocket 게이트웨이의 `@ConnectedSocket()` 소켓이
+ *   여기로 온다. 전역 파이프가 게이트웨이 인자에도 붙는 근거는 `common/utils/http-context.ts` 에 있다. 그 소켓은
+ *   `@nestjs/platform-socket.io` 가 고정한 socket.io 사본의 인스턴스라 `instanceof Socket` 으로는 가려내지
+ *   못해서 `type` 으로 가린다. `@MessageBody()` 는 `body` 로 오므로 계속 검증한다. HTTP 컨트롤러의 커스텀
+ *   데코레이터 인자에도 같은 규칙이 걸린다. 그 값을 검증하려면 그 인자에 파이프를 직접 단다.
  * - 설계 타입이 없거나 {@link UNVALIDATED_METATYPES} 에 든 인자.
- *
- * HTTP 컨트롤러의 커스텀 데코레이터는 `@CurrentUser()`(설계 타입 `JwtPayload` 인터페이스라 `Object`)와
- * `@WorkspaceId()`(`string`) 둘뿐이고 둘 다 두 번째 경우에도 걸려 원래 검증하지 않았다. 그래서 첫 번째
- * 경우를 더해도 HTTP 검증 대상은 그대로다. NestJS 기본 `ValidationPipe` 의 `validateCustomDecorators: false`
- * 와 같은 동작이다.
  */
 @Injectable()
 export class CustomValidationPipe implements PipeTransform<unknown> {
@@ -48,11 +47,7 @@ export class CustomValidationPipe implements PipeTransform<unknown> {
     value: unknown,
     { metatype, type }: ArgumentMetadata,
   ): Promise<unknown> {
-    // 커스텀 파라미터 데코레이터 값은 검증하지 않는다(NestJS 기본 `ValidationPipe` 의
-    // `validateCustomDecorators: false` 와 같다). WebSocket 게이트웨이의 `@ConnectedSocket()` 소켓이
-    // `custom` 으로 온다(근거는 클래스 JSDoc). 그 소켓은
-    // `@nestjs/platform-socket.io` 가 고정한 socket.io 사본의 인스턴스라 `instanceof Socket` 으로는
-    // 가려내지 못한다. `@MessageBody()` 는 `body` 로 오므로 계속 검증한다.
+    // 검증하지 않는 두 경우다. 근거는 클래스 JSDoc 에 있다.
     if (type === 'custom' || !metatype || !this.toValidate(metatype)) {
       return value;
     }

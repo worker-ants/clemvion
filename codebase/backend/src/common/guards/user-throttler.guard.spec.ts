@@ -1,4 +1,3 @@
-import { afterEach } from '@jest/globals';
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ThrottlerException, ThrottlerStorageService } from '@nestjs/throttler';
@@ -83,14 +82,12 @@ describe('UserThrottlerGuard.getTracker', () => {
  * 컨텍스트의 "요청" 은 소켓이라 `user` · `ip` 가 없어 tracker 가 모두 `'unknown'` 이 된다. 그대로 두면 모든 사용자의
  * WS 메시지가 핸들러마다 한 버킷을 나눠 써서 서버 전체가 분당 limit 건에 막힌다. WS 빈도 제한은
  * 소켓당 `WsRateLimitGuard` 가 맡는다
- * ([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS#71-에러-코드)).
+ * ([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「에러 코드」](CLE-API-WS-MSG#71-에러-코드)).
  */
 describe('UserThrottlerGuard — HTTP 가 아닌 컨텍스트', () => {
   class Gateway {
     handleSubscribe(): void {}
   }
-
-  const buildGuard = (): Promise<UserThrottlerGuard> => buildLimitOneGuard();
 
   const buildContext = (type: 'http' | 'ws', req: Record<string, unknown>) =>
     ({
@@ -104,7 +101,7 @@ describe('UserThrottlerGuard — HTTP 가 아닌 컨텍스트', () => {
     }) as unknown as ExecutionContext;
 
   it('WS 메시지는 limit 을 넘겨도 통과시킨다(세지 않는다)', async () => {
-    const guard = await buildGuard();
+    const guard = await buildLimitOneGuard();
     const socket = { id: 'socket-1' };
     await expect(guard.canActivate(buildContext('ws', socket))).resolves.toBe(
       true,
@@ -115,7 +112,7 @@ describe('UserThrottlerGuard — HTTP 가 아닌 컨텍스트', () => {
   });
 
   it('HTTP 요청은 limit 을 넘으면 막는다 — 위 단언이 vacuous 하지 않다', async () => {
-    const guard = await buildGuard();
+    const guard = await buildLimitOneGuard();
     const req = { ip: '9.9.9.9' };
     await expect(guard.canActivate(buildContext('http', req))).resolves.toBe(
       true,
@@ -139,8 +136,6 @@ describe('UserThrottlerGuard — @DeferGlobalThrottle 라우트', () => {
     plain(): void {}
   }
 
-  const buildGuard = (): Promise<UserThrottlerGuard> => buildLimitOneGuard();
-
   const buildContext = (
     handler: () => void,
     req: Record<string, unknown>,
@@ -156,7 +151,7 @@ describe('UserThrottlerGuard — @DeferGlobalThrottle 라우트', () => {
     }) as unknown as ExecutionContext;
 
   it('미룬 라우트는 limit 을 넘겨도 통과시킨다(세지 않는다)', async () => {
-    const guard = await buildGuard();
+    const guard = await buildLimitOneGuard();
     const req = { ip: '9.9.9.9' };
     for (let i = 0; i < 3; i += 1) {
       await expect(
@@ -166,7 +161,7 @@ describe('UserThrottlerGuard — @DeferGlobalThrottle 라우트', () => {
   });
 
   it('미루지 않은 라우트는 그대로 막는다 — 위 단언이 vacuous 하지 않다', async () => {
-    const guard = await buildGuard();
+    const guard = await buildLimitOneGuard();
     const req = { ip: '9.9.9.9' };
     await expect(
       guard.canActivate(buildContext(Controller.prototype.plain, req)),
