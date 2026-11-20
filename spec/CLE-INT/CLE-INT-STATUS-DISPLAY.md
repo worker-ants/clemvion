@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-DISPLAY"
 title: "통합 상태와 만료 알림 — 화면 표시와 주의 필요"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "7451d961c42ba64aee2ea29a73fad8bfccbd0a6aa608d1e49076b9c99ca7748f"
+content_hash: "849a5fcda00ad4fbebce442bc8eb7b3247e544824ed4db00f5bc92e69a3948ba"
 read_as: "approved_fallback"
 task: "CLE-T-81270P"
 source_paths: []
-mirror_sha256: "99141cab0d6bee846be05d715c910f23920b600c48d59ee0ad145e79c02b342f"
-etag: "sha256-a402dc4b6165f23138c4d7ac8109db7f81ce4dbfd854495c4fa1885a51a3352c"
+mirror_sha256: "2972b121479dae1a635e193090b15c6ae391ac7108f981169395f40a762e6e0f"
+etag: "sha256-9f25d453b36abae528f604acef55485add79cc8bb21d20f1fc00142d9e013240"
 ---
 ## 개요
 
@@ -90,10 +90,20 @@ etag: "sha256-a402dc4b6165f23138c4d7ac8109db7f81ce4dbfd854495c4fa1885a51a3352c"
 
 그래서 응답에 파생 값 `autoRefresh` 를 두고 모든 주의 필요 술어(배너, 사이드바 카운트, `Expiring` 칩, `?status=expiring`·`?status=attention`)에서 `autoRefresh=true` 행을 만료 임박 분기에서 뺀다. 상세 헤더와 개요 탭은 자동 갱신 사실을 보조 라벨과 친화 표기로 알린다.
 
-- **파생 값인 이유**: `autoRefresh` 는 DB 컬럼이 아니라 서비스 레지스트리의 `supportsTokenAutoRefresh` 에서 응답마다 계산한다(현재 `cafe24`·`google`·`makeshop` 이 true). 서비스 추가와 정책 변경이 잦은 영역이라 영속화하지 않고 코드 한 곳에서 정한다. 술어 SQL 에 `service_type IN ('cafe24', 'google')` 같은 하드코딩을 두는 안도 검토했다. 새 OAuth 제공자를 더할 때마다 SQL 을 고쳐야 하고, «왜 이 서비스를 빼는가» 라는 의도가 SQL 에 묻혀 기각했다.
+- **파생 값인 이유**: `autoRefresh` 는 DB 컬럼이 아니라 서비스 레지스트리의 `supportsTokenAutoRefresh` 에서 응답마다 계산한다(현재 `cafe24`·`makeshop` 이 true. Google 은 2026-11-20 에 뺐다. [Google 을 자동 갱신 표시에서 뺀다](#google-을-자동-갱신-표시에서-뺀다)). 서비스 추가와 정책 변경이 잦은 영역이라 영속화하지 않고 코드 한 곳에서 정한다. 술어 SQL 에 `service_type IN ('cafe24', 'google')` 같은 하드코딩을 두는 안도 검토했다. 새 OAuth 제공자를 더할 때마다 SQL 을 고쳐야 하고, «왜 이 서비스를 빼는가» 라는 의도가 SQL 에 묻혀 기각했다.
 - **실패 신호는 남는다**: 자동 갱신이 실패해 `error(auth_failed)`·`error(network)` 가 되면 상태가 `error` 라 이 술어와 상관없이 주의 필요에 들어간다. 조치 필요 알림도 따로 나간다.
 - **통합 재인증 버튼은 막지 않는다**: 자동 갱신 통합에서도 개요의 통합 재인증은 활성으로 두고 hover 안내만 붙인다. 권한 범위 정리나 자격 증명 재발급처럼 사용자가 의도해 누를 가치가 있다. 설치 대기와 `install_timeout` 의 비활성(외부 흐름 진행 중, 진입점 없음)과는 이유가 다르다. 주의 필요 술어에서는 빼되 사용자의 명시 동작은 막지 않는다. 이 원칙은 서버가 통합 재인증을 시작할 수 있는 서비스에 한한다. MakeShop 은 통합 재인증 경로가 없어 버튼을 막고 삭제 후 재등록을 안내한다. App URL 이 없는 Cafe24 Private 행도 같은 이유로 막는다(2026-10-10).
 - **기존 결정과의 관계**: «DB enum 은 넓히지 않고 영속 상태와 화면 술어를 나눈다» 는 원칙은 그대로다. `autoRefresh` 는 영속 상태가 아닌 파생 값이라 같은 원칙 안에서 술어를 합성한다. 설치 대기를 빼는 것도 같은 생각이다.
+
+### Google 을 자동 갱신 표시에서 뺀다
+
+결정일: 2026-11-20
+
+Google 은 서비스 레지스트리의 `supportsTokenAutoRefresh` 가 true 라 화면에 `Auto-renews` 로 보였고 만료 임박 · 주의 필요 · 사이드바 배지에서 빠졌다. 그런데 Google 은 refresh token 을 받기만 하고 갱신 경로는 구현돼 있지 않다([OAuth 연결과 토큰 갱신 — 연결 시작 「제공자별 설정」](CLE-INT-OAUTH-BEGIN.md#제공자별-설정)). 만료 스캐너도 Google 을 갱신 가능 통합으로 보지 않아 만료 알림을 보내고 만료 시각이 지나면 `expired` 로 바꿨다([만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#만료-스캐너)). 화면은 자동으로 갱신된다고 표시했지만 실제로는 토큰이 만료됐다. 이 어긋남은 [통합 상태와 만료 알림 「미결 사항」](CLE-INT-STATUS.md#미결-사항) 의 «Google 의 자동 갱신 표시와 스캐너 판정» 항목이다.
+
+2026-11-20 에 Google 의 `supportsTokenAutoRefresh` 를 false 로 바꿨다(NERV Task `CLE-T-81270P`, 사용자 결정). 이제 자동 갱신 표시가 true 인 서비스는 `cafe24`·`makeshop` 뿐이다. Google 통합은 토큰 만료가 7일 안이면 `Expires in Nd` 로 보이고 `Expiring` 필터 · 주의 필요 · 사이드바 배지에 들어간다. Google access token 은 수명이 짧아서(보통 1시간) 연결한 직후부터 만료 임박으로 보인다. 갱신 경로가 없는 지금은 이것이 실제 상태다.
+
+- **기각한 안**: Google 갱신 경로를 구현하고 true 를 유지하는 안. 갱신 경로를 만들고 갱신 가능 통합 판정에도 넣어야 하는 일이라 이번 Task 범위 밖이다. 갱신 경로가 생기면 이 값을 다시 정한다.
 
 ### 설치 대기는 필터 칩에 넣지 않는다
 

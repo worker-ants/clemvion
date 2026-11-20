@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH"
 title: "서비스별 인증 방식과 자격 증명"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "67a423467cd6e03e51b5bfddc60f354c8fb3b184cdd1d05be289298454d0e58c"
+content_hash: "b48d9f4aaed59b59a97119e0cae6e195701e23acd80cee3c441c501768597a7f"
 read_as: "approved_fallback"
-task: "CLE-T-3M0KRA"
+task: "CLE-T-81270P"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "441b85b11d6623226668054ce4ee9a4059ed761c618214eb42fa683389e6ba92"
-etag: "sha256-647fb92bdb90f20d464e4b249839b022a71f8cf977e319f62619dcccc3506ac0"
+mirror_sha256: "99ddf2d14f4801c488233b361b95aed1bd33c71003d9da7ab6dad600ec8d2176"
+etag: "sha256-fd200190b792f39da9783b7743ad0acab35b9c6c7e48cf68f3df82c1462af968"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,6 +61,8 @@ etag: "sha256-647fb92bdb90f20d464e4b249839b022a71f8cf977e319f62619dcccc3506ac0"
 | `refresh_token` | string | ✓ | 🔒 |
 | `account_email` | string | ✓ | × |
 
+팝업 연결은 사용자가 고른 권한 범위에 `openid`·`email` 을 함께 요청한다. 토큰 교환 뒤 제공자의 userinfo 응답에서 `account_email` 을 채운다([팝업 연결과 콜백 「처리 순서」](CLE-INT-OAUTH-CALLBACK.md#처리-순서)). 저장되는 `scopes` 는 제공자가 돌려준 권한 범위라 `openid` 와 이메일 권한 범위가 함께 들어갈 수 있다.
+
 권한 범위는 서비스 묶음 체크박스로 고른다.
 
 | 묶음 | 권한 범위 값 |
@@ -83,6 +85,8 @@ GitHub 는 인증 유형 두 가지 중 하나를 고른다.
 | `scopes` | string[] | ✓ | × |
 | `access_token` | string | ✓ | 🔒 |
 | `login` | string | ✓ | × |
+
+OAuth2 연결은 토큰 교환 뒤 `GET https://api.github.com/user` 응답에서 `login` 을 채운다([팝업 연결과 콜백 「처리 순서」](CLE-INT-OAUTH-CALLBACK.md#처리-순서)).
 
 권장 권한 범위는 `repo`, `read:org` 이고 추가 선택지는 `workflow`, `gist` 다.
 

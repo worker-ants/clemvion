@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-BEGIN"
 title: "OAuth 연결과 토큰 갱신 — 연결 시작(begin)"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "6e6276a77a33c3e5b13a1b9f370a88ac844790d79244f572ddfe577b4486677a"
+content_hash: "919d9318425031068dabb5f1346b103b5fd174817a0d79da061100a09643a1cb"
 read_as: "approved_fallback"
 task: "CLE-T-81270P"
 source_paths: []
-mirror_sha256: "106c759d9b69456c2041af516752412c41d4efa51ef8d16705ea9d9ee4e8aede"
-etag: "sha256-9124739db0c9bbd1abdcc68045c7afb6c2f215446c5ecc2356a1cb9f8934b107"
+mirror_sha256: "de82b3a1beea509656dff9e7dbdfbcaa5f523991c75021aa4defd63837cb527d"
+etag: "sha256-bb07d9b8ed800a1862e50586e1aad5f1be15a42ee2a54ae5c89b71522329dad5"
 ---
 ## 개요
 
@@ -70,11 +70,12 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 
 | 제공자 | 인가 URL | 토큰 URL | 권한 범위 구분 | 기본 권한 범위 | 갱신 |
 | --- | --- | --- | --- | --- | --- |
-| Google | 고정 | `https://oauth2.googleapis.com/token` | 공백 | 사용자 체크박스 선택 결과 | refresh token 을 받지만 갱신 경로는 미구현 |
+| Google | 고정. 쿼리에 `access_type=offline`·`prompt=consent` 를 더한다 | `https://oauth2.googleapis.com/token` | 공백 | `openid`·`email` 과 사용자 체크박스 선택 결과(아래) | refresh token 을 받지만 갱신 경로는 미구현 |
 | GitHub | 고정 | `https://github.com/login/oauth/access_token` | 공백 | `repo`, `read:org` | 없음 |
 | Cafe24 | `https://{mall_id}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=...&state=...&redirect_uri=...&scope=...` | `POST https://{mall_id}.cafe24api.com/api/v2/oauth/token` (Basic `client_id:client_secret`) | 콤마 | 사용자 체크박스(카테고리 R·W) 결과 | 있음. 같은 토큰 URL 에 `grant_type=refresh_token` |
 | MakeShop | `https://auth.makeshop.com/oauth/authorize` (`response_type=code`, PKCE S256) | `POST https://auth.makeshop.com/oauth/token` (Basic `client_id:client_secret`) | 공백 | 사용자 체크박스 결과 | 있음. refresh token 이 매번 새 값으로 바뀐다 |
 
+- **Google 인가 URL 은 계정 조회용 권한 범위와 offline 접근을 늘 싣는다.** 권한 범위는 `openid`, `email`, 사용자가 고른 권한 범위 순서로 합치고 겹치는 값은 한 번만 넣는다. 쿼리에는 `access_type=offline`·`prompt=consent` 를 더한다. GitHub 인가 URL 에는 더하는 값이 없다. 이유는 [Rationale](#google-인가-요청은-계정-조회용-권한-범위와-offline-접근을-늘-싣는다) 에 있다.
 - **Cafe24 의 권한 범위는 콤마로 구분한다.** RFC 6749 §3.3 의 공백 구분이 아니라 `mall.read_product,mall.write_order` 처럼 보낸다. 공백이나 `+` 로 보내면 권한 범위가 하나여도 `invalid_scope` 로 거부된다. Cafe24 공식 예제(`developers.cafe24.com`)와 `cafe24-app/cafe24_app_sample` 의 `StoreToken.java#getCodeRedirectUrl` 이 모두 콤마를 쓴다. 다른 제공자는 공백 구분을 유지한다.
 - **Cafe24 의 토큰 URL 은 `mall_id` 에 따라 바뀐다.** begin 이 사용자가 입력한 `mall_id` 를 통합 OAuth state 의 `provider_meta`(암호화, V041)에 넣어 콜백의 토큰 교환까지 가져간다. `new`·`reauthorize`·`request_scopes` 모두 같다. `reauthorize`·`request_scopes` 에서는 `:id/reauthorize`·`:id/request-scopes` 가 행의 `credentials.mall_id`·`credentials.app_type` 을 begin 에 넘긴다(`client_id`·`client_secret` 은 넘기지 않는다). `oauth/begin` 을 직접 부르면 본문의 두 값이 대상 통합의 값과 같아야 한다. 값이 없거나 형식이 틀린 옛 행은 begin 이 400 `CAFE24_INVALID_MALL_ID`·`CAFE24_INVALID_APP_TYPE` 으로 거절한다. MakeShop 은 같은 자리에 `shop_uid`, 클라이언트 자격 증명, PKCE `code_verifier` 를 넣는다. `code_verifier` 는 자격 증명에 저장하지 않는다.
 - **Cafe24 토큰 응답은 `expires_in` 이 아니라 `expires_at`(ISO8601)을 준다.** 대신 `access_token` 이 JWT 라 `exp` 로도 만료 시각을 알 수 있다. 만료 시각 해석은 [토큰 자동 갱신](CLE-INT-OAUTH-REFRESH.md#토큰-자동-갱신) 의 규칙을 따른다.
@@ -88,6 +89,7 @@ state 는 발급 뒤 10분 동안 유효하고 콜백이 한 번만 소비한다
 
 - `codebase/backend/src/modules/integrations/begin-policy.ts` (begin 의 공용 판정. 공개 범위 기본값 `resolveBeginScope`, 상점 식별자 UNIQUE 위반 판정 `isStoreIdentifierConflict`, 409 응답 `toAlreadyConnectedConflict`)
 - `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (begin·콜백·설치. `begin`, `handleInstall`, `new` 가 아닌 모드의 대상 통합 대조 `assertBeginMatchesTarget`. 콜백 쪽 함수는 [팝업 연결과 콜백](CLE-INT-OAUTH-CALLBACK.md#구현-위치))
+- `codebase/backend/src/modules/integrations/oauth-providers/google.strategy.ts` (Google 인가 URL 의 권한 범위 합치기와 `access_type`·`prompt`. `buildAuthorizeUrl`)
 
 ## Rationale
 
@@ -132,3 +134,13 @@ Public 흐름에도 이 코드를 쓰면서 `CAFE24_MALL_ALREADY_CONNECTED` 로 
 - **견줄 상점 식별자는 `credentials.mall_id` 다.** `:id/reauthorize`·`:id/request-scopes` 가 begin 에 넘기는 값과 원천이 같아 두 진입점의 결과가 갈리지 않는다. 평문 `mall_id` 컬럼은 전환기의 옛 행과 상점 자리를 놓은 만료 행에서 비어 있다.
 - **콜백에서 다시 견주지 않는다.** state 는 이 판정을 지난 요청에만 만들어지고 state 에 담긴 서비스와 `provider_meta` 는 그 뒤 바뀌지 않는다. 대상 행의 서비스 유형, `credentials.mall_id`, `credentials.app_type` 을 바꾸는 API 도 없다. 별칭 수정은 이름만 받고 OAuth 통합의 자격 증명 교체는 `INTEGRATION_ROTATE_UNSUPPORTED` 로 거절된다. 콜백에도 판정을 두면 같은 판정이 두 곳에 생긴다.
 - **비용**: 본문에 대상과 다른 값을 싣던 직접 호출 클라이언트는 이제 400 을 받는다. 자사 프런트엔드는 `oauth/begin` 을 `new` 모드로만 부른다(2026-11-06 저장소 검색으로 확인). 통합 재인증과 추가 권한 요청은 `:id/reauthorize`·`:id/request-scopes` 를 쓴다.
+
+### Google 인가 요청은 계정 조회용 권한 범위와 offline 접근을 늘 싣는다
+
+결정일: 2026-11-20
+
+서비스 레지스트리의 Google 저장 필드는 `refresh_token` 과 계정 이메일 `account_email` 을 필수로 둔다. 전에는 인가 URL 이 사용자가 고른 권한 범위만 실었다. 토큰 응답에는 계정 이메일이 없고 refresh token 도 늘 오지는 않아서 팝업 연결을 마쳐도 통합 저장이 필수 필드 검증에 막혔다(NERV Task `CLE-T-81270P`).
+
+- **`openid`·`email` 을 늘 합친다.** 콜백은 토큰 교환 뒤 userinfo 로 계정 이메일을 읽는다([팝업 연결과 콜백 「처리 순서」](CLE-INT-OAUTH-CALLBACK.md#처리-순서)). 이 응답에 이메일이 오려면 `email` 권한 범위가 있어야 한다. 사용자가 고른 권한 범위와 상관없이 붙이고 순서는 `openid`, `email`, 사용자 선택이다.
+- **`access_type=offline`·`prompt=consent` 를 더한다.** Google 은 `access_type=offline` 이 없으면 refresh token 을 주지 않는다. 이미 동의한 계정에는 `prompt=consent` 가 없으면 다시 주지 않는다. 그래서 연결할 때마다 동의 화면을 다시 보인다.
+- **갱신은 이 결정에 들어 있지 않다.** refresh token 을 받아 저장하지만 갱신 경로는 여전히 없다([제공자별 설정](#제공자별-설정) 표의 갱신 칸).
