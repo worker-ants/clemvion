@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 20
+version: 21
 status: "approved"
-requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073", "REQ-CHAT-074", "REQ-CHAT-075", "REQ-CHAT-076", "REQ-CHAT-077", "REQ-CHAT-078", "REQ-CHAT-079", "REQ-CHAT-080", "REQ-CHAT-081", "REQ-CHAT-082", "REQ-CHAT-083"]
+requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073", "REQ-CHAT-074", "REQ-CHAT-075", "REQ-CHAT-076", "REQ-CHAT-077", "REQ-CHAT-078", "REQ-CHAT-079", "REQ-CHAT-080", "REQ-CHAT-081", "REQ-CHAT-082", "REQ-CHAT-083", "REQ-CHAT-084"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "7333dcf3a8e1b67b6921c7addff2582a17aae183d485fae7c0984be58578aefe"
+content_hash: "b3fa7af9ed0248b96bc7d0d3f4cf019031e7b5f1d8b1e048ee933654ff72dcfd"
 read_as: "approved_fallback"
-task: "CLE-T-B9CRCF"
+task: "CLE-T-A78V0M"
 source_paths: []
-mirror_sha256: "42069e362cc505f4fd3903831ed62d0b9c7e02d74e5263db409548196c8c4501"
-etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
+mirror_sha256: "1e498c6e4d3a83f6058d26f9b9c8a031ebae901b964cba3e2ec53ff2a8950588"
+etag: "sha256-8d04c02518604cf7d28bd69c4739bac5315873765986a714ec2e31b5596cdffe"
 ---
 > 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,7 +22,7 @@ etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
 
 채팅 채널은 워크플로우를 Telegram·Slack·Discord 같은 메신저 봇 위에서 챗봇처럼 돌리는 서버 쪽 변환 계층이다. 사용자는 봇 토큰(`botToken`)만 등록한다. update 를 워크플로우 입력으로, 워크플로우 응답을 메신저 메시지로 바꾸는 일은 채널 어댑터(`ChatChannelAdapter`)가 맡는다.
 
-[External Interaction API](../CLE-IX/CLE-EIA.md)(EIA) 만으로 메신저와 붙이려면 사용자가 이 변환 계층을 직접 운영해야 한다. 채팅 채널에서는 그 계층을 서버 안에 두고 EIA 의 소비자로 격리한다. 새 트리거 유형 없이 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 트리거의 `config.chatChannel` 옵션 하나로 동작한다.
+채팅 채널은 이 변환 계층을 서버 안에 두고 [External Interaction API](../CLE-IX/CLE-EIA.md)(EIA) 의 소비자로 격리한다. 새 트리거 유형 없이 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 트리거의 `config.chatChannel` 옵션 하나로 동작한다.
 
 단독으로 쓴 「프로바이더」 는 채널 프로바이더다. 관련 문서는 다음과 같다.
 
@@ -33,7 +33,7 @@ etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
 
 ## 요구사항
 
-줄 끝 `(원본: …)` 은 옛 요구사항 ID(`CCH-*`)나 옛 문서 `15-chat-channel` 절의 대응표다. 다른 문서는 옛 ID 대신 REQ ID 를 쓴다.
+줄 끝 `(원본: …)` 은 옛 요구사항 ID(`CCH-*` 등)다. 다른 문서는 옛 ID 대신 REQ ID 를 쓴다.
 
 ### 어댑터 라이프사이클
 
@@ -42,7 +42,7 @@ etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
 - REQ-CHAT-003 WHEN 채팅 채널 트리거를 활성화하면(`chatChannel` 이 없는 PATCH 본문 `{ isActive: true }`) THE SYSTEM SHALL 채널 어댑터의 `setupChannel()` 을 부르지 않고 외부 프로바이더의 웹훅 등록과 저장된 봇 토큰 · 인바운드 서명 자료를 그대로 쓴다. (원본: CCH-AD-02) (R-CC-29)
 - REQ-CHAT-004 WHEN 채팅 채널 트리거를 삭제하면 THE SYSTEM SHALL 채널 어댑터의 `teardownChannel()` 을 자동으로 부른다. (원본: CCH-AD-03)
 - REQ-CHAT-005 WHEN 채팅 채널 트리거를 비활성화하면 THE SYSTEM SHALL 채널 어댑터의 `teardownChannel()` 을 부르지 않고 외부 프로바이더의 웹훅 등록과 트리거 단위 listener 레지스트리 항목을 그대로 둔다. (원본: CCH-AD-03) (R-CC-29)
-- REQ-CHAT-070 WHEN 채팅 채널 트리거에 `isActive: true` 가 실린 PATCH 가 커밋되면 THE SYSTEM SHALL 그 트리거를 트리거 단위 listener 레지스트리(코드 `ChannelListenerRegistry`, [R8 트리거 단위 listener 정책](#r8-트리거-단위-listener-정책))에 항목으로 등록해 활성화 뒤 시작한 실행의 메시지를 채팅 채널로 보낸다. (R-CC-29)
+- REQ-CHAT-070 WHEN 채팅 채널 트리거에 `isActive: true` 가 실린 PATCH 가 커밋되면 THE SYSTEM SHALL 그 트리거를 트리거 단위 listener 레지스트리(코드 `ChannelListenerRegistry`)에 항목으로 등록해 활성화 뒤 시작한 실행의 메시지를 채팅 채널로 보낸다. (R-CC-29)
 - REQ-CHAT-071 WHEN 트리거 생성 · `chatChannel` 이 실린 PATCH · `isActive: true` 가 실린 PATCH · 트리거 행을 없애는 삭제로 트리거 단위 listener 레지스트리에 항목을 등록하거나 해제하면 THE SYSTEM SHALL 그 변경을 Redis pub/sub 채널 `chat-channel:listener` 로 다른 서버 인스턴스에 알려 각 서버 인스턴스의 레지스트리에도 반영한다. 다른 서버 인스턴스에서 받은 변경을 반영할 때와 일괄 등록(REQ-CHAT-072)은 알리지 않는다. (R-CC-30)
 - REQ-CHAT-072 WHEN 서버 인스턴스가 시작하거나 `chat-channel:listener` 구독을 확립할 때마다(첫 연결과 다시 연결 모두) THE SYSTEM SHALL 활성 채팅 채널 트리거를 DB 에서 다시 읽어 그 서버 인스턴스의 레지스트리에 등록한다. (R-CC-30)
 - REQ-CHAT-073 IF `chat-channel:listener` 의 발행이나 구독이 실패하거나 발행 응답을 2초 안에 받지 못하면 THE SYSTEM SHALL 로그를 남기고 트리거 생성 · 수정 · 삭제 요청을 실패시키지 않는다. (R-CC-30)
@@ -60,7 +60,7 @@ etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
 - REQ-CHAT-014 WHEN 같은 대화의 다음 메시지가 오고 활성 실행이 `running` 이나 `pending` 이면 THE SYSTEM SHALL `languageHints.executionStillRunning` 안내를 보내고 update 를 큐에 쌓지 않고 버린 뒤 `202` 로 응답한다. (원본: CCH-CV-03)
 - REQ-CHAT-015 WHEN 같은 대화의 다음 메시지가 오고 실행이 `completed`·`failed`·`cancelled` 이거나 대화가 없으면 THE SYSTEM SHALL 새 실행을 시작한다. (원본: CCH-CV-03)
 - REQ-CHAT-016 WHEN 채팅 채널 대화를 저장하면 THE SYSTEM SHALL 채널 사용자 키(`channelUserKey`)를 대화 스레드가 아니라 Redis 채널 대화 상태에만 둔다. (원본: CCH-CV-04)
-- REQ-CHAT-017 IF group·supergroup·channel 대화의 update 가 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주게 하고 호출자(`HooksService`)가 `languageHints.groupChatRefusal` 안내를 따로 보낸 뒤 update 를 버린다. (원본: CCH-CV-05)
+- REQ-CHAT-017 IF DM 밖 대화의 update 가 오면 THE SYSTEM SHALL `parseUpdate` 가 `null` 을 돌려주게 해 update 를 버리고 Telegram 메시지(group·supergroup·channel)일 때만 호출자(`HooksService`)가 `languageHints.groupChatRefusal` 안내를 따로 보낸다. Slack 이벤트 메시지는 안내하지 않고 Slack · Discord DM 밖 슬래시 명령은 어댑터 문서의 본인에게만 보이는 응답을 따른다. (원본: CCH-CV-05) (R-CC-37)
 - REQ-CHAT-062 WHEN 활성 실행(`running`·`pending`·`waiting_for_input`)이 있는 대화에 실행 소유자(`channelUserKey` 가 채널 대화 상태의 값과 같은 사용자)가 `/start` 명령을 보내면 THE SYSTEM SHALL REQ-CHAT-013·014 의 실행 상태 분기보다 먼저 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작해 채널 대화 상태를 새 실행에 잇는다. (R-CC-27, R-CC-35)
 - REQ-CHAT-063 IF `/start` 의 기존 실행 취소가 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)나 `RESOURCE_NOT_FOUND`(`404`)로 실패하면 THE SYSTEM SHALL 그 실행이 이미 끝났거나 지워진 것으로 보고 취소 없이 새 실행을 시작한다. (R-CC-27)
 - REQ-CHAT-064 IF `/start` 의 기존 실행 취소가 그 밖의 에러(취소를 큐에 넣지 못한 `503 EXECUTION_ENQUEUE_FAILED` 등)로 실패하면 THE SYSTEM SHALL 새 실행을 시작하지 않고 그 update 의 중복 제거 선점을 푼 뒤 그 에러로 응답한다. (R-CC-27)
@@ -114,28 +114,29 @@ etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
 
 ### 봇 토큰과 PATCH
 
-- REQ-CHAT-048 IF PATCH 본문의 `chatChannel.botTokenRef` 나 `chatChannel.botToken` 이 있으면 THE SYSTEM SHALL `400 VALIDATION_ERROR` 로 거부한다. (원본: 15-chat-channel §5.4.1)
-- REQ-CHAT-049 IF `chatChannel` 이 없는 트리거에 PATCH 로 `chatChannel` 을 붙이려 하면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='chatChannel'`)로 거부한다. (원본: 15-chat-channel §5.4.1.2)
-- REQ-CHAT-050 IF PATCH 가 `provider` 를 다른 값으로 바꾸려 하면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='provider'`)로 거부한다. (원본: 15-chat-channel §5.4.1.2)
-- REQ-CHAT-051 IF PATCH 본문의 `chatChannel.inboundSigningPlaintext` 나 `chatChannel.inboundSigning` 이 있으면 THE SYSTEM SHALL `400 VALIDATION_ERROR` 로 거부한다. (원본: 15-chat-channel §5.4.1.1)
-- REQ-CHAT-052 WHEN `chatChannel` 이 실린 PATCH 를 처리하면 THE SYSTEM SHALL 시크릿 저장소의 봇 토큰과 Slack·Discord 인바운드 서명 값을 바꾸지 않는다. (원본: 15-chat-channel §5.4.1, R-CC-21)
-- REQ-CHAT-053 WHEN Telegram 트리거의 `setupChannel()` 이 새 `secret_token` 을 발급하면 THE SYSTEM SHALL 그 값을 `inboundSigningRef` 에 다시 저장한다. (원본: 15-chat-channel §5.4.1.1)
-- REQ-CHAT-054 WHEN `GET /api/triggers/:id` 가 채팅 채널 설정을 돌려주면 THE SYSTEM SHALL `hasBotToken` 파생 필드만 싣고 `botTokenRef` · `inboundSigningRef` 와 `botToken` 평문은 싣지 않는다. (원본: 15-chat-channel §5.4.2)
-- REQ-CHAT-055 IF 봇 토큰 재발급 중 `setupChannel` 이 실패하면 THE SYSTEM SHALL 자격 증명 거부는 `400 BOT_TOKEN_INVALID`, 그 밖은 `502 CHAT_CHANNEL_SETUP_FAILED` 로 돌려주고 프로바이더 원문은 그 에러 응답에 싣지 않는다. (원본: 15-chat-channel §5.4, R-CC-23)
+- REQ-CHAT-048 IF PATCH 본문의 `chatChannel.botTokenRef` 나 `chatChannel.botToken` 이 있으면 THE SYSTEM SHALL `400 VALIDATION_ERROR` 로 거부한다.
+- REQ-CHAT-049 IF `chatChannel` 이 없는 트리거에 PATCH 로 `chatChannel` 을 붙이려 하면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='chatChannel'`)로 거부한다.
+- REQ-CHAT-050 IF PATCH 가 `provider` 를 다른 값으로 바꾸려 하면 THE SYSTEM SHALL `400 VALIDATION_ERROR`(`details.field='provider'`)로 거부한다.
+- REQ-CHAT-051 IF PATCH 본문의 `chatChannel.inboundSigningPlaintext` 나 `chatChannel.inboundSigning` 이 있으면 THE SYSTEM SHALL `400 VALIDATION_ERROR` 로 거부한다.
+- REQ-CHAT-052 WHEN `chatChannel` 이 실린 PATCH 를 처리하면 THE SYSTEM SHALL 시크릿 저장소의 봇 토큰과 Slack·Discord 인바운드 서명 값을 바꾸지 않는다. (R-CC-21)
+- REQ-CHAT-053 WHEN Telegram 트리거의 `setupChannel()` 이 새 `secret_token` 을 발급하면 THE SYSTEM SHALL 그 값을 `inboundSigningRef` 에 다시 저장한다.
+- REQ-CHAT-054 WHEN `GET /api/triggers/:id` 가 채팅 채널 설정을 돌려주면 THE SYSTEM SHALL `hasBotToken` 파생 필드만 싣고 `botTokenRef` · `inboundSigningRef` 와 `botToken` 평문은 싣지 않는다.
+- REQ-CHAT-055 IF 봇 토큰 재발급 중 `setupChannel` 이 실패하면 THE SYSTEM SHALL 자격 증명 거부는 `400 BOT_TOKEN_INVALID`, 그 밖은 `502 CHAT_CHANNEL_SETUP_FAILED` 로 돌려주고 프로바이더 원문은 그 에러 응답에 싣지 않는다. (R-CC-23)
 - REQ-CHAT-077 IF 봇 토큰 입력(생성의 `chatChannel.botToken`, 재발급의 `newBotToken`)이 1~256자의 보이는 ASCII(U+0021~U+007E) 문자열이 아니면 THE SYSTEM SHALL 프로바이더를 부르거나 시크릿을 저장하기 전에 400 으로 거부한다(생성 `VALIDATION_ERROR`, 재발급 `INVALID_BOT_TOKEN`). (R-CC-32)
 - REQ-CHAT-078 IF 트리거 생성이나 PATCH 본문의 `chatChannel` 에 `botTokenRef` 나 `inboundSigningRef` 가 있으면 THE SYSTEM SHALL 값이 그 트리거의 참조여도 `400 VALIDATION_ERROR` 로 거부한다.
 
 ### 인바운드 HTTP
 
-- REQ-CHAT-056 WHEN 채팅 채널 경로의 웹훅 요청을 처리하면 THE SYSTEM SHALL 인증 실패(`401`), 엔드포인트 미존재(`404`), 서명 참조가 없는 채팅 채널 트리거의 전역 요청 한도 초과(`429`, REQ-CHAT-079), 프로바이더별 응답 예외(REQ-CHAT-058 · 080), `/start` 의 기존 실행 취소 실패(REQ-CHAT-064)를 뺀 모든 경우(`/cancel` 과 재개 명령의 큐 적재 실패 REQ-CHAT-074·076, 서명 검증 뒤 처리 중 예상하지 못한 오류 포함)에 `202 Accepted` 로 응답한다. (원본: 15-chat-channel §5.5, R-CC-12, R-CC-27, R-CC-31, R-CC-33)
-- REQ-CHAT-057 WHEN 비활성 채팅 채널 트리거에 update 가 오면 THE SYSTEM SHALL 인바운드 서명을 먼저 검증하고 통과하면 실행을 시작하지 않고 외부 호출(수신 확인 포함)도 하지 않은 채 `202`·`{ executionId: 'ignored' }` 로 조용히 버리되 인터랙션(REQ-CHAT-080)에는 `200 OK` 와 채널 어댑터의 기본 응답으로 답한다. (원본: 15-chat-channel §5.5, WH-EP-07, R-CC-33)
-- REQ-CHAT-058 IF 프로바이더가 특정 응답 형식만 성공으로 인정하고 그 사유와 응답 본문이 프로바이더 문서에 적혀 있으면 THE SYSTEM SHALL 그 경우에만 `202` 대신 `200 OK` 응답을 허용한다. (원본: 15-chat-channel §5.5.1)
+- REQ-CHAT-056 WHEN 채팅 채널 경로의 웹훅 요청을 처리하면 THE SYSTEM SHALL 인증 실패(`401`), 엔드포인트 미존재(`404`), 서명 참조가 없는 채팅 채널 트리거의 전역 요청 한도 초과(`429`, REQ-CHAT-079), 프로바이더별 응답 예외(REQ-CHAT-058 · 080), `/start` 의 기존 실행 취소 실패(REQ-CHAT-064)를 뺀 모든 경우(서명 검증 뒤 처리 중 예상하지 못한 오류 포함)에 `202 Accepted` 로 응답한다. (R-CC-12, R-CC-27, R-CC-31, R-CC-33)
+- REQ-CHAT-057 WHEN 비활성 채팅 채널 트리거에 update 가 오면 THE SYSTEM SHALL 인바운드 서명을 먼저 검증하고 통과하면 실행을 시작하지 않고 외부 호출(수신 확인 포함)도 하지 않은 채 `202`·`{ executionId: 'ignored' }` 로 조용히 버리되 인터랙션(REQ-CHAT-080)에는 `200 OK` 와 채널 어댑터의 기본 응답으로 답한다. (원본: WH-EP-07) (R-CC-33)
+- REQ-CHAT-058 IF 프로바이더가 특정 응답 형식만 성공으로 인정하고 그 사유와 응답 본문이 프로바이더 문서에 적혀 있으면 THE SYSTEM SHALL 그 경우에만 `202` 대신 `200 OK` 응답을 허용한다.
 - REQ-CHAT-059 IF 채팅 채널 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 THE SYSTEM SHALL 실행을 만들지 않고 `202`·`{ executionId: 'ignored' }` 로 답하며 이미 `degraded` 가 아니면 `chat_channel_health` 를 `degraded` 로 바꾸고 `chat_channel_last_error` 에 고정 문구를 남긴다.
 - REQ-CHAT-066 IF 활성 채팅 채널 트리거의 워크플로우가 비활성(`workflow.is_active=false`)이고 새 실행을 시작할 update(REQ-CHAT-012·015 의 메시지, REQ-CHAT-062 의 `/start`)가 오면 THE SYSTEM SHALL 실행을 시작하지 않고 기존 실행도 취소하지 않으며 `202`·`{ executionId: 'ignored' }` 로 답한다. (R-CC-28)
 - REQ-CHAT-067 WHEN 워크플로우가 비활성인 활성 채팅 채널 트리거에 Slack `url_verification` 이나 Discord PING(`type: 1`)이 오면 THE SYSTEM SHALL 서명 검증 뒤 프로바이더별 handshake 응답(`200 OK`)을 돌려준다. (R-CC-28)
 - REQ-CHAT-068 WHILE 활성 채팅 채널 트리거의 워크플로우가 비활성인 동안 THE SYSTEM SHALL 활성 실행이 있는 대화의 `/start` 가 아닌 메시지(답장, 버튼, 폼 제출)와 `/cancel`·`/help` 를 워크플로우가 활성일 때와 같이 처리한다. (R-CC-28)
 - REQ-CHAT-074 IF `/cancel` 의 활성 실행 취소를 재개 큐에 넣지 못하면(`EXECUTION_ENQUEUE_FAILED`) THE SYSTEM SHALL 채널 대화 상태의 `executionId` 를 그대로 두고 경고 로그를 남기며 이미 `degraded` 가 아니면 `chat_channel_health` 를 `degraded` 로 바꾸고 `chat_channel_last_error` 에 고정 문구를 남긴 뒤 `202 Accepted` 로 응답한다. (R-CC-31)
-- REQ-CHAT-075 IF `/cancel` 의 활성 실행 취소가 `INVALID_STATE` 나 `RESOURCE_NOT_FOUND` 로 실패하면 THE SYSTEM SHALL 그 실행이 이미 끝났거나 지워진 것으로 보고 REQ-CHAT-065 대로 `executionId` 를 비우며 채널 건강도는 바꾸지 않고 `202 Accepted` 로 응답한다. (R-CC-31)
+- REQ-CHAT-075 IF `/cancel` 의 활성 실행 취소가 `INVALID_STATE` 나 `RESOURCE_NOT_FOUND` 로 실패하면 THE SYSTEM SHALL 그 실행이 이미 끝났거나 지워진 것으로 보고 REQ-CHAT-065 대로 `executionId` 를 비우며 채널 건강도는 바꾸지 않고 REQ-CHAT-084 의 안내를 보낸 뒤 `202 Accepted` 로 응답한다. (R-CC-31, R-CC-36)
+- REQ-CHAT-084 WHEN 활성 실행이 없는 대화에 `/cancel` 이 오면 THE SYSTEM SHALL `languageHints.noActiveExecution` 안내를 보내고 Slack · Discord 슬래시 명령이면 그 안내를 즉시 응답에 싣는다. (R-CC-36)
 - REQ-CHAT-076 IF 입력 대기 실행으로 보내는 재개 명령(답장, 버튼 탭, 폼 제출)을 내부 신뢰 호출로 재개 큐에 넣지 못하면(`queued:false`) THE SYSTEM SHALL 경고 로그를 남기고 이미 `degraded` 가 아니면 `chat_channel_health` 를 `degraded` 로 바꾸고 `chat_channel_last_error` 에 REQ-CHAT-074 와 같은 고정 문구를 남긴 뒤 `202 Accepted` 로 응답한다. 그 명령이 네이티브 폼 모달 제출이면 모달 대기(`pendingFormModal`)를 지우지 않고 양식 버튼을 다시 보내며 폼 제출 결과 응답 대신 채널 어댑터의 기본 응답(REQ-CHAT-080)으로 답한다. (R-CC-31)
 - REQ-CHAT-079 WHEN 서명 참조(`inboundSigningRef`)가 저장된 채팅 채널 트리거로 웹훅 요청이 오면 THE SYSTEM SHALL 전역 요청 빈도 제한(`UserThrottlerGuard`)으로 그 요청을 세거나 `429` 로 거부하지 않는다. 서명 참조가 없는 채팅 채널 트리거의 요청은 일반 웹훅 요청과 같이 센다. (R-CC-12)
 - REQ-CHAT-080 WHEN 서명 검증을 통과한 요청이 프로바이더가 3초 안의 `200 OK` 만 성공으로 인정하는 인터랙션(채널 어댑터가 기본 응답을 정한 요청)이면 THE SYSTEM SHALL 트리거 · 워크플로우 상태와 처리 경로에 상관없이 `202` 대신 `200 OK` 와 그 기본 응답으로 답하고 처리 경로가 정한 응답(모달 열기, 폼 제출 결과)이 있으면 그 응답을 쓴다. (R-CC-33)
@@ -150,14 +151,13 @@ etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
 - [어댑터 라이프사이클과 listener 레지스트리](CLE-CHAT-CORE-LISTENER.md): 001–005, 009–010, 070–073
 - [메시지 발송과 채널 건강도](CLE-CHAT-CORE-RENDER.md): 018–032, 038–043, 060–061
 - [인바운드 관문](CLE-CHAT-CORE-GATE.md): 033–034, 046–047, 059, 066–068, 079, 082
-- [인바운드 HTTP 응답 계약](CLE-CHAT-CORE-RESPONSE.md): 056–058
+- [인바운드 HTTP 응답 계약](CLE-CHAT-CORE-RESPONSE.md): 056–058, 084
 - [인터랙션 응답과 명령 실패](CLE-CHAT-CORE-INTERACT.md): 074–076, 080–081
 - [봇 토큰 재발급](CLE-CHAT-CORE-TOKEN.md): 035–037, 054–055, 077
 - [봇 토큰 변경 경로와 PATCH 차단](CLE-CHAT-CORE-PATCH.md): 048–053, 078
 
 ## 공통 규칙
 
-- 채팅 채널 경로의 실패는 트리거를 자동으로 비활성화하지 않는다([채널 건강도](CLE-CHAT-CORE-RENDER.md#채널-건강도)).
 - 응답 · 로그 · 채팅 메시지에 봇 토큰, 서명 자료, 실행 에러 원문을 싣지 않는다. 예외는 진단 필드 `chat_channel_last_error` 다.
 
 ## 인바운드 관문 순서
@@ -253,3 +253,9 @@ etag: "sha256-d51e1c7627f9210f4e2af98e69a1e084fc818cb3fec8b4a1f1d34f1dd0ea07a4"
 
 ### R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다
 → [본문](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)
+
+### R-CC-36 /cancel 할 실행이 없으면 안내한다
+→ [본문](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)
+
+### R-CC-37 DM 밖 거절 안내는 Telegram 만
+→ [본문](CLE-CHAT-CORE-RESPONSE.md#r-cc-37-dm-밖-거절-안내는-telegram-만)
