@@ -236,7 +236,7 @@ en → There is no active conversation.
 
 ## 8. 제한 사항
 
-- **1:1(private) 대화만 지원** — 그룹 채팅에서 봇에게 메시지를 보내도 무시돼요. 봇은 안내 메시지(`languageHints.groupChatRefusal`) 만 발송해요.
+- **1:1(private) 대화만 지원** — 그룹 채팅에서 봇에게 메시지를 보내도 무시돼요. 봇은 안내 메시지(`languageHints.groupChatRefusal`) 만 발송해요. 이 문구를 비워 두면 기본 문구 `이 봇은 1:1 대화만 지원합니다.` 를 보내요.
 - **봇이 보낸 메시지는 무시** — 봇 간 루프 방지를 위해 `from.is_bot=true` 인 메시지는 처리하지 않아요.
 - **1분당 60건 제한** — 같은 conversation 에서 60건을 초과하면 초과 요청이 무시돼요.
 - **Bot Token 보관** — Bot Token 과 webhook `secret_token` 은 secret store 에 AES-256-GCM 으로 암호화 저장돼요. DB 에는 ciphertext 만 보관되고, plaintext 는 master key 를 보유한 backend 프로세스 안에서만 일시적으로 복호화돼요. API 응답에는 평문 token 이 절대 노출되지 않고, `hasBotToken: boolean` derived 필드만 포함돼요.

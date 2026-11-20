@@ -223,7 +223,7 @@ en → There is no active conversation.
 
 ## 8. Limitations
 
-- **1:1 (private) chats only** — messages in group chats are ignored. The bot only sends a notice (`languageHints.groupChatRefusal`).
+- **1:1 (private) chats only** — messages in group chats are ignored. The bot only sends a notice (`languageHints.groupChatRefusal`). If you leave that text empty, the bot sends the default notice (`이 봇은 1:1 대화만 지원합니다.` in every locale; there is no English default yet).
 - **Bot messages are ignored** — messages with `from.is_bot=true` are dropped to prevent bot loops.
 - **60 requests/minute per conversation** — requests above the cap are ignored.
 - **Bot token storage** — the bot token and webhook secret_token are encrypted with AES-256-GCM in the secret store. Only ciphertext lives in the DB; plaintext is transiently decrypted inside the backend process that holds the master key.
