@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-WIDGET-STATE"
 title: "웹채팅 위젯 — 대화 상태"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT-WIDGET"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT", "CLE-WEBCHAT-WIDGET"]
 area: "CLE-WEBCHAT"
-content_hash: "368dfba252419f338076d00efeecaf89686e8343de995a9672ff66b2a420730a"
+content_hash: "e0f3f28407e084743cf9cb3e1c6a30c1d3954af1fae94e519a7d53c04ed9b013"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JNXZWY"
 source_paths: []
-mirror_sha256: "61a81d7ce4c8fbe100986d25867ba1923017767466976de95aaec7f999e1c159"
-etag: "sha256-0fd528a28c374a712738990468c4072e13ec66efb03db6b4668560cae6bcb99c"
+mirror_sha256: "1005fb5a455708ab56998c6575298ad62ffd7ef3e0b3be0c2833635271c78011"
+etag: "sha256-44d462d833b01971e2c47779d7e9fe2a083a587219848120a76686d1825b1de3"
 ---
 ## 개요
 
@@ -143,7 +143,7 @@ iframe 이 일시 중지되거나 네트워크가 잠깐 끊겨 SSE 가 끊기�
 
 **`end_conversation` 과 `cancel` 을 고르는 이유**: 두 명령은 위젯이 새로 만든 구분이 아니라 EIA 가 이미 따로 정의한 명령이다([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)). `end_conversation` 은 특정 `nodeId` 의 멀티턴 대기를 정상 종료하고 `cancel` 은 실행 전체를 멈춘다. 위젯은 현재 대기 표면에 따라 기존 계약을 고를 뿐이다. AI 대화 대기면 `end_conversation` 으로 워크플로우가 이어서 완료되게 한다(뒤 노드와 집계가 정상으로 돈다). 그 밖은 `end_conversation` 이 대상 노드를 가질 수 없어 `cancel` 로 실행을 끝낸다.
 
-**로컬 먼저 종료하는 이유**: SSE 를 먼저 닫으면 종료 이벤트가 종료 처리와 겹쳐 두 번 전이하는 일이 없다. 명령이 실패하거나 거부돼도 사용자 의도(종료)를 앞세워 로컬 종료를 되돌리지 않는다. 서버 상태는 실행 무기한 보존 불변식([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md))과 토큰 만료로 정리된다. 종료 명령이 사라진 경우에도 공개 위젯에 남은 입력 대기 실행은 유휴 실행 회수가 토큰 만료와 유예 시간 뒤에 거둔다.
+**로컬 먼저 종료하는 이유**: SSE 를 먼저 닫으면 종료 이벤트가 종료 처리와 겹쳐 두 번 전이하는 일이 없다. 명령이 실패하거나 거부돼도 사용자 의도(종료)를 앞세워 로컬 종료를 되돌리지 않는다. 서버 상태는 실행 무기한 보존 불변식([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md))과 토큰 만료로 정리된다. 종료 명령이 사라진 경우에도 웹채팅 위젯에 남은 입력 대기 실행은 유휴 실행 회수가 토큰 만료와 유예 시간 뒤에 거둔다.
 
 ### 서버에 남는 실행을 없애는 두 장치: single-flight 합치기와 새 대화 전 cancel
 

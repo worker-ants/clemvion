@@ -159,7 +159,7 @@ const CANCEL_OUTCOMES_WITHOUT_EXECUTION: ReadonlySet<CancelOutcome> = new Set([
 ]);
 
 /**
- * 같은 대화의 `/start` 를 직렬화하는 시작 잠금의 TTL(초)(NERV Task `CLE-T-QZ8RFC`). 잠금 구간(기존 실행 취소,
+ * 같은 대화의 새 실행 시작 입력을 직렬화하는 시작 잠금의 TTL(초)(NERV Task `CLE-T-QZ8RFC`). 잠금 구간(기존 실행 취소,
  * 새 실행 시작, 대화 상태 저장)은 웹훅 응답 전에 끝나므로 폼 제출 잠금과 같은 30초면 넉넉하다. 프로세스가
  * 잠금을 쥔 채 죽어도 이 시간이 지나면 풀린다.
  */
@@ -604,7 +604,7 @@ export class HooksService {
       // (escapeControlText 강제 + 발송 실패 swallow). 평문 default 를 넘긴다.
       await this.sendBestEffortNotice(
         update.conversationKey,
-        config.languageHints?.help ??
+        readLanguageHintOverride(config.languageHints, 'help') ??
           '/start - 새 대화 시작\n/cancel - 진행 중인 대화 취소\n/help - 도움말',
         'help',
         config,
@@ -936,43 +936,40 @@ export class HooksService {
       return this.ackDroppedUpdateAndIgnore(input, config, adapter);
     }
 
-    // 같은 대화의 `/start` 는 대화 단위 시작 잠금으로 한 번에 하나씩 처리한다(NERV Task `CLE-T-QZ8RFC`).
-    // 잠금 없이 두 `/start` 가 겹치면 둘 다 같은 옛 실행을 읽고 새 실행을 각각 만든다. 마지막 저장만
-    // 대화 상태에 남고 먼저 만든 실행은 입력이 닿지 않는 채 계속 돈다. 잠금을 잡지 못한 `/start` 는
-    // 겹쳐 온 것으로 보고 버린다. Redis 가 없거나 오류면 잠금 없이 진행한다(fail-open).
-    let startLockToken: string | undefined;
-    let started: { executionId: string; restarted: boolean };
-    if (update.command.kind === 'start') {
-      startLockToken = randomUUID();
-      const acquired = await this.channelConversationService.acquireLock(
-        trigger.id,
-        update.conversationKey,
-        startLockToken,
-        START_LOCK_TTL_SEC,
-        'start',
+    // 같은 대화에서 새 실행을 시작하는 입력(`/start`, 활성 실행이 없는 대화의 일반 입력)은 대화 단위 시작
+    // 잠금으로 한 번에 하나씩 처리한다(R-CC-38, NERV Task `CLE-T-QZ8RFC` · `CLE-T-8A055H`). 잠금 없이 두 입력이
+    // 겹치면 둘 다 같은 옛 상태를 읽고 새 실행을 각각 만든다. 마지막 저장만 대화 상태에 남고 먼저 만든 실행은
+    // 입력이 닿지 않는 채 계속 돈다. `/start` 와 일반 입력도 서로 겹칠 수 있어 같은 키 · 같은 용도로 잡는다.
+    // 잠금을 잡지 못한 입력은 겹쳐 온 것으로 보고 버린다. Redis 가 없거나 오류면 잠금 없이 진행한다(fail-open).
+    const startLockToken = randomUUID();
+    const acquired = await this.channelConversationService.acquireLock(
+      trigger.id,
+      update.conversationKey,
+      startLockToken,
+      START_LOCK_TTL_SEC,
+      'start',
+    );
+    if (!acquired) {
+      this.logger.warn(
+        `chat-channel 새 실행 시작 입력(${update.command.kind})이 같은 대화의 다른 시작과 겹쳐 버린다 (trigger=${trigger.id}, provider=${config.provider})`,
       );
-      if (!acquired) {
-        this.logger.warn(
-          `chat-channel /start 가 같은 대화의 다른 /start 와 겹쳐 버린다 (trigger=${trigger.id}, provider=${config.provider})`,
-        );
-        return this.ackDroppedUpdateAndIgnore(input, config, adapter);
-      }
+      return this.dropOverlappingStartInput(input, update, config, adapter);
     }
+    let started: { executionId: string; restarted: boolean };
     try {
-      // 처음 읽은 대화 상태 뒤에 다른 `/start` 가 끝나 대화를 새 실행에 이었으면 이 `/start` 도 겹쳐 온
-      // 것이다. 그대로 가면 방금 이은 실행을 취소하지 않고 새 실행을 또 만든다.
+      // 처음 읽은 대화 상태 뒤에 다른 입력이 먼저 끝나 대화를 새 실행에 이었으면 이 입력도 겹쳐 온 것이다.
+      // 그대로 가면 방금 이은 실행을 두고 새 실행을 또 만든다.
       if (
-        startLockToken !== undefined &&
-        (await this.conversationMovedToAnotherExecution(
+        await this.conversationMovedToAnotherExecution(
           trigger.id,
           update.conversationKey,
           state?.executionId,
-        ))
+        )
       ) {
         this.logger.warn(
-          `chat-channel /start 가 같은 대화의 다른 /start 뒤에 처리돼 버린다 (trigger=${trigger.id}, provider=${config.provider})`,
+          `chat-channel 새 실행 시작 입력(${update.command.kind})이 같은 대화의 다른 시작 뒤에 처리돼 버린다 (trigger=${trigger.id}, provider=${config.provider})`,
         );
-        return this.ackDroppedUpdateAndIgnore(input, config, adapter);
+        return this.dropOverlappingStartInput(input, update, config, adapter);
       }
 
       // /start 는 활성 실행이 있어도 명령이 먼저다(CCH-CV-02/03, NERV Task `CLE-T-V4WVF2`).
@@ -1047,14 +1044,12 @@ export class HooksService {
       await adapter.ackInteraction(update, config);
       started = { executionId, restarted: hasActiveExecution };
     } finally {
-      if (startLockToken !== undefined) {
-        await this.channelConversationService.releaseLock(
-          trigger.id,
-          update.conversationKey,
-          startLockToken,
-          'start',
-        );
-      }
+      await this.channelConversationService.releaseLock(
+        trigger.id,
+        update.conversationKey,
+        startLockToken,
+        'start',
+      );
     }
 
     const result: ChatChannelWebhookResult = {
@@ -1062,7 +1057,7 @@ export class HooksService {
       status: 'pending',
     };
     // `/start` 로 새 실행을 시작했으면 시작 잠금을 푼 뒤 시작 · 재시작 안내로 답한다(NERV Task `CLE-T-0400J6`).
-    // `/start` 가 아닌 첫 메시지로 시작한 실행에는 안내하지 않는다(NERV Task `CLE-T-8A055H` 가 다룬다).
+    // `/start` 가 아닌 첫 메시지로 시작한 실행에는 안내하지 않는다(R-CC-27, CLE-CHAT-DATA-CONFIG Rationale).
     if (update.command.kind !== 'start') return result;
     const providerResponse = await this.notifyExecutionStarted(
       input,
@@ -1075,9 +1070,28 @@ export class HooksService {
   }
 
   /**
+   * 시작 잠금에서 밀린 새 실행 시작 입력을 버린다(R-CC-38, NERV Task `CLE-T-8A055H`).
+   *
+   * `/start` 는 안내 없이 버린다. 일반 입력은 활성 실행이 running/pending 일 때(CCH-CV-03(b))처럼
+   * `executionStillRunning` 안내를 보낸 뒤 버린다. 다시 읽은 실행이 입력 대기여도 그 실행에 전달하지 않는다.
+   * 응답은 버린 update 와 같고 dedup 선점은 풀지 않는다.
+   */
+  private async dropOverlappingStartInput(
+    input: WebhookInput,
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<ChatChannelWebhookResult> {
+    if (update.command.kind !== 'start') {
+      await this.sendExecutionStillRunningNotice(update, config, adapter);
+    }
+    return this.ackDroppedUpdateAndIgnore(input, config, adapter);
+  }
+
+  /**
    * 시작 잠금을 잡은 뒤 대화 상태를 다시 읽어 처음 읽은 뒤 다른 실행으로 이어졌는지 본다(NERV Task `CLE-T-QZ8RFC`).
    *
-   * 잠금을 잡기 전에 다른 `/start` 가 잠금을 잡고 끝났으면 그 `/start` 가 이은 새 실행이 대화 상태에 있다.
+   * 잠금을 잡기 전에 다른 새 실행 시작 입력이 잠금을 잡고 끝났으면 그 입력이 이은 새 실행이 대화 상태에 있다.
    * 처음 읽은 실행과 다른 실행을 가리킬 때만 `true` 다. 실행이 비었으면 옛 실행이 끝나 종결 이벤트가
    * 비운 것이므로 `false` 다. Redis 가 없거나 읽지 못하면 `lookup` 이 `null` 을 돌려 `false` 가 된다.
    */
@@ -1541,8 +1555,10 @@ export class HooksService {
         // control-plane 직접 발송 — sendBestEffortNotice 단일 chokepoint(escapeControlText 강제).
         await this.sendBestEffortNotice(
           update.conversationKey,
-          config.languageHints?.formValidationFailed ??
-            FORM_VALIDATION_FAILED_DEFAULT,
+          readLanguageHintOverride(
+            config.languageHints,
+            'formValidationFailed',
+          ) ?? FORM_VALIDATION_FAILED_DEFAULT,
           'formValidationFailed',
           config,
           adapter,
@@ -1553,7 +1569,7 @@ export class HooksService {
       // placeholder 안내 발송 (control-plane — sendBestEffortNotice 경유).
       await this.sendBestEffortNotice(
         update.conversationKey,
-        config.languageHints?.formNextField ??
+        readLanguageHintOverride(config.languageHints, 'formNextField') ??
           formNextFieldDefault(formState.currentFieldIdx + 1),
         'formNextField',
         config,
@@ -1695,7 +1711,7 @@ export class HooksService {
     adapter: ChatChannelAdapter,
   ): Promise<void> {
     const text =
-      config.languageHints?.executionStillRunning ??
+      readLanguageHintOverride(config.languageHints, 'executionStillRunning') ??
       '워크플로우가 처리 중입니다. 잠시만 기다려 주세요.';
     await this.sendBestEffortNotice(
       update.conversationKey,

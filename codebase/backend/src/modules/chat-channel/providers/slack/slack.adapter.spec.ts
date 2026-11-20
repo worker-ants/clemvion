@@ -712,6 +712,38 @@ describe('SlackAdapter', () => {
       fetchSpy.mockRestore();
     });
 
+    // NERV Task `CLE-T-J8M86K` — 빈 문자열 덮어쓰기는 「없는 것」 이라 기본 문구로 넘어간다.
+    it('selectionDone 이 빈 문자열이면 선택 완료 기본 문구로 갱신한다', async () => {
+      const fetchSpy = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+      try {
+        const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+        await adapter.ackInteraction(
+          {
+            conversationKey: 'C1',
+            channelUserKey: 'U1',
+            command: {
+              kind: 'button_callback',
+              callbackData: 'b1',
+              callbackQueryId: '',
+            },
+            idempotencyKey: 'k',
+            receivedAt: '2026-06-03T00:00:00Z',
+            responseUrl: 'https://hooks.slack.com/actions/resp',
+          },
+          { ...SLACK_CONFIG, languageHints: { selectionDone: '' } },
+        );
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        const body = JSON.parse(
+          (fetchSpy.mock.calls[0][1] as { body: string }).body,
+        ) as { text: string };
+        expect(body.text).toBe('선택 완료');
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
     it('responseUrl 없으면 noop (fetch 미호출)', async () => {
       const fetchSpy = jest.spyOn(global, 'fetch');
       const adapter = new SlackAdapter(makeClient(), makeSecretsMock());

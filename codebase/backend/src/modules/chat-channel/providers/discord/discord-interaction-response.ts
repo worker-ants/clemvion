@@ -97,7 +97,8 @@ function resolveDiscordHelpText(config: ChatChannelConfig): string {
   const override = readLanguageHintOverride(config.languageHints, 'help');
   if (override !== undefined) return override;
   const prefix =
-    config.languageHints?.slashPrefix ?? DISCORD_DEFAULT_SLASH_PREFIX;
+    readLanguageHintOverride(config.languageHints, 'slashPrefix') ??
+    DISCORD_DEFAULT_SLASH_PREFIX;
   return pickLocaleDefault(SLASH_HELP_DEFAULTS, config.languageLocale)
     .split('{prefix}')
     .join(prefix);

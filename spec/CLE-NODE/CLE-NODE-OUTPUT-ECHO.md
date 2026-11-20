@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-ECHO"
 title: "노드 출력 규약 — 설정 에코"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "634b66792393ce0cf7ef534dfa9579feaffd6c5212299bc1b92dfb7e619e874a"
+content_hash: "f88d80c2b6117149f68ec2bda8d44e8456efa781c0d62c971d61702afdeed594"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-1639BP"
 source_paths: []
-mirror_sha256: "7214a530e8bb1bc2709a8bf3f6b986dd306ee5ffa838c76508583d832da751ea"
-etag: "sha256-83f2d9fdf6dd04f803f4b02bc666ea113135d10d1d8dff9d413a0bc9354bc7a6"
+mirror_sha256: "07d6f2b64448282f77fd63c9b2c2e7b55eeaa5bce0d2239ec5a781823461564a"
+etag: "sha256-2aeaef45e7ed5b806a0661f64cb3c712cf1010b7aa23687ed36bcff5d2e18907"
 ---
 ## 개요
 
@@ -131,7 +131,7 @@ async execute(input, config /* 평가된 설정 */, context /* { rawConfig, ... 
 
 결정일: 2026-08-24
 
-예전에는 `config` 를 "해석된 설정값(자격 증명 제거)" 으로 정의했다. 이 서술은 엔진 경계(`handler-output.adapter.ts`)가 저장 전에 마스킹한다는 전제에 기대고 있었다. 그 경계는 제거됐다. 저장 전에 가리면 `$node["X"].config.<field>` 가 리터럴 `****abcd` 를 읽는다. 이는 보이는 정보가 줄어드는 정도가 아니라 기능이 오염되는 문제였다. 그래서 `config` 는 원문으로 저장하고 REST·WebSocket 으로 나갈 때만 가리기로 했다. [응답 자격 증명 마스킹 §1.1](../CLE-API/CLE-API-EGRESS.md#11-egress-only)의 egress 전용 원칙과 같은 방향이다. 근거와 경위는 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md)의 R-5 에 있다. 같은 날 정리한 `_resumeState`·`_retryState` 의 자격 증명 제외 방식은 [포트 · 흐름 상태 · 에러](CLE-NODE-OUTPUT-FLOW.md#_resumestate--_retrystate-의-자격-증명-제외-방식-2026-08-24)에 있다.
+예전에는 `config` 를 "해석된 설정값(자격 증명 제거)" 으로 정의했다. 이 서술은 엔진 경계(`handler-output.adapter.ts`)가 저장 전에 마스킹한다는 전제에 기대고 있었다. 그 경계는 제거됐다. 저장 전에 가리면 `$node["X"].config.<field>` 가 리터럴 `****abcd` 를 읽는다. 이는 보이는 정보가 줄어드는 정도가 아니라 기능이 오염되는 문제였다. 그래서 `config` 는 원문으로 저장하고 REST·WebSocket 으로 나갈 때만 가리기로 했다. [응답 자격 증명 마스킹 §1.1](../CLE-API/CLE-API-EGRESS.md#11-egress-only)의 egress 전용 원칙과 같은 방향이다. 근거와 경위는 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md)의 R-5 에 있다. 같은 날 정리한 `_resumeState`·`_retryState` 의 자격 증명 제외 방식은 [포트 · 흐름 상태 · 에러](CLE-NODE-OUTPUT-FLOW.md#_resumestate--_retrystate-의-자격-증명-제외-방식)에 있다.
 
 ### egress 값 마스킹을 방어층으로 둔 이유
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON-CONTEXT"
 title: "AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AI-COMMON"]
 area: "CLE-NODE-AI"
-content_hash: "66d261f9d41c9dc2a08c944dfc2e8739e041562abee2963eb2a34ab9a6a03d76"
+content_hash: "70cf6af97f694ffc79c093c056423670a002aec7187d360c011db96df9ef680d"
 read_as: "approved_fallback"
-task: "CLE-T-0ZHAC4"
+task: "CLE-T-TV4VA8"
 source_paths: []
-mirror_sha256: "b2c917b6e20ffaa69d39196f366088663d21a3b4b87bb21cffef52952975f1f9"
-etag: "sha256-e8fae07b88b562a2fd2dfcf22c70b77c59f99987131cbe86ae6b8c74db81b5fd"
+mirror_sha256: "c9edd72bf301414c9adafbc6073d73120732a009516a5f2d3d43743fd0f05e74"
+etag: "sha256-80041769b0e2350e0626ed65fea4c0a510bd783b8808bce00f8a45b561cbaeec"
 ---
 ## 개요
 
@@ -115,10 +115,9 @@ UTC 워크스페이스의 접두 예시:
 접두의 시간대는 다음 순서로 정한다.
 
 1. 워크스페이스 설정 `Workspace.settings.timezone`(IANA). 워크스페이스 설정의 필수 항목이다(원본: NAV-SC-06, [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md)).
-2. 서버 기본값 `process.env.TZ`(배포 환경 변수).
-3. `UTC`.
+2. 제품 기본 시간대 `Asia/Seoul`([워크스페이스와 멤버 「기본 시간대」](../CLE-ACCT/CLE-ACCT-WS.md#기본-시간대)).
 
-각 단계의 IANA 이름은 `Intl.DateTimeFormat(...).resolvedOptions().timeZone` 으로 검증한다. 검증에 실패하면 다음 단계로 넘어간다. UTC offset 은 `$now` 시점 기준이다. DST 가 있는 시간대는 실행 시점의 offset 을 쓴다.
+워크스페이스 값의 IANA 이름은 `Intl.DateTimeFormat(...).resolvedOptions().timeZone` 으로 검증한다. 값이 비었거나 검증에 실패하면 제품 기본 시간대를 쓴다. 서버 `process.env.TZ` 는 읽지 않는다. UTC offset 은 `$now` 시점 기준이다. DST 가 있는 시간대는 실행 시점의 offset 을 쓴다.
 
 스케줄의 시간대는 Cron 자동 발사 기준이며 이 접두와 별개로 정한다([스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md)). AI 에이전트가 스케줄 트리거로 실행돼도 접두의 시간대는 워크스페이스 설정을 따른다.
 
@@ -182,6 +181,12 @@ UTC 워크스페이스의 접두 예시:
 - 노드별 필드가 아니라 공통 규약 한 곳에 정의한 이유는 세 노드가 같은 맥락을 필요로 해 정의가 어긋나는 것을 막기 위해서다.
 - Cafe24 도구 description 자동 suffix 와 한 묶음으로 결정했다([Cafe24 등 MCP 도구와의 관계](#cafe24-등-mcp-도구와의-관계)).
 - 기존 워크플로우는 설정에 필드가 없으면 기본값으로 해석한다. DB 마이그레이션으로 `false` 를 박지 않고, 회귀가 걱정되는 워크플로우만 사용자가 알고 끈다.
+
+### 워크스페이스 시간대가 없으면 제품 기본 시간대를 쓴다
+
+결정일: 2026-11-20
+
+처음에는 워크스페이스 설정 다음에 서버 `process.env.TZ`, 그다음 `UTC` 로 떨어졌다. 같은 경우 스케줄은 `Asia/Seoul` 로 떨어져서 한 워크스페이스 안에서 스케줄 발사 시각과 접두의 현재 시각이 9시간 어긋날 수 있었다. [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스-시간대가-없으면-제품-기본-시간대를-쓴다) 가 두 소비자의 폴백을 제품 기본 시간대 하나로 맞췄고 이 문서의 결정 순서도 그 결정을 따른다(NERV Task `CLE-T-TNZ3J9` · `CLE-T-TV4VA8`). 기각한 대안은 그 문서의 Rationale 에 있다.
 
 ### 대화 스레드를 1급 객체로 들이고 자동 주입한 이유
 

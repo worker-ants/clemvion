@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 18
+version: 19
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "1030e7657c2e4e0a2de2aeb3458a6dde89fb9be2f1d9f35211bfbbc0c1bd5b33"
+content_hash: "064e265e175d9711c3f01c8988810c65c260d30ea94ce708e3fe1cb12265054c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FTSKJW"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "1566e80bbd40a0b0662a2e25b9278889473c01455bed0017c8af9a94dda8f1d9"
-etag: "sha256-8c3c41380059ab0f83403377bf4602c6f0818a0447063ec2f15e057a70342777"
+mirror_sha256: "28d1e10195728dea27e09d7c48690f8f7bd0c168cc6d2a2ee27f76c0726c69c5"
+etag: "sha256-84c56c3040ea7bc979c049552f5265970846b7600e6b2ae8cf211538b841467c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -56,7 +56,7 @@ etag: "sha256-8c3c41380059ab0f83403377bf4602c6f0818a0447063ec2f15e057a70342777"
    - 트리거 단위 토큰 재발급(`revoke-token`) 응답은 `Trigger.config.interaction.triggerToken` 에 들어가는 새 `itk_*` 를 `data.token` 에 싣는다.
    - 인증 설정 생성 · 키 재생성 응답은 평문 `config` 를 싣는다([외부 호출 인증 설정 「필드 마스킹과 평문 보기」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#필드-마스킹과-평문-보기)).
    - 인증 설정 평문 보기(`POST /api/auth-configs/:id/reveal`) 응답은 평문 `config` 를 싣는다. 값을 만든 응답이 아닌 유일한 항목이다. 비밀번호 재확인과 감사 기록을 거친 요청에만 한 번 싣는다([외부 호출 인증 설정 「평문 보기 흐름」](../CLE-TRIG/CLE-TRIG-AUTHCFG.md#평문-보기-흐름)).
-5. 규칙 4 는 두 축으로 시행한다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답-계약 검증(선언하지 않은 키를 위반으로 본다)과 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 의 엔티티 패스스루 금지다. 규칙 4 의 예외 응답도 이 검증을 받는다. 그래서 평문을 싣는 필드는 그 응답의 DTO 에 선언한다. 같은 DTO 가 평문을 싣지 않는 응답에도 쓰이면 그 필드는 선택 필드로 선언하고 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b) 사유를 적는다. 두 축 모두 열린 맵(`additionalProperties: true` 로 선언한 객체, 예: `TriggerDto.config`) 안의 키는 보지 않는다. 그래서 열린 맵 안에 두는 저장소 예외 필드와 시크릿 참조는 응답에 그 키가 없음을 단언하는 e2e 를 함께 둔다. 공개 API 로 더는 저장할 수 없는 옛 값은 단위 테스트로 단언한다([R19](CLE-INT-SECRET-EXPOSE.md#r19-열린-맵-안의-비밀은-응답-부재를-테스트로-단언한다-2026-11-07)).
+5. 규칙 4 는 두 축으로 시행한다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답-계약 검증(선언하지 않은 키를 위반으로 본다)과 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 의 엔티티 패스스루 금지다. 규칙 4 의 예외 응답도 이 검증을 받는다. 그래서 평문을 싣는 필드는 그 응답의 DTO 에 선언한다. 같은 DTO 가 평문을 싣지 않는 응답에도 쓰이면 그 필드는 선택 필드로 선언하고 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b) 사유를 적는다. 두 축 모두 열린 맵(`additionalProperties: true` 로 선언한 객체, 예: `TriggerDto.config`) 안의 키는 보지 않는다. 그래서 열린 맵 안에 두는 저장소 예외 필드와 시크릿 참조는 응답에 그 키가 없음을 단언하는 e2e 를 함께 둔다. 공개 API 로 더는 저장할 수 없는 옛 값은 단위 테스트로 단언한다([R19](CLE-INT-SECRET-EXPOSE.md#r19-열린-맵-안의-비밀은-응답-부재를-테스트로-단언한다)).
 6. 엔티티를 그대로 반환하는 경로에서는 응답 경계에서 지운다. 컬럼 수준 `select: false` 는 쓰지 않는다. 그 컬럼을 읽는 내부 경로(교체 승격, 정리 스윕)가 예외 없이 `undefined` 를 받아 조용히 오작동하기 때문이다.
 7. 트리거를 만들 때(알림 웹훅·채팅 채널 설정 포함)와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때 비밀 저장은 `rotate(ref, workspaceId, plaintext)` 를 쓴다. PATCH 가 저장된 행의 옛 평문 `signing.secret` 을 시크릿 저장소로 옮길 때도 `rotate` 를 쓴다. UPSERT 라 같은 워크스페이스에서 설정을 다시 시도해도 안전하다(다른 워크스페이스의 행은 규칙 25). `store()` 도 결과는 같지만 같은 참조가 이미 있을 때의 동작(덮어쓰기 또는 throw)이 백엔드 구현에 따라 달라질 수 있다.
 8. 트리거 행이 없어질 때(트리거·스케줄·워크플로우·워크스페이스 삭제) 그 트리거의 모든 참조를 `deleteByPrefix('secret://triggers/{id}/')` 로 한꺼번에 지운다. 행 삭제가 커밋된 **뒤에** 지운다. 채널 프로바이더 쪽 정리 작업이 이 비밀을 읽으므로 먼저 지울 수 없고, 행 삭제 전에 지우면 그 사이 커밋된 쓰기가 남긴 비밀을 아무도 지우지 않는다. DB FK 가 없으므로 애플리케이션 책임이다. 개별 `delete()` 보다 prefix 삭제를 쓴다.

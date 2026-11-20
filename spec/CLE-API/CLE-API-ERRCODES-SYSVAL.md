@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-SYSVAL"
 title: "에러 코드 카탈로그 — 시스템 · 유효성 검증"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "8158765bd0700b4c4acd77d8fc82c71f116d16606d53952a05bad8d8cfba515a"
+content_hash: "03f90c71426740942c82dd67ab6051e237082b75060f2599b94af8a426d175e3"
 read_as: "approved_fallback"
-task: "CLE-T-GWC9M3"
+task: "CLE-T-8WXV7T"
 source_paths: []
-mirror_sha256: "c161c33b1626b610764f00c0c63bbfd2be0da49131ee0555387895cdaf5d600d"
-etag: "sha256-d8c44a83ed45a8f55730bf4e44761b7f49b8441c1c9204e1479641f866c93e1f"
+mirror_sha256: "b9c049a555cdf30b509e72d131da54a96dd512efd2eae4154d5c80542a5c9d8f"
+etag: "sha256-e336418184420f4e60239040494fb46ff9f3c470f026e0adbc0e67aac0c5c635"
 ---
 ## 개요
 
@@ -26,7 +26,6 @@ etag: "sha256-d8c44a83ed45a8f55730bf4e44761b7f49b8441c1c9204e1479641f866c93e1f"
 |------|------|------|--------------|-----------|
 | `INTERNAL_ERROR` | 내부 서버 에러 | 예상하지 못한 서버 에러. 5xx 기본 코드. 클라이언트가 분기할 수 없는 예상된 내부 거부도 이 코드로 보낸다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25 · 27) | "서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `SERVICE_UNAVAILABLE` | 서비스 불가 | 의존 서비스에 접근할 수 없음. 로그인 2단계 Passkey 인증 검증(`POST /api/auth/2fa/webauthn/authenticate/verify`)에서 Passkey 인증 챌린지를 기록하지 못할 때 낸다. 기록하지 못하는 조건은 [가입과 로그인 「Passkey 등록·인증 흐름」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-등록인증-흐름) 이 정한다 | "서비스를 일시적으로 사용할 수 없습니다." | [HTTP API 규약](CLE-API-CONV.md) 의 「6. HTTP 상태 코드」, [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) |
-| `DATABASE_ERROR` | DB 에러 | 데이터베이스 연결·쿼리 실패. 발행처는 [미결 사항](CLE-API-ERRCODES.md#미결-사항) 참조 | "데이터 처리 중 오류가 발생했습니다." | [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) |
 | `RATE_LIMITED` | 요청 빈도 제한 | 요청 빈도 제한 초과. 429 기본 코드 | "요청이 너무 많습니다. {retry_after}초 후 다시 시도해 주세요." | [HTTP API 규약](CLE-API-CONV.md) |
 
 ## 6.4 유효성 검증

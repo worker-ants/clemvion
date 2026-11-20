@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS-TRIGGER"
 title: "응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "33a3e72723fd28a8a234eef27ffdc8771223dc9acfa968e56019801d4eb87fdf"
+content_hash: "3491dafc73c10853c20406263d7bba69fc1bf9345bfab6774e444ae7248a23fa"
 read_as: "approved_fallback"
-task: "CLE-T-SND9K2"
+task: "CLE-T-FTSKJW"
 source_paths: []
-mirror_sha256: "0a22a5fffe667bebad0b15513401864f83471cd2ffc1ca64c61e015fcd623fdc"
-etag: "sha256-1769049b0102ade406596566d7d2a27dfba6fea1350ee6c259be38ad5b44a52d"
+mirror_sha256: "dafef92e01bfb35f7f921f22a90377e8d0ac4b5c52fe82cb23022f4c3ec0dbd3"
+etag: "sha256-a771e9ecd150ab997afd62d4fea952865fde2d4d6913b74d6383d5de3da1d2e2"
 ---
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-1769049b0102ade406596566d7d2a27dfba6fea1350ee6c259be38ad5b44a52d"
   - 알려진 비밀 치환은 글자 그대로 같은 문자열만 바꾼다. 인코딩된 평문(URL 인코딩, base64)은 가리지 못한다. 나가는 층도 알려진 모양만 가린다.
   - 이 변경 전에 저장된 값은 다음 갱신 때까지 DB 에 남는다. 응답에서는 봇 토큰이 실린 헤더 오류와 `secret:` 뒤의 시크릿 참조를 값 패턴이 가린다. DB 의 옛 값은 정리하지 않는다. 토큰이 실렸을 수 있는 트리거는 토큰을 재발급한다.
   - 프로바이더가 돌려준 4xx 본문은 알려진 비밀 치환을 거치지 않는다. 본문에 토큰이 실리면 나가는 층의 값 패턴만 남는다.
-  - 두 필드는 트리거 응답 분류 표(`codebase/backend/src/modules/triggers/trigger-response-strip.ts` 의 `TRIGGER_COLUMN_RESPONSE`)에서 `redact` 로 분류된다. `trigger` 에 컬럼을 더하면 이 표에서 분류해야 컴파일되므로, 마지막 오류 같은 진단 텍스트 컬럼이면 `redact` 로 두고 위 표를 함께 고친다(분류 표의 근거는 [시크릿 저장소 — 저장소 예외 필드와 응답 노출 R21](../CLE-INT/CLE-INT-SECRET-EXPOSE.md#r21-응답-스트립을-필드-전수-분류-표로-바꾼다-2026-11-20)).
+  - 두 필드는 트리거 응답 분류 표(`codebase/backend/src/modules/triggers/trigger-response-strip.ts` 의 `TRIGGER_COLUMN_RESPONSE`)에서 `redact` 로 분류된다. `trigger` 에 컬럼을 더하면 이 표에서 분류해야 컴파일되므로, 마지막 오류 같은 진단 텍스트 컬럼이면 `redact` 로 두고 위 표를 함께 고친다(분류 표의 근거는 [시크릿 저장소 — 저장소 예외 필드와 응답 노출 R21](../CLE-INT/CLE-INT-SECRET-EXPOSE.md#r21-응답-스트립을-필드-전수-분류-표로-바꾼다)).
   - 생성 · 재발급은 보이는 ASCII(U+0021~U+007E) 밖 문자(공백 · 제어 문자 등)가 든 봇 토큰을 프로바이더를 부르기 전에 400 으로 거부한다([채팅 채널 「R-CC-32 봇 토큰 입력은 보이는 ASCII 만 받는다」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-32-봇-토큰-입력은-보이는-ascii-만-받는다), NERV Task `CLE-T-FX354C`). 이미 저장된 토큰은 바뀌지 않는다. 그런 토큰이 남은 트리거는 여전히 `degraded` 로 드러나고 토큰을 재발급해 고친다. 그래서 입력 거부가 있어도 알려진 비밀 치환은 그대로 필요하다.
 - **알림 URL 의 userinfo** (2026-11-20, NERV Task `CLE-T-RCQGCC`): userinfo 가 든 알림 URL 은 등록 · 수정에서 거부한다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md#ssrf-방지)). 그 전에 저장된 행이 남아 있어 같은 응답의 `config.notification.url` 에서 userinfo 를 `***@` 로 가린다(`maskNotificationUrlUserinfo`). 호스트 · 경로 · 쿼리는 원문 글자 그대로 두고 저장값은 바꾸지 않는다. 편집 폼이 가린 URL 을 PATCH 로 되보내면 등록 검사의 userinfo 거부로 `400 INVALID_NOTIFICATION_URL` 이 나서 마커가 저장되지 않는다. 이 거부가 규칙 9 의 소비 쪽 가드이고 마커 가드는 따로 두지 않는다. 가린 URL(`***@`)이 다시 저장되지 않는 것은 등록 · 수정의 userinfo 거부(REQ-EIANOTI-039)에 기대므로 그 거부를 없애거나 좁히면 규칙 9 의 마커 재제출 가드([재제출 거부와 마스커 좌표계 「다시 쓰이는 값과 재제출 거부」](CLE-API-EGRESS-PIPELINE.md#4-다시-쓰이는-값과-재제출-거부))도 함께 사라진다. `notificationLastError` 에는 `redactSecrets` 뒤에 국소 패턴(`://` 바로 뒤에서 `@` 앞까지, `/` · 공백 · `@` 가 없는 구간)을 더 걸어 사용자명만 있는 형태(`https://tok@host`)와 빈 사용자명(`https://:pw@host`)도 `***` 로 가린다. `chatChannelLastError` 에는 이 패턴을 걸지 않고 공유 패턴만 건다.
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-FLOW"
 title: "채팅 채널 — 처리 흐름과 대화"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "d0c254c4ab1d611a4a09d2250ba8064258d2a4e32df1360cbe070e7c36b6ef97"
+content_hash: "9b760d134bc3082f75e2bddf99497b0da0de3f9fa2498f8bf5f342df0f4b74c0"
 read_as: "approved_fallback"
-task: "CLE-T-0400J6"
+task: "CLE-T-8A055H"
 source_paths: []
-mirror_sha256: "b58fc816df62bd2cc7480048230a3de526fe1c763ff1a46d261c2399263c3b38"
-etag: "sha256-74eaa2a43441a1957b7c426dd2e8dfb44d44f35a569c06e23926e7f361c89e12"
+mirror_sha256: "f7cde54e43fad00f2d49827e66e8c0ad20708331c682420655a5a2f0fdad9927"
+etag: "sha256-4cfd56c4631e5708572a6eb211125fb33fdb3dccaf44155d8550aaa01869285e"
 ---
 ## 개요
 
@@ -67,7 +67,7 @@ sequenceDiagram
 
 ## 대화와 실행
 
-- **실행 중 메시지**: 같은 대화의 다음 메시지가 왔는데 활성 실행이 `running`·`pending` 이면 `languageHints.executionStillRunning` 안내를 보낸다. 기본 문구는 "워크플로우가 처리 중입니다. 잠시만 기다려 주세요." 이고 한국어 기본값만 있다. 구현은 `sendExecutionStillRunningNotice` 로 안내하고 `{ executionId: 'ignored' }` 로 끝낸다. 근거는 [R9](#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 에 있다.
+- **실행 중 메시지**: 같은 대화의 다음 메시지가 왔는데 활성 실행이 `running`·`pending` 이면 `languageHints.executionStillRunning` 안내를 보낸다. 구현은 `sendExecutionStillRunningNotice` 로 안내하고 `{ executionId: 'ignored' }` 로 끝낸다. 근거는 [R9](#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 에 있다.
 - **그룹 대화 거부**: 안내는 Telegram 메시지에만 보내고 Slack · Discord 의 DM 밖 일반 update 는 안내 없이 버린다([R-CC-37](CLE-CHAT-CORE-RESPONSE.md#r-cc-37-dm-밖-거절-안내는-telegram-만)). 안내 발송 책임은 채널 어댑터가 아니라 호출자(`HooksService`)에 있다. `parseUpdate` 는 부수 효과 없는 계약을 지킨다. 근거는 [R3](#r3-1차-범위는-11-dm-만-지원한다) 에 있다.
 - **종결 이벤트의 대화 상태 정리**: 채널 대화 상태의 키는 `chat-channel:{triggerId}:{conversationKey}` 다. `executionId` 를 비우는 것은 읽은 값과 저장된 값을 비교해 바꾸는 compare-and-set 이고 다른 쓰기에 밀리면 최대 3회 다시 읽는다. Redis 를 쓸 수 없거나 끝내 비우지 못하면 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 새 실행을 시작한다. `/cancel` 도 취소한 실행을 가리킬 때만 같은 방식으로 비운다.
 - **폼 입력 대기 상태 갱신**: 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 `pendingFormModal`·`formState` 를 갱신하지 않는다. 렌더한 메시지의 발송은 이 조건과 관계없다. 갱신은 종결 이벤트의 정리와 같은 compare-and-set 이다. 읽은 뒤 `/start` 가 대화를 새 실행에 이으면 저장하지 않고, 같은 실행의 다른 필드만 바뀌었으면 다시 읽어 그 값 위에 고친다.
@@ -78,11 +78,11 @@ sequenceDiagram
 
 활성 실행이 있으면 `/start`·`/cancel` 은 실행 소유자만 쓴다. 실행 소유자는 `channelUserKey` 가 채널 대화 상태의 값과 같은 사용자다. 소유자가 아닌 사람이 두 명령을 보내면 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 문구 없이 [버린 update 의 수신 확인](CLE-CHAT-CORE-INTERACT.md#버린-update-의-수신-확인)만 보내고 `202`·`{ executionId: 'ignored' }`(인터랙션이면 [기본 응답](CLE-CHAT-CORE-INTERACT.md#인터랙션-기본-응답))로 답한다. 이 확인은 대화 상태를 조회해 활성 실행을 판단한 바로 뒤, `/cancel` 처리와 워크플로우 활성 관문보다 앞에서 한다. 워크플로우가 비활성일 때 소유자가 아닌 사람의 `/start` 는 비활성 관문 대신 이 확인에서 버리지만 응답은 같다. 활성 실행이 없으면 누구나 `/start` 로 새 실행을 시작하고 시작한 사람이 새 소유자가 된다. `channelUserKey` 는 새 실행의 대화 상태를 저장할 때만 바뀐다. `/help` 는 소유자를 확인하지 않는다. 근거는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다. 활성 실행이 없는 대화의 `/cancel` 은 누가 보냈든 `noActiveExecution` 안내로 끝난다(REQ-CHAT-084, [R-CC-36](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)).
 
-같은 대화에 `/start` 가 겹쳐 오면 대화 단위 시작 잠금(`cc:startlock`)으로 하나씩 처리한다. 잠금은 워크플로우 활성 관문 뒤, 기존 실행 취소 앞에서 잡는다. 활성 실행이 없어도 잡는다. 잠금 구간은 기존 실행 취소, 새 실행 시작, 대화 상태 저장이고 어느 경로로 끝나든 잠금을 푼다. 잠금을 잡지 못한 `/start` 는 소유자가 아닌 사람의 명령과 같은 방식으로 버리고 경고 로그를 남긴다. 잠금을 잡으면 대화 상태를 다시 읽는다. `executionId` 가 처음 읽은 값과 다른 실행을 가리키면 같은 방식으로 버린다. 비어 있거나 다시 읽지 못하면 그대로 진행한다. Redis 가 없거나 오류가 나면 잠금을 잡은 것으로 본다(fail-open). 키와 TTL 은 [채팅 채널 데이터와 흐름 — 저장 모델과 상태 「Redis 키」](CLE-CHAT-DATA-STORE.md#redis-키) 가 정한다. 근거는 [R-CC-38](#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다.
+새 실행 시작 입력은 `/start` 와 활성 실행이 없는 대화의 일반 입력(`text_message`·`button_callback`·`contact_share`·`file_upload`)이다. 같은 대화에 새 실행 시작 입력이 겹쳐 오면 `/start` 와 일반 입력을 가리지 않고 대화 단위 시작 잠금(`cc:startlock`, 용도 `start`)으로 하나씩 처리한다. 잠금은 워크플로우 활성 관문 뒤, 기존 실행 취소 앞에서 잡는다. 활성 실행이 없어도 잡는다. 잠금 구간은 기존 실행 취소, 새 실행 시작, 대화 상태 저장이고 어느 경로로 끝나든 잠금을 푼다. 잠금을 잡으면 대화 상태를 다시 읽는다. 잠금을 잡지 못했거나 다시 읽은 `executionId` 가 처음 값과 다른 실행을 가리키면 새 실행을 시작하지 않고 경고 로그를 남긴다. `executionId` 가 비어 있거나 다시 읽지 못하면 그대로 진행한다. 밀린 `/start` 는 안내 없이 버린다. 밀린 일반 입력은 `executionStillRunning` 안내를 보낸 뒤 버리고 다시 읽은 실행이 입력 대기여도 그 실행에 전달하지 않는다. 응답은 소유자가 아닌 사람의 명령과 같고 `cc:dedup` 선점은 풀지 않는다. Redis 가 없거나 오류가 나면 잠금을 잡은 것으로 본다(fail-open). 키와 TTL 은 [채팅 채널 데이터와 흐름 — 저장 모델과 상태 「Redis 키」](CLE-CHAT-DATA-STORE.md#redis-키) 가 정한다. 근거는 [R-CC-38](#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다.
 
 활성 실행은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태(`running`·`pending`·`waiting_for_input`)를 돌려준 실행이다. 취소는 EIA `cancel`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md))과 사용자 실행 중지(`POST /api/executions/:id/stop`)가 쓰는 REST 취소 경로 `ExecutionsService.stop` 을 부른다([노드 취소 「신호를 만드는 쪽」](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 7). `running`·`pending` 은 원자 UPDATE 로 바로 `cancelled` 가 된다. `waiting_for_input` 은 continuation bus 에 취소를 넣어 비동기로 `cancelled` 가 된다. 새 실행은 그 취소가 끝나기를 기다리지 않는다.
 
-이미 끝난 실행의 취소는 `stop` 이 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)로 거부하고 지워진 실행은 `RESOURCE_NOT_FOUND`(`404`)로 거부한다. 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조) 에 있다. `/start` 는 이 셋을 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 새로 시작하고 `EXECUTION_ENQUEUE_FAILED` 면 새 실행 없이 그 에러로 답한다. 지금 `stop` 은 `INVALID_STATE` 를 `400` 으로 던져 카탈로그의 `422` 와 다르다(부분 구현, NERV Task `CLE-T-B9CRCF`). 판정이 에러 코드라 이 차이로 `/start` 의 동작이 바뀌지는 않는다. 새 실행을 시작하고 대화 상태를 저장하면 안내한다. 기존 실행 취소를 거쳤으면 재시작 안내(`languageHints.executionRestarted`), 아니면 시작 안내(`languageHints.executionStarted`)다. Telegram 은 대화에 제어 안내로 보내고 실패해도 응답은 같다. Slack · Discord 는 즉시 응답의 수신 문구 자리에 싣는다. 문구 키는 [채팅 채널 데이터와 흐름 — 설정](CLE-CHAT-DATA-CONFIG.md) 이 정한다(NERV Task `CLE-T-0400J6`).
+이미 끝난 실행의 취소는 `stop` 이 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)로 거부하고 지워진 실행은 `RESOURCE_NOT_FOUND`(`404`)로 거부한다. 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조) 에 있다. `/start` 는 이 셋을 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 새로 시작하고 `EXECUTION_ENQUEUE_FAILED` 면 새 실행 없이 그 에러로 답한다. 지금 `stop` 은 `INVALID_STATE` 를 `400` 으로 던져 카탈로그의 `422` 와 다르다(부분 구현, NERV Task `CLE-T-B9CRCF`). 판정이 에러 코드라 이 차이로 `/start` 의 동작이 바뀌지는 않는다. `/start` 가 새 실행을 시작하고 대화 상태를 저장하면 안내한다. 활성 실행이 있었으면(취소가 `INVALID_STATE`·404 로 끝난 경우 포함) 재시작 안내(`languageHints.executionRestarted`), 아니면 시작 안내(`languageHints.executionStarted`)다. Telegram 은 대화에 제어 안내로 보내고 실패해도 응답은 같다. Slack · Discord 는 즉시 응답의 수신 문구 자리에 싣는다. 문구 키는 [채팅 채널 데이터와 흐름 — 설정](CLE-CHAT-DATA-CONFIG.md) 이 정한다(NERV Task `CLE-T-0400J6`).
 
 ```mermaid
 sequenceDiagram
@@ -124,7 +124,7 @@ sequenceDiagram
 
 ## 인증과 보안
 
-- **웹훅 진입점**: 채팅 채널 경로는 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md)(AuthConfig) 인증 대신 프로바이더별 인바운드 서명을 검증한다. Telegram 은 HMAC(Hash-based Message Authentication Code)을 지원하지 않아 `setWebhook` 때 `secret_token` 을 등록하고 `X-Telegram-Bot-Api-Secret-Token` 헤더로 검증한다. Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 다. 세부는 프로바이더 문서가 정한다. 저장된 서명 자료 참조(`inboundSigningRef`)가 없는 옛 행은 서명 검증을 건너뛴다. 이 예외는 2026-11-14 에 현행 유지로 정했고 근거는 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다.
+- **웹훅 진입점**: 채팅 채널 경로는 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md)(AuthConfig) 인증 대신 프로바이더별 인바운드 서명을 검증한다. Telegram 은 HMAC(Hash-based Message Authentication Code)을 지원하지 않아 `setWebhook` 때 `secret_token` 을 등록하고 `X-Telegram-Bot-Api-Secret-Token` 헤더로 검증한다. Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 다. 세부는 프로바이더 문서가 정한다. 저장된 서명 자료 참조(`inboundSigningRef`)가 없는 옛 행은 서명 검증을 건너뛴다. 근거는 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다.
 - **EIA 인바운드 facade**: 채널 어댑터는 EIA 외부 토큰(`iext_*`, `itk_*`) 발급을 건너뛰고 `InteractionService.interact(ctx: InteractionRequestContext, dto: InteractDto)` 를 서버 안에서 직접 부른다. 근거는 [External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출) 의 내부 신뢰 호출(`in_process_trusted`) 예외다. EIA HTTP API 는 외부 클라이언트 전용이다.
 - **접근 제어**: 이 우회는 서버 안 신뢰 호출자에게만 열리고 외부 HTTP 경로는 구조상 닿을 수 없다. `InteractionRequestContext` 판별 union 과 HTTP guard 의 불변식은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정하고 컴파일러가 강제한다.
 - **SSRF(Server-Side Request Forgery)**: 아웃바운드 URL 은 프로바이더마다 고정(예: `api.telegram.org`)이라 사용자가 정하는 URL 이 아니다. [EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) 의 허용 목록과 따로 간다.
@@ -143,9 +143,9 @@ sequenceDiagram
 ## 구현 위치
 
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`: 종결 이벤트에서 대화 상태 정리, 폼 입력 대기 상태 갱신 가드
-- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: 채널 대화 상태, compare-and-set 갱신 `updateIfExecutionMatches` 와 그것을 쓰는 정리 `clearExecutionIdIfMatches`, 폼 제출 잠금과 `/start` 시작 잠금(`acquireLock`·`releaseLock`)
+- `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts`: 채널 대화 상태, compare-and-set 갱신 `updateIfExecutionMatches` 와 그것을 쓰는 정리 `clearExecutionIdIfMatches`, 폼 제출 잠금과 시작 잠금(`acquireLock`·`releaseLock`)
 - `codebase/backend/src/modules/chat-channel/chat-channel-dedup.service.ts`: 선점 해제 `release`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`), `/start`·`/cancel` 의 실행 소유자 확인(대화 상태 조회 바로 뒤, `/cancel` 처리 앞), `/start` 의 대화 단위 시작 잠금과 재확인
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: 활성 실행 중 `/start` 의 기존 실행 취소(`stopForRestart`), `/start`·`/cancel` 의 실행 소유자 확인(대화 상태 조회 바로 뒤, `/cancel` 처리 앞), 새 실행 시작 입력의 대화 단위 시작 잠금과 재확인
 - 테스트: `codebase/backend/test/chat-channel-telegram-start.e2e-spec.ts`(활성 실행 중 `/start`, 소유자가 아닌 사람의 `/start`·`/cancel`), `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(세 프로바이더의 `/start`, 소유자가 아닌 사람의 `/start`·`/cancel`), `codebase/backend/src/modules/chat-channel/channel-conversation.service.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.spec.ts`
 
 ## Rationale
@@ -168,41 +168,39 @@ EIA HTTP API 를 새로 만들지 않고 서버 안 facade 호출만 쓴다. HTT
 
 실행이 도는 중에 메시지가 오는 경우만 다룬다(분당 한도 초과는 [R-CC-19](CLE-CHAT-CORE-GATE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다)). `running`·`pending` 은 보통 짧고 다음 입력은 대개 입력 대기 뒤에 온다. 큐에 쌓았다가 다시 보내면 (a) 노드가 기대하지 않은 시점에 입력이 들어오고 (b) 같은 메시지를 두 번 보낸 경우의 중복 제거 책임이 모호하다. 큐 TTL·폐기·순서 정렬도 필요해 1차 범위의 단순성과 맞지 않는다. 입력 대기까지 HTTP 연결을 잡아 두면 200ms 응답 시한과 부딪치고 Telegram 이 재전송을 쏟아낸다. "실행 중에 보낸 메시지는 다시 보낸다" 가 봇 UX 의 일반적 기대다. 입력 대기 직전 노드가 오래 걸릴 때 `sendChatAction(typing)` 을 주기적으로 보내는 방안은 후속 범위에서 검토한다.
 
+시작 잠금에서 밀린 일반 입력에도 같은 안내를 보낸다([R-CC-38](#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)). 다시 읽은 실행이 입력 대기여도 문구는 같다. 그때는 문구가 상황과 맞지 않을 수 있지만 사용자는 메시지를 다시 보내면 된다.
+
 ### R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다
 
-2026-10-10 결정이다. 그전에는 이어지는 메시지 요구사항이 두 번째 이후 메시지를 실행 상태로만 나눴고 `/start` 예외가 없었다. 세 프로바이더 문서의 명령 처리 표는 기존 실행을 취소하고 새로 시작한다고 적었고, 구현은 취소 없이 새 실행을 시작했다. 이 결정으로 미결 사항 «활성 실행 중 `/start`·일반 메시지 처리» 를 닫았다.
+2026-10-10 결정이다. 그전에는 이어지는 메시지 요구사항이 두 번째 이후 메시지를 실행 상태로만 나눴고 `/start` 예외가 없었다. 세 프로바이더 문서의 명령 처리 표는 기존 실행을 취소하고 새로 시작한다고 적었고, 구현은 취소 없이 새 실행을 시작했다.
 
 기각한 대안: 현행(취소 없이 새 실행)을 정본으로 삼는 안. 대화 상태가 새 실행을 가리키게 되므로 입력 대기로 남은 옛 실행에는 더 이상 입력이 닿지 않는다. 그런 실행이 `/start` 마다 하나씩 쌓인다.
 
 명령 우선 규칙은 프로바이더마다 다르지 않아 이 문서에 둔다. Slack DM 일반 텍스트는 명령이 아니므로 실행 상태 분기대로 처리한다([Slack 어댑터 「R-S-10 취소 후 새로 시작은 start 명령에만 적용한다」](CLE-CHAT-SLACK.md#r-s-10-취소-후-새로-시작은-start-명령에만-적용한다)).
 
-취소는 EIA `cancel` 과 같은 REST 취소 경로인 `ExecutionsService.stop` 을 쓴다. 상태별 전이와 continuation bus 처리를 다시 만들지 않으려는 것이다. `/start` 와 `/cancel` 은 `InteractionService` 를 거치지 않고 `stop` 을 바로 부른다. EIA `cancel` 은 실행이 살아 있는지 확인한 뒤 같은 `stop` 을 부르므로([EIA 데이터와 흐름 「인바운드 명령과 재개」](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개)) 취소 동작은 같다. `/cancel` 도 처음부터 `stop` 을 직접 불렀다. 바로 부르면 이미 끝났거나 지워진 실행이 `stop` 의 `INVALID_STATE`·`404` 로만 온다. `InteractionService` 를 거치면 같은 경우가 `EXECUTION_TERMINATED`·`EXECUTION_NOT_FOUND` 로도 와서 `/start` 가 가려야 할 코드가 늘어난다. 이 직접 호출도 서버 안 호출이라 [R2](#r2-채팅-채널을-eia-의-소비자로만-둔다) 와 어긋나지 않는다.
+취소는 EIA `cancel` 과 같은 REST 취소 경로인 `ExecutionsService.stop` 을 쓴다. 상태별 전이와 continuation bus 처리를 다시 만들지 않으려는 것이다. `/start` 와 `/cancel` 은 `InteractionService` 를 거치지 않고 `stop` 을 바로 부른다. EIA `cancel` 은 실행이 살아 있는지 확인한 뒤 같은 `stop` 을 부르므로([EIA 데이터와 흐름 「인바운드 명령과 재개」](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개)) 취소 동작은 같다. 바로 부르면 이미 끝났거나 지워진 실행이 `stop` 의 `INVALID_STATE`·`404` 로만 온다. `InteractionService` 를 거치면 같은 경우가 `EXECUTION_TERMINATED`·`EXECUTION_NOT_FOUND` 로도 와서 `/start` 가 가려야 할 코드가 늘어난다. 이 직접 호출도 서버 안 호출이라 [R2](#r2-채팅-채널을-eia-의-소비자로만-둔다) 와 어긋나지 않는다.
 
 상태를 읽은 뒤 취소하기 전에 실행이 끝났거나(`INVALID_STATE`) 지워졌으면(`404`) 취소할 것이 없으므로 그대로 새로 시작한다. `stop` 의 그 밖의 에러는 [R-CC-12](CLE-CHAT-CORE-RESPONSE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 의 `202` 고정 정책과 달리 그대로 돌려주고 새 실행을 시작하지 않는다. 코드에서 `stop` 이 `503 EXECUTION_ENQUEUE_FAILED` 를 내는 경우는 `waiting_for_input` 실행의 취소를 continuation bus 큐에 넣지 못했을 때(`queued=false`) 하나다.
 
 - 이 에러를 삼키고 새로 시작하면 옛 실행이 입력 대기로 남아 기각한 대안과 같은 결과가 된다.
 - 삼키고 새로 시작하지 않으면 사용자의 `/start` 가 말없이 사라진다.
-- 에러로 응답하면 새 실행은 생기지 않는다. 응답하기 전에 그 update 의 중복 제거 선점을 풀므로 프로바이더가 다시 보낸 같은 update 는 다시 처리된다. 풀지 않으면 30초 안에 온 재전송이 중복 제거에 걸려 `/start` 가 사라진다.
+- 에러로 응답하면 새 실행은 생기지 않는다. 선점을 풀었으므로 프로바이더가 다시 보낸 같은 update 는 다시 처리된다.
 
-2026-11-20 에 프로바이더 문서로 5xx 처리를 확인했다(NERV Task `CLE-T-D3D4EA`).
-
-- Telegram([setWebhook](https://core.telegram.org/bots/api#setwebhook)): non-2xx 면 같은 update 를 몇 번 다시 보낸 뒤 포기한다. 횟수 · 간격과 웹훅을 끄는 규칙은 적혀 있지 않고 update 는 24시간까지만 둔다.
-- Slack 슬래시 명령([Implementing slash commands](https://docs.slack.dev/interactivity/implementing-slash-commands)): 다시 보낸다는 서술이 없고 3초 안에 답이 없으면 사용자에게 `operation_timeout` 이 보인다. 실패율로 구독을 끄는 규칙(60분 동안 95% 넘게 실패)은 [Events API](https://docs.slack.dev/apis/events-api/) 에만 있고 `/<prefix> start` 는 그 경로로 오지 않는다.
-- Discord 인터랙션([Receiving and Responding](https://docs.discord.com/developers/interactions/receiving-and-responding)): 다시 보낸다는 서술이 없고 3초가 지나면 인터랙션 토큰이 무효가 된다. 엔드포인트 URL 은 보안 검사에 실패할 때만 지운다.
-
-그래서 `/start` 의 `503` 이 웹훅을 끈다는 근거는 문서에 없다. Telegram 은 큐가 회복된 뒤 오는 재전송마다 이 `/start` 를 다시 처리하고 Slack · Discord 는 사용자가 다시 입력해야 한다.
+2026-11-20 에 프로바이더 문서로 5xx 처리를 확인했다(NERV Task `CLE-T-D3D4EA`). Telegram([setWebhook](https://core.telegram.org/bots/api#setwebhook))은 non-2xx 면 같은 update 를 몇 번 다시 보낸 뒤 포기하고 update 는 24시간까지만 둔다. [Slack 슬래시 명령](https://docs.slack.dev/interactivity/implementing-slash-commands)과 [Discord 인터랙션](https://docs.discord.com/developers/interactions/receiving-and-responding)은 다시 보낸다는 서술이 없고 3초 안에 답하지 않으면 실패로 끝난다. 문서에 적힌 웹훅 · 구독 해제 규칙은 Slack Events API 의 실패율과 Discord 보안 검사 실패뿐이고 둘 다 `/start` 의 `503` 과 관계없다. Telegram 은 큐가 회복된 뒤 오는 재전송마다 이 `/start` 를 다시 처리하고 Slack · Discord 는 사용자가 다시 입력해야 한다.
 
 이 취소는 웹훅 응답 전에 동기로 돈다. 실행 조회 한 번에 더해 `running`·`pending` 이면 원자 UPDATE 한 번, `waiting_for_input` 이면 continuation bus 큐 추가 한 번이 붙고 끝에 다시 조회한다. 이것이 200ms 응답 시한에 얼마를 더하는지는 재지 않았다.
 
-종결 이벤트의 정리와 폼 입력 대기 상태 갱신을 그 실행을 가리킬 때만 하는 이유는 [활성 실행 중 다시 시작](#활성-실행-중-다시-시작) 의 마지막 두 문단에 있다. `/cancel` 의 정리도 같은 이유로 같은 방식을 쓴다.
+종결 이벤트의 정리(`/cancel` 포함)와 폼 입력 대기 상태 갱신을 그 실행을 가리킬 때만 하는 이유는 [활성 실행 중 다시 시작](#활성-실행-중-다시-시작) 의 시퀀스 그림 뒤 두 문단에 있다.
 
-미룬 문제 셋은 모두 닫았다. 어느 참여자가 보낸 `/start` 든 기존 실행을 취소하던 문제는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다), 동시에 온 `/start` 두 개가 각자 새 실행을 시작하던 경합은 [R-CC-38](#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다), 폼 입력 대기 상태 갱신이 `executionId` 를 옛 실행으로 되돌리던 경합은 NERV Task `CLE-T-CVJXDE` 가 닫았다.
+시작 · 재시작 안내의 결정은 [설정 문서 「시작과 재시작 안내를 안내 문구 키로 둔다」](CLE-CHAT-DATA-CONFIG.md#시작과-재시작-안내를-안내-문구-키로-둔다-2026-11-20) 에 있다. `/start` 가 아닌 첫 메시지로 시작한 실행에는 안내하지 않는다.
+
+미룬 문제 셋은 닫았다. 참여자 누구나 기존 실행을 취소하던 문제는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다), 동시 `/start` 경합은 [R-CC-38](#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다), 폼 입력 대기 상태 갱신 경합은 NERV Task `CLE-T-CVJXDE` 가 닫았다.
 
 ### R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다
 
 2026-11-14 결정이다(NERV Task `CLE-T-G2JRMF`). 그전에는 대화의 어느 참여자가 보낸 `/start`·`/cancel` 이든 활성 실행을 취소했다.
 
-**위협이 생기는 곳.** 1차 범위는 1:1 DM 만 받는다([R3](#r3-1차-범위는-11-dm-만-지원한다)). DM 에는 사용자가 한 명뿐이라 다른 사람이 명령을 보낼 수 없다. 이 결정을 내릴 때는 Slack 슬래시 명령이 예외였다. 파서가 DM 인지 확인하지 않아 그 채널의 구성원 누구나 다른 사람의 실행을 취소하거나 `/start` 로 가로챌 수 있었다. 같은 날 NERV Task `CLE-T-JK3ERX` 가 슬래시 명령도 DM 에서만 받게 했다([Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다)). 소유자 확인은 겹 방어로 남긴다. 사람끼리의 DM 에서 친 슬래시 명령처럼 DM 판정이 넓게 잡히는 드문 경우에도 대화 상대가 소유자의 실행을 취소하거나 가로채지 못한다.
+**위협이 생기는 곳.** 1차 범위는 1:1 DM 만 받는다([R3](#r3-1차-범위는-11-dm-만-지원한다)). DM 에는 사용자가 한 명뿐이라 다른 사람이 명령을 보낼 수 없다. 결정할 때는 Slack 슬래시 명령이 DM 인지 확인하지 않아 채널 구성원 누구나 남의 실행을 취소하거나 `/start` 로 가로챌 수 있었고, 같은 날 슬래시 명령도 DM 에서만 받게 했다. 소유자 확인은 겹 방어로 남긴다. 사람끼리의 DM 에서 친 슬래시 명령처럼 DM 판정이 넓게 잡히는 드문 경우에도 대화 상대가 소유자의 실행을 취소하거나 가로채지 못한다.
 
 **양식 버튼과 같은 처리.** 네이티브 폼 모달을 여는 버튼(`open_form_modal`)과 폼 제출(`form_submission`)은 보낸 사람의 `channelUserKey` 가 대화 상태의 값과 다르면 안내 없이 버린다. `/start`·`/cancel` 도 같은 기준으로 가린다.
 
@@ -213,26 +211,22 @@ EIA HTTP API 를 새로 만들지 않고 서버 안 facade 호출만 쓴다. HTT
 **기각한 대안.**
 
 - 소유자만 쓰게 하고 「다른 사용자의 실행이 진행 중」 안내를 보내는 안. 새 `languageHints` 키와 한국어 · 영어 기본 문구가 필요하고 위 이유로 얻는 것이 적다.
-- 누구나 쓰게 두고 위협 모델만 Rationale 에 적는 안. 결정할 때는 Slack 채널 구성원 누구나, 지금도 DM 판정이 넓게 잡히는 드문 경우에는 대화 상대가 남의 실행을 취소하거나 가로챌 수 있다.
+- 누구나 쓰게 두고 위협 모델만 Rationale 에 적는 안. 「위협이 생기는 곳」 의 취소와 가로채기가 그대로 남는다.
 
 ### R-CC-38 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다
 
-결정일: 2026-11-19
+2026-11-19 NERV Task `CLE-T-QZ8RFC` 의 결정이다. R-CC-27 이 미룬 둘째 문제를 닫는다.
 
-처음에 R-CC-36 으로 승인했으나 [채팅 채널](CLE-CHAT-CORE.md) 의 다른 결정과 번호가 겹쳐 2026-11-20 에 R-CC-38 로 바꿨다(NERV Task `CLE-T-XZ9X0H`).
-
-NERV Task `CLE-T-QZ8RFC` 의 결정이다. R-CC-27 이 미룬 둘째 문제를 닫는다.
+**새 실행 시작 입력 전체로 넓힌다.** 2026-11-20 에 사람이 NERV 질문 `01a1f7b4-b097-7671-a9a3-20f51593c2c2` 에 (a) 로 답해 정했다(NERV Task `CLE-T-8A055H`). 활성 실행이 없는 대화에 일반 텍스트 첫 메시지가 동시에 둘 오면 새 실행이 둘 생기고 그 가운데 하나에는 입력이 닿지 않는다. `/start` 와 같은 키 · 같은 용도로 잡아야 `/start` 와 일반 입력이 겹쳐도 직렬화된다. 밀린 일반 입력은 활성 실행이 `running`·`pending` 일 때([R9](#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다))와 같이 `executionStillRunning` 으로 안내한다. 기각한 대안은 둘이다. (b) 안내 없이 버리면 사용자의 메시지가 말없이 사라진다. (c) 다시 읽은 실행으로 전달하는 안은 그 실행이 입력 대기일 때만 쓸 수 있어 처리 경로가 하나 더 생긴다.
 
 **잠금 뒤 다시 읽는다.** 대화 상태를 처음 읽는 일은 소유자 확인에 필요해서 잠금보다 앞에 있다. 그래서 `/start` B 가 A 의 저장 전에 상태를 읽고, A 가 잠금을 푼 뒤에 잠금을 잡을 수 있다. 그러면 B 는 A 가 시작한 실행을 취소하지 않고 대화를 자기 새 실행에 잇는다. A 의 실행에는 입력이 닿지 않는다. 그래서 다시 읽은 `executionId` 가 처음 값과 다르면 버린다. 비어 있으면 옛 실행이 끝나 종결 이벤트가 비운 것이다. 이때 버리면 사용자의 `/start` 가 말없이 사라진다. 이어진 실행이 없으니 새로 시작해도 고아 실행이 생기지 않는다.
 
-**못 잡은 `/start` 는 `202` 로 버린다.** 먼저 온 `/start` 가 같은 결과(기존 실행 취소와 새 실행)를 만들므로 사용자의 의도는 남는다(R-CC-27 의 «말없이 사라진다» 와 다르다). 기다리거나 다시 시도하면 웹훅 응답이 늦어진다. 5xx 로 답하면 Telegram 은 같은 update 를 다시 보내고 Slack · Discord 사용자에게는 실패로 보인다([R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 그래서 `cc:dedup` 선점도 풀지 않는다.
+**못 잡은 `/start` 는 `202` 로 버린다.** 먼저 온 `/start` 가 같은 결과(기존 실행 취소와 새 실행)를 만들므로 사용자의 의도는 남는다(R-CC-27 의 «말없이 사라진다» 와 다르다). 기다리거나 다시 시도하면 웹훅 응답이 늦어진다. 5xx 로 답하면 Telegram 은 같은 update 를 다시 보내고 Slack · Discord 사용자에게는 실패로 보인다([R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 그래서 `cc:dedup` 선점도 풀지 않는다. 일반 입력이 잠금을 쥔 사이 온 `/start` 도 안내 없이 버린다. 이때는 먼저 온 입력이 같은 결과를 만든 것은 아니지만 새 실행은 생겼으므로 사용자는 그 실행을 보고 다시 `/start` 할 수 있다. 밀린 `/start` 에 `executionStillRunning` 안내를 보내는 안은 택하지 않았다. `/start` 는 실행 중에도 받는 명령이라([R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)) 「처리 중이니 기다리라」 는 안내와 맞지 않는다. 사람이 (a) 로 답해 정한 범위도 밀린 일반 입력이다.
 
-**Redis 장애에서는 통과한다.** Redis 장애로 `/start` 를 막지 않는다. 폼 제출 잠금과 같은 정책이고 같은 지표로 센다. Redis 가 없으면 잠금 없이 진행하므로 그동안은 경합이 남는다. 잠금 구간이 TTL(30초)보다 길면 잠금이 먼저 풀려 직렬화가 깨질 수 있다. 해제는 소유권을 확인하므로 다른 `/start` 의 잠금은 지우지 않는다.
+**Redis 장애에서는 통과한다.** Redis 장애로 새 실행 시작 입력을 막지 않는다. 폼 제출 잠금과 같은 정책이고 같은 지표로 센다. Redis 가 없으면 잠금 없이 진행하므로 그동안은 경합이 남는다. 잠금 구간이 TTL(30초)보다 길면 잠금이 먼저 풀려 직렬화가 깨질 수 있다. 해제는 소유권을 확인하므로 다른 입력의 잠금은 지우지 않는다.
 
 **기각한 대안.**
 
 - 키를 `chat-channel-lock:{triggerId}:{conversationKey}:start` 로 두는 안. 새 키는 규칙 1 을 따른다는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 규칙 3 에 어긋난다. [형태 규칙의 예외 두 계열](../CLE-ENG/CLE-ENG-REDIS.md#형태-규칙의-예외-두-계열) 표는 새 예외의 근거로 쓰지 않는다. `cc:` 는 chat-channel 이 이미 쓰는 접두라 규칙 6 을 지킨다. 2026-11-19 에 사람이 정했다(NERV 질문 `01a1f2b8-c0c1-7530-a9e8-f263d1bf4db2`).
 - 잠금 없이 대화 상태 저장만 compare-and-set 으로 하는 안. 저장할 때 경합을 알면 두 번째 새 실행이 이미 시작된 뒤라 고아 실행이 남는다.
 - 잠금을 기다리거나 `503` 으로 답해 재전송을 받는 안. 위 이유로 택하지 않았다.
-
-**범위 밖.** 일반 텍스트 첫 메시지가 동시에 와서 새 실행이 둘 생기는 경합은 NERV Task `CLE-T-8A055H` 에서 다룬다.

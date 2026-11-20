@@ -278,4 +278,69 @@ describe('HooksService — 채팅 채널 안내 기본 문구', () => {
       expect(triggerRepo.findOne).toHaveBeenCalled();
     });
   });
+
+  // NERV Task `CLE-T-J8M86K` — 빈 문자열 덮어쓰기는 모든 안내 키에서 「없는 것」 이라 기본 문구로 넘어간다.
+  describe('override 가 빈 문자열인 안내 키', () => {
+    it('help 가 빈 문자열이면 /help 기본 문구를 보낸다', async () => {
+      languageHints.help = '';
+      parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-1',
+        channelUserKey: 'user-1',
+        command: { kind: 'text_message', text: '/help' },
+        idempotencyKey: '11',
+        receivedAt: new Date().toISOString(),
+      });
+
+      await service.handleWebhook('abc', input);
+
+      expect(lastSentText()).toBe(
+        '/start - 새 대화 시작\n/cancel - 진행 중인 대화 취소\n/help - 도움말',
+      );
+    });
+
+    it('formNextField 가 빈 문자열이면 다음 항목 번호를 붙인 기본 문구를 보낸다', async () => {
+      languageHints.formNextField = '';
+      arrangeFormStep(0);
+
+      await service.handleWebhook('abc', input);
+
+      expect(lastSentText()).toBe(formNextFieldDefault(2));
+    });
+
+    it('formValidationFailed 가 빈 문자열이면 폼 검증 실패 기본 문구를 보낸다', async () => {
+      languageHints.formValidationFailed = '';
+      arrangeFormStep(9);
+      interaction.interact.mockRejectedValue(new Error('validation failed'));
+
+      await service.handleWebhook('abc', input);
+
+      expect(lastSentText()).toBe(FORM_VALIDATION_FAILED_DEFAULT);
+    });
+
+    it('executionStillRunning 이 빈 문자열이면 실행 중 기본 문구를 보낸다', async () => {
+      languageHints.executionStillRunning = '';
+      parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-1',
+        channelUserKey: 'user-1',
+        command: { kind: 'text_message', text: 'while running' },
+        idempotencyKey: '12',
+        receivedAt: new Date().toISOString(),
+      });
+      conversation.lookup.mockResolvedValue({
+        executionId: 'exec-running',
+        threadId: 'default',
+        channelUserKey: 'user-1',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      executionRepo.findOne.mockResolvedValue({ status: 'running' });
+
+      await service.handleWebhook('abc', input);
+
+      expect(interaction.interact).not.toHaveBeenCalled();
+      expect(lastSentText()).toBe(
+        '워크플로우가 처리 중입니다. 잠시만 기다려 주세요.',
+      );
+    });
+  });
 });

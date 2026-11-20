@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-SECURITY-ORIGIN"
 title: "웹채팅 보안 — CORS와 임베드 검증"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT-SECURITY"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT", "CLE-WEBCHAT-SECURITY"]
 area: "CLE-WEBCHAT"
-content_hash: "8befff5849c036cd0eda2016d87024829bfa10200514260287bd7127e4aa426e"
+content_hash: "6c9584d12df5dbb45fd6a3309ad23faf2728e37779487c8679a1649677106897"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-JNXZWY"
 source_paths: []
-mirror_sha256: "3c3682f0fdcdb1d935e62daba9aab12a9bdcd13c6eadc44d9f2001bfd7d24497"
-etag: "sha256-961cac54deb65581126bbcfe1779c6df1b35955f44ce8ace086a3c5e9f42755d"
+mirror_sha256: "f918c9fa266c7df6b813c366fb4a767974fb8c4f85c60618b892c0c820650643"
+etag: "sha256-929994f4f306eff3f35a5f5d01390df716de991cee165e1d9118bfcf00f096fa"
 ---
 ## 개요
 
@@ -65,7 +65,7 @@ etag: "sha256-961cac54deb65581126bbcfe1779c6df1b35955f44ce8ace086a3c5e9f42755d"
 
 ### CORS 를 두 공개 표면으로 나눈다
 
-공개 위젯은 `/api/hooks/*` 에 credential 없이 POST 하므로 모든 origin 허용으로 충분하다(credential 을 실은 와일드카드를 브라우저가 막는 문제와 무관하다). 토큰을 쓰는 `/api/external/*`(interact·stream·refresh)만 동적 허용 목록으로 좁힌다. 한 정책으로 합치면 hooks 를 허용 목록으로 묶어 정당한 공개 호출이 깨지거나 external 을 모두 열어 토큰 표면이 과하게 드러난다. 경로별로 나눠 최소 권한과 호환성을 함께 채운다.
+웹채팅 위젯은 `/api/hooks/*` 에 credential 없이 POST 하므로 모든 origin 허용으로 충분하다(credential 을 실은 와일드카드를 브라우저가 막는 문제와 무관하다). 토큰을 쓰는 `/api/external/*`(interact·stream·refresh)만 동적 허용 목록으로 좁힌다. 한 정책으로 합치면 hooks 를 허용 목록으로 묶어 정당한 공개 호출이 깨지거나 external 을 모두 열어 토큰 표면이 과하게 드러난다. 경로별로 나눠 최소 권한과 호환성을 함께 채운다.
 
 ### 임베드 검증은 soft 가 기본이고 hard `frame-ancestors` 는 opt-in 이다
 
