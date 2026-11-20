@@ -1,5 +1,6 @@
 /**
- * 부팅 시 production fail-closed 가드 (refactor 04 C-1·M-4·M-7).
+ * 부팅 시 production fail-closed 가드. 운영 환경에서 서명 비밀 · 암호화 키 · 보안 우회 플래그를 잘못 둔 채
+ * 기동하지 못하게 한다.
  *
  * `NODE_ENV=production` 에서 **비보안 stub / 미설정·예시 secret / 위험 플래그**가 켜진 채
  * 부팅하려 하면 즉시 throw 해 기동을 거부한다. 기존 `OAUTH_STUB_MODE`/`LLM_STUB_MODE`
@@ -138,8 +139,8 @@ export function isSwaggerEnabled(
 /**
  * production 에서 켜면 부팅을 거부하는 플래그와 거부 메시지. `isFlagOn` 으로 판정한다(`'true'` · `'1'`).
  *
- * - `MCP_ALLOW_INSECURE_URL`(04 M-7): SSRF 방어(https-only + 호스트 블록리스트)를 통째로 우회한다. spec
- *   (11-mcp-client §본문)이 "운영 환경에서 절대 활성화 금지" 로 명시했으므로 throw 한다. 정당한 self-host 용도가
+ * - `MCP_ALLOW_INSECURE_URL`: SSRF 방어(https-only + 호스트 블록리스트)를 통째로 우회한다. MCP 클라이언트
+ *   연결 스펙(`CLE-INT-MCP-CONN`)이 "운영 환경에서 절대 켜면 안 된다" 로 정했으므로 throw 한다. 정당한 self-host 용도가
  *   있는 ALLOW_PRIVATE_HOST_TARGETS 는 별개로 warn 이며 main.ts 가 처리한다.
  * - `ALLOW_HTTP_HOOKS`(CLE-T-VSAXG6): 알림 웹훅 URL 에 http:// 를 허용하는 개발용 플래그다. 켜지면 서명한 알림
  *   본문과 `X-Clemvion-*` 헤더가 평문으로 나간다. 기능은 `'1'` 일 때만 켜지지만(`ssrf-safe-url.util.ts`) 다른
@@ -217,7 +218,7 @@ export function assertProductionConfig(
     if (isFlagOn(env[key])) fail(message);
   }
 
-  // 04 C-1 — JWT_SECRET 미설정/기본 sentinel/예시값이면 기본 secret 으로 서명된
+  // JWT_SECRET 미설정/기본 sentinel/예시값이면 기본 secret 으로 서명된
   // 토큰 위조(인증 우회)가 가능하므로 부팅 거부.
   // 앞뒤 공백을 뗀 값으로 검사한다(CLE-T-HD6SJ4) — Secret · `.env` 로 옮기다 붙은 개행이 예시 값 대조와
   // 길이 하한을 빠져나가지 않게 한다. 뗀 값은 검사에만 쓰고 서명에 쓰는 값(`jwt.config.ts`)은 그대로다.
@@ -252,7 +253,7 @@ export function assertProductionConfig(
     });
   }
 
-  // 04 M-4 — ENCRYPTION_KEY 가 미설정이거나 공개 .env.example 예시 키면 secret store 가
+  // ENCRYPTION_KEY 가 미설정이거나 공개 .env.example 예시 키면 secret store 가
   // 사실상 평문이므로 부팅 거부. (빈 값은 SecretResolver init 에서도 throw 되나, 여기서
   // 예시 키 케이스까지 부팅 초기에 일괄 차단한다.)
   // 시크릿마다 공백 처리가 다른 것은 의도다(스펙 CLE-ACCT-SESSION-GUARD 「운영 환경 가드」). JWT_SECRET 은 앞뒤 공백을 뗀
