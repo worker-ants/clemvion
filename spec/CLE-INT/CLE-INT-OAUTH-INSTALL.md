@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-INSTALL"
 title: "OAuth 연결과 토큰 갱신 — 설치 우선 흐름과 App URL"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "dde8a7988b9fafe28dc0f1a4c1eba2c850b03ad6c2d1894983d56e6585709d3e"
+content_hash: "48075e885025cba7571c335f4243209dc6ed0904d1503fe6f0fdcb3a63be9b0b"
 read_as: "approved_fallback"
 task: "CLE-T-JK1JFZ"
 source_paths: []
-mirror_sha256: "c3e92c879149b8051d60dd3a464388c6aef345d96524158d0cbcc4dc44c5c4d6"
-etag: "sha256-138bc42cc0e572575ce842accf274a1d54a519816388711b73505ecd1f1bcd35"
+mirror_sha256: "7d50928b33c44a464296a5c6a1f703d5905399016ef9993f1d020033e9bcbefb"
+etag: "sha256-f8bfb2dde23c710325f388d622d728d0254c1efd7e095edaaa78eba7cfcfd5c8"
 ---
 ## 개요
 
@@ -116,13 +116,13 @@ sequenceDiagram
 
 | 계층 | 방법 |
 | --- | --- |
-| Rate limit 1층 | `@Throttle` IP 당 분당 30회(콜백은 분당 60회). 현재는 pod 마다 메모리에 센다. Redis 로 나눠 세는 전환은 후속이다 |
+| Rate limit 1층 | `@Throttle` 로 IP 마다 센다. 설치 엔드포인트와 콜백의 한도 수치와 저장소는 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 §7 표와 「저장소」 가 정본이다. 공유 Redis 로 서버 인스턴스 사이에 함께 세고 Redis 장애 때는 서버 인스턴스마다 메모리로 센다 |
 | Rate limit 2층 | 설치 토큰 조회·HMAC **실패**만 IP 별로 세어 임계치를 넘으면 429 로 잠근다. 성공한 설치(302)는 세지 않으므로 정상 사용자는 걸리지 않는다. Redis 로 pod 사이에 공유한다 |
 | 재사용 | timestamp ±5분 창과 `(mall_id, timestamp, hmac)` Redis nonce 캐시 |
 | 위조 | raw query 의 HMAC-SHA256(`client_secret`), timing-safe 비교 |
 | 오래된 URL | `tryRecoverByMallId`: 같은 `mall_id` 후보의 HMAC 을 대조해 정확히 1개가 맞으면 자동 회복(Cafe24 만) |
 
-Redis 키 구성, TTL, 임계치·창 같은 상수, Redis 가 없을 때의 동작은 [Cafe24 노드 §Private 앱 설치 엔드포인트](../CLE-NODE-INT/CLE-NODE-CAFE24.md#private-앱-설치-엔드포인트) 가 기준이다. Redis 가 없으면 nonce 캐시와 실패 카운터는 조용히 꺼진다.
+2층 실패 카운터와 nonce 캐시의 Redis 키 구성, TTL, 임계치·창 같은 상수, Redis 가 없을 때의 동작은 [Cafe24 노드 §Private 앱 설치 엔드포인트](../CLE-NODE-INT/CLE-NODE-CAFE24.md#private-앱-설치-엔드포인트) 가 기준이다. Redis 가 없으면 이 둘은 조용히 꺼진다. 1층은 꺼지지 않고 서버 인스턴스마다 메모리로 센다.
 
 **설치 토큰 불일치 회복**(Cafe24): 설치 토큰으로 행을 찾지 못하면 다음을 한다.
 
@@ -158,9 +158,9 @@ Redis 키 구성, TTL, 임계치·창 같은 상수, Redis 가 없을 때의 동
 
 ### 설치 엔드포인트 rate limit: 실패 페널티(Redis)와 IP throttle(pod 별)
 
-capability 토큰 가정은 설치 토큰을 추측할 수 없다는 암호학적 1차 방어다. 그 위에 운영 계층 방어를 더해, 전제가 약해지거나(토큰 단축, PRNG 변경, 노출) 샌 토큰으로 대량 시도할 때의 비용을 올린다. 두 계층 모두 nonce 캐시와 같은 기존 Redis 위에 얹도록 설계했다. 1층 분산화는 아직 도입되지 않았다.
+capability 토큰 가정은 설치 토큰을 추측할 수 없다는 암호학적 1차 방어다. 그 위에 운영 계층 방어를 더해, 전제가 약해지거나(토큰 단축, PRNG 변경, 노출) 샌 토큰으로 대량 시도할 때의 비용을 올린다. 두 계층 모두 nonce 캐시와 같은 기존 Redis 위에 얹도록 설계했다. 1층 분산화는 2026-11-21 에 도입했다(NERV Task `CLE-T-JK1JFZ`).
 
-- **1층(IP throttle)**: 처음부터 `@Throttle({ limit: 30, ttl: 60_000 })` 로 IP 당 분당 30회였다. `ThrottlerModule` 기본 저장소가 pod 마다 메모리라 여러 인스턴스에서는 할당이 흩어진다. Redis 저장소로 옮기는 일은 `@nestjs/throttler` 저장소가 전역 설정이라 모든 throttle 엔드포인트가 함께 바뀌므로 따로 검증할 infra 작업으로 나눴다. 도입하면 Redis 장애 때 메모리로 내려가 제한을 유지한다.
+- **1층(IP throttle)**: 처음부터 `@Throttle({ limit: 30, ttl: 60_000 })` 로 IP 당 분당 30회였다. 그때는 `ThrottlerModule` 기본 저장소가 pod 마다 메모리라 여러 인스턴스에서는 할당이 흩어졌다. `@nestjs/throttler` 저장소는 전역 설정이라 Redis 로 옮기면 모든 throttle 엔드포인트가 함께 바뀐다. 그래서 따로 검증할 infra 작업으로 나눴고 2026-11-21 에 도입했다. Redis 장애 때는 메모리로 내려가 제한을 유지한다. 저장소의 동작과 근거는 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 에 있다.
 - **2층(실패 페널티)**: 실패 요청만 IP 별로 세어 429 로 잠근다. 성공(302)은 세지 않아 정상 사용자는 카운터가 거의 0 이고 열거는 대량 실패라 빨리 걸린다. Redis 가 없으면 끈다(fail-open). 메모리 대체물이 없는 보조 강화라 끄고 ±5분 창과 capability 토큰으로 돌아가는 편이 정상 설치를 막는 것보다 안전하다. 1층과 일부러 다른 격하 경로다.
 - **3층(전역 상한, 미도입)**: 한 공격자가 전체 설치를 마비시키는 부수 DoS 위험이 있어 범위 밖이다.
 

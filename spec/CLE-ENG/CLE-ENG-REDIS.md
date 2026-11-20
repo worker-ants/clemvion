@@ -2,19 +2,19 @@
 id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "48bf30e7ec0363044c37c85b9fdd5344632727196db6f6905958d4964fd154b2"
+content_hash: "98a33ea30794c8b0703356e9fc5cfecb804597c17a2efe37f8c1c8c2b244559f"
 read_as: "approved_fallback"
 task: "CLE-T-JK1JFZ"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "64ac21972ed5637c210eef3f614b94445da1322d36b03499438a95abd67270fb"
-etag: "sha256-0fe9d1ac76c6a09290a4822718f83ebd99453c940dc5165546658d444615f95a"
+mirror_sha256: "e370d3511c33b92908bdd322868e6207d6985d8e5d819b611fbc9edad15ae128"
+etag: "sha256-162857ce9292b9b3758f512d75fceafe37075cc545949ee8474e1118aa64f974"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -31,7 +31,7 @@ Redis 키 이름의 형태(Redis 키 형식, `{도메인}:{용도}[:{식별자}.
 범위 밖:
 
 - 지금 있는 Redis 키와 pub/sub 채널의 전체 목록(인벤토리)과 BullMQ 큐 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 단일 기준이다.
-- 키별 용도·TTL·실패 정책은 그 키를 소유한 문서가 정한다. 실행 엔진 키는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md), EIA 키는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md), 채팅 채널 키는 [채팅 채널 데이터와 흐름 — 저장 모델과 상태](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키), 웹훅 요청 빈도 제한 키는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), Cafe24 설치 키는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md), Passkey 인증 챌린지 기록 키는 [가입과 로그인 — Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](../CLE-ACCT/CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록), WebSocket adapter 채널은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달) 이 정한다. 한 표에 상세까지 모으면 그 표가 두 번째 기준이 된다.
+- 키별 용도·TTL·실패 정책은 그 키를 소유한 문서가 정한다. 실행 엔진 키는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md), EIA 키는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 과 [External Interaction API](../CLE-IX/CLE-EIA.md), 채팅 채널 키는 [채팅 채널 데이터와 흐름 — 저장 모델과 상태](../CLE-CHAT/CLE-CHAT-DATA-STORE.md#redis-키), 웹훅 요청 빈도 제한 키는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md), 요청 빈도 제한 저장소 키(`throttle:*`)는 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한), Cafe24 설치 키는 [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md), Passkey 인증 챌린지 기록 키는 [가입과 로그인 — Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](../CLE-ACCT/CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록), WebSocket adapter 채널은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](../CLE-API/CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달) 이 정한다. 한 표에 상세까지 모으면 그 표가 두 번째 기준이 된다.
 - 라이브러리가 이름을 정하는 키 · 채널(`bull:<queue>:*`, `ws:sio` 채널)은 형태 규칙 밖이다([라이브러리가 이름을 정하는 것](#라이브러리가-이름을-정하는-것)).
 
 ## 규칙
@@ -120,7 +120,7 @@ advisory lock 키는 계열이 달라도 한 공간을 쓴다. 모든 계열은 
 이 표는 같은 모양의 이름을 모두 담지는 않는다. 현재 구현에는 같은 꼴의 이름이 더 있다.
 
 - Socket.IO 채널 `kb:<documentId>`·`notifications:<userId>` (`modules/websocket/websocket.service.ts`)
-- 사용자 단위 요청 빈도 제한의 추적 키 `user:<userId>` (`common/guards/user-throttler.guard.ts`). 요청 빈도 제한은 메모리 카운터라 Redis 키가 아니다([비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md))
+- 사용자 단위 요청 빈도 제한의 추적 키 `user:<userId>` (`common/guards/user-throttler.guard.ts`). 이 추적 키는 Redis 키 이름이 아니다. 가드는 추적 키를 넣은 문자열을 SHA-256 으로 해시한다. 그 해시가 Redis 키 `throttle:hit:<해시>` · `throttle:block:<해시>` 의 식별자로만 들어간다([HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한))
 - 에이전트 메모리 추출 큐의 BullMQ 작업 ID `agent-memory:<workspaceId>:<scopeKey>` (`modules/agent-memory/agent-memory.service.ts`). BullMQ 내부 키(`bull:<queue>:*`)의 일부로 저장된다
 
 ## 구현 위치
@@ -134,6 +134,7 @@ advisory lock 키는 계열이 달라도 한 공간을 쓴다. 모든 계열은 
 - `codebase/backend/src/modules/websocket/ws-redis-adapter.ts`
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts`
 - `codebase/backend/src/common/redis/**/*.ts`
+- `codebase/backend/src/common/throttler/**/*.ts`
 
 ## Rationale
 
@@ -150,7 +151,7 @@ advisory lock 키는 계열이 달라도 한 공간을 쓴다. 모든 계열은 
 
 ### 목록은 위치만, 상세는 소유 문서에 두는 이유
 
-Redis 키는 여러 모듈(`execution-engine`·`websocket`·`external-interaction`·`chat-channel`·`hooks`·`integrations`·`auth`·`common/redis` 등)에 흩어져 있다. TTL·용도·실패 정책까지 한 표에 모으면 각 영역 문서와 기준이 둘이 되고 둘이 어긋나는 순간 어느 쪽이 맞는지 판정할 근거가 없어진다. 전역 목록이 맡는 일은 "이 키가 어디 있는지" 까지다.
+Redis 키는 여러 모듈(`execution-engine`·`websocket`·`external-interaction`·`chat-channel`·`hooks`·`integrations`·`auth`·`common/redis`·`common/throttler` 등)에 흩어져 있다. TTL·용도·실패 정책까지 한 표에 모으면 각 영역 문서와 기준이 둘이 되고 둘이 어긋나는 순간 어느 쪽이 맞는지 판정할 근거가 없어진다. 전역 목록이 맡는 일은 "이 키가 어디 있는지" 까지다.
 
 NERV 로 옮기면서 전역 목록은 이 문서에서 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 으로 옮겼다. 실행 엔진 키의 용도·TTL 도 그 문서가 정한다. 이 문서에는 이름 규칙만 남겼다.
 
@@ -171,3 +172,11 @@ IPv6 주소에는 콜론이 들어 있다. 그래서 `cc:sigfail:<triggerId>:<cl
 ### WebSocket adapter 채널 접두를 규약 예외로 둔 이유 (2026-11-14)
 
 NERV Task `CLE-T-GDR39Z`. Socket.IO Redis adapter 의 채널 이름 형식은 라이브러리가 정하고 우리가 바꿀 수 없다. 우리가 고르는 것은 접두뿐이다. 연결 상태는 Redis 에 두지 않는다는 2026-08-13 결정([비동기 큐와 Redis 키 목록 「지운 키 두 개 (2026-08-13)」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개-2026-08-13))은 그대로 두고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 인접 이름 표는 Socket.IO 채널을 «Redis 를 거치지 않는다» 고 적었다. adapter 를 건 뒤로는 서버 인스턴스가 여럿이면 채널 이름이 adapter 채널 이름 안에 실려 Redis 를 지나므로 «Redis 키가 아니다» 로 고쳤다. 규칙 8 도 같은 이유로 고쳤다. adapter 를 걸기로 한 결정과 기각한 대안은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다. `bull:<queue>:*` 는 Redis 키인데도 인접 이름 표(Redis 키가 아닌 이름)에 있었다. 라이브러리가 이름을 정하는 이름을 한 절로 모으면서 그 행을 새 절로 옮겼다. 규칙 6 의 예외는 라이브러리가 형식을 정하는 채널 접두 하나로 좁혔다. 접두를 고를 수 있는 우리 키에까지 예외를 넓히면 규칙 6 이 막으려던 접두 늘리기가 다시 열린다.
+
+### 요청 빈도 제한 키의 접두 `throttle` 은 규칙 6 에 어긋나지 않는다 (2026-11-21)
+
+NERV Task `CLE-T-JK1JFZ`. 요청 빈도 제한 저장소를 Redis 로 옮기면서 키 `throttle:hit:<해시>` · `throttle:block:<해시>` 를 새로 만들었다. 소유 모듈 `common/throttler` 는 이때 생긴 모듈이고 `throttle` 은 그 모듈의 첫 접두다. 이미 접두를 쓰는 모듈에 접두를 더한 것이 아니라서 규칙 6 의 대상이 아니다. 워크스페이스 세그먼트는 넣지 않았다(규칙 4). 한도는 사용자나 IP 단위이고 워크스페이스별 쿼터가 아니다.
+
+이 키는 [비동기 큐와 Redis 키 목록 「지운 키 두 개 (2026-08-13)」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개-2026-08-13) 에서 지운 옛 이름 `core:{wsId}:rate:{userId}` 의 자리를 잇는다. [OAuth 연결과 토큰 갱신 — 설치 우선 흐름과 App URL](../CLE-INT/CLE-INT-OAUTH-INSTALL.md) 이 따로 할 작업으로 미뤄 둔 분산 저장소를 이때 들였다. 옛 형식은 쓰지 않는다.
+
+기존 접두(`auth:` · `wh:` · `cc:` 등)는 다시 쓰지 않았다. 이 저장소는 한 기능 모듈이 아니라 모든 HTTP 라우트에 걸리는 전역 가드가 쓴다. 기존 접두 아래 두면 그 접두를 소유하지 않은 모듈이 그 접두를 쓰게 되어 규칙 2 에 어긋난다. 접두는 모듈 이름 `throttler` 대신 기능 이름 `throttle` 을 썼다. `integration:cache:invalidate` 가 모듈 이름 대신 기능의 대상 이름을 쓴 것과 같은 방식이다. 다만 `throttle` 은 소유 모듈 `common/throttler` 를 그대로 가리키므로 [소유 모듈과 도메인이 다른 채널](#소유-모듈과-도메인이-다른-채널) 의 예외에 넣지 않는다.

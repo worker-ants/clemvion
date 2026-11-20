@@ -2,29 +2,29 @@
 id: "CLE-API-CONV-RATE"
 title: "HTTP API 규약 — 요청 빈도 제한"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "46ca455e475eeb3f61422e4ad581fe35c7f039ff35070a22d28a3132eacd44e2"
+content_hash: "74e431293f7f814f117187690d18f629ca3b28bc810b03a0e8482a63d3c22180"
 read_as: "approved_fallback"
 task: "CLE-T-JK1JFZ"
 source_paths: []
-mirror_sha256: "b28ba83ed266aa6686d2ac7496d2b6978cce7e7d6fca0847962ad025f4b41a7a"
-etag: "sha256-6bfee136d75721d37804b0a0445c61186bbbebd0dbde8e8991fde397ce2730ec"
+mirror_sha256: "4d2a5df71728aab6a9e56ed8f4a6334af26a6f149e79bc3bf772e43124caf90b"
+etag: "sha256-23520458e7df24e90e49b58e2f0edabbfbeae56d7be8842b8a80de0e31301483"
 ---
 ## 개요
 
-이 문서는 [HTTP API 규약](CLE-API-CONV.md) 의 하위 문서로 요청 빈도 제한을 정한다. 한도를 넘었을 때의 응답, 범위별 한도 표, 공통 등급 상수, 전역 한도의 집계 키 결정 규칙, 한도를 건너뛰는 경우가 대상이다. 절 번호(§)와 「규칙 n」 은 부모 문서의 번호를 그대로 쓴다. 요청 빈도 제한 수치의 단일 기준은 이 문서의 §7 표다(규칙 12).
+이 문서는 [HTTP API 규약](CLE-API-CONV.md) 의 하위 문서로 요청 빈도 제한을 정한다. 한도를 넘었을 때의 응답, 범위별 한도 표, 공통 등급 상수, 전역 한도의 집계 키 결정 규칙, 한도를 세는 저장소, 한도를 건너뛰는 경우가 대상이다. 절 번호(§)와 「규칙 n」 은 부모 문서의 번호를 그대로 쓴다. 요청 빈도 제한 수치의 단일 기준은 이 문서의 §7 표다(규칙 12).
 
 ## 7. 요청 빈도 제한
 
 > **초과 응답이 `429` 가 아닌 행이 있다.**
 >
-> - 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 채팅 채널 트리거로 온 웹훅 요청은 전역 요청 빈도 제한(일반 API · 웹훅 수신 행)을 받지 않는다. 남용은 서명 검증과 채팅방 단위 분당 한도(채팅 채널 인바운드 행)가 막는다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거, 채널 연결 전 트리거)는 전처럼 전역 한도를 받는다. 그런 트리거는 서명을 검증하지 않아 서명 검증 실패 한도도 걸리지 않으므로 전역 한도까지 빼면 IP 단위 한도가 하나도 남지 않는다. 채팅 채널 트리거는 서명 참조와 무관하게 `auth_config_id IS NULL` 이어도 공개 웹훅 추가 한도를 받지 않는다. 채팅방 단위 한도를 넘은 메시지는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 받고 처리를 건너뛴다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다. 한 트리거에 같은 IP 에서 서명 검증 실패가 거듭되면 한동안 시크릿 조회와 서명 계산 없이 `401` 로 거절한다. 이 서명 검증 실패 한도도 `429` 를 쓰지 않는다. 규칙은 [채팅 채널 인바운드 관문 「서명 검증 실패 한도」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 가 정한다. 전역 한도에서 뺀 근거는 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 다. 채팅방 단위 한도의 근거는 [채팅 채널 「R-CC-19」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 다. 경우별 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 웹훅 수신의 전역 한도를 어느 가드가 어떤 순서로 세는지는 표 아래 키 결정 규칙에 있다. 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
+> - 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 채팅 채널 트리거로 온 웹훅 요청은 전역 요청 빈도 제한(일반 API · 웹훅 수신 행)을 받지 않는다. 남용은 서명 검증과 채팅방 단위 분당 한도(채팅 채널 인바운드 행)가 막는다. 서명 참조가 없는 채팅 채널 트리거(옛 트리거, 채널 연결 전 트리거)는 전처럼 전역 한도를 받는다. 그런 트리거는 서명을 검증하지 않아 서명 검증 실패 한도도 걸리지 않으므로 전역 한도까지 빼면 IP 단위 한도가 하나도 남지 않는다. 채팅 채널 트리거는 서명 참조와 무관하게 `auth_config_id IS NULL` 이어도 공개 웹훅 추가 한도를 받지 않는다. 채팅방 단위 한도를 넘은 메시지는 `429` 가 아니라 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 받고 처리를 건너뛴다. Telegram 이 2xx 가 아닌 응답을 재시도나 웹훅 해제로 다루기 때문이다. 한 트리거에 같은 IP 에서 서명 검증 실패가 거듭되면 한동안 시크릿 조회와 서명 계산 없이 `401` 로 거절한다. 이 서명 검증 실패 한도도 `429` 를 쓰지 않는다. 규칙은 [채팅 채널 인바운드 관문 「서명 검증 실패 한도」](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 가 정한다. 전역 한도에서 뺀 근거는 [채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 다. 채팅방 단위 한도의 근거는 [채팅 채널 「R-CC-19」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-19-분당-한도-초과분은-재발송-큐-대신-건너뛰고-degraded-로-표시한다) 다. 경우별 응답은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 이 예외를 적어 두지 않으면 다음 사람이 "`429` 로 통일" 을 정합성 개선으로 착각한다.
 > - WebSocket 명령은 HTTP 요청이 아니라서 상태 코드가 없다. 한도를 넘으면 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)).
 
 | 범위 | 제한 | 헤더 |
@@ -63,21 +63,29 @@ etag: "sha256-6bfee136d75721d37804b0a0445c61186bbbebd0dbde8e8991fde397ce2730ec"
 | WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **소켓당** 60 msg/min (in-memory fixed-window, HTTP 아님). 전역 요청 빈도 제한(일반 API 100 req/min)은 이 경로를 세지 않는다. 한도를 넘으면 `WsRateLimitGuard` 가 `WsException(RATE_LIMITED)` 을 던지고 클라이언트는 `exception` 이벤트로 받는다(HTTP status 없음). `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 적용한다. 등록되지 않은 이벤트(`onAny`)도 같은 소켓 예산을 쓴다. 넘었을 때의 응답은 [WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드) 가 정한다 | 없음 (전송: 소켓 `exception` 이벤트) |
 
 - HTTP 요청이 한도를 넘으면 `429` 를 받는다. 에러 코드는 행에 다른 코드를 적지 않았으면 기본 코드 `RATE_LIMITED` 다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md)). 전역 기본값과 라우트별 `@Throttle` 로 거는 행, External Interaction 인바운드 행은 `Retry-After` 헤더를 함께 싣는다. 공개 웹훅 추가 한도, 비밀번호 재확인 실패, External Interaction SSE 동시 연결, 쇼핑몰 앱 설치 진입점의 실패 잠금은 `Retry-After` 없이 `429` 만 돌려준다. 초과 응답이 `429` 가 아닌 행(채팅 채널 인바운드, 채팅 채널 서명 검증 실패, WebSocket 명령)은 위 콜아웃에 있다.
-- **표의 범위**: 위 표는 전역 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 제한 서비스로 덮어쓴 엔드포인트별 한도를 한 곳에 모은 것이다. HTTP 라우트에 건 `@Throttle` 은 모두 이 표에 행이 있다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정하고 요청 빈도 제한 수치의 단일 기준은 이 표다. 라우트에 `@Throttle` 을 새로 걸거나 수치를 바꾸면 이 표도 함께 고친다.
+- **표의 범위**: 위 표는 전역 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 제한 서비스로 덮어쓴 엔드포인트별 한도를 한 곳에 모은 것이다. HTTP 라우트에 건 `@Throttle` 은 모두 이 표에 행이 있다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정한다. 라우트에 `@Throttle` 을 새로 걸거나 수치를 바꾸면 이 표도 함께 고친다.
 - **공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`**(분당 10회, `throttle.ts`)는 2단계 인증 설정 시작 · 활성화 검증 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급 · 삭제, provider probe, 초대 발송·재발송 행이 함께 쓴다. 상수가 같아도 라우트마다 따로 센다.
 - **비밀번호 재확인 라우트**: `verifyPasswordForUser` 로 계정 비밀번호를 다시 확인하는 라우트는 `@RequirePasswordRecheck()` 를 선언한다. 이 데코레이터로 `SENSITIVE_ACTION_THROTTLE` 과 재확인 표시 메타데이터가 함께 걸린다. 본문 DTO 는 `PasswordRecheckDto`(8자 이상 128자 이하)를 상속한다. 단위 테스트는 auth 모듈의 컨트롤러를 모두 읽어 재확인 표시가 있는 핸들러와 `PasswordRecheckDto` 하위 본문을 받는 핸들러가 같은지, 표시한 핸들러마다 이 상수가 걸렸는지 본다. 활성화 검증은 비밀번호를 받지 않아 재확인 라우트가 아니다.
 - **비밀번호 재확인 실패 한도**: `verifyPasswordForUser` 는 틀린 비밀번호를 사용자 단위로 센다(`PasswordRecheckFailureLimiterService`). 순서는 사용자 · 비밀번호 해시 확인(없으면 `401 PASSWORD_REQUIRED`) → 한도 확인 → 대조 → 틀리면 실패를 세고 `401 PASSWORD_INVALID` 다. 한도에 닿은 사용자는 대조 없이 `429 RATE_LIMITED`(「비밀번호를 너무 많이 틀렸습니다. 잠시 후 다시 시도해 주세요.」)를 받는다. 맞힌 시도와 비밀번호가 없는 계정은 세지 않고, 맞혀도 카운터를 지우지 않는다. 한도에 닿는 순간 경고 로그를 한 번 남긴다. Redis 가 없거나 오류가 나면 세지도 막지도 않는다(fail-open). 이 문서가 정하는 Redis 키는 아래와 같다.
   - `auth:password-recheck-failures:<userId>`: 사용자의 재확인 실패 수. TTL 60초 고정 창이고 첫 실패에 걸고 늘리지 않는다. INCR 과 TTL 보정을 Lua 스크립트 하나로 실행해 TTL 없는 키를 남기지 않는다.
-- 인증된 HTTP 요청은 전역 `UserThrottlerGuard` 가 `user:<sub>` 키로 사용자별로 센다. 인증되지 않은 요청만 IP 로 센다. 그래서 인증된 라우트의 제한은 사용자 기준이다.
-- **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. NestJS 12 부터 전역 `APP_GUARD` 가 WebSocket 게이트웨이 핸들러에도 붙으므로 그 핸들러 호출이 여기에 든다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard`(분당 60건)가 맡는다([WebSocket 연결과 채널 구독 「에러 코드」](CLE-API-WS.md#71-에러-코드)). 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다. HTTP 요청이어도 `@DeferGlobalThrottle()` 이 붙은 라우트는 전역 가드가 건너뛴다. 그 라우트는 라우트 가드가 같은 한도로 센다(아래 키 결정 규칙). 서명 참조가 있는 채팅 채널 트리거로 온 웹훅 요청은 그 라우트 가드도 세지 않는다([위 콜아웃](#7-요청-빈도-제한)).
+- **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. WebSocket 게이트웨이 핸들러 호출이 여기에 든다. 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다. HTTP 요청이어도 `@DeferGlobalThrottle()` 이 붙은 라우트는 전역 가드가 건너뛴다. 그 라우트는 라우트 가드가 같은 한도로 센다(아래 키 결정 규칙). 서명 참조가 있는 채팅 채널 트리거로 온 웹훅 요청은 그 라우트 가드도 세지 않는다([위 콜아웃](#7-요청-빈도-제한)).
 - **키 결정 규칙(현재 구현, HTTP 기준)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다. 웹훅 수신(`POST /api/hooks/:endpointPath`)은 전역 한도를 라우트 가드가 센다. 그 라우트에는 `@DeferGlobalThrottle()` 이 붙어 있어 전역 `UserThrottlerGuard` 가 건너뛴다. 라우트 가드는 `PublicWebhookThrottleGuard` → `HookTriggerThrottlerGuard` 순서로 돈다. `HookTriggerThrottlerGuard` 는 앞 가드가 조회한 트리거로 판정한다. 서명 참조가 있는 채팅 채널 트리거면 세지 않는다([위 콜아웃](#7-요청-빈도-제한)). 그 밖의 요청은 전역 가드와 같은 한도 · 같은 저장소 · 같은 키로 센다. 서명 참조가 없는 채팅 채널 트리거와 트리거가 없거나 조회에 실패한 요청도 센다.
-- External Interaction 인바운드는 `@Throttle` 이 아니라 도메인 전용 `InteractionRateLimiterService`(실행 단위 Redis 카운터)로 덮어쓴 사례다.
-- **환경으로 건너뛰는 경우는 `NODE_ENV=test` 하나다.** e2e 가 컨테이너 IP 하나에서 빠른 인증 호출을 연달아 보내 스스로 요청 빈도 제한(100/60s)에 걸리는 문제를 피하려고 test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 전역 기본값과 라우트별 `@Throttle` 한도를 건너뛴다. production·development 동작은 바뀌지 않는다. 헬퍼는 `throttler-skip.ts` 의 `shouldSkipThrottle` 이다. 위의 HTTP 가 아닌 호출 건너뛰기와는 별개다. 비밀번호 재확인 실패 한도는 `ThrottlerModule` 밖이라 test 환경에서도 센다.
+- **저장소**: `ThrottlerModule` 의 저장소는 `RedisThrottlerStorage` 다. 전역 기본값, 라우트별 `@Throttle`, `UserThrottlerGuard`, `HookTriggerThrottlerGuard` 가 모두 여기에 센다. 공유 command Redis 연결(`RedisConnectionProvider`)에서 Lua 스크립트 하나로 세므로 여러 서버 인스턴스가 한 카운터를 나눠 쓴다.
+  - 고정 창이다. 창은 그 키의 첫 요청부터 ttl 동안이다. 한도를 넘으면 blockDuration(기본은 ttl) 동안 차단하고 그 창의 요청 수를 지운다. 차단이 끝나면 새 창에서 1부터 센다. blockDuration 이 0 이하이면 차단 상태 없이 창이 끝날 때까지 거절한다.
+  - Redis 키는 둘이다(소유 모듈 `common/throttler`). `<key>` 는 `@nestjs/throttler` 가드가 만든 SHA-256 hex 라 IP 와 사용자 id 원문이 없다. 키 목록은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md#다른-모듈의-키) 에 있다.
+    - `throttle:hit:<key>`: 창 안의 요청 수. TTL 은 ttl 이고 창의 첫 요청에 건다.
+    - `throttle:block:<key>`: 차단 중 표시. 값은 차단할 때의 요청 수이고 TTL 은 blockDuration 이다.
+  - Redis 를 쓸 수 없으면 메모리 저장소(`ThrottlerStorageService`)로 센다. 제한은 꺼지지 않고 서버 인스턴스마다 따로 센다. Redis 가 설정되지 않았으면 메모리로 세고 지표는 세지 않는다. Redis 명령이 실패하거나 250ms 안에 응답이 없으면 그 요청을 메모리로 세고 `clemvion.redis.fail_open{component=throttler, reason=incr_failed}` 를 한 번 센다([Redis fail-open 라벨](../CLE-OBS/CLE-OBS-LOGGING-METRICS.md#redis-fail-open-라벨)). 그 뒤 5초 동안은 Redis 를 부르지 않고 메모리로만 센다. 이때는 지표를 세지 않는다. 5초가 지나면 다음 요청이 Redis 를 다시 부른다.
+  - 메모리 저장소는 요청마다 ttl 뒤에 빠지는 미끄럼 창이라 창 경계 근처의 허용 수가 Redis 고정 창과 조금 다르다.
+- **환경으로 건너뛰는 경우는 `NODE_ENV=test` 하나다.** e2e 가 한 IP 에서 인증 호출을 연달아 보내 스스로 한도(100/60s)에 걸리지 않게 test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 전역 기본값과 라우트별 `@Throttle` 한도를 건너뛴다. production·development 동작은 바뀌지 않는다. 헬퍼는 `throttler-skip.ts` 의 `shouldSkipThrottle` 이다. 비밀번호 재확인 실패 한도는 `ThrottlerModule` 밖이라 test 환경에서도 센다.
 
 ## 구현 위치
 
 - `codebase/backend/src/common/guards/user-throttler.guard.ts` (전역 요청 빈도 제한 키 결정. HTTP 가 아닌 호출과 `@DeferGlobalThrottle()` 라우트를 건너뛴다)
 - `codebase/backend/src/common/guards/user-throttler.guard.spec.ts`
+- `codebase/backend/src/common/throttler/redis-throttler.storage.ts` (§7 「저장소」. Redis 고정 창과 메모리 저장소 폴백)
+- `codebase/backend/src/common/throttler/throttler-storage.module.ts` (`buildThrottlerOptions`. `app.module.ts` 의 `ThrottlerModule.forRootAsync` 에 넣는다)
+- `codebase/backend/test/throttler-redis-storage.e2e-spec.ts` (앱 두 개의 카운터 공유와 메모리 폴백)
 - `codebase/backend/src/common/constants/throttle.ts` (§7 의 공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`)
 - `codebase/backend/src/modules/auth/decorators/require-password-recheck.decorator.ts` (`@RequirePasswordRecheck()`)
 - `codebase/backend/src/modules/auth/dto/password-recheck.dto.ts` (`PasswordRecheckDto`)
@@ -93,19 +101,9 @@ etag: "sha256-6bfee136d75721d37804b0a0445c61186bbbebd0dbde8e8991fde397ce2730ec"
 
 ## Rationale
 
-### 로그인 세션 강제 종료 한도를 사용자 기준으로 적은 이유 (2026-10-10)
+### 전역 한도의 집계 키를 사용자 · IP 로 닫았다 (2026-10-10)
 
-두 라우트는 로그인한 사용자만 부르므로 §7 키 결정 규칙대로 `user:<sub>` 키로 센다(`user-throttler.guard.ts`). [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 은 집계 키를 이 문서 §7 에 맡긴다.
-
-### 전역 한도의 집계 키 미결을 닫았다 (2026-10-10)
-
-[계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 요청 빈도 제한 표도 인증한 요청은 사용자(`user:<sub>`), `@Public` 라우트는 IP 로 센다고 적어 §7 과 같다(Task CLE-T-ERAJ7P). [External Interaction API](../CLE-IX/CLE-EIA.md) 의 인바운드 경로는 `@Public()` 이라 IP 로 센다.
-
-기각한 대안은 미결을 그대로 두는 안이다. 두 문서가 같은 규칙을 적는데 미결이 남으면 아직 정해지지 않은 것처럼 읽힌다.
-
-### 이메일 변경 행의 소유 문서를 바로잡았다 (2026-10-10)
-
-이메일 변경 규칙은 [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) 이 아니라 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 의 「이메일 변경」 절이 정하므로 두 행의 동작 정의 링크를 그 절로 둔다. 두 라우트는 JWT 인증 라우트라 사용자 기준으로 센다.
+인증한 요청은 사용자(`user:<sub>`)로, `@Public()` 라우트는 IP 로 센다. [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 요청 빈도 제한 표도 같다(Task CLE-T-ERAJ7P). [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 은 집계 키를 이 문서 §7 에 맡긴다. 미결로 두는 안은 기각했다. 두 문서가 같은 규칙을 적는데 미결이 남으면 아직 정해지지 않은 것처럼 읽힌다.
 
 ### §7 에 2단계 인증 끄기 행을 더한 이유 (2026-10-10)
 
@@ -127,25 +125,21 @@ NestJS 12(`@nestjs/websockets` 12.1.2)부터 전역 `APP_GUARD` 가 WebSocket �
 규칙 12 와 「표의 범위」 대로 HTTP 라우트의 `@Throttle` 은 모두 §7 표에 둔다. 빠져 있던 행은 코드로 수치를 확인해 더했다(NERV Task `CLE-T-MJ9G4C`).
 
 - 「표의 범위」 를 좁혀 일부 라우트만 표에 두는 안은 고르지 않았다. 빠진 라우트의 수치가 단일 기준 없이 도메인 문서와 코드에만 남고 어느 라우트가 표에 있어야 하는지 알 수 없게 된다.
-- 라우트별 `@Throttle` 행은 모두 기본 코드 `RATE_LIMITED` 라서 행마다 적지 않고 표 아래 첫 불릿에 한 번 적었다.
-- `/api/3rd-party/*` 경로와 컬렉션 수준 액션 경로가 §2.2 명명 규칙의 예외 행에 없는 문제는 이 개정의 범위 밖이다.
 - 규칙 12, §7 머리 콜아웃, 표 아래 불릿, [§9](CLE-API-CONV-RESP.md#9-파일-업로드) 에는 엔드포인트나 행의 개수를 쓰지 않는다. 늘면 숫자가 낡는다. [§5.5 「검증 층」](CLE-API-CONV-RESP.md#검증-층-이-규칙을-무엇이-강제하는가) 의 «개수를 세지 않는다» 와 같은 이유다.
 
 ### §7 에 2단계 인증 설정 시작 행을 더했다 (2026-11-01)
 
-`POST /api/auth/2fa/setup` 은 계정 비밀번호를 확인한 뒤 TOTP secret 을 발급한다([2단계 인증 설정과 TOTP 「TOTP 켜기는 비밀번호를 다시 확인하고 켜진 계정을 거부한다」](../CLE-ACCT/CLE-ACCT-SIGNIN-TOTP.md#totp-켜기는-비밀번호를-다시-확인하고-켜진-계정을-거부한다), NERV Task `CLE-T-94FTMV`).
+`POST /api/auth/2fa/setup` 은 계정 비밀번호를 확인한 뒤 TOTP secret 을 발급한다([2단계 인증 설정과 TOTP](../CLE-ACCT/CLE-ACCT-SIGNIN-TOTP.md), NERV Task `CLE-T-94FTMV`).
 
 - 계정 비밀번호 추측을 막으려고 `SENSITIVE_ACTION_THROTTLE` 로 분당 10회를 걸었다. 전용 상수를 두지 않은 이유는 「§7 에 2단계 인증 끄기 행을 더한 이유」 의 두 번째 기각 대안과 같다.
 - 끄기 행에 합치지 않고 행을 따로 두었다. 설정 시작은 계정 비밀번호 추측을, 끄기는 인증 코드 추측을 막는다.
 
 ### §7 에 활성화 검증 · Passkey 등록 옵션 · 복구 코드 재발급 행을 더했다 (2026-11-02)
 
-NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 정본은 [Passkey 기능과 등록 「Passkey 등록에도 비밀번호 재확인을 두고 TOTP 대기 secret 은 10분 뒤 버린다」](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md#passkey-등록에도-비밀번호-재확인을-두고-totp-대기-secret-은-10분-뒤-버린다) 다.
+NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 정본은 [Passkey 기능과 등록](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md) 의 Rationale 이다.
 
 - Passkey 등록 옵션과 복구 코드 재발급에는 계정 비밀번호 추측을, 활성화 검증에는 인증 코드 추측을 막는 한도를 걸었다. 셋 다 `SENSITIVE_ACTION_THROTTLE` 이고 사용자 기준이다. 활성화 검증은 설정 시작과 막는 대상이 달라 행을 따로 둔다.
 - 등록 검증(`POST /api/auth/2fa/webauthn/register/verify`)에는 한도를 걸지 않았다. 비밀번호를 받지 않고, 발급받은 사용자에 묶여 5분 동안 유효한 `optionsToken` 이 앞선 비밀번호 확인을 대신한다.
-- 같은 상수를 쓰는 행마다 다른 행을 나열하던 문장을 지우고 표 아래 불릿 한 곳에 모았다. 행마다 나열하면 행을 더할 때마다 여러 행을 함께 고쳐야 하고 한 행만 빠져도 서로 어긋난다.
-- 이때는 `verifyPasswordForUser` 를 부르는 라우트 목록을 단위 테스트에 고정했다. 목록에 없는 새 라우트는 검사에서 빠져서 뒤에 메타데이터 열거로 바꿨다([비밀번호 재확인 실패를 사용자 단위로 센다](#비밀번호-재확인-실패를-사용자-단위로-센다)).
 - 비밀번호 변경(`POST /api/users/me/change-password`), 설정 비밀 평문 노출(`POST /api/auth-configs/:id/reveal`), 계정 재인증 라우트는 범위 밖이다. 세 곳도 계정 비밀번호를 확인하지만 `verifyPasswordForUser` 를 부르지 않는다.
 - **기각: e2e 로 고정한다.** test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 라우트별 `@Throttle` 한도를 건너뛰어 e2e 로는 한도가 걸렸는지 볼 수 없다.
 
@@ -153,21 +147,9 @@ NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 정본은 [Passkey 기능과 �
 
 `@nestjs/throttler` 는 통과한 응답에 `X-RateLimit-*` 를 싣고 `429` 로 거부할 때는 `Retry-After` 만 싣는다. 그래서 헤더 칸을 둘로 나눴다. 로그인 없는 요청은 IP 로 센다는 사실도 행에 적었다(NERV Task `CLE-T-GNTWP9`).
 
-### 연결 테스트 행에 `:id/test` 를 더했다 (2026-11-14)
-
-근거는 [통합 관리 Rationale](../CLE-INT/CLE-INT-MANAGE-RUN.md#연결-테스트의-탐색-위험을-받아들인다-2026-11-14) 이다(NERV Task `CLE-T-SG4GRQ`).
-
 ### 웹훅 수신 한도와 채팅 채널 트리거 면제의 근거
 
-채팅 채널 트리거의 한도 면제와 웹훅 수신 라우트의 가드 순서는 [HTTP API 규약 — WebSocket 과 웹훅 수신](CLE-API-CONV-HOOK.md#rationale) 의 Rationale 에 있다. §7 머리 콜아웃과 웹훅 수신 행을 고칠 때는 아래 세 절을 함께 본다.
-
-- [공개 웹훅 추가 한도에서 채팅 채널 트리거를 뺐다 (2026-11-12)](CLE-API-CONV-HOOK.md#공개-웹훅-추가-한도에서-채팅-채널-트리거를-뺐다-2026-11-12)
-- [채팅 채널 인바운드를 전역 요청 빈도 제한에서 뺐다 (2026-11-12)](CLE-API-CONV-HOOK.md#채팅-채널-인바운드를-전역-요청-빈도-제한에서-뺐다-2026-11-12) (가드 순서와 그 대가)
-- [채팅 채널의 전역 한도 예외를 §7 머리 콜아웃 한 곳에 모았다 (2026-11-13)](CLE-API-CONV-HOOK.md#채팅-채널의-전역-한도-예외를-7-머리-콜아웃-한-곳에-모았다-2026-11-13)
-
-### 서명 검증 실패 한도 링크와 IP 출처를 고쳤다 (2026-11-14)
-
-서명 검증 실패 한도와 클라이언트 IP 출처의 정본은 [채팅 채널 — 인바운드 관문](../CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 이다(NERV Task `CLE-T-HMFRBD`).
+채팅 채널 트리거의 한도 면제와 웹훅 수신 가드 순서의 근거는 [HTTP API 규약 — WebSocket 과 웹훅 수신](CLE-API-CONV-HOOK.md#rationale) 에 있다. §7 머리 콜아웃과 웹훅 수신 행을 고칠 때 함께 본다.
 
 ### 비밀번호 재확인 실패를 사용자 단위로 센다
 
@@ -179,10 +161,19 @@ NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 정본은 [Passkey 기능과 �
 - 한도 값은 민감 tier 와 같은 10회다. 라우트 하나에서 허용하던 추측 횟수를 모든 재확인 라우트를 합친 상한으로 삼았다.
 - 맞힌 시도는 세지 않는다. 비밀번호를 아는 사용자는 2단계 인증과 Passkey 설정을 여러 번 바꿔도 이 한도에 걸리지 않는다.
 - Redis 장애에는 fail-open 이다. 장애 중에도 라우트별 한도(분당 10회)는 남는다. 비밀번호 재확인을 Redis 가용성에 묶으면 Redis 장애 때 2단계 인증과 Passkey 관리까지 쓸 수 없게 된다.
-- 라우트 목록 고정 테스트를 메타데이터 열거로 바꿨다(§7 「비밀번호 재확인 라우트」). 새 재확인 라우트에서 선언을 빠뜨리면 본문 DTO 쪽에서 드러난다.
 
 기각한 대안은 세 가지다.
 
 - 다섯 라우트를 한 `@Throttle` 버킷으로 묶는 안. `ThrottlerGuard` 는 성공한 요청도 세므로 비밀번호를 맞힌 정상 사용도 한도에 걸린다.
 - 계정을 잠그는 안. 탈취한 토큰을 가진 사람이 일부러 틀려 원래 사용자의 로그인까지 막을 수 있다.
 - 맞히면 카운터를 지우는 안. 틀린 시도 사이에 성공을 끼워 넣을 수 있는 공격자는 이미 비밀번호를 안다. 지워서 얻는 것이 없어 단순한 고정 창을 택했다.
+
+### 요청 빈도 제한 저장소를 Redis 로 옮겼다 (2026-11-21)
+
+NERV Task `CLE-T-JK1JFZ`. 메모리 저장소는 인스턴스마다 따로 세서 인스턴스가 N 개면 한 클라이언트가 한도의 N 배까지 통과할 수 있었다. 계기는 쇼핑몰 앱 설치 진입점의 1층 한도다([설치 우선 흐름과 App URL](../CLE-INT/CLE-INT-OAUTH-INSTALL.md#설치-엔드포인트-rate-limit-실패-페널티redis와-ip-throttlepod-별)). 저장소는 전역 설정이라 모든 한도가 함께 옮겨 갔다.
+
+- **Redis 장애 때는 메모리로 센다.** 제한을 끄면 로그인 · 인증 라우트의 추측 방어도 사라진다. 설치 진입점 문서의 Rationale 에도 이 동작을 적어 두었다.
+- **제한 시간 250ms 와 실패 뒤 5초 대기를 둔다.** 공유 연결은 `maxRetriesPerRequest` 가 3 이라 Redis 가 응답하지 않으면 명령이 재연결될 때까지 끝나지 않는다. 그동안 HTTP 요청이 모두 멈춘다. 5초 대기가 없으면 장애 동안 요청마다 250ms 씩 늦어진다.
+- **Lua 스크립트 하나로 센다.** 세기와 차단이 원자적이어야 여러 인스턴스가 동시에 세도 한도를 넘겨 통과시키지 않는다.
+- **기각: 외부 패키지(`@nest-lab/throttler-storage-redis` 등)를 쓴다.** 새 의존성을 심사해야 한다. 사용자 결정(2026-11-20 「권장안으로 진행」)에 따라 기존 ioredis 로 직접 만들었다.
+- **기각: 장애 때 제한을 끈다(fail-open).** 첫 항목의 이유로 고르지 않았다. 비밀번호 재확인 실패 한도와 공개 웹훅 추가 한도는 fail-open 이어도 그 밑에 이 한도가 남는다. 이 한도가 꺼지면 남는 한도가 없다.
