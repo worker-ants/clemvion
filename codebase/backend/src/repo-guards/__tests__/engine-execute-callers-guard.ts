@@ -72,24 +72,25 @@ export const ENGINE_ENTRY_CALLERS: Readonly<Record<string, EngineEntryCaller>> =
     'codebase/backend/src/modules/workflows/workflows.controller.ts::execute::execute':
       {
         kind: 'exempt',
-        reason: '에디터 수동 실행(POST /api/workflows/:id/execute). executedBy',
+        reason:
+          '에디터 수동 실행(POST /api/workflows/:id/execute). 사람이 시작한 실행이라 executedBy 를 넘긴다',
       },
     'codebase/backend/src/modules/workflows/workflows.controller.ts::executeNode::execute':
       {
         kind: 'exempt',
         reason:
-          '에디터 단일 노드 실행(POST /api/workflows/:id/nodes/:nodeId/execute). executedBy',
+          '에디터 단일 노드 실행(POST /api/workflows/:id/nodes/:nodeId/execute). 사람이 시작한 실행이라 executedBy 를 넘긴다',
       },
     'codebase/backend/src/modules/schedules/schedules.service.ts::runNow::execute':
       {
         kind: 'exempt',
         reason:
-          '스케줄 "지금 실행"(POST /api/schedules/:id/run-now). executedBy',
+          '스케줄 "지금 실행"(POST /api/schedules/:id/run-now). 사람이 시작한 실행이라 executedBy 를 넘긴다',
       },
     'codebase/backend/src/modules/executions/executions.service.ts::reRun::execute':
       {
         kind: 'exempt',
-        reason: '재실행. executedBy',
+        reason: '재실행. 사람이 시작한 실행이라 executedBy 를 넘긴다',
       },
     'codebase/backend/src/nodes/flow/workflow/workflow.handler.ts::execute::executeAsync':
       {
@@ -150,6 +151,17 @@ function isEngineReceiver(
   names: ReadonlySet<string>,
   call: ts.Node,
 ): boolean {
+  if (
+    ts.isParenthesizedExpression(receiver) ||
+    ts.isNonNullExpression(receiver)
+  ) {
+    return isEngineReceiver(receiver.expression, names, call);
+  }
+  if (ts.isAsExpression(receiver) || ts.isTypeAssertionExpression(receiver)) {
+    const typeName = typeNameOf(receiver.type);
+    if (typeName !== null && ENGINE_TYPE_NAMES.has(typeName)) return true;
+    return isEngineReceiver(receiver.expression, names, call);
+  }
   if (receiver.kind === ts.SyntaxKind.ThisKeyword) {
     return enclosingClassName(call) === ENGINE_CLASS_NAME;
   }
@@ -166,6 +178,11 @@ export interface EngineCallScan {
   readonly entryCalls: string[];
   /** {@link GATE_FUNCTION_NAME} 을 부르는 감싸는 함수 이름(중복 없이 정렬). */
   readonly gateScopes: string[];
+  /**
+   * 같은 함수 안에서 그보다 앞에 관문 호출이 없는 진입 호출(`<감싸는 함수>::<메서드>`, 중복 없이 정렬).
+   * 앞뒤는 소스 위치로 가린다. 관문이 분기 안에 있어 실제로 거치지 않는 경로는 가리지 못한다.
+   */
+  readonly entryCallsBeforeGate: string[];
 }
 
 /**
@@ -180,7 +197,11 @@ export interface EngineCallScan {
  * 없고 엔진은 생성자 주입으로만 받는다.
  */
 export function scanEngineCalls(source: string): EngineCallScan {
-  const empty: EngineCallScan = { entryCalls: [], gateScopes: [] };
+  const empty: EngineCallScan = {
+    entryCalls: [],
+    gateScopes: [],
+    entryCallsBeforeGate: [],
+  };
   if (
     !/\bexecute(?:Sync|Async|Inline)?\b/.test(source) &&
     !source.includes(GATE_FUNCTION_NAME)
@@ -194,8 +215,9 @@ export function scanEngineCalls(source: string): EngineCallScan {
     /* setParentNodes */ true,
   );
   const names = engineReceiverNames(sf);
-  const entryCalls = new Set<string>();
-  const gateScopes = new Set<string>();
+  const entries: { key: string; scope: string; pos: number }[] = [];
+  /** 함수마다 가장 앞선 관문 호출 위치. */
+  const firstGatePos = new Map<string, number>();
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = node.expression;
@@ -204,26 +226,36 @@ export function scanEngineCalls(source: string): EngineCallScan {
         ENGINE_ENTRY_METHODS.has(callee.name.text) &&
         isEngineReceiver(callee.expression, names, node)
       ) {
-        entryCalls.add(`${enclosingScopeName(node, sf)}::${callee.name.text}`);
+        const scope = enclosingScopeName(node, sf);
+        entries.push({
+          key: `${scope}::${callee.name.text}`,
+          scope,
+          pos: node.getStart(sf),
+        });
       }
       if (ts.isIdentifier(callee) && callee.text === GATE_FUNCTION_NAME) {
-        gateScopes.add(enclosingScopeName(node, sf));
+        const scope = enclosingScopeName(node, sf);
+        const pos = node.getStart(sf);
+        const prev = firstGatePos.get(scope);
+        if (prev === undefined || pos < prev) firstGatePos.set(scope, pos);
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(sf);
+  const beforeGate = entries.filter((e) => {
+    const gatePos = firstGatePos.get(e.scope);
+    return gatePos === undefined || e.pos < gatePos;
+  });
   return {
-    entryCalls: [...entryCalls].sort(),
-    gateScopes: [...gateScopes].sort(),
+    entryCalls: [...new Set(entries.map((e) => e.key))].sort(),
+    gateScopes: [...firstGatePos.keys()].sort(),
+    entryCallsBeforeGate: [...new Set(beforeGate.map((e) => e.key))].sort(),
   };
 }
 
-/** 저장소 전체 스캔 결과. 키는 `<경로>::<함수>::<메서드>`, 관문은 `<경로>::<함수>`. */
-export interface EngineCallerListing {
-  readonly entryCalls: string[];
-  readonly gateScopes: string[];
-}
+/** 저장소 전체 스캔 결과. {@link EngineCallScan} 의 각 항목 앞에 `<저장소 루트 상대 경로>::` 가 붙는다. */
+export type EngineCallerListing = EngineCallScan;
 
 /** `srcDir` 아래 운영 코드(`.spec.ts` 제외)에서 엔진 진입 호출 지점과 관문 호출 함수를 모은다. */
 export function listEngineCallers(
@@ -232,16 +264,58 @@ export function listEngineCallers(
 ): EngineCallerListing {
   const entryCalls: string[] = [];
   const gateScopes: string[] = [];
+  const entryCallsBeforeGate: string[] = [];
   for (const file of collectTsFiles(srcDir)) {
     const scan = scanEngineCalls(fs.readFileSync(file, 'utf8'));
     const rel = toPosixRelative(repoRoot, file);
     entryCalls.push(...scan.entryCalls.map((c) => `${rel}::${c}`));
     gateScopes.push(...scan.gateScopes.map((s) => `${rel}::${s}`));
+    entryCallsBeforeGate.push(
+      ...scan.entryCallsBeforeGate.map((c) => `${rel}::${c}`),
+    );
   }
-  return { entryCalls: entryCalls.sort(), gateScopes: gateScopes.sort() };
+  return {
+    entryCalls: entryCalls.sort(),
+    gateScopes: gateScopes.sort(),
+    entryCallsBeforeGate: entryCallsBeforeGate.sort(),
+  };
 }
 
 /** `<경로>::<함수>::<메서드>` 에서 `<경로>::<함수>` 를 뗀다. */
 export function callerScope(key: string): string {
   return key.slice(0, key.lastIndexOf('::'));
+}
+
+/** 스캔 결과와 허용 목록을 대조한 어긋남. 모두 빈 배열이어야 통과다. */
+export interface EngineCallerMismatch {
+  /** 스캔에서 찾았는데 허용 목록에 없는 진입 호출 지점. */
+  readonly unlisted: string[];
+  /** 허용 목록에 있는데 스캔에서 찾지 못한 지점(지워졌거나 이름이 바뀌었다). */
+  readonly stale: string[];
+  /** `gated` 인데 같은 함수 안에서 관문보다 앞서거나 관문 없이 엔진을 부르는 지점. */
+  readonly gatedWithoutGateFirst: string[];
+  /** 관문을 부르지만 `gated` 지점이 아닌 함수(`<경로>::<함수>`). */
+  readonly gateOutsideGated: string[];
+}
+
+/** 스캔 결과를 허용 목록과 대조한다. */
+export function diffEngineCallers(
+  listing: EngineCallerListing,
+  allowlist: Readonly<Record<string, EngineEntryCaller>>,
+): EngineCallerMismatch {
+  const listed = new Set(Object.keys(allowlist));
+  const found = new Set(listing.entryCalls);
+  const gatedKeys = Object.keys(allowlist).filter(
+    (k) => allowlist[k].kind === 'gated',
+  );
+  const gatedScopes = new Set(gatedKeys.map(callerScope));
+  const beforeGate = new Set(listing.entryCallsBeforeGate);
+  return {
+    unlisted: listing.entryCalls.filter((k) => !listed.has(k)),
+    stale: [...listed].filter((k) => !found.has(k)).sort(),
+    gatedWithoutGateFirst: gatedKeys
+      .filter((k) => found.has(k) && beforeGate.has(k))
+      .sort(),
+    gateOutsideGated: listing.gateScopes.filter((s) => !gatedScopes.has(s)),
+  };
 }

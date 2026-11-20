@@ -1,7 +1,8 @@
 import * as path from 'node:path';
 import {
   ENGINE_ENTRY_CALLERS,
-  callerScope,
+  type EngineCallerListing,
+  diffEngineCallers,
   listEngineCallers,
   scanEngineCalls,
 } from './engine-execute-callers-guard';
@@ -18,31 +19,31 @@ import {
  * 새 지점이 걸리면 그 경로가 외부 이벤트로 새 실행을 만드는지 정한다. 만들면 관문을 거치게 하고 `gated` 로,
  * 사람이 직접 시작하거나 이미 시작된 실행의 한 단계면 이유를 적어 `exempt` 로 `ENGINE_ENTRY_CALLERS` 에 올린다.
  * CLE-TRIG-DATA 「워크플로우 활성 관문」 의 경로 표나 「관문을 거치지 않는 경로」 에도 함께 더한다.
+ *
+ * 한계: `gated` 지점은 같은 함수 안에서 관문 호출이 진입 호출보다 소스상 앞에 있는지까지만 본다. 관문이 분기
+ * 안에 있어 실제로는 거치지 않는 경로, 형 주석 없이 받은 엔진(구조분해 · 별칭 타입), 같은 파일의 같은 이름
+ * 함수 둘은 가리지 못한다.
  */
 describe('엔진 실행 진입 호출 지점 허용 목록', () => {
   const repoRoot = path.resolve(__dirname, '../../../../..');
   const srcDir = path.resolve(__dirname, '../..');
-  const { entryCalls, gateScopes } = listEngineCallers(repoRoot, srcDir);
+  const listing = listEngineCallers(repoRoot, srcDir);
+  const { entryCalls, gateScopes } = listing;
+  const mismatch = diffEngineCallers(listing, ENGINE_ENTRY_CALLERS);
 
   it('엔진 진입 메서드를 부르는 지점이 허용 목록과 같다', () => {
-    expect(entryCalls).toEqual(Object.keys(ENGINE_ENTRY_CALLERS).sort());
+    expect({ unlisted: mismatch.unlisted, stale: mismatch.stale }).toEqual({
+      unlisted: [],
+      stale: [],
+    });
   });
 
-  it('gated 지점은 같은 함수 안에서 isWorkflowInactive 를 부른다', () => {
-    const gated = Object.entries(ENGINE_ENTRY_CALLERS)
-      .filter(([, v]) => v.kind === 'gated')
-      .map(([k]) => callerScope(k))
-      .sort();
-    expect(gated.filter((scope) => !gateScopes.includes(scope))).toEqual([]);
+  it('gated 지점은 같은 함수 안에서 엔진보다 먼저 isWorkflowInactive 를 부른다', () => {
+    expect(mismatch.gatedWithoutGateFirst).toEqual([]);
   });
 
   it('isWorkflowInactive 를 부르는 함수는 모두 gated 지점이다', () => {
-    const gated = new Set(
-      Object.entries(ENGINE_ENTRY_CALLERS)
-        .filter(([, v]) => v.kind === 'gated')
-        .map(([k]) => callerScope(k)),
-    );
-    expect(gateScopes.filter((scope) => !gated.has(scope))).toEqual([]);
+    expect(mismatch.gateOutsideGated).toEqual([]);
   });
 
   it('[전제] 스캔이 실제 진입 지점과 관문 호출을 찾는다', () => {
@@ -55,6 +56,58 @@ describe('엔진 실행 진입 호출 지점 허용 목록', () => {
     expect(gateScopes).toContain(
       'codebase/backend/src/modules/schedules/schedule-runner.service.ts::process',
     );
+  });
+});
+
+describe('diffEngineCallers', () => {
+  const allowlist = {
+    'a.ts::hook::execute': { kind: 'gated', reason: 'r' },
+    'a.ts::manual::execute': { kind: 'exempt', reason: 'r' },
+  } as const;
+  const clean: EngineCallerListing = {
+    entryCalls: ['a.ts::hook::execute', 'a.ts::manual::execute'],
+    gateScopes: ['a.ts::hook'],
+    entryCallsBeforeGate: ['a.ts::manual::execute'],
+  };
+  const none = {
+    unlisted: [],
+    stale: [],
+    gatedWithoutGateFirst: [],
+    gateOutsideGated: [],
+  };
+
+  it('스캔과 허용 목록이 맞으면 어긋남이 없다', () => {
+    expect(diffEngineCallers(clean, allowlist)).toEqual(none);
+  });
+
+  it('목록에 없는 진입 지점과 사라진 목록 항목을 낸다', () => {
+    const listing = {
+      ...clean,
+      entryCalls: ['a.ts::hook::execute', 'a.ts::newRoute::execute'],
+      entryCallsBeforeGate: ['a.ts::newRoute::execute'],
+    };
+    expect(diffEngineCallers(listing, allowlist)).toEqual({
+      ...none,
+      unlisted: ['a.ts::newRoute::execute'],
+      stale: ['a.ts::manual::execute'],
+    });
+  });
+
+  it('관문보다 앞서 엔진을 부르는 gated 지점을 낸다', () => {
+    const listing = {
+      ...clean,
+      entryCallsBeforeGate: ['a.ts::hook::execute', 'a.ts::manual::execute'],
+    };
+    expect(diffEngineCallers(listing, allowlist).gatedWithoutGateFirst).toEqual(
+      ['a.ts::hook::execute'],
+    );
+  });
+
+  it('gated 가 아닌 함수의 관문 호출을 낸다', () => {
+    const listing = { ...clean, gateScopes: ['a.ts::hook', 'a.ts::manual'] };
+    expect(diffEngineCallers(listing, allowlist).gateOutsideGated).toEqual([
+      'a.ts::manual',
+    ]);
   });
 });
 
@@ -91,6 +144,24 @@ describe('scanEngineCalls', () => {
        }`,
       ['a::executeInline'],
     ],
+    [
+      '옵셔널 체이닝 · non-null 단언',
+      `class S {
+         constructor(private readonly engine: ExecutionEngineService) {}
+         async a() { await this.engine?.execute(id); await this.engine!.executeSync(id); }
+       }`,
+      ['a::execute', 'a::executeSync'],
+    ],
+    [
+      '엔진 형 단언',
+      `async function a(x: unknown) { await (x as WorkflowExecutor).executeAsync(id, {}); }`,
+      ['a::executeAsync'],
+    ],
+    [
+      '한 함수 안의 같은 진입 호출 두 번은 한 지점',
+      `async function a(engine: ExecutionEngineService) { await engine.execute(1); await engine.execute(2); }`,
+      ['a::execute'],
+    ],
   ])('%s 를 잡는다', (_label, source, expected) => {
     expect(scanEngineCalls(source).entryCalls).toEqual(expected);
   });
@@ -125,5 +196,26 @@ describe('scanEngineCalls', () => {
       async b() { await other(repo); }
     }`;
     expect(scanEngineCalls(source).gateScopes).toEqual(['a']);
+  });
+
+  it('관문보다 앞서거나 관문 없이 부르는 진입 호출을 가린다', () => {
+    const source = `class S {
+      constructor(private readonly engine: ExecutionEngineService) {}
+      async gated() { if (await isWorkflowInactive(r, id, ws)) return; await this.engine.execute(id); }
+      async late() { await this.engine.execute(id); await isWorkflowInactive(r, id, ws); }
+      async none() { await this.engine.execute(id); }
+    }`;
+    expect(scanEngineCalls(source).entryCallsBeforeGate).toEqual([
+      'late::execute',
+      'none::execute',
+    ]);
+  });
+
+  it('[알려진 한계] 구조분해로 꺼낸 진입 메서드는 잡지 못한다', () => {
+    const source = `async function a(engine: ExecutionEngineService) {
+      const { execute } = engine;
+      await execute(id);
+    }`;
+    expect(scanEngineCalls(source).entryCalls).toEqual([]);
   });
 });
