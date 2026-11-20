@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "735189a12de4c2c619c63773141f728fc95cb01da539f94a4831e6d775d5d24e"
+content_hash: "0680e9dc9e87507b5635be1666a9681d23943e9215e8b81b6a48960ccd359362"
 read_as: "approved_fallback"
-task: "CLE-T-B7A8B2"
+task: "CLE-T-7AYYQC"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "e7bebe93609c996fd75b04b94007394e87066d346303bd15fb1fa696f7ebdfeb"
-etag: "sha256-ea28d01f35f74a10c03061f32180fb7a285c607c4c7bd55e39120247d8216023"
+mirror_sha256: "09ae30f7a845d07af2a3bb8827a16fc3da509612f87e194277dd30a6eb3d4cb3"
+etag: "sha256-ec689b7600f7c1d45c88684f6181a2a6edbb1f8e9f91bd243ce8d3007055382f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -99,14 +99,15 @@ Parallel 의 `branches` 도 병렬 분기 번호(`branch_<index>` 의 index)를 
 | Map | `mapped` | `items[]`(본문 입력 분배) | `{ mapped: [...], count }` |
 | Parallel | `branches` | 없음(`output: null`, 같은 입력을 병렬 분기마다 복제) | `{ branches: [...], count }`, 실패한 병렬 분기가 있으면(`errorPolicy='continue'`) `skipped` 도 |
 
-Parallel 의 `branches[i]` 는 `emit` 으로 모으지 않는다. 병렬 분기마다 어느 노드의 출력을 담는지는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 가 정한다. `emit` 같은 수집 지점을 강제하지 않는 이유는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#결과-노드의-동률은-엔진-위상-순서로-가른다-2026-11-02) 의 Rationale 에 있다.
+Parallel 의 `branches[i]` 는 `emit` 으로 모으지 않는다. 병렬 분기마다 어느 노드의 출력을 담는지는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기의-노드-집합과-위상-순서) 가 정한다. `emit` 같은 수집 지점을 강제하지 않는 이유는 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#결과-노드의-동률은-엔진-위상-순서로-가른다) 의 Rationale 에 있다.
 
-`PARALLEL_ENGINE=off` 되돌림 경로에서는 엔진이 Parallel 을 덮어쓰지 않는다. Parallel 노드 출력은 시작 시점 형태로 남는다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다-2026-11-02)).
+`PARALLEL_ENGINE=off` 되돌림 경로에서는 엔진이 Parallel 을 덮어쓰지 않는다. Parallel 노드 출력은 시작 시점 형태로 남는다([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#off-되돌림-경로는-완료-출력을-만들지-않는다)).
 
 시작 시점의 `output: items[]` 는 엔진 내부 전용 중간 표현이다. 완료 시점에 엔진이 실행 컨텍스트의 출력을 덮어쓰므로 `done` 포트 뒤 노드의 표현식(`$node["X"].output.*`)은 원시 배열이 아니라 `{ <컬렉션 키>, count }` 형태를 본다. 노드 실행 행(`node_execution`)은 엔진이 본문을 다 돈 뒤에 한 번 마감한다.
 
 - 본문이 도는 동안 행은 `running` 이다.
-- 마감할 때 `output_data` 는 실행 컨텍스트에 쓴 완료 출력과 같다(`config` · 완료 `output` · 합친 `meta`, Parallel 은 `port: 'done'` 도 담는다). `finished_at` · `duration_ms` 는 본문까지 포함한 노드 전체 기준이다.
+- 마감할 때 `output_data` 는 실행 컨텍스트에 쓴 완료 출력과 같다(`config` · 완료 `output` · 합친 `meta`, Parallel 은 `port: 'done'` 도 담는다). `finished_at` · `duration_ms` 는 핸들러와 본문(반복 회차 · 병렬 분기)까지 포함한 노드 전체 기준이다.
+- 완료 `meta` 에는 `durationMs` 를 넣지 않는다. 노드 전체 실행 시간은 행의 `duration_ms` 와 이벤트의 `duration` 으로 읽는다. 이유는 [Rationale](#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 에 있다.
 - `execution.node.completed` 이벤트는 마감할 때 한 번만 보낸다. 이벤트의 `output` · `duration` 은 행과 같은 값이다.
 - 본문이 실패하면 행을 `failed` 로 마감하고 `execution.node.failed` 를 보낸다. 외부에서 취소하면 `cancelled` 로 마감하고 `execution.node.cancelled` 를 보낸다. 두 경우 모두 completed 이벤트는 보내지 않는다.
 - [단일 노드 실행](CLE-EXEC-RUN.md)은 본문을 돌지 않으므로 핸들러 반환값으로 행을 바로 마감한다. `PARALLEL_ENGINE=off` 되돌림 경로의 Parallel 도 핸들러 반환값으로 바로 마감한다.
@@ -169,7 +170,7 @@ Loop 안에 ForEach 가 있을 때:
 
 ### 본문 안 Parallel
 
-`PARALLEL_ENGINE=v1`(코드 기본값)이면 본문 루프는 Parallel 노드를 엔진의 Parallel 실행 경로로 넘긴다. 그 Parallel 은 메인 흐름의 Parallel 처럼 병렬 분기를 동시에 실행하고 항목 에러 정책을 따른다. 끝나면 [엔진 덮어쓰기](#엔진-덮어쓰기)를 받는다. `done` 뒤 본문 노드는 완료 출력을 입력으로 받는다. 병렬 분기의 실행 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다-2026-11-06) 가 정한다.
+`PARALLEL_ENGINE=v1`(코드 기본값)이면 본문 루프는 Parallel 노드를 엔진의 Parallel 실행 경로로 넘긴다. 그 Parallel 은 메인 흐름의 Parallel 처럼 병렬 분기를 동시에 실행하고 항목 에러 정책을 따른다. 끝나면 [엔진 덮어쓰기](#엔진-덮어쓰기)를 받는다. `done` 뒤 본문 노드는 완료 출력을 입력으로 받는다. 병렬 분기의 실행 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다) 가 정한다.
 
 | 규칙 | 설명 |
 | --- | --- |
@@ -225,13 +226,13 @@ Background 본문은 메인 흐름과 따로 끝나고 결과가 메인으로 �
 
 ### Parallel 덮어쓰기의 예외를 적는다 (2026-11-06)
 
-병렬 분기 안의 안쪽 Parallel 이 실행 경로를 타게 되면서([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기-안의-안쪽-parallel-을-parallel-실행-경로로-넘긴다-2026-11-06)) 컨테이너 · 동기 서브 워크플로우 · Background 본문의 Parallel 만 완료 출력을 받지 않는다는 예외를 엔진 덮어쓰기 절에 적었다. 같은 날 아래 결정으로 예외가 없어졌고 이 절은 이력으로 남긴다.
+병렬 분기 안의 안쪽 Parallel 이 실행 경로를 타게 되면서([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#병렬-분기-안의-안쪽-parallel-을-parallel-실행-경로로-넘긴다)) 컨테이너 · 동기 서브 워크플로우 · Background 본문의 Parallel 만 완료 출력을 받지 않는다는 예외를 엔진 덮어쓰기 절에 적었다. 같은 날 아래 결정으로 예외가 없어졌고 이 절은 이력으로 남긴다.
 
 **기존 워크플로우 영향**: 없다. 문서만 실행기 동작에 맞췄다.
 
 ### 컨테이너 본문의 Parallel 도 덮어쓰기를 받는다 (2026-11-06)
 
-이 개정 전에는 컨테이너 본문 루프(`executeContainerBody`)가 Parallel 의 핸들러만 불렀다. 병렬 분기 노드는 본문 루프가 차례로 실행했고 완료 출력 · 동시 실행 · 항목 에러 정책 · 깊이 검사가 없었다. 이제 본문 루프가 Parallel 을 엔진의 Parallel 실행 경로(`runParallel`)로 넘긴다. 동기 서브 워크플로우와 Background 본문을 실행하는 루프(`executeInline`)도 같다. 그래서 엔진 덮어쓰기 절의 예외 문단을 지웠다. 실행 경로 쪽 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다-2026-11-06) 가 정한다.
+이 개정 전에는 컨테이너 본문 루프(`executeContainerBody`)가 Parallel 의 핸들러만 불렀다. 병렬 분기 노드는 본문 루프가 차례로 실행했고 완료 출력 · 동시 실행 · 항목 에러 정책 · 깊이 검사가 없었다. 이제 본문 루프가 Parallel 을 엔진의 Parallel 실행 경로(`runParallel`)로 넘긴다. 동기 서브 워크플로우와 Background 본문을 실행하는 루프(`executeInline`)도 같다. 그래서 엔진 덮어쓰기 절의 예외 문단을 지웠다. 실행 경로 쪽 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#컨테이너-본문과-서브-워크플로우의-parallel-도-parallel-실행-경로로-넘긴다) 가 정한다.
 
 사람이 정한 것은 두 가지다.
 
@@ -240,7 +241,7 @@ Background 본문은 메인 흐름과 따로 끝나고 결과가 메인으로 �
 
 기각한 대안은 두 가지다.
 
-- **컨테이너 본문도 깊이를 새로 세는 안**: 병렬 분기 안 컨테이너의 본문 Parallel 은 같은 그래프에서 바깥 Parallel 안에 있다. 새로 세면 바깥 × 안쪽 곱 상한 32 가 걸리지 않아 「중첩 Parallel 을 제한적으로 허용한다」 결정([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#중첩-parallel-을-제한적으로-허용한다-깊이-2-동시-실행-수-곱-상한-32-2026-05-30-결정-3--g--d))이 막으려던 동시 실행 수 폭발이 컨테이너 하나를 사이에 두고 다시 열린다.
+- **컨테이너 본문도 깊이를 새로 세는 안**: 병렬 분기 안 컨테이너의 본문 Parallel 은 같은 그래프에서 바깥 Parallel 안에 있다. 새로 세면 바깥 × 안쪽 곱 상한 32 가 걸리지 않아 「중첩 Parallel 을 제한적으로 허용한다」 결정([Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#중첩-parallel-을-제한적으로-허용한다-깊이-2-동시-실행-수-곱-상한-32))이 막으려던 동시 실행 수 폭발이 컨테이너 하나를 사이에 두고 다시 열린다.
 - **병렬 분기에서 반복 변수를 비우는 규칙을 그대로 두는 안**: 본문 안 병렬 분기 노드가 읽던 `$item` · `$loop` 가 사라져 지금 동작하는 워크플로우가 깨진다.
 
 **사실 정정**: 지운 예외 문단은 이 Parallel 이 「`done` 포트도 열리지 않는다」 고 적었다. 실제로는 핸들러가 돌려준 `port: string[]` 로 `done` 을 포함한 연결선이 모두 활성화되어 `done` 뒤 노드가 시작 출력을 받아 실행됐다. `PARALLEL_ENGINE=off` 되돌림 경로의 메인 루프와 같은 동작이고, `off` 경로의 컨테이너 본문에는 지금도 남아 있다.
@@ -260,7 +261,7 @@ Background 본문은 메인 흐름과 따로 끝나고 결과가 메인으로 �
 
 ### 컨테이너 구조 검사는 메시지 전체를 적는다 (2026-11-12)
 
-접두사 이름만 적으면 `error.code` 값으로 읽히는데 엔진은 이 이름을 코드 필드에 싣지 않는다. 그래서 [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 의 에러 표처럼 엔진이 던지는 메시지 전체를 적고 트리거 자식 · `containerId` 순환 메시지도 본문 제약에 적었다. 카탈로그는 이 접두사들에 행을 두지 않고 `INVALID_NODE_CONFIG: ` 처럼 메시지 접두로 적는다. 옛 문장은 `CONTAINER_*` 접두사를 안정된 코드로 올릴지를 후속 검토에 넘겼다. 그 검토는 실패한 회차의 `error.code` 값만 정하고 끝났고 접두사는 코드로 올리지 않았다([Logic 노드 공통 「실패한 회차와 병렬 분기의 `error.code`」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode-2026-11-05)). 그래서 그 문장을 지웠다.
+접두사 이름만 적으면 `error.code` 값으로 읽히는데 엔진은 이 이름을 코드 필드에 싣지 않는다. 그래서 [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 의 에러 표처럼 엔진이 던지는 메시지 전체를 적고 트리거 자식 · `containerId` 순환 메시지도 본문 제약에 적었다. 카탈로그는 이 접두사들에 행을 두지 않고 `INVALID_NODE_CONFIG: ` 처럼 메시지 접두로 적는다. 옛 문장은 `CONTAINER_*` 접두사를 안정된 코드로 올릴지를 후속 검토에 넘겼다. 그 검토는 실패한 회차의 `error.code` 값만 정하고 끝났고 접두사는 코드로 올리지 않았다([Logic 노드 공통 「실패한 회차와 병렬 분기의 `error.code`」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode)). 그래서 그 문장을 지웠다.
 
 ### 노드 실행 행은 본문이 끝난 뒤 한 번 마감한다 (2026-11-15)
 

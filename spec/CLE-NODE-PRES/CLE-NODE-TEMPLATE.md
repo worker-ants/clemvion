@@ -2,19 +2,19 @@
 id: "CLE-NODE-TEMPLATE"
 title: "Template 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-TEMPLATE-001", "REQ-TEMPLATE-002", "REQ-TEMPLATE-003", "REQ-TEMPLATE-004", "REQ-TEMPLATE-005", "REQ-TEMPLATE-006", "REQ-TEMPLATE-007", "REQ-TEMPLATE-008", "REQ-TEMPLATE-009", "REQ-TEMPLATE-010", "REQ-TEMPLATE-011", "REQ-TEMPLATE-012", "REQ-TEMPLATE-013", "REQ-TEMPLATE-014", "REQ-TEMPLATE-015", "REQ-TEMPLATE-016", "REQ-TEMPLATE-017", "REQ-TEMPLATE-018", "REQ-TEMPLATE-019"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "a42d46ed880c94e15328e3d0d82b10c713f7f6110e3d4ac0e76bdf0b07b8f1a3"
+content_hash: "72a8fd8fc59c5f4c8f4a30686f7abef4b9f621261d5a9ebf611ad65f6d7bb0b9"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/6-presentation/5-template.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c0a155d95bf2d20cc73ffa264a9763fc8d89abcb2aa9567d430726231274dec9"
-etag: "sha256-f949d5589214fd1b816189234802c24aa1366137c7950aa2626570ca800e4a9b"
+mirror_sha256: "862b738a96ca122b8a3295529c3b1a7b17b059e2b0b70192c6f8a74322d9c386"
+etag: "sha256-dd71535eec9c1565923fe066a71d23c9b27cd78cdada069bb4a475b1375c7af7"
 ---
 > 구현 상태: 구현됨 (Handlebars 블록 구문·내장 헬퍼 지원 여부는 [미결 사항](#미결-사항)) · 원문: `spec/4-nodes/6-presentation/5-template.md`, `spec/4-nodes/_product-overview.md` (§9.5) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -57,7 +57,7 @@ Handlebars 블록 구문과 내장 헬퍼는 정의가 갈린다. [미결 사항
 
 입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-옛 제품 요구사항의 우선순위는 모두 필수다. 다만 버튼 대기 요구사항의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
+옛 제품 요구사항의 우선순위는 모두 필수다. 다만 버튼 대기 요구사항의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다)).
 
 ## 설정
 
@@ -350,4 +350,4 @@ Template 핸들러는 `output.error` 나 `port: 'error'` 를 돌려주지 않는
 
 결정일: 2026-11-12
 
-이전 판은 "sanitize 는 별도 보안 과제로 다룬다" 며 정화 책임을 미뤄 두고 실행 결과 드로어가 HTML 을 샌드박스 iframe 안에서 그린다고 적었다. 코드와 대조하니 드로어는 iframe 을 쓰지 않고 DOMPurify 허용 목록으로 정화한 뒤 그린다. 웹채팅 위젯도 따로 정화한다. 사용자가 2026-11-12 에 정화 책임을 소비 쪽에 두기로 정했다(NERV 질문 `01a1cd71-0bab-70ba-9168-49e83c564256`, NERV Task `CLE-T-MBGDA4`). 그래서 `output.rendered` 는 정화하지 않은 데이터로 정하고 위 문단과 REQ-TEMPLATE-018 · 019 를 적었다. 백엔드에서 정화하는 안과 백엔드 · 소비처 양쪽에서 정화하는 안을 기각한 이유는 [Presentation 노드 공통 — 표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다-2026-11-12) 에 있다.
+이전 판은 "sanitize 는 별도 보안 과제로 다룬다" 며 정화 책임을 미뤄 두고 실행 결과 드로어가 HTML 을 샌드박스 iframe 안에서 그린다고 적었다. 코드와 대조하니 드로어는 iframe 을 쓰지 않고 DOMPurify 허용 목록으로 정화한 뒤 그린다. 웹채팅 위젯도 따로 정화한다. 사용자가 2026-11-12 에 정화 책임을 소비 쪽에 두기로 정했다(NERV 질문 `01a1cd71-0bab-70ba-9168-49e83c564256`, NERV Task `CLE-T-MBGDA4`). 그래서 `output.rendered` 는 정화하지 않은 데이터로 정하고 위 문단과 REQ-TEMPLATE-018 · 019 를 적었다. 백엔드에서 정화하는 안과 백엔드 · 소비처 양쪽에서 정화하는 안을 기각한 이유는 [Presentation 노드 공통 — 표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#template-본문은-그리는-쪽이-정화한다) 에 있다.

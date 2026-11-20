@@ -2,19 +2,19 @@
 id: "CLE-NODE-CHART"
 title: "Chart 노드"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-CHART-001", "REQ-CHART-002", "REQ-CHART-003", "REQ-CHART-004", "REQ-CHART-005", "REQ-CHART-006", "REQ-CHART-007", "REQ-CHART-008", "REQ-CHART-009", "REQ-CHART-010", "REQ-CHART-011", "REQ-CHART-012", "REQ-CHART-013", "REQ-CHART-014", "REQ-CHART-015", "REQ-CHART-016", "REQ-CHART-017", "REQ-CHART-018", "REQ-CHART-019", "REQ-CHART-020", "REQ-CHART-021"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "4c8dbe2e31f2f9b2e9578932350947d0b445396c3869f6fb185bc94d29de9e76"
+content_hash: "40b7a3453f0389c9454a6e27a9fab392780bedba8656200326dcc0ad7b40ba43"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/6-presentation/3-chart.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "2da974659015ba65b449019cecbe3d298dd95c98518bfa56474a8bc92c4a2faf"
-etag: "sha256-16663546ff2e5d7ed692418628189cbf9dbd473f4b82337d7573d69fa13abfbe"
+mirror_sha256: "1a3953cc6a9135ab6a871ef8e2b8ef4fd1f397d29ad1596dfa3ec91eeabcac4b"
+etag: "sha256-7828b235bb3b4b8e76af06abc9e98961f6109b14132a506231a8496b23757e15"
 ---
 > 구현 상태: 부분 구현 (미구현: 설정 화면의 Colors 입력 · Preview, 설정 요약 `summaryTemplate`, 에디터 렌더러의 축 라벨은 CLE-T-ETS2WE, 포인트가 없을 때 웹채팅 위젯의 버튼 바는 CLE-T-670711) · 원문: `spec/4-nodes/6-presentation/3-chart.md`, `spec/4-nodes/_product-overview.md` (§9.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -56,7 +56,7 @@ Chart 노드(Chart, `chart`)는 결과를 차트로 보여 주는 노드다. 입
 
 입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-제품 요구사항 원문의 우선순위는 제목 · 색상 요구사항만 권장이고 나머지는 필수다. 다만 버튼 입력 대기 요구사항의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
+제품 요구사항 원문의 우선순위는 제목 · 색상 요구사항만 권장이고 나머지는 필수다. 다만 버튼 입력 대기 요구사항의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다)).
 
 ## 하위 문서
 
@@ -218,8 +218,8 @@ Data Field 는 데이터를 가리키는 표현식이 아니라 키 이름을 �
 
 ### `dataField` 가 배열이 아니면 빈 배열로 그린다 (2026-10-24)
 
-→ [Chart 노드 — 실행 로직과 렌더링](CLE-NODE-CHART-EXEC.md#datafield-가-배열이-아니면-빈-배열로-그린다-2026-10-24)
+→ [Chart 노드 — 실행 로직과 렌더링](CLE-NODE-CHART-EXEC.md#datafield-가-배열이-아니면-빈-배열로-그린다)
 
 ### 그릴 포인트가 없으면 에디터는 출력 값을 JSON 으로 보여 준다 (2026-11-05)
 
-→ [Chart 노드 — 실행 로직과 렌더링](CLE-NODE-CHART-EXEC.md#그릴-포인트가-없으면-에디터는-출력-값을-json-으로-보여-준다-2026-11-05)
+→ [Chart 노드 — 실행 로직과 렌더링](CLE-NODE-CHART-EXEC.md#그릴-포인트가-없으면-에디터는-출력-값을-json-으로-보여-준다)

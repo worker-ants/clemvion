@@ -2,19 +2,19 @@
 id: "CLE-NODE-TABLE"
 title: "Table 노드"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-TABLE-001", "REQ-TABLE-002", "REQ-TABLE-003", "REQ-TABLE-004", "REQ-TABLE-005", "REQ-TABLE-006", "REQ-TABLE-007", "REQ-TABLE-008", "REQ-TABLE-009", "REQ-TABLE-010", "REQ-TABLE-011", "REQ-TABLE-012", "REQ-TABLE-013", "REQ-TABLE-014", "REQ-TABLE-015", "REQ-TABLE-016", "REQ-TABLE-017", "REQ-TABLE-018", "REQ-TABLE-019", "REQ-TABLE-020"]
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "f9fee95b1edd357f5a8c0658bba82b4ceda688fbf830bae6d272617abe05b9d1"
+content_hash: "bad2e266a933d66770755382d49968666c58905d85ffb0707d562e0666ea3503"
 read_as: "approved_fallback"
-task: "CLE-T-1GJKB2"
+task: "CLE-T-6R7VRR"
 source_paths: ["spec/4-nodes/6-presentation/2-table.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "900d01d07ad69e8ae033f5c3690adaa8a9ac8dd1a4c733cacefa05c07beec24d"
-etag: "sha256-30eb731cd1e089a07df26aee76873fd7d3441496559698f4a35ef8e0f18caef4"
+mirror_sha256: "ab7b5f3d6eb0d0364ab01981549721411ae5322e8c53eac71c788d826b750618"
+etag: "sha256-bc6974ab31fa1bf3df058144f6cc89ba19f9ade11c56520c6b8b1d9841b4d4a5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/2-table.md`, `spec/4-nodes/_product-overview.md` (§9.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -58,7 +58,7 @@ Table 노드(Table, `table`)는 데이터를 표로 구조화해 보여 주는 P
 
 입력 대기에는 기한이 없다. 버튼이 있으면 사용자가 버튼을 누르거나 외부에서 실행을 취소할 때까지 기다린다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#규칙) 규칙 10).
 
-옛 제품 요구사항의 우선순위는 모두 필수다. 다만 버튼 대기 요구사항의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다-2026-10-24)).
+옛 제품 요구사항의 우선순위는 모두 필수다. 다만 버튼 대기 요구사항의 타임아웃 부분은 옮기지 않았다([Presentation 노드 공통](CLE-NODE-PRES-COMMON.md#입력-대기에-기한을-두지-않는다)).
 
 ## 설정
 
