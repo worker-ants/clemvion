@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-AUTHZ"
 title: "워크스페이스와 멤버 — API 인가"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "6ffff3ed5003b7b924ef971279f3d8dcb65019cd8b0dbeefd2e96d0d75530ee9"
+content_hash: "0ce2da92c8449493c79455e9781d0ecc4006ad2265702b144abf75341395480c"
 read_as: "approved_fallback"
-task: "CLE-T-6F4W2A"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "60ce5ea5de5f7e75fb08d0c1e7842f41f4177337b49ed589ba5c17267e25b10b"
-etag: "sha256-62668362b807c86967558daadb9c8809dcdae05db28fdb223fbb42df9b31ff31"
+mirror_sha256: "64540ed87714507fa4429a6bfe422f5dd2c92a584c1dff12f489e9dc3013709f"
+etag: "sha256-c9861f9e7330890cf28b3ddf68a393da99d318bdf8965252a4c8542dc51fc853"
 ---
 ## 개요
 
@@ -36,6 +36,7 @@ etag: "sha256-62668362b807c86967558daadb9c8809dcdae05db28fdb223fbb42df9b31ff31"
 - 헤더가 없으면 워크스페이스 컨텍스트는 `jwt.strategy` 가 이미 멤버십을 확인한 값이라 추가 검사가 필요 없다. 검증이 필요한 경로는 헤더가 토큰 값을 덮을 때다.
 - 가드는 `@WorkspaceId()` 를 소비하는(`handlerConsumesWorkspaceId`) 라우트와 경로 파라미터로 받는 워크스페이스 없이 `@Roles()` 가 붙은 라우트에서 헤더 · 토큰이 가리키는 현재 워크스페이스를 검사한다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있어서다. 경로로 받는 워크스페이스(`@WorkspaceParam(...)`)는 아래 「경로 파라미터로 받는 워크스페이스」 가 다룬다. 그 라우트는 검증에서 빠지는 것이 아니라 인가 대상이 경로 값으로 바뀐다. `@WorkspaceId()` 도 함께 쓸 때만 헤더 · 토큰이 가리키는 현재 워크스페이스의 멤버십을 따로 본다.
 - 제외 대상은 (a) `@Public()` 라우트와 `request.user` 가 없는 미인증 요청(판정은 `JwtAuthGuard` 몫), (b) `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트다. 시스템 전역 API `GET /api/system-status/overview` 가 (b) 의 예이고 헤더가 와도 멤버십을 확인하지 않는다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)).
+- WebSocket 게이트웨이는 (a) 에 든다. 게이트웨이는 `@Public()` 이고 소켓 요청에는 `request.user` 가 없다. 핸드셰이크에서 토큰의 서명과 `exp` 만 확인하고 토큰 클레임의 워크스페이스를 그대로 쓴다. 그래서 멤버 제거는 액세스 토큰 만료(최대 15분)까지 소켓에 반영되지 않는다. 이 창은 받아들인 동작이다([WebSocket 연결 「멤버 제거는 …」](../CLE-API/CLE-API-WS-CONN.md#멤버-제거는-액세스-토큰-만료까지-소켓에-전파하지-않는다)).
 
 ### 경로 파라미터로 받는 워크스페이스
 
