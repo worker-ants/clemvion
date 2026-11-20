@@ -15,7 +15,7 @@ type Mock = jest.Mock;
 function makeFanout(deps: {
   dispatcher?: { enqueue: Mock };
   triggerRepository?: { findOne: Mock };
-  tokenService?: { revokeAllForExecution: Mock };
+  tokenService?: { revokeAllForExecution: Mock; issuePerExecution?: Mock };
 }) {
   const websocketService = {
     executionEvents$: {
@@ -28,6 +28,11 @@ function makeFanout(deps: {
   };
   const tokenService = deps.tokenService ?? {
     revokeAllForExecution: jest.fn().mockResolvedValue({ revoked: 0 }),
+    issuePerExecution: jest.fn().mockResolvedValue({
+      token: 'iext_jwt',
+      expiresAt: '2026-11-20T15:00:00.000Z',
+      jti: 'jti-1',
+    }),
   };
   const fanout = new NotificationFanout(
     websocketService as never,
@@ -370,5 +375,190 @@ describe('NotificationFanout — 조회 · 적재 실패를 경고 로그로 받
     expect(message).toContain('execution.completed');
     expect(message).toContain('exec-1');
     expect(message).toContain('enqueue exploded');
+  });
+});
+
+// 근거: CLE-EIA-NOTIFY REQ-EIANOTI-033, CLE-EIA-NOTIFY-EVENTS 「`execution.waiting_for_input`」. 블록은 마스킹이 끝난
+// fanout 봉투에 붙이고 SSE 에는 싣지 않는다. 202 응답과 같은 빌더(`interaction-block.ts`)를 쓴다.
+describe('NotificationFanout — 입력 대기 알림의 interaction 블록 [REQ-EIANOTI-033]', () => {
+  const ENDPOINTS = {
+    stream: '/api/external/executions/exec-1/stream',
+    submit: '/api/external/executions/exec-1/interact',
+    status: '/api/external/executions/exec-1',
+    cancel: '/api/external/executions/exec-1/cancel',
+    refresh: '/api/external/executions/exec-1/refresh-token',
+  };
+
+  function trigger(
+    interaction: unknown,
+    events: string[] = ['execution.waiting_for_input'],
+  ) {
+    return {
+      id: 'trg-1',
+      workflowId: 'wf-1',
+      config: {
+        notification: { events },
+        ...(interaction === undefined ? {} : { interaction }),
+      },
+    };
+  }
+
+  function setup(interaction: unknown, events?: string[]) {
+    return makeFanout({
+      triggerRepository: {
+        findOne: jest.fn().mockResolvedValue(trigger(interaction, events)),
+      },
+    });
+  }
+
+  function sentPayload(dispatcher: { enqueue: Mock }): Record<string, unknown> {
+    const [[job]] = dispatcher.enqueue.mock.calls as [
+      [{ eventBody: { payload: Record<string, unknown> } }],
+    ];
+    return job.eventBody.payload;
+  }
+
+  function waiting(interactionType: string): ExecutionChannelEvent {
+    return event('execution.waiting_for_input', {
+      triggerId: 'trg-1',
+      status: 'waiting_for_input',
+      waitingNodeId: 'node-1',
+      interactionType,
+    });
+  }
+
+  it.each([
+    ['form', ['submit_form']],
+    ['buttons', ['click_button']],
+    ['ai_conversation', ['submit_message', 'end_conversation']],
+  ])(
+    'per_execution · %s → 새 토큰 · 만료 시각 · 엔드포인트 · 권장 명령을 싣는다',
+    async (interactionType, expectedCommands) => {
+      const { fanout, dispatcher, tokenService } = setup({ enabled: true });
+      await invoke(fanout, waiting(interactionType));
+      expect(tokenService.issuePerExecution).toHaveBeenCalledWith('exec-1');
+      const payload = sentPayload(dispatcher);
+      expect(payload.interaction).toEqual({
+        token: 'iext_jwt',
+        expiresAt: '2026-11-20T15:00:00.000Z',
+        endpoints: ENDPOINTS,
+        expectedCommands,
+      });
+      // 기존 평면 필드는 그대로 남는다.
+      expect(payload).toMatchObject({
+        triggerId: 'trg-1',
+        status: 'waiting_for_input',
+        waitingNodeId: 'node-1',
+        interactionType,
+      });
+    },
+  );
+
+  it.each([
+    ['form', ['submit_form']],
+    ['buttons', ['click_button']],
+    ['ai_conversation', ['submit_message', 'end_conversation']],
+  ])(
+    'per_trigger · %s → token · expiresAt 키 없이 엔드포인트와 권장 명령만 싣는다',
+    async (interactionType, expectedCommands) => {
+      const { fanout, dispatcher, tokenService } = setup({
+        enabled: true,
+        tokenStrategy: 'per_trigger',
+      });
+      await invoke(fanout, waiting(interactionType));
+      expect(tokenService.issuePerExecution).not.toHaveBeenCalled();
+      expect(sentPayload(dispatcher).interaction).toEqual({
+        endpoints: ENDPOINTS,
+        expectedCommands,
+      });
+    },
+  );
+
+  it.each([
+    ['interaction 설정 없음', undefined],
+    ['interaction 꺼짐', { enabled: false }],
+  ])(
+    '%s → 블록 없이 보내고 토큰을 발급하지 않는다',
+    async (_l, interaction) => {
+      const { fanout, dispatcher, tokenService } = setup(interaction);
+      await invoke(fanout, waiting('form'));
+      expect(dispatcher.enqueue).toHaveBeenCalledTimes(1);
+      expect(sentPayload(dispatcher)).not.toHaveProperty('interaction');
+      expect(tokenService.issuePerExecution).not.toHaveBeenCalled();
+    },
+  );
+
+  it('입력 대기를 구독하지 않으면 토큰을 발급하지 않는다', async () => {
+    const { fanout, dispatcher, tokenService } = setup({ enabled: true }, [
+      'execution.completed',
+    ]);
+    await invoke(fanout, waiting('form'));
+    expect(dispatcher.enqueue).not.toHaveBeenCalled();
+    expect(tokenService.issuePerExecution).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'execution.completed',
+    'execution.failed',
+    'execution.cancelled',
+    'execution.ai_message',
+  ])('%s 알림에는 블록을 싣지 않는다', async (eventType) => {
+    const { fanout, dispatcher, tokenService } = setup({ enabled: true }, [
+      eventType,
+    ]);
+    await invoke(fanout, event(eventType, { triggerId: 'trg-1' }));
+    expect(dispatcher.enqueue).toHaveBeenCalledTimes(1);
+    expect(sentPayload(dispatcher)).not.toHaveProperty('interaction');
+    expect(tokenService.issuePerExecution).not.toHaveBeenCalled();
+  });
+
+  it('이벤트 원본 payload 를 바꾸지 않는다(같은 이벤트를 SSE 도 받는다)', async () => {
+    const { fanout, dispatcher } = setup({ enabled: true });
+    const evt = waiting('form');
+    await invoke(fanout, evt);
+    expect(sentPayload(dispatcher)).toHaveProperty('interaction');
+    expect(evt.payload).not.toHaveProperty('interaction');
+    expect(sentPayload(dispatcher)).not.toBe(evt.payload);
+  });
+
+  it('마스킹이 끝난 봉투에 붙이므로 token 원문이 그대로 나간다', async () => {
+    // fanout 은 받은 봉투를 다시 가리지 않는다. `*token` 키를 가리는 마스커를 거치면 토큰이 쓸모없어진다.
+    const { fanout, dispatcher } = setup({ enabled: true });
+    await invoke(fanout, waiting('form'));
+    const interaction = sentPayload(dispatcher).interaction as {
+      token: string;
+    };
+    expect(interaction.token).toBe('iext_jwt');
+  });
+
+  describe('토큰 발급이 실패하면', () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+    });
+    afterEach(() => warn.mockRestore());
+
+    it('블록 없이 알림을 보내고 경고를 남긴다', async () => {
+      const { fanout, dispatcher } = makeFanout({
+        triggerRepository: {
+          findOne: jest.fn().mockResolvedValue(trigger({ enabled: true })),
+        },
+        tokenService: {
+          revokeAllForExecution: jest.fn(),
+          issuePerExecution: jest
+            .fn()
+            .mockRejectedValue(new Error('sign failed')),
+        },
+      });
+      await invoke(fanout, waiting('form'));
+      expect(dispatcher.enqueue).toHaveBeenCalledTimes(1);
+      expect(sentPayload(dispatcher)).not.toHaveProperty('interaction');
+      expect(warn).toHaveBeenCalledTimes(1);
+      const message = String(warn.mock.calls[0][0]);
+      expect(message).toContain('exec-1');
+      expect(message).toContain('sign failed');
+    });
   });
 });
