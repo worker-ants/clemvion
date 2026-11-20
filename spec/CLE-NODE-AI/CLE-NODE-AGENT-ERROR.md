@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-ERROR"
 title: "AI 에이전트 노드 — 에러와 타임아웃"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT"]
 area: "CLE-NODE-AI"
-content_hash: "0d05285d3cd844ec80ea1d1ae0a84735c4c2b77b60fdd180b2fefd6041b03b47"
+content_hash: "273aea81fabf3dbf1d2dfceaf9a0115d7506f101eafe563b42e51a64b7840b0c"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-1639BP"
 source_paths: []
-mirror_sha256: "dafdaf3777f05c83becc30e4fdb30ed152772ac536d1e25e27017a6f5cc330e0"
-etag: "sha256-72c5d4414d4199c5d5796c157a0e440040b0509d4b223bb0f34f2b4d87bd180a"
+mirror_sha256: "61a7adcd6b03118e52381dc63c544796214714490f96ec3718289f8ef37488ed"
+etag: "sha256-fa024b2d5fd3423019d9d022efb95dd1707d50288a86535c31c2bfdffb6691ab"
 ---
 ## 개요
 
@@ -119,7 +119,7 @@ etag: "sha256-72c5d4414d4199c5d5796c157a0e440040b0509d4b223bb0f34f2b4d87bd180a"
 - **노드 취소는 `error` 포트로 보내지 않는다.** [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) 규칙대로 AbortError 를 던져 노드를 `cancelled` 로 끝낸다. 취소를 `error` 포트로 보내면 노드가 `failed` 로 기록되고 `error` 연결선의 다음 노드가 실행된다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅)).
 - **부분 결과를 `meta` 에 남긴다.** 실패 전에 성공한 LLM 호출의 토큰, 실행한 도구 호출 수, `turnDebug` 를 싣는다. 실패 전 호출에도 비용이 들었으므로 이를 버리면 비용 추적과 디버깅 단서를 잃는다. 정상 완료 출력의 토큰 기준은 2026-11-12 에 성공한 호출의 합으로 맞췄다([AI 노드 공통](CLE-NODE-AI-COMMON.md#rationale) Rationale 의 2026-11-12 항목).
 - **사용자 발화는 남기고 응답 턴은 만들지 않는다.** `ai_user` 턴은 LLM 호출 전에 넣으므로 실패해도 남는다. 응답이 없으므로 마지막 assistant 턴은 넣지 않고 메모리 추출도 예약하지 않는다. 노드 취소는 이 결정의 범위가 아니다. 취소된 단일 턴에 `ai_user` 항목이 남는 것은 현재 구현의 동작이다. 취소된 노드가 대화 스레드에 결과를 쌓지 않는 [정보 추출기 노드](CLE-NODE-EXTRACTOR.md#노드-취소는-error-포트로-보내지-않는다-2026-10-31)의 결정과 맞출지는 [대화 스레드 §미결 사항](../CLE-IX/CLE-IX-THREAD.md#미결-사항) 에서 정한다.
-- **동작이 바뀐다.** 전에는 throw 라서 노드 에러 처리 정책(재시도 등)이 걸렸다. 이제는 `error` 포트 출력이라 정책이 걸리지 않는다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)). `error` 연결선이 있으면 그쪽으로 가고 없으면 `ERROR_PORT_FALLBACK` 으로 멈춘다. 근거는 [노드 에러 처리 정책 Rationale](../CLE-NODE/CLE-NODE-ERROR.md#error-포트로-돌려준-실패에-정책을-걸지-않는다-2026-11-01) 에 있다.
+- **동작이 바뀐다.** 전에는 throw 라서 노드 에러 처리 정책(재시도 등)이 걸렸다. 이제는 `error` 포트 출력이라 정책이 걸리지 않는다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md#1-에러-처리-정책-다섯-가지)). `error` 연결선이 있으면 그쪽으로 가고 없으면 `ERROR_PORT_FALLBACK` 으로 멈춘다. 근거는 [노드 에러 처리 정책 Rationale](../CLE-NODE/CLE-NODE-ERROR.md#error-포트로-돌려준-실패에-정책을-걸지-않는다) 에 있다.
 
 ### 단일 턴 롤링 요약 실패도 `error` 포트로 보낸 이유 (2026-11-05)
 

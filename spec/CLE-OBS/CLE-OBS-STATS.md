@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATS"
 title: "통계"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-STATS-001", "REQ-STATS-002", "REQ-STATS-003", "REQ-STATS-004", "REQ-STATS-005", "REQ-STATS-006", "REQ-STATS-007", "REQ-STATS-008", "REQ-STATS-009", "REQ-STATS-010", "REQ-STATS-011", "REQ-STATS-012", "REQ-STATS-013", "REQ-STATS-014", "REQ-STATS-015", "REQ-STATS-016", "REQ-STATS-017", "REQ-STATS-018", "REQ-STATS-019", "REQ-STATS-020", "REQ-STATS-021"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "14ebcc875475c57d2d643860c632fbcfcb77660a1630ae7ed0b17d63dcd8a3ed"
+content_hash: "a3a0bf3c1db0a49f3d006fd295153ee17538ed98182b7d1cd421b29c2c1f6dfb"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-1639BP"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "9ad25fc865af40c2b8f2b390e07945b79c4a7a48e85323d2e87fb23e83b45d80"
-etag: "sha256-62625f9dea33c76cd178f9ec586d066deb378eb19a3cbb1f4ccabe140151906c"
+mirror_sha256: "c8176cc4a88fcacfa69c82586673d3bef54fb5f6898467ae5ebbdcbf7135aa78"
+etag: "sha256-25ab79cc0b0e2e7745f69cc90b3c826ac34c1d76a52e4ae0ae201c5fde2bea20"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -174,7 +174,9 @@ etag: "sha256-62625f9dea33c76cd178f9ec586d066deb378eb19a3cbb1f4ccabe140151906c"
 
 ## Rationale
 
-### 평균 실행 시간은 완료된 실행만 집계한다 (2026-08-15)
+### 평균 실행 시간은 완료된 실행만 집계한다
+
+결정일: 2026-08-15
 
 `avgExecutionTime`(대시보드)과 `avgDurationMs`(통계 요약, 상위 워크플로우)는 예전에 `duration_ms IS NOT NULL` 로만 걸렀다. 그 방어가 통한 이유는 필터가 아니라 우연이었다. 취소·타임아웃 종료 경로가 이 컬럼을 비워 두었기 때문에 자동으로 빠졌다. EIA 종결 이벤트에 `durationMs` 를 싣기 시작하면서 그 다섯 경로가 값을 채운다([EIA 알림 웹훅 §종결 이벤트 필드 집합](../CLE-IX/CLE-EIA-NOTIFY.md#종결-이벤트-필드-집합)). 필터가 없으면 입력 대기 중 취소(상한 24.8일)의 **대기 시간**이 평균에 들어간다.
 
@@ -184,7 +186,9 @@ etag: "sha256-62625f9dea33c76cd178f9ec586d066deb378eb19a3cbb1f4ccabe140151906c"
 
 원문 통계 명세는 이 한정이 "요약과 워크플로우별(§2.4)" 두 집계에 걸린다고 적었다. §2.4 는 노드별 통계라 번호가 틀렸다. 한정이 걸리는 워크플로우별 집계는 상위 워크플로우(§2.3)다. 이 문서는 바로잡은 쪽으로 적는다.
 
-### 평균은 「전체 경과」로 부른다 (2026-11-14)
+### 평균은 「전체 경과」로 부른다
+
+결정일: 2026-11-14
 
 - 2026-11-14 부터 실행 화면의 「실행 시간」은 입력 대기를 뺀 순수 실행 시간(`activeRunningMs`)이고 「전체 경과」는 `duration_ms` 다([실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md#api)). 이 문서의 평균은 `duration_ms` 평균인데 이름이 「평균 실행 시간」이라 새 용어와 기준이 갈렸다.
 - 값은 그대로 두고 이름과 라벨만 「평균 전체 경과」로 바꿨다. 완료(`completed`) 실행만 넣으므로 입력 대기 중 취소 · 시간 초과의 긴 대기는 이미 빠져 있고 기존 수치의 뜻이 그대로 이어진다. 응답 필드 이름(`avgExecutionTime` · `avgDurationMs`)도 그대로다.
@@ -212,7 +216,9 @@ LLM 토큰 사용량 위젯에는 집계 축이 다른 두 뷰가 있다. 표는
 
 지금 워크스페이스 규모에서는 요청마다 원본 테이블을 집계해도 충분하다. 대시보드는 `workflow`·`execution` 을, 통계는 여기에 `node_execution`·`llm_usage_log` 를 더 읽는다. 데이터가 커지면 시간 단위 사전 집계 테이블(`statistics_hourly`)을 두고 일일 배치로 채우는 방향을 검토한다(P2 이후).
 
-### 노드 평균도 「전체 경과」로 부른다 (2026-11-14)
+### 노드 평균도 「전체 경과」로 부른다
+
+결정일: 2026-11-14
 
 - 노드별 통계의 평균(응답 필드 `avgDurationMs`)은 `node_execution.duration_ms` 평균이다. 폼 · 버튼 · AI 멀티턴처럼 입력을 기다리는 노드는 재개할 때 `duration_ms = finished_at − started_at` 으로 저장한다(`form-interaction.service.ts` · `button-interaction.service.ts` · `ai-turn-orchestrator.service.ts`). `started_at` 은 노드가 대기에 들어간 시각이라 입력 대기 시간이 값에 들어간다.
 - 실행 화면의 「실행 시간」은 입력 대기를 뺀 시간이다([실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md#api)). 그래서 요약 · 상위 워크플로우 평균처럼 노드 평균도 「평균 전체 경과」(영문 라벨 Avg Total Elapsed)로 부른다. 값 · 계산식 · 응답 필드 이름(`avgDurationMs`)은 그대로다.

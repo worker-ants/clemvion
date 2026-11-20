@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER"
 title: "컨테이너 실행"
 type: "design"
-version: 15
+version: 16
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "05da3252309a4f013f69794e94719975280cde70334f8d0e8690a0a7af485fc4"
+content_hash: "85b9016295f5197a1254364c2bb154a5b0c197b4e615d2d4d99e2f0b520a27a1"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-1639BP"
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "f6a04f85f65d308bb992f29bda9556166a8694594b38b8baf64703d01853e4a0"
-etag: "sha256-899d3f9a76be1b3f8746eb34959a7c20de43a6a0cce679de1a9e67d89d7924e4"
+mirror_sha256: "71c05ef09ed7346431c5d9524aa8c87b4ed543874aab5d230f29745c9ea57c82"
+etag: "sha256-da4fc3e5177d05396eb64da121c7e76e86e8056b85414dfb08307f8ea290fa5a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -179,7 +179,7 @@ Loop 안에 ForEach 가 있을 때:
 | 중첩 깊이 | 본문 안 Parallel 은 컨테이너를 둘러싼 병렬 분기의 깊이를 이어받는다. 맨 바깥 컨테이너의 본문 Parallel 은 깊이 1, 병렬 분기 안 컨테이너의 본문 Parallel 은 깊이 2 이고 바깥 × 안쪽 동시 실행 수 곱 상한 32 가 걸린다(줄이면 `meta.clampedConcurrency`). 본문 안 컨테이너는 깊이를 늘리지 않는다. 본문 안 Background 의 본문(`background` 연결선 뒤에서만 닿는 노드)은 저장 규칙과 실행 검사 모두 깊이 1 부터 센다. 병렬 분기 안 컨테이너여도 같다([Parallel 노드 — 놓인 위치와 중첩 §저장 규칙과 실행 검사의 범위](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL-NEST.md#저장-규칙과-실행-검사의-범위)) |
 | 깊이 검사 시점 | 엔진은 컨테이너 시작(첫 반복 회차 전)과 바깥 Parallel 의 병렬 분기 계획 두 곳에서 본문(본문 안 컨테이너의 본문 포함)의 Parallel 깊이를 미리 검사한다. 깊이가 2를 넘으면 메시지가 `PARALLEL_NESTED_DEPTH_EXCEEDED:` 로 시작하는 에러로 실행이 실패하고, 첫 회차 전에 던지므로 컨테이너의 항목 에러 정책이 흡수하지 않는다. 본문 안 Background 의 본문은 두 검사 모두 깊이 1 부터 센다([Parallel 노드 §놓인 위치별 실행과 중첩 깊이](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#놓인-위치별-실행과-중첩-깊이)) |
 
-동기 서브 워크플로우는 호출한 쪽의 깊이를 이어받지 않고 깊이를 새로 센다([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#서브-워크플로우의-parallel-은-깊이를-새로-센다-2026-11-06)).
+동기 서브 워크플로우는 호출한 쪽의 깊이를 이어받지 않고 깊이를 새로 센다([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#서브-워크플로우의-parallel-은-깊이를-새로-센다)).
 
 `PARALLEL_ENGINE=off` 되돌림 경로에서는 본문 루프가 Parallel 을 넘기지 않고 깊이도 미리 검사하지 않는다. 병렬 분기 노드는 다른 본문 노드처럼 차례로 실행된다.
 
@@ -240,7 +240,7 @@ Background 본문은 메인 흐름과 따로 끝나고 결과가 메인으로 �
 
 사람이 정한 것은 두 가지다.
 
-- **중첩 깊이** (NERV 질문 `01a1b05f-6988-7613-a9d3-78c9492b9a86`, 답 A): 본문 안 Parallel 은 컨테이너를 둘러싼 병렬 분기의 깊이를 이어받는다. 반복 회차가 컨테이너가 받은 컨텍스트를 그대로 쓰므로 병렬 분기 안 컨테이너의 본문 Parallel 은 깊이 2 다. 바깥 Parallel 의 사전 검사는 병렬 분기 안 컨테이너 본문까지 내려간다. 회차 안에서 처음 검사하면 위반이 회차 하나의 실패가 되어 컨테이너나 바깥의 항목 에러 정책(`skip` · `continue`)에 묻힌다. [Parallel 노드 요구사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#요구사항) 은 깊이 위반이 실행을 실패시킨다고 정한다. 그래서 첫 반복 회차와 바깥 병렬 분기가 시작되기 전에 검사한다. 동기 서브 워크플로우가 깊이를 새로 세는 이유는 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#서브-워크플로우의-parallel-은-깊이를-새로-센다-2026-11-06) 에 있다.
+- **중첩 깊이** (NERV 질문 `01a1b05f-6988-7613-a9d3-78c9492b9a86`, 답 A): 본문 안 Parallel 은 컨테이너를 둘러싼 병렬 분기의 깊이를 이어받는다. 반복 회차가 컨테이너가 받은 컨텍스트를 그대로 쓰므로 병렬 분기 안 컨테이너의 본문 Parallel 은 깊이 2 다. 바깥 Parallel 의 사전 검사는 병렬 분기 안 컨테이너 본문까지 내려간다. 회차 안에서 처음 검사하면 위반이 회차 하나의 실패가 되어 컨테이너나 바깥의 항목 에러 정책(`skip` · `continue`)에 묻힌다. [Parallel 노드 요구사항](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md#요구사항) 은 깊이 위반이 실행을 실패시킨다고 정한다. 그래서 첫 반복 회차와 바깥 병렬 분기가 시작되기 전에 검사한다. 동기 서브 워크플로우가 깊이를 새로 세는 이유는 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md#서브-워크플로우의-parallel-은-깊이를-새로-센다) 에 있다.
 - **반복 변수** (NERV 질문 `01a1b060-de22-7734-a37a-69c25ee314a3`, 답 A): 병렬 분기 컨텍스트가 바깥 반복 변수(`$item` · `$itemIndex` · `$loop`)를 이어받는다. 개정 전에는 병렬 분기 노드가 반복 회차 컨텍스트에서 차례로 실행돼 반복 변수를 읽었다. 병렬 분기에 들어갈 때 반복 변수를 비우면 실행 경로로 넘기는 순간 이 값이 사라진다. 그래서 중첩 컨테이너 스코프의 읽기 규칙을 병렬 분기에도 적용했다.
 
 기각한 대안은 두 가지다.
