@@ -5411,6 +5411,8 @@ describe('HooksService', () => {
         expect(interactionService.interact).not.toHaveBeenCalled();
         expect(conversationService.upsert).not.toHaveBeenCalled();
         expectStillRunningNotice();
+        // 다시 읽기에서 버린 update 도 수신 확인을 받는다.
+        expect(ackDroppedUpdate).toHaveBeenCalledTimes(1);
         expect(conversationService.releaseLock).toHaveBeenCalledWith(
           't1',
           'chat-123',
