@@ -2,6 +2,9 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
+// 대화 잠금(`ChannelConversationService.releaseLock`)과 같은 compare-and-del 스크립트를 쓴다. 키 하나의 값이
+// 토큰과 같을 때만 지우는 범용 스크립트라 이름과 달리 대화 잠금 전용이 아니다.
+import { RELEASE_LOCK_SCRIPT } from './channel-conversation.service';
 
 /** update dedup 키. 테스트가 import 해 문자열 중복 정의를 피한다. */
 export const makeChatDedupKey = (
@@ -32,7 +35,9 @@ export const CHAT_DEDUP_WINDOW_SEC = 30;
  * `PublicWebhookQuotaService` 와 동일 정책이다. 방어 기능 부재가 정상 트래픽을 끊는 것보다
  * 낫다. 다만 그 구간에는 중복 처리가 가능하다는 뜻이므로 warn 을 남긴다. Redis 오류로 삼킨
  * 실패는 `clemvion.redis.fail_open` 카운터에도 `chat_dedup` 으로 센다(선점 `set_failed` · 해제
- * `del_failed`). Redis 미설정은 세지 않는다.
+ * `del_failed`. 해제가 compare-and-del 로 바뀌었어도 `BusinessMetricsService` 의 reason 목록에서 삭제
+ * 실패에 해당하는 값이 `del_failed` 라 그대로 쓴다).
+ * Redis 미설정은 세지 않는다.
  */
 @Injectable()
 export class ChatChannelDedupService {
@@ -52,19 +57,27 @@ export class ChatChannelDedupService {
   /**
    * 이 update 를 **처음 보는가**.
    *
+   * 선점 값은 요청마다 호출자가 만든 `token` 이다. {@link release} 가 이 토큰을 비교해 자기가 잡은
+   * 선점만 지운다.
+   *
+   * @param token 이 요청의 소유 토큰. 요청마다 새로 만들고 {@link release} 에 같은 값을 넘긴다.
    * @returns `true` = 최초 도착(처리 진행) / `false` = 30초 안 재도착(호출자가 skip).
    *   Redis 미가용·에러 시 `true` (fail-open).
    */
-  async claim(triggerId: string, idempotencyKey: string): Promise<boolean> {
+  async claim(
+    triggerId: string,
+    idempotencyKey: string,
+    token: string,
+  ): Promise<boolean> {
     if (!this.redis) return true; // fail-open
     // 빈 키는 dedup 대상이 아니다 — provider 가 update id 를 못 준 경우까지 한 키로 뭉치면
     // 서로 다른 update 가 서로를 지운다. 그 상황에서는 억제 없이 통과가 맞다.
     if (!idempotencyKey) return true;
     try {
-      // `SET key 1 EX 30 NX` — 최초 1회만 'OK', 재도착은 null.
+      // `SET key <token> EX 30 NX` — 최초 1회만 'OK', 재도착은 null.
       const result = await this.redis.set(
         makeChatDedupKey(triggerId, idempotencyKey),
-        '1',
+        token,
         'EX',
         CHAT_DEDUP_WINDOW_SEC,
         'NX',
@@ -85,14 +98,30 @@ export class ChatChannelDedupService {
    * 실행 취소가 503 으로 실패하는 경우). 선점이 남아 있으면 30초 동안 재전송이 `ignored` 로 끝나
    * 사용자의 `/start` 가 유실된다.
    *
+   * 값이 `claim` 때의 `token` 일 때만 지운다(compare-and-del, `ChannelConversationService.releaseLock`
+   * 과 같은 스크립트). 선점이 만료된 뒤 재전송이 새로 잡은 선점을 옛 요청이 지우지 않게 하려는 것이다.
+   * 지우면 그 update 가 또 처리될 수 있다(NERV Task `CLE-T-SKZABF`). fail-open 으로 선점하지 못한
+   * 요청이 불러도 값이 다르거나 키가 없어 아무것도 지우지 않는다.
+   *
    * Redis 미가용 · 오류는 삼키고 warn 만 남긴다. 선점은 30초 뒤 저절로 만료된다.
+   *
+   * @param token {@link claim} 때 넘긴 이 요청의 소유 토큰.
    */
-  async release(triggerId: string, idempotencyKey: string): Promise<void> {
+  async release(
+    triggerId: string,
+    idempotencyKey: string,
+    token: string,
+  ): Promise<void> {
     if (!this.redis) return;
     // claim 이 빈 키를 선점하지 않으므로 풀 것도 없다.
     if (!idempotencyKey) return;
     try {
-      await this.redis.del(makeChatDedupKey(triggerId, idempotencyKey));
+      await this.redis.eval(
+        RELEASE_LOCK_SCRIPT,
+        1,
+        makeChatDedupKey(triggerId, idempotencyKey),
+        token,
+      );
     } catch (err) {
       this.logger.warn(
         `chat-channel update dedup 해제 실패 — ${CHAT_DEDUP_WINDOW_SEC}초 뒤 만료로 풀린다: ${err instanceof Error ? err.message : String(err)}`,

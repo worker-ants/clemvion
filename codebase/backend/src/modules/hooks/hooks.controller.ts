@@ -18,6 +18,7 @@ import {
   ApiParam,
   ApiBody,
   ApiConsumes,
+  ApiGoneResponse,
   ApiNotFoundResponse,
   ApiResponse,
   ApiUnauthorizedResponse,
@@ -176,6 +177,35 @@ export class HooksController {
   })
   @ApiNotFoundResponse({
     description: '등록된 트리거(endpointPath)를 찾을 수 없음',
+  })
+  // 410 은 둘이다. 문구는 CLE-TRIG-WEBHOOK-API 응답 표와 같다(NERV Task `CLE-T-98BYAE`).
+  @ApiGoneResponse({
+    description:
+      "`TRIGGER_INACTIVE` 는 트리거가 비활성이다. `WORKFLOW_INACTIVE` 는 트리거는 활성이고 트리거의 워크플로우가 비활성이다(인증보다 먼저 확인한다). 채팅 채널 트리거는 410 대신 202 와 `{ executionId: 'ignored' }` 로 답한다. 트리거 비활성은 서명 검증 뒤 모든 update 에, 워크플로우 비활성은 새 실행을 시작할 update 에만 그렇게 답하고 진행 중인 대화는 그대로 처리한다.",
+    content: {
+      'application/json': {
+        examples: {
+          TRIGGER_INACTIVE: {
+            summary: '트리거 비활성',
+            value: {
+              error: {
+                code: 'TRIGGER_INACTIVE',
+                message: 'Webhook trigger is inactive',
+              },
+            },
+          },
+          WORKFLOW_INACTIVE: {
+            summary: '워크플로우 비활성',
+            value: {
+              error: {
+                code: 'WORKFLOW_INACTIVE',
+                message: 'Workflow of this webhook trigger is inactive',
+              },
+            },
+          },
+        },
+      },
+    },
   })
   async receiveWebhook(
     @Param('endpointPath') endpointPath: string,

@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-INT"
 title: "용어 사전 — 통합"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "484ce31942e5dcd19d5c6a2d0f3c4ec33578d7f39c091e7e42b311abe60ae8af"
+content_hash: "9d255bf2410efec6f0f23745114e01e564673c20803faa07ac56c9cdc68f7d9e"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "b1cf6270b74308a74faf1bbc8164f7164c67a663b7a7568e716bfca1fce1c9a1"
-etag: "sha256-76106607d2c1664871f5be73cdcee01983ec51a1585994a071769efb8dcf0834"
+mirror_sha256: "214dfc7a6f214a80bf92e492f21ba8623634fc4f815122486f50d4f17cd12f12"
+etag: "sha256-03ec5b0109ccf1e77e671edba769e6d75828018df12732d9c781cce42ed6934d"
 ---
 ## 개요
 
@@ -44,7 +44,7 @@ etag: "sha256-76106607d2c1664871f5be73cdcee01983ec51a1585994a071769efb8dcf0834"
 | 추가 권한 요청 | request scopes, `request-scopes` | 이미 있는 통합에 OAuth 권한을 더 받는 흐름. | Scope 추가 요청 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | 사용처 | usages, `usageKind` | 통합을 참조하는 워크플로우 노드 목록. 직접 참조(`direct`)와 MCP 참조(`mcp`)를 합친다. 화면 탭 이름은 "사용" 이다. | Usage 탭(개념 이름으로) | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
 | 삭제 차단 | delete blocked | 사용처가 남은 통합을 지우지 못하게 막는 규칙. | 없음 | [통합 관리](CLE-INT/CLE-INT-MANAGE.md) |
-| 활동 로그 | activity log, `IntegrationUsageLog` | 노드가 통합을 부를 때마다 남기는 성공·실패·소요 시간 기록. 보존 기간이 있다. 화면 탭 이름은 "활동" 이다. | 사용 로그, usage log, Recent activity, 최근 호출 이력 | [통합 데이터와 흐름](CLE-INT/CLE-INT-DATA.md) |
+| 활동 로그 | activity log, `IntegrationUsageLog` | 노드가 통합을 부를 때마다 남기는 성공·실패·소요 시간 기록. 보존 기간이 있다. 화면 탭 이름은 "활동" 이다. dry-run 재실행의 모의 출력 · 모의 응답은 활동 로그를 남기지 않는다([재실행](CLE-EXEC/CLE-EXEC-RERUN.md) 의 REQ-RERUN-053, [부수효과 판정](CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)). | 사용 로그, usage log, Recent activity, 최근 호출 이력 | [통합 데이터와 흐름](CLE-INT/CLE-INT-DATA.md) |
 | 호출 API 라벨 | `api_label` | 활동 로그에 남기는 호출 대상 식별자. Cafe24·MakeShop 은 카탈로그 키를 쓴다. | 없음 | [통합 데이터와 흐름](CLE-INT/CLE-INT-DATA.md) |
 | OAuth 연결 흐름 | OAuth begin, callback | 팝업에서 OAuth 제공자 동의를 받고 콜백으로 토큰을 받는 흐름. | 없음 | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
 | OAuth 제공자 | OAuth provider | 통합이 OAuth 동의를 받는 외부 서비스. 화면 라벨은 "제공자" 다. | 프로바이더(이 뜻으로) | [OAuth 연결과 토큰 갱신](CLE-INT/CLE-INT-OAUTH.md) |
@@ -126,7 +126,7 @@ NERV Task `CLE-T-NNENG8` 에서 Cafe24 Private 통합의 재인증과 추가 권
 NERV Task `CLE-T-6YY7KY` 가 고쳤다. 옛 정의는 «응답 노출 예외는 아니다» 로 끝났다. 그래서 이 필드의 평문이 어떤 응답에도 실리지 않는다고 읽혔다. 기준 문서 [시크릿 저장소 「규칙」](CLE-INT/CLE-INT-SECRET.md#규칙) 규칙 4 는 값을 만든 바로 그 응답에 평문을 한 번 싣는 예외를 둔다. 2026-10-17 사용자 결정으로 트리거 단위 토큰도 트리거 생성과 PATCH 때 발급하고 그 응답의 `data.secrets.interactionToken` 에 싣는다. 그래서 정의에 이 예외와 목록의 위치를 함께 적었다.
 
 - 기각한 대안: 규칙 4 의 목록 전체를 정의 칸에 옮기는 안. 목록은 예외 응답이 늘 때마다 바뀐다. 정의 칸에 옮기면 기준 문서와 어긋나도 잡아 줄 가드가 없다. 색인 표기 원칙 14 가 기준 문서의 수치를 정의에 적지 않는 이유와 같다.
-- 이 초안의 첫 저장은 대표 응답 몇 개를 필드 경로와 함께 «등» 으로 적었다. 2026-10-17 스펙 초안 일관성 검토가 [용어 사전](CLE-GLOSSARY.md) 개요의 한 줄 정의 원칙과 표기 원칙 14 에 어긋난다고 짚었다. 그래서 대표 응답과 정의 앞의 예외 필드 목록을 함께 뺐다. 정의는 규칙 4 를 가리키고 기준 문서 칸은 [시크릿 저장소 「저장소 예외 필드」](CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 를 가리킨다.
+- 첫 초안은 대표 응답 몇 개를 «등» 으로 적었다가 한 줄 정의 원칙과 표기 원칙 14 에 어긋난다는 검토를 받고 뺐다. 기준 문서 칸은 [시크릿 저장소 「저장소 예외 필드」](CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 를 가리킨다.
 
 ### 용어 추가 (2026-10-24)
 
@@ -137,7 +137,7 @@ NERV Task `CLE-T-MG0EQZ` 가 개인 통합을 노드에서 쓸 수 있는 조건
 - 「저장자」 는 역할 이름 「편집자(Editor)」 와 다르다. 관리자도 저장자가 된다. 그래서 «편집자» 를 이 뜻으로는 쓰지 않는 표기에 올렸다.
 - 「워크플로우 작성자」 의 뜻은 통합 노드 판정에서 쓰는 뜻이다. «워크플로우를 만드는 사람» 이라는 일반어 쓰임은 막지 않는다.
 - 「워크플로우 작성자」 정의에 버전 목록의 작성자와 다르다는 문장을 2026-10-25 에 더했다. [버전 기록](CLE-WF/CLE-WF-VERSION.md) 의 버전 목록은 그 버전을 저장한 사람을 «작성자» 로 보여 준다. 판정 문장에서 맨몸의 «작성자» 를 쓰면 어느 쪽인지 흐려진다.
-- 남은 용례: [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 의 «워크플로우 소유자» 는 NERV Task `CLE-T-KD2AZ2` 가 고친다. [AI 에이전트 노드 출력과 디버그](CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 «워크플로우 소유자만 실행 결과를 조회할 수 있어» 는 실행 결과 조회 권한을 말한다. 같은 뜻인지 확인하지 못해 같은 Task 가 먼저 뜻을 확인한다. 이 내용은 처음에 「워크플로우 작성자」 행의 정의 칸에 적었다가 용어 사전의 한 줄 정의 원칙에 맞춰 여기로 옮겼다(finding 01a16e9b-c598-7756-9ff5-1d832e11a7ba).
+- 남은 용례: [알림](CLE-OBS/CLE-OBS-NOTIFY.md) 의 «워크플로우 소유자» 는 NERV Task `CLE-T-KD2AZ2` 가 고친다. [AI 에이전트 노드 출력과 디버그](CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 «워크플로우 소유자만 실행 결과를 조회할 수 있어» 는 실행 결과 조회 권한을 말한다. 같은 뜻인지 확인하지 못해 같은 Task 가 먼저 뜻을 확인한다.
 
 ### 「통합 암호화 키」 정의를 넓히고 두 용어를 더했다 (2026-10-31)
 
@@ -163,3 +163,9 @@ NERV Task `CLE-T-10N47M` 가 고쳤다. 백엔드 코드의 주석과 테스트 
 
 - 백엔드 주석과 테스트 이름은 같은 Task 의 코드 변경에서 「재설치 대기 표시」 로 맞춘다.
 - 예외: 이미 적용된 마이그레이션 V151(`V151__integration_reinstall_requested_at.sql`)의 컬럼 COMMENT «Cafe24 Private 재설치 요청 시각» 은 고치지 않는다. 적용이 끝난 마이그레이션 파일을 고쳐도 이미 적용한 DB 의 COMMENT 는 바뀌지 않아 파일과 DB 가 어긋난다. COMMENT 만 바꾸는 새 마이그레이션도 두지 않는다(2026-11-13 사용자 결정).
+
+### 「활동 로그」 에 dry-run 단서를 달았다
+
+결정일: 2026-11-20
+
+NERV Task `CLE-T-M6W7RE` 가 고쳤다. 기준은 [재실행](CLE-EXEC/CLE-EXEC-RERUN.md) 의 REQ-RERUN-053 이고 정의의 기준 문서는 그대로 둔다.

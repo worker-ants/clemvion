@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL-OUTPUT"
 title: "Parallel 노드 — 출력 구조"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PARALLEL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-PARALLEL"]
 area: "CLE-NODE-LOGIC"
-content_hash: "0aadf54ab1c7546c950701da1da9ec61b6e36c6196ece97091b28bb910b42a03"
+content_hash: "33d9827838ebb4dd9cbb19b5b8491ccb458faa5a672b9c21873c3003254fc015"
 read_as: "approved_fallback"
-task: "CLE-T-ECETZR"
+task: "CLE-T-CE5YR3"
 source_paths: []
-mirror_sha256: "04063f6e46f32db86b1a56cdf59a829e562df71c0378bdfefedc926a0f105ce0"
-etag: "sha256-38d9fde7b2d95bf9ce20b00a9a2ad357828517560d5ac51c8425ccff52a5dc31"
+mirror_sha256: "2dba016caf663bf09662bfd3e52348257b1d64b781b23f78dea0b555fbd93b99"
+etag: "sha256-87c6a6e60df7f9c77df12e1ec370a356300fd50b59c0d7492fded73f90247717"
 ---
 ## 개요
 
@@ -176,7 +176,7 @@ ForEach 와 같은 이름을 쓰면 사용자는 "실패한 항목은 `output.sk
 
 `PARALLEL_ENGINE=off` 는 v1 엔진(`ParallelExecutor` 와 완료 시점 덮어쓰기)을 끄는 스위치다. 되돌림 경로는 v1 이전의 순차 실행을 그대로 둔다. 병렬 분기를 위상 순서로 차례로 실행하고 Parallel 노드 출력은 핸들러의 시작 시점 출력(`output: null`, `port: ['branch_0', …]`)으로 남는다. 그래서 [Parallel 노드](CLE-NODE-PARALLEL.md#요구사항) 의 `done` 결과 합치기 · `output` 덮어쓰기 요구사항(번호는 부모 문서 [하위 문서](CLE-NODE-PARALLEL.md#하위-문서) 표 아래)과 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md#91-계약) 9.1 · [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#엔진-덮어쓰기-계약) · [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#엔진-덮어쓰기) 의 덮어쓰기 계약은 이 경로를 예외로 둔다. 「[`waitAll=false` 를 지원하지 않는다](CLE-NODE-PARALLEL-CONFIG.md#waitallfalse-를-지원하지-않는다)」 의 "`done` 포트로 결과를 합쳐 보낸다" 도 v1 엔진에서의 동작이다.
 
-되돌림 경로에서도 핸들러가 `port: ['branch_0', …]` 를 돌려주면 엔진이 `done` 을 포함한 모든 연결선을 활성화한다. 그래서 놓인 위치와 상관없이 `done` 뒤 노드가 실행되고 Parallel 의 시작 시점 출력을 받는다(2026-11-06 실측).
+되돌림 경로에서도 핸들러가 `port: ['branch_0', …]` 를 돌려주면 엔진이 `done` 을 포함한 모든 연결선을 활성화한다. 그래서 놓인 위치와 상관없이 `done` 뒤 노드가 실행된다(2026-11-06 실측). 그 노드의 `$input` 은 시작 시점 출력의 `output` 인 `null` 이다([다음 노드가 받는 값](../CLE-NODE/CLE-NODE-OUTPUT-VALUE.md)). 2026-11-19 전에는 설정 에코를 받았다.
 
 기각한 대안은 되돌림 경로에도 완료 출력을 만드는 안이다. 되돌림 경로에 새 동작을 넣으면 v1 엔진을 끄고 예전 동작으로 돌아간다는 스위치의 뜻이 흐려진다. 되돌림 경로에서 `done` 뒤 노드가 언제 실행되는지와 k8s 기본 매니페스트가 `off` 인 현황은 [미결 사항](CLE-NODE-PARALLEL.md#미결-사항) 에 남겼다.
 
@@ -184,10 +184,9 @@ ForEach 와 같은 이름을 쓰면 사용자는 "실패한 항목은 `output.sk
 
 결정일: 2026-11-06
 
-Parallel 이 어디에 놓였든 완료 출력은 `commitParallelDoneOutput` 한 곳이 다음 순서로 쓴다.
+Parallel 이 어디에 놓였든 완료 출력은 `commitParallelDoneOutput` 한 곳이 쓴다. 완료 출력 `{ config, output, port: 'done', meta? }` 를 먼저 만들고 `commitNodeOutput` 한 번으로 다음을 함께 쓴다.
 
-1. 평면 캐시에 `{ _selectedPort: 'done', ...output }` 을 쓴다(`commitNodeOutput`).
-2. 구조화 출력 `{ config, output, port: 'done', meta? }` 를 쓴다(`setStructuredOutput`).
-3. 2에서 쓴 항목을 바깥 병렬 분기 사본에 다시 옮긴다(`syncParallelBranchCacheEntry`).
+1. 평면 캐시에 `{ _selectedPort: 'done', ...output }` 을, 구조화 캐시에 완료 출력을 쓴다(`setNodeOutputs`).
+2. 1에서 쓴 두 항목을 바깥 병렬 분기 사본에 옮긴다(`syncParallelBranchCacheEntry`).
 
-`setNodeOutput` 이 평면 출력에서 구조화 출력의 `output` 을 다시 만들기 때문에 2를 1보다 먼저 쓰면 `$node["Parallel"].output` 에 라우팅 표지 `_selectedPort` 가 섞인다. 이 순서를 지키면 포트 라우팅과 `$node["Parallel"].output` 과 바깥 병렬 분기 결과가 같은 값을 본다.
+구조화 출력은 평면 출력에서 다시 만들지 않는다. 평면 출력에는 라우팅 표지 `_selectedPort` 가 있어 다시 만들면 `$node["Parallel"].output` 에 그 키가 섞인다. 두 캐시를 한 번에 쓰므로 포트 라우팅과 `$node["Parallel"].output` 과 바깥 병렬 분기 결과가 같은 값을 본다. 2026-11-06 에는 평면 캐시 · 구조화 캐시 · 사본을 세 번에 나눠 쓰고 순서로 이 문제를 막았다. 2026-11-20 에 한 호출로 합쳤다(NERV Task `CLE-T-CE5YR3`).

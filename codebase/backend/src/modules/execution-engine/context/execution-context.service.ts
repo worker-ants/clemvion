@@ -4,7 +4,7 @@ import {
   NodeHandlerOutput,
   TriggerExpressionData,
 } from '../../../nodes/core/node-handler.interface';
-import { wrapBareAsNodeHandlerOutput } from '../handler-output.adapter';
+import { storedOutputAsStructured } from '../handler-output.adapter';
 import {
   createEmptyConversationThread,
   MutableConversationThread,
@@ -71,7 +71,7 @@ type MutableExecutionContext = Omit<
  * "실행 컨텍스트 in-memory + DB durable", conventions/execution-context.md).
  *
  * **Tracking logs (회귀 ③ 진단, 2026-05-25)**: createContext / deleteContext /
- * setNodeOutput (context not found 분기) 시점에 진단 로그를 남긴다. 사용자 보고
+ * seedNodeOutput (context not found 분기) 시점에 진단 로그를 남긴다. 사용자 보고
  * "Execution context not found" race 의 root cause 식별이 목표 — 어떤 caller 가
  * context 를 삭제했는지 (또는 race window 가 있는지) production 로그로 추적.
  */
@@ -135,7 +135,7 @@ export class ExecutionContextService {
    * that incorrect key routing (`contextKeyOf` / `bgKey` mismatches) surfaces
    * in production logs without crashing the caller.
    *
-   * Contrast with {@link setNodeOutput}, which **throws** on a missing key
+   * Contrast with {@link seedNodeOutput} / {@link setNodeOutputs}, which **throw** on a missing key
    * because the strict handler-output path must guarantee delivery.
    *
    * **Stores `adapted` by reference — no defensive copy**, asymmetric with
@@ -228,14 +228,23 @@ export class ExecutionContextService {
     Object.assign(context.variables, variables);
   }
 
-  setNodeOutput(key: string, nodeId: string, output: unknown): void {
+  /**
+   * 평면 값만 있는 시딩 전용이다. AI 재개 · 재시도 턴이 재구성한 `_resumeState` 를 평면
+   * 캐시에 넣을 때만 쓴다. 핸들러 반환값이나 저장된 출력이 있는 경로는
+   * {@link setNodeOutputs} 로 두 캐시를 함께 쓴다(NERV Task CLE-T-CE5YR3).
+   *
+   * 구조화 캐시는 평면 값에서 다시 만든다. 이미 항목이 있으면 그 설정 에코를 남긴다.
+   * 라우팅 표지 `_selectedPort` 는 다시 만든 구조화 값에 싣지 않는다. 그 키가 실리면
+   * `$node[X].output` 과 다음 노드 `$input` 에 보인다.
+   */
+  seedNodeOutput(key: string, nodeId: string, output: unknown): void {
     const context = this.contexts.get(key);
     if (!context) {
       // 회귀 ③ tracking (2026-05-25): caller stack 을 함께 남겨 어떤 경로가
       // 사라진 context 에 write 시도했는지 식별. 발생 후 진단용 — production
-      // 로그에서 setNodeOutput throw 패턴을 검색해 race window 추적.
+      // 로그에서 seedNodeOutput throw 패턴을 검색해 race window 추적.
       this.logger.error(
-        `[ctx-trace] setNodeOutput MISSING — key=${key} ` +
+        `[ctx-trace] seedNodeOutput MISSING — key=${key} ` +
           `nodeId=${nodeId} (race: deleteContext fired earlier). Caller:\n` +
           `${new Error().stack?.split('\n').slice(1, 10).join('\n')}`,
       );
@@ -243,30 +252,13 @@ export class ExecutionContextService {
     }
     context.nodeOutputCache[nodeId] = output;
 
-    // Keep the structured view in sync so that expression resolution picks up
-    // post-resume mutations (form submittedData, button click metadata,
-    // multi-turn AI output, etc.). Engine paths that already call
-    // `setStructuredOutput` with a richer NodeHandlerOutput will overwrite
-    // this derivation afterwards.
-    //
-    // Use the lenient wrapper here — `setNodeOutput` receives already-flattened
-    // engine output (post `toEngineFlatShape` / `applyPortSelection`), which is
-    // intentionally bare (e.g. `{parameters: {}}`). Running the strict
-    // `adaptHandlerReturn` on a bare object would throw in production, even
-    // though the handler boundary at the call site already validated the
-    // canonical shape moments earlier. Strict contract enforcement belongs at
-    // the single handler-return boundary in execution-engine.service.ts, not
-    // here.
+    // Keep the structured view in sync so that expression resolution sees the
+    // seeded value. The flat value is bare (e.g. `{ _resumeState }`), so use the
+    // lenient wrapper — the strict `adaptHandlerReturn` would throw on it. Strict
+    // contract enforcement belongs at the single handler-return boundary in
+    // execution-engine.service.ts, not here.
     const existing = context.structuredOutputCache[nodeId];
-    const isCanonical =
-      typeof output === 'object' &&
-      output !== null &&
-      !Array.isArray(output) &&
-      'config' in (output as Record<string, unknown>) &&
-      'output' in (output as Record<string, unknown>);
-    const derived = isCanonical
-      ? (output as NodeHandlerOutput)
-      : wrapBareAsNodeHandlerOutput(output);
+    const derived = storedOutputAsStructured(output);
     context.structuredOutputCache[nodeId] = existing
       ? {
           // Preserve the echoed config from the handler's original return —
@@ -287,11 +279,11 @@ export class ExecutionContextService {
   }
 
   /**
-   * 핸들러 반환값에서 만든 두 캐시 값을 함께 쓴다. {@link setNodeOutput} 과 달리 평면
+   * 핸들러 반환값에서 만든 두 캐시 값을 함께 쓴다. {@link seedNodeOutput} 과 달리 평면
    * 출력에서 구조화 출력을 다시 만들지 않는다. 평면 출력에는 라우팅 표지(`_selectedPort`)가
    * 섞여 있어서 다시 만들면 `$node[X].output` 에 그 키가 붙는다(NERV Task CLE-T-JDYHCF).
    * 노드 실행 완료와 DB 행에서 캐시를 되살리는 경로가 쓴다. 컨텍스트가 없으면
-   * {@link setNodeOutput} 처럼 예외를 던진다.
+   * {@link seedNodeOutput} 처럼 예외를 던진다.
    */
   setNodeOutputs(
     key: string,

@@ -210,6 +210,37 @@ describe('HooksService — 채팅 채널 안내 기본 문구', () => {
 
       expect(lastSentText()).toBe('개인 대화에서만 써 주세요.');
     });
+
+    // NERV Task CLE-T-X4NPWC — Slack · Discord 의 DM 밖 슬래시 명령처럼 빈 문자열은 덮어쓰기가 아니다.
+    it('override 가 빈 문자열이면 단체방 거절 기본 문구를 보낸다', async () => {
+      languageHints.groupChatRefusal = '';
+      parseUpdate.mockResolvedValue(null);
+
+      await service.handleWebhook('abc', groupInput);
+
+      expect(lastSentText()).toBe(GROUP_CHAT_REFUSAL_DEFAULT);
+    });
+  });
+
+  describe('지원하지 않는 메시지(parseUpdate 가 null, 개인 대화)', () => {
+    const privateInput: WebhookInput = {
+      ...input,
+      body: {
+        message: {
+          chat: { id: 4243, type: 'private' },
+          from: { is_bot: false },
+        },
+      },
+    };
+
+    it('override 가 빈 문자열이면 기본 문구를 보낸다', async () => {
+      languageHints.unsupportedMessageKind = '';
+      parseUpdate.mockResolvedValue(null);
+
+      await service.handleWebhook('abc', privateInput);
+
+      expect(lastSentText()).toBe('지원하지 않는 메시지 형식입니다.');
+    });
   });
 
   describe('폼 다단계 응답', () => {

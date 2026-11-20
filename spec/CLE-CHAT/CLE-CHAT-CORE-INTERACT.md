@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-INTERACT"
 title: "채팅 채널 — 인터랙션 응답과 명령 실패"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "b432f14b09edb0f9fb17dd43764a5551f29ad5e281dcef81e1cbde5b8f1d1f34"
+content_hash: "9554431c8c0d96f402aa2196a4fbbc4ed927f52aa4bd37a2d4734821272f4d32"
 read_as: "approved_fallback"
-task: "CLE-T-A78V0M"
+task: "CLE-T-0400J6"
 source_paths: []
-mirror_sha256: "d2a790d6b08b866ca8d35060d0dedd6b060a6e9ece27f667714c8002aee231c7"
-etag: "sha256-a3514d7b209e6a97805e44826a12f8a793f466a7443f8c033a367fbb8866595e"
+mirror_sha256: "dc5a67e9d3be1088fbc32d81ee420bc1a3b9300a6ac39126316ed9c2d1d1b003"
+etag: "sha256-42864689efb2efc41887db34385ba53f500a88cf1f32e6b965edc5102eb966fe"
 ---
 ## 개요
 
@@ -25,7 +25,7 @@ etag: "sha256-a3514d7b209e6a97805e44826a12f8a793f466a7443f8c033a367fbb8866595e"
 메신저의 인터랙션은 프로바이더가 3초 안에 정해진 모양의 `200` 응답을 받아야 성공으로 본다. `202` 를 받거나 응답이 늦으면 사용자 화면에 실패 표시가 남는다. 그래서 서명 검증을 통과한 인터랙션에는 처리 경로와 트리거 · 워크플로우 상태에 상관없이 `200` 과 기본 응답으로 답한다. 이 규칙은 `202` 를 적은 다른 규칙(실행 중 안내, 분당 한도 초과, 비활성 트리거, 워크플로우 없음, 비활성 워크플로우, 큐 적재 실패)보다 먼저다. 그 규칙들의 `202` 는 인터랙션이 아닌 update 의 응답이다.
 
 - 인터랙션인지와 기본 응답의 모양은 채널 어댑터의 선택 함수 `defaultInteractionResponse(raw, config)` 가 정한다. 외부 호출이 없는 순수 함수이고 서명 검증 직후 트리거 활성 관문보다 먼저 부른다. 인터랙션이 아니면 값이 없고 그 요청은 지금처럼 `202` 다.
-- 처리 경로가 응답을 정하면(Discord 모달 열기 `{ type: 9 }`, Form 모달 제출 결과 `{ type: 4 }`, Slack `{ response_action }`, 활성 실행이 없는 `/cancel` 의 `noActiveExecution` 안내) 그 응답이 먼저다. 그 밖의 경로는 기본 응답을 쓴다.
+- 처리 경로가 응답을 정하면(Discord 모달 열기 `{ type: 9 }`, Form 모달 제출 결과 `{ type: 4 }`, Slack `{ response_action }`, 활성 실행이 없는 `/cancel` 의 `noActiveExecution` 안내, 새 실행을 시작한 `/start` 의 시작 · 재시작 안내) 그 응답이 먼저다. 그 밖의 경로는 기본 응답을 쓴다.
 - 응답 본문은 응답 봉투로 감싸지 않는다. 기본 응답에 본문이 없으면 빈 본문이다.
 - `/start` 의 기존 실행 취소 실패는 인터랙션이어도 그 에러로 답한다.
 - 서명 검증 전에 끝나는 `401` · `404` · `429`(서명 참조가 없는 트리거의 전역 요청 한도 초과)는 예외다. 기본 응답을 정하기 전에 끝나므로 인터랙션이어도 그 에러로 답한다.
@@ -34,16 +34,16 @@ etag: "sha256-a3514d7b209e6a97805e44826a12f8a793f466a7443f8c033a367fbb8866595e"
 | 프로바이더 · 요청 | 트리거가 활성일 때 | 트리거가 비활성일 때 |
 |---|---|---|
 | Discord 컴포넌트 클릭(`type: 3`) · 모달 제출(`type: 5`) | `200` `{ type: 6 }`. 처리 경로가 정한 응답이 있으면 그 응답 | `200` `{ type: 6 }` |
-| Discord 슬래시 명령(`type: 2`) | `200` `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }`. `help` 는 도움말, 나머지는 `languageHints.commandReceived`. 예외로 활성 실행이 없는 `cancel` 은 `/cancel` 처리 경로가 즉시 응답 내용을 `noActiveExecution` 안내로 바꾼다(REQ-CHAT-084, [R-CC-36](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)) | 같다. `cancel` 도 `languageHints.commandReceived` 다 |
+| Discord 슬래시 명령(`type: 2`) | `200` `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }`. `help` 는 도움말, 나머지는 `languageHints.commandReceived`. 예외로 활성 실행이 없는 `cancel` 은 `/cancel` 처리 경로가 즉시 응답 내용을 `noActiveExecution` 안내로 바꾼다(REQ-CHAT-084, [R-CC-36](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)). 새 실행을 시작한 `start` 는 `/start` 처리 경로가 즉시 응답 내용을 `executionStarted` 나 `executionRestarted` 안내로 바꾼다 | 같다. `cancel` · `start` 도 `languageHints.commandReceived` 다 |
 | Discord PING(`type: 1`) | `200` `{ type: 1 }`(핸드셰이크) | `202` ignored |
 | Discord 자동완성(`type: 4`) · 알 수 없는 `type` | `202`(기본 응답 없음) | `202` ignored |
 | Slack Interactivity(`payload` 필드가 있는 요청) | `200` 빈 본문. 처리 경로가 정한 `{ response_action }` 이 있으면 그 응답 | `200` 빈 본문 |
-| Slack 슬래시 명령 | `200` `{ response_type: 'ephemeral', text }`. `help` 는 도움말, 나머지는 `languageHints.commandReceived`. 예외로 활성 실행이 없는 `cancel` 은 `/cancel` 처리 경로가 즉시 응답 내용을 `noActiveExecution` 안내로 바꾼다(REQ-CHAT-084, [R-CC-36](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)) | 같다. `cancel` 도 `languageHints.commandReceived` 다 |
+| Slack 슬래시 명령 | `200` `{ response_type: 'ephemeral', text }`. `help` 는 도움말, 나머지는 `languageHints.commandReceived`. 예외로 활성 실행이 없는 `cancel` 은 `/cancel` 처리 경로가 즉시 응답 내용을 `noActiveExecution` 안내로 바꾼다(REQ-CHAT-084, [R-CC-36](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)). 새 실행을 시작한 `start` 는 `/start` 처리 경로가 즉시 응답 내용을 `executionStarted` 나 `executionRestarted` 안내로 바꾼다 | 같다. `cancel` · `start` 도 `languageHints.commandReceived` 다 |
 | Slack `url_verification` | `200` `{ challenge }`(핸드셰이크) | `202` ignored |
 | Slack Events API | `202` | `202` ignored |
 | Telegram 모든 update | `202` | `202` ignored |
 
-Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 등록한 명령 이름(`languageHints.slashPrefix`, 기본 `workflow`)을 넣은 기본 도움말 네 줄이다. Slack 도움말도 `languageHints.help` 가 있으면 그 문구를 그대로 쓴다(`{prefix}` 를 바꾸지 않는다). 없으면 Discord 와 같은 locale 기본 도움말에 요청의 `command`(앞의 `/` 를 뗀 값, 비었으면 `workflow`)를 넣는다. Slack 은 명령 이름을 앱 manifest 에서 정하므로 `languageHints.slashPrefix` 를 쓰지 않는다. Slack `help` 는 별도 메시지를 보내지 않고 이 응답 하나로 끝난다. Slack 응답의 `text` 는 mrkdwn 으로 렌더되므로 `&` `<` `>` 를 escape 한다. Discord 응답 문구는 escape 하지 않고 멘션 알림만 `allowed_mentions` 로 끈다([Discord 어댑터 — API 호출과 UI 매핑 「멘션 무력화」](CLE-CHAT-DISCORD-API.md#멘션-무력화)). 공통 수신 문구 `languageHints.commandReceived` 와 `languageHints.noActiveExecution` 의 기본값은 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값) 이 정한다. 프로바이더별 세부는 [Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD.md#인바운드-응답) 과 [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK.md#인바운드-응답) 이 정한다.
+Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 등록한 명령 이름(`languageHints.slashPrefix`, 기본 `workflow`)을 넣은 기본 도움말 네 줄이다. Slack 도움말도 `languageHints.help` 가 있으면 그 문구를 그대로 쓴다(`{prefix}` 를 바꾸지 않는다). 없으면 Discord 와 같은 locale 기본 도움말에 요청의 `command`(앞의 `/` 를 뗀 값, 비었으면 `workflow`)를 넣는다. Slack 은 명령 이름을 앱 manifest 에서 정하므로 `languageHints.slashPrefix` 를 쓰지 않는다. Slack `help` 는 별도 메시지를 보내지 않고 이 응답 하나로 끝난다. Slack 응답의 `text` 는 mrkdwn 으로 렌더되므로 `&` `<` `>` 를 escape 한다. Discord 응답 문구는 escape 하지 않고 멘션 알림만 `allowed_mentions` 로 끈다([Discord 어댑터 — API 호출과 UI 매핑 「멘션 무력화」](CLE-CHAT-DISCORD-API.md#멘션-무력화)). 공통 수신 문구 `languageHints.commandReceived` 와 `languageHints.noActiveExecution` 의 기본값은 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값) 이 정한다. 시작 · 재시작 안내 `languageHints.executionStarted` · `languageHints.executionRestarted` 의 기본값과 보내는 조건은 [채팅 채널 데이터와 흐름 — 설정](CLE-CHAT-DATA-CONFIG.md#안내-문구-기본값) 이 정한다. 프로바이더별 세부는 [Discord 어댑터 「인바운드 응답」](CLE-CHAT-DISCORD.md#인바운드-응답) 과 [Slack 어댑터 「인바운드 응답」](CLE-CHAT-SLACK.md#인바운드-응답) 이 정한다.
 
 인터랙션으로 새 실행을 시작하면 그 실행에 남기는 `response_code` 는 실제로 보낸 `'200'` 이다. 인터랙션이 아니면 `'202'` 다.
 
@@ -77,9 +77,9 @@ Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 �
 ## 구현 위치
 
 - `codebase/backend/src/modules/chat-channel/types.ts`: 인터랙션 기본 응답 `defaultInteractionResponse` 와 버린 update 의 수신 확인 `ackDroppedUpdate` 선택 함수
-- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 공통 수신 문구 `COMMAND_RECEIVED_DEFAULTS`, 실행 없는 `/cancel` 안내 `NO_ACTIVE_EXECUTION_DEFAULTS`, Discord · Slack 공용 기본 도움말 `SLASH_HELP_DEFAULTS`
+- `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 공통 수신 문구 `COMMAND_RECEIVED_DEFAULTS`, 실행 없는 `/cancel` 안내 `NO_ACTIVE_EXECUTION_DEFAULTS`, 시작 · 재시작 안내의 기본 문구, Discord · Slack 공용 기본 도움말 `SLASH_HELP_DEFAULTS`
 - 프로바이더별: Discord 인터랙션 기본 응답은 `providers/discord/discord-interaction-response.ts`, Slack 인터랙션 기본 응답은 `providers/slack/slack.adapter.ts` 의 `defaultInteractionResponse` 와 슬래시 명령 판정 `providers/slack/slack-update.parser.ts` 의 `readSlackSlashInvocation`, Telegram 버린 클릭의 수신 확인은 `providers/telegram/telegram.adapter.ts` 의 `ackDroppedUpdate`(모두 `codebase/backend/src/modules/chat-channel/` 아래)
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인터랙션 기본 응답 적용(`withDefaultInteractionResponse`, 컨트롤러가 결과의 `providerResponse` 로 보내는 `200` 응답), 실행 없는 `/cancel` 의 즉시 응답(`notifyNoActiveExecution`), 버린 update 의 수신 확인(`ackDroppedUpdateAndIgnore`), 폼 모달 제출의 큐 적재 실패 때 버튼 재전송(`reNoiseFormModal`)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인터랙션 기본 응답 적용(`withDefaultInteractionResponse`, 컨트롤러가 결과의 `providerResponse` 로 보내는 `200` 응답), 실행 없는 `/cancel` 의 즉시 응답(`notifyNoActiveExecution`), 새 실행을 시작한 `/start` 의 시작 · 재시작 안내 즉시 응답, 버린 update 의 수신 확인(`ackDroppedUpdateAndIgnore`), 폼 모달 제출의 큐 적재 실패 때 버튼 재전송(`reNoiseFormModal`)
 - 테스트: `codebase/backend/test/chat-channel-telegram-dropped-callback.e2e-spec.ts`(버린 버튼 클릭의 수신 확인), `codebase/backend/src/modules/hooks/hooks.service.spec.ts`(「인터랙션 기본 응답」, 「버린 update 의 수신 확인」), `codebase/backend/src/modules/hooks/hooks.controller.spec.ts`(인터랙션의 `200` 응답), `codebase/backend/src/modules/chat-channel/providers/discord/discord-interaction-response.spec.ts`, `codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.spec.ts`, `codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.spec.ts`
 
 ## Rationale
@@ -122,15 +122,17 @@ Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 �
 
 **꺼진 트리거는 외부 호출을 하지 않는다.** 수신 확인과 안내 발송은 봇 토큰으로 프로바이더 API 를 부른다. 트리거를 끈 사용자는 그 봇이 아무것도 보내지 않기를 기대한다. 그래서 꺼진 트리거에서는 HTTP 응답만 돌려주고 프로바이더 API 를 부르지 않는다. 이때 Telegram 버튼 클릭의 로딩 표시는 시간 초과까지 남는다.
 
-**응답 우선순위.** 처리 경로가 정한 응답(모달 열기, 폼 제출 결과, Slack `response_action`, 활성 실행이 없는 `/cancel` 의 `noActiveExecution` 안내)이 먼저이고 없으면 기본 응답이다. 기본 응답 자체는 처리 전에 정하므로 어느 경로로 끝났는지에 따라 문구가 달라지지 않는다. 실행 없는 `/cancel` 안내는 처리 경로가 새로 만든 응답이다. `HooksService.notifyNoActiveExecution` 이 `defaultInteractionResponse` 에 `commandReceived` 자리를 이 안내로 바꾼 설정을 넘겨 응답을 다시 만들고 결과의 `providerResponse` 로 돌려준다([R-CC-36](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)). 서명 검증 전에 끝나는 `401` · `404` · `429` 는 기본 응답을 정하기 전에 끝나므로 인터랙션이어도 그 에러로 답한다.
+**응답 우선순위.** 처리 경로가 정한 응답(모달 열기, 폼 제출 결과, Slack `response_action`, 활성 실행이 없는 `/cancel` 의 `noActiveExecution` 안내, 새 실행을 시작한 `/start` 의 시작 · 재시작 안내)이 먼저이고 없으면 기본 응답이다. 기본 응답 자체는 처리 전에 정하므로 어느 경로로 끝났는지에 따라 문구가 달라지지 않는다. 실행 없는 `/cancel` 안내는 처리 경로가 새로 만든 응답이다. `HooksService.notifyNoActiveExecution` 이 `defaultInteractionResponse` 에 `commandReceived` 자리를 이 안내로 바꾼 설정을 넘겨 응답을 다시 만들고 결과의 `providerResponse` 로 돌려준다([R-CC-36](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)). 새 실행을 시작한 `/start` 의 시작 · 재시작 안내도 같은 방식으로 만든다. 서명 검증 전에 끝나는 `401` · `404` · `429` 는 기본 응답을 정하기 전에 끝나므로 인터랙션이어도 그 에러로 답한다.
 
 **Slack 슬래시 명령(2026-11-13).** 이 결정 때 남겨 둔 Slack 슬래시 명령의 응답도 같은 방식으로 정했다(사람 결정). 3초 안에 `200` 과 본인에게만 보이는 `{ response_type: 'ephemeral', text }` 로 답한다. 처리 경로와 트리거 · 워크플로우 상태에 상관없이 같다. Discord 슬래시 명령과 같이 `help` 는 도움말을 싣고 나머지는 공통 수신 문구를 싣는다. `help` 는 실행으로 보내지 않고 별도 메시지도 보내지 않는다. Slack 은 명령 이름을 앱 manifest 에서 정하고 요청마다 `command` 로 보내므로 기본 도움말에는 `languageHints.slashPrefix` 대신 그 값을 넣는다.
 
-**남은 범위.** 새 실행의 시작 안내는 NERV Task `CLE-T-0400J6` 가 다룬다. Discord 와 Slack 의 공통 수신 문구는 그 안내를 대신하지 않는다.
+**새 실행의 시작 안내(2026-11-20).** 새 실행을 시작한 `/start` 는 Discord · Slack 즉시 응답의 수신 문구 자리에 시작 안내 `executionStarted` 나 재시작 안내 `executionRestarted` 를 싣는다(사람 결정, NERV Task `CLE-T-0400J6`). 채널에 따로 보내면 사용자는 수신 문구와 안내를 연달아 본다. 실행을 시작하지 않고 끝난 `/start` 는 공통 수신 문구 그대로다. 키와 기본 문구, 보내는 조건은 [채팅 채널 데이터와 흐름 — 설정](CLE-CHAT-DATA-CONFIG.md#안내-문구-기본값) 이 정한다.
+
+슬래시 명령 즉시 응답의 `commandReceived` 를 바꾸는 두 예외(활성 실행이 없는 `/cancel` 의 `noActiveExecution` 안내, 새 실행을 시작한 `/start` 의 시작 · 재시작 안내)를 정한 결정은 [인바운드 HTTP 응답 계약 「R-CC-36 /cancel 할 실행이 없으면 안내한다」](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다) 에 있다.
 
 **기각한 대안.**
 
 - (a) 꺼진 트리거에서도 Discord PING · Slack `url_verification` 에 `200` 으로 답하는 안. 꺼진 트리거는 handshake 전에 버린다는 기존 동작([R-CC-28](CLE-CHAT-CORE-GATE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다))을 사람 결정이 그대로 두었다. handshake 는 사용자의 인터랙션이 아니라 실패 표시가 남지 않는다.
 - (b) 버린 버튼 클릭의 인라인 키보드를 지우는 안(`editMessageReplyMarkup`). 한도 초과나 실행 중이라 버린 클릭은 잠시 뒤 다시 누르면 처리될 수 있다. 키보드를 지우면 다시 누를 수 없다.
 - (c) Discord 슬래시 명령에 지연 응답(`{ type: 5 }`)으로 답하는 안. 사용자 화면에 «생각 중» 표시가 남고 그 표시를 닫으려면 원본 응답 메시지를 따로 고치는 후속 호출이 필요하다. 그 호출을 맡을 자리가 없다.
-- (d) 경로마다 다른 문구로 답하는 안(새 실행, 취소, 중복, 한도 초과 등). 기본 응답을 처리 전에 정하는 구조와 맞지 않고 경로가 늘 때마다 문구도 늘어난다. 활성 실행이 없는 `/cancel` 하나만 2026-11-19 사람 결정으로 처리 경로의 응답을 두었다([R-CC-36](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)).
+- (d) 경로마다 다른 문구로 답하는 안(새 실행, 취소, 중복, 한도 초과 등). 기본 응답을 처리 전에 정하는 구조와 맞지 않고 경로가 늘 때마다 문구도 늘어난다. 처리 경로의 응답은 사람 결정으로 둘만 두었다. 활성 실행이 없는 `/cancel`(2026-11-19, [R-CC-36](CLE-CHAT-CORE.md#r-cc-36-cancel-할-실행이-없으면-안내한다))과 새 실행을 시작한 `/start`(2026-11-20)다.

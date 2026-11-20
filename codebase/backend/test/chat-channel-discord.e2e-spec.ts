@@ -41,6 +41,19 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
  */
 const ALLOWED_MENTIONS_NONE = { parse: [] };
 
+/**
+ * 새 실행을 시작한 `/workflow start` 의 즉시 응답 — 수신 문구 자리의 시작 안내 기본 문구(NERV Task `CLE-T-0400J6`,
+ * 2026-11-20 사람 결정).
+ */
+const EXECUTION_STARTED = {
+  type: 4,
+  data: {
+    content: '워크플로우를 시작합니다.',
+    flags: 64,
+    allowed_mentions: ALLOWED_MENTIONS_NONE,
+  },
+};
+
 /** 슬래시 명령의 기본 응답 — 본인에게만 보이는(flags 64) 수신 문구. */
 const RECEIVED = {
   type: 4,
@@ -286,7 +299,7 @@ describe('Discord Chat Channel e2e', () => {
       });
     });
 
-    it('DM /workflow start → 200 + 수신 문구이고 새 실행의 response_code 는 200 이다', async () => {
+    it('DM /workflow start → 200 + 시작 안내이고 새 실행의 response_code 는 200 이다', async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
       await addManualTriggerNode(db, setup.workflowId);
       try {
@@ -295,7 +308,7 @@ describe('Discord Chat Channel e2e', () => {
           interaction(`I-start-${Date.now()}`, 2, 1, slash('start')),
         );
         expect(res.status).toBe(200);
-        expect(res.body).toEqual(RECEIVED);
+        expect(res.body).toEqual(EXECUTION_STARTED);
 
         const rows = await db.query<{ response_code: string | null }>(
           'SELECT response_code FROM execution WHERE workflow_id = $1',
@@ -311,7 +324,7 @@ describe('Discord Chat Channel e2e', () => {
 
     // REQ-DISCORD-036(R-D-12): `help` 밖의 슬래시 명령은 중복 · 파싱 실패로 끝나도 200 과 수신 응답이다.
     // `content` 는 `languageHints.commandReceived` 가 있으면 그 문구다(NERV Task `CLE-T-3HYK6R`).
-    it('같은 /workflow start 가 다시 와도 200 + 수신 문구이고 실행은 하나다', async () => {
+    it('같은 /workflow start 가 다시 오면 200 + 수신 문구이고 실행은 하나다', async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
       await addManualTriggerNode(db, setup.workflowId);
       try {
@@ -324,7 +337,9 @@ describe('Discord Chat Channel e2e', () => {
         const first = await post(setup.endpointPath, body);
         const second = await post(setup.endpointPath, body);
         expect(first.status).toBe(200);
+        expect(first.body).toEqual(EXECUTION_STARTED);
         expect(second.status).toBe(200);
+        // 중복으로 버린 두 번째는 실행을 시작하지 않았으므로 시작 안내가 아니라 수신 문구다.
         expect(second.body).toEqual(RECEIVED);
 
         expect(await countExecutions(db, setup.workflowId)).toBe('1');

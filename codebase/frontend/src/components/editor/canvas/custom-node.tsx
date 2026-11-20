@@ -190,6 +190,10 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         return "ring-2 ring-red-400";
       case "skipped":
         return "opacity-40";
+      // 취소도 종료 상태라 링을 그린다. 링이 없으면 그래프 경고 링이 다시 켜진다.
+      // 색은 실행 결과 타임라인의 cancelled 표시(gray-400)와 맞춘다.
+      case "cancelled":
+        return "ring-2 ring-gray-400";
       default:
         return "";
     }

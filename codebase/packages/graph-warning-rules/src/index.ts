@@ -49,6 +49,7 @@ export {
 export {
   PARALLEL_NESTED_CONCURRENCY_CAP,
   collectParallelBranchBodyNodeIds,
+  reachSkippingBackgroundEdges,
   parallelNestedDepthExceededRule,
   parallelNestedConcurrencyCapRule,
   parallelGraphWarningRules,

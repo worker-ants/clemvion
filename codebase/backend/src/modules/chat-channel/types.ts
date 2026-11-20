@@ -115,7 +115,8 @@ export interface ChatChannelConfig {
    * @see spec/5-system/15-chat-channel.md §4.1 / §4.1.1
    */
   /**
-   * 채널별 안내 문구 override. 알려진 키(일부): `executionStarted`·`executionCompleted`·
+   * 채널별 안내 문구 override. 알려진 키(일부): `executionStarted`(`/start` 시작 안내)·
+   * `executionRestarted`(`/start` 재시작 안내)·`executionCompleted`·
    * `executionCancelled`·`sessionExpired`·`groupChatRefusal`·`help`·`slashPrefix`·
    * `replyButtonLabel`·`replyModalTitle`·`replyModalLabel`·`formModalTitle`(§3.3 form modal 제목,
    * default `'양식'`)·`commandReceived`(Discord · Slack 슬래시 명령의 수신 응답)·`noActiveExecution`
@@ -446,8 +447,13 @@ export interface EiaCancelledEvent extends EiaEventBase {
    * (CHECKPOINT_MISSING / FAILED / INCOMPATIBLE_STATE) 면 어댑터가 generic
    * "취소" 대신 graceful "세션 만료 — 새 대화 시작" 안내를 렌더한다. 사용자
    * cancel 등 일반 취소에는 부재.
+   *
+   * `message` 는 필수다(CLE-EIA-NOTIFY-EVENTS 「`execution.cancelled` 행동 계약」, NERV Task
+   * `CLE-T-M42X2A`). 위 `result` · `durationMs` 는 dispatcher 가 검증하지 않아 `?` 를 남겼지만
+   * 이 필드는 dispatcher(`toChatChannelEvent`)가 `code` · `message` 가 둘 다 문자열일 때만 싣는다.
+   * 그래서 필수로 적어도 확인하지 않은 보장을 주장하지 않는다.
    */
-  error?: { code: string; message?: string };
+  error?: { code: string; message: string };
   // EIA §6 — producer 는 **항상** 이 키를 싣고, 값을 모르면 `null` 이다.
   // **그런데 `?` 는 유지한다** — 이 타입은 producer 가 아니라 **consumer 계약**이고,
   // 배포 경계에서 재생되는 레거시 이벤트에는 키가 없다. 필수로 만들면 타입이 현실보다
@@ -651,9 +657,10 @@ export interface ChatChannelAdapter {
    * `{ response_type: 'ephemeral', text }` 다. 핸드셰이크 · 일반 메시지처럼 `202` 로
    * 답할 요청이면 `undefined` 다. 처리 경로가 따로 정한 응답(모달 열기 · 폼 제출 결과)이 있으면 그
    * 응답이 우선한다. 트리거가 꺼져 있어도 부른다. pure — 외부 호출 없음.
-   * `help` 를 뺀 DM 안 슬래시 명령(`cancel` 포함)의 응답 내용은 `languageHints.commandReceived` 로 찾아야 한다.
-   * `HooksService.notifyNoActiveExecution` 이 이 키 자리를 `noActiveExecution` 안내로 바꿔 이 메서드를 다시
-   * 부르기 때문이다. 다른 키를 쓰면 실행 없는 `/cancel` 안내가 사라진다(NERV Task `CLE-T-A78V0M`).
+   * `help` 를 뺀 DM 안 슬래시 명령(`cancel` · `start` 포함)의 응답 내용은 `languageHints.commandReceived` 로 찾아야
+   * 한다. `HooksService.respondWithCommandNotice` 가 이 키 자리를 `noActiveExecution` · `executionStarted` ·
+   * `executionRestarted` 안내로 바꿔 이 메서드를 다시 부르기 때문이다. 다른 키를 쓰면 실행 없는 `/cancel` 안내와
+   * `/start` 시작 · 재시작 안내가 사라진다(NERV Task `CLE-T-A78V0M` · `CLE-T-0400J6`).
    * SoT: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER), [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE).
    */
   defaultInteractionResponse?(

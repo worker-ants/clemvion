@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-TYPES"
 title: "채팅 채널 어댑터 규약 — 이벤트와 데이터 타입"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "e7c7a502bc223254535652fddf4fb65e894295ccfe9b28c5cb65e0d062e3e67d"
+content_hash: "a89b3f261e6385f37c6131d1d1d8824f174b2c47fb65441869dde86bd6a616f9"
 read_as: "approved_fallback"
-task: "CLE-T-A78V0M"
+task: "CLE-T-M42X2A"
 source_paths: []
-mirror_sha256: "e284f1ffe72abea5808e014a02d39e64edf0217a994439eec596750304273c82"
-etag: "sha256-c468e987f5a857c0fd1ef01a149b2f782112ad30b91c1d5cde605a01054982c0"
+mirror_sha256: "7f4ad131f6b0e30d6f7a092a85f015c8d1555c4f41abeea0695c3945b9680c06"
+etag: "sha256-28a222fbbf81d0d4a90eeae0d8c1ca7ba4801af3a16aaa787a3d0495c4c822e0"
 ---
 ## 개요
 
@@ -44,7 +44,7 @@ type EiaEvent =
       error: { code: string | null; message: string; nodeId: string | null; details?: unknown } | string;
       durationMs?: number | null; timestamp: string; seq: number }
   | { type: "execution.cancelled"; executionId: string; triggerId: string; workflowId: string; status: "cancelled";
-      result: { cancelledBy: "user" | "system" | "timeout" }; error?: { code: string; message?: string };
+      result: { cancelledBy: "user" | "system" | "timeout" }; error?: { code: string; message: string };
       durationMs?: number | null; timestamp: string; seq: number };
 ```
 
@@ -55,6 +55,7 @@ type EiaEvent =
 - `presentations` 의 기준은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 다.
 - `completed` 의 `result` 가 선택인 이유: 현재 발행은 `status` 와 `durationMs` 를 채우고 `result.outputs` 만 미구현이다. `cancelled` 의 `result.cancelledBy` 는 발행 타입이 필수로 강제한다([EIA 알림 웹훅 「종결 이벤트 필드 집합」](../CLE-IX/CLE-EIA-NOTIFY.md#종결-이벤트-필드-집합)). `durationMs` 는 2026-08-15 에 종결 세 가지 모두 구현됐고, 모르면 `null` 이다.
 - `failed` 의 `error` 가 `| string` 을 품는 이유는 따로 있다. 발행은 2026-08-14 부터 모든 경로가 object(`toTerminalErrorPayload`)다. union 은 배포 경계에서 재생되는 옛 이벤트를 받으려고 일부러 남겼다. 지우면 그 창 동안 실행 실패 안내가 조용히 빠진다.
+- `cancelled` 의 `error` 는 시스템 취소에만 실리고, 실릴 때는 `code` · `message` 가 둘 다 문자열이다([EIA 알림 웹훅 「종결 이벤트 필드 집합」](../CLE-IX/CLE-EIA-NOTIFY.md#종결-이벤트-필드-집합)). 발행 쪽 타입(`emitCancellationEvent`)이 둘 다 필수로 강제한다. dispatcher(`toChatChannelEvent`)는 이 모양이 아닌 `error` 를 싣지 않고 warn 로그를 남긴다. 그래서 채널 어댑터는 `message` 가 있다고 보고 읽는다.
 
 ### ChatChannelInternalEvent
 

@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-RUN"
 title: "통합 관리 — 사용처 · 연결 테스트 · 실행 연동"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "5546aa3d1a4e1e6a4bd660d170eec6684a1d5a5059c40d8f7f9edca8a561f32f"
+content_hash: "d9225a7e634497349dfe6c490c3b5c3a6709c98d22e694e6a55d6501479c68af"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "5007143cac9ac21b834173fbb7b54fc45504bb8f514ba0638f5a661365b64f94"
-etag: "sha256-9c66833906c01b1b136025b068291efeba2f0db8d8e020c5ed9f436ba4f30d28"
+mirror_sha256: "c42c8d993fd23ee910e313b8b0b2cdc87ebac51ed01ffe704ab2e34c3cd5a607"
+etag: "sha256-ae46439298fd9c038116ed7010b1b519545e7e224396440497de0933eb083196"
 ---
 ## 개요
 
@@ -97,7 +97,7 @@ etag: "sha256-9c66833906c01b1b136025b068291efeba2f0db8d8e020c5ed9f436ba4f30d28"
 | `cafe24` | 매 호출(성공·실패 모두). AI 에이전트의 `Cafe24McpToolProvider` 호출도 같은 로그에 남긴다. `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 메타 도구 호출은 남기지 않는다([MCP 클라이언트](CLE-INT-MCP.md)) |
 | `makeshop` | 매 호출(성공·실패 모두). `MakeshopMcpToolProvider` 호출도 같다 |
 
-표의 «매 호출» 은 통합을 얻은 뒤의 호출이다. 통합을 얻기 전에 끝난 실패는 남기지 않는다. 실행 취소로 끝난 호출도 성공이나 실패가 아니라서 남기지 않는다.
+표의 «매 호출» 은 통합을 얻은 뒤의 호출이다. 통합을 얻기 전에 끝난 실패는 남기지 않는다. 실행 취소로 끝난 호출도 성공이나 실패가 아니라서 남기지 않는다. dry-run 재실행의 모의 출력 · 모의 응답도 외부로 나가지 않아 남기지 않는다([재실행 — dry-run 「부수효과 판정」](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)). 그래서 통합의 `last_used_at` 도 바뀌지 않는다.
 
 ### 워크플로우 에디터
 

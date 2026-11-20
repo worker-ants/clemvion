@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD-INBOUND"
 title: "Discord 어댑터 — 인바운드 처리와 응답"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DISCORD"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DISCORD"]
 area: "CLE-CHAT"
-content_hash: "6fb20d3177b2482a318860178adfec9df74d9ff363c17368a2f5300932a13078"
+content_hash: "b5bec5b7b758a0f7235f8cd6f90d109459c91a37582c4e9daaacc325bf437247"
 read_as: "approved_fallback"
-task: "CLE-T-A78V0M"
+task: "CLE-T-0400J6"
 source_paths: []
-mirror_sha256: "4b78abfcb891ca2dd3b1641cbcadaca42f3985697361d5bb2184c5b4463b324a"
-etag: "sha256-cd79691d9b16f0e37ccff68a35024d3385ce60f69578e95b2714dc10f2d7f6a7"
+mirror_sha256: "3d6ef3a12396adb6eb79e9e1361274f1c327b0b84d12847a93523f186140d21e"
+etag: "sha256-0ac734eaf52e9ee6a5dece1ee562fceb0aea01ea488557370bdeafab149d81d7"
 ---
 ## 개요
 
@@ -40,12 +40,12 @@ Discord Interactions Webhook 은 envelope 하나(`type` 필드로 분기, `Conte
 | `type === 5`(MODAL_SUBMIT), `data.custom_id === "clemvion_form"` | `{ kind: "form_submission", fields }`. `data.components[].components[]` 의 `{ custom_id: field.name, value }` 를 편다(R-D-6) |
 | `type === 5`, `data.custom_id !== "clemvion_form"`(예: `clemvion_reply`) | `{ kind: "text_message", text: <TEXT_INPUT 값> }`. 멀티턴 AI 답장 모달의 결과다 |
 | `member.user.bot === true` 또는 DM `user.bot === true` | `null`. 봇 무시 |
-| `channel.type` 이 숫자이고 `1` 이 아님(DM 아님: GUILD_TEXT=0, GROUP_DM=3 등) | `null`. 슬래시 명령이면 기본 응답이 `groupChatRefusal` 안내이고 컴포넌트 클릭 · 모달 제출은 안내 없이 `{ type: 6 }` 이다([인바운드 응답](#인바운드-응답)). 채널에 안내 메시지를 보내지 않는다 |
+| `channel.type` 이 숫자이고 `1` 이 아님(DM 아님: GUILD_TEXT=0, GROUP_DM=3 등) | `null`. 슬래시 명령이면 기본 응답이 `groupChatRefusal` 안내이고 컴포넌트 클릭 · 모달 제출은 안내 없이 `{ type: 6 }` 이다([인바운드 응답](#인바운드-응답)). 채널에 안내 메시지를 보내지 않는다(R-D-13) |
 | 그 밖의 `type`(4 = APPLICATION_COMMAND_AUTOCOMPLETE 등) | `null`. v1 에서 처리하지 않는다 |
 
 `channel.type` 이 없거나 숫자가 아니면 DM 으로 본다. 파서(`parseDiscordUpdate`)와 기본 응답(`buildDiscordDefaultInteractionResponse`)은 같은 조건으로 DM 밖을 판정한다.
 
-자유 텍스트 메시지는 받지 못한다. Discord 의 [`MESSAGE_CREATE`](https://discord.com/developers/docs/topics/gateway-events#message-create) 는 Gateway 연결 때만 오고 v1 은 Interactions Webhook 만 쓰기 때문이다(R-D-3). 멀티턴 AI 답장은 slash command 의 text option 이나 모달 TEXT_INPUT 으로 받는다. DM 밖에서 오는 것도 인터랙션뿐이라 Telegram 그룹처럼 채널에 안내 메시지를 보내는 경로가 없다(R-D-13).
+자유 텍스트 메시지는 받지 못한다. Discord 의 [`MESSAGE_CREATE`](https://discord.com/developers/docs/topics/gateway-events#message-create) 는 Gateway 연결 때만 오고 v1 은 Interactions Webhook 만 쓰기 때문이다(R-D-3). 멀티턴 AI 답장은 slash command 의 text option 이나 모달 TEXT_INPUT 으로 받는다.
 
 중복 제거 키(`idempotencyKey`)는 `interaction.id` 를 그대로 쓴다. Discord 가 interaction 마다 snowflake id 를 붙이고 재전송 때 같은 id 를 보낸다. 30초 TTL·Redis 키·게이트 순서는 [Discord 어댑터 — API 호출과 UI 매핑 「비기능」](CLE-CHAT-DISCORD-API.md#비기능) 에 있다.
 
@@ -58,7 +58,8 @@ Discord Interactions 는 3초 안에 interaction response 객체로 답해야 �
 | PING(`type: 1`), 트리거 활성(워크플로우가 비활성이어도) | `200 OK` + `{ type: 1 }`([PING 핸드셰이크](#ping-핸드셰이크)) |
 | PING, 트리거 비활성 | `202` + `{ data: { executionId: 'ignored' } }`. Interactions Endpoint URL 등록이 실패한다 |
 | 슬래시 명령(`type: 2`) `help`. DM 밖 채널을 뺀 모든 경로(트리거 비활성 포함) | `200 OK` + `{ type: 4, data: { content: <도움말>, flags: 64, allowed_mentions: { parse: [] } } }` |
-| `help` 밖의 슬래시 명령(`start`·`cancel`·`reply` 와 해석하지 못한 명령). 새 실행, 취소, 답장 전달, 버린 경로 전부(중복, 분당 한도 초과, 실행 중, 워크플로우 비활성, 워크플로우 없음, 파싱 실패, 실행 소유자가 아닌 사람의 `start`·`cancel`), 트리거 비활성. 아래의 활성 실행이 없는 `cancel` 은 뺀다 | `200 OK` + `{ type: 4, data: { content: <수신 문구>, flags: 64, allowed_mentions: { parse: [] } } }` |
+| `help` 밖의 슬래시 명령(`start`·`cancel`·`reply` 와 해석하지 못한 명령). 새 실행, 취소, 답장 전달, 버린 경로 전부(중복, 분당 한도 초과, 실행 중, 워크플로우 비활성, 워크플로우 없음, 파싱 실패, 실행 소유자가 아닌 사람의 `start`·`cancel`), 트리거 비활성. 아래 두 행은 뺀다 | `200 OK` + `{ type: 4, data: { content: <수신 문구>, flags: 64, allowed_mentions: { parse: [] } } }` |
+| DM 의 `start` 가 새 실행을 시작한 경우, 트리거 활성 | `200 OK` + `{ type: 4, data: { content: <executionStarted 또는 executionRestarted 안내>, flags: 64, allowed_mentions: { parse: [] } } }` |
 | DM 의 `cancel` 에 활성 실행이 없는 경우(이미 끝난 실행을 가리키는 매핑 포함), 트리거 활성 | `200 OK` + `{ type: 4, data: { content: <noActiveExecution 안내>, flags: 64, allowed_mentions: { parse: [] } } }` |
 | DM 밖 채널(`channel.type` 이 숫자이고 `1` 이 아님)의 슬래시 명령. `help` 를 포함한 모든 하위 명령, 트리거 비활성 | `200 OK` + `{ type: 4, data: { content: <groupChatRefusal 안내>, flags: 64, allowed_mentions: { parse: [] } } }`. 파서가 버려 실행으로 보내지 않는다 |
 | 컴포넌트(`type: 3`) `__open_form__`·`__reply__` 클릭으로 모달을 연 경우 | `200 OK` + `{ type: 9, data: <modal> }`(`openFormModal`) |
@@ -79,11 +80,11 @@ Discord Interactions 는 3초 안에 interaction response 객체로 답해야 �
 
 영어 기본 도움말은 같은 네 줄이고 설명은 `Start a new conversation`, `Cancel the active conversation`, `Reply to the active conversation`, `Show help` 다.
 
-수신 문구는 `languageHints.commandReceived` → `languageLocale` 기본값(ko `요청을 받았습니다.`, en `Request received.`) → ko 순서로 찾는다. 활성 실행이 없는 `cancel` 의 안내는 `languageHints.noActiveExecution` → `languageLocale` 기본값(ko `진행 중인 대화가 없습니다.`, en `There is no active conversation.`) → ko 순서로 찾는다. DM 밖 안내는 `languageHints.groupChatRefusal` → 기본 문구 `이 봇은 1:1 대화만 지원합니다.` 순서로 찾고 locale 과 관계없이 이 문구 하나다. `languageHints` 의 빈 문자열은 모두 없는 것으로 본다. 안내 문구 키와 기본값의 기준은 [채팅 채널 데이터와 흐름 — 설정과 안내 문구 「안내 문구 기본값」](CLE-CHAT-DATA-CONFIG.md#안내-문구-기본값) 이다. 슬래시 명령이 어느 경로로 끝났는지는 이 응답에 드러나지 않는다(R-D-12). 활성 실행이 없는 `cancel` 만 예외다(R-D-14).
+수신 문구는 `languageHints.commandReceived` → `languageLocale` 기본값(ko `요청을 받았습니다.`, en `Request received.`) → ko 순서로 찾는다. 활성 실행이 없는 `cancel` 의 안내는 `languageHints.noActiveExecution` → `languageLocale` 기본값(ko `진행 중인 대화가 없습니다.`, en `There is no active conversation.`) → ko 순서로 찾는다. 시작 안내 `executionStarted`(ko `워크플로우를 시작합니다.`)와 재시작 안내 `executionRestarted`(ko `기존 대화를 종료하고 새로 시작합니다.`)도 같은 순서로 찾는다. DM 밖 안내는 `languageHints.groupChatRefusal` → 기본 문구 `이 봇은 1:1 대화만 지원합니다.` 순서로 찾고 locale 과 관계없이 이 문구 하나다. `languageHints` 의 빈 문자열은 모두 없는 것으로 본다. 안내 문구 키와 기본값의 기준은 [채팅 채널 데이터와 흐름 — 설정과 안내 문구 「안내 문구 기본값」](CLE-CHAT-DATA-CONFIG.md#안내-문구-기본값) 이다. 슬래시 명령이 어느 경로로 끝났는지는 이 응답에 드러나지 않는다(R-D-12). 예외는 활성 실행이 없는 `cancel`(R-D-14)과 새 실행을 시작한 `start`(R-D-12) 둘이다.
 
 - 처리 경로가 응답 본문을 이미 만들었으면(`{ type: 9 }` 모달 열기, `{ type: 4 }` Form 제출 결과) 그 본문을 보내고, 없으면 기본 응답을 보낸다.
 - 트리거가 비활성이어도 서명 검증을 통과한 슬래시 명령, 컴포넌트, 모달 제출에는 활성일 때와 같은 기본 응답으로 답한다. 실행은 시작하지 않고 외부 API 도 부르지 않는다. update 를 해석하지 않으므로 `cancel` 은 수신 문구다. PING 은 트리거 활성 관문 뒤의 핸드셰이크라 `202` 다(R-D-12).
-- 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 기본 응답 대신 그 에러(`503` 등)로 답한다([채팅 채널](CLE-CHAT-CORE.md) 의 명령 우선 규칙, R-CC-27).
+- 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 기본 응답 대신 그 에러(`503` 등)로 답한다([채팅 채널](CLE-CHAT-CORE.md) 의 명령 우선 규칙, R-CC-27). 프로바이더가 요구하지 않는 예외다.
 - 슬래시 명령, 컴포넌트, 모달 제출로 새 실행을 시작하면 그 실행의 `response_code` 는 실제로 보낸 응답 코드인 `'200'` 이다.
 - `{ type: 5 }`(DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)를 보내는 경로는 없다. 원본 메시지를 비동기로 갱신하는 `PATCH /webhooks/{app_id}/{interaction_token}/messages/@original`(15분 유효)도 지금 쓰지 않는다.
 
@@ -93,7 +94,7 @@ PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 �
 
 트리거가 활성이면 워크플로우가 비활성이어도 답한다(2026-10-10 사용자 결정). 워크플로우가 비활성인 채로 Interactions Endpoint URL 을 등록해도 실패하지 않게 하려는 것이다. 관문은 트리거 활성 관문, 핸드셰이크 응답, …, 워크플로우 활성 관문 순서로 놓이므로 핸드셰이크 응답 단계에서는 워크플로우 상태를 확인하지 않는다. 순서의 기준은 [채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 다.
 
-트리거가 비활성이면 PING 에 답하지 않고 `202`·`{ executionId: 'ignored' }` 다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 의 트리거 활성 관문, [채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). 그래서 트리거가 비활성이면 Interactions Endpoint URL 등록도 실패한다.
+트리거가 비활성이면 PING 에 답하지 않고 `202`·`{ executionId: 'ignored' }` 다([채팅 채널 「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 의 트리거 활성 관문, [채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). 그래서 Interactions Endpoint URL 등록도 실패한다.
 
 ### 응답 종류의 조건
 
@@ -106,7 +107,7 @@ PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 �
 
 기본 응답은 어댑터의 선택 함수 `defaultInteractionResponse`([채팅 채널 어댑터 규약 「채널 어댑터 인터페이스」](CLE-CHAT-ADAPTER-IFACE.md#채널-어댑터-인터페이스))가 만든다. Discord 구현은 `discord-interaction-response.ts` 의 `buildDiscordDefaultInteractionResponse` 다. 원본 본문의 `type`, 하위 명령 이름, `channel.type` 만 보고 외부 호출 없이 응답을 만든다. `HooksService` 는 서명 검증 직후, 트리거 활성 관문보다 먼저 이 값을 구하고 경로가 따로 만든 응답이 없을 때 붙인다. 그래서 트리거가 꺼져 있어도 DM 밖 슬래시 명령에는 `groupChatRefusal` 안내로 답한다.
 
-활성 실행이 없는 `/<prefix> cancel` 이면 `HooksService.notifyNoActiveExecution` 이 `commandReceived` 자리를 `resolveNoActiveExecutionMessage` 의 안내로 바꾼 설정을 `defaultInteractionResponse` 에 넘겨 응답을 다시 만든다. 어댑터 인터페이스는 바뀌지 않는다. 기본 문구 상수는 `language-hint-defaults.ts` 의 `COMMAND_RECEIVED_DEFAULTS`·`NO_ACTIVE_EXECUTION_DEFAULTS`·`GROUP_CHAT_REFUSAL_DEFAULT` 다.
+활성 실행이 없는 `/<prefix> cancel` 이면 `HooksService.notifyNoActiveExecution` 이 `commandReceived` 자리를 `resolveNoActiveExecutionMessage` 의 안내로 바꾼 설정을 `defaultInteractionResponse` 에 넘겨 응답을 다시 만든다. 새 실행을 시작한 `/<prefix> start` 도 같은 방식으로 `commandReceived` 자리에 시작 안내나 재시작 안내를 넣는다. 어댑터 인터페이스는 바뀌지 않는다. 기본 문구 상수는 `language-hint-defaults.ts` 의 `COMMAND_RECEIVED_DEFAULTS`·`NO_ACTIVE_EXECUTION_DEFAULTS`·`GROUP_CHAT_REFUSAL_DEFAULT` 다.
 
 `HooksService` 에는 Discord 전용 분기가 없다. PING 핸드셰이크 판정도 `DiscordAdapter.handshakeResponse` 가 한다.
 
@@ -132,23 +133,23 @@ PING(`type: 1`)은 Discord 가 Interactions Endpoint URL 을 등록할 때 한 �
 
 인바운드 HTTP 응답 정책의 기준은 [채팅 채널 「인바운드 HTTP 응답 계약」](CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이고 기본은 `202 Accepted` 다. Discord 가 요구하는 예외는 두 가지다. (1) PING(`type: 1`)은 `200 OK + { type: 1 }` JSON 이 필수다([PING 핸드셰이크](#ping-핸드셰이크)). (2) 슬래시 명령, 컴포넌트, 모달 제출은 3초 안에 `200 OK` 와 interaction response 객체로 답하고 `202` 는 인정하지 않는다. 응답 본문은 [인바운드 응답](#인바운드-응답) 이 정한다(R-D-8).
 
-워크플로우가 비활성이면 새 실행을 시작할 update(`/<prefix> start` 와 활성 실행이 없는 대화의 입력)를 실행 없이 버리고 [인바운드 응답](#인바운드-응답) 의 기본 응답으로 답한다. 진행 중인 대화의 입력(답장, 버튼, 모달 제출)과 `/<prefix> cancel` 은 그대로 처리한다([채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 그 에러로 응답한다. 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외다. 트리거가 비활성일 때의 응답은 [인바운드 응답](#인바운드-응답) 과 [PING 핸드셰이크](#ping-핸드셰이크) 를 본다.
+워크플로우가 비활성이면 새 실행을 시작할 update(`/<prefix> start` 와 활성 실행이 없는 대화의 입력)를 실행 없이 버리고 [인바운드 응답](#인바운드-응답) 의 기본 응답으로 답한다. 진행 중인 대화의 입력(답장, 버튼, 모달 제출)과 `/<prefix> cancel` 은 그대로 처리한다([채팅 채널 「R-CC-28 비활성 워크플로우는 채팅 채널로 새 실행을 시작하지 않는다」](CLE-CHAT-CORE.md#r-cc-28-비활성-워크플로우는-채팅-채널로-새-실행을-시작하지-않는다)). 트리거가 비활성일 때의 응답은 [인바운드 응답](#인바운드-응답) 과 [PING 핸드셰이크](#ping-핸드셰이크) 를 본다.
 
 ## 명령 처리
 
 | 사용자 입력 | 어댑터 처리 |
 |---|---|
-| `/<prefix> start`(활성 실행 없음) | 새 실행 시작. 즉시 응답은 본인에게만 보이는 공통 수신 문구다([인바운드 응답](#인바운드-응답)). 시작 안내(`languageHints.executionStarted`)는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
-| `/<prefix> start`(활성 실행 있음, 실행 소유자) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) 의 명령 우선 규칙과 비활성 워크플로우 규칙이다. 즉시 응답은 공통 수신 문구이고 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
+| `/<prefix> start`(활성 실행 없음) | 새 실행 시작. 즉시 응답은 본인에게만 보이는 시작 안내(`languageHints.executionStarted`)다([인바운드 응답](#인바운드-응답)). 워크플로우 비활성 등으로 실행을 시작하지 못하고 끝나면 공통 수신 문구다 |
+| `/<prefix> start`(활성 실행 있음, 실행 소유자) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행을 시작한다. 즉시 응답은 재시작 안내(`languageHints.executionRestarted`)다. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작하고 안내는 같다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않으며 즉시 응답은 공통 수신 문구다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) 의 명령 우선 규칙과 비활성 워크플로우 규칙이다 |
 | `/<prefix> cancel`(활성 실행 없음, 또는 실행 소유자) | 활성 실행을 실행 중지 경로(`ExecutionsService.stop`, EIA `cancel` 과 같은 경로)로 취소한다. 즉시 응답은 공통 수신 문구다. 활성 실행이 없으면(이미 끝난 실행 포함) 아무것도 하지 않고 즉시 응답에 `noActiveExecution` 안내를 싣는다. 채널에 따로 메시지를 보내지 않는다 |
-| `/<prefix> start`·`/<prefix> cancel`(활성 실행 있음, 실행 소유자가 아님) | 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 없이 버리고 즉시 응답은 공통 수신 문구다. 실행 소유자는 채널 대화 상태의 `channelUserKey` 와 같은 사용자다. v1 은 DM(`channel.type === 1`)만 받아 같은 대화에 다른 사용자가 없으므로 실제로는 생기지 않는다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-083 과 [채팅 채널 처리 흐름 「R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다」](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 다 |
+| `/<prefix> start`·`/<prefix> cancel`(활성 실행 있음, 실행 소유자가 아님) | 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 없이 버리고 즉시 응답은 공통 수신 문구다. 실행 소유자는 채널 대화 상태의 `channelUserKey` 와 같은 사용자다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-083 과 [채팅 채널 처리 흐름 「R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다」](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 다 |
 | `/<prefix> help` | 본인에게만 보이는 즉시 응답으로 도움말(`languageHints.help`, 없으면 기본 도움말)을 보낸다. EIA 를 부르지 않는다 |
 | DM 밖 채널의 슬래시 명령(모든 하위 명령) | 실행으로 보내지 않고 즉시 응답에 `groupChatRefusal` 안내를 싣는다([Discord 어댑터](CLE-CHAT-DISCORD.md) REQ-DISCORD-007) |
 | `/<prefix> reply <message>` | 멀티턴 AI 진행 중이면 EIA `submit_message`. 즉시 응답은 공통 수신 문구다 |
 | 모달 "Reply" 제출 | 멀티턴 AI 진행 중이면 EIA `submit_message`. 응답은 `{ type: 6 }` |
 | 버튼 클릭 | EIA `click_button`. 응답은 `{ type: 6 }` |
 
-DM 첫 메시지로 자동 시작하는 것(Telegram `/start` 와 같은 뜻)은 v1 에서 지원하지 않는다. Discord 는 Gateway `MESSAGE_CREATE` 없이 DM 텍스트를 받지 못하므로 사용자가 `/workflow start` 를 직접 입력해야 한다(R-D-3 의 v1 한계).
+시작 안내와 재시작 안내는 즉시 응답에만 싣고 채널에 따로 보내지 않는다. DM 첫 메시지로 자동 시작하지 않는다. 사용자가 `/workflow start` 를 직접 입력해야 한다(R-D-3 의 v1 한계).
 
 ## Rationale
 
@@ -179,7 +180,7 @@ NERV Task `CLE-T-7XWVC5` 의 결정이다. Discord 는 interaction response 객�
 
 2026-11-12 사람 결정 두 건이다(NERV Task `CLE-T-TSEP9G`).
 
-결정 1(NERV 질문 `01a1d025-899f-7709-b759-4f7bf6c16ef5`): 슬래시 명령은 `{ type: 4, data: { content, flags: 64 } }` 로 바로 답한다. `help` 는 도움말을 싣고, 그 밖의 명령은 어느 경로로 끝나도 공통 수신 문구 `languageHints.commandReceived`(기본 ko `요청을 받았습니다.`, en `Request received.`)를 싣는다(DM 밖 명령은 아래 2026-11-19 결정을 따른다). 이전의 `202` 와 `{ data }` 봉투 응답은 Discord 가 실패로 보아 명령을 처리해도 사용자 화면에 실패가 떴다. `{ type: 6 }` 은 슬래시 명령에 쓸 수 없어(R-D-11) 메시지를 싣는 `{ type: 4 }` 를 쓰고, `flags: 64` 를 붙여 명령을 보낸 사용자에게만 보이게 한다. 시작 안내(`languageHints.executionStarted`)는 NERV Task `CLE-T-0400J6` 이 따로 다룬다. 도움말은 `ChannelUpdate` 의 kind 가 아니라 어댑터의 기본 응답 본문으로 나간다.
+결정 1(NERV 질문 `01a1d025-899f-7709-b759-4f7bf6c16ef5`): 슬래시 명령은 `{ type: 4, data: { content, flags: 64 } }` 로 바로 답한다. `help` 는 도움말을 싣고, 그 밖의 명령은 어느 경로로 끝나도 공통 수신 문구 `languageHints.commandReceived`(기본 ko `요청을 받았습니다.`, en `Request received.`)를 싣는다(DM 밖 명령과 새 실행을 시작한 `start` 는 아래 결정을 따른다). 이전의 `202` 와 `{ data }` 봉투 응답은 Discord 가 실패로 보아 명령을 처리해도 사용자 화면에 실패가 떴다. `{ type: 6 }` 은 슬래시 명령에 쓸 수 없어(R-D-11) 메시지를 싣는 `{ type: 4 }` 를 쓰고, `flags: 64` 를 붙여 명령을 보낸 사용자에게만 보이게 한다. 도움말은 `ChannelUpdate` 의 kind 가 아니라 어댑터의 기본 응답 본문으로 나간다.
 
 결정 2(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f`): 트리거가 비활성이어도 슬래시 명령, 컴포넌트, 모달 제출에는 활성일 때와 같은 기본 응답으로 답한다. 트리거를 꺼도 slash command 등록과 예전 메시지의 버튼은 남아 사용자가 계속 보낼 수 있다([채팅 채널](CLE-CHAT-CORE.md) R-CC-29). `202` 로 답하면 그때마다 실패가 뜬다. 기본 응답은 원본 본문만 보고 외부 호출 없이 만들므로 «비활성 트리거에서는 외부 호출을 하지 않는다» 와 어긋나지 않는다. PING 은 지금처럼 `202` 다.
 
@@ -193,6 +194,8 @@ NERV Task `CLE-T-7XWVC5` 의 결정이다. Discord 는 interaction response 객�
 
 DM 밖 채널의 슬래시 명령은 `groupChatRefusal` 안내로 답한다. 2026-11-19 사람 결정(NERV 질문 `01a1f1d3-f3ba-702d-9689-121062b39a9d`, NERV Task `CLE-T-B9CRCF`)으로 앞선 결정을 뒤집었다.
 
-앞선 결정(NERV Task `CLE-T-K57S4N`)은 DM 밖 명령에도 결정 1 대로 수신 문구로 답하고 Slack([Slack 어댑터 — 인바운드 파싱과 명령 「R-S-14」](CLE-CHAT-SLACK-INBOUND.md#r-s-14-슬래시-명령은-본인에게만-보이는-문구와-200-으로-답한다))과 다른 이 차이를 의도한 것으로 두었다. 거절 문구로 맞추는 안을 고르지 않은 이유는 둘이었다. 기본 응답 함수가 원본 본문의 `channel.type` 까지 읽어야 하고, 결정 1 이 슬래시 명령의 응답을 경로와 관계없는 한 문구로 정한 것과 어긋난다는 점이다.
+앞선 결정(NERV Task `CLE-T-K57S4N`)은 DM 밖 명령에도 결정 1 대로 수신 문구로 답하고 Slack([Slack 어댑터 — 인바운드 파싱과 명령 「R-S-14」](CLE-CHAT-SLACK-INBOUND.md#r-s-14-슬래시-명령은-본인에게만-보이는-문구와-200-으로-답한다))과 다른 이 차이를 의도한 것으로 두었다. 기본 응답 함수가 `channel.type` 까지 읽어야 하고 결정 1 의 한 문구 규칙과 어긋난다는 이유였다.
 
-뒤집은 근거는 셋이다. 첫째, 이 문서의 보안 절이 DM 밖 update 에 `groupChatRefusal` 안내를 약속해 응답 표와 어긋났다. 둘째, 수신 문구는 명령을 받아 처리한다는 뜻으로 읽혀 DM 밖 사용자는 왜 아무 일도 일어나지 않는지 알 수 없다. 셋째, `channel.type` 판정은 파서와 같은 조건 하나이고 원본 본문만 읽으므로 외부 호출 없이 기본 응답을 만든다는 결정 2 의 성질이 그대로다. 결정 1 의 한 문구 규칙은 DM 안의 경로에 적용하고 활성 실행이 없는 `/cancel` 만 예외다([Discord 어댑터](CLE-CHAT-DISCORD.md) R-D-14). 두 프로바이더 모두 DM 밖 명령으로 실행을 시작하거나 취소하지 않는 보안 성질도 바뀌지 않는다.
+뒤집은 근거는 셋이다. 첫째, 이 문서의 보안 절이 DM 밖 update 에 `groupChatRefusal` 안내를 약속해 응답 표와 어긋났다. 둘째, 수신 문구는 명령을 받아 처리한다는 뜻으로 읽혀 DM 밖 사용자는 왜 아무 일도 일어나지 않는지 알 수 없다. 셋째, `channel.type` 판정은 파서와 같은 조건 하나이고 원본 본문만 읽으므로 외부 호출 없이 기본 응답을 만든다는 결정 2 의 성질이 그대로다. 두 프로바이더 모두 DM 밖 명령으로 실행을 시작하거나 취소하지 않는 보안 성질도 바뀌지 않는다.
+
+결정 1 의 한 문구 규칙은 DM 안의 경로에 적용하고 예외는 둘이다. 첫째는 활성 실행이 없는 `/cancel` 이다([Discord 어댑터](CLE-CHAT-DISCORD.md) R-D-14). 둘째는 새 실행을 시작한 `/<prefix> start` 다. 2026-11-20 사람 결정(NERV 질문 `01a1f7b4-2295-754e-8aaf-685d64148fb9`, NERV Task `CLE-T-0400J6`)으로 즉시 응답의 수신 문구 자리에 시작 안내나 재시작 안내를 싣는다. 2026-11-12 에 기각한 «`executionStarted` 를 수신 문구 자리에 다시 쓰는 안»의 기각 이유는 실행을 시작하지 않는 경로에도 그 문구가 나가 사실과 달라진다는 것이었다([채팅 채널 데이터와 흐름 — 설정과 안내 문구](CLE-CHAT-DATA-CONFIG.md#rationale)). 이번에는 실행을 시작한 경로에서만 바꾸므로 그 이유에 해당하지 않는다.

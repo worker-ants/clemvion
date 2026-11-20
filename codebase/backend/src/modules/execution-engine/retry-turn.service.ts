@@ -476,8 +476,9 @@ export class RetryTurnService {
     );
     // nodeOutputCache 에 `{ _resumeState }` envelope 주입 (handleAiMessageTurn /
     // finalizeAiNode 가 읽는다). structuredOutputCache 도 seed 해 finalize 가
-    // 종료 turn 의 canonical shape 을 가질 수 있게 한다.
-    this.contextService.setNodeOutput(
+    // 종료 turn 의 canonical shape 을 가질 수 있게 한다. 재시도 턴이 끝나면
+    // finalize 가 두 캐시를 다시 쓴다.
+    this.contextService.seedNodeOutput(
       this.driver.contextKeyOf(context),
       node.id,
       {

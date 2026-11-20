@@ -107,6 +107,15 @@ const SLASH_RECEIVED = {
   text: '요청을 받았습니다.',
 };
 
+/**
+ * 새 실행을 시작한 `/workflow start` 의 즉시 응답 — 수신 문구 자리의 시작 안내 기본 문구(NERV Task `CLE-T-0400J6`,
+ * 2026-11-20 사람 결정).
+ */
+const SLASH_EXECUTION_STARTED = {
+  response_type: 'ephemeral',
+  text: '워크플로우를 시작합니다.',
+};
+
 /** DM 밖에서 친 슬래시 명령의 기본 응답 — 본인에게만 보이는 groupChatRefusal 기본 문구(REQ-SLACK-045). */
 const SLASH_GROUP_CHAT_REFUSAL = {
   response_type: 'ephemeral',
@@ -464,7 +473,7 @@ describe('Slack Chat Channel e2e', () => {
       });
     });
 
-    it('/workflow start → 200 + 수신 문구이고 새 실행의 response_code 는 200 이다', async () => {
+    it('/workflow start → 200 + 시작 안내이고 새 실행의 response_code 는 200 이다', async () => {
       const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
       await dropSigningRef(db, setup.triggerId);
       await addManualTriggerNode(db, setup.workflowId);
@@ -475,7 +484,7 @@ describe('Slack Chat Channel e2e', () => {
           'start',
         );
         expect(res.status).toBe(200);
-        expect(res.body).toEqual(SLASH_RECEIVED);
+        expect(res.body).toEqual(SLASH_EXECUTION_STARTED);
 
         const rows = await db.query<{ response_code: string | null }>(
           'SELECT response_code FROM execution WHERE workflow_id = $1',
@@ -566,7 +575,7 @@ describe('Slack Chat Channel e2e', () => {
           name: 'directmessage',
         });
         expect(res.status).toBe(200);
-        expect(res.body).toEqual(SLASH_RECEIVED);
+        expect(res.body).toEqual(SLASH_EXECUTION_STARTED);
         expect(await countExecutions(db, setup.workflowId)).toBe('1');
       } finally {
         await db

@@ -3,6 +3,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
 
 // ReactFlow 의 Handle/useStore/useUpdateNodeInternals 는 실제 <ReactFlow>
 // 인스턴스를 요구한다 (Provider 만으로는 알 수 없는 node id 에 대해
@@ -72,6 +73,7 @@ describe("CustomNode cross-node graph-warning badge", () => {
     useEditorStore.setState({
       graphWarnings: { results: [], hasError: false, hasWarning: false },
     } as never);
+    useExecutionStore.setState({ nodeStatuses: new Map() } as never);
   });
 
   it("renders the error badge when a result with this node's id has severity error", () => {
@@ -125,6 +127,26 @@ describe("CustomNode cross-node graph-warning badge", () => {
       "data-severity",
       "error",
     );
+  });
+
+  // 실행 상태 링이 있으면 그래프 경고 링을 겹쳐 그리지 않는다. cancelled 도 종료 상태
+  // 링을 그리므로 경고 링이 다시 나타나면 안 된다(CLE-T-DZG2BT).
+  it("cancelled 노드는 상태 링만 그리고 그래프 경고 링은 그리지 않는다", () => {
+    setWarnings([
+      {
+        ruleId: "parallel:nested-depth-exceeded",
+        severity: "error",
+        nodeId: NODE_ID,
+        message: "depth exceeded",
+      },
+    ]);
+    useExecutionStore.setState({
+      nodeStatuses: new Map([[NODE_ID, { status: "cancelled" }]]),
+    } as never);
+    const { container } = renderNode();
+    const node = container.firstElementChild;
+    expect(node?.className).toContain("ring-gray-400");
+    expect(node?.className).not.toContain("ring-red-500");
   });
 
   it("renders nothing when no result targets this node", () => {
