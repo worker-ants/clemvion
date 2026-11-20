@@ -15,6 +15,7 @@ import {
   collectCatalogCodes,
   isMessagePrefixOnly,
   computeNonEmittedOffenders,
+  matchTokens,
   GUIDE_EXTERNAL_VOCABULARY,
   GUIDE_NON_EMITTED_VOCABULARY,
   type CitationAxis,
@@ -1190,6 +1191,31 @@ describe("발행 축 수집기 — 경계 대조군", () => {
     expect([
       ...collectQuotedLiterals(["'Q_ONE'", "'Q_ONE'", "'R_TWO'"]),
     ]).toEqual(["Q_ONE", "R_TWO"]);
+  });
+});
+
+describe("matchTokens — 매치를 꺼내는 한 곳", () => {
+  it("`matchTokens` 는 정규식의 `lastIndex` 에 기대지 않는다", () => {
+    // 손으로 쓴 `exec` 루프와 맨 `matchAll` 은 `lastIndex` 가 남아 있으면 그 위치부터 찾아
+    // 앞 매치를 놓친다. 앞 호출이 끝까지 돌면 `exec` 가 null 에서 스스로 0 으로 되돌리므로,
+    // 리셋 줄만 지워서는 이 차이가 드러나지 않는다. 그래서 `lastIndex` 를 직접 옮겨 놓고 본다.
+    const rx = new RegExp("(?<token>[A-Z]+_[A-Z]+)", "g");
+    const text = "A_ONE B_TWO C_THREE";
+    rx.lastIndex = text.indexOf("C_THREE");
+    expect(matchTokens(text, rx)).toEqual(["A_ONE", "B_TWO", "C_THREE"]);
+    // 모듈 상수를 공유해도 호출부 상태가 바뀌지 않는다.
+    expect(rx.lastIndex).toBe(text.indexOf("C_THREE"));
+  });
+
+  it("같은 정규식으로 두 텍스트를 이어 걸어도 두 번째의 앞 매치를 놓치지 않는다", () => {
+    const rx = new RegExp("(?<token>[A-Z]+_[A-Z]+)", "g");
+    expect(matchTokens("X_ONE Y_TWO", rx)).toEqual(["X_ONE", "Y_TWO"]);
+    expect(matchTokens("Z_ONE", rx)).toEqual(["Z_ONE"]);
+  });
+
+  it("이름 붙은 그룹 `token` 이 없는 정규식은 조용히 넘기지 않고 throw 한다", () => {
+    // 그룹 번호를 정수로 넘기던 때는 그룹이 어긋나면 `undefined` 가 `Set` 에 섞였다.
+    expect(() => matchTokens("A_ONE", /([A-Z]+_[A-Z]+)/g)).toThrow(/token/);
   });
 });
 
