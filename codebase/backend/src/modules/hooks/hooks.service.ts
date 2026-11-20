@@ -50,6 +50,7 @@ import {
   FORM_VALIDATION_FAILED_DEFAULT,
   formNextFieldDefault,
   GROUP_CHAT_REFUSAL_DEFAULT,
+  readLanguageHintOverride,
   resolveFormOpenLabel,
   resolveNoActiveExecutionMessage,
   resolveSurfaceMismatchMessage,
@@ -1340,6 +1341,9 @@ export class HooksService {
    * 안내 없이 버린다. 채널에 안내를 쓰려면 봇에게 그 채널의 쓰기 권한이 있어야 하고 다른 구성원에게 소음이
    * 된다. DM 밖 슬래시 명령은 어댑터의 기본 응답이 본인에게만 보이는 groupChatRefusal 을 싣는다.
    * 2026-11-19 사람 결정(NERV 질문 `01a1f2b8-1979-7137-b882-faf2d0563083`), NERV Task `CLE-T-800D2Q` · `CLE-T-T8ZTG8`.
+   *
+   * 빈 문자열 override 는 없는 것으로 보고 기본 문구를 보낸다. Slack · Discord 의 DM 밖 슬래시 명령 응답과
+   * 같은 처리다(NERV Task `CLE-T-X4NPWC`).
    */
   private async maybeNotifyIgnored(
     rawBody: unknown,
@@ -1356,9 +1360,12 @@ export class HooksService {
     const chatType = chat.type ?? '';
     const isGroup = ['group', 'supergroup', 'channel'].includes(chatType);
     const announcement = isGroup
-      ? (config.languageHints?.groupChatRefusal ?? GROUP_CHAT_REFUSAL_DEFAULT)
-      : (config.languageHints?.unsupportedMessageKind ??
-        '지원하지 않는 메시지 형식입니다.');
+      ? (readLanguageHintOverride(config.languageHints, 'groupChatRefusal') ??
+        GROUP_CHAT_REFUSAL_DEFAULT)
+      : (readLanguageHintOverride(
+          config.languageHints,
+          'unsupportedMessageKind',
+        ) ?? '지원하지 않는 메시지 형식입니다.');
     await this.sendBestEffortNotice(
       String(chat.id),
       announcement,
