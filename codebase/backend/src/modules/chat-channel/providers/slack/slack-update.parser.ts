@@ -10,7 +10,7 @@ import type { ChannelUpdate } from '../../types';
  *     `help` 는 null (도움말은 어댑터의 슬래시 명령 기본 응답이 싣는다). DM 밖에서 친 명령도 null
  *     (어댑터의 슬래시 명령 기본 응답이 groupChatRefusal 안내를 싣는다)
  *   - url_verification (envelope.type === 'url_verification') → null (어댑터 `handshakeResponse` 가 challenge 응답)
- *   - DM 외 채널 (channel_type !== 'im') → null (호출자가 groupChatRefusal 안내)
+ *   - DM 외 채널 (channel_type !== 'im') → null. 안내 없이 버린다(호출자 `maybeNotifyIgnored` 는 Telegram 모양만 안내)
  *   - bot_id 존재 / subtype === 'bot_message' → null (봇 무시)
  *
  * Convention §1.1: pure. DB 미접근, 외부 API 미호출.
@@ -154,7 +154,7 @@ function parseEventsApi(
 
   // message event (DM only).
   if (eventType === 'message') {
-    if (channelType !== 'im') return null; // DM 외 → null (caller 가 groupChatRefusal)
+    if (channelType !== 'im') return null; // DM 외 → null (안내 없이 버린다)
     const text = event.text;
     if (
       typeof channel !== 'string' ||

@@ -449,14 +449,19 @@ describe('Slack Chat Channel e2e', () => {
       expect(await countExecutions(db, on.workflowId)).toBe('0');
     });
 
-    it('/workflow cancel(진행 중인 대화 없음) → 200 + 수신 문구', async () => {
+    // 진행 중인 대화가 없는 `/cancel` 은 수신 문구 대신 noActiveExecution 안내로 답한다. 2026-11-19 사람 결정
+    // (NERV 질문 `01a1f2b8-1ad7-7778-b15d-36c208d2accf`), NERV Task `CLE-T-A78V0M`.
+    it('/workflow cancel(진행 중인 대화 없음) → 200 + noActiveExecution 안내', async () => {
       const res = await postSlashCommand(
         on.endpointPath,
         `cancel-${Date.now()}`,
         'cancel',
       );
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(SLASH_RECEIVED);
+      expect(res.body).toEqual({
+        response_type: 'ephemeral',
+        text: '진행 중인 대화가 없습니다.',
+      });
     });
 
     it('/workflow start → 200 + 수신 문구이고 새 실행의 response_code 는 200 이다', async () => {

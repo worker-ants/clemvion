@@ -327,6 +327,26 @@ describe('TelegramAdapter', () => {
       expect(params.reply_markup).toBeTruthy();
     });
 
+    // 봇 문구는 «~해 주세요» 로 띄어 쓴다(CLE-CHAT-DATA-CONFIG, NERV Task `CLE-T-P650QF`).
+    it('form_prompt(file_upload) — force_reply placeholder 를 띄어 쓴 문구로 싣는다', async () => {
+      client.sendMessage.mockResolvedValue(mockMsgResult);
+      const msg: ChannelMessage = {
+        conversationKey: '9999',
+        body: {
+          kind: 'form_prompt',
+          fieldName: 'attachment',
+          label: '첨부 파일',
+          hint: 'file_upload',
+        },
+      };
+      await adapter.sendMessage(msg, baseConfig);
+      const [, params] = client.sendMessage.mock.calls[0];
+      expect(params.reply_markup).toEqual({
+        force_reply: true,
+        input_field_placeholder: '파일을 업로드해 주세요',
+      });
+    });
+
     it('sendMessage API 실패 시 Error throw', async () => {
       client.sendMessage.mockResolvedValue(failResult('Bad Request'));
       const msg: ChannelMessage = {
