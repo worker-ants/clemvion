@@ -610,7 +610,10 @@ describe('WebsocketService', () => {
         },
       );
       const fanout = await eventP;
-      const chatChannel = fanout.routing?.chatChannel as Record<string, unknown>;
+      const chatChannel = fanout.routing?.chatChannel as Record<
+        string,
+        unknown
+      >;
       expect(chatChannel.api_key).toBe('[REDACTED]');
       expect(chatChannel.conversationKey).toBe('12345');
     });
