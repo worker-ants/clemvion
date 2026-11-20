@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-API"
 title: "통합 관리 — API 와 에러 코드"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "6fd88511fa31b7a3affc259575d12a7ec7de8138cc32384f537095308ead482f"
+content_hash: "3162c8f5d3a4cd44530bc55be18111deb6cca9fb5e6ebabc6be23ab005e15f55"
 read_as: "approved_fallback"
-task: "CLE-T-2ZZ3D2"
+task: "CLE-T-81270P"
 source_paths: []
-mirror_sha256: "2940382b8d9f801f0c130425d449f60729b36bbbc05e466520bfba39ccc40f02"
-etag: "sha256-8990ca409541bc630e503b57c29dd3c17cc8b79b391e73e7abe3281ef9f1df55"
+mirror_sha256: "b291a97be24bdf99ad24ecfdeaacb9ab626ce5c84dcf2cea6e5b1df6615f8637"
+etag: "sha256-c2d8a3ccded611a2ec022208a27e11460d19490149ab7f15eef17da33900f3a2"
 ---
 ## 개요
 
@@ -39,7 +39,7 @@ etag: "sha256-8990ca409541bc630e503b57c29dd3c17cc8b79b391e73e7abe3281ef9f1df55"
 `IntegrationDto` 는 DB 컬럼이 아닌 파생 값 두 개를 응답마다 계산해 싣는다. 이 둘은 이 절이 소유한다.
 
 - **`appUrl: string | null`**: Cafe24 Private 통합은 `${APP_URL}/api/3rd-party/cafe24/install/:installToken`, MakeShop ShopStore 설치 통합은 `${APP_URL}/api/3rd-party/makeshop/install/...`, 그 밖은 `null` 이다. 설치 토큰은 따로 노출하지 않고 App URL 경로 안에만 둔다.
-- **`autoRefresh: boolean`**: 자동 갱신 표시. 백엔드 서비스 레지스트리의 `ServiceDefinition.supportsTokenAutoRefresh`(`service-registry.ts`)에서 파생한다. 현재 `cafe24`·`google`·`makeshop`(auth-code + refresh)이 true, 그 밖(`github` 포함)은 false 다. 사이드바 카운트, 주의 필요 배너, `Expiring`·`Attention` 칩, 상세 헤더·개요의 분기 신호이고 권한과 상관없이 모든 인증 요청에 싣는다. Google 이 true 인 문제는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다.
+- **`autoRefresh: boolean`**: 자동 갱신 표시. 백엔드 서비스 레지스트리의 `ServiceDefinition.supportsTokenAutoRefresh`(`service-registry.ts`)에서 파생한다. 현재 `cafe24`·`makeshop`(auth-code + refresh)이 true, 그 밖(`google`·`github` 포함)은 false 다. 사이드바 카운트, 주의 필요 배너, `Expiring`·`Attention` 칩, 상세 헤더·개요의 분기 신호이고 권한과 상관없이 모든 인증 요청에 싣는다. Google 은 refresh token 을 받지만 갱신 경로가 없어 false 다([화면 표시와 주의 필요 「Google 을 자동 갱신 표시에서 뺀다」](CLE-INT-STATUS-DISPLAY.md#google-을-자동-갱신-표시에서-뺀다)).
 - 두 파생 값의 서비스별 계산은 `buildIntegrationMeta` 의 `Map<serviceType, fn>` 서비스 레지스트리 방식이다.
 
 `IntegrationDto` 는 파생 값 외에 엔티티 컬럼 투영 여섯 개도 싣는다: `mallId`·`tokenExpiresAt`·`lastRotatedAt`·`reinstallRequestedAt`·`lastUsedAt`·`consecutiveNetworkFailures`. 이 가운데 `reinstallRequestedAt` 은 컬럼 값을 그대로 옮기지 않는다. 남긴 지 24시간이 지난 값은 서버가 `null` 로 가린다(아래 문단). 이 컬럼들의 뜻과 마이그레이션은 [통합 데이터와 흐름](CLE-INT-DATA.md) 이 기준이다. 그 컬럼들이 관여하는 상태 전이와 스캐너 판정은 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 이 기준이다. `consecutiveNetworkFailures` 는 health 판정의 내부 카운터이고 프런트엔드 참조가 0곳(2026-09-10 재측정)이다. 노출을 멈추려는 필드라 새 소비자를 만들지 않는다. 노출 중단을 맡을 Task 는 아직 정하지 않았다.

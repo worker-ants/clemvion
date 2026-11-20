@@ -19,6 +19,7 @@ import {
   KNOWN_EXAMPLE_ENCRYPTION_KEYS,
   MIN_JWT_SECRET_LENGTH,
 } from './production-guards';
+import { withEnv } from '../../shared/testing/env';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../../..');
 
@@ -45,28 +46,6 @@ function thrownMessage(env: NodeJS.ProcessEnv): string {
     return (err as Error).message;
   }
   throw new Error('assertProductionConfig did not throw');
-}
-
-/** `process.env` 의 몇 키를 바꿔 `fn` 을 부르고 원래 값으로 되돌린다(`undefined` 는 키를 지운다). */
-function withProcessEnv<T>(
-  over: Record<string, string | undefined>,
-  fn: () => T,
-): T {
-  const saved = Object.keys(over).map((k) => [k, process.env[k]] as const);
-  const apply = (
-    entries: ReadonlyArray<readonly [string, string | undefined]>,
-  ) => {
-    for (const [k, v] of entries) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
-  };
-  try {
-    apply(Object.entries(over));
-    return fn();
-  } finally {
-    apply(saved);
-  }
 }
 
 describe('assertProductionConfig', () => {
@@ -545,7 +524,7 @@ describe('flag guard covers every value that turns the feature on', () => {
 
   it.each(FEATURES)('$flag', ({ flag, isOn, onValues }) => {
     const turnedOn = CANDIDATES.filter((v) =>
-      withProcessEnv({ NODE_ENV: 'test', [flag]: v }, isOn),
+      withEnv({ NODE_ENV: 'test', [flag]: v }, isOn),
     );
     expect(turnedOn).toEqual(onValues);
     for (const v of turnedOn) {

@@ -116,7 +116,8 @@ export interface IntegrationDto {
   /**
    * 자동 갱신 가능 통합 식별자 (derived 가상 필드 — 백엔드
    * `ServiceDefinition.supportsTokenAutoRefresh` 에서 매 응답 시점에 계산.
-   * DB 컬럼 아님). 현재 cafe24·google 만 true, github 포함 그 외는 false.
+   * DB 컬럼 아님). 현재 cafe24·makeshop 만 true, google(갱신 경로 없음)·github 포함
+   * 그 외는 false (CLE-T-81270P).
    * UI 의 attention/expiring 술어 제외, 상세 페이지 헤더의 "Auto-renews"
    * 보조 라벨, Reauthorize hover 안내의 분기 신호.
    * spec/2-navigation/4-integration.md §9.1 + Rationale "자동 갱신 통합을

@@ -165,6 +165,13 @@ services:
       # 비어 있으면 begin 이 OAUTH_CONFIG_MISSING 으로 거절한다. 외부로 나가는 요청은 없다. 운영 절대 사용 금지.
       CAFE24_CLIENT_ID: clemvion-e2e-cafe24-client-id
       CAFE24_CLIENT_SECRET: clemvion-e2e-cafe24-client-secret-do-not-use-in-prod
+      # Google · GitHub OAuth 클라이언트의 e2e 전용 값. 팝업 연결 e2e(integration-oauth-google-github.e2e-spec.ts)
+      # 에서 begin 이 authorize URL 을 만들 때만 쓴다. OAUTH_STUB_MODE 라 토큰 교환 · 계정 조회는 외부로 나가지 않는다.
+      # 비어 있으면 begin 이 OAUTH_CONFIG_MISSING 으로 거절한다. 운영 절대 사용 금지 (CLE-T-81270P).
+      GOOGLE_CLIENT_ID: clemvion-e2e-google-client-id
+      GOOGLE_CLIENT_SECRET: clemvion-e2e-google-client-secret-do-not-use-in-prod
+      GITHUB_CLIENT_ID: clemvion-e2e-github-client-id
+      GITHUB_CLIENT_SECRET: clemvion-e2e-github-client-secret-do-not-use-in-prod
       # e2e 전용 test-hook 라우트(_test/recover-stuck-executions) 활성화 플래그. NODE_ENV=test
       # 와 **함께** 요구돼 단일 env 오설정으로는 프로덕션에 노출되지 않는다 (execution-crash-
       # redrive.e2e-spec.ts — §7.5 case B 크래시 re-drive 트리거). 미설정(프로덕션)이면 404.

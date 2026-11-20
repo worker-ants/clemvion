@@ -76,6 +76,9 @@ export abstract class StandardOAuthStrategy implements OAuthProviderStrategy {
     data: Record<string, unknown>,
   ): Record<string, unknown>;
 
+  /** stub 모드가 채우는 계정 식별자. 실제 연결의 `extractIdentity` 결과와 같은 필드다(CLE-T-81270P). */
+  protected abstract stubIdentity(): Record<string, string>;
+
   buildStubResult(
     requestedScopes: string[],
     _beginMeta: Record<string, unknown> | null,
@@ -86,7 +89,7 @@ export abstract class StandardOAuthStrategy implements OAuthProviderStrategy {
       refreshToken: `stub-refresh-${randomBytes(8).toString('hex')}`,
       scopes: requestedScopes,
       tokenExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      providerMeta: { stub: true },
+      providerMeta: { stub: true, ...this.stubIdentity() },
     };
   }
 }

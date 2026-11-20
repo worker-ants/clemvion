@@ -20,15 +20,20 @@
  * 3. {@link safeOutboundDispatcher} — 연결 시점 판정. `fetch` 의 `dispatcher` 로 넘기면 실제 연결이 쓰는 주소
  *    조회에 같은 대역표를 적용한다. 2 와 연결 사이에 DNS 응답이 바뀌어도 판정을 거치지 않은 주소로는 연결하지
  *    않는다(NERV Task `CLE-T-BS1WD1`). HTTP Request 노드와 HTTP 통합 연결 테스트(`CLE-T-NESSYD`)가 쓴다.
+ *    `fetch` 를 쓰지 않는 드라이버(SMTP · pg · mysql2)는 같은 판정을 {@link safeOutboundLookup} 으로 소켓을 열 때
+ *    건다(NERV Task `CLE-T-PTCRM4` · `CLE-T-691T4G`).
  *
  * **Self-hosted opt-in**: `ALLOW_PRIVATE_HOST_TARGETS=true` disables both
  * layers — required when the deployment legitimately needs to reach private
  * networks (internal DB / on-prem API). Set only when egress is otherwise
  * constrained by an external firewall.
  */
+import type { LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
+import type { LookupFunction } from 'node:net';
 import type { Dispatcher } from 'undici';
 import {
+  createGuardedLookup,
   createGuardedLookupDispatcher,
   createLazyGuardedDispatcher,
 } from '../guarded-lookup-dispatcher.js';
@@ -118,9 +123,9 @@ export function assertSafeOutboundUrl(url: string): URL {
  * private/loopback/link-local block list. Defeats DNS rebinding where a
  * public hostname returns an internal address.
  *
- * 이 검사와 뒤따르는 `fetch` 의 연결은 DNS 를 따로 조회한다. 그 사이에 응답이 바뀌는 경우는
- * {@link safeOutboundDispatcher} 가 연결할 때 다시 판정해서 막는다. 이 함수를 `fetch` 없이 쓰는 호출자
- * (DB Query · Send Email 등)에는 그 판정이 없으므로 egress 방화벽을 함께 둔다.
+ * 이 검사와 뒤따르는 연결은 DNS 를 따로 조회한다. 그 사이에 응답이 바뀌는 경우는 연결할 때 다시 판정해서
+ * 막는다. `fetch` 는 {@link safeOutboundDispatcher}, 소켓을 직접 여는 드라이버(DB Query · Send Email)는
+ * {@link safeOutboundLookup} 이 그 판정을 건다.
  */
 export async function assertSafeOutboundHostResolved(
   hostname: string,
@@ -153,15 +158,24 @@ export async function assertSafeOutboundHostResolved(
   }
 }
 
+/** 연결할 때 푼 주소 하나의 판정. {@link safeOutboundDispatcher} 와 {@link safeOutboundLookup} 이 함께 쓴다. */
+function blockResolvedAtConnect(
+  { address }: LookupAddress,
+  hostname: string,
+): SsrfBlockedError | null {
+  return isBlockedHostname(address)
+    ? new SsrfBlockedError(
+        `hostname "${hostname}" resolved to restricted IP "${address}" at connect time`,
+      )
+    : null;
+}
+
 const connectGuardDispatcher = createLazyGuardedDispatcher(() =>
-  createGuardedLookupDispatcher(({ address }, hostname) =>
-    isBlockedHostname(address)
-      ? new SsrfBlockedError(
-          `hostname "${hostname}" resolved to restricted IP "${address}" at connect time`,
-        )
-      : null,
-  ),
+  createGuardedLookupDispatcher(blockResolvedAtConnect),
 );
+
+/** 상태가 없는 함수라 모듈에 하나만 둔다. */
+const connectGuardLookup = createGuardedLookup(blockResolvedAtConnect);
 
 /**
  * 연결 시점 판정 dispatcher. `fetch(url, { dispatcher })` 로 넘기면 연결할 때 푼 주소를 {@link isBlockedHostname}
@@ -181,4 +195,21 @@ export function safeOutboundDispatcher(): Dispatcher | undefined {
 /** 테스트용. 만들어 둔 dispatcher 를 닫고 다음 호출이 새로 만들게 한다. */
 export function resetSafeOutboundDispatcherForTesting(): Promise<void> {
   return connectGuardDispatcher.reset();
+}
+
+/**
+ * 연결 시점 판정 조회 함수. `net.connect({ host, port, lookup })` 으로 넘기면 소켓을 열 때 푼 주소를
+ * {@link isBlockedHostname} 대역표로 다시 판정하고, 통과한 주소로만 연결한다. 막히면 소켓이 {@link SsrfBlockedError}
+ * 로 `error` 를 낸다. 드라이버가 그 오류를 감싸 올려도 `findCause` 로 찾는다.
+ *
+ * `fetch` 를 쓰지 않고 소켓을 직접 여는 경로가 쓴다. Send Email(nodemailer `getSocket`, `send-email/smtp-host-guard.ts`)과
+ * DB Query(pg · mysql2 `stream` 팩토리, `database-query/database-connection.ts`)가 노드 실행과 연결 테스트에서 함께 쓴다.
+ *
+ * - `ALLOW_PRIVATE_HOST_TARGETS=true` 면 `undefined` 다. 호출자는 드라이버의 기본 연결을 그대로 쓴다.
+ * - IP 리터럴 호스트에는 `net.connect` 가 조회를 부르지 않는다. 리터럴은 {@link assertSafeOutboundHostResolved} 가 맡는다.
+ * - 해석 실패는 판정하지 않고 전송 오류(`ENOTFOUND` 등)로 둔다. {@link assertSafeOutboundHostResolved} 의 fail-open 과 같다.
+ */
+export function safeOutboundLookup(): LookupFunction | undefined {
+  if (isPrivateHostsAllowed()) return undefined;
+  return connectGuardLookup;
 }

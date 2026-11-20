@@ -3,6 +3,7 @@ import {
   findVariant,
   listSecretKeys,
   maskCredentials,
+  SERVICE_REGISTRY,
   validateCredentials,
 } from './service-registry';
 
@@ -100,6 +101,18 @@ describe('service-registry — mcp service', () => {
     expect(validateCredentials('mcp', 'oauth2', {})).toEqual([
       'Unknown service/auth combination: mcp/oauth2',
     ]);
+  });
+});
+
+describe('service-registry — 자동 갱신 표시 (supportsTokenAutoRefresh)', () => {
+  // 갱신 경로가 있는 서비스만 true 다. Google 은 refresh_token 을 받지만 갱신 경로가 없어 false 로 두고
+  // 만료를 주의 필요에 드러낸다(CLE-T-81270P).
+  it('cafe24 · makeshop 만 true 다', () => {
+    expect(
+      SERVICE_REGISTRY.filter((s) => s.supportsTokenAutoRefresh === true)
+        .map((s) => s.type)
+        .sort(),
+    ).toEqual(['cafe24', 'makeshop']);
   });
 });
 

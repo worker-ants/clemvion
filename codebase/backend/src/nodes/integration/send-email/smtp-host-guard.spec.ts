@@ -1,3 +1,4 @@
+import { restoreEnvAfterEach } from '../../../shared/testing/env';
 import { isSmtpHostBlocked } from './smtp-host-guard';
 
 type GuardModule = typeof import('./smtp-host-guard');
@@ -5,11 +6,7 @@ type GuardModule = typeof import('./smtp-host-guard');
 // DNS 를 mock 하지 않는다 — 입력이 IP 리터럴 · `localhost` 라 가드가 조회 전에 판정하거나, 조회하더라도 리터럴을 그대로 돌려받아
 // 네트워크 질의가 일어나지 않는다. 호스트 이름 해석 경로는 `outbound-guard.spec.ts` 가 mock 으로 본다.
 describe('smtp-host-guard', () => {
-  const orig = process.env.ALLOW_PRIVATE_HOST_TARGETS;
-  afterEach(() => {
-    if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-    else process.env.ALLOW_PRIVATE_HOST_TARGETS = orig;
-  });
+  restoreEnvAfterEach('ALLOW_PRIVATE_HOST_TARGETS');
 
   it('blocks private / loopback / link-local hosts by default (guard on)', async () => {
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;

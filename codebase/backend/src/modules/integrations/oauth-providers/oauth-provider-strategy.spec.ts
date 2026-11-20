@@ -152,12 +152,75 @@ describe('Standard OAuth strategies (google / github)', () => {
     ).toEqual({ login: 'octocat' });
   });
 
+  // CLE-T-81270P: 계정 식별자는 토큰 응답이 아니라 계정 조회로 얻는다. Google 은 refresh_token 을 받으려고
+  // offline 접근과 동의 화면을 요청하고, userinfo 를 부르려고 openid · email 권한 범위를 늘 더한다.
+  it('google buildAuthorizeUrl — openid · email 을 앞에 더하고 offline 접근 · 동의 화면을 요청한다', () => {
+    const url = new URL(
+      googleOAuthStrategy.buildAuthorizeUrl({
+        clientId: 'cid',
+        redirectUri: REDIRECT,
+        scopes: ['https://www.googleapis.com/auth/drive', 'email'],
+        state: 'st',
+      }),
+    );
+    expect(url.searchParams.get('scope')).toBe(
+      'openid email https://www.googleapis.com/auth/drive',
+    );
+    expect(url.searchParams.get('access_type')).toBe('offline');
+    expect(url.searchParams.get('prompt')).toBe('consent');
+    expect(url.searchParams.get('response_type')).toBe('code');
+  });
+
+  it('github buildAuthorizeUrl — 고른 권한 범위만 쓰고 Google 전용 파라미터를 붙이지 않는다', () => {
+    const url = new URL(
+      githubOAuthStrategy.buildAuthorizeUrl({
+        clientId: 'cid',
+        redirectUri: REDIRECT,
+        scopes: ['repo', 'read:org'],
+        state: 'st',
+      }),
+    );
+    expect(url.searchParams.get('scope')).toBe('repo read:org');
+    expect(url.searchParams.has('access_type')).toBe(false);
+    expect(url.searchParams.has('prompt')).toBe(false);
+  });
+
+  it('buildIdentityRequest — google userinfo · github /user 를 Bearer 토큰으로 부른다', () => {
+    const g = googleOAuthStrategy.buildIdentityRequest('g-at');
+    expect(g.url).toBe('https://openidconnect.googleapis.com/v1/userinfo');
+    expect(g.headers.Authorization).toBe('Bearer g-at');
+
+    const h = githubOAuthStrategy.buildIdentityRequest('h-at');
+    expect(h.url).toBe('https://api.github.com/user');
+    expect(h.headers.Authorization).toBe('Bearer h-at');
+    expect(h.headers['User-Agent']).toEqual(expect.any(String));
+  });
+
+  it('extractIdentity — 식별자가 있으면 저장 필드로, 없으면 null', () => {
+    expect(
+      googleOAuthStrategy.extractIdentity({ sub: '1', email: 'a@b.com' }),
+    ).toEqual({ account_email: 'a@b.com' });
+    expect(googleOAuthStrategy.extractIdentity({ sub: '1' })).toBeNull();
+    expect(githubOAuthStrategy.extractIdentity({ login: 'octocat' })).toEqual({
+      login: 'octocat',
+    });
+    expect(githubOAuthStrategy.extractIdentity({ login: '' })).toBeNull();
+  });
+
   it('buildStubResult — provider-prefixed token, ~30d TTL', () => {
     const g = googleOAuthStrategy.buildStubResult(['openid'], null);
     expect(g.accessToken.startsWith('stub-google-')).toBe(true);
     expect(g.refreshToken?.startsWith('stub-refresh-')).toBe(true);
     expect(g.scopes).toEqual(['openid']);
-    expect(g.providerMeta).toEqual({ stub: true });
+    // stub 도 저장의 필수 식별자를 채운다(CLE-T-81270P).
+    expect(g.providerMeta).toEqual({
+      stub: true,
+      account_email: expect.any(String),
+    });
+    expect(githubOAuthStrategy.buildStubResult([], null).providerMeta).toEqual({
+      stub: true,
+      login: expect.any(String),
+    });
     expect((g.tokenExpiresAt as Date).getTime()).toBeGreaterThan(
       Date.now() + 29 * 24 * 60 * 60 * 1000,
     );
