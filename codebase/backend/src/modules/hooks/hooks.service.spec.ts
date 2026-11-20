@@ -5284,6 +5284,7 @@ describe('HooksService', () => {
       const STILL_RUNNING_DEFAULT =
         '워크플로우가 처리 중입니다. 잠시만 기다려 주세요.';
       let dedup: { release: jest.Mock };
+      let ackDroppedUpdate: jest.Mock;
       const otherState = {
         executionId: 'exec-other',
         threadId: 'default',
@@ -5317,6 +5318,8 @@ describe('HooksService', () => {
         dedup = moduleRef.get(ChatChannelDedupService) as unknown as {
           release: jest.Mock;
         };
+        ackDroppedUpdate = jest.fn().mockResolvedValue(undefined);
+        Object.assign(mockAdapter, { ackDroppedUpdate });
         triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
         mockAdapter.parseUpdate.mockResolvedValue(inputUpdate('4001'));
         conversationService.lookup.mockResolvedValue(null);
@@ -5383,6 +5386,12 @@ describe('HooksService', () => {
           expect(conversationService.upsert).not.toHaveBeenCalled();
           expect(conversationService.releaseLock).not.toHaveBeenCalled();
           expectStillRunningNotice();
+          // 버린 update 는 수신 확인을 받는다(Telegram 버튼 로딩 표시를 푼다).
+          expect(ackDroppedUpdate).toHaveBeenCalledTimes(1);
+          expect(ackDroppedUpdate).toHaveBeenCalledWith(
+            chatInput.body,
+            expect.objectContaining({ provider: 'telegram' }),
+          );
           // 버린 update 와 같이 dedup 선점은 풀지 않는다(재전송을 다시 처리하지 않는다).
           expect(dedup.release).not.toHaveBeenCalled();
         },
