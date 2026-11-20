@@ -2,19 +2,19 @@
 id: "CLE-PLAT"
 title: "플랫폼 구조"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "f40512ad7e90ddae8a637cef7dc744bcdd3c127337975677b7ef29dcf0394d53"
-read_as: "approved"
-task: null
+content_hash: "326ce4ca2facc280b30ac1ae58545897a7aab1eb83a1a5e058c95b597363fa74"
+read_as: "approved_fallback"
+task: "CLE-T-28MDF3"
 source_paths: []
-mirror_sha256: "ad1c183c8509913da49760d35f3fd9105ec99dc0421bc5320854ac0cf754137b"
-etag: "sha256-d241e71a3b90dcbbafbe0ef620cee5fbc3b2e053098e5c73ab97b639aa7adcb8"
+mirror_sha256: "3d75b6ef42cf4658cefe888ec9d73bfcec2dcf584b8b85c36ee2bbd74cbdb530"
+etag: "sha256-fc8f010ac1b5c71fa3c82eab2b00f3219eea3223c0adabf25f182b57a653c4b0"
 ---
 > 구현 상태: 부분 구현 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -31,5 +31,5 @@ etag: "sha256-d241e71a3b90dcbbafbe0ef620cee5fbc3b2e053098e5c73ab97b639aa7adcb8"
 | [시스템 아키텍처](CLE-PLAT-ARCH.md) | 컴포넌트 구성, 데이터 계층, 시스템 수준 데이터 흐름과 영역별 데이터 문서 구성, 다중 인스턴스·동시성 모델, SaaS 와 셀프 호스팅의 배포 환경 차이 |
 | [비기능 요구사항](CLE-PLAT-NFR.md) | 성능·보안·확장성·가용성·관측성·국제화와 접근성·배포와 운영 요구사항(`NF-*`) |
 | [데이터 모델 개요](CLE-PLAT-DATA.md) | 엔티티 관계 지도와 엔티티별 소유 문서, 공통 컬럼 규칙, FK 삭제 동작, 인덱스 전략 |
-| [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) | BullMQ 큐 18개의 목록과 옵션, DLQ 모니터링, Redis 키와 pub/sub 채널 목록의 단일 기준 |
+| [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) | BullMQ 큐 목록, Redis 키와 pub/sub 채널 목록의 단일 기준. 엔진 큐 옵션과 DLQ 모니터링은 하위 문서 [실행 엔진 큐 옵션과 DLQ 모니터링](CLE-PLAT-QUEUE-ENGINE.md) 에 있다 |
 | [파일 저장소](CLE-PLAT-STORAGE.md) | S3 호환 파일 저장소의 구성, 키 규칙, 지식 저장소 원본 문서와 아바타의 흐름, 삭제 수명주기 |
