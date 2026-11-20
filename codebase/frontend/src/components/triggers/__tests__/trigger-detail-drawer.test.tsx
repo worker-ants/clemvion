@@ -555,6 +555,25 @@ describe("TriggerDetailDrawer", () => {
     expect(apiPatchMock).not.toHaveBeenCalled();
   });
 
+  // 서버는 userinfo 가 있는 알림 URL 을 400 으로 거부한다(NERV Task CLE-T-RCQGCC). 저장 전에 전용 안내로 막는다.
+  it("notification URL 에 자격 증명(userinfo)이 있으면 전용 안내로 저장을 막고 PATCH 하지 않는다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    fireEvent.change(screen.getByLabelText("Destination URL"), {
+      target: { value: "https://user:pass@hooks.example.com/webhook" },
+    });
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+
+    expect(toastError).toHaveBeenCalledWith(
+      "The destination URL must not include a username or password (user:password@).",
+    );
+    expect(apiPatchMock).not.toHaveBeenCalled();
+  });
+
   // EIA cancel — 변경한 입력값이 cancel 후 원래 값으로 리셋된다.
   it("External Interaction 편집 취소 시 변경한 URL 이 원래 값으로 리셋된다", async () => {
     mockApi(WEBHOOK_TRIGGER, []);

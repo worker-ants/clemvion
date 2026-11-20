@@ -10,7 +10,10 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
 import { SecretRevealBox } from "../secret-reveal-box";
-import { isValidNotificationUrl } from "@/lib/utils/url-validation";
+import {
+  hasNotificationUrlCredentials,
+  isValidNotificationUrl,
+} from "@/lib/utils/url-validation";
 import { toast } from "sonner";
 import { useCardEditToggle } from "../hooks/use-card-edit-toggle";
 
@@ -157,6 +160,11 @@ export function ExternalInteractionCard({
     // (notification 은 선택). 최종 SSRF 차단은 백엔드 권위.
     if (!isValidNotificationUrl(urlValue)) {
       toast.error(t("triggers.externalInteraction.notificationUrlInvalid"));
+      return;
+    }
+    // 서버는 userinfo 가 있는 URL 을 400 으로 거부한다(NERV Task CLE-T-RCQGCC). 저장 실패 토스트 대신 이유를 보여 준다.
+    if (hasNotificationUrlCredentials(urlValue)) {
+      toast.error(t("triggers.externalInteraction.notificationUrlCredentials"));
       return;
     }
     saveMutation.mutate();

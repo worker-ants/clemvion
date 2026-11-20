@@ -258,6 +258,7 @@ POST /api/triggers
 - `retry.maxAttempts` 는 첫 시도를 포함한 총 시도 횟수예요. 기본 5, 최대 10이고 0은 1(다시 보내지 않음)로 봐요. 최대인 10이면 마지막 재시도는 첫 시도 뒤 약 3.4시간에 나가요.
 - 최종 실패 시 트리거의 `notificationHealth` 가 `degraded`로 바뀌고 트리거 상세 화면에 표시돼요. **트리거 본체는 자동으로 비활성화되지 않아요** — 워크플로우 실행은 계속 받아요. 사용자가 직접 비활성화 토글을 눌러야 멈춰요.
 - URL은 `https://`만 허용해요 (개발 환경에서 `ALLOW_HTTP_HOOKS=1`일 때만 예외). 사설 IP·메타데이터 IP·loopback은 SSRF 방지로 차단돼요.
+- URL에 사용자명이나 비밀번호(`https://user:pass@host/…`)를 넣을 수 없어요. 이런 URL로는 알림을 보낼 수 없어서 저장할 때 거부해요. 수신 서버는 `X-Clemvion-Signature` 서명으로 발신자를 확인하세요.
 
 <Callout type="note">
 시크릿이 유출됐다고 의심되면 `POST /api/triggers/:id/notification/rotate-secret`으로 회전할 수 있어요. 새 시크릿이 만들어진 뒤 24시간 동안은 old/new 둘 다 유효 — 외부 시스템이 새 시크릿으로 전환할 여유 시간이에요. 이 24시간 안에 다시 교체하면 앞서 받은 새 시크릿은 이번 값으로 바뀌고 24시간도 그때부터 다시 세어요.
