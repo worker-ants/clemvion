@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL-OUTPUT"
 title: "Parallel 노드 — 출력 구조"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PARALLEL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-PARALLEL"]
 area: "CLE-NODE-LOGIC"
-content_hash: "33d9827838ebb4dd9cbb19b5b8491ccb458faa5a672b9c21873c3003254fc015"
+content_hash: "2ef1c3b5ff0974025e8621b9650aaf05b7dd136200a7d47c60f30f2de6532995"
 read_as: "approved_fallback"
-task: "CLE-T-CE5YR3"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "2dba016caf663bf09662bfd3e52348257b1d64b781b23f78dea0b555fbd93b99"
-etag: "sha256-87c6a6e60df7f9c77df12e1ec370a356300fd50b59c0d7492fded73f90247717"
+mirror_sha256: "5319a9bdc60aef1635622ac3e64ae92fc9c1bebf7aa411528329f62746ae780f"
+etag: "sha256-6a7422bc94e848eba37b62243775c5bba8c04461792ad79995a9326ad7628cde"
 ---
 ## 개요
 
@@ -129,7 +129,7 @@ Parallel 은 엔진 덮어쓰기 대상 노드라서 시작 시점(병렬 분기
 
 병렬 분기 수나 실패 수를 `meta` 로 읽어야 하는 화면이나 요구사항이 생기면 다시 본다.
 
-2026-11-15 확정(NERV Task CLE-T-JXD0W5): 완료 `meta.durationMs` 는 싣지 않는다. 일반 노드에서 같은 키는 핸들러가 잰 시간이라 Parallel 에 노드 전체 시간을 실으면 키의 뜻이 노드마다 갈린다. 노드 전체 실행 시간은 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 으로 읽는다. 2026-10-24 구현 확인 때는 이 두 값이 핸들러 실행 시간이라 병렬 분기 시간이 빠진다고 적었다. 시작 시점 표와 엔진 덮어쓰기 계약 1 · 2 도 그때 park · 재구동 없이 이어진 실행으로 범위를 좁혀 적었다. 같은 Task 가 노드 실행 기록을 모든 병렬 분기가 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았고 이 문서도 원래 서술로 돌렸다. 근거와 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 에 있다.
+2026-11-15 확정(NERV Task CLE-T-JXD0W5): 완료 `meta.durationMs` 는 싣지 않는다. 일반 노드에서 같은 키는 핸들러가 잰 시간이라 Parallel 에 노드 전체 시간을 실으면 키의 뜻이 노드마다 갈린다. 노드 전체 실행 시간은 노드 실행 기록의 `duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 으로 읽는다. 2026-10-24 구현 확인 때는 이 두 값이 핸들러 실행 시간이라 병렬 분기 시간이 빠진다고 적었다. 시작 시점 표와 엔진 덮어쓰기 계약 1 · 2 도 그때 park · 재구동 없이 이어진 실행으로 범위를 좁혀 적었다. 같은 Task 가 노드 실행 기록을 모든 병렬 분기가 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았고 이 문서도 원래 서술로 돌렸다. 근거와 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다) 에 있다.
 
 ### 완료 출력은 병렬 분기 결과를 그대로 두고 실패를 따로 모은다
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-CONTAINER"
 title: "노드 출력 규약 — 컨테이너 출력과 빈 입력"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "246eca9e0f5aa3808de3ee2e20452d963736f1230ff482ddd2f10659232624d3"
+content_hash: "61e4d6ac201cf77b55b2fd0107ae5c55c895011f254c1b419fc0d932e04431a7"
 read_as: "approved_fallback"
-task: "CLE-T-7AYYQC"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "dba9628ff4bd179193bdce1cc308650f396bfc21c793290e27dfc0cc6adcdecf"
-etag: "sha256-639eb73065c21b820c4f5042db2782b2da0e3dd36edc321120f2ab01fd82eaa1"
+mirror_sha256: "95d6df6c76e653d6880dbffcf799e07c98b113c297f49cade4a466e16970263f"
+etag: "sha256-b19df6094a00e03247114652a6b8dd0535dc26b8f3201c42fd068f6278337433"
 ---
 ## 개요
 
@@ -83,7 +83,7 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 
 결정일: 2026-10-24
 
-옛 9.1 은 "핸들러가 null 을 돌려주면 엔진이 반드시 덮어쓰고 null 이 아닌 값을 돌려주면 덮어쓰지 않는다" 고 적었다. ForEach·Map 핸들러는 시작 시점에 본문에 나눠 줄 배열을 돌려준다. 노드 출력 다섯 필드를 깨지 않고 분배용 데이터를 엔진에 넘기려고 정한 형태다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale). 엔진은 완료 시점에 이 배열을 `{ <컬렉션 키>, count }` 로 덮어쓴다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#완료-시점-덮어쓰기를-엔진이-한다) 과 현재 구현(`execution-engine.service.ts` 의 컨테이너 완료 처리)도 그렇다. 그래서 9.1 을 그 결정과 구현에 맞췄다(NERV Task `CLE-T-3HJ8MM`). 2026-10-24 구현 확인 때는 덮어쓰기가 실행 컨텍스트에만 반영되고 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에는 반영되지 않는다는 조건을 붙여 적었다. 2026-11-15 NERV Task `CLE-T-JXD0W5` 가 엔진이 본문이 끝난 뒤 실행 기록을 완료 출력으로 마감하게 해 그 갭을 닫았다. 그래서 9.1 의 5번을 원래 서술로 돌렸다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)).
+옛 9.1 은 "핸들러가 null 을 돌려주면 엔진이 반드시 덮어쓰고 null 이 아닌 값을 돌려주면 덮어쓰지 않는다" 고 적었다. ForEach·Map 핸들러는 시작 시점에 본문에 나눠 줄 배열을 돌려준다. 노드 출력 다섯 필드를 깨지 않고 분배용 데이터를 엔진에 넘기려고 정한 형태다([Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#시작-시점-배열을-엔진-내부-표현으로-둔다) 의 Rationale). 엔진은 완료 시점에 이 배열을 `{ <컬렉션 키>, count }` 로 덮어쓴다. [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#완료-시점-덮어쓰기를-엔진이-한다) 과 현재 구현(`execution-engine.service.ts` 의 컨테이너 완료 처리)도 그렇다. 그래서 9.1 을 그 결정과 구현에 맞췄다(NERV Task `CLE-T-3HJ8MM`). 2026-10-24 구현 확인 때는 덮어쓰기가 실행 컨텍스트에만 반영되고 노드 실행 기록 · 이벤트와 재개 · 재구동 때의 rehydration 에는 반영되지 않는다는 조건을 붙여 적었다. 2026-11-15 NERV Task `CLE-T-JXD0W5` 가 엔진이 본문이 끝난 뒤 실행 기록을 완료 출력으로 마감하게 해 그 갭을 닫았다. 그래서 9.1 의 5번을 원래 서술로 돌렸다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다)).
 
 기각한 대안은 옛 서술대로 `null` 일 때만 덮어쓰는 안이다. 그렇게 구현하면 ForEach·Map 의 최종 `output` 이 원래 배열로 남아 다음 노드가 [9.2](#92-노드별-최종-출력-값) 의 형태를 볼 수 없다.
 
@@ -95,7 +95,7 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 
 사용자가 2026-10-10 에 다음 규칙을 승인했다(리뷰 발견 `finding 01a0e5a1-114b-7604-9136-9788ccc9829c`, NERV Task `CLE-T-3HJ8MM`). 입력 배열을 도는 반복·분리 노드는 배열이 아닌 값을 `[]` 로 처리하고 `meta.fellBackToEmpty` 로 알린다. 다른 노드는 throw 한다. 이 규칙이면 기존 워크플로우의 동작이 바뀌지 않는다. 조용히 지나가던 0회 실행은 `meta.fellBackToEmpty` 로 드러난다.
 
-2026-10-10 결정은 입력 배열을 도는 반복 · 분리 노드만 다뤘다. Chart 는 승인본 요구사항이 이미 빈 배열 처리를 정한 노드라 예외 표에 함께 올렸다. 데이터가 비면 빈 차트가 화면에 바로 보여 사용자가 알아챈다. 그래서 `meta.fellBackToEmpty` 도 싣지 않는다. Chart 쪽 근거는 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md#datafield-가-배열이-아니면-빈-배열로-그린다-2026-10-24) 에 있다.
+2026-10-10 결정은 입력 배열을 도는 반복 · 분리 노드만 다뤘다. Chart 는 승인본 요구사항이 이미 빈 배열 처리를 정한 노드라 예외 표에 함께 올렸다. 데이터가 비면 빈 차트가 화면에 바로 보여 사용자가 알아챈다. 그래서 `meta.fellBackToEmpty` 도 싣지 않는다. Chart 쪽 근거는 [Chart 노드](../CLE-NODE-PRES/CLE-NODE-CHART.md#datafield-가-배열이-아니면-빈-배열로-그린다) 에 있다.
 
 2026-10-10 결정의 "다른 노드는 throw 한다" 를 글자 그대로 따르면 Merge · Carousel · Table · Transform 도 throw 로 바꿔야 한다. 이 노드들은 배열이 아닌 값을 `[]` 로 대체하지 않고 감싸거나 다른 입력을 쓰거나 연산을 건너뛴다. 2026-10-10 결정은 이런 처리를 따로 다루지 않았다. 이 개정은 이 처리들을 Principle 10 의 대상에서 빼고 지금 동작을 그대로 두었다([Principle 10](#principle-10-비었거나-null-인-입력의-대체-값) 마지막 문단). 처리 목록과 기각한 대안은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-예외-노드를-이-문서에-모은다) 에 있다.
 
@@ -110,7 +110,7 @@ Loop·ForEach·Map·Parallel 의 완료 출력에는 `meta.durationMs` 를 싣�
 
 결정일: 2026-11-15
 
-Loop·ForEach·Map 의 완료 `meta` 는 핸들러가 돌려준 `meta` 에 엔진이 잰 반복 메트릭(`iterations`·`skippedCount` 등)을 합친 값이다. Parallel 의 완료 `meta` 에는 `clampedConcurrency` 만 있다. 엔진은 여기에 `meta.durationMs` 를 더하지 않으며, 이 동작을 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`). 2026-10-24 에는 이 네 노드의 `node_execution.duration_ms` 가 핸들러 실행 시간뿐이라 제외를 잠정으로 두었다. 2026-11-15 에 엔진이 기록 마감을 본문이 끝난 뒤로 옮겨 `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 에 노드 전체 실행 시간이 담기게 됐고, 제외를 확정했다(NERV Task `CLE-T-JXD0W5`, [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)).
+Loop·ForEach·Map 의 완료 `meta` 는 핸들러가 돌려준 `meta` 에 엔진이 잰 반복 메트릭(`iterations`·`skippedCount` 등)을 합친 값이다. Parallel 의 완료 `meta` 에는 `clampedConcurrency` 만 있다. 엔진은 여기에 `meta.durationMs` 를 더하지 않으며, 이 동작을 계약으로 정했다(NERV Task `CLE-T-3HJ8MM`). 2026-10-24 에는 이 네 노드의 `node_execution.duration_ms` 가 핸들러 실행 시간뿐이라 제외를 잠정으로 두었다. 2026-11-15 에 엔진이 기록 마감을 본문이 끝난 뒤로 옮겨 `node_execution.duration_ms` 와 `execution.node.completed` 이벤트의 `duration` 에 노드 전체 실행 시간이 담기게 됐고, 제외를 확정했다(NERV Task `CLE-T-JXD0W5`, [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다)).
 
 기각한 대안은 완료 `meta` 에 `meta.durationMs` 를 더하는 안이다. 같은 키가 일반 노드에서는 핸들러가 잰 시간이고 컨테이너 · Parallel 에서는 노드 전체 시간이 돼 뜻이 갈린다. 노드 전체 시간은 행의 `duration_ms` 와 이벤트 `duration` 으로 충분하다. 일반 노드의 `meta.durationMs` 는 핸들러가 넣는다([부모 문서의 Rationale](CLE-NODE-OUTPUT.md#metadurationms-는-핸들러가-넣는다)).
 

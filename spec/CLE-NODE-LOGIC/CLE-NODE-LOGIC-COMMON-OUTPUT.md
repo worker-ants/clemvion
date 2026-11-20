@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON-OUTPUT"
 title: "Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-LOGIC-COMMON"]
 area: "CLE-NODE-LOGIC"
-content_hash: "5082d537b8357c3d14ed660e149edef3984005758643deee2cdd5696f0a45e6f"
+content_hash: "3ed8d177bf2748f55bfb90fa90a41291fde6f91e7836d7c3de2704aaa06e82a6"
 read_as: "approved_fallback"
 task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "e314d2b535deb2398ebffc74c3a268b7471b436e1a277a0c1585115b1d35ea36"
-etag: "sha256-b276579ca99275d4decf60e7548a33b9e1c3c6c6736d00a4f84fb5169b549dbd"
+mirror_sha256: "9caa086e3727732c6bce56e08d65ce5f424946ed09333092ca2b51c2bdd57132"
+etag: "sha256-6427a2b5ce91ed206e8f69926945033bb4352c8bd7a976608aa63fb99a36f9a1"
 ---
 ## 개요
 
@@ -117,7 +117,7 @@ ForEach 와 Map 은 `null` 이 아닌 배열을 반환하지만 엔진은 완료
 
 ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 다음 노드 표현식에 드러나게 하려는 형태는 `{ <컬렉션 키>, count }` 다. 핸들러 시그니처와 외부 노출 형태가 다른 것은 의도한 설계다. 노드 출력 5필드를 깨지 않고 나눠 줄 데이터를 엔진에 넘기는 방법이 이것이기 때문이다.
 
-이 배열은 다음 노드 표현식과 외부에 드러내지 않는다. 노드 실행 기록 · 실행 이벤트와 rehydration 한 실행 컨텍스트에도 완료 출력이 남는다. 2026-10-24 구현 확인으로 이 서술을 조건부로 적었고 2026-11-15 NERV Task `CLE-T-JXD0W5` 가 갭을 닫아 원래 서술로 돌렸다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15)).
+이 배열은 다음 노드 표현식과 외부에 드러내지 않는다. 노드 실행 기록 · 실행 이벤트와 rehydration 한 실행 컨텍스트에도 완료 출력이 남는다. 2026-10-24 구현 확인으로 이 서술을 조건부로 적었고 2026-11-15 NERV Task `CLE-T-JXD0W5` 가 갭을 닫아 원래 서술로 돌렸다([컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다)).
 
 기각한 대안은 핸들러가 `null` 을 반환하고 별도 엔진 내부 채널로 배열을 넘기는 방식이다. 동작은 같은데 5필드 계약을 바꾸는 비용이 더 커서 채택하지 않았다.
 

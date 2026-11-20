@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026", "REQ-BGRUN-027", "REQ-BGRUN-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "c7f23ad791bf72137063d99fb8fa217c872e182716edd852ef8f1b5f7a5177d7"
+content_hash: "562ece59517787e5e971bac78401907ced5b3042c773e79a1d46d6fded3856c4"
 read_as: "approved_fallback"
-task: "CLE-T-0ZHAC4"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "41c554d711a0997428bcc3a26c8a0411cce1b94c15a7fa01c1401fd8ec84e44b"
-etag: "sha256-cbf33bc6e639ba32add7c19b408597038ec6ed06bd477ff8fba4b8c597b0ff0c"
+mirror_sha256: "6e69417d05dce1493ab0bb186ae90cd3ad6f96f48e1acf06a9c414ceea10ad16"
+etag: "sha256-f9cb7fab044784104a90af1130f1c864dc0d5df0a984111384c366f9a439a81e"
 ---
 > 구현 상태: 부분 구현 (REQ-BGRUN-026 AI 어시스턴트 조회 도구는 미구현) · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -291,7 +291,7 @@ Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행
 
 - **반복 변수를 비우는 안**: 본문에서 `$item` · `$loop` 같은 반복 변수가 비어 회차별 처리를 할 수 없다.
 
-결정 경위와 나머지 기각 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#본문-안-컨테이너와-background-도-실행-경로로-넘긴다-2026-11-12) 의 Rationale 에 있다(NERV Task `CLE-T-MR6ZH3`).
+결정 경위와 나머지 기각 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#본문-안-컨테이너와-background-도-실행-경로로-넘긴다) 의 Rationale 에 있다(NERV Task `CLE-T-MR6ZH3`).
 
 ### 본문 진입 노드는 Background 노드가 받은 입력을 받는다
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOOP"
 title: "Loop 노드"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-LOOP-001", "REQ-LOOP-002", "REQ-LOOP-003", "REQ-LOOP-004", "REQ-LOOP-005", "REQ-LOOP-006", "REQ-LOOP-007", "REQ-LOOP-008", "REQ-LOOP-009", "REQ-LOOP-010", "REQ-LOOP-011", "REQ-LOOP-012", "REQ-LOOP-013", "REQ-LOOP-014", "REQ-LOOP-015", "REQ-LOOP-016", "REQ-LOOP-017", "REQ-LOOP-018", "REQ-LOOP-019", "REQ-LOOP-020"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "b6278cc8ea2ee57e3d30d4fb164e2013372b603eac029c10976b8109fafdd2f2"
+content_hash: "d4a9143368440b4e203aed987e7e3d764135f3dd41ad52a181ba5780729292df"
 read_as: "approved_fallback"
-task: "CLE-T-7AYYQC"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/1-logic/3-loop.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "734a5927213db28c2635306087c51d7e66c3e2e5eb4a1560e5a88f18c7bb7883"
-etag: "sha256-d21400e5a2b2092988452567bfbac86a54e5d0a5bb8d32940c6954a2adce7eb7"
+mirror_sha256: "bb5cc49302bec9acc14c372b381831a3c32e3182c48188971fecabbdbcb01e3b"
+etag: "sha256-834239a0b8a6e8ac11abeec63703f6ea0a27cf1d109e0707d6e24756f94a6259"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/3-loop.md`, `spec/4-nodes/_product-overview.md` (§4.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -281,6 +281,6 @@ Loop 에는 노드 경고 규칙이 없다(`warningRules: []`). 이유는 [Ratio
 
 결정일: 2026-11-15
 
-이 문서는 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간이 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다고 적었다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 한 번 마감하게 고쳐서 두 값이 반복 회차까지 포함한 노드 전체 시간이 됐다. 그래서 그 문장을 고쳤다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
+이 문서는 노드 실행 기록과 `execution.node.completed` 이벤트의 실행 시간이 핸들러 실행 시간이고 반복 회차 시간은 들어 있지 않다고 적었다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 한 번 마감하게 고쳐서 두 값이 반복 회차까지 포함한 노드 전체 시간이 됐다. 그래서 그 문장을 고쳤다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다) 의 Rationale 에 있다.
 
 기존 워크플로우 영향: 결과 값과 다음 노드 표현식은 바뀌지 않는다. 실행 내역 · 통계에 보이는 Loop 의 실행 시간은 노드 전체 기준으로 길어진다.

@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 18
+version: 19
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "e8086a2019db4e06712346e21228b35ee3087039d20ede7c843e6e65bc8cd4f4"
+content_hash: "0850904764660b2878d9f10af4691c98fc43d9eee31861a4c48cd880175ef696"
 read_as: "approved_fallback"
-task: "CLE-T-0ZHAC4"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "579fb45440fc11cd5c072180206d1bec75df5308639841480e6f8b088f386b50"
-etag: "sha256-bd1bdb7b4f2ead27ae87a1e0b2270c6fca750bc0d69e4320b6d0c68f7856cc78"
+mirror_sha256: "02932c4cb857f439ee43375910d282f79f8abe17660c93ccb8bb10bc399d24a5"
+etag: "sha256-3e65cfbff591c0c77f5f661724a63650e8ce3cadf0db44090d7d1ef0e50204a3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -125,7 +125,7 @@ etag: "sha256-bd1bdb7b4f2ead27ae87a1e0b2270c6fca750bc0d69e4320b6d0c68f7856cc78"
 | Code | `meta.success`, `meta.logs?`. `meta.durationMs` 는 싣지 않는다. 런타임 에러는 `output.error` 와 `port: 'error'` 로 낸다. `meta.error`, `meta.errorCode` 별칭은 폐기했다. |
 | 컨테이너 · Parallel | `meta.iterations`(Loop·ForEach·Map), `meta.skippedCount?`(ForEach·Map), `meta.fellBackToEmpty`(ForEach·Map), `meta.maxIterationsReached`·`meta.exitReason`(Loop). Parallel 은 중첩 Parallel 에서 동시 실행 수를 줄였을 때만 `meta.clampedConcurrency?` 를 싣는다 |
 | Split · Filter | `meta.fellBackToEmpty`([Principle 10](#principle-10-비었거나-null-인-입력의-대체-값)) |
-| Merge | `meta.inputCount`, `meta.strategy`, `meta.outputFormat`, `meta.skippedKeys`, `meta.dormantFields`. `meta.strategy` · `meta.outputFormat` 은 설정 에코와 같은 값이라 이 원칙의 예외다. 예외로 둔 이유는 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다-2026-11-12) 에 있다 |
+| Merge | `meta.inputCount`, `meta.strategy`, `meta.outputFormat`, `meta.skippedKeys`, `meta.dormantFields`. `meta.strategy` · `meta.outputFormat` 은 설정 에코와 같은 값이라 이 원칙의 예외다. 예외로 둔 이유는 [Merge 노드](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md#meta-에-전략과-출력-형식을-설정-에코와-함께-둔다) 에 있다 |
 
 AI 노드의 `meta` 필드는 다음과 같다.
 
