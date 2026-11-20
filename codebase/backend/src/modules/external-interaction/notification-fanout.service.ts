@@ -12,6 +12,11 @@ import type { ExecutionChannelEvent } from '../websocket/websocket-events.types'
 import { NotificationDispatcher } from './notification-dispatcher.service';
 import { notificationAttemptsFromRetry } from './notification-dispatcher.types';
 import { InteractionTokenService } from './interaction-token.service';
+import {
+  buildInteractionBlock,
+  expectedCommandsFor,
+  type NotificationInteractionBlock,
+} from './interaction-block';
 
 const TERMINAL_EVENTS = new Set<string>([
   'execution.completed',
@@ -140,6 +145,10 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
         )
       : false;
     if (!subscribed) return;
+    const interaction =
+      event.eventType === 'execution.waiting_for_input'
+        ? await this.buildNotificationInteraction(trigger, event)
+        : null;
     await this.dispatcher.enqueue(
       {
         triggerId: trigger.id,
@@ -152,7 +161,10 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
           triggerId: trigger.id,
           workflowId: trigger.workflowId,
           seq: event.seq,
-          payload: event.payload,
+          // 블록은 새 객체에만 붙인다. 같은 이벤트 객체를 SSE 어댑터도 받으므로 원본을 바꾸지 않는다.
+          payload: interaction
+            ? { ...event.payload, interaction }
+            : event.payload,
           timestamp: new Date().toISOString(),
         },
       },
@@ -164,5 +176,35 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
         ),
       },
     );
+  }
+
+  /**
+   * `execution.waiting_for_input` 알림의 `interaction` 블록(REQ-EIANOTI-033). 202 응답과 같은 빌더를 쓰고
+   * `expectedCommands` 를 더한다. 받은 봉투는 emit 단계에서 이미 마스킹을 거쳤으므로 블록은 그 뒤에 붙고
+   * `token` 은 가려지지 않는다. 토큰 발급이 실패하면 경고만 남기고 블록 없이 보낸다. 알림 자체를 버리지 않는다.
+   */
+  private async buildNotificationInteraction(
+    trigger: Trigger,
+    event: ExecutionChannelEvent,
+  ): Promise<NotificationInteractionBlock | null> {
+    try {
+      const block = await buildInteractionBlock(
+        trigger.config,
+        event.executionId,
+        this.tokenService,
+      );
+      if (!block) return null;
+      return {
+        ...block,
+        expectedCommands: expectedCommandsFor(
+          (event.payload as { interactionType?: unknown }).interactionType,
+        ),
+      };
+    } catch (err) {
+      this.logger.warn(
+        `NotificationFanout: interaction 토큰 발급 실패 — 블록 없이 알림을 보낸다 (triggerId=${trigger.id}, executionId=${event.executionId}): ${errorMessage(err)}`,
+      );
+      return null;
+    }
   }
 }
