@@ -206,9 +206,9 @@ describe('IntegrationExpiryScannerService.run', () => {
         { id: 'user-1', notificationPreferences: prefs },
       ]);
       await scanner.run(new Date('2026-04-12T00:00:00Z'));
-      const sent = notificationsService.createMany.mock.calls[0][0] as Array<{
-        channel: string;
-      }>;
+      const sent = notificationsService.createMany.mock.calls.flatMap(
+        (c) => c[0] as Array<{ channel: string }>,
+      );
       if (expected === null) {
         // 둘 다 끈 수신자는 알림 행을 만들지 않는다.
         expect(sent).toEqual([]);
@@ -217,6 +217,46 @@ describe('IntegrationExpiryScannerService.run', () => {
       }
     },
   );
+
+  // 알림을 둘 다 끈 수신자여도 claim 과 0d 만료 격하는 그대로 일어난다(알림 행만 없다).
+  it('인앱 · 이메일을 둘 다 끈 수신자여도 0d 에는 claim 하고 expired 로 격하하되 알림은 만들지 않는다', async () => {
+    const now = new Date('2026-04-12T00:00:00Z');
+    integrationRepo.find.mockResolvedValue([
+      {
+        id: 'int-off',
+        workspaceId: 'ws-1',
+        name: 'Drive',
+        scope: 'personal',
+        status: 'connected',
+        serviceType: 'google',
+        credentials: {},
+        createdBy: 'user-off',
+        tokenExpiresAt: new Date('2026-04-11T23:59:00Z'),
+      },
+    ]);
+    userRepo.find.mockResolvedValue([
+      {
+        id: 'user-off',
+        notificationPreferences: { integrationExpiryInApp: false },
+      },
+    ]);
+
+    await scanner.run(now);
+
+    expect(integrationRepo.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'int-off',
+          status: 'expired',
+          statusReason: 'token_expired',
+        }),
+      ]),
+    );
+    const sent = notificationsService.createMany.mock.calls.flatMap(
+      (c) => c[0] as unknown[],
+    );
+    expect(sent).toEqual([]);
+  });
 
   it('escalates to expired status and notifies at 0d (non-cafe24 / no refresh_token)', async () => {
     const now = new Date('2026-04-12T00:00:00Z');
