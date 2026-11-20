@@ -5,10 +5,13 @@ import {
   extractSqlVerb,
   isWriteOperation,
 } from './database-query.handler.js';
+import { Logger } from '@nestjs/common';
 import {
   assertSafeOutboundHostResolved,
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+  SsrfBlockedError,
 } from '../../../common/utils/ssrf/outbound-guard.js';
+import { DB_HOST_BLOCKED_MESSAGE } from './database-connection.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -753,6 +756,111 @@ describe('DatabaseQueryHandler', () => {
       // connect() rejected before client was acquired → no release expected
       expect(releaseMock).not.toHaveBeenCalled();
       await handler.shutdown();
+    });
+
+    // CLE-T-691T4G — 연결할 때 푼 주소의 판정(stream 팩토리)이 막은 연결.
+    it('연결 시점 판정이 막은 pg 연결은 DB_HOST_BLOCKED 와 고정 문구로 끝나고 usage 로그에도 주소가 남지 않는다', async () => {
+      const { service, logUsage } = makeService();
+      connectMock.mockRejectedValue(
+        new SsrfBlockedError(
+          'hostname "db.example.com" resolved to restricted IP "10.0.0.7" at connect time',
+        ),
+      );
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const handler = new DatabaseQueryHandler(service as never);
+      try {
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as unknown as ErrorPortOutput;
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+        expect(out.output.error.message).toBe(DB_HOST_BLOCKED_MESSAGE);
+        expect(JSON.stringify(out.output)).not.toContain('10.0.0.7');
+        expect(JSON.stringify(logUsage.mock.calls)).not.toContain('10.0.0.7');
+        expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'int-1' }),
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),
+          }),
+        );
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('10.0.0.7'));
+      } finally {
+        warn.mockRestore();
+        await handler.shutdown();
+      }
+    });
+
+    it('mysql2 드라이버가 감싸 온 연결 시점 차단도 DB_HOST_BLOCKED 로 바꾼다', async () => {
+      const { service } = makeService({ integration: MYSQL_INTEGRATION_BASE });
+      const blocked = new SsrfBlockedError(
+        'hostname "db.example.com" resolved to restricted IP "10.0.0.7" at connect time',
+      );
+      jest
+        .requireMock('mysql2/promise')
+        .createPool.mockImplementationOnce(() => ({
+          getConnection: () =>
+            Promise.reject(new Error('connect failed', { cause: blocked })),
+          end: () => mysqlEndMock(),
+        }));
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const handler = new DatabaseQueryHandler(service as never);
+      try {
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as unknown as ErrorPortOutput;
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+        expect(out.output.error.message).toBe(DB_HOST_BLOCKED_MESSAGE);
+      } finally {
+        warn.mockRestore();
+        await handler.shutdown();
+      }
+    });
+
+    it('풀 옵션에 연결 시점 판정 stream 팩토리를 싣는다(pg · mysql2)', async () => {
+      queryMock.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
+      mysqlQueryMock.mockResolvedValue([[], []]);
+      const pgHandler = new DatabaseQueryHandler(
+        makeService().service as never,
+      );
+      const mysqlHandler = new DatabaseQueryHandler(
+        makeService({ integration: MYSQL_INTEGRATION_BASE }).service as never,
+      );
+      try {
+        await pgHandler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        );
+        await mysqlHandler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        );
+
+        expect(jest.requireMock('pg').Pool).toHaveBeenCalledWith(
+          expect.objectContaining({ stream: expect.any(Function) }),
+        );
+        expect(
+          jest.requireMock('mysql2/promise').createPool,
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({ stream: expect.any(Function) }),
+        );
+      } finally {
+        await pgHandler.shutdown();
+        await mysqlHandler.shutdown();
+      }
     });
 
     it('sanitizes secret-looking fragments in driver error messages (spec §5.3 / §6.2)', async () => {

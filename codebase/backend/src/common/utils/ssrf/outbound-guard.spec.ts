@@ -6,6 +6,7 @@ import {
   isBlockedHostname,
   resetSafeOutboundDispatcherForTesting,
   safeOutboundDispatcher,
+  safeOutboundLookup,
   SSRF_BLOCKED_CLIENT_MESSAGE,
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
@@ -309,6 +310,55 @@ describe('outbound-guard — safeOutboundDispatcher (연결 시점 판정 dispat
 
     expect(second).toBeDefined();
     expect(second).not.toBe(first);
+  });
+});
+
+describe('outbound-guard — safeOutboundLookup (DB · SMTP 소켓용 연결 시점 판정)', () => {
+  const previous = process.env.ALLOW_PRIVATE_HOST_TARGETS;
+
+  afterEach(() => {
+    if (previous === undefined) {
+      delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+    } else {
+      process.env.ALLOW_PRIVATE_HOST_TARGETS = previous;
+    }
+  });
+
+  // IP 리터럴은 `dns.lookup` 이 질의 없이 그대로 돌려준다. 그래서 실제 `node:dns` 로도 네트워크를 쓰지 않는다.
+  function resolveWith(
+    host: string,
+  ): Promise<{ err: Error | null; addresses: unknown }> {
+    const lookup = safeOutboundLookup();
+    if (!lookup) throw new Error('lookup is off');
+    return new Promise((resolve) =>
+      lookup(host, { all: true }, (err, addresses) =>
+        resolve({ err, addresses }),
+      ),
+    );
+  }
+
+  it('막힌 대역으로 풀리면 SsrfBlockedError 로 끝낸다', async () => {
+    delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+
+    const { err } = await resolveWith('10.0.0.7');
+
+    expect(err).toBeInstanceOf(SsrfBlockedError);
+    expect(err?.message).toContain('resolved to restricted IP "10.0.0.7"');
+  });
+
+  it('공인 주소면 그대로 돌려준다', async () => {
+    delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+
+    const { err, addresses } = await resolveWith('93.184.216.34');
+
+    expect(err).toBeNull();
+    expect(addresses).toEqual([{ address: '93.184.216.34', family: 4 }]);
+  });
+
+  it('ALLOW_PRIVATE_HOST_TARGETS=true 면 undefined 를 돌려줘 드라이버 기본 해석을 쓰게 한다', () => {
+    process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
+
+    expect(safeOutboundLookup()).toBeUndefined();
   });
 });
 
