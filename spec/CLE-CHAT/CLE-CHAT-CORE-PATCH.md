@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-PATCH"
 title: "채팅 채널 — 봇 토큰 변경 경로와 PATCH 차단"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "1fa81217f7106bbba936783448ba78f2250fe2ae6d54071d1763bf1070c21a0e"
+content_hash: "93b62d32b348d6c448c67142b6b6cb23d36a1b0a92dbc03006d2fe3780999fda"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-NXPWZZ"
 source_paths: []
-mirror_sha256: "d317c91dc5442ea6fc9dd7407cbe2ba3be8de6575e699c0e26bf7caf89f92e4d"
-etag: "sha256-4ed9eefcb0c6d38ac784095b75a36aa844369c4e403619d06971713b3d2b6310"
+mirror_sha256: "3e2af0a1288e1f10f856826df4675d30185ea18c836614071133528ddb78c946"
+etag: "sha256-9815ebb46765e4b16c6ec65ade52a842bd18b19b294d03477a78383425a8b202"
 ---
 ## 개요
 
@@ -39,7 +39,7 @@ etag: "sha256-4ed9eefcb0c6d38ac784095b75a36aa844369c4e403619d06971713b3d2b6310"
 
 생성 · PATCH 가 비밀 필드나 원시 `config` 의 `chatChannel` 키를 거부할 때 `details.field` 모양은 보낸 값의 형태와 위치에 따라 갈린다. 네 갈래 모두 `INVALID_FIELD` 를 싣는다(배열이면 `details[].code`, 단일 object 면 `details.code`). 첫째 · 둘째 행은 단위 테스트(`trigger-dto-validation.spec.ts`)로 확인했고 HTTP 왕복은 종단 간 테스트로 확인하지 않았다. 셋째 행은 단위 테스트(`trigger-config-internal-fields.spec.ts`)와 종단 간 테스트(`trigger-config-internal-fields.e2e-spec.ts`)로 확인했다. 넷째 행은 종단 간 테스트(`trigger-raw-config-contract.e2e-spec.ts`)로 확인했다.
 
-이 문서에서 `chatChannel.<field>` 는 요청 본문의 top-level `chatChannel` 필드다. `config.chatChannel.<field>` 는 저장 위치(`Trigger.config.chatChannel`)를 뜻한다. 표의 셋째 · 넷째 행에서만 요청 본문의 `config` 키 아래(원시 `config`)를 뜻한다. 원시 `config` 의 `chatChannel` 은 받지 않는다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)).
+이 문서에서 `chatChannel.<field>` 는 요청 본문의 타입 필드 `chatChannel` 이다. `config.chatChannel.<field>` 는 저장 위치(`Trigger.config.chatChannel`)를 뜻한다. 표의 셋째 · 넷째 행에서만 요청 본문의 `config` 키 아래(원시 `config`)를 뜻한다. 원시 `config` 의 `chatChannel` 은 받지 않는다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)).
 
 차단 필드는 다섯이다. `botTokenRef` · `inboundSigningRef` · `inboundSigning` 은 생성 · PATCH 모두 막는 내부 필드이고 `botToken` · `inboundSigningPlaintext` 는 PATCH 에서만 막는 값 필드다. 원시 `config` 에서는 다섯 모두 생성에서도 막는다(`setupChannel()` 과 평문 제거가 돌지 않기 때문이다). 코드의 단일 기준은 `chat-channel-rejection-messages.const.ts` 의 `CHAT_CHANNEL_BLOCKED_FIELDS` 다. `inboundSigning` 은 저장 필드가 아니다. 입력을 막으려고 목록에 둔 이름이고 저장 필드는 `inboundSigningRef` 다.
 

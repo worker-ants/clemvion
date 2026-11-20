@@ -677,9 +677,9 @@ export class TriggersService {
     ).triggerToken;
     const hasStoredToken =
       typeof storedToken === 'string' && storedToken.length > 0;
-    // 요청 본문의 `interaction: null` 은 검증을 통과해(`@IsOptional()`) 여기까지 온다. 객체가 아니면 그 값을 그대로
-    // 저장한다(종전 동작). 빈 객체로 바꿔 저장하지 않는다.
-    // 저장된 토큰은 그 값과 함께 사라지므로 지웠다고 알려 커밋 뒤 스트림을 닫게 한다.
+    // 요청 본문의 `interaction: null` 은 해제 계약이라 `mergeExternalConfig` 가 키를 지운 채 여기에 온다. 결과가 객체가
+    // 아니면 빈 객체를 만들지 않고 그대로 둔다. 이 계약 전에 저장된 `null` 행도 같은 갈래다.
+    // 저장된 토큰은 그 키와 함께 사라지므로 지웠다고 알려 커밋 뒤 스트림을 닫게 한다.
     const requested = nextConfig.interaction;
     if (!isPlainRecord(requested)) {
       return { config: nextConfig, closeStreams: hasStoredToken };
@@ -718,8 +718,8 @@ export class TriggersService {
    * - `settleInteraction` → {@link settleTriggerToken}. 토큰을 지웠거나 인터랙션을 껐으면 `closeTokenStreams` 로 알려
    *   커밋 뒤 스트림을 닫게 한다. 처음 발급했으면 `issued.interactionToken` 에 싣는다.
    * - `settleNotification` → `NotificationSigningSecretService.settle`. 첫 시크릿을 발급했으면
-   *   `issued.notificationSigningSecret` 에 싣는다. 결과 `notification` 이 객체가 아니면(`null` 등) 서명을 얹을 자리가
-   *   없다. 껍데기를 만들어 시크릿을 발급하지 않고 종전처럼 그 값을 저장한다.
+   *   `issued.notificationSigningSecret` 에 싣는다. 결과 `notification` 이 객체가 아니면(`null` 해제로 키를 지웠을 때 등)
+   *   서명을 얹을 자리가 없다. 껍데기를 만들어 시크릿을 발급하지 않고 그대로 둔다.
    *
    * 고르지 않은 쪽은 건드리지 않는다. 이 함수는 `m` 으로 시크릿 저장소에 쓸 수 있으므로 잠금을 쥔 트랜잭션
    * 안에서만 부른다.
@@ -1232,7 +1232,7 @@ export class TriggersService {
   }
 
   private assertNotificationUrlSafe(
-    notification: NotificationConfigDto | undefined,
+    notification: NotificationConfigDto | null | undefined,
   ): void {
     if (!notification?.url) return;
     const check = validateNotificationUrl(notification.url);
@@ -1272,15 +1272,21 @@ export class TriggersService {
 
   // 이 세 타입 필드는 `RAW_CONFIG_TYPED_KEYS` 와 같은 집합이다. 생성 · 수정 DTO 의 중첩 검증 필드와 그 목록이 같은지는
   // `trigger-config-internal-fields.spec.ts` 가 고정한다. 필드를 더하면 여기와 목록을 함께 고친다.
+  //
+  // `notification` · `interaction` 의 `null` 은 해제 계약이다(수정 DTO 의 `nullable: true`). `null` 을 저장하지 않고 키를
+  // 지운다. 읽는 쪽은 객체가 아닌 값을 꺼진 것으로 보므로, 이 계약 전에 저장된 `null` 행도 옮기지 않고 그대로 둔다.
+  // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE-API#patch-본문-계약).
   private mergeExternalConfig(
     base: Record<string, unknown>,
-    notification: NotificationConfigDto | undefined,
-    interaction: InteractionConfigDto | undefined,
+    notification: NotificationConfigDto | null | undefined,
+    interaction: InteractionConfigDto | null | undefined,
     chatChannel?: ChatChannelInput,
   ): Record<string, unknown> {
     const next: Record<string, unknown> = { ...base };
-    if (notification !== undefined) next.notification = notification;
-    if (interaction !== undefined) next.interaction = interaction;
+    if (notification === null) delete next.notification;
+    else if (notification !== undefined) next.notification = notification;
+    if (interaction === null) delete next.interaction;
+    else if (interaction !== undefined) next.interaction = interaction;
     if (chatChannel !== undefined) next.chatChannel = chatChannel;
     return next;
   }

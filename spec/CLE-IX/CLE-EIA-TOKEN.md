@@ -2,19 +2,19 @@
 id: "CLE-EIA-TOKEN"
 title: "External Interaction API — 트리거 설정과 인터랙션 토큰"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA"]
 area: "CLE-IX"
-content_hash: "88257a2045270b87d1a28039067571400b2842d26d577603113fdcd450ed8455"
+content_hash: "2105d4f6f2a52735b177c8e35d86f8141c2e9c6efb84516207c1e5477f3f6abe"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-NXPWZZ"
 source_paths: []
-mirror_sha256: "869b976b49d59ccb6421663ccf5146d1f26118cb31a78936a37476cd2487c2ca"
-etag: "sha256-22a3ac1bf2fc06d90409d9a92ffff11066a0d49308b3d1f0359638c9f7aac6c1"
+mirror_sha256: "97012ec5780b64db5ab01c9b2ab66638032a0b4961cfcb335e8e157168f14230"
+etag: "sha256-3bac3b2dbf7d231be7223d4e128b161f74d3db20b02cd2b3fb0d0c21bb8bd421"
 ---
 ## 개요
 
@@ -70,7 +70,7 @@ POST /api/triggers
 
 PATCH 는 `mergeExternalConfig` 로 `interaction` 키를 통째로 바꾼다. 그래서 `appearance` 만 고칠 때도 `enabled`·`tokenStrategy` 를 함께 보내야 한다. 반대로 외부 API 호출자가 `appearance` 없이 `interaction` 을 PATCH 하면 저장된 외형이 경고 없이 사라진다. 외형을 지키려면 `appearance` 를 함께 보내거나, `GET /api/triggers/:id` 로 현재 값을 읽어 합친 뒤 PATCH 한다.
 
-서버가 만든 트리거 단위 토큰(`interaction.triggerToken`)은 이 통째 교체에서 빠진다. 호출자가 top-level `interaction` 에 이 필드를 실으면 400 `VALIDATION_ERROR` 다. 원시 `config`(요청 본문의 `config` 키) 바로 아래에는 `interaction` 키를 실을 수 없다. 생성과 PATCH 모두 이 키가 있으면 값과 상관없이 400 `VALIDATION_ERROR` 다. 그래서 인터랙션 설정은 top-level `interaction` 으로만 바꿀 수 있다. 서버는 PATCH 결과에 따라 저장된 토큰을 이어받거나 새로 발급하거나 지운다([부모 「인터랙션 토큰」 요구사항](CLE-EIA.md#인터랙션-토큰)). 원시 `config` 계약과 이 규칙의 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이고, 발급 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 에 있다(생성 · PATCH 각 한 줄).
+서버가 만든 트리거 단위 토큰(`interaction.triggerToken`)은 이 통째 교체에서 빠진다. 호출자가 타입 필드 `interaction` 에 이 필드를 실으면 400 `VALIDATION_ERROR` 다. 원시 `config`(요청 본문의 `config` 키) 바로 아래에는 `interaction` 키를 실을 수 없다. 생성과 PATCH 모두 이 키가 있으면 값과 상관없이 400 `VALIDATION_ERROR` 다. 그래서 인터랙션 설정은 타입 필드 `interaction` 으로만 바꿀 수 있다. 서버는 PATCH 결과에 따라 저장된 토큰을 이어받거나 새로 발급하거나 지운다([부모 「인터랙션 토큰」 요구사항](CLE-EIA.md#인터랙션-토큰)). 원시 `config` 계약과 이 규칙의 기준은 [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) 이고, 발급 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 에 있다(생성 · PATCH 각 한 줄).
 
 생성 응답(`201 Created`)은 다음과 같다. 전역 `TransformInterceptor` 가 트리거 리소스를 응답 봉투 `data` 로 감싼다.
 
@@ -242,7 +242,7 @@ type InteractionRequestContext =
 
 트리거 단위 토큰(`itk_*`)의 발급은 2026-10-17 에 사용자가 정했다. 인터랙션을 켠 `per_trigger` 트리거를 만들면 서버가 발급한다. PATCH 결과가 인터랙션을 켠 `per_trigger` 이고 저장된 토큰이 없을 때도 발급한다. 저장된 토큰이 있으면 이어받는다. 그래서 인터랙션을 껐다가 다시 켜면 같은 토큰을 쓴다. 이유는 두 가지다. 생성 때 발급하지 않으면 `per_trigger` 로 만든 트리거는 재발급을 한 번 더 불러야 인바운드 경로를 쓸 수 있다. 또 서버가 만든 비밀을 그 비밀이 생긴 응답에서 한 번 보여 준다는 규칙이 알림 서명 시크릿과 같아진다. 저장과 잠금의 근거는 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17) 에 있다.
 
-2026-10-17 당시에는 원시 `config` 로 바꾼 PATCH 도 같은 규칙을 따랐다. 2026-10-31 부터 원시 `config` 는 `interaction` 키를 받지 않으므로 그 갈래는 없어졌고, 발급 요구사항은 최상위 `interaction` 을 바꾼 PATCH 만 적는다. 결정과 근거는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) Rationale 의 「원시 `config` 계약 (2026-10-31)」 에 있다.
+2026-10-17 당시에는 원시 `config` 로 바꾼 PATCH 도 같은 규칙을 따랐다. 2026-10-31 부터 원시 `config` 는 `interaction` 키를 받지 않으므로 그 갈래는 없어졌고, 발급 요구사항은 타입 필드 `interaction` 을 바꾼 PATCH 만 적는다. 결정과 근거는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) Rationale 의 「원시 `config` 계약 (2026-10-31)」 에 있다.
 
 인터랙션을 끄는 것은 토큰 폐기가 아니고 중지다. 그래서 다시 켜면 같은 토큰이 통한다. 토큰 전략을 바꾸면 값을 지운다. 이 경우는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 의 범위이고, 끄기와 전략 변경을 가르는 근거 전문은 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다-2026-10-17) 에 있다.
 
