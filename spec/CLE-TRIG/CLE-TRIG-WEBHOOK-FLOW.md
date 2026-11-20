@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-FLOW"
 title: "웹훅 — 처리 흐름"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "61aef7666a304eae1da1a9c7a028ecdc78dbcf60696a06a7d3bd4a5d4b6cecd3"
+content_hash: "314e7683418d7779dd5a41f913fa4e834232d697e07a5ac6c69ea9c4cf673735"
 read_as: "approved_fallback"
-task: "CLE-T-W020BQ"
+task: "CLE-T-2M0591"
 source_paths: []
-mirror_sha256: "acb16dbe0a9017a5216e2487483489ab5c3132edd8024e63da45880faca28cc2"
-etag: "sha256-92af4a224ff7287c31014aa34a502eccb2715561b3563c0f8451427384bf2e02"
+mirror_sha256: "a3c3ada1ed43f99c17c0846aa4528d7ba5311eedb43881a97e513688c650b5b6"
+etag: "sha256-c1dd51aa8e9ae4799a3347d2ada23316cfbad73bcc011598f8e93544f933057d"
 ---
 ## 개요
 
@@ -59,7 +59,8 @@ etag: "sha256-92af4a224ff7287c31014aa34a502eccb2715561b3563c0f8451427384bf2e02"
   - 인터랙션 요청이 아니면 기본 인터랙션 응답이 없고 아래 규칙대로 `202` 나 handshake 응답으로 답한다. Discord PING · 자동 완성, Slack `url_verification` · Events API 메시지, Telegram update 가 여기에 든다.
   - 프로바이더별 본문과 문구는 [Discord 어댑터 「인바운드 응답」](../CLE-CHAT/CLE-CHAT-DISCORD.md#인바운드-응답) 과 [Slack 어댑터 「인바운드 응답」](../CLE-CHAT/CLE-CHAT-SLACK.md#인바운드-응답) 이 정한다.
 - 트리거가 비활성이어도 서명 검증은 먼저 한다. 통과하면 update 를 무시하고 실행을 시작하지 않는다. 버린 버튼 클릭의 수신 확인을 포함해 프로바이더 API 도 부르지 않는다. 응답은 인터랙션 요청이면 `200 OK` 와 기본 인터랙션 응답이고 그 밖에는 `202 Accepted` 와 `{ executionId: 'ignored' }` 다. handshake 도 그 밖에 들어 `202` 다.
-  - 비활성인데 410 이 아니라 2xx 인 이유는 Telegram 같은 provider 가 2xx 가 아닌 응답을 받으면 웹훅을 자동으로 끄거나 재시도를 쏟아내기 때문이다. 인터랙션 요청에 `200` 으로 답하는 이유는 [꺼진 트리거도 인터랙션 요청에는 200 으로 답한다](#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다-2026-11-12) 에 있다.
+  - 비활성인데 410 이 아니라 2xx 로 답하는 이유는 프로바이더가 2xx 가 아닌 응답을 실패로 다루기 때문이다. Telegram 은 같은 update 를 몇 번 다시 보낸 뒤 포기한다. Slack 슬래시 명령과 Discord 인터랙션은 다시 보내지 않는다. 대신 사용자 화면에 실패가 보인다(Slack 은 `operation_timeout`). 버리기로 한 update 로 재전송이나 실패 표시를 부를 이유가 없다. 프로바이더 동작의 근거는 [R-CC-12](../CLE-CHAT/CLE-CHAT-CORE-RESPONSE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 와 [R-CC-27](../CLE-CHAT/CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
+  - 인터랙션 요청에 `200` 으로 답하는 이유는 [꺼진 트리거도 인터랙션 요청에는 200 으로 답한다](#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다-2026-11-12) 에 있다.
   - 비활성이어도 인증을 하는 이유는 인증에 실패한 요청에 조용한 202 를 주면 공격자가 트리거 활성 여부를 추측할 수 있고 운영자는 인증 실패를 401 로 봐야 디버깅할 수 있기 때문이다.
 - 워크플로우가 비활성이면(`workflow.is_active=false`) 새 실행을 시작하는 경우만 막고 비활성 트리거와 같이 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답한다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다. handshake 에는 답하고 진행 중인 대화는 이어진다. 막는 update 와 비활성 트리거와의 차이는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 확인 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
 - 새 대화면 일반 경로와 같이 `execute(workflowId, input, { triggerId, workspaceId, sourceIp, responseCode })` 로 실행을 시작한다. 입력은 provider update 를 바꾼 값이다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 채팅 채널의 인터랙션 요청(Discord 슬래시 명령 · 컴포넌트 · 모달 제출, Slack Interactivity · 슬래시 명령)이면 `'200'` 이다. 워크플로우가 트리거의 워크스페이스에 없으면 404 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 답하고 `chat_channel_health` 를 `degraded` 로 남긴다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)).
@@ -87,13 +88,15 @@ etag: "sha256-92af4a224ff7287c31014aa34a502eccb2715561b3563c0f8451427384bf2e02"
 
 ## Rationale
 
-### 꺼진 워크플로우의 웹훅 응답 (2026-10-10)
+### 비활성 워크플로우의 웹훅 응답
 
-워크플로우를 비활성으로 바꾸면 웹훅과 채팅 채널 수신으로 새 실행이 생기지 않는다. 이 미결은 사용자가 2026-10-10 에 정했다(NERV Task `CLE-T-XRWFMJ`). 결정과 기각한 대안, handshake 에 답하는 이유, 진행 중인 대화를 막지 않는 이유, 트리거의 워크스페이스 안에서만 찾는 이유, 엔진이 아니라 호출부에서 확인하는 이유는 [트리거 데이터와 흐름](CLE-TRIG-DATA.md#꺼진-워크플로우를-실행-관문으로-둔-결정-2026-10-10) 이 기준이다. 이 문서는 수신 응답만 정한다.
+결정일: 2026-10-10
+
+워크플로우를 비활성으로 바꾸면 웹훅과 채팅 채널 수신으로 새 실행이 생기지 않는다. 이 미결은 사용자가 2026-10-10 에 정했다(NERV Task `CLE-T-XRWFMJ`). 결정과 기각한 대안, handshake 에 답하는 이유, 진행 중인 대화를 막지 않는 이유, 트리거의 워크스페이스 안에서만 찾는 이유, 엔진이 아니라 호출부에서 확인하는 이유는 [트리거 데이터와 흐름](CLE-TRIG-DATA.md#비활성-워크플로우를-실행-관문으로-둔-결정) 이 기준이다. 이 문서는 수신 응답만 정한다.
 
 - 일반 웹훅은 비활성 트리거와 같은 `410 Gone` 이고 코드는 새로 둔 `WORKFLOW_INACTIVE` 다(사용자 결정). 코드가 다르면 호출자와 운영자가 트리거와 워크플로우 가운데 무엇을 활성으로 바꿔야 하는지 응답만 보고 안다.
 - 확인 자리는 비활성 트리거 확인 바로 뒤, 인증 앞이다. 두 비활성 응답이 같은 자리에서 나간다. 경로를 아는 호출자는 지금도 인증 없이 410 으로 트리거가 비활성임을 안다. 새 코드로 더 알 수 있는 것은 비활성인 쪽이 워크플로우라는 사실뿐이다.
-- 채팅 채널은 비활성 트리거와 같은 `202` ignored(인터랙션 요청은 `200 OK`)다. provider 가 2xx 가 아닌 응답을 받으면 웹훅을 끄거나 재시도를 쏟아내는 사정([채팅 채널 분기](#채팅-채널-분기))이 그대로 적용된다.
+- 채팅 채널은 비활성 트리거와 같은 `202` ignored(인터랙션 요청은 `200 OK`)다. 2xx 가 아닌 응답은 Telegram 의 재전송이나 Slack · Discord 사용자 화면의 실패 표시를 부른다([채팅 채널 분기](#채팅-채널-분기)). 2xx 가 아닌 응답이 이어지면 웹훅을 끈다는 규칙은 프로바이더 문서에서 확인되지 않았다(2026-11-20 확인, [R-CC-27](../CLE-CHAT/CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). Slack 이 실패율로 구독을 끄는 규칙은 Events API 에만 있다.
 
 ### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다 (2026-11-12)
 

@@ -26,6 +26,7 @@ import {
 } from '../execution-engine/types/trigger-parameter.types';
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import { InteractionService } from '../external-interaction/interaction.service';
+import { buildInteractionBlock } from '../external-interaction/interaction-block';
 import type { InternalInteractionRequestContext } from '../external-interaction/interaction.guard';
 import type { InteractDto } from '../external-interaction/dto/interact.dto';
 import type { InteractAckDto } from '../external-interaction/dto/responses/interact-ack-response.dto';
@@ -360,9 +361,10 @@ export class HooksService {
     // 7. External Interaction API — interaction.enabled=true 일 때 interaction token + endpoints
     //    동봉 ([Spec EIA §4.1] / WH-RS-04). per_execution 전략이면 단명 JWT 발급, per_trigger
     //    전략이면 응답에 token 미동봉 (호출자가 이미 itk_* 보유).
-    const interaction = await this.buildInteractionResponse(
+    const interaction = await buildInteractionBlock(
       trigger.config,
       executionId,
+      this.tokenService,
     );
 
     return interaction
@@ -1746,47 +1748,6 @@ export class HooksService {
       config,
       adapter,
     );
-  }
-
-  private async buildInteractionResponse(
-    config: Record<string, unknown>,
-    executionId: string,
-  ): Promise<{
-    token?: string;
-    expiresAt?: string;
-    endpoints: {
-      stream: string;
-      submit: string;
-      status: string;
-      cancel: string;
-      refresh: string;
-    };
-  } | null> {
-    const interactionCfg = (config as { interaction?: unknown }).interaction;
-    if (!interactionCfg || typeof interactionCfg !== 'object') return null;
-    const enabled = (interactionCfg as { enabled?: unknown }).enabled === true;
-    if (!enabled) return null;
-    const strategy =
-      (interactionCfg as { tokenStrategy?: unknown }).tokenStrategy ??
-      'per_execution';
-    const endpoints = {
-      stream: `/api/external/executions/${executionId}/stream`,
-      submit: `/api/external/executions/${executionId}/interact`,
-      status: `/api/external/executions/${executionId}`,
-      cancel: `/api/external/executions/${executionId}/cancel`,
-      refresh: `/api/external/executions/${executionId}/refresh-token`,
-    };
-    if (strategy === 'per_execution') {
-      const issued = await this.tokenService.issuePerExecution(executionId);
-      return {
-        token: issued.token,
-        expiresAt: issued.expiresAt,
-        endpoints,
-      };
-    }
-    // per_trigger — token 미동봉. 호출자는 트리거 생성 응답이나 per_trigger 를 켠 PATCH 응답에서 한 번 받은
-    // itk_* 를 쓴다. 다시 받으려면 `revoke-token` 으로 재발급한다(NERV Task `CLE-T-EMB0YG`).
-    return { endpoints };
   }
 }
 

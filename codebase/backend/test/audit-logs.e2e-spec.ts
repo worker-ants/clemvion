@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import request from 'supertest';
+import { Queue } from 'bullmq';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import {
@@ -15,6 +16,10 @@ import {
 } from '../src/shared/testing/response-contract';
 import { AuditLogDto } from '../src/modules/audit-logs/dto/responses/audit-log-response.dto';
 import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
+import {
+  AUDIT_LOG_PRUNE_JOB,
+  AUDIT_LOG_PRUNER_QUEUE,
+} from '../src/modules/audit-logs/jobs/audit-log-pruner.service';
 
 /**
  * e2e: spec/5-system/1-auth.md §4.2/§5 — GET /api/audit-logs 권한 경계 (감사 보고 V-03).
@@ -151,4 +156,94 @@ describe('Audit logs 권한 경계 (e2e)', () => {
     expect(nobody.status).toBe(200);
     expect((nobody.body.data as unknown[]).length).toBe(0);
   });
+});
+
+/**
+ * e2e: [감사 로그 「감사 로그 보존 배치」](CLE-OBS-AUDIT#감사-로그-보존-배치) REQ-AUDIT-019.
+ * 매일 03:30 스케줄을 기다리지 않고 정리 잡을 큐에 직접 넣는다. e2e backend 는
+ * `AUDIT_LOG_RETENTION_DAYS` 를 두지 않으므로 기본 365일로 돈다.
+ */
+describe('Audit logs 보존 배치 (e2e)', () => {
+  const PRUNE_WAIT_MS = 20_000;
+  const PRUNE_POLL_MS = 250;
+  let db: Client;
+  let workspaceId: string;
+  let userId: string;
+
+  beforeAll(async () => {
+    db = createDbClient();
+    await db.connect();
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('aud-prune'),
+      db,
+    );
+    userId = owner.userId;
+    workspaceId = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('AUDP'),
+    );
+  }, 60_000);
+
+  afterAll(async () => {
+    await db?.end();
+  });
+
+  async function seed(ageDays: number): Promise<string> {
+    const r = await db.query<{ id: string }>(
+      `INSERT INTO audit_log (id, workspace_id, user_id, action, resource_type, resource_id, details, created_at)
+       VALUES (gen_random_uuid(), $1, $2, 'integration.created', 'integration', gen_random_uuid(), '{}',
+               NOW() - make_interval(days => $3))
+       RETURNING id`,
+      [workspaceId, userId, ageDays],
+    );
+    return r.rows[0].id;
+  }
+
+  it('365일이 지난 행만 지우고 그 안의 행은 남긴다', async () => {
+    const expired = await seed(400);
+    const keptOld = await seed(364);
+    const keptNew = await seed(0);
+
+    const queue = new Queue(AUDIT_LOG_PRUNER_QUEUE, {
+      connection: {
+        host: process.env.REDIS_HOST ?? 'redis',
+        port: Number(process.env.REDIS_PORT ?? '6379'),
+        ...(process.env.REDIS_PASSWORD
+          ? { password: process.env.REDIS_PASSWORD }
+          : {}),
+      },
+    });
+    try {
+      // 끝난 잡을 Redis 에 남기지 않는다(같은 큐를 쓰는 다른 테스트와 섞이지 않게).
+      await queue.add(
+        AUDIT_LOG_PRUNE_JOB,
+        {},
+        { removeOnComplete: true, removeOnFail: true },
+      );
+      // 판정 기준은 만료 행이 지워졌다는 사실이다(잡이 돌았다는 확실한 흔적).
+      const deadline = Date.now() + PRUNE_WAIT_MS;
+      let expiredLeft = 1;
+      while (Date.now() < deadline) {
+        const r = await db.query('SELECT 1 FROM audit_log WHERE id = $1', [
+          expired,
+        ]);
+        expiredLeft = r.rows.length;
+        if (expiredLeft === 0) break;
+        await new Promise((resolve) => setTimeout(resolve, PRUNE_POLL_MS));
+      }
+      expect(expiredLeft).toBe(0);
+    } finally {
+      await queue.close();
+    }
+
+    const kept = await db.query<{ id: string }>(
+      'SELECT id FROM audit_log WHERE id = ANY($1::uuid[])',
+      [[keptOld, keptNew]],
+    );
+    expect(kept.rows.map((r) => r.id).sort()).toEqual(
+      [keptOld, keptNew].sort(),
+    );
+  }, 60_000);
 });

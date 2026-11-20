@@ -114,14 +114,12 @@ describe("ReRunModal", () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);
     renderModal();
-    expect(
-      screen.getByText(/Re-run Execution/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Re-run Execution/)).toBeInTheDocument();
     expect(screen.getByText("exec-1")).toBeInTheDocument();
     expect(screen.getByText("completed")).toBeInTheDocument();
   });
 
-  it("external-call 노드 수를 supportsDryRun=true 노드로 카운트한다", async () => {
+  it("부수효과 노드 수를 supportsDryRun=true 노드로 카운트한다", async () => {
     apiGetMock.mockResolvedValue({
       data: {
         data: [
@@ -138,7 +136,7 @@ describe("ReRunModal", () => {
     ]);
     renderModal();
     expect(
-      await screen.findByText(/includes 2 external-call node/),
+      await screen.findByText(/includes 2 side-effect node/),
     ).toBeInTheDocument();
     // spec §10.2 — node type 별 breakdown ("<label> × <n>") 도 함께 노출.
     expect(
@@ -146,10 +144,128 @@ describe("ReRunModal", () => {
     ).toBeInTheDocument();
   });
 
+  // MCP 서버를 연결한 AI 에이전트 노드는 부수효과 노드 수와 따로 한 줄로 센다
+  // (CLE-EXEC-RERUN-UI 「재실행 모달」, NERV Task CLE-T-5WK8QA). config 만 본다.
+  // Cafe24 · MakeShop 도구도 mcpServers 로 연결되므로 같은 줄에 든다.
+  it("MCP 서버를 연결한 AI 에이전트 노드를 따로 한 줄로 센다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          { id: "n1", type: "http-request", category: "integration" },
+          {
+            id: "a1",
+            type: "ai_agent",
+            category: "ai",
+            config: { mcpServers: [{ integrationId: "int-mcp" }] },
+          },
+          {
+            id: "a2",
+            type: "ai_agent",
+            category: "ai",
+            config: { mcpServers: [{ integrationId: "int-cafe24" }] },
+          },
+          {
+            id: "a3",
+            type: "ai_agent",
+            category: "ai",
+            config: { mcpServers: '{{ $node["Set"].output.servers }}' },
+          },
+          {
+            id: "a4",
+            type: "ai_agent",
+            category: "ai",
+            config: { mcpServers: [] },
+          },
+          {
+            id: "a5",
+            type: "ai_agent",
+            category: "ai",
+            config: { mcpServers: "  " },
+          },
+          { id: "a6", type: "ai_agent", category: "ai", config: {} },
+          {
+            id: "x1",
+            type: "set",
+            category: "logic",
+            config: { mcpServers: [{ integrationId: "int-mcp" }] },
+          },
+        ],
+      },
+    });
+    seedDefinitions([
+      def("http-request", "integration", true),
+      def("ai_agent", "ai", false),
+      def("set", "logic", false),
+    ]);
+    renderModal();
+    expect(
+      await screen.findByText(
+        /^3 AI agent node\(s\) with connected MCP servers$/,
+      ),
+    ).toBeInTheDocument();
+    // 부수효과 노드 수에는 더하지 않는다.
+    expect(screen.getByText(/includes 1 side-effect node/)).toBeInTheDocument();
+  });
+
+  it("MCP 서버를 연결한 AI 에이전트 노드가 없으면 그 줄을 보이지 않는다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          { id: "n1", type: "http-request", category: "integration" },
+          {
+            id: "a1",
+            type: "ai_agent",
+            category: "ai",
+            config: { mcpServers: [] },
+          },
+        ],
+      },
+    });
+    seedDefinitions([
+      def("http-request", "integration", true),
+      def("ai_agent", "ai", false),
+    ]);
+    renderModal();
+    expect(
+      await screen.findByText(/includes 1 side-effect node/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/AI agent node/)).not.toBeInTheDocument();
+  });
+
+  it("한국어 안내는 «부수효과 노드» 와 «워크플로우» 로 쓴다", async () => {
+    useLocaleStore.setState({ locale: "ko" });
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          { id: "n1", type: "http-request", category: "integration" },
+          {
+            id: "a1",
+            type: "ai_agent",
+            category: "ai",
+            config: { mcpServers: [{ integrationId: "int-mcp" }] },
+          },
+        ],
+      },
+    });
+    seedDefinitions([
+      def("http-request", "integration", true),
+      def("ai_agent", "ai", false),
+    ]);
+    renderModal();
+    expect(
+      await screen.findByText(/이 워크플로우는 부수효과 노드 1개를 포함합니다/),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("MCP 서버를 연결한 AI 에이전트 노드 1개"),
+    ).toBeInTheDocument();
+  });
+
   it("dry-run 미지원 integration 노드가 있으면 dry-run toggle 이 disabled 된다", async () => {
     apiGetMock.mockResolvedValue({
       data: {
-        data: [{ id: "n1", type: "weird-integration", category: "integration" }],
+        data: [
+          { id: "n1", type: "weird-integration", category: "integration" },
+        ],
       },
     });
     seedDefinitions([def("weird-integration", "integration", undefined)]);
@@ -202,10 +318,12 @@ describe("ReRunModal", () => {
     renderModal();
     const nameInput = screen.getByLabelText("name") as HTMLInputElement;
     expect(nameInput).not.toBeDisabled();
-    const toggle = screen.getByText("Use original input").closest("label")!
+    const toggle = screen
+      .getByText("Use original input")
+      .closest("label")!
       .querySelector("input")!;
     fireEvent.click(toggle);
-    expect((screen.getByLabelText("name") as HTMLInputElement)).toBeDisabled();
+    expect(screen.getByLabelText("name") as HTMLInputElement).toBeDisabled();
   });
 
   it("Re-run 버튼 → reRun API 호출 후 새 실행 상세로 라우팅", async () => {
@@ -232,7 +350,13 @@ describe("ReRunModal", () => {
   it("re-run 성공 후 활성 워크스페이스가 있으면 slug 경로로 라우팅한다", async () => {
     useWorkspaceStore.setState({
       workspaces: [
-        { id: "ws", name: "W", type: "personal", slug: "team-x", role: "owner" },
+        {
+          id: "ws",
+          name: "W",
+          type: "personal",
+          slug: "team-x",
+          role: "owner",
+        },
       ],
       currentWorkspaceId: "ws",
       loaded: true,
@@ -313,9 +437,7 @@ describe("ReRunModal", () => {
     renderModal();
     const link = screen.getByText("exec-1").closest("a") as HTMLAnchorElement;
     expect(link).not.toBeNull();
-    expect(link.getAttribute("href")).toBe(
-      "/workflows/wf-1/executions/exec-1",
-    );
+    expect(link.getAttribute("href")).toBe("/workflows/wf-1/executions/exec-1");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toContain("noopener");
   });
@@ -353,7 +475,9 @@ describe("ReRunModal", () => {
       const count = screen.getByLabelText("count") as HTMLInputElement;
       expect(count.type).toBe("number");
     });
-    expect((screen.getByLabelText("count") as HTMLInputElement).value).toBe("3");
+    expect((screen.getByLabelText("count") as HTMLInputElement).value).toBe(
+      "3",
+    );
     const flag = screen.getByLabelText("flag") as HTMLInputElement;
     expect(flag.type).toBe("checkbox");
     expect(flag.checked).toBe(true);
@@ -805,9 +929,9 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     // 라벨은 스키마 전에도 있으므로(그땐 string 필드) `findByLabelText` 만으로는 이르다 —
     // 전환 자체를 기다려야 재조정 이후 상태를 본다.
     await waitFor(() =>
-      expect(
-        (screen.getByLabelText(/flag/i) as HTMLInputElement).type,
-      ).toBe("checkbox"),
+      expect((screen.getByLabelText(/flag/i) as HTMLInputElement).type).toBe(
+        "checkbox",
+      ),
     );
     const box = screen.getByLabelText(/flag/i) as HTMLInputElement;
     expect(box.checked).toBe(false); // 재조정 결과가 `false` - "빈 값" 이 아니다

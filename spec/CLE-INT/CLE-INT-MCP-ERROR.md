@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-ERROR"
 title: "MCP 클라이언트 — 에러 처리"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "334609dc0d858293b9ce460c06f14a471d5eb17a6510301ec8a6c93f59c799f9"
+content_hash: "c1560cc6cc6f5975b728de676e281115076ee68c1bf81ce1d3259d330d43271b"
 read_as: "approved_fallback"
-task: "CLE-T-DDN3MS"
+task: "CLE-T-GKDPVQ"
 source_paths: []
-mirror_sha256: "400dc00674d9de13655d331c679d350c9041161c1ead4889c96122711e7d0541"
-etag: "sha256-e925bbd91db1d08a36ffa8857a6e63874d28eed71d9a808c6f321970906baa74"
+mirror_sha256: "08ff1b76d168854fa7c65ecf71ac25d67ff220c53e07c903c9e43260c0f0de76"
+etag: "sha256-05101f53a39ba888c06abf6a1d20fda7f76df6caa407cdb960f8229a95ffd0a3"
 ---
 ## 개요
 
@@ -71,7 +71,7 @@ MCP 서버 하나가 장애를 내도 AI 에이전트 노드 전체가 죽지 �
 
 메타 도구(`list_resources`·`read_resource`·`list_prompts`·`get_prompt`)는 활동 로그에 남기지 않는다. 외부 API 호출이라기보다 MCP 세션 안의 탐색 흐름이고, 매번 남기면 활동 탭의 신호보다 잡음이 커진다. 따로 대시보드가 필요해지면 별도 trace 로 들인다. `tools/list`·`resources/list`·`prompts/list` 같은 `buildTools` 단계의 준비 RPC 도 남기지 않는다.
 
-dry-run 재실행에서 건너뛴 호출은 남기지 않고 실제로 부른 GET 내부 MCP 브리지 operation 은 남긴다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md#기록과-집계)).
+dry-run 재실행에서 모의 응답으로 대신한 호출은 남기지 않고 실제로 부른 GET 내부 MCP 브리지 operation 은 남긴다([dry-run 재실행](CLE-INT-MCP-DRYRUN.md#기록과-집계)).
 
 활동 로그 쓰기는 fire-and-forget 이다. `tools/call` 응답을 돌려준 직후 비동기로 보내 주 경로를 막지 않는다. DB 쓰기가 실패하면 삼키고 warn 로그만 남긴다.
 

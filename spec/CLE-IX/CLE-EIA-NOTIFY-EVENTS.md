@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY-EVENTS"
 title: "EIA 알림 웹훅 — 이벤트와 payload"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-NOTIFY"]
 area: "CLE-IX"
-content_hash: "98ea3b9157323f396190a7865c99cf810e8af83b6a8b951ead24b682fbc9d565"
+content_hash: "67f3271104ef69473a424e8da4ef39e05ee82ee0de44f1ed2ed642bd89a27065"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FT8MMN"
 source_paths: []
-mirror_sha256: "6e035f400c110cd1e1848c5934e633618d7d9cbdbe5e52f483866d27a40293a1"
-etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
+mirror_sha256: "00243c31713417cb06b76f4a667065058409cf9216eaf97c7a058ba26460a2ee"
+etag: "sha256-0be8322c3a5dc4ac925baaaa4ba3dee9aca97d471986adaba9eec1c28e77811e"
 ---
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
 - 알림 웹훅 요청 본문에는 키 다섯 개(`executionId`·`seq`·`timestamp`·`triggerId`·`workflowId`)가 최상위와 `payload` 안에 두 번 나온다. 결함으로 보지 않는다. 지금 구조가 그렇다. 바깥 `workflowId` 는 트리거 행에서, 안쪽은 실행 라우팅 컨텍스트에서 온다.
 - 알림 웹훅 페이로드(`payload` 래퍼)는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답 봉투(`{ data }`)와 다른 것이다. 한 겹 감싸는 모양만 비슷하고 서로 참조하지 않는다.
 - 평면은 이벤트 봉투 차원의 말이다. `executionId`·`seq`·`timestamp` 가 필드 집합과 같은 층에 온다는 뜻이지 필드 집합 안의 중첩을 펴라는 뜻이 아니다. `result.cancelledBy` 의 `result` 는 세 경로 모두에서 그대로다.
-- 필드 집합·이벤트 봉투·알림 웹훅 페이로드·`cancelled` 행동 계약은 이 문서에만 두고 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)·[채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)·[에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md) 은 여기를 가리킨다(근거: [EIA 알림 웹훅 「정본을 한 곳에 둔다」](CLE-EIA-NOTIFY.md#정본을-한-곳에-둔다)).
+- 필드 집합·이벤트 봉투·알림 웹훅 페이로드·`cancelled` 행동 계약은 이 문서에만 두고 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)·[채팅 채널 어댑터 규약 — 이벤트와 데이터 타입](../CLE-CHAT/CLE-CHAT-ADAPTER-TYPES.md)·[에디터 실행과 디버깅](../CLE-EXEC/CLE-EXEC-RUN.md) 은 여기를 가리킨다(근거: [EIA 알림 웹훅 「정본을 한 곳에 둔다」](CLE-EIA-NOTIFY.md#정본을-한-곳에-둔다)).
 
 ## 종결 이벤트 필드 집합
 
@@ -70,7 +70,7 @@ etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
   |---|---|---|
   | `system` | `RESUME_*`(`CHECKPOINT_MISSING`·`FAILED`·`INCOMPATIBLE_STATE`) | rehydration 실패([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)) |
   | `timeout` | `EXECUTION_QUEUE_WAIT_TIMEOUT` | admission 큐 대기 5분 초과([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)) |
-  | `timeout` | `WEBCHAT_IDLE_TIMEOUT` | 공개 위젯 입력 대기 회수([External Interaction API](CLE-EIA.md)) |
+  | `timeout` | `WEBCHAT_IDLE_TIMEOUT` | 웹채팅 위젯 입력 대기 회수([External Interaction API](CLE-EIA.md)) |
 
 - 일반 사용자 취소에는 `error` 키가 없다. `null` 도 싣지 않는 부재다. `error` 는 시스템 취소의 사유를 더하는 부가 맥락이다. 사용자 취소는 `cancelledBy` 로 충분하므로 `error` 가 없는 것이 수신 측의 정상 경로다. 이 키 생략은 응답 바디 규칙인 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 의 기준 (b) 를 준용한다.
 - 같은 취소 전이를 여러 종결자가 각자 관측하면 저마다 `execution.cancelled` 를 낸다. 단일 발행 관문이 없다. payload 값은 모두 DB 정본을 읽어 같으므로 모순은 없고 중복만 생긴다. 수신 측은 `executionId` 와 종결 여부로 멱등하게 처리한다.
@@ -97,17 +97,18 @@ etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
       "type":            "form" | "carousel" | "table" | "chart" | "template" | "ai_agent" | "information_extractor",
       "interactionType": "form" | "buttons" | "ai_conversation"
     },
-    // interaction 블록은 미구현(Planned). 아래 필드는 아직 싣지 않는다
+    // interaction 블록은 알림 웹훅에만 싣는다. SSE 에는 없다.
     "interaction": {
-      "submitUrl":  "/api/external/executions/{id}/interact",
-      "streamUrl":  "/api/external/executions/{id}/stream",
-      "statusUrl":  "/api/external/executions/{id}",
-      "cancelUrl":  "/api/external/executions/{id}/cancel",
-      "token":      "iext_<jwt>",     // per_execution 일 때만. per_trigger 면 생략
-      "expiresAt":  "ISO8601",
-      "expectedCommands": ["submit_form"]
-                       | ["click_button"]
-                       | ["submit_message", "end_conversation"]
+      "token":      "iext_<jwt>",     // per_execution 일 때만. 알림마다 새로 발급한다. per_trigger 면 생략
+      "expiresAt":  "ISO8601",        // token 과 함께만 온다
+      "endpoints": {
+        "stream":  "/api/external/executions/{id}/stream",
+        "submit":  "/api/external/executions/{id}/interact",
+        "status":  "/api/external/executions/{id}",
+        "cancel":  "/api/external/executions/{id}/cancel",
+        "refresh": "/api/external/executions/{id}/refresh-token"
+      },
+      "expectedCommands": ["submit_form"] | ["click_button"] | ["submit_message", "end_conversation"]
     },
     "context": {
       "formConfig":         { /* form 노드일 때 */ },
@@ -119,13 +120,15 @@ etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
 }
 ```
 
-- `interaction` 블록은 미구현이다. URL 네 개·`token`·`expiresAt`·`expectedCommands` 를 지금은 어떤 발행 경로도 싣지 않는다. 클라이언트는 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 의 엔드포인트를 직접 구성해야 한다. URL 은 구현될 때의 형태를 상대 경로로 적었다. 절대 URL 이나 `/v1/` 버전 구간은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 위반이다.
-- `interaction` 블록이 구현되면 `token` 은 실행 단위 토큰 전략(`per_execution`)일 때만 싣는다. 트리거 단위 토큰 전략(`per_trigger`)이면 키를 생략한다. 트리거 단위 토큰은 생성 · PATCH · 재발급 응답으로 이미 받은 영구 토큰이라([External Interaction API](CLE-EIA.md)) 키가 없는 것이 정상 경로다. 이 키 생략도 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 의 기준 (b) 를 준용한다.
-- `expectedCommands` 는 "다음에 보낼 만한" 명령을 알려 주는 권장 힌트다. 서버가 강제하는 대기 표면별 허용 명령과 다를 수 있다. `ai_conversation`·`ai_form_render` 대기 중에는 서버가 네 명령을 모두 받지만(`render_form` 응답을 `submit_form` 으로, 낡은 `button_click` 은 다시 park, [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md)), `expectedCommands` 는 그중 권장 명령만 나열한다. 서버 강제 매트릭스는 [큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증) 이 정한다(불일치는 `409 STATE_MISMATCH`).
+- `interaction` 블록은 알림 웹훅의 `execution.waiting_for_input` 에만 싣는다. 트리거의 인터랙션 설정(`config.interaction.enabled`)이 켜져 있을 때만 싣고, 꺼져 있으면 키를 생략한다. 이 키 생략도 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 의 기준 (b) 를 준용한다. URL 은 `/api/external/…` 상대 경로로 싣는다. 202 응답의 블록과 같은 값이다. 경로에 버전 구간을 넣지 않는 것은 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 을 따른다. 블록은 웹훅 호출 응답(202)의 `interaction` 블록과 같은 빌더로 만들고 `expectedCommands` 만 더한다. 202 응답의 모양은 바뀌지 않는다([EIA 수신 API와 SSE](CLE-EIA-INBOUND.md)).
+- `token` · `expiresAt` 은 실행 단위 토큰 전략(`per_execution`)일 때만 싣는다. 알림을 보낼 때마다 새 실행 단위 토큰을 발급하고 `expiresAt` 은 그 토큰의 만료 시각이다. 이 토큰도 웹훅 응답의 토큰처럼 실행이 끝나면 폐기된다. 트리거 단위 토큰 전략(`per_trigger`)이면 두 키를 생략한다. 트리거 단위 토큰은 생성 · PATCH · 재발급 응답으로 이미 받은 영구 토큰이라([External Interaction API](CLE-EIA.md)) 키가 없는 것이 정상 경로다. 이 키 생략도 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 의 기준 (b) 를 준용한다.
+- 토큰 발급이 실패하면 알림을 버리지 않고 `interaction` 블록 없이 보낸다. 서버는 경고 로그를 남긴다. 수신 측은 블록이 없는 알림도 정상으로 받고, 이때는 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 의 엔드포인트를 직접 만든다.
+- `token` 은 응답 자격 증명 마스킹으로 가리지 않는다. 마스킹은 이벤트를 발행할 때 끝나고 fanout 이 그 뒤에 블록을 붙인다. 수신 측이 이 토큰으로 실행을 이어 가게 하는 것이 블록의 목적이다. 근거는 Rationale 「입력 대기 알림에 인터랙션 블록을 싣는다」.
+- `expectedCommands` 는 "다음에 보낼 만한" 명령을 알려 주는 권장 힌트다. 서버가 강제하는 대기 표면별 허용 명령과 다를 수 있다. `ai_conversation`·`ai_form_render` 대기 중에는 서버가 네 명령을 모두 받지만(`render_form` 응답을 `submit_form` 으로, 낡은 `button_click` 은 다시 park, [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md)), `expectedCommands` 는 그중 권장 명령만 나열한다. 서버 강제 매트릭스는 [큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증) 이 정한다(불일치는 `409 STATE_MISMATCH`). 값은 `interactionType` 으로 정한다. `form` 은 `["submit_form"]`, `buttons` 는 `["click_button"]`, `ai_conversation` 은 `["submit_message", "end_conversation"]` 이고 엔진 내부의 `ai_form_render` 대기도 `ai_conversation` 과 같다. 모르는 값이면 빈 배열이다.
 - `formConfig`·`buttonConfig`·`conversationConfig`·`conversationThread` 의 모양은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 의 입력 대기 이벤트와 같다. `conversationConfig.messages[].source` 가 없으면 `live` 로 보는 폴백도 그 문서가 정한다. 대화 스레드의 매핑 근거는 [대화 스레드](CLE-IX-THREAD.md) 다.
 - 디버그 전용 필드(`nodeOutput.meta.turnDebug[].llmCalls` 등 원본 LLM 요청·응답)는 필드 이름 기준으로 깊이와 관계없이 빠진다. 입력 대기 `nodeOutput` 의 키 허용 목록과 값 가리기는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 정한다.
 
-**실제 필드 이름.** 필드 이름은 채널과 관계없이 같다. 알림 웹훅도 SSE 도 아래 오른쪽 이름을 싣는다. 두 채널의 차이는 `payload` 래퍼가 있느냐뿐이다. fanout 은 이름을 바꾸지 않는다(`notification-fanout.service.ts` 가 `payload: event.payload` 로 그대로 감싼다). 위젯과 SDK 는 어느 채널에서든 오른쪽을 읽는다.
+**실제 필드 이름.** 필드 이름은 채널과 관계없이 같다. 알림 웹훅도 SSE 도 아래 오른쪽 이름을 싣는다. 두 채널의 차이는 둘이다. 알림 웹훅에만 `payload` 래퍼가 있고, 알림 웹훅의 입력 대기에만 `interaction` 블록이 있다. fanout 은 받은 payload 의 필드 이름을 바꾸지 않는다. 입력 대기 알림이면 그 payload 의 복사본에 `interaction` 만 더한다(`notification-fanout.service.ts`). SSE 가 받는 원본 이벤트는 그대로다. 위젯과 SDK 는 어느 채널에서든 오른쪽을 읽는다.
 
 | 논리 표기 | 실제 필드 |
 |---|---|
@@ -135,6 +138,7 @@ etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
 | `context.buttonConfig` | `buttonConfig`(평면) |
 | `context.formConfig` | `nodeOutput.formConfig`(없으면 `nodeOutput` 자체) |
 | `context.conversationThread` | `conversationThread`(평면) |
+| `interaction.token` · `expiresAt` · `expectedCommands` | 같은 이름(`interaction` 바로 아래) |
 | 논리 표기에 없음 | `status`: 리터럴 `"waiting_for_input"` 이 평면으로 함께 온다 |
 
 `node.type` 에는 외부 소비용 대응이 없다. `waitingNodeType` 이 평면으로 실리기는 하지만 내부 WebSocket 의 부가 식별자(에디터 타임라인 관측용)다. 외부 클라이언트는 노드 종류 대신 `interactionType` 으로 가른다. 참조 구현 `parseWaitingForInput`(`codebase/channel-web-chat/src/lib/eia-events.ts`)이 `waitingNodeType` 을 읽지 않는 것이 그 근거다(실제 소비처는 내부 에디터의 `use-execution-events.ts` 뿐). `waitingNodeType`·`waitingNodeLabel`·`nodeExecutionId`·`startedAt` 도 평면으로 실리지만 같은 이유로 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 정한다. 이 문서는 외부 클라이언트가 읽는 필드만 다룬다.
@@ -194,7 +198,7 @@ etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
 - `durationMs`: 취소 경로 여섯 곳 중 네 곳은 엔티티를 읽지 않는 raw UPDATE 라 JS 로 계산할 수 없다. UPDATE 문 안에서 SQL 로 계산하고 `RETURNING` 으로 받아 싣는다. DB 와 전송 값이 같다. 알 수 없으면 `null` 이다.
 - 마지막 턴 재시도 처리 중 사용자가 Stop 하면, CANCELLED 분기의 `COALESCE` UPDATE 에 `RETURNING` 을 붙여 DB 가 실제로 고른 값을 다시 읽어 싣는다. `COALESCE` 가 어느 쪽을 골랐는지는 DB 만 알기 때문이다.
 - 검증 범위: 이 메커니즘은 mock 단위 테스트까지 확인했다. `COALESCE` 식이 실제 Postgres 에서 어느 값을 고르는지는 아직 실 DB 로 확인하지 않았다.
-- 취소 경로의 값은 실행 시간보다 대기 시간에 가깝다. `EXECUTION_QUEUE_WAIT_TIMEOUT`(admission 전부터의 큐 대기), park 취소(기한 없는 대기), 공개 위젯 입력 대기 회수(유예 기본 1시간) 셋 다 그렇다. `started_at` 이 실행 시작 시각이 아닌 생성 시각이기 때문이다. "종결까지의 경과" 라는 정의와는 맞지만, 수신 측이 실행 소요 시간으로 읽으면 오해할 수 있다.
+- 취소 경로의 값은 실행 시간보다 대기 시간에 가깝다. `EXECUTION_QUEUE_WAIT_TIMEOUT`(admission 전부터의 큐 대기), park 취소(기한 없는 대기), 웹채팅 위젯 입력 대기 회수(유예 기본 1시간) 셋 다 그렇다. `started_at` 이 실행 시작 시각이 아닌 생성 시각이기 때문이다. "종결까지의 경과" 라는 정의와는 맞지만, 수신 측이 실행 소요 시간으로 읽으면 오해할 수 있다.
 
 ### `execution.ai_message`
 
@@ -207,7 +211,8 @@ etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/external-interaction/notification-fanout.service.ts` (단일 싱크 구독, `FANOUT_EVENTS` 화이트리스트, 종료 시 토큰 폐기. `retry.maxAttempts` 를 큐 시도 횟수로 넘기는 일은 [서명과 발송](CLE-EIA-NOTIFY-DELIVERY.md#구현-위치))
+- `codebase/backend/src/modules/external-interaction/notification-fanout.service.ts` (단일 싱크 구독, `FANOUT_EVENTS` 화이트리스트, 종료 시 토큰 폐기, 입력 대기 알림의 `interaction` 블록. `retry.maxAttempts` 를 큐 시도 횟수로 넘기는 일은 [서명과 발송](CLE-EIA-NOTIFY-DELIVERY.md#구현-위치))
+- `codebase/backend/src/modules/external-interaction/interaction-block.ts` (`buildInteractionBlock` — 웹훅 202 응답과 알림 웹훅이 같이 쓰는 블록 빌더, `expectedCommandsFor`)
 - `codebase/backend/src/shared/utils/terminal-error-payload.ts` (`toTerminalErrorPayload`)
 - `codebase/backend/src/shared/utils/terminal-duration.ts` (종결 이벤트 `durationMs`)
 - `codebase/channel-web-chat/src/lib/eia-events.ts` (`parseWaitingForInput`·`parseAiMessage` 참조 구현)
@@ -222,4 +227,18 @@ etag: "sha256-3f0af8afb6902a12125aa8c22d8d002ecd9e6104a8f20b58e8ce112cf8172ad6"
 
 ### 시스템 취소 `error.message` 를 필수로 적는다 (2026-11-05)
 
-시스템 취소 경로는 모두 `{ code, message }` 를 손으로 만들고 `message` 에 정적 상수 문자열을 넣는다([`execution.cancelled` 행동 계약](#executioncancelled-행동-계약)). 선택으로 적으면 수신 측이 실제로 생기지 않는 부재를 처리해야 한다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 TypeScript 변형은 아직 `message?` 다. 그 문서는 어긋나면 이 문서를 따른다고 정해 두었고, 두 표기를 맞추는 일은 후속 NERV Task `CLE-T-M42X2A` 가 맡는다.
+시스템 취소 경로는 모두 `{ code, message }` 를 손으로 만들고 `message` 에 정적 상수 문자열을 넣는다([`execution.cancelled` 행동 계약](#executioncancelled-행동-계약)). 선택으로 적으면 수신 측이 실제로 생기지 않는 부재를 처리해야 한다. [채팅 채널 어댑터 규약 — 이벤트와 데이터 타입](../CLE-CHAT/CLE-CHAT-ADAPTER-TYPES.md) 의 TypeScript 변형도 `error?: { code: string; message: string }` 으로 `message` 를 필수로 적는다. 그 문서는 어긋나면 이 문서를 따른다고 정해 두었다.
+
+### 입력 대기 알림에 인터랙션 블록을 싣는다 (2026-11-20)
+
+- 결정은 사용자가 2026-11-20 에 내렸다(NERV 질문 `01a1f7b5-8d68-71ef-83ba-8662bcdcd173`, Task `CLE-T-BZH1XK`). 알림 웹훅 수신 측이 202 응답을 받은 호출자와 다를 수 있어 알림만으로 실행을 이어 갈 수 있게 한다. 알림 웹훅을 순수 통보로 한정한 결정([EIA 알림 웹훅 「EIA 알림 웹훅 응답으로 인터랙션을 받지 않는다」](CLE-EIA-NOTIFY.md#eia-알림-웹훅-응답으로-인터랙션을-받지-않는다))은 그대로다. 인터랙션 결과는 여전히 알림의 응답 본문으로 받지 않고 인바운드 API 로만 받는다. 이 블록은 요청 본문에 그 진입 정보를 실을 뿐이다.
+- **알림마다 새 토큰을 발급한다**: 서버는 202 응답의 토큰 원문을 저장하지 않아 다시 실을 수 없다. 저장했더라도 대기가 길어지면 만료 시간이 이미 지나 있다. 새로 발급하면 대기마다 만료 시간이 다시 시작한다. 발급한 jti 는 웹훅 응답의 토큰과 같은 실행 토큰 행으로 남고 실행이 끝나면 함께 폐기된다. 종료 폐기와 알림 발급이 엇갈려 행이 남으면 분 단위 종료 토큰 정리 작업(`terminal-revoke-reconcile`, [External Interaction API 요구사항](CLE-EIA.md#요구사항))이 다시 폐기한다([EIA 데이터와 흐름 — 토큰 발급과 인바운드 명령](CLE-EIA-DATA-TOKEN.md)).
+- **wire 는 202 응답과 같은 `endpoints` 묶음이다**: 202 응답은 이미 `endpoints.{stream,submit,status,cancel,refresh}` 를 싣는다. 알림만 `submitUrl` 같은 평면 이름을 쓰면 수신 측이 같은 블록을 두 모양으로 읽어야 한다. 그래서 빌더를 공유하고 이 문서의 예시도 wire 모양으로 적는다. 202 응답을 논리 표기 모양으로 바꾸는 안은 기존 호출자의 계약을 깨므로 기각했다.
+- **SSE 에는 싣지 않는다**: SSE 는 이미 토큰을 가진 클라이언트가 연 채널이라 새 토큰이 필요 없다. SSE 이벤트는 다시 보내기 버퍼(Redis)에도 남으므로 토큰을 실으면 그 버퍼에 토큰이 쌓인다. 그래서 「두 채널의 필드 이름이 같다」 는 원칙에 이 블록만 예외로 둔다.
+- **마스킹 뒤에 붙인다**: 응답 자격 증명 마스커는 토큰 모양의 값을 가린다. 블록을 마스킹 전에 넣으면 토큰이 가려져 쓸 수 없고, 마스커에 예외를 두면 다른 경로의 토큰 누출을 막는 규칙이 약해진다. 그래서 fanout 이 마스킹이 끝난 봉투의 복사본에 붙인다. 그 결과 알림 URL 의 주인은 실행을 이어 가거나 취소할 수 있다. 알림 URL 은 트리거를 고칠 수 있는 사람만 정하므로 이 권한은 트리거 편집 권한 안에 든다. 발송 재시도를 위해 큐 작업 데이터에도 토큰이 남는다. 그 토큰은 만료 시간(1시간)이 지나거나 실행이 끝나면 쓸 수 없다.
+- **발급이 실패해도 알림은 보낸다**: 입력 대기 사실 자체가 수신 측에 필요한 정보다. 블록이 빠진 알림은 엔드포인트를 직접 만들면 쓸 수 있다.
+- **웹채팅 위젯 유휴 회수가 늦어질 수 있다**: 회수는 실행 토큰 행의 가장 늦은 만료 시각을 기준으로 한다. 공개 웹훅 트리거가 입력 대기 알림을 구독하면 알림마다 새 토큰이 생겨 회수가 최대 1시간 늦어진다. 그 시간 동안 알림 수신 측이 유효한 토큰을 가지고 있으므로 회수를 미루는 것이 맞다.
+
+### 첫 AI 대기의 디버그 필드 이름을 바꾼다 (2026-11-20)
+
+첫 AI 입력 대기 이벤트는 최상위에 `turnDebug`(객체 `{ llmCalls, metadata }`)를 실었다. `nodeOutput.meta.turnDebug`(배열)와 이름이 같아 둘을 헷갈리게 했다. 저장소 밖 소비처는 보이지 않아 지우는 안도 있었지만 외부 wire 라 지우지 않고 `initialTurnDebug` 로 이름만 바꿨다(NERV Task `CLE-T-3SMSHG`, 21차 조율 세션에서 사용자가 2026-11-20 권장안으로 받았다). 알림 웹훅 · SSE 로는 `llmCalls` 가 빠진 `{ metadata }` 만 나가므로 외부 수신 측이 이 키를 읽었다면 새 이름으로 바꿔야 한다. 이 문서는 그 필드를 외부 계약으로 정하지 않는다. 두 이름을 함께 두고 구분 문구만 다는 안은 충돌을 굳히므로 기각했다.

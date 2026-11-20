@@ -293,8 +293,9 @@ export class BusinessMetricsService {
 
   /**
    * 채팅 채널 인바운드가 처리 중 예상하지 못한 오류(DB · Redis 장애 등)를 `202` 로 답하고 흡수한 사건을
-   * 센다(REQ-CHAT-056, NERV Task `CLE-T-5GVB9N`). 5xx 는 프로바이더의 재전송과 웹훅 자동 비활성화를 부르므로
-   * 오류를 숨기는데, 에러 로그만으로는 비율 · 추세로 경보를 걸 수 없다.
+   * 센다(REQ-CHAT-056, NERV Task `CLE-T-5GVB9N`). 5xx 로 답하면 Telegram 은 같은 update 를 몇 번 다시
+   * 보내고, Slack 슬래시 명령 · Discord 인터랙션은 사용자 화면에 실패를 띄운다(CLE-TRIG-WEBHOOK-FLOW
+   * Rationale). 그래서 오류를 숨기는데, 에러 로그만으로는 비율 · 추세로 경보를 걸 수 없다.
    * 경보 예: `rate(clemvion_chat_channel_inbound_error_absorbed[5m]) > 0`.
    */
   recordChatChannelInboundErrorAbsorbed(provider: string): void {

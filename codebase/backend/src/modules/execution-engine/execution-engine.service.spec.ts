@@ -3,6 +3,7 @@ import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { In } from 'typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import {
+  BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS,
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
 } from './queues/background-execution.queue';
@@ -8685,6 +8686,10 @@ describe('ExecutionEngineService', () => {
         ['node-bg-body'],
       ]);
       expect(jobs.map((job) => job.input)).toEqual([{ marker: 'pre-output' }]);
+      // 끝난 작업 보존은 큐 정의의 나이 기준 옵션을 쓴다(CLE-T-9XMCS6).
+      expect(queueAdd.mock.calls.map((call: unknown[]) => call[2])).toEqual([
+        BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS,
+      ]);
     });
 
     // ai-review C2 (2026-07-26) — mutation 실측: `runNodeDispatchLoop` 상단의

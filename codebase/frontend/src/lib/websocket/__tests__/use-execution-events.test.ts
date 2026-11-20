@@ -249,6 +249,62 @@ describe("useExecutionEvents", () => {
     expect(state.nodeStatuses.get("form-1")?.status).toBe("waiting_for_input");
   });
 
+  // NERV Task CLE-T-3SMSHG — 첫 AI 대기 이벤트의 최상위 디버그 필드는 `initialTurnDebug` 다.
+  // `nodeOutput.meta.turnDebug`(배열)와 이름이 겹치지 않게 바꿨다. 스레드 스냅샷이 없을 때의
+  // 레거시 폴백이 새 이름에서 Turn 1 디버그와 모델을 읽는다.
+  describe("AI 첫 대기의 레거시 폴백 디버그", () => {
+    function emitAiWaiting(extra: Record<string, unknown>) {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const handler = (mockClient.on as Mock).mock.calls.find(
+        (c: unknown[]) => c[0] === "execution.waiting_for_input",
+      )?.[1] as (data: unknown) => void;
+      handler({
+        waitingNodeId: "agent-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: {
+          conversationConfig: {
+            turnCount: 1,
+            messages: [
+              { role: "user", content: "hi" },
+              { role: "assistant", content: "hello" },
+            ],
+          },
+        },
+        ...extra,
+      });
+      return useExecutionStore
+        .getState()
+        .conversationMessages.find((m) => m.type === "assistant");
+    }
+
+    it("initialTurnDebug 에서 Turn 1 호출 디버그와 모델을 읽는다", () => {
+      const assistant = emitAiWaiting({
+        initialTurnDebug: {
+          llmCalls: { llmCalls: [{ durationMs: 42 }] },
+          metadata: { model: "model-x" },
+        },
+      });
+      expect(assistant).toMatchObject({
+        durationMs: 42,
+        metadata: { model: "model-x" },
+      });
+    });
+
+    it("옛 최상위 turnDebug 는 읽지 않는다", () => {
+      const assistant = emitAiWaiting({
+        turnDebug: {
+          llmCalls: { llmCalls: [{ durationMs: 42 }] },
+          metadata: { model: "model-x" },
+        },
+      });
+      expect(assistant).toBeDefined();
+      expect(assistant!.durationMs).toBeUndefined();
+      expect(assistant!.metadata?.model).toBeUndefined();
+    });
+  });
+
   it("does not overwrite completed status with running (event order reversal)", async () => {
     useExecutionStore.getState().startExecution("exec-1");
 

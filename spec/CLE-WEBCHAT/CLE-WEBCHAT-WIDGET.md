@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-WIDGET"
 title: "웹채팅 위젯"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-WCWIDGET-001", "REQ-WCWIDGET-002", "REQ-WCWIDGET-003", "REQ-WCWIDGET-004", "REQ-WCWIDGET-005", "REQ-WCWIDGET-006", "REQ-WCWIDGET-007", "REQ-WCWIDGET-008", "REQ-WCWIDGET-009", "REQ-WCWIDGET-010", "REQ-WCWIDGET-011", "REQ-WCWIDGET-012", "REQ-WCWIDGET-013", "REQ-WCWIDGET-014", "REQ-WCWIDGET-015", "REQ-WCWIDGET-016", "REQ-WCWIDGET-017", "REQ-WCWIDGET-018", "REQ-WCWIDGET-019", "REQ-WCWIDGET-020", "REQ-WCWIDGET-021", "REQ-WCWIDGET-022", "REQ-WCWIDGET-023", "REQ-WCWIDGET-024", "REQ-WCWIDGET-025", "REQ-WCWIDGET-026", "REQ-WCWIDGET-027", "REQ-WCWIDGET-028", "REQ-WCWIDGET-029", "REQ-WCWIDGET-030", "REQ-WCWIDGET-031", "REQ-WCWIDGET-032", "REQ-WCWIDGET-033", "REQ-WCWIDGET-034", "REQ-WCWIDGET-035", "REQ-WCWIDGET-036", "REQ-WCWIDGET-037", "REQ-WCWIDGET-038", "REQ-WCWIDGET-039", "REQ-WCWIDGET-040", "REQ-WCWIDGET-041", "REQ-WCWIDGET-042", "REQ-WCWIDGET-043", "REQ-WCWIDGET-044", "REQ-WCWIDGET-045", "REQ-WCWIDGET-046", "REQ-WCWIDGET-047", "REQ-WCWIDGET-048", "REQ-WCWIDGET-049", "REQ-WCWIDGET-050", "REQ-WCWIDGET-051", "REQ-WCWIDGET-052", "REQ-WCWIDGET-053", "REQ-WCWIDGET-054", "REQ-WCWIDGET-055", "REQ-WCWIDGET-056"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "205eb15c4491986323ca08fd3b07530834b7e45b322eac438ff2d66efbd6e1e4"
+content_hash: "aa095e0869129ea5fe73963b1a2c53d4bec67daf0fa9fd690a43da22ff9adc6e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-2M0591"
 source_paths: ["spec/7-channel-web-chat/1-widget-app.md"]
-mirror_sha256: "e32b69b358adc0f1b57aedb94d433dc603fc6d2d0919424f92b1dd68d5563841"
-etag: "sha256-b871d220a2607fb4dcf0ad3945bebe16956e26c730d02ab4a54340e5fe14663b"
+mirror_sha256: "ba84ae2433bcc7c23f271d1de0375e5ffcb8e17a41a90cda371e4b1c82e952da"
+etag: "sha256-6bb99f7a7366597ea78a3c46f0b8e5aac11421e3d9b6bf6a0720061bbc8e35fc"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/1-widget-app.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -125,7 +125,7 @@ etag: "sha256-b871d220a2607fb4dcf0ad3945bebe16956e26c730d02ab4a54340e5fe14663b"
 
 - **새 대화의 명령 순서와 종료 이벤트 경합**: [웹채팅 SDK](CLE-WEBCHAT-SDK.md)는 새 대화 순서를 `cancel` → 스트림 닫기 → 위젯 세션 비우기 → 시작으로 적는다. 이 문서의 대화 종료는 종료 이벤트와 겹치지 않도록 SSE 를 먼저 닫는다. 새 대화 순서대로면 `execution.cancelled` 가 아직 열린 스트림에 도착해 `[ended]` 로 바뀌는 경합이 이론상 가능하다. `cancel` 이 fire-and-forget 이라 경합이 없는지, 순서를 바꿔야 하는지 확인이 필요하다. 실제 경합 여부는 확인되지 않았다.
 - **호스트 `sendMessage` 의 위젯 쪽 처리**: SDK 는 `sendMessage(text)` 를 공개 API 와 `wc:command` 로 노출한다. 이 문서는 `booting`, `buttons`·`form` 표면, `[ended]` 에서 이 명령을 어떻게 처리할지(큐에 담기·버리기·무시) 정하지 않았다. 런처 버블 큐 게이팅을 그대로 적용하는지도 정해지지 않았다. 결정 필요.
-- **웹훅 시작 실패 때의 동작**: 운영 콘솔에서 웹채팅 인스턴스를 끄면 웹훅이 `410` 을 낸다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)). 공개 웹훅 가드는 `429`·`413` 을 낸다([웹채팅 보안](CLE-WEBCHAT-SECURITY.md)). 이 문서의 상태 전이는 `booting` 에서 웹훅이 실패할 때의 전이와 표시를 정하지 않았다. 보안 문서의 "에러 → `[ended]` + 새 대화 시작" 이 이 경로에도 적용되는지, 꺼진 트리거에 embed-config 가 어떻게 응답하는지도 정해지지 않았다. 결정 필요. 명령 실패 뒤의 전이는 [명령 실패](CLE-WEBCHAT-WIDGET-STATE.md#명령-실패)에서 정했다.
+- **웹훅 시작 실패 때의 동작**: 운영 콘솔에서 웹채팅 인스턴스를 끄면 웹훅이 `410 TRIGGER_INACTIVE` 를 낸다([웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md)). 연결된 워크플로우가 비활성이면 웹훅이 `410 WORKFLOW_INACTIVE` 를 낸다([트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문)). 공개 웹훅 가드는 `429`·`413` 을 낸다([웹채팅 보안](CLE-WEBCHAT-SECURITY.md)). 이 문서의 상태 전이는 `booting` 에서 웹훅이 실패할 때의 전이와 표시를 정하지 않았다. 보안 문서의 "에러 → `[ended]` + 새 대화 시작" 이 이 경로에도 적용되는지, 꺼진 트리거에 embed-config 가 어떻게 응답하는지도 정해지지 않았다. 결정 필요. 명령 실패 뒤의 전이는 [명령 실패](CLE-WEBCHAT-WIDGET-STATE.md#명령-실패)에서 정했다.
 
 ## 구현 위치
 

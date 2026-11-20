@@ -2,19 +2,19 @@
 id: "CLE-OBS-STATUS"
 title: "시스템 상태"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-SYSSTAT-001", "REQ-SYSSTAT-002", "REQ-SYSSTAT-003", "REQ-SYSSTAT-004", "REQ-SYSSTAT-005", "REQ-SYSSTAT-006", "REQ-SYSSTAT-007", "REQ-SYSSTAT-008", "REQ-SYSSTAT-009", "REQ-SYSSTAT-010", "REQ-SYSSTAT-011", "REQ-SYSSTAT-012", "REQ-SYSSTAT-013", "REQ-SYSSTAT-014", "REQ-SYSSTAT-015", "REQ-SYSSTAT-016", "REQ-SYSSTAT-017", "REQ-SYSSTAT-018", "REQ-SYSSTAT-019", "REQ-SYSSTAT-020", "REQ-SYSSTAT-021", "REQ-SYSSTAT-022", "REQ-SYSSTAT-023", "REQ-SYSSTAT-024", "REQ-SYSSTAT-025"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "dc8e8861b4a487d3984fc4799232e6c33ac75bba904fc1d1f97bbab47bcc6f33"
+content_hash: "1478b8510d0dc5d1997e7011c3538a770653956b43c81d297450f3bae4fa7782"
 read_as: "approved_fallback"
-task: "CLE-T-62B0J9"
+task: "CLE-T-28MDF3"
 source_paths: ["spec/2-navigation/15-system-status.md", "spec/2-navigation/_product-overview.md", "spec/5-system/16-system-status-api.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "61e7973d3149dd9685387bf9868064aa6b547548f45ed63bdd5c2cd30b155de4"
-etag: "sha256-57a838c033d230e79d5eee3404866fc9b382e734860ed3426fa5eadfdfdba458"
+mirror_sha256: "807bd7a3a6130e5a3536e233a021203c2413828b6b8b032e5811945f92a51bd8"
+etag: "sha256-f7907ed05eb774cfdcfadef777bc1d5e1b1e683bc2a0a819c308be16dd9e6c13"
 ---
 > 구현 상태: 부분 구현(`agent-memory-extraction` 모니터링 미등재) · 원문: `spec/2-navigation/15-system-status.md`, `spec/5-system/16-system-status-api.md`, `spec/2-navigation/_product-overview.md` (§3.9), `spec/data-flow/9-observability.md` (§1.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -121,6 +121,7 @@ etag: "sha256-57a838c033d230e79d5eee3404866fc9b382e734860ed3426fa5eadfdfdba458"
 | `makeshop-token-refresh` | integration | 1 | MakeShop 토큰 갱신(호출 직전 갱신, 401 뒤 갱신, MCP 도구의 자가 회복) |
 | `schedule-execution` | system | 1 | 스케줄 트리거 실행 |
 | `login-history-pruner` | system | 1 | 정기 작업 |
+| `audit-log-pruner` | system | 1 | 정기 작업(매일 `30 3 * * *` Asia/Seoul). 감사 로그 보존 배치 |
 | `workspace-invitations-pruner` | system | 1 | 정기 작업(매일 `0 4 * * *` Asia/Seoul) |
 | `notification-secret-rotator` | system | 1 | 정기 작업 |
 | `terminal-revoke-reconcile` | system | 1 | 정기 작업(1분). 외부 서비스 호출이 아니라 내부 정합을 맞추는 작업이라 `system` 그룹이다 |
@@ -130,7 +131,7 @@ etag: "sha256-57a838c033d230e79d5eee3404866fc9b382e734860ed3426fa5eadfdfdba458"
 | `alerts-evaluator` | system | 1 | 정기 작업(5분). 알림 규칙 평가([알림](CLE-OBS-NOTIFY.md)) |
 
 - 코드의 worker 옵션에 동시 처리 수가 없는 큐는 BullMQ 기본값 1 로 본다.
-- `agent-memory-extraction` 은 2026-10-08 확인 때도 코드 레지스트리에 없었다. 그래서 응답의 큐는 위 표보다 하나 적고 머리 줄의 구현 상태를 «부분 구현» 으로 둔다. `makeshop-token-refresh`·`terminal-revoke-reconcile` 은 등재돼 있다.
+- `agent-memory-extraction` 은 코드 레지스트리에 없다. 그래서 응답의 큐는 위 표보다 하나 적고 머리 줄의 구현 상태를 «부분 구현» 으로 둔다.
 
 ## API
 
