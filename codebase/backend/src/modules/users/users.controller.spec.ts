@@ -270,7 +270,7 @@ describe('UsersController', () => {
         mockRes,
       );
 
-      // 도메인 로직은 service 위임 (refactor 04 B-2)
+      // 도메인 로직은 service 위임 (컨트롤러는 입출력만 맡는다)
       expect(changeSpy).toHaveBeenCalledWith(
         'user-uuid',
         'OldP@ssw0rd1',

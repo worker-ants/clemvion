@@ -57,7 +57,7 @@ import { mailConfig, shouldWarnPlainSmtp } from './common/config/mail.config';
 import { shouldWarnNotificationDnsGuardOff } from './common/utils/ssrf-safe-url.util';
 
 /**
- * Swagger UI(`/docs`) 문서를 앱에 마운트한다 (04 M-1). 호출 자체가 게이팅 대상 —
+ * Swagger UI(`/docs`) 문서를 앱에 마운트한다 (CLE-API-SWAGGER). 호출 자체가 게이팅 대상 —
  * production 에서는 `isSwaggerEnabled` 가 false 이면 호출되지 않는다.
  */
 function setupSwagger(app: INestApplication): void {
@@ -133,7 +133,7 @@ function setupSwagger(app: INestApplication): void {
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  // 04 M-1 — 게이팅 판정을 부팅당 1회만 평가해 마운트·로그 두 곳이 동일 결정을 공유한다.
+  // CLE-API-SWAGGER — 게이팅 판정을 부팅당 1회만 평가해 마운트·로그 두 곳이 동일 결정을 공유한다.
   const swaggerEnabled = isSwaggerEnabled(process.env);
   // Fail-closed (서명 비밀 · 암호화 키 · 보안 우회 플래그 + 기존 OAUTH/LLM stub): NODE_ENV=production
   // 에서 비보안 stub·미설정/예시 secret·위험 플래그가 켜진 채 기동하면 즉시 throw 한다.
@@ -240,7 +240,7 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  // Swagger (04 M-1) — non-production 전용. production 에서는 무인증 API 표면
+  // Swagger (CLE-API-SWAGGER) — non-production 전용. production 에서는 무인증 API 표면
   // 정찰(엔드포인트·DTO 구조 노출)을 막기 위해 기본 미노출하며,
   // ENABLE_SWAGGER_IN_PROD=true opt-in 으로만 켠다. 게이팅 판정(isSwaggerEnabled)은
   // production-guards 단위 테스트로 검증한다.

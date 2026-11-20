@@ -336,7 +336,7 @@
     "codebase/backend/src/nodes/core/error-codes.spec.ts": 1,
     "codebase/backend/src/nodes/core/error-codes.ts": 8,
     "codebase/backend/src/nodes/core/graph-warning-rule.ts": 2,
-    "codebase/backend/src/nodes/core/node-component.interface.ts": 8,
+    "codebase/backend/src/nodes/core/node-component.interface.ts": 7,
     "codebase/backend/src/nodes/core/node-handler.interface.ts": 18,
     "codebase/backend/src/nodes/core/node-output-allowlist.ts": 1,
     "codebase/backend/src/nodes/core/node-type-metadata.ts": 2,

@@ -1,5 +1,5 @@
 /**
- * IntegrationCacheBus 단위 테스트 (refactor 04 m-4).
+ * IntegrationCacheBus 단위 테스트 (CLE-INT-DATA-RUN 「자격 증명 캐시 무효화」).
  *
  * credential 회전의 멀티 인스턴스 캐시 무효화 bus 의 전 분기를 검증한다:
  *  - register + 수신 메시지 → 등록 invalidator 실행 (동기/비동기/throw 격리)

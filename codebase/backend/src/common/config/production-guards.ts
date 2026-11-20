@@ -118,7 +118,7 @@ export function isFlagOn(value: string | undefined): boolean {
 export const MIN_JWT_SECRET_LENGTH = 32;
 
 /**
- * Swagger UI(`/docs`) 노출 여부 — 04 M-1.
+ * Swagger UI(`/docs`) 노출 여부 — CLE-API-SWAGGER.
  *
  * non-production 에서는 항상 노출(개발 편의)하고, production 에서는 기본 미노출
  * 한다(무인증 API 표면 정찰 차단 — OWASP 정보 노출). prod 디버깅이 정말 필요한

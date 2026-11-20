@@ -3,7 +3,7 @@ import { extractClientIp } from './client-ip';
 import type { AuthContext } from '../types/auth-context';
 
 /**
- * Express 요청에서 인증 컨텍스트(client IP · User-Agent)를 추출한다 (refactor 04 후속 C-1 — DRY).
+ * Express 요청에서 인증 컨텍스트(client IP · User-Agent)를 추출한다 (인증 컨텍스트 추출을 한 곳으로 모은다).
  *
  * `auth.controller` 와 `webauthn.controller` 가 동일 코드를 각각 정의하던 것을 단일 함수로
  * 통합한다. IP 추출은 `extractClientIp`(CF-신뢰 게이트 `TRUST_CF_CONNECTING_IP` 포함, §2.3

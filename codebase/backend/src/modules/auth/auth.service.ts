@@ -872,7 +872,7 @@ export class AuthService {
   // ========== HELPERS ==========
 
   /**
-   * 비밀번호 변경 후 세션 회전 (refactor 04 A-1 — 옵션 B). 인증 spec §2.3 / Rationale 2.3.C.
+   * 비밀번호 변경 후 세션 회전 (CLE-ACCT-SESSION-TOKEN). 인증 spec §2.3 / Rationale 2.3.C.
    *
    * 변경을 수행한 본인은 이미 `currentPassword` 로 재인증됐다는 전제에서:
    *   1) 사용자의 **모든** 활성 family 를 revoke (탈취 가능한 구 refresh token 전부 무효화) +

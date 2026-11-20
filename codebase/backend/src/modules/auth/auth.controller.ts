@@ -450,7 +450,7 @@ export class AuthController {
     @Req() req: Express.Request,
     @Res({ passthrough: true }) res: Express.Response,
   ) {
-    // 04 M-5 — CSRF 차단: refresh 쿠키가 SameSite=None(cross-site 배포 기본)이면
+    // CLE-ACCT-SESSION-POLICY — CSRF 차단: refresh 쿠키가 SameSite=None(cross-site 배포 기본)이면
     // 타 사이트가 쿠키를 자동 첨부해 강제 refresh 를 유발할 수 있다. 요청 Origin 을
     // CORS allowlist 와 대조해 거부한다(Origin 부재 = same-origin/non-browser 는 통과;
     // allowlist 외 출처는 403). CORS 가 응답 읽기를 막더라도 토큰 rotation 부작용을
