@@ -12,6 +12,8 @@ export const DIGEST_TYPES = [
   'background_failed',
 ] as const;
 
+export type DigestType = (typeof DIGEST_TYPES)[number];
+
 /** 보낼 때 모으는 창. 보내는 시각부터 거꾸로 24시간이다. */
 export const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 

@@ -7,6 +7,7 @@ import {
   DIGEST_TYPES,
   NOTIFICATION_DIGEST_QUEUE,
 } from './notification-digest.constants';
+import type { DailyDigest } from '../../mail/mail.service';
 import { PRODUCT_DEFAULT_TIMEZONE } from '../../../common/utils/timezone';
 
 /**
@@ -89,7 +90,7 @@ describe('NotificationDigestService', () => {
     notificationRepo.query.mockResolvedValue([
       row({ workspace_id: 'ws-1', workspace_name: 'Alpha', title: 'a1' }),
     ]);
-    const collected: { userId: string; digest: unknown }[] = [];
+    const collected: { userId: string; digest: DailyDigest }[] = [];
     await service.sendDigests(NOW, { userIds: ['u-1'], collected });
     expect(userQb.andWhere).toHaveBeenCalledWith('u.id IN (:...userIds)', {
       userIds: ['u-1'],

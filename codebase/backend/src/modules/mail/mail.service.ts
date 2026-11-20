@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MAIL_TRANSPORT_CONSOLE, MAIL_TRANSPORTER } from './mail.constants';
 import type { MailTransporter } from './mail.transporter';
 import { PRODUCT_DEFAULT_TIMEZONE } from '../../common/utils/timezone';
+import type { DigestType } from '../notifications/jobs/notification-digest.constants';
 
 /** 일일 요약 메일 한 통의 내용. 묶는 일은 `NotificationDigestService` 가 한다. */
 export interface DailyDigest {
@@ -21,11 +22,16 @@ export interface DailyDigestWorkspace {
   items: { type: string; title: string; createdAt: Date }[];
 }
 
-const DIGEST_TYPE_LABELS: Record<string, string> = {
+/** 요약에 모으는 유형(`DIGEST_TYPES`)마다 라벨이 있어야 컴파일된다. */
+const DIGEST_TYPE_LABELS: Record<DigestType, string> = {
   execution_failed: '실행 실패',
   schedule_failed: '스케줄 실패',
   background_failed: '백그라운드 작업 실패',
 };
+
+function digestTypeLabel(type: string): string {
+  return (DIGEST_TYPE_LABELS as Record<string, string>)[type] ?? type;
+}
 
 const digestTimeFormat = new Intl.DateTimeFormat('ko-KR', {
   timeZone: PRODUCT_DEFAULT_TIMEZONE,
@@ -592,7 +598,7 @@ export class MailService {
             (item) =>
               `<li style="margin:0 0 6px;font-size:14px;color:#333;">` +
               `<span style="color:#999;">${this.escapeHtml(digestTimeFormat.format(item.createdAt))}</span> ` +
-              `[${this.escapeHtml(DIGEST_TYPE_LABELS[item.type] ?? item.type)}] ` +
+              `[${this.escapeHtml(digestTypeLabel(item.type))}] ` +
               `${this.escapeHtml(item.title)}</li>`,
           )
           .join('');
@@ -649,7 +655,7 @@ export class MailService {
       lines.push('', `${ws.name} (${ws.total}건)`);
       for (const item of ws.items) {
         lines.push(
-          `- ${digestTimeFormat.format(item.createdAt)} [${DIGEST_TYPE_LABELS[item.type] ?? item.type}] ${item.title}`,
+          `- ${digestTimeFormat.format(item.createdAt)} [${digestTypeLabel(item.type)}] ${item.title}`,
         );
       }
       const rest = ws.total - ws.items.length;
