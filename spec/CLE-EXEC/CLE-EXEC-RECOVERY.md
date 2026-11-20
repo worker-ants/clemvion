@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY"
 title: "장애 복구와 안전 종료"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "9e0ff67535ffba5cc4e84e5a02ebf3b9c9ca2d6ab36c59d25ad597507860f32a"
+content_hash: "45427edcced1a9c9f6d63b38b3322e6b434030a0abc75195a5c4a0241ddf1df7"
 read_as: "approved_fallback"
-task: "CLE-T-9JBVQK"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "fa5b9db4707b3173a2a1fb1bef6d901e71c04852f8619370f2978f87e38a3cf1"
-etag: "sha256-b58a0f497878b14a2a79d2d3edf1dbcb3a5bab82f7f8639b857b9df4d80c213f"
+mirror_sha256: "bbfcea23bc32d9f4fdae2678e08fc17360ce3acf827356fc3631a36f4f2873a3"
+etag: "sha256-97198a2238c822025986d4048c7184bc15fe343680cdb8d27d1f2c0a356b2678"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -40,7 +40,7 @@ etag: "sha256-b58a0f497878b14a2a79d2d3edf1dbcb3a5bab82f7f8639b857b9df4d80c213f"
 | 문서 | 다루는 것 | 맡는 요구사항 |
 | --- | --- | --- |
 | [크래시 재구동과 부팅 복구 스캔](CLE-EXEC-RECOVERY-REDRIVE.md) | 운영 중 stalled 재배달, 부팅 복구 스캔의 lock과 네 단계, 작업을 잃은 대기 중 실행 취소, 종결된 실행 아래 남은 노드 실행 행 마감, zombie race, 그 결정 근거 | 없음 |
-| [체크포인트와 rehydration](CLE-EXEC-RECOVERY-REHYDRATE.md) | 체크포인트, 재구동 절차, 멱등성 계약, rehydration 두 진입 경우와 재개 절차, 중첩 서브 워크플로우 재개, 재개 진입 원자 claim, rehydration 실패, 재시도 층의 합산, park 즉시 해제(Phase B) 결정 | 없음 |
+| [체크포인트와 rehydration](CLE-EXEC-RECOVERY-REHYDRATE.md) | 체크포인트, 재구동 절차, 멱등성 계약, rehydration 두 진입 경우와 재개 절차, 중첩 서브 워크플로우 재개, 재개 진입 원자 claim, rehydration 실패, 재시도 층의 합산, park 즉시 해제 결정 | 없음 |
 | [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md) | SIGTERM 안전 종료 절차와 `SIGTERM_GRACE_MS`, 끊긴 노드를 정책과 상관없이 `failed` 로 끝내는 결정, 영속 재개 큐 채택 · 시간 과소 계산 허용 · DLQ 경고 결정 | 없음 |
 
 이 문서에는 요구사항 줄이 없다.
@@ -122,9 +122,9 @@ flowchart TD
 
 → [체크포인트와 rehydration](CLE-EXEC-RECOVERY-REHYDRATE.md#재시도-층의-합산)
 
-## park 즉시 해제와 rehydration 단일 경로 (Phase B)
+## park 즉시 해제와 rehydration 단일 경로
 
-→ [체크포인트와 rehydration](CLE-EXEC-RECOVERY-REHYDRATE.md#park-즉시-해제와-rehydration-단일-경로-phase-b)
+→ [체크포인트와 rehydration](CLE-EXEC-RECOVERY-REHYDRATE.md#park-즉시-해제와-rehydration-단일-경로)
 
 ## 안전 종료
 

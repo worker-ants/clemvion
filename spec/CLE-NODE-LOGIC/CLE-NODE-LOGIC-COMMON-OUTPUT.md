@@ -2,19 +2,19 @@
 id: "CLE-NODE-LOGIC-COMMON-OUTPUT"
 title: "Logic 노드 공통 — 반복 · 병렬 출력과 엔진 덮어쓰기"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-LOGIC-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-LOGIC-COMMON"]
 area: "CLE-NODE-LOGIC"
-content_hash: "c324a44124a18cd8e354c0ce6595a0ee19aba45a3dd1815d64af573c5d465599"
+content_hash: "5082d537b8357c3d14ed660e149edef3984005758643deee2cdd5696f0a45e6f"
 read_as: "approved_fallback"
-task: "CLE-T-7AYYQC"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "c1dd0cb5be5b1bff061f7be03428453f1b2c7d8c466904c71fe02f6f983eaaf3"
-etag: "sha256-b8082a01f6288d59cedc06e3850c058dc1f9bb892e163e582128c86dd49c94c0"
+mirror_sha256: "e314d2b535deb2398ebffc74c3a268b7471b436e1a277a0c1585115b1d35ea36"
+etag: "sha256-b276579ca99275d4decf60e7548a33b9e1c3c6c6736d00a4f84fb5169b549dbd"
 ---
 ## 개요
 
@@ -60,7 +60,7 @@ ForEach 의 결과 분리 형태는 [ForEach 노드](CLE-NODE-FOREACH.md), Map �
    - Error 의 `name` 이 `AbortError` 면 `AbortError` 다. 취소로 끝난 회차와 병렬 분기이고 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#3-예외-등록-코드) §3 의 예외 코드다. 에러 객체의 `code` 보다 먼저 본다.
    - Error 의 `code` 가 문자열이고 백엔드가 직접 싣는 코드면 그 값이다. 백엔드가 직접 싣는 코드는 `ErrorCode` · `EngineErrorCode` · `MCP_ERROR_CODES` 의 값과 에러 클래스가 `code` 로 싣는 리터럴(예 `MAKESHOP_RATE_LIMITED`)이다. 모두 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
    - 그 밖은 `UNKNOWN_ERROR` 다. `code` 가 없는 평범한 `Error` · `TypeError` 와 Node 런타임 · DB 드라이버가 싣는 `ECONNREFUSED` · `ER_DUP_ENTRY` 같은 `code` 가 여기에 든다.
-5. `error.message` 는 에러 메시지다. 던진 값이 Error 가 아니면 문자열로 바꾼 값이다. `PARALLEL_INVALID_CHILD` 같은 메시지 접두사는 `error.message` 앞에 남고 `error.code` 가 되지 않는다. 4 · 5번의 근거는 [실패한 회차와 병렬 분기의 `error.code`](#실패한-회차와-병렬-분기의-errorcode-2026-11-05) 에 있다.
+5. `error.message` 는 에러 메시지다. 던진 값이 Error 가 아니면 문자열로 바꾼 값이다. `PARALLEL_INVALID_CHILD` 같은 메시지 접두사는 `error.message` 앞에 남고 `error.code` 가 되지 않는다. 4 · 5번의 근거는 [실패한 회차와 병렬 분기의 `error.code`](#실패한-회차와-병렬-분기의-errorcode) 에 있다.
 
 ## 노드 출력 사용 패턴
 
@@ -132,7 +132,9 @@ ForEach · Map 핸들러는 시작 시점에 `output: items[]` 를 반환하고 
 
 Parallel 의 `continue` 도 병렬 분기가 서로 독립이라 ForEach 형태를 따른다. `branches[]` 에는 병렬 분기 결과와 실패 자리의 `null` 만, `skipped[]` 에는 실패만 둔다(2026-11-01, [Parallel 노드](CLE-NODE-PARALLEL.md#완료-출력은-병렬-분기-결과를-그대로-두고-실패를-따로-모은다)).
 
-### 실패한 회차와 병렬 분기의 `error.code` (2026-11-05)
+### 실패한 회차와 병렬 분기의 `error.code`
+
+결정일: 2026-11-05
 
 ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code` 에 던진 Error 의 `name` 을 실어 왔다. 실제 값은 대부분 `Error` · `TypeError` 였고 일부는 `MakeshopRateLimitedError` 같은 클래스 이름이었다. 이 값은 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 2 의 `UPPER_SNAKE_CASE` 를 따르지 않았다. Error 가 아닌 값에 쓰던 `UNKNOWN_ERROR` 는 카탈로그에 없었다. 그래서 [Parallel 노드](CLE-NODE-PARALLEL.md#errorcode-의-값) 가 임시 예외로 적어 두었고 사람의 결정 두 번으로 이 예외를 닫았다(2026-11-05).
 
@@ -150,7 +152,9 @@ ForEach · Map · Parallel 은 실패한 회차와 병렬 분기의 `error.code`
 - `UPPER_SNAKE_CASE` 모양이면 출처를 가리지 않고 그대로 내는 안. 런타임 · 드라이버 `code` 가 카탈로그 밖 값으로 나가 규칙 8 의 예외로 남는다.
 - 런타임 · 드라이버 모양을 걸러 내는 안(`errno` · `syscall` 속성, `ERR_` · `ER_` 접두사, `E` 로 시작하는 한 단어). 목록을 관리하지 않아도 되지만 휴리스틱이라 다른 드라이버의 값이 새어 나갈 수 있다.
 
-### Parallel `stop` 설명을 실행기 동작에 맞춘다 (2026-11-06)
+### Parallel `stop` 설명을 실행기 동작에 맞춘다
+
+결정일: 2026-11-06
 
 이 표는 Parallel 의 `stop` 을 "첫 병렬 분기가 실패하면 에러를 던진다" 로 적었다. 실행기는 모든 병렬 분기가 끝나기를 기다린 뒤 실패한 병렬 분기 가운데 번호가 가장 작은 것의 에러를 던진다. [Parallel 노드](CLE-NODE-PARALLEL.md#stop-은-모든-병렬-분기를-기다린-뒤-실패를-던진다) 가 같은 날 요구사항 문장을 이 동작에 맞췄고 이 표도 같은 말로 고쳤다. 동작을 바꾸지 않은 이유와 기각한 대안은 그 Rationale 에 있다. 기존 워크플로우 영향은 없다.
 

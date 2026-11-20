@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER-RESUME"
 title: "큐 워커 — 재개 큐와 사전 검증"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-WORKER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-WORKER"]
 area: "CLE-EXEC"
-content_hash: "a2434f1432af5645b77908e23ab7dbc76dcc54438d46598d80e97dbc09f7fbf9"
+content_hash: "65bea3f21d0877f88bab9487a35fae5268c0b3c3ca07b753d56db9e68519a74e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "0379b092fe44706de00818c0a6aaac549c6bcf182e159ac351105b1de1c5e684"
-etag: "sha256-811ba24f15bd5d6f4b41b2b5d08c937fb4cdd0fa1549ab99c99634986ee1eddd"
+mirror_sha256: "6fff6da7ee53f6f8cc8e4728105b3157624bfb4e0853a4efc7d4cccb7aa54994"
+etag: "sha256-3a308a732d444f8f93111c2bae7d8c23f32527c1531cbe33cae4e6ffc822a02b"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ etag: "sha256-811ba24f15bd5d6f4b41b2b5d08c937fb4cdd0fa1549ab99c99634986ee1eddd"
 | 메시지 타입 | `continue` / `cancel` / `button_click` / `ai_message` / `ai_end_conversation` / `retry_last_turn` (`ContinuationType`, `continuation-bus.service.ts`). `continue` 메시지 payload 안의 표시 값(폼 제출이면 `{ type: 'form_submitted', formData }`)은 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#폼-제출-wire-format) 이 기준이다. |
 | 메시지 스키마 | `{ type: ContinuationType, executionId: string, nodeExecutionId: string, payload?: unknown }` |
 | jobId | `${executionId}:${nodeExecutionId}:${monotonic-seq}`. seq 는 executionId 마다 Redis INCR 로 받는 멱등 키다. 키와 TTL 은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 의 `exec:cont:seq:<executionId>` 에 있다. |
-| 큐 재시도 | `attempts: RESUME_BULLMQ_ATTEMPTS`(기본 3). 재시도 간격은 1초에서 4배씩 늘어나고 상한은 없다. 기본 3회면 재시도 간격은 1초 · 4초다. BullMQ 내장 `exponential`(2배씩)은 쓰지 않는다. 사용자 정의 backoff 전략 `continuation-exp4` 를 쓰고 워커의 `settings.backoffStrategy` 가 간격을 계산한다. 근거는 [Rationale 「재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다」](#재개-큐-재시도-간격을-사용자-정의-전략으로-4배씩-늘린다-2026-10-17) 에 있다. |
+| 큐 재시도 | `attempts: RESUME_BULLMQ_ATTEMPTS`(기본 3). 재시도 간격은 1초에서 4배씩 늘어나고 상한은 없다. 기본 3회면 재시도 간격은 1초 · 4초다. BullMQ 내장 `exponential`(2배씩)은 쓰지 않는다. 사용자 정의 backoff 전략 `continuation-exp4` 를 쓰고 워커의 `settings.backoffStrategy` 가 간격을 계산한다. 근거는 [Rationale 「재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다」](#재개-큐-재시도-간격을-사용자-정의-전략으로-4배씩-늘린다) 에 있다. |
 | 작업 보존 | `removeOnComplete: true`, `removeOnFail: false`. 실패 작업을 남겨 DLQ 적재량을 관측한다. |
 | DLQ | 모든 시도를 소진하면 실행을 `cancelled` + `error.code='RESUME_FAILED'` 로 마감한다. 처리는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다. |
 | 워커 동시성 | `CONTINUATION_WORKER_CONCURRENCY`(기본 1). 아래 [워커 동작](#워커-동작) 참조. |
@@ -142,7 +142,9 @@ nodeId 불일치 검사는 `resolveWaitingNodeExecutionId(executionId, expectedC
 
 ## Rationale
 
-### 대기 표면과 명령의 조합을 발행 전에 검사한다 (2026-07-11)
+### 대기 표면과 명령의 조합을 발행 전에 검사한다
+
+결정일: 2026-07-11
 
 실행이 `waiting_for_input` 인지(`assertWaiting`)만 보면 다른 종류의 명령을 막지 못한다. 재개 처리기(`dispatchResumeTurn`)는 도착 메시지의 `type` 이 아니라 **대기 노드의 표면**으로 골라진다. 그래서 표면과 맞지 않는 명령이 통과하면 조용히 잘못 처리됐다. `form` 대기는 sentinel 불일치 폴백으로 **빈 폼이 제출된 것처럼** 완료됐다. `buttons` 대기는 `resolveButtonInteraction` 의 else(d) 폴백으로 **엉뚱한 `continue` 포트로 분기**했다. 그래서 `resolveWaitingNodeExecutionId` 가 대기 노드의 표면을 판정해 도착 명령의 허용 여부를 발행 전에 검사한다.
 
@@ -156,7 +158,9 @@ nodeId 불일치 행은 2026-07-14 에 표면 불일치 행 앞에 더했다.
 
 발행 전 사전 검증의 0건·여러 행 경우를 WebSocket 은 `INVALID_EXECUTION_STATE` 로, REST 는 422 `INVALID_STATE` 로 응답한다. 두 층을 `INVALID_STATE` 하나로 합치면 WS ack 를 처리하는 클라이언트가 같은 코드를 동기 ack 응답과 뒤따르는 이벤트로 나눠 분기하기 어렵다. 이름을 나눠 두면 코드 이름만 보고 경로를 알 수 있다. 두 층이 같은 뜻이라는 점은 본문에서 서로 링크한다. 이 코드는 입력 대기 진입점(`execution.submit_form` / `click_button` / `submit_message` / `end_conversation`) 밖에서 `execution.retry_last_turn`(기대 상태 `failed`)에도 같은 뜻으로 쓴다.
 
-### 재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다 (2026-10-17)
+### 재개 큐 재시도 간격을 사용자 정의 전략으로 4배씩 늘린다
+
+결정일: 2026-10-17
 
 이 문서는 재개 큐의 재시도 간격을 «exponential backoff(1초 / 4초 / 16초)» 로 적었다. 코드는 BullMQ 내장 `exponential` 전략에 `delay: 1000` 을 주었다. 내장 전략은 간격을 2배씩 늘리므로 실제 간격은 1초 · 2초였다. 코드 주석에는 4배가 적혀 있었다. 사람 결정으로 코드를 문서의 의도에 맞췄다.
 

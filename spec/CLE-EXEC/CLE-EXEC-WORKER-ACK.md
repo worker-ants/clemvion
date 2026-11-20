@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER-ACK"
 title: "큐 워커 — 재개 ack 에러 표면"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-WORKER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-WORKER"]
 area: "CLE-EXEC"
-content_hash: "8316615ff48c01b98382bd4f4c11dea79144515b791dc15b7d398f0f2c640e8f"
+content_hash: "69247d8d49bb902ce21d072b1037af50d79dbc989788efa0d8e122f38a64bfc0"
 read_as: "approved_fallback"
-task: "CLE-T-E6PW00"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "7092eef8421ba271520acfb301a0899b382b59ac5346420f41f9bd778fc5aad5"
-etag: "sha256-a9992f4415112de43e9cedaa27a13997ae351d0ce73100fd7c4013887d64395b"
+mirror_sha256: "75f2699f66112e74f32444ccacaaea9b8180b2a493074ffab36ff374cc40f351"
+etag: "sha256-060f1c2310eb13cac14cda2b2951de49f4b8f49c9c4ef8a579222c8d0a598e62"
 ---
 ## 개요
 
@@ -33,7 +33,7 @@ etag: "sha256-a9992f4415112de43e9cedaa27a13997ae351d0ce73100fd7c4013887d64395b"
 | 채팅 채널 인바운드의 `/cancel` 과 진행 중인 대화의 입력(재개 명령) | `202` 로 답하고 채널 건강도를 `degraded` 로 둔다. 기준은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이다. |
 | 채팅 채널 인바운드의 `/start`(기존 실행 취소) | 503 `EXECUTION_ENQUEUE_FAILED` 를 그대로 돌려주고 새 실행을 시작하지 않는다. 기준은 같은 채팅 채널 절이다. |
 
-진입점마다 표면이 다른 이유는 [Rationale 「진입점마다 큐 적재 실패를 다르게 알린다」](#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
+진입점마다 표면이 다른 이유는 [Rationale 「진입점마다 큐 적재 실패를 다르게 알린다」](#진입점마다-큐-적재-실패를-다르게-알린다) 에 있다.
 
 - 성공(`queued:true`) 직후 다시 조회하면 실행이 아직 `pending` 이나 `running` 일 수 있다. 최종 취소는 뒤따르는 `execution.cancelled` 이벤트로 확인한다.
 - seq 발급(Redis INCR)이 실패하면 무작위 seq 로 대신하지 않는다. `publish` 가 `null`(`queued:false`)을 돌려준다(fail-fast).
@@ -66,20 +66,24 @@ etag: "sha256-a9992f4415112de43e9cedaa27a13997ae351d0ce73100fd7c4013887d64395b"
 
 - **취소도 발행 결과를 돌려준다**: `cancelWaitingExecution` 은 원래 `void publish` 로 결과를 버렸다. 발행 실패가 호출자에게 닿지 않아 에러가 사라졌다. 다른 재개 메서드 4종은 이미 `ContinuationPublishResult` 를 돌려주므로 취소만 예외로 둘 근거가 없었다. 같은 방식으로 맞추고 REST `POST /api/executions/:id/stop` 의 입력 대기 취소 분기가 `queued:false` 를 알리게 했다.
   - HTTP 코드는 **503** 이다. Redis 의존성 장애는 상류를 쓸 수 없는 상태이므로 502(잘못된 게이트웨이 응답)가 아니라 503(일시적 불가, 재시도)이 맞다. `SERVER_SHUTTING_DOWN`(SIGTERM 뒤 새 실행 거부)이 같은 503 선례를 만들었다.
-  - 취소는 WS ack 경로가 아니라 REST 중지 진입점이므로 새 코드 `EXECUTION_ENQUEUE_FAILED`(`EXECUTION_*` 이름공간)로 표기한다. 이 코드는 처음에 REST 중지 진입점 전용이었다. 2026-10-09 에 EIA `/interact` 의 재개 명령과 취소로 넓어졌다. 진입점별 표면은 [「진입점마다 큐 적재 실패를 다르게 알린다」](#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
+  - 취소는 WS ack 경로가 아니라 REST 중지 진입점이므로 새 코드 `EXECUTION_ENQUEUE_FAILED`(`EXECUTION_*` 이름공간)로 표기한다. 이 코드는 처음에 REST 중지 진입점 전용이었다. 2026-10-09 에 EIA `/interact` 의 재개 명령과 취소로 넓어졌다. 진입점별 표면은 [「진입점마다 큐 적재 실패를 다르게 알린다」](#진입점마다-큐-적재-실패를-다르게-알린다) 에 있다.
   - "502 가 아니라 503" 판정은 **우리 의존성의 장애**에 한정된다. 외부 서드파티 API 호출 실패의 502 사용은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 R-CC-23 이 정한다. 두 기준은 지금까지의 사례에서 모두 같은 결론을 낸다.
 - **seq 발급 실패는 바로 실패로 처리한다**: `nextSeq` 의 Redis INCR 이 실패하면 쓰던 `Math.random` seq 대체를 없애고 fail-fast(INCR throw → `publish` 바깥 catch → `null`/`queued:false`)로 바꿨다. 무작위 seq 는 "seq = 멱등 키" 와 단조성 계약을 어겨 jobId 중복 제거를 무력화한다. BullMQ 자체가 Redis 위에서 돌기 때문에 INCR 이 실패하는 장애라면 바로 뒤의 `queue.add` 도 실패할 가능성이 크다. 대체의 가용성 이득이 사실상 없다. 이벤트 순번(`exec:seq`)은 분산 단조성 미보장을 받아들여 in-memory 대체를 두지만 재개 seq 는 jobId 중복 제거 계약이 우선이라 일부러 **비대칭**으로 둔다.
 
 두 항목은 발행 실패를 `queued:false` 하나로 알린다는 점에서 같은 결정이다.
 
-### `RESUME_*` 를 동기 ack 에 싣지 않는다 (2026-06-10)
+### `RESUME_*` 를 동기 ack 에 싣지 않는다
+
+결정일: 2026-06-10
 
 - **옛 서술**: rehydration 실패 3종(`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`)이 "WS ack 에 `resumed: false` + error 로 나간다" 고 적혀 있었다. 사전 검증 절("`RESUME_*` 는 뒤따르는 `execution.cancelled` 이벤트이며 ack 동기 응답이 아니다")과 정면으로 모순이었다.
 - **맞는 경로**: 항상 큐에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md) 의 "실행 엔진: Redis 큐 + 분산 워커 풀" 결정) 이후 `RESUME_*` 는 enqueue 뒤 임의 워커가 처리하다 실패하는 **비동기** 종결이다. 재개 handler 4종은 enqueue 수락만 동기 ack(`resumed: true`/`queued`)로 돌려준다. 워커 쪽 실패는 뒤따르는 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 알린다. 코드에서도 4종 handler 는 `RESUME_*` 에 대해 `resumed: false` 를 내지 않는다.
 - **정정**: rehydration 실패 설명을 사전 검증 절의 동기·비동기 분류에 맞췄다. WebSocket 쪽 정정은 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 Rationale "`resumed` 의미 재정의" 에 있다. 코드는 바뀌지 않았다(spec 을 코드 동작에 맞췄다).
 - **2026-10-17 보강**: 처음 정정은 동기 ack 가 실패를 싣는 경우를 사전 검증(`INVALID_EXECUTION_STATE`)뿐이라고 적었는데 범위가 좁았다. 발행 경로의 에러(「ack 에러 변환」)와 큐 적재 실패도 동기 실패 ack 로 온다. 본문 「ack 의 뜻」 을 그에 맞게 고쳤다. `RESUME_*` 가 동기 ack 에 실리지 않는다는 결정은 그대로다.
 
-### ack 에 내부 에러 메시지를 싣지 않는다 (2026-06-14 결정)
+### ack 에 내부 에러 메시지를 싣지 않는다
+
+결정일: 2026-06-14
 
 - **문제**: 재개 handler 4종의 공통 ack 빌더(`buildContinuationErrorAck`)가 `error instanceof Error ? error.message : fallback` 으로 **임의 `Error` 의 내부 message 를 그대로 ack 에 실었다**. `InvalidExecutionStateError` 만 `errorCode` 로 구분됐다. 그 밖의 에러(특히 DB 조회의 TypeORM 예외)는 스택 힌트, SQL 원문, 내부 식별자를 흘릴 수 있었다.
 - **결정(네 가지, 2026-06-14 사용자 확정)**:
@@ -89,7 +93,9 @@ etag: "sha256-a9992f4415112de43e9cedaa27a13997ae351d0ce73100fd7c4013887d64395b"
   4. **ack 변환**: 본문 「ack 에러 변환」 의 두 갈래(typed 는 `message` + `code`, 그 밖은 고정 문구 + `EXECUTION_INTERNAL_ERROR`)로 바꾼다. 이것이 누출 차단의 보안 관문이다.
 - **선례와 맞춤**: `InvalidExecutionStateError`, `RetryLastTurnError`, `ExecutionTimeLimitError` 는 이미 "고정 client-safe message + 서버 전용 detail" 형태다. `ExecutionError` 기반으로 차례로 옮긴다(code 와 동작 유지). 워커 쪽 `RESUME_*`(`execution.cancelled` 이벤트)는 다른 경로라 이 변경 범위 밖이다. 같은 원칙을 적용할지는 후속 점검이다.
 
-### 진입점마다 큐 적재 실패를 다르게 알린다 (2026-10-17)
+### 진입점마다 큐 적재 실패를 다르게 알린다
+
+결정일: 2026-10-17
 
 재개 메시지를 큐에 넣지 못하면(`queued:false`) 진입점마다 다른 응답이 나간다. 목록은 「발행 결과와 ack 에러 표면」 의 표에 있다.
 
