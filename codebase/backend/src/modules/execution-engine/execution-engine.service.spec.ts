@@ -18537,7 +18537,7 @@ describe('ExecutionEngineService', () => {
       // toMatchObject 로 검증한다. processAiResumeTurn 시그니처상 resumeState 가
       // 인자로 오지만, 재구성 결과가 nodeOutputCache 에도 seed 되므로 양쪽 검증
       // 가능 — 여기서는 기존대로 context.seedNodeOutput 에 seed 된 값을 조회한다.
-      const setNodeOutputSpy = jest.spyOn(
+      const seedNodeOutputSpy = jest.spyOn(
         svcAny.contextService,
         'seedNodeOutput',
       );
@@ -18551,7 +18551,7 @@ describe('ExecutionEngineService', () => {
       expect(turnSpy).toHaveBeenCalledTimes(1);
 
       // W6 — seeded nodeOutputCache 에 partialResult/collectionRetryCount 가 복원됐는지.
-      const seededCalls = setNodeOutputSpy.mock.calls;
+      const seededCalls = seedNodeOutputSpy.mock.calls;
       expect(seededCalls.length).toBeGreaterThan(0);
       const seededOutput = seededCalls[seededCalls.length - 1][2] as Record<
         string,
@@ -18578,7 +18578,7 @@ describe('ExecutionEngineService', () => {
         .filter(Boolean);
       expect(codes).not.toContain('RESUME_INCOMPATIBLE_STATE');
 
-      setNodeOutputSpy.mockRestore();
+      seedNodeOutputSpy.mockRestore();
       loadSpy.mockRestore();
       turnSpy.mockRestore();
     });
