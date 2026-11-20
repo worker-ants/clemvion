@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-FLOW"
 title: "채팅 채널 — 처리 흐름과 대화"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "03a8ef8e76bf89798c9553f207b392fcdd49c636822f9e8e3628a18e0f2a3ea1"
+content_hash: "d0c254c4ab1d611a4a09d2250ba8064258d2a4e32df1360cbe070e7c36b6ef97"
 read_as: "approved_fallback"
-task: "CLE-T-QZ8RFC"
+task: "CLE-T-0400J6"
 source_paths: []
-mirror_sha256: "08a40b3f8fce47825e8ee457328e92ccd67a6e7244149e84a29abefc2ec2bbb2"
-etag: "sha256-56c0ed6b75af460abb67117077df6650e7794a2d02621090b5240de79645e07a"
+mirror_sha256: "b58fc816df62bd2cc7480048230a3de526fe1c763ff1a46d261c2399263c3b38"
+etag: "sha256-74eaa2a43441a1957b7c426dd2e8dfb44d44f35a569c06e23926e7f361c89e12"
 ---
 ## 개요
 
@@ -67,8 +67,8 @@ sequenceDiagram
 
 ## 대화와 실행
 
-- **실행 중 메시지**: 같은 대화의 다음 메시지가 왔는데 활성 실행이 `running`·`pending` 이면 `languageHints.executionStillRunning` 안내를 보낸다. 기본 문구는 "워크플로우가 처리 중입니다. 잠시만 기다려 주세요." 이고 한국어 기본값만 있다. 현재 구현은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태를 돌려주고, 입력 대기일 때만 전달한다. `running`·`pending` 이면 `sendExecutionStillRunningNotice` 로 안내하고 `{ executionId: 'ignored' }` 로 끝낸다. 입력 대기 · 실행 중 · 종결 세 갈래 모두 구현됐다. 근거는 [R9](#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 에 있다.
-- **그룹 대화 거부**: 안내 발송 책임은 채널 어댑터가 아니라 호출자(`HooksService`)에 있다. `parseUpdate` 는 부수 효과 없는 계약을 지킨다. 근거는 [R3](#r3-1차-범위는-11-dm-만-지원한다) 에 있다.
+- **실행 중 메시지**: 같은 대화의 다음 메시지가 왔는데 활성 실행이 `running`·`pending` 이면 `languageHints.executionStillRunning` 안내를 보낸다. 기본 문구는 "워크플로우가 처리 중입니다. 잠시만 기다려 주세요." 이고 한국어 기본값만 있다. 구현은 `sendExecutionStillRunningNotice` 로 안내하고 `{ executionId: 'ignored' }` 로 끝낸다. 근거는 [R9](#r9-처리-중-메시지는-큐에-쌓지-않고-바로-안내한다) 에 있다.
+- **그룹 대화 거부**: 안내는 Telegram 메시지에만 보내고 Slack · Discord 의 DM 밖 일반 update 는 안내 없이 버린다([R-CC-37](CLE-CHAT-CORE-RESPONSE.md#r-cc-37-dm-밖-거절-안내는-telegram-만)). 안내 발송 책임은 채널 어댑터가 아니라 호출자(`HooksService`)에 있다. `parseUpdate` 는 부수 효과 없는 계약을 지킨다. 근거는 [R3](#r3-1차-범위는-11-dm-만-지원한다) 에 있다.
 - **종결 이벤트의 대화 상태 정리**: 채널 대화 상태의 키는 `chat-channel:{triggerId}:{conversationKey}` 다. `executionId` 를 비우는 것은 읽은 값과 저장된 값을 비교해 바꾸는 compare-and-set 이고 다른 쓰기에 밀리면 최대 3회 다시 읽는다. Redis 를 쓸 수 없거나 끝내 비우지 못하면 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 새 실행을 시작한다. `/cancel` 도 취소한 실행을 가리킬 때만 같은 방식으로 비운다.
 - **폼 입력 대기 상태 갱신**: 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 `pendingFormModal`·`formState` 를 갱신하지 않는다. 렌더한 메시지의 발송은 이 조건과 관계없다. 갱신은 종결 이벤트의 정리와 같은 compare-and-set 이다. 읽은 뒤 `/start` 가 대화를 새 실행에 이으면 저장하지 않고, 같은 실행의 다른 필드만 바뀌었으면 다시 읽어 그 값 위에 고친다.
 
@@ -76,13 +76,13 @@ sequenceDiagram
 
 활성 실행이 있는 대화에 `/start` 가 오면 명령이 실행 상태 분기보다 먼저다. 입력 대기 실행이어도 그 실행에 전달하지 않고, `running`·`pending` 이어도 실행 중 안내로 끝내지 않는다. Slack 과 Discord 에서는 `/<prefix> start` 가 이 명령이다. `/start` 가 아닌 메시지는 실행 상태 분기를 그대로 따른다. 명령 이름과 안내 문구는 프로바이더 문서가 정한다. 워크플로우가 비활성이면 취소하기 전에 버리고 기존 실행은 그대로 둔다.
 
-활성 실행이 있으면 `/start`·`/cancel` 은 실행 소유자만 쓴다. 실행 소유자는 `channelUserKey` 가 채널 대화 상태의 값과 같은 사용자다. 소유자가 아닌 사람이 두 명령을 보내면 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 문구 없이 [버린 update 의 수신 확인](CLE-CHAT-CORE-INTERACT.md#버린-update-의-수신-확인)만 보내고 `202`·`{ executionId: 'ignored' }`(인터랙션이면 [기본 응답](CLE-CHAT-CORE-INTERACT.md#인터랙션-기본-응답))로 답한다. 이 확인은 대화 상태를 조회해 활성 실행을 판단한 바로 뒤, `/cancel` 처리와 워크플로우 활성 관문보다 앞에서 한다. 워크플로우가 비활성일 때 소유자가 아닌 사람의 `/start` 는 비활성 관문 대신 이 확인에서 버리지만 응답은 같다. 활성 실행이 없으면 누구나 `/start` 로 새 실행을 시작하고 시작한 사람이 새 소유자가 된다. `channelUserKey` 는 새 실행의 대화 상태를 저장할 때만 바뀐다. `/help` 는 소유자를 확인하지 않는다. 근거는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다.
+활성 실행이 있으면 `/start`·`/cancel` 은 실행 소유자만 쓴다. 실행 소유자는 `channelUserKey` 가 채널 대화 상태의 값과 같은 사용자다. 소유자가 아닌 사람이 두 명령을 보내면 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 문구 없이 [버린 update 의 수신 확인](CLE-CHAT-CORE-INTERACT.md#버린-update-의-수신-확인)만 보내고 `202`·`{ executionId: 'ignored' }`(인터랙션이면 [기본 응답](CLE-CHAT-CORE-INTERACT.md#인터랙션-기본-응답))로 답한다. 이 확인은 대화 상태를 조회해 활성 실행을 판단한 바로 뒤, `/cancel` 처리와 워크플로우 활성 관문보다 앞에서 한다. 워크플로우가 비활성일 때 소유자가 아닌 사람의 `/start` 는 비활성 관문 대신 이 확인에서 버리지만 응답은 같다. 활성 실행이 없으면 누구나 `/start` 로 새 실행을 시작하고 시작한 사람이 새 소유자가 된다. `channelUserKey` 는 새 실행의 대화 상태를 저장할 때만 바뀐다. `/help` 는 소유자를 확인하지 않는다. 근거는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다. 활성 실행이 없는 대화의 `/cancel` 은 누가 보냈든 `noActiveExecution` 안내로 끝난다(REQ-CHAT-084, [R-CC-36](CLE-CHAT-CORE-RESPONSE.md#r-cc-36-cancel-할-실행이-없으면-안내한다)).
 
-같은 대화에 `/start` 가 겹쳐 오면 대화 단위 시작 잠금(`cc:startlock`)으로 하나씩 처리한다. 잠금은 워크플로우 활성 관문 뒤, 기존 실행 취소 앞에서 잡는다. 활성 실행이 없어도 잡는다. 잠금 구간은 기존 실행 취소, 새 실행 시작, 대화 상태 저장이고 어느 경로로 끝나든 잠금을 푼다. 잠금을 잡지 못한 `/start` 는 소유자가 아닌 사람의 명령과 같은 방식으로 버리고 경고 로그를 남긴다. 잠금을 잡으면 대화 상태를 다시 읽는다. `executionId` 가 처음 읽은 값과 다른 실행을 가리키면 같은 방식으로 버린다. 비어 있거나 다시 읽지 못하면 그대로 진행한다. Redis 가 없거나 오류가 나면 잠금을 잡은 것으로 본다(fail-open). 키와 TTL 은 [채팅 채널 데이터와 흐름 — 저장 모델과 상태 「Redis 키」](CLE-CHAT-DATA-STORE.md#redis-키) 가 정한다. 근거는 [R-CC-36](#r-cc-36-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다.
+같은 대화에 `/start` 가 겹쳐 오면 대화 단위 시작 잠금(`cc:startlock`)으로 하나씩 처리한다. 잠금은 워크플로우 활성 관문 뒤, 기존 실행 취소 앞에서 잡는다. 활성 실행이 없어도 잡는다. 잠금 구간은 기존 실행 취소, 새 실행 시작, 대화 상태 저장이고 어느 경로로 끝나든 잠금을 푼다. 잠금을 잡지 못한 `/start` 는 소유자가 아닌 사람의 명령과 같은 방식으로 버리고 경고 로그를 남긴다. 잠금을 잡으면 대화 상태를 다시 읽는다. `executionId` 가 처음 읽은 값과 다른 실행을 가리키면 같은 방식으로 버린다. 비어 있거나 다시 읽지 못하면 그대로 진행한다. Redis 가 없거나 오류가 나면 잠금을 잡은 것으로 본다(fail-open). 키와 TTL 은 [채팅 채널 데이터와 흐름 — 저장 모델과 상태 「Redis 키」](CLE-CHAT-DATA-STORE.md#redis-키) 가 정한다. 근거는 [R-CC-38](#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다.
 
 활성 실행은 `HooksService.getActiveExecutionStatus` 가 종결 전 상태(`running`·`pending`·`waiting_for_input`)를 돌려준 실행이다. 취소는 EIA `cancel`([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md))과 사용자 실행 중지(`POST /api/executions/:id/stop`)가 쓰는 REST 취소 경로 `ExecutionsService.stop` 을 부른다([노드 취소 「신호를 만드는 쪽」](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 7). `running`·`pending` 은 원자 UPDATE 로 바로 `cancelled` 가 된다. `waiting_for_input` 은 continuation bus 에 취소를 넣어 비동기로 `cancelled` 가 된다. 새 실행은 그 취소가 끝나기를 기다리지 않는다.
 
-이미 끝난 실행의 취소는 `stop` 이 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)로 거부하고 지워진 실행은 `RESOURCE_NOT_FOUND`(`404`)로 거부한다. 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조) 에 있다. `/start` 는 이 셋을 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 새로 시작하고 `EXECUTION_ENQUEUE_FAILED` 면 새 실행 없이 그 에러로 답한다. 지금 `stop` 은 `INVALID_STATE` 를 `400` 으로 던져 카탈로그의 `422` 와 다르다(부분 구현, NERV Task `CLE-T-B9CRCF`). 판정이 에러 코드라 이 차이로 `/start` 의 동작이 바뀌지는 않는다. 시작 안내(`languageHints.executionStarted`)와 재시작 안내는 아직 보내지 않는다(부분 구현, NERV Task `CLE-T-0400J6`).
+이미 끝난 실행의 취소는 `stop` 이 `INVALID_STATE`([에러 코드 규약과 카탈로그 §6.4](../CLE-API/CLE-API-ERRCODES.md#64-유효성-검증), `422`)로 거부하고 지워진 실행은 `RESOURCE_NOT_FOUND`(`404`)로 거부한다. 취소를 큐에 넣지 못했을 때의 `503` `EXECUTION_ENQUEUE_FAILED` 는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조) 에 있다. `/start` 는 이 셋을 HTTP 상태가 아닌 에러 코드로 가른다. `INVALID_STATE`·`RESOURCE_NOT_FOUND` 면 새로 시작하고 `EXECUTION_ENQUEUE_FAILED` 면 새 실행 없이 그 에러로 답한다. 지금 `stop` 은 `INVALID_STATE` 를 `400` 으로 던져 카탈로그의 `422` 와 다르다(부분 구현, NERV Task `CLE-T-B9CRCF`). 판정이 에러 코드라 이 차이로 `/start` 의 동작이 바뀌지는 않는다. 새 실행을 시작하고 대화 상태를 저장하면 안내한다. 기존 실행 취소를 거쳤으면 재시작 안내(`languageHints.executionRestarted`), 아니면 시작 안내(`languageHints.executionStarted`)다. Telegram 은 대화에 제어 안내로 보내고 실패해도 응답은 같다. Slack · Discord 는 즉시 응답의 수신 문구 자리에 싣는다. 문구 키는 [채팅 채널 데이터와 흐름 — 설정](CLE-CHAT-DATA-CONFIG.md) 이 정한다(NERV Task `CLE-T-0400J6`).
 
 ```mermaid
 sequenceDiagram
@@ -92,7 +92,6 @@ sequenceDiagram
   participant X as ExecutionsService
   participant E as 실행 엔진
   participant C as 채널 대화 상태
-  participant D as ChatChannelDispatcher
   P->>H: /start
   H->>C: 대화 조회, executionId 는 옛 실행
   alt 보낸 사람이 실행 소유자가 아님
@@ -111,26 +110,23 @@ sequenceDiagram
       H-->>P: 에러 응답, 새 실행 없음
     end
   end
-  Note over D: 옛 실행의 종결 이벤트와 폼 입력 대기 이벤트는 늦게 올 수 있다
-  D->>C: executionId 가 옛 실행일 때만 비운다
-  D->>C: 폼 입력 대기 상태는 대화가 그 실행을 가리킬 때만 갱신한다
 ```
 
 옛 실행의 `execution.cancelled` 는 새 실행을 대화에 이은 뒤에 올 수 있다. `waiting_for_input` 취소는 continuation bus 를 거쳐 비동기로 끝난다. `running`·`pending` 도 `stop()` 이 이벤트를 바로 내지 않고 실행이 취소로 마감될 때 나간다([노드 취소 「DB 관측 취소 가드」](../CLE-EXEC/CLE-EXEC-CANCEL.md#db-관측-취소-가드) 15). 종결 이벤트가 `executionId` 를 무조건 비우면 새 실행의 매핑이 지워진다. 그러면 다음 메시지가 입력 대기 실행인 새 실행에 가지 않고 또 다른 실행을 시작한다. 그래서 그 실행을 가리킬 때만 비운다.
 
 옛 실행의 폼 입력 대기 이벤트(`execution.waiting_for_input`)도 새 실행을 이은 뒤에 올 수 있다. dispatcher 는 조회한 대화 상태가 그 이벤트의 실행을 가리킬 때만 `pendingFormModal`·`formState` 를 갱신한다. 이 갱신이 새 실행의 폼 입력 대기 상태를 덮어쓰면 다음 폼 제출이 옛 실행의 노드를 가리키게 된다.
 
-취소를 큐에 넣지 못하면(`503 EXECUTION_ENQUEUE_FAILED`) 새 실행을 시작하지 않고 에러로 응답한다. 프로바이더는 non-2xx 를 받으면 같은 update 를 다시 보낼 수 있다. 그 재전송이 30초 중복 제거에 걸리지 않도록 에러로 응답하기 전에 그 update 의 중복 제거 선점을 푼다(`ChatChannelDedupService.release`). 선점을 풀지 못하면 30초 뒤 만료로 풀린다. 새 실행 시작(`execute()`)이 실패하는 경로는 선점을 풀지 않는다.
+취소를 큐에 넣지 못하면(`503 EXECUTION_ENQUEUE_FAILED`) 새 실행을 시작하지 않고 에러로 응답한다. Telegram 은 non-2xx 를 받으면 같은 update 를 다시 보낸다([R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 그 재전송이 30초 중복 제거에 걸리지 않도록 에러로 응답하기 전에 그 update 의 중복 제거 선점을 푼다(`ChatChannelDedupService.release`). 선점을 풀지 못하면 30초 뒤 만료로 풀린다. 새 실행 시작(`execute()`)이 실패하는 경로는 선점을 풀지 않는다.
 
 ## 단일 sink 구독
 
-`ChatChannelDispatcher` 는 `onModuleInit` 에서 실행 엔진의 단일 sink `WebsocketService.executionEvents$`(RxJS Subject)를 직접 구독한다. 이 Subject 에 값을 넣는 발행 함수는 `WebsocketService.emitToExecution` 이다. dispatcher 는 EIA 알림 웹훅 발송기(`NotificationDispatcher`), SSE 어댑터와 같은 facade 계층의 형제 listener 이고 그 하위 소비자가 아니다. 같은 프로세스 안에서는 Redis pub/sub 을 거치지 않는다. EIA 알림 웹훅과 채팅 채널 발송은 같은 단일 sink 에서 커밋 뒤 fan-out 되므로 둘 다 트랜잭션 커밋 뒤 발송([External Interaction API 「트랜잭션과 발송 순서」](../CLE-IX/CLE-EIA.md#트랜잭션과-발송-순서))을 지킨다. 채널 어댑터는 엔진 내부 코드를 부르지 않는다. 이 추가 facade 사용은 [External Interaction API 「단일 싱크와 외부 facade」](../CLE-IX/CLE-EIA.md#단일-싱크와-외부-facade) 가 허용한다. SSE 어댑터의 구독 방식(현재 서버 안 직접 구독, Redis pub/sub 경유는 미구현)도 같은 절이 정한다. 트리거 단위로 이벤트를 거르는 레지스트리는 [어댑터 라이프사이클과 listener 레지스트리](CLE-CHAT-CORE-LISTENER.md) 가 정한다.
+`ChatChannelDispatcher` 는 `onModuleInit` 에서 실행 엔진의 단일 sink `WebsocketService.executionEvents$`(RxJS Subject)를 직접 구독한다. 이 Subject 에 값을 넣는 발행 함수는 `WebsocketService.emitToExecution` 이다. dispatcher 는 EIA 알림 웹훅 발송기(`NotificationDispatcher`), SSE 어댑터와 같은 facade 계층의 형제 listener 이고 그 하위 소비자가 아니다. 같은 프로세스 안에서는 Redis pub/sub 을 거치지 않는다. EIA 알림 웹훅과 채팅 채널 발송은 같은 단일 sink 에서 커밋 뒤 fan-out 되므로 둘 다 트랜잭션 커밋 뒤 발송([External Interaction API 「트랜잭션과 발송 순서」](../CLE-IX/CLE-EIA.md#트랜잭션과-발송-순서))을 지킨다. 채널 어댑터는 엔진 내부 코드를 부르지 않는다. 이 추가 facade 사용은 [External Interaction API 「단일 싱크와 외부 facade」](../CLE-IX/CLE-EIA.md#단일-싱크와-외부-facade) 가 허용한다. 트리거 단위로 이벤트를 거르는 레지스트리는 [어댑터 라이프사이클과 listener 레지스트리](CLE-CHAT-CORE-LISTENER.md) 가 정한다.
 
 ## 인증과 보안
 
 - **웹훅 진입점**: 채팅 채널 경로는 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md)(AuthConfig) 인증 대신 프로바이더별 인바운드 서명을 검증한다. Telegram 은 HMAC(Hash-based Message Authentication Code)을 지원하지 않아 `setWebhook` 때 `secret_token` 을 등록하고 `X-Telegram-Bot-Api-Secret-Token` 헤더로 검증한다. Slack 은 `X-Slack-Signature`, Discord 는 `X-Signature-Ed25519` 다. 세부는 프로바이더 문서가 정한다. 저장된 서명 자료 참조(`inboundSigningRef`)가 없는 옛 행은 서명 검증을 건너뛴다. 이 예외는 2026-11-14 에 현행 유지로 정했고 근거는 [채팅 채널 데이터와 흐름 「인바운드 서명 자료 참조가 없는 행」](CLE-CHAT-DATA-FLOW.md#인바운드-서명-자료-참조가-없는-행) 에 있다.
 - **EIA 인바운드 facade**: 채널 어댑터는 EIA 외부 토큰(`iext_*`, `itk_*`) 발급을 건너뛰고 `InteractionService.interact(ctx: InteractionRequestContext, dto: InteractDto)` 를 서버 안에서 직접 부른다. 근거는 [External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출) 의 내부 신뢰 호출(`in_process_trusted`) 예외다. EIA HTTP API 는 외부 클라이언트 전용이다.
-- **접근 제어**: 이 우회는 서버 안 신뢰 호출자에게만 열리고 외부 HTTP 경로는 구조상 닿을 수 없다. `InteractionRequestContext` 판별 union(`isInternalCtx()`)과 "HTTP guard 의 ctx 는 `scope === undefined`" 불변식은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정하고 컴파일러가 강제하므로 여기 다시 적지 않는다. `scope` 는 신뢰 영역을 나타내며 토큰 종류(`tokenFamily`)와 뜻이 다르다.
+- **접근 제어**: 이 우회는 서버 안 신뢰 호출자에게만 열리고 외부 HTTP 경로는 구조상 닿을 수 없다. `InteractionRequestContext` 판별 union 과 HTTP guard 의 불변식은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 정하고 컴파일러가 강제한다.
 - **SSRF(Server-Side Request Forgery)**: 아웃바운드 URL 은 프로바이더마다 고정(예: `api.telegram.org`)이라 사용자가 정하는 URL 이 아니다. [EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지) 의 허용 목록과 따로 간다.
 - **외부 WebSocket 보류**: 채널 어댑터는 외부 HTTP · WebSocket 경로를 더하지 않는 서버 안 구독자라 [EIA 수신 API와 SSE 「외부 WebSocket 채널은 보류한다」](../CLE-IX/CLE-EIA-INBOUND.md#외부-websocket-채널은-보류한다) 의 재논의 조건과 관계없다.
 
@@ -139,8 +135,8 @@ sequenceDiagram
 | EIA 영역 | 채팅 채널에서의 해석 |
 |---|---|
 | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) | 채널 어댑터는 서버 안 구독자다. HTTP POST 와 HMAC 검증 단계를 거치지 않는다(네트워크 왕복 없음). `seq` 정렬과 `X-Clemvion-Delivery` 중복 제거를 채널 어댑터가 하는지는 정의가 갈린다. [미결 사항](CLE-CHAT-CORE-RENDER.md#미결-사항) 을 본다 |
-| 인바운드 인터랙션([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) | 채널 어댑터는 서버 안 호출자다. `submit_form`·`click_button`·`submit_message`·`end_conversation`·`cancel` 다섯 명령은 같다. 예외로 `/start` 의 기존 실행 취소와 `/cancel` 은 facade(`InteractionService`)를 거치지 않고 `ExecutionsService.stop` 을 직접 부른다. EIA `cancel` 도 같은 REST 취소 경로로 가므로 살아 있는 실행을 취소한 결과는 같다([EIA 데이터와 흐름 「인바운드 명령과 재개」](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개) 의 `cancel` 위임). 이유는 [R2](#r2-채팅-채널을-eia-의-소비자로만-둔다) 에 있다 |
-| 인증([External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출)) | 채널 어댑터는 외부 토큰(`iext_*`, `itk_*`) 발급·검증을 건너뛴다. 내부 신뢰 호출 예외를 쓴다. EIA HTTP API 는 외부 클라이언트 전용이다 |
+| 인바운드 인터랙션([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) | 채널 어댑터는 서버 안 호출자다. `submit_form`·`click_button`·`submit_message`·`end_conversation`·`cancel` 다섯 명령은 같다. 예외로 `/start` · `/cancel` 의 취소는 facade 를 거치지 않는다([R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)) |
+| 인증([External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출)) | 내부 신뢰 호출 예외로 외부 토큰 발급·검증을 건너뛴다([인증과 보안](#인증과-보안)) |
 | 신뢰성([External Interaction API 「신뢰성과 이벤트 순번」](../CLE-IX/CLE-EIA.md#신뢰성과-이벤트-순번)) | 그대로 적용한다. 특히 `submit_form` 검증이 실패하면 실행을 입력 대기로 유지하는 규칙([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md))이 틀린 필드만 다시 묻는 동작의 바탕이다 |
 | 비기능([External Interaction API](../CLE-IX/CLE-EIA.md)) | 채널 어댑터 단계가 하나 더 붙는다(변환 평균 50ms, 발송 시작 평균 200ms). 채널 프로바이더 API 호출이 더해지므로 EIA 비기능 위에 채널 어댑터 비기능이 쌓인다 |
 
@@ -158,11 +154,11 @@ sequenceDiagram
 
 EIA HTTP API 를 새로 만들지 않고 서버 안 facade 호출만 쓴다. HTTP 왕복을 하나 줄여야 발송 시작 200ms 에 들어가고, 신뢰 호출자라 토큰 발급·검증을 건너뛴다. 인바운드 명령 facade 하나가 외부 HTTP 와 서버 안 호출을 모두 받는다. 채널 어댑터가 EIA HTTP 엔드포인트를 부르는 안은 같은 프로세스 안의 의미 없는 왕복과 토큰 부담이라 택하지 않았다.
 
-예외는 `/start` 의 기존 실행 취소와 `/cancel` 이다. 둘은 facade(`InteractionService`)를 거치지 않고 `ExecutionsService.stop` 을 직접 부른다. EIA `cancel` 도 같은 REST 취소 경로로 가므로([EIA 데이터와 흐름 「인바운드 명령과 재개」](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개)) 살아 있는 실행을 취소한 결과는 같다. `/cancel` 은 이 절이 facade 하나만 적던 때에도 `stop` 을 직접 불렀고 문서를 코드에 맞춰 이 예외를 적었다. `/start` 가 facade 대신 `stop` 을 부르는 이유는 [R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
+예외는 `/start` · `/cancel` 의 취소다. 둘은 `ExecutionsService.stop` 을 직접 부르고 이유는 [R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
 
 ### R3 1차 범위는 1:1 DM 만 지원한다
 
-그룹 대화는 누가 답했는지 가려야 하는데 채널 대화 상태의 `channelUserKey` 는 사용자 한 명을 가정한다. 1차 범위는 1:1 DM 만 받고 그룹은 명시적으로 거부한다. 후속 범위에서 여러 사용자 대화를 도입할 때 다시 논의한다. Slack 슬래시 명령도 DM 에서만 받는다(2026-11-14, NERV Task `CLE-T-JK3ERX`). 판정과 응답은 [Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 가 정한다. 그전에는 슬래시 명령을 DM 이 아닌 채널에서도 받아서 그 채널의 구성원이 한 대화를 함께 썼다. `/start`·`/cancel` 의 실행 소유자 확인([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다))은 그때 생겼고 지금은 겹 방어로 남아 있다.
+그룹 대화는 누가 답했는지 가려야 하는데 채널 대화 상태의 `channelUserKey` 는 사용자 한 명을 가정한다. 1차 범위는 1:1 DM 만 받고 그룹은 명시적으로 거부한다. 후속 범위에서 여러 사용자 대화를 도입할 때 다시 논의한다. Slack 슬래시 명령도 DM 에서만 받는다(2026-11-14, NERV Task `CLE-T-JK3ERX`). 판정과 응답은 [Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 가 정한다. 그전의 범위와 실행 소유자 확인이 생긴 경위는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 에 있다.
 
 ### R4 단일 sink 를 직접 구독한다
 
@@ -180,7 +176,7 @@ EIA HTTP API 를 새로 만들지 않고 서버 안 facade 호출만 쓴다. HTT
 
 명령 우선 규칙은 프로바이더마다 다르지 않아 이 문서에 둔다. Slack DM 일반 텍스트는 명령이 아니므로 실행 상태 분기대로 처리한다([Slack 어댑터 「R-S-10 취소 후 새로 시작은 start 명령에만 적용한다」](CLE-CHAT-SLACK.md#r-s-10-취소-후-새로-시작은-start-명령에만-적용한다)).
 
-취소는 EIA `cancel` 과 같은 REST 취소 경로인 `ExecutionsService.stop` 을 쓴다. 상태별 전이와 continuation bus 처리를 다시 만들지 않으려는 것이다. `/start` 와 `/cancel` 은 `InteractionService` 를 거치지 않고 `stop` 을 바로 부른다. EIA `cancel` 은 실행이 살아 있는지 확인한 뒤 같은 `stop` 을 부르므로 취소 동작은 같다. 바로 부르면 이미 끝났거나 지워진 실행이 `stop` 의 `INVALID_STATE`·`404` 로만 온다. `InteractionService` 를 거치면 같은 경우가 `EXECUTION_TERMINATED`·`EXECUTION_NOT_FOUND` 로도 와서 `/start` 가 가려야 할 코드가 늘어난다. 이 직접 호출도 서버 안 호출이라 [R2](#r2-채팅-채널을-eia-의-소비자로만-둔다) 와 어긋나지 않는다.
+취소는 EIA `cancel` 과 같은 REST 취소 경로인 `ExecutionsService.stop` 을 쓴다. 상태별 전이와 continuation bus 처리를 다시 만들지 않으려는 것이다. `/start` 와 `/cancel` 은 `InteractionService` 를 거치지 않고 `stop` 을 바로 부른다. EIA `cancel` 은 실행이 살아 있는지 확인한 뒤 같은 `stop` 을 부르므로([EIA 데이터와 흐름 「인바운드 명령과 재개」](../CLE-IX/CLE-EIA-DATA.md#인바운드-명령과-재개)) 취소 동작은 같다. `/cancel` 도 처음부터 `stop` 을 직접 불렀다. 바로 부르면 이미 끝났거나 지워진 실행이 `stop` 의 `INVALID_STATE`·`404` 로만 온다. `InteractionService` 를 거치면 같은 경우가 `EXECUTION_TERMINATED`·`EXECUTION_NOT_FOUND` 로도 와서 `/start` 가 가려야 할 코드가 늘어난다. 이 직접 호출도 서버 안 호출이라 [R2](#r2-채팅-채널을-eia-의-소비자로만-둔다) 와 어긋나지 않는다.
 
 상태를 읽은 뒤 취소하기 전에 실행이 끝났거나(`INVALID_STATE`) 지워졌으면(`404`) 취소할 것이 없으므로 그대로 새로 시작한다. `stop` 의 그 밖의 에러는 [R-CC-12](CLE-CHAT-CORE-RESPONSE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 의 `202` 고정 정책과 달리 그대로 돌려주고 새 실행을 시작하지 않는다. 코드에서 `stop` 이 `503 EXECUTION_ENQUEUE_FAILED` 를 내는 경우는 `waiting_for_input` 실행의 취소를 continuation bus 큐에 넣지 못했을 때(`queued=false`) 하나다.
 
@@ -188,46 +184,48 @@ EIA HTTP API 를 새로 만들지 않고 서버 안 facade 호출만 쓴다. HTT
 - 삼키고 새로 시작하지 않으면 사용자의 `/start` 가 말없이 사라진다.
 - 에러로 응답하면 새 실행은 생기지 않는다. 응답하기 전에 그 update 의 중복 제거 선점을 풀므로 프로바이더가 다시 보낸 같은 update 는 다시 처리된다. 풀지 않으면 30초 안에 온 재전송이 중복 제거에 걸려 `/start` 가 사라진다.
 
-non-2xx 응답이 이어지면 프로바이더가 웹훅을 끌 수 있다. 어느 프로바이더가 몇 번, 얼마 동안 실패하면 웹훅을 끄는지는 프로바이더 문서로 확인하지 않았다. 그래도 이 위험을 받아들인다. 에러로 답하면 큐가 회복된 뒤 오는 재전송이나 사용자의 재입력으로 같은 `/start` 가 다시 처리된다. 삼키면 큐가 회복돼도 옛 실행이 입력 대기로 남는다.
+2026-11-20 에 프로바이더 문서로 5xx 처리를 확인했다(NERV Task `CLE-T-D3D4EA`).
+
+- Telegram([setWebhook](https://core.telegram.org/bots/api#setwebhook)): non-2xx 면 같은 update 를 몇 번 다시 보낸 뒤 포기한다. 횟수 · 간격과 웹훅을 끄는 규칙은 적혀 있지 않고 update 는 24시간까지만 둔다.
+- Slack 슬래시 명령([Implementing slash commands](https://docs.slack.dev/interactivity/implementing-slash-commands)): 다시 보낸다는 서술이 없고 3초 안에 답이 없으면 사용자에게 `operation_timeout` 이 보인다. 실패율로 구독을 끄는 규칙(60분 동안 95% 넘게 실패)은 [Events API](https://docs.slack.dev/apis/events-api/) 에만 있고 `/<prefix> start` 는 그 경로로 오지 않는다.
+- Discord 인터랙션([Receiving and Responding](https://docs.discord.com/developers/interactions/receiving-and-responding)): 다시 보낸다는 서술이 없고 3초가 지나면 인터랙션 토큰이 무효가 된다. 엔드포인트 URL 은 보안 검사에 실패할 때만 지운다.
+
+그래서 `/start` 의 `503` 이 웹훅을 끈다는 근거는 문서에 없다. Telegram 은 큐가 회복된 뒤 오는 재전송마다 이 `/start` 를 다시 처리하고 Slack · Discord 는 사용자가 다시 입력해야 한다.
 
 이 취소는 웹훅 응답 전에 동기로 돈다. 실행 조회 한 번에 더해 `running`·`pending` 이면 원자 UPDATE 한 번, `waiting_for_input` 이면 continuation bus 큐 추가 한 번이 붙고 끝에 다시 조회한다. 이것이 200ms 응답 시한에 얼마를 더하는지는 재지 않았다.
 
-종결 이벤트가 `executionId` 를 그 실행을 가리킬 때만 비우는 것은 옛 실행의 `execution.cancelled` 가 새 실행을 이은 뒤에 올 수 있어서다. 무조건 비우면 새 실행의 매핑이 지워져 다음 메시지가 또 다른 실행을 시작한다. 읽은 값과 저장된 값을 비교해 바꾸므로 읽은 뒤 다른 요청이 새 실행을 이어도 덮어쓰지 않는다. `/cancel` 의 정리도 같은 이유로 같은 방식을 쓴다. 폼 입력 대기 이벤트의 대화 상태 갱신도 같은 이유로 그 실행을 가리킬 때만 한다. 옛 실행의 늦은 폼 입력 대기 이벤트가 `pendingFormModal`·`formState` 를 덮어쓰면 새 실행의 다음 폼 제출이 옛 실행의 노드 id 를 싣고 간다.
+종결 이벤트의 정리와 폼 입력 대기 상태 갱신을 그 실행을 가리킬 때만 하는 이유는 [활성 실행 중 다시 시작](#활성-실행-중-다시-시작) 의 마지막 두 문단에 있다. `/cancel` 의 정리도 같은 이유로 같은 방식을 쓴다.
 
-시작 안내와 재시작 안내는 아직 보내지 않는다. 취소와 새 시작을 먼저 맞췄고 안내는 NERV Task `CLE-T-0400J6` 가 맡는다.
-
-미룬 문제가 셋이었고 모두 닫았다.
-
-- 어느 참여자가 보낸 `/start` 든 기존 실행을 취소하던 문제는 2026-11-14 에 실행 소유자 확인으로 닫았다([R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)).
-- 같은 대화에 동시에 온 `/start` 두 개가 각자 새 실행을 시작하던 경합은 2026-11-19 에 대화 단위 시작 잠금과 재확인으로 닫았다([R-CC-36](#r-cc-36-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)).
-- 폼 입력 대기 상태 갱신이 `executionId` 를 옛 실행으로 되돌리던 경합은 2026-11-19 에 compare-and-set 으로 닫았다(NERV Task `CLE-T-CVJXDE`).
+미룬 문제 셋은 모두 닫았다. 어느 참여자가 보낸 `/start` 든 기존 실행을 취소하던 문제는 [R-CC-35](#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다), 동시에 온 `/start` 두 개가 각자 새 실행을 시작하던 경합은 [R-CC-38](#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다), 폼 입력 대기 상태 갱신이 `executionId` 를 옛 실행으로 되돌리던 경합은 NERV Task `CLE-T-CVJXDE` 가 닫았다.
 
 ### R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다
 
 2026-11-14 결정이다(NERV Task `CLE-T-G2JRMF`). 그전에는 대화의 어느 참여자가 보낸 `/start`·`/cancel` 이든 활성 실행을 취소했다.
 
-**위협이 생기는 곳.** 1차 범위는 1:1 DM 만 받는다([R3](#r3-1차-범위는-11-dm-만-지원한다)). Telegram 은 그룹 대화를, Discord 는 DM 이 아닌 채널(`channel.type !== 1`)을, Slack 이벤트는 DM 이 아닌 채널(`channel_type !== 'im'`)을 거부한다. DM 에는 사용자가 한 명뿐이라 다른 사람이 명령을 보낼 수 없다. 이 결정을 내릴 때는 Slack 슬래시 명령(`/workflow start`·`cancel`)이 예외였다. 파서가 DM 인지 확인하지 않았고 대화 키가 채널 ID 라서 그 채널의 구성원 누구나 다른 사람의 실행을 취소하거나 `/start` 로 가로챌 수 있었다. 같은 날 NERV Task `CLE-T-JK3ERX` 의 결정으로 슬래시 명령도 DM 에서만 받는다([Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다)). `channel_id` 가 `D` 로 시작하고 `channel_name` 이 없거나 `directmessage` 일 때만 DM 으로 보고, DM 밖에서 친 명령은 실행으로 보내지 않는다. 소유자 확인은 그대로 두고 겹 방어로 남긴다. 사람끼리의 DM 에서 친 슬래시 명령처럼 DM 판정이 넓게 잡히는 드문 경우에도 대화 상대가 소유자의 실행을 취소하거나 가로채는 것을 소유자 확인이 막는다.
+**위협이 생기는 곳.** 1차 범위는 1:1 DM 만 받는다([R3](#r3-1차-범위는-11-dm-만-지원한다)). DM 에는 사용자가 한 명뿐이라 다른 사람이 명령을 보낼 수 없다. 이 결정을 내릴 때는 Slack 슬래시 명령이 예외였다. 파서가 DM 인지 확인하지 않아 그 채널의 구성원 누구나 다른 사람의 실행을 취소하거나 `/start` 로 가로챌 수 있었다. 같은 날 NERV Task `CLE-T-JK3ERX` 가 슬래시 명령도 DM 에서만 받게 했다([Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다)). 소유자 확인은 겹 방어로 남긴다. 사람끼리의 DM 에서 친 슬래시 명령처럼 DM 판정이 넓게 잡히는 드문 경우에도 대화 상대가 소유자의 실행을 취소하거나 가로채지 못한다.
 
 **양식 버튼과 같은 처리.** 네이티브 폼 모달을 여는 버튼(`open_form_modal`)과 폼 제출(`form_submission`)은 보낸 사람의 `channelUserKey` 가 대화 상태의 값과 다르면 안내 없이 버린다. `/start`·`/cancel` 도 같은 기준으로 가린다.
 
-**안내 문구를 보내지 않는 이유.** 안내를 보내려면 `languageHints` 에 새 키를 더하고 한국어 · 영어 기본 문구를 정해야 한다. 슬래시 명령도 DM 에서만 받으므로 소유자가 아닌 사람의 명령은 사람끼리의 DM 처럼 DM 판정이 넓게 잡히는 드문 경우에만 생긴다. 그 비용만큼 얻는 것이 없어 다른 버린 update 와 같이 수신 확인만 보낸다.
+**안내 문구를 보내지 않는 이유.** 안내를 보내려면 `languageHints` 키와 한국어 · 영어 기본 문구가 새로 필요하다. 그런데 소유자가 아닌 사람의 명령은 DM 판정이 넓게 잡히는 드문 경우에만 생긴다. 그래서 다른 버린 update 처럼 수신 확인만 보낸다.
 
 **활성 실행이 없을 때.** 누구나 `/start` 로 새 실행을 시작할 수 있고 시작한 사람이 새 소유자가 된다. 소유자를 대화에 계속 묶어 두면 그 대화의 다른 참여자는 실행이 끝난 뒤에도 그 대화로 워크플로우를 시작할 수 없다. 소유자는 새 실행의 대화 상태를 저장할 때만 바뀐다.
 
 **기각한 대안.**
 
 - 소유자만 쓰게 하고 「다른 사용자의 실행이 진행 중」 안내를 보내는 안. 새 `languageHints` 키와 한국어 · 영어 기본 문구가 필요하고 위 이유로 얻는 것이 적다.
-- 누구나 쓰게 두고 위협 모델만 Rationale 에 적는 안. 이 결정을 내릴 때는 슬래시 명령을 아직 DM 으로 좁히지 않아서 Slack 채널의 다른 구성원이 남의 실행을 취소하거나 가로챌 수 있었다. 슬래시 명령을 DM 으로 좁힌 지금도 DM 판정이 넓게 잡히는 드문 경우에는 같은 일이 생긴다.
+- 누구나 쓰게 두고 위협 모델만 Rationale 에 적는 안. 결정할 때는 Slack 채널 구성원 누구나, 지금도 DM 판정이 넓게 잡히는 드문 경우에는 대화 상대가 남의 실행을 취소하거나 가로챌 수 있다.
 
-### R-CC-36 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다
+### R-CC-38 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다
 
 결정일: 2026-11-19
+
+처음에 R-CC-36 으로 승인했으나 [채팅 채널](CLE-CHAT-CORE.md) 의 다른 결정과 번호가 겹쳐 2026-11-20 에 R-CC-38 로 바꿨다(NERV Task `CLE-T-XZ9X0H`).
 
 NERV Task `CLE-T-QZ8RFC` 의 결정이다. R-CC-27 이 미룬 둘째 문제를 닫는다.
 
 **잠금 뒤 다시 읽는다.** 대화 상태를 처음 읽는 일은 소유자 확인에 필요해서 잠금보다 앞에 있다. 그래서 `/start` B 가 A 의 저장 전에 상태를 읽고, A 가 잠금을 푼 뒤에 잠금을 잡을 수 있다. 그러면 B 는 A 가 시작한 실행을 취소하지 않고 대화를 자기 새 실행에 잇는다. A 의 실행에는 입력이 닿지 않는다. 그래서 다시 읽은 `executionId` 가 처음 값과 다르면 버린다. 비어 있으면 옛 실행이 끝나 종결 이벤트가 비운 것이다. 이때 버리면 사용자의 `/start` 가 말없이 사라진다. 이어진 실행이 없으니 새로 시작해도 고아 실행이 생기지 않는다.
 
-**못 잡은 `/start` 는 `202` 로 버린다.** 먼저 온 `/start` 가 같은 결과(기존 실행 취소와 새 실행)를 만들므로 사용자의 의도는 남는다(R-CC-27 의 «말없이 사라진다» 와 다르다). 기다리거나 다시 시도하면 웹훅 응답이 늦어진다. `503` 같은 5xx 는 재전송과 자동 비활성화를 부른다([R-CC-12](CLE-CHAT-CORE-RESPONSE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). 그래서 `cc:dedup` 선점도 풀지 않는다.
+**못 잡은 `/start` 는 `202` 로 버린다.** 먼저 온 `/start` 가 같은 결과(기존 실행 취소와 새 실행)를 만들므로 사용자의 의도는 남는다(R-CC-27 의 «말없이 사라진다» 와 다르다). 기다리거나 다시 시도하면 웹훅 응답이 늦어진다. 5xx 로 답하면 Telegram 은 같은 update 를 다시 보내고 Slack · Discord 사용자에게는 실패로 보인다([R-CC-27](#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). 그래서 `cc:dedup` 선점도 풀지 않는다.
 
 **Redis 장애에서는 통과한다.** Redis 장애로 `/start` 를 막지 않는다. 폼 제출 잠금과 같은 정책이고 같은 지표로 센다. Redis 가 없으면 잠금 없이 진행하므로 그동안은 경합이 남는다. 잠금 구간이 TTL(30초)보다 길면 잠금이 먼저 풀려 직렬화가 깨질 수 있다. 해제는 소유권을 확인하므로 다른 `/start` 의 잠금은 지우지 않는다.
 

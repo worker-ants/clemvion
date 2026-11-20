@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
-version: 21
+version: 22
 status: "approved"
 requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058", "REQ-CHAT-059", "REQ-CHAT-060", "REQ-CHAT-061", "REQ-CHAT-062", "REQ-CHAT-063", "REQ-CHAT-064", "REQ-CHAT-065", "REQ-CHAT-066", "REQ-CHAT-067", "REQ-CHAT-068", "REQ-CHAT-069", "REQ-CHAT-070", "REQ-CHAT-071", "REQ-CHAT-072", "REQ-CHAT-073", "REQ-CHAT-074", "REQ-CHAT-075", "REQ-CHAT-076", "REQ-CHAT-077", "REQ-CHAT-078", "REQ-CHAT-079", "REQ-CHAT-080", "REQ-CHAT-081", "REQ-CHAT-082", "REQ-CHAT-083", "REQ-CHAT-084"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "b3fa7af9ed0248b96bc7d0d3f4cf019031e7b5f1d8b1e048ee933654ff72dcfd"
+content_hash: "d22e3fc64e26041a45a41955ecf99847c800cd3ef545a92efba77315af5cccf4"
 read_as: "approved_fallback"
-task: "CLE-T-A78V0M"
+task: "CLE-T-0400J6"
 source_paths: []
-mirror_sha256: "1e498c6e4d3a83f6058d26f9b9c8a031ebae901b964cba3e2ec53ff2a8950588"
-etag: "sha256-8d04c02518604cf7d28bd69c4739bac5315873765986a714ec2e31b5596cdffe"
+mirror_sha256: "5ef4af7bbb8658fc4ddc60017b729398400516b3391b5068adb4decd5f127659"
+etag: "sha256-a3484de566b92fe078f71d8aba3f2048a127d7f5bc58833c52e9469b4908c364"
 ---
 > 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -26,14 +26,14 @@ etag: "sha256-8d04c02518604cf7d28bd69c4739bac5315873765986a714ec2e31b5596cdffe"
 
 단독으로 쓴 「프로바이더」 는 채널 프로바이더다. 관련 문서는 다음과 같다.
 
-- 설정 필드, `languageHints` 기본값, 트리거 컬럼, 대화 상태, Redis 키, 데이터 흐름: [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md)
-- 어댑터 함수 계약, 렌더 매핑, 실행 실패 안내 분류 알고리즘, Form 입력 흐름: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md)
-- 메신저별 API 호출 · 명령 · UI 매핑: [Telegram](CLE-CHAT-TELEGRAM.md) · [Slack](CLE-CHAT-SLACK.md) · [Discord](CLE-CHAT-DISCORD.md) 어댑터 문서
+- 설정, 대화 상태, 데이터 흐름: [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md)
+- 어댑터 함수 계약, 렌더 매핑: [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md)
+- 메신저별 세부: [Telegram](CLE-CHAT-TELEGRAM.md) · [Slack](CLE-CHAT-SLACK.md) · [Discord](CLE-CHAT-DISCORD.md) 어댑터 문서
 - 웹채팅 위젯은 이 모듈을 거치지 않는다([웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md)).
 
 ## 요구사항
 
-줄 끝 `(원본: …)` 은 옛 요구사항 ID(`CCH-*` 등)다. 다른 문서는 옛 ID 대신 REQ ID 를 쓴다.
+줄 끝 `(원본: …)` 은 옛 요구사항 ID(`CCH-*` 등)다.
 
 ### 어댑터 라이프사이클
 
@@ -259,3 +259,6 @@ etag: "sha256-8d04c02518604cf7d28bd69c4739bac5315873765986a714ec2e31b5596cdffe"
 
 ### R-CC-37 DM 밖 거절 안내는 Telegram 만
 → [본문](CLE-CHAT-CORE-RESPONSE.md#r-cc-37-dm-밖-거절-안내는-telegram-만)
+
+### R-CC-38 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다
+→ [본문](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)
