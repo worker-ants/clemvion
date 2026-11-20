@@ -67,9 +67,7 @@ import {
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { assertRawConfigAccepted } from './trigger-config-internal-fields';
 import {
-  CHAT_CHANNEL_RESPONSE_STRIP_KEYS,
-  INTERACTION_RESPONSE_STRIP_KEYS,
-  NOTIFICATION_SIGNING_STRIP_KEYS,
+  CONFIG_KEY_AXES,
   TRIGGER_RESPONSE_REDACT_COLUMNS,
   TRIGGER_RESPONSE_STRIP_COLUMNS,
 } from './trigger-response-strip';
@@ -160,7 +158,7 @@ function stripChatChannelSecrets(
   chatChannel: Record<string, unknown>,
 ): Record<string, unknown> {
   const botTokenRef = chatChannel.botTokenRef;
-  const out = omitKeys(chatChannel, CHAT_CHANNEL_RESPONSE_STRIP_KEYS);
+  const out = omitKeys(chatChannel, CONFIG_KEY_AXES.chatChannel.stripKeys);
   out.hasBotToken = typeof botTokenRef === 'string' && botTokenRef.length > 0;
   return out;
 }
@@ -169,7 +167,7 @@ function stripChatChannelSecrets(
 function stripInteractionSecrets(
   interaction: Record<string, unknown>,
 ): Record<string, unknown> {
-  return omitKeys(interaction, INTERACTION_RESPONSE_STRIP_KEYS);
+  return omitKeys(interaction, CONFIG_KEY_AXES.interaction.stripKeys);
 }
 
 /**
@@ -183,7 +181,7 @@ function stripNotificationSigningSecrets(
     ...notification,
     signing: omitKeys(
       notification.signing as Record<string, unknown>,
-      NOTIFICATION_SIGNING_STRIP_KEYS,
+      CONFIG_KEY_AXES.notificationSigning.stripKeys,
     ),
   };
 }
@@ -1055,11 +1053,11 @@ export class TriggersService {
    * 근거: [채팅 채널 「인증과 보안」](CLE-CHAT-CORE-FLOW#인증과-보안),
    * [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙), [응답 자격 증명 마스킹 「규칙」](CLE-API-EGRESS#규칙)
    *
-   * | 축 | 어디 | 목록 | 정화 함수 |
+   * | 축 | 어디 | 목록(분류 표에서 파생) | 정화 함수 |
    * |---|---|---|---|
-   * | 1 | `config.chatChannel` JSONB | `CHAT_CHANNEL_RESPONSE_STRIP_KEYS` | `stripChatChannelSecrets` |
-   * | 2 | `config.notification.signing` | `NOTIFICATION_SIGNING_STRIP_KEYS` | `stripNotificationSigningSecrets` |
-   * | 3 | `config.interaction` | `INTERACTION_RESPONSE_STRIP_KEYS` | `stripInteractionSecrets` |
+   * | 1 | `config.chatChannel` JSONB | `CONFIG_KEY_AXES.chatChannel` | `stripChatChannelSecrets` |
+   * | 2 | `config.notification.signing` | `CONFIG_KEY_AXES.notificationSigning` | `stripNotificationSigningSecrets` |
+   * | 3 | `config.interaction` | `CONFIG_KEY_AXES.interaction` | `stripInteractionSecrets` |
    * | 4 | `trigger` 행의 **엔티티 컬럼** | `TRIGGER_RESPONSE_STRIP_COLUMNS` | `deleteSecretColumns` |
    *
    * **이 메서드는 얇은 오케스트레이터다** — 축마다 이름 있는 순수 함수를 부르고, 조인된

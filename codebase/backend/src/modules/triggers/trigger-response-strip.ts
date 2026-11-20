@@ -124,11 +124,11 @@ export const INTERACTION_CONFIG_KEY_RESPONSE = {
   ConfigKeyResponse
 >;
 
-/** 표에서 값이 `label` 인 키를 선언 순서대로 고른다. */
-function keysLabelled<K extends string>(
-  table: Readonly<Record<K, string>>,
-  label: string,
-): K[] {
+/** 표에서 값이 `label` 인 키를 선언 순서대로 고른다. 라벨이 유니온이라 오타는 컴파일 오류다. */
+function keysLabelled<
+  K extends string,
+  L extends TriggerColumnResponse | ConfigKeyResponse,
+>(table: Readonly<Record<K, L>>, label: L): K[] {
   return (Object.keys(table) as K[]).filter((key) => table[key] === label);
 }
 
@@ -140,17 +140,29 @@ export const TRIGGER_RESPONSE_STRIP_COLUMNS: readonly (keyof Trigger)[] =
 export const TRIGGER_RESPONSE_REDACT_COLUMNS: readonly (keyof Trigger)[] =
   keysLabelled(TRIGGER_COLUMN_RESPONSE, 'redact');
 
-/** `config.chatChannel` 에서 지울 키. */
-export const CHAT_CHANNEL_RESPONSE_STRIP_KEYS: ReadonlySet<string> = new Set(
-  keysLabelled(CHAT_CHANNEL_CONFIG_KEY_RESPONSE, 'strip'),
-);
+/** `config` JSONB 안의 한 축. `prefix` 는 `config` 아래 경로, `stripKeys` 는 그 표에서 `strip` 인 키다. */
+export interface ConfigKeyAxis {
+  readonly prefix: readonly string[];
+  readonly table: Readonly<Record<string, ConfigKeyResponse>>;
+  readonly stripKeys: ReadonlySet<string>;
+}
 
-/** `config.notification.signing` 에서 지울 키. */
-export const NOTIFICATION_SIGNING_STRIP_KEYS: ReadonlySet<string> = new Set(
-  keysLabelled(NOTIFICATION_SIGNING_KEY_RESPONSE, 'strip'),
-);
+function configKeyAxis(
+  prefix: readonly string[],
+  table: Readonly<Record<string, ConfigKeyResponse>>,
+): ConfigKeyAxis {
+  return { prefix, table, stripKeys: new Set(keysLabelled(table, 'strip')) };
+}
 
-/** `config.interaction` 에서 지울 키. */
-export const INTERACTION_RESPONSE_STRIP_KEYS: ReadonlySet<string> = new Set(
-  keysLabelled(INTERACTION_CONFIG_KEY_RESPONSE, 'strip'),
-);
+/**
+ * JSONB 축 레지스트리. 접두사 · 표 · 지울 키가 한 곳에 있고 `TriggersService.sanitizeForResponse` 와
+ * 단위 테스트가 이것을 함께 쓴다. 축을 더하거나 접두사를 바꾸면 서비스와 테스트가 같이 따라온다.
+ */
+export const CONFIG_KEY_AXES = {
+  chatChannel: configKeyAxis(['chatChannel'], CHAT_CHANNEL_CONFIG_KEY_RESPONSE),
+  notificationSigning: configKeyAxis(
+    ['notification', 'signing'],
+    NOTIFICATION_SIGNING_KEY_RESPONSE,
+  ),
+  interaction: configKeyAxis(['interaction'], INTERACTION_CONFIG_KEY_RESPONSE),
+} as const satisfies Record<string, ConfigKeyAxis>;

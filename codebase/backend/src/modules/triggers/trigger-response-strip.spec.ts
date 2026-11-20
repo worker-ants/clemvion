@@ -3,15 +3,14 @@ import { getMetadataArgsStorage } from 'typeorm';
 import { Trigger } from './entities/trigger.entity';
 import { CONFIG_INTERNAL_FIELDS } from './trigger-config-internal-fields';
 import {
-  CHAT_CHANNEL_CONFIG_KEY_RESPONSE,
-  CHAT_CHANNEL_RESPONSE_STRIP_KEYS,
-  INTERACTION_CONFIG_KEY_RESPONSE,
-  INTERACTION_RESPONSE_STRIP_KEYS,
-  NOTIFICATION_SIGNING_KEY_RESPONSE,
-  NOTIFICATION_SIGNING_STRIP_KEYS,
+  CONFIG_KEY_AXES,
   TRIGGER_COLUMN_RESPONSE,
   TRIGGER_RESPONSE_REDACT_COLUMNS,
   TRIGGER_RESPONSE_STRIP_COLUMNS,
+} from './trigger-response-strip';
+import type {
+  ConfigKeyResponse,
+  TriggerColumnResponse,
 } from './trigger-response-strip';
 
 // 분류 표가 빠짐없는지는 `satisfies` 가 컴파일 단계에서 본다. 이 파일은 타입이 보지 못하는 두 자리를 본다.
@@ -19,27 +18,11 @@ import {
 // - 원시 `config` 로 받지 않는 서버 소유 키(`CONFIG_INTERNAL_FIELDS`)가 JSONB 표에서 `strip` 인가.
 //   서버가 DTO 밖의 키를 JSONB 에 쓰면 표의 키 타입에 나타나지 않으므로 이 대조가 그 빈자리를 메운다.
 
-const CONFIG_KEY_TABLES: Record<
-  string,
-  { prefix: readonly string[]; table: Readonly<Record<string, string>> }
-> = {
-  chatChannel: {
-    prefix: ['chatChannel'],
-    table: CHAT_CHANNEL_CONFIG_KEY_RESPONSE,
-  },
-  notificationSigning: {
-    prefix: ['notification', 'signing'],
-    table: NOTIFICATION_SIGNING_KEY_RESPONSE,
-  },
-  interaction: {
-    prefix: ['interaction'],
-    table: INTERACTION_CONFIG_KEY_RESPONSE,
-  },
-};
-
-/** 경로가 어느 JSONB 표에 속하는지 찾고 그 표에서의 분류를 돌려준다. 맞는 표가 없으면 `undefined`. */
-function classifyConfigPath(path: readonly string[]): string | undefined {
-  for (const { prefix, table } of Object.values(CONFIG_KEY_TABLES)) {
+/** 경로가 어느 JSONB 축에 속하는지 찾고 그 표에서의 분류를 돌려준다. 맞는 축이 없으면 `undefined`. */
+function classifyConfigPath(
+  path: readonly string[],
+): TriggerColumnResponse | ConfigKeyResponse | undefined {
+  for (const { prefix, table } of Object.values(CONFIG_KEY_AXES)) {
     if (path.length !== prefix.length + 1) continue;
     if (!prefix.every((segment, i) => path[i] === segment)) continue;
     const key = path[prefix.length];
@@ -64,7 +47,12 @@ describe('트리거 응답 분류 표', () => {
     expect(Object.keys(TRIGGER_COLUMN_RESPONSE).sort()).toEqual(mapped);
   });
 
-  it.each(CONFIG_INTERNAL_FIELDS.map(({ path }) => [path.join('.'), path]))(
+  it.each(
+    CONFIG_INTERNAL_FIELDS.map(
+      ({ path }) =>
+        [path.join('.'), path] as readonly [string, readonly string[]],
+    ),
+  )(
     '원시 config 로 받지 않는 %s 는 JSONB 표에서 strip 이다',
     (_label, path) => {
       expect(classifyConfigPath(path)).toBe('strip');
@@ -73,6 +61,7 @@ describe('트리거 응답 분류 표', () => {
 
   it('[대조군] 표에 없는 경로는 strip 으로 판정하지 않는다', () => {
     expect(classifyConfigPath(['chatChannel', 'noSuchKey'])).toBeUndefined();
+    expect(classifyConfigPath(['chatChannel', 'constructor'])).toBeUndefined();
     expect(classifyConfigPath(['chatChannel', 'provider'])).toBe('expose');
     expect(classifyConfigPath(['webhook', 'botTokenRef'])).toBeUndefined();
     expect(
@@ -94,17 +83,19 @@ describe('트리거 응답 분류 표', () => {
   });
 
   it('JSONB 안에서 지우는 키', () => {
-    expect([...CHAT_CHANNEL_RESPONSE_STRIP_KEYS].sort()).toEqual([
+    expect([...CONFIG_KEY_AXES.chatChannel.stripKeys].sort()).toEqual([
       'botToken',
       'botTokenRef',
       'inboundSigning',
       'inboundSigningPlaintext',
       'inboundSigningRef',
     ]);
-    expect([...NOTIFICATION_SIGNING_STRIP_KEYS].sort()).toEqual([
+    expect([...CONFIG_KEY_AXES.notificationSigning.stripKeys].sort()).toEqual([
       'secret',
       'secretRef',
     ]);
-    expect([...INTERACTION_RESPONSE_STRIP_KEYS]).toEqual(['triggerToken']);
+    expect([...CONFIG_KEY_AXES.interaction.stripKeys]).toEqual([
+      'triggerToken',
+    ]);
   });
 });
