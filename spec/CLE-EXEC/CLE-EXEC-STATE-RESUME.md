@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE-RESUME"
 title: "실행 상태 머신과 대기·재개 — 입력 대기와 재개 상태"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-STATE"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-STATE"]
 area: "CLE-EXEC"
-content_hash: "0915e8b45a23221411731b01e17cee2d89cda74423c776f49044fc622bfa0d70"
+content_hash: "e25f941c7841b6c0d365e032dcab9216928b2739a9ac780f9ede6d502a5a6315"
 read_as: "approved_fallback"
-task: "CLE-T-K9RZQV"
+task: "CLE-T-0ZHAC4"
 source_paths: []
-mirror_sha256: "820369dd985c0f9641c05a35888622537eb42b3e0e05c5547f02566c4735c97b"
-etag: "sha256-46930e2ba74c31aad345507003c90a149ce9f7423429917728029b948ce87ee7"
+mirror_sha256: "18fd3d756dab71ff73eb6a93ea01e4578150867a5894ab55bd37b80c611e5f00"
+etag: "sha256-6b3669703da56a3312d9bd7af8eea5b50deda858679a179a7e59189eb5d39dd4"
 ---
 ## 개요
 
@@ -72,7 +72,7 @@ Presentation 노드의 `interaction` 과 멀티턴 AI 노드의 `message_receive
 - 멀티턴 AI 노드(AI 에이전트, 정보 추출기) 핸들러가 다음 턴을 처리하려고 들고 있는 내부 상태다. 노드 출력 다섯 필드 밖의 최상위 필드로 허용된 예외다.
 - 엔진은 `_resumeState` 를 읽어 다음 턴을 다시 만든다.
 - 표현식 resolver 는 이 필드를 노출하지 않는다.
-- 최종 출력을 저장할 때 엔진(`stripControlFields()`)이 `_resumeState` 를 지운다. 옛 키 `_multiTurnState` 도 지움 대상에 남아 있지만 옛 페이로드 호환을 위한 방어일 뿐 현재 경로는 이 키를 만들지 않는다.
+- `NodeExecution.outputData` 에 저장할 때 AI 턴 처리(`AiTurnOrchestratorService`)가 `_resumeState` 를 지운다. 턴마다 저장하는 대기 출력과 최종 출력이 모두 그렇다. 다음 노드에는 구조화 출력의 `output` 만 넘어가므로 이 필드는 다음 노드 입력에도 들어가지 않는다.
 
 ## 보존 예외 `_resumeCheckpoint`
 
@@ -80,10 +80,10 @@ Presentation 노드의 `interaction` 과 멀티턴 AI 노드의 `message_receive
 
 - **적용 범위**: `ai_agent` 와 `information_extractor` 의 멀티턴(`ai_conversation`). 저장 허용 목록은 두 핸들러 런타임 상태의 합집합이다. `ai_agent` 는 messages·turnCount·토큰·RAG·MCP·`pendingFormToolCall` 을, `information_extractor` 는 여기에 `partialResult`·`collectionRetryCount`(둘 다 자격 증명 없는 런타임 값)를 더한다. 설정 필드는 노드마다 다르지만(`ai_agent`: `llmConfigId`·`maxTurns`·`conditions`·`presentationTools`, `information_extractor`: `outputSchema`·`examples`·`instructions`·`maxCollectionRetries`) 재구성 때 공통 함수 `resolveRetryNodeConfig` 가 `node.config` 에서 다시 만든다. `buildRetryReentryState` 는 두 모양의 합집합을 채우고 각 핸들러의 `processMultiTurnMessage` 가 자기 필드만 읽는다. 그 밖의 `ai_conversation` 핸들러는 고유 런타임 상태가 허용 목록에 없어 체크포인트를 남기지 않는다. 이런 노드는 재시작 뒤 재개하면 `RESUME_INCOMPATIBLE_STATE` 로 정리된다.
 - **저장 시점**: 입력 대기에 들어갈 때(`emitAiWaitingForInput`)와 턴마다(`handleAiMessageTurn`) 엔진이 `_resumeState` 의 자격 증명을 뺀 부분집합을 `_resumeCheckpoint` 로 옮겨 `NodeExecution.outputData._resumeCheckpoint` 에 저장한다. 재개 턴에는 LLM 을 부르기 전에 저장하는 재개 스냅샷에도 직전 대기와 같은 재개 상태로 만든 체크포인트를 싣는다. LLM 호출 중 서버가 재시작해도 체크포인트가 남는다.
-- **지움 예외**: `stripControlFields()` 는 `_resumeCheckpoint` 를 남긴다. 다음 노드 입력으로 넘길 때는 `_resumeState` 와 함께 지운다.
+- **저장 예외**: 저장할 때 `_resumeState` 만 지우고 `_resumeCheckpoint` 는 남긴다. 다음 노드 입력에는 구조화 출력의 `output` 만 넘어가므로 두 필드 모두 들어가지 않는다.
 - **모양**: `_retryState` 와 같은 부분집합(messages·turnCount·model·temperature·maxTokens·knowledgeBases·RAG·MCP·`pendingFormToolCall?` 등)이다. 다만 `expiresAt`(TTL)이 없다. 입력 대기 실행은 기한 없이 보존되므로 대화는 오래 쉰 뒤에도 이어져야 한다. `lastUserMessage` 도 없다. 재개할 때 도착한 사용자 메시지를 그대로 첫 턴으로 처리한다.
 - **자격 증명 제외**: 자격 증명과 컨텍스트 결속 필드는 싣지 않는다. `buildRetryState`·`buildResumeState` 가 옮길 키를 하나씩 열거하는 허용 목록 방식이다.
-- **두 재유도 경로**: 재개할 때 **조작 필드**(`llmConfigId`·`maxTurns`·`conditions`·`presentationTools` 등)는 `node.config` 를 다시 평가해 만든다. **식별 필드**는 호출하는 쪽 컨텍스트에서 다시 만든다. `workflowId` 는 `execution.workflowId`, `nodeId` 는 재개할 노드 행의 `node.id`, 재개 대상 `nodeExecutionId` 는 대기·재시도 노드 실행 행의 PK(`buildRetryReentryState` 옵션), `workspaceId` 는 실행 컨텍스트에서 가져온다. `workflowId` 는 실행의 루트 워크플로우라서 서브 워크플로우 안의 노드에서는 그 노드가 속한 워크플로우와 다르다. 노드가 속한 워크플로우가 필요하면 `nodeId` 로 찾는다.
+- **두 재유도 경로**: 재개할 때 **조작 필드**(`llmConfigId`·`maxTurns`·`conditions`·`presentationTools` 등)는 `node.config` 를 다시 평가해 만든다. **식별 필드**는 호출하는 쪽 컨텍스트에서 다시 만든다. `workflowId` 는 `execution.workflowId`, `nodeId` 는 재개할 노드 행의 `node.id`, 재개 대상 `nodeExecutionId` 는 대기·재시도 노드 실행 행의 PK(`buildRetryReentryState` 옵션), `workspaceId` 는 실행 컨텍스트에서 가져온다. dry-run 여부 `dryRun` 은 실행 컨텍스트의 `variables.__dryRun` 에서 가져온다. `workflowId` 는 실행의 루트 워크플로우라서 서브 워크플로우 안의 노드에서는 그 노드가 속한 워크플로우와 다르다. 노드가 속한 워크플로우가 필요하면 `nodeId` 로 찾는다.
 - **MCP 서버의 표현식 여부**: `_resumeState` · `_resumeCheckpoint` · `_retryState` 는 서버 목록(`mcpServers`)과 표현식 여부 배열 `mcpServerFromExpression` 을 함께 싣는다. 저장 · 판정 규칙, 배열이 없는 옛 체크포인트와 서버 목록이 통째로 없는 체크포인트의 처리는 [MCP 서버 표현식 여부 보존](CLE-EXEC-STATE-MCPEXPR.md) 이 정한다.
 - **스키마 버전**: 체크포인트는 정수 `CHECKPOINT_SCHEMA_VERSION` 을 함께 싣는다. 재개할 때 버전이 없거나(기능 배포 전 행) 현재 코드 버전 이하이면 빠진 필드를 기본값으로 채워 다시 만든다. 현재 코드 버전보다 크면(롤링 배포 중 옛 인스턴스가 새 형식을 받음) 안전하게 만들 수 없으므로 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. MCP 서버의 `mcpServerFromExpression` 처럼 값이 없을 때의 뜻이 정해진 필드는 버전을 올리지 않고 더한다([Rationale](CLE-EXEC-STATE-MCPEXPR.md#mcp-서버-항목에-표현식-여부를-저장하고-스키마-버전을-올리지-않는다-2026-10-25), [Rationale](CLE-EXEC-STATE-MCPEXPR.md#표현식-여부를-서버-항목-밖-배열로-옮긴다-2026-11-07)).
 - **소비**: rehydration 이 `outputData._resumeCheckpoint` 를 읽고 버전을 검사한 뒤 `buildRetryReentryState`(`_retryState` 와 공유)로 `_resumeState` 를 다시 만든다. 핵심 필드가 빠졌으면 기본값으로 채운다. `driveResumeAwaited`·`driveResumeFrame` 이 도착한 재개 페이로드를 `dispatchResumeTurn` 을 거쳐 `handleAiResumeTurn` → `processAiResumeTurn`(한 턴 처리기)에 넘긴다. 체크포인트가 없거나(기능 배포 전 행) 손상됐거나 미래 버전이면 `RESUME_INCOMPATIBLE_STATE` 로 정리한다. 이 정리는 사용자 입력이 도착한 재개(case A)에 적용한다. 크래시 재구동(case B)의 결손 처리는 [크래시 재구동에서 처리 중이던 턴을 다시 돌린다](#크래시-재구동에서-처리-중이던-턴을-다시-돌린다) 를 따른다.
@@ -109,6 +109,8 @@ sequenceDiagram
 **사용량 귀속 불변식**: 재개·재시도 턴의 provider 도구 `logUsage` 귀속(`IntegrationUsageLog.node_execution_id`)은 위 식별 필드 `nodeExecutionId`·`workflowId` 가 `buildRetryReentryState` 재구성 결과에 다시 들어가야 성립한다. 두 필드는 자격 증명 제외 허용 목록(`CREDENTIAL_CONTEXT_FIELDS`)에 따라 체크포인트에서 빠진다. 재구성 때 호출 쪽 컨텍스트에서 다시 넣지 않으면 provider 도구의 사용 로그 조건(`ctx.nodeExecutionId && ctx.workflowId`)이 거짓이 돼 재개·재시도 턴의 통합 사용 로그가 조용히 빠진다.
 
 소비하는 곳은 노드 유형마다 다르다. `ai_agent` 의 provider 도구 `IntegrationUsageLog` 는 조건부라 필드가 없으면 로그가 빠진다. 두 노드의 LLM 호출이 남기는 `llm_usage_log`(`LlmUsageLogService.record`, `?? null`)는 조건이 없어 필드가 없거나 틀리면 로그가 빠지지 않고 귀속이 오염된다. provider 도구가 없는 `information_extractor` 재개가 이 경우다. 현재 이 불변식은 회귀 테스트로만 강제되므로 `CREDENTIAL_CONTEXT_FIELDS`·`resumeStateSchema` 를 고칠 때 반드시 지킨다. 사용량 기록 구조는 [LLM 사용량 기록](../CLE-AI/CLE-AI-USAGE.md) 과 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 에 있다.
+
+**dry-run 여부**: 재개·재시도 턴의 도구 프로바이더는 재구성 결과의 `dryRun` 을 `ProviderExecCtx.dryRun` 으로 받아 부수효과 도구를 모의 응답으로 대신한다([재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md)). `dryRun` 도 `CREDENTIAL_CONTEXT_FIELDS` 에 있어 체크포인트에서 빠진다. 재구성 때 다시 넣지 않으면 dry-run 재실행의 재개·재시도 턴이 부수효과 도구를 실제로 부른다.
 
 **개인 통합 판정의 식별 필드**: 재개·재시도 턴의 도구 프로바이더는 재구성 결과의 `nodeId` 를 개인 통합 조회에 넘긴다. `nodeId` 도 `CREDENTIAL_CONTEXT_FIELDS` 에 있어 체크포인트에서 빠지므로 위 귀속 불변식처럼 재구성 때 다시 넣어야 한다. 이 값이 빠지면 통합 서비스가 워크플로우 작성자를 구하지 못해 개인 통합을 쓰는 서버가 모두 거절된다. 남의 개인 통합이 쓰이지는 않지만 워크플로우 작성자 자신의 개인 통합도 쓰지 못한다.
 

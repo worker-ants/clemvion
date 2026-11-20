@@ -1274,6 +1274,55 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // CLE-T-CE5YR3 — rehydrate 의 waiting 노드 복원은 `setNodeOutputs` 로 두 캐시를 쓴다.
+  // 평면 캐시는 저장 값 그대로, 구조화 캐시는 라우팅 표지 `_selectedPort` 를 떼고 둔다.
+  describe('rehydrateContext — waiting 노드 복원 (CLE-T-CE5YR3)', () => {
+    it('평면 캐시에는 저장 값 그대로, 구조화 캐시에는 `_selectedPort` 없이 쓴다', async () => {
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+      mockExecutionNodeLogRepo.find.mockResolvedValueOnce([]);
+      const outputData = {
+        status: 'waiting_for_input',
+        meta: { interactionType: 'form' },
+        output: { answer: 'x' },
+        _selectedPort: 'default',
+      };
+
+      const context = await service.rehydrateContext(
+        {
+          id: executionId,
+          workflowId,
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+          recursionDepth: 0,
+        } as unknown as Execution,
+        {
+          id: 'ne-waiting',
+          executionId,
+          nodeId: 'node-w',
+          outputData,
+        } as unknown as NodeExecution,
+      );
+
+      try {
+        expect(context.nodeOutputCache['node-w']).toEqual(outputData);
+        // 대기 봉투는 핸들러 출력 모양이 아니라서 `output` 으로 감싼다. 표지만 빠지고
+        // 나머지 필드는 값까지 그대로 옮겨야 한다.
+        expect(context.structuredOutputCache['node-w']).toEqual({
+          config: {},
+          output: {
+            status: 'waiting_for_input',
+            meta: { interactionType: 'form' },
+            output: { answer: 'x' },
+          },
+          status: 'waiting_for_input',
+        });
+      } finally {
+        contextService.deleteContext(executionId);
+      }
+    });
+  });
+
   // PR3 — redriveStuckExecution (case B 진입) 단위. 재구동 setup 분기.
   describe('redriveStuckExecution (PR3 case B)', () => {
     let driveSpy: jest.SpyInstance;
@@ -1435,7 +1484,7 @@ describe('ExecutionEngineService', () => {
       buildRetryReentryState: (...a: unknown[]) => unknown;
       contextKeyOf: (...a: unknown[]) => string;
       eventEmitter: { emitNode: (...a: unknown[]) => Promise<void> };
-      contextService: { setNodeOutput: (...a: unknown[]) => void };
+      contextService: { setNodeOutputs: (...a: unknown[]) => void };
     };
     const internals = (): Internals => service as unknown as Internals;
     const checkpoint = { schemaVersion: 1, turnCount: 1, messages: [] };
@@ -1531,7 +1580,7 @@ describe('ExecutionEngineService', () => {
         .spyOn(svc.eventEmitter, 'emitNode')
         .mockResolvedValue(undefined);
       seedSpy = jest
-        .spyOn(svc.contextService, 'setNodeOutput')
+        .spyOn(svc.contextService, 'setNodeOutputs')
         .mockImplementation(() => undefined);
       mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(aiNode);
     });
@@ -1564,13 +1613,15 @@ describe('ExecutionEngineService', () => {
         undefined,
         { in: 1 },
       );
-      // 턴 이전 대기 봉투를 캐시에 싣는다(사용자 메시지를 두 번 싣지 않는다).
-      const [, seededNodeId, seeded] = seedSpy.mock.calls[0] as [
+      // 턴 이전 대기 봉투를 두 캐시에 함께 싣는다(사용자 메시지를 두 번 싣지 않는다).
+      const [, seededNodeId, seeded, seededFlat] = seedSpy.mock.calls[0] as [
         string,
         string,
         { status: string; output: { result: { messages: unknown[] } } },
+        unknown,
       ];
       expect(seededNodeId).toBe('n-ai');
+      expect(seededFlat).toEqual(seeded);
       expect(seeded.status).toBe('waiting_for_input');
       expect(seeded.output.result.messages).toHaveLength(2);
       expect(seeded.output).not.toHaveProperty('interaction');
@@ -18501,7 +18552,7 @@ describe('ExecutionEngineService', () => {
       const svcAny = service as unknown as {
         loadAndBuildGraph: (...args: unknown[]) => Promise<unknown>;
         contextService: {
-          setNodeOutput: jest.Mock;
+          seedNodeOutput: jest.Mock;
           getContext: (
             key: string,
           ) => { nodeOutputCache: Record<string, unknown> } | undefined;
@@ -18530,14 +18581,14 @@ describe('ExecutionEngineService', () => {
         .spyOn(aiTurnOrchestrator, 'processAiResumeTurn')
         .mockResolvedValue(undefined);
 
-      // W6 (ai-review) — setNodeOutput 호출 인자를 캡처해 buildRetryReentryState 가
+      // W6 (ai-review) — seedNodeOutput 호출 인자를 캡처해 buildRetryReentryState 가
       // checkpoint 로부터 partialResult/collectionRetryCount 를 실제 복원했는지
       // toMatchObject 로 검증한다. processAiResumeTurn 시그니처상 resumeState 가
       // 인자로 오지만, 재구성 결과가 nodeOutputCache 에도 seed 되므로 양쪽 검증
-      // 가능 — 여기서는 기존대로 context.setNodeOutput 에 seed 된 값을 조회한다.
-      const setNodeOutputSpy = jest.spyOn(
+      // 가능 — 여기서는 기존대로 context.seedNodeOutput 에 seed 된 값을 조회한다.
+      const seedNodeOutputSpy = jest.spyOn(
         svcAny.contextService,
-        'setNodeOutput',
+        'seedNodeOutput',
       );
 
       await subject().rehydrateAndResume(executionId, 'ne-1', {
@@ -18549,7 +18600,7 @@ describe('ExecutionEngineService', () => {
       expect(turnSpy).toHaveBeenCalledTimes(1);
 
       // W6 — seeded nodeOutputCache 에 partialResult/collectionRetryCount 가 복원됐는지.
-      const seededCalls = setNodeOutputSpy.mock.calls;
+      const seededCalls = seedNodeOutputSpy.mock.calls;
       expect(seededCalls.length).toBeGreaterThan(0);
       const seededOutput = seededCalls[seededCalls.length - 1][2] as Record<
         string,
@@ -18576,7 +18627,7 @@ describe('ExecutionEngineService', () => {
         .filter(Boolean);
       expect(codes).not.toContain('RESUME_INCOMPATIBLE_STATE');
 
-      setNodeOutputSpy.mockRestore();
+      seedNodeOutputSpy.mockRestore();
       loadSpy.mockRestore();
       turnSpy.mockRestore();
     });
@@ -19390,7 +19441,7 @@ describe('ExecutionEngineService', () => {
       ).rejects.toMatchObject({ code: 'RESUME_INCOMPATIBLE_STATE' });
     });
 
-    it('handleAiResumeTurn: 정상 → _resumeState seed(setNodeOutput) + processAiResumeTurn 결과 전달', async () => {
+    it('handleAiResumeTurn: 정상 → _resumeState seed(seedNodeOutput) + processAiResumeTurn 결과 전달', async () => {
       // C-1 step2 — handleAiResumeTurn / processAiResumeTurn 은 orchestrator 로
       // 이동. buildRetryReentryState / contextKeyOf 는 driver(=엔진) 경유 호출.
       const svc = service as unknown as DispatchSubject;
@@ -19403,10 +19454,10 @@ describe('ExecutionEngineService', () => {
         .spyOn(
           (
             aiTurnOrchestrator as unknown as {
-              contextService: { setNodeOutput: unknown };
+              contextService: { seedNodeOutput: unknown };
             }
-          ).contextService as { setNodeOutput: (...a: unknown[]) => void },
-          'setNodeOutput',
+          ).contextService as { seedNodeOutput: (...a: unknown[]) => void },
+          'seedNodeOutput',
         )
         .mockImplementation(() => undefined);
       const aiSpy = jest
@@ -19443,10 +19494,10 @@ describe('ExecutionEngineService', () => {
         .spyOn(
           (
             aiTurnOrchestrator as unknown as {
-              contextService: { setNodeOutput: unknown };
+              contextService: { seedNodeOutput: unknown };
             }
-          ).contextService as { setNodeOutput: (...a: unknown[]) => void },
-          'setNodeOutput',
+          ).contextService as { seedNodeOutput: (...a: unknown[]) => void },
+          'seedNodeOutput',
         )
         .mockImplementation(() => undefined);
       jest
@@ -19522,7 +19573,7 @@ describe('ExecutionEngineService', () => {
           nodeId: string,
           value: unknown,
         ) => void;
-        setNodeOutput: (key: string, nodeId: string, value: unknown) => void;
+        seedNodeOutput: (key: string, nodeId: string, value: unknown) => void;
         createContext: (
           executionId: string,
           workflowId: string,

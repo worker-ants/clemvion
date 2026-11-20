@@ -6,6 +6,7 @@ import {
   parallelGraphWarningRules,
   parallelNestedConcurrencyCapRule,
   parallelNestedDepthExceededRule,
+  reachSkippingBackgroundEdges,
 } from '../index';
 
 const mkNode = (
@@ -272,5 +273,45 @@ describe('parallel graphWarningRules', () => {
         evaluateGraphWarningRulesForGraph({ nodes: [http], edges: [] }, resolver),
       ).toEqual([]);
     });
+  });
+});
+
+describe('reachSkippingBackgroundEdges (CLE-T-HH61D6)', () => {
+  const isBg = (id: string) => id.startsWith('bg');
+
+  it('시작 노드부터 앞으로 따라가고 Background 의 `background` 연결선만 건너뛴다', () => {
+    const edges = [
+      mkEdge('a', 'bg1'),
+      mkEdge('bg1', 'after', 'out'),
+      mkEdge('bg1', 'body', 'background'),
+      mkEdge('body', 'tail'),
+    ];
+    expect([...reachSkippingBackgroundEdges(['a'], edges, isBg)].sort()).toEqual(
+      ['a', 'after', 'bg1'],
+    );
+  });
+
+  it('Background 가 아닌 노드의 `background` 포트는 따라간다', () => {
+    const edges = [mkEdge('a', 'x', 'background')];
+    expect([...reachSkippingBackgroundEdges(['a'], edges, isBg)].sort()).toEqual(
+      ['a', 'x'],
+    );
+  });
+
+  it('판별 함수를 주지 않으면 모든 연결선을 따라간다', () => {
+    const edges = [mkEdge('bg1', 'body', 'background')];
+    expect([...reachSkippingBackgroundEdges(['bg1'], edges)].sort()).toEqual([
+      'bg1',
+      'body',
+    ]);
+  });
+
+  it('다른 경로로도 닿는 노드는 넣는다 (Background 본문만 거치는 노드와 구분)', () => {
+    const edges = [
+      mkEdge('a', 'bg1'),
+      mkEdge('bg1', 'join', 'background'),
+      mkEdge('a', 'join'),
+    ];
+    expect(reachSkippingBackgroundEdges(['a'], edges, isBg).has('join')).toBe(true);
   });
 });

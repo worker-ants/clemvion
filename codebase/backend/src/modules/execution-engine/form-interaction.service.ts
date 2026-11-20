@@ -284,9 +284,9 @@ export class FormInteractionService {
       port: 'out',
       ...(resumedMeta !== undefined ? { meta: resumedMeta } : {}),
     };
-    // 두 캐시를 한 번에 쓴다. `setNodeOutput` 은 flat 값으로 구조화 출력을 다시 만들어
-    // `$input` · `$node[X].output` 에 `status` · `port` · `data` 가 섞인다(NERV Task
-    // CLE-T-ZJR3AF).
+    // 두 캐시를 한 번에 쓴다. 시드 전용 `seedNodeOutput` 은 flat 값으로 구조화 출력을
+    // 다시 만들어 `$input` · `$node[X].output` 에 `status` · `data` 가 섞인다(NERV Task
+    // CLE-T-ZJR3AF · CLE-T-CE5YR3).
     this.contextService.setNodeOutputs(
       this.driver.contextKeyOf(context),
       node.id,

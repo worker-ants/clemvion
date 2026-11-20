@@ -88,7 +88,7 @@ describe('ExecutionContextService', () => {
     });
   });
 
-  describe('setNodeOutput — production strict mode (NodeHandlerOutput contract)', () => {
+  describe('seedNodeOutput — production strict mode (NodeHandlerOutput contract)', () => {
     const prevEnv = process.env.NODE_ENV;
     beforeEach(() => {
       process.env.NODE_ENV = 'production';
@@ -98,13 +98,13 @@ describe('ExecutionContextService', () => {
     });
 
     // Regression for the "violates the NodeHandlerOutput contract" production
-    // crash: setNodeOutput receives flattened post-port-routing output from
+    // crash: seedNodeOutput receives flattened post-port-routing output from
     // toEngineFlatShape (e.g. `{parameters: {}}`), which is intentionally
     // bare. Running the strict adaptHandlerReturn here used to throw even
     // though the handler boundary already validated the canonical shape.
     it('does not throw on a flat bare output (production)', () => {
       expect(() =>
-        service.setNodeOutput(executionId, nodeId, { parameters: {} }),
+        service.seedNodeOutput(executionId, nodeId, { parameters: {} }),
       ).not.toThrow();
 
       const ctx = service.getContext(executionId)!;
@@ -117,15 +117,15 @@ describe('ExecutionContextService', () => {
 
     it('does not throw on null/undefined output (production)', () => {
       expect(() =>
-        service.setNodeOutput(executionId, nodeId, null),
+        service.seedNodeOutput(executionId, nodeId, null),
       ).not.toThrow();
       expect(() =>
-        service.setNodeOutput(executionId, 'node-2', undefined),
+        service.seedNodeOutput(executionId, 'node-2', undefined),
       ).not.toThrow();
     });
 
     it('preserves canonical output shape end-to-end (production)', () => {
-      service.setNodeOutput(executionId, nodeId, {
+      service.seedNodeOutput(executionId, nodeId, {
         config: { x: 1 },
         output: 42,
       });
@@ -324,16 +324,16 @@ describe('ExecutionContextService', () => {
     });
   });
 
-  // setNodeOutput uses STRICT mode (throw + logger.error) on a missing key —
+  // seedNodeOutput uses STRICT mode (throw + logger.error) on a missing key —
   // the opposite of the best-effort no-op policy in setStructuredOutput /
   // setEngineResolvedConfig. This policy difference is intentional: handler
   // output delivery must not be silently dropped; a missing context here
   // indicates a race or lifecycle bug that must surface immediately.
   // ai-review 2026-06-03
-  describe('setNodeOutput — strict mode: throws and logs error on a missing key', () => {
+  describe('seedNodeOutput — strict mode: throws and logs error on a missing key', () => {
     it('throws "Execution context not found" when the key does not exist', () => {
       expect(() =>
-        service.setNodeOutput('nonexistent', nodeId, { result: 1 }),
+        service.seedNodeOutput('nonexistent', nodeId, { result: 1 }),
       ).toThrow('Execution context not found: nonexistent');
     });
 
@@ -343,14 +343,14 @@ describe('ExecutionContextService', () => {
         .mockImplementation();
 
       try {
-        service.setNodeOutput('nonexistent', nodeId, { result: 1 });
+        service.seedNodeOutput('nonexistent', nodeId, { result: 1 });
       } catch {
         // expected
       }
 
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(errorSpy.mock.calls[0][0]).toContain(
-        '[ctx-trace] setNodeOutput MISSING',
+        '[ctx-trace] seedNodeOutput MISSING',
       );
       expect(errorSpy.mock.calls[0][0]).toContain('key=nonexistent');
       errorSpy.mockRestore();
@@ -395,10 +395,10 @@ describe('ExecutionContextService', () => {
       // 부모가 먼저 종료하며 executionId 키로 삭제 (runExecution finally).
       svc.deleteContext('exec-A');
 
-      // 본문 context 는 살아있고 모든 write 경로(setNodeOutput / setStructuredOutput /
+      // 본문 context 는 살아있고 모든 write 경로(seedNodeOutput / setStructuredOutput /
       // setEngineResolvedConfig)가 bgKey 로 계속 라우팅돼야 한다.
       expect(svc.getContext(bgKey)).toBe(bg);
-      expect(() => svc.setNodeOutput(bgKey, 'node-1', { x: 1 })).not.toThrow();
+      expect(() => svc.seedNodeOutput(bgKey, 'node-1', { x: 1 })).not.toThrow();
       expect(svc.getNodeOutput(bgKey, 'node-1')).toEqual({ x: 1 });
 
       svc.setStructuredOutput(bgKey, 'node-1', {
@@ -415,7 +415,7 @@ describe('ExecutionContextService', () => {
     });
   });
 
-  describe('setNodeOutput — existing structured cache preservation', () => {
+  describe('seedNodeOutput — existing structured cache preservation', () => {
     it('keeps existing config when setStructuredOutput ran first', () => {
       service.setStructuredOutput(executionId, nodeId, {
         config: { echoed: true },
@@ -423,10 +423,10 @@ describe('ExecutionContextService', () => {
         port: 'success',
       });
 
-      // Engine flow: setNodeOutput is called after setStructuredOutput with
+      // Engine flow: seedNodeOutput is called after setStructuredOutput with
       // the flat shape. The structured config should NOT be overwritten by
       // the bare flat payload.
-      service.setNodeOutput(executionId, nodeId, { initial: 1 });
+      service.seedNodeOutput(executionId, nodeId, { initial: 1 });
 
       const ctx = service.getContext(executionId)!;
       const structured = ctx.structuredOutputCache?.[nodeId];
@@ -435,9 +435,9 @@ describe('ExecutionContextService', () => {
     });
 
     it('lifts top-level status / port from a flat resume payload', () => {
-      // Resume / form-submit paths feed setNodeOutput a flat object that may
+      // Resume / form-submit paths feed seedNodeOutput a flat object that may
       // carry status / port on the top level. The lenient wrapper hoists them.
-      service.setNodeOutput(executionId, nodeId, {
+      service.seedNodeOutput(executionId, nodeId, {
         result: 'ok',
         status: 'resumed',
         port: 'out',
@@ -447,6 +447,64 @@ describe('ExecutionContextService', () => {
       const structured = ctx.structuredOutputCache?.[nodeId];
       expect(structured?.status).toBe('resumed');
       expect(structured?.port).toBe('out');
+    });
+  });
+
+  describe('seedNodeOutput — 라우팅 표지를 구조화 출력에 싣지 않는다 (CLE-T-CE5YR3)', () => {
+    it('평면 값의 `_selectedPort` 는 평면 캐시에만 남고 구조화 출력 output 에는 없다', () => {
+      service.seedNodeOutput(executionId, nodeId, {
+        result: 'ok',
+        _selectedPort: 'yes',
+      });
+
+      const ctx = service.getContext(executionId)!;
+      expect(ctx.nodeOutputCache[nodeId]).toEqual({
+        result: 'ok',
+        _selectedPort: 'yes',
+      });
+      expect(ctx.structuredOutputCache[nodeId].output).toEqual({
+        result: 'ok',
+      });
+    });
+
+    it('정규 모양 값에 붙은 `_selectedPort` 도 구조화 출력에서 뗀다', () => {
+      service.seedNodeOutput(executionId, nodeId, {
+        config: { x: 1 },
+        output: { result: 'ok' },
+        port: 'yes',
+        _selectedPort: 'yes',
+      });
+
+      const structured =
+        service.getContext(executionId)!.structuredOutputCache[nodeId];
+      expect(structured).not.toHaveProperty('_selectedPort');
+      expect(structured.config).toEqual({ x: 1 });
+      expect(structured.output).toEqual({ result: 'ok' });
+      expect(structured.port).toBe('yes');
+    });
+  });
+
+  describe('seedNodeOutput — 기존 구조화 항목이 있을 때 라우팅 표지 (CLE-T-CE5YR3)', () => {
+    it('항목을 병합하면서 config 는 보존하고 `_selectedPort` 는 구조화 값에 싣지 않는다', () => {
+      service.setStructuredOutput(executionId, nodeId, {
+        config: { model: 'm1' },
+        output: { before: 1 },
+      });
+
+      service.seedNodeOutput(executionId, nodeId, {
+        result: 'ok',
+        _selectedPort: 'yes',
+      });
+
+      const ctx = service.getContext(executionId)!;
+      expect(ctx.nodeOutputCache[nodeId]).toEqual({
+        result: 'ok',
+        _selectedPort: 'yes',
+      });
+      const structured = ctx.structuredOutputCache[nodeId];
+      expect(structured.config).toEqual({ model: 'm1' });
+      expect(structured.output).toEqual({ result: 'ok' });
+      expect(structured).not.toHaveProperty('_selectedPort');
     });
   });
 
@@ -464,7 +522,7 @@ describe('ExecutionContextService', () => {
       expect(ctx.structuredOutputCache[nodeId].output).toEqual([1, 2]);
     });
 
-    it('컨텍스트가 없으면 setNodeOutput 처럼 예외를 던지고 에러를 남긴다', () => {
+    it('컨텍스트가 없으면 seedNodeOutput 처럼 예외를 던지고 에러를 남긴다', () => {
       const errorSpy = jest
         .spyOn(Logger.prototype, 'error')
         .mockImplementation(() => undefined);

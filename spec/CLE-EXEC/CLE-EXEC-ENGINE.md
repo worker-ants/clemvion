@@ -2,19 +2,19 @@
 id: "CLE-EXEC-ENGINE"
 title: "실행 엔진 개요와 그래프 순회"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "1dd6e94ebf869a23f0ff1c0698dc165386d562198e7753f770159a4b38d5a985"
+content_hash: "38161039bc7c29691088c36e42a11aa29fe1abeab93e260e687fbca0ac6ae576"
 read_as: "approved_fallback"
-task: "CLE-T-CE31NB"
+task: "CLE-T-0ZHAC4"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "488f13b7d71eea468d00ec5a7ce26411ba2b93e48c716e849f48213b043b4976"
-etag: "sha256-fdc81c9b5a88d953731d0a59d7fc352c80b5fd4e1ad90970b7d9d8bd2dbf5052"
+mirror_sha256: "7d0b6f88c2077d59d3686cef155f36f226bca21b3be13ec8ae6dcece4b9ba67f"
+etag: "sha256-b434ca4a997169aabb7108794d78a7f8039bd630090b8755e2194881eba49e1e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (Overview, §2, Rationale "C-1 god-class strangler-fig 분할"·"park 즉시 해제 + slow-path 일원화" 중 registry 항목과 `runNodeDispatchLoop` 반환 계약) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -184,12 +184,12 @@ dispatch 루프 `runNodeDispatchLoop` 는 `Promise<{ parked: boolean }>` 를 돌
 | 들어오는 연결선 | 입력 |
 | --- | --- |
 | 0개 | 워크플로우 입력 |
-| 1개 | 선행 출력에서 제어 필드를 뺀 값. 포트가 막혔으면 `undefined` 이고 선행이 실행되지 않았으면 워크플로우 입력이다 |
-| 2개 이상 | `{ [선행 노드 ID]: 출력 }` 객체. 실행되지 않았거나 포트가 막힌 선행은 키에서 빠진다. 키가 하나도 없으면 워크플로우 입력이다 |
+| 1개 | 선행의 구조화 출력 `output`(핸들러가 `output` 에 둔 값). 포트가 막혔으면 `undefined` 이고 선행이 실행되지 않았으면 워크플로우 입력이다 |
+| 2개 이상 | `{ [선행 노드 ID]: 구조화 출력 output }` 객체. 실행되지 않았거나 포트가 막힌 선행은 키에서 빠진다. 키가 하나도 없으면 워크플로우 입력이다 |
 
 - 같은 선행에서 온 연결선 둘은 포트가 달라도 키 하나가 된다.
 - 연결선 수에는 되돌아가는 연결선도 들어간다. 그래서 되돌아가는 연결선을 받는 노드는 앞쪽 연결선이 하나여도 객체 모양 입력을 받는다.
-- 제어 필드는 `_selectedPort` · `port` · `status` · `_resumeState` · `_resumeCheckpoint` 다. 배열이나 원시값을 실은 엔진 봉투면 제어 필드를 지우는 대신 안의 `data` 를 꺼낸다.
+- 값은 구조화 출력 캐시(`structuredOutputCache[X].output`)에서 읽는다. 구조화 항목이 없는 옛 컨텍스트 · 옛 큐 작업만 flat 값에서 제어 필드(`_selectedPort` · `port` · `status` · `_resumeState` · `_resumeCheckpoint`)를 뺀 값을 쓰고, 배열이나 원시값을 실은 엔진 객체는 풀지 않는다([핸들러 계약 — 포트 선택](CLE-EXEC-HANDLER.md#포트-선택)).
 
 **Parallel 분기 합류**
 
@@ -234,7 +234,9 @@ Background 본문 워커도 이 단계 구분을 따른다. 작업에 컨테이�
 
 ## Rationale
 
-### 엔진 god-class 를 협력 서비스로 나눈다 (C-1, 2026-06-18~19)
+### 엔진 god-class 를 협력 서비스로 나눈다
+
+결정일: 2026-06-18
 
 `ExecutionEngineService` 는 9,670줄에 생성자 의존성 약 20개, 메서드 약 70개로 단일 책임 원칙을 크게 어기고 있었다(refactor 02-architecture C-1 Critical). 옵션 A(strangler-fig 단계 분할)를 골라 PR 4개(#622·#625·#626·#627)로 5개 협력 서비스를 떼어 냈고 엔진은 7,035줄이 됐다. 리뷰에서 나온 후속 작업은 #629·#630·#631·#632·#637·#638 이다.
 
@@ -250,15 +252,19 @@ Background 본문 워커도 이 단계 구분을 따른다. 작업에 컨테이�
 
 `markNodeCancelled` 는 처음에 `AiTurnOrchestrator` 만 불러서 `AiTurnEngineDriver` 에 두었다. CLE-T-J6GRJ9(2026-11-07)에서 짝 전이 종결 가드를 공용 헬퍼로 옮기면서 Form·버튼 서비스도 이 멤버를 부르게 됐다. 그래서 두 서비스가 받는 `InteractionEngineDriver` 로 옮겼다. Form·버튼 서비스에 `AiTurnEngineDriver` 를 주입하는 안은 택하지 않았다. 그렇게 하면 AI 전용 멤버까지 두 서비스에 드러나 부분 인터페이스로 나눈 뜻이 없어진다.
 
-### 엔진에서 `RetryTurnService` 로 향하는 순환 주입을 없앤다 (후속 ④, 2026-06-19, PR #638)
+### 엔진에서 `RetryTurnService` 로 향하는 순환 주입을 없앤다
 
-엔진과 협력 서비스 사이의 주입 방향 네 개 가운데 엔진 → Retry 방향만 없앨 수 있었다. AiTurn·Form·Button 은 dispatch 루프와 재개 registry 가 그래프를 순회하는 도중에 위임해야 해서 구조상 남는다.
+결정일: 2026-06-19
+
+엔진과 협력 서비스 사이의 주입 방향 네 개 가운데 엔진 → Retry 방향만 없앨 수 있었다. AiTurn·Form·Button 은 dispatch 루프와 재개 registry 가 그래프를 순회하는 도중에 위임해야 해서 구조상 남는다. PR #638 에서 바꿨다.
 
 모듈이 `RetryTurnService` 를 export 하고 외부 진입점(`websocket.gateway.ts`·`continuation-execution.processor.ts`)이 이를 직접 부르도록 바꿨다. 엔진에 있던 얇은 위임 메서드(`retryLastTurn`·`applyRetryLastTurn`)와 `forwardRef(() => RetryTurnService)` 주입은 지웠다. 이제 방향은 Retry → 엔진(`RetryEngineDriver`) 하나다.
 
 import 를 옮기자 `ws.service` ↔ `gateway` ↔ `retry` ↔ `event-emitter` 사이의 ES 모듈 순환이 드러났다. 이 순환은 `ExecutionEventEmitter → WebsocketService` 를 `forwardRef` 로 늦게 풀어 막았다. 동작은 바뀌지 않았고 전체 코드 리뷰(architecture·concurrency 관점 포함)와 dockerized e2e 를 통과했다.
 
-### 입력 대기 분기를 registry 로 모은다 (#507, M-4)
+### 입력 대기 분기를 registry 로 모은다
+
+결정일: 2026-06-24
 
 재개 턴 분기(form·buttons·ai)는 원래 `driveResumeAwaited` 와 `driveResumeFrame` 두 곳에 하드코딩돼 있었다. #507(2026-06-06)이 이를 순서 있는 `resumeTurnRegistry` 와 단일 진입점 `dispatchResumeTurn` 으로 뽑았다. 처리기 매핑·우선순위·에러 코드는 그대로다. 같은 변경에서 `PARK_RELEASED`·`ParkSignal`·`ProcessTurnResult` 를 `shared/execution-resume/process-turn-result.ts` 로 옮겼다.
 
@@ -266,13 +272,15 @@ import 를 옮기자 `ws.service` ↔ `gateway` ↔ `retry` ↔ `event-emitter` 
 
 두 registry 는 park 즉시 해제 결정(Phase B, 모든 재개를 rehydration 한 경로로 모음)을 구현하는 과정에서 나왔다. 그 결정의 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 의 Rationale 에 있다.
 
-### dispatch 루프가 park 여부를 돌려준다 (PR-B1)
+### dispatch 루프가 park 여부를 돌려준다
 
 `runNodeDispatchLoop` 의 반환은 Phase B 전의 `Promise<void>` 에서 `Promise<{ parked: boolean }>` 로 바뀌었다. park 가 곧 세그먼트 종료가 되면서 호출자(`runExecution`·`driveResumeAwaited`)가 세그먼트를 끝낼지 이 값으로 판단해야 했기 때문이다. 코드가 먼저 바뀌었고 스펙을 코드에 맞췄다.
 
-### 서브 워크플로우 워크스페이스 격리를 fail-closed 로 바꾼다 (후속 ★, 2026-06-19, PR #637)
+### 서브 워크플로우 워크스페이스 격리를 fail-closed 로 바꾼다
 
-서브 워크플로우 진입점(`executeInline`·`executeSync`·`executeAsync`)의 `assertSameWorkspace` 는 원래 호출자 워크스페이스 정보가 없으면 로그만 남기고 통과시켰다(fail-open). 이제 `callerWorkspaceId` 가 없어도 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 거부한다(fail-closed).
+결정일: 2026-06-19
+
+서브 워크플로우 진입점(`executeInline`·`executeSync`·`executeAsync`)의 `assertSameWorkspace` 는 원래 호출자 워크스페이스 정보가 없으면 로그만 남기고 통과시켰다(fail-open). 이제 `callerWorkspaceId` 가 없어도 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 거부한다(fail-closed). PR #637 에서 바꿨다.
 
 착수 전에 운영 코드의 호출처 세 곳을 모두 따라가 워크스페이스 정보가 항상 채워진다는 것을 확인했다. 그래서 일괄 fail-closed 가 안전하다고 판단했다. 거부는 `WorkflowForbiddenWorkspaceError` 로 던지고 워크플로우 호출 노드 핸들러가 `ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE` 로 에러 포트에 싣는다. 노드 쪽 계약은 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) 에, 에러 코드는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
 

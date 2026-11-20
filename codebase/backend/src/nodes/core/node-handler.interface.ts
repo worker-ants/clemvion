@@ -299,7 +299,8 @@ export interface ValidationResult {
  *   match this port. May be a `string[]` to activate multiple output ports
  *   simultaneously (e.g. multi-label classification).
  * - `status` — optional flow-control directive (`waiting_for_input`,
- *   `requires_integration`, `requires_playwright`).
+ *   `requires_integration`, `ended`). The value set and the wait/resume
+ *   contract live in CLE-EXEC-STATE.
  */
 export interface NodeHandlerOutput {
   config: Record<string, unknown>;
@@ -325,9 +326,11 @@ export interface NodeHandlerOutput {
    * Engine-internal retry continuation state (CONVENTIONS §4.2.1, spec
    * 4-execution-engine §1.3). Populated by AI Agent multi-turn when it
    * terminates on a *retryable* error (`output.error.details.retryable ===
-   * true`). Unlike `_resumeState`, this field is PRESERVED by the engine
-   * control-field strip (`toDownstreamValue()`) so it persists into `NodeExecution.outputData`
-   * (DB JSONB) and can later be consumed by `execution.retry_last_turn`.
+   * true`). The engine keeps this field when it saves the node row, so it
+   * persists into `NodeExecution.outputData` (DB JSONB) and can later be
+   * consumed by `execution.retry_last_turn`. It is not an engine control
+   * field either: unlike `_resumeState`, the downstream-value fallback
+   * `toDownstreamValue()` leaves it in place.
    * Carries a subset of `_resumeState` plus `expiresAt` (ISO 8601 TTL).
    * Still excluded from expression resolver / autocomplete like
    * `_resumeState` (internal-only).

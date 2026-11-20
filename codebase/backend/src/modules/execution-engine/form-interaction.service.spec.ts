@@ -214,7 +214,7 @@ describe('FormInteractionService', () => {
         ExecutionStatus.RUNNING,
         expect.objectContaining({ status: NodeExecutionStatus.COMPLETED }),
       );
-      // nodeOutputCache 에 form_submitted 상호작용 기록 확인 (setNodeOutput 경로).
+      // nodeOutputCache 에 form_submitted 상호작용 기록 확인 (setNodeOutputs 경로).
       expect(ctx.nodeOutputCache[nodeId]).toBeDefined();
       // W-2 — ConversationThread 에 form_submitted 상호작용 append (단일 mutation
       // entrypoint, button spec 의 button_click append 검증과 대칭).

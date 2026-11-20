@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT"
 title: "실행 컨텍스트"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "a31828edf38d30a589e88587fb1ddbb0d65cfdb6d323451d7a32cba4b8dd5239"
+content_hash: "4736dcc8ce925a8c1ffd4870aba92799e972ceb7986d130799ed5209811e8950"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-CE5YR3"
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "b4441056deee73cea5ce3de8c10f507ceaafae8207d089bae99f42658e7df48c"
-etag: "sha256-0f5e347c76c0636eca1fa978825300f1f2e2758cd95e06ef917ad1e7691196d1"
+mirror_sha256: "91056539cb7fbe5cd890e1a308c941a6642a44ff6c3765cd18bb31411f114d21"
+etag: "sha256-5ad3b7e25d9b60b8731adaad9663f09c3bf421d0416ea3122cb21be9d0781dee"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -88,14 +88,16 @@ etag: "sha256-0f5e347c76c0636eca1fa978825300f1f2e2758cd95e06ef917ad1e7691196d1"
 
 ### 진단 로그
 
-`ExecutionContextService` 는 컨텍스트 수명주기의 핵심 사건을 `[ctx-trace]` 접두 로그로 남긴다. `createContext` 덮어쓰기(OVERWRITE), `deleteContext`, `setNodeOutput` 대상 없음(MISSING), `setStructuredOutput`·`setEngineResolvedConfig` 대상 없음이 대상이다. 운영 로그에서 `[ctx-trace]` 로 검색해 컨텍스트 경쟁과 키 라우팅 오류를 추적한다.
+`ExecutionContextService` 는 컨텍스트 수명주기의 핵심 사건을 `[ctx-trace]` 접두 로그로 남긴다. `createContext` 덮어쓰기(OVERWRITE), `deleteContext`, `seedNodeOutput` · `setNodeOutputs` 대상 없음(MISSING), `setStructuredOutput`·`setEngineResolvedConfig` 대상 없음이 대상이다. 운영 로그에서 `[ctx-trace]` 로 검색해 컨텍스트 경쟁과 키 라우팅 오류를 추적한다.
 
 setter 가 대상 컨텍스트를 찾지 못했을 때(키 라우팅 오류)의 동작은 둘로 나뉜다.
 
 | setter | 컨텍스트가 없을 때 | 이유 |
 | --- | --- | --- |
-| `setNodeOutput` (엄격) | 예외와 `logger.error` | 핸들러 출력 전달은 보장돼야 한다. 잃어버린 것을 조용히 넘기지 않는다 |
+| `seedNodeOutput` · `setNodeOutputs` (엄격) | 예외와 `logger.error` | 핸들러 출력 전달은 보장돼야 한다. 잃어버린 것을 조용히 넘기지 않는다 |
 | `setStructuredOutput`·`setEngineResolvedConfig` (best-effort) | 아무것도 하지 않고 `logger.warn` | 보조 캐시라 잃어도 실행은 계속된다. 잘못된 키를 진단하려고 경고는 남긴다 |
+
+`setNodeOutputs` 는 노드 완료 출력과 DB 행에서 되살린 출력을 평면 · 구조화 두 캐시에 함께 쓴다. `seedNodeOutput` 은 AI 재개 · 재시도 턴이 재구성한 평면 값만 넣는 시딩 전용이고 구조화 값은 그 평면 값에서 다시 만든다(라우팅 표지 `_selectedPort` 는 빼고 싣는다).
 
 ## 컨텍스트 구조
 
