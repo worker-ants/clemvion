@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-FLOW"
 title: "채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름"
 type: "design"
-version: 5
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "2c9d78042dcd622c5926a9b6287ce8aff76aa41114d064b8bbca5c3582323632"
+content_hash: "3e69e5ccff3d16bbb0e740abc0464ab32e5a3c2a03bd9bf69dabd4a6e0e5df24"
 read_as: "approved_fallback"
-task: "CLE-T-CVJXDE"
+task: "CLE-T-DV6PN7"
 source_paths: []
-mirror_sha256: "9bc08e7c56d9e6f908fdea43911bd30c4707c20278567b45a8dcdb622ec08e59"
-etag: "sha256-dad170de5c086231d9fde54462ff9301a73bf7ff35ed708453d1e656d0779ffb"
+mirror_sha256: "164f7438a0d63a574ed9f2a1b16c0e0e0df3df9f09865d4a1803713459bfb18c"
+etag: "sha256-a818bd712bdbaff5c37795c3d00b68415d6fcc1cd56e5435023774aad04764ea"
 ---
 ## 개요
 
@@ -63,6 +63,7 @@ sequenceDiagram
       Note over Hk,Ext: 이 분기도 여기서 끝난다. ackDroppedUpdate 를 부르고 ackInteraction 과 아래 응답으로 가지 않는다
     else 워크플로우가 활성
       opt 활성 실행이 있는 대화의 /start
+        Note over Hk,R: 시작 잠금을 못 잡으면 202 ignored
         Hk->>X: stop(기존 실행)
       end
       Hk->>Eng: execute(workflowId, chatChannel 입력)
@@ -94,7 +95,7 @@ sequenceDiagram
 | `text_message`·`button_callback`·`contact_share`·`file_upload`(활성 실행) | `formState` 가 진행 중이면 다단계 질문 단계를 처리하고, 아니면 `InteractionService.interact` 로 서버 안 전달([External Interaction API 「내부 신뢰 호출」](../CLE-IX/CLE-EIA.md#내부-신뢰-호출)). 재개 명령을 재개 큐에 넣지 못했을 때의 처리는 표 아래에 있다 |
 | `open_form_modal` | 채널 대화 상태의 `pendingFormModal.fields` 와 프로바이더 openContext 로 `adapter.openFormModal`. Discord 는 웹훅 HTTP 응답 본문으로 모달을 돌려준다. `channelUserKey` 가 다르면 거부한다(그룹 안 가로채기 방어) |
 | `form_submission` | 대화 단위 Redis 잠금(`SET NX EX 30`)을 잡고 필드 허용 목록 필터와 클라이언트 쪽 검증을 한 뒤 `interact(submit_form)`. 성공하면 `pendingFormModal` 을 지운다. 실패하면 "양식 작성하기" 버튼을 다시 보내고 `pendingFormModal` 은 둔다. 재개 명령을 재개 큐에 넣지 못했을 때도 `pendingFormModal` 을 두고 버튼을 다시 보낸다. 그때의 HTTP 응답은 표 아래에 있다 |
-| `start`(활성 실행) | 워크플로우가 비활성이면 아무것도 바꾸지 않고 `202 ignored` 로 끝낸다. 활성이면 기존 실행을 `executionsService.stop` 으로 취소하고(이미 끝났거나 없으면 취소 없이 진행) 새 대화와 같이 `execute()` 한 뒤 채널 대화 상태를 새 실행으로 다시 저장한다(`startedAt` 은 그대로). 취소가 그 밖의 에러로 실패하면 그 update 의 `cc:dedup:` 키를 지우고 새 실행 없이 그 에러로 응답한다([채팅 채널](CLE-CHAT-CORE.md)) |
+| `start`(활성 실행) | 워크플로우가 비활성이면 아무것도 바꾸지 않고 `202 ignored` 로 끝낸다. 활성이면 대화 단위 시작 잠금(`cc:startlock`)을 잡고 기존 실행을 `executionsService.stop` 으로 취소하고(이미 끝났거나 없으면 취소 없이 진행) 새 대화와 같이 `execute()` 한 뒤 채널 대화 상태를 새 실행으로 다시 저장한다(`startedAt` 은 그대로). 취소가 그 밖의 에러로 실패하면 그 update 의 `cc:dedup:` 키를 지우고 새 실행 없이 그 에러로 응답한다([채팅 채널](CLE-CHAT-CORE.md)). 잠금을 못 잡았거나 다시 읽은 대화가 다른 실행으로 이어졌으면 아무것도 바꾸지 않고 `202 ignored` 로 끝낸다([R-CC-38](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)) |
 | 새 대화(그 밖) | 워크플로우가 비활성이면 실행 없이 `202 ignored` 로 끝내고 채널 대화 상태와 채널 건강도를 바꾸지 않는다([채팅 채널](CLE-CHAT-CORE.md)). 활성이면 `execute()` 와 채널 대화 상태 저장. 트리거의 워크플로우가 트리거의 워크스페이스에 없으면 실행 없이 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 `202 ignored` 로 끝낸다. 채널 대화 상태는 저장하지 않는다([채팅 채널](CLE-CHAT-CORE.md#r-cc-25-워크플로우가-다른-워크스페이스에-있으면-202-ignored-와-degraded-로-답한다) 의 「워크플로우가 다른 워크스페이스에 있으면 202 ignored 와 degraded 로 답한다」) |
 
 활성 실행으로 가는 재개 명령(`submit_message`·`click_button`·`submit_form`)을 재개 큐에 넣지 못하면(`queued:false`) 내부 신뢰 호출이라 `503` 이 나지 않는다. 이때 `HooksService` 는 `chat_channel_health=degraded` 와 고정 문구의 `chat_channel_last_error` 를 남기고 warn 로그를 쓴 뒤 `202` 로 답한다. 인터랙션이면 `200` 과 그 어댑터의 기본 응답이다. 고정 문구는 `/cancel` 의 큐 적재 실패와 같다. 입력이 실행에 닿지 않았으므로 실행은 입력 대기에 그대로 남는다. 사용자가 같은 입력을 다시 보내면 새 update 로 들어와 다시 처리된다. 규칙은 [채팅 채널](CLE-CHAT-CORE.md) 과 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다.
@@ -174,7 +175,7 @@ sequenceDiagram
   end
 ```
 
-- **라우팅 키**: 이벤트의 `triggerId` 와 `chatChannel.conversationKey` 다. `HooksService` 가 `execute()` 입력에 넣은 값이 WebsocketService 의 라우팅 문맥 레지스트리를 거쳐 이벤트 봉투에 자동으로 붙는다. 둘 중 하나라도 없으면 건너뛴다(수동 실행은 채팅 채널 발송 대상이 아니다).
+- **라우팅 키**: payload 의 `triggerId` 와 `routing.chatChannel.conversationKey` 다. `HooksService` 가 `execute()` 입력에 넣은 값을 WebsocketService 가 이벤트에 붙인다. `routing` 은 dispatcher 만 읽는다([§6](../CLE-API/CLE-API-EGRESS-PIPELINE.md#6-호출-순서-마스킹은-한-번이다)). 하나라도 없으면 건너뛴다(수동 실행은 발송 대상이 아니다).
 - **빈 텍스트**: 본문이 빈 텍스트 메시지는 조용히 건너뛰고 warn 을 남긴다.
 - **Form 입력 대기의 채널 대화 상태 갱신**: Form 입력 대기(`interactionType=form`)의 `execution.waiting_for_input` 이 오면 채널 대화 상태를 조회한다. 그 `executionId` 가 이벤트의 실행을 가리킬 때만 렌더 결과에 따라 `pendingFormModal` 이나 `formState` 를 바꿔 compare-and-set 으로 저장한다. 채널 대화 상태가 없거나, `executionId` 가 비어 있거나, 다른 실행을 가리키면 건너뛰고 debug 로그만 남긴다. `/start`·`/cancel` 이 끊은 옛 실행의 Form 입력 대기 이벤트가 늦게 와도 새 실행의 Form 입력 대기 상태를 덮어쓰지 않게 하려는 것이다([채팅 채널](CLE-CHAT-CORE.md)). 렌더한 메시지는 이 조건과 관계없이 보낸다. 저장 방식은 종결 이벤트의 `executionId` 정리와 같아서 조회 뒤 `/start` 가 대화를 새 실행에 이으면 저장하지 않는다(NERV Task `CLE-T-CVJXDE`).
 - **종결 이벤트의 채널 대화 상태 정리**: completed·failed·cancelled 가 오면 채널 대화 상태의 `executionId` 가 그 이벤트의 실행을 가리킬 때만 비운다(`clearExecutionIdIfMatches`). 저장된 JSON 문자열을 읽어 `executionId` 를 확인한 뒤, 저장된 값이 읽은 문자열과 같을 때만 새 값으로 바꾸는 Lua 스크립트를 부른다(TTL 7일도 다시 건다). 다른 쓰기에 밀리면 다시 읽고 최대 3회까지 시도한다. 키가 없거나 다른 실행을 가리키면 바꾸지 않는다. Redis 를 쓸 수 없거나 에러가 나거나 3회 모두 밀리면 warn 을 남기고 비우지 않는다. 그때 남은 `executionId` 는 이미 끝난 실행을 가리키므로 다음 메시지는 새 실행을 시작한다([채팅 채널](CLE-CHAT-CORE.md)). `/cancel` 의 정리도 같은 메서드를 쓴다.
