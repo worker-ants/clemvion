@@ -1,4 +1,4 @@
--- V157: 일일 요약 메일(CLE-T-BAXAN4)의 수신자별 24시간 조회용 인덱스
+-- V158: 일일 요약 메일(CLE-T-BAXAN4)의 수신자별 24시간 조회용 인덱스
 --
 -- 쿼리 형태 (NotificationDigestService.findDigestRows):
 --   SELECT ... FROM notification
