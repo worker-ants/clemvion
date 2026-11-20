@@ -1,12 +1,14 @@
-import { io, Socket } from 'socket.io-client';
-
 /**
- * WebSocket e2e 공용 헬퍼. 백엔드 게이트웨이(`/ws` 네임스페이스)에 붙는 소켓을 만들고 이벤트를 기다린다.
+ * @file WebSocket e2e 공용 헬퍼. 백엔드 게이트웨이(`/ws` 네임스페이스)에 붙는 소켓을 만들고 이벤트를 기다린다.
  *
  * 이벤트 대기는 정해진 시간 안에 오지 않으면 실패한다. 기다리는 동안 `failOn` 의 이벤트가 먼저 오면 그
- * payload 를 실패 메시지에 싣고 바로 실패한다. 그래서 서버가 `exception` 으로 핸들러를 끝낸 경우 10초
- * 시간 초과 대신 서버가 보낸 사유가 보인다.
+ * payload 를 실패 메시지에 싣고 바로 실패한다. 그래서 서버가 `exception` 으로 핸들러를 끝낸 경우 시간 초과
+ * 대신 서버가 보낸 사유가 보인다.
  */
+import { io, Socket } from 'socket.io-client';
+import type { SubscribedAckData } from '../../src/modules/websocket/websocket.gateway';
+
+/** {@link waitForEvent} 가 이벤트를 기다리는 기본 시간(ms). */
 export const WS_EVENT_TIMEOUT_MS = 10_000;
 
 export interface WaitForEventOptions {
@@ -108,10 +110,8 @@ export async function connectWs(
   return socket;
 }
 
-/** `subscribed` 응답 모양([WebSocket 메시지 「채널 구독」](CLE-API-WS-MSG#4-채널-구독)). */
-export interface SubscribedAck {
-  readonly success: boolean;
-  readonly channel?: string;
-  readonly error?: string;
-  readonly code?: string;
-}
+/**
+ * `subscribed` 응답 모양([WebSocket 메시지 「채널 구독」](CLE-API-WS-MSG#4-채널-구독)). 서버가 돌려주는 타입을
+ * 그대로 쓴다.
+ */
+export type SubscribedAck = Readonly<SubscribedAckData>;
