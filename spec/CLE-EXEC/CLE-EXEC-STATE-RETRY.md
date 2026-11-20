@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE-RETRY"
 title: "실행 상태 머신과 대기·재개 — 마지막 턴 재시도"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-STATE"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-STATE"]
 area: "CLE-EXEC"
-content_hash: "1095c770e016c368420251f1b1794d6bb6ebd656946a672e6f66ef661952c896"
+content_hash: "0586e1c5be0b23e47534d2ae9c8860994e0419464a66352554bad35bcf948e0b"
 read_as: "approved_fallback"
-task: "CLE-T-K9RZQV"
+task: "CLE-T-0ZHAC4"
 source_paths: []
-mirror_sha256: "062fa8f1d284c4167ba9b28459a025c031dd11ac2e70e6e9b50e22ff2832d625"
-etag: "sha256-be18894019b38b7ba78fa2e37fa00cfda5628f35e30346806575eebc32bd7477"
+mirror_sha256: "829c7d64b578bd4d62139fe2b6e18c250e96b4eed4eb88f82460321353411eaf"
+etag: "sha256-364f80a44b77b46dbb62ba82d5cecad3d31759cf8bd0be43191866ea345ecf50"
 ---
 ## 개요
 
@@ -23,7 +23,7 @@ etag: "sha256-be18894019b38b7ba78fa2e37fa00cfda5628f35e30346806575eebc32bd7477"
 ## 보존 예외 `_retryState`
 
 - 멀티턴 AI 에이전트가 재시도 가능한 에러(HTTP 429·5xx·네트워크 타임아웃, `output.error.details.retryable === true`)로 끝나면 `buildMultiTurnFinalOutput` 이 `_resumeState` 스냅샷을 `_retryState` 로 옮긴다. 최상위 필드이며 노드 출력 다섯 필드의 예외다.
-- `stripControlFields()` 는 `_retryState` 를 남긴다. `NodeExecution.outputData._retryState` 로 DB 에 저장된다.
+- 최종 출력을 저장할 때 AI 턴 처리(`AiTurnOrchestratorService`)는 `_resumeState` 만 지우고 `_retryState` 를 남긴다. 그래서 `NodeExecution.outputData._retryState` 로 DB 에 저장된다. 다음 노드에는 구조화 출력의 `output` 만 넘어가므로 이 필드는 다음 노드 입력에 들어가지 않는다.
 - 모양은 `_resumeState` 의 부분집합에 `expiresAt: ISO 8601` 을 더한 것이다. TTL 기본값은 60분이고 환경 변수 `AI_RETRY_STATE_TTL_MINUTES` 로 바꾼다. 자격 증명 제외 방식은 `_resumeState` 와 같다(허용 목록). 표현식 resolver 와 자동완성에 노출하지 않는다. 필드 목록 전체(`lastUserMessage` 등)는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 보존 예외 절에 있다.
 - **소비(원자적)**: WebSocket 명령 `execution.retry_last_turn` 이 `nodeExecutionId` 로 `_retryState` 를 찾는다. `expiresAt` 을 확인한 뒤 **같은 트랜잭션에서 `_retryState` 키를 지우고(소비) 새 노드 실행 행을 만든다**. 이어 재개 큐(`execution-continuation`)에 `retry_last_turn` 작업을 발행하고 워커가 새 행을 `_retryState` 로 채워 멀티턴 루프에 다시 들어간다. 키 삭제가 affected=1 인 쪽만 진행하므로 동시에 온 재시도가 행을 두 번 만들지 않는다. TTL 이 지났거나 이미 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 다. 재시도 턴을 돌리려면 워커 컨텍스트가 필요해 WebSocket gateway 가 동기로 처리할 수 없으므로 재개 큐로 넘긴다.
 - 사용자 쪽 흐름은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md) 의 멀티턴 에러 포트 절에 있다.

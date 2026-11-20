@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-COMMANDS"
 title: "WebSocket 이벤트와 명령 — 실행 제어 명령과 ack"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "bee3809f54355629cc6522268c3e6efb9a241db12ac14effa1773b48e17d8cce"
+content_hash: "e4d38b629c19b4694f8ddb819b575ca4f6cc9c8fc0d67e408bed5f91382304a5"
 read_as: "approved_fallback"
-task: "CLE-T-T9HZX7"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "bcc5feb0fc910cf2c589e329cca38907d515ccde6e2d265f2eab8774217a0511"
-etag: "sha256-2d5772482c9fbcb7fbb81c7d5d9c7962d88e99740b197f1004480db48c804b2e"
+mirror_sha256: "ac0df61a7acdb67ea852b2f68961eb321eba9e22ea2d8b406bd81589ef8a89dd"
+etag: "sha256-be86f232e24026a4bca2dff5d7642717245914fd2a521cfcf34353e61eadfcd3"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 명령 `execution.continue`·`execution.step` 은 미구현, 실행 시작·중단 명령은 비채택) · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -187,7 +187,7 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 
 옛 공통 ack 표는 `resumed` 를 "재개 성공 여부" 로 적었다. 모든 진입점이 늘 BullMQ 에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md))을 채택한 뒤 네 재개 핸들러는 큐에 넣으면 바로 `resumed: true` 를 돌려준다. 이 시점에는 어느 워커의 rehydration 도 일어나지 않아 동기 ack 로 재개 성공을 판정할 수 없다. 그래서 정의를 "재개 시작 수락(enqueue)" 으로 바꾸고 최종 확인은 뒤따르는 이벤트로 모았다. **기각한 대안**: 게이트웨이가 워커 처리를 동기로 기다리는 안. ack 지연을 워커에 묶어 큐를 들인 취지와 충돌한다. 코드는 바뀌지 않았다. 프론트엔드 `emitAndAwaitAckEvent` 는 `success === false` 만 쓰고 `resumed` 로 상태를 바꾸지 않는다.
 
-2026-10-17 정정: 이 문서는 큐 적재 실패가 성공 ack 의 `queued: false` 로 드러난다고 적었다. 코드는 그 경우 성공 ack 를 보내지 않고 `errorCode` 없는 실패 ack 를 보낸다. 문서를 코드에 맞춰 §2.2 와 §2.3 을 고쳤다. 기각한 대안은 코드를 바꿔 성공 ack 에 `queued: false` 를 싣는 안이다. 프론트엔드 `emitAndAwaitAckEvent` 는 `success === false` 만 실패로 보므로 그 안에서는 실패가 화면에 보이지 않는다. 진입점마다 다른 표면의 근거는 [큐 워커와 동시 실행 제한 「진입점마다 큐 적재 실패를 다르게 알린다」](../CLE-EXEC/CLE-EXEC-WORKER.md#진입점마다-큐-적재-실패를-다르게-알린다-2026-10-17) 에 있다.
+2026-10-17 정정: 이 문서는 큐 적재 실패가 성공 ack 의 `queued: false` 로 드러난다고 적었다. 코드는 그 경우 성공 ack 를 보내지 않고 `errorCode` 없는 실패 ack 를 보낸다. 문서를 코드에 맞춰 §2.2 와 §2.3 을 고쳤다. 기각한 대안은 코드를 바꿔 성공 ack 에 `queued: false` 를 싣는 안이다. 프론트엔드 `emitAndAwaitAckEvent` 는 `success === false` 만 실패로 보므로 그 안에서는 실패가 화면에 보이지 않는다. 진입점마다 다른 표면의 근거는 [큐 워커와 동시 실행 제한 「진입점마다 큐 적재 실패를 다르게 알린다」](../CLE-EXEC/CLE-EXEC-WORKER.md#진입점마다-큐-적재-실패를-다르게-알린다) 에 있다.
 
 ### ack callback 표기를 ack 이벤트로 바로잡은 이유 (2026-10-22)
 

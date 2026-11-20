@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-POLICY"
 title: "재실행 — 정책"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "c463c622707d7f19d774a846723887aef6b15979b725b0bd89ea795f4ecd1b8c"
+content_hash: "0838ee2bfeece9e10bb752f233dab355e1bcda52c301174e2ffb11f52db3b6bc"
 read_as: "approved_fallback"
-task: "CLE-T-62B0J9"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "adbfde65999e79fa297ecef05d380d482023eb63dd5ef917f0c53e847584a50f"
-etag: "sha256-442b0cf41b11d495deca1c937ad16739cc18828a57f1754d0824f9557dce1967"
+mirror_sha256: "8d9d3f102beae8df8081dd104b731aa3df4d9b03cf1a46001703303020453e4c"
+etag: "sha256-01df17e95e4473eeff9cfec070e9da36558533b987fcb7600e81f1acff73ec6a"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ etag: "sha256-442b0cf41b11d495deca1c937ad16739cc18828a57f1754d0824f9557dce1967"
    - 입력 데이터 폼(RR-PL-02)
    - "dry-run 모드" 토글(기본 꺼짐)
    - "재실행"·"취소" 버튼
-2. **dry-run 토글**: 켜면 부수효과 노드([부수효과 노드 분류](CLE-EXEC-RERUN-DRYRUN.md#부수효과-노드-분류))는 외부 호출을 건너뛰고 모의 출력을 돌려준다. "외부 호출 없이 흐름만 검증" 하고 싶을 때 쓴다.
+2. **dry-run 토글**: 켜면 [부수효과 판정](CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)에서 부수효과로 판정한 호출만 모의 출력(노드)이나 모의 응답(AI 에이전트 도구)으로 대신한다. 대상 노드는 [부수효과 노드 분류](CLE-EXEC-RERUN-DRYRUN.md#부수효과-노드-분류)에 있다. 읽기로 판정한 호출(예: Database Query 노드의 읽기 한 문장, Cafe24 · MakeShop 조회)은 실제로 실행한다. 부수효과 없이 흐름을 검증하고 싶을 때 쓴다.
 
 dry-run 을 끈 일반 재실행은 외부 호출을 그대로 다시 일으킨다. 그로 인한 부수효과(이메일 재발송, HTTP 재호출 등)는 의도한 동작이다.
 
@@ -185,3 +185,9 @@ AI 어시스턴트의 읽기 전용 정책([AI 어시스턴트 도구](../CLE-WF
 **채택**: 체인 조회 권한을 실행 상세 조회(`GET /api/executions/:id`)와 같게 둔다. 워크스페이스 멤버면 역할과 원본 실행의 시작자와 상관없이 조회할 수 있다. 체인의 항목은 멤버가 실행 상세에서 이미 하나씩 열 수 있는 실행이다. 체인 조회는 그 목록을 한 번에 돌려줄 뿐이라 새로 드러나는 정보가 없다. RR-PL-06 이 dry-run 에도 권한을 거는 근거(다른 사용자의 실행 흐름을 자동으로 재현하면 정보가 드러난다)는 재실행에만 해당한다. 체인 조회는 흐름을 재현하지 않는다.
 
 **전제**: 응답 마스킹은 `toResponseExecution` 관문이 역할과 무관하게 적용한다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md)). 이 전제가 바뀌면 체인 조회 권한도 다시 본다. 재실행 권한(RR-PL-06)은 이 결정으로 바뀌지 않는다.
+
+### dry-run 토글 서술을 부수효과 판정에 맞춘다
+
+결정일: 2026-11-20
+
+dry-run 은 2026-11-19 부터 읽기로 판정한 호출을 실제로 실행한다. 그래서 RR-PL-01 2단계의 서술을 [부수효과 판정](CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)에 맞췄다(NERV Task `CLE-T-M6W7RE`).

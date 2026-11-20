@@ -35,10 +35,27 @@ export interface ExecutionChannelEvent {
    * Fanout envelope — internal subscriber (SseAdapter / NotificationFanout /
    * ChatChannelDispatcher) 가 받는 payload. wire envelope (frontend 가 socket.io
    * 로 받는 payload) 와 base shape 은 같지만, execution 의 라우팅 컨텍스트
-   * (`triggerId` / `chatChannel`) 가 등록되어 있으면 본 fanout envelope 에만
+   * (`triggerId` / `workflowId`) 가 등록되어 있으면 본 fanout envelope 에만
    * 추가로 첨부된다. 자세한 분리 이유는 {@link WebsocketService#executionRouting}.
+   * `chatChannel` 은 여기 싣지 않고 {@link routing} 에 둔다.
    */
   payload: Record<string, unknown>;
+  /**
+   * 서버 안 소비자만 읽는 라우팅 정보 (CLE-API-EGRESS-PIPELINE §6 「라우팅 정보는 payload 밖에
+   * 둔다」). 지금 읽는 곳은 `ChatChannelDispatcher` 하나다.
+   *
+   * SSE 와 EIA 알림 웹훅은 `payload` 만 직렬화하므로 이 필드는 외부로 나가지 않는다. 그 전제가
+   * 이 필드에 키 이름 마스킹만 거는 근거다. 외부로 직렬화하는 소비처를 새로 만들면 이 필드를
+   * 싣지 않는다.
+   *
+   * fanout subject 가 낸 이벤트에만 있다. SSE 재전송처럼 이벤트를 다시 만드는 경로에는 없다.
+   */
+  routing?: ExecutionEventRouting;
+}
+
+/** {@link ExecutionChannelEvent.routing} 의 모양. 채팅 채널로 시작한 실행이 아니면 이벤트에 없다. */
+export interface ExecutionEventRouting {
+  chatChannel: ChatChannelRoutingInfo;
 }
 
 /**
@@ -96,9 +113,11 @@ export interface ChatChannelRoutingInfo {
 
 /**
  * Execution 단위 outbound 라우팅 컨텍스트. ExecutionEngine 이 execute() 진입
- * 시 등록 → 이후 emit 되는 모든 이벤트의 fanout envelope 에 자동 첨부 →
+ * 시 등록 → 이후 emit 되는 모든 fanout 이벤트에 자동 첨부 →
  * `ChatChannelDispatcher` / `NotificationFanout` 가 trigger 와 conversation 을
- * 식별 (Spec Chat Channel §3.1 CCH-AD-05 / EIA §6).
+ * 식별 (Spec Chat Channel §3.1 CCH-AD-05 / EIA §6). `triggerId` · `workflowId` 는
+ * fanout payload 에, `chatChannel` 은 이벤트의 `routing` 에 붙는다
+ * (CLE-API-EGRESS-PIPELINE §6).
  */
 export interface ExecutionRoutingContext {
   /** 트리거 발화로 시작된 execution 만 set. 수동 실행은 undefined. */

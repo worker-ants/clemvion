@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030", "REQ-SUBWF-031"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "8f6542566539a53952967eea2c5cf1cfd7dbbcc211da4c79db3fa69e25af57d3"
+content_hash: "abe8552d7b1452f9a7b5f07738e7b8359dbfb554100afc7d62d350d2477c53ca"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "45810c1844564f81e7872389eb3c49b335e902819b9fb23356561721a4de9061"
-etag: "sha256-d0a1a419738c0bf577de6670a3157b1e75b53b583f9963f55dca684f9f8e0880"
+mirror_sha256: "0df05b33747a5efc0aba585e6afae05a54e3fa15e0c45faf25d8d5d8484b4a9c"
+etag: "sha256-d7e0e9bfb7c213e1cee2a01c743bb6d8f7ee41021da1395e30fec974d142c497"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -348,7 +348,7 @@ Parallel 노드가 병렬 분기 결과를 「출력을 쓴 노드 가운데 위
 
 ### 서브 워크플로우의 Parallel 은 깊이를 새로 센다 (2026-11-06)
 
-서브 워크플로우 루프(`executeInline`)도 Parallel 을 엔진의 Parallel 실행 경로(`runParallel`)로 넘긴다. 전에는 핸들러만 부르고 병렬 분기 노드를 차례로 실행했다. 실행 경로의 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 가 정하고 컨테이너 본문 쪽은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문의-parallel-도-덮어쓰기를-받는다-2026-11-06) 이 정한다.
+서브 워크플로우 루프(`executeInline`)도 Parallel 을 엔진의 Parallel 실행 경로(`runParallel`)로 넘긴다. 전에는 핸들러만 부르고 병렬 분기 노드를 차례로 실행했다. 실행 경로의 규칙은 [Parallel 노드](../CLE-NODE-LOGIC/CLE-NODE-PARALLEL.md) 가 정하고 컨테이너 본문 쪽은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#컨테이너-본문의-parallel-도-덮어쓰기를-받는다) 이 정한다.
 
 **중첩 깊이**: 병렬 분기 안에서 이 노드를 부르면 바깥 병렬 분기의 `parentParallelConcurrency` 가 따라와 서브 워크플로우의 맨 바깥 Parallel 이 깊이 2 로 판정된다. 사람의 결정에 따라 동기 서브 워크플로우는 깊이를 새로 센다. 이유는 두 가지다.
 

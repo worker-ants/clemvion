@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 16
+version: 17
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "fc7b2e6c23b13a2d72786eccdbf92c349184f7e14ce9cf1f24d142c13e7eb3a7"
+content_hash: "c17335e8dd67afe28c731c6f6130a231760e498822b99a3f5a95e99c1c9e4b17"
 read_as: "approved_fallback"
-task: "CLE-T-2Q4KRF"
+task: "CLE-T-T4DJ3F"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "08c50e5186bc7c242beda7195f5c32260295ba5be983bc4f1295aa0193ddf29b"
-etag: "sha256-3c143056171988ededcc18e008d72cddaac10cfa520813f91c1bc708a512f463"
+mirror_sha256: "d02d800ac14fdc266dfdd8b316cac2d76ccad84be7e850de1e1b8876aa751db2"
+etag: "sha256-27494a353075aca3dae4579b79c60377a92d9d11031921c4074f1bc694fb2e29"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -162,11 +162,8 @@ stateDiagram-v2
 | 없음(`undefined`) | 일반 완료 | 대부분의 노드 | 입력 대기가 없는 노드의 최종 출력 |
 | `waiting_for_input` | 입력 대기 | 사용자 입력 대기 | Form, 버튼이 설정된 Carousel·Chart·Table·Template, 멀티턴 AI 에이전트, 멀티턴 정보 추출기 |
 | `resumed` | 재개 출력 | 사용자 입력을 받은 직후 | 재개 시점. 관측용이며 라우팅에 영향이 없다 |
-| `ended` | 대화 종료 | 멀티턴 종료 · 단일 턴 AI 에이전트 종료 | 멀티턴 LLM 대화가 `completed`·`user_ended`·`max_turns`·`max_retries`·`error` 중 하나로 끝날 때. 단일 턴 AI 에이전트는 정상 완료 · 조건 분기 · `error` 포트 실패 모두 이 값으로 끝난다 |
+| `ended` | 대화 종료 | 멀티턴 종료 · 단일 턴 AI 노드 종료 | 멀티턴 LLM 대화가 `completed`·`user_ended`·`max_turns`·`max_retries`·`error` 중 하나로 끝날 때. 단일 턴 AI 노드(AI 에이전트 · 정보 추출기)도 정상 완료와 `error` 포트 실패 모두 이 값으로 끝나고 AI 에이전트는 조건 분기도 이 값으로 끝난다 |
 | `requires_integration` | 통합 필요 | 외부 통합이 연결되지 않아 준비가 필요함 | Send Email 등이 통합 없이 실행될 때 |
-| `requires_playwright` | PDF 렌더러 필요 | PDF 렌더러가 필요함 | 지금 이 값을 내는 노드가 없다. 핸들러 계약의 `status` 주석에만 남아 있다 |
-
-이 표의 두 곳은 [용어 사전](../CLE-GLOSSARY.md) 의 흐름 지시 상태 표와 다르다. 사전은 `ended` 를 멀티턴 대화 종료로만 적지만 이 문서는 단일 턴 AI 에이전트 종료도 `ended` 로 적는다. `requires_playwright` 는 사전에 없는 값이다. 사전 보강은 NERV Task `CLE-T-TC36RK` 에서 한다.
 
 값별 출력 모양(입력 대기 · 재개 출력 · 대화 종료)과 흐름은 [입력 대기와 재개 상태](CLE-EXEC-STATE-RESUME.md#입력-대기와-재개의-출력-흐름) 에 있다.
 
@@ -182,7 +179,7 @@ stateDiagram-v2
 ## 구현 위치
 
 - `codebase/backend/src/modules/execution-engine/state/state-machine.ts` (`ALLOWED_TRANSITIONS`, `canTransition`, `allowRetryReentry`, `nonTerminalStatuses`)
-- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`updateExecutionStatus`, `guardStatusesSql`, `markExecutionCancelled`, `stripControlFields`, `buildRetryReentryState`, `buildResumeCheckpoint`)
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (`updateExecutionStatus`, `guardStatusesSql`, `markExecutionCancelled`, `buildRetryReentryState`, `buildResumeCheckpoint`)
 - `codebase/backend/src/modules/execution-engine/form-interaction.service.ts`, `button-interaction.service.ts`
 - `codebase/frontend/src/lib/websocket/use-execution-events.ts`
 - `codebase/frontend/src/lib/websocket/ws-client.ts`

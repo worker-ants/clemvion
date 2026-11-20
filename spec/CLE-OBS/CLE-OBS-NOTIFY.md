@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY"
 title: "알림"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051", "REQ-NOTIFY-052"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "344e433db35c6aeafc2d6f5678aaf7bd57dc0f61ff49571897ae49d9b4010aea"
+content_hash: "066aa0176f510f5d1b43c78ebbf235c95abb6c334404a6ebf24db2b5b24c1476"
 read_as: "approved_fallback"
-task: "CLE-T-N121VD"
+task: "CLE-T-N93N9K"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "72fadfd7d55a317cce411b72d05d0713f816c581515945b5768d6f4927b22c7c"
-etag: "sha256-08b03246a43efcc3012b88f17ce40c58ec6c4891b663a8e58958159553e7959c"
+mirror_sha256: "6f0026fd371f023cbce053ed7a86164cdef591e599f5b8bd53d255821183cae3"
+etag: "sha256-99030bb25b0e1d21c28f5147d78ee06e52d4d66b75b33a4a907f6e85d3318683"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -38,7 +38,7 @@ etag: "sha256-08b03246a43efcc3012b88f17ce40c58ec6c4891b663a8e58958159553e7959c"
 ## 요구사항
 
 - REQ-NOTIFY-001 WHEN 발사원이 알림을 보내면 THE SYSTEM SHALL `notification` 행을 `is_read=false` 와 발사원이 정한 알림 채널로 저장한다. (원본: data-flow/8 §1)
-- REQ-NOTIFY-002 WHEN 알림 행을 저장하면 THE SYSTEM SHALL 수신자의 `notifications:<userId>` 구독 채널로 `notification.new` 이벤트를 보낸다. (원본: data-flow/8 §2.2)
+- REQ-NOTIFY-002 WHEN 알림 행을 저장하면 THE SYSTEM SHALL 수신자의 `notifications:<userId>` 구독 채널로 `notification.new` 이벤트를 보낸다(예외: REQ-NOTIFY-035). (원본: data-flow/8 §2.2)
 - REQ-NOTIFY-003 WHEN 알림 채널이 `email` 이나 `both` 인 알림을 저장하면 THE SYSTEM SHALL 단일 범용 템플릿으로 알림 이메일을 보내고 성공하면 `email_sent_at` 을 채운다. (원본: data-flow/8 §2.2)
 - REQ-NOTIFY-004 IF 알림 이메일 발송이 실패하면 THE SYSTEM SHALL 재시도하지 않고 경고 로그를 남기며 `email_sent_at` 을 NULL 로 둔다. (원본: data-flow/8 §3)
 - REQ-NOTIFY-005 WHEN 발사원이 알림을 보내면 THE SYSTEM SHALL 수신자의 알림 설정을 발사원 쪽에서 읽어 알림 채널을 계산한다. (원본: data-flow/8 §1)
@@ -70,11 +70,11 @@ etag: "sha256-08b03246a43efcc3012b88f17ce40c58ec6c4891b663a8e58958159553e7959c"
 - REQ-NOTIFY-031 IF 다른 사용자의 알림 ID 로 닫기를 요청하면 THE SYSTEM SHALL 404 로 거부한다. (원본: data-flow/8 §4.2)
 - REQ-NOTIFY-032 WHEN 사용자가 알림 설정을 조회하면 THE SYSTEM SHALL 저장값이 없는 키에 기본값을 채워 돌려준다. (원본: 9-user-profile §6.2)
 - REQ-NOTIFY-033 WHEN 사용자가 알림 설정을 수정하면 THE SYSTEM SHALL 보낸 키만 기존 설정에 합친다. (원본: 9-user-profile §6.2)
-- REQ-NOTIFY-034 IF 수신자가 실행 실패나 스케줄 실패 이메일 키를 껐으면 THE SYSTEM SHALL 그 알림을 인앱 채널로만 보낸다. (원본: 9-user-profile §5.1)
-- REQ-NOTIFY-035 WHEN 사용자가 알림 유형의 인앱 채널을 끄면 THE SYSTEM SHALL 그 유형의 알림을 벨에 보이지 않는다. (원본: 9-user-profile §5.1) (미구현)
-- REQ-NOTIFY-036 WHEN 사용자가 알림 설정 화면을 열면 THE SYSTEM SHALL 알림 유형별 이메일 수신 토글을 보인다. (원본: 9-user-profile §5.1) (미구현)
-- REQ-NOTIFY-037 WHEN 하루가 끝나면 THE SYSTEM SHALL 그날의 실패 요약 이메일을 보낸다. (원본: 9-user-profile §5.3) (미구현)
-- REQ-NOTIFY-038 WHEN 알림 이메일을 보내면 THE SYSTEM SHALL 이메일 하단에 수신 거부 링크를 넣는다. (원본: 9-user-profile §5.3) (미구현)
+- REQ-NOTIFY-034 IF 수신자가 실행 실패나 스케줄 실패 이메일 키를 껐으면 THE SYSTEM SHALL 그 알림을 인앱 채널로만 보낸다(예외: REQ-NOTIFY-035). (원본: 9-user-profile §5.1)
+- REQ-NOTIFY-035 IF 수신자가 실행 실패 · 스케줄 실패 · 통합 만료 알림의 인앱 키를 껐으면 THE SYSTEM SHALL 그 알림을 벨 목록 · 읽지 않은 알림 수 · `notification.new` 에서 빼고 이메일 키도 껐으면 알림 행을 만들지 않는다. (원본: 9-user-profile §5.1) (미구현: CLE-T-EJFQ1Y)
+- REQ-NOTIFY-036 WHEN 사용자가 알림 설정 화면을 열면 THE SYSTEM SHALL 알림 유형별 인앱 토글과 이메일 토글, 일일 요약 토글을 한 화면에 보인다. (원본: 9-user-profile §5.1) (미구현: CLE-T-EJFQ1Y)
+- REQ-NOTIFY-037 WHEN 매일 09:00(Asia/Seoul)이 되면 THE SYSTEM SHALL 일일 요약(`dailyDigestEmail`)을 켠 사용자에게 직전 24시간의 실행 실패 · 스케줄 실패 · Background 본문 실패 알림을 워크스페이스별로 묶은 요약 이메일을 보낸다. (원본: 9-user-profile §5.3) (미구현: CLE-T-BAXAN4)
+- REQ-NOTIFY-038 WHEN 알림 이메일이나 일일 요약 이메일을 보내면 THE SYSTEM SHALL 이메일 하단에 알림 설정 화면으로 가는 수신 거부 링크를 넣는다. (원본: 9-user-profile §5.3) (미구현: CLE-T-EJFQ1Y · CLE-T-BAXAN4)
 - REQ-NOTIFY-039 WHEN 사용자가 알림 규칙 화면(`/profile/alerts`)을 열면 THE SYSTEM SHALL 현재 워크스페이스의 모든 알림 규칙을 멤버 누구에게나 보인다. (원본: 9-user-profile §5.4)
 - REQ-NOTIFY-040 WHEN 관리자 미만이 알림 규칙 화면을 보면 THE SYSTEM SHALL 생성 폼과 활성 토글·삭제 버튼을 숨기고 활성 상태를 읽기 전용 배지로 보인다. (원본: 9-user-profile §5.4)
 - REQ-NOTIFY-041 IF 관리자 미만이 알림 규칙을 만들거나 고치거나 지우려 하면 THE SYSTEM SHALL 거부한다. (원본: 9-user-profile §6.3)
@@ -95,7 +95,7 @@ etag: "sha256-08b03246a43efcc3012b88f17ce40c58ec6c4891b663a8e58958159553e7959c"
 | 문서 | 맡는 내용 | 요구사항 |
 | --- | --- | --- |
 | [알림 — 벨 · 읽음과 닫기 · API · 데이터](CLE-OBS-NOTIFY-INBOX.md) | 벨과 팝오버, 딥링크, 읽음과 닫기, 알림 API, `Notification` 엔티티, 외부 의존 | REQ-NOTIFY-013, 014, 016 ~ 031 |
-| [알림 — 알림 설정과 이메일](CLE-OBS-NOTIFY-SETTINGS.md) | 유형별 이메일 수신 토글, 이메일 알림, 팀 초대 이메일의 책임 | REQ-NOTIFY-011, 032 ~ 038 |
+| [알림 — 알림 설정과 이메일](CLE-OBS-NOTIFY-SETTINGS.md) | 유형별 인앱 · 이메일 토글과 채널 계산, 일일 요약, 수신 거부 링크, 알림 설정 화면, 팀 초대 이메일의 책임 | REQ-NOTIFY-011, 032 ~ 038 |
 | [알림 — 알림 규칙](CLE-OBS-NOTIFY-RULES.md) | 화면·API·평가와 `AlertRule` 엔티티 | REQ-NOTIFY-039 ~ 051 |
 
 ## 알림 유형
@@ -104,11 +104,11 @@ etag: "sha256-08b03246a43efcc3012b88f17ce40c58ec6c4891b663a8e58958159553e7959c"
 
 | 유형 | 상태 | 발사원 | 발사 조건 | 수신자 | 알림 채널 | 딥링크 대상 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `execution_failed` | 구현됨 | `ExecutionEngineService.dispatchExecutionFailedNotification` | 최상위 실행(`!parentExecutionId`)이 `failed` 로 끝남. 초기 세그먼트(`runExecution` 의 catch)와 재개 세그먼트(`finalizeResumedExecutionOutcome`) 양쪽에서 보낸다. 대부분의 실행은 재개 세그먼트에서 끝나므로 두 경로 모두 보내야 빠지지 않는다. Background 본문·서브 워크플로우 같은 하위 실행은 `background_failed` 와 겹치지 않게 뺀다 | 워크플로우 소유자와 실행자(`executedBy`). 겹치면 한 번만 | 기본 `both`. 수신자의 `executionFailedEmail === false` 면 `in_app` | `workflow` / 워크플로우 ID. 실행 단위 딥링크는 없다 |
-| `schedule_failed` | 구현됨 | `ScheduleRunnerService.dispatchScheduleFailedNotification` | 스케줄이 실행을 **시작하지 못함**(파라미터 해석·큐 등록 실패). 시작된 실행의 이후 실패는 `execution_failed` 가 맡는다. 워크플로우가 스케줄의 워크스페이스에 없어 건너뛴 발사는 보내지 않는다(REQ-NOTIFY-052). 수신자인 워크플로우 소유자가 다른 워크스페이스 사람이기 때문이다([스케줄 「다른 워크스페이스의 워크플로우」](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#다른-워크스페이스의-워크플로우)) | 워크플로우 소유자(`createdBy`). 없으면 건너뛴다 | 기본 `both`. `scheduleFailedEmail === false` 면 `in_app` | `workflow` / 워크플로우 ID |
+| `execution_failed` | 구현됨 | `ExecutionEngineService.dispatchExecutionFailedNotification` | 최상위 실행(`!parentExecutionId`)이 `failed` 로 끝남. 초기 세그먼트(`runExecution` 의 catch)와 재개 세그먼트(`finalizeResumedExecutionOutcome`) 양쪽에서 보낸다. 대부분의 실행은 재개 세그먼트에서 끝나므로 두 경로 모두 보내야 빠지지 않는다. Background 본문·서브 워크플로우 같은 하위 실행은 `background_failed` 와 겹치지 않게 뺀다 | 워크플로우 소유자와 실행자(`executedBy`). 겹치면 한 번만 | 기본 `both`. 수신자 설정으로 계산한다([채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산)) | `workflow` / 워크플로우 ID. 실행 단위 딥링크는 없다 |
+| `schedule_failed` | 구현됨 | `ScheduleRunnerService.dispatchScheduleFailedNotification` | 스케줄이 실행을 **시작하지 못함**(파라미터 해석·큐 등록 실패). 시작된 실행의 이후 실패는 `execution_failed` 가 맡는다. 워크플로우가 스케줄의 워크스페이스에 없어 건너뛴 발사는 보내지 않는다(REQ-NOTIFY-052). 수신자인 워크플로우 소유자가 다른 워크스페이스 사람이기 때문이다([스케줄 「다른 워크스페이스의 워크플로우」](../CLE-TRIG/CLE-TRIG-SCHEDULE.md#다른-워크스페이스의-워크플로우)) | 워크플로우 소유자(`createdBy`). 없으면 건너뛴다 | 기본 `both`. 수신자 설정으로 계산한다([채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산)) | `workflow` / 워크플로우 ID |
 | `background_failed` | 구현됨 | `BackgroundExecutionProcessor`(`background-execution.processor.ts`) | `config.notifyOnFailure=true` 인 Background 본문 실패([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md)) | 워크스페이스 관리자 전원(`findAdminUserIds`) | `in_app` | `workflow` / 워크플로우 ID. 본문 실행 귀속은 `background_run_id` 에 따로 담는다([데이터](CLE-OBS-NOTIFY-INBOX.md#notification)) |
-| `integration_expired` | 구현됨 | `IntegrationExpiryScanner`(`integration-expiry-scanner.service.ts`) | refresh token 이 없는 통합의 토큰 만료 7일·3일·당일 임계. 조건과 문구는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | `integrationExpiryEmail` 이 켜져 있으면 `both`, 아니면 `in_app` | `integration` / 통합 ID |
-| `integration_action_required` | 구현됨 | `IntegrationActionRequiredNotifier.notify`(`integration-action-required-notifier.service.ts`) | 인증 실패(`auth_failed`), transport 3회 연속 실패(`network`), 권한 범위 부족(`insufficient_scope`). 인증 실패는 세 경로에서 나간다. API 호출(Cafe24·MakeShop 클라이언트의 401·403과 토큰 갱신 실패), 연결됨 통합을 `error(auth_failed)` 로 바꾼 OAuth 콜백 코드 교환 실패, MCP 도구 호출 인증 실패다. 설치 대기의 콜백 실패와 상태를 바꾸지 않는 콜백 실패는 보내지 않는다. 경로별 조건과 문구는 [통합 상태와 만료 알림 — 만료 스캐너와 알림 「조치 필요 알림」](../CLE-INT/CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | 같은 `integrationExpiryEmail` 토글로 계산(전용 토글 없음) | `integration` / 통합 ID |
+| `integration_expired` | 구현됨 | `IntegrationExpiryScanner`(`integration-expiry-scanner.service.ts`) | refresh token 이 없는 통합의 토큰 만료 7일·3일·당일 임계. 조건과 문구는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | `integrationExpiryEmail` 이 켜져 있으면 `both`, 아니면 `in_app`. 인앱 키가 생기면 [채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산) 을 따른다 | `integration` / 통합 ID |
+| `integration_action_required` | 구현됨 | `IntegrationActionRequiredNotifier.notify`(`integration-action-required-notifier.service.ts`) | 인증 실패(`auth_failed`), transport 3회 연속 실패(`network`), 권한 범위 부족(`insufficient_scope`). 인증 실패는 세 경로에서 나간다. API 호출(Cafe24·MakeShop 클라이언트의 401·403과 토큰 갱신 실패), 연결됨 통합을 `error(auth_failed)` 로 바꾼 OAuth 콜백 코드 교환 실패, MCP 도구 호출 인증 실패다. 설치 대기의 콜백 실패와 상태를 바꾸지 않는 콜백 실패는 보내지 않는다. 경로별 조건과 문구는 [통합 상태와 만료 알림 — 만료 스캐너와 알림 「조치 필요 알림」](../CLE-INT/CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | 같은 `integrationExpiryEmail` 토글로 계산(전용 토글 없음). 인앱은 끌 수 없다 | `integration` / 통합 ID |
 | `alert_failure_rate`, `alert_duration`, `alert_llm_cost` | 구현됨 | `AlertsEvaluatorService.dispatchBreach` | 알림 규칙 위반. 유형 값은 `alert_` + `AlertRule.type` 이다(`` `alert_${rule.type}` ``) | 워크스페이스 관리자 | 규칙 채널이 `email` 이면 `both`, 아니면 `in_app` | `resource_type='alert_rule'`. 딥링크 매핑이 없어 누르면 이동하지 않는다 |
 | `team_invite` | 구현됨 | `WorkspaceInvitationsService.dispatchTeamInviteNotification` | 초대 대상 이메일이 이미 가입한 비멤버일 때 | 초대받은 사용자 | `in_app`. 이메일은 초대 링크 이메일이 맡는다([Rationale](CLE-OBS-NOTIFY-SETTINGS.md#팀-초대-알림은-인앱-채널로만-보낸다)) | `resource_id` 는 초대 ID. 누르면 `/profile` 로 이동 |
 | `marketplace_update` | 미구현 | (도입하면) 마켓플레이스 모듈 | 설치한 템플릿·에이전트의 새 버전([마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md)) | — | 기본 인앱. 이메일은 도입할 때 opt-in 으로 둔다 | — |
@@ -136,8 +136,8 @@ sequenceDiagram
 ```
 
 - 저장 진입점은 둘이다. 한 건을 저장하는 `notify()` 와 여러 수신자에게 한꺼번에 저장하는 `createMany(entries[])` 다. 둘 다 저장 뒤에 WebSocket 전송과 이메일 발송을 한다.
-- **알림 채널은 발사원이 계산한다.** `notify()`·`createMany` 저장 경로는 알림 설정을 보지 않는다. 통합 노티파이어는 안에서 직접 계산하고 실행 실패·스케줄 실패는 `NotificationsService.resolveOptOutEmailChannels` 헬퍼로 계산한다. 이 헬퍼는 조회만 하고 저장 경로에 끼어들지 않는다.
-- **WebSocket**: `emitNew` 가 `WebsocketService.emitNotificationEvent(userId, { id, type, title, message, resourceType, resourceId })` 를 부른다. 모든 알림에 대해 바로 보내며 실패해도 저장은 유지된다. 구독 채널은 `notifications:<userId>` 이고 `WebsocketGateway.VALID_CHANNEL_PREFIXES` 에 `notifications:` 접두가 등록돼 있다. 이벤트 정의의 기준은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이고 이름을 정한 근거는 [벨 · 읽음과 닫기 · API · 데이터의 Rationale](CLE-OBS-NOTIFY-INBOX.md#websocket-이벤트는-notificationnew-와-notificationsuserid-로-적는다) 에 있다.
+- **알림 채널은 발사원이 계산한다.** `notify()`·`createMany` 저장 경로는 알림 설정을 보지 않는다. 통합 노티파이어는 안에서 직접 계산하고 실행 실패·스케줄 실패는 `NotificationsService.resolveOptOutEmailChannels` 헬퍼로 계산한다. 이 헬퍼는 조회만 하고 저장 경로에 끼어들지 않는다. 인앱 키를 더한 네 결과(`both` · `in_app` · `email` · 보내지 않음)는 [채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산) 이 정한다.
+- **WebSocket**: `emitNew` 가 `WebsocketService.emitNotificationEvent(userId, { id, type, title, message, resourceType, resourceId })` 를 부른다. 모든 알림에 대해 바로 보내며 실패해도 저장은 유지된다. 인앱을 꺼 채널이 `email` 인 행은 보내지 않는다([인앱 끄기](CLE-OBS-NOTIFY-SETTINGS.md#인앱-끄기), 미구현). 구독 채널은 `notifications:<userId>` 이고 `WebsocketGateway.VALID_CHANNEL_PREFIXES` 에 `notifications:` 접두가 등록돼 있다. 이벤트 정의의 기준은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이고 이름을 정한 근거는 [벨 · 읽음과 닫기 · API · 데이터의 Rationale](CLE-OBS-NOTIFY-INBOX.md#websocket-이벤트는-notificationnew-와-notificationsuserid-로-적는다) 에 있다.
 - **이메일**: `dispatchEmails` 가 `MailService.sendNotificationEmail` 로 보낸다. 제목은 알림 `title`, 본문은 `message` 와 버튼 링크(CTA)다. 유형별 시각 템플릿 대신 범용 템플릿 하나만 쓴다. 성공하면 `email_sent_at` 을 채운다. 실패하면 재시도 없이 경고 로그만 남기고 `email_sent_at` 을 NULL 로 둔다. 부수 기록 실패를 다루는 공통 방식은 [로깅과 헬스 체크](CLE-OBS-LOGGING.md) 에 있다.
 
 ## 중복 방지
@@ -159,9 +159,6 @@ sequenceDiagram
 
 ## 미결 사항
 
-- **알림 설정 화면의 구현 여부**: 원문 알림 설정 절(9-user-profile §5.1)과 요구사항 NAV-UP-02 는 이메일 채널 켜고 끄기·사용자 메뉴의 "알림 설정" 을 구현 완료로 적고, 원문 레이아웃(§3.2)은 알림 기본 설정 화면이 아직 없다(Planned)고 적는다. 현재 구현은 백엔드 API(`GET`·`PATCH /api/notifications/settings`)만 있고 프런트엔드에는 이 API 를 부르는 곳이 없다. 설정 화면을 만들지, API 만 있는 상태로 요구사항을 고칠지 결정이 필요하다(관련: [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md)).
-- **이메일 수신 거부 링크**: 원문 이메일 알림 절(9-user-profile §5.3)은 이메일 하단에 수신 거부 링크를 둔다고 적고 미구현 표시가 없다. 원문 데이터 흐름은 알림 이메일을 제목·본문·버튼 링크로 된 범용 템플릿 하나로만 적는다. 현재 구현의 메일·알림 모듈에는 수신 거부 처리가 없다. 수신 거부 링크를 구현할지, 요구에서 뺄지 결정이 필요하다.
-- **이메일 설정 키의 기본 방향**: 원문 알림 설정 절과 현재 구현은 키마다 방향이 다르다. `integrationExpiryEmail` 은 켜야 받는 opt-in(기본 꺼짐)이고 `executionFailedEmail`·`scheduleFailedEmail` 은 꺼야 안 받는 opt-out(기본 켜짐)이다. 원문 데이터 흐름의 Rationale 은 키 하나(`integrationExpiryEmail`)·opt-in 하나만 있는 것처럼 읽힌다. 새 키를 더할 때 기본 방향을 무엇으로 정할지(유형마다 정할지, 공통 규칙을 둘지) 규칙이 없다. 결정이 필요하다.
 - **전체 알림 페이지와 팝오버 구성**: 원문 알림 센터 절(9-user-profile §5.2)은 벨 드롭다운의 최근 알림 최대 10개와 "View all" 링크, 유형·읽음 필터와 페이지네이션이 있는 전체 알림 페이지를 적는다. 원문 레이아웃(§3.1)은 팝오버만 정의하고 전체 알림 페이지를 말하지 않는다. 현재 구현에는 전체 알림 페이지 라우트가 없다. 전체 알림 페이지를 만들지, 요구에서 뺄지 결정이 필요하다.
 
 ## 구현 위치

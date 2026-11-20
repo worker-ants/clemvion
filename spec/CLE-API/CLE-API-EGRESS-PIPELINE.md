@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS-PIPELINE"
 title: "응답 자격 증명 마스킹 — 재제출 거부와 마스커 좌표계"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "40196b52587699653d5aa359d89721a52f9eda70f0f4b03c2542bd98122a3f77"
+content_hash: "1b065b908b184142dd1d40c1bf781531a6ee76a21099a7fda2acf646622b3450"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-DV6PN7"
 source_paths: []
-mirror_sha256: "bf40795c9dd91e7af47f37a7259630d33cd688eb0a402eef4a74b5c1442d57eb"
-etag: "sha256-e340750a85ef1d2c0c221f3b0b0b262a969ddaa3ccac493e652f6d6872899320"
+mirror_sha256: "7794f1ccb62288784f5d0ce1c34dbde47155730390d2e2bc9c9db436543bd64d"
+etag: "sha256-3be1dba66800d0ac47c0d17aec65c7979aee76456afa5f511a067fe393e4bb4c"
 ---
 ## 개요
 
@@ -75,18 +75,19 @@ etag: "sha256-e340750a85ef1d2c0c221f3b0b0b262a969ddaa3ccac493e652f6d6872899320"
 두 층에서 지킨다.
 
 1. **함수 안**: `deepRedactObject` 는 자격 증명 키의 값이 **이미 마커면 덮지 않는다**(`isMaskedMarker(v) ? v : VALUE_MASK_MARKER`). 앞 층이 남긴 키 마커가 값 마커로 바뀌면 두 마커의 뜻 구분이 사라진다. 키 이름 판정의 이야기이고 헤더 값 검증 오류 패턴은 예외다(규칙 5, §3.10).
-2. **호출 순서**: `WebsocketService.toFanoutEnvelope` 은 아래 네 단계이고 **뒤에서 다시 마스킹하지 않는다.** 다시 걸면 `attachRoutingContext` 가 붙인 `chatChannel` 의 키 마커를 값 마커로 덮는다(그 마커는 기존 테스트가 고정하는 계약이다).
+2. **호출 순서**: `WebsocketService.toFanoutEnvelope` 은 아래 네 단계이고 **뒤에서 다시 마스킹하지 않는다.** 4단계가 payload 에 붙이는 것은 서버가 만든 식별자 `triggerId` · `workflowId` 뿐이다. 라우팅 정보 `chatChannel` 은 payload 밖 `routing` 필드에 실리고 키 이름 마스킹(`sanitizePayloadForWs`, §7 표 4행)만 거친다. 뒤에서 값 마스킹을 다시 걸면 그 키 마커를 값 마커로 덮는다(그 마커는 기존 테스트가 고정하는 계약이다).
 
 ```mermaid
 flowchart LR
   A[maskWireEnvelope<br/>wire 단계 마스킹] --> B[stripExternalOnlyFields<br/>디버그 필드 제거]
   B --> C[allowlistFanoutNodeOutput<br/>fail-closed 허용 목록]
-  C --> D[attachRoutingContext<br/>triggerId·chatChannel 부착]
+  C --> D[attachRoutingContext<br/>triggerId·workflowId 부착]
 ```
 
 - 3단계 `allowlistFanoutNodeOutput`(2026-08-24)은 fail-closed 허용 목록이다. 앞의 `stripExternalOnlyFields` 가 이름을 아는 것을 빼는 deny-list(fail-open)인 반면, 이쪽은 `nodeOutput`·`buttonConfig.nodeOutput`·`output` **세 자리**에서 아는 것만 남긴다.
-- 순서가 중요하다. 허용 목록을 `attachRoutingContext` **뒤에** 걸면 그 함수가 얹은 `triggerId`·`chatChannel` 이 목록 밖이라 떨어진다.
-- **1단계 → fanout 진입과 subject 입력은 타입으로 묶었다(2026-11-06).** `maskWireEnvelope` 는 파일 안 brand 를 붙인 봉투(`MaskedWireEnvelope`)를 돌려주고 `toFanoutEnvelope` 는 그 타입만 받는다. `FanoutEnvelope` 를 만드는 곳은 `toFanoutEnvelope` 하나다. `executionEventSubject` 는 payload 가 `FanoutEnvelope` 인 `FanoutExecutionChannelEvent` 만 받는다. 그래서 값 마스킹을 건너뛴 봉투나 `toFanoutEnvelope` 를 지나지 않은 봉투를 subject 에 넣으면 빌드가 깨진다. 소비처가 보는 `executionEvents$` 의 `ExecutionChannelEvent` 는 그대로다(Rationale 「fanout 봉투를 타입으로 묶은 이유」).
+- 2~4단계의 순서는 `toFanoutEnvelope` 함수 본문이 지키는 순서다. 3단계 허용 목록은 최상위 `nodeOutput`·`output` 과 `buttonConfig.nodeOutput` 안쪽만 좁히고 다른 최상위 키는 건드리지 않는다. 그래서 4단계가 붙이는 서버 식별자 `triggerId`·`workflowId` 는 허용 목록 대상이 아니다.
+- **라우팅 정보는 payload 밖에 둔다(2026-11-20).** fanout 이벤트는 payload 와 별도 필드 `routing: { chatChannel }` 을 함께 담는다. `routing` 은 fanout 이벤트 타입(`FanoutExecutionChannelEvent`)의 필드이고 값 마스킹과 허용 목록을 거친 payload 와 따로 붙는다. `routing` 을 읽는 것은 서버 안 채팅 채널 dispatcher(`ChatChannelDispatcher`)뿐이고 발송 대상을 `event.routing` 에서 찾는다. SSE 와 EIA 알림 웹훅은 payload 만 직렬화하므로 **외부 소비자에는 `chatChannel` 이 실리지 않는다.** 채널 정보가 필요한 워크플로우는 실행 입력 `inputData.chatChannel` 을 자기 출력에 싣는다(Rationale 「`chatChannel` 을 외부 fanout payload 에서 뺀 이유」).
+- **1단계 → fanout 진입과 subject 입력은 타입으로 묶었다(2026-11-06).** `maskWireEnvelope` 는 파일 안 brand 를 붙인 봉투(`MaskedWireEnvelope`)를 돌려주고 `toFanoutEnvelope` 는 그 타입만 받는다. `FanoutEnvelope` 를 만드는 곳은 `toFanoutEnvelope` 하나다. `executionEventSubject` 는 payload 가 `FanoutEnvelope` 인 `FanoutExecutionChannelEvent` 만 받는다. 그래서 값 마스킹을 건너뛴 봉투나 `toFanoutEnvelope` 를 지나지 않은 봉투를 subject 에 넣으면 빌드가 깨진다. 소비처가 보는 `executionEvents$` 의 `ExecutionChannelEvent` 에는 brand 를 걸지 않았다(Rationale 「fanout 봉투를 타입으로 묶은 이유」).
 - **타입이 막지 못하는 것이 남는다.**
   - 타입 단언(`as`)은 막지 못한다. brand 가 붙은 봉투를 spread 해 필드를 더하는 것도 막지 못한다.
   - 표지 타입(`FanoutEnvelope`·`MaskedWireEnvelope`·`FanoutExecutionChannelEvent`)으로의 단언이 정한 자리(`toFanoutEnvelope`·`maskWireEnvelope`) 밖에 없는지, subject 에 넣는 payload 가 `toFanoutEnvelope` 의 결과인지는 소스 스캔 테스트(`websocket-fanout-envelope.spec.ts`)가 본다. 타입 이름으로 찾으므로 별칭을 거친 단언은 잡지 못한다.
@@ -102,12 +103,13 @@ flowchart LR
 | 1 | `MAX_MASK_DEPTH` (`@workflow/masked-markers`) | **10** | 없음 | 없음 | **기준 상수.** 표 2·3행이 이 값을 참조한다 |
 | 2 | `MAX_REDACT_DEPTH` (백엔드 지역 별칭) | **10** (표 1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답, 저장 에러, 대화 스레드, **워크플로우 AI 어시스턴트 탐색 응답**, **종결 에러 payload 발행**(`redactTerminalError` 경유, 2026-08-29 등재)) · `deepRedactSecretsPreserving`(**WebSocket 발행 wire 값 마스킹**: `execution:`·`kb:`·`background:run:`, `maskWireEnvelope` 경유, 2026-11-06 등재) · `hasMaskedLeaf`(수동 실행 재제출 거부 판정) |
 | 3 | 프론트엔드는 별칭 없이 `MAX_MASK_DEPTH` 를 직접 import | **10** (표 1행 그대로) | 값 검사를 **먼저** 하고 `depth >= N` 에서 내려가기를 멈춤 | 스캔 범위 `0..N` | `hasMaskedMarkerLeaf`(폼 프리필 건너뛰기, 재제출 차단) |
-| 4 | `MAX_SANITIZE_DEPTH` (`websocket.service.ts`, **별개 불변식**) | **10** (따로 선언) | `depth > N` | `DEPTH_MASK_MARKER` | `sanitizePayloadForWs`(WebSocket 발행) |
+| 4 | `MAX_SANITIZE_DEPTH` (`websocket.service.ts`, **별개 불변식**) | **10** (따로 선언) | `depth > N` | `DEPTH_MASK_MARKER` | `sanitizePayloadForWs`(WebSocket 발행, fanout 이벤트의 `routing.chatChannel`) |
 | 5 | `stripExternalOnlyFields(_, maxDepth)` | **호출부 지정** | `depth > maxDepth` | 하위 트리를 **보존**(손대지 않음) | 두 표면이 각자 **자매 sanitizer 의 상한**을 넘긴다 |
 
 - **"값" 열은 깊이 값이지 행 번호가 아니다.** 지금 네 상한이 모두 `10` 이지만 표 2·3행은 표 1행을 참조하고 표 4행은 따로 선언해 우연히 같을 뿐이다. 문장에서 행을 가리킬 때는 늘 "표 N행" 으로 적는다.
 - **표 5행의 호출부는 둘이다.** `InteractionService` 의 공개 표면 조립부가 `MAX_REDACT_DEPTH` 를, `WebsocketService.toFanoutEnvelope` 이 `MAX_SANITIZE_DEPTH` 를 넘긴다. `stripExternalOnlyFields` 에는 자기 상한이 없다. 표면마다 자매 sanitizer 와 어긋나면 strip 이 닿지 않는 층에 마스킹만 걸리거나 그 반대가 된다.
 - **이름이 한 단어 다른 스캐너가 둘 있다.** 백엔드 `hasMaskedLeaf`(`reject-masked-resubmission.ts`, 표 2행)와 프론트엔드 `hasMaskedMarkerLeaf`(`lib/utils/masked-markers.ts`, 표 3행)다. 같은 상한을 쓰지만 파일도 스택도 다르다. 한쪽만 고치고 "양쪽 고쳤다" 고 적는 사고가 실제로 두 번 났다.
+- **표 4행의 키 패턴은 공용본과 갈라 둔다.** `sanitizePayloadForWs` 가 쓰는 파일 안 `CREDENTIAL_KEY_PATTERN` 에는 공용본(`sanitize-error-message.ts`)의 `x[_-]api[_-]?key` 가 없다. 두 마스커가 서로 다른 불변식을 지킨다는 기존 결정([좌표계를 문서로 둔 이유](#좌표계를-문서로-둔-이유-2026-08-22) 의 기각한 대안 「세 상한을 하나로 합쳐 좌표계를 없앤다」)을 키 패턴에도 그대로 적용한다. 이 차이가 외부로 나가던 자리는 값 마스킹 뒤에 붙던 `chatChannel` 하나였다. 2026-11-20 부터 그 객체는 `routing` 필드로 서버 안에만 머문다(Rationale 「`chatChannel` 을 외부 fanout payload 에서 뺀 이유」).
 - **인용은 심볼 기준이다.** 줄 번호는 리팩터링마다 낡아 쓰지 않는다.
 - **`maskSensitiveFields` 는 이 표에 행이 없다**(2026-08-24). 옛 소비처는 노드 설정 에코(`handler-output.adapter.ts`)와 워크플로우 AI 어시스턴트(`explore-tools.service.ts`) 둘이었는데 앞의 것이 없어졌다. 설정 에코를 표현식이 읽는데 가려져 있어 기능이 오염됐기 때문이다(§3.9). 남은 소비처는 깊이 상한이 없어 이 표의 축(깊이)에 해당하지 않는다.
 - **대신 지켜야 할 축이 하나 생겼다.** 설정 에코는 이제 나가는 시점의 `deepRedactSecrets*` **하나에만** 기대므로 그 키 축이 `DEFAULT_SENSITIVE_KEYS` 를 **포함**해야 한다. `mask-sensitive-fields.util.spec.ts` 의 포함 관계 캐너리가 정본 구현으로 그것을 단언한다(목록에서 파생하므로 목록이 넓어져도 자동으로 검사한다).
@@ -179,3 +181,16 @@ flowchart LR
 이전에는 §6 에 «이 순서는 구조가 아니라 규율이다» 라고 적고 JSDoc 으로 알렸다. subject 의 payload 타입이 `Record<string, unknown>` 이라 서비스 안의 새 발행 경로가 `toFanoutEnvelope` 를 건너뛰어도 컴파일됐다. 그래서 1단계 → fanout 진입과 subject 입력을 타입으로 묶었다(§6).
 
 기각한 대안은 소비처가 보는 `ExecutionChannelEvent` 자체에 brand 를 거는 안이다. SSE 어댑터의 replay 제어 프레임(`buildReplayUnavailableEvent`)과 Redis 버퍼 재구성이 그 타입을 직접 만든다. 그 타입에 brand 를 걸면 그쪽까지 단언이 퍼진다. 그래서 subject 입력 전용 타입 `FanoutExecutionChannelEvent` 를 따로 뒀다.
+
+### `chatChannel` 을 외부 fanout payload 에서 뺀 이유 (2026-11-20)
+
+NERV Task `CLE-T-FTA848` 에서 사람이 정한 결정 (a)다. 구현은 NERV Task `CLE-T-DV6PN7` 이 한다.
+
+그전에는 `attachRoutingContext` 가 `triggerId` · `workflowId` 와 함께 `chatChannel`(`provider` · `conversationKey` · `channelUserKey`)을 payload 에 붙였다. fanout payload 는 채팅 채널 dispatcher 와 SSE · EIA 알림 웹훅이 함께 받는다. 그래서 채팅 채널 발송에만 쓰는 라우팅 정보가 외부 소비자에게도 실렸다. `chatChannel` 은 SSE 와 알림 웹훅의 이벤트 문서에 없던 필드다([EIA 알림 웹훅 — 이벤트](../CLE-IX/CLE-EIA-NOTIFY-EVENTS.md)). 그 안의 `channelUserKey` 는 메신저 최종 사용자 식별자다.
+
+- **결정**: `chatChannel` 을 payload 에서 빼 fanout 이벤트의 별도 필드 `routing: { chatChannel }` 로 옮긴다. 서버 안 채팅 채널 dispatcher 만 `event.routing` 을 읽는다. `attachRoutingContext` 는 payload 에 `triggerId` · `workflowId` 만 붙인다. SSE 와 EIA 알림 웹훅은 payload 만 직렬화하므로 외부 소비자에는 `chatChannel` 이 실리지 않는다(§6).
+- **채널 정보가 필요한 워크플로우**: 실행 입력 `inputData.chatChannel` 을 자기 출력에 싣는다. 무엇을 내보낼지는 워크플로우 작성자가 정한다.
+- **`routing.chatChannel` 의 마스킹**: 지금처럼 키 이름 마스킹(`sanitizePayloadForWs`, §7 표 4행)을 거친다. 받는 쪽이 서버 안 소비자뿐이라 더 걸지 않는다.
+- **기각한 대안 (b)**: `chatChannel` 을 외부 필드로 문서화하고 세 키(`provider` · `conversationKey` · `channelUserKey`)로 좁힌다. 문서에 없던 필드라 이 필드를 쓰는 소비자가 없다. 최종 사용자 식별자를 외부로 보낼 이유도 없다. 그래서 계약으로 굳히지 않고 뺐다.
+- **마스커는 합치지 않는다(carve-out 유지)**: 두 마스커가 서로 다른 불변식을 지킨다는 기존 결정을 잇는다([좌표계를 문서로 둔 이유](#좌표계를-문서로-둔-이유-2026-08-22) 의 기각한 대안 「세 상한을 하나로 합쳐 좌표계를 없앤다」). 그 결정은 깊이 상한을 두고 내렸고 키 패턴도 같은 이유로 갈라 둔다. WebSocket 쪽 `CREDENTIAL_KEY_PATTERN` 에는 공용본의 `x[_-]api[_-]?key` 가 없다. 이 차이가 외부 표면에 남던 자리는 값 마스킹 뒤에 붙는 `chatChannel` 하나였다. 이제 그 객체는 외부로 나가지 않으므로 키 패턴을 합칠 새 이유도 생기지 않았다(§7). 코드 JSDoc 의 «REST 표면 전용» 서술은 «값 마스킹 뒤에 붙는 서버 조립 객체에만 쓰인다» 로 고친다.
+- **호환성 주의**: 외부 wire 에서 `chatChannel` 필드가 빠진다. SSE 프레임과 EIA 알림 웹훅 본문의 `payload` 가 그 자리다. 저장소에 CHANGELOG 가 없어 이 항목과 구현 PR 본문에 남긴다.

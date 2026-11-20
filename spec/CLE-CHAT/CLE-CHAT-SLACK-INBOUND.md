@@ -2,19 +2,19 @@
 id: "CLE-CHAT-SLACK-INBOUND"
 title: "Slack 어댑터 — 인바운드 파싱과 명령"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-SLACK"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-SLACK"]
 area: "CLE-CHAT"
-content_hash: "e704102e84c147c1fd3fb88659cdf8093dc101afbecdcba5a037f898d0ccc25b"
+content_hash: "0056c763f1895e62c729427d8dd4905fd078648cf3b8199ec546724266a6e0e1"
 read_as: "approved_fallback"
-task: "CLE-T-800D2Q"
+task: "CLE-T-0400J6"
 source_paths: []
-mirror_sha256: "1ced0e333bc2d1583149b4f2cc366694285338eb537f997186d2677d9c77831a"
-etag: "sha256-38e8c26efe90026dfbedf3593deaecee5f178a2ca44b9c8b3db5e55ed2259d5b"
+mirror_sha256: "d922a8bb31f0324cc50d1fdbd2f9f7e703d64fc3397c9eeb87ba0ef4477d84d5"
+etag: "sha256-bcecc8ef8bc4481a8890fddd4a9c9e26db388e35dd353d9e58cd920aaf2b2f9b"
 ---
 ## 개요
 
@@ -75,7 +75,6 @@ Slack slash command 는 워크스페이스마다 prefix 하나만 등록할 수 
 - 사용자가 Slack 앱 manifest 에 slash command 하나(`/<prefix>`, 가이드 기본값 `/workflow`)를 등록한다.
 - DM 에서 봇과 바로 대화하면 slash command 없이 자동으로 시작한다(Telegram `/start` 와 같다, R-S-9). 대화가 없으면 [채팅 채널 「대화 매핑」](CLE-CHAT-CORE.md#대화-매핑) 의 규칙대로 새 실행을 시작한다.
 - slash command 는 보조 명령이다(`/workflow cancel` 로 활성 실행 취소 등). 활성 실행이 있는 대화에서 `start`·`cancel` 은 그 실행의 소유자만 쓸 수 있다([「명령 처리」](#명령-처리)).
-- slash command 도 봇과의 DM 에서만 받는다. 채널 · 그룹 · mpim 에서 친 명령은 실행으로 보내지 않는다([Slack 어댑터 「R-S-4 채널·그룹·mpim 은 거부하고 DM 만 지원한다」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다)).
 
 **응답**: 슬래시 명령에는 3초 안에 `200 OK` 와 `{ response_type: 'ephemeral', text }` 로 답한다. `ephemeral` 이라 명령을 보낸 사람에게만 보인다. `text` 는 다음 표로 정하고 위 행이 먼저다.
 
@@ -84,35 +83,37 @@ Slack slash command 는 워크스페이스마다 prefix 하나만 등록할 수 
 | DM 밖에서 친 명령(하위 명령 무관) | `groupChatRefusal` 안내(아래 「DM 밖 응답」) |
 | DM 의 `help` | 도움말(아래 「도움말」) |
 | DM 의 `cancel`, 트리거 활성, 활성 실행 없음 | `noActiveExecution` 안내(아래 「실행 없음 응답」) |
+| DM 의 `start`, 새 실행 시작 | 시작 안내나 재시작 안내(아래 「시작 응답」) |
 | 그 밖의 명령 | 수신 문구(`languageHints.commandReceived`, 없으면 `languageLocale` 기본 문구) |
 
-어느 행이든 `ephemeral` 이고 `text` 는 mrkdwn escape 한다. 수신 문구 행은 처리가 새 실행 · 취소 · 답장 전달 · 중복 · 분당 한도 초과 · 워크플로우 비활성 · 실행 소유자가 아닌 사람의 `start`·`cancel` 어느 쪽으로 끝나도 같고 트리거가 비활성이어도 같다. 이때 실행은 시작하지 않는다(R-S-14). Interactivity 의 기본 응답(`200` 빈 본문)과는 본문만 다르다. 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 이 응답 대신 그 에러로 답한다([채팅 채널 처리 흐름 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)).
+어느 행이든 `ephemeral` 이고 `text` 는 mrkdwn escape 한다. 수신 문구 행은 처리가 `start` 밖의 새 실행 · 취소 · 답장 전달 · 중복 · 분당 한도 초과 · 워크플로우 비활성 · 실행 소유자가 아닌 사람의 `start`·`cancel` 어느 쪽으로 끝나도 같고 트리거가 비활성이어도 같다. 이때 실행은 시작하지 않는다(R-S-14). Interactivity 의 기본 응답(`200` 빈 본문)과는 본문만 다르다. 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패하면 이 응답 대신 그 에러로 답한다([채팅 채널 처리 흐름 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)).
 
-- 응답 판단은 `defaultInteractionResponse` 가 한다. 본문에 문자열 `command` · `text` 가 있고 Events API · `url_verification` · Interactivity 가 아니면 슬래시 명령으로 본다. 파서와 같은 판정이다. DM 여부도 파서와 같은 함수(`isSlackDirectMessageSlash`)로 정한다. `HooksService` 는 서명 검증 직후 이 값을 구해 두고 응답에 싣는다. 기본 응답은 요청 본문만 보고 만들어 외부 호출이 없다. 실행 없음 응답만 대화 상태를 봐야 해서 `HooksService` 가 정한다(아래). 슬래시 명령으로 시작한 새 실행의 호출 이력 응답 코드(`response_code`)는 `'200'` 이다.
+- 응답 판단은 `defaultInteractionResponse` 가 한다. 본문에 문자열 `command` · `text` 가 있고 Events API · `url_verification` · Interactivity 가 아니면 슬래시 명령으로 본다. 파서와 같은 판정이다. DM 여부도 파서와 같은 함수(`isSlackDirectMessageSlash`)로 정한다. `HooksService` 는 서명 검증 직후 이 값을 구해 두고 응답에 싣는다. 기본 응답은 요청 본문만 보고 만들어 외부 호출이 없다. 실행 없음 응답과 시작 응답만 처리 결과를 봐야 해서 `HooksService` 가 정한다(아래). 슬래시 명령으로 시작한 새 실행의 호출 이력 응답 코드(`response_code`)는 `'200'` 이다.
 - 수신 문구 기본값(ko `요청을 받았습니다.`, en `Request received.`)은 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값) 이 정한다.
-- 응답 `text` 는 Slack 이 mrkdwn 으로 렌더하므로 다른 안내 문구와 같은 `escapeSlackMrkdwn` 으로 `&`·`<`·`>` 를 escape 한다. 도움말 · DM 밖 응답 · 실행 없음 응답도 같다.
+- 응답 `text` 는 Slack 이 mrkdwn 으로 렌더하므로 다른 안내 문구와 같은 `escapeSlackMrkdwn` 으로 `&`·`<`·`>` 를 escape 한다. 도움말 · DM 밖 응답 · 실행 없음 응답 · 시작 응답도 같다.
 - **DM 밖 응답**: DM 판정은 `channel_id` 가 `D` 로 시작하고 `channel_name` 이 `directmessage` 이면 DM 이다. `channel_name` 이 없으면 `channel_id` 로만 보고 하나라도 어긋나면 DM 이 아니다. DM 밖에서 친 명령에는 하위 명령(`help` 포함)과 관계없이 `languageHints.groupChatRefusal` 을 싣는다. 이 값이 없거나 비어 있으면 기본 문구 `이 봇은 1:1 대화만 지원합니다.` 를 쓴다. 이 키에는 영어 기본값이 없어 locale 과 관계없이 같은 문구다([채팅 채널 데이터와 흐름 — 설정과 안내 문구](CLE-CHAT-DATA-CONFIG.md) 가 범위 밖으로 정했다). 파서가 `null` 을 돌려주므로 중복 제거와 실행으로 가지 않고 채널에 따로 메시지를 보내지 않는다. 사람끼리의 DM 에서 친 명령은 DM 으로 판정되는 알려진 한계가 있다([Slack 어댑터 「R-S-4」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다)).
 - **도움말**: 파서는 `help` 에 update 를 만들지 않는다(`null`). 그래서 `/<prefix> help` 는 실행으로 가지 않고 별도 메시지도 보내지 않으며 도움말은 HTTP 응답 하나로 나간다. 하위 명령은 기본 응답이 파서와 같은 규칙(`readSlackSlashInvocation`)으로 읽는다. `languageHints.help` 가 있으면 그 문구를 그대로 쓰고 `{prefix}` 를 바꾸지 않는다. 없으면 Discord 와 함께 쓰는 locale 기본 도움말(`SLASH_HELP_DEFAULTS`)의 `{prefix}` 에 요청의 `command` 를 넣는다. 앞의 `/` 는 빼고 비어 있으면 `workflow` 를 넣는다. `languageHints.slashPrefix` 는 쓰지 않는다.
 - **실행 없음 응답**: DM 에서 친 `/<prefix> cancel` 이 왔는데 대화에 활성 실행이 없으면 수신 문구 대신 `noActiveExecution` 안내를 싣는다. 활성 실행이 없다는 것은 대화 상태가 없거나 `executionId` 가 없거나 그 실행이 종결 전 상태(`running`·`pending`·`waiting_for_input`)가 아니라는 뜻이다. 대화 매핑이 남아 있어도 실행이 이미 끝났으면 같다. 취소 요청이 `INVALID_STATE`·`RESOURCE_NOT_FOUND` 로 «이미 끝남» 이 된 경우([채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-075)도 같다. 문구는 `languageHints.noActiveExecution`(빈 문자열은 없는 것으로 본다), `languageLocale` 기본 문구, ko 기본 문구 순서로 찾는다. 기본 문구(ko `진행 중인 대화가 없습니다.`, en `There is no active conversation.`)는 [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA.md#안내-문구-기본값) 이 정한다. `HooksService` 의 `/cancel` 분기가 이 경우를 판정하고 `notifyNoActiveExecution` 이 어댑터의 `defaultInteractionResponse` 에 수신 문구 자리를 이 안내로 바꾼 설정을 넘겨 응답을 만든다. 어댑터 인터페이스는 바뀌지 않는다. 채널에 따로 메시지를 보내지 않는다. 활성 실행이 있는데 소유자가 아닌 사람이 보낸 `cancel`, 실제로 취소한 경우, 취소를 큐에 넣지 못한 경우(REQ-CHAT-074), 트리거가 비활성이라 파싱하지 않은 경우는 수신 문구 그대로다. 근거는 [Slack 어댑터 「R-S-15」](CLE-CHAT-SLACK.md#r-s-15-활성-실행이-없는-cancel-은-슬래시-명령-응답으로-안내한다) 에 있다.
-- 시작 안내와 재시작 안내는 이 응답과 별개다([「명령 처리」](#명령-처리)).
+- **시작 응답**: DM 에서 친 `/<prefix> start` 가 새 실행을 시작해 대화 상태를 저장하면 수신 문구 대신 시작 안내를 싣는다. 대화에 활성 실행이 있어 기존 실행 취소를 거쳤으면(취소가 «이미 끝남» 으로 끝나 취소 없이 시작한 경우 포함) `languageHints.executionRestarted`, 아니면 `languageHints.executionStarted` 다. 문구를 찾는 순서와 응답을 바꾸는 방식은 실행 없음 응답과 같다. 채널에 따로 메시지를 보내지 않는다. 실행을 시작하지 않고 끝난 경로(실행 소유자 아님, 워크플로우 비활성, 시작 잠금 실패, 중복, 분당 한도 초과, 파싱 실패, 트리거 비활성)는 수신 문구 그대로다.
 
 ### 중복 제거 키
 
 세 envelope 모두 `idempotencyKey` 를 envelope 별로 만든다. Events API 는 `event_id`(Slack 이 재전송 때 같은 값을 보낸다), Interactivity 는 `payload.trigger_id`(1시간 유효, 1회용 의도지만 재전송 때 다시 쓴다), Slash Commands 는 `body.trigger_id` 다. 만들지 못하면(빈 값) 파서가 `null` 을 돌려 update 자체가 버려지므로 중복 제거 대상인데 키가 없는 상태는 생기지 않는다.
 
-인바운드 중복 제거는 구현됐다(2026-08-13). 같은 키가 30초 안에 다시 오면 무시한다(Slack 은 `X-Slack-Retry-Num` 으로 3회까지 재전송). `ChatChannelDedupService` 가 Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<idempotencyKey>` 로 인바운드 진입의 분당 한도 앞에서 거른다. Redis 가 없으면 통과시킨다. 키·TTL·게이트 순서는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다.
+같은 키가 30초 안에 다시 오면 무시한다(Slack 은 `X-Slack-Retry-Num` 으로 3회까지 재전송). `ChatChannelDedupService` 가 인바운드 진입의 분당 한도 앞에서 거른다. Redis 가 없으면 통과시킨다. 키·TTL·게이트 순서는 [채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다.
 
 ## 명령 처리
 
 | 사용자 입력 | 어댑터 처리 |
 |---|---|
-| DM 첫 메시지나 `/<prefix> start`(활성 실행 없음) | 새 실행 시작, `languageHints.executionStarted` 안내. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
-| `/<prefix> start`(활성 실행 있음, 실행 소유자) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행 시작, "기존 대화를 종료하고 새로 시작합니다." 안내. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널 처리 흐름 「활성 실행 중 다시 시작」](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작) 과 [「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 다. 안내는 아직 보내지 않는다(NERV Task `CLE-T-0400J6`) |
+| `/<prefix> start`(활성 실행 없음) | 새 실행 시작. HTTP 응답 `text` 가 `languageHints.executionStarted` 안내다 |
+| DM 첫 메시지(활성 실행 없음) | 새 실행 시작. 안내하지 않는다 |
+| `/<prefix> start`(활성 실행 있음, 실행 소유자) | 기존 실행을 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 새 실행 시작. HTTP 응답 `text` 가 `languageHints.executionRestarted` 안내다. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작하고 안내는 같다. 워크플로우가 비활성이면 버리고 기존 실행을 취소하지 않는다. 기준은 [채팅 채널 처리 흐름 「활성 실행 중 다시 시작」](CLE-CHAT-CORE-FLOW.md#활성-실행-중-다시-시작) 과 [「인바운드 관문 순서」](CLE-CHAT-CORE.md#인바운드-관문-순서) 다 |
 | DM 메시지(활성 실행 있음) | 기존 실행을 취소하지 않는다. 입력 대기면 대기 노드로 전달하고 `running`·`pending` 이면 `languageHints.executionStillRunning` 안내 뒤 버린다([채팅 채널 「대화 매핑」](CLE-CHAT-CORE.md#대화-매핑) 의 실행 상태 분기, R-S-10) |
 | `/<prefix> cancel`(활성 실행 있음, 실행 소유자) | 활성 실행을 실행 중지 경로(`ExecutionsService.stop`, EIA `cancel` 과 같은 경로)로 취소 |
 | `/<prefix> cancel`(활성 실행 없음, 실행이 이미 끝난 경우 포함) | 아무것도 하지 않는다. HTTP 응답 `text` 가 `noActiveExecution` 안내이고 본인에게만 보인다. 채널에 따로 메시지를 보내지 않는다([「Slash Commands」](#slash-commands) 의 실행 없음 응답) |
-| `/<prefix> start`·`/<prefix> cancel`(활성 실행 있음, 실행 소유자가 아님) | 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 메시지 없이 버리고 HTTP 응답은 수신 문구다. 슬래시 명령은 DM 에서만 받고 DM 대화에는 사용자가 한 명이라 이 경우는 드물다. 실행 소유자는 채널 대화 상태의 `channelUserKey` 와 같은 사용자다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-083 과 [채팅 채널 처리 흐름 「R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다」](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 다 |
-| `/<prefix> help` | 실행으로 보내지 않는다. 슬래시 명령의 HTTP 응답에 도움말(`languageHints.help` 나 요청의 명령 이름을 넣은 기본 도움말)을 싣고 본인에게만 보인다 |
+| `/<prefix> start`·`/<prefix> cancel`(활성 실행 있음, 실행 소유자가 아님) | 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 메시지 없이 버리고 HTTP 응답은 수신 문구다. 슬래시 명령은 DM 에서만 받고 DM 대화에는 사용자가 한 명이라 이 경우는 드물다. 기준은 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-083 과 [채팅 채널 처리 흐름 「R-CC-35 /start 와 /cancel 은 실행 소유자만 쓴다」](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다) 다 |
+| `/<prefix> help` | 실행으로 보내지 않는다. 슬래시 명령의 HTTP 응답에 도움말을 싣고 본인에게만 보인다 |
 | 그 밖의 slash text | `text_message` 로 받는다. 멀티턴 AI 진행 중이면 답장이고 아니면 안내 |
 | DM 밖 채널에서 친 slash command(하위 명령 무관) | 실행으로 보내지 않는다. HTTP 응답에 `groupChatRefusal` 안내를 싣고 본인에게만 보인다([「Slash Commands」](#slash-commands) 의 DM 밖 응답) |
 
@@ -127,9 +128,8 @@ Telegram 의 `/start`·`/cancel`·`/help` 와 뜻이 1:1 이고 Slack 은 prefix
   - 진입점이 raw body 와 두 헤더를 읽고 `SecretResolver.resolve(inboundSigningRef)` 뒤 HMAC-SHA256 을 다시 계산해 상수 시간 비교한다. 다르면 `401 Unauthorized` 다.
 - **재전송 공격 차단**: `X-Slack-Request-Timestamp` 가 현재 시각 ±5분 밖이면 `401`(Slack 권장).
 - **설정 필드**: `inboundSigningRef` 는 Telegram·Discord 와 같은 슬롯이다. 자원 성격과 검증 알고리즘은 백엔드가 프로바이더별로 나눈다([채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md)). Slack 은 앱 설치 때 Slack 이 발급해 사용자가 직접 입력하는 프로바이더 발급 자료다. 입력 평문이 바로 `SecretResolver.rotate` 로 들어가고 참조만 설정에 남는다. `SetupResult.issuedInboundSigning` 은 채우지 않는다(R-S-1).
-- 채널·그룹·mpim 메시지 이벤트는 파서가 `event.channel_type !== "im"` 으로 걸러 `null` 을 돌려주고 안내 없이 버린다. 채널 전체에 보이는 안내 글을 쓰지 않으려는 것이다([Slack 어댑터 「R-S-4」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다)). 버린 update 의 안내(`maybeNotifyIgnored`)는 Telegram 본문 모양만 읽어 Slack 본문에는 보내지 않는다. 그룹 대화 거부의 공통 규칙은 [채팅 채널 「대화 매핑」](CLE-CHAT-CORE.md#대화-매핑) 에 있다.
+- 채널·그룹·mpim 메시지 이벤트는 파서가 `event.channel_type !== "im"` 으로 걸러 `null` 을 돌려주고 안내 없이 버린다. 버린 update 의 안내(`maybeNotifyIgnored`)는 Telegram 본문 모양만 읽어 Slack 본문에는 보내지 않는다. 그룹 대화 거부의 공통 규칙은 [채팅 채널 「대화 매핑」](CLE-CHAT-CORE.md#대화-매핑) 에 있다.
 - 슬래시 명령 본문에는 `channel_type` 이 없다. 그래서 파서가 `channel_id` · `channel_name` 으로 DM 을 판정하고(`isSlackDirectMessageSlash`) DM 밖이면 `null` 을 돌려준다. 안내는 채널 메시지로 보내지 않고 본인에게만 보이는 슬래시 명령 응답에 싣는다. 채널 구성원이 슬래시 명령으로 다른 사람의 입력 대기 실행에 입력을 넣는 길이 이 판정으로 막힌다([Slack 어댑터 「R-S-4」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다)).
-- 다른 봇이 보낸 메시지(`bot_id` 있음)도 무시한다.
 - **네이티브 모달 `private_metadata`(위험 수용)**: `openFormModal` 이 view 의 `private_metadata` 에 대화 키(DM 채널 ID, 예: `D0123ABCD`)를 평문으로 담는다. `view_submission` 에 채널 ID 가 없어 제출 때 대화를 되찾는 데 필요하다. Slack 서버가 이 값을 보고 보관할 수 있지만 (a) 채널 ID 는 비밀이 아니고(Slack 이 이미 안다) (b) 봇 토큰·signing secret 같은 자격 증명은 전혀 넣지 않으므로 위험을 받아들인다. 자격 증명과 개인정보는 `private_metadata` 에 절대 넣지 않는다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 14).
 
 ## 구현 위치
@@ -140,7 +140,7 @@ Telegram 의 `/start`·`/cancel`·`/help` 와 뜻이 1:1 이고 Slack 은 prefix
 - `codebase/backend/src/modules/chat-channel/shared/language-hint-defaults.ts`: 슬래시 명령 기본 도움말(`SLASH_HELP_DEFAULTS`, Discord 와 함께 쓴다), 수신 문구 기본값, 그룹 대화 거절 기본 문구(`GROUP_CHAT_REFUSAL_DEFAULT`), 실행 없음 안내의 기본 문구와 찾는 함수(`NO_ACTIVE_EXECUTION_DEFAULTS`, `resolveNoActiveExecutionMessage`)
 - `codebase/backend/src/modules/chat-channel/types.ts`: 채널 어댑터의 기본 인터랙션 응답 함수(`defaultInteractionResponse`)
 - `codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts`
-- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인바운드 관문(워크플로우 활성 관문 포함), 명령 처리(활성 실행 중 `/<prefix> start` 의 기존 실행 취소, `start`·`cancel` 의 실행 소유자 확인, `/cancel` 의 실행 없음 판정과 응답 교체 `notifyNoActiveExecution`), 버린 update 의 안내(`maybeNotifyIgnored`), 인터랙션 기본 응답을 응답에 싣는 처리(`handleChatChannelWebhook`, `withDefaultInteractionResponse`)와 200 빈 본문 응답
+- `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: 인바운드 관문(워크플로우 활성 관문 포함), 명령 처리(활성 실행 중 `/<prefix> start` 의 기존 실행 취소, `start`·`cancel` 의 실행 소유자 확인, `/cancel` 의 실행 없음 판정과 응답 교체 `notifyNoActiveExecution`, `/start` 의 시작 응답 교체), 버린 update 의 안내(`maybeNotifyIgnored`), 인터랙션 기본 응답을 응답에 싣는 처리(`handleChatChannelWebhook`, `withDefaultInteractionResponse`)와 200 빈 본문 응답
 - `codebase/backend/src/modules/hooks/hooks.service.spec.ts`: 세 프로바이더의 활성 실행 중 start 명령, 「인터랙션 기본 응답」(실행 소유자가 아닌 사람의 슬래시 명령 포함)
 - `codebase/backend/src/modules/hooks/hooks.controller.spec.ts`, `codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.spec.ts`: Interactivity 의 200 빈 본문, DM 밖 슬래시 명령의 `groupChatRefusal` 응답
 - `codebase/backend/src/modules/chat-channel/providers/slack/slack-update.parser.spec.ts`: 슬래시 명령의 DM 판정과 DM 밖 명령의 `null`
@@ -152,7 +152,7 @@ Telegram 의 `/start`·`/cancel`·`/help` 와 뜻이 1:1 이고 Slack 은 prefix
 
 ### R-S-1 inboundSigningRef 단일 슬롯을 함께 쓴다
 
-Telegram secret_token, Slack signing secret, Discord public key 는 모두 "인바운드 웹훅 출처 검증 자료" 라는 같은 역할이라 `inboundSigningRef?` 슬롯 하나를 함께 쓴다. 슬롯을 하나로 두면 (a) 규약의 필드가 줄고 (b) 새 프로바이더가 참조 필드를 새로 만들 필요가 없고 (c) 카탈로그와 데이터 모델의 이름이 일관된다. 발급 주체와 검증 알고리즘의 차이는 이미 `provider` 로 나뉘는 백엔드 분기가 흡수한다. 소유가 모호해질 수 있다는 우려는 백엔드 분기와 `SetupResult.issuedInboundSigning` 의 "서버 발급만" 명시로 풀린다. Slack 자원은 `secret://triggers/{id}/inbound-signing` 에 두고 SlackAdapter 가 HMAC-SHA256 으로 검증한다. 운영 데이터가 없어 마이그레이션이 필요 없다.
+Telegram secret_token, Slack signing secret, Discord public key 는 모두 "인바운드 웹훅 출처 검증 자료" 라는 같은 역할이라 `inboundSigningRef?` 슬롯 하나를 함께 쓴다. 슬롯을 하나로 두면 (a) 규약의 필드가 줄고 (b) 새 프로바이더가 참조 필드를 새로 만들 필요가 없고 (c) 카탈로그와 데이터 모델의 이름이 일관된다. 발급 주체와 검증 알고리즘의 차이는 이미 `provider` 로 나뉘는 백엔드 분기가 흡수한다. 소유가 모호해질 수 있다는 우려는 백엔드 분기와 `SetupResult.issuedInboundSigning` 의 "서버 발급만" 명시로 풀린다. Slack 자원은 `secret://triggers/{id}/inbound-signing` 에 두고 SlackAdapter 가 HMAC-SHA256 으로 검증한다.
 
 ### R-S-7 file_shared 는 files.info 후속 조회를 HooksService 에 맡긴다
 
@@ -160,7 +160,7 @@ Telegram secret_token, Slack signing secret, Discord public key 는 모두 "인�
 
 ### R-S-9 DM 첫 메시지로 자동 시작한다
 
-Telegram `/start` 와 뜻이 같고 slash command prefix 가 워크스페이스마다 하나라는 Slack 제약을 피한다. `/workflow start` 를 의무로 두면 매번 명령을 쳐야 해 DM 봇 UX 와 맞지 않는다(게다가 prefix 가 트리거마다 달라야 의미가 있는데 Slack 은 그럴 수 없다). `app_home` 진입 때 자동 시작하는 안은 Home 탭이 별도 표면이라 찾기 어렵다. slash command 는 cancel·help 같은 명시 명령의 보조 도구다.
+Telegram `/start` 와 뜻이 같고 slash command prefix 가 워크스페이스마다 하나라는 Slack 제약을 피한다. `/workflow start` 를 의무로 두면 매번 명령을 쳐야 해 DM 봇 UX 와 맞지 않는다(게다가 prefix 가 트리거마다 달라야 의미가 있는데 Slack 은 그럴 수 없다). `app_home` 진입 때 자동 시작하는 안은 Home 탭이 별도 표면이라 찾기 어렵다. slash command 는 cancel·help 같은 명시 명령의 보조 도구다. DM 첫 메시지로 시작할 때는 시작 안내를 보내지 않는다(2026-11-20 결정, NERV 질문 `01a1f7b4-2604-7491-8733-2dc9b4efc653`).
 
 ### R-S-10 취소 후 새로 시작은 start 명령에만 적용한다
 
@@ -170,9 +170,9 @@ Telegram `/start` 와 뜻이 같고 slash command prefix 가 워크스페이스�
 
 2026-11-13 결정이다(NERV Task `CLE-T-MGZRRP`, NERV 질문 `01a1d2f3-e188-7354-8298-243092419a3c` 의 사람 답).
 
-이 결정 전에는 슬래시 명령에 `202` 와 `{ data }` 봉투로 답했다. Slack 은 슬래시 명령에 3초 안에 `200` 을 받지 못하면 사용자 화면에 오류를 표시해서 명령을 처리해도 오류가 떴다. `/<prefix> help` 는 파서가 `text_message`("help")로 바꿨는데 `HooksService` 는 텍스트가 정확히 `/help` 일 때만 도움말을 보내서 Slack 에서는 도움말이 나가지 않았다.
+이 결정 전에는 `202` 와 `{ data }` 봉투로 답했다. Slack 은 3초 안에 `200` 을 받지 못하면 오류를 표시해서 처리한 명령에도 오류가 떴다. `/<prefix> help` 는 `text_message` 로 바뀌었고 `/help` 만 알아보는 `HooksService` 에서 도움말이 나가지 않았다.
 
-이제 슬래시 명령에는 어느 경로로 끝나도 `200` 과 `{ response_type: 'ephemeral', text }` 로 답한다. [Discord 어댑터 「R-D-12 슬래시 명령은 본인에게만 보이는 type 4 로 바로 답하고 비활성 트리거도 인터랙션 응답으로 답한다」](CLE-CHAT-DISCORD.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다) 의 2026-11-12 결정과 같은 모양이라 두 프로바이더의 슬래시 명령이 DM 에서는 같은 수신 문구와 같은 기본 도움말을 쓴다. DM 밖에서 친 명령의 응답은 다르고 이 절 끝 문단에 그 차이를 적는다. 트리거가 비활성이어도 같은 응답으로 답한다. 응답은 요청 본문만 보고 외부 호출 없이 만들므로 비활성 트리거에서 외부 호출을 하지 않는다는 규칙을 그대로 지킨다([Slack 어댑터 「R-S-12」](CLE-CHAT-SLACK.md#r-s-12-interactivity-는-처리-결과와-트리거-상태에-관계없이-200-으로-답한다) 와 같은 근거).
+이제 슬래시 명령에는 어느 경로로 끝나도 `200` 과 `{ response_type: 'ephemeral', text }` 로 답한다. [Discord 어댑터 「R-D-12」](CLE-CHAT-DISCORD.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다) 의 2026-11-12 결정과 같은 모양이라 두 프로바이더의 슬래시 명령이 DM 에서는 같은 수신 문구와 같은 기본 도움말을 쓴다. 트리거가 비활성이어도 같은 응답으로 답한다. 응답은 요청 본문만 보고 외부 호출 없이 만들므로 비활성 트리거에서 외부 호출을 하지 않는다는 규칙을 그대로 지킨다([Slack 어댑터 「R-S-12」](CLE-CHAT-SLACK.md#r-s-12-interactivity-는-처리-결과와-트리거-상태에-관계없이-200-으로-답한다) 와 같은 근거).
 
 도움말은 `ChannelUpdate` 의 새 kind 로 두지 않았다. 파서는 `help` 에 update 를 만들지 않고 어댑터의 기본 응답이 도움말을 싣는다. 파서와 어댑터는 같은 함수(`readSlackSlashInvocation`)로 하위 명령을 읽어 응답 문구와 파서가 만드는 명령이 서로 어긋나지 않는다.
 
@@ -182,6 +182,8 @@ escape 는 `languageHints` 문구의 `<…>` 가 링크나 멘션 문법으로 �
 
 기각한 대안은 빈 본문 `200` 만 돌려주는 안이다. 오류는 표시되지 않지만 사용자 화면에 아무것도 남지 않아 명령이 받아들여졌는지 알 수 없고 `help` 의 도움말도 실을 곳이 없어 메시지를 따로 보내야 한다. 이전처럼 `202` 와 `{ data }` 봉투로 답하는 안은 Slack 이 오류로 표시하므로 남길 수 없었다.
 
-DM 밖에서 친 명령에는 두 프로바이더 모두 `groupChatRefusal` 로 답한다. Slack 은 [Slack 어댑터 「R-S-4」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 의 2026-11-14 결정이고, Discord 는 2026-11-19 사람 결정(NERV 질문 `01a1f1d3-f3ba-702d-9689-121062b39a9d`, NERV Task `CLE-T-B9CRCF`)으로 수신 문구에서 이 안내로 바꿨다([Discord 어댑터 — 인바운드 처리와 응답 「R-D-12」](CLE-CHAT-DISCORD-INBOUND.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다)). 그 전에는 Discord 만 수신 문구로 답하는 차이를 의도한 것으로 두었다(NERV Task `CLE-T-K57S4N`). Slack 은 앱의 슬래시 명령을 채널에서도 칠 수 있어서 봇과의 DM 으로 옮기라는 안내를 응답에 싣는다.
+DM 밖에서 친 명령에는 두 프로바이더 모두 `groupChatRefusal` 로 답한다. Slack 은 [Slack 어댑터 「R-S-4」](CLE-CHAT-SLACK.md#r-s-4-채널그룹mpim-은-거부하고-dm-만-지원한다) 의 2026-11-14 결정이고, Discord 는 2026-11-19 사람 결정(NERV 질문 `01a1f1d3-f3ba-702d-9689-121062b39a9d`, NERV Task `CLE-T-B9CRCF`)으로 수신 문구에서 이 안내로 바꿨다([Discord 어댑터 — 인바운드 처리와 응답 「R-D-12」](CLE-CHAT-DISCORD-INBOUND.md#r-d-12-슬래시-명령은-본인에게만-보이는-type-4-로-바로-답하고-비활성-트리거도-인터랙션-응답으로-답한다)). Slack 은 앱의 슬래시 명령을 채널에서도 칠 수 있어서 봇과의 DM 으로 옮기라는 안내를 응답에 싣는다.
 
 활성 실행이 없을 때의 `cancel` 응답은 2026-11-19 결정으로 수신 문구에서 `noActiveExecution` 안내로 바뀌었다([Slack 어댑터 「R-S-15」](CLE-CHAT-SLACK.md#r-s-15-활성-실행이-없는-cancel-은-슬래시-명령-응답으로-안내한다)).
+
+새 실행을 시작한 `start` 의 응답은 2026-11-20 결정(NERV 질문 `01a1f7b4-2295-754e-8aaf-685d64148fb9`, NERV Task `CLE-T-0400J6`)으로 시작 안내 · 재시작 안내가 됐다. 활성 실행이 없는 `cancel` 다음의 두 번째 예외다. R-D-12 결정이 기각한 «수신 문구 자리에 `executionStarted` 를 쓰는 안» 의 이유(실행을 시작하지 않는 경로에도 나가 사실과 달라진다)는 실행을 시작한 경로에서만 바꾸는 이번 결정에 해당하지 않는다.

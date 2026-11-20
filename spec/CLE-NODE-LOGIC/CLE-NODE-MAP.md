@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAP"
 title: "Map 노드"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-MAP-001", "REQ-MAP-002", "REQ-MAP-003", "REQ-MAP-004", "REQ-MAP-005", "REQ-MAP-006", "REQ-MAP-007", "REQ-MAP-008", "REQ-MAP-009", "REQ-MAP-010", "REQ-MAP-011", "REQ-MAP-012", "REQ-MAP-013", "REQ-MAP-014", "REQ-MAP-015", "REQ-MAP-016", "REQ-MAP-017", "REQ-MAP-018", "REQ-MAP-019", "REQ-MAP-020", "REQ-MAP-021"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "871bf3dcf4a8d760701d32819951b36d73ef7a5bd8eaa69c4c8642c1fddb41b8"
+content_hash: "00f820b9f5fba9163ee5b9e3ecb3b8054fd0833913e017a8b6e46b1c0e18af5f"
 read_as: "approved_fallback"
-task: "CLE-T-7AYYQC"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/1-logic/7-map.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "76daa403a19ba2e95c000ef7b5e631e65292c2f1a9a813ee9540d33b7f1a1456"
-etag: "sha256-9af920895fca5b9633a2c0c2d3063203845f5892b9c701144a7b886701573110"
+mirror_sha256: "62d60b4c14972ee4891daf8b30120ad6cba107de7244af5b9609d7eed1487360"
+etag: "sha256-03eb404cab48ef4b4db5725626dad8b0fea2cbb925551aeb5efea8addbacd7be"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/7-map.md`, `spec/4-nodes/_product-overview.md` (§4.7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -262,6 +262,6 @@ Map 은 ForEach 실행기를 함께 써서 `mapped[i]` 의 `_skipped` 표시에 
 
 결정일: 2026-11-15
 
-2026-10-24 구현 확인 때 이 문서는 완료 출력이 park · 재구동 없이 이어진 실행에서만 보인다는 조건을 붙여 적었다. 노드 실행 기록 · completed 이벤트 · rehydration 에 시작 시점 배열이 남았기 때문이다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았다. 그래서 범위 단서와 `(부분 구현)` 표시를 걷고 원래 서술로 돌렸다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
+2026-10-24 구현 확인 때 이 문서는 완료 출력이 park · 재구동 없이 이어진 실행에서만 보인다는 조건을 붙여 적었다. 노드 실행 기록 · completed 이벤트 · rehydration 에 시작 시점 배열이 남았기 때문이다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았다. 그래서 범위 단서와 `(부분 구현)` 표시를 걷고 원래 서술로 돌렸다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다) 의 Rationale 에 있다.
 
 기존 워크플로우 영향: 결과 값과 다음 노드 표현식은 바뀌지 않는다. 실행 내역 · 통계에 보이는 이 노드의 실행 시간은 노드 전체 기준으로 길어진다.

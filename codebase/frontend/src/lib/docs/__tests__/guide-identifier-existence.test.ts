@@ -37,10 +37,8 @@ const NON_EMITTED_VOCABULARY_CAP = 5;
  * 대상이다. 후자는 `#1328` 이 손으로 고친 뒤 4개월간 아무도 몰랐던 클래스이고,
  * `#1330` 의 문맥-게이팅 축은 **그것을 못 잡았다**(스캐너 상단의 실측표).
  *
- * 가족·위치의 근거는 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
- * 「빌드 가드」 표에 없다**(「빌드 가드 (3건)」 절의 표 아래 문단과 「미결 사항」 에만 나온다.
- * 소유 문서는 미정이다. GUIDEEVIDENCE · ERRCODES 「미결 사항」, NERV Task `CLE-T-R2Q21Q`
- * 항목 19). 자매 `impl-anchor-existence.test.ts` 와
+ * 소유 문서는 NERV `CLE-ENG-GUIDEEVIDENCE` 다(「빌드 가드」 의 「가이드 → 코드 대조 가드」 표,
+ * 결정은 R-6, NERV Task `CLE-T-GTSEDT`). 자매 `impl-anchor-existence.test.ts` 와
  * **방향이 같고(가이드 → 코드) 표면이 다르다**.
  */
 const root = repoRoot();

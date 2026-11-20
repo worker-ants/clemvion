@@ -1090,3 +1090,76 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
     });
   });
 });
+
+// CLE-T-9Q304H — JSONB 안의 값도 null 을 받지 않는다. 트리거 PATCH 는 `interaction` · `chatChannel` 을 통째로
+// 바꾸므로(`mergeExternalConfig`) 키를 빼면 지워진다. null 은 지우는 수단이 아니라 저장된 뒤 읽는 쪽을 깨는 값이다.
+describe('[9Q304H] JSONB 하위 필드의 null 거부', () => {
+  const APPEARANCE_FIELDS = [
+    'locale',
+    'primaryColor',
+    'position',
+    'headerTitle',
+    'welcomeText',
+    'suggestions',
+    'disclaimer',
+  ];
+
+  it.each(APPEARANCE_FIELDS)(
+    'WebChatAppearanceDto.%s — null 이면 isDefined 위반',
+    async (field) => {
+      const errors = await validate(
+        plainToInstance(WebChatAppearanceDto, { [field]: null }),
+        VALIDATE_OPTIONS,
+      );
+      expect(
+        Object.keys(
+          errors.find((e) => e.property === field)?.constraints ?? {},
+        ),
+      ).toContain('isDefined');
+    },
+  );
+
+  const chatChannelErrorFor = async (
+    Dto: typeof CreateTriggerDto | typeof UpdateTriggerDto,
+    chatChannel: Record<string, unknown>,
+  ) => {
+    const errors = await validate(
+      plainToInstance(Dto, { ...baseCreate, chatChannel }),
+      VALIDATE_OPTIONS,
+    );
+    return errors.find((e) => e.property === 'chatChannel');
+  };
+
+  it('CreateTriggerDto.chatChannel.languageHints — null 이면 거부한다', async () => {
+    const err = await chatChannelErrorFor(CreateTriggerDto, {
+      provider: 'telegram',
+      botToken: '111:fake',
+      languageHints: null,
+    });
+    expect(
+      Object.keys(
+        err?.children?.find((c) => c.property === 'languageHints')
+          ?.constraints ?? {},
+      ),
+    ).toContain('isDefined');
+  });
+
+  it('UpdateTriggerDto.chatChannel.languageHints — null 이면 거부한다', async () => {
+    const err = await chatChannelErrorFor(UpdateTriggerDto, {
+      provider: 'telegram',
+      languageHints: null,
+    });
+    expect(
+      Object.keys(
+        err?.children?.find((c) => c.property === 'languageHints')
+          ?.constraints ?? {},
+      ),
+    ).toContain('isDefined');
+  });
+
+  it('UpdateTriggerDto.chatChannel.languageHints — 키를 빼면 통과한다', async () => {
+    expect(
+      await chatChannelErrorFor(UpdateTriggerDto, { provider: 'telegram' }),
+    ).toBeUndefined();
+  });
+});

@@ -20,7 +20,7 @@ import { isRecord } from './utils/to-record.js';
  * `NodeHandler.execute()` call returns. Do NOT run this on values that have
  * already been flattened by {@link toEngineFlatShape} / port-routed for the
  * engine cache (those are intentionally bare and would throw under strict
- * mode). For those callers (e.g. `ExecutionContextService.setNodeOutput`),
+ * mode). For those callers (e.g. `ExecutionContextService.seedNodeOutput`),
  * use {@link wrapBareAsNodeHandlerOutput} instead.
  */
 export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
@@ -111,6 +111,31 @@ export function wrapBareAsNodeHandlerOutput(raw: unknown): NodeHandlerOutput {
     adapted._resumeState = obj._resumeState;
   }
   return adapted;
+}
+
+/**
+ * 객체 값에서 라우팅 표지 `_selectedPort` 만 뺀 사본을 돌려준다. 키가 없거나 객체가 아니면
+ * 받은 값을 그대로 돌려준다. 평면 값에서 구조화 값을 다시 만드는 시딩
+ * (`ExecutionContextService.seedNodeOutput`)이 쓴다(NERV Task CLE-T-CE5YR3).
+ */
+export function withoutSelectedPort(value: unknown): unknown {
+  if (!isRecord(value) || !('_selectedPort' in value)) return value;
+  const { _selectedPort: _dropped, ...rest } = value;
+  void _dropped;
+  return rest;
+}
+
+/**
+ * 저장된 출력(DB `NodeExecution.outputData`, 대기 봉투, 오류 정책의 기본 출력)을 구조화
+ * 캐시 값으로 읽는다. 핸들러 출력 모양(`config` · `output`)이면 그대로 쓰고, 아니면
+ * {@link wrapBareAsNodeHandlerOutput} 으로 감싼다. 평면 캐시에는 받은 값을 그대로 두고
+ * 구조화 캐시에는 이 값을 함께 쓰는 경로가 쓴다(NERV Task CLE-T-CE5YR3).
+ */
+export function storedOutputAsStructured(raw: unknown): NodeHandlerOutput {
+  const value = withoutSelectedPort(raw);
+  return isCanonicalHandlerOutput(value)
+    ? value
+    : wrapBareAsNodeHandlerOutput(value);
 }
 
 /** flat 값에서 떼는 엔진 제어 필드. 이유는 {@link toDownstreamValue} 참조. */

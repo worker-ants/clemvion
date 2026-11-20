@@ -169,6 +169,7 @@ import {
   isCanonicalHandlerOutput,
   resolveExecutionOutputValue,
   resolveNodeResultValue,
+  storedOutputAsStructured,
   toEngineFlatShape,
   wrapBareAsNodeHandlerOutput,
 } from './handler-output.adapter';
@@ -1864,14 +1865,16 @@ export class ExecutionEngineService
       executedNodes.add(nodeId);
     }
 
-    // Waiting node 의 outputData 복원 — runExecution 의 executeNode 가 normally
-    // setNodeOutput 으로 nodeOutputCache 에 채운 envelope (status=waiting_for_input
-    // + meta.interactionType) 와 동일. case B(크래시 re-drive)는 waiting 노드가 없어
-    // waitingNodeExec=null → 이 블록 skip(완료 노드만 위에서 복원됨).
+    // Waiting node 의 outputData 복원 — 평면 캐시에는 저장된 대기 봉투(status=
+    // waiting_for_input + meta.interactionType)를 그대로 두고 재개 처리기가 그 값을
+    // 읽는다. 구조화 캐시는 같은 저장 값에서 만든다(CLE-T-CE5YR3). case B(크래시
+    // re-drive)는 waiting 노드가 없어 waitingNodeExec=null → 이 블록 skip(완료 노드만
+    // 위에서 복원됨).
     if (waitingNodeExec?.outputData) {
-      this.contextService.setNodeOutput(
+      this.contextService.setNodeOutputs(
         this.contextKeyOf(context),
         waitingNodeExec.nodeId,
+        storedOutputAsStructured(waitingNodeExec.outputData),
         waitingNodeExec.outputData,
       );
     }
@@ -3486,9 +3489,10 @@ export class ExecutionEngineService
       parentNodeExecutionId,
       oldRow.inputData,
     );
-    this.contextService.setNodeOutput(
+    this.contextService.setNodeOutputs(
       this.contextKeyOf(context),
       node.id,
+      storedOutputAsStructured(turn.waitingEnvelope),
       turn.waitingEnvelope,
     );
     await this.eventEmitter.emitNode(
@@ -4292,10 +4296,12 @@ export class ExecutionEngineService
             );
           }
           executedNodes.add(nodeId);
-          // Pass clean input through trigger node's output slot
-          this.contextService.setNodeOutput(
+          // Pass clean input through trigger node's output slot. 다음 노드 `$input` 은
+          // 구조화 캐시의 output 을 읽으므로 두 캐시에 같은 입력을 쓴다(CLE-T-CE5YR3).
+          this.contextService.setNodeOutputs(
             this.contextKeyOf(context),
             nodeId,
+            { config: {}, output: cleanInput },
             cleanInput,
           );
           this.graphTraversal.propagateReachability(
@@ -6504,7 +6510,10 @@ export class ExecutionEngineService
           break;
 
         case 'use_default':
-          this.commitNodeOutput(context, node.id, { flat: result.output });
+          this.commitNodeOutput(context, node.id, {
+            flat: result.output,
+            structured: storedOutputAsStructured(result.output),
+          });
           nodeExecution.status = NodeExecutionStatus.COMPLETED;
           nodeExecution.outputData =
             (result.output as Record<string, unknown>) ?? {};
@@ -8211,13 +8220,10 @@ export class ExecutionEngineService
    * **병렬 분기 안에서 실행되는 노드의 출력은 모두 이 메서드로 쓴다.** 쓰기와 사본
    * 반영을 따로 부르면 한쪽을 빠뜨려도 예외 없이 입력이 비거나 결과 노드가 `null` 이
    * 되므로 두 동작을 한 곳에 묶었다. 사본 반영은 `structuredOutputCache` 항목도 함께
-   * 옮긴다. `structured` 를 주면 구조화 출력을 그 값으로 쓰고 평면 출력에서 다시 만들지
-   * 않는다. 노드 실행 완료가 핸들러 반환값을 이렇게 넘긴다. 주지 않으면 `setNodeOutput` 이
-   * 평면 출력에서 구조화 출력의 `output` 을 다시 만든다. 그래서 `structured` 없이 평면
-   * 출력에 라우팅 표지(`_selectedPort`)를 넣는 호출은 이 메서드 뒤에 `setStructuredOutput`
-   * 을 쓰고 {@link syncParallelBranchCacheEntry} 로 다시 옮긴다(Parallel 완료 출력은
-   * {@link commitParallelDoneOutput} 이 이 순서로 쓴다).
-   * `contextService.setNodeOutput` · `setNodeOutputs` 를 직접 부르는 다른 지점은 병렬 분기
+   * 옮긴다. 구조화 출력은 늘 `structured` 로 받고 평면 출력에서 다시 만들지 않는다.
+   * 평면 출력에는 라우팅 표지(`_selectedPort`)가 섞여 있어서 다시 만들면 그 키가
+   * `$node[X].output` 과 다음 노드 `$input` 에 보인다(NERV Task CLE-T-CE5YR3).
+   * `contextService.seedNodeOutput` · `setNodeOutputs` 를 직접 부르는 다른 지점은 병렬 분기
    * 본문에서 닿지 않는다. 재개 시 캐시 복원, 서브워크플로 호출자 출력 주입, 서브워크플로 트리거
    * 출력은 분기 사본이 만들어지기 전이거나 별도 그래프의 루프에서 실행되고, 폼 · 버튼
    * · AI 턴 상호작용은 분기 금지 노드(블로킹)가 쓴다.
@@ -8225,21 +8231,16 @@ export class ExecutionEngineService
   private commitNodeOutput(
     context: ExecutionContext,
     nodeId: string,
-    outputs: { flat: unknown; structured?: NodeHandlerOutput },
+    outputs: { flat: unknown; structured: NodeHandlerOutput },
   ): void {
-    const ctxKey = this.contextKeyOf(context);
     // 이름 있는 인자로 받는다. `setNodeOutputs(key, id, structured, flat)` 와 인자 순서가 달라
     // 둘 다 unknown 계열이면 컴파일러가 순서 실수를 잡지 못한다.
-    if (outputs.structured) {
-      this.contextService.setNodeOutputs(
-        ctxKey,
-        nodeId,
-        outputs.structured,
-        outputs.flat,
-      );
-    } else {
-      this.contextService.setNodeOutput(ctxKey, nodeId, outputs.flat);
-    }
+    this.contextService.setNodeOutputs(
+      this.contextKeyOf(context),
+      nodeId,
+      outputs.structured,
+      outputs.flat,
+    );
     this.syncParallelBranchCacheEntry(context, nodeId);
   }
 
@@ -8642,17 +8643,13 @@ export class ExecutionEngineService
    * 분기의 사본이라 루트 캐시와 사본에 함께 쓴다. 사본에만 쓰면 바깥 Parallel 이 루트
    * 캐시에서 읽는 결과 노드 출력이 핸들러 출력으로 남는다.
    *
-   * 쓰는 순서가 정해져 있어 한 메서드로 묶었다.
-   * 1. 평면 출력 `{ _selectedPort: 'done', ...output }` 을 {@link commitNodeOutput} 으로
-   *    쓴다. 호출한 루프의 `propagateReachability` 가 `done` 포트만 열고 `branch_N`
-   *    연결선은 닫는다. `_selectedPort` 는 노드 출력 `port` 와 같은 모양이라 단일
-   *    문자열이다(CLE-EXEC-ENGINE).
-   * 2. 구조화 출력을 쓴다. `setNodeOutput` 이 평면 출력에서 구조화 출력의 `output` 을
-   *    다시 만들기 때문에, 1 보다 먼저 쓰면 `$node["Parallel"].output` 에 라우팅 표지
-   *    `_selectedPort` 가 섞인다.
-   * 3. 2 에서 쓴 항목을 병렬 분기 사본에 다시 옮긴다({@link syncParallelBranchCacheEntry}).
+   * 평면 출력은 `{ _selectedPort: 'done', ...output }` 이다. 호출한 루프의
+   * `propagateReachability` 가 `done` 포트만 열고 `branch_N` 연결선은 닫는다.
+   * `_selectedPort` 는 노드 출력 `port` 와 같은 모양이라 단일 문자열이다(CLE-EXEC-ENGINE).
+   * 구조화 출력은 평면 출력과 함께 {@link commitNodeOutput} 으로 쓰므로 라우팅 표지가
+   * `$node["Parallel"].output` 에 섞이지 않는다.
    *
-   * 2 에서 쓴 구조화 출력을 돌려준다. 노드 실행 행에도 같은 값을 저장한다(CLE-T-JXD0W5).
+   * 구조화 출력을 돌려준다. 노드 실행 행에도 같은 값을 저장한다(CLE-T-JXD0W5).
    */
   private commitParallelDoneOutput(
     context: ExecutionContext,
@@ -8663,21 +8660,16 @@ export class ExecutionEngineService
       meta?: Record<string, unknown>;
     },
   ): NodeHandlerOutput {
-    this.commitNodeOutput(context, parallelNodeId, {
-      flat: { _selectedPort: 'done', ...done.output },
-    });
     const completedOutput: NodeHandlerOutput = {
       config: done.config,
       output: done.output,
       port: 'done',
       ...(done.meta ? { meta: done.meta } : {}),
     };
-    this.contextService.setStructuredOutput(
-      this.contextKeyOf(context),
-      parallelNodeId,
-      completedOutput,
-    );
-    this.syncParallelBranchCacheEntry(context, parallelNodeId);
+    this.commitNodeOutput(context, parallelNodeId, {
+      flat: { _selectedPort: 'done', ...done.output },
+      structured: completedOutput,
+    });
     return completedOutput;
   }
 

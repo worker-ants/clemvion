@@ -543,6 +543,22 @@ describe('WorkspacesService', () => {
       });
     });
 
+    // CLE-T-9Q304H — 숫자 키라 null 말고는 지울 값이 없다. null 은 「상한 해제」라 키를 지운다(null 을 저장하지 않는다).
+    it('[9Q304H] maxConcurrentExecutions: null 은 키를 지우고 다른 키는 둔다', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+        settings: { timezone: 'Asia/Seoul', maxConcurrentExecutions: 4 },
+      });
+      const result = await service.updateWorkspaceSettings(
+        'ws-uuid-1',
+        { maxConcurrentExecutions: null },
+        'user-uuid-1',
+      );
+      expect(result.settings).toStrictEqual({ timezone: 'Asia/Seoul' });
+    });
+
     it('updates when requester is admin', async () => {
       memberRepo.findOne.mockResolvedValue({ role: 'admin' });
       workspaceRepo.findOne.mockResolvedValue({

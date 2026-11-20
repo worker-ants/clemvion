@@ -16,6 +16,7 @@ import { UpdateAuthConfigDto } from '../../modules/auth-configs/dto/update-auth-
 import { UpdateMeDto } from '../../modules/users/dto/update-me.dto';
 import { UpdateFolderDto } from '../../modules/folders/dto/update-folder.dto';
 import { UpdateWorkspaceSettingsDto } from '../../modules/workspaces/dto/update-workspace-settings.dto';
+import { UpdateNotificationSettingsDto } from '../../modules/notifications/dto/update-notification-settings.dto';
 
 /**
  * PATCH 요청 DTO 에서 **NOT NULL 컬럼**(또는 null 이면 서비스가 깨지는 값)에 대응하는 필드는 `null` 을 400 으로 거부한다.
@@ -59,6 +60,12 @@ const TABLE: Array<[DtoClass, string[]]> = [
   [UpdateMeDto, ['name', 'locale', 'theme']],
   [UpdateFolderDto, ['name', 'sortOrder']],
   [UpdateWorkspaceSettingsDto, ['interactionAllowedOrigins', 'timezone']],
+  // CLE-T-9Q304H — 컬럼이 아니라 JSONB 설정 키다. `true` · `false` 로 값을 정할 수 있어 null 에 따로 줄 뜻이
+  // 없다. 받으면 null 이 그대로 저장되고 읽을 때 기본값(`??`)으로 바뀌어 사용자가 고른 값이 조용히 사라진다.
+  [
+    UpdateNotificationSettingsDto,
+    ['integrationExpiryEmail', 'executionFailedEmail', 'scheduleFailedEmail'],
+  ],
 ];
 
 const CASES = TABLE.flatMap(([Dto, fields]) =>
@@ -79,8 +86,8 @@ async function constraintsFor(
 }
 
 describe('PATCH 의 NOT NULL 필드는 null 을 거부한다', () => {
-  it('[전제] 표가 전수 결과(43필드)와 같다', () => {
-    expect(CASES).toHaveLength(43);
+  it('[전제] 표가 전수 결과(43필드) + 알림 설정 3키와 같다', () => {
+    expect(CASES).toHaveLength(46);
   });
 
   it.each(CASES)(

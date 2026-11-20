@@ -503,6 +503,27 @@ describe('WorkflowsService', () => {
     });
 
     // `@IsOptional()` 은 `settings: null` 도 통과시킨다 — 병합은 그것을 no-op 으로 다룬다(던지면 500).
+    // CLE-T-9Q304H — 숫자 키라 null 말고는 지울 값이 없다. null 은 「상한 해제」라 키를 지운다(null 을 저장하지 않는다).
+    it('[9Q304H] maxConcurrentExecutions: null 은 키를 지우고 다른 키는 둔다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        settings: { existingKey: 'keep', maxConcurrentExecutions: 5 },
+      });
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        Object.assign(new UpdateWorkflowDto(), {
+          settings: Object.assign(new WorkflowSettingsDto(), {
+            maxConcurrentExecutions: null,
+          }),
+        }),
+        'u-spec',
+      );
+      const saved = mockRepository.save.mock.calls.at(-1)?.[0] as Workflow;
+      expect(saved.settings).toStrictEqual({ existingKey: 'keep' });
+    });
+
     it('settings: null 은 던지지 않고 저장된 설정을 그대로 둔다', async () => {
       mockRepository.findOne.mockResolvedValueOnce({
         id: 'wf-uuid-1',
@@ -2617,6 +2638,32 @@ describe('WorkflowsService', () => {
         Workflow,
         expect.objectContaining({ settings: { maxConcurrentExecutions: 4 } }),
       );
+    });
+
+    it('[9Q304H] maxConcurrentExecutions: null 은 키 없이 저장한다', async () => {
+      const dto = {
+        name: 'Imported',
+        settings: { maxConcurrentExecutions: null },
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+        ],
+        edges: [],
+      };
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
+      expect(mockTransactionManager.save).toHaveBeenCalledWith(
+        Workflow,
+        expect.objectContaining({ settings: {} }),
+      );
+      const saved = mockTransactionManager.save.mock.calls.find(
+        (c: unknown[]) => c[0] === Workflow,
+      )?.[1] as Workflow;
+      expect(saved.settings).toStrictEqual({});
     });
 
     it('defaults settings to {} when the import omits it', async () => {

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-STORE"
 title: "채팅 채널 데이터와 흐름 — 저장 모델과 상태"
 type: "design"
-version: 4
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "e9f539ce83b0ba48bdd8b04662c1d5cc2331a2d032419fca5115f8fa5881d0d9"
+content_hash: "e326b0c4781206d9072ce8be5105f0500bb96a9c7c3f9e692f9a46a839659162"
 read_as: "approved_fallback"
-task: "CLE-T-QZ8RFC"
+task: "CLE-T-SKZABF"
 source_paths: []
-mirror_sha256: "6c546ba2c1251095f381f2b0be6c0b9d684839ded22a54c598f327ead6381227"
-etag: "sha256-a126e7d2709867753fd6c193e9421f708fc514695b1b8ad66a44fed32c9b14f8"
+mirror_sha256: "3265a9fab1baa59fdccae219bdaebddc7e66df1d9924f18304644a565ee71581"
+etag: "sha256-a840f16f0dbf2d429315a75103cc96156d8ab844142343424d63f0c34bbc9a0f"
 ---
 ## 개요
 
@@ -83,8 +83,8 @@ TTL: 7일(저장할 때마다 다시 건다)
 |---|---|---|---|
 | `chat-channel:{triggerId}:{conversationKey}` | `HooksService`(저장, `/cancel` 의 `executionId` 정리), `ChatChannelDispatcher`(그 실행을 가리킬 때만 `pendingFormModal`·`formState` 갱신, 종결 이벤트의 `executionId` 정리) | 양쪽 조회 | 채널 대화 상태 JSON. TTL 7일(저장마다 갱신). Redis 가 없으면 기능을 낮춘다. `executionId` 를 비우는 쓰기와 dispatcher 의 Form 입력 대기 갱신은 compare-and-set 이다([아웃바운드 흐름](CLE-CHAT-DATA-FLOW.md#아웃바운드-흐름)) |
 | `chat-channel-lock:{triggerId}:{conversationKey}:formsubmit` | `form_submission` 처리(`SET NX EX 30`) | 같다 | 네이티브 모달 중복 제출 방지 잠금. Lua 로 소유권을 확인하고 푼다. Redis 가 없으면 통과 |
-| `cc:startlock:{triggerId}:{conversationKey}` | `HooksService` 의 `/start` 처리(`SET NX EX 30`, `ChannelConversationService.acquireLock(…, 'start')`) | 같다 | 같은 대화의 `/start` 를 직렬화하는 시작 잠금. 기존 실행 취소 · 새 실행 시작 · 대화 상태 저장을 감싼다. 못 잡으면 그 `/start` 를 버린다. 토큰은 요청마다 무작위 UUID 이고 폼 제출 잠금과 같은 Lua 로 소유권을 확인하고 푼다. TTL 30초. 잠금 구간은 웹훅 응답 전에 끝나고 프로세스가 잠금을 쥔 채 죽어도 30초 뒤 풀린다. Redis 가 없거나 오류면 통과(fail-open)하고 지표 `recordRedisFailOpen('chat_conversation', 'lock_failed' \| 'unlock_failed')` 로 센다. 근거는 [채팅 채널 — 처리 흐름과 대화 「R-CC-36 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다」](CLE-CHAT-CORE-FLOW.md#r-cc-36-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다 |
-| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`), `/start` 의 기존 실행 취소 실패 때 `ChatChannelDedupService.release`(`DEL`) | 같다(반환값이 곧 판정) | 인바운드 중복 제거([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. TTL 30초. Redis 가 없으면 통과하고 warn. `/start` 의 기존 실행 취소가 실패해 에러로 응답할 때는 그 키를 지워 프로바이더의 재전송을 받는다. 지우지 못하면 warn 을 남기고 TTL 로 풀린다. `/cancel` 의 취소나 재개 명령을 재개 큐에 넣지 못했을 때는 `202` 로 답하므로 키를 지우지 않는다([Rationale](CLE-CHAT-DATA-FLOW.md#rationale) 의 「`/cancel` 과 재개 명령의 큐 적재 실패에서 중복 제거 키를 지우지 않는다」) |
+| `cc:startlock:{triggerId}:{conversationKey}` | `HooksService` 의 `/start` 처리(`SET NX EX 30`, `ChannelConversationService.acquireLock(…, 'start')`) | 같다 | 같은 대화의 `/start` 를 직렬화하는 시작 잠금. 기존 실행 취소 · 새 실행 시작 · 대화 상태 저장을 감싼다. 못 잡으면 그 `/start` 를 버린다. 토큰은 요청마다 무작위 UUID 이고 폼 제출 잠금과 같은 Lua 로 소유권을 확인하고 푼다. TTL 30초. 잠금 구간은 웹훅 응답 전에 끝나고 프로세스가 잠금을 쥔 채 죽어도 30초 뒤 풀린다. Redis 가 없거나 오류면 통과(fail-open)하고 지표 `recordRedisFailOpen('chat_conversation', 'lock_failed' \| 'unlock_failed')` 로 센다. 근거는 [채팅 채널 — 처리 흐름과 대화 「R-CC-38 동시 /start 는 대화 단위 시작 잠금으로 직렬화한다」](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다) 에 있다 |
+| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook`(`SET NX EX 30`), `/start` 의 기존 실행 취소 실패 때 `ChatChannelDedupService.release`(값이 그 요청의 토큰일 때만 지운다) | 같다(반환값이 곧 판정) | 인바운드 중복 제거([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). `parseUpdate` 직후이자 분당 한도 앞이다. 재도착은 같은 트래픽이라 한도를 쓰지 않는다. 값은 요청마다 만든 무작위 UUID 토큰이다. TTL 30초. Redis 가 없으면 통과하고 warn. `/start` 의 기존 실행 취소가 실패해 에러로 응답할 때는 그 요청이 잡은 선점을 풀어 프로바이더의 재전송을 받는다. 해제는 시작 잠금과 같은 Lua 로 값이 그 요청의 토큰일 때만 지운다. 지우지 못하면 warn 을 남기고 지표 `recordRedisFailOpen('chat_dedup', 'del_failed')` 로 센 뒤 TTL 로 풀린다. 새 실행 시작(`execute()`)이 실패하면 `202` 로 답해 재전송이 없으므로 풀지 않는다. 근거는 [Rationale](#rationale) 의 「중복 제거 선점은 그 요청의 토큰일 때만 푼다」 에 있다. `/cancel` 의 취소나 재개 명령을 재개 큐에 넣지 못했을 때는 `202` 로 답하므로 키를 지우지 않는다([Rationale](CLE-CHAT-DATA-FLOW.md#rationale) 의 「`/cancel` 과 재개 명령의 큐 적재 실패에서 중복 제거 키를 지우지 않는다」) |
 | `cc:rl:{triggerId}:{conversationKey}` | `ChatChannelRateLimiterService.consume`(`INCR`+`EXPIRE NX` 를 한 pipeline 으로) | 같다 | 대화 단위 분당 한도([채팅 채널 「비기능」](CLE-CHAT-CORE.md#비기능)). TTL 60초(fixed-window). 넘치면 건너뛰고 `degraded`. Redis 가 없으면 통과 |
 | `cc:sigfail:{triggerId}:{clientIp}` | `ChatChannelSignatureFailureLimiterService.recordFailure`(Lua 스크립트 하나로 `INCR` 과 TTL 확인을 함께 한다). `ChatChannelInboundAuthenticator.verify` 가 서명 검증이 `UnauthorizedException`(401)으로 실패했을 때만 부른다 | `ChatChannelSignatureFailureLimiterService.isBlocked`(`GET`). 같은 `ChatChannelInboundAuthenticator.verify` 가 서명 검증 앞에서 부른다 | 인바운드 서명 검증 실패 한도([채팅 채널 「서명 검증 실패 한도」](CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도), NERV Task `CLE-T-ZC34Y0`). (트리거, 클라이언트 IP) 쌍마다 센다. 첫 실패이거나 TTL 이 없는 키면 60초 TTL 을 건다. 이미 TTL 이 있으면 늘리지 않는다(fixed-window). 값이 20 이상이면 창이 끝날 때까지 그 쌍의 요청에 시크릿 조회와 서명 계산 없이 `401`(`AUTH_FAILED`)로 답한다. 한도에 닿으면 창마다 warn 로그를 한 번 남긴다. 이 로그에는 트리거 id 만 싣고 IP 는 싣지 않는다. 막힌 요청은 세지 않으므로 창이 늘어나지 않는다. 서명이 맞는 요청과 401 이 아닌 오류도 세지 않는다. 클라이언트 IP 는 `extractUnspoofableClientIp` 로 `CF-Connecting-IP`(신뢰 설정일 때), `req.ip` 순서로 읽는다. `X-Forwarded-For` 첫 값은 쓰지 않는다. IP 를 읽지 못하면 세지도 막지도 않는다. Redis 가 없거나 오류면 막지 않는다(fail-open). 오류는 warn 로그로 남긴다 |
 | `chat-channel-token-rotator`(BullMQ) | repeatable job scheduler(`0 * * * *`) | `ChatChannelTokenRotatorService` | payload 없음. 매시간 정리 |
@@ -140,6 +140,12 @@ TTL 7일이 지나면 사용자가 떠난 대화의 라우팅 값이 지워진�
 2026-10-10 결정이다(NERV Task `CLE-T-V4WVF2`). `/start` 가 기존 실행을 취소하고 새 실행을 대화에 이으면 옛 실행의 `execution.cancelled` 가 그 뒤에 올 수 있다. 종결 이벤트가 `executionId` 를 무조건 비우면 새 실행의 매핑이 지워지고, 다음 메시지는 입력 대기 실행인 새 실행에 가지 않고 또 다른 실행을 시작한다. 그래서 읽은 값의 `executionId` 가 그 실행일 때만 비운다. 읽은 뒤 다른 요청이 대화를 새 실행에 이었을 수 있으므로 저장된 값이 읽은 문자열과 같을 때만 바꾸고, 다르면 다시 읽는다. JSON 을 Lua 안에서 다시 만들지 않고 문자열 그대로 비교한다. Redis Lua 의 cjson 은 빈 배열을 객체로 바꿔 `pendingFormModal.fields` 같은 값을 망가뜨린다. 결정의 근거는 [채팅 채널 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」](CLE-CHAT-CORE.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
 
 Form 입력 대기의 대화 상태 갱신도 같은 이유로 그 실행을 가리킬 때만 한다. 옛 실행의 늦은 Form 입력 대기 이벤트가 `pendingFormModal`·`formState` 를 덮어쓰면 새 실행의 다음 폼 제출이 옛 실행의 노드 id 를 싣고 간다. 2026-11-19 부터 이 갱신도 같은 compare-and-set(`updateIfExecutionMatches`)으로 한다. 조회 뒤 저장 전에 `/start` 가 끼는 경합까지 막는다(NERV Task `CLE-T-CVJXDE`).
+
+### 중복 제거 선점은 그 요청의 토큰일 때만 푼다
+
+2026-11-20 결정이다(NERV Task `CLE-T-SKZABF`). `/start` 의 기존 실행 취소는 선점 만료(30초)를 넘긴 뒤 실패할 수 있다. 그 사이 프로바이더의 재전송이 같은 키를 새로 선점했을 수 있다. 옛 요청이 키를 그냥 지우면 그 선점이 사라져 같은 update 가 한 번 더 처리될 수 있다. 그래서 선점 값을 요청마다 만든 토큰으로 두고 값이 그 토큰일 때만 지운다. 스크립트는 폼 제출 잠금 · 시작 잠금과 같은 것을 쓴다(`ChannelConversationService` 의 `RELEASE_LOCK_SCRIPT`). 키 하나의 값을 비교해 지우는 범용 스크립트라 따로 두지 않았다.
+
+기각한 대안은 `DEL` 을 그대로 두는 것이다. 만료 뒤 새로 잡힌 선점을 지우는 경합이 남는다. 롤링 배포 중 옛 버전이 `'1'` 로 잡은 선점은 새 버전이 지우지 못하고 30초 TTL 로 풀린다. 그 사이 다시 온 `/start` 하나가 `ignored` 로 끝날 수 있지만 배포 중에만 생기는 일이다.
 
 ### `chat_channel_health` 의 공용 DB 타입 검토 문구를 거둔다 (2026-10-17)
 

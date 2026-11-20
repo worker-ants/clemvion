@@ -2,21 +2,21 @@
 id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027", "REQ-PROFILE-028", "REQ-PROFILE-029"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "491db84f0bdf28320e05e544648022a3e386622821c03f6f80ceffdcb590d8cf"
+content_hash: "f4e98937a3132bbc19690d34b8a917e32953920e68930f5930cc33bc7736ceae"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-BW72A8"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "73ea7d0ef8e9d7d40883c65ff7307ec10ff2e404915b326a8dac94673c530052"
-etag: "sha256-892290f2fc8c36072ff9e95df11167dc80ae50797585ae4dfc95a6a65ee3a3b8"
+mirror_sha256: "b06867c5493f3e30227048eab0a12cb673f1fee7dcb820105d6e3641577a8b14"
+etag: "sha256-9c75352b9b40631b9d4aaf1ebf871f9d70da913eda935d08243023de4e975689"
 ---
-> 구현 상태: 부분 구현 (사용자 메뉴의 알림 설정 항목은 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (알림 설정 화면으로 가는 링크는 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -39,7 +39,7 @@ etag: "sha256-892290f2fc8c36072ff9e95df11167dc80ae50797585ae4dfc95a6a65ee3a3b8"
 - REQ-PROFILE-002 WHEN 사용자가 사이드바의 아바타를 누르면 THE SYSTEM SHALL 내 프로필과 로그아웃 두 항목만 있는 팝업을 연다. (원본: NAV-UP-02)
 - REQ-PROFILE-003 WHEN 사용자가 팝업의 내 프로필을 누르면 THE SYSTEM SHALL `/profile` 로 이동한다.
 - REQ-PROFILE-004 WHEN 사용자가 팝업의 로그아웃을 누르면 THE SYSTEM SHALL 세션을 끝내고 로그인 화면으로 이동한다. (원본: NAV-UP-03)
-- REQ-PROFILE-005 WHEN 사용자가 사용자 메뉴를 열면 THE SYSTEM SHALL 알림 설정으로 가는 항목을 제공한다. (원본: NAV-UP-02) (미구현)
+- REQ-PROFILE-005 WHEN 사용자가 내 프로필 화면의 알림 설정 링크를 누르면 THE SYSTEM SHALL 알림 설정 화면으로 이동한다. (원본: NAV-UP-02) (미구현: CLE-T-EJFQ1Y)
 - REQ-PROFILE-006 WHEN 사이드바를 그리면 THE SYSTEM SHALL 워크스페이스 전환과 관리는 팝업 밖 워크스페이스 전환 블록에 두고 테마 전환은 프로필 환경설정 카드에 둔다.
 - REQ-PROFILE-007 WHEN 사용자가 `/profile` 을 열면 THE SYSTEM SHALL 사용자 정보·비밀번호·환경설정·보안 카드를 읽기 전용으로 보여 준다.
 - REQ-PROFILE-008 WHEN 사용자가 사용자 정보 카드나 환경설정 카드의 [편집] 을 누르면 THE SYSTEM SHALL 그 카드만 입력 가능하게 바꾸고 [취소]·[저장] 을 보여 준다.
@@ -92,7 +92,7 @@ etag: "sha256-892290f2fc8c36072ff9e95df11167dc80ae50797585ae4dfc95a6a65ee3a3b8"
 | 워크스페이스 전환 | 사용자 영역 위의 독립 워크스페이스 전환 블록. 개인·팀 그룹, 현재 워크스페이스 표시, 전환이 들어 있다([워크스페이스와 멤버](CLE-ACCT-WS.md)) |
 | 워크스페이스 관리 | 워크스페이스 전환 블록 하단의 "여기 설정"(`/workspace/settings`) 링크와 새 팀 워크스페이스 만들기. 역할별 노출은 그 화면이 처리한다 |
 | 테마 전환 | 사이드바가 아니라 `/profile` 의 환경설정 카드. 라이브 미리보기를 제공한다(`app/(main)/w/[slug]/profile/components/profile-preferences-card.tsx`) |
-| 알림 설정 | 미구현(Planned). 알림 설정 화면은 아직 없다. 이메일 채널 토글 API 는 있다([알림](../CLE-OBS/CLE-OBS-NOTIFY.md)). `/profile/alerts` 는 알림 규칙 화면이라 이 항목과 별개다 |
+| 알림 설정 | `/profile` 의 링크로 들어가는 알림 설정 화면. 인앱 토글과 이메일 토글, 일일 요약 토글이 한 화면에 있다([알림 — 알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md)). 미구현(CLE-T-EJFQ1Y). `/profile/alerts` 는 알림 규칙 화면이라 이 항목과 별개다 |
 
 ## 내 프로필 화면
 
@@ -242,7 +242,7 @@ etag: "sha256-892290f2fc8c36072ff9e95df11167dc80ae50797585ae4dfc95a6a65ee3a3b8"
 | CHECK 를 넓혀 `system` 을 저장한다 | 채택. 화면과 DTO 가 이미 받는 값을 DB 도 받게 한다. 마이그레이션 방식은 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」 에 있다 |
 | DTO 와 화면에서 `system` 을 뺀다 | 기각. OS 색상 모드를 따르는 선택지를 잃는다. 제품 요구사항 NAV-UP-06 이 라이트·다크만 적은 것은 시스템 값을 막으려던 것이 아니라 적지 않은 것으로 봤다 |
 
-이때 시스템 테마 요구(REQ-PROFILE-023)는 적용 순간 OS 색상 모드를 한 번만 읽는 범위로 좁혔다. 예전 문장 «OS 색상 모드를 따른다» 는 OS 설정이 바뀌면 화면도 따라 바뀐다고 읽힐 수 있었기 때문이다. 실시간으로 따라갈지는 테마 적용 시점과 함께 미결로 남겼다. 2026-11-06 에 이 요구를 OS 변경까지 바로 따르도록 넓혔다(아래 「저장한 테마를 앱 전체에 적용하고 `system` 은 OS 변경을 따른다」).
+시스템 테마가 OS 변경까지 바로 따르는 근거는 아래 「저장한 테마를 앱 전체에 적용하고 `system` 은 OS 변경을 따른다」 에 있다.
 
 범위 밖 값의 400 거부는 새 요구(REQ-PROFILE-026)로 따로 적었다. 예전에는 DTO 를 지난 `system` 이 DB 에서 500 으로 실패했다. 그래서 허용 값 밖의 값은 DTO 가 먼저 막고 저장된 값을 건드리지 않는다는 점을 요구로 남긴다.
 

@@ -2,19 +2,19 @@
 id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "f40ebd16719d0f5ae0e5382180336d58ea08856b4551c128d2af126d2bcf530f"
+content_hash: "48bf30e7ec0363044c37c85b9fdd5344632727196db6f6905958d4964fd154b2"
 read_as: "approved_fallback"
-task: "CLE-T-QZ8RFC"
+task: "CLE-T-YWSS9K"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "a0911db74b2fb1d51756904229d83f66a99431fcf8d2d66f900c76affe6177bd"
-etag: "sha256-20bbcc6e693c9f4e7c045ecc72c8c9169d3da02abb6bc57969d2f370c59df3b9"
+mirror_sha256: "45046b0ec391e896040a8e4ee81dff7ccbfe07ca2a54b638a4c32721e3bd8316"
+etag: "sha256-253a32d3a3458df481ad4b4096ecb75e5a561c871bfa89e6015097909c3c76b7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -108,7 +108,7 @@ pub/sub 채널 `integration:cache:invalidate` 는 `common/redis` 의 캐시 무�
 
 | 이름 | 실체 | 기준 문서 |
 | --- | --- | --- |
-| `background:run:<id>` · `execution:<id>` · `workflow:<id>` | **Socket.IO 채널** (`server.to(channel).emit()`). Redis 키가 아니다. 서버 인스턴스가 여럿이면 채널 이름이 adapter 채널 이름 `ws:sio#/ws#<채널>#` 안에 실려 Redis 를 지난다([라이브러리가 이름을 정하는 것](#라이브러리가-이름을-정하는-것)) | [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러](../CLE-API/CLE-API-WS-MSG.md) §4.2 · §4.6 |
+| `background:run:<id>` · `execution:<id>` · `workflow:<id>` | **Socket.IO 채널**. Redis 키가 아니다. 서버는 `background:run:<id>` · `execution:<id>` 로 `server.to(channel).emit()` 을 보내고 `workflow:<id>` 에는 구독 인가만 있다. 서버 인스턴스가 여럿이면 발행 채널 이름이 adapter 채널 이름 `ws:sio#/ws#<채널>#` 안에 실려 Redis 를 지난다([라이브러리가 이름을 정하는 것](#라이브러리가-이름을-정하는-것)) | [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러](../CLE-API/CLE-API-WS-MSG.md) §4.2 · §4.6 |
 | `bg:<executionId>:<backgroundRunId>` | **메모리 Map 라우팅 키** (`_contextKey`) | [실행 컨텍스트](../CLE-EXEC/CLE-EXEC-CONTEXT.md) |
 | `trigger-config:<triggerId>` · `exec-cap:<workspaceId>` (`workspaceId` 가 없으면 `<workflowId>`) | **PostgreSQL advisory lock 키**. `pg_advisory_xact_lock(hashtext(<키>))` 에 넣는 문자열. 해시는 32비트 `hashtext()` 다 | [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) · [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) |
 | `makeshop-pending:<workspaceId>:<client_id 의 SHA-256 hex>` | **PostgreSQL advisory lock 키**. `pg_advisory_xact_lock(hashtextextended(<키>, 0))` 에 넣는 문자열. 해시는 64비트 `hashtextextended(<키>, 0)` 다. MakeShop `oauth/begin` 이 같은 `(workspace_id, client_id)` 의 설치 대기 행 재사용을 줄 세운다 | [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한) |

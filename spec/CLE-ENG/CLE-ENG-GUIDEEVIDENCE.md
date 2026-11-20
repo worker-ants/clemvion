@@ -2,25 +2,25 @@
 id: "CLE-ENG-GUIDEEVIDENCE"
 title: "사용자 가이드 근거 규약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "789e40cb4967dcbc2f30f01abb061cfdabca9dd94fe2a4058a450dd7cc2a9a99"
+content_hash: "e2c8f55d4011f78962c6853761a88f6928dcac2642e6b4dc8a15175606ed7551"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-GTSEDT"
 source_paths: ["spec/conventions/user-guide-evidence.md"]
-mirror_sha256: "36ff95f0676ff332c7a5ed7ab27bb117fc0ff1f70eff5af0dc4c4b4092697711"
-etag: "sha256-2731ccd235cb5e8bd519c9e3d881e9be9c8ab35cb8842516db27eddb1c39bdd2"
+mirror_sha256: "6c1ed6131c3347d26e2d0f223e7f0a8696ed9daa6458c83dd6d3d2196bb49153"
+etag: "sha256-4b8102c360fbfefd38b5fa32682943d9ad2ceec1f7c71011161ad50c31b985fa"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/user-guide-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-사용자 가이드 본문이 약속한 UI·API 표면이 실제 코드에 있는지를 빌드에서 강제하는 규약이다. 강제 수단은 가이드 근거 앵커(`<ImplAnchor>`) MDX 컴포넌트와 이를 읽는 빌드 가드 3건이다. 텔레그램 채팅 채널 가이드가 GUI 흐름을 약속했는데 프론트엔드 UI 가 없었던 것 같은 가이드 → 코드 방향의 갭을 막는다.
+사용자 가이드 본문이 약속한 UI·API 표면이 실제 코드에 있는지, 가이드가 옮겨 적은 식별자·문장·코드표가 코드와 맞는지를 빌드에서 강제하는 규약이다. 강제 수단은 가이드 근거 앵커(`<ImplAnchor>`) MDX 컴포넌트와 이를 읽는 빌드 가드, 그리고 앵커 없이 가이드 본문을 코드와 대조하는 빌드 가드다([빌드 가드](#빌드-가드)). 텔레그램 채팅 채널 가이드가 GUI 흐름을 약속했는데 프론트엔드 UI 가 없었던 것 같은 가이드 → 코드 방향의 갭을 막는다.
 
 `user-guide-sync-reviewer` 는 코드가 바뀔 때 가이드를 함께 고치게 하는 코드 → 가이드 한 방향 검사다. 이 규약은 그 반대 방향이다.
 
@@ -45,6 +45,7 @@ etag: "sha256-2731ccd235cb5e8bd519c9e3d881e9be9c8ab35cb8842516db27eddb1c39bdd2"
 6. `<ImplAnchor>` 는 사용자 화면에 렌더하지 않는다. 빌드 가드만 읽는다.
 7. 개념 설명 절(워크플로우 디자인, 데이터 모델 설명, 표현식 의미 설명 등)은 앵커 대상이 아니다. 이 영역의 낡음은 코드 리뷰와 사람 검수에 맡긴다.
 8. 트리거 가이드의 provider 별 절에 앵커가 의무인지는 정의가 갈린다. [미결 사항](#미결-사항) 참조.
+9. 가이드가 에러 코드 · 환경 변수 같은 식별자, 백엔드 메시지, 에러 코드표를 옮겨 적으면 [가이드 → 코드 대조 가드](#가이드--코드-대조-가드) 가 코드와 맞는지 확인한다. 이 확인에는 앵커가 필요 없다.
 
 ## `<ImplAnchor>` 컴포넌트
 
@@ -79,9 +80,11 @@ etag: "sha256-2731ccd235cb5e8bd519c9e3d881e9be9c8ab35cb8842516db27eddb1c39bdd2"
 
 일반 사용자 화면에는 **렌더하지 않는다**. 구현(`impl-anchor.tsx`)은 `return null` 이라 DOM 출력 자체가 없다. 가이드 본문의 가독성을 지키려는 것이다. 빌드 가드만 이 컴포넌트를 쓴다. dev mode(`?dev=1`)에서 앵커를 보이는 기능은 이 규약 범위 밖의 후속 개선으로 남겨 두었다.
 
-## 빌드 가드 (3건)
+## 빌드 가드
 
-모두 `codebase/frontend/src/lib/docs/__tests__/` 에 있다.
+모두 `codebase/frontend/src/lib/docs/__tests__/` 에 있고 방향은 가이드 → 코드다. `<ImplAnchor>` 가드와 가이드 → 코드 대조 가드 두 묶음이다.
+
+### `<ImplAnchor>` 가드
 
 | 가드 | 검증 |
 | --- | --- |
@@ -89,7 +92,17 @@ etag: "sha256-2731ccd235cb5e8bd519c9e3d881e9be9c8ab35cb8842516db27eddb1c39bdd2"
 | `integrations-coverage.test.ts` | `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절 안에 `<ImplAnchor kind="ui-entry">` 가 1개 이상 있어야 한다. GUI 흐름 절은 `findGuiFlowSections()` 가 두 신호 중 하나로 가린다. (1) h2·h3 제목 텍스트에 단어 `GUI` 가 있다 (2) 절 본문에 `GUI` 를 포함한 굵은 글씨(`**…GUI…**` / `__…GUI…__`)가 있다 |
 | `triggers-coverage.test.ts` | `02-nodes/triggers.mdx`(와 `.en.mdx`)에 **같은 `findGuiFlowSections()`** 를 적용한다. provider 이름으로 절을 찾지 않는다. provider 별 절이라도 위 GUI 신호가 없으면 검사 대상이 아니다 |
 
-현재 구현에는 같은 방향(가이드 → 코드)의 가드가 두 개 더 있다. 가이드가 이름 붙인 에러 코드·환경변수의 실재를 보는 `guide-identifier-existence.test.ts` 와, 모델 설정 가이드의 연결 테스트 실패 문장표가 백엔드 반환 문장과 양방향으로 맞는지 보는 `guide-sanitized-message-parity.test.ts` 다. 두 가드는 이 규약의 가드 표에 없다. [미결 사항](#미결-사항) 참조.
+### 가이드 → 코드 대조 가드
+
+`<ImplAnchor>` 를 읽지 않고 가이드 본문이 적은 식별자·문장·코드표를 코드나 스펙 미러와 대조한다. 이 묶음을 이 규약에 두는 이유는 [R-6](#r-6-가이드--코드-대조-가드도-이-규약이-소유한다) 에 있다.
+
+| 가드 | 검증 | 읽는 스펙 미러 절 |
+| --- | --- | --- |
+| `guide-identifier-existence.test.ts` | 가이드가 이름 붙인 UPPER_SNAKE 식별자(에러 코드·환경 변수)가 백엔드·패키지 소스나 env 선언처(`.env.example`·compose)에 있다. 축은 `<FieldTable>` 의 `name`·`code:` 값·백틱 전수 셋이다. 소스에 메시지 접두로만 나오는 인용은 에러 코드 카탈로그에 있거나 `GUIDE_NON_EMITTED_VOCABULARY` 에 사유와 함께 있어야 한다(발행 축). 스캐너는 `guide-identifier-scan.ts` | [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `## 6. 카탈로그` 와 하위 문서의 `## 6.N` 절(탈출구로만 읽는다) |
+| `guide-sanitized-message-parity.test.ts` | 모델 설정 가이드(`models{,.en}.mdx`)의 연결 테스트 실패 문장표가 `sanitize-error.util.ts` 의 반환 문장과 양방향으로 글자까지 같다 | 없음 |
+| `guide-error-code-parity.test.ts` | 실행 결과 가이드(`run-results{,.en}.mdx`)의 「노드 종류 \| 코드」 표가 카탈로그 노드 종류별 코드와 양방향으로 맞는다. 통합 가이드가 옮긴 `MAKESHOP_UNRESOLVED_PATH_PARAM` 메시지가 `makeshop.handler.ts` 템플릿과 같다 | [에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md) 의 `## 6.6 ` 절 |
+
+가드는 셋째 칸의 절을 제목 글자로 찾는다(`CATALOG_SECTION_HEADING`·`CATALOG_SECTION`). 제목이 없으면 가드가 멈춘다. 그래서 그 절 제목을 바꾸는 초안은 가드 상수를 함께 고치는 구현 PR 을 낸다.
 
 ### 다른 가드와의 관계
 
@@ -168,7 +181,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 이 규약은 다음 경로로 지켜진다. 스펙 쪽 근거는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 의 `spec-impl-locations` 가 따로 지킨다.
 
-1. **빌드 가드 3건**: CI 에서 막는다(구현됨).
+1. **[빌드 가드](#빌드-가드)**(`<ImplAnchor>` 가드, 가이드 → 코드 대조 가드): CI 에서 막는다(구현됨).
 2. **`user-guide-writer` 서브에이전트의 자가 검증 체크리스트**: GUI 흐름 절을 쓸 때 `<ImplAnchor>` 를 함께 두는 의무가 저장소 `.claude/agents/user-guide-writer.md` 의 작성 지침과 완료 체크리스트에 있다(구현됨).
 3. **저장소 `PROJECT.md` 의 "유저 가이드 파일 컨벤션 SoT 인덱스"**: 이 규약을 올려 두었다(결정 E-5, 구현됨).
 
@@ -177,14 +190,14 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 의 가이드 작성 원칙(Principle 7)은 "페이지 낡음은 자동으로 검출할 수 없다" 고 적는다. 가이드 본문이 코드 변경을 따라가지 못한 상태를 말한다. 이 규약이 그 일부를 채운다.
 
 - **GUI 흐름 절** 안의 약속은 이 가드가 잡는다. 앵커가 코드에 없으면 빌드를 막는다.
-- **개념 설명 절**은 여전히 자동으로 검출할 수 없다. Principle 7 이 덮지 못하는 영역으로 남는다.
+- 가이드가 옮겨 적은 **에러 코드 · 환경 변수 식별자, 백엔드 메시지, 에러 코드표**는 절 종류와 상관없이 [가이드 → 코드 대조 가드](#가이드--코드-대조-가드) 가 잡는다.
+- 그 밖의 **개념 설명 절** 서술은 여전히 자동으로 검출할 수 없다. Principle 7 이 덮지 못하는 영역으로 남는다.
 
 이 부분 커버 범위는 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 에도 반영돼 있다.
 
 ## 미결 사항
 
-- **트리거 가이드의 provider 별 절에 앵커가 의무인가**: 가드 쪽(`triggers-coverage.test.ts`, 이 문서의 [빌드 가드](#빌드-가드-3건) 표)은 GUI 신호가 있는 절만 검사하고 provider 이름으로 절을 찾지 않는다. 이 규약의 [트리거 가이드 예시](#트리거-가이드-02-nodestriggersmdx)는 GUI 신호가 없는 `### Telegram` 절에 앵커를 달면서 provider 별 절도 통합 가이드와 "동일" 하다고 적는다. 저장소 `PROJECT.md` 의 가드 설명은 "`02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무" 라고 적는다. 현재 구현은 가드 쪽과 같다. 지금 `triggers.mdx`·`triggers.en.mdx` 에는 `GUI` 신호가 하나도 없어 `triggers-coverage` 가 검사하는 절이 없다(테스트는 "no GUI section — skip" 으로 통과한다). 가이드에는 `## Chat Channel 연결` 절과 Slack·Discord 설정 절에 앵커가 있고 `### Telegram 설정 방법` 절에는 없다. provider 별 절 전부를 의무로 하려면 가드를 넓히는 결정이 필요하다. 결정 필요.
-- **가이드 → 코드 가드 두 개의 등재 위치**: `guide-identifier-existence.test.ts`(가이드가 이름 붙인 에러 코드·환경변수의 실재)와 `guide-sanitized-message-parity.test.ts`(모델 설정 가이드의 실패 문장표와 백엔드 반환 문장의 양방향 일치)는 가이드 → 코드 방향이라 이 규약과 같은 가족이다. 이 규약의 가드 표에는 3건만 있다. 저장소 `PROJECT.md` 는 앞의 가드의 기준 문서를 에러 코드 규약과 에러 처리 문서 §1 로 적고 "`user-guide-evidence.md §2` 표에는 아직 없다" 며 기획자 트래커 대기 중이라고 적는다. 옮기기 전 에러 코드 규약 문서에는 가이드 인용 규칙도 이 가드도 없다(관련: [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md)). 두 가드를 이 규약에 올릴지, 다른 문서가 소유할지 결정 필요.
+- **트리거 가이드의 provider 별 절에 앵커가 의무인가**: 가드 쪽(`triggers-coverage.test.ts`, 이 문서의 [`<ImplAnchor>` 가드](#implanchor-가드) 표)은 GUI 신호가 있는 절만 검사하고 provider 이름으로 절을 찾지 않는다. 이 규약의 [트리거 가이드 예시](#트리거-가이드-02-nodestriggersmdx)는 GUI 신호가 없는 `### Telegram` 절에 앵커를 달면서 provider 별 절도 통합 가이드와 "동일" 하다고 적는다. 저장소 `PROJECT.md` 의 가드 설명은 "`02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무" 라고 적는다. 현재 구현은 가드 쪽과 같다. 지금 `triggers.mdx`·`triggers.en.mdx` 에는 `GUI` 신호가 하나도 없어 `triggers-coverage` 가 검사하는 절이 없다(테스트는 "no GUI section — skip" 으로 통과한다). 가이드에는 `## Chat Channel 연결` 절과 Slack·Discord 설정 절에 앵커가 있고 `### Telegram 설정 방법` 절에는 없다. provider 별 절 전부를 의무로 하려면 가드를 넓히는 결정이 필요하다. 결정 필요.
 
 ## 구현 위치
 
@@ -192,6 +205,9 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 - `codebase/frontend/src/lib/docs/__tests__/impl-anchor-existence.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts`
+- `codebase/frontend/src/lib/docs/__tests__/guide-identifier-existence.test.ts`, `guide-identifier-scan.ts` (스캐너와 허용목록 `GUIDE_EXTERNAL_VOCABULARY`·`GUIDE_NON_EMITTED_VOCABULARY`)
+- `codebase/frontend/src/lib/docs/__tests__/guide-sanitized-message-parity.test.ts`
+- `codebase/frontend/src/lib/docs/__tests__/guide-error-code-parity.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/impl-anchor-parse.ts` (`findGuiFlowSections`·`parseImplAnchors`·`collectMdxFiles`)
 - `codebase/frontend/src/lib/docs/__tests__/tree-walk.ts`, `tree-walk.test.ts` (공유 인프라. 2026-08-11 부터 `impl-anchor-parse.ts` 의 `collectMdxFiles` 가 `walkTree` 를 쓴다. [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 과 같은 헬퍼를 공유해 양쪽에 적는다. 한쪽만 보고 이 파일을 고칠 때의 영향을 놓치지 않으려는 것이다)
 
@@ -227,3 +243,20 @@ frontmatter `anchors:` 배열로 두지 않고 본문 안 컴포넌트로 뒀다
 - 앵커는 가이드 문맥(어느 절의 어느 단락 옆)에 붙어야 뜻이 있다. frontmatter 에 두면 문맥을 잃는다.
 - 본문 안 컴포넌트로 두면 작성자가 앵커를 쓸 자리(해당 GUI 흐름 절 바로 앞이나 뒤)를 자연스럽게 안다.
 - 나중에 dev mode 로 보이게 할 때 본문 흐름 안에서 보여 줄 수 있다.
+
+### R-6. 가이드 → 코드 대조 가드도 이 규약이 소유한다
+
+결정일: 2026-11-20
+
+`guide-identifier-existence`·`guide-sanitized-message-parity`·`guide-error-code-parity` 는 `<ImplAnchor>` 를 읽지 않는다. 그래도 이 규약의 가드 표에 올린다. 방향이 가이드 → 코드로 같고, 하는 일이 R-2 의 식별자 단위 진실성을 앵커 없는 표면(본문 식별자·옮겨 적은 문장·코드표)으로 넓힌 것이기 때문이다.
+
+- R-4 의 예외가 아니다. R-4 는 「GUI 흐름 절에 앵커가 있어야 한다」 는 coverage 가드의 범위를 통합·트리거로 한정했다. 대조 가드는 가이드가 이미 적은 것을 코드와 맞출 뿐 앵커를 요구하지 않아서 그 한정과 부딪히지 않는다.
+- 소유를 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 로 두지 않았다. 그 문서는 범위를 코드 명명·이름 바꾸기 안정성·은퇴로 한정한다. 가드가 카탈로그를 읽는 것은 탈출구로 쓰는 것이라 소유와 별개다. 그 문서에는 절 제목 의존만 적는다.
+- 대조 가드만 새 규약으로 떼는 안도 기각했다. 두 묶음이 같은 폴더에 있고 공용 도우미(`impl-anchor-parse.ts`, `guide-identifier-existence` 는 `tree-walk.ts` 도)를 함께 쓴다. 나누면 한쪽 규약만 보고 공용 파일을 고치는 일이 생긴다(구현 위치의 `tree-walk.ts` 설명과 같은 이유).
+
+`guide-identifier-existence` 의 허용목록은 축 둘 구조다.
+
+- 존재 축 `GUIDE_EXTERNAL_VOCABULARY`: 기준집합(소스·env 선언처)에 **없는** 외부 시스템 어휘를 받는다. 항목마다 외부 시스템 이름을 적어야 하고, 상한이 있으며, 가이드가 여전히 인용해야 하고, 기준집합에 없어야 한다.
+- 발행 축 `GUIDE_NON_EMITTED_VOCABULARY`: 기준집합에 **있지만** 메시지 접두로만 나오고 카탈로그에도 없는 인용을 받는다. 항목마다 접두를 붙이는 자리(`파일.ts#심볼`)와 사유를 적는다. 카탈로그는 요구 조건이 아니라 탈출구다. 요구 조건으로 쓰면 카탈로그에 아직 없는 통합 코드에 거짓 실패가 난다.
+
+두 목록은 제약이 반대라 합치지 않는다. 합치면 예외 하나가 두 축의 결함을 함께 덮는다. 허용목록 원칙은 두 번 바뀌었다. 처음 가드(에러 코드 전용, `#1330`)는 허용목록을 두지 않는 것을 원칙으로 세웠다. 백틱 전수 축을 들이면서 문맥을 좁히지 않으려고 존재 축 목록을 두었다. 2026-09-13 발행 축을 더하면서 제약이 반대인 둘째 목록을 두었다. 이 경위를 한 항목으로 묶으면 두 목록을 같은 성격으로 읽게 되어 축 둘로 적는다.

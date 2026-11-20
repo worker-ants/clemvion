@@ -2,19 +2,19 @@
 id: "CLE-WF-EDITOR-NODE"
 title: "워크플로우 에디터 — 노드 시각 표현"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-EDITOR"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-EDITOR"]
 area: "CLE-WF"
-content_hash: "7cd74ec6a64fb3999d219a5199cec3f03ace2a2e4cf0e8210d958931ffdd53cb"
+content_hash: "8d81373d58838dc32ba357615d01befa8985b16fd61819b4fb6ffc6c836acb7a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-T87TKE"
 source_paths: []
-mirror_sha256: "2d51c1006da2b72c52886b0cf4f6dc9d627f810f5c0c06f072af8937a532a195"
-etag: "sha256-0feeb7c49d037f4dd08bc3c3579664a5b1bc05332390053707c38762b532d4d4"
+mirror_sha256: "3c16a0ff178357cc3d2f7e6f8c2e9a280b88be78ad7cb46f137491915fb2bc98"
+etag: "sha256-1d6ec31a99cf2cf619d8fc23a3894d7aa0ec639c7af9df88480b232bb738b6fd"
 ---
 ## 개요
 
@@ -96,7 +96,7 @@ etag: "sha256-0feeb7c49d037f4dd08bc3c3579664a5b1bc05332390053707c38762b532d4d4"
 | blocking 우선 | 미설정 경고(`blocking`)가 함께 있으면 미설정 경고 아이콘만 보이고 advisory 아이콘은 숨긴다. |
 | 줌 | 줌 50% 미만이면 설정 요약처럼 두 아이콘 모두 숨긴다. |
 
-툴팁에 나오는 노드별 누락 메시지는 각 노드 스키마의 노드 경고 규칙(`warningRules`)이 정한다. 이 문서는 노드별 문구 표를 따로 두지 않는다. 문구의 영문 원문은 각 노드 문서가 인용한다. 대개 그 문서의 "에러 코드" 절에 있다(예: [Table 노드 §에러 코드](../CLE-NODE-PRES/CLE-NODE-TABLE.md#에러-코드) 의 `warningRules.table:no-columns`). 노드 사이 관계를 보는 그래프 경고 규칙의 배지(심각도 `error` 는 빨강이고 저장 버튼을 막는다, `warning` 은 노랑)는 [그래프 경고 규칙](CLE-WF-WARN.md) 이 정한다. advisory 표시를 이렇게 정한 근거는 [Merge 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md#first-와-append-를-지금-의미로-정하고-advisory-경고로-알린다-2026-11-12) 의 「캔버스 표시」 문단에 있다.
+툴팁에 나오는 노드별 누락 메시지는 각 노드 스키마의 노드 경고 규칙(`warningRules`)이 정한다. 이 문서는 노드별 문구 표를 따로 두지 않는다. 문구의 영문 원문은 각 노드 문서가 인용한다. 대개 그 문서의 "에러 코드" 절에 있다(예: [Table 노드 §에러 코드](../CLE-NODE-PRES/CLE-NODE-TABLE.md#에러-코드) 의 `warningRules.table:no-columns`). 노드 사이 관계를 보는 그래프 경고 규칙의 배지(심각도 `error` 는 빨강이고 저장 버튼을 막는다, `warning` 은 노랑)는 [그래프 경고 규칙](CLE-WF-WARN.md) 이 정한다. advisory 표시를 이렇게 정한 근거는 [Merge 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-MERGE.md#first-와-append-를-지금-의미로-정하고-advisory-경고로-알린다) 의 「캔버스 표시」 문단에 있다.
 
 ### 삭제 버튼
 

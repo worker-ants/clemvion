@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-ENTITY"
 title: "통합 데이터와 흐름 — 엔티티와 인덱스"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "991184cf2cc97c83f7357aabf7edb36e3c8d9052fba65990cf641d15232b2cd9"
+content_hash: "1181934c0173897ee09203be5308b270486a7a70fba3e2fb3936840fd5ce4d02"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-M6W7RE"
 source_paths: []
-mirror_sha256: "ac674a03c58be92a8e9c2ac49c377a978dc05f69eb64b00e8ae5e7bfb29d96f2"
-etag: "sha256-f6df02f470a28ea8ecd195cacb11603168597209153d7ab765607e7364d16a28"
+mirror_sha256: "ce8ad445a6d34e1cef7947904ad8326a33fdcafbd96e2128c8c76a37394261cd"
+etag: "sha256-824090a26b533c63d9455d86e1e86e2f65164fb5287730822be3f57d4d980930"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -92,7 +92,7 @@ etag: "sha256-f6df02f470a28ea8ecd195cacb11603168597209153d7ab765607e7364d16a28"
 | send-email ([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md)) | NULL | `SEND` | SMTP host 또는 NULL |
 | mcp (외부 MCP 서버, [MCP 클라이언트](CLE-INT-MCP.md)) | NULL | NULL | NULL. 도구 호출을 기록하지만 `api` 를 넘기지 않는다 |
 
-적용 범위는 세 경로다. 앞의 두 경로가 `api` 를 넘긴다.
+적용 범위는 세 경로다. 앞의 두 경로가 `api` 를 넘긴다. 세 경로 모두 dry-run 재실행의 모의 출력 · 모의 응답은 기록하지 않는다([재실행 — dry-run 「부수효과 판정」](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
 
 1. 노드 핸들러 경로: cafe24·makeshop·http-request·database-query·send-email 노드는 `IntegrationHandlerBase.logUsage` 에 `api` 인자를 넘기고, 베이스 클래스가 `IntegrationsService.logUsage` 로 전달한다.
 2. 내부 MCP 브리지 경로: AI 에이전트 노드에 붙은 통합을 MCP 도구로 노출하는 도구 프로바이더(`Cafe24McpToolProvider`, `MakeshopMcpToolProvider`)는 노드 베이스 클래스를 거치지 않고 `IntegrationsService.logUsage` 를 직접 부른다. 도구 프로바이더는 도구 목록을 만들 때 얻은 통합을 들고 있다가 도구를 실행할 때 그 통합을 넘긴다. 이 경로도 노드 핸들러와 같은 카탈로그 키 형식으로 `api.label` 을 채운다. 이때 `node_execution_id` 는 호출 시점의 AI 에이전트 노드 실행이다. 메타 도구 호출은 기록하지 않는다.

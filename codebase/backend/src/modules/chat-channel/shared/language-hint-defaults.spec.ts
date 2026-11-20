@@ -13,6 +13,10 @@ import {
   COMMAND_RECEIVED_DEFAULTS,
   resolveNoActiveExecutionMessage,
   NO_ACTIVE_EXECUTION_DEFAULTS,
+  resolveExecutionStartedMessage,
+  EXECUTION_STARTED_DEFAULTS,
+  resolveExecutionRestartedMessage,
+  EXECUTION_RESTARTED_DEFAULTS,
   makeLocaleResolver,
   pickLocaleDefault,
   GROUP_CHAT_REFUSAL_DEFAULT,
@@ -376,5 +380,67 @@ describe('resolveNoActiveExecutionMessage (진행 중인 실행이 없을 때 /c
     expect(
       resolveNoActiveExecutionMessage({ noActiveExecution: '' }, 'en'),
     ).toBe(NO_ACTIVE_EXECUTION_DEFAULTS.en);
+  });
+});
+
+// 근거: NERV 질문 `01a1f7b4-2468-7172-8504-4918e82d8396`(2026-11-20) — `/start` 로 새 실행을 시작하면 시작 안내
+// `executionStarted`, 활성 실행을 취소하고 다시 시작하면 새 키 `executionRestarted` 를 보낸다. NERV Task `CLE-T-0400J6`.
+describe('resolveExecutionStartedMessage (/start 시작 안내)', () => {
+  it('기본 문구는 KO 합쇼체 · EN 이다', () => {
+    expect(resolveExecutionStartedMessage(undefined, 'ko')).toBe(
+      '워크플로우를 시작합니다.',
+    );
+    expect(resolveExecutionStartedMessage(undefined, 'en')).toBe(
+      'Started the workflow.',
+    );
+  });
+  it('locale 이 없으면 ko 문구다', () => {
+    expect(resolveExecutionStartedMessage(undefined, undefined)).toBe(
+      EXECUTION_STARTED_DEFAULTS.ko,
+    );
+  });
+  it('languageHints.executionStarted 가 있으면 그 문구다', () => {
+    expect(
+      resolveExecutionStartedMessage({ executionStarted: '시작!' }, 'en'),
+    ).toBe('시작!');
+  });
+  it('빈 문자열 override 는 무시한다', () => {
+    expect(resolveExecutionStartedMessage({ executionStarted: '' }, 'en')).toBe(
+      EXECUTION_STARTED_DEFAULTS.en,
+    );
+  });
+});
+
+describe('resolveExecutionRestartedMessage (/start 재시작 안내)', () => {
+  it('기본 문구는 KO 합쇼체 · EN 이다', () => {
+    expect(resolveExecutionRestartedMessage(undefined, 'ko')).toBe(
+      '기존 대화를 종료하고 새로 시작합니다.',
+    );
+    expect(resolveExecutionRestartedMessage(undefined, 'en')).toBe(
+      'Ended the previous conversation and started a new one.',
+    );
+  });
+  it('locale 이 없으면 ko 문구다', () => {
+    expect(resolveExecutionRestartedMessage(undefined, undefined)).toBe(
+      EXECUTION_RESTARTED_DEFAULTS.ko,
+    );
+  });
+  it('languageHints.executionRestarted 가 있으면 그 문구다', () => {
+    expect(
+      resolveExecutionRestartedMessage(
+        { executionRestarted: '다시 시작!', executionStarted: '시작!' },
+        'en',
+      ),
+    ).toBe('다시 시작!');
+  });
+  it('executionStarted 덮어쓰기는 재시작 안내에 쓰지 않는다', () => {
+    expect(
+      resolveExecutionRestartedMessage({ executionStarted: '시작!' }, 'ko'),
+    ).toBe(EXECUTION_RESTARTED_DEFAULTS.ko);
+  });
+  it('빈 문자열 override 는 무시한다', () => {
+    expect(
+      resolveExecutionRestartedMessage({ executionRestarted: '' }, 'en'),
+    ).toBe(EXECUTION_RESTARTED_DEFAULTS.en);
   });
 });

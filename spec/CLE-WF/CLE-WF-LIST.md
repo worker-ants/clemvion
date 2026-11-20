@@ -2,19 +2,19 @@
 id: "CLE-WF-LIST"
 title: "워크플로우 목록과 폴더"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-WFLIST-001", "REQ-WFLIST-002", "REQ-WFLIST-003", "REQ-WFLIST-004", "REQ-WFLIST-005", "REQ-WFLIST-006", "REQ-WFLIST-007", "REQ-WFLIST-008", "REQ-WFLIST-009", "REQ-WFLIST-010", "REQ-WFLIST-011", "REQ-WFLIST-012", "REQ-WFLIST-013", "REQ-WFLIST-014", "REQ-WFLIST-015", "REQ-WFLIST-016", "REQ-WFLIST-017", "REQ-WFLIST-018", "REQ-WFLIST-019", "REQ-WFLIST-020", "REQ-WFLIST-021", "REQ-WFLIST-022", "REQ-WFLIST-023", "REQ-WFLIST-024", "REQ-WFLIST-025", "REQ-WFLIST-026", "REQ-WFLIST-027", "REQ-WFLIST-028", "REQ-WFLIST-029", "REQ-WFLIST-030", "REQ-WFLIST-031", "REQ-WFLIST-032", "REQ-WFLIST-033", "REQ-WFLIST-034", "REQ-WFLIST-035", "REQ-WFLIST-036", "REQ-WFLIST-037", "REQ-WFLIST-038", "REQ-WFLIST-039", "REQ-WFLIST-040", "REQ-WFLIST-041", "REQ-WFLIST-042", "REQ-WFLIST-043", "REQ-WFLIST-044", "REQ-WFLIST-045", "REQ-WFLIST-046", "REQ-WFLIST-047", "REQ-WFLIST-048", "REQ-WFLIST-049", "REQ-WFLIST-050", "REQ-WFLIST-051", "REQ-WFLIST-052", "REQ-WFLIST-053", "REQ-WFLIST-054", "REQ-WFLIST-055", "REQ-WFLIST-056"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "3989a71f9b056de2daa29a10f4561de62ccfc069fc4db9ee524073b3f2311a8e"
+content_hash: "5d3fc745b959278030ab93b249c6b43598c38e6987afe341faa246ff5caaaad5"
 read_as: "approved_fallback"
-task: "CLE-T-9YZ9BN"
+task: "CLE-T-TNZ3J9"
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/2-navigation/_product-overview.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "507b1f1e1a18d18ffa8951748201bd0e4aa972dd4908806d86b63a08297164a4"
-etag: "sha256-c21464336ee6b3bc99e82c4a489942298aa9eadf875ca91a63499a096f8183b7"
+mirror_sha256: "41d0f80214b8b112bc9110939c11695d7e64347d5178d254731d784b315662b6"
+etag: "sha256-f61414cc51dc90f2e2cf003d106f3665d87194a3d5452261cec02a899aa09bf2"
 ---
 > 구현 상태: 부분 구현 (마켓플레이스 템플릿 추천, 폴더 관리 화면, 파일 형식 버전, 목록 표의 마지막 실행 시각 · 생성일 열은 미구현) · 원문: `spec/2-navigation/1-workflow-list.md`, `spec/2-navigation/_product-overview.md` (§3.1), `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-05·06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -79,7 +79,7 @@ etag: "sha256-c21464336ee6b3bc99e82c4a489942298aa9eadf875ca91a63499a096f8183b7"
 - REQ-WFLIST-043 IF 가져온 노드 설정이 노드 스키마 검사에 실패하면 THE SYSTEM SHALL 가져오기를 거부하지 않고 원래 설정을 그대로 보존한다. 단 통합 참조는 REQ-WFLIST-054 에 따라 비운다.
 - REQ-WFLIST-044 IF 가져온 AI 노드에 `llmConfigId` 가 없으면 THE SYSTEM SHALL 워크스페이스 기본 모델 설정을 채운다.
 - REQ-WFLIST-045 WHEN 가져오기가 끝나면 THE SYSTEM SHALL 배열 인덱스로 된 노드 참조를 새로 발급한 UUID 로 바꿔 저장한다.
-- REQ-WFLIST-046 IF 가져온 `settings` 에 모르는 키나 양의 정수가 아닌 값이 있으면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부한다.
+- REQ-WFLIST-046 IF 가져온 `settings` 에 모르는 키나 양의 정수가 아닌 값이 있으면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부한다. 단 `maxConcurrentExecutions: null` 은 거부하지 않고 상한 해제로 받아 키를 지운다([가져오기](CLE-WF-LIST-IMPORT.md) 7단계).
 - REQ-WFLIST-047 WHEN 워크플로우를 내보내면 THE SYSTEM SHALL 노드 사이 참조를 UUID 대신 `nodes[]` 배열 인덱스로 적는다.
 - REQ-WFLIST-048 WHEN 내보내기·가져오기를 하면 THE SYSTEM SHALL 파일 형식 버전(`formatVersion`)을 주고받는다. (미구현)
 - REQ-WFLIST-049 IF 워크플로우 생성·수정 요청의 `folderId` 가 같은 워크스페이스의 폴더가 아니면 THE SYSTEM SHALL 저장하지 않고 400 `VALIDATION_ERROR`(`details[].field='folderId'`, `code='INVALID_FIELD'`)로 거부한다.

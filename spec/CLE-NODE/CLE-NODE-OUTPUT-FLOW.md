@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT-FLOW"
 title: "노드 출력 규약 — 포트 · 흐름 상태 · 에러"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-OUTPUT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-OUTPUT"]
 area: "CLE-NODE"
-content_hash: "e796e334fef7e3d89ef849767270b1257f3362568d5f6017e4847b6722f51cee"
+content_hash: "7861a32e2a8ed8f76b4cd139b0b52eed9fdbc7ec7ee1593e3816c47f3bf9a1fa"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-0ZHAC4"
 source_paths: []
-mirror_sha256: "6b356dafb2ea7d139ef3ccc4425280ad91e994b60de23433ae8688da891733c8"
-etag: "sha256-37b85b5232083ffbe587c024f5a63854d57c846158d664f40b8c320020979f12"
+mirror_sha256: "4901f9db70b030da9c4988ca6aef4df2c3e6e40f11e4b6dc1fc91e74faeeb957"
+etag: "sha256-953d3f75a591cfd9322a37b911bc056693c51147cdddd27fe77e1fc47c82950b"
 ---
 ## 개요
 
@@ -112,7 +112,7 @@ stateDiagram-v2
 
 ### 4.2.1 보존 예외 — `_resumeCheckpoint` / `_retryState`
 
-`_resumeState` 전체는 DB 에 저장할 때 `stripControlFields()` 가 반드시 지운다. 그 자격 증명 제외 부분집합인 `_resumeCheckpoint` 와 `_retryState` 는 지우지 않고 `NodeExecution.outputData` 안에 남긴다.
+`_resumeState` 전체는 DB 에 저장할 때 AI 턴 처리(`AiTurnOrchestratorService`)가 반드시 지운다. 그 자격 증명 제외 부분집합인 `_resumeCheckpoint` 와 `_retryState` 는 지우지 않고 `NodeExecution.outputData` 안에 남긴다. 다음 노드에는 구조화 출력의 `output` 만 넘어가므로 세 필드 모두 다음 노드 입력에 들어가지 않는다.
 
 | 필드 | 제거 정책 | 저장 위치 |
 | --- | --- | --- |

@@ -132,8 +132,9 @@ export class AiTurnOrchestrator {
       );
     }
     // 재구성한 `_resumeState` 를 nodeOutputCache 에 주입 (handleAiMessageTurn /
-    // emitAiWaitingForInput 양쪽이 올바른 shape 을 보도록).
-    this.contextService.setNodeOutput(
+    // emitAiWaitingForInput 양쪽이 올바른 shape 을 보도록). 재개 턴이 끝나면
+    // finalize 가 두 캐시를 다시 쓰므로 여기서는 시드만 한다.
+    this.contextService.seedNodeOutput(
       this.driver.contextKeyOf(ctx.context),
       ctx.node.id,
       {
@@ -367,7 +368,7 @@ export class AiTurnOrchestrator {
    * (a) `conversation_thread`/`user_variables` durable 스냅샷 스테이징과
    * (b) RUNNING→WAITING_FOR_INPUT 전이(NodeExecution 동반 save)만 수행한다.
    * `emitAiWaitingForInput` 를 재호출하지 않는 이유: 그 persist 는 top-level-only
-   * `_resumeState` strip 이라 `handleAiMessageTurn` 의 `setNodeOutput` 가 만든 nested
+   * `_resumeState` strip 이라 `handleAiMessageTurn` 의 `setNodeOutputs` 가 만든 nested
    * `output._resumeState`(systemPrompt/llmConfigId 포함)를 재영속 시 누락(credential
    * 유출)시킨다 — 재영속 자체를 제거해 회피한다. button_click/unknown(상태 미변경)
    * re-park 도 동일 경로(기존 checkpoint 보존 + WAITING 복귀).
@@ -630,7 +631,7 @@ export class AiTurnOrchestrator {
    * park 가 턴마다 컨텍스트를 풀기 때문에 재개 턴에서는 보통 구조화 캐시가 비어 있다.
    * LLM 응답이 오면 대기 · 종결 · 오류 출력이 캐시와 행을 다시 덮는다.
    *
-   * 컨텍스트가 없으면 아무것도 하지 않는다. `setNodeOutput` 이 그 경우 throw 하는데,
+   * 컨텍스트가 없으면 아무것도 하지 않는다. `setNodeOutputs` 가 그 경우 throw 하는데,
    * 컨텍스트 소실은 LLM 호출 뒤 가드가 graceful 로 처리하는 경로라 여기서 새 throw 를
    * 만들지 않는다.
    */
@@ -656,14 +657,13 @@ export class AiTurnOrchestrator {
       receivedAt,
       resumeState,
     });
-    // 평면 캐시를 먼저 쓴다. `setNodeOutput` 은 구조화 캐시를 평면 값에서 다시
-    // 만들어 덮으므로, 스냅샷 원형을 남기려면 구조화 캐시를 나중에 쓴다.
-    this.contextService.setNodeOutput(
+    // 구조화 캐시에는 스냅샷 원형을, 평면 캐시에는 라우팅용 평면 값을 함께 쓴다.
+    this.contextService.setNodeOutputs(
       contextKey,
       node.id,
+      snapshot,
       toEngineFlatShape(snapshot),
     );
-    this.contextService.setStructuredOutput(contextKey, node.id, snapshot);
     if (nodeExec) {
       await this.persistAiResumedSnapshot(
         node,
@@ -919,7 +919,7 @@ export class AiTurnOrchestrator {
       // 발생 시 throw 대신 graceful exit — 본 turn 처리는 의미 없음 (execution 이
       // 이미 cancelled/failed 됨). throw 하면 runExecution 의 catch 가 다시 FAILED
       // 마킹하면서 destructive 오류 로그가 production 에 쌓임.
-      // tracking 로그: ExecutionContextService.setNodeOutput 의 MISSING 분기가
+      // tracking 로그: ExecutionContextService.setNodeOutputs 의 MISSING 분기가
       // caller stack 을 출력 — `[ctx-trace]` prefix 로 grep.
       if (!this.contextService.getContext(contextKey)) {
         this.logger.warn(
@@ -938,8 +938,8 @@ export class AiTurnOrchestrator {
       const flatNext = this.driver.applyPortSelection(
         toEngineFlatShape(adaptedNext),
       );
-      // 두 캐시를 한 번에 쓴다. `setNodeOutput` 은 flat 값으로 구조화 출력을 다시 만들어
-      // `$input` 에 `_selectedPort` 가 섞인다(NERV Task CLE-T-ZJR3AF).
+      // 두 캐시를 한 번에 쓴다. 시드 전용 `seedNodeOutput` 은 flat 값으로 구조화 출력을
+      // 다시 만들어 핸들러 원형이 남지 않는다(NERV Task CLE-T-ZJR3AF · CLE-T-CE5YR3).
       this.contextService.setNodeOutputs(
         contextKey,
         node.id,

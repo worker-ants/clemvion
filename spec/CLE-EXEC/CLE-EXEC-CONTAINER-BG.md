@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTAINER-BG"
 title: "컨테이너 실행 — Background 본문"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CONTAINER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CONTAINER"]
 area: "CLE-EXEC"
-content_hash: "74b7877eacd437a945489e69a2edcf3aeef0bbf2f6137855feab411cc06c5b5b"
+content_hash: "41f341ff08168590a7e7fefe8ecdda4500003d2f1823a40c63f7f643602b16fc"
 read_as: "approved_fallback"
-task: "CLE-T-B7A8B2"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "8f56d28b7e07d0f5d7487762a5b61cae9c9c011cd2928c5fe1cc7ac72f7ef373"
-etag: "sha256-f39b001f22a5e7738cee15d482ff5bbc31c3d1b96ca9f551386b3237ae23e929"
+mirror_sha256: "449b6d7bdbf04107fe998851a4b0c1dad80124f54309b36ec8c2671c7df6b711"
+etag: "sha256-90380e63cd3dda9ed814a9f776d59bfc4faf13aaf537595a43099a2dd5c74133"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4 중 Background 본문) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -79,9 +79,11 @@ Loop · ForEach · Map 본문 안의 Background 도 메인 흐름의 Background 
 
 Background 본문은 메인 흐름과 따로 끝나며 결과가 메인으로 돌아오지 않는다. 반복하며 결과를 모으는 컨테이너 구조와 맞지 않아 `background` 포트 연결선으로 본문을 찾는 평면 구조를 택했다(PRD ND-BG-05). 본문이 부모와 같은 `executionId` 를 Map 키로 쓰던 때 먼저 끝난 부모가 본문 컨텍스트를 지우는 경쟁이 있었다. 그래서 메모리 Map 키만 따로 둔다. 결정 경위는 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) 에 있다.
 
-컨테이너 본문 안 Background 의 본문 노드가 받는 `containerId` 와 이 결정의 관계는 [본문 안 컨테이너와 Background 도 실행 경로로 넘긴다 (2026-11-12)](#본문-안-컨테이너와-background-도-실행-경로로-넘긴다-2026-11-12) 에 있다.
+컨테이너 본문 안 Background 의 본문 노드가 받는 `containerId` 와 이 결정의 관계는 [본문 안 컨테이너와 Background 도 실행 경로로 넘긴다](#본문-안-컨테이너와-background-도-실행-경로로-넘긴다) 에 있다.
 
-### 본문 안 컨테이너와 Background 도 실행 경로로 넘긴다 (2026-11-12)
+### 본문 안 컨테이너와 Background 도 실행 경로로 넘긴다
+
+결정일: 2026-11-12
 
 이 개정 전에는 본문 루프가 Parallel 만 실행 경로로 넘겼다. 본문 안 Loop · ForEach · Map 은 핸들러만 돌고 안쪽 본문은 실행되지 않았다. 본문 안 Background 는 `main` 으로 입력만 넘겨 본문이 큐에 들어가지 않았고, 워커도 맨 바깥 노드로만 그래프를 만들었다. 스펙은 중첩을 허용했지만 구현이 따라가지 않았다. 그래서 메인 루프와 병렬 분기 루프가 노드 종류에 따라 실행 경로를 고르는 규칙을 본문 루프에도 적용했다.
 
@@ -101,4 +103,4 @@ Background 본문은 여전히 `background` 포트 연결선으로 찾는다([Ba
 
 **호환**: `containerScopeId` 가 없는 작업은 맨 바깥 그래프로 실행하므로 필드를 넣기 전에 큐에 남은 작업도 그대로 돈다. 반복 변수가 없는 옛 작업은 본문에서 반복 변수가 비어 있다(개정 전과 같은 동작). 롤링 배포 중에 옛 워커는 반복 변수 필드를 무시한다.
 
-본문 진입 노드가 받는 입력을 어디서나 Background 노드가 받은 입력으로 맞춘 근거는 [Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문-진입-노드는-background-노드가-받은-입력을-받는다-2026-11-12) 에 있다.
+본문 진입 노드가 받는 입력을 어디서나 Background 노드가 받은 입력으로 맞춘 근거는 [Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문-진입-노드는-background-노드가-받은-입력을-받는다) 에 있다.

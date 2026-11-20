@@ -2,19 +2,19 @@
 id: "CLE-NODE-FOREACH"
 title: "ForEach 노드"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-FOREACH-001", "REQ-FOREACH-002", "REQ-FOREACH-003", "REQ-FOREACH-004", "REQ-FOREACH-005", "REQ-FOREACH-006", "REQ-FOREACH-007", "REQ-FOREACH-008", "REQ-FOREACH-009", "REQ-FOREACH-010", "REQ-FOREACH-011", "REQ-FOREACH-012", "REQ-FOREACH-013", "REQ-FOREACH-014", "REQ-FOREACH-015", "REQ-FOREACH-016", "REQ-FOREACH-017", "REQ-FOREACH-018", "REQ-FOREACH-019", "REQ-FOREACH-020", "REQ-FOREACH-021", "REQ-FOREACH-022"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "e2b4caa0a71fafc51b97b0b99492951b2ec139e2d57159cd95ffa0d70ff583af"
+content_hash: "be549ea35de8ecabd243261c810bc932d2d9a285bc2669b82b213760a13f49ae"
 read_as: "approved_fallback"
-task: "CLE-T-7AYYQC"
+task: "CLE-T-T87TKE"
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "3328ab54023d04ed463d69356a222094419da0986eb88dfaea271bf5d6b1afd7"
-etag: "sha256-54970ecf29d56a1bf2170dcb56c572bce9e54b6f2e587c1a19d50c66943baa45"
+mirror_sha256: "de66160a74e65f6d29cf79760d5dbe70b700bac6de29a38054433fc40f78af15"
+etag: "sha256-0c5739aff4aa302176f74778ced690633adb02ed77bd49c5dcef30303bd2c8ed"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -295,6 +295,6 @@ ForEach 는 `arrayField` 가 배열이 아니면 모두 `[]` 로 바꿔 왔다. 
 
 결정일: 2026-11-15
 
-2026-10-24 구현 확인 때 이 문서는 완료 출력이 park · 재구동 없이 이어진 실행에서만 보인다는 조건을 붙여 적었다. 노드 실행 기록 · completed 이벤트 · rehydration 에 시작 시점 배열이 남았기 때문이다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았다. 그래서 범위 단서와 `(부분 구현)` 표시를 걷고 원래 서술로 돌렸다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다-2026-11-15) 의 Rationale 에 있다.
+2026-10-24 구현 확인 때 이 문서는 완료 출력이 park · 재구동 없이 이어진 실행에서만 보인다는 조건을 붙여 적었다. 노드 실행 기록 · completed 이벤트 · rehydration 에 시작 시점 배열이 남았기 때문이다. NERV Task `CLE-T-JXD0W5` 가 노드 실행 행을 본문이 끝난 뒤 완료 출력으로 마감하게 고쳐 그 갭을 닫았다. 그래서 범위 단서와 `(부분 구현)` 표시를 걷고 원래 서술로 돌렸다. 결정과 기각한 대안은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#노드-실행-행은-본문이-끝난-뒤-한-번-마감한다) 의 Rationale 에 있다.
 
 기존 워크플로우 영향: 결과 값과 다음 노드 표현식은 바뀌지 않는다. 실행 내역 · 통계에 보이는 이 노드의 실행 시간은 노드 전체 기준으로 길어진다.

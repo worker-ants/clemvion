@@ -2,19 +2,19 @@
 id: "CLE-NODE-AI-COMMON-CONTEXT"
 title: "AI 노드 공통 — 대화 맥락 · 메모리 · 시스템 컨텍스트"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AI-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AI-COMMON"]
 area: "CLE-NODE-AI"
-content_hash: "6493ade7a2f66ead3e44eb90eefc00d3a124ac8319f5607fe39912112a890e79"
+content_hash: "66d261f9d41c9dc2a08c944dfc2e8739e041562abee2963eb2a34ab9a6a03d76"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-0ZHAC4"
 source_paths: []
-mirror_sha256: "3fab47ed570b310d6e2e87146112e71a983b8d80fad790aa8a3129199aaa2b62"
-etag: "sha256-602f1821301ec6f5dad489608b08603a9ae9d2c454dcc9999470edbbfef3f61e"
+mirror_sha256: "b2c917b6e20ffaa69d39196f366088663d21a3b4b87bb21cffef52952975f1f9"
+etag: "sha256-e8fae07b88b562a2fd2dfcf22c70b77c59f99987131cbe86ae6b8c74db81b5fd"
 ---
 ## 개요
 
@@ -188,7 +188,7 @@ UTC 워크스페이스의 접두 예시:
 **문제**: AI 에이전트는 두 가지 맥락 격리에 갇혀 있었다.
 
 1. Presentation 노드의 사용자 입력을 자동으로 알지 못했다. 사용자는 매번 `{{ $node["Form1"].output.interaction.data.email }}` 같은 식을 시스템 프롬프트에 직접 적어야 했다.
-2. AI 에이전트 뒤에 또 AI 에이전트가 있으면 두 번째 노드가 첫 번째 노드의 멀티턴 messages 를 보지 못했다. `stripControlFields()` 가 `_resumeState` 를 지워 최종 응답 텍스트만 넘어갔다.
+2. AI 에이전트 뒤에 또 AI 에이전트가 있으면 두 번째 노드가 첫 번째 노드의 멀티턴 messages 를 보지 못했다. 당시 엔진의 `stripControlFields()` 가 `_resumeState` 를 지워 최종 응답 텍스트만 넘어갔다. 지금은 다음 노드가 구조화 출력의 `output` 을 받고, 구조화 항목이 없을 때 쓰는 대체 경로 `toDownstreamValue` 가 같은 제어 필드를 뺀다.
 
 **결정**: 대화 스레드 모델을 1급 객체로 들인다. Presentation 입력과 AI 대화 턴을 한 스레드로 합치고, 노드 설정으로 자동 주입하며, messages·system_text 형식을 고르게 한다. 표현식 설탕(`$conversation`)이나 messages 노출 뒤 명시 주입하는 방식은 사용자가 매번 표현식으로 결합해야 하고, 텍스트로 요약하면 구조가 사라진다. 대화 스레드 모델은 실제 대화 흐름을 보존하고 자동으로 주입한다.
 

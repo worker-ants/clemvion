@@ -93,9 +93,12 @@ resolve_file=<nerv_review_handoff.py pending --out 이 쓴 파일>
 
    ```
    nerv_finding_resolve(finding_id, resolution, rationale,
-                        commit_sha=<있으면>, escalate_reason=<있으면>,
+                        commit_sha=<있으면>, spec_version_id=<있으면>,
+                        escalate_reason=<있으면>,
                         idempotency_key=처분.idempotency_key)
    ```
+
+   `spec_version_id` 는 `spec_change` 처분에만 있다. 스펙 초안 저장 응답의 전체 UUID 다.
 
    `severity` 는 보고용이다. NERV 에 넘기지 않는다.
 3. 끝나면 `nerv_finding_list(branch=<문서의 branch>, severity="critical,warning", status="open")` 로 이 브랜치에

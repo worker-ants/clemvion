@@ -79,6 +79,18 @@ const AI_NODE_TYPES_WITH_LLM_CONFIG = new Set<string>([
 /** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 const WORKFLOW_RESOURCE_TYPE = 'workflow';
 
+/**
+ * `Workflow.settings` 에서 값이 `null` 인 키를 뺀 사본. 설정 키의 `null` 은 「설정 해제(기본값 복귀)」라
+ * 저장하지 않고 키를 지운다(CLE-T-9Q304H). PATCH 병합과 가져오기가 같은 규칙을 쓴다.
+ */
+function dropNullSettingKeys(
+  settings: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(settings).filter(([, v]) => v !== null),
+  );
+}
+
 @Injectable()
 export class WorkflowsService {
   private readonly logger = new Logger(WorkflowsService.name);
@@ -272,11 +284,13 @@ export class WorkflowsService {
     // undefined 로 덮고, JSONB 직렬화가 그 키를 버려 **DB 에서 지워졌다**.
     // `null` 도 건너뛴다 — `@IsOptional()` 이 `settings: null` 을 통과시키는데 이 병합은 원래 그것을 no-op 으로
     // 다뤘다(`{ ...null }` 은 빈 객체). `!== undefined` 로 두면 `omitUndefined(null)` 이 던져 500 이 된다.
+    // 값이 `null` 인 키는 지운다 — `maxConcurrentExecutions: null` 은 「상한 해제」 계약이다(CLE-T-9Q304H,
+    // `WorkflowSettingsDto`). null 을 저장하지 않는다.
     if (settings != null) {
-      workflow.settings = {
+      workflow.settings = dropNullSettingKeys({
         ...(workflow.settings ?? {}),
         ...omitUndefined(settings),
-      };
+      });
     }
     const saved = await this.workflowRepository.save(workflow);
     await this.recordAudit({
@@ -584,8 +598,8 @@ export class WorkflowsService {
         name: dto.name,
         description: dto.description,
         tags: dto.tags ?? [],
-        // 검증된 WorkflowSettingsDto 인스턴스를 jsonb Record 로 평탄화(값은 동일).
-        settings: { ...dto.settings },
+        // 검증된 WorkflowSettingsDto 인스턴스를 jsonb Record 로 평탄화(값은 동일). null 키는 PATCH 와 같이 뺀다.
+        settings: dropNullSettingKeys({ ...dto.settings }),
         workspaceId,
         createdBy: userId,
       });
