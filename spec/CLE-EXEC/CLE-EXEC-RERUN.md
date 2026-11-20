@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN"
 title: "재실행"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-RERUN-001", "REQ-RERUN-002", "REQ-RERUN-003", "REQ-RERUN-004", "REQ-RERUN-005", "REQ-RERUN-006", "REQ-RERUN-007", "REQ-RERUN-008", "REQ-RERUN-009", "REQ-RERUN-010", "REQ-RERUN-011", "REQ-RERUN-012", "REQ-RERUN-013", "REQ-RERUN-014", "REQ-RERUN-015", "REQ-RERUN-016", "REQ-RERUN-017", "REQ-RERUN-018", "REQ-RERUN-019", "REQ-RERUN-020", "REQ-RERUN-021", "REQ-RERUN-022", "REQ-RERUN-023", "REQ-RERUN-024", "REQ-RERUN-025", "REQ-RERUN-026", "REQ-RERUN-027", "REQ-RERUN-028", "REQ-RERUN-029", "REQ-RERUN-030", "REQ-RERUN-031", "REQ-RERUN-032", "REQ-RERUN-033", "REQ-RERUN-034", "REQ-RERUN-035", "REQ-RERUN-036", "REQ-RERUN-037", "REQ-RERUN-038", "REQ-RERUN-039", "REQ-RERUN-040", "REQ-RERUN-041", "REQ-RERUN-042", "REQ-RERUN-047", "REQ-RERUN-048", "REQ-RERUN-049", "REQ-RERUN-050", "REQ-RERUN-051", "REQ-RERUN-052", "REQ-RERUN-053", "REQ-RERUN-054", "REQ-RERUN-055"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "84fd59f00d70c43294be41047a3346e6ffd4f58f0335a7801928806649f923be"
+content_hash: "ca9ddf022af3469848012194b867757e1c39dba26966fedd40f941f2e9876374"
 read_as: "approved_fallback"
 task: "CLE-T-5WK8QA"
 source_paths: ["spec/5-system/13-replay-rerun.md"]
-mirror_sha256: "aae2cfe1e9adda5ed0f2b8983548315a84680036d165a8c5c674a48142f938fd"
-etag: "sha256-1a0da6d8a210e2194ac47affe5e3240f3fa6a4fb6f112e975c413bbdeaa0971d"
+mirror_sha256: "d4565e30397da02a3c93282ec2f07f3e276726dba71f9e6cc6a3b7ff275d6049"
+etag: "sha256-284ba50101149a471169b323e7d9c5bd16ea9063e26a995b8b2dac7158af1930"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -42,7 +42,7 @@ etag: "sha256-1a0da6d8a210e2194ac47affe5e3240f3fa6a4fb6f112e975c413bbdeaa0971d"
 
 ## 요구사항
 
-- REQ-RERUN-001 WHEN 사용자가 재실행 버튼을 누르면 THE SYSTEM SHALL 원본 실행 정보, 외부 부수효과 노드 수, 입력 데이터 폼, dry-run 토글, 재실행·취소 버튼이 있는 확인 모달을 연다. (원본: RR-PL-01)
+- REQ-RERUN-001 WHEN 사용자가 재실행 버튼을 누르면 THE SYSTEM SHALL 원본 실행 정보, 부수효과 노드 수, MCP 서버를 연결한 AI 에이전트 노드 수(있을 때), 입력 데이터 폼, dry-run 토글, 재실행·취소 버튼이 있는 확인 모달을 연다. (원본: RR-PL-01)
 - REQ-RERUN-002 WHILE dry-run 토글이 켜진 동안 THE SYSTEM SHALL 부수효과 노드가 외부 호출을 건너뛰고 모의 출력을 돌려주게 한다. (원본: RR-PL-01)
 - REQ-RERUN-003 IF dry-run 토글이 꺼져 있으면 THE SYSTEM SHALL 외부 호출을 그대로 다시 일으킨다. (원본: RR-PL-01)
 - REQ-RERUN-004 WHEN 모달이 열리면 THE SYSTEM SHALL 원본 실행의 `inputData.parameters` 를 수동 트리거 파라미터 스키마 기반 폼에 미리 채운다. (원본: RR-PL-02)
@@ -73,7 +73,7 @@ etag: "sha256-1a0da6d8a210e2194ac47affe5e3240f3fa6a4fb6f112e975c413bbdeaa0971d"
 - REQ-RERUN-029 WHEN dry-run 실행 결과를 표시하면 THE SYSTEM SHALL 노드 카드에 `🧪 dry-run` 배지를 달고 `_dryRun: true` 가 있는 출력을 강조한다.
 - REQ-RERUN-030 WHEN 실행 상세 화면이 dry-run 실행을 표시하면 THE SYSTEM SHALL `_dryRun` 표시가 없는 노드에도 `Execution.dry_run` 으로 배지를 단다.
 - REQ-RERUN-031 WHEN 재실행이 만들어지면 THE SYSTEM SHALL `201` 과 함께 새 실행을 `reRunOf`·`chainId`·`dryRun` 을 포함해 돌려준다.
-- REQ-RERUN-032 IF `executionId` 가 없거나 다른 워크스페이스의 실행이면 THE SYSTEM SHALL `404 RERUN_EXECUTION_NOT_FOUND` 로 거부한다.
+- REQ-RERUN-032 IF `id` 가 없거나 다른 워크스페이스의 실행이면 THE SYSTEM SHALL `404 RERUN_EXECUTION_NOT_FOUND` 로 거부한다.
 - REQ-RERUN-033 IF 원본 실행의 워크플로우가 삭제됐으면 THE SYSTEM SHALL `404 RERUN_WORKFLOW_DELETED` 로 거부한다.
 - REQ-RERUN-034 IF `inputOverride` 가 수동 트리거 파라미터 스키마와 맞지 않으면 THE SYSTEM SHALL `400 INVALID_TRIGGER_PARAMETERS` 로 거부하고 필드별 사유를 `error.details[]` 에 싣는다.
 - REQ-RERUN-035 WHEN 체인 조회를 요청하면 THE SYSTEM SHALL 같은 체인의 모든 실행을 `started_at` 오름차순으로 돌려준다.
@@ -152,9 +152,7 @@ etag: "sha256-1a0da6d8a210e2194ac47affe5e3240f3fa6a4fb6f112e975c413bbdeaa0971d"
 
 ## 미결 사항
 
-- **재실행 모달의 외부 호출 집계와 MCP 도구**: 모달의 부수효과 노드 수(화면 문구 "외부 호출 노드 N개")는 `supportsDryRun: true` 인 노드만 센다(`rerun-modal.tsx`). AI 에이전트에 연결된 MCP 서버와 Cafe24 · MakeShop 도구는 세지 않는다. 그래서 dry-run 을 끈 일반 재실행에서 AI 에이전트가 외부 데이터를 바꿀 수 있어도 모달 안내에는 드러나지 않는다. 안내에 MCP 도구를 넣을지 결정이 필요하다. [부수효과 판정](CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정) 은 실행 중 도구 호출 단위라서 모달이 미리 셀 수 있는 단위(노드 · 연결된 MCP 지원 통합)와 다르다. 담당 Task 는 CLE-T-5WK8QA 다.
 - **dry-run 재실행의 메모리 추출**: 메모리 전략이 `persistent` 인 AI 에이전트 · 정보 추출기는 추출한 메모리를 `agent_memory` 에 쓴다([에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md)). dry-run 재실행에서도 `agent_memory` 에 저장한다. 메모리 관리 코드(`ai-memory-manager.ts`, `agent-memory-extraction` 큐)에 dry-run 분기가 없다. dry-run 에서 이 저장을 막을지 결정이 필요하다. 담당 Task 는 CLE-T-C9GF9F 다.
-- **활동 로그를 정하는 문서의 dry-run 예외**: 모의 출력 · 응답으로 대신한 호출이 활동 로그를 남기지 않는다는 규칙(REQ-RERUN-053)의 기준은 [재실행 — dry-run](CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정) 이다. 활동 로그를 정하는 문서들은 아직 «호출마다» · «성공·실패와 관계없이 1건» 으로만 적고 dry-run 예외를 적지 않는다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 6단계와 규칙 7, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 REQ-INTMGMT-021 과 활동 로그 기록 시점 표, [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md) 의 활동 로그와 `last_used_at`, [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) · [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) · [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 의 활동 로그 요구사항이 그렇다. 그 문장들은 실제로 나간 호출을 말하는 것으로 읽는다. 세 노드는 처음부터 활동 로그 단계 전에 모의 출력을 돌려줬다. 그 문서들에 예외를 적는 일은 CLE-T-M6W7RE 가 맡는다. [용어 사전 — 실행](../CLE-GLOSSARY-EXEC.md) 의 「dry-run」 · 「부수효과 노드」 정의를 도구까지 넓히고 「부수효과 도구」 · 「모의 응답」 을 더하는 일도 같은 Task 다.
 
 ## 구현 위치
 
