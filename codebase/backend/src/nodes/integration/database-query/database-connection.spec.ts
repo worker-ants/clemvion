@@ -170,7 +170,7 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
     expect(accepted).toBe(before + 1);
   });
 
-  it('pg 팩토리: 호스트 없는 connect 호출(유닉스 소켓 경로)은 원래 connect 로 넘긴다', () => {
+  it('pg 팩토리: 문자열 인자 하나인 connect 호출(유닉스 소켓 경로)은 lookup 없이 원래 connect 로 넘긴다', () => {
     const calls: string[] = [];
     // 팩토리는 소켓을 만들 때 원래 connect 를 묶어 둔다. 그래서 spy 를 먼저 건다.
     const original = jest.spyOn(Socket.prototype, 'connect').mockReturnThis();
@@ -186,10 +186,32 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
     }
   });
 
+  it("pg 팩토리: 문자열 포트 connect('5432', host) 도 숫자 포트로 바꿔 lookup 을 거친 연결로 넘긴다", () => {
+    const lookup = loopbackLookup([]);
+    const original = jest.spyOn(Socket.prototype, 'connect').mockReturnThis();
+    const socket = createGuardedPgStream(lookup)();
+    try {
+      socket.connect('5432', 'rebind.test');
+
+      expect(original).toHaveBeenCalledTimes(1);
+      expect(original).toHaveBeenCalledWith({
+        port: 5432,
+        host: 'rebind.test',
+        lookup,
+      });
+    } finally {
+      original.mockRestore();
+      socket.destroy();
+    }
+  });
+
   it.each([
     ['객체 인자', [{ port: 5432, host: 'rebind.test' }]],
     ['host 없는 (port, undefined)', [5432, undefined]],
     ['인자 없음', []],
+    // 유닉스 소켓 경로에 연결 리스너를 붙인 형태다. 인자가 둘이라 경로 하나만 넘기는 분기에 들지 않는다. 지금 pg 는 이
+    // 형태로 부르지 않으므로 닫는 쪽을 기대값으로 둔다(CLE-T-1E7X4M, 동작은 바꾸지 않는다).
+    ['connect(path, cb)', ['/tmp/.s.PGSQL.5432', () => undefined]],
   ])(
     'pg 팩토리: 알 수 없는 connect 호출 형태(%s)는 lookup 없이 연결하지 않고 오류로 닫는다(fail-closed)',
     async (_label, args) => {
@@ -202,8 +224,12 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
         );
         (socket.connect as (...a: unknown[]) => Socket)(...args);
 
-        await expect(errored).resolves.toBeInstanceOf(Error);
+        await expect(errored).resolves.toMatchObject({
+          message:
+            'Unsupported pg socket connect call; refusing to connect without SSRF lookup',
+        });
         expect(original).not.toHaveBeenCalled();
+        expect(calls).toEqual([]);
       } finally {
         original.mockRestore();
         socket.destroy();

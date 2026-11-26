@@ -85,6 +85,18 @@ describe('smtp-host-guard — 연결 시점 판정 (실제 nodemailer)', () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
+  /**
+   * 다음에 받는 연결이 처음 보낸 바이트. 서버의 연결 처리(`accepted` 집계)가 끝난 뒤에 풀린다. 직접 TLS 면 TLS 레코드
+   * 헤더의 내용 유형(0x16, handshake)이다. 클라이언트가 실패를 먼저 알아도 서버 쪽 집계를 기다릴 수 있다.
+   */
+  function nextFirstByte(): Promise<number> {
+    return new Promise((resolve) =>
+      server.once('connection', (socket) =>
+        socket.once('data', (chunk: Buffer) => resolve(chunk[0])),
+      ),
+    );
+  }
+
   beforeEach(() => {
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
     mockedConnect.mockReset();
@@ -151,8 +163,11 @@ describe('smtp-host-guard — 연결 시점 판정 (실제 nodemailer)', () => {
 
   it('secure: true(직접 TLS)면 getSocket 이 준 소켓 위에서 TLS 를 맺으려 시도한다', async () => {
     // 서버는 평문이라 TLS 핸드셰이크는 실패한다. 소켓이 lookup 을 거쳐 서버에 닿고 nodemailer 가 TLS 단계까지 가는지만 본다.
+    // TLS 단계 도달은 두 쪽에서 본다. 서버가 받은 첫 바이트가 TLS handshake 레코드(0x16)이고, verify() 가 OpenSSL
+    // 오류로 실패한다. 연결 거부 · 타임아웃으로 실패하면 둘 다 맞지 않는다.
     const before = accepted;
     const calls: string[] = [];
+    const firstByte = nextFirstByte();
     const transporter = createTransport({
       host: 'smtp.rebind.test',
       port,
@@ -164,8 +179,10 @@ describe('smtp-host-guard — 연결 시점 판정 (실제 nodemailer)', () => {
 
     try {
       await expect(transporter.verify()).rejects.toMatchObject({
-        message: expect.any(String),
+        code: 'ESOCKET',
+        library: 'SSL routines',
       });
+      await expect(firstByte).resolves.toBe(0x16);
       expect(calls).toContain('smtp.rebind.test');
       expect(accepted).toBe(before + 1);
     } finally {
