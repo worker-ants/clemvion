@@ -3,7 +3,9 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -32,8 +34,15 @@ import {
  * 초대 id 로 수락 페이지를 연다. 토큰 없이 초대 id 와 로그인 이메일 일치로 본인을 확인하고, 없거나 남의 초대면
  * 같은 404 를 낸다. 워크스페이스 헤더는 쓰지 않는다(받는 사람은 아직 멤버가 아니다).
  *
- * 초대 id 는 서비스가 UUID 인지 직접 본다. `ParseUUIDPipe` 의 400 을 쓰면 잘못된 id 와 남의 id 가 다른 응답이 된다.
+ * 초대 id 의 형식은 `ParseUUIDPipe` 가 보되 예외를 404 `invitation_not_found` 로 바꾼다. 기본 400 을 쓰면 잘못된 id 와
+ * 남의 id 가 다른 응답이 된다.
  */
+const invitationNotFound = () =>
+  new NotFoundException({
+    code: 'invitation_not_found',
+    message: '초대를 찾을 수 없습니다.',
+  });
+
 @ApiTags('Invitations')
 @ApiBearerAuth('access-token')
 @Controller('users/me/invitations')
@@ -49,7 +58,11 @@ export class MyInvitationsController {
     description:
       '로그인 이메일로 온 초대의 워크스페이스 이름 · 초대자 · 역할 · 만료 시각을 돌려줍니다. 없거나 다른 이메일로 온 초대는 404, 이미 수락했거나 만료된 초대는 410 입니다.',
   })
-  @ApiParam({ name: 'invitationId', description: '초대 ID (UUID)' })
+  @ApiParam({
+    name: 'invitationId',
+    format: 'uuid',
+    description: '초대 ID (UUID)',
+  })
   @ApiOkWrappedResponse(InvitationMetaDto, { description: '초대 메타' })
   @ApiNotFoundResponse({
     description: '없거나 내 초대가 아님 (invitation_not_found)',
@@ -61,7 +74,11 @@ export class MyInvitationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getMeta(
     @CurrentUser() user: JwtPayload,
-    @Param('invitationId') invitationId: string,
+    @Param(
+      'invitationId',
+      new ParseUUIDPipe({ exceptionFactory: invitationNotFound }),
+    )
+    invitationId: string,
   ) {
     const meta = await this.invitationsService.getMetaForRecipient(
       invitationId,
@@ -77,7 +94,11 @@ export class MyInvitationsController {
     description:
       '로그인 이메일로 온 초대를 초대 ID 로 수락해 워크스페이스에 합류합니다. 없거나 다른 이메일로 온 초대는 404, 이미 수락했거나 만료된 초대는 410 입니다.',
   })
-  @ApiParam({ name: 'invitationId', description: '초대 ID (UUID)' })
+  @ApiParam({
+    name: 'invitationId',
+    format: 'uuid',
+    description: '초대 ID (UUID)',
+  })
   @ApiOkWrappedResponse(InvitationAcceptResultDto, {
     description: '초대 수락 결과 (합류한 워크스페이스 정보)',
   })
@@ -91,7 +112,11 @@ export class MyInvitationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async accept(
     @CurrentUser() user: JwtPayload,
-    @Param('invitationId') invitationId: string,
+    @Param(
+      'invitationId',
+      new ParseUUIDPipe({ exceptionFactory: invitationNotFound }),
+    )
+    invitationId: string,
   ) {
     const result = await this.invitationsService.acceptById(
       invitationId,
