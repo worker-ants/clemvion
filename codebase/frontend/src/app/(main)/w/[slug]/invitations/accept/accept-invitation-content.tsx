@@ -25,6 +25,9 @@ import { useLocaleStore } from "@/lib/stores/locale-store";
 // CLE-ACCT-WS 「이미 가입한 사용자의 수락 경로」 — 이미 가입한 사용자가 다른 워크스페이스에 초대된
 // 흐름. 마운트 즉시 자동 수락(종전) 대신, 토큰 메타를 조회해 (a) 로그인 이메일 == 토큰 이메일이면
 // [수락] 버튼을, (b) 불일치면 "해당 계정으로 로그인" 안내 + 로그아웃 버튼을 노출한다.
+// 초대 알림이 여는 초대 id 모드(`?invitationId=`, CLE-T-86E38Q)는 서버가 로그인 이메일로 온 초대만 돌려주므로
+// 불일치 안내가 없다. 없거나 남의 초대(404) · 이미 처리한 초대(410)는 오류 상태로 보인다. 두 값이 다 있으면
+// 토큰을 쓴다.
 type Status =
   | "loading"
   | "ready"
@@ -40,17 +43,20 @@ export function AcceptInvitationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const invitationId = token ? null : searchParams.get("invitationId");
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces);
   const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
 
-  const [status, setStatus] = useState<Status>(token ? "loading" : "missing");
+  const [status, setStatus] = useState<Status>(
+    token || invitationId ? "loading" : "missing",
+  );
   const [meta, setMeta] = useState<InvitationMeta | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   // 토큰 메타 조회 → 로그인 이메일과 비교. deps 에 locale 을 넣지 않아(토글이
   // 재조회를 유발하지 않도록) 텍스트 변환은 렌더 시점에서 수행한다.
   useEffect(() => {
-    if (!token) return;
+    if (!token && !invitationId) return;
     // cleanup 이후 도착한 응답은 버린다. `useInvitationGate`(`components/auth/use-invitation-gate.ts`)의
     // 메타 조회와 같은 가드다. 한 번만 부르려는 ref 가드를 함께 두면 StrictMode 가 effect 를 mount,
     // cleanup, mount 로 돌릴 때 첫 응답은 버려지고 두 번째 실행은 건너뛰어 loading 에 머문다. 토큰 메타
@@ -59,6 +65,13 @@ export function AcceptInvitationContent() {
     const currentLocale = useLocaleStore.getState().locale;
     (async () => {
       try {
+        if (!token) {
+          const m = await invitationsApi.getMine(invitationId as string);
+          if (cancelled) return;
+          setMeta(m);
+          setStatus("ready");
+          return;
+        }
         const m = await invitationsApi.getByToken(token);
         if (cancelled) return;
         setMeta(m);
@@ -82,14 +95,16 @@ export function AcceptInvitationContent() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, invitationId]);
 
   async function handleAccept() {
-    if (!token) return;
+    if (!token && !invitationId) return;
     const currentLocale = useLocaleStore.getState().locale;
     setStatus("accepting");
     try {
-      const result = await workspacesApi.acceptInvitation(token);
+      const result = token
+        ? await workspacesApi.acceptInvitation(token)
+        : await invitationsApi.acceptMine(invitationId as string);
       const list = await workspacesApi.list();
       setWorkspaces(list);
       void switchWorkspace(result.workspaceId);

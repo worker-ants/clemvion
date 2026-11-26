@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildLoginHref } from "@/lib/auth/post-login-redirect";
 import {
   buildInvitationLoginHref,
+  invitationAcceptByIdPath,
   invitationAcceptPath,
   isInvitationAcceptPath,
 } from "../accept-path";
@@ -12,7 +13,9 @@ describe("buildInvitationLoginHref", () => {
     expect(href).toBe(buildLoginHref(invitationAcceptPath("ab+/=c")));
     const url = new URL(href, "http://localhost");
     expect(url.pathname).toBe("/login");
-    expect(url.searchParams.get("redirect")).toBe("/invitations/accept?token=ab%2B%2F%3Dc");
+    expect(url.searchParams.get("redirect")).toBe(
+      "/invitations/accept?token=ab%2B%2F%3Dc",
+    );
   });
 
   it.each([
@@ -26,7 +29,9 @@ describe("buildInvitationLoginHref", () => {
 
 describe("invitationAcceptPath · isInvitationAcceptPath", () => {
   it("토큰을 URL 인코딩해 수락 페이지 경로를 만든다", () => {
-    expect(invitationAcceptPath("ab+/=c")).toBe("/invitations/accept?token=ab%2B%2F%3Dc");
+    expect(invitationAcceptPath("ab+/=c")).toBe(
+      "/invitations/accept?token=ab%2B%2F%3Dc",
+    );
   });
 
   it.each([
@@ -38,5 +43,14 @@ describe("invitationAcceptPath · isInvitationAcceptPath", () => {
     ["/dashboard", false],
   ])("%s → %s", (path, expected) => {
     expect(isInvitationAcceptPath(path)).toBe(expected);
+  });
+});
+
+describe("invitationAcceptByIdPath", () => {
+  it("초대 id 를 URL 인코딩해 초대 id 모드의 수락 페이지 경로를 만든다", () => {
+    expect(invitationAcceptByIdPath("a b")).toBe(
+      "/invitations/accept?invitationId=a%20b",
+    );
+    expect(isInvitationAcceptPath(invitationAcceptByIdPath("x"))).toBe(true);
   });
 });
