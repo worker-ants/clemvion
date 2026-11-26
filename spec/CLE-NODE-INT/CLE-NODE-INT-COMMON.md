@@ -2,21 +2,21 @@
 id: "CLE-NODE-INT-COMMON"
 title: "통합 노드 공통"
 type: "convention"
-version: 20
+version: 21
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "4612c18cca6c4247f74bcfbc6dc30d5c7026ddf9a3090fdd2d28ffeba222767f"
+content_hash: "6f32b7a5f1acc2ed7de5543aa8066282f90890ab39d3aa465f9d8ac10ba6a63a"
 read_as: "approved_fallback"
-task: "CLE-T-3M0KRA"
+task: "CLE-T-R8GDTY"
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "178716890337323b9cede3464be8b7b2593408773e041fec0bd32e1e112f12f7"
-etag: "sha256-957c416a27e40ae169ed8c4cd512796e11988cf24ca264f8f895e05e4a088080"
+mirror_sha256: "732de53676b88f3b5d161a448d8f9ea78b37553fe3a973e7e6bbe96ba62214a3"
+etag: "sha256-848ac1ba0cc6222c525484b26a9f729bd685b13d1269be7915b45013e6c1816d"
 ---
-> 구현 상태: 부분 구현 (워크스페이스 누락의 출력 코드는 미구현) · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -152,8 +152,6 @@ etag: "sha256-957c416a27e40ae169ed8c4cd512796e11988cf24ca264f8f895e05e4a088080"
 
 ## 미결 사항
 
-- **워크스페이스 누락 시 출력 코드**: 이 문서와 [HTTP Request 노드](CLE-NODE-HTTP.md)·[Cafe24 노드](CLE-NODE-CAFE24.md)·[MakeShop 노드](CLE-NODE-MAKESHOP.md) 원문은 `__workspaceId` 누락을 `INTEGRATION_SERVICE_UNAVAILABLE` 로 내보낸다고 적는다. [Send Email 노드](CLE-NODE-EMAIL.md) 원문은 이 경우를 `EMAIL_SEND_FAILED` 로 흡수한다고 적고 전용 코드 노출을 Planned 로 둔다. 현재 구현은 공통 베이스가 일반 `Error` 를 던져 다른 노드에서도 `INTEGRATION_CALL_FAILED`(Database Query 는 드라이버 에러 분류 결과)가 나오는 것으로 보인다. 구현을 규칙에 맞출지, 규칙을 현재 동작에 맞출지 결정 필요.
-- **사설망 차단 원본 상세를 남기는 위치**: [Database Query 노드](CLE-NODE-DBQUERY.md) 원문은 차단 상세(원본 호스트)가 활동 로그(`logUsage`)에만 남는다고 적고, 이를 "서버 활동 로그" 라고 부른다. [HTTP Request 노드](CLE-NODE-HTTP.md) 원문은 활동 로그가 `GET /integrations/:id/activity` 로 워크스페이스 사용자에게 그대로 나가므로 활동 로그에도 일반화 문구만 남기고 원본은 서버 로그(`logger.warn`)에만 둔다고 적는다. 같은 정찰 방지 원칙을 두 노드가 반대로 적용한다. 현재 구현은 Database Query 핸들러가 일반화 문구만 담은 `IntegrationError('DB_HOST_BLOCKED')` 를 만들고 원본을 `cause` 로도 싣지 않는 것으로 보인다(활동 로그에 원본이 남는지는 미확인). 어느 쪽을 규칙으로 삼을지 결정 필요.
 - **자격 증명 복호화 실패의 출력 코드**: 암호화 키 교체 등으로 자격 증명을 복호화할 수 없으면 `getForExecution` 이 `IntegrationCredentialsUnreadableError` 를 던진다([통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md)). 이 경로가 어떤 `output.error.code` 로 나오는지 원문에 없다. 현재 구현의 이 예외는 `BadRequestException` 계열이라 `IntegrationError` 가 아니므로 기본 규칙대로 `INTEGRATION_CALL_FAILED`(Send Email 은 `EMAIL_SEND_FAILED`)로 나올 것으로 보이나 확인되지 않았다. 공통 에러 코드 표에 행을 둘지 결정 필요.
 - **통합 자격 증명 암호화와 시크릿 저장소의 관계**: 통합 노드는 자격 증명을 컬럼 transformer 로 직접 복호화한다. [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)는 모든 도메인 모듈이 `SecretResolver` 를 거친다고 정하면서 예외 목록에 `Integration.credentials` 를 두지 않았다. 예외로 등재할지 이관할지 결정 필요(관련: [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)).
 - **워크플로우 작성자가 아닌 사용자에게 보이는 배지 문구**: 캔버스는 워크플로우 작성자의 개인 통합과 지워진 통합을 구분하지 못해 둘 다 `⚠ Missing integration` 으로 보인다. 지금 사용자가 워크플로우 작성자가 아닐 때는 «확인할 수 없는 통합» 처럼 삭제로 읽히지 않는 문구를 쓸지 정해야 한다(2026-10-24).
@@ -244,3 +242,15 @@ Database Query 의 "쿼리 첫 줄" 과 Send Email 의 "to: {수신자} +N" 은 
 ### 통합을 얻는 단계와 검증하는 단계를 나눈다 (2026-10-25)
 
 → [핸들러 실행 계약 Rationale](CLE-NODE-INT-COMMON-HANDLER.md#통합을-얻는-단계와-검증하는-단계를-나눈다-2026-10-25)
+
+### 워크스페이스 누락은 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다
+
+결정일: 2026-11-26
+
+미결이던 «워크스페이스 누락 시 출력 코드» 를 구현을 규칙에 맞추는 쪽으로 닫았다. 공통 베이스 `acquireIntegration` 이 일반 `Error` 대신 `IntegrationError('INTEGRATION_SERVICE_UNAVAILABLE')` 를 던진다(NERV Task `CLE-T-MYDNQN`). 규칙을 지금 동작에 맞추는 안은 공통 코드 표 · 카탈로그 · 노드 문서와 REQ-EMAIL-022 를 함께 바꿔야 해서 기각했다.
+
+### 사설망 차단 원문은 서버 경고 로그에만 남긴다
+
+결정일: 2026-11-26
+
+미결이던 «사설망 차단 원본 상세를 남기는 위치» 를 HTTP Request 노드가 따르던 규칙으로 닫았다(NERV Task `CLE-T-R8GDTY`). 활동 로그는 `GET /integrations/:id/activity` 로 워크스페이스 사용자에게 나간다. 그래서 차단된 host · IP 원문은 서버 경고 로그에만 남기고 노드 에러와 활동 로그에는 싣지 않는다. 규칙은 [에러 코드와 사설망 차단 「사설망 차단」](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 과 REQ-DBQ-032 · REQ-EMAIL-030 에 있다. 활동 로그에 원문을 남기는 안은 클라이언트 메시지를 일반화한 이유(정찰 면 축소)와 맞지 않아 기각했다.

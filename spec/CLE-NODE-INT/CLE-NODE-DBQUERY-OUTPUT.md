@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY-OUTPUT"
 title: "Database Query 노드 — 출력 구조와 에러 코드"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-DBQUERY"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-DBQUERY"]
 area: "CLE-NODE-INT"
-content_hash: "df80d9a77c3ea6449cee411b55c8028541848073d09372d3affa60edd1f0b71d"
+content_hash: "b90ee910dd9eb0c3114075867c70261ac83cd86cc4bd4f4531c9f606d51fd99e"
 read_as: "approved_fallback"
-task: "CLE-T-3M0KRA"
+task: "CLE-T-R8GDTY"
 source_paths: []
-mirror_sha256: "cb7d308757f79a941aea1d8d1768cfe519f670911bcab5927a320676e4475952"
-etag: "sha256-a54a3056a593db87130219b7de492ad0901e6bc27d2a1da9731b784c65ff945f"
+mirror_sha256: "2a3ccc26eac69a06e1c5c9893a3be0d33572bdbed2c75759240d6f6fdf6e6360"
+etag: "sha256-7a3dc693827c01c281d72ae68282b3b9b09b57a83c839a550d88302418f89f3e"
 ---
 ## 개요
 
@@ -174,7 +174,7 @@ INSERT(MySQL `ResultSetHeader`):
 | `DB_HOST_BLOCKED` | 사설망 차단 가드가 연결을 막음. 연결 전 검사(`credentials.host` 를 해석한 주소)와 연결할 때 푼 주소의 판정이 모두 이 코드를 낸다. 막는 대역은 [사설망 차단](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다. 기본 켜짐, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 해제. 메시지는 호스트·IP 를 담지 않는다. 판정 시점과 처리 상세는 [Database Query 「사설망 차단」](CLE-NODE-DBQUERY.md#사설망-차단) 에 있다 | — (가드 차단. 연결 시점 판정의 차단은 드라이버가 감싼 오류의 `cause` 사슬에서 찾는다) |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 누락 실패(D4) | — |
 | `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 고장)도 이 코드다. 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. `DB_HOST_BLOCKED` 는 판정에만 쓴다. 위 가드 고장 처리는 연결 전 검사에만 해당한다. 연결할 때 판정하다가 판정이 아닌 오류가 나면 연결을 통과시키지 않고 실패시킨다. 이때 코드는 드라이버 연결 오류 분류를 따른다 | — |
-| `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 가 핸들러에 주입되지 않음(배포 누락, D4) | — |
+| `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 가 핸들러에 주입되지 않았거나 실행 컨텍스트에 `__workspaceId` 가 없음(배포 구성 에러, D4) | — |
 | `INVALID_PARAMETERS` | `config.parameters` JSON 파싱 실패 또는 배열이 아닌 형태(D4) | — |
 
 - 드라이버 간 일관성: pg SQLSTATE class `28` 과 mysql `ER_ACCESS_DENIED_ERROR` 는 모두 handshake 단계 인증 실패다. 두 드라이버 모두 `DB_CONNECTION_ERROR` 로 보내서 워크플로우의 자격 증명 교체 재시도 정책이 양쪽에서 같게 동작한다. 실행 중 권한 거부(`DB_PERMISSION_DENIED`)는 인증된 세션이 객체 접근에 실패한 별도의 영구 에러다.
