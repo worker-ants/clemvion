@@ -6,7 +6,7 @@ import { createDbClient, uniqueEmail } from './helpers/db';
 import { registerAndLogin, TEST_PASSWORD } from './helpers/auth';
 
 /**
- * e2e: spec/5-system/1-auth.md §2.3 / Rationale 2.3.C + data-flow/1-audit.md §1.1 (refactor 04 A-1·B-1).
+ * e2e: spec/5-system/1-auth.md §2.3 / Rationale 2.3.C + data-flow/1-audit.md §1.1.
  *
  * 검증 대상 (실 flow → DB INSERT):
  *   - POST /api/users/me/change-password 성공 시 새 accessToken 반환 (옵션 B 재발급)

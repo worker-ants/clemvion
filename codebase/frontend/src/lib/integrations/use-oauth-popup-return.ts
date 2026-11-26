@@ -39,7 +39,7 @@ const POPUP_CLOSED_POLL_INTERVAL_MS = 500;
  * 회귀 민감: message handler 는 mount-only(`[]`), popup.closed 폴링은
  * `[oauthWaiting]` 의존이며, 성공 postMessage 가 popup.closed 관측과 deferred
  * 체크 사이에 끼어들 수 있어 oauthWaiting/previewToken 을 ref 로 읽어 stale-read·
- * 이중 에러 토스트를 막는다. (refactor 03 m-3 — page.tsx 에서 무변경 추출.)
+ * 이중 에러 토스트를 막는다. (page.tsx 에서 무변경 추출.)
  *
  * @param t i18n 함수.
  * @param onAuthorized previewToken 확보(성공) 시 호출 — 호출자가 다음 step 으로 이동.

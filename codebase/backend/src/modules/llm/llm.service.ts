@@ -97,7 +97,7 @@ export class LlmService implements OnModuleInit {
   /**
    * ModelConfig invalidation 구독 리스너. 안정 참조를 위해 필드로 1회 바인딩한다 —
    * onModuleInit 이 (테스트 등에서) 여러 번 호출돼도 Set 의 참조-동일성 dedup 이
-   * 작동해 중복 등록되지 않는다 (refactor 02 C-2 cluster 4).
+   * 작동해 중복 등록되지 않는다.
    */
   private readonly onConfigInvalidatedListener = (configId: string): void => {
     this.clearClientCache(configId);
@@ -119,7 +119,7 @@ export class LlmService implements OnModuleInit {
    *
    * 이전에는 `ModelConfigController` 가 `clearClientCache` 를 직접 호출했으나, 그
    * 역의존이 model-config ↔ llm forwardRef 순환을 만들었다. 옵저버 등록으로 역전해
-   * 의존을 llm → model-config 단방향으로만 유지한다 (refactor 02 C-2 cluster 4).
+   * 의존을 llm → model-config 단방향으로만 유지한다.
    */
   onModuleInit(): void {
     this.modelConfigService.onConfigInvalidated(

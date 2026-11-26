@@ -527,7 +527,7 @@ describe('visual fallback — chart (CCH-MP-04 v1)', () => {
     expect(m[0].body.kind).toBe('buttons');
   });
 
-  it("visualNode='photo' (v1 미지원) → logger.warn 후 text fallback (03 m-1)", () => {
+  it("visualNode='photo' (v1 미지원) → logger.warn 후 text fallback", () => {
     const warnSpy = jest
       .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => undefined);

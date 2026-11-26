@@ -40,7 +40,7 @@ import { WorkflowChannelAuthorizer } from './workflow-channel-authorizer';
   controllers: [WorkflowsController],
   providers: [
     WorkflowsService,
-    // refactor 02 M-7 — `workflow:` 채널 authorizer 를 본 모듈이 소유. 클래스를 export →
+    // CLE-API-WS-MSG 「구독 인가」 — `workflow:` 채널 authorizer 를 본 모듈이 소유. 클래스를 export →
     // WS 모듈의 CHANNEL_AUTHORIZER 집계 factory 가 주입(gateway→WorkflowsService 역참조 제거).
     WorkflowChannelAuthorizer,
   ],

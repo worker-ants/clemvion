@@ -2,7 +2,7 @@ import { AiMemoryManager } from './ai-memory-manager';
 import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
 
 /**
- * AiMemoryManager unit — refactor 02-architecture §M-1 2단계로 핸들러에서 분리한
+ * AiMemoryManager unit — 핸들러에서 분리한
  * 자동 메모리 전략 관리 로직(이전엔 ai-agent.handler 의 private 메서드로
  * ai-agent.memory.spec 을 통해 간접 테스트만 존재)을 입출력 단위로 직접 고정한다.
  * behavior-preserving 추출의 회귀 격리용 (#665 `AiConditionEvaluator` 선례 동형).

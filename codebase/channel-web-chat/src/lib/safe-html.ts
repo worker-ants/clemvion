@@ -9,7 +9,7 @@ import { marked } from "marked";
 
 export type TemplateFormat = "html" | "markdown" | "text";
 
-// 04 m-1 — deny-by-default 화이트리스트. 임베드 위젯은 XSS 성공 시 피해가 호스트
+// CLE-WEBCHAT-SECURITY 「마크다운·HTML sanitize」 — deny-by-default 화이트리스트. 임베드 위젯은 XSS 성공 시 피해가 호스트
 // 사이트로 전파되므로, 블랙리스트(FORBID)로 알려진 위험만 거르는 대신 채팅 렌더에
 // 실제 필요한 태그/속성만 허용한다. 미지·신규 벡터(svg/math 기반 mXSS 등)는 기본 차단.
 // 목록은 `marked`(GFM) 가 산출하는 태그를 audit 해 확정 — 새 렌더 요소가 필요하면
@@ -29,7 +29,7 @@ const ALLOWED_ATTR = [
   "href", "src", "alt", "title", "target", "rel", "align", "colspan", "rowspan",
 ];
 
-// 04 m-1 — href/src scheme 을 http(s)/mailto 와 relative/anchor 로 한정 (javascript:·
+// CLE-WEBCHAT-SECURITY 「마크다운·HTML sanitize」 — href/src scheme 을 http(s)/mailto 와 relative/anchor 로 한정 (javascript:·
 // data: 등 이중 방어). DOMPurify 기본 정규식에서 tel/sms/ftp 등을 제거한 형태.
 const ALLOWED_URI_REGEXP =
   /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i;
@@ -87,7 +87,7 @@ export function renderTemplateHtml(rendered: string, format: TemplateFormat): st
     rawHtml = rendered;
   }
   return DOMPurify.sanitize(rawHtml, {
-    // 04 m-1 — deny-by-default 화이트리스트. ALLOWED_TAGS/ALLOWED_ATTR 에 없는 태그·
+    // CLE-WEBCHAT-SECURITY 「마크다운·HTML sanitize」 — deny-by-default 화이트리스트. ALLOWED_TAGS/ALLOWED_ATTR 에 없는 태그·
     // 속성(script/style/iframe/object/svg/math/이벤트 핸들러 등)은 모두 제거되고,
     // ALLOWED_URI_REGEXP 가 href/src scheme 을 http(s)/mailto/relative 로 제한한다.
     ALLOWED_TAGS,

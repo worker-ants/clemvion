@@ -5,9 +5,9 @@ import type { EiaFailedEvent } from '../types';
  * Execution Failed 분류 helper — provider-invariant pure function.
  *
  * SoT:
- *   - spec/conventions/chat-channel-adapter.md §3.1 (분류 매핑 표 + type-guard 책임)
- *   - spec/5-system/15-chat-channel.md §3.5 CCH-ERR-01~05 (시스템 의무)
- *   - spec/5-system/3-error-handling.md §1.4 / §3.2 (입력 enum SoT — ErrorCode)
+ *   - CLE-CHAT-ADAPTER-RENDER 「실행 실패 안내 분류」 (분류 매핑 표 + type-guard 책임)
+ *   - CLE-CHAT-CORE 「실행 실패 안내」 REQ-CHAT-038~043 (옛 CCH-ERR-01~05, 시스템 의무)
+ *   - CLE-API-ERRCODES (입력 enum SoT — ErrorCode)
  *
  * 입력 화이트리스트 (CCH-ERR-02): `event.error.code` + `event.error.details?.statusCode` 만.
  * 다른 필드 (`error.message`, `nodeId`, `executionId`, `details.url` 등) 는 분류 결정에
@@ -55,14 +55,14 @@ const INTERNAL_CODES = new Set([
   'CODE_EXECUTION_FAILED',
   // Code 노드 isolate 메모리 한도 초과 (기본 128MB, CODE_NODE_MEMORY_LIMIT_MB
   // env 조정 가능 — isolated-vm hard-kill). 사용자 대면 분류는 internal
-  // (spec/conventions/chat-channel-adapter.md §3.1 매핑 표).
+  // (CLE-CHAT-ADAPTER-RENDER 「실행 실패 안내 분류」 매핑 표).
   'CODE_MEMORY_LIMIT',
   // HTTP Request SSRF 가드 차단 (전 인증 공통, CLE-NODE-INT-COMMON-ERROR). 차단은 우리
-  // 측 정책 결정이므로 third-party 가 아닌 internal 로 분류 (§3.1 매핑 표).
+  // 측 정책 결정이므로 third-party 가 아닌 internal 로 분류 (분류 매핑 표).
   'HTTP_BLOCKED',
   'SUB_WORKFLOW_FAILED',
   // Cross-workspace sub-workflow 호출 차단 (W-6 fail-closed). 차단은 우리 측
-  // 격리 정책 결정이므로 internal 로 분류 (§3.1 매핑 표). SUB_WORKFLOW_FAILED 와
+  // 격리 정책 결정이므로 internal 로 분류 (분류 매핑 표). SUB_WORKFLOW_FAILED 와
   // 동일 그룹 — 명시 등재로 CCH-ERR-04 unknown-fallback warn 노이즈 제거.
   'WORKFLOW_FORBIDDEN_WORKSPACE',
   'DB_QUERY_FAILED',
@@ -70,7 +70,7 @@ const INTERNAL_CODES = new Set([
   'DB_CONSTRAINT_VIOLATION',
   'DB_PERMISSION_DENIED',
   // DB SSRF 차단 — 차단은 우리 측 정책 결정이므로 internal 분류
-  // (spec/conventions/chat-channel-adapter.md §3.1 의 `DB_*` 매핑과 일치).
+  // (CLE-CHAT-ADAPTER-RENDER 「실행 실패 안내 분류」 의 `DB_*` 매핑과 일치).
   'DB_HOST_BLOCKED',
   'RECURSION_DEPTH_EXCEEDED',
   'MAX_ITERATIONS_EXCEEDED',
@@ -82,7 +82,7 @@ const INTERNAL_CODES = new Set([
 ]);
 
 /**
- * `details: unknown` runtime type-guard — Convention §3.1 의 의무.
+ * `details: unknown` runtime type-guard — CLE-CHAT-ADAPTER-RENDER 「실행 실패 안내 분류」 의 의무.
  * `details.statusCode` 가 안전한 정수일 때만 추출. 아니면 undefined.
  */
 function extractStatusCode(details: unknown): number | undefined {

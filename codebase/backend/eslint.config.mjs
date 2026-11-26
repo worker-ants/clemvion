@@ -13,7 +13,7 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   eslintPluginPrettierRecommended,
   {
-    // 03 m-4 — unicorn 플러그인은 preset 전체가 아니라 catch-error-name 단일 룰만
+    // unicorn 플러그인은 preset 전체가 아니라 catch-error-name 단일 룰만
     // 사용하기 위해 등록한다 (부수 규칙 유입 차단).
     //
     // **2026-08-28: eslint 10 상향과 함께 `^56` → `^73` 으로 풀었다.** 종전 `^56` pin 의
@@ -83,12 +83,12 @@ export default tseslint.config(
         },
       ],
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
-      // 03 m-1 — backend 서비스 코드는 구조화 Logger(3-error-handling.md §6.2) 사용.
+      // backend 서비스 코드는 구조화 Logger(3-error-handling.md §6.2) 사용.
       // console.* 직접 사용 차단해 §6.2 로그 규약 drift 재발 방지. 면제: scripts/(CLI)·
       // instrumentation.ts(부트스트랩 이전 OTel)는 아래 override, code.handler 등
       // module-load 경로는 inline `// eslint-disable-next-line no-console`.
       'no-console': 'error',
-      // 03 m-4 — catch 파라미터 명명의 SoT. spec/conventions 어느 문서도 catch 변수명을
+      // catch 파라미터 명명의 SoT. spec/conventions 어느 문서도 catch 변수명을
       // 소유하지 않으므로(error-codes.md 는 에러 코드 문자열만) 이 lint 룰이 단일 진실이다.
       // `err` 로 통일(기존 다수파) — `error`/`e`/서술형(`mailErr` 등) 혼재를 차단. `^_`
       // prefix 는 의도적 미사용 표식으로 면제(기존 no-unused-vars caughtErrorsIgnorePattern
@@ -98,7 +98,7 @@ export default tseslint.config(
   },
   {
     // CLI 스크립트(독립 실행)·instrumentation.ts(NestJS 부트스트랩 이전 OTel)는
-    // console 직접 사용이 정당 — no-console 면제 (03 m-1).
+    // console 직접 사용이 정당 — no-console 면제.
     files: ['src/scripts/**/*.ts', 'src/instrumentation.ts'],
     rules: {
       'no-console': 'off',
@@ -116,7 +116,7 @@ export default tseslint.config(
       // 테스트 더블·방어적 캐스트(`as T`)가 흔해 정리성 단언 경고는 노이즈 — off
       // (ai-review INFO#5; 프로덕션 코드에는 위 warn 유지).
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-      // 테스트는 디버그 console.* 가 흔하므로 no-console 면제 (03 m-1).
+      // 테스트는 디버그 console.* 가 흔하므로 no-console 면제.
       'no-console': 'off',
     },
   },

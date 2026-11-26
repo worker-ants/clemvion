@@ -63,7 +63,7 @@ export class AuthService {
     private readonly passwordRecheckLimiter: PasswordRecheckFailureLimiterService,
   ) {}
 
-  // ========== PASSWORD RE-VERIFICATION (레이어 정렬 — refactor 02 C-3) ==========
+  // ========== PASSWORD RE-VERIFICATION (레이어 정렬) ==========
 
   /**
    * 현재 사용자의 비밀번호를 재확인한다 (2FA 비활성화 등 민감 작업의 재인증용).
@@ -657,7 +657,7 @@ export class AuthService {
    *     revoke + `loginHistory` 보안 이벤트 기록 후 401.
    *  2. **만료** (`expiresAt < now`) — 부작용 없이 401 `TOKEN_EXPIRED` (트랜잭션 미진입).
    *  3. **정상 회전** — 구 토큰 revoke + 신규 토큰 INSERT 를 **단일 트랜잭션**으로 원자화
-   *     (05 C-1). revoke 는 조건부 UPDATE 라 동시 회전(TOCTOU)을 `affected=0` 으로 차단한다.
+   *     (CLE-ACCT-SESSION-TOKEN 「토큰 갱신」). revoke 는 조건부 UPDATE 라 동시 회전(TOCTOU)을 `affected=0` 으로 차단한다.
    */
   async refresh(
     refreshToken: string,
@@ -720,7 +720,7 @@ export class AuthService {
       });
     }
 
-    // 05 C-1 — revoke(구 토큰)+INSERT(신규 토큰)를 단일 트랜잭션으로 원자화한다.
+    // CLE-ACCT-SESSION-TOKEN 「토큰 갱신」 — revoke(구 토큰)+INSERT(신규 토큰)를 단일 트랜잭션으로 원자화한다.
     // 중간 실패 시 구 토큰의 `is_revoked=false` 가 유지돼 세션 소실을 막는다.
     // (옛 구현은 revoke 후 별도 INSERT — 그 사이 크래시 시 구 토큰만 무효화되고
     // 신규 토큰이 없어 세션이 통째로 사라졌다.)
@@ -1118,7 +1118,7 @@ export class AuthService {
   /**
    * Access JWT + 회전 refresh token 발급. **`private` — 외부 노출 금지.**
    *
-   * `@param manager` (05 C-1): 전달되면 refresh token INSERT 가 그 `EntityManager` 의
+   * `@param manager`: 전달되면 refresh token INSERT 가 그 `EntityManager` 의
    * 트랜잭션에 합류한다 (refresh 회전이 revoke+INSERT 를 원자화하는 경로). 미전달 시
    * (login / OAuth callback / verifyEmail / invitation 가입)엔 기본 repository 로 INSERT —
    * 호출처 무변경. JWT sign·workspace context 조회는 DB write 가 아니므로 트랜잭션 의미와
@@ -1177,7 +1177,7 @@ export class AuthService {
     rememberMe = false,
     familyId?: string,
     ctx: AuthContext = {},
-    // 05 C-1 — refresh 회전 시 revoke(구 토큰)+INSERT(신규 토큰)를 단일 트랜잭션에
+    // CLE-ACCT-SESSION-TOKEN 「토큰 갱신」 — refresh 회전 시 revoke(구 토큰)+INSERT(신규 토큰)를 단일 트랜잭션에
     // 묶기 위한 optional manager. 미전달 시(login/OAuth 경로) 기존 repository 사용 —
     // 호출처 무변경. JWT sign 은 DB 무관이라 트랜잭션 밖에서 선계산된다.
     manager?: EntityManager,

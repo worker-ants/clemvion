@@ -3241,9 +3241,9 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // 06 C-2 — 재개 진입 DB 원자 claim (§7.5). 비원자 SELECT 재검증을 조건부
+  // 재개 진입 DB 원자 claim (CLE-EXEC-RECOVERY-REHYDRATE). 비원자 SELECT 재검증을 조건부
   // UPDATE(waiting_for_input → running, affected=0 → ack-and-discard)로 대체.
-  describe('claimResumeEntry — §7.5 재개 진입 원자 claim (06 C-2)', () => {
+  describe('claimResumeEntry — 재개 진입 원자 claim', () => {
     // qb 가 어느 엔티티를 UPDATE 하는지는 `update()` 인자로 판별한다. 그래야 잠금
     // 순서(Execution → NodeExecution, CLE-T-9JBVQK)를 단언할 수 있다.
     type ClaimQb = Record<string, jest.Mock> & { target: string };
@@ -3419,9 +3419,9 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // 06 C-2 — claim 후 rehydration 실패 롤백. markNodeExecutionFailed 가 claim 된
+  // CLE-EXEC-RECOVERY-REHYDRATE 「rehydration 실패」 — claim 후 rehydration 실패 롤백. markNodeExecutionFailed 가 claim 된
   // RUNNING row 도 FAILED 로 마감해야 stuck RUNNING 을 남기지 않는다.
-  describe('markNodeExecutionFailed — claim 후 RUNNING 롤백 (06 C-2)', () => {
+  describe('markNodeExecutionFailed — claim 후 RUNNING 롤백', () => {
     it('UPDATE 가 WAITING_FOR_INPUT 와 RUNNING 둘 다 대상으로 한다', async () => {
       const qb = {
         update: jest.fn().mockReturnThis(),
@@ -18148,7 +18148,7 @@ describe('ExecutionEngineService', () => {
       jest.restoreAllMocks();
     });
 
-    // 06 C-2 — Execution 이 terminal(재개 불가) 이면 RESUME_CHECKPOINT_MISSING.
+    // CLE-EXEC-RECOVERY-REHYDRATE — Execution 이 terminal(재개 불가) 이면 RESUME_CHECKPOINT_MISSING.
     // 주의: RUNNING 은 §7.5 원자 claim 진입 후 상태라 **허용값**이므로 reject 테스트에
     // 쓰면 안 된다(가드 통과 → false-green). terminal(CANCELLED)로 검증한다.
     it('Execution terminal(CANCELLED) → RESUME_CHECKPOINT_MISSING (early reject, rehydrate 미진입)', async () => {
@@ -18171,7 +18171,7 @@ describe('ExecutionEngineService', () => {
       expect(rehydrateSpy).not.toHaveBeenCalled();
     });
 
-    // 06 C-2 — claim 진입 후 Execution·NodeExecution 이 RUNNING 이면 **재개 가능**으로
+    // CLE-EXEC-RECOVERY-REHYDRATE — claim 진입 후 Execution·NodeExecution 이 RUNNING 이면 **재개 가능**으로
     // 허용돼 status 가드를 통과하고 rehydrate 로 진입한다 (RUNNING 이 거부되던 옛 동작의
     // 회귀 방지 positive 테스트).
     it('Execution/NodeExecution RUNNING(claim 후) → status 가드 통과, rehydrate 진입', async () => {
@@ -19021,7 +19021,7 @@ describe('ExecutionEngineService', () => {
       }
     });
 
-    // 06 C-2 (W2) — driveResumeAwaited 의 RUNNING skip-guard. §7.5 원자 claim 이
+    // driveResumeAwaited 의 RUNNING skip-guard. 재개 진입 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE) 이
     // Execution 을 이미 WFI→RUNNING 페어링 전이시켰으면(processor 경로 → savedExecution
     // 은 RUNNING 으로 로드) 재개 sentinel 전이(updateExecutionStatus(RUNNING))를 건너뛴다
     // (RUNNING→RUNNING assertTransition throw 회피). legacy/직접 경로(WAITING)는 위

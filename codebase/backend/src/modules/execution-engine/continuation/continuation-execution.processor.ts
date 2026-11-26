@@ -76,7 +76,7 @@ export const CONTINUATION_DELIVERY_CLAIM: Readonly<
  *
  * Idempotency:
  * - BullMQ jobId 중복 = 거부 (publisher 측 nextSeq 단조 증가).
- * - 추가 가드(§7.5, 06 C-2): 처리 전 재개 진입을 DB 원자 claim
+ * - 추가 가드(CLE-EXEC-RECOVERY-REHYDRATE 「재개 진입 원자 claim」): 처리 전 재개 진입을 DB 원자 claim
  *   (`claimResumeEntry` — waiting_for_input → running 조건부 UPDATE) 으로 획득.
  *   affected=0(다른 worker 가 이미 claim/terminal) 이면 ack-and-discard. 비원자
  *   SELECT 재검증과 달리 check-then-act 창이 없어 이중 실행 0 을 기계 보장.
@@ -110,7 +110,7 @@ export class ContinuationExecutionProcessor extends WorkerHost {
       `[${type}] pick up — execution=${executionId} nodeExec=${nodeExecutionId} jobId=${job.id}`,
     );
 
-    // §7.5 재개 진입 원자 claim (06 C-2): 처리 전 대상 NodeExecution 을
+    // 재개 진입 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE): 처리 전 대상 NodeExecution 을
     // waiting_for_input → running 으로 **조건부 원자 전이**해 재개 진입을 획득한다.
     // affected>=1 인 단일 worker 만 진행, affected=0(다른 worker 가 이미 claim 했거나
     // terminal)이면 ack-and-discard. 비원자 SELECT 재검증과 달리 check-then-act 창이

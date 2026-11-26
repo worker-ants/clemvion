@@ -10,7 +10,7 @@ import { resolveIterationErrorCode } from './iteration-error-code';
 export type ParallelErrorPolicy = 'stop' | 'continue' | 'cancel-others-on-fail';
 
 /**
- * refactor 06-concurrency M-5 — branch 별 `nodeOutputCache` 는 shallow copy 라
+ * CLE-NODE-PARALLEL-EXEC 「병렬 분기 캐시 격리: 얕은 복사와 개발·테스트 환경 동결」 — branch 별 `nodeOutputCache` 는 shallow copy 라
  * top-level 키 추가는 격리되지만 **값 객체 내부는 공유**된다 (deep clone 비용
  * 회피, spec `4-nodes/1-logic/10-parallel.md` 명시 설계). "값 내부를 mutate 하지
  * 않는다" invariant 는 JSDoc 합의일 뿐 기계 강제가 없어, 위반 핸들러가 추가되면

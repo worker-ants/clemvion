@@ -7,7 +7,7 @@ import {
 import { KnowledgeBaseService } from './knowledge-base.service';
 
 /**
- * refactor 02 M-7 — `kb:<documentId>` 구독 인가 (옛 gateway 인라인 authorizer 이전).
+ * CLE-API-WS-MSG 「구독 인가」 — `kb:<documentId>` 구독 인가 (옛 gateway 인라인 authorizer 이전).
  * `verifyDocumentOwnership` 가 미소유/부재 시 throw → boolean 평탄화.
  *
  * `documentId` 는 UUID(`Document.id` = `@PrimaryGeneratedColumn('uuid')`)다. 비-UUID 는

@@ -84,7 +84,7 @@ describe('NodeHandlerRegistry', () => {
 
     it('warns (no throw) in non-production for missing metadata', () => {
       process.env.NODE_ENV = 'test';
-      // 03 m-1 — console.warn → NestJS Logger 전환(컨텍스트가 'NodeHandlerRegistry').
+      // console.warn → NestJS Logger 전환(컨텍스트가 'NodeHandlerRegistry').
       const warnSpy = jest
         .spyOn(Logger.prototype, 'warn')
         .mockImplementation(() => {});

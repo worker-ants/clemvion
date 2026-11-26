@@ -274,7 +274,7 @@ describe('PublicWebhookThrottleGuard', () => {
   });
 
   it('cf-connecting-ip 우선 추출 (TRUST_CF_CONNECTING_IP=true)', async () => {
-    // 04 m-3 — CF 신뢰는 기본 off 라 CF 우선을 검증하려면 명시 활성화. 복원은 afterEach.
+    // CLE-ACCT-SESSION REQ-SESSION-019 — CF 신뢰는 기본 off 라 CF 우선을 검증하려면 명시 활성화. 복원은 afterEach.
     process.env.TRUST_CF_CONNECTING_IP = 'true';
     const { guard, quota } = makeGuard({
       trigger: { authConfigId: null } as Partial<Trigger>,
@@ -291,7 +291,7 @@ describe('PublicWebhookThrottleGuard', () => {
     expect(quota.consumeStart).toHaveBeenCalledWith('1.1.1.1');
   });
 
-  // 04 m-3 — 기본(플래그 off)에서는 위변조 가능한 CF 헤더 무시 → XFF 로 rate-limit.
+  // CLE-ACCT-SESSION REQ-SESSION-019 — 기본(플래그 off)에서는 위변조 가능한 CF 헤더 무시 → XFF 로 rate-limit.
   it('기본(TRUST_CF_CONNECTING_IP off)에서는 cf-connecting-ip 를 무시하고 XFF 사용', async () => {
     delete process.env.TRUST_CF_CONNECTING_IP; // 복원은 afterEach.
     const { guard, quota } = makeGuard({

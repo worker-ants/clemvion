@@ -363,7 +363,7 @@ describe('WebAuthnController (audit)', () => {
   });
 
   describe('webauthnRegenerateRecovery', () => {
-    // [refactor 02 C-3 §3] delegates password reverification to
+    // Delegates password reverification to
     // authService.verifyPasswordForUser — controller raw bcrypt removed (layer
     // alignment). Guards the delegation + regenerate flow. The error message
     // contract is owned by AuthService.verifyPasswordForUser (asserted in

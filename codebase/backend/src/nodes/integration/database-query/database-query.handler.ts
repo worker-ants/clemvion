@@ -124,7 +124,7 @@ export class DatabaseQueryHandler
   >();
 
   /**
-   * 04 m-4 — bus 에 등록하는 invalidator 의 안정적 참조. register 가 받는 `Set` 은
+   * CLE-NODE-DBQUERY 「풀 캐시 무효화」 — bus 에 등록하는 invalidator 의 안정적 참조. register 가 받는 `Set` 은
    * 동일 함수 참조에만 idempotent 하므로, 매 등록마다 새 arrow 를 만들지 않고 인스턴스
    * 프로퍼티로 고정해 (비싱글톤 시나리오의) 중복 누적을 원천 차단한다.
    */

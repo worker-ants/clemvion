@@ -7,7 +7,7 @@ import {
 import { WorkflowsService } from './workflows.service';
 
 /**
- * refactor 02 M-7 — `workflow:<workflowId>` 구독 인가 (옛 gateway 인라인 authorizer 이전).
+ * CLE-API-WS-MSG 「구독 인가」 — `workflow:<workflowId>` 구독 인가 (옛 gateway 인라인 authorizer 이전).
  *
  * CLE-API-WS-MSG 「구독 인가」 (IDOR): 서버에는 `workflow:<workflowId>` 채널로 보내는 이벤트가 없다. 인가는
  * fail-closed 로 둔다. 다른 workspace 의 workflowId 를 추측한 소켓은 join 전에 막는다. `findById` 는
