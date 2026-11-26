@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-DISPLAY"
 title: "통합 상태와 만료 알림 — 화면 표시와 주의 필요"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "849a5fcda00ad4fbebce442bc8eb7b3247e544824ed4db00f5bc92e69a3948ba"
+content_hash: "f1c78492e2379313621163127d9bacea2ef19a5477086bbb5162c8ad36d3e3fe"
 read_as: "approved_fallback"
-task: "CLE-T-81270P"
+task: "CLE-T-BYT4S2"
 source_paths: []
-mirror_sha256: "2972b121479dae1a635e193090b15c6ae391ac7108f981169395f40a762e6e0f"
-etag: "sha256-9f25d453b36abae528f604acef55485add79cc8bb21d20f1fc00142d9e013240"
+mirror_sha256: "160e26a8200e1a41d05a34a83faf9ac1dd2d2339d08e05bbd55d975b13439a03"
+etag: "sha256-dc2dd401aa749c7f61b2fe0eed3066c760c9c66b83bae49380a228da8a27b8fb"
 ---
 ## 개요
 
@@ -99,7 +99,7 @@ etag: "sha256-9f25d453b36abae528f604acef55485add79cc8bb21d20f1fc00142d9e013240"
 
 결정일: 2026-11-20
 
-Google 은 서비스 레지스트리의 `supportsTokenAutoRefresh` 가 true 라 화면에 `Auto-renews` 로 보였고 만료 임박 · 주의 필요 · 사이드바 배지에서 빠졌다. 그런데 Google 은 refresh token 을 받기만 하고 갱신 경로는 구현돼 있지 않다([OAuth 연결과 토큰 갱신 — 연결 시작 「제공자별 설정」](CLE-INT-OAUTH-BEGIN.md#제공자별-설정)). 만료 스캐너도 Google 을 갱신 가능 통합으로 보지 않아 만료 알림을 보내고 만료 시각이 지나면 `expired` 로 바꿨다([만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#만료-스캐너)). 화면은 자동으로 갱신된다고 표시했지만 실제로는 토큰이 만료됐다. 이 어긋남은 [통합 상태와 만료 알림 「미결 사항」](CLE-INT-STATUS.md#미결-사항) 의 «Google 의 자동 갱신 표시와 스캐너 판정» 항목이다.
+Google 은 서비스 레지스트리의 `supportsTokenAutoRefresh` 가 true 라 화면에 `Auto-renews` 로 보였고 만료 임박 · 주의 필요 · 사이드바 배지에서 빠졌다. 그런데 Google 은 refresh token 을 받기만 하고 갱신 경로는 구현돼 있지 않다([OAuth 연결과 토큰 갱신 — 연결 시작 「제공자별 설정」](CLE-INT-OAUTH-BEGIN.md#제공자별-설정)). 만료 스캐너도 Google 을 갱신 가능 통합으로 보지 않아 만료 알림을 보내고 만료 시각이 지나면 `expired` 로 바꿨다([만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#만료-스캐너)). 화면은 자동으로 갱신된다고 표시했지만 실제로는 토큰이 만료됐다. 이 어긋남은 [통합 상태와 만료 알림](CLE-INT-STATUS.md#google-의-자동-갱신-표시-미결을-닫았다) 의 미결 사항이었고 아래 결정으로 닫았다.
 
 2026-11-20 에 Google 의 `supportsTokenAutoRefresh` 를 false 로 바꿨다(NERV Task `CLE-T-81270P`, 사용자 결정). 이제 자동 갱신 표시가 true 인 서비스는 `cafe24`·`makeshop` 뿐이다. Google 통합은 토큰 만료가 7일 안이면 `Expires in Nd` 로 보이고 `Expiring` 필터 · 주의 필요 · 사이드바 배지에 들어간다. Google access token 은 수명이 짧아서(보통 1시간) 연결한 직후부터 만료 임박으로 보인다. 갱신 경로가 없는 지금은 이것이 실제 상태다.
 

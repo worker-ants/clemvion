@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-CALLBACK"
 title: "OAuth 연결과 토큰 갱신 — 팝업 연결과 콜백"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "744554e13c176d27b2c2ba984ed34397e1ec3d9989f9e937a2319fa6f6fe68b7"
+content_hash: "35413ad28f7ac7c48a41c70895a2b325fa01e9fab6330a0babc7b6e2984eaaae"
 read_as: "approved_fallback"
-task: "CLE-T-81270P"
+task: "CLE-T-BYT4S2"
 source_paths: []
-mirror_sha256: "21f7429bbdf7e6abaca382be69235d82ccd2dc2711211b3fd4234a853e41d92d"
-etag: "sha256-b177a8482b5e2c5b3a1b81c106645aacb76b3d99085ee66d383057a33c035478"
+mirror_sha256: "cd1bd29a2980eb582485a22942c3c58fa33a21a77cbd4b67c9505ca2b30a63e2"
+etag: "sha256-99750e36ad0bedb73f0243134feaa463ce83b95d354bd321681b5e19024fecd4"
 ---
 ## 개요
 
@@ -101,12 +101,15 @@ GET /api/3rd-party/:provider/callback
    | GitHub | `GET https://api.github.com/user` (Bearer, `User-Agent` 헤더 필수) | 응답의 `login` | `login` |
 
    - 응답이 2xx 가 아니거나, 전송 오류나 10초 타임아웃으로 끝나거나, 응답에 식별자가 없으면 콜백은 `OAUTH_TOKEN_EXCHANGE_FAILED`(메시지 `Failed to read the connected account from the provider`)로 실패한다. 실패 기록은 아래 [에러 매핑](#에러-매핑) 의 코드 교환 실패 행을 따른다.
-   - 로그에는 상태 코드만 남기고 응답 본문은 남기지 않는다.
+   - 로그에는 실패 이유(상태 코드, 시간 초과, JSON 이 아닌 본문, 식별자 없음)만 남기고 응답 본문은 남기지 않는다.
+   - 조회가 실패하면 방금 받은 토큰은 저장하지 않고 버린다. 제공자에 폐기(revoke)를 요청하지 않는다.
+   - 토큰 교환과 계정 조회는 각각 10초 상한이라 콜백이 제공자를 기다리는 시간은 최악 20초다.
    - stub 모드(`OAUTH_STUB_MODE`, test · development 환경에서만 켜진다)는 토큰 교환과 이 조회를 하지 않고 같은 필드를 채운다. Google 은 `account_email: stub-user@example.com`, GitHub 은 `login: stub-user` 다.
 5. **모드별 처리**:
    - `new`: 아직 통합이 없다. 토큰을 미리보기 토큰(`integration_oauth_preview`, 10분)에 맡기고 `previewToken` 을 발급한다. `POST /api/integrations` 가 이 토큰을 참조해 통합을 만든다.
    - `reauthorize`: 기존 통합의 자격 증명을 새 토큰으로 바꾸고 상태를 `connected` 로, 상태 사유와 `last_error` 를 NULL 로 되돌린다. 재설치 대기 표시도 같은 트랜잭션에서 NULL 로 지운다. 통합이 설치 대기면 이때 연결됨이 된다(Cafe24 Private·MakeShop 첫 설치). 실패의 기록은 [상태 모델 「콜백 실패 기록」](CLE-INT-STATUS-MODEL.md#콜백-실패-기록)을 따른다.
    - `request_scopes`: 기존 `credentials.scopes` 에 새 권한 범위를 합치고 access token·refresh token 을 갱신한다.
+   - Google·GitHub 의 `reauthorize`·`request_scopes` 는 새로 조회한 계정 식별자를 저장한다. 기존 값과 달라도 거절하지 않고 새 값으로 바꾼다([재인가와 권한 추가는 새 계정 식별자로 덮어쓴다](#재인가와-권한-추가는-새-계정-식별자로-덮어쓴다)).
    - `reauthorize`·`request_scopes` 는 커밋 직전에 요청자에게 그 통합이 보이는지, 개인 통합이면 요청자의 현재 역할이 편집자 이상인지, 조직 통합이면 관리자 이상인지 같은 트랜잭션에서 다시 판정한다. 실패하면 롤백한다. 개인 통합의 편집자 하한은 begin 의 라우트 가드와 같은 하한이다. 설치 대기 행과 유효한 재설치 대기 표시가 있는 Cafe24 Private 행은 이 판정을 건너뛴다. 조건과 받아들인 잔여 위험은 [상태 모델 「재설치 대기 표시」](CLE-INT-STATUS-MODEL.md#재설치-대기-표시)가 정한다.
 6. **부모 창 알림**:
 
@@ -193,6 +196,15 @@ Cafe24 Admin API 가운데 mileage·notification·privacy 의 모든 권한 범�
 서비스 레지스트리의 Google · GitHub 저장 필드는 계정 식별자(Google `account_email`, GitHub `login`)를 필수로 둔다. 두 제공자의 토큰 응답에는 이 값이 없다. 그래서 팝업 연결을 마쳐도 통합 저장이 필수 필드 검증에 막혔다(NERV Task `CLE-T-81270P`). 콜백이 토큰 교환 직후 받은 access token 으로 계정을 조회해 이 값을 채운다.
 
 - **조회 실패는 `OAUTH_TOKEN_EXCHANGE_FAILED` 로 끝낸다.** 식별자 없이 미리보기 토큰을 발급하면 저장 단계에서 자격 증명 형식 오류로 막혀 사용자가 원인을 알기 어렵다. 받은 토큰으로 계정을 읽지 못하면 연결이 끝나지 않은 것과 같아서 토큰 교환 실패와 같은 코드와 같은 실패 기록을 쓴다. 메시지는 `Failed to read the connected account from the provider` 로 토큰 교환 실패와 구분한다.
-- **타임아웃은 토큰 교환과 같은 10초다.** 콜백 한 번에 외부 호출이 둘이 되지만 각 호출의 상한은 같게 둔다.
+- **타임아웃은 토큰 교환과 같은 10초다.** 콜백 한 번에 외부 호출이 둘이 되지만 각 호출의 상한은 같게 둔다. 그래서 콜백의 제공자 대기는 최악 20초다.
+- **조회가 실패해도 받은 토큰의 폐기를 요청하지 않는다.** 2026-11-26 사용자 결정이다(NERV Task `CLE-T-BYT4S2`). 토큰은 저장하지 않고 버린다. Google(`oauth2.googleapis.com/revoke`)과 GitHub(`DELETE /applications/{client_id}/grant`)의 폐기는 토큰 하나가 아니라 같은 OAuth 클라이언트 · 같은 계정의 grant 전체를 끊는다. 재인가 · 권한 추가가 실패할 때 폐기하면 같은 계정으로 이미 연결된 통합(다른 워크스페이스 포함)의 토큰까지 쓸 수 없게 된다. 버린 토큰은 제공자 쪽에서 만료될 때까지 남는다.
 - **응답 본문은 로그에 남기지 않는다.** 계정 조회 응답에는 이메일 같은 개인 정보가 들어 있다. 실패 원인은 상태 코드로 가를 수 있다.
 - **stub 모드도 같은 필드를 채운다.** stub 모드는 제공자를 부르지 않는다. 이때 식별자가 비면 테스트 환경의 저장이 같은 필수 필드 검증에 막힌다.
+
+### 재인가와 권한 추가는 새 계정 식별자로 덮어쓴다
+
+결정일: 2026-11-26
+
+재인가(`reauthorize`)와 권한 추가(`request_scopes`)에서 새로 조회한 계정 식별자가 기존 값과 달라도 거절하지 않고 새 값으로 바꾼다(NERV Task `CLE-T-CDY02F`, 사용자 결정). 코드는 계정 조회를 더할 때부터 이렇게 동작했고 이번에 문서에 적었다. 다른 계정으로 다시 연결하려는 재인가도 정상 사용이다. Google·GitHub 통합을 쓰는 노드가 아직 없어서 계정이 바뀌어 깨지는 실행도 없다([인증 방식 「GitHub」](CLE-INT-AUTH.md#github)).
+
+- **기각한 안**: 식별자가 다르면 콜백을 거절하는 안(새 에러 코드, 자격 증명은 그대로)과 `request_scopes` 만 거절하는 안을 검토했다. 새 에러 코드와 콜백 에러 매핑이 늘지만 막는 사고가 없어서 택하지 않았다. 통합을 쓰는 노드가 생겨 계정이 바뀌면 실행 결과가 달라지게 되면 다시 본다.

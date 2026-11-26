@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "8858fc9705bd3ae91efec45c798803d8bb2d0b8f3693f95aba2bb4accb6a46dd"
+content_hash: "08c7a55c6c2c3a72a935361b5f608863e46f61fe984b2e9b8417a2bcba7c184e"
 read_as: "approved_fallback"
-task: "CLE-T-EJFQ1Y"
+task: "CLE-T-BYT4S2"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "93c617af1b51014638a3b6cbc41495fd76368390c9d99f1330d637ea5de6d1db"
-etag: "sha256-4730e437ed73b6f9fc36b95c09b5b588e756ef00bdba778139c028b763a99f38"
+mirror_sha256: "63e304fb71f88770ae260fc098976f9cd48389d911a1bad19b3c7b6b446380cd"
+etag: "sha256-39f364cad500e32a513ab6872c6f0909e45b4446a80f0d6e7bf46096d21e0aea"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -128,7 +128,6 @@ etag: "sha256-4730e437ed73b6f9fc36b95c09b5b588e756ef00bdba778139c028b763a99f38"
 - **노드 실행 중 401·403 이 통합 상태를 바꾸는 범위**: 통합 화면 정의는 노드 실행 중 401 을 받으면 Cafe24 는 토큰 갱신과 1회 재시도 뒤에도 401 일 때, 그 밖의 서비스는 즉시 `error(auth_failed)` 로 바꾸고, 403 은 즉시 바꾼다고 적는다. 같은 정의의 노드 실행 연동 절은 핸들러 실패 때 `Integration.status`·`last_error` 가 함께 갱신된다고 적는다. 데이터 흐름 정의는 `logUsage` 가 `last_error` 만 갱신하고 상태는 외부 MCP 서버 `AUTH_FAILED` 일 때만 바꾸며, Cafe24·MakeShop 은 각 클라이언트의 `markAuthFailed` 가 바꾼다고 적는다. [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)·[Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)·[Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) 는 상태 전이를 언급하지 않는다. 현재 구현(`integrations.service.ts`)은 데이터 흐름 정의와 같다. 화면 정의대로 구현하면 HTTP·Database·SMTP 노드의 401 한 번으로 통합이 오류가 되어 이후 모든 실행이 `INTEGRATION_NOT_CONNECTED` 로 막힌다. 일반 서비스의 401·403 격하를 제품 요구로 둘지 결정이 필요하다.
 - **`expired` 가 된 Cafe24 통합의 자동 복구**: [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) 는 AI 에이전트 도구 구성(`buildTools`)이 `expired` 이고 refresh token 이 있는 행에 큐 갱신을 걸면 워커가 갱신 뒤 `connected` 로 되돌린다고 적는다. 데이터 흐름 정의의 상태도도 «내부 MCP 브리지의 refresh token 자가 회복» 으로 `expired → connected` 를 그린다. 그런데 같은 정의의 주석은 갱신 워커가 source 와 상관없이 `status !== 'connected'` 행을 건너뛴다고 적는다. 현재 구현(`cafe24-token-refresh.processor.ts` 의 상태 가드)은 주석과 같다(MakeShop 도 `MakeshopMcpToolProvider` 가 `makeshop-token-refresh` 큐로 같은 자가 회복을 건다). 자동 복구를 없앨지, 워커 가드에 예외를 둘지 결정이 필요하다.
 - **조치 필요 알림 중복 방지 규칙**: 통합 화면 정의는 `(integration_id, status_reason)` 으로 유니크를 판정해 같은 사유는 통합마다 최대 한 번 보내고, 사용자가 다시 연결해 `connected` 가 되면 키를 되돌린다고 적는다. 같은 절의 주석, 데이터 흐름 정의(같은 통합·사유 24시간), [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 정의(`(workspace, type, resourceId, title)` 24시간)는 `hasRecentByResource` 의 24시간 창으로 적는다. 현재 구현(`integration-action-required-notifier.service.ts`, `withinMs` 24시간)은 24시간 창이다. 두 규칙은 «24시간 뒤 같은 사유 재발» 과 «24시간 안에 회복 후 재발» 에서 발사 여부가 반대다. 장애가 24시간 넘게 이어질 때 다시 알릴지 결정이 필요하다.
-- **Google 의 자동 갱신 표시와 스캐너 판정**: Google 은 서비스 레지스트리에서 `supportsTokenAutoRefresh=true` 라 화면에 `Auto-renews` 로 보이고 만료 임박·주의 필요에서 빠진다. 그런데 갱신 가능 통합 판정에는 없어 만료 스캐너가 7일·3일 알림을 보내고 당일에 `expired` 로 바꾼다. 갱신 경로도 구현돼 있지 않다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md)). 원문 통합 정의의 Google 서비스 요구사항은 «토큰 자동 갱신 지원» 이라 적었고 그 서비스 목록은 [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-027 이 이어받았다. 화면 신호와 스캐너 동작이 반대다. Google 을 자동 갱신 표시에서 뺄지, 갱신 경로를 만들고 갱신 가능 통합에 넣을지 결정이 필요하다.
 - **조치 필요 알림 문구의 Cafe24 고정**: [조치 필요 알림](CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) 표의 메시지에는 «Cafe24» 가 들어 있다. 데이터 흐름 정의는 MakeShop 클라이언트도 같은 알림 경로를 쓴다고 적고, 현재 구현도 MakeShop 실패에 같은 문구를 보낸다. 문구를 서비스 중립으로 바꿀지, 서비스 유형별 문구를 둘지 결정이 필요하다.
 
 ## 구현 위치
@@ -172,6 +171,12 @@ etag: "sha256-4730e437ed73b6f9fc36b95c09b5b588e756ef00bdba778139c028b763a99f38"
 2026-11-19 에 연속 전송 실패 요구사항(REQ-INTSTAT-008)의 범위를 정했다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 사용자가 실행을 취소하거나 다른 분기 실패로 노드가 취소되면 요청이 `AbortError` 로 끝난다. 이것은 외부 서비스와의 연결이 실패한 것이 아니다. 이를 카운터에 넣으면 취소를 세 번 하는 것만으로 멀쩡한 통합이 `error(network)` 로 떨어지고 이후 실행이 모두 막힌다. 그래서 Cafe24 · MakeShop 클라이언트는 노드 취소 신호로 생긴 `AbortError` 를 카운터에 넣기 전에 다시 던진다.
 
 요청 자체 타임아웃은 외부 서비스가 제때 답하지 않은 것이라 transport 실패로 센다. 두 클라이언트는 요청마다 건 자체 타이머와 취소 리스너를 응답 본문을 다 읽을 때까지 유지한다. 그래서 본문을 읽는 중의 취소는 세지 않고, 본문을 읽는 중의 자체 타임아웃은 센다. 두 `AbortError` 를 가르는 방법은 [노드 취소 — 노드별 적용](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)이 정한다.
+
+### Google 의 자동 갱신 표시 미결을 닫았다
+
+결정일: 2026-11-20
+
+미결 사항이던 «Google 의 자동 갱신 표시와 스캐너 판정» 은 Google 을 자동 갱신 표시에서 빼기로 해서 닫았다(NERV Task `CLE-T-81270P` · `CLE-T-JZAWGM`). 결정과 근거는 [화면 표시와 주의 필요 「Google 을 자동 갱신 표시에서 뺀다」](CLE-INT-STATUS-DISPLAY.md#google-을-자동-갱신-표시에서-뺀다) 에 있다. 원문 통합 정의는 Google 서비스 요구사항을 «토큰 자동 갱신 지원» 으로 적었고 그 서비스 목록은 [통합 관리](CLE-INT-MANAGE.md) 의 REQ-INTMGMT-027 이 이어받았다. 이 요구는 Google 갱신 경로를 구현하기 전까지 충족되지 않는다.
 
 ### 통합 알림도 유형별 인앱 끄기를 따른다
 

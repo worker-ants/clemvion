@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-MODEL"
 title: "통합 상태와 만료 알림 — 상태 모델"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "f66d5349e9edff8fbbee21ad0bf4f043d1430e0876aa4a07ea299ac54599c5f4"
+content_hash: "01af9cb1040036219e50259185efe7cfa3dd12eaeedec056f8e0901d1b6b375b"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-BYT4S2"
 source_paths: []
-mirror_sha256: "c7f930231eb301714b9cdc716df6ee9dfa77d2a12d423b2c73c3fe6a3a78645a"
-etag: "sha256-8c84ad61944d3678b7f6fe49abc3319ce41d874ccb7de497fb612fe2f6643666"
+mirror_sha256: "7a4f301d9be66b01c18edd2b395c0e9982ba57e0ef9f51bf90f2669342bd7e60"
+etag: "sha256-581a5021bbf3249db8d4a5dcfdb1b4e1a62d6aeadc74fbf0aeda282c90484773"
 ---
 ## 개요
 
@@ -113,7 +113,7 @@ OAuth 콜백 처리가 실패하면 `markIntegrationCallbackError` 가 그 행�
 | 오류·만료됨 | 모든 코드 | 그대로 | 그대로 |
 
 - 재설치 대기 표시가 기록 결과를 바꾸는 경우는 연결됨 행의 코드 교환 실패 하나다. 표시를 남긴 지 24시간이 지났으면 표시가 없는 행과 같이 처리한다. 설치 대기의 콜백 실패가 상태를 보존하는 것과 같은 원칙이다([설치 대기의 콜백 실패는 상태를 보존한다](#설치-대기의-콜백-실패는-상태를-보존한다)).
-- 토큰 교환 중의 네트워크 오류와 시간 초과도 `OAUTH_TOKEN_EXCHANGE_FAILED` 로 기록한다. 그래서 유효한 표시가 없는 연결됨 행은 transport 실패 한 번에 `error(auth_failed)` 가 되고 `error(network)` 의 3회 연속 규칙을 따르지 않는다. 콜백은 자동으로 다시 시도하지 않는 한 번의 교환이고 복구하려면 사용자가 통합 재인증을 다시 시작해야 한다.
+- 토큰 교환과 계정 식별자 조회의 네트워크 오류와 시간 초과도 `OAUTH_TOKEN_EXCHANGE_FAILED` 로 기록한다. 그래서 유효한 표시가 없는 연결됨 행은 transport 실패 한 번에 `error(auth_failed)` 가 되고 `error(network)` 의 3회 연속 규칙을 따르지 않는다. 콜백은 자동으로 다시 시도하지 않아서 사용자가 통합 재인증을 다시 시작해야 복구된다.
 - 연결됨 행이 `error(auth_failed)` 로 바뀌면 행을 저장한 뒤 조치 필요 알림을 보낸다. 상태가 바뀌지 않는 기록은 알림을 보내지 않는다([만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#알림)).
 - 권한 범위 거부(`OAUTH_INVALID_SCOPE`)는 `last_error.details.requiresCafe24Approval` 을 함께 남긴다([Cafe24 별도 승인 scope](CLE-C24-SCOPES)). 주의 필요 판정은 상태만 보므로 이 연결됨 행은 주의 필요에 들어가지 않는다. 다음 콜백이 성공하면 사유와 `last_error` 가 NULL 로 돌아간다.
 - 기록하지 않는 경우: state 를 소비하기 전의 실패는 통합을 알 수 없다. 설치 기한이 지나 만료된 행(`install_timeout`)과, 콜백 재판정에서 요청자가 볼 수 없는 행이라 404 로 거절한 콜백(`CallbackContext.recordable: false`)은 행에 아무것도 쓰지 않는다. 행이 사라졌으면 쓸 곳이 없다.
