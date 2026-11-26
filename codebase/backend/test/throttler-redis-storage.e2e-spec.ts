@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import {
   Controller,
   type DynamicModule,
@@ -19,7 +27,10 @@ import { UserThrottlerGuard } from '../src/common/guards/user-throttler.guard';
 import { RedisConnectionProvider } from '../src/common/redis/redis-connection.provider';
 import {
   REDIS_THROTTLER_COMMAND_TIMEOUT_MS,
+  REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS,
+  REDIS_THROTTLER_TIMING,
   RedisThrottlerStorage,
+  type RedisThrottlerTiming,
   throttleBlockKey,
   throttleHitKey,
 } from '../src/common/throttler/redis-throttler.storage';
@@ -66,15 +77,36 @@ class ThrottleProbeController {
   }
 }
 
-/** 앱마다 다른 Redis 설정을 주려고 공유 연결 provider 를 전역 모듈로 바꿔 끼운다. */
-function redisConnectionModule(conn: RedisConnectionProvider): DynamicModule {
+/**
+ * 실제 Redis 로 공유 카운트를 보는 앱(A · B)의 저장소 시간. 운영 제한 시간(250ms)이면 CI 에서 Redis 가 한 번만
+ * 늦어도 저장소가 재시도 대기(5초) 동안 메모리로 센다. 그러면 1~2초에 끝나는 이 spec 의 Redis 검증 4건이
+ * 한꺼번에 깨진다(CI 에서 429 대신 200, hit 키 PTTL -2). 그래서 제한 시간만 길게 준다. 제한 시간 · 대기 동작은
+ * 단위 테스트와 `appDown` 이 본다.
+ */
+const SHARED_APP_TIMING: RedisThrottlerTiming = {
+  commandTimeoutMs: 5_000,
+  retryAfterFailureMs: REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS,
+};
+
+/**
+ * 앱마다 다른 Redis 설정을 주려고 공유 연결 provider 를 전역 모듈로 바꿔 끼운다. 저장소 시간을 바꿀 앱은
+ * 그 provider 도 여기에 둔다. 저장소는 `ThrottlerStorageModule` 안에 있어 전역 모듈의 provider 만 본다.
+ */
+function redisConnectionModule(
+  conn: RedisConnectionProvider,
+  timing?: RedisThrottlerTiming,
+): DynamicModule {
   @Module({})
   class E2eRedisModule {}
+  const providers = [
+    { provide: RedisConnectionProvider, useValue: conn },
+    ...(timing ? [{ provide: REDIS_THROTTLER_TIMING, useValue: timing }] : []),
+  ];
   return {
     module: E2eRedisModule,
     global: true,
-    providers: [{ provide: RedisConnectionProvider, useValue: conn }],
-    exports: [RedisConnectionProvider],
+    providers,
+    exports: providers.map((p) => p.provide),
   };
 }
 
@@ -91,10 +123,11 @@ function connectionFor(port: number): RedisConnectionProvider {
 
 async function createApp(
   conn: RedisConnectionProvider,
+  timing?: RedisThrottlerTiming,
 ): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [
-      redisConnectionModule(conn),
+      redisConnectionModule(conn, timing),
       ThrottlerModule.forRootAsync({
         imports: [ThrottlerStorageModule],
         inject: [RedisThrottlerStorage],
@@ -135,6 +168,18 @@ describe('요청 빈도 제한 Redis 저장소 (e2e)', () => {
   let appA: INestApplication;
   let appB: INestApplication;
   let appDown: INestApplication;
+  /** A · B 저장소가 메모리로 내려갈 때 남긴 경고. 비어 있어야 Redis 로 센 것이다. */
+  const sharedFallbackWarnings: string[] = [];
+
+  /** 저장소의 경고를 가로채 둔다. 메모리로 내려간 이유(제한 시간 초과 · 연결 오류)가 경고 문구에 있다. */
+  function captureFallbackWarnings(app: INestApplication, label: string) {
+    const storage = app.get(RedisThrottlerStorage);
+    jest
+      .spyOn(storage['logger'], 'warn')
+      .mockImplementation((message: unknown) => {
+        sharedFallbackWarnings.push(`${label}: ${String(message)}`);
+      });
+  }
 
   beforeAll(async () => {
     redis = new Redis({
@@ -161,10 +206,23 @@ describe('요청 빈도 제한 Redis 저장소 (e2e)', () => {
     const connDown = {
       getClientOrNull: () => downClient,
     } as unknown as RedisConnectionProvider;
-    appA = await createApp(connA);
-    appB = await createApp(connB);
+    appA = await createApp(connA, SHARED_APP_TIMING);
+    appB = await createApp(connB, SHARED_APP_TIMING);
     appDown = await createApp(connDown);
+    captureFallbackWarnings(appA, 'appA');
+    captureFallbackWarnings(appB, 'appB');
   }, 30_000);
+
+  // 아래 검증은 A · B 가 Redis 로 셌다는 전제 위에 있다. 메모리로 내려갔으면 429 · 키 단언이 엉뚱하게 깨지므로
+  // 그 원인을 먼저 드러낸다.
+  afterEach(() => {
+    const warnings = sharedFallbackWarnings.splice(0);
+    if (warnings.length > 0) {
+      throw new Error(
+        `A · B 앱이 Redis 대신 메모리 저장소로 셌다:\n${warnings.join('\n')}`,
+      );
+    }
+  });
 
   afterAll(async () => {
     await Promise.all([appA?.close(), appB?.close(), appDown?.close()]);
