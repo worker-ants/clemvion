@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { IsNull, LessThan } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
-import { WorkspaceInvitationsService } from './workspace-invitations.service';
+import {
+  WorkspaceInvitationsService,
+  invitationNotFoundException,
+} from './workspace-invitations.service';
 
 type Mock = jest.Mock;
 
@@ -1046,5 +1049,20 @@ describe('WorkspaceInvitationsService', () => {
         order: { createdAt: 'DESC' },
       });
     });
+  });
+});
+
+describe('invitationNotFoundException', () => {
+  it('본인 초대 경로가 쓰는 404 invitation_not_found 를 매번 새로 만든다', () => {
+    const first = invitationNotFoundException();
+    const second = invitationNotFoundException();
+
+    expect(first).toBeInstanceOf(NotFoundException);
+    expect(first.getStatus()).toBe(404);
+    expect(first.getResponse()).toEqual({
+      code: 'invitation_not_found',
+      message: '초대를 찾을 수 없습니다.',
+    });
+    expect(second).not.toBe(first);
   });
 });

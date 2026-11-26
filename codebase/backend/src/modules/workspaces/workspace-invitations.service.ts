@@ -53,17 +53,9 @@ function generateToken(): string {
 }
 
 /**
- * Manages pending workspace invitations for users who may not yet have accounts.
- * Spec: spec/5-system/1-auth.md §1.5, spec/2-navigation/9-user-profile.md §4.1.1
- *
- * Per-(workspace, email) pending row is **single** (enforced by partial UNIQUE
- * idx_workspace_invitation_pending_unique). Re-inviting the same email or
- * resending overwrites the same row — the previous token becomes invalid as
- * soon as the column is replaced.
- */
-/**
  * 초대가 없거나 로그인 사용자의 초대가 아닐 때의 404 `invitation_not_found`. 본인 초대 경로는 형식이 틀린 초대 id 와
  * 남의 초대 id 를 같은 응답으로 돌려줘야 하므로 컨트롤러의 `ParseUUIDPipe` 예외와 서비스가 이 함수 하나를 쓴다.
+ * 토큰 경로의 404(`assertTokenUsable`)는 같은 코드에 다른 메시지(초대 토큰이 유효하지 않습니다)를 쓴다.
  */
 export function invitationNotFoundException(): NotFoundException {
   return new NotFoundException({
@@ -72,6 +64,15 @@ export function invitationNotFoundException(): NotFoundException {
   });
 }
 
+/**
+ * Manages pending workspace invitations for users who may not yet have accounts.
+ * Spec: spec/5-system/1-auth.md §1.5, spec/2-navigation/9-user-profile.md §4.1.1
+ *
+ * Per-(workspace, email) pending row is **single** (enforced by partial UNIQUE
+ * idx_workspace_invitation_pending_unique). Re-inviting the same email or
+ * resending overwrites the same row — the previous token becomes invalid as
+ * soon as the column is replaced.
+ */
 @Injectable()
 export class WorkspaceInvitationsService {
   private readonly logger = new Logger(WorkspaceInvitationsService.name);
@@ -575,8 +576,7 @@ export class WorkspaceInvitationsService {
     invitationId: string,
     userId: string,
   ): Promise<WorkspaceInvitation> {
-    const notFound = invitationNotFoundException;
-    if (!isUUID(invitationId)) throw notFound();
+    if (!isUUID(invitationId)) throw invitationNotFoundException();
     const [invitation, user] = await Promise.all([
       this.invitationRepository.findOne({ where: { id: invitationId } }),
       this.userRepository.findOne({ where: { id: userId } }),
@@ -586,7 +586,7 @@ export class WorkspaceInvitationsService {
       !user ||
       user.email.toLowerCase() !== invitation.email.toLowerCase()
     ) {
-      throw notFound();
+      throw invitationNotFoundException();
     }
     return invitation;
   }

@@ -86,7 +86,7 @@ export class MyInvitationsController {
   @Post(':invitationId/accept')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: '내 초대 수락',
+    summary: '내 초대를 수락해 합류',
     description:
       '로그인 이메일로 온 초대를 초대 ID 로 수락해 워크스페이스에 합류합니다. 없거나 다른 이메일로 온 초대는 404, 이미 수락했거나 만료된 초대는 410 입니다.',
   })

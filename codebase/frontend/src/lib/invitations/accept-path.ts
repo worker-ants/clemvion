@@ -1,6 +1,7 @@
 import { buildLoginHref } from "@/lib/auth/post-login-redirect";
 
 // 근거: [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS#초대-가입-화면)
+// 초대 id 모드: [워크스페이스와 멤버 「이미 가입한 사용자의 수락 경로」](CLE-ACCT-WS#이미-가입한-사용자의-수락-경로)
 //
 // 초대 수락 페이지 경로와 초대 흐름의 로그인 경로. 초대 모듈이 `lib/auth` 의 `buildLoginHref` 를 가져다 쓰고
 // 반대 방향 의존은 두지 않는다.
