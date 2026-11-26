@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-HANDLER"
 title: "통합 노드 공통 — 핸들러 실행 계약"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "f5d7011184ce3874891fda6d3e70e6e743239d4545cc111baedf13ae8d859232"
+content_hash: "98ff65e46f0e8541e03e6296151bc680da819f9da019a1c9d0d0f36a5c604e5d"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-MYDNQN"
 source_paths: []
-mirror_sha256: "f8f2dc8195e58baba7aeda1da08b9120578972a15b79bfe3ced6058ed4fcf3bb"
-etag: "sha256-bf3d52a68f386f7714002d0f097272e5b2a3495cf9eca7c8f8b444287f6a9434"
+mirror_sha256: "0b8e03c4fda1973c930a5b5ae3e87d1a178bf6a8bb21f8dda0a44448fe8a9b06"
+etag: "sha256-9b5d5d84c1ca6885e4b114aa73528dbdc33d4f62ae7fe7db15612e38b13b1ef3"
 ---
 ## 개요
 
@@ -114,7 +114,7 @@ interface IntegrationUsageParams {
 
 공통 베이스는 통합을 얻는 `acquireIntegration` 과 검증하는 `assertUsable` 을 따로 둔다. 다섯 통합 노드는 두 메서드를 따로 부른다.
 
-- `acquireIntegration` 은 1·2단계를 맡는다. `context.nodeId` 와 `context.rawConfig` 로 `use` 인자를 만들어 `getForExecution` 을 부르고 얻은 통합을 돌려준다. 실패하면 예외를 던진다. 워크스페이스 누락이 지금 일반 `Error` 로 나가는 것은 아래 "서비스 미주입과 워크스페이스 누락" 에 있다.
+- `acquireIntegration` 은 1·2단계를 맡는다. `context.nodeId` 와 `context.rawConfig` 로 `use` 인자를 만들어 `getForExecution` 을 부르고 얻은 통합을 돌려준다. 실패하면 예외를 던진다. 서비스 미주입과 워크스페이스 누락은 `IntegrationError('INTEGRATION_SERVICE_UNAVAILABLE')` 로 던진다(아래 "서비스 미주입과 워크스페이스 누락").
 - `assertUsable` 은 3단계를 맡는다. 실패하면 `IntegrationError(code, message)` 를 던진다. `code` 는 [공통 에러 코드](CLE-NODE-INT-COMMON-ERROR.md#공통-에러-코드) 의 값이다. 핸들러는 이 예외를 잡아 에러 포트로 내보낸다.
 - `logUsage` 는 `acquireIntegration` 이 돌려준 통합을 받는다. 핸들러는 얻은 통합을 지역 변수(`integration: Integration | undefined`)로 들고 있다가 3단계 이후에 실패해도 그 통합으로 활동 로그를 남긴다. 바깥 catch 도 통합을 얻었을 때만 기록한다. 통합을 얻기 전에 끝난 실패는 넘길 통합이 없어 기록하지 않는다. 노드 취소로 생긴 `AbortError` 는 실패가 아니라서 기록하지 않고 다시 던진다.
 - `IntegrationError` 에는 코드와 메시지만 싣는다. 통합을 싣지 않는다. 통합의 `credentials` 는 복호화된 평문이라 예외에 실으면 예외를 잡거나 로그로 남기는 모든 곳으로 퍼진다.
@@ -157,11 +157,11 @@ sequenceDiagram
 | Database Query | 에러 포트, `INTEGRATION_SERVICE_UNAVAILABLE` | 에러 포트, `INTEGRATION_SERVICE_UNAVAILABLE` |
 | Cafe24 | 에러 포트, `INTEGRATION_SERVICE_UNAVAILABLE` (`Cafe24ApiClient` 미주입 포함) | 에러 포트, `INTEGRATION_SERVICE_UNAVAILABLE` |
 | MakeShop | 에러 포트, `INTEGRATION_SERVICE_UNAVAILABLE` (`MakeshopApiClient` 미주입 포함) | 에러 포트, `INTEGRATION_SERVICE_UNAVAILABLE` |
-| Send Email | 정규화한 수신자(`to`)가 있으면 외부 호출 없이 `status: 'requires_integration'` 을 돌려준다(포트·메트릭 없음). 수신자 확인이 먼저라 수신자가 없으면 에러 포트, `EMAIL_NO_RECIPIENTS` | 정규화한 수신자(`to`)가 있으면 에러 포트, `EMAIL_SEND_FAILED` (IntegrationError 가 아니어서 흡수됨). 수신자 확인이 먼저라 수신자가 없으면 에러 포트, `EMAIL_NO_RECIPIENTS` |
+| Send Email | 정규화한 수신자(`to`)가 있으면 외부 호출 없이 `status: 'requires_integration'` 을 돌려준다(포트·메트릭 없음). 수신자 확인이 먼저라 수신자가 없으면 에러 포트, `EMAIL_NO_RECIPIENTS` | 정규화한 수신자(`to`)가 있으면 에러 포트, `INTEGRATION_SERVICE_UNAVAILABLE`. 수신자 확인이 먼저라 수신자가 없으면 에러 포트, `EMAIL_NO_RECIPIENTS` |
 
 HTTP Request 노드가 `none`·`custom` 인증이면 통합을 조회하지 않으므로 이 표의 대상이 아니다. Send Email 노드의 두 예외는 [Send Email 노드](CLE-NODE-EMAIL.md)에서 자세히 정한다.
 
-워크스페이스 누락 열은 부분 구현이다. 현재 구현의 공통 베이스 `acquireIntegration` 은 `__workspaceId` 가 없으면 `IntegrationError` 가 아닌 일반 `Error('Missing workspace context …')` 를 던진다. 그래서 HTTP Request·Cafe24·MakeShop 노드는 기본 규칙대로 `INTEGRATION_CALL_FAILED` 를, Database Query 노드는 드라이버 에러 분류기(`mapDbError`)의 결과를 내보내는 것으로 보인다. Send Email 노드의 칸은 지금 동작이다. 같은 일반 `Error` 가 `IntegrationError` 가 아니어서 `EMAIL_SEND_FAILED` 로 끝난다([Send Email 노드 「에러 코드」](CLE-NODE-EMAIL.md#에러-코드)). [미결 사항](CLE-NODE-INT-COMMON.md#미결-사항) 참조.
+워크스페이스 누락은 공통 베이스 `acquireIntegration` 이 통합을 조회하기 전에 `IntegrationError('INTEGRATION_SERVICE_UNAVAILABLE')` 로 던진다. 서비스 미주입도 같은 코드로 던진다. 각 핸들러의 catch 는 `IntegrationError` 의 코드를 그대로 내므로 다섯 노드가 모두 이 코드로 끝난다. 통합을 얻기 전이라 활동 로그는 남지 않는다.
 
 ## 구현 위치
 
@@ -210,3 +210,10 @@ NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로�
 - 통합 엔티티의 `credentials` 는 컬럼 transformer 가 복호화한 평문이다(`integration.entity.ts` 의 `encryptedJsonTransformer`). 예외 객체는 잡는 곳마다 넘어가고 로그로 직렬화될 수 있다. 예외에 엔티티를 실으면 평문 자격 증명이 퍼지는 길이 하나 늘어난다.
 - 지금 `IntegrationError` 는 코드와 메시지만 싣는다. 얻기와 검증을 나누면 핸들러가 얻은 통합을 지역 변수로 들고 있으므로 예외를 넓히지 않아도 된다.
 - 기각: 예외에 통합 ID 만 싣는 안. 그 ID 로 기록하려면 `logUsage` 가 ID 를 받아야 한다. 그러면 얻지 않은 통합에도 기록할 수 있게 되어 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 의 «활동 로그는 얻은 통합에만 쓴다» 를 서명으로 지킬 수 없다.
+
+### 워크스페이스 누락도 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다 (2026-11-26)
+
+이 문서는 서비스 미주입과 워크스페이스 누락을 모두 배포 구성 에러로 두고 `INTEGRATION_SERVICE_UNAVAILABLE` 로 적었다. 공통 베이스 `acquireIntegration` 이 일반 `Error` 를 던지던 이전 구현에서는 `INTEGRATION_CALL_FAILED`(Database Query 는 `DB_QUERY_FAILED`, Send Email 은 `EMAIL_SEND_FAILED`)가 나왔다. 사람이 구현을 규칙에 맞추기로 정했고(NERV Task `CLE-T-MYDNQN`, 2026-11-26), 공통 베이스가 두 경우 모두 `IntegrationError('INTEGRATION_SERVICE_UNAVAILABLE')` 를 던지게 고쳤다.
+
+- 기각한 안: 문서를 이전 동작에 맞춰 워크스페이스 누락을 노드별 fallback 코드로 적는 안. 외부 호출 실패와 배포 구성 문제가 한 코드로 섞이고, 같은 원인이 노드마다 다른 코드로 나온다.
+- Send Email 의 서비스 미주입 동작(`requires_integration`)은 바꾸지 않았다. 규칙은 [Send Email 노드](CLE-NODE-EMAIL.md) 가 정한다.

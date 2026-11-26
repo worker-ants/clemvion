@@ -128,6 +128,12 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** 교체 대기 값을 비우는 저장 컬럼. 알림 해제나 첫 시크릿 발급 때 같은 잠금 안의 저장에 싣는다. */
+const CLEARED_ROTATION_COLUMNS = {
+  notificationSecretV2: null,
+  notificationRotatedAt: null,
+} as const;
+
 /** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 const TRIGGER_RESOURCE_TYPE = 'trigger';
 
@@ -720,6 +726,9 @@ export class TriggersService {
    * - `settleNotification` → `NotificationSigningSecretService.settle`. 첫 시크릿을 발급했으면
    *   `issued.notificationSigningSecret` 에 싣는다. 결과 `notification` 이 객체가 아니면(`null` 해제로 키를 지웠을 때 등)
    *   서명을 얹을 자리가 없다. 껍데기를 만들어 시크릿을 발급하지 않고 그대로 둔다.
+   * - 알림 서명 시크릿이 없어지거나(`null` 해제) 처음 발급되면 남은 교체 대기 값(`notification_secret_v2` · 교체 시각)을
+   *   비우도록 `clearRotation` 으로 알린다. 호출부가 같은 잠금 안의 저장에 싣는다. 해제였으면 `unsetNotification` 으로
+   *   알려 커밋 뒤 시크릿 행을 지우게 한다(NERV Task `CLE-T-919WVA`).
    *
    * 고르지 않은 쪽은 건드리지 않는다. 이 함수는 `m` 으로 시크릿 저장소에 쓸 수 있으므로 잠금을 쥔 트랜잭션
    * 안에서만 부른다.
@@ -740,11 +749,15 @@ export class TriggersService {
     config: Record<string, unknown>;
     issued: TriggerIssuedSecretsDto;
     closeTokenStreams: boolean;
+    clearRotation: boolean;
+    unsetNotification: boolean;
   }> {
     let config = input.config;
     let closeTokenStreams = false;
     let interactionToken: string | undefined;
     let notificationSigningSecret: string | undefined;
+    let clearRotation = false;
+    let unsetNotification = false;
     if (input.settleInteraction) {
       const settled = this.settleTriggerToken(target, config);
       config = settled.config;
@@ -755,6 +768,12 @@ export class TriggersService {
       const settled = await this.notificationSigning.settle(m, target, config);
       config = settled.config;
       notificationSigningSecret = settled.issuedSecret;
+      clearRotation = settled.clearRotation;
+    } else if (input.settleNotification) {
+      // `notification: null` 해제다. 서명 시크릿을 남기지 않는다 — 교체 대기 값은 이 저장에서, 시크릿 행은 커밋 뒤에 지운다.
+      unsetNotification = true;
+      clearRotation =
+        this.notificationSigning.settleUnset(target).clearRotation;
     }
     const issued: TriggerIssuedSecretsDto = {};
     if (notificationSigningSecret !== undefined) {
@@ -763,7 +782,13 @@ export class TriggersService {
     if (interactionToken !== undefined) {
       issued.interactionToken = interactionToken;
     }
-    return { config, issued, closeTokenStreams };
+    return {
+      config,
+      issued,
+      closeTokenStreams,
+      clearRotation,
+      unsetNotification,
+    };
   }
 
   /**
@@ -874,7 +899,7 @@ export class TriggersService {
     // 예외로 알림 서명 시크릿의 첫 발급 · 옛 평문 이전은 이 잠금 안에서 시크릿 저장소에 쓴다. 지금 백엔드는
     // 같은 DB 의 `secret_store` 테이블이라 HTTP 호출이 아니다([트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화)).
     // 이 트랜잭션의 매니저로 써서 풀 연결을 더 빌리지 않고, 저장이 실패하면 시크릿 쓰기도 함께 롤백된다.
-    const { saved, issued, closeTokenStreams } =
+    const { saved, issued, closeTokenStreams, unsetNotification } =
       await this.triggerRepository.manager
         .transaction(async (m) => {
           await acquireTriggerConfigLock(m, trigger.id);
@@ -964,7 +989,12 @@ export class TriggersService {
           // 이 응답에 보이지 않는다 — DB 는 보존되고(위) 응답만 한 박자 늦은 읽기다.
           // **저장과 응답이 같은 객체를 쓴다** — 둘을 따로 적으면 필드를 더할 때 한쪽만 고쳐
           // «DB 에 쓴 값» 과 «응답에 얹은 값» 이 조용히 갈린다.
-          const patch = { ...defined, config: mergedConfig };
+          // 교체 대기 값을 비울 때만 두 컬럼을 싣는다 — 그 밖에는 위 «바꾸는 필드뿐» 대로 싣지 않는다.
+          const patch = {
+            ...defined,
+            ...(eia.clearRotation ? CLEARED_ROTATION_COLUMNS : {}),
+            config: mergedConfig,
+          };
           const written = await m.save(Trigger, { id: target.id, ...patch });
           Object.assign(target, patch);
           // 실제 TypeORM 은 `@UpdateDateColumn` 이라 늘 채워 돌려준다. 가드는 **단위 대역**이
@@ -975,6 +1005,7 @@ export class TriggersService {
             saved: target,
             issued: eia.issued,
             closeTokenStreams: eia.closeTokenStreams,
+            unsetNotification: eia.unsetNotification,
           };
         })
         // 시크릿 저장소 쓰기가 이 트랜잭션 안이라 저장이 실패하면 함께 롤백된다 — 따로 되돌릴 것이 없다.
@@ -1002,6 +1033,11 @@ export class TriggersService {
       type: saved.type,
       issuedSecrets: issuedSecretKinds(issued),
     });
+    // 알림을 해제했으면 서명 시크릿 행을 지운다. 잠금을 다시 잡고 그사이 다시 붙였는지 본다. 실패는 warn 만 남긴다
+    // (NERV Task `CLE-T-919WVA`).
+    if (unsetNotification) {
+      await this.notificationSigning.deleteAfterUnset(saved.id);
+    }
     // [Spec 1-data-model §2.9.1 / data-flow 10-triggers §1.4] 역방향(Trigger→Schedule) is_active
     // 동기화. ScheduleProcessor 는 schedule.is_active 만 보므로, schedule row + BullMQ job
     // scheduler 에 반영하지 않으면 트리거 쪽 비활성화로는 발사가 멈추지 않는다

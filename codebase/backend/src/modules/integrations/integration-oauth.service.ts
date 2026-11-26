@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, LessThan, Repository } from 'typeorm';
 import { emptyOAuthEnvConfig, type OAuthEnvConfig } from '../../common/config';
+import { isAbortErrorLike } from '../../nodes/core/abort-error.util';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
   MAKESHOP_SHOP_UID_PATTERN,
@@ -88,6 +89,71 @@ const PREVIEW_TTL_MS = 10 * 60 * 1000;
 const RECOVERY_CANDIDATE_LIMIT = 5;
 
 const CAFE24_MALL_ID_PATTERN = /^[a-z0-9-]{3,50}$/;
+
+/**
+ * 콜백이 제공자에 보내는 요청 하나(토큰 교환, 계정 조회)의 상한이다. 엔드포인트가 응답하지 않을 때 콜백이 끝없이
+ * 기다리지 않게 한다. Google · GitHub 는 두 요청을 차례로 보내므로 콜백의 제공자 대기는 최악 20초다.
+ */
+const OAUTH_PROVIDER_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * `run` 에 넘긴 signal 을 {@link OAUTH_PROVIDER_REQUEST_TIMEOUT_MS} 뒤에 끊는다. 본문 읽기도 `run` 안에서 하면
+ * 같은 상한에 들어간다. 끊기면 `fetch` 가 `AbortError` 로 실패한다({@link isAbortErrorLike}).
+ */
+async function withProviderRequestTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    OAUTH_PROVIDER_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    return await run(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 계정 조회 요청의 결과. 실패면 로그에 남길 이유만 담는다. */
+type AccountIdentityResponse =
+  { ok: true; body: Record<string, unknown> } | { ok: false; reason: string };
+
+/**
+ * 계정 조회 요청을 보내고 본문을 읽는다. 실패 이유에는 응답 본문을 넣지 않는다. 상태 코드만으로 원인을 가를 수
+ * 있고, JSON 파싱 오류 메시지에는 본문 앞부분이 들어가기 때문이다. 본문이 객체가 아니면 빈 객체로 본다.
+ */
+async function requestAccountIdentity(
+  url: string,
+  headers: Record<string, string>,
+): Promise<AccountIdentityResponse> {
+  try {
+    return await withProviderRequestTimeout(async (signal) => {
+      const response = await fetch(url, { method: 'GET', headers, signal });
+      if (!response.ok) {
+        return { ok: false, reason: `HTTP ${response.status}` };
+      }
+      const body: unknown = await response.json();
+      return {
+        ok: true,
+        body:
+          typeof body === 'object' && body !== null && !Array.isArray(body)
+            ? (body as Record<string, unknown>)
+            : {},
+      };
+    });
+  } catch (err) {
+    if (isAbortErrorLike(err)) return { ok: false, reason: 'timed out' };
+    // `instanceof SyntaxError` 는 쓰지 않는다. 오류가 다른 realm 에서 만들어지면 거짓이 된다.
+    if (err instanceof Error && err.name === 'SyntaxError') {
+      return { ok: false, reason: 'response is not JSON' };
+    }
+    return {
+      ok: false,
+      reason: `transport error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
 
 /** Integration OAUTH_STUB_MODE 가드 — 단일 헬퍼 위임 (W-74). */
 function isIntegrationOAuthStubEnabled(): boolean {
@@ -407,7 +473,7 @@ function normalizeRawPreviewRow(
     // 의도적으로 우회된 흔적이다 (직접 DB 쓰기 또는 마이그레이션 누락).
     // 옛 코드는 "legacy 방어" 명목으로 조용히 JSON.parse 했으나, 이는
     // 암호화 invariant 를 우회하는 경로를 열어둔다. 명시적으로 invalid 로
-    // 마크해 호출자가 `OAUTH_PREVIEW_INVALID` 분기로 처리하게 한다.
+    // 마크해 호출자(`consumePreviewToken`)가 `INTEGRATION_CREDENTIALS_INVALID` 로 거절하게 한다.
     // 운영 진단을 위해 warn 로그도 함께 남긴다.
     logger.warn(
       `[security] preview row credentials is plaintext (no 'enc:' prefix) — refusing to consume. previewToken=${typeof raw.preview_token === 'string' ? raw.preview_token.slice(0, 8) : 'unknown'}…`,
@@ -1384,43 +1450,57 @@ export class IntegrationOAuthService {
       envCredentials: this.providerEnvCredentials(provider),
     });
 
-    // 10s 타임아웃 — 토큰 endpoint hang 시 무한 대기 방지 (cafe24-api.client
-    // bounded-fetch 동일 패턴). abort 시 AbortError 가 surface 된다.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    let response: Response;
+    const exchangeFailed = () =>
+      new BadRequestException({
+        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
+        message: 'Failed to exchange authorization code for access token',
+      });
+    // 본문 읽기도 상한 안에서 한다. 헤더 뒤 본문이 오지 않아도 10초에 끊어야 콜백의 제공자 대기가 최악 20초다.
+    let exchange:
+      | { ok: true; data: Record<string, unknown> }
+      | { ok: false; status: number; body: string };
     try {
-      response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers,
-        body: form.toString(),
-        signal: controller.signal,
+      exchange = await withProviderRequestTimeout(async (signal) => {
+        const response = await fetch(tokenUrl, {
+          method: 'POST',
+          headers,
+          body: form.toString(),
+          signal,
+        });
+        if (!response.ok) {
+          return {
+            ok: false as const,
+            status: response.status,
+            body: await safeReadBody(response),
+          };
+        }
+        return {
+          ok: true as const,
+          data: (await response.json()) as Record<string, unknown>,
+        };
       });
     } catch (err) {
-      const aborted = err instanceof Error && err.name === 'AbortError';
-      this.logger.warn(
-        `OAuth token exchange ${aborted ? 'timed out' : 'transport error'} for ${provider}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      throw new BadRequestException({
-        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
-        message: 'Failed to exchange authorization code for access token',
-      });
-    } finally {
-      clearTimeout(timer);
+      // JSON 파싱 오류 메시지에는 본문 앞부분이 들어간다. 토큰 응답 본문이라 로그에 남기지 않는다.
+      if (err instanceof Error && err.name === 'SyntaxError') {
+        this.logger.warn(
+          `OAuth token exchange failed for ${provider}: response is not JSON`,
+        );
+      } else {
+        this.logger.warn(
+          `OAuth token exchange ${isAbortErrorLike(err) ? 'timed out' : 'transport error'} for ${provider}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      throw exchangeFailed();
     }
 
-    if (!response.ok) {
-      const body = await safeReadBody(response);
+    if (!exchange.ok) {
       this.logger.warn(
-        `OAuth token exchange failed for ${provider}: HTTP ${response.status} ${body.slice(0, 200)}`,
+        `OAuth token exchange failed for ${provider}: HTTP ${exchange.status} ${exchange.body.slice(0, 200)}`,
       );
-      throw new BadRequestException({
-        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
-        message: 'Failed to exchange authorization code for access token',
-      });
+      throw exchangeFailed();
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
+    const data = exchange.data;
     if (data.error) {
       const description =
         typeof data.error_description === 'string'
@@ -1467,6 +1547,8 @@ export class IntegrationOAuthService {
    * 토큰을 받은 뒤 계정 식별자를 조회한다(CLE-T-81270P). Google `account_email` · GitHub `login` 은 저장의 필수
    * 필드인데 토큰 응답에 없다. 조회가 실패하거나 식별자가 없으면 토큰 교환 실패와 같은 `OAUTH_TOKEN_EXCHANGE_FAILED`
    * 로 콜백을 끝낸다. 식별자 없이 넘기면 저장에서 `INTEGRATION_INVALID_CREDENTIALS` 로 막혀 원인을 알기 어렵다.
+   * 실패하면 방금 받은 토큰은 저장하지 않고 버린다. 제공자에 폐기(revoke)를 요청하지 않는다. 두 제공자의 폐기는
+   * 같은 계정의 grant 전체를 끊어 이미 연결된 다른 통합의 토큰까지 죽이기 때문이다(CLE-INT-OAUTH-CALLBACK).
    * 계정 조회를 두지 않는 제공자(Cafe24 · MakeShop)는 null 을 돌려준다.
    */
   private async fetchAccountIdentity(
@@ -1477,48 +1559,21 @@ export class IntegrationOAuthService {
     if (!strategy.buildIdentityRequest || !strategy.extractIdentity) {
       return null;
     }
-    const fail = (reason: string): never => {
-      this.logger.warn(
-        `OAuth account lookup failed for ${provider}: ${reason}`,
-      );
-      throw new BadRequestException({
-        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
-        message: 'Failed to read the connected account from the provider',
-      });
-    };
-
     const { url, headers } = strategy.buildIdentityRequest(accessToken);
-    // 토큰 교환과 같은 10초 상한이다.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    let data: Record<string, unknown>;
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        // 응답 본문은 남기지 않는다. 상태 코드만으로 원인을 가를 수 있다.
-        return fail(`HTTP ${response.status}`);
-      }
-      data = (await response.json()) as Record<string, unknown>;
-    } catch (err) {
-      if (err instanceof BadRequestException) throw err;
-      const aborted = err instanceof Error && err.name === 'AbortError';
-      return fail(
-        aborted
-          ? 'timed out'
-          : `transport error: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    } finally {
-      clearTimeout(timer);
-    }
+    const response = await requestAccountIdentity(url, headers);
+    const identity = response.ok
+      ? strategy.extractIdentity(response.body)
+      : null;
+    if (identity) return identity;
 
-    return (
-      strategy.extractIdentity(data ?? {}) ??
-      fail('response has no account identifier')
-    );
+    const reason = response.ok
+      ? 'response has no account identifier'
+      : response.reason;
+    this.logger.warn(`OAuth account lookup failed for ${provider}: ${reason}`);
+    throw new BadRequestException({
+      code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
+      message: 'Failed to read the connected account from the provider',
+    });
   }
 
   // ---------------------------------------------------------------------

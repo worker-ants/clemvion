@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-OUTPUT"
 title: "HTTP Request 노드 — 출력과 에러"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "39dddb46ad75c45ebdf15cb74eccb55098eb453dd7b5f056ff44f0104ba7ff16"
+content_hash: "02801e5c41e0de2143793dd340ac10db061f1ca554f4092abb8f0d28a1dae253"
 read_as: "approved_fallback"
-task: "CLE-T-E991S1"
+task: "CLE-T-MYDNQN"
 source_paths: []
-mirror_sha256: "23911001c19644b89ec50c23f8196dba4a075564fea258afa03dd091c5067935"
-etag: "sha256-44de24082c990be3413109d7c53079d9ff8b1dd30648ff7e8e4052d140c47d7a"
+mirror_sha256: "d1269675035a3391e4137318f99eb7afc1a068053909afec28aae0ccd8ea1b81"
+etag: "sha256-303a1912eab5df2d0de077213540d921dc3e2503c8cd52354f5f1d12d6c3f5ac"
 ---
 ## 개요
 
@@ -210,7 +210,7 @@ etag: "sha256-44de24082c990be3413109d7c53079d9ff8b1dd30648ff7e8e4052d140c47d7a"
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 실패([통합 노드 공통](CLE-NODE-INT-COMMON.md)) | `url`·`method` | — | — | `0` |
 | `INTEGRATION_AUTH_UNSUPPORTED` | 지원하지 않는 `auth_type` | `url`·`method` | — | — | `0` |
 | `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback), 또는 사설망 차단 가드의 고장(preflight 또는 리다이렉트 홉에서 가드가 차단 판정이 아닌 오류를 던진 경우). 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다([Rationale](CLE-NODE-HTTP.md#가드-고장은-시점과-상관없이-같은-코드와-문구로-낸다)) | `url`·`method` | — | — | `0` |
-| `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입(`Integration-based authentication is not available in this environment`) 또는 workspace context 누락. 워크스페이스 누락의 현재 구현 차이는 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 미결 사항 참조 | `url`·`method` | — | — | `0` |
+| `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입(`Integration-based authentication is not available in this environment`) 또는 workspace context 누락(`Missing workspace context — handler cannot resolve the integration`). 둘 다 [통합 노드 공통 — 핸들러 실행 계약](CLE-NODE-INT-COMMON-HANDLER.md#서비스-미주입과-워크스페이스-누락) 의 배포 구성 에러다 | `url`·`method` | — | — | `0` |
 
 `output.error.details` 의 `url` 은 실패한 시점에 따라 다르다. 모든 `url` 에 4xx·5xx 응답과 같은 `sanitizeUrlCredentials` 가림을 적용한다.
 
@@ -256,3 +256,9 @@ NERV Task `CLE-T-43KCNP` 에서 사람이 정했다. 노드가 내는 코드는 
 - **3xx 는 계속 `HTTP_4XX` 로 낸다.** 워크플로우는 `output.error.code` 로 분기한다. `HTTP_3XX` 를 새로 두면 `HTTP_4XX` 로 3xx 를 잡던 분기가 달라진다. 3xx 와 4xx 는 `output.error.details.statusCode` 로 가를 수 있어서 코드를 나누지 않았다.
 - **채팅 채널은 3xx 를 거부로 안내하지 않는다.** 실패 분류기는 `HTTP_4XX` 의 `details.statusCode` 가 300~399 면 `executionFailedThirdParty` 로 보낸다. 외부 서비스 실패를 알리는 일반 안내이고 상태 번호를 싣지 않는다. 서버가 요청을 거부한 것이 아니라 노드가 리다이렉트를 따라가지 않은 결과라서다. 3xx 전용 안내 키를 새로 두는 안은 트리거 설정 DTO · 기본 문구 · 사용자 가이드가 함께 바뀌어 택하지 않았다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 분류 표를 이 분기에 맞추는 일은 NERV Task `CLE-T-Z19QPY` 가 맡는다.
 - **리다이렉트 한도 초과는 `HTTP_BLOCKED` 를 유지한다.** [통합 노드 공통](CLE-NODE-INT-COMMON.md) 의 «차단 코드는 판정에만 쓴다» 규칙과 [에러 코드 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 의 받아들인 예외다. 전용 코드를 두면 카탈로그 개정과 워크플로우 분기 변경이 함께 따른다. 한도 초과는 외부 서비스가 리다이렉트를 계속 돌려줄 때만 나고, [「사설망 차단 메시지 일반화」](CLE-NODE-HTTP.md#사설망-차단-메시지-일반화-2026-07-05) 결정이 이 경우를 일부러 `HTTP_BLOCKED` 로 묶었다. 그래서 채팅 채널은 이 경우를 계속 내부 실패(`executionFailedInternal`)로 안내한다. 카탈로그 규칙 6 의 예외 목록에 이 경우를 더하는 일은 NERV Task `CLE-T-J6M2JG` 가 맡는다.
+
+### 워크스페이스 누락도 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다 (2026-11-26)
+
+이 문서와 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 은 `__workspaceId` 누락을 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다고 적었다. 구현은 공통 베이스 `acquireIntegration` 이 일반 `Error` 를 던져서 `INTEGRATION_CALL_FAILED` 가 나왔다. 사람이 구현을 규칙에 맞추기로 정했고(NERV Task `CLE-T-MYDNQN`), 공통 베이스가 서비스 미주입과 워크스페이스 누락을 모두 `IntegrationError('INTEGRATION_SERVICE_UNAVAILABLE')` 로 던지게 바꿨다. 두 경우 모두 통합을 조회하기 전의 배포 구성 문제라 같은 코드로 묶는다([핸들러 실행 계약](CLE-NODE-INT-COMMON-HANDLER.md#서비스-미주입과-워크스페이스-누락)).
+
+- **기각한 안**: 규칙을 현재 동작에 맞춰 워크스페이스 누락을 `INTEGRATION_CALL_FAILED` 로 적는 안. 외부 호출 실패와 배포 구성 문제가 한 코드로 섞여 워크플로우가 둘을 가를 수 없다.

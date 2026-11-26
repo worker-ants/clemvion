@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-REFRESH"
 title: "OAuth 연결과 토큰 갱신 — 토큰 자동 갱신"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "040855e05cbc4ee164342ae01e733e69d3a95cefa93c404798a7c475525d6764"
+content_hash: "55ac60ee287bf8abaf60f276a81212ca8b630e1ab26b315c8781b33340026fbe"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-BYT4S2"
 source_paths: []
-mirror_sha256: "2bbf0f8ed0c92eb1fdd0e6b3d8418d6560e9f0cc19361efc45a582f545d2b220"
-etag: "sha256-33754c32c561cc822c1a19001d4ecea6b0c2c2a1be9b8e18c730751521436bbd"
+mirror_sha256: "dcd5a76ef4ffc2316bf3895732243d3a04243073d4ddef47445d560cb089cb73"
+etag: "sha256-f901d6cb92ec8294082f979fd6b4ac05091a1ad95fadd72ddc071bab7ff0ed77"
 ---
 ## 개요
 
@@ -22,7 +22,7 @@ etag: "sha256-33754c32c561cc822c1a19001d4ecea6b0c2c2a1be9b8e18c730751521436bbd"
 
 ## 토큰 자동 갱신
 
-refresh token 을 갖고 제공자가 발급·갱신을 보장하는 통합은 Cafe24·MakeShop 이다. 노드가 외부 API 를 부르기 직전에 만료를 확인하고 만료됐거나 곧 만료되면 갱신한 뒤 부른다. Google 은 refresh token 을 받지만 갱신 경로가 없고 이 통합을 쓰는 노드도 없다. 서비스 레지스트리의 `supportsTokenAutoRefresh` 가 true 라 자동 갱신 표시(`autoRefresh`)는 true 로 나간다. 이 불일치는 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 미결 사항이다. `autoRefresh` 는 상태 배지, 주의 필요 술어, 통합 재인증 hover 안내의 분기 신호다.
+refresh token 을 갖고 제공자가 발급·갱신을 보장하는 통합은 Cafe24·MakeShop 이다. 노드가 외부 API 를 부르기 직전에 만료를 확인하고 만료됐거나 곧 만료되면 갱신한 뒤 부른다. Google 은 refresh token 을 받지만 갱신 경로가 없고 이 통합을 쓰는 노드도 없다. 서비스 레지스트리의 `supportsTokenAutoRefresh` 가 false 라 자동 갱신 표시(`autoRefresh`)도 false 로 나간다([화면 표시와 주의 필요 「Google 을 자동 갱신 표시에서 뺀다」](CLE-INT-STATUS-DISPLAY.md#google-을-자동-갱신-표시에서-뺀다)). `autoRefresh` 는 상태 배지, 주의 필요 술어, 통합 재인증 hover 안내의 분기 신호다.
 
 ### 갱신 경로
 

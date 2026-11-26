@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-POLICY"
 title: "재실행 — 정책"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "e3252be168dedd47e25de1ea668abd4a9a7a8c49a5678b2944d89428421d9ea8"
+content_hash: "d0335fc6793698c46a357a025105513189a1a3573727a6817ea49c1b947a1090"
 read_as: "approved_fallback"
-task: "CLE-T-AQQMY1"
+task: "CLE-T-0V6FDN"
 source_paths: []
-mirror_sha256: "f0b16c28f6c96779269b561981a05da9811a667518679046c85303d7e05ff839"
-etag: "sha256-87e7ee6994e53ed80b354f3fa29abec27812312de6df07cd2b91aab31b2e3766"
+mirror_sha256: "54cb6e1090ec9dedafded7558b5c4a4e9aac060f9e37a597f2667f5da73f3304"
+etag: "sha256-1532f84c7630d72cbfd02da32f15d47f27ba632e74aebe1f329f9158ee47de3d"
 ---
 ## 개요
 
@@ -28,7 +28,8 @@ etag: "sha256-87e7ee6994e53ed80b354f3fa29abec27812312de6df07cd2b91aab31b2e3766"
 
 1. **확인 모달**: 사용자가 재실행 버튼을 누르면 모달이 열린다. 모달에는 늘 다음이 있다. 배치와 요소별 동작은 [재실행 모달](CLE-EXEC-RERUN-UI.md#재실행-모달) 이 정한다.
    - 원본 실행의 기본 정보(실행 ID, 시작 시각, 상태)
-   - 워크플로우에 든 외부 부수효과 노드 수(예: "이 워크플로는 외부 호출 노드 3개 — Send Email × 1, HTTP Request × 2 — 를 포함합니다")
+   - 워크플로우에 든 부수효과 노드 수와 노드별 개수(예: "이 워크플로우에는 부수효과 노드가 3개 있어요" 와 "Send Email × 1, HTTP Request × 2")
+   - MCP 서버를 연결한 AI 에이전트 노드가 있으면 그 수(예: "MCP 서버를 연결한 AI 에이전트 노드 1개"). 문구의 기준은 [재실행 UI 「i18n 키」](CLE-EXEC-RERUN-UI.md#i18n-키) 표다
    - 입력 데이터 폼(RR-PL-02)
    - "dry-run 모드" 토글(기본 꺼짐)
    - "재실행"·"취소" 버튼
@@ -86,7 +87,7 @@ AI 어시스턴트의 읽기 전용 도구(`get_workflow_executions`, `get_execu
 사용자가 어시스턴트에게 "이 실행을 다시 돌려 줘" 라고 하면 어시스턴트는 다음 순서로 답한다.
 
 1. `get_execution_details` 로 원본 실행 정보를 조회해 요약해 준다.
-2. "Re-run 은 사용자가 실행 상세 페이지에서 직접 트리거해야 합니다 (정책 RR-PL-07)" 라고 안내한다.
+2. "Re-run 은 사용자가 실행 상세 페이지에서 직접 트리거해야 해요 (정책 RR-PL-07)" 라고 안내한다.
 3. 실행 상세 화면으로 가는 딥 링크를 준다. 링크 형식은 [AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md#재실행-요청-처리) 에 있다.
 
 G2 는 사용자가 "AI 에게 재실행 권한 부여" 를 명시적으로 켜는 신뢰 단계를 도입한 뒤 검토한다.
@@ -99,7 +100,7 @@ G2 는 사용자가 "AI 에게 재실행 권한 부여" 를 명시적으로 켜�
 
 ### 워크플로우 정의는 현재 시점을 쓴다
 
-재실행은 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) 의 실행 기록 재사용 정책대로 **원본 실행 시점의 스냅샷이 아니라 현재 시점의 워크플로우 정의**를 쓴다. 원본 실행 뒤 워크플로우가 바뀌었다면 "원본 이후 워크플로가 N회 수정되었습니다 — 결과가 다를 수 있습니다" 를 모달 머리에 표시하는 안은 v2 이후 검토한다. v1 은 일반 안내만 한다.
+재실행은 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) 의 실행 기록 재사용 정책대로 **원본 실행 시점의 스냅샷이 아니라 현재 시점의 워크플로우 정의**를 쓴다. 원본 실행 뒤 워크플로우가 바뀌었다면 "원본 이후 워크플로우가 N회 수정됐어요. 결과가 다를 수 있어요" 를 모달 머리에 표시하는 안은 v2 이후 검토한다. v1 은 일반 안내만 한다.
 
 ### 설정 에코가 재실행의 전제다
 

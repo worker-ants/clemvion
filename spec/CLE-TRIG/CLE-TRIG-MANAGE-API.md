@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-API"
 title: "트리거 관리 — API 와 PATCH 계약"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "c38e1a8b619ef5f85d0c5eb9698fb3278124074aad365ddf9ad5c8bdb3529616"
+content_hash: "c0a21c2d08589aca7651b73e6a0bfad0258ab344b2fac2569fb28ac152809c31"
 read_as: "approved_fallback"
-task: "CLE-T-73W6NQ"
+task: "CLE-T-919WVA"
 source_paths: []
-mirror_sha256: "d074a486e4df90947524056b8f55db17b046f3872680334b439ef7572f3b4ddb"
-etag: "sha256-713fc28def4259964ab4a5a56ce32f68c3b564a4b4e3e785821fec29e2e6eb02"
+mirror_sha256: "068e6f9cab012fc6b8ebad6c3483adfc436bb2f888637966062f3f3db148dff7"
+etag: "sha256-0536644b4ca5ad8e77a8eefd5aff65bf171a3d4945c3ae2fe90a5ec2d7f235be"
 ---
 ## 개요
 
@@ -158,6 +158,6 @@ etag: "sha256-713fc28def4259964ab4a5a56ce32f68c3b564a4b4e3e785821fec29e2e6eb02"
 
 두 필드는 보내면 통째로 바꾸고 보내지 않으면 그대로 둔다. 그래서 설정 블록을 지울 방법이 `null` 뿐이다. [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 기준대로 `null` 을 거부하지 않고 해제로 받는다. 전에는 `null` 을 그대로 저장해서 키는 있는데 값이 없는 행이 생겼다. 이제는 키를 지운다.
 
-`interaction: null` 은 저장된 트리거 단위 토큰도 함께 지운다. 그래서 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는 규칙(REQ-TRIG-059)을 그대로 따른다. `notification: null` 은 `config` 의 키만 지운다. 알림 서명 시크릿과 알림 상태 컬럼은 남는다. 그 뒤 `notification` 을 다시 보내면 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 규칙대로 서명 시크릿을 새로 발급한다. 남은 시크릿을 지울지는 CLE-T-919WVA 에서 정한다. `chatChannel` 은 이 결정에 넣지 않았다. 지금처럼 `null` 을 생략과 같게 본다.
+`interaction: null` 은 저장된 트리거 단위 토큰도 함께 지운다. 그래서 커밋 뒤 그 토큰으로 연 SSE 스트림을 닫는 규칙(REQ-TRIG-059)을 그대로 따른다. `notification: null` 은 `config` 의 키와 교체 대기 값(`notification_secret_v2` · `notification_rotated_at`)을 지우고 커밋 뒤 서명 시크릿도 지운다. 알림 상태 컬럼은 남는다. 다시 보내면 새로 발급한다. 규칙과 근거는 [EIA 알림 웹훅 — 시크릿 교체 「알림 설정 해제」](../CLE-IX/CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제) 에 있다(2026-11-26, CLE-T-919WVA). `chatChannel` 은 이 결정에 넣지 않았다. 지금처럼 `null` 을 생략과 같게 본다.
 
 이 결정 전에 저장된 `null` 값은 옮기지 않는다. 읽는 쪽(트리거 단위 토큰 판정, 웹훅 응답의 인터랙션 블록, 알림 발송)은 객체가 아닌 값을 설정이 없는 것으로 다룬다. 결정은 2026-11-20 조율 세션에서 사용자가 권장안으로 받았다(CLE-T-73W6NQ).

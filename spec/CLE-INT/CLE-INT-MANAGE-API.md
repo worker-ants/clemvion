@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-API"
 title: "통합 관리 — API 와 에러 코드"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "3162c8f5d3a4cd44530bc55be18111deb6cca9fb5e6ebabc6be23ab005e15f55"
+content_hash: "77d2a31b1af62841068a9a8867a733efea45320c5db0295fd9b5b2dd90fc1476"
 read_as: "approved_fallback"
-task: "CLE-T-81270P"
+task: "CLE-T-T8M5XV"
 source_paths: []
-mirror_sha256: "b291a97be24bdf99ad24ecfdeaacb9ab626ce5c84dcf2cea6e5b1df6615f8637"
-etag: "sha256-c2d8a3ccded611a2ec022208a27e11460d19490149ab7f15eef17da33900f3a2"
+mirror_sha256: "13c52d602b6762ac6e08fe40426174ea3863d345cc4dcceb847244b7cdd90df5"
+etag: "sha256-e7787716ec960894cad94fb58c725483e99fc78bfbb3b2e007609552bca9056f"
 ---
 ## 개요
 
@@ -158,7 +158,7 @@ etag: "sha256-c2d8a3ccded611a2ec022208a27e11460d19490149ab7f15eef17da33900f3a2"
 - **차이**: 표는 콜백 코드(`OAUTH_STATE_MISMATCH` · `OAUTH_STATE_EXPIRED` · `INTEGRATION_INSTALL_EXPIRED`)를 HTTP 400 으로 적었다. 콜백 컨트롤러는 서비스 예외를 잡아 상태 200 의 HTML 로 답하므로 클라이언트가 400 을 받는 일이 없다. 설치 엔드포인트 코드는 카탈로그와 조건이 달랐다. `*_INSTALL_REPLAY` 에 nonce 재사용이, `CAFE24_INSTALL_INVALID_HMAC` 에 시크릿 없음 · 식별자 불일치가 빠졌고 `MAKESHOP_INSTALL_INVALID_HMAC` 은 행이 없었다.
 - **결정**: 표를 통합 관리 API 가 JSON 에러 응답으로 내는 코드로 좁혔다. 콜백 · 설치 코드는 [에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 한 곳에만 둔다. 사람이 고른 안이다(NERV Task `CLE-T-2ZZ3D2`).
 - **기각한 안**: 빠진 코드를 모두 더하고 표를 하위 문서로 나누는 안. 같은 조건을 두 문서에 적으면 이번 같은 차이가 다시 생긴다.
-- **`INSUFFICIENT_SCOPE` 행도 뺐다.** 이 코드를 내는 곳이 없다([에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 의 «`INSUFFICIENT_SCOPE` 는 행이 없다» 항목). 사유 `insufficient_scope` 와 `last_error.details.requiresCafe24Approval` 은 [통합 상태 모델](CLE-INT-STATUS-MODEL.md) 이 정한다. 노드 실행 중 403 의 출력 코드는 [통합 관리 「미결 사항」](CLE-INT-MANAGE.md#미결-사항) 에 남아 있다. 그 항목은 아직 이 표가 `INSUFFICIENT_SCOPE` 를 적는다고 쓰며, 고치는 일은 후속 Task 로 넘겼다.
+- **`INSUFFICIENT_SCOPE` 행도 뺐다.** 이 코드를 내는 곳이 없다([에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 의 «`INSUFFICIENT_SCOPE` 는 행이 없다» 항목). 사유 `insufficient_scope` 와 `last_error.details.requiresCafe24Approval` 은 [통합 상태 모델](CLE-INT-STATUS-MODEL.md) 이 정한다. 노드 실행 중 403 의 출력 코드는 [통합 관리 「미결 사항」](CLE-INT-MANAGE.md#미결-사항) 에 남아 있다.
 
 ### 추가 권한 요청은 역할을 인증 유형보다 먼저 판정한다 (2026-11-14)
 

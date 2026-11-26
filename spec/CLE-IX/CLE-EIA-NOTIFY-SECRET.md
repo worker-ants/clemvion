@@ -2,23 +2,23 @@
 id: "CLE-EIA-NOTIFY-SECRET"
 title: "EIA 알림 웹훅 — 시크릿 교체"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-NOTIFY"]
 area: "CLE-IX"
-content_hash: "32b0f5bd8f660b91f906167729b3f3be208f750b6699f71eccef1dec7f5525bc"
+content_hash: "adb7e1fe65379cc66a3f75b266d333aa67564a20fb66e1bd2598529bafb6906f"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-919WVA"
 source_paths: []
-mirror_sha256: "86224851e46e58ac748e3eef510463c6d59b08f81a1a210397d24ea316479270"
-etag: "sha256-ae14841f509c2963e77a30114b43b8ddb563199b76b3eeaad551e16843d81986"
+mirror_sha256: "3824f6f3beb717401f514655e308d70154e2637a96ced72428364dd3f0695b39"
+etag: "sha256-c80572f4c1007e7602cb0885e63b8de24bb0558691ddc2f0f4d08cf2d7b2c312"
 ---
 ## 개요
 
-이 문서는 [EIA 알림 웹훅](CLE-EIA-NOTIFY.md) 의 하위 문서로 알림 서명 시크릿(notification signing secret, `wsk_*`)의 첫 발급, 옛 평문 옮기기, 교체와 승격, 발송 처리기의 주 시크릿 읽기를 정한다. 서명 계산과 헤더 형식은 [EIA 알림 웹훅 — 서명과 발송](CLE-EIA-NOTIFY-DELIVERY.md#헤더와-서명) 이 정한다.
+이 문서는 [EIA 알림 웹훅](CLE-EIA-NOTIFY.md) 의 하위 문서로 알림 서명 시크릿(notification signing secret, `wsk_*`)의 첫 발급, 옛 평문 옮기기, 교체와 승격, 알림 설정을 해제할 때의 정리, 발송 처리기의 주 시크릿 읽기를 정한다. 서명 계산과 헤더 형식은 [EIA 알림 웹훅 — 서명과 발송](CLE-EIA-NOTIFY-DELIVERY.md#헤더와-서명) 이 정한다.
 
 ## 시크릿 교체
 
@@ -39,10 +39,22 @@ etag: "sha256-ae14841f509c2963e77a30114b43b8ddb563199b76b3eeaad551e16843d81986"
 - 참조가 이미 있으면 PATCH 로 EIA 알림 웹훅 설정을 바꿔도 서버는 새로 발급하지 않는다. `signing.secretRef` 는 PATCH 뒤에도 남는다. 서버는 행의 값을 복사하지 않고 트리거 id 로 참조를 다시 만들어 싣는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약)).
 - 발송 처리기도 주 시크릿을 저장된 `signing.secretRef` 값으로 읽지 않고 트리거 id 로 다시 만든 참조로 읽는다. 참조가 있으면 시크릿 저장소에서 읽지 못해도 옛 평문 `signing.secret` 으로 내려가지 않는다. 이때는 서명 없이 보내지 않고 발송 건강도를 `degraded` 로 바꾼다. 옛 평문은 참조가 없을 때만 주 시크릿으로 쓴다. 참조를 다시 만드는 규칙은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 24 가 정한다.
 
+## 알림 설정 해제
+
+PATCH 가 타입 필드 `notification` 에 `null` 을 보내면 EIA 알림 웹훅 설정을 해제한다([트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE-API.md#patch-본문-계약)). 그 트리거에 남는 서명 시크릿은 아래처럼 정리한다.
+
+- 트리거 설정 잠금 안에서 `config.notification` 키를 지울 때 교체 대기 값(`notification_secret_v2` · `notification_rotated_at`)도 함께 비운다. 두 값이 이미 비어 있으면 그 컬럼은 쓰지 않는다.
+- 그 PATCH 가 커밋된 뒤 시크릿 저장소에서 `notificationSigningSecretRef(triggerId)` 행을 지운다. 이때 트리거 설정 잠금을 다시 잡고 행을 다시 읽는다. 그 사이 다른 PATCH 가 알림 설정을 다시 붙였으면 지우지 않는다. 다시 붙인 PATCH 가 방금 발급한 시크릿을 지우지 않기 위해서다. 삭제는 그 잠금 트랜잭션 안에서 한다.
+- 커밋 뒤 삭제가 실패하면 경고 로그만 남기고 PATCH 응답은 성공으로 둔다. 설정 해제는 이미 커밋됐다. 남은 행은 알림을 다시 붙일 때 새 시크릿으로 덮어쓰고 트리거를 지울 때 함께 지운다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 8).
+- 알림 상태 컬럼(`notification_health` 등)은 지우지 않는다.
+- 해제한 뒤 `notification` 을 다시 보내면 참조가 없으므로 [시크릿 교체](#시크릿-교체) 의 첫 시크릿 규칙대로 새 시크릿을 발급한다. 수신 측은 그 응답의 새 시크릿을 써야 한다. 해제는 알림을 끊는 것이라 옛 시크릿의 유예를 두지 않는다.
+- 첫 시크릿을 발급하는 PATCH 는 잠금 안에서 다시 읽은 행에 교체 대기 값이 남아 있으면 함께 비운다. 이 규칙 전에 해제한 옛 행과, 해제와 `rotate-secret` 이 엇갈려 해제 뒤에 교체 대기 값이 쓰인 행이 그 경우다. 비우지 않으면 유예가 끝난 뒤 승격이 남은 값으로 방금 발급한 주 시크릿을 덮는다.
+- 승격 작업이 알림 설정이 없는 행을 고르면 정식 참조로 옮기지 않고 교체 대기 값만 비운다.
+
 ## 구현 위치
 
 - `codebase/backend/src/modules/triggers/triggers.service.ts` (`create` · `update` 가 첫 시크릿 판정을 부름, 교체 요청 `rotateNotificationSecret`, 승격 진입 `promoteRotatedNotificationSecrets`)
-- `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 알림 서명 시크릿(`wsk_*`)을 발급하거나 옮겨 시크릿 저장소에 쓰는 서비스다. 첫 시크릿 발급이나 옛 평문 옮기기 `settle`, 저장된 옛 평문 정규화 `migrateLegacyPlaintext`, 교체 쓰기 `writeRotation`, 승격 `promoteRotated`)
+- `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 알림 서명 시크릿(`wsk_*`)을 발급하거나 옮겨 시크릿 저장소에 쓰는 서비스다. 첫 시크릿 발급이나 옛 평문 옮기기 `settle`, 저장된 옛 평문 정규화 `migrateLegacyPlaintext`, 교체 쓰기 `writeRotation`, 승격 `promoteRotated`, 해제 뒤 시크릿 행 삭제 `deleteAfterUnset`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret.ts` (첫 시크릿 발급 판정 `decideNotificationSigning`, 발송 처리기와 함께 쓰는 «있음» 판정 `readStoredSigningSecret`, 그 판정과 `migrateLegacyPlaintext` 가 함께 쓰는 옛 평문 판정 `isUsableLegacyPlaintext`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret-ref.ts` (트리거 id 로 알림 서명 시크릿 참조를 만든다)
 - `codebase/backend/src/modules/triggers/trigger-config-lock.ts` (`acquireTriggerConfigLock`, 교체와 승격이 함께 잡는 잠금)
@@ -87,3 +99,25 @@ NERV Task `CLE-T-94Z6A5` 에서 시크릿 저장소의 `store` · `rotate` 가 �
 
 - **지금 동작을 두고 결함으로 적는다**: [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 Rationale 「store · rotate 는 빈 평문을 거부한다」 호출부 표에 결함으로 적고 후속 Task 로 넘기는 안이다. 그동안 그런 행은 EIA 알림 웹훅 설정 PATCH 가 계속 500 이 된다.
 - **`rotate` 가드를 좁힌다**: 빈 문자열만 거부하고 공백만 있는 값은 받는 안이다. 이미 승인된 `CLE-T-94Z6A5` 계획과 다르다. 그 계획은 공백만 있는 평문도 거부한다.
+
+### 알림 설정 해제 때 서명 시크릿을 지운다
+
+결정일: 2026-11-26
+
+2026-11-20 결정(NERV Task `CLE-T-73W6NQ`)으로 `notification: null` 은 `config.notification` 키를 지우게 됐다. 그때는 서명 시크릿 행과 교체 대기 값을 그대로 두고 처리를 NERV Task `CLE-T-919WVA` 로 미뤘다. 그 뒤 사전 조사에서 남은 교체 대기 값이 버그를 낸다는 것을 찾았다.
+
+1. 알림이 붙은 트리거에 `rotate-secret` 을 부른다. `notification_secret_v2` 에 새 값이 들어간다.
+2. 24시간 안에 `notification: null` 로 해제한다. 교체 대기 값은 남는다.
+3. 24시간 안에 `notification` 을 다시 붙인다. 서버가 첫 시크릿을 새로 발급해 응답으로 돌려준다.
+4. 유예가 끝나면 승격이 남은 교체 대기 값을 주 시크릿으로 옮긴다. 3 에서 받은 시크릿은 주 시크릿에서 사라지고 수신 측의 서명 검증이 실패한다.
+
+사용자 결정(2026-11-26, 22차 조율 세션에서 권장안으로 받음)은 다음과 같다.
+
+- 해제할 때 잠금 안에서 교체 대기 값을 비우고 커밋 뒤 시크릿 행을 지운다. 알림 상태 컬럼은 지금 계약대로 둔다. 함께 제시한 다른 안은 시크릿 행은 두고 교체 대기 값만 비우는 것과 지금 동작을 그대로 두는 것이었다. 앞의 안은 쓰이지 않는 비밀이 트리거를 지울 때까지 저장소에 남는다. 뒤의 안은 위 버그가 남는다.
+- 커밋 뒤 삭제가 실패해도 응답은 성공으로 두고 경고 로그만 남긴다. 해제는 이미 커밋됐고 남은 행은 다시 붙일 때 덮어쓰거나 트리거를 지울 때 지운다.
+
+아래는 묻지 않고 기본값으로 정했다.
+
+- 커밋 뒤 삭제는 알림 서명 시크릿 참조 하나만 지운다. 트리거 단위 prefix 로 지우면 채팅 채널 봇 토큰 같은 다른 비밀까지 지워진다.
+- 커밋 뒤 삭제는 잠금을 다시 잡고 다시 읽은 행에 알림 설정이 없을 때만 한다. 커밋과 삭제 사이에 다른 PATCH 가 알림을 다시 붙이면 그 PATCH 가 발급한 시크릿을 지울 수 있기 때문이다.
+- 첫 시크릿을 발급하는 PATCH 도 남은 교체 대기 값을 비운다. `rotate-secret` 은 알림 설정이 있는지 잠금 밖에서 확인하므로 해제 뒤에 교체 대기 값을 쓸 수 있다. 이 규칙 전에 해제한 행에도 그 값이 남아 있을 수 있다.

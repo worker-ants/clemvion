@@ -253,7 +253,7 @@ describe("ReRunModal", () => {
     ]);
     renderModal();
     expect(
-      await screen.findByText(/이 워크플로우는 부수효과 노드 1개를 포함합니다/),
+      await screen.findByText(/이 워크플로우에는 부수효과 노드가 1개 있어요/),
     ).toBeInTheDocument();
     expect(
       await screen.findByText("MCP 서버를 연결한 AI 에이전트 노드 1개"),

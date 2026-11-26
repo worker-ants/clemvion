@@ -73,7 +73,11 @@ export interface BackgroundExecutionJob {
   input: unknown;
   /** Snapshot of context.variables at enqueue time. */
   variables: Record<string, unknown>;
-  /** Snapshot of context.nodeOutputCache at enqueue time. */
+  /**
+   * 큐에 넣을 때의 flat 노드 출력 캐시(`context.nodeOutputCache`) 스냅샷.
+   * {@link compactBackgroundFlatOutputCache} 를 거쳐 구조화 항목이 있는 노드는 값 대신 작은
+   * 표지만 싣는다(CLE-T-XTTSXB). 옛 작업에는 모든 노드의 flat 값이 그대로 있다.
+   */
   nodeOutputCache: Record<string, unknown>;
   /**
    * 큐에 넣을 때의 구조화 출력 캐시(`context.structuredOutputCache`) 스냅샷. 본문 노드 식의
@@ -101,4 +105,52 @@ export interface BackgroundExecutionJob {
     /** 0이면 무제한. */
     maxDurationMs: number;
   };
+}
+
+/**
+ * Background 작업 데이터에 실을 flat 노드 출력 캐시를 만든다(NERV Task `CLE-T-XTTSXB`).
+ *
+ * 구조화 출력 캐시 항목이 있는 노드는 flat 값 대신 작은 표지를 싣는다. 표지는 빈 객체이고
+ * 원래 flat 값이 객체이며 라우팅 표지(`_selectedPort`)가 있으면 그 키만 남긴다. 키는 그대로
+ * 둔다. 워커는 본문 밖 노드의 flat 값을 쓰지 않기 때문에 값을 줄여도 동작이 같다.
+ * - `$node` 는 flat 키가 있는지로 「출력이 있는 노드」를 고르고 같은 이름 노드의 `#N` 접미사를
+ *   매긴다. 값은 구조화 항목에서 읽는다(`ExpressionResolverService.buildExpressionContext`).
+ * - 다음 노드 입력과 실행 결과는 구조화 항목을 먼저 쓴다(`resolveNodeResultValue`).
+ * - 라우팅 · 대기 판정은 방금 실행한 본문 노드가 새로 쓴 flat 값만 읽는다.
+ *
+ * 구조화 항목이 없는 노드는 표현식과 다음 노드 입력이 flat 값으로 대신 읽으므로 값을 그대로
+ * 둔다. 값이 `undefined` 인 키도 그대로 둔다. 표지로 바꾸면 메인에서 보이지 않던 노드가
+ * 본문 `$node` 에 새로 보인다. `null` 은 줄일 것이 없어 그대로 둔다.
+ *
+ * 워커가 구조화 출력 캐시를 되살리는 코드는 CLE-T-JDYHCF(PR #1764)에서 들어왔다. 그보다 옛
+ * 워커가 이 작업을 꺼내면 본문 `$node` 가 표지를 읽는다.
+ */
+export function compactBackgroundFlatOutputCache(
+  nodeOutputCache: Record<string, unknown>,
+  structuredOutputCache: ExecutionContext['structuredOutputCache'] | undefined,
+): Record<string, unknown> {
+  const compacted: Record<string, unknown> = {};
+  for (const [nodeId, flat] of Object.entries(nodeOutputCache)) {
+    const hasStructured =
+      structuredOutputCache !== undefined &&
+      Object.hasOwn(structuredOutputCache, nodeId) &&
+      structuredOutputCache[nodeId] !== undefined;
+    compacted[nodeId] =
+      hasStructured && flat !== undefined && flat !== null
+        ? toFlatOutputMarker(flat)
+        : flat;
+  }
+  return compacted;
+}
+
+/** flat 값 대신 실을 표지. 라우팅 표지(`_selectedPort`)만 남긴다. */
+function toFlatOutputMarker(flat: unknown): Record<string, unknown> {
+  if (
+    typeof flat === 'object' &&
+    !Array.isArray(flat) &&
+    Object.hasOwn(flat as object, '_selectedPort')
+  ) {
+    return { _selectedPort: (flat as Record<string, unknown>)._selectedPort };
+  }
+  return {};
 }
