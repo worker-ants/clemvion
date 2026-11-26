@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXEC"
 title: "에러 코드 카탈로그 — 워크플로우 실행"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "4181b508a5cde5995f4f1221a839c7453c40fb0c6e2c76f67f57b49244a0f69b"
+content_hash: "d5a917fb63049bdee5550fc545a084579af62ec8b332be666fd78ae8d5acaa24"
 read_as: "approved_fallback"
-task: "CLE-T-P0W82J"
+task: "CLE-T-7ZRNKV"
 source_paths: []
-mirror_sha256: "87888c9232564404a503ba48fe0bfd009755cec4bffeb07c5d3299ac19f7df82"
-etag: "sha256-bb9878a02453be7a29c412488ec2f0cb86a4277469ebcdc2472ee34f3f9731c6"
+mirror_sha256: "3dbca21c220b028d0f85c6eb3d0e0f96c4e34fbed0fecd0593d44158dc65f5e5"
+etag: "sha256-77054a93fadacfe909c195ac7198a5c0bfda8d135cc7376974443ca27f131ba6"
 ---
 ## 개요
 
@@ -44,7 +44,7 @@ etag: "sha256-bb9878a02453be7a29c412488ec2f0cb86a4277469ebcdc2472ee34f3f9731c6"
 | 코드 | 설명 | 정의 문서 |
 |------|------|-----------|
 | `EXECUTION_QUEUE_WAIT_TIMEOUT` | 동시 실행 제한 때문에 intake 큐에서 기다리던 실행이 5분(환경 변수 `EXECUTION_QUEUE_WAIT_TIMEOUT_MS`, 기본 `300000`ms)을 넘김. 노드가 한 번도 시작되지 않은 시스템 취소라 `failed` 가 아니라 `cancelled` 다. 구현됨(advisory lock 입장 게이트의 큐 대기 초과 마감) | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md), [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) |
-| `WEBCHAT_IDLE_TIMEOUT` | 공개 웹채팅(`auth_config_id IS NULL`, 실행 단위 토큰)의 입력 대기 실행이 발급된 모든 인터랙션 토큰의 영구 만료와 유예 시간을 넘김. 사용자가 떠나 이어갈 수 없는 세션을 회수하는 backstop 이다 | [External Interaction API 「공개 위젯의 방치된 입력 대기 회수」](../CLE-IX/CLE-EIA.md#공개-위젯의-방치된-입력-대기-회수), 같은 문서의 「공개 위젯 회수 신호는 토큰 만료다」 Rationale |
+| `WEBCHAT_IDLE_TIMEOUT` | 인증 설정이 없는 웹채팅 위젯(`auth_config_id IS NULL`, 실행 단위 토큰)의 입력 대기 실행이 발급된 모든 인터랙션 토큰의 영구 만료와 유예 시간을 넘김. 사용자가 떠나 이어갈 수 없는 세션을 회수하는 backstop 이다 | [처리 흐름과 한도 「웹채팅 위젯의 방치된 입력 대기 회수」](../CLE-IX/CLE-EIA-FLOW.md#웹채팅-위젯의-방치된-입력-대기-회수), 같은 문서의 「웹채팅 위젯 회수 신호는 토큰 만료다」 Rationale |
 
 ## 6.6 워크플로우 실행: 노드 수준 런타임
 

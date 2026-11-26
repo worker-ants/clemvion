@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "cde08d9cba1ff9a678502e65477df864813842bdc9b2ea435836ac9bb4629fb7"
+content_hash: "122500b93850e289abbe65250d7e3c7462ed26faeeed95076cfbcaf378730bad"
 read_as: "approved_fallback"
-task: "CLE-T-1639BP"
+task: "CLE-T-7ZRNKV"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "650efa0957d088f6ceccf366cb3c21ebc63c897b02eaf5688d4a7a0ed54d7065"
-etag: "sha256-fb750432864c052c555eed37f8a78616d618adc987448fdfa1e9d3773015d2d5"
+mirror_sha256: "53ba66b3e288a4758acb735a2b868becf709487d87c499b2202675fbd5fdc0d7"
+etag: "sha256-bb9573301d54bc0d54723060922a0c399300652899d6b88f667b87b67c1d8926"
 ---
 > 구현 상태: 부분 구현 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -54,7 +54,7 @@ Presentation 노드는 두 가지 목적으로 쓴다. 하나는 다운스트림
 7. 재개 출력(resumed output)은 입력 대기 시점의 출력 값을 그대로 두고 사용자 입력 기록을 더한다.
 8. 사용자 입력은 대화 스레드에 자동으로 쌓는다. `excludeFromConversationThread: true` 인 노드의 입력은 쌓지 않는다.
 9. 표시 도구 모드는 다섯 노드의 설정 스키마(zod)를 LLM 도구 파라미터의 단일 기준으로 다시 쓴다. 표시 도구의 버튼은 그래프 포트로 라우팅하지 않고 다음 LLM 대화 턴의 사용자 메시지가 된다.
-10. 입력 대기에는 기한이 없다. 노드는 사용자가 입력하거나 사용자 취소 · 공개 웹채팅 유휴 실행 회수처럼 외부에서 실행을 끝낼 때까지 `waiting_for_input` 으로 기다린다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)). 다섯 노드 설정에 타임아웃 필드는 없고 옛 `buttonTimeout` 입력은 무시한다. 실행 시간 한도는 입력 대기 시간을 세지 않는다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 이 규칙은 메인 흐름 기준이다. Background 본문은 예외다. 본문의 블로킹 노드가 입력 대기에 들어가면 기다리지 않고 본문이 그 지점에서 조용히 끝난다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문의-블로킹-노드가-입력-대기로-멈추면-곧바로-조용히-끝낸다)). 컨테이너 본문의 제약은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 을 따른다.
+10. 입력 대기에는 기한이 없다. 노드는 사용자가 입력하거나 사용자 취소 · 인증 설정이 없는 웹채팅 위젯의 유휴 실행 회수처럼 외부에서 실행을 끝낼 때까지 `waiting_for_input` 으로 기다린다([실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md)). 다섯 노드 설정에 타임아웃 필드는 없고 옛 `buttonTimeout` 입력은 무시한다. 실행 시간 한도는 입력 대기 시간을 세지 않는다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md)). 이 규칙은 메인 흐름 기준이다. Background 본문은 예외다. 본문의 블로킹 노드가 입력 대기에 들어가면 기다리지 않고 본문이 그 지점에서 조용히 끝난다([Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문의-블로킹-노드가-입력-대기로-멈추면-곧바로-조용히-끝낸다)). 컨테이너 본문의 제약은 [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md) 을 따른다.
 11. Template 본문(`output.rendered`, 표시 도구 `render_template` 의 `content`)은 정화하지 않은 데이터다. 본문을 HTML 로 해석해 그리는 표면은 그리기 전에 허용 목록으로 정화한다([Template 본문 정화 책임](#template-본문-정화-책임)).
 
 ## 하위 문서
@@ -349,7 +349,7 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 비슷한 안은 전에도 기각했다.
 
 - 2026-06-03 에 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md#buttonconfig-예시-정정-타임아웃-제거와-nodeoutput-판별자-폐지-2026-06-03-c2c3) 을 고치면서 공통 규약에 타임아웃 정책을 들이는 안을 기각하고 `buttonConfig` 예시에서 타임아웃을 지웠다. 현 구현과 다른 문서가 모두 무제한 대기였다.
-- [External Interaction API](../CLE-IX/CLE-EIA.md#공개-위젯-회수-신호는-토큰-만료다) 는 인증 설정이 없는 웹채팅 위젯의 실행 회수에 "N일 동안 조용하면 종료" 같은 엔진 전역 유휴 타이머를 쓰지 않기로 했다. 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 수 있어서다. 노드별 기한이 아니라 서버 전체의 정리 규칙에 관한 결정이다.
+- [External Interaction API](../CLE-IX/CLE-EIA-FLOW.md#웹채팅-위젯-회수-신호는-토큰-만료다) 는 인증 설정이 없는 웹채팅 위젯의 실행 회수에 "N일 동안 조용하면 종료" 같은 엔진 전역 유휴 타이머를 쓰지 않기로 했다. 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 수 있어서다. 노드별 기한이 아니라 서버 전체의 정리 규칙에 관한 결정이다.
 
 ### 파일 필드는 메타데이터만 보낸다
 

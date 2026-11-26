@@ -2,19 +2,19 @@
 id: "CLE-EXEC-PREVIEW"
 title: "대화 미리보기"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-CONVPV-001", "REQ-CONVPV-002", "REQ-CONVPV-003", "REQ-CONVPV-004", "REQ-CONVPV-005", "REQ-CONVPV-006", "REQ-CONVPV-007", "REQ-CONVPV-008", "REQ-CONVPV-009", "REQ-CONVPV-010", "REQ-CONVPV-011", "REQ-CONVPV-012", "REQ-CONVPV-013", "REQ-CONVPV-014", "REQ-CONVPV-015", "REQ-CONVPV-016", "REQ-CONVPV-017", "REQ-CONVPV-018", "REQ-CONVPV-019", "REQ-CONVPV-020", "REQ-CONVPV-021", "REQ-CONVPV-022", "REQ-CONVPV-023", "REQ-CONVPV-024", "REQ-CONVPV-025", "REQ-CONVPV-026", "REQ-CONVPV-027", "REQ-CONVPV-028", "REQ-CONVPV-029", "REQ-CONVPV-030", "REQ-CONVPV-031", "REQ-CONVPV-032", "REQ-CONVPV-033", "REQ-CONVPV-034", "REQ-CONVPV-035", "REQ-CONVPV-036", "REQ-CONVPV-037", "REQ-CONVPV-038", "REQ-CONVPV-039", "REQ-CONVPV-040", "REQ-CONVPV-041", "REQ-CONVPV-042", "REQ-CONVPV-043", "REQ-CONVPV-044", "REQ-CONVPV-045", "REQ-CONVPV-046", "REQ-CONVPV-047"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "adb39f27a7d1d4e19e5a3f8a60350d5b0b757c8a7e4788be26e3fb6a982499b2"
+content_hash: "eeefc691daf0acd76a04cbdd680a059271a08af5961d0b2be7c6d0a3cca8ac4e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-7ZRNKV"
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "81444ae84fe713b3cf3677fd7d2d0dccf76d147ba1d57316092a80ec5941f1bb"
-etag: "sha256-ac449f68f3d9b2d0389921886fed741ba437af033f535fc56926b2e6b0388111"
+mirror_sha256: "9484a5f530cbe74a12969975671dfb846efa237d503421c8b76e59707dc615ea"
+etag: "sha256-a5deed9fe53d37e3c84ffde5d636700ea7cf8412eaeed63710863596bd0c0134"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§9 미리보기 UI 렌더 규칙, 줄 433–756. 근거는 §8.1·§8.2·§8.3·§8.5·§8.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -158,7 +158,7 @@ etag: "sha256-ac449f68f3d9b2d0389921886fed741ba437af033f535fc56926b2e6b0388111"
 - **기각: 시각 매핑 표 비고만 조금 보태기.** 그 표는 정적 매핑이지 라이프사이클 계약이 아니라 효과가 없다.
 - **기각: 별도 스펙 파일 신설.** 데이터 모델과 UI 계약이 같은 도메인이라 링크 부담과 어긋남 위험이 커진다. 데이터 모델은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md), UI 계약은 이 문서로 나누고 두 문서가 서로 링크해 이 위험을 줄인다. 이 문서를 하위 문서 셋으로 나눈 것은 편당 크기 한도 때문이다. 하위 문서는 이 문서 아래에 묶인 한 스펙이고 UI 불변량과 요구사항 줄이 이 문서에 그대로 있어 기각한 "별도 스펙 파일" 과는 다르다.
 - **기각: storybook 도입.** 회귀 시나리오의 fixture 인프라는 단위 테스트 입력만 export 한다. 시각 회귀를 자동화하려면 storybook 이나 playwright 스냅샷 통합이 필요한데 별도 인프라 의존이 크다. 그래서 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) v2 로드맵의 "시각 회귀 인프라" 항목으로 넘겼다.
-- **적용 범위**: 세 신호 강제와 UI 계약은 모두 에디터·콘솔 디버깅 화면을 대상으로 한 결정이다. 임베드 위젯의 두 말풍선 렌더는 적용 범위를 나눈 것이고 세 신호가 막으려던 "사용자 발화 오인" 은 위젯의 user 말풍선 매핑([웹채팅 위젯 §패널](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md#패널))으로 그대로 피한다.
+- **적용 범위**: 세 신호 강제와 UI 계약은 모두 에디터·콘솔 디버깅 화면을 대상으로 한 결정이다. 웹채팅 위젯의 두 말풍선 렌더는 적용 범위를 나눈 것이고 세 신호가 막으려던 "사용자 발화 오인" 은 위젯의 user 말풍선 매핑([웹채팅 위젯 §패널](../CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md#패널))으로 그대로 피한다.
 
 ### 새 실행만 대화를 지운다 (Inv-6)
 

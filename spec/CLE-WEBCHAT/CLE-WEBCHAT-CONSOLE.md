@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-CONSOLE"
 title: "웹채팅 운영 콘솔"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-WCCON-001", "REQ-WCCON-002", "REQ-WCCON-003", "REQ-WCCON-004", "REQ-WCCON-005", "REQ-WCCON-006", "REQ-WCCON-007", "REQ-WCCON-008", "REQ-WCCON-009", "REQ-WCCON-010", "REQ-WCCON-011", "REQ-WCCON-012", "REQ-WCCON-013", "REQ-WCCON-014", "REQ-WCCON-015", "REQ-WCCON-016", "REQ-WCCON-017", "REQ-WCCON-018", "REQ-WCCON-019", "REQ-WCCON-020", "REQ-WCCON-021", "REQ-WCCON-022", "REQ-WCCON-023", "REQ-WCCON-024", "REQ-WCCON-025", "REQ-WCCON-026", "REQ-WCCON-027", "REQ-WCCON-028", "REQ-WCCON-029", "REQ-WCCON-030", "REQ-WCCON-031", "REQ-WCCON-032", "REQ-WCCON-033", "REQ-WCCON-034", "REQ-WCCON-035", "REQ-WCCON-036", "REQ-WCCON-037"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "0e86b371ff86363798c7569476d09fc8ee13601ba8a66842c42d5a7b3fa0ad5a"
+content_hash: "fecec98018e05352adf0f6dbfc7c1d3d1c78ce733ab9564fd663c90c8c5e8b10"
 read_as: "approved_fallback"
-task: "CLE-T-NXPWZZ"
+task: "CLE-T-7ZRNKV"
 source_paths: ["spec/2-navigation/_product-overview.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "176d63dfc651f29bf01db0330dd87516ffd7143a9b0262331c78c0f201c64b0e"
-etag: "sha256-8cfa8f574a073e8f7dc5eaf8a9ee46ffed58bee00c66d2b78f4627e8b26948d9"
+mirror_sha256: "3398b9a2356d2a8ee786e9c786705bd83d48a8aba7e38c30fdf8a9f8bb02d4b4"
+etag: "sha256-7ac8cc23e96b1b9a675d2a3f884e2b8e593abec82852a060297fb830986eab1f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/5-admin-console.md`, `spec/2-navigation/_product-overview.md` (§3.14 NAV-WC-01..06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -45,9 +45,9 @@ etag: "sha256-8cfa8f574a073e8f7dc5eaf8a9ee46ffed58bee00c66d2b78f4627e8b26948d9"
 - REQ-WCCON-013 WHEN 부팅 설정을 만들면 THE SYSTEM SHALL 추천 질문 하나의 필드를 `welcome.suggestions` 와 `launcher.suggestions` 에 똑같이 넣는다.
 - REQ-WCCON-014 WHEN 사용자가 설치 스크립트의 복사를 누르면 THE SYSTEM SHALL 설치 스크립트를 클립보드에 복사한다. (원본: NAV-WC-05)
 - REQ-WCCON-015 IF `NEXT_PUBLIC_WIDGET_CDN_BASE` 가 설정되지 않았으면 THE SYSTEM SHALL 배포 자신의 origin 의 동봉 경로(`/_widget/web-chat/v1/`)를 위젯 배포 주소로 쓴다. (원본: NAV-WC-05)
-- REQ-WCCON-016 IF 동봉 위젯 번들이 없으면 THE SYSTEM SHALL 설치 스크립트와 미리보기 UI 를 비활성화하고 경고를 표시한다.
-- REQ-WCCON-017 WHILE 동봉 위젯 번들이 없는 동안 THE SYSTEM SHALL 웹채팅 인스턴스 관리와 외형 폼은 계속 쓸 수 있게 한다.
-- REQ-WCCON-018 WHEN 뷰어 이상이 웹채팅 인스턴스를 고르면 THE SYSTEM SHALL 동봉 위젯을 same-origin iframe 으로 띄워 대화까지 시연하는 라이브 미리보기를 보여 준다. (원본: NAV-WC-06)
+- REQ-WCCON-016 IF 동봉 배포한 웹채팅 위젯 번들이 없으면 THE SYSTEM SHALL 설치 스크립트와 미리보기 UI 를 비활성화하고 경고를 표시한다.
+- REQ-WCCON-017 WHILE 동봉 배포한 웹채팅 위젯 번들이 없는 동안 THE SYSTEM SHALL 웹채팅 인스턴스 관리와 외형 폼은 계속 쓸 수 있게 한다.
+- REQ-WCCON-018 WHEN 뷰어 이상이 웹채팅 인스턴스를 고르면 THE SYSTEM SHALL 동봉 배포한 웹채팅 위젯을 same-origin iframe 으로 띄워 대화까지 시연하는 라이브 미리보기를 보여 준다. (원본: NAV-WC-06)
 - REQ-WCCON-019 WHEN 위젯이 `wc:resize` 를 보내면 THE SYSTEM SHALL 미리보기 높이를 320~640px 로 제한하고 너비는 미리보기 컨테이너의 100% 로 둔다.
 - REQ-WCCON-020 WHEN 미리보기 iframe 이 `wc:ready` 를 보내면 THE SYSTEM SHALL `wc:boot` 로 외형 폼 값 전체를 보낸다.
 - REQ-WCCON-021 WHEN 외형 폼만 바뀌면 THE SYSTEM SHALL iframe 을 다시 마운트하지 않고 `wc:boot` 를 다시 보낸다.
@@ -152,7 +152,7 @@ etag: "sha256-8cfa8f574a073e8f7dc5eaf8a9ee46ffed58bee00c66d2b78f4627e8b26948d9"
 
 콘솔 화면 안에서 위젯을 부팅해 런처와 패널을 그리고 고른 웹채팅 인스턴스의 `endpointPath` 로 대화까지 시연한다. 외형은 [외형 빌더](#외형-빌더) 폼 값을 그대로 반영한다.
 
-- **same-origin 동봉 위젯을 iframe 으로 불러온다.** 외부 CDN 에서 받아 오지 않고 제품과 함께 동봉 배포된 위젯(`<배포 origin>/_widget/web-chat/v1/`)을 실제 `src` iframe 으로 띄운다([웹채팅 구조](CLE-WEBCHAT-ARCH.md)). 그래서 미리보기 버전이 그 배포의 백엔드·EIA 버전과 항상 같고(셀프호스트와 여러 버전 대응) 외부 의존이 없다. 위젯 CSS·JS 격리는 iframe 으로 유지한다(`srcdoc` 로 만들지 않는다). 고객 임베드(로더 + cross-origin iframe)는 다른 경로이며 바뀌지 않는다.
+- **동봉 배포한 웹채팅 위젯을 same-origin iframe 으로 불러온다.** 외부 CDN 에서 받아 오지 않고 제품과 함께 동봉 배포된 위젯(`<배포 origin>/_widget/web-chat/v1/`)을 실제 `src` iframe 으로 띄운다([웹채팅 구조](CLE-WEBCHAT-ARCH.md)). 그래서 미리보기 버전이 그 배포의 백엔드·EIA 버전과 항상 같고(셀프호스트와 여러 버전 대응) 외부 의존이 없다. 위젯 CSS·JS 격리는 iframe 으로 유지한다(`srcdoc` 로 만들지 않는다). 고객 임베드(로더 + cross-origin iframe)는 다른 경로이며 바뀌지 않는다.
 - **미리보기 iframe 높이 제한**: 위젯 `wc:resize` 페이로드의 `height` 는 콘솔 패널 안에 들어가도록 320~640px 로 제한한다. 최소 320 은 접힌 런처 높이를 보장하고 최대 640 은 콘솔 영역을 넘지 않게 한다. `width` 는 미리보기 컨테이너 너비 100% 로 고정하고 따로 제한하지 않는다.
 - 미리보기는 위젯 동봉 배포를 전제로 한다. 외부 위젯 CDN 은 전제가 아니다(SaaS 엣지 CDN 은 선택).
 - **EIA 대화 배선은 이미 되어 있다.** 위젯은 자체 `eia-client.ts` 로 `POST /api/hooks/:path`(즉시 시작), SSE `/api/external/*`, `submit_message` 를 직접 부른다([웹채팅 구조](CLE-WEBCHAT-ARCH.md)). 추가 배선이 필요 없다. 웹채팅 SDK 와 `@workflow/sdk` 의 관계는 [웹채팅 SDK 미결 사항](CLE-WEBCHAT-SDK.md#미결-사항) 참조.
@@ -222,7 +222,7 @@ etag: "sha256-8cfa8f574a073e8f7dc5eaf8a9ee46ffed58bee00c66d2b78f4627e8b26948d9"
 
 ### 미리보기는 same-origin 동봉 iframe 이다 (React 컴포넌트 직접 마운트 기각, 결정 2026-06-23)
 
-위젯을 제품과 동봉 배포해 버전을 배포 단위로 잠그는 결정은 [웹채팅 구조](CLE-WEBCHAT-ARCH.md)에 있다. 미리보기는 그 same-origin 동봉 위젯을 iframe 으로 불러온다. iframe 없이 위젯 React 컴포넌트를 직접 마운트하는 방식은 위젯 app → lib 재구조화 부담이 있고 미리보기가 실제 고객 iframe 임베드와 다른 경로가 되어 충실도가 떨어져 기각했다. same-origin iframe 은 위젯을 그대로(`output:export`) 두고 격리를 유지하면서 버전 일치와 외부 의존 0 을 얻는다. cross-origin 격리 예외의 근거는 [웹채팅 구조](CLE-WEBCHAT-ARCH.md)에 있다.
+위젯을 제품과 동봉 배포해 버전을 배포 단위로 잠그는 결정은 [웹채팅 구조](CLE-WEBCHAT-ARCH.md)에 있다. 미리보기는 그렇게 동봉 배포한 웹채팅 위젯을 same-origin iframe 으로 불러온다. iframe 없이 위젯 React 컴포넌트를 직접 마운트하는 방식은 위젯 app → lib 재구조화 부담이 있고 미리보기가 실제 고객 iframe 임베드와 다른 경로가 되어 충실도가 떨어져 기각했다. same-origin iframe 은 위젯을 그대로(`output:export`) 두고 격리를 유지하면서 버전 일치와 외부 의존 0 을 얻는다. cross-origin 격리 예외의 근거는 [웹채팅 구조](CLE-WEBCHAT-ARCH.md)에 있다.
 
 ### 미리보기는 `xl` 이상에서만 두 열로 놓는다 (결정 2026-06-25)
 
