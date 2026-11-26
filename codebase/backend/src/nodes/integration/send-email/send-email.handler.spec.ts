@@ -1031,3 +1031,42 @@ describe('SendEmailHandler', () => {
     });
   });
 });
+
+// 워크스페이스 컨텍스트 누락은 배포 구성 에러라 공통 코드 `INTEGRATION_SERVICE_UNAVAILABLE` 로 에러 포트에 나간다.
+// 통합을 조회하지 않고 얻은 통합도 없어 활동 로그를 남기지 않는다(CLE-NODE-INT-COMMON-ERROR, CLE-T-MYDNQN).
+describe('SendEmailHandler — 워크스페이스 컨텍스트 누락 (REQ-EMAIL-022)', () => {
+  it('INTEGRATION_SERVICE_UNAVAILABLE 로 에러 포트에 보내고 발송하지 않는다', async () => {
+    sendMailMock.mockReset();
+    const getForExecution = jest.fn();
+    const logUsage = jest.fn().mockResolvedValue(undefined);
+    const handler = new SendEmailHandler({
+      getForExecution,
+      logUsage,
+    } as never);
+    const context = makeContext();
+    context.variables = {};
+    const result = (await handler.execute(
+      null,
+      {
+        integrationId: 'int-1',
+        to: ['recipient@example.com'],
+        subject: 'hi',
+        body: 'hello',
+      },
+      context,
+    )) as unknown as {
+      port: string;
+      output: {
+        error: { code: string; details: { integrationCode?: string } };
+      };
+    };
+    expect(result.port).toBe('error');
+    expect(result.output.error.code).toBe('INTEGRATION_SERVICE_UNAVAILABLE');
+    expect(result.output.error.details.integrationCode).toBe(
+      'INTEGRATION_SERVICE_UNAVAILABLE',
+    );
+    expect(getForExecution).not.toHaveBeenCalled();
+    expect(logUsage).not.toHaveBeenCalled();
+    expect(sendMailMock).not.toHaveBeenCalled();
+  });
+});

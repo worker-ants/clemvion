@@ -54,19 +54,28 @@ function ctx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
 }
 
 describe('IntegrationHandlerBase.acquireIntegration', () => {
-  it('throws when integrations service is absent', async () => {
+  // 두 경우 모두 배포 구성 에러다. 공통 코드 표(CLE-NODE-INT-COMMON-ERROR)의 `INTEGRATION_SERVICE_UNAVAILABLE` 로
+  // 던져야 핸들러 catch 가 코드를 보존한다. 일반 `Error` 면 `INTEGRATION_CALL_FAILED`(Email 은 `EMAIL_SEND_FAILED`)가
+  // 된다(CLE-T-MYDNQN).
+  it('throws IntegrationError(INTEGRATION_SERVICE_UNAVAILABLE) when integrations service is absent', async () => {
     const handler = new TestHandler();
-    await expect(handler.callAcquire('int-1', ctx())).rejects.toThrow(
-      /not available/,
-    );
+    const rejection = handler.callAcquire('int-1', ctx());
+    await expect(rejection).rejects.toBeInstanceOf(IntegrationError);
+    await expect(rejection).rejects.toMatchObject({
+      code: 'INTEGRATION_SERVICE_UNAVAILABLE',
+      message: expect.stringMatching(/not available/) as string,
+    });
   });
 
-  it('throws when workspaceId missing in context — 조회하지 않는다', async () => {
+  it('throws IntegrationError(INTEGRATION_SERVICE_UNAVAILABLE) when workspaceId missing in context — 조회하지 않는다', async () => {
     const service = makeIntegrationsServiceMock();
     const handler = new TestHandler(asIntegrationsService(service));
-    await expect(
-      handler.callAcquire('int-1', ctx({ variables: {} })),
-    ).rejects.toThrow(/workspace context/);
+    const rejection = handler.callAcquire('int-1', ctx({ variables: {} }));
+    await expect(rejection).rejects.toBeInstanceOf(IntegrationError);
+    await expect(rejection).rejects.toMatchObject({
+      code: 'INTEGRATION_SERVICE_UNAVAILABLE',
+      message: expect.stringMatching(/workspace context/) as string,
+    });
     expect(service.getForExecution).not.toHaveBeenCalled();
   });
 

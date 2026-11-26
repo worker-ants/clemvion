@@ -2775,3 +2775,39 @@ describe('extractApiPath', () => {
     expect(extractApiPath('/v1/orders?page=1#section')).toBe('/v1/orders');
   });
 });
+
+// 워크스페이스 컨텍스트 누락은 배포 구성 에러라 공통 코드 `INTEGRATION_SERVICE_UNAVAILABLE` 로 에러 포트에 나간다.
+// 통합을 조회하지 않고 얻은 통합도 없어 활동 로그를 남기지 않는다(CLE-NODE-INT-COMMON-ERROR, CLE-T-MYDNQN).
+describe('HttpRequestHandler — 워크스페이스 컨텍스트 누락 (통합 인증)', () => {
+  it('INTEGRATION_SERVICE_UNAVAILABLE 로 에러 포트에 보내고 요청을 보내지 않는다', async () => {
+    const fetchSpy = jest.fn();
+    const originalFetch = global.fetch;
+    global.fetch = fetchSpy as unknown as typeof global.fetch;
+    try {
+      const getForExecution = jest.fn();
+      const logUsage = jest.fn().mockResolvedValue(undefined);
+      const handler = new HttpRequestHandler({
+        getForExecution,
+        logUsage,
+      } as never);
+      // makeContext() 의 variables 는 비어 있다(`__workspaceId` 없음).
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/v1/items',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        makeContext(),
+      )) as unknown as { port: string; output: { error: { code: string } } };
+      expect(result.port).toBe('error');
+      expect(result.output.error.code).toBe('INTEGRATION_SERVICE_UNAVAILABLE');
+      expect(getForExecution).not.toHaveBeenCalled();
+      expect(logUsage).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});

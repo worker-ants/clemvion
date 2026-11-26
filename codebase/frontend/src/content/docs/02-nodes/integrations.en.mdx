@@ -126,7 +126,7 @@ Based on the Integration's `auth_type`, headers/query params are auto-injected: 
 </Example>
 
 <Callout type="warn">
-Pre-flight errors (`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`) are **thrown and fail the entire run**. Runtime SQL errors are routed to the `error` port instead. If you want to branch-handle failures, wire something to the `error` port.
+Pre-flight errors (`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`) go to the `error` port, just like runtime SQL errors. Even when the node fails before sending the query, `output.error.code` tells you why. If you want to branch-handle failures, wire something to the `error` port.
 </Callout>
 
 ## Send Email

@@ -137,7 +137,7 @@ Integration의 `auth_type`에 따라 헤더/쿼리가 자동 주입돼요. api_k
 </Example>
 
 <Callout type="warn">
-사전 설정 오류(`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`)는 **throw되어 실행 전체가 실패**해요. 반면 SQL 실행 중 발생한 오류는 `error` 포트로 라우팅돼요. 분기 처리하고 싶은 오류는 `error` 포트에 이어서 노드를 연결해요.
+사전 설정 오류(`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`)도 SQL 실행 중 발생한 오류처럼 `error` 포트로 나가요. 쿼리를 보내기 전에 끝난 실패라도 `output.error.code` 로 원인을 알 수 있어요. 분기 처리하고 싶은 오류는 `error` 포트에 이어서 노드를 연결해요.
 </Callout>
 
 ## Send Email
