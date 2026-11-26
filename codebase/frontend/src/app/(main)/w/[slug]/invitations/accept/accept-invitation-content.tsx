@@ -10,7 +10,7 @@ import { authApi } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
-import { buildInvitationLoginHref } from "@/lib/auth/post-login-redirect";
+import { buildInvitationLoginHref } from "@/lib/invitations/accept-path";
 import {
   Card,
   CardHeader,
