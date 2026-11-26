@@ -2,19 +2,19 @@
 id: "CLE-PLAT-ARCH"
 title: "시스템 아키텍처"
 type: "design"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "21adeb26f4c5aed31a6f34346e5630e3559829c760f9438be8f3c5fd60506311"
+content_hash: "ba664234b61de5992850852d30f1a0237e441dfa678c7b86819118a3ff85466e"
 read_as: "approved_fallback"
-task: "CLE-T-JK1JFZ"
+task: "CLE-T-KYPH36"
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "d993f78922d64f746ef200acdabf71e142aa3dfcf63a8c1e7b4b9de697832958"
-etag: "sha256-3ab5a020f2eacf1b9ca072439794718132cf380e9965d451caf610f07bee32a8"
+mirror_sha256: "a646de593c647ae9957ea37904b1084bd14a23213c61e37108c60c6a0f76e7b3"
+etag: "sha256-4bc3adbe05afd7c81eda39291943b2514a80c04d200246cd9623b2d0a91041d1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -159,7 +159,7 @@ flowchart LR
 | --- | --- |
 | 큐 | Redis 7 + BullMQ. 등록된 큐 목록은 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 이 단일 기준이다 |
 | 파일 저장소 | 지식 저장소 원본 문서(`kb/{kbId}/{documentId}/{sanitizedFilename}`)와 프로필 이미지(`avatars/{userId}/{uuid}.{ext}`)를 쓴다. Form 첨부 키는 정의만 있고 구현하지 않았다 |
-| WebSocket | Socket.IO. 실행 상태·노드 이벤트·지식 저장소 진행률·Background 실행 이벤트를 보낸다. 보내는 곳은 `WebsocketService` 하나다. 같은 서비스의 `executionEvents$` 스트림을 EIA SSE 어댑터(`SseAdapter`)·채팅 채널 디스패처(`ChatChannelDispatcher`)·EIA 알림 발송기(`NotificationDispatcher`)가 구독한다 |
+| WebSocket | Socket.IO. 실행 상태·노드 이벤트·지식 저장소 진행률·Background 실행 이벤트를 보낸다. 보내는 곳은 `WebsocketService` 하나다. 같은 서비스의 `executionEvents$` 스트림을 EIA SSE 어댑터(`SseAdapter`)·채팅 채널 디스패처(`ChatChannelDispatcher`)·EIA 알림 발송기(`NotificationDispatcher`)가 구독한다. HTTP 전용 전역 enhancer(요청 빈도 제한 가드 · 로깅 · 응답 변환 인터셉터)는 WebSocket 호출을 건너뛴다([WebSocket 연결과 채널 구독 「1. 전송 계층」](../CLE-API/CLE-API-WS.md#1-전송-계층)) |
 | SSE | `text/event-stream` 을 두 곳에서 쓴다. ① 워크플로우 AI 어시스턴트 스트리밍(WebSocket 을 거치지 않고 컨트롤러가 직접 쓴다, [AI 어시스턴트 스트리밍과 세션 API](../CLE-WF/CLE-WF-ASSIST-PROTO.md)) ② External Interaction API 이벤트 스트림([EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md)) |
 | 인증 | JWT 액세스 토큰 + 회전하는 리프레시 토큰(`refresh_token` 테이블). Bearer 헤더 또는 쿠키로 받는다 |
 | 시크릿 | 시크릿 저장소(`secret_store` 테이블)가 도메인을 가로지르는 비밀의 공통 저장소다. 트리거 설정 JSONB 의 참조 슬롯에는 평문 대신 시크릿 참조(`secret://…`)를 둔다. 값은 마스터키(`ENCRYPTION_KEY`) 기반 AES-256-GCM 으로 암호화한다. 이 참조 슬롯을 읽고 쓰는 곳은 `SecretResolver` 하나다. 모든 비밀이 이 저장소를 거치지는 않는다. 저장소 밖에 두는 필드(인증 설정 자격 증명, 트리거 단위 인터랙션 토큰, 알림 서명 시크릿의 유예 값)는 [시크릿 저장소 「저장소 예외 필드」](../CLE-INT/CLE-INT-SECRET.md#저장소-예외-필드) 가 정한다. 통합 자격 증명과 인증 설정 자격 증명은 이 저장소를 쓰지 않고 컬럼 transformer 가 따로 암호화한다. 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)는 마스터키(`ENCRYPTION_KEY`)와 별개다. 운영 환경 가드(`assertProductionConfig`)가 두 키를 모두 검사한다([통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화), [시크릿 저장소 「마스터키」](../CLE-INT/CLE-INT-SECRET.md#마스터키)) |
@@ -227,7 +227,9 @@ SaaS 와 셀프 호스팅은 같은 코드를 쓰고 설정으로 갈린다. 배
 
 ## Rationale
 
-### 구현 위치 절을 두지 않은 이유 (2026-10-03)
+### 구현 위치 절을 두지 않은 이유
+
+결정일: 2026-10-03
 
 이 문서는 컴포넌트를 나열하는 구성 개요다. 컴포넌트마다 그 표면을 정한 문서가 있고 그 문서의 `## 구현 위치` 가 경로를 적는다. 여기에 같은 경로를 다시 적으면 두 곳을 함께 고쳐야 한다. [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 19 는 구성 개요 문서를 이 절의 예외로 둔다. 그 규약의 R-16 「옛 트리를 지우고 frontmatter 근거를 `## 구현 위치` 검사로 바꾼 이유」 가운데 「약해지는 곳」 이 머리 줄이 구현됨인데 절이 없는 잎 문서 5편을 짚었다. 후속 Task `CLE-T-RGZBCQ` 가 그중 이 문서는 절 없이 두기로 정했다.
 
@@ -246,7 +248,9 @@ SaaS 와 셀프 호스팅은 같은 코드를 쓰고 설정으로 갈린다. 배
 
 영역 데이터 문서의 저장소 매핑 표는 그 흐름에서 실제로 읽고 쓰는 컬럼만 발췌하고, 전체 정의는 엔티티 소유 문서를 링크한다. 이렇게 하면 엔티티 정의가 바뀌어도 흐름 관점의 표는 그대로 유효하다.
 
-### 권한 요약을 선택 요소로 둔 이유 (2026-07-31)
+### 권한 요약을 선택 요소로 둔 이유
+
+결정일: 2026-07-31
 
 상태 전이 절은 엔티티 상태 enum 의 전이를 그리는 자리다. 권한 매트릭스는 전이가 아니라 역할별 접근 경계라서 그 아래 두면 뜻이 어긋난다. 워크스페이스 데이터 문서가 실제로 그랬다. 권한 요약표가 상태 전이 절 아래에 있었고, 15개 데이터 흐름 문서 가운데 유일하게 틀을 벗어나 있었다. 2026-07-31 에 독립 절로 올리면서 이 규칙을 정했다.
 
@@ -258,12 +262,16 @@ SaaS 와 셀프 호스팅은 같은 코드를 쓰고 설정으로 갈린다. 배
 
 2026-11-21 에 요청 빈도 카운터를 공유 Redis 로 옮겼다(NERV Task `CLE-T-JK1JFZ`). 위에서 남긴 후속 과제를 이것으로 닫았다. 키는 [비동기 큐와 Redis 키 목록](CLE-PLAT-QUEUE.md) 에 다시 등재했다. 저장소 동작과 Redis 를 쓸 수 없을 때의 동작은 [HTTP API 규약 — 요청 빈도 제한 §7 「저장소」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 가 정한다. 로그인 세션과 WebSocket 연결 상태는 지금도 Redis 에 두지 않는다. 다른 문서의 링크가 깨지지 않도록 이 절의 제목은 바꾸지 않았다.
 
-### EIA SSE 도 Redis 로 서버 인스턴스 사이를 맞춘다 (2026-10-17)
+### EIA SSE 도 Redis 로 서버 인스턴스 사이를 맞춘다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-Z35F7P` 에서 사람이 정한 결정이다. [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 은 2026-10-09 에 SSE 재연결 버퍼의 전제를 서버 인스턴스 하나로 좁혔다. 이 전제는 이 문서의 «상태 없는 백엔드» 와 SaaS 자동 수평 확장 목표와 맞지 않았다. 그래서 EIA SSE 의 실시간 전달, 재연결 버퍼, 실행당 연결 상한, 트리거 단위 토큰 스트림의 닫기 신호를 Redis 에 두어 모든 서버 인스턴스가 함께 쓰게 했다. 설계와 실패 정책의 근거는 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 의 Rationale 에 있다.
 
 기각한 대안: «상태 없는 백엔드» 항목에 «EIA SSE 버퍼는 서버 인스턴스 하나에 한정되고 Redis fan-out 전까지 서버 인스턴스를 늘리지 않는다» 는 예외를 적는 안. 이 Task 가 처음 제안한 안이다. k8s 배포는 이미 서버 인스턴스를 여럿 띄운다. 기본 매니페스트(`k8s/base/backend-deployment.yaml`)의 replicas 가 2 이고 staging 오버레이는 2, prod 오버레이는 3 이다. sticky session 설정은 없다. 실행 세그먼트와 재개는 아무 서버 인스턴스의 워커에서나 돈다. 그래서 sticky session 을 켜도 SSE 클라이언트가 붙은 서버 인스턴스로 이벤트가 모이지 않는다. 예외를 적으면 지금 배포가 그 예외를 어긴 채로 남는다.
 
-### WebSocket 채널 이벤트도 Redis 로 서버 인스턴스 사이를 맞춘다 (2026-11-14)
+### WebSocket 채널 이벤트도 Redis 로 서버 인스턴스 사이를 맞춘다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-4YT18G` 에서 사람이 정한 결정이다. 채널 발행이 자기 서버 인스턴스의 소켓에만 닿아 세그먼트를 돈 서버 인스턴스와 에디터가 붙은 서버 인스턴스가 다르면 실시간 이벤트가 오지 않았다. «상태 없는 백엔드» 와 맞지 않는 상태였다. 방식(Socket.IO Redis adapter)을 고른 근거와 기각한 대안은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러](../CLE-API/CLE-API-WS-MSG.md) 의 Rationale 에 있다.

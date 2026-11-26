@@ -2,19 +2,19 @@
 id: "CLE-API-WS"
 title: "WebSocket 연결과 채널 구독"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "c34e61751545699a575f800761db9fcb424475c08c26883031ce4560e6edb14e"
+content_hash: "f47a15bd67bc031b0060607649d76757780affefbf3df6d68b89272d42d7aa4a"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-YFVEPK"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "127e14f6915d235faa0485502e6b800675b682bd92c521759def684076b77fd9"
-etag: "sha256-5d1f58b0f4b301086dc068d7a2b095da9bd6d4fcf02434da30939ec7ce70ff7f"
+mirror_sha256: "b073c43584707df3c1be90fc22ab0020915044ac9fd83054f44ada450f935c38"
+etag: "sha256-a4aeec110faafd6a66e938ac3027a25a64b9d889de4110fe9eff5dc9a40bf59e"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -60,7 +60,7 @@ etag: "sha256-5d1f58b0f4b301086dc068d7a2b095da9bd6d4fcf02434da30939ec7ce70ff7f"
   - `CustomValidationPipe` 는 커스텀 데코레이터 인자(`@ConnectedSocket()` 소켓)를 검증하지 않는다. 이 제외(`ArgumentMetadata.type === 'custom'`)는 HTTP 의 커스텀 파라미터 데코레이터에도 걸리는 전역 동작이다(NestJS 기본 `ValidationPipe` 의 `validateCustomDecorators: false` 와 같다). 파이프는 NestJS `ExecutionContext` 를 받지 못해서 `isHttpContext` 대신 인자 종류로 가른다. `@MessageBody()` 는 DTO 클래스 타입이면 검증한다. 지금 게이트웨이 핸들러의 `@MessageBody()` 는 모두 인라인 객체 타입이라 검증 대상이 아니다. DTO 클래스를 쓰는 `@MessageBody()` 의 검증 실패 wire 는 [미결 사항](#미결-사항) 에 있다.
   - `JwtAuthGuard` 는 게이트웨이의 `@Public()` 으로 통과한다. WebSocket 인증은 `handleConnection` 의 JWT 검증이 맡는다([§2.2](CLE-API-WS-CONN.md#22-인증)).
   - `RolesGuard` 는 `@Public()` 을 보지 않는다. 소켓은 핸드셰이크에서 검증한 사용자 ID 를 소켓 속성 `userId` 에 두고 `request.user` 는 채우지 않는다. 그래서 소켓 요청은 `request.user` 가 없어 `!userId` 분기로 통과한다. 이 분기는 `@Roles()` 가 없는 핸들러만 통과시킨다. 그래서 게이트웨이 핸들러에 `@Roles()` 를 붙이면 모든 요청이 거부된다. 구독 채널 접근 인가는 `handleConnection` 과 구독 채널 인가기(`channelAuthorizers`, [§4.4](CLE-API-WS-MSG.md#44-구독-인가))가 맡는다. 이 동작은 [워크스페이스와 멤버 「멤버십 검증은 가드가 무조건 한다」](../CLE-ACCT/CLE-ACCT-WS.md#멤버십-검증은-가드가-무조건-한다) 의 제외 대상 (a) 가운데 `request.user` 가 없는 미인증 요청의 경우에 준한다. 소켓은 인증된 연결이지만 가드가 보는 자리에 사용자가 없다. 인증 판정은 `handleConnection` 이 맡고 멤버십은 토큰 클레임을 그대로 쓴다([§2.2](CLE-API-WS-CONN.md#22-인증)).
-  - 새 전역 enhancer 는 저장소 가드 `global-enhancer-ws-safety.spec.ts` 에 WebSocket 처리 방식을 분류해야 등록할 수 있다. 분류 없이 들어오면 그 가드가 실패한다. 경위는 [「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」](#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 에 있다.
+  - 새 전역 enhancer 는 저장소 가드 `global-enhancer-ws-safety.spec.ts` 에 WebSocket 처리 방식을 분류해야 등록할 수 있다. 분류 없이 들어오면 그 가드가 실패한다. 경위는 [「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위」](#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위) 에 있다.
 
 raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 
@@ -94,7 +94,9 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 
 → [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러](CLE-API-WS-MSG.md#71-에러-코드)
 
-### 소켓 수명을 토큰 수명에 묶는다 (2026-09-02)
+### 소켓 수명을 토큰 수명에 묶는다
+
+결정일: 2026-09-02
 
 → [WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결](CLE-API-WS-CONN.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)
 
@@ -117,7 +119,9 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 
 ## Rationale
 
-### 전송 계층을 Socket.IO 로 바로잡은 경위 (2026-06-03)
+### 전송 계층을 Socket.IO 로 바로잡은 경위
+
+결정일: 2026-06-03
 
 초안은 native·raw WebSocket 프로토콜을 전제로 `{ type, id, payload }` 프레임, `Sec-WebSocket-Protocol` 서브프로토콜 인증, `auth.refresh`·`auth.refreshed` in-band 갱신, `execution.start`·`execution.stop` WebSocket 명령, 서버 발신 30s/10s app ping, raw close code(1000·1001·1008·4000·4001), `{type:'error',code}` 프레임을 약속했다. 그러나 구현(`websocket.gateway.ts`, `websocket.service.ts`, 프론트엔드 `ws-client.ts`)은 Socket.IO(namespace `/ws`) 기반이고 위 표면 다수가 없거나 형태가 달랐다.
 
@@ -125,7 +129,9 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 - **미구현으로 나눴던 약속의 처분**: 2026-07-07 에 WebSocket 에러 처리 강화(전용 에러 코드 넷 `INVALID_MESSAGE`·`UNKNOWN_TYPE`·`SUBSCRIPTION_LIMIT_EXCEEDED`·`RATE_LIMITED`, 소켓당 분당 60건 빈도 제한)를 구현했다. 구독 ack 는 평문 `error` 에 구조화 `code` 를 더했고 빈도 제한은 `WsRateLimitGuard`(클래스 수준, 메모리, 소켓별), 등록되지 않은 이벤트는 `onAny` → `error{code}` 다. `notification.new` 발행도 이후 구현됐다. 나머지는 §1 의 갈래 표대로 비채택하거나(2026-07-08, 2026-09-02) 구현했다(`auth.token_expired`, 2026-09-02). 남은 항목은 없다.
 - 재개·재시도 코드(`INVALID_EXECUTION_STATE`, `RESUME_*`, `RETRY_*`)는 처음부터 코드와 맞았다.
 
-### ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)
+### ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위
+
+결정일: 2026-10-22
 
 실행 패널이 비는 장애를 고치면서(NERV Task `CLE-T-A3W8B8`) 두 가지를 바로잡았다. 하나는 문서가 적은 ack 이벤트 wire 이고 다른 하나는 NestJS 12 가 게이트웨이에 붙인 전역 enhancer 다. 짝 문서 [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) 의 ack 서술도 같은 Task 에서 함께 고쳤다.
 
@@ -164,7 +170,9 @@ raw WebSocket 을 전제했던 초안 항목은 다음 갈래로 처분했다.
 - Nest 쪽 옵트아웃: `@nestjs/websockets` 12.1.2 에는 게이트웨이에서 전역 enhancer 를 끄는 옵션이 없다.
 - 검증 파이프에서 `instanceof Socket` 으로 소켓을 가려내기: `@nestjs/platform-socket.io` 가 고정한 socket.io 사본과 backend 가 설치한 사본이 다르다. 그래서 런타임 소켓이 `instanceof` 검사에 걸리지 않는다. e2e 에서 확인했다.
 
-### raw WebSocket 전제·REST 대체 항목 비채택 (2026-07-08)
+### raw WebSocket 전제·REST 대체 항목 비채택
+
+결정일: 2026-07-08
 
 전송 계층을 바로잡은 뒤 미구현으로 나눠 둔 항목 가운데 **넷을 정식 비채택**으로 종결했다. "언젠가 구현할 backlog" 가 아니라 현 아키텍처에서 도입하지 않기로 결정한 항목이다.
 

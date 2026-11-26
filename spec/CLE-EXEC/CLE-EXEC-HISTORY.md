@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY"
 title: "실행 내역"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-EXHIST-001", "REQ-EXHIST-002", "REQ-EXHIST-003", "REQ-EXHIST-004", "REQ-EXHIST-005", "REQ-EXHIST-006", "REQ-EXHIST-007", "REQ-EXHIST-008", "REQ-EXHIST-009", "REQ-EXHIST-010", "REQ-EXHIST-011", "REQ-EXHIST-012", "REQ-EXHIST-013", "REQ-EXHIST-014", "REQ-EXHIST-015", "REQ-EXHIST-016", "REQ-EXHIST-017", "REQ-EXHIST-018", "REQ-EXHIST-019", "REQ-EXHIST-020", "REQ-EXHIST-021", "REQ-EXHIST-022", "REQ-EXHIST-023", "REQ-EXHIST-024", "REQ-EXHIST-025", "REQ-EXHIST-026", "REQ-EXHIST-027", "REQ-EXHIST-028", "REQ-EXHIST-029", "REQ-EXHIST-030", "REQ-EXHIST-031", "REQ-EXHIST-032", "REQ-EXHIST-033", "REQ-EXHIST-034", "REQ-EXHIST-035", "REQ-EXHIST-036", "REQ-EXHIST-037", "REQ-EXHIST-038", "REQ-EXHIST-039", "REQ-EXHIST-040", "REQ-EXHIST-041", "REQ-EXHIST-042", "REQ-EXHIST-043", "REQ-EXHIST-044", "REQ-EXHIST-045"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "2ebeaaf77efa78e1d105038ebffe818e68e2c958b4db8b094a9c5eac3478c074"
+content_hash: "1532b603729602aba5c798fae15d8c2c02315dbe00391f289df554b152dbd012"
 read_as: "approved_fallback"
-task: "CLE-T-GGDQSJ"
+task: "CLE-T-YFVEPK"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "d95f88078774bcc93a7c64d6201143308c7603e1a473c4f96849c7c41ee2f267"
-etag: "sha256-56991177a21fb1d4c8e09196462b656429892bac5e321726257c80b7575c3ca6"
+mirror_sha256: "d9d9f2933a0394103dd55138b65ebe4a16b9bd56a95303c16d2316a36b3467cd"
+etag: "sha256-3d9d4c5ba096d3bdb74e5e69d58e619a63ae45c28b9554839744ab077573eda4"
 ---
 > 구현 상태: 구현됨 (EH-DETAIL-12 여러 노드 대화 재구성 보기만 v2 미구현) · 원문: `spec/2-navigation/14-execution-history.md`, `spec/2-navigation/_product-overview.md` (§3.15 Execution History) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -246,7 +246,9 @@ etag: "sha256-56991177a21fb1d4c8e09196462b656429892bac5e321726257c80b7575c3ca6"
 
 같은 전제 위에 체인 조회도 뷰어에게 열려 있다([재실행](CLE-EXEC-RERUN.md#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 의 Rationale 참조).
 
-### 실행 목록은 실행 시간을, 요약 카드는 실행 시간과 전체 경과를 보인다 (2026-11-14)
+### 실행 목록은 실행 시간을, 요약 카드는 실행 시간과 전체 경과를 보인다
+
+결정일: 2026-11-14
 
 - `duration_ms` 는 시작부터 종료까지라 폼 입력 · 위젯 응답을 기다린 시간이 들어간다. 입력 대기 중 취소 · 시간 초과로 끝난 실행은 기다린 시간 전체가 소요 시간으로 보였다. 대기 회수는 기본 유예가 1시간이고 park 취소는 기한이 없다.
 - 목록 · 대시보드 최근 실행 · 에디터 실행 내역 패널은 한 값만 보일 자리라 실행 시간을 보인다. 요약 카드는 자리가 있어 두 값을 함께 보인다.
@@ -256,7 +258,9 @@ etag: "sha256-56991177a21fb1d4c8e09196462b656429892bac5e321726257c80b7575c3ca6"
 - `activeRunningMs` 의 측정되지 않은 경우를 `null` 로 내보내는 이유: 컬럼이 `NOT NULL DEFAULT 0` 이라 V083 이전 실행이 0 으로 남아 있다. 0 을 그대로 보이면 실제로 0ms 걸린 것처럼 읽힌다. 판정은 서버 한 곳에서 해서 화면 네 곳과 API 소비자가 같은 값을 받게 한다.
 - 2026-11-14 엔진이 REST 중지 실행에 마지막 구간을 더하게 된 뒤에도 이 판정을 유지했다(CLE-T-ES1J1E). V083 이전 실행과 엔진이 구간을 더하기 전에 멈춘 실행은 여전히 0 이고, 새 컬럼 없이는 이 0 을 실제 0ms 와 가를 표지가 없다. 기각한 대안: 판정을 없애고 저장 값을 그대로 낸다. V083 이전 실행이 0ms 로 보인다.
 
-### 실행 응답은 한 DTO 로 싣고 노드는 참조 세 필드만 싣는다 (2026-11-14)
+### 실행 응답은 한 DTO 로 싣고 노드는 참조 세 필드만 싣는다
+
+결정일: 2026-11-14
 
 - 목록만 `ExecutionDto` 로 조립하고 상세 · 중지 · 체인 · 재실행은 엔티티를 펼쳐 내보냈다. 그래서 선언과 실제가 달랐다. 부모 `workflow` 전 컬럼, 노드 설정 원문(`node.config`, 응답 마스킹을 거치지 않는다), 웹훅 호출자 IP(`sourceIp`), 엔진 내부 상태(`resumeCallStack`)가 선언 없이 나갔고 체인 항목에는 선언한 `triggerSource` · `triggerLabel` 이 빠졌다.
 - 웹 앱은 `node` 에서 `label` · `type` 만 읽고 위 미선언 컬럼은 읽지 않는다. 웹채팅 위젯은 EIA 응답을 쓴다.
