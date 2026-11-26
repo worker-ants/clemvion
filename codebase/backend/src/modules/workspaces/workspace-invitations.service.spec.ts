@@ -797,6 +797,44 @@ describe('WorkspaceInvitationsService', () => {
         }),
       );
     });
+
+    it('acceptById 는 이미 멤버인 사용자의 멤버 행을 다시 넣지 않고 초대만 소비한다', async () => {
+      arrange(pending());
+      memberRepo.findOne.mockResolvedValueOnce({ id: 'existing' });
+      await expect(
+        service.acceptById(INVITATION_ID, 'user-1'),
+      ).resolves.toEqual({ workspaceId: 'ws-1', role: 'editor' });
+      expect(memberRepo.save).not.toHaveBeenCalled();
+      expect(updateMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('acceptById 의 동시 수락에서 진 쪽은 410 invitation_already_used 다', async () => {
+      const built = buildDataSource({
+        invitationRepo,
+        memberRepo,
+        updateAffected: 0,
+      });
+      service = new WorkspaceInvitationsService(
+        invitationRepo as never,
+        workspaceRepo as never,
+        memberRepo as never,
+        userRepo as never,
+        mailService as never,
+        built.dataSource,
+        notifications as never,
+        auditLogs as never,
+        usersService as never,
+      );
+      arrange(pending());
+      const err = await service
+        .acceptById(INVITATION_ID, 'user-1')
+        .catch((err_: unknown) => err_);
+      expect(err).toBeInstanceOf(GoneException);
+      expect(err).toMatchObject({
+        response: { code: 'invitation_already_used' },
+      });
+      expect(memberRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('accept', () => {
