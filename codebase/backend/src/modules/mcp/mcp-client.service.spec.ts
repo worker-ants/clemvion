@@ -14,6 +14,7 @@ import {
 } from './mcp-client.service';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { TimeoutError } from '../../common/utils/with-timeout';
+import { withEnv } from '../../shared/testing/env';
 
 const mockClientInstances: Array<{
   connect: jest.Mock;
@@ -221,9 +222,7 @@ describe('McpClientService', () => {
 
     // 통합 노드의 사설망 허용 플래그는 MCP 에 적용되지 않는다(우회는 MCP_ALLOW_INSECURE_URL 뿐).
     it('blocks an IPv4-mapped loopback even when ALLOW_PRIVATE_HOST_TARGETS=true', async () => {
-      const orig = process.env.ALLOW_PRIVATE_HOST_TARGETS;
-      process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
-      try {
+      await withEnv({ ALLOW_PRIVATE_HOST_TARGETS: 'true' }, async () => {
         await expect(
           service.connect({
             url: 'https://[::ffff:7f00:1]/mcp',
@@ -231,10 +230,7 @@ describe('McpClientService', () => {
           }),
         ).rejects.toThrow(McpHostBlockedError);
         expect(mockTransportInstances).toHaveLength(0);
-      } finally {
-        if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-        else process.env.ALLOW_PRIVATE_HOST_TARGETS = orig;
-      }
+      });
     });
 
     it('allows an IPv4-mapped literal that carries a public IPv4', async () => {
@@ -433,17 +429,12 @@ describe('McpClientService', () => {
 
     // 통합 노드의 사설망 허용 플래그는 MCP 에 적용되지 않는다(우회는 MCP_ALLOW_INSECURE_URL 뿐).
     it('ALLOW_PRIVATE_HOST_TARGETS=true 여도 해석 결과 검사를 건너뛰지 않는다', async () => {
-      const orig = process.env.ALLOW_PRIVATE_HOST_TARGETS;
-      process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
       mockedLookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
-      try {
+      await withEnv({ ALLOW_PRIVATE_HOST_TARGETS: 'true' }, async () => {
         await expect(
           service.connect({ url: 'https://mcp.example.com', authType: 'none' }),
         ).rejects.toThrow(McpHostBlockedError);
-      } finally {
-        if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-        else process.env.ALLOW_PRIVATE_HOST_TARGETS = orig;
-      }
+      });
     });
   });
 

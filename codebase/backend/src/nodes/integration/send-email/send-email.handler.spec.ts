@@ -1,7 +1,15 @@
 import { SendEmailHandler } from './send-email.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
-import { isSmtpHostBlocked } from './smtp-host-guard.js';
+import { Logger } from '@nestjs/common';
+import {
+  EMAIL_HOST_BLOCKED_MESSAGE,
+  isSmtpHostBlocked,
+} from './smtp-host-guard.js';
+import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+  SsrfBlockedError,
+} from '../../../common/utils/ssrf/outbound-guard.js';
 
 const sendMailMock = jest.fn();
 const closeMock = jest.fn();
@@ -13,8 +21,9 @@ jest.mock('nodemailer', () => ({
   })),
 }));
 // SSRF 가드는 smtp-host-guard.spec.ts 가 검증한다. 핸들러 테스트에서는 실제
-// DNS 조회를 피하기 위해 모킹하고 분기만 제어한다 (기본 false = 허용).
+// DNS 조회를 피하기 위해 연결 전 판정만 모킹하고 분기만 제어한다 (기본 false = 허용). 문구 · getSocket 은 실물이다.
 jest.mock('./smtp-host-guard.js', () => ({
+  ...jest.requireActual('./smtp-host-guard.js'),
   isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
 }));
 const mockedIsSmtpHostBlocked = isSmtpHostBlocked as unknown as jest.Mock;
@@ -346,6 +355,95 @@ describe('SendEmailHandler', () => {
       expect(out.meta.deliveryStatus).toBe('failed');
       // 차단 시 실제 발송을 시도하지 않아야 한다.
       expect(sendMailMock).not.toHaveBeenCalled();
+    });
+
+    // CLE-T-PTCRM4 — 연결할 때 푼 주소의 판정(getSocket)이 막은 발송.
+    it('연결 시점 판정이 막으면 EMAIL_HOST_BLOCKED 와 고정 문구로 끝나고 usage 로그에도 주소가 남지 않는다', async () => {
+      const { service, logUsage } = makeService();
+      const blocked = new SsrfBlockedError(
+        'hostname "smtp.example.com" resolved to restricted IP "10.0.0.7" at connect time',
+      );
+      // nodemailer 가 소켓 오류를 감싸 오는 경우도 본다 — 판정은 cause 사슬에서 찾는다.
+      sendMailMock.mockRejectedValue(
+        new Error('Connection error', { cause: blocked }),
+      );
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const handler = new SendEmailHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          baseConfig,
+          makeContext(baseConfig),
+        )) as unknown as {
+          port: string;
+          output: { error: { code: string; message: string } };
+        };
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('EMAIL_HOST_BLOCKED');
+        expect(out.output.error.message).toBe(EMAIL_HOST_BLOCKED_MESSAGE);
+        expect(JSON.stringify(out.output)).not.toContain('10.0.0.7');
+        expect(JSON.stringify(logUsage.mock.calls)).not.toContain('10.0.0.7');
+        expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'int-1' }),
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'EMAIL_HOST_BLOCKED' }),
+          }),
+        );
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('10.0.0.7'));
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('연결 전 판정이 판정 아닌 오류로 실패하면 EMAIL_SEND_FAILED 와 고정 문구를 내고 발송하지 않는다', async () => {
+      mockedIsSmtpHostBlocked.mockRejectedValueOnce(
+        new Error('resolver exploded at 10.9.8.7'),
+      );
+      const { service } = makeService();
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const handler = new SendEmailHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          baseConfig,
+          makeContext(baseConfig),
+        )) as unknown as {
+          port: string;
+          output: { error: { code: string; message: string } };
+        };
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('EMAIL_SEND_FAILED');
+        expect(out.output.error.message).toBe(SSRF_GUARD_FAILED_CLIENT_MESSAGE);
+        expect(sendMailMock).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('resolver exploded'),
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('transport 에 연결 시점 판정 getSocket 을 싣는다', async () => {
+      const { service } = makeService();
+      const createTransport = jest.requireMock<{
+        createTransport: jest.Mock;
+      }>('nodemailer').createTransport;
+      createTransport.mockClear();
+      const handler = new SendEmailHandler(service as never);
+      await handler.execute(null, baseConfig, makeContext(baseConfig));
+      handler.shutdown();
+
+      expect(createTransport).toHaveBeenCalledTimes(1);
+      expect(createTransport).toHaveBeenCalledWith(
+        expect.objectContaining({ getSocket: expect.any(Function) }),
+      );
     });
 
     it('passes bcc through to sendMail when provided', async () => {

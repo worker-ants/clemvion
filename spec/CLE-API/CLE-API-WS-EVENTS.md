@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS"
 title: "WebSocket 이벤트와 명령"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "a4c5da3af43705ccfafc3f287d2934f0f304c98e1e5db09f44e586f95d01bc0a"
+content_hash: "0194e26620a335590ea8e4fe2dbc074a94782b38df8d0f9393673dd32067ee55"
 read_as: "approved_fallback"
-task: "CLE-T-2Q4KRF"
+task: "CLE-T-KYPH36"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "893e029e8473eac102b80bebaf347dd0e21d195930264bb0cf2c86cec32e672e"
-etag: "sha256-730b3b4a030bc1e9871baee63dafde898dcf8903a0ac6ac0dca5dd12c2cc98cf"
+mirror_sha256: "2e9c5e0233df021e8709f94cd098527cfb27c9718f0d4086ab16235c413cfaa4"
+etag: "sha256-ca85e2d1e591f13bc0b53a862dc44396dcc6fcfbb00d31093dd817b9920accc5"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -39,7 +39,7 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 
 ## 하위 문서
 
-이 문서는 실행 이벤트 목록(§1)과 외부 표면 매핑(§7)을 직접 정하고 나머지는 아래 하위 문서가 정한다. 이 문서에는 요구사항 줄이 없어 하위 문서가 맡는 요구사항 번호도 없다. 하위 문서로 옮긴 절 가운데 다른 문서가 앵커로 링크하는 절(§2.3, §2.4, Rationale 의 C2·C3 절과 `submit_form`·`click_button` 절)과 그 상위 §2 만 같은 제목에 링크 한 줄을 남겨 들어오는 링크가 끊기지 않게 했다.
+이 문서는 실행 이벤트 목록(§1)과 외부 표면 매핑(§7)을 직접 정하고 나머지는 아래 하위 문서가 정한다. 이 문서에는 요구사항 줄이 없어 하위 문서가 맡는 요구사항 번호도 없다. 하위 문서로 옮긴 절 가운데 다른 문서가 앵커로 링크하는 절(§2.3, §2.4, Rationale 의 `buttonConfig` 예시 정정 절과 `submit_form`·`click_button` 절)과 그 상위 §2 만 같은 제목에 링크 한 줄을 남겨 들어오는 링크가 끊기지 않게 했다.
 
 - [WebSocket 이벤트와 명령 — 실행 제어 명령과 ack](CLE-API-WS-EVENTS-COMMANDS.md): 클라이언트 명령 목록, ack 이벤트 형태, 재개 명령 ack 공통 필드와 에러, 마지막 턴 재시도(`execution.retry_last_turn`).
 - [WebSocket 이벤트와 명령 — 입력 대기 이벤트](CLE-API-WS-EVENTS-WAITING.md): `execution.waiting_for_input` 의 대기 표면별 payload, wire 필드 주의, `nodeOutput.nodeType` 층별 사실, 대화 스레드 스냅샷.
@@ -68,7 +68,7 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 | `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs?, presentations? }` | AI 에이전트 멀티턴의 AI 응답. `messages` 는 system 을 뺀 user·assistant·tool 메시지의 권위 스냅샷이고 항목마다 `source` 표시가 있다. 상세는 [AI 대화 턴 이벤트](CLE-API-WS-EVENTS-AITURN.md) |
 | `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI 에이전트가 도구 프로바이더의 도구(지식 저장소, MCP 등)를 실행하기 시작함. 디버깅 타임라인이 턴이 끝나기 전에 대기 중인 도구 항목을 바로 보일 수 있게 보낸다 |
 | `execution.tool_call_completed` | `{ executionId, nodeId, turnIndex, toolCallId, content, status, error?, durationMs }` | 도구 실행이 끝남. `status` 는 `'success' \| 'error'`. 프로바이더가 throw 하면 핸들러가 잡아 `status: 'error'` 와 `error` 를 채우고 LLM 에는 에러 content 를 그대로 넘겨 다음 턴에 회복할 기회를 준다 |
-| `execution.message` | `{ executionId, nodeId, nodeType, presentations: [{ config, output }], seq?, timestamp? }` | 표시 메시지 이벤트. 표시 전용 Presentation 노드(`carousel`·`table`·`chart`·`template`)가 **버튼 없이 자동 진행**으로 끝날 때 보낸다. `presentations[i]` 는 위젯 `classifyPresentation` 입력인 `{config, output}` 이다. 모든 비차단 노드의 `execution.node.completed` 와 구분하며 EIA SSE 표면(웹채팅 위젯)은 비차단 Presentation 렌더를 이 이벤트에서만 받는다. EIA 알림 웹훅 허용 목록에는 없다. 정의 기준은 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md), [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R18 |
+| `execution.message` | `{ executionId, nodeId, nodeType, presentations: [{ config, output }], seq?, timestamp? }` | 표시 메시지 이벤트. 표시 전용 Presentation 노드(`carousel`·`table`·`chart`·`template`)가 **버튼 없이 자동 진행**으로 끝날 때 보낸다. `presentations[i]` 는 위젯 `classifyPresentation` 입력인 `{config, output}` 이다. 모든 비차단 노드의 `execution.node.completed` 와 구분하며 EIA SSE 표면(웹채팅 위젯)은 비차단 Presentation 렌더를 이 이벤트에서만 받는다. EIA 알림 웹훅 허용 목록에는 없다. 정의 기준은 [EIA 수신 API — SSE 이벤트 스트림 「표시 메시지 이벤트」](../CLE-IX/CLE-EIA-INBOUND-STREAM.md#표시-메시지-이벤트) 다 |
 | `execution.user_message` | `{ executionId, nodeId, nodeExecutionId, message, receivedAt }` | AI 에이전트 멀티턴에서 사용자 발화를 받는 즉시(다음 턴 LLM 호출 전) 라이브로 보이는 비권위 진행 신호. 권위는 턴 종료 `execution.ai_message.messages` 스냅샷이다. `submit_message` 와 채널 텍스트 인바운드가 `message_received` 로 재개할 때만 보내고 폼 제출에는 보내지 않는다. 상세는 [AI 대화 턴 이벤트](CLE-API-WS-EVENTS-AITURN.md) |
 
 - **노드 이벤트의 이름 필드는 `nodeLabel` 이다.** 엔진 발행은 모두 `nodeLabel: node.label ?? node.type` 이고 `nodeName` 발행은 0건이다. 미구현 `execution.paused` 행만 옛 표기다.
@@ -151,11 +151,11 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 
 **핵심 규약**
 
-- **`seq` 를 함께 쓴다.** SSE 의 `id:` 필드와 EIA 알림 웹훅 페이로드의 `seq` 는 WebSocket 이벤트 봉투의 이벤트 순번과 같은 값이다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 R7).
+- **`seq` 를 함께 쓴다.** SSE 의 `id:` 필드와 EIA 알림 웹훅 페이로드의 `seq` 는 WebSocket 이벤트 봉투의 이벤트 순번과 같은 값이다([External Interaction API 「이벤트 순번을 SSE 와 알림이 같이 쓴다」](../CLE-IX/CLE-EIA.md#이벤트-순번을-sse-와-알림이-같이-쓴다)).
 - **5분 버퍼는 SSE 쪽에 있다.** `seq` 기반 5분 SSE 재전송 버퍼는 Redis Stream 이다(`sse-fanout.service.ts`). SSE 어댑터(`sse-adapter.service.ts`)가 외부 클라이언트의 `Last-Event-Id` 로 그 버퍼에서 `seq > Last-Event-Id` 인 이벤트를 다시 보낸다. 버퍼의 키와 수명은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다. native WebSocket 은 버퍼 없이 `execution.snapshot` 으로 대신한다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼는 공유하지 않는다.
 - **트랜잭션 커밋 뒤에 발행한다.** 실행 이벤트의 커밋 후 발행 규약은 SSE 와 EIA 알림 웹훅에도 그대로 적용된다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 트랜잭션과 발송 순서).
-- **단일 구현 경로**: 외부 표면은 내부 WebSocket 의 명령·이벤트 처리 경로를 facade 로 감싼 형태로만 구현한다. 두 표면이 갈라지면 유지 부담이 생긴다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 R5).
-- 외부 WebSocket 채널 신설은 v1 에서 보류했다. 보류 사유와 다시 논의할 조건은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 R5 에 있다.
+- **단일 구현 경로**: 외부 표면은 내부 WebSocket 의 명령·이벤트 처리 경로를 facade 로 감싼 형태로만 구현한다. 두 표면이 갈라지면 유지 부담이 생긴다([External Interaction API 「단일 싱크와 외부 facade」](../CLE-IX/CLE-EIA.md#단일-싱크와-외부-facade), [EIA 수신 API — SSE 이벤트 스트림 「외부 WebSocket 채널은 보류한다」](../CLE-IX/CLE-EIA-INBOUND-STREAM.md#외부-websocket-채널은-보류한다)).
+- 외부 WebSocket 채널 신설은 v1 에서 보류했다. 보류 사유와 다시 논의할 조건은 [EIA 수신 API — SSE 이벤트 스트림 「외부 WebSocket 채널은 보류한다」](../CLE-IX/CLE-EIA-INBOUND-STREAM.md#외부-websocket-채널은-보류한다) 에 있다.
 
 ## 구현 위치
 
@@ -175,7 +175,7 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 
 실제로 부딪혔다. `notification-config.dto.ts` 의 `NotificationEventType`(EIA 알림 웹훅 구독 허용 목록, `execution.*` 다섯 값)과 WebSocket 인앱 알림 벨 enum 이 같은 이름이었고 뒤의 것을 `InAppNotificationEventType` 으로 바꿔 풀었다. 그때까지는 구분용 JSDoc 으로만 막았는데 주석은 잘못된 import 를 막지 못한다. 자동 완성이 두 심볼을 같은 이름으로 보이면 잘못 고른 쪽도 컴파일된다.
 
-WebSocket 쪽 이름을 바꾼 근거: 반대쪽은 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 EIA-NX-02 외부 계약(구독 허용 목록)에 붙어 있고 이 모듈의 자매 enum 이 이미 위 규칙을 따르므로 도메인 접두는 그 규칙 안이다.
+WebSocket 쪽 이름을 바꾼 근거: 반대쪽은 EIA 알림 웹훅의 외부 계약인 구독 허용 목록([EIA 알림 웹훅 — 이벤트와 payload 「구독 이벤트」](../CLE-IX/CLE-EIA-NOTIFY-EVENTS.md#구독-이벤트))에 붙어 있고 이 모듈의 자매 enum 이 이미 위 규칙을 따르므로 도메인 접두는 그 규칙 안이다.
 
 규약 문서로 따로 올리지 않은 이유: 이 규칙의 적용 범위가 **WebSocket 이벤트 enum 한 모듈**이다. 규약 문서는 여러 영역이 참조하는 규약의 자리이고 한 파일에만 걸리는 규칙을 올리면 저장소가 네 PR 을 들여 걷어낸 미러를 문서 층에 되살린다([응답 자격 증명 마스킹](CLE-API-EGRESS.md) 의 좌표계 문서를 둘 때 "새로 두는 것이 자동으로 옳지 않다" 는 같은 판단을 적었다). 적용 범위가 넓어지면 그때 올린다. 코드 쪽 근거는 `InAppNotificationEventType` JSDoc 이다. 같은 규칙이 두 곳에 있으므로 서로 가리켜 어긋남을 잡는다.
 

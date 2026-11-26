@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-POLY"
 title: "용어 사전 — 다의어 구분"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "1d3d7a8cb3d7c0af77c265c4a7a0269705d9842b3fce3e4e3c283fa5e9306584"
+content_hash: "a8d98403a1e5b762f432c3c98416fc4512fae85fad3bb9521f8d5a1d612e3f14"
 read_as: "approved_fallback"
-task: "CLE-T-3E7Q1T"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "1da429d0e7435b547fa0e8879e7577eb2b9c77eac052f1a76ceec1915e43bceb"
-etag: "sha256-04cd22a4bdc54f6f09fb7b3c8f83d08e3f167628461773e6c1273c13d05d8148"
+mirror_sha256: "d88b904873b0b78433f0497ce0c26918922a4d9b3bda3b56dd430d5eaa99d159"
+etag: "sha256-6c380bd99b609caebd5ab211323119d35c1fe47827d1905e83ab8d79e3fdf6ec"
 ---
 ## 개요
 
@@ -97,7 +97,7 @@ etag: "sha256-04cd22a4bdc54f6f09fb7b3c8f83d08e3f167628461773e6c1273c13d05d8148"
 | replay | 마지막 LLM 호출 다시 돌리기 | 마지막 턴 재시도 |
 | replay | 조회·재실행·멀티턴 재개를 묶은 정책 이름 | 실행 기록 재사용 정책 |
 | `resumed` | 노드 출력 `status: resumed` | 재개 출력 |
-| `resumed` | WebSocket 응답(ack)의 `resumed` 불리언 | 재개 수락 여부 |
+| `resumed` | [ack 이벤트](CLE-GLOSSARY-API.md)의 `resumed` 불리언 | 재개 수락 여부 |
 | `resumed` | `execution.resumed` 이벤트 | 재개 이벤트 |
 | 컨테이너 | Loop·ForEach·Map(`containerId` 소속) | 컨테이너 |
 | 컨테이너 | 엔진 덮어쓰기를 받는 노드(컨테이너 + Parallel) | 엔진 덮어쓰기 대상 노드 |

@@ -8,7 +8,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
 import { createTransport } from 'nodemailer';
 import pLimit from 'p-limit';
-import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
+import {
+  EMAIL_HOST_BLOCKED_MESSAGE,
+  guardedSmtpGetSocket,
+  isSmtpHostBlocked,
+} from '../../nodes/integration/send-email/smtp-host-guard';
+import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+  SsrfBlockedError,
+} from '../../common/utils/ssrf/outbound-guard';
+import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
 import { Integration } from './entities/integration.entity';
 import {
   lockForIntegrationWrite,
@@ -2099,12 +2108,27 @@ export class IntegrationsService {
   ): Promise<IntegrationTestResult> {
     // SSRF 가드 (기본 ON) — 사설 · loopback · link-local · CGNAT host 로의 연결 시도를 차단한다.
     // `ALLOW_PRIVATE_HOST_TARGETS=true` 로만 끈다. send_email 발송 경로 · HTTP Request 노드와 같은 가드.
-    if (await isSmtpHostBlocked(credentials.host as string)) {
+    // 연결 전 판정에 더해 `getSocket` 이 연결할 때 푼 주소를 다시 판정한다(CLE-T-PTCRM4).
+    let hostBlocked: boolean;
+    try {
+      hostBlocked = await isSmtpHostBlocked(credentials.host as string);
+    } catch (err) {
+      // 판정이 아닌 오류(가드의 고장)는 «host 가 막혔다» 로 보고하지 않는다. 코드는 연결 실패로 두고 원문은 로그에만
+      // 남긴 채 고정 문구를 낸다(CLE-T-PTCRM4).
+      this.logger.warn(
+        `SSRF guard failed (email connection test): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return {
+        success: false,
+        code: CONNECTION_TEST_CODES.EMAIL_CONNECT_FAILED,
+        message: SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+      };
+    }
+    if (hostBlocked) {
       return {
         success: false,
         code: CONNECTION_TEST_CODES.EMAIL_HOST_BLOCKED,
-        message:
-          'SMTP host points to a private/loopback address blocked by policy.',
+        message: EMAIL_HOST_BLOCKED_MESSAGE,
       };
     }
     const secure = credentials.secure as 'none' | 'starttls' | 'tls';
@@ -2121,11 +2145,23 @@ export class IntegrationsService {
       connectionTimeout: SMTP_TEST_TIMEOUT_MS,
       greetingTimeout: SMTP_TEST_TIMEOUT_MS,
       socketTimeout: SMTP_TEST_TIMEOUT_MS,
+      getSocket: guardedSmtpGetSocket(),
     });
     try {
       await transporter.verify();
       return { success: true, message: 'Connection successful' };
     } catch (err) {
+      const blocked = findCause(err, SsrfBlockedError);
+      if (blocked) {
+        this.logger.warn(
+          `SSRF block at connect time (email connection test): ${blocked.message}`,
+        );
+        return {
+          success: false,
+          code: CONNECTION_TEST_CODES.EMAIL_HOST_BLOCKED,
+          message: EMAIL_HOST_BLOCKED_MESSAGE,
+        };
+      }
       return {
         success: false,
         message: clampMessage(err instanceof Error ? err.message : String(err)),

@@ -29,13 +29,14 @@ import {
   SsrfBlockedError,
   assertSafeOutboundHostResolved,
 } from '../../../common/utils/ssrf/outbound-guard.js';
+import { findCause } from '../../../common/utils/guarded-lookup-dispatcher.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../../core/abort-error.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
 import {
   DB_HOST_BLOCKED_MESSAGE,
   DbCredentials,
-  buildMysqlSsl,
+  buildMysqlConnection,
   buildPgConnection,
 } from './database-connection.js';
 
@@ -318,7 +319,7 @@ export class DatabaseQueryHandler
         meta: { durationMs },
         port: 'success',
       };
-    } catch (err) {
+    } catch (err_) {
       // [노드 취소](CLE-EXEC-CANCEL#노드-핸들러-의무) — in-flight 취소로
       // `executePostgres`/`executeMysql` 이 던진 `AbortError` (쿼리 취소로 driver 가
       // reject → AbortError 승격)는 D4 error-포트 매핑을 우회해 그대로 재throw →
@@ -326,9 +327,12 @@ export class DatabaseQueryHandler
       // 않으므로(규칙 3) `logUsage` 보다 먼저 판정한다. `abortSignal.aborted` 광의
       // 판정이 아니라 **실제 AbortError 만** 재throw 해, 취소와 무관한 실패
       // (resolve/SSRF/파라미터 파싱 등)를 오분류하지 않는다.
-      if (isAbortErrorLike(err)) {
-        throw err;
+      if (isAbortErrorLike(err_)) {
+        throw err_;
       }
+      // 연결 시점 판정(`database-connection.ts` 의 stream 팩토리)이 막은 연결은 드라이버 오류로 감싸여 온다. usage
+      // 로그보다 먼저 `DB_HOST_BLOCKED` 로 바꿔, 차단된 host/IP 가 담긴 원문이 usage 로그와 노드 에러에 나가지 않게 한다.
+      const err = promoteConnectTimeBlock(err_);
       const durationMs = Date.now() - start;
       if (integration) {
         await this.logUsage(integration, context, {
@@ -522,12 +526,7 @@ export class DatabaseQueryHandler
       Awaited<ReturnType<typeof mysqlCreateConnection>> | undefined;
     try {
       connection = await mysqlCreateConnection({
-        host: creds.host,
-        port: creds.port,
-        user: creds.username,
-        password: creds.password,
-        database: creds.database,
-        ssl: buildMysqlSsl(creds.ssl),
+        ...buildMysqlConnection(creds),
         connectTimeout: CANCEL_CONNECT_TIMEOUT_MS,
       });
       // threadId 는 driver 정수라 문자열 보간이 injection-safe.
@@ -623,12 +622,7 @@ export class DatabaseQueryHandler
     // dry-run 판정(`isWriteOperation`)은 판정할 수 없는 모양을 mock 으로 보내지만 문자 단위 스캔이라
     // 이 설정이 마지막 방어선이다.
     const pool = mysqlCreatePool({
-      host: creds.host,
-      port: creds.port,
-      user: creds.username,
-      password: creds.password,
-      database: creds.database,
-      ssl: buildMysqlSsl(creds.ssl),
+      ...buildMysqlConnection(creds),
       connectionLimit: POOL_MAX_CONNECTIONS,
       idleTimeout: POOL_IDLE_TIMEOUT_MS,
       waitForConnections: true,
@@ -636,6 +630,21 @@ export class DatabaseQueryHandler
     this.pools.set(integrationId, { driver: 'mysql', pool, credsHash });
     return pool;
   }
+}
+
+/**
+ * 연결 시점 판정의 차단을 `DB_HOST_BLOCKED` 로 바꾼다(NERV Task `CLE-T-691T4G`). 드라이버는 소켓 오류를 그대로 또는
+ * 감싸서 reject 하므로 `cause` 사슬에서 `SsrfBlockedError` 를 찾는다. 원문 상세는 서버 로그에만 남긴다. 이미
+ * `IntegrationError` 면(앞선 preflight 판정 등) 그대로 둔다.
+ */
+function promoteConnectTimeBlock(err: unknown): unknown {
+  if (err instanceof IntegrationError) return err;
+  const blocked = findCause(err, SsrfBlockedError);
+  if (!blocked) return err;
+  logger.warn(
+    `SSRF block at connect time (database-query): ${blocked.message}`,
+  );
+  return new IntegrationError('DB_HOST_BLOCKED', DB_HOST_BLOCKED_MESSAGE);
 }
 
 function missingDbFields(creds: Partial<DbCredentials>): string[] {

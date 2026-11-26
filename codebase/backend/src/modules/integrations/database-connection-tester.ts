@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { Client as PgClient } from 'pg';
 import { createConnection as mysqlCreateConnection } from 'mysql2/promise';
 
+import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
 import {
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
   SsrfBlockedError,
@@ -9,7 +10,7 @@ import {
 } from '../../common/utils/ssrf/outbound-guard';
 import {
   DB_HOST_BLOCKED_MESSAGE,
-  buildMysqlSsl,
+  buildMysqlConnection,
   buildPgConnection,
   type DbCredentials,
 } from '../../nodes/integration/database-query/database-connection';
@@ -102,12 +103,7 @@ async function probeMysql(creds: DbCredentials): Promise<void> {
   let connection: Awaited<ReturnType<typeof mysqlCreateConnection>> | undefined;
   try {
     connection = await mysqlCreateConnection({
-      host: creds.host,
-      port: creds.port,
-      user: creds.username,
-      password: creds.password,
-      database: creds.database,
-      ssl: buildMysqlSsl(creds.ssl),
+      ...buildMysqlConnection(creds),
       connectTimeout: DB_TEST_TIMEOUT_MS,
     });
     await connection.query({ sql: 'SELECT 1', timeout: DB_TEST_TIMEOUT_MS });
@@ -127,7 +123,8 @@ async function probeMysql(creds: DbCredentials): Promise<void> {
  * Database 통합 연결 테스트(spec/2-navigation/4-integration.md §5.4). 일회성 연결을 열어 `SELECT 1` 을 실행하고 닫는다 —
  * 노드 실행의 커넥션 풀과 별개이며 풀에 남지 않는다. SSL 매핑과 host 의 SSRF 가드는 Database 노드와 같다.
  *
- * - host 가 SSRF 가드에 막힘 → `DB_HOST_BLOCKED`(차단된 host/IP 는 메시지에 싣지 않는다)
+ * - host 가 SSRF 가드에 막힘 → `DB_HOST_BLOCKED`(차단된 host/IP 는 메시지에 싣지 않는다). 연결 전 판정과 연결할 때
+ *   푼 주소의 판정(`database-connection.ts` 의 stream 팩토리) 둘 다 같다
  * - 인증 거부(PG class 28 · MySQL 1045/1044) → `DB_AUTH_FAILED`
  * - 그 밖(네트워크 · 타임아웃 · TLS · 없는 database 등) → `DB_CONNECT_FAILED`
  *
@@ -171,6 +168,17 @@ export async function testDatabaseConnection(
     }
     return { success: true, message: 'Connection successful' };
   } catch (err) {
+    const blocked = findCause(err, SsrfBlockedError);
+    if (blocked) {
+      logger.warn(
+        `SSRF block at connect time (database connection test): ${blocked.message}`,
+      );
+      return {
+        success: false,
+        code: CONNECTION_TEST_CODES.DB_HOST_BLOCKED,
+        message: DB_HOST_BLOCKED_MESSAGE,
+      };
+    }
     return {
       success: false,
       code: isAuthFailure(driver, err)

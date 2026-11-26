@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-NODE"
 title: "용어 사전 — 노드"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "e3ae4b9443c7cfb053c4a202448b35a0ce053ff8a265eaad142617676728ff98"
+content_hash: "44b6fc857f9dea706f6aff5dc6b66f973a2dc35758550d143a191ec44895343b"
 read_as: "approved_fallback"
-task: "CLE-T-YQMP4N"
+task: "CLE-T-3M0KRA"
 source_paths: []
-mirror_sha256: "c662597b5844398c9ce97024184130ea5ce70dd5cd15cb0cbcf6388c4c334de0"
-etag: "sha256-428ed3d055035a732f8d190efbd8e08d6772a6da64f826cf8e7df7672f441785"
+mirror_sha256: "ef7f443b3f94603a58dcf293a181bfb842edd563bb9c47b9899bca0d3a19bc59"
+etag: "sha256-b9f605c971375e77f20b6bcd9830b236fc01791cd210aab92f6b67f7f69d41af"
 ---
 ## 개요
 
@@ -115,7 +115,7 @@ etag: "sha256-428ed3d055035a732f8d190efbd8e08d6772a6da64f826cf8e7df7672f441785"
 | MakeShop 노드 | MakeShop, `makeshop` | MakeShop Shop API operation 을 부르는 노드. | 메이크샵 노드, Makeshop 노드 | [MakeShop 노드](CLE-NODE-INT/CLE-NODE-MAKESHOP.md) |
 | 통합 참조 | `config.integrationId` | 노드가 쓸 통합의 ID. 설정 에코에는 자격 증명 대신 이 값만 남는다. | 없음 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
 | 성공 포트 | success port, `success`, `out` | 정상 결과를 내보내는 출력 포트. 노드마다 이름이 다르다. | 없음 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
-| 사설망 차단 | SSRF guard | 사설·loopback·메타데이터 주소로 나가는 연결을 막는 검사. 셀프 호스팅은 `ALLOW_PRIVATE_HOST_TARGETS` 로 끌 수 있다. | egress 방화벽 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
+| 사설망 차단 | SSRF guard | 통합 노드가 막힌 대역의 주소로 연결하지 못하게 하는 검사. 막는 대역은 [통합 노드 공통 — 에러 코드와 사설망 차단](CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다. 셀프 호스팅은 `ALLOW_PRIVATE_HOST_TARGETS` 로 끌 수 있다. | egress 방화벽 | [통합 노드 공통](CLE-NODE-INT/CLE-NODE-INT-COMMON.md) |
 | Transform 노드 | Transform, `transform` | 변환 연산을 차례로 적용하는 노드. | 없음 | [Transform 노드](CLE-NODE-DATA/CLE-NODE-TRANSFORM.md) |
 | 변환 연산 | `operations[]` | Transform 의 필드 이름 변경·타입 변환·배열 정렬 같은 단계. 대상이 없으면 에러 없이 건너뛴다. | 없음 | [Transform 노드](CLE-NODE-DATA/CLE-NODE-TRANSFORM.md) |
 | Code 노드 | Code, `code` | 격리 환경에서 JavaScript 를 실행하는 노드. 워크플로우 변수는 `$vars` 로 읽는다. | 코드 노드 | [Code 노드](CLE-NODE-DATA/CLE-NODE-CODE.md) |
@@ -152,3 +152,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 ### 「원본 설정」 에 원시 `config` 와 다르다는 안내를 더했다 (2026-11-19)
 
 NERV Task `CLE-T-YQMP4N` 이 더했다. 두 말 모두 영문으로 «raw config» 라 부를 수 있어서다. [용어 사전 — 트리거](CLE-GLOSSARY-TRIG.md) 의 「원시 `config`」 도 이 행과 다르다고 적고 있어 양쪽에서 갈리게 했다.
+
+### 「사설망 차단」 의 막는 대역을 링크로 바꿨다 (2026-11-20)
+
+NERV Task `CLE-T-PTCRM4` · `CLE-T-691T4G` 에서 바꿨다. 막는 대역은 공용 판정이 정하고 [통합 노드 공통 — 에러 코드와 사설망 차단](CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 한 곳에 적는다. 정의에 주소 종류를 늘어놓으면 대역표가 바뀔 때 이 행만 남아 어긋난다.

@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY-OUTPUT"
 title: "Database Query 노드 — 출력 구조와 에러 코드"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-DBQUERY"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-DBQUERY"]
 area: "CLE-NODE-INT"
-content_hash: "5f45780e31e754a2d7a69b121cf901e35b1aae2739cc13ca857a845f1e36678f"
+content_hash: "df80d9a77c3ea6449cee411b55c8028541848073d09372d3affa60edd1f0b71d"
 read_as: "approved_fallback"
-task: "CLE-T-E991S1"
+task: "CLE-T-3M0KRA"
 source_paths: []
-mirror_sha256: "4429b68049cb2dba5258ba54bb8f0db1b8d5618ba9f24893ecdd98420d698da2"
-etag: "sha256-d6b18217c88840dfb0954eb2b13b286ccf765cae60e4d33ba5d315be7064b922"
+mirror_sha256: "cb7d308757f79a941aea1d8d1768cfe519f670911bcab5927a320676e4475952"
+etag: "sha256-a54a3056a593db87130219b7de492ad0901e6bc27d2a1da9731b784c65ff945f"
 ---
 ## 개요
 
@@ -171,9 +171,9 @@ INSERT(MySQL `ResultSetHeader`):
 | `DB_CONNECTION_ERROR` | 실행 중 연결 끊김·타임아웃, handshake 단계 인증 거부, 자원 부족, 운영자 개입 | Node errno `ECONNRESET`·`ECONNREFUSED`·`ETIMEDOUT`·`ENOTFOUND`. pg SQLSTATE class `08xxx`(connection_exception), `28xxx`(invalid_authorization_specification, handshake 인증 실패), `53xxx`(insufficient_resources, 예: too_many_connections), `57xxx`(operator_intervention, admin_shutdown). mysql `PROTOCOL_CONNECTION_LOST`·`ER_ACCESS_DENIED_ERROR`(handshake 인증 실패)·`ER_TOO_MANY_USER_CONNECTIONS` |
 | `DB_CONSTRAINT_VIOLATION` | unique·foreign key·not null·check·exclusion 제약 위반 | pg `23xxx`(`23505` unique, `23503` FK, `23502` not null, `23514` check, `23P01` exclusion), mysql `ER_DUP_ENTRY`·`ER_NO_REFERENCED_ROW*`·`ER_ROW_IS_REFERENCED*`·`ER_BAD_NULL_ERROR`·`ER_CHECK_CONSTRAINT_VIOLATED` |
 | `DB_PERMISSION_DENIED` | 인증된 세션의 객체 권한 부족(실행 중 발견) | pg `42501`(insufficient_privilege), mysql `ER_TABLEACCESS_DENIED_ERROR`·`ER_COLUMNACCESS_DENIED_ERROR`·`ER_DBACCESS_DENIED_ERROR`·`ER_SPECIFIC_ACCESS_DENIED_ERROR` |
-| `DB_HOST_BLOCKED` | 사설망 차단 가드가 `credentials.host` 를 사설·loopback·link-local·CGNAT·IPv6 사설 대역으로 판정해 막음(풀 연결 전). 기본 켜짐, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 해제. 메시지는 호스트·IP 를 담지 않는다 | — (가드 차단, 드라이버 관여 없음) |
+| `DB_HOST_BLOCKED` | 사설망 차단 가드가 연결을 막음. 연결 전 검사(`credentials.host` 를 해석한 주소)와 연결할 때 푼 주소의 판정이 모두 이 코드를 낸다. 막는 대역은 [사설망 차단](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다. 기본 켜짐, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 해제. 메시지는 호스트·IP 를 담지 않는다. 판정 시점과 처리 상세는 [Database Query 「사설망 차단」](CLE-NODE-DBQUERY.md#사설망-차단) 에 있다 | — (가드 차단. 연결 시점 판정의 차단은 드라이버가 감싼 오류의 `cause` 사슬에서 찾는다) |
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 누락 실패(D4) | — |
-| `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 고장)도 이 코드다. 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. `DB_HOST_BLOCKED` 는 판정에만 쓴다. 이 노드는 리다이렉트가 없어 HTTP Request 와 달리 시점 구분이 없다 | — |
+| `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 고장)도 이 코드다. 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. `DB_HOST_BLOCKED` 는 판정에만 쓴다. 위 가드 고장 처리는 연결 전 검사에만 해당한다. 연결할 때 판정하다가 판정이 아닌 오류가 나면 연결을 통과시키지 않고 실패시킨다. 이때 코드는 드라이버 연결 오류 분류를 따른다 | — |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 가 핸들러에 주입되지 않음(배포 누락, D4) | — |
 | `INVALID_PARAMETERS` | `config.parameters` JSON 파싱 실패 또는 배열이 아닌 형태(D4) | — |
 
@@ -198,3 +198,9 @@ INSERT(MySQL `ResultSetHeader`):
 결정일: 2026-11-20
 
 전에는 가드 고장의 `INTEGRATION_CALL_FAILED` 메시지에 가드 원문을 `sanitizeMessage` 로 가려 실었다. 이 함수는 password · 토큰 형태만 가리므로 원문에 든 host 이름이나 IP 가 남을 수 있었다. 이 메시지는 노드 출력과 활동 로그로 워크스페이스 사용자에게 나간다. NERV Task `CLE-T-E991S1` 에서 코드는 그대로 두고 메시지를 HTTP Request 노드와 같은 고정 문구로 바꿨다. 결정의 근거는 [HTTP Request 노드 「가드 고장은 시점과 상관없이 같은 코드와 문구로 낸다」](CLE-NODE-HTTP.md#가드-고장은-시점과-상관없이-같은-코드와-문구로-낸다) 에 있다.
+
+### 차단 코드는 판정 시점과 상관없이 하나다
+
+결정일: 2026-11-20
+
+NERV Task `CLE-T-691T4G` 에서 연결할 때 푼 주소도 판정하게 했다. 이 판정에서 막혀도 연결 전 검사와 같은 `DB_HOST_BLOCKED` 와 같은 고정 문구를 낸다. 워크플로우는 `output.error.code` 로 분기한다. 시점마다 코드가 다르면 같은 차단을 두 갈래로 받아야 하고, 어느 시점에 막혔는지는 워크플로우 작성자가 손쓸 수 있는 차이가 아니다. 그래서 분기가 판정 시점에 따라 갈리지 않게 코드를 하나로 두었다. 차단된 host · IP 원문은 두 시점 모두 서버 경고 로그에만 남는다. 판정 방식과 기각한 대안은 [Database Query 「연결할 때 푼 주소도 판정한다」](CLE-NODE-DBQUERY.md#연결할-때-푼-주소도-판정한다) 에 있다.

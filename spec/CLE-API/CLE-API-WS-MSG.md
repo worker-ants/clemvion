@@ -2,19 +2,19 @@
 id: "CLE-API-WS-MSG"
 title: "WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "fde9e69e9ae98db5422565fff8ed11715acbbc3a634d4dac631659b70afcc943"
+content_hash: "7a82d70ca518d9c7731bcc360435b47e9c9195ce462afdb1a02f005290e1ec23"
 read_as: "approved_fallback"
-task: "CLE-T-DV6PN7"
+task: "CLE-T-KYPH36"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "38d843d8965f5cccd0227225e06728978f7f32e56fc8436da6f979153f93d2cf"
-etag: "sha256-50c3e6b0057200fb2b5b6cc62286bb512150b973f15ddf587af0cb537ce02247"
+mirror_sha256: "5bc19d6bd492c9e37ee331907f7e1e6c5736048f003b2739c08e1bc29c3a4520"
+etag: "sha256-2f82617401d22844ff8e31faa63694a448857d8f2794339fa7f4ae69e4a7947b"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§3 · §4 · §7 · §8, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -182,7 +182,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `SUBSCRIPTION_LIMIT_EXCEEDED` | ✅ | 구독 한도(20) 초과 시 구독 ack 의 `code` (§4.5) |
 | `RATE_LIMITED` | ✅ | WebSocket 명령 빈도 제한(**소켓당 분당 60건**, 메모리 fixed-window). `WsRateLimitGuard` 가 넘으면 `WsException` 을 던지고 클라이언트는 `exception` 이벤트 `{ code, message }` 로 받는다. 처리되지 않은 서버 예외도 같은 `exception` 이름으로 나가고 `code` 가 없을 수 있다. **클래스 수준 가드**라 `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 걸리고 등록되지 않은 이벤트(`onAny` 경로)도 같은 소켓 예산을 쓴다(우회 차단). 소켓 단위 제한이고 소켓은 연결한 서버 인스턴스를 떠나지 않으므로 서버 인스턴스 로컬 카운터로 충분하다(§4.6). Redis 가 필요 없다. 사용자·워크스페이스 단위 총량 제한이 아니라 소켓당 명령 폭주 방지다 |
 
-**전역 요청 빈도 제한은 HTTP 요청만 센다.** WebSocket 메시지는 위 `RATE_LIMITED` 의 `WsRateLimitGuard` 만 센다. 규칙과 근거는 [HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한) 에 있다.
+**전역 요청 빈도 제한은 HTTP 요청만 센다.** WebSocket 명령은 위 `RATE_LIMITED` 의 `WsRateLimitGuard` 만 센다. 등록되지 않은 이벤트는 게이트웨이 `onAny` 가 같은 소켓 예산에서 센다. 규칙과 근거는 [HTTP API 규약 「요청 빈도 제한」](CLE-API-CONV.md#7-요청-빈도-제한) 에 있다.
 
 ### 7.2 에러 메시지 형식
 

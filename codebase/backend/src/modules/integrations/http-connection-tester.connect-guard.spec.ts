@@ -10,6 +10,7 @@ import {
   resetSafeOutboundDispatcherForTesting,
 } from '../../common/utils/ssrf/outbound-guard';
 import { testHttpConnection } from './http-connection-tester';
+import { restoreEnvAfterEach } from '../../shared/testing/env';
 
 // DNS rebinding 을 재현한다(CLE-T-NESSYD). 사전 검사(`assertSafeOutboundHostResolved`, `node:dns/promises`)에는 공인 주소를,
 // 실제 연결의 주소 조회(`safeOutboundDispatcher`, `node:dns`)에는 loopback 을 답한다. 서버는 loopback 에 떠 있으므로 연결
@@ -37,7 +38,7 @@ describe('HTTP 통합 연결 테스트 — 연결 시점 판정 (실제 fetch)',
   let port: number;
   let requests = 0;
   let originalFetch: typeof global.fetch;
-  let originalAllow: string | undefined;
+  restoreEnvAfterEach('ALLOW_PRIVATE_HOST_TARGETS');
 
   beforeAll(async () => {
     server = createServer((_req, res) => {
@@ -58,7 +59,6 @@ describe('HTTP 통합 연결 테스트 — 연결 시점 판정 (실제 fetch)',
 
   beforeEach(() => {
     originalFetch = global.fetch;
-    originalAllow = process.env.ALLOW_PRIVATE_HOST_TARGETS;
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
     // 운영은 전역 fetch 를 쓴다. jest 에서는 판정 오류가 테스트 realm 에서 만들어져 Node 내장 fetch 가 그 오류를
     // `new Error(String(err))` 로 다시 감싸고 `cause` 의 클래스가 사라진다. 같은 realm 에 올라오는 npm undici 의
@@ -74,11 +74,6 @@ describe('HTTP 통합 연결 테스트 — 연결 시점 판정 (실제 fetch)',
 
   afterEach(() => {
     global.fetch = originalFetch;
-    if (originalAllow === undefined) {
-      delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-    } else {
-      process.env.ALLOW_PRIVATE_HOST_TARGETS = originalAllow;
-    }
   });
 
   it('연결할 때 푼 주소가 막힌 대역이면 HTTP_BLOCKED 로 끝나고 요청이 서버에 닿지 않는다', async () => {
