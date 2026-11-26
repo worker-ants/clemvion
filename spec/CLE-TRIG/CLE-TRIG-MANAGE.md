@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-061", "REQ-TRIG-062", "REQ-TRIG-063"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "96c7bfa64f062eec6c38e8a1113a1265cf907b934e3ee6c711b57ba5ae211885"
+content_hash: "6b89f98be53f2f0af1577b8325aaa8b74f64c0a6d06c973c2409c9a3de9c207a"
 read_as: "approved_fallback"
-task: "CLE-T-YQMP4N"
+task: "CLE-T-GS3D01"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "410d89c8c01ebfb8f703027b8f327525a2eefb11b2e6d4a3059cb088750ee023"
-etag: "sha256-d04079b049a7aa0191956a7eb1302925ef2db2a261b2ab5de175b6ae8fac48d7"
+mirror_sha256: "68e7438200e919f783032c1171b875c24f4e5942acd0a333c3e8890399f9676f"
+etag: "sha256-977383b1a870398cc13f60cd704517b9a983d791c08fa2c34fc43ae2b7f6211d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -65,7 +65,7 @@ etag: "sha256-d04079b049a7aa0191956a7eb1302925ef2db2a261b2ab5de175b6ae8fac48d7"
 - REQ-TRIG-025 WHEN `GET /api/triggers` 가 `sort`·`order` 를 받으면 THE SYSTEM SHALL 허용 값 목록(`created_at` · `updated_at` · `name` · `type` · `is_active` · `last_triggered_at`) 안의 값만 정렬에 반영하고 허용 밖 값은 `created_at` 으로 정렬하며 기본은 `created_at DESC` 로 한다.
 - REQ-TRIG-026 WHEN `PATCH /api/triggers/:id` 가 `isActive` 를 받으면 THE SYSTEM SHALL 그 값으로 활성 상태를 바꾸고 별도 `/toggle` 경로는 두지 않는다.
 - REQ-TRIG-027 IF `authConfigId` 가 호출자 워크스페이스의 인증 설정이 아니면 THE SYSTEM SHALL 400 `AUTH_CONFIG_NOT_FOUND`(`details.field='authConfigId'`)로 거부한다.
-- REQ-TRIG-028 WHEN PATCH 본문에 `notification`·`interaction`·`chatChannel` 이 오면 THE SYSTEM SHALL 각 객체를 `config` 안의 같은 이름 키에 통째로 교체해 넣고 `interaction.triggerToken` 은 PATCH 결과의 `interaction.tokenStrategy` 가 `per_trigger` 일 때만 잠금 안에서 다시 읽은 행의 값을 이어받고 그 밖에는 지운다. `notification` 이 오면 알림 서명 시크릿 참조를 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 대로 보존하거나 첫 시크릿을 발급한다.
+- REQ-TRIG-028 WHEN PATCH 본문에 `notification`·`interaction`·`chatChannel` 이 오면 THE SYSTEM SHALL 각 객체를 `config` 안의 같은 이름 키에 통째로 교체해 넣고 `interaction.triggerToken` 은 PATCH 결과의 `interaction.tokenStrategy` 가 `per_trigger` 일 때만 잠금 안에서 다시 읽은 행의 값을 이어받고 그 밖에는 지운다. `notification` · `interaction` 이 `null` 이면 `config` 에서 그 키를 지우고 `null` 을 저장하지 않는다. `chatChannel: null` 은 보내지 않은 것으로 본다. `notification` 객체가 오면 알림 서명 시크릿 참조를 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 대로 보존하거나 첫 시크릿을 발급한다. `notification: null` 이면 교체 대기 값을 비우고 커밋 뒤 서명 시크릿을 [EIA 알림 웹훅 — 시크릿 교체 「알림 설정 해제」](../CLE-IX/CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제) 대로 지운다. 계약 전체는 [트리거 관리 API 「PATCH 본문 계약」](CLE-TRIG-MANAGE-API.md#patch-본문-계약) 에 있다.
 - REQ-TRIG-029 IF PATCH 본문이 채팅 채널의 봇 토큰이나 inbound signing 값을 바꾸려 하면 THE SYSTEM SHALL 400 `VALIDATION_ERROR` 로 거부한다.
 - REQ-TRIG-030 IF 채팅 채널이 없는 트리거에 PATCH 로 `chatChannel` 을 붙이려 하면 THE SYSTEM SHALL 400 `VALIDATION_ERROR`(`details.field='chatChannel'`)로 거부한다.
 - REQ-TRIG-031 IF PATCH 가 채팅 채널 `provider` 를 바꾸려 하면 THE SYSTEM SHALL 400 `VALIDATION_ERROR`(`details.field='provider'`)로 거부한다.
@@ -96,7 +96,7 @@ etag: "sha256-d04079b049a7aa0191956a7eb1302925ef2db2a261b2ab5de175b6ae8fac48d7"
 - REQ-TRIG-056 WHEN 타입 필드 `interaction` 이 실린 PATCH 의 결과가 인터랙션이 켜져 있고 전략이 `per_trigger` 인데 잠금 안에서 다시 읽은 행에 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 새 토큰을 발급해 저장하고 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. 저장된 토큰이 있으면 인터랙션을 껐다 다시 켠 경우에도 새로 발급하지 않는다.
 - REQ-TRIG-057 WHEN 생성이나 PATCH 가 알림 서명 시크릿이나 트리거 단위 토큰을 처음 발급하면 THE SYSTEM SHALL 그 요청의 감사 기록(`trigger.created` · `trigger.updated`)의 `details.issuedSecrets` 에 발급한 비밀의 종류 이름(`notificationSigningSecret` · `interactionToken`)을 싣고 평문은 싣지 않는다. 발급하지 않은 요청의 기록에는 이 키가 없다.
 - REQ-TRIG-058 WHEN 트리거를 만들면 THE SYSTEM SHALL 행 INSERT · 시크릿 저장소 쓰기 · `config` 쓰기 · 첫 알림 서명 시크릿과 트리거 단위 토큰의 발급을 한 트랜잭션에서 하고 하나라도 실패하면 행을 남기지 않으며 감사 기록(`trigger.created`)은 커밋 직후 트랜잭션 밖에서 남긴다.
-- REQ-TRIG-059 WHEN `interaction` 이 실린 PATCH 가 전략을 `per_trigger` 밖으로 바꿔 저장된 트리거 단위 토큰을 지우거나 인터랙션을 끄면 THE SYSTEM SHALL 커밋 뒤 그 토큰으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다. 인터랙션만 끈 경우는 토큰 값을 남긴다. (출처: 2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답, finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`)
+- REQ-TRIG-059 WHEN `interaction` 이 실린 PATCH 가 전략을 `per_trigger` 밖으로 바꿔 저장된 트리거 단위 토큰을 지우거나 `interaction: null` 로 인터랙션 설정을 해제하거나 인터랙션을 끄면 THE SYSTEM SHALL 커밋 뒤 그 토큰으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다. `interaction: null` 해제는 `config.interaction` 키와 함께 토큰도 지운다. 인터랙션만 끈 경우는 토큰 값을 남긴다. (출처: 2026-10-09, NERV Task `CLE-T-M6PERB` 구현 코드 리뷰 질문에 대한 사용자 답, finding `01a11f6b-cc1a-7129-a666-0fb29b2a4849`. `interaction: null` 갈래는 2026-11-20 NERV Task `CLE-T-73W6NQ`)
 - REQ-TRIG-061 IF REQ-TRIG-053 에 걸리지 않는 요청에서 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 원시 `config` 바로 아래에 `notification` · `interaction` · `chatChannel` 키가 있으면 THE SYSTEM SHALL 값과 상관없이 400 `VALIDATION_ERROR`(`details: { field: 'config.<키>', code: 'INVALID_FIELD' }`)로 거부한다. 세 키 가운데 둘 이상이 있으면 `notification`, `interaction`, `chatChannel` 순서로 따져 처음 걸린 키 하나만 보고한다.
 - REQ-TRIG-062 IF REQ-TRIG-053 · 061 에 걸리지 않는 요청에서 생성이나 수정 본문의 원시 `config` 아래 어디에든 `secret://` 로 시작하는 문자열 값이 있으면 THE SYSTEM SHALL 400 `VALIDATION_ERROR`(`details: { field: 'config.<경로>', code: 'INVALID_FIELD' }`)로 거부한다.
 - REQ-TRIG-063 WHEN PATCH 본문에 원시 `config` 가 있으면 THE SYSTEM SHALL 잠금 안에서 다시 읽은 행의 `config` 위에 `config` 바로 아래 키 단위로 병합한다. 보낸 키는 그 값으로 바꾸고 보내지 않은 키는 두고 값이 `null` 인 키는 지운다.
