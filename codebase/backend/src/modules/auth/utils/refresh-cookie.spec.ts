@@ -1,5 +1,5 @@
 /**
- * refresh-cookie 단위 테스트 (04 M-5 — SameSite env 분리 + path 축소).
+ * refresh-cookie 단위 테스트 (CLE-ACCT-SESSION-POLICY — SameSite env 분리 + path 축소).
  */
 import type Express from 'express';
 import {
@@ -8,7 +8,7 @@ import {
   clearRefreshTokenCookie,
 } from './refresh-cookie';
 
-describe('getRefreshCookieSameSite (04 M-5)', () => {
+describe('getRefreshCookieSameSite', () => {
   it('defaults to none when unset', () => {
     expect(getRefreshCookieSameSite({})).toBe('none');
   });
@@ -30,7 +30,7 @@ describe('getRefreshCookieSameSite (04 M-5)', () => {
   });
 });
 
-describe('setRefreshTokenCookie (04 M-5)', () => {
+describe('setRefreshTokenCookie', () => {
   const origEnv = process.env.COOKIE_SAMESITE;
   afterEach(() => {
     if (origEnv === undefined) delete process.env.COOKIE_SAMESITE;
@@ -102,7 +102,7 @@ describe('setRefreshTokenCookie (04 M-5)', () => {
   });
 });
 
-describe('clearRefreshTokenCookie (04 M-5)', () => {
+describe('clearRefreshTokenCookie', () => {
   it('clears the cookie on the same /api/auth path', () => {
     const res = { clearCookie: jest.fn() };
     clearRefreshTokenCookie(res as unknown as Express.Response, {

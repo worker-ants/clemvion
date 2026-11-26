@@ -562,7 +562,7 @@ export class IntegrationsService {
   }
 
   /**
-   * refactor 04 m-4 — 자격증명이 바뀌거나 integration 이 삭제될 때, 전 인스턴스의
+   * CLE-INT-DATA-RUN 「자격 증명 캐시 무효화」 — 자격증명이 바뀌거나 integration 이 삭제될 때, 전 인스턴스의
    * 인스턴스-로컬 자격증명 캐시(예: database-query 연결 풀)를 Redis pub/sub 으로
    * 즉시 evict 시킨다. fail-safe: bus 가 미가용이어도 각 핸들러의 credsHash 비교
    * evict 가 다음 실행에서 stale 자원을 교체하므로 best-effort 다 (await 하되 throw 안 함).

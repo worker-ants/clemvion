@@ -1340,7 +1340,7 @@ describe('FilterHandler', () => {
       expect(result.meta.invalidRegexPatterns).toEqual([]);
     });
 
-    // 04 M-3 — 길이 200 이내 ReDoS 패턴도 컴파일 거부 + invalidRegexPatterns 가시화.
+    // CLE-NODE-LOGIC-COMMON — 길이 200 이내 ReDoS 패턴도 컴파일 거부 + invalidRegexPatterns 가시화.
     // 컴파일 거부(silent no-match)라 지수 백트래킹이 일어나지 않는다 — 패턴이 거부되지
     // 않았다면 이 긴 비매칭 입력에서 jest 타임아웃으로 회귀가 드러난다(타이밍 어서션 불요).
     it('reports ReDoS-unsafe regex as invalid (silent no-match)', async () => {

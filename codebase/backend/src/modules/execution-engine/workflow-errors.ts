@@ -122,7 +122,7 @@ export class InvalidExecutionStateError extends ExecutionError {
     this.name = 'InvalidExecutionStateError';
   }
 
-  /** @deprecated since refactor-04-a1 — use {@link serverDetail}; remove after callers migrated (spec §7.5.1). */
+  /** @deprecated use {@link serverDetail} (CLE-EXEC-WORKER-ACK); remove after callers migrated (spec §7.5.1). */
   get detail(): string | undefined {
     return this.serverDetail;
   }
@@ -157,7 +157,7 @@ export class RetryLastTurnError extends ExecutionError {
     this.name = 'RetryLastTurnError';
   }
 
-  /** @deprecated since refactor-04-a1 — use {@link serverDetail}; remove after callers migrated. */
+  /** @deprecated use {@link serverDetail} (CLE-EXEC-WORKER-ACK); remove after callers migrated. */
   get detail(): string | undefined {
     return this.serverDetail;
   }

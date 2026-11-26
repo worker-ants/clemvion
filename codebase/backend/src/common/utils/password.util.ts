@@ -3,7 +3,7 @@ import * as bcrypt from 'bcrypt';
 
 /**
  * bcrypt cost factor. 비밀번호 해시의 단일 SoT — auth.service·users.service 등
- * 모든 해시 경로가 `hashPassword` 를 통해 동일 rounds 를 쓴다 (refactor 04 후속 B-3).
+ * 모든 해시 경로가 `hashPassword` 를 통해 동일 rounds 를 쓴다 (해시 경로를 한 곳으로 모은다).
  */
 export const BCRYPT_ROUNDS = 12;
 
@@ -29,7 +29,7 @@ export const MAX_PASSWORD_RECHECK_INPUT_LENGTH = 128;
  *
  * 헬퍼(`verifyPasswordForUser`) 자체를 공유하지 않는 이유는 **순환 의존이 아니다** —
  * `UsersModule` 은 이미 `forwardRef(() => AuthModule)` 을 import 하고 `UsersController` 가
- * 그 방식으로 `AuthService` 를 주입한다(refactor 04 A-1). 실제 이유는 셋이다:
+ * 그 방식으로 `AuthService` 를 주입한다(비밀번호 변경 후 세션 회전, CLE-ACCT-SESSION-TOKEN). 실제 이유는 셋이다:
  *   (a) 그 헬퍼는 `findById` 를 스스로 하는데 `changePassword` 는 이미 `user` 를 들고 있어
  *       재사용하면 **같은 조회가 2회**가 된다,
  *   (b) 그 헬퍼는 `!user` 를 `PASSWORD_REQUIRED` 로 접지만 여기서는 `USER_NOT_FOUND`(404) 유지,

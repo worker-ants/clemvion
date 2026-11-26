@@ -291,7 +291,7 @@ export class UsersService {
   }
 
   /**
-   * 현재 비밀번호 검증 → 강도 검증 → 해시 → 저장. (refactor 04 B-2 — SRP)
+   * 현재 비밀번호 검증 → 강도 검증 → 해시 → 저장. (컨트롤러에서 옮긴 도메인 로직)
    *
    * controller 에 흩어져 있던 bcrypt 검증·강도검증·해시·update 도메인 로직을 service 로
    * 모은다. 세션 회전·감사 기록은 액터 세션 컨텍스트(workspaceId·refresh 쿠키)가 controller

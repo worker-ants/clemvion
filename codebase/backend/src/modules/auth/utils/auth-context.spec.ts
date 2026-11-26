@@ -1,7 +1,7 @@
 import { authContextFromRequest } from './auth-context';
 import type { Request } from 'express';
 
-describe('authContextFromRequest (refactor 04 C-1 — DRY)', () => {
+describe('authContextFromRequest', () => {
   const ORIGINAL = process.env.TRUST_CF_CONNECTING_IP;
   afterEach(() => {
     if (ORIGINAL === undefined) delete process.env.TRUST_CF_CONNECTING_IP;

@@ -8,7 +8,7 @@ import {
  * refactor 02 M-7 — `notifications:<userId>` 구독 인가. 도메인 서비스 의존이 없어(userId 비교만)
  * WS 모듈 로컬 provider 로 둔다.
  *
- * 04 M-6 (IDOR, 선제): user 단위 채널이므로 JWT sub(userId)와 채널의 userId 가 일치할 때만
+ * CLE-API-WS-MSG 「구독 인가」 (IDOR, 선제): user 단위 채널이므로 JWT sub(userId)와 채널의 userId 가 일치할 때만
  * 구독 허용. 이 가드는 선제로 들어왔으나 **더 이상 가정이 아니다** — `notification.new`
  * emit 은 구현·배선 완료(`WebsocketService.emitNotificationEvent` ← `NotificationsService`)라
  * 이 비교가 실제 트래픽에서 사용자간 알림 누출을 막고 있다 (spec §4.5).

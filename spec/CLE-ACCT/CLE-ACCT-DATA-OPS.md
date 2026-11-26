@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-OPS"
 title: "계정과 워크스페이스 데이터 흐름 — 테이블 쓰기 · 배치 · 외부 의존"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "f2591c53b8fafa22712bd6ea47accec36c41c48c7dcd5e094cd976050fe1bae6"
+content_hash: "c4ed2d103094ed11303c3ccd6212bec93b3fa0fde90858a6a208a097416407d2"
 read_as: "approved_fallback"
-task: "CLE-T-28MDF3"
+task: "CLE-T-JK1JFZ"
 source_paths: []
-mirror_sha256: "71c13818d3aaad01295eed21a99ff0d6b01d20dc69089499c53cd22f123b6b0b"
-etag: "sha256-2459ac3a49d5bb0eb16abaf92c78c7bf9543fea84d4d99a6ab09508440c53ab6"
+mirror_sha256: "f70e3ea139ba5fee4d96ebd257d26838d74d6fd465c172e5c391c7aab5170273"
+etag: "sha256-87be1e645b0cf68ba69bdd584c7d8d7615a2500f2d26847d64feb4a5bb4f71b1"
 ---
 ## 개요
 
@@ -68,7 +68,7 @@ etag: "sha256-2459ac3a49d5bb0eb16abaf92c78c7bf9543fea84d4d99a6ab09508440c53ab6"
 
 BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 인증 챌린지 기록 `auth:webauthn-auth-challenge:<challenge>` 가 있다. 챌린지 기록은 TTL 로 사라지므로 정리 배치가 없다. 이 기록의 보존 기간 · 용도 · 실패 정책은 [Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록) 이 정한다. 이 영역이 만드는 키의 목록은 [비동기 큐와 Redis 키 목록 「다른 모듈의 키」](../CLE-PLAT/CLE-PLAT-QUEUE.md#다른-모듈의-키) 가 정본이다.
 
-요청 빈도 제한은 Redis 가 아니라 `@nestjs/throttler` 의 in-memory 카운터로 구현했다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 HTTP 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
+요청 빈도 제한은 `@nestjs/throttler` 로 구현했다. 카운터는 공유 Redis 에 센다. Redis 를 쓸 수 없을 때만 서버 인스턴스마다 메모리로 센다. 키(`throttle:hit:<해시>` · `throttle:block:<해시>`)는 공통 모듈 `common/throttler` 가 소유하고 이 영역의 키가 아니다. 저장소의 동작은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「저장소」 가 정한다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 HTTP 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
 
 서명 참조가 있는 채팅 채널 트리거 요청(`POST /api/hooks/:endpointPath` 가운데 트리거 설정에 `config.chatChannel.provider` 와 `config.chatChannel.inboundSigningRef` 가 모두 있는 요청)은 전역 한도로 세지 않는다. 이 라우트는 `@DeferGlobalThrottle()` 로 전역 가드 `UserThrottlerGuard` 가 넘기고, `PublicWebhookThrottleGuard` 뒤의 라우트 가드 `HookTriggerThrottlerGuard` 가 그 가드가 조회한 트리거로 면제 여부를 판정(`isSignedChatChannelTrigger`)해 전역 가드와 같은 한도 · 저장소 · 집계 키로 센다. 서명 참조가 없는 채팅 채널 트리거, 트리거가 없거나 조회에 실패한 요청은 센다. 정책과 근거는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 와 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
 
@@ -174,3 +174,9 @@ NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거, 기각한 �
 결정일: 2026-11-14
 
 NERV Task `CLE-T-HQQNEA`. `user` 행의 Passkey 복구 코드 쓰기에 사용자가 마지막 credential 을 지울 때 비우는 것과 사용자 행 잠금을 적었다. 복구 코드를 읽고 쓰는 경로가 모두 이 잠금에서 차례로 돌아야 credential 없이 코드가 남지 않는다. 범위와 근거의 정본은 [Passkey 기능과 등록 「복구 코드를 읽고 쓰는 경로도 사용자 행 잠금 아래 둔다」](CLE-ACCT-SIGNIN-PASSKEY.md#복구-코드를-읽고-쓰는-경로도-사용자-행-잠금-아래-둔다) 다.
+
+### 요청 빈도 제한 카운터를 공유 Redis 로 옮겼다
+
+결정일: 2026-11-21
+
+NERV Task `CLE-T-JK1JFZ`. 그전에는 `@nestjs/throttler` 기본 메모리 저장소라 서버 인스턴스마다 따로 셌고 Redis 키가 없었다. 이제 공유 Redis 에 세고 Redis 를 쓸 수 없을 때만 서버 인스턴스마다 메모리로 센다. Redis 장애 때도 제한은 꺼지지 않는다. 이 문서의 집계 키 표와 한도 수치는 이 변경으로 바뀌지 않는다. 저장소의 동작과 기각한 대안은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「저장소」 와 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 의 Rationale 에 있다.
