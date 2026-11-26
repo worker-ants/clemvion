@@ -1527,7 +1527,7 @@ describe('IntegrationsService', () => {
       }
     });
 
-    it('broadcasts cache invalidation with the integration id (04 m-4)', async () => {
+    it('broadcasts cache invalidation with the integration id', async () => {
       await service.remove('int-1', 'ws-1', 'user-1', 'editor');
       expect(integrationCacheBus.publish).toHaveBeenCalledWith('int-1');
     });
@@ -2041,7 +2041,7 @@ describe('IntegrationsService', () => {
       expect(integrationCacheBus.publish).not.toHaveBeenCalled();
     });
 
-    it('broadcasts cache invalidation after a successful rotation (04 m-4)', async () => {
+    it('broadcasts cache invalidation after a successful rotation', async () => {
       const result = await service.rotate('int-1', 'ws-1', 'user-1', 'member', {
         credentials: { value: 'new-secret' },
       });

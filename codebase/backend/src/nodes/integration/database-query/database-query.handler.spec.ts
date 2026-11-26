@@ -203,7 +203,7 @@ describe('DatabaseQueryHandler', () => {
     jest.requireMock('mysql2/promise').createPool.mockClear();
   });
 
-  describe('integration cache bus (04 m-4)', () => {
+  describe('integration cache bus', () => {
     it('registers a pool-invalidator that drops the cached pool on broadcast', () => {
       let registered: ((id: string) => void | Promise<void>) | undefined;
       const bus = {

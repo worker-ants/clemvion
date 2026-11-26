@@ -85,10 +85,10 @@ describe('ParallelExecutor', () => {
     expect(baseContext.loopContext).toBe(outerLoop);
   });
 
-  // refactor 06-concurrency M-5 — dev/test 환경에서 branch 의 공유 nodeOutputCache
+  // CLE-NODE-PARALLEL-EXEC (병렬 분기 캐시 격리) — dev/test 환경에서 branch 의 공유 nodeOutputCache
   // 값 객체를 freeze 해 "값 내부 mutate 금지" invariant 위반을 즉시 검출.
-  describe('M-5 — 공유 cache 값 freeze (dev/test invariant 가드)', () => {
-    // ai-review W2 — 본 describe 의 가드는 freeze 가 켜진 환경(test)을 전제한다.
+  describe('공유 cache 값 freeze (dev/test invariant 가드)', () => {
+    // 본 describe 의 가드는 freeze 가 켜진 환경(test)을 전제한다.
     // Jest 가 NODE_ENV=production 으로 돌면 freeze 가 꺼져 아래 가드가 무의미
     // (false positive)하므로 전제를 명시 단언한다.
     it('전제: 본 테스트 환경에서 FREEZE_BRANCH_CACHE 가 활성이다', () => {

@@ -4,7 +4,7 @@ import type { PresentationPayload } from '../../../shared/conversation-thread/co
 
 /**
  * Multi-turn AI 노드(`ai_agent` / `information_extractor`)의 재개 상태 3종에 대한
- * 단일 형태 SoT (refactor-03 M-7 RESUME-STATE 클러스터).
+ * 단일 형태 SoT.
  *
  * 엔진 전반에 흩어진 `x as Record<string, unknown>` / `as Record & { ... }`
  * 구조 단언을 아래 `z.infer` 타입으로 대체해 "재개 상태" 라는 도메인 의미를

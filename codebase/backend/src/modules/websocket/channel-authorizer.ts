@@ -1,5 +1,5 @@
 /**
- * refactor 02 M-7 — WebSocket 구독 채널 인가 전략의 다형 인터페이스 + DI 토큰.
+ * CLE-API-WS-MSG 「구독 인가」 — WebSocket 구독 채널 인가 전략의 다형 인터페이스 + DI 토큰.
  *
  * 기존 `WebsocketGateway` 생성자가 6개 도메인 서비스를 forwardRef 로 직접 주입해
  * 인라인 `channelAuthorizers` 배열을 조립하던 구조를, **각 도메인 모듈이 자기 채널의

@@ -1,7 +1,7 @@
 import { Request } from 'express';
 
 /**
- * 04 m-3 — `CF-Connecting-IP` 헤더를 신뢰할지 여부 (`TRUST_CF_CONNECTING_IP` env).
+ * CLE-ACCT-SESSION REQ-SESSION-018 — `CF-Connecting-IP` 헤더를 신뢰할지 여부 (`TRUST_CF_CONNECTING_IP` env).
  *
  * **기본 off (fail-safe)**: `CF-Connecting-IP` 는 클라이언트가 임의로 보낼 수 있는
  * 헤더라, Cloudflare 뒤가 아닌 배포에서 무조건 신뢰하면 rate-limit 우회·감사로그/로그인
@@ -27,7 +27,7 @@ export function shouldTrustCfConnectingIp(
  *
  * IPv6-mapped IPv4 (::ffff:1.2.3.4) 는 IPv4 표기로 정규화한다.
  *
- * SECURITY (04 m-3): CF-Connecting-IP 는 위변조 가능한 헤더이므로 기본적으로 무시하고,
+ * SECURITY (CLE-ACCT-SESSION REQ-SESSION-018): CF-Connecting-IP 는 위변조 가능한 헤더이므로 기본적으로 무시하고,
  * `TRUST_CF_CONNECTING_IP=true` 로 명시한 CF-뒤 배포에서만 1순위로 사용한다. origin 단에서
  * CF 외 직접 접근이 차단된다는 전제(CF Tunnel 등)가 활성화의 근거다.
  *

@@ -8,7 +8,7 @@ import { ToolCall } from '../../../modules/llm/interfaces/llm-client.interface';
 import { AgentToolProvider } from './tool-providers/agent-tool-provider.interface';
 
 /**
- * AiConditionEvaluator unit — refactor 02-architecture §M-1 1단계로 핸들러에서
+ * AiConditionEvaluator unit — 핸들러에서
  * 분리한 조건 평가 로직(이전엔 ai-agent.handler 의 private 메서드로 간접 테스트만
  * 존재)을 입출력 단위로 직접 고정한다. behavior-preserving 추출의 회귀 격리용.
  */

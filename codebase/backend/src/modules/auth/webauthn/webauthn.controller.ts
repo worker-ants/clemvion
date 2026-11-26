@@ -433,7 +433,7 @@ export class WebAuthnController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: WebAuthnRegenerateRecoveryDto,
   ) {
-    // [refactor 02 C-3 §3] 비밀번호 재확인은 AuthService 로 통일(레이어 정렬,
+    // 비밀번호 재확인은 AuthService 로 통일(레이어 정렬,
     // data-flow/2-auth.md §1.2). 에러 코드·메시지·401 shape 동일 보존.
     await this.verifyPasswordWhenEnabled(user.sub, dto.password);
     const codes = await this.webauthnService.regenerateRecoveryCodes(user.sub);

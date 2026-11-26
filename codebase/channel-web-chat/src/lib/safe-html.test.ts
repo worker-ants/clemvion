@@ -69,7 +69,7 @@ describe("renderTemplateHtml — html 포맷", () => {
     expect(result).toContain("남음");
   });
 
-  // 04 m-1 — deny-by-default 화이트리스트 회귀.
+  // CLE-WEBCHAT-SECURITY 「마크다운·HTML sanitize」 — deny-by-default 화이트리스트 회귀.
   it("화이트리스트 외 태그(svg/math) 제거 — mXSS 벡터 차단", () => {
     const result = renderTemplateHtml(
       '<svg><desc>x</desc></svg><math><mi>y</mi></math><b>남음</b>',
@@ -107,7 +107,7 @@ describe("renderTemplateHtml — html 포맷", () => {
     expect(result).toContain("mailto:x@y.test");
   });
 
-  // 04 m-1 후속 — relative URL/anchor 는 허용, blob: 등 비허용 scheme 은 제거(경계 고정).
+  // CLE-WEBCHAT-SECURITY 「마크다운·HTML sanitize」 — relative URL/anchor 는 허용, blob: 등 비허용 scheme 은 제거(경계 고정).
   it("relative href·anchor 유지", () => {
     const result = renderTemplateHtml(
       '<a href="/path?q=1">p</a><a href="#sec">s</a>',
@@ -126,7 +126,7 @@ describe("renderTemplateHtml — html 포맷", () => {
   });
 });
 
-describe("renderTemplateHtml — 화이트리스트 태그 보존 (04 m-1)", () => {
+describe("renderTemplateHtml — 화이트리스트 태그 보존", () => {
   it("마크다운 핵심 태그(heading/list/code/blockquote/table) 정상 렌더", () => {
     const md = [
       "# 제목",

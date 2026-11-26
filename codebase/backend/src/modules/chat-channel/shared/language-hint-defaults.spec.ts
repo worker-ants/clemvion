@@ -263,7 +263,7 @@ describe('resolveLanguageHint — 3-level lookup', () => {
 
   it('legacy `executionFailed` single key is ignored (deprecated) + warn log 발생', () => {
     // 운영자가 `executionFailed` 만 설정한 경우 — 신규 6 키 lookup 은 default 로 fallback
-    // 03 m-1 — console.warn → NestJS Logger 전환.
+    // console.warn → NestJS Logger 전환.
     const warnSpy = jest
       .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => undefined);

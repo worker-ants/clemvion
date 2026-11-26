@@ -5,7 +5,7 @@ import {
 } from './channel-authorizer';
 
 /**
- * refactor 02 M-7 — `notifications:<userId>` 구독 인가. 도메인 서비스 의존이 없어(userId 비교만)
+ * CLE-API-WS-MSG 「구독 인가」 — `notifications:<userId>` 구독 인가. 도메인 서비스 의존이 없어(userId 비교만)
  * WS 모듈 로컬 provider 로 둔다.
  *
  * CLE-API-WS-MSG 「구독 인가」 (IDOR, 선제): user 단위 채널이므로 JWT sub(userId)와 채널의 userId 가 일치할 때만

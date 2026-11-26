@@ -884,7 +884,7 @@ export class KnowledgeBaseService {
       .where('d.knowledge_base_id = :id', { id })
       .andWhere('kb.workspace_id = :workspaceId', { workspaceId })
       .getMany();
-    // 배치 삭제 (refactor 01-performance #2 B안): 문서 N건 직렬 단건 DELETE
+    // 배치 삭제: 문서 N건 직렬 단건 DELETE
     // 루프를 DeleteObjects 청크(1000키/요청)로 교체 — 왕복 N → ceil(N/1000).
     // best-effort/warn 의미론(data-flow/4-file-storage.md Rationale)은 보존:
     // 부분 실패(Errors)는 errored 로 수집해 일괄 warn, 명령 단위 실패(네트워크

@@ -30,9 +30,9 @@ import { aiAgentLlmCallTimeoutMs } from './llm-call-timeout';
 
 /**
  * AI Agent 노드의 자동 메모리 전략 (`summary_buffer` / `persistent`) 관리 —
- * 핸들러에서 분리한 무상태 collaborator (refactor 02-architecture §M-1 2단계,
- * behavior-preserving). 동작 보존 체크리스트는 spec/4-nodes/3-ai/1-ai-agent.md
- * §12.9~12.14 Rationale.
+ * 핸들러에서 분리한 무상태 collaborator
+ * (behavior-preserving). 메모리 전략의 동작 기준은 CLE-NODE-AI-COMMON-CONTEXT
+ * 「메모리 전략」 이다.
  *
  * 책임: ⓐ 설정된 메모리 전략 해석 (`resolveMemoryStrategy`, 미설정/미지 →
  * `manual` 하위호환), ⓑ LLM-호출-전 동기 메모리 주입 (`injectMemoryContext` —

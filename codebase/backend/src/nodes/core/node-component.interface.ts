@@ -375,7 +375,7 @@ export interface NodeComponent<TConfig = Record<string, unknown>> {
 }
 
 /**
- * DI token for the builtin node component catalog (refactor 02-architecture M-5 레이어1).
+ * DI token for the builtin node component catalog.
  *
  * `NodeComponentsModule` 이 빌트인 노드 컴포넌트 카탈로그(`ALL_NODE_COMPONENTS` —
  * `nodes/<category>/index.ts` 의 카테고리 배열을 `NODE_CATEGORIES` 순서로 spread)를
