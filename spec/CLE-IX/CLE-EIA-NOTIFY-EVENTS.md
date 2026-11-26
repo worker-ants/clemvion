@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY-EVENTS"
 title: "EIA 알림 웹훅 — 이벤트와 payload"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-NOTIFY"]
 area: "CLE-IX"
-content_hash: "67f3271104ef69473a424e8da4ef39e05ee82ee0de44f1ed2ed642bd89a27065"
+content_hash: "7e27198a872df165789dcc9c16e7afcff4cd02fcf48527d6500e9879fa529336"
 read_as: "approved_fallback"
-task: "CLE-T-FT8MMN"
+task: "CLE-T-P0W82J"
 source_paths: []
-mirror_sha256: "00243c31713417cb06b76f4a667065058409cf9216eaf97c7a058ba26460a2ee"
-etag: "sha256-0be8322c3a5dc4ac925baaaa4ba3dee9aca97d471986adaba9eec1c28e77811e"
+mirror_sha256: "07888cb34a058460ed65dc5d63363d9856da7c9711300b7c3d22599105fdc5cc"
+etag: "sha256-9ccee5247dc89418017878b2616b2d57917a9d95689a383f4e1488cc0d6970a5"
 ---
 ## 개요
 
@@ -176,7 +176,7 @@ etag: "sha256-0be8322c3a5dc4ac925baaaa4ba3dee9aca97d471986adaba9eec1c28e77811e"
   "payload": {
     "status": "failed",
     "error": {
-      "code":    "EXECUTION_TIMEOUT" | "EXECUTION_TIME_LIMIT_EXCEEDED" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... | null,
+      "code":    "EXECUTION_TIMEOUT" | "EXECUTION_TIME_LIMIT_EXCEEDED" | "ERROR_PORT_FALLBACK" | "LLM_CALL_FAILED" | ... | null,
       "message": "사람이 읽는 메시지",
       "nodeId":  "uuid" | null,
       "details": { ... }    // 노드 종류별 상세
