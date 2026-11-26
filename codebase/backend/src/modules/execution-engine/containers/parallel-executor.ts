@@ -10,9 +10,9 @@ import { resolveIterationErrorCode } from './iteration-error-code';
 export type ParallelErrorPolicy = 'stop' | 'continue' | 'cancel-others-on-fail';
 
 /**
- * CLE-NODE-PARALLEL-EXEC 「병렬 분기 캐시 격리: 얕은 복사와 개발·테스트 환경 동결」 — branch 별 `nodeOutputCache` 는 shallow copy 라
+ * CLE-NODE-PARALLEL-EXEC (병렬 분기 캐시 격리) — branch 별 `nodeOutputCache` 는 shallow copy 라
  * top-level 키 추가는 격리되지만 **값 객체 내부는 공유**된다 (deep clone 비용
- * 회피, spec `4-nodes/1-logic/10-parallel.md` 명시 설계). "값 내부를 mutate 하지
+ * 회피, 같은 스펙의 설계). "값 내부를 mutate 하지
  * 않는다" invariant 는 JSDoc 합의일 뿐 기계 강제가 없어, 위반 핸들러가 추가되면
  * last-write-wins 비결정성이 조용히 발생한다.
  *
@@ -29,11 +29,11 @@ export type ParallelErrorPolicy = 'stop' | 'continue' | 'cancel-others-on-fail';
  * 에서 건너뛴다. deep freeze 비용은 첫 branch 실행에 집중되고 이후는 `isFrozen`
  * 조기 반환으로 무시 가능하다.
  *
- * **환경 판별 (ai-review W2·INFO6)**: `NODE_ENV` 미정의(undefined) 시 production
+ * **환경 판별**: `NODE_ENV` 미정의(undefined) 시 production
  * 에서 freeze 가 켜지지 않도록 `development`/`test` **allowlist** 로 한정한다
  * (`!== 'production'` 의 음성 판별은 미정의를 dev 로 오인).
  */
-/** @internal — test-only export (M-5 가드의 환경 전제 단언용). 프로덕션 코드에서 사용 금지. */
+/** @internal — test-only export (공유 cache 값 freeze 가드의 환경 전제 단언용). 프로덕션 코드에서 사용 금지. */
 export const FREEZE_BRANCH_CACHE =
   process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 
@@ -237,7 +237,7 @@ export class ParallelExecutor {
             // 컴파일 타임 차단한다. 값 객체는 여전히 공유 (deep clone 비용 회피)
             // — branch 가 cache 값의 내부를 mutate 하면 안 된다는 invariant 는
             // node-handler.interface.ts 의 ExecutionContext JSDoc 에 명시.
-            // M-5 — dev/test 에서는 공유 값을 freeze 해 invariant 위반을 즉시 검출
+            // dev/test 에서는 공유 값을 freeze 해 invariant 위반을 즉시 검출
             // (production 무변경). freezeSharedCacheValues 주석 참조.
             nodeOutputCache: freezeSharedCacheValues({
               ...context.nodeOutputCache,

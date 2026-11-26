@@ -83,13 +83,13 @@ export default tseslint.config(
         },
       ],
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
-      // backend 서비스 코드는 구조화 Logger(3-error-handling.md §6.2) 사용.
-      // console.* 직접 사용 차단해 §6.2 로그 규약 drift 재발 방지. 면제: scripts/(CLI)·
+      // backend 서비스 코드는 구조화 Logger 를 쓴다.
+      // console.* 직접 사용 차단해 로그 규약 drift 재발 방지. 면제: scripts/(CLI)·
       // instrumentation.ts(부트스트랩 이전 OTel)는 아래 override, code.handler 등
       // module-load 경로는 inline `// eslint-disable-next-line no-console`.
       'no-console': 'error',
-      // catch 파라미터 명명의 SoT. spec/conventions 어느 문서도 catch 변수명을
-      // 소유하지 않으므로(error-codes.md 는 에러 코드 문자열만) 이 lint 룰이 단일 진실이다.
+      // catch 파라미터 명명의 SoT. convention 타입 스펙 어느 문서도 catch 변수명을
+      // 소유하지 않으므로(CLE-API-ERRCODES 는 에러 코드 문자열만) 이 lint 룰이 단일 진실이다.
       // `err` 로 통일(기존 다수파) — `error`/`e`/서술형(`mailErr` 등) 혼재를 차단. `^_`
       // prefix 는 의도적 미사용 표식으로 면제(기존 no-unused-vars caughtErrorsIgnorePattern
       // 과 동일 패턴). preset 전체가 아닌 본 단일 룰만 활성.

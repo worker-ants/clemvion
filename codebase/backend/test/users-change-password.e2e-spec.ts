@@ -6,7 +6,7 @@ import { createDbClient, uniqueEmail } from './helpers/db';
 import { registerAndLogin, TEST_PASSWORD } from './helpers/auth';
 
 /**
- * e2e: spec/5-system/1-auth.md §2.3 / Rationale 2.3.C + data-flow/1-audit.md §1.1.
+ * e2e: CLE-ACCT-PROFILE 「비밀번호 변경」, CLE-ACCT-SESSION-POLICY 「비밀번호 변경은 모든 세션을 끊고 현재 기기에 다시 발급한다」, CLE-OBS-AUDIT-CATALOG.
  *
  * 검증 대상 (실 flow → DB INSERT):
  *   - POST /api/users/me/change-password 성공 시 새 accessToken 반환 (옵션 B 재발급)
