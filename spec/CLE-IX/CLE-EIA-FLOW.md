@@ -2,19 +2,19 @@
 id: "CLE-EIA-FLOW"
 title: "External Interaction API — 처리 흐름과 한도"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA"]
 area: "CLE-IX"
-content_hash: "349141688e02514b285fbd4cf850a31653a167d66f4b692ba58e2e3a845bc5da"
+content_hash: "f9449364e87b707880c636602cbb9b0a0dd6f4f4802a5b6a5dc9693e4efeb030"
 read_as: "approved_fallback"
-task: "CLE-T-JNXZWY"
+task: "CLE-T-7ZRNKV"
 source_paths: []
-mirror_sha256: "712eb717e5e2ad89da8dc0961e530b5e4a520f6e5f804ed7e76ed6b91e196594"
-etag: "sha256-20745dd0851b404f8a5232c63645dec2c490932d5d82d8a7c9aa2e07ad6a1f6e"
+mirror_sha256: "ab7996d751cdf804f4cceed3ca175537c0be306e671ae788d5f3fc170e899148"
+etag: "sha256-07d8da6d2c63b23b1b42b0b33e39d46d26bb1251bb95ade6fd91c99213674890"
 ---
 ## 개요
 
@@ -22,7 +22,7 @@ etag: "sha256-20745dd0851b404f8a5232c63645dec2c490932d5d82d8a7c9aa2e07ad6a1f6e"
 
 ## 레이트 리밋
 
-아래 한도는 전역 스로틀 가드(`UserThrottlerGuard`, 분당 100건, `app.module.ts` 의 `APP_GUARD`) 위에 얹는 층이다. 전역 가드의 카운트 기준은 [부모 「미결 사항」](CLE-EIA.md#미결-사항) 참조. 한 클라이언트가 여러 실행을 다뤄도 실행별로 따로 세고, 두 층은 각자 넘으면 429 를 낸다.
+아래 한도는 전역 스로틀 가드(`UserThrottlerGuard`, 분당 100건, `app.module.ts` 의 `APP_GUARD`) 위에 얹는 층이다. 전역 가드는 로그인한 사용자를, 로그인하지 않은 요청은 IP 를 센다. EIA 경로는 `@Public()` 이라 IP 로 센다([External Interaction API 「레이트 리밋과 CORS」](CLE-EIA.md#레이트-리밋과-cors)). 한 클라이언트가 여러 실행을 다뤄도 실행별로 따로 세고, 두 층은 각자 넘으면 429 를 낸다.
 
 | 대상 | 한도 | 구현 | 초과 응답 |
 |---|---|---|---|
@@ -119,9 +119,9 @@ sequenceDiagram
 
 그래서 즉시 경로가 빠져도 최악의 폐기 지연은 토큰 수명(1시간)에서 정리 간격(1분 이하)으로 줄어든다. 정리 작업 등록(`TerminalRevokeReconcilerService.onModuleInit` 의 `upsertJobScheduler`)이 실패하면 부팅을 막는다. 매 회차의 정리 실패는 삼키고 다음 회차에 다시 한다. 이 큐는 시스템 상태 모니터링 목록(`MONITORED_QUEUES`, group `system`)에 올라 있다.
 
-## 공개 위젯의 방치된 입력 대기 회수
+## 웹채팅 위젯의 방치된 입력 대기 회수
 
-공개 웹채팅 위젯(`auth_config_id IS NULL`, 실행 단위 토큰)은 패널을 열 때마다 실행을 바로 시작한다. 사용자가 탭을 닫거나 "닫기"로 떠나면 그 실행은 명시적 종료 없이 입력 대기로 남는다. 위젯의 "새 대화" 최선 노력 `cancel` 은 정상 경로만 닫는다. 그래서 놓친 실행을 서버가 회수하는 backstop 으로 웹채팅 위젯 유휴 실행 회수를 둔다(구현됨, `WebChatIdleReaperService`).
+인증 설정이 없는 웹채팅 위젯(`auth_config_id IS NULL`, 실행 단위 토큰)은 패널을 열 때마다 실행을 바로 시작한다. 사용자가 탭을 닫거나 "닫기"로 떠나면 그 실행은 명시적 종료 없이 입력 대기로 남는다. 위젯의 "새 대화" 최선 노력 `cancel` 은 정상 경로만 닫는다. 그래서 놓친 실행을 서버가 회수하는 backstop 으로 웹채팅 위젯 유휴 실행 회수를 둔다(구현됨, `WebChatIdleReaperService`).
 
 - 판정: 실행 토큰 행이 하나 이상 있고 가장 늦은 `execution_token.exp_at` 뒤로 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`, 기본 3600000ms=1시간)이 지난 입력 대기 실행이다. 인증 설정이 없는 웹채팅 위젯은 만료 뒤 토큰을 갱신할 수 없다. 만료된 JWT 는 `InteractionGuard` 가 401 로 먼저 막아 갱신 핸들러에 닿지 못한다. 살아 있는 세션은 만료 전에 미리 갱신해 유지하므로, 모든 토큰이 만료됐다는 것은 입력이 올 경로가 사라졌다는 증명이다.
 - 동작: BullMQ 반복 작업(`webchat-idle-reaper`, 분 단위, 전역 한 번)이 대상을 찾아 엔진 `markWebChatIdleTimeout` 으로 조건부 UPDATE(`cancelled`, `cancelledBy='timeout'`, `error.code='WEBCHAT_IDLE_TIMEOUT'`)하고 `revokeAllForExecution` 을 부른다.
@@ -171,7 +171,7 @@ EIA 컨트롤러는 워크스페이스 JWT(`access-token` scheme) 대신 별도 
 
 남는 위험: 정리 작업도 Redis(BullMQ) 장애 중에는 다음 회차로 밀리고, 두 경로 모두 Redis 블랙리스트 SET 에 기대므로 Redis 전면 장애 중에는 폐기가 늦어진다. 블랙리스트 조회도 fail-open 이라 그 창에서 토큰이 통과할 수 있다. 토큰이 단명이고 실행 범위라 위험이 낮다는 전제로 받아들인다. 실질 개선은 최악 지연을 1시간에서 1분 이하로 줄인 것이다. 부팅 때 정리 작업 등록 실패를 부팅 차단으로 두는 것은, 등록 실패가 Redis 미연결 같은 운영 설정 오류라 부팅 시점에 드러내는 편이 안전하기 때문이다(로그인 이력 정리 작업과 같은 정책).
 
-### 공개 위젯 회수 신호는 토큰 만료다
+### 웹채팅 위젯 회수 신호는 토큰 만료다
 
 - 판정 신호는 토큰 영구 만료다. 일괄 유휴 타이머는 쓰지 않는다. "N일 동안 조용하면 종료" 같은 엔진 전역 정리는 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 위험이 있다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 무기한 보존). 인증 설정이 없는 웹채팅 위젯의 토큰은 만료 뒤 갱신할 수 없으므로 "발급한 토큰이 모두 만료됨" 은 익명 사용자가 그 실행을 영원히 이을 수 없다는 증명이다. 회수 대상과 불변식의 보호 대상이 겹치지 않으므로 보호를 약하게 만들지 않는다.
 - 판정과 범위는 2026-10-17 에 지금 코드(`WebChatIdleReaperService`)에 맞춰 바로잡았다. 이 회수는 토큰 만료를 증거로 삼으므로 토큰 행이 없는 실행은 회수할 증거가 없어 뺀다.

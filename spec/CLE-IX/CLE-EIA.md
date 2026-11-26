@@ -2,19 +2,19 @@
 id: "CLE-EIA"
 title: "External Interaction API"
 type: "feature"
-version: 9
+version: 10
 status: "approved"
 requirements: ["REQ-EIA-001", "REQ-EIA-002", "REQ-EIA-003", "REQ-EIA-004", "REQ-EIA-005", "REQ-EIA-006", "REQ-EIA-007", "REQ-EIA-008", "REQ-EIA-009", "REQ-EIA-010", "REQ-EIA-011", "REQ-EIA-012", "REQ-EIA-013", "REQ-EIA-014", "REQ-EIA-015", "REQ-EIA-016", "REQ-EIA-017", "REQ-EIA-018", "REQ-EIA-019", "REQ-EIA-020", "REQ-EIA-021", "REQ-EIA-022", "REQ-EIA-023", "REQ-EIA-024", "REQ-EIA-025", "REQ-EIA-026", "REQ-EIA-027", "REQ-EIA-028", "REQ-EIA-029", "REQ-EIA-030", "REQ-EIA-031", "REQ-EIA-032", "REQ-EIA-033", "REQ-EIA-034", "REQ-EIA-035", "REQ-EIA-036", "REQ-EIA-037", "REQ-EIA-038", "REQ-EIA-039", "REQ-EIA-040", "REQ-EIA-041", "REQ-EIA-042"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "8e0377d07a3ed183b0f3b1daed1ade67cda40151184e102741a8f2aa1c461d9c"
+content_hash: "b01047a2afb066c5c576edebeeecab44e96d1845cb41a0632b94bc47ca3eeec6"
 read_as: "approved_fallback"
-task: "CLE-T-NXPWZZ"
+task: "CLE-T-7ZRNKV"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "8b0086ffc9483b66764f1832878e8347a83c4ac237fbbb1e22148950e38731fa"
-etag: "sha256-8be047abb6fdcf41c1c9d87e214542eb178527417282f085d5f7d88e89e6f199"
+mirror_sha256: "fbd9c102ceaf436f483b2fa4b27e6c73a0684ba9d063ea749eda5257af468e3b"
+etag: "sha256-2325137fa940b935baa5ac7905e62d3ca29348d917cadc007aa8c3d58f0f43b3"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -31,7 +31,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 
 이 문서는 두 채널의 공통 부분의 입구다. 사용 시나리오, 채널 공통 요구사항(인터랙션 토큰·신뢰성·이벤트 순번·레이트 리밋·CORS), 커밋 뒤 발송 규칙, 호환성, 공통 결정의 근거가 여기 있다. 트리거 설정 · 웹훅 응답 · 토큰 규칙은 [트리거 설정과 인터랙션 토큰](CLE-EIA-TOKEN.md), 레이트 리밋 · CORS · 처리 흐름 · 토큰 정리 작업은 [처리 흐름과 한도](CLE-EIA-FLOW.md) 가 정한다.
 
-범위 밖: 엔티티·저장소·데이터 흐름은 [EIA 데이터와 흐름](CLE-EIA-DATA.md), 외부로 나가는 값의 자격 증명 가리기는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md), EIA 를 쓰는 서버 어댑터와 임베드 위젯은 [채팅 채널](../CLE-CHAT/CLE-CHAT.md) 과 [웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md) 이 정한다. 웹훅 진입 자체(인증·입력 구조)는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 소관이다.
+범위 밖: 엔티티·저장소·데이터 흐름은 [EIA 데이터와 흐름](CLE-EIA-DATA.md), 외부로 나가는 값의 자격 증명 가리기는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md), EIA 를 쓰는 서버 어댑터와 웹채팅 위젯은 [채팅 채널](../CLE-CHAT/CLE-CHAT.md) 과 [웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md) 이 정한다. 웹훅 진입 자체(인증·입력 구조)는 [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) 소관이다.
 
 ## 사용 시나리오
 
@@ -40,7 +40,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 | 서버 간 자동화에 사람 결재가 필요한 경우 | 알림 웹훅 + 인바운드(`interaction.enabled`) | 외부 서버가 웹훅으로 워크플로우를 시작하고 웹훅 응답에서 인터랙션 토큰을 받는다([웹훅 호출 응답 확장](#웹훅-호출-응답-확장)). Form 에 도달하면 EIA 알림 웹훅을 받아 자체 UI 로 안내하고 그 토큰으로 REST 로 폼을 제출한다. 알림 웹훅에 토큰과 제출 경로를 싣는 인터랙션 안내 블록(REQ-EIANOTI-033)은 아직 구현되지 않았다. |
 | 외부 챗봇(Telegram·Slack·카카오) 위에 워크플로우 얹기, 변환층을 사용자가 직접 구현 | 알림 웹훅 + 인바운드 | `config.chatChannel` 을 쓰지 않는다. 봇 메시지로 웹훅을 불러 실행을 시작하고, AI 멀티턴에 들어가면 알림으로 어시스턴트 응답을 받고, 사용자 메시지마다 REST `submit_message` 를 보낸다. 특이한 통합이나 지원하지 않는 메신저도 운영할 수 있다. |
 | 외부 챗봇, 서버 어댑터 사용 | 알림 웹훅 + 인바운드(어댑터가 자동화) | 웹훅 트리거에 `config.chatChannel` 만 등록하면 Telegram 등과 자동으로 연결된다. 어댑터가 서버 안에서 EIA 이벤트를 받아 메신저 메시지로 바꾸고, 서버 안에서 인바운드 명령을 부른다. 사용자 코드가 필요 없다. 자세한 내용은 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 에서 정한다. |
-| 외부 SaaS 가 채팅 위젯을 호스팅 | 인바운드만(SSE + REST) | 웹훅 응답으로 받은 토큰으로 SSE 스트림을 열고 REST 명령을 보낸다. 알림 웹훅은 쓰지 않는다. |
+| 외부 SaaS 가 웹채팅 위젯을 호스팅 | 인바운드만(SSE + REST) | 웹훅 응답으로 받은 토큰으로 SSE 스트림을 열고 REST 명령을 보낸다. 알림 웹훅은 쓰지 않는다. |
 | 인터랙션 없는 단순 자동화 | 둘 다 쓰지 않음 | 기존 웹훅 그대로다. |
 
 ## 요구사항
@@ -64,7 +64,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 - REQ-EIA-010 WHEN 트리거가 삭제되면 THE SYSTEM SHALL 그 트리거 단위 토큰을 무효로 만들고 그 토큰으로 연 SSE 스트림을 닫는다. (원본: EIA-AU-07)
 - REQ-EIA-011 WHEN `POST /api/triggers/:id/interaction/revoke-token` 이 호출되면 THE SYSTEM SHALL 새 트리거 단위 토큰을 발급하고 옛 토큰을 새 요청에 대해 즉시 무효로 만들며 옛 토큰으로 연 SSE 스트림을 닫는다. (원본: EIA-AU-07)
 - REQ-EIA-012 WHEN 트리거 단위 토큰을 재발급하면 THE SYSTEM SHALL 감사 로그에 `trigger.interaction_token_revoked` 를 남긴다. (원본: EIA-AU-07)
-- REQ-EIA-038 WHEN 인터랙션을 켜고(`interaction.enabled=true`) 전략이 `per_trigger` 인 트리거를 만들면 THE SYSTEM SHALL 트리거 단위 토큰(`itk_*`)을 발급해 그 평문을 생성 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정 · [생성과 PATCH 응답에 싣는 일회성 비밀](#생성과-patch-응답에-싣는-일회성-비밀-2026-10-17))
+- REQ-EIA-038 WHEN 인터랙션을 켜고(`interaction.enabled=true`) 전략이 `per_trigger` 인 트리거를 만들면 THE SYSTEM SHALL 트리거 단위 토큰(`itk_*`)을 발급해 그 평문을 생성 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정 · [생성과 PATCH 응답에 싣는 일회성 비밀](#생성과-patch-응답에-싣는-일회성-비밀))
 - REQ-EIA-039 WHEN 타입 필드 `interaction` 을 바꾼 PATCH 의 결과가 인터랙션을 켠 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 없으면 THE SYSTEM SHALL 트리거 단위 토큰을 발급해 그 평문을 그 PATCH 응답의 `data.secrets.interactionToken` 에 한 번만 싣는다. (2026-10-17 결정)
 - REQ-EIA-040 WHEN PATCH 결과가 `per_trigger` 전략이고 저장된 트리거 단위 토큰이 있으면 THE SYSTEM SHALL 그 토큰을 이어받고 새 토큰을 발급하지 않는다. (2026-10-17 결정)
 - REQ-EIA-041 WHEN PATCH 가 전략을 `per_trigger` 에서 다른 값으로 바꾸면 THE SYSTEM SHALL 저장된 트리거 단위 토큰을 지우고 그 토큰으로 연 SSE 스트림을 닫는다. (2026-10-09 결정 · [트리거 관리 「PATCH 본문 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약))
@@ -99,6 +99,8 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 - REQ-EIA-034 WHEN 브라우저가 `/api/external/executions/:id` 이하 경로를 부르면 THE SYSTEM SHALL 워크스페이스의 `interactionAllowedOrigins` 와 공식 웹채팅 위젯 배포 주소에 있는 origin 만 CORS 로 허용한다. (원본: §8.5)
 - REQ-EIA-035 IF 워크스페이스에 `interactionAllowedOrigins` 가 없으면 THE SYSTEM SHALL 공식 위젯 배포 주소 밖의 브라우저 호출을 CORS 로 막는다. (원본: §8.5)
 
+실행별 한도와 별개로 전역 요청 빈도 제한(분당 100건)도 걸린다. 전역 가드(`UserThrottlerGuard`)는 로그인한 사용자를 세고, 로그인하지 않은 요청은 IP 를 센다([요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md)). EIA 경로는 `@Public()` 이라 전역 가드가 돌 때 로그인한 사용자가 없어서 IP 로 센다. 인터랙션 토큰은 그 뒤 라우트 가드(`InteractionGuard`)가 검사한다.
+
 ### 호환성
 
 - REQ-EIA-036 WHEN 인터랙션 토큰(`iext_*`·`itk_*`)으로 재실행 API(`POST /api/executions/:id/re-run`)를 부르면 THE SYSTEM SHALL 거부하고 워크스페이스 JWT 만 받는다. (원본: §12)
@@ -110,7 +112,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 | 문서 | 맡는 내용 | 요구사항 |
 |---|---|---|
 | [트리거 설정과 인터랙션 토큰](CLE-EIA-TOKEN.md) | 트리거 등록 페이로드의 `notification` · `interaction` 그룹, 생성 · PATCH 응답의 일회성 비밀(`data.secrets`), 웹훅 202 응답의 인터랙션 블록, 실행 단위 · 트리거 단위 토큰, 서명 비밀, 내부 신뢰 호출 | REQ-EIA-002 ~ 021, REQ-EIA-038 ~ 042 |
-| [처리 흐름과 한도](CLE-EIA-FLOW.md) | 실행별 레이트 리밋과 Redis 키, CORS, 폼 입력 · AI 멀티턴 처리 흐름, 종료 시 토큰 폐기, 공개 위젯의 입력 대기 회수, API 문서화 | REQ-EIA-028 ~ 035 |
+| [처리 흐름과 한도](CLE-EIA-FLOW.md) | 실행별 레이트 리밋과 Redis 키, CORS, 폼 입력 · AI 멀티턴 처리 흐름, 종료 시 토큰 폐기, 웹채팅 위젯의 입력 대기 회수, API 문서화 | REQ-EIA-028 ~ 035 |
 
 커밋 뒤 발송(REQ-EIA-022 · 023)과 이벤트 순번(REQ-EIA-024 ~ 027)의 본문 · 근거, 호환성(REQ-EIA-001 · 036 · 037)의 근거는 이 문서에 있다. REQ-EIA-001 이 말하는 `notification` · `interaction` 그룹의 형태는 [트리거 등록 페이로드 확장](CLE-EIA-TOKEN.md#트리거-등록-페이로드-확장) 이 정한다. 트리거 단위 토큰 발급의 트리거 관리 쪽 요구사항은 [트리거 관리 「요구사항」](../CLE-TRIG/CLE-TRIG-MANAGE.md#요구사항) 의 REQ-TRIG-055(생성) · 056(PATCH) 이다.
 
@@ -158,9 +160,9 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 
 → [종료 시 토큰 폐기](CLE-EIA-FLOW.md#종료-시-토큰-폐기)
 
-### 공개 위젯의 방치된 입력 대기 회수
+### 웹채팅 위젯의 방치된 입력 대기 회수
 
-→ [공개 위젯의 방치된 입력 대기 회수](CLE-EIA-FLOW.md#공개-위젯의-방치된-입력-대기-회수)
+→ [웹채팅 위젯의 방치된 입력 대기 회수](CLE-EIA-FLOW.md#웹채팅-위젯의-방치된-입력-대기-회수)
 
 ## API 문서화
 
@@ -177,7 +179,6 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 ## 미결 사항
 
 - **종료된 실행에 대한 명령의 정상 응답 코드**: REQ-EIA-008 에 따라 실행이 끝나면 실행 단위 토큰을 바로 폐기하고, 가드는 폐기된 토큰을 핸들러 전에 `401 TOKEN_REVOKED` 로 막는다. 한편 EIA-IN-12 는 종료된 실행에 대한 명령에 `410 Gone` 을 예고한다. 그래서 정상 경로의 코드가 `401` 인지 `410` 인지 하나로 정해지지 않았다. 두 쪽 서술과 영향은 [EIA 수신 API와 SSE §미결 사항](CLE-EIA-INBOUND.md#미결-사항) 과 [웹채팅 인증과 세션 §미결 사항](../CLE-WEBCHAT/CLE-WEBCHAT-SESSION.md#미결-사항) 에 있다. 결정 필요.
-- **전역 스로틀의 카운트 기준**: 원문은 `UserThrottlerGuard` 를 IP 기준 분당 100이라 적고, [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 은 사용자 기준 분당 100이라 적는다. 토큰으로만 인증하는 EIA 경로에서 가드가 IP 로 대신 세는지 확인하고, 키 결정 규칙을 HTTP API 규약에 적어야 한다.
 
 ## 구현 위치
 
@@ -192,7 +193,7 @@ External Interaction API(EIA, `/api/external/*`)는 이 간극을 두 채널로 
 
 ### 두 채널을 나눈다
 
-알림 웹훅과 인바운드 REST·SSE 를 따로 제공하고, 트리거마다 `notification`·`interaction` 을 따로 켜고 끈다. 인터랙션이 없는 자동화는 둘 다 끈 채 기존 동작을 유지한다. 브라우저 채팅 위젯처럼 SSE 를 늘 열어 둘 수 있으면 인바운드만으로 충분하다. 서버 간 자동화는 SSE 를 계속 유지하기 어렵다. 그래서 둘 다 선택 사항으로 두고 사용자가 고른다.
+알림 웹훅과 인바운드 REST·SSE 를 따로 제공하고, 트리거마다 `notification`·`interaction` 을 따로 켜고 끈다. 인터랙션이 없는 자동화는 둘 다 끈 채 기존 동작을 유지한다. 브라우저의 웹채팅 위젯처럼 SSE 를 늘 열어 둘 수 있으면 인바운드만으로 충분하다. 서버 간 자동화는 SSE 를 계속 유지하기 어렵다. 그래서 둘 다 선택 사항으로 두고 사용자가 고른다.
 
 두 채널은 방향(밖으로 밀기 대 안으로 당기기·보내기)과 인프라 요구(URL 을 호스팅할 수 있는가 대 연결을 유지할 수 있는가)가 다르다. 한 채널로는 외부 환경의 다양성을 덮을 수 없다. 예를 들어 알림만 제공하면 인터랙션이 필요한 워크플로우에서 응답할 길이 없어 AI 멀티턴·Form·버튼이 교착한다. 외부 WebSocket 만 제공하는 안은 [EIA 수신 API와 SSE](CLE-EIA-INBOUND.md) 의 외부 WebSocket 보류 결정에 따라 채택하지 않았다.
 
@@ -236,18 +237,24 @@ EIA 는 웹훅 문서에 흡수하지 않고 따로 둔다. 웹훅은 "트리거
 
 → [종료 토큰 폐기는 실행 토큰 테이블로 정리한다](CLE-EIA-FLOW.md#종료-토큰-폐기는-실행-토큰-테이블로-정리한다)
 
-### 공개 위젯 회수 신호는 토큰 만료다
+### 웹채팅 위젯 회수 신호는 토큰 만료다
 
-→ [공개 위젯 회수 신호는 토큰 만료다](CLE-EIA-FLOW.md#공개-위젯-회수-신호는-토큰-만료다)
+→ [웹채팅 위젯 회수 신호는 토큰 만료다](CLE-EIA-FLOW.md#웹채팅-위젯-회수-신호는-토큰-만료다)
 
-### 생성과 PATCH 응답에 싣는 일회성 비밀 (2026-10-17)
+### 생성과 PATCH 응답에 싣는 일회성 비밀
 
-→ [생성과 PATCH 응답에 싣는 일회성 비밀 (2026-10-17)](CLE-EIA-TOKEN.md#생성과-patch-응답에-싣는-일회성-비밀-2026-10-17)
+결정일: 2026-10-17
 
-### 운영 환경 가드 목록은 링크로 둔다 (2026-10-31)
+→ [생성과 PATCH 응답에 싣는 일회성 비밀](CLE-EIA-TOKEN.md#생성과-patch-응답에-싣는-일회성-비밀-2026-10-17)
 
-→ [운영 환경 가드 목록은 링크로 둔다 (2026-10-31)](CLE-EIA-TOKEN.md#운영-환경-가드-목록은-링크로-둔다-2026-10-31)
+### 운영 환경 가드 목록은 링크로 둔다
 
-### 인터랙션 서명 비밀도 운영 환경 가드가 검사한다 (2026-11-06)
+결정일: 2026-10-31
 
-→ [인터랙션 서명 비밀도 운영 환경 가드가 검사한다 (2026-11-06)](CLE-EIA-TOKEN.md#인터랙션-서명-비밀도-운영-환경-가드가-검사한다-2026-11-06)
+→ [운영 환경 가드 목록은 링크로 둔다](CLE-EIA-TOKEN.md#운영-환경-가드-목록은-링크로-둔다-2026-10-31)
+
+### 인터랙션 서명 비밀도 운영 환경 가드가 검사한다
+
+결정일: 2026-11-06
+
+→ [인터랙션 서명 비밀도 운영 환경 가드가 검사한다](CLE-EIA-TOKEN.md#인터랙션-서명-비밀도-운영-환경-가드가-검사한다-2026-11-06)

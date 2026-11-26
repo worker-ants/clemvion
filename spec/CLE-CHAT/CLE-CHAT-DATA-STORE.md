@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA-STORE"
 title: "채팅 채널 데이터와 흐름 — 저장 모델과 상태"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-DATA"]
 area: "CLE-CHAT"
-content_hash: "de7bcdbac6dd9e28ce73fb880aa96e4610c477671fba9b83f1337361d8edca62"
+content_hash: "f42d6b056cdc8206a3afe94129363a9fb487acd84ef5e0b1dbbb0a670714a3ea"
 read_as: "approved_fallback"
-task: "CLE-T-8A055H"
+task: "CLE-T-7ZRNKV"
 source_paths: []
-mirror_sha256: "c7b7f1144982838f2b5851859104b304894ebc1956f2940cbbf898cbd6a9d0c0"
-etag: "sha256-bbb2cce7c86c9f9731cd18a2d943b08953f0dccb7de4c53233c4689665b7e46e"
+mirror_sha256: "19e650c869b430d1d7d48a1d55881ad16cca63cd84843a86178fc91b9d2d9b69"
+etag: "sha256-e5b62dea8f3d768bfd2fa5f64eb5c6d7178e55d1a15534962eff1060c1ffd541"
 ---
 ## 개요
 
@@ -116,7 +116,7 @@ pub/sub 채널 이름은 키 공간과 따로라 같은 접두의 `chat-channel:
 | 상태 | 전이 |
 |---|---|
 | `unknown` | 컬럼 기본값. 아직 setup·발송 결과가 없다 |
-| `healthy` | setup·재발급 성공 때, 또는 아웃바운드 첫 성공 때 올린다(`chat_channel_last_error=null`). 인바운드 처리가 성공해도 올리지 않는다 |
+| `healthy` | setup·재발급 성공 때, 또는 한 디스패치에서 보낸 메시지가 있고 그 디스패치에 실패가 없을 때 올린다(`chat_channel_last_error=null`). 인바운드 처리가 성공해도 올리지 않는다 |
 | `degraded` | 원인은 [채팅 채널 「채널 건강도」](CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 인바운드에서 생기는 원인(분당 한도 초과, 워크플로우 없음, `/cancel` 과 재개 명령의 큐 적재 실패)은 이미 `degraded` 면 다시 쓰지 않는다. 그래서 `chat_channel_last_error` 에는 먼저 `degraded` 가 된 원인의 문구가 남는다. 트리거를 자동으로 끄지 않는다([채팅 채널 「신뢰성과 보안」](CLE-CHAT-CORE.md#신뢰성과-보안)). 다음 성공 때 다시 `healthy` |
 
 ## 구현 위치
@@ -131,7 +131,7 @@ pub/sub 채널 이름은 키 공간과 따로라 같은 접두의 `chat-channel:
 
 채널 대화 상태는 "지금 이 채팅방이 어느 실행에 이어져 있는가" 라는 휘발성 라우팅 정보다. Redis 를 쓸 수 없어도 워크플로우 실행 자체는 막지 않는다. update 마다 새 실행으로 넘어가는 것이 의도한 기능 저하다. 영속이 필요한 것은 채팅 채널 설정, 토큰 참조, 건강도뿐이라 `trigger` 컬럼으로 충분하다.
 
-TTL 7일이 지나면 사용자가 떠난 대화의 라우팅 값이 지워진다. 지워지는 것은 이 값뿐이다. 그 값이 가리키던 입력 대기 실행은 그대로 남는다. 실행 엔진은 입력 대기 실행을 기한 없이 보존한다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 키가 만료된 뒤 같은 대화의 다음 메시지는 새 실행을 시작한다. 옛 실행으로 다시 이어지는 경로는 없다. 웹채팅 위젯 유휴 실행 회수도 토큰 행이 없는 채팅 채널 실행을 대상에서 뺀다([External Interaction API 「공개 위젯의 방치된 입력 대기 회수」](../CLE-IX/CLE-EIA.md#공개-위젯의-방치된-입력-대기-회수)). 그래서 지금은 그 실행을 끝내는 경로가 없다.
+TTL 7일이 지나면 사용자가 떠난 대화의 라우팅 값이 지워진다. 지워지는 것은 이 값뿐이다. 그 값이 가리키던 입력 대기 실행은 그대로 남는다. 실행 엔진은 입력 대기 실행을 기한 없이 보존한다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)). 키가 만료된 뒤 같은 대화의 다음 메시지는 새 실행을 시작한다. 옛 실행으로 다시 이어지는 경로는 없다. 웹채팅 위젯 유휴 실행 회수도 토큰 행이 없는 채팅 채널 실행을 대상에서 뺀다([EIA 처리 흐름과 한도 「웹채팅 위젯의 방치된 입력 대기 회수」](../CLE-IX/CLE-EIA-FLOW.md#웹채팅-위젯의-방치된-입력-대기-회수)). 그래서 지금은 그 실행을 끝내는 경로가 없다.
 
 지워지는 것은 라우팅 값뿐이고 입력 대기 실행을 회수하는 경로가 없으므로 7일 TTL 을 이탈한 대화의 정리 정책으로 보지 않는다. 7일이라는 값을 고른 근거는 기록에 없다. [실행 상태 머신과 대기·재개](../CLE-EXEC/CLE-EXEC-STATE.md) 는 입력 대기 실행과 재개 체크포인트에 TTL 을 두지 않기로 했다. 이 키에만 TTL 을 둔 이유도 기록에 없다. TTL 은 저장할 때만 다시 걸리므로 대화가 이어지는 중에도 마지막 저장에서 7일이 지나면 키가 사라질 수 있다. 이 문단은 지금 동작만 적는다. 정할 일은 [미결 사항](CLE-CHAT-DATA.md#미결-사항) 에 있다.
 
