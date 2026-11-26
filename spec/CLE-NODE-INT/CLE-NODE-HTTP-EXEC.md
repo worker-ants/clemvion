@@ -2,19 +2,19 @@
 id: "CLE-NODE-HTTP-EXEC"
 title: "HTTP Request 노드 — 실행 로직"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-HTTP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-HTTP"]
 area: "CLE-NODE-INT"
-content_hash: "18d9e3a7b10d7093e9d47ff20009345e546cea2ad034358735f2841b7914bfb7"
+content_hash: "1a66d9e06c4c7cea1782d27264d0dadfebe37b67e240211089f019bfce472e46"
 read_as: "approved_fallback"
-task: "CLE-T-E991S1"
+task: "CLE-T-RDCXYT"
 source_paths: []
-mirror_sha256: "f600f446af733fc6da7eb45ad14bafab8fc9fdcfba84e3d6d7d9aacc455c18b1"
-etag: "sha256-678f378440fc16bfa315e152399c7745dad7eb72ce353ee9fc80791dc94a49e8"
+mirror_sha256: "3cef588d68c90164196b0d2a71af9069da7617ff1846a66b2ddfdeee93e62365"
+etag: "sha256-4fcfdbe5bc15bd562641a2e977a7b2057260dc21b6faeb053f9aed88f9c864ac"
 ---
 ## 개요
 
@@ -157,7 +157,7 @@ API 식별 정보는 다음처럼 채운다. 통합별 채우기 정책의 전�
 - 해석 실패는 전처럼 통과시킨다(사람 결정, 2026-11-14). 연결할 때도 풀리지 않으면 요청이 `HTTP_TRANSPORT_FAILED` 로 끝난다. 검사 때 실패하고 연결 때 내부 주소로 풀리는 변형은 연결 시점 판정이 막는다.
 - TLS 의 SNI 와 인증서 검증은 undici 가 URL 의 호스트 이름으로 하므로 바뀌지 않는다. IP 리터럴 호스트는 조회를 거치지 않으므로 8단계의 리터럴 검사가 맡는다.
 - HTTP 통합 연결 테스트도 같은 dispatcher 를 첫 요청에 싣는다. 리다이렉트 홉은 첫 요청의 옵션을 물려받아 같은 판정을 거친다. 연결 시점에 막히면 연결 테스트도 `HTTP_BLOCKED` 와 일반화 문구로 끝난다(NERV Task `CLE-T-NESSYD`). 연결 테스트를 통과한 `base_url` 이 실행할 때 연결 시점 판정에 막히는 어긋남을 없애려는 것이다.
-- 이 판정 밖에 남은 경로가 있다. Database Query · Send Email 은 `fetch` 를 쓰지 않아 사전 검사만 한다.
+- Database Query · Send Email 은 `fetch` 를 쓰지 않아 이 판정 밖에 있었다. 2026-11-20 에 두 노드도 드라이버의 소켓 훅(pg · mysql2 의 `stream`, nodemailer 의 `getSocket`)에서 연결 시점 판정을 하게 됐다. 규칙은 [통합 노드 공통 「사설망 차단」](CLE-NODE-INT-COMMON-ERROR.md#사설망-차단), 배경은 [같은 문서 Rationale](CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
 
 ### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
 
