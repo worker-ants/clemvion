@@ -42,8 +42,8 @@ export class ModelConfigService {
    * 소비자(`LlmService`)를 위한 것이다. `ModelConfigController` 가 직접
    * `LlmService.clearClientCache` 를 호출하면 model-config → llm 역의존이 생겨
    * 모듈 간 forwardRef 순환을 만든다 — 이를 옵저버 등록으로 역전해(소비자가
-   * 등록, model-config 는 통지만) 의존을 llm → model-config 단방향으로 만든다
-   * (refactor 02 C-2 cluster 4). EventEmitter2 가 코드베이스에 도입되지 않았으므로
+   * 등록, model-config 는 통지만) 의존을 llm → model-config 단방향으로 만든다.
+   * EventEmitter2 가 코드베이스에 도입되지 않았으므로
    * 신규 프레임워크 의존 없이 경량 훅으로 구현한다. 리스너는 throw 하지 않는
    * 멱등 무효화여야 한다(캐시 delete 류).
    */

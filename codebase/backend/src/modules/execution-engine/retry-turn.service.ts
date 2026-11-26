@@ -708,7 +708,7 @@ export class RetryTurnService {
   }
 
   /**
-   * ATOMIC CLAIM (06 C-2 계열, W6 — ai-review WARNING #6 helper 추출) —
+   * ATOMIC CLAIM (CLE-EXEC-RECOVERY-REHYDRATE 「마지막 턴 재시도에도 원자 claim 을 둔다」) —
    * `applyRetryLastTurn` 재진입의 동시 배달 가드. `inputData._retryState` 키를
    * JSONB `-` 로 **원자 제거**하고 affected=1 인 delivery 만 진행한다.
    * `retryLastTurn` 이 원본 row 의 `outputData` 에 쓰는 것과 동일한 패턴이다.

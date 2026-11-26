@@ -193,7 +193,7 @@ describe('AiTurnOrchestrator', () => {
       );
     });
 
-    // 06 C-2 — §7.5 원자 claim 이후 nodeExec 는 RUNNING 으로 로드된다. re-park 는
+    // 재개 진입 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE) 이후 nodeExec 는 RUNNING 으로 로드된다. re-park 는
     // 이를 다시 WAITING_FOR_INPUT 으로 되돌려 linkedNodeExec 로 영속해야 다음 cold
     // rehydration 이 성공한다 (누락 시 RUNNING 잔류 → 재개 실패).
     it('claim 후 RUNNING nodeExec 를 WAITING_FOR_INPUT 으로 재설정해 영속', async () => {

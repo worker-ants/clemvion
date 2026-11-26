@@ -58,8 +58,8 @@ function parseKind(kind: string | undefined): ModelConfigKind {
  *
  * LLM-구동 부속 엔드포인트(preview-models / :id/test / :id/models)는 같은
  * `model-configs` 라우트를 쓰되 `LlmModelConfigController`(llm 모듈)가 소유한다
- * — 모듈 간 forwardRef 순환(model-config ↔ llm) 제거를 위해서다
- * (refactor 02 C-2 cluster 4). update/remove 시 LLM 클라이언트 캐시 무효화는
+ * — 모듈 간 forwardRef 순환(model-config ↔ llm) 제거를 위해서다.
+ * update/remove 시 LLM 클라이언트 캐시 무효화는
  * `ModelConfigService` 가 옵저버 통지로 처리하므로(LlmService 가 구독), 본
  * 컨트롤러는 llm 모듈에 직접 의존하지 않는다.
  */

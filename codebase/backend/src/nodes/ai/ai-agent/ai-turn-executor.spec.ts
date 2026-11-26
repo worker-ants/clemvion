@@ -13,7 +13,7 @@ import { makeExecutionContext } from '../../../modules/execution-engine/__test__
 import { ConversationThreadService } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
 
 /**
- * AiTurnExecutor unit — refactor 02-architecture §M-1 3단계로 핸들러에서 분리한
+ * AiTurnExecutor unit — 핸들러에서 분리한
  * turn 실행 엔진(single/multi 루프·tool 실행·출력 조립·thread push)을 입출력
  * 단위로 직접 고정한다. 기존엔 `ai-agent.handler.spec` 134KB 가 핸들러 facade 를
  * 통해 간접 테스트했고, 본 spec 은 executor 를 **직접 구성**해 collaborator 주입·

@@ -115,7 +115,7 @@ function subscriptionLimitRejected(requested: unknown): SubscribedAckResponse {
 }
 
 /**
- * refactor 03 C-4 — 인증된 WS 소켓. `handleConnection` 이 JWT 검증 성공 시
+ * 인증된 WS 소켓. `handleConnection` 이 JWT 검증 성공 시
  * `userId`/`workspaceId` 를 enrich 한다(실패 시 즉시 disconnect). 명령·구독
  * 핸들러는 이 단언으로 식별자에 접근하며, 핸들러별 인라인 `Socket & {...}`
  * 단언을 단일 alias 로 통합한다.
@@ -129,7 +129,7 @@ type AuthenticatedSocket = Socket & {
   workspaceId?: string;
 };
 
-// refactor 03 C-4 — 명령 핸들러(submitForm·clickButton·submitMessage·
+// CLE-API-WS-EVENTS-COMMANDS — 명령 핸들러(submitForm·clickButton·submitMessage·
 // endConversation·retryLastTurn)의 반복 인증/소유권 거부 메시지 상수.
 // 값은 명문 wire 문자열 — 변경 금지(테스트가 정확한 값을 검증).
 // subscribe(§3.3) 경로는 채널 인가(channelAuthorizers)가 담당하는 별개 계약이라
@@ -164,7 +164,7 @@ export class WebsocketGateway
   private subscriptions = new Map<string, Set<string>>();
 
   /**
-   * refactor 02 M-7 — 채널 prefix 별 인가 전략은 각 도메인 모듈이 `CHANNEL_AUTHORIZER` 로
+   * CLE-API-WS-MSG 「구독 인가」 — 채널 prefix 별 인가 전략은 각 도메인 모듈이 `CHANNEL_AUTHORIZER` 로
    * 등록한 `ChannelAuthorizer[]` 를 주입받는다. `handleSubscribe` 가 첫 매칭 authorizer 의
    * `authorize` 만 호출(OCP — 신규 채널 = 해당 모듈 provider 1개, gateway 무수정). prefix 는
    * 상호 배타라 주입 순서 무관. `execution:`/`workflow:`/`kb:`/`background:run:` 는 도메인 모듈,
@@ -172,7 +172,7 @@ export class WebsocketGateway
    */
   constructor(
     private readonly jwtService: JwtService,
-    // refactor 02 M-7 — engine/retry/executions 는 **inbound command**(continueX·retryLastTurn·
+    // CLE-API-WS-MSG 「구독 인가」 — engine/retry/executions 는 **inbound command**(continueX·retryLastTurn·
     // snapshot 의 verifyOwnership) 전용으로 유지. authorizer 가 아니라 M-7 역전 대상 아님.
     @Inject(forwardRef(() => ExecutionEngineService))
     private readonly executionEngineService: ExecutionEngineService,
@@ -180,7 +180,7 @@ export class WebsocketGateway
     private readonly retryTurnService: RetryTurnService,
     @Inject(forwardRef(() => ExecutionsService))
     private readonly executionsService: ExecutionsService,
-    // refactor 02 M-7 — 채널 authorizer 배열 주입(옛 workflows/kb/background-runs 서비스
+    // CLE-API-WS-MSG 「구독 인가」 — 채널 authorizer 배열 주입(옛 workflows/kb/background-runs 서비스
     // forwardRef + 인라인 배열 제거). 각 도메인 모듈이 CHANNEL_AUTHORIZER multi-provider 로 등록.
     @Inject(CHANNEL_AUTHORIZER)
     private readonly channelAuthorizers: ChannelAuthorizer[],
@@ -426,7 +426,7 @@ export class WebsocketGateway
     const workspaceId = enriched.workspaceId ?? '';
     const userId = enriched.userId ?? '';
     const authorizer = this.channelAuthorizers.find((a) => a.matches(channel));
-    // refactor 02 M-7 W-5 (fail-closed): `isValidChannel` 을 통과한 채널은 매칭 authorizer 가
+    // CLE-API-WS-MSG 「구독 인가」 (fail-closed): `isValidChannel` 을 통과한 채널은 매칭 authorizer 가
     // 반드시 있어야 한다. 현재 VALID_CHANNEL_PREFIXES 의 모든 prefix 에 authorizer 가
     // 존재하므로 정상 경로에서는 도달 불가하나, 새 prefix 만 추가하고 authorizer 등록을
     // 누락하면 인가 없이 join 되는 구멍이 생긴다 — 기본 거부로 봉인.
@@ -512,7 +512,7 @@ export class WebsocketGateway
     // endpoint 의 `verifyOwnership` 와 동일 정책으로 정렬.
     if (isNewSubscription && channel.startsWith('execution:')) {
       const executionId = channel.slice('execution:'.length);
-      // refactor 03 C-4 (review W2) — 함수 스코프의 `workspaceId`(상단에서 이미
+      // 함수 스코프의 `workspaceId`(상단에서 이미
       // `enriched.workspaceId ?? ''` 로 산출)를 재사용. 중복 단언 제거.
       void this.emitExecutionSnapshot(client, executionId, workspaceId);
     }
@@ -532,7 +532,7 @@ export class WebsocketGateway
       // CRIT — IDOR 차단: workspace 소유 검증 후에만 snapshot 발행.
       // `verifyOwnership` 은 NotFound 로 통일 — Forbidden 으로 응답하면
       // attacker 가 executionId 존재 여부를 추론할 수 있다.
-      // refactor 03 C-4 (review INFO-2) — 구독 경로의 IDOR 이중 방어. 명령 핸들러용
+      // CLE-API-WS-MSG 「구독 인가」 — 구독 경로의 IDOR 이중 방어. 명령 핸들러용
       // `verifyExecutionOwnership` helper(boolean)와 의도적으로 분리한다: 여기서는
       // 실패를 ack 가 아니라 snapshot skip(아래 catch)으로 흡수하기 때문.
       await this.executionsService.verifyOwnership(
@@ -593,7 +593,7 @@ export class WebsocketGateway
   }
 
   /**
-   * refactor 03 C-4 — 명령 핸들러 5종 전용(submitForm·clickButton·submitMessage·
+   * CLE-API-WS-EVENTS-COMMANDS — 명령 핸들러 5종 전용(submitForm·clickButton·submitMessage·
    * endConversation·retryLastTurn) 인증 컨텍스트 추출. `handleConnection` 이
    * enrich 한 `userId` 가 없으면(미인증 소켓) null 을 반환하고, 호출 핸들러가
    * 자신의 ack shape 으로 거부 ack 를 조립한다. `workspaceId` 는 인증 JWT 에 함께
@@ -618,7 +618,7 @@ export class WebsocketGateway
   }
 
   /**
-   * refactor 03 C-4 — 명령 핸들러 공통: execution 의 workspace 소유 검증.
+   * CLE-API-WS-EVENTS-COMMANDS — 명령 핸들러 공통: execution 의 workspace 소유 검증.
    * `verifyOwnership` 은 NotFound 로 통일(Forbidden 금지 — executionId 존재 추론
    * 차단, §7.1 IDOR 정책·sibling handler 일치). 소유 불일치·부재·DB 오류는 모두
    * false 로 환원한다.
@@ -656,7 +656,7 @@ export class WebsocketGateway
       errorCode?: string;
     };
   }> {
-    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper. 거부 ack 는 본
+    // CLE-API-WS-EVENTS-COMMANDS — 인증 + IDOR(소유권) 가드 공통 helper. 거부 ack 는 본
     // 핸들러의 flat shape(§7.2)으로 직접 조립한다.
     const auth = this.getCommandAuthContext(client);
     if (!auth) {
@@ -726,7 +726,7 @@ export class WebsocketGateway
       errorCode?: string;
     };
   }> {
-    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
+    // CLE-API-WS-EVENTS-COMMANDS — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
     const auth = this.getCommandAuthContext(client);
     if (!auth) {
       return {
@@ -795,7 +795,7 @@ export class WebsocketGateway
       errorCode?: string;
     };
   }> {
-    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
+    // CLE-API-WS-EVENTS-COMMANDS — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
     // (subscription 체크는 첫 단계 방어, 실제 권한 검증은 verifyOwnership 가 담당.)
     const auth = this.getCommandAuthContext(client);
     if (!auth) {
@@ -862,7 +862,7 @@ export class WebsocketGateway
       errorCode?: string;
     };
   }> {
-    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
+    // CLE-API-WS-EVENTS-COMMANDS — 인증 + IDOR(소유권) 가드 공통 helper (flat ack §7.2).
     const auth = this.getCommandAuthContext(client);
     if (!auth) {
       return {
@@ -942,7 +942,7 @@ export class WebsocketGateway
     };
   }> {
     const event = 'execution.retry_last_turn.ack';
-    // refactor 03 C-4 — 인증 + IDOR(소유권) 가드 공통 helper. 거부 ack 는 본
+    // CLE-API-WS-EVENTS-COMMANDS — 인증 + IDOR(소유권) 가드 공통 helper. 거부 ack 는 본
     // 핸들러의 nested shape(§4.2: { error: { code, message } })으로 직접 조립한다 —
     // continuation 4종(flat)과 의도적으로 다른 계층이라 UNAUTHENTICATED/NOT_FOUND
     // 코드와 'Execution not found' 문구를 helper 가 아닌 핸들러가 소유한다.

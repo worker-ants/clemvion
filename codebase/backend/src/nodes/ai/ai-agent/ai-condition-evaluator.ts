@@ -46,7 +46,7 @@ export function condToolName(conditionId: string): string {
 
 /**
  * AI Agent 노드의 조건(condition) 평가 로직 — 핸들러 상태에 의존하지 않는 순수
- * 입출력 단위로 분리 (refactor 02-architecture §M-1 1단계, behavior-preserving).
+ * 입출력 단위로 분리 (behavior-preserving).
  *
  * 책임: ⓐ LLM 에 노출할 조건 도구 정의(`buildConditionTools`)·시스템 프롬프트
  * 안내문(`buildConditionSystemPromptSuffix`) 생성, ⓑ LLM 응답의 tool_call 을

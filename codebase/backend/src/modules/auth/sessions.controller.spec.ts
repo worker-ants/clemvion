@@ -118,7 +118,7 @@ describe('SessionsController', () => {
 
   describe('revokeSession', () => {
     it('passes familyId and ctx to service, then returns refreshed list', async () => {
-      // 04 m-3 — CF-Connecting-IP 신뢰는 기본 off 라, CF 헤더에서 IP 추출을 검증하려면
+      // CLE-ACCT-SESSION REQ-SESSION-018 — CF-Connecting-IP 신뢰는 기본 off 라, CF 헤더에서 IP 추출을 검증하려면
       // 명시 활성화한다. (테스트 후 원복)
       const prevTrustCf = process.env.TRUST_CF_CONNECTING_IP;
       process.env.TRUST_CF_CONNECTING_IP = 'true';

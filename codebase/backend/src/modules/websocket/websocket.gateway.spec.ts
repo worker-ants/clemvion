@@ -141,7 +141,7 @@ describe('WebsocketGateway', () => {
             findById: jest.fn().mockResolvedValue({ id: 'wf' }),
           },
         },
-        // refactor 02 M-7 — gateway 가 인라인 배열 대신 CHANNEL_AUTHORIZER 를 주입받는다.
+        // CLE-API-WS-MSG 「구독 인가」 — gateway 가 인라인 배열 대신 CHANNEL_AUTHORIZER 를 주입받는다.
         // 실 authorizer 클래스들을 위 서비스 mock 위에 wiring + useFactory 로 집계(prod
         // websocket.module 과 동일 구조)하면 기존 subscribe 인가 동작 테스트
         // (verifyOwnership/findById 호출 검증)가 그대로 유효하며 DI 역전도 함께 검증된다.
@@ -187,7 +187,7 @@ describe('WebsocketGateway', () => {
     expect(gateway).toBeDefined();
   });
 
-  describe('CHANNEL_AUTHORIZER 주입 (refactor 02 M-7)', () => {
+  describe('CHANNEL_AUTHORIZER 주입', () => {
     function injectedAuthorizers(): unknown[] {
       return (gateway as unknown as { channelAuthorizers: unknown[] })
         .channelAuthorizers;

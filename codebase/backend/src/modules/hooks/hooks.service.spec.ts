@@ -584,7 +584,7 @@ describe('HooksService', () => {
     });
 
     it('authConfigId 존재 시 verifyWebhookRequest(authConfigId, workspaceId, ctx) 위임 — clientIp 는 CF-Connecting-IP 에서 추출 (TRUST_CF_CONNECTING_IP=true)', async () => {
-      // 04 m-3 — CF-Connecting-IP 신뢰는 기본 off 라, CF 추출을 검증하려면 명시 활성화.
+      // CLE-ACCT-SESSION REQ-SESSION-019 — CF-Connecting-IP 신뢰는 기본 off 라, CF 추출을 검증하려면 명시 활성화.
       const prevTrustCf = process.env.TRUST_CF_CONNECTING_IP;
       process.env.TRUST_CF_CONNECTING_IP = 'true';
       try {

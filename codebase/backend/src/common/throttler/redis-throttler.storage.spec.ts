@@ -8,6 +8,7 @@ import {
   REDIS_THROTTLER_COMMAND_TIMEOUT_MS,
   REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS,
   RedisThrottlerStorage,
+  type RedisThrottlerTiming,
   throttleBlockKey,
   throttleHitKey,
 } from './redis-throttler.storage';
@@ -17,6 +18,7 @@ type EvalFn = (...args: unknown[]) => Promise<unknown>;
 function makeStorage(opts: {
   client?: { eval: EvalFn } | null;
   metrics?: Pick<BusinessMetricsService, 'recordRedisFailOpen'>;
+  timing?: RedisThrottlerTiming;
 }) {
   const redisConn = {
     getClientOrNull: jest.fn(() => (opts.client ?? null) as Redis | null),
@@ -24,6 +26,7 @@ function makeStorage(opts: {
   const storage = new RedisThrottlerStorage(
     redisConn,
     opts.metrics as BusinessMetricsService | undefined,
+    opts.timing,
   );
   return { storage, redisConn };
 }
@@ -195,6 +198,50 @@ describe('RedisThrottlerStorage', () => {
         'throttler',
         'incr_failed',
       );
+      storage.onApplicationShutdown();
+    });
+
+    it('주입한 제한 시간이 있으면 그 시간까지 Redis 응답을 기다린다', async () => {
+      jest.useFakeTimers();
+      const evalMock = jest.fn<EvalFn>(() => new Promise(() => undefined));
+      const { storage } = makeStorage({
+        client: { eval: evalMock },
+        timing: { commandTimeoutMs: 2_000, retryAfterFailureMs: 5_000 },
+      });
+
+      let settled = false;
+      const pending = storage
+        .increment('k1', 60_000, 100, 60_000, 'default')
+        .finally(() => {
+          settled = true;
+        });
+      await jest.advanceTimersByTimeAsync(1_999);
+      expect(settled).toBe(false);
+      await jest.advanceTimersByTimeAsync(1);
+      expect((await pending).totalHits).toBe(1);
+      storage.onApplicationShutdown();
+    });
+
+    it('주입한 재시도 대기가 있으면 실패 뒤 그 시간 동안만 Redis 를 부르지 않는다', async () => {
+      let now = 1_000_000;
+      jest.spyOn(Date, 'now').mockImplementation(() => now);
+      const evalMock = jest
+        .fn<EvalFn>()
+        .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+        .mockResolvedValue([1, 60_000, 0, 0]);
+      const { storage } = makeStorage({
+        client: { eval: evalMock },
+        timing: { commandTimeoutMs: 250, retryAfterFailureMs: 100 },
+      });
+
+      await storage.increment('k1', 60_000, 100, 60_000, 'default');
+      now += 99;
+      await storage.increment('k1', 60_000, 100, 60_000, 'default');
+      expect(evalMock).toHaveBeenCalledTimes(1);
+
+      now += 1;
+      await storage.increment('k1', 60_000, 100, 60_000, 'default');
+      expect(evalMock).toHaveBeenCalledTimes(2);
       storage.onApplicationShutdown();
     });
 

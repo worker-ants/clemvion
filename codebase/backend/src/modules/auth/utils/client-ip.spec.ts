@@ -125,8 +125,8 @@ describe('extractUnspoofableClientIp', () => {
   );
 });
 
-// 04 m-3 — env-injection 직접 단위 테스트 (isFlagOn/isSwaggerEnabled 등과 일관).
-describe('shouldTrustCfConnectingIp (04 m-3)', () => {
+// CLE-ACCT-SESSION REQ-SESSION-018 — env-injection 직접 단위 테스트 (isFlagOn/isSwaggerEnabled 등과 일관).
+describe('shouldTrustCfConnectingIp', () => {
   it.each(['true', '1'])('returns true for ON value %p', (v) => {
     expect(shouldTrustCfConnectingIp({ TRUST_CF_CONNECTING_IP: v })).toBe(true);
   });
@@ -156,7 +156,7 @@ function makeReq(
 }
 
 describe('extractClientIp', () => {
-  // 04 m-3 — CF-Connecting-IP 신뢰는 기본 off. CF 헤더를 우선해야 하는 테스트는
+  // CLE-ACCT-SESSION REQ-SESSION-018 — CF-Connecting-IP 신뢰는 기본 off. CF 헤더를 우선해야 하는 테스트는
   // 명시적으로 TRUST_CF_CONNECTING_IP 를 켜고, env 스냅샷/복원으로 격리한다(B-4).
   let envSnapshot: NodeJS.ProcessEnv;
   beforeEach(() => {
@@ -178,7 +178,7 @@ describe('extractClientIp', () => {
     expect(extractClientIp(req)).toBe('203.0.113.7');
   });
 
-  // 04 m-3 — 기본(플래그 off)에서는 위변조 가능한 CF 헤더를 무시하고 XFF 로 폴백.
+  // CLE-ACCT-SESSION REQ-SESSION-018 — 기본(플래그 off)에서는 위변조 가능한 CF 헤더를 무시하고 XFF 로 폴백.
   it('기본(TRUST_CF_CONNECTING_IP 미설정)에서는 CF-Connecting-IP 를 무시한다', () => {
     delete process.env.TRUST_CF_CONNECTING_IP;
     const req = makeReq({

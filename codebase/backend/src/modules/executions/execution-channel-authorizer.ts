@@ -7,7 +7,7 @@ import {
 import { ExecutionsService } from './executions.service';
 
 /**
- * refactor 02 M-7 — `execution:<executionId>` 구독 인가 (옛 gateway 인라인 authorizer 이전).
+ * CLE-API-WS-MSG 「구독 인가」 — `execution:<executionId>` 구독 인가 (옛 gateway 인라인 authorizer 이전).
  *
  * CRIT (IDOR): `execution:` 구독은 join 전 workspace 소유 검증을 받는다. 과거에는 1회성
  * snapshot 만 verifyOwnership 으로 보호되고 room join 은 무검증이라, 타 workspace

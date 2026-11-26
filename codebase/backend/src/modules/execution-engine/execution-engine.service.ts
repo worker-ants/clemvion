@@ -451,7 +451,7 @@ class ErrorPortFallbackError extends Error {
   }
 }
 
-/** §7.5 재개 진입 원자 claim(06 C-2) 내부 sentinel — Execution 짝 전이를 먼저 한 뒤
+/** 재개 진입 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE) 내부 sentinel — Execution 짝 전이를 먼저 한 뒤
  *  NodeExecution claim 이 affected=0(다른 worker 가 이미 claim 했거나 terminal)일 때,
  *  트랜잭션을 롤백해 앞선 Execution 전이를 취소하기 위해 throw 한다. 롤백하지 않으면
  *  늦게 온 재개 메시지가 다른 worker 의 claim 을 잃은 채 Execution 상태만 바꾼다.
@@ -1464,7 +1464,7 @@ export class ExecutionEngineService
   }
 
   /**
-   * §7.5 재개 진입 원자 claim (06 C-2, 2026-07-02) — 비원자 SELECT 재검증 가드를
+   * 재개 진입 원자 claim (CLE-EXEC-RECOVERY-REHYDRATE, 2026-07-02) — 비원자 SELECT 재검증 가드를
    * 대체한다. 대상 NodeExecution 을 `waiting_for_input` 조건으로 `running` 으로
    * 전이시키는 **조건부 UPDATE** 로 재개 진입을 획득한다. NodeExecution UPDATE 의
    * `affected>=1` 인 worker 만 재개를 진행하고, `affected=0`(다른 worker 가 이미
@@ -1592,7 +1592,7 @@ export class ExecutionEngineService
       const execution = await this.executionRepository.findOneBy({
         id: executionId,
       });
-      // §7.5 재개 진입 원자 claim(06 C-2)이 진입 시 Execution 을 WFI→RUNNING 으로
+      // 재개 진입 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE)이 진입 시 Execution 을 WFI→RUNNING 으로
       // 짝 전이시키므로(processor 경로), 여기서는 **재개 가능 상태**(WAITING_FOR_INPUT
       // = 미claim 직접 진입 / RUNNING = claim 획득)를 허용한다. terminal·부재만
       // checkpoint invariant 위반.
@@ -2521,7 +2521,7 @@ export class ExecutionEngineService
       // 사전 상태 전이: Execution 은 DB 에서 WAITING_FOR_INPUT 으로 로드됨.
       // waitForX 가 (RUNNING → WAITING_FOR_INPUT) 전이를 시도하므로 먼저 RUNNING
       // 으로 옮긴다 (spec §1.1 의 resume sentinel transition). 단 §7.5 재개 진입
-      // 원자 claim(06 C-2)이 이미 Execution 을 WFI→RUNNING 페어링 전이시켰으면
+      // 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE)이 이미 Execution 을 WFI→RUNNING 페어링 전이시켰으면
       // (savedExecution 은 claim 후 로드되므로 RUNNING) 중복 전이를 건너뛴다
       // (RUNNING→RUNNING assertTransition throw 회피). legacy/직접 호출 경로는 여전히
       // WAITING 이라 정상 전이.
@@ -2710,7 +2710,7 @@ export class ExecutionEngineService
       }
 
       // 사전 상태 전이: WAITING_FOR_INPUT → RUNNING (waitForX/processAiResumeTurn 의
-      // RUNNING→WAITING 전이 전제. driveResumeAwaited 와 동일). §7.5 원자 claim(06 C-2)
+      // RUNNING→WAITING 전이 전제. driveResumeAwaited 와 동일). 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE)
       // 이 이미 Execution 을 페어링 전이했으면 (RUNNING) 중복 전이 skip.
       if (savedExecution.status !== ExecutionStatus.RUNNING) {
         await this.updateExecutionStatus(
@@ -3289,7 +3289,7 @@ export class ExecutionEngineService
         })
         .where('id = :id', { id: nodeExecutionId })
         // WAITING_FOR_INPUT **및 RUNNING** 둘 다 fail 대상 (markExecutionCancelled 와
-        // 동형). §7.5 재개 진입 원자 claim(06 C-2) 이후 대상 row 는 RUNNING 이므로,
+        // 동형). 재개 진입 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE) 이후 대상 row 는 RUNNING 이므로,
         // claim 후 rehydration 프로세스 실패의 롤백은 RUNNING → FAILED 로 이뤄진다 —
         // WAITING_FOR_INPUT 만 매치하면 affected=0 → stuck RUNNING (핵심 회귀). claim
         // 이전 pre-check 단계 실패는 여전히 WAITING_FOR_INPUT 이라 두 상태 모두 대상.
@@ -9003,7 +9003,7 @@ export class ExecutionEngineService
    * WebSocket emit 은 본 헬퍼 호출 후 (트랜잭션 commit 후) 수행해야 한다 — 그렇지
    * 않으면 rollback 된 상태를 클라이언트가 잠시 관측할 수 있다.
    *
-   * **예외 — `claimResumeEntry`(06 C-2)**: §7.5 재개 진입 원자 claim 은 조건부
+   * **예외 — `claimResumeEntry`**: 재개 진입 원자 claim(CLE-EXEC-RECOVERY-REHYDRATE) 은 조건부
    * 원자성(affected 기반 race 결정)이 필요해 본 choke point(`assertTransition`)를
    * 우회하고 raw conditional UPDATE 로 Execution·NodeExecution WFI→RUNNING 을 직접
    * 갱신한다. 그 경로는 `segmentStartMs` 세그먼트 tracking 도 자체 보정한다 — 본

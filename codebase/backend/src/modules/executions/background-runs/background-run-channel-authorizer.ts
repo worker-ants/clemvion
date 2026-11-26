@@ -7,7 +7,7 @@ import {
 import { BackgroundRunsService } from './background-runs.service';
 
 /**
- * refactor 02 M-7 — `background:run:<id>` 구독 인가 (옛 gateway 인라인 authorizer 이전).
+ * CLE-API-WS-MSG 「구독 인가」 — `background:run:<id>` 구독 인가 (옛 gateway 인라인 authorizer 이전).
  * `BackgroundRunsService` 가 `ExecutionsModule` 소속이라 본 authorizer 도 같은 모듈에 둔다.
  * UUID 형식 검증으로 DB 쿼리 진입 전 비-UUID 선차단 (다른 채널 authorizer 와 동일 정책).
  */

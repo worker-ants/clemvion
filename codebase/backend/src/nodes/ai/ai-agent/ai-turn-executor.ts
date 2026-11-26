@@ -514,7 +514,7 @@ class RagAccumulatorGroup {
 
 /**
  * AI Agent 노드의 turn 실행 엔진 — 핸들러에서 분리한 무상태 collaborator
- * (refactor 02-architecture §M-1 3단계, behavior-preserving). single-turn /
+ * (behavior-preserving). single-turn /
  * multi-turn 첫 진입(park) / multi-turn 재개 루프 전체와, 그 루프가 구동하는
  * tool 실행(`executeProviderToolBatch` / `runProviderTool`)·turn 종결 출력 조립
  * (`buildMultiTurnFinalOutput` / `buildConditionOutput` / `endMultiTurnConversation`
@@ -553,7 +553,7 @@ type MultiTurnMemoryMeta = {
 };
 
 /**
- * Turn 출력 accumulator 묶음 (03 C-2 review W5 — condition-route helper 의 ISP
+ * Turn 출력 accumulator 묶음 (condition-route helper 의 ISP
  * 경계 완화). turn 단위로 누적되는 진단/추적 버퍼를 한 객체로 전달한다.
  */
 interface TurnOutputAccumulators {
@@ -639,8 +639,8 @@ function sumLlmCallUsage(llmCalls: readonly LlmCallRecord[]): TokenTotals {
 }
 
 /**
- * 비-provider 도구 결과 stub 문자열 (single/multi-turn 도구 루프 공유, 03 C-2
- * review INFO-2). condition deferral 은 "최종 판단 유도" 신호, budget 초과는
+ * 비-provider 도구 결과 stub 문자열 (single/multi-turn 도구 루프 공유)
+ * condition deferral 은 "최종 판단 유도" 신호, budget 초과는
  * tool_use↔tool_result 매칭 유지를 위한 회신.
  *
  * `TOOL_BUDGET_EXCEEDED_ERROR` 는 LLM 에 돌려보내는 tool_result payload 내부의
@@ -1304,7 +1304,7 @@ export class AiTurnExecutor {
   /**
    * spec §6.1 도구 루프 — provider 도구(executeProviderToolBatch)가 아닌 condition
    * deferral / normal 도구 호출의 tool_result 를 messages 에 기록하고 (opt-in 시)
-   * thread 에 push 한다. `executeSingleTurn` 에서 추출 (03 C-2). messages 를 in-place
+   * thread 에 push 한다. `executeSingleTurn` 에서 추출. messages 를 in-place
    * 변이하고 갱신된 toolCallCount 를 반환한다.
    * - condition: deferral content. condition 도구는 toolCallCount 미합산 (spec §7.1
    *   `meta.toolCalls` 는 조건 도구 제외; multi-turn 동명 helper 와 동일 정책 — §6.1.f-g).
@@ -1399,7 +1399,7 @@ export class AiTurnExecutor {
   /**
    * spec §6.1 — single-turn 도구 루프 condition 판정 라우팅. LLM 이 condition tool
    * 만 호출했을 때(provider/normal 도구 없음 + matchedCondition) 즉시 분기 출력을
-   * 조립한다. `executeSingleTurn` 에서 추출 (03 C-2). caller 가 early return 으로
+   * 조립한다. `executeSingleTurn` 에서 추출. caller 가 early return 으로
    * 호출한다. ai_assistant thread push (§2.2 / §7.10) + 턴 경계 비동기 추출
    * (§6.1 단계 2.7, condition-route 도 응답 종결점) 을 수행한 뒤
    * {@link buildConditionOutput} 으로 분기 출력을 반환한다.
@@ -1469,7 +1469,7 @@ export class AiTurnExecutor {
       workspaceId,
       executionId: context.executionId,
     });
-    // condition-route turn duration 단일 캡처 (03 C-2 review INFO-3) — trace
+    // condition-route turn duration 단일 캡처 — trace
     // durationMs 와 turnDebug 가 동일 시각을 참조하도록.
     const condRouteDurationMs = Date.now() - singleTurnStartedAt;
     // 정상 완료 · LLM 실패와 같은 기준: 이 조건 호출까지 성공한 `chat` 호출 usage 의 합.
@@ -2000,7 +2000,7 @@ export class AiTurnExecutor {
 
       // Case 1: Only condition tools (no provider, no normal) — route immediately
       // (spec §6.1 — condition 판정). early return 은 caller 에 유지하고 출력
-      // 조립 + 턴 경계 추출(2.7)만 helper 로 분리 (03 C-2).
+      // 조립 + 턴 경계 추출(2.7)만 helper 로 분리.
       if (
         classification.providerToolCalls.length === 0 &&
         classification.normalToolCalls.length === 0 &&
@@ -2069,7 +2069,7 @@ export class AiTurnExecutor {
 
       // condition/normal 비-provider 도구 결과 기록 (deferral / budget / normal +
       // opt-in thread push). spec §6.1 도구 루프. condition 은 toolCallCount 미합산
-      // (spec §7.1 조건 도구 제외; multi-turn 과 동일 정책). (03 C-2)
+      // (spec §7.1 조건 도구 제외; multi-turn 과 동일 정책).
       toolCallCount = this.recordSingleTurnNonProviderToolResults({
         conditionToolCalls: classification.conditionToolCalls,
         normalToolCalls: classification.normalToolCalls,
@@ -2426,7 +2426,7 @@ export class AiTurnExecutor {
   /**
    * spec §6.2 도구 루프 — provider 도구(executeProviderToolBatch)가 아닌 condition
    * deferral / normal 도구 호출의 tool_result 를 messages 에 기록하고 (opt-in 시)
-   * thread 에 push 한다. `processMultiTurnMessage` 에서 추출 (03 C-2). messages 를
+   * thread 에 push 한다. `processMultiTurnMessage` 에서 추출. messages 를
    * in-place 변이하고 갱신된 toolCallCount 를 반환한다.
    * - condition: deferral content (최종 판단 유도). toolCallCount 미합산
    *   (spec §7.1 `meta.toolCalls` 는 조건 도구 제외).
@@ -2533,7 +2533,7 @@ export class AiTurnExecutor {
   /**
    * spec §6.2 — multi-turn 도구 루프 condition 판정 라우팅. LLM 이 condition tool
    * 만 호출했을 때(provider/normal 도구 없음 + matchedCondition) 즉시 분기 출력을
-   * 조립한다. `processMultiTurnMessage` 에서 추출 (03 C-2). caller 가 early return
+   * 조립한다. `processMultiTurnMessage` 에서 추출. caller 가 early return
    * 으로 호출하므로 토큰 누적은 본 메서드 내부에서 지역 계산한다 (이후 caller 가
    * 재참조하지 않음). ai_assistant thread push (§2.2 / §7.10 presentations) 를
    * 수행한 뒤 {@link buildConditionOutput} 으로 분기 출력을 반환한다.
@@ -2607,7 +2607,7 @@ export class AiTurnExecutor {
     const finalThinkingTokens =
       totalThinkingTokens + (result.usage?.thinkingTokens ?? 0);
 
-    // condition-route turn duration 단일 캡처 (03 C-2 review INFO-3) — trace
+    // condition-route turn duration 단일 캡처 — trace
     // durationMs 와 turnDebug 가 동일 시각을 참조하도록.
     const condRouteDurationMs = Date.now() - turnStartedAt;
     const prevHistory = resumeState.turnDebugHistory || [];
@@ -2659,7 +2659,7 @@ export class AiTurnExecutor {
 
   /**
    * spec §6.2 step d.5 (auto-memory 재주입) + d.6 (누적 messages 물리 압축) —
-   * `processMultiTurnMessage` 에서 추출 (03 C-2). `multiTurnMemoryStrategy !==
+   * `processMultiTurnMessage` 에서 추출. `multiTurnMemoryStrategy !==
    * 'manual'` 일 때만 caller 가 호출한다 (manual 은 무변경, 회귀 0).
    *
    * summary_buffer/persistent 는 LLM 호출 **전** 동기로 회수 (persistent) +
@@ -2760,7 +2760,7 @@ export class AiTurnExecutor {
 
   /**
    * spec §6.2 step 2.c / step 2.c.bypass — multi-turn 사용자 메시지 entry 처리.
-   * `processMultiTurnMessage` 에서 추출 (03 C-2). render_form blocking resume 의
+   * `processMultiTurnMessage` 에서 추출. render_form blocking resume 의
    * 세 경로를 분기한다:
    * - `source: 'form_submitted'` + pendingFormToolCall set → form 제출 처리
    *   (JSON parse → tool_result splice → presentation_user thread push).
@@ -3085,7 +3085,7 @@ export class AiTurnExecutor {
       );
 
       // Condition-only: route immediately (spec §6.2 — condition 판정). early
-      // return 은 caller 에 유지하고 출력 조립만 helper 로 분리 (03 C-2).
+      // return 은 caller 에 유지하고 출력 조립만 helper 로 분리.
       if (
         classification.providerToolCalls.length === 0 &&
         classification.normalToolCalls.length === 0 &&
@@ -3175,7 +3175,7 @@ export class AiTurnExecutor {
       }
 
       // condition/normal 비-provider 도구 결과 기록 (deferral / budget / normal +
-      // opt-in thread push). spec §6.2 도구 루프. (03 C-2)
+      // opt-in thread push). spec §6.2 도구 루프.
       toolCallCount = this.recordMultiTurnNonProviderToolResults({
         conditionToolCalls: classification.conditionToolCalls,
         normalToolCalls: classification.normalToolCalls,

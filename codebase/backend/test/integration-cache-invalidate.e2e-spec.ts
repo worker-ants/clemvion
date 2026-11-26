@@ -15,7 +15,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 /**
  * e2e: integration 자격증명 회전·삭제의 멀티 인스턴스 캐시 무효화 broadcast
- * (refactor 04 m-4, spec/4-nodes/4-integration/2-database-query.md §4·§Rationale).
+ * (CLE-INT-DATA-RUN 「자격 증명 캐시 무효화」, CLE-NODE-DBQUERY 「풀 캐시 무효화」).
  *
  * 검증: rotate / remove 가 Redis pub/sub 채널 `integration:cache:invalidate` 로
  * integrationId 를 broadcast 한다 — 별도 인스턴스의 구독자(여기서는 raw ioredis
@@ -28,7 +28,7 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 // e2e 는 src 모듈 그래프를 끌어오지 않으려 문자열 리터럴로 둔다 — 채널명 변경 시 양쪽 갱신.
 const CHANNEL = 'integration:cache:invalidate';
 
-describe('Integration cache invalidate pub/sub (e2e, 04 m-4)', () => {
+describe('Integration cache invalidate pub/sub (e2e)', () => {
   let db: Client;
   let token: string;
   let workspaceId: string;

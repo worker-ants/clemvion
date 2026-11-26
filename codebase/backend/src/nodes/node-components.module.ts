@@ -3,7 +3,7 @@ import { NODE_COMPONENT } from './core/node-component.interface';
 import { ALL_NODE_COMPONENTS } from './index';
 
 /**
- * 노드 컴포넌트 DI 등록 모듈 (refactor 02-architecture M-5 레이어1).
+ * 노드 컴포넌트 DI 등록 모듈.
  *
  * flowise `NodesPool`(카테고리 디렉토리 → 단일 pool)에 대응하는 DI 진입점이다:
  * 빌트인 노드 컴포넌트 카탈로그(`ALL_NODE_COMPONENTS` — `nodes/<category>/index.ts`

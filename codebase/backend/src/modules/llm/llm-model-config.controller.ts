@@ -54,7 +54,7 @@ const PROVIDER_PROBE_THROTTLE = SENSITIVE_ACTION_THROTTLE;
 // 모듈에 둔다 — 이 엔드포인트들은 `LlmService`/`LlmPreviewService` 에 의존하므로
 // `ModelConfigController`(순수 CRUD)에 두면 model-config → llm 역의존이 생겨
 // 모듈 간 forwardRef 순환을 만든다. 핸들러를 llm 모듈로 이전하면 의존은
-// llm → model-config 단방향만 남아 순환이 소멸한다 (refactor 02 C-2 cluster 4).
+// llm → model-config 단방향만 남아 순환이 소멸한다.
 //
 // 근거: [모델 설정 「API」](CLE-AI-MODELS#api)
 /**

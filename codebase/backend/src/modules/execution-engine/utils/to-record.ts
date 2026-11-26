@@ -1,6 +1,6 @@
 /**
  * 엔진 전반에서 반복되는 `(x as Record<string, unknown>) ?? {}` 패턴의
- * behavior-preserving 대체 유틸 (refactor-03 M-7).
+ * behavior-preserving 대체 유틸.
  *
  * `as Record<string, unknown>` 단언은 컴파일러만 통과시킬 뿐 런타임 검증이 없어,
  * 실제 형태가 객체가 아니면 downstream 이 조용히 오동작한다. 아래 가드는 런타임에

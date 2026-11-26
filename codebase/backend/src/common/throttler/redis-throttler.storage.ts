@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   Logger,
   OnApplicationShutdown,
@@ -24,6 +25,22 @@ export const REDIS_THROTTLER_COMMAND_TIMEOUT_MS = 250;
  * 장애 중에 요청마다 제한 시간을 기다리지 않게 한다. 이 시간이 지나면 다음 요청이 Redis 를 다시 부른다.
  */
 export const REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS = 5_000;
+
+/** 저장소가 Redis 를 기다리고 쉬는 시간(ms). 운영은 위 두 상수를 쓴다. */
+export interface RedisThrottlerTiming {
+  /** Redis 명령 하나를 기다리는 최대 시간. 기본은 {@link REDIS_THROTTLER_COMMAND_TIMEOUT_MS}. */
+  commandTimeoutMs: number;
+  /** 실패 뒤 메모리로만 세는 시간. 기본은 {@link REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS}. */
+  retryAfterFailureMs: number;
+}
+
+/**
+ * {@link RedisThrottlerTiming} 을 바꿔 넣는 provider 토큰. 운영 모듈은 이 provider 를 두지 않는다.
+ *
+ * 실제 Redis 로 여러 인스턴스의 공유 카운트를 보는 e2e 가 쓴다. 그 테스트는 Redis 가 잠깐 늦어도 메모리로
+ * 내려가지 않아야 하므로 제한 시간을 길게 넣는다. 제한 시간 · 대기 동작 자체는 단위 테스트가 본다.
+ */
+export const REDIS_THROTTLER_TIMING = Symbol('REDIS_THROTTLER_TIMING');
 
 /**
  * 요청 수를 세는 키. `key` 는 `ThrottlerGuard` 가 만든 SHA-256 hex 라 IP · 사용자 id 원문이 없다.
@@ -150,10 +167,19 @@ export class RedisThrottlerStorage
   /** 마지막 Redis 명령이 실패했고 아직 성공한 명령이 없다. */
   private degraded = false;
 
+  private readonly commandTimeoutMs: number;
+  private readonly retryAfterFailureMs: number;
+
   constructor(
     private readonly redisConn: RedisConnectionProvider,
     @Optional() private readonly metrics?: BusinessMetricsService,
-  ) {}
+    @Optional() @Inject(REDIS_THROTTLER_TIMING) timing?: RedisThrottlerTiming,
+  ) {
+    this.commandTimeoutMs =
+      timing?.commandTimeoutMs ?? REDIS_THROTTLER_COMMAND_TIMEOUT_MS;
+    this.retryAfterFailureMs =
+      timing?.retryAfterFailureMs ?? REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
+  }
 
   async increment(
     key: string,
@@ -188,7 +214,7 @@ export class RedisThrottlerStorage
           limit,
           blockDuration,
         ),
-        REDIS_THROTTLER_COMMAND_TIMEOUT_MS,
+        this.commandTimeoutMs,
         'throttler redis increment',
       );
       const record = parseReply(reply);
@@ -214,7 +240,7 @@ export class RedisThrottlerStorage
   }
 
   private scheduleRetry(): void {
-    this.redisRetryAt = Date.now() + REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS;
+    this.redisRetryAt = Date.now() + this.retryAfterFailureMs;
   }
 
   private recordFailure(err: unknown, probing: boolean): void {
@@ -224,7 +250,7 @@ export class RedisThrottlerStorage
     const isNewOutage = !this.degraded;
     if (isNewOutage || probing) {
       this.logger.warn(
-        `요청 빈도 제한을 메모리 저장소로 센다(${REDIS_THROTTLER_RETRY_AFTER_FAILURE_MS}ms 뒤 Redis 재시도): ${
+        `요청 빈도 제한을 메모리 저장소로 센다(${this.retryAfterFailureMs}ms 뒤 Redis 재시도): ${
           err instanceof Error ? err.message : String(err)
         }`,
       );

@@ -40,13 +40,13 @@ import { BackgroundRunChannelAuthorizer } from './background-runs/background-run
   providers: [
     ExecutionsService,
     BackgroundRunsService,
-    // refactor 02 M-7 — `execution:`·`background:run:` 채널 authorizer 를 본 모듈이 소유.
+    // CLE-API-WS-MSG 「구독 인가」 — `execution:`·`background:run:` 채널 authorizer 를 본 모듈이 소유.
     // gateway 가 forwardRef 로 서비스를 역참조하던 구조를 제거하고, authorizer 클래스를
     // export → WS 모듈의 CHANNEL_AUTHORIZER 집계 factory 가 주입한다(역전).
     ExecutionChannelAuthorizer,
     BackgroundRunChannelAuthorizer,
   ],
-  // refactor 02 M-7 — authorizer 클래스를 export(WS 모듈 factory 가 inject). 채널 가드가
+  // CLE-API-WS-MSG 「구독 인가」 — authorizer 클래스를 export(WS 모듈 factory 가 inject). 채널 가드가
   // 도메인 모듈 소유로 이동하며 gateway→ExecutionsService 직접 의존(채널 인가 목적)은 제거.
   exports: [
     ExecutionsService,

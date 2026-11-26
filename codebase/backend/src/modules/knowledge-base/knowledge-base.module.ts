@@ -67,7 +67,7 @@ import { StuckDocumentRecoveryService } from './queues/stuck-document-recovery.s
     DocumentEmbeddingProcessor,
     GraphExtractionProcessor,
     StuckDocumentRecoveryService,
-    // refactor 02 M-7 — `kb:` 채널 authorizer 를 본 모듈이 소유. 클래스를 export →
+    // CLE-API-WS-MSG 「구독 인가」 — `kb:` 채널 authorizer 를 본 모듈이 소유. 클래스를 export →
     // WS 모듈의 CHANNEL_AUTHORIZER 집계 factory 가 주입(gateway→KnowledgeBaseService 역참조 제거).
     KbChannelAuthorizer,
   ],
