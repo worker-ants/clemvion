@@ -49,10 +49,7 @@ import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
 import { newPerTriggerToken } from '../external-interaction/interaction-token.service';
 import type { TriggerIssuedSecretsDto } from './dto/responses/trigger-secret-issue-response.dto';
-import {
-  hasPendingRotation,
-  NotificationSigningSecretService,
-} from './notification-signing-secret.service';
+import { NotificationSigningSecretService } from './notification-signing-secret.service';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
@@ -132,6 +129,12 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
+/** 교체 대기 값을 비우는 저장 컬럼. 알림 해제나 첫 시크릿 발급 때 같은 잠금 안의 저장에 싣는다. */
+const CLEARED_ROTATION_COLUMNS = {
+  notificationSecretV2: null,
+  notificationRotatedAt: null,
+} as const;
+
 const TRIGGER_RESOURCE_TYPE = 'trigger';
 
 /**
@@ -724,7 +727,7 @@ export class TriggersService {
    *   `issued.notificationSigningSecret` 에 싣는다. 결과 `notification` 이 객체가 아니면(`null` 해제로 키를 지웠을 때 등)
    *   서명을 얹을 자리가 없다. 껍데기를 만들어 시크릿을 발급하지 않고 그대로 둔다.
    * - 알림 서명 시크릿이 없어지거나(`null` 해제) 처음 발급되면 남은 교체 대기 값(`notification_secret_v2` · 교체 시각)을
-   *   비울 컬럼을 `rotationColumns` 로 돌려준다. 호출부가 같은 잠금 안의 저장에 싣는다. 해제였으면 `unsetNotification` 으로
+   *   비우도록 `clearRotation` 으로 알린다. 호출부가 같은 잠금 안의 저장에 싣는다. 해제였으면 `unsetNotification` 으로
    *   알려 커밋 뒤 시크릿 행을 지우게 한다(NERV Task `CLE-T-919WVA`).
    *
    * 고르지 않은 쪽은 건드리지 않는다. 이 함수는 `m` 으로 시크릿 저장소에 쓸 수 있으므로 잠금을 쥔 트랜잭션
@@ -746,10 +749,7 @@ export class TriggersService {
     config: Record<string, unknown>;
     issued: TriggerIssuedSecretsDto;
     closeTokenStreams: boolean;
-    rotationColumns: Pick<
-      Trigger,
-      'notificationSecretV2' | 'notificationRotatedAt'
-    > | null;
+    clearRotation: boolean;
     unsetNotification: boolean;
   }> {
     let config = input.config;
@@ -772,7 +772,8 @@ export class TriggersService {
     } else if (input.settleNotification) {
       // `notification: null` 해제다. 서명 시크릿을 남기지 않는다 — 교체 대기 값은 이 저장에서, 시크릿 행은 커밋 뒤에 지운다.
       unsetNotification = true;
-      clearRotation = hasPendingRotation(target);
+      clearRotation =
+        this.notificationSigning.settleUnset(target).clearRotation;
     }
     const issued: TriggerIssuedSecretsDto = {};
     if (notificationSigningSecret !== undefined) {
@@ -785,9 +786,7 @@ export class TriggersService {
       config,
       issued,
       closeTokenStreams,
-      rotationColumns: clearRotation
-        ? { notificationSecretV2: null, notificationRotatedAt: null }
-        : null,
+      clearRotation,
       unsetNotification,
     };
   }
@@ -993,7 +992,7 @@ export class TriggersService {
           // 교체 대기 값을 비울 때만 두 컬럼을 싣는다 — 그 밖에는 위 «바꾸는 필드뿐» 대로 싣지 않는다.
           const patch = {
             ...defined,
-            ...(eia.rotationColumns ?? {}),
+            ...(eia.clearRotation ? CLEARED_ROTATION_COLUMNS : {}),
             config: mergedConfig,
           };
           const written = await m.save(Trigger, { id: target.id, ...patch });

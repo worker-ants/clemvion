@@ -37,7 +37,7 @@ export interface SettledNotificationSigning {
 }
 
 /** 교체 대기 값(`notification_secret_v2` · 교체 시각)이 하나라도 남아 있는가. */
-export function hasPendingRotation(
+function hasPendingRotation(
   row: Pick<Trigger, 'notificationSecretV2' | 'notificationRotatedAt'>,
 ): boolean {
   return row.notificationSecretV2 != null || row.notificationRotatedAt != null;
@@ -122,6 +122,16 @@ export class NotificationSigningSecretService {
       issuedSecret,
       clearRotation: decision.kind === 'issue' && hasPendingRotation(fresh),
     };
+  }
+
+  /**
+   * `notification: null` 해제 PATCH 의 잠금 안 판정. 남은 교체 대기 값이 있으면 호출부가 같은 저장에서 비우도록
+   * `clearRotation` 으로 알린다. 시크릿 행은 커밋 뒤 `deleteAfterUnset` 이 지운다.
+   */
+  settleUnset(
+    target: Pick<Trigger, 'notificationSecretV2' | 'notificationRotatedAt'>,
+  ): { clearRotation: boolean } {
+    return { clearRotation: hasPendingRotation(target) };
   }
 
   /**

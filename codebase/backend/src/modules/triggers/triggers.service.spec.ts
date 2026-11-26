@@ -6887,14 +6887,19 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       }
 
       /** 커밋 뒤 정리가 다시 읽는 행. 정리는 `config` 만 골라 읽는다. */
+      let afterCommitReads = 0;
       function afterCommitRow(config: Record<string, unknown>): void {
+        afterCommitReads = 0;
         const locked = triggerRepo.findOne.getMockImplementation();
         triggerRepo.findOne.mockImplementation(((options: {
           select?: { config?: boolean };
-        }) =>
-          options?.select?.config
-            ? Promise.resolve(stored(config))
-            : locked?.(options as never)) as never);
+        }) => {
+          if (options?.select?.config) {
+            afterCommitReads += 1;
+            return Promise.resolve(stored(config));
+          }
+          return locked?.(options as never);
+        }) as never);
       }
 
       it('교체 유예 중이면 잠금 안 저장에서 v2 와 교체 시각을 함께 비운다', async () => {
@@ -6975,6 +6980,8 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
           },
         });
         await service.update('t1', 'ws', { notification: null }, 'u');
+        // 대역이 실제로 쓰였을 때만 «지우지 않는다» 단언이 의미가 있다(select 모양이 바뀌면 여기서 깨진다).
+        expect(afterCommitReads).toBe(1);
         expect(secrets.delete).not.toHaveBeenCalled();
       });
 
