@@ -2,10 +2,12 @@ import { Logger } from '@nestjs/common';
 import { Client as PgClient } from 'pg';
 import { createConnection as mysqlCreateConnection } from 'mysql2/promise';
 
-import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
+import {
+  findConnectTimeBlock,
+  runSsrfPreflight,
+} from '../../common/utils/ssrf/guard-outcome';
 import {
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
-  SsrfBlockedError,
   assertSafeOutboundHostResolved,
 } from '../../common/utils/ssrf/outbound-guard';
 import {
@@ -135,22 +137,23 @@ export async function testDatabaseConnection(
 ): Promise<IntegrationTestResult> {
   const creds = credentials as unknown as DbCredentials;
   if (creds.host) {
-    try {
-      await assertSafeOutboundHostResolved(creds.host);
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      // 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이 아니므로 «당신의 host 가 막혔다» 로
-      // 보고하지 않고 분류되지 않은 실패로 돌린다. 던지지 않는 계약은 그대로다(§위 JSDoc).
-      if (!(err instanceof SsrfBlockedError)) {
-        logger.warn(`SSRF guard failed (database connection test): ${detail}`);
-        return {
-          success: false,
-          code: CONNECTION_TEST_CODES.DB_CONNECT_FAILED,
-          // 원문은 위 경고 로그에만 남기고 고정 문구를 낸다(CLE-T-E991S1).
-          message: SSRF_GUARD_FAILED_CLIENT_MESSAGE,
-        };
-      }
-      logger.warn(`SSRF block (database connection test): ${detail}`);
+    const host = creds.host;
+    // 판정 원문은 헬퍼가 서버 경고 로그에만 남긴다(CLE-T-NTKWWV).
+    const preflight = await runSsrfPreflight(
+      () => assertSafeOutboundHostResolved(host),
+      logger,
+      'database connection test',
+    );
+    if (preflight === 'guard_failed') {
+      // 판정이 아닌 오류는 가드의 고장이지 차단이 아니므로 «당신의 host 가 막혔다» 로 보고하지 않고 분류되지 않은 실패로
+      // 돌린다. 고정 문구를 낸다(CLE-T-E991S1). 던지지 않는 계약은 그대로다(§위 JSDoc).
+      return {
+        success: false,
+        code: CONNECTION_TEST_CODES.DB_CONNECT_FAILED,
+        message: SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+      };
+    }
+    if (preflight === 'blocked') {
       return {
         success: false,
         code: CONNECTION_TEST_CODES.DB_HOST_BLOCKED,
@@ -168,11 +171,7 @@ export async function testDatabaseConnection(
     }
     return { success: true, message: 'Connection successful' };
   } catch (err) {
-    const blocked = findCause(err, SsrfBlockedError);
-    if (blocked) {
-      logger.warn(
-        `SSRF block at connect time (database connection test): ${blocked.message}`,
-      );
+    if (findConnectTimeBlock(err, logger, 'database connection test')) {
       return {
         success: false,
         code: CONNECTION_TEST_CODES.DB_HOST_BLOCKED,
