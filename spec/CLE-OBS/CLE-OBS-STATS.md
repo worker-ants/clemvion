@@ -2,25 +2,25 @@
 id: "CLE-OBS-STATS"
 title: "통계"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-STATS-001", "REQ-STATS-002", "REQ-STATS-003", "REQ-STATS-004", "REQ-STATS-005", "REQ-STATS-006", "REQ-STATS-007", "REQ-STATS-008", "REQ-STATS-009", "REQ-STATS-010", "REQ-STATS-011", "REQ-STATS-012", "REQ-STATS-013", "REQ-STATS-014", "REQ-STATS-015", "REQ-STATS-016", "REQ-STATS-017", "REQ-STATS-018", "REQ-STATS-019", "REQ-STATS-020", "REQ-STATS-021"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "a3a0bf3c1db0a49f3d006fd295153ee17538ed98182b7d1cd421b29c2c1f6dfb"
+content_hash: "c164860d56f3d81b3e78de99fa09a68d1a640e74d7562cc965054b8b767b2f24"
 read_as: "approved_fallback"
-task: "CLE-T-1639BP"
+task: "CLE-T-0CKQZ2"
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "c8176cc4a88fcacfa69c82586673d3bef54fb5f6898467ae5ebbdcbf7135aa78"
-etag: "sha256-25ab79cc0b0e2e7745f69cc90b3c826ac34c1d76a52e4ae0ae201c5fde2bea20"
+mirror_sha256: "24e58b842ce3845ef4b9704540e6c01bcd5f1a605b6dd82bf50fdd4a7da437d6"
+etag: "sha256-e5cdc71328c983777d2a27edd7704dc62a4833ae9d153a629cab9d136c4c4f54"
 ---
-> 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-통계(Statistics) 화면은 현재 워크스페이스의 워크플로우 실행을 기간과 워크플로우로 걸러 집계해 보여 준다. 경로는 `/statistics` 이고 실제 URL 은 `/w/<slug>/statistics` 다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)). 실행 횟수·성공률·실패율·평균 전체 경과 요약, 실행 추이·오류 분포·상위 워크플로우 차트, 노드 통계, LLM 토큰 사용량을 보여 주고 내보내기를 제공한다.
+통계(Statistics) 화면은 현재 워크스페이스의 워크플로우 실행을 기간과 워크플로우로 걸러 집계해 보여 준다. 경로는 `/statistics` 이고 실제 URL 은 `/w/<slug>/statistics` 다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)). 실행 횟수·성공률·실패율·평균 전체 경과 요약, 실행 추이·오류 분포·상위 워크플로우 차트, 노드 통계, LLM 토큰 사용량을 보여 주고 내보내기를 제공한다. 「오류 분포」는 화면 라벨이라 용어 사전 표기 원칙 8 의 화면 문구 인용으로 그대로 쓴다. 본문의 표준 표기는 「에러」다.
 
 이 문서는 대시보드와 통계가 함께 쓰는 실행 지표(성공률, 평균 전체 경과, 증감률)의 정의도 정한다.
 
@@ -131,7 +131,7 @@ etag: "sha256-25ab79cc0b0e2e7745f69cc90b3c826ac34c1d76a52e4ae0ae201c5fde2bea20"
 | 형식 | 내용 |
 | --- | --- |
 | CSV | 원문은 실행 내역의 행 단위 원시 데이터로 정한다. 현재 구현과 정의가 갈린다. [미결 사항](#미결-사항) 참조 |
-| JSON | 통계 요약 데이터. 현재 구현은 요약·일자별 추이·오류 분포·상위 워크플로우를 한 파일(`statistics-<period>.json`)에 담는다 |
+| JSON | 통계 요약 데이터. 현재 구현은 요약·일자별 추이·워크플로우별 실패 집계·상위 워크플로우를 한 파일(`statistics-<period>.json`)에 담는다 |
 
 ## API
 
@@ -165,7 +165,7 @@ etag: "sha256-25ab79cc0b0e2e7745f69cc90b3c826ac34c1d76a52e4ae0ae201c5fde2bea20"
 
 ## 미결 사항
 
-- **CSV 내보내기의 내용**: 원문 화면 정의(§2.6)는 CSV 를 실행 내역의 행 단위 원시 데이터로 정한다. 현재 구현(`statistics.service.ts` 의 `exportData`)은 일자별 집계 행(`date,total,completed,failed,cancelled`)을 낸다. 실행 한 건마다 한 행을 내는 원문대로 구현할지, 일자별 집계를 CSV 정의로 바꿀지 결정이 필요하다.
+- **CSV 내보내기의 내용**: 옮기기 전 화면 정의는 CSV 를 실행 내역의 행 단위 원시 데이터로 정한다. 현재 구현(`statistics.service.ts` 의 `exportData`)은 일자별 집계 행(`date,total,completed,failed,cancelled`)을 낸다. 실행 한 건마다 한 행을 내는 원문대로 구현할지, 일자별 집계를 CSV 정의로 바꿀지 결정이 필요하다. 이 결정 전까지 머리 줄 구현 상태는 「부분 구현」이다(REQ-STATS-018).
 
 ## 구현 위치
 
@@ -182,9 +182,9 @@ etag: "sha256-25ab79cc0b0e2e7745f69cc90b3c826ac34c1d76a52e4ae0ae201c5fde2bea20"
 
 `completed` 만 남긴 이유: `finalizeStalledExhausted` 가 `FAILED` 로 끝나서 실패 상태도 오염된다. 오염되지 않은 상태는 `completed` 하나뿐이다.
 
-부수 효과로 지표 정의가 좁아졌다. 예전에 들어가던 정상 실패와 사용자 중단(stop) 취소의 실제 소요 시간이 평균에서 빠진다. 사용자에게 보이는 숫자가 바뀌는 변경이다(PR #1171).
+부수 효과로 지표 정의가 좁아졌다. 예전에 들어가던 정상 실패와 사용자 중단(stop) 취소의 실제 소요 시간이 평균에서 빠진다. 사용자에게 보이는 숫자가 바뀌는 변경이다.
 
-원문 통계 명세는 이 한정이 "요약과 워크플로우별(§2.4)" 두 집계에 걸린다고 적었다. §2.4 는 노드별 통계라 번호가 틀렸다. 한정이 걸리는 워크플로우별 집계는 상위 워크플로우(§2.3)다. 이 문서는 바로잡은 쪽으로 적는다.
+옮기기 전 통계 명세는 이 한정이 걸리는 워크플로우별 집계를 노드별 통계 절로 잘못 가리켰다. 한정이 걸리는 워크플로우별 집계는 상위 워크플로우다. 이 문서는 바로잡은 쪽으로 적는다.
 
 ### 평균은 「전체 경과」로 부른다
 
@@ -210,11 +210,11 @@ LLM 토큰 사용량 위젯에는 집계 축이 다른 두 뷰가 있다. 표는
 
 이 화면의 진단 단위는 "어느 워크플로우가 자주 실패하는가" 다. 사용자가 할 행동(그 워크플로우의 실행 내역에 들어가 원인 확인)이 워크플로우 단위이기 때문이다. 에러 유형·코드 축은 노드와 통합마다 형식이 달라 안정된 분류 축이 되지 못한다. 개별 실패의 원인 분석은 [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md) 의 실행 상세가 맡는다. 그래서 `GET /api/statistics/errors` 는 `workflowName` 을 분류 키로 집계한다.
 
-요구사항 NAV-ST-04 의 원문 표현 "에러 발생 빈도 및 유형별 분류" 는 이 결정 전의 문구다. 이 문서는 결정대로 "워크플로우별 오류 분포" 로 적는다.
+옮기기 전 요구사항(REQ-STATS-010 의 원본)은 "에러 발생 빈도 및 유형별 분류" 로 적었다. 이 결정 전의 문구다. 이 문서는 결정대로 「오류 분포」 차트를 워크플로우별 실패 비율로 적는다.
 
 ### 사전 집계 테이블을 두지 않는다
 
-지금 워크스페이스 규모에서는 요청마다 원본 테이블을 집계해도 충분하다. 대시보드는 `workflow`·`execution` 을, 통계는 여기에 `node_execution`·`llm_usage_log` 를 더 읽는다. 데이터가 커지면 시간 단위 사전 집계 테이블(`statistics_hourly`)을 두고 일일 배치로 채우는 방향을 검토한다(P2 이후).
+지금 워크스페이스 규모에서는 요청마다 원본 테이블을 집계해도 충분하다. 대시보드는 `workflow`·`execution` 을, 통계는 여기에 `node_execution`·`llm_usage_log` 를 더 읽는다. 데이터가 커지면 시간 단위 사전 집계 테이블(`statistics_hourly`)을 두고 일일 배치로 채우는 방향을 검토한다.
 
 ### 노드 평균도 「전체 경과」로 부른다
 
