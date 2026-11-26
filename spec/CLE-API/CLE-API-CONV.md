@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 20
+version: 21
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "70128ae7098db3ee7f37821101c5def13ddd132534fd717205e332c99d690311"
+content_hash: "0a43c7449910b7c0aaf6166b3f9b507df6b5060e81de4052a64ac1ef420eaea9"
 read_as: "approved_fallback"
-task: "CLE-T-GGDQSJ"
+task: "CLE-T-VPF9EH"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "914ad8dafe64e486dc32df2e1c6b3544bf6f90940e541854c884bd6ee228084e"
-etag: "sha256-b276ff19b653f4255f8c83b194ef8563837f1f20c7ebcb88f4f27e244e60d546"
+mirror_sha256: "7019547a5132b4bc07f2aa7d2a7f9f42b299295f49a5d3f0fe8276c133670851"
+etag: "sha256-f84685c6ccc8e4b2470eb47d4365bc72b874b03764192afbe08c028712018451"
 ---
 > 구현 상태: 부분 구현 (WebSocket `execution.continue` 는 미구현) · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -48,7 +48,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 9. 큐에 넣고 바로 돌아오는 요청은 `202 Accepted` 와 ack 본문을 돌려준다. `202` 는 no-content 가 아니다.
 10. `410 Gone` 은 존재했으나 사라졌거나 비활성인 리소스에 쓴다. 처음부터 없던 리소스는 `404` 다. 예외는 [§6](CLE-API-CONV-RESP.md#6-http-상태-코드) 의 `404` · `410` 행에 있다.
 11. `502` 는 외부 제3자 API 호출 실패에, `503` 은 우리 인프라 의존성의 일시 장애에 쓴다. 예외로 Passkey 환경 변수가 없을 때의 `WEBAUTHN_DISABLED` 도 `503` 이다. 이 응답은 다시 시도해도 회복되지 않는다([§6](CLE-API-CONV-RESP.md#6-http-상태-코드)). 언제 나는지는 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수) 이 정한다.
-12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외가 있다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다. 채팅 채널 인바운드는 채팅방 단위 한도를 넘어도 `202` 를 받는다([§7 머리 콜아웃](CLE-API-CONV-RATE.md#7-요청-빈도-제한)). WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
+12. 요청 빈도 제한 수치의 단일 기준(single source of truth)은 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 표다. 한도를 넘은 HTTP 요청에는 `429` 를 돌려준다. `Retry-After` 헤더를 함께 싣는지는 행마다 다르다. 어느 행이 싣는지는 §7 표 아래에 적는다. 예외가 있다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다. 채팅 채널 인바운드는 대화 단위 한도를 넘어도 `202` 를 받는다([§7 머리 콜아웃](CLE-API-CONV-RATE.md#7-요청-빈도-제한)). WebSocket 명령은 HTTP 응답이 없고 소켓 `exception` 이벤트(`RATE_LIMITED`)로 알린다.
 13. 목록 조회의 기본 페이지네이션은 offset 방식이다. 대량으로 쌓이는 데이터는 cursor 방식을 쓴다.
 14. `PUT` 은 쓰지 않는다. 부분 수정은 `PATCH` 로 한다.
 
@@ -113,17 +113,23 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 
 ## Rationale
 
-### 규약을 하위 문서로 나눈 이유 (2026-11-13)
+### 규약을 하위 문서로 나눈 이유
+
+결정일: 2026-11-13
 
 본문이 스펙 본문 한도(20,000자)를 넘어 주제별 하위 문서로 나눴다. 규칙 목록 · 미결 사항 · 공통 구현 위치는 이 문서에 두고 절의 상세와 그 절의 Rationale 은 하위 문서로 옮겼다. 다른 문서가 링크하는 절 제목은 이 문서에 짧은 절로 남겨 링크가 끊기지 않게 했다.
 
-### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)
+### 전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다
+
+결정일: 2026-10-22
 
 다른 문서가 이 제목으로 링크해서 제목만 남겼다. 본문은 하위 문서에 있다.
 
-→ [HTTP API 규약 — 요청 빈도 제한](CLE-API-CONV-RATE.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다-2026-10-22)
+→ [HTTP API 규약 — 요청 빈도 제한](CLE-API-CONV-RATE.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다)
 
-### 규칙 5 에 감싼 배열 응답을, 규칙 8 에 요청 `null` 기준을 적었다 (2026-11-20)
+### 규칙 5 에 감싼 배열 응답을, 규칙 8 에 요청 `null` 기준을 적었다
+
+결정일: 2026-11-20
 
 규칙 5 는 페이지 목록과 작은 본인 목록만 적어서 여러 컨트롤러가 `ApiOkWrappedArrayResponse` 로 돌려주는 `{ data: [...] }` 형식이 규칙에 없었다. 작은 본인 목록을 이 형식으로 바꾸는 결정은 [응답 형식과 상태 코드](CLE-API-CONV-RESP.md) 의 Rationale 이 미뤄 두었다. 그래서 새 형식을 정하지 않고 지금 쓰는 형식만 적었다(NERV Task `CLE-T-GGDQSJ`).
 

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-OPS"
 title: "계정과 워크스페이스 데이터 흐름 — 테이블 쓰기 · 배치 · 외부 의존"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "c4ed2d103094ed11303c3ccd6212bec93b3fa0fde90858a6a208a097416407d2"
+content_hash: "88e9352416c13b8bb89d96fa7367728f9773491609292cf5e6ce9bcffe30f9be"
 read_as: "approved_fallback"
-task: "CLE-T-JK1JFZ"
+task: "CLE-T-VPF9EH"
 source_paths: []
-mirror_sha256: "f70e3ea139ba5fee4d96ebd257d26838d74d6fd465c172e5c391c7aab5170273"
-etag: "sha256-87be1e645b0cf68ba69bdd584c7d8d7615a2500f2d26847d64feb4a5bb4f71b1"
+mirror_sha256: "6e9cd6dfabd5953f56637c090300cf72f4e668f3c75eb342b2b2310d8cd976f2"
+etag: "sha256-c5bad5cfb8756800217255096349f7f7c69f8d73cc57742056f0a455c1bc79da"
 ---
 ## 개요
 
@@ -70,9 +70,9 @@ BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 
 
 요청 빈도 제한은 `@nestjs/throttler` 로 구현했다. 카운터는 공유 Redis 에 센다. Redis 를 쓸 수 없을 때만 서버 인스턴스마다 메모리로 센다. 키(`throttle:hit:<해시>` · `throttle:block:<해시>`)는 공통 모듈 `common/throttler` 가 소유하고 이 영역의 키가 아니다. 저장소의 동작은 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「저장소」 가 정한다. 집계 키는 전역 가드 `UserThrottlerGuard` 가 정한다. 인증한 HTTP 요청은 사용자(`user:<sub>`)로 세고 인증 없이 받는 `@Public` 라우트는 클라이언트 IP 로 센다. 그래서 라우트의 집계 기준은 그 라우트가 JWT 인증을 요구하는지로 정해진다.
 
-서명 참조가 있는 채팅 채널 트리거 요청(`POST /api/hooks/:endpointPath` 가운데 트리거 설정에 `config.chatChannel.provider` 와 `config.chatChannel.inboundSigningRef` 가 모두 있는 요청)은 전역 한도로 세지 않는다. 이 라우트는 `@DeferGlobalThrottle()` 로 전역 가드 `UserThrottlerGuard` 가 넘기고, `PublicWebhookThrottleGuard` 뒤의 라우트 가드 `HookTriggerThrottlerGuard` 가 그 가드가 조회한 트리거로 면제 여부를 판정(`isSignedChatChannelTrigger`)해 전역 가드와 같은 한도 · 저장소 · 집계 키로 센다. 서명 참조가 없는 채팅 채널 트리거, 트리거가 없거나 조회에 실패한 요청은 센다. 정책과 근거는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 와 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
+서명 참조가 있는 채팅 채널 트리거 요청(`POST /api/hooks/:endpointPath` 가운데 트리거 설정에 `config.chatChannel.provider` 와 `config.chatChannel.inboundSigningRef` 가 모두 있는 요청)은 전역 한도로 세지 않는다. 이 라우트는 `@DeferGlobalThrottle()` 로 전역 가드 `UserThrottlerGuard` 가 넘기고, `PublicWebhookThrottleGuard` 뒤의 라우트 가드 `HookTriggerThrottlerGuard` 가 그 가드가 조회한 트리거로 면제 여부를 판정(`isSignedChatChannelTrigger`)해 전역 가드와 같은 한도 · 저장소 · 집계 키로 센다. 서명 참조가 없는 채팅 채널 트리거, 트리거가 없거나 조회에 실패한 요청은 센다. 정책과 근거는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 와 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
 
-한도 수치는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 의 사본이다. 이 표는 집계 키와 구현 위치의 정본이다.
+한도 수치는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 사본이다. 이 표는 집계 키와 구현 위치의 정본이다.
 
 | 범위 | 한도 | 집계 키 | 위치 |
 | --- | --- | --- | --- |
@@ -88,7 +88,7 @@ BullMQ 내부 키 말고 이 영역이 직접 만드는 Redis 키에는 Passkey 
 | 초대 발급·재발송 | 분당 10건 | 사용자 | `workspaces.controller.ts`(`INVITATION_THROTTLE`, 값은 `SENSITIVE_ACTION_THROTTLE`) |
 | 공개 초대 메타 조회 | 분당 30건 | IP | `invitations.controller.ts` |
 
-전역 한도를 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이 정한다.
+전역 한도를 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
 
 초대 발송 · provider probe · 2단계 인증 설정 시작 · 활성화 검증 · 끄기 · Passkey 등록 옵션 · Passkey 복구 코드 재발급 · Passkey 삭제는 `SENSITIVE_ACTION_THROTTLE` 상수를 공유하고 카운터는 라우트마다 따로 센다. `verifyPasswordForUser` 로 계정 비밀번호를 다시 확인하는 라우트(2단계 인증 설정 시작 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급 · 삭제)에 이 상수가 모두 걸려 있는지는 단위 테스트로 고정한다. 검사 대상은 테스트에 적어 둔 라우트 목록뿐이라 목록에 없는 새 라우트는 이 테스트에 걸리지 않는다.
 
@@ -141,9 +141,9 @@ STARTTLS 를 지원하지 않는 SMTP 서버로 보내던 배포는 이 결정 �
 
 결정일: 2026-10-22
 
-NERV Task `CLE-T-A3W8B8` 에서 고쳤다. NestJS 12 부터 전역 가드가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard` 하나가 맡는다. 그래서 요청 빈도 제한 표의 전역 행 범위를 HTTP API 로 적고 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 으로 넘겼다.
+NERV Task `CLE-T-A3W8B8` 에서 고쳤다. NestJS 12 부터 전역 가드가 WebSocket 게이트웨이 핸들러에도 붙는다. 고치기 전에는 소켓에 `user` · `ip` 가 없어서 전역 `UserThrottlerGuard` 가 모든 사용자의 WebSocket 명령을 한 버킷(`unknown`)으로 셌다. 이제 이 가드는 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. WebSocket 명령의 요청 빈도 제한은 소켓당 `WsRateLimitGuard` 하나가 맡는다. 그래서 요청 빈도 제한 표의 전역 행 범위를 HTTP API 로 적고 건너뛰는 조건은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 으로 넘겼다.
 
-2026-10-10 [「요청 한도의 집계 기준을 코드에 맞췄다」](#요청-한도의-집계-기준을-코드에-맞췄다) 의 집계 기준은 HTTP 요청에 그대로 유효하다. 기각한 대안은 [HTTP API 규약 「전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다 (2026-10-22)」](../CLE-API/CLE-API-CONV.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다-2026-10-22) 에 있다. 경위는 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」 에 있다.
+2026-10-10 [「요청 한도의 집계 기준을 코드에 맞췄다」](#요청-한도의-집계-기준을-코드에-맞췄다) 의 집계 기준은 HTTP 요청에 그대로 유효하다. 기각한 대안은 [HTTP API 규약 「전역 요청 빈도 제한이 HTTP 요청만 센다고 적었다」](../CLE-API/CLE-API-CONV.md#전역-요청-빈도-제한이-http-요청만-센다고-적었다) 에 있다. 경위는 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위) 의 Rationale 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위」 에 있다.
 
 ### TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다
 
@@ -167,7 +167,7 @@ NERV Task `CLE-T-FRCRF7` 의 사람 결정이다. 규칙과 근거, 기각한 �
 - 만료된 대기 secret 을 비우는 UPDATE 는 `two_factor_enabled = false` 이고 `two_factor_secret` 이 읽은 값 그대로일 때만 쓴다. 그 사이 다른 설정 시작이 쓴 새 secret 과 시각을 지우지 않기 위해서다. 판정을 DB 단일 UPDATE 에 맡기는 방식은 「TOTP 켜기 쓰기를 조건부 UPDATE 로 바꾸고 설정 시작에 요청 한도를 걸었다」 와 같다.
 - 마이그레이션은 기존 행을 바꾸지 않는다. 컬럼을 더하기 전에 설정 시작한 대기 secret 은 시각이 NULL 이라 활성화 검증이 만료로 보고 비운다. 사용자는 설정 시작부터 다시 하면 된다.
 - 이 컬럼은 응답에 싣지 않는다. 비밀이 아니라서 [「응답에 싣지 않는 민감 컬럼 7개」](CLE-ACCT-DATA-MODEL.md#응답에-싣지-않는-민감-컬럼-7개) 에는 넣지 않았다.
-- 활성화 검증, Passkey 등록 옵션, Passkey 복구 코드 재발급에 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 세 라우트 모두 로그인한 사용자만 부르므로 사용자 기준으로 센다. 수치의 정본은 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이다.
+- 활성화 검증, Passkey 등록 옵션, Passkey 복구 코드 재발급에 `SENSITIVE_ACTION_THROTTLE`(사용자당 분당 10회)을 걸었다. 세 라우트 모두 로그인한 사용자만 부르므로 사용자 기준으로 센다. 수치의 정본은 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이다.
 
 ### Passkey 복구 코드 쓰기에 사용자 행 잠금을 적었다
 

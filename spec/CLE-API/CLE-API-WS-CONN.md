@@ -2,19 +2,19 @@
 id: "CLE-API-WS-CONN"
 title: "WebSocket 연결과 채널 구독 — 연결 · 인증 · 재연결"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS"]
 area: "CLE-API"
-content_hash: "912791b349caaac71c94819db277853393cb99197f54a29a09c02f2b67961b7a"
+content_hash: "264be3d3466f4ab109e0dda5e5db65fa90f33174eb7481b223ae40ec2591c3fb"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-YFVEPK"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "9836f3942bc9eb9d6963bf1db8a6ef476b0c9edee8c09733362547d45c9fc63f"
-etag: "sha256-1689a5cedce5d098a2048d34253a73cc7d3d1c0b068c8a05bed28febf547fcbc"
+mirror_sha256: "3e9b4c5192481828eb821ceb141fc8621f6baf21069e499d307bce97ff71ca89"
+etag: "sha256-486cfa78b3c1af8522a75b29b9f9b94b1adb3271370bdd871751321bc09056fc"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§2 · §5 · §6 · §9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -59,7 +59,7 @@ raw WebSocket 의 `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 �
 
 ### 2.3 토큰 갱신 (연결 유지)
 
-별도의 in-band WebSocket 갱신 메시지(`auth.refresh`·`auth.refreshed`)는 **비채택**이다. 클라이언트는 토큰이 만료되거나 `connect_error` 가 나면 REST `/api/auth/refresh` 로 새 access token 을 받아 Socket.IO `auth.token` 을 바꾸고 **다시 연결**해 세션을 유지한다(`ws-client.ts` 의 `connect_error` 핸들러). 이 REST 와 재연결 모델이 정식 채택안이다. 근거는 [「raw WebSocket 전제·REST 대체 항목 비채택 (2026-07-08)」](CLE-API-WS.md#raw-websocket-전제rest-대체-항목-비채택-2026-07-08) 에 있다.
+별도의 in-band WebSocket 갱신 메시지(`auth.refresh`·`auth.refreshed`)는 **비채택**이다. 클라이언트는 토큰이 만료되거나 `connect_error` 가 나면 REST `/api/auth/refresh` 로 새 access token 을 받아 Socket.IO `auth.token` 을 바꾸고 **다시 연결**해 세션을 유지한다(`ws-client.ts` 의 `connect_error` 핸들러). 이 REST 와 재연결 모델이 정식 채택안이다. 근거는 [「raw WebSocket 전제·REST 대체 항목 비채택」](CLE-API-WS.md#raw-websocket-전제rest-대체-항목-비채택) 에 있다.
 
 비채택한 in-band 갱신 프로토콜은 참고로만 남긴다. backend 에 이 메시지 핸들러와 발행이 없다.
 
@@ -180,7 +180,7 @@ flowchart LR
 
 ### `system.maintenance` 발행과 서버 발신 app ping 비채택 (2026-09-02)
 
-[2026-07-08 결정](CLE-API-WS.md#raw-websocket-전제rest-대체-항목-비채택-2026-07-08)이 범위 밖으로 남긴 셋 중 둘을 정식 비채택으로 종결했다. 그 결정이 이 둘을 다루지 않은 이유는 "트리거 소스 설계가 필요하다" 였는데 2026-08-31 착수 시도에서 설계가 필요한 것이 아니라 **대상이 없다**는 것이 실측됐다.
+[2026-07-08 결정](CLE-API-WS.md#raw-websocket-전제rest-대체-항목-비채택)이 범위 밖으로 남긴 셋 중 둘을 정식 비채택으로 종결했다. 그 결정이 이 둘을 다루지 않은 이유는 "트리거 소스 설계가 필요하다" 였는데 2026-08-31 착수 시도에서 설계가 필요한 것이 아니라 **대상이 없다**는 것이 실측됐다.
 
 - **`system.maintenance` 발행: 발화 주체가 없다.**
   - 실측(2026-09-02): `system.maintenance` 는 문서에만 있고 백엔드 코드에는 0건이다. 유지보수를 선언하는 관리자 API·설정·스케줄이 어디에도 없고 계획에도 없다.
@@ -196,7 +196,7 @@ flowchart LR
 
 `auth.token_expired` 를 **보내고 끊는다.** 서버는 핸드셰이크에서 검증한 토큰의 `exp` 로 소켓별 타이머를 걸어 만료 **60초 전**에 1회 알리고 `exp` 에 `disconnect()` 한다.
 
-- **왜 필요한가(실측 2026-09-02)**: `modules/websocket/` 의 `jwtService.verify` 호출부는 **1곳**(`handleConnection`)뿐이고 게이트웨이에 `exp` 참조·타이머·인증 가드가 **모두 0건**이었다(NestJS 12 상향 뒤의 상태는 [2026-10-22 절](CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22)). access token 수명은 **900초**인데 한 번 연결된 소켓은 만료 뒤에도 무기한 인가된 채 이벤트를 받았다. 옛 복구 서술(`connect_error` → REST refresh → 재연결)은 새 연결 시도에서만 시작돼 살아 있는 소켓을 다루지 않았다.
+- **왜 필요한가(실측 2026-09-02)**: `modules/websocket/` 의 `jwtService.verify` 호출부는 **1곳**(`handleConnection`)뿐이고 게이트웨이에 `exp` 참조·타이머·인증 가드가 **모두 0건**이었다(NestJS 12 상향 뒤의 상태는 [2026-10-22 절](CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위)). access token 수명은 **900초**인데 한 번 연결된 소켓은 만료 뒤에도 무기한 인가된 채 이벤트를 받았다. 옛 복구 서술(`connect_error` → REST refresh → 재연결)은 새 연결 시도에서만 시작돼 살아 있는 소켓을 다루지 않았다.
 - **기각한 대안**
   - 알리기만 하고 끊지 않음: "만료됐다" 고 알리고도 그 소켓을 인가된 채로 둔다. 틈을 문서화할 뿐 닫지 않는다.
   - 명령마다 다시 검증(가드): 명령은 막지만 **수신을 못 막는다.** WebSocket 은 push 중심이라 구독만 하는 소켓은 만료된 토큰으로 계속 데이터를 받는다.
@@ -244,6 +244,6 @@ flowchart LR
 NERV Task `CLE-T-4YT18G` 에서 사람이 정한 결정이다. polling 은 한 연결의 HTTP 요청이 모두 처음 핸드셰이크한 서버 인스턴스에 닿아야 동작한다. 배포는 서버 인스턴스가 여럿이고 backend Ingress(HAProxy `leastconn`)에 sticky 설정이 없다. 그래서 polling 으로 내려간 클라이언트는 다른 서버 인스턴스에서 `Session ID unknown`(400)을 받고 재연결을 되풀이했다. Redis adapter([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.6 여러 서버 인스턴스에서의 전달」](CLE-API-WS-MSG.md#46-여러-서버-인스턴스에서의-전달))를 걸어도 이 제약은 그대로다.
 
 - **잃는 것**: WebSocket 이 막힌 네트워크의 클라이언트는 연결하지 못한다. 그 전에도 여러 서버 인스턴스 배포에서는 polling 이 사실상 동작하지 않았다.
-- **전송은 Socket.IO 로 둔다**: [WebSocket 연결과 채널 구독 「raw WebSocket 전제·REST 대체 항목 비채택 (2026-07-08)」](CLE-API-WS.md#raw-websocket-전제rest-대체-항목-비채택-2026-07-08) 은 Socket.IO 의 재연결 · 멀티플렉싱 · 폴백 이점을 들어 전송을 raw WebSocket 으로 바꾸지 않았다. 이번 결정은 그중 폴백만 내려놓는다. 재연결과 멀티플렉싱은 그대로 쓰므로 그 결정은 유지된다.
+- **전송은 Socket.IO 로 둔다**: [WebSocket 연결과 채널 구독 「raw WebSocket 전제·REST 대체 항목 비채택」](CLE-API-WS.md#raw-websocket-전제rest-대체-항목-비채택) 은 Socket.IO 의 재연결 · 멀티플렉싱 · 폴백 이점을 들어 전송을 raw WebSocket 으로 바꾸지 않았다. 이번 결정은 그중 폴백만 내려놓는다. 재연결과 멀티플렉싱은 그대로 쓰므로 그 결정은 유지된다.
 - **기각한 대안**: backend Ingress 에 쿠키 고정을 거는 안. polling 은 동작하지만 쿠키를 받지 않는 클라이언트에는 효과가 없고 Ingress 컨트롤러 종류마다 설정이 다르다.
 - **기각한 대안**: 코드와 배포는 그대로 두고 «polling 은 sticky session 이 있어야 동작한다» 는 한계만 적는 안. 지금 배포가 그 한계를 어긴 채 남는다.

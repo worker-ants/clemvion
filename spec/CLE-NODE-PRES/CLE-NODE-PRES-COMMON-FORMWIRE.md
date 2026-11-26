@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON-FORMWIRE"
 title: "Presentation 노드 공통 — 폼 제출 wire format"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES", "CLE-NODE-PRES-COMMON"]
 area: "CLE-NODE-PRES"
-content_hash: "8443c582c726e552db0ea4f29a573875bc2a06ae65f5d929f72a2a3497fac3d0"
+content_hash: "babb4bcef5c9feb3fd5ee35a0167e9193b4ce5982c7adc61f97e5061b926d28c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "511bc33294046e6eef9a4801430874543696ac1796769de072a0a2512df9b0ae"
-etag: "sha256-547a269c2ddea18faf714b50fcfb73e8125339a1b8fdf721e93f945a2ee6e9fa"
+mirror_sha256: "5afa2ed1409daa4bcf101550dae0368b514e861c6e4d054c345c8b184765128a"
+etag: "sha256-e85d50afa1579c8c38d9607daf4dae85f32df12a2f7dad88362ea9a03369e065"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-547a269c2ddea18faf714b50fcfb73e8125339a1b8fdf721e93f945a2ee6e9fa"
 
 `type: file` 필드 값이 `formData` 에 어떤 모양으로 담기는지(파일 본문 없이 메타데이터 배열)는 [표시 표면](CLE-NODE-PRES-COMMON-DISPLAY.md#파일-필드는-메타데이터만-보낸다) 이 정한다.
 
-네 층 모두에 문자열 `'form_submitted'` 가 나오지만 뜻은 서로 독립이다.
+네 층 모두에 문자열 `'form_submitted'` 가 나오지만 뜻은 서로 독립이다. 서버가 돌려주는 명령 응답인 ack 이벤트의 이름(`execution.submit_form.ack`)은 이 네 층 밖이다([실행 제어 명령과 ack 「2.1 ack 형태」](../CLE-API/CLE-API-WS-EVENTS-COMMANDS.md#21-ack-형태)).
 
 | 층 | 위치 | 모양 | 기준 |
 |---|---|---|---|

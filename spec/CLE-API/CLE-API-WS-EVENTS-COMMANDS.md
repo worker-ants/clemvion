@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-COMMANDS"
 title: "WebSocket 이벤트와 명령 — 실행 제어 명령과 ack"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "e4d38b629c19b4694f8ddb819b575ca4f6cc9c8fc0d67e408bed5f91382304a5"
+content_hash: "5774b725b98ab5622812c8e6eb99f4ae6527fa9efe3fd7744c7b6233814f7ab9"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-F7PNB8"
 source_paths: []
-mirror_sha256: "ac0df61a7acdb67ea852b2f68961eb321eba9e22ea2d8b406bd81589ef8a89dd"
-etag: "sha256-be86f232e24026a4bca2dff5d7642717245914fd2a521cfcf34353e61eadfcd3"
+mirror_sha256: "54f63a0ecf0c503daa3d2a90c4a71cad5af0bd0d7d0294a454e53170d4f5afe4"
+etag: "sha256-865a4c73da0c14647c5f56f021e93fd5dbc52e277c7d294723c6b30700b074fa"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 명령 `execution.continue`·`execution.step` 은 미구현, 실행 시작·중단 명령은 비채택) · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -105,7 +105,6 @@ etag: "sha256-be86f232e24026a4bca2dff5d7642717245914fd2a521cfcf34353e61eadfcd3"
 |------|------|
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID |
 | `INVALID_EXECUTION_STATE` | 실행이 기대한 상태가 아님(네 명령은 입력 대기를, `retry_last_turn` 은 `failed` 를 기대). WebSocket 전용 코드다. REST 진입점은 422 `INVALID_STATE` 로 적는다(의도한 분리) |
-| `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
 | `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 메시지가 최대 길이(10000자)를 넘음. 발행 쪽 동기 검증(typed `MessageTooLongError`) |
 | `VALIDATION_ERROR` | `submit_form` 필드 검증 실패(필수, 타입, minLength·maxLength, min·max, 정규식, select·radio 선택지, `type:'file'` MIME·크기·개수). 발행 쪽 `continueExecution` 관문이 노드 설정의 필드 정의로 동기 검증한다(typed `FormValidationError`). EIA REST 의 `400 VALIDATION_ERROR` 와 같은 뜻, 같은 검증 지점이다. 실행 상태는 유지되어 다시 제출할 수 있다. ack 는 평면 `{ success:false, error, errorCode:'VALIDATION_ERROR' }` 이고 **필드별 `details[]` 가 없다.** 필드별 상세(`{field,message,code}`)는 EIA REST 경로(`400` body `error.details[]`, [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md))에서만 준다. WebSocket 클라이언트는 사람용 `error` 문자열로 폼을 다시 보인다 |
 | `EXECUTION_INTERNAL_ERROR` | 재개 처리 중 typed `ExecutionError` 가 아닌 내부 에러(DB, 서드파티, 예기치 못한 throw). ack `error` 는 **고정 일반 문자열**이고 내부 `error.message` 는 클라이언트에 보내지 않는다(서버 로그 전용) |
@@ -177,21 +176,27 @@ ack 는 `execution.click_button.ack` 의 `resumed` 패턴에 실패 시 `error` 
 
 "노드 단위 재시도" 라는 표현 때문에 "다음 노드도 일부러 막는다" 로 읽힐 여지가 있었다. 뜻하는 것은 워크플로우 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) 과의 단위 구분(실행 단위와 노드 단위)이지 다음 노드 진행 차단이 아니다. 다시 들어간 턴이 성공한 뒤의 그래프 진행은 일반 노드 `COMPLETED` 와 같은 엔진 기본 불변식이고 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) 가 같은 결정 근거를 함께 쓴다.
 
-### `submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유 (2026-06-10)
+### `submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유
+
+결정일: 2026-06-10
 
 - `submit_form` 을 `{ executionId, formData }`, `click_button` 을 `{ executionId, buttonId }` 로 고쳤다. 프론트엔드는 두 명령에 `nodeId` 를 싣지 않고 대기 노드는 서버가 조회한다. 이후 `click_button` 은 `nodeId?` 를 선택으로 받아 대조하도록 넓혔다.
 - 옛 클라이언트 `toolCallId?` 필드를 지웠다. `render_form` 응답은 서버가 보관한 `pendingFormToolCall` 로 맞춘다. 공통 ack 표에서 `nodeId` 행도 지웠다.
 - **폼 제출 ack 이름 `execution.form_submitted`**: 다른 명령의 `<명령>.ack` 패턴과 다르다. 도입 초기 이름이 백엔드 반환과 프론트엔드 수신 양쪽에 굳은 역사적 이름이다. 이미 합의한 wire 계약이라 이름을 바꾸면 호환만 깨져 구현 현실을 옮겼다(v2 프로토콜 정리 때 다시 검토한다). 이 ack 이벤트 이름은 [Presentation 노드 공통 「폼 제출 wire format」](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#폼-제출-wire-format) 이 적은 `'form_submitted'` 문자열 네 층과 다른 다섯 번째 용법이다(2026-10-22 추가).
 
-### ack 의 `resumed` 뜻을 "재개 성공" 에서 "재개 수락" 으로 바꾼 이유 (2026-06-10)
+### ack 의 `resumed` 뜻을 "재개 성공" 에서 "재개 수락" 으로 바꾼 이유
+
+결정일: 2026-06-10
 
 옛 공통 ack 표는 `resumed` 를 "재개 성공 여부" 로 적었다. 모든 진입점이 늘 BullMQ 에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md))을 채택한 뒤 네 재개 핸들러는 큐에 넣으면 바로 `resumed: true` 를 돌려준다. 이 시점에는 어느 워커의 rehydration 도 일어나지 않아 동기 ack 로 재개 성공을 판정할 수 없다. 그래서 정의를 "재개 시작 수락(enqueue)" 으로 바꾸고 최종 확인은 뒤따르는 이벤트로 모았다. **기각한 대안**: 게이트웨이가 워커 처리를 동기로 기다리는 안. ack 지연을 워커에 묶어 큐를 들인 취지와 충돌한다. 코드는 바뀌지 않았다. 프론트엔드 `emitAndAwaitAckEvent` 는 `success === false` 만 쓰고 `resumed` 로 상태를 바꾸지 않는다.
 
 2026-10-17 정정: 이 문서는 큐 적재 실패가 성공 ack 의 `queued: false` 로 드러난다고 적었다. 코드는 그 경우 성공 ack 를 보내지 않고 `errorCode` 없는 실패 ack 를 보낸다. 문서를 코드에 맞춰 §2.2 와 §2.3 을 고쳤다. 기각한 대안은 코드를 바꿔 성공 ack 에 `queued: false` 를 싣는 안이다. 프론트엔드 `emitAndAwaitAckEvent` 는 `success === false` 만 실패로 보므로 그 안에서는 실패가 화면에 보이지 않는다. 진입점마다 다른 표면의 근거는 [큐 워커와 동시 실행 제한 「진입점마다 큐 적재 실패를 다르게 알린다」](../CLE-EXEC/CLE-EXEC-WORKER.md#진입점마다-큐-적재-실패를-다르게-알린다) 에 있다.
 
-### ack callback 표기를 ack 이벤트로 바로잡은 이유 (2026-10-22)
+### ack callback 표기를 ack 이벤트로 바로잡은 이유
 
-이 문서는 재개 명령과 `retry_last_turn` 의 ack 를 Socket.IO ack callback 으로 적었으나 코드는 ack 이벤트로 보낸다. ack 이벤트 이름과 코드가 보내는 payload 필드는 그대로이고 문서만 코드에 맞췄다. 근거는 [WebSocket 연결과 채널 구독 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위 (2026-10-22)」](CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위-2026-10-22) 에 있다.
+결정일: 2026-10-22
+
+이 문서는 재개 명령과 `retry_last_turn` 의 ack 를 Socket.IO ack callback 으로 적었으나 코드는 ack 이벤트로 보낸다. ack 이벤트 이름과 코드가 보내는 payload 필드는 그대로이고 문서만 코드에 맞췄다. 근거는 [WebSocket 연결과 채널 구독 「ack 이벤트 wire 와 HTTP 전용 전역 enhancer 를 바로잡은 경위」](CLE-API-WS.md#ack-이벤트-wire-와-http-전용-전역-enhancer-를-바로잡은-경위) 에 있다.
 
 - ack 예시는 핸들러 반환 형태 `{ event, data }` 로 바꾸고 빠져 있던 `success` 를 실었다.
 - «클라이언트는 `executionId` 만으로 ack 를 맞춘다» 는 프론트엔드 코드와 달라 지우고 실제 짝짓기 방식을 §2.1 에 적었다.

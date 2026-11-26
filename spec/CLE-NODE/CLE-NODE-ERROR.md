@@ -2,19 +2,19 @@
 id: "CLE-NODE-ERROR"
 title: "노드 에러 처리 정책"
 type: "convention"
-version: 13
+version: 14
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "6f0cbe3a22c84b1a5295e36e85b1479df59b1bbf9250deba0448d2778030d2c0"
+content_hash: "b20a7531cb99a7e4d7492c623295a558914219c60ea81928c7fbe716311ffcd9"
 read_as: "approved_fallback"
-task: "CLE-T-1639BP"
+task: "CLE-T-P0W82J"
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "b8a4296e919902c03dfe91073497f733f2d6e406e70fb90b82a5595f7426ded3"
-etag: "sha256-4763091032e377ebe086b1b5fc41276269309082b115960f019baa1539e04b2c"
+mirror_sha256: "429392fc8bc1a9ff3934ad3637e154565a657aec37998576ce9dd3113f83105f"
+etag: "sha256-d949516bf5fe9a8c138849ae4bed3931eda0f4aa1cc37709114f415d8ce62abf"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -138,10 +138,10 @@ flowchart TD
 
 | 노드 카테고리 | 코드 |
 | --- | --- |
-| HTTP | `HTTP_TRANSPORT_FAILED`, `HTTP_4XX`(따라가지 않은 3xx 포함), `HTTP_5XX`, `HTTP_TIMEOUT`(발행하지 않음), `HTTP_BLOCKED`(사설망 차단. `integration` 인증의 리다이렉트 한도 초과도 포함). 조건은 [HTTP 요청 노드 출력 「런타임 에러」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#런타임-에러-port-error)가 정한다. |
+| HTTP | `HTTP_TRANSPORT_FAILED`, `HTTP_4XX`(따라가지 않은 3xx 포함), `HTTP_5XX`, `HTTP_BLOCKED`(사설망 차단. `integration` 인증의 리다이렉트 한도 초과도 포함). 조건은 [HTTP 요청 노드 출력 「런타임 에러」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#런타임-에러-port-error)가 정한다. |
 | Database | `DB_QUERY_FAILED`, `DB_CONNECTION_ERROR`, `DB_CONSTRAINT_VIOLATION`, `DB_PERMISSION_DENIED`, `DB_HOST_BLOCKED` |
 | Email | `EMAIL_SEND_FAILED`, `EMAIL_HOST_BLOCKED`, `EMAIL_NO_RECIPIENTS` |
-| LLM | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, `LLM_RESPONSE_INVALID`, `LLM_TIMEOUT`(발행하지 않음), `MAX_COLLECTION_RETRIES_EXCEEDED` |
+| LLM | `LLM_CALL_FAILED`, `LLM_RATE_LIMIT`, `LLM_RESPONSE_INVALID`, `MAX_COLLECTION_RETRIES_EXCEEDED` |
 | Code | `CODE_EXECUTION_FAILED`, `CODE_TIMEOUT`, `CODE_MEMORY_LIMIT` |
 | 서브 워크플로우 | `SUB_WORKFLOW_FAILED`, `SUB_WORKFLOW_NOT_FOUND`, `SUB_WORKFLOW_TIMEOUT`, `SUB_WORKFLOW_QUEUE_FAILED`, `WORKFLOW_FORBIDDEN_WORKSPACE`. 어떤 실패가 어떤 코드인지는 [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)가 정한다. |
 

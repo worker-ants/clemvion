@@ -10,7 +10,7 @@ import { useT } from "@/lib/i18n";
 import {
   buildInvitationLoginHref,
   invitationAcceptPath,
-} from "@/lib/auth/post-login-redirect";
+} from "@/lib/invitations/accept-path";
 import { isRegisteredEmail } from "@/lib/auth/registered-email";
 import { hasSessionHint } from "@/lib/auth/session-hint";
 

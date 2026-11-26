@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY"
 title: "알림"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-NOTIFY-001", "REQ-NOTIFY-002", "REQ-NOTIFY-003", "REQ-NOTIFY-004", "REQ-NOTIFY-005", "REQ-NOTIFY-006", "REQ-NOTIFY-007", "REQ-NOTIFY-008", "REQ-NOTIFY-009", "REQ-NOTIFY-010", "REQ-NOTIFY-011", "REQ-NOTIFY-012", "REQ-NOTIFY-013", "REQ-NOTIFY-014", "REQ-NOTIFY-015", "REQ-NOTIFY-016", "REQ-NOTIFY-017", "REQ-NOTIFY-018", "REQ-NOTIFY-019", "REQ-NOTIFY-020", "REQ-NOTIFY-021", "REQ-NOTIFY-022", "REQ-NOTIFY-023", "REQ-NOTIFY-024", "REQ-NOTIFY-025", "REQ-NOTIFY-026", "REQ-NOTIFY-027", "REQ-NOTIFY-028", "REQ-NOTIFY-029", "REQ-NOTIFY-030", "REQ-NOTIFY-031", "REQ-NOTIFY-032", "REQ-NOTIFY-033", "REQ-NOTIFY-034", "REQ-NOTIFY-035", "REQ-NOTIFY-036", "REQ-NOTIFY-037", "REQ-NOTIFY-038", "REQ-NOTIFY-039", "REQ-NOTIFY-040", "REQ-NOTIFY-041", "REQ-NOTIFY-042", "REQ-NOTIFY-043", "REQ-NOTIFY-044", "REQ-NOTIFY-045", "REQ-NOTIFY-046", "REQ-NOTIFY-047", "REQ-NOTIFY-048", "REQ-NOTIFY-049", "REQ-NOTIFY-050", "REQ-NOTIFY-051", "REQ-NOTIFY-052", "REQ-NOTIFY-053", "REQ-NOTIFY-054"]
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "d4a94cc481556e54f049dc8539581f23bf113ecf4447f06a2b48796a87569129"
+content_hash: "2c19ed6a6c036426375eaf2f3636275ab88f4788a4cd460d34f442854993342e"
 read_as: "approved_fallback"
-task: "CLE-T-95XJDR"
+task: "CLE-T-86E38Q"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "e1224387c957301f6bc17771be3058c20c61bf094bf46b9f5a3bcd39b816c9d6"
-etag: "sha256-7f5e20e0dfb59d04678c5a1896c6fc93ea6440edef18886f0c51c54341404793"
+mirror_sha256: "982108429dc64e0eec211c31f63ec3f3118f12d08dc707a0adaf6258c2416e0c"
+etag: "sha256-e4cbdbe951c8d159923fad7859cfd48b868f187541d8b35b7e9d968578d9fe2f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -112,7 +112,7 @@ etag: "sha256-7f5e20e0dfb59d04678c5a1896c6fc93ea6440edef18886f0c51c54341404793"
 | `integration_expired` | 구현됨 | `IntegrationExpiryScanner`(`integration-expiry-scanner.service.ts`) | refresh token 이 없는 통합의 토큰 만료 7일·3일·당일 임계. 조건과 문구는 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | 기본 `in_app`. 인앱 키와 `integrationExpiryEmail` 로 계산한다([채널 계산](CLE-OBS-NOTIFY-SETTINGS.md#채널-계산)) | `integration` / 통합 ID |
 | `integration_action_required` | 구현됨 | `IntegrationActionRequiredNotifier.notify`(`integration-action-required-notifier.service.ts`) | 인증 실패(`auth_failed`), transport 3회 연속 실패(`network`), 권한 범위 부족(`insufficient_scope`). 인증 실패는 세 경로에서 나간다. API 호출(Cafe24·MakeShop 클라이언트의 401·403과 토큰 갱신 실패), 연결됨 통합을 `error(auth_failed)` 로 바꾼 OAuth 콜백 코드 교환 실패, MCP 도구 호출 인증 실패다. 설치 대기의 콜백 실패와 상태를 바꾸지 않는 콜백 실패는 보내지 않는다. 경로별 조건과 문구는 [통합 상태와 만료 알림 — 만료 스캐너와 알림 「조치 필요 알림」](../CLE-INT/CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) | 같은 `integrationExpiryEmail` 토글로 계산(전용 토글 없음). 인앱은 끌 수 없다 | `integration` / 통합 ID |
 | `alert_failure_rate`, `alert_duration`, `alert_llm_cost` | 구현됨 | `AlertsEvaluatorService.dispatchBreach` | 알림 규칙 위반. 유형 값은 `alert_` + `AlertRule.type` 이다(`` `alert_${rule.type}` ``) | 워크스페이스 관리자 | 규칙 채널이 `email` 이면 `both`, 아니면 `in_app` | `resource_type='alert_rule'`. 딥링크 매핑이 없어 누르면 이동하지 않는다 |
-| `team_invite` | 구현됨 | `WorkspaceInvitationsService.dispatchTeamInviteNotification` | 초대 대상 이메일이 이미 가입한 비멤버일 때 | 초대받은 사용자. 아직 그 워크스페이스 멤버가 아니라서 벨 조회는 이 유형만 워크스페이스 조건을 따르지 않는다([알림 API](CLE-OBS-NOTIFY-INBOX.md#알림-api)) | `in_app`. 이메일은 초대 링크 이메일이 맡는다([Rationale](CLE-OBS-NOTIFY-SETTINGS.md#팀-초대-알림은-인앱-채널로만-보낸다)) | `resource_id` 는 초대 ID. 누르면 `/profile` 로 이동 |
+| `team_invite` | 구현됨 | `WorkspaceInvitationsService.dispatchTeamInviteNotification` | 초대 대상 이메일이 이미 가입한 비멤버일 때 | 초대받은 사용자. 아직 그 워크스페이스 멤버가 아니라서 벨 조회는 이 유형만 워크스페이스 조건을 따르지 않는다([알림 API](CLE-OBS-NOTIFY-INBOX.md#알림-api)) | `in_app`. 이메일은 초대 링크 이메일이 맡는다([Rationale](CLE-OBS-NOTIFY-SETTINGS.md#팀-초대-알림은-인앱-채널로만-보낸다)) | `resource_id` 는 초대 ID. 누르면 그 초대의 수락 페이지로 이동 |
 | `marketplace_update` | 미구현 | (도입하면) 마켓플레이스 모듈 | 설치한 템플릿·에이전트의 새 버전([마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md)) | — | 기본 인앱. 이메일은 도입할 때 opt-in 으로 둔다 | — |
 
 통합 알림 두 유형은 성격으로 나눈다. `integration_expired` 는 토큰 만료가 다가오거나 닥쳤음을 알리는 수동적 안내다. `integration_action_required` 는 운영 중 생긴 장애라 사용자가 바로 손봐야 하는 능동적 경보다. 설치 대기가 만료되는 `install_timeout` 에는 알림을 보내지 않는다. 자세한 기준은 [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) 에 있다.
@@ -164,7 +164,6 @@ sequenceDiagram
 ## 미결 사항
 
 - **전체 알림 페이지와 팝오버 구성**: 원문 알림 센터 절(9-user-profile §5.2)은 벨 드롭다운의 최근 알림 최대 10개와 "View all" 링크, 유형·읽음 필터와 페이지네이션이 있는 전체 알림 페이지를 적는다. 원문 레이아웃(§3.1)은 팝오버만 정의하고 전체 알림 페이지를 말하지 않는다. 현재 구현에는 전체 알림 페이지 라우트가 없다. 전체 알림 페이지를 만들지, 요구에서 뺄지 결정이 필요하다.
-- **초대 알림의 딥링크 목적지**: 지금은 `/profile` 로 이동하는데 프로필 화면에는 초대를 확인하거나 수락하는 영역이 없다. 알림에는 초대 토큰이 없고 `resource_id` 는 초대 ID 라서 수락 화면으로 보내려면 초대 ID 로 여는 경로가 필요하다. NERV Task `CLE-T-86E38Q` 에서 정한다.
 
 ## 구현 위치
 
@@ -190,9 +189,11 @@ sequenceDiagram
 - **(a) `workspace_id` 가 없는 사용자 범위 알림**: 컬럼의 NOT NULL 과 FK 를 바꾸는 마이그레이션이 필요하고 CASCADE 정리를 잃는다. `workspace_id` 를 전제로 한 다른 조회(중복 방지 `hasRecentByResource` 등)도 다시 봐야 한다.
 - **(b) 받는 사람의 개인 워크스페이스로 저장**: 받는 사람이 다른 팀 워크스페이스를 보고 있으면 여전히 보이지 않는다. 초대와 무관한 워크스페이스에 행이 생기고 초대한 워크스페이스 삭제와의 연결도 끊긴다.
 
-사용자가 2026-11-20 조율 세션에서 (c)로 진행하라고 답했다. 딥링크 목적지는 NERV Task `CLE-T-86E38Q` 로 떼어 [미결 사항](#미결-사항) 에 남겼다.
+사용자가 2026-11-20 조율 세션에서 (c)로 진행하라고 답했다. 딥링크 목적지는 NERV Task `CLE-T-86E38Q` 에서 초대 id 로 여는 수락 페이지로 정했다([초대](../CLE-ACCT/CLE-ACCT-WS-INVITE.md#초대-알림은-초대-id-로-수락-페이지를-연다)).
 
-### 조치 필요 알림의 계기를 세 경로로 맞췄다 (2026-11-14)
+### 조치 필요 알림의 계기를 세 경로로 맞췄다
+
+결정일: 2026-11-14
 
 알림 유형 표의 `integration_action_required` 행은 인증 실패 계기를 «토큰 갱신 실패» 하나로 적었다. 정본인 [통합 상태와 만료 알림 — 만료 스캐너와 알림 「조치 필요 알림」](../CLE-INT/CLE-INT-STATUS-SCAN.md#조치-필요-알림-integration_action_required) 은 OAuth 콜백 코드 교환 실패와 MCP 도구 호출 인증 실패도 같은 알림을 보낸다고 적는다(NERV Task `CLE-T-MQSRDS` · `CLE-T-184JJD`). NERV Task `CLE-T-BDPE71` · `CLE-T-N121VD` 에서 행을 세 경로로 맞추고 조건과 문구는 정본으로 넘겼다. 발사 함수 이름도 구현 클래스(`IntegrationActionRequiredNotifier`)에 맞췄다. 알림 동작은 바뀌지 않았다.
 
@@ -209,7 +210,9 @@ SMTP 실패는 대개 일시적이다. 하지만 알림 도메인이 자체 재�
 
 헬퍼가 `is_read` 를 무시하는 것과 같은 원리로 두 표시 축(`is_read`, `dismissed_at`) 모두 중복 방지에 영향을 주지 않는다. 앞으로 별도 옵션으로 나누지 않는다.
 
-### 교차 행 스케줄의 건너뛴 발사에는 `schedule_failed` 를 보내지 않는다 (2026-10-05)
+### 교차 행 스케줄의 건너뛴 발사에는 `schedule_failed` 를 보내지 않는다
+
+결정일: 2026-10-05
 
 스케줄의 연결 트리거가 다른 워크스페이스의 워크플로우를 가리키면(저장 경계 이전의 교차 행) Cron 발사를 건너뛴다([데이터 모델 개요 「저장된 교차 행 점검」](../CLE-PLAT/CLE-PLAT-DATA.md#저장된-교차-행-점검)). 이때 `schedule_failed` 의 수신자인 워크플로우 소유자는 다른 워크스페이스 사람이다. 보내면 그 사람이 남의 스케줄 실패를 받고 알림의 `workspaceId` 는 스케줄의 워크스페이스라 맞지 않는다. 재시도해도 결과가 같아 발사마다 같은 알림이 쌓인다.
 

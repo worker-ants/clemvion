@@ -536,7 +536,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       );
     });
 
-    it("등록된 3종이 **실제로 접두 전용**이다 (죽은 등록 방지)", () => {
+    it("등록된 항목이 **실제로 접두 전용**이다 (죽은 등록 방지)", () => {
       // 등록만 해 두고 실제로는 발행되기 시작하면 이 항목은 **거짓말**이 된다.
       // 그때 이 단언이 RED 로 알리고, 항목을 지우라는 신호가 된다.
       const notActuallyPrefixOnly = GUIDE_NON_EMITTED_VOCABULARY.filter(
@@ -545,7 +545,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       expect(notActuallyPrefixOnly.map((e) => e.token)).toEqual([]);
     });
 
-    it("등록된 3종이 **기준집합에 있다** (외부 어휘 목록과 제약이 반대)", () => {
+    it("등록된 항목이 **기준집합에 있다** (외부 어휘 목록과 제약이 반대)", () => {
       // `GUIDE_EXTERNAL_VOCABULARY` 는 *"기준집합에 없을 것"*, 이쪽은 *"있을 것"*.
       // 제약이 정확히 반대라 두 목록은 합칠 수 없다 — 합치면 예외 하나가 두 축을 덮는다.
       const notInBasis = GUIDE_NON_EMITTED_VOCABULARY.filter(
@@ -713,17 +713,24 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       expect(GUIDE_NON_EMITTED_VOCABULARY.length).toBeGreaterThan(0);
     });
 
-    it("[회귀] `MAX_ITERATIONS_EXCEEDED` 는 **소비자-인용 때문에** 통과한다 (카탈로그 아님)", () => {
-      // **첫 판 제목은 "카탈로그 덕에 통과한다" 였고 그것은 거짓이었다**
-      // (`/ai-review` `review/code/2026/09/13/19_23_22` requirement WARNING#3 · 직접 재현).
-      // 단계별 실측이 실제 경로를 보여준다:
+    it("[회귀] `MAX_ITERATIONS_EXCEEDED` 는 **등록 때문에** 통과한다 (카탈로그 아님)", () => {
+      // 예전에는 분류기의 소비자 Set 인용 때문에 접두 전용 단계에서 먼저 탈락했다. 그 인용을
+      // 지웠으므로(NERV Task `CLE-T-P0W82J`) 단계별 실측이 바뀌었다:
       expect(messagePrefixes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
-      // ↓ `execution-failure-classifier.ts:76` 의 **소비자 Set** 이 정확 리터럴로 인용한다.
-      expect(quotedLiterals.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
-      // ⇒ 접두-전용 단계에서 탈락하므로 **카탈로그 검사에 도달하지 않는다.**
-      expect(prefixOnly("MAX_ITERATIONS_EXCEEDED")).toBe(false);
-      // 카탈로그에 있는 것은 사실이지만 **통과 근거가 아니다.** 그 구분이 이 테스트다.
+      // ↓ 정확 리터럴로 인용하는 소스가 이제 없다.
+      expect(quotedLiterals.has("MAX_ITERATIONS_EXCEEDED")).toBe(false);
+      // ⇒ 접두 전용으로 남아 카탈로그 · 등록 검사까지 간다.
+      expect(prefixOnly("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+      // 카탈로그 행은 «코드가 아니다» 라고 적은 안내용 행이다. 그 행으로 통과하면 거짓 통과라
+      // 통과 근거는 등록이어야 한다. 카탈로그를 비워도 offender 가 아니어야 한다.
       expect(catalogCodes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+      expect(registeredNonEmitted.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+      expect(
+        computeNonEmittedOffenders(["MAX_ITERATIONS_EXCEEDED"], {
+          ...sets,
+          catalogCodes: new Set<string>(),
+        }),
+      ).toEqual([]);
 
       // 대조 — `CONTAINER_MISSING_EMIT` 는 소비자 인용이 없어 접두-전용으로 남고,
       // 카탈로그에도 없어 등록이 필요하다(행으로 등재하지 않기로 정했다, NERV Task
@@ -732,18 +739,17 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       expect(catalogCodes.has("CONTAINER_MISSING_EMIT")).toBe(false);
     });
 
-    it("[한계] 카탈로그 탈출구는 **오늘 한 번도 발화하지 않는다**", () => {
-      // 전수 실측: 인용된 «접두 전용» 중 카탈로그 등재 0종. 즉 이 필터는 현재 죽은
-      // 경로다 — 그 사실을 숨기지 않고 **숫자로 고정**한다.
+    it("[한계] 카탈로그 탈출구가 구하는 이름은 **전부 등록돼 있다**", () => {
+      // 전수 실측: 인용된 «접두 전용» 중 카탈로그 등재는 `MAX_ITERATIONS_EXCEEDED` 1종이다.
+      // 분류기 인용을 지우면서(NERV Task `CLE-T-P0W82J`) 처음 발화했다. 그 행은 «코드가
+      // 아니다» 라고 적은 안내용 행이라 그 이름은 등록으로 통과시킨다. 그 사실을 **숫자로
+      // 고정**한다.
       //
       // `CONTAINER_*` 는 「6.5」 에 등재하지 않기로 정했다(2026-11-12, NERV Task
-      // `CLE-T-1W44RD`). 그래서 등재로 이 탈출구가 발화할 일은 없다. 그래도 남기는 이유는
-      // `collectCatalogCodes` JSDoc 「그래도 남기는 이유」 에 있다.
+      // `CLE-T-1W44RD`). 그래도 탈출구를 남기는 이유는 `collectCatalogCodes` JSDoc 에 있다.
       //
-      // **언젠가 이 수가 0이 아니게 되면 이 단언이 RED 로 알린다.** 가장 먼저 올 후보는
-      // `MAX_ITERATIONS_EXCEEDED` 다. 분류기 인용이 지워지면(NERV Task `CLE-T-8WXV7T`) 이
-      // 탈출구가 «코드가 아니다» 라고 적은 카탈로그 행으로 그 이름을 구한다. 그 RED 는
-      // 등록을 지워도 된다는 뜻이 아니다. 카탈로그 행을 지우거나 그 이름을
+      // **새 이름을 탈출구가 구하기 시작하면 이 단언이 RED 로 알린다.** 그 RED 는 등록을
+      // 건너뛰어도 된다는 뜻이 아니다. 카탈로그 행이 정식 코드인지 보고, 아니면 그 이름을
       // `GUIDE_NON_EMITTED_VOCABULARY` 에 등록한다.
       // **정본으로 센다** — 카탈로그를 비운 집합으로 한 번 더 돌려, 그 차이가 곧
       // «탈출구가 구한 토큰» 이다. 손 계산이 아니라 판정 함수 자신의 출력 차이다.
@@ -762,7 +768,11 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       const rescuedByCatalog = withoutCatalog.filter(
         (t) => !withCatalog.includes(t),
       );
-      expect(rescuedByCatalog).toEqual([]);
+      expect(rescuedByCatalog).toEqual(["MAX_ITERATIONS_EXCEEDED"]);
+      // 등록되지 않은 이름을 탈출구가 구하는 일은 없어야 한다.
+      expect(rescuedByCatalog.filter((t) => !registeredNonEmitted.has(t))).toEqual(
+        [],
+      );
     });
 
     it("[대조군] 그래도 탈출구가 **작동은 한다** (합성 입력)", () => {
@@ -1089,7 +1099,7 @@ describe("isMessagePrefixOnly — 진리표 대조군", () => {
   });
 
   it("(접두 O, 리터럴 O) → false — 소비자·분류기가 인용한다", () => {
-    // 실제 코퍼스의 `MAX_ITERATIONS_EXCEEDED` 가 이 칸이다.
+    // 분류기 인용을 지우기 전(NERV Task `CLE-T-P0W82J`)의 `MAX_ITERATIONS_EXCEEDED` 가 이 칸이었다.
     expect(P(["A_ONE"], ["A_ONE"])("A_ONE")).toBe(false);
   });
 

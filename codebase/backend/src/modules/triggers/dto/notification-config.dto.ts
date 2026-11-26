@@ -96,7 +96,7 @@ export class NotificationConfigDto {
   /** 이벤트 수신 URL. https 만 허용 (개발 ALLOW_HTTP_HOOKS=1 예외). */
   @ApiProperty({
     description:
-      'Outbound notification 수신 URL. https 만 허용. 사설 IP/loopback/metadata IP 는 차단. 리다이렉트(3xx)는 따라가지 않고 발송 실패로 보므로 최종 주소를 등록해야 한다. userinfo(user:password@)가 든 URL 은 400 INVALID_NOTIFICATION_URL 로 거부하고, 이미 저장된 URL 의 userinfo 는 응답에서 *** 로 가린다.',
+      'Outbound notification 수신 URL. https 만 허용. 사설 IP/loopback/metadata IP 는 차단. 리다이렉트(3xx)는 따라가지 않고 발송 실패로 보므로 최종 주소를 등록해야 한다. userinfo(user:password@)가 든 URL 은 400 INVALID_NOTIFICATION_URL 로 거부하고, 이미 저장된 URL 의 userinfo 는 응답에서 *** 로 가린다. 가린 URL 을 그대로 다시 보내도 같은 400 INVALID_NOTIFICATION_URL 로 거부하므로 저장된 자격 증명은 바뀌지 않는다.',
     example: 'https://customer.example/webhook/wf-callback',
   })
   @IsString()

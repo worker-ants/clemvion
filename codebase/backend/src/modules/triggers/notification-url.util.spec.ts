@@ -67,6 +67,21 @@ describe('maskNotificationUrlUserinfo', () => {
     expect(maskNotificationUrlUserinfo(url)).toBe(expected);
   });
 
+  // 원문이 `scheme://` 로 시작하지 않아도 WHATWG 파서는 특수 스킴의 userinfo 를 읽는다. 이런 원문은 위 정규식이
+  // 못 잡으므로 파서 결과로 다시 쓰는 갈래를 탄다. 나가는 값은 정규화된 모양이고 자격 증명은 남지 않는다.
+  it.each([
+    'https:\\\\alice:s3cr3t@hooks.example.com/a',
+    'https:/alice:s3cr3t@hooks.example.com/a',
+    'https:alice:s3cr3t@hooks.example.com/a',
+    ' https://alice:s3cr3t@hooks.example.com/a',
+    '\thttps://alice:s3cr3t@hooks.example.com/a',
+  ])('정규식이 못 잡는 %j 는 파서 결과로 가린다', (url) => {
+    const masked = maskNotificationUrlUserinfo(url);
+    expect(masked).toBe('https://***@hooks.example.com/a');
+    expect(masked).not.toContain('alice');
+    expect(masked).not.toContain('s3cr3t');
+  });
+
   it.each([
     'https://hooks.example.com/a?next=https://x@y',
     'https://@hooks.example.com/a',

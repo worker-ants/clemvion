@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-INVITE"
 title: "워크스페이스와 멤버 — 초대"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "68de686d671022a696ffa5f121615cbab85fe8940c51e888ca8d5670c1be305a"
+content_hash: "60205b12620e361e13bc619a8a56bbf7c6c4d7c148a739c27cb1e14859494612"
 read_as: "approved_fallback"
-task: "CLE-T-2M6Q02"
+task: "CLE-T-86E38Q"
 source_paths: []
-mirror_sha256: "294337029ffc4b12dac646cf1b354cbc4271c02ea6c8745bb5dd126b2635f69a"
-etag: "sha256-08a84728c0246ce043ec24fc79caaebb9369ad2b45ff2e1fd5da74aa926204cd"
+mirror_sha256: "ae77b87c70ca824d1f0ec75f5037cfeacad97ddd7eb2a7455af16c2b8580489a"
+etag: "sha256-d97849ee8391e2c1d168fc0cf404289b1b679941d8d9dee8a62e584c5026909a"
 ---
 ## 개요
 
@@ -80,6 +80,8 @@ sequenceDiagram
 
 수락 페이지 경로는 `/invitations/accept?token=<초대 토큰>` 이다(쿼리 파라미터 `token`). 화면은 슬러그 경로 `app/(main)/w/[slug]/invitations/accept/**` 에 있다. 슬러그 없는 `/invitations/accept` 로 들어오면 옛 경로 흡수 라우트가 쿼리를 그대로 둔 채 현재 워크스페이스의 슬러그 경로로 넘긴다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)).
 
+인앱 초대 알림(`team_invite`)은 토큰 대신 초대 id 로 수락 페이지를 연다. 경로는 `/invitations/accept?invitationId=<초대 id>` 이다([알림 「딥링크」](../CLE-OBS/CLE-OBS-NOTIFY-INBOX.md#딥링크)). 수락 페이지는 `GET /api/users/me/invitations/:invitationId` 로 메타를 받고 [수락] 을 누르면 `POST /api/users/me/invitations/:invitationId/accept` 를 부른다. 서버는 초대 이메일이 로그인 이메일(소문자)과 같은 초대만 찾는다. 없거나 남의 초대면 404 `invitation_not_found` 다. 초대 id 는 `ParseUUIDPipe` 가 형식을 보되 예외를 같은 404 로 바꾼다. UUID 형식이 아니어도 같은 404 다. 쿼리에 `token` 이 함께 있으면 토큰 모드로 연다. 찾은 뒤의 검사(이미 수락 · 만료는 410)와 수락 트랜잭션, 응답은 토큰 수락과 같다. 취소한 초대는 행이 지워져 404 다. 수락 페이지는 이 실패를 기존 오류 상태로 보여 준다. 이 모드에는 이메일 불일치 안내가 없다. 근거는 Rationale 「[초대 알림은 초대 id 로 수락 페이지를 연다](#초대-알림은-초대-id-로-수락-페이지를-연다)」 에 있다.
+
 수락 페이지에 닿는 경로는 로그인 상태에 따라 다르다. 분기는 [초대 가입 화면](#초대-가입-화면) 에 있다.
 
 - 이미 로그인한 사용자가 초대 가입 링크로 들어오면 가입 페이지가 로그인 힌트 쿠키를 보고 이 수락 페이지로 보낸다.
@@ -117,7 +119,7 @@ sequenceDiagram
 
 | 상황 | HTTP | 코드 |
 | --- | --- | --- |
-| 토큰 없음·잘못된 형식 | 404 | `invitation_not_found` |
+| 토큰 없음·잘못된 형식, 초대 id 로 본인 초대를 찾지 못함 | 404 | `invitation_not_found` |
 | 만료 | 410 | `invitation_expired` |
 | 이미 사용됨 (동시 수락에서 진 쪽 포함) | 410 | `invitation_already_used` |
 | 이메일 불일치 (수락 또는 가입) | 400 | `invitation_email_mismatch` |
@@ -127,26 +129,28 @@ sequenceDiagram
 | 수락된 초대의 재발송·취소 | 409 | `invitation_already_accepted` |
 | 권한 부족 (발송·재발송·취소) | 403 | `ADMIN_REQUIRED`. 비멤버는 `NOT_A_MEMBER` |
 | 소유자가 아닌 요청자의 관리자 역할 초대, 관리자 역할 대기 초대 덮어쓰기 | 403 | `OWNER_REQUIRED` |
-| 요청 한도 초과 | 429 | 원문은 `rate_limited`. 정의가 갈린다. [미결 사항](CLE-ACCT-WS.md#미결-사항) 참조 |
+| 요청 한도 초과 | 429 | `RATE_LIMITED`(전역 예외 필터) |
 
 초대 흐름 코드는 표기 규칙(`UPPER_SNAKE_CASE`)과 달리 `lower_snake_case` 다. v1 에서 굳었고 프론트엔드(`invitations.ts` 의 `INVITATION_ERROR`)가 `code` 값으로 분기해 이름을 바꾸면 API 호환이 깨진다. "이름을 더 정확하게 하려고 바꾸지는 않는다" 는 규칙에 따라 예외 등록 코드로 유지한다. 새 코드는 이 예외를 선례로 삼지 않고 처음부터 `UPPER_SNAKE_CASE` 를 쓴다. 권한 부족 `ADMIN_REQUIRED`(`RolesGuard`)와 서비스 계층의 `OWNER_REQUIRED` 는 대문자라 이 예외에 들지 않는다. 예외 목록과 근거는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 가 관리한다.
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts`, `codebase/backend/src/modules/workspaces/invitations.controller.ts` (초대 발급·수락·재발송·취소, 공개 메타 조회)
+- `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts` (초대 발급·수락·재발송·취소. 라우트는 `workspaces.controller.ts`), `codebase/backend/src/modules/workspaces/invitations.controller.ts` (공개 토큰 메타 조회)
+- `codebase/backend/src/modules/workspaces/my-invitations.controller.ts` (초대 id 로 하는 본인 초대 조회·수락)
 - `codebase/backend/src/modules/mail/**` (초대 메일)
-- `codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**` (수락 페이지. 대소문자를 구분하지 않는 이메일 비교, «다른 계정으로 로그인»)
+- `codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**` (수락 페이지. 대소문자를 구분하지 않는 이메일 비교, «다른 계정으로 로그인», 초대 id 모드)
 - `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (슬러그 없는 `/invitations/accept` 를 쿼리를 둔 채 슬러그 경로로 넘긴다)
 - `codebase/frontend/src/components/auth/register-form.tsx` (초대 토큰 가입 제출, 이메일 중복으로 끝난 제출의 기존 가입자 분기, 초대 흐름의 로그인 링크)
 - `codebase/frontend/src/components/auth/use-invitation-gate.ts` (초대 가입 화면의 진입 판정 `useInvitationGate`: 이미 로그인한 사용자, 기존 가입자를 로그인 화면으로 보내는 분기, 가입 폼 열기)
 - `codebase/frontend/src/components/auth/__tests__/use-invitation-gate.test.ts` (진입 판정 순서와 한 번만 이동하는지)
 - `codebase/frontend/src/components/auth/login-form.tsx` (복귀 경로가 초대 수락 페이지일 때의 안내 문구)
-- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (수락 페이지 경로 `invitationAcceptPath`, 로그인 경로 `buildLoginHref`, 초대 흐름의 로그인 경로 `buildInvitationLoginHref`)
+- `codebase/frontend/src/lib/invitations/accept-path.ts` (수락 페이지 경로 `invitationAcceptPath` · `invitationAcceptByIdPath`, 판정 `isInvitationAcceptPath`, 초대 흐름의 로그인 경로 `buildInvitationLoginHref`)
+- `codebase/frontend/src/lib/invitations/__tests__/accept-path.test.ts`
 - `codebase/frontend/src/lib/auth/registered-email.ts` (초대 가입 화면의 가입 여부 확인 `isRegisteredEmail` 과 5초 제한 `REGISTERED_EMAIL_CHECK_TIMEOUT_MS`)
 - `codebase/frontend/src/lib/auth/__tests__/registered-email.test.ts` (가입 여부 판정과 확인 실패 처리)
 - `codebase/frontend/src/lib/auth/session-hint.ts` (가입 화면이 이미 로그인한 사용자를 알아보는 `hasSessionHint`. 쿠키 규약과 테스트는 [세션과 토큰 「로그인 힌트 쿠키」](CLE-ACCT-SESSION.md#로그인-힌트-쿠키) 에 있다)
 - `codebase/frontend/src/proxy.ts` (옛 초대 링크 `/auth/register` 리다이렉트)
-- `codebase/frontend/src/lib/api/invitations.ts`
+- `codebase/frontend/src/lib/api/invitations.ts` (토큰 메타 조회, 초대 id 로 하는 본인 초대 조회·수락)
 
 ## Rationale
 
@@ -199,19 +203,13 @@ sequenceDiagram
 
 - `/auth/register` 라우트를 새로 만든다: 가입 화면은 `(auth)` 라우트 그룹의 `/register` 하나인데 같은 화면에 진입점이 하나 더 생긴다. 로그인하지 않은 받는 사람이 그 경로에 닿으려면 `proxy.ts` 의 공개 경로 목록 `publicPaths` 에도 경로를 더해야 한다. 리다이렉트는 화면 라우트를 늘리지 않는 URL 별칭이다.
 
-### 초대 가입 요청 본문을 구현에 맞췄다
-
-결정일: 2026-10-17
-
-초대 가입 요청을 `{ name, password, invitationToken }` 으로 적고 서버가 이메일을 토큰에서 가져온다고 했던 서술을 구현에 맞췄다. 구현은 일반 가입과 같은 본문을 받는다(`register-form.tsx`, `AuthService.registerWithInvitation`). 서버는 입력 이메일을 토큰 이메일과 비교하고 다르면 400 `invitation_email_mismatch` 로 거부한다. 동작은 바뀌지 않았다.
-
 ### 로그인하지 않은 기존 가입자는 로그인 뒤 수락 페이지로 보낸다
 
 결정일: 2026-10-18
 
 2026-10-10 에 사용자가 아래 선택지 (a) 를 승인했고 2026-10-18 에 구현했다.
 
-초대 메일 링크는 받는 사람이 가입했는지와 상관없이 `/register?invitationToken=…` 이다. 전에는 로그인하지 않은 기존 가입자가 이 링크를 열면 읽기 전용으로 잠긴 초대 이메일의 가입 폼이 보였다. 제출하면 서버가 이메일 중복을 초대 처리보다 먼저 확인해 409 `RESOURCE_CONFLICT`(`Email already registered`)로 거부했다(`auth.service.ts` 의 `register`). 가입 폼 아래 로그인 링크는 초대 토큰과 `redirect` 없이 `/login` 으로만 가서 로그인한 뒤에도 수락 페이지로 돌아오지 못했다.
+초대 메일 링크는 받는 사람이 가입했는지와 상관없이 `/register?invitationToken=…` 이다. 전에는 로그인하지 않은 기존 가입자가 이 링크로 잠긴 가입 폼을 제출하면 409 `RESOURCE_CONFLICT` 로 거부됐다. 가입 폼 아래 로그인 링크는 `redirect` 없이 `/login` 으로만 가서 로그인 뒤 수락 페이지로 돌아오지 못했다.
 
 지금은 가입 화면이 토큰 이메일의 가입 여부를 확인해 로그인 화면으로 보낸다. 로그인 뒤에는 수락 페이지로 돌아온다([초대 가입 화면](#초대-가입-화면)). 수락은 자동으로 되지 않고 사용자가 수락 페이지에서 [수락] 을 누른다.
 
@@ -235,7 +233,7 @@ sequenceDiagram
 
 이 안전망이 409 `RESOURCE_CONFLICT` 를 이메일 중복으로 보는 규칙은 아래 「[가입 이메일 중복에 전용 코드를 두지 않는다](#가입-이메일-중복에-전용-코드를-두지-않는다)」 에서 정했다.
 
-대문자가 섞인 이메일로 가입한 기존 계정이 가입되지 않은 것으로 판정되던 한계는 2026-11-05 에 `check-email`, 가입의 이메일 중복 확인, 로그인이 이메일을 대소문자 구분 없이 비교하게 되면서 풀렸다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)). 그 전에는 이 사용자가 가입 폼을 제출하면 409 없이 소문자 이메일 계정이 새로 생겨 워크스페이스에 들어갔다. 2026-11-06 에는 멤버 직접 추가와 초대도 같은 규칙으로 기존 사용자를 찾게 했다([직접 추가](CLE-ACCT-WS-MEMBER.md#직접-추가), [초대](#초대)). 그 전에는 두 경로가 이메일을 대소문자까지 그대로 비교했다. 직접 추가는 입력의 대소문자가 저장된 이메일과 다르면 가입한 사용자여도 404 `USER_NOT_FOUND` 였다. 초대는 정규화 전에 대문자를 섞어 가입한 계정을 찾지 못했다. 그 계정이 이미 멤버여도 409 `already_a_member` 로 막히지 않았다. 멤버가 아니면 인앱 알림 `team_invite` 가 가지 않았다. 수락은 그때도 로그인 이메일을 소문자로 바꿔 비교해서 그 계정도 초대를 수락할 수 있었다.
+대문자가 섞인 이메일로 가입한 기존 계정이 가입되지 않은 것으로 판정되던 한계는 풀렸다. 2026-11-05 에 `check-email` · 가입 · 로그인이, 2026-11-06 에 멤버 직접 추가와 초대가 이메일을 대소문자 구분 없이 비교하게 됐다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)).
 
 ### 가입 여부 확인은 이메일 존재를 새로 노출하지 않는다
 
@@ -250,19 +248,12 @@ sequenceDiagram
 
 이 확인으로 드러나는 것은 가입 여부뿐이다. 응답에는 `available` 하나만 있어 인증 상태나 잠금 여부는 드러나지 않는다. 그래서 이메일 인증 전 상태를 비밀번호가 맞을 때만 알리는 로그인 규칙과 어긋나지 않는다([가입과 로그인](CLE-ACCT-SIGNIN.md) Rationale 「이메일 인증 전 계정은 비밀번호가 맞을 때만 알린다」). 계정이 있는지는 `check-email` 이 이미 공개한 정보다. 인용한 로그인 규칙이 지키는 것은 계정의 인증 상태다.
 
-`check-email` 은 2026-11-05 부터 이메일을 대소문자 구분 없이 비교한다([가입과 로그인 「이메일 비교 규칙」](CLE-ACCT-SIGNIN.md#이메일-비교-규칙)).
-
-### 초대 가입 뒤 도착 화면에 세션과 토큰 문서의 미결 사항을 이었다
-
-결정일: 2026-10-22
-
-초대 토큰 가입의 자동 로그인이 로그인 힌트 쿠키를 심지 않아 가입 뒤 보호 경로에서 로그인 화면이 다시 나왔다. 이 사실이 [세션과 토큰 「미결 사항」](CLE-ACCT-SESSION.md#미결-사항) 에만 있어서 「초대 가입 화면」 9단계와 「미가입자 가입 경로」 4단계에 지금 동작과 미결 사항 링크를 더했다. 동작 규칙은 바뀌지 않았다. 그 뒤 로그인 세션을 만드는 진입점을 `establishSession` 으로 모으면서 두 문장을 지웠다. 이 문서의 요구사항은 모두 구현됐고 로그인 힌트 쿠키 요구는 세션과 토큰 문서가 정한다.
 
 ### 초대 가입 화면의 진입 판정을 한 훅에 모았다
 
 결정일: 2026-10-22
 
-가입 폼 컴포넌트에 진입 판정이 effect 세 개와 제출 실패 분기로 흩어져 있었다. 기존 가입자 상태를 만드는 곳이 두 곳이었고 로그인 화면으로 보내는 일은 그 상태를 지켜보는 세 번째 effect 가 했다. 그래서 router 참조가 바뀌어 effect 가 다시 돌 때를 막는 가드가 따로 있어야 했다. 로그인 힌트도 두 번 읽었다.
+가입 폼 컴포넌트에 진입 판정이 effect 세 개와 제출 실패 분기로 흩어져 있었다. 기존 가입자 상태를 만드는 곳이 두 곳이었고 effect 재실행을 막는 가드가 따로 필요했다.
 
 판정을 `use-invitation-gate.ts` 의 훅 하나에 모았다. 이 훅은 토큰마다 한 번 판정하고 로그인 힌트도 한 번만 읽는다. 판정과 제출 실패는 기존 가입자를 같은 함수로 로그인 화면에 보낸다. 가입 여부 확인은 토큰 메타 조회가 성공한 뒤에만 한다는 규칙은 그대로다. 이미 로그인한 사용자는 이제 토큰 메타도 조회하지 않고 수락 페이지로 간다. 그 메타는 쓰이지 않았고 수락 페이지가 다시 조회한다. 나머지 동작은 바뀌지 않았다.
 
@@ -289,3 +280,20 @@ NERV Task `CLE-T-2M6Q02` 에서 사람이 정했다. 초대 가입 화면은 가
 재검토 조건이 하나 있다. 가입 요청에 이메일 중복이 아닌 409 를 더하게 되면 그때 이메일 중복 전용 코드를 만든다. 새 코드는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 8 에 따라 카탈로그에 올린다. 카탈로그 쪽 기록은 [에러 코드 카탈로그 — 인증 · 인가 · 워크스페이스](../CLE-API/CLE-API-ERRCODES-AUTH.md) 에 있다.
 
 기각한 대안은 가입 이메일 중복 전용 코드(예: `EMAIL_ALREADY_REGISTERED`)를 만드는 안이다. 위 세 이유로 기각했다.
+
+### 초대 알림은 초대 id 로 수락 페이지를 연다
+
+결정일: 2026-11-26
+
+NERV Task `CLE-T-86E38Q` 에서 사람이 정했다. 인앱 초대 알림에는 토큰이 없고 `resource_id` 가 초대 id 다. 그래서 알림을 누르면 `/profile` 로 갔는데 그 화면에는 초대를 수락하는 영역이 없었다.
+
+로그인한 사용자가 초대 id 로 자기 초대를 조회 · 수락하는 API 를 두고 기존 수락 페이지에 초대 id 모드를 더했다. 토큰 없이 초대 id 와 로그인 이메일 일치만으로 수락을 받는다.
+
+- 토큰 수락도 받는 사람은 로그인 이메일과 초대 이메일의 일치로 가린다(「[초대 수락·가입 때 이메일 일치를 강제한다](#초대-수락가입-때-이메일-일치를-강제한다)」). 로그인은 이메일 인증을 마친 계정만 할 수 있다. 소셜 가입 계정은 제공자가 인증한 이메일로 만든다. 그래서 로그인 이메일 일치는 토큰과 같은 수준으로 그 메일함의 주인임을 보여 준다.
+- 남의 초대 id 에는 403 대신 404 를 준다. 초대 id 를 알아도 다른 사람의 초대가 있는지 알 수 없다.
+- 알림을 눌러도 바로 수락하지 않는다. 토큰 모드처럼 초대 내용을 보고 [수락] 을 눌러야 멤버가 된다.
+
+기각한 안은 둘이다.
+
+- 프로필에 「받은 초대」 영역을 새로 둔다: 내 이메일의 대기 초대 목록 API 와 프로필 구역이 새로 필요하다. 수락 페이지에는 이미 준비 · 수락 중 · 성공 · 오류 상태가 있다.
+- `/profile` 을 그대로 두고 스펙만 지금 동작으로 적는다: 알림을 눌러도 초대를 수락할 길이 없다.
