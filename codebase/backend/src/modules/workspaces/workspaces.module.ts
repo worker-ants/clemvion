@@ -8,6 +8,7 @@ import { User } from '../users/entities/user.entity';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
 import { InvitationsController } from './invitations.controller';
+import { MyInvitationsController } from './my-invitations.controller';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import {
   WorkspaceInvitationsPrunerService,
@@ -39,7 +40,11 @@ import { UsersModule } from '../users/users.module';
     forwardRef(() => UsersModule),
     BullModule.registerQueue({ name: WORKSPACE_INVITATIONS_PRUNER_QUEUE }),
   ],
-  controllers: [WorkspacesController, InvitationsController],
+  controllers: [
+    WorkspacesController,
+    InvitationsController,
+    MyInvitationsController,
+  ],
   providers: [
     WorkspacesService,
     WorkspaceInvitationsService,

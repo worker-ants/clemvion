@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-AUTHZ"
 title: "워크스페이스와 멤버 — API 인가"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "0ce2da92c8449493c79455e9781d0ecc4006ad2265702b144abf75341395480c"
+content_hash: "3476302bbd7daaa6edc0995d01eb14a6b80666787a95ac56e54278c76b4986ed"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-86E38Q"
 source_paths: []
-mirror_sha256: "64540ed87714507fa4429a6bfe422f5dd2c92a584c1dff12f489e9dc3013709f"
-etag: "sha256-c9861f9e7330890cf28b3ddf68a393da99d318bdf8965252a4c8542dc51fc853"
+mirror_sha256: "d872ec577f36f34acd64fe90c2093eeaed5b9f6b3ed9c8ad099cd50e8b43c7d6"
+etag: "sha256-97bfd1baeb4493b02f0f3d673636fd4fca6a15896cc2220a2441be2e442545e2"
 ---
 ## 개요
 
@@ -84,6 +84,7 @@ etag: "sha256-c9861f9e7330890cf28b3ddf68a393da99d318bdf8965252a4c8542dc51fc853"
 | `X-Workspace-Id` 헤더 | `isUuidShaped`(`common/utils/uuid.ts`) | canonical 8-4-4-4-12 hex. 버전·variant nibble 을 보지 않는다 |
 | 워크스페이스 `:id` 경로 파라미터 | ① `RolesGuard` 의 `isUuidShaped`, ② `ParseUUIDPipe` | ① 형식이면 인가 판정(403), 아니면 넘김. ② Nest `ParseUUIDPipe` 의 기본 범위(버전 1~8 과 RFC variant, nil · max UUID) 밖이면 400 `VALIDATION_ERROR` |
 | `:memberId`·`:invitationId` 경로 파라미터 | `ParseUUIDPipe`(`workspaces.controller.ts` 4곳) | Nest `ParseUUIDPipe` 의 기본 범위(버전 1~8 과 RFC variant, nil · max UUID). 밖이면 400 `VALIDATION_ERROR` |
+| 본인 초대 `/api/users/me/invitations/:invitationId` | 예외를 404 로 바꾼 `ParseUUIDPipe`(`my-invitations.controller.ts`) | 형식이 아니면 남의 초대 id 와 같은 404 `invitation_not_found`([워크스페이스 초대](CLE-ACCT-WS-INVITE.md#이미-가입한-사용자의-수락-경로)) |
 
 - `ParseUUIDPipe` 의 기본 범위는 Nest 버전을 따라 바뀐다. 표는 Nest 12 기준이고 `common/utils/uuid.spec.ts` 의 "ParseUUIDPipe 기본 범위 (경로 파라미터)" 가 고정한다. `isValidUuid`(버전 1~5 와 RFC variant)와는 다른 검사다.
 - 헤더 형식이 깨지면 400 `VALIDATION_ERROR`, 비멤버면 403 `NOT_A_MEMBER` 다. 헤더와 클레임이 모두 없으면 가드가 통과시킨 뒤 `@WorkspaceId()` 가 400 `WORKSPACE_ID_REQUIRED` 를 낸다(`workspace.decorator.ts`. 예: `@Roles()` 없이 `@WorkspaceId()` 를 쓰는 라우트). 경로로 받는 워크스페이스가 없는 `@Roles()` 라우트는 `@WorkspaceId()` 를 함께 써도 가드가 먼저 돌아 위 「가드 거부 에러 코드」 의 코드 없는 거부(403, 기본 코드 `FORBIDDEN`)가 된다. 카탈로그는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 있다.
@@ -149,7 +150,7 @@ etag: "sha256-c9861f9e7330890cf28b3ddf68a393da99d318bdf8965252a4c8542dc51fc853"
 2026-08-09 결정이다. 같은 워크스페이스 UUID 인데 두 입구의 검사 강도가 다르다. 의도한 비대칭이다.
 
 - 헤더를 조이면 403 이 400 으로 바뀐다. 헤더 검사가 하는 일은 "Postgres 가 `uuid` 컬럼 값으로 파싱할 수 있는가" 하나다. 파싱할 수 있는 값을 미리 거르면 `getMemberRole` 이 정상 조회해 "그 워크스페이스 멤버가 아니다"(403)로 답해야 할 요청이 "요청이 잘못됐다"(400)가 된다. nil UUID·v7·비 RFC variant 가 바로 그 구간이다. Postgres 는 모두 받는데 `isValidUuid`(RFC v1~v5 와 variant)는 거부한다. 헤더는 인가 판정의 입력이므로 인가 결과(403)를 형식 에러(400)로 바꾸는 검사를 쓸 수 없다.
-- `:memberId`·`:invitationId` 는 인가 판정의 입력이 아니라 리소스 지목이라 엄격해도 된다. 거기서 400 을 내도 바뀔 인가 응답이 없다. 없는 리소스는 어차피 404 이고 400 과 404 는 접근 가능 여부를 드러내지 않는다.
+- `:memberId`·`:invitationId` 는 인가 판정의 입력이 아니라 리소스 지목이라 엄격해도 된다. 거기서 400 을 내도 바뀔 인가 응답이 없다. 없는 리소스는 어차피 404 이고 400 과 404 는 접근 가능 여부를 드러내지 않는다. 본인 초대 경로는 파이프의 예외를 404 로 바꾼다. 수락 페이지가 깨진 링크와 남의 초대를 같은 오류 상태로 보여 주도록 형식 오류도 404 로 답한다.
 - 워크스페이스 `:id` 경로 파라미터는 2026-09-25 부터 인가 입력이 됐다. 그래서 가드 단계 검사는 헤더와 같은 `isUuidShaped` 이고 `ParseUUIDPipe` 는 가드 뒤에서 형식 파손만 400 으로 거른다. 없는 워크스페이스는 404 가 아니라 가드가 403 `NOT_A_MEMBER` 로 답해 존재가 새지 않는다.
 - 경로 파라미터 쪽 범위는 2026-10-04 NestJS 12 상향에서 좁아졌다. Nest 11 의 `ParseUUIDPipe` 는 8-4-4-4-12 hex 모양이면 모두 받아 `isUuidShaped` 와 같았다. Nest 12 는 버전 1~8 과 RFC variant, nil · max UUID 만 받는다. 그래서 `:memberId`·`:invitationId` 에 모양만 맞는 비 RFC 값을 보내면 전에는 핸들러까지 갔고(없는 리소스면 404) 이제는 400 `VALIDATION_ERROR` 다. 위 둘째 항목의 이유대로 이 변화는 접근 가능 여부를 드러내지 않는다. 워크스페이스 `:id` 는 가드가 파이프보다 먼저 판정하므로 인가 응답이 바뀌지 않는다.
 - "일관성" 을 이유로 헤더를 `ParseUUIDPipe` 수준으로 조이는 것은 회귀다. 두 검사의 경계는 단위 테스트가 고정한다. `common/utils/uuid.spec.ts` 의 "accepts UUID-shaped values that isValidUuid rejects (nil / v6+ / 비-RFC variant)" 가 경계 자체를, `common/utils/workspace-context.util.spec.ts` 의 "Postgres 가 파싱할 수 있는 값은 통과시킨다 (nil UUID — 403 이 400 으로 뒤바뀌지 않도록)" 가 헬퍼 수준을 지킨다.

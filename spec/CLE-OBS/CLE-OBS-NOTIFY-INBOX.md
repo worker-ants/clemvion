@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY-INBOX"
 title: "알림 — 벨 · 읽음과 닫기 · API · 데이터"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-NOTIFY"]
 area: "CLE-OBS"
-content_hash: "79accb68c65957b560d5ab815e378f357417ec32f9a54759bb363d11815641ac"
+content_hash: "0e86e858efb7547f8e1d30f87956da14a5a7b3ffc8b9a7891f907b891a0ff430"
 read_as: "approved_fallback"
-task: "CLE-T-95XJDR"
+task: "CLE-T-86E38Q"
 source_paths: []
-mirror_sha256: "013a0fda7e4f54740e8510658f2bdd0912bb6bdd076622ac4de324baca75c1f4"
-etag: "sha256-acba5110b0c3c3d3277e686f005667c4d9bda20ee5e124cbf9e7386de8922408"
+mirror_sha256: "2e06208b55ba5441eb50a5ab1de5da4bb0f8b29767d61e787080f891c66035ad"
+etag: "sha256-2b9f4256a2b6ce648792bc32394781e385e86a2200fe9066a0adb63b93268556"
 ---
 ## 개요
 
@@ -48,10 +48,10 @@ etag: "sha256-acba5110b0c3c3d3277e686f005667c4d9bda20ee5e124cbf9e7386de8922408"
 | --- | --- | --- |
 | `integration_action_required`, `integration_expired` | `/integrations/<resource_id>` | `/integrations` |
 | `execution_failed`, `background_failed`, `schedule_failed` | `/workflows/<resource_id>`(워크플로우 ID) | `/workflows` |
-| `team_invite` | `/profile`(ID 불필요) | — |
+| `team_invite` | `/invitations/accept?invitationId=<resource_id>`(초대 ID) | `/profile` |
 | 그 밖, 유형 없음 | 이동하지 않음 | — |
 
-`href.ts` 가 돌려주는 경로에는 워크스페이스 슬러그가 없다. 누르면 흡수 라우트(`(main)/[...rest]`)가 현재 워크스페이스의 `/w/<slug>/…`(`/workflows/<id>` 는 `/w/<slug>/workflows/<id>`)로 바꾼다. 초대 알림(`team_invite`)을 뺀 알림은 발사 시점의 워크스페이스 범위라 이 변환이 안전하다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)). 초대 알림은 어느 워크스페이스에서나 보이지만 목적지 `/profile` 이 워크스페이스와 무관한 화면이라 어느 워크스페이스로 바꿔도 같은 화면이 열린다.
+`href.ts` 가 돌려주는 경로에는 워크스페이스 슬러그가 없다. 누르면 흡수 라우트(`(main)/[...rest]`)가 현재 워크스페이스의 `/w/<slug>/…`(`/workflows/<id>` 는 `/w/<slug>/workflows/<id>`)로 바꾼다. 초대 알림(`team_invite`)을 뺀 알림은 발사 시점의 워크스페이스 범위라 이 변환이 안전하다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)). 초대 알림은 어느 워크스페이스에서나 보이지만 목적지 수락 페이지는 현재 워크스페이스와 무관하게 로그인 사용자의 초대를 연다. 그래서 어느 워크스페이스로 바꿔도 같은 화면이 열린다([초대 — 이미 가입한 사용자의 수락 경로](../CLE-ACCT/CLE-ACCT-WS-INVITE.md#이미-가입한-사용자의-수락-경로)).
 
 ## 읽음과 닫기
 

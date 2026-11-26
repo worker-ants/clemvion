@@ -73,16 +73,30 @@ describe("notificationHref", () => {
     it.each(["execution_failed", "background_failed", "schedule_failed"])(
       "falls back to /workflows when resourceId missing (%s)",
       (type) => {
-        expect(
-          notificationHref(notif({ type, resourceId: null })),
-        ).toBe("/workflows");
+        expect(notificationHref(notif({ type, resourceId: null }))).toBe(
+          "/workflows",
+        );
       },
     );
   });
 
+  // CLE-OBS-NOTIFY-INBOX 딥링크 표, CLE-T-86E38Q. resourceId 는 초대 id 다.
   describe("team_invite", () => {
-    it("goes to /profile", () => {
-      expect(notificationHref(notif({ type: "team_invite" }))).toBe("/profile");
+    it("opens the accept page in invitation-id mode", () => {
+      const id = "0b9d6f0e-1c2a-4b8e-9a51-3f2d7c6e8a10";
+      expect(
+        notificationHref(notif({ type: "team_invite", resourceId: id })),
+      ).toBe(`/invitations/accept?invitationId=${id}`);
+    });
+
+    it.each([
+      ["missing", undefined],
+      ["empty", ""],
+      ["unsafe", "../x?y"],
+    ])("falls back to /profile when resourceId is %s", (_l, resourceId) => {
+      expect(notificationHref(notif({ type: "team_invite", resourceId }))).toBe(
+        "/profile",
+      );
     });
   });
 

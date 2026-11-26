@@ -2,19 +2,19 @@
 id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027", "REQ-PROFILE-028", "REQ-PROFILE-029"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "7c171ec3d3a8966f4b53f36d3f97387e7f09f6edb04ccbb535e8214d14c41e05"
+content_hash: "a4c8810b76088373a079245ed7e35cb215c3599b1c09dfe04b969581cae63e8b"
 read_as: "approved_fallback"
-task: "CLE-T-EJFQ1Y"
+task: "CLE-T-86E38Q"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "2120a92fdede855a753bf8ffa96c496eebc2f08aab3448418e3713578405fbf1"
-etag: "sha256-d201db969b015c4e03c0f1ec76fd1c21c10306d62edeecc6828ea96054d8ef34"
+mirror_sha256: "e09b90fac5b6b0d5c768aeb9ce242759b3f0c38af99aa200e8f153575c3cfd97"
+etag: "sha256-88906e9e0ec34b4ed4eef886de92c395fb6c13c44bf2301688c498cc698c1e82"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -191,6 +191,7 @@ etag: "sha256-d201db969b015c4e03c0f1ec76fd1c21c10306d62edeecc6828ea96054d8ef34"
 | --- | --- |
 | `/api/users/me/email-change/request`·`verify`·`resend`·`cancel` | [가입과 로그인](CLE-ACCT-SIGNIN.md) |
 | `/api/users/me/login-history` | [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) |
+| `/api/users/me/invitations/:invitationId`, `…/accept` | [워크스페이스 초대](CLE-ACCT-WS-INVITE.md) |
 | `/api/auth/sessions`, `/api/auth/sessions/:familyId/revoke`, `/api/auth/sessions/revoke-others` | [세션과 토큰](CLE-ACCT-SESSION.md) |
 
 세션 API 는 `/api/users/me` 가 아니라 `/api/auth/sessions` 아래에 있다. 현재 세션을 가리는 리프레시 쿠키의 Path 가 `/api/auth` 라서 그 아래에 두었다. 로그인 이력은 쿠키가 필요 없어 `/api/users/me` 아래에 남았다.
