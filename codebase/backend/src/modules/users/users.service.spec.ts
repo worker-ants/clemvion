@@ -81,7 +81,7 @@ describe('UsersService', () => {
     });
   });
 
-  describe('changePassword (refactor 04 B-2 — SRP)', () => {
+  describe('changePassword', () => {
     const strongNewPassword = 'N3wP@ssw0rd!';
 
     /**

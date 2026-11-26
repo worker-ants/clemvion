@@ -245,7 +245,7 @@ describe('AuthController', () => {
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'refreshToken',
         'new-refresh',
-        // 04 M-5 — path 를 /api/auth 로 축소(표면 한정). sameSite 는 COOKIE_SAMESITE
+        // CLE-ACCT-SESSION-POLICY — path 를 /api/auth 로 축소(표면 한정). sameSite 는 COOKIE_SAMESITE
         // 기본 none.
         expect.objectContaining({
           httpOnly: true,
@@ -255,7 +255,7 @@ describe('AuthController', () => {
       );
     });
 
-    // 04 M-5 — CSRF: allowlist 외 Origin 의 강제 refresh 는 403 으로 선차단.
+    // CLE-ACCT-SESSION-POLICY — CSRF: allowlist 외 Origin 의 강제 refresh 는 403 으로 선차단.
     it('rejects refresh from a disallowed Origin (CSRF defense)', async () => {
       const prev = process.env.CORS_ORIGINS;
       process.env.CORS_ORIGINS = 'https://app.example.com';
@@ -298,7 +298,7 @@ describe('AuthController', () => {
       }
     });
 
-    // 04 M-5 — allowlist 내 Origin 은 정상 통과.
+    // CLE-ACCT-SESSION-POLICY — allowlist 내 Origin 은 정상 통과.
     it('allows refresh from an allowlisted Origin', async () => {
       const prev = process.env.CORS_ORIGINS;
       process.env.CORS_ORIGINS = 'https://app.example.com';

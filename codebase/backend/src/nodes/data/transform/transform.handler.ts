@@ -32,7 +32,7 @@ function stringifyForSort(value: unknown): string {
 
 dayjs.extend(customParseFormat);
 
-// 04 M-3 — ReDoS 방지: 길이 상한만으로는 200자 이내 지수 패턴(`(a+)+$`)을 막지
+// CLE-NODE-TRANSFORM — ReDoS 방지: 길이 상한만으로는 200자 이내 지수 패턴(`(a+)+$`)을 막지
 // 못하므로, 단일 chokepoint(compileUserRegex)에서 길이 + safe-regex 위험성 + 문법을
 // 함께 검사한다. 거부 시 null → 호출부는 해당 op 를 적용하지 않고 skip 한다.
 function safeCompileRegex(pattern: string, flags = ''): RegExp | null {

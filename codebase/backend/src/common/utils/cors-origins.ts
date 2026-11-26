@@ -56,7 +56,7 @@ export function getAllowedOrigins(): string[] {
  * `origin` 헤더 값이 allowlist 에 속하는지 판정.
  * - `origin` 미지정 (same-origin / non-browser 도구) → 통과
  * - `'null'` 불투명 origin (sandbox iframe / `data:` / `file:` 등) → **거부**
- *   (04 M-5 — wildcard 모드에서도 null-origin CSRF 를 차단)
+ *   (CLE-ACCT-SESSION-POLICY 「갱신 CSRF」 — wildcard 모드에서도 null-origin CSRF 를 차단)
  * - wildcard 모드 → 통과
  * - 정확히 매칭 (후행 슬래시 정규화) → 통과
  */

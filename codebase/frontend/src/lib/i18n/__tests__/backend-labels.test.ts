@@ -329,7 +329,7 @@ describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
     // 사용자 노출이 확정된 코드만 — 점진 확장 (Principle 3-C 범위).
     const LOCALIZED_ERROR_CODES = [
       "GRAPH_VALIDATION_FAILED",
-      // SSRF 차단 코드군 (refactor 04 C-3 / 후속) — 사용자에게 차단 사유를
+      // SSRF 차단 코드군 (CLE-NODE-INT-COMMON-ERROR) — 사용자에게 차단 사유를
       // 한국어로 안내. HTTP/DB 가 대칭으로 ERROR_KO 에 매핑돼 있어야 한다.
       "HTTP_BLOCKED",
       "DB_HOST_BLOCKED",

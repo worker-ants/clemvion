@@ -319,7 +319,7 @@ describe('evaluateCondition', () => {
     });
   });
 
-  // 04 M-3 — ReDoS 안전성. 길이 200 이내라도 지수 백트래킹 패턴은 거부한다.
+  // CLE-NODE-LOGIC-COMMON — ReDoS 안전성. 길이 200 이내라도 지수 백트래킹 패턴은 거부한다.
   describe('compileUserRegex (ReDoS guard)', () => {
     it('compiles a safe pattern', () => {
       const r = compileUserRegex('^foo\\d+$');

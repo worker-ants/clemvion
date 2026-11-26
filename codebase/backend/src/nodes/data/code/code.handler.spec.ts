@@ -683,7 +683,7 @@ describe('CodeHandler', () => {
     // `process`/`require` do not exist. The structural V8 Isolate boundary
     // makes host takeover impossible, regardless of constructor-chain access.
     //
-    // This is the red→green regression for refactor 04 C-2: under the old
+    // This is the red→green regression for the switch to isolated-vm (CLE-NODE-CODE-SANDBOX): under the old
     // node:vm sandbox the same probe reached the host realm ('has-process');
     // under isolated-vm it is confined ('no-process').
     it('should isolate the host realm from $helpers.date return value (no process access)', async () => {

@@ -412,7 +412,7 @@ describe('SessionsService', () => {
     });
   });
 
-  describe('revokeAllFamilies (refactor 04 A-1 — 비밀번호 변경 후)', () => {
+  describe('revokeAllFamilies (비밀번호 변경 후)', () => {
     it('revokes all active families and records a bulk session_revoked', async () => {
       usersService.findById.mockResolvedValue({
         id: 'user-1',
