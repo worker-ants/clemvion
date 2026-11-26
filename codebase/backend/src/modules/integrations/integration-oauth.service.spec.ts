@@ -1347,6 +1347,20 @@ describe('IntegrationOAuthService', () => {
           'no account identifier',
         ],
         [
+          'github',
+          '전송 오류',
+          () => Promise.reject(new Error('socket hang up')),
+          'transport error: socket hang up',
+        ],
+        [
+          'google',
+          'Error 가 아닌 값의 전송 오류',
+          // Error 가 아닌 값으로 reject 하는 String(err) 분기를 덮으려는 의도다.
+          // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+          () => Promise.reject('connection reset'),
+          'transport error: connection reset',
+        ],
+        [
           'google',
           '객체가 아닌 본문',
           () => Promise.resolve(jsonResponse(['secret-array'])),
