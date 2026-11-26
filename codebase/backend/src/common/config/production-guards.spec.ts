@@ -605,9 +605,9 @@ describe('isFlagOn', () => {
   );
 });
 
-// 04 M-1: Swagger 노출 게이팅. non-production 은 항상 노출, production 은 기본
+// CLE-API-SWAGGER: Swagger 노출 게이팅. non-production 은 항상 노출, production 은 기본
 // 미노출 + ENABLE_SWAGGER_IN_PROD opt-in 만 노출. main.ts 부팅 게이팅 계약을 고정한다.
-describe('isSwaggerEnabled (04 M-1)', () => {
+describe('isSwaggerEnabled', () => {
   it.each(['development', 'test', undefined])(
     'is enabled in non-production (NODE_ENV=%p) regardless of opt-in flag',
     (nodeEnv) => {
