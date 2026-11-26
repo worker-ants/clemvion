@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
-version: 8
+version: 10
 status: "approved"
 requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026", "REQ-BGRUN-027", "REQ-BGRUN-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "562ece59517787e5e971bac78401907ced5b3042c773e79a1d46d6fded3856c4"
+content_hash: "093f532ffaecb26e4bdc9d0f720fbd909f415a93bb6c4ae38093beced6fbad3e"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-XTTSXB"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "6e69417d05dce1493ab0bb186ae90cd3ad6f96f48e1acf06a9c414ceea10ad16"
-etag: "sha256-f9cb7fab044784104a90af1130f1c864dc0d5df0a984111384c366f9a439a81e"
+mirror_sha256: "d132b84a80a187a397751d14f1089691a592b5dce7c5f94f2c5a32dde532a0eb"
+etag: "sha256-c4348d00d8eb08e309bb1bbb5254c76928596818103e471dff01a0f4ab4e34a9"
 ---
 > 구현 상태: 부분 구현 (REQ-BGRUN-026 AI 어시스턴트 조회 도구는 미구현) · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -51,7 +51,7 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
 - REQ-BGRUN-019 WHEN 모니터링 API 가 노드 실행 기록을 반환하면 THE SYSTEM SHALL `error` · `outputData` · `inputData` 에 응답 값 마스킹을 적용한다.
 - REQ-BGRUN-020 IF 호출자가 실행의 워크스페이스 멤버가 아니거나 `executionId` 가 없으면 THE SYSTEM SHALL 403 이 아니라 404 `EXECUTION_NOT_FOUND` 로 응답한다.
 - REQ-BGRUN-021 IF `backgroundRunId` 가 그 실행 안에 없으면 THE SYSTEM SHALL 404 `BACKGROUND_RUN_NOT_FOUND` 로 응답한다.
-- REQ-BGRUN-022 IF `cursor` 를 해석하지 못하거나 `limit` 이 1~200 밖이면 THE SYSTEM SHALL 400 `INVALID_CURSOR` / `INVALID_LIMIT` 로 응답한다.
+- REQ-BGRUN-022 IF `cursor` 를 해석하지 못하면 THE SYSTEM SHALL 400 `INVALID_CURSOR` 로, `limit` 이 1~200 밖이면 요청 검증 실패 400 `VALIDATION_ERROR` 로 응답한다.
 - REQ-BGRUN-023 WHEN Background 본문 실행이 시작하거나 끝나면 THE SYSTEM SHALL `background:run:<backgroundRunId>` 구독 채널에 `execution.background_run.started` / `execution.background_run.completed` 이벤트를 보낸다.
 - REQ-BGRUN-024 WHEN Background 본문 노드가 실행되면 THE SYSTEM SHALL 노드 이벤트를 메인 `execution:<id>` 구독 채널에 보낸다.
 - REQ-BGRUN-025 WHEN 사용자가 `background:run:<id>` 채널을 구독하면 THE SYSTEM SHALL 모니터링 API 와 같은 권한 규칙으로 확인한다.
@@ -101,7 +101,7 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
 1. 핸들러는 입력을 바꾸지 않고 `output` 에 복사하고 `port: 'main'` 으로 반환한다([Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#패스스루-규약)).
 2. 핸들러가 끝난 직후 `ExecutionEngineService.scheduleBackgroundBody()` 가 BullMQ `background-execution` 큐에 다음을 넣는다.
    - `background` 포트 연결선의 도착 노드 ID 배열(본문 진입점)
-   - `context.variables`, `context.nodeOutputCache`, `context.structuredOutputCache`, `context.expressionContext` 의 얕은 복사 스냅샷
+   - `context.variables`, `context.nodeOutputCache`, `context.structuredOutputCache`, `context.expressionContext` 의 얕은 복사 스냅샷. `nodeOutputCache` 는 구조화 항목이 있는 노드의 값을 표지(`{}`, 라우팅 표지가 있으면 `{ _selectedPort }`)로 줄이고 키는 남긴다([Rationale](#작업-데이터의-flat-노드-출력은-표지로-줄인다))
    - 대화 스레드 스냅샷. `turns` 배열까지 새로 복사해 본문과 메인이 서로의 턴 목록을 건드리지 못하게 한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md))
    - Background 노드가 받은 입력의 스냅샷. `main` 포트로 나가는 값과 같고 본문 진입 노드가 이 값을 입력으로 받는다. 맨 바깥 실행 · 입력 대기 뒤 재개 · 서브 워크플로우 · Background 본문 · 병렬 분기 · 컨테이너 본문 어디에 놓여도 같다
    - Background 가 컨테이너 본문 안에 있으면 그 컨테이너 ID(`containerScopeId`). 맨 바깥 Background 는 넣지 않는다
@@ -205,7 +205,7 @@ sequenceDiagram
 |------|------|------|
 | 입력 데이터 | enqueue 시점 스냅샷 | Background 노드의 입력 그대로 |
 | `context.variables` | enqueue 시점 스냅샷(얕은 복사) | 메인의 이후 변경은 반영되지 않는다 |
-| `context.nodeOutputCache` | enqueue 시점 스냅샷 | 본문에서는 enqueue 시점까지의 메인 노드 출력을 참조할 수 있다 |
+| `context.nodeOutputCache` | enqueue 시점 스냅샷(구조화 항목이 있는 노드는 표지) | 본문 `$node` 가 출력이 있는 노드를 고르고 같은 이름에 `#N` 을 붙일 때 키를 쓴다. 값은 `structuredOutputCache` 에서 읽는다 |
 | `context.structuredOutputCache` | enqueue 시점 스냅샷(얕은 복사) | 본문 노드 식의 `$node["X"]` 가 읽는다. 필드가 없는 옛 큐 작업은 `nodeOutputCache` 로 대신 읽는다 |
 | `context.expressionContext` | enqueue 시점 스냅샷 | 표현식 평가용 |
 | `context.conversationThread` | enqueue 시점 스냅샷(`turns` 배열까지 새로 복사) | 본문에서 쌓인 턴은 메인 스레드에 들어가지 않고 반대도 같다. 필드가 없는 옛 큐 작업은 빈 스레드로 시작한다([대화 스레드](../CLE-IX/CLE-IX-THREAD.md), [컨테이너 실행](../CLE-EXEC/CLE-EXEC-CONTAINER.md#background-본문-실행)) |
@@ -249,7 +249,7 @@ Background 본문 실패는 메인의 에러 코드가 되지 않는다. 본문 
 
 ### API 에러 코드
 
-모니터링 API 는 400 `INVALID_CURSOR` · `INVALID_LIMIT`, 404 `EXECUTION_NOT_FOUND` · `BACKGROUND_RUN_NOT_FOUND` 를 낸다. 발생 조건은 [본문 실행 모니터링 §API 에러 코드](CLE-NODE-BACKGROUND-RUNS.md#api-에러-코드) 의 표가 정한다.
+모니터링 API 는 400 `INVALID_CURSOR` · `VALIDATION_ERROR`(`limit` 범위 밖), 404 `EXECUTION_NOT_FOUND` · `BACKGROUND_RUN_NOT_FOUND` 를 낸다. 발생 조건은 [본문 실행 모니터링 §API 에러 코드](CLE-NODE-BACKGROUND-RUNS.md#api-에러-코드) 의 표가 정한다.
 
 ## 미결 사항
 
@@ -277,7 +277,7 @@ Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행
 
 예전에는 본문 안의 블로킹 노드(form / buttons / ai_conversation)가 입력 대기로 멈추면 `pendingContinuations` 에 등록된 채 `maxDurationMs` 까지 매달려 있다가 시간 초과 실패로 끝났다(`notifyOnFailure` 알림이 갈 수 있었다). 입력 대기를 DB 에 보존하는 방식(durable park)을 도입한 뒤로는 `executeInline` 이 멈추는 순간 `ParkReleaseSignal` 을 던지고 `executeBackgroundSubgraph` 가 이를 잡아 본문을 곧바로 조용히 끝낸다. Background 는 fire-and-forget 이라 바깥에서 `continueExecution` 으로 재개할 경로가 없어 입력 대기를 보존할 뜻이 없기 때문이다.
 
-사용자에게 보이는 동작이 바뀌었다. 전에는 시간 초과 실패로 보였지만 지금은 에러 없이 그 지점에서 조용히 끝난다(실패로 세지 않고 알림도 보내지 않는다). 본문에 블로킹 노드를 두는 구성 자체를 권하지 않는다. 사용자 입력을 기다려야 하면 메인 흐름에 둔다.
+본문에 블로킹 노드를 두는 구성은 권하지 않는다. 사용자 입력을 기다려야 하면 메인 흐름에 둔다.
 
 ### 컨테이너 본문 안 Background 는 컨테이너 단계 그래프로 실행한다
 
@@ -303,13 +303,17 @@ Background 본문은 BullMQ 워커에서 fire-and-forget 으로 비동기 실행
 
 저장된 워크플로우의 동작이 바뀐다. 본문 진입 노드가 `{{ $json… }}` 처럼 입력을 직접 읽는 워크플로우만 영향을 받고 `$node["…"]` 로 읽는 식은 그대로다.
 
-- 트리거 바로 뒤 Background: 전에는 실행 원본 입력(웹훅이면 method · headers · body 가 맨 위에 있는 값)이 들어갔고 이제는 트리거 출력(`{ parameters, request? }`)이 들어간다.
-- 앞에 다른 노드가 있는 Background: 전에는 실행 원본 입력이 들어갔고 이제는 바로 앞 노드의 출력이 들어간다.
-- 입력 대기 뒤 재개하고 나서 실행한 Background: 전에는 빈 객체가 들어갔고 이제는 바로 앞 노드의 출력이 들어간다.
-- 병렬 분기 안 Background: 전에는 Parallel 이 받은 입력이 들어갔고 이제는 분기 안에서 Background 바로 앞 노드의 출력이 들어간다.
-- 서브 워크플로우 · Background 본문 안 Background(`executeInline` 경로): 전에는 그 실행의 원본 입력이 들어갔고 이제는 바로 앞 노드의 출력이 들어간다.
+전에는 위치에 따라 실행 원본 입력 · 빈 객체(재개 뒤) · Parallel 이 받은 입력이 들어갔고 이제는 바로 앞 노드의 출력(트리거 바로 뒤면 트리거 출력 `{ parameters, request? }`)이 들어간다.
 
 기각한 대안은 다음과 같다.
 
-- **(B) 범위 입력으로 통일하는 안**: 맨 바깥 · 재개 · 서브 워크플로우는 실행 원본 입력, 병렬 분기는 Parallel 이 받은 입력으로 스펙에 적고 컨테이너 본문도 회차 입력으로 되돌린다. 본문이 받는 값이 `main` 포트로 나가는 값과 달라지고 「본문 진입」 표도 고쳐야 한다. 컨테이너 본문 경로는 NERV Task `CLE-T-MR6ZH3` 구현부터 그 회차에 Background 노드가 받은 입력을 넘기는데 이를 되돌리게 된다.
-- **(C) 위치별 동작을 그대로 적는 안**: 코드는 디스패치 정리만 하고 위치마다 다른 값을 스펙에 적는다. 같은 노드가 놓인 위치에 따라 본문에 다른 값을 넘겨 사용자가 본문 입력을 예측하기 어렵다.
+- **(B) 범위 입력으로 통일하는 안**: 본문 입력이 `main` 포트로 나가는 값과 달라지고, NERV Task `CLE-T-MR6ZH3` 부터 Background 노드가 받은 입력을 넘기는 컨테이너 본문 경로를 되돌리게 된다.
+- **(C) 위치별 동작을 그대로 적는 안**: 놓인 위치에 따라 본문 입력이 달라 사용자가 예측하기 어렵다.
+
+### 작업 데이터의 flat 노드 출력은 표지로 줄인다
+
+결정일: 2026-11-26
+
+작업 데이터에 노드 출력이 flat 캐시와 구조화 캐시에 두 번 실렸다. 구조화 항목이 있는 노드의 flat 값을 표지로 바꾸자 합성 측정에서 작업 크기가 p50 1.88MB → 0.97MB, p99 7.71MB → 3.89MB 로 줄었다(NERV Task `CLE-T-XTTSXB`). 본문 `$node` 는 flat 키로 노드를 고르고 `#N` 을 매기며 값은 구조화 항목에서 읽으므로 키를 남기면 동작이 같다. `CLE-T-JDYHCF` 보다 옛 워커는 표지를 읽으므로 그 앞 버전에서 바로 롤링 배포하지 않는다.
+
+기각한 대안: flat 캐시를 작업에서 빼거나 키를 지우는 안은 `$node` 의 노드 목록과 `#N` 이 메인과 달라진다.
