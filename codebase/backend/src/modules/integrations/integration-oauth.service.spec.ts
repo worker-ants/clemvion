@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -1280,6 +1281,138 @@ describe('IntegrationOAuthService', () => {
         'OAUTH_TOKEN_EXCHANGE_FAILED',
       );
       expect(previewRepo.save).not.toHaveBeenCalled();
+    });
+
+    // CLE-T-BYT4S2: 조회 실패의 나머지 경로. 어느 경로든 코드는 같고 미리보기를 만들지 않는다. 로그에는 실패 이유만
+    // 남기고 방금 받은 토큰 · 인가 code · 응답 본문은 남기지 않는다.
+    describe('계정 조회 실패 경로와 실패 로그', () => {
+      let warnSpy: jest.SpyInstance;
+      beforeEach(() => {
+        warnSpy = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+      });
+      afterEach(() => {
+        warnSpy.mockRestore();
+      });
+
+      const tokenResponse = {
+        google: jsonResponse({
+          access_token: 'secret-g-at',
+          refresh_token: 'secret-g-rt',
+        }),
+        github: jsonResponse({ access_token: 'secret-h-at' }),
+      };
+      const abortError = () => {
+        const err = new Error('The operation was aborted');
+        err.name = 'AbortError';
+        return err;
+      };
+      const loggedText = (): string =>
+        warnSpy.mock.calls.map((call) => call.map(String).join(' ')).join('\n');
+
+      it.each([
+        [
+          'google',
+          '시간 초과(AbortError)',
+          () => Promise.reject(abortError()),
+          'timed out',
+        ],
+        [
+          'github',
+          '응답 실패(401)',
+          () => Promise.resolve(jsonResponse({ message: 'Bad creds' }, 401)),
+          'HTTP 401',
+        ],
+        [
+          'google',
+          'JSON 이 아닌 본문',
+          () =>
+            Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () =>
+                Promise.reject(
+                  new SyntaxError(
+                    'Unexpected token \'<\', "<html>secret-body" is not valid JSON',
+                  ),
+                ),
+            }),
+          'not JSON',
+        ],
+        [
+          'github',
+          'null 본문',
+          () => Promise.resolve(jsonResponse(null)),
+          'no account identifier',
+        ],
+        [
+          'google',
+          '객체가 아닌 본문',
+          () => Promise.resolve(jsonResponse(['secret-array'])),
+          'no account identifier',
+        ],
+      ] as const)(
+        '%s: 계정 조회의 %s 는 OAUTH_TOKEN_EXCHANGE_FAILED 이고 로그에 실패 이유만 남긴다',
+        async (provider, _label, identityResponse, reason) => {
+          fetchMock
+            .mockResolvedValueOnce(tokenResponse[provider])
+            .mockImplementationOnce(identityResponse);
+          dataSource.query.mockResolvedValue(newState(provider));
+
+          const error = await service
+            .handleCallback(provider, { code: 'secret-code', state: 's' })
+            .catch((err: Error) => err);
+
+          expect(error).toBeInstanceOf(BadRequestException);
+          expect(
+            (error as { response?: { code?: string } }).response?.code,
+          ).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
+          expect(previewRepo.save).not.toHaveBeenCalled();
+          const logged = loggedText();
+          expect(logged).toContain(
+            `OAuth account lookup failed for ${provider}`,
+          );
+          expect(logged).toContain(reason);
+          expect(logged).not.toContain('secret-');
+        },
+      );
+
+      it('계정 조회 요청은 10초가 지나면 끊는다', async () => {
+        jest.useFakeTimers();
+        try {
+          let identitySignal: AbortSignal | undefined;
+          fetchMock
+            .mockResolvedValueOnce(tokenResponse.google)
+            .mockImplementationOnce(
+              (_url: string, init: { signal: AbortSignal }) => {
+                identitySignal = init.signal;
+                return new Promise((_resolve, reject) => {
+                  init.signal.addEventListener('abort', () =>
+                    reject(abortError()),
+                  );
+                });
+              },
+            );
+          dataSource.query.mockResolvedValue(newState('google'));
+
+          const pending = service
+            .handleCallback('google', { code: 'secret-code', state: 's' })
+            .catch((err: Error) => err);
+          await jest.advanceTimersByTimeAsync(9_999);
+          expect(identitySignal?.aborted).toBe(false);
+          await jest.advanceTimersByTimeAsync(1);
+          const error = await pending;
+
+          expect(identitySignal?.aborted).toBe(true);
+          expect(
+            (error as { response?: { code?: string } }).response?.code,
+          ).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
+          expect(loggedText()).toContain('timed out');
+        } finally {
+          jest.useRealTimers();
+        }
+      });
     });
 
     it.each([

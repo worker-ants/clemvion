@@ -645,7 +645,7 @@ export class IntegrationsService {
     // DB 컬럼이 아니므로 WHERE 절에 직접 쓸 수 없다. service registry 에서
     // 해당 service_type 목록을 동적으로 조회해 `NOT IN` 으로 번역한다 —
     // service_type 리터럴 하드코딩은 derived 필드 단일 진실 원칙을 깨므로 금지
-    // (Rationale "왜 derived 필드인가"). 현재 cafe24/google/makeshop = true.
+    // (Rationale "왜 derived 필드인가"). 현재 cafe24/makeshop = true.
     const autoRefreshServiceTypes = SERVICE_REGISTRY.filter(
       (s) => s.supportsTokenAutoRefresh === true,
     ).map((s) => s.type);
