@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXEC"
 title: "에러 코드 카탈로그 — 워크플로우 실행"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "b251d112c696552c60234e40010ce8786002662a8e7474df3065c0f21c3681cf"
+content_hash: "4181b508a5cde5995f4f1221a839c7453c40fb0c6e2c76f67f57b49244a0f69b"
 read_as: "approved_fallback"
-task: "CLE-T-8WXV7T"
+task: "CLE-T-P0W82J"
 source_paths: []
-mirror_sha256: "a0c7dba78652b33500818d740bd9a6bbbd73bbd87194e7bf7cf3a05fedae0171"
-etag: "sha256-e7829177d0c21c764811881a04934c52e80370e18c90ca3937d7a7ad7e0edf5c"
+mirror_sha256: "87888c9232564404a503ba48fe0bfd009755cec4bffeb07c5d3299ac19f7df82"
+etag: "sha256-bb9878a02453be7a29c412488ec2f0cb86a4277469ebcdc2472ee34f3f9731c6"
 ---
 ## 개요
 
@@ -24,19 +24,14 @@ etag: "sha256-e7829177d0c21c764811881a04934c52e80370e18c90ca3937d7a7ad7e0edf5c"
 
 엔진 수준 에러다. 실행 상태가 `failed` 가 된다.
 
-**이 표는 한 곳에 모여 등재된 코드를 뜻하지 않는다.** 앵커 열의 값은 여섯 가지다. 코드 상수가 있는 앵커는 `ErrorCode` const(`EXECUTION_TIME_LIMIT_EXCEEDED`), `EngineErrorCode` const(`WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED`), 에러 클래스의 `readonly code`(`ERROR_PORT_FALLBACK`) 셋이다. 나머지 셋은 `없음` · `메시지 접두` · `분류기 인용` 이다. 앵커 열이 `없음` 인 코드(`EXECUTION_TIMEOUT`)는 맨 문자열이라 오탈자가 `tsc` 를 통과한다. 앵커 열이 `메시지 접두` 인 행은 코드가 아니다. 엔진이 그 이름을 코드 필드에 싣지 않고 에러 메시지 앞에 쌍점과 함께 붙인다. 이 접두로 분기하지 않는다(규칙 4). 앵커 열이 `분류기 인용` 인 행은 실행 엔진이 내지 않는 이름이다. 채팅 채널 실행 실패 분류기가 이 이름을 싣고 있어 행을 남겼다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)). 다른 모듈(`shadow-workflow.ts` 의 union, `execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다.
+**이 표는 한 곳에 모여 등재된 코드를 뜻하지 않는다.** 앵커 열의 값은 다섯 가지다. 코드 상수가 있는 앵커는 `ErrorCode` const(`EXECUTION_TIME_LIMIT_EXCEEDED`), `EngineErrorCode` const(`WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED`), 에러 클래스의 `readonly code`(`ERROR_PORT_FALLBACK`) 셋이다. 나머지 둘은 `없음` · `메시지 접두` 다. 앵커 열이 `없음` 인 코드(`EXECUTION_TIMEOUT`)는 맨 문자열이라 오탈자가 `tsc` 를 통과한다. 앵커 열이 `메시지 접두` 인 행은 코드가 아니다. 엔진이 그 이름을 코드 필드에 싣지 않고 에러 메시지 앞에 쌍점과 함께 붙인다. 이 접두로 분기하지 않는다(규칙 4). `CYCLE_DETECTED` · `INVALID_EXPRESSION` 은 AI 어시스턴트 도구 결과의 `error` 값이고 실행 엔진 코드가 아니다. 정의는 [AI 어시스턴트 도구 「Shadow 검증 규칙」](../CLE-WF/CLE-WF-ASSIST-TOOLS-SHADOW.md#shadow-검증-규칙) 에 있다.
 
 | 코드 | 앵커 | 설명 | 정의 문서 |
 |------|------|------|-----------|
 | `EXECUTION_TIMEOUT` | 없음 | Code 노드 스크립트 실행 타임아웃(엔진 수준. 실행 `failed`, EIA `execution.failed.error.code`). 노드 출력 층의 `CODE_TIMEOUT`, 누적 실행 시간 초과와의 구분은 §4.1 | [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) |
 | `EXECUTION_TIME_LIMIT_EXCEEDED` | `ErrorCode` | 실행 하나의 **누적 active-running 시간** 초과(wall-clock 아님, 입력 대기 시간 제외). 실행 `failed` | [큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) |
 | `WORKER_HEARTBEAT_TIMEOUT` | `EngineErrorCode` | 활성 세그먼트 job 이 BullMQ stalled 재배달(`maxStalledCount=1`) 시도를 다 씀(워커 최종 실패). 실행 `failed`. 2026-07-04 구현. 부팅 시 `recoverStuckExecutions` 재구동은 이 코드를 쓰지 않는다(재구동 불가는 `RESUME_CHECKPOINT_MISSING`). 이름의 경위는 §3 | [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) |
-| `RECURSION_DEPTH_EXCEEDED` | 분류기 인용 | 코드가 아니다. 서브 워크플로우 재귀 깊이가 10 이상이면 엔진은 코드 없이 메시지 `Maximum recursion depth exceeded (limit: 10)` 를 throw 한다 | [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) |
 | `MAX_ITERATIONS_EXCEEDED` | 메시지 접두 | 코드가 아니다. Loop 노드가 최대 반복 횟수(`maxIterations`, 기본 1000)를 넘으면 메시지 앞에 붙는 접두다. 메시지는 `MAX_ITERATIONS_EXCEEDED: Loop count <count> exceeds maximum <maxIterations>` 나 `MAX_ITERATIONS_EXCEEDED: Loop iteration <i> exceeds maximum <maxIterations>` 다. 행을 남긴 이유는 Rationale 에 있다 | [Loop 노드 「에러」](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md#에러) |
-| `CYCLE_DETECTED` | 분류기 인용 | 실행 엔진은 내지 않는다. AI 어시스턴트의 Shadow 검증이 순환을 만드는 연결선을 거절할 때 도구 결과의 `error` 로 돌려준다. EIA 실행 알림 페이로드의 `error.code` 예시 열거([EIA 알림 이벤트](../CLE-IX/CLE-EIA-NOTIFY-EVENTS.md))에도 이 이름이 있지만 엔진이 내는 값은 아니다(정리는 NERV Task `CLE-T-P0W82J`) | [AI 어시스턴트 도구 「Shadow 검증 규칙」](../CLE-WF/CLE-WF-ASSIST-TOOLS-SHADOW.md#shadow-검증-규칙) |
-| `INVALID_EXPRESSION` | 분류기 인용 | 실행 엔진은 내지 않는다. AI 어시스턴트의 Shadow 검증이 노드 설정의 표현식 구문 오류를 거절할 때 도구 결과의 `error` 로 돌려준다 | [AI 어시스턴트 도구 「Shadow 검증 규칙」](../CLE-WF/CLE-WF-ASSIST-TOOLS-SHADOW.md#shadow-검증-규칙) |
-| `VARIABLE_NOT_FOUND` | 분류기 인용 | 발행처가 없다. 채팅 채널 분류기 목록에만 있다 | [채팅 채널 어댑터 규약 「실행 실패 안내 분류」](../CLE-CHAT/CLE-CHAT-ADAPTER-RENDER.md#실행-실패-안내-분류) |
-| `TYPE_MISMATCH` | 분류기 인용 | 발행처가 없다. 채팅 채널 분류기 목록에만 있다 | [채팅 채널 어댑터 규약 「실행 실패 안내 분류」](../CLE-CHAT/CLE-CHAT-ADAPTER-RENDER.md#실행-실패-안내-분류) |
 | `ERROR_PORT_FALLBACK` | 클래스 `readonly code` | 에러 포트로 보내려 했으나 연결된 연결선이 없어 Stop Workflow 로 폴백 | [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) |
 | `SERVER_INTERRUPTED` | `EngineErrorCode` | 서버가 안전 종료(SIGTERM)할 때 유예 시간(`SIGTERM_GRACE_MS`, 기본 30초)이 지나도 이 인스턴스가 맡은 노드 실행과 실행이 `running` 이면 `failed` 로 닫는다. 입력 대기 중인 실행은 건드리지 않는다 | [안전 종료와 영속 재개 큐 「안전 종료」](../CLE-EXEC/CLE-EXEC-RECOVERY-SHUTDOWN.md#안전-종료) |
 
@@ -57,21 +52,21 @@ etag: "sha256-e7829177d0c21c764811881a04934c52e80370e18c90ca3937d7a7ad7e0edf5c"
 
 | 부류 | 코드 | 정의 문서 |
 |----------|------|-----------|
-| HTTP | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX`(따라가지 않은 3xx 포함, 아래) · `HTTP_5XX` · `HTTP_TIMEOUT`(발행하지 않음, 아래) · `HTTP_BLOCKED`(사설망 차단, 모든 인증 방식 공통. `integration` 인증의 리다이렉트 한도 초과도 이 코드다, 아래) | [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) |
+| HTTP | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX`(따라가지 않은 3xx 포함, 아래) · `HTTP_5XX` · `HTTP_BLOCKED`(사설망 차단, 모든 인증 방식 공통. `integration` 인증의 리다이렉트 한도 초과도 이 코드다, 아래) | [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) |
 | Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` · `DB_HOST_BLOCKED`(host 가 사설·loopback 이라 사설망 차단. 기본 켬, `ALLOW_PRIVATE_HOST_TARGETS` 로 끔) · `INVALID_PARAMETERS`(`parameters` 가 배열도 JSON 배열 문자열도 아님) | [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) |
 | Email | `EMAIL_SEND_FAILED`(`IntegrationError` 가 아닌 예외. `details.integrationCode` 는 넣지 않는다) · `EMAIL_HOST_BLOCKED`(host 가 사설·loopback 이라 사설망 차단. 기본 켬, `ALLOW_PRIVATE_HOST_TARGETS` 로 끔) · `EMAIL_NO_RECIPIENTS`(정규화한 수신자 `to` 가 비어 보낼 곳이 없음). `IntegrationError` 의 코드(`INTEGRATION_*` · `EMAIL_HOST_BLOCKED` · `EMAIL_NO_RECIPIENTS`)는 그대로 `output.error.code` 로 나오고 `details.integrationCode` 에도 같은 값이 들어간다 | [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) |
-| LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT`(발행하지 않음, 아래) · `MAX_COLLECTION_RETRIES_EXCEEDED` · `TOOL_DEFINITION_PAYLOAD_EXCEEDED`(AI 에이전트 도구 정의가 크기 · 개수 상한을 넘음). LLM 클라이언트 층 코드는 §6.17 | [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md), [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) |
+| LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `MAX_COLLECTION_RETRIES_EXCEEDED` · `TOOL_DEFINITION_PAYLOAD_EXCEEDED`(AI 에이전트 도구 정의가 크기 · 개수 상한을 넘음). LLM 클라이언트 층 코드는 §6.17 | [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md), [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md) |
 | Code 노드 | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT`(isolate 메모리 하드 리밋 초과, 기본 128MB, `CODE_NODE_MEMORY_LIMIT_MB` 로 조정) | [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) |
 | 서브 워크플로우 | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE` | [워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md) |
 | 통합 공통 · Cafe24 · MakeShop | 통합 노드 공통 코드 `INTEGRATION_*` 와 `CAFE24_*` · `MAKESHOP_*`. 코드 목록은 §6.22 | [통합 노드 공통 「공통 에러 코드」](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md#공통-에러-코드), [Cafe24 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-CAFE24.md#에러-코드), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | 노드 취소 | `AbortError`(§3 예외 등록 코드. 노드 실행의 `error.code`) | [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md) |
 | 반복 · 병렬 실패 회차 · 에러 포트 라우팅 | `UNKNOWN_ERROR`(`errorPolicy='continue'` 의 `skipped[].error.code` · Map `mapped[i].error.code` 대체값. 핸들러가 throw 한 실패를 `route_to_error_port` 로 보낼 때의 `output.error.code` 대체값, 아래) | [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조), [노드 에러 처리 정책 「2. 에러 포트로 라우팅」](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) |
 
-- **`HTTP_TIMEOUT` 은 발행하지 않는다.** enum 에는 있지만 HTTP Request 핸들러는 타임아웃 때 `AbortController.abort()` 로 fetch 를 멈추고 그 reject 를 다른 전송 에러와 함께 `HTTP_TRANSPORT_FAILED` 로 발행한다(`http-request.handler.ts`). 그래서 `output.error.code` 로 `HTTP_TIMEOUT` 이 보이는 경로는 없다. 앞으로 세분화할 여지와 방어적 매핑을 위해 enum 과 분류 표에 코드를 남긴다.
+- **HTTP 타임아웃 전용 코드는 없다.** HTTP Request 핸들러는 타임아웃 때 `AbortController.abort()` 로 fetch 를 멈춘다. 그 reject 는 다른 전송 에러와 함께 `HTTP_TRANSPORT_FAILED` 로 나간다(`http-request.handler.ts`). `ErrorCode` enum 에 있던 `HTTP_TIMEOUT` 은 발행처가 없어 2026-11-26 에 enum 에서 지웠다(NERV Task `CLE-T-P0W82J`, 아래 Rationale).
 - **`HTTP_4XX` 에는 따라가지 않은 3xx 도 든다.** HTTP Request 핸들러는 상태가 500 이상이면 `HTTP_5XX`, 그 밖의 2xx 아닌 응답은 `HTTP_4XX` 를 낸다. 3xx 와 4xx 는 `output.error.details.statusCode` 로 가른다. 이름이 이 범위를 다 담지 못해 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 올렸다(아래 Rationale).
 - **`HTTP_BLOCKED` 는 리다이렉트 한도 초과에도 나간다.** `integration` 인증의 HTTP Request 노드는 리다이렉트를 직접 따라간다. 5홉을 따라간 뒤에도 `Location` 이 있는 3xx 가 오면 사설망 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. `output.error.message` 도 사설망 차단과 같은 `Request blocked by SSRF policy.` 다. 차단 코드를 판정에만 쓴다는 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 규칙 9 의 예외이고, 새 조건에 기존 코드를 쓰므로 카탈로그 규칙 6 의 예외다. 2026-11-14 에 사람이 전용 코드를 만들지 않고 이 예외를 받아들였다(아래 Rationale).
 - **HTTP Request 노드의 활동 로그 `error.code` 는 상태 코드별 `HTTP_{status}` 다.** `integration` 인증일 때 노드는 호출마다 통합 활동 로그를 남긴다. 응답이 2xx 가 아니면(3xx · 4xx · 5xx) `HTTP_404` · `HTTP_502` 처럼 상태 번호를 붙인 값을 싣고 통합의 `last_error.code` 에도 같은 값이 남는다. 노드 출력의 `output.error.code` 는 위 표의 `HTTP_4XX` · `HTTP_5XX` 다. 이름이 규칙 1 을 따르지 않아 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 올렸다. 정의는 [HTTP Request 노드 — 실행 로직 「활동 로그」](../CLE-NODE-INT/CLE-NODE-HTTP-EXEC.md#활동-로그) 다.
-- **`LLM_TIMEOUT` 도 발행하지 않는다.** enum 에는 있지만 어느 LLM 호출 경로도 이 코드를 내지 않는다(2026-10-10 결정). LLM 타임아웃은 `LLM_CALL_FAILED` 나 스트림 에러 코드로 온다. 단일 턴 AI 에이전트의 롤링 요약 호출에는 앱 타임아웃이 없어 `LLM_TIMEOUT` 이 나오지 않는다. 이 호출이 실패하면 첫 호출과 같은 분류로 `error` 포트에 나간다. LLM 클라이언트의 `withTimeout` 도 전용 코드로 옮기지 않는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). 호출 경로별 결과는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 이 모아 적는다. [채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md) 의 실패 분류 표는 `HTTP_TIMEOUT` 처럼 이 코드를 «발행 안 됨» 으로 표시해 남긴다. 이 카탈로그도 등재를 남긴다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)).
+- **LLM 타임아웃 전용 코드도 없다.** 어느 LLM 호출 경로도 타임아웃에 따로 코드를 내지 않는다(2026-10-10 결정). LLM 타임아웃은 `LLM_CALL_FAILED` 나 스트림 에러 코드로 온다. 단일 턴 AI 에이전트의 롤링 요약 호출에는 앱 타임아웃이 없다. 이 호출이 실패하면 첫 호출과 같은 분류로 `error` 포트에 나간다. LLM 클라이언트의 `withTimeout` 도 전용 코드로 옮기지 않는다([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)). 호출 경로별 결과는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃) 이 모아 적는다. `ErrorCode` enum 에 있던 `LLM_TIMEOUT` 은 2026-11-26 에 지웠다(아래 Rationale).
 - 옛 코드 `NODE_EXECUTION_FAILED`·`INTEGRATION_ERROR`·`LLM_ERROR` 는 노드 출력에 더 이상 쓰지 않는다. 노드 실패가 Stop Workflow 로 격상된 엔진 수준에서만 `NodeExecution.error.message` 맥락으로 남는다.
 - **`UNKNOWN_ERROR` 는 반복 · 병렬 결과와 에러 포트 라우팅에 쓰는 대체값이다.** ForEach · Map · Parallel 이 실패한 회차 · 병렬 분기를 결과에 담을 때 던진 에러에 백엔드가 직접 싣는 카탈로그 코드가 없으면 이 값을 쓴다. 평범한 `Error` · `TypeError`, Node 런타임 · DB 드라이버의 `code`(`ECONNREFUSED` 등), Error 가 아닌 값이 여기에 든다. 규칙은 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4번이 정한다. 그대로 내는 코드는 허용 목록에 있는 값뿐이다. 목록은 `ErrorCode` · `EngineErrorCode` · MCP 코드 상수의 값과 에러 클래스가 싣는 `code` 리터럴로 만든다. 단위 테스트(`iteration-error-code.spec.ts`)가 소스의 에러 클래스 `code` 리터럴과 목록이 맞는지 본다. 핸들러가 throw 한 실패를 에러 처리 정책 `route_to_error_port` 로 보낼 때도 `output.error.code` 를 같은 함수(`resolveIterationErrorCode`)로 고른다(NERV Task `CLE-T-KXARNK`). 정책 쪽 규칙은 [노드 에러 처리 정책 「2. 에러 포트로 라우팅」](../CLE-NODE/CLE-NODE-ERROR.md#2-에러-포트로-라우팅) 에 있다.
 - 채팅 채널 어댑터는 이 enum 으로 사용자 안내 메시지를 고른다([채팅 채널 어댑터 규약](../CLE-CHAT/CLE-CHAT-ADAPTER.md)). enum 을 늘리면 분류 표에 행을 더할지 함께 검토한다.
@@ -104,7 +99,7 @@ etag: "sha256-e7829177d0c21c764811881a04934c52e80370e18c90ca3937d7a7ad7e0edf5c"
 
 ### LLM 타임아웃에 `LLM_TIMEOUT` 을 쓰지 않는다 (2026-10-10)
 
-`LLM_TIMEOUT` 은 enum 에 있지만 발행처가 없었다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 만 스트리밍 턴 타임아웃에 이 코드를 약속했다. 2026-10-10 에 사람이 LLM 호출 타임아웃 문서를 코드에 맞추기로 정하면서 이 코드도 내지 않기로 했다. 결정 근거는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다. 2026-11-20 에 enum 과 등재는 «발행하지 않음» 표시로 남기기로 했다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)).
+`LLM_TIMEOUT` 은 enum 에 있지만 발행처가 없었다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 만 스트리밍 턴 타임아웃에 이 코드를 약속했다. 2026-10-10 에 사람이 LLM 호출 타임아웃 문서를 코드에 맞추기로 정하면서 이 코드도 내지 않기로 했다. 결정 근거는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다. 2026-11-20 에 enum 과 등재는 «발행하지 않음» 표시로 남기기로 했다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)). 2026-11-26 에 enum 과 등재를 지웠다(아래 「발행하지 않는 이름을 enum · 분류기 · 카탈로그에서 걷었다」).
 
 - 단일 턴 AI 에이전트의 LLM 호출(첫 호출 · 도구 루프 호출 · 롤링 요약 호출)이 실패하면 노드는 멀티턴과 같은 분류의 에러를 `error` 포트로 낸다(NERV Task `CLE-T-ZHBMAC` · `CLE-T-Q38K9F`). 타임아웃은 재시도할 수 있는 `LLM_CALL_FAILED` 다. 롤링 요약 `chat` 실패는 첫 호출과 같은 HTTP status 기준으로 나뉜다. 요약 모델 설정(`summaryModelConfigId`)을 찾지 못한 실패는 429 · 5xx · 네트워크 신호가 없어 재시도할 수 없는 `LLM_CALL_FAILED` 로 나온다. 멀티턴 재개와 같은 분류다.
 - 남은 공백은 노드 LLM 설정(`llmConfigId`)을 해석하지 못하는 경우다. 이때는 아직 에러 코드 없이 노드가 실패한다.
@@ -132,7 +127,7 @@ NERV Task `CLE-T-3PRYB4` 이다. Send Email 노드는 정규화한 수신자(`to
 NERV Task `CLE-T-1W44RD` 의 결정이다.
 
 - **`CONTAINER_*` 행을 두지 않았다.** 엔진은 컨테이너 구조 검사에 실패하면 `new Error()` 메시지 앞에 `CONTAINER_CYCLE: ` · `CONTAINER_INVALID_CHILD: ` · `CONTAINER_MISSING_EMIT: ` · `CONTAINER_MULTIPLE_EMIT: ` 를 붙이고 코드 필드에는 싣지 않는다. 행으로 등재하면 클라이언트가 분기할 코드처럼 읽혀 규칙 4 와 부딪친다. 그래서 `INVALID_NODE_CONFIG: ` 처럼 행 없이 §6.5 에 메시지 접두로 적었다. 노드 문서들의 에러 표도 이름만 적던 것을 [Loop 노드](../CLE-NODE-LOGIC/CLE-NODE-LOOP.md) 처럼 메시지 전체로 바꿨다([컨테이너 실행 「공통 실행 모델」](../CLE-EXEC/CLE-EXEC-CONTAINER.md#공통-실행-모델)).
-- **`MAX_ITERATIONS_EXCEEDED` 는 행을 남기고 앵커 열에 `메시지 접두` 를 적었다.** 이 이름도 Loop 실행기가 메시지 앞에 붙이는 접두다. 규칙 9 는 이런 등재를 지우고 그 자리에 실측을 남기라고 한다. 이 행은 앵커 열과 설명에 실측(메시지 접두와 메시지 전체)을 적어 그 자리 구실을 한다. 행을 지우지 않은 것은 사용자 가이드 실행 결과 페이지의 에러 코드 표와 채팅 채널의 실행 실패 분류기(`execution-failure-classifier.ts`)가 이 이름을 코드로 싣고 있어서다. 독자는 그 이름을 이 카탈로그에서 찾는다. NERV Task `CLE-T-82M3MB`(2026-11-12)는 가이드 실행 결과 페이지를 메시지 접두로 고쳤고 분류기 때문에 행은 남겼다. 분류기 정리는 NERV Task `CLE-T-P0W82J` 가 맡는다.
+- **`MAX_ITERATIONS_EXCEEDED` 는 행을 남기고 앵커 열에 `메시지 접두` 를 적었다.** 이 이름도 Loop 실행기가 메시지 앞에 붙이는 접두다. 규칙 9 는 이런 등재를 지우고 그 자리에 실측을 남기라고 한다. 이 행은 앵커 열과 설명에 실측(메시지 접두와 메시지 전체)을 적어 그 자리 구실을 한다. 행을 지우지 않은 것은 사용자 가이드 실행 결과 페이지가 이 이름을 메시지 접두로 적고 독자가 그 이름을 이 카탈로그에서 찾기 때문이다. NERV Task `CLE-T-82M3MB`(2026-11-12)가 가이드 실행 결과 페이지를 메시지 접두로 고쳤다. 채팅 채널의 실행 실패 분류기(`execution-failure-classifier.ts`)도 이 이름을 싣고 있었지만 그 인용은 NERV Task `CLE-T-P0W82J`(2026-11-26)가 걷었다.
 - **경로 자리표시자 접두는 출력 코드를 바꾸지 않았다.** Cafe24 · MakeShop 노드가 경로 자리표시자를 채우지 못하면 던지는 `CAFE24_UNRESOLVED_PATH_PARAM: ` · `MAKESHOP_UNRESOLVED_PATH_PARAM: ` 은 노드의 바깥 catch 에서 `INTEGRATION_CALL_FAILED` 가 된다. `IntegrationError` 로 바꿔 서비스별 코드를 주는 안도 견줬다. 이 실패는 메타데이터나 입력 매핑의 오류라 흐름에서 따로 분기할 일이 없고, 그 안은 코드 변경과 새 코드 등재가 함께 필요하다. 그래서 출력은 그대로 두고 노드 문서의 에러 코드 절에 메시지 전체와 출력 코드를 적었다.
 - **가이드 식별자 가드의 주석과 탈출구** (`guide-identifier-scan.ts` 의 «`CONTAINER_*` 를 6.5 에 등재하면 카탈로그 탈출구가 발화한다») 는 NERV Task `CLE-T-82M3MB` 가 그대로 두기로 했다. 카탈로그 탈출구는 남겼다.
 
@@ -156,3 +151,13 @@ NERV Task `CLE-T-43KCNP` 에서 사람이 정했다. 근거와 기각한 대안�
 
 - **리다이렉트 한도 초과**: `HTTP_BLOCKED` 를 규칙 6 의 받아들인 예외로 둔다. 기존 코드를 다시 쓰는 결정이라 §3 에는 올리지 않는다(부모 문서 Rationale 「규칙 7 의 「규칙」 을 이름 규칙으로 좁혔다」). 부모 문서 규칙 6 의 예외 목록에 이 경우를 더하는 일은 NERV Task `CLE-T-J6M2JG` 가 맡는다.
 - **`HTTP_4XX` 의 3xx**: 2xx 도 5xx 도 아닌 응답이라는 같은 조건이라 새 조건으로 보지 않았다. 그래도 이름이 4xx 만 말하고 조건의 뜻 대신 상태 범주를 적어 규칙 1 과 맞지 않는다. 그래서 `CAFE24_4XX` 처럼 `HTTP_4XX` · `HTTP_5XX` 를 §3 에 올렸다.
+
+### 발행하지 않는 이름을 enum · 분류기 · 카탈로그에서 걷었다 (2026-11-26)
+
+NERV Task `CLE-T-P0W82J` 다. 사람이 2026-11-26 조율 세션에서 권장안으로 정했다. 모두 어디서도 발행하지 않는 이름이라 실제로 나가는 코드와 그 안내는 바뀌지 않는다.
+
+- **enum 에서 세 코드를 지웠다.** `ErrorCode` enum 의 `HTTP_TIMEOUT` · `LLM_TIMEOUT` · `INTERACTION_TIMEOUT` 이다. `INTERACTION_TIMEOUT` 의 §6.7 등재 정리는 [에러 코드 카탈로그 — WS · EIA](CLE-API-ERRCODES-WSEIA.md) 가 맡는다.
+- **분류기에서 여덟 이름을 뺐다.** 채팅 채널 실행 실패 분류기(`execution-failure-classifier.ts`)의 타임아웃 목록에서 `HTTP_TIMEOUT` · `LLM_TIMEOUT` 을 뺐다. 내부 실패 목록에서는 `RECURSION_DEPTH_EXCEEDED` · `MAX_ITERATIONS_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` 를 뺐다. 이런 이름이 들어오면 모르는 코드와 같이 `executionFailedInternal` 로 안내하고 `warn` 로그를 남긴다([채팅 채널 어댑터 규약 「실행 실패 안내 분류」](../CLE-CHAT/CLE-CHAT-ADAPTER-RENDER.md#실행-실패-안내-분류)).
+- **§6.5 에서 행 다섯을 지웠다.** 분류기가 인용해서 남겨 둔 행이고 앵커 열의 `분류기 인용` 값도 함께 없앴다. `RECURSION_DEPTH_EXCEEDED` 는 엔진이 코드 없이 메시지만 던진다([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md)). `CYCLE_DETECTED` · `INVALID_EXPRESSION` 은 AI 어시스턴트 도구 결과 값이다. 정의는 [AI 어시스턴트 도구 「Shadow 검증 규칙」](../CLE-WF/CLE-WF-ASSIST-TOOLS-SHADOW.md#shadow-검증-규칙) 에 있다. `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` 는 발행처가 없다.
+- **`MAX_ITERATIONS_EXCEEDED` 행은 남겼다.** 사용자 가이드 실행 결과 페이지가 이 이름을 메시지 접두로 적고 독자가 이 카탈로그에서 찾는다. 분류기 인용이 빠진 뒤로 유저 가이드 식별자 가드(`guide-identifier-scan.ts`)는 이 이름을 카탈로그 탈출구로 통과시킨다. 이 행은 «코드가 아니다» 라고 적고 있어 그렇게 통과하면 거짓 통과다. 그래서 가드의 `GUIDE_NON_EMITTED_VOCABULARY` 에 `loop-executor.ts#MAX_ITERATIONS_EXCEEDED` 로 등록했다.
+- **기각한 대안은 두 가지다.** 하나는 `MAX_ITERATIONS_EXCEEDED` 행도 지우는 안이다. 가이드가 이 이름을 적고 독자가 카탈로그에서 찾으므로 기각했다. 다른 하나는 enum 은 남기고 분류기만 정리하는 안이다. 정의만 있는 enum 값이 분류 표와 문서로 다시 번질 수 있어 기각했다.
