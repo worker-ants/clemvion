@@ -53,17 +53,25 @@ export class IntegrationHandlerBase {
   /**
    * 통합을 얻는다(1·2단계). 지금 노드와 참조 값이 리터럴이었는지를 `use` 로 넘긴다. 리터럴인지는 평가 전 원본
    * (`context.rawConfig.integrationId`)이 평가한 값과 같은 문자열인지로 본다. 원본이 없으면 표현식으로 본다.
+   *
+   * 서비스 미주입과 워크스페이스 컨텍스트 누락은 배포 구성 에러라 공통 코드 `INTEGRATION_SERVICE_UNAVAILABLE` 로
+   * 던진다([통합 노드 공통 「공통 에러 코드」](CLE-NODE-INT-COMMON-ERROR#공통-에러-코드)). 일반 `Error` 로 던지면
+   * 핸들러 catch 가 코드를 잃고 `INTEGRATION_CALL_FAILED`(Send Email 은 `EMAIL_SEND_FAILED`)를 매긴다.
    */
   protected async acquireIntegration(
     integrationId: string,
     context: ExecutionContext,
   ): Promise<Integration> {
     if (!this.integrationsService) {
-      throw new Error('Integration service is not available');
+      throw new IntegrationError(
+        'INTEGRATION_SERVICE_UNAVAILABLE',
+        'Integration service is not available',
+      );
     }
     const workspaceId = this.getWorkspaceId(context);
     if (!workspaceId) {
-      throw new Error(
+      throw new IntegrationError(
+        'INTEGRATION_SERVICE_UNAVAILABLE',
         'Missing workspace context — handler cannot resolve the integration',
       );
     }

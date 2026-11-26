@@ -2,21 +2,21 @@
 id: "CLE-NODE-EMAIL"
 title: "Send Email 노드"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-EMAIL-001", "REQ-EMAIL-002", "REQ-EMAIL-003", "REQ-EMAIL-004", "REQ-EMAIL-005", "REQ-EMAIL-006", "REQ-EMAIL-007", "REQ-EMAIL-008", "REQ-EMAIL-010", "REQ-EMAIL-011", "REQ-EMAIL-012", "REQ-EMAIL-013", "REQ-EMAIL-014", "REQ-EMAIL-015", "REQ-EMAIL-016", "REQ-EMAIL-017", "REQ-EMAIL-018", "REQ-EMAIL-019", "REQ-EMAIL-020", "REQ-EMAIL-021", "REQ-EMAIL-022", "REQ-EMAIL-023", "REQ-EMAIL-024", "REQ-EMAIL-025", "REQ-EMAIL-026", "REQ-EMAIL-027", "REQ-EMAIL-028", "REQ-EMAIL-029", "REQ-EMAIL-030", "REQ-EMAIL-031"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "39afaf8ac8afa25611d291aad91697b03b9ba389978b7dad64c398d0e333f4c8"
+content_hash: "e45195f3b21fafaf3522c3d26f53de5fc6df2e18e389877fa38d374e99b417d8"
 read_as: "approved_fallback"
-task: "CLE-T-3M0KRA"
+task: "CLE-T-MYDNQN"
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "194e4a95f4806797fdf3044a6f2801b1b45f5f00f0e644de385f4926aeb64f75"
-etag: "sha256-b49859ea5759a22277490fef5e62f3eaf34aa7ad80975db8bc8fd15eefa0c852"
+mirror_sha256: "0fdfc552a137a1e1b73a5f47f8d25290367a04cdfa9b50865f824a6b9a919dae"
+etag: "sha256-b037e105383b20316b4a3276a1cd5d0dc13b54c37c8a8cdf8abf5316efc6751a"
 ---
-> 구현 상태: 부분 구현 (워크스페이스 누락의 `INTEGRATION_SERVICE_UNAVAILABLE` 은 미구현) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -46,7 +46,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 - REQ-EMAIL-019 IF nodemailer 발송이 실패하면 THE SYSTEM SHALL `EMAIL_SEND_FAILED` 로 에러 포트에 보낸다.
 - REQ-EMAIL-020 IF 실행 중 `IntegrationError` 가 나면 THE SYSTEM SHALL 그 코드를 `output.error.code` 로 그대로 내보낸다.
 - REQ-EMAIL-021 IF 실행 중 `IntegrationError` 가 아닌 예외가 나면 THE SYSTEM SHALL `EMAIL_SEND_FAILED` 로 에러 포트에 보낸다. 연결 시점 판정의 차단은 REQ-EMAIL-030 을 따른다.
-- REQ-EMAIL-022 IF 실행 컨텍스트에 워크스페이스 정보(`__workspaceId`)가 없으면 THE SYSTEM SHALL `INTEGRATION_SERVICE_UNAVAILABLE` 로 에러 포트에 보낸다. (미구현)
+- REQ-EMAIL-022 IF 실행 컨텍스트에 워크스페이스 정보(`__workspaceId`)가 없으면 THE SYSTEM SHALL `INTEGRATION_SERVICE_UNAVAILABLE` 로 에러 포트에 보낸다.
 - REQ-EMAIL-023 WHEN 에러를 내보내면 THE SYSTEM SHALL 메시지의 비밀 토큰을 `***` 로 가리고, 수신자 로컬 파트를 마스킹하고, 제목을 200자로 자른다.
 - REQ-EMAIL-024 WHEN 통합을 얻은 뒤 실행이 끝나면 THE SYSTEM SHALL 성공·실패와 관계없이 활동 로그를 남긴다. dry-run 재실행의 모의 출력은 활동 로그를 남기지 않는다([부수효과 판정](../CLE-EXEC/CLE-EXEC-RERUN-DRYRUN.md#부수효과-판정)).
 - REQ-EMAIL-025 WHEN 활동 로그를 남기면 THE SYSTEM SHALL `api_label` 을 NULL, `api_method` 를 `SEND`, `api_path` 를 SMTP 호스트로 채우고 수신자 이메일은 저장하지 않는다.
@@ -104,7 +104,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 |------|----|-------|------|---------|------|
 | 입력 | `in` | Input | data | false | 입력 데이터. 핸들러는 직접 쓰지 않고 표현식에서만 참조한다 |
 | 출력 | `out` | Output | data | false | 발송 성공(일부 거부 포함) |
-| 출력 | `error` | Error | error | false | 런타임 실패(수신자 없음 · 통합 해소 실패 · 전송 실패 · 사설망 차단). `EMAIL_SEND_FAILED`·`EMAIL_HOST_BLOCKED`·`EMAIL_NO_RECIPIENTS`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED` |
+| 출력 | `error` | Error | error | false | 런타임 실패(수신자 없음 · 통합 해소 실패 · 전송 실패 · 사설망 차단). `EMAIL_SEND_FAILED`·`EMAIL_HOST_BLOCKED`·`EMAIL_NO_RECIPIENTS`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`·`INTEGRATION_SERVICE_UNAVAILABLE` |
 
 동적 포트는 없다. `handler.validate()` 실패만 throw 로 노드 실행 자체를 실패시킨다. 빈 `to` 를 포함해 `execute()` 의 try/catch 안에서 난 실패는 `error` 포트로 간다.
 
@@ -154,19 +154,18 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 | 코드 | 조건 |
 |------|------|
-| `EMAIL_SEND_FAILED` | nodemailer `sendMail` 이 던진 일반 전송 실패(네트워크·SMTP 응답 에러 등). `IntegrationError` 가 **아닌** 모든 catch 분기의 fallback 이다. 그래서 없는 `integrationId` 의 `NotFoundException` 과 워크스페이스 누락의 일반 `Error` 도 현재 이 코드로 흡수된다. 사설망 차단 가드의 고장도 이 코드다(REQ-EMAIL-031). 통합을 얻은 뒤의 실패면 활동 로그에도 이 코드로 남는다(REQ-EMAIL-027) |
+| `EMAIL_SEND_FAILED` | nodemailer `sendMail` 이 던진 일반 전송 실패(네트워크·SMTP 응답 에러 등). `IntegrationError` 가 **아닌** 모든 catch 분기의 fallback 이다. 그래서 없는 `integrationId` 의 `NotFoundException` 도 이 코드로 흡수된다. 사설망 차단 가드의 고장도 이 코드다(REQ-EMAIL-031). 통합을 얻은 뒤의 실패면 활동 로그에도 이 코드로 남는다(REQ-EMAIL-027) |
 | `EMAIL_HOST_BLOCKED` | SMTP `host` 가 막힌 대역이라 연결 전 검사(8단계)나 연결 시점 판정에 막힘. 기본 켜짐, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 해제. 메시지는 고정 문구다(REQ-EMAIL-030). `IntegrationError('EMAIL_HOST_BLOCKED')` 로 던져 그대로 나온다 |
 | `EMAIL_NO_RECIPIENTS` | 정규화한 `to` 가 비어 보낼 곳이 없음. 수신자 표현식이 빈 값으로 평가될 때 생긴다. `IntegrationError('EMAIL_NO_RECIPIENTS')` 로 던져 그대로 나온다. 통합을 얻기 전이라 활동 로그는 남지 않는다. dry-run 과 서비스 미주입 환경에서도 같다 |
 | `INTEGRATION_INCOMPLETE` | SMTP 자격 증명의 `host`·`port`·`secure`·`username`·`password`·`default_from` 중 하나라도 없음 |
 | `INTEGRATION_TYPE_MISMATCH` | 참조한 통합의 `serviceType` 이 `'email'` 이 아님 |
 | `INTEGRATION_NOT_CONNECTED` | 통합 상태가 `connected` 가 아님(`expired`·`error`·`pending_install`) |
+| `INTEGRATION_SERVICE_UNAVAILABLE` | 실행 컨텍스트에 `__workspaceId` 가 없음(배포 구성 에러, REQ-EMAIL-022). 공통 베이스 `acquireIntegration` 이 `IntegrationError` 로 던진다. 통합을 얻기 전이라 활동 로그는 남지 않는다 |
 
-- `execute()` 의 try/catch 에서 `IntegrationError` 를 잡은 경우에만 그 `code` 가 `output.error.code` 로 **직접** 나온다(`EMAIL_HOST_BLOCKED`·`EMAIL_NO_RECIPIENTS`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`). nodemailer 전송 실패를 포함한 그 밖의 모든 throw 는 `EMAIL_SEND_FAILED` 로 바뀐다. 예외는 연결 시점 판정의 차단이다. catch 가 `cause` 사슬에서 판정 오류를 찾아 `EMAIL_HOST_BLOCKED` 로 바꾼다.
+- `execute()` 의 try/catch 에서 `IntegrationError` 를 잡은 경우에만 그 `code` 가 `output.error.code` 로 **직접** 나온다(`EMAIL_HOST_BLOCKED`·`EMAIL_NO_RECIPIENTS`·`INTEGRATION_INCOMPLETE`·`INTEGRATION_TYPE_MISMATCH`·`INTEGRATION_NOT_CONNECTED`·`INTEGRATION_SERVICE_UNAVAILABLE`). nodemailer 전송 실패를 포함한 그 밖의 모든 throw 는 `EMAIL_SEND_FAILED` 로 바뀐다. 예외는 연결 시점 판정의 차단이다. catch 가 `cause` 사슬에서 판정 오류를 찾아 `EMAIL_HOST_BLOCKED` 로 바꾼다.
 - `output.error.message` 는 `IntegrationHandlerBase.sanitizeMessage` 가 비밀 토큰(`Bearer …`, `password=…`, 32자 이상 hex·base64 등)을 `***` 로 가린 뒤 나간다. `output.error.details.to` 는 `maskEmailForErrorDetails` 로 로컬 파트를 가린다(`alice@example.com` → `a***@example.com`).
 
-### 아직 에러 포트로 나오지 않는 코드 (Planned)
-
-- `INTEGRATION_SERVICE_UNAVAILABLE`: `__workspaceId` 가 없을 때 낼 코드다(REQ-EMAIL-022). [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.22 의 이 코드 행이 워크스페이스 컨텍스트 누락을 담는다. 지금은 공통 베이스 `acquireIntegration` 이 일반 `Error('Missing workspace context …')` 를 던지고, `IntegrationError` 가 아니라서 `EMAIL_SEND_FAILED` 가 된다. 다른 통합 노드의 같은 경우도 아직 이 코드로 나오지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#미결-사항) 미결 사항).
+### 이 노드에서 나오지 않는 코드
 
 다음 두 코드는 이 노드에서 나오지 않고, 내보낼 계획도 없다.
 
@@ -236,6 +235,14 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 - 워크스페이스 누락만 REQ-EMAIL-022 에 남기고 코드를 `INTEGRATION_SERVICE_UNAVAILABLE` 로 적었다. 카탈로그의 이 코드 행이 워크스페이스 컨텍스트 누락을 이미 담고 있고, [통합 노드 공통](CLE-NODE-INT-COMMON.md) 도 다른 통합 노드의 같은 경우에 이 코드를 적는다.
 - 통합 없음은 REQ-EMAIL-022 에서 뺐다. 카탈로그와 코드에 전용 코드가 없고, 통합 노드 공통은 없는 통합 · 다른 워크스페이스 통합 · 남의 개인 통합을 같은 실패로 둔다. 전용 코드를 새로 둘지는 이 문서에서 정하지 않는다. 지금 동작은 REQ-EMAIL-021 이 정한다.
 - 핸들러는 `IntegrationError` 에만 `toLogError` 를 쓰고 그 밖은 `EMAIL_SEND_FAILED` 로 직접 정한다. 활동 로그에 공통 fallback `INTEGRATION_CALL_FAILED` 가 남는다고 적었던 이전 서술을 구현에 맞춰 고치고 REQ-EMAIL-027 을 더했다.
+
+### 워크스페이스 누락을 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다
+
+결정일: 2026-11-26
+
+앞 절(2026-11-13)은 요구사항의 코드 이름만 정했고 구현은 여전히 `EMAIL_SEND_FAILED` 를 냈다. 이 절은 그 결정을 바꾸지 않고 구현을 맞춘다. 공통 베이스 `acquireIntegration` 이 워크스페이스 누락과 서비스 미주입을 일반 `Error` 대신 `IntegrationError('INTEGRATION_SERVICE_UNAVAILABLE')` 로 던지게 고쳤다(NERV Task `CLE-T-MYDNQN`). 그래서 REQ-EMAIL-022 의 코드가 그대로 나온다.
+
+- 기각: 요구사항을 이전 동작(`EMAIL_SEND_FAILED`)에 맞추는 안. 이 코드를 이미 적은 공통 코드 표 · 카탈로그 · 다른 통합 노드 문서를 모두 바꿔야 한다.
 
 ### `meta` 가 공통 규칙과 다른 두 곳
 
