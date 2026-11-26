@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-LOGIN"
 title: "가입과 로그인 — 로그인과 소셜 로그인"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "657045e6120536d264d92248d947f7a2d737144175de95ed8d493cce469939dd"
+content_hash: "ac9a1b4e1537b357108aca923f330323261593e33fd77091ea43a645e01d33c7"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-AXGZ9P"
 source_paths: []
-mirror_sha256: "56660f1812368220967b090ea095c5894225aca713618da4aa211eb400759abe"
-etag: "sha256-0b586577e9e049a246fad56707e5f6f1c571ee98cb8ce4e9ea30a597bef7195d"
+mirror_sha256: "cf2d74be0c6907136b99fcd6db14614d0d64071e39b606b9ab6b3bdb63145a53"
+etag: "sha256-e4b63092bdc2bf05c87b562bdf4962629a6fbc5eeb0132d78adb0057a4a3b383"
 ---
 ## 개요
 
@@ -234,7 +234,8 @@ state 행이 없거나 만료됐거나 이미 소비됐으면 서비스는 400 `
 - `codebase/frontend/src/app/(auth)/**` (`callback/callback-content.tsx` 의 소셜 로그인 복귀 포함)
 - `codebase/frontend/src/components/auth/**` (`login-form.tsx` 포함)
 - `codebase/frontend/src/components/auth/__tests__/login-form-webauthn.test.tsx` (검증 중 버튼 잠금, 실패 뒤 새 옵션)
-- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동할 곳, 소셜 로그인의 복귀 경로 저장과 꺼내기, 초대 수락 페이지로 돌아오는 로그인 경로 `buildInvitationLoginHref`. 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다)
+- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동과 소셜 로그인 복귀 경로. 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md))
+- `codebase/frontend/src/lib/invitations/accept-path.ts` (초대 로그인 경로)
 - `codebase/frontend/src/lib/api/auth.ts`, `codebase/frontend/src/lib/api/auth-providers.ts`
 - `codebase/frontend/src/lib/api/errors.ts` (`axiosMessage` · `extractApiMessage`, 에러 응답 봉투의 `error.message` 읽기)
 
