@@ -288,6 +288,11 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
     where: "execution-engine.service.ts#CONTAINER_MULTIPLE_EMIT — 형제 접두",
     why: "위와 동형. 두 이름은 같은 문장에 함께 등장하므로 처분도 함께 한다.",
   },
+  {
+    token: "MAX_ITERATIONS_EXCEEDED",
+    where: "loop-executor.ts#MAX_ITERATIONS_EXCEEDED — 템플릿 리터럴 메시지 접두",
+    why: "Loop 반복 한도 초과는 `error.code` 로 나가지 않고 메시지 앞에만 붙는다. 가이드 실행 결과 페이지도 메시지 접두로 적는다. 카탈로그 「6.5」 행은 앵커 열이 `메시지 접두` 인 안내용 행이라 탈출구로 통과시키면 거짓 통과다. 분류기의 미발행 코드 인용을 지우면서 등록했다(NERV Task `CLE-T-P0W82J`).",
+  },
 ];
 
 /**
@@ -298,8 +303,9 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
  *
  * **이 집합을 «발행» 의 증거로 쓰지 않는다.** `CLE-API-ERRCODES` 「6.5」 가 명시하듯
  * *"… `execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기
- * 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다"* — 실제로 `MAX_ITERATIONS_EXCEEDED` 는
- * 메시지 접두로만 발행되는데 그 분류기가 인용해서 여기 들어온다.
+ * 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다"* — 예전에는 `MAX_ITERATIONS_EXCEEDED` 가
+ * 메시지 접두로만 발행되는데도 그 분류기가 인용해서 여기 들어왔다(NERV Task `CLE-T-P0W82J` 에서
+ * 그 인용을 지웠다).
  *
  * 그래서 호출부는 이것을 **통과 조건이 아니라 «접두 전용» 을 부정하는 데만** 쓴다.
  */
@@ -334,30 +340,30 @@ export function collectMessagePrefixes(
  * 그 미등재는 별건이고(NERV Task `CLE-T-DM3AXQ` 항목 4) 가드가 남의 미완결을 신고하게 두지
  * 않는다. 탈출구로 쓰면 그 코드들은 애초에 접두 전용이 아니라 술어에 안 걸리므로 무해하다.
  *
- * ## 이 탈출구는 오늘 한 번도 발화하지 않는다
+ ## 이 탈출구가 오늘 구하는 이름은 등록된 `MAX_ITERATIONS_EXCEEDED` 하나다
  *
- * 인용된 «접두 전용» 토큰 중 카탈로그 등재는 0종이다. 테스트 「[한계] 카탈로그 탈출구는 오늘
- * 한 번도 발화하지 않는다」 가 고정하고, 「[대조군] 그래도 탈출구가 작동은 한다」 가 합성 입력으로
- * 동작을 확인한다. 그래도 남기는 근거는 두 가지다(NERV Task `CLE-T-82M3MB` 판단).
+ * 인용된 «접두 전용» 토큰 중 카탈로그 등재는 `MAX_ITERATIONS_EXCEEDED` 1종이고 그 이름은
+ * `GUIDE_NON_EMITTED_VOCABULARY` 에 등록돼 있다. 등록되지 않은 이름을 이 탈출구가 구하는 일은
+ * 0건이다. 테스트 「[한계] 카탈로그 탈출구가 구하는 이름은 전부 등록돼 있다」 가 고정하고,
+ * 「[대조군] 그래도 탈출구가 작동은 한다」 가 합성 입력으로 동작을 확인한다. 그래도 남기는 근거는
+ * 두 가지다(NERV Task `CLE-T-82M3MB` 판단).
  *
  * 1. **원래 역할은 그대로다.** 카탈로그에 정식 코드로 오른 이름이 소스에서 메시지 접두로만
  *    보이면 그것은 카탈로그와 구현의 어긋남이지 가이드 문장의 잘못이 아니다.
  * 2. **지우면 아래 함정을 알릴 신호도 함께 없어진다.**
  *
- * ## 처음 발화할 자리 — `MAX_ITERATIONS_EXCEEDED` 함정
+ * ## `MAX_ITERATIONS_EXCEEDED` 함정
  *
  * 카탈로그 「6.5」 의 `MAX_ITERATIONS_EXCEEDED` 행은 앵커 열이 `메시지 접두` 이고 설명에
  * *"코드가 아니다"* 라고 적혀 있다. 그런데 `CATALOG_CODE` 는 행의 뜻을 보지 않고 절 안의
- * 백틱 토큰을 모두 세므로 이 이름도 등재 코드로 센다. 지금은 분류기의 소비자 Set
- * (`execution-failure-classifier.ts`) 인용 때문에 접두 전용 단계에서 먼저 탈락해 문제가 없다
- * (테스트 「[회귀] `MAX_ITERATIONS_EXCEEDED` 는 소비자-인용 때문에 통과한다」). 그 인용이
- * 지워지면(분류기의 미발행 코드 정리, NERV Task `CLE-T-8WXV7T`) 이 탈출구가 그 이름을 구하고
- * «0회 발화» 단언이 RED 가 된다.
+ * 백틱 토큰을 모두 세므로 이 이름도 등재 코드로 센다. 예전에는 분류기의 소비자 Set
+ * (`execution-failure-classifier.ts`) 인용 때문에 접두 전용 단계에서 먼저 탈락했다. 그 인용을
+ * 지우면서(NERV Task `CLE-T-P0W82J`) 이 탈출구가 처음 발화했다.
  *
- * **그 RED 는 "등록을 지워도 된다" 는 신호가 아니다.** 코드가 아니라고 적은 행을 탈출구로
- * 통과시키면 거짓 통과다. 그때는 카탈로그 행을 지우거나 이 이름을
- * `GUIDE_NON_EMITTED_VOCABULARY` 에 등록한다. 가이드 실행 결과 페이지는 이미 이 이름을
- * 메시지 접두로 적는다.
+ * 코드가 아니라고 적은 행을 탈출구로 통과시키면 거짓 통과다. 그래서 카탈로그 행은 안내용으로
+ * 두고(같은 Task 의 사용자 결정) 이 이름을 `GUIDE_NON_EMITTED_VOCABULARY` 에 등록했다.
+ * 가이드 실행 결과 페이지도 이 이름을 메시지 접두로 적는다. 등록을 지우면 「[한계]」 테스트가
+ * RED 가 된다.
  */
 export function collectCatalogCodes(specTexts: readonly string[]): Set<string> {
   return collectMatches(specTexts, CATALOG_CODE);

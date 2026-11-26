@@ -58,8 +58,8 @@ const UNMAPPED_CATALOG_ROWS = new Map<string, string>([
  * 이 목록에서도 지워야 한다(아래 「낡은 예외」 단언).
  */
 const NOT_GUIDE_CODES = new Map<string, string>([
-  ["HTTP_TIMEOUT", "enum 에만 있고 발행하지 않는다(§6.6 아래 목록)"],
-  ["LLM_TIMEOUT", "enum 에만 있고 발행하지 않는다(§6.6 아래 목록)"],
+  ["HTTP_TIMEOUT", "발행하지 않아 enum 에서도 지웠다. 카탈로그 행은 스펙 초안 승인 뒤 미러에서 사라진다(NERV Task `CLE-T-P0W82J`)"],
+  ["LLM_TIMEOUT", "발행하지 않아 enum 에서도 지웠다. 카탈로그 행은 스펙 초안 승인 뒤 미러에서 사라진다(NERV Task `CLE-T-P0W82J`)"],
   ["ALLOW_PRIVATE_HOST_TARGETS", "환경 변수다"],
   ["CODE_NODE_MEMORY_LIMIT_MB", "환경 변수다"],
 ]);
