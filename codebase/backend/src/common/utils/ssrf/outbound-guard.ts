@@ -202,8 +202,9 @@ export function resetSafeOutboundDispatcherForTesting(): Promise<void> {
  * {@link isBlockedHostname} 대역표로 다시 판정하고, 통과한 주소로만 연결한다. 막히면 소켓이 {@link SsrfBlockedError}
  * 로 `error` 를 낸다. 드라이버가 그 오류를 감싸 올려도 `findCause` 로 찾는다.
  *
- * `fetch` 를 쓰지 않고 소켓을 직접 여는 경로가 쓴다. Send Email(nodemailer `getSocket`, `send-email/smtp-host-guard.ts`)과
- * DB Query(pg · mysql2 `stream` 팩토리, `database-query/database-connection.ts`)가 노드 실행과 연결 테스트에서 함께 쓴다.
+ * `fetch` 를 쓰지 않고 소켓을 직접 여는 경로가 쓴다. 드라이버 소켓 어댑터(`socket-adapters.ts` 의 nodemailer `getSocket` ·
+ * pg · mysql2 `stream` 팩토리)에 넘기고, Send Email(`send-email/smtp-host-guard.ts`)과 DB Query
+ * (`database-query/database-connection.ts`)의 빌더가 그 어댑터를 노드 실행과 연결 테스트에 함께 싣는다.
  *
  * - `ALLOW_PRIVATE_HOST_TARGETS=true` 면 `undefined` 다. 호출자는 드라이버의 기본 연결을 그대로 쓴다.
  * - IP 리터럴 호스트에는 `net.connect` 가 조회를 부르지 않는다. 리터럴은 {@link assertSafeOutboundHostResolved} 가 맡는다.

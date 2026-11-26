@@ -807,12 +807,14 @@ describe('toChatChannelEvent — execution.node.completed (chat-channel-internal
  *  - `renderResult` — adapter.renderNode 가 돌려줄 메시지 (기본 없음)
  *  - `lookupState`  — conversationService.lookup 이 돌려줄 상태 (기본 undefined = 대화 없음)
  *  - `chatChannel`  — 저장된 `config.chatChannel` (기본 `{ provider: 'slack' }`)
+ *  - `chatChannelHealth` — 디스패치 시작 때 읽는 채널 건강도 (기본 `'healthy'`)
  */
 function buildDispatcherHarness(
   opts: {
     renderResult?: ChannelMessage[];
     lookupState?: Record<string, unknown>;
     chatChannel?: Record<string, unknown>;
+    chatChannelHealth?: 'unknown' | 'healthy' | 'degraded';
   } = {},
 ) {
   const state = opts.lookupState;
@@ -851,7 +853,7 @@ function buildDispatcherHarness(
       workspaceId: 'ws',
       workflowId: 'wf-1',
       config: { chatChannel: opts.chatChannel ?? { provider: 'slack' } },
-      chatChannelHealth: 'healthy',
+      chatChannelHealth: opts.chatChannelHealth ?? 'healthy',
     })),
     update: jest.fn(async () => undefined),
   };
@@ -1320,4 +1322,131 @@ describe('ChatChannelDispatcher.handle — 라우팅 정보는 event.routing 에
       expect(adapter.sendMessage).not.toHaveBeenCalled();
     },
   );
+});
+
+/**
+ * 아웃바운드 발송 뒤의 healthy 승격(NERV Task `CLE-T-GNQWEF`).
+ *
+ * 승격 조건은 «이 디스패치에서 보낸 메시지가 하나 이상이고 실패가 없다» 이다. 시작 때 읽은 건강도
+ * 스냅샷만 보면 같은 디스패치의 `markDegraded` 를 마지막에 `healthy` 로 덮는다. 결정은 사용자가
+ * 2026-11-26 조율 세션에서 정했다(실패가 하나라도 있으면 올리지 않는다, 0건 발송도 올리지 않는다).
+ */
+describe('ChatChannelDispatcher.handle — 발송 뒤 healthy 승격', () => {
+  const textMessage = (text: string): ChannelMessage => ({
+    conversationKey: '',
+    body: { kind: 'text', text },
+  });
+  const aiMessageEvent: ExecutionChannelEvent = {
+    executionId: 'exec-1',
+    eventType: 'execution.ai_message',
+    seq: 1,
+    payload: {
+      triggerId: 'trig-1',
+      workflowId: 'wf-1',
+      timestamp: '2026-11-26T00:00:00Z',
+      message: 'hi',
+    },
+    routing: { chatChannel: { provider: 'slack', conversationKey: 'D1' } },
+  };
+
+  /** `triggerRepository.update` 로 쓴 건강도 값을 호출 순서대로 모은다. */
+  function healthWrites(update: jest.Mock): unknown[] {
+    return update.mock.calls.map(
+      (call: unknown[]) =>
+        (call[1] as { chatChannelHealth?: unknown }).chatChannelHealth,
+    );
+  }
+
+  beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it.each(['degraded', 'unknown'] as const)(
+    '%s 에서 보낸 메시지가 모두 성공하면 healthy 로 올리고 last_error 를 지운다',
+    async (health) => {
+      const { dispatcher, triggerRepository } = buildDispatcherHarness({
+        renderResult: [textMessage('a'), textMessage('b')],
+        chatChannelHealth: health,
+      });
+      await callHandle(dispatcher, aiMessageEvent);
+
+      expect(triggerRepository.update).toHaveBeenCalledTimes(1);
+      expect(triggerRepository.update).toHaveBeenCalledWith(
+        { id: 'trig-1' },
+        { chatChannelHealth: 'healthy', chatChannelLastError: null },
+      );
+    },
+  );
+
+  it('이미 healthy 면 다시 쓰지 않는다', async () => {
+    const { dispatcher, triggerRepository } = buildDispatcherHarness({
+      renderResult: [textMessage('a')],
+      chatChannelHealth: 'healthy',
+    });
+    await callHandle(dispatcher, aiMessageEvent);
+
+    expect(triggerRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('보낸 메시지가 모두 실패하면 degraded 를 healthy 로 덮지 않는다', async () => {
+    const { dispatcher, adapter, triggerRepository } = buildDispatcherHarness({
+      renderResult: [textMessage('a'), textMessage('b')],
+      chatChannelHealth: 'degraded',
+    });
+    adapter.sendMessage.mockRejectedValue(new Error('provider 503'));
+    await callHandle(dispatcher, aiMessageEvent);
+
+    expect(healthWrites(triggerRepository.update)).toEqual([
+      'degraded',
+      'degraded',
+    ]);
+  });
+
+  it('앞 메시지가 실패하고 뒤 메시지가 성공해도 healthy 로 올리지 않는다', async () => {
+    const { dispatcher, adapter, triggerRepository } = buildDispatcherHarness({
+      renderResult: [textMessage('a'), textMessage('b')],
+      chatChannelHealth: 'unknown',
+    });
+    adapter.sendMessage
+      .mockRejectedValueOnce(new Error('provider 503'))
+      .mockResolvedValueOnce({
+        externalMsgId: 'm',
+        sentAt: '2026-11-26T00:00:00Z',
+      });
+    await callHandle(dispatcher, aiMessageEvent);
+
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(2);
+    expect(healthWrites(triggerRepository.update)).toEqual(['degraded']);
+    expect(triggerRepository.update).toHaveBeenCalledWith(
+      { id: 'trig-1' },
+      { chatChannelHealth: 'degraded', chatChannelLastError: 'provider 503' },
+    );
+  });
+
+  it('renderNode 가 메시지를 내지 않으면 건강도를 쓰지 않는다', async () => {
+    const { dispatcher, adapter, triggerRepository } = buildDispatcherHarness({
+      renderResult: [],
+      chatChannelHealth: 'degraded',
+    });
+    await callHandle(dispatcher, aiMessageEvent);
+
+    expect(adapter.sendMessage).not.toHaveBeenCalled();
+    expect(triggerRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('빈 본문이라 모두 건너뛰어 보낸 메시지가 없으면 건강도를 쓰지 않는다', async () => {
+    const { dispatcher, adapter, triggerRepository } = buildDispatcherHarness({
+      renderResult: [textMessage('  ')],
+      chatChannelHealth: 'unknown',
+    });
+    await callHandle(dispatcher, aiMessageEvent);
+
+    expect(adapter.sendMessage).not.toHaveBeenCalled();
+    expect(triggerRepository.update).not.toHaveBeenCalled();
+  });
 });

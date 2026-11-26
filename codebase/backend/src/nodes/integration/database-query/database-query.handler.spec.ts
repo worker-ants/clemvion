@@ -90,11 +90,13 @@ jest.mock('mysql2/promise', () => ({
     end: () => mysqlEndMock(),
   })),
   // Cancel uses a one-off connection (isolated from the capped pool).
-  createConnection: () =>
+  // `jest.fn` 으로 두어 취소 연결의 옵션(연결 시점 판정 `stream`)을 단언한다(CLE-T-G0GQVV).
+  createConnection: jest.fn(() =>
     Promise.resolve({
       query: (...args: unknown[]) => mysqlCancelQueryMock(...args),
       end: () => mysqlCancelEndMock(),
     }),
+  ),
 }));
 
 function ctx(): ExecutionContext {
@@ -195,12 +197,14 @@ describe('DatabaseQueryHandler', () => {
     pgCancelQueryMock.mockReset().mockResolvedValue({ rows: [] });
     pgCancelEndMock.mockReset().mockResolvedValue(undefined);
     jest.requireMock('pg').Pool.mockClear();
+    jest.requireMock('pg').Client.mockClear();
     mysqlQueryMock.mockReset();
     mysqlReleaseMock.mockReset();
     mysqlEndMock.mockReset().mockResolvedValue(undefined);
     mysqlCancelQueryMock.mockReset().mockResolvedValue([[], []]);
     mysqlCancelEndMock.mockReset().mockResolvedValue(undefined);
     jest.requireMock('mysql2/promise').createPool.mockClear();
+    jest.requireMock('mysql2/promise').createConnection.mockClear();
   });
 
   describe('integration cache bus', () => {
@@ -376,6 +380,10 @@ describe('DatabaseQueryHandler', () => {
           [12345],
         );
         expect(pgCancelEndMock).toHaveBeenCalled(); // 취소 연결 닫힘
+        // 취소 연결도 연결 시점 판정(`stream` 팩토리)을 거친다(REQ-DBQ-030, CLE-T-G0GQVV).
+        expect(jest.requireMock('pg').Client).toHaveBeenCalledWith(
+          expect.objectContaining({ stream: expect.any(Function) }),
+        );
         expect(releaseMock).toHaveBeenCalled();
         // CLE-EXEC-CANCEL 규칙 3 — 취소된 호출은 활동 로그를 남기지 않는다.
         expect(logUsage).not.toHaveBeenCalled();
@@ -404,6 +412,12 @@ describe('DatabaseQueryHandler', () => {
           ),
         ).rejects.toMatchObject({ name: 'AbortError' });
         expect(mysqlCancelQueryMock).toHaveBeenCalledWith('KILL QUERY 42');
+        // 취소 연결도 연결 시점 판정(`stream` 팩토리)을 거친다(REQ-DBQ-030, CLE-T-G0GQVV).
+        expect(
+          jest.requireMock('mysql2/promise').createConnection,
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({ stream: expect.any(Function) }),
+        );
         expect(mysqlReleaseMock).toHaveBeenCalled();
         expect(logUsage).not.toHaveBeenCalled();
         await handler.shutdown();
@@ -1308,28 +1322,44 @@ describe('DatabaseQueryHandler', () => {
           const { service, logUsage } = makeService({
             integration: pgIntegrationWithHost(host),
           });
+          const warn = jest
+            .spyOn(Logger.prototype, 'warn')
+            .mockImplementation(() => undefined);
           const handler = new DatabaseQueryHandler(service as never);
-          const out = (await handler.execute(
-            null,
-            { integrationId: 'int-1', query: 'SELECT 1' },
-            ctx(),
-          )) as unknown as ErrorPortOutput;
+          try {
+            const out = (await handler.execute(
+              null,
+              { integrationId: 'int-1', query: 'SELECT 1' },
+              ctx(),
+            )) as unknown as ErrorPortOutput;
 
-          expect(out.port).toBe('error');
-          expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
-          // 메시지는 차단 host/IP 를 노출하지 않는 일반화 문구 (정찰 면 축소).
-          expect(out.output.error.message).not.toContain(host);
-          expect(out.output.error.message).toMatch(/SSRF policy/i);
-          // 연결을 절대 열지 않는다 (가드가 풀 연결 전에 차단).
-          expect(connectMock).not.toHaveBeenCalled();
-          // 활동 로그에는 failed + DB_HOST_BLOCKED 가 기록된다.
-          expect(logUsage).toHaveBeenCalledWith(
-            expect.objectContaining({ id: 'int-1' }),
-            expect.objectContaining({
-              status: 'failed',
-              error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),
-            }),
-          );
+            expect(out.port).toBe('error');
+            expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+            // 메시지는 차단 host/IP 를 노출하지 않는 일반화 문구 (정찰 면 축소).
+            expect(out.output.error.message).not.toContain(host);
+            expect(out.output.error.message).toMatch(/SSRF policy/i);
+            // 연결을 절대 열지 않는다 (가드가 풀 연결 전에 차단).
+            expect(connectMock).not.toHaveBeenCalled();
+            // 활동 로그에는 failed + DB_HOST_BLOCKED 가 기록되고 host 원문은 실리지 않는다.
+            expect(logUsage).toHaveBeenCalledWith(
+              expect.objectContaining({ id: 'int-1' }),
+              expect.objectContaining({
+                status: 'failed',
+                error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),
+              }),
+            );
+            expect(JSON.stringify(logUsage.mock.calls[0][1])).not.toContain(
+              host,
+            );
+            // 판정 원문(host · IP)은 서버 경고 로그에만 남는다(CLE-T-CT6SHS, 연결 시점 차단과 같은 규칙).
+            expect(warn).toHaveBeenCalledWith(
+              expect.stringContaining('SSRF block (database-query)'),
+            );
+            expect(warn).toHaveBeenCalledWith(expect.stringContaining(host));
+          } finally {
+            warn.mockRestore();
+            await handler.shutdown();
+          }
         },
       );
 
@@ -1340,23 +1370,40 @@ describe('DatabaseQueryHandler', () => {
         mockedLookup.mockResolvedValueOnce([
           { address: '10.0.0.5', family: 4 },
         ]);
-        const { service } = makeService({
+        const { service, logUsage } = makeService({
           integration: pgIntegrationWithHost('rebind.example.com'),
         });
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
         const handler = new DatabaseQueryHandler(service as never);
-        const out = (await handler.execute(
-          null,
-          { integrationId: 'int-1', query: 'SELECT 1' },
-          ctx(),
-        )) as unknown as ErrorPortOutput;
+        try {
+          const out = (await handler.execute(
+            null,
+            { integrationId: 'int-1', query: 'SELECT 1' },
+            ctx(),
+          )) as unknown as ErrorPortOutput;
 
-        expect(out.port).toBe('error');
-        expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
-        expect(out.output.error.message).not.toContain('10.0.0.5');
-        expect(mockedLookup).toHaveBeenCalledWith('rebind.example.com', {
-          all: true,
-        });
-        expect(connectMock).not.toHaveBeenCalled();
+          expect(out.port).toBe('error');
+          expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+          expect(out.output.error.message).not.toContain('10.0.0.5');
+          expect(mockedLookup).toHaveBeenCalledWith('rebind.example.com', {
+            all: true,
+          });
+          expect(connectMock).not.toHaveBeenCalled();
+          // 해석된 내부 IP 는 사용자 응답 · 활동 로그에는 없고 서버 경고 로그에만 있다(CLE-T-CT6SHS).
+          expect(JSON.stringify(out.output)).not.toContain('10.0.0.5');
+          expect(JSON.stringify(logUsage.mock.calls)).not.toContain('10.0.0.5');
+          expect(warn).toHaveBeenCalledWith(
+            expect.stringContaining('SSRF block (database-query)'),
+          );
+          expect(warn).toHaveBeenCalledWith(
+            expect.stringContaining('10.0.0.5'),
+          );
+        } finally {
+          warn.mockRestore();
+          await handler.shutdown();
+        }
       });
 
       /**

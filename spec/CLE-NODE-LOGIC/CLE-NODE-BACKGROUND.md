@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND"
 title: "Background 노드"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-BGRUN-001", "REQ-BGRUN-002", "REQ-BGRUN-003", "REQ-BGRUN-004", "REQ-BGRUN-005", "REQ-BGRUN-006", "REQ-BGRUN-007", "REQ-BGRUN-008", "REQ-BGRUN-009", "REQ-BGRUN-010", "REQ-BGRUN-011", "REQ-BGRUN-012", "REQ-BGRUN-013", "REQ-BGRUN-014", "REQ-BGRUN-015", "REQ-BGRUN-016", "REQ-BGRUN-017", "REQ-BGRUN-018", "REQ-BGRUN-019", "REQ-BGRUN-020", "REQ-BGRUN-021", "REQ-BGRUN-022", "REQ-BGRUN-023", "REQ-BGRUN-024", "REQ-BGRUN-025", "REQ-BGRUN-026", "REQ-BGRUN-027", "REQ-BGRUN-028"]
 basis_superseded: false
 parent: "CLE-NODE-LOGIC"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC"]
 area: "CLE-NODE-LOGIC"
-content_hash: "562ece59517787e5e971bac78401907ced5b3042c773e79a1d46d6fded3856c4"
+content_hash: "22176661ccbffd31750c5c0e212be82090012498954ca9a55117255621e09b7c"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-PVGKXK"
 source_paths: ["spec/4-nodes/1-logic/12-background.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "6e69417d05dce1493ab0bb186ae90cd3ad6f96f48e1acf06a9c414ceea10ad16"
-etag: "sha256-f9cb7fab044784104a90af1130f1c864dc0d5df0a984111384c366f9a439a81e"
+mirror_sha256: "7817345c709100f31434c7a952c0cd9db7347e473cf6209d063b115fd71e53c1"
+etag: "sha256-c8a90cf7e95177e87333e07e2bb4e654a5286d51cb9668472c18c350f0925764"
 ---
 > 구현 상태: 부분 구현 (REQ-BGRUN-026 AI 어시스턴트 조회 도구는 미구현) · 원문: `spec/4-nodes/1-logic/12-background.md`, `spec/4-nodes/_product-overview.md` (§4.12) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -51,7 +51,7 @@ Background 노드는 컨테이너가 아니다. `containerId` 멤버십을 쓰�
 - REQ-BGRUN-019 WHEN 모니터링 API 가 노드 실행 기록을 반환하면 THE SYSTEM SHALL `error` · `outputData` · `inputData` 에 응답 값 마스킹을 적용한다.
 - REQ-BGRUN-020 IF 호출자가 실행의 워크스페이스 멤버가 아니거나 `executionId` 가 없으면 THE SYSTEM SHALL 403 이 아니라 404 `EXECUTION_NOT_FOUND` 로 응답한다.
 - REQ-BGRUN-021 IF `backgroundRunId` 가 그 실행 안에 없으면 THE SYSTEM SHALL 404 `BACKGROUND_RUN_NOT_FOUND` 로 응답한다.
-- REQ-BGRUN-022 IF `cursor` 를 해석하지 못하거나 `limit` 이 1~200 밖이면 THE SYSTEM SHALL 400 `INVALID_CURSOR` / `INVALID_LIMIT` 로 응답한다.
+- REQ-BGRUN-022 IF `cursor` 를 해석하지 못하면 THE SYSTEM SHALL 400 `INVALID_CURSOR` 로, `limit` 이 1~200 밖이면 요청 검증 실패 400 `VALIDATION_ERROR` 로 응답한다.
 - REQ-BGRUN-023 WHEN Background 본문 실행이 시작하거나 끝나면 THE SYSTEM SHALL `background:run:<backgroundRunId>` 구독 채널에 `execution.background_run.started` / `execution.background_run.completed` 이벤트를 보낸다.
 - REQ-BGRUN-024 WHEN Background 본문 노드가 실행되면 THE SYSTEM SHALL 노드 이벤트를 메인 `execution:<id>` 구독 채널에 보낸다.
 - REQ-BGRUN-025 WHEN 사용자가 `background:run:<id>` 채널을 구독하면 THE SYSTEM SHALL 모니터링 API 와 같은 권한 규칙으로 확인한다.
@@ -249,7 +249,7 @@ Background 본문 실패는 메인의 에러 코드가 되지 않는다. 본문 
 
 ### API 에러 코드
 
-모니터링 API 는 400 `INVALID_CURSOR` · `INVALID_LIMIT`, 404 `EXECUTION_NOT_FOUND` · `BACKGROUND_RUN_NOT_FOUND` 를 낸다. 발생 조건은 [본문 실행 모니터링 §API 에러 코드](CLE-NODE-BACKGROUND-RUNS.md#api-에러-코드) 의 표가 정한다.
+모니터링 API 는 400 `INVALID_CURSOR` · `VALIDATION_ERROR`(`limit` 범위 밖), 404 `EXECUTION_NOT_FOUND` · `BACKGROUND_RUN_NOT_FOUND` 를 낸다. 발생 조건은 [본문 실행 모니터링 §API 에러 코드](CLE-NODE-BACKGROUND-RUNS.md#api-에러-코드) 의 표가 정한다.
 
 ## 미결 사항
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-BACKGROUND-RUNS"
 title: "Background 노드 — 본문 실행 모니터링"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-BACKGROUND"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-BACKGROUND"]
 area: "CLE-NODE-LOGIC"
-content_hash: "505d9a5a264d578b0ca1f10d9a86351c04beecc3d8650b1e2f1a6dbcd5428509"
+content_hash: "fb357c6d89203d659e71b7d793677ee7370578824520d08920f784de2cc1e7b6"
 read_as: "approved_fallback"
-task: "CLE-T-QVRQQ1"
+task: "CLE-T-PVGKXK"
 source_paths: []
-mirror_sha256: "9babc6111efed5a366242cfc4a9a106df67b578584f61e2aace753705b393fe5"
-etag: "sha256-00105cca7e625978186d9b21ed54ae9087e9f7907f33d92a15da2a8ece0910b2"
+mirror_sha256: "1c850590b498949eb8937058553b33e9e25e3a14e61813812fff4cc814163f64"
+etag: "sha256-5c072e122274cae69d864b08f35e31cf9b973d7fa7e4d679d211ba36964780a9"
 ---
 > 구현 상태: 부분 구현 (AI 어시스턴트 조회 도구는 미구현) · 상위 문서: [Background 노드](CLE-NODE-BACKGROUND.md)
 
@@ -118,7 +118,7 @@ AI 어시스턴트의 읽기 전용 실행 조회 도구(`ED-AI-35~38`)가 이 A
 | HTTP | 코드 | 발생 조건 |
 |------|------|-----------|
 | 400 | `INVALID_CURSOR` | cursor 디코딩 실패 |
-| 400 | `INVALID_LIMIT` | `limit` 이 1 미만 또는 200 초과 |
+| 400 | `VALIDATION_ERROR` | `limit` 이 1 미만 또는 200 초과. 요청 DTO(`@Min(1)` · `@Max(200)`)가 서비스보다 먼저 검증한다 |
 | 401 | (인증 미들웨어) | 토큰 없음 / 만료 |
 | 404 | `EXECUTION_NOT_FOUND` | `executionId` 없음 또는 워크스페이스 불일치(IDOR 차단. 403 으로 새지 않는다) |
 | 404 | `BACKGROUND_RUN_NOT_FOUND` | `backgroundRunId` 가 그 실행에 없음 |

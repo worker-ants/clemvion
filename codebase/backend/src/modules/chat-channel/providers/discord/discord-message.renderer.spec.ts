@@ -122,12 +122,12 @@ describe('renderDiscordEvent — execution.failed (CCH-ERR-*)', () => {
     expect(text).toContain('요청량이 많아');
   });
 
-  it('LLM_TIMEOUT → executionFailedTimeout (KO default)', () => {
+  it('CODE_TIMEOUT → executionFailedTimeout (KO default)', () => {
     const msgs = renderDiscordEvent(
       {
         ...BASE,
         type: 'execution.failed',
-        error: { code: 'LLM_TIMEOUT', message: 'x' },
+        error: { code: 'CODE_TIMEOUT', message: 'x' },
       },
       CONFIG,
     );

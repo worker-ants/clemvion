@@ -13,8 +13,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 const mockGetByToken = vi.fn();
+const mockGetMine = vi.fn();
+const mockAcceptMine = vi.fn();
 vi.mock("@/lib/api/invitations", () => ({
-  invitationsApi: { getByToken: (...a: unknown[]) => mockGetByToken(...a) },
+  invitationsApi: {
+    getByToken: (...a: unknown[]) => mockGetByToken(...a),
+    getMine: (...a: unknown[]) => mockGetMine(...a),
+    acceptMine: (...a: unknown[]) => mockAcceptMine(...a),
+  },
 }));
 const mockAccept = vi.fn();
 const mockList = vi.fn();
@@ -196,7 +202,9 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
       } as never),
     );
     render(<AcceptInvitationContent />);
-    await waitFor(() => expect(screen.getByText("expired")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("expired")).toBeInTheDocument(),
+    );
     expect(mockAccept).not.toHaveBeenCalled();
   });
 
@@ -237,5 +245,86 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     );
     expect(screen.queryByText("invitations.accept.accept")).toBeNull();
     expect(mockAccept).not.toHaveBeenCalled();
+  });
+
+  // 초대 알림이 여는 초대 id 모드(CLE-ACCT-WS-INVITE 「이미 가입한 사용자의 수락 경로」, CLE-T-86E38Q).
+  // 서버가 로그인 이메일로 온 초대만 돌려주므로 화면은 이메일을 다시 비교하지 않는다.
+  describe("invitation-id mode", () => {
+    const ID = "0b9d6f0e-1c2a-4b8e-9a51-3f2d7c6e8a10";
+
+    beforeEach(() => {
+      mockSearch = `invitationId=${ID}`;
+    });
+
+    it("looks up my invitation by id and accepts it on click", async () => {
+      mockUser = { email: "someone@example.com" };
+      mockGetMine.mockResolvedValue(META);
+      mockAcceptMine.mockResolvedValue({ workspaceId: "ws-1", role: "editor" });
+      mockList.mockResolvedValue([]);
+      render(<AcceptInvitationContent />);
+      const btn = await screen.findByText("invitations.accept.accept");
+      expect(mockGetMine).toHaveBeenCalledWith(ID);
+      expect(mockGetByToken).not.toHaveBeenCalled();
+      expect(
+        screen.queryByText("invitations.accept.logoutAndSwitch"),
+      ).toBeNull();
+      await userEvent.click(btn);
+      await waitFor(() => expect(mockAcceptMine).toHaveBeenCalledWith(ID));
+      expect(mockAccept).not.toHaveBeenCalled();
+      await waitFor(() =>
+        expect(
+          screen.getByText("invitations.accept.redirectingDashboard"),
+        ).toBeInTheDocument(),
+      );
+    });
+
+    it.each([
+      [404, "not found"],
+      [410, "already used"],
+    ])("shows the existing error state on %s", async (status, message) => {
+      mockUser = { email: "someone@example.com" };
+      mockGetMine.mockRejectedValue(
+        new AxiosError("x", String(status), undefined, undefined, {
+          status,
+          data: { message },
+        } as never),
+      );
+      render(<AcceptInvitationContent />);
+      await waitFor(() =>
+        expect(screen.getByText(message)).toBeInTheDocument(),
+      );
+      expect(
+        screen.getByText("invitations.accept.goDashboard"),
+      ).toBeInTheDocument();
+      expect(mockAcceptMine).not.toHaveBeenCalled();
+    });
+
+    it("shows the error state when accepting fails", async () => {
+      mockUser = { email: "someone@example.com" };
+      mockGetMine.mockResolvedValue(META);
+      mockAcceptMine.mockRejectedValue(
+        new AxiosError("x", "410", undefined, undefined, {
+          status: 410,
+          data: { message: "expired" },
+        } as never),
+      );
+      render(<AcceptInvitationContent />);
+      await userEvent.click(
+        await screen.findByText("invitations.accept.accept"),
+      );
+      await waitFor(() =>
+        expect(screen.getByText("expired")).toBeInTheDocument(),
+      );
+    });
+
+    it("prefers the token when both query params are present", async () => {
+      mockSearch = `token=tok-1&invitationId=${ID}`;
+      mockUser = { email: "invitee@example.com" };
+      mockGetByToken.mockResolvedValue(META);
+      render(<AcceptInvitationContent />);
+      await screen.findByText("invitations.accept.accept");
+      expect(mockGetByToken).toHaveBeenCalledWith("tok-1");
+      expect(mockGetMine).not.toHaveBeenCalled();
+    });
   });
 });
