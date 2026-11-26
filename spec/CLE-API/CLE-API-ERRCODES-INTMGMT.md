@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-INTMGMT"
 title: "에러 코드 카탈로그 — 통합 관리 · OAuth"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "8de896d950bbbfe60836f9c685759fbe217a538081dd3fdfe9158992d2b8e03a"
+content_hash: "bcd6e79090efd11e5a46e81d5dd73f7756a5a741b664a467d807ec2942c8a97c"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-BYT4S2"
 source_paths: []
-mirror_sha256: "8c61616623c7f38c98dafca7d14aa53bdab6884a3fb5ca6d633fe48af8f033af"
-etag: "sha256-44df026f903be6cb1d8ef9d4cf38526375a5e6e2d8ecfbe7ed72195ff973e384"
+mirror_sha256: "491463737405c34ed13131ec4757a65cd711a661e4693519afbc3c1edb0cc0fc"
+etag: "sha256-6e09bb91dc9630091062d15cffb25b7ca7ddbf1c399bc4abdfd674b43e952e16"
 ---
 ## 개요
 
@@ -63,7 +63,7 @@ etag: "sha256-44df026f903be6cb1d8ef9d4cf38526375a5e6e2d8ecfbe7ed72195ff973e384"
 | `MAKESHOP_INVALID_SHOP_UID` | 400 · 없음 (노드 `output.error.code`) | `shop_uid` 형식 위반. 설치 엔드포인트는 400 으로 답하고 MakeShop 노드는 에러 포트로 낸다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `OAUTH_STATE_EXPIRED` | 없음 (통합 `last_error.code`) | 콜백의 state 가 만료됨. `new` 모드 state 는 통합이 없어 HTML 로만 끝난다 | [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
 | `OAUTH_INVALID_SCOPE` | 없음 (통합 `last_error.code`) | Cafe24 authorize 단계가 `?error=invalid_scope` 로 돌아옴. `last_error.details.requiresCafe24Approval` 에 별도 승인 권한 범위가 원인인지 싣는다. 연결된 통합은 상태를 그대로 두고 사유를 `oauth_invalid_scope` 로 둔다 | [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
-| `OAUTH_TOKEN_EXCHANGE_FAILED` | 없음 (통합 `last_error.code`) | 콜백의 토큰 교환 실패. 연결된 통합의 재인증이면 통합이 `error(auth_failed)` 가 된다. 다만 Cafe24 Private 재설치 대기 표시가 살아 있으면 상태를 바꾸지 않는다. 설치 대기 행은 상태를 그대로 두고 사유만 적는다 | [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
+| `OAUTH_TOKEN_EXCHANGE_FAILED` | 없음 (통합 `last_error.code`) | 콜백의 토큰 교환 실패. Google·GitHub 는 교환 뒤 계정 식별자 조회(Google userinfo · GitHub `/user`)의 실패도 이 코드다([팝업 연결과 콜백 「처리 순서」](../CLE-INT/CLE-INT-OAUTH-CALLBACK.md#처리-순서)). 연결된 통합의 재인증이면 통합이 `error(auth_failed)` 가 된다. 다만 Cafe24 Private 재설치 대기 표시가 살아 있으면 상태를 바꾸지 않는다. 설치 대기 행은 상태를 그대로 두고 사유만 적는다 | [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
 | `OAUTH_CALLBACK_FAILED` | 없음 (통합 `last_error.code`) | 콜백 처리 중 코드가 없는 예외가 났을 때 `last_error.code` 에 적는 대체값. 이 코드로 던지는 곳은 없다 | [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
 | `OAUTH_DENIED` | 없음 (콜백 HTML) | OAuth 제공자가 `error` query 로 돌아옴(사용자 거부 등). Cafe24 의 `invalid_scope` 는 위 `OAUTH_INVALID_SCOPE` 다 | [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑), [OAuth 연결과 토큰 갱신 「OAuth 콜백 엔드포인트」](../CLE-INT/CLE-INT-OAUTH.md#oauth-콜백-엔드포인트) |
 | `OAUTH_STATE_MISSING` · `OAUTH_CODE_MISSING` | 없음 (콜백 HTML) | 콜백 query 에 `state` 나 `code` 가 없음 | [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑), [OAuth 연결과 토큰 갱신 「OAuth 콜백 엔드포인트」](../CLE-INT/CLE-INT-OAUTH.md#oauth-콜백-엔드포인트) |

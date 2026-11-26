@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH"
 title: "서비스별 인증 방식과 자격 증명"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "b48d9f4aaed59b59a97119e0cae6e195701e23acd80cee3c441c501768597a7f"
+content_hash: "63df777b9765611abd48fa24da2c358ce94ae33478b6a4288730488812fc46d4"
 read_as: "approved_fallback"
-task: "CLE-T-81270P"
+task: "CLE-T-BYT4S2"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "99ddf2d14f4801c488233b361b95aed1bd33c71003d9da7ab6dad600ec8d2176"
-etag: "sha256-fd200190b792f39da9783b7743ad0acab35b9c6c7e48cf68f3df82c1462af968"
+mirror_sha256: "cbf352a2f1c439349187bf840ac514f22cd4b47a9f80558576083927dd7d3a31"
+etag: "sha256-26aacc133ef778eb025af1b680c3c3ce5bdd9da9e480000850ca23f373ed4e78"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -253,6 +253,12 @@ MCP 서버는 OAuth refresh token 을 갖지 않으므로 `token_expires_at` 이
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/credentials-form.tsx` (서비스별 자격 증명 입력 폼)
 
 ## Rationale
+
+### Google·GitHub 연결은 토큰 교환 뒤 계정을 한 번 더 조회한다
+
+결정일: 2026-11-20
+
+Google `account_email` 과 GitHub `login` 은 저장의 필수 필드인데 두 제공자의 토큰 응답에는 이 값이 없다. 그래서 팝업 연결은 토큰 교환 뒤 받은 access token 으로 Google userinfo 와 GitHub `/user` 를 한 번 부른다(NERV Task `CLE-T-81270P`). Google 은 userinfo 에서 이메일을 받으려고 사용자가 고른 권한 범위에 `openid`·`email` 을 늘 더한다. 조회 실패 처리, 타임아웃, 토큰을 폐기하지 않는 이유는 [팝업 연결과 콜백 「계정 식별자는 토큰 교환 뒤 제공자에 묻는다」](CLE-INT-OAUTH-CALLBACK.md#계정-식별자는-토큰-교환-뒤-제공자에-묻는다) 가 정한다.
 
 ### 연결 테스트: Database·HTTP 는 실제로 접속하고 Google·GitHub·Webhook 은 구조만 검증한다 (2026-09-19)
 
