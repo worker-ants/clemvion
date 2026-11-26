@@ -259,8 +259,9 @@ export class DatabaseQueryHandler
       // ALLOW_PRIVATE_HOST_TARGETS=true 로 의식적 opt-in (W-5).
       // 차단 시 공용 guard 의 plain Error 를 전용 `DB_HOST_BLOCKED` 로 승격해
       // HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 대칭으로 surface 한다.
-      // 메시지는 차단된 host/IP 를 노출하지 않는 일반화 문구 — 정찰 면 축소
-      // (원본 상세는 logUsage 의 toLogError 로 서버 로그에만 남는다).
+      // 메시지는 차단된 host/IP 를 노출하지 않는 일반화 문구 — 정찰 면 축소.
+      // 판정 원문(host · IP)은 아래 `logger.warn` 으로 서버 경고 로그에만 남는다(CLE-T-CT6SHS). 활동 로그(`toLogError`)는
+      // 이 일반화 문구만 받으므로 원문이 없다.
       if (creds.host) {
         try {
           await assertSafeOutboundHostResolved(creds.host);
@@ -282,7 +283,8 @@ export class DatabaseQueryHandler
             );
           }
           // 차단 판정의 원문에는 차단된 host/IP 가 들어 있어 `cause` 로도 싣지 않는다(정찰 면 축소 — 일반화
-          // 문구만 내보낸다). 원본 상세는 아래 catch 의 `toLogError` 가 서버 로그로 남긴다.
+          // 문구만 내보낸다). 원문은 이 경고 로그에만 남긴다. 연결 시점 차단(`promoteConnectTimeBlock`)과 같은 규칙이다.
+          logger.warn(`SSRF block (database-query): ${detail}`);
           throw new IntegrationError(
             'DB_HOST_BLOCKED',
             DB_HOST_BLOCKED_MESSAGE,
