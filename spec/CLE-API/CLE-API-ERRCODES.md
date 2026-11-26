@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 42
+version: 43
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "b2dc8c0c59f350562651a9709794e1cbd9fdff34e97ece2527dcf08334cd4b56"
+content_hash: "bf04cddac39ccccb7b47df7dad51cad2eccf47ef04c64d31833cd30f4f6527c4"
 read_as: "approved_fallback"
-task: "CLE-T-8WXV7T"
+task: "CLE-T-PVGKXK"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "3c5f4ca97680eae7d9f64d6cac1b04e248cc2c69d169af8a641dbc58723a9cb1"
-etag: "sha256-d0792b9d2016489805e626375abf42de50c4449e80e7544e3d7bda4f16edcd5b"
+mirror_sha256: "a856fc74d1073fa0acc5e1f620095c88a5fb408054766cecb537bf756de2aef9"
+etag: "sha256-d641e73b111103bd1206f6b537b0057d3f3ff1f2d9e1bc7567fc11565853916e"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ etag: "sha256-d0792b9d2016489805e626375abf42de50c4449e80e7544e3d7bda4f16edcd5b"
    - MakeShop 통합의 통합 재인증(`POST /api/integrations/:id/reauthorize`)과 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)은 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절한다. 이 두 경로에만 쓴다. 근거는 [에러 코드 카탈로그 — 통합 관리 · OAuth 「MakeShop 통합 재인증 · 추가 권한 요청의 거절을 `MAKESHOP_CREDENTIALS_REQUIRED` 행에 더했다」](CLE-API-ERRCODES-INTMGMT.md#makeshop-통합-재인증--추가-권한-요청의-거절을-makeshop_credentials_required-행에-더했다-2026-11-14) 와 [OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청 「MakeShop 통합 재인증과 추가 권한 요청의 거절 코드를 정했다」](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13) 에 있다.
 7. 이름 규칙(규칙 1~3)을 따르지 않지만 유지하는 기존 코드는 §3 예외 등록부에 적는다. 새 코드는 예외를 선례로 삼지 않는다.
 8. 발행하는 코드는 모두 §6 카탈로그에 등재한다. 정의·발생 조건이 도메인 문서에 있으면 그 문서를 정의 문서로 적고 카탈로그는 공용 가시성을 위해 등재만 한다.
-9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다. 사람이 정했지만 아직 구현하지 않은 코드는 표에 넣지 않는다. 해당 절의 표 아래 문장에 상태 코드와 조건을 적고 구현 Task 가 있으면 함께 적는다. 발행과 함께 표에 등재한다. 그 코드를 정의하는 영역 문서는 자기 표에 미구현 표시를 붙여 먼저 적을 수 있다. 발행처가 없어도 enum 이나 소비자(채팅 채널 실행 실패 분류기 · 사용자 가이드 대조 테스트)가 이름을 싣고 있는 코드는 행을 남긴다. 그런 행은 설명에 «발행하지 않음» 을 적거나 앵커 열에 `분류기 인용` 을 적는다. 이 단서는 소비자 목록을 정리하는 NERV Task `CLE-T-P0W82J` 가 끝나면 걷는다.
+9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다. 사람이 정했지만 아직 구현하지 않은 코드는 표에 넣지 않는다. 해당 절의 표 아래 문장에 상태 코드와 조건을 적고 구현 Task 가 있으면 함께 적는다. 발행과 함께 표에 등재한다. 그 코드를 정의하는 영역 문서는 자기 표에 미구현 표시를 붙여 먼저 적을 수 있다.
 10. 교체한 옛 코드는 §5 은퇴 코드 표에 흡수 등급과 함께 남긴다.
 
 ## 1. 의미 기반 명명
@@ -92,7 +92,7 @@ etag: "sha256-d0792b9d2016489805e626375abf42de50c4449e80e7544e3d7bda4f16edcd5b"
 
 **같은 뜻을 표면마다 다른 코드로 적는다.** 상태 불일치는 REST 핵심 API 가 `INVALID_STATE`(422), WebSocket 이 `INVALID_EXECUTION_STATE`, EIA REST `/interact` 가 `STATE_MISMATCH`(409)다. 메시지 길이 초과도 WebSocket 은 `EXECUTION_MESSAGE_TOO_LONG`, EIA REST 는 `MESSAGE_TOO_LONG` 이다. 라우팅 분기를 드러내려고 일부러 나눴다([큐 워커와 동시 실행 제한 「발행 전 사전 검증」](../CLE-EXEC/CLE-EXEC-WORKER.md#발행-전-사전-검증), [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 의 「WS 코드와 EIA 코드는 경로마다 다르게 쓴다」 Rationale).
 
-**HTTP 진입점에서만 쓰는 `EXECUTION_ENQUEUE_FAILED` 는 표면마다 나누지 않는다.** REST `stop`, EIA REST `/interact`, 채팅 채널 인바운드의 `/start` 가 이 503 을 같은 코드로 낸다(§6.7). 세 진입점 모두 재개 메시지를 큐에 넣지 못했다는 같은 뜻이다. 클라이언트가 할 일도 다시 보내기 하나다. 이 코드는 실행 엔진 사전 검증의 결과가 아니라 큐 상태를 알린다. 그래서 위에서 표면마다 나눈 코드와 부류가 다르다. 같은 503 선례인 `SERVER_SHUTTING_DOWN`(§6.7)은 REST 의 실행 시작 진입점만 낸다. 근거는 [`EXECUTION_ENQUEUE_FAILED` 를 EIA `/interact` 재개 명령에도 쓴다](CLE-API-ERRCODES-WSEIA.md#execution_enqueue_failed-를-eia-interact-재개-명령에도-쓴다-2026-10-09) Rationale 에 있다.
+**HTTP 진입점에서만 쓰는 `EXECUTION_ENQUEUE_FAILED` 는 표면마다 나누지 않는다.** REST `stop`, EIA REST `/interact`, 채팅 채널 인바운드의 `/start` 가 이 503 을 같은 코드로 낸다(§6.7). 세 진입점 모두 재개 메시지를 큐에 넣지 못했다는 같은 뜻이다. 클라이언트가 할 일도 다시 보내기 하나다. 이 코드는 실행 엔진 사전 검증의 결과가 아니라 큐 상태를 알린다. 그래서 위에서 표면마다 나눈 코드와 부류가 다르다. 같은 503 선례인 `SERVER_SHUTTING_DOWN`(§6.7)은 REST 의 실행 시작 진입점만 낸다. 근거는 [`EXECUTION_ENQUEUE_FAILED` 를 EIA `/interact` 재개 명령에도 쓴다](CLE-API-ERRCODES-WSEIA.md#execution_enqueue_failed-를-eia-interact-재개-명령에도-쓴다) Rationale 에 있다.
 
 **이 절 제목은 가이드 가드가 읽는다.** 사용자 가이드가 인용한 에러 코드를 검사하는 가드(`guide-identifier-existence`)는 이 절과 하위 문서의 `## 6.N` 절을 탈출구로 읽는다(`CATALOG_SECTION_HEADING`). 제목이 없으면 가드가 멈추므로 이 절 제목을 바꾸는 초안은 그 상수를 함께 고치는 구현 PR 을 낸다. 가드의 소유와 판정은 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md#가이드--코드-대조-가드) 이 정한다.
 
@@ -214,7 +214,7 @@ etag: "sha256-d0792b9d2016489805e626375abf42de50c4449e80e7544e3d7bda4f16edcd5b"
 
 ### 트리거 단위 토큰 경로의 부재는 401 `EXECUTION_NOT_FOUND` 로 적는다 (2026-10-17)
 
-→ [에러 코드 카탈로그 — WebSocket · EIA · Background Runs](CLE-API-ERRCODES-WSEIA.md#트리거-단위-토큰-경로의-부재는-401-execution_not_found-로-적는다-2026-10-17)
+→ [에러 코드 카탈로그 — WebSocket · EIA · Background Runs](CLE-API-ERRCODES-WSEIA.md#트리거-단위-토큰-경로의-부재는-401-execution_not_found-로-적는다)
 
 ### 설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다 (2026-11-06)
 
@@ -236,7 +236,7 @@ etag: "sha256-d0792b9d2016489805e626375abf42de50c4449e80e7544e3d7bda4f16edcd5b"
 
 - **`DATABASE_ERROR` 는 지웠다.** 백엔드 어디에도 발행처가 없고 이 이름으로 분기하는 소비자도 없다.
 - **초대 흐름의 소문자 `rate_limited` 는 `RATE_LIMITED` 로 고쳤다.** 초대 한도는 `@Throttle` 로 걸리고 전역 필터가 429 를 대문자 `RATE_LIMITED` 로 바꾼다([HTTP API 규약](CLE-API-CONV.md)). 소문자 값은 소스에 0건이라 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 의 초대 행에서 뺐다.
-- **`HTTP_TIMEOUT` · `LLM_TIMEOUT` · `INTERACTION_TIMEOUT` 은 «발행하지 않음» 표시로 남겼다.** 세 코드는 `error-codes.ts` 의 enum 에 정의가 있고 사용자 가이드 대조 테스트와 채팅 채널 분류기가 이름을 싣고 있다. 그래서 행을 지우지 않고 행마다 발행하지 않는다고 적었다. 규칙 9 의 단서로 적었고 표시는 `HTTP_TIMEOUT` 이 쓰던 꼴에 맞췄다.
-- **엔진이 코드로 내지 않는 이름은 행을 남기고 앵커 열에 실측을 적었다.** `RECURSION_DEPTH_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` 는 채팅 채널 실행 실패 분류기(`execution-failure-classifier.ts`)가 싣고 있어 독자가 이 카탈로그에서 찾는다. 앵커 열은 `분류기 인용` 이다([실행 엔진 · 노드 런타임](CLE-API-ERRCODES-EXEC.md#65-워크플로우-실행-엔진-수준)). `CYCLE_DETECTED` · `INVALID_EXPRESSION` 은 AI 어시스턴트의 Shadow 검증이 도구 결과로 돌려주는 값이라 정의 문서를 어시스턴트 도구 문서로 옮겼다.
+- **`HTTP_TIMEOUT` · `LLM_TIMEOUT` · `INTERACTION_TIMEOUT` 은 «발행하지 않음» 표시로 남겼다.** 세 코드는 `error-codes.ts` 의 enum 에 정의가 있고 사용자 가이드 대조 테스트와 채팅 채널 분류기가 이름을 싣고 있다. 그래서 행을 지우지 않고 행마다 발행하지 않는다고 적었다. 규칙 9 의 단서로 적었고 표시는 `HTTP_TIMEOUT` 이 쓰던 꼴에 맞췄다. 2026-11-26 에 세 이름을 enum 과 분류기에서 지우고 행도 걷었다(NERV Task `CLE-T-P0W82J`, [실행 엔진 · 노드 런타임](CLE-API-ERRCODES-EXEC.md) Rationale).
+- **엔진이 코드로 내지 않는 이름은 행을 남기고 앵커 열에 실측을 적었다.** `RECURSION_DEPTH_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` 는 채팅 채널 실행 실패 분류기(`execution-failure-classifier.ts`)가 싣고 있어 독자가 이 카탈로그에서 찾는다. 앵커 열은 `분류기 인용` 이다([실행 엔진 · 노드 런타임](CLE-API-ERRCODES-EXEC.md#65-워크플로우-실행-엔진-수준)). `CYCLE_DETECTED` · `INVALID_EXPRESSION` 은 AI 어시스턴트의 Shadow 검증이 도구 결과로 돌려주는 값이라 정의 문서를 어시스턴트 도구 문서로 옮겼다. 2026-11-26 에 다섯 이름을 분류기에서 지웠다(NERV Task `CLE-T-P0W82J`, [실행 엔진 · 노드 런타임](CLE-API-ERRCODES-EXEC.md) Rationale).
 
-기각한 대안은 발행처가 없는 등재를 모두 지우는 안이다. enum 과 분류기 목록을 함께 고쳐야 하는 코드 변경이라 문서만 맞추는 이 Task 의 범위를 넘는다. 분류기와 enum 을 걷고 남은 행을 지우는 일은 NERV Task `CLE-T-P0W82J` 가 맡는다.
+기각한 대안은 발행처가 없는 등재를 모두 지우는 안이다. enum 과 분류기 목록을 함께 고쳐야 하는 코드 변경이라 문서만 맞추는 이 Task 의 범위를 넘는다. 분류기와 enum 을 걷고 남은 행을 지우는 일은 NERV Task `CLE-T-P0W82J` 가 맡았다.
