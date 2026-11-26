@@ -157,6 +157,7 @@ import {
   BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS,
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
+  compactBackgroundFlatOutputCache,
 } from './queues/background-execution.queue';
 import {
   EXECUTION_RUN_QUEUE,
@@ -7844,7 +7845,12 @@ export class ExecutionEngineService
         : {}),
       input: bodyInput,
       variables: { ...context.variables },
-      nodeOutputCache: { ...context.nodeOutputCache },
+      // 구조화 항목이 있는 노드의 flat 값은 표지로 줄여 싣는다(CLE-T-XTTSXB). 키는 남아
+      // 본문 `$node` 이름과 값이 그대로다.
+      nodeOutputCache: compactBackgroundFlatOutputCache(
+        context.nodeOutputCache,
+        context.structuredOutputCache,
+      ),
       structuredOutputCache: { ...context.structuredOutputCache },
       expressionContext: { ...(context.expressionContext ?? {}) },
       conversationThread: threadSnapshot,
