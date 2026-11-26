@@ -562,6 +562,45 @@ describe('SecretResolverService', () => {
     });
   });
 
+  // 알림 해제 뒤 정리(`NotificationSigningSecretService.deleteAfterUnset`)가 트리거 설정 잠금을 쥔 트랜잭션의 매니저를
+  // 넘긴다(NERV Task `CLE-T-919WVA`). 넘기지 않으면 풀에서 연결을 하나 더 빌린다.
+  describe('delete', () => {
+    it('manager 를 넘기면 주입된 저장소를 건드리지 않고 매니저의 저장소에서 지운다', async () => {
+      const injected = createInMemoryRepository();
+      const inTx = createInMemoryRepository();
+      const getRepository = jest.fn(() => inTx);
+      const manager = { getRepository } as unknown as EntityManager;
+      const svc = new SecretResolverService(
+        injected,
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      const ref = 'secret://triggers/abc/notification-signing';
+      await svc.rotate(ref, 'ws-1', 'in-tx', manager);
+      await svc.store(ref, 'ws-1', 'injected');
+
+      await svc.delete(ref, manager);
+
+      expect(getRepository).toHaveBeenCalledWith(SecretStore);
+      expect(await inTx.findOne({ where: { ref } })).toBeNull();
+      expect(await injected.findOne({ where: { ref } })).not.toBeNull();
+    });
+
+    it('manager 가 없으면 주입된 저장소에서 지우고 미존재 ref 는 noop', async () => {
+      const injected = createInMemoryRepository();
+      const svc = new SecretResolverService(
+        injected,
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      const ref = 'secret://triggers/abc/notification-signing';
+      await svc.store(ref, 'ws-1', 'plain');
+      await svc.delete(ref);
+      await svc.delete(ref);
+      expect(await injected.findOne({ where: { ref } })).toBeNull();
+    });
+  });
+
   describe('deleteByPrefix', () => {
     it('정상 — prefix 매칭 건만 삭제, 나머지는 보존', async () => {
       const svc = new SecretResolverService(

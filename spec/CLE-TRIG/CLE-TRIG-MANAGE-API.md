@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
 content_hash: "c38e1a8b619ef5f85d0c5eb9698fb3278124074aad365ddf9ad5c8bdb3529616"
 read_as: "approved_fallback"
-task: "CLE-T-73W6NQ"
+task: "CLE-T-919WVA"
 source_paths: []
-mirror_sha256: "d074a486e4df90947524056b8f55db17b046f3872680334b439ef7572f3b4ddb"
-etag: "sha256-713fc28def4259964ab4a5a56ce32f68c3b564a4b4e3e785821fec29e2e6eb02"
+mirror_sha256: "9c95222075e29eecb8be50b21a1746b66ee3ae1fa5577f6209a237664fab6d5b"
+etag: "sha256-998e25fe7b2bebe25cfeb2da6e8b4ff3e958d095e988ce2fa30511c8cc7d981e"
 ---
 ## 개요
 

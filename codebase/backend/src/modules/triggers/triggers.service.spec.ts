@@ -6090,7 +6090,11 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
   const REF = 'secret://triggers/t1/notification-signing';
   let service: TriggersService;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
-  let secrets: { rotate: jest.Mock; deleteByPrefix: jest.Mock };
+  let secrets: {
+    rotate: jest.Mock;
+    delete: jest.Mock;
+    deleteByPrefix: jest.Mock;
+  };
   let closer: { closeTriggerTokenStreams: jest.Mock };
   let auditRecord: jest.Mock;
   let locks: string[];
@@ -6862,6 +6866,187 @@ describe('TriggersService — 서버가 만든 EIA 값과 첫 알림 서명 시�
       expect(secrets.rotate).not.toHaveBeenCalled();
       expect(savedConfig()).not.toHaveProperty('notification');
       expect(result).not.toHaveProperty('secrets');
+    });
+
+    // 해제한 알림의 서명 시크릿은 남기지 않는다(NERV Task `CLE-T-919WVA`, 2026-11-26 사용자 결정).
+    // 교체 대기 값(`notification_secret_v2` · 교체 시각)은 잠금 안에서 함께 비우고 시크릿 저장소 행은 커밋 뒤 지운다.
+    // v2 를 남기면 알림을 다시 붙인 뒤 승격 크론이 옛 v2 로 새로 발급한 시크릿을 덮는다.
+    describe('notification: null 해제 — 남은 서명 시크릿 정리', () => {
+      function storedWithRotation(config: Record<string, unknown>): Trigger {
+        return {
+          ...stored(config),
+          notificationSecretV2: 'wsk_pending_v2',
+          notificationRotatedAt: new Date('2026-11-26T00:00:00Z'),
+        } as Trigger;
+      }
+
+      /** `save` 에 넘긴 부분 객체. 이 요청이 바꾸는 컬럼만 실린다. */
+      function savedPatch(): Record<string, unknown> {
+        const calls = (triggerRepo.save as jest.Mock).mock.calls;
+        return calls[calls.length - 1][0] as Record<string, unknown>;
+      }
+
+      /** 커밋 뒤 정리가 다시 읽는 행. 정리는 `config` 만 골라 읽는다. */
+      function afterCommitRow(config: Record<string, unknown>): void {
+        const locked = triggerRepo.findOne.getMockImplementation();
+        triggerRepo.findOne.mockImplementation(((options: {
+          select?: { config?: boolean };
+        }) =>
+          options?.select?.config
+            ? Promise.resolve(stored(config))
+            : locked?.(options as never)) as never);
+      }
+
+      it('교체 유예 중이면 잠금 안 저장에서 v2 와 교체 시각을 함께 비운다', async () => {
+        triggerRepo.findOne.mockResolvedValue(
+          storedWithRotation({
+            notification: {
+              url: 'https://hooks.example.com/n',
+              signing: { secretRef: REF },
+            },
+          }),
+        );
+        await service.update('t1', 'ws', { notification: null }, 'u');
+        expect(savedPatch()).toMatchObject({
+          notificationSecretV2: null,
+          notificationRotatedAt: null,
+        });
+        expect(savedConfig()).not.toHaveProperty('notification');
+      });
+
+      it('교체 대기 값이 없으면 그 컬럼을 저장 대상에 싣지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(
+          stored({
+            notification: {
+              url: 'https://hooks.example.com/n',
+              signing: { secretRef: REF },
+            },
+          }),
+        );
+        await service.update('t1', 'ws', { notification: null }, 'u');
+        expect(savedPatch()).not.toHaveProperty('notificationSecretV2');
+        expect(savedPatch()).not.toHaveProperty('notificationRotatedAt');
+      });
+
+      it('커밋 뒤 설정 잠금 안에서 다시 읽고 서명 시크릿 행을 지운다', async () => {
+        triggerRepo.findOne.mockResolvedValue(
+          stored({
+            notification: {
+              url: 'https://hooks.example.com/n',
+              signing: { secretRef: REF },
+            },
+          }),
+        );
+        afterCommitRow({});
+        await service.update('t1', 'ws', { notification: null }, 'u');
+        expect(secrets.delete).toHaveBeenCalledWith(REF, TX_MANAGER);
+        // 저장(커밋) 뒤에 지운다.
+        expect(callOrder(triggerRepo.save)).toBeLessThan(
+          callOrder(secrets.delete),
+        );
+        // 지우는 트랜잭션도 같은 트리거의 설정 잠금을 잡는다(저장 · 정리 두 번).
+        expect(locks).toHaveLength(2);
+        const manager = secrets.delete.mock.calls[0][1] as {
+          query: jest.Mock;
+        };
+        expect(
+          manager.query.mock.calls.some(
+            ([sql]) =>
+              typeof sql === 'string' && sql.includes('pg_advisory_xact_lock'),
+          ),
+        ).toBe(true);
+      });
+
+      // 커밋과 정리 사이에 다른 PATCH 가 알림을 다시 붙이면 같은 참조에 새 시크릿을 발급한다. 그 행을 지우면
+      // 사용자가 방금 받은 시크릿이 사라진다.
+      it('그 사이 알림을 다시 붙였으면 시크릿 행을 지우지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(
+          stored({
+            notification: {
+              url: 'https://hooks.example.com/n',
+              signing: { secretRef: REF },
+            },
+          }),
+        );
+        afterCommitRow({
+          notification: {
+            url: 'https://hooks.example.com/again',
+            signing: { secretRef: REF },
+          },
+        });
+        await service.update('t1', 'ws', { notification: null }, 'u');
+        expect(secrets.delete).not.toHaveBeenCalled();
+      });
+
+      it('커밋 뒤 삭제가 실패해도 응답은 성공이고 warn 만 남긴다', async () => {
+        triggerRepo.findOne.mockResolvedValue(
+          stored({
+            notification: {
+              url: 'https://hooks.example.com/n',
+              signing: { secretRef: REF },
+            },
+          }),
+        );
+        afterCommitRow({});
+        secrets.delete.mockRejectedValueOnce(new Error('secret store down'));
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        let warnings: unknown[];
+        try {
+          const result = await service.update(
+            't1',
+            'ws',
+            { notification: null },
+            'u',
+          );
+          expect(result.config).not.toHaveProperty('notification');
+          warnings = warn.mock.calls.map((call) => call[0]);
+        } finally {
+          warn.mockRestore();
+        }
+        expect(warnings).toContainEqual(
+          expect.stringContaining('secret store down'),
+        );
+      });
+
+      it('notification 을 싣지 않은 PATCH 는 시크릿 행을 지우지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(stored({}));
+        await service.update('t1', 'ws', { name: 'renamed' }, 'u');
+        expect(secrets.delete).not.toHaveBeenCalled();
+      });
+
+      // 방어: 이미 해제된 옛 행이나 해제 뒤 교체(`rotate-secret`)가 끼어든 행에는 v2 가 남아 있다. 다시 붙이면서
+      // 첫 시크릿을 발급할 때 그 v2 를 비우지 않으면 승격 크론이 새 시크릿을 옛 v2 로 덮는다.
+      it('다시 붙이며 첫 시크릿을 발급하면 남은 v2 와 교체 시각을 비운다', async () => {
+        triggerRepo.findOne.mockResolvedValue(storedWithRotation({}));
+        const result = await service.update(
+          't1',
+          'ws',
+          { notification: NOTIFICATION },
+          'u',
+        );
+        expect(issued(result)).toMatch(/^wsk_[a-f0-9]{64}$/);
+        expect(savedPatch()).toMatchObject({
+          notificationSecretV2: null,
+          notificationRotatedAt: null,
+        });
+      });
+
+      it('참조가 있는 알림을 바꾸는 PATCH 는 진행 중인 교체를 건드리지 않는다', async () => {
+        triggerRepo.findOne.mockResolvedValue(
+          storedWithRotation({
+            notification: {
+              url: 'https://old.example.com',
+              signing: { secretRef: REF },
+            },
+          }),
+        );
+        await service.update('t1', 'ws', { notification: NOTIFICATION }, 'u');
+        expect(savedPatch()).not.toHaveProperty('notificationSecretV2');
+        expect(savedPatch()).not.toHaveProperty('notificationRotatedAt');
+        expect(secrets.delete).not.toHaveBeenCalled();
+      });
     });
 
     it('notification 을 싣지 않은 PATCH 는 발급하지 않는다', async () => {

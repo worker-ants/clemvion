@@ -222,10 +222,18 @@ export class SecretResolverService implements OnModuleInit {
     }
   }
 
-  /** 미존재 ref 는 noop. */
-  async delete(ref: string): Promise<void> {
+  /**
+   * 미존재 ref 는 noop.
+   *
+   * @param manager 호출자가 이미 연 트랜잭션의 매니저. 주면 그 트랜잭션 안에서 지운다. 트리거 설정 잠금을 쥔
+   *   트랜잭션 안에서 부를 때 넘긴다 — 이유는 {@link SecretResolverService.rotate} 의 같은 인자와 같다.
+   */
+  async delete(ref: string, manager?: EntityManager): Promise<void> {
     this.assertRefFormat(ref);
-    await this.repository.delete({ ref });
+    const repository = manager
+      ? manager.getRepository(SecretStore)
+      : this.repository;
+    await repository.delete({ ref });
   }
 
   /** validation 용. */
