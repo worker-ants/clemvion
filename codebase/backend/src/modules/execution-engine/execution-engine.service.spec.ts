@@ -12828,6 +12828,63 @@ describe('ExecutionEngineService', () => {
       },
     );
 
+    // Background 작업에는 구조화 항목이 있는 노드의 flat 값 대신 작은 표지가 실린다. 키는 남아
+    // 본문 `$node` 의 같은 이름 `#N` 접미사와 값이 줄이기 전과 같다(CLE-T-XTTSXB).
+    it('Background 작업의 flat 값이 표지로 줄어도 본문 $node 의 같은 이름 #N 과 값은 그대로다', async () => {
+      handlerRegistry.register('background', new BackgroundHandler(), {
+        kind: 'background',
+      });
+      registerValueNode('value_first', { rows: [1, 2, 3] });
+      registerValueNode('value_second', [4, 5]);
+      mockNodeRepo.findBy.mockResolvedValue([
+        vNode('trigger', 'test_node'),
+        { ...vNode('first', 'value_first'), label: 'Dup' },
+        { ...vNode('second', 'value_second'), label: 'Dup' },
+        vNode('bg', 'background'),
+        vNode('ok', 'success_sink', {
+          dup1: '{{ $node["Dup"].output }}',
+          dup2: '{{ $node["Dup#2"].output }}',
+        }),
+      ]);
+      mockEdgeRepo.findBy.mockResolvedValue([
+        vEdge('trigger', 'out', 'first'),
+        vEdge('first', 'success', 'second'),
+        vEdge('second', 'success', 'bg'),
+        vEdge('bg', 'background', 'ok'),
+      ]);
+      const queueAdd = (
+        service as unknown as { backgroundQueue: { add: jest.Mock } }
+      ).backgroundQueue.add;
+      queueAdd.mockClear();
+
+      await service.execute(workflowId, {}, { workspaceId: 'ws-1' });
+      await waitUntil(
+        () => queueAdd.mock.calls.length > 0,
+        'Background 큐 작업',
+      );
+
+      const job = JSON.parse(
+        JSON.stringify(queueAdd.mock.calls[0][1]),
+      ) as BackgroundExecutionJob;
+      // 값은 구조화 캐시에만 실리고 flat 캐시에는 라우팅 표지만 남는다.
+      expect(job.nodeOutputCache.first).toStrictEqual({
+        _selectedPort: 'success',
+      });
+      expect(job.nodeOutputCache.second).toStrictEqual({
+        _selectedPort: 'success',
+      });
+      expect(job.structuredOutputCache?.first?.output).toStrictEqual({
+        rows: [1, 2, 3],
+      });
+
+      await service.executeBackgroundSubgraph(job);
+      await waitForSink();
+
+      expect(successCalls).toHaveLength(1);
+      expect(successCalls[0].config.dup1).toStrictEqual({ rows: [1, 2, 3] });
+      expect(successCalls[0].config.dup2).toStrictEqual([4, 5]);
+    });
+
     // 실행 결과(`Execution.outputData`)와 동기 서브워크플로 결과(`executeInline` 반환값 →
     // `$node["Workflow"].output.result`)는 마지막 노드의 핸들러 `output` 그대로다. 예전에는
     // 엔진 flat 값이라 `{ data, _selectedPort }` · `{ ...값, _selectedPort }` 였다

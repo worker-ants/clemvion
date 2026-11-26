@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY-UI"
 title: "실행 내역 — 화면 구성"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-HISTORY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-HISTORY"]
 area: "CLE-EXEC"
-content_hash: "8b2d8d409f44d86d94063e7080b7811dc86864d1ab5c73faec6036db5b7cb317"
+content_hash: "a5f3b421227e5ee7e069a58df551b5f0c6b690000b3b1fdc49e426f8ee52c09c"
 read_as: "approved_fallback"
-task: "CLE-T-AQQMY1"
+task: "CLE-T-0V6FDN"
 source_paths: []
-mirror_sha256: "df264615862e3ebd3bb2c97a55c12721114bc0240dd771350482687a99a85258"
-etag: "sha256-29fac41dcdec8f65d7a6b197b9bb50817f8f15fb77d9ce05740205e11dfb0134"
+mirror_sha256: "f6041426db82882093887608554682822fa072605b0a9a45eca5341e361c085f"
+etag: "sha256-e90c8ecf351cdda7e404d2db932fc5e173dc76318fa6f8c58209f1b9545541ff"
 ---
 ## 개요
 
@@ -156,7 +156,7 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 
 ### 재실행과 체인 표시
 
-요약 카드 오른쪽 머리의 재실행(Re-run) 버튼을 누르면 입력 데이터 미리보기·편집 모달이 열린다. dry-run 토글로 외부 호출을 건너뛴 흐름 검증도 할 수 있다. 모달·정책·API 는 [재실행](CLE-EXEC-RERUN.md) 이 정한다.
+요약 카드 오른쪽 머리의 재실행(Re-run) 버튼을 누르면 입력 데이터 미리보기·편집 모달이 열린다. dry-run 토글로 부수효과 호출을 모의 처리한 흐름 검증도 할 수 있다. 모달·정책·API 는 [재실행](CLE-EXEC-RERUN.md) 이 정한다.
 
 | 영역 | 위치 | 들어가는 요소 |
 | --- | --- | --- |
