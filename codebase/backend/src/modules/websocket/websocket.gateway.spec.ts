@@ -136,7 +136,7 @@ describe('WebsocketGateway', () => {
         {
           provide: WorkflowsService,
           useValue: {
-            // 04 M-6 — workflow: authorizer. 기본 통과(엔티티 반환),
+            // CLE-API-WS-MSG 「구독 인가」 — workflow: authorizer. 기본 통과(엔티티 반환),
             // 거부 케이스는 별도 테스트에서 mockRejectedValueOnce 로 override.
             findById: jest.fn().mockResolvedValue({ id: 'wf' }),
           },
@@ -458,7 +458,7 @@ describe('WebsocketGateway', () => {
       expect(join).not.toHaveBeenCalled();
     });
 
-    // 04 M-6 — workflow: 채널 authorizer (workflowId→workspace 소유 IDOR 차단).
+    // CLE-API-WS-MSG 「구독 인가」 — workflow: 채널 authorizer (workflowId→workspace 소유 IDOR 차단).
     const WF_UUID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
     it('should accept workflow channel when ownership verified', async () => {
       const { socket, join } = createMockSocket({ id: 'client-1' });
@@ -512,7 +512,7 @@ describe('WebsocketGateway', () => {
       expect(join).not.toHaveBeenCalled();
     });
 
-    // 04 M-6 — notifications:<userId> 채널 authorizer (JWT sub 일치, 선제 차단).
+    // CLE-API-WS-MSG 「구독 인가」 — notifications:<userId> 채널 authorizer (JWT sub 일치, 선제 차단).
     it('should accept notifications channel for the matching user', async () => {
       const { socket, join } = createMockSocket({ id: 'client-1' });
       const enriched = socket as Socket & {

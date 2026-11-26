@@ -1124,10 +1124,10 @@ describe('HttpRequestHandler', () => {
       expect(output.error.message).toBe('Request blocked by SSRF policy.');
     });
 
-    // refactor 04 C-3 — SSRF guard now applies to ALL authentication methods,
+    // CLE-NODE-INT-COMMON-ERROR — SSRF guard now applies to ALL authentication methods,
     // not just `integration`. `none`/`custom` requests can no longer reach
     // cloud IMDS / private networks unless ALLOW_PRIVATE_HOST_TARGETS=true.
-    it('blocks authentication=none requests to cloud IMDS (04 C-3)', async () => {
+    it('blocks authentication=none requests to cloud IMDS', async () => {
       const { service, logUsage } = makeService('bearer_token', { token: 't' });
       const handler = new HttpRequestHandler(service as never);
       const result = (await handler.execute(
@@ -1178,7 +1178,7 @@ describe('HttpRequestHandler', () => {
       },
     );
 
-    it('blocks authentication=custom requests to private RFC1918 (04 C-3)', async () => {
+    it('blocks authentication=custom requests to private RFC1918', async () => {
       const { service } = makeService('bearer_token', { token: 't' });
       const handler = new HttpRequestHandler(service as never);
       const result = (await handler.execute(
@@ -1221,7 +1221,7 @@ describe('HttpRequestHandler', () => {
       });
     });
 
-    // 04 C-3 — SSRF 가드는 none/custom 포함 전 인증 방식 공통. IMDS·RFC1918·
+    // CLE-NODE-INT-COMMON-ERROR — SSRF 가드는 none/custom 포함 전 인증 방식 공통. IMDS·RFC1918·
     // localhost 교차조합을 매트릭스로 단언 (literal IP/localhost fast-path 라 DNS
     // 없이 결정적 차단).
     it.each([
