@@ -26,16 +26,21 @@ export const EMAIL_HOST_BLOCKED_MESSAGE =
  * 빈 host 와 DNS 해석 실패는 막지 않는다 — 빈 host 는 앞선 필수 필드 검증이 걸러내고, 해석되지 않는 host 에는 어차피 닿지
  * 못한다(`assertSafeOutboundHostResolved` 와 같다). 이 검사와 연결 사이에 DNS 응답이 바뀌는 경우(DNS rebinding)는
  * {@link guardedSmtpGetSocket} 이 연결할 때 다시 판정해서 막는다.
+ *
+ * 막히면 판정 오류(`SsrfBlockedError`)를 돌려주고 통과면 `null` 이다. 판정 오류의 메시지에는 차단된 host · IP 원문이 들어 있다.
+ * 호출부는 이 원문을 서버 경고 로그에만 남기고 사용자에게는 {@link EMAIL_HOST_BLOCKED_MESSAGE} 를 낸다(CLE-T-FWSAJ4).
  */
-export async function isSmtpHostBlocked(host: string): Promise<boolean> {
+export async function checkSmtpHost(
+  host: string,
+): Promise<SsrfBlockedError | null> {
   const trimmed = host?.trim();
-  if (!trimmed) return false;
+  if (!trimmed) return null;
   try {
     await assertSafeOutboundHostResolved(trimmed);
-    return false;
+    return null;
   } catch (err) {
     // 판정은 `SsrfBlockedError` 하나뿐이다. 다른 오류가 여기로 오면 판정이 아니므로 삼키지 않는다.
-    if (err instanceof SsrfBlockedError) return true;
+    if (err instanceof SsrfBlockedError) return err;
     throw err;
   }
 }
@@ -74,7 +79,7 @@ export type SmtpGetSocket = (
  *   `ETIMEDOUT` 오류를 넘긴다.
  * - 직접 TLS(`secure`)와 STARTTLS 는 nodemailer 가 이 소켓 위에서 맺는다. SNI · 인증서 검증의 이름은 transport 의
  *   `host` 그대로다(nodemailer 가 `options.host` 로 `servername` 을 정한다).
- * - IP 리터럴 host 는 조회를 거치지 않는다. 리터럴은 앞선 {@link isSmtpHostBlocked} 가 판정한다.
+ * - IP 리터럴 host 는 조회를 거치지 않는다. 리터럴은 앞선 {@link checkSmtpHost} 가 판정한다.
  */
 export function guardedSmtpGetSocket(): SmtpGetSocket | undefined {
   const lookup = safeOutboundLookup();
