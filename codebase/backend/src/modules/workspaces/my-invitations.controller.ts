@@ -3,7 +3,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
@@ -22,7 +21,10 @@ import { ApiOkWrappedResponse } from '../../common/swagger';
 import { CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { WorkspaceInvitationsService } from './workspace-invitations.service';
+import {
+  WorkspaceInvitationsService,
+  invitationNotFoundException,
+} from './workspace-invitations.service';
 import {
   InvitationAcceptResultDto,
   InvitationMetaDto,
@@ -37,12 +39,6 @@ import {
  * 초대 id 의 형식은 `ParseUUIDPipe` 가 보되 예외를 404 `invitation_not_found` 로 바꾼다. 기본 400 을 쓰면 잘못된 id 와
  * 남의 id 가 다른 응답이 된다.
  */
-const invitationNotFound = () =>
-  new NotFoundException({
-    code: 'invitation_not_found',
-    message: '초대를 찾을 수 없습니다.',
-  });
-
 @ApiTags('Invitations')
 @ApiBearerAuth('access-token')
 @Controller('users/me/invitations')
@@ -76,7 +72,7 @@ export class MyInvitationsController {
     @CurrentUser() user: JwtPayload,
     @Param(
       'invitationId',
-      new ParseUUIDPipe({ exceptionFactory: invitationNotFound }),
+      new ParseUUIDPipe({ exceptionFactory: invitationNotFoundException }),
     )
     invitationId: string,
   ) {
@@ -114,7 +110,7 @@ export class MyInvitationsController {
     @CurrentUser() user: JwtPayload,
     @Param(
       'invitationId',
-      new ParseUUIDPipe({ exceptionFactory: invitationNotFound }),
+      new ParseUUIDPipe({ exceptionFactory: invitationNotFoundException }),
     )
     invitationId: string,
   ) {

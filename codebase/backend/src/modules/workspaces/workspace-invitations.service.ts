@@ -61,6 +61,17 @@ function generateToken(): string {
  * resending overwrites the same row — the previous token becomes invalid as
  * soon as the column is replaced.
  */
+/**
+ * 초대가 없거나 로그인 사용자의 초대가 아닐 때의 404 `invitation_not_found`. 본인 초대 경로는 형식이 틀린 초대 id 와
+ * 남의 초대 id 를 같은 응답으로 돌려줘야 하므로 컨트롤러의 `ParseUUIDPipe` 예외와 서비스가 이 함수 하나를 쓴다.
+ */
+export function invitationNotFoundException(): NotFoundException {
+  return new NotFoundException({
+    code: 'invitation_not_found',
+    message: '초대를 찾을 수 없습니다.',
+  });
+}
+
 @Injectable()
 export class WorkspaceInvitationsService {
   private readonly logger = new Logger(WorkspaceInvitationsService.name);
@@ -266,10 +277,7 @@ export class WorkspaceInvitationsService {
       where: { id: invitationId, workspaceId },
     });
     if (!invitation) {
-      throw new NotFoundException({
-        code: 'invitation_not_found',
-        message: '초대를 찾을 수 없습니다.',
-      });
+      throw invitationNotFoundException();
     }
     if (invitation.acceptedAt) {
       throw new ConflictException({
@@ -441,10 +449,7 @@ export class WorkspaceInvitationsService {
       where: { id: invitationId, workspaceId },
     });
     if (!invitation) {
-      throw new NotFoundException({
-        code: 'invitation_not_found',
-        message: '초대를 찾을 수 없습니다.',
-      });
+      throw invitationNotFoundException();
     }
     if (invitation.acceptedAt) {
       throw new ConflictException({
@@ -570,11 +575,7 @@ export class WorkspaceInvitationsService {
     invitationId: string,
     userId: string,
   ): Promise<WorkspaceInvitation> {
-    const notFound = () =>
-      new NotFoundException({
-        code: 'invitation_not_found',
-        message: '초대를 찾을 수 없습니다.',
-      });
+    const notFound = invitationNotFoundException;
     if (!isUUID(invitationId)) throw notFound();
     const [invitation, user] = await Promise.all([
       this.invitationRepository.findOne({ where: { id: invitationId } }),
