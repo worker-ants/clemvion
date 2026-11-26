@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-ENTITY"
 title: "통합 데이터와 흐름 — 엔티티와 인덱스"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "1181934c0173897ee09203be5308b270486a7a70fba3e2fb3936840fd5ce4d02"
+content_hash: "9fe4a248958a6420c9986d905b0d63cfa866ee44cb2d7501b72006752d1ab592"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-NTNXZS"
 source_paths: []
-mirror_sha256: "ce8ad445a6d34e1cef7947904ad8326a33fdcafbd96e2128c8c76a37394261cd"
-etag: "sha256-824090a26b533c63d9455d86e1e86e2f65164fb5287730822be3f57d4d980930"
+mirror_sha256: "18edb5fc51e25c597d7de241ca7391cf9b2ae849379290b9788192853291e09d"
+etag: "sha256-ba9bfd543ce2c484b65d9764bcc89bdae37daa01b62c18b097060ed7b59a299a"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -88,7 +88,7 @@ etag: "sha256-824090a26b533c63d9455d86e1e86e2f65164fb5287730822be3f57d4d980930"
 | cafe24 ([Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md)) | 카탈로그 키 `cafe24.<resource>.<operation>` ([Cafe24 operation 메타데이터](CLE-C24-META)) | operation 의 HTTP 메서드(`GET`/`POST`/…) | operation 의 경로 템플릿. 자리표시자를 그대로 둔다(`products/{product_no}`) |
 | makeshop ([MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md)) | 카탈로그 키 `makeshop.<resource>.<operation>` ([MakeShop operation 메타데이터](CLE-MKS-META)) | operation 의 HTTP 메서드(`GET`/`POST`) | operation 의 상대 경로(`product`, `cart/create`). MakeShop 경로에는 `{shopId}` 밖의 path 파라미터가 없어 자리표시자가 없다([MakeShop API 카탈로그](CLE-MKS-CATALOG)) |
 | http-request ([HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md)) | NULL | HTTP 메서드 | host + path. query string 은 뺀다. baseUrl 이 없으면 path 만 |
-| database-query ([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)) | NULL | SQL 동사(`SELECT`/`INSERT`/`UPDATE`/`DELETE`). `queryType='raw'` 이면 평가된 SQL 의 첫 토큰을 대문자로 뽑고, 뽑지 못하면 NULL 이다. 상세는 노드 문서 | 드라이버(`postgres` / `mysql`) |
+| database-query ([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)) | NULL | 평가된 SQL 의 첫 동사(`SELECT`/`INSERT`/`UPDATE`/`DELETE` 등). `queryType` 과 관계없이 앞 공백을 뺀 첫 영문 단어를 대문자로 쓰고, 첫 글자가 영문이 아니면(맨 앞 주석 포함) NULL 이다 | 드라이버(`postgres` / `mysql`) |
 | send-email ([Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md)) | NULL | `SEND` | SMTP host 또는 NULL |
 | mcp (외부 MCP 서버, [MCP 클라이언트](CLE-INT-MCP.md)) | NULL | NULL | NULL. 도구 호출을 기록하지만 `api` 를 넘기지 않는다 |
 
@@ -253,3 +253,13 @@ Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실�
 `api_*` 채우기 표의 정본을 이 문서 한 곳으로 정했다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 의 실행 로직도 이 표를 가리킨다). 코드와 대조하니 외부 MCP 서버의 도구 호출(`McpToolProvider`)만 `api` 를 넘기지 않아서 지금 동작대로 `mcp` 행과 적용 범위 3 을 더했다.
 
 - 고치지 않은 것: 외부 MCP 도구 호출의 `api_*` 를 채우는 일은 코드 변경이라 NERV Task `CLE-T-22PSME` 가 맡는다.
+
+### Database Query 의 `api_method` 는 실행한 SQL 의 첫 동사다
+
+결정일: 2026-11-26
+
+스펙은 `queryType` 을 대문자로 쓰고 `raw` 일 때만 SQL 첫 토큰을 뽑는다고 적었지만 핸들러는 늘 SQL 첫 토큰을 썼다. 사용자가 스펙을 코드에 맞추기로 정했다(NERV Task `CLE-T-NTNXZS`). 쿼리 유형을 기본값 `select` 로 둔 채 `DELETE FROM …` 을 적은 노드에서 활동 로그가 실제로 실행한 문장의 동사를 보여야 감사에 쓸 수 있다. 맨 앞 주석을 건너뛰지 않는 것도 지금 동작 그대로다. dry-run 판정은 주석을 건너뛰는 별도 판정을 쓴다([Database Query 「dry-run」](../CLE-NODE-INT/CLE-NODE-DBQUERY.md#dry-run)).
+
+기각한 대안:
+
+- **코드를 고쳐 `queryType` 을 쓴다**: 쿼리 유형은 사용자가 고르는 힌트라 실제 문장과 다를 수 있다. 활동 로그가 실행하지 않은 동사를 보여 준다.

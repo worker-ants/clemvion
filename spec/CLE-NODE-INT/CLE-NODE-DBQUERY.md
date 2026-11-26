@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029", "REQ-DBQ-030", "REQ-DBQ-031", "REQ-DBQ-032"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "a3cf0dc67d5fa9574a6c1586be2a3639ea702d2a99c5202d8920e67c91ababaa"
+content_hash: "b870435e61e1d431ad516d54d996deb04c6cf74f68cbc40b8c7414d7b8a0e0eb"
 read_as: "approved_fallback"
-task: "CLE-T-3M0KRA"
+task: "CLE-T-NTNXZS"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "be27fb9a800b85980565d0d6cf46b95857c2bc28390c44710232a844db82e96b"
-etag: "sha256-770dbe9a4ff3cef3484a65ea4ce6f5341d0bc73242d275c5d26b4d8a23eca3de"
+mirror_sha256: "0b15612fd329ad848a4c67471ec880085e42e10f07bd49bb677d6b5e61d543be"
+etag: "sha256-be7fde46eb0b5a904dce8972db51b2cf6777e4d69300b8b2fb838495203d2b7e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -121,7 +121,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
    `require` 도 인증서 검증을 강제한다(MITM 방어). self-signed 인증서를 쓰려면 별도 `require-trust` 모드를 새로 도입해야 한다.
 8. **활동 로그 기록**: 통합을 얻은 뒤(`getForExecution` 이 성공한 뒤)에는 성공·실패와 관계없이 `logUsage` 를 부른다(인자는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#integrationsservice-api-실행-엔진용)). 통합을 얻기 전에 끝난 실패는 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md#공통-에러-코드)). 실행 취소로 끝난 호출도 남기지 않는다. catch 첫머리에서 `isAbortErrorLike` 로 `AbortError` 인지 보고, 맞으면 `logUsage` 를 부르지 않고 그대로 다시 던진다. 0단계에서 드라이버 에러를 바꾼 `AbortError` 도 같다. 엔진이 노드를 `cancelled` 로 기록한다. API 식별 정보는 다음과 같다(통합별 전체 표는 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](../CLE-INT/CLE-INT-DATA.md#호출-api-식별-채우기-규칙)).
    - `api_label` = NULL. 임의 SQL 을 부르므로 엔드포인트 카탈로그가 없다.
-   - `api_method` = SQL 동사(`SELECT`·`INSERT`·`UPDATE`·`DELETE`). `config.queryType` 을 대문자로 그대로 쓴다. `queryType='raw'` 이면 평가된 SQL 의 첫 토큰을 대문자로 뽑는다. 뽑지 못하면 NULL 이다.
+   - `api_method` = 평가된 SQL 의 첫 동사(`SELECT`·`INSERT`·`UPDATE`·`DELETE` 등). `queryType` 과 관계없이 앞 공백을 뺀 첫 영문 단어를 대문자로 쓴다. 첫 글자가 영문이 아니면(맨 앞 주석 포함) NULL 이다. 근거는 [엔티티 「채우기 규칙」 Rationale](../CLE-INT/CLE-INT-DATA-ENTITY.md#database-query-의-api_method-는-실행한-sql-의-첫-동사다).
    - `api_path` = 드라이버 토큰(`postgres`·`mysql`). SQL 본문 파싱을 피하고 개인정보가 드러나지 않게 한다. 드라이버가 늘면 토큰 목록을 넓힌다.
 9. **포트 라우팅**: 정상 종료는 `port: 'success'`, 그 밖의 모든 실패(쿼리 throw·자격 증명 누락·통합 해소 실패 등)는 `port: 'error'` 다(D4). 실행 취소로 생긴 `AbortError` 는 포트로 보내지 않고 다시 던진다(8단계).
 
@@ -174,7 +174,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 ## 미결 사항
 
-- **사설망 차단 원본 상세를 남기는 위치**: 이 노드 원문은 차단 상세(원본 호스트)를 "서버 활동 로그(`logUsage`)" 에만 남긴다고 적는다. [HTTP Request 노드](CLE-NODE-HTTP.md)는 활동 로그가 사용자에게 그대로 나가므로 활동 로그에도 일반화 문구만 남긴다고 적는다. 두 쪽과 현재 구현은 [통합 노드 공통 미결 사항](CLE-NODE-INT-COMMON.md#미결-사항)에 정리했다. 결정 필요. 지금 구현은 HTTP Request 노드와 같은 쪽이다. 연결 전 검사와 연결 시점 판정 모두 원문을 서버 경고 로그에만 남긴다(REQ-DBQ-032). 이 항목은 통합 노드 공통의 미결 사항과 함께 닫는다.
+없음.
 
 ## 구현 위치
 
@@ -261,3 +261,4 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 - 취소용 일회성 연결도 같은 연결 옵션 빌더를 쓴다. 이 연결만 판정에서 빠지면 막힌 대역에 닿는 길이 하나 남는다.
 - 요구사항 변경: REQ-DBQ-018 에 고정 문구와 서버 경고 로그를 적었다. 동작은 NERV Task `CLE-T-E991S1` 이 바꾼 그대로다. REQ-DBQ-030 · REQ-DBQ-031 · REQ-DBQ-032 를 새로 두었다.
+- 미결이던 «사설망 차단 원본 상세를 남기는 위치» 는 REQ-DBQ-032 대로 서버 경고 로그로 닫았다(NERV Task `CLE-T-R8GDTY`). 연결 전 검사의 경고 로그는 NERV Task `CLE-T-CT6SHS` 가 더했다.
