@@ -2,19 +2,19 @@
 id: "CLE-API"
 title: "API 공통 규약"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "a78da244b71cd6c99af67699db8b716b194e82d908340302efdffa23fef48e03"
-read_as: "approved"
-task: null
+content_hash: "fb75b1a7d957c9d1acc28ba194525c1acdfabeff00769e49097e985b4700ff74"
+read_as: "approved_fallback"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "944cb057752a7cb1b051c76e45fde6b3851cbf0d794f629c5f9acb6762d7e5e0"
-etag: "sha256-fcfebe9b3ed9389b04d0eae7618f6f59aa96329636a140cd96362ee936bb704f"
+mirror_sha256: "938e733e4cdf838026795ada60753f07f4af018cb4e58e93ee26c9aebf55afce"
+etag: "sha256-903a53b88b989370b47c1ee1341900b0022d20edd5db097e55bd4d38bd41e8fe"
 ---
 > 구현 상태: 구현됨 · 원문: 영역 문서 (자식 문서의 원문을 따른다) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -37,5 +37,5 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 | [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) | 에러 코드 이름 규칙과 안정성, 예외 등록 코드, 내부 분류 코드 정규화, 은퇴 코드, 도메인별 전체 코드 카탈로그 |
 | [OpenAPI 문서화](CLE-API-SWAGGER.md) | Swagger UI 노출 정책, DTO·컨트롤러 데코레이터 패턴, 응답 DTO 규약, 설명 톤과 길이, 광고한 성공 코드·403 설명·요청 본문을 세는 가드 |
 | [응답 자격 증명 마스킹](CLE-API-EGRESS.md) | 나가는 페이로드의 자격 증명 마스킹 원칙, 적용 표면 열거, 재제출 거부, 외부 `nodeOutput` 허용 목록, 마스커 좌표계와 호출 순서 |
-| [WebSocket 연결과 채널 구독](CLE-API-WS.md) | Socket.IO 전송, 인증과 토큰 만료, 메시지 형식과 이벤트 봉투, 구독 채널과 인가, heartbeat, 재연결과 놓친 이벤트 복구, 전송 계층 에러, 클라이언트 구현 지침 |
+| [WebSocket 연결과 채널 구독](CLE-API-WS.md) | Socket.IO 전송, 인증과 토큰 만료, 메시지 형식과 이벤트 봉투, 구독 채널과 인가, heartbeat, 재연결과 놓친 이벤트 복구, 전송 계층 에러, 클라이언트 구현 지침. HTTP 전용 전역 enhancer 는 WebSocket 호출을 건너뛴다([§1 전송 계층](CLE-API-WS.md#1-전송-계층)) |
 | [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md) | 실행·지식 저장소·인앱 알림·시스템 이벤트 목록, 실행 제어 명령과 ack, 입력 대기 이벤트 상세, EIA 표면 매핑 권위 표 |

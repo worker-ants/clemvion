@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER-ROUTE"
 title: "OpenAPI 문서화 — 컨트롤러와 응답 DTO"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-SWAGGER"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-SWAGGER"]
 area: "CLE-API"
-content_hash: "99997d925ac5a9e789697f5f2cbf09f7889f0e5bd8b815d109ca6d4b67570452"
+content_hash: "cefd139ffc5ca716f2528d3e6c5f5c9f353db5b081d4921cb51b8278ef75b6f8"
 read_as: "approved_fallback"
-task: "CLE-T-62B0J9"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "27850ab561553f515a36514f3f268afb3c2fd9378bb61f60fb8c3d53a08d7e82"
-etag: "sha256-c3499d90ac4d79b2526f3a5ed8c840c13b1f19e2c21dd8b198e1f61f337afec9"
+mirror_sha256: "1373183d16e2e0d640ea6a455798659eea4c2536f0ea8dc28d4d1564d5e168c6"
+etag: "sha256-17dc537a24ae8df2aca2d1efb6905adc61c36f8d833404116ac1a0b02488d31a"
 ---
 ## 개요
 
@@ -235,6 +235,7 @@ async create(...) { ... }
 - [ ] 요청 본문을 받는 라우트(`@Body()`)가 본문 스키마를 광고하는가.
   - 파라미터를 DTO 클래스로 받으면 플러그인이 스키마를 만든다.
   - 클래스로 받을 수 없으면 **문서 전용 DTO**(class-validator 데코레이터 없이 `@ApiProperty` 만)를 `@ApiBody({ type })` 로 광고하고 파라미터는 인라인 타입을 유지한다. 전역 `CustomValidationPipe` 는 클래스 파라미터에만 들어가 `whitelist`·`forbidNonWhitelisted` 로 에러 코드와 여분 키 처리를 바꾸기 때문이다.
+  - `CustomValidationPipe` 는 커스텀 데코레이터 인자(`ArgumentMetadata.type === 'custom'`)를 검증하지 않는다. WebSocket 게이트웨이의 `@ConnectedSocket()` 이 그 예다([WebSocket 연결과 채널 구독 「1. 전송 계층」](CLE-API-WS.md#1-전송-계층)).
   - 형태를 보내는 쪽이 정하는 본문(외부 웹훅. 객체가 아닐 수도 있다)은 `@ApiBody({ schema: {} })` 로 광고한다.
   - 저장소 가드 `request-body-advertised` 가 **모든 라우트**에서 `@Body()` 자리의 설계 타입이 클래스가 아닌데 `@ApiBody` 가 없는 자리를 잡는다(`@ApiExcludeEndpoint()`·`@ApiExcludeController()` 제외).
 - [ ] 경로 UUID 파라미터에 `@ApiParam({ format: 'uuid' })` 를 일관되게 적용했는가
