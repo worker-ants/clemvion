@@ -17,6 +17,7 @@ import {
   Repository,
 } from 'typeorm';
 import { randomBytes } from 'crypto';
+import { isUUID } from 'class-validator';
 import {
   InvitationRole,
   WorkspaceInvitation,
@@ -312,31 +313,41 @@ export class WorkspaceInvitationsService {
       where: { token },
     });
     this.assertTokenUsable(invitation);
+    return this.buildMeta(invitation);
+  }
 
-    const [workspace, inviter] = await Promise.all([
-      this.workspaceRepository.findOne({
-        where: { id: invitation.workspaceId },
-      }),
-      invitation.invitedBy
-        ? this.userRepository.findOne({ where: { id: invitation.invitedBy } })
-        : Promise.resolve(null),
-    ]);
-    if (!workspace) {
-      // Defensive: workspace deleted while invitation still pending. Surface as
-      // 404 rather than returning a meaningless empty workspaceName.
-      throw new NotFoundException({
-        code: 'workspace_not_found',
-        message: '초대된 워크스페이스가 더 이상 존재하지 않습니다.',
-      });
-    }
+  /**
+   * 초대 id 모드의 메타 조회(CLE-T-86E38Q). 초대 알림을 누른 로그인 사용자가 자기 이메일로 온 초대만 본다.
+   * 없거나 남의 초대면 404 다(`findForRecipient`).
+   */
+  async getMetaForRecipient(
+    invitationId: string,
+    userId: string,
+  ): Promise<InvitationMeta> {
+    const invitation = await this.findForRecipient(invitationId, userId);
+    this.assertTokenUsable(invitation);
+    return this.buildMeta(invitation);
+  }
 
-    return {
-      workspaceName: workspace.name,
-      invitedByName: inviter?.name ?? null,
-      email: invitation.email,
-      role: invitation.role,
-      expiresAt: invitation.expiresAt,
-    };
+  /**
+   * 초대 id 모드의 수락(CLE-T-86E38Q). 토큰 수락과 같은 원자적 소비 · 멤버 추가를 쓴다. 이메일이 맞는 초대만
+   * 찾으므로 불일치 400 은 없다.
+   */
+  async acceptById(
+    invitationId: string,
+    userId: string,
+  ): Promise<{ workspaceId: string; role: InvitationRole }> {
+    const invitation = await this.findForRecipient(invitationId, userId);
+    this.assertTokenUsable(invitation);
+    return this.dataSource.transaction(async (manager) =>
+      this.applyAccept(
+        manager,
+        invitation.id,
+        invitation.workspaceId,
+        invitation.role,
+        userId,
+      ),
+    );
   }
 
   /**
@@ -519,6 +530,64 @@ export class WorkspaceInvitationsService {
         }`,
       );
     }
+  }
+
+  private async buildMeta(
+    invitation: WorkspaceInvitation,
+  ): Promise<InvitationMeta> {
+    const [workspace, inviter] = await Promise.all([
+      this.workspaceRepository.findOne({
+        where: { id: invitation.workspaceId },
+      }),
+      invitation.invitedBy
+        ? this.userRepository.findOne({ where: { id: invitation.invitedBy } })
+        : Promise.resolve(null),
+    ]);
+    if (!workspace) {
+      // Defensive: workspace deleted while invitation still pending. Surface as
+      // 404 rather than returning a meaningless empty workspaceName.
+      throw new NotFoundException({
+        code: 'workspace_not_found',
+        message: '초대된 워크스페이스가 더 이상 존재하지 않습니다.',
+      });
+    }
+
+    return {
+      workspaceName: workspace.name,
+      invitedByName: inviter?.name ?? null,
+      email: invitation.email,
+      role: invitation.role,
+      expiresAt: invitation.expiresAt,
+    };
+  }
+
+  /**
+   * 초대 id 와 로그인 사용자로 본인 초대를 찾는다. 초대 id 가 UUID 가 아니거나, 행이 없거나(취소한 초대는 행을
+   * 지운다), 초대 이메일이 로그인 이메일과 다르면 모두 같은 404 `invitation_not_found` 를 던진다. 남의 초대 id 로는
+   * 그 초대가 있는지 · 수락됐는지 · 만료됐는지 알 수 없게 하려고 상태 검사(`assertTokenUsable`)보다 먼저 판정한다.
+   */
+  private async findForRecipient(
+    invitationId: string,
+    userId: string,
+  ): Promise<WorkspaceInvitation> {
+    const notFound = () =>
+      new NotFoundException({
+        code: 'invitation_not_found',
+        message: '초대를 찾을 수 없습니다.',
+      });
+    if (!isUUID(invitationId)) throw notFound();
+    const [invitation, user] = await Promise.all([
+      this.invitationRepository.findOne({ where: { id: invitationId } }),
+      this.userRepository.findOne({ where: { id: userId } }),
+    ]);
+    if (
+      !invitation ||
+      !user ||
+      user.email.toLowerCase() !== invitation.email.toLowerCase()
+    ) {
+      throw notFound();
+    }
+    return invitation;
   }
 
   /**
