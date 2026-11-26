@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-REFS"
 title: "시크릿 저장소 — 참조 소유와 교차 행"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "bec17e669a795691d192a146f3bce5f1a97badb92a242189c9e551b7909c6706"
+content_hash: "b9b39cf9192fe9710f17f137e623eda396db1e926da5eb7a5857a66d6104b5d1"
 read_as: "approved_fallback"
-task: "CLE-T-FTSKJW"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "6be8db97d9152eec5a5651d33d2c8c2672450d7b35cd07928a7de3a6ea7d5c7a"
-etag: "sha256-e1aa292071907ba5be918c7678c9246945e8746d471ec5a849c5716ef2e1ccd2"
+mirror_sha256: "0244737e851a9ad75fbe291ca631a00d68c5fa98c06800944cdb22df0bddb813"
+etag: "sha256-ef80e5abbf5cbe2619c794b8310b2f7a40b2020dc694d202d1395d48c54e4c7b"
 ---
 ## 개요
 
@@ -74,7 +74,7 @@ R9 가 요청 본문을 막은 뒤에도 그 전에 저장된 행은 남는다. 
 
 ### R16. 원시 `config` 의 타입 키와 `secret://` 값을 막는다 (2026-10-31)
 
-R9 는 원시 `config`(트리거 생성 · 수정 본문의 `config` 키)에 실린 시크릿 참조를 경로 목록으로 막았다. 세 타입 키를 통째로 막는 안은 원시 `config` 의 다른 계약을 함께 바꾸므로 NERV Task `CLE-T-EA7B5M` 으로 넘겼다. 2026-10-31 에 사용자가 그 Task 의 질문에 답해 아래를 정했다. 결정 전체와 기각안 · 근거의 정본은 [트리거 관리 「원시 `config` 계약 (2026-10-31)」](../CLE-TRIG/CLE-TRIG-MANAGE.md#원시-config-계약-2026-10-31) 이다. 이 규약에는 시크릿에 닿는 부분만 적는다.
+R9 는 원시 `config`(트리거 생성 · 수정 본문의 `config` 키)에 실린 시크릿 참조를 경로 목록으로 막았다. 세 타입 키를 통째로 막는 안은 원시 `config` 의 다른 계약을 함께 바꾸므로 NERV Task `CLE-T-EA7B5M` 으로 넘겼다. 2026-10-31 에 사용자가 그 Task 의 질문에 답해 아래를 정했다. 결정 전체와 기각안 · 근거의 정본은 [트리거 관리 「원시 `config` 계약」](../CLE-TRIG/CLE-TRIG-MANAGE.md#원시-config-계약) 이다. 이 규약에는 시크릿에 닿는 부분만 적는다.
 
 - **타입 키를 받지 않는다.** 원시 `config` 바로 아래에 `notification` · `interaction` · `chatChannel` 키가 있으면 값과 상관없이 400 이다. R9 가 범위에서 뺀 안이다. 기각이 아니라 유보였고 이번에 채택했다. 이 결정으로 옛 평문 `notification.signing.secret` 을 새로 받는 경로가 닫혔다. 그 키는 원시 `config` 로만 들어왔기 때문이다. 견준 두 안은 `notification` 만 계속 받는 안과 세 키를 받되 요청 본문의 최상위 타입 필드와 같은 검사를 거치게 하는 안이었다. 둘 다 옛 평문 입력 경로를 남긴다.
 - **`secret://` 값은 위치와 상관없이 거부한다.** 원시 `config` 아래 어디든(중첩 객체 · 배열 원소 포함) `secret://` 로 시작하는 문자열 값이 있으면 400 이다. 경로 목록은 사람이 더하는 목록이라 새 참조 슬롯을 빠뜨려도 테스트가 실패하지 않는다. R9 가 남긴 위험이고 규칙 22 가 사람에게 맡긴 일이다. 타입 키 거부로 그 아래 슬롯은 모두 막히지만 다른 키 아래에 참조를 심는 경로는 남는다. 값 검사는 슬롯 이름과 상관없이 잡는다. 경로 목록 거부는 그대로 두고 먼저 돈다. 견준 안은 값 검사를 더하지 않고 경로 목록만 두는 것이었다.

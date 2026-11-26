@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 15
+version: 16
 status: "approved"
 requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052", "REQ-WEBHOOK-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "4bf5b4f6f5f8c353364ccb9e31e0acca3b874e591bbb6bb9dae943cd08366871"
+content_hash: "a49415f2224d40fbe44ee1d855957e6e4ffd012192a645d2480b0dfac30698f6"
 read_as: "approved_fallback"
-task: "CLE-T-W020BQ"
+task: "CLE-T-ZVYG4H"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "c32385377dbec287cd0e6b8cbb9afc6b8fe99402b8f7e0107f6c3c21f915187f"
-etag: "sha256-bd800c69c1cf7d225937b23f1bfed827e69333b98b6d315092e489083d3fbd57"
+mirror_sha256: "88e894d7ffe1eb70b472f4a25009b60c1c7040cb90b19d42c484c98b02f72dd6"
+etag: "sha256-f54428821bbe5d50fa57b12294ed9aa3853dcbd7b360d68194e8a291550b1939"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -191,7 +191,7 @@ flowchart TD
 
 ### 외부 인터랙션 채널을 별도 문서로 나눈 이유
 
-이 문서는 외부에서 워크플로우를 시작하는 트리거 진입점만 맡는다. 트리거가 시작한 워크플로우가 중간에 `waiting_for_input` 으로 멈추거나 끝날 때 외부 시스템과 턴을 주고받는 채널은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 단일 기준으로 다룬다. 이 문서는 그쪽으로 링크만 둔다. 다만 웹훅 202 응답의 모양은 이 문서가 기준이다. EIA 는 그 응답 뒤에 주고받는 채널을 맡는다([웹훅 202 응답 모양을 지금 코드에 맞춘다](CLE-TRIG-WEBHOOK-API.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09)).
+이 문서는 외부에서 워크플로우를 시작하는 트리거 진입점만 맡는다. 트리거가 시작한 워크플로우가 중간에 `waiting_for_input` 으로 멈추거나 끝날 때 외부 시스템과 턴을 주고받는 채널은 [External Interaction API](../CLE-IX/CLE-EIA.md) 가 단일 기준으로 다룬다. 이 문서는 그쪽으로 링크만 둔다. 다만 웹훅 202 응답의 모양은 이 문서가 기준이다. EIA 는 그 응답 뒤에 주고받는 채널을 맡는다([웹훅 202 응답 모양을 지금 코드에 맞춘다](CLE-TRIG-WEBHOOK-API.md#웹훅-202-응답-모양을-지금-코드에-맞춘다)).
 
 ### 채팅 채널 어댑터를 별도 문서로 나눈 이유
 
@@ -205,14 +205,20 @@ flowchart TD
 
 → [웹훅 — 요청 제한과 남용 방어](CLE-TRIG-WEBHOOK-LIMIT.md#본문-크기를-공개와-인증으로-나눈-이유)
 
-### 웹훅 202 응답 모양을 지금 코드에 맞춘다 (2026-10-09)
+### 웹훅 202 응답 모양을 지금 코드에 맞춘다
 
-→ [웹훅 — 엔드포인트와 수신 API](CLE-TRIG-WEBHOOK-API.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09)
+결정일: 2026-10-09
 
-### 문자열이 아닌 기대값과 헤더 이름도 401 로 거부한다 (2026-11-05)
+→ [웹훅 — 엔드포인트와 수신 API](CLE-TRIG-WEBHOOK-API.md#웹훅-202-응답-모양을-지금-코드에-맞춘다)
 
-→ [웹훅 — 인증과 워크플로우 입력](CLE-TRIG-WEBHOOK-AUTH.md#문자열이-아닌-기대값과-헤더-이름도-401-로-거부한다-2026-11-05)
+### 문자열이 아닌 기대값과 헤더 이름도 401 로 거부한다
 
-### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다 (2026-11-12)
+결정일: 2026-11-05
 
-→ [웹훅 — 처리 흐름](CLE-TRIG-WEBHOOK-FLOW.md#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다-2026-11-12)
+→ [웹훅 — 인증과 워크플로우 입력](CLE-TRIG-WEBHOOK-AUTH.md#문자열이-아닌-기대값과-헤더-이름도-401-로-거부한다)
+
+### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다
+
+결정일: 2026-11-12
+
+→ [웹훅 — 처리 흐름](CLE-TRIG-WEBHOOK-FLOW.md#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다)

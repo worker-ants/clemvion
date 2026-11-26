@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP"
 title: "MCP 클라이언트"
 type: "design"
-version: 20
+version: 21
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "8174039d5da2c557350cc29113d6678543f887e3313cf417abc58f841d36e89a"
+content_hash: "48ee48c04a7cc88648876a228ce4e8028033ddfb97288d4caa3d01612d988e21"
 read_as: "approved_fallback"
-task: "CLE-T-GKDPVQ"
+task: "CLE-T-ZVYG4H"
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "e7eadfafb53c2d99cf7b08facc8afe4ead73fc252507cd6507668cb6283039e6"
-etag: "sha256-5a9a1d6f7f29d609518eada15eb3b1973707d4c448cad17d125d8b2a0d35ae85"
+mirror_sha256: "d9d08e73705d59d6119cc633b6c7a9960b656ce0cac97cb662c27bd6d9cd7ab6"
+etag: "sha256-006a73f962c9a24bf37c6670d8242125e39f052d06737696d2c0269eb8561750"
 ---
 > 구현 상태: 부분 구현 (외부 MCP 도구 인자의 `inputSchema` 검증과 외부 MCP 서버의 `lookup_failed` 요약은 미구현) · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -159,13 +159,17 @@ MCP 서버는 새 노드가 아니라 기존 통합 엔티티의 새 `service_ty
 
 → [dry-run 재실행](CLE-INT-MCP-DRYRUN.md#도구-목록-구성-단계)
 
-### dry-run 재실행에서 건너뛴 호출의 기록 (2026-10-10)
+### dry-run 재실행에서 건너뛴 호출의 기록
 
-→ [dry-run 재실행 Rationale](CLE-INT-MCP-DRYRUN.md#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10)
+결정일: 2026-10-10
 
-### dry-run 에서도 도구 목록 구성과 인증 처리는 평소처럼 한다 (2026-11-13, CLE-T-8B66BK)
+→ [dry-run 재실행 Rationale](CLE-INT-MCP-DRYRUN.md#dry-run-재실행에서-건너뛴-호출의-기록)
 
-→ [dry-run 재실행 Rationale](CLE-INT-MCP-DRYRUN.md#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다-2026-11-13-cle-t-8b66bk)
+### dry-run 에서도 도구 목록 구성과 인증 처리는 평소처럼 한다
+
+결정일: 2026-11-13
+
+→ [dry-run 재실행 Rationale](CLE-INT-MCP-DRYRUN.md#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다)
 
 ## 데이터 모델 영향
 
@@ -179,7 +183,7 @@ MCP 서버는 새 노드가 아니라 기존 통합 엔티티의 새 `service_ty
 - **OAuth 2.1(PKCE) 인증 유형**: 지금은 OAuth 계열 인증 유형이 없다(`bearer_token`·`api_key`·`none` 만). 동적 OAuth 흐름은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#oauth-콜백-엔드포인트)의 콜백 패턴을 다시 써서 더할 수 있다.
 - **server-to-server proxy, 응답 캐싱**: 트래픽 분석 뒤 별도 스펙으로 다룬다.
 - **내부 MCP 브리지 확장**: Shopify, Naver Smartstore 같은 first-party 이커머스 통합을 `cafe24` 와 같은 패턴으로 더할 수 있다. 백엔드에 브리지 모듈(기존 예: `Cafe24McpToolProvider`)과 메타데이터 테이블을 두고, [내부 MCP 브리지 적용 목록](#service_type-과-인증-유형)에 더한다.
-- **외부 MCP 도구의 dry-run 세분 판정**: 지금은 dry-run 재실행에서 외부 MCP 서버의 `tools/call` 을 늘 모의 응답으로 대신해 읽기 전용 도구도 데이터를 받지 못한다. 신뢰하는 서버의 allow-list 같은 도구별 판정 정책은 필요해지면 따로 결정한다([재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)).
+- **외부 MCP 도구의 dry-run 세분 판정**: 지금은 dry-run 재실행에서 외부 MCP 서버의 `tools/call` 을 늘 모의 응답으로 대신해 읽기 전용 도구도 데이터를 받지 못한다. 신뢰하는 서버의 allow-list 같은 도구별 판정 정책은 필요해지면 따로 결정한다([재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다)).
 
 각 항목은 [도구 노출 모델](CLE-INT-MCP-TOOLS.md#도구-노출-모델)의 평탄화 방식을 깨지 않고 더할 수 있게 설계했다.
 

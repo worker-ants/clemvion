@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-SYSVAL"
 title: "에러 코드 카탈로그 — 시스템 · 유효성 검증"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "03f90c71426740942c82dd67ab6051e237082b75060f2599b94af8a426d175e3"
+content_hash: "58a2c150afe2dd4f69ebf34656cb917495eb99456a3c933fa8a6fe14b89cf506"
 read_as: "approved_fallback"
-task: "CLE-T-8WXV7T"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "b9c049a555cdf30b509e72d131da54a96dd512efd2eae4154d5c80542a5c9d8f"
-etag: "sha256-e336418184420f4e60239040494fb46ff9f3c470f026e0adbc0e67aac0c5c635"
+mirror_sha256: "5d01d3faa0f4209388ae23f33bedf0b9aa9dea931d7f0fee45ae3bd2f68203ee"
+etag: "sha256-084b6b6352b69a4873eb197ab2fdf2928923aa3170fed062ca63b591d64a5bb3"
 ---
 ## 개요
 
@@ -103,7 +103,7 @@ NERV Task `CLE-T-8MQMGQ` 이다. 이전 판은 multipart 업로드 413 의 `mess
 
 ### 토큰 검증의 401 을 `NO_WORKSPACE_AVAILABLE` 로 옮겼다 (2026-11-14)
 
-2026-11-12 결정을 NERV Task `CLE-T-ZPPWK4` 가 구현하면서 행을 바꿨다. 조건과 메시지(`No workspace found for user`)는 그대로다. 행이 하나만 남아 관리 경로 행의 「(관리 경로)」 구분도 지웠다. 결정 근거는 [웹훅 · 트리거 · 채팅 채널](CLE-API-ERRCODES-TRIGGER.md#404-가-아닌-_not_found-세-코드를-정리했다-2026-11-12) 에 있다.
+2026-11-12 결정을 NERV Task `CLE-T-ZPPWK4` 가 구현하면서 행을 바꿨다. 조건과 메시지(`No workspace found for user`)는 그대로다. 행이 하나만 남아 관리 경로 행의 「(관리 경로)」 구분도 지웠다. 결정 근거는 [웹훅 · 트리거 · 채팅 채널](CLE-API-ERRCODES-TRIGGER.md#404-가-아닌-_not_found-세-코드를-정리했다) 에 있다.
 
 ### 테스트 데이터셋 이름 중복 `DUPLICATE_NAME` 을 등재했다 (2026-11-14)
 

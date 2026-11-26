@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24-EXEC"
 title: "Cafe24 노드 — 실행 로직"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-CAFE24"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-CAFE24"]
 area: "CLE-NODE-INT"
-content_hash: "88cfa50b0d6834da65b99587c5aca80490821e2d4014ace98c669e0fe75469f1"
+content_hash: "242572ac4952da780ef8f05d9e0a731ee15fa4d5c0675bdd7484b416c9dc8517"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "c27879283db5365de6479c1802a9b8f2dd96a74a83594f438f80a0f45b8165a8"
-etag: "sha256-8d13b55f2219ddb4c9fd7569fbf69630cb450c242d1f79d55795b3a778e6c214"
+mirror_sha256: "fe7cd057e998596e9e81c32a540c228cd9aa67a54158a71a3a1df221ee77c307"
+etag: "sha256-30b25916eed93dc92d1e0d397400a8cb10d222de930d706da5fdbb7b9a77a970"
 ---
 ## 개요
 
@@ -97,17 +97,21 @@ POST·PUT 밖의 method 는 허용 목록으로 강제한다. PATCH 같은 metho
 - 토큰 갱신의 인스턴스 사이 직렬화는 따로 푼다. `proactive`·`background` 경로는 `cafe24-token-refresh` BullMQ 큐의 `jobId = integrationId` dedup 으로, `reactive_401` 경로는 dedup 을 우회하는 고유 jobId 와 `refreshAccessToken` 의 PostgreSQL 행 잠금(`pessimistic_write`)으로 모은다. 리프레시 토큰 회전 경쟁을 두 단계로 막는 구조다. 갱신 진입점 다섯(내부 MCP 브리지의 `expired` 자가 회복 포함)과 큐 설정은 [OAuth 연결과 토큰 갱신 §갱신 큐](../CLE-INT/CLE-INT-OAUTH.md#갱신-큐)가 단일 기준이고, 자가 회복이 실제로 통합을 되살리는지는 [미결 사항](CLE-NODE-CAFE24.md#미결-사항)이다. 결정 배경은 같은 문서 Rationale 의 [BullMQ `jobId` 중복 제거](../CLE-INT/CLE-INT-OAUTH.md#여러-인스턴스의-갱신-경쟁은-bullmq-jobid-중복-제거로-푼다)와 [`reactive_401` 고유 jobId](../CLE-INT/CLE-INT-OAUTH.md#reactive_401-은-고유-jobid-로-중복-제거를-완전히-건너뛴다)에 있다.
 - 두 인스턴스가 동시에 401 을 받아 `reactive_401` worker 가 둘 다 돌면 행 잠금이 같은 행의 동시 UPDATE 를 직렬화한다. 한 인스턴스만 새 토큰을 저장하고 다른 쪽은 `invalid_grant` 로 격하된다(fail-safe). `reactive_401` 은 실제 401 을 받았을 때만 발생하므로 leaky bucket 부담이 눈에 띄게 늘지 않는다.
 
-### dry-run 모의 출력에 활동 로그를 남기지 않는다 (2026-10-23)
+### dry-run 모의 출력에 활동 로그를 남기지 않는다
 
-이전에는 노드 dry-run 이 모의 출력에도 활동 로그를 1건 남겼고 AI 에이전트의 내부 MCP 브리지 도구 경로는 남기지 않아 두 경로의 규칙이 달랐다. [MCP 클라이언트 Rationale](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행에서-건너뛴-호출의-기록-2026-10-10)은 노드의 1건을 모의 실행을 활동 탭에서 추적하려는 것이라 적었지만 요구사항 문서에는 근거가 없었다. HTTP Request · Send Email · Database Query 노드의 모의 출력은 처음부터 활동 로그를 남기지 않았고 Cafe24 · MakeShop 노드만 달랐다.
+결정일: 2026-10-23
 
-2026-10-23 에 사람이 «둘 다 남기지 않음» 을 골랐다. 활동 로그는 실제로 나간 외부 호출의 기록이고 활동 탭과 `lastUsedAt` 이 여기서 나온다. 모의 실행은 노드 출력(`output._dryRun`)에서 확인한다. 같은 날 dry-run 판정도 노드와 도구가 같은 함수를 쓰도록 맞췄고 MakeShop 노드도 같은 규칙을 두었다. 근거 전체는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)에 있다.
+이전에는 노드 dry-run 이 모의 출력에도 활동 로그를 1건 남겼고 AI 에이전트의 내부 MCP 브리지 도구 경로는 남기지 않아 두 경로의 규칙이 달랐다. [MCP 클라이언트 Rationale](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행에서-건너뛴-호출의-기록)은 노드의 1건을 모의 실행을 활동 탭에서 추적하려는 것이라 적었지만 요구사항 문서에는 근거가 없었다. HTTP Request · Send Email · Database Query 노드의 모의 출력은 처음부터 활동 로그를 남기지 않았고 Cafe24 · MakeShop 노드만 달랐다.
+
+2026-10-23 에 사람이 «둘 다 남기지 않음» 을 골랐다. 활동 로그는 실제로 나간 외부 호출의 기록이고 활동 탭과 `lastUsedAt` 이 여기서 나온다. 모의 실행은 노드 출력(`output._dryRun`)에서 확인한다. 같은 날 dry-run 판정도 노드와 도구가 같은 함수를 쓰도록 맞췄고 MakeShop 노드도 같은 규칙을 두었다. 근거 전체는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다)에 있다.
 
 - 기각한 안: «둘 다 1건 남김» 은 dry-run 표시가 없는 `success` 행이 남고 `lastUsedAt` 이 실제 호출 없이 바뀌어 기각했다. 노드만 남기는 차이를 그대로 두는 안은 같은 dry-run 에서 두 경로의 규칙이 갈려 택하지 않았다.
 - 상태를 바꾸는 GET 예외 목록: MakeShop `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꾼다. 메서드만으로는 부족한 곳이 있어 판정에 예외 목록을 더했다. Cafe24 목록은 비어 있고, 목록이 낡지 않도록 단위 테스트가 쓰기 낱말이 든 GET 을 예외 목록이나 확인한 조회 목록에 올리게 한다.
 - 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#요구사항-변경-2026-10-23--2026-10-24)에 있다.
 
-### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
+### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다
+
+결정일: 2026-10-24
 
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다. 요구사항 변경 내역은 [Cafe24 노드 Rationale](CLE-NODE-CAFE24.md#요구사항-변경-2026-10-23--2026-10-24)에 있다.
 

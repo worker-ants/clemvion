@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-EXEC"
 title: "AI 에이전트 노드 — 실행 로직"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT"]
 area: "CLE-NODE-AI"
-content_hash: "5e05af9a4d886bc6067033ab4a38bd235be543353ff72ed9c17e36915706529d"
+content_hash: "4d8aba702239b6e5c1b536de3787c6a1bab76f9b2fdeeabbc40de6d1c7ba53a2"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "4feea90046f8aae8f2f517404857e6867fc2db5f08509d923134f88148bd19e2"
-etag: "sha256-75317809c2292788f47e4f25d7bcecf330b874f74267841369794ed5c616f8a4"
+mirror_sha256: "92094cf87a7e59794194841f7bbb6301a10d9a76c9b2b02146e554b0a2697e8d"
+etag: "sha256-8e2771ba39476723b2ce478a14e496e1957dacf7b68060e31db102035274c987"
 ---
 ## 개요
 
@@ -127,7 +127,7 @@ stateDiagram-v2
 
 ### dry-run 재실행의 MCP 도구 임시 가드 (2026-10-10)
 
-임시 가드를 둔 근거와 막는 범위는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다-2026-10-10) 에 있다. 이 절은 이 노드 몫의 근거만 적는다.
+임시 가드를 둔 근거와 막는 범위는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다) 에 있다. 이 절은 이 노드 몫의 근거만 적는다.
 
 dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRun` 으로 도구 프로바이더에 넘긴다. 외부 호출을 하는 곳이 도구 프로바이더라서 외부로 보내기 바로 앞에서 도구 프로바이더가 이 값을 확인한다([MCP 클라이언트 §dry-run 재실행](../CLE-INT/CLE-INT-MCP.md#dry-run-재실행)).
 
@@ -135,11 +135,11 @@ dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRu
 
 ### dry-run 재실행의 도구 모의 응답 (2026-10-23)
 
-판정 기준과 그 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다. 이 절은 이 노드 몫의 근거만 적는다.
+판정 기준과 그 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다) 에 있다. 이 절은 이 노드 몫의 근거만 적는다.
 
 - **판정은 도구 프로바이더가 한다.** AI 에이전트 노드 핸들러는 `ProviderExecCtx.dryRun` 만 넘기고 어떤 도구가 부수효과인지 따지지 않는다. 판정에 쓰는 operation 메타데이터와 외부 서버 정보가 도구 프로바이더에 있기 때문이다. 2026-10-10 에 만든 전달 경로를 그대로 쓴다.
 - **도구 프로바이더는 인자 검증을 dry-run 판정보다 먼저 한다.** LLM 이 고칠 수 있는 인자 에러는 dry-run 재실행에서도 평소와 같은 에러로 돌려준다. Cafe24 · MakeShop 노드 핸들러는 dry-run 확인을 필수 필드 검증보다 먼저 하므로 순서가 다르다. 두 순서는 일부러 다르게 뒀다([재실행 §LLM 호출](../CLE-EXEC/CLE-EXEC-RERUN.md#llm-호출)).
-- **모의 응답에는 성공한 것으로 보고 이어 가라는 안내를 싣는다.** LLM 이 모의 응답을 실패로 읽고 같은 쓰기를 다시 부르거나 흐름을 멈추지 않게 하려는 것이다. [render_form 제출 뒤 같은 폼 재호출을 막은 방법](#render_form-제출-뒤-같은-폼-재호출을-막은-방법) 과 같은 이유로 status 를 `success` 로 두고 `message` 로 안내한다. 선례의 `ok: true` 는 싣지 않는다. 본문의 `executed: false` 는 실패 표시가 아니라 호출이 외부로 나가지 않았다는 사실을 남기는 값이다([재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다-2026-10-10) 「에러가 아닌 `success` 로 돌려준다」).
+- **모의 응답에는 성공한 것으로 보고 이어 가라는 안내를 싣는다.** LLM 이 모의 응답을 실패로 읽고 같은 쓰기를 다시 부르거나 흐름을 멈추지 않게 하려는 것이다. [render_form 제출 뒤 같은 폼 재호출을 막은 방법](#render_form-제출-뒤-같은-폼-재호출을-막은-방법) 과 같은 이유로 status 를 `success` 로 두고 `message` 로 안내한다. 선례의 `ok: true` 는 싣지 않는다. 본문의 `executed: false` 는 실패 표시가 아니라 호출이 외부로 나가지 않았다는 사실을 남기는 값이다([재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다) 「에러가 아닌 `success` 로 돌려준다」).
 
 ### 롤링 요약과 에이전트 메모리를 들인 근거
 

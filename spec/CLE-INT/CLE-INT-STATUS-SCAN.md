@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-SCAN"
 title: "통합 상태와 만료 알림 — 만료 스캐너와 알림"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "c4b84ab2f80382f7aa23735756f89e01a89a93c7f91897955a9867391a51b637"
+content_hash: "d763522a80f635c4779457acba92f4c19fdbd80f336a3086f05a78756c5d2b2e"
 read_as: "approved_fallback"
-task: "CLE-T-EJFQ1Y"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "48a2da16ab41624d6b37ec3a8179212454eff7845cdbc22d162a027bb1e276b6"
-etag: "sha256-1dcd8a582579e2e598d6b7b0eb0762626f45b9daa9c534d6423a2663898623d6"
+mirror_sha256: "f13db3f0628b4f20c2546b8937564aaadb8624f1b284eb1d2c416d1db9dedd54"
+etag: "sha256-e72833399878e6d7a84125da0a6e549208a5c9a4ec0155a01da599174d87f0b8"
 ---
 ## 개요
 
@@ -135,7 +135,9 @@ flowchart TD
 
 이 결정은 만료 알림 미발사만 다룬다. 화면 배지나, 설치 토큰이 NULL 이 되어 다음 설치 시도가 404 가 되는 동작은 영향이 없다.
 
-### 콜백 코드 교환 실패도 조치 필요 알림을 보낸다 (2026-11-14)
+### 콜백 코드 교환 실패도 조치 필요 알림을 보낸다
+
+결정일: 2026-11-14
 
 [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 요구사항은 통합이 `error` 로 바뀐 그 자리에서 조치 필요 알림을 보내라고 정한다. 그런데 OAuth 콜백의 코드 교환 실패로 `connected → error(auth_failed)` 가 되는 경로만 알림이 없었다(NERV Task `CLE-T-MQSRDS`). 이 전이 뒤에는 통합을 쓰는 실행이 막히지만 콜백 오류 화면은 재인증을 시작한 사람만 본다. 그래서 다른 전이와 같이 알린다.
 
@@ -144,9 +146,11 @@ flowchart TD
 - **기각한 안**: 조치 필요 알림 대신 만료 알림 종류의 `Reauthorization failed` 로 보내는 안. 이 전이는 상태가 `error` 로 바뀌어 지금 손봐야 하는 경우라 조치 필요 알림의 기준에 맞는다. 재인증 실패 만료 알림의 발사 범위는 이 개정에서 정하지 않는다.
 - **기각한 안**: 알림 없이 상세 화면의 `last_error` 로만 알리는 안. 조직 통합의 다른 관리자는 통합이 오류가 된 것을 실행이 막힌 뒤에야 안다.
 
-### MCP 도구 호출의 인증 실패도 조치 필요 알림을 보낸다 (2026-11-14)
+### MCP 도구 호출의 인증 실패도 조치 필요 알림을 보낸다
 
-외부 MCP 서버의 도구 호출이 401·403 으로 `MCP_AUTH_FAILED` 가 되면 `logUsage` 가 통합을 `error(auth_failed)` 로 바꿨지만 알림은 보내지 않았다(NERV Task `CLE-T-184JJD`). 통합 화면의 배지만 바뀌어서 사용자는 통합이 끊긴 것을 놓쳤다. 그동안 AI 에이전트는 그 서버의 도구 없이 실행된다. 다른 오류 전이와 같이 알리는 이유는 [콜백 코드 교환 실패도 조치 필요 알림을 보낸다](#콜백-코드-교환-실패도-조치-필요-알림을-보낸다-2026-11-14) 와 같다.
+결정일: 2026-11-14
+
+외부 MCP 서버의 도구 호출이 401·403 으로 `MCP_AUTH_FAILED` 가 되면 `logUsage` 가 통합을 `error(auth_failed)` 로 바꿨지만 알림은 보내지 않았다(NERV Task `CLE-T-184JJD`). 통합 화면의 배지만 바뀌어서 사용자는 통합이 끊긴 것을 놓쳤다. 그동안 AI 에이전트는 그 서버의 도구 없이 실행된다. 다른 오류 전이와 같이 알리는 이유는 [콜백 코드 교환 실패도 조치 필요 알림을 보낸다](#콜백-코드-교환-실패도-조치-필요-알림을-보낸다) 와 같다.
 
 - **다른 사유의 `error` 도 `auth_failed` 로 바꾼다**: [통합 상태와 만료 알림](CLE-INT-STATUS.md) 의 요구사항은 외부 MCP 서버 호출이 인증 실패로 끝나면 사유를 `auth_failed` 로 바꾸라고 정한다. Cafe24·MakeShop 클라이언트의 `markAuthFailed` 도 이미 같은 사유의 `error` 일 때만 전이에서 뺀다. 사유가 바뀌면 사용자가 할 일도 바뀐다. `network` 면 기다렸다가 다시 시도하면 되지만 `auth_failed` 면 자격 증명을 바꿔야 한다. 그래서 사유가 바뀌는 전이에도 알림을 보낸다.
 - **영향 행 수로 판정한다**: 알림 여부는 조건부 UPDATE(`status <> 'error' OR status_reason IS DISTINCT FROM 'auth_failed'`)가 행을 바꿨는지로 정한다. 기준은 `markAuthFailed` 와 같고 판정 방법만 다르다. 같은 통합에 두 호출이 동시에 실패하면 두 호출이 메모리에 읽어 둔 통합은 둘 다 `connected` 다. 이 스냅샷의 상태를 비교하면 둘 다 전이로 보고 알림을 두 번 보낸다. 조건부 UPDATE 는 DB 가 행 잠금으로 한쪽만 행을 바꾸게 하므로 원자적이다. 24시간 중복 방지로는 이 경우를 막지 못한다. 조회한 뒤 만드는 방식이라 동시에 들어온 두 알림이 둘 다 조회를 통과할 수 있다.

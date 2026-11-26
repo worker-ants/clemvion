@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN"
 title: "재실행"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-RERUN-001", "REQ-RERUN-002", "REQ-RERUN-003", "REQ-RERUN-004", "REQ-RERUN-005", "REQ-RERUN-006", "REQ-RERUN-007", "REQ-RERUN-008", "REQ-RERUN-009", "REQ-RERUN-010", "REQ-RERUN-011", "REQ-RERUN-012", "REQ-RERUN-013", "REQ-RERUN-014", "REQ-RERUN-015", "REQ-RERUN-016", "REQ-RERUN-017", "REQ-RERUN-018", "REQ-RERUN-019", "REQ-RERUN-020", "REQ-RERUN-021", "REQ-RERUN-022", "REQ-RERUN-023", "REQ-RERUN-024", "REQ-RERUN-025", "REQ-RERUN-026", "REQ-RERUN-027", "REQ-RERUN-028", "REQ-RERUN-029", "REQ-RERUN-030", "REQ-RERUN-031", "REQ-RERUN-032", "REQ-RERUN-033", "REQ-RERUN-034", "REQ-RERUN-035", "REQ-RERUN-036", "REQ-RERUN-037", "REQ-RERUN-038", "REQ-RERUN-039", "REQ-RERUN-040", "REQ-RERUN-041", "REQ-RERUN-042", "REQ-RERUN-047", "REQ-RERUN-048", "REQ-RERUN-049", "REQ-RERUN-050", "REQ-RERUN-051", "REQ-RERUN-052", "REQ-RERUN-053", "REQ-RERUN-054", "REQ-RERUN-055"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "ca9ddf022af3469848012194b867757e1c39dba26966fedd40f941f2e9876374"
+content_hash: "10ebb176095b9a03b07e26b9dbc2af911a0b53b1e9d8f82f0d548e6353e068dc"
 read_as: "approved_fallback"
-task: "CLE-T-5WK8QA"
+task: "CLE-T-ZVYG4H"
 source_paths: ["spec/5-system/13-replay-rerun.md"]
-mirror_sha256: "d4565e30397da02a3c93282ec2f07f3e276726dba71f9e6cc6a3b7ff275d6049"
-etag: "sha256-284ba50101149a471169b323e7d9c5bd16ea9063e26a995b8b2dac7158af1930"
+mirror_sha256: "db151e9f1e5530c0cc091c0875917b38fe610a96bd801c4c4c28715810c1720f"
+etag: "sha256-ceb362b20a03aab7786e16f9a2d85be86e3de7694e01a0c07c258bec2131f8cd"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -94,7 +94,7 @@ etag: "sha256-284ba50101149a471169b323e7d9c5bd16ea9063e26a995b8b2dac7158af1930"
 - REQ-RERUN-054 WHEN dry-run 실행이 비동기 서브 워크플로우를 시작하면 THE SYSTEM SHALL 자식 실행 행의 `dry_run` 을 true 로 남기고 자식 실행도 dry-run 으로 실행한다.
 - REQ-RERUN-055 WHEN dry-run 실행이 동기 서브 워크플로우나 Background 본문을 실행하면 THE SYSTEM SHALL 부모의 `variables.__dryRun` 을 이어받아 그 안의 노드도 dry-run 으로 실행한다.
 
-2026-10-10 임시 가드의 요구사항 네 개(REQ-RERUN-043 ~ REQ-RERUN-046)는 2026-10-23 에 폐기했고 번호를 다시 쓰지 않는다. REQ-RERUN-048 ~ REQ-RERUN-053 이 그 자리를 대신한다. 근거는 [Rationale](#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다.
+2026-10-10 임시 가드의 요구사항 네 개(REQ-RERUN-043 ~ REQ-RERUN-046)는 2026-10-23 에 폐기했고 번호를 다시 쓰지 않는다. REQ-RERUN-048 ~ REQ-RERUN-053 이 그 자리를 대신한다. 근거는 [Rationale](#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다) 에 있다.
 
 ## 결정 요약
 
@@ -166,13 +166,17 @@ etag: "sha256-284ba50101149a471169b323e7d9c5bd16ea9063e26a995b8b2dac7158af1930"
 
 → [재실행 — API 와 데이터 모델](CLE-EXEC-RERUN-API.md#chain_id-는-nullable-이다-2026-05-31-결정-f2)
 
-### dry-run 에서 AI 에이전트의 MCP 도구를 막는다 (2026-10-10)
+### dry-run 에서 AI 에이전트의 MCP 도구를 막는다
 
-→ [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다-2026-10-10)
+결정일: 2026-10-10
 
-### dry-run 에서 부수효과 도구만 모의 응답으로 대신한다 (2026-10-23)
+→ [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다)
 
-→ [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)
+### dry-run 에서 부수효과 도구만 모의 응답으로 대신한다
+
+결정일: 2026-10-23
+
+→ [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다)
 
 ### 체인 조회 권한은 실행 상세 조회와 같다 (2026-10-10)
 

@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-API"
 title: "웹훅 — 엔드포인트와 수신 API"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "07dd055926de52dadf7393395871387ac1ab1fd467ded7f6fe5c3c016896492b"
+content_hash: "567523ea024653f26aca240bd5c4e286908f9bb2c88583e7b2021c76d7eb3f7e"
 read_as: "approved_fallback"
-task: "CLE-T-E90KGZ"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "a1a3bb179031236667b19f3a09ad872b50518a06f52a0c572a7b3a9951b84110"
-etag: "sha256-47d0d705dbaf9ae8f27bd6b8265a3d1e65ecb65f99a7157674142f183669da74"
+mirror_sha256: "f1f83f56af975fe6cd3778741fb77e085626b36ec1c81c4d4124ef15cea2e2f2"
+etag: "sha256-d6785967673e28e1174bc40ee57cc0735b6fcf253b39e1c92ef0394494adb275"
 ---
 ## 개요
 
@@ -171,7 +171,9 @@ POST /api/hooks/:endpointPath
 
 그래서 "`UpdateTriggerDto` 가 `endpointPath` 를 받는데 서비스가 거부하니 leaky abstraction 이다" 는 오판이다. `UpdateTriggerDto` 는 세 트리거 유형이 함께 쓰는 단일 DTO 이므로 편집할 수 있는 필드의 합집합을 노출하는 것이 정상이다. 유형별 허용·거부는 서비스 층이 맡는 의도한 설계다.
 
-### 웹훅 202 응답 모양을 지금 코드에 맞춘다 (2026-10-09)
+### 웹훅 202 응답 모양을 지금 코드에 맞춘다
+
+결정일: 2026-10-09
 
 202 응답 모양은 지금 코드를 기준으로 정한다. NERV Task `CLE-T-M6PERB` 에서 사용자에게 묻지 않고 기본값으로 정해 알린 뒤 진행했다(2026-10-09). 결정 이력은 그 Task 의 결정 기록에 있다.
 

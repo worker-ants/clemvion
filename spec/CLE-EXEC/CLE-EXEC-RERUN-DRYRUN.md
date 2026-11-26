@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-DRYRUN"
 title: "재실행 — dry-run"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "48adb9b8ea9c66f22e340b354798eb86f2ba6f243384b2a16a3a8873c1127e8f"
+content_hash: "eb333ce35ba10844ff59e03b392ae98c7ae2c3f2ac3e5ef35f5c4c7e94567a3d"
 read_as: "approved_fallback"
-task: "CLE-T-5WK8QA"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "7577fe673af006322aa4af648d8347daa03597ec2132809be6f8887c007ac732"
-etag: "sha256-5178ced8595f5f394157945b77f390f774915253aab358395fa7cff9f5f111e2"
+mirror_sha256: "f86253fd9d6ecc8c5fdf5cef349134de7522ed3171a846caa87a8a9bb9d5e8fc"
+etag: "sha256-877515a0ff9a2a7626a5e484ea27ae84384264cf7a17e81a8915deddb2be148e"
 ---
 ## 개요
 
@@ -66,7 +66,7 @@ dry-run 이 모의 출력 · 응답으로 대신할 호출을 고르는 기준�
 - Cafe24 · MakeShop 노드 핸들러와 내부 MCP 브리지 도구 프로바이더는 벤더마다 둔 판정 함수를 부른다. Cafe24 는 `isCafe24DryRunMocked`, MakeShop 은 `isMakeshopDryRunMocked` 다. 두 함수는 자기 예외 목록을 넘겨 공통 판정(`nodes/core/dry-run.util.ts` 의 `isDryRunMockedOperation`)을 부른다. 공통 판정은 예외 목록 인자를 꼭 받는다. 호출 지점이 벤더 판정 함수를 거치는지는 같은 단위 테스트가 소스에서 확인한다.
 - 모의 출력 · 응답으로 대신한 호출은 외부로 나가지 않았으므로 통합 활동 로그를 남기지 않는다. 실제로 부른 읽기 호출은 평소처럼 남긴다. 이 규칙의 기준은 [재실행](CLE-EXEC-RERUN.md) 의 REQ-RERUN-053 이다. 다른 문서에 이 예외를 적는 일은 [미결 사항](CLE-EXEC-RERUN.md#미결-사항) 에 있다.
 
-판정 기준의 근거는 [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다. 벤더 판정 함수로 호출 지점을 고정한 이유와 `scopeType` 을 테스트 신호로만 쓰는 이유도 그 절에 있다.
+판정 기준의 근거는 [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다) 에 있다. 벤더 판정 함수로 호출 지점을 고정한 이유와 `scopeType` 을 테스트 신호로만 쓰는 이유도 그 절에 있다.
 
 ## 동작
 

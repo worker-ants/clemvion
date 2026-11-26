@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-061", "REQ-TRIG-062", "REQ-TRIG-063"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "6b89f98be53f2f0af1577b8325aaa8b74f64c0a6d06c973c2409c9a3de9c207a"
+content_hash: "5b8e29d7338e2b8c189ff37c6a2671a90098804c91ef0bdc7789f2955a846023"
 read_as: "approved_fallback"
-task: "CLE-T-GS3D01"
+task: "CLE-T-ZVYG4H"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "68e7438200e919f783032c1171b875c24f4e5942acd0a333c3e8890399f9676f"
-etag: "sha256-977383b1a870398cc13f60cd704517b9a983d791c08fa2c34fc43ae2b7f6211d"
+mirror_sha256: "159e0bc55056342e73f15d296cc12f0b5e782967af779d2fddfbe3c73e4b76d5"
+etag: "sha256-c306a21813012828a41508e7914c8f0a2beca4d44c3eef9f3f6f7ffb64f7cffa"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -138,14 +138,18 @@ etag: "sha256-977383b1a870398cc13f60cd704517b9a983d791c08fa2c34fc43ae2b7f6211d"
 
 ## Rationale
 
-### 원시 `config` 계약 (2026-10-31)
+### 원시 `config` 계약
 
-→ [트리거 관리 — API 와 PATCH 계약](CLE-TRIG-MANAGE-API.md#원시-config-계약-2026-10-31)
+결정일: 2026-10-31
+
+→ [트리거 관리 — API 와 PATCH 계약](CLE-TRIG-MANAGE-API.md#원시-config-계약)
 
 - 이 결정이 REQ-TRIG-061 (타입 키 거부) · REQ-TRIG-062 (`secret://` 값 거부) · REQ-TRIG-063 (키 단위 병합)을 더했다.
 - 이 결정으로 REQ-TRIG-060 을 지웠다. 그 요구사항은 원시 `config` 로 `interaction` 을 바꾼 PATCH 가 토큰을 없애거나 인터랙션을 끄면 스트림을 닫는다고 정했다. 원시 `config` 의 `interaction` 이 400 이 되어 그 경로가 없어졌다. 같은 동작은 타입 필드 `interaction` 쪽 REQ-TRIG-059 가 맡는다. 번호는 다시 쓰지 않는다. 같은 이유로 REQ-TRIG-056 에서 원시 `config` 갈래를 지웠다.
 
-### 트리거 목록 정렬 규칙 (2026-11-19)
+### 트리거 목록 정렬 규칙
+
+결정일: 2026-11-19
 
 `GET /api/triggers` 의 `sort`·`order` 는 DTO 로 받기만 하고 `findAll` 이 무시해서 REQ-TRIG-025 를 미구현으로 표시했다. NERV Task `CLE-T-FKYM4N` 이 정렬을 구현했고 허용 목록과 처리 규칙은 그 Task 질문의 사람 답으로 정했다. 이번 개정(`CLE-T-FAEAVE`)은 미구현 표시를 풀고 그 규칙을 [API](CLE-TRIG-MANAGE-API.md#api) 표에 적었다. 기능 약속을 바꾼 것이 아니라 구현이 끝나 문서를 맞춘 것이다. 형식은 [스케줄](CLE-TRIG-SCHEDULE.md) 의 REQ-SCHED-027 을 따랐다.
 
@@ -154,6 +158,8 @@ etag: "sha256-977383b1a870398cc13f60cd704517b9a983d791c08fa2c34fc43ae2b7f6211d"
 - **`last_triggered_at` 은 방향과 상관없이 NULLS LAST**: 한 번도 실행되지 않은 트리거는 값이 없다. PostgreSQL 기본(ASC 는 NULLS LAST, DESC 는 NULLS FIRST)을 따르면 «최근 실행 순» 첫 페이지가 실행 이력 없는 트리거로 찬다.
 - **같은 값끼리는 `id` 로 고정한다**: `type` · `is_active` 처럼 값이 몇 개뿐인 컬럼은 같은 값이 많다. 보조 정렬이 없으면 offset 페이지 사이에서 행이 겹치거나 빠진다. 방향은 정렬 방향과 같게 둔다.
 
-### 채널 프로바이더 표기 (2026-11-12)
+### 채널 프로바이더 표기
+
+결정일: 2026-11-12
 
 단독 영문 «provider» 는 용어 기준에 맞춰 «채널 프로바이더» 로 적는다. 요구사항의 뜻과 코드 식별자 `provider`, 화면 필드 목록, 절 제목은 바꾸지 않는다.

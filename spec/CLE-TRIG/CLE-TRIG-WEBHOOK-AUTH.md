@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-AUTH"
 title: "웹훅 — 인증과 워크플로우 입력"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "d3c6ce8cf6c500015d17d4fe28c3b3088debc9e7437ec579bb83cee267f8858f"
+content_hash: "954b0ec4e28bec0f0c2a28bee20b0125c64678bddf166dfa8a2a0f601df5f47b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "e94383ddb477a71d14bb4b49accddd45cb3b16b6855c09c0c88029555db7cefc"
-etag: "sha256-9038203d53981495218aa4d3de5f301328d5ed1978d9c5580e6426b5fa0e9a51"
+mirror_sha256: "784aa8ca06233158adec368f03446f955f07d74452781cd005326ce109100ab7"
+etag: "sha256-7970752ff89ea3ad464b87ebb10505c2b3167d4e6ab254f348e7f887111bd4b7"
 ---
 ## 개요
 
@@ -164,7 +164,9 @@ required 파라미터 누락이나 타입 강제 변환 실패가 나면 `hooks.
 - 코드는 2026-10-10 에 `basic_auth` · `hmac` 에도 빈 기대값 거부를 넣었다. `bearer_token` · `api_key` 는 그 전부터 빈 기대값을 거부했다.
 - 같은 개정에서 [보안 고려사항](#보안-고려사항) 의 비밀 키 저장 항목에 운영 환경 한정을 달았다. 운영 환경 밖에서 통합 암호화 키가 없으면 transformer 가 값을 평문으로 저장하고 이미 평문인 행은 그대로 두기 때문이다. 근거는 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
 
-### 문자열이 아닌 기대값과 헤더 이름도 401 로 거부한다 (2026-11-05)
+### 문자열이 아닌 기대값과 헤더 이름도 401 로 거부한다
+
+결정일: 2026-11-05
 
 인증 설정의 기대값이 문자열이 아니면 빈 기대값과 같이 `401 AUTH_FAILED` 로 거부한다. `api_key` 의 `config.headerName` 과 `hmac` 의 `config.header` 가 있는데 문자열이 아니어도 `401 AUTH_FAILED` 다. 이 규칙은 NERV Task `CLE-T-0Q768N` 이 정했다.
 
