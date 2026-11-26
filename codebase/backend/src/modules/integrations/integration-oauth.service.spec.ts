@@ -1427,6 +1427,75 @@ describe('IntegrationOAuthService', () => {
           jest.useRealTimers();
         }
       });
+
+      // 토큰 교환도 본문 읽기까지 10초 상한 안에 둔다. 그래야 콜백의 제공자 대기가 최악 20초다.
+      it('토큰 교환 응답 본문이 오지 않으면 10초에 끊는다', async () => {
+        jest.useFakeTimers();
+        try {
+          let tokenSignal: AbortSignal | undefined;
+          fetchMock.mockImplementationOnce(
+            (_url: string, init: { signal: AbortSignal }) => {
+              tokenSignal = init.signal;
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () =>
+                  new Promise((_resolve, reject) => {
+                    init.signal.addEventListener('abort', () =>
+                      reject(abortError()),
+                    );
+                  }),
+              });
+            },
+          );
+          dataSource.query.mockResolvedValue(newState('google'));
+
+          const pending = service
+            .handleCallback('google', { code: 'secret-code', state: 's' })
+            .catch((err: Error) => err);
+          await jest.advanceTimersByTimeAsync(9_999);
+          expect(tokenSignal?.aborted).toBe(false);
+          await jest.advanceTimersByTimeAsync(1);
+          const error = await pending;
+
+          expect(tokenSignal?.aborted).toBe(true);
+          expect(
+            (error as { response?: { code?: string } }).response?.code,
+          ).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
+          expect(loggedText()).toContain('OAuth token exchange timed out');
+          expect(fetchMock).toHaveBeenCalledTimes(1);
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+
+      it('토큰 교환 응답이 JSON 이 아니면 OAUTH_TOKEN_EXCHANGE_FAILED 이고 본문을 로그에 남기지 않는다', async () => {
+        fetchMock.mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.reject(
+              new SyntaxError(
+                'Unexpected token \'<\', "<html>secret-body" is not valid JSON',
+              ),
+            ),
+        });
+        dataSource.query.mockResolvedValue(newState('github'));
+
+        const error = await service
+          .handleCallback('github', { code: 'secret-code', state: 's' })
+          .catch((err: Error) => err);
+
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as { response?: { code?: string } }).response?.code).toBe(
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        );
+        const logged = loggedText();
+        expect(logged).toContain('OAuth token exchange failed for github');
+        expect(logged).toContain('response is not JSON');
+        expect(logged).not.toContain('secret-');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
     });
 
     it.each([

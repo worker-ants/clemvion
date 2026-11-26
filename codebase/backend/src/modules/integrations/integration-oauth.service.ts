@@ -1453,38 +1453,57 @@ export class IntegrationOAuthService {
       envCredentials: this.providerEnvCredentials(provider),
     });
 
-    let response: Response;
+    const exchangeFailed = () =>
+      new BadRequestException({
+        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
+        message: 'Failed to exchange authorization code for access token',
+      });
+    // 본문 읽기도 상한 안에서 한다. 헤더 뒤 본문이 오지 않아도 10초에 끊어야 콜백의 제공자 대기가 최악 20초다.
+    let exchange:
+      | { ok: true; data: Record<string, unknown> }
+      | { ok: false; status: number; body: string };
     try {
-      response = await withProviderRequestTimeout((signal) =>
-        fetch(tokenUrl, {
+      exchange = await withProviderRequestTimeout(async (signal) => {
+        const response = await fetch(tokenUrl, {
           method: 'POST',
           headers,
           body: form.toString(),
           signal,
-        }),
-      );
+        });
+        if (!response.ok) {
+          return {
+            ok: false as const,
+            status: response.status,
+            body: await safeReadBody(response),
+          };
+        }
+        return {
+          ok: true as const,
+          data: (await response.json()) as Record<string, unknown>,
+        };
+      });
     } catch (err) {
-      this.logger.warn(
-        `OAuth token exchange ${isAbortError(err) ? 'timed out' : 'transport error'} for ${provider}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      throw new BadRequestException({
-        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
-        message: 'Failed to exchange authorization code for access token',
-      });
+      // JSON 파싱 오류 메시지에는 본문 앞부분이 들어간다. 토큰 응답 본문이라 로그에 남기지 않는다.
+      if (err instanceof Error && err.name === 'SyntaxError') {
+        this.logger.warn(
+          `OAuth token exchange failed for ${provider}: response is not JSON`,
+        );
+      } else {
+        this.logger.warn(
+          `OAuth token exchange ${isAbortError(err) ? 'timed out' : 'transport error'} for ${provider}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      throw exchangeFailed();
     }
 
-    if (!response.ok) {
-      const body = await safeReadBody(response);
+    if (!exchange.ok) {
       this.logger.warn(
-        `OAuth token exchange failed for ${provider}: HTTP ${response.status} ${body.slice(0, 200)}`,
+        `OAuth token exchange failed for ${provider}: HTTP ${exchange.status} ${exchange.body.slice(0, 200)}`,
       );
-      throw new BadRequestException({
-        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
-        message: 'Failed to exchange authorization code for access token',
-      });
+      throw exchangeFailed();
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
+    const data = exchange.data;
     if (data.error) {
       const description =
         typeof data.error_description === 'string'
