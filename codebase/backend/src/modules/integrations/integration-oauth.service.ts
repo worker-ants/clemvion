@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, LessThan, Repository } from 'typeorm';
 import { emptyOAuthEnvConfig, type OAuthEnvConfig } from '../../common/config';
+import { isAbortErrorLike } from '../../nodes/core/abort-error.util';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
   MAKESHOP_SHOP_UID_PATTERN,
@@ -97,7 +98,7 @@ const OAUTH_PROVIDER_REQUEST_TIMEOUT_MS = 10_000;
 
 /**
  * `run` 에 넘긴 signal 을 {@link OAUTH_PROVIDER_REQUEST_TIMEOUT_MS} 뒤에 끊는다. 본문 읽기도 `run` 안에서 하면
- * 같은 상한에 들어간다. 끊기면 `fetch` 가 `AbortError` 로 실패한다({@link isAbortError}).
+ * 같은 상한에 들어간다. 끊기면 `fetch` 가 `AbortError` 로 실패한다({@link isAbortErrorLike}).
  */
 async function withProviderRequestTimeout<T>(
   run: (signal: AbortSignal) => Promise<T>,
@@ -112,10 +113,6 @@ async function withProviderRequestTimeout<T>(
   } finally {
     clearTimeout(timer);
   }
-}
-
-function isAbortError(err: unknown): boolean {
-  return err instanceof Error && err.name === 'AbortError';
 }
 
 /** 계정 조회 요청의 결과. 실패면 로그에 남길 이유만 담는다. */
@@ -146,7 +143,7 @@ async function requestAccountIdentity(
       };
     });
   } catch (err) {
-    if (isAbortError(err)) return { ok: false, reason: 'timed out' };
+    if (isAbortErrorLike(err)) return { ok: false, reason: 'timed out' };
     // `instanceof SyntaxError` 는 쓰지 않는다. 오류가 다른 realm 에서 만들어지면 거짓이 된다.
     if (err instanceof Error && err.name === 'SyntaxError') {
       return { ok: false, reason: 'response is not JSON' };
@@ -1490,7 +1487,7 @@ export class IntegrationOAuthService {
         );
       } else {
         this.logger.warn(
-          `OAuth token exchange ${isAbortError(err) ? 'timed out' : 'transport error'} for ${provider}: ${err instanceof Error ? err.message : String(err)}`,
+          `OAuth token exchange ${isAbortErrorLike(err) ? 'timed out' : 'transport error'} for ${provider}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
       throw exchangeFailed();
