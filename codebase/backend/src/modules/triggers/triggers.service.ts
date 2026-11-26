@@ -128,13 +128,13 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 /** 교체 대기 값을 비우는 저장 컬럼. 알림 해제나 첫 시크릿 발급 때 같은 잠금 안의 저장에 싣는다. */
 const CLEARED_ROTATION_COLUMNS = {
   notificationSecretV2: null,
   notificationRotatedAt: null,
 } as const;
 
+/** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 const TRIGGER_RESOURCE_TYPE = 'trigger';
 
 /**
