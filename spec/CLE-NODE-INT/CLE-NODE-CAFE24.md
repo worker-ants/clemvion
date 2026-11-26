@@ -2,19 +2,19 @@
 id: "CLE-NODE-CAFE24"
 title: "Cafe24 노드"
 type: "feature"
-version: 11
+version: 12
 status: "approved"
 requirements: ["REQ-CAFENODE-001", "REQ-CAFENODE-002", "REQ-CAFENODE-003", "REQ-CAFENODE-004", "REQ-CAFENODE-005", "REQ-CAFENODE-006", "REQ-CAFENODE-007", "REQ-CAFENODE-008", "REQ-CAFENODE-009", "REQ-CAFENODE-010", "REQ-CAFENODE-011", "REQ-CAFENODE-012", "REQ-CAFENODE-013", "REQ-CAFENODE-014", "REQ-CAFENODE-015", "REQ-CAFENODE-016", "REQ-CAFENODE-017", "REQ-CAFENODE-018", "REQ-CAFENODE-019", "REQ-CAFENODE-020", "REQ-CAFENODE-021", "REQ-CAFENODE-022", "REQ-CAFENODE-023", "REQ-CAFENODE-024", "REQ-CAFENODE-025", "REQ-CAFENODE-026", "REQ-CAFENODE-027", "REQ-CAFENODE-028", "REQ-CAFENODE-029", "REQ-CAFENODE-030", "REQ-CAFENODE-031", "REQ-CAFENODE-032", "REQ-CAFENODE-033", "REQ-CAFENODE-034", "REQ-CAFENODE-035", "REQ-CAFENODE-036", "REQ-CAFENODE-037", "REQ-CAFENODE-038", "REQ-CAFENODE-039", "REQ-CAFENODE-040", "REQ-CAFENODE-041", "REQ-CAFENODE-042", "REQ-CAFENODE-043", "REQ-CAFENODE-044", "REQ-CAFENODE-045", "REQ-CAFENODE-046", "REQ-CAFENODE-047", "REQ-CAFENODE-048", "REQ-CAFENODE-049"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "7eac1a7f712db781fde211fd4e668380f47f62770adcf92b9334abdf4f6f5bce"
+content_hash: "816fc5f90fbcb4f511dd4c51f32afb91b2aab8a12622ae6158c07ceeaab93c4e"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-ZVYG4H"
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "399ecf08609a3f024f795ae95ec23356ff7fcb908a5e5f2f49fef7a79c97c6e5"
-etag: "sha256-c03c683bc1423a39dd081b0c1a6cd28e37fa64119a5bf24a413dc324b0e4c210"
+mirror_sha256: "605a2dcf0a2708755b0a6b3e384cdf037afe4e079a7c111661a66f4cf474569f"
+etag: "sha256-7a374fd120e63ae955152e0fc273d14e076b192f72858df902c2174e324e9068"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -174,7 +174,7 @@ operation 규모는 초기 추정치("총 약 180개")와 달리 2026-07-17 실�
 
 ### 요구사항 변경 (2026-10-23 · 2026-10-24)
 
-근거는 [실행 로직 Rationale](CLE-NODE-CAFE24-EXEC.md#dry-run-모의-출력에-활동-로그를-남기지-않는다-2026-10-23)에 있다.
+근거는 [실행 로직 Rationale](CLE-NODE-CAFE24-EXEC.md#dry-run-모의-출력에-활동-로그를-남기지-않는다)에 있다.
 
 - 2026-10-23: REQ-CAFENODE-035 는 «dry-run 으로 mock 결과를 돌려주면 활동 로그를 1건 남긴다» 에서 «남기지 않는다» 로 바꿨다. REQ-CAFENODE-033 · REQ-CAFENODE-034 는 상태를 바꾸는 GET 예외 목록을 판정에 더했다. REQ-CAFENODE-039 는 실제로 부른 호출로, REQ-CAFENODE-031 은 외부 호출로 범위를 좁혔다.
 - 2026-10-24: REQ-CAFENODE-031 은 «외부 호출이 끝나면» 에서 «통합을 얻은 뒤 외부 호출이 끝나면» 으로 범위를 좁혔다. 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale(REQ-INTMGMT-053)이다.

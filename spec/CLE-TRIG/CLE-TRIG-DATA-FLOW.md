@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA-FLOW"
 title: "트리거 데이터와 흐름 — 진입 흐름과 저장소"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-DATA"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-DATA"]
 area: "CLE-TRIG"
-content_hash: "1bbd424fd32f84b5920a3ef10503b110599c0d9d27056f857fca86af0d730f8a"
+content_hash: "55310ab53cebfd0e1ba5aa1a32c559ec61d074698fa6beb41d31bf7ae31994c0"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "d887c040bc9a1daa9d88ba6f02b75d8d5b4c40627b784dedf414ae2c48fda160"
-etag: "sha256-f4d85a36202adbc6d12960656c6c0bed49e2b5b0d785bbc06d35e1aa7a5c85d0"
+mirror_sha256: "545bef6bdb4da10d2ebea056f85087af8eec465ae4d3edd2f5b1c64538c780c7"
+etag: "sha256-b70a31c07b8a1429d29a7ca094b14847e051b02e00e0e1ec879841da0329a564"
 ---
 ## 개요
 
@@ -261,4 +261,4 @@ Cron 파싱이 실패하면 `next_run_at` 은 NULL 이다. processor 의 재계�
 
 이 문서는 웹훅 202 응답을 `message` 없이 `{ executionId }` 와 인터랙션 블록으로 적어 코드와 달랐다. 응답 모양은 지금 코드에 맞춘다. 사용자에게 묻지 않고 기본값으로 정해 알렸다(NERV Task `CLE-T-M6PERB`).
 
-모양과 그 근거의 기준은 [웹훅](CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09) 의 「웹훅 202 응답 모양을 지금 코드에 맞춘다」 다. 이 문서는 `message` 를 더하는 곳과 `{ data }` 로 감싸는 곳만 적는다. 같은 모양을 여러 문서에 자세히 적으면 저마다 두 번째 기준이 된다.
+모양과 그 근거의 기준은 [웹훅](CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다) 의 「웹훅 202 응답 모양을 지금 코드에 맞춘다」 다. 이 문서는 `message` 를 더하는 곳과 `{ data }` 로 감싸는 곳만 적는다. 같은 모양을 여러 문서에 자세히 적으면 저마다 두 번째 기준이 된다.

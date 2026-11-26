@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-ERROR"
 title: "MCP 클라이언트 — 에러 처리"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "dae6060a6fba016335e5a17678f22e347573edd7f284392e304c07f05b991b47"
+content_hash: "ccd222135b5f1f6d2fd6adbf1a6931b3cf5ae3c9068b95938fde5b7664ad84f4"
 read_as: "approved_fallback"
-task: "CLE-T-EPJQS7"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "26874ac1486e3050776e4bd00466a4b12f7b1c55b88634bc5887d312708ce9d4"
-etag: "sha256-cdef8187577f155847039167efee20839b2536fd0227e9c67419bfbfb7331a4e"
+mirror_sha256: "2fcbe2d0ae3e53ee8c956a911be6d9dc2f8bd53099c5b83d42c503394f83625a"
+etag: "sha256-db2950619197a53e5ee009769e74d27fae2bfaddd6df2bf52c58791904b7e76f"
 ---
 ## 개요
 
@@ -111,11 +111,15 @@ dry-run 재실행에서 모의 응답으로 대신한 호출은 남기지 않고
 
 URL userinfo(`scheme://user:pass@host`) 패턴과 쿼리의 bare `token=` 은 원래 MCP 전용 목록에 있었다. 공용 패턴이 같은 형태를 흡수하면서 MCP 전용 목록에서 뺐다(2026-07-10, 2026-08-17). 공용 이름 붙은 패턴이 `token` 계열 전체(`[A-Za-z0-9_-]*token`: bare `token`·`access_token`·`csrf_token`·`csrfToken`)로 넓어졌기 때문이다. `?token=abc&foo=bar` 가 공용 패턴만으로 `?***&foo=bar` 가 되는 것을 확인했다. 그래서 `MCP_EXTRA_SECRET_PATTERNS` 는 비었지만 훅은 남긴다. MCP 서버는 제3자 구현이라 공용이 모르는 형태를 언제든 돌려줄 수 있다. 그때 여기에 한 줄 얹는 편이 공용 단일 기준을 MCP 사정으로 넓히는 것보다 안전하다.
 
-### 인증 실패는 상태를 바꾼 호출만 알린다 (2026-11-14)
+### 인증 실패는 상태를 바꾼 호출만 알린다
 
-3단계를 조건부 UPDATE 로 하고 행이 바뀐 호출만 알리는 근거는 [만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#mcp-도구-호출의-인증-실패도-조치-필요-알림을-보낸다-2026-11-14) 에 있다. 동시에 실패한 두 호출이 알림을 두 번 보내지 않게 하려는 것이다. 다른 사유의 `error` 도 `auth_failed` 로 바꾸는 근거도 같은 절에 있다.
+결정일: 2026-11-14
 
-### `last_error` 는 모든 `tools/call` 실패를 남긴다 (2026-11-14)
+3단계를 조건부 UPDATE 로 하고 행이 바뀐 호출만 알리는 근거는 [만료 스캐너와 알림](CLE-INT-STATUS-SCAN.md#mcp-도구-호출의-인증-실패도-조치-필요-알림을-보낸다) 에 있다. 동시에 실패한 두 호출이 알림을 두 번 보내지 않게 하려는 것이다. 다른 사유의 `error` 도 `auth_failed` 로 바꾸는 근거도 같은 절에 있다.
+
+### `last_error` 는 모든 `tools/call` 실패를 남긴다
+
+결정일: 2026-11-14
 
 승인본(v1)은 `Integration.last_error` 에 상태 전이를 일으킨 에러만 남기고 일반 호출 실패는 활동 로그와 `mcpDiagnostics.errors` 로 충분하다고 적었다. 그런데 `IntegrationsService.logUsage` 는 실패한 호출마다 `last_error` 를 `{ code, message, at }` 로 고친다. 코드 이력으로 보면 2026-05 저장소 재배치 이전부터 그랬다. 옛 서술은 처음부터 구현과 어긋나 있었다. 이번 개정에서 스펙을 구현에 맞췄다(NERV Task `CLE-T-184JJD`).
 

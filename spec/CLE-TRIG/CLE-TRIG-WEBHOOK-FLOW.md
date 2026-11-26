@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-FLOW"
 title: "웹훅 — 처리 흐름"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "314e7683418d7779dd5a41f913fa4e834232d697e07a5ac6c69ea9c4cf673735"
+content_hash: "8030be425ce8500bad45785152d9c7488092b802394d06db7a770cc056f214f8"
 read_as: "approved_fallback"
-task: "CLE-T-2M0591"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "a3c3ada1ed43f99c17c0846aa4528d7ba5311eedb43881a97e513688c650b5b6"
-etag: "sha256-c1dd51aa8e9ae4799a3347d2ada23316cfbad73bcc011598f8e93544f933057d"
+mirror_sha256: "54a6d4c5cbf267533ce8416dd96af49644060b13b18d717fbe3e24f6ef8602e4"
+etag: "sha256-65b6a360c825450ac5cdde7561c12937c6477a88924a9096b3e171154cff2602"
 ---
 ## 개요
 
@@ -60,7 +60,7 @@ etag: "sha256-c1dd51aa8e9ae4799a3347d2ada23316cfbad73bcc011598f8e93544f933057d"
   - 프로바이더별 본문과 문구는 [Discord 어댑터 「인바운드 응답」](../CLE-CHAT/CLE-CHAT-DISCORD.md#인바운드-응답) 과 [Slack 어댑터 「인바운드 응답」](../CLE-CHAT/CLE-CHAT-SLACK.md#인바운드-응답) 이 정한다.
 - 트리거가 비활성이어도 서명 검증은 먼저 한다. 통과하면 update 를 무시하고 실행을 시작하지 않는다. 버린 버튼 클릭의 수신 확인을 포함해 프로바이더 API 도 부르지 않는다. 응답은 인터랙션 요청이면 `200 OK` 와 기본 인터랙션 응답이고 그 밖에는 `202 Accepted` 와 `{ executionId: 'ignored' }` 다. handshake 도 그 밖에 들어 `202` 다.
   - 비활성인데 410 이 아니라 2xx 로 답하는 이유는 프로바이더가 2xx 가 아닌 응답을 실패로 다루기 때문이다. Telegram 은 같은 update 를 몇 번 다시 보낸 뒤 포기한다. Slack 슬래시 명령과 Discord 인터랙션은 다시 보내지 않는다. 대신 사용자 화면에 실패가 보인다(Slack 은 `operation_timeout`). 버리기로 한 update 로 재전송이나 실패 표시를 부를 이유가 없다. 프로바이더 동작의 근거는 [R-CC-12](../CLE-CHAT/CLE-CHAT-CORE-RESPONSE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다) 와 [R-CC-27](../CLE-CHAT/CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다) 에 있다.
-  - 인터랙션 요청에 `200` 으로 답하는 이유는 [꺼진 트리거도 인터랙션 요청에는 200 으로 답한다](#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다-2026-11-12) 에 있다.
+  - 인터랙션 요청에 `200` 으로 답하는 이유는 [꺼진 트리거도 인터랙션 요청에는 200 으로 답한다](#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다) 에 있다.
   - 비활성이어도 인증을 하는 이유는 인증에 실패한 요청에 조용한 202 를 주면 공격자가 트리거 활성 여부를 추측할 수 있고 운영자는 인증 실패를 401 로 봐야 디버깅할 수 있기 때문이다.
 - 워크플로우가 비활성이면(`workflow.is_active=false`) 새 실행을 시작하는 경우만 막고 비활성 트리거와 같이 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 응답한다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다. handshake 에는 답하고 진행 중인 대화는 이어진다. 막는 update 와 비활성 트리거와의 차이는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정하고 확인 순서는 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다.
 - 새 대화면 일반 경로와 같이 `execute(workflowId, input, { triggerId, workspaceId, sourceIp, responseCode })` 로 실행을 시작한다. 입력은 provider update 를 바꾼 값이다. `responseCode` 는 이 요청에 실제로 답하는 HTTP 응답 코드다. 기본은 `'202'` 이고 채팅 채널의 인터랙션 요청(Discord 슬래시 명령 · 컴포넌트 · 모달 제출, Slack Interactivity · 슬래시 명령)이면 `'200'` 이다. 워크플로우가 트리거의 워크스페이스에 없으면 404 대신 `202 Accepted` 와 `{ executionId: 'ignored' }` 로 답하고 `chat_channel_health` 를 `degraded` 로 남긴다. 인터랙션 요청이면 `202` 대신 `200 OK` 와 기본 인터랙션 응답으로 답한다([채팅 채널 §인바운드 HTTP 응답 계약](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약)).
@@ -98,7 +98,9 @@ etag: "sha256-c1dd51aa8e9ae4799a3347d2ada23316cfbad73bcc011598f8e93544f933057d"
 - 확인 자리는 비활성 트리거 확인 바로 뒤, 인증 앞이다. 두 비활성 응답이 같은 자리에서 나간다. 경로를 아는 호출자는 지금도 인증 없이 410 으로 트리거가 비활성임을 안다. 새 코드로 더 알 수 있는 것은 비활성인 쪽이 워크플로우라는 사실뿐이다.
 - 채팅 채널은 비활성 트리거와 같은 `202` ignored(인터랙션 요청은 `200 OK`)다. 2xx 가 아닌 응답은 Telegram 의 재전송이나 Slack · Discord 사용자 화면의 실패 표시를 부른다([채팅 채널 분기](#채팅-채널-분기)). 2xx 가 아닌 응답이 이어지면 웹훅을 끈다는 규칙은 프로바이더 문서에서 확인되지 않았다(2026-11-20 확인, [R-CC-27](../CLE-CHAT/CLE-CHAT-CORE-FLOW.md#r-cc-27-활성-실행-중-start-는-기존-실행을-취소하고-새로-시작한다)). Slack 이 실패율로 구독을 끄는 규칙은 Events API 에만 있다.
 
-### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다 (2026-11-12)
+### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다
+
+결정일: 2026-11-12
 
 채팅 채널 트리거가 비활성이어도 서명 검증을 통과한 인터랙션 요청에는 `200 OK` 와 기본 인터랙션 응답으로 답한다. 실행은 시작하지 않는다. 사람 결정 Q2(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f`, 2026-11-12)이고 구현은 NERV Task `CLE-T-TSEP9G` · `CLE-T-FCBG91` 이 했다. 상세 규칙은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다.
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-MAKESHOP-EXEC"
 title: "MakeShop 노드 — 실행 로직"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-MAKESHOP"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-MAKESHOP"]
 area: "CLE-NODE-INT"
-content_hash: "fdcaf2053a5352239fd7526add420a69ea6853c93472f851965c69f8729f999a"
+content_hash: "0b73b3c16bb837eebc3b02f0c2778807c4705a10caf8fba5406e1a52154d22bf"
 read_as: "approved_fallback"
-task: "CLE-T-2V3P8D"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "dc7ee8266ab7d17208a899c1ed9236ac1f14a7354ae8040f73afe70f099abd86"
-etag: "sha256-ac4bdec2df5b545dadb5cbb5b376e9b8ce393fdca00e0efed9b7784bab5a4073"
+mirror_sha256: "b80a38230d5044e097c8bd1e65ddc9d9f7a2f09c0af93c5f86cf80a0035700d1"
+etag: "sha256-ab43c20dd37e531fde76b95ced8d5d70d99df905df6ec49b7e1c0009b4fed4e9"
 ---
 ## 개요
 
@@ -149,7 +149,7 @@ Task CLE-T-XVS8H7 에서 다음 두 안 가운데 (2) 를 택했다.
 
 2026-10-23 에 dry-run 판정 요구사항을 «GET 이 아니거나 예외 목록에 있으면» 으로 바꾸고 dry-run 모의 출력의 활동 로그 제외 요구사항을 더했다.
 
-- dry-run 판정: 원래 «POST 면 mock, GET 이면 실제 호출» 이었다. `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꿔서 메서드만으로는 dry-run 에서 설정이 실제로 바뀐다. 2026-10-23 에 두 카탈로그의 GET operation 을 모두 확인해 이 하나를 상태를 바꾸는 GET 예외 목록에 넣고 판정을 «GET 이 아니거나 예외 목록에 있으면» 으로 바꿨다. 판정 기준과 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23)에 있다.
+- dry-run 판정: 원래 «POST 면 mock, GET 이면 실제 호출» 이었다. `get-cart_free_config-update` 는 GET 인데 카트프리 설정을 바꿔서 메서드만으로는 dry-run 에서 설정이 실제로 바뀐다. 2026-10-23 에 두 카탈로그의 GET operation 을 모두 확인해 이 하나를 상태를 바꾸는 GET 예외 목록에 넣고 판정을 «GET 이 아니거나 예외 목록에 있으면» 으로 바꿨다. 판정 기준과 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다)에 있다.
 - 활동 로그: 이전에는 «Cafe24 노드와 같은 규칙» 이라 노드 dry-run 모의 출력에도 활동 로그를 1건 남겼다. 2026-10-23 에 사람이 노드 경로와 AI 에이전트 도구 경로 모두 «남기지 않음» 을 골랐다. 활동 로그는 실제로 나간 외부 호출의 기록이라 나가지 않은 모의 출력은 적지 않는다. 옛 목적(모의 실행을 활동 탭에서 추적)은 실행 상세의 노드 출력 `_dryRun` 이 대신한다. «둘 다 1건 남김» 은 dry-run 표시가 없는 `success` 행이 남고 `lastUsedAt` 이 실제 호출 없이 바뀌어 기각했다. 도구 경로는 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정)이 정한다. 나머지 근거는 [Cafe24 노드](CLE-NODE-CAFE24.md)의 Rationale «dry-run 모의 출력에 활동 로그를 남기지 않는다» 와 같다.
 
 ### 운영 전 확인할 항목

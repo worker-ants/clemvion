@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-API"
 title: "트리거 관리 — API 와 PATCH 계약"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "c0a21c2d08589aca7651b73e6a0bfad0258ab344b2fac2569fb28ac152809c31"
+content_hash: "921f00a681eeadb0b4e8d007bc84136c45c172f10d1180c786cda9d62b9052ef"
 read_as: "approved_fallback"
-task: "CLE-T-919WVA"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "068e6f9cab012fc6b8ebad6c3483adfc436bb2f888637966062f3f3db148dff7"
-etag: "sha256-0536644b4ca5ad8e77a8eefd5aff65bf171a3d4945c3ae2fe90a5ec2d7f235be"
+mirror_sha256: "a6667e49663cc521773e98ac125cc7ae3e4c43d71a932c5f050e116b1437b27a"
+etag: "sha256-5024f52a7aeba78ebee40170bad9a463d4691bbb3a72aca7a410d57e6cebd2c6"
 ---
 ## 개요
 
@@ -27,7 +27,7 @@ etag: "sha256-0536644b4ca5ad8e77a8eefd5aff65bf171a3d4945c3ae2fe90a5ec2d7f235be"
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | POST | `/api/triggers` | 트리거 생성(편집자 이상). `webhook`·`manual` 유형만 받는다. `schedule` 은 스케줄 API 가 자동으로 만들므로 받지 않는다. 트리거 화면 "웹훅 추가" 모달이 이 경로로 웹훅 트리거를 만든다. 본문 `workflowId` 가 같은 워크스페이스의 워크플로우가 아니면 400 `VALIDATION_ERROR`(`details[].field='workflowId'`)다([데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속)). 본문에 EIA 알림 웹훅 설정(`notification`, 저장 위치 `config.notification`)이 있으면 서버가 알림 서명 시크릿(`wsk_<64hex>`)을 발급해 시크릿 저장소에 넣고 `config.notification.signing` 에는 평문 대신 트리거 id 로 정해지는 시크릿 참조(`secretRef`)를 남긴다. 발급 규칙의 기준은 [EIA 알림 웹훅 「시크릿 교체」](../CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체) 다. 원시 `config` 로는 `notification` 을 보낼 수 없어서([PATCH 본문 계약](#patch-본문-계약)) 옛 평문 `signing.secret` 은 생성으로 들어오지 않는다. 본문의 인터랙션 설정(`interaction`)이 켜져 있고(`enabled: true`) 전략이 `per_trigger` 면 서버가 트리거 단위 토큰(`itk_*`)도 발급해 `config.interaction.triggerToken` 에 저장한다. 발급한 평문은 이 생성 응답의 `data.secrets` 에 한 번만 실린다(`notificationSigningSecret`, `interactionToken`). 이후 응답에는 실리지 않는다. 발급한 비밀이 없는 응답에는 `secrets` 키가 없다([응답 형태](#응답-형태)). 행 INSERT · 시크릿 저장소 쓰기 · 첫 비밀 발급은 한 트랜잭션이라 하나라도 실패하면 행이 남지 않는다. 감사 기록은 커밋 직후 트랜잭션 밖에서 남긴다([동시 쓰기 직렬화](CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화)) |
-| GET | `/api/triggers` | 목록. 쿼리: `type`, `status`, `search`, `page`, `limit`, `sort`, `order`, `interactionEnabled`. `interactionEnabled`(boolean, 선택)는 `config.interaction.enabled` 가 일치하는 트리거만 돌려주는 JSONB 필터로, [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) 목록이 쓴다. `sort` 허용 값은 `created_at` · `updated_at` · `name` · `type` · `is_active` · `last_triggered_at` 이고 허용 밖 값은 `created_at` 으로 정렬한다. 기본은 `created_at DESC` 다. 형식이 틀린 `sort` · `order` 는 400 `VALIDATION_ERROR` 다. `last_triggered_at` 은 방향과 상관없이 값이 없는 행을 뒤에 두고(NULLS LAST) 같은 값끼리는 정렬 방향과 같은 방향의 `id` 로 순서를 고정한다. 스케줄 행의 `nextRunAt` 은 정렬 대상이 아니다. 근거는 [트리거 관리 「트리거 목록 정렬 규칙」](CLE-TRIG-MANAGE.md#트리거-목록-정렬-규칙-2026-11-19) |
+| GET | `/api/triggers` | 목록. 쿼리: `type`, `status`, `search`, `page`, `limit`, `sort`, `order`, `interactionEnabled`. `interactionEnabled`(boolean, 선택)는 `config.interaction.enabled` 가 일치하는 트리거만 돌려주는 JSONB 필터로, [웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md) 목록이 쓴다. `sort` 허용 값은 `created_at` · `updated_at` · `name` · `type` · `is_active` · `last_triggered_at` 이고 허용 밖 값은 `created_at` 으로 정렬한다. 기본은 `created_at DESC` 다. 형식이 틀린 `sort` · `order` 는 400 `VALIDATION_ERROR` 다. `last_triggered_at` 은 방향과 상관없이 값이 없는 행을 뒤에 두고(NULLS LAST) 같은 값끼리는 정렬 방향과 같은 방향의 `id` 로 순서를 고정한다. 스케줄 행의 `nextRunAt` 은 정렬 대상이 아니다. 근거는 [트리거 관리 「트리거 목록 정렬 규칙」](CLE-TRIG-MANAGE.md#트리거-목록-정렬-규칙) |
 | GET | `/api/triggers/:id` | 상세 |
 | PATCH | `/api/triggers/:id` | 수정. 활성/비활성 토글도 이 경로로 한다(`{ isActive: boolean }`). 별도 `/toggle` 경로는 없다. 이 요청으로 서버가 알림 서명 시크릿이나 트리거 단위 토큰을 처음 발급하면 평문은 이 응답의 `data.secrets` 에 한 번만 실린다(`notificationSigningSecret`, `interactionToken`, [PATCH 본문 계약](#patch-본문-계약)). 이 응답을 받지 못했으면 알림 서명 시크릿은 `rotate-secret`, 트리거 단위 토큰은 `revoke-token` 으로 새로 받는다 |
 | GET | `/api/triggers/:id/history` | 호출 이력 |
@@ -133,7 +133,9 @@ etag: "sha256-0536644b4ca5ad8e77a8eefd5aff65bf171a3d4945c3ae2fe90a5ec2d7f235be"
 
 재검토 신호: 생성 응답을 optimistic update 로 화면에 그대로 쓰기 시작하면 `workflow.name` 이 필요해진다. 그때 맞는 판단은 "테스트가 막으니 못 한다" 가 아니라 "응답 형태 절과 이 결정을 함께 고친다" 이다. 스케줄 쪽 자매 참조도 같은 신호를 [스케줄](CLE-TRIG-SCHEDULE.md) 에 적어 두었다.
 
-### 원시 `config` 계약 (2026-10-31)
+### 원시 `config` 계약
+
+결정일: 2026-10-31
 
 사용자가 2026-10-31 에 아래를 정했다(세 질문 모두 권장안). 이 결정으로 미결 사항 «원시 `config` 의 계약» 을 닫았다. 원시 `config` 는 생성 · 수정 본문의 `config` 키다([PATCH 본문 계약](#patch-본문-계약)).
 
@@ -152,7 +154,7 @@ etag: "sha256-0536644b4ca5ad8e77a8eefd5aff65bf171a3d4945c3ae2fe90a5ec2d7f235be"
 - **이미 저장된 옛 평문은 계속 읽고 옮긴다.** 저장된 행에 남은 옛 평문 `signing.secret` 은 발송 때 서명에 쓰고 시크릿 저장소로 옮긴다(`notification` 이 실린 PATCH 는 잠금 안의 `settle`, 그 밖의 PATCH 는 저장 뒤 `migrateLegacyPlaintext`). 읽기나 옮기기까지 없애면 수신 측이 이미 쓰고 있는 시크릿이 유예 없이 바뀐다.
 - **원시 `config` 는 `config` 바로 아래 키 단위로 병합한다.** 표의 «부분 갱신» 문구에 구현을 맞췄다. 병합의 기준은 다른 `config` 쓰기와 같이 잠금 안에서 다시 읽은 행이다. 타입 키는 늘 저장값이 남는다. 본문의 `config` 자체가 `null` 이면 보내지 않은 것으로 본다(수정 DTO 가 `null` 을 통과시키고 종전에도 200 · 무변경이었다). 조회 응답의 `config` 를 그대로 되보내는 저장소 밖 클라이언트는 이제 타입 키 때문에 400 을 받으므로 배포 안내에 적었다. 기각한 대안 A: 교체를 유지하되 세 타입 키만 저장값을 지키는 안. 원시 `config` 가 그 밖의 키 전체를 바꾸고 표의 문구를 «그 밖의 키 전체 교체» 로 고친다. 기각한 대안 B: 통째 교체를 유지하고 스펙 문구만 고치는 안(비권장). 세 키가 사라지는 동작이 계약으로 남고 `chatChannel.inboundSigningRef` 가 사라지면 인바운드 서명 검증이 fail-open 된다. 이미 저장된 행에 참조가 없는 경우는 [채팅 채널 데이터 「인바운드 서명 자료 참조가 없는 행」](../CLE-CHAT/CLE-CHAT-DATA.md#인바운드-서명-자료-참조가-없는-행) 이 다룬다.
 - **`secret://` 값을 위치와 상관없이 거부한다.** 내부 필드 거부(`CONFIG_INTERNAL_FIELDS`)는 사람이 더하는 경로 목록이라 새 `*Ref` 슬롯을 목록에 넣지 않아도 테스트가 실패하지 않는다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 22 와 R9 가 남긴 위험). 타입 키 거부로 타입 키 아래의 참조 슬롯은 모두 막히지만 다른 키 아래에 참조를 심는 길은 남는다. 값 검사는 슬롯 이름과 상관없이 잡는다. 경로 목록 거부는 그대로 두고 먼저 검사하므로 기존 거부의 `details.field` 는 바뀌지 않는다. 기각한 대안은 값 검사 없이 경로 목록만 유지하는 안이다.
-- 이 결정으로 지운 요구사항과 번호 처리는 [트리거 관리](CLE-TRIG-MANAGE.md#원시-config-계약-2026-10-31) 에 적었다.
+- 이 결정으로 지운 요구사항과 번호 처리는 [트리거 관리](CLE-TRIG-MANAGE.md#원시-config-계약) 에 적었다.
 
 ### 타입 필드 `notification` · `interaction` 의 `null` 은 해제다 (2026-11-20)
 

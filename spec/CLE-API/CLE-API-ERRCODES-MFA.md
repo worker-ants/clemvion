@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-MFA"
 title: "에러 코드 카탈로그 — 2FA · Passkey · 재인증"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "7860c06171b14d8c2bf3b3dbd2b0a3f772a141985db97a385dbb11617c20bd0d"
+content_hash: "e883221e1695e7d924e53b57cc64bc614f5bd2e256cdd9330112e96be4c29dd3"
 read_as: "approved_fallback"
-task: "CLE-T-CJ7HB1"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "9751b04e4ab62bacc5c948109ec96a58d19ec6b35ba1679933dab710d1c663c8"
-etag: "sha256-9e7db4407cf4b53f3d435930d614b641c686ba3a63af7be2b664aa35398afe3b"
+mirror_sha256: "c656506eb323742cf2eca013365a0d68a85149fd818fb94a72af9af1825cd899"
+etag: "sha256-a169ae2f9f0ab24f611594eb1697e045b391c1324faa51888120bb96e2063be9"
 ---
 ## 개요
 
@@ -108,7 +108,7 @@ NERV Task `CLE-T-FRCRF7` 에서 사람이 정한 결정 세 건 가운데 코드
 
 NERV Task `CLE-T-ZPPWK4` · `CLE-T-9KCQ7Y` · `CLE-T-Q6E11N` 에서 구현과 함께 §6.3 을 고쳤다.
 
-- **로그인 검증의 401 을 `WEBAUTHN_INVALID` 로 옮겼다.** 2026-11-12 결정([웹훅 · 트리거 · 채팅 채널](CLE-API-ERRCODES-TRIGGER.md#404-가-아닌-_not_found-세-코드를-정리했다-2026-11-12))을 구현했다. 「(로그인 검증)」 행을 지워 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 404 한 행만 남았다. 메시지도 서명 실패와 같아서 응답으로는 두 경우를 구별할 수 없다.
+- **로그인 검증의 401 을 `WEBAUTHN_INVALID` 로 옮겼다.** 2026-11-12 결정([웹훅 · 트리거 · 채팅 채널](CLE-API-ERRCODES-TRIGGER.md#404-가-아닌-_not_found-세-코드를-정리했다))을 구현했다. 「(로그인 검증)」 행을 지워 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 404 한 행만 남았다. 메시지도 서명 실패와 같아서 응답으로는 두 경우를 구별할 수 없다.
 - **발행 중이던 두 코드를 등재했다(규칙 8).** `WEBAUTHN_CREDENTIAL_EXISTS`(409)와 `WEBAUTHN_NOT_REGISTERED`(400 · 403)다. 이름과 상태 코드는 내던 그대로다(규칙 5). 같은 credential 의 동시 등록이 UNIQUE 제약에 걸릴 때 나던 409 `RESOURCE_CONFLICT` 는 `WEBAUTHN_CREDENTIAL_EXISTS` 로 맞췄다. 순차 중복과 뜻이 같다. [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 「미결 사항」 의 같은 항목은 지웠다.
 - **`WEBAUTHN_NOT_REGISTERED` 는 상태 코드가 둘이어도 한 행에 둔다.** 두 발행처 모두 등록한 Passkey 가 없다는 뜻이라 규칙 6 으로 나누지 않는다. 상태 코드는 이미 내던 값이라 바꾸지 않았다.
 - **Passkey 삭제에도 비밀번호를 다시 받는다.** 그래서 `PASSWORD_INVALID` · `PASSWORD_REQUIRED` 의 발행처가 하나 늘었다. 다른 민감 동작의 재확인과 뜻이 같아 새 코드는 만들지 않았다. 결정은 [Passkey 기능과 등록](../CLE-ACCT/CLE-ACCT-SIGNIN-PASSKEY.md#passkey-삭제에도-비밀번호-재확인을-둔다) 에 있다.

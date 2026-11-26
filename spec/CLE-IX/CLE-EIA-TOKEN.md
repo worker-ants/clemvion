@@ -2,19 +2,19 @@
 id: "CLE-EIA-TOKEN"
 title: "External Interaction API — 트리거 설정과 인터랙션 토큰"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA"]
 area: "CLE-IX"
-content_hash: "1aca283460535ed42e742f33fb1411005371510ead7e1b3e62a5a1da3ccd9ec4"
+content_hash: "2a9a27e99287d4f09c7ae3375f3b030ef62c80a8c327c7b1bed88818ba40dffa"
 read_as: "approved_fallback"
-task: "CLE-T-YFVEPK"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "a8ce77ff903df9e0393c60a1ed77b7dcb3702a40aeef3a456f50b60b76daaabe"
-etag: "sha256-ef1599f4b2d1057c2d5116adce5d52c3087a18797baf3f4dcba3d6c05de5ab50"
+mirror_sha256: "b3a8ba205eba0200ea5e1781de9c6ba04fc9504bb4d9ae180f047c09ac709e5b"
+etag: "sha256-d4645cb732cc9f3deb9fc167773f113eacf89fffe9989cd04ae22a5b7f467edf"
 ---
 ## 개요
 
@@ -238,11 +238,11 @@ type InteractionRequestContext =
 
 생성과 PATCH 응답의 `data` 는 트리거 리소스다. 서버가 그 요청에서 새로 만든 비밀의 평문은 리소스 필드와 섞이지 않게 `data.secrets` 아래에 둔다. 재발급과 교체의 응답은 그 동작만의 응답이라 평문을 `data.token` · `data.secret` 에 바로 둔다([트리거 관리 「API」](../CLE-TRIG/CLE-TRIG-MANAGE.md#api)).
 
-알림 서명 시크릿(`wsk_*`)의 서버 발급과 웹훅 202 응답의 `message` 는 2026-10-09 에 정했다. 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다) 와 [웹훅 「웹훅 202 응답 모양을 지금 코드에 맞춘다」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다-2026-10-09) 에 있다.
+알림 서명 시크릿(`wsk_*`)의 서버 발급과 웹훅 202 응답의 `message` 는 2026-10-09 에 정했다. 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다) 와 [웹훅 「웹훅 202 응답 모양을 지금 코드에 맞춘다」](../CLE-TRIG/CLE-TRIG-WEBHOOK.md#웹훅-202-응답-모양을-지금-코드에-맞춘다) 에 있다.
 
 트리거 단위 토큰(`itk_*`)의 발급은 2026-10-17 에 사용자가 정했다. 인터랙션을 켠 `per_trigger` 트리거를 만들면 서버가 발급한다. PATCH 결과가 인터랙션을 켠 `per_trigger` 이고 저장된 토큰이 없을 때도 발급한다. 저장된 토큰이 있으면 이어받는다. 그래서 인터랙션을 껐다가 다시 켜면 같은 토큰을 쓴다. 이유는 두 가지다. 생성 때 발급하지 않으면 `per_trigger` 로 만든 트리거는 재발급을 한 번 더 불러야 인바운드 경로를 쓸 수 있다. 또 서버가 만든 비밀을 그 비밀이 생긴 응답에서 한 번 보여 준다는 규칙이 알림 서명 시크릿과 같아진다. 저장과 잠금의 근거는 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다) 에 있다.
 
-2026-10-17 당시에는 원시 `config` 로 바꾼 PATCH 도 같은 규칙을 따랐다. 2026-10-31 부터 원시 `config` 는 `interaction` 키를 받지 않으므로 그 갈래는 없어졌고, 발급 요구사항은 타입 필드 `interaction` 을 바꾼 PATCH 만 적는다. 결정과 근거는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) Rationale 의 「원시 `config` 계약 (2026-10-31)」 에 있다.
+2026-10-17 당시에는 원시 `config` 로 바꾼 PATCH 도 같은 규칙을 따랐다. 2026-10-31 부터 원시 `config` 는 `interaction` 키를 받지 않으므로 그 갈래는 없어졌고, 발급 요구사항은 타입 필드 `interaction` 을 바꾼 PATCH 만 적는다. 결정과 근거는 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) Rationale 의 「원시 `config` 계약」 에 있다.
 
 인터랙션을 끄는 것은 토큰 폐기가 아니고 중지다. 그래서 다시 켜면 같은 토큰이 통한다. 토큰 전략을 바꾸면 값을 지운다. 이 경우는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다) 의 범위이고, 끄기와 전략 변경을 가르는 근거 전문은 [EIA 데이터와 흐름 「트리거 단위 토큰을 생성과 PATCH 에서 발급한다」](CLE-EIA-DATA.md#트리거-단위-토큰을-생성과-patch-에서-발급한다) 에 있다.
 

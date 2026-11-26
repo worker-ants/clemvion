@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA"
 title: "트리거 데이터와 흐름"
 type: "design"
-version: 16
+version: 17
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "982b017166b12692fda2ac78407156fa9df1702eb4120564a7ca90dca7eb18ce"
+content_hash: "7f2cb69b26a8d3131679e5446d6d384de9415dfd4f9bd1b94dc8b04b5a1db1b5"
 read_as: "approved_fallback"
-task: "CLE-T-2M0591"
+task: "CLE-T-ZVYG4H"
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/2-trigger-list.md", "spec/data-flow/10-triggers.md"]
-mirror_sha256: "cf069c558c37b1702214c27698c4b0d3795acd631786dd74e5729da662fc8971"
-etag: "sha256-525b8e41d154ad396ee3a5b988ed2c96f8b61f3760b0f36b96cc03d22fde6b28"
+mirror_sha256: "5567a93ac58635f77e31406d0834af71e7d30a3b7a562bba859508bc3dc36d42"
+etag: "sha256-976cd9d8759b5fae4676dda6ebce3c45d0a5f61f02047aa97eebc87f683b6ad8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/10-triggers.md`, `spec/1-data-model.md` (§2.8 Trigger, §2.8.1 WebhookEndpointReservation, §2.9 Schedule, §2.9.1 동기화 규칙, §2.17 AuthConfig, Rationale 네 절), `spec/2-navigation/2-trigger-list.md` (§4.3 자원 정리의 순서) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -191,9 +191,11 @@ handshake 에 답하는 이유(2026-10-10 사용자 결정): 채팅 채널에서
 
 새 진입 경로가 관문을 빠뜨릴 위험은 실행 컨텍스트의 「엔진 한 곳에서 본다」 에 적은 문제와 같다. 대비는 세 가지다. 하나는 세 경로가 같은 공용 함수 `isWorkflowInactive` 를 부르는 것이다. 둘째는 [워크플로우 활성 관문](#워크플로우-활성-관문) 의 경로 표와 「관문을 거치지 않는 경로」 목록이다. 셋째는 정적 가드 `engine-execute-callers-guard.ts` 다. 엔진 진입 메서드를 부르는 지점이 허용 목록 `ENGINE_ENTRY_CALLERS` 에 없으면 CI 가 실패한다. `gated` 지점이 `isWorkflowInactive` 를 부르지 않아도 실패한다. 그래서 새 경로의 누락은 이 가드가 잡는다. 가드는 엔진 타입(`ExecutionEngineService` · `WorkflowExecutor`)으로 선언된 수신자의 호출과 엔진 클래스 안의 `this.execute…()` 호출만 센다. 형 주석 없이 엔진을 받는 지점은 놓친다. 지금 저장소에는 그런 지점이 없다. 실행을 시작하는 진입 경로를 새로 만들면 두 목록 가운데 한쪽과 `ENGINE_ENTRY_CALLERS` 에 더하고 관문을 거치는 경로면 `isWorkflowInactive` JSDoc 의 호출 지점 목록도 함께 고친다. 지금 세 경로는 경로마다 단위 테스트가 있고 e2e(`codebase/backend/test/workflow-inactive-gate.e2e-spec.ts`)도 세 경로를 확인한다. 이 테스트들은 이미 있는 경로의 동작을 지킨다.
 
-### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다 (2026-11-12)
+### 꺼진 트리거도 인터랙션 요청에는 200 으로 답한다
 
-채팅 채널 트리거가 비활성이어도 서명 검증을 통과한 인터랙션 요청에는 `200` 과 기본 인터랙션 응답으로 답하고 실행은 시작하지 않는다. 사람 결정 Q2(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f`, 2026-11-12)이고 구현은 NERV Task `CLE-T-TSEP9G` · `CLE-T-FCBG91` 이 했다. 근거와 기각한 대안은 [웹훅 「꺼진 트리거도 인터랙션 요청에는 200 으로 답한다」](CLE-TRIG-WEBHOOK.md#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다-2026-11-12) 가 기준이고 응답 계약은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 이 문서에는 데이터 흐름에 닿는 것만 적는다.
+결정일: 2026-11-12
+
+채팅 채널 트리거가 비활성이어도 서명 검증을 통과한 인터랙션 요청에는 `200` 과 기본 인터랙션 응답으로 답하고 실행은 시작하지 않는다. 사람 결정 Q2(NERV 질문 `01a1d025-8baf-773f-95fd-201820c7cd5f`, 2026-11-12)이고 구현은 NERV Task `CLE-T-TSEP9G` · `CLE-T-FCBG91` 이 했다. 근거와 기각한 대안은 [웹훅 「꺼진 트리거도 인터랙션 요청에는 200 으로 답한다」](CLE-TRIG-WEBHOOK.md#꺼진-트리거도-인터랙션-요청에는-200-으로-답한다) 가 기준이고 응답 계약은 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 이 정한다. 이 문서에는 데이터 흐름에 닿는 것만 적는다.
 
 - 비활성 트리거와 비활성 워크플로우의 응답 차이가 사라졌다. 전에는 Discord 컴포넌트 · 모달 제출에 워크플로우가 비활성이면 `200` 으로 답하고 트리거가 비활성이면 `202` 로 답했다. 지금은 인터랙션 요청이면 두 경우 모두 `200` 과 기본 인터랙션 응답이다([워크플로우 활성 관문](#워크플로우-활성-관문)).
 - 실행 행의 `response_code` 에는 실제 응답 코드가 남는다. Discord 슬래시 명령으로 새 실행을 시작하면 `'200'` 이다.

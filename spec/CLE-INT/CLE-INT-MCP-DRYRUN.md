@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-DRYRUN"
 title: "MCP 클라이언트 — dry-run 재실행"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "7a5b4b5e19323674b4118eb920cc27d238ccf5a2483c4c748229e29fcd0b1356"
+content_hash: "2899435f385c8fda05aea79d23b93ae9fbb9727d730055120bb1c0cd8ed3ef5b"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-ZVYG4H"
 source_paths: []
-mirror_sha256: "67f5e2803be1148171d490da436b51ddacb8a4923dcf9b2b7d5a53c211418060"
-etag: "sha256-a00762129b56bf7f463d23d9a3381ae58df91fd42ded74112a98b255144e62ea"
+mirror_sha256: "9225460ac97731a4ba3d0bed433191586075507ae6c042ae90b6dfeb8421a8ca"
+etag: "sha256-b7eb0d1c0c788065ec7f2456bae18384d5b4f8704f7d40426b6cf7c1d1839c18"
 ---
 ## 개요
 
@@ -44,7 +44,7 @@ etag: "sha256-a00762129b56bf7f463d23d9a3381ae58df91fd42ded74112a98b255144e62ea"
 | 외부 MCP 서버 | 서버마다 connect · `initialize` · `tools/list` 를 보낸다. 서버가 `resources` · `prompts` capability 를 보고하면 `resources/list` · `prompts/list` 도 보낸다([단위](CLE-INT-MCP-CONN.md#단위)) |
 | Cafe24 · MakeShop 내부 MCP 브리지 | `expired` 상태 통합의 토큰 갱신을 한 번 시도한다(`tryRecoverExpired` → `refreshTokenViaQueue`). 갱신에 성공하면 저장된 토큰이 바뀌고 통합이 `connected` 로 돌아온다. refresh token 이 거절되면 통합이 `error(auth_failed)` 로 바뀌고 조치 필요 알림이 간다(진단의 `skipReason` 은 `expired_refresh_failed`) |
 
-목록 조회는 읽기 요청이고 토큰 갱신과 인증 실패 표시는 통합 유지 작업이라 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 의 부수효과 판정 범위에 넣지 않는다. 도구 실행 단계에서 실제로 부른 GET 의 인증 실패 처리도 같은 이유로 평소와 같다([확인 순서](#확인-순서)). 결정과 근거는 [Rationale](#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다-2026-11-13-cle-t-8b66bk) 에 있다.
+목록 조회는 읽기 요청이고 토큰 갱신과 인증 실패 표시는 통합 유지 작업이라 [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 의 부수효과 판정 범위에 넣지 않는다. 도구 실행 단계에서 실제로 부른 GET 의 인증 실패 처리도 같은 이유로 평소와 같다([확인 순서](#확인-순서)). 결정과 근거는 [Rationale](#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다) 에 있다.
 
 ## 모의 응답의 형식
 
@@ -80,7 +80,7 @@ etag: "sha256-a00762129b56bf7f463d23d9a3381ae58df91fd42ded74112a98b255144e62ea"
 
 ## 확인 순서
 
-dry-run 여부와 부수효과 판정은 외부로 보내기 바로 앞에서 확인한다. 그 앞의 확인에서 걸린 호출은 dry-run 재실행에서도 평소와 같은 에러 결과를 돌려준다. 부수효과가 없다고 판정된 GET 내부 MCP 브리지 operation 은 평소처럼 부르므로 호출 단계 실패도 평소처럼 보고한다. 인증 실패를 받으면 통합 상태도 평소처럼 바뀐다. 만료 1분 전 토큰의 미리 갱신, 401 의 토큰 갱신과 한 번 재시도, 403 의 `error(auth_failed | insufficient_scope)` 전환과 조치 필요 알림이 모두 그대로다([인증 실패 상태 전환](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환)). 노드 dry-run 의 GET 과 같다. 2026-11-13 에 이대로 두기로 정했다([Rationale](#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다-2026-11-13-cle-t-8b66bk)).
+dry-run 여부와 부수효과 판정은 외부로 보내기 바로 앞에서 확인한다. 그 앞의 확인에서 걸린 호출은 dry-run 재실행에서도 평소와 같은 에러 결과를 돌려준다. 부수효과가 없다고 판정된 GET 내부 MCP 브리지 operation 은 평소처럼 부르므로 호출 단계 실패도 평소처럼 보고한다. 인증 실패를 받으면 통합 상태도 평소처럼 바뀐다. 만료 1분 전 토큰의 미리 갱신, 401 의 토큰 갱신과 한 번 재시도, 403 의 `error(auth_failed | insufficient_scope)` 전환과 조치 필요 알림이 모두 그대로다([인증 실패 상태 전환](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환)). 노드 dry-run 의 GET 과 같다. 2026-11-13 에 이대로 두기로 정했다([Rationale](#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다)).
 
 - 외부 MCP: 활성 세션이 없거나 노출하지 않은 도구 이름이면 `MCP_UNKNOWN_TOOL`, 인자 JSON 파싱에 실패하면 `INVALID_TOOL_ARGUMENTS` 다. 인자가 서버의 `inputSchema` 에 맞는지는 확인하지 않고 건너뛴다.
 - Cafe24: 모르는 operation 이면 `CAFE24_UNKNOWN_OPERATION`, 필수 필드가 빠졌거나 제약을 어기면 `CAFE24_MISSING_FIELDS` 다.
@@ -102,9 +102,11 @@ dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRu
 
 ## Rationale
 
-### dry-run 재실행에서 건너뛴 호출의 기록 (2026-10-10)
+### dry-run 재실행에서 건너뛴 호출의 기록
 
-2026-10-10 의 임시 가드는 AI 에이전트가 부른 MCP 도구 가운데 외부 MCP 서버의 `tools/call` 과 내부 MCP 브리지 operation 을 모두 건너뛰었다. 막는 범위와 임시 가드를 둔 배경은 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다-2026-10-10) 에 있다. 가드는 실행을 거부하지 않고 노드 dry-run 처럼 모의 결과로 흐름을 이었다. dry-run 을 완전하게 구현한다는 방향([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) Rationale)은 그대로다. 2026-10-23 에 임시 가드를 부수효과 판정으로 바꿨다. 앞의 두 가지는 그대로 유효하고 셋째는 [아래 절](#dry-run-에서-실제로-부른-호출과-모의-응답으로-대신한-호출의-기록) 로 바뀌었다.
+결정일: 2026-10-10
+
+2026-10-10 의 임시 가드는 AI 에이전트가 부른 MCP 도구 가운데 외부 MCP 서버의 `tools/call` 과 내부 MCP 브리지 operation 을 모두 건너뛰었다. 막는 범위와 임시 가드를 둔 배경은 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-ai-에이전트의-mcp-도구를-막는다) 에 있다. 가드는 실행을 거부하지 않고 노드 dry-run 처럼 모의 결과로 흐름을 이었다. dry-run 을 완전하게 구현한다는 방향([재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) Rationale)은 그대로다. 2026-10-23 에 임시 가드를 부수효과 판정으로 바꿨다. 앞의 두 가지는 그대로 유효하고 셋째는 [아래 절](#dry-run-에서-실제로-부른-호출과-모의-응답으로-대신한-호출의-기록) 로 바뀌었다.
 
 - **활동 로그와 `errors[]` 에 남기지 않는다.** 활동 로그는 외부 API 호출 기록인데, 모의 응답으로 대신한 호출은 외부로 나가지 않았다. `errors[]` 는 격리된 실패 기록인데, 이 호출은 실패가 아니다. 그래서 결과의 status 도 `success` 로 두고 새 에러 코드를 만들지 않았다. 실패 모양 대신 status `success` 와 `message` 로 재호출을 막은 것은 [AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md#render_form-제출-뒤-같은-폼-재호출을-막은-방법) Rationale 의 `render_form` 재호출 방지 선례(`ok: true` 와 재호출 금지 `message`, 실패로 읽힐 `rendered: false` 는 기각)와 같은 이유다. 선례와 달리 `ok: true` 는 싣지 않고 `executed: false` 를 싣는다. 이 값은 모의 응답으로 대신한 호출과 실제로 부른 호출을 가르려고 남겼고, 실패로 읽히는 위험은 status `success` 와 `message` 로 막는다(2026-10-23 에 덧붙였다). `toolCalls` 는 원래 결과를 보지 않고 시도를 세는 카운터라 모의 응답으로 대신한 호출도 그대로 센다.
 - **메타 도구는 막지 않는다.** MCP 프로토콜에서 resources·prompts 조회는 읽기 전용이라 외부 상태를 바꾸지 않는다. 프로토콜을 지키는 서버를 전제하며 비준수 서버의 부수효과는 이 가드가 막지 않는다.
@@ -114,18 +116,20 @@ dry-run 여부는 도구 프로바이더 실행 문맥의 `ProviderExecCtx.dryRu
 
 결정일: 2026-10-23
 
-[재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 의 부수효과 판정이 들어가면서 dry-run 재실행의 AI 에이전트 도구 호출은 두 가지로 나뉜다. 모의 응답으로 대신한 호출과 실제로 부른 읽기 호출이다. 판정 기준과 그 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다-2026-10-23) 에 있다.
+[재실행](../CLE-EXEC/CLE-EXEC-RERUN.md#부수효과-판정) 의 부수효과 판정이 들어가면서 dry-run 재실행의 AI 에이전트 도구 호출은 두 가지로 나뉜다. 모의 응답으로 대신한 호출과 실제로 부른 읽기 호출이다. 판정 기준과 그 근거는 [재실행 Rationale](../CLE-EXEC/CLE-EXEC-RERUN.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다) 에 있다.
 
 - **모의 응답으로 대신한 호출은 노드 경로와 도구 경로 모두 활동 로그에 남기지 않는다.** 2026-10-23 에 사람이 «둘 다 남기지 않음» 을 골랐다(기각한 안은 위 재실행 Rationale). HTTP Request · Send Email · Database Query 노드의 모의 출력은 처음부터 활동 로그를 남기지 않았고 Cafe24 · MakeShop 노드만 달랐다. 이번에 하나로 맞췄다. 활동 로그는 실제로 나간 외부 호출의 기록이고 통합의 활동 탭과 `lastUsedAt` 이 이 기록에서 나온다. 모의 실행은 실행 상세의 노드 출력(`_dryRun`)과 도구 결과 본문(`executed: false`)에서 따로 확인할 수 있다.
 - **실제로 부른 읽기 호출은 평소처럼 기록한다.** 외부로 나간 호출이므로 활동 로그에 남기고 호출 단계 실패는 `errors[]` 에 넣는다. dry-run 이라고 따로 표시하지 않는다.
 - **`executed: false` 는 모의 응답에만 붙인다.** 한 노드 안에서 모의 응답으로 대신한 호출과 실제로 부른 호출이 섞여도 `turnDebug[].toolCalls` 에서는 둘 다 `success` 다. LLM 과 실행 기록을 읽는 사람이 둘을 가를 수 있는 값은 도구 결과 본문의 이 필드뿐이다.
 - **안내 문구를 바꿨다.** 임시 가드의 안내는 «외부 시스템을 읽지도 바꾸지도 않았다» 였다. 읽기 호출이 실제로 나가게 되면서 이 문장은 맞지 않는다. «이 호출은 보내지 않았고 아무것도 바뀌지 않았다, 성공한 것으로 보고 이어 가라, 같은 호출을 다시 하지 마라» 로 바꿨다.
 
-### dry-run 에서도 도구 목록 구성과 인증 처리는 평소처럼 한다 (2026-11-13, CLE-T-8B66BK)
+### dry-run 에서도 도구 목록 구성과 인증 처리는 평소처럼 한다
+
+결정일: 2026-11-13
 
 **문제**: 2026-10-23 의 부수효과 판정은 도구 실행(`execute`) 단계에만 들어갔다. 도구 목록 구성(`buildTools`) 단계는 dry-run 재실행에서도 외부 MCP 서버에 목록 요청을 보내고, Cafe24 · MakeShop 브리지는 `expired` 통합의 토큰 갱신을 시도한다. 실제로 부른 GET 도 401 이면 토큰을 갱신하고 403 이면 통합 상태를 바꾼다. 이 동작을 dry-run 에서도 둘지 이전 판의 미결 사항이 추적했다.
 
-**결정**: 2026-11-13 에 사람이 세 항목 모두 지금 동작을 유지하기로 골랐다(NERV 질문 `01a1d2f3-9510-774c-8cc1-adfb0bae76a1`, 답 «1A 2A 3A»).
+**결정**: 2026-11-13 에 사람이 세 항목 모두 지금 동작을 유지하기로 골랐다(NERV Task `CLE-T-8B66BK`, NERV 질문 `01a1d2f3-9510-774c-8cc1-adfb0bae76a1`, 답 «1A 2A 3A»).
 
 | 항목 | 고른 안 | 기각한 안 |
 | --- | --- | --- |
