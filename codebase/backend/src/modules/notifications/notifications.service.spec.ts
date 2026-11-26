@@ -1,5 +1,4 @@
 import { NotFoundException } from '@nestjs/common';
-import { IsNull } from 'typeorm';
 import { NotificationsService } from './notifications.service';
 
 /**
@@ -96,6 +95,90 @@ describe('NotificationsService — dismiss', () => {
     });
   });
 
+  // CLE-T-NE4KKZ: 초대받은 사람은 그 워크스페이스 멤버가 아니라서 초대 알림이 워크스페이스 조건에 걸려
+  // 보이지 않았다. team_invite 만 워크스페이스 조건에서 빼고 나머지 유형은 현재 워크스페이스로 묶는다.
+  describe('벨 조회 범위 — team_invite 는 워크스페이스와 무관하게 보인다', () => {
+    const SCOPE = '(workspace_id = :workspaceId OR type = :crossWorkspaceType)';
+    const SCOPE_N =
+      '(n.workspace_id = :workspaceId OR n.type = :crossWorkspaceType)';
+    const PARAMS = { workspaceId: 'ws-1', crossWorkspaceType: 'team_invite' };
+    // CLE-T-EJFQ1Y: 인앱을 끈 유형은 채널 `email` 로 저장하고 벨에서 뺀다.
+    const BELL = "channel <> 'email'";
+    const BELL_N = "n.channel <> 'email'";
+
+    function filters(qb: any): unknown[][] {
+      return [...qb.where.mock.calls, ...qb.andWhere.mock.calls];
+    }
+
+    it('findAll 은 본인 알림 가운데 현재 워크스페이스 것과 team_invite 를 고른다', async () => {
+      const qb = makeQb(0, []);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAll('ws-1', 'user-1', {} as any);
+
+      expect(filters(qb)).toContainEqual([
+        'n.user_id = :userId',
+        { userId: 'user-1' },
+      ]);
+      expect(filters(qb)).toContainEqual([SCOPE_N, PARAMS]);
+      expect(filters(qb).map((c) => c[0])).not.toContain(
+        'n.workspace_id = :workspaceId',
+      );
+      expect(filters(qb).map((c) => c[0])).toContain(BELL_N);
+    });
+
+    it('getUnreadCount 도 같은 범위에서 미읽음 · 닫지 않은 알림을 센다', async () => {
+      const qb = makeQb(4, []);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.getUnreadCount('ws-1', 'user-1');
+
+      expect(filters(qb)).toContainEqual([
+        'n.user_id = :userId',
+        { userId: 'user-1' },
+      ]);
+      expect(filters(qb)).toContainEqual([SCOPE_N, PARAMS]);
+      const clauses = filters(qb).map((c) => c[0]);
+      expect(clauses).toContain('n.is_read = false');
+      expect(clauses).toContain('n.dismissed_at IS NULL');
+      expect(clauses).toContain(BELL_N);
+      expect(repo.count).not.toHaveBeenCalled();
+      expect(result).toEqual({ count: 4 });
+    });
+
+    it('markAllRead 는 같은 범위의 미읽음만 읽음으로 바꾼다', async () => {
+      const qb = makeQb(0, [], 2);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.markAllRead('ws-1', 'user-1');
+
+      expect(filters(qb)).toContainEqual([
+        'user_id = :userId',
+        { userId: 'user-1' },
+      ]);
+      expect(filters(qb)).toContainEqual([SCOPE, PARAMS]);
+      expect(filters(qb).map((c) => c[0])).toContain('is_read = false');
+      expect(filters(qb).map((c) => c[0])).toContain(BELL);
+      expect(result).toEqual({ affected: 2 });
+    });
+
+    it('dismissAll 은 같은 범위의 닫지 않은 알림만 닫는다', async () => {
+      const qb = makeQb(0, [], 3);
+      repo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.dismissAll('ws-1', 'user-1');
+
+      expect(filters(qb)).toContainEqual([
+        'user_id = :userId',
+        { userId: 'user-1' },
+      ]);
+      expect(filters(qb)).toContainEqual([SCOPE, PARAMS]);
+      expect(filters(qb).map((c) => c[0])).toContain('dismissed_at IS NULL');
+      expect(filters(qb).map((c) => c[0])).toContain(BELL);
+      expect(result).toEqual({ affected: 3 });
+    });
+  });
+
   describe('findAll — 정렬 허용 목록', () => {
     it('허용 sort=type 은 n.type 으로 정렬한다', async () => {
       const qb = makeQb(0, []);
@@ -122,26 +205,6 @@ describe('NotificationsService — dismiss', () => {
         expect(qb.orderBy).toHaveBeenCalledWith('n.created_at', 'ASC');
       },
     );
-  });
-
-  describe('getUnreadCount — dismissed_at IS NULL 필터', () => {
-    it('count where 절에 dismissedAt: IsNull() 을 포함한다', async () => {
-      repo.count.mockResolvedValue(3);
-
-      const result = await service.getUnreadCount('ws-1', 'user-1');
-
-      expect(repo.count).toHaveBeenCalledTimes(1);
-      const where = repo.count.mock.calls[0][0].where;
-      expect(where).toEqual(
-        expect.objectContaining({
-          workspaceId: 'ws-1',
-          userId: 'user-1',
-          isRead: false,
-          dismissedAt: IsNull(),
-        }),
-      );
-      expect(result).toEqual({ count: 3 });
-    });
   });
 
   describe('dismiss — 단건 (atomic UPDATE)', () => {
@@ -204,18 +267,17 @@ describe('NotificationsService — dismiss', () => {
   });
 
   describe('dismissAll — 일괄', () => {
-    it('workspace + user + dismissed_at IS NULL 만 갱신하고 affected 반환', async () => {
+    it('user + dismissed_at IS NULL 인 행만 갱신하고 affected 반환', async () => {
       const qb = makeQb(0, [], 5);
       repo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await service.dismissAll('ws-1', 'user-1');
 
-      expect(qb.where).toHaveBeenCalledWith('workspace_id = :workspaceId', {
-        workspaceId: 'ws-1',
-      });
-      const andWhereArgs = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
-      expect(andWhereArgs).toContain('user_id = :userId');
-      expect(andWhereArgs).toContain('dismissed_at IS NULL');
+      const clauses = [...qb.where.mock.calls, ...qb.andWhere.mock.calls].map(
+        (c: unknown[]) => c[0],
+      );
+      expect(clauses).toContain('user_id = :userId');
+      expect(clauses).toContain('dismissed_at IS NULL');
       expect(result).toEqual({ affected: 5 });
     });
 
@@ -467,6 +529,72 @@ describe('NotificationsService — dismiss', () => {
         resourceType: null,
         resourceId: null,
       });
+    });
+  });
+
+  describe('채널 email 행은 notification.new 를 보내지 않는다 (CLE-T-EJFQ1Y)', () => {
+    it('notify — 채널 email 이면 저장만 하고 실시간 전송을 건너뛴다', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockImplementation(async (v: any) => ({ id: 'n-e', ...v }));
+
+      const saved = await service.notify({
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        type: 'execution_failed',
+        title: 't',
+        message: 'm',
+        channel: 'email',
+      });
+
+      expect(saved.channel).toBe('email');
+      expect(ws.emitNotificationEvent).not.toHaveBeenCalled();
+    });
+
+    it('createMany — email 행은 건너뛰고 나머지 행만 전송한다', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        {
+          id: 'n-1',
+          userId: 'user-a',
+          type: 'execution_failed',
+          title: 'A',
+          message: 'ma',
+          channel: 'email',
+        },
+        {
+          id: 'n-2',
+          userId: 'user-b',
+          type: 'execution_failed',
+          title: 'B',
+          message: 'mb',
+          channel: 'both',
+        },
+      ]);
+
+      await service.createMany([
+        {
+          workspaceId: 'ws-1',
+          userId: 'user-a',
+          type: 'execution_failed',
+          title: 'A',
+          message: 'ma',
+          channel: 'email',
+        },
+        {
+          workspaceId: 'ws-1',
+          userId: 'user-b',
+          type: 'execution_failed',
+          title: 'B',
+          message: 'mb',
+          channel: 'both',
+        },
+      ]);
+
+      expect(ws.emitNotificationEvent).toHaveBeenCalledTimes(1);
+      expect(ws.emitNotificationEvent).toHaveBeenCalledWith(
+        'user-b',
+        expect.objectContaining({ id: 'n-2' }),
+      );
     });
   });
 
@@ -898,8 +1026,8 @@ describe('NotificationsService — dismiss', () => {
     });
   });
 
-  describe('알림 설정 (§6.2) — getSettings / updateSettings / resolveOptOutEmailChannels', () => {
-    it('getSettings — prefs 없으면 타입별 기본값 해소 (integration off/opt-in, failures on/opt-out)', async () => {
+  describe('알림 설정 — getSettings / updateSettings / resolveNotificationChannels', () => {
+    it('getSettings — prefs 없으면 키별 기본값을 채운다 (인앱 켬, 실패 이메일 켬, 통합 이메일 끔)', async () => {
       userRepo.findOne.mockResolvedValue({
         id: 'u-1',
         notificationPreferences: {},
@@ -909,7 +1037,23 @@ describe('NotificationsService — dismiss', () => {
         integrationExpiryEmail: false,
         executionFailedEmail: true,
         scheduleFailedEmail: true,
+        executionFailedInApp: true,
+        scheduleFailedInApp: true,
+        integrationExpiryInApp: true,
+        dailyDigestEmail: false,
       });
+    });
+
+    it('updateSettings — dailyDigestEmail 을 저장한다 (일일 요약, CLE-T-BAXAN4)', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 'u-1',
+        notificationPreferences: {},
+      });
+      const s = await service.updateSettings('u-1', { dailyDigestEmail: true });
+      expect(userRepo.update).toHaveBeenCalledWith('u-1', {
+        notificationPreferences: { dailyDigestEmail: true },
+      });
+      expect(s.dailyDigestEmail).toBe(true);
     });
 
     it('getSettings — 저장된 값이 기본값보다 우선', async () => {
@@ -918,6 +1062,7 @@ describe('NotificationsService — dismiss', () => {
         notificationPreferences: {
           integrationExpiryEmail: true,
           executionFailedEmail: false,
+          scheduleFailedInApp: false,
         },
       });
       const s = await service.getSettings('u-1');
@@ -925,6 +1070,8 @@ describe('NotificationsService — dismiss', () => {
         integrationExpiryEmail: true,
         executionFailedEmail: false,
         scheduleFailedEmail: true, // 미설정 → 기본 on
+        scheduleFailedInApp: false,
+        executionFailedInApp: true, // 미설정 → 기본 on
       });
     });
 
@@ -935,17 +1082,31 @@ describe('NotificationsService — dismiss', () => {
       });
       const s = await service.updateSettings('u-1', {
         executionFailedEmail: false,
+        integrationExpiryInApp: false,
       });
       expect(userRepo.update).toHaveBeenCalledWith('u-1', {
         notificationPreferences: {
           integrationExpiryEmail: true,
           executionFailedEmail: false,
+          integrationExpiryInApp: false,
         },
       });
       expect(s).toMatchObject({
         integrationExpiryEmail: true, // 보존
         executionFailedEmail: false, // 갱신
+        integrationExpiryInApp: false, // 갱신
         scheduleFailedEmail: true,
+      });
+    });
+
+    it('updateSettings — DTO 에 없는 키는 저장하지 않는다', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 'u-1',
+        notificationPreferences: {},
+      });
+      await service.updateSettings('u-1', { bogus: true } as any);
+      expect(userRepo.update).toHaveBeenCalledWith('u-1', {
+        notificationPreferences: {},
       });
     });
 
@@ -954,24 +1115,38 @@ describe('NotificationsService — dismiss', () => {
       await expect(service.updateSettings('nope', {})).rejects.toThrow();
     });
 
-    it('resolveOptOutEmailChannels — pref false → in_app, 아니면 both, 미조회 사용자는 map 부재', async () => {
+    it('resolveNotificationChannels — 두 키로 네 결과를 고르고 조회되지 않은 사용자는 기본값으로 채운다', async () => {
       userRepo.find.mockResolvedValue([
         { id: 'a', notificationPreferences: { executionFailedEmail: false } },
         { id: 'b', notificationPreferences: {} },
+        {
+          id: 'd',
+          notificationPreferences: { executionFailedInApp: false },
+        },
+        {
+          id: 'e',
+          notificationPreferences: {
+            executionFailedInApp: false,
+            executionFailedEmail: false,
+          },
+        },
       ]);
-      const map = await service.resolveOptOutEmailChannels(
-        ['a', 'b', 'c'],
-        'executionFailedEmail',
+      const map = await service.resolveNotificationChannels(
+        ['a', 'b', 'c', 'd', 'e', 'a'],
+        'execution_failed',
       );
       expect(map.get('a')).toBe('in_app');
       expect(map.get('b')).toBe('both');
-      expect(map.has('c')).toBe(false); // 미조회 → 호출부가 ?? 'both' 폴백
+      expect(map.get('c')).toBe('both'); // 미조회 → 기본값
+      expect(map.get('d')).toBe('email');
+      expect(map.get('e')).toBeNull(); // 둘 다 끔 → 보내지 않음
+      expect(map.size).toBe(5);
     });
 
-    it('resolveOptOutEmailChannels — 빈 배열이면 조회 없이 빈 map', async () => {
-      const map = await service.resolveOptOutEmailChannels(
+    it('resolveNotificationChannels — 빈 배열이면 조회 없이 빈 map', async () => {
+      const map = await service.resolveNotificationChannels(
         [],
-        'scheduleFailedEmail',
+        'schedule_failed',
       );
       expect(map.size).toBe(0);
       expect(userRepo.find).not.toHaveBeenCalled();

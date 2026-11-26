@@ -2,32 +2,33 @@
 id: "CLE-ACCT-PROFILE"
 title: "내 프로필"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-PROFILE-001", "REQ-PROFILE-002", "REQ-PROFILE-003", "REQ-PROFILE-004", "REQ-PROFILE-005", "REQ-PROFILE-006", "REQ-PROFILE-007", "REQ-PROFILE-008", "REQ-PROFILE-009", "REQ-PROFILE-010", "REQ-PROFILE-011", "REQ-PROFILE-012", "REQ-PROFILE-013", "REQ-PROFILE-014", "REQ-PROFILE-015", "REQ-PROFILE-016", "REQ-PROFILE-017", "REQ-PROFILE-018", "REQ-PROFILE-019", "REQ-PROFILE-020", "REQ-PROFILE-021", "REQ-PROFILE-022", "REQ-PROFILE-023", "REQ-PROFILE-024", "REQ-PROFILE-025", "REQ-PROFILE-026", "REQ-PROFILE-027", "REQ-PROFILE-028", "REQ-PROFILE-029"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "f4e98937a3132bbc19690d34b8a917e32953920e68930f5930cc33bc7736ceae"
+content_hash: "7c171ec3d3a8966f4b53f36d3f97387e7f09f6edb04ccbb535e8214d14c41e05"
 read_as: "approved_fallback"
-task: "CLE-T-BW72A8"
+task: "CLE-T-EJFQ1Y"
 source_paths: ["spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "b06867c5493f3e30227048eab0a12cb673f1fee7dcb820105d6e3641577a8b14"
-etag: "sha256-9c75352b9b40631b9d4aaf1ebf871f9d70da913eda935d08243023de4e975689"
+mirror_sha256: "2120a92fdede855a753bf8ffa96c496eebc2f08aab3448418e3713578405fbf1"
+etag: "sha256-d201db969b015c4e03c0f1ec76fd1c21c10306d62edeecc6828ea96054d8ef34"
 ---
-> 구현 상태: 부분 구현 (알림 설정 화면으로 가는 링크는 미구현) · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/2-navigation/9-user-profile.md` (§1, §2, §6.1 사용자 행, Rationale), `spec/2-navigation/_layout.md` (§3.2), `spec/2-navigation/_product-overview.md` (§3.12 NAV-UP-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
 이 문서는 사이드바 아래쪽의 사용자 영역과 내 프로필(profile) 화면을 정한다. 사용자 영역을 누르면 열리는 팝업, `/profile` 의 표시와 편집 방식, 이름·아바타·언어·테마 같은 개인 정보와 환경설정, 비밀번호 변경 화면, 이를 받치는 사용자 API(`/api/users/me`)가 범위다.
 
-내 프로필 화면은 보안 관련 하위 화면으로 가는 입구이기도 하다. 그 하위 화면의 규칙은 각 소유 문서가 정한다.
+내 프로필 화면은 보안 관련 하위 화면과 알림 설정 화면으로 가는 입구이기도 하다. 그 하위 화면의 규칙은 각 소유 문서가 정한다.
 
 - 이메일 변경 화면(`/profile/change-email`)과 2단계 인증 설정 화면(`/profile/security`): [가입과 로그인](CLE-ACCT-SIGNIN.md)
 - 활성 세션·로그인 이력 화면(`/profile/sessions`)과 비밀번호 변경 뒤 세션 처리: [세션과 토큰](CLE-ACCT-SESSION.md)
 - 로그인 이력 이벤트와 보존: [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)
-- 알림 벨, 알림 설정, 알림 규칙 화면(`/profile/alerts`)과 알림 API: [알림](../CLE-OBS/CLE-OBS-NOTIFY.md)
+- 알림 벨, 알림 규칙 화면(`/profile/alerts`)과 알림 API: [알림](../CLE-OBS/CLE-OBS-NOTIFY.md)
+- 알림 설정 화면(`/profile/notifications`): [알림 — 알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md)
 - 워크스페이스 전환 블록과 워크스페이스 관리 화면: [워크스페이스와 멤버](CLE-ACCT-WS.md)
 - 사이드바 메뉴 구성과 슬러그 라우팅: [레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)
 - 아바타 파일의 저장 키와 버킷 정책: [파일 저장소](../CLE-PLAT/CLE-PLAT-STORAGE.md)
@@ -39,9 +40,9 @@ etag: "sha256-9c75352b9b40631b9d4aaf1ebf871f9d70da913eda935d08243023de4e975689"
 - REQ-PROFILE-002 WHEN 사용자가 사이드바의 아바타를 누르면 THE SYSTEM SHALL 내 프로필과 로그아웃 두 항목만 있는 팝업을 연다. (원본: NAV-UP-02)
 - REQ-PROFILE-003 WHEN 사용자가 팝업의 내 프로필을 누르면 THE SYSTEM SHALL `/profile` 로 이동한다.
 - REQ-PROFILE-004 WHEN 사용자가 팝업의 로그아웃을 누르면 THE SYSTEM SHALL 세션을 끝내고 로그인 화면으로 이동한다. (원본: NAV-UP-03)
-- REQ-PROFILE-005 WHEN 사용자가 내 프로필 화면의 알림 설정 링크를 누르면 THE SYSTEM SHALL 알림 설정 화면으로 이동한다. (원본: NAV-UP-02) (미구현: CLE-T-EJFQ1Y)
+- REQ-PROFILE-005 WHEN 사용자가 내 프로필 화면의 알림 설정 링크를 누르면 THE SYSTEM SHALL 알림 설정 화면으로 이동한다. (원본: NAV-UP-02)
 - REQ-PROFILE-006 WHEN 사이드바를 그리면 THE SYSTEM SHALL 워크스페이스 전환과 관리는 팝업 밖 워크스페이스 전환 블록에 두고 테마 전환은 프로필 환경설정 카드에 둔다.
-- REQ-PROFILE-007 WHEN 사용자가 `/profile` 을 열면 THE SYSTEM SHALL 사용자 정보·비밀번호·환경설정·보안 카드를 읽기 전용으로 보여 준다.
+- REQ-PROFILE-007 WHEN 사용자가 `/profile` 을 열면 THE SYSTEM SHALL 사용자 정보·비밀번호·환경설정·보안·알림 설정 카드를 읽기 전용으로 보여 준다.
 - REQ-PROFILE-008 WHEN 사용자가 사용자 정보 카드나 환경설정 카드의 [편집] 을 누르면 THE SYSTEM SHALL 그 카드만 입력 가능하게 바꾸고 [취소]·[저장] 을 보여 준다.
 - REQ-PROFILE-009 WHEN 사용자가 인라인 편집 카드에서 [저장] 을 누르면 THE SYSTEM SHALL 변경 전·후 diff 확인 모달을 한 번 거친 뒤 PATCH 를 보낸다.
 - REQ-PROFILE-010 WHILE 환경설정 카드를 편집하는 동안 THE SYSTEM SHALL 테마 미리보기를 로컬 임시 상태에만 적용하고 [취소] 나 모달 닫기 때 원래 테마로 되돌린다.
@@ -92,7 +93,7 @@ etag: "sha256-9c75352b9b40631b9d4aaf1ebf871f9d70da913eda935d08243023de4e975689"
 | 워크스페이스 전환 | 사용자 영역 위의 독립 워크스페이스 전환 블록. 개인·팀 그룹, 현재 워크스페이스 표시, 전환이 들어 있다([워크스페이스와 멤버](CLE-ACCT-WS.md)) |
 | 워크스페이스 관리 | 워크스페이스 전환 블록 하단의 "여기 설정"(`/workspace/settings`) 링크와 새 팀 워크스페이스 만들기. 역할별 노출은 그 화면이 처리한다 |
 | 테마 전환 | 사이드바가 아니라 `/profile` 의 환경설정 카드. 라이브 미리보기를 제공한다(`app/(main)/w/[slug]/profile/components/profile-preferences-card.tsx`) |
-| 알림 설정 | `/profile` 의 링크로 들어가는 알림 설정 화면. 인앱 토글과 이메일 토글, 일일 요약 토글이 한 화면에 있다([알림 — 알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md)). 미구현(CLE-T-EJFQ1Y). `/profile/alerts` 는 알림 규칙 화면이라 이 항목과 별개다 |
+| 알림 설정 | `/profile` 의 알림 설정 카드 링크로 들어가는 `/profile/notifications`(실제 URL `/w/<slug>/profile/notifications`). `/profile/alerts` 는 알림 규칙 화면이라 이 항목과 별개다 |
 
 ## 내 프로필 화면
 
@@ -105,7 +106,8 @@ etag: "sha256-9c75352b9b40631b9d4aaf1ebf871f9d70da913eda935d08243023de4e975689"
 | 사용자 정보 카드 | 상단 | 아바타, Name, Email | 카드 오른쪽 위 [편집] 으로 아바타·이름 인라인 편집. Email 옆 [변경하기 →] 로 `/profile/change-email` 이동. 확인 대기 중인 이메일 변경이 있으면 [재발송]·[취소] 와 함께 보인다 |
 | 비밀번호 카드 | 사용자 정보 아래 | "현재 비밀번호 확인이 필요합니다" 안내 | [변경하기 →] 로 `/profile/change-password` 이동 |
 | 환경설정 카드 | 비밀번호 아래 | Language, Theme | 카드 오른쪽 위 [편집] 으로 인라인 편집 |
-| 보안 카드 | 하단 | [2FA 설정 →], [활성 세션·로그인 이력 →] 링크 | `/profile/security`, `/profile/sessions` 로 이동 |
+| 보안 카드 | 환경설정 아래 | [2FA 설정 →], [활성 세션·로그인 이력 →] 링크 | `/profile/security`, `/profile/sessions` 로 이동 |
+| 알림 설정 카드 | 하단 | 벨 아이콘과 "알림 종류별로 벨 알림과 이메일을 켜고 끄세요" 안내가 있는 링크 | `/profile/notifications` 로 이동 |
 
 ### 편집 방식
 
@@ -115,6 +117,7 @@ etag: "sha256-9c75352b9b40631b9d4aaf1ebf871f9d70da913eda935d08243023de4e975689"
 | 전용 페이지 | 비밀번호 | `/profile/change-password` 로 이동한다. 페이지에 들어가는 것 자체가 "지금 비밀번호를 바꾸려 한다" 는 의도 표시다. OAuth 전용 계정 안내는 아래 [비밀번호 변경](#비밀번호-변경) |
 | 전용 페이지 | 이메일 | 이 화면은 표시와 [변경하기 →] 만 둔다. `/profile/change-email` 에서 계정 재인증, 새 이메일 확인 메일, 링크 확인 순서로 확정한다([가입과 로그인](CLE-ACCT-SIGNIN.md)) |
 | 별도 하위 화면 | 2단계 인증, 활성 세션·로그인 이력 | 보안 카드 링크로 `/profile/security`([가입과 로그인](CLE-ACCT-SIGNIN.md)), `/profile/sessions`([세션과 토큰](CLE-ACCT-SESSION.md)) 에 들어간다 |
+| 별도 하위 화면 | 알림 설정 | 알림 설정 카드 링크로 `/profile/notifications` 에 들어간다. 토글을 바꿀 때마다 바로 저장한다([알림 — 알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md)) |
 
 ### 프로필 필드
 
@@ -201,7 +204,7 @@ etag: "sha256-9c75352b9b40631b9d4aaf1ebf871f9d70da913eda935d08243023de4e975689"
 ## 구현 위치
 
 - `codebase/frontend/src/components/layout/sidebar.tsx` (사용자 영역과 팝업)
-- `codebase/frontend/src/app/(main)/w/[slug]/profile/**` (`/profile`, `change-password`, 카드 컴포넌트. 환경설정 카드는 `components/profile-preferences-card.tsx`)
+- `codebase/frontend/src/app/(main)/w/[slug]/profile/**` (`/profile`, `change-password`, 카드 컴포넌트. 환경설정 카드는 `components/profile-preferences-card.tsx`, 알림 설정 화면은 `notifications/`)
 - `codebase/frontend/src/lib/stores/theme-store.ts`, `codebase/frontend/src/lib/stores/locale-store.ts`
 - `codebase/frontend/src/lib/theme/**` (테마 적용 · 첫 화면 인라인 스크립트 · 앱 전체 동기화 `theme-sync.tsx`)
 - `codebase/frontend/src/app/layout.tsx` (`<head>` 의 테마 인라인 스크립트)
@@ -214,6 +217,7 @@ etag: "sha256-9c75352b9b40631b9d4aaf1ebf871f9d70da913eda935d08243023de4e975689"
 - `codebase/backend/test/users-theme.e2e-spec.ts` (테마 저장과 범위 밖 값 거부)
 - `codebase/backend/test/users-me-two-factor.e2e-spec.ts` (`GET /api/users/me` 의 `twoFactorEnabled` 가 TOTP 켜기 · 끄기를 따르고 민감 컬럼을 싣지 않는다)
 - `codebase/frontend/e2e/profile/theme.spec.ts` (저장한 테마가 다른 화면을 새로 고쳐도 적용되고 `system` 이 OS 변경을 따른다)
+- `codebase/frontend/e2e/profile/notification-settings.spec.ts` (알림 설정 화면의 토글 저장)
 
 ## Rationale
 

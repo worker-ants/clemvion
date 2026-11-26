@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS"
 title: "통합 상태와 만료 알림"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-INTSTAT-001", "REQ-INTSTAT-002", "REQ-INTSTAT-003", "REQ-INTSTAT-004", "REQ-INTSTAT-005", "REQ-INTSTAT-006", "REQ-INTSTAT-007", "REQ-INTSTAT-008", "REQ-INTSTAT-009", "REQ-INTSTAT-010", "REQ-INTSTAT-011", "REQ-INTSTAT-012", "REQ-INTSTAT-013", "REQ-INTSTAT-014", "REQ-INTSTAT-015", "REQ-INTSTAT-016", "REQ-INTSTAT-017", "REQ-INTSTAT-018", "REQ-INTSTAT-019", "REQ-INTSTAT-020", "REQ-INTSTAT-021", "REQ-INTSTAT-022", "REQ-INTSTAT-023", "REQ-INTSTAT-024", "REQ-INTSTAT-025", "REQ-INTSTAT-026", "REQ-INTSTAT-027", "REQ-INTSTAT-028", "REQ-INTSTAT-029", "REQ-INTSTAT-030", "REQ-INTSTAT-031", "REQ-INTSTAT-032", "REQ-INTSTAT-033", "REQ-INTSTAT-034", "REQ-INTSTAT-035", "REQ-INTSTAT-036", "REQ-INTSTAT-037", "REQ-INTSTAT-038", "REQ-INTSTAT-039", "REQ-INTSTAT-040"]
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "067f7c5f47973db4c306f47b80774cf0974b52d3a5e73b1ee4bac2015e355217"
+content_hash: "8858fc9705bd3ae91efec45c798803d8bb2d0b8f3693f95aba2bb4accb6a46dd"
 read_as: "approved_fallback"
-task: "CLE-T-GZRYQ3"
+task: "CLE-T-EJFQ1Y"
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "bad3b128241dcbe4f13dcbc4ab4ab8d813089caeab5633af9686adb2975df5ea"
-etag: "sha256-d62652ea89849c986094780fd608d343e654ae99859b3a84be83cf8b0a1238c2"
+mirror_sha256: "93c617af1b51014638a3b6cbc41495fd76368390c9d99f1330d637ea5de6d1db"
+etag: "sha256-4730e437ed73b6f9fc36b95c09b5b588e756ef00bdba778139c028b763a99f38"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§2.2~§2.4 상태 표시·주의 필요, §6, §11, 관련 Rationale), `spec/data-flow/5-integration.md` (§1.4, §3), `spec/4-nodes/4-integration/_product-overview.md` (§2.3, INT-AU-07), `spec/2-navigation/_product-overview.md` (NAV-IN-05) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -35,7 +35,7 @@ etag: "sha256-d62652ea89849c986094780fd608d343e654ae99859b3a84be83cf8b0a1238c2"
 - 통합 화면 전체와 관리 API 는 [통합 관리](CLE-INT-MANAGE.md) 가 정한다.
 - 토큰 갱신 경로(호출 직전 갱신, 401 뒤 갱신, 갱신 큐)와 OAuth 콜백 에러 매핑은 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md) 이 정한다.
 - 컬럼 정의와 테이블 흐름은 [통합 데이터와 흐름](CLE-INT-DATA.md) 이 정한다.
-- 인앱 알림의 공통 저장·채널 계산·중복 방지 헬퍼, 알림 설정 화면은 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다.
+- 인앱 알림의 공통 저장과 중복 방지 헬퍼는 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) 이 정한다. 채널 계산과 알림 설정 화면은 [알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md) 이 정한다.
 
 ## 요구사항
 
@@ -70,7 +70,7 @@ etag: "sha256-d62652ea89849c986094780fd608d343e654ae99859b3a84be83cf8b0a1238c2"
 - REQ-INTSTAT-029 WHEN `usage-log-prune` 작업이 돌면 THE SYSTEM SHALL 90일이 지난 활동 로그를 지운다. (원본: INT-ST-02)
 - REQ-INTSTAT-030 WHEN 통합이 `error` 로 바뀌면 THE SYSTEM SHALL 전이가 일어난 그 자리에서 조치 필요 알림을 보낸다.
 - REQ-INTSTAT-031 WHEN 만료 알림이나 조치 필요 알림을 보내면 THE SYSTEM SHALL 개인 통합은 통합 소유자에게, 조직 통합은 관리자 전원에게 보낸다.
-- REQ-INTSTAT-032 WHEN 수신자가 통합 이메일 알림(`integrationExpiryEmail`)을 켰으면 THE SYSTEM SHALL 만료 알림과 조치 필요 알림을 인앱과 이메일로 함께 보낸다. (원본: INT-ST-04)
+- REQ-INTSTAT-032 WHEN 만료 알림이나 조치 필요 알림을 보내면 THE SYSTEM SHALL 만료 알림을 수신자의 통합 인앱 키(`integrationExpiryInApp`)와 이메일 키(`integrationExpiryEmail`)로 고른 채널로 보내고 두 키를 다 끈 수신자에게는 보내지 않는다. 조치 필요 알림은 인앱으로 늘 보내고 이메일 키를 켠 수신자에게는 이메일도 보낸다. (원본: INT-ST-04)
 - REQ-INTSTAT-033 IF 설치 대기 통합이 `install_timeout` 으로 만료되면 THE SYSTEM SHALL 인앱 알림을 보내지 않는다.
 - REQ-INTSTAT-034 WHEN 통합 재인증이 실패하면 THE SYSTEM SHALL `Reauthorization failed` 알림을 보낸다. (원본: INT-ST-04) (미구현)
 - REQ-INTSTAT-035 WHEN 통합 재인증이나 추가 권한 요청이 재설치 대기 표시를 남기면 THE SYSTEM SHALL 통합 상태와 상태 사유를 그대로 둔다.
@@ -172,3 +172,11 @@ etag: "sha256-d62652ea89849c986094780fd608d343e654ae99859b3a84be83cf8b0a1238c2"
 2026-11-19 에 연속 전송 실패 요구사항(REQ-INTSTAT-008)의 범위를 정했다(NERV Task `CLE-T-GZRYQ3` · `CLE-T-WMH3EK`). 사용자가 실행을 취소하거나 다른 분기 실패로 노드가 취소되면 요청이 `AbortError` 로 끝난다. 이것은 외부 서비스와의 연결이 실패한 것이 아니다. 이를 카운터에 넣으면 취소를 세 번 하는 것만으로 멀쩡한 통합이 `error(network)` 로 떨어지고 이후 실행이 모두 막힌다. 그래서 Cafe24 · MakeShop 클라이언트는 노드 취소 신호로 생긴 `AbortError` 를 카운터에 넣기 전에 다시 던진다.
 
 요청 자체 타임아웃은 외부 서비스가 제때 답하지 않은 것이라 transport 실패로 센다. 두 클라이언트는 요청마다 건 자체 타이머와 취소 리스너를 응답 본문을 다 읽을 때까지 유지한다. 그래서 본문을 읽는 중의 취소는 세지 않고, 본문을 읽는 중의 자체 타임아웃은 센다. 두 `AbortError` 를 가르는 방법은 [노드 취소 — 노드별 적용](../CLE-EXEC/CLE-EXEC-CANCEL-NODES.md#fetch-자체-타임아웃과의-연쇄)이 정한다.
+
+### 통합 알림도 유형별 인앱 끄기를 따른다
+
+결정일: 2026-11-20
+
+통합 이메일 요구사항(REQ-INTSTAT-032)은 이메일 키를 켠 수신자가 인앱과 이메일을 함께 받는다는 것만 적었다. 알림 유형별 인앱 키가 생기면서(NERV Task `CLE-T-EJFQ1Y`) 만료 알림은 인앱 키 `integrationExpiryInApp` 으로 벨을 끌 수 있게 됐다. 그래서 요구사항을 구현에 맞춰 고쳤다. 채널 규칙은 [알림 설정과 이메일 「채널 계산」](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md#채널-계산) 이 정본이다. 인앱 끄기를 둔 사용자 결정은 [알림 설정과 이메일 「인앱 끄기는 알림 행을 남기고 벨에서 숨긴다」](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md#인앱-끄기는-알림-행을-남기고-벨에서-숨긴다) 에 있다.
+
+조치 필요 알림에는 인앱 키를 두지 않았다. 통합이 오류가 된 것을 알리는 기본 경로가 인앱이고 이메일도 기본은 꺼져 있다. 인앱까지 끌 수 있으면 수신자가 오류를 알 길이 없다.

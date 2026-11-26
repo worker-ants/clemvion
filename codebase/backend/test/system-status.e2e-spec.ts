@@ -42,6 +42,7 @@ const EXPECTED_QUEUE_NAMES = [
   'chat-channel-token-rotator',
   'integration-expiry-scanner',
   'alerts-evaluator',
+  'notification-digest',
 ];
 
 const HEALTH_VALUES = ['healthy', 'degraded', 'down'];

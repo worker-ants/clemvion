@@ -2,6 +2,28 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MAIL_TRANSPORT_CONSOLE, MAIL_TRANSPORTER } from './mail.constants';
 import type { MailTransporter } from './mail.transporter';
+import { PRODUCT_DEFAULT_TIMEZONE } from '../../common/utils/timezone';
+import type { DailyDigest, DigestType } from './daily-digest.types';
+
+/** 요약에 모으는 유형(`DIGEST_TYPES`)마다 라벨이 있어야 컴파일된다. */
+const DIGEST_TYPE_LABELS: Record<DigestType, string> = {
+  execution_failed: '실행 실패',
+  schedule_failed: '스케줄 실패',
+  background_failed: '백그라운드 작업 실패',
+};
+
+function digestTypeLabel(type: string): string {
+  return (DIGEST_TYPE_LABELS as Record<string, string>)[type] ?? type;
+}
+
+const digestTimeFormat = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: PRODUCT_DEFAULT_TIMEZONE,
+  month: 'long',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
 
 @Injectable()
 export class MailService {
@@ -428,7 +450,11 @@ export class MailService {
     // 알림은 전용 페이지가 아니라 사이드바 벨 팝오버로 노출되므로, CTA 는 인증
     // 랜딩(`/dashboard`, auth redirect 의 canonical 타겟)으로 보낸다 — 거기서
     // 벨 팝오버로 알림을 확인. 전용 `/notifications` 라우트는 존재하지 않는다.
-    const notificationsUrl = `${this.frontendUrl}/dashboard`;
+    const notificationsUrl = this.notificationsUrl;
+    // 하단 수신 거부 링크는 알림 설정 화면으로 간다. 로그인 없이 끄는 공개 엔드포인트는 두지 않는다
+    // ([알림 설정 「알림 설정 화면과 수신 거부 링크」](CLE-OBS-NOTIFY-SETTINGS#알림-설정-화면과-수신-거부-링크)).
+    // slug 없는 경로는 프런트 catch-all 이 현재 워크스페이스로 보낸다.
+    const settingsUrl = this.notificationSettingsUrl;
 
     if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
       this.logger.debug(
@@ -443,8 +469,16 @@ export class MailService {
         // 워크플로/통합 이름 등 사용자 입력에서 유래할 수 있으므로 개행을 공백으로
         // 치환해 봉합한다 (본문 HTML 은 escapeHtml 이 별도로 방어).
         subject: notification.title.replace(/[\r\n]+/g, ' '),
-        html: this.buildNotificationHtml(notification, notificationsUrl),
-        text: this.buildNotificationText(notification, notificationsUrl),
+        html: this.buildNotificationHtml(
+          notification,
+          notificationsUrl,
+          settingsUrl,
+        ),
+        text: this.buildNotificationText(
+          notification,
+          notificationsUrl,
+          settingsUrl,
+        ),
       });
       this.logger.log(
         `Notification email sent to ${email} (${notification.type})`,
@@ -458,9 +492,28 @@ export class MailService {
     }
   }
 
+  /** 알림 메일의 CTA 대상. 인증 랜딩이고 거기서 벨 팝오버로 알림을 본다. */
+  private get notificationsUrl(): string {
+    return `${this.frontendUrl}/dashboard`;
+  }
+
+  /** 수신 거부 링크 대상. slug 없는 경로는 프런트 catch-all 이 현재 워크스페이스로 보낸다. */
+  private get notificationSettingsUrl(): string {
+    return `${this.frontendUrl}/profile/notifications`;
+  }
+
+  private unsubscribeFooterHtml(settingsUrl: string): string {
+    return `<p style="margin:0;font-size:12px;color:#999;border-top:1px solid #eee;padding-top:16px;">이 메일을 받고 싶지 않으면 <a href="${settingsUrl}" style="color:#999;">알림 설정</a>에서 끌 수 있어요.</p>`;
+  }
+
+  private unsubscribeFooterText(settingsUrl: string): string {
+    return `이 메일을 받고 싶지 않으면 알림 설정에서 끌 수 있어요:\n${settingsUrl}`;
+  }
+
   private buildNotificationHtml(
     notification: { title: string; message: string },
     notificationsUrl: string,
+    settingsUrl: string,
   ): string {
     const safeTitle = this.escapeHtml(notification.title);
     const safeMessage = this.escapeHtml(notification.message);
@@ -481,7 +534,8 @@ export class MailService {
               <a href="${notificationsUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;">알림 보기</a>
             </td></tr>
           </table>
-          <p style="margin:0;font-size:12px;color:#999;word-break:break-all;">${notificationsUrl}</p>
+          <p style="margin:0 0 24px;font-size:12px;color:#999;word-break:break-all;">${notificationsUrl}</p>
+          ${this.unsubscribeFooterHtml(settingsUrl)}
         </td></tr>
       </table>
     </td></tr>
@@ -493,8 +547,127 @@ export class MailService {
   private buildNotificationText(
     notification: { title: string; message: string },
     notificationsUrl: string,
+    settingsUrl: string,
   ): string {
     // plain text 파트라 HTML escape 불요 (렌더 컨텍스트가 마크업 아님).
-    return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}`;
+    return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}\n\n${this.unsubscribeFooterText(settingsUrl)}`;
+  }
+
+  /**
+   * 하루치 실패 알림 요약을 보낸다([알림 설정 「일일 요약」](CLE-OBS-NOTIFY-SETTINGS#일일-요약), CLE-T-BAXAN4).
+   * 시각은 제품 기본 시간대로 적는다. 실패하면 던지고, 호출자가 경고만 남긴다(재시도 없음).
+   */
+  async sendDailyDigestEmail(
+    email: string,
+    digest: DailyDigest,
+  ): Promise<void> {
+    const notificationsUrl = this.notificationsUrl;
+    const settingsUrl = this.notificationSettingsUrl;
+    const subject = `[Clemvion] 지난 24시간 실패 알림 ${digest.total}건`;
+
+    if (this.transportMode === MAIL_TRANSPORT_CONSOLE) {
+      this.logger.debug(
+        `Daily digest email for ${email}: total=${digest.total}`,
+      );
+    }
+
+    try {
+      await this.transporter.sendMail({
+        to: email,
+        subject,
+        html: this.buildDigestHtml(digest, notificationsUrl, settingsUrl),
+        text: this.buildDigestText(digest, notificationsUrl, settingsUrl),
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to send daily digest email to ${email}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+      throw err;
+    }
+  }
+
+  private buildDigestHtml(
+    digest: DailyDigest,
+    notificationsUrl: string,
+    settingsUrl: string,
+  ): string {
+    const sections = digest.workspaces
+      .map((ws) => {
+        const rows = ws.items
+          .map(
+            (item) =>
+              `<li style="margin:0 0 6px;font-size:14px;color:#333;">` +
+              `<span style="color:#999;">${this.escapeHtml(digestTimeFormat.format(item.createdAt))}</span> ` +
+              `[${this.escapeHtml(digestTypeLabel(item.type))}] ` +
+              `${this.escapeHtml(item.title)}</li>`,
+          )
+          .join('');
+        const rest = ws.total - ws.items.length;
+        const more =
+          rest > 0
+            ? `<li style="margin:0;font-size:13px;color:#999;list-style:none;">외 ${rest}건</li>`
+            : '';
+        return (
+          `<p style="margin:16px 0 8px;font-size:15px;color:#111;font-weight:600;">` +
+          `${this.escapeHtml(ws.name)} (${ws.total}건)</p>` +
+          `<ul style="margin:0;padding-left:20px;">${rows}${more}</ul>`
+        );
+      })
+      .join('');
+    const range = `${digestTimeFormat.format(digest.windowStart)} ~ ${digestTimeFormat.format(digest.windowEnd)}`;
+    return `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td>
+          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
+          <p style="margin:0 0 4px;font-size:16px;color:#111;font-weight:600;">지난 24시간 실패 알림 ${digest.total}건</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#999;">${this.escapeHtml(range)}</p>
+          ${sections}
+          <table cellpadding="0" cellspacing="0" style="margin:24px 0;">
+            <tr><td style="background:#111;border-radius:6px;padding:12px 32px;">
+              <a href="${notificationsUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;">알림 보기</a>
+            </td></tr>
+          </table>
+          ${this.unsubscribeFooterHtml(settingsUrl)}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`.trim();
+  }
+
+  private buildDigestText(
+    digest: DailyDigest,
+    notificationsUrl: string,
+    settingsUrl: string,
+  ): string {
+    const lines = [
+      `지난 24시간 실패 알림 ${digest.total}건`,
+      `${digestTimeFormat.format(digest.windowStart)} ~ ${digestTimeFormat.format(digest.windowEnd)}`,
+    ];
+    for (const ws of digest.workspaces) {
+      lines.push('', `${ws.name} (${ws.total}건)`);
+      for (const item of ws.items) {
+        lines.push(
+          `- ${digestTimeFormat.format(item.createdAt)} [${digestTypeLabel(item.type)}] ${item.title}`,
+        );
+      }
+      const rest = ws.total - ws.items.length;
+      if (rest > 0) lines.push(`  외 ${rest}건`);
+    }
+    lines.push(
+      '',
+      `알림 보기:\n${notificationsUrl}`,
+      '',
+      this.unsubscribeFooterText(settingsUrl),
+    );
+    return lines.join('\n');
   }
 }

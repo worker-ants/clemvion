@@ -184,9 +184,18 @@ export class User {
     integrationExpiryEmail?: boolean;
     // 워크플로우/스케줄 실행 실패 이메일 — **opt-out**(누락/true = 이메일 on,
     // 9-user-profile §5.1 기본 인앱+이메일). 사용자가 false 로 끄면 인앱만.
-    // 발사원 dispatch 가 `NotificationsService.resolveOptOutEmailChannels` 로 적용.
+    // 발사원 dispatch 가 `NotificationsService.resolveNotificationChannels` 로 적용.
     executionFailedEmail?: boolean;
     scheduleFailedEmail?: boolean;
+    // 유형별 인앱(벨) 토글 — **opt-out**(누락/true = 벨에 보임). 끄면 채널이 `email` 이 되거나
+    // 이메일도 꺼져 있으면 알림 행을 만들지 않는다. 키와 기본값의 정본은 CLE-OBS-NOTIFY-SETTINGS
+    // 「설정 키」, 계산은 `computeNotificationChannel` (CLE-T-EJFQ1Y).
+    executionFailedInApp?: boolean;
+    scheduleFailedInApp?: boolean;
+    integrationExpiryInApp?: boolean;
+    // 일일 요약 메일 — **opt-in**(누락/false = 보내지 않음). 매일 09:00 제품 기본 시간대에 지난 24시간의
+    // 실패 알림을 모아 보낸다. 정본은 CLE-OBS-NOTIFY-SETTINGS 「일일 요약」(CLE-T-BAXAN4).
+    dailyDigestEmail?: boolean;
   };
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

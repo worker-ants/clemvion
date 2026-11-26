@@ -2,19 +2,19 @@
 id: "CLE-PLAT-QUEUE"
 title: "비동기 큐와 Redis 키 목록"
 type: "design"
-version: 11
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "ac8ff0b1c878632e59dd1e07a1c9b39e1ecb5cd855cf88983670f7edc2c504fa"
+content_hash: "4fca099fcb0aa3789ddecae50999c85c1607685342f1e858b0fc58c1656663f6"
 read_as: "approved_fallback"
-task: "CLE-T-28MDF3"
+task: "CLE-T-BAXAN4"
 source_paths: []
-mirror_sha256: "69d48503cd18e5d9b074218399157031e03e3f412f52a43f52006e94d8b7a047"
-etag: "sha256-6f1983c426225b0b4f1600ab6eb221d99766aa1a544622265ed610fc969c26db"
+mirror_sha256: "2a68d2f09d2723dd8637f8c58dc9ae94f96f1049663eed0392dc8a59e5b434f5"
+etag: "sha256-c8b2b38edd486d9417f729a2958428838c9e5d35b66b35a59ac20b7e1852ed35"
 ---
 > 구현 상태: 구현됨 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -29,7 +29,7 @@ etag: "sha256-6f1983c426225b0b4f1600ab6eb221d99766aa1a544622265ed610fc969c26db"
 
 ## BullMQ 큐 목록
 
-현재 등록된 BullMQ 큐는 19개다. "반복 작업" 은 BullMQ job scheduler(`upsertJobScheduler`)로 주기 실행하는 내부 작업이다. 사용자가 만드는 스케줄과 다르다.
+현재 등록된 BullMQ 큐는 20개다. "반복 작업" 은 BullMQ job scheduler(`upsertJobScheduler`)로 주기 실행하는 내부 작업이다. 사용자가 만드는 스케줄과 다르다.
 
 | 큐 | 등록 모듈 | 생산자 | 소비자 | 작업 단위 | 상세 |
 | --- | --- | --- | --- | --- | --- |
@@ -42,6 +42,7 @@ etag: "sha256-6f1983c426225b0b4f1600ab6eb221d99766aa1a544622265ed610fc969c26db"
 | `schedule-execution` | `schedules.module.ts` | `ScheduleRunnerService` (스케줄마다 job scheduler 를 `upsertJobScheduler` 로 등록) | `ScheduleRunnerService` (`@Processor`) | 스케줄 1회 실행 트리거 | [스케줄](../CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | `alerts-evaluator` | `alerts.module.ts` | `AlertsEvaluatorService` (반복 작업 1개 `alerts-evaluator-5min`, 5분 주기 `*/5 * * * *` UTC) | 같은 서비스 | 작업 1회가 켜진(`enabled=true`) 알림 규칙 전체를 순회해 평가한다. 규칙마다 큐에 넣지 않는다 | [알림 §알림 규칙 평가](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-규칙-평가) |
 | `integration-expiry-scanner` | `integrations.module.ts` | `IntegrationExpiryScanner` (반복 작업 4종) | 같은 모듈의 처리기 | 작업 1회가 대상 통합 전체를 일괄 처리한다. `connected-expiry`·`pending-install-ttl`·`usage-log-prune` 은 매일 `0 0 * * *` UTC, `cafe24-background-refresh` 는 6시간마다 `0 */6 * * *` UTC | [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md) |
+| `notification-digest` | `notifications.module.ts` | `NotificationDigestService` (반복 작업 1개 `notification-digest-daily`, 매일 `0 9 * * *` `PRODUCT_DEFAULT_TIMEZONE`(Asia/Seoul)) | 같은 서비스 (`@Processor`, 동시 처리 1) | 작업 1회가 일일 요약을 켠 수신자 전체에게 요약 메일을 보낸다. 수신자는 500명씩 나눠 읽는다. 사람마다 큐에 넣지 않는다 | [알림 — 알림 설정과 이메일 「일일 요약」](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md#일일-요약) |
 | `cafe24-token-refresh` | `integrations.module.ts` · `cafe24.module.ts` | 다섯 곳: `Cafe24ApiClient` 의 호출 직전 갱신과 401 뒤 갱신(직접 넣고 `QueueEvents` 로 완료를 기다린다), `IntegrationExpiryScanner` 의 `cafe24-background-refresh` 반복 작업과 `connected-expiry` 당일 분기, `Cafe24McpToolProvider` 의 `expired` 자가 회복 | `Cafe24TokenRefreshProcessor` | Cafe24 통합 1건 토큰 갱신. source 별 jobId 전략과 보존 옵션은 상세 문서의 갱신 큐 표가 기준이다 | [OAuth 연결과 토큰 갱신 §갱신 큐](../CLE-INT/CLE-INT-OAUTH.md#갱신-큐) |
 | `makeshop-token-refresh` | `makeshop.module.ts` | 세 곳: `MakeshopApiClient` 의 호출 직전 갱신과 401 뒤 갱신, `MakeshopMcpToolProvider` 의 `refreshTokenViaQueue` (source `background` 자가 회복). 스캐너 반복 작업은 없다. 리프레시 토큰 수명은 30~90일이다 | `MakeshopTokenRefreshProcessor` | MakeShop 통합 1건 토큰 갱신. source 별 jobId 전략과 보존 옵션은 상세 문서의 갱신 큐 표가 기준이다 | [OAuth 연결과 토큰 갱신 §갱신 큐](../CLE-INT/CLE-INT-OAUTH.md#갱신-큐) · [MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md) |
 | `notification-webhook` | `external-interaction.module.ts` | `NotificationDispatcher` | `NotificationWebhookProcessor` | EIA 알림 웹훅 1건 발송 | [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) |
@@ -53,7 +54,7 @@ etag: "sha256-6f1983c426225b0b4f1600ab6eb221d99766aa1a544622265ed610fc969c26db"
 | `terminal-revoke-reconcile` | `external-interaction.module.ts` | `TerminalRevokeReconcilerService` (매분 반복 작업 `* * * * *`) | 같은 서비스 (`@Processor`, 동시 처리 1) | 종료된 실행에 남은 인터랙션 토큰을 훑어 폐기한다. 최소 1회 폐기를 보강한다(EIA-RL-06) | [External Interaction API](../CLE-IX/CLE-EIA.md) |
 | `webchat-idle-reaper` | `external-interaction.module.ts` | `WebChatIdleReaperService` (매분 반복 작업 `* * * * *`) | 같은 서비스 (`@Processor`, 동시 처리 1) | 웹채팅 위젯 유휴 실행 회수. 공개 웹훅(`auth_config_id IS NULL`)이 시작한 입력 대기 실행 가운데 실행 토큰 행이 하나 이상 있고 가장 늦은 `execution_token.exp_at` 뒤로 유예 시간(`WEBCHAT_IDLE_REAP_GRACE_MS`)이 지난 실행을 `cancelled`(`WEBCHAT_IDLE_TIMEOUT`)로 회수하고 토큰을 폐기한다. 토큰 행이 없는 실행은 대상이 아니다. 버려진 위젯 세션의 마지막 안전장치다(EIA-RL-07) | [External Interaction API](../CLE-IX/CLE-EIA.md) · [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 
-모니터링 레지스트리 `MONITORED_QUEUES` 는 이 표를 기준으로 삼는다. 현재 구현은 레지스트리에 `agent-memory-extraction` 이 빠져 있다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)).
+모니터링 레지스트리 `MONITORED_QUEUES` 는 이 표를 기준으로 삼는다. 현재 구현은 레지스트리에 `agent-memory-extraction` 이 빠져 있다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)). `notification-digest` 는 레지스트리의 시스템(`system`) 그룹에 동시 처리 1로 들어 있다.
 
 실행 엔진 큐(`execution-run` · `execution-continuation` · `background-execution`)의 재시도 · 작업 옵션과 DLQ 모니터링은 [실행 엔진 큐 옵션과 DLQ 모니터링](CLE-PLAT-QUEUE-ENGINE.md) 이 정한다.
 
@@ -100,6 +101,8 @@ etag: "sha256-6f1983c426225b0b4f1600ab6eb221d99766aa1a544622265ed610fc969c26db"
 | `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 노드](../CLE-NODE-INT/CLE-NODE-CAFE24.md) |
 | `auth:webauthn-auth-challenge:<challenge>` | `modules/auth` | [가입과 로그인 — Passkey 로그인 인증과 counter 역행 「Passkey 인증 챌린지 기록」](../CLE-ACCT/CLE-ACCT-SIGNIN-PKAUTH.md#passkey-인증-챌린지-기록). 로그인 2단계 Passkey 인증 챌린지를 한 번만 쓰게 하는 기록이다 |
 | `auth:password-recheck-failures:<userId>` | `modules/auth` | [HTTP API 규약 — 요청 빈도 제한 「비밀번호 재확인 실패 한도」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한). 사용자별 비밀번호 재확인 실패 카운터다 |
+| `throttle:hit:<key>` | `common/throttler` | [HTTP API 규약 — 요청 빈도 제한 「저장소」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한). 요청 빈도 제한(`ThrottlerModule`)의 고정 창 요청 수다. TTL 은 그 한도의 창 길이(ttl)이고 창의 첫 요청에 건다. `<key>` 는 `@nestjs/throttler` 가드가 만든 SHA-256 hex 라 IP 와 사용자 id 원문이 없다. Redis 를 쓸 수 없으면 서버 인스턴스마다 메모리 저장소로 센다 |
+| `throttle:block:<key>` | `common/throttler` | [HTTP API 규약 — 요청 빈도 제한 「저장소」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한). 한도를 넘은 키의 차단 표시다. 값은 차단할 때의 요청 수이고 TTL 은 차단 시간(blockDuration)이다. Redis 를 쓸 수 없으면 서버 인스턴스마다 메모리 저장소로 센다 |
 
 한 모듈이 접두를 여럿 쓴다. `external-interaction` 은 `iext:`·`interaction:`·`eia:` 를, `chat-channel` 은 긴 접두(`chat-channel:`·`chat-channel-lock:`)와 약어(`cc:`)를 함께 쓴다. `websocket` 은 `exec:seq`(이벤트 순번 키)와 `ws:sio`(adapter 채널 접두)를 함께 쓴다. `ws:sio` 는 라이브러리가 정하는 채널 이름의 접두라 예외로 둔다. 통일을 강제하지 않지만 모듈마다 접두가 더 늘지 않게 한다. 예외의 기준과 두 계열은 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 이 정한다.
 
@@ -138,9 +141,11 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 - `codebase/backend/src/modules/auth/webauthn/webauthn-auth-challenge.service.ts`
 - `codebase/backend/src/modules/auth/password-recheck-failure-limiter.service.ts`
 - `codebase/backend/src/modules/audit-logs/jobs/audit-log-pruner.service.ts`
+- `codebase/backend/src/modules/notifications/jobs/notification-digest.service.ts` (`notification-digest` 큐의 반복 작업 등록과 처리)
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts`
 - `codebase/backend/src/modules/websocket/ws-redis-adapter.ts`
 - `codebase/backend/src/common/redis/**/*.ts`
+- `codebase/backend/src/common/throttler/redis-throttler.storage.ts` (`throttle:hit:<key>` · `throttle:block:<key>`)
 - `codebase/backend/src/modules/system-status/system-status.constants.ts` (`MONITORED_QUEUES`)
 
 ## Rationale
@@ -151,13 +156,19 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 
 ### 작업 단위를 코드 동작 기준으로 적는 이유
 
-두 반복 큐(`alerts-evaluator` · `integration-expiry-scanner`)는 작업 하나가 대상 전체를 일괄 처리한다. 소유 문서([알림 §알림 규칙 평가](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-규칙-평가), [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md))의 서술에 맞춰 적는다.
+세 반복 큐(`alerts-evaluator` · `integration-expiry-scanner` · `notification-digest`)는 작업 하나가 대상 전체를 일괄 처리한다. 소유 문서([알림 §알림 규칙 평가](../CLE-OBS/CLE-OBS-NOTIFY.md#알림-규칙-평가), [통합 상태와 만료 알림](../CLE-INT/CLE-INT-STATUS.md), [알림 — 알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md))의 서술에 맞춰 적는다.
+
+### 일일 요약 큐는 Asia/Seoul 로 돈다
+
+결정일: 2026-11-20
+
+NERV Task `CLE-T-BAXAN4`. `alerts-evaluator` 와 `integration-expiry-scanner` 는 UTC 로 돈다. 주기만 맞으면 되는 내부 점검이라 사용자가 실행 시각을 보지 않는다. `notification-digest` 는 사용자가 받는 메일의 도착 시각이 곧 기능이다. 그래서 제품 기본 시간대 `PRODUCT_DEFAULT_TIMEZONE`(Asia/Seoul)의 오전 9시에 돈다. 같은 이유로 정리 작업 세 개(`login-history-pruner` · `audit-log-pruner` · `workspace-invitations-pruner`)도 Asia/Seoul 기준이다. 사용자별 시간대로 보내지 않는 이유는 [알림 — 알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md) 의 Rationale 에 있다.
 
 ### 지운 키 두 개 (2026-08-13)
 
 실행 엔진 키 표는 "실제로 쓰는 키만" 적는다고 선언했는데, 코드에 없는 두 항목이 있어 지웠다.
 
-- `core:{wsId}:rate:{userId}`(API 요청 빈도 제한): API 요청 빈도 제한은 `@nestjs/throttler` 를 storage 설정 없이 쓴다. 기본값인 메모리 카운터라 Redis 키가 없다. 여러 인스턴스가 함께 쓰는 분산 카운터 저장소가 들어오면 비슷한 키가 다시 생긴다. "영원히 없다" 가 아니라 "지금은 메모리, 분산 저장소가 들어오면 재검토" 다.
+- `core:{wsId}:rate:{userId}`(API 요청 빈도 제한): 그때 API 요청 빈도 제한은 `@nestjs/throttler` 를 storage 설정 없이 썼다. 기본값인 메모리 카운터라 Redis 키가 없었다. 2026-11-21 에 여러 서버 인스턴스가 함께 쓰는 분산 저장소를 들였다(NERV Task `CLE-T-JK1JFZ`). 지금 키는 [다른 모듈의 키](#다른-모듈의-키) 의 `throttle:hit:<key>` · `throttle:block:<key>` 이고 워크스페이스 세그먼트가 없다. 옛 이름 `core:{wsId}:rate:{userId}` 는 쓰지 않는다. 도입 이유는 [요청 빈도 제한 카운터를 Redis 에 두는 이유 (2026-11-21)](#요청-빈도-제한-카운터를-redis-에-두는-이유-2026-11-21) 에 있다.
 - `ws:{wsId}:session:{connId}`(WebSocket 세션): 소켓은 한 프로세스에 고정돼 프로세스 로컬 상태가 기준이다(`ws-rate-limiter.service.ts` 가 "Redis 없이" 를 명시). 이 항목을 근거로 "WebSocket 세션이 인스턴스 사이에 공유된다" 고 읽으면 정반대 전제가 된다.
 
 ### 실행 상태를 Redis 에 두지 않은 이유
@@ -171,3 +182,12 @@ BullMQ 내부 키(`bull:<queue>:*`)는 Redis 키지만 라이브러리가 이름
 ### WebSocket adapter 채널을 목록에 올린 이유 (2026-11-14)
 
 NERV Task `CLE-T-GDR39Z`. 새 pub/sub 채널은 이 목록에 한 줄을 더한다는 [Redis 키 명명 규약](../CLE-ENG/CLE-ENG-REDIS.md) 규칙 7 을 따라 `ws:sio` 채널을 올렸다. 이 채널은 2026-08-13 에 지운 `ws:{wsId}:session:{connId}` 와 다르다([지운 키 두 개](#지운-키-두-개-2026-08-13)). 연결 상태는 지금도 Redis 에 두지 않는다는 그 결정을 유지하고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 전달 방식을 고른 근거는 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다.
+
+### 요청 빈도 제한 카운터를 Redis 에 두는 이유 (2026-11-21)
+
+NERV Task `CLE-T-JK1JFZ`. 그전에는 `@nestjs/throttler` 기본 메모리 저장소라 서버 인스턴스마다 따로 셌다. 인스턴스가 여럿이면 한 클라이언트가 받는 한도가 인스턴스 수만큼 늘 수 있었다. 이제 `RedisThrottlerStorage` 가 공유 Redis 에 Lua 스크립트 하나로 고정 창과 차단 상태를 센다. Redis 가 없거나 명령이 실패하거나 250ms 안에 답하지 않으면 서버 인스턴스마다 메모리로 센다.
+
+- 기각: Redis 장애 때 제한을 끈다. 로그인 · 인증 라우트의 방어가 함께 사라진다.
+- 기각: 외부 패키지(`@nest-lab/throttler-storage-redis` 등)를 쓴다. 새 의존성을 심사하는 부담이 커서 사람이 뺐다(2026-11-20).
+
+250ms 상한과 실패 뒤 5초 대기의 근거는 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「저장소」 에 있다.

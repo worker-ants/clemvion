@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY-INBOX"
 title: "알림 — 벨 · 읽음과 닫기 · API · 데이터"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-NOTIFY"]
 area: "CLE-OBS"
-content_hash: "4ea6fe5e9a53da3d96223bdf14a1ac8468b8a872643502f50f45cc1291781389"
+content_hash: "79accb68c65957b560d5ab815e378f357417ec32f9a54759bb363d11815641ac"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-95XJDR"
 source_paths: []
-mirror_sha256: "a65982a2b04af30b54eff17ac429d73cc56c58bbc4688a6f95a328f0cc5ec5b6"
-etag: "sha256-e13c0e8ec3420b4c80d3d8411b2c21b102b4e8043a956ad6cad03fd9b899fb0b"
+mirror_sha256: "013a0fda7e4f54740e8510658f2bdd0912bb6bdd076622ac4de324baca75c1f4"
+etag: "sha256-acba5110b0c3c3d3277e686f005667c4d9bda20ee5e124cbf9e7386de8922408"
 ---
 ## 개요
 
@@ -25,7 +25,7 @@ etag: "sha256-e13c0e8ec3420b4c80d3d8411b2c21b102b4e8043a956ad6cad03fd9b899fb0b"
 ### 알림 벨
 
 - 사이드바 하단 사용자 영역 옆이나 사이드바 하단에 둔다.
-- 배지에는 보이는 알림 가운데 읽지 않은 수(`is_read=false AND dismissed_at IS NULL`)를 보인다. 99 를 넘으면 "99+" 다.
+- 배지에는 보이는 알림 가운데 읽지 않은 수(`is_read=false AND dismissed_at IS NULL AND channel <> 'email'`)를 보인다. 99 를 넘으면 "99+" 다.
 - 벨을 누르면 팝오버가 열린다.
 
 ### 팝오버
@@ -51,7 +51,7 @@ etag: "sha256-e13c0e8ec3420b4c80d3d8411b2c21b102b4e8043a956ad6cad03fd9b899fb0b"
 | `team_invite` | `/profile`(ID 불필요) | — |
 | 그 밖, 유형 없음 | 이동하지 않음 | — |
 
-`href.ts` 가 돌려주는 경로에는 워크스페이스 슬러그가 없다. 누르면 흡수 라우트(`(main)/[...rest]`)가 현재 워크스페이스의 `/w/<slug>/…`(`/workflows/<id>` 는 `/w/<slug>/workflows/<id>`)로 바꾼다. 알림은 늘 발사 시점의 워크스페이스 범위라 이 변환이 안전하다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)).
+`href.ts` 가 돌려주는 경로에는 워크스페이스 슬러그가 없다. 누르면 흡수 라우트(`(main)/[...rest]`)가 현재 워크스페이스의 `/w/<slug>/…`(`/workflows/<id>` 는 `/w/<slug>/workflows/<id>`)로 바꾼다. 초대 알림(`team_invite`)을 뺀 알림은 발사 시점의 워크스페이스 범위라 이 변환이 안전하다([레이아웃과 내비게이션](../CLE-UI/CLE-UI-LAYOUT.md)). 초대 알림은 어느 워크스페이스에서나 보이지만 목적지 `/profile` 이 워크스페이스와 무관한 화면이라 어느 워크스페이스로 바꿔도 같은 화면이 열린다.
 
 ## 읽음과 닫기
 
@@ -82,12 +82,14 @@ stateDiagram-v2
 
 닫기 축의 활성 상태는 `visible` 로 부른다. "active" 는 `Workflow.is_active` 같은 켜짐·꺼짐 뜻으로 이미 쓰이고 있어서다([Rationale](#보임과-닫힘이라는-어휘)).
 
+두 축과 별도로 채널이 `email` 인 행은 처음부터 벨에 나오지 않는다. 인앱을 끈 알림이다([알림 — 알림 설정과 이메일 「인앱 끄기」](CLE-OBS-NOTIFY-SETTINGS.md#인앱-끄기)).
+
 ### 닫기 엔드포인트
 
 | 엔드포인트 | 동작 | 권한 |
 | --- | --- | --- |
 | `POST /api/notifications/:id/dismiss` | 한 건 닫기. `UPDATE notification SET dismissed_at=now() WHERE id=:id AND user_id=:uid AND dismissed_at IS NULL`. 멱등이다. 본인 알림이면 이미 닫혀 있어도 성공한다 | 본인 알림만. 다른 사용자의 ID 는 404 |
-| `POST /api/notifications/dismiss-all` | 모두 닫기. `UPDATE notification SET dismissed_at=now() WHERE workspace_id=:ws AND user_id=:uid AND dismissed_at IS NULL`. 응답 `{ data: { affected: number } }` | 본인 알림 가운데 현재 워크스페이스 것만 |
+| `POST /api/notifications/dismiss-all` | 모두 닫기. `UPDATE notification SET dismissed_at=now() WHERE user_id=:uid AND (workspace_id=:ws OR type='team_invite') AND channel <> 'email' AND dismissed_at IS NULL`. 응답 `{ data: { affected: number } }` | 본인 알림 가운데 현재 워크스페이스 것과 초대 알림(`team_invite`) |
 
 응답 형식은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 의 응답 DTO 규약을 따른다.
 
@@ -97,7 +99,9 @@ stateDiagram-v2
 
 ### 목록과 수에 미치는 영향
 
-`GET /api/notifications` 와 `GET /api/notifications/unread-count` 는 **항상** `dismissed_at IS NULL` 로 거른다. 벨 배지도 같은 정의를 따른다(`is_read=false AND dismissed_at IS NULL`). 닫힌 알림을 보고 싶다는 요구는 아직 없어 조회 옵션을 두지 않는다. 필요해지면 그때 `?includeDismissed=true` 를 더한다.
+`GET /api/notifications` 와 `GET /api/notifications/unread-count` 는 **항상** `dismissed_at IS NULL` 과 `channel <> 'email'` 로 거른다. 벨 배지도 같은 정의를 따른다(`is_read=false AND dismissed_at IS NULL AND channel <> 'email'`). 모두 읽음과 모두 닫기도 `channel <> 'email'` 행만 바꾼다. 네 조회가 같은 조건 함수(`bellChannelClause`)를 쓴다. ID 로 하는 한 건 읽음(`PATCH /:id/read`)과 한 건 닫기(`POST /:id/dismiss`)는 채널을 보지 않는다. 벨에 나오지 않는 행의 ID 를 화면이 알 길이 없어서다.
+
+닫힌 알림을 보고 싶다는 요구는 아직 없어 조회 옵션을 두지 않는다. 필요해지면 그때 `?includeDismissed=true` 를 더한다.
 
 ### 보존
 
@@ -111,16 +115,18 @@ stateDiagram-v2
 
 모든 경로는 로그인한 본인의 알림만 다룬다.
 
-| 메서드 | 경로 | 설명 |
-| --- | --- | --- |
-| GET | `/api/notifications` | 알림 목록. 쿼리 `type`, `is_read`, `page`, `limit`. 닫힌 알림은 빠진다 |
-| GET | `/api/notifications/unread-count` | 읽지 않은 알림 수. 닫힌 알림은 빠진다 |
-| PATCH | `/api/notifications/:id/read` | 알림 한 건 읽음 처리 |
-| POST | `/api/notifications/mark-all-read` | 모두 읽음 처리 |
-| POST | `/api/notifications/dismiss-all` | 모두 닫기. `mark-all-read` 와 독립이다 |
-| POST | `/api/notifications/:id/dismiss` | 알림 한 건 닫기. 멱등이다 |
-| GET | `/api/notifications/settings` | 알림 이메일 토글 조회. 없는 키는 기본값으로 채운다([알림 설정과 이메일](CLE-OBS-NOTIFY-SETTINGS.md)) |
-| PATCH | `/api/notifications/settings` | 알림 이메일 토글 부분 수정. 보낸 키만 합친다 |
+| 메서드 | 경로 | 범위 | 설명 |
+| --- | --- | --- | --- |
+| GET | `/api/notifications` | 현재 워크스페이스 + 초대 알림 | 알림 목록. 쿼리 `type`, `isRead`, `page`, `limit`. 닫힌 알림과 채널 `email` 행은 빠진다 |
+| GET | `/api/notifications/unread-count` | 현재 워크스페이스 + 초대 알림 | 읽지 않은 알림 수. 닫힌 알림과 채널 `email` 행은 빠진다 |
+| PATCH | `/api/notifications/:id/read` | 사용자 | 알림 한 건 읽음 처리 |
+| POST | `/api/notifications/mark-all-read` | 현재 워크스페이스 + 초대 알림 | 모두 읽음 처리. 채널 `email` 행은 건드리지 않는다 |
+| POST | `/api/notifications/dismiss-all` | 현재 워크스페이스 + 초대 알림 | 모두 닫기. `mark-all-read` 와 독립이다. 채널 `email` 행은 건드리지 않는다 |
+| POST | `/api/notifications/:id/dismiss` | 사용자 | 알림 한 건 닫기. 멱등이다 |
+| GET | `/api/notifications/settings` | 사용자 | 알림 설정 조회. 인앱 키 셋, 이메일 키 셋, `dailyDigestEmail` 의 일곱 키를 돌려주고 없는 키는 기본값으로 채운다. 키와 기본값은 [알림 설정과 이메일 「설정 키」](CLE-OBS-NOTIFY-SETTINGS.md#설정-키) 가 정한다 |
+| PATCH | `/api/notifications/settings` | 사용자 | 알림 설정 부분 수정. 보낸 키만 합치고 일곱 키 전체의 해소값을 돌려준다 |
+
+「현재 워크스페이스」 는 `X-Workspace-Id` 헤더가 정한 워크스페이스다. 이 범위의 네 경로는 초대 알림(`team_invite`)만 워크스페이스와 무관하게 포함한다. 초대받은 사람은 아직 그 워크스페이스 멤버가 아니라서 그 워크스페이스로 전환할 수 없기 때문이다. 근거는 [알림 「초대 알림은 조회 쪽에서 워크스페이스 조건을 뺀다」](CLE-OBS-NOTIFY.md#초대-알림은-조회-쪽에서-워크스페이스-조건을-뺀다) 에 있다. 같은 네 경로는 채널 `email` 행을 뺀다.
 
 알림 규칙 API 는 [알림 — 알림 규칙](CLE-OBS-NOTIFY-RULES.md) 에 있다.
 
@@ -140,7 +146,7 @@ stateDiagram-v2
 | resource_id | UUID? | 관련 리소스 ID. 딥링크 대상. 실패류 알림은 워크플로우 ID |
 | background_run_id | UUID? | `background_failed` 알림의 본문 실행 귀속 전용 키(V107). 딥링크(`resource_type`·`resource_id`=워크플로우)와 분리했다. Background 본문 모니터링 API 만 읽는다. REST 에 싣지 않는다(`select: false`) |
 | is_read | Boolean | 읽음 여부. 기본 false |
-| channel | Enum | 알림 채널. `in_app` / `email` / `both` |
+| channel | Enum | 알림 채널. `in_app` / `email` / `both`. `email` 은 인앱을 끈 알림이라 벨 조회 네 곳과 `notification.new` 에서 빠진다 |
 | email_sent_at | Timestamp? | 이메일 발송 시각. NULL 이면 보내지 않았거나 실패 |
 | dismissed_at | Timestamp? | 사용자가 닫은 시각. NULL 이면 보임. 목록과 읽지 않은 수에서 빠진다 |
 | created_at | Timestamp | 생성 시각 |
@@ -149,7 +155,9 @@ stateDiagram-v2
 - 인덱스:
   - `(user_id, is_read, created_at DESC) WHERE dismissed_at IS NULL`: 사용자별 읽지 않은 알림 조회(벨 배지, 팝오버). 보이는 알림만 보므로 부분 인덱스다.
   - `(workspace_id, created_at DESC)`: 워크스페이스 단위 조회. 앞으로 관리자·감사 조회가 닫힌 알림까지 볼 여지를 두려고 부분 인덱스로 바꾸지 않았다.
+  - `(workspace_id, type, resource_id, created_at DESC)`(V053): 중복 방지 `hasRecentByResource` 조회.
   - `background_run_id WHERE background_run_id IS NOT NULL`(V107): 본문 실행 귀속 조회(`NotificationsService.findByBackgroundRun`, `created_at ASC`). Background 본문 모니터링 API(`background-runs.service.ts`)가 관련 `background_failed` 알림을 자기 응답에 함께 싣는 데 쓴다.
+  - 인앱 끄기와 일일 요약은 인덱스를 더하거나 바꾸지 않았다. 어느 인덱스에도 `channel` 이 없어서 벨 조회의 `channel <> 'email'` 은 인덱스로 찾은 행에 거는 조건이다.
 - 쓰기:
   - 저장: `INSERT workspace_id, user_id, type, title, message, resource_type?, resource_id?, background_run_id?, is_read=false, channel, email_sent_at?, dismissed_at=NULL`
   - 읽음: `UPDATE is_read=true`
@@ -162,13 +170,16 @@ stateDiagram-v2
 | --- | --- | --- |
 | WebSocket | 내부 전송 | `WebsocketService` 하나로 보낸다 |
 | SMTP | 내부에서 외부로 | `MailService` |
-| 사용자 설정 | 발사원이 읽음 | `user.notification_preferences`([알림 — 알림 설정과 이메일](CLE-OBS-NOTIFY-SETTINGS.md#알림-설정-저장)) |
+| 사용자 설정 | 발사원과 일일 요약 작업이 읽음 | `user.notification_preferences`. 발사원은 채널을 계산하고 일일 요약 작업은 받는 사람을 고른다([알림 — 알림 설정과 이메일](CLE-OBS-NOTIFY-SETTINGS.md#알림-설정-저장)) |
 
 ## 구현 위치
 
 - `codebase/backend/src/modules/notifications/notifications.controller.ts`
+- `codebase/backend/src/modules/notifications/notifications.service.ts` (`findAll`, `getUnreadCount`, `markAllRead`, `dismissAll`, 조회 조건 `inboxScopeClause` · `bellChannelClause`)
 - `codebase/frontend/src/components/layout/sidebar.tsx` (알림 벨과 팝오버)
 - `codebase/frontend/src/lib/notifications/*.ts` (필터와 딥링크)
+- `codebase/backend/test/notifications-team-invite-scope.e2e-spec.ts` (초대 알림의 조회 범위)
+- `codebase/backend/test/notification-settings-channel.e2e-spec.ts` (채널 `email` 행이 벨 조회에서 빠짐)
 
 ## Rationale
 

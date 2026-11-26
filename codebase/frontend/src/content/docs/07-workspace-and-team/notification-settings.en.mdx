@@ -1,0 +1,78 @@
+This page explains how to turn bell notifications and emails on or off separately, and how the daily digest email works.
+
+## Opening notification settings
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/w/[slug]/profile/page.tsx"
+  symbol="notifications"
+  describes="Link from the notification settings card on the profile page to the notification settings screen"
+/>
+
+<ImplAnchor
+  kind="component"
+  file="codebase/frontend/src/app/(main)/w/[slug]/profile/notifications/notification-settings-panel.tsx"
+  symbol="NotificationSettingsPanel"
+  describes="Per-type bell and email toggles and the daily digest switch"
+/>
+
+<Steps>
+<li>
+
+On the [Profile](/profile) page, click the **Notification settings** card.
+
+</li>
+<li>
+
+The [Notification settings](/profile/notifications) page opens. The **Notification settings** link at the bottom of a notification email takes you to the same page.
+
+</li>
+</Steps>
+
+## Turning bell and email on or off per type
+
+For each **Notification type**, you turn **Bell** and **Email** on or off separately. Changes are saved right away and *"Notification settings saved"* appears.
+
+| Notification type | Bell default | Email default |
+| --- | --- | --- |
+| Workflow run failed | On | On |
+| Schedule run failed | On | On |
+| Integration connection expiring | On | Off |
+
+- **Bell and email both on:** the notification appears in your bell list and you also get an email.
+- **Bell off only:** you get the email only. It doesn't show up in the bell list or the unread count.
+- **Email off only:** you get the bell notification only.
+- **Both off:** you don't receive that notification. The page also shows *"With both bell and email off, you won't receive this notification."*
+
+## Notifications you can't turn off here
+
+You can't turn off these notifications on this page.
+
+- Team invitations
+- Background failures
+- Alert rules
+- Integration action required
+
+<Callout type="note">
+  You create and delete alert rules on the [Alert rules](/profile/alerts) page. They work separately from the toggles on this page.
+</Callout>
+
+## Daily digest email
+
+Turn on the **Daily digest** switch (**Get the daily digest email**) to get one summary email a day. It is off by default.
+
+- It is sent every day at 9 AM (Korea time).
+- It collects the past 24 hours of workflow run failed, schedule run failed, and Background failure notifications into one email.
+- Notifications are grouped by workspace. Each workspace lists up to its 10 most recent items, and the rest are shown only as a count.
+- No email is sent on days with nothing to report.
+- If sending fails, the same digest is not sent again.
+
+### What goes into the digest
+
+The digest includes notifications that have the bell or the email turned on. Notifications with both bell and email turned off aren't included.
+
+If you turn off the immediate email but leave the bell on, that notification still goes into the digest. To get a day's notifications in one email instead of one by one, turn the email off and turn the daily digest on.
+
+<Callout type="tip">
+  If you get too many emails, turn off the run and schedule emails, keep the bell on, and turn on only the daily digest. You see things live in the bell and get just one email a day.
+</Callout>

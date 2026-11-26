@@ -1,8 +1,8 @@
 /**
  * 제품 기본 시간대. 워크스페이스 `settings.timezone` 이 없거나 무효일 때 스케줄과
- * AI 시스템 컨텍스트 접두가 함께 쓰는 폴백이다. 감사 로그 보존 배치의 실행 시각(03:30)도
- * 이 시간대로 정한다. 서버 `process.env.TZ` 는 읽지 않는다(CLE-ACCT-WS 「기본 시간대」,
- * CLE-T-TNZ3J9 결정).
+ * AI 시스템 컨텍스트 접두가 함께 쓰는 폴백이다. 감사 로그 보존 배치의 실행 시각(03:30)과
+ * 일일 요약 메일의 실행 시각(09:00)도 이 시간대로 정한다. 서버 `process.env.TZ` 는 읽지
+ * 않는다(CLE-ACCT-WS 「기본 시간대」, CLE-T-TNZ3J9 결정).
  */
 export const PRODUCT_DEFAULT_TIMEZONE = 'Asia/Seoul';
 
