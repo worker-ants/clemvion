@@ -13,6 +13,7 @@ import {
   resolveLanguageHint,
   resolveSessionExpiredMessage,
   applyPlaceholders,
+  readLanguageHintOverride,
 } from '../../shared/language-hint-defaults';
 
 const logger = new Logger('ChatChannelTelegram');
@@ -58,7 +59,7 @@ export function renderTelegramMessages(
       return renderAiMessage(event, config);
     case 'execution.completed':
       return renderText(
-        config.languageHints?.executionCompleted ??
+        readLanguageHintOverride(config.languageHints, 'executionCompleted') ??
           '워크플로우가 완료되었습니다.',
       );
     case 'execution.failed':
@@ -75,7 +76,7 @@ export function renderTelegramMessages(
         );
       }
       return renderText(
-        config.languageHints?.executionCancelled ??
+        readLanguageHintOverride(config.languageHints, 'executionCancelled') ??
           '워크플로우가 취소되었습니다.',
       );
     }
@@ -409,7 +410,7 @@ function renderButtons(
     (typeof buttonConfig?.prompt === 'string' && buttonConfig.prompt.length > 0
       ? buttonConfig.prompt
       : null) ??
-    config.languageHints?.buttonPrompt ??
+    readLanguageHintOverride(config.languageHints, 'buttonPrompt') ??
     '선택해 주세요.';
   const out: ChannelMessage[] = [];
 
@@ -491,7 +492,10 @@ function renderFormPrompt(
   const fields = Array.isArray(formConfig?.fields) ? formConfig.fields : [];
   if (fields.length === 0) {
     return renderText(
-      config.languageHints?.unsupportedInteraction ?? '폼이 비어 있습니다.',
+      readLanguageHintOverride(
+        config.languageHints,
+        'unsupportedInteraction',
+      ) ?? '폼이 비어 있습니다.',
     );
   }
   const currentIdx =
@@ -503,8 +507,10 @@ function renderFormPrompt(
   const field = fields[Math.min(currentIdx, fields.length - 1)];
   if (!field?.name || !field?.label) {
     return renderText(
-      config.languageHints?.unsupportedInteraction ??
-        '폼 필드가 잘못되었습니다.',
+      readLanguageHintOverride(
+        config.languageHints,
+        'unsupportedInteraction',
+      ) ?? '폼 필드가 잘못되었습니다.',
     );
   }
   const required = field.required === true;

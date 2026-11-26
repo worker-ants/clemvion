@@ -3,6 +3,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import type { Brackets } from 'typeorm';
 import {
@@ -32,7 +33,14 @@ import { WorkspaceMember } from '../workspaces/entities/workspace-member.entity'
 import { UNREADABLE_KEY } from './services/credentials-transformer';
 import { SERVICE_REGISTRY } from './services/service-registry';
 import { createTransport } from 'nodemailer';
-import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
+import {
+  EMAIL_HOST_BLOCKED_MESSAGE,
+  isSmtpHostBlocked,
+} from '../../nodes/integration/send-email/smtp-host-guard';
+import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+  SsrfBlockedError,
+} from '../../common/utils/ssrf/outbound-guard';
 import { testDatabaseConnection } from './database-connection-tester';
 import { testHttpConnection } from './http-connection-tester';
 
@@ -40,6 +48,7 @@ jest.mock('nodemailer', () => ({ createTransport: jest.fn() }));
 // SSRF 가드는 별도 unit spec(smtp-host-guard.spec.ts)이 검증한다. 여기서는
 // 실제 DNS 조회를 피하기 위해 모킹하고, 호출 여부·분기만 제어한다.
 jest.mock('../../nodes/integration/send-email/smtp-host-guard', () => ({
+  ...jest.requireActual('../../nodes/integration/send-email/smtp-host-guard'),
   isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
 }));
 // Database · HTTP 테스터 자체는 각자의 unit spec 이 검증한다. 여기서는 dispatchTest 배선만 본다 —
@@ -594,10 +603,10 @@ describe('IntegrationsService', () => {
         expect(result.autoRefresh).toBe(true);
       });
 
-      it('returns true for google (refresh_token 발급 provider)', async () => {
+      it('returns false for google (갱신 경로가 없어 만료를 주의 필요에 드러낸다 — CLE-T-81270P)', async () => {
         // Default makeIntegration uses serviceType='google'.
         const result = await service.findById('int-1', 'ws-1', 'user-1');
-        expect(result.autoRefresh).toBe(true);
+        expect(result.autoRefresh).toBe(false);
       });
 
       it('returns true for makeshop (auth-code + refresh rotation — spec §5.9)', async () => {
@@ -1088,6 +1097,73 @@ describe('IntegrationsService', () => {
       expect(result.code).toBe('EMAIL_HOST_BLOCKED');
       // 차단 시 실제 SMTP 연결을 시도하지 않아야 한다.
       expect(mockedCreateTransport).not.toHaveBeenCalled();
+    });
+
+    // CLE-T-PTCRM4 — 연결할 때 푼 주소의 판정(getSocket)과 가드 고장 처리.
+    it('transport 에 연결 시점 판정 getSocket 을 싣는다', async () => {
+      integrationRepo.findOne.mockResolvedValue(makeEmailIntegration());
+      const verify = jest.fn().mockResolvedValue(true);
+      mockedCreateTransport.mockReturnValue({ verify, close: jest.fn() });
+
+      await service.testConnection('int-1', 'ws-1', 'user-1');
+
+      expect(mockedCreateTransport).toHaveBeenCalledWith(
+        expect.objectContaining({ getSocket: expect.any(Function) }),
+      );
+    });
+
+    it('연결할 때 막히면 EMAIL_HOST_BLOCKED 와 고정 문구를 내고 차단된 주소를 싣지 않는다', async () => {
+      integrationRepo.findOne.mockResolvedValue(makeEmailIntegration());
+      const blocked = new SsrfBlockedError(
+        'hostname "smtp.example.com" resolved to restricted IP "10.0.0.7" at connect time',
+      );
+      const verify = jest.fn().mockRejectedValue(blocked);
+      const close = jest.fn();
+      mockedCreateTransport.mockReturnValue({ verify, close });
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      try {
+        const result = await service.testConnection('int-1', 'ws-1', 'user-1');
+
+        expect(result).toEqual({
+          success: false,
+          code: 'EMAIL_HOST_BLOCKED',
+          message: EMAIL_HOST_BLOCKED_MESSAGE,
+        });
+        expect(JSON.stringify(result)).not.toContain('10.0.0.7');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('10.0.0.7'));
+        expect(close).toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('가드가 판정이 아닌 오류로 실패하면 EMAIL_CONNECT_FAILED 와 고정 문구를 내고 연결하지 않는다', async () => {
+      integrationRepo.findOne.mockResolvedValue(makeEmailIntegration());
+      mockedIsSmtpHostBlocked.mockRejectedValueOnce(
+        new Error('resolver exploded at 10.9.8.7'),
+      );
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+
+      try {
+        const result = await service.testConnection('int-1', 'ws-1', 'user-1');
+
+        expect(result).toEqual({
+          success: false,
+          code: 'EMAIL_CONNECT_FAILED',
+          message: SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+        });
+        expect(mockedCreateTransport).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('resolver exploded'),
+        );
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 
@@ -3309,12 +3385,13 @@ describe('IntegrationsService', () => {
         const expected = SERVICE_REGISTRY.filter(
           (s) => s.supportsTokenAutoRefresh === true,
         ).map((s) => s.type);
-        // 파라미터는 registry 에서 파생 — 현재 cafe24/google/makeshop.
+        // 파라미터는 registry 에서 파생 — 현재 cafe24/makeshop. google 은 갱신 경로가 없어 빠진다(CLE-T-81270P).
         expect(expected.length).toBeGreaterThan(0);
         expect(notInCall?.[1]).toEqual({ autoRefreshServiceTypes: expected });
         expect(expected).toEqual(
-          expect.arrayContaining(['cafe24', 'google', 'makeshop']),
+          expect.arrayContaining(['cafe24', 'makeshop']),
         );
+        expect(expected).not.toContain('google');
       },
     );
 

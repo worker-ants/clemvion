@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH"
 title: "서비스별 인증 방식과 자격 증명"
 type: "design"
-version: 5
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "5655a3dabfda1325535c5e787c203f2c13a7cf58e6e0ade8f326b583aa3383be"
+content_hash: "b48d9f4aaed59b59a97119e0cae6e195701e23acd80cee3c441c501768597a7f"
 read_as: "approved_fallback"
-task: "CLE-T-E991S1"
+task: "CLE-T-81270P"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "4c67fa04e9de8618e7e4a4056c178cc5ffbd7a11c8a9f31ebb61d8e90e82b10f"
-etag: "sha256-b88fd6e3d51a1f4dc9349c187ae41288beb351259c5b8a870ac2d0599b1e5281"
+mirror_sha256: "99ddf2d14f4801c488233b361b95aed1bd33c71003d9da7ab6dad600ec8d2176"
+etag: "sha256-fd200190b792f39da9783b7743ad0acab35b9c6c7e48cf68f3df82c1462af968"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -61,6 +61,8 @@ etag: "sha256-b88fd6e3d51a1f4dc9349c187ae41288beb351259c5b8a870ac2d0599b1e5281"
 | `refresh_token` | string | ✓ | 🔒 |
 | `account_email` | string | ✓ | × |
 
+팝업 연결은 사용자가 고른 권한 범위에 `openid`·`email` 을 함께 요청한다. 토큰 교환 뒤 제공자의 userinfo 응답에서 `account_email` 을 채운다([팝업 연결과 콜백 「처리 순서」](CLE-INT-OAUTH-CALLBACK.md#처리-순서)). 저장되는 `scopes` 는 제공자가 돌려준 권한 범위라 `openid` 와 이메일 권한 범위가 함께 들어갈 수 있다.
+
 권한 범위는 서비스 묶음 체크박스로 고른다.
 
 | 묶음 | 권한 범위 값 |
@@ -83,6 +85,8 @@ GitHub 는 인증 유형 두 가지 중 하나를 고른다.
 | `scopes` | string[] | ✓ | × |
 | `access_token` | string | ✓ | 🔒 |
 | `login` | string | ✓ | × |
+
+OAuth2 연결은 토큰 교환 뒤 `GET https://api.github.com/user` 응답에서 `login` 을 채운다([팝업 연결과 콜백 「처리 순서」](CLE-INT-OAUTH-CALLBACK.md#처리-순서)).
 
 권장 권한 범위는 `repo`, `read:org` 이고 추가 선택지는 `workflow`, `gist` 다.
 
@@ -150,17 +154,17 @@ GitHub 는 인증 유형 두 가지 중 하나를 고른다.
 | `password` | string | ✓ | 🔒 |
 | `ssl` | enum `disable` \| `require` \| `verify-full` | ✓ | × |
 
-연결 테스트: 저장된(또는 입력한) 자격 증명으로 일회성 연결을 열어 `SELECT 1` 을 실행하고 닫는다. 연결과 `SELECT 1` 을 각각 10초까지 기다린다. 연결만 제한하면 인증 뒤 응답하지 않는 서버에 쿼리가 매달린다. SSL 매핑과 host 의 SSRF 가드는 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 와 같다.
+연결 테스트: 저장된(또는 입력한) 자격 증명으로 일회성 연결을 열어 `SELECT 1` 을 실행하고 닫는다. 연결과 `SELECT 1` 을 각각 10초까지 기다린다. 연결만 제한하면 인증 뒤 응답하지 않는 서버에 쿼리가 매달린다. SSL 매핑과 host 의 SSRF 가드는 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 와 같다. 연결 전 검사에 더해 연결할 때 푼 주소도 노드와 같은 대역으로 다시 판정한다. 일회성 연결은 노드 실행의 풀과 같은 연결 옵션 빌더를 써서 pg · mysql2 의 `stream` 팩토리로 판정을 거친 소켓에 연결한다([Database Query 노드 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-DBQUERY.md#사설망-차단)). `ALLOW_PRIVATE_HOST_TARGETS=true` 면 두 판정을 함께 끈다.
 
 | 결과 | 코드 |
 | --- | --- |
 | 성공 | `success: true` |
-| host 가 SSRF 가드에 차단됨 | `DB_HOST_BLOCKED` |
+| host 가 SSRF 가드에 차단됨(연결할 때 푼 주소가 막힌 대역인 경우 포함) | `DB_HOST_BLOCKED`. 메시지는 노드와 같은 고정 문구이고 차단된 host · IP 원문은 서버 경고 로그에만 남는다 |
 | SSRF 가드가 차단 판정이 아닌 오류를 냄(가드 고장) | `DB_CONNECT_FAILED`. 메시지는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. 연결을 열지 않는다 |
 | 인증 거부(PostgreSQL SQLSTATE class 28, MySQL `ER_ACCESS_DENIED_ERROR`·`ER_DBACCESS_DENIED_ERROR`) | `DB_AUTH_FAILED` |
 | 그 밖(네트워크·타임아웃·TLS·없는 database 등) | `DB_CONNECT_FAILED` |
 
-메시지에는 드라이버 원문을 길이를 제한해 싣는다. 가드 고장은 드라이버를 부르기 전에 끝나므로 이 규칙에 들지 않고 위 고정 문구를 싣는다. 비밀번호는 드라이버 원문에 없다. `DB_CONNECT_FAILED` 는 노드 실행의 `DB_CONNECTION_ERROR`(핸드셰이크 인증 실패까지 포함)와 모집합이 다르다. 연결 테스트는 인증 실패를 `DB_AUTH_FAILED` 로 먼저 가른다. 이 일회성 연결은 노드 실행의 커넥션 풀과 별개이며 풀에 남지 않는다.
+메시지에는 드라이버 원문을 길이를 제한해 싣는다. 차단과 가드 고장은 이 규칙에 들지 않고 위 고정 문구를 싣는다. 비밀번호는 드라이버 원문에 없다. `DB_CONNECT_FAILED` 는 노드 실행의 `DB_CONNECTION_ERROR`(핸드셰이크 인증 실패까지 포함)와 모집합이 다르다. 연결 테스트는 인증 실패를 `DB_AUTH_FAILED` 로 먼저 가른다. 이 일회성 연결은 노드 실행의 커넥션 풀과 별개이며 풀에 남지 않는다.
 
 ## Email (SMTP)
 
@@ -175,9 +179,14 @@ GitHub 는 인증 유형 두 가지 중 하나를 고른다.
 
 연결 테스트: `nodemailer` transporter 의 `verify()` 로 SMTP 연결, 인증, STARTTLS·TLS 핸드셰이크를 확인한다. 실제 메일은 보내지 않는다. 저장 전 연결 테스트, 저장 후 `:id/test`, 자격 증명 교체 세 경로 모두 실제 `verify()` 를 한다.
 
-실패 코드는 연결·인증·TLS 실패면 `EMAIL_CONNECT_FAILED`(nodemailer 원본 메시지 동반), host 가 SSRF 가드에 차단되면 `EMAIL_HOST_BLOCKED` 다.
+SMTP host 의 사설망 차단은 Send Email 노드와 같다. 막는 대역과 판정 시점은 [통합 노드 공통 — 에러 코드와 사설망 차단 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다. 연결 전에 host 를 해석해 검사하고, 연결할 때 푼 주소도 같은 대역으로 다시 판정한다. 두 번째 판정은 transport 옵션 `getSocket` 으로 가드가 TCP 소켓을 직접 열어 한다([Send Email 노드 「연결 시점 판정」](../CLE-NODE-INT/CLE-NODE-EMAIL.md#연결-시점-판정)). 셀프 호스팅은 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 두 판정을 함께 끈다(내부 SMTP relay 보존). 그러면 `getSocket` 을 싣지 않고 nodemailer 의 기본 연결을 쓴다. 연결 테스트와 Send Email 노드 발송에 똑같이 적용한다.
 
-SMTP host 는 [HTTP Request 노드](../CLE-NODE-INT/CLE-NODE-HTTP.md) 의 SSRF 가드와 같은 메커니즘과 플래그를 쓴다. 사설(RFC1918)·loopback·link-local·CGNAT·IPv6 사설 대역을 기본 차단하고, 셀프 호스팅은 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 끈다(내부 SMTP relay 보존). 연결 테스트와 Send Email 노드 발송에 똑같이 적용한다.
+| 결과 | 코드 |
+| --- | --- |
+| 성공 | `success: true` |
+| host 가 SSRF 가드에 차단됨(연결할 때 푼 주소가 막힌 대역인 경우 포함) | `EMAIL_HOST_BLOCKED`. 메시지는 노드와 같은 고정 문구이고 차단된 host · IP 원문은 서버 경고 로그에만 남는다 |
+| SSRF 가드가 차단 판정이 아닌 오류를 냄(가드 고장) | `EMAIL_CONNECT_FAILED`. 메시지는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. 연결을 열지 않는다 |
+| 연결·인증·TLS 실패 | `EMAIL_CONNECT_FAILED`. 메시지에는 nodemailer 원문을 길이를 제한해 싣는다 |
 
 ## MCP 서버
 
@@ -236,7 +245,8 @@ MCP 서버는 OAuth refresh token 을 갖지 않으므로 `token_expires_at` 이
 - `codebase/backend/src/modules/integrations/*-connection-tester.ts` (HTTP/REST · Database 연결 테스트)
 - `codebase/backend/src/modules/integrations/connection-test-codes.ts` (연결 테스트 결과 코드)
 - `codebase/backend/src/nodes/integration/http-request/http-credentials.ts` (HTTP/REST 인증 유형별 부착)
-- `codebase/backend/src/nodes/integration/send-email/smtp-host-guard.ts` (Email(SMTP) 사설 호스트 차단)
+- `codebase/backend/src/nodes/integration/database-query/database-connection.ts` (Database 연결 옵션 빌더와 연결 시점 판정 `stream` 팩토리. 노드와 연결 테스트가 함께 쓴다)
+- `codebase/backend/src/nodes/integration/send-email/smtp-host-guard.ts` (Email(SMTP) 연결 전 검사와 연결 시점 판정 `getSocket`. 노드와 연결 테스트가 함께 쓴다)
 - `codebase/backend/src/modules/mcp/mcp-test-connection.service.ts` (MCP 서버 연결 테스트)
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/_components/auth-step.tsx` (인증 유형 선택, 자격 증명 입력, 권한 범위 선택과 경고)
 - `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/_components/test-step.tsx` (저장 전 연결 테스트 화면)
@@ -278,3 +288,11 @@ SMTP host 도 사설·loopback 주소를 가리킬 수 있어 SSRF 표면이 된
 결정일: 2026-11-20
 
 HTTP · Database 연결 테스트에서 SSRF 가드가 차단 판정이 아닌 오류를 내면 전에는 가드 원문을 메시지에 실었다. 원문에는 host 이름이나 IP 가 들어 있을 수 있다. NERV Task `CLE-T-E991S1` 에서 코드(`HTTP_CONNECT_FAILED` · `DB_CONNECT_FAILED`)는 그대로 두고 메시지만 노드와 같은 고정 문구로 바꿨다. 결정의 근거는 [HTTP Request 노드 「가드 고장은 시점과 상관없이 같은 코드와 문구로 낸다」](../CLE-NODE-INT/CLE-NODE-HTTP.md#가드-고장은-시점과-상관없이-같은-코드와-문구로-낸다) 에 있다.
+
+### 연결 테스트도 연결할 때 푼 주소를 판정한다
+
+결정일: 2026-11-20
+
+NERV Task `CLE-T-691T4G`(Database) · `CLE-T-PTCRM4`(Email) 에서 두 연결 테스트도 노드와 같은 연결 시점 판정을 쓰게 했다. 연결 테스트만 연결 전 검사에 머물면 같은 자격 증명으로 테스트는 통과하는데 노드 실행은 막힐 수 있다. 테스트 결과와 노드 실행 결과가 갈리지 않도록 Database 는 노드와 같은 연결 옵션 빌더를, Email 은 노드와 같은 `getSocket` 을 쓴다. 방식과 기각한 대안은 [통합 노드 공통 — 에러 코드와 사설망 차단 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
+
+- Email 연결 테스트의 가드 고장은 코드를 `EMAIL_CONNECT_FAILED` 그대로 두고 메시지만 고정 문구 `The outbound address check failed.` 로 바꿨다. 2026-11-20 조율 세션에서 사람이 권장안을 골랐다. HTTP · Database 연결 테스트도 가드 고장을 각자의 연결 실패 코드로 내므로 같은 규칙을 따른다. 메시지를 고정한 이유는 [「연결 테스트도 가드 고장을 고정 문구로 알린다」](#연결-테스트도-가드-고장을-고정-문구로-알린다) 와 같다.

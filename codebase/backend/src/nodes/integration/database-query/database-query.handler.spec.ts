@@ -5,12 +5,16 @@ import {
   extractSqlVerb,
   isWriteOperation,
 } from './database-query.handler.js';
+import { Logger } from '@nestjs/common';
 import {
   assertSafeOutboundHostResolved,
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+  SsrfBlockedError,
 } from '../../../common/utils/ssrf/outbound-guard.js';
+import { DB_HOST_BLOCKED_MESSAGE } from './database-connection.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import { setEnvForEach, withEnv } from '../../../shared/testing/env';
 
 // 가드는 **실물 그대로** 쓴다(아래 차단 테스트들이 실제 대역 판정을 본다) — `jest.fn` 으로 감싸기만 해 한 테스트에서만
 // «판정 아닌 오류» 를 주입한다. `SsrfBlockedError` 도 실물이라 핸들러의 판정 분기가 그대로 동작한다.
@@ -174,6 +178,10 @@ function makeService(
     logUsage,
   };
 }
+
+// 차단 테스트는 가드가 켜진 상태를 가정한다. 바깥 환경에서 `ALLOW_PRIVATE_HOST_TARGETS` 를 켜 두어도 테스트마다 꺼진 값에서
+// 시작하고 끝나면 되돌린다(CLE-T-F4Z845).
+setEnvForEach({ ALLOW_PRIVATE_HOST_TARGETS: undefined });
 
 describe('DatabaseQueryHandler', () => {
   beforeEach(() => {
@@ -755,6 +763,111 @@ describe('DatabaseQueryHandler', () => {
       await handler.shutdown();
     });
 
+    // CLE-T-691T4G — 연결할 때 푼 주소의 판정(stream 팩토리)이 막은 연결.
+    it('연결 시점 판정이 막은 pg 연결은 DB_HOST_BLOCKED 와 고정 문구로 끝나고 usage 로그에도 주소가 남지 않는다', async () => {
+      const { service, logUsage } = makeService();
+      connectMock.mockRejectedValue(
+        new SsrfBlockedError(
+          'hostname "db.example.com" resolved to restricted IP "10.0.0.7" at connect time',
+        ),
+      );
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const handler = new DatabaseQueryHandler(service as never);
+      try {
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as unknown as ErrorPortOutput;
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+        expect(out.output.error.message).toBe(DB_HOST_BLOCKED_MESSAGE);
+        expect(JSON.stringify(out.output)).not.toContain('10.0.0.7');
+        expect(JSON.stringify(logUsage.mock.calls)).not.toContain('10.0.0.7');
+        expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'int-1' }),
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'DB_HOST_BLOCKED' }),
+          }),
+        );
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('10.0.0.7'));
+      } finally {
+        warn.mockRestore();
+        await handler.shutdown();
+      }
+    });
+
+    it('mysql2 드라이버가 감싸 온 연결 시점 차단도 DB_HOST_BLOCKED 로 바꾼다', async () => {
+      const { service } = makeService({ integration: MYSQL_INTEGRATION_BASE });
+      const blocked = new SsrfBlockedError(
+        'hostname "db.example.com" resolved to restricted IP "10.0.0.7" at connect time',
+      );
+      jest
+        .requireMock('mysql2/promise')
+        .createPool.mockImplementationOnce(() => ({
+          getConnection: () =>
+            Promise.reject(new Error('connect failed', { cause: blocked })),
+          end: () => mysqlEndMock(),
+        }));
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const handler = new DatabaseQueryHandler(service as never);
+      try {
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as unknown as ErrorPortOutput;
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('DB_HOST_BLOCKED');
+        expect(out.output.error.message).toBe(DB_HOST_BLOCKED_MESSAGE);
+      } finally {
+        warn.mockRestore();
+        await handler.shutdown();
+      }
+    });
+
+    it('풀 옵션에 연결 시점 판정 stream 팩토리를 싣는다(pg · mysql2)', async () => {
+      queryMock.mockResolvedValue({ rows: [], rowCount: 0, fields: [] });
+      mysqlQueryMock.mockResolvedValue([[], []]);
+      const pgHandler = new DatabaseQueryHandler(
+        makeService().service as never,
+      );
+      const mysqlHandler = new DatabaseQueryHandler(
+        makeService({ integration: MYSQL_INTEGRATION_BASE }).service as never,
+      );
+      try {
+        await pgHandler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        );
+        await mysqlHandler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        );
+
+        expect(jest.requireMock('pg').Pool).toHaveBeenCalledWith(
+          expect.objectContaining({ stream: expect.any(Function) }),
+        );
+        expect(
+          jest.requireMock('mysql2/promise').createPool,
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({ stream: expect.any(Function) }),
+        );
+      } finally {
+        await pgHandler.shutdown();
+        await mysqlHandler.shutdown();
+      }
+    });
+
     it('sanitizes secret-looking fragments in driver error messages (spec §5.3 / §6.2)', async () => {
       const { service } = makeService();
       // Drivers occasionally embed credential-flavoured fragments — the
@@ -1315,9 +1428,7 @@ describe('DatabaseQueryHandler', () => {
       });
 
       it('ALLOW_PRIVATE_HOST_TARGETS=true opt-out → guard 통과 (차단 안 함)', async () => {
-        const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
-        process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
-        try {
+        await withEnv({ ALLOW_PRIVATE_HOST_TARGETS: 'true' }, async () => {
           const { service } = makeService({
             integration: pgIntegrationWithHost('127.0.0.1'),
           });
@@ -1331,10 +1442,7 @@ describe('DatabaseQueryHandler', () => {
           // 차단되지 않고 실제 실행 경로로 진행 (opt-in self-host).
           expect(out.port).toBe('success');
           expect(connectMock).toHaveBeenCalled();
-        } finally {
-          if (prev === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-          else process.env.ALLOW_PRIVATE_HOST_TARGETS = prev;
-        }
+        });
       });
     });
 

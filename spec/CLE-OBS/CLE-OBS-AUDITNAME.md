@@ -2,21 +2,21 @@
 id: "CLE-OBS-AUDITNAME"
 title: "감사 action 명명"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
-content_hash: "1b4f51ac27fcb5e4cd473cabedf9184d69dba0fb699cdf4cb7f1520abafc2fd3"
-read_as: "approved_fallback"
-task: "CLE-T-N93N9K"
+content_hash: "8a287c5a0b13e77c395979b6c4a29bb0572dd984fc9de6f2eeffc9288a26be3b"
+read_as: "approved"
+task: null
 source_paths: ["spec/5-system/1-auth.md", "spec/conventions/audit-actions.md"]
-mirror_sha256: "93f9158d9afee826232c51f8bad914f838404d95091c432736741f013e2afe67"
-etag: "sha256-e78d7d65d0e5640b5dd0bf7efe559f872e98ff3986d59dd0bcde6ec27b6d6f95"
+mirror_sha256: "0ed46c886fd9eaf051abb6a07cf6db44253c8dae837e0468e080ab78cc7152b2"
+etag: "sha256-a9b2337ea872921ca528d6f8067379ac157e5ca1d22c7b47311e4618d09ea956"
 ---
-> 구현 상태: 구현됨(`workflow.version_restored` 는 이름만 정했고 미구현, CLE-T-28MDF3) · 원문: `spec/conventions/audit-actions.md`, `spec/5-system/1-auth.md` (Rationale 4.1.A) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 구현됨 · 원문: `spec/conventions/audit-actions.md`, `spec/5-system/1-auth.md` (Rationale 4.1.A) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -104,7 +104,7 @@ etag: "sha256-e78d7d65d0e5640b5dd0bf7efe559f872e98ff3986d59dd0bcde6ec27b6d6f95"
 - resource 토큰은 `user` 다. 비밀번호 변경과 2단계 인증 토글은 행위자 자신의 계정 보안 속성을 바꾸는 일이다. `auth_config`(웹훅 인증 설정이라는 다른 리소스)나 `auth`(너무 추상적)보다 `user` 가 자연스럽다. 이후의 `user.email_changed` 같은 프로필 계열 감사도 같은 이름 공간에 묶인다.
 - verb 는 과거분사다. `integration.created` 처럼 "일어난 일" 을 기록하는 도메인 관례를 따른다(`changed`, `enabled`, `disabled`).
 
-같은 근거로 다른 예정 감사 액션의 시제도 정리했다. `workspace`·`member`·`workflow`·`trigger`·`schedule` 은 동사가 모두 과거분사로 자연스러워 기본 갈래를 따른다(`created`, `updated`, `deleted`, `invited`, `role_changed`, `removed`, `executed`). 현재형 `create`·`invite` 로 적혀 있던 이탈을 이때 고쳤다. `model_config` 만 `set_default` 가 과거분사로 어색해 `auth_config` 와 같이 resource 단위 현재형을 유지한다(규칙 5-2). 이 감사 액션들은 2026-08-01 에 그 표기 그대로 구현됐다(`workflow.executed` 제외). `workflow.executed` 는 뒤에 기록하지 않기로 정했다([감사 로그 — 감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG.md#워크플로우-실행은-감사-로그에-남기지-않는다)).
+같은 근거로 다른 예정 감사 액션의 시제도 정리했다. `workspace`·`member`·`workflow`·`trigger`·`schedule` 은 동사가 모두 과거분사로 자연스러워 기본 갈래를 따른다(`created`, `updated`, `deleted`, `invited`, `role_changed`, `removed`, `executed`). 현재형 `create`·`invite` 로 적혀 있던 이탈을 이때 고쳤다. `model_config` 만 `set_default` 가 과거분사로 어색해 `auth_config` 와 같이 resource 단위 현재형을 유지한다(규칙 5-2). 이 감사 액션들은 2026-08-01 에 그 표기 그대로 구현됐다(`workflow.executed` 제외). `workflow.executed` 는 이후 기록하지 않기로 했다(NERV Task `CLE-T-N93N9K`, [감사 로그 — 감사 액션 카탈로그](CLE-OBS-AUDIT-CATALOG.md#워크플로우-실행은-감사-로그에-남기지-않는다)).
 
 ### 소유자 이양은 도메인 고유 동사로 분류한다
 

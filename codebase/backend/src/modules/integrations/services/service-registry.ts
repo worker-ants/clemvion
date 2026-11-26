@@ -61,9 +61,10 @@ export interface ServiceDefinition {
    * to take action on `token_expires_at` countdown.
    *
    * Currently `cafe24` (background queue + proactive `ensureFreshToken`)
-   * and `google` (refresh_token at OAuth callback, on-demand refresh on
-   * 401). `github` is intentionally false — its OAuth tokens are long-
-   * lived and don't issue refresh_token (spec §10.3 Refresh: ✗).
+   * and `makeshop` (auth-code + refresh rotation). `google` is false: it
+   * issues a refresh_token but no refresh path exists yet, so its expiry
+   * must surface as attention (CLE-T-81270P). `github` is false — its OAuth
+   * tokens are long-lived and don't issue refresh_token.
    *
    * Surfaced to the client as `IntegrationDto.autoRefresh: boolean`
    * (derived, not a DB column). Used for UI branching: attention/expiring
@@ -384,7 +385,9 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     type: 'google',
     name: 'Google',
     oauthProvider: 'google',
-    supportsTokenAutoRefresh: true,
+    // refresh_token 은 받지만 갱신 경로가 없다. 자동 갱신으로 표시하면 만료 임박 · 주의 필요에서 빠지는데 스캐너는
+    // 만료로 바꾼다. 만료를 주의 필요에 드러내도록 false 로 둔다(CLE-T-81270P).
+    supportsTokenAutoRefresh: false,
     authVariants: [
       {
         authType: 'oauth2',

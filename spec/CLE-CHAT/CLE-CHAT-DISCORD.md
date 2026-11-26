@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DISCORD"
 title: "Discord 어댑터"
 type: "feature"
-version: 14
+version: 15
 status: "approved"
 requirements: ["REQ-DISCORD-001", "REQ-DISCORD-002", "REQ-DISCORD-003", "REQ-DISCORD-004", "REQ-DISCORD-005", "REQ-DISCORD-006", "REQ-DISCORD-007", "REQ-DISCORD-008", "REQ-DISCORD-009", "REQ-DISCORD-010", "REQ-DISCORD-011", "REQ-DISCORD-012", "REQ-DISCORD-013", "REQ-DISCORD-014", "REQ-DISCORD-015", "REQ-DISCORD-016", "REQ-DISCORD-017", "REQ-DISCORD-018", "REQ-DISCORD-019", "REQ-DISCORD-020", "REQ-DISCORD-021", "REQ-DISCORD-022", "REQ-DISCORD-023", "REQ-DISCORD-024", "REQ-DISCORD-025", "REQ-DISCORD-026", "REQ-DISCORD-027", "REQ-DISCORD-028", "REQ-DISCORD-029", "REQ-DISCORD-030", "REQ-DISCORD-031", "REQ-DISCORD-032", "REQ-DISCORD-033", "REQ-DISCORD-034", "REQ-DISCORD-035", "REQ-DISCORD-036", "REQ-DISCORD-037"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "8c144d18b7f070843c61a70f5fe2e9df09ebf9d94524e6eb635045dac39e9840"
+content_hash: "aa66ad08035dd9b9c6021cc2f6b9d93e1e2049209502a077660e45171d2c9b00"
 read_as: "approved_fallback"
-task: "CLE-T-0400J6"
+task: "CLE-T-BDHBKG"
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "125890249aede3d630cc39f3ac6fc84a2925aa79f70835177a2384786441de61"
-etag: "sha256-d64b6bd098cdbe5ac88126f688276b4c3b7525090985ef77e09c6db0966a64e2"
+mirror_sha256: "b209bbf1c78f0d33986678fa04d6ea0a731bae9dec62bdf8549753b058abe7cc"
+etag: "sha256-12cb7cad97c83bbae3ea0ad02908f5c48c934201ff823083be1453aad09ac7da"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -71,7 +71,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - REQ-DISCORD-033 WHEN Discord 가 `429` 와 `Retry-After` 를 돌려주면 THE SYSTEM SHALL 그만큼 기다린 뒤 다시 시도한다. (원본: discord §8)
 - REQ-DISCORD-034 WHILE Discord rate limit 안에서 보내는 동안 THE SYSTEM SHALL bucket 단위 큐와 응답 헤더 기반 throttle 로 발송 속도를 맞춘다. (원본: discord §8) (미구현)
 - REQ-DISCORD-035 WHEN 같은 `interaction.id` 가 30초 안에 다시 오면 THE SYSTEM SHALL 두 번째 update 를 무시한다. (원본: discord §8)
-- REQ-DISCORD-036 WHEN DM 에서 `help` 밖의 슬래시 명령이 오면 THE SYSTEM SHALL 새 실행·취소·답장 전달·중복·분당 한도 초과·실행 중·워크플로우 비활성·파싱 실패 어느 경로로 끝나도 3초 안에 `200 OK` 와 본인에게만 보이는 `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }` 로 답하며 `content` 는 `languageHints.commandReceived`(없으면 `languageLocale` 기본 문구)로 채운다. 활성 실행이 없는 `/<prefix> cancel` 의 `content` 는 REQ-DISCORD-030 이, 새 실행을 시작한 `/<prefix> start` 의 `content` 는 REQ-DISCORD-028 · 029 가 정한다. DM 밖 채널의 슬래시 명령은 REQ-DISCORD-007 을 따른다. (R-D-12)
+- REQ-DISCORD-036 WHEN DM 에서 `help` 밖의 슬래시 명령이 오면 THE SYSTEM SHALL 활성 실행 중 `/<prefix> start` 의 기존 실행 취소가 실패한 경우를 빼고 새 실행·취소·답장 전달·중복·분당 한도 초과·실행 중·워크플로우 비활성·파싱 실패 어느 경로로 끝나도 3초 안에 `200 OK` 와 본인에게만 보이는 `{ type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } }` 로 답하며 `content` 는 `languageHints.commandReceived`(없으면 `languageLocale` 기본 문구)로 채운다. 활성 실행이 없는 `/<prefix> cancel` 의 `content` 는 REQ-DISCORD-030 이, 새 실행을 시작한 `/<prefix> start` 의 `content` 는 REQ-DISCORD-028 · 029 가 정한다. DM 밖 채널의 슬래시 명령은 REQ-DISCORD-007 을 따른다. (R-D-12)
 - REQ-DISCORD-037 WHEN 비활성 트리거로 슬래시 명령·컴포넌트·모달 제출이 오고 서명 검증을 통과하면 THE SYSTEM SHALL 실행을 시작하지 않고 외부 API 를 부르지 않으며 활성일 때와 같은 기본 응답(`200 OK` 와 슬래시 명령 `{ type: 4 }`, 컴포넌트·모달 제출 `{ type: 6 }`)으로 답한다. update 를 해석하지 않으므로 DM 의 슬래시 명령은 `help` 면 도움말, 그 밖(`/<prefix> cancel` 포함)은 수신 문구다. DM 밖 채널의 슬래시 명령은 `groupChatRefusal` 안내다(REQ-DISCORD-007). (R-D-12)
 
 요구사항 보충 설명은 다음과 같다.
@@ -89,7 +89,7 @@ v1 은 Interactions Webhook 만 쓴다. Discord [Gateway WebSocket](https://disc
 - 관련 REQ-DISCORD-031: `parseUpdate` 는 `help` 하위 명령에 `null` 을 돌려주고 `ChannelUpdate` 에 help kind 를 두지 않는다. 도움말은 어댑터의 기본 응답 본문으로만 나간다. 그래서 `HooksService` 의 `/help` 텍스트 분기(Telegram·Slack 용)를 타지 않고, 트리거가 비활성이어도 도움말로 답한다. (R-D-12)
 - 관련 REQ-DISCORD-032·035: 재시도 정책과 중복 제거 키·TTL 은 [채팅 채널](CLE-CHAT-CORE.md)·[채팅 채널 데이터와 흐름](CLE-CHAT-DATA.md) 이 정한다. 대기는 1초, 2초 두 번이고 세 번째 실패 뒤에는 기다리지 않는다(`discord-client.ts`).
 - 관련 REQ-DISCORD-034: 현재 구현은 `429` 의 `Retry-After` 대기만 한다. bucket 단위 큐는 확인되지 않았다.
-- 관련 REQ-DISCORD-036·037: DM 의 슬래시 명령은 경로마다 다른 안내를 두지 않고 한 문구로 답한다(2026-11-12 사람 결정, R-D-12). 예외는 활성 실행이 없는 `/<prefix> cancel`(R-D-14)과 새 실행을 시작한 `/<prefix> start`(REQ-DISCORD-028 · 029, 2026-11-20 사람 결정, NERV 질문 `01a1f7b4-2295-754e-8aaf-685d64148fb9`, NERV Task `CLE-T-0400J6`) 둘이다. DM 밖 채널의 슬래시 명령은 `groupChatRefusal` 안내다(REQ-DISCORD-007, [Slack 어댑터](CLE-CHAT-SLACK.md) REQ-SLACK-045 와 같은 규칙). 2026-11-19 사람 결정(NERV 질문 `01a1f1d3-f3ba-702d-9689-121062b39a9d`, NERV Task `CLE-T-B9CRCF`).
+- 관련 REQ-DISCORD-036·037: DM 의 슬래시 명령은 경로마다 다른 안내를 두지 않고 한 문구로 답한다. 예외는 활성 실행이 없는 `/<prefix> cancel`(R-D-14)과 새 실행을 시작한 `/<prefix> start`(REQ-DISCORD-028 · 029) 둘이다. DM 밖 채널의 슬래시 명령은 `groupChatRefusal` 안내다(REQ-DISCORD-007, [Slack 어댑터](CLE-CHAT-SLACK.md) REQ-SLACK-045 와 같은 규칙). 결정 이력은 R-D-12 에 있다.
 
 ## 하위 문서
 

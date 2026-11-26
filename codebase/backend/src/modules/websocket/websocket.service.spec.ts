@@ -815,7 +815,7 @@ describe('WebsocketService', () => {
      * waiting emit 은 raw payload 를 최상위가 아니라 한 단계 아래에 넣는다
      * (`ai-turn-orchestrator.service.ts:615`):
      *
-     *     turnDebug: { llmCalls: turnDebugHistory[0], metadata }
+     *     initialTurnDebug: { llmCalls: turnDebugHistory[0], metadata }
      *
      * `turnDebugHistory[i]` 는 `{turnIndex, llmCalls: LlmCallRecord[], …}` 이고
      * `LlmCallRecord` 는 `requestPayload`/`responsePayload` 를 갖는다
@@ -828,7 +828,7 @@ describe('WebsocketService', () => {
      * 기존 strip 테스트는 **최상위 `llmCalls`** 만, 그것도 `AI_MESSAGE` 에서만 봤다 —
      * 이 경로는 아무도 보지 않았다.
      */
-    it('waiting_for_input 의 중첩 turnDebug.llmCalls 도 외부 fanout 에 남으면 안 된다', async () => {
+    it('waiting_for_input 의 중첩 initialTurnDebug.llmCalls 도 외부 fanout 에 남으면 안 된다', async () => {
       const eventP = nextFanoutEvent(service);
       await service.emitExecutionEvent(
         'exec-waiting-nested',
@@ -854,7 +854,7 @@ describe('WebsocketService', () => {
             },
           },
           // 경로 1 — ai-turn-orchestrator.service.ts:615 의 실제 shape 그대로
-          turnDebug: {
+          initialTurnDebug: {
             llmCalls: {
               turnIndex: 0,
               llmCalls: [
@@ -875,7 +875,7 @@ describe('WebsocketService', () => {
       // 외부 수신자에게 raw LLM 요청/응답이 **어떤 경로로도** 도달해서는 안 된다.
       // 두 경로를 함께 본다 — 한쪽만 막으면 나머지가 남는다.
       const fanoutJson = JSON.stringify(fanout.payload);
-      expect(fanoutJson).not.toContain('SECRET PROMPT A'); // top-level turnDebug
+      expect(fanoutJson).not.toContain('SECRET PROMPT A'); // top-level initialTurnDebug
       expect(fanoutJson).not.toContain('SECRET PROMPT B'); // nodeOutput.meta.turnDebug
 
       // **대조군** — 인증된 에디터 WS 채널은 둘 다 그대로 받아야 한다. 이게 없으면

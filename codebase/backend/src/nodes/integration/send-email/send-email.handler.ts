@@ -22,7 +22,16 @@ import {
   truncateForErrorDetails,
 } from '../../core/error-codes.js';
 import { sendEmailNodeMetadata } from './send-email.schema.js';
-import { isSmtpHostBlocked } from './smtp-host-guard.js';
+import {
+  EMAIL_HOST_BLOCKED_MESSAGE,
+  guardedSmtpGetSocket,
+  isSmtpHostBlocked,
+} from './smtp-host-guard.js';
+import {
+  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+  SsrfBlockedError,
+} from '../../../common/utils/ssrf/outbound-guard.js';
+import { findCause } from '../../../common/utils/guarded-lookup-dispatcher.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 
 interface SmtpCredentials {
@@ -180,13 +189,29 @@ export class SendEmailHandler
         );
       }
 
-      // SSRF 가드 (기본 ON) — 사설 · loopback · link-local · CGNAT host 로의 발송을 차단한다.
+      // SSRF 가드 (기본 ON) — 공용 대역표가 막는 host 로의 발송을 차단한다.
       // `ALLOW_PRIVATE_HOST_TARGETS=true` 로만 끈다. 연결 테스트와 동일한 가드를 발송 경로에도
-      // 적용해 비대칭(테스트만 차단)을 막는다.
-      if (await isSmtpHostBlocked(credentials.host as string)) {
+      // 적용해 비대칭(테스트만 차단)을 막는다. 이 검사와 연결 사이의 DNS 응답 변경은 transport 의
+      // `getSocket`(연결 시점 판정)이 막고, 그 차단은 아래 catch 가 `EMAIL_HOST_BLOCKED` 로 바꾼다.
+      let hostBlocked: boolean;
+      try {
+        hostBlocked = await isSmtpHostBlocked(credentials.host as string);
+      } catch (guardErr) {
+        // 판정이 아닌 오류는 가드의 고장이다. 원문에는 host/IP 가 들어 있을 수 있어 서버 로그에만 남기고
+        // 사용자에게는 고정 문구를 낸다. 코드는 이 노드의 fallback 과 같은 `EMAIL_SEND_FAILED` 다(CLE-T-PTCRM4).
+        // 원본 객체를 `cause` 로 싣지 않는다. 이 에러는 노드 에러로 나가고 원문에 host/IP 가 있을 수 있다.
+        logger.warn(
+          `SSRF guard failed (send-email): ${guardErr instanceof Error ? guardErr.message : String(guardErr)}`,
+        );
+        throw new IntegrationError(
+          'EMAIL_SEND_FAILED',
+          SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+        );
+      }
+      if (hostBlocked) {
         throw new IntegrationError(
           'EMAIL_HOST_BLOCKED',
-          'SMTP host points to a private/loopback address blocked by policy.',
+          EMAIL_HOST_BLOCKED_MESSAGE,
         );
       }
 
@@ -234,7 +259,8 @@ export class SendEmailHandler
         meta: { durationMs, deliveryStatus: 'sent' },
         port: 'out',
       };
-    } catch (err) {
+    } catch (err_) {
+      const err = promoteConnectTimeBlock(err_);
       const logError =
         err instanceof IntegrationError
           ? toLogError(err)
@@ -338,10 +364,28 @@ export class SendEmailHandler
       pool: true,
       maxConnections: 3,
       maxMessages: 100,
+      // 연결 시점 판정 — 소켓을 열 때 푼 주소를 공용 대역표로 다시 본다. 우회 플래그가 켜져 있으면
+      // undefined 라 nodemailer 가 직접 연결한다.
+      getSocket: guardedSmtpGetSocket(),
     });
     this.transports.set(integrationId, { transporter, credsHash });
     return transporter;
   }
+}
+
+const logger = new Logger('SendEmailHandler');
+
+/**
+ * 연결 시점 판정(`getSocket`)이 막은 실패를 `EMAIL_HOST_BLOCKED` 로 바꾼다. nodemailer 는 소켓 오류를 그대로 또는 감싸서
+ * 올리므로 `cause` 를 따라가 `SsrfBlockedError` 를 찾는다. 차단 원문(host/IP)은 서버 로그에만 남기고 사용자 · 활동 로그에는
+ * 사전 검사 차단과 같은 문구를 쓴다. 그 밖의 오류는 그대로 돌려준다.
+ */
+function promoteConnectTimeBlock(err: unknown): unknown {
+  if (err instanceof IntegrationError) return err;
+  const blocked = findCause(err, SsrfBlockedError);
+  if (!blocked) return err;
+  logger.warn(`SSRF block at connect time (send-email): ${blocked.message}`);
+  return new IntegrationError('EMAIL_HOST_BLOCKED', EMAIL_HOST_BLOCKED_MESSAGE);
 }
 
 function safeMessage(err: unknown): string {

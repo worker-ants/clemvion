@@ -2,19 +2,19 @@
 id: "CLE-IX"
 title: "외부 상호작용"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "54cd8b3d402537289f0a269a58574a9114c37612285d87f49a7de2dab787ae86"
-read_as: "approved"
-task: null
+content_hash: "54383ffd21d68e4a734fda1442c7bdf18de975f2d883f06f3f5948f8ee4add5a"
+read_as: "approved_fallback"
+task: "CLE-T-JNXZWY"
 source_paths: []
-mirror_sha256: "47313c7c17df508efb18d9d80a3ac568af1d4e060dd3ad5de6a52a89ea43c8e7"
-etag: "sha256-51b5a042dc2b22f8f392bf09d527d207fd6e9ad3c104abff8413a3cef17da7eb"
+mirror_sha256: "46d28d81d6001b1c858164fd0aadffe4fff32e412ad19dfff9e9f944595fbba0"
+etag: "sha256-6265a6c1c00f4ed0603ad5a166d47a143b09960443a0c0071a2f7b478a8c2a80"
 ---
 > 구현 상태: 부분 구현 · 원문: 없음(자식 문서 요약) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -24,7 +24,7 @@ etag: "sha256-51b5a042dc2b22f8f392bf09d527d207fd6e9ad3c104abff8413a3cef17da7eb"
 
 External Interaction API(EIA)가 이 간극을 메운다. 서버가 실행 이벤트를 외부 URL 로 보내는 EIA 알림 웹훅과, 외부 클라이언트가 REST 로 명령을 보내고 SSE 로 이벤트를 받는 인바운드 인터랙션 두 채널로 되어 있다. 두 채널은 트리거마다 선택해서 켠다.
 
-EIA 위에는 두 소비자가 있다. [채팅 채널](../CLE-CHAT/CLE-CHAT.md) 은 Telegram·Slack·Discord 봇을 웹훅 트리거에 붙여 서버 안에서 EIA 를 부르는 어댑터이고, [웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md) 은 고객 사이트에 넣는 임베드 위젯이 EIA HTTP·SSE 를 직접 부르는 기능이다.
+EIA 위에는 두 소비자가 있다. [채팅 채널](../CLE-CHAT/CLE-CHAT.md) 은 Telegram·Slack·Discord 봇을 웹훅 트리거에 붙여 서버 안에서 EIA 를 부르는 어댑터이고, [웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md) 은 호스트 페이지에 넣는 웹채팅 위젯이 EIA HTTP·SSE 를 직접 부르는 기능이다.
 
 여러 계층이 함께 쓰는 인터랙션 값의 목록과, 실행 동안 인터랙션과 AI 대화를 쌓는 대화 스레드도 이 영역에 있다.
 

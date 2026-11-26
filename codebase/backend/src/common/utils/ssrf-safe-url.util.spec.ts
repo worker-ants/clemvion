@@ -10,6 +10,7 @@ import {
   resolvedAddressBlockReason,
   shouldWarnNotificationDnsGuardOff,
 } from './ssrf-safe-url.util';
+import { restoreEnvAfterEach, withEnv } from '../../shared/testing/env';
 
 // 발송 직전 DNS 검사는 OS 해석기(`lookup`)를 부른다. 단위 테스트는 실제 DNS 에 닿지 않게 가짜로 바꾸고 해석 결과를
 // 테스트마다 정한다. 리터럴 IP 경로는 `lookup` 을 부르지 않는다.
@@ -22,11 +23,7 @@ const mockedLookup = lookup as unknown as jest.MockedFunction<
 >;
 
 describe('checkSsrfSafeUrl', () => {
-  const ORIG_ENV = process.env.ALLOW_HTTP_HOOKS;
-  afterEach(() => {
-    if (ORIG_ENV === undefined) delete process.env.ALLOW_HTTP_HOOKS;
-    else process.env.ALLOW_HTTP_HOOKS = ORIG_ENV;
-  });
+  restoreEnvAfterEach('ALLOW_HTTP_HOOKS');
 
   it('통과 — https + public hostname', () => {
     const r = checkSsrfSafeUrl('https://customer.example.com/webhook');
@@ -244,14 +241,9 @@ describe('IPv4 를 품은 IPv6 리터럴', () => {
    * `http:` 스킴만 연다.
    */
   it('ALLOW_PRIVATE_HOST_TARGETS=true 여도 mapped 리터럴을 막는다', () => {
-    const orig = process.env.ALLOW_PRIVATE_HOST_TARGETS;
-    process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
-    try {
+    withEnv({ ALLOW_PRIVATE_HOST_TARGETS: 'true' }, () => {
       expect(checkSsrfSafeUrl('https://[::ffff:7f00:1]/x').ok).toBe(false);
-    } finally {
-      if (orig === undefined) delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-      else process.env.ALLOW_PRIVATE_HOST_TARGETS = orig;
-    }
+    });
   });
 });
 

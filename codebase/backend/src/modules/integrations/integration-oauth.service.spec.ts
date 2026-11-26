@@ -1135,6 +1135,170 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
+  // CLE-T-81270P: Google · GitHub 의 토큰 응답에는 계정 식별자(`account_email` · `login`)가 없다. 토큰을 받은 뒤
+  // 계정 조회(Google userinfo, GitHub `/user`)로 채워야 새 통합 저장의 필수 필드 검증을 지난다.
+  describe('handleCallback — Google · GitHub 계정 식별자 조회', () => {
+    const newState = (provider: 'google' | 'github') => [
+      [
+        {
+          provider,
+          serviceType: provider,
+          mode: 'new',
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['scope-1'],
+          integrationId: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ],
+      1,
+    ];
+    const jsonResponse = (body: unknown, status = 200) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    });
+    const savedCredentials = (): Record<string, unknown> => {
+      const saved = previewRepo.save.mock.calls[0]?.[0] as
+        { credentials: Record<string, unknown> } | undefined;
+      return saved?.credentials ?? {};
+    };
+
+    let originalFetch: typeof global.fetch;
+    let fetchMock: jest.Mock;
+    beforeEach(() => {
+      delete process.env.OAUTH_STUB_MODE;
+      oauthMock.env.google = { clientId: 'gid', clientSecret: 'gsec' };
+      oauthMock.env.github = { clientId: 'hid', clientSecret: 'hsec' };
+      originalFetch = global.fetch;
+      fetchMock = jest.fn();
+      (global as unknown as { fetch: jest.Mock }).fetch = fetchMock;
+    });
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('Google: 토큰을 받은 뒤 userinfo 의 email 을 account_email 로 저장한다', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse({
+            access_token: 'g-at',
+            refresh_token: 'g-rt',
+            expires_in: 3599,
+            scope: 'openid https://www.googleapis.com/auth/userinfo.email',
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ sub: '1', email: 'someone@example.com' }),
+        );
+      dataSource.query.mockResolvedValue(newState('google'));
+
+      const result = await service.handleCallback('google', {
+        code: 'c',
+        state: 's',
+      });
+
+      expect(result.previewToken).toMatch(/^tmp_/);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const [url, init] = fetchMock.mock.calls[1] as [
+        string,
+        { method?: string; headers: Record<string, string> },
+      ];
+      expect(url).toBe('https://openidconnect.googleapis.com/v1/userinfo');
+      expect(init.method ?? 'GET').toBe('GET');
+      expect(init.headers.Authorization).toBe('Bearer g-at');
+      expect(savedCredentials()).toMatchObject({
+        access_token: 'g-at',
+        refresh_token: 'g-rt',
+        account_email: 'someone@example.com',
+      });
+    });
+
+    it('GitHub: 토큰을 받은 뒤 /user 의 login 을 저장한다', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse({ access_token: 'h-at', scope: 'repo,read:org' }),
+        )
+        .mockResolvedValueOnce(jsonResponse({ id: 1, login: 'octocat' }));
+      dataSource.query.mockResolvedValue(newState('github'));
+
+      await service.handleCallback('github', { code: 'c', state: 's' });
+
+      const [url, init] = fetchMock.mock.calls[1] as [
+        string,
+        { headers: Record<string, string> },
+      ];
+      expect(url).toBe('https://api.github.com/user');
+      expect(init.headers.Authorization).toBe('Bearer h-at');
+      // GitHub REST API 는 User-Agent 가 없는 요청을 거절한다.
+      expect(init.headers['User-Agent']).toEqual(expect.any(String));
+      expect(savedCredentials()).toMatchObject({
+        access_token: 'h-at',
+        login: 'octocat',
+      });
+    });
+
+    it.each([
+      ['응답이 실패(401)', jsonResponse({ error: 'invalid_token' }, 401)],
+      ['식별자가 없는 응답', jsonResponse({ sub: '1' })],
+    ])(
+      'Google: 계정 조회의 %s 면 OAUTH_TOKEN_EXCHANGE_FAILED 로 실패하고 미리보기를 만들지 않는다',
+      async (_label, identityResponse) => {
+        fetchMock
+          .mockResolvedValueOnce(
+            jsonResponse({ access_token: 'g-at', refresh_token: 'g-rt' }),
+          )
+          .mockResolvedValueOnce(identityResponse);
+        dataSource.query.mockResolvedValue(newState('google'));
+
+        const error = await service
+          .handleCallback('google', { code: 'c', state: 's' })
+          .catch((err: Error) => err);
+
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as { response?: { code?: string } }).response?.code).toBe(
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        );
+        expect(previewRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it('Google: 계정 조회가 전송 오류로 실패해도 OAUTH_TOKEN_EXCHANGE_FAILED 다', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse({ access_token: 'g-at', refresh_token: 'g-rt' }),
+        )
+        .mockRejectedValueOnce(new TypeError('fetch failed'));
+      dataSource.query.mockResolvedValue(newState('google'));
+
+      const error = await service
+        .handleCallback('google', { code: 'c', state: 's' })
+        .catch((err: Error) => err);
+
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'OAUTH_TOKEN_EXCHANGE_FAILED',
+      );
+      expect(previewRepo.save).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['google', 'account_email'],
+      ['github', 'login'],
+    ] as const)(
+      'stub 모드(%s)도 필수 식별자(%s)를 채우고 외부를 부르지 않는다',
+      async (provider, field) => {
+        process.env.OAUTH_STUB_MODE = 'true';
+        dataSource.query.mockResolvedValue(newState(provider));
+
+        await service.handleCallback(provider, { code: 'c', state: 's' });
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(savedCredentials()[field]).toEqual(expect.any(String));
+      },
+    );
+  });
+
   describe('handleCallbackWithErrorCapture', () => {
     // Service-side wrapper that runs handleCallback and, on a post-state-
     // consumption failure, writes the diagnostic onto the row before

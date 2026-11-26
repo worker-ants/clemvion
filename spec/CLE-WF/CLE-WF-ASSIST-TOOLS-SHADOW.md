@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS-SHADOW"
 title: "AI 어시스턴트 도구 — Shadow 검증과 에러 보강"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST-TOOLS"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST-TOOLS"]
 area: "CLE-WF"
-content_hash: "25323092db9c10037c9eb7da3af864ccbf267dbc196f767de917e87cb16f0046"
+content_hash: "ce158aaec1d01670ebd1b0af3aa6a31797feea67e3043ac40e87da19a68df013"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-8WXV7T"
 source_paths: []
-mirror_sha256: "4cbdc433c54d9c7572333697cbfd9a7225bda1d999c1272377ddda355b8b16ec"
-etag: "sha256-9fbacc56efb5881450096b81ced454563ebc6808c639450cbdb4bb0475269d0c"
+mirror_sha256: "2abe47031913fece509208ed0a1e0f5d8c67a1136730620ccff69530d484a121"
+etag: "sha256-68aa4d7e9651972fc1906463a5d86806c2a11919e108930a105b8e80c773a0c3"
 ---
 ## 개요
 
@@ -30,6 +30,7 @@ etag: "sha256-9fbacc56efb5881450096b81ced454563ebc6808c639450cbdb4bb0475269d0c"
 | `add_edge` 의 source·target 포트가 있어야 한다 | `{ok: false, error: 'PORT_NOT_FOUND', portInfo: {knownPorts}}`. `ShadowWorkflow.addEdge` 가 `portResolver`(stream 서비스가 `resolveEffectiveOutputPorts` 로 주입)로 포트를 확인한다. 설정 수정이 실패해 생기지 못한 동적 포트에 연결선을 붙이려는 실수를 첫 시도에서 잡는다. 컨테이너 되돌아오기 `emit` 포트는 허용한다 |
 | 트리거 노드는 컨테이너 자식이 될 수 없다 | `{ok: false, error: 'CONTAINER_INVALID_CHILD'}` |
 | 수동 트리거 노드는 지울 수 없다 | `{ok: false, error: 'MANUAL_TRIGGER_PROTECTED'}` |
+| `add_node` 의 `config` 와 `update_node` 의 `config` 패치에 든 표현식은 구문 검사(`validate()`)를 통과해야 한다 | `{ok: false, error: 'INVALID_EXPRESSION', message, invalidExpressions}`. `invalidExpressions` 에는 실패한 필드 경로 · 사유 · 원문(`path` · `message` · `value`)을 최대 5개 싣는다. 구문만 보고 참조한 노드가 실제로 있는지는 보지 않는다 |
 | 순환을 만들면 안 된다 | `{ok: false, error: 'CYCLE_DETECTED'}`. 다만 source 노드의 조상 `containerId` 체인 가운데 하나가 target 과 같고 target 포트가 `emit` 이면 허용한다. 자식이 자기나 조상 컨테이너로 돌아가는 반복 되돌아오기 연결선이기 때문이다. 실행 엔진이 `containerId` 로 컨테이너 내부 그래프를 떼어 처리하는 것과 뜻이 맞는다. `emit` 이 아닌 포트(예: `target_port: 'in'`)로 돌아오는 연결선은 반복 의도가 아닌 실수로 보고 순환으로 판정한다 |
 | `add_node`·`update_node` 의 최종 `config` 는 노드별 `handler.validate` 도메인 규칙(버튼 수 상한, 정적·동적 필수 필드, 중복 ID 등)을 지키는 것이 권장된다. 저장 자체는 막지 않는다 | 성공 응답(`ok: true`)에 `configWarnings?: string[]` 로 `handler.validate` 의 에러를 5개까지 싣는다. LLM 은 경고만 받고 다음 턴에 `update_node` 로 고치거나 그대로 둘 수 있다. 실행 시점에 실행 엔진이 같은 규칙을 다시 검사해 최종 차단한다 |
 | 같은 턴에 `propose_plan` 을 부른 뒤 편집 도구를 부르면 안 된다(계획 전용 턴) | `{ok: false, error: 'PLAN_AWAITING_APPROVAL', message}`. LLM 은 한국어 메시지로 턴을 끝내고 사용자 승인을 기다린다 |

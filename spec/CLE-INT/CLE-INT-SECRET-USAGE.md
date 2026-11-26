@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-USAGE"
 title: "시크릿 저장소 — 사용 패턴과 시크릿 발급"
 type: "convention"
-version: 1
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "4bfd1ff5ea99426d0a63aefe980c2fee6e6cbd8f8f4f28d22f3bcd7654e198f8"
+content_hash: "802477ccb78d85dc826b99826b2678f8d38bd2bb7c7cb900ac44b0500cb1289b"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FTSKJW"
 source_paths: []
-mirror_sha256: "f16ae149ffdb5b565a69c940b88cdb727dd0e4a82076365390ca84cc2f074d6a"
-etag: "sha256-8c1318d8e03235921f67d9a26547e8af1782de83cde5ea19718a8e3c4f0143df"
+mirror_sha256: "6d9a57ca6b6af6650509f64f194beaf7f1b8c7328e4ba113c69e8e56278ac562"
+etag: "sha256-84bc0f08e76c4fca021831a2473b790a442f918e7fb59501c2fe9466b4af5be1"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ async createTrigger(dto: CreateTriggerDto, workspaceId: string) {
     // PATCH · 시크릿 승격과 같은 트리거 설정 잠금을 잡는다.
     await acquireTriggerConfigLock(manager, trigger.id);
     const secrets: { notificationSigningSecret?: string; interactionToken?: string } = {};
-    // top-level notification 으로 받은 EIA 알림 웹훅 설정. 원시 config 의 notification 키는 400 이다(규칙 23).
+    // 타입 필드 notification 으로 받은 EIA 알림 웹훅 설정. 원시 config 의 notification 키는 400 이다(규칙 23).
     const notification = trigger.config.notification;
     if (notification) {
       // 생성에는 옮길 옛 평문이 없으므로 늘 발급한다. 이미 저장된 옛 평문은 PATCH 가 옮긴다(아래 단락).
@@ -155,7 +155,7 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 
 NERV Task `CLE-T-M6PERB` 의 재검토에서 첫 알림 서명 시크릿을 언제 누가 만드는지 정했다(사용자 결정, 2026-10-09). 서버는 `config.notification` 이 있는 트리거를 만들 때와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때 `wsk_<64hex>` 를 발급한다. 호출자가 원시 `config` 로 평문 `signing.secret` 을 보냈으면 그 값을 쓰고 발급하지 않는다. 2026-10-31 부터 원시 `config` 로 새 평문을 받는 경로는 닫혔다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31)). 이 결정은 [External Interaction API 「트리거 등록과 웹훅 응답」](../CLE-IX/CLE-EIA.md#트리거-등록과-웹훅-응답) 의 요구사항을 따른다. 발급 동작은 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) 이 정한다. 응답 모양은 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 가 정한다. 함께 제시한 다른 안과 결정 이력은 그 Task 의 결정 기록에 있다. 이 규약은 그 결정에 맞춰 아래를 고쳤다.
 
-- **비대칭의 근거를 고쳤다.** [저장소 예외 필드 「`Trigger.config.interaction.triggerToken`」](CLE-INT-SECRET-EXPOSE.md#triggerconfiginteractiontriggertoken-2026-08-16-결정) 끝 단락은 알림 서명 시크릿이 사용자가 입력하는 HMAC 비밀이라 (c) 를 만족하지 않는다고 적었다. 첫 값을 서버가 발급하면 이 이유는 맞지 않는다. 결론은 그대로이고 근거를 «호출자 평문을 받는 원시 `config` 경로가 남아 값 공간이 닫혀 있지 않다» 로 바꿨다. `itk_*` 의 원시 `config` 경로는 2026-10-17 에(NERV Task `CLE-T-EQDYC1`), 알림 서명 시크릿의 옛 키 `signing.secret` 경로는 2026-10-31 에 닫혔다. 그 뒤 근거는 그 전에 호출자가 고른 평문이 시크릿 저장소와 행에 남아 있다는 사실로 바뀌었다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31)).
+- **비대칭의 근거를 고쳤다.** [저장소 예외 필드 「`Trigger.config.interaction.triggerToken`」](CLE-INT-SECRET-EXPOSE.md#triggerconfiginteractiontriggertoken) 끝 단락은 알림 서명 시크릿이 사용자가 입력하는 HMAC 비밀이라 (c) 를 만족하지 않는다고 적었다. 첫 값을 서버가 발급하면 이 이유는 맞지 않는다. 결론은 그대로이고 근거를 «호출자 평문을 받는 원시 `config` 경로가 남아 값 공간이 닫혀 있지 않다» 로 바꿨다. `itk_*` 의 원시 `config` 경로는 2026-10-17 에(NERV Task `CLE-T-EQDYC1`), 알림 서명 시크릿의 옛 키 `signing.secret` 경로는 2026-10-31 에 닫혔다. 그 뒤 근거는 그 전에 호출자가 고른 평문이 시크릿 저장소와 행에 남아 있다는 사실로 바뀌었다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31)).
 - **일회성 응답을 규칙 4 의 금지에서 목록으로 뺐다.** 규칙 4 를 문장대로 읽으면 저장소 밖에 사는 필드의 새 값을 한 번 보여 주는 응답(시크릿 교체 `rotate-secret` 의 `notification_secret_v2` 값, 트리거 단위 토큰 재발급 `revoke-token` 의 `itk_*`, 인증 설정 생성 · 키 재생성 · 평문 보기의 `AuthConfig.config` 평문)도 금지에 걸린다. 이 응답들은 전부터 있었지만 이 규약에 근거가 없었고, 생성 · PATCH 응답이 첫 알림 서명 시크릿을 싣게 되면서 경계를 적을 필요가 생겼다. 면제를 «서버가 새 비밀을 만든 응답» 같은 일반형으로 적으면 다른 발급 응답까지 면제로 읽히고 응답-계약 검증(규칙 5)과도 이어지지 않는다(NERV Task `CLE-T-M6PERB` 의 결정 기록). 그래서 면제를 «이 규약이 이름 붙인 값을 그 값을 만든 바로 그 응답에 한 번 싣는 것» 으로 좁히고 대상 응답을 열거했다. 새 면제는 목록에 응답을 더해야 생긴다. 평문 보기는 값을 만든 응답이 아니지만 [외부 호출 인증 설정](../CLE-TRIG/CLE-TRIG-AUTHCFG.md) 이 비밀번호 재확인과 감사 기록을 조건으로 정한 경로라 넣었다. 빼면 이 규칙이 그 문서와 부딪친다. 면제 응답도 응답-계약 검증을 받으므로 평문 필드의 DTO 선언 방법을 규칙 5 에 적었다. 그 밖의 응답에 이 필드와 참조를 싣지 않는다는 금지는 그대로다.
 - **규칙 14 에 알려진 예외를 적었다.** [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 은 원시 `config` 의 평문 `signing.secret` 이 시크릿 저장소로 옮겨지기 전이나 옮기다 실패하면 JSONB 에 남는다고 적는다. 이 예외가 없으면 «DB 는 항상 암호문만 본다» 가 실제보다 넓게 읽힌다. 2026-10-31 에 새 평문 입력 경로가 닫혀 예외는 이미 저장된 옛 평문 행으로 좁혀졌다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31)).
 - **사용 패턴 · 참조 표 · 규칙 7 을 맞췄다.** 「트리거 생성」 예시에 서버 발급 분기를 더하고 참조는 [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 대로 `notificationSigningSecretRef` 로 만든다. 규칙 7 은 PATCH 가 처음 붙일 때의 저장도 `rotate` 로 하게 넓혔다. 알림 서명 비밀 행은 트리거가 없어질 때 prefix 로만 지우므로(규칙 8) 설정을 뗐다가 다시 붙이면 같은 참조에 옛 행이 남아 있을 수 있기 때문이다.
@@ -167,7 +167,7 @@ NERV Task `CLE-T-M6PERB` 의 재검토에서 첫 알림 서명 시크릿을 언�
 
 트리거 생성은 INSERT 와 감사 기록을 먼저 커밋하고 첫 알림 서명 시크릿을 그 뒤에 따로 정했다. 그 사이에 실패하면 `config.notification` 은 있고 `signing.secretRef` 는 없는 행이 남았다. 호출자가 다시 시도하면 `endpointPath` UNIQUE 충돌이 나거나 트리거가 둘 생겼다(NERV Task `CLE-T-EQDYC1`). 2026-10-17 에 아래와 같이 정했다.
 
-- 트리거 INSERT · 첫 알림 서명 시크릿의 발급이나 옮기기 · `itk_*` 발급([R15](CLE-INT-SECRET-EXPOSE.md#r15-생성--patch-응답이-발급한-itk_-를-규칙-4-의-면제에-더한다-2026-10-17)) · 시크릿 저장소 쓰기 · `config` 쓰기를 트리거 설정 잠금을 쥔 한 트랜잭션에서 한다. 어느 단계가 실패해도 행이 남지 않는다. 호출자는 같은 요청을 다시 보내면 된다.
+- 트리거 INSERT · 첫 알림 서명 시크릿의 발급이나 옮기기 · `itk_*` 발급([R15](CLE-INT-SECRET-EXPOSE.md#r15-생성--patch-응답이-발급한-itk_-를-규칙-4-의-면제에-더한다)) · 시크릿 저장소 쓰기 · `config` 쓰기를 트리거 설정 잠금을 쥔 한 트랜잭션에서 한다. 어느 단계가 실패해도 행이 남지 않는다. 호출자는 같은 요청을 다시 보내면 된다.
 - 시크릿 저장소 쓰기는 그 트랜잭션의 매니저로 한다(`rotate` 의 `manager` 인자). PATCH 와 시크릿 승격도 같다. 풀 연결을 하나 더 빌리지 않으므로 잠금을 쥔 요청이 연결 둘을 쥐지 않는다. 같은 트랜잭션이라 뒤따르는 `config` 쓰기가 실패하면 비밀 쓰기도 롤백된다.
 - 그래서 규칙 9 의 되돌리기가 줄었다. R12 는 잠금 안 쓰기에도 되돌리기를 두었다. 이제 예외로 끝나는 경우는 롤백이 맡는다. 남는 것은 FK CASCADE 로 행이 사라져 시크릿 승격의 `config` 쓰기가 예외 없이 0행으로 끝나는 경우다. 생성은 커밋 전의 자기 행에 쓰므로 이 경우가 없다.
 - 감사 기록은 이 트랜잭션에 넣지 않고 커밋 직후 트랜잭션 밖에서 남긴다. 생성이 롤백되면 `trigger.created` 행은 남지 않는다. 옛 동작에서는 감사가 첫 발급보다 먼저였고 첫 발급은 커밋 뒤의 별도 단계였다. 이제는 첫 발급까지 한 트랜잭션으로 커밋한 뒤에 감사를 남긴다. 커밋과 감사 사이에 프로세스가 죽으면 감사 행 없는 트리거가 남을 수 있다. PATCH 도 커밋 직후에 감사를 남기므로 같은 위험으로 받아들였다. 감사 적재 실패는 지금처럼 흡수하고 생성을 실패시키지 않는다([감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 의 감사 실패 흡수 요구사항).

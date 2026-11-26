@@ -1277,3 +1277,77 @@ describe('visual fallback — 코드 블록 안의 백틱 · 백슬래시 escape
     ).toBe(true);
   });
 });
+
+// NERV Task `CLE-T-J8M86K` — languageHints 의 빈 문자열 덮어쓰기는 「없는 것」 이라 기본 문구로 넘어간다.
+// 기본 문구 단언은 빈 문자열 결과(`''`)와 구별된다.
+describe('languageHints 빈 문자열 덮어쓰기 → 기본 문구', () => {
+  function textOf(m: ReturnType<typeof renderTelegramMessages>): string {
+    expect(m).toHaveLength(1);
+    return (m[0].body as { text: string }).text;
+  }
+
+  it('executionCompleted 가 빈 문자열이면 완료 기본 문구를 보낸다', () => {
+    const m = renderTelegramMessages(
+      { ...BASE_EVENT_FIELDS, type: 'execution.completed', result: {} },
+      { ...BASE_CONFIG, languageHints: { executionCompleted: '' } },
+    );
+    expect(textOf(m)).toBe('워크플로우가 완료되었습니다\\.');
+  });
+
+  it('executionCancelled 가 빈 문자열이면 취소 기본 문구를 보낸다', () => {
+    const m = renderTelegramMessages(
+      { ...BASE_EVENT_FIELDS, type: 'execution.cancelled' } as EiaEvent,
+      { ...BASE_CONFIG, languageHints: { executionCancelled: '' } },
+    );
+    expect(textOf(m)).toBe('워크플로우가 취소되었습니다\\.');
+  });
+
+  it('buttonPrompt 가 빈 문자열이면 버튼 안내 기본 문구를 보낸다', () => {
+    const m = renderTelegramMessages(
+      {
+        ...BASE_EVENT_FIELDS,
+        type: 'execution.waiting_for_input',
+        node: { id: 'n2', type: 'button', interactionType: 'buttons' },
+        interaction: {},
+        context: {
+          buttonConfig: {
+            buttons: [{ id: 'b1', label: 'Yes', type: 'callback' }],
+          },
+        },
+      },
+      { ...BASE_CONFIG, languageHints: { buttonPrompt: '' } },
+    );
+    expect(m[0].body).toMatchObject({
+      kind: 'buttons',
+      text: '선택해 주세요\\.',
+    });
+  });
+
+  it('unsupportedInteraction 이 빈 문자열이면 빈 폼 기본 문구를 보낸다', () => {
+    const m = renderTelegramMessages(
+      {
+        ...BASE_EVENT_FIELDS,
+        type: 'execution.waiting_for_input',
+        node: { id: 'n3', type: 'form', interactionType: 'form' },
+        interaction: {},
+        context: { formConfig: { fields: [] } },
+      },
+      { ...BASE_CONFIG, languageHints: { unsupportedInteraction: '' } },
+    );
+    expect(textOf(m)).toBe('폼이 비어 있습니다\\.');
+  });
+
+  it('unsupportedInteraction 이 빈 문자열이면 잘못된 폼 필드 기본 문구를 보낸다', () => {
+    const m = renderTelegramMessages(
+      {
+        ...BASE_EVENT_FIELDS,
+        type: 'execution.waiting_for_input',
+        node: { id: 'n3', type: 'form', interactionType: 'form' },
+        interaction: {},
+        context: { formConfig: { fields: [{ name: 'email' }] } },
+      },
+      { ...BASE_CONFIG, languageHints: { unsupportedInteraction: '' } },
+    );
+    expect(textOf(m)).toBe('폼 필드가 잘못되었습니다\\.');
+  });
+});

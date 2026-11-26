@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-POLICY"
 title: "재실행 — 정책"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "0838ee2bfeece9e10bb752f233dab355e1bcda52c301174e2ffb11f52db3b6bc"
+content_hash: "e3252be168dedd47e25de1ea668abd4a9a7a8c49a5678b2944d89428421d9ea8"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-AQQMY1"
 source_paths: []
-mirror_sha256: "8d9d3f102beae8df8081dd104b731aa3df4d9b03cf1a46001703303020453e4c"
-etag: "sha256-01df17e95e4473eeff9cfec070e9da36558533b987fcb7600e81f1acff73ec6a"
+mirror_sha256: "f0b16c28f6c96779269b561981a05da9811a667518679046c85303d7e05ff839"
+etag: "sha256-87e7ee6994e53ed80b354f3fa29abec27812312de6df07cd2b91aab31b2e3766"
 ---
 ## 개요
 
@@ -93,7 +93,7 @@ G2 는 사용자가 "AI 에게 재실행 권한 부여" 를 명시적으로 켜�
 
 ### 체인 조회 권한
 
-체인 조회(`GET /api/executions/:executionId/chain`)의 권한은 실행 상세 조회(`GET /api/executions/:id`, [실행 내역](CLE-EXEC-HISTORY.md))와 같다(2026-10-10). [RR-PL-06](#rr-pl-06-권한-f) 은 재실행 권한만 정하고 이 라우트에는 적용하지 않는다. 워크스페이스 멤버면 역할과 원본 실행의 시작자와 상관없이 조회할 수 있다. 비멤버는 `RolesGuard` 가 `NOT_A_MEMBER` 로 막는다. 그래서 체인 배지와 "View chain" 드롭다운은 뷰어를 포함한 멤버 모두에게 보이고 재실행 권한이 없으면 재실행 버튼만 비활성화된다. 근거는 [Rationale](#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 에 있다.
+체인 조회(`GET /api/executions/:id/chain`)의 권한은 실행 상세 조회(`GET /api/executions/:id`, [실행 내역](CLE-EXEC-HISTORY.md))와 같다(2026-10-10). [RR-PL-06](#rr-pl-06-권한-f) 은 재실행 권한만 정하고 이 라우트에는 적용하지 않는다. 워크스페이스 멤버면 역할과 원본 실행의 시작자와 상관없이 조회할 수 있다. 비멤버는 `RolesGuard` 가 `NOT_A_MEMBER` 로 막는다. 그래서 체인 배지와 체인 보기 드롭다운(`history.rerun.viewChain`)은 뷰어를 포함한 멤버 모두에게 보이고 재실행 권한이 없으면 재실행 버튼만 비활성화된다. 근거는 [Rationale](#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 에 있다.
 
 ## 다른 정책과의 관계
 

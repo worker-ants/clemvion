@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA-INDEX"
 title: "데이터 모델 개요 — 인덱스 전략"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT-DATA"
 ancestors: ["CLE-VISION", "CLE-PLAT", "CLE-PLAT-DATA"]
 area: "CLE-PLAT"
-content_hash: "3d592fa379085df2158c85c788733c8972dd7172aeb85e507b2995473fb310df"
+content_hash: "a3b5f17e1fcf99df7c2207d23c2b8b3c21d924a3a430dea394be5a3244076518"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-28MDF3"
 source_paths: []
-mirror_sha256: "3f3d8143f63ce5d5c46f1473666050173c01ce0aa65c1da627d7886757cbcaaf"
-etag: "sha256-d9abdc8c08916b6c8cc216a9a30ebf2f2ca5b97d32993cc13e83ff47399e665a"
+mirror_sha256: "cc9a394e057d48b4497658ab0d0c026b8add0860e0eba97a31928626bd530e45"
+etag: "sha256-c343d72f4f570fb03295331d8ac7a6ae39bf650209286964a3b2fa10d5eb867e"
 ---
 ## 개요
 
@@ -168,6 +168,7 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 | 테이블 | 인덱스 | 목적과 근거 |
 | --- | --- | --- |
 | AuditLog | `(workspace_id, created_at DESC)` | 감사 로그 조회 |
+| AuditLog | `(created_at)` | 보존 배치의 `created_at < cutoff` 삭제 전용. V157 |
 | Notification | `(user_id, is_read, created_at DESC)` WHERE `dismissed_at IS NULL` | 사용자별 보이는 안 읽은 알림 조회(벨 배지와 팝오버). 닫은 알림을 인덱스에서 빼서 크기를 작게 유지한다. 수명주기는 [알림](../CLE-OBS/CLE-OBS-NOTIFY.md) |
 | Notification | `(workspace_id, created_at DESC)` | 워크스페이스별 알림 조회. 부분 인덱스로 두지 않았다. 나중에 관리·감사 조회가 닫은 알림까지 볼 여지가 있다 |
 

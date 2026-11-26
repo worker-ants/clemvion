@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-RESPONSE"
 title: "채팅 채널 — 인바운드 HTTP 응답 계약"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "9c8e543cca462d99bf1b7a17386042500acfd8b612fdad1ae0ec64e69561ffae"
+content_hash: "ec1f3f10d1de48ab11094de88689df91a62991adc49fb62899a8eef79f1f853a"
 read_as: "approved_fallback"
-task: "CLE-T-Y1FMCH"
+task: "CLE-T-8A055H"
 source_paths: []
-mirror_sha256: "dab7c4d826c32887b9396c9f90df5a6cd3479064331e2ba146b89bff7f5e33f0"
-etag: "sha256-1a41268b86ae7778968fd4e21cf494c362ebdb223211d51827b7d7a0c1509194"
+mirror_sha256: "e5b2419a09ef861de24db193143729413b4b109c1cee4aaaec6205d89a519a97"
+etag: "sha256-abbfd7b1bd85ca42c9510107abd3573acaa308b4f17f2afc5b9a6001924788f6"
 ---
 ## 개요
 
@@ -35,7 +35,7 @@ etag: "sha256-1a41268b86ae7778968fd4e21cf494c362ebdb223211d51827b7d7a0c1509194"
 | 1:1 대화, 정상 update(기존 실행에 전달) | `202 Accepted` | `{ executionId }`(활성 실행 id) | `InteractionService.interact` 호출, 새 실행 없음 |
 | 1:1 대화, 활성 실행이 있는 대화에 실행 소유자가 보낸 `/start` | `202 Accepted` | `{ executionId }`(새 실행 id) | 기존 실행을 실행 중지 경로로 취소한 뒤 새 실행 시작. 기존 실행이 이미 끝났거나 지워졌으면 취소 없이 시작한다. 안내는 재시작 안내(`languageHints.executionRestarted`)이고 취소 없이 시작한 경우도 같다. 보내는 방식은 첫 행과 같다 |
 | 1:1 대화, `/start` 의 기존 실행 취소 실패(취소를 큐에 넣지 못함, 실행을 읽거나 상태를 바꾸다 난 DB 오류) | 큐 적재 실패는 `503 Service Unavailable`, DB 오류는 `500 Internal Server Error` | 표준 에러 응답 봉투(`EXECUTION_ENQUEUE_FAILED` · `INTERNAL_ERROR`. `EXECUTION_ENQUEUE_FAILED` 정의는 [에러 코드 규약과 카탈로그 §6.7](../CLE-API/CLE-API-ERRCODES.md#67-websocket-명령-재개-명령과-마지막-턴-재시도-도메인-문서-참조)) | 새 실행 없음. 그 update 의 중복 제거 선점을 풀어 프로바이더의 재전송을 받는다. 위 규칙 (나) 에 해당한다. 인터랙션으로 온 `/start` 도 같다 |
-| 1:1 대화, `/start` 의 대화 단위 시작 잠금을 잡지 못했거나 잠금 뒤 다시 읽은 대화가 처음 읽은 것과 다른 실행을 가리킴 | `202 Accepted` | `{ executionId: 'ignored' }` | 같은 대화의 다른 `/start` 와 겹친 것으로 보고 경고 로그를 남긴 뒤 버린다. 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 버린 update 의 수신 확인을 보낸다. 중복 제거 선점은 풀지 않는다. 인터랙션(Slack · Discord 슬래시 명령)이면 `200` 과 기본 응답이다. Redis 가 없거나 오류면 잠금을 잡은 것으로 보고 진행한다([R-CC-38](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)) |
+| 1:1 대화, 새 실행 시작 입력(`/start`, 활성 실행이 없는 대화의 일반 입력)이 대화 단위 시작 잠금을 잡지 못했거나 잠금 뒤 다시 읽은 대화가 처음 읽은 것과 다른 실행을 가리킴 | `202 Accepted` | `{ executionId: 'ignored' }` | 같은 대화에 겹쳐 온 입력으로 보고 버린다. `/start` 는 경고 로그를 남기고 안내 없이 버린다. 일반 입력은 `languageHints.executionStillRunning` 안내 뒤 버리고 다시 읽은 실행이 입력 대기여도 전달하지 않는다. 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 버린 update 의 수신 확인을 보낸다. 중복 제거 선점은 풀지 않는다. 인터랙션이면 `200` 과 기본 응답이다. Redis 가 없거나 오류면 잠금을 잡은 것으로 보고 진행한다([R-CC-38](CLE-CHAT-CORE-FLOW.md#r-cc-38-동시-start-는-대화-단위-시작-잠금으로-직렬화한다)) |
 | 1:1 대화, 활성 실행이 있는 대화에 실행 소유자가 보낸 `/cancel` | `202 Accepted` | `{ executionId }`(취소한 실행 id) | 실행 중지 경로(`ExecutionsService.stop`)로 취소하고 채널 대화 상태의 `executionId` 가 그 실행을 가리킬 때만 비운다. 실행이 이미 끝났거나 지워졌으면(`INVALID_STATE`·`RESOURCE_NOT_FOUND`) 같은 응답이고 채널 건강도를 바꾸지 않으며 아래 행의 `noActiveExecution` 안내를 보낸다 |
 | 1:1 대화, 활성 실행이 없는 대화의 `/cancel` | `202 Accepted` | `{ executionId: 'ignored' }`. 채널 대화 상태에 끝난 실행의 id 가 남아 있으면 그 id | `languageHints.noActiveExecution` 안내(REQ-CHAT-084). Telegram 은 제어 안내로 대화에 보내고 발송 실패는 로그만 남긴다. Slack · Discord 슬래시 명령이면 `200` 즉시 응답의 수신 문구 자리에 이 안내를 싣고 채널에 따로 보내지 않는다. 이 즉시 응답은 처리 경로가 정한 응답이다. 채널 건강도를 바꾸지 않는다([R-CC-36](#r-cc-36-cancel-할-실행이-없으면-안내한다)) |
 | 활성 실행이 있는 대화에 실행 소유자가 아닌 사람이 보낸 `/start`·`/cancel` | `202 Accepted` | `{ executionId: 'ignored' }` | 기존 실행을 취소하지 않고 새 실행도 시작하지 않는다. 안내 문구 없이 버린 update 의 수신 확인만 보낸다. 인터랙션(Slack · Discord 슬래시 명령)이면 `200` 과 기본 응답이다. 실행 소유자는 `channelUserKey` 가 채널 대화 상태의 값과 같은 사용자다. 슬래시 명령도 DM 에서만 받으므로 1:1 DM 에서는 보통 생기지 않는다. 사람끼리의 DM 처럼 DM 판정이 넓게 잡히는 드문 경우에만 생기고 소유자 확인은 그때를 막는 겹 방어다([R-CC-35](CLE-CHAT-CORE-FLOW.md#r-cc-35-start-와-cancel-은-실행-소유자만-쓴다)) |
@@ -79,7 +79,7 @@ etag: "sha256-1a41268b86ae7778968fd4e21cf494c362ebdb223211d51827b7d7a0c1509194"
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/hooks/hooks.service.ts`: 처리 중 예상하지 못한 오류의 `202`. `maybeNotifyIgnored` 는 Telegram 모양(`message.chat`)의 본문에만 `groupChatRefusal` · `unsupportedMessageKind` 안내를 보낸다. `/cancel` 분기와 `notifyNoActiveExecution` 이 활성 실행이 없는 `/cancel` 안내를 보낸다(슬래시 명령은 즉시 응답, Telegram 은 제어 안내). `/start` 분기는 시작 잠금 · 재확인으로 겹친 `/start` 를 버리고, 새 실행을 시작하면 시작 · 재시작 안내를 보낸다(전달 방식은 `/cancel` 안내와 같다)
+- `codebase/backend/src/modules/hooks/hooks.service.ts`: 처리 중 예상하지 못한 오류의 `202`. `maybeNotifyIgnored` 는 Telegram 모양(`message.chat`)의 본문에만 `groupChatRefusal` · `unsupportedMessageKind` 안내를 보낸다. `/cancel` 분기와 `notifyNoActiveExecution` 이 활성 실행이 없는 `/cancel` 안내를 보낸다(슬래시 명령은 즉시 응답, Telegram 은 제어 안내). 새 실행 시작 경로는 시작 잠금 · 재확인으로 겹친 입력을 버리고, `/start` 분기는 새 실행을 시작하면 `notifyExecutionStarted` 로 시작 · 재시작 안내를 보낸다(전달 방식은 `/cancel` 안내와 같다)
 - `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `codebase/backend/test/chat-channel-discord.e2e-spec.ts`(두 파일 모두 인터랙션 응답 포함)
 
 ## Rationale

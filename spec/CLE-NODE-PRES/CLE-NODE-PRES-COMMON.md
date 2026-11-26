@@ -2,19 +2,19 @@
 id: "CLE-NODE-PRES-COMMON"
 title: "Presentation 노드 공통"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PRES"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-PRES"]
 area: "CLE-NODE-PRES"
-content_hash: "a9e1d906610a7c22e713a441725e4bc7b71b8d6fadc8485a09b4e21e2b75102c"
+content_hash: "cde08d9cba1ff9a678502e65477df864813842bdc9b2ea435836ac9bb4629fb7"
 read_as: "approved_fallback"
-task: "CLE-T-6R7VRR"
+task: "CLE-T-1639BP"
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "ffb397e2aa5577792553770a32ac28e1829563ba87fd7e95d308f628efaef771"
-etag: "sha256-20267e356e31a64828e3d81db401e9af2cac7547d2b4d4da45b9e091765c1c4f"
+mirror_sha256: "650efa0957d088f6ceccf366cb3c21ebc63c897b02eaf5688d4a7a0ed54d7065"
+etag: "sha256-fb750432864c052c555eed37f8a78616d618adc987448fdfa1e9d3773015d2d5"
 ---
 > 구현 상태: 부분 구현 (미구현: 대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출, 드로어 Chart 축 라벨) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -349,7 +349,7 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 비슷한 안은 전에도 기각했다.
 
 - 2026-06-03 에 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md#buttonconfig-예시-정정-타임아웃-제거와-nodeoutput-판별자-폐지-2026-06-03-c2c3) 을 고치면서 공통 규약에 타임아웃 정책을 들이는 안을 기각하고 `buttonConfig` 예시에서 타임아웃을 지웠다. 현 구현과 다른 문서가 모두 무제한 대기였다.
-- [External Interaction API](../CLE-IX/CLE-EIA.md#공개-위젯-회수-신호는-토큰-만료다) 는 공개 위젯 실행 회수에 "N일 동안 조용하면 종료" 같은 엔진 전역 유휴 타이머를 쓰지 않기로 했다. 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 수 있어서다. 노드별 기한이 아니라 서버 전체의 정리 규칙에 관한 결정이다.
+- [External Interaction API](../CLE-IX/CLE-EIA.md#공개-위젯-회수-신호는-토큰-만료다) 는 인증 설정이 없는 웹채팅 위젯의 실행 회수에 "N일 동안 조용하면 종료" 같은 엔진 전역 유휴 타이머를 쓰지 않기로 했다. 며칠 뒤 입력이 올 정당한 대기를 잘못 끝낼 수 있어서다. 노드별 기한이 아니라 서버 전체의 정리 규칙에 관한 결정이다.
 
 ### 파일 필드는 메타데이터만 보낸다
 
@@ -365,7 +365,7 @@ AI 카테고리 노드는 이 필드를 설정 항목으로 선언한다. 그 �
 
 결정일: 2026-11-14
 
-**왜 예약하는가**: 엔진은 버튼을 누르면 `_selectedPort` 에 버튼 id 를 넣고 이 값을 연결선의 `sourcePort` 와 문자열로 비교해 다음 노드를 고른다. 그래서 같은 노드에 id 가 `error` 인 버튼과 에러 포트가 함께 있으면 두 연결선을 구분하지 못한다. 엔진 비교가 정확 일치라서 검증도 정확 일치만 거부한다. 대소문자는 구분하므로 `Error` 는 통과한다. 결정의 전체 배경은 [노드 출력 규약 — 포트 · 흐름 상태 · 에러](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다-2026-11-14) 의 Rationale 에 있다.
+**왜 예약하는가**: 엔진은 버튼을 누르면 `_selectedPort` 에 버튼 id 를 넣고 이 값을 연결선의 `sourcePort` 와 문자열로 비교해 다음 노드를 고른다. 그래서 같은 노드에 id 가 `error` 인 버튼과 에러 포트가 함께 있으면 두 연결선을 구분하지 못한다. 엔진 비교가 정확 일치라서 검증도 정확 일치만 거부한다. 대소문자는 구분하므로 `Error` 는 통과한다. 결정의 전체 배경은 [노드 출력 규약 — 포트 · 흐름 상태 · 에러](../CLE-NODE/CLE-NODE-OUTPUT-FLOW.md#error-포트-id-를-한-노드에-하나만-둔다) 의 Rationale 에 있다.
 
 **저장된 id 이전**: "버튼 id 는 바뀌지 않는다"는 원칙과 연결선을 보존한다는 원칙의 일회성 예외다. 이전 스크립트(`codebase/backend/src/scripts/migrate-reserved-error-button-ids.ts`)는 버튼 id 와 그 노드에서 나가는 `error` 연결선의 `sourcePort` 를 같은 트랜잭션에서 함께 바꾼다. 그래서 연결선이 끊기지 않는다. 새 id 는 `error_1` 부터 시작해 노드 안에서 비어 있는 첫 번호를 쓴다. 한 번만 돌리는 작업이고 운영에서 언제 돌릴지는 사람이 정한다.
 

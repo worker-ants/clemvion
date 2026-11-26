@@ -286,3 +286,130 @@ describe('AuditLogsService.record — 삼킨 실패의 관측', () => {
     await expect(service.record(entry)).resolves.toBeUndefined();
   });
 });
+
+describe('AuditLogsService.pruneOlderThanRetention — 보존 배치 (REQ-AUDIT-019)', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const SENTINEL_CUTOFF = new Date('2020-01-01T00:00:00.000Z');
+  let selectQb: {
+    select: jest.Mock;
+    where: jest.Mock;
+    limit: jest.Mock;
+    getQuery: jest.Mock;
+    getParameters: jest.Mock;
+  };
+  let deleteQb: {
+    delete: jest.Mock;
+    from: jest.Mock;
+    where: jest.Mock;
+    setParameters: jest.Mock;
+    execute: jest.Mock;
+  };
+  let service: AuditLogsService;
+
+  beforeEach(() => {
+    selectQb = {
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getQuery: jest.fn(() => 'SELECT "al"."id" FROM "audit_log" "al"'),
+      getParameters: jest.fn(() => ({ cutoff: SENTINEL_CUTOFF })),
+    };
+    deleteQb = {
+      delete: jest.fn().mockReturnThis(),
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      setParameters: jest.fn().mockReturnThis(),
+      execute: jest.fn(),
+    };
+    const repo = {
+      // 배치마다 하위 SELECT 하나와 DELETE 하나를 만든다.
+      createQueryBuilder: jest.fn((alias?: string) =>
+        alias ? selectQb : deleteQb,
+      ),
+    };
+    service = new AuditLogsService(repo as unknown as Repository<AuditLog>);
+  });
+
+  it('보존 일수만큼 앞선 시각보다 이른 행만 고른다', async () => {
+    deleteQb.execute.mockResolvedValueOnce({ affected: 0 });
+    const now = new Date('2026-11-20T18:30:00.000Z');
+
+    await service.pruneOlderThanRetention(365, now);
+
+    expect(selectQb.where).toHaveBeenCalledWith('al.created_at < :cutoff', {
+      cutoff: new Date(now.getTime() - 365 * DAY_MS),
+    });
+    expect(selectQb.limit).toHaveBeenCalledWith(1000);
+    expect(deleteQb.from).toHaveBeenCalledWith(AuditLog);
+  });
+
+  it('DELETE 는 하위 SELECT 의 id IN 절과 :cutoff 바인딩을 그대로 받는다', async () => {
+    deleteQb.execute.mockResolvedValueOnce({ affected: 0 });
+
+    await service.pruneOlderThanRetention(365);
+
+    expect(deleteQb.where).toHaveBeenCalledWith(
+      'id IN (SELECT "al"."id" FROM "audit_log" "al")',
+    );
+    expect(deleteQb.setParameters).toHaveBeenCalledWith({
+      cutoff: SENTINEL_CUTOFF,
+    });
+  });
+
+  it('지울 행이 없으면 0 을 돌려주고 한 번만 지운다', async () => {
+    deleteQb.execute.mockResolvedValueOnce({ affected: 0 });
+
+    await expect(service.pruneOlderThanRetention(365)).resolves.toBe(0);
+    expect(deleteQb.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('1000행보다 적게 지운 배치에서 멈추고 지운 수를 더한다', async () => {
+    deleteQb.execute
+      .mockResolvedValueOnce({ affected: 1000 })
+      .mockResolvedValueOnce({ affected: 1000 })
+      .mockResolvedValueOnce({ affected: 250 });
+
+    await expect(service.pruneOlderThanRetention(365)).resolves.toBe(2250);
+    expect(deleteQb.execute).toHaveBeenCalledTimes(3);
+  });
+
+  it('한 번 실행에 50배치까지만 지우고 나머지는 다음 실행에 넘긴다', async () => {
+    deleteQb.execute.mockResolvedValue({ affected: 1000 });
+
+    await expect(service.pruneOlderThanRetention(365)).resolves.toBe(50_000);
+    expect(deleteQb.execute).toHaveBeenCalledTimes(50);
+  });
+
+  it('상한에서 끝나면 남은 행이 있을 수 있다는 경고를 한 번 남긴다', async () => {
+    deleteQb.execute.mockResolvedValue({ affected: 1000 });
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    await service.pruneOlderThanRetention(365);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('cap'));
+    warn.mockRestore();
+  });
+
+  it('상한 전에 끝나면 경고하지 않는다', async () => {
+    deleteQb.execute.mockResolvedValueOnce({ affected: 10 });
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    await service.pruneOlderThanRetention(365);
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('삭제 실패는 호출자(배치 서비스)에게 그대로 던진다', async () => {
+    deleteQb.execute.mockRejectedValueOnce(new Error('db down'));
+
+    await expect(service.pruneOlderThanRetention(365)).rejects.toThrow(
+      'db down',
+    );
+  });
+});

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REDRIVE"
 title: "장애 복구와 안전 종료 — 크래시 재구동과 부팅 복구 스캔"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "9ce828168c1671c8b73b7f2a76faae27be4c3f5dde8ef9b936fe6d8369a2e1ac"
+content_hash: "5d6ea79782f45623462bcbc7b050dd6a163fbb71e12252c3bd5884c80bf48575"
 read_as: "approved_fallback"
-task: "CLE-T-E6PW00"
+task: "CLE-T-JNXZWY"
 source_paths: []
-mirror_sha256: "1d53a0ec3938bd56f6d2e1e2cff9fb6b115de76798079527212f72acf2de8319"
-etag: "sha256-6a3e788ff60d6794eb75b9453332b64e519bba8176530b00664e65756c2add5b"
+mirror_sha256: "9050ca06f0aa1b0270ffe9e74117e03464cad4a90f0e06920558e8f9f6d5eb86"
+etag: "sha256-c33b05e94bd4ac6409fb9d9750a59ef0a20d81cf36085957aa5ed5a928c42f34"
 ---
 ## 개요
 
@@ -158,7 +158,7 @@ lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
 동시 실행 제한에 걸려 지연 재발행된 작업은 jobId 없는 자동 id 다. Redis 비영속이나 eviction 으로 **사라지면 다시 가져갈 작업이 없어** 그 `pending` 행이 영원히 남는다. 큐 대기 한도는 소비자가 작업을 가져갈 때만 검사하므로 이런 실행은 검사를 받지 못한다. 이 틈을 부팅 복구 스캔(`recoverOrphanPendingExecutions`)으로 막는다.
 
 - **같은 함수와 트리거를 다시 쓴다(별도 스캐너·주기 tick 없음)**: 부팅 복구 스캔(`onApplicationBootstrap` 1회 + 전역 lock)에 `pending` 스캔을 더한다. "heartbeat 대신 stalled 로 일원화, 새 주기 스캐너는 두지 않는다" 원칙을 유지한다. 별도 lock·env·마이그레이션이 없다.
-  - **원칙의 범위는 작업이 있는 엔진 복구에 한정된다**: "새 주기 스캐너를 두지 않는다" 는 BullMQ 작업이 있는 `running`/`pending` 의 엔진 복구에 대한 원칙이다(stalled 재배달이 본래 담당이라 주기 스캔이 필요 없다). 입력 대기 park 의 클라이언트 이탈 회수(공개 위젯 토큰 영구 만료, EIA-RL-07)는 이 원칙과 **관계없다.** park 는 정의상 작업이 없어 엔진 복구 대상이 아니다. 그 회수는 EIA 계층의 토큰 수명 반복 sweep(EIA-RL-06 의 짝, `execution_token` 만료 기반)이 맡는다. 원칙의 예외가 아니라 원칙이 다루지 않는 다른 층·다른 신호의 작업이다.
+  - **원칙의 범위는 작업이 있는 엔진 복구에 한정된다**: "새 주기 스캐너를 두지 않는다" 는 BullMQ 작업이 있는 `running`/`pending` 의 엔진 복구에 대한 원칙이다(stalled 재배달이 본래 담당이라 주기 스캔이 필요 없다). 입력 대기 park 의 클라이언트 이탈 회수(웹채팅 위젯 토큰 영구 만료, EIA-RL-07)는 이 원칙과 **관계없다.** park 는 정의상 작업이 없어 엔진 복구 대상이 아니다. 그 회수는 EIA 계층의 토큰 수명 반복 sweep(EIA-RL-06 의 짝, `execution_token` 만료 기반)이 맡는다. 원칙의 예외가 아니라 원칙이 다루지 않는 다른 층·다른 신호의 작업이다.
 - **`pending` 은 취소, `running` 은 재구동(상태마다 다름)**: `running` stale 은 부분 완료 노드라는 **진행 흔적**이 있어 case B 로 손실 없이 재구동한다. `pending` 은 첫 세그먼트도 시작하지 않아 재구동할 흔적이 없고 큐 대기 한도를 **이미 넘었다.** 그래서 큐 대기 한도의 `cancelled`(`EXECUTION_QUEUE_WAIT_TIMEOUT`)를 그대로 적용한다. 소비자가 가져갔을 때의 결과(재발행 → 재검사 → 취소)와 같으므로 바로 취소하는 편이 단순하고 안전하다. 오래된 실행을 `running` 으로 되살리지 않는다.
 - **멱등하고 race 에 안전하다**: 대상은 `queued_at < now − EXECUTION_QUEUE_WAIT_TIMEOUT_MS` 인 `pending` 뿐이다. 회수는 기존 `markQueueWaitTimeout` 을 다시 쓴다. 동시에 소비자가 들이거나 취소해도 affected=0 no-op 으로 끝난다.
 - **한도 안쪽의 작업 없는 실행**: 아직 한도 전인 실행은 다음 부팅 스캔에서 회수한다. 운영 중 필요할 때 도는 복구 트리거는 stalled 재배달 관측성과 함께 따로 검토한다.

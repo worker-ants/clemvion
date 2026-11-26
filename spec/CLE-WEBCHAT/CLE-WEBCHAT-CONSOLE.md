@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-CONSOLE"
 title: "웹채팅 운영 콘솔"
 type: "feature"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: ["REQ-WCCON-001", "REQ-WCCON-002", "REQ-WCCON-003", "REQ-WCCON-004", "REQ-WCCON-005", "REQ-WCCON-006", "REQ-WCCON-007", "REQ-WCCON-008", "REQ-WCCON-009", "REQ-WCCON-010", "REQ-WCCON-011", "REQ-WCCON-012", "REQ-WCCON-013", "REQ-WCCON-014", "REQ-WCCON-015", "REQ-WCCON-016", "REQ-WCCON-017", "REQ-WCCON-018", "REQ-WCCON-019", "REQ-WCCON-020", "REQ-WCCON-021", "REQ-WCCON-022", "REQ-WCCON-023", "REQ-WCCON-024", "REQ-WCCON-025", "REQ-WCCON-026", "REQ-WCCON-027", "REQ-WCCON-028", "REQ-WCCON-029", "REQ-WCCON-030", "REQ-WCCON-031", "REQ-WCCON-032", "REQ-WCCON-033", "REQ-WCCON-034", "REQ-WCCON-035", "REQ-WCCON-036", "REQ-WCCON-037"]
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "ef40dfd7a0d806c55ea378e423b61400afdd7b346e92d67d7a5ddda5be5a94a1"
-read_as: "approved"
-task: null
+content_hash: "0e86b371ff86363798c7569476d09fc8ee13601ba8a66842c42d5a7b3fa0ad5a"
+read_as: "approved_fallback"
+task: "CLE-T-NXPWZZ"
 source_paths: ["spec/2-navigation/_product-overview.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "84e21bc9b8c24631fe379901b73d34b264e5b3c91610fd2662f273b33cafe524"
-etag: "sha256-b66f295596d24f5670ed9e18dad25c98d7d984f90e970b011d53931ec542fbac"
+mirror_sha256: "176d63dfc651f29bf01db0330dd87516ffd7143a9b0262331c78c0f201c64b0e"
+etag: "sha256-8cfa8f574a073e8f7dc5eaf8a9ee46ffed58bee00c66d2b78f4627e8b26948d9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/5-admin-console.md`, `spec/2-navigation/_product-overview.md` (§3.14 NAV-WC-01..06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -35,7 +35,7 @@ etag: "sha256-b66f295596d24f5670ed9e18dad25c98d7d984f90e970b011d53931ec542fbac"
 - REQ-WCCON-003 WHEN 웹채팅 인스턴스 목록을 조회하면 THE SYSTEM SHALL `GET /api/triggers?type=webhook&interactionEnabled=true` 서버 필터를 쓴다.
 - REQ-WCCON-004 WHEN 목록 응답을 받으면 THE SYSTEM SHALL 클라이언트에서도 `type==='webhook' && config.interaction?.enabled` 로 한 번 더 거른다.
 - REQ-WCCON-005 WHEN 편집자 이상이 "웹채팅 만들기" 에서 워크플로우와 이름을 정하면 THE SYSTEM SHALL `crypto.randomUUID()` 로 `endpointPath` 를 만들고 `POST /api/triggers` 로 인터랙션이 켜진 웹훅 트리거를 만든다. (원본: NAV-WC-03)
-- REQ-WCCON-006 WHEN 웹채팅 인스턴스를 만들면 THE SYSTEM SHALL 요청 본문 최상위 `interaction` 에 `{ enabled: true, tokenStrategy: 'per_execution' }` 를 싣는다.
+- REQ-WCCON-006 WHEN 웹채팅 인스턴스를 만들면 THE SYSTEM SHALL 요청 본문의 타입 필드 `interaction` 에 `{ enabled: true, tokenStrategy: 'per_execution' }` 를 싣는다.
 - REQ-WCCON-007 WHEN 편집자 이상이 외형을 저장하면 THE SYSTEM SHALL `PATCH /api/triggers/:id` 로 트리거의 `config.interaction.appearance` 에 저장한다. (원본: NAV-WC-04)
 - REQ-WCCON-008 WHEN 외형을 저장하면 THE SYSTEM SHALL `interaction` 에 `enabled` 와 `tokenStrategy` 를 함께 보내 보존한다.
 - REQ-WCCON-009 WHILE 외형 편집이 저장되지 않은 동안 THE SYSTEM SHALL 편집 내용을 브라우저 localStorage 에 캐시한다.
@@ -87,7 +87,7 @@ etag: "sha256-b66f295596d24f5670ed9e18dad25c98d7d984f90e970b011d53931ec542fbac"
 | 콘솔 동작 | 매핑(기존 API) | 비고 |
 |---|---|---|
 | 목록 | `GET /api/triggers?type=webhook&interactionEnabled=true`(서버 JSONB 필터, `query-trigger.dto.ts`) + 클라이언트 방어 필터 `type==='webhook' && config.interaction?.enabled` | 서버 필터로 페이지네이션을 정확하게 한다. 클라이언트 필터는 캐시 오염과 응답 변형을 막으려고 남긴다(다층) |
-| 생성 | `POST /api/triggers` `{ type:'webhook', workflowId, name, endpointPath(클라이언트 UUID), interaction:{ enabled:true, tokenStrategy:'per_execution' } }` | `interaction` 은 요청 본문 최상위 필드이고 백엔드가 저장할 때 `config.interaction` 으로 합친다([External Interaction API](../CLE-IX/CLE-EIA.md)의 트리거 등록 페이로드, `interaction-config.dto.ts`) |
+| 생성 | `POST /api/triggers` `{ type:'webhook', workflowId, name, endpointPath(클라이언트 UUID), interaction:{ enabled:true, tokenStrategy:'per_execution' } }` | `interaction` 은 요청 본문의 [타입 필드](../CLE-GLOSSARY-TRIG.md)이고 백엔드가 저장할 때 `config.interaction` 으로 합친다([External Interaction API](../CLE-IX/CLE-EIA.md)의 트리거 등록 페이로드, `interaction-config.dto.ts`) |
 | 외형·콘텐츠 | 서버 저장(`config.interaction.appearance`) + 설치 스크립트·미리보기로 내보냄 | 기존 트리거 설정을 재사용한다. `PATCH /api/triggers/:id { interaction:{ enabled, tokenStrategy, appearance } }` |
 | 설치 스크립트 | 클라이언트 템플릿 | `endpointPath` 는 트리거의 공개 웹훅 경로 |
 | 라이브 미리보기 | 위젯 임베드(Hosted iframe 모드) | 위젯이 `POST /api/hooks/:endpointPath` 와 `/api/external/*` 를 부른다 |

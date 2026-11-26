@@ -39,6 +39,10 @@ describe('makeLocaleResolver (F-4 3-level lookup factory)', () => {
     expect(resolve(undefined, undefined)).toBe('한글');
     expect(resolve({}, 'de' as LanguageLocale)).toBe('한글');
   });
+  it('저장된 languageHints 가 null 이면 locale default (NERV Task `CLE-T-CSVGX0`)', () => {
+    expect(resolve(null, 'en')).toBe('english');
+    expect(resolve(null, undefined)).toBe('한글');
+  });
   it('다른 키의 override 는 영향 없음', () => {
     expect(resolve({ otherKey: 'x' }, 'en')).toBe('english');
   });
@@ -49,6 +53,7 @@ describe('readLanguageHintOverride · pickLocaleDefault', () => {
     expect(readLanguageHintOverride({ k: '값' }, 'k')).toBe('값');
     expect(readLanguageHintOverride({ k: '' }, 'k')).toBeUndefined();
     expect(readLanguageHintOverride(undefined, 'k')).toBeUndefined();
+    expect(readLanguageHintOverride(null, 'k')).toBeUndefined();
     expect(readLanguageHintOverride({ other: 'x' }, 'k')).toBeUndefined();
     expect(
       readLanguageHintOverride(
@@ -284,6 +289,24 @@ describe('resolveLanguageHint — 3-level lookup', () => {
       'en',
     );
     expect(result).toBe(DEFAULT_LANGUAGE_HINTS.en.executionFailedInternal);
+  });
+
+  // 입구 거부(CLE-T-9Q304H) 전에 저장된 트리거에는 `languageHints: null` 이 남아 있을 수 있다(NERV Task `CLE-T-CSVGX0`).
+  it('저장된 languageHints 가 null 이면 던지지 않고 기본 문구를 돌려주며 폐기 키 경고를 내지 않는다', () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    try {
+      expect(resolveLanguageHint('executionFailedInternal', null, 'ko')).toBe(
+        DEFAULT_LANGUAGE_HINTS.ko.executionFailedInternal,
+      );
+      expect(resolveLanguageHint('executionFailedTimeout', null, 'en')).toBe(
+        DEFAULT_LANGUAGE_HINTS.en.executionFailedTimeout,
+      );
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
 

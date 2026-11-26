@@ -2,21 +2,21 @@
 id: "CLE-OBS-AUDIT-CATALOG"
 title: "감사 로그 — 감사 액션 카탈로그"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-AUDIT"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-AUDIT"]
 area: "CLE-OBS"
-content_hash: "7d0334e25fac8a826d6776da550d710c255dd5c50ecb2ee31e3e05e202bdf7d5"
+content_hash: "6b247494dd1b305250fc43eed07ddf7b0cfd61199a152af8c068bab4e16f1c14"
 read_as: "approved_fallback"
-task: "CLE-T-N93N9K"
+task: "CLE-T-28MDF3"
 source_paths: ["spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "2404491677ce4a5f9bf8be61b6d3a5888da08781dc73dbe3c8b5c0beda3002ad"
-etag: "sha256-9dd547a52c549c7b5d1fb140f2719e7f710772c7b3c4370eb683e57a02158403"
+mirror_sha256: "4e5db2a858e5fba81e22e7251b661788b387d498b84090fbee1a20e60a7dc0b9"
+etag: "sha256-67716c75d80575f14c2ba55723d2d85366083213c1a3333ae39809926034e5df"
 ---
-> 구현 상태: 부분 구현(`workflow.version_restored` 미구현, `alerts` 모듈 커버리지 갭) · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/5-system/1-auth.md` (§4), `spec/data-flow/1-audit.md`, `spec/conventions/audit-actions.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현(`alerts` 모듈 커버리지 갭) · 상위: [감사 로그](CLE-OBS-AUDIT.md) · 원문: `spec/5-system/1-auth.md` (§4), `spec/data-flow/1-audit.md`, `spec/conventions/audit-actions.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
@@ -56,7 +56,7 @@ etag: "sha256-9dd547a52c549c7b5d1fb140f2719e7f710772c7b3c4370eb683e57a02158403"
 | `workflow.created` | workflow | `workflows/workflows.service.ts` | 워크플로우 생성 | 구현됨 |
 | `workflow.updated` | workflow | 〃 | 워크플로우 수정 | 구현됨 |
 | `workflow.deleted` | workflow | 〃 | 워크플로우 삭제 | 구현됨 |
-| `workflow.version_restored` | workflow | 〃 | 버전 복원(`restoreVersion`, `POST /workflows/:id/versions/:versionId/restore`). `resource_id` 는 워크플로우 ID 다. `details.originalVersionId`(복원한 원본 버전 ID)·`newVersionId`(복원으로 새로 생긴 버전 ID). 캔버스 저장(`saveCanvas`)은 남기지 않는다([Rationale](#캔버스-저장은-감사-로그에-남기지-않고-버전-복원만-남긴다)) | 미구현(CLE-T-28MDF3) |
+| `workflow.version_restored` | workflow | 〃 | 버전 복원(`restoreVersion`, `POST /workflows/:id/versions/:versionId/restore`). 복원 트랜잭션이 커밋된 뒤에 남긴다. `resource_id` 는 워크플로우 ID 다. `details.originalVersionId`(복원한 원본 버전 ID)·`newVersionId`(복원으로 새로 생긴 버전 ID). 캔버스 저장(`saveCanvas`)은 남기지 않는다([Rationale](#캔버스-저장은-감사-로그에-남기지-않고-버전-복원만-남긴다)) | 구현됨 |
 | `workflow.executed` | workflow | 없음 | 워크플로우 실행. 실행 기록은 `execution` 행이 맡으므로 감사 로그에 남기지 않는다(아래 Rationale). `AUDIT_ACTIONS` 에도 두지 않는다 | 기록하지 않음 |
 | `trigger.created` | trigger | `triggers/triggers.service.ts` | 트리거 생성. `details.type`(트리거 종류). 그 요청이 일회성 평문을 발급했으면 `details.issuedSecrets` 에 발급한 비밀의 종류 이름 배열을 싣는다. 값은 `notificationSigningSecret` 과 `interactionToken` 이고 발급한 것만 이 순서로 싣는다. 평문은 싣지 않는다. 발급하지 않았으면 키가 없다 | 구현됨 |
 | `trigger.updated` | trigger | 〃 | 트리거 수정. 켜기·끄기도 이 감사 액션이다(토글 전용 동사가 없다). `details.type`. 그 요청이 일회성 평문을 발급했으면 `details.issuedSecrets` 를 싣는다(`trigger.created` 와 같다) | 구현됨 |
@@ -74,7 +74,7 @@ etag: "sha256-9dd547a52c549c7b5d1fb140f2719e7f710772c7b3c4370eb683e57a02158403"
 
 카탈로그에 딸린 규칙과 사실:
 
-- 워크스페이스·멤버 감사 액션은 결정4(B, 2026-07-07)로 구현됐다. 워크플로우·트리거·스케줄·모델 설정 CRUD 는 2026-08-01, 트리거 시크릿·토큰 세 감사 액션은 2026-08-11 에 구현됐다.
+- 워크스페이스·멤버 감사 액션은 결정4(B, 2026-07-07)로 구현됐다. 워크플로우·트리거·스케줄·모델 설정 CRUD 는 2026-08-01, 트리거 시크릿·토큰 세 감사 액션은 2026-08-11 에 구현됐다. `workflow.version_restored` 는 NERV Task `CLE-T-28MDF3` 에서 구현했다.
 - **`workspace.deleted` 는 남기지 않는다.** 결정4 는 워크스페이스 CRUD 전체의 감사를 의도했다. 그런데 `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)다. 삭제 전에 남기면 삭제와 함께 cascade 로 지워지고 삭제 뒤에 남기면 FK 위반이 난다. 그래서 `AUDIT_ACTIONS` 에 두지 않는다. 삭제 이력을 남기려면 워크스페이스에 묶이지 않은 별도 저장소가 필요하고 이는 범위 밖이다. 근거 원본은 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md) 의 Rationale 이다.
 - **워크플로우 실행과 캔버스 저장은 남기지 않는다.** 실행은 `execution` 행이 실행자와 시작 시각을 남긴다. 캔버스 저장은 저장마다 생기는 `workflow_version` 스냅샷이 저장한 사람과 시각을 남긴다. 워크플로우 쪽에서 새로 남기는 것은 버전 복원(`workflow.version_restored`) 하나다([실행](#워크플로우-실행은-감사-로그에-남기지-않는다), [캔버스 저장](#캔버스-저장은-감사-로그에-남기지-않고-버전-복원만-남긴다)).
 - **짝 리소스는 호출된 엔드포인트 쪽만 남긴다.** 트리거의 켜기·끄기와 스케줄의 활성 상태는 서로를 동기화한다. `SchedulesService` 가 짝 트리거를 만들고 지운다. `TriggersService` 의 `syncScheduleActivation` 이 짝 스케줄의 `isActive` 를 바꾼다. 이때 상대 리소스의 감사 액션은 남기지 않는다. 사용자가 한 행위는 하나(스케줄 생성, 트리거 끄기)인데 양쪽을 다 남기면 같은 조작이 두 행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 된다. 짝 행의 변화는 호출된 감사 액션의 부수 효과로 읽는다. 멤버가 나가거나 제거될 때 남는 `member.removed` 한 행과 `integration.deleted` 여러 행은 이 규칙의 대상이 아니다. 지운 개인 통합은 멤버십과 서로의 행을 맞추는 짝 리소스가 아니고 그 요청으로 실제로 지워진 리소스라서 통합마다 남긴다([Rationale](#나가기와-제거가-지운-개인-통합은-통합마다-한-행씩-남긴다-2026-10-29)).

@@ -195,6 +195,35 @@ describe('Integration connection test — Database · HTTP · MCP (e2e)', () => 
     },
   );
 
+  /**
+   * Email host 를 사설 대역으로 풀리는 이름으로 준 경우(CLE-T-PTCRM4). compose 의 서비스 이름은 사설 IP 로 풀린다. Database 는
+   * A 가 같은 경우(`postgres`)를 본다. 연결 테스트는 연결 전 판정에 더해 연결할 때 푼 주소도 판정하지만, 두 판정이 다른 답을
+   * 받는 DNS rebinding 은 e2e 에서 만들 수 없다. 그 갈래는 실제 드라이버로 재현하는 unit spec(`database-connection.spec.ts` ·
+   * `smtp-host-guard.connect-guard.spec.ts`)이 본다.
+   */
+  it('B3. preview-test — Email host 가 사설 대역으로 풀리는 이름이면 EMAIL_HOST_BLOCKED, 이름 · 주소를 싣지 않는다', async () => {
+    const res = await post('/api/integrations/preview-test').send({
+      serviceType: 'email',
+      authType: 'smtp',
+      credentials: {
+        host: 'redis',
+        port: 587,
+        secure: 'starttls',
+        username: 'e2e@example.com',
+        password: 'e2e-password',
+        default_from: 'e2e@example.com',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      success: false,
+      code: 'EMAIL_HOST_BLOCKED',
+      message:
+        'SMTP host points to a private/loopback address blocked by policy.',
+    });
+  });
+
   it('C. 저장된 Database 통합의 :id/test 도 같은 테스터를 탄다', async () => {
     const id = await createIntegration({
       serviceType: 'database',

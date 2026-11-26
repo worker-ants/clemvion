@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY-UI"
 title: "실행 내역 — 화면 구성"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-HISTORY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-HISTORY"]
 area: "CLE-EXEC"
-content_hash: "2821b0a59793da473b06ed9ed36efcb700f84c679ea471572ed25da89e776e1d"
+content_hash: "8b2d8d409f44d86d94063e7080b7811dc86864d1ab5c73faec6036db5b7cb317"
 read_as: "approved_fallback"
-task: "CLE-T-51KBTG"
+task: "CLE-T-AQQMY1"
 source_paths: []
-mirror_sha256: "5ed576bba003d3a4d5f660cd67bd0ec58868d92474ac629813a19e1923e56c13"
-etag: "sha256-c27505b92c2d8061c21d55a3b743182f23aa30e840ca76ee0ff2dcf5698271e4"
+mirror_sha256: "df264615862e3ebd3bb2c97a55c12721114bc0240dd771350482687a99a85258"
+etag: "sha256-29fac41dcdec8f65d7a6b197b9bb50817f8f15fb77d9ce05740205e11dfb0134"
 ---
 ## 개요
 
@@ -162,21 +162,21 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 | --- | --- | --- |
 | 머리 | 위 | "← Executions", `[⟳ Re-run]`, `[← Prev] [Next →]` |
 | 요약 | 가운데 | 상태, 시작 시각과 실행 시간, 노드 현황 |
-| 체인 줄 | 요약 아래 | `📎 #3-th re-run · dry-run · 원본: #1234` 와 `[View chain (4) ▼]` |
+| 체인 줄 | 요약 아래 | `📎 #3-th re-run · dry-run · 원본: #1234` 와 체인 보기 드롭다운(`history.rerun.viewChain`, 체인 실행 수를 함께 보인다) |
 
 | 요소 | 표시 조건 | 동작 |
 | --- | --- | --- |
 | `[⟳ Re-run]` 버튼 | 항상 표시 | 권한이 없으면 비활성화하고 툴팁 `history.rerun.permissionDenied` 를 단다([역할별 표시](#역할별-표시)). 누르면 재실행 모달을 연다 |
 | 체인 배지 | `execution.reRunOf != null` | "#N-th re-run · 원본: <ID>". dry-run 이면 "· dry-run" 을 붙인다. 원본 ID 를 누르면 **같은 탭**에서 원본 상세로 이동한다(`<Link href>`, `target=_blank` 없음). 재실행 **모달**의 원본 ID 링크는 편집 맥락을 지키려고 새 탭이다(의도한 구분) |
-| `[View chain (N) ▼]` 드롭다운 | 체인의 실행이 2개 이상 | 누르면 `GET /api/executions/:id/chain` 응답을 펼친다. 항목마다 ID, 시작 시각, 최종 상태, dry-run 여부를 보여 준다 |
+| 체인 보기 드롭다운(`history.rerun.viewChain`) | 체인의 실행이 2개 이상 | 누르면 `GET /api/executions/:id/chain` 응답을 펼친다. 항목마다 ID, 시작 시각, 최종 상태, dry-run 여부를 보여 준다 |
 
-모달에서 "재실행" 을 누르면 `POST /api/executions/:executionId/re-run` 응답의 새 실행 ID 로 `/w/<slug>/workflows/:workflowId/executions/:newId` 로 이동한다. i18n 키와 에러 매핑은 [재실행](CLE-EXEC-RERUN.md) 에 있다.
+모달에서 "재실행" 을 누르면 `POST /api/executions/:id/re-run` 응답의 새 실행 ID 로 `/w/<slug>/workflows/:workflowId/executions/:newId` 로 이동한다. i18n 키와 에러 매핑은 [재실행](CLE-EXEC-RERUN.md) 에 있다.
 
 실행 상세 화면에는 에디터 실행 결과 드로어와 같은 모양으로 Background 본문 실행 결과 섹션도 표시된다([에디터 실행과 디버깅](CLE-EXEC-RUN.md)).
 
 #### 역할별 표시
 
-체인 배지와 `[View chain (N) ▼]` 드롭다운은 실행 상세를 볼 수 있는 워크스페이스 멤버 모두에게(재실행 권한과 무관하게) 같은 조건으로 보인다. 재실행은 편집자 이상만 할 수 있고 버튼은 역할과 원본 실행의 시작자를 함께 보고 켠다(`canReRun`). 자세한 기준은 [재실행](CLE-EXEC-RERUN.md) 이 정한다.
+체인 배지와 체인 보기 드롭다운은 실행 상세를 볼 수 있는 워크스페이스 멤버 모두에게(재실행 권한과 무관하게) 같은 조건으로 보인다. 재실행은 편집자 이상만 할 수 있고 버튼은 역할과 원본 실행의 시작자를 함께 보고 켠다(`canReRun`). 자세한 기준은 [재실행](CLE-EXEC-RERUN.md) 이 정한다.
 
 | 역할 | 체인 배지 · 드롭다운 | `[⟳ Re-run]` 버튼 |
 | --- | --- | --- |

@@ -2,19 +2,19 @@
 id: "CLE-WEBCHAT-ARCH"
 title: "웹채팅 구조"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WEBCHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-WEBCHAT"]
 area: "CLE-WEBCHAT"
-content_hash: "90c27bb718fea8000bf44fb1ff48579dee6ca318256e9a94cb205409296c10f8"
+content_hash: "57a13c15630052a7f8185547cba1ea865f7d18d6960b75a8dbaa0bbdf06ffd96"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-JNXZWY"
 source_paths: ["spec/7-channel-web-chat/0-architecture.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "bdd5981eccfa30a1ec86a471c32ccf86b692a2b8a73a1cb8e589822ceecb5e59"
-etag: "sha256-66c070dc2b41249d084990bc7c18457e33db66d3d3172948a027e30814674418"
+mirror_sha256: "d9f58e4bec3110c61f352fa0b1ec0c5ce3b77607dbc6ad13bfa2d9b5ebea7afc"
+etag: "sha256-6989526cfa9806f85650a772304dcf20ad3305ee76b76c01ffd82c70421e2140"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/0-architecture.md`, `spec/7-channel-web-chat/5-admin-console.md` (R4·R6 의 배포 결정 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -45,7 +45,7 @@ flowchart TB
 
 | 레이어 | 책임 | 격리 경계 |
 |---|---|---|
-| 호스트 페이지 | 고객 사이트. SDK `boot` 호출만 한다 | 호스트 origin |
+| 호스트 페이지 | 웹채팅 위젯을 올리는 외부 웹페이지. SDK `boot` 호출만 한다 | 호스트 origin |
 | 스니펫 로더·SDK API | iframe 주입(런처는 iframe 안에서 그린다), iframe 생애주기, 호스트 페이지↔iframe 메시지 전달, 공개 JS API | 호스트 DOM 에 남기는 흔적을 최소로 |
 | 웹채팅 위젯(iframe) | 채팅 UI, EIA 클라이언트(웹훅·SSE·REST), 대화 상태 머신 | 위젯 배포 주소 origin. CSS·JS·storage 격리 |
 | Clemvion API | EIA 표면(기존) | API origin |
@@ -60,7 +60,7 @@ flowchart TB
 
 - 로더가 iframe 을 만들지만 `src` 는 정적이고 바뀌지 않는 파일(`output:'export'` 산출물)이다. 기본 배포는 이 파일을 배포 자신의 origin 에서 서빙하고(동봉 배포) 엣지 CDN 은 선택이다. 캐시가 맞으면 클라이언트가 늘어도 서버에 요청마다 부담이 생기지 않는다. 동적 렌더링이 아니다.
 - `srcdoc`·`about:blank` 로 문서를 직접 만드는 방식은 기각한다. 그런 iframe 은 호스트 origin 을 물려받아 cross-origin 격리가 깨진다. 격리하려면 iframe 은 반드시 다른 origin 의 실제 `src` 여야 한다.
-- 예외: [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)의 라이브 미리보기는 cross-origin 격리가 목적이 아니다. 그래서 same-origin 동봉 위젯을 실제 `src` iframe 으로 불러온다. 여기서도 `srcdoc` 로 문서를 만드는 것은 금지다.
+- 예외: [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)의 라이브 미리보기는 cross-origin 격리가 목적이 아니다. 그래서 제품과 함께 배포한 웹채팅 위젯을 same-origin 실제 `src` iframe 으로 불러온다. 여기서도 `srcdoc` 로 문서를 만드는 것은 금지다.
 - 워크스페이스·트리거·외형은 문서를 워크스페이스별로 렌더링해서 넣지 않는다. 쿼리 파라미터, postMessage, 캐시할 수 있는 워크스페이스별 JSON 으로 넣는다.
 
 ## 위젯이 쓰는 EIA 표면
@@ -102,7 +102,7 @@ flowchart TB
 | 임베드 설정 조회(`GET /api/hooks/:endpointPath/embed-config`, `EmbedConfigService`) | 임베드 허용 도메인과 강제 여부를 공개로 돌려준다 | [웹채팅 보안](CLE-WEBCHAT-SECURITY.md) |
 | 경로별 CORS 처리(`webChatCorsDelegate`, `web-chat-cors.ts`) | `/api/hooks/*` 와 `/api/external/*` 에 다른 CORS 정책을 적용한다 | [웹채팅 보안](CLE-WEBCHAT-SECURITY.md) |
 | 공개 웹훅 가드(`PublicWebhookThrottleGuard`) | 공개 웹훅의 IP 호출 수와 본문 크기를 제한한다. 웹채팅만이 아니라 채팅 채널 트리거를 뺀 모든 공개 웹훅에 걸린다 | [웹채팅 보안](CLE-WEBCHAT-SECURITY.md), [웹훅](../CLE-TRIG/CLE-TRIG-WEBHOOK.md) |
-| 유휴 실행 회수(`WebChatIdleReaperService`) | 버려진 공개 위젯 실행을 토큰이 모두 만료된 뒤 취소한다. 이 경로만 실행 상태를 바꾼다 | [External Interaction API](../CLE-IX/CLE-EIA.md), [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) |
+| 유휴 실행 회수(`WebChatIdleReaperService`) | 버려진 웹채팅 위젯 실행을 토큰이 모두 만료된 뒤 취소한다. 이 경로만 실행 상태를 바꾼다 | [External Interaction API](../CLE-IX/CLE-EIA.md), [웹채팅 인증과 세션](CLE-WEBCHAT-SESSION.md) |
 
 ## 배포와 도메인 설정
 
@@ -128,7 +128,7 @@ Clemvion 은 SaaS 와 셀프호스팅을 함께 한다. 그래서 이 문서의 
 - **동봉 방식**: 프론트엔드의 `build:widget`(`copy-widget.mjs`)이 `channel-web-chat`(`NEXT_PUBLIC_BASE_PATH=/_widget/web-chat/v1/app`)과 `@workflow/web-chat` 로더를 빌드해 `codebase/frontend/public/_widget/web-chat/v1/` 로 복사한다. 배포 origin 에서 same-origin 으로 서빙된다.
 - **`build:widget` 실행 위치**: 프론트엔드 Dockerfile 의 builder 스테이지에서 이미지 안에서 끝낸다. builder 가 두 위젯 패키지의 소스와 의존성을 COPY·설치하고 `next build` 직전에 `build:widget` 을 돌려 `public/_widget` 을 만든다. standalone runner 의 `COPY .../public` 이 그것을 이미지에 싣는다. 외부 CI(Jenkins 등)는 `docker build` 만 하면 된다. 호스트에서 `build:widget` 을 먼저 돌릴 필요가 없고 빌드 노드에 pnpm 이 없어도 된다. 이 단계가 빠지면 위젯 번들이 없어 미리보기와 설치 스크립트가 404 가 된다.
 - 그래서 위젯 배포 주소의 기본값이 배포 자신의 origin 이 되고 외부 위젯 CDN 호스팅은 선행 조건이 아니다. SaaS 엣지 CDN 은 선택 최적화다.
-- 운영 콘솔 라이브 미리보기는 이 동봉 위젯을 same-origin iframe 으로 불러온다. 버전이 일치하고 외부 의존이 없다.
+- 운영 콘솔 라이브 미리보기는 제품과 함께 배포한 웹채팅 위젯을 same-origin iframe 으로 불러온다. 버전이 일치하고 외부 의존이 없다.
 - **프론트엔드 라우팅 전제(필수)**: 위젯을 프론트엔드(Next) `public/_widget/...` 에서 same-origin 으로 서빙할 때 아래 두 처리가 없으면 미리보기와 설치 스크립트가 깨진다.
   1. 인증 미들웨어(`proxy.ts`) 예외. `/_widget/**` 는 공개 정적 번들이므로 prefix 로 인증 리다이렉트에서 뺀다. 위젯 진입 경로 `…/app/` 는 점이 없는 디렉터리 경로라 `includes(".")` 정적 예외에 걸리지 않고 `/login` 으로 튕긴다.
   2. 디렉터리→`index.html` rewrite. Next `public/` 서빙은 디렉터리 index 로 자동 폴백하지 않는다. 그래서 위젯 진입 `…/web-chat/v1/app[/]` 를 `…/app/index.html` 로 `next.config rewrites` 한다. 없으면 404 다. 외부 위젯 CDN(`NEXT_PUBLIC_WIDGET_CDN_BASE`)을 쓰면 CDN 의 디렉터리 index 폴백이 처리하므로 해당하지 않는다.
@@ -186,7 +186,7 @@ v1 은 구현 단순성을 먼저 봐 (A)를 쓴다. 초기 로드 무게가 측
 
 "클라이언트가 많아지면 워크스페이스별 문서를 서버에서 주는 부담이 크다" 는 우려는 맞다. 그래서 동적 문서 렌더링은 쓰지 않는다. 위젯은 `output:'export'` 정적 산출물이라 정적 파일로 나가고 요청마다 서버 렌더링이 없다. `srcdoc`·`about:blank` 로 문서를 만들면 iframe 이 호스트 origin 을 물려받아 격리가 무너지므로 기각한다. "로더가 클라이언트에서 iframe 을 만들고 문서는 정적 cross-origin 자산" 으로 두면 동적 서버 렌더링을 피하면서 격리도 지킨다. 임베드 제어는 문서 CSP 가 아니라 부팅 때 호스트 origin 을 비교하는 임베드 검증으로 옮겼다([웹채팅 보안](CLE-WEBCHAT-SECURITY.md)). CORS 도 워크스페이스별 동적 처리가 필요 없는 경계로 둔다. Hosted iframe 모드는 위젯 배포 주소 하나이고 BYO-UI 모드만 워크스페이스 허용 목록을 쓴다.
 
-**예외: 운영 콘솔 미리보기의 same-origin iframe.** 위 기각은 고객 사이트 임베드(외부 origin 에서 위젯을 호스트와 격리)에 대한 것이다. 운영 콘솔의 라이브 미리보기는 사정이 다르다. 우리 앱이 우리 위젯을 미리 보는 것이라 cross-origin 격리가 목적이 아니다. 셀프호스팅과 여러 버전이 섞이는 환경에서 버전을 맞추고 외부 의존을 없애는 것이 목적이다. 그래서 미리보기는 동봉 위젯을 same-origin 실제 `src` iframe 으로 불러온다(`srcdoc` 아님). 위젯 CSS·JS 격리는 iframe 으로 유지하고 외부 CDN 요청은 없으며 그 배포 버전과 항상 맞는다. 고객 임베드 경로(로더 + cross-origin iframe)는 그대로다. 미리보기 쪽 결정은 [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)에 있다.
+**예외: 운영 콘솔 미리보기의 same-origin iframe.** 위 기각은 호스트 페이지 임베드(외부 origin 에서 위젯을 호스트와 격리)에 대한 것이다. 운영 콘솔의 라이브 미리보기는 사정이 다르다. 우리 앱이 우리 위젯을 미리 보는 것이라 cross-origin 격리가 목적이 아니다. 셀프호스팅과 여러 버전이 섞이는 환경에서 버전을 맞추고 외부 의존을 없애는 것이 목적이다. 그래서 미리보기는 제품과 함께 배포한 웹채팅 위젯을 same-origin 실제 `src` iframe 으로 불러온다(`srcdoc` 아님). 위젯 CSS·JS 격리는 iframe 으로 유지하고 외부 CDN 요청은 없으며 그 배포 버전과 항상 맞는다. 고객 임베드 경로(로더 + cross-origin iframe)는 그대로다. 미리보기 쪽 결정은 [웹채팅 운영 콘솔](CLE-WEBCHAT-CONSOLE.md)에 있다.
 
 ### 위젯을 제품과 동봉 배포한다 (외부 CDN fetch 기각, 결정 2026-06-23)
 

@@ -89,6 +89,8 @@ describe('testDatabaseConnection', () => {
         user: 'reader',
         password: 's3cret-pw',
         ssl: false,
+        // 연결할 때 푼 주소를 다시 판정하는 소켓 팩토리(CLE-T-691T4G).
+        stream: expect.any(Function),
         connectionTimeoutMillis: DB_TEST_TIMEOUT_MS,
         query_timeout: DB_TEST_TIMEOUT_MS,
       });
@@ -176,6 +178,43 @@ describe('testDatabaseConnection', () => {
       expect(result.message).not.toContain('10.0.0.5');
       expect(MockedClient).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ['드라이버가 판정 오류를 그대로 reject', (e: Error) => e],
+      [
+        '드라이버가 판정 오류를 감싸 reject',
+        (e: Error) => new Error('connect failed', { cause: e }),
+      ],
+    ])(
+      '연결할 때 푼 주소가 막히면(%s) DB_HOST_BLOCKED — 차단된 주소를 메시지에 싣지 않는다 (CLE-T-691T4G)',
+      async (_label, wrap) => {
+        pg.connect.mockRejectedValue(
+          wrap(
+            new SsrfBlockedError(
+              'hostname "db.example.com" resolved to restricted IP "10.0.0.7" at connect time',
+            ),
+          ),
+        );
+        const warn = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+        try {
+          const result = await testDatabaseConnection(pgCreds);
+
+          expect(result).toEqual({
+            success: false,
+            code: 'DB_HOST_BLOCKED',
+            message: DB_HOST_BLOCKED_MESSAGE,
+          });
+          expect(warn).toHaveBeenCalledWith(
+            expect.stringContaining('10.0.0.7'),
+          );
+          expect(pg.end).toHaveBeenCalledTimes(1);
+        } finally {
+          warn.mockRestore();
+        }
+      },
+    );
 
     /**
      * 가드가 던지는 «판정» 은 `SsrfBlockedError` 하나뿐이다(`common/utils/ssrf/outbound-guard.ts`). 그 밖의 오류는 가드의 고장이지 차단이 아니므로
@@ -289,6 +328,7 @@ describe('testDatabaseConnection', () => {
         password: 's3cret-pw',
         database: 'app',
         ssl: undefined,
+        stream: expect.any(Function),
         connectTimeout: DB_TEST_TIMEOUT_MS,
       });
       expect(mysql.query).toHaveBeenCalledWith({

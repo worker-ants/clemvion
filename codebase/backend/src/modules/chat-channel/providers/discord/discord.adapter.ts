@@ -32,6 +32,7 @@ import {
   DISCORD_DEFAULT_SLASH_PREFIX,
 } from './discord-interaction-response';
 import { NATIVE_MODAL_MAX_FIELDS } from '../../shared/form-mode';
+import { readLanguageHintOverride } from '../../shared/language-hint-defaults';
 
 /**
  * `setupChannel` 의 Discord 호출(`GET /applications/@me` · `PUT /applications/{id}/commands`)이
@@ -126,7 +127,8 @@ export class DiscordAdapter implements NativeFormAdapter {
     }
     // slash command bulk overwrite — default prefix '/workflow'.
     const slashPrefix =
-      config.languageHints?.slashPrefix ?? DISCORD_DEFAULT_SLASH_PREFIX;
+      readLanguageHintOverride(config.languageHints, 'slashPrefix') ??
+      DISCORD_DEFAULT_SLASH_PREFIX;
     const commands = await this.client.putApplicationCommands(
       botToken,
       application.id,
@@ -353,10 +355,12 @@ export class DiscordAdapter implements NativeFormAdapter {
         type: DISCORD_INTERACTION_CALLBACK_TYPE.MODAL,
         data: {
           custom_id: 'clemvion_reply',
-          title: (params.config.languageHints?.replyModalTitle ?? '답변').slice(
-            0,
-            45,
-          ),
+          title: (
+            readLanguageHintOverride(
+              params.config.languageHints,
+              'replyModalTitle',
+            ) ?? '답변'
+          ).slice(0, 45),
           components: [
             {
               type: DISCORD_COMPONENT_TYPE.ACTION_ROW,
@@ -365,7 +369,10 @@ export class DiscordAdapter implements NativeFormAdapter {
                   type: DISCORD_COMPONENT_TYPE.TEXT_INPUT,
                   custom_id: 'message',
                   label:
-                    params.config.languageHints?.replyModalLabel ?? '메시지',
+                    readLanguageHintOverride(
+                      params.config.languageHints,
+                      'replyModalLabel',
+                    ) ?? '메시지',
                   style: 2,
                   required: true,
                 },
@@ -379,7 +386,9 @@ export class DiscordAdapter implements NativeFormAdapter {
     // §3.3 — modal title 은 formConfig.title 우선, 없으면 languageHints, 최종 '양식'.
     // Discord modal title 은 1–45자 → 초과 시 truncate.
     const rawTitle =
-      params.title ?? params.config.languageHints?.formModalTitle ?? '양식';
+      params.title ??
+      readLanguageHintOverride(params.config.languageHints, 'formModalTitle') ??
+      '양식';
     const modal = {
       type: DISCORD_INTERACTION_CALLBACK_TYPE.MODAL,
       data: {

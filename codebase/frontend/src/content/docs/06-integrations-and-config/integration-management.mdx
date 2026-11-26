@@ -190,7 +190,7 @@ Cafe24 · MakeShop 의 `Test connection` 은 401 을 받으면 토큰을 갱신�
 사설망·loopback·CGNAT(`100.64.0.0/10`) 같은 내부 주소로 향하는 Database · HTTP · Email(SMTP) 연동은 보안을 위해 테스트가 차단되고 실패로 표시돼요(운영자가 내부 주소를 허용한 설치는 예외). 워크플로에서 그 연동을 쓰는 노드도 같은 규칙으로 막혀요. 차단된 주소는 오류 메시지에 나오지 않아요.
 </Callout>
 
-<Callout type="tip">연동이 `expired` 또는 `error` 상태로 바뀌면 사이드바에 주의 필요 배지가 뜨고, 목록 상단에 `Need attention` 배너가 나타나요. 배너를 누르면 해당 상태 필터로 바로 이동해요. 주의 대상에는 토큰이 7일 이내 만료되는 만료 임박 `connected` 연동도 포함돼요. **단, refresh_token 자동 갱신을 지원하는 통합(Cafe24·MakeShop·Google)은 만료 임박이어도 `Need attention` 배너·사이드바 배지·`Expiring` 필터에 포함되지 않아요** — 시스템이 백그라운드에서 자동 갱신하므로 조치가 필요 없기 때문이에요(같은 이유로 access_token 이 만료돼도 passive `integration_expired` 알림을 보내지 않아요). 자동 갱신이 실패해 `error`/`expired` 로 바뀌면 그때 정상적으로 주의 대상에 포함되고 `integration_action_required` active 알림이 발송돼요.</Callout>
+<Callout type="tip">연동이 `expired` 또는 `error` 상태로 바뀌면 사이드바에 주의 필요 배지가 뜨고, 목록 상단에 `Need attention` 배너가 나타나요. 배너를 누르면 해당 상태 필터로 바로 이동해요. 주의 대상에는 토큰이 7일 이내 만료되는 만료 임박 `connected` 연동도 포함돼요. **단, refresh_token 자동 갱신을 지원하는 통합(Cafe24·MakeShop)은 만료 임박이어도 `Need attention` 배너·사이드바 배지·`Expiring` 필터에 포함되지 않아요** — 시스템이 백그라운드에서 자동 갱신하므로 조치가 필요 없기 때문이에요(같은 이유로 access_token 이 만료돼도 passive `integration_expired` 알림을 보내지 않아요). 자동 갱신이 실패해 `error`/`expired` 로 바뀌면 그때 정상적으로 주의 대상에 포함되고 `integration_action_required` active 알림이 발송돼요. Google · GitHub 통합은 자동으로 갱신하지 않아요. 토큰이 7일 안에 만료되면 주의 대상에 포함되니 만료 전에 재인증해요.</Callout>
 
 ## 노드에서 연동 선택하기
 

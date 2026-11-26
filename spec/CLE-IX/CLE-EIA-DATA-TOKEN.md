@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-TOKEN"
 title: "EIA 데이터와 흐름 — 토큰 발급과 인바운드 명령"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "fd8ec1e29984ebfa3de2b9c39c81dc6230f05df7618935be7712ee224945afba"
+content_hash: "a2e896c785c20df51b48b94ea8d55510d726551b87e2a72ba53d2e365e4f6c38"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-NXPWZZ"
 source_paths: []
-mirror_sha256: "2268e0c8cec8a13482b78d3f5e578d41564f0169d042374e33517a9da9e827e0"
-etag: "sha256-e052fc093a6d04325d9543d61ee39762320decd53dff6102945bb15fe18f746d"
+mirror_sha256: "3b74c8088cfcd557babe92b95513abb9d4b58b5056ee07f3d7a1d6610df945e1"
+etag: "sha256-9400ab356976f503a01d47cbf1284c7d8fb41b82b4bd1acff1c2125aecd89082"
 ---
 ## 개요
 
@@ -140,7 +140,7 @@ SSE 스트림의 토큰 확인 시점(열 때, 연결 자리 확보 뒤, 60초�
 3. PATCH 가 인터랙션을 끌 때. 토큰 값은 남지만 가드가 거부한다. 인터랙션을 다시 켜면 같은 토큰이 다시 통한다
 4. 트리거를 지울 때
 
-2 · 3 의 PATCH 는 top-level `interaction` 이 실린 PATCH 다. 서버는 SSE 응답을 끝내 스트림을 닫는다. 새 이벤트 이름은 만들지 않는다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 `TOKEN_INVALID` 로 거부한다. 닫기는 모든 서버 인스턴스에 미친다. 토큰을 무효로 만든 요청을 처리한 서버 인스턴스는 자기 구독자를 닫고 전역 채널 `eia:sse:close` 로 트리거 id 를 알린다. 다른 서버 인스턴스는 그 신호를 받아 자기 구독자를 닫는다. 그 신호가 유실되면 받지 못한 서버 인스턴스의 스트림은 다음 재확인까지 최대 60초 남는다([SSE 버퍼와 실시간 전달을 Redis 에 둔다](CLE-EIA-DATA-SSE.md#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 의 남은 위험). WebSocket 은 소켓 수명을 토큰 수명에 묶는다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)). 두 방식의 관계는 [재검토에서 갈린 EIA 동작을 정한다](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
+2 · 3 의 PATCH 는 타입 필드 `interaction` 이 실린 PATCH 다. 서버는 SSE 응답을 끝내 스트림을 닫는다. 새 이벤트 이름은 만들지 않는다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 `TOKEN_INVALID` 로 거부한다. 닫기는 모든 서버 인스턴스에 미친다. 토큰을 무효로 만든 요청을 처리한 서버 인스턴스는 자기 구독자를 닫고 전역 채널 `eia:sse:close` 로 트리거 id 를 알린다. 다른 서버 인스턴스는 그 신호를 받아 자기 구독자를 닫는다. 그 신호가 유실되면 받지 못한 서버 인스턴스의 스트림은 다음 재확인까지 최대 60초 남는다([SSE 버퍼와 실시간 전달을 Redis 에 둔다](CLE-EIA-DATA-SSE.md#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 의 남은 위험). WebSocket 은 소켓 수명을 토큰 수명에 묶는다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)). 두 방식의 관계는 [재검토에서 갈린 EIA 동작을 정한다](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
 
 ## 구현 위치
 

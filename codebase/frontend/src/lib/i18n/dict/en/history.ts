@@ -8,11 +8,12 @@ export const history: Dict["history"] = {
     modal: {
       title: "Re-run Execution",
       originalLabel: "Original Execution",
-      sideEffectWarning: "This workflow includes {{count}} external-call node(s)",
+      sideEffectWarning: "This workflow includes {{count}} side-effect node(s)",
+      agentToolWarning: "{{count}} AI agent node(s) with connected MCP servers",
     },
     useOriginalInput: "Use original input",
     maskedInputBlocked:
-      "Some inputs were masked as credentials. Enter them directly, or turn on \"Use original input\".",
+      'Some inputs were masked as credentials. Enter them directly, or turn on "Use original input".',
     dryRunToggle: "Dry-run mode (mock side-effect calls)",
     dryRunDisabledTooltip:
       "This workflow contains nodes that don't support dry-run",
@@ -23,12 +24,9 @@ export const history: Dict["history"] = {
     chainOrigin: "original",
     viewChain: "View chain ({{count}})",
     permissionDenied: "You don't have permission to re-run (RR-PL-06)",
-    chainDepthExceeded:
-      "This chain has reached the re-run depth limit (32)",
-    workflowDeleted:
-      "The workflow of the original execution has been deleted",
-    dryRunNotApplicable:
-      "This workflow cannot be re-run in dry-run mode",
+    chainDepthExceeded: "This chain has reached the re-run depth limit (32)",
+    workflowDeleted: "The workflow of the original execution has been deleted",
+    dryRunNotApplicable: "This workflow cannot be re-run in dry-run mode",
     assistantBlocked:
       "Re-run must be triggered manually on the execution detail page (RR-PL-07)",
     genericError: "Re-run failed",
