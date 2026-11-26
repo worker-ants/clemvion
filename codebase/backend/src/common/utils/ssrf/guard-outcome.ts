@@ -31,7 +31,8 @@ export type SsrfPreflightOutcome = 'pass' | 'blocked' | 'guard_failed';
  * - 막히면 `SsrfBlockedError` 를 던진다(`assertSafeOutboundHostResolved`).
  * - 막히면 `SsrfBlockedError` 를 돌려주고 통과면 `null` 을 돌려준다(`checkSmtpHost`).
  *
- * 그 밖의 오류를 던지면 `guard_failed` 다. 경고 로그는 `SSRF block (<site>): …` · `SSRF guard failed (<site>): …` 형식이다.
+ * 어느 형태든 `SsrfBlockedError` 는 던져도 돌려줘도 `blocked` 다. 그래서 돌려주는 형태의 검사가 판정을 던져도 고장으로
+ * 보지 않는다. 그 밖의 오류를 던지면 `guard_failed` 다. 경고 로그는 `SSRF block (<site>): …` · `SSRF guard failed (<site>): …` 형식이다.
  */
 export async function runSsrfPreflight(
   check: () => Promise<SsrfBlockedError | null | void>,
