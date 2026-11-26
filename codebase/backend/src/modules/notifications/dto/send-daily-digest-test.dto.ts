@@ -1,7 +1,7 @@
 import { ArrayMaxSize, IsArray, IsOptional, IsUUID } from 'class-validator';
 
 /**
- * e2e 전용 훅 `POST /api/notifications/_test/send-daily-digest` 의 본문(CLE-T-BAXAN4).
+ * e2e 전용 훅 `POST /api/notifications/_test/send-daily-digest` 의 본문.
  * 프로덕션 표면이 아니라 swagger 에 싣지 않는다.
  */
 export class SendDailyDigestTestDto {

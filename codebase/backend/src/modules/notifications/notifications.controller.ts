@@ -59,8 +59,7 @@ export class NotificationsController {
 
   /**
    * **e2e 전용 backdoor. 프로덕션 표면이 아니다.** 일일 요약은 매일 09:00 반복 작업으로만 돌아서
-   * in-network e2e 러너가 HTTP 로 검증할 길이 없다. test 환경에서만 지금 시각으로 한 번 돌린다
-   * (CLE-T-BAXAN4).
+   * in-network e2e 러너가 HTTP 로 검증할 길이 없다. test 환경에서만 지금 시각으로 한 번 돌린다.
    *
    * 본문 `userIds` 를 주면 그 사용자만 대상으로 돌고 응답에 보낸 요약(`digests`)을 싣는다. 공유 DB 에서
    * 병렬로 도는 다른 스펙의 사용자를 건드리지 않고, 메일 내용을 읽을 길이 없는 e2e 가 요약을 단언하기 위해서다.

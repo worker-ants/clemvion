@@ -148,6 +148,10 @@ const REFERENCE_FIELD_CATALOG: Readonly<Record<string, Classification>> = {
   'SaveCanvasNodeDto.toolOwnerId': {
     checkedAt: ['modules/workflows/workflows.service.ts#saveCanvas'],
   },
+  'SendDailyDigestTestDto.userIds': {
+    outOfScope:
+      '저장하지 않는다. e2e 전용 훅(운영 404)이 일일 요약을 돌릴 사용자를 좁히는 일회성 실행 입력이다',
+  },
   'UpdateAssistantSessionDto.llmConfigId': {
     checkedAt: [
       'modules/workflow-assistant/workflow-assistant-session.service.ts#update',
