@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-AGENT"
 title: "재실행 — dry-run 의 AI 에이전트 도구"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "93ab2e55c436e1cf8240c3f0d01d208c97aa4a6afbdde7d795431b309cdcb994"
+content_hash: "584ca1f6b8a203f25cba27a8761112340b056e2da2d857c9dd5982b098338016"
 read_as: "approved_fallback"
-task: "CLE-T-GKDPVQ"
+task: "CLE-T-0V6FDN"
 source_paths: []
-mirror_sha256: "3703f373091db9d07f6d69fed6b31aff0ee9cf4d18d95b958c8c4655d3122f2d"
-etag: "sha256-87e16cf9f37062316c94450bef846632ea8cbc2fd52e96d126963ec3734814ae"
+mirror_sha256: "8b492859650b64a1cd745ca5c7cf7bbbbc7fdc2c998f0859fbe049720d78a34d"
+etag: "sha256-2f7733020a2c5877f4278a9694e4151b6242a143fc2dd2df601716784f72362d"
 ---
 ## 개요
 
@@ -110,4 +110,4 @@ AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([
 
 **모의 응답 안내 문구를 바꿨다**: 임시 가드의 안내는 «외부 시스템을 읽지도 바꾸지도 않았다» 였다. 이제 읽기 도구는 실제로 호출되므로 이 문장은 틀린다. 안내를 «이 호출은 보내지 않았고 아무것도 바뀌지 않았다, 성공한 것으로 보고 이어 가라, 같은 호출을 다시 하지 마라» 로 바꿨다. LLM 이 같은 쓰기를 반복하지 않고 흐름을 끝까지 진행하게 하려는 것이다. `executed: false` 는 `render_form` 선례가 기각한 `rendered: false` 와 모양이 같지만 실제 결과와 모의 응답을 가를 값이 이것뿐이라 두었고, 실패로 읽히는 위험은 status `success` 와 이 안내로 막는다. 실제로 부른 호출의 결과에는 이 키를 붙이지 않는다.
 
-**재실행 창 집계는 따로 정한다**: 재실행 창의 외부 호출 안내(RR-PL-01)에 AI 에이전트 도구를 넣는 일은 화면과 문구를 바꾸는 제품 결정이라 이 결정에 넣지 않았다(CLE-T-5WK8QA). 이 판정이 A4 를 대신하지 않는 이유는 [왜 A5](CLE-EXEC-RERUN-POLICY.md#왜-a5확인-모달과-dry-run-토글인가) 에 있다. 재실행 창이 MCP 서버를 연결한 AI 에이전트 노드를 어떻게 안내하는지는 [재실행 UI](CLE-EXEC-RERUN-UI.md#재실행-창은-mcp-서버를-연결한-ai-에이전트-노드를-따로-센다) 가 정한다.
+**재실행 창 집계는 따로 정한다**: 재실행 창의 부수효과 노드 안내(RR-PL-01)에 AI 에이전트 도구를 넣는 일은 화면과 문구를 바꾸는 제품 결정이라 이 결정에 넣지 않았다(CLE-T-5WK8QA). 이 판정이 A4 를 대신하지 않는 이유는 [왜 A5](CLE-EXEC-RERUN-POLICY.md#왜-a5확인-모달과-dry-run-토글인가) 에 있다. 재실행 창이 MCP 서버를 연결한 AI 에이전트 노드를 어떻게 안내하는지는 [재실행 UI](CLE-EXEC-RERUN-UI.md#재실행-창은-mcp-서버를-연결한-ai-에이전트-노드를-따로-센다) 가 정한다.
