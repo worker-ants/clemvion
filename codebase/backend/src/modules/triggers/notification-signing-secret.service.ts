@@ -28,6 +28,19 @@ const ROTATION_GRACE_MS = 24 * 60 * 60 * 1000;
 export interface SettledNotificationSigning {
   config: Record<string, unknown>;
   issuedSecret?: string;
+  /**
+   * 첫 시크릿을 발급했는데 행에 교체 대기 값(`notification_secret_v2` · 교체 시각)이 남아 있었다. 호출부가 같은
+   * 잠금 안의 저장에서 두 컬럼을 비운다. 남겨 두면 승격 크론이 방금 발급한 시크릿을 옛 v2 로 덮는다
+   * (NERV Task `CLE-T-919WVA`).
+   */
+  clearRotation: boolean;
+}
+
+/** 교체 대기 값(`notification_secret_v2` · 교체 시각)이 하나라도 남아 있는가. */
+function hasPendingRotation(
+  row: Pick<Trigger, 'notificationSecretV2' | 'notificationRotatedAt'>,
+): boolean {
+  return row.notificationSecretV2 != null || row.notificationRotatedAt != null;
 }
 
 /**
@@ -42,6 +55,7 @@ export interface SettledNotificationSigning {
  * | 메서드 | 부르는 자리 | 잠금 |
  * |---|---|---|
  * | `settle` | 생성 · `notification` 이 실린 PATCH | 호출부가 잡은 잠금 안에서 부른다 |
+ * | `deleteAfterUnset` | `notification: null` PATCH 의 커밋 뒤 | 스스로 잡는다 |
  * | `migrateLegacyPlaintext` | PATCH 저장 뒤 저장된 옛 평문 정규화 | 스스로 잡는다 |
  * | `writeRotation` | `rotate-secret` | 스스로 잡는다 |
  * | `promoteRotated` | 승격 cron | 트리거마다 스스로 잡는다 |
@@ -66,6 +80,9 @@ export class NotificationSigningSecretService {
    * | `rederive` | 쓰지 않는다 | `secretRef` 를 트리거 id 로 다시 만든다(행의 값을 복사하지 않는다) |
    * | `migrate` | 행의 옛 평문을 정식 참조에 쓴다 | `secretRef` 를 싣고 옛 평문 키를 뺀다 |
    * | `issue` | 새 `wsk_*` 를 정식 참조에 쓴다 | 위와 같다. 평문을 `issuedSecret` 으로 돌려준다 |
+   *
+   * `issue` 인데 행에 교체 대기 값이 남아 있으면 `clearRotation` 으로 알린다. 해제(`notification: null`) 전의 교체가
+   * 남긴 값이라 새 시크릿과 짝이 아니다. 해제가 그 값을 비우기 전에 해제된 옛 행과, 해제 뒤 교체 요청이 끼어든 행이 그렇다.
    *
    * @param manager 설정 잠금을 쥔 트랜잭션의 매니저. 시크릿 저장소 쓰기를 같은 트랜잭션에서 하려고
    *   `SecretResolverService.rotate` 에 넘긴다. 넘기지 않으면 풀에서 연결을 하나 더 빌려 잠금 보유자가 연결 둘을
@@ -103,7 +120,55 @@ export class NotificationSigningSecretService {
         notification: notificationWithSigningRef(nextConfig.notification, ref),
       },
       issuedSecret,
+      clearRotation: decision.kind === 'issue' && hasPendingRotation(fresh),
     };
+  }
+
+  /**
+   * `notification: null` 해제 PATCH 의 잠금 안 판정. 남은 교체 대기 값이 있으면 호출부가 같은 저장에서 비우도록
+   * `clearRotation` 으로 알린다. 시크릿 행은 커밋 뒤 `deleteAfterUnset` 이 지운다.
+   */
+  settleUnset(
+    target: Pick<Trigger, 'notificationSecretV2' | 'notificationRotatedAt'>,
+  ): { clearRotation: boolean } {
+    return { clearRotation: hasPendingRotation(target) };
+  }
+
+  /**
+   * `notification: null` 로 알림을 해제한 PATCH 가 커밋된 뒤 서명 시크릿 행을 지운다(NERV Task `CLE-T-919WVA`).
+   *
+   * 근거: [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY#시크릿-교체), [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙).
+   *
+   * - **설정 잠금을 다시 잡고 행을 다시 읽는다.** 커밋과 이 정리 사이에 다른 PATCH 가 알림을 다시 붙이면 같은 참조에
+   *   새 시크릿을 발급하고 그 평문을 응답으로 돌려준다. 그 행을 지우면 사용자가 방금 받은 시크릿이 사라진다. 그래서
+   *   다시 읽은 행에 알림 설정이 있으면 지우지 않는다. 행이 없으면(그사이 삭제) 지운다. 삭제 경로도 같은 참조를
+   *   prefix 로 지우므로 겹쳐도 무해하다.
+   * - 삭제는 이 트랜잭션의 매니저로 한다. 풀 연결을 더 빌리지 않는다(시크릿 저장소 규칙 9 와 같은 이유).
+   * - **실패해도 던지지 않는다.** 해제는 이미 커밋됐고 남은 행은 다시 쓰이지 않는다. 다시 붙이면 `settle` 이 같은 참조를
+   *   새 시크릿으로 덮어쓰고, 트리거를 지우면 prefix 삭제가 지운다. 그래서 warn 만 남긴다(2026-11-26 사용자 결정).
+   */
+  async deleteAfterUnset(triggerId: string): Promise<void> {
+    const ref = notificationSigningSecretRef(triggerId);
+    try {
+      await this.triggerRepository.manager.transaction(async (m) => {
+        await acquireTriggerConfigLock(m, triggerId);
+        const fresh = await m.findOne(Trigger, {
+          select: { id: true, config: true },
+          where: { id: triggerId },
+        });
+        const notificationCfg = (
+          fresh?.config as { notification?: unknown } | null | undefined
+        )?.notification;
+        if (notificationCfg && typeof notificationCfg === 'object') return;
+        await this.secrets.delete(ref, m);
+      });
+    } catch (err) {
+      this.logger.warn(
+        `trigger ${triggerId} 의 알림 해제 뒤 서명 시크릿 행을 지우지 못했다 — 다시 붙이면 덮어쓰고 트리거를 지우면 함께 지운다: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   /**
