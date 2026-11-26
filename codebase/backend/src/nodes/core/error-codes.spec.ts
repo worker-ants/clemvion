@@ -67,8 +67,8 @@ describe('EngineErrorCode enum', () => {
 
 describe('buildErrorEnvelope', () => {
   it('omits details when not provided', () => {
-    const env = buildErrorEnvelope(ErrorCode.HTTP_TIMEOUT, 'Timed out');
-    expect(env).toEqual({ code: 'HTTP_TIMEOUT', message: 'Timed out' });
+    const env = buildErrorEnvelope(ErrorCode.CODE_TIMEOUT, 'Timed out');
+    expect(env).toEqual({ code: 'CODE_TIMEOUT', message: 'Timed out' });
     expect('details' in env).toBe(false);
   });
 

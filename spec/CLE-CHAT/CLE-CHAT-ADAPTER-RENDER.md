@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-RENDER"
 title: "채팅 채널 어댑터 규약 — 이벤트 렌더와 실패 안내"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "938e0eb4076fb8786a67437727afc91d9f88195f5c6bc126c7a2600addfdb674"
+content_hash: "8b540939a0a610331f3bc456d770df71bc26ad2502af1f8ad22d2e85f1ed1f83"
 read_as: "approved_fallback"
-task: "CLE-T-RYXCFX"
+task: "CLE-T-P0W82J"
 source_paths: []
-mirror_sha256: "0d371ef28896987095c9c53521470fb1c9ea352b1ecd1d622587a148f0a3cb55"
-etag: "sha256-87229842c6484785f53c5c38e2a059390ab0dfe20fccd9ec47ac6d063984bf5d"
+mirror_sha256: "8312ed19af04b751f10c5985cbd6357a9064ab5f83d7ac34fe1ea9fc4281693b"
+etag: "sha256-314bbccffcb2c623f5364472835302879e8d0795f2ae5a5a644a0123d3dd4526"
 ---
 ## 개요
 
@@ -111,18 +111,16 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 | `HTTP_4XX` | `details.statusCode` 가 정수 300~399(HTTP Request 노드가 따라가지 않은 3xx. R-CCA-16) | `executionFailedThirdParty` | `{}` |
 | `HTTP_4XX` | 그 밖(`details.statusCode` 가 없거나 정수가 아니거나 300~399 밖의 값) | `executionFailedThirdParty4xx` | `{ statusCode }`(정수일 때만. 아니면 뺀다) |
 | `HTTP_5XX` | `details.statusCode` ∈ [500, 599], 있을 때만 | `executionFailedThirdParty5xx` | `{ statusCode }`(없으면 뺀다) |
-| `HTTP_TIMEOUT`(발행 안 됨) | 없음 | `executionFailedTimeout` | `{}` |
 | `HTTP_TRANSPORT_FAILED` | 없음 | `executionFailedThirdParty` | `{}` |
 | `LLM_RATE_LIMIT` | 없음 | `executionFailedRateLimit` | `{}` |
-| `LLM_TIMEOUT`(발행 안 됨) | 없음 | `executionFailedTimeout` | `{}` |
 | `LLM_CALL_FAILED` · `LLM_RESPONSE_INVALID` · `MAX_COLLECTION_RETRIES_EXCEEDED` | 없음 | `executionFailedThirdParty` | `{}` |
 | `EMAIL_SEND_FAILED` | 없음 | `executionFailedThirdParty` | `{}` |
 | `EXECUTION_TIMEOUT`(Code 노드 스크립트) · `EXECUTION_TIME_LIMIT_EXCEEDED`(엔진 누적 실행 시간) · `CODE_TIMEOUT` | 없음 | `executionFailedTimeout` | `{}` |
-| `CODE_EXECUTION_FAILED` · `CODE_MEMORY_LIMIT` · `HTTP_BLOCKED`(SSRF 차단) · `SUB_WORKFLOW_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE`(워크스페이스 격리 차단) · `DB_*` · `RECURSION_DEPTH_EXCEEDED` · `MAX_ITERATIONS_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` · `ERROR_PORT_FALLBACK` | 없음 | `executionFailedInternal` | `{}` |
+| `CODE_EXECUTION_FAILED` · `CODE_MEMORY_LIMIT` · `HTTP_BLOCKED`(SSRF 차단) · `SUB_WORKFLOW_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE`(워크스페이스 격리 차단) · `DB_*` · `ERROR_PORT_FALLBACK` | 없음 | `executionFailedInternal` | `{}` |
 | `WORKER_HEARTBEAT_TIMEOUT` | 분류 미정([미결 사항](CLE-CHAT-ADAPTER.md#미결-사항)) | 현재는 아래 행과 같이 `executionFailedInternal` | `{}`(백엔드 `warn` 로그) |
 | 그 밖의 모든 code(`error.code === null` 포함) | 알 수 없음 | `executionFailedInternal` | `{}`(백엔드 `warn` 로그. 요구사항은 [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE.md#실행-실패-안내)) |
 
-- **`HTTP_TIMEOUT` · `LLM_TIMEOUT`(발행 안 됨)**: 지금 두 코드가 EIA 페이로드로 올 경로는 없다. HTTP Request 노드는 timeout 을 `HTTP_TRANSPORT_FAILED` 로 합쳐 내고, LLM 타임아웃은 `LLM_CALL_FAILED` 나 `ERROR_PORT_FALLBACK` 행으로 안내된다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md). 경로별 결과는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃)). 카탈로그가 두 코드를 enum 에 남기고 발행하지 않는 코드로 적으므로([에러 코드 카탈로그 — 워크플로우 실행 §6.6](../CLE-API/CLE-API-ERRCODES-EXEC.md#66-워크플로우-실행-노드-수준-런타임)) 방어로 행을 둔다. 카탈로그 정리(NERV Task `CLE-T-8WXV7T`) 때 두 행도 함께 고친다.
+- **실행 엔진이 코드로 내지 않는 이름**: 표에 두지 않는다. 들어오면 마지막 행대로 `executionFailedInternal` 이고 `warn` 로그를 남긴다. HTTP Request 노드는 timeout 을 `HTTP_TRANSPORT_FAILED` 로 낸다. LLM 타임아웃은 `LLM_CALL_FAILED` 나 `ERROR_PORT_FALLBACK` 행으로 안내된다([노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md). 경로별 결과는 [AI 노드 공통 「LLM 호출 경로별 타임아웃」](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md#llm-호출-경로별-타임아웃)). 결정 근거는 [에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md#rationale) 의 Rationale 에 있다(NERV Task `CLE-T-P0W82J`).
 - **timeout 행의 층 구분**: 입력은 엔진 수준의 `execution.failed.error.code` 다. Code 노드 스크립트가 시간을 넘기면 엔진은 `EXECUTION_TIMEOUT` 을 발행한다. 노드 출력 층의 `output.error.code` 는 같은 상황을 `CODE_TIMEOUT` 으로 정규화하며, 이 토큰이 EIA 페이로드로 오는 경우까지 방어적으로 함께 매핑한다(두 층의 구분 기준은 에러 코드 카탈로그). `EXECUTION_TIME_LIMIT_EXCEEDED` 는 엔진 누적 실행 시간 초과로 다른 코드다. 세 코드 모두 `executionFailedTimeout` 으로 모이므로 사용자 영향은 같다.
 - **`statusCode` 생략**: `details.statusCode` 가 없거나 정수가 아니면 4xx·5xx 분기는 `error.code` 만으로 정한다(HTTP Request 노드 핸들러는 두 값을 일관되게 넣는다고 가정한다). 자리표시자가 빠지면 채널 어댑터는 `{statusCode}` 를 `"?"` 로 바꾸거나 `({statusCode})` 괄호 구간을 통째로 지운다(채널 어댑터 재량). 사용자 영향은 거의 없다.
 - **위치**: `codebase/backend/src/modules/chat-channel/shared/execution-failure-classifier.ts` 한 파일이다. 채널 어댑터는 부르기만 하고 프로바이더별 분기는 없다.
@@ -210,3 +208,7 @@ Telegram 은 2026-11-15 사람 결정으로 현행 방식을 유지한다(NERV �
 표식은 세 프로바이더 모두 조각 한도 안에 넣는다(NERV Task `CLE-T-RYXCFX`). Slack 은 접미사를 3500자 밖에 붙이지만 표식까지 밖에 두면 프로바이더마다 계산이 갈린다. 그래서 한 함수(`code-fence-chunk.ts`)가 표식 자리를 빼고 경계를 고른다. Telegram 접미사는 괄호를 escape 하지 않으면 `400 can't parse entities` 로 조각이 거절되므로 escape 한 17자를 쓴다(NERV Task `CLE-T-V4GYE4`).
 
 2026-11-19 에 요구사항 문장도 「줄바꿈 · 공백 경계」로 고쳤다(NERV Task `CLE-T-VKNJ4B`). 위에서 요구사항 문장은 그대로 두고 뜻만 정한 결정을 뒤집었다. 그 결정 때문에 프로바이더 문서마다 「단어·문장 경계」를 이 규칙으로 읽으라는 보정 문장이 남았고, 문장 끝 부호를 찾는다고 잘못 읽을 여지도 있었다. 동작은 바뀌지 않는다. 고친 곳은 REQ-SLACK-018 · REQ-DISCORD-010 · REQ-TGRAM-008 과 세 프로바이더의 아웃바운드 문서다.
+
+### 실행 엔진이 내지 않는 이름을 분류 표에서 뺐다 (2026-11-26)
+
+NERV Task `CLE-T-P0W82J` 에서 사람이 2026-11-26 에 정했다. 발행처가 없는 이름이 표에 있으면 실제로 나가는 코드처럼 읽히고 enum 과 다른 문서로 다시 번진다. 그런 이름은 모르는 코드와 같이 안내한다. 실제로 나가는 코드의 안내는 바뀌지 않는다.

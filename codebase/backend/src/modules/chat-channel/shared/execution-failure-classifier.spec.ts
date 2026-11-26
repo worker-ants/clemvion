@@ -77,12 +77,6 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       expect(result.placeholders.statusCode).toBeUndefined();
     });
 
-    it('HTTP_TIMEOUT → executionFailedTimeout', () => {
-      const result = classifyExecutionFailure(makeEvent('HTTP_TIMEOUT'));
-      expect(result.key).toBe('executionFailedTimeout');
-      expect(result.placeholders).toEqual({});
-    });
-
     it('HTTP_TRANSPORT_FAILED → executionFailedThirdParty', () => {
       const result = classifyExecutionFailure(
         makeEvent('HTTP_TRANSPORT_FAILED'),
@@ -95,11 +89,6 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
     it('LLM_RATE_LIMIT → executionFailedRateLimit', () => {
       const result = classifyExecutionFailure(makeEvent('LLM_RATE_LIMIT'));
       expect(result.key).toBe('executionFailedRateLimit');
-    });
-
-    it('LLM_TIMEOUT → executionFailedTimeout', () => {
-      const result = classifyExecutionFailure(makeEvent('LLM_TIMEOUT'));
-      expect(result.key).toBe('executionFailedTimeout');
     });
 
     it.each([
@@ -138,12 +127,6 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       'DB_CONSTRAINT_VIOLATION',
       'DB_PERMISSION_DENIED',
       'DB_HOST_BLOCKED',
-      'RECURSION_DEPTH_EXCEEDED',
-      'MAX_ITERATIONS_EXCEEDED',
-      'CYCLE_DETECTED',
-      'INVALID_EXPRESSION',
-      'VARIABLE_NOT_FOUND',
-      'TYPE_MISMATCH',
       'ERROR_PORT_FALLBACK',
     ])('%s → executionFailedInternal', (code) => {
       const result = classifyExecutionFailure(makeEvent(code));
@@ -190,6 +173,27 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       expect(repr).toContain('SOMETHING_NEW');
       // triggerId 포함 확인 (W#6 / CCH-ERR-04)
       expect(repr).toContain('trig-1');
+      warnSpy.mockRestore();
+    });
+
+    // 어디서도 발행하지 않는 이름은 분류 표에서 뺐다(NERV Task `CLE-T-P0W82J`). 그런 이름이 들어오면
+    // 새 코드와 같이 internal 로 안내하고 warn 로그를 남긴다.
+    // 이름을 따옴표 하나씩으로 적지 않는다. 유저 가이드 식별자 가드(frontend
+    // `guide-identifier-existence.test.ts` 발행 축)는 backend 소스의 «토큰만 담은 따옴표 리터럴»
+    // (백틱 포함)을 «접두 전용» 을 부정하는 데 쓴다. 여기서 Loop 반복 한도 이름을 그렇게 적으면
+    // 메시지 접두로만 나가는 그 이름의 검사가 꺼진다.
+    it.each(
+      (
+        'HTTP_TIMEOUT LLM_TIMEOUT RECURSION_DEPTH_EXCEEDED MAX_ITERATIONS_EXCEEDED ' +
+        'CYCLE_DETECTED INVALID_EXPRESSION VARIABLE_NOT_FOUND TYPE_MISMATCH'
+      ).split(' '),
+    )('표에서 뺀 이름 %s → executionFailedInternal + warn log', (code) => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const result = classifyExecutionFailure(makeEvent(code));
+      expect(result.key).toBe('executionFailedInternal');
+      expect(warnSpy).toHaveBeenCalledTimes(1);
       warnSpy.mockRestore();
     });
 
