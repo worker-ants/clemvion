@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-LISTENER"
 title: "채팅 채널 — 어댑터 라이프사이클과 listener 레지스트리"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "4eafadd060fc65178dc63719ea42ed035497aecf7823b35b614f3e88780eb47a"
+content_hash: "aba32a9ca54c779e9c7015e411d2c75cc5c1df15103ce0ae77d0cb1b8123e920"
 read_as: "approved_fallback"
-task: "CLE-T-DV6PN7"
+task: "CLE-T-0H4C8C"
 source_paths: []
-mirror_sha256: "d4305d50a55e1a12094b9c08c6394ba9befa0a8f6e595df934c80908ecd697cc"
-etag: "sha256-45602a6c97c92bfe9ce2554a688ab107f0268ed8a4b9be0c68ee163f446c3142"
+mirror_sha256: "a934212cc8fd2bd2c3dd181cc99c057d2d65c895b4aa60226dfe0278caff2f95"
+etag: "sha256-819948c6ba99de45452574e5f0a249920109e96f7a88b217dd4f2cca3dd7a01b"
 ---
 ## 개요
 
@@ -23,16 +23,30 @@ etag: "sha256-45602a6c97c92bfe9ce2554a688ab107f0268ed8a4b9be0c68ee163f446c3142"
 ## 어댑터 라이프사이클
 
 - **어댑터 선택**: 지원 목록은 [채널 프로바이더 카탈로그](#채널-프로바이더-카탈로그) 가 정한다(1차 범위: `telegram`·`slack`·`discord`).
-- **`setupChannel()` 호출 경로**: 부르는 경로와 그때 바뀌는 자격 증명의 기준은 [봇 토큰 변경 단일 경로](CLE-CHAT-CORE-PATCH.md#봇-토큰-변경-단일-경로) 다. `setupChannel()` 은 멱등이라 다시 불러도 된다([R8](#r8-트리거-단위-listener-정책)). Telegram 은 이때 `setWebhook` 을 부른다. 트리거를 켜고 끄는 PATCH 는 외부 등록을 건드리지 않는다. 켤 때는 트리거 단위 listener 레지스트리에만 등록한다([R-CC-29](#r-cc-29-트리거를-켜고-끌-때-외부-채널-등록은-건드리지-않는다)).
+- **`setupChannel()` 호출 경로**: 부르는 경로와 그때 바뀌는 자격 증명의 기준은 [봇 토큰 변경 단일 경로](CLE-CHAT-CORE-PATCH.md#봇-토큰-변경-단일-경로) 다. `setupChannel()` 은 멱등이라 다시 불러도 된다([트리거 단위 listener 레지스트리](#트리거-단위-listener-레지스트리)). Telegram 은 이때 `setWebhook` 을 부른다. 트리거를 켜고 끄는 PATCH 는 외부 등록을 건드리지 않는다. 켤 때는 트리거 단위 listener 레지스트리에만 등록한다([R-CC-29](#r-cc-29-트리거를-켜고-끌-때-외부-채널-등록은-건드리지-않는다)).
 - **켤 때의 등록**: 커밋된 PATCH 에 `isActive: true` 가 실렸고 저장된 트리거에 `config.chatChannel.provider` 가 있으면 등록한다. `chatChannel` 이 함께 실렸는지와 그 PATCH 의 `setupChannel()` 이 성공했는지는 보지 않는다. 그래서 채널 설정이 실패해 `degraded` 가 된 트리거도 켰으면 레지스트리에 들어간다. 재시작 때의 일괄 등록도 건강도를 보지 않으므로 같은 규칙이다. 같은 트리거를 다시 등록하면 항목을 덮어쓴다. 저장이 실패하거나 다른 워크스페이스의 트리거라 PATCH 가 거절되면 등록하지 않는다.
-- **표시 전용 Presentation 노드 listener**: 이 listener 는 채팅 채널 안에서만 쓰며 EIA 알림 웹훅 이벤트 허용 목록(다섯 가지)은 그대로다. 커밋 뒤 호출([External Interaction API 「트랜잭션과 발송 순서」](../CLE-IX/CLE-EIA.md#트랜잭션과-발송-순서))과 트리거 단위 listener 레지스트리 가드(R8)가 그대로 적용된다. 입력 타입은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 `ChatChannelInternalEvent` 다.
+- **표시 전용 Presentation 노드 listener**: 이 listener 는 채팅 채널 안에서만 쓰며 EIA 알림 웹훅 이벤트 허용 목록(다섯 가지)은 그대로다. 커밋 뒤 호출([External Interaction API 「트랜잭션과 발송 순서」](../CLE-IX/CLE-EIA.md#트랜잭션과-발송-순서))과 [트리거 단위 listener 레지스트리](#트리거-단위-listener-레지스트리) 가드가 그대로 적용된다. 입력 타입은 [채팅 채널 어댑터 규약](CLE-CHAT-ADAPTER.md) 의 `ChatChannelInternalEvent` 다.
+
+## 트리거 단위 listener 레지스트리
+
+`ChatChannelDispatcher` 는 `executionEvents$` 를 모듈 단위로 한 번 구독하고 트리거 단위 listener 레지스트리(`ChannelListenerRegistry`)로 이벤트를 거른다. 근거는 [R8](#r8-트리거-단위-listener-정책) 이다.
+
+- **항목**: 키는 `triggerId`, 값은 `(triggerId, provider)` 다. 같은 `triggerId` 항목이 있으면 덮어쓴다(멱등). 프로바이더 변경은 지원하지 않고 재생성으로 처리한다.
+- **생성과 `chatChannel` 이 실린 PATCH**: `setupChannel()` 이 성공했을 때만 등록한다. 설정이 실패하면 등록하지 않는다(R-CC-29 「남은 한계」). 등록 시점은 [레지스트리 변경의 전파](#레지스트리-변경의-전파) 가 정한다.
+- **켜고 끄는 PATCH**: 켜는 PATCH 의 등록은 [어댑터 라이프사이클](#어댑터-라이프사이클) 의 「켤 때의 등록」 을 따른다. 끄는 PATCH 는 항목을 해제하지 않는다(R-CC-29).
+- **해제**: 트리거 행을 없애는 네 경로(트리거 화면 삭제, 스케줄 화면 삭제, 워크플로우 삭제, 워크스페이스 삭제. [트리거 관리 「자원 정리」](../CLE-TRIG/CLE-TRIG-MANAGE.md#자원-정리))의 행 삭제 전 외부 해제 단계에서 항목을 반드시 해제한다. 해제하는 트리거의 범위와 순서는 [레지스트리 변경의 전파](#레지스트리-변경의-전파) 가 정한다.
+- **`teardownChannel()` 을 부르는 경로**: 위 네 경로와 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 의 쓰기 보상뿐이다. 쓰기 보상은 행을 쓰지 못한 요청이 만든 프로바이더 등록을 되돌리는 것이다. 그 요청은 레지스트리에 등록하지 않았으므로 해제할 항목도 변경 메시지도 없다.
+- **스케줄 트리거**: 채팅 채널을 둘 수 없어 등록되지 않는다.
+- **거르기**: `handle()` 은 DB 조회 전에 `registry.has(triggerId)` 로 거르고 미등록 트리거는 경고 로그를 남기고 건너뛴다. 레지스트리에 항목이 있어도 DB 에 트리거가 없으면 경고 로그를 남기고 건너뛴다. 이 DB 조회는 `is_active` 로 거르지 않는다. 이유는 R8 에 있다.
+- **일괄 등록**: 서버 인스턴스가 시작할 때와 `chat-channel:listener` 구독이 확립될 때마다 `isActive=true AND config.chatChannel IS NOT NULL` 트리거를 DB 에서 한 번에 등록한다.
+- **서버 인스턴스 사이**: 레지스트리는 서버 인스턴스마다 따로 있다. 등록 · 해제는 Redis pub/sub 채널 `chat-channel:listener` 로 다른 서버 인스턴스에 알린다. 알리는 규칙은 [레지스트리 변경의 전파](#레지스트리-변경의-전파) 에 있고 근거는 R-CC-30 이다.
 
 ## 레지스트리 변경의 전파
 
 - 등록과 그 변경 메시지는 등록을 낳은 행 쓰기가 커밋된 뒤에 한다. 생성과 `chatChannel` 이 실린 PATCH 에서는 `setupChannel()` 결과를 쓰는 잠금 안 재기록이 커밋된 뒤다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 재기록이 행이 없어 쓰지 못하면 등록하지 않는다. 켜는 PATCH 에서는 그 PATCH 의 쓰기가 커밋된 뒤다.
 - 해제와 그 변경 메시지는 행을 지우기 전의 외부 해제 단계에서 `teardownChannel()` 다음에 한다. 해제하는 트리거는 `config.chatChannel` 이 있거나 삭제 요청을 받은 서버 인스턴스의 레지스트리에 항목이 있는 트리거뿐이다.
 - 받은 서버 인스턴스는 자기 레지스트리에만 반영하고 다시 알리지 않는다. 변경 메시지에는 보낸 프로세스의 id 가 실려 자기 메시지는 건너뛴다.
-- 재시작 때와 다시 연결 뒤의 일괄 등록은 알리지 않는다. 서버 인스턴스마다 스스로 하기 때문이다. 구독을 확립할 때마다 구독 응답을 받은 뒤에 DB 를 한 번은 읽는다. 응답 전에만 읽으면 그 사이에 커밋하고 발행한 등록을 놓친다. 서버가 시작할 때 이 순서를 지키는 방법은 R-CC-30 「놓친 메시지」 에 있다.
+- [트리거 단위 listener 레지스트리](#트리거-단위-listener-레지스트리) 의 일괄 등록은 알리지 않는다. 서버 인스턴스마다 스스로 하기 때문이다. 구독을 확립할 때마다 구독 응답을 받은 뒤에 DB 를 한 번은 읽는다. 응답 전에만 읽으면 그 사이에 커밋하고 발행한 등록을 놓친다. 서버가 시작할 때 이 순서를 지키는 방법은 R-CC-30 「놓친 메시지」 에 있다.
 - 놓친 해제는 보정하지 않는다. dispatcher 의 현재 순서에서는 레지스트리를 확인한 다음 DB 에서 트리거를 읽으므로 지운 트리거의 항목이 남아도 트리거를 찾지 못해 건너뛴다.
 - 발행 · 구독 실패의 로그는 warn 수준이고 구독 연결의 `error` 이벤트만 error 수준으로 남긴다. 발행 · 구독 실패나 2초 안에 발행 응답이 없어도 트리거 요청을 실패시키지 않는다.
 - 메시지 형식은 [채팅 채널 데이터와 흐름 「Redis 키」](CLE-CHAT-DATA.md#redis-키) 가 정한다.
@@ -114,14 +128,9 @@ etag: "sha256-45602a6c97c92bfe9ce2554a688ab107f0268ed8a4b9be0c68ee163f446c3142"
 
 fan-out 원천은 `executionEvents$` 이고 listener 는 셋이다. (1) `NotificationDispatcher`: EIA 알림 웹훅 HTTP POST. (2) SSE 어댑터: SSE fan-out, 구독 방식은 [External Interaction API 「단일 싱크와 외부 facade」](../CLE-IX/CLE-EIA.md#단일-싱크와-외부-facade) 가 정한다. (3) `ChatChannelDispatcher`: 서버 안 구독, 채팅 채널 전담.
 
-`ChatChannelDispatcher` 는 모듈 단위 1회 구독을 유지하면서 트리거 단위 listener 레지스트리(`ChannelListenerRegistry`)로 다음을 보장한다.
+`ChatChannelDispatcher` 는 모듈 단위 1회 구독을 유지하면서 트리거 단위 listener 레지스트리(`ChannelListenerRegistry`)로 거른다. 규칙은 [트리거 단위 listener 레지스트리](#트리거-단위-listener-레지스트리) 와 [레지스트리 변경의 전파](#레지스트리-변경의-전파) 에 있다. 켜고 끌 때의 근거는 R-CC-29 이고 서버 인스턴스 사이에 알리는 근거는 R-CC-30 이다.
 
-- 생성과 `chatChannel` 이 실린 PATCH 는 `setupChannel()` 이 성공했을 때만 그 결과의 잠금 안 재기록이 커밋된 뒤 등록한다. 설정이 실패하면 등록하지 않는다(R-CC-29 「남은 한계」). 같은 `triggerId` 항목이 있으면 덮어쓴다(멱등, 키는 `triggerId`, 값은 `(triggerId, provider)`). 프로바이더 변경은 지원하지 않고 재생성으로 처리한다.
-- 트리거 행을 없애는 네 경로(트리거 화면 삭제, 스케줄 화면 삭제, 워크플로우 삭제, 워크스페이스 삭제. [트리거 관리 「자원 정리」](../CLE-TRIG/CLE-TRIG-MANAGE.md#자원-정리))의 행 삭제 전 외부 해제 단계에서 항목을 반드시 해제한다. `teardownChannel()` 은 이 경로와 [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) 의 쓰기 보상에서만 불린다. 쓰기 보상은 행을 쓰지 못한 요청이 만든 프로바이더 등록을 되돌리는 것이다. 그 요청은 레지스트리에 등록하지 않았으므로 해제할 항목도 변경 메시지도 없다. 스케줄 트리거에는 채팅 채널을 둘 수 없어 등록되지 않는다. 해제하는 트리거의 범위는 [레지스트리 변경의 전파](#레지스트리-변경의-전파) 가 정한다.
-- `handle()` 은 DB 조회 전에 `registry.has(triggerId)` 로 거르고 미등록 트리거는 경고 로그를 남기고 건너뛴다. 레지스트리에 항목이 있어도 DB 에 트리거가 없으면 경고 로그를 남기고 건너뛴다. 이 DB 조회는 `is_active` 로 거르지 않는다. 끈 트리거의 항목을 남기는 것은 끄기 전에 시작한 실행의 메시지를 보내려는 것이라서 활성 여부로 거르면 그 메시지가 나가지 않는다.
-- 서버 인스턴스가 시작할 때와 `chat-channel:listener` 구독이 확립될 때마다 `isActive=true AND config.chatChannel IS NOT NULL` 트리거를 DB 에서 한 번에 등록한다.
-- 트리거를 켜는 PATCH 는 `setupChannel()` 을 부르지 않으므로 커밋 뒤 그 자리에서 따로 등록한다. 끄는 PATCH 는 항목을 해제하지 않는다. 근거는 R-CC-29 다.
-- 레지스트리는 서버 인스턴스마다 따로 있다. 등록 · 해제는 Redis pub/sub 채널 `chat-channel:listener` 로 다른 서버 인스턴스에 알린다. 근거는 R-CC-30 이다.
+dispatcher 의 DB 조회를 `is_active` 로 거르지 않는 이유는 끈 트리거의 항목을 남기는 이유와 같다. 끄기 전에 시작한 실행의 메시지를 보내려는 것이라서 활성 여부로 거르면 그 메시지가 나가지 않는다.
 
 효과는 (a) 삭제 뒤 들어오는 이벤트 차단, (b) 재시작 직후 미등록 race 회피, (c) DB 왕복 절감이다. 다른 서버 인스턴스가 해제 메시지를 놓치면 (a) 는 레지스트리 대신 dispatcher 의 DB 조회가 맡는다(R-CC-30). 라우팅은 여전히 `handle()` 안에서 한다. `executionEvents$` 를 EventEmitter 로 바꾸는 식의 분리는 범위 밖이다.
 

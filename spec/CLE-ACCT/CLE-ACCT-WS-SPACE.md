@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-SPACE"
 title: "워크스페이스와 멤버 — 생성 · 전환 · 설정 · API"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "0346bbd8a737a6fdbfd61f353ebd8c35f18574fa6468ce654c9d442fa014e474"
+content_hash: "3b382f31e2ab36a9a535ebd431587fd474516d415e380f18fbf3ec87e58b1126"
 read_as: "approved_fallback"
-task: "CLE-T-9Q304H"
+task: "CLE-T-86E38Q"
 source_paths: []
-mirror_sha256: "7c1a1009ee67c8865f6389680efa3472b6e03223cf54ecc6b6bb063966569a2c"
-etag: "sha256-f8f92a73c1ee17beb3b14c18005ffbac0ea881e9a90e8e49204d8f308fb2a4d0"
+mirror_sha256: "65f560d57eb18abd5065bffd0ad1438252b3f93110b0f51d1b7dd0326d02fd5d"
+etag: "sha256-a4ddf4ade74aafc6d9cbc32471f36d7a74909cfd3e53f6c97a7555248a0a8dc3"
 ---
 ## 개요
 
@@ -138,9 +138,11 @@ etag: "sha256-f8f92a73c1ee17beb3b14c18005ffbac0ea881e9a90e8e49204d8f308fb2a4d0"
 | DELETE | `/api/workspaces/:id/invitations/:invitationId` | 관리자 이상 | 초대 취소. `acceptedAt IS NULL` 인 행만. 관리자 역할 초대도 같다 |
 | GET | `/api/invitations/:token` | 공개(인증 불요) | 초대 토큰 메타 조회. 가입 페이지 입력란 채우기용. 응답 `{ workspaceName, invitedByName, email, expiresAt, role }`. 없음 404, 만료·사용됨 410. 분당 30건 |
 | POST | `/api/workspaces/invitations/accept` | 로그인 | 초대 수락. 본문 `{ token }`. 본인 이메일과 토큰 이메일이 같아야 한다. 200 `{ workspaceId, role }` |
+| GET | `/api/users/me/invitations/:invitationId` | 로그인 | 초대 id 로 본인 초대 메타 조회. 응답은 토큰 메타 조회와 같다. 초대 이메일이 로그인 이메일과 다르거나 없으면 404, 만료·사용됨 410 |
+| POST | `/api/users/me/invitations/:invitationId/accept` | 로그인 | 초대 id 로 본인 초대 수락. 404 · 410 은 위 조회와 같다. 200 `{ workspaceId, role }`. 근거는 [초대 — 이미 가입한 사용자의 수락 경로](CLE-ACCT-WS-INVITE.md#이미-가입한-사용자의-수락-경로) |
 | POST | `/api/auth/workspaces/:id/switch` | 로그인(`JwtAuthGuard`) | 워크스페이스 전환. `:id` 는 `ParseUUIDPipe`. 비멤버 403 `NOT_A_MEMBER`. 액세스 토큰만 `activeWorkspaceId=:id` 로 재발급하고 리프레시 쿠키는 그대로다. 응답 `{ accessToken }` |
 
-- 컨트롤러는 두 개다. `workspaces.controller.ts`(`@Controller('workspaces')`)가 생성·멤버·초대 발급·수락 등 대부분을 받고, `invitations.controller.ts`(`@Controller('invitations')`)가 공개 토큰 메타 조회 하나를 받는다.
+- 컨트롤러는 세 개다. `workspaces.controller.ts`(`@Controller('workspaces')`)가 생성·멤버·초대 발급·수락 등 대부분을 받고, `invitations.controller.ts`(`@Controller('invitations')`)가 공개 토큰 메타 조회 하나를 받는다. `my-invitations.controller.ts`(`@Controller('users/me/invitations')`)가 초대 id 로 하는 본인 초대 조회 · 수락을 받는다.
 - `POST /api/auth/register` 가 본문에 `invitationToken?` 을 받으면 [초대 — 미가입자 가입 경로](CLE-ACCT-WS-INVITE.md#미가입자-가입-경로) 의 트랜잭션을 한다. 가입 API 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 에 있다.
 - 초대 가입 화면의 가입 여부 확인은 공개 API `POST /api/auth/check-email` 을 쓴다. 이 API 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.
 

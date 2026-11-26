@@ -2,19 +2,19 @@
 id: "CLE-KB-GRAPH"
 title: "Graph RAG"
 type: "feature"
-version: 2
+version: 3
 status: "approved"
 requirements: ["REQ-GRAPHRAG-001", "REQ-GRAPHRAG-002", "REQ-GRAPHRAG-003", "REQ-GRAPHRAG-004", "REQ-GRAPHRAG-005", "REQ-GRAPHRAG-006", "REQ-GRAPHRAG-007", "REQ-GRAPHRAG-008", "REQ-GRAPHRAG-009", "REQ-GRAPHRAG-010", "REQ-GRAPHRAG-011", "REQ-GRAPHRAG-012", "REQ-GRAPHRAG-013", "REQ-GRAPHRAG-014", "REQ-GRAPHRAG-015", "REQ-GRAPHRAG-016", "REQ-GRAPHRAG-017", "REQ-GRAPHRAG-018", "REQ-GRAPHRAG-019", "REQ-GRAPHRAG-020", "REQ-GRAPHRAG-021", "REQ-GRAPHRAG-022", "REQ-GRAPHRAG-023", "REQ-GRAPHRAG-024", "REQ-GRAPHRAG-025", "REQ-GRAPHRAG-026", "REQ-GRAPHRAG-027", "REQ-GRAPHRAG-028", "REQ-GRAPHRAG-029", "REQ-GRAPHRAG-030", "REQ-GRAPHRAG-031", "REQ-GRAPHRAG-032", "REQ-GRAPHRAG-033", "REQ-GRAPHRAG-034", "REQ-GRAPHRAG-035", "REQ-GRAPHRAG-036", "REQ-GRAPHRAG-037", "REQ-GRAPHRAG-038", "REQ-GRAPHRAG-039", "REQ-GRAPHRAG-040", "REQ-GRAPHRAG-041", "REQ-GRAPHRAG-042", "REQ-GRAPHRAG-043"]
 basis_superseded: false
 parent: "CLE-KB"
 ancestors: ["CLE-VISION", "CLE-KB"]
 area: "CLE-KB"
-content_hash: "ccbb799e703752878e72107885c550ecfe83d3214fdacb52d0e21d57371903e4"
+content_hash: "e933c8d147c38389df7c7e77ca8ccbb7ab501732e4f5c1a4d7af8af1222eb3cf"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-PVGKXK"
 source_paths: ["spec/4-nodes/4-integration/_product-overview.md", "spec/5-system/10-graph-rag.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "47826466ab82b0d1f8faa96693deb25efc3a0dbf725edae5b9d7ea78e733c473"
-etag: "sha256-61ea083623d49b215d1c6cd7141c4d7133da3a7106a923f5545dbbb0f28fd5e4"
+mirror_sha256: "085ffb1c935a4180302241699c588622c95e32e0651b53bd11ad7ef0f8dbe476"
+etag: "sha256-8dc5b7dbd8cf4acfe2b9092b700ec1e1822828fedbd1e515e5fdb67e7a14da0a"
 ---
 > 구현 상태: 구현됨 (P0~P2) · 원문: `spec/5-system/10-graph-rag.md`, `spec/4-nodes/4-integration/_product-overview.md` (§3.2 KB-MD-03, §3.4 KB-AG-04), `spec/data-flow/6-knowledge-base.md` (§1.2·§1.3 그래프 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -139,7 +139,7 @@ Graph RAG(`rag_mode=graph`)는 문서에서 Entity(`GraphEntity`)와 Relation(`G
 | GET | `/api/knowledge-bases/:id/relations` | Relation 목록 (페이지네이션, head·tail 검색) |
 | DELETE | `/api/knowledge-bases/:id/relations/:relationId` | Relation 삭제 |
 | GET | `/api/knowledge-bases/:id/graph/stats` | `entity_count`, `relation_count`, 추출 진행 요약 |
-| GET | `/api/knowledge-bases/:id/graph/visualization` | 등장 횟수 상위 Entity 와 Relation (시각화용) |
+| GET | `/api/knowledge-bases/:id/graph/visualization` | 등장 횟수 상위 Entity 와 Relation (시각화용). `limit` 은 1~200(기본 50)이고 밖이면 400 `INVALID_LIMIT` |
 
 ## 기술 결정
 

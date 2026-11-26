@@ -96,8 +96,8 @@ export class CreateTriggerDto {
 
   /**
    * Outbound notification webhook 설정. [Spec EIA §4].
-   * 본 DTO 의 검증은 형식만 수행하고, URL 의 SSRF safety 는 service 레이어가
-   * `validateNotificationUrl` 헬퍼로 register-time 에 추가 검증한다.
+   * 이 DTO 는 형식만 검증한다. URL 의 SSRF 판정과 userinfo 거부는 service 레이어가
+   * `validateNotificationUrl` 로 등록 · 수정 때 한다.
    */
   @ApiPropertyOptional({ type: () => NotificationConfigDto })
   @IsOptional()

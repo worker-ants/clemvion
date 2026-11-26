@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS"
 title: "WebSocket 이벤트와 명령"
 type: "design"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "0194e26620a335590ea8e4fe2dbc074a94782b38df8d0f9393673dd32067ee55"
+content_hash: "2fc046f26d0db4e3c1d8db69fb98ee47aae40790d522ec670f7775bb5c8c6899"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-F7PNB8"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "2e9c5e0233df021e8709f94cd098527cfb27c9718f0d4086ab16235c413cfaa4"
-etag: "sha256-ca85e2d1e591f13bc0b53a862dc44396dcc6fcfbb00d31093dd817b9920accc5"
+mirror_sha256: "0ec46ace2107373811aeb8b7cc5c5561ca4af17d69df6dda75d22fa28cab74ab"
+etag: "sha256-5e2b5b9eb13b42a0f34dfb532007c23e9e67ed2beffa603e798ad64a8187bb8a"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -185,4 +185,4 @@ WebSocket 쪽 이름을 바꾼 근거: 반대쪽은 EIA 알림 웹훅의 외부 
 
 ### `submit_form`·`click_button` payload 와 ack 를 구현에 맞춘 이유 (2026-06-10)
 
-→ [WebSocket 이벤트와 명령 — 실행 제어 명령과 ack](CLE-API-WS-EVENTS-COMMANDS.md#submit_formclick_button-payload-와-ack-를-구현에-맞춘-이유-2026-06-10)
+→ [WebSocket 이벤트와 명령 — 실행 제어 명령과 ack](CLE-API-WS-EVENTS-COMMANDS.md#submit_formclick_button-payload-와-ack-를-구현에-맞춘-이유)

@@ -9,6 +9,7 @@
  * spec/data-flow/8-notifications.md §1.1 의 type 분류와
  * spec/2-navigation/_layout.md §3.1 알림 팝오버 라우팅 정책을 따른다.
  */
+import { invitationAcceptByIdPath } from "@/lib/invitations/accept-path";
 import type { NotificationLite } from "./types";
 export type { NotificationLite };
 
@@ -22,7 +23,7 @@ const SAFE_ID = /^[a-zA-Z0-9_-]{1,128}$/;
  * 알림의 type / resourceId 로 클릭 시 이동할 라우트를 반환한다.
  * 매핑되지 않는 type 이거나 type 이 없으면 null 을 반환 — 클릭 시 라우팅 없음.
  * resourceId 는 SAFE_ID 패턴(`/^[a-zA-Z0-9_-]{1,128}$/`) 으로 검증 후 사용한다.
- * 패턴 불일치 시 목록 경로(`/integrations`, `/workflows`)로 폴백한다.
+ * 패턴 불일치 시 목록 경로(`/integrations`, `/workflows`)나 `/profile`(초대)로 폴백한다.
  */
 export function notificationHref(notif: NotificationLite): string | null {
   const { type, resourceId } = notif;
@@ -42,8 +43,9 @@ export function notificationHref(notif: NotificationLite): string | null {
     case "background_failed":
     case "schedule_failed":
       return safeId ? `/workflows/${safeId}` : "/workflows";
+    // 초대 알림은 resourceId(초대 id)로 수락 페이지를 연다(CLE-T-86E38Q). id 가 없거나 비정상이면 프로필로 간다.
     case "team_invite":
-      return "/profile";
+      return safeId ? invitationAcceptByIdPath(safeId) : "/profile";
     default:
       return null;
   }

@@ -161,7 +161,7 @@ Sensitive-data protection: the raw `error.message`, `nodeId`, `executionId`, and
 | `executionFailedThirdParty4xx` | External service (LLM / MCP / HTTP node) rejected with 4xx (`HTTP_4XX`, except when the status is 3xx) | optional |
 | `executionFailedThirdParty5xx` | External service 5xx transient error (`HTTP_5XX`) | optional |
 | `executionFailedThirdParty` | External service unreachable, or a redirect (3xx) the HTTP node did not follow (no status code, not a timeout) | no |
-| `executionFailedTimeout` | Processing timed out (`HTTP_TIMEOUT` / `EXECUTION_TIMEOUT` etc.) | no |
+| `executionFailedTimeout` | Processing timed out (`EXECUTION_TIMEOUT` / `EXECUTION_TIME_LIMIT_EXCEEDED` etc.) | no |
 | `executionFailedRateLimit` | Rate limit exceeded (`LLM_RATE_LIMIT`) | no |
 | `executionFailedInternal` | Server-side error (DB / CODE / SUB_WORKFLOW failure + unknown fallback) | no |
 

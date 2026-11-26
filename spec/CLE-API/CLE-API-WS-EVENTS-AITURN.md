@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS-AITURN"
 title: "WebSocket 이벤트와 명령 — AI 대화 턴 이벤트"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-WS-EVENTS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-WS-EVENTS"]
 area: "CLE-API"
-content_hash: "a1cfdb787681c8a56eba476f9c7efbc4552dad2d34897acdf3505dee2955df36"
+content_hash: "c5fd1c46e5fcb5eab64f83b37631e8c51e18bb5f8133a7828e932eec6e74d4c1"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "0d689d3a1e45f81210ffcb4a79bac7072ba5cdfd0e8e70136516749498858710"
-etag: "sha256-21e42709ff39df0cd8d2e61a10339197701684b459d9088d973fd944766174ec"
+mirror_sha256: "b1abe7d46ca17c9dd1516440cb5819714123f3dce0d526749eb7cd96817b189c"
+etag: "sha256-8cb4c4689f8c983219db3279dd8aa73de25934f8448f6f94b57014b908066302"
 ---
 > 구현 상태: 구현됨 · 상위: [WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)
 
@@ -217,6 +217,8 @@ etag: "sha256-21e42709ff39df0cd8d2e61a10339197701684b459d9088d973fd944766174ec"
 - **결정**: 되돌아온 이벤트가 같은 발화의 기존 낙관적 말풍선을 찾으면 새 항목을 붙이지 않고 기존 말풍선에 `receivedAt` 을 **찍어** 맞춘다. 로컬 말풍선이 없는 경로(채널 텍스트 인바운드 등)에서만 붙인다.
 - **근거**: 보낸 사람의 즉시 피드백(로컬 낙관)과 WebSocket 되돌림 유실 내성을 지키면서 중복만 없앤다. 찍은 뒤 `receivedAt` 은 재발행·재구독 dedup 키로 계속 쓰이고 최종 정합은 턴 종료 `ai_message` 스냅샷 교체가 보장한다(도장은 그 앞의 보조 단계다). 프론트엔드 구현 식별자는 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 방침에 따라 여기 적지 않는다.
 
-### 요소별 절대 발생 시각·소요 시간을 싣는 이유 (`startedAt`·`finishedAt`, 2026-06-03)
+### 요소별 절대 발생 시각·소요 시간을 싣는 이유 (`startedAt`·`finishedAt`)
+
+결정일: 2026-06-03
 
 어시스턴트 LLM 응답과 도구 실행에는 시각 데이터가 없어(`durationMs` 만 있었다) 멀티턴 AI 노드 안 요소의 절대 발생 시각을 보일 수 없었다. `llmCalls[]` 와 `toolCalls[]` 에 `startedAt`·`finishedAt`(ISO8601)을 더해 라이브 이벤트와 `meta.turnDebug[]` 영속 양쪽에 싣는다. 엔진이 소요 시간을 재려고 이미 시작 시각을 잡고 있어 싣기만 하면 된다. DB 마이그레이션이 필요 없고(JSONB 안), 하위 호환 선택 필드이며 라이브와 영속이 같은 출처라 두 화면이 같은 시각을 보인다. 소요 시간만으로는 "언제" 를 되살릴 수 없다. **기각한 대안**: 노드 시작 시각에 누적 소요 시간을 더해 추정하는 안은 공백을 반영하지 못해 부정확하고 라이브 전용 클라이언트 도장 안은 실행 내역 화면에서 시각이 사라진다.

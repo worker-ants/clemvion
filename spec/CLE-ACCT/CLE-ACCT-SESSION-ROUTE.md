@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SESSION-ROUTE"
 title: "세션과 토큰 — 라우트 가드와 로그인 뒤 이동"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SESSION"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SESSION"]
 area: "CLE-ACCT"
-content_hash: "1d6e806b65139817aa399eded89dfd939c0868ad767054e041e484674533950e"
+content_hash: "be59227694e4eaf6624e5cf61b3e8718b913faa22102f800a8ab813ec174d147"
 read_as: "approved_fallback"
-task: "CLE-T-6F4W2A"
+task: "CLE-T-AXGZ9P"
 source_paths: []
-mirror_sha256: "6d5a0a1ea23adbc1e933e4412cf5df6fb07bd112d6d36e64e0a3b1b0cfc90b7e"
-etag: "sha256-89baf68b196ce05bdac3a713cafa39c19b048b2f4955cbb62e4b2703d7990584"
+mirror_sha256: "cdad5c7f60aceb9f8a6a170b151d06cb8465789b31a8c98ae20bd12d2738f95c"
+etag: "sha256-a62ba7932c9cb835034957517143368ee4d8fc89b47940e818bdf905d3e4c0b4"
 ---
 > 구현 상태: 구현됨 · 상위: [세션과 토큰](CLE-ACCT-SESSION.md)
 
@@ -111,8 +111,10 @@ etag: "sha256-89baf68b196ce05bdac3a713cafa39c19b048b2f4955cbb62e4b2703d7990584"
 - `codebase/frontend/src/lib/auth/session-hint.ts` (로그인 힌트 쿠키 `has_session` 의 이름 · 속성과 심기 · 지우기 · 읽기)
 - `codebase/frontend/src/lib/auth/__tests__/session-hint.test.ts` (쿠키 문자열과 읽기 판정)
 - `codebase/frontend/src/app/(main)/[...rest]/page.tsx` (로그인 뒤 `/dashboard` 를 슬러그 경로로 넘긴다)
-- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동 판정 `resolvePostLoginRedirect`, 로그인 경로 `buildLoginHref` · `buildInvitationLoginHref`, 소셜 로그인 복귀 경로 저장 `clemvion.postLoginRedirect`)
+- `codebase/frontend/src/lib/auth/post-login-redirect.ts` (로그인 뒤 이동 판정 `resolvePostLoginRedirect`, 로그인 경로 `buildLoginHref`, 소셜 로그인 복귀 경로 저장 `clemvion.postLoginRedirect`)
 - `codebase/frontend/src/lib/auth/__tests__/post-login-redirect.test.ts` (이동 판정, 로그인 경로 생성, 복귀 경로 저장과 소비)
+- `codebase/frontend/src/lib/invitations/accept-path.ts` (초대 흐름의 로그인 경로 `buildInvitationLoginHref`. 초대 모듈이 `lib/auth` 의 `buildLoginHref` 를 가져다 쓰고 반대 방향 의존은 두지 않는다)
+- `codebase/frontend/src/lib/invitations/__tests__/accept-path.test.ts` (초대 흐름의 로그인 경로 생성)
 - `codebase/frontend/src/lib/auth/use-current-login-href.ts` (전체 화면 오류의 세션 만료 변형이 담는 로그인 경로 `useCurrentLoginHref`)
 - `codebase/frontend/src/lib/workspace/safe-path.ts` (안전한 같은 출처 경로 판정 `isSafeInternalPath` 와 정규화 `toSafeInternalPath`)
 - `codebase/frontend/src/app/(auth)/login/page.tsx` (`redirect` 가 여러 번 오면 쓰지 않는다)

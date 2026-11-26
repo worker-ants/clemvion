@@ -2,19 +2,19 @@
 id: "CLE-AI-LLM"
 title: "LLM 클라이언트"
 type: "design"
-version: 12
+version: 13
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "d275bc35413fbfcbadc76d4144c5809e81a63a50c871d55cf329edcc805a1959"
+content_hash: "1b1fe2070b9ae635ba4338e1bab496fe8c9a72cfa37203bd875aaa12d211e3dd"
 read_as: "approved_fallback"
-task: "CLE-T-PT5YB5"
+task: "CLE-T-RDCXYT"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "23100b283ca44477afac23edb22dd35b8449dcdd604a2fa5941d00eaeeeea15c"
-etag: "sha256-579904ef2d9fa92b7e85f1ff456aad1fdcdce08749a53d9a187951dae175ede8"
+mirror_sha256: "a8674974b74973b4aec0c301be0df0299fa561d4cb4f42e6cb65e1d643346cc2"
+etag: "sha256-a605c0f2dd2bd0b81dacfd69978d6321bc6ce7771fd661df3af14ce46986d639"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -192,7 +192,7 @@ LLM 가드(`ssrf.util.ts`)는 따로 만든 좁은 대역표를 써서 CGNAT `10
 - IP 리터럴 호스트에는 연결 조회가 일어나지 않는다. 그래서 요청 전에 따로 판정한다.
 - 사전 검사의 해석 실패 fail-open 은 바꾸지 않았다. 해석에 실패해 저장된 설정도 실행할 때는 연결 시점 판정을 거친다.
 
-Database Query · Send Email 노드에 연결 시점 판정을 아직 넣지 않은 이유는 [통합 노드 공통 — 에러 코드와 사설망 차단](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md) Rationale 에 있다.
+Database Query · Send Email 노드에도 같은 날 연결 시점 판정을 넣었다. 두 노드는 `fetch` 를 쓰지 않아 드라이버의 소켓 훅(pg · mysql2 의 `stream`, nodemailer 의 `getSocket`)에서 판정한다. 규칙은 [통합 노드 공통 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 에, 배경은 [같은 문서 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
 
 ### 운영 환경 가드 대상은 세션과 토큰 문서를 가리킨다 (2026-10-31)
 

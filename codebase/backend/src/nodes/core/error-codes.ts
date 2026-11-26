@@ -16,7 +16,6 @@ export const ErrorCode = {
   HTTP_TRANSPORT_FAILED: 'HTTP_TRANSPORT_FAILED',
   HTTP_4XX: 'HTTP_4XX',
   HTTP_5XX: 'HTTP_5XX',
-  HTTP_TIMEOUT: 'HTTP_TIMEOUT',
   // SSRF block (private/loopback/link-local/CGNAT target or redirect-hop /
   // non-http(s) scheme). Applies to ALL auth methods (CLE-NODE-INT-COMMON-ERROR).
   // 가드 정책의 SoT 는 `common/utils/ssrf/outbound-guard.ts` (HTTP/DB/Email 공용); 기본 ON,
@@ -48,7 +47,6 @@ export const ErrorCode = {
   LLM_CALL_FAILED: 'LLM_CALL_FAILED',
   LLM_RATE_LIMIT: 'LLM_RATE_LIMIT',
   LLM_RESPONSE_INVALID: 'LLM_RESPONSE_INVALID',
-  LLM_TIMEOUT: 'LLM_TIMEOUT',
   MAX_COLLECTION_RETRIES_EXCEEDED: 'MAX_COLLECTION_RETRIES_EXCEEDED',
   // Code execution
   CODE_EXECUTION_FAILED: 'CODE_EXECUTION_FAILED',
@@ -98,11 +96,10 @@ export const ErrorCode = {
   EXECUTION_INTERNAL_ERROR: 'EXECUTION_INTERNAL_ERROR',
   EXECUTION_MESSAGE_TOO_LONG: 'EXECUTION_MESSAGE_TOO_LONG',
   EXECUTION_ENQUEUE_FAILED: 'EXECUTION_ENQUEUE_FAILED',
-  // Interaction / blocking — user-cancellation & timeout on presentation
-  // or AI-conversation waits. Presentation node engine paths raise these
-  // when a `waitFor*` promise is rejected externally.
+  // Interaction / blocking — user-cancellation on presentation or
+  // AI-conversation waits. Presentation node engine paths raise this when a
+  // `waitFor*` promise is rejected externally.
   USER_CANCELLED: 'USER_CANCELLED',
-  INTERACTION_TIMEOUT: 'INTERACTION_TIMEOUT',
   // AI Agent multi-turn `execution.retry_last_turn` (spec/5-system/
   // 6-websocket-protocol.md §4.2). These surface in the WS ack's nested
   // `error: { code, message }` object (not a node `output.error.code`), but

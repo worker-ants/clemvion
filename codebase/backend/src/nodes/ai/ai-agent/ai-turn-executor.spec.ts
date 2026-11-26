@@ -1520,7 +1520,7 @@ describe('AiTurnExecutor', () => {
         endState(),
         'error',
         {
-          code: 'LLM_TIMEOUT',
+          code: 'LLM_CALL_FAILED',
           message: 'timeout',
           details: { retryable: true },
         },
@@ -1528,7 +1528,7 @@ describe('AiTurnExecutor', () => {
       ) as Record<string, unknown>;
       expect(result.port).toBe('error');
       const output = result.output as { error?: { code: string } };
-      expect(output.error?.code).toBe('LLM_TIMEOUT');
+      expect(output.error?.code).toBe('LLM_CALL_FAILED');
       const retryState = result._retryState as Record<string, unknown>;
       expect(retryState).toBeDefined();
       expect(retryState.expiresAt).toEqual(expect.any(String));
@@ -1554,7 +1554,7 @@ describe('AiTurnExecutor', () => {
         pendingFormToolCall,
       };
       const result = executor.endMultiTurnConversation(state, 'error', {
-        code: 'LLM_TIMEOUT',
+        code: 'LLM_CALL_FAILED',
         message: 'timeout',
         details: { retryable: true },
       }) as Record<string, unknown>;
@@ -1573,7 +1573,7 @@ describe('AiTurnExecutor', () => {
         { ...endState(), mcpServers: [{ integrationId: 'srv-1' }] },
         'error',
         {
-          code: 'LLM_TIMEOUT',
+          code: 'LLM_CALL_FAILED',
           message: 'timeout',
           details: { retryable: true },
         },
@@ -1594,7 +1594,7 @@ describe('AiTurnExecutor', () => {
         { ...endState(), mcpServers: servers },
         'error',
         {
-          code: 'LLM_TIMEOUT',
+          code: 'LLM_CALL_FAILED',
           message: 'timeout',
           details: { retryable: true },
         },

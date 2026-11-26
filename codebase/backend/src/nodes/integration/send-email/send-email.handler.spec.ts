@@ -4,7 +4,7 @@ import { createEmptyConversationThread } from '../../../shared/conversation-thre
 import { Logger } from '@nestjs/common';
 import {
   EMAIL_HOST_BLOCKED_MESSAGE,
-  isSmtpHostBlocked,
+  checkSmtpHost,
 } from './smtp-host-guard.js';
 import {
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
@@ -21,12 +21,12 @@ jest.mock('nodemailer', () => ({
   })),
 }));
 // SSRF 가드는 smtp-host-guard.spec.ts 가 검증한다. 핸들러 테스트에서는 실제
-// DNS 조회를 피하기 위해 연결 전 판정만 모킹하고 분기만 제어한다 (기본 false = 허용). 문구 · getSocket 은 실물이다.
+// DNS 조회를 피하기 위해 연결 전 판정만 모킹하고 분기만 제어한다 (기본 null = 허용). 문구 · getSocket 은 실물이다.
 jest.mock('./smtp-host-guard.js', () => ({
   ...jest.requireActual('./smtp-host-guard.js'),
-  isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
+  checkSmtpHost: jest.fn().mockResolvedValue(null),
 }));
-const mockedIsSmtpHostBlocked = isSmtpHostBlocked as unknown as jest.Mock;
+const mockedCheckSmtpHost = checkSmtpHost as unknown as jest.Mock;
 
 function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
   return {
@@ -319,42 +319,51 @@ describe('SendEmailHandler', () => {
       expect(closeMock).toHaveBeenCalled();
     });
 
+    // CLE-T-FWSAJ4 — 연결 전 판정의 차단 원문(host · IP)은 서버 경고 로그에만 남고 노드 에러 · usage 로그에는 고정 문구만 간다.
+    // usage 로그의 `api.path` 는 설정한 host 를 그대로 적는 자리라 원문 누출은 해석된 IP 로 본다.
     it('routes to error port (EMAIL_HOST_BLOCKED) when the SSRF guard blocks the host', async () => {
-      mockedIsSmtpHostBlocked.mockResolvedValueOnce(true);
-      const { service } = makeService({
-        integration: {
-          id: 'int-1',
-          workspaceId: 'ws-1',
-          serviceType: 'email',
-          status: 'connected',
-          name: 'Internal SMTP',
-          authType: 'smtp',
-          credentials: {
-            host: '169.254.169.254',
-            port: 587,
-            secure: 'starttls',
-            username: 'user',
-            password: 'pw',
-            default_from: 'noreply@example.com',
-          },
-        },
-      });
-      const handler = new SendEmailHandler(service as never);
-      const out = (await handler.execute(
-        null,
-        baseConfig,
-        makeContext(),
-      )) as unknown as {
-        output: { error?: { code: string } };
-        meta: { deliveryStatus: string };
-        port?: string;
-      };
+      mockedCheckSmtpHost.mockResolvedValueOnce(
+        new SsrfBlockedError(
+          'hostname "smtp.example.com" resolves to restricted IP "10.0.0.7"',
+        ),
+      );
+      const { service, logUsage } = makeService();
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const handler = new SendEmailHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          baseConfig,
+          makeContext(baseConfig),
+        )) as unknown as {
+          output: { error?: { code: string; message: string } };
+          meta: { deliveryStatus: string };
+          port?: string;
+        };
 
-      expect(out.port).toBe('error');
-      expect(out.output.error?.code).toBe('EMAIL_HOST_BLOCKED');
-      expect(out.meta.deliveryStatus).toBe('failed');
-      // 차단 시 실제 발송을 시도하지 않아야 한다.
-      expect(sendMailMock).not.toHaveBeenCalled();
+        expect(out.port).toBe('error');
+        expect(out.output.error?.code).toBe('EMAIL_HOST_BLOCKED');
+        expect(out.output.error?.message).toBe(EMAIL_HOST_BLOCKED_MESSAGE);
+        expect(out.meta.deliveryStatus).toBe('failed');
+        // 차단 시 실제 발송을 시도하지 않아야 한다.
+        expect(sendMailMock).not.toHaveBeenCalled();
+        expect(JSON.stringify(out.output)).not.toContain('10.0.0.7');
+        expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'int-1' }),
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'EMAIL_HOST_BLOCKED' }),
+          }),
+        );
+        expect(JSON.stringify(logUsage.mock.calls)).not.toContain('10.0.0.7');
+        expect(warn).toHaveBeenCalledWith(
+          'SSRF block (send-email): SSRF_BLOCKED: hostname "smtp.example.com" resolves to restricted IP "10.0.0.7"',
+        );
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     // CLE-T-PTCRM4 — 연결할 때 푼 주소의 판정(getSocket)이 막은 발송.
@@ -400,7 +409,7 @@ describe('SendEmailHandler', () => {
     });
 
     it('연결 전 판정이 판정 아닌 오류로 실패하면 EMAIL_SEND_FAILED 와 고정 문구를 내고 발송하지 않는다', async () => {
-      mockedIsSmtpHostBlocked.mockRejectedValueOnce(
+      mockedCheckSmtpHost.mockRejectedValueOnce(
         new Error('resolver exploded at 10.9.8.7'),
       );
       const { service } = makeService();

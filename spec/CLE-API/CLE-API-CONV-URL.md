@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-URL"
 title: "HTTP API 규약 — URL 과 요청"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "e5db531cfcf4371086d732b7e79661486eb72fd21f3e53759520acfebf60ec1c"
+content_hash: "6f58189bc91fb9efa9d1a375d421372fe7d145763b965370033c842837991163"
 read_as: "approved_fallback"
-task: "CLE-T-9YZ9BN"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "1884532474e3baca667876023cadbf186071574260ab75f3d15df6727e424db0"
-etag: "sha256-50343a162905f6e543ed69f1e0766a2ce4c392d26edef87b7b81ff693445ab14"
+mirror_sha256: "1b034946a057cd7a6c71e157c3e38af0f64e4d46e2f47e0aefb535eea37682b4"
+etag: "sha256-511adbc8314625a5c115c34b21a92361e54c8e12b1b768d99e5910daba7fc8ee"
 ---
 ## 개요
 
@@ -49,6 +49,7 @@ etag: "sha256-50343a162905f6e543ed69f1e0766a2ce4c392d26edef87b7b81ff693445ab14"
 | **예외: 외부 벤더에 등록하는 경로** `/api/3rd-party/{provider}/...`. 쇼핑몰 앱 설치 진입점(App URL)과 통합 OAuth 콜백이다. 두 URL 은 Cafe24 · MakeShop 개발자 센터와 OAuth 제공자 콘솔에 등록하고, 벤더는 등록값과 같은 URL 로만 브라우저를 보낸다. 그래서 리소스 이름 규칙보다 등록한 URL 을 바꾸지 않는 쪽을 앞세운다. 모두 `@Public()` 라우트다. 이 prefix 아래에는 벤더에 등록하는 경로만 둔다. 사용자 소셜 로그인 콜백(`/api/auth/oauth/:provider/callback`)과 따로 등록하는 것은 [OAuth 연결 시작](../CLE-INT/CLE-INT-OAUTH-BEGIN.md#제공자별-설정) 이, 요청 빈도 제한은 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다 | `GET /api/3rd-party/cafe24/install/:installToken`, `GET /api/3rd-party/makeshop/install/:installToken`, `GET /api/3rd-party/:provider/callback` |
 | **예외: 관측용 단일 뷰** `/api/{view}[/{section}]`. 대시보드 · 시스템 상태 · 헬스 체크는 늘어나는 자원 목록이 아니라 집계를 한 번 보여 주는 뷰라 단수 이름을 쓴다. 하위 세그먼트는 뷰 안의 구역 이름이다(`summary`, `recent-executions`, `overview`, `live`). 범위는 서로 다르다. `/api/dashboard/*` 는 현재 워크스페이스 범위(§2.3)이고 `/api/system-status/overview` 는 아래 「시스템 전역 API 예외」, `/api/health` 는 `@Public()` 이다. 관측 뷰에만 이 형태를 쓰고 그 밖의 자원은 복수형 명사를 쓴다 | `GET /api/dashboard/summary`, `GET /api/dashboard/recent-executions`, `GET /api/system-status/overview`, `GET /api/health`, `GET /api/health/live` |
 | **예외: 통합 관리의 기존 이름**. 추가 권한 요청 `POST /api/integrations/:id/request-scopes` 는 목적어(`scopes`)를 액션 이름에 넣었다. 공개 범위 전환 `PATCH /api/integrations/:id/scope` 는 `PATCH /:id { scope }` 대신 하위 경로를 쓴다. API 카탈로그 `GET /api/integrations/services/:type/catalog` 는 통합 id 가 아닌 서비스 유형 아래에 단수 `catalog` 를 둔다. 목록 검색 파라미터는 §4.1 의 `search` 가 아니라 `q` 다. 모두 규칙에서 벗어난 기존 이름이고 선례로 삼지 않는다. 동작은 [통합 관리 API](../CLE-INT/CLE-INT-MANAGE-API.md) 가 정한다 | `/api/integrations/:id/request-scopes`, `/api/integrations/:id/scope`, `/api/integrations/services/:type/catalog`, `GET /api/integrations?q=` |
+| **예외: 초대 수락** `POST /api/workspaces/invitations/accept`. 수락하는 사람은 아직 그 워크스페이스의 멤버가 아니고 워크스페이스 id 대신 초대 토큰으로 대상을 찾는다. 그래서 §2.3 의 `/api/workspaces/:id/...` 형태를 쓰지 않는다. 규칙에서 벗어난 기존 이름이고 선례로 삼지 않는다. 동작은 [워크스페이스와 멤버 — 초대](../CLE-ACCT/CLE-ACCT-WS-INVITE.md) 가 정한다 | `POST /api/workspaces/invitations/accept` |
 
 ### 2.3 워크스페이스 스코핑
 

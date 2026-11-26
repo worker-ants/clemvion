@@ -2,19 +2,19 @@
 id: "CLE-EXEC-PREVIEW-RENDER"
 title: "대화 미리보기 — 시각 매핑과 데이터 소스"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-PREVIEW"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-PREVIEW"]
 area: "CLE-EXEC"
-content_hash: "27f76ea483f2bd0498b85f79371b7fa8e22b4c2a2474055f869eea8390627db8"
+content_hash: "e1a1ed6930d93953bf6bd14a216c61ebddcf854644e439f7f9186269949ec807"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-KYPH36"
 source_paths: []
-mirror_sha256: "718b37eae727f969795aaef1ee8216e656598adecb2887f087ae1054f0dcb01f"
-etag: "sha256-bb5454dfc96e1e6c0261bc4dc345c508f59a5fb34e76af406f0ff21aaae5ac87"
+mirror_sha256: "6ec3ca83373798ae2e8eb7b06f26ce908ae487ea45a62fc111c92d18215b6058"
+etag: "sha256-a053129e3168a236be8312c90f47c19b626fab2e3497415671cfb87dbc8885c3"
 ---
 ## 개요
 
@@ -165,7 +165,7 @@ LLM 프로바이더가 content 를 어떤 모양으로 보내든(Anthropic `null
    라이브와 영속(실행 내역) 양쪽이 **같은 절대 시각**을 보여야 한다.
 4. **결측 허용**: `timestamp`·`durationMs` 는 선택 필드다. 없으면(옛 데이터, 아직 받지 않은 pending) 그 표기를 생략한다(`—` 또는 비표시). 시각이 없어도 배치가 깨지지 않는다.
 
-데이터 모델(`startedAt`·`finishedAt` 함께 싣기)과 영속 정책은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 정하고 그 근거도 그 문서의 "요소별 절대 발생 시각·소요 시간 노출" 항목에 있다.
+데이터 모델(`startedAt`·`finishedAt` 함께 싣기)과 영속 정책은 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md) 이 정하고 근거는 [AI 대화 턴 이벤트 「요소별 절대 발생 시각·소요 시간을 싣는 이유」](../CLE-API/CLE-API-WS-EVENTS-AITURN.md#요소별-절대-발생-시각소요-시간을-싣는-이유-startedatfinishedat) 에 있다.
 
 ## 구현 위치
 

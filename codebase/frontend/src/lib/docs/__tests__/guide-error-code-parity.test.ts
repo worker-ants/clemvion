@@ -58,8 +58,6 @@ const UNMAPPED_CATALOG_ROWS = new Map<string, string>([
  * 이 목록에서도 지워야 한다(아래 「낡은 예외」 단언).
  */
 const NOT_GUIDE_CODES = new Map<string, string>([
-  ["HTTP_TIMEOUT", "enum 에만 있고 발행하지 않는다(§6.6 아래 목록)"],
-  ["LLM_TIMEOUT", "enum 에만 있고 발행하지 않는다(§6.6 아래 목록)"],
   ["ALLOW_PRIVATE_HOST_TARGETS", "환경 변수다"],
   ["CODE_NODE_MEMORY_LIMIT_MB", "환경 변수다"],
 ]);

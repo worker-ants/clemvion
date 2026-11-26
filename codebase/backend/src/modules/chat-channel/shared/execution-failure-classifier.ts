@@ -33,8 +33,6 @@ export interface ExecutionFailureClass {
 }
 
 const TIMEOUT_CODES = new Set([
-  'HTTP_TIMEOUT',
-  'LLM_TIMEOUT',
   // `EXECUTION_TIMEOUT` = Code 노드 *스크립트* 타임아웃.
   // `EXECUTION_TIME_LIMIT_EXCEEDED` = 엔진 레벨 active-running 누적 타임아웃(§8).
   // 의미는 다르나 사용자 대면 분류는 둘 다 timeout (PR2a — W5 명시적 구분).
@@ -72,12 +70,6 @@ const INTERNAL_CODES = new Set([
   // DB SSRF 차단 — 차단은 우리 측 정책 결정이므로 internal 분류
   // (CLE-CHAT-ADAPTER-RENDER 「실행 실패 안내 분류」 의 `DB_*` 매핑과 일치).
   'DB_HOST_BLOCKED',
-  'RECURSION_DEPTH_EXCEEDED',
-  'MAX_ITERATIONS_EXCEEDED',
-  'CYCLE_DETECTED',
-  'INVALID_EXPRESSION',
-  'VARIABLE_NOT_FOUND',
-  'TYPE_MISMATCH',
   'ERROR_PORT_FALLBACK',
 ]);
 

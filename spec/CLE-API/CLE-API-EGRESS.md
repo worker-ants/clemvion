@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "135ecb8abac267fe48dc8505573e0e42e986081c69767d094734624deff76154"
+content_hash: "69e9b118d8292a97577a1e33f64aecae7f24206082d4654003e47ba7a5c03354"
 read_as: "approved_fallback"
-task: "CLE-T-SND9K2"
+task: "CLE-T-KYPH36"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "36c075f1a804124ee122ac1d3d23d53c0da4fecc0adb59127eaf28b5c6d38860"
-etag: "sha256-57395f33a274b50b21091b397e982ac975cca45846b5e0357d950ec67accba2f"
+mirror_sha256: "0ab49f991008f9ea9b378035737e27bdd9bb3cd59c36a31cc77a9a6f3579fc0b"
+etag: "sha256-1b8f6ad7db73d09dce244fd11141c50053062dce1827aaa9109388bdff3a5614"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -97,7 +97,7 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 마스킹 범위는 그 표면을 받는 사람들이 정한다.
 
 - `GET /api/executions/:id` 에는 `@Roles` 게이트가 없어 뷰어를 포함한 워크스페이스 멤버 전원이 조회하고 프론트엔드는 실패 배너에 `error.message` 를 그대로 보인다.
-- WebSocket `execution:<id>` 구독 인가는 워크스페이스 소유만 보고 역할을 받지 않는다([WebSocket 연결과 채널 구독](CLE-API-WS.md)). 수신 인구가 `GET /api/executions/:id` 와 같다.
+- WebSocket `execution:<id>` 구독 인가는 워크스페이스 소유만 보고 역할을 받지 않는다([WebSocket 연결과 채널 구독](CLE-API-WS.md)). 수신 인구가 `GET /api/executions/:id` 와 같다. 다만 소켓은 연결한 뒤 멤버십을 다시 읽지 않는다. 그래서 워크스페이스에서 제거된 멤버도 액세스 토큰 `exp`(최대 15분)까지 이벤트를 받는다([연결 · 인증 · 재연결 「멤버 제거는 액세스 토큰 만료까지 소켓에 전파하지 않는다」](CLE-API-WS-CONN.md#멤버-제거는-액세스-토큰-만료까지-소켓에-전파하지-않는다)).
 - 그래서 내부 읽기 경로와 내부 WebSocket wire 에도 외부 표면과 같은 값 마스킹을 건다. [실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md) 의 R-5 가 적은 "안전성은 역할 게이팅이 아니라 서버 egress masking parity 에 의존한다" 는 원칙과 같다. R-5 의 직접 대상은 설정(Config) 탭이라 `Execution.error` 를 규정하지는 않는다. 원칙을 가져다 쓴 것이지 기존 판정이 아니다.
 - `kb:<documentId>`·`background:run:<id>` 구독 인가도 워크스페이스 소유만 보고 역할을 보지 않는다([WebSocket 연결과 채널 구독](CLE-API-WS.md)). 그래서 수신 인구가 `execution:<id>` 와 같다(§3.11). `notifications:<userId>` 는 본인만 받아 수신 인구가 다르다.
 
