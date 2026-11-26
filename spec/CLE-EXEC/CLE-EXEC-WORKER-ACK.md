@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER-ACK"
 title: "큐 워커 — 재개 ack 에러 표면"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-WORKER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-WORKER"]
 area: "CLE-EXEC"
-content_hash: "69247d8d49bb902ce21d072b1037af50d79dbc989788efa0d8e122f38a64bfc0"
+content_hash: "3047434c02a861a3f37173b0caa2030d78da6daf566433a1a9b0cbd5a648fa63"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-YFVEPK"
 source_paths: []
-mirror_sha256: "75f2699f66112e74f32444ccacaaea9b8180b2a493074ffab36ff374cc40f351"
-etag: "sha256-060f1c2310eb13cac14cda2b2951de49f4b8f49c9c4ef8a579222c8d0a598e62"
+mirror_sha256: "fd7ff19ad0a140f3873b4789a6ea47d24e10634c7dc827f20a5f082929abaffa"
+etag: "sha256-9319bd4f8c651dd037fb60394a7dce4549aac1d375c774130dd4a787adf1d643"
 ---
 ## 개요
 
@@ -78,7 +78,7 @@ etag: "sha256-060f1c2310eb13cac14cda2b2951de49f4b8f49c9c4ef8a579222c8d0a598e62"
 
 - **옛 서술**: rehydration 실패 3종(`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE`)이 "WS ack 에 `resumed: false` + error 로 나간다" 고 적혀 있었다. 사전 검증 절("`RESUME_*` 는 뒤따르는 `execution.cancelled` 이벤트이며 ack 동기 응답이 아니다")과 정면으로 모순이었다.
 - **맞는 경로**: 항상 큐에 넣는 모델([시스템 아키텍처](../CLE-PLAT/CLE-PLAT-ARCH.md) 의 "실행 엔진: Redis 큐 + 분산 워커 풀" 결정) 이후 `RESUME_*` 는 enqueue 뒤 임의 워커가 처리하다 실패하는 **비동기** 종결이다. 재개 handler 4종은 enqueue 수락만 동기 ack(`resumed: true`/`queued`)로 돌려준다. 워커 쪽 실패는 뒤따르는 `execution.cancelled` 이벤트(`error.code = RESUME_*`)로 알린다. 코드에서도 4종 handler 는 `RESUME_*` 에 대해 `resumed: false` 를 내지 않는다.
-- **정정**: rehydration 실패 설명을 사전 검증 절의 동기·비동기 분류에 맞췄다. WebSocket 쪽 정정은 [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 Rationale "`resumed` 의미 재정의" 에 있다. 코드는 바뀌지 않았다(spec 을 코드 동작에 맞췄다).
+- **정정**: rehydration 실패 설명을 사전 검증 절의 동기·비동기 분류에 맞췄다. WebSocket 쪽 정정은 [실행 제어 명령과 ack 「ack 의 `resumed` 뜻을 "재개 성공" 에서 "재개 수락" 으로 바꾼 이유」](../CLE-API/CLE-API-WS-EVENTS-COMMANDS.md#ack-의-resumed-뜻을-재개-성공-에서-재개-수락-으로-바꾼-이유) 에 있다. 코드는 바뀌지 않았다(spec 을 코드 동작에 맞췄다).
 - **2026-10-17 보강**: 처음 정정은 동기 ack 가 실패를 싣는 경우를 사전 검증(`INVALID_EXECUTION_STATE`)뿐이라고 적었는데 범위가 좁았다. 발행 경로의 에러(「ack 에러 변환」)와 큐 적재 실패도 동기 실패 ack 로 온다. 본문 「ack 의 뜻」 을 그에 맞게 고쳤다. `RESUME_*` 가 동기 ack 에 실리지 않는다는 결정은 그대로다.
 
 ### ack 에 내부 에러 메시지를 싣지 않는다
@@ -100,7 +100,7 @@ etag: "sha256-060f1c2310eb13cac14cda2b2951de49f4b8f49c9c4ef8a579222c8d0a598e62"
 재개 메시지를 큐에 넣지 못하면(`queued:false`) 진입점마다 다른 응답이 나간다. 목록은 「발행 결과와 ack 에러 표면」 의 표에 있다.
 
 - **WebSocket**: 성공 ack 에 `queued:false` 를 싣지 않고 `errorCode` 없는 실패 ack 를 보내는 코드 동작에 문서를 맞췄다. ack 는 서버에 저장되지 않으므로 클라이언트는 실패를 보고 같은 명령을 다시 보내면 된다.
-- **EIA `/interact`**: 503 `EXECUTION_ENQUEUE_FAILED` 를 쓴다(2026-10-09). EIA 는 `202` 응답을 멱등 캐시에 넣는다. 실패를 `202` 로 알리면 같은 키로 다시 보낸 요청도 그 실패를 돌려받는다. 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](../CLE-IX/CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
+- **EIA `/interact`**: 503 `EXECUTION_ENQUEUE_FAILED` 를 쓴다(2026-10-09). EIA 는 `202` 응답을 멱등 캐시에 넣는다. 실패를 `202` 로 알리면 같은 키로 다시 보낸 요청도 그 실패를 돌려받는다. 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](../CLE-IX/CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다) 에 있다.
 - **채팅 채널**: 인바운드는 `202` 고정 정책을 따른다(사람 결정). 그전에는 `/cancel` 이 `stop` 의 503 을 프로바이더에 그대로 돌려줬다. 이제 `/cancel` 과 진행 중인 대화의 입력은 `202` 로 답하고 채널 건강도를 `degraded` 로 둔다. `/start` 의 기존 실행 취소 실패만 503 이다. 근거는 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 에 있다.
 
 기각한 대안은 모든 진입점의 응답을 한 모양으로 맞추는 안이다. WebSocket ack 에는 HTTP 상태가 없다. 채팅 채널은 non-2xx 응답이 이어지면 프로바이더가 웹훅을 끌 수 있다. 그래서 진입점마다 전송 방식의 제약에 맞는 표면을 고른다.
