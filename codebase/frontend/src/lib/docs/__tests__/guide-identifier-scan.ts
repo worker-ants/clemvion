@@ -340,7 +340,7 @@ export function collectMessagePrefixes(
  * 그 미등재는 별건이고(NERV Task `CLE-T-DM3AXQ` 항목 4) 가드가 남의 미완결을 신고하게 두지
  * 않는다. 탈출구로 쓰면 그 코드들은 애초에 접두 전용이 아니라 술어에 안 걸리므로 무해하다.
  *
- ## 이 탈출구가 오늘 구하는 이름은 등록된 `MAX_ITERATIONS_EXCEEDED` 하나다
+ * ## 이 탈출구가 오늘 구하는 이름은 등록된 `MAX_ITERATIONS_EXCEEDED` 하나다
  *
  * 인용된 «접두 전용» 토큰 중 카탈로그 등재는 `MAX_ITERATIONS_EXCEEDED` 1종이고 그 이름은
  * `GUIDE_NON_EMITTED_VOCABULARY` 에 등록돼 있다. 등록되지 않은 이름을 이 탈출구가 구하는 일은
