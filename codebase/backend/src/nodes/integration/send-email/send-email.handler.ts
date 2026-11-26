@@ -24,8 +24,8 @@ import {
 import { sendEmailNodeMetadata } from './send-email.schema.js';
 import {
   EMAIL_HOST_BLOCKED_MESSAGE,
+  checkSmtpHost,
   guardedSmtpGetSocket,
-  isSmtpHostBlocked,
 } from './smtp-host-guard.js';
 import {
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
@@ -193,9 +193,9 @@ export class SendEmailHandler
       // `ALLOW_PRIVATE_HOST_TARGETS=true` 로만 끈다. 연결 테스트와 동일한 가드를 발송 경로에도
       // 적용해 비대칭(테스트만 차단)을 막는다. 이 검사와 연결 사이의 DNS 응답 변경은 transport 의
       // `getSocket`(연결 시점 판정)이 막고, 그 차단은 아래 catch 가 `EMAIL_HOST_BLOCKED` 로 바꾼다.
-      let hostBlocked: boolean;
+      let hostBlock: SsrfBlockedError | null;
       try {
-        hostBlocked = await isSmtpHostBlocked(credentials.host as string);
+        hostBlock = await checkSmtpHost(credentials.host as string);
       } catch (guardErr) {
         // 판정이 아닌 오류는 가드의 고장이다. 원문에는 host/IP 가 들어 있을 수 있어 서버 로그에만 남기고
         // 사용자에게는 고정 문구를 낸다. 코드는 이 노드의 fallback 과 같은 `EMAIL_SEND_FAILED` 다(CLE-T-PTCRM4).
@@ -208,7 +208,9 @@ export class SendEmailHandler
           SSRF_GUARD_FAILED_CLIENT_MESSAGE,
         );
       }
-      if (hostBlocked) {
+      if (hostBlock) {
+        // 차단 원문(host · IP)은 서버 경고 로그에만 남긴다. 노드 에러 · 활동 로그에는 고정 문구만 간다(CLE-T-FWSAJ4).
+        logger.warn(`SSRF block (send-email): ${hostBlock.message}`);
         throw new IntegrationError(
           'EMAIL_HOST_BLOCKED',
           EMAIL_HOST_BLOCKED_MESSAGE,
