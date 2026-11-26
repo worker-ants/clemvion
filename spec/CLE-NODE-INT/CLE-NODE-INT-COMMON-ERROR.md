@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-ERROR"
 title: "통합 노드 공통 — 에러 코드와 사설망 차단"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "2d6dcdd5af205f0da6c262fa9afad0e3272dc130537ddd2b32a3a6249714d90e"
+content_hash: "a06248dc1e034b1b50d71f63c80c7037d95a998080793e5b3dd2f7d8dfeccd9d"
 read_as: "approved_fallback"
-task: "CLE-T-3M0KRA"
+task: "CLE-T-MYDNQN"
 source_paths: []
-mirror_sha256: "29c6f90046903e16a1dd56b135cc469595b46e61483b59ddd0d8d8c9a9274cb1"
-etag: "sha256-b89fb3b9f9179bba803050298e0f2de4d0f98f0edf20605c910e0b8c4e7a705d"
+mirror_sha256: "c42a87d18d1c41a22c92d459c4fc41608d816d9a499bd62156cfc8c6e737b736"
+etag: "sha256-072d70bb74e94d6390d0e4001f0af9ce221a58fb91a9528b990552281ad7301b"
 ---
 ## 개요
 
@@ -28,12 +28,12 @@ etag: "sha256-b89fb3b9f9179bba803050298e0f2de4d0f98f0edf20605c910e0b8c4e7a705d"
 | `INTEGRATION_NOT_CONNECTED` | 통합 상태가 `connected` 가 아니다(`expired`, `error`, `pending_install`). `assertUsable` 이 `IntegrationError` 를 던진다 |
 | `INTEGRATION_INCOMPLETE` | credentials JSONB 에 서비스별 필수 필드가 없다. 각 핸들러가 자격 증명을 검증할 때 `IntegrationError` 를 던진다 |
 | `INTEGRATION_CALL_FAILED` | 분류되지 않은 그 밖의 실패. `IntegrationError` 가 아닌 예외의 기본 코드다(`toLogError` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 자체의 고장)도 이 코드로 나온다. HTTP Request 는 preflight 와 리다이렉트 홉에서 모두 이 코드를 낸다([사설망 차단](#사설망-차단)) |
-| `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입 또는 workspace context 누락(배포 구성 에러). 에러 포트로 내보낸다 |
+| `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입 또는 workspace context 누락(배포 구성 에러). 에러 포트로 내보낸다. Send Email 노드도 워크스페이스 누락은 이 코드로 낸다. 서비스 미주입이면 수신자가 있을 때 `requires_integration` 상태를 돌려준다([핸들러 실행 계약](CLE-NODE-INT-COMMON-HANDLER.md#서비스-미주입과-워크스페이스-누락)) |
 
 - **통합이 없거나 다른 워크스페이스 소속일 때**: `IntegrationsService.getForExecution` 안의 `requireEntity` 가 `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 던진다. 이 예외는 `IntegrationError` 가 아니므로 전용 코드로 보존되지 않는다. 대부분의 노드는 `INTEGRATION_CALL_FAILED` 로, Send Email 노드는 `EMAIL_SEND_FAILED` 로 내보낸다. 별도의 `INTEGRATION_NOT_FOUND` 코드는 현재 코드에 없다(`integrations.service.ts` `requireEntity`, `_base/integration-handler-base.ts` `toLogError`).
 - **[개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과하지 못한 개인 통합일 때**: 위와 같은 코드와 같은 문구로 실패한다. 노드 출력만 보고는 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합을 구분할 수 없다.
 - **통합을 얻기 전에 끝난 실행의 기록**: 통합을 얻기 전에 끝난 실패는 활동 로그를 남기지 않는다. 설정의 `integrationId` 가 가리키는 통합의 `last_used_at`·`last_error` 도 바꾸지 않는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 «통합을 얻기 전 실패는 기록하지 않는다» 요구사항). 노드별 문서의 «매 호출 활동 로그» 서술은 통합을 얻은 뒤의 호출을 말한다. 유형 불일치·미연결·자격 증명 부족과 그 뒤의 실패는 통합을 얻은 뒤의 실패라 얻은 통합으로 활동 로그를 남긴다.
-  - 통합을 얻기 전에 끝나는 실패는 워크스페이스 확인(1단계) 실패, 조회 거절(위 세 경우), 조회 중 일시 에러(DB 연결 에러 등), 자격 증명 읽기 실패다. 통합을 얻기 전의 노드 사전 검사 실패도 여기에 든다. Cafe24·MakeShop 노드의 API 클라이언트 미주입, operation 조회 실패(`CAFE24_UNKNOWN_OPERATION`·`MAKESHOP_UNKNOWN_OPERATION`), 필수 필드·조건 검사 실패(`CAFE24_MISSING_FIELDS`·`MAKESHOP_MISSING_FIELDS`), MakeShop 노드의 `MAKESHOP_INVALID_PAGINATION`, Database Query 노드의 파라미터 파싱 실패, Send Email 노드의 빈 수신자 확인 실패(`EMAIL_NO_RECIPIENTS`)가 해당한다. HTTP Request 노드는 인증 방식이 `none`·`custom` 이면 `integrationId` 가 남아 있어도 통합을 조회하지 않으므로 기록하지 않는다.
+  - 통합을 얻기 전에 끝나는 실패는 워크스페이스 확인(1단계) 실패(`INTEGRATION_SERVICE_UNAVAILABLE`), 조회 거절(위 세 경우), 조회 중 일시 에러(DB 연결 에러 등), 자격 증명 읽기 실패다. 통합을 얻기 전의 노드 사전 검사 실패도 여기에 든다. Cafe24·MakeShop 노드의 API 클라이언트 미주입, operation 조회 실패(`CAFE24_UNKNOWN_OPERATION`·`MAKESHOP_UNKNOWN_OPERATION`), 필수 필드·조건 검사 실패(`CAFE24_MISSING_FIELDS`·`MAKESHOP_MISSING_FIELDS`), MakeShop 노드의 `MAKESHOP_INVALID_PAGINATION`, Database Query 노드의 파라미터 파싱 실패, Send Email 노드의 빈 수신자 확인 실패(`EMAIL_NO_RECIPIENTS`)가 해당한다. HTTP Request 노드는 인증 방식이 `none`·`custom` 이면 `integrationId` 가 남아 있어도 통합을 조회하지 않으므로 기록하지 않는다.
   - 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)는 조회가 통합을 찾았어도 얻지 못한 통합으로 본다. `getForExecution` 이 통합을 돌려주지 않고 이 예외를 던지기 때문이다. 근거는 [Rationale 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05) 에 있다.
   - 서비스가 주입되지 않은 경우는 기록할 서비스가 없어 남지 않는다.
 - **기록할 통합은 얻은 통합뿐이다**: `logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 «얻은 통합에만 기록한다» 요구사항). 얻지 못한 통합은 넘길 수 없으므로 위 규칙을 핸들러와 도구 프로바이더가 따로 지키지 않아도 된다. 다른 워크스페이스 통합도 `getForExecution` 이 돌려주지 않으므로 기록되지 않는다.
@@ -89,7 +89,7 @@ etag: "sha256-b89fb3b9f9179bba803050298e0f2de4d0f98f0edf20605c910e0b8c4e7a705d"
 - MakeShop 노드는 호출 호스트가 `connect.makeshop.co.kr` 하나로 고정돼 사용자 입력이 호스트를 정하지 않는다. 그래서 이 가드를 쓰지 않고 `shop_uid` 형식 검증으로 경로 주입을 막는다([MakeShop 노드](CLE-NODE-MAKESHOP.md)).
 - 차단 코드는 차단 판정(`SsrfBlockedError`)에만 쓴다. 가드가 판정이 아닌 오류를 던지면(예: DNS 해석기가 낸 예기치 않은 예외) 가드의 고장으로 보고 분류되지 않은 실패 코드로 내보낸다. HTTP Request · Database Query 노드는 `INTEGRATION_CALL_FAILED`, HTTP 통합 연결 테스트는 `HTTP_CONNECT_FAILED`, Database 연결 테스트는 `DB_CONNECT_FAILED` 를 낸다. Send Email 노드는 `EMAIL_SEND_FAILED`, Email 연결 테스트는 `EMAIL_CONNECT_FAILED` 를 낸다. 메시지는 모두 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남긴다. HTTP Request 노드는 preflight 와 리다이렉트 홉에서 같은 코드와 문구를 낸다. Send Email 노드는 `IntegrationError` 가 아닌 실패를 모두 `EMAIL_SEND_FAILED` 로 내는 노드라 가드 고장도 그 코드로 내고 `INTEGRATION_CALL_FAILED` 를 출력하지 않는다.
 - 위 규칙의 예외가 하나 있다. HTTP Request 노드는 통합 인증에서 리다이렉트를 5홉 넘게 따라가야 하면 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 메시지는 차단 판정과 같은 일반화 문구다. 사람이 2026-11-14 에 이 예외를 받아들이기로 정했다. 이 예외는 그 경우에만 쓰고 다른 실패로 넓히지 않는다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md) Rationale 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」 에 있다.
-- 클라이언트에 나가는 `output.error.message` 에는 차단된 호스트나 IP 를 넣지 않는다. 일반화된 문구만 쓴다(내부망 정찰 방지, CWE-209). Database Query · Send Email 노드와 두 연결 테스트는 차단된 host · IP 원문을 서버 경고 로그에만 남기고 노드 에러 · 활동 로그 · 연결 테스트 응답에는 싣지 않는다. 다른 노드에서 원본 상세를 어디에 남기는지는 정의가 갈린다. [미결 사항](CLE-NODE-INT-COMMON.md#미결-사항) 참조.
+- 클라이언트에 나가는 `output.error.message` 에는 차단된 호스트나 IP 를 넣지 않는다. 일반화된 문구만 쓴다(내부망 정찰 방지, CWE-209). HTTP Request · Database Query · Send Email 노드와 두 연결 테스트는 차단된 host · IP 원문을 서버 경고 로그에만 남기고 노드 에러 · 활동 로그 · 연결 테스트 응답에는 싣지 않는다.
 
 ## Rationale
 
@@ -162,3 +162,10 @@ NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로
 - 기각: 예외에 통합을 실어 기록하는 안. 위 첫째 이유로 뺐다.
 - 기각: 이 경우만 통합 ID 로 기록하는 안. 위 둘째 이유로 뺐다.
 - 이 예외의 노드 출력 코드는 이 결정으로 정하지 않았다. [미결 사항](CLE-NODE-INT-COMMON.md#미결-사항) 의 «자격 증명 복호화 실패의 출력 코드» 는 그대로 남는다.
+
+### 워크스페이스 누락도 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다 (2026-11-26)
+
+이 문서의 코드 표는 워크스페이스 누락을 이미 이 코드로 적었다. 그런데 공통 베이스가 일반 `Error` 를 던져서 노드별 fallback 코드가 나왔다. 사람이 구현을 규칙에 맞추기로 정했고(NERV Task `CLE-T-MYDNQN`) 코드 행의 정의는 바꾸지 않았다. 경위와 기각한 안은 [핸들러 실행 계약](CLE-NODE-INT-COMMON-HANDLER.md) Rationale 의 같은 제목 절에 있다.
+
+- Send Email 노드도 이 코드를 낸다. 공통 베이스가 `IntegrationError` 로 던지므로 `IntegrationError` 가 아닌 실패를 `EMAIL_SEND_FAILED` 로 흡수하는 규칙의 예외가 아니다([Send Email 노드](CLE-NODE-EMAIL.md)).
+- 서비스 미주입 때 Send Email 노드가 `requires_integration` 을 돌려주는 동작은 전부터 있었다. 공통 규칙만 읽고 에러 포트를 기대하지 않도록 코드 행에 함께 적었다.
