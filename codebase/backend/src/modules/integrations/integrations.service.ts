@@ -13,11 +13,11 @@ import {
   checkSmtpHost,
   guardedSmtpGetSocket,
 } from '../../nodes/integration/send-email/smtp-host-guard';
+import { SSRF_GUARD_FAILED_CLIENT_MESSAGE } from '../../common/utils/ssrf/outbound-guard';
 import {
-  SSRF_GUARD_FAILED_CLIENT_MESSAGE,
-  SsrfBlockedError,
-} from '../../common/utils/ssrf/outbound-guard';
-import { findCause } from '../../common/utils/guarded-lookup-dispatcher';
+  findConnectTimeBlock,
+  runSsrfPreflight,
+} from '../../common/utils/ssrf/guard-outcome';
 import { Integration } from './entities/integration.entity';
 import {
   lockForIntegrationWrite,
@@ -2109,26 +2109,23 @@ export class IntegrationsService {
     // SSRF 가드 (기본 ON) — 사설 · loopback · link-local · CGNAT host 로의 연결 시도를 차단한다.
     // `ALLOW_PRIVATE_HOST_TARGETS=true` 로만 끈다. send_email 발송 경로 · HTTP Request 노드와 같은 가드.
     // 연결 전 판정에 더해 `getSocket` 이 연결할 때 푼 주소를 다시 판정한다(CLE-T-PTCRM4).
-    let hostBlock: SsrfBlockedError | null;
-    try {
-      hostBlock = await checkSmtpHost(credentials.host as string);
-    } catch (err) {
-      // 판정이 아닌 오류(가드의 고장)는 «host 가 막혔다» 로 보고하지 않는다. 코드는 연결 실패로 두고 원문은 로그에만
-      // 남긴 채 고정 문구를 낸다(CLE-T-PTCRM4).
-      this.logger.warn(
-        `SSRF guard failed (email connection test): ${err instanceof Error ? err.message : String(err)}`,
-      );
+    // 판정 원문(host · IP)은 헬퍼가 서버 경고 로그에만 남긴다(CLE-T-FWSAJ4 · CLE-T-NTKWWV).
+    const preflight = await runSsrfPreflight(
+      () => checkSmtpHost(credentials.host as string),
+      this.logger,
+      'email connection test',
+    );
+    if (preflight === 'guard_failed') {
+      // 판정이 아닌 오류(가드의 고장)는 «host 가 막혔다» 로 보고하지 않는다. 코드는 연결 실패로 두고 고정 문구를
+      // 낸다(CLE-T-PTCRM4).
       return {
         success: false,
         code: CONNECTION_TEST_CODES.EMAIL_CONNECT_FAILED,
         message: SSRF_GUARD_FAILED_CLIENT_MESSAGE,
       };
     }
-    if (hostBlock) {
-      // 차단 원문(host · IP)은 서버 경고 로그에만 남긴다. 연결 테스트 응답에는 고정 문구만 간다(CLE-T-FWSAJ4).
-      this.logger.warn(
-        `SSRF block (email connection test): ${hostBlock.message}`,
-      );
+    if (preflight === 'blocked') {
+      // 연결 테스트 응답에는 고정 문구만 간다.
       return {
         success: false,
         code: CONNECTION_TEST_CODES.EMAIL_HOST_BLOCKED,
@@ -2155,11 +2152,7 @@ export class IntegrationsService {
       await transporter.verify();
       return { success: true, message: 'Connection successful' };
     } catch (err) {
-      const blocked = findCause(err, SsrfBlockedError);
-      if (blocked) {
-        this.logger.warn(
-          `SSRF block at connect time (email connection test): ${blocked.message}`,
-        );
+      if (findConnectTimeBlock(err, this.logger, 'email connection test')) {
         return {
           success: false,
           code: CONNECTION_TEST_CODES.EMAIL_HOST_BLOCKED,
