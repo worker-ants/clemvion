@@ -35,7 +35,7 @@ import { SERVICE_REGISTRY } from './services/service-registry';
 import { createTransport } from 'nodemailer';
 import {
   EMAIL_HOST_BLOCKED_MESSAGE,
-  isSmtpHostBlocked,
+  checkSmtpHost,
 } from '../../nodes/integration/send-email/smtp-host-guard';
 import {
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
@@ -49,7 +49,7 @@ jest.mock('nodemailer', () => ({ createTransport: jest.fn() }));
 // 실제 DNS 조회를 피하기 위해 모킹하고, 호출 여부·분기만 제어한다.
 jest.mock('../../nodes/integration/send-email/smtp-host-guard', () => ({
   ...jest.requireActual('../../nodes/integration/send-email/smtp-host-guard'),
-  isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
+  checkSmtpHost: jest.fn().mockResolvedValue(null),
 }));
 // Database · HTTP 테스터 자체는 각자의 unit spec 이 검증한다. 여기서는 dispatchTest 배선만 본다 —
 // 실제 DB 접속 · fetch 를 피하려고 모킹한다(기본값은 성공).
@@ -948,12 +948,12 @@ describe('IntegrationsService', () => {
       });
     }
 
-    const mockedIsSmtpHostBlocked = isSmtpHostBlocked as unknown as Mock;
+    const mockedCheckSmtpHost = checkSmtpHost as unknown as Mock;
 
     beforeEach(() => {
       mockedCreateTransport.mockReset();
-      mockedIsSmtpHostBlocked.mockReset();
-      mockedIsSmtpHostBlocked.mockResolvedValue(false);
+      mockedCheckSmtpHost.mockReset();
+      mockedCheckSmtpHost.mockResolvedValue(null);
     });
 
     it('returns success when nodemailer verify() resolves', async () => {
@@ -1074,8 +1074,16 @@ describe('IntegrationsService', () => {
       expect(close).toHaveBeenCalled();
     });
 
+    // CLE-T-FWSAJ4 — 차단 원문(host · IP)은 서버 경고 로그에만 남고 연결 테스트 응답에는 고정 문구만 간다.
     it('blocks a private/loopback host (no SMTP attempt) — guard on by default', async () => {
-      mockedIsSmtpHostBlocked.mockResolvedValue(true);
+      mockedCheckSmtpHost.mockResolvedValue(
+        new SsrfBlockedError(
+          'hostname "169.254.169.254" resolves to a restricted network range',
+        ),
+      );
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
       integrationRepo.findOne.mockResolvedValue(
         makeIntegration({
           serviceType: 'email',
@@ -1091,12 +1099,22 @@ describe('IntegrationsService', () => {
         }),
       );
 
-      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
+      try {
+        const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
-      expect(result.success).toBe(false);
-      expect(result.code).toBe('EMAIL_HOST_BLOCKED');
-      // 차단 시 실제 SMTP 연결을 시도하지 않아야 한다.
-      expect(mockedCreateTransport).not.toHaveBeenCalled();
+        expect(result).toEqual({
+          success: false,
+          code: 'EMAIL_HOST_BLOCKED',
+          message: EMAIL_HOST_BLOCKED_MESSAGE,
+        });
+        // 차단 시 실제 SMTP 연결을 시도하지 않아야 한다.
+        expect(mockedCreateTransport).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(
+          'SSRF block (email connection test): SSRF_BLOCKED: hostname "169.254.169.254" resolves to a restricted network range',
+        );
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     // CLE-T-PTCRM4 — 연결할 때 푼 주소의 판정(getSocket)과 가드 고장 처리.
@@ -1142,7 +1160,7 @@ describe('IntegrationsService', () => {
 
     it('가드가 판정이 아닌 오류로 실패하면 EMAIL_CONNECT_FAILED 와 고정 문구를 내고 연결하지 않는다', async () => {
       integrationRepo.findOne.mockResolvedValue(makeEmailIntegration());
-      mockedIsSmtpHostBlocked.mockRejectedValueOnce(
+      mockedCheckSmtpHost.mockRejectedValueOnce(
         new Error('resolver exploded at 10.9.8.7'),
       );
       const warn = jest

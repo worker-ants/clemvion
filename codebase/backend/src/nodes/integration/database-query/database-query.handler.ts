@@ -26,10 +26,12 @@ import type { Integration } from '../../../modules/integrations/entities/integra
 import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus.service.js';
 import {
   SSRF_GUARD_FAILED_CLIENT_MESSAGE,
-  SsrfBlockedError,
   assertSafeOutboundHostResolved,
 } from '../../../common/utils/ssrf/outbound-guard.js';
-import { findCause } from '../../../common/utils/guarded-lookup-dispatcher.js';
+import {
+  findConnectTimeBlock,
+  runSsrfPreflight,
+} from '../../../common/utils/ssrf/guard-outcome.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { isAbortErrorLike } from '../../core/abort-error.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
@@ -259,30 +261,30 @@ export class DatabaseQueryHandler
       // ALLOW_PRIVATE_HOST_TARGETS=true 로 의식적 opt-in (W-5).
       // 차단 시 공용 guard 의 plain Error 를 전용 `DB_HOST_BLOCKED` 로 승격해
       // HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 대칭으로 surface 한다.
-      // 메시지는 차단된 host/IP 를 노출하지 않는 일반화 문구 — 정찰 면 축소
-      // (원본 상세는 logUsage 의 toLogError 로 서버 로그에만 남는다).
+      // 메시지는 차단된 host/IP 를 노출하지 않는 일반화 문구 — 정찰 면 축소.
+      // 판정 원문(host · IP)은 헬퍼가 서버 경고 로그에만 남긴다(CLE-T-CT6SHS · CLE-T-NTKWWV). 활동 로그(`toLogError`)는
+      // 이 일반화 문구만 받으므로 원문이 없다.
       if (creds.host) {
-        try {
-          await assertSafeOutboundHostResolved(creds.host);
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          // 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이 아니므로 «당신의 host 가
-          // 막혔다» 로 보고하지 않는다. 분류되지 않은 실패(`INTEGRATION_CALL_FAILED`, 공통 §4.2)로 승격해 아래
-          // catch 가 code 를 보존하게 한다 — 그냥 던지면 `mapDbError` 가 `DB_QUERY_FAILED` 를 매기는데 쿼리는
-          // 시작도 안 했고, 같은 실패를 적는 usage 로그(`toLogError`)와도 코드가 어긋난다.
-          if (!(err instanceof SsrfBlockedError)) {
-            logger.warn(`SSRF guard failed (database-query): ${detail}`);
-            // 원본 객체를 `cause` 로 붙이지 않는다 — 가드가 앞으로 어떤 오류를 던질지 모르고
-            // (`spec/5-system/3-error-handling.md` §6.3.1 C2: message·name 밖의 속성이 통째로 딸려 온다),
-            // 이 에러는 Activity API 로 나가는 노드 에러다. 원본 상세는 위 `logger.warn` 에만 남고 사용자에게는
-            // 고정 문구를 낸다(CLE-T-E991S1).
-            throw new IntegrationError(
-              'INTEGRATION_CALL_FAILED',
-              SSRF_GUARD_FAILED_CLIENT_MESSAGE,
-            );
-          }
-          // 차단 판정의 원문에는 차단된 host/IP 가 들어 있어 `cause` 로도 싣지 않는다(정찰 면 축소 — 일반화
-          // 문구만 내보낸다). 원본 상세는 아래 catch 의 `toLogError` 가 서버 로그로 남긴다.
+        const host = creds.host;
+        const preflight = await runSsrfPreflight(
+          () => assertSafeOutboundHostResolved(host),
+          logger,
+          'database-query',
+        );
+        if (preflight === 'guard_failed') {
+          // 판정이 아닌 오류는 가드의 고장이지 차단이 아니므로 «당신의 host 가 막혔다» 로 보고하지 않는다. 분류되지
+          // 않은 실패(`INTEGRATION_CALL_FAILED`, 공통 §4.2)로 승격해 아래 catch 가 code 를 보존하게 한다 — 그냥 던지면
+          // `mapDbError` 가 `DB_QUERY_FAILED` 를 매기는데 쿼리는 시작도 안 했고, 같은 실패를 적는 usage 로그
+          // (`toLogError`)와도 코드가 어긋난다. 원본 오류를 `cause` 로 붙이지 않는다 — 가드가 앞으로 어떤 오류를 던질지
+          // 모르고 이 에러는 Activity API 로 나가는 노드 에러다. 사용자에게는 고정 문구를 낸다(CLE-T-E991S1).
+          throw new IntegrationError(
+            'INTEGRATION_CALL_FAILED',
+            SSRF_GUARD_FAILED_CLIENT_MESSAGE,
+          );
+        }
+        if (preflight === 'blocked') {
+          // 차단 판정의 원문에는 차단된 host/IP 가 들어 있어 `cause` 로도 싣지 않는다(정찰 면 축소 — 일반화 문구만
+          // 내보낸다). 연결 시점 차단(`promoteConnectTimeBlock`)과 같은 규칙이다.
           throw new IntegrationError(
             'DB_HOST_BLOCKED',
             DB_HOST_BLOCKED_MESSAGE,
@@ -639,11 +641,7 @@ export class DatabaseQueryHandler
  */
 function promoteConnectTimeBlock(err: unknown): unknown {
   if (err instanceof IntegrationError) return err;
-  const blocked = findCause(err, SsrfBlockedError);
-  if (!blocked) return err;
-  logger.warn(
-    `SSRF block at connect time (database-query): ${blocked.message}`,
-  );
+  if (!findConnectTimeBlock(err, logger, 'database-query')) return err;
   return new IntegrationError('DB_HOST_BLOCKED', DB_HOST_BLOCKED_MESSAGE);
 }
 

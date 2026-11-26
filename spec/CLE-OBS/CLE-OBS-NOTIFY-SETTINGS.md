@@ -2,19 +2,19 @@
 id: "CLE-OBS-NOTIFY-SETTINGS"
 title: "알림 — 알림 설정과 이메일"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-NOTIFY"]
 area: "CLE-OBS"
-content_hash: "93f826aa62941218141e0c8dc53eccc5d7941e699c68e133094714291da16a43"
+content_hash: "570b74bcb973f88963ac474fa243e140d90129169f66273a2222ae2c885b11b2"
 read_as: "approved_fallback"
-task: "CLE-T-EJFQ1Y"
+task: "CLE-T-0DW02P"
 source_paths: []
-mirror_sha256: "09cc42d000b8aa73b63225cf96646f247cb249980286fc6bc16a9a3f72b0ef6d"
-etag: "sha256-f6f733c08497cdf3d0a3dd88e86800efce5d59b57254647eb5f50904a9a24a4b"
+mirror_sha256: "6c688bd950ad01b1c7afeab9b45a79c71e84e57e455686f6a6503c694bc85e4d"
+etag: "sha256-d728e9da9dac1e962213879519f412854e2839968a3f2fc2afbb62eec2798ec1"
 ---
 ## 개요
 
@@ -104,7 +104,7 @@ etag: "sha256-f6f733c08497cdf3d0a3dd88e86800efce5d59b57254647eb5f50904a9a24a4b"
 | 즉시 메일과의 관계 | 독립이다. 즉시 메일 키(`executionFailedEmail` · `scheduleFailedEmail`)를 꺼도 요약에는 모은다. 요약만 받으려면 즉시 메일 키를 끈다 |
 | 토글 | `dailyDigestEmail`, opt-in(기본 꺼짐) |
 
-e2e 는 매일 한 번 도는 작업을 기다릴 수 없다. 그래서 `POST /api/notifications/_test/send-daily-digest` 가 지금 시각으로 한 번 돌리고 `{ recipients, sent, failed }` 를 돌려준다. `NODE_ENV=test` 와 `E2E_TEST_HOOKS=1` 이 함께 맞을 때만 동작하고 아니면 404 다. 소유자 역할(`@Roles('owner')`)을 요구하고 OpenAPI 문서에서 뺀다. 제품 기능이 아니다.
+e2e 는 매일 한 번 도는 작업을 기다릴 수 없다. 그래서 `POST /api/notifications/_test/send-daily-digest` 가 지금 시각으로 한 번 돌리고 `{ recipients, sent, failed }` 를 돌려준다. 본문 `userIds`(선택, UUID 최대 100개)를 주면 그 사용자만 대상으로 돈다. 생략하면 전체가 대상이고 빈 배열이면 아무에게도 보내지 않는다. 응답에는 보낸 요약 `digests`(`[{ userId, digest }]`)도 싣는다. 병렬로 도는 e2e 가 다른 스펙의 사용자를 건드리지 않고 요약 내용을 단언하려고 둔 입출력이다. `NODE_ENV=test` 와 `E2E_TEST_HOOKS=1` 이 함께 맞을 때만 동작하고 아니면 404 다. 소유자 역할(`@Roles('owner')`)을 요구하고 OpenAPI 문서에서 뺀다. 제품 기능이 아니다.
 
 ## 알림 설정 화면과 수신 거부 링크
 
@@ -162,7 +162,7 @@ e2e 는 매일 한 번 도는 작업을 기다릴 수 없다. 그래서 `POST /a
 검토한 대안:
 
 - **(a) 그대로 두기(`both`, 2통)**: 표를 글자 그대로 지키고 코드 변경이 없다. 하지만 중복과 혼란이 남고 약한 이메일이 겹쳐 채택하지 않았다.
-- **(b) 기존 가입자에게 초대 링크 이메일을 보내지 않기**: 이메일은 1통이 된다. 하지만 빠지는 것이 **수락 토큰을 담은 유일한 이메일**이다. 남는 알림 이메일에는 토큰이 없다. 인앱 알림 행도 `resource_id` 로 초대 ID 만 갖고 토큰이 없으며 딥링크도 `workspace_invitation` 을 매핑하지 않는다. 이메일로 수락할 길이 사라지는 기능 후퇴라 기각했다.
+- **(b) 기존 가입자에게 초대 링크 이메일을 보내지 않기**: 이메일은 1통이 된다. 하지만 빠지는 것이 **수락 토큰을 담은 유일한 이메일**이다. 남는 알림 이메일에는 토큰이 없다. 인앱 알림 행도 `resource_id` 로 초대 ID 만 갖고 토큰이 없으며 결정 당시 딥링크는 `workspace_invitation` 을 매핑하지 않았다(지금은 초대 id 로 수락 페이지를 연다). 이메일로 수락할 길이 사라지는 기능 후퇴라 기각했다.
 - **(c) `in_app` 으로 낮추기**: 채택. 중복 이메일을 없애면서 초대 링크 이메일과 인앱 알림을 모두 지키고 (b) 와 달리 수락 경로를 깨지 않는다. 코드 변경은 `channel: 'both'` 를 `'in_app'` 으로 바꾼 것뿐이다.
 
 표의 "팀 초대 | 인앱 + 이메일" 은 **제품 수준에서 맞다**(사용자는 여전히 인앱 알림과 이메일을 모두 받는다). 팀 초대는 끌 수 없는 유형으로 정했다([인앱 끄기](#인앱-끄기)). 나중에 팀 초대 이메일을 끄는 기능이 필요해지면 초대 링크 이메일을 그 설정과 묶을지는 그때 따로 정한다.

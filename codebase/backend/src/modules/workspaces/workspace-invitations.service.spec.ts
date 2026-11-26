@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { IsNull, LessThan } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
-import { WorkspaceInvitationsService } from './workspace-invitations.service';
+import {
+  WorkspaceInvitationsService,
+  invitationNotFoundException,
+} from './workspace-invitations.service';
 
 type Mock = jest.Mock;
 
@@ -676,6 +679,167 @@ describe('WorkspaceInvitationsService', () => {
     });
   });
 
+  /**
+   * 초대 id 모드(CLE-ACCT-WS-INVITE 「이미 가입한 사용자의 수락 경로」, CLE-T-86E38Q). 초대 알림이 넘기는 초대 id 와
+   * 로그인 이메일로 본인 초대만 찾는다. 남의 초대는 있는지조차 드러내지 않으려고 없는 초대와 같은 404 를 낸다.
+   */
+  describe('초대 id 로 본인 초대 조회 · 수락', () => {
+    const INVITATION_ID = '0b9d6f0e-1c2a-4b8e-9a51-3f2d7c6e8a10';
+    const pending = (over: Record<string, unknown> = {}) => ({
+      id: INVITATION_ID,
+      token: 't',
+      email: 'invited@x.com',
+      role: 'editor',
+      workspaceId: 'ws-1',
+      invitedBy: 'inviter-1',
+      acceptedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      ...over,
+    });
+
+    function arrange(
+      invitation: Record<string, unknown> | null,
+      userEmail: string | null = 'Invited@X.com',
+    ): void {
+      invitationRepo.findOne.mockResolvedValueOnce(invitation);
+      userRepo.findOne.mockImplementation(
+        ({ where }: { where: { id: string } }) =>
+          Promise.resolve(
+            where.id === 'user-1' && userEmail !== null
+              ? { id: 'user-1', email: userEmail }
+              : where.id === 'inviter-1'
+                ? { id: 'inviter-1', name: 'Alice' }
+                : null,
+          ),
+      );
+      workspaceRepo.findOne.mockResolvedValue({ id: 'ws-1', name: 'Team' });
+    }
+
+    const NOT_FOUND = { response: { code: 'invitation_not_found' } };
+
+    describe.each([
+      [
+        'getMetaForRecipient',
+        (id: string) => service.getMetaForRecipient(id, 'user-1'),
+      ],
+      ['acceptById', (id: string) => service.acceptById(id, 'user-1')],
+    ] as const)('%s', (_name, call) => {
+      it('초대 id 가 UUID 가 아니면 조회하지 않고 404 다', async () => {
+        await expect(call('not-a-uuid')).rejects.toMatchObject(NOT_FOUND);
+        expect(invitationRepo.findOne).not.toHaveBeenCalled();
+      });
+
+      it('없는(취소한) 초대는 404 다', async () => {
+        arrange(null);
+        await expect(call(INVITATION_ID)).rejects.toMatchObject(NOT_FOUND);
+      });
+
+      it('초대 이메일이 로그인 이메일과 다르면 404 다', async () => {
+        arrange(pending(), 'other@x.com');
+        const err = await call(INVITATION_ID).catch((err_: unknown) => err_);
+        expect(err).toBeInstanceOf(NotFoundException);
+        expect(err).toMatchObject(NOT_FOUND);
+        expect(updateMock).not.toHaveBeenCalled();
+      });
+
+      it('남의 초대는 이미 수락됐거나 만료돼도 410 이 아니라 404 다', async () => {
+        arrange(pending({ acceptedAt: new Date() }), 'other@x.com');
+        await expect(call(INVITATION_ID)).rejects.toMatchObject(NOT_FOUND);
+        arrange(
+          pending({ expiresAt: new Date(Date.now() - 1000) }),
+          'other@x.com',
+        );
+        await expect(call(INVITATION_ID)).rejects.toMatchObject(NOT_FOUND);
+      });
+
+      it('본인 초대가 이미 수락됐으면 410 invitation_already_used 다', async () => {
+        arrange(pending({ acceptedAt: new Date() }));
+        const err = await call(INVITATION_ID).catch((err_: unknown) => err_);
+        expect(err).toBeInstanceOf(GoneException);
+        expect(err).toMatchObject({
+          response: { code: 'invitation_already_used' },
+        });
+      });
+
+      it('본인 초대가 만료됐으면 410 invitation_expired 다', async () => {
+        arrange(pending({ expiresAt: new Date(Date.now() - 1000) }));
+        const err = await call(INVITATION_ID).catch((err_: unknown) => err_);
+        expect(err).toBeInstanceOf(GoneException);
+        expect(err).toMatchObject({ response: { code: 'invitation_expired' } });
+      });
+    });
+
+    it('getMetaForRecipient 는 본인 초대의 메타를 돌려준다', async () => {
+      arrange(pending());
+      await expect(
+        service.getMetaForRecipient(INVITATION_ID, 'user-1'),
+      ).resolves.toEqual({
+        workspaceName: 'Team',
+        invitedByName: 'Alice',
+        email: 'invited@x.com',
+        role: 'editor',
+        expiresAt: expect.any(Date),
+      });
+      expect(invitationRepo.findOne).toHaveBeenCalledWith({
+        where: { id: INVITATION_ID },
+      });
+    });
+
+    it('acceptById 는 본인 초대를 원자적으로 소비하고 멤버로 넣는다', async () => {
+      arrange(pending());
+      memberRepo.findOne.mockResolvedValueOnce(null);
+      await expect(
+        service.acceptById(INVITATION_ID, 'user-1'),
+      ).resolves.toEqual({ workspaceId: 'ws-1', role: 'editor' });
+      expect(updateMock).toHaveBeenCalledTimes(1);
+      expect(memberRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          userId: 'user-1',
+          role: 'editor',
+        }),
+      );
+    });
+
+    it('acceptById 는 이미 멤버인 사용자의 멤버 행을 다시 넣지 않고 초대만 소비한다', async () => {
+      arrange(pending());
+      memberRepo.findOne.mockResolvedValueOnce({ id: 'existing' });
+      await expect(
+        service.acceptById(INVITATION_ID, 'user-1'),
+      ).resolves.toEqual({ workspaceId: 'ws-1', role: 'editor' });
+      expect(memberRepo.save).not.toHaveBeenCalled();
+      expect(updateMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('acceptById 의 동시 수락에서 진 쪽은 410 invitation_already_used 다', async () => {
+      const built = buildDataSource({
+        invitationRepo,
+        memberRepo,
+        updateAffected: 0,
+      });
+      service = new WorkspaceInvitationsService(
+        invitationRepo as never,
+        workspaceRepo as never,
+        memberRepo as never,
+        userRepo as never,
+        mailService as never,
+        built.dataSource,
+        notifications as never,
+        auditLogs as never,
+        usersService as never,
+      );
+      arrange(pending());
+      const err = await service
+        .acceptById(INVITATION_ID, 'user-1')
+        .catch((err_: unknown) => err_);
+      expect(err).toBeInstanceOf(GoneException);
+      expect(err).toMatchObject({
+        response: { code: 'invitation_already_used' },
+      });
+      expect(memberRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('accept', () => {
     it('throws NotFound when token does not exist', async () => {
       invitationRepo.findOne.mockResolvedValueOnce(null);
@@ -885,5 +1049,20 @@ describe('WorkspaceInvitationsService', () => {
         order: { createdAt: 'DESC' },
       });
     });
+  });
+});
+
+describe('invitationNotFoundException', () => {
+  it('본인 초대 경로가 쓰는 404 invitation_not_found 를 매번 새로 만든다', () => {
+    const first = invitationNotFoundException();
+    const second = invitationNotFoundException();
+
+    expect(first).toBeInstanceOf(NotFoundException);
+    expect(first.getStatus()).toBe(404);
+    expect(first.getResponse()).toEqual({
+      code: 'invitation_not_found',
+      message: '초대를 찾을 수 없습니다.',
+    });
+    expect(second).not.toBe(first);
   });
 });

@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-TOKEN"
 title: "EIA 데이터와 흐름 — 토큰 발급과 인바운드 명령"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "a2e896c785c20df51b48b94ea8d55510d726551b87e2a72ba53d2e365e4f6c38"
+content_hash: "d07de108affa09627e9b000a1b80a00ee8033f39269ee09da3272f58620a697f"
 read_as: "approved_fallback"
-task: "CLE-T-NXPWZZ"
+task: "CLE-T-YFVEPK"
 source_paths: []
-mirror_sha256: "3b74c8088cfcd557babe92b95513abb9d4b58b5056ee07f3d7a1d6610df945e1"
-etag: "sha256-9400ab356976f503a01d47cbf1284c7d8fb41b82b4bd1acff1c2125aecd89082"
+mirror_sha256: "6cc4cd7e496a5a59987ebb54f1f8e830cfb38d82112d0acf334a2f7acb02a9bc"
+etag: "sha256-18066d40953ec5cea23030be71996d13e2e9745f28ffcbdb5537f88a4f976c26"
 ---
 ## 개요
 
@@ -123,7 +123,7 @@ stateDiagram-v2
 - 검증 실패 사유는 401 코드로 이렇게 바뀐다(`interaction.guard.ts`). `expired` → `TOKEN_EXPIRED`, `blacklisted` → `TOKEN_REVOKED`, `scope_mismatch` → `TOKEN_SCOPE_MISMATCH`, `audience_mismatch` → `TOKEN_AUDIENCE_MISMATCH`, 그 밖 → `TOKEN_INVALID`.
 - 종료 폐기는 최소 한 번이다. 즉시 경로(`NotificationFanout` 의 종료 이벤트 구독)가 프로세스 재시작·장애로 빠지면 `terminal-revoke-reconcile` 정리 작업(분 단위)이 종료된 실행에 남은 실행 토큰을 정리한다. 그래서 누락 때 최악의 폐기 지연은 토큰 수명(1시간)에서 1분 이하로 줄어든다([External Interaction API](CLE-EIA.md)).
 - 다만 Redis(블랙리스트 SET·BullMQ) 전면 장애 중에는 두 경로 모두 fail-open 이라 다음 회차나 복구 시점까지 폐기가 늦어진다. 블랙리스트 조회도 fail-open 이므로 그 창에서 토큰이 통과할 수 있다. 새 요청에 대한 최종 안전망은 만료다(보안 trade-off 는 `interaction-token.service.ts` 클래스 주석).
-- 실행 단위 토큰으로 연 SSE 스트림은 토큰이 스트림 도중 만료되거나 갱신돼도 닫지 않고 그 실행의 종료 이벤트까지 이어진다. 공개 웹훅(`auth_config_id IS NULL`)이 시작한 입력 대기 실행은 토큰 만료 뒤 유예 시간이 지나면 웹채팅 위젯 유휴 실행 회수(`webchat-idle-reaper`)가 취소해 종료 이벤트로 스트림도 닫힌다. 인증 설정이 연결된 웹훅이 시작한 입력 대기 실행은 기한 없이 멈춰 있을 수 있어 그 스트림에는 상한이 없다. 이 틈은 받아들인 잔여 위험이다(2026-10-17). 대응은 실행 취소(`execution.cancelled` 로 스트림이 닫힘)다. 이유와 기각한 대안은 [재검토에서 갈린 EIA 동작을 정한다](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
+- 실행 단위 토큰으로 연 SSE 스트림은 토큰이 스트림 도중 만료되거나 갱신돼도 닫지 않고 그 실행의 종료 이벤트까지 이어진다. 공개 웹훅(`auth_config_id IS NULL`)이 시작한 입력 대기 실행은 토큰 만료 뒤 유예 시간이 지나면 웹채팅 위젯 유휴 실행 회수(`webchat-idle-reaper`)가 취소해 종료 이벤트로 스트림도 닫힌다. 인증 설정이 연결된 웹훅이 시작한 입력 대기 실행은 기한 없이 멈춰 있을 수 있어 그 스트림에는 상한이 없다. 이 틈은 받아들인 잔여 위험이다(2026-10-17). 대응은 실행 취소(`execution.cancelled` 로 스트림이 닫힘)다. 이유와 기각한 대안은 [재검토에서 갈린 EIA 동작을 정한다](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다) 에 있다.
 
 ### 트리거 단위 토큰
 
@@ -140,7 +140,7 @@ SSE 스트림의 토큰 확인 시점(열 때, 연결 자리 확보 뒤, 60초�
 3. PATCH 가 인터랙션을 끌 때. 토큰 값은 남지만 가드가 거부한다. 인터랙션을 다시 켜면 같은 토큰이 다시 통한다
 4. 트리거를 지울 때
 
-2 · 3 의 PATCH 는 타입 필드 `interaction` 이 실린 PATCH 다. 서버는 SSE 응답을 끝내 스트림을 닫는다. 새 이벤트 이름은 만들지 않는다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 `TOKEN_INVALID` 로 거부한다. 닫기는 모든 서버 인스턴스에 미친다. 토큰을 무효로 만든 요청을 처리한 서버 인스턴스는 자기 구독자를 닫고 전역 채널 `eia:sse:close` 로 트리거 id 를 알린다. 다른 서버 인스턴스는 그 신호를 받아 자기 구독자를 닫는다. 그 신호가 유실되면 받지 못한 서버 인스턴스의 스트림은 다음 재확인까지 최대 60초 남는다([SSE 버퍼와 실시간 전달을 Redis 에 둔다](CLE-EIA-DATA-SSE.md#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 의 남은 위험). WebSocket 은 소켓 수명을 토큰 수명에 묶는다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다-2026-09-02)). 두 방식의 관계는 [재검토에서 갈린 EIA 동작을 정한다](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
+2 · 3 의 PATCH 는 타입 필드 `interaction` 이 실린 PATCH 다. 서버는 SSE 응답을 끝내 스트림을 닫는다. 새 이벤트 이름은 만들지 않는다. 클라이언트가 옛 토큰으로 다시 연결하면 가드가 401 `TOKEN_INVALID` 로 거부한다. 닫기는 모든 서버 인스턴스에 미친다. 토큰을 무효로 만든 요청을 처리한 서버 인스턴스는 자기 구독자를 닫고 전역 채널 `eia:sse:close` 로 트리거 id 를 알린다. 다른 서버 인스턴스는 그 신호를 받아 자기 구독자를 닫는다. 그 신호가 유실되면 받지 못한 서버 인스턴스의 스트림은 다음 재확인까지 최대 60초 남는다([SSE 버퍼와 실시간 전달을 Redis 에 둔다](CLE-EIA-DATA-SSE.md#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 의 남은 위험). WebSocket 은 소켓 수명을 토큰 수명에 묶는다([WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md#소켓-수명을-토큰-수명에-묶는다)). 두 방식의 관계는 [재검토에서 갈린 EIA 동작을 정한다](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다) 에 있다.
 
 ## 구현 위치
 
@@ -163,5 +163,5 @@ SSE 스트림의 토큰 확인 시점(열 때, 연결 자리 확보 뒤, 60초�
 
 - 이전에는 생성 때 발급하는지가 [External Interaction API](CLE-EIA.md#미결-사항) 의 미결 사항이었다. 그동안 `per_trigger` 트리거는 재발급 엔드포인트(`revoke-token`)를 한 번 불러야 첫 토큰을 받았다. 전략을 바꿨다가 `per_trigger` 로 되돌릴 때도 같았다. 그 전까지 가드는 토큰이 없는 트리거의 요청을 401 로 거부한다. 그래서 인터랙션을 켜도 그 트리거는 쓸 수 없는 상태로 남았다.
 - 첫 알림 서명 시크릿과 같은 모양이다. 서버가 만든 비밀은 그 비밀이 생긴 요청의 응답에 한 번 싣는다. 응답 필드도 같은 묶음(`data.secrets`)에 둔다. 발급하지 않은 응답에는 키를 싣지 않는다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b)).
-- 인터랙션을 껐다가 다시 켜면 발급하지 않는다. 끄는 PATCH 는 토큰을 남기므로 이어받을 토큰이 있기 때문이다. 끄는 PATCH 가 토큰을 남기는 규칙(2026-10-09 사용자 답)과 전략 변경 규칙의 관계는 [재검토에서 갈린 EIA 동작을 정한다](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 의 첫 항목에 있다.
+- 인터랙션을 껐다가 다시 켜면 발급하지 않는다. 끄는 PATCH 는 토큰을 남기므로 이어받을 토큰이 있기 때문이다. 끄는 PATCH 가 토큰을 남기는 규칙(2026-10-09 사용자 답)과 전략 변경 규칙의 관계는 [재검토에서 갈린 EIA 동작을 정한다](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다) 의 첫 항목에 있다.
 - 기각한 대안은 «생성 때 발급하지 않고 재발급 엔드포인트로만 받는다»(그때까지의 동작)다. 인터랙션을 켠 트리거가 첫 재발급 전까지 쓸 수 없는 상태로 남는다. 첫 알림 서명 시크릿의 처리와도 갈린다.

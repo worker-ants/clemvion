@@ -289,6 +289,9 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       `renderNode → ${messages.length} message(s) (event=${event.eventType}, kinds=[${messages.map((m) => m.body.kind).join(',')}])`,
     );
 
+    // healthy 승격 판정에 쓴다(NERV Task `CLE-T-GNQWEF`).
+    let sentCount = 0;
+    let failedCount = 0;
     // conversationKey 가 ChannelMessage 안에 들어가지 않은 경우 보정.
     for (const message of messages) {
       if (!message.conversationKey) message.conversationKey = conversationKey;
@@ -304,6 +307,7 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       }
       try {
         await adapter.sendMessage(message, chatChannelCfg);
+        sentCount += 1;
         this.logger.log(
           `sendMessage ok (trigger=${trigger.id}, kind=${message.body.kind}, conversationKey=${message.conversationKey})`,
         );
@@ -311,6 +315,7 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
         this.logger.error(
           `ChatChannelDispatcher.sendMessage 실패 (trigger=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
         );
+        failedCount += 1;
         await this.markDegraded(trigger.id, err);
         // 시퀀스 안 한 메시지 실패해도 나머지 시도 (best-effort).
       }
@@ -331,8 +336,15 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    // 첫 성공 시 'healthy' 로 승격.
-    if (trigger.chatChannelHealth !== 'healthy') {
+    // 이 디스패치에서 보낸 메시지가 있고 실패가 없을 때만 'healthy' 로 올린다. 시작 때 읽은
+    // 건강도만 보면 같은 디스패치의 markDegraded 를 덮어 실패 원인(last_error)이 바로 지워지고,
+    // 보낸 것이 없어도 올라간다(NERV Task `CLE-T-GNQWEF`). 다른 디스패치의 실패와는 마지막
+    // 쓰기가 이긴다([채팅 채널 데이터와 흐름 「채널 건강도」](CLE-CHAT-DATA-STORE#채널-건강도)).
+    if (
+      sentCount > 0 &&
+      failedCount === 0 &&
+      trigger.chatChannelHealth !== 'healthy'
+    ) {
       await this.triggerRepository.update(
         { id: trigger.id },
         {

@@ -1,12 +1,6 @@
 import type { LookupAddress } from 'node:dns';
 import { lookup as connectLookup } from 'node:dns';
-import {
-  createServer,
-  Socket,
-  type AddressInfo,
-  type LookupFunction,
-  type Server,
-} from 'node:net';
+import { createServer, type AddressInfo, type Server } from 'node:net';
 import { Client as PgClient } from 'pg';
 import { createConnection as mysqlCreateConnection } from 'mysql2/promise';
 import { findCause } from '../../../common/utils/guarded-lookup-dispatcher';
@@ -14,8 +8,6 @@ import { SsrfBlockedError } from '../../../common/utils/ssrf/outbound-guard';
 import {
   buildMysqlConnection,
   buildPgConnection,
-  createGuardedMysqlStream,
-  createGuardedPgStream,
   type DbCredentials,
 } from './database-connection';
 import { restoreEnvAfterEach } from '../../../shared/testing/env';
@@ -37,20 +29,8 @@ const mockedConnect = connectLookup as unknown as jest.Mock<
   ]
 >;
 
-/** 판정 없이 loopback 으로 답하는 lookup. 팩토리가 lookup 을 거쳐 연결하는지(성공 경로)를 본다. */
-function loopbackLookup(calls: string[]): LookupFunction {
-  return ((hostname: string, options: { all?: boolean }, callback) => {
-    calls.push(hostname);
-    if (options.all) {
-      (callback as (e: null, a: LookupAddress[]) => void)(null, [
-        { address: '127.0.0.1', family: 4 },
-      ]);
-      return;
-    }
-    (callback as (e: null, a: string, f: number) => void)(null, '127.0.0.1', 4);
-  }) as LookupFunction;
-}
-
+// 어댑터(pg · mysql2 `stream` 팩토리) 자체의 드라이버 계약 테스트는 `common/utils/ssrf/socket-adapters.contract.spec.ts` 에
+// 있다(CLE-T-AM1H7X). 여기서는 빌더가 플래그를 보고 어댑터를 싣고, 실린 어댑터가 실제 드라이버에서 판정하는지를 본다.
 describe('database-connection — 연결 시점 판정 (실제 드라이버)', () => {
   let server: Server;
   let port: number;
@@ -72,15 +52,6 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
-
-  /** 서버 쪽 accept 가 클라이언트의 connect 이벤트보다 늦을 수 있어, 셀 때는 accept 를 기다린다. */
-  async function untilAccepted(target: number): Promise<void> {
-    while (accepted < target) {
-      await new Promise<void>((resolve) =>
-        server.once('connection', () => setImmediate(resolve)),
-      );
-    }
-  }
 
   beforeEach(() => {
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
@@ -151,118 +122,5 @@ describe('database-connection — 연결 시점 판정 (실제 드라이버)', (
 
     expect(buildPgConnection(creds('postgres'))).not.toHaveProperty('stream');
     expect(buildMysqlConnection(creds('mysql'))).not.toHaveProperty('stream');
-  });
-
-  it('pg 팩토리: 드라이버의 connect(port, host) 를 lookup 을 거친 연결로 바꿔 서버에 닿는다', async () => {
-    const before = accepted;
-    const calls: string[] = [];
-    const client = new PgClient({
-      ...buildPgConnection(creds('postgres')),
-      stream: createGuardedPgStream(loopbackLookup(calls)),
-      connectionTimeoutMillis: 2_000,
-    });
-
-    // 서버가 바로 끊으므로 연결은 실패한다. 서버에 닿았는지와 lookup 을 거쳤는지만 본다.
-    await client.connect().catch(() => undefined);
-    await client.end().catch(() => undefined);
-
-    expect(calls).toContain('rebind.test');
-    expect(accepted).toBe(before + 1);
-  });
-
-  it('pg 팩토리: 호스트 없는 connect 호출(유닉스 소켓 경로)은 원래 connect 로 넘긴다', () => {
-    const calls: string[] = [];
-    // 팩토리는 소켓을 만들 때 원래 connect 를 묶어 둔다. 그래서 spy 를 먼저 건다.
-    const original = jest.spyOn(Socket.prototype, 'connect').mockReturnThis();
-    const socket = createGuardedPgStream(loopbackLookup(calls))();
-    try {
-      socket.connect('/tmp/.s.PGSQL.5432');
-
-      expect(original).toHaveBeenCalledWith('/tmp/.s.PGSQL.5432');
-      expect(calls).toEqual([]);
-    } finally {
-      original.mockRestore();
-      socket.destroy();
-    }
-  });
-
-  it.each([
-    ['객체 인자', [{ port: 5432, host: 'rebind.test' }]],
-    ['host 없는 (port, undefined)', [5432, undefined]],
-    ['인자 없음', []],
-  ])(
-    'pg 팩토리: 알 수 없는 connect 호출 형태(%s)는 lookup 없이 연결하지 않고 오류로 닫는다(fail-closed)',
-    async (_label, args) => {
-      const calls: string[] = [];
-      const original = jest.spyOn(Socket.prototype, 'connect').mockReturnThis();
-      const socket = createGuardedPgStream(loopbackLookup(calls))();
-      try {
-        const errored = new Promise<Error>((resolve) =>
-          socket.once('error', resolve),
-        );
-        (socket.connect as (...a: unknown[]) => Socket)(...args);
-
-        await expect(errored).resolves.toBeInstanceOf(Error);
-        expect(original).not.toHaveBeenCalled();
-      } finally {
-        original.mockRestore();
-        socket.destroy();
-      }
-    },
-  );
-
-  it('mysql2 팩토리: lookup 을 거쳐 연결하고 기본 연결과 같이 noDelay · keep-alive 를 건다', async () => {
-    const before = accepted;
-    const calls: string[] = [];
-    const noDelay = jest.spyOn(Socket.prototype, 'setNoDelay');
-    const keepAlive = jest.spyOn(Socket.prototype, 'setKeepAlive');
-    try {
-      const socket = createGuardedMysqlStream(loopbackLookup(calls))({
-        config: {
-          host: 'rebind.test',
-          port,
-          enableKeepAlive: true,
-          keepAliveInitialDelay: 1_234,
-        },
-      });
-      await new Promise<void>((resolve) => {
-        socket.once('connect', () => resolve());
-        socket.once('error', () => resolve());
-      });
-      await untilAccepted(before + 1);
-      socket.destroy();
-
-      expect(calls).toContain('rebind.test');
-      expect(accepted).toBe(before + 1);
-      expect(noDelay).toHaveBeenCalledWith(true);
-      expect(keepAlive).toHaveBeenCalledWith(true, 1_234);
-    } finally {
-      noDelay.mockRestore();
-      keepAlive.mockRestore();
-    }
-  });
-
-  it('mysql2 팩토리: config 에 host · port 가 없으면 mysql2 기본값(localhost · 3306)으로 연결한다', () => {
-    // 실제로 3306 에 연결하지 않도록 소켓의 connect 만 가로챈다.
-    const connectSpy = jest
-      .spyOn(Socket.prototype, 'connect')
-      .mockImplementation(function (this: Socket) {
-        return this;
-      });
-    try {
-      const lookup = loopbackLookup([]);
-      const socket = createGuardedMysqlStream(lookup)({ config: {} });
-      socket.destroy();
-
-      // `net.connect` 는 정규화한 인자 배열([옵션, 연결 리스너])을 첫 인자로 넘겨 `socket.connect` 를 부른다.
-      expect(connectSpy).toHaveBeenCalledTimes(1);
-      expect(connectSpy.mock.calls[0][0]).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ host: 'localhost', port: 3306, lookup }),
-        ]),
-      );
-    } finally {
-      connectSpy.mockRestore();
-    }
   });
 });

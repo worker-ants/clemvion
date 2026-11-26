@@ -65,7 +65,7 @@ describe('resolveIterationErrorCode', () => {
   });
 
   it.each([
-    ['ErrorCode', 'HTTP_TIMEOUT'],
+    ['ErrorCode', 'HTTP_TRANSPORT_FAILED'],
     ['EngineErrorCode', 'SERVER_INTERRUPTED'],
     ['MCP_ERROR_CODES', 'MCP_TIMEOUT'],
   ])('%s 값(%s)을 code 로 실은 에러는 그 값을 낸다', (_label, code) => {

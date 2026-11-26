@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "d1d2370ed5779d8ea5b9f6810652b82fc05e598c3ad775bed352ac67479918e2"
+content_hash: "60ae7be0bd4fe16655aba5a4614b1ec6bd3dd15142b22c8de106ddaa80ff226e"
 read_as: "approved_fallback"
-task: "CLE-T-62B0J9"
+task: "CLE-T-KYPH36"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "fa8c064b6161a9013db474ee5e1586c66a89d350310291f9cbf355f949a57c86"
-etag: "sha256-806c2631f5e556cd2bb3f32c025ab3751dfadec4713bd20a0a94c2e30d4c2ded"
+mirror_sha256: "684db88b1cac794d0ff855fadbe02e77ec94c6bfd9e92d0b95c8e8a84e3a83d1"
+etag: "sha256-24031bdd8d223fb2c1944963a50e4a7f0d9addb0a714367ca0186321ff38c4c0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -34,6 +34,7 @@ etag: "sha256-806c2631f5e556cd2bb3f32c025ab3751dfadec4713bd20a0a94c2e30d4c2ded"
 이 문서가 정하지 않는 것은 아래 문서가 정한다.
 
 - 에러 코드 하나하나의 이름 규칙과 전체 목록: [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md)
+- WebSocket 전송 · 구독 층 에러(소켓 `exception` 이벤트의 `code`): [에러 코드 카탈로그 — WebSocket · EIA · Background Runs 「6.8」](CLE-API-ERRCODES-WSEIA.md#68-websocket-전송-도메인-문서-참조)
 - 노드 에러 처리 정책(Stop Workflow·Skip Node·Use Default Output·Retry·Route to Error Port)과 워크플로우 수준 자동 재시도: [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md)
 - 로그 레벨·로그 형식·로그 마스킹·`Error.cause` 부착 기준·헬스 체크: [로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md)
 - 전체 화면 오류 페이지와 빈 상태: [오류 화면과 빈 상태](../CLE-UI/CLE-UI-ERRORS.md)

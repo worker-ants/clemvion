@@ -2,19 +2,19 @@
 id: "CLE-EIA-INBOUND-COMMAND"
 title: "EIA 수신 API — 명령 제출과 에러"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-INBOUND"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-INBOUND"]
 area: "CLE-IX"
-content_hash: "046bdbe53ed87a2530639c0f19d624c9f25ee8175fed4efc80299c99abbc293e"
+content_hash: "4fa8d2ef797700d9a4d313d39517935ac54c76f61f33422d535663432216b340"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-YFVEPK"
 source_paths: []
-mirror_sha256: "b6b3a19f20f25016bfd478f4efcb8d1b8ab2ce9e6fea6ed8036164b02e04ec65"
-etag: "sha256-273277ba62649f4957c47a570bb76211fc34c34b697831a5d607413171f5072a"
+mirror_sha256: "6551f127508e77d8065d4561588ce9dff04c3562145dce3b8fbb66492698690b"
+etag: "sha256-d02d549d5d2c508fbf73050ea70393e6d332b21067ade92861c46254867a4dd2"
 ---
 ## 개요
 
@@ -193,7 +193,7 @@ Authorization: Bearer <iext_jwt | itk_token>
 
 ack 본문을 돌려주는 이유는 셋이다. (1) 명령 직후 관측한 `currentStatus`(곧바로 다시 입력 대기에 들어갈 수 있음)를 SSE 구독 전에 한 번 확인할 수 있어 경험이 매끄럽다. (2) `accepted: true` 가 큐 적재 성공을 명시한다. (3) 다른 엔드포인트와 같은 응답 봉투로 한결같이 처리된다. `interact` 만 본문 없는 예외로 두면 클라이언트 풀기 로직이 갈린다. 본문이 비동기 진행의 확정 상태를 뜻하지 않는다는 점(202)은 그대로이고, 확정 상태는 SSE 나 상태 조회로 받는다.
 
-큐에 넣지 못한 명령에는 202 를 내지 않고 `503 EXECUTION_ENQUEUE_FAILED` 로 응답한다(2026-10-09). 202 는 멱등 캐시에 들어가므로 적재 실패를 202 로 답하면 같은 키로 다시 보내도 캐시된 202 가 돌아오고 명령은 끝내 적재되지 않는다. 결정의 자세한 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다-2026-10-09) 에 있다.
+큐에 넣지 못한 명령에는 202 를 내지 않고 `503 EXECUTION_ENQUEUE_FAILED` 로 응답한다(2026-10-09). 202 는 멱등 캐시에 들어가므로 적재 실패를 202 로 답하면 같은 키로 다시 보내도 캐시된 202 가 돌아오고 명령은 끝내 적재되지 않는다. 결정의 자세한 근거는 [EIA 데이터와 흐름 「재검토에서 갈린 EIA 동작을 정한다」](CLE-EIA-DATA.md#재검토에서-갈린-eia-동작을-정한다) 에 있다.
 
 ### `STATE_MISMATCH` 를 구현에 강제했다
 

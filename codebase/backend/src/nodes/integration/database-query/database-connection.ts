@@ -7,9 +7,24 @@
  *
  * 이 모듈은 통합 모듈 · 핸들러에 의존하지 않는다. 핸들러는 `IntegrationsService` 를 import 하므로, 통합 모듈의 테스터가
  * 핸들러를 가져오면 순환 import 가 된다 — 둘이 함께 쓰는 것만 여기로 꺼냈다. 공용 SSRF 가드(`common/utils/ssrf`)만 쓴다.
+ * pg · mysql2 소켓 어댑터는 그 공용 모듈(`socket-adapters.ts`)에 있고, 이 모듈은 플래그를 보고 빌더에 싣는다.
  */
-import { connect, Socket, type LookupFunction } from 'node:net';
 import { safeOutboundLookup } from '../../../common/utils/ssrf/outbound-guard.js';
+import {
+  createGuardedMysqlStream,
+  createGuardedPgStream,
+  type MysqlStreamFactory,
+  type PgStreamFactory,
+} from '../../../common/utils/ssrf/socket-adapters.js';
+
+// 연결 시점 판정 소켓 어댑터는 `common/utils/ssrf/socket-adapters.ts` 로 옮겼다(NERV Task `CLE-T-AM1H7X`). 이 모듈의
+// 경로를 가리키는 스펙 · 호출부가 그대로 쓰도록 여기서도 내보낸다. 사설망 허용 플래그를 보고 어댑터를 실을지는 아래 빌더가 정한다.
+export {
+  createGuardedMysqlStream,
+  createGuardedPgStream,
+  type MysqlStreamFactory,
+  type PgStreamFactory,
+};
 
 export interface DbCredentials {
   driver: 'postgres' | 'mysql';
@@ -27,84 +42,6 @@ export interface DbCredentials {
  */
 export const DB_HOST_BLOCKED_MESSAGE =
   'Database host resolves to a private/loopback address blocked by SSRF policy.';
-
-/** pg `stream` 팩토리. pg 가 연결(풀의 새 클라이언트 포함)마다 불러 소켓을 받는다. */
-export type PgStreamFactory = () => Socket;
-
-/**
- * pg 연결 시점 판정 소켓 팩토리. pg 는 받은 소켓에 `connect(port, host)` 를 부르므로 그 호출을
- * `connect({ port, host, lookup })` 로 바꿔 연결할 때 푼 주소를 공용 대역표로 다시 판정한다. 그 밖의 소켓 동작(`setNoDelay` ·
- * keep-alive · 연결 타임아웃의 `destroy`)은 pg 가 그대로 한다. TLS 는 pg 가 이 소켓 위에서 `servername: host` 로 맺는다.
- * 유닉스 소켓 경로(문자열 인자 하나)는 원래 `connect` 로 넘기고, 그 밖의 알 수 없는 형태는 소켓을 오류로 닫는다.
- */
-export function createGuardedPgStream(lookup: LookupFunction): PgStreamFactory {
-  return () => {
-    const socket = new Socket();
-    const originalConnect = socket.connect.bind(socket) as (
-      ...args: unknown[]
-    ) => Socket;
-    socket.connect = (...args: unknown[]) => {
-      const [port, host] = args;
-      if (
-        (typeof port === 'number' || typeof port === 'string') &&
-        typeof host === 'string'
-      ) {
-        return originalConnect({ port: Number(port), host, lookup });
-      }
-      // 유닉스 소켓 경로(`connect(path)`, 문자열 하나)만 원래 연결로 넘긴다. 그 밖의 형태는 pg 호출 규약이 바뀐 것이라
-      // lookup 없이 연결하면 판정이 빠진다. 소켓을 오류로 닫아 연결하지 않는다(fail-closed).
-      if (args.length === 1 && typeof args[0] === 'string') {
-        return originalConnect(...args);
-      }
-      socket.destroy(
-        new Error(
-          'Unsupported pg socket connect call; refusing to connect without SSRF lookup',
-        ),
-      );
-      return socket;
-    };
-    return socket;
-  };
-}
-
-/** mysql2 `stream` 팩토리가 받는 인자 중 이 모듈이 읽는 부분. mysql2 는 `{ config }` 를 넘긴다. */
-interface MysqlStreamFactoryOptions {
-  config: {
-    host?: string;
-    port?: number;
-    enableKeepAlive?: boolean;
-    keepAliveInitialDelay?: number;
-  };
-}
-
-/** mysql2 `stream` 팩토리. mysql2 가 연결(풀의 새 연결 포함)마다 불러 연결 중인 소켓을 받는다. */
-export type MysqlStreamFactory = (opts: MysqlStreamFactoryOptions) => Socket;
-
-/**
- * mysql2 연결 시점 판정 소켓 팩토리. `net.connect({ host, port, lookup })` 으로 소켓을 열어 연결할 때 푼 주소를 공용
- * 대역표로 다시 판정한다. mysql2 는 팩토리가 준 소켓에는 `setNoDelay` · keep-alive 를 걸지 않으므로 기본 연결과 같게
- * 여기서 건다(`lib/base/connection.js` 의 기본 경로와 같은 값). TLS 는 mysql2 가 이 소켓 위에서 `config.host` 를
- * servername 으로 맺는다.
- */
-export function createGuardedMysqlStream(
-  lookup: LookupFunction,
-): MysqlStreamFactory {
-  return ({ config }) => {
-    // mysql2 `ConnectionConfig` 가 채우는 기본값과 같다(`localhost` · 3306). 타입상 비어 있을 수 있어 여기서도 둔다.
-    const socket = connect({
-      host: config.host ?? 'localhost',
-      port: config.port ?? 3306,
-      lookup,
-    });
-    if (config.enableKeepAlive) {
-      socket.on('connect', () => {
-        socket.setKeepAlive(true, config.keepAliveInitialDelay);
-      });
-    }
-    socket.setNoDelay(true);
-    return socket;
-  };
-}
 
 /**
  * pg 연결 옵션. 사설망 허용 플래그(`ALLOW_PRIVATE_HOST_TARGETS=true`)가 꺼져 있으면 연결 시점 판정 `stream` 팩토리를

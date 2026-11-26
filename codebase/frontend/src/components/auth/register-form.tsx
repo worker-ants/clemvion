@@ -30,10 +30,8 @@ import {
 import { useT, useLocale } from "@/lib/i18n";
 import { getPasswordStrength } from "@/lib/utils/password";
 import { API_BASE_URL } from "@/lib/api/constants";
-import {
-  buildInvitationLoginHref,
-  rememberOauthRedirect,
-} from "@/lib/auth/post-login-redirect";
+import { rememberOauthRedirect } from "@/lib/auth/post-login-redirect";
+import { buildInvitationLoginHref } from "@/lib/invitations/accept-path";
 import { useInvitationGate, type InvitationState } from "./use-invitation-gate";
 
 function startOauth(provider: OAuthProvider) {
