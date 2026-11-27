@@ -8,18 +8,6 @@ import {
 } from './engine-service-harness';
 
 /**
- * exec-park D6 full B3 — form/button/AI 재개는 §7.5 rehydration
- * (`applyContinuation` → `rehydrateAndResume` → awaited `driveResumeAwaited` →
- * 직접 처리기 processX)로 일원화됐다. resume 트리거(continue*)는 BullMQ publish
- * 후 worker dispatch(applyContinuation)를 거치므로, 비동기 emit 정착을 위해 실제
- * 타이머를 한 번 흘려보낸 뒤 assertion 한다. (200ms 는 CI 고부하 환경에서도 drive
- * 완결을 충분히 덮는다 — 기존 40ms 는 CI 고부하 시 sporadic false negative — W13.)
- */
-export function flushResumeDrive(ms = 200): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
  * exec-park D6 full B3 — fresh top-level form/button park 은 durable persist +
  * WAITING 전이로 완결하며 in-memory resolver/coroutine 잔류가 없다(PARK_RELEASED).
  * resume(continue*)은 항상 §7.5 slow-path(applyContinuation → rehydrateAndResume
@@ -32,6 +20,12 @@ export function flushResumeDrive(ms = 200): Promise<void> {
  *   - mockNodeRepo.findOneBy → Node 정의 lookup
  * workflowRepo.findOne / executionNodeLogRepo.find 는 기본 mock(workspace 동봉
  * workflow / 빈 log) 으로 rehydrateContext 가 자족한다.
+ *
+ * 무장한 뒤에는 `await service.continueX(...)` 로 드라이브 끝까지 기다린다. 하네스의
+ * ContinuationBus mock 은 `publish` 안에서 `applyContinuation` 을 await 하고, 그 안에서
+ * `rehydrateAndResume` 이 `driveResumeAwaited` 를 await 하므로 continue* 의 promise 는
+ * 드라이브가 끝나야 풀린다. 옛 `flushResumeDrive`(실제 타이머 200ms)는 이 사실을 쓰지 않고
+ * 시간으로 기다려 CI 고부하에서 흔들릴 수 있었다(CLE-T-YEDCJK).
  *
  * 엔진 spec 분할 뒤 Form · Button · AI 스펙이 함께 써서 하네스 `h` 를 받는 함수로 옮겼다(CLE-T-YEDCJK).
  */
