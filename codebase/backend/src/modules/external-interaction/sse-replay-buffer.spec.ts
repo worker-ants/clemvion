@@ -105,6 +105,27 @@ describe('SseReplayBuffer', () => {
       expect(decoded).toEqual({ origin: codec.origin, seq: 4, event: null });
     });
 
+    it.each<[string, number, string]>([
+      // '가' 는 UTF-8 로 3바이트다. 문자 수는 한도의 1/3 를 넘고 한도 이하라 바이트 수를 세는 분기로 간다.
+      [
+        '바이트 수가 한도를 넘으면',
+        Math.ceil(SSE_BUFFER_MAX_MESSAGE_BYTES / 3) + 10,
+        'omitted',
+      ],
+      [
+        '바이트 수가 한도 이내면',
+        Math.floor(SSE_BUFFER_MAX_MESSAGE_BYTES / 3) - 200,
+        'stored',
+      ],
+    ])('멀티바이트 payload 는 %s %s 다', async (_n, chars, expected) => {
+      const { buffer } = setup({});
+      const text = '가'.repeat(chars);
+      expect(text.length).toBeLessThanOrEqual(SSE_BUFFER_MAX_MESSAGE_BYTES);
+      await expect(
+        buffer.append(event(6, { payload: { text } })),
+      ).resolves.toBe(expected);
+    });
+
     it('종료 이벤트는 크기 상한을 넘어도 이벤트 전체를 넣는다', async () => {
       const { buffer, codec, xaddArgs } = setup({});
       const big = event(5, {
@@ -157,37 +178,37 @@ describe('SseReplayBuffer', () => {
       },
     );
 
-    it.each<[string, PipelineResult, string]>([
+    it.each<[string, string, PipelineResult]>([
       [
         'PUBLISH 가 실패',
+        'publish_failed',
         [
           [null, '1-0'],
           [null, 1],
           [new Error('publish 실패'), null],
         ],
-        'publish_failed',
       ],
       [
         'PEXPIRE 만 실패',
+        'write_failed',
         [
           [null, '1-0'],
           [new Error('pexpire 실패'), null],
           [null, 0],
         ],
-        'write_failed',
       ],
       [
         'PEXPIRE 와 PUBLISH 가 둘 다 실패',
+        'publish_failed',
         [
           [null, '1-0'],
           [new Error('pexpire 실패'), null],
           [new Error('publish 실패'), null],
         ],
-        'publish_failed',
       ],
     ])(
       '%s 하면 버퍼에는 있으므로 stored 이고 %s 경로로 한 번 센다',
-      async (_n, results, reason) => {
+      async (_n, reason, results) => {
         const { buffer, metrics, warn } = setup({
           execImpl: () => Promise.resolve(results),
         });
