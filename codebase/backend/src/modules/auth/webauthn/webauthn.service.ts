@@ -95,7 +95,7 @@ function hashRecoveryCode(code: string): string {
 function registrationVerifyFailed(): BadRequestException {
   return new BadRequestException({
     code: 'WEBAUTHN_VERIFY_FAILED',
-    message: 'WebAuthn 등록 검증에 실패했어요.',
+    message: 'WebAuthn registration verification failed.',
   });
 }
 
@@ -103,7 +103,7 @@ function registrationVerifyFailed(): BadRequestException {
 function webauthnInvalid(): UnauthorizedException {
   return new UnauthorizedException({
     code: 'WEBAUTHN_INVALID',
-    message: 'WebAuthn 인증에 실패했어요.',
+    message: 'WebAuthn authentication failed.',
   });
 }
 
@@ -113,7 +113,7 @@ const CREDENTIAL_ID_UNIQUE_CONSTRAINT = 'uq_webauthn_credential_credential_id';
 function credentialAlreadyExists(): ConflictException {
   return new ConflictException({
     code: 'WEBAUTHN_CREDENTIAL_EXISTS',
-    message: '이미 등록된 인증기예요.',
+    message: 'This authenticator is already registered.',
   });
 }
 
@@ -182,7 +182,7 @@ export class WebAuthnService {
       throw new ServiceUnavailableException({
         code: 'WEBAUTHN_DISABLED',
         message:
-          'WebAuthn (Passkey · 보안 키) 기능이 이 서버에서 비활성화되어 있어요. 관리자에게 문의해 주세요.',
+          'WebAuthn (passkeys and security keys) is turned off on this server. Contact your administrator.',
       });
     }
   }
@@ -218,7 +218,7 @@ export class WebAuthnService {
     if (!user) {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
-        message: '사용자를 찾을 수 없습니다.',
+        message: 'User not found.',
       });
     }
     const { rpID, rpName } = this.getConfig();
@@ -401,7 +401,7 @@ export class WebAuthnService {
     if (credentials.length === 0) {
       throw new BadRequestException({
         code: 'WEBAUTHN_NOT_REGISTERED',
-        message: '등록된 WebAuthn 인증기가 없어요.',
+        message: 'No WebAuthn authenticator is registered.',
       });
     }
 
@@ -564,7 +564,7 @@ export class WebAuthnService {
       throw new UnauthorizedException({
         code: 'WEBAUTHN_COUNTER_REGRESSION',
         message:
-          '인증기에서 비정상 신호가 감지돼 등록을 해제했어요. 다시 등록해 주세요.',
+          'An abnormal signal was detected from the authenticator, so it was removed. Register it again.',
       });
     }
     if (outcome.kind === 'invalid') {
@@ -598,7 +598,7 @@ export class WebAuthnService {
       );
       throw new ServiceUnavailableException({
         code: 'SERVICE_UNAVAILABLE',
-        message: '서비스를 일시적으로 사용할 수 없습니다.',
+        message: 'The service is temporarily unavailable.',
       });
     }
     if (!firstUse) {
@@ -719,7 +719,7 @@ export class WebAuthnService {
   private throwCredentialNotFound(): never {
     throw new NotFoundException({
       code: 'WEBAUTHN_CREDENTIAL_NOT_FOUND',
-      message: '인증기를 찾을 수 없어요.',
+      message: 'Authenticator not found.',
     });
   }
 
@@ -793,7 +793,7 @@ export class WebAuthnService {
       if (count === 0) {
         throw new ForbiddenException({
           code: 'WEBAUTHN_NOT_REGISTERED',
-          message: '등록된 WebAuthn 인증기가 없어요.',
+          message: 'No WebAuthn authenticator is registered.',
         });
       }
       const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
@@ -830,19 +830,19 @@ export class WebAuthnService {
     } catch {
       throw new BadRequestException({
         code: 'INVALID_OPTIONS_TOKEN',
-        message: 'WebAuthn 옵션 토큰이 만료됐어요. 다시 시도해 주세요.',
+        message: 'The WebAuthn options token has expired. Try again.',
       });
     }
     if (payload.kind !== expectedKind) {
       throw new BadRequestException({
         code: 'INVALID_OPTIONS_TOKEN',
-        message: '잘못된 WebAuthn 옵션 토큰이에요.',
+        message: 'Invalid WebAuthn options token.',
       });
     }
     if (payload.sub !== expectedSub) {
       throw new BadRequestException({
         code: 'INVALID_OPTIONS_TOKEN',
-        message: '잘못된 사용자에게 발급된 옵션 토큰이에요.',
+        message: 'The options token was issued to a different user.',
       });
     }
     return payload;

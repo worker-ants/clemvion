@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { AlertTriangle, Check, Loader2, X } from "lucide-react";
 import { knowledgeBasesApi } from "@/lib/api/knowledge-bases";
 import { Button } from "@/components/ui/button";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { useT } from "@/lib/i18n";
 
 interface EmbeddingTestButtonProps {
@@ -118,7 +119,7 @@ function renderResult({
         <X className="mt-0.5 h-3 w-3 shrink-0" />
         <span>
           {t("knowledgeBases.embeddingTestFailed", {
-            message: extractMessage(mutation.error),
+            message: serverErrorMessage(mutation.error, t, extractMessage(mutation.error)),
           })}
         </span>
       </p>

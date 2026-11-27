@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-LOGIN"
 title: "가입과 로그인 — 로그인과 소셜 로그인"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "ac9a1b4e1537b357108aca923f330323261593e33fd77091ea43a645e01d33c7"
+content_hash: "f3ffcdfdf5b350fdf04a5b57f8bcaaff3c5618a037e26e8b92033fe4352102c7"
 read_as: "approved_fallback"
-task: "CLE-T-AXGZ9P"
+task: "CLE-T-1K5CWP"
 source_paths: []
-mirror_sha256: "cf2d74be0c6907136b99fcd6db14614d0d64071e39b606b9ab6b3bdb63145a53"
-etag: "sha256-e4b63092bdc2bf05c87b562bdf4962629a6fbc5eeb0132d78adb0057a4a3b383"
+mirror_sha256: "8f80c2c502eab95565fbe05a990b48e24a885541bf080b38ce404364efe1a1e7"
+etag: "sha256-3a3fa5c9c1fdebed8f066fbf5989f6e87eec1e40ad1c727c5737a75230f5d591"
 ---
 ## 개요
 
@@ -45,7 +45,7 @@ etag: "sha256-e4b63092bdc2bf05c87b562bdf4962629a6fbc5eeb0132d78adb0057a4a3b383"
 8. 5회 실패로 잠기면 "Account locked. Try again in 10 minutes." 를 보여 준다.
 9. Passkey 기능이 꺼진 서버에서 Passkey 만 등록하고 TOTP 가 꺼진 계정이 로그인 1단계를 통과하면 서버는 503 `WEBAUTHN_DISABLED` 를 돌려준다. 2단계 인증 챌린지를 발급할 때와 같이 로그인 이력을 남기지 않고 서버 경고 로그를 남긴다. 비밀번호가 맞았으므로 실패 횟수(`login_attempts`)는 0 으로 되돌린다. 화면은 지금 Passkey 로 로그인할 수 없으니 운영자에게 문의하라는 안내를 보여 준다. 로그인 폼이 이 응답을 직접 처리한다. 컴포넌트가 처리한 에러는 화면 전체를 덮지 않으므로 서버 에러 페이지로 넘어가지 않는다([오류 화면과 빈 상태 「감지를 Next.js 에러 바운더리로 구현한 이유」](../CLE-UI/CLE-UI-ERRORS.md#감지를-nextjs-에러-바운더리로-구현한-이유)). 그 문서의 5xx 전체 화면 처리는 페이지까지 전파된 에러에 쓴다. API 5xx 를 토스트로 보일지 전체 화면 오류 페이지로 보일지가 [에러 응답과 클라이언트 처리 「미결 사항」](../CLE-API/CLE-API-ERROR.md#미결-사항) 에서 정해지면 로그인 폼도 그 결정을 따른다. 규칙은 [Passkey 기능 켜기와 환경 변수](CLE-ACCT-SIGNIN-PASSKEY.md#passkey-기능-켜기와-환경-변수) 에 있다.
 
-화면은 에러 응답 봉투 `{ error: { code, message } }` 의 `error.code` 로 문구를 고른다. 코드별 문구가 없는 코드는 `error.message` 를 그대로 보여 준다. 서버는 처리하지 못한 예외와 라이브러리 원문을 상태별 고정 문구로 바꿔 보내므로 이 폴백에 예외 원문은 나오지 않는다. 응답을 받지 못하면(네트워크 에러) 일반 실패 문구를 보여 준다. 에러 응답 형식은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다. 코드로 문구를 고르는 방식은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 취지를 따른다. 인증 화면 행은 아직 규칙 5 의 매핑 표에 없고 NERV Task `CLE-T-1K5CWP` 가 올린다.
+화면은 에러 응답 봉투 `{ error: { code, message } }` 의 `error.code` 로 문구를 고른다. 화면 고유 문구가 없는 코드는 공용 코드 매핑(`lib/api/server-error-messages.ts`)에서 고르고 거기에도 없으면 `error.message` 를 그대로 보여 준다. 서버는 처리하지 못한 예외와 라이브러리 원문을 상태별 고정 문구로 바꿔 보내므로 이 폴백에 예외 원문은 나오지 않는다. 응답을 받지 못하면(네트워크 에러) 일반 실패 문구를 보여 준다. 에러 응답 형식은 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 정한다. 코드로 문구를 고르는 방식은 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 취지를 따른다.
 
 | 단계 | 응답 코드 | 화면 문구 |
 | --- | --- | --- |

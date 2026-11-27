@@ -360,7 +360,7 @@ describe('TotpService', () => {
   describe('verifyForDisable', () => {
     const TOTP_INVALID = {
       code: 'TOTP_INVALID',
-      message: '인증 코드가 올바르지 않습니다.',
+      message: 'The verification code is incorrect.',
     };
 
     it('유효한 TOTP 코드면 통과한다', async () => {

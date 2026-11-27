@@ -13,11 +13,8 @@ import {
   startAuthentication,
 } from "@simplewebauthn/browser";
 import { authApi, isTwoFactorChallenge } from "@/lib/api/auth";
-import {
-  extractApiCode,
-  extractApiMessage,
-  type ApiErrorBody,
-} from "@/lib/api/errors";
+import { extractApiCode, type ApiErrorBody } from "@/lib/api/errors";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { establishSession } from "@/lib/auth/establish-session";
 import type { OAuthProvider } from "@/lib/api/auth-providers";
 import { Button } from "@/components/ui/button";
@@ -85,7 +82,8 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
 
   /**
    * 로그인 2단계(TOTP · Passkey · Passkey 복구 코드) 거부 안내. 에러 봉투의 코드로 문구를 고르고,
-   * 모르는 코드는 봉투의 `error.message`, 그것도 없으면 단계별 기본 문구(`fallbackKey`)다.
+   * 모르는 코드는 공용 코드 매핑(`serverErrorMessage`)이 고르고, 거기도 없으면 봉투의 `error.message`,
+   * 그것도 없으면 단계별 기본 문구(`fallbackKey`)다.
    * `CHALLENGE_INVALID` 는 챌린지 토큰이 만료되거나 이미 쓰인 경우라 처음부터 다시 로그인해야 한다.
    */
   const secondStepErrorMessage = useCallback(
@@ -101,7 +99,7 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
         case "RECOVERY_CODE_INVALID":
           return t("auth.login.recoveryFailed");
         default:
-          return extractApiMessage(error) ?? t(fallbackKey);
+          return serverErrorMessage(err, t, t(fallbackKey));
       }
     },
     [t],
@@ -162,8 +160,8 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
 
   /**
    * 로그인 1단계 거부 안내. 에러 봉투(`{ error: { code, message } }`)의 코드로 문구를 고른다
-   * (NERV CLE-ACCT-SIGNIN 「로그인 처리」 6 ~ 9번). 모르는 코드는 봉투의 `error.message`,
-   * 그것도 없으면(네트워크 오류 등) 기본 문구다.
+   * (NERV CLE-ACCT-SIGNIN 「로그인 처리」 6 ~ 9번). 모르는 코드는 공용 코드 매핑(`serverErrorMessage`),
+   * 거기도 없으면 봉투의 `error.message`, 그것도 없으면(네트워크 오류 등) 기본 문구다.
    */
   function passwordLoginErrorMessage(error: AxiosError<ApiErrorBody>): string {
     switch (extractApiCode(error)) {
@@ -176,7 +174,7 @@ function LoginFormInner({ enabledProviders = [], redirect }: LoginFormProps) {
       case "WEBAUTHN_DISABLED":
         return t("auth.login.passkeyLoginDisabled");
       default:
-        return extractApiMessage(error) ?? t("auth.login.genericFailed");
+        return serverErrorMessage(error, t, t("auth.login.genericFailed"));
     }
   }
 

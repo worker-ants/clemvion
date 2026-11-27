@@ -52,7 +52,9 @@ export class RegisterDto {
     example: true,
   })
   @IsBoolean()
-  @Equals(true, { message: '이용약관에 동의해야 가입할 수 있습니다.' })
+  @Equals(true, {
+    message: 'You must agree to the terms of service to sign up.',
+  })
   termsAccepted: boolean;
 
   /**

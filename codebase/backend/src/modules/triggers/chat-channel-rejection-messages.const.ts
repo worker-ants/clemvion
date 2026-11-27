@@ -50,14 +50,15 @@ export const CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES: Record<
 > = {
   // 내부 필드 — 외부 입력 자체가 금지 (생성·PATCH 양쪽)
   botTokenRef:
-    'botTokenRef 는 외부 입력이 금지된 내부 필드입니다. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용하세요.',
-  inboundSigningRef: 'inboundSigningRef 는 외부 입력이 금지된 내부 필드입니다.',
+    'botTokenRef is an internal field and cannot be set by clients. To change the token, use POST /api/triggers/:id/chat-channel/rotate-bot-token.',
+  inboundSigningRef:
+    'inboundSigningRef is an internal field and cannot be set by clients.',
   inboundSigning:
-    'inboundSigning 은 setupChannel 시 자동 발급되는 내부 필드입니다. provider-issued (Slack signing secret / Discord public key) 입력은 inboundSigningPlaintext 를 사용하세요.',
+    'inboundSigning is an internal field issued automatically during setupChannel. For provider-issued values (Slack signing secret / Discord public key), use inboundSigningPlaintext.',
 
   // 값 필드 — 생성에서는 받고 PATCH 에서만 금지
   botToken:
-    'botToken 은 PATCH 로 바꿀 수 없어요. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용해 주세요.',
+    'botToken cannot be changed with PATCH. To change the token, use POST /api/triggers/:id/chat-channel/rotate-bot-token.',
   inboundSigningPlaintext:
-    'inboundSigningPlaintext 는 PATCH 로 바꿀 수 없어요. 회전이 필요하면 트리거를 삭제 후 다시 만들어 주세요 (v1 미정의).',
+    'inboundSigningPlaintext cannot be changed with PATCH. To rotate it, delete the trigger and create it again (rotation is not defined in v1).',
 };

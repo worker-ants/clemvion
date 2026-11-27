@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-AUTHZ"
 title: "워크스페이스와 멤버 — API 인가"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "c7a321302e4355bdb82f6c314cce02de8e98fb8d71425aa8ddf7554a7398272b"
+content_hash: "48e852dfb212131ddc9cd966bc9901db1be3bc174b1b52233eca1240cf88815a"
 read_as: "approved_fallback"
-task: "CLE-T-VWC60Z"
+task: "CLE-T-CHP94Z"
 source_paths: []
-mirror_sha256: "42bfd412d3965ff68384bff6576f8df0c8503c42bdbc11793ed64560a04b04d5"
-etag: "sha256-be85cee6c97a16ad63eb0ea01e50f7313b9303218afc755626b1cb0f953b8f2b"
+mirror_sha256: "ea9cacc4098e526587d39e1ec79895ed8f662f2cf2e3833e4b860c839027d25b"
+etag: "sha256-42492b0f4fe00bf615fdca0e7d026892147a638a09e853f301d969cdd231f4d8"
 ---
 ## 개요
 
@@ -54,10 +54,10 @@ etag: "sha256-be85cee6c97a16ad63eb0ea01e50f7313b9303218afc755626b1cb0f953b8f2b"
 | 대상 워크스페이스 멤버가 아니다(헤더 위조, 경로 워크스페이스, 없는 워크스페이스를 구분하지 않는다) | `NOT_A_MEMBER` |
 | 멤버지만 `@Roles()` 가 요구하는 최소 역할에 못 미친다 | 요구 역할이 `editor` 면 `EDITOR_REQUIRED`, `admin` 이면 `ADMIN_REQUIRED`, `owner` 면 `OWNER_REQUIRED` |
 
-- 상태 코드는 모두 403 이다. `@Roles('viewer')` 는 멤버십과 같다. 여러 역할을 주면 가장 낮은 역할이 요구 역할이다. 메시지는 서비스 계층과 같은 한국어다.
+- 상태 코드는 모두 403 이다. `@Roles('viewer')` 는 멤버십과 같다. 여러 역할을 주면 가장 낮은 역할이 요구 역할이다. 메시지는 영문 고정 문구다. 화면 문구는 프런트엔드가 코드로 고른다([백엔드 문구 매핑](../CLE-UI/CLE-UI-I18N-BACKEND.md)).
 - 이 표는 경로 라우트뿐 아니라 `@Roles()` 가 붙은 모든 라우트와 헤더 위조 거부에 적용된다.
 - 비멤버는 요구 역할과 상관없이 `NOT_A_MEMBER` 다. 부재와 비멤버도 구분하지 않는다. `getMemberRole` 이 `workspace_member` 만 보므로 둘 다 `NOT_A_MEMBER` 이고, 이것이 경로 라우트에서 워크스페이스 존재가 새는 것을 가드 층에서 막는다.
-- `OWNER_REQUIRED` 는 가드 밖에서도 난다. 관리자 역할을 주거나 빼는 요청은 가드를 통과한 뒤 서비스 계층이 같은 코드로 거부한다. 문구는 «관리자 역할은 소유자만 주거나 뺄 수 있습니다.» 로 가드의 «Owner 권한이 필요합니다.» 와 다르다([관리자 역할 규칙](CLE-ACCT-WS-MEMBER.md#관리자-역할-규칙)).
+- `OWNER_REQUIRED` 는 가드 밖에서도 난다. 관리자 역할을 주거나 빼는 요청은 가드를 통과한 뒤 서비스 계층이 같은 코드로 거부한다. 문구는 «Only the owner can grant or revoke the admin role.» 로 가드의 «Owner role is required.» 와 다르다([관리자 역할 규칙](CLE-ACCT-WS-MEMBER.md#관리자-역할-규칙)).
 - 통합 OAuth 콜백도 가드 밖에서 `EDITOR_REQUIRED`·`ADMIN_REQUIRED` 를 낸다. 통합 재인증·추가 권한 요청 콜백의 커밋 직전 인가 재판정이 서비스 계층에서 개인 통합은 편집자 미만을 `EDITOR_REQUIRED` 로, 조직 통합은 관리자 미만을 `ADMIN_REQUIRED` 로 거부한다. 이 거부는 콜백 팝업과 통합의 `last_error` 로 알린다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
 - `NOT_A_MEMBER` 도 가드 밖에서 난다. 통합 행을 만드는 트랜잭션(통합 생성, Cafe24 Private·MakeShop `oauth/begin`)은 맨 먼저 워크스페이스 행을 잠근다. 그 사이 워크스페이스가 지워졌으면 공개 범위와 관계없이 이 코드로 거부한다. 개인 통합이면 이어서 요청자의 멤버십을 잠가 다시 읽고 없을 때도 이 코드다. 둘 다 가드를 지난 뒤 워크스페이스가 지워지거나 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 경로는 가드처럼 없는 워크스페이스와 비멤버를 구분하지 않는다. 워크스페이스 관리 경로는 같은 경합에서 404 `WORKSPACE_NOT_FOUND` 를 낸다([워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때)). 코드의 뜻은 [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) 에 있다.
 - 조직 통합을 개인으로 바꾸는 전환은 같은 순서로 잠그지만 `NOT_A_MEMBER` 를 쓰지 않는다. 워크스페이스가 그 사이 지워졌으면 통합도 함께 지워져 404 `RESOURCE_NOT_FOUND` 다. 통합을 만든 사람이 멤버가 아니면 409 `INTEGRATION_OWNER_NOT_MEMBER` 다. 요청자는 멤버이고 거절 이유는 통합을 만든 사람에게 있다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다-2026-10-29)).
@@ -69,7 +69,7 @@ etag: "sha256-be85cee6c97a16ad63eb0ea01e50f7313b9303218afc755626b1cb0f953b8f2b"
 
 | 발행 자리 | 코드 · 상태 | 조건 | 메시지 |
 | --- | --- | --- | --- |
-| 워크스페이스 관리 경로(`WorkspacesService`) | `WORKSPACE_NOT_FOUND` 404 | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행을 읽었는데 없다. 이름 변경, 설정 조회 · 변경, 삭제, 나가기, 소유자 이양, 직접 추가가 이렇게 검사한다 | `워크스페이스를 찾을 수 없습니다.` |
+| 워크스페이스 관리 경로(`WorkspacesService`) | `WORKSPACE_NOT_FOUND` 404 | 멤버 · 관리자 · 소유자 검사를 통과한 뒤 대상 워크스페이스 행을 읽었는데 없다. 이름 변경, 설정 조회 · 변경, 삭제, 나가기, 소유자 이양, 직접 추가가 이렇게 검사한다 | `Workspace not found.` |
 | 액세스 토큰 검증(`jwt.strategy`) | `NO_WORKSPACE_AVAILABLE` 401 | 토큰은 유효한데 현재 워크스페이스로 쓸 곳이 없다. 클레임이 가리키는 워크스페이스의 멤버십, 개인 워크스페이스, 첫 멤버십이 모두 없다 | `No workspace found for user` |
 
 - 관리 경로는 인가를 먼저 한다. 비멤버와 없는 워크스페이스는 그 단계에서 둘을 구분하지 않고 403 `NOT_A_MEMBER` 로 거부된다([가드 거부 에러 코드](#가드-거부-에러-코드)). 워크스페이스를 지우면 멤버십도 함께 지워진다. 그래서 404 는 사실상 인가와 조회 사이에 다른 요청이 그 워크스페이스를 지운 경합에서만 난다.
@@ -181,3 +181,12 @@ etag: "sha256-be85cee6c97a16ad63eb0ea01e50f7313b9303218afc755626b1cb0f953b8f2b"
 - **기각: `WORKSPACE_NOT_AVAILABLE`.** 특정 워크스페이스 하나를 쓸 수 없다는 뜻으로 읽힌다.
 - **기각: 멤버십을 넣은 이름(`NO_WORKSPACE_MEMBERSHIP` 류).** 개인 워크스페이스는 멤버십 행이 없어도 대상에 든다. 멤버십이 없다는 것만으로는 이 401 이 나지 않는다.
 - **규칙 3 의 `<DOMAIN>_<CONDITION>` 은 따르지 않았다.** 규칙 3 은 권장이다. `WORKSPACE_` 로 시작하는 이름은 위의 `WORKSPACE_NOT_AVAILABLE` 처럼 워크스페이스 하나의 상태로 읽혔다.
+
+### 가드 거부와 관리 경로의 메시지를 영문으로 옮긴다
+
+결정일: 2026-11-27
+
+NERV Task `CLE-T-CHP94Z` 에서 가드 거부 본문(`workspace-roles.ts`)과 관리 경로 `WORKSPACE_NOT_FOUND` 의 메시지를 영문으로 옮겼다. 전에는 서비스 계층과 맞춰 한국어였고 영어 로케일 사용자에게도 한국어가 보였다. [백엔드 문구 매핑](../CLE-UI/CLE-UI-I18N-BACKEND.md) 규칙 3 은 백엔드가 영문 원문을 내게 정하고 규칙 5 는 화면이 에러 코드로 문구를 고르게 정한다. 코드 · 상태 · 판정 순서는 바꾸지 않아서 코드로 분기하는 화면은 영향이 없다. 워크스페이스 · 초대 · 사용자 서비스에 남은 한국어 메시지는 NERV Task `CLE-T-MBMPX5` 가 옮긴다. 그 Task 가 끝날 때까지 코드 매핑이 없는 거부는 화면에 서버 문구가 그대로 보여서 가드 거부는 영문, 서비스 거부는 한국어로 섞인다.
+
+- **기각: 한국어를 그대로 둔다.** 영어 로케일에서 한국어가 보이고 규칙 3 과 어긋난 채 남는다.
+- **기각: 서버가 `Accept-Language` 로 문구를 고른다.** 규칙 3 이 금지하고 사전이 둘로 갈린다.

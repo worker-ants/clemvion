@@ -74,25 +74,26 @@ export type IntegrationModifyAction =
   | 'change-scope';
 
 const ADMIN_ACTION_PHRASE: Record<IntegrationModifyAction, string> = {
-  create: 'Organization 통합을 만들려면',
-  modify: 'Organization 통합을 수정하려면',
-  delete: 'Organization 통합을 삭제하려면',
-  rotate: 'Organization 통합의 자격 증명을 교체하려면',
-  reauthorize: 'Organization 통합을 재인증하려면',
-  'request-scopes': 'Organization 통합에 scope 를 추가하려면',
-  'change-scope': '통합의 범위를 전환하려면',
+  create: 'create an Organization integration',
+  modify: 'modify an Organization integration',
+  delete: 'delete an Organization integration',
+  rotate: 'rotate the credentials of an Organization integration',
+  reauthorize: 'reauthorize an Organization integration',
+  'request-scopes': 'add scopes to an Organization integration',
+  'change-scope': 'change the scope of an integration',
 };
 
 /**
- * Admin 거부 — 라우트 가드의 역할 거부와 **같은 코드 · 같은 문구**(`ROLE_REQUIRED.admin`, 한국어)에 동작을 앞에 붙인다.
- * 프런트엔드는 이 메시지를 그대로 토스트로 보인다 — 공유 문구를 영문으로 덮어쓰면 한국어 화면에 영문이 뜬다.
+ * Admin 거부 — 라우트 가드의 역할 거부와 **같은 코드**(`ROLE_REQUIRED.admin`)를 싣고, 문구는 그 동작을 말하는 영문이다
+ * (CLE-UI-I18N-BACKEND 규칙 5, NERV Task `CLE-T-CHP94Z`). 한국어 화면의 문구는 프런트엔드가 코드로 고른다
+ * (`INTEGRATION_ERROR_CODE_TO_I18N` 의 `ADMIN_REQUIRED`).
  */
 export function adminRequiredError(
   action: IntegrationModifyAction,
 ): ForbiddenException {
   return new ForbiddenException({
     ...ROLE_REQUIRED.admin,
-    message: `${ADMIN_ACTION_PHRASE[action]} ${ROLE_REQUIRED.admin.message}`,
+    message: `Admin role or higher is required to ${ADMIN_ACTION_PHRASE[action]}.`,
   });
 }
 

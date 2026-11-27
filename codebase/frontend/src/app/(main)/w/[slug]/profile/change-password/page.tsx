@@ -7,7 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { apiClient, setAccessToken } from "@/lib/api/client";
-import { axiosMessage } from "@/lib/api/errors";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,7 +86,7 @@ function ChangePasswordPageInner() {
       toast.success(t("profile.changePasswordSuccess"));
       router.push(buildWorkspaceHref(slug, "/profile"));
     } catch (err) {
-      toast.error(axiosMessage(err, t("profile.saveFailed")));
+      toast.error(serverErrorMessage(err, t, t("profile.saveFailed")));
       setIsPending(false);
     }
   }

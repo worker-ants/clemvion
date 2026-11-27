@@ -423,7 +423,7 @@ export class WorkspacesService {
     if (!workspace) {
       throw new NotFoundException({
         code: 'WORKSPACE_NOT_FOUND',
-        message: '워크스페이스를 찾을 수 없습니다.',
+        message: 'Workspace not found.',
       });
     }
     workspace.name = name.trim();
@@ -457,7 +457,7 @@ export class WorkspacesService {
     if (!workspace) {
       throw new NotFoundException({
         code: 'WORKSPACE_NOT_FOUND',
-        message: '워크스페이스를 찾을 수 없습니다.',
+        message: 'Workspace not found.',
       });
     }
     // personal 워크스페이스도 허용한다 — delete/leave/transfer 와 달리, 공개 웹챗 트리거(임베드)는
@@ -536,7 +536,7 @@ export class WorkspacesService {
     if (!workspace) {
       throw new NotFoundException({
         code: 'WORKSPACE_NOT_FOUND',
-        message: '워크스페이스를 찾을 수 없습니다.',
+        message: 'Workspace not found.',
       });
     }
     const origins = workspace.settings?.interactionAllowedOrigins;
@@ -605,7 +605,7 @@ export class WorkspacesService {
         if (locked.parentPresence === 'absent') {
           throw new NotFoundException({
             code: 'WORKSPACE_NOT_FOUND',
-            message: '워크스페이스를 찾을 수 없습니다.',
+            message: 'Workspace not found.',
           });
         }
         const workspace = await this.assertWorkspaceDeletable(
@@ -675,7 +675,7 @@ export class WorkspacesService {
     if (!workspace) {
       throw new NotFoundException({
         code: 'WORKSPACE_NOT_FOUND',
-        message: '워크스페이스를 찾을 수 없습니다.',
+        message: 'Workspace not found.',
       });
     }
     if (workspace.type === 'personal') {
@@ -707,7 +707,7 @@ export class WorkspacesService {
     if (!workspace) {
       throw new NotFoundException({
         code: 'WORKSPACE_NOT_FOUND',
-        message: '워크스페이스를 찾을 수 없습니다.',
+        message: 'Workspace not found.',
       });
     }
     if (workspace.type === 'personal') {
@@ -833,7 +833,7 @@ export class WorkspacesService {
       if (!workspace) {
         throw new NotFoundException({
           code: 'WORKSPACE_NOT_FOUND',
-          message: '워크스페이스를 찾을 수 없습니다.',
+          message: 'Workspace not found.',
         });
       }
       if (workspace.type === 'personal') {
@@ -1113,7 +1113,7 @@ export class WorkspacesService {
     if (!ws) {
       throw new NotFoundException({
         code: 'WORKSPACE_NOT_FOUND',
-        message: '워크스페이스를 찾을 수 없습니다.',
+        message: 'Workspace not found.',
       });
     }
     if (ws.type !== type) {

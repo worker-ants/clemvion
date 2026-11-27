@@ -7,6 +7,7 @@ import {
   extractApiMessage,
   type ApiErrorBody,
 } from "./errors";
+import { SERVER_ERROR_CODE_TO_I18N } from "./server-error-messages";
 
 /**
  * Backend integration 에러 코드 중 frontend 가 도메인-aware 메시지로 remap 하는
@@ -128,8 +129,10 @@ function pendingInstallExpiresAt(details: unknown): string | null {
 
 /**
  * 통합 API 오류를 토스트 문구로 바꾼다. 매핑에 있는 코드는 번역 문구를 앞에 두고 서버 문구를 괄호에 둔다.
- * 설치 대기 409 는 설치 기한을 화면 시각으로 붙인다. 매핑에 없는 코드는 서버 문구, 오류 객체의 문구,
- * `fallbackKey` 순으로 고른다.
+ * 설치 대기 409 는 설치 기한을 화면 시각으로 붙인다. 매핑에 없는 코드는 공용 코드 매핑
+ * (`SERVER_ERROR_CODE_TO_I18N`)의 사전 문구, 서버 문구, 오류 객체의 문구, `fallbackKey` 순으로 고른다.
+ * 공용 매핑을 먼저 보는 것은 가드 거부(`NOT_A_MEMBER` 등)처럼 영문 서버 문구가 한국어 화면에 그대로 보이지 않게
+ * 하려는 것이다(NERV CLE-UI-I18N-BACKEND 규칙 5, Task CLE-T-CHP94Z).
  */
 export function formatIntegrationErrorToast(
   err: unknown,
@@ -139,7 +142,11 @@ export function formatIntegrationErrorToast(
   const { code, serverMessage, errorMessage, details } =
     readIntegrationError(err);
   const mappedKey = getIntegrationErrorI18nKey(code);
-  if (!mappedKey) return serverMessage ?? errorMessage ?? t(fallbackKey);
+  if (!mappedKey) {
+    const sharedKey = code ? SERVER_ERROR_CODE_TO_I18N[code] : undefined;
+    if (sharedKey) return t(sharedKey);
+    return serverMessage ?? errorMessage ?? t(fallbackKey);
+  }
   const expiresAt = pendingInstallExpiresAt(details);
   const primary = expiresAt
     ? `${t(mappedKey)} ${t("integrations.retryAfterPendingInstallExpiry", {

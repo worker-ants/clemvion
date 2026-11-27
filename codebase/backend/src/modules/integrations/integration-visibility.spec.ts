@@ -46,28 +46,25 @@ describe('integrationNotFoundError', () => {
 
 describe('adminRequiredError', () => {
   /**
-   * 프런트엔드는 이 메시지를 그대로 토스트로 보인다 — 공유 거부 문구(`ROLE_REQUIRED.admin`, 한국어)에 동작을 앞에 붙인다.
-   * 영문으로 덮어쓰면 한국어 화면에 영문이 뜬다(`/ai-review` `review/code/2026/09/25/23_23_40` CRITICAL 1).
+   * 문구는 동작을 말하는 영문이다. 한국어 화면은 프런트엔드가 `ADMIN_REQUIRED` 코드로 문구를 고른다
+   * (CLE-UI-I18N-BACKEND 규칙 5, NERV Task `CLE-T-CHP94Z`).
    */
   it.each([
-    ['create', 'Organization 통합을 만들려면'],
-    ['modify', 'Organization 통합을 수정하려면'],
-    ['delete', 'Organization 통합을 삭제하려면'],
-    ['rotate', 'Organization 통합의 자격 증명을 교체하려면'],
-    ['reauthorize', 'Organization 통합을 재인증하려면'],
-    ['request-scopes', 'Organization 통합에 scope 를 추가하려면'],
-    ['change-scope', '통합의 범위를 전환하려면'],
-  ] as const)(
-    '%s — 403 ADMIN_REQUIRED · «%s …» + 공유 문구',
-    (action, phrase) => {
-      const err = adminRequiredError(action);
-      expect(err.getStatus()).toBe(403);
-      expect(err.getResponse()).toEqual({
-        code: ROLE_REQUIRED.admin.code,
-        message: `${phrase} ${ROLE_REQUIRED.admin.message}`,
-      });
-    },
-  );
+    ['create', 'create an Organization integration'],
+    ['modify', 'modify an Organization integration'],
+    ['delete', 'delete an Organization integration'],
+    ['rotate', 'rotate the credentials of an Organization integration'],
+    ['reauthorize', 'reauthorize an Organization integration'],
+    ['request-scopes', 'add scopes to an Organization integration'],
+    ['change-scope', 'change the scope of an integration'],
+  ] as const)('%s — 403 ADMIN_REQUIRED · «… to %s.»', (action, phrase) => {
+    const err = adminRequiredError(action);
+    expect(err.getStatus()).toBe(403);
+    expect(err.getResponse()).toEqual({
+      code: ROLE_REQUIRED.admin.code,
+      message: `Admin role or higher is required to ${phrase}.`,
+    });
+  });
 });
 
 describe('assertOrgScopeModifiable', () => {

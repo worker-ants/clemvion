@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-RATE"
 title: "HTTP API 규약 — 요청 빈도 제한"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "8c7590ec4577bed49d3be697eff6a65a20682a661a12d1ce89b3aea058581e35"
+content_hash: "0110dbf9ff95b5cf568adfc3ed1f8845fcecff498f4c8230ef3c7d363b206ffa"
 read_as: "approved_fallback"
-task: "CLE-T-VPF9EH"
+task: "CLE-T-MNX9KP"
 source_paths: []
-mirror_sha256: "2abb4ab50dcd28d2c428c18ea88453020b23acc01430aad9771e4011e469c0e6"
-etag: "sha256-ee9105f0d41dff7be27afd28a34b8bc3a5cd88b9ea1c7407b1917f606e853e2b"
+mirror_sha256: "37051e8e959a89b001dc2aed22627deda6020d18ea85a5ab62c5329bb4c5626a"
+etag: "sha256-2f52eccfb64b056d929c9808446ace80fd7fa093c2e222295439d21bc6763a9e"
 ---
 ## 개요
 
@@ -66,7 +66,7 @@ etag: "sha256-ee9105f0d41dff7be27afd28a34b8bc3a5cd88b9ea1c7407b1917f606e853e2b"
 - **표의 범위**: 위 표는 전역 기본값(일반 API, 웹훅 수신, 파일 업로드 행)과, 그 위에 라우트별 `@Throttle` 이나 도메인 전용 제한 서비스로 덮어쓴 엔드포인트별 한도를 한 곳에 모은 것이다. HTTP 라우트에 건 `@Throttle` 은 모두 이 표에 행이 있다. 개별 엔드포인트의 권한·부수 효과는 각 도메인 문서가 정한다. 라우트에 `@Throttle` 을 새로 걸거나 수치를 바꾸면 이 표도 함께 고친다.
 - **공통 등급 상수 `SENSITIVE_ACTION_THROTTLE`**(분당 10회, `throttle.ts`)는 2단계 인증 설정 시작 · 활성화 검증 · 끄기, Passkey 등록 옵션 · 복구 코드 재발급 · 삭제, provider probe, 초대 발송·재발송 행이 함께 쓴다. 상수가 같아도 라우트마다 따로 센다.
 - **비밀번호 재확인 라우트**: `verifyPasswordForUser` 로 계정 비밀번호를 다시 확인하는 라우트는 `@RequirePasswordRecheck()` 를 선언한다. 이 데코레이터로 `SENSITIVE_ACTION_THROTTLE` 과 재확인 표시 메타데이터가 함께 걸린다. 본문 DTO 는 `PasswordRecheckDto`(8자 이상 128자 이하)를 상속한다. 단위 테스트는 auth 모듈의 컨트롤러를 모두 읽어 재확인 표시가 있는 핸들러와 `PasswordRecheckDto` 하위 본문을 받는 핸들러가 같은지, 표시한 핸들러마다 이 상수가 걸렸는지 본다. 활성화 검증은 비밀번호를 받지 않아 재확인 라우트가 아니다.
-- **비밀번호 재확인 실패 한도**: `verifyPasswordForUser` 는 틀린 비밀번호를 사용자 단위로 센다(`PasswordRecheckFailureLimiterService`). 순서는 사용자 · 비밀번호 해시 확인(없으면 `401 PASSWORD_REQUIRED`) → 한도 확인 → 대조 → 틀리면 실패를 세고 `401 PASSWORD_INVALID` 다. 한도에 닿은 사용자는 대조 없이 `429 RATE_LIMITED`(「비밀번호를 너무 많이 틀렸습니다. 잠시 후 다시 시도해 주세요.」)를 받는다. 맞힌 시도와 비밀번호가 없는 계정은 세지 않고, 맞혀도 카운터를 지우지 않는다. 한도에 닿는 순간 경고 로그를 한 번 남긴다. Redis 가 없거나 오류가 나면 세지도 막지도 않는다(fail-open). 이 문서가 정하는 Redis 키는 아래와 같다.
+- **비밀번호 재확인 실패 한도**: `verifyPasswordForUser` 는 틀린 비밀번호를 사용자 단위로 센다(`PasswordRecheckFailureLimiterService`). 순서는 사용자 · 비밀번호 해시 확인(없으면 `401 PASSWORD_REQUIRED`) → 한도 확인 → 대조 → 틀리면 실패를 세고 `401 PASSWORD_INVALID` 다. 한도에 닿은 사용자는 대조 없이 `429 RATE_LIMITED` 를 받는다. 맞힌 시도와 비밀번호가 없는 계정은 세지 않고, 맞혀도 카운터를 지우지 않는다. 한도에 닿는 순간 경고 로그를 한 번 남긴다. Redis 가 없거나 오류가 나면 세지도 막지도 않는다(fail-open). 이 문서가 정하는 Redis 키는 아래와 같다.
   - `auth:password-recheck-failures:<userId>`: 사용자의 재확인 실패 수. TTL 60초 고정 창이고 첫 실패에 걸고 늘리지 않는다. INCR 과 TTL 보정을 Lua 스크립트 하나로 실행해 TTL 없는 키를 남기지 않는다.
 - **전역 요청 빈도 제한은 HTTP 요청만 센다.** 전역 `UserThrottlerGuard` 는 `shouldSkip` 에서 HTTP 요청이 아닌 호출(NestJS `ExecutionContext.getType()` 이 `'http'` 가 아닌 호출. 판정은 `isHttpContext`)을 건너뛴다. WebSocket 게이트웨이 핸들러 호출이 여기에 든다. 이 건너뛰기는 환경과 무관하고 아래 `NODE_ENV=test` 건너뛰기와 별개로 함께 적용된다. HTTP 요청이어도 `@DeferGlobalThrottle()` 이 붙은 라우트는 전역 가드가 건너뛴다. 그 라우트는 라우트 가드가 같은 한도로 센다(아래 키 결정 규칙). 서명 참조가 있는 채팅 채널 트리거로 온 웹훅 요청은 그 라우트 가드도 세지 않는다([위 콜아웃](#7-요청-빈도-제한)).
 - **키 결정 규칙(현재 구현, HTTP 기준)**: 전역 가드는 `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard` 순서로 돈다. 추적 키는 `req.user` 의 `sub`(없으면 `userId`)가 있으면 `user:<id>`, 없으면 `req.ip` 다. `@Public()` 라우트는 `JwtAuthGuard` 가 사용자를 채우지 않아 IP 로 센다. 로그인 전 인증 라우트, 웹훅 수신, 인터랙션 토큰으로 인증하는 EIA 경로가 여기 든다. EIA 의 `InteractionGuard` 는 라우트 가드라 전역 가드보다 뒤에 돈다. 웹훅 수신(`POST /api/hooks/:endpointPath`)은 전역 한도를 라우트 가드가 센다. 그 라우트에는 `@DeferGlobalThrottle()` 이 붙어 있어 전역 `UserThrottlerGuard` 가 건너뛴다. 라우트 가드는 `PublicWebhookThrottleGuard` → `HookTriggerThrottlerGuard` 순서로 돈다. `HookTriggerThrottlerGuard` 는 앞 가드가 조회한 트리거로 판정한다. 서명 참조가 있는 채팅 채널 트리거면 세지 않는다([위 콜아웃](#7-요청-빈도-제한)). 그 밖의 요청은 전역 가드와 같은 한도 · 같은 저장소 · 같은 키로 센다. 서명 참조가 없는 채팅 채널 트리거와 트리거가 없거나 조회에 실패한 요청도 센다.

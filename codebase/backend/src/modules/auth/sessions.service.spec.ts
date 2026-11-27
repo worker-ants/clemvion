@@ -406,9 +406,9 @@ describe('SessionsService', () => {
         message: string;
       };
       expect(body.code).toBe('REAUTH_NOT_AVAILABLE');
-      expect(body.message).toContain('비밀번호');
+      expect(body.message).toContain('password');
       expect(body.message).toContain('TOTP');
-      expect(body.message).not.toMatch(/2FA|2단계/);
+      expect(body.message).not.toMatch(/2FA|two-factor/i);
     });
   });
 

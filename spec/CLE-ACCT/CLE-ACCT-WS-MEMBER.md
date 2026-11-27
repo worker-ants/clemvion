@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-MEMBER"
 title: "워크스페이스와 멤버 — 멤버 관리와 역할"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "78796757bcd1cdfdfc65785316ade4fc697b3740c8749f5ddde2f1f908a1c72f"
+content_hash: "9e9b55d5c198c78d538bfedfa1187450b9742c1e05c432fef8b1831e2bbf77b6"
 read_as: "approved_fallback"
-task: "CLE-T-WYJEAQ"
+task: "CLE-T-CHP94Z"
 source_paths: []
-mirror_sha256: "f6442177273f094be6de5e23f206cb98225b1f88e6f20262fa18b3b0882255dd"
-etag: "sha256-d6014eb8ca378447318476e0b122f9d3b71bc05ecf1211a59e12be9604a45bda"
+mirror_sha256: "fad021c3a8cb749f8e227cdc4119f0aaa2d9715bcd07010c105623745e2b34a5"
+etag: "sha256-22fbfc49b3d725f58ddba5b6505e721a09bd85f2388b8fce10396148932b61ea"
 ---
 ## 개요
 
@@ -61,7 +61,7 @@ etag: "sha256-d6014eb8ca378447318476e0b122f9d3b71bc05ecf1211a59e12be9604a45bda"
 - 역할 변경으로 소유자 역할을 주거나 빼는 것은 소유자도 할 수 없다(`OWNER_ROLE_PROTECTED`). 소유자 역할은 소유자 이양으로만 옮긴다.
 - 판정은 서비스 계층이 한다(`WorkspacesService` 의 `updateMemberRole` · `addMemberByEmail`, `WorkspaceInvitationsService` 의 `invite`). 가드는 관리자 이상인지만 본다. 관리자 역할 규칙은 요청 본문의 역할과 대상 멤버의 지금 역할을 봐야 해서 가드가 판정할 수 없다.
 - 규칙과 거부 본문은 공용 함수 `assertMayChangeAdminRole`(`common/constants/workspace-roles.ts`) 한 곳에 있다. e2e `workspace-rbac.e2e-spec.ts` 가 경로를 고정한다. 역할 변경은 대상 멤버 행을 잠근 트랜잭션 안에서 지금 역할을 읽고 판정 · 저장한다(`pessimistic_write`). 요청자의 역할은 잠그지 않고 읽는다. 이유는 [Rationale](#관리자-역할-판정의-요청자-역할은-잠그지-않고-읽는다) 에 있다.
-- 거부 본문은 403 `{ code: "OWNER_REQUIRED", message: "관리자 역할은 소유자만 주거나 뺄 수 있습니다." }` 다(`workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`). 코드는 가드의 소유자 미달과 같고 문구만 이 동작에 맞췄다. 새 에러 코드를 만들지 않은 이유는 [Rationale](#관리자-역할을-주고-빼는-일은-소유자만-한다) 에 있다.
+- 거부 본문은 403 `{ code: "OWNER_REQUIRED", message: "Only the owner can grant or revoke the admin role." }` 다(`workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`). 코드는 가드의 소유자 미달과 같고 문구만 이 동작에 맞췄다. 새 에러 코드를 만들지 않은 이유는 [Rationale](#관리자-역할을-주고-빼는-일은-소유자만-한다) 에 있다.
 - 역할 변경은 대상 멤버 조회(`MEMBER_NOT_FOUND`), 소유자 보호(`OWNER_ROLE_PROTECTED`), 관리자 역할 규칙 순으로 검사한다.
 - 직접 추가는 워크스페이스 종류(`WORKSPACE_TYPE_MISMATCH`), 소유자 지정(`CANNOT_ASSIGN_OWNER`), 관리자 역할 규칙, 가입 여부(`USER_NOT_FOUND`), 멤버 여부(`ALREADY_A_MEMBER`) 순으로 검사한다.
 - 초대는 워크스페이스 종류(`workspace_type_mismatch`), `role=admin` 검사, 멤버 여부(`already_a_member`) 순으로 검사한다. 대기 초대 덮어쓰기 검사는 대기 행을 읽는 트랜잭션 안에서 한다.
@@ -197,7 +197,7 @@ etag: "sha256-d6014eb8ca378447318476e0b122f9d3b71bc05ecf1211a59e12be9604a45bda"
 
 이미 관리자인 멤버와 관리자 역할로 대기 중인 초대는 소급해 바꾸지 않았다. 소급하면 이미 합류한 관리자의 권한이 예고 없이 바뀐다. 대기 초대는 소유자가 대기 목록에서 취소할 수 있다. 초대 수락이 초대를 보낸 사람의 지금 역할을 다시 보지 않는 것도 같은 이유로 그대로 두었다.
 
-프론트엔드가 `OWNER_REQUIRED` 로 토스트를 가르는 곳은 소유자 이양 대화 상자뿐이다. 초대와 역할 변경은 서버 문구를 그대로 보여 주므로 같은 코드를 다시 써도 이양 안내가 잘못 뜨지 않는다. 화면은 소유자가 아닌 관리자에게 관리자 선택지를 숨기고 관리자 멤버를 읽기 전용 배지로 보여 준다. 화면 제한은 편의 기능이고 경계는 서버 판정이다.
+프론트엔드가 `OWNER_REQUIRED` 로 토스트를 따로 고르는 곳은 소유자 이양 대화 상자와 멤버 탭의 역할 변경이다. 역할 변경은 «관리자 역할은 소유자만 주거나 바꿀 수 있어요.» 를 보인다. 초대는 공용 코드 매핑의 «소유자 역할이 필요해요.» 를 보인다([백엔드 문구 매핑](../CLE-UI/CLE-UI-I18N-BACKEND.md)). 그래서 같은 코드를 다시 써도 이양 안내가 잘못 뜨지 않는다. 직접 추가를 부르는 화면은 없다. 전에는 초대 화면이 서버 문구를 그대로 보였다. 2026-11-27 에 서버 메시지를 영문으로 옮기면서(NERV Task `CLE-T-CHP94Z`) 초대 화면도 코드로 문구를 고르게 바꿨다. 근거와 기각한 대안은 [워크스페이스 가드](CLE-ACCT-WS-AUTHZ.md) 의 Rationale 「가드 거부와 관리 경로의 메시지를 영문으로 옮긴다」 에 있다. 화면은 소유자가 아닌 관리자에게 관리자 선택지를 숨기고 관리자 멤버를 읽기 전용 배지로 보여 준다. 화면 제한은 편의 기능이고 경계는 서버 판정이다.
 
 ### 관리자 역할 판정의 요청자 역할은 잠그지 않고 읽는다
 

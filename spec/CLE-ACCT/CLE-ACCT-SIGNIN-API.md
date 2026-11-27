@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-API"
 title: "가입과 로그인 — API 와 에러 코드"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "73a1da7222abe7532d59b6d38ca87fcaabb8e3322dc9154eb9fe0c22d96271fa"
+content_hash: "23a49307ae13194ba2e5b9cc892b095d25a3997a61dc1516db1bb59a50a850d6"
 read_as: "approved_fallback"
-task: "CLE-T-P39GDK"
+task: "CLE-T-1K5CWP"
 source_paths: []
-mirror_sha256: "25860cd4137627d79ea48898d39305e8606823f1ec6eda24d5e5e4e9b5b8a2ed"
-etag: "sha256-a2d9082902544f90f830397cd0bc293c75da267e737f6544ef4ddc20ed72f32e"
+mirror_sha256: "f7536814928f325a6a7c7c62f142801c83de7a2d69748b5f18030d17c7e3cfda"
+etag: "sha256-61c3c90925ed7ebd312c9560c37fe8fa4dd7ead6198c3b01fcaa0380fb5e749a"
 ---
 ## 개요
 
@@ -89,7 +89,7 @@ Passkey credential 목록 · 수정 · 삭제(`/api/auth/2fa/webauthn/credential
 | `ACCOUNT_LOCKED` | 401 | 잠긴 계정으로 로그인 |
 | `VALIDATION_ERROR` | 400 | 재설정·이메일 변경 토큰 만료·무효, 재설정의 새 비밀번호 길이·강도 미달, 새 이메일 형식 에러·현재 이메일과 같음, 대기 중 변경 없이 재발송, TOTP 설정 시작 본문의 `password` 누락이나 형식 에러, TOTP 활성화 검증 본문의 `code` 형식 에러, TOTP 끄기 본문의 `password`·`code` 누락이나 형식 에러, Passkey 등록 옵션 · 삭제 · 복구 코드 재발급 본문의 `password` 누락이나 형식 에러, Passkey credential 수정 · 삭제 경로의 `:id` 형식 에러(UUID 아님), Passkey 표시 이름 형식 에러(코드 포인트 100개 초과 · NUL 문자, 이름 변경의 빈 이름 · 공백 문자로만 된 이름) |
 | `RESOURCE_CONFLICT` | 409 | 가입 이메일 중복(동시 가입의 UNIQUE 경합 포함), 새 이메일 선점 |
-| `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 등록에 비밀번호 재확인이 생기기 전에 Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경. 서버 메시지는 비밀번호를 설정하거나 TOTP 를 켜라고 안내한다. Passkey 만 등록한 계정도 같은 메시지를 받는다. 지금 구현의 문구는 한국어라 [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 에 어긋나는 기존 문구다. 영문 전환은 NERV Task `CLE-T-1K5CWP` 가 맡는다 |
+| `REAUTH_NOT_AVAILABLE` | 403 | 계정 재인증 수단이 없는 계정(비밀번호도 TOTP 도 없음. Passkey 등록에 비밀번호 재확인이 생기기 전에 Passkey 만 등록한 OAuth 전용 계정 포함)의 이메일 변경. 서버 메시지는 비밀번호를 설정하거나 TOTP 를 켜라고 안내한다. Passkey 만 등록한 계정도 같은 메시지를 받는다 |
 | `PASSWORD_REQUIRED`, `PASSWORD_INVALID` | 401 | TOTP 설정 시작·2단계 인증 끄기·Passkey 등록 옵션·Passkey 복구 코드 재발급·Passkey 삭제의 비밀번호 재확인 실패. 이때 Passkey 등록 옵션은 등록 옵션과 `optionsToken` 을 만들지 않고 Passkey 삭제는 credential 을 지우지 않는다. 정의는 [세션과 토큰](CLE-ACCT-SESSION.md) |
 | `RATE_LIMITED` | 429 | 비밀번호 재확인 실패가 사용자 단위 한도를 넘음. 창이 끝날 때까지 비밀번호를 대조하지 않고 거부한다. 한도와 창은 [HTTP API 규약 「요청 빈도 제한」](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 「비밀번호 재확인 실패 한도」 가 정한다 |
 | `TOTP_INVALID` | 401 | 로그인 TOTP 검증 실패, TOTP 활성화 검증의 코드 불일치(확인한 뒤 다른 설정 시작이 secret 을 바꾼 경우 포함), TOTP 끄기의 코드 불일치(TOTP 가 꺼져 있을 때 포함). 계정 재인증과 같은 코드를 쓴다 |
