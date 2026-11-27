@@ -1,10 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
-import type {
-  BufferedSseEvent,
-  SseAppendResult,
-  SseFanoutService,
-} from './sse-fanout.service';
+import type { SseFanoutService } from './sse-fanout.service';
+import type { BufferedSseEvent, SseAppendResult } from './sse-replay-buffer';
 import { SseEventStore, SseMemoryBuffer } from './sse-event-store';
 import { SSE_BUFFER_MAX_EVENTS, SSE_REPLAY_WINDOW_MS } from './sse.constants';
 import type { SseStreamEligibilityService } from './sse-stream-eligibility.service';

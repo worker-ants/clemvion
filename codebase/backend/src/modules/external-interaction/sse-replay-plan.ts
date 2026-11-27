@@ -2,7 +2,7 @@
 // 재연결 replay 와 구독 공백 따라잡기의 판정을 상태 없는 함수로 둔다. 전달과 구독자 상태는 `SseAdapter` 가 맡는다.
 
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
-import type { BufferedSseEvent } from './sse-fanout.service';
+import type { BufferedSseEvent } from './sse-replay-buffer';
 import { SSE_REPLAY_WINDOW_MS } from './sse.constants';
 
 /** 버퍼를 읽은 결과. `complete` 는 버퍼를 다 읽었는지다. Redis 로 동작하는데 읽지 못했으면 `false` 다. */

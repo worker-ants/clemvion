@@ -3,7 +3,8 @@
 
 import type { Logger } from '@nestjs/common';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
-import type { BufferedSseEvent, SseFanoutService } from './sse-fanout.service';
+import type { SseFanoutService } from './sse-fanout.service';
+import type { BufferedSseEvent } from './sse-replay-buffer';
 import type { SseBufferSnapshot } from './sse-replay-plan';
 import {
   SSE_BUFFER_MAX_EVENTS,

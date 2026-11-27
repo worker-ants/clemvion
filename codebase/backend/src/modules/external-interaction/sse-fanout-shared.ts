@@ -31,6 +31,8 @@ export interface DecodedSseEntry {
 /**
  * Redis 명령 실패의 경고 · 복구 로그 상태. 경고는 실패 종류(`op`)마다 복구 전까지 한 번만 남긴다. 카운터는 세지 않는다.
  * 카운터는 각 부분의 `degrade` 가 호출부마다 리터럴 reason 으로 센다(라벨 쌍 가드가 같은 파일의 호출부를 읽는다).
+ * 그래서 세 부분 클래스(`SseReplayBuffer` · `SseConnectionSlots` · `SseSignalBus`)의 `degrade` 는 이 이유로 파일마다 둔다.
+ * 고칠 때는 셋을 함께 고친다.
  */
 export class SseFanoutHealth {
   /** 경고를 남긴 실패 종류. 같은 종류가 다시 성공할 때까지 경고를 다시 남기지 않는다. */

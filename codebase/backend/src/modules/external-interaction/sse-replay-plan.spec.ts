@@ -1,5 +1,5 @@
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
-import type { BufferedSseEvent } from './sse-fanout.service';
+import type { BufferedSseEvent } from './sse-replay-buffer';
 import {
   mayHaveMissed,
   planReplay,
