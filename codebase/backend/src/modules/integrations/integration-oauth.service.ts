@@ -304,6 +304,18 @@ export function callbackContextOf(err: unknown): CallbackContext | undefined {
  * 컨텍스트에 `recordable: false` 를 붙여 콜백 오류 수집이 그 행에 쓰지 않게 한다.
  * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH-CALLBACK#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
  */
+/**
+ * state 가 기존 통합 행을 가리키는지 본다. `new` 는 새 통합을 만드는 흐름이라 대상 행이 없고, 그 외 모드는
+ * integrationId 가 있어야 한다. begin 의 저장, 콜백 오류 context, cafe24 invalid_scope 기록이 같은 규칙을 쓴다
+ * (CLE-T-HBDGPZ).
+ */
+function stateTargetsIntegration(state: {
+  mode: string;
+  integrationId?: string | null;
+}): state is { mode: string; integrationId: string } {
+  return state.mode !== 'new' && !!state.integrationId;
+}
+
 function hiddenCallbackTargetRejection(
   context: CallbackContext,
 ): NotFoundException {
@@ -866,8 +878,9 @@ export class IntegrationOAuthService {
       mode: params.mode,
       // `new` 는 대상 통합이 없는 흐름이다. 요청의 integrationId 를 실으면 콜백 실패가 그 행에 기록되고 알림이 나가므로
       // 무시한다(CLE-T-HBDGPZ, [OAuth 연결 시작](CLE-INT-OAUTH-BEGIN)).
-      integrationId:
-        params.mode === 'new' ? null : (params.integrationId ?? null),
+      integrationId: stateTargetsIntegration(params)
+        ? params.integrationId
+        : null,
       requestedScopes: params.scopes,
       integrationName: params.integrationName ?? null,
       scope: params.scope ?? null,
@@ -989,14 +1002,13 @@ export class IntegrationOAuthService {
     // (see `markIntegrationCallbackError`). Pre-consumption throws (state
     // mismatch above) have no integrationId yet and intentionally omit it.
     // `new` state 는 begin 이 integrationId 를 비우지만, 그 전에 만든 state 라도 행을 가리키지 않는다(CLE-T-HBDGPZ).
-    const context: CallbackContext | undefined =
-      record.integrationId && record.mode !== 'new'
-        ? {
-            integrationId: record.integrationId,
-            workspaceId: record.workspaceId,
-            mode: record.mode,
-          }
-        : undefined;
+    const context: CallbackContext | undefined = stateTargetsIntegration(record)
+      ? {
+          integrationId: record.integrationId,
+          workspaceId: record.workspaceId,
+          mode: record.mode,
+        }
+      : undefined;
     // 이미 컨텍스트가 붙은 오류(재판정의 `recordable: false` 거절)는 그대로 둔다.
     const withContext = <E extends Error>(err: E): E =>
       context && !callbackContextOf(err)
@@ -1157,8 +1169,7 @@ export class IntegrationOAuthService {
     if (
       !record ||
       record.provider !== 'cafe24' ||
-      !record.integrationId ||
-      record.mode === 'new'
+      !stateTargetsIntegration(record)
     ) {
       throw invalidScope();
     }
