@@ -216,7 +216,7 @@ export class OAuthBeginDto {
   @IsIn(['new', 'reauthorize', 'request_scopes', 'request-scopes'])
   mode: 'new' | 'reauthorize' | 'request_scopes' | 'request-scopes';
 
-  /** reauthorize / request_scopes 모드에서 지정하는 기존 통합 ID. new 모드에서는 무시한다(CLE-T-HBDGPZ). */
+  /** reauthorize / request_scopes 모드에서 지정하는 기존 통합 ID. new 모드에서는 무시한다. */
   @ApiPropertyOptional({
     description:
       'reauthorize 또는 request_scopes 모드에서 지정하는 기존 통합 ID. new 모드에서는 보내도 무시합니다',
