@@ -406,7 +406,7 @@ export class ThirdPartyOAuthController {
     summary: 'OAuth 콜백 처리 (통합 연동)',
     description:
       'OAuth provider 가 리디렉션하는 콜백 엔드포인트입니다. 인증 불필요. 처리 후 결과를 담은 HTML 페이지를 반환하며 `postMessage`로 부모 창에 결과를 전달합니다. 사용자 소셜 로그인 콜백(/api/auth/oauth/:provider/callback) 과 별개입니다.\n\n' +
-      '**postMessage payload:** 성공은 `{ status: "success", result }`, 실패는 `{ status: "error", provider, error }` 입니다. 실패의 `error` 는 서버 오류 **메시지 문자열**이고 에러 코드는 payload 에 싣지 않습니다. 코드는 대상 통합을 알 수 있을 때 그 행의 `last_error.code` 에 남습니다(`mode=new` 는 대상 통합이 없어 남기지 않습니다).\n\n' +
+      '**postMessage payload:** 평면 객체 하나이고 `type: "oauth_callback"` 이 붙습니다. 성공은 `{ type, status: "success", mode, provider, integrationId, previewToken, error: null }` 이고 `previewToken` 은 `mode=new` 일 때만, `integrationId` 는 그 밖의 모드일 때만 값이 있고 나머지는 `null` 입니다. 실패는 `{ type, status: "error", provider, error }` 입니다. 실패의 `error` 는 서버 오류 **메시지 문자열**이고 에러 코드는 payload 에 싣지 않습니다. 코드는 대상 통합을 알 수 있을 때 그 행의 `last_error.code` 에 남습니다(`mode=new` 는 대상 통합이 없어 남기지 않습니다).\n\n' +
       '**응답 HTTP status:**\n' +
       '- 200 — 처리 결과 HTML. 아래 실패도 모두 200 으로 돌려줍니다\n' +
       '- 400 — 지원하지 않는 provider. 같은 콜백 HTML 에 `error: "Unsupported OAuth provider"` 를 싣습니다\n' +
