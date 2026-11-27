@@ -314,7 +314,7 @@ function stateTargetsIntegration(state: {
 /**
  * 커밋 직전 재판정이 «요청자가 볼 수 없는 행» 을 만났을 때의 거절. 응답은 없는 통합 · 남의 personal 과 같은 404 이고,
  * 컨텍스트에 `recordable: false` 를 붙여 콜백 오류 수집이 그 행에 쓰지 않게 한다.
- * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH-CALLBACK#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
+ * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH-CALLBACK#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다)
  */
 function hiddenCallbackTargetRejection(
   context: CallbackContext,
@@ -604,7 +604,7 @@ export class IntegrationOAuthService {
    *   도착해도 여기서 끝낸다. 되살리면 만료 때 비운 상점 식별자를 다시 채워 그 사이 같은 상점을 등록한 행과 부딪힌다.
    *   요청자 판정 뒤에 둔다. 볼 수 없는 요청자는 404, 역할을 잃은 요청자는 403 을 그대로 받는다. 앞에 두면 만료 응답
    *   하나로 볼 수 없는 행이 있다는 것까지 알려 준다.
-   *   근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)
+   *   근거: [OAuth 연결과 토큰 갱신 「만료된 설치 대기 행은 상점 자리를 놓는다」](CLE-INT-OAUTH#만료된-설치-대기-행은-상점-자리를-놓는다)
    */
   private async lockAndRejudgeCallbackTarget(
     manager: EntityManager,
@@ -918,7 +918,7 @@ export class IntegrationOAuthService {
    * Cafe24 는 `credentials.mall_id` · `credentials.app_type` 과 견준다. 옛 행은 `mallId` 칼럼이 비어 있을 수 있어서
    * 콜백이 읽는 자격 증명 쪽을 기준으로 둔다. `providerMeta` 는 Cafe24 Public 경로에서만 채워진다.
    *
-   * 근거: [OAuth 연결과 토큰 갱신 「`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다」](CLE-INT-OAUTH#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다-2026-11-06)
+   * 근거: [OAuth 연결과 토큰 갱신 「`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다」](CLE-INT-OAUTH#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다)
    */
   private async assertBeginMatchesTarget(
     workspaceId: string,
