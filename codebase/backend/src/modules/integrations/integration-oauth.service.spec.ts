@@ -1652,11 +1652,13 @@ describe('IntegrationOAuthService', () => {
         delete process.env.OAUTH_STUB_MODE;
         oauthMock.env.google = { clientId: 'cid', clientSecret: 'csec' };
         const originalFetch = global.fetch;
-        (global as unknown as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({
-          ok: false,
-          status: 401,
-          text: async () => 'unauthorized',
-        });
+        (global as unknown as { fetch: jest.Mock }).fetch = jest
+          .fn()
+          .mockResolvedValue({
+            ok: false,
+            status: 401,
+            text: async () => 'unauthorized',
+          });
         const spy = jest
           .spyOn(service, 'markIntegrationCallbackError')
           .mockResolvedValue(undefined);
