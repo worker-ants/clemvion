@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA-ENDPOINT"
 title: "트리거 데이터와 흐름 — 웹훅 경로 예약"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-DATA"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-DATA"]
 area: "CLE-TRIG"
-content_hash: "3089e91403dbe9655d605e9cf2053bc595c8ed166ab337d6cad33cb65f099a2e"
+content_hash: "0bcac4b51f8532091c86e1b2453fb818b2ba5f1fe6fb2616b65688600fafe775"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-XQYZR7"
 source_paths: []
-mirror_sha256: "5733195bc8adc6ac088810bad827c631d4f87c40bb0ff78f82cbe9fef71bec60"
-etag: "sha256-6b8dca0d8a60279a42bc2a3b3d857b99ee92745aae02bb694bead7b345b51f9e"
+mirror_sha256: "f9ff7b4eb76be5054178285791f3e40ba9415eebef26913070cde01c711a3774"
+etag: "sha256-380d04b6182de57f889b5d39b835f9c341bc443bcef39f13800129724353565b"
 ---
 ## 개요
 
@@ -44,7 +44,9 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유는 예약 대상�
 
 ## Rationale
 
-### 엔드포인트 경로를 전역 유일로 바꾼 결정 (2026-09-18)
+### 엔드포인트 경로를 전역 유일로 바꾼 결정
+
+결정일: 2026-09-18
 
 웹훅 수신 URL `/api/hooks/:endpointPath` 는 워크스페이스와 무관한 전역 라우팅 키인데, 유일성은 `(workspace_id, endpoint_path)` 로 워크스페이스 단위뿐이었다(V002). `endpoint_path` 는 클라이언트가 만들어 보내고(서버는 v4 형식만 강제) 나중에 바꿀 수 있는데 다른 워크스페이스의 경로와 겹치는지는 아무도 검사하지 않았다. 수신 조회 셋(수신, 공개 가드, 웹채팅 embed-config)은 모두 워크스페이스 없이, 정렬 없이 `endpoint_path` 와 `type` 으로만 한 행을 고른다. 그래서 경로를 아는 사람(그 워크스페이스의 뷰어, 멤버 전원, URL 을 받은 외부 서비스)이 자기 워크스페이스에 같은 경로로 트리거를 만들면 수신 웹훅이 둘 중 하나로 갔다. 옛 문서는 "고엔트로피가 squatting·enumeration 을 막는다" 는 전제만 적었는데 고엔트로피는 추측을 막을 뿐 복사를 막지 못한다.
 
@@ -64,7 +66,9 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유는 예약 대상�
 
 이 결정 뒤에도 주인이 트리거를 지우면 그 경로가 비는 틈이 남았고 바로 다음 결정이 그 틈을 막았다.
 
-### 지우거나 바꾼 웹훅 경로를 영구 예약하는 결정 (2026-09-19)
+### 지우거나 바꾼 웹훅 경로를 영구 예약하는 결정
+
+결정일: 2026-09-19
 
 전역 UNIQUE(V132)는 동시에 존재하는 중복만 막는다. 주인이 트리거를 지우거나 경로를 바꾸면 옛 경로가 비고 그 경로를 아는 누구든 자기 워크스페이스에 다시 등록해 옛 URL 로 오는 요청을 받는다. 경로를 아는 사람은 넓다. 공개 웹훅은 URL 을 받은 외부 서비스·뷰어·멤버 전원이 안다. 웹채팅은 더 넓다. `endpointPath` 가 외부 사이트 설치 스크립트에 박히는 공개 UUID 라([웹채팅 운영 콘솔](../CLE-WEBCHAT/CLE-WEBCHAT-CONSOLE.md)) 그 사이트를 연 누구나 안다. 웹채팅 인스턴스를 지워도 사이트에 남은 위젯은 옛 경로로 계속 요청한다.
 

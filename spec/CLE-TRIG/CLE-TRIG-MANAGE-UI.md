@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-UI"
 title: "트리거 관리 — 화면"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "da7f729c79c371a2d412eeb0e3a85ee8783e5d6980e76f09e66d9cf6e90a4b9a"
+content_hash: "3407e82d29e109f0b5f6f574531507fa2bd6374b8cc49588e70c8a11c08949a7"
 read_as: "approved_fallback"
-task: "CLE-T-YQMP4N"
+task: "CLE-T-XQYZR7"
 source_paths: []
-mirror_sha256: "d184941e4a196dc5ec36ca103eddb4d1416cfde84c982e9adef3bb7939403714"
-etag: "sha256-5d4ede33d4f43796ab58aa3a0438877883f07219093351372239d6035ea646b7"
+mirror_sha256: "c5c7546db931722f8a2b5f68a91108736296db88b7e45fc03b85a0679ce5ba3a"
+etag: "sha256-1e1a1b527712f0b6751bc749cbe371edff9041a7f3fbdb6db2053c0fc0d5e675"
 ---
 ## 개요
 
@@ -221,7 +221,9 @@ v1.1 이후 이 영향을 풀 마이그레이션 계획이 생기면 이 제한�
 - 행 액션이 같은 API(`PATCH /api/triggers/:id { isActive }`)로 같은 기능을 주므로 드로어에 토글이 없어도 전환 수단을 잃지 않는다. 편집 진입점을 한곳에 모아 어디서 켜고 끄는지가 분명해진다.
 - [활성 상태 편집 경로를 PATCH 하나로 둔 이유](CLE-TRIG-MANAGE-API.md#활성-상태-편집-경로를-patch-하나로-둔-이유) 는 API 편집 경로에 대한 결정이고 이 결정은 드로어 UI 표현에 대한 결정이다. 두 축은 독립이다.
 
-### 평문을 60초 뒤 지우는 이유 (2026-10-17)
+### 평문을 60초 뒤 지우는 이유
+
+결정일: 2026-10-17
 
 외부 인터랙션 카드는 첫 발급 · 시크릿 교체 · 토큰 재발급 응답의 평문을 같은 결과 상자(`SecretRevealBox`)로 보여 준다. 60초는 교체 · 재발급 결과 상자에 이미 있던 값(`SECRET_AUTO_HIDE_MS`)이고 첫 발급 평문에도 이 상자를 그대로 썼다.
 
