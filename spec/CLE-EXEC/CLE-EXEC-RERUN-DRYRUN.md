@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-DRYRUN"
 title: "재실행 — dry-run"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "eb333ce35ba10844ff59e03b392ae98c7ae2c3f2ac3e5ef35f5c4c7e94567a3d"
+content_hash: "c0dfb229632a249e777efcef5ea8aee380067d673b739a2ec0bf2c5b1a6792c5"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "f86253fd9d6ecc8c5fdf5cef349134de7522ed3171a846caa87a8a9bb9d5e8fc"
-etag: "sha256-877515a0ff9a2a7626a5e484ea27ae84384264cf7a17e81a8915deddb2be148e"
+mirror_sha256: "8352d5bfea518bcc2b573b213a2f6d646769b8110c65a5bcc01fee71e6c72edb"
+etag: "sha256-879ef3ca3649de7ad9bd71b390716f528df0a45d3fac7638fae5c2f50e58e235"
 ---
 ## 개요
 
@@ -116,7 +116,7 @@ dry-run 실행이 시작한 서브 워크플로우와 Background 본문도 dry-r
 
 - 노드 카드에 `🧪 dry-run` 배지를 단다.
 - 노드 출력의 `output` 에 `_dryRun: true` 가 있으면(`outputData.output._dryRun`) 출력을 자동으로 강조한다.
-- 체인 배지에도 "dry-run" 을 붙인다(`#3-th re-run · dry-run`).
+- 체인 배지에도 "dry-run" 을 붙인다(`3번째 재실행 · dry-run`).
 
 **배지 판정 범위**: `_dryRun` 표시는 실제로 모의 출력을 낸 노드(`supportsDryRun` 부수효과 노드)의 출력에만 들어간다. 그래서 **실행 상세 화면**은 노드별 `_dryRun` 표시에 더해 실행 수준의 **`Execution.dry_run`** 도 함께 반영한다. 표시가 없는 비부수효과 노드(Logic·Flow·Data·AI 등)도 dry-run 실행에 속하면 배지를 단다. "이 실행 전체가 dry-run 이었다" 를 개별 노드 상세에서도 알 수 있게 하려는 것이다. **에디터 실행 결과 드로어**는 실행 수준 플래그를 받지 않아 노드 표시로만 판정한다. 두 화면의 차이는 의도한 비대칭이다.
 
@@ -134,7 +134,9 @@ dry-run 실행이 시작한 서브 워크플로우와 Background 본문도 dry-r
 
 ## Rationale
 
-### 비동기 서브 워크플로우 자식도 dry-run 을 이어받는다 (2026-11-12, CLE-T-Y2F1NG)
+### 비동기 서브 워크플로우 자식도 dry-run 을 이어받는다
+
+결정일: 2026-11-12
 
 **문제**: dry-run 여부는 실행 컨텍스트의 `variables.__dryRun` 과 실행 행의 `dry_run` 으로만 전해졌다. 비동기 서브 워크플로우로 시작한 자식 실행은 별도 실행 행이라 이 값을 받지 못했다. 그래서 dry-run 재실행이어도 자식 실행 안의 부수효과 노드와 AI 에이전트 도구가 외부를 그대로 불렀다. 2026-10-10 임시 가드 이전부터 있던 차이다. 동기 서브 워크플로우와 Background 본문이 값을 물려받는지도 확인되지 않았다.
 

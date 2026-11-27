@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-POLICY"
 title: "재실행 — 정책"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "d0335fc6793698c46a357a025105513189a1a3573727a6817ea49c1b947a1090"
+content_hash: "b2e795e011739cbd23d063fc5b13b1bbbcc95b0e85777869a37a5fb83a74ff3b"
 read_as: "approved_fallback"
-task: "CLE-T-0V6FDN"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "54cb6e1090ec9dedafded7558b5c4a4e9aac060f9e37a597f2667f5da73f3304"
-etag: "sha256-1532f84c7630d72cbfd02da32f15d47f27ba632e74aebe1f329f9158ee47de3d"
+mirror_sha256: "4e4da1fb3ec367a9d7ac7ccc31da7d49284658e3d22fe8805868a2cba56cb045"
+etag: "sha256-3cab45fc8244f4294e7a72149cd9b2fec2091fe902742cfe178c253263b6931f"
 ---
 ## 개요
 
@@ -94,7 +94,7 @@ G2 는 사용자가 "AI 에게 재실행 권한 부여" 를 명시적으로 켜�
 
 ### 체인 조회 권한
 
-체인 조회(`GET /api/executions/:id/chain`)의 권한은 실행 상세 조회(`GET /api/executions/:id`, [실행 내역](CLE-EXEC-HISTORY.md))와 같다(2026-10-10). [RR-PL-06](#rr-pl-06-권한-f) 은 재실행 권한만 정하고 이 라우트에는 적용하지 않는다. 워크스페이스 멤버면 역할과 원본 실행의 시작자와 상관없이 조회할 수 있다. 비멤버는 `RolesGuard` 가 `NOT_A_MEMBER` 로 막는다. 그래서 체인 배지와 체인 보기 드롭다운(`history.rerun.viewChain`)은 뷰어를 포함한 멤버 모두에게 보이고 재실행 권한이 없으면 재실행 버튼만 비활성화된다. 근거는 [Rationale](#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 에 있다.
+체인 조회(`GET /api/executions/:id/chain`)의 권한은 실행 상세 조회(`GET /api/executions/:id`, [실행 내역](CLE-EXEC-HISTORY.md))와 같다(2026-10-10). [RR-PL-06](#rr-pl-06-권한-f) 은 재실행 권한만 정하고 이 라우트에는 적용하지 않는다. 워크스페이스 멤버면 역할과 원본 실행의 시작자와 상관없이 조회할 수 있다. 비멤버는 `RolesGuard` 가 `NOT_A_MEMBER` 로 막는다. 그래서 체인 배지와 체인 보기 드롭다운(`history.rerun.viewChain`)은 뷰어를 포함한 멤버 모두에게 보이고 재실행 권한이 없으면 재실행 버튼만 비활성화된다. 근거는 [Rationale](#체인-조회-권한은-실행-상세-조회와-같다) 에 있다.
 
 ## 다른 정책과의 관계
 
@@ -171,11 +171,15 @@ resume-from-failure(C2)는 표현식 컨텍스트 복원, 분기 합류 처리(�
 
 AI 어시스턴트의 읽기 전용 정책([AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md))은 사용자가 의도하지 않은 부수효과를 어시스턴트가 일으키지 않게 하는 안전판이다. 재실행은 외부 호출을 다시 일으킬 수 있다는 것(RR-PL-01)이 본질이라 이 안전판 안쪽에 둔다. G2(어시스턴트 신뢰 단계)는 별도 계획에서 검토한다. 신뢰 단계 자체가 이 문서 범위를 넘는다.
 
-### 자동 실행(`executed_by = NULL`)은 편집자 이상이면 재실행할 수 있다 (v1, 2026-05-31)
+### 자동 실행(`executed_by = NULL`)은 편집자 이상이면 재실행할 수 있다 (v1)
+
+결정일: 2026-05-31
 
 시작자가 없는 자동 실행은 "다른 사람의 실행" 이 아니어서 워크스페이스 자원으로 취급했다. 더 보수적으로 소유자·관리자로 좁힐지는 후속 결정으로 남겼다.
 
-### 체인 조회 권한은 실행 상세 조회와 같다 (2026-10-10)
+### 체인 조회 권한은 실행 상세 조회와 같다
+
+결정일: 2026-10-10
 
 **문제**: 이전 판의 체인 조회 본문은 권한이 RR-PL-06 과 같다고 적었다. 같은 절의 에러 표와 구현은 라우트에 `@Roles()` 가 없어 뷰어도 가드를 통과했고 서비스가 `RERUN_PERMISSION_DENIED` 만 판정했다. 실행 상세 화면은 뷰어도 보는데 체인 배지와 "View chain" 드롭다운을 뷰어에게 어떻게 보일지도 정해지지 않았다. 2026-10-10 에 사람이 «뷰어의 체인 조회 허용» 을 골랐다.
 
