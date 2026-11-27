@@ -2,19 +2,19 @@
 id: "CLE-EXEC-CONTEXT-STORAGE"
 title: "실행 컨텍스트 — 저장 전략과 재개"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-CONTEXT"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-CONTEXT"]
 area: "CLE-EXEC"
-content_hash: "59359d3db51a04108210a89e300af9887b91fddd4cf32db493863919457df3d6"
+content_hash: "10e871d661bd207f35501b44d86de91a6a264b71e2f3c4205cddd00ad268813a"
 read_as: "approved_fallback"
-task: "CLE-T-AGBPHW"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "3ea86fd6cd9cb24f58f18a46a02c14dba206acc1a79d326e0b237172ec8eab2d"
-etag: "sha256-7ea4342f636383da27898d8e56c2ee08e064242759586ebef950d5763c420dc4"
+mirror_sha256: "ef9aca0f8fc6d376857057316ec4fb2472fbb7b6340ea15e02e72af2e026ceea"
+etag: "sha256-062825e37dc788728ff9e21d9f4196e9de15420db095282930e0d8b26d90cca7"
 ---
 ## 개요
 
@@ -79,7 +79,9 @@ etag: "sha256-7ea4342f636383da27898d8e56c2ee08e064242759586ebef950d5763c420dc4"
 
 ## Rationale
 
-### 실행 컨텍스트는 메모리에 두고 durable 은 DB 로 한다 (2026-07-04)
+### 실행 컨텍스트는 메모리에 두고 durable 은 DB 로 한다
+
+결정일: 2026-07-04
 
 초기 설계는 실행 컨텍스트(변수·노드 출력 캐시), 실행 상태, 노드 출력, 워커 heartbeat, 실행 잠금, 우선순위 큐를 각각 Redis 키(`exec:{ws}:…:context`·`:status`·`:output`·`:heartbeat`·`:lock`·`queue:priority`)로 두는 안이었다. **이 설계는 구현되지 않았고** 실제 구조는 다음으로 모였다.
 
@@ -95,7 +97,9 @@ etag: "sha256-7ea4342f636383da27898d8e56c2ee08e064242759586ebef950d5763c420dc4"
 
 턴마다 rehydration 이 `buildRetryReentryState` 로 `node.config` 를 새로 만들므로 park 중 워크플로우 편집이 다음 턴부터 반영된다. 체크포인트에 원본 설정을 저장해 대화 전체를 고정하는 대안은 구현 복잡도를 더하고 최신 정의를 반영하는 편이 더 자연스러워 택하지 않았다. 같은 입력의 재현성이 턴 단위로 약해지는 것은 모든 재개를 rehydration 한 경로로 모으기 위한 trade-off 다. park 해제 결정의 전체 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 에 있다.
 
-### AI 대화 재개 스냅샷을 턴 중간에 저장한다 (2026-11-12)
+### AI 대화 재개 스냅샷을 턴 중간에 저장한다
+
+결정일: 2026-11-12
 
 그 전에는 `NodeExecution.outputData` 를 턴 경계(노드 완료, 입력 대기 진입, 실행 완료)에서만 저장했다. AI 대화 경로가 재개 스냅샷을 내면서 사람 결정으로 이를 노드 실행 행에도 저장하게 됐다. 메모리 캐시에만 실으면 LLM 응답이 곧 덮어 실행 내역 어디에서도 보이지 않는다. 결정과 기각한 대안은 [AI 에이전트 노드 출력과 디버그](../CLE-NODE-AI/CLE-NODE-AGENT-OUTPUT.md#rationale) Rationale 의 2026-11-12 항목에 있다.
 
