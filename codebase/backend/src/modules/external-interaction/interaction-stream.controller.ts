@@ -139,7 +139,10 @@ export function parseLastEventId(raw: string | undefined): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
-/** 헤더가 있으면(빈 문자열 포함) 헤더를, 없으면 쿼리를 읽는다. */
+/**
+ * 헤더가 있으면(빈 문자열 포함) 헤더를, 없으면 쿼리를 읽는다. 헤더가 비었거나 숫자가 아니어도 쿼리로 넘어가지 않고
+ * `undefined` 다.
+ */
 export function resolveLastEventId(
   header: string | undefined,
   query: string | undefined,
