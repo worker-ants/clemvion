@@ -145,7 +145,7 @@ class PathTarget {
   }
 }
 
-/** 가드 거부의 본문 — 메시지는 서비스 계층(`workspaces.service.ts`)과 같은 한국어다. */
+/** 가드 거부의 본문 — `common/constants/workspace-roles.ts` 의 `NOT_A_MEMBER` · `ROLE_REQUIRED` 와 같은 영문이다. */
 const GUARD_FORBIDDEN = {
   NOT_A_MEMBER: 'You are not a member of this workspace.',
   EDITOR_REQUIRED: 'Editor role or higher is required.',

@@ -312,7 +312,7 @@ describe("LoginForm — 로그인 거부 코드별 안내", () => {
 
   it("모르는 코드면 에러 봉투의 error.message 를 보여 준다", async () => {
     mockLogin.mockRejectedValue(
-      apiError(429, "RATE_LIMITED", "Too many requests. Please retry later."),
+      apiError(429, "SOMETHING_NEW", "Too many requests. Please retry later."),
     );
     render(<LoginForm />);
 
@@ -320,6 +320,21 @@ describe("LoginForm — 로그인 거부 코드별 안내", () => {
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Too many requests. Please retry later."),
+    );
+  });
+
+  it("RATE_LIMITED 는 서버 문구 대신 사전 문구를 보인다", async () => {
+    mockLogin.mockRejectedValue(
+      apiError(429, "RATE_LIMITED", "Too many requests. Please retry later."),
+    );
+    render(<LoginForm />);
+
+    await submitPassword();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.",
+      ),
     );
   });
 

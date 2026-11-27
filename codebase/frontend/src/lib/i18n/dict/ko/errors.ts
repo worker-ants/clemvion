@@ -33,5 +33,10 @@ export const errors = {
       "인증 요청이 만료됐거나 올바르지 않아요. 다시 시도해 주세요.",
     serviceUnavailable:
       "지금은 서비스를 쓸 수 없어요. 잠시 뒤 다시 시도해 주세요.",
+    userNotFound: "계정을 찾을 수 없어요.",
+    totpAlreadyEnabled: "이미 2단계 인증이 켜져 있어요.",
+    recoveryCodeInvalid: "복구 코드가 맞지 않거나 이미 사용했어요.",
+    challengeInvalid:
+      "인증 요청이 만료됐거나 올바르지 않아요. 처음부터 다시 로그인해 주세요.",
   },
 } as const;

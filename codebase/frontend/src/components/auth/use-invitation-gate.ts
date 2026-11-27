@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { AxiosError } from "axios";
 import { toast } from "sonner";
 import { invitationsApi, type InvitationMeta } from "@/lib/api/invitations";
-import { extractApiMessage, type ApiErrorBody } from "@/lib/api/errors";
+import type { ApiErrorBody } from "@/lib/api/errors";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { useT } from "@/lib/i18n";
 import {
   buildInvitationLoginHref,
@@ -67,6 +68,10 @@ export function useInvitationGate(invitationToken: string | undefined): {
     router.replace(invitationAcceptPath(token));
   });
   const onRouteExistingAccountToLogin = useEffectEvent(routeExistingAccountToLogin);
+  // 아는 코드는 사전 문구, 모르는 코드는 서버 문구다. 둘 다 없으면 `undefined` 로 두어 화면이 상태별 문구를 고른다.
+  const onErrorMessage = useEffectEvent(
+    (err: unknown) => serverErrorMessage(err, t, "") || undefined,
+  );
 
   useEffect(() => {
     if (!invitationToken) return;
@@ -92,7 +97,7 @@ export function useInvitationGate(invitationToken: string | undefined): {
         setState({
           kind: "error",
           status: error.response?.status,
-          message: extractApiMessage(error),
+          message: onErrorMessage(error),
         });
       }
     })();

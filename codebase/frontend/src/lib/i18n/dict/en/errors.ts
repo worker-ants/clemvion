@@ -33,5 +33,10 @@ export const errors: Dict["errors"] = {
       "The authentication request expired or is invalid. Try again.",
     serviceUnavailable:
       "The service is temporarily unavailable. Try again in a moment.",
+    userNotFound: "The account was not found.",
+    totpAlreadyEnabled: "Two-factor authentication is already enabled.",
+    recoveryCodeInvalid: "The recovery code is incorrect or already used.",
+    challengeInvalid:
+      "The sign-in request expired or is invalid. Sign in again from the start.",
   },
 };

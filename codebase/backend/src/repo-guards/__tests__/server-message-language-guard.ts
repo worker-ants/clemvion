@@ -18,7 +18,12 @@ import {
  * - `modules/triggers` — `CLE-T-CP6E9B`
  * - `common/constants/workspace-roles.ts` — 워크스페이스 가드 거부 본문, `CLE-T-CHP94Z`
  *
- * `modules/workspaces` 의 서비스 문구는 아직 한국어가 남아 있어 여기 없다. 옮기는 Task 가 이 목록에 더한다.
+ * 아직 옮기지 않은 영역은 여기 없다. `modules/workspaces`(workspaces · workspace-invitations 서비스)와 `modules/users` 의
+ * 한국어 `message` 는 NERV Task `CLE-T-MBMPX5` 가 옮기고 그 Task 가 이 목록에 더한다.
+ *
+ * 판정은 이름 규칙으로 응답 문구 자리를 추정하는 휴리스틱이다(`isResponseText`). 다른 파일에서 가져온 예외 헬퍼, 화살표 함수
+ * 헬퍼, 변수에 담았다가 `throw` 하는 문구는 잡지 못하고 `description` · `summary` · `example` 속성은 늘 제외한다.
+ * 범위를 `modules/workspaces` 로 넓힐 때 헬퍼 수집을 파일 간으로 확장할지 함께 정한다.
  */
 export const SCANNED_PATHS: readonly string[] = [
   'modules/auth',

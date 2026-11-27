@@ -33,6 +33,11 @@ export const SERVER_ERROR_CODE_TO_I18N: Readonly<
   WEBAUTHN_COUNTER_REGRESSION: "errors.codes.webauthnCounterRegression",
   INVALID_OPTIONS_TOKEN: "errors.codes.invalidOptionsToken",
   SERVICE_UNAVAILABLE: "errors.codes.serviceUnavailable",
+  RATE_LIMITED: "profile.security.rateLimited",
+  USER_NOT_FOUND: "errors.codes.userNotFound",
+  TOTP_ALREADY_ENABLED: "errors.codes.totpAlreadyEnabled",
+  RECOVERY_CODE_INVALID: "errors.codes.recoveryCodeInvalid",
+  CHALLENGE_INVALID: "errors.codes.challengeInvalid",
 };
 
 function asApiError(err: unknown): AxiosError<ApiErrorBody> | undefined {
