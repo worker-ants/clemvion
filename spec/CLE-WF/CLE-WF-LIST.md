@@ -2,19 +2,19 @@
 id: "CLE-WF-LIST"
 title: "워크플로우 목록과 폴더"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-WFLIST-001", "REQ-WFLIST-002", "REQ-WFLIST-003", "REQ-WFLIST-004", "REQ-WFLIST-005", "REQ-WFLIST-006", "REQ-WFLIST-007", "REQ-WFLIST-008", "REQ-WFLIST-009", "REQ-WFLIST-010", "REQ-WFLIST-011", "REQ-WFLIST-012", "REQ-WFLIST-013", "REQ-WFLIST-014", "REQ-WFLIST-015", "REQ-WFLIST-016", "REQ-WFLIST-017", "REQ-WFLIST-018", "REQ-WFLIST-019", "REQ-WFLIST-020", "REQ-WFLIST-021", "REQ-WFLIST-022", "REQ-WFLIST-023", "REQ-WFLIST-024", "REQ-WFLIST-025", "REQ-WFLIST-026", "REQ-WFLIST-027", "REQ-WFLIST-028", "REQ-WFLIST-029", "REQ-WFLIST-030", "REQ-WFLIST-031", "REQ-WFLIST-032", "REQ-WFLIST-033", "REQ-WFLIST-034", "REQ-WFLIST-035", "REQ-WFLIST-036", "REQ-WFLIST-037", "REQ-WFLIST-038", "REQ-WFLIST-039", "REQ-WFLIST-040", "REQ-WFLIST-041", "REQ-WFLIST-042", "REQ-WFLIST-043", "REQ-WFLIST-044", "REQ-WFLIST-045", "REQ-WFLIST-046", "REQ-WFLIST-047", "REQ-WFLIST-048", "REQ-WFLIST-049", "REQ-WFLIST-050", "REQ-WFLIST-051", "REQ-WFLIST-052", "REQ-WFLIST-053", "REQ-WFLIST-054", "REQ-WFLIST-055", "REQ-WFLIST-056"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "5d3fc745b959278030ab93b249c6b43598c38e6987afe341faa246ff5caaaad5"
+content_hash: "6b462d5d049649f2650349bbc7b416aacd01212a95d63b494cb55cc580b3a17e"
 read_as: "approved_fallback"
-task: "CLE-T-TNZ3J9"
+task: "CLE-T-CNGC0P"
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/2-navigation/_product-overview.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "41d0f80214b8b112bc9110939c11695d7e64347d5178d254731d784b315662b6"
-etag: "sha256-f61414cc51dc90f2e2cf003d106f3665d87194a3d5452261cec02a899aa09bf2"
+mirror_sha256: "8a907fd88214cd59aa307b533141f53670cacfd20b77fbc08cdf2a5eab2f8207"
+etag: "sha256-6524568d842782dfaef186002d7112cd66542787ab6076571aa0584f90bc5386"
 ---
 > 구현 상태: 부분 구현 (마켓플레이스 템플릿 추천, 폴더 관리 화면, 파일 형식 버전, 목록 표의 마지막 실행 시각 · 생성일 열은 미구현) · 원문: `spec/2-navigation/1-workflow-list.md`, `spec/2-navigation/_product-overview.md` (§3.1), `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-05·06) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -227,7 +227,9 @@ etag: "sha256-f61414cc51dc90f2e2cf003d106f3665d87194a3d5452261cec02a899aa09bf2"
 - 데이터 모델은 이미 `workspaceId` 로 워크플로우를 격리한다(`workflow.entity.ts`). 그래서 `sharedWith` 컬럼이나 추가 마이그레이션 없이 구현할 수 있다.
 - (b) 의 "내 것" · "남의 것" 구분은 소유 필터가 맡으므로 배지에서 한 번 더 표현하지 않는다. 배지는 워크스페이스 단위의 공유, 필터는 작성자 단위의 세분화를 맡는다.
 
-### 2. 폴더 계층 무결성은 생성과 부모 변경에서 모두 강제한다 (2026-07-05)
+### 2. 폴더 계층 무결성은 생성과 부모 변경에서 모두 강제한다
+
+결정일: 2026-07-05
 
 "최대 깊이 5, 같은 워크스페이스, 비순환" 규칙을 폴더 생성뿐 아니라 `PATCH` 로 부모를 바꿀 때도 400 `VALIDATION_ERROR` 로 강제한다. 이전의 `update()` 는 `parentId` 를 검사 없이 저장했다. 순환은 조상 깊이 계산(`getDepth`)을 무한 루프로 만들어 서비스 거부 위험이 있었다(V-04).
 
@@ -237,7 +239,9 @@ etag: "sha256-f61414cc51dc90f2e2cf003d106f3665d87194a3d5452261cec02a899aa09bf2"
 
 2026-09-27 정정: 이 결정 뒤에도 **생성** 경로는 깊이만 봤고 `getDepth` 가 다른 워크스페이스의 부모를 "없음" 으로 읽어 깊이 1 로 통과시켰다. 지금은 생성에도 부모 변경과 같은 소속 검사를 한다. 규칙은 [데이터 모델 개요 §참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 이 정한다.
 
-### 3. 태그 필터는 태그 하나를 텍스트로 받는다 (2026-07-06)
+### 3. 태그 필터는 태그 하나를 텍스트로 받는다
+
+결정일: 2026-07-06
 
 태그 필터를 다중 선택 대신 태그 하나를 입력하는 텍스트 필터로 정했다. 이전의 "다중 선택" 문구는 서버의 단일 태그 계약과 처음부터 어긋나 있던 자리표시였으므로 이 결정은 번복이 아니라 첫 확정이다.
 
@@ -245,7 +249,9 @@ etag: "sha256-f61414cc51dc90f2e2cf003d106f3665d87194a3d5452261cec02a899aa09bf2"
 - **선택 목록이 아니라 텍스트인 이유**: 드롭다운을 채울 출처가 없다. 텍스트 입력 하나는 서버 계약과 정확히 맞고 백엔드를 더 만들지 않아도 동작한다.
 - **다시 넓힐 여지**: 여러 태그가 필요해지면 서버 계약 확장과 태그 목록 API 를 함께 도입하는 별도 작업으로 살린다. 이 결정은 지금의 범위를 정한 것이다.
 
-### 4. 워크플로우를 끄면 외부 이벤트로 실행하지 않는다 (2026-10-10)
+### 4. 워크플로우를 끄면 외부 이벤트로 실행하지 않는다
+
+결정일: 2026-10-10
 
 사람이 정한 결정이다. 이 문서는 비활성 워크플로우의 트리거 · 스케줄 실행이 멈춘다고 적었지만 웹훅과 스케줄 처리 코드는 `workflow.is_active` 를 확인하지 않았다. 상태 스위치를 끈 사용자는 실행이 멈춘다고 생각하므로 약속을 거두지 않고 구현을 문서에 맞췄다. 경로별 규칙과 결정의 근거는 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 에 있다.
 
@@ -253,7 +259,9 @@ etag: "sha256-f61414cc51dc90f2e2cf003d106f3665d87194a3d5452261cec02a899aa09bf2"
 
 기각한 대안: **활성 상태를 표시용 플래그로 두고 이 약속을 거두는 안**. 그러면 스위치를 꺼도 실행에 아무 영향이 없어 화면 문구와 실제 동작이 어긋난다.
 
-### 5. 가져오기는 목록 화면에만 둔다 (2026-10-25)
+### 5. 가져오기는 목록 화면에만 둔다
+
+결정일: 2026-10-25
 
 승인본은 에디터 헤더 더보기(⋮) 메뉴에도 가져오기가 있다고 적었다. 이 약속을 거두고 가져오기는 이 화면 헤더의 `⤓ Import` 에만 둔다고 적는다.
 
