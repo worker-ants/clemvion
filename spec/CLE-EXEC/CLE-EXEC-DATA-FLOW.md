@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA-FLOW"
 title: "실행 데이터와 흐름 — 흐름과 저장소 매핑"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-DATA"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-DATA"]
 area: "CLE-EXEC"
-content_hash: "814c8ab25cb55c91abca672c24a08fef25de06809071821c6493d70f128bcd26"
+content_hash: "fc5709daa2589f7585abfaaf2ab0af90c199a9ed65794894918c08f3f1b273fb"
 read_as: "approved_fallback"
-task: "CLE-T-YWSS9K"
+task: "CLE-T-6TC4RM"
 source_paths: []
-mirror_sha256: "12db7c74d5b63949363308b394a6975c6d6597bcd11e82bbf3a1b0431f22d43e"
-etag: "sha256-3933413013876c6f523e1e14d5b56b3267d01b06d53f7040c1dac13b4a12bf84"
+mirror_sha256: "b4fc04057e149eb162875b5d6462f7e7e3222422e746d660f3121d46aad74944"
+etag: "sha256-69943aa5afe3fa9bbfa580b473275ca7e5167c6afd7d9b2200e7bf80a2b8a8ff"
 ---
 ## 개요
 
@@ -199,7 +199,7 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 | --- | --- | --- | --- |
 | `execution-run`(시작 큐) | `ExecutionEngineService.execute`(실행 행 `pending` 저장 뒤) | `ExecutionRunProcessor` → `runExecutionFromQueue`(work-stealing) | `{executionId, input?}`. jobId, 우선순위, 작업 옵션은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) |
 | `execution-continuation`(재개 큐) | `ContinuationBusService.publish`(WS gateway, REST controller 경유) | `ContinuationExecutionProcessor` | `{type, executionId, nodeExecutionId, payload}`. jobId 와 수명은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) |
-| `background-execution` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | `executionId, parentNodeExecutionId, backgroundRunId?, workspaceId, workflowId, bodyEntryNodeIds[], containerScopeId?, itemContext?, loopContext?, input, variables, nodeOutputCache, expressionContext, conversationThread?, config{notifyOnFailure, maxDurationMs}`(`background-execution.queue.ts`). `input` 의 뜻은 [Rationale](#background-본문에-스냅샷-컨텍스트를-싣는다) 에 있다. `containerScopeId?` · `itemContext?` · `loopContext?` 는 컨테이너 본문 안(그 안 병렬 분기 포함) Background 가 큐에 넣을 때만 싣는다([컨테이너 실행 §컨테이너 본문 안 Background](CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). `backgroundRunId?` 와 `conversationThread?` 는 하위 호환용 선택 필드이며 옛 큐 메시지에는 없다. 선택 필드 다섯 개 모두 그 필드를 넣기 전에 큐에 들어간 메시지에는 없다. |
+| `background-execution` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | `executionId, parentNodeExecutionId, backgroundRunId?, workspaceId, workflowId, bodyEntryNodeIds[], containerScopeId?, itemContext?, loopContext?, input, variables, nodeOutputCache, structuredOutputCache?, expressionContext, conversationThread?, config{notifyOnFailure, maxDurationMs}`(`background-execution.queue.ts`). `input` 의 뜻은 [Rationale](#background-본문에-스냅샷-컨텍스트를-싣는다) 에 있다. `containerScopeId?` · `itemContext?` · `loopContext?` 는 컨테이너 본문 안(그 안 병렬 분기 포함) Background 가 큐에 넣을 때만 싣는다([컨테이너 실행 §컨테이너 본문 안 Background](CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). `backgroundRunId?` · `structuredOutputCache?` · `conversationThread?` 는 하위 호환용 선택 필드이며 옛 큐 메시지에는 없다. 선택 필드 여섯 개 모두 그 필드를 넣기 전에 큐에 들어간 메시지에는 없다. |
 
 - 재개 큐는 `removeOnFail:false` 라 시도(`RESUME_BULLMQ_ATTEMPTS`, 기본 3)를 소진한 작업이 `failed`(DLQ)로 쌓인다. `ContinuationDlqMonitorService` 가 `failed`/`delayed` 적재량을 주기적으로 보고 임계를 넘으면 구조화된 `logger.error` 경고를 cooldown 단위로 남긴다. 설정은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다.
 - 보조 키 `exec:recover:lock`(부팅 복구 스캔 전역 lock, TTL 60초)과 `exec:cont:seq:<executionId>`(재개 큐 jobId 용 단조 seq, `CONTINUATION_SEQ_TTL_SECONDS` 기본 24시간 sliding TTL)의 정의는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 기준이다.
@@ -229,6 +229,6 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 
 ### Background 본문에 스냅샷 컨텍스트를 싣는다
 
-Background 본문이 도는 동안 메인 흐름이 변수를 바꿔도 본문에 영향이 없어야 한다. 그래서 발송 시점에 메인의 `variables / nodeOutputCache / expressionContext` 를 얕은 복사로 떠서 payload 에 담는다(`background-execution.queue.ts` 주석). 소비자는 이 스냅샷으로 다시 만든 컨텍스트 위에서 `executeBackgroundSubgraph` 를 부른다.
+Background 본문이 도는 동안 메인 흐름이 변수를 바꿔도 본문에 영향이 없어야 한다. 그래서 발송 시점에 메인의 `variables / nodeOutputCache / structuredOutputCache / expressionContext` 를 얕은 복사로 떠서 payload 에 담는다(`background-execution.queue.ts` 주석). `nodeOutputCache` 는 구조화 항목이 있는 노드의 값을 표지로 줄인 새 객체로 싣는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#작업-데이터의-flat-노드-출력은-표지로-줄인다)). 소비자는 이 스냅샷으로 다시 만든 컨텍스트 위에서 `executeBackgroundSubgraph` 를 부른다.
 
 payload 에는 Background 노드가 받은 입력의 스냅샷(`input`)도 싣는다. 본문 진입 노드가 이 값을 입력으로 받는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문-진입-노드는-background-노드가-받은-입력을-받는다)). 컨테이너 본문 안 Background 면 그 컨테이너 ID(`containerScopeId`)와 큐에 넣은 회차의 반복 변수(`itemContext` · `loopContext`)도 싣는다. 워커는 그 컨테이너 단계 그래프로 본문을 실행하고 본문 노드 식은 그 회차의 반복 변수를 읽는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#컨테이너-본문-안-background-는-컨테이너-단계-그래프로-실행한다)).
