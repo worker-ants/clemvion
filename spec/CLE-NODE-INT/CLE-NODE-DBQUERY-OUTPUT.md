@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY-OUTPUT"
 title: "Database Query 노드 — 출력 구조와 에러 코드"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-DBQUERY"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-DBQUERY"]
 area: "CLE-NODE-INT"
-content_hash: "b90ee910dd9eb0c3114075867c70261ac83cd86cc4bd4f4531c9f606d51fd99e"
+content_hash: "c68815237dbd283500a31b04306ff2f523a83dabc4699332418d5a71d7b898ca"
 read_as: "approved_fallback"
-task: "CLE-T-R8GDTY"
+task: "CLE-T-DC5Y0P"
 source_paths: []
-mirror_sha256: "2a3ccc26eac69a06e1c5c9893a3be0d33572bdbed2c75759240d6f6fdf6e6360"
-etag: "sha256-7a3dc693827c01c281d72ae68282b3b9b09b57a83c839a550d88302418f89f3e"
+mirror_sha256: "94d8133bd69c67420305830f4126e845673d296935fe5c9a69da647ea3489e25"
+etag: "sha256-7f35a527523a70f3201f6d1115d750edcb838d4bcd4b5dee11bade1794dd58b4"
 ---
 ## 개요
 
@@ -175,7 +175,7 @@ INSERT(MySQL `ResultSetHeader`):
 | `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` | 통합 해소·자격 증명 누락 실패(D4) | — |
 | `INTEGRATION_CALL_FAILED` | 통합이 없거나 다른 워크스페이스 소속(`requireEntity` 의 `RESOURCE_NOT_FOUND` fallback). 사설망 차단 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우(가드 고장)도 이 코드다. 가드 고장의 `output.error.message` 는 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남는다. `DB_HOST_BLOCKED` 는 판정에만 쓴다. 위 가드 고장 처리는 연결 전 검사에만 해당한다. 연결할 때 판정하다가 판정이 아닌 오류가 나면 연결을 통과시키지 않고 실패시킨다. 이때 코드는 드라이버 연결 오류 분류를 따른다 | — |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 가 핸들러에 주입되지 않았거나 실행 컨텍스트에 `__workspaceId` 가 없음(배포 구성 에러, D4) | — |
-| `INVALID_PARAMETERS` | `config.parameters` JSON 파싱 실패 또는 배열이 아닌 형태(D4) | — |
+| `INVALID_PARAMETERS` | `config.parameters` JSON 파싱 실패 또는 배열이 아닌 형태(D4). MySQL 쿼리의 `$N` 이 1 보다 작거나 배열 길이보다 큰 경우와 `$N` 을 `?` 와 섞어 쓴 경우도 이 코드다. 쿼리를 보내지 않는다([Database Query 「실행 로직」](CLE-NODE-DBQUERY.md#실행-로직) 4단계) | — |
 
 - 드라이버 간 일관성: pg SQLSTATE class `28` 과 mysql `ER_ACCESS_DENIED_ERROR` 는 모두 handshake 단계 인증 실패다. 두 드라이버 모두 `DB_CONNECTION_ERROR` 로 보내서 워크플로우의 자격 증명 교체 재시도 정책이 양쪽에서 같게 동작한다. 실행 중 권한 거부(`DB_PERMISSION_DENIED`)는 인증된 세션이 객체 접근에 실패한 별도의 영구 에러다.
 - 활동 로그에는 `toLogError(err)` 가 같은 방식으로 가린 `code`·`message` 를 기록한다.
@@ -184,7 +184,9 @@ INSERT(MySQL `ResultSetHeader`):
 
 ## Rationale
 
-### `DB_HOST_BLOCKED` 전용 차단 코드 (2026-06-12)
+### `DB_HOST_BLOCKED` 전용 차단 코드
+
+결정일: 2026-06-12
 
 이전에는 DB 호스트 차단이 공용 가드의 일반 `Error` 로 던져져 `mapDbError` fallback 인 `INTEGRATION_CALL_FAILED` 로 나왔다. HTTP Request(`HTTP_BLOCKED`)와 Send Email(`EMAIL_HOST_BLOCKED`)은 각자 전용 코드가 있어서 비대칭이었다. 그래서 워크플로우 작성자가 "사설망 차단" 을 다른 통합 실패와 구분해 분기할 수 없었다. 세 노드의 차단 동작을 일관되게 드러내려고 전용 코드 `DB_HOST_BLOCKED` 를 만들었다. 핸들러는 가드가 차단을 판정할 때 던지는 `SsrfBlockedError` 만 `DB_HOST_BLOCKED` 로 올리고, 그 밖의 오류(가드 고장)는 경고 로그를 남긴 뒤 `INTEGRATION_CALL_FAILED` 로 내보낸다([부모 문서 요구사항](CLE-NODE-DBQUERY.md#요구사항)의 가드 고장 항목, [통합 노드 공통 「차단 코드를 판정에만 쓰는 이유」](CLE-NODE-INT-COMMON.md#차단-코드를-판정에만-쓰는-이유)).
 
