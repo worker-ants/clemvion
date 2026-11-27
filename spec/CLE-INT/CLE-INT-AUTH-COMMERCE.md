@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH-COMMERCE"
 title: "서비스별 인증 방식과 자격 증명 — Cafe24 · MakeShop"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-AUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-AUTH"]
 area: "CLE-INT"
-content_hash: "2779fc953b7d2bcb05c34c2ef4ce2223585c934cfd3f4cff3c977c9618dda81b"
+content_hash: "32559170323a9af50ff593c74ecec7159c3d0e8384cfbab2bfd94f5c167abb7e"
 read_as: "approved_fallback"
-task: "CLE-T-7BNDT8"
+task: "CLE-T-0TAE5G"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "b5126434058ed9a98de6b1655bb30e36e59a64c69b3a083e63b9bacbb027c686"
-etag: "sha256-6265768fec66736cacf04a28549ab427199f171467e257a2584defebed0efc3d"
+mirror_sha256: "3fcf44c3be05bdd62f9c6740f98c4579a93ab1e30c013fa6251155cafc01773c"
+etag: "sha256-7e7a3746ba35e968070328103a9f2a92698bb1589142c080bfa1c95eec669b22"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -154,10 +154,12 @@ MakeShop 에는 별도 승인 권한 범위가 없다. Cafe24 의 파트너 별�
 
 연속 네트워크 실패 카운터는 노드 실행 경로의 자동 호출이 쌓여 `error(network)` 로 바꾸는 운영 신호다. 사용자가 직접 누른 연결 테스트는 일회성 진단이라 합산하면 사용자 클릭만으로 상태가 낮아지는 거짓 양성 위험이 커서 뺀다. 이 결정은 `Cafe24ApiClient.pingConnection()` 의 «예외를 던지지 않고 메시지만 돌려준다» 계약과 짝을 이룬다. 401 을 받으면 토큰을 갱신하고 한 번 다시 시도하는 정책도 노드 호출 경로와 같게 맞췄다.
 
-### 연결 테스트는 401 만 토큰 문제로 본다 (2026-11-06)
+### 연결 테스트는 401 만 토큰 문제로 본다
+
+결정일: 2026-11-06
 
 Cafe24·MakeShop 연결 테스트는 첫 요청이 401·403 이 아닌 상태로 실패해도 401 처럼 토큰을 갱신하고 다시 보냈다. 다시 보낸 요청이 5xx·429 로 실패하면 `*_AUTH_FAILED` 로 답해 서버 장애나 호출 제한을 인증 실패로 안내했다. 사용자는 하지 않아도 되는 재인증을 했고 갱신 호출도 한 번 더 나갔다.
 
 - 노드 호출 경로처럼 401 만 갱신하고 다시 보낸다([OAuth 연결과 토큰 갱신 「401 을 받으면 갱신하고 한 번 다시 보낸다」](CLE-INT-OAUTH.md#401-을-받으면-갱신하고-한-번-다시-보낸다)). 위 「Cafe24 연결 테스트 endpoint 를 `/store` 에서 `/apps` 로 바꿨다」 가 정한 «노드 호출 경로와 같은 401 정책» 을 코드가 401 밖 상태에서 지키지 않았다.
-- 401·403 이 아닌 상태는 새 코드 `CAFE24_API_ERROR`·`MAKESHOP_API_ERROR` 로 돌려주고 상태를 낮추지 않는다. 코드 이름과 기각한 대안은 [에러 코드 규약과 카탈로그 「Cafe24 · MakeShop 연결 테스트의 401 · 403 밖 실패에 `*_API_ERROR` 를 새로 만들었다」](../CLE-API/CLE-API-ERRCODES.md#cafe24--makeshop-연결-테스트의-401--403-밖-실패에-_api_error-를-새로-만들었다-2026-11-06) 에 있다.
+- 401·403 이 아닌 상태는 새 코드 `CAFE24_API_ERROR`·`MAKESHOP_API_ERROR` 로 돌려주고 상태를 낮추지 않는다. 코드 이름과 기각한 대안은 [에러 코드 규약과 카탈로그 「Cafe24 · MakeShop 연결 테스트의 401 · 403 밖 실패에 `*_API_ERROR` 를 새로 만들었다」](../CLE-API/CLE-API-ERRCODES.md#cafe24--makeshop-연결-테스트의-401--403-밖-실패에-_api_error-를-새로-만들었다) 에 있다.
 - 토큰 갱신 요청 자체가 401·403 이 아닌 상태로 실패하면 연결 테스트는 지금도 `*_TRANSPORT_FAILED` 로 답한다. 갱신 경로는 노드와 함께 써서 이 변경에 넣지 않았다. 응답을 받은 실패라 그 코드의 뜻(응답을 받지 못한 실패)과 어긋난다. NERV Task `CLE-T-DJGSBR` 이 고칠 때까지 남겨 두는 한시 예외다.

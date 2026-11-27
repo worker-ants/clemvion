@@ -2,19 +2,19 @@
 id: "CLE-API-CONV-RESP"
 title: "HTTP API 규약 — 응답 형식과 상태 코드"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-CONV"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
-content_hash: "df131a2febd4364b51fbe0bd71c9d145fb142e9644af7b5271ad2e3b23cce7e0"
+content_hash: "49db4c9bbe0a068fa5aa9caba667b152e6ae5528cda65081a6bbbd3437e0da8c"
 read_as: "approved_fallback"
-task: "CLE-T-WT4MBY"
+task: "CLE-T-0TAE5G"
 source_paths: []
-mirror_sha256: "93d6070e009109f406b2c52c1db8f7a1c9f0fcf8c8b0e0152e98a0cb104796e1"
-etag: "sha256-947e39680754e10adcc128030e4a5034cb70e9f37074849464f9898ae8a3b67a"
+mirror_sha256: "c73bd7bc9b854305adb00de01a2d45fff568dccbd606450a1016b21feac7797e"
+etag: "sha256-e136682afc342a56ad0e2c24f10e587f51b28f1425d757c2f965ca1dfd2bb412"
 ---
 ## 개요
 
@@ -217,15 +217,21 @@ SSE `execution.waiting_for_input` 이벤트도 `conversationThread` 를 값이 �
 
 그래서 이 경우는 §5.5 기준 (a)(다른 표면과의 wire 일치)의 원형 사례이고 정규화 대상이 아니라 규칙의 근거 사례로 둔다. 소비 쪽 안전성은 따로 확인했다. 위젯의 `threadToMessages` 가 optional chaining(`!thread?.turns?.length`)으로 `undefined` 와 `null` 을 함께 건너뛴다.
 
-### 410 행과 웹훅 처리 흐름에 `WORKFLOW_INACTIVE` 를 더했다 (2026-10-10)
+### 410 행과 웹훅 처리 흐름에 `WORKFLOW_INACTIVE` 를 더했다
+
+결정일: 2026-10-10
 
 NERV Task `CLE-T-XRWFMJ` 의 결정이다. 웹훅 트리거가 활성이어도 그 워크플로우가 비활성이면 `410 Gone` 과 `WORKFLOW_INACTIVE` 를 돌려준다. §6 의 `410` 행과 §11.3 의 요약 흐름([WebSocket 과 웹훅 수신](CLE-API-CONV-HOOK.md#113-요청-처리-흐름))에 그 분기를 더했다. 관문 규칙이 여러 문서에 같은 문장으로 풀리지 않게 두 자리에는 이 규약이 다루는 HTTP 응답만 한 줄로 남겼다. 경로별 규칙과 근거, 기각한 대안은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](../CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 과 그 문서의 Rationale 에 있다.
 
-### `503` 행에 채팅 채널 `/start` 의 취소 실패를 더했다 (2026-10-10)
+### `503` 행에 채팅 채널 `/start` 의 취소 실패를 더했다
+
+결정일: 2026-10-10
 
 NERV Task `CLE-T-V4WVF2` 의 결정이다. 채팅 채널 `/start` 는 활성 실행을 취소할 때 `ExecutionsService.stop` 을 직접 부른다. 취소를 큐에 넣지 못하면 `503 EXECUTION_ENQUEUE_FAILED` 를 그대로 돌려주고 새 실행을 시작하지 않는다. 채팅 채널 인바운드는 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 의 `202` 고정 정책을 따른다. 이 경우는 프로바이더가 요구하지 않는데도 `202` 대신 `503` 을 돌려주는 예외라서 §6 의 `503` 행에 적었다. 프로바이더는 이 응답을 받고 같은 update 를 다시 보낼 수 있다. `5xx` 를 받아들인 이유는 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 의 「R-CC-27 활성 실행 중 /start 는 기존 실행을 취소하고 새로 시작한다」 Rationale 에 있다.
 
-### Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다 (2026-10-17)
+### Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 가용성 조회와 credential 목록 조회를 뺀 Passkey 엔드포인트는 503 `WEBAUTHN_DISABLED` 를 돌려준다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md#passkey-기능-켜기와-환경-변수)). 규칙 11 은 `503` 을 인프라 의존성의 일시 장애에 쓴다고만 적어 이 응답이 규칙 밖에 있었다. 같은 날 사람 결정으로 Passkey 만 등록하고 TOTP 가 꺼진 계정의 로그인(`POST /api/auth/login`)도 이 응답으로 막게 됐다([로그인과 소셜 로그인 「Passkey 기능이 꺼지면 Passkey 만 등록한 계정의 로그인을 막는다」](../CLE-ACCT/CLE-ACCT-SIGNIN-LOGIN.md#passkey-기능이-꺼지면-passkey-만-등록한-계정의-로그인을-막는다)). 예외의 범위는 코드 하나 그대로다.
 
@@ -237,7 +243,9 @@ NERV Task `CLE-T-D331TT` 에서 정했다. Passkey 환경 변수가 없으면 �
 - **감시 영향**: 로그인의 이 응답은 기능이 꺼져 있는 동안 Passkey 만 등록한 사용자가 로그인할 때마다 난다. 5xx 비율로 경보를 거는 감시는 이 응답도 센다. 운영자가 변수를 설정하면 그치는 응답이라 이 위험은 받아들였다.
 - 설정 상태로 `503` 을 내는 곳은 전에도 있었다. `GET /api/health` 는 Redis 가 설정되지 않은 경우(`unconfigured`)에도 503 이다([로깅과 헬스 체크](../CLE-OBS/CLE-OBS-LOGGING.md)). 그 응답은 에러 봉투를 쓰지 않는 probe 응답이라 이 규칙의 예외로 적지 않았다.
 
-### 채팅 채널 `/cancel` 의 큐 적재 실패는 `503` 으로 돌려주지 않는다 (2026-10-17)
+### 채팅 채널 `/cancel` 의 큐 적재 실패는 `503` 으로 돌려주지 않는다
+
+결정일: 2026-10-17
 
 NERV Task `CLE-T-EQDYC1` 의 사람 결정이다. 채팅 채널 인바운드의 `/cancel` 은 `ExecutionsService.stop` 을 바로 부른다. 취소를 큐에 넣지 못하면 `stop` 이 `503 EXECUTION_ENQUEUE_FAILED` 를 던진다. 그전에는 이 응답이 채널 프로바이더에 그대로 나가 [채팅 채널 「인바운드 HTTP 응답 계약」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-http-응답-계약) 의 `202` 고정 정책과 어긋났다.
 
@@ -245,20 +253,26 @@ NERV Task `CLE-T-EQDYC1` 의 사람 결정이다. 채팅 채널 인바운드의 
 
 기각한 대안: `/start` 처럼 `/cancel` 도 `503` 을 돌려주는 안. non-2xx 가 이어지면 프로바이더가 웹훅을 끌 수 있다([채팅 채널 「R-CC-12」](../CLE-CHAT/CLE-CHAT-CORE.md#r-cc-12-인바운드-응답은-202-로-고정하고-401404-만-예외로-둔다)). `/start` 는 실패를 숨기면 사용자의 새 시작 요청이 사라져서 이 위험을 받아들였다. `/cancel` 은 그 사정이 없다.
 
-### `503` 행의 `SERVICE_UNAVAILABLE` 은 규칙 11 의 일시 장애다 (2026-11-01)
+### `503` 행의 `SERVICE_UNAVAILABLE` 은 규칙 11 의 일시 장애다
 
-NERV Task `CLE-T-H9QJTA` 에서 더했다. §6 `503` 행은 로그인 2단계 Passkey 인증 검증의 `SERVICE_UNAVAILABLE` 을 적는다. 그 검증은 Passkey 인증 챌린지를 기록하지 못하면 이 코드로 거부한다(NERV Task `CLE-T-GK9J2B`). 기록을 두는 Redis 는 우리 인프라라서 이 응답은 규칙 11 의 일시 장애에 든다. 새 코드를 만들지 않은 이유와 상태 코드를 고른 근거는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 「구현 반영 (2026-10-30, NERV Task `CLE-T-GK9J2B`)」 Rationale 에 있다.
+결정일: 2026-11-01
 
-- 그래서 `WEBAUTHN_DISABLED` 처럼 규칙 11 의 예외로 적지 않았다. `WEBAUTHN_DISABLED` 는 장애가 아니라 서버 설정으로 기능이 꺼진 상태라서 예외로 적었다([Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다](#passkey-기능이-꺼졌을-때의-503-을-예외로-적었다-2026-10-17)).
+NERV Task `CLE-T-H9QJTA` 에서 더했다. §6 `503` 행은 로그인 2단계 Passkey 인증 검증의 `SERVICE_UNAVAILABLE` 을 적는다. 그 검증은 Passkey 인증 챌린지를 기록하지 못하면 이 코드로 거부한다(NERV Task `CLE-T-GK9J2B`). 기록을 두는 Redis 는 우리 인프라라서 이 응답은 규칙 11 의 일시 장애에 든다. 새 코드를 만들지 않은 이유와 상태 코드를 고른 근거는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 「구현 반영 (NERV Task `CLE-T-GK9J2B`)」 Rationale 에 있다.
 
-### EIA 인바운드의 세 예외를 §6 · §7 에 적었다 (2026-11-05)
+- 그래서 `WEBAUTHN_DISABLED` 처럼 규칙 11 의 예외로 적지 않았다. `WEBAUTHN_DISABLED` 는 장애가 아니라 서버 설정으로 기능이 꺼진 상태라서 예외로 적었다([Passkey 기능이 꺼졌을 때의 `503` 을 예외로 적었다](#passkey-기능이-꺼졌을-때의-503-을-예외로-적었다)).
+
+### EIA 인바운드의 세 예외를 §6 · §7 에 적었다
+
+결정일: 2026-11-05
 
 NERV Task `CLE-T-VJQZSW` 다. [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 승인본에는 근거와 함께 있는 예외 세 가지가 이 규약에는 없었다. 그래서 그 문서를 검토할 때마다 이 규약과 어긋난다는 경고가 다시 나왔다. 동작은 바꾸지 않았다. 지금 구현과 그 문서의 내용을 이 규약에 옮겨 적었다.
 
-- **트리거 단위 토큰 경로의 `401 EXECUTION_NOT_FOUND`**: 규칙 10 과 `404` 행만 보면 없는 실행은 `404` 다. 트리거 단위 토큰 경로에서는 가드가 핸들러 전에 실행과 그 트리거를 찾아 토큰을 견준다. 그래서 부재도 다른 토큰 검증 실패와 같은 `401` 로 거부한다. 코드의 뜻과 두 상태를 하나로 맞추지 않은 이유는 [에러 코드 규약과 카탈로그 「트리거 단위 토큰 경로의 부재는 401 `EXECUTION_NOT_FOUND` 로 적는다 (2026-10-17)」](CLE-API-ERRCODES.md#트리거-단위-토큰-경로의-부재는-401-execution_not_found-로-적는다-2026-10-17) 에 있다. 이 문서의 `401` · `404` 행은 그쪽을 가리키기만 한다.
+- **트리거 단위 토큰 경로의 `401 EXECUTION_NOT_FOUND`**: 규칙 10 과 `404` 행만 보면 없는 실행은 `404` 다. 트리거 단위 토큰 경로에서는 가드가 핸들러 전에 실행과 그 트리거를 찾아 토큰을 견준다. 그래서 부재도 다른 토큰 검증 실패와 같은 `401` 로 거부한다. 코드의 뜻과 두 상태를 하나로 맞추지 않은 이유는 [에러 코드 규약과 카탈로그 「트리거 단위 토큰 경로의 부재는 401 `EXECUTION_NOT_FOUND` 로 적는다」](CLE-API-ERRCODES.md#트리거-단위-토큰-경로의-부재는-401-execution_not_found-로-적는다) 에 있다. 이 문서의 `401` · `404` 행은 그쪽을 가리키기만 한다.
 - **토큰 갱신의 `410`**: 토큰 갱신은 없는 실행에도 `410 EXECUTION_TERMINATED` 를 돌려준다. 규칙 10 대로라면 처음부터 없던 실행은 `404` 다. 클라이언트에게는 어느 쪽이든 그 실행을 더 이을 수 없다는 같은 결론이다. 있고 없음을 가르지 않는 편이 정보 노출도 줄인다. 그래서 `410` 행의 예외 목록에 더했다.
 - **`/cancel` 과 `/refresh-token` 의 한도**: `/cancel` 은 `interact` 의 `command: "cancel"` 과 뜻이 같은 별칭이고 `/interact` 와 같은 실행 단위 카운터를 센다. `/refresh-token` 에는 실행 단위 한도가 없고 전역 기본값만 걸린다. 수치는 규칙 12 대로 [§7](CLE-API-CONV-RATE.md#7-요청-빈도-제한) 표에만 적는다. [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md) 는 두 사실을 수치 없이 적고 있어 고치지 않았다.
 
-### 요청 PATCH 의 `null` 거부와 해제를 가르는 기준 (2026-11-20)
+### 요청 PATCH 의 `null` 거부와 해제를 가르는 기준
+
+결정일: 2026-11-20
 
 §5.5 는 요청 PATCH 삼중 상태만 적었다. 저장소는 `null` 을 400 으로 거부하는 필드(`@IsOptionalNonNull`)도 쓴다. 리뷰어가 그 근거를 규약에서 찾지 못해 CLE-T-9Q304H 의 정합 검토에서 경고가 났다(CLE-T-WT4MBY). 기준은 [워크스페이스 공간 「설정 키의 null 은 지울 다른 방법이 없을 때만 받는다」](../CLE-ACCT/CLE-ACCT-WS-SPACE.md#설정-키의-null-은-지울-다른-방법이-없을-때만-받는다) 의 결정을 옮겼다. 트리거 타입 필드는 [트리거 관리 API](../CLE-TRIG/CLE-TRIG-MANAGE-API.md#타입-필드-notification--interaction-의-null-은-해제다-2026-11-20) 에서 해제로 정했다.
