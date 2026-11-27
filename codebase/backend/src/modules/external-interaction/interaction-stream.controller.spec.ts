@@ -1,7 +1,11 @@
 import { HttpException, Logger, UnauthorizedException } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import type { Response } from 'express';
-import { InteractionStreamController } from './interaction-stream.controller';
+import {
+  InteractionStreamController,
+  parseLastEventId,
+  resolveLastEventId,
+} from './interaction-stream.controller';
 import { writeSseFrame } from './sse-stream-session';
 import { SSE_TOKEN_RECHECK_INTERVAL_MS } from './sse.constants';
 import { SseAdapter, type SseSubscriber } from './sse-adapter.service';
@@ -533,5 +537,34 @@ describe('writeSseFrame (§5.2 SSE frame `id:` 규약)', () => {
       payload: {},
     });
     expect(out().endsWith('\n\n')).toBe(true);
+  });
+});
+
+describe('Last-Event-Id 해석', () => {
+  it.each<[string, string | undefined, string | undefined, number | undefined]>(
+    [
+      ['헤더만 있으면 헤더', '5', undefined, 5],
+      ['쿼리만 있으면 쿼리', undefined, '7', 7],
+      ['둘 다 있으면 헤더가 이긴다', '5', '7', 5],
+      ['헤더가 빈 문자열이면 쿼리로 넘어가지 않는다', '', '7', undefined],
+      ['헤더가 숫자가 아니면 쿼리로 넘어가지 않는다', 'abc', '7', undefined],
+      ['둘 다 없으면 undefined', undefined, undefined, undefined],
+    ],
+  )('%s', (_name, header, query, expected) => {
+    expect(resolveLastEventId(header, query)).toBe(expected);
+  });
+
+  it.each<[string | undefined, number | undefined]>([
+    [undefined, undefined],
+    ['', undefined],
+    ['abc', undefined],
+    ['NaN', undefined],
+    ['Infinity', undefined],
+    ['5', 5],
+    ['0', 0],
+    ['-1', -1],
+    ['3.7', 3.7],
+  ])('parseLastEventId(%j) = %j', (raw, expected) => {
+    expect(parseLastEventId(raw)).toBe(expected);
   });
 });

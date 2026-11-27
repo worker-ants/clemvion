@@ -103,9 +103,9 @@ export class InteractionStreamController {
     );
     req.on('close', () => session.onClientClose());
     await session.run(
-      parseLastEventId(
-        headerLastEventId ??
-          (req.query as { lastEventId?: string }).lastEventId,
+      resolveLastEventId(
+        headerLastEventId,
+        (req.query as { lastEventId?: string }).lastEventId,
       ),
     );
   }
@@ -133,8 +133,16 @@ function toStreamToken(ctx: ExternalInteractionRequestContext): SseStreamToken {
 }
 
 /** `Last-Event-Id` 헤더나 `?lastEventId=` 값. 비었거나 숫자가 아니면 `undefined` 다. 정수로 맞추는 일은 어댑터가 한다. */
-function parseLastEventId(raw: string | undefined): number | undefined {
+export function parseLastEventId(raw: string | undefined): number | undefined {
   if (raw === undefined || raw === '') return undefined;
   const value = Number(raw);
   return Number.isFinite(value) ? value : undefined;
+}
+
+/** 헤더가 있으면(빈 문자열 포함) 헤더를, 없으면 쿼리를 읽는다. */
+export function resolveLastEventId(
+  header: string | undefined,
+  query: string | undefined,
+): number | undefined {
+  return parseLastEventId(header ?? query);
 }
