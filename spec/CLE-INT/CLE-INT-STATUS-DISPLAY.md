@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-DISPLAY"
 title: "통합 상태와 만료 알림 — 화면 표시와 주의 필요"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "f1c78492e2379313621163127d9bacea2ef19a5477086bbb5162c8ad36d3e3fe"
+content_hash: "3de7360ca31993c825a3eaca6b4816eb3fd9518a844dd09ad1afde3bdf312019"
 read_as: "approved_fallback"
-task: "CLE-T-BYT4S2"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "160e26a8200e1a41d05a34a83faf9ac1dd2d2339d08e05bbd55d975b13439a03"
-etag: "sha256-dc2dd401aa749c7f61b2fe0eed3066c760c9c66b83bae49380a228da8a27b8fb"
+mirror_sha256: "2a97911c366fcdbd0886e13152d389bbb92b551ebed57394b735e8699cfc048a"
+etag: "sha256-f7c4aad80c70a2fb8d4c38f1781efaf2dc4d618c2ae590a599440bcc567a100c"
 ---
 ## 개요
 
@@ -48,7 +48,7 @@ etag: "sha256-dc2dd401aa749c7f61b2fe0eed3066c760c9c66b83bae49380a228da8a27b8fb"
 | `attention` | `status IN (expired, error)` OR (`status='connected' AND token_expires_at IS NOT NULL AND token_expires_at > NOW() AND token_expires_at <= NOW() + INTERVAL '7d' AND NOT autoRefresh`) |
 
 - 설치 대기는 두 값 모두에서 뺀다. 사용자가 외부(Cafe24 개발자 센터, ShopStore)에서 흐름을 진행하는 정상 상태로 본다. 사유가 채워진 설치 대기도 같다.
-- `install_timeout` 으로 `expired` 가 된 행은 주의 필요에 들어간다. 설치가 끝나지 않아 다시 등록해야 하는 운영 신호다. 사용자는 이 행을 지우지 않고 같은 상점을 새로 등록한다. 등록 방법과 이름 충돌은 [상태 전이](CLE-INT-STATUS-MODEL.md#상태-전이) 의 `pending_install` → `expired` 행에 있다. 새로 등록해도 만료 행은 지울 때까지 주의 필요에 남는다. 화면 안내가 삭제를 시키지 않으면서 이 신호를 남기는 이유는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29) 의 2026-10-30 번복에 있다.
+- `install_timeout` 으로 `expired` 가 된 행은 주의 필요에 들어간다. 설치가 끝나지 않아 다시 등록해야 하는 운영 신호다. 사용자는 이 행을 지우지 않고 같은 상점을 새로 등록한다. 등록 방법과 이름 충돌은 [상태 전이](CLE-INT-STATUS-MODEL.md#상태-전이) 의 `pending_install` → `expired` 행에 있다. 새로 등록해도 만료 행은 지울 때까지 주의 필요에 남는다. 화면 안내가 삭제를 시키지 않으면서 이 신호를 남기는 이유는 [OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다) 의 2026-10-30 번복에 있다.
 - 자동 갱신 통합은 만료 임박 분기에서 뺀다. Cafe24 access token(2시간)처럼 수명이 짧은 토큰의 거짓 양성을 막는다. 자동 갱신이 실패해 `error(auth_failed)`·`error(network)` 가 되면 `status IN (expired, error)` 분기로 그대로 들어가므로 사용자 신호가 사라지지 않는다.
 - 재설치 대기 표시는 두 값 모두의 조건에 쓰지 않는다([재설치 대기 표시](CLE-INT-STATUS-MODEL.md#재설치-대기-표시)).
 - 목록 상태 칩은 `All` / `Attention` / `Connected` / `Expiring` / `Expired` / `Error` 이고 하나만 고른다. 설치 대기 칩은 두지 않는다.

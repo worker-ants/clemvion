@@ -22,7 +22,7 @@ export type IntegrationWriteLock =
  *
  * 잠금을 쥔 동안 외부 호출(토큰 교환, 연결 테스트, 제공자 API)을 하지 않는다. 쓰기 경로가 이 도우미를 건너뛰지 않는지는
  * `repo-guards` 의 `integration-owner-write-guard` 가 본다.
- * 근거: [통합 관리 Rationale 「나간 멤버의 개인 통합은 나갈 때 지운다」](CLE-INT-MANAGE#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)
+ * 근거: [통합 관리 Rationale 「나간 멤버의 개인 통합은 나갈 때 지운다」](CLE-INT-MANAGE#나간-멤버의-개인-통합은-나갈-때-지운다)
  */
 export async function lockForIntegrationWrite(
   manager: EntityManager,

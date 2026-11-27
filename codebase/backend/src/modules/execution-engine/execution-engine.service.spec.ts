@@ -123,6 +123,12 @@ import { CodeHandler } from '../../nodes/data/code/code.handler';
 import { IfElseHandler } from '../../nodes/logic/if-else/if-else.handler';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
 import { assertLinkedTransitionApplied } from './linked-transition-guard';
+import {
+  installTxByAffected,
+  installTxUpdateBuilders,
+  type TxAffected,
+} from './__test-utils__/update-query-builder.mock';
+import { findExecutionStatusUpdate } from './__test-utils__/raw-update-params';
 
 /**
  * exec-park D6 full B3 — form/button/AI 재개는 §7.5 rehydration
@@ -2961,7 +2967,7 @@ describe('ExecutionEngineService', () => {
     // `manager.createQueryBuilder()` 를 순서대로 호출한다 — 아래 `installIdleTx`
     // (같은 형태를 쓰는 markWebChatIdleTimeout 테스트와 공유)로 그 경로를 무장한다.
     it('applyCancellation — cancelParkedExecution(dataSource.transaction) 경로 실행', async () => {
-      const { execQb } = installIdleTx(0, 0);
+      const { execQb } = installIdleTx({ execution: 0, nodeExecution: 0 });
 
       // affected:0 → 멱등 no-op. Execution UPDATE 가 실제로 시도됐는지(= DB 경로
       // 도달)만 확인한다.
@@ -2972,34 +2978,11 @@ describe('ExecutionEngineService', () => {
     // EIA-RL-07 markWebChatIdleTimeout — 공개 위젯 idle-wait 회수 (§R19).
     // Execution+NodeExecution UPDATE 는 dataSource.transaction 안에서 manager.createQueryBuilder
     // 로 순차 수행(review W1 원자화). tx 콜백을 in-memory 즉시 실행하고 qb 를 순서대로 반환한다.
-    const makeIdleQb = (affected: number) => ({
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      setParameter: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockReturnThis(),
-      // `RETURNING duration_ms` 를 실제로 돌려줘야 threading 이 테스트를 탄다 —
-      // `raw` 를 비워 두면 emit 이 `null` 이라 단언이 vacuous 해진다.
-      execute: jest.fn().mockResolvedValue({
-        affected,
-        raw: affected > 0 ? [{ id: 'exec-idle', duration_ms: 3600000 }] : [],
-      }),
-    });
-    const installIdleTx = (execAffected: number, nodeAffected: number) => {
-      const execQb = makeIdleQb(execAffected);
-      const nodeQb = makeIdleQb(nodeAffected);
-      const qbs = [execQb, nodeQb];
-      (
-        service as unknown as { dataSource: { transaction: jest.Mock } }
-      ).dataSource.transaction = jest.fn(
-        async (cb: (m: unknown) => Promise<unknown>) => {
-          let i = 0;
-          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
-        },
-      );
-      return { execQb, nodeQb };
-    };
+    // `RETURNING duration_ms` 를 실제로 돌려줘야 threading 이 테스트를 탄다 —
+    // `raw` 를 비워 두면 emit 이 `null` 이라 단언이 vacuous 해진다.
+    const idleRaw = [{ id: 'exec-idle', duration_ms: 3600000 }];
+    const installIdleTx = (affected: TxAffected) =>
+      installTxByAffected(service, affected, idleRaw);
     const idleEmitter = () =>
       (
         service as unknown as {
@@ -3020,7 +3003,7 @@ describe('ExecutionEngineService', () => {
         .mockImplementation(() => undefined);
 
     it('markWebChatIdleTimeout — affected:0(재개로 이미 RUNNING/terminal) → false, emit 없음', async () => {
-      installIdleTx(0, 0);
+      installIdleTx({ execution: 0, nodeExecution: 0 });
       const emitSpy = jest.spyOn(idleEmitter(), 'emitExecution');
 
       const result = await service.markWebChatIdleTimeout('exec-running');
@@ -3030,7 +3013,10 @@ describe('ExecutionEngineService', () => {
     });
 
     it('markWebChatIdleTimeout — affected:1 → true, WAITING 가드 UPDATE(error.code) + NodeExecution cancel + cancelledBy:timeout emit + routing release', async () => {
-      const { execQb, nodeQb } = installIdleTx(1, 1);
+      const { execQb, nodeQb } = installIdleTx({
+        execution: 1,
+        nodeExecution: 1,
+      });
       stubFinalize();
       const emitSpy = jest
         .spyOn(idleEmitter(), 'emitExecution')
@@ -3083,7 +3069,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('markWebChatIdleTimeout — emit reject 해도 cancel 은 durable → true 유지(로그만)', async () => {
-      installIdleTx(1, 1);
+      installIdleTx({ execution: 1, nodeExecution: 1 });
       stubFinalize();
       jest
         .spyOn(idleEmitter(), 'emitExecution')
@@ -3153,46 +3139,20 @@ describe('ExecutionEngineService', () => {
     // Execution+NodeExecution 이중 UPDATE 를 단일 트랜잭션(markWebChatIdleTimeout
     // 과 동형)으로 원자화한다. 개별 repo 의 createQueryBuilder 대신
     // `dataSource.transaction` 안의 `manager.createQueryBuilder()` 를 순서대로
-    // (Execution → NodeExecution) 호출한다 — `markWebChatIdleTimeout` 테스트의
-    // `installIdleTx`/`makeIdleQb` 와 동형이나 그 helper 는 형제 describe 스코프
-    // (`continuation entry points → bus.publish + apply* dispatch`) 안에 있어
-    // 이 describe 에서 참조 불가 — 동일 패턴을 이 describe 전용으로 재정의한다.
-    // ai-review WARNING #5 (2026-07-27, 6차 라운드, maintainability) — 아래 두
-    // helper 이름을 `makeQb`/`installTx` 로 두면, 파일 아래쪽 `claimResumeEntry`
-    // describe 의 동일 이름 helper 와 **인자 순서가 반대**로 공존해 grep/복붙
-    // 혼동을 유발한다 — `makeCancelQb`/`installCancelTx` 로 개명해 스코프별
-    // 이름을 고유하게 유지한다.
-    const makeCancelQb = (affected: number) => ({
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      setParameter: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockReturnThis(),
-      // `raw` 를 비워 두면 emit 이 `null` 이 되고, 초기값과 우연히 일치해 **추출 로직을
-      // 깨도 GREEN** 이다 — 자매 4경로에서 같은 형태를 두 번 겪었다 (`11_59_09` W3).
-      execute: jest.fn().mockResolvedValue({
-        affected,
-        raw: affected > 0 ? [{ id: 'exec-park-1', duration_ms: 7200000 }] : [],
-      }),
-    });
-    const installCancelTx = (execAffected: number, nodeAffected: number) => {
-      const execQb = makeCancelQb(execAffected);
-      const nodeQb = makeCancelQb(nodeAffected);
-      const qbs = [execQb, nodeQb];
-      (
-        service as unknown as { dataSource: { transaction: jest.Mock } }
-      ).dataSource.transaction = jest.fn(
-        async (cb: (m: unknown) => Promise<unknown>) => {
-          let i = 0;
-          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
-        },
-      );
-      return { execQb, nodeQb };
-    };
+    // (Execution → NodeExecution) 호출한다. 무장은 형제 describe 들과 같은
+    // `installTxUpdateBuilders` 로 하고, 영향 행 수는 테이블 이름으로 넘긴다
+    // (예전 헬퍼 쌍은 인자 순서가 서로 반대였다, CLE-T-WKESFB).
+    // `raw` 를 비워 두면 emit 이 `null` 이 되고, 초기값과 우연히 일치해 **추출 로직을
+    // 깨도 GREEN** 이다 — 자매 4경로에서 같은 형태를 두 번 겪었다 (`11_59_09` W3).
+    const cancelRaw = [{ id: 'exec-park-1', duration_ms: 7200000 }];
+    const installCancelTx = (affected: TxAffected) =>
+      installTxByAffected(service, affected, cancelRaw);
 
     it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit (cancelledBy:user, error 키 부재)', async () => {
-      const { execQb, nodeQb } = installCancelTx(1, 1);
+      const { execQb, nodeQb } = installCancelTx({
+        execution: 1,
+        nodeExecution: 1,
+      });
       // emitCancellationEvent 가 engine emitter 로 넘기는 원본 payload 를 직접 포착한다.
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
@@ -3228,7 +3188,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('affected:0 — 이미 terminal / resume RUNNING → 멱등 no-op (emit 미호출)', async () => {
-      const { nodeQb } = installCancelTx(0, 0);
+      const { nodeQb } = installCancelTx({ execution: 0, nodeExecution: 0 });
 
       const emitMock = mockWebsocketService.emitExecutionEvent;
       const emitCallsBefore = emitMock.mock.calls.length;
@@ -3242,7 +3202,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('emit throw → warn 으로 흡수 (cancel 은 DB 반영됨, 호출자에 예외 전파 없음)', async () => {
-      installCancelTx(1, 1);
+      installCancelTx({ execution: 1, nodeExecution: 1 });
 
       const logger = (
         service as unknown as { logger: { warn: jest.Mock; error: jest.Mock } }
@@ -3310,67 +3270,13 @@ describe('ExecutionEngineService', () => {
   // 재개 진입 DB 원자 claim (CLE-EXEC-RECOVERY-REHYDRATE). 비원자 SELECT 재검증을 조건부
   // UPDATE(waiting_for_input → running, affected=0 → ack-and-discard)로 대체.
   describe('claimResumeEntry — 재개 진입 원자 claim', () => {
-    // qb 가 어느 엔티티를 UPDATE 하는지는 `update()` 인자로 판별한다. 그래야 잠금
-    // 순서(Execution → NodeExecution, CLE-T-9JBVQK)를 단언할 수 있다.
-    type ClaimQb = Record<string, jest.Mock> & { target: string };
-    const makeQb = (
-      affectedOf: (target: string) => number,
-      order: string[],
-    ): ClaimQb => {
-      const qb = { target: '' } as ClaimQb;
-      qb.update = jest.fn((entity: { name: string }) => {
-        qb.target = entity.name;
-        return qb;
-      });
-      for (const m of [
-        'set',
-        'setParameter',
-        'where',
-        'andWhere',
-        'returning',
-      ]) {
-        qb[m] = jest.fn().mockReturnValue(qb);
-      }
-      qb.execute = jest.fn(async () => {
-        order.push(qb.target);
-        return { affected: affectedOf(qb.target) };
-      });
-      return qb;
-    };
+    // qb 가 어느 엔티티를 UPDATE 하는지는 `update()` 인자로 판별한다(`byEntity`). 그래야
+    // 잠금 순서(Execution → NodeExecution, CLE-T-9JBVQK)를 `order` 로 단언할 수 있다.
+    // tx 콜백이 던지면 tx mock 도 reject 한다(실제 트랜잭션의 롤백 자리).
     const ds = () =>
       service as unknown as { dataSource: { transaction: jest.Mock } };
-    // tx 콜백을 바로 실행한다. 콜백이 던지면 tx mock 도 reject 한다(실제 트랜잭션의
-    // 롤백 자리).
-    const txWith = (
-      affectedOf: (target: string) => number,
-      order: string[],
-      byEntity: Record<string, ClaimQb> = {},
-    ) =>
-      jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
-        cb({
-          createQueryBuilder: jest.fn(() => {
-            const qb = makeQb(affectedOf, order);
-            const update = qb.update;
-            qb.update = jest.fn((entity: { name: string }) => {
-              update(entity);
-              byEntity[qb.target] = qb;
-              return qb;
-            });
-            return qb;
-          }),
-        }),
-      );
-    const installTx = (nodeAffected: number, execAffected: number) => {
-      const order: string[] = [];
-      const byEntity: Record<string, ClaimQb> = {};
-      const tx = txWith(
-        (t) => (t === 'NodeExecution' ? nodeAffected : execAffected),
-        order,
-        byEntity,
-      );
-      ds().dataSource.transaction = tx;
-      return { order, byEntity, tx };
-    };
+    const installTx = (affected: TxAffected) =>
+      installTxByAffected(service, affected);
     const segmentStarted = () =>
       (
         service as unknown as { segmentStartMs: Map<string, number> }
@@ -3381,7 +3287,7 @@ describe('ExecutionEngineService', () => {
       ).segmentStartMs.delete('exec-1');
 
     it('둘 다 affected=1 → true. Execution 을 먼저 잠그고 NodeExecution 을 claim 한다 (형제 경로와 같은 순서)', async () => {
-      const { order, byEntity } = installTx(1, 1);
+      const { order, byEntity } = installTx({ execution: 1, nodeExecution: 1 });
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
         true,
@@ -3418,7 +3324,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('node affected=0 → false + 트랜잭션 롤백(Execution 변경 취소) + segmentStartMs 미기록', async () => {
-      const { order, tx } = installTx(0, 1);
+      const { order, tx } = installTx({ execution: 1, nodeExecution: 0 });
       clearSegment();
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
@@ -3437,7 +3343,7 @@ describe('ExecutionEngineService', () => {
       // 일반 방어 시나리오: 어떤 경로로든 exec=CANCELLED(또는 다른 terminal)·
       // node=WAITING 이면 Execution UPDATE 가 affected=0 이다. 바뀐 행이 없으므로
       // 롤백 없이 false 이고 node 는 건드리지 않는다.
-      const { order, tx } = installTx(1, 0);
+      const { order, tx } = installTx({ execution: 0, nodeExecution: 1 });
       clearSegment();
 
       await expect(service.claimResumeEntry('exec-1', 'ne-1')).resolves.toBe(
@@ -3449,14 +3355,17 @@ describe('ExecutionEngineService', () => {
     });
 
     it('동시 재개 — 두 claim 중 하나만 승리 (경합 판정=node claim)', async () => {
-      // 둘 다 Execution UPDATE 는 통과한다(WFI ∪ RUNNING). 첫 tx 만 node affected=1.
-      let txCall = 0;
-      ds().dataSource.transaction = jest.fn(
-        async (cb: (m: unknown) => Promise<unknown>) => {
-          const nodeAff = txCall++ === 0 ? 1 : 0;
-          return txWith((t) => (t === 'NodeExecution' ? nodeAff : 1), [])(cb);
+      // 둘 다 Execution UPDATE 는 통과한다(WFI ∪ RUNNING). 먼저 도착한 node claim 만
+      // affected=1 이다(DB 의 `status = waiting` 조건이 둘째를 0행으로 만든다).
+      installTxUpdateBuilders(service, {
+        execution: { affected: 1 },
+        nodeExecution: {
+          execute: jest
+            .fn()
+            .mockResolvedValueOnce({ affected: 1 })
+            .mockResolvedValue({ affected: 0 }),
         },
-      );
+      });
 
       const [a, b] = await Promise.all([
         service.claimResumeEntry('exec-1', 'ne-1'),
@@ -3726,15 +3635,12 @@ describe('ExecutionEngineService', () => {
         // ai-review WARNING #1 (2026-07-27, 7차 라운드) — guarded
         // `updateExecutionStatus`(raw UPDATE) 경유로 바뀌어 더 이상 full-entity
         // `.save()` 를 호출하지 않는다(형제 `finalizeFailedExecution` 과 동일 패턴).
-        const failedCall = mockExecutionRepo.query.mock.calls.find(
-          (c: unknown[]) =>
-            typeof c[0] === 'string' &&
-            /UPDATE execution/.test(c[0]) &&
-            (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
+        const failedUpdate = findExecutionStatusUpdate(
+          mockExecutionRepo.query.mock.calls,
+          ExecutionStatus.FAILED,
         );
-        expect(failedCall).toBeDefined();
-        const errorParam = (failedCall![1] as unknown[])[7] as string | null;
-        expect(errorParam).toMatch(/timed out after 50ms/);
+        expect(failedUpdate).toBeDefined();
+        expect(failedUpdate!.error).toMatch(/timed out after 50ms/);
 
         runExecutionSpy.mockRestore();
       });
@@ -5169,52 +5075,28 @@ describe('ExecutionEngineService', () => {
 
   // PR4 — stalled 소진 dead-letter 마감 (ExecutionRunProcessor.onFailed 호출).
   describe('finalizeStalledExhausted (PR4)', () => {
-    const mkExecQb = (affected: number) => {
-      // `duration_ms` 는 SQL 로 계산해 RETURNING 으로 되받는다 — **snake_case** 로 온다
-      // (드라이버 원본이라 ORM 매핑을 안 탄다, #1168 에서 배운 형태).
-      const execute = jest.fn().mockResolvedValue({
-        affected,
-        raw: affected > 0 ? [{ id: 'exec-stalled', duration_ms: 4242 }] : [],
-      });
-      const qb = {
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        setParameter: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        returning: jest.fn().mockReturnThis(),
-        execute,
-      };
-      return qb;
-    };
-    // 자매 `installCancelTx` 와 동형 — 두 UPDATE 가 **같은 트랜잭션 manager** 를 탄다.
+    // 자매 `installCancelTx` 와 같은 유틸 — 두 UPDATE 가 **같은 트랜잭션 manager** 를 탄다.
     // 트랜잭션 밖 repo 를 쓰면 즉시 터지도록 무장해, 다시 밖으로 나가는 회귀를 잡는다.
-    const installStalledTx = (execAffected: number) => {
-      const execQb = mkExecQb(execAffected);
-      const nodeQb = {
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        setParameter: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        returning: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      };
-      const qbs = [execQb, nodeQb];
-      const managerCqb = jest.fn(() => qbs.shift());
-      const txSpy = jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
-        cb({ createQueryBuilder: managerCqb }),
+    const installStalledTx = ({ execution }: { execution: number }) => {
+      const { execQb, nodeQb, tx, managerCqb } = installTxUpdateBuilders(
+        service,
+        {
+          // `duration_ms` 는 SQL 로 계산해 RETURNING 으로 되받는다 — **snake_case** 로 온다
+          // (드라이버 원본이라 ORM 매핑을 안 탄다, #1168 에서 배운 형태).
+          execution: {
+            affected: execution,
+            raw: [{ id: 'exec-stalled', duration_ms: 4242 }],
+          },
+          nodeExecution: { affected: 1 },
+        },
       );
-      (
-        service as unknown as { dataSource: { transaction: jest.Mock } }
-      ).dataSource.transaction = txSpy;
       mockExecutionRepo.createQueryBuilder = jest.fn(() => {
         throw new Error('트랜잭션 밖 executionRepository 사용');
       });
       mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
         throw new Error('트랜잭션 밖 nodeExecutionRepository 사용');
       });
-      return { execQb, nodeQb, txSpy, managerCqb };
+      return { execQb, nodeQb, tx, managerCqb };
     };
 
     // 자매 둘(`cancelParkedExecution`·`markWebChatIdleTimeout`)은 같은 2-테이블 쓰기를
@@ -5225,7 +5107,9 @@ describe('ExecutionEngineService', () => {
     // mock 은 롤백을 흉내내지 못한다. 이 테스트가 보증하는 것은 **두 UPDATE 가 같은
     // 트랜잭션 manager 를 탄다**는 것까지다(원자성 자체가 아니라 그 전제).
     it('Execution·NodeExecution 두 UPDATE 가 같은 트랜잭션 manager 를 탄다', async () => {
-      const { execQb, nodeQb, txSpy, managerCqb } = installStalledTx(1);
+      const { execQb, nodeQb, tx, managerCqb } = installStalledTx({
+        execution: 1,
+      });
       jest
         .spyOn(
           (
@@ -5241,7 +5125,7 @@ describe('ExecutionEngineService', () => {
 
       await service.finalizeStalledExhausted('exec-stalled');
 
-      expect(txSpy).toHaveBeenCalledTimes(1);
+      expect(tx).toHaveBeenCalledTimes(1);
       // 같은 manager 로 두 번 — Execution → NodeExecution 순서.
       expect(managerCqb).toHaveBeenCalledTimes(2);
       expect(execQb.update.mock.calls[0][0]).toBe(Execution);
@@ -5257,7 +5141,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('RUNNING 이면 failed + WORKER_HEARTBEAT_TIMEOUT 마킹 + 자식 cascade + EXECUTION_FAILED emit', async () => {
-      const { execQb, nodeQb } = installStalledTx(1);
+      const { execQb, nodeQb } = installStalledTx({ execution: 1 });
       const emitSpy = jest
         .spyOn(
           (
@@ -5340,7 +5224,7 @@ describe('ExecutionEngineService', () => {
     // 하고, 던지는 대신 삼키면 실패가 관측 불가능해진다. 그리고 커밋되지 않았으므로
     // 종결 이벤트도 나가면 안 된다.
     it('트랜잭션 중간 실패는 삼키지 않고 던진다 + 종결 이벤트도 안 나간다', async () => {
-      const { nodeQb } = installStalledTx(1);
+      const { nodeQb } = installStalledTx({ execution: 1 });
       nodeQb.execute = jest
         .fn()
         .mockRejectedValue(new Error('deadlock detected'));
@@ -5365,7 +5249,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('이미 terminal (affected=0) 이면 no-op — cascade/emit 안 함', async () => {
-      const { nodeQb, managerCqb } = installStalledTx(0);
+      const { nodeQb, managerCqb } = installStalledTx({ execution: 0 });
       const emitSpy = jest
         .spyOn(
           (
@@ -15045,15 +14929,12 @@ describe('ExecutionEngineService', () => {
       // Execution should be marked failed with the emit-missing message.
       // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — guarded UPDATE(raw
       // query) 경유로 바뀌어 더 이상 full-entity `.save()` 를 호출하지 않는다.
-      const failedCall = mockExecutionRepo.query.mock.calls.find(
-        (c: unknown[]) =>
-          typeof c[0] === 'string' &&
-          /UPDATE execution/.test(c[0]) &&
-          (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
+      const failedUpdate = findExecutionStatusUpdate(
+        mockExecutionRepo.query.mock.calls,
+        ExecutionStatus.FAILED,
       );
-      expect(failedCall).toBeDefined();
-      const errorParam = (failedCall![1] as unknown[])[7] as string | null;
-      expect(errorParam).toMatch(/CONTAINER_MISSING_EMIT/);
+      expect(failedUpdate).toBeDefined();
+      expect(failedUpdate!.error).toMatch(/CONTAINER_MISSING_EMIT/);
     });
 
     it('fails execution when container has multiple emit edges', async () => {
@@ -15175,15 +15056,12 @@ describe('ExecutionEngineService', () => {
 
       // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — guarded UPDATE(raw
       // query) 경유로 바뀌어 더 이상 full-entity `.save()` 를 호출하지 않는다.
-      const failedCall = mockExecutionRepo.query.mock.calls.find(
-        (c: unknown[]) =>
-          typeof c[0] === 'string' &&
-          /UPDATE execution/.test(c[0]) &&
-          (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
+      const failedUpdate = findExecutionStatusUpdate(
+        mockExecutionRepo.query.mock.calls,
+        ExecutionStatus.FAILED,
       );
-      expect(failedCall).toBeDefined();
-      const errorParam = (failedCall![1] as unknown[])[7] as string | null;
-      expect(errorParam).toMatch(/CONTAINER_MULTIPLE_EMIT/);
+      expect(failedUpdate).toBeDefined();
+      expect(failedUpdate!.error).toMatch(/CONTAINER_MULTIPLE_EMIT/);
     });
 
     it('executes Map body once per item and transforms via emit port', async () => {
@@ -16238,13 +16116,12 @@ describe('ExecutionEngineService', () => {
           expect.arrayContaining([ExecutionStatus.COMPLETED]),
         );
         // 실패 원인이 안쪽 본문 노드의 오류이고, 그 메시지가 execution.error 로 저장된다.
-        const failedUpdate = mockExecutionRepo.query.mock.calls.find(
-          (c) =>
-            /UPDATE execution/.test(String(c[0])) &&
-            (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
+        const failedUpdate = findExecutionStatusUpdate(
+          mockExecutionRepo.query.mock.calls,
+          ExecutionStatus.FAILED,
         );
         expect(failedUpdate).toBeDefined();
-        expect((failedUpdate![1] as unknown[])[7]).toEqual(
+        expect(failedUpdate!.error).toEqual(
           expect.stringContaining('inner body boom'),
         );
       });

@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-REFRESH"
 title: "OAuth 연결과 토큰 갱신 — 토큰 자동 갱신"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "55ac60ee287bf8abaf60f276a81212ca8b630e1ab26b315c8781b33340026fbe"
+content_hash: "6864a2599414606da1db2095e1d9b6d4a922cc6f10b2ea66675126e823906bee"
 read_as: "approved_fallback"
-task: "CLE-T-BYT4S2"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "dcd5a76ef4ffc2316bf3895732243d3a04243073d4ddef47445d560cb089cb73"
-etag: "sha256-f901d6cb92ec8294082f979fd6b4ac05091a1ad95fadd72ddc071bab7ff0ed77"
+mirror_sha256: "c1925280af692488f8d43f76c5d0dc3cafe8785e33d5b56298106c8c0f5fd323"
+etag: "sha256-abd3369971e4ac647d0a67ed4d20b30c3944ff44ed6a74c0ddf89f288c07c45c"
 ---
 ## 개요
 
@@ -77,7 +77,9 @@ Cafe24 의 `access_token`·`refresh_token` 은 JWT 다. 그래서 JWT `exp` clai
 
 뺀 안: PostgreSQL advisory lock 은 잠금을 쥔 채 Cafe24 HTTP 요청을 트랜잭션에 묶어 커넥션 점유가 길어지고 BullMQ 가 이미 있어 별도 메커니즘 부담이 크다. Redis redlock 은 따로 잠금 메커니즘을 운영해야 한다. 메모리 mutex(`withIntegrationLock`)만 두면 여러 pod 에서 경쟁이 남는다. 이 결정은 토큰 갱신에 한한다. MakeShop 설치 대기 행 재사용은 트랜잭션 안에서 외부를 부르지 않아 advisory lock 을 쓴다([설치 대기 행 재사용의 권한](CLE-INT-OAUTH-PENDING.md#설치-대기-행-재사용의-권한)).
 
-### 갱신 워커는 실패를 다시 던지고 `attempts: 1` 로 둔다 (2026-07-17)
+### 갱신 워커는 실패를 다시 던지고 `attempts: 1` 로 둔다
+
+결정일: 2026-07-17
 
 흡수하면 작업이 `completed` 로 남아 큐 메트릭과 실패 목록에서 사라지고 갱신 실패가 `error(auth_failed)` 로 사용자에게 닿기까지의 진단 경로가 끊긴다. 그래도 재시도하지 않는 이유는 갱신 실패가 거의 늘 끝난 실패(refresh token 만료, Cafe24 무효화)라 재시도가 같은 401 과 알림만 늘리기 때문이다. 다시 시도는 호출자가 자연스럽게 한다. 만료 스캐너 작업의 `attempts: 3` 은 일시적 실패로 한 주기를 잃지 않으려는 것이라 성격이 다르고 두 값이 함께 있는 것은 모순이 아니다.
 

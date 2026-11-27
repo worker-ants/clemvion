@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-RUN"
 title: "통합 데이터와 흐름 — 실행과 정리 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "e0501e47e059357a3d43d81e50ff20b449bcb17cb24f4459a822f0a4c5de3415"
+content_hash: "d028269961d514625d0ba7f6d950a1be7ff0b3ecf66eb173d865b310751b676f"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "34fdb7d08361802db063ea87de018dda8ea07422ead93e696674e29a46d141a8"
-etag: "sha256-6b1ad5e4b86586b75d01cb7cd5df11d81b57d4103ca98c29e68bfea4f2e46879"
+mirror_sha256: "2f115c4377df94e030c8eae5579f9e3790dd8ce26056036d5b46c31a5be24dc0"
+etag: "sha256-fc72f1a7acef0d77eff8bfa7b8295e99bed23352dd45aeeac5d68242a7b351e0"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -73,7 +73,7 @@ sequenceDiagram
 
 ## 멤버가 나가거나 제거될 때
 
-멤버 제거(`removeMember`)와 나가기(`leaveWorkspace`)는 멤버십을 지우는 트랜잭션 안에서 그 멤버의 개인 통합을 지운다. 규칙과 근거, 잠금 순서는 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 가 정한다. 이 절은 삭제 조건과 모듈 경계를 정한다. 다른 문서는 삭제 조건을 이 절에서 링크한다.
+멤버 제거(`removeMember`)와 나가기(`leaveWorkspace`)는 멤버십을 지우는 트랜잭션 안에서 그 멤버의 개인 통합을 지운다. 규칙과 근거, 잠금 순서는 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다) 가 정한다. 이 절은 삭제 조건과 모듈 경계를 정한다. 다른 문서는 삭제 조건을 이 절에서 링크한다.
 
 - 멤버십 DELETE 와 통합 DELETE 를 한 트랜잭션에서 한다. 이 트랜잭션의 잠금 대기 상한과 그 상한을 넘겼을 때의 처리는 [계정과 워크스페이스 데이터 흐름 「워크스페이스 삭제와 나가기」](../CLE-ACCT/CLE-ACCT-DATA.md#워크스페이스-삭제와-나가기) 가 정한다.
 - 멤버십 DELETE 가 1행을 지웠을 때만 통합을 지운다. 0행이면 통합을 건드리지 않고 지금 판정(`MEMBER_NOT_FOUND`, `CANNOT_REMOVE_OWNER`)을 그대로 낸다. 멤버 제거는 지운 멤버의 사용자 ID 를 `RETURNING` 으로 받아 통합 삭제 조건과 감사 로그에 쓴다. 나가기는 요청자가 그 멤버다.
@@ -134,14 +134,20 @@ Redis pub/sub 을 고른 근거와 기각한 대안(유휴 타임아웃 단축)�
 
 ## Rationale
 
-### MCP 인증 실패의 알림을 노드 실행 흐름에 적었다 (2026-11-14)
+### MCP 인증 실패의 알림을 노드 실행 흐름에 적었다
+
+결정일: 2026-11-14
 
 `logUsage` 의 시퀀스는 MCP `AUTH_FAILED` 의 상태 전이만 그리고 그 뒤의 조치 필요 알림을 그리지 않았다. 정본인 [MCP 클라이언트 — 에러 처리 「인증 실패 상태 전환」](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환) 은 행이 바뀐 호출만 알림을 보낸다고 적는다. NERV Task `CLE-T-BDPE71` 에서 시퀀스와 본문에 그 단계를 더했다. 동작은 바뀌지 않았다.
 
-### 나간 멤버의 개인 통합 삭제 구현 반영 (2026-10-30, NERV Task `CLE-T-PS7JQY`)
+### 나간 멤버의 개인 통합 삭제 구현 반영
 
-「멤버가 나가거나 제거될 때」 는 구현한 두 단계 포트에 맞췄고, 구현에 없는 일반 삭제 후처리의 «서비스 유형별 정리» 는 뺐다. 잠금 규칙은 통합 행을 만들 수 있는 쓰기 전체(조직 공개 범위의 begin 포함)에 걸리고 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29) 한 곳에 둔다.
+결정일: 2026-10-30
 
-### 자격 증명 캐시 무효화 채널의 정본을 통합 데이터 문서로 모았다 (2026-11-13)
+NERV Task `CLE-T-PS7JQY` 에서 정했다. 「멤버가 나가거나 제거될 때」 는 구현한 두 단계 포트에 맞췄고, 구현에 없는 일반 삭제 후처리의 «서비스 유형별 정리» 는 뺐다. 잠금 규칙은 통합 행을 만들 수 있는 쓰기 전체(조직 공개 범위의 begin 포함)에 걸리고 잠금 방식은 [통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다) 한 곳에 둔다.
+
+### 자격 증명 캐시 무효화 채널의 정본을 통합 데이터 문서로 모았다
+
+결정일: 2026-11-13
 
 2026-11-13 에 사람이 통합 데이터 문서를 `integration:cache:invalidate` 채널의 정본으로 정했다(NERV Task `CLE-T-VQX844`). 그 전에는 발행 시점 · 페이로드 · 연결 분리 · 방송 실패 처리가 [Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 에만 있었다. 이제 노드 문서에는 풀이 방송을 받았을 때 하는 일만 남는다. 옮기면서 코드와 다시 맞춰 삭제 쪽 발행 지점(`finishIntegrationDeletion`, 개인 통합 삭제 포함), 처리 함수를 등록한 소비자(Database Query 풀 하나), 방송 실패의 fail-open 카운터를 바로잡았다.

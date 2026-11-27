@@ -2,19 +2,19 @@
 id: "CLE-AI-MODELS"
 title: "모델 설정"
 type: "feature"
-version: 4
+version: 5
 status: "approved"
 requirements: ["REQ-MODELS-001", "REQ-MODELS-002", "REQ-MODELS-003", "REQ-MODELS-004", "REQ-MODELS-005", "REQ-MODELS-006", "REQ-MODELS-007", "REQ-MODELS-008", "REQ-MODELS-009", "REQ-MODELS-010", "REQ-MODELS-011", "REQ-MODELS-012", "REQ-MODELS-013", "REQ-MODELS-014", "REQ-MODELS-015", "REQ-MODELS-016", "REQ-MODELS-017", "REQ-MODELS-018", "REQ-MODELS-019", "REQ-MODELS-020", "REQ-MODELS-021", "REQ-MODELS-022", "REQ-MODELS-023", "REQ-MODELS-024", "REQ-MODELS-025", "REQ-MODELS-026", "REQ-MODELS-027", "REQ-MODELS-028", "REQ-MODELS-029", "REQ-MODELS-030", "REQ-MODELS-031", "REQ-MODELS-032", "REQ-MODELS-033", "REQ-MODELS-034", "REQ-MODELS-035", "REQ-MODELS-036", "REQ-MODELS-037", "REQ-MODELS-038"]
 basis_superseded: false
 parent: "CLE-AI"
 ancestors: ["CLE-VISION", "CLE-AI"]
 area: "CLE-AI"
-content_hash: "d68083c42b031fe23d585f7e156c2b3831060fdd621f88269f5fa2d0b5d08473"
+content_hash: "0cf47840b506df3f3891312e6f11a2bddbe88b3f502118d43cc2ea501df3004f"
 read_as: "approved_fallback"
-task: "CLE-T-B7YTQX"
+task: "CLE-T-24PRNR"
 source_paths: ["spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "0e2316b4cef584e7821e33dc08b3e02e3e1633aee30be856d1eff5059ea58776"
-etag: "sha256-3a0aea53dd0e406c20d81e4cf1688a628034b5acec76792e506436de7da902b5"
+mirror_sha256: "6e308fdad093bf42373384791cfd9c49748b0ff3056378ba67c6f5ea70b37787"
+etag: "sha256-a0debc8f84633b7287e1812b017bc3f34e7eda79dfaeea3bb13f3a50ecf72c27"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Part B, §3 API 의 모델 설정 표), `spec/2-navigation/_product-overview.md` (§3.7), `spec/4-nodes/3-ai/_product-overview.md` (§3.1, §4 API 키 암호화, §5 비기능 요구) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -125,6 +125,7 @@ AI 노드 셋(AI 에이전트 · 정보 추출기 · 텍스트 분류기)과 워
 - **Embedding**: 실제 probe 임베딩(`client.embed(['connection test'], defaultModel)`)으로 연결과 모델 유효성을 함께 확인하고, 반환 벡터 길이를 `dimension` 으로 감지한다. 호출 방식은 [LLM 클라이언트](CLE-AI-LLM.md) 에서 정한다.
 - 성공하면 "Connected" 를 표시한다. Embedding 은 감지한 차원도 함께 안내한다.
 - 실패하면 에러 메시지(인증 실패, 네트워크 에러 등)를 표시한다.
+- 응답은 `{ success, message? }` 이고 `message` 는 실패할 때만 싣는다. 성공 응답에는 키가 없다.
 
 ### Embedding 차원 자동 감지와 저장
 
@@ -253,7 +254,9 @@ Chat·Embedding·Rerank 를 한 엔드포인트에서 `kind` 로 구분해 관�
 
 예전 스펙은 `max_tokens` 기본값을 2048 로 적었지만 구현에 적용된 적이 없다. 옛 `/llm-configs` 폼과 지금의 `/models` 폼(`ModelConfigManager`) 모두 처음부터 4096 을 기본값으로 썼다. 코드가 먼저 4096 으로 자리 잡고 스펙 표기만 낡아 있었으므로 스펙을 실제 동작에 맞췄다. 요즘 LLM 은 4096 출력 토큰을 안전하게 지원하므로 잘림을 덜 겪고 쓰기에 더 실용적이다. AI 에이전트 노드 설정 예시의 `maxTokens` 도 4096 으로 맞췄다. 노드 `maxTokens` 를 비우면 모델 설정의 `max_tokens` 를 쓴다([기본 파라미터 기본값](#기본-파라미터-기본값)).
 
-### Anthropic 에서 Temperature 입력을 잠근다 (2026-11-13)
+### Anthropic 에서 Temperature 입력을 잠근다
+
+결정일: 2026-11-13
 
 Anthropic 클라이언트는 temperature · top_p 를 보내지 않는다([LLM 클라이언트](CLE-AI-LLM.md#anthropic-에-샘플링-파라미터를-보내지-않는다-2026-11-12)). 그런데 폼은 Anthropic 에서도 Temperature 를 그대로 받아 값이 적용되는 것처럼 보였다. 세 안을 견줬다. 입력을 숨기면 사용자가 왜 없는지 모른다. 그대로 두고 안내만 달면 여전히 적용되는 것처럼 보인다. 그래서 입력을 비활성으로 두고 그 아래에 이유를 보인다. 저장된 값은 지우지 않는다. 프로바이더를 바꾸면 이전 값이 그대로 돌아오고, Anthropic 이 다시 이 값을 받게 되면 폼만 풀면 된다. 폼에 없는 top_p · frequency_penalty · presence_penalty 는 기본값 표에서 뺐다. 예전 표는 이 셋을 적었지만 폼에 입력이 생긴 적이 없다.
 

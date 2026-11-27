@@ -2,19 +2,19 @@
 id: "CLE-INT-MCP-TOOLS"
 title: "MCP 클라이언트 — 도구 노출과 진단"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MCP"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MCP"]
 area: "CLE-INT"
-content_hash: "e07374674de03723725f066a9050e652622321f7a7012cab20dba4bbf3a556f5"
+content_hash: "db1a2bf3592f01fe70c4d31c64dc60710144720bba7e212065a40455a5a771af"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "d761d6779b6d30b56107081c9215dbe66bc8f8a0104505982e95b2fe8627cdc6"
-etag: "sha256-eac829db221beb82f7986525bc2157f7c4b0fd727b86aad94fcd8ccdc2adde20"
+mirror_sha256: "e9128292d19efc727d483eb68c45f1d1052c90aeeebd40f2aa5bcc0b5f1e17e5"
+etag: "sha256-28a1f8d7264b114f8c54c9872e5d9f0f039aa25ab1e1066e6ce4099665628dd2"
 ---
 ## 개요
 
@@ -231,7 +231,7 @@ MCP 서버가 노출하는 도구 정의(스키마)는 AI 에이전트의 도구
 
 | 값 | 뜻 | 적용 프로바이더 |
 |----|------|---------------|
-| `expired_install_timeout` | Cafe24 Private · MakeShop 의 `pending_install → expired` 24시간 TTL 만료. `install_token` 이 NULL 이라 갱신할 수 없다. 사용자는 이 행을 지우지 않고 같은 상점을 새로 등록하고 이름이 겹치면 다른 이름을 쓴다. 이 통합을 쓰던 AI 에이전트는 새 통합을 다시 고른다([설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)) | cafe24 / makeshop |
+| `expired_install_timeout` | Cafe24 Private · MakeShop 의 `pending_install → expired` 24시간 TTL 만료. `install_token` 이 NULL 이라 갱신할 수 없다. 사용자는 이 행을 지우지 않고 같은 상점을 새로 등록하고 이름이 겹치면 다른 이름을 쓴다. 이 통합을 쓰던 AI 에이전트는 새 통합을 다시 고른다([설치 대기 행 재사용](CLE-INT-OAUTH-PENDING.md#만료된-설치-대기-행은-상점-자리를-놓는다)) | cafe24 / makeshop |
 | `expired_refresh_failed` | `expired` 상태에서 `buildTools` 의 1회 갱신 시도가 `invalid_grant` 로 실패. worker 가 `error(auth_failed)` 로 전이한다([Cafe24 노드 §만료된 통합의 도구 목록 처리](../CLE-NODE-INT/CLE-NODE-CAFE24.md#만료된-통합의-도구-목록-처리). MakeShop 도 같은 정책이다: [MakeShop 노드 §그 밖의 정책](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#그-밖의-정책)) | cafe24 / makeshop |
 | `expired_no_refresh_token` | `expired` 상태인데 `credentials.refresh_token` 이 없어 갱신할 수 없다. 사용자가 아래 「복구 경로」로 되살린다 | cafe24 / makeshop |
 | `error` | `status='error'`(auth_failed·insufficient_scope·network 등). 자동으로 회복하지 않고 사용자가 아래 「복구 경로」로 되살린다. 외부 MCP 가 `error` 로 바뀌는 조건은 [인증 실패 상태 전환](CLE-INT-MCP-ERROR.md#인증-실패-상태-전환) 이 정한다 | cafe24 / makeshop / mcp |
@@ -297,6 +297,8 @@ AI 에이전트가 시작되면 `mcpServers` 설정을 읽고, 서버마다 필�
 
 프로바이더 입력 자리(배열)와 최종 출력(객체)을 이름이 아니라 타입으로 나눈 것은 소유 경계 때문이다. 프로바이더는 요약·에러 배열만 채우고 카운터 집계와 객체 조립은 핸들러가 맡는다.
 
-### `mcpServers` 조회도 워크플로우 작성자 기준을 따른다 (2026-10-24)
+### `mcpServers` 조회도 워크플로우 작성자 기준을 따른다
+
+결정일: 2026-10-24
 
 NERV Task `CLE-T-MG0EQZ` 에서 개인 통합은 노드가 속한 워크플로우의 작성자가 통합 소유자일 때만 쓰도록 사용자가 정했다(2026-10-24, 근거는 [통합 관리](CLE-INT-MANAGE.md) Rationale). AI 에이전트의 `mcpServers` 는 Cafe24 · MakeShop 통합을 노드 없이 쓰는 또 하나의 경로다. 이 경로를 빼면 Cafe24 노드에서는 막힌 남의 개인 통합을 AI 에이전트 도구로는 쓸 수 있다. 그래서 같은 기준을 둔다. 걸린 서버만 건너뛰고 노드는 실패시키지 않는 것은 지금 `lookup_failed` 의 격리 원칙 그대로다. [통합 관리](CLE-INT-MANAGE.md) 의 요구사항도 MCP 서버 항목은 이 격리를 따른다고 적는다. 워크플로우 작성자 기준만이 아니라 판정 전체(통합 소유자의 현재 멤버십, 표현식 참조)를 [통합 관리 「개인 통합 사용 판정」](CLE-INT-MANAGE.md#개인-통합-사용-판정) 에 따른다.
