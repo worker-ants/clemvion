@@ -249,6 +249,9 @@ export class ParallelExecutor {
             // 외부 effective 를 전파. 깊이 ≤ 2 가드 (planParallelBody) 하에서
             // 한 단계만 누적되므로 단순 set (overwrite).
             parentParallelConcurrency: effectiveConcurrency,
+            // 엔진이 이 분기에서 출력을 쓴 노드를 적는 곳. 펼친 부모 분기의 집합을
+            // 이어받지 않게 분기마다 새로 만든다.
+            branchWrittenNodeIds: new Set<string>(),
             // 결정 A: cancel-others-on-fail 시 자기 그룹용 controller.signal,
             // 아니면 상위 abortSignal pass-through (있는 경우).
             abortSignal: branchSignal,
