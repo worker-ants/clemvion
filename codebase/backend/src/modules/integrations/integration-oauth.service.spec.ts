@@ -135,6 +135,23 @@ describe('IntegrationOAuthService', () => {
       expect(stateRepo.save).toHaveBeenCalled();
     });
 
+    // CLE-T-HBDGPZ — `new` 는 새 통합을 만드는 흐름이라 대상 통합이 없다. 요청 본문의 `integrationId` 를 state 에 실으면
+    // 콜백 실패가 그 행(남의 개인 통합 포함)에 기록되고 알림이 나가므로 무시한다.
+    it('mode=new 는 요청의 integrationId 를 state 에 싣지 않는다', async () => {
+      oauthMock.env.google.clientId = 'cid-123';
+      await service.begin({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'google',
+        scopes: ['https://www.googleapis.com/auth/drive'],
+        mode: 'new',
+        integrationId: 'other-integration',
+      });
+      expect(stateRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'new', integrationId: null }),
+      );
+    });
+
     // REQ-INTOAUTH-064 — `new` 는 통합 생성과 같은 인가를 받는다. 컨트롤러가 먼저 보지만 서비스도 다시 본다(Task
     // CLE-T-JDQYT8). 역할이 없으면 관리자 미만으로 본다.
     describe('new 모드의 생성 인가', () => {
@@ -1575,6 +1592,54 @@ describe('IntegrationOAuthService', () => {
       );
       spy.mockRestore();
     });
+
+    // CLE-T-HBDGPZ — begin 이 무시하기 전에 만들어진 state 나 위조된 state 라도 `new` 모드는 행을 가리키지 않는다.
+    it.each([
+      [
+        'state 만료',
+        'google',
+        { expiresAt: new Date(Date.now() - 60_000) },
+        'OAUTH_STATE_EXPIRED',
+      ],
+      [
+        'provider 불일치',
+        'google',
+        { provider: 'github', serviceType: 'github' },
+        'OAUTH_STATE_MISMATCH',
+      ],
+    ])(
+      'mode=new state 에 integrationId 가 있어도 %s 실패를 그 행에 기록하지 않는다',
+      async (_label, provider, overrides, expectedCode) => {
+        dataSource.query.mockResolvedValue([
+          [
+            {
+              provider: 'google',
+              serviceType: 'google',
+              mode: 'new',
+              workspaceId: 'ws-1',
+              userId: 'u-1',
+              requestedScopes: ['scope'],
+              integrationId: 'other-integration',
+              expiresAt: new Date(Date.now() + 60_000),
+              ...overrides,
+            },
+          ],
+          1,
+        ]);
+        const spy = jest.spyOn(service, 'markIntegrationCallbackError');
+        const err = await service
+          .handleCallbackWithErrorCapture(provider, { code: 'c', state: 's' })
+          .catch((err_: unknown) => err_);
+        expect((err as { response?: { code?: string } }).response?.code).toBe(
+          expectedCode,
+        );
+        expect(callbackContextOf(err)).toBeUndefined();
+        expect(spy).not.toHaveBeenCalled();
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+        expect(actionRequiredNotifier.notify).not.toHaveBeenCalled();
+        spy.mockRestore();
+      },
+    );
 
     it('does NOT record when no callback context (pre-state-consumption mismatch)', async () => {
       dataSource.query.mockResolvedValue([[], 0]); // DELETE…RETURNING 0 rows

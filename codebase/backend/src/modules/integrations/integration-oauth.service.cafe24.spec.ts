@@ -7,7 +7,10 @@ import {
 import { createHmac } from 'crypto';
 import { In, IsNull, Not, Or } from 'typeorm';
 import { Workspace } from '../workspaces/entities/workspace.entity';
-import { IntegrationOAuthService } from './integration-oauth.service';
+import {
+  IntegrationOAuthService,
+  callbackContextOf,
+} from './integration-oauth.service';
 import { encryptJson } from './services/credentials-transformer';
 import { makeFakeJwt } from './__test-utils__/make-fake-jwt';
 import { createIntegrationOAuthService } from './__test-utils__/integration-oauth-service.factory';
@@ -4040,9 +4043,8 @@ describe('IntegrationOAuthService — Cafe24', () => {
         details?: { requiresCafe24Approval?: string[] };
       };
     };
-    // mode='new' + integrationId 조합: Cafe24 Private 초기 install 은 begin 단계에서
-    // pending_install Integration row 를 먼저 만들고 state 가 그 row 를 참조하므로
-    // 'new' 흐름이라도 integrationId 가 채워진다 (cafe24 특화 — §9.2).
+    // 행을 가리키는 state 는 `reauthorize` 다. Cafe24 Private 설치(handleInstall)도 pending_install 행을 가리키는
+    // `reauthorize` state 를 만든다. `new` state 는 대상 행이 없다(CLE-T-HBDGPZ).
     function makeStateRow(
       overrides: Partial<Record<string, unknown>> = {},
     ): Record<string, unknown> {
@@ -4053,7 +4055,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
         userId: 'u-1',
         provider: 'cafe24',
         serviceType: 'cafe24',
-        mode: 'new',
+        mode: 'reauthorize',
         integrationId: 'int-iscope',
         requestedScopes: ['mall.read_privacy', 'mall.read_product'],
         integrationName: null,
@@ -4200,9 +4202,35 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(dataSource.query).not.toHaveBeenCalled();
     });
 
+    // CLE-T-HBDGPZ — `new` state 에 integrationId 가 실려 있어도(begin 이 무시하기 전 state · 위조) 그 행에 기록하지 않는다.
+    it('mode=new state 의 integrationId 는 무시 → context 없이 OAUTH_INVALID_SCOPE throw, save 미호출', async () => {
+      integrationRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'int-iscope',
+        workspaceId: 'ws-1',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      });
+      dataSource.query.mockResolvedValueOnce([
+        [makeStateRow({ mode: 'new' })],
+        1,
+      ]);
+      const err = await service
+        .handleCallbackWithErrorCapture('cafe24', {
+          error: 'invalid_scope',
+          state: 'st-iscope',
+        })
+        .catch((err_: unknown) => err_);
+      expect((err as { response?: { code?: string } }).response?.code).toBe(
+        'OAUTH_INVALID_SCOPE',
+      );
+      expect(callbackContextOf(err)).toBeUndefined();
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
     it('integrationId=null (new mode) → context 없이 OAUTH_INVALID_SCOPE throw, save 미호출', async () => {
       dataSource.query.mockResolvedValueOnce([
-        [makeStateRow({ integrationId: null })],
+        [makeStateRow({ mode: 'new', integrationId: null })],
         1,
       ]);
       const err = await service

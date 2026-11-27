@@ -864,7 +864,10 @@ export class IntegrationOAuthService {
       provider: service.oauthProvider,
       serviceType: params.service,
       mode: params.mode,
-      integrationId: params.integrationId ?? null,
+      // `new` 는 대상 통합이 없는 흐름이다. 요청의 integrationId 를 실으면 콜백 실패가 그 행에 기록되고 알림이 나가므로
+      // 무시한다(CLE-T-HBDGPZ, [OAuth 연결 시작](CLE-INT-OAUTH-BEGIN)).
+      integrationId:
+        params.mode === 'new' ? null : (params.integrationId ?? null),
       requestedScopes: params.scopes,
       integrationName: params.integrationName ?? null,
       scope: params.scope ?? null,
@@ -985,13 +988,15 @@ export class IntegrationOAuthService {
     // attaches this so the controller can surface the failure on the row
     // (see `markIntegrationCallbackError`). Pre-consumption throws (state
     // mismatch above) have no integrationId yet and intentionally omit it.
-    const context: CallbackContext | undefined = record.integrationId
-      ? {
-          integrationId: record.integrationId,
-          workspaceId: record.workspaceId,
-          mode: record.mode,
-        }
-      : undefined;
+    // `new` state 는 begin 이 integrationId 를 비우지만, 그 전에 만든 state 라도 행을 가리키지 않는다(CLE-T-HBDGPZ).
+    const context: CallbackContext | undefined =
+      record.integrationId && record.mode !== 'new'
+        ? {
+            integrationId: record.integrationId,
+            workspaceId: record.workspaceId,
+            mode: record.mode,
+          }
+        : undefined;
     // 이미 컨텍스트가 붙은 오류(재판정의 `recordable: false` 거절)는 그대로 둔다.
     const withContext = <E extends Error>(err: E): E =>
       context && !callbackContextOf(err)
@@ -1146,10 +1151,15 @@ export class IntegrationOAuthService {
         code: 'OAUTH_INVALID_SCOPE',
         message: 'Authorization rejected: invalid scope',
       });
-    // state 가 이미 소비됐거나, row context 가 없거나(integrationId NULL), state 가
+    // state 가 이미 소비됐거나, row context 가 없거나(integrationId NULL 이거나 `new` 모드), state 가
     // 다른 provider 것이면 진단 기록 대상이 없으므로 context 없이 throw 한다
-    // (UI 는 팝업 에러만 표시). provider 검증은 다른 흐름 state 오소비 방어.
-    if (!record || record.provider !== 'cafe24' || !record.integrationId) {
+    // (UI 는 팝업 에러만 표시). provider 검증은 다른 흐름 state 오소비 방어. `new` 는 CLE-T-HBDGPZ.
+    if (
+      !record ||
+      record.provider !== 'cafe24' ||
+      !record.integrationId ||
+      record.mode === 'new'
+    ) {
       throw invalidScope();
     }
     throw attachCallbackContext(invalidScope(), {
