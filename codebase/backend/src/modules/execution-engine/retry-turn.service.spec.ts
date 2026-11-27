@@ -12,6 +12,7 @@ import {
 } from '../websocket/websocket-events.types';
 import { ExecutionCancelledError } from './workflow-errors';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
+import { mockGuardedUpdateBuilder } from './__test-utils__/update-query-builder.mock';
 
 // ────────────────────────────────────────────────────────────────────────────
 // C-1 step4 — RetryTurnService 단위 테스트.
@@ -72,13 +73,7 @@ describe('RetryTurnService', () => {
       save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
       // `applyRetryLastTurn` 재진입 원자 claim 용 기본 mock — 기본값은 "claim 성공".
       // claim 실패(affected=0) 시나리오는 각 테스트가 재무장한다.
-      createQueryBuilder: jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      })),
+      createQueryBuilder: mockGuardedUpdateBuilder(),
     };
     mockExecutionRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
@@ -87,15 +82,7 @@ describe('RetryTurnService', () => {
       // `setParameter`/`returning` 까지 갖춘 **완전한** 체인이다 — 프로덕션이 체인
       // 메서드를 하나 추가할 때마다 불완전한 mock 은 TypeError 를 던지고, 그 호출이
       // try/catch 안이면 **테스트가 조용히 vacuous 해진다**(#1171 에서 실제로 겪었다).
-      createQueryBuilder: jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        setParameter: jest.fn().mockReturnThis(),
-        returning: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      })),
+      createQueryBuilder: mockGuardedUpdateBuilder(),
     };
     mockNodeRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
@@ -221,27 +208,15 @@ describe('RetryTurnService', () => {
                 return entity;
               }),
               save: jest.fn(async (_t: unknown, entity: unknown) => entity),
-              createQueryBuilder: jest.fn(() => {
-                const qb = {
-                  update: jest.fn(() => qb),
-                  set: jest.fn((v: Record<string, unknown>) => {
-                    consumeSetArgs.push(v);
-                    return qb;
-                  }),
-                  where: jest.fn(() => qb),
-                  andWhere: jest.fn(
-                    (sql: string, params?: Record<string, unknown>) => {
-                      consumeAndWhereSql.push(sql);
-                      consumeAndWhereParams.push(params);
-                      return qb;
-                    },
-                  ),
-                  execute: jest.fn(async () => ({
-                    affected: qbExecuteAffected,
-                  })),
-                };
-                return qb;
-              }),
+              createQueryBuilder: mockGuardedUpdateBuilder(() => ({
+                set: (v: Record<string, unknown>) => consumeSetArgs.push(v),
+                andWhere: (sql: string, params?: Record<string, unknown>) => {
+                  consumeAndWhereSql.push(sql);
+                  consumeAndWhereParams.push(params);
+                },
+                // 영향 행 수는 테스트가 consume 직전에 정하므로 실행 시점에 읽는다.
+                execute: jest.fn(async () => ({ affected: qbExecuteAffected })),
+              })),
             };
             return cb(manager);
           },
@@ -600,13 +575,9 @@ describe('RetryTurnService', () => {
     it('(b2) claim 이 0행이면 (동시 배달 선점) 그래프를 구동하지 않고 discard 한다', async () => {
       // 핵심 회귀 — read-then-branch 만 있던 시절엔 두 delivery 가 모두 통과했다.
       mockNodeExecutionRepo.findOneBy.mockResolvedValue(makeSpawnedRow());
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 0 }),
-      }));
+      mockNodeExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
+        affected: 0,
+      });
 
       await expect(
         service.applyRetryLastTurn(EXEC, SPAWNED_ID),
@@ -621,17 +592,16 @@ describe('RetryTurnService', () => {
       // status 조건이 빠지면: 턴이 COMPLETED 로 끝나도 `inputData._retryState` 는 남으므로
       //   (inputData 에 쓰는 곳은 spawn 시점뿐) 완료된 턴을 재실행한다.
       // jsonb_exists 조건이 빠지면: 레이스를 전혀 차단하지 못한다.
-      const setSpy = jest.fn().mockReturnThis();
-      const whereSpy = jest.fn().mockReturnThis();
-      const andWhereSpy = jest.fn().mockReturnThis();
+      const setSpy = jest.fn();
+      const whereSpy = jest.fn();
+      const andWhereSpy = jest.fn();
       mockNodeExecutionRepo.findOneBy.mockResolvedValue(makeSpawnedRow());
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
+      mockNodeExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
         set: setSpy,
         where: whereSpy,
         andWhere: andWhereSpy,
-        execute: jest.fn().mockResolvedValue({ affected: 0 }),
-      }));
+        affected: 0,
+      });
 
       await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
 
@@ -664,13 +634,9 @@ describe('RetryTurnService', () => {
       mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
       // 실 Postgres 라면 jsonb_exists(input_data, '_retryState') 가 false 라
       // claim UPDATE 가 0행에 매칭된다 — 그 결과를 흉내낸다.
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 0 }),
-      }));
+      mockNodeExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
+        affected: 0,
+      });
 
       await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
 
@@ -692,13 +658,9 @@ describe('RetryTurnService', () => {
       // 없다 — 그런데 claim UPDATE 자체는 (mock 상) `affected:1` 로 성공한다.
       const row = makeSpawnedRow({ inputData: {} });
       mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      }));
+      mockNodeExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
+        affected: 1,
+      });
 
       await expect(
         service.applyRetryLastTurn(EXEC, SPAWNED_ID),
@@ -742,13 +704,9 @@ describe('RetryTurnService', () => {
       // 재배달 시뮬레이션 — 같은 spawned row 를 fresh 조회하면 첫 delivery 의
       // claim 이 이미 지운 상태(status 여전히 RUNNING, _retryState 없음)를 본다.
       // 이 delivery(재배달)는 claim 실패로 안전하게 discard 돼야 한다.
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 0 }),
-      }));
+      mockNodeExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
+        affected: 0,
+      });
       mockNodeExecutionRepo.findOneBy.mockResolvedValue(
         makeSpawnedRow({ inputData: {} }),
       );
@@ -764,23 +722,18 @@ describe('RetryTurnService', () => {
     function captureNodeUpdates() {
       const sets: Array<Record<string, unknown>> = [];
       const conds: Array<Array<[string, unknown]>> = [];
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
-        const mine: Array<[string, unknown]> = [];
-        conds.push(mine);
-        const qb: Record<string, jest.Mock> = {};
-        qb.update = jest.fn(() => qb);
-        qb.set = jest.fn((v: Record<string, unknown>) => {
-          sets.push(v);
-          return qb;
-        });
-        qb.where = jest.fn((sql: string, p?: unknown) => {
-          mine.push([sql, p]);
-          return qb;
-        });
-        qb.andWhere = qb.where;
-        qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
-        return qb;
-      });
+      mockNodeExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder(
+        () => {
+          const mine: Array<[string, unknown]> = [];
+          conds.push(mine);
+          const where = (sql: string, p?: unknown) => mine.push([sql, p]);
+          return {
+            set: (v: Record<string, unknown>) => sets.push(v),
+            where,
+            andWhere: where,
+          };
+        },
+      );
       return { sets, conds };
     }
 
@@ -792,20 +745,12 @@ describe('RetryTurnService', () => {
         where: [] as Array<[string, unknown]>,
         execute: jest.fn().mockResolvedValue({ affected }),
       };
-      mockExecutionRepo.createQueryBuilder = jest.fn(() => {
-        const qb: Record<string, jest.Mock> = {};
-        qb.update = jest.fn(() => qb);
-        qb.set = jest.fn((v: Record<string, unknown>) => {
-          calls.set.push(v);
-          return qb;
-        });
-        qb.where = jest.fn((sql: string, p?: unknown) => {
-          calls.where.push([sql, p]);
-          return qb;
-        });
-        qb.andWhere = qb.where;
-        qb.execute = calls.execute;
-        return qb;
+      const where = (sql: string, p?: unknown) => calls.where.push([sql, p]);
+      mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
+        set: (v: Record<string, unknown>) => calls.set.push(v),
+        where,
+        andWhere: where,
+        execute: calls.execute,
       });
       return calls;
     }
@@ -951,18 +896,9 @@ describe('RetryTurnService', () => {
         startedAt: new Date(),
       });
       mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
-      let n = 0;
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
-        n += 1;
-        const affected = n === 1 ? 1 : 0;
-        return {
-          update: jest.fn().mockReturnThis(),
-          set: jest.fn().mockReturnThis(),
-          where: jest.fn().mockReturnThis(),
-          andWhere: jest.fn().mockReturnThis(),
-          execute: jest.fn().mockResolvedValue({ affected }),
-        };
-      });
+      mockNodeExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder(
+        (n) => ({ affected: n === 1 ? 1 : 0 }),
+      );
 
       await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
 
@@ -1098,13 +1034,9 @@ describe('RetryTurnService', () => {
     // `finally` 의 deleteContext 가 지운다.
     it('실행 단위 claim 이 rehydrate 보다 먼저 돈다', async () => {
       const claimExecute = jest.fn().mockResolvedValue({ affected: 1 });
-      mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
+      mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
         execute: claimExecute,
-      }));
+      });
       (
         mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
       ).mockResolvedValue(PARK_RELEASED);
@@ -1252,32 +1184,21 @@ describe('RetryTurnService', () => {
       // 첫 query builder 는 배달 claim, 그다음이 마감 UPDATE 다.
       function installCloseQb(closeResult: number | Error): CloseCall {
         const calls: CloseCall = { set: [], where: [], andWhere: [] };
-        let built = 0;
-        mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
-          built += 1;
-          const isClaim = built === 1;
-          const qb: Record<string, jest.Mock> = {};
-          qb.update = jest.fn(() => qb);
-          qb.set = jest.fn((v: Record<string, unknown>) => {
-            if (!isClaim) calls.set.push(v);
-            return qb;
-          });
-          qb.where = jest.fn((...a: unknown[]) => {
-            if (!isClaim) calls.where.push(a);
-            return qb;
-          });
-          qb.andWhere = jest.fn((...a: unknown[]) => {
-            if (!isClaim) calls.andWhere.push(a);
-            return qb;
-          });
-          qb.execute = jest.fn(() => {
-            if (isClaim) return Promise.resolve({ affected: 1 });
-            return closeResult instanceof Error
-              ? Promise.reject(closeResult)
-              : Promise.resolve({ affected: closeResult });
-          });
-          return qb;
-        });
+        mockNodeExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder(
+          (built) => {
+            if (built === 1) return { affected: 1 };
+            return {
+              set: (v: Record<string, unknown>) => calls.set.push(v),
+              where: (...a: unknown[]) => calls.where.push(a),
+              andWhere: (...a: unknown[]) => calls.andWhere.push(a),
+              execute: jest.fn(() =>
+                closeResult instanceof Error
+                  ? Promise.reject(closeResult)
+                  : Promise.resolve({ affected: closeResult }),
+              ),
+            };
+          },
+        );
         return calls;
       }
 
@@ -1885,16 +1806,14 @@ describe('RetryTurnService', () => {
       mockExecutionRepo.findOneBy.mockResolvedValue(
         mkLiveExecution(ExecutionStatus.FAILED),
       );
-      const setSpy = jest.fn().mockReturnThis();
-      const whereSpy = jest.fn().mockReturnThis();
-      const andWhereSpy = jest.fn().mockReturnThis();
-      mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
+      const setSpy = jest.fn();
+      const whereSpy = jest.fn();
+      const andWhereSpy = jest.fn();
+      mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
         set: setSpy,
         where: whereSpy,
         andWhere: andWhereSpy,
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      }));
+      });
 
       const execArg = mkExec();
 
@@ -1939,13 +1858,9 @@ describe('RetryTurnService', () => {
       mockExecutionRepo.findOneBy.mockResolvedValue(
         mkLiveExecution(ExecutionStatus.FAILED),
       );
-      mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 0 }),
-      }));
+      mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
+        affected: 0,
+      });
 
       await priv().failRetryExecution(
         mkExec(),
@@ -1968,15 +1883,12 @@ describe('RetryTurnService', () => {
       // mock 을 그대로 써 `.set()` payload 자체를 검증하지 않았다(그 mock 은 호출마다
       // 새 익명 jest.fn() 을 반환해 스파이를 잡을 수 없다). failRetryExecution 짝
       // 테스트와 대칭으로 전용 spy 를 심는다.
-      const setSpy = jest.fn().mockReturnThis();
-      const andWhereSpy = jest.fn().mockReturnThis();
-      mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
-        update: jest.fn().mockReturnThis(),
+      const setSpy = jest.fn();
+      const andWhereSpy = jest.fn();
+      mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
         set: setSpy,
-        where: jest.fn().mockReturnThis(),
         andWhere: andWhereSpy,
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      }));
+      });
       const execArg = mkExec();
 
       await priv().completeRetryExecution(execArg, EXEC_ID);
@@ -2043,18 +1955,14 @@ describe('RetryTurnService', () => {
         mockExecutionRepo.findOneBy.mockResolvedValue(
           mkLiveExecution(ExecutionStatus.CANCELLED),
         );
-        const setSpy = jest.fn().mockReturnThis();
-        const andWhereSpy = jest.fn().mockReturnThis();
-        const setParameterSpy = jest.fn().mockReturnThis();
-        mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
-          update: jest.fn().mockReturnThis(),
+        const setSpy = jest.fn();
+        const andWhereSpy = jest.fn();
+        const setParameterSpy = jest.fn();
+        mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
           set: setSpy,
-          where: jest.fn().mockReturnThis(),
           andWhere: andWhereSpy,
           setParameter: setParameterSpy,
-          returning: jest.fn().mockReturnThis(),
-          execute: jest.fn().mockResolvedValue({ affected: 1 }),
-        }));
+        });
         // 이전 시도의 stale error 를 fixture 에 미리 채워 둔다 — 취소 종결에서
         // 이 값이 SET 절에 실리면 안 된다. 기존 fixture(mkExec())는 `.error` 를
         // 아예 설정하지 않아 이 문제가 관측 불가능했다는 게 WARNING #1 의 지적.
@@ -2116,27 +2024,20 @@ describe('RetryTurnService', () => {
         // `returning` 을 스파이로 둔다 — mock 의 `raw` 는 실제 `.returning()` 호출과
         // 무관하게 돌아오므로, **호출 자체를 단언하지 않으면** 그 줄을 지워도 GREEN 이다
         // (즉 이 PR 이 고치는 결함으로 회귀해도 못 잡는다).
-        returningSpy = jest.fn().mockReturnThis();
-        mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
-          update: jest.fn().mockReturnThis(),
-          set: jest.fn().mockReturnThis(),
-          where: jest.fn().mockReturnThis(),
-          andWhere: jest.fn().mockReturnThis(),
-          setParameter: jest.fn().mockReturnThis(),
+        returningSpy = jest.fn();
+        mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
           returning: returningSpy,
           // stop() 이 먼저 커밋한 T1 이 그대로 남아 있는 상태. pg 드라이버는 timestamptz
           // 를 **문자열**로 주기도 하므로 그 형태로 준다(되쓰기의 string 분기를 태운다).
-          execute: jest.fn().mockResolvedValue({
-            affected: 1,
-            raw: [
-              {
-                id: EXEC_ID,
-                duration_ms: PERSISTED_T1,
-                finished_at: PERSISTED_FINISHED_AT,
-              },
-            ],
-          }),
-        }));
+          affected: 1,
+          raw: [
+            {
+              id: EXEC_ID,
+              duration_ms: PERSISTED_T1,
+              finished_at: PERSISTED_FINISHED_AT,
+            },
+          ],
+        });
         // 로컬은 재진입 시점이라 훨씬 큰 T2 가 된다 (startedAt 이 오래 전).
         // `finishedAt` 은 되쓰기 **대상**이라 타입에 명시한다 — 추론에 맡기면
         // `mkExec()` 에 없는 키라 단언 줄에서 타입 오류가 난다.
@@ -2179,16 +2080,10 @@ describe('RetryTurnService', () => {
         mockExecutionRepo.findOneBy.mockResolvedValue(
           mkLiveExecution(ExecutionStatus.CANCELLED),
         );
-        mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
-          update: jest.fn().mockReturnThis(),
-          set: jest.fn().mockReturnThis(),
-          where: jest.fn().mockReturnThis(),
-          andWhere: jest.fn().mockReturnThis(),
-          setParameter: jest.fn().mockReturnThis(),
-          returning: jest.fn().mockReturnThis(),
+        mockExecutionRepo.createQueryBuilder = mockGuardedUpdateBuilder({
           // 0행이므로 `raw` 는 의도적으로 없다 — 되쓰기 블록에 들어가지 않는 것이 정답.
-          execute: jest.fn().mockResolvedValue({ affected: 0 }),
-        }));
+          affected: 0,
+        });
 
         await priv().failRetryExecution(
           mkExec(),
