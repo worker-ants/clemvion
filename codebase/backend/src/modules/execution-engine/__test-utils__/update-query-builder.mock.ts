@@ -188,3 +188,18 @@ export function installTxUpdateBuilders(
   ).dataSource.transaction = tx;
   return { execQb, nodeQb, tx, managerCqb, order, byEntity };
 }
+
+/**
+ * {@link TxAffected} 와 선택적 `raw`(`RETURNING` 행)로 두 UPDATE 를 한 번에 설치하는 짧은 꼴.
+ * `raw` 를 주면 두 테이블 모두에 싣는다. 스펙마다 같은 매핑 래퍼를 다시 쓰지 않게 모았다.
+ */
+export function installTxByAffected(
+  service: unknown,
+  affected: TxAffected,
+  raw?: unknown[],
+): TxUpdateBuilders {
+  return installTxUpdateBuilders(service, {
+    execution: { affected: affected.execution, raw },
+    nodeExecution: { affected: affected.nodeExecution, raw },
+  });
+}

@@ -124,6 +124,7 @@ import { IfElseHandler } from '../../nodes/logic/if-else/if-else.handler';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../../nodes/ai/llm-provider-rule';
 import { assertLinkedTransitionApplied } from './linked-transition-guard';
 import {
+  installTxByAffected,
   installTxUpdateBuilders,
   type TxAffected,
 } from './__test-utils__/update-query-builder.mock';
@@ -2981,10 +2982,7 @@ describe('ExecutionEngineService', () => {
     // `raw` 를 비워 두면 emit 이 `null` 이라 단언이 vacuous 해진다.
     const idleRaw = [{ id: 'exec-idle', duration_ms: 3600000 }];
     const installIdleTx = (affected: TxAffected) =>
-      installTxUpdateBuilders(service, {
-        execution: { affected: affected.execution, raw: idleRaw },
-        nodeExecution: { affected: affected.nodeExecution, raw: idleRaw },
-      });
+      installTxByAffected(service, affected, idleRaw);
     const idleEmitter = () =>
       (
         service as unknown as {
@@ -3148,10 +3146,7 @@ describe('ExecutionEngineService', () => {
     // 깨도 GREEN** 이다 — 자매 4경로에서 같은 형태를 두 번 겪었다 (`11_59_09` W3).
     const cancelRaw = [{ id: 'exec-park-1', duration_ms: 7200000 }];
     const installCancelTx = (affected: TxAffected) =>
-      installTxUpdateBuilders(service, {
-        execution: { affected: affected.execution, raw: cancelRaw },
-        nodeExecution: { affected: affected.nodeExecution, raw: cancelRaw },
-      });
+      installTxByAffected(service, affected, cancelRaw);
 
     it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit (cancelledBy:user, error 키 부재)', async () => {
       const { execQb, nodeQb } = installCancelTx({
@@ -3281,10 +3276,7 @@ describe('ExecutionEngineService', () => {
     const ds = () =>
       service as unknown as { dataSource: { transaction: jest.Mock } };
     const installTx = (affected: TxAffected) =>
-      installTxUpdateBuilders(service, {
-        execution: { affected: affected.execution },
-        nodeExecution: { affected: affected.nodeExecution },
-      });
+      installTxByAffected(service, affected);
     const segmentStarted = () =>
       (
         service as unknown as { segmentStartMs: Map<string, number> }
@@ -5085,14 +5077,14 @@ describe('ExecutionEngineService', () => {
   describe('finalizeStalledExhausted (PR4)', () => {
     // 자매 `installCancelTx` 와 같은 유틸 — 두 UPDATE 가 **같은 트랜잭션 manager** 를 탄다.
     // 트랜잭션 밖 repo 를 쓰면 즉시 터지도록 무장해, 다시 밖으로 나가는 회귀를 잡는다.
-    const installStalledTx = (execAffected: number) => {
+    const installStalledTx = ({ execution }: { execution: number }) => {
       const { execQb, nodeQb, tx, managerCqb } = installTxUpdateBuilders(
         service,
         {
           // `duration_ms` 는 SQL 로 계산해 RETURNING 으로 되받는다 — **snake_case** 로 온다
           // (드라이버 원본이라 ORM 매핑을 안 탄다, #1168 에서 배운 형태).
           execution: {
-            affected: execAffected,
+            affected: execution,
             raw: [{ id: 'exec-stalled', duration_ms: 4242 }],
           },
           nodeExecution: { affected: 1 },
@@ -5104,7 +5096,7 @@ describe('ExecutionEngineService', () => {
       mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
         throw new Error('트랜잭션 밖 nodeExecutionRepository 사용');
       });
-      return { execQb, nodeQb, txSpy: tx, managerCqb };
+      return { execQb, nodeQb, tx, managerCqb };
     };
 
     // 자매 둘(`cancelParkedExecution`·`markWebChatIdleTimeout`)은 같은 2-테이블 쓰기를
@@ -5115,7 +5107,9 @@ describe('ExecutionEngineService', () => {
     // mock 은 롤백을 흉내내지 못한다. 이 테스트가 보증하는 것은 **두 UPDATE 가 같은
     // 트랜잭션 manager 를 탄다**는 것까지다(원자성 자체가 아니라 그 전제).
     it('Execution·NodeExecution 두 UPDATE 가 같은 트랜잭션 manager 를 탄다', async () => {
-      const { execQb, nodeQb, txSpy, managerCqb } = installStalledTx(1);
+      const { execQb, nodeQb, tx, managerCqb } = installStalledTx({
+        execution: 1,
+      });
       jest
         .spyOn(
           (
@@ -5131,7 +5125,7 @@ describe('ExecutionEngineService', () => {
 
       await service.finalizeStalledExhausted('exec-stalled');
 
-      expect(txSpy).toHaveBeenCalledTimes(1);
+      expect(tx).toHaveBeenCalledTimes(1);
       // 같은 manager 로 두 번 — Execution → NodeExecution 순서.
       expect(managerCqb).toHaveBeenCalledTimes(2);
       expect(execQb.update.mock.calls[0][0]).toBe(Execution);
@@ -5147,7 +5141,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('RUNNING 이면 failed + WORKER_HEARTBEAT_TIMEOUT 마킹 + 자식 cascade + EXECUTION_FAILED emit', async () => {
-      const { execQb, nodeQb } = installStalledTx(1);
+      const { execQb, nodeQb } = installStalledTx({ execution: 1 });
       const emitSpy = jest
         .spyOn(
           (
@@ -5230,7 +5224,7 @@ describe('ExecutionEngineService', () => {
     // 하고, 던지는 대신 삼키면 실패가 관측 불가능해진다. 그리고 커밋되지 않았으므로
     // 종결 이벤트도 나가면 안 된다.
     it('트랜잭션 중간 실패는 삼키지 않고 던진다 + 종결 이벤트도 안 나간다', async () => {
-      const { nodeQb } = installStalledTx(1);
+      const { nodeQb } = installStalledTx({ execution: 1 });
       nodeQb.execute = jest
         .fn()
         .mockRejectedValue(new Error('deadlock detected'));
@@ -5255,7 +5249,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('이미 terminal (affected=0) 이면 no-op — cascade/emit 안 함', async () => {
-      const { nodeQb, managerCqb } = installStalledTx(0);
+      const { nodeQb, managerCqb } = installStalledTx({ execution: 0 });
       const emitSpy = jest
         .spyOn(
           (

@@ -8,7 +8,7 @@
  */
 
 /** SQL 의 `컬럼 = $n` 짝. 리터럴 대입(`status = 'running'`)은 바인딩이 없어 빠진다. */
-const BOUND_COLUMN = /(\w+) = \$(\d+)/g;
+const BOUND_COLUMN = /(\w+)\s*=\s*\$(\d+)/g;
 
 /**
  * `query` mock 의 호출 가운데 `status` 바인딩 값이 `status` 인 첫 `UPDATE execution` 을 찾아
@@ -22,7 +22,9 @@ export function findExecutionStatusUpdate(
     if (typeof sql !== 'string' || !/UPDATE execution/.test(sql)) continue;
     if (!Array.isArray(params)) continue;
     const columns: Record<string, unknown> = {};
-    for (const [, column, position] of sql.matchAll(BOUND_COLUMN)) {
+    // SET 절만 읽는다. `WHERE status = $n` 이 SET 의 `status` 를 덮어쓰지 못하게 한다.
+    const setClause = sql.split(/\bWHERE\b/i)[0];
+    for (const [, column, position] of setClause.matchAll(BOUND_COLUMN)) {
       columns[column] = params[Number(position) - 1];
     }
     if (columns.status === status) return columns;
