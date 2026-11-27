@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WF"
 title: "용어 사전 — 워크플로우 작성"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "d81d69799c1519e21e3f73ccf54e6432028eea8ea58281032df861cd3a4f7b2f"
+content_hash: "59ea43bc25da0f58b82d8af1a3441f8607307da5c024e4f9cb5f93b056787c2c"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-SCFC83"
 source_paths: []
-mirror_sha256: "6e3a15285f85c44da203a1d58ff09bbff9ccb93141fd4610066663f37b322701"
-etag: "sha256-61bc530756437ee9062bf914c38d8268482aa3bbfa212fea13db60c4fa791207"
+mirror_sha256: "82697aded8773471f74b80d6359863c01d0f86efcbbdf17e226a38af42d11eda"
+etag: "sha256-b0003998740083a1e9bf1dda319a09cc0c203396243144da0e86027327b7e9b6"
 ---
 ## 개요
 
@@ -105,7 +105,9 @@ etag: "sha256-61bc530756437ee9062bf914c38d8268482aa3bbfa212fea13db60c4fa791207"
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「워크플로우 작성」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
 
-### 정의 보정 (2026-10-03)
+### 정의 보정
+
+결정일: 2026-10-03
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
@@ -113,13 +115,17 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「소유 필터」: 「공유된 워크플로우」 는 필터 값 이름이고 팀 배지가 따르는 「공유」 정의는 팀 워크스페이스 단위라고 적었다([워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) Rationale).
 - 「폴더」 · 「시작 가이드 카드」 · 「자동 이어서 진행」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).
 
-### 워크플로우 활성 상태 정의 (2026-10-10)
+### 워크플로우 활성 상태 정의
+
+결정일: 2026-10-10
 
 NERV Task `CLE-T-XRWFMJ` 에서 비활성 워크플로우의 실행 관문을 정했다. 그 결정대로 「워크플로우 활성 상태」 정의에 채팅 채널을 더했다. 막히는 것은 새 실행이고 진행 중인 실행은 이어진다는 점과 재실행도 된다는 점을 함께 적었다. 이전 정의는 구현과 달랐다. 구현이 워크플로우 활성 상태를 보지 않아 비활성 워크플로우도 스케줄 · 웹훅으로 돌았다. 경로별 동작은 [트리거 데이터와 흐름 「워크플로우 활성 관문」](CLE-TRIG/CLE-TRIG-DATA.md#워크플로우-활성-관문) 이 정한다.
 
 같은 날 일관성 검토에서 이 확인을 부르는 이름 "워크플로우 활성 관문" 이 용어집에 없다는 지적이 나왔다. 그 이름을 이 행의 정의에 연결어로 더하고 정본 절로 링크했다. 별도 행을 두지 않은 이유는 관문이 활성 상태를 읽는 확인일 뿐 따로 저장되는 값이 아니어서다.
 
-### 워크플로우 활성 관문 행을 따로 두었다 (2026-10-15)
+### 워크플로우 활성 관문 행을 따로 두었다
+
+결정일: 2026-10-15
 
 2차 일관성 검토에서 앞 절의 판단을 바꿨다. 관문은 따로 저장되는 값이 아니어도 코드 식별자(`isWorkflowInactive`)와 정본 절이 있고 여러 문서가 그 이름으로 부른다. 활성 상태 행 안에 두면 기준 문서도 맞지 않는다. 활성 상태 행의 기준 문서는 [워크플로우 목록과 폴더](CLE-WF/CLE-WF-LIST.md) 이고 관문 규칙의 정본은 [트리거 데이터와 흐름](CLE-TRIG/CLE-TRIG-DATA.md) 이다.
 
