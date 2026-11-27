@@ -2,25 +2,27 @@
 id: "CLE-ACCT-WS-MEMBER"
 title: "워크스페이스와 멤버 — 멤버 관리와 역할"
 type: "design"
-version: 3
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "ed5f50c0ee673562c2e1353853485bc45b943707d49cad6015dc62efec48d637"
+content_hash: "9e9b55d5c198c78d538bfedfa1187450b9742c1e05c432fef8b1831e2bbf77b6"
 read_as: "approved_fallback"
-task: "CLE-T-AQQMY1"
+task: "CLE-T-CHP94Z"
 source_paths: []
-mirror_sha256: "c91d64b0e269261189bec3350ed40df0d57b81609fc9d3846ab5f6796e107ef3"
-etag: "sha256-be248689b36cd01d68da4c8ca431929436f9ced0bacd232b6fcb2b22f6617e87"
+mirror_sha256: "fad021c3a8cb749f8e227cdc4119f0aaa2d9715bcd07010c105623745e2b34a5"
+etag: "sha256-22fbfc49b3d725f58ddba5b6505e721a09bd85f2388b8fce10396148932b61ea"
 ---
 ## 개요
 
 이 문서는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 하위 문서로 멤버 관리(직접 추가 · 역할 변경 · 제거 · 소유자 이양 · 나가기 · 삭제), 관리자 역할 규칙, 역할과 권한 매트릭스를 정한다. 초대는 [초대](CLE-ACCT-WS-INVITE.md), 요청마다 하는 인가 판정은 [API 인가](CLE-ACCT-WS-AUTHZ.md) 가 정한다.
 
 ## 멤버 관리
+
+이 표는 멤버와 워크스페이스를 바꾸는 관리 작업의 권한만 다룬다. 멤버 목록과 설정은 역할과 상관없이 모든 멤버가 조회한다(`GET /api/workspaces/:id/members` · `GET /api/workspaces/:id/settings`). 리소스별 조회 권한의 기준은 [권한 매트릭스](#권한-매트릭스) 다.
 
 | 동작 | 권한 | 설명 |
 | --- | --- | --- |
@@ -44,7 +46,7 @@ etag: "sha256-be248689b36cd01d68da4c8ca431929436f9ced0bacd232b6fcb2b22f6617e87"
 
 제거 후 낮은 역할로 재추가하면 결과는 강등과 같다. 제거하면 그 사람이 멤버 목록에서 사라지고 감사 로그(`member.removed`)에 남으므로 이 경로는 받아들인다. 강등은 막으면서 이 경로를 두는 이유는 [Rationale](#관리자-역할을-주고-빼는-일은-소유자만-한다) 에 있다.
 
-아래 표는 동작과 조건마다 요청자 역할별 결과를 정한다. 편집자와 뷰어는 라우트 가드가 먼저 403 `ADMIN_REQUIRED` 로 막으므로 표에 없다.
+아래 표는 동작과 조건마다 요청자 역할별 결과를 정한다. 편집자와 뷰어는 403 `ADMIN_REQUIRED` 로 막히므로 표에 없다. 멤버 제거만 라우트 가드가 아니라 서비스 계층이 막는다(아래 검사 순서).
 
 | 동작 | 관리자 역할이 걸리는 조건 | 소유자 | 소유자가 아닌 관리자 |
 | --- | --- | --- | --- |
@@ -59,10 +61,11 @@ etag: "sha256-be248689b36cd01d68da4c8ca431929436f9ced0bacd232b6fcb2b22f6617e87"
 - 역할 변경으로 소유자 역할을 주거나 빼는 것은 소유자도 할 수 없다(`OWNER_ROLE_PROTECTED`). 소유자 역할은 소유자 이양으로만 옮긴다.
 - 판정은 서비스 계층이 한다(`WorkspacesService` 의 `updateMemberRole` · `addMemberByEmail`, `WorkspaceInvitationsService` 의 `invite`). 가드는 관리자 이상인지만 본다. 관리자 역할 규칙은 요청 본문의 역할과 대상 멤버의 지금 역할을 봐야 해서 가드가 판정할 수 없다.
 - 규칙과 거부 본문은 공용 함수 `assertMayChangeAdminRole`(`common/constants/workspace-roles.ts`) 한 곳에 있다. e2e `workspace-rbac.e2e-spec.ts` 가 경로를 고정한다. 역할 변경은 대상 멤버 행을 잠근 트랜잭션 안에서 지금 역할을 읽고 판정 · 저장한다(`pessimistic_write`). 요청자의 역할은 잠그지 않고 읽는다. 이유는 [Rationale](#관리자-역할-판정의-요청자-역할은-잠그지-않고-읽는다) 에 있다.
-- 거부 본문은 403 `{ code: "OWNER_REQUIRED", message: "관리자 역할은 소유자만 주거나 뺄 수 있습니다." }` 다(`workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`). 코드는 가드의 소유자 미달과 같고 문구만 이 동작에 맞췄다. 새 에러 코드를 만들지 않은 이유는 [Rationale](#관리자-역할을-주고-빼는-일은-소유자만-한다) 에 있다.
+- 거부 본문은 403 `{ code: "OWNER_REQUIRED", message: "Only the owner can grant or revoke the admin role." }` 다(`workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`). 코드는 가드의 소유자 미달과 같고 문구만 이 동작에 맞췄다. 새 에러 코드를 만들지 않은 이유는 [Rationale](#관리자-역할을-주고-빼는-일은-소유자만-한다) 에 있다.
 - 역할 변경은 대상 멤버 조회(`MEMBER_NOT_FOUND`), 소유자 보호(`OWNER_ROLE_PROTECTED`), 관리자 역할 규칙 순으로 검사한다.
 - 직접 추가는 워크스페이스 종류(`WORKSPACE_TYPE_MISMATCH`), 소유자 지정(`CANNOT_ASSIGN_OWNER`), 관리자 역할 규칙, 가입 여부(`USER_NOT_FOUND`), 멤버 여부(`ALREADY_A_MEMBER`) 순으로 검사한다.
 - 초대는 워크스페이스 종류(`workspace_type_mismatch`), `role=admin` 검사, 멤버 여부(`already_a_member`) 순으로 검사한다. 대기 초대 덮어쓰기 검사는 대기 행을 읽는 트랜잭션 안에서 한다.
+- 멤버 제거(`removeMember`)는 요청자 멤버십(`NOT_A_MEMBER`), 대상 멤버 조회(`MEMBER_NOT_FOUND`), 자기 자신이면 나가기로 넘기기, 요청자가 관리자 이상인지(`ADMIN_REQUIRED`), 소유자 보호(`CANNOT_REMOVE_OWNER`) 순으로 검사한다. 이 라우트에는 `@Roles()` 가 없어서 관리자 이상 판정을 서비스가 한다. 편집자와 뷰어의 자기 자신 제거 요청도 나가기로 넘어가야 하기 때문이다.
 - 이미 관리자인 멤버와 관리자 역할로 대기 중인 초대는 소급해 바꾸지 않는다. 초대 수락과 초대 가입은 초대를 보낸 사람의 지금 역할을 다시 보지 않고 초대 행의 역할로 멤버십을 만든다. 정리가 필요하면 소유자가 역할 변경이나 초대 취소로 한다.
 - 관리자는 다른 관리자를 멤버에서 제거할 수 있다. 제거된 사람을 관리자로 다시 들이는 직접 추가와 초대는 소유자만 한다.
 - 멤버 탭은 소유자가 아닌 관리자에게 초대 역할 선택과 역할 드롭다운에서 관리자를 뺀다. 관리자 멤버의 역할은 드롭다운 대신 읽기 전용 배지로 보인다. 초대 입력 아래와 그 배지의 툴팁에 "관리자 역할은 소유자만 주거나 바꿀 수 있어요." 안내가 나온다. 화면 제한은 편의 기능이고 경계는 서버의 403 이다.
@@ -169,8 +172,8 @@ etag: "sha256-be248689b36cd01d68da4c8ca431929436f9ced0bacd232b6fcb2b22f6617e87"
 
 2026-07-28 에 권한 매트릭스의 "멤버 관리" 행 관리자 열을 CRU 에서 CRUD 로 고쳤다. 표는 관리자에게 삭제를 주지 않았지만 구현은 처음부터 허용하고 있었다.
 
-- `WorkspacesService.removeMember()` 는 `assertAdmin(workspaceId, requesterId)` 만 요구한다.
-- `assertAdmin` 의 통과 집합은 `ADMIN_ROLES = new Set(['owner', 'admin'])` 이라 관리자가 통과한다.
+- `WorkspacesService.removeMember()` 는 요청자가 관리자 이상인지만 본다. 결정 당시에는 `assertAdmin(workspaceId, requesterId)` 를 불렀다. 인가를 대상 조회 앞으로 옮긴 뒤로는 요청자 역할을 `getMemberRole` 로 한 번 읽는다. 비멤버는 `throwNotAMember()`(`NOT_A_MEMBER`), 관리자 미만은 `throwAdminRequired()`(`ADMIN_REQUIRED`)로 거부한다.
+- 관리자 이상 판정(`isAdminRole`)의 통과 집합 `ADMIN_ROLES` 는 소유자와 관리자다(`workspace-roles.ts`). 그래서 관리자가 통과한다.
 - 실제로 거부되는 것은 대상이 소유자인 경우(`CANNOT_REMOVE_OWNER`)이지 요청자 역할이 아니다. 자기 자신 제거는 `leaveWorkspace` 로 넘긴다.
 
 같은 문서의 관리자 역할 설명(멤버 관리가 핵심 권한), 프로필 원문의 멤버 관리 표, 워크스페이스 데이터 흐름의 권한 요약(`admin | ✓ (owner 제외)`)이 모두 삭제 가능 쪽이었고 표의 한 칸만 달랐다.
@@ -194,7 +197,7 @@ etag: "sha256-be248689b36cd01d68da4c8ca431929436f9ced0bacd232b6fcb2b22f6617e87"
 
 이미 관리자인 멤버와 관리자 역할로 대기 중인 초대는 소급해 바꾸지 않았다. 소급하면 이미 합류한 관리자의 권한이 예고 없이 바뀐다. 대기 초대는 소유자가 대기 목록에서 취소할 수 있다. 초대 수락이 초대를 보낸 사람의 지금 역할을 다시 보지 않는 것도 같은 이유로 그대로 두었다.
 
-프론트엔드가 `OWNER_REQUIRED` 로 토스트를 가르는 곳은 소유자 이양 대화 상자뿐이다. 초대와 역할 변경은 서버 문구를 그대로 보여 주므로 같은 코드를 다시 써도 이양 안내가 잘못 뜨지 않는다. 화면은 소유자가 아닌 관리자에게 관리자 선택지를 숨기고 관리자 멤버를 읽기 전용 배지로 보여 준다. 화면 제한은 편의 기능이고 경계는 서버 판정이다.
+프론트엔드가 `OWNER_REQUIRED` 로 토스트를 따로 고르는 곳은 소유자 이양 대화 상자와 멤버 탭의 역할 변경이다. 역할 변경은 «관리자 역할은 소유자만 주거나 바꿀 수 있어요.» 를 보인다. 초대는 공용 코드 매핑의 «소유자 역할이 필요해요.» 를 보인다([백엔드 문구 매핑](../CLE-UI/CLE-UI-I18N-BACKEND.md)). 그래서 같은 코드를 다시 써도 이양 안내가 잘못 뜨지 않는다. 직접 추가를 부르는 화면은 없다. 전에는 초대 화면이 서버 문구를 그대로 보였다. 2026-11-27 에 서버 메시지를 영문으로 옮기면서(NERV Task `CLE-T-CHP94Z`) 초대 화면도 코드로 문구를 고르게 바꿨다. 근거와 기각한 대안은 [워크스페이스 가드](CLE-ACCT-WS-AUTHZ.md) 의 Rationale 「가드 거부와 관리 경로의 메시지를 영문으로 옮긴다」 에 있다. 화면은 소유자가 아닌 관리자에게 관리자 선택지를 숨기고 관리자 멤버를 읽기 전용 배지로 보여 준다. 화면 제한은 편의 기능이고 경계는 서버 판정이다.
 
 ### 관리자 역할 판정의 요청자 역할은 잠그지 않고 읽는다
 
