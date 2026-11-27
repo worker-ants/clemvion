@@ -2,19 +2,19 @@
 id: "CLE-WF-EXPR-VARS"
 title: "표현식 언어 — 내장 참조 변수"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-EXPR"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-EXPR"]
 area: "CLE-WF"
-content_hash: "ec7f4bd6885fef82049199b5c8df6075c6f24966bed22e65d4ed66c32a63d68f"
+content_hash: "69e295be9693f572dd5f408bd012f97cae0750653c84d665cec21ffdc084d96e"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "6d6fd7423c22977471c0acac107c0d531f10ff6f660da503d1fdc1b3536ee08c"
-etag: "sha256-423b32de75a3dfaa060d420d31a1a8e1b67e40d5da3947f79fd826b325ebb6f5"
+mirror_sha256: "3efefe1a2462cf6cd9d26a46bf6d649279ad7e20bd82ac36c247f69957536038"
+etag: "sha256-ac2934002937e84b5ad6377812ec85d584f4dfc8527ebf4ce7fd4dbdd8c7ce69"
 ---
 ## 개요
 
@@ -121,7 +121,9 @@ etag: "sha256-423b32de75a3dfaa060d420d31a1a8e1b67e40d5da3947f79fd826b325ebb6f5"
 
 ## Rationale
 
-### `$trigger`·`$env` 를 실행 시 넣는다 (2026-07-07)
+### `$trigger`·`$env` 를 실행 시 넣는다
+
+결정일: 2026-07-07
 
 평가기, 에디터 자동완성, 변수 목록은 이미 `$trigger`·`$env` 를 노출했는데 실행 엔진 컨텍스트 빌더(`ExpressionResolverService.buildExpressionContext`)가 넣지 않았다. 사용자가 입력하면 실행 때 `EXPR_REFERENCE_ERROR` 로 깨지는, "광고했지만 실패하는" 함정이었다. 두 변수를 넣는 계층을 구현해 없앴다.
 

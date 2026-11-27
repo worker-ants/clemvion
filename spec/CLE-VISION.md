@@ -2,19 +2,19 @@
 id: "CLE-VISION"
 title: "Clemvion 제품 개요"
 type: "vision"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: null
 ancestors: []
 area: null
-content_hash: "5f69a899a0c382ab9c9be91d5a7ec82d36489188e3701413f2fe9d914363b898"
+content_hash: "9691bee56f7d146351db9e129a95da170c86124013a82da625b6188b9dd1615a"
 read_as: "approved_fallback"
-task: "CLE-T-GTG3NQ"
+task: "CLE-T-15DBHE"
 source_paths: ["spec/0-overview.md"]
-mirror_sha256: "c14f7ae6a91471b789d85f47dbb9c9a3cd6ff5247400df1e722a1b2b2bc62665"
-etag: "sha256-45302e6fe28bdac44e1cf3a321bbe4ab849214662d374364661c523e78f22747"
+mirror_sha256: "e5591a5fb1a4cb40b096e3da38fa25e4675d5b7e8bfc5f3fb55593273c2c546e"
+etag: "sha256-a13b6497f6e4c32a119d306360335e9ace1150d59946ada2aff3e73177524441"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (Overview §1~§8, §4 영역별 진입 문서) · 용어: [용어 사전](CLE-GLOSSARY.md)
 
@@ -159,6 +159,8 @@ Cafe24 와 MakeShop 통합은 노드·OAuth·요청 빈도 제한·토큰 갱신
 
 옛 구현 현황 표는 Parallel 노드를 구현 완료 목록과 부분 구현 목록에 함께 두었다. Parallel 노드 스펙은 구현 완료이고 기본으로 켜져 있어, 구현 완료로만 둔다. 옛 표에는 에이전트 메모리·재실행·MCP 클라이언트(구현 완료)와 채팅 채널·External Interaction API(부분 구현)가 빠져 있어 이 기능들이 없는 것처럼 읽혔다. 각 스펙의 상태를 기준으로 행을 더했다. 앞으로도 영역 문서의 구현 상태가 기준이고, 이 표는 요약이다.
 
-### 워크플로우 AI 어시스턴트를 구현 완료에 두는 이유 (2026-11-13)
+### 워크플로우 AI 어시스턴트를 구현 완료에 두는 이유
+
+결정일: 2026-11-13
 
 [워크플로우 AI 어시스턴트](CLE-WF/CLE-WF-ASSIST.md) 의 머리 줄은 «구현됨 (요구사항에 미구현으로 표시한 항목 제외)» 이다. 대화 · 계획 · 편집 · 스트리밍 · 세션이라는 영역의 본체는 구현됐다. 남은 것은 스트리밍 중 새 메시지 요청의 거부(REQ-ASSIST-061)처럼 요구사항 단위로 표시한 항목이다. 이 표는 영역 단위 요약이라 어시스턴트를 구현 완료에 둔다. 영역 안의 미구현은 기준 문서의 요구사항 표시가 정본이고, 표의 행에는 그런 항목이 있다는 사실만 적는다.

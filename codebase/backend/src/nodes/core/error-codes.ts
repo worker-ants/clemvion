@@ -5,7 +5,7 @@
  * So membership here does **not** mean "node-level": the boundary with the sibling
  * `EngineErrorCode` below is asymmetric, and the catalog's "engine-level error"
  * grouping does not map 1:1 onto these two consts. See
- * `spec/conventions/error-codes.md` §Overview.
+ * [에러 코드 규약과 카탈로그 「개요」](CLE-API-ERRCODES#개요).
  *
  * CONVENTIONS §3.2 — runtime failures emitted by a node handler follow
  * the shape `{ code, message, details? }` and route to the `error` port.
@@ -112,7 +112,7 @@ export const ErrorCode = {
   NODE_NOT_RETRYABLE: 'NODE_NOT_RETRYABLE',
   RETRY_TOO_EARLY: 'RETRY_TOO_EARLY',
   // VALIDATION_ERROR: API 공통 400 검증 실패 코드 (prefix 없는 시스템 전역 공용 —
-  // spec/conventions/error-codes.md). submit_form field 검증(publisher 측 동기 검증,
+  // [에러 코드 규약과 카탈로그](CLE-API-ERRCODES)). submit_form field 검증(publisher 측 동기 검증,
   // spec/4-nodes/6-presentation/4-form.md §4·§6.2 / EIA §5.1)도 이 코드를 재사용하며
   // `FormValidationError.code` 값과 일치해야 한다.
   VALIDATION_ERROR: 'VALIDATION_ERROR',
@@ -127,8 +127,11 @@ export const ErrorCode = {
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /**
- * **엔진 레이어** 에러 코드 — 노드 핸들러가 아니라 **엔진 자신이** `Execution.error` /
- * `NodeExecution.error` 봉투에 싣는 값.
+ * 엔진만 발행하는 에러 코드. 위 `ErrorCode` 와 같은 파일에 있는 자매 const 이고 두 const 의
+ * 키는 겹치지 않는다(테스트로 고정한다). 엔진은 `ErrorCode` 의 코드도 일부 쓰므로 "엔진 수준
+ * 에러는 이 const" 로 나누어 읽지 않는다. 코드가 어느 봉투(`Execution.error` ·
+ * `NodeExecution.error`)에 실리는지는 카탈로그가 코드마다 정한다. 근거:
+ * [에러 코드 규약과 카탈로그 「개요」](CLE-API-ERRCODES#개요).
  *
  * ## 왜 별 const 인가 (같은 파일 안에서)
  *
@@ -136,7 +139,7 @@ export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
  * 못박는다. 엔진 코드를 거기 섞으면 그 계약이 조용히 넓어진다. 그렇다고 **파일을 나누면**
  * 같은 파일이 이미 명시한 *"canonical code strings 는 one source of truth"* 원칙이 깨진다
  * (그래서 WS ack 용 `RETRY_*` 도 여기 산다). 그래서 **파일은 하나, const 는 둘** —
- * 레이어는 타입에 드러나고 SoT 는 하나로 남는다.
+ * 엔진만 발행하는 코드는 타입에 드러나고 SoT 는 하나로 남는다.
  *
  * ## 여기 있는 것 / 없는 것
  *

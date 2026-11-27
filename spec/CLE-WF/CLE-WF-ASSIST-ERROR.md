@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-ERROR"
 title: "워크플로우 AI 어시스턴트 — 에러 처리와 모델 설정"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
-content_hash: "4e8a2c5bb6396f27fdd08ffb9f7f5b75173051c15b606932781fea72d8221910"
+content_hash: "42609f35258789d013246373075987c1dab0bcf5532e92792176485142b672d0"
 read_as: "approved_fallback"
-task: "CLE-T-ZN111F"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "e17ec531e8378698f7e5571bfad1ec4455665aaa7cbba6ec6b140ed146788a75"
-etag: "sha256-14d54cd0bfe3a6de96950acd43a21ae86586690409f427f8383700b62ec9bdf0"
+mirror_sha256: "060888d26e5b9841705a32840b66a5c09f422a1e6900760136356d8716f59660"
+etag: "sha256-69c0e4ecc8ae6d8fdd85c38161b0548e1a1f16930ed26a7ee48495bed1d916c3"
 ---
 ## 개요
 
@@ -71,11 +71,15 @@ etag: "sha256-14d54cd0bfe3a6de96950acd43a21ae86586690409f427f8383700b62ec9bdf0"
 
 ## Rationale
 
-### 에러 버블에 프로바이더 원문을 싣지 않는다 (2026-10-23)
+### 에러 버블에 프로바이더 원문을 싣지 않는다
+
+결정일: 2026-10-23
 
 2026-10-10 결정으로 고친 스트림 실패 요구사항은 에러 버블에 «에러 코드와 사유» 를 보인다고 적었다. 이 문구는 모델 프로바이더 원문 노출을 요구사항으로 굳힌다(CWE-209). 당시 스트림 서비스와 에러 버블은 SDK 예외 메시지를 그대로 보였다. [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 는 HTTP 에러 응답에 라이브러리 예외 원문을 싣지 않는다고 정한다. SSE 스트림의 `error` 이벤트는 그 규칙이 다루는 층이 아니지만 막으려는 노출(CWE-209)은 같다. 같은 모듈의 REST 컨트롤러도 같은 이유로 코드만 내보내고, harmony 제어 토큰 대응([대화 루프와 턴 가드](CLE-WF-ASSIST-LOOP.md#프로바이더-이상동작-대응))도 원시 메시지를 로그에만 남긴다. 그래서 «사유» 를 코드별 안내 문구로 정하고 원문은 서버 로그에만 남긴다. 에러 처리 표의 안내 열은 기존 요구사항이 정한 목표로 두었다. 구현은 NERV Task `CLE-T-MX8PSE` 가 맡았다.
 
-### 에러 버블 문구는 `assistant.*` 사전 키로 고른다 (2026-10-24)
+### 에러 버블 문구는 `assistant.*` 사전 키로 고른다
+
+결정일: 2026-10-24
 
 NERV Task `CLE-T-MX8PSE` 가 위 결정을 구현하면서 에러 버블 문구를 어디서 고를지 정했다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 5 의 `ERROR_KO` 대신 규칙 1 의 `assistant.*` 사전 키를 쓴다. 이 문서와 [AI 어시스턴트 스트리밍과 세션 API](CLE-WF-ASSIST-PROTO.md) · [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 의 개정판은 같은 Task 의 변경이라 함께 승인한다.
 

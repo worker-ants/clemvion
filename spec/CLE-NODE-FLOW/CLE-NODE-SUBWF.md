@@ -2,19 +2,19 @@
 id: "CLE-NODE-SUBWF"
 title: "워크플로우 호출 노드"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-SUBWF-001", "REQ-SUBWF-002", "REQ-SUBWF-003", "REQ-SUBWF-004", "REQ-SUBWF-005", "REQ-SUBWF-006", "REQ-SUBWF-007", "REQ-SUBWF-008", "REQ-SUBWF-009", "REQ-SUBWF-010", "REQ-SUBWF-011", "REQ-SUBWF-012", "REQ-SUBWF-013", "REQ-SUBWF-014", "REQ-SUBWF-015", "REQ-SUBWF-016", "REQ-SUBWF-017", "REQ-SUBWF-018", "REQ-SUBWF-019", "REQ-SUBWF-020", "REQ-SUBWF-021", "REQ-SUBWF-022", "REQ-SUBWF-023", "REQ-SUBWF-024", "REQ-SUBWF-025", "REQ-SUBWF-026", "REQ-SUBWF-027", "REQ-SUBWF-028", "REQ-SUBWF-029", "REQ-SUBWF-030", "REQ-SUBWF-031"]
 basis_superseded: false
 parent: "CLE-NODE-FLOW"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-FLOW"]
 area: "CLE-NODE-FLOW"
-content_hash: "876c035f975bf4758d44ad13ac32600ddf98b59065883cbc4e16dc6022e99e53"
+content_hash: "f1de67ea10ee305365d0fd574f838f48707459e0b872e8ac6ae0aad407997f83"
 read_as: "approved_fallback"
-task: "CLE-T-1639BP"
+task: "CLE-T-Q1PD62"
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "4e1bd012093552433aeb13f32b54bcbadfb24df2d57ecc72c3fc6ce8c9ba2787"
-etag: "sha256-6bf177a4e83e947b6b29ef7dc7db034541a1077bf0b58ed3218b384574fa00ba"
+mirror_sha256: "026e17c9136c7f49652a5828a2935f8138d68876addcfcbd5564e883dc0793ac"
+etag: "sha256-5dae5acfbe9ae52cfe7a3388b08487f38ea306aad2fe04e26d0a60f0f24aa554"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -323,7 +323,7 @@ flowchart TD
 
 ### 재귀 깊이 초과를 사전 검증 에러로 분류한 이유
 
-실행 중에 발견되지만 사용자 입력으로 회복할 비즈니스 실패가 아니라 실행 환경의 불변식 위반이다. 그래서 에러 포트로 보내지 않고 throw 한다. throw 에는 에러 코드 없이 메시지만 싣는다. 2026-11-20 에 사람이 이 형태를 유지하기로 정했고, 카탈로그의 `RECURSION_DEPTH_EXCEEDED` 행은 `분류기 인용` 으로 남겼다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](../CLE-API/CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)).
+실행 중에 발견되지만 사용자 입력으로 회복할 비즈니스 실패가 아니라 실행 환경의 불변식 위반이다. 그래서 에러 포트로 보내지 않고 throw 한다. throw 에는 에러 코드 없이 메시지만 싣는다. 2026-11-20 에 사람이 이 형태를 유지하기로 정했다. 카탈로그의 `RECURSION_DEPTH_EXCEEDED` 행은 2026-11-26 에 걷었다([에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md)).
 
 ### 동기 호출의 진입점을 수동 트리거 노드로 제한한 이유
 

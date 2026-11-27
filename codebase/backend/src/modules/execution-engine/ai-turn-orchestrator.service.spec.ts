@@ -66,6 +66,22 @@ function makeMockDriver(): jest.Mocked<AiTurnEngineDriver> {
   } as unknown as jest.Mocked<AiTurnEngineDriver>;
 }
 
+/**
+ * private `finalizeAiNode` 를 직접 부르기 위한 형태. 선점 describe 세 곳이 함께 쓴다
+ * (한 곳만 고쳐지는 일이 없도록 여기 하나만 둔다).
+ */
+type FinalizeSubject = {
+  finalizeAiNode: (
+    savedExecution: unknown,
+    executionId: string,
+    node: Node,
+    context: unknown,
+    nodeExec: unknown,
+    finalStatus?: 'COMPLETED' | 'FAILED',
+    opts?: TransitionOptions,
+  ) => Promise<void>;
+};
+
 describe('AiTurnOrchestrator', () => {
   let orchestrator: AiTurnOrchestrator;
   let handlerRegistry: NodeHandlerRegistry;
@@ -441,18 +457,6 @@ describe('AiTurnOrchestrator', () => {
   // Stop 이 이 시점 실행을 이미 CANCELLED 로 마감했다면(`shouldProceed === false`)
   // NODE_COMPLETED/EXECUTION_RESUMED 를 그대로 emit 하면 "사후 오시그널" 이다.
   describe('finalizeAiNode — retry-last-turn 재진입 RUNNING 재claim 선점', () => {
-    type FinalizeSubject = {
-      finalizeAiNode: (
-        savedExecution: unknown,
-        executionId: string,
-        node: Node,
-        context: unknown,
-        nodeExec: unknown,
-        finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: TransitionOptions,
-      ) => Promise<void>;
-    };
-
     const retryNode: Partial<Node> = {
       id: 'node-retry',
       workflowId,
@@ -594,18 +598,6 @@ describe('AiTurnOrchestrator', () => {
   // 원자화된 관측+save) 로 갱신됐다 — 실제 트랜잭션 원자성 자체의 회귀는
   // `execution-engine.service.spec.ts` 의 동명 describe 가 가드한다.
   describe('finalizeAiNode — RUNNING 유지 분기 선점 (CRITICAL #1 / WARNING #1 3차 라운드 원자화)', () => {
-    type FinalizeSubject = {
-      finalizeAiNode: (
-        savedExecution: unknown,
-        executionId: string,
-        node: Node,
-        context: unknown,
-        nodeExec: unknown,
-        finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: TransitionOptions,
-      ) => Promise<void>;
-    };
-
     const endNode: Partial<Node> = {
       id: 'node-end-crit1',
       workflowId,
@@ -743,18 +735,6 @@ describe('AiTurnOrchestrator', () => {
   // NODE_FAILED 를 사후 재emit 하던 lost-update. 형제 분기와 동일한 가드를
   // 재사용해 닫은 뒤의 핵심 회귀 가드.
   describe('finalizeAiNode — isFailed 분기 선점 (CRITICAL #2)', () => {
-    type FinalizeSubject = {
-      finalizeAiNode: (
-        savedExecution: unknown,
-        executionId: string,
-        node: Node,
-        context: unknown,
-        nodeExec: unknown,
-        finalStatus?: 'COMPLETED' | 'FAILED',
-        opts?: TransitionOptions,
-      ) => Promise<void>;
-    };
-
     const failNode: Partial<Node> = {
       id: 'node-end-crit2',
       workflowId,
@@ -1121,6 +1101,43 @@ describe('AiTurnOrchestrator', () => {
       expect(typeof result).toBe('symbol');
       warnSpy.mockRestore();
     });
+
+    // 가드의 나머지 두 항(`payload === null` · `typeof payload !== 'object'`). 위 케이스는
+    // 세 번째 항(`type` 이 문자열이 아님)만 탄다(CLE-T-WKESFB).
+    it('malformed payload(null) → TypeError 없이 warn + re-park(PARK_RELEASED)', async () => {
+      // `typeof null === 'object'` 라 첫 항이 빠지면 둘째 항을 지나 셋째 항의
+      // `null.type` 접근에서 TypeError 가 난다. 항 순서를 바꿔 셋째 항을 앞에 둬도 같다.
+      const { warnSpy, result } = await driveResumeTurn(null);
+      const hasWarn = warnSpy.mock.calls.some((args) =>
+        String(args[0]).includes('malformed continuation payload'),
+      );
+      expect(hasWarn).toBe(true);
+      expect(typeof result).toBe('symbol');
+      warnSpy.mockRestore();
+    });
+
+    // 원시값은 둘째 항이 빠져도 셋째 항(`'x'.type` 은 undefined)에 걸린다. 둘째 항만 걸러
+    // 내는 입력은 `type` 문자열을 단 함수다(`typeof` 가 'function' 이라 객체가 아니다).
+    it.each<[string, unknown]>([
+      ['문자열', 'ai_end_conversation'],
+      ['숫자', 42],
+      ['불리언', true],
+      [
+        'type 문자열을 단 함수',
+        Object.assign(() => undefined, { type: 'ai_end_conversation' }),
+      ],
+    ])(
+      'malformed payload(비객체: %s) → warn + re-park(PARK_RELEASED)',
+      async (_label, payload) => {
+        const { warnSpy, result } = await driveResumeTurn(payload);
+        const hasWarn = warnSpy.mock.calls.some((args) =>
+          String(args[0]).includes('malformed continuation payload'),
+        );
+        expect(hasWarn).toBe(true);
+        expect(typeof result).toBe('symbol');
+        warnSpy.mockRestore();
+      },
+    );
   });
 
   // -------------------------------------------------------------------------

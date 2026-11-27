@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS"
 title: "AI 어시스턴트 도구"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "ca785dca9d051011177f4f0a15750a4ef9bcbe788aa8cb83e37be40ada3d75bc"
+content_hash: "ea8ca97b090a59747aea7ce80ae50183043afd0dddbb9ce9a71d42efaf7913cb"
 read_as: "approved_fallback"
-task: "CLE-T-ZN111F"
+task: "CLE-T-CNGC0P"
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md"]
-mirror_sha256: "d74158961b23b5d063ae35eddbba335aea33dcf97d0fcb2a43842810b9483259"
-etag: "sha256-7c79d76aeb5105e00de52d517c73f61b31c441a3416ddfd82dd3ae0176b9b338"
+mirror_sha256: "d3df76d070db75afaf1419c1ca4276099c01eff6f50a5ac67a79a1247f5fb1b5"
+etag: "sha256-e498bb6a04238bfa354a6967d9f0186d9f32923b02bfc8ad00a54332d004b3eb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -188,7 +188,9 @@ interface Step {
 
 ## Rationale
 
-### 통합 후보는 워크플로우 작성자 조건도 본다 (2026-10-24)
+### 통합 후보는 워크플로우 작성자 조건도 본다
+
+결정일: 2026-10-24
 
 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 그 검사만 두면 워크플로우 작성자가 아닌 요청자에게 자기 개인 통합이 후보로 나오고 사용자가 골라도 저장이 400 이다. 그래서 `list_integrations` 와 `integration-selector`·`mcp-server-selector` 후보에서 뺀다([AI 어시스턴트 요구사항](CLE-WF-ASSIST.md#요구사항)). 조건은 저장 검사와 같다([통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)의 저장 경로 조건).
 

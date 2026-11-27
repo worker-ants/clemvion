@@ -2,19 +2,19 @@
 id: "CLE-ENG-SPECEVIDENCE-INTEGRITY"
 title: "스펙과 구현 근거 규약 — 스펙 문서 저장소 무결성 가드"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG-SPECEVIDENCE"
 ancestors: ["CLE-VISION", "CLE-ENG", "CLE-ENG-SPECEVIDENCE"]
 area: "CLE-ENG"
-content_hash: "8c06598fe246a4aec2eaedbfe4e02d2d4508a2813227e69096e4e94083b574de"
+content_hash: "ce16dad315e6da55ad5f6087ca11d0c7307052faf08fa4941005156c1767df46"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-15DBHE"
 source_paths: []
-mirror_sha256: "d104a1ac62c98de05090377cef83537572975b697dab1ac342e3ecb3be08134b"
-etag: "sha256-f9c8ded94de111001254c40548fe60426b3f0ff7096c286f8d8fd2ba76217d72"
+mirror_sha256: "e22f3633213420b173f4502c4372ba75e6f7eab00173170906a60c9f23dbef88"
+etag: "sha256-3cc4572c58f1a8c4db6ce69f40328702fe10f002e3bd9232f44b56fa4775e134"
 ---
 ## 개요
 
@@ -75,7 +75,9 @@ NERV 정본 전환 단계 1 에서 저장소 `spec/` 에 NERV 미러 169편(영�
 
 그래서 미러는 두 가드의 대상에서 빼고, 무결성은 미러 도구의 `--check` 로 본다. 단계 1 에서 이 검사는 파일 지문 `mirror_sha256`(frontmatter 의 그 줄을 뺀 파일 전체), 파일 위치, 자리가 어긋난 미러 링크(대상 파일이 없는데 같은 키의 미러가 다른 자리에 있다)를 봤다. 미러 자리(`spec/CLE-*` 와 미러 폴더 안)의 심볼릭 링크와 미러가 아닌 파일도 봤다. 두 가드가 그 자리를 통째로 빼서 거기 놓인 다른 파일은 이 검사 말고는 아무도 보지 않았기 때문이다. 전환 단계 5 에서 옛 트리를 지운 뒤 미러가 아닌 파일 · 폴더를 보는 범위를 `spec/` 전체로 넓혔다. 지금 범위의 정본은 `.claude/tools/nerv-mirror/pull.py` docstring 의 「보장 범위」 다. 대상이 미러에 없는 링크는 보지 않는다. 미러는 구현 PR 이 조금씩 받는 부분 스냅샷이기 때문이다. 링크 대상의 실재는 NERV 가 저장할 때 `relations.unknown` 으로 알린다. 전환 단계 5 에서 옛 트리를 지워 제외할 대상이 없어졌다. 제외 판정(`inNervMirror` · 일관성 검토 오케스트레이터의 `is_nerv_mirror`)과 세 판정 동치 테스트를 함께 걷었다(R-16).
 
-### R-14. 코드 주석은 스펙을 키 링크로 가리킨다 (2026-10-03)
+### R-14. 코드 주석은 스펙을 키 링크로 가리킨다
+
+결정일: 2026-10-03
 
 NERV 정본 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 링크 무결성 가드 범위 2 를 바꿨다. 그 전에는 코드 주석이 `spec/**.md` 를 상대 경로로 링크했고 가드는 그 대상 파일과 앵커를 확인했다. 지금은 코드 주석이 키 링크 `[글](<키>#앵커)` 로 스펙을 가리킨다(규칙 18). 경로 링크는 대상이 있어도 위반이다.
 
@@ -99,7 +101,9 @@ NERV 정본 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 링크 무결성 �
 
 이 가드는 마크다운 링크만 본다. 링크가 아닌 언급은 R-15 의 두 가드가 본다.
 
-### R-15. codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다 (2026-10-03)
+### R-15. codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다
+
+결정일: 2026-10-03
 
 NERV 정본 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 링크가 아닌 언급을 보는 가드 두 개를 더했다. 옛 스펙 트리는 전환 단계 5 에서 지웠다. 그 트리를 경로로 적은 줄은 그때 모두 대상을 잃었다.
 
@@ -118,7 +122,9 @@ NERV 정본 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 링크가 아닌 �
 - **공용 순회**: 세 가드가 `codebase-mentions.ts` 의 같은 순회를 쓴다. 이 문서의 두 가드와 [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 규칙 9 · 10 을 보는 `review-citation-form` 이다. 순회를 고칠 때는 세 가드의 영향을 함께 본다.
 - 키 모양은 `spec-keys.ts` 의 `SPEC_KEY_RE` 한 곳에서 가져온다. 같은 모양의 정규식 복사본이 다른 가드에도 있으니 모양을 바꿀 때 함께 고친다.
 
-### 링크 무결성 가드가 거버넌스 문서를 보는 범위 (2026-08-27)
+### 링크 무결성 가드가 거버넌스 문서를 보는 범위
+
+결정일: 2026-08-27
 
 거버넌스 문서 범위(루트 `*.md` 비재귀 + `.claude/**.md`)는 2026-08-27 에 더했다. 루트를 재귀하지 않는 이유는 `spec/`·`plan/`·`codebase/` 가 딸려 들어와 다른 두 범위와 겹치고 깨진 링크가 정상인 `plan/complete/**` 까지 빨아들이기 때문이다. 예전 `scripts/check-doc-links.py` 가 내세우던 역할을 이 범위가 대신하고 그 스크립트는 지웠다. 배선된 적이 없어 실제로 아무것도 지키지 못했고 오탐도 2건 있었다.
 

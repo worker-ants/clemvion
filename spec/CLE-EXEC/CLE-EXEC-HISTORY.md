@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY"
 title: "실행 내역"
 type: "feature"
-version: 7
+version: 8
 status: "approved"
 requirements: ["REQ-EXHIST-001", "REQ-EXHIST-002", "REQ-EXHIST-003", "REQ-EXHIST-004", "REQ-EXHIST-005", "REQ-EXHIST-006", "REQ-EXHIST-007", "REQ-EXHIST-008", "REQ-EXHIST-009", "REQ-EXHIST-010", "REQ-EXHIST-011", "REQ-EXHIST-012", "REQ-EXHIST-013", "REQ-EXHIST-014", "REQ-EXHIST-015", "REQ-EXHIST-016", "REQ-EXHIST-017", "REQ-EXHIST-018", "REQ-EXHIST-019", "REQ-EXHIST-020", "REQ-EXHIST-021", "REQ-EXHIST-022", "REQ-EXHIST-023", "REQ-EXHIST-024", "REQ-EXHIST-025", "REQ-EXHIST-026", "REQ-EXHIST-027", "REQ-EXHIST-028", "REQ-EXHIST-029", "REQ-EXHIST-030", "REQ-EXHIST-031", "REQ-EXHIST-032", "REQ-EXHIST-033", "REQ-EXHIST-034", "REQ-EXHIST-035", "REQ-EXHIST-036", "REQ-EXHIST-037", "REQ-EXHIST-038", "REQ-EXHIST-039", "REQ-EXHIST-040", "REQ-EXHIST-041", "REQ-EXHIST-042", "REQ-EXHIST-043", "REQ-EXHIST-044", "REQ-EXHIST-045"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "1532b603729602aba5c798fae15d8c2c02315dbe00391f289df554b152dbd012"
+content_hash: "560c0793c695ccf78460c915fb4ac8fed869831f50d843e785700e302b247255"
 read_as: "approved_fallback"
-task: "CLE-T-YFVEPK"
+task: "CLE-T-B87H23"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "d9d9f2933a0394103dd55138b65ebe4a16b9bd56a95303c16d2316a36b3467cd"
-etag: "sha256-3d9d4c5ba096d3bdb74e5e69d58e619a63ae45c28b9554839744ab077573eda4"
+mirror_sha256: "8657a70ecd03692ffb6f446b5bbb991d2540b7792ed96b7083ffbfe2332b7f4a"
+etag: "sha256-d4343dd7d8a0dbc8c370642ff6a18606772ff8678c3c96f41f1c5458b1465b6e"
 ---
 > 구현 상태: 구현됨 (EH-DETAIL-12 여러 노드 대화 재구성 보기만 v2 미구현) · 원문: `spec/2-navigation/14-execution-history.md`, `spec/2-navigation/_product-overview.md` (§3.15 Execution History) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -244,7 +244,7 @@ etag: "sha256-3d9d4c5ba096d3bdb74e5e69d58e619a63ae45c28b9554839744ab077573eda4"
 - 안전 전제는 "두 마스커의 키 기준이 어긋나지 않는다" 이고 `mask-sensitive-fields.util.spec.ts` 의 포함 관계 캐너리가 `DEFAULT_SENSITIVE_KEYS` 를 직접 돌며 확인한다.
 - 이 변경의 대가(같은 워크스페이스 안 노드 사이 자격 증명 전달, 생성 시점 한 곳의 안전에서 출구마다 지켜야 하는 안전으로 바뀐 점)와, 그 문제가 실제로 남는 표면이 HTTP Request 노드의 `authentication='custom'` 뿐이라는 분석은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md) 이 다룬다. 새 출구를 여는 사람은 그 문서를 읽어야 한다.
 
-같은 전제 위에 체인 조회도 뷰어에게 열려 있다([재실행](CLE-EXEC-RERUN.md#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 의 Rationale 참조).
+같은 전제 위에 체인 조회도 뷰어에게 열려 있다([재실행](CLE-EXEC-RERUN.md#체인-조회-권한은-실행-상세-조회와-같다) 의 Rationale 참조).
 
 ### 실행 목록은 실행 시간을, 요약 카드는 실행 시간과 전체 경과를 보인다
 

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE"
 title: "실행 상태 머신과 대기·재개"
 type: "design"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "c17335e8dd67afe28c731c6f6130a231760e498822b99a3f5a95e99c1c9e4b17"
+content_hash: "7c8e27a91fd3cb16019a6365a73e1eabe6cdb7742be1d0fe776021790f1af345"
 read_as: "approved_fallback"
-task: "CLE-T-T4DJ3F"
+task: "CLE-T-B87H23"
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "d02d800ac14fdc266dfdd8b316cac2d76ccad84be7e850de1e1b8876aa751db2"
-etag: "sha256-27494a353075aca3dae4579b79c60377a92d9d11031921c4074f1bc694fb2e29"
+mirror_sha256: "be3369399cd16aa03836296e601ae3af654446bada13b34453fe0b9338298d92"
+etag: "sha256-33a75558ff460a0e6318e808048097432e324f2da1302c30c2fc044477a8407c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -111,7 +111,7 @@ stateDiagram-v2
 
 종결된 실행 행에 대한 쓰기의 예외는 둘이다.
 
-- 엔진은 REST 중지로 `cancelled` 가 된 행에 마지막 실행 구간을 `active_running_ms` 에만 더한다. 이 쓰기는 상태와 종결 컬럼(`finished_at` · `duration_ms`)을 바꾸지 않아 종결 가드 대상이 아니다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14) 에 있다.
+- 엔진은 REST 중지로 `cancelled` 가 된 행에 마지막 실행 구간을 `active_running_ms` 에만 더한다. 이 쓰기는 상태와 종결 컬럼(`finished_at` · `duration_ms`)을 바꾸지 않아 종결 가드 대상이 아니다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다) 에 있다.
 - 마지막 턴 재시도의 실행 단위 claim 은 `failed` 행의 종결 컬럼 셋(`finished_at` · `error` · `duration_ms`)을 비운다. 조건은 `status = 'failed' AND finished_at IS NOT NULL` 이고 상태는 `failed` 그대로다. 같은 실행의 재시도 턴을 하나만 들이려는 쓰기다. 규칙은 [재시도 전제와 재시도 턴 시작](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작), 근거는 [같은 실행의 재시도는 실행 단위 claim 으로 하나만 들인다](CLE-EXEC-STATE-RETRY.md#같은-실행의-재시도는-실행-단위-claim-으로-하나만-들인다) 에 있다.
 
 조건부 UPDATE 결과를 읽을 때는 `RETURNING` 결과가 `[rows, affectedCount]` 튜플이라는 점을 지켜야 한다. 이 규칙은 [raw SQL 결과 읽기 규약](../CLE-ENG/CLE-ENG-RAWQUERY.md) 에 있다.

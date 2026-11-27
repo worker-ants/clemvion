@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-LIMIT"
 title: "웹훅 — 요청 제한과 남용 방어"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "44f17e69d59f3d920779c81c169f568281b35ca32eb0bdfe25222803d0efb69e"
+content_hash: "4f1ab219706a9cae3f292318aed54ee172c6c289e502eec914daa87b0914781c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-XQYZR7"
 source_paths: []
-mirror_sha256: "4397689acec3d6517b7fbdd419557f855c6d623c2b371fedca8955e729c1665b"
-etag: "sha256-db3eabbf36e78e89de334287a8a29589bb6e9a3286235b27184a76e5ede0f69e"
+mirror_sha256: "7683e7b93025e5c9af8851d5426afeeba3cf16fc1fee363e2c9a476ec04c1b78"
+etag: "sha256-fdc09f8dd0a73884f2008d168b07ddd9edc72d79f214e54d151e479152f345ce"
 ---
 ## 개요
 
@@ -42,7 +42,7 @@ etag: "sha256-db3eabbf36e78e89de334287a8a29589bb6e9a3286235b27184a76e5ede0f69e"
 
 ## 호출 빈도 제한
 
-- 전역: 글로벌 throttler 분당 100건. 서명 참조가 있는 채팅 채널 트리거는 이 한도를 받지 않는다. 수치의 기준은 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이다. 채팅 채널 트리거를 빼는 정책은 그 절과 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 서명 참조가 있는 트리거로 좁힌 근거는 [서명 참조가 있는 채팅 채널 트리거만 전역 요청 한도에서 뺀다](#서명-참조가-있는-채팅-채널-트리거만-전역-요청-한도에서-뺀다-2026-11-13) 에 있다.
+- 전역: 글로벌 throttler 분당 100건. 서명 참조가 있는 채팅 채널 트리거는 이 한도를 받지 않는다. 수치의 기준은 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 이다. 채팅 채널 트리거를 빼는 정책은 그 절과 [채팅 채널 「인바운드 관문 순서」](../CLE-CHAT/CLE-CHAT-CORE.md#인바운드-관문-순서) 가 정한다. 서명 참조가 있는 트리거로 좁힌 근거는 [서명 참조가 있는 채팅 채널 트리거만 전역 요청 한도에서 뺀다](#서명-참조가-있는-채팅-채널-트리거만-전역-요청-한도에서-뺀다) 에 있다.
 - 전역 한도를 거는 자리: 채팅 채널 트리거인지는 트리거 행을 조회해야 알 수 있다. 그래서 이 라우트는 `@DeferGlobalThrottle()` 로 전역 가드(`UserThrottlerGuard`)를 건너뛴다. 대신 라우트 가드 `HookTriggerThrottlerGuard` 가 `PublicWebhookThrottleGuard` 뒤에서 전역 가드와 같은 한도 · 같은 저장소 · 같은 키로 센다. 이 라우트는 `@Public()` 이라 키는 IP 다.
   - 판정에는 `PublicWebhookThrottleGuard` 가 조회해 둔 트리거를 쓴다. `config.chatChannel.provider` 가 있고 저장된 `inboundSigningRef` 가 비어 있지 않은 트리거만 세지 않는다(`isSignedChatChannelTrigger`). 인바운드 인증기가 서명을 검증하는 조건과 같다.
   - 서명 참조가 없는 채팅 채널 트리거는 센다. 트리거가 없거나(`404` 로 끝날 요청) 그 가드의 트리거 조회가 실패한 요청도 센다. 판정할 수 없는 요청을 빼지 않기 위해서다.
@@ -103,7 +103,9 @@ IP 를 알 수 없는 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `U
 - 이 방어는 채팅 채널 트리거를 뺀 모든 공개 웹훅에 걸리고 웹채팅은 그 가운데 하나다.
 - 두 문서가 서로를 기준으로 가리키면 한쪽만 고쳤을 때 값이 어긋난다. 웹채팅 보안은 같은 방어를 공개 챗봇 관점에서 다시 적고 값이 다르면 이 문서를 따른다.
 
-### 서명 참조가 있는 채팅 채널 트리거만 전역 요청 한도에서 뺀다 (2026-11-13)
+### 서명 참조가 있는 채팅 채널 트리거만 전역 요청 한도에서 뺀다
+
+결정일: 2026-11-13
 
 채팅 채널 트리거 가운데 서명 참조(`config.chatChannel.inboundSigningRef`)가 있는 트리거만 전역 요청 한도(분당 100건, IP 키)에서 뺀다. 서명 참조가 없는 트리거(옛 트리거 · 채널 연결 전)는 일반 웹훅과 같이 센다. 사람 결정(NERV 질문 `01a1d322-7833-756b-a20d-2e3e247411f3` 답 A, 2026-11-13)이고 구현은 NERV Task `CLE-T-ZC34Y0` 이 했다.
 

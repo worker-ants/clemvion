@@ -5,6 +5,9 @@ Consumed by the three default-branch hooks:
   - .claude/hooks/guard_default_branch_bash.py    (PreToolUse, Bash)
   - .claude/hooks/guard_default_branch_prompt.py  (UserPromptSubmit)
 
+The NERV draft hooks (`guard_spec_body_size.py`, `guard_spec_heading_date.py`) read their
+input with `read_payload` too.
+
 These two rules lived as a ten-line `_read_payload` copied byte for byte into each of the
 three hooks and a `hook_cwd` in `branch_guard`. A rule about what the harness sends is not
 a rule about the default branch, so it sits here and `branch_guard` keeps only the policy.

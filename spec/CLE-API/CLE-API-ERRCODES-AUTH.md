@@ -2,23 +2,23 @@
 id: "CLE-API-ERRCODES-AUTH"
 title: "에러 코드 카탈로그 — 인증 · 인가 · 워크스페이스"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "888b0b6685c24645630cac8cf17e15f31b95b071a55ac93535933d98a8165863"
+content_hash: "0bfb29bfab8006d27d14c1e7bfde7a35b196d1099ba16d1977bf8639fa639597"
 read_as: "approved_fallback"
-task: "CLE-T-2M6Q02"
+task: "CLE-T-0TAE5G"
 source_paths: []
-mirror_sha256: "39c1e4299b583503f4b1def41c85d6c8ae946a302bd1479ad1a5239b3c1600ec"
-etag: "sha256-8522ef9fbfdab569cc4f5cde9efccb4b9a835e40399c1d65fbdac5bfeeb660b9"
+mirror_sha256: "ddb0103f17378c277488d4df55a205e1832b25fccb8f47f77c949965df61fc78"
+etag: "sha256-3e82e68245252833ca2bb88b7a9b063baba73debd0804a85bbce78f623b7e3a4"
 ---
 ## 개요
 
-이 문서는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 하위 문서로 카탈로그 가운데 인증 · 인가 코드(§6.2), 워크스페이스 멤버 직접 추가 코드(§6.12), 워크스페이스 · 로그인 세션 관리 코드(§6.18)를 정한다. 2FA · Passkey · 재인증 코드(§6.3)는 [2FA · Passkey 코드](CLE-API-ERRCODES-MFA.md) 가 정한다.
+이 문서는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 하위 문서로 카탈로그 가운데 인증 · 인가 코드(§6.2), 워크스페이스 멤버 직접 추가 코드(§6.12), 워크스페이스 · 로그인 세션 관리 코드(§6.18)를 정한다. 2단계 인증 · Passkey · 재인증 코드(§6.3)는 [2단계 인증 · Passkey 코드](CLE-API-ERRCODES-MFA.md) 가 정한다.
 
 ## 6.2 인증·인가
 
@@ -76,7 +76,9 @@ etag: "sha256-8522ef9fbfdab569cc4f5cde9efccb4b9a835e40399c1d65fbdac5bfeeb660b9"
 
 ## Rationale
 
-### `ACCOUNT_LOCKED` 423 → 401 오기 정정 (2026-08-31)
+### `ACCOUNT_LOCKED` 423 → 401 오기 정정
+
+결정일: 2026-08-31
 
 카탈로그는 423, 구현(`auth.service.ts` 의 `UnauthorizedException`)과 계정 데이터 흐름 문서의 두 표는 401 이었다. 낡은 것이 아니라 처음부터 틀렸다. `git log -S "LockedException"` 이 백엔드 auth 에서 0건이라 423 을 던진 적이 없고 그 행은 최초 초안부터 그대로였다.
 
@@ -86,7 +88,9 @@ etag: "sha256-8522ef9fbfdab569cc4f5cde9efccb4b9a835e40399c1d65fbdac5bfeeb660b9"
 
 원문 카탈로그는 이 코드를 액세스 토큰 만료로 설명했다. 인증 흐름 문서는 리프레시 토큰 단순 만료에 이 코드를 쓴다고 정하고([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md)) 현재 구현도 갱신 경로에서만 던진다. 카탈로그는 정의 문서를 따르므로(규칙 8) 설명을 정의 문서에 맞췄다. 만료된 액세스 토큰에 전용 코드를 줄지는 이 정렬과 별개인 제품 결정이다.
 
-### 관리자 역할 규칙의 거부에 `OWNER_REQUIRED` 를 다시 쓴다 (2026-10-10)
+### 관리자 역할 규칙의 거부에 `OWNER_REQUIRED` 를 다시 쓴다
+
+결정일: 2026-10-10
 
 2026-10-10 에 관리자 역할을 주고 빼는 일을 소유자 전용으로 정했다(NERV Task `CLE-T-0W7CA7`, [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#관리자-역할을-주고-빼는-일은-소유자만-한다)). 소유자가 아닌 요청자의 요청은 가드를 통과한 뒤 서비스 계층이 403 `OWNER_REQUIRED` 로 거부한다. 거부 본문은 `workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER` 이고 코드 값은 가드의 소유자 미달 코드(`ROLE_REQUIRED.owner.code`)를 그대로 쓴다. 메시지만 «관리자 역할은 소유자만 주거나 뺄 수 있습니다.» 로 이 동작에 맞췄다.
 
@@ -101,7 +105,9 @@ etag: "sha256-8522ef9fbfdab569cc4f5cde9efccb4b9a835e40399c1d65fbdac5bfeeb660b9"
 - `ADMIN_REQUIRED` 를 쓴다: 요청자는 이미 관리자라 틀린 안내가 된다.
 - 기본 코드 `FORBIDDEN` 을 쓴다: 맥락 특화 코드가 있는데 일반 코드로 내리면 클라이언트가 소유자에게 맡기라는 안내를 고를 수 없다.
 
-### `ADMIN_REQUIRED` · `EDITOR_REQUIRED` 행에 통합의 발행 경로를 더했다 (2026-11-07)
+### `ADMIN_REQUIRED` · `EDITOR_REQUIRED` 행에 통합의 발행 경로를 더했다
+
+결정일: 2026-11-07
 
 NERV Task `CLE-T-B4WH9N`(통합 스펙 정리)이 최신 승인본과 대조해 넘긴 두 건이다. 코드 변경은 없다. 이미 있는 발행 경로를 카탈로그가 빠뜨렸던 것을 채웠다. 두 행에 적은 나머지 통합 OAuth 발행 자리(조직 통합의 설치 대기 행 재쓰기, 콜백의 커밋 직전 재판정 `assertOrgScopeModifiable` · `assertPersonalWriteRole`)의 정의 근거는 [OAuth 연결과 토큰 갱신](../CLE-INT/CLE-INT-OAUTH.md) 의 요구사항이다(부모 문서 「하위 문서」 절에 번호를 적었다).
 

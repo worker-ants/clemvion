@@ -2,19 +2,19 @@
 id: "CLE-NODE-AGENT-ERROR"
 title: "AI 에이전트 노드 — 에러와 타임아웃"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-AGENT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-AI", "CLE-NODE-AGENT"]
 area: "CLE-NODE-AI"
-content_hash: "273aea81fabf3dbf1d2dfceaf9a0115d7506f101eafe563b42e51a64b7840b0c"
+content_hash: "2726d33abab0591d3f78df893bbb09c30a1f98334bc37b1f54f0152a1e320880"
 read_as: "approved_fallback"
-task: "CLE-T-1639BP"
+task: "CLE-T-Q1PD62"
 source_paths: []
-mirror_sha256: "61a7adcd6b03118e52381dc63c544796214714490f96ec3718289f8ef37488ed"
-etag: "sha256-fa024b2d5fd3423019d9d022efb95dd1707d50288a86535c31c2bfdffb6691ab"
+mirror_sha256: "51aba2b4d731e009f878f0524c2837e7e1ac6bda9f7154e49c650cfaf42d4601"
+etag: "sha256-05e29601a23153573f3740ba496da1cd8c63efcecb0c9859d7b2f560c21998dc"
 ---
 ## 개요
 
@@ -34,7 +34,7 @@ etag: "sha256-fa024b2d5fd3423019d9d022efb95dd1707d50288a86535c31c2bfdffb6691ab"
 턴 응답을 만드는 LLM `chat` 호출(단일 턴 2곳, 멀티턴 재개 2곳. 각각 첫 호출과 도구 루프 호출)에 호출당 앱 레벨 타임아웃을 건다. 마지막 턴 다시 시도도 재개 경로라 같은 타임아웃을 받는다. 롤링 요약(`summary_buffer`·`persistent` 전략)의 요약 호출도 같은 타임아웃을 받는다. 단일 턴의 요약 호출은 노드 취소 신호(`context.abortSignal`)도 받는다. 멀티턴 재개에는 신호 소스가 없다. 그래서 재개 턴의 요약 호출도 그 턴의 다른 `chat` 호출처럼 앱 타임아웃과 턴 경계의 취소 관측으로 끝난다. 요약 호출이 실패하면 그 턴이 실패한다. 다른 AI 노드와 그 밖의 호출 경로의 값은 [AI 노드 공통](CLE-NODE-AI-COMMON.md) 의 NF-AI-01 이 모아 적는다.
 
 - 환경 변수 `AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 600000ms(10분), `0` 이면 끈다. `0` 이면 `LlmService.chat` 의 기본값 10분도 걸리지 않는다. `LlmService.chat` 은 `opts.timeoutMs > 0` 이면 `withTimeout`(자체 `AbortController`)으로 경쟁시켜 넘으면 예외를 던진다. 새 에러 코드는 없다.
-- 단일 턴과 멀티턴 재개 모두 공유 분류 모듈 `llm-error-payload.ts` 가 이 예외를 재시도 가능 `LLM_CALL_FAILED`(네트워크 타임아웃 계열)로 분류한다. AI 에이전트 경로는 `LLM_TIMEOUT` 을 내지 않는다. `error-codes.ts` 의 `LLM_TIMEOUT` 은 어느 경로도 내지 않는 별개 enum 이며 정리는 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 소관이다.
+- 단일 턴과 멀티턴 재개 모두 공유 분류 모듈 `llm-error-payload.ts` 가 이 예외를 재시도 가능 `LLM_CALL_FAILED`(네트워크 타임아웃 계열)로 분류한다. AI 에이전트 경로는 `LLM_TIMEOUT` 을 내지 않는다. `LLM_TIMEOUT` 은 2026-11-26 에 `error-codes.ts` enum 에서도 지웠다([에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md) Rationale).
 - 단일 턴의 타임아웃도 `error` 포트로 간다. 노드 signal 이 abort 되지 않은 채 끝난 AbortError 는 타임아웃으로 분류한다. 1차 목적은 무기한 멈춤에 상한을 두는 것이다.
 - 타임아웃은 노드 `abortSignal` 과 독립이다. 재개 경로에는 전파할 signal 이 없다. 사용자 실행 중지는 `AbortController` 를 만들지 않고 실행 행만 UPDATE 한다. 노드 취소 신호(`context.abortSignal`)를 채우는 생산자는 `ParallelExecutor` 하나뿐이다([노드 취소 「신호를 만드는 쪽」](../CLE-EXEC/CLE-EXEC-CANCEL.md#신호를-만드는-쪽) 규칙 9). 그래서 재개 경로 취소는 턴 경계 DB 관측 가드가 맡는다(2026-07-27 구현, [노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). `ResumableMessageOptions.signal` 은 지금 늘 `undefined` 인 자리다.
 - 프로바이더 SDK 요청 타임아웃과 나란히 걸려 먼저 발화하는 쪽이 실제 상한이다. SDK 타임아웃 값과 재전송은 [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md#호출-신뢰성-계약) 가 정한다. 앱 레벨은 SDK 타임아웃이 없는 구성의 긴 멈춤과 호출당 단일 손잡이 역할을 한다. 앱 레벨을 1차 상한으로 쓰려면 SDK 보다 낮게 준다. 모든 LLM 호출에 120초를 거는 공통 기준은 없다(2026-10-10 결정, [AI 노드 공통](CLE-NODE-AI-COMMON.md) NF-AI-01).

@@ -2,19 +2,19 @@
 id: "CLE-WF-DATA-SAVE"
 title: "워크플로우 데이터 — 저장 흐름과 복제"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-DATA"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-DATA"]
 area: "CLE-WF"
-content_hash: "bc668b376fbc822e375b9ed71828b0448a17b9c194355005f672830076e3764f"
+content_hash: "09dc4d3bb4b957e85b94ceb2f8be6483d678c69abbf953a12608fba682e46122"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "b2a6a52535b3b3bff02fa18e07bb854e2be123806796de1480e7ae4fd163d6a2"
-etag: "sha256-12fa5f1284e04be779382144b509f95c62ec53a10a4fa0ac7fefad9444ab354b"
+mirror_sha256: "02dcb06732ff597d21d4ce60a620b2636b2ae7f1ebaa3ba0cb3f7be650af5126"
+etag: "sha256-9a73a6662d066059692c9779ffc38068c8d1e919881a5b7ad853da0ddf85d709"
 ---
 ## 개요
 
@@ -61,7 +61,7 @@ sequenceDiagram
    - 잠금을 쥔 동안의 읽기는 좁게 한다. 바뀐 참조가 없으면 통합을 조회하지 않는다. 바뀐 참조의 통합은 한 번에 읽고(`WHERE id = ANY($1) AND workspace_id = $2`) 읽는 컬럼은 `id`·`scope`·`created_by` 다. UUID 모양이 아닌 값은 조회하지 않고 없는 통합으로 본다. 버전 복원은 읽은 통합 가운데 개인 통합이 있으면 그 소유자가 지금 워크스페이스 멤버인지 보려고 `workspace_member` 를 한 번 더 읽는다(`loadWorkspaceMemberIds`). 자격 증명 컬럼은 읽지 않는다. 잠금을 쥔 동안 외부 호출을 하지 않는다.
    - 버전 복원은 캔버스 저장과 같은 쓰기 경로(`writeCanvas`)를 쓰므로 같은 자리에서 검사한다. 복원은 거절하지 않고 실행 시점 판정을 통과하지 못하는 참조만 비운다([버전 기록](CLE-WF-VERSION.md) 의 복원 요구사항). 판정은 [통합 관리 「개인 통합 사용 판정」](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정), 참조 자리와 비우는 방법은 [참조의 소속](../CLE-PLAT/CLE-PLAT-DATA.md#참조의-소속) 의 「통합 참조」 가 정한다.
 4. 노드 사이 그래프 경고 규칙을 평가한다. 심각도 `error` 가 있으면 `GRAPH_VALIDATION_FAILED` 를 던져 트랜잭션을 되돌린다(저장 차단). 규칙은 [그래프 경고 규칙](CLE-WF-WARN.md) 이 정한다.
-5. `createVersion` 이 최신 버전 번호를 `pessimistic_write` 잠금으로 읽고(`ORDER BY version DESC`) 다음 번호로 `workflow_version` 을 넣는다. 같은 워크플로우의 동시 저장은 3단계의 행 잠금에서 이미 줄을 서고 이 잠금은 버전 번호가 겹치지 않게 한다([Rationale](#통합-참조-검사는-워크플로우-행을-잠근-뒤에-한다-2026-10-25)). 스냅샷 구성은 [WorkflowVersion](CLE-WF-DATA-MODEL.md#workflowversion) 이 정한다. 원문은 이 단계를 "같은 트랜잭션 안" 이라고 적어 버전 기록 원문과 정의가 갈린다. [미결 사항](CLE-WF-DATA.md#미결-사항) 참조.
+5. `createVersion` 이 최신 버전 번호를 `pessimistic_write` 잠금으로 읽고(`ORDER BY version DESC`) 다음 번호로 `workflow_version` 을 넣는다. 같은 워크플로우의 동시 저장은 3단계의 행 잠금에서 이미 줄을 서고 이 잠금은 버전 번호가 겹치지 않게 한다([Rationale](#통합-참조-검사는-워크플로우-행을-잠근-뒤에-한다)). 스냅샷 구성은 [WorkflowVersion](CLE-WF-DATA-MODEL.md#workflowversion) 이 정한다. 원문은 이 단계를 "같은 트랜잭션 안" 이라고 적어 버전 기록 원문과 정의가 갈린다. [미결 사항](CLE-WF-DATA.md#미결-사항) 참조.
 
 버전 행을 만드는 전용 API(`POST /api/workflows/:id/versions`)는 없다. 버전 조회 API 와 복원 흐름(`POST /:id/versions/:versionId/restore` 가 스냅샷을 검사한 뒤 캔버스 저장과 같은 쓰기 경로로 `Restored from vN` 새 버전을 만듦)은 [버전 기록](CLE-WF-VERSION.md) 이 정한다.
 
@@ -87,7 +87,9 @@ AI 어시스턴트의 편집 도구 호출은 **DB 를 직접 건드리지 않�
 
 ## Rationale
 
-### 통합 참조 검사는 워크플로우 행을 잠근 뒤에 한다 (2026-10-25)
+### 통합 참조 검사는 워크플로우 행을 잠근 뒤에 한다
+
+결정일: 2026-10-25
 
 처음 승인본은 통합 참조 검사를 저장 흐름 2단계(DTO 사전 검사)에 두었다(NERV Task `CLE-T-MG0EQZ` 코드 리뷰가 짚음). 이 검사는 같은 id 로 저장된 노드와 비교해 바뀐 참조만 본다. 같은 워크플로우의 동시 저장을 줄 세우는 지점은 3단계의 워크플로우 행 잠금이다. 2단계에서 읽은 저장된 노드는 잠금 밖의 값이라 낡을 수 있다.
 
@@ -119,6 +121,8 @@ AI 어시스턴트의 편집 도구 호출은 **DB 를 직접 건드리지 않�
 
 기각한 대안: **복제본에도 수동 트리거 노드를 자동 생성**(`create()` 처럼). 원본에 이미 수동 트리거 노드가 있으므로 중복이 되어 "정확히 1개" 불변식을 깬다. 원본이 비어 있을 때만 뜻이 있는데 그 경우는 원본 자체가 비정상이다.
 
-### 복제·가져오기는 쓸 수 없는 통합 참조를 비우고 성공한다 (2026-10-24)
+### 복제·가져오기는 쓸 수 없는 통합 참조를 비우고 성공한다
+
+결정일: 2026-10-24
 
 [복제는 캔버스 전체를 복사한다](#복제는-캔버스-전체를-복사한다) 는 노드 내용을 그대로 옮기는 결정이다. 2026-10-24 에 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰도록 정했다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 그래서 남의 워크플로우를 복제하면 원본 워크플로우 작성자의 개인 통합 참조는 사본에서 실행될 수 없다. 그대로 두면 사본은 실행할 때마다 실패한다. 복제를 거절하면 사용자가 원본을 고칠 방법이 없다. 그래서 그 참조만 비우고 복제는 성공시킨다(NERV Task `CLE-T-MG0EQZ`, 2026-10-24 사용자 결정). 그래서 사본의 노드 내용은 원본과 다를 수 있다(「캔버스 전체를 복사한다」 의 의도한 예외). 가져오기도 같은 이유로 같은 규칙을 따른다. 비우는 범위와 응답 모양, 없는 통합까지 비우는 이유는 [플랫폼 데이터 모델](../CLE-PLAT/CLE-PLAT-DATA.md) Rationale 이 정한다. 노드 사이 참조를 새 UUID 로 바꾸는 공통 알고리즘을 공유하고 관문은 공유하지 않는다는 결정([복제는 내보내기·가져오기를 다시 쓰지 않는다](#복제는-내보내기가져오기를-다시-쓰지-않는다))은 그대로다. 통합 참조 비우기는 두 경로가 각자 부르는 같은 규칙이다.
