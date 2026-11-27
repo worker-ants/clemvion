@@ -72,7 +72,7 @@ export interface TransactionMockOptions {
  * 이 수정의 핵심이라, 그 자리를 고정값으로 채우면 presence 게이트 재계산이 검증되지 않는다.
  * 두 읽기를 **다르게** 만들어야 하는 테스트는 `options.freshFindOne` 을 쓴다.
  *
- * 선례: `execution-engine.service.spec.ts` 의 admission advisory-lock 트랜잭션 mock
+ * 선례: `execution-engine.service.execute-intake.spec.ts` 의 admission advisory-lock 트랜잭션 mock
  * (그쪽도 콜백을 실제로 실행한다).
  */
 export function withTransactionMock(

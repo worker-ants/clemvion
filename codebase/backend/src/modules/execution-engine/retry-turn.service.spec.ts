@@ -19,7 +19,7 @@ import { mockGuardedUpdateBuilder } from './__test-utils__/update-query-builder.
 //
 // 엔진(god-class)에서 추출된 `execution.retry_last_turn` 생명주기 중, 외부 의존이
 // 없는 순수 lookup/검증/atomic-consume/spawn 단계(`retryLastTurn`)를 격리 검증한다.
-// 본 describe 블록은 엔진 spec(`execution-engine.service.spec.ts`)에서 **그대로
+// 본 describe 블록은 옛 엔진 spec(`execution-engine.service.spec.ts`)에서 **그대로
 // 이관**됐고, assertion 은 변경하지 않았다 — 하니스만 엔진 TestingModule 대신
 // `RetryTurnService` 를 mocked deps 로 직접 생성하도록 적응했다.
 //
@@ -36,7 +36,7 @@ import { mockGuardedUpdateBuilder } from './__test-utils__/update-query-builder.
 // `processAiResumeTurn` 등을 mock 해 orchestration 로직(가드 순서·재조회 시점·
 // 종결 이벤트 emit 조건)을 엔진과 독립적으로 격리 검증한다. 엔진 thin delegator
 // 는 C-1 후속 ④ 로 이미 제거됐다 — 존재하지 않는 위임 경유를 전제할 수 없다.
-// 엔진 spec(`execution-engine.service.spec.ts`)은 같은 진입점을 real driver 로
+// 엔진 spec(`execution-engine.service.retry.spec.ts`)은 같은 진입점을 real driver 로
 // 구동해 실제 `runNodeDispatchLoop`/`rehydrateContext`/`processAiResumeTurn` 까지
 // 포함한 full-integration 을 검증한다 — 두 spec 은 대체가 아니라 격리 단위 테스트
 // 와 통합 테스트로 분업하는 관계다.
