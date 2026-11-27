@@ -2,19 +2,19 @@
 id: "CLE-CHAT-DATA"
 title: "채팅 채널 데이터와 흐름"
 type: "design"
-version: 17
+version: 18
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "8e18b9b3ae483a3ab84a5d40dd77ea9edcf080b8f773d38acd7834f32cdc816f"
+content_hash: "81ed57d161fc7245918307702bd750ca536273e43a99170b8f5b1d4e8a763890"
 read_as: "approved_fallback"
-task: "CLE-T-AAGZRW"
+task: "CLE-T-P4TSAA"
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "6394201dcab45ef29a3da6bb923af395d0b806436b044596cf66f0c00ae6b3e0"
-etag: "sha256-6c481f126396de383e08e953b988d9e7bed04514edff442bb31ff4dc1f826928"
+mirror_sha256: "23e5df1cbc992d553495ec85e0fe5164e45ed7edc6a686de72bfee214049f0dd"
+etag: "sha256-692184262a74fbb2e90bea026c2614087bee5ecf9b0a1ba6cf69aa968bf9f1ee"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -32,7 +32,7 @@ etag: "sha256-6c481f126396de383e08e953b988d9e7bed04514edff442bb31ff4dc1f826928"
 
 - [채팅 채널 데이터와 흐름 — 설정과 안내 문구](CLE-CHAT-DATA-CONFIG.md): `Trigger.config.chatChannel` 필드 계약, `languageHints` 키와 locale 기본 문구, 제어 안내의 프로바이더별 escape. 관련 요구사항: [트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md) REQ-TRIG-053
 - [채팅 채널 데이터와 흐름 — 저장 모델과 상태](CLE-CHAT-DATA-STORE.md): `trigger` 의 `chat_channel_*` 컬럼, 채널 대화 상태, Redis 키 · pub/sub 채널, 채널 대화 상태 전이와 채널 건강도. 관련 요구사항: [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062(채널 대화 상태의 `/start` 예외), REQ-CHAT-073(`chat-channel:listener` pub/sub 실패 정책), REQ-CHAT-071 · 072(같은 pub/sub 의 전파 규칙)
-- [채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름](CLE-CHAT-DATA-FLOW.md): 인바운드 흐름(관문 · command 별 처리 · 큐 적재 실패 · 서명 자료 참조가 없는 행의 검증 생략 결정)과 아웃바운드 흐름(dispatcher · 트리거 단위 listener 레지스트리). 관련 요구사항: [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064(`/start` 의 기존 실행 취소가 실패할 때), REQ-CHAT-065(종결 이벤트의 compare-and-set 정리), REQ-CHAT-066(워크플로우가 비활성일 때의 새 대화), REQ-CHAT-069(Form 입력 대기의 채널 대화 상태 갱신 가드), REQ-CHAT-074 · 075(`/cancel` 처리), REQ-CHAT-076(재개 명령의 큐 적재 실패), REQ-CHAT-080(버린 update 의 인터랙션 기본 응답), REQ-CHAT-081(`ackDroppedUpdate` 를 부르지 않는 경우)
+- [채팅 채널 데이터와 흐름 — 인바운드·아웃바운드 흐름](CLE-CHAT-DATA-FLOW.md): 인바운드 흐름(관문 · command 별 처리 · 큐 적재 실패 · 서명 자료 참조가 없는 행의 검증 생략 결정)과 아웃바운드 흐름(dispatcher · 트리거 단위 listener 레지스트리). 관련 요구사항: [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-062~064(`/start` 의 기존 실행 취소가 실패할 때), REQ-CHAT-065(종결 이벤트의 compare-and-set 정리), REQ-CHAT-066(워크플로우가 비활성일 때의 새 대화), REQ-CHAT-069(Form 입력 대기의 채널 대화 상태 갱신 가드), REQ-CHAT-074 · 075(`/cancel` 처리), REQ-CHAT-076(재개 명령의 큐 적재 실패), REQ-CHAT-080(버린 update 의 인터랙션 기본 응답), REQ-CHAT-081(`ackDroppedUpdate` 를 부르는 경우)
 - [채팅 채널 데이터와 흐름 — 봇 토큰 라이프사이클](CLE-CHAT-DATA-TOKEN.md): 봇 토큰 최초 setup · PATCH · 재발급 6단계 · 실패 되돌리기 · 24시간 유예 정리와 유예 중 재발급
 
 ## Trigger.config.chatChannel
