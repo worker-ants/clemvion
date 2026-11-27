@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-WSEIA"
 title: "에러 코드 카탈로그 — WebSocket · EIA · Background Runs"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "ecb395aeb3bdb18b73fd581be7bd8b5950d4a683000d87432622324a58a4a7e7"
+content_hash: "690a59e4e61d56359579573f49dd832e16caff631ec715b071d176e54e2e1a2d"
 read_as: "approved_fallback"
-task: "CLE-T-PVGKXK"
+task: "CLE-T-12YQBA"
 source_paths: []
-mirror_sha256: "575c51026a7239cf904743eb9f06a536a218c49927b75ddc7f9e96f4ce517c8e"
-etag: "sha256-ac9c8020fdf0ea8a510cbe324935f494c0eadac080429c910fab2fc8ab30d84b"
+mirror_sha256: "9d3d31bb49b5ef9f6984a6d297f152eb2f20f19ecb803713527e806ffb131f27"
+etag: "sha256-7414c94d5402e6bde2f8818297f3537df358863245f7d31ece4896ed656bf9da"
 ---
 ## 개요
 
@@ -81,10 +81,10 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
-| `INVALID_LIMIT` | 400 | `limit` 이 1~200 밖임. 이 코드를 내는 곳은 지식 저장소 그래프 시각화(`GET /api/knowledge-bases/:id/graph/visualization`)뿐이다. 이 경로의 `limit` 은 요청 DTO 검증이 먼저 `VALIDATION_ERROR` 로 답한다([Rationale](#invalid_limit-의-발행처를-그래프-시각화로-좁혔다)) | [Graph RAG 「API」](../CLE-KB/CLE-KB-GRAPH.md#api) |
-| `INVALID_CURSOR` | 400 | `cursor` 를 해석하지 못함. 실행 소유권 검사보다 먼저 판정한다 | [Background 노드 「API 에러 코드」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#api-에러-코드) |
-| `EXECUTION_NOT_FOUND` | 404 | 실행이 없거나 그 워크플로우가 요청자의 워크스페이스에 없음. EIA REST 도 같은 404 를 쓴다(§6.9 표 아래). 트리거 단위 토큰 경로의 401 은 §6.9 행이다 | [Background 노드 「API 에러 코드」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#api-에러-코드) |
-| `BACKGROUND_RUN_NOT_FOUND` | 404 | `backgroundRunId` 가 그 실행에 없음 | [Background 노드 「API 에러 코드」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#api-에러-코드) |
+| `INVALID_LIMIT` | 400 | `limit` 이 1~200 밖임. 이 코드를 내는 곳은 지식 저장소 그래프 시각화(`GET /api/knowledge-bases/:id/graph/visualization`)뿐이다. Background Runs 는 이 코드를 내지 않는다. Background Runs 의 `limit` 이 범위 밖이면 요청 DTO 검증이 먼저 `VALIDATION_ERROR` 로 답한다([Rationale](#invalid_limit-의-발행처를-그래프-시각화로-좁혔다)) | [Graph RAG 「API」](../CLE-KB/CLE-KB-GRAPH.md#api) |
+| `INVALID_CURSOR` | 400 | `cursor` 를 해석하지 못함. 실행 소유권 검사보다 먼저 판정한다 | [Background 노드 — 본문 실행 모니터링 「API 에러 코드」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND-RUNS.md#api-에러-코드) |
+| `EXECUTION_NOT_FOUND` | 404 | 실행이 없거나 그 워크플로우가 요청자의 워크스페이스에 없음. EIA REST 도 같은 404 를 쓴다(§6.9 표 아래). 트리거 단위 토큰 경로의 401 은 §6.9 행이다 | [Background 노드 — 본문 실행 모니터링 「API 에러 코드」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND-RUNS.md#api-에러-코드) |
+| `BACKGROUND_RUN_NOT_FOUND` | 404 | `backgroundRunId` 가 그 실행에 없음 | [Background 노드 — 본문 실행 모니터링 「API 에러 코드」](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND-RUNS.md#api-에러-코드) |
 
 ## Rationale
 
@@ -123,7 +123,8 @@ External Interaction API(`/api/external/*`) 전용 코드다. 외부 호출자 �
 
 결정일: 2026-11-26
 
-Background Runs 의 `limit` 은 요청 DTO(`@Min(1)` · `@Max(200)`)가 서비스보다 먼저 검증해 `400 VALIDATION_ERROR` 로 답한다. 서비스의 `INVALID_LIMIT` 분기에는 닿지 않는다. [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 REQ-BGRUN-022 는 `INVALID_LIMIT` 을 적어 §6.24 행과 어긋났다. 사람이 코드에 맞추기로 정했다(NERV Task `CLE-T-PVGKXK`). 그래서 요구사항을 `VALIDATION_ERROR` 로 고치고 이 행의 정의 문서를 [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) 하나로 줄였다. 닿지 않는 분기를 걷는 일은 코드 Task `CLE-T-8M21QX` 가 맡는다.
+Background Runs 의 `limit` 은 요청 DTO(`@Min(1)` · `@Max(200)`)가 서비스보다 먼저 검증해 `400 VALIDATION_ERROR` 로 답한다. 서비스의 `INVALID_LIMIT` 분기에는 닿지 않는다. [Background 노드](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md) 의 REQ-BGRUN-022 는 `INVALID_LIMIT` 을 적어 §6.24 행과 어긋났다. 사람이 코드에 맞추기로 정했다(NERV Task `CLE-T-PVGKXK`). 그래서 요구사항을 `VALIDATION_ERROR` 로 고치고 이 행의 정의 문서를 [Graph RAG](../CLE-KB/CLE-KB-GRAPH.md) 하나로 줄였다. 닿지 않는 서비스 분기는 2026-11-27 에 지우기로 사람이 정했다(NERV Task `CLE-T-8M21QX`).
 
 - 기각한 대안: 코드를 고쳐 Background Runs 도 `INVALID_LIMIT` 을 내게 하는 안. 이 라우트만 전역 검증 파이프의 응답을 바꿔야 하고 클라이언트가 지금 받는 응답이 바뀐다.
 - 같은 초안에서 §6.7 의 `INTERACTION_TIMEOUT` 행과 «발행하지 않는다» 불릿을 걷었다. 발행처가 없던 이 이름을 enum 에서 지웠기 때문이다(NERV Task `CLE-T-P0W82J`).
+- 행은 §6.24 에 남겼다(2026-11-27 사람 결정, NERV Task `CLE-T-12YQBA`). Background Runs 의 `limit` 응답을 찾는 사람이 이 절에서 `VALIDATION_ERROR` 를 확인하게 하려는 것이다. 절 머리말은 이 경로가 내는 코드라고 적으므로 행 문장에 Background Runs 는 이 코드를 내지 않는다고 적어 어긋남을 풀었다. 기각한 대안은 행을 지식 저장소 코드가 있는 [§6.4](CLE-API-ERRCODES-SYSVAL.md#64-유효성-검증) 로 옮기는 안이다. 이 정리는 표기와 링크만 바로잡는 일이라 행의 자리는 바꾸지 않았다.

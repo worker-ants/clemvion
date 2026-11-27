@@ -628,6 +628,9 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
             required: true,
             enum: ['none', 'starttls', 'tls'] as const,
             default: 'starttls',
+            // `none` 은 남기되 위험을 알린다(NERV Task CLE-T-JDSC37, CLE-INT-AUTH 「Email (SMTP)」).
+            description:
+              'none 은 TLS 를 강제하지 않아요. 서버가 STARTTLS 를 알리면 쓰지만, 중간자가 그 알림을 지우면 비밀번호와 메일 본문이 평문으로 나가요. 서버가 지원하면 starttls 나 tls 를 고르세요.',
           },
           {
             key: 'username',

@@ -44,6 +44,8 @@ export type WarningSeverity = 'blocking' | 'advisory';
  *  - `length(path) > N`  — array / string length comparison; missing path → 0
  *  - `length(path) == N` — etc.
  *  - `path.length > N`   — same as `length(path) > N` (legacy form)
+ *  - `isInteger(path)`   — value is an integer number (no string coercion);
+ *                          `!isInteger(path)` for the opposite
  *
  * Anything more expressive (cross-field business rules, regex, recursion)
  * belongs in the same node component's `validateConfig?: (config) => string[]`

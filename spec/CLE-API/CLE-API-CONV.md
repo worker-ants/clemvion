@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
 content_hash: "a96bb2f22fcfafb058b54f54ac5a226558e0009d2eb1ffaf765d992adc83ef2e"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-VWC60Z"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "c5b3df8353faae83df597ec44a82aabd1f89b4065bc6c8109f6eebe092b03f28"
-etag: "sha256-9aad01c304586251ef2aa59548aba529cda16a904347fe63906e8bd77e0dc021"
+mirror_sha256: "788cab9f86171c24f3064b45723065582cbe3ec36fbb3a04eb2fa4644a5caec3"
+etag: "sha256-a6ba7389fba33adb45ec48ea0b5eaa08bbffb2ec11da0c3fcd73a8c1c42af0e6"
 ---
 > 구현 상태: 부분 구현 (WebSocket `execution.continue` 는 미구현) · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

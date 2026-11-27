@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY"
 title: "EIA 알림 웹훅"
 type: "feature"
-version: 17
+version: 18
 status: "approved"
 requirements: ["REQ-EIANOTI-001", "REQ-EIANOTI-002", "REQ-EIANOTI-003", "REQ-EIANOTI-004", "REQ-EIANOTI-005", "REQ-EIANOTI-006", "REQ-EIANOTI-007", "REQ-EIANOTI-008", "REQ-EIANOTI-009", "REQ-EIANOTI-010", "REQ-EIANOTI-011", "REQ-EIANOTI-012", "REQ-EIANOTI-013", "REQ-EIANOTI-014", "REQ-EIANOTI-015", "REQ-EIANOTI-016", "REQ-EIANOTI-017", "REQ-EIANOTI-018", "REQ-EIANOTI-019", "REQ-EIANOTI-020", "REQ-EIANOTI-021", "REQ-EIANOTI-022", "REQ-EIANOTI-023", "REQ-EIANOTI-024", "REQ-EIANOTI-025", "REQ-EIANOTI-026", "REQ-EIANOTI-027", "REQ-EIANOTI-028", "REQ-EIANOTI-029", "REQ-EIANOTI-030", "REQ-EIANOTI-031", "REQ-EIANOTI-032", "REQ-EIANOTI-033", "REQ-EIANOTI-034", "REQ-EIANOTI-035", "REQ-EIANOTI-036", "REQ-EIANOTI-037", "REQ-EIANOTI-038", "REQ-EIANOTI-039", "REQ-EIANOTI-040"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "080a3daf8994032d295242201676c5996547cb8c43fc44275bf6e08e8a3d0a84"
+content_hash: "d16cd3240ceec865f8e3a2cc065c8753cebb5095f94de15e25c719a1eaeb51c5"
 read_as: "approved_fallback"
-task: "CLE-T-FT8MMN"
+task: "CLE-T-ZPT9W7"
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "d05cb219e88ee9a3808b3a681fd877e222d7c807bc619642d3681b2331c924c2"
-etag: "sha256-967cbed689033b052462cd350b91e601b1e578be8c0a23373418c161c0a9a42b"
+mirror_sha256: "a45e2fb1e1d8cc46f7a85a52f778d3201cc70cb36cf2b75f210ddaf26c612e8a"
+etag: "sha256-96aed9de3fb4c301bd3b9e16ec9bfcb2a5a4457bf7ae641b9fdf738e022be1de"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -76,7 +76,7 @@ EIA 알림 웹훅(Outbound Notification Webhook, `config.notification`)은 실�
 | [EIA 알림 웹훅 — 이벤트와 payload](CLE-EIA-NOTIFY-EVENTS.md) | 구독 이벤트, 이벤트 봉투와 알림 웹훅 페이로드, 종결 이벤트 필드 집합, `execution.cancelled` 행동 계약, 이벤트별 payload | REQ-EIANOTI-002, 010, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033 |
 | [EIA 알림 웹훅 — 서명과 발송](CLE-EIA-NOTIFY-DELIVERY.md) | 헤더와 서명, 재시도와 실패 처리, 리다이렉트, 낡은 알림 웹훅 차단, 전달 보장, 폭주 감지 | REQ-EIANOTI-001, 003, 004, 005, 006, 007, 008, 009, 014, 015, 018, 020, 021, 022, 034, 038 |
 | [EIA 알림 웹훅 — SSRF 방지](CLE-EIA-NOTIFY-SSRF.md) | 등록 · 발송 직전 URL 검사, userinfo 거부, 차단 대역, IPv4 를 품은 IPv6, DNS 결과 검사, 거부가 보이는 방식 | REQ-EIANOTI-011, 012, 013, 039, 040 |
-| [EIA 알림 웹훅 — 시크릿 교체](CLE-EIA-NOTIFY-SECRET.md) | 알림 서명 시크릿의 첫 발급 · 옛 평문 옮기기 · 교체 · 승격, 주 시크릿 읽기 | REQ-EIANOTI-016, 017, 019, 035, 036, 037 |
+| [EIA 알림 웹훅 — 시크릿 교체](CLE-EIA-NOTIFY-SECRET.md) | 알림 서명 시크릿의 첫 발급 · 옛 평문 옮기기 · 교체 · 승격, 알림 설정 해제 때의 정리, 주 시크릿 읽기 | REQ-EIANOTI-016, 017, 019, 035, 036, 037 |
 
 REQ-EIANOTI-020(`triggerId` 가 없거나 트리거가 삭제됐을 때 보내지 않음)과 021(커밋 뒤 평균 200ms 안에 시도)은 발송 문서에 배정했지만 본문 서술은 없고 위 요구사항 줄이 정본이다.
 
@@ -95,6 +95,8 @@ REQ-EIANOTI-020(`triggerId` 가 없거나 트리거가 삭제됐을 때 보내�
 ## 시크릿 교체
 
 → [EIA 알림 웹훅 — 시크릿 교체](CLE-EIA-NOTIFY-SECRET.md#시크릿-교체)
+
+알림 설정을 해제할 때의 정리는 [EIA 알림 웹훅 — 시크릿 교체 「알림 설정 해제」](CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제) 에 있다.
 
 ## 미결 사항
 

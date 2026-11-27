@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-TRIG"
 title: "용어 사전 — 트리거"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "7c41a52264f8da5e7a1884cabc930e7a9b11620cd3df22d61a59e6343e6513fc"
+content_hash: "cc45e3d68fcb5e5dc32d7f1033d5112a30ddef18813ac2bb61b641e30a91b5e1"
 read_as: "approved_fallback"
-task: "CLE-T-YQMP4N"
+task: "CLE-T-4JM4R9"
 source_paths: []
-mirror_sha256: "46bfeea4b3e7e195ea9a829c9c184da6fad4c315be6a609ca0f42f06b4a38456"
-etag: "sha256-3cd1886fa31780b66c5fef6b93c486140a27cc7db49de7c70bda8311124ffe8a"
+mirror_sha256: "52c923835e771e2c295acef61ce61b50ef239998dde6d1a918dc0e15baa05b50"
+etag: "sha256-c50a0bbd2373cc29731e97231f26fc5b8c2994a0db965bfb63cfae932523cd3f"
 ---
 ## 개요
 
@@ -51,7 +51,7 @@ etag: "sha256-3cd1886fa31780b66c5fef6b93c486140a27cc7db49de7c70bda8311124ffe8a"
 | 지금 실행 | run now, `run-now` | 스케줄 주기와 상관없이 한 번 바로 실행하는 동작. 실행 출처는 수동 실행이 된다. | 즉시 실행 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | 파라미터 값 | `parameter_values` | 스케줄 실행이 수동 트리거 노드에 넘기는 JSON 값. 제한 표현식을 쓸 수 있다. | 없음 | [스케줄](CLE-TRIG/CLE-TRIG-SCHEDULE.md) |
 | 트리거 외부 자원 정리 | teardown | 트리거를 지울 때 그 트리거에 딸린 자원을 정리하는 절차. 정리 순서와 시점은 [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 정한다. | 비밀 정리 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#자원-정리) |
-| 트리거 설정 잠금 | `trigger-config:<id>` | 트리거 설정과 알림 서명 시크릿의 쓰기를 트리거마다 한 번에 하나만 돌게 하는 DB 잠금. 잠금을 잡는 시점은 [트리거 데이터와 흐름 「config 서브 필드」](CLE-TRIG/CLE-TRIG-DATA.md#config-서브-필드) 가 정한다. | 없음 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) |
+| 트리거 설정 잠금 | `trigger-config:<id>` | 트리거 설정과 알림 서명 시크릿의 쓰기를 트리거마다 한 번에 하나만 돌게 하는 DB 잠금. 잠금을 잡는 경로와 시점은 [트리거 관리 — 설정 쓰기와 비밀 발급 「동시 쓰기 직렬화」](CLE-TRIG/CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화) 가 정한다. | 없음 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화) |
 | 원시 `config` | request body `config`, `CreateTriggerDto.config` · `UpdateTriggerDto.config` | 트리거 생성(`POST /api/triggers`) · 수정(`PATCH /api/triggers/:id`) 요청 본문의 `config` 필드. 저장 위치 `Trigger.config` 와 다르고 노드의 원본 설정(`rawConfig`)과도 다르다. | 원본 설정(이 뜻으로), raw config(이 뜻으로) | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) |
 | 타입 필드 | request body `notification` · `interaction` · `chatChannel` (outside `config`) | 트리거 생성 · 수정 요청 본문 최상위의 `notification` · `interaction` · `chatChannel` 필드. 본문 검증 형식이 따로 정해져 있어 «타입» 이라 부른다. 트리거 유형(`Trigger.type`)과는 관계없다. | top-level `X`, 최상위 `X`, 최상위 필드(이 뜻으로) | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) |
 | 타입 키 | `notification` · `interaction` · `chatChannel` directly under request body `config`, `RAW_CONFIG_TYPED_KEYS` | 원시 `config` 바로 아래에 온 `notification` · `interaction` · `chatChannel` 키. 저장된 `Trigger.config` 의 같은 이름 키와 다르다. 트리거 유형(`Trigger.type`)과도 관계없다. | 없음 | [트리거 관리](CLE-TRIG/CLE-TRIG-MANAGE.md#patch-본문-계약) |
@@ -76,7 +76,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
 NERV Task `CLE-T-6YY7KY` 의 두 항목을 반영했다. 두 정의가 기준 문서가 정한 범위보다 좁았다.
 
-- 「트리거 설정 잠금」: 옛 정의는 `config` 를 다시 쓰는 경로만 꼽았다. [트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화) 는 시크릿 교체가 `config` 를 쓰지 않더라도 `notification_secret_v2` 를 쓸 때 이 잠금을 잡게 한다. 승격도 같은 잠금 안에서 그 값을 비운다([EIA 알림 웹훅 「시크릿 교체」](CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체)). 정의만 읽고 `notification_secret_v2` 를 쓰는 경로를 잠금 밖에 두는 일이 없도록 정의의 대상에 알림 서명 시크릿의 쓰기를 넣었다.
+- 「트리거 설정 잠금」: 옛 정의는 `config` 를 다시 쓰는 경로만 꼽았다. [트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG/CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화) 는 시크릿 교체가 `config` 를 쓰지 않더라도 `notification_secret_v2` 를 쓸 때 이 잠금을 잡게 한다. 승격도 같은 잠금 안에서 그 값을 비운다([EIA 알림 웹훅 「시크릿 교체」](CLE-IX/CLE-EIA-NOTIFY.md#시크릿-교체)). 정의만 읽고 `notification_secret_v2` 를 쓰는 경로를 잠금 밖에 두는 일이 없도록 정의의 대상에 알림 서명 시크릿의 쓰기를 넣었다.
 - 「트리거 외부 자원 정리」: 옛 정의가 꼽은 자원에는 트리거 단위 토큰으로 연 SSE 스트림 닫기가 빠져 있었다. [트리거 데이터와 흐름 「트리거 삭제와 자원 해제」](CLE-TRIG/CLE-TRIG-DATA.md#트리거-삭제와-자원-해제) 가 행 삭제 커밋 뒤에 정리하는 자원으로 이미 꼽는다. 닫는 방식은 [EIA 데이터와 흐름](CLE-IX/CLE-EIA-DATA.md) 이 정한다. 그래서 정의를 «그 트리거에 딸린 자원» 으로 넓혔다.
 - 닫는 범위는 모든 서버 인스턴스다. 기각한 대안은 Task 본문의 원안대로 정의에 «같은 서버 인스턴스» 로 한정해 적는 것이다. 같은 묶음의 NERV Task `CLE-T-Z35F7P` 가 닫기 신호를 Redis 로 서버 인스턴스 사이에 전한다. 그래서 그 한정은 이 정의가 승인될 때 이미 사실이 아니다.
 - 두 정의는 한 문장으로 줄이고 경로 · 자원 목록 · 시점 · 닫는 범위는 링크로 돌렸다. 이 초안의 첫 저장은 이것들을 정의에 적었다. 2026-10-17 스펙 초안 일관성 검토가 [용어 사전](CLE-GLOSSARY.md) 개요의 한 줄 정의 원칙과 표기 원칙 14 에 어긋난다고 짚었다. 자원 목록과 잠금을 잡는 경로는 기준 문서 칸이 가리키는 절에 있다. 순서와 시점은 정의의 링크가 가리키는 [트리거 데이터와 흐름](CLE-TRIG/CLE-TRIG-DATA.md) 의 절에 있다.

@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-API", "CLE-API-CONV"]
 area: "CLE-API"
 content_hash: "49db4c9bbe0a068fa5aa9caba667b152e6ae5528cda65081a6bbbd3437e0da8c"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-VWC60Z"
 source_paths: []
-mirror_sha256: "c73bd7bc9b854305adb00de01a2d45fff568dccbd606450a1016b21feac7797e"
-etag: "sha256-e136682afc342a56ad0e2c24f10e587f51b28f1425d757c2f965ca1dfd2bb412"
+mirror_sha256: "78ef527461c591dc59608156f92bbe162b72e385e85e5cdef1ad2876ebe63d8f"
+etag: "sha256-fe37f5f52fa766d824cdcfa7f2513e45540aeae2a925abeefb9e8d4e5f64c191"
 ---
 ## 개요
 

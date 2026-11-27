@@ -97,7 +97,7 @@ Each node decides how to react to failures.
 
 <FieldTable rows={[
   {name: "Stop Workflow", required: false, type: "Default", description: "Halts the entire run immediately and leaves it in the `failed` state.", default: "Selected"},
-  {name: "Skip Node", required: false, type: "Option", description: "Skips this node and continues. The output is `null`.", default: "-"},
+  {name: "Skip Node", required: false, type: "Option", description: "Skips this node and continues. No output is written, so the next node receives an empty value (`undefined`).", default: "-"},
   {name: "Use Default Output", required: false, type: "Option", description: "Treats the failure as success using a default output you specify. A badge on the canvas indicates the default was used.", default: "-"},
   {name: "Retry", required: false, type: "Option", description: "Retries with a configurable max count and delay.", default: "-"},
   {name: "Route to Error Port", required: false, type: "Option", description: "Sends the error payload out through the `error` port. Selecting it dynamically adds the error port to the node.", default: "-"}

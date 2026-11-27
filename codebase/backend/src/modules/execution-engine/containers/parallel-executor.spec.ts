@@ -148,6 +148,36 @@ describe('ParallelExecutor', () => {
     });
   });
 
+  // 엔진이 병렬 분기 결과 노드(REQ-PARALLEL-030)를 고를 때 읽는 기록 집합. 분기마다 새
+  // 빈 집합이어야 한다. 바깥 병렬 분기 컨텍스트를 펼쳐 이어받으면 안쪽 분기의 기록이
+  // 바깥 집합에 섞인다.
+  it('분기마다 비어 있는 새 branchWrittenNodeIds 를 준다 (바깥 분기의 집합을 이어받지 않는다)', async () => {
+    const outerWritten = new Set<string>(['outer-node']);
+    const outerBranchCtx: ParallelBranchContext = {
+      ...baseContext,
+      parentParallelConcurrency: 2,
+      branchWrittenNodeIds: outerWritten,
+    };
+    const seen: Set<string>[] = [];
+
+    await executor.execute(
+      { branchCount: 2, maxConcurrency: 0, waitAll: true },
+      outerBranchCtx,
+      async (branchIndex, branchCtx) => {
+        seen[branchIndex] = branchCtx.branchWrittenNodeIds;
+      },
+      2,
+    );
+
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toBeInstanceOf(Set);
+    expect(seen[0].size).toBe(0);
+    expect(seen[1].size).toBe(0);
+    expect(seen[0]).not.toBe(seen[1]);
+    expect(seen[0]).not.toBe(outerWritten);
+    expect(seen[1]).not.toBe(outerWritten);
+  });
+
   it('should respect maxConcurrency limit', async () => {
     let running = 0;
     let maxRunning = 0;
@@ -637,6 +667,7 @@ describe('ParallelExecutor', () => {
         conversationThread: createEmptyConversationThread(),
         recursionDepth: 0,
         parentParallelConcurrency: 4,
+        branchWrittenNodeIds: new Set<string>(),
       };
       const extra = { parentNodeExecutionId: 'pne-1' };
 
