@@ -146,7 +146,8 @@ export class SessionsController {
     if (!refreshToken) {
       throw new BadRequestException({
         code: 'CURRENT_SESSION_REQUIRED',
-        message: '현재 세션을 식별할 수 없어요. 다시 로그인 후 시도해 주세요.',
+        message:
+          'The current session cannot be identified. Sign in again and retry.',
       });
     }
     await this.sessionsService.revokeOtherFamilies(

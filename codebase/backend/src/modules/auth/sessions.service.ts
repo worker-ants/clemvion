@@ -88,7 +88,7 @@ export class SessionsService {
       // 정보 누출 방지: 타인의 family 든 없는 family 든 동일하게 404
       throw new NotFoundException({
         code: 'SESSION_NOT_FOUND',
-        message: '해당 세션을 찾을 수 없어요.',
+        message: 'Session not found.',
       });
     }
 
@@ -98,8 +98,7 @@ export class SessionsService {
       if (currentFamilyId && currentFamilyId === familyId) {
         throw new BadRequestException({
           code: 'CANNOT_REVOKE_CURRENT_SESSION',
-          message:
-            '현재 세션은 강제 종료할 수 없어요. 로그아웃 버튼을 이용해 주세요.',
+          message: 'The current session cannot be revoked. Sign out instead.',
         });
       }
     }
@@ -145,7 +144,8 @@ export class SessionsService {
     if (!currentFamilyId) {
       throw new BadRequestException({
         code: 'CURRENT_SESSION_REQUIRED',
-        message: '현재 세션을 식별할 수 없어요. 다시 로그인 후 시도해 주세요.',
+        message:
+          'The current session cannot be identified. Sign in again and retry.',
       });
     }
 
@@ -283,8 +283,7 @@ export class SessionsService {
     if (!hasPassword && !has2fa) {
       throw new ForbiddenException({
         code: 'REAUTH_NOT_AVAILABLE',
-        message:
-          '이 작업을 하려면 먼저 비밀번호를 설정하거나 TOTP 를 켜야 해요.',
+        message: 'Set a password or turn on TOTP before doing this.',
       });
     }
 
@@ -293,7 +292,7 @@ export class SessionsService {
       if (ok) return;
       throw new UnauthorizedException({
         code: PASSWORD_VERIFY_CODES.INVALID,
-        message: '비밀번호가 일치하지 않아요.',
+        message: 'The password is incorrect.',
       });
     }
 
@@ -306,15 +305,15 @@ export class SessionsService {
       if (ok) return;
       throw new UnauthorizedException({
         code: 'TOTP_INVALID',
-        message: '인증 코드가 올바르지 않아요.',
+        message: 'The verification code is incorrect.',
       });
     }
 
     throw new BadRequestException({
       code: 'REAUTH_REQUIRED',
       message: hasPassword
-        ? '비밀번호 확인이 필요해요.'
-        : '2FA 코드 입력이 필요해요.',
+        ? 'Confirm your password to continue.'
+        : 'Enter your two-factor authentication code to continue.',
     });
   }
 

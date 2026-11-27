@@ -116,7 +116,7 @@ export class ChatChannelBinderService {
       throw new BadRequestException({
         code: 'CHAT_CHANNEL_ENDPOINT_REQUIRED',
         message:
-          'Chat channel trigger requires endpointPath (callback URL을 만들기 위해 필요).',
+          'Chat channel trigger requires endpointPath to build the callback URL.',
       });
     }
     const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);

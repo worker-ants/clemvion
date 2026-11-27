@@ -63,7 +63,9 @@ describe('비밀번호 재확인 실패의 사용자 단위 한도 (e2e)', () =>
     const blocked = await setupTotp(BASE_URL, user.accessToken, TEST_PASSWORD);
     expect(blocked.status).toBe(429);
     expect(blocked.body.error.code).toBe('RATE_LIMITED');
-    expect(blocked.body.error.message).toContain('비밀번호를 너무 많이');
+    expect(blocked.body.error.message).toContain(
+      'Too many incorrect password attempts',
+    );
     // 대조하지 않았으므로 secret 도 만들지 않았다.
     expect((await readTwoFactor(db, user.userId)).two_factor_secret).toBeNull();
 

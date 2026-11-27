@@ -381,15 +381,31 @@ describe("LoginForm — 2단계 인증(TOTP) 거부 코드별 안내", () => {
   });
 
   it("모르는 코드면 에러 봉투의 error.message 를 보여 준다", async () => {
+    mockLoginTotp.mockRejectedValue(apiError(401, "SOMETHING_NEW", "Server text."));
+    render(<LoginForm />);
+
+    await submitTotp();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Server text."));
+  });
+
+  // 서버 message 는 영문이라 공용 코드 매핑에 있는 코드는 사전 문구를 고른다(CLE-UI-I18N-BACKEND 규칙 5, CLE-T-MNX9KP).
+  it("공용 매핑에 있는 코드는 서버 문구 대신 사전 문구를 보인다", async () => {
     mockLoginTotp.mockRejectedValue(
-      apiError(401, "TOTP_NOT_ENABLED", "이 계정은 TOTP 가 꺼져 있어요."),
+      apiError(
+        401,
+        "TOTP_NOT_ENABLED",
+        "Two-factor authentication is not enabled for this account. Sign in again.",
+      ),
     );
     render(<LoginForm />);
 
     await submitTotp();
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("이 계정은 TOTP 가 꺼져 있어요."),
+      expect(toast.error).toHaveBeenCalledWith(
+        "이 계정은 2단계 인증이 꺼져 있어요. 다시 로그인해 주세요.",
+      ),
     );
   });
 });

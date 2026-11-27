@@ -405,7 +405,7 @@ describe('WebAuthnService', () => {
       expect(err).toBeInstanceOf(ConflictException);
       expect((err as ConflictException).getResponse()).toEqual({
         code: 'WEBAUTHN_CREDENTIAL_EXISTS',
-        message: '이미 등록된 인증기예요.',
+        message: 'This authenticator is already registered.',
       });
       expect(credentialRepo.save).not.toHaveBeenCalled();
       expect(userRepo.update).not.toHaveBeenCalled();
@@ -439,7 +439,7 @@ describe('WebAuthnService', () => {
         expect(err).toBeInstanceOf(ConflictException);
         expect((err as ConflictException).getResponse()).toEqual({
           code: 'WEBAUTHN_CREDENTIAL_EXISTS',
-          message: '이미 등록된 인증기예요.',
+          message: 'This authenticator is already registered.',
         });
       },
     );
@@ -819,7 +819,7 @@ describe('WebAuthnService', () => {
           status: 503,
           response: expect.objectContaining({
             code: 'SERVICE_UNAVAILABLE',
-            message: '서비스를 일시적으로 사용할 수 없습니다.',
+            message: 'The service is temporarily unavailable.',
           }),
         });
         expect(dataSource.transaction).not.toHaveBeenCalled();
@@ -882,7 +882,7 @@ describe('WebAuthnService', () => {
         status: 401,
         response: {
           code: 'WEBAUTHN_INVALID',
-          message: 'WebAuthn 인증에 실패했어요.',
+          message: 'WebAuthn authentication failed.',
         },
       });
       expect(loginHistory.record).not.toHaveBeenCalled();

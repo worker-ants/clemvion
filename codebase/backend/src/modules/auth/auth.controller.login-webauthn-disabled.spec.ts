@@ -47,7 +47,8 @@ describe('POST /auth/login — WEBAUTHN_DISABLED (HTTP)', () => {
     login.mockRejectedValue(
       new ServiceUnavailableException({
         code: 'WEBAUTHN_DISABLED',
-        message: 'Passkey 로그인이 이 서버에서 꺼져 있어요.',
+        message:
+          'Passkey sign-in is turned off on this server. Contact your administrator.',
       }),
     );
 

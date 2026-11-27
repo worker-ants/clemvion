@@ -2716,10 +2716,10 @@ describe('IntegrationsService', () => {
         integrationRepo.findOne.mockResolvedValue(fixture());
         const err = await errorOf(call(role));
         expect(err).toBeInstanceOf(ForbiddenException);
-        // 코드와 함께 공유 문구(한국어)를 싣는다 — 프런트엔드는 메시지를 그대로 토스트로 보인다.
+        // 코드와 함께 동작을 말하는 영문 문구를 싣는다. 한국어 화면은 프런트엔드가 코드로 문구를 고른다.
         expect(err.getResponse?.()).toMatchObject({
           code: 'ADMIN_REQUIRED',
-          message: expect.stringContaining('Admin 이상의 권한이 필요합니다.'),
+          message: expect.stringContaining('Admin role or higher is required'),
         });
         expectNoSideEffects();
       },

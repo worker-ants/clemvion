@@ -52,7 +52,8 @@ function hashRecoveryCode(code: string): string {
 function totpAlreadyEnabled(): ConflictException {
   return new ConflictException({
     code: 'TOTP_ALREADY_ENABLED',
-    message: '2단계 인증이 이미 켜져 있습니다. 다시 설정하려면 먼저 끄세요.',
+    message:
+      'Two-factor authentication is already enabled. Turn it off first to set it up again.',
   });
 }
 
@@ -63,7 +64,7 @@ function totpNotInitialized(message: string): BadRequestException {
 function totpInvalid(): UnauthorizedException {
   return new UnauthorizedException({
     code: 'TOTP_INVALID',
-    message: '인증 코드가 올바르지 않습니다.',
+    message: 'The verification code is incorrect.',
   });
 }
 
@@ -131,7 +132,7 @@ export class TotpService {
     if (!user) {
       throw new BadRequestException({
         code: 'USER_NOT_FOUND',
-        message: '사용자를 찾을 수 없습니다.',
+        message: 'User not found.',
       });
     }
     if (user.twoFactorEnabled) throw totpAlreadyEnabled();
@@ -165,7 +166,7 @@ export class TotpService {
   ): Promise<{ recoveryCodes: string[] }> {
     const user = await this.usersService.findById(userId);
     if (!user || !user.twoFactorSecret) {
-      throw totpNotInitialized('2FA 설정을 먼저 시작해주세요.');
+      throw totpNotInitialized('Start two-factor authentication setup first.');
     }
     if (user.twoFactorEnabled) throw totpAlreadyEnabled();
     if (isTotpSetupExpired(user.twoFactorSetupStartedAt, new Date())) {
@@ -178,7 +179,7 @@ export class TotpService {
         { twoFactorSecret: null, twoFactorSetupStartedAt: null },
       );
       throw totpNotInitialized(
-        '2FA 설정을 시작한 지 10분이 지났습니다. 설정을 다시 시작해주세요.',
+        'Two-factor authentication setup started more than 10 minutes ago. Start the setup again.',
       );
     }
     const isValid = this.verifyCode(code, user.twoFactorSecret);

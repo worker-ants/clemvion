@@ -147,10 +147,10 @@ class PathTarget {
 
 /** 가드 거부의 본문 — 메시지는 서비스 계층(`workspaces.service.ts`)과 같은 한국어다. */
 const GUARD_FORBIDDEN = {
-  NOT_A_MEMBER: '워크스페이스 멤버가 아닙니다.',
-  EDITOR_REQUIRED: 'Editor 이상의 권한이 필요합니다.',
-  ADMIN_REQUIRED: 'Admin 이상의 권한이 필요합니다.',
-  OWNER_REQUIRED: 'Owner 권한이 필요합니다.',
+  NOT_A_MEMBER: 'You are not a member of this workspace.',
+  EDITOR_REQUIRED: 'Editor role or higher is required.',
+  ADMIN_REQUIRED: 'Admin role or higher is required.',
+  OWNER_REQUIRED: 'Owner role is required.',
 } as const;
 type GuardForbiddenCode = keyof typeof GUARD_FORBIDDEN;
 

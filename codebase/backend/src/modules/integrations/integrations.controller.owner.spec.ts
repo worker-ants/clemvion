@@ -365,7 +365,7 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
           response: {
             code: 'ADMIN_REQUIRED',
             message:
-              'Organization 통합을 만들려면 Admin 이상의 권한이 필요합니다.',
+              'Admin role or higher is required to create an Organization integration.',
           },
         });
         expect(oauthBegin).not.toHaveBeenCalled();

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { axiosMessage } from "@/lib/api/errors";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import {
   usersApi,
   USER_PROFILE_QUERY_KEY,
@@ -57,13 +57,13 @@ export default function ChangeEmailPage() {
       toast.success(t("profile.changeEmailRequestSuccess"));
       queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
     },
-    onError: (err) => toast.error(axiosMessage(err, t("profile.changeEmailFailed"))),
+    onError: (err) => toast.error(serverErrorMessage(err, t, t("profile.changeEmailFailed"))),
   });
 
   const resendMutation = useMutation({
     mutationFn: () => usersApi.resendEmailChange(),
     onSuccess: () => toast.success(t("profile.changeEmailResent")),
-    onError: (err) => toast.error(axiosMessage(err, t("profile.changeEmailFailed"))),
+    onError: (err) => toast.error(serverErrorMessage(err, t, t("profile.changeEmailFailed"))),
   });
 
   const cancelMutation = useMutation({
@@ -72,7 +72,7 @@ export default function ChangeEmailPage() {
       toast.success(t("profile.changeEmailCancelled"));
       queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
     },
-    onError: (err) => toast.error(axiosMessage(err, t("profile.changeEmailFailed"))),
+    onError: (err) => toast.error(serverErrorMessage(err, t, t("profile.changeEmailFailed"))),
   });
 
   const busy =

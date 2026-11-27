@@ -87,15 +87,14 @@ export class AuthService {
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException({
         code: PASSWORD_VERIFY_CODES.REQUIRED,
-        message: '비밀번호 확인이 필요합니다.',
+        message: 'Password confirmation is required.',
       });
     }
     if (await this.passwordRecheckLimiter.isBlocked(user.id)) {
       throw new HttpException(
         {
           code: 'RATE_LIMITED',
-          message:
-            '비밀번호를 너무 많이 틀렸습니다. 잠시 후 다시 시도해 주세요.',
+          message: 'Too many incorrect password attempts. Try again later.',
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );
@@ -105,7 +104,7 @@ export class AuthService {
       await this.passwordRecheckLimiter.recordFailure(user.id);
       throw new UnauthorizedException({
         code: PASSWORD_VERIFY_CODES.INVALID,
-        message: '비밀번호가 일치하지 않습니다.',
+        message: 'The password is incorrect.',
       });
     }
   }
@@ -213,7 +212,7 @@ export class AuthService {
     if (normalizeEmail(meta.email) !== normalizeEmail(dto.email)) {
       throw new BadRequestException({
         code: 'invitation_email_mismatch',
-        message: '초대 이메일과 가입 이메일이 일치하지 않습니다.',
+        message: 'The sign-up email does not match the invitation email.',
       });
     }
 
@@ -466,7 +465,7 @@ export class AuthService {
       throw new ServiceUnavailableException({
         code: 'WEBAUTHN_DISABLED',
         message:
-          'Passkey 로그인이 이 서버에서 꺼져 있어요. 관리자에게 문의해 주세요.',
+          'Passkey sign-in is turned off on this server. Contact your administrator.',
       });
     }
 
@@ -506,20 +505,21 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException({
         code: 'CHALLENGE_INVALID',
-        message: '인증 세션이 만료됐어요. 다시 로그인해 주세요.',
+        message: 'The sign-in session has expired. Sign in again.',
       });
     }
     if (!payload.mfa_challenge) {
       throw new UnauthorizedException({
         code: 'CHALLENGE_INVALID',
-        message: '잘못된 challenge token이에요.',
+        message: 'Invalid challenge token.',
       });
     }
     const user = await this.usersService.findById(payload.sub);
     if (!user || !user.twoFactorEnabled) {
       throw new UnauthorizedException({
         code: 'TOTP_NOT_ENABLED',
-        message: '이 계정은 2FA가 비활성 상태예요. 다시 로그인해 주세요.',
+        message:
+          'Two-factor authentication is not enabled for this account. Sign in again.',
       });
     }
     // Passkey 가 등록된 사용자는 TOTP 로 자동 전환하지 않는다. Passkey 기능이 꺼져 있으면
@@ -529,7 +529,7 @@ export class AuthService {
       throw new UnauthorizedException({
         code: 'WEBAUTHN_REQUIRED',
         message:
-          'Passkey 로 로그인해 주세요. (WebAuthn 등록 사용자는 TOTP 우회 불가)',
+          'Sign in with your passkey. Accounts with a registered passkey cannot use TOTP instead.',
       });
     }
     const ok = await verifier(user, code);
@@ -544,7 +544,7 @@ export class AuthService {
       });
       throw new UnauthorizedException({
         code: 'TOTP_INVALID',
-        message: '인증 코드가 올바르지 않아요.',
+        message: 'The verification code is incorrect.',
       });
     }
     const rememberMe = !!payload.rememberMe;
@@ -580,27 +580,28 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException({
         code: 'CHALLENGE_INVALID',
-        message: '인증 세션이 만료됐어요. 다시 로그인해 주세요.',
+        message: 'The sign-in session has expired. Sign in again.',
       });
     }
     if (!payload.mfa_challenge) {
       throw new UnauthorizedException({
         code: 'CHALLENGE_INVALID',
-        message: '잘못된 challenge token이에요.',
+        message: 'Invalid challenge token.',
       });
     }
     // method 가 박혀있으면 일치 검증 (예: TOTP 분기 토큰을 WebAuthn verify 로 우회 차단)
     if (payload.method && payload.method !== expectedMethod) {
       throw new UnauthorizedException({
         code: 'CHALLENGE_METHOD_MISMATCH',
-        message: '이 challenge token 은 다른 인증 방식용이에요.',
+        message:
+          'This challenge token is for a different authentication method.',
       });
     }
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException({
         code: 'CHALLENGE_INVALID',
-        message: '인증 세션이 유효하지 않아요.',
+        message: 'The sign-in session is not valid.',
       });
     }
     return { user, rememberMe: !!payload.rememberMe };
@@ -922,7 +923,7 @@ export class AuthService {
     if (email === normalizeEmail(user.email)) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
-        message: '현재 이메일과 동일한 주소예요.',
+        message: 'The new email is the same as the current email.',
       });
     }
     if (await this.usersService.emailTakenByOther(email, userId)) {

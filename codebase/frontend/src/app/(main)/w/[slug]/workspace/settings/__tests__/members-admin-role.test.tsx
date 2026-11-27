@@ -14,7 +14,12 @@ import {
   useWorkspaceStore,
   type WorkspaceRole,
 } from "@/lib/stores/workspace-store";
-import type { WorkspaceMemberSummary } from "@/lib/api/workspaces";
+import { workspacesApi, type WorkspaceMemberSummary } from "@/lib/api/workspaces";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -163,5 +168,56 @@ describe("WorkspaceSettingsPage 멤버 탭 관리자 역할 권한", () => {
     expect(
       within(memberRow("Olivia Owner")).queryByRole("combobox"),
     ).toBeNull();
+  });
+});
+
+/** 서버 에러 봉투를 실은 axios 모양의 거부. 서버 `message` 는 영문이다. */
+function apiError(code: string, message: string) {
+  return Object.assign(new Error("Request failed with status code 403"), {
+    response: { status: 403, data: { error: { code, message } } },
+  });
+}
+
+// 서버 거부 문구는 영문이라 화면은 코드로 문구를 고른다(CLE-UI-I18N-BACKEND 규칙 5, CLE-T-CHP94Z).
+// 전에는 axios 오류 문구(«Request failed with status code 403»)를 그대로 띄웠다.
+describe("WorkspaceSettingsPage 멤버 역할 변경 거부 안내", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "ko" });
+  });
+
+  it("관리자 역할 변경의 OWNER_REQUIRED 는 소유자만 할 수 있다고 안내한다", async () => {
+    vi.mocked(workspacesApi.updateMemberRole).mockRejectedValue(
+      apiError(
+        "OWNER_REQUIRED",
+        "Only the owner can grant or revoke the admin role.",
+      ),
+    );
+    setRole("owner");
+    await openMembersTab();
+    const user = userEvent.setup();
+    await user.selectOptions(
+      within(memberRow("Eddie Editor")).getByRole("combobox"),
+      "admin",
+    );
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(ko.workspace.adminRoleOwnerOnly),
+    );
+  });
+
+  it("가드 거부 코드는 서버 문구 대신 사전 문구를 보인다", async () => {
+    vi.mocked(workspacesApi.updateMemberRole).mockRejectedValue(
+      apiError("NOT_A_MEMBER", "You are not a member of this workspace."),
+    );
+    setRole("owner");
+    await openMembersTab();
+    const user = userEvent.setup();
+    await user.selectOptions(
+      within(memberRow("Eddie Editor")).getByRole("combobox"),
+      "viewer",
+    );
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(ko.errors.codes.notAMember),
+    );
   });
 });

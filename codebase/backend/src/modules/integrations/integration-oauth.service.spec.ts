@@ -559,8 +559,8 @@ describe('IntegrationOAuthService', () => {
     );
 
     it.each([
-      ['reauthorize', 'Organization 통합을 재인증하려면'],
-      ['request_scopes', 'Organization 통합에 scope 를 추가하려면'],
+      ['reauthorize', 'reauthorize an Organization integration'],
+      ['request_scopes', 'add scopes to an Organization integration'],
     ])('%s — 거부 문구는 그 동작을 말한다(«%s …»)', async (mode, phrase) => {
       dataSource.query.mockResolvedValue(stateOf(mode));
       integrationRepo.findOne.mockResolvedValue(rowOf({}));
@@ -572,7 +572,7 @@ describe('IntegrationOAuthService', () => {
       ).rejects.toMatchObject({
         response: {
           code: 'ADMIN_REQUIRED',
-          message: `${phrase} Admin 이상의 권한이 필요합니다.`,
+          message: `Admin role or higher is required to ${phrase}.`,
         },
       });
       expect(integrationRepo.save).not.toHaveBeenCalled();
@@ -613,7 +613,7 @@ describe('IntegrationOAuthService', () => {
         ).rejects.toMatchObject({
           response: {
             code: 'EDITOR_REQUIRED',
-            message: 'Editor 이상의 권한이 필요합니다.',
+            message: 'Editor role or higher is required.',
           },
         });
         expect(getMemberRole).toHaveBeenCalledWith(
