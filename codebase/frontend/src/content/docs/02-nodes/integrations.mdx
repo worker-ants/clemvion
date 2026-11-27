@@ -103,7 +103,7 @@ Integration의 `auth_type`에 따라 헤더/쿼리가 자동 주입돼요. api_k
   {name: "integrationId", required: true, type: "UUID", description: "DB Integration 참조예요. `driver`는 `postgres` 또는 `mysql`이어야 해요.", default: "-"},
   {name: "queryType", required: true, type: "enum", description: "`select` / `insert` / `update` / `delete` / `raw` 중 하나예요.", default: "select"},
   {name: "query", required: true, type: "expression", description: "실행할 SQL이에요. 바인딩은 `$1`, `$2`, …를 써요. MySQL 드라이버는 내부적으로 `?`로 변환해요.", default: "-"},
-  {name: "parameters", required: false, type: "array 또는 JSON 문자열", description: "플레이스홀더에 순서대로 바인딩할 값이에요. JSON 문자열을 넣으면 자동으로 배열로 파싱돼요.", default: "[]"}
+  {name: "parameters", required: false, type: "array 또는 JSON 문자열", description: "쿼리의 `$N` 에 N번째 값을 바인딩해요(MySQL 도 같아요. 같은 번호를 여러 번 써도 돼요). MySQL 에서 `$N` 과 `?` 를 섞거나 N 이 값 개수를 벗어나면 `INVALID_PARAMETERS` 로 쿼리를 보내지 않아요. JSON 문자열을 넣으면 자동으로 배열로 파싱돼요.", default: "[]"}
 ]} />
 
 ### 포트
@@ -137,7 +137,7 @@ Integration의 `auth_type`에 따라 헤더/쿼리가 자동 주입돼요. api_k
 </Example>
 
 <Callout type="warn">
-사전 설정 오류(`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`)도 SQL 실행 중 발생한 오류처럼 `error` 포트로 나가요. 쿼리를 보내기 전에 끝난 실패라도 `output.error.code` 로 원인을 알 수 있어요. 분기 처리하고 싶은 오류는 `error` 포트에 이어서 노드를 연결해요.
+사전 설정 오류(`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`)와 통합 조회 실패(`INTEGRATION_CALL_FAILED`)도 SQL 실행 중 발생한 오류처럼 `error` 포트로 나가요. 쿼리를 보내기 전에 끝난 실패라도 `output.error.code` 로 원인을 알 수 있어요. 분기 처리하고 싶은 오류는 `error` 포트에 이어서 노드를 연결해요.
 </Callout>
 
 ## Send Email

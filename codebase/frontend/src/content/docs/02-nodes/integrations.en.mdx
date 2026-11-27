@@ -92,7 +92,7 @@ Based on the Integration's `auth_type`, headers/query params are auto-injected: 
   {name: "integrationId", required: true, type: "UUID", description: "Reference to a DB Integration. `driver` must be `postgres` or `mysql`.", default: "-"},
   {name: "queryType", required: true, type: "enum", description: "`select` / `insert` / `update` / `delete` / `raw`.", default: "select"},
   {name: "query", required: true, type: "expression", description: "SQL to execute. Bind values with `$1`, `$2`, ... (MySQL driver converts them to `?` internally).", default: "-"},
-  {name: "parameters", required: false, type: "array or JSON string", description: "Values bound to placeholders in order. A JSON string is auto-parsed into an array.", default: "[]"}
+  {name: "parameters", required: false, type: "array or JSON string", description: "Values bound to `$N` placeholders: `$N` takes the N-th value (also on MySQL, and the same number can repeat). On MySQL, mixing `$N` with `?` or using N beyond the value count fails with `INVALID_PARAMETERS` before the query is sent. A JSON string is auto-parsed into an array.", default: "[]"}
 ]} />
 
 ### Ports
@@ -126,7 +126,7 @@ Based on the Integration's `auth_type`, headers/query params are auto-injected: 
 </Example>
 
 <Callout type="warn">
-Pre-flight errors (`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`) go to the `error` port, just like runtime SQL errors. Even when the node fails before sending the query, `output.error.code` tells you why. If you want to branch-handle failures, wire something to the `error` port.
+Pre-flight errors (`INTEGRATION_INCOMPLETE`, `INVALID_PARAMETERS`, `INTEGRATION_SERVICE_UNAVAILABLE`) and integration lookup failures (`INTEGRATION_CALL_FAILED`) go to the `error` port, just like runtime SQL errors. Even when the node fails before sending the query, `output.error.code` tells you why. If you want to branch-handle failures, wire something to the `error` port.
 </Callout>
 
 ## Send Email
