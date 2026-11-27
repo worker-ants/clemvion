@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-REDRIVE"
 title: "장애 복구와 안전 종료 — 크래시 재구동과 부팅 복구 스캔"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "5d6ea79782f45623462bcbc7b050dd6a163fbb71e12252c3bd5884c80bf48575"
+content_hash: "b153dd919516bf2eef56fac41a78afd1ebc4edc1e88fab1caa350045783605d1"
 read_as: "approved_fallback"
-task: "CLE-T-JNXZWY"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "9050ca06f0aa1b0270ffe9e74117e03464cad4a90f0e06920558e8f9f6d5eb86"
-etag: "sha256-c33b05e94bd4ac6409fb9d9750a59ef0a20d81cf36085957aa5ed5a928c42f34"
+mirror_sha256: "92736329acebad1c9d0585826747a451a649d9769e27886d70d77ef741c52c78"
+etag: "sha256-bbbd7881d78a4e6c71eaad06f15dd256e930bdf6f0553a590f97eb0c12ff6202"
 ---
 ## 개요
 
@@ -43,7 +43,7 @@ etag: "sha256-c33b05e94bd4ac6409fb9d9750a59ef0a20d81cf36085957aa5ed5a928c42f34"
 
 ### heartbeat 채널을 두지 않는다
 
-워커가 5초마다 신호를 보내고 중앙에서 검사하는 heartbeat 채널은 **만들지 않는다.** 워커 크래시는 곧 세그먼트 작업의 stall 이고 BullMQ 내장 stalled 검출이 같은 일을 한다. 근거는 [Rationale](#워커-크래시-복구를-stalled-재배달로-일원화-2026-06-04-결정) 에 있다.
+워커가 5초마다 신호를 보내고 중앙에서 검사하는 heartbeat 채널은 **만들지 않는다.** 워커 크래시는 곧 세그먼트 작업의 stall 이고 BullMQ 내장 stalled 검출이 같은 일을 한다. 근거는 [Rationale](#워커-크래시-복구를-stalled-재배달로-일원화) 에 있다.
 
 ### 경계와 마감
 
@@ -110,11 +110,13 @@ lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
   2. 2차 claim 이 성공한 뒤 턴에 들어가기 전에 난 예외나 크래시로 남은 새 행. 그 뒤의 재배달은 claim 에 실패해 1 과 같이 끝난다.
   3. 취소의 짝 전이가 실행을 `cancelled` 로 커밋한 뒤 `markNodeCancelled` 가 끝나기 전에 크래시해 남은 행.
   - `retryLastTurn` 이 새 행을 만든 뒤 재진입 작업을 잃은 경우도 모양이 같아 함께 닫힌다.
-- **대가**: 이 단계는 부팅 때만 돈다. 그래서 다음 부팅 스캔 전까지 그 행은 타임라인과 진행률 집계에 `running` 으로 보인다. 재부팅이 없으면 계속 남는다. 마지막 턴 재시도가 claim 에 실패한 배달을 버리는 결정은 그대로다. 결정 근거는 [Rationale](#종결된-실행-아래-남은-running-노드-행은-부팅-스캔이-닫는다-2026-11-12-cle-t-cceqec) 에 있다.
+- **대가**: 이 단계는 부팅 때만 돈다. 그래서 다음 부팅 스캔 전까지 그 행은 타임라인과 진행률 집계에 `running` 으로 보인다. 재부팅이 없으면 계속 남는다. 마지막 턴 재시도가 claim 에 실패한 배달을 버리는 결정은 그대로다. 결정 근거는 [Rationale](#종결된-실행-아래-남은-running-노드-행은-부팅-스캔이-닫는다) 에 있다.
 
 ## Rationale
 
-### 워커 크래시 복구를 stalled 재배달로 일원화 (2026-06-04 결정)
+### 워커 크래시 복구를 stalled 재배달로 일원화
+
+결정일: 2026-06-04
 
 별도 heartbeat 채널(워커 5초 emit + 중앙 검사)을 **포기하고 BullMQ 내장 stalled 검출로 일원화**한다. 옛 초안의 "heartbeat 미응답으로 판정" 전제는 폐기했다. 세그먼트가 이미 BullMQ 작업이므로 워커 크래시는 곧 작업 stall 이다. BullMQ stalled 검출이 그 작업을 다른 워커에 다시 배달하고 그 워커가 rehydration 으로 세그먼트를 이어 간다. 별도 heartbeat 발신·검사 인프라는 이 메커니즘과 **기능이 겹쳐** YAGNI 다.
 
@@ -153,7 +155,9 @@ lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
 - **시작 시각 영속을 미뤄 시간 과소 계산은 남는다**: 세그먼트 시작 시각 영속(`active_running_ms` 정밀 flush)은 마이그레이션이 필요해 이 결정 범위에서 뺐다. [안전 종료와 영속 재개 큐](CLE-EXEC-RECOVERY-SHUTDOWN.md#rationale) 의 시간 과소 계산 항목 참조.
 - **남은 zombie race**: 본문 [남은 zombie race](#남은-zombie-race) 참조. 같은 종류의 좁은 race 가 하나 더 있다. `finalizeStalledExhausted` 가 발동하는 순간 부팅 복구 스캔이 같은 stale `running` 을 re-claim 해 재구동 중이면 조건부 UPDATE(`WHERE status='running'`)가 정상 재구동을 `WORKER_HEARTBEAT_TIMEOUT` 으로 잘못 마감할 수 있다. "작업 stalled 소진" 과 "부팅 스캔" 이 겹치는 아주 좁은 창에 한정되며 노드 실행별 건너뛰기로 완료 노드는 보존된다. 완전한 차단은 세그먼트 시작 시각·owner 토큰 영속(미룸)에 달려 있다.
 
-### 작업을 잃은 대기 중 실행은 부팅 스캔이 취소한다 (2026-07-04)
+### 작업을 잃은 대기 중 실행은 부팅 스캔이 취소한다
+
+결정일: 2026-07-04
 
 동시 실행 제한에 걸려 지연 재발행된 작업은 jobId 없는 자동 id 다. Redis 비영속이나 eviction 으로 **사라지면 다시 가져갈 작업이 없어** 그 `pending` 행이 영원히 남는다. 큐 대기 한도는 소비자가 작업을 가져갈 때만 검사하므로 이런 실행은 검사를 받지 못한다. 이 틈을 부팅 복구 스캔(`recoverOrphanPendingExecutions`)으로 막는다.
 
@@ -163,12 +167,14 @@ lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
 - **멱등하고 race 에 안전하다**: 대상은 `queued_at < now − EXECUTION_QUEUE_WAIT_TIMEOUT_MS` 인 `pending` 뿐이다. 회수는 기존 `markQueueWaitTimeout` 을 다시 쓴다. 동시에 소비자가 들이거나 취소해도 affected=0 no-op 으로 끝난다.
 - **한도 안쪽의 작업 없는 실행**: 아직 한도 전인 실행은 다음 부팅 스캔에서 회수한다. 운영 중 필요할 때 도는 복구 트리거는 stalled 재배달 관측성과 함께 따로 검토한다.
 
-### 종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다 (2026-11-12, CLE-T-CCEQEC)
+### 종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다
+
+결정일: 2026-11-12
 
 실행이 이미 끝났는데 노드 실행 행만 `running` 으로 남는 경로가 셋 있었다(본문 「덮는 출처」). case B 의 옛 행 마감은 실행이 `running` 일 때만 돌아서 이 셋에 닿지 않았고 이 행들은 타임라인과 진행률 집계에 계속 `running` 으로 보였다. 사람 결정(2026-11-12, 질문 `01a1d022-3e40-73d0-8e98-624fd8f2033e`)으로 부팅 복구 스캔에 (d) 단계를 더했다.
 
 - **한 조건으로 닫는다**: 세 경로는 모두 「부모 실행 종결 + 노드 실행 행 `running`」 이다. 경로마다 정리 코드를 두지 않고 이 조건 하나로 닫는다.
-- **임계는 30분이다**: 실행 단위 stale 판정의 `STUCK_RECOVERY_STALE_MS` 를 다시 쓴다. 새 설정 값은 두지 않는다. 이 임계는 실행이 이미 종결된 노드 실행 행에만 적용한다. 그래서 [2026-06-04 결정](#워커-크래시-복구를-stalled-재배달로-일원화-2026-06-04-결정) 이 지적한 오탐(정상적으로 오래 도는 실행, 입력 대기 실행)과 대상이 겹치지 않는다.
+- **임계는 30분이다**: 실행 단위 stale 판정의 `STUCK_RECOVERY_STALE_MS` 를 다시 쓴다. 새 설정 값은 두지 않는다. 이 임계는 실행이 이미 종결된 노드 실행 행에만 적용한다. 그래서 [2026-06-04 결정](#워커-크래시-복구를-stalled-재배달로-일원화) 이 지적한 오탐(정상적으로 오래 도는 실행, 입력 대기 실행)과 대상이 겹치지 않는다.
 - **Background 본문 행은 뺀다**: Background 본문은 부모 실행이 끝난 뒤에도 돌고 `maxDurationMs` 가 0 이면 끝나는 시각도 없어 30분 임계로는 살아 있는 본문 행을 가를 수 없다. 대가로 크래시로 남은 본문 행은 이 단계가 닫지 못한다.
 - **상태는 `failed` 다**: 사용자가 취소한 것이 아니고 서버 쪽 비정상 종료다. case B 의 옛 행 마감도 `failed` 로 닫으므로 그와 맞췄다.
 - **마지막 턴 재시도의 버림 결정은 그대로 둔다**: claim 에 실패한 배달은 계속 버린다. 이전 방식은 claim 앞에서 `_retryState` 가 없으면 손상으로 보고 행을 `failed` 로 표시했다. 그 방식은 다른 배달이 처리 중인 살아 있는 행까지 `failed` 로 만들었다. 남은 행은 버림을 되돌리지 않고 이 단계가 나중에 닫는다.
@@ -176,7 +182,9 @@ lock 을 잡은 인스턴스는 네 단계를 차례로 돈다.
 - **기각: 30분보다 짧은 임계**: 마지막 턴 재시도의 재진입 턴은 실행이 `failed` 인 채 새 행이 `running` 으로 돈다. 남은 행과 모양이 같다. 임계를 줄이면 살아 있는 재진입 턴의 행을 닫을 위험이 커진다.
 - **대가**: 부팅 때만 돌므로 다음 부팅 스캔 전까지 그 행은 `running` 으로 보이고 재부팅이 없으면 계속 남는다. 재진입 턴이 예외로 끝나는 경우는 `closeSpawnedRowIfRunning` 이 바로 닫는다. 그래서 이 대가는 크래시와 턴 진입 전 예외에만 남는다.
 
-### 최상위 행에 닿은 체인의 행만 닫는다 (2026-11-14, CLE-T-EC9VFJ)
+### 최상위 행에 닿은 체인의 행만 닫는다
+
+결정일: 2026-11-14
 
 (d) 단계는 Background 조상이 있는 행을 빼려고 부모 체인을 깊이 64까지 따라간다. 처음 구현은 한도 안에서 Background 행을 찾지 못하면 그 행을 닫았다. 그래서 Background 행이 65번째 이후 조상이면 살아 있는 본문 행도 닫힐 수 있었다.
 

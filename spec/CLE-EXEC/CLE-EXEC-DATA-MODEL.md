@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA-MODEL"
 title: "실행 데이터와 흐름 — 데이터 모델"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-DATA"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-DATA"]
 area: "CLE-EXEC"
-content_hash: "bee126e72e34a02f7d339bb79e1cee6da5c54bed6c1ccb95068f409a4bd2f86b"
+content_hash: "bd892fec97d9bc19787c894f575598ab16b9393d691a3c5f41b61f4de4e13dfb"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "c1a20df0d29d95bb35a7e48d62d52dcd36e76d88775a6a1dab70ab2d7716e2d9"
-etag: "sha256-2be6fa164d1db25eafeb5ed72cd49e09a28387f2823a3aa8ed9b582c496c5810"
+mirror_sha256: "345e9783a705b8ba89e37afcbbae53c54a5044138a11cf5d47d91e078edcab87"
+etag: "sha256-9cef875863056b132e72e6428a7c0692424bf55bbebdca5455c6eae636cb9ee0"
 ---
 ## 개요
 
@@ -40,7 +40,7 @@ etag: "sha256-2be6fa164d1db25eafeb5ed72cd49e09a28387f2823a3aa8ed9b582c496c5810"
 | parent_execution_id | UUID? | FK → Execution (SET NULL). 서브 워크플로우 실행의 부모 실행 |
 | recursion_depth | Integer | 서브 워크플로우 호출 깊이(root = 0) |
 | re_run_of | UUID? | FK → Execution (SET NULL). 재실행의 바로 앞 실행(원본 실행). NULL 이면 이 실행이 재실행 체인의 시작이다. 정책은 [재실행](CLE-EXEC-RERUN.md) |
-| chain_id | UUID? | NULL 허용(V067). v1 은 NULL 허용이 정식 모델이다. 같은 재실행 체인(re-run chain)의 실행을 모두 묶는 식별자다. 일반 실행(원본, 서브 워크플로우, Background)은 `chain_id = NULL` 이다. 재실행으로 만든 실행만 `chain_id = <체인 root id>`(= 원본 실행 id)다. 체인 전체 조회는 `id = rootId OR chain_id = rootId` 다. 체인 깊이 32 제한은 애플리케이션이 지킨다. 초기 설계(NOT NULL, 자기 참조)에서 NULL 허용으로 바꾼 근거는 [재실행](CLE-EXEC-RERUN.md#chain_id-는-nullable-이다-2026-05-31-결정-f2) 과 `migrations/V067__execution_re_run_chain.sql` 헤더에 있다. |
+| chain_id | UUID? | NULL 허용(V067). v1 은 NULL 허용이 정식 모델이다. 같은 재실행 체인(re-run chain)의 실행을 모두 묶는 식별자다. 일반 실행(원본, 서브 워크플로우, Background)은 `chain_id = NULL` 이다. 재실행으로 만든 실행만 `chain_id = <체인 root id>`(= 원본 실행 id)다. 체인 전체 조회는 `id = rootId OR chain_id = rootId` 다. 체인 깊이 32 제한은 애플리케이션이 지킨다. 초기 설계(NOT NULL, 자기 참조)에서 NULL 허용으로 바꾼 근거는 [재실행](CLE-EXEC-RERUN.md#chain_id-는-nullable-이다) 과 `migrations/V067__execution_re_run_chain.sql` 헤더에 있다. |
 | dry_run | Boolean | `NOT NULL DEFAULT false`(V068). dry-run 재실행(RR-PL-01)으로 만든 실행과 dry-run 실행이 시작한 비동기 서브 워크플로우의 자식 실행만 true 다. 엔진이 `createContext` 때 `variables.__dryRun` 으로 넣어 부수효과 노드가 모의 출력을 돌려주게 한다. rehydration 때도 되살린다. AI 에이전트 도구 프로바이더는 같은 값을 `ProviderExecCtx.dryRun` 으로 받아 부수효과 도구 호출을 모의 응답으로 대신한다([재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md)). 기준은 [재실행](CLE-EXEC-RERUN.md) |
 | conversation_thread | JSONB? | NULL 허용(V084). 입력 대기 park 에 들어갈 때 대화 스레드(`ExecutionContext.conversationThread`) 전체 스냅샷을 커밋하는 영속 재개 매체다. rehydration 이 여기서 대화 스레드를 손실 없이 되살린다(`runningSummary` / `summarizedUpToSeq` 포함). park 밖 단계에서는 낡을 수 있다(마지막 park 때 쓴 값). 실행 내역 타임라인의 분산 기준(`NodeExecution.output_data` / `interaction_data`)과 목적·소비처가 다르다. 정책은 [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) |
 | user_variables | JSONB? | NULL 허용(V085). park 에 들어갈 때 실행 컨텍스트 변수 중 **시스템 예약 변수(`__*`)를 뺀 사용자 정의분**(변수 선언 노드·변수 수정 노드 값)을 커밋하는 영속 재개 매체다. rehydration 이 되살려 park 뒤 노드가 park 전 변수를 손실 없이 참조한다(`$var.X`). 시스템 `__*` 변수는 rehydration 이 따로 다시 넣으므로 담지 않는다. park 밖 단계에서는 낡을 수 있다. 커밋 규칙은 [실행 컨텍스트](CLE-EXEC-CONTEXT.md) |
@@ -158,7 +158,9 @@ V001 은 `execution.execution_path UUID[]` 컬럼에 노드 실행 순서를 담
 - `codebase/backend/migrations/V036__execution_drop_execution_path.sql`: 컬럼을 지운다. `lock_timeout=3s` 로 운영 영향을 줄인다.
 - Flyway 규약상 알파벳 접미사(V035a 등)는 조용히 건너뛰므로 항상 정수 prefix 를 쓴다. 규약은 [DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md) 에 있다.
 
-### 실행 입력도 응답에서 가린다 (2026-08-20)
+### 실행 입력도 응답에서 가린다
+
+결정일: 2026-08-20
 
 `Execution.input_data` 는 2026-08-20 전까지 응답 마스킹의 예외였다. 재실행 프리필이 이 값을 읽어 다시 제출하므로 가리면 `***` 가 실제 입력이 됐기 때문이다. 프론트엔드 마커 가드(프리필 건너뜀, 제출 차단)가 생기면서 그 조건이 사라져 가리는 쪽으로 바꿨다. 같은 날부터 서버도 수동 실행 경로에서 마스킹 마커를 그대로 다시 보낸 값을 `MASKED_VALUE_RESUBMITTED` 로 거부한다. UI 를 거치지 않은 API 직접 호출에 대비한 것이다. 노드 실행 `input_data` 는 그전부터 가리고 있었으므로 이 전환으로 두 필드의 규칙이 같아졌다.
 
@@ -166,7 +168,9 @@ V001 은 `execution.execution_path UUID[]` 컬럼에 노드 실행 순서를 담
 
 응답의 `dryRun` 을 노드 실행 집계로 만드는 방식은 택하지 않았다. 부수효과 노드가 없는 dry-run 워크플로우를 `false` 로 잘못 도출하기 때문이다. 그래서 `dry_run` 컬럼(V068)을 그대로 내보낸다.
 
-### REST 중지 실행의 마지막 구간은 중지 시각까지 센다 (2026-11-14)
+### REST 중지 실행의 마지막 구간은 중지 시각까지 센다
+
+결정일: 2026-11-14
 
 - REST 중지는 실행 행을 먼저 `cancelled` 로 바꾸고, 엔진은 다음 경계에서 행을 다시 읽어야 중지를 안다. 그동안 엔진의 상태 전이 UPDATE 는 0행으로 끝나 열린 구간이 `active_running_ms` 에 들어가지 않았다. 구간이 하나뿐인 실행은 측정되지 않은 것으로 보였다.
 - 그래서 엔진은 저장하지 못한 전이에서 닫은 구간을 이 컬럼에만 더한다. 상태 · `finished_at` · `duration_ms` 는 REST 중지가 쓴 값 그대로다. 입력 대기 중 취소는 열린 구간이 없어 대기 시간이 들어가지 않는다.

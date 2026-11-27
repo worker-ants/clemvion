@@ -22,7 +22,6 @@ import { redactStoredFieldsForResponse } from '../../../shared/utils/redact-stor
 import { isUuidShaped } from '../../../common/utils/uuid';
 
 const NODE_EXECUTIONS_DEFAULT_LIMIT = 50;
-const NODE_EXECUTIONS_MAX_LIMIT = 200;
 
 interface CursorPayload {
   s: string; // ISO8601 startedAt
@@ -89,7 +88,9 @@ export class BackgroundRunsService {
     query: QueryBackgroundRunDto,
     userWorkspaceId: string,
   ): Promise<BackgroundRunResponseDto> {
-    const limit = this.resolveLimit(query.limit);
+    // `limit` 범위(1~200)는 요청 DTO(`QueryBackgroundRunDto`)가 먼저 검증해
+    // 400 `VALIDATION_ERROR` 로 답한다. 여기서는 기본값만 채운다.
+    const limit = query.limit ?? NODE_EXECUTIONS_DEFAULT_LIMIT;
     const cursor = this.decodeCursor(query.cursor);
 
     await this.verifyExecutionAccess(executionId, userWorkspaceId);
@@ -135,17 +136,6 @@ export class BackgroundRunsService {
     };
   }
 
-  private resolveLimit(raw: number | undefined): number {
-    const value = raw ?? NODE_EXECUTIONS_DEFAULT_LIMIT;
-    if (value < 1 || value > NODE_EXECUTIONS_MAX_LIMIT) {
-      throw new BadRequestException({
-        code: 'INVALID_LIMIT',
-        message: `limit must be between 1 and ${NODE_EXECUTIONS_MAX_LIMIT}`,
-      });
-    }
-    return value;
-  }
-
   private decodeCursor(raw: string | undefined): CursorPayload | null {
     if (!raw) return null;
     try {
@@ -172,9 +162,9 @@ export class BackgroundRunsService {
       // 준다(계약이 다르다). 통일은 관측 가능한 동작 변경이라 제품 결정이고, 별 건으로 등재했다.
       //
       // **호출 순서 주의**: 이 디코더는 `verifyExecutionAccess`(워크스페이스 소유권)보다
-      // **먼저** 돈다(기존 `resolveLimit` 과 같은 관행). 그래서 "다른 워크스페이스 + 잘못된
-      // 커서" 는 404 가 아니라 400 이다 — 커서는 **형태만으로** 거부되므로 리소스 존재를
-      // 누설하지 않는다. 그 우선순위는 spec 에 고정된 테스트가 있다.
+      // **먼저** 돈다(입력 형태 검사를 리소스 조회보다 먼저 하는 관행). 그래서
+      // "다른 워크스페이스 + 잘못된 커서" 는 404 가 아니라 400 이다 — 커서는 **형태만으로**
+      // 거부되므로 리소스 존재를 누설하지 않는다. 그 우선순위는 spec 에 고정된 테스트가 있다.
       if (!isUuidShaped(parsed.i)) {
         throw new Error('cursor id is not uuid-shaped');
       }

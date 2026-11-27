@@ -16,6 +16,7 @@ import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { WEBCHAT_IDLE_REAP_BATCH_LIMIT } from './webchat-idle-reaper.types';
 import { processInBatches } from '../../common/utils/process-in-batches';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
+import { ITK_PREFIX, newPerTriggerToken } from './per-trigger-token';
 
 /**
  * [Spec EIA §3.3 / §R4] — 인터랙션 토큰 두 family.
@@ -33,25 +34,13 @@ import { BusinessMetricsService } from '../metrics/business-metrics.service';
  */
 
 export const IEXT_PREFIX = 'iext_';
-export const ITK_PREFIX = 'itk_';
 export const INTERACTION_TOKEN_AUDIENCE = 'interaction';
 
 /** iext 토큰의 default 수명 (초). [Spec EIA §3.3 EIA-AU-02]. */
 const IEXT_DEFAULT_TTL_SEC = 60 * 60; // 1h
 /** refresh 가능한 만료 임박 윈도우 (초). [Spec EIA §3.3 EIA-AU-05]. */
 const IEXT_REFRESH_WINDOW_SEC = 30 * 60; // 30min
-const ITK_BYTES = 32;
 const BLACKLIST_KEY_PREFIX = 'iext:blacklist:';
-
-/**
- * 새 트리거 단위 토큰(`itk_` + 32 bytes hex). 토큰에는 트리거 id 정보가 없다.
- *
- * 트리거 생성 · PATCH 의 첫 발급과 재발급(`TriggersService`)이 이 함수를 쓴다. `TriggersModule` 은 이 모듈을
- * import 하지 않아 DI 없이 부를 수 있는 함수로 둔다(NERV Task `CLE-T-EQDYC1`).
- */
-export function newPerTriggerToken(): string {
-  return `${ITK_PREFIX}${randomBytes(ITK_BYTES).toString('hex')}`;
-}
 
 /**
  * dev/test 전용 fallback 서명 키 — env(`INTERACTION_JWT_SECRET`/`JWT_SECRET`) 미설정 시에만 쓰인다.

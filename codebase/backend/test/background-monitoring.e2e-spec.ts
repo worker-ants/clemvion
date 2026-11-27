@@ -300,7 +300,7 @@ describe('Background body monitoring (e2e)', () => {
       .set('X-Workspace-Id', workspaceId);
 
     expect(res.status).toBe(400);
-    // **클래스만 보지 않는다** — 소유권·limit 가드도 400 을 내므로 무엇이 거부했는지까지 본다.
+    // **클래스만 보지 않는다** — `limit` 검증도 400 을 내므로 무엇이 거부했는지까지 본다.
     expect(res.body.error.code).toBe('INVALID_CURSOR');
 
     // **대조군** — 유효한 UUID 커서는 이 관문을 통과한다(무조건 400 이 아니다).
@@ -320,6 +320,39 @@ describe('Background body monitoring (e2e)', () => {
 
     expect(ok.status).toBe(200);
   });
+
+  /**
+   * 계약: `limit` 이 1~200 밖이거나 정수가 아니면 요청 DTO(`QueryBackgroundRunDto` 의
+   * `@IsInt() @Min(1) @Max(200)`)가 서비스보다 먼저 거부해 **400 `VALIDATION_ERROR`** 로 답한다
+   * (REQ-BGRUN-022). 서비스에는 `limit` 범위 검사가 없다. 그래서 이 응답은 전역 검증 파이프와
+   * DTO 를 실제로 태워야만 확인된다.
+   */
+  it('limit 이 1~200 밖이거나 정수가 아니면 400 VALIDATION_ERROR', async () => {
+    const workflowId = await createBackgroundFailingWorkflow();
+    const { executionId, backgroundRunId } =
+      await executeAndGetBackgroundRunId(workflowId);
+    const get = (limit: string) =>
+      request(BASE_URL)
+        .get(
+          `/api/executions/${executionId}/background-runs/${backgroundRunId}`,
+        )
+        .query({ limit })
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('X-Workspace-Id', workspaceId);
+
+    for (const limit of ['0', '201', 'abc']) {
+      const res = await get(limit);
+      expect({ limit, status: res.status, code: res.body.error?.code }).toEqual(
+        { limit, status: 400, code: 'VALIDATION_ERROR' },
+      );
+    }
+
+    // **대조군** — 경계값 1 · 200 은 통과한다(무조건 400 이 아니다).
+    for (const limit of ['1', '200']) {
+      const ok = await get(limit);
+      expect({ limit, status: ok.status }).toEqual({ limit, status: 200 });
+    }
+  }, 30_000);
 
   it('cross-workspace GET → 404 (워크스페이스 mismatch 시 ID enumeration 차단)', async () => {
     const workflowId = await createBackgroundFailingWorkflow();
