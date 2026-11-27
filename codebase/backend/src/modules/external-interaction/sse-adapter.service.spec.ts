@@ -7,12 +7,12 @@ import {
   type SseSubscriber,
 } from './sse-adapter.service';
 import {
-  SSE_BUFFER_MAX_MESSAGE_BYTES,
   SseFanoutService,
   sseBufferKey,
   sseConnectionSlotsKey,
   sseLiveChannel,
 } from './sse-fanout.service';
+import { SSE_BUFFER_MAX_MESSAGE_BYTES } from './sse.constants';
 import { writeSseFrame } from './interaction-stream.controller';
 import {
   FakeRedisClient,

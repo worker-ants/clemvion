@@ -14,21 +14,20 @@ import {
   BusinessMetricsService,
   type RedisFailOpenReason,
 } from '../metrics/business-metrics.service';
+import { executionSeqKey } from '../websocket/execution-seq-allocator.service';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
+import { errorMessage } from '../../common/utils/error-message';
+import {
+  SSE_BUFFER_MAX_EVENTS,
+  SSE_BUFFER_MAX_MESSAGE_BYTES,
+  SSE_CONNECTION_SLOT_TTL_MS,
+  SSE_REPLAY_WINDOW_MS,
+  SSE_SUBSCRIBER_CONNECTION_NAME,
+  SSE_TERMINAL_EVENT_TYPES,
+} from './sse.constants';
 
 // 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림), NERV Task `CLE-T-Z35F7P`.
 // 키 접두 `eia:` 는 이 모듈이 이미 쓰는 접두다([Redis 키 명명 규약 「규칙」](CLE-ENG-REDIS#규칙) 규칙 6).
-
-/** 재연결 replay 를 받아 주는 기간(ms). 버퍼 키의 TTL 이기도 하다. */
-export const SSE_REPLAY_WINDOW_MS = 5 * 60 * 1000;
-/** 실행 하나의 버퍼에 두는 이벤트 수의 상한. Redis 는 `MAXLEN ~` 라 조금 넘길 수 있다. */
-export const SSE_BUFFER_MAX_EVENTS = 1000;
-/** SSE heartbeat 주석을 보내는 간격(ms). 연결 상한의 member 점수도 이 간격으로 갱신한다. */
-export const SSE_HEARTBEAT_INTERVAL_MS = 15_000;
-/** 연결 상한 member 를 오래됐다고 보는 시간(ms). heartbeat 간격의 3배다. 키 TTL 도 같다. */
-export const SSE_CONNECTION_SLOT_TTL_MS = 3 * SSE_HEARTBEAT_INTERVAL_MS;
-/** 실행 하나에 동시에 열 수 있는 SSE 연결 수. 모든 서버 인스턴스를 합쳐 센다. */
-export const SSE_MAX_CONNECTIONS_PER_EXECUTION = 3;
 
 /** 트리거 단위 토큰 스트림 닫기 신호를 모든 서버 인스턴스에 알리는 채널. */
 export const SSE_CLOSE_CHANNEL = 'eia:sse:close';
@@ -47,14 +46,6 @@ export function sseLiveChannel(executionId: string): string {
 /** 실행별 연결 상한 ZSET 키. member 는 구독 id, 점수는 마지막 heartbeat 시각(ms)이다. */
 export function sseConnectionSlotsKey(executionId: string): string {
   return `eia:sse:subs:${executionId}`;
-}
-
-/**
- * 실행 이벤트 순번 카운터 키. 쓰는 쪽은 `ExecutionSeqAllocator`(`execution-seq-allocator.service.ts`)다. 이벤트마다 INCR 하고
- * TTL 을 24시간(`EXECUTION_SEQ_TTL_SECONDS`)으로 늘리며 종료 이벤트 뒤 지운다. 여기서는 읽기만 한다.
- */
-function executionSeqKey(executionId: string): string {
-  return `exec:seq:${executionId}`;
 }
 
 /**
@@ -83,23 +74,6 @@ const BUFFER_FIELD = 'data';
  * 않는다. 이 필드가 없는 항목(롤링 배포 중 옛 서버 인스턴스가 넣은 것)은 그대로 파싱한다.
  */
 const SEQ_FIELD = 'seq';
-
-/**
- * Redis 에 올리는 메시지 하나의 최대 크기(UTF-8 바이트). 넘으면 이벤트 대신 생략 표시만 올리고 이벤트 전체는 이 서버
- * 인스턴스의 메모리 버퍼에 둔다. 종료 이벤트는 스트림을 끝내는 이벤트라 상한을 적용하지 않는다. 정한 값이고 재 본 값이
- * 아니다. 근거: CLE-EIA-DATA Rationale 「SSE 의 Redis 쓰기를 줄이고 구독 공백을 메운다」, NERV Task `CLE-T-XPG8DQ`.
- */
-export const SSE_BUFFER_MAX_MESSAGE_BYTES = 64 * 1024;
-
-/** 스트림을 끝내는 종료 이벤트. */
-export const SSE_TERMINAL_EVENT_TYPES: ReadonlySet<string> = new Set([
-  'execution.completed',
-  'execution.failed',
-  'execution.cancelled',
-]);
-
-/** 구독 전용 연결의 이름(`CLIENT SETNAME`). 운영에서 연결을 알아볼 때와 e2e 가 연결 끊김을 만들 때 쓴다. */
-export const SSE_SUBSCRIBER_CONNECTION_NAME = 'eia-sse-sub';
 
 /**
  * 요청 경로에서 Redis 응답을 기다리는 상한(ms). 공유 연결이 끊겨 있으면 ioredis 는 명령을 쌓아 두었다가 재연결
@@ -464,7 +438,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
       // 스트림이 다음 토큰 재확인까지 남는다. 복구 로그를 남기려고 실패 상태는 함께 기록한다.
       this.degradedOps.add('닫기 신호 발행');
       this.logger.error(
-        `EIA SSE Redis 닫기 신호 발행 실패 — 다른 서버 인스턴스의 트리거 단위 토큰 스트림은 토큰 재확인 때 닫힌다. triggerIds=${triggerIds.join(',')}: ${errMessage(err)}`,
+        `EIA SSE Redis 닫기 신호 발행 실패 — 다른 서버 인스턴스의 트리거 단위 토큰 스트림은 토큰 재확인 때 닫힌다. triggerIds=${triggerIds.join(',')}: ${errorMessage(err)}`,
       );
       this.metrics?.recordRedisFailOpen('sse_fanout', 'publish_failed');
     }
@@ -688,7 +662,7 @@ export class SseFanoutService implements OnModuleInit, OnModuleDestroy {
     if (this.degradedOps.has(op)) return;
     this.degradedOps.add(op);
     this.logger.warn(
-      `EIA SSE Redis ${op} 실패 — 이 서버 인스턴스의 메모리로 처리한다(복구될 때까지 다시 남기지 않는다): ${errMessage(err)}`,
+      `EIA SSE Redis ${op} 실패 — 이 서버 인스턴스의 메모리로 처리한다(복구될 때까지 다시 남기지 않는다): ${errorMessage(err)}`,
     );
   }
 
@@ -742,8 +716,4 @@ function readField(fields: string[], name: string): string | null {
     if (fields[i] === name) return fields[i + 1];
   }
   return null;
-}
-
-function errMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

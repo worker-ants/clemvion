@@ -7,15 +7,15 @@ import {
 import { WebsocketService } from '../websocket/websocket.service';
 import type { InteractionStreamCloserPort } from './interaction-stream-closer';
 import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
+import { errorMessage } from '../../common/utils/error-message';
+import { SseFanoutService, type BufferedSseEvent } from './sse-fanout.service';
 import {
   SSE_BUFFER_MAX_EVENTS,
   SSE_BUFFER_MAX_MESSAGE_BYTES,
   SSE_MAX_CONNECTIONS_PER_EXECUTION,
   SSE_REPLAY_WINDOW_MS,
   SSE_TERMINAL_EVENT_TYPES,
-  SseFanoutService,
-  type BufferedSseEvent,
-} from './sse-fanout.service';
+} from './sse.constants';
 import { SseStreamEligibilityService } from './sse-stream-eligibility.service';
 
 /** 메모리 버퍼 · 쓰기 대상 판정에서 마지막 이벤트 뒤 5분이 지난 실행을 지우는 주기(ms). */
@@ -158,7 +158,7 @@ export class SseAdapter
       next: (event) => this.handleEvent(event),
       error: (err) =>
         this.logger.error(
-          `SseAdapter subscription error: ${err instanceof Error ? err.message : String(err)}`,
+          `SseAdapter subscription error: ${errorMessage(err)}`,
         ),
     });
     this.sweepTimer = setInterval(
@@ -371,13 +371,7 @@ export class SseAdapter
     entry.pending = [];
     if (entry.pendingOverflowed) {
       entry.pendingOverflowed = false;
-      this.deliverNow(
-        entry,
-        this.buildReplayUnavailableEvent(
-          entry.subscriber.executionId,
-          entry.lastSeq,
-        ),
-      );
+      this.sendReplayUnavailable(entry, entry.lastSeq);
     }
     for (const item of pending) {
       if (this.isClosed(entry)) return;
@@ -419,25 +413,18 @@ export class SseAdapter
   private async catchUp(entry: SubscriberEntry): Promise<void> {
     entry.resyncRequested = false;
     entry.phase = 'catching_up';
-    const executionId = entry.subscriber.executionId;
     try {
       if (entry.anchored) {
         await this.replay(entry, entry.lastSeq);
       } else {
-        this.deliverNow(
-          entry,
-          this.buildReplayUnavailableEvent(executionId, entry.lastSeq),
-        );
+        this.sendReplayUnavailable(entry, entry.lastSeq);
       }
     } catch (err) {
       // replay 는 던지지 않는 계약이다. 어겨도 구독자가 모으는 상태에 묶이지 않게 신호를 보내고 이어 간다.
       this.logger.warn(
-        `SseAdapter 따라잡기 실패 (id=${entry.subscriber.id}): ${err instanceof Error ? err.message : String(err)}`,
+        `SseAdapter 따라잡기 실패 (id=${entry.subscriber.id}): ${errorMessage(err)}`,
       );
-      this.deliverNow(
-        entry,
-        this.buildReplayUnavailableEvent(executionId, entry.lastSeq),
-      );
+      this.sendReplayUnavailable(entry, entry.lastSeq);
     }
     if (this.isClosed(entry)) return;
     this.goLive(entry);
@@ -469,10 +456,7 @@ export class SseAdapter
     const latest = await this.fanout.readLatestSeq(executionId);
     if (this.isClosed(entry)) return;
     if (this.mayHaveMissed(entry, lastEventId, latest)) {
-      this.deliverNow(
-        entry,
-        this.buildReplayUnavailableEvent(executionId, lastEventId),
-      );
+      this.sendReplayUnavailable(entry, lastEventId);
     }
   }
 
@@ -514,7 +498,6 @@ export class SseAdapter
     lastEventId: number,
     wanted: BufferedSseEvent[],
   ): void {
-    const executionId = entry.subscriber.executionId;
     const cutoff = Date.now() - SSE_REPLAY_WINDOW_MS;
     const replayable = wanted
       .filter((e) => e.receivedAt >= cutoff)
@@ -530,10 +513,7 @@ export class SseAdapter
       events.push(item.event);
     }
     if (events.length === 0 || events.length !== replayable.length) {
-      this.deliverNow(
-        entry,
-        this.buildReplayUnavailableEvent(executionId, lastEventId),
-      );
+      this.sendReplayUnavailable(entry, lastEventId);
       return;
     }
     for (const event of events) {
@@ -542,26 +522,15 @@ export class SseAdapter
     }
   }
 
-  /**
-   * `execution.replay_unavailable` control frame 을 구성. 재연결 응답 전용이라 monotonic
-   * 스트림 위치가 아니며 `seq: 0` sentinel 을 쓴다 (`interaction-stream.controller` 의
-   * `writeSseFrame` 이 seq<=0 이면 SSE `id:` 라인을 생략 → client 의 Last-Event-Id 오염 방지).
-   */
-  private buildReplayUnavailableEvent(
-    executionId: string,
+  /** {@link buildReplayUnavailableEvent} 로 만든 제어 프레임을 구독자에게 바로 보낸다. */
+  private sendReplayUnavailable(
+    entry: SubscriberEntry,
     lastEventId: number,
-  ): ExecutionChannelEvent {
-    return {
-      executionId,
-      eventType: REPLAY_UNAVAILABLE_EVENT_TYPE,
-      seq: 0,
-      payload: {
-        executionId,
-        lastEventId,
-        message:
-          'Requested events are no longer available in the 5-minute replay buffer. Re-fetch current state via GET /api/external/executions/:id.',
-      },
-    };
+  ): void {
+    this.deliverNow(
+      entry,
+      buildReplayUnavailableEvent(entry.subscriber.executionId, lastEventId),
+    );
   }
 
   /**
@@ -624,7 +593,7 @@ export class SseAdapter
       subscriber.close();
     } catch (err) {
       this.logger.warn(
-        `SseAdapter close 실패 (id=${subscriber.id}): ${err instanceof Error ? err.message : String(err)}`,
+        `SseAdapter close 실패 (id=${subscriber.id}): ${errorMessage(err)}`,
       );
     }
   }
@@ -747,13 +716,7 @@ export class SseAdapter
    */
   private signalOmitted(entry: SubscriberEntry, seq: number): void {
     if (seq <= entry.lastSeq) return;
-    this.deliverNow(
-      entry,
-      this.buildReplayUnavailableEvent(
-        entry.subscriber.executionId,
-        entry.lastSeq,
-      ),
-    );
+    this.sendReplayUnavailable(entry, entry.lastSeq);
   }
 
   private dispatch(event: ExecutionChannelEvent): void {
@@ -797,7 +760,7 @@ export class SseAdapter
       subscriber.push(event);
     } catch (err) {
       this.logger.warn(
-        `SseAdapter push 실패 (id=${subscriber.id}): ${err instanceof Error ? err.message : String(err)}`,
+        `SseAdapter push 실패 (id=${subscriber.id}): ${errorMessage(err)}`,
       );
     }
     if (SSE_TERMINAL_EVENT_TYPES.has(event.eventType)) {
@@ -832,6 +795,28 @@ export class SseAdapter
       if (scope.touchedAt < cutoff) this.writeScopes.delete(executionId);
     }
   }
+}
+
+/**
+ * `execution.replay_unavailable` 제어 프레임을 만든다. 재연결 응답 전용이라 단조 증가하는 스트림 위치가 아니고
+ * `seq: 0` 을 쓴다. `interaction-stream.controller` 의 `writeSseFrame` 은 seq 가 0 이하면 SSE `id:` 줄을 빼서
+ * 클라이언트의 Last-Event-Id 를 덮지 않는다.
+ */
+function buildReplayUnavailableEvent(
+  executionId: string,
+  lastEventId: number,
+): ExecutionChannelEvent {
+  return {
+    executionId,
+    eventType: REPLAY_UNAVAILABLE_EVENT_TYPE,
+    seq: 0,
+    payload: {
+      executionId,
+      lastEventId,
+      message:
+        'Requested events are no longer available in the 5-minute replay buffer. Re-fetch current state via GET /api/external/executions/:id.',
+    },
+  };
 }
 
 /** 라우팅 컨텍스트가 이벤트에 `triggerId` 를 붙였는지. 붙었으면 트리거가 있는 실행이라 판정 조회 없이 쓴다. */

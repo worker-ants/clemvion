@@ -3,9 +3,9 @@ import { Subject } from 'rxjs';
 import type { Response } from 'express';
 import {
   InteractionStreamController,
-  SSE_TOKEN_RECHECK_INTERVAL_MS,
   writeSseFrame,
 } from './interaction-stream.controller';
+import { SSE_TOKEN_RECHECK_INTERVAL_MS } from './sse.constants';
 import { SseAdapter, type SseSubscriber } from './sse-adapter.service';
 import { SseFanoutService } from './sse-fanout.service';
 import type { SseStreamEligibilityService } from './sse-stream-eligibility.service';
