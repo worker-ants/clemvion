@@ -1,4 +1,4 @@
-import { Logger, UnauthorizedException } from '@nestjs/common';
+import { HttpException, Logger, UnauthorizedException } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import type { Response } from 'express';
 import {
@@ -264,11 +264,17 @@ describe('InteractionStreamController.stream — 구독 등록 뒤 토큰 재확
       expect(await h.adapter.admit(sub)).toBe(true);
     }
     const { done, res } = openStream(h, ITK_CTX);
-    await done;
-    expect(res.status).toHaveBeenCalledWith(429);
-    expect(res.json).toHaveBeenCalledWith({
+    // 헤더를 보내기 전이라 예외를 던진다. 전역 필터가 `requestId` 를 담은 봉투로 바꾼다.
+    const err = await done.then(
+      () => null,
+      (err_: unknown) => err_,
+    );
+    expect(err).toBeInstanceOf(HttpException);
+    expect((err as HttpException).getStatus()).toBe(429);
+    expect((err as HttpException).getResponse()).toEqual({
       error: expect.objectContaining({ code: 'TOO_MANY_CONNECTIONS' }),
     });
+    expect(res.status).not.toHaveBeenCalled();
     expect(h.guard.reverifyTriggerToken).not.toHaveBeenCalled();
     expect(sentSseHeaders(res)).toBe(false);
     expect(h.adapter.subscriberCount('exec-1')).toBe(3);

@@ -559,9 +559,12 @@ describe('EIA SSE — Redis fan-out 과 트리거 단위 토큰 무효 때 닫�
     const rejected = await openSse(executionId, itk);
     await waitEnded(rejected, '429 응답');
     expect(rejected.status).toBe(429);
-    expect(
-      (JSON.parse(rejected.body()) as { error: { code: string } }).error.code,
-    ).toBe('TOO_MANY_CONNECTIONS');
+    // 전역 필터가 만든 오류 봉투라 `requestId` 가 있다(CLE-API-ERROR).
+    const rejectedBody = JSON.parse(rejected.body()) as {
+      error: { code: string; requestId?: string };
+    };
+    expect(rejectedBody.error.code).toBe('TOO_MANY_CONNECTIONS');
+    expect(typeof rejectedBody.error.requestId).toBe('string');
 
     // heartbeat 가 45초 넘게 끊긴 자리는 Lua 스크립트가 지우고 센다.
     await redis.zadd(key, now - 60_000, 'other-1');

@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Headers,
+  HttpException,
+  HttpStatus,
   Logger,
   Param,
   ParseUUIDPipe,
@@ -17,6 +19,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
   ApiOkResponse,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { randomUUID } from 'crypto';
@@ -62,7 +65,9 @@ const TOKEN_RECHECK_EVERY_HEARTBEATS = Math.max(
  *   옛 토큰으로 다시 연결하면 가드가 401 로 거부한다. 닫기 신호를 놓친 스트림도 {@link SSE_TOKEN_RECHECK_INTERVAL_MS}
  *   마다 토큰을 다시 확인해 닫는다. 닫기 신호는 Redis pub/sub 이라 발행이 실패하거나 구독 연결이 끊긴 사이 나가면 다른
  *   서버 인스턴스의 스트림에 닿지 않는다. 그래도 이 주기 안에는 닫힌다. 스트림 하나가 주기마다 트리거 행 하나를 읽는다.
- * - execution 당 동시 연결 한도 3 — 모든 서버 인스턴스를 합쳐 센다. 초과 시 429 `TOO_MANY_CONNECTIONS`
+ * - execution 당 동시 연결 한도 3 — 모든 서버 인스턴스를 합쳐 센다. 초과 시 429 `TOO_MANY_CONNECTIONS`. SSE 헤더를
+ *   보내기 전이라 `HttpException` 을 던져 전역 필터가 `requestId` 를 담은 오류 봉투를 만든다.
+ * - EventSource 는 헤더를 못 보내므로 토큰을 `?token=` 쿼리로도 받는다.
  */
 @ApiTags('External Interaction')
 @ApiBearerAuth('interaction-token')
@@ -81,7 +86,7 @@ export class InteractionStreamController {
   @ApiOperation({
     summary: '실행 이벤트 SSE 스트림',
     description:
-      '실행의 라이브 이벤트를 Server-Sent Events 로 수신. Last-Event-Id 로 5분 buffer 에서 누락분 재전송. terminal 이벤트 발송 후 자동 종료. 트리거 단위 토큰(itk_*)으로 연 스트림은 그 토큰이 무효가 되면(재발급 · 전략 변경 · 인터랙션 끄기 · 트리거 삭제) 서버가 응답을 끝낸다 — 새 토큰으로 다시 연결한다(옛 토큰은 401). EventSource 사용 시 토큰을 ?token= 쿼리로도 받아준다.',
+      '실행의 라이브 이벤트를 Server-Sent Events 로 보내고 종료 이벤트 뒤에 응답을 끝낸다. Last-Event-Id 를 주면 5분 버퍼에서 놓친 이벤트를 다시 보낸다.',
   })
   @ApiParam({ name: 'executionId', format: 'uuid' })
   @ApiProduces('text/event-stream')
@@ -89,6 +94,10 @@ export class InteractionStreamController {
     description: 'SSE 스트림 — EventSource 류 클라이언트로 읽는다',
   })
   @ApiUnauthorizedResponse({ description: 'TOKEN_*' })
+  @ApiTooManyRequestsResponse({
+    description:
+      'TOO_MANY_CONNECTIONS — 실행 하나에 열린 SSE 연결이 모든 서버 인스턴스를 합쳐 3개다.',
+  })
   async stream(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Req() req: RequestWithInteraction,
@@ -145,13 +154,15 @@ export class InteractionStreamController {
     if (finished) return;
     if (closedBeforeStreaming) this.interactionGuard.rejectTriggerToken(req);
     if (!admitted) {
-      res.status(429).json({
-        error: {
-          code: 'TOO_MANY_CONNECTIONS',
-          message: `Execution-scope SSE 연결이 최대 ${SSE_MAX_CONNECTIONS_PER_EXECUTION} 개를 초과합니다.`,
+      throw new HttpException(
+        {
+          error: {
+            code: 'TOO_MANY_CONNECTIONS',
+            message: `Execution-scope SSE 연결이 최대 ${SSE_MAX_CONNECTIONS_PER_EXECUTION} 개를 초과합니다.`,
+          },
         },
-      });
-      return;
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     // 가드를 통과한 뒤 등록하기 전에 트리거 단위 토큰이 무효가 됐을 수 있다. 등록 뒤에 다시 확인한다.
