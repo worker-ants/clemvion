@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-UI"
 title: "워크플로우 AI 어시스턴트 — 패널 화면"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST"]
 area: "CLE-WF"
-content_hash: "680fd00f418ef2e2a88919507fe3c01f672df06bae733d875fa53672d2334b00"
+content_hash: "86a240d13f04ad276b2bf39070a8333f9da2dd6a2f9f0f22da40c848e12824e2"
 read_as: "approved_fallback"
-task: "CLE-T-ZN111F"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "542a77473300f0dfd6b095d8db3af8f6b295e9c261a2ca36b2dbb336e8673fed"
-etag: "sha256-a5e8212e2c7295997c4dfe6e2ee226a593f10018c1c5fc814d76c19c0ab19bec"
+mirror_sha256: "8f88b460759df0075727e96e67e19e2b233b9b0bf655cd7294600f433565c439"
+etag: "sha256-2dd8a86b03de02917073a5ddbfdc267fba2462e6aa999bc5d11017f52fc3dd93"
 ---
 ## 개요
 
@@ -238,13 +238,17 @@ AI 어시스턴트를 처음 열거나 새 대화를 시작하면 보이는 화�
 - `RESUMABLE_ERROR_CODES` 에 코드를 더하면 (1) 백엔드가 그 코드를 실제로 내는지, (2) "이어서 진행해줘" 가 의미 있는 복구인지, (3) `continueAfterBudget` 대신 별도 재개 동작이 필요한지 확인한다.
 - `RESUMABLE_ERROR_CODES` 를 바꾸면 `assistant.errorTooManyToolCalls` 문구도 함께 본다. 이 문구가 «"이어서 진행" 버튼» 을 가리키기 때문이다. 에러 버블 테스트(`assistant-message-error.test.tsx`)가 이 문구에 버튼 문구(`assistant.continueAfterBudgetButton`)가 들어 있는지 확인한다.
 
-### 도구 호출 배지 요약과 실패 토스트를 사전 키로 옮겼다 (2026-11-14)
+### 도구 호출 배지 요약과 실패 토스트를 사전 키로 옮겼다
+
+결정일: 2026-11-14
 
 도구 호출 배지 요약은 영문 고정 문자열이라 한국어 로케일에서도 영문으로 보였다. NERV Task `CLE-T-F9QEJC` 가 고정 단어를 `assistant.toolBadge*` 사전 키로 옮겼고 `CLE-T-9T5MNG` 가 세션 생성 · 응답 실패 토스트를 옮겼다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 1 의 예외 항목도 함께 지웠다.
 
 - **도구 인자 · 결과에서 온 값은 번역하지 않는다.** 노드 라벨은 워크플로우에 들어가는 이름이다. 노드 타입 · 설정 키 · 실행 상태 값 · 도구 이름은 코드 식별자다. 둘 다 사전에 둘 화면 문구가 아니어서 그대로 싣는다.
 
-### 남은 영문 폴백을 사전 키로 옮겼다 (2026-11-14)
+### 남은 영문 폴백을 사전 키로 옮겼다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-66PJNN` 이다. 배지 요약을 사전 키로 옮긴 뒤에도 후보 선택기의 필드 라벨, 요약 키가 없는 도구의 배지, 스토어의 에러 폴백(`Assistant error`), 서버가 채우던 계획 제목 · 후보 라벨 폴백(`Plan` · `LLM Config` · `Workflow`)이 영문으로 남아 있었다.
 

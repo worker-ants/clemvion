@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-INTERACT"
 title: "채팅 채널 — 인터랙션 응답과 명령 실패"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "9554431c8c0d96f402aa2196a4fbbc4ed927f52aa4bd37a2d4734821272f4d32"
+content_hash: "73debfac92f76dbbb6e9f932104291f8beb37088b4f45336e9e87edc7b76e924"
 read_as: "approved_fallback"
-task: "CLE-T-0400J6"
+task: "CLE-T-P4TSAA"
 source_paths: []
-mirror_sha256: "dc5a67e9d3be1088fbc32d81ee420bc1a3b9300a6ac39126316ed9c2d1d1b003"
-etag: "sha256-42864689efb2efc41887db34385ba53f500a88cf1f32e6b965edc5102eb966fe"
+mirror_sha256: "84fdb270d33729ddc3e374a906e44f172bf14684624e43d6a30508dcc3914496"
+etag: "sha256-37ba55219dc1b261304e711fab5b17c0251b565e28ce0261bb707cc06b102be3"
 ---
 ## 개요
 
@@ -49,7 +49,7 @@ Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 �
 
 ## 버린 update 의 수신 확인
 
-인터랙션 응답과 별개로 활성 트리거에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 대화 단위 분당 한도 초과, 실행 중이라 입력 대기가 아님, 실행 소유자가 아닌 사람의 `/start`·`/cancel`, 워크플로우 비활성, 워크플로우 없음, 처리 중 예상하지 못한 오류) 채널 어댑터의 선택 함수 `ackDroppedUpdate(raw, config)` 로 프로바이더에 수신 확인을 보낸다.
+인터랙션 응답과 별개로 활성 트리거에서 update 를 실행 없이 버리면(파싱 결과 없음, 중복 update, 대화 단위 분당 한도 초과, 실행 중이라 입력 대기가 아님, 실행 소유자가 아닌 사람의 `/start`·`/cancel`, 시작 잠금을 잡지 못했거나 잠금 뒤 다시 읽은 대화가 다른 실행을 가리키는 새 실행 시작 입력, 워크플로우 비활성, 워크플로우 없음, 처리 중 예상하지 못한 오류) 채널 어댑터의 선택 함수 `ackDroppedUpdate(raw, config)` 로 프로바이더에 수신 확인을 보낸다.
 
 - 지금 이 함수가 있는 프로바이더는 Telegram 하나다. 버튼 클릭(`callback_query`)이면 `answerCallbackQuery` 만 보내 버튼의 로딩 표시를 끝낸다. 같은 `callback_query.id` 에는 처리한 클릭의 응답(`ackInteraction`)과 합쳐 한 번만 보낸다([채팅 채널 어댑터 규약 「인터랙션 기본 응답과 수신 확인」](CLE-CHAT-ADAPTER-IFACE.md#인터랙션-기본-응답과-수신-확인)). 인라인 키보드는 지우지 않는다. 사용자가 잠시 뒤 같은 버튼을 다시 누를 수 있어야 하기 때문이다. 그 밖의 update 에는 아무것도 보내지 않는다.
 - Discord 와 Slack 은 3초 안의 `200` 응답이 수신 확인이라 이 함수가 없다.
@@ -70,7 +70,7 @@ Discord 도움말은 `languageHints.help` 가 있으면 그 문구, 없으면 �
 - `/start` 와 달리 그 update 의 중복 제거 선점을 풀지 않는다. 실행은 입력 대기에 그대로 남으므로 사용자는 같은 명령을 다시 보낼 수 있다. 다시 보낸 명령은 새 update id 로 오므로 중복 제거에 걸리지 않는다.
 - 네이티브 폼 모달 제출을 큐에 넣지 못하면 모달 대기(`pendingFormModal`)를 지우지 않고 「양식 작성하기」 버튼을 다시 보낸다. 인터랙션 응답은 폼 제출 결과가 아니라 채널 어댑터의 기본 응답이라 모달만 닫힌다. 사용자는 버튼을 다시 눌러 같은 양식을 다시 낸다.
 - 프로바이더별 응답 예외는 이때도 그대로다.
-- `healthy` 로 돌아가는 전이는 [채팅 채널 데이터와 흐름 「채널 건강도」](CLE-CHAT-DATA.md#채널-건강도) 가 정한다.
+- `healthy` 로 돌아가는 전이는 [채팅 채널 데이터와 흐름 — 저장 모델과 상태 「채널 건강도」](CLE-CHAT-DATA-STORE.md#채널-건강도) 가 정한다.
 
 근거는 [R-CC-31](#r-cc-31-cancel-과-재개-명령의-큐-적재-실패는-202-와-degraded-로-답한다) 에 있다.
 

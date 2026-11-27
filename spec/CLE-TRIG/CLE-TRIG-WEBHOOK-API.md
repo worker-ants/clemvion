@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-API"
 title: "웹훅 — 엔드포인트와 수신 API"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "567523ea024653f26aca240bd5c4e286908f9bb2c88583e7b2021c76d7eb3f7e"
+content_hash: "3ad87de9f90c2c93dec707d2e9b289a0c01597218ad4e00c3c3c979ce747cacc"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-XQYZR7"
 source_paths: []
-mirror_sha256: "f1f83f56af975fe6cd3778741fb77e085626b36ec1c81c4d4124ef15cea2e2f2"
-etag: "sha256-d6785967673e28e1174bc40ee57cc0735b6fcf253b39e1c92ef0394494adb275"
+mirror_sha256: "cb124babfb2d0bd883fe06279b8e18e7157ec2c2bfcd8f0bc8d522dd0c85674b"
+etag: "sha256-fb5667bc3f625e1e968f29f1a5673465b0b7e4962f351842c5ecba33f1987313"
 ---
 ## 개요
 
@@ -154,7 +154,7 @@ POST /api/hooks/:endpointPath
 
 [URL 형식](#url-형식) 의 base 결정 순서를 요구사항 WH-EP-02 에 명문화했다. 웹훅 엔드포인트는 백엔드가 받으므로 base 는 백엔드 origin 이다.
 
-[웹훅](CLE-TRIG-WEBHOOK.md) 문서를 웹훅 도메인의 기준으로 정하면서 다음을 확정했다. ① 응답은 전역 `TransformInterceptor` 가 `{data: ...}` 로 감싼다. ② rate limit 은 전역 throttler 분당 100건이다. 서명 참조가 있는 채팅 채널 트리거는 2026-11-12 · 2026-11-13 사람 결정으로 이 한도에서 뺐다([서명 참조가 있는 채팅 채널 트리거만 전역 요청 한도에서 뺀다](CLE-TRIG-WEBHOOK-LIMIT.md#서명-참조가-있는-채팅-채널-트리거만-전역-요청-한도에서-뺀다-2026-11-13)). ③ POST 전용이다(GET·PUT 과 `?wait` 동기 모드는 지원하지 않는다). ④ URL 정본은 `/api/hooks/:endpointPath` 이고 `/api/webhooks` 나 워크스페이스 slug 세그먼트는 없다. 웹훅 라우트는 `HooksController` 하나다.
+[웹훅](CLE-TRIG-WEBHOOK.md) 문서를 웹훅 도메인의 기준으로 정하면서 다음을 확정했다. ① 응답은 전역 `TransformInterceptor` 가 `{data: ...}` 로 감싼다. ② rate limit 은 전역 throttler 분당 100건이다. 서명 참조가 있는 채팅 채널 트리거는 2026-11-12 · 2026-11-13 사람 결정으로 이 한도에서 뺐다([서명 참조가 있는 채팅 채널 트리거만 전역 요청 한도에서 뺀다](CLE-TRIG-WEBHOOK-LIMIT.md#서명-참조가-있는-채팅-채널-트리거만-전역-요청-한도에서-뺀다)). ③ POST 전용이다(GET·PUT 과 `?wait` 동기 모드는 지원하지 않는다). ④ URL 정본은 `/api/hooks/:endpointPath` 이고 `/api/webhooks` 나 워크스페이스 slug 세그먼트는 없다. 웹훅 라우트는 `HooksController` 하나다.
 
 ③의 POST 전용은 트리거 진입 엔드포인트(`/api/hooks/:endpointPath`)에만 적용한다. 그 아래 서브경로는 각 영역 문서가 따로 메서드와 정책을 정할 수 있다. 예를 들어 웹채팅의 `GET /api/hooks/:endpointPath/embed-config`(공개·무인증 조회, [웹채팅 보안](../CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md))는 POST 전용 규칙의 예외가 아니라 이 문서의 범위 밖이다. 이 엔드포인트는 실행을 시작하지 않는다.
 

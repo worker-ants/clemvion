@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA-MODEL"
 title: "트리거 데이터와 흐름 — 엔티티"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-DATA"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-DATA"]
 area: "CLE-TRIG"
-content_hash: "4fbcc82ac8ea2b233420d44ce97dcddd9e010316412bd88a9b1452fbd9170cd7"
+content_hash: "614422f81f3ec66168a4bf15cc7b46262244e23508b2862a8896ad5cff1c5035"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-XQYZR7"
 source_paths: []
-mirror_sha256: "9def7b91456a44c3b78d7357241c815a86b3673c43c5d87e5e3b999f8c883d45"
-etag: "sha256-049d742b1ce0d2dc8ecd649fe5fe83bb30d7c6382fff3bd921fedb4a1c972b11"
+mirror_sha256: "c9e5f33756167a65fa8a13ccfedc7becd7d80b46f0141edfd225cce8a23233ec"
+etag: "sha256-39b105e1579dc8774a7842752f2c577433996120c9bf85ecc51c3d45e8588cc2"
 ---
 ## 개요
 
@@ -158,11 +158,15 @@ EIA 컬럼의 동작은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md), �
 
 웹훅·수동과 같은 "실행 시작점" 모델로 통일하려는 것이다. `execution.trigger_id` 한 컬럼으로 모든 진입 경로를 추적할 수 있고 실행 내역에서 `trigger.type` 만 보면 진입 경로를 알 수 있다. 스케줄의 Cron 메타데이터는 별도 행에 두어 스케줄 화면이 직접 다룬다.
 
-### 역방향 동기화를 TriggersService 의 private 메서드로 둔 이유 (2026-06-10)
+### 역방향 동기화를 TriggersService 의 private 메서드로 둔 이유
+
+결정일: 2026-06-10
 
 트리거 → 스케줄 방향의 `is_active` 동기화를 `TriggersService.update()` 안에서 할지, 별도 도메인 이벤트(`TriggerStateChangedEvent`)로 할지 중 앞의 것을 골랐다. 이벤트 방식은 발행·구독 인프라를 더하는 데 비해 소비자가 `SchedulesService` 하나뿐이라 과하다. 그리고 동기 호출이어야 PATCH 응답 시점에 BullMQ 반영이 보장된다. `syncScheduleActivation()` 을 private 메서드로 뺀 것은 `update()` 본문이 커지는 것을 막기 위해서다. 모듈 의존은 `TriggersModule → SchedulesModule` 한 방향 import(`ScheduleRunnerService` export)로 풀었다. `ExecutionEngineModule` 이 `TriggersModule` 을 참조하지 않아 순환이 없다.
 
-### 트리거 `(workflow_id)` 인덱스 (2026-09-18)
+### 트리거 `(workflow_id)` 인덱스
+
+결정일: 2026-09-18
 
 워크플로우 삭제 한 번이 `trigger` 를 세 번 찾는다. 트리거 자원 정리의 외부 해제용 열거(트랜잭션 밖), `secret_store` 비밀을 지울 트리거 열거(`workflow` 행 잠금 안), FK `ON DELETE CASCADE` 다. 앞의 둘은 트리거 삭제 자원 정리(2026-09-17)가 더했고 그 전에는 CASCADE 한 번이었다. `workflow_id` 가 선두인 인덱스가 없어 세 번 다 전체 테이블을 훑었다. 이 셋 말고 `workflow_id` 로 트리거를 찾는 곳은 없다(grep 전수).
 
@@ -179,7 +183,9 @@ EIA 컬럼의 동작은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md), �
 
 같은 부류 전수: `workflow`·`workspace` 를 참조하는 FK 29개를 카탈로그로 대조하면 선두 인덱스가 없는 것이 `trigger.workflow_id` 포함 7개다. 트리거만 삭제 경로의 조회가 세 배가 된 자리이고 나머지 여섯은 CASCADE 한 번뿐이라 이 결정에 넣지 않았다. 그 여섯의 처분은 [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) 가 정한다.
 
-### 스케줄 인덱스 `(next_run_at, is_active)` → `(workspace_id, next_run_at)` (2026-09-04)
+### 스케줄 인덱스 `(next_run_at, is_active)` → `(workspace_id, next_run_at)`
+
+결정일: 2026-09-04
 
 스케줄의 옛 부분 인덱스 `(next_run_at, is_active) WHERE is_active` 는 어떤 쿼리도 쓰지 않았다. 목록 조회는 `WHERE workspace_id = ?` 로 들어오고 `is_active` 를 걸지 않아, Postgres 가 부분 인덱스를 쓰는 조건(쿼리 술어가 인덱스 술어를 함의)을 만족하지 못한다.
 

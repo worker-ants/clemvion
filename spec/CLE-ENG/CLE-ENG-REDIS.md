@@ -2,19 +2,19 @@
 id: "CLE-ENG-REDIS"
 title: "Redis 키 명명 규약"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "98a33ea30794c8b0703356e9fc5cfecb804597c17a2efe37f8c1c8c2b244559f"
+content_hash: "bf32f3d13238d481a264a194eb91993bac4b70c5bd286a00cfa37efa00480ece"
 read_as: "approved_fallback"
-task: "CLE-T-JK1JFZ"
+task: "CLE-T-15DBHE"
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "e370d3511c33b92908bdd322868e6207d6985d8e5d819b611fbc9edad15ae128"
-etag: "sha256-162857ce9292b9b3758f512d75fceafe37075cc545949ee8474e1118aa64f974"
+mirror_sha256: "91b61ca691af0e1e0577ebca4ea9a1be42bad01057e528fa231290071c125726"
+etag: "sha256-e58dd3bb65a4937abd8f16a36245d30c78777391761fc1489c81edfa2810775f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -159,24 +159,32 @@ NERV 로 옮기면서 전역 목록은 이 문서에서 [비동기 큐와 Redis 
 
 이 규약의 초안이 `background:run:<id>`(Socket.IO 채널)를 Redis 키로 잘못 올린 일이 있었다. 이름 모양이 같으면 종류도 같다고 넘겨짚기 쉽다. 그 혼동을 문서 안에서 미리 끊는다.
 
-### 새 advisory lock 계열은 64비트 해시를 쓴다 (2026-10-29)
+### 새 advisory lock 계열은 64비트 해시를 쓴다
+
+결정일: 2026-10-29
 
 `makeshop-pending` 계열은 32비트 `hashtext()` 대신 64비트 `hashtextextended(<키>, 0)` 로 잠근다. 관계없는 키가 같은 락에 걸릴 확률을 줄이려는 것이다. 해시가 겹쳐도 정합성은 깨지지 않지만 관계없는 요청이 서로를 기다리게 된다. 키 공간이 32비트에서 64비트로 넓어지면 그런 겹침은 훨씬 드물어진다.
 
 기존 `trigger-config`·`exec-cap` 계열은 바꾸지 않는다. 해시 함수를 바꾸면 배포 전환기에 옛 판과 새 판의 서버가 같은 키를 서로 다른 락 번호로 잡는다. 그동안은 두 서버가 서로를 막지 못한다. 앞으로 들이는 계열은 64비트를 쓴다(규칙 9).
 
-### 식별자에 콜론이 들어가는 키는 값 개수로 센다 (2026-11-14)
+### 식별자에 콜론이 들어가는 키는 값 개수로 센다
+
+결정일: 2026-11-14
 
 IPv6 주소에는 콜론이 들어 있다. 그래서 `cc:sigfail:<triggerId>:<clientIp>` 를 콜론으로 나누면 IP 종류에 따라 세그먼트 수가 달라지고 [키 형태](#키-형태) 의 세그먼트 수를 셀 수 없다. 채팅 채널 모듈은 이 키를 만들기만 하고 콜론으로 나눠 읽지 않으므로 IP 값을 인코딩하지 않았다. 키를 나눠 읽는 코드가 생기면 인코딩을 다시 정한다.
 
-### WebSocket adapter 채널 접두를 규약 예외로 둔 이유 (2026-11-14)
+### WebSocket adapter 채널 접두를 규약 예외로 둔 이유
 
-NERV Task `CLE-T-GDR39Z`. Socket.IO Redis adapter 의 채널 이름 형식은 라이브러리가 정하고 우리가 바꿀 수 없다. 우리가 고르는 것은 접두뿐이다. 연결 상태는 Redis 에 두지 않는다는 2026-08-13 결정([비동기 큐와 Redis 키 목록 「지운 키 두 개 (2026-08-13)」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개-2026-08-13))은 그대로 두고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 인접 이름 표는 Socket.IO 채널을 «Redis 를 거치지 않는다» 고 적었다. adapter 를 건 뒤로는 서버 인스턴스가 여럿이면 채널 이름이 adapter 채널 이름 안에 실려 Redis 를 지나므로 «Redis 키가 아니다» 로 고쳤다. 규칙 8 도 같은 이유로 고쳤다. adapter 를 걸기로 한 결정과 기각한 대안은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다. `bull:<queue>:*` 는 Redis 키인데도 인접 이름 표(Redis 키가 아닌 이름)에 있었다. 라이브러리가 이름을 정하는 이름을 한 절로 모으면서 그 행을 새 절로 옮겼다. 규칙 6 의 예외는 라이브러리가 형식을 정하는 채널 접두 하나로 좁혔다. 접두를 고를 수 있는 우리 키에까지 예외를 넓히면 규칙 6 이 막으려던 접두 늘리기가 다시 열린다.
+결정일: 2026-11-14
 
-### 요청 빈도 제한 키의 접두 `throttle` 은 규칙 6 에 어긋나지 않는다 (2026-11-21)
+NERV Task `CLE-T-GDR39Z`. Socket.IO Redis adapter 의 채널 이름 형식은 라이브러리가 정하고 우리가 바꿀 수 없다. 우리가 고르는 것은 접두뿐이다. 연결 상태는 Redis 에 두지 않는다는 2026-08-13 결정([비동기 큐와 Redis 키 목록 「지운 키 두 개」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개))은 그대로 두고 채널 발행 패킷만 `ws:sio` 채널로 전달한다. 인접 이름 표는 Socket.IO 채널을 «Redis 를 거치지 않는다» 고 적었다. adapter 를 건 뒤로는 서버 인스턴스가 여럿이면 채널 이름이 adapter 채널 이름 안에 실려 Redis 를 지나므로 «Redis 키가 아니다» 로 고쳤다. 규칙 8 도 같은 이유로 고쳤다. adapter 를 걸기로 한 결정과 기각한 대안은 [WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「여러 서버 인스턴스 전달에 Socket.IO Redis adapter 를 쓴 이유 (2026-11-14)」](../CLE-API/CLE-API-WS-MSG.md#여러-서버-인스턴스-전달에-socketio-redis-adapter-를-쓴-이유-2026-11-14) 에 있다. `bull:<queue>:*` 는 Redis 키인데도 인접 이름 표(Redis 키가 아닌 이름)에 있었다. 라이브러리가 이름을 정하는 이름을 한 절로 모으면서 그 행을 새 절로 옮겼다. 규칙 6 의 예외는 라이브러리가 형식을 정하는 채널 접두 하나로 좁혔다. 접두를 고를 수 있는 우리 키에까지 예외를 넓히면 규칙 6 이 막으려던 접두 늘리기가 다시 열린다.
+
+### 요청 빈도 제한 키의 접두 `throttle` 은 규칙 6 에 어긋나지 않는다
+
+결정일: 2026-11-21
 
 NERV Task `CLE-T-JK1JFZ`. 요청 빈도 제한 저장소를 Redis 로 옮기면서 키 `throttle:hit:<해시>` · `throttle:block:<해시>` 를 새로 만들었다. 소유 모듈 `common/throttler` 는 이때 생긴 모듈이고 `throttle` 은 그 모듈의 첫 접두다. 이미 접두를 쓰는 모듈에 접두를 더한 것이 아니라서 규칙 6 의 대상이 아니다. 워크스페이스 세그먼트는 넣지 않았다(규칙 4). 한도는 사용자나 IP 단위이고 워크스페이스별 쿼터가 아니다.
 
-이 키는 [비동기 큐와 Redis 키 목록 「지운 키 두 개 (2026-08-13)」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개-2026-08-13) 에서 지운 옛 이름 `core:{wsId}:rate:{userId}` 의 자리를 잇는다. [OAuth 연결과 토큰 갱신 — 설치 우선 흐름과 App URL](../CLE-INT/CLE-INT-OAUTH-INSTALL.md) 이 따로 할 작업으로 미뤄 둔 분산 저장소를 이때 들였다. 옛 형식은 쓰지 않는다.
+이 키는 [비동기 큐와 Redis 키 목록 「지운 키 두 개」](../CLE-PLAT/CLE-PLAT-QUEUE.md#지운-키-두-개) 에서 지운 옛 이름 `core:{wsId}:rate:{userId}` 의 자리를 잇는다. [OAuth 연결과 토큰 갱신 — 설치 우선 흐름과 App URL](../CLE-INT/CLE-INT-OAUTH-INSTALL.md) 이 따로 할 작업으로 미뤄 둔 분산 저장소를 이때 들였다. 옛 형식은 쓰지 않는다.
 
 기존 접두(`auth:` · `wh:` · `cc:` 등)는 다시 쓰지 않았다. 이 저장소는 한 기능 모듈이 아니라 모든 HTTP 라우트에 걸리는 전역 가드가 쓴다. 기존 접두 아래 두면 그 접두를 소유하지 않은 모듈이 그 접두를 쓰게 되어 규칙 2 에 어긋난다. 접두는 모듈 이름 `throttler` 대신 기능 이름 `throttle` 을 썼다. `integration:cache:invalidate` 가 모듈 이름 대신 기능의 대상 이름을 쓴 것과 같은 방식이다. 다만 `throttle` 은 소유 모듈 `common/throttler` 를 그대로 가리키므로 [소유 모듈과 도메인이 다른 채널](#소유-모듈과-도메인이-다른-채널) 의 예외에 넣지 않는다.

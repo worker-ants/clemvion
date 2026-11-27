@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-PROTO"
 title: "AI 어시스턴트 스트리밍과 세션 API"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "1a728da5c88049908103dd8d5edfd3a1bf08e98fa2cdb5f637a4d4759f183ff9"
+content_hash: "e8702c61147ebeaecbff78129aa88eeabf29211128a5bda3f4e00979e58d4997"
 read_as: "approved_fallback"
-task: "CLE-T-P3SKS4"
+task: "CLE-T-CNGC0P"
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "bf576c75e2c4997f3debcd32120b5d622f3795bf6438ffdb1ea5ddb7ec379505"
-etag: "sha256-61e7e31c434329217a8dfa1f383fee139d6c752c8c13c82033c5981c9751f00d"
+mirror_sha256: "b2e17ffdae3e4130291d7f1c4f09bd9271bb620dc0df60e4cb4e98dd162b4fa5"
+etag: "sha256-bc161ac959f4397ca1da47603fef0c0c7f1b1e1e0f5451a449b2561ea045b094"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -246,23 +246,29 @@ data: {"code": "LLM_RATE_LIMIT", "message": "The LLM provider rate limit was rea
 
 보관 기간과 자동 보관 정책은 정하지 않았다. 지금은 "직접 지울 때까지 남긴다" 이며 나중에 워크스페이스별 용량 제한과 묶을 수 있다.
 
-### `error` 이벤트에 예외 원문을 싣지 않는다 (2026-10-24)
+### `error` 이벤트에 예외 원문을 싣지 않는다
 
-`error` 이벤트의 `message` 는 코드별 고정 영문이고 예외 원문과 LLM 클라이언트 안내문은 서버 로그에만 남긴다. 원문을 싣지 않는 근거는 [워크플로우 AI 어시스턴트 §에러 버블에 프로바이더 원문을 싣지 않는다 (2026-10-23)](CLE-WF-ASSIST.md#에러-버블에-프로바이더-원문을-싣지-않는다-2026-10-23) 에 있다. 문구를 고르는 방식은 [워크플로우 AI 어시스턴트 §에러 버블 문구는 `assistant.*` 사전 키로 고른다 (2026-10-24)](CLE-WF-ASSIST.md#에러-버블-문구는-assistant-사전-키로-고른다-2026-10-24) 에 있다.
+결정일: 2026-10-24
+
+`error` 이벤트의 `message` 는 코드별 고정 영문이고 예외 원문과 LLM 클라이언트 안내문은 서버 로그에만 남긴다. 원문을 싣지 않는 근거는 [워크플로우 AI 어시스턴트 §에러 버블에 프로바이더 원문을 싣지 않는다](CLE-WF-ASSIST.md#에러-버블에-프로바이더-원문을-싣지-않는다) 에 있다. 문구를 고르는 방식은 [워크플로우 AI 어시스턴트 §에러 버블 문구는 `assistant.*` 사전 키로 고른다](CLE-WF-ASSIST.md#에러-버블-문구는-assistant-사전-키로-고른다) 에 있다.
 
 - **근거 규칙.** [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2 는 HTTP 에러 응답에 라이브러리 예외 원문을 싣지 않는다고 정한다. SSE 이벤트는 그 층이 아니지만 막으려는 노출(CWE-209)이 같다. [다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md) 규칙 3 은 백엔드 응답을 영문 원문으로 두고 한국어를 넣지 않는다고 정한다.
 - **기각: `message` 필드를 뺀다.** 사전 문구가 없는 코드의 폴백이 사라진다.
 - **기각: LLM 클라이언트가 쓴 안내문을 코드별 허용 목록으로 통과시킨다.** 허용 목록이 `LLM_OUTPUT_MALFORMED` 의 한국어 안내문을 그대로 내보내 규칙 3 과 어긋났다.
 - 지금 LLM 클라이언트는 `LLM_OUTPUT_MALFORMED` 에도 고정 영문 진단 문장을 싣고([LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md)), 어시스턴트 SSE 는 그 문장도 서버 로그에만 남긴다.
 
-### `error` 이벤트 데이터를 HTTP 에러 봉투로 감싸지 않는다 (2026-11-13)
+### `error` 이벤트 데이터를 HTTP 에러 봉투로 감싸지 않는다
+
+결정일: 2026-11-13
 
 SSE `error` 이벤트의 데이터는 `{code, message}` 평면 객체다. HTTP 에러 응답 봉투(`{error: {code, message, requestId, details}}`)와 모양이 다르다. 봉투는 [에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 가 HTTP 에러 응답에 정한 형식이고 `error` 이벤트는 열린 스트림 안의 이벤트라 그 층이 아니다. 선례인 [EIA 수신 API와 SSE](../CLE-IX/CLE-EIA-INBOUND.md#이벤트-종류) 도 SSE 이벤트는 봉투 없는 평면 객체로 보낸다. 이 스트림의 다른 이벤트도 모두 평면 객체라 소비자는 `data` 를 같은 방식으로 읽는다.
 
 - **기각: 봉투를 그대로 싣는다.** 이벤트 이름이 이미 `error` 인데 데이터 안에 `error` 키로 한 번 더 감싸게 된다. 소비자가 이 이벤트만 다르게 풀어야 한다.
 - **`requestId` · `details` 는 지금 두지 않는다.** 세부 사유를 실어야 하는 코드가 없다. 필요해지면 더하며 더해도 소비자는 깨지지 않는다.
 
-### 모델 설정 대체를 `config_fallback` 이벤트로 알린다 (2026-11-13)
+### 모델 설정 대체를 `config_fallback` 이벤트로 알린다
+
+결정일: 2026-11-13
 
 지정한 모델 설정을 찾지 못해 기본 설정으로 대신할 때 턴을 끝내지 않고 이벤트 하나로 알린다. 근거와 기각한 대안(별도 에러 코드, 알리지 않는 대체)은 [워크플로우 AI 어시스턴트 「모델 설정을 찾지 못하면 기본 설정으로 대신한다 (2026-11-13)」](CLE-WF-ASSIST.md#모델-설정을-찾지-못하면-기본-설정으로-대신한다-2026-11-13) 에 있다. 이 문서는 이벤트 계약만 정한다. `requestedConfigId` 는 어느 설정을 찾지 못했는지 알리려고 싣는다. 지금 프론트엔드는 이 값을 쓰지 않고 `configName` 만 토스트 문구에 넣는다.
 

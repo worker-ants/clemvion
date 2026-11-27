@@ -2,19 +2,19 @@
 id: "CLE-WF-NODEPANEL-AUTOFORM"
 title: "노드 포트와 설정 패널 — auto-form"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-NODEPANEL"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-NODEPANEL"]
 area: "CLE-WF"
-content_hash: "131590a9d4d798f667cf4d6676b865409c5a46b2b6f9a32b3e8b147e366a4c57"
+content_hash: "cdad2fc663076f8326c811cbf2fc7a3091c9efd4f40e3d0ceb82bc1786adba35"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "72c0d473d4eee132f513511011cb647103397bbebcc176f1ccffb53f0cd4bdbb"
-etag: "sha256-5a19f6b7d9818916df36f234d21a26ef232ec60ddea7d1ec0a50c8bb56fe6990"
+mirror_sha256: "01ffa96ceed905b7edf730f68797f0b81e5fe32507e6f78e5c40b99f3606e1f1"
+etag: "sha256-0dd14a7b1000135ba2f63d8729591244348c4bc3105455136e12ca52037ab8c0"
 ---
 ## 개요
 
@@ -74,10 +74,14 @@ Settings 탭의 노드별 설정 폼은 두 트랙으로 그린다(`node-configs
 
 번호는 부모 문서 [노드 포트와 설정 패널](CLE-WF-NODEPANEL.md#rationale) 의 Rationale 번호를 이어 쓴다.
 
-### R-2. 설정 폼은 수작업 폼과 auto-form 두 트랙으로 그린다 (2026-06-10)
+### R-2. 설정 폼은 수작업 폼과 auto-form 두 트랙으로 그린다
+
+결정일: 2026-06-10
 
 auto-form(SchemaForm, UiHint DSL, 위젯 레지스트리, override 레지스트리)은 구현이 먼저였고 여러 명세가 조각조각 인용해 왔다(Switch 의 `requiredWhen`, AI 에이전트 노드의 `visibleWhen`, AI 어시스턴트의 선택기 위젯 등). 이 문서를 시스템 전체의 기준으로 두고 두 트랙 전략, UiHint 어휘, 위젯 21종, 트랙 배정 현황을 한곳에서 관리한다. 노드 명세마다 프론트엔드 설정 UI 경로를 따로 적지 않고 이 문서의 구현 위치 한곳에 모은다. 유지 부담을 줄이려는 결정이다.
 
-### R-3. 텍스트 분류기·정보 추출기 노드를 auto-form 으로 옮겼다 (2026-06-11)
+### R-3. 텍스트 분류기·정보 추출기 노드를 auto-form 으로 옮겼다
+
+결정일: 2026-06-11
 
 두 AI 노드의 수작업 폼(`ai-configs.tsx`)은 zod 스키마가 드러낸 필드(대화 맥락 5개, 에이전트 메모리 7개, 시스템 맥락 2개, few-shot `examples`, `enumValues`, `maxCollectionRetries`)를 그리지 못해 사용자는 Code 탭 JSON 으로만 설정할 수 있었다. 두 스키마는 이미 이 필드 전부를 auto-form 위젯(`field-array`, `llm-config-selector`, `multiselect`, `expression`, `visibleWhen` 조건 등)으로 표현할 UI 힌트를 내보내고 있었다. 그래서 `ai_agent` 처럼 `OVERRIDE_REGISTRY` 에서 빼 auto-form 으로 옮기고 수작업 컴포넌트는 없앴다. 백엔드 스키마는 바꾸지 않았다. 누락은 수작업 폼이 스키마 힌트를 무시해서 생긴 것이었다.

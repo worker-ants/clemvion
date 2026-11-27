@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-IX"
 title: "용어 사전 — 외부 상호작용과 채널"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "cb022df84a27e90b5a65bb1e63e62ca02e8c7877ef54f2bb1d00bf64036e9a13"
+content_hash: "acc1653193a840120d2ea548fb84dea28c9d57270e1bba8c4b0e6f9e408d8bde"
 read_as: "approved_fallback"
-task: "CLE-T-1639BP"
+task: "CLE-T-SCFC83"
 source_paths: []
-mirror_sha256: "dd689a33c37ce5ebbe19a7c269290fd7c8c16f06adb6e98408e96d062e47c535"
-etag: "sha256-b2917fd987260b32817ef2120b2702f7789836e144895e385b09f2cb2b876673"
+mirror_sha256: "970a70d5daf3269743fefe3e014eacf893790ed6a6d4ff599d3fc7f48298d1dc"
+etag: "sha256-f82d7c0f44de18a9295eafe38d6de347ef48db07f4c87ce08f4bc36cd85aeddc"
 ---
 ## 개요
 
@@ -142,7 +142,7 @@ NERV Task `CLE-T-6YY7KY` 가 고쳤다. 옛 정의는 `rotate-secret` 동작 하
 
 결정일: 2026-10-04
 
-- 「대기 표면」: 「EIA 밖으로 나가는 값이 따로 있다」 를 지웠다. 값과 본문 표기는 그대로 색인 「상태값과 enum 표기」 를 가리킨다(색인 「정의 보정 (2026-10-03)」 의 「상태값의 정본」, 개요의 한 줄 정의 원칙). 경로별로 나가는 값은 [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) 가 적는다(2026-11-19 색인 행도 그 문서를 가리키게 고쳤다).
+- 「대기 표면」: 「EIA 밖으로 나가는 값이 따로 있다」 를 지웠다. 값과 본문 표기는 그대로 색인 「상태값과 enum 표기」 를 가리킨다(색인 「정의 보정」 의 「상태값의 정본」, 개요의 한 줄 정의 원칙). 경로별로 나가는 값은 [인터랙션 타입 레지스트리](CLE-IX/CLE-IX-TYPES.md) 가 적는다(2026-11-19 색인 행도 그 문서를 가리키게 고쳤다).
 
 ### 정의 보정
 
