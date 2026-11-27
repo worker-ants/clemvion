@@ -2,19 +2,19 @@
 id: "CLE-API-WS-EVENTS"
 title: "WebSocket 이벤트와 명령"
 type: "design"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "2fc046f26d0db4e3c1d8db69fb98ee47aae40790d522ec670f7775bb5c8c6899"
+content_hash: "c647b2aa024e1b444ae0b7da131232fc0e32bb5a4f9f31944ab44ee8d69a4178"
 read_as: "approved_fallback"
-task: "CLE-T-F7PNB8"
+task: "CLE-T-PK8EKG"
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "0ec46ace2107373811aeb8b7cc5c5561ca4af17d69df6dda75d22fa28cab74ab"
-etag: "sha256-5e2b5b9eb13b42a0f34dfb532007c23e9e67ed2beffa603e798ad64a8187bb8a"
+mirror_sha256: "22d58a6714c239d7551b9f91913f79098c67434ed297059a89563da88f780896"
+etag: "sha256-36665066e33a53ba7f33dc38957094a624e15300bec067063944bee52edb9ecf"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -145,14 +145,14 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 | `execution.completed` | `execution.completed` | `execution.completed` |
 | `execution.failed` | `execution.failed` | `execution.failed` |
 | `execution.cancelled` | `execution.cancelled` | `execution.cancelled` |
-| `replay.unavailable` _(native WebSocket 에는 없다. 버퍼 없이 `execution.snapshot` 으로 대신한다)_ | `execution.replay_unavailable` **(구현됨, SSE)** | 없음 |
+| `replay.unavailable` _(native WebSocket 에는 없다. 버퍼 없이 `execution.snapshot` 으로 대신한다)_ | `execution.replay_unavailable` **(구현됨, SSE 연결 시작 때와 스트림 도중)**. 보내는 경우는 [EIA 수신 API — SSE 이벤트 스트림 「스트림 규칙」](../CLE-IX/CLE-EIA-INBOUND-STREAM.md#스트림-규칙) 에 있다 | 없음 |
 
 - `execution.message` 는 엔진이 다른 실행 이벤트와 같은 발행 함수(`emitExecution`)로 보낸다. 현재 구현에서는 내부 WebSocket 채널에도 실리고 SSE 로 나간다.
 
 **핵심 규약**
 
 - **`seq` 를 함께 쓴다.** SSE 의 `id:` 필드와 EIA 알림 웹훅 페이로드의 `seq` 는 WebSocket 이벤트 봉투의 이벤트 순번과 같은 값이다([External Interaction API 「이벤트 순번을 SSE 와 알림이 같이 쓴다」](../CLE-IX/CLE-EIA.md#이벤트-순번을-sse-와-알림이-같이-쓴다)).
-- **5분 버퍼는 SSE 쪽에 있다.** `seq` 기반 5분 SSE 재전송 버퍼는 Redis Stream 이다(`sse-fanout.service.ts`). SSE 어댑터(`sse-adapter.service.ts`)가 외부 클라이언트의 `Last-Event-Id` 로 그 버퍼에서 `seq > Last-Event-Id` 인 이벤트를 다시 보낸다. 버퍼의 키와 수명은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다. native WebSocket 은 버퍼 없이 `execution.snapshot` 으로 대신한다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼는 공유하지 않는다.
+- **5분 버퍼는 SSE 쪽에 있다.** `seq` 기반 5분 SSE 재전송 버퍼는 Redis Stream 이다(`sse-replay-buffer.ts`). SSE 어댑터(`sse-adapter.service.ts`)가 외부 클라이언트의 `Last-Event-Id` 로 그 버퍼에서 `seq > Last-Event-Id` 인 이벤트를 다시 보낸다. 버퍼의 키와 수명은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 정한다. native WebSocket 은 버퍼 없이 `execution.snapshot` 으로 대신한다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼는 공유하지 않는다.
 - **트랜잭션 커밋 뒤에 발행한다.** 실행 이벤트의 커밋 후 발행 규약은 SSE 와 EIA 알림 웹훅에도 그대로 적용된다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 트랜잭션과 발송 순서).
 - **단일 구현 경로**: 외부 표면은 내부 WebSocket 의 명령·이벤트 처리 경로를 facade 로 감싼 형태로만 구현한다. 두 표면이 갈라지면 유지 부담이 생긴다([External Interaction API 「단일 싱크와 외부 facade」](../CLE-IX/CLE-EIA.md#단일-싱크와-외부-facade), [EIA 수신 API — SSE 이벤트 스트림 「외부 WebSocket 채널은 보류한다」](../CLE-IX/CLE-EIA-INBOUND-STREAM.md#외부-websocket-채널은-보류한다)).
 - 외부 WebSocket 채널 신설은 v1 에서 보류했다. 보류 사유와 다시 논의할 조건은 [EIA 수신 API — SSE 이벤트 스트림 「외부 WebSocket 채널은 보류한다」](../CLE-IX/CLE-EIA-INBOUND-STREAM.md#외부-websocket-채널은-보류한다) 에 있다.
@@ -164,8 +164,10 @@ JSON 예시의 `{ "type", "id", "payload" }` 는 논리 구조 표기다. 실제
 - `codebase/backend/src/shared/utils/strip-external-only-fields.ts`
 - `codebase/backend/src/shared/utils/redact-stored-error.ts`
 - `codebase/backend/src/modules/executions/executions.service.ts` (`findById`, 스냅샷 페이로드)
-- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 매핑, 재전송 판정)
-- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (재전송 버퍼 Redis Stream, 인스턴스 사이 전달)
+- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (SSE 매핑, 재전송 실행)
+- `codebase/backend/src/modules/external-interaction/sse-replay-plan.ts` (재전송 판정)
+- `codebase/backend/src/modules/external-interaction/sse-replay-buffer.ts` (재전송 버퍼 Redis Stream)
+- `codebase/backend/src/modules/external-interaction/sse-signal-bus.ts` (인스턴스 사이 전달)
 
 ## Rationale
 

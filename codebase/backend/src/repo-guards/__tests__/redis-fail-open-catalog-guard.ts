@@ -169,7 +169,7 @@ function callsByName(sf: ts.SourceFile, name: string): ts.CallExpression[] {
  * 인자는 리터럴, 같은 파일의 `const` 리터럴(한 단계, `satisfies` · `as` 는 벗긴다), 두 갈래가
  * 모두 풀리는 삼항을 푼다. 인자가 **감싼 메서드 · 함수의 매개변수**면 같은 파일 안에서 그
  * 메서드를 부르는 곳(`this.name(…)` · `name(…)`)의 같은 자리 인자를 한 단계 더 따라간다.
- * 강등 기록을 helper 한 곳으로 모은 서비스(`sse-fanout.service.ts` 의 `degrade`)가 그 형태다.
+ * 강등 기록을 helper 한 곳으로 모은 클래스(`sse-replay-buffer.ts` 등 SSE fanout 부분의 `degrade`)가 그 형태다.
  * 따라간 호출부 중 하나라도 못 풀거나 호출부가 없으면 `null` 이다.
  */
 export function wiredCallsInSource(
