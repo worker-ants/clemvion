@@ -2,25 +2,27 @@
 id: "CLE-API-ERRCODES-SYSVAL"
 title: "에러 코드 카탈로그 — 시스템 · 유효성 검증"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "7cbc9de4cd0a999ad72d68018a5efa2494d14d2fbe84b9c110fc63c000eac95c"
+content_hash: "59e273280c7071c064bc01bcbf3d00fbf924d9c68516c9fe6cd6533ea828552e"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-KKJ2A0"
 source_paths: []
-mirror_sha256: "d942f7960fbabdc70dd2d80aa2f5b2b21bfd6c1886f560a975f5e354e637cd4c"
-etag: "sha256-0496c4a430acf6425981f44d5cf68b7fee1f19dc6ca477a2b85e53b9ecbced36"
+mirror_sha256: "c3dc7354cd73ccde30a57641ff225b2ee020e4d6ea49c190a3a7e8ee1f243ee2"
+etag: "sha256-6e2bcce809ff718e3cda4fdee33d6dec87abf53dba7de475dfbab04e381b33a3"
 ---
 ## 개요
 
 이 문서는 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 의 하위 문서로 카탈로그 가운데 시스템 공용 코드(§6.1), 유효성 검증 코드(§6.4), 지식 저장소 코드(§6.11)를 정한다. 표의 열 구성과 등재 원칙은 부모 문서 「6. 카탈로그」 절이 정한다.
 
 ## 6.1 시스템
+
+표의 「사용자 메시지」 열은 프런트엔드가 그 코드를 받았을 때 보이는 화면 문구의 요지다. 문구의 정본은 프런트엔드 사전(`errors.codes.*`, 공용 코드 매핑 `SERVER_ERROR_CODE_TO_I18N`)이다. 서버 응답의 `message` 는 영문이다. 5xx 의 `message` 는 [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 가 정한 고정 문구다.
 
 | 코드 | 이름 | 설명 | 사용자 메시지 | 정의 문서 |
 |------|------|------|--------------|-----------|
@@ -37,7 +39,7 @@ etag: "sha256-0496c4a430acf6425981f44d5cf68b7fee1f19dc6ca477a2b85e53b9ecbced36"
 | `PAYLOAD_TOO_LARGE` (multipart 업로드) | 업로드 파일이 `FileInterceptor` 의 `limits.fileSize` 를 넘음(아바타 2MB, 지식 저장소 문서 50MB). Nest 가 multer 의 `LIMIT_FILE_SIZE` 를 `PayloadTooLargeException` 으로 바꾸고 `GlobalExceptionFilter` 가 상태 코드로 이 코드를 채운다. `message` 는 multer 원문(`"File too large"`)을 싣지 않고 요청 본문 행과 같은 고정 문구 `"Request payload too large."` 를 돌려준다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 「`message` 에 내부 원문을 싣지 않는다」) | 413 | [내 프로필 「아바타」](../CLE-ACCT/CLE-ACCT-PROFILE.md#아바타), [HTTP API 규약](CLE-API-CONV.md) 의 「9. 파일 업로드」 |
 | `FILE_REQUIRED` | 업로드 요청에 파일이 없거나 내용이 비어 있음(`file?.buffer?.length` 가 0). 확장자 불허(`INVALID_FILE_TYPE`)와 다른 코드다. 클라이언트가 취할 행동이 다르기 때문이다("파일을 고르세요" 와 "다른 형식으로 바꾸세요"). 메시지 문자열 파싱이 금지돼 있으므로 코드로 갈라야 분기할 수 있다. 현재 발행처는 아바타 업로드다 | 400 | [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
 | `INVALID_FILE_TYPE` | 확장자가 허용 목록에 없음. 지식 저장소 문서 업로드와 아바타 업로드가 함께 쓰고 허용 목록은 도메인마다 정한다(지식 저장소 `txt`·`md`·`pdf`·`csv`, 아바타 `png`·`jpg`·`jpeg`·`webp`·`gif`, SVG 제외) | 400 | [파일 저장소 「지식 저장소 문서」](../CLE-PLAT/CLE-PLAT-STORAGE.md#지식-저장소-문서), [파일 저장소 「아바타」](../CLE-PLAT/CLE-PLAT-STORAGE.md#아바타), [내 프로필](../CLE-ACCT/CLE-ACCT-PROFILE.md) |
-| `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트가 **없음**. `X-Workspace-Id` 헤더도 JWT `activeWorkspaceId` 클레임(옛 `workspaceId`)도 없다(`workspace.decorator.ts` 발행). 헤더가 있으나 형식이 깨진 경우는 아래 `VALIDATION_ERROR` 행이며 다른 경우다. 경로로 워크스페이스를 받지 않는 `@Roles()` 라우트(예: 채팅 채널 `rotate-bot-token`)는 가드가 먼저 돌아 이 코드 대신 403 `FORBIDDEN` 을 낸다([§6.15](CLE-API-ERRCODES-TRIGGER.md#615-채팅-채널-봇-토큰-재발급-도메인-문서-참조)) | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
+| `WORKSPACE_ID_REQUIRED` | 현재 워크스페이스가 **없음**(헤더 값도 토큰 클레임 값도 없음). `X-Workspace-Id` 헤더도 JWT `activeWorkspaceId` 클레임(옛 `workspaceId`)도 없다(`workspace.decorator.ts` 발행). 헤더가 있으나 형식이 깨진 경우는 아래 `VALIDATION_ERROR` 행이며 다른 경우다. 경로로 워크스페이스를 받지 않는 `@Roles()` 라우트(예: 채팅 채널 `rotate-bot-token`)는 가드가 먼저 돌아 이 코드 대신 403 `FORBIDDEN` 을 낸다([§6.15](CLE-API-ERRCODES-TRIGGER.md#615-채팅-채널-봇-토큰-재발급-도메인-문서-참조)) | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
 | `VALIDATION_ERROR` | **`X-Workspace-Id` 형식 에러**. 헤더가 있으나 canonical UUID 형태(8-4-4-4-12 hex)가 아니면 일찍 거부한다. `RolesGuard` 와 `@WorkspaceId()` 가 함께 쓰는 헬퍼(`resolveRequestWorkspaceContext`) 한 곳에서 throw 한다(반환 플래그로 두면 두 경로의 응답이 갈라진다). 일찍 거부하지 않으면 그 값이 멤버십 조회까지 흘러가 `QueryFailedError`(SQLSTATE 22P02)가 되고 500 `INTERNAL_ERROR` 로 가려진다. **JWT 클레임은 검증하지 않는다.** 서버가 서명한 값이라 거기서 400 을 내면 서버 버그를 클라이언트 에러로 보고하게 된다. 검증을 경로 파라미터보다 느슨하게 하는 근거는 [워크스페이스와 멤버](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-헤더는-경로-파라미터보다-느슨하게-검사한다) 의 「`X-Workspace-Id` 헤더는 경로 파라미터보다 느슨하게 검사한다」 Rationale | 400 | [워크스페이스와 멤버 「`X-Workspace-Id` 형식 검사」](../CLE-ACCT/CLE-ACCT-WS.md#x-workspace-id-형식-검사) |
 | `INVALID_TRIGGER_PARAMETERS` | 수동 트리거 parameters 스키마 검증 실패. **세 엔드포인트가 함께 쓴다**: 주 실행(`POST /workflows/:id/execute`), 저장(`POST /workflows/:id/save`, `validateManualTrigger`), 재실행의 `inputOverride`(`POST /executions/:id/re-run`). 셋 다 `resolveTriggerParameters` 가 던지는 같은 검증 실패를 감싸므로 같은 코드를 낸다. 필드별 사유는 `details[]`(§4.2, §6.10). 경로별로 `RERUN_` prefix 를 붙이지 않는 것은 의도다. 세 경로를 하나로 모으는 것이 이 코드가 있는 이유다. 최상위는 이 특화 코드이고 `details[].code` 에는 필드별 사유를 싣는다. [에러 응답과 클라이언트 처리 「2.6 top-level 이 이미 특화 코드일 때」](CLE-API-ERROR.md#26-top-level-이-이미-특화-코드일-때) 의 판별 기준은 사유의 중복이다. 최상위는 "파라미터 검증 실패" 라는 묶음 사유이고 필드별 사유와 겹치지 않아 이 기준에 걸리지 않는다. 규칙 6 도 지킨다. 새 검증 사유가 생기면 최상위 코드는 그대로 두고 §4.2 에 새 항목 코드를 더한다 | 400 | [수동 트리거 노드](../CLE-NODE-TRIG/CLE-NODE-MANUAL.md), [재실행](../CLE-EXEC/CLE-EXEC-RERUN.md) |
 | `MODEL_CONFIG_INVALID` | 모델 설정 입력 검증 실패. 알 수 없는 `kind`, 필수 프로바이더의 apiKey 누락, 사설망·loopback baseUrl(사설망 차단, tei·local 제외) 등. `model-config.service.ts`, `model-config.controller.ts`, `llm-preview.service.ts`(preview-models) 발행 | 400 | [모델 설정](../CLE-AI/CLE-AI-MODELS.md), [LLM 클라이언트](../CLE-AI/CLE-AI-LLM.md) |
@@ -118,3 +120,11 @@ NERV Task `CLE-T-8MQMGQ` 이다. 이전 판은 multipart 업로드 413 의 `mess
 결정일: 2026-11-14
 
 NERV Task `CLE-T-KCZGP6` 에서 행만 더했다. 백엔드가 409 로 내는데 §6.4 에 없어 규칙 8 을 어겼다. 이름과 상태 코드는 그대로다. 노드 라벨 중복의 `DUPLICATE_NODE_LABEL` 처럼 `RESOURCE_CONFLICT` 의 특화 코드로 적었다. 이름에 도메인 범주(`<DOMAIN>_`)가 없지만 규칙 3 은 권장이라 §3 예외 등록부에 올리지 않고, 규칙 5 에 따라 이름을 그대로 둔다(NERV Task `CLE-T-GWC9M3`).
+
+### §6.1 「사용자 메시지」 열은 프런트엔드 화면 문구다
+
+결정일: 2026-11-27
+
+`INTERNAL_ERROR` 의 문구가 셋으로 갈려 있었다. 이 표의 한국어 문구 하나와 전역 예외 필터의 영문 문구 둘이다. 서버 `message` 는 영문 하나로 모으고 이 열은 프런트엔드 화면 문구로 읽기로 했다(NERV Task `CLE-T-V11GV1`).
+
+- **기각: 서버가 이 열의 한국어 문구를 `message` 로 싣는다.** 서버 응답에 한국어를 넣지 않는다는 [백엔드 문구 매핑](../CLE-UI/CLE-UI-I18N-BACKEND.md) 규칙과 어긋나고 사전이 둘이 된다.

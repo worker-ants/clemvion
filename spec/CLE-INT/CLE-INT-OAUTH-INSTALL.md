@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-INSTALL"
 title: "OAuth 연결과 토큰 갱신 — 설치 우선 흐름과 App URL"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "09334d178f039e3333ea63a01463ffc9933a0411abb6c25d24f25b1d204c5ad7"
+content_hash: "7195c231c875dc6fb4b58239f2e70393b2efdad3965aa22388f92358b6e011d6"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-KKJ2A0"
 source_paths: []
-mirror_sha256: "9964658b25d7abc9b22c0ebda5b84c544082293645c138e296f92ff1fd1a4dda"
-etag: "sha256-18927b45a3737514ed86b3cf0113ff7822cd084efb5f87ffaeb7e419787065e7"
+mirror_sha256: "161983a9a71a58129cf914cb23edf6b2d5d293c9d0ccdf843a3d31839e4b2a64"
+etag: "sha256-6f6a21e735a7c6e7a9df5a6702289f2aaf59518aab7ec39a6ef53ae6b3131a3a"
 ---
 ## 개요
 
@@ -137,7 +137,7 @@ sequenceDiagram
 
 **실패 응답**: 실패 본문은 에러 응답 봉투 `{ error: { code, message, requestId } }` 다. 이 엔드포인트는 응답을 직접 써서 전역 예외 필터를 거치지 않으므로 컨트롤러가 봉투를 조립하고 `requestId` 를 응답마다 새로 발급한다. ①~③ 가드는 늘 JSON 으로 답한다. 그 뒤 서비스가 거절하고 요청의 `Accept` 에 `text/html` 이 있으면 에러 코드·메시지·`requestId` 와 «통합 상세 페이지에서 현재 App URL 을 확인해 Cafe24 Developers 를 갱신하세요» 안내가 담긴 간단한 HTML 페이지를 보인다. 주로 만나는 경우는 404(회복 실패 포함)다. JSON 을 기대하는 API 클라이언트에는 JSON 응답을 준다.
 
-**예상 밖 예외**: 설치 처리 중 에러 코드가 없는 예외가 나면 `CAFE24_INSTALL_FAILED`·`MAKESHOP_INSTALL_FAILED` 로 답한다. 코드가 없는 `HttpException` 이면 그 상태와 메시지를 싣는다. 그 밖의 예외(DB·런타임 오류 등)는 500 과 고정 문구로 답한다. 두 경우 모두 IP 실패로 세지 않는다. 500 으로 가린 예외의 메시지와 스택은 `requestId`·서비스와 함께 `logger.error` 로만 남긴다. 로그에 남기기 전에 비밀 값 모양의 문자열을 가린다(`SECRET_LEAK_PATTERNS` 정책). 설치 토큰은 이 로그에 넣지 않는다.
+**예상 밖 예외**: 설치 처리 중 에러 코드가 없는 예외가 나면 `CAFE24_INSTALL_FAILED`·`MAKESHOP_INSTALL_FAILED` 로 답한다. 코드가 없는 4xx `HttpException` 이면 그 상태와 메시지를 싣는다. 5xx `HttpException` 이면 코드가 있든 없든 그 상태와 코드(없으면 `*_INSTALL_FAILED`)를 두고 메시지를 고정 문구로 가린다. 그 밖의 예외(DB·런타임 오류 등)는 500 과 고정 문구로 답한다. 어느 경우든 IP 실패로 세지 않는다. 가린 예외(5xx `HttpException` 포함)의 메시지와 스택은 `requestId`·서비스와 함께 `logger.error` 로만 남긴다. 로그에 남기기 전에 비밀 값 모양의 문자열을 가린다(`SECRET_LEAK_PATTERNS` 정책). 설치 토큰은 이 로그에 넣지 않는다.
 
 ## 구현 위치
 
@@ -209,3 +209,4 @@ Cafe24 개발자 센터에 등록한 App URL 은 첫 설치(«테스트 실행»
 - 예외를 전역 예외 필터로 다시 던지는 안은 기각했다. 필터는 JSON 만 그려서 HTML 안내 페이지를 보일 수 없다. 열거 공격 실패 카운트도 컨트롤러가 해야 한다.
 - 코드 이름은 그대로 두고 상태와 문구만 바꿨다. 이름과 상태를 정한 근거는 [에러 코드 규약과 카탈로그 「설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다」](../CLE-API/CLE-API-ERRCODES.md#설치-엔드포인트의-예상-밖-예외를-500-으로-가리고-requestid-를-싣는다) 에 있다.
 - HTML 페이지는 404 만이 아니라 서비스가 거절한 실패에 상태와 관계없이 보인다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.21 과 같다).
+- 2026-11-27 에 5xx `HttpException` 도 메시지를 가리도록 넓혔다. 전역 예외 필터와 같은 규칙이다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 5xx 에서도 작성자가 쓴 문구에 구성 정보(환경 변수 이름)가 섞였다(`OAUTH_CONFIG_MISSING`). 근거는 NERV Task `CLE-T-KKJ2A0` 이다.

@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N-BACKEND"
 title: "다국어와 화면 문구 — 백엔드 문구 매핑"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI-I18N"
 ancestors: ["CLE-VISION", "CLE-UI", "CLE-UI-I18N"]
 area: "CLE-UI"
-content_hash: "6322857e4bbe6d6b150f6be673297b43119fc6ce4eb946b62e7daa73e58e3338"
+content_hash: "c1151a5c0c5c9cebc3e0044c3dd7b7a2ede53093332a6defbc06fb91b03a5353"
 read_as: "approved_fallback"
-task: "CLE-T-72BN09"
+task: "CLE-T-KKJ2A0"
 source_paths: []
-mirror_sha256: "e933a83c6e612c60028fdbb808575bd5e4d7ac18a369766bdf3c9bf46b9d8191"
-etag: "sha256-a400501553d5c8b0914b83751309a24850ae32fdbad6c586b114d47a6f3521e6"
+mirror_sha256: "20d904276ae5722a501966ee1baa004161945ee37e9699a0204111a20a02bbce"
+etag: "sha256-87f1be38c953e5061b85b90a6087c9629322354e3c18c6a0518579192444a118"
 ---
 ## 개요
 
@@ -54,7 +54,7 @@ etag: "sha256-a400501553d5c8b0914b83751309a24850ae32fdbad6c586b114d47a6f3521e6"
 | `graphWarningRules[].message`(노드를 넘는 동적 경고) | 규칙 ID(`ruleId`, 예: `parallel:nested-depth-exceeded`) | `GRAPH_WARNING_KO` | `translateGraphWarning(result, locale)` |
 | AI 어시스턴트 SSE `error` 이벤트의 `code`: `ASSISTANT_NO_LLM_CONFIG` · `ASSISTANT_STREAM_FAILED` · `ASSISTANT_TOO_MANY_TOOL_CALLS` · `LLM_RATE_LIMIT` · `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED` · `LLM_STREAMING_UNSUPPORTED`([에러 코드 규약과 카탈로그 §6.25](../CLE-API/CLE-API-ERRCODES.md#625-ai-어시스턴트-스트림-도메인-문서-참조)) | 에러 코드(UPPER_SNAKE) | 어시스턴트 패널 모듈의 `ERROR_MESSAGE_KEYS`(`ReadonlyMap`, 코드 → `assistant.*` 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `t(key)` |
 | 통합 화면 에러 응답 코드(REST 봉투): `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` · `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `INTEGRATION_NAME_TAKEN` · `INTEGRATION_OWNER_NOT_MEMBER`([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)) | 에러 코드(UPPER_SNAKE) | `integration-error-codes.ts` 의 `INTEGRATION_ERROR_CODE_TO_I18N`(코드 → `integrations.*` 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `formatIntegrationErrorToast(err, t, fallbackKey)` |
-| 여러 화면이 같은 뜻으로 받는 에러 응답 코드(REST 봉투): 인증 · 세션 · 2단계 · 패스키 코드(`PASSWORD_INVALID` · `SESSION_NOT_FOUND` · `RATE_LIMITED` 등)와 워크스페이스 가드 코드(`NOT_A_MEMBER` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED` · `WORKSPACE_NOT_FOUND`) | 에러 코드(UPPER_SNAKE) | `server-error-messages.ts` 의 `SERVER_ERROR_CODE_TO_I18N`(코드 → 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `serverErrorMessage(err, t, fallback)` |
+| 여러 화면이 같은 뜻으로 받는 에러 응답 코드(REST 봉투): 인증 · 세션 · 2단계 · 패스키 코드(`PASSWORD_INVALID` · `SESSION_NOT_FOUND` · `RATE_LIMITED` 등), 워크스페이스 가드 코드(`NOT_A_MEMBER` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED` · `WORKSPACE_NOT_FOUND`), 5xx 코드(`OAUTH_CONFIG_MISSING` · `INTERNAL_ERROR`) | 에러 코드(UPPER_SNAKE) | `server-error-messages.ts` 의 `SERVER_ERROR_CODE_TO_I18N`(코드 → 사전 키). 사전 키에는 ko/en 짝이 있다. `ERROR_KO` 에는 올리지 않는다 | `serverErrorMessage(err, t, fallback)` |
 
 - **끼워 넣기 계약**: 1행 · 2행의 백엔드는 영문 `message`(원문이자 폴백)와 함께 동적 값을 `params: Record<string, string | number>` 로 보낸다. 그래프 경고는 `GraphWarningRule.evaluate` 의 반환 타입 `{ message, params? }` 가 그 계약이다([그래프 경고 규칙](../CLE-WF/CLE-WF-WARN.md)). 프론트엔드 템플릿은 기존 `core.ts` 의 `interpolate()` 와 `{{name}}` 이중 중괄호를 그대로 쓴다. 새 끼워 넣기 문법을 만들지 않는다. `ERROR_KO` · `GRAPH_WARNING_KO` 에 매핑이 없거나 한국어가 아닌 로케일이면 영문 `message` 로 폴백한다. 3행(어시스턴트)은 `params` 를 쓰지 않는다. 3행에서는 표에 없는 코드만 서버가 보낸 영문 `message` 로 폴백한다. 그 `message` 는 백엔드 문구 표에 있는 코드면 코드별 고정 영문이고 없는 코드면 공통 폴백 문구다([워크플로우 AI 어시스턴트 §에러 처리](../CLE-WF/CLE-WF-ASSIST.md#에러-처리)). 4행(통합 화면)도 `params` 를 쓰지 않는다. 4행이 끼워 넣는 값은 설치 대기 409 의 `details.pendingInstallExpiresAt` 하나다. 그 값이 있으면 화면 시각으로 바꿔 `integrations.retryAfterPendingInstallExpiry` 문구의 `{{expiresAt}}` 에 넣고 사전 문구 뒤에 붙인다. 4행은 표에 있는 코드면 사전 문구 뒤 괄호에 서버 `message` 를 붙인다. 표에 없는 코드면 5행 표의 사전 문구를 고르고 거기에도 없으면 서버 `message` 로 폴백한다. 5행도 `params` 를 쓰지 않는다. 화면이 따로 고르는 문구가 있으면 그것이 먼저이고, 없으면 5행 표의 사전 문구, 표에 없는 코드면 서버 `message`, 응답 본문이 없으면(네트워크 에러 포함) 화면이 넘긴 실패 문구다. 5행은 서버 `message` 를 괄호에 붙이지 않는다.
 - **세션 REST 코드**: 어시스턴트 세션 REST API 의 에러 코드(`ASSISTANT_SESSION_*`)는 1행을 따른다. 3행은 SSE `error` 이벤트만 다룬다.
@@ -62,7 +62,7 @@ etag: "sha256-a400501553d5c8b0914b83751309a24850ae32fdbad6c586b114d47a6f3521e6"
 - **어시스턴트 에러 코드는 `ERROR_KO` 밖에 둔다(2026-10-24)**: 어시스턴트 에러 안내에는 ko/en 문구가 모두 있어야 해서 ko/en 짝이 있는 `assistant.*` 사전 키를 쓴다. 문구는 표시 면마다 하나다. 코드 문자열이 같아도 면이 다르면 표도 다르다. 어시스턴트 코드 가운데 노드 `output.error.code` 와 같은 문자열은 `LLM_RATE_LIMIT` 하나다. 노드 화면용으로 이 코드를 `ERROR_KO` 에 등록하는 것은 따로 허용한다. 그 등록은 어시스턴트 에러 버블의 문구를 바꾸지 않는다. 코드와 사전 키의 대응은 [워크플로우 AI 어시스턴트 §에러 처리](../CLE-WF/CLE-WF-ASSIST.md#에러-처리) 가 정본이다. 근거는 [어시스턴트 에러 코드를 컴포넌트 지역 표로 매핑하는 이유](#어시스턴트-에러-코드를-컴포넌트-지역-표로-매핑하는-이유-2026-10-24) 에 있다.
 - **통합 화면 에러 코드도 `ERROR_KO` 밖에 둔다(2026-10-30)**: 통합 화면의 에러 토스트에는 ko/en 문구가 모두 있어야 해서 ko/en 짝이 있는 `integrations.*` 사전 키를 쓴다. 이 표를 읽는 곳은 통합 화면뿐이다. 코드의 뜻과 화면 동작은 [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) 가 정본이다. 근거는 [통합 화면 에러 코드를 통합 화면 모듈의 표로 매핑하는 이유](#통합-화면-에러-코드를-통합-화면-모듈의-표로-매핑하는-이유-2026-10-30) 에 있다.
 - **공용 코드 매핑도 `ERROR_KO` 밖에 둔다(2026-11-27)**: 5행 코드는 로그인 · 세션 · 설정 화면처럼 여러 화면이 같은 뜻으로 받는다. 안내에는 ko/en 문구가 모두 있어야 해서 ko/en 짝이 있는 사전 키를 쓴다. 한 화면에서만 다르게 읽어야 하는 코드는 그 화면이 먼저 고른다(로그인 2단계의 `TOTP_INVALID`, 소유자 이양의 `OWNER_REQUIRED`). 근거는 [여러 화면이 같이 받는 코드는 공용 코드 매핑에서 고른다](#여러-화면이-같이-받는-코드는-공용-코드-매핑에서-고른다) 에 있다.
-- **5행 폴백에 보이는 서버 `message`**: 5행 표에 없는 코드는 서버 `message` 가 화면에 그대로 보인다. 그래서 5행 화면이 받는 코드의 서버 `message` 는 던지는 자리의 코드별 고정 영문이어야 하고 예외 원문을 넣지 않는다. 처리하지 못한 예외는 전역 필터가 고정 문구로 바꾼다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). CLE-API-ERROR 는 5xx 를 일반 500 으로 가린다고 정하지만 지금 필터는 `HttpException` 으로 던진 5xx 의 `message` 를 그대로 낸다. 이 갭은 `HttpException` 경로에만 있고 NERV Task `CLE-T-KKJ2A0` 가 메운다.
+- **5행 폴백에 보이는 서버 `message`**: 5행 표에 없는 코드는 서버 `message` 가 화면에 그대로 보인다. 그래서 5행 화면이 받는 코드의 서버 `message` 는 던지는 자리의 코드별 고정 영문이어야 하고 예외 원문을 넣지 않는다. 처리하지 못한 예외는 전역 필터가 고정 문구로 바꾼다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). `HttpException` 으로 던진 5xx 도 전역 필터가 `code` 는 그대로 두고 `message` 를 고정 문구로 바꾼다(2026-11-27, NERV Task `CLE-T-KKJ2A0`). 그래서 5xx `message` 로 원인을 알리던 `OAUTH_CONFIG_MISSING` 과 `INTERNAL_ERROR` 의 문구는 5행 표에서 고른다.
 - **4행 괄호에 붙는 서버 `message`**: 4행 표에 올리는 코드의 서버 `message` 는 코드별 고정 문구여야 한다. 예외 원문, 다른 사용자의 식별자, 통합 ID 를 넣지 않는다. 서버 `message` 에 넣어도 되는 값은 요청자가 그 요청에 넣은 값뿐이고 지금은 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 의 상점 식별자 하나다. 표에 코드를 더할 때 리뷰에서 이 조건을 확인한다. 가드는 없다. 근거는 [통합 화면 에러 토스트는 표에 있는 코드도 서버 `message` 를 괄호에 붙인다](#통합-화면-에러-토스트는-표에-있는-코드도-서버-message-를-괄호에-붙인다-2026-10-30) 에 있다.
 - 금지: 백엔드 응답에 한국어를 직접 넣는 것, `Accept-Language` 로 서버에서 지역화하는 것. 규칙 3 의 영문 원문 원칙을 어기고 사전이 둘로 갈린다.
 - **알려진 예외: 워크스페이스 · 초대 · 사용자 서비스의 한국어 서버 문구**: `modules/workspaces`(워크스페이스 · 초대 서비스)와 `modules/users` 의 `message` 일부가 아직 한국어다. 바로 위 금지와 규칙 3 에 어긋나는 기존 문구이고 NERV Task `CLE-T-MBMPX5` 가 옮긴다. 워크스페이스 가드와 역할 하한 코드(`NOT_A_MEMBER` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`)와 워크스페이스 관리 경로의 `WORKSPACE_NOT_FOUND` 는 2026-11-27 에 영문 고정 문구로 옮겼다(NERV Task `CLE-T-CHP94Z`, [워크스페이스 가드 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS-AUTHZ.md#가드-거부-에러-코드)). 인증 · 트리거 모듈과 가드 거부 본문은 백엔드 테스트(`server-message-language.spec.ts`)가 한국어 응답 문구를 막는다.

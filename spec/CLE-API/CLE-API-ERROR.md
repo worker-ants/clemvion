@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "1e5617ee02c53c7a19f606be2fe0aa3ad4017823ec0d0c5a1c5bf19a13142d69"
+content_hash: "9f61e92547d9322ce7cb4a5c1431b5776c1be136b4a1dbea68055233253e2cf3"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-KKJ2A0"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "9404d1a2dc59e55407713bf57d8711ad9e9997df1bb3e6d53292be35a0e3a92c"
-etag: "sha256-f451c4344e41cb954a3843203a7497dc9f76090d543541537eab5f831edbb657"
+mirror_sha256: "6a136bc089ee7f0191fe46659a0fd97d2c33f21b7aa075d7b508f57e8e6e4984"
+etag: "sha256-0aae325db3e17b50fffcfe234bffe95f7cb842455b40074e47a0f6b22800074a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -108,8 +108,8 @@ etag: "sha256-f451c4344e41cb954a3843203a7497dc9f76090d543541537eab5f831edbb657"
 
 - body-parser 같은 http-errors 미들웨어가 던지는 4xx 는 상태별 고정 문구로 바꿔 보낸다. `413` 은 `"Request payload too large."`, 그 밖의 4xx 는 `"The request could not be processed."` 다.
 - `code` 를 지정하지 않은 `HttpException` 413 도 같은 고정 문구 `"Request payload too large."` 로 바꾼다. Nest 가 multer `LIMIT_FILE_SIZE` 를 바꾼 `PayloadTooLargeException`(원문 `"File too large"`)이 여기에 든다. `code` 를 지정한 413(공개 웹훅 `PUBLIC_WEBHOOK_BODY_TOO_LARGE` 등)은 발행 지점이 정한 코드와 문구를 그대로 둔다.
-- 5xx 는 일반 500 으로 가린다.
-- 원문은 서버 로그(`logger.warn`)에만 남긴다.
+- 5xx 는 `HttpException` 으로 던진 것도 `message` 를 고정 문구 `"An unexpected error occurred. Please try again later."` 로 바꾼다. 상태와 `code` 는 그대로 둔다(`code` 가 없으면 `INTERNAL_ERROR`). 처리하지 못한 내부 예외와 `Error` 가 아닌 값의 throw 는 500 `INTERNAL_ERROR` 이고 문구도 같다. 화면 문구는 클라이언트가 `code` 로 고른다.
+- 원문은 서버 로그에만 남긴다. 4xx 원문은 `logger.warn` 에, 5xx 원문은 상태 · `code` · `requestId` 와 함께 `logger.error` 에 남긴다.
 
 **검증 에러 항목**: ValidationPipe 가 만드는 항목은 `{ field, message, code: "INVALID_FIELD" }` 구조다. `field` 는 중첩·배열 경로를 `nodes[3].type` 형식으로 유지한다.
 
@@ -338,3 +338,15 @@ NERV Task `CLE-T-HGBHF2` 에서 더했다. [통합 관리](../CLE-INT/CLE-INT-MA
 결정일: 2026-08-17
 
 옛 예시는 `nodeName` 이었다. 엔진이 내보내는 값은 모두 `nodeLabel: node.label ?? node.type` 이고 `nodeName` 을 쓰는 발행은 코드베이스에 0건임을 실측했다. WebSocket 실행 이벤트 표의 같은 어긋남을 고치면서 이 예시도 함께 맞췄다([WebSocket 이벤트와 명령](CLE-API-WS-EVENTS.md)).
+
+### 5xx `HttpException` 도 `code` 를 두고 `message` 를 가린다
+
+결정일: 2026-11-27
+
+규칙은 "5xx 는 일반 500 으로 가린다" 였지만 `GlobalExceptionFilter` 는 `HttpException` 으로 던진 5xx 의 `message` 를 그대로 냈다. `OAUTH_CONFIG_MISSING`(500)의 문구에는 환경 변수 이름이 들어 있었다(NERV Task `CLE-T-KKJ2A0`).
+
+고정 문구도 하나로 모았다. 처리하지 못한 예외와 `Error` 가 아닌 throw 의 문구는 영문 두 가지였고 카탈로그 `INTERNAL_ERROR` 의 사용자 메시지는 한국어였다. 서버 `message` 는 영문 문구 하나로 둔다. 카탈로그의 사용자 메시지 열은 프런트엔드 화면 문구로 읽는다([에러 코드 카탈로그 시스템 코드](CLE-API-ERRCODES-SYSVAL.md) §6.1, NERV Task `CLE-T-V11GV1`).
+
+- **기각한 대안 (a)**: 5xx 를 모두 `INTERNAL_ERROR` 로 바꾸는 것. `WEBAUTHN_DISABLED` · `SERVER_SHUTTING_DOWN` · `EXECUTION_ENQUEUE_FAILED` 처럼 클라이언트가 분기하는 코드를 잃는다.
+- **기각한 대안 (b)**: 발행처마다 문구를 검토해 안전한 것만 통과시키는 것. 새 5xx 발행처가 생길 때마다 같은 누출을 리뷰로 막아야 한다. 그 리뷰를 강제하는 가드는 없다.
+- **대가**: 5xx 문구로 원인을 알리던 발행처(`OAUTH_CONFIG_MISSING`)는 프런트엔드 공용 코드 매핑에 화면 문구를 둬야 한다. 설치 엔드포인트(`@Res` 직접 응답)도 같은 규칙을 따른다([OAuth 설치 엔드포인트](../CLE-INT/CLE-INT-OAUTH-INSTALL.md)).
