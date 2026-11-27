@@ -87,6 +87,28 @@ describe("ChangeEmailPage", () => {
     });
   });
 
+  // 서버는 같은 주소를 영문 VALIDATION_ERROR 로 거부한다. 화면이 먼저 막아 한국어 문구를 보인다(NERV CLE-T-MNX9KP).
+  it.each([["old@x.com"], ["  OLD@x.com "]])(
+    "현재 이메일과 같은 주소(%j)는 요청하지 않고 화면 문구를 보인다",
+    async (value) => {
+      const { toast } = await import("sonner");
+      getMe.mockResolvedValue({
+        data: { data: { id: "u", email: "old@x.com", name: "U", pendingEmail: null } },
+      });
+
+      renderPage();
+
+      const input = await screen.findByLabelText(/새 이메일/);
+      fireEvent.change(input, { target: { value } });
+      fireEvent.click(screen.getByTestId("email-change-submit"));
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith("현재 이메일과 같은 주소예요.");
+      });
+      expect(requestEmailChange).not.toHaveBeenCalled();
+    },
+  );
+
   it("shows pending state with resend/cancel when a change is in progress", async () => {
     getMe.mockResolvedValue({
       data: {

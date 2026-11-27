@@ -25,6 +25,8 @@ import { useT } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
 
+const normalize = (email: string) => email.trim().toLowerCase();
+
 export default function ChangeEmailPage() {
   const t = useT();
   const router = useRouter();
@@ -133,6 +135,11 @@ export default function ChangeEmailPage() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!newEmail.trim()) return;
+              // 서버는 같은 주소를 영문 VALIDATION_ERROR 로 거부한다. 서버와 같은 정규화(앞뒤 공백 제거 · 소문자)로 먼저 막는다.
+              if (user && normalize(newEmail) === normalize(user.email)) {
+                toast.error(t("profile.changeEmailSameAsCurrent"));
+                return;
+              }
               requestMutation.mutate();
             }}
             noValidate

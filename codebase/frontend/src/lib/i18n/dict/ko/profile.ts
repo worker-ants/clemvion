@@ -46,6 +46,7 @@ export const profile = {
   changeEmailSubmit: "확인 메일 보내기",
   changeEmailRequestSuccess: "확인 메일을 보냈어요",
   changeEmailFailed: "이메일 변경 요청에 실패했어요",
+  changeEmailSameAsCurrent: "현재 이메일과 같은 주소예요.",
   changeEmailPendingTitle: "확인 대기 중",
   changeEmailPendingDescription:
     "아래 주소로 보낸 확인 메일의 링크를 눌러 변경을 완료해 주세요. 받지 못했다면 다시 보낼 수 있어요.",
