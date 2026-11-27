@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA"
 title: "실행 데이터와 흐름"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "66192c5657d5c0774ad6acb480f48914ae8b718ec5dd7342c89e294cb652f34b"
+content_hash: "212e356f3f0de150b831d5b55edc18ea52a83c32bfc09c5403953137b90a4beb"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-B87H23"
 source_paths: ["spec/1-data-model.md", "spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "28eacf6357fbec95fdcb16d86da4efba9a1b91146cdf133d4b78b5d6e23d8771"
-etag: "sha256-6c4e762e8adafc13ec4aa5546095b150986cedaabcf671886c20f0b8b20b829a"
+mirror_sha256: "e36531310cc1b4968698d499b48a7f0687d3275c6ad923609a13c10622355c32"
+etag: "sha256-e49a20d314cf24249313fd301e704b0123a1f091e07f2ab6ed52050d8a77594e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/3-execution.md`, `spec/1-data-model.md` (§2.13 Execution, §2.13.1 ExecutionNodeLog, §2.13.3 WorkflowTestDataset, §2.14 NodeExecution, Rationale "삭제 연쇄의 FK 인덱스 다섯", "Execution.execution_path → ExecutionNodeLog"), `spec/5-system/4-execution-engine.md` (§7.4 `execution_node_log` 모델) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -124,7 +124,9 @@ erDiagram
 
 ## Rationale
 
-### 삭제 연쇄의 FK 인덱스 다섯 (2026-09-18)
+### 삭제 연쇄의 FK 인덱스 다섯
+
+결정일: 2026-09-18
 
 부모 행을 지울 때 Postgres 의 FK 트리거는 **지워지는 부모 행마다** 자식을 한 번씩 찾는다. 선두 인덱스가 없는 FK 의 비용은 그래서 «자식 테이블 크기 × 연쇄로 지워지는 부모 행 수» 다. 단일 컬럼 FK 87개 가운데 선두 인덱스가 없는 것이 37개였다(카탈로그 `pg_index.indkey[0]` 대조, 부모를 한정하지 않은 전수이며 **부분 인덱스도 «있음» 으로 센 수**다. FK 조회가 쓸 수 없는 부분 인덱스만 가진 셋을 더하면 40개다). 그중 다섯이 [삭제와 보존](#삭제와-보존) 의 두 삭제 경로 연쇄에서 비용을 냈다.
 

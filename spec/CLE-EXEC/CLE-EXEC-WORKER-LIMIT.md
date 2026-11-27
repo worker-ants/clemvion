@@ -2,19 +2,19 @@
 id: "CLE-EXEC-WORKER-LIMIT"
 title: "큐 워커 — 동시 실행 제한과 시간 한도"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-WORKER"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-WORKER"]
 area: "CLE-EXEC"
-content_hash: "98d266f127c4189e13c9e2e910aacb85b252975c9edce419e8d23b75b23728e9"
+content_hash: "704d7d5cbeb0dfab1045af3d824da53de9c0ebc05e2d1ba0fd6cb3ff95fb4ac4"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "b8b1b2828f423f7fff8abdbb8b66040fe6e8835bea5813710cd5f28e17335a15"
-etag: "sha256-40dd55f13980cb8c782a02f3a9631e30b13d98886186f0165501c1986524c63b"
+mirror_sha256: "5dbbd75a69614959f3610933a352f2c571485475d8254b47316497f687ebcb68"
+etag: "sha256-098a74cd8f4e08c755c93feeefb98c57d9c11c0a339e40ab33ba964afdc117bb"
 ---
 ## 개요
 
@@ -67,7 +67,9 @@ etag: "sha256-40dd55f13980cb8c782a02f3a9631e30b13d98886186f0165501c1986524c63b"
 
 ## Rationale
 
-### 실행 시간 한도를 세그먼트 누적 시간으로 (2026-06-04 결정)
+### 실행 시간 한도를 세그먼트 누적 시간으로
+
+결정일: 2026-06-04
 
 - **배경**: "단일 실행 최대 실행 시간 30분" 이 wall-clock 인지 active 시간인지 정해져 있지 않았다.
 - **채택**: 입력 대기 시간을 뺀 세그먼트 누적 시간 기준. wall-clock 이면 사용자 입력을 며칠 기다리는 정상 워크플로우를 타임아웃으로 끝낸다. 과거 테스트에서 "늦게 돌아오니 세션 만료" 회귀로 확인된 안티패턴이다.
@@ -77,7 +79,9 @@ etag: "sha256-40dd55f13980cb8c782a02f3a9631e30b13d98886186f0165501c1986524c63b"
 - **판정은 `>=`(경계 포함)**: 한도와 정확히 같은 값도 초과로 본다. 한도에 닿은 세그먼트는 한도를 다 쓴 것이므로 끝내는 것이 맞다. `>` 보다 경계값에서 조용히 덜 적용될 위험이 없어 보수적으로 안전하다.
 - **판정의 비원자성은 직렬화 불변식이 막는다**: `assertActiveTimeWithinLimit`(DB 누적값 + 진행 중 경과분을 읽어 판정)와 `updateExecutionStatus`(세그먼트 끝에 누적 기록) 사이에 잠금이 없다. 한 실행의 세그먼트가 항상 하나이고 동시에 돌지 않으므로 지금 구조에서는 실제 race 가 없다. 실행을 다시 `running` 으로 들이는 경로가 늘면 다시 검증한다([세그먼트 직렬화 불변식](CLE-EXEC-WORKER.md#세그먼트-직렬화-불변식)).
 
-### 동시 실행 제한은 소비 쪽에서 검사하고 대기 초과는 취소한다 (2026-07-04)
+### 동시 실행 제한은 소비 쪽에서 검사하고 대기 초과는 취소한다
+
+결정일: 2026-07-04
 
 사용자 결정(2026-07-04): spec 을 먼저 나누고 범위는 동시 실행 제한과 5분 취소로 한다. 우선순위 3단계는 후속으로 뺀다.
 
@@ -88,9 +92,11 @@ etag: "sha256-40dd55f13980cb8c782a02f3a9631e30b13d98886186f0165501c1986524c63b"
 - **`queued_at` 컬럼 신설(V104)**: 5분 판정은 큐 대기 진입 시각 기준이다. `started_at`(`running` 전이 시각)은 부팅 복구 스캔의 stale 판정에 쓰여 다시 쓸 수 없다.
 - **우선순위 3단계 분리**: `ExecuteOptions.triggerType` 전달은 ExecuteOptions, 트리거 payload, 큐 옵션 세 층을 바꾸는 일이라 동시 실행 제한 검사와 관계가 없다. 리뷰를 집중하려고 별도 후속으로 뺐다(사용자 결정). 2026-07-04 에 구현됐다.
 
-### 동시 실행 제한 판정은 RETURNING 행 배열로 한다 (2026-08-30 소급 기록)
+### 동시 실행 제한 판정은 RETURNING 행 배열로 한다
 
-동시 실행 제한 검사는 4개월 동안 한 번도 통과하지 못했다. 검사는 advisory lock UPDATE 의 `RETURNING` 으로 `rows.length === 1` 을 판정했다. 그 반환값은 `[rows, affectedCount]` 튜플이라 길이가 항상 2였고 판정은 항상 거짓이었다. 2026-08-13 에 고쳤다.
+결정일: 2026-08-30
+
+동시 실행 제한 검사는 4개월 동안 한 번도 통과하지 못했다. 검사는 advisory lock UPDATE 의 `RETURNING` 으로 `rows.length === 1` 을 판정했다. 그 반환값은 `[rows, affectedCount]` 튜플이라 길이가 항상 2였고 판정은 항상 거짓이었다. 2026-08-13 에 고쳤다. 이 항목은 2026-08-30 에 소급해 적었다.
 
 제품이 동작한 이유: UPDATE 는 이미 커밋돼 행이 `running` 이 됐다. 다시 넣은 작업을 `runExecutionFromQueue` 의 `running` 분기가 stalled 재배달로 잘못 알고 rehydration 으로 재구동했다. 결과만 맞고 경로가 틀렸다. 그 대가로 실행마다 약 2초 지연이 생겼다. `if (admitted)` 블록(`recordRunningSegmentStart`, `EXECUTION_STARTED` 발행)은 통째로 죽은 코드가 됐다.
 
