@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-WS"
 title: "계정과 워크스페이스 데이터 흐름 — 워크스페이스 데이터와 흐름"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "e13fc0a91693c404079e5ce6639a6e46d54931104e6cd6fc6d07dc8627d5b663"
+content_hash: "dbb9d2ac1c00d2bb26b7f1c0e38556bd74b24c7fe098d2647bb9bc6f5f5dbe9b"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "60c28c90a8b642837daf64ec1614af6120049b282aaa82620602175819fcb159"
-etag: "sha256-8c6965e4adbfbfb9e8e7b58d33e653bfeb223f2db7502aa01f9a5dbe2d890233"
+mirror_sha256: "3c2c3f919c02888c2cd73589379622ef0f20b3992913c8ead98b032743ccf348"
+etag: "sha256-debc26d0a58a3848e501eb256a32fa76658304765d9a175103cb546a8301fb2d"
 ---
 ## 개요
 
@@ -73,6 +73,8 @@ etag: "sha256-8c6965e4adbfbfb9e8e7b58d33e653bfeb223f2db7502aa01f9a5dbe2d890233"
 
 코드 진입점은 `workspaces.service.ts`(워크스페이스 CRUD·멤버 관리), `workspace-invitations.service.ts`(초대 발급·수락·재발송·취소), `workspaces.controller.ts`(`@Controller('workspaces')`), `invitations.controller.ts`(`@Controller('invitations')`, 공개 토큰 메타 조회)다. 규칙과 에러 코드는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
 
+다이어그램의 성공 응답은 `{ data }` 봉투 안의 값만 적는다. 봉투는 [HTTP API 규약 — 응답 형식과 상태 코드 §5.1](../CLE-API/CLE-API-CONV-RESP.md#51-단일-리소스) 을 따른다.
+
 ### 팀 워크스페이스 생성
 
 ```mermaid
@@ -85,7 +87,7 @@ sequenceDiagram
   Note over Svc: type=team 서버 고정, slug=team-uuid 앞 8자 (createTeam)
   Svc->>PG: INSERT workspace (name, type=team, owner_id=me, slug, settings={})
   Svc->>PG: INSERT workspace_member (role=owner, joined_at=now)
-  Svc-->>C: 201 { workspace }
+  Svc-->>C: 201 { id, name, type, slug }
 ```
 
 ### 초대 발급
@@ -114,7 +116,7 @@ sequenceDiagram
     Svc->>PG: INSERT workspace_invitation (workspace_id, email, role, token, invited_by, expires_at=now+7d)
   end
   Svc->>Mail: 초대 메일 (토큰 링크)
-  Svc-->>C: 201 { invitation }
+  Svc-->>C: 201 { id, email, role, expiresAt }
 ```
 
 - 조회와 쓰기는 한 트랜잭션이다. 부분 UNIQUE 경합은 500 대신 409 `invitation_already_pending` 으로 바꾼다(`workspace-invitations.service.ts` 의 `invite`).
@@ -141,14 +143,14 @@ sequenceDiagram
   Note over Svc: 영향 행이 0이면 동시 수락 경합이라 410
   Svc->>PG: INSERT workspace_member (role=초대 역할) 이미 멤버면 건너뜀
   Svc->>PG: COMMIT
-  Svc-->>C: 200 { workspace }
+  Svc-->>C: 200 { workspaceId, role }
 ```
 
 수락은 초대 행의 `role` 만 읽고 발급자의 지금 역할을 다시 보지 않는다. 초대 가입도 같다.
 
 ### 초대 가입 (미가입자)
 
-`auth.service.registerWithInvitation()` 이 한 트랜잭션에서 다음을 한다.
+`auth.service.registerWithInvitation()` 은 트랜잭션을 열기 전에 초대 토큰의 이메일과 가입 이메일을 정규화(`normalizeEmail`)해 견준다. 초대 토큰의 이메일과 가입 이메일이 다르면 400 `invitation_email_mismatch` 로 거부한다. 같으면 한 트랜잭션에서 다음을 한다.
 
 1. `INSERT INTO "user"`. 초대 메일을 받은 주소로 가입하므로 `email_verified=true` 로 만든다.
 2. `invitationsService.consumeForRegistration()` 이 초대받은 팀의 `workspace_member`(`role=invitation.role`)를 넣고 초대 수락(`accepted_at`, `accepted_by`)을 함께 처리한다.
@@ -167,7 +169,7 @@ sequenceDiagram
   alt 멤버 아님
     Svc-->>C: 403 NOT_A_MEMBER
   end
-  Svc->>Svc: activeWorkspaceId=:id 로 액세스 토큰 서명 (리프레시 무회전)
+  Svc->>Svc: activeWorkspaceId=:id 로 액세스 토큰 서명 (토큰 회전 없음)
   Svc-->>C: { accessToken } (리프레시 쿠키 그대로)
 ```
 
@@ -184,13 +186,19 @@ sequenceDiagram
   alt 역할이 소유자·관리자가 아님
     Svc-->>C: 403 ADMIN_REQUIRED
   end
-  Svc->>PG: SELECT workspace WHERE id
-  Svc->>Svc: settings = 기존 settings + 보낸 키 (부분 병합)
-  Svc->>PG: UPDATE workspace SET settings, updated_at=now
-  Svc-->>C: 200 { data: workspace }
+  Svc->>PG: SELECT workspace WHERE id (잠그지 않음)
+  Svc->>Svc: 읽은 settings 를 복사해 보낸 키만 덮어씀
+  Svc->>PG: UPDATE workspace SET settings, updated_at (save)
+  Svc-->>C: 200 { id, name, type, slug, settings }
 ```
 
-설정 변경은 `UPDATE workspace SET settings = settings || :patch` 형태의 부분 병합이다. origin 은 형식 검증 뒤 끝 슬래시를 정규화한다.
+설정 변경은 행을 읽고 합친 뒤 저장한다(`updateWorkspaceSettings`). 트랜잭션도 행 잠금도 없다. 읽은 `settings` 를 복사한 객체에 보낸 키만 덮어쓰고 보내지 않은 키는 읽은 값 그대로 둔다. 키별 처리는 다음과 같다.
+
+- `interactionAllowedOrigins`: 보낸 목록으로 통째로 바꾼다. 형식 검증은 DTO 가 먼저 하고 서비스는 origin 마다 끝 슬래시 하나를 지운다.
+- `timezone`: 앞뒤 공백을 지운 값이 빈 문자열이면 키를 지운다. 아니면 IANA 시간대인지 확인하고 저장한다. 아니면 400 `INVALID_TIMEZONE` 이다.
+- `maxConcurrentExecutions`: `null` 이면 키를 지운다. 숫자면 그 값으로 바꾼다.
+
+워크스페이스 행이 없으면 404 `WORKSPACE_NOT_FOUND` 다. 저장한 뒤 감사 로그 `workspace.updated`(`field: 'settings'`)를 남긴다. 두 요청이 겹치면 늦게 저장한 쪽이 앞선 저장을 덮는다(Rationale 「설정 변경은 읽고 합친 뒤 쓴다」).
 
 ### 멤버 변경과 직접 추가
 
@@ -198,7 +206,7 @@ sequenceDiagram
 | --- | --- | --- |
 | 역할 변경 `PATCH .../members/:memberId` | `UPDATE workspace_member.role` | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이나 새 역할이 소유자면 403 `OWNER_ROLE_PROTECTED`. 대상의 지금 역할이나 새 역할이 관리자인데 요청자가 소유자가 아니면 403 `OWNER_REQUIRED`. 관리자가 자기 역할을 바꾸는 요청도 여기에 걸린다 |
 | 소유자 이양 `POST .../transfer-ownership` | 한 트랜잭션에서 현재 소유자 `role='admin'`, 대상 `role='owner'`, `workspace.owner_id = 대상 userId` | 소유자가 아닌 요청 403 `OWNER_REQUIRED`, 개인 워크스페이스 403 `CANNOT_TRANSFER_PERSONAL`, 자기 자신 400 `TARGET_IS_SELF`, 대상 없음 404 `MEMBER_NOT_FOUND`, 대상이 이미 소유자 409 `TARGET_ALREADY_OWNER` |
-| 멤버 제거 `DELETE .../members/:memberId` | 한 트랜잭션에서 `DELETE workspace_member`(소유자가 아닌 행)를 하고 1행을 지웠을 때만 그 멤버의 개인 통합을 지운다(조건은 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)). 자기 자신은 나가기로 넘긴다 | 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이 소유자면 403 `CANNOT_REMOVE_OWNER`. 대상이 관리자여도 소유자 확인은 하지 않는다 |
+| 멤버 제거 `DELETE .../members/:memberId` | 한 트랜잭션에서 `DELETE workspace_member`(소유자가 아닌 행)를 하고 1행을 지웠을 때만 그 멤버의 개인 통합을 지운다(조건은 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#멤버가-나가거나-제거될-때)). 자기 자신은 나가기로 넘긴다 | 판정 순서대로 적는다. 요청자가 멤버가 아니면 대상 조회 전에 403 `NOT_A_MEMBER`. 대상 없음 404 `MEMBER_NOT_FOUND`. 대상이 자기 자신이 아닌데 요청자가 관리자 미만이면 403 `ADMIN_REQUIRED`. 대상이 소유자면 403 `CANNOT_REMOVE_OWNER`. 대상이 관리자여도 소유자 확인은 하지 않는다 |
 | 직접 추가 `POST .../members`(`addMemberByEmail`) | 메일 없이 `INSERT workspace_member` | 새 역할이 소유자면 403 `CANNOT_ASSIGN_OWNER`. 새 역할이 관리자인데 요청자가 소유자가 아니면 403 `OWNER_REQUIRED`. 나머지는 [워크스페이스와 멤버 §직접 추가](CLE-ACCT-WS.md#직접-추가) |
 | 초대 재발송 | 새 `token`, `expires_at = now+7d`, `invited_by` 갱신과 메일 재발송(`resend`) | [워크스페이스와 멤버 §초대 에러 코드](CLE-ACCT-WS.md#초대-에러-코드). 초대 역할은 보지 않는다 |
 | 초대 취소 | 대기 초대 행 물리 삭제(`revoke`, repository `remove`) | 초대 재발송과 같다 |
@@ -219,6 +227,8 @@ sequenceDiagram
 잠금 순서(워크스페이스, 멤버십)는 소유자 이양과 같다. 둘이 겹칠 때 교착하지 않게 하기 위해서다.
 
 나가기(`POST /api/workspaces/:id/leave`, `leaveWorkspace`)는 유일 소유자 판정과 멤버십 DELETE 를 비관적 잠금 트랜잭션 안에서 해 TOCTOU 를 막는다. 같은 트랜잭션에서 멤버십 DELETE 다음 그 멤버의 개인 통합을 지운다.
+
+멤버 제거(`removeMember`)는 잠글 행이 없어 비관적 잠금 대신 조건부 DELETE 한 문장으로 소유자를 지킨다. 잠그지 않고 읽은 대상이 소유자면 먼저 403 `CANNOT_REMOVE_OWNER` 를 낸다. 그다음 `DELETE FROM workspace_member WHERE id AND workspace_id AND role <> 'owner' RETURNING user_id` 를 실행하고 돌려받은 행 수로 판정한다. 그 사이 소유자 이양이 대상을 소유자로 바꾸면 이 DELETE 는 이양의 커밋을 기다린 뒤 바뀐 행으로 조건을 다시 보고 0행을 지운다. 0행이면 잠그지 않고 대상이 아직 있는지만 다시 읽는다. 있으면 403 `CANNOT_REMOVE_OWNER`, 없으면(동시 제거) 404 `MEMBER_NOT_FOUND` 다. 같은 멤버를 동시에 제거하면 한 요청만 1행을 지우고 감사 로그(`member.removed`)를 남긴다.
 
 나가기와 멤버 제거(`DELETE /api/workspaces/:id/members/:memberId`)는 트랜잭션을 열자마자 잠금 대기 상한을 5초로 건다(`SET LOCAL lock_timeout`, 코드 상수 `MEMBER_DEPARTURE_LOCK_TIMEOUT_MS`). 이 상한은 멤버십 행 잠금과 개인 통합 DELETE, 그 통합의 CASCADE 자식 행 잠금에 모두 걸린다. 토큰 갱신 같은 짧은 쓰기와 겹쳐 5초 안에 잠금을 잡지 못하면 트랜잭션을 롤백하고 에러로 끝낸다(PostgreSQL `55P03`, 따로 매핑하지 않아 일반 500 `INTERNAL_ERROR`). 멤버십 · 개인 통합 · 감사 로그는 그대로이고 커밋 뒤 정리(통합 삭제 감사와 자격 증명 캐시 무효화)도 일어나지 않는다. 사용자는 다시 시도하면 된다. 워크스페이스 삭제와 워크플로우 삭제도 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 넘기면 에러로 끝난다([트리거 관리 「결과와 에러」](../CLE-TRIG/CLE-TRIG-MANAGE.md#결과와-에러)). 그 에러에도 따로 정한 코드가 없어 응답은 같은 일반 500 이다. 따로 매핑하지 않는 이유는 Rationale 「나가기와 멤버 제거의 잠금 대기 초과는 따로 매핑하지 않는다」 에 있다.
 
@@ -286,3 +296,9 @@ NERV Task `CLE-T-TGZGM9` 에서 정했다. 멤버십을 지우는 트랜잭션�
 결정일: 2026-10-30
 
 NERV Task `CLE-T-PS7JQY` 의 코드 리뷰가 나가기와 멤버 제거의 잠금 대기 상한을 새 실패 경로로 짚었다. 상한을 넘긴 요청은 매핑되지 않은 500 으로 끝나는데 스펙에 그 동작과 재시도 안내가 없었다. 같은 날 이 에러에 응답 코드를 따로 두지 않고 동작을 스펙에 적기로 정했다. 한도를 넘기면 트랜잭션이 롤백되므로 데이터가 상하지 않는다. 겹칠 상대가 짧은 쓰기라 다시 시도하면 대개 통과한다. 워크스페이스 삭제와 워크플로우 삭제도 트리거 삭제 잠금 한도(`TRIGGER_DELETE_LOCK_TIMEOUT_MS`, 5초)를 걸고 이 에러를 따로 매핑하지 않는다. 나가기와 멤버 제거만 503 이나 409 로 바꾸면 같은 원인의 실패가 엔드포인트마다 다른 코드로 나간다. 그래서 한도 초과의 응답 코드는 이 동작들을 함께 다룰 때 정한다. 두 엔드포인트의 API 문서 설명에도 잠금 대기가 5초를 넘으면 롤백되니 다시 시도하라는 안내를 넣었다. 잠금 대기 상한을 거는 경로들의 응답 코드를 함께 정하는 일은 NERV Task `CLE-T-1C2JE0` 가 맡는다([미결 사항](CLE-ACCT-DATA.md#미결-사항)).
+
+### 설정 변경은 읽고 합친 뒤 쓴다
+
+결정일: 2026-11-27
+
+NERV Task `CLE-T-4WK6MT` 에서 사용자가 본문을 구현에 맞추기로 정했다. 이전 본문은 `settings || :patch` 로 원자 병합한다고 적었지만 구현은 행을 잠그지 않고 읽어 합친 뒤 저장한다. 그래서 두 관리자가 서로 다른 키를 동시에 바꾸면 늦게 저장한 쪽이 먼저 저장한 쪽의 변경을 덮을 수 있다. 설정 변경은 관리자만 드물게 하고 키가 셋뿐이라 이 위험을 받아들였다. 원자 병합(`settings || :patch`)으로 바꾸는 안은 지금 보고된 사고가 없어 미뤘다. 코드는 바꾸지 않았다.
