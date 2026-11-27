@@ -22,9 +22,11 @@ import { SseStreamEligibilityService } from './sse-stream-eligibility.service';
 const MEMORY_BUFFER_SWEEP_INTERVAL_MS = 60_000;
 
 /**
- * [Spec EIA §5.2 / §11 EIA-IN-07·EIA-NF-03] 재연결 replay 가 5분 buffer 로 요청 범위를
- * 완전히 재생하지 못할 때(만료 또는 cap 폐기로 중간 seq 유실) 1회 발송하는 control frame.
- * 내부 WS 의 `replay.unavailable` 과 의미는 같으나 SSE `execution.*` namespace 컨벤션을 따른다.
+ * 버퍼가 요청 범위를 다 채우지 못할 때(만료나 상한 초과로 중간 순번 유실) 한 번 보내는 제어 프레임. 구독 공백과 크기
+ * 상한으로 빠진 이벤트가 있으면 스트림 도중에도 보낸다. 내부 WebSocket 에는 대응 이벤트가 없다(`execution.snapshot` 으로
+ * 대신한다). 이름은 SSE 이벤트 이름 규칙(`execution.*`)을 따른다.
+ *
+ * 근거: [EIA 수신 API와 SSE 「스트림 규칙」](CLE-EIA-INBOUND-STREAM#스트림-규칙), REQ-EIAIN-010 · REQ-EIAIN-011.
  */
 const REPLAY_UNAVAILABLE_EVENT_TYPE = 'execution.replay_unavailable';
 
