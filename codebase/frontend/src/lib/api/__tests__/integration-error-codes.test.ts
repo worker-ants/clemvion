@@ -94,6 +94,20 @@ describe("formatIntegrationErrorToast", () => {
     );
   });
 
+  // 가드 거부 문구가 영문이 되어 한국어 화면이 영문을 보이지 않게 공용 매핑을 먼저 본다(NERV CLE-T-CHP94Z).
+  it.each([
+    ["NOT_A_MEMBER", "errors.codes.notAMember"],
+    ["OWNER_REQUIRED", "errors.codes.ownerRequired"],
+    ["WORKSPACE_NOT_FOUND", "errors.codes.workspaceNotFound"],
+  ])(
+    "통합 표에 없고 공용 매핑에 있는 %s 는 공용 사전 문구 %s 만 보인다",
+    (code, key) => {
+      expect(
+        formatIntegrationErrorToast(wrapped(code, "Server text."), t, FALLBACK),
+      ).toBe(key);
+    },
+  );
+
   it("매핑에 없는 코드는 서버 문구를 그대로 보인다", () => {
     expect(
       formatIntegrationErrorToast(
