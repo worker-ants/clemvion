@@ -11,6 +11,15 @@ import {
 import { IdleExpiringMap } from './idle-expiring-map';
 
 /**
+ * 실행 이벤트 순번 카운터의 Redis 키. 쓰는 쪽은 {@link ExecutionSeqAllocator} 다. 이벤트마다 INCR 하고 TTL 을
+ * 24시간(`EXECUTION_SEQ_TTL_SECONDS`)으로 늘리며 종료 이벤트 뒤 지운다. EIA SSE(`SseFanoutService`)는 재연결 때 놓친
+ * 이벤트가 있는지 보려고 이 키를 읽기만 한다.
+ */
+export function executionSeqKey(executionId: string): string {
+  return `exec:seq:${executionId}`;
+}
+
+/**
  * Execution 단위 monotonic seq 발급기 — Redis `INCR exec:seq:<id>`.
  *
  * **배경**: WebsocketService 의 v1 seq counter 는 single-instance in-memory `Map`
@@ -40,9 +49,6 @@ import { IdleExpiringMap } from './idle-expiring-map';
 @Injectable()
 export class ExecutionSeqAllocator implements OnModuleDestroy {
   private readonly logger = new Logger(ExecutionSeqAllocator.name);
-
-  /** monotonic seq per executionId 용 Redis INCR 키 prefix. */
-  private static readonly SEQ_KEY_PREFIX = 'exec:seq:';
 
   /**
    * Redis 미가용 시 사용하는 in-memory per-execution high-water mark.
@@ -83,7 +89,7 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
    * Redis 장애 시 in-memory degraded fallback (logged).
    */
   async next(executionId: string): Promise<number> {
-    const key = `${ExecutionSeqAllocator.SEQ_KEY_PREFIX}${executionId}`;
+    const key = executionSeqKey(executionId);
     // getClient() 가 throw 하면(config 누락) null 로 남는다. 아래 catch 는 이 값으로
     // Redis 미설정과 연결을 얻은 뒤의 명령 실패를 가른다(뒤쪽만 fail-open 카운터에 센다).
     let client: Redis | null = null;
@@ -148,7 +154,7 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
     // release 는 종료 정리이므로 getClientOrNull 로 degrade-safe.
     const client = this.redisConn.getClientOrNull();
     if (client) {
-      const key = `${ExecutionSeqAllocator.SEQ_KEY_PREFIX}${executionId}`;
+      const key = executionSeqKey(executionId);
       client.del(key).catch((err: unknown) => {
         this.logger.warn(
           `seq 키 DEL 실패 (${ExecutionSeqAllocator.sanitize(executionId)}): ${

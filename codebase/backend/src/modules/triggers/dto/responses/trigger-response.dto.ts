@@ -159,7 +159,7 @@ export class TriggerDto {
   // 응답-계약 검증(규칙 5)을 받으므로 선언한다.
   /**
    * 이 응답에서만 보이는 일회성 평문. 서버가 첫 알림 서명 시크릿이나 트리거 단위 인터랙션 토큰을 발급한
-   * 생성 · 수정 응답에만 있다. 조회 응답에는 없다.
+   * 생성 · 수정 응답에만 있다. 조회 응답에는 없다. 트리거 저장과 비밀 발급은 함께 성공하거나 함께 실패한다.
    */
   @ApiPropertyOptional({ type: () => TriggerIssuedSecretsDto, readOnly: true })
   secrets?: TriggerIssuedSecretsDto;

@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-API"
 title: "용어 사전 — API 와 개발 규약"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "09e2912c5c3c83605f1dd300d3b134a55c87f8845a988968b87d3b68833afcf8"
+content_hash: "caf5c90802896c54a3dd43bbdd3d49a730180723b07c9e46cdaa0ffe5321b815"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-SCFC83"
 source_paths: []
-mirror_sha256: "736230a4156109a9d682745e7e2df2e20eff7565d45882d5296c405e2db84985"
-etag: "sha256-e265c6a44d7e538f9e4ca0f14d857087952ae4825c5f36167d52c0f88cdd6360"
+mirror_sha256: "376ca36aa65ab38978a1aaa8433c71eca42ecf4d84c1983cff50d0df007e6f34"
+etag: "sha256-8dc664855106da3443443e181fda6c77cf0b75cbab8619d379c289dc1ad736f3"
 ---
 ## 개요
 
@@ -32,7 +32,7 @@ etag: "sha256-e265c6a44d7e538f9e4ca0f14d857087952ae4825c5f36167d52c0f88cdd6360"
 | 부재 표현 | absence representation | 값이 없음을 응답에서 나타내는 방식. 기본은 null 이고, 정한 경우에만 키를 뺀다. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
 | PATCH 삼중 상태 | tri-state | PATCH 요청에서 키 생략·null·값이 각각 다른 뜻인 규칙. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
 | 워크스페이스 스코핑 | workspace scoping | API 가 현재 워크스페이스 안의 리소스만 다루게 하는 규칙. | 없음 | [HTTP API 규약](CLE-API/CLE-API-CONV.md) |
-| 요청 빈도 제한 | rate limit, `RATE_LIMITED` | 정한 시간 안의 요청 수나 동시 연결 수에 거는 상한. 세는 단위는 범위마다 다르다(사용자 · IP · 실행 · 채팅방 · WebSocket 소켓). 넘으면 HTTP 는 429 를 돌려준다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다(서명 참조가 없는 옛 트리거 · 채널 연결 전 트리거는 받는다). 채팅방 단위 한도를 넘으면 202 로 받고 건너뛴다. WebSocket 명령은 `RATE_LIMITED` 예외 이벤트로 알린다. 범위와 한도는 기준 문서 §7 의 표에 있다. | throttle(본문), Rate Limiting, 요청 제한 | [HTTP API 규약 — 요청 빈도 제한](CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) |
+| 요청 빈도 제한 | rate limit, `RATE_LIMITED` | 정한 시간 안의 요청 수나 동시 연결 수에 거는 상한. 세는 단위는 범위마다 다르다(사용자 · IP · 실행 · 대화 · WebSocket 소켓). 넘으면 HTTP 는 429 를 돌려준다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다(서명 참조가 없는 옛 트리거 · 채널 연결 전 트리거는 받는다). 대화 단위 한도를 넘으면 202 로 받고 건너뛴다. WebSocket 명령은 `RATE_LIMITED` 예외 이벤트로 알린다. 범위와 한도는 기준 문서 §7 의 표에 있다. | throttle(본문), Rate Limiting, 요청 제한 | [HTTP API 규약 — 요청 빈도 제한](CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) |
 | ack 이벤트 | ack event, `<명령>.ack`, `subscribed` | WebSocket 클라이언트 명령에 서버가 보내는 응답 이벤트(명령 응답 이벤트). 핸들러가 돌려준 `{ event, data }` 의 `event` 가 이벤트 이름이고 `data` 가 payload 다. Socket.IO 의 ack callback 으로는 돌려주지 않는다. [HTTP API 규약 「규칙」](CLE-API/CLE-API-CONV.md#규칙) 규칙 9 의 HTTP ack 본문(202)과 뜻이 다르다. | ack callback(이 뜻으로) | [WebSocket 연결과 채널 구독 「1. 전송 계층」](CLE-API/CLE-API-WS.md#1-전송-계층) |
 | 클라이언트 IP 추출 | client IP extraction | 세션·감사 기록과 공개 웹훅 한도·IP 화이트리스트가 요청자 IP 를 읽는 규칙. 용도에 따라 폴백 순서가 둘이다. 채팅 채널 서명 검증 실패 한도는 `X-Forwarded-For` 를 쓰지 않고 `CF-Connecting-IP`(신뢰 설정일 때), `req.ip` 순서로 따로 읽는다([채팅 채널 인바운드 관문 「서명 검증 실패 한도」](CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도)). | 없음 | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
 | 에러 코드 | error code, `error.code` | 클라이언트가 분기에 쓰는 UPPER_SNAKE_CASE 문자열. 이름을 바꾸면 호환성이 깨진다. | wire 코드, errorCode(본문) | [에러 코드 규약과 카탈로그](CLE-API/CLE-API-ERRCODES.md) |
@@ -68,7 +68,7 @@ etag: "sha256-e265c6a44d7e538f9e4ca0f14d857087952ae4825c5f36167d52c0f88cdd6360"
 | BullMQ 큐 | BullMQ queue | Redis 위에서 도는 비동기 작업 큐. 전체 목록은 한 문서에 둔다. | Message Queue | [비동기 큐와 Redis 키 목록](CLE-PLAT/CLE-PLAT-QUEUE.md) |
 | 반복 작업 | job scheduler, repeatable job | BullMQ job scheduler 로 주기 실행하는 내부 작업(정리·교체·회수). 사용자 스케줄도 실행 수단으로 job scheduler 를 쓰지만 본문에서는 "스케줄" 로 부르고 등록 수단은 "job scheduler" 로 적는다. | repeatable job(본문) | [비동기 큐와 Redis 키 목록](CLE-PLAT/CLE-PLAT-QUEUE.md) |
 | 파일 저장소 | file storage, S3 | 지식 저장소 원본 문서와 프로필 이미지를 두는 S3 호환 저장소. 개발·셀프 호스팅은 MinIO, SaaS 는 AWS S3 를 쓴다. | 객체 저장소, Object Storage | [파일 저장소](CLE-PLAT/CLE-PLAT-STORAGE.md) |
-| 운영 환경 가드 | `assertProductionConfig` | 운영 환경에서 안전하지 않은 설정이면 서버 시작을 막는 검사. | Production fail-closed 가드 | [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) |
+| 운영 환경 가드 | `assertProductionConfig` | 운영 환경에서 안전하지 않은 설정이면 서버 시작을 막는 검사. | Production fail-closed 가드 | [세션과 토큰 — 운영 환경 가드](CLE-ACCT/CLE-ACCT-SESSION-GUARD.md#운영-환경-가드) |
 | advisory lock | advisory lock | PostgreSQL 트랜잭션 잠금. 트리거 설정 쓰기와 동시 실행 제한에 쓴다. | 없음 | [시스템 아키텍처](CLE-PLAT/CLE-PLAT-ARCH.md) |
 | 다중 인스턴스 | multi-instance | 서버 프로세스 여러 개가 함께 도는 배포. 프로세스 하나는 "서버 인스턴스" 라고 부른다. 웹채팅 인스턴스와 다르다. | 인스턴스(단독) | [시스템 아키텍처](CLE-PLAT/CLE-PLAT-ARCH.md) |
 | 3중 가드 | triple guard | 같은 규칙을 저장·편집 화면(또는 사전 검증)·런타임 세 곳에서 검사하는 방식. 쓸 때 세 지점을 밝힌다. | 없음 | [그래프 경고 규칙](CLE-WF/CLE-WF-WARN.md) |
@@ -77,31 +77,39 @@ etag: "sha256-e265c6a44d7e538f9e4ca0f14d857087952ae4825c5f36167d52c0f88cdd6360"
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「API 와 개발 규약」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다. 리뷰 용어 네 행(「리뷰 산출물 인용」 고침, 「리뷰 라운드」 · 「리뷰 발견」 · 「처분」 추가)은 옮기면서 고쳤다. 이유는 그 문서의 Rationale 「리뷰 용어를 NERV 레코드 기준으로 고친 이유」 에 있다.
 
-### 채팅 채널 인바운드 한도 결정으로 고친 행 (2026-11-12)
+### 채팅 채널 인바운드 한도 결정으로 고친 행
+
+결정일: 2026-11-12
 
 NERV Task `CLE-T-GNTWP9` 에서 사람 결정(NERV 질문 `01a1d025-94b3-7448-b9dc-4165d0b6ed5f`)을 반영했다.
 
-- 「요청 빈도 제한」: 채팅 채널 인바운드의 202 는 채팅방 단위 한도를 넘었을 때의 응답이라고 고쳤다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다. 기준 문서 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 같은 날 개정과 맞췄다.
+- 「요청 빈도 제한」: 채팅 채널 인바운드의 202 는 대화 단위 한도를 넘었을 때의 응답이라고 고쳤다. 서명 참조가 있는 채팅 채널 트리거의 인바운드는 전역 한도를 받지 않는다. 기준 문서 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 의 같은 날 개정과 맞췄다.
 
-### 정의 보정 (2026-10-03)
+### 정의 보정
+
+결정일: 2026-10-03
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
-- 「요청 빈도 제한」: 세는 단위(사용자 · IP · 실행 · 채팅방 · WebSocket 소켓)와 SSE 동시 연결 상한, 전송별 초과 응답(HTTP 429, 채팅 채널 인바운드 202, WebSocket 명령 `RATE_LIMITED`)을 적었다([HTTP API 규약](CLE-API/CLE-API-CONV.md) 「요청 빈도 제한」 표).
+- 「요청 빈도 제한」: 세는 단위(사용자 · IP · 실행 · 대화 · WebSocket 소켓)와 SSE 동시 연결 상한, 전송별 초과 응답(HTTP 429, 채팅 채널 인바운드 202, WebSocket 명령 `RATE_LIMITED`)을 적었다([HTTP API 규약](CLE-API/CLE-API-CONV.md) 「요청 빈도 제한」 표).
 - 「응답 마스킹」: 표면에 EIA 알림 웹훅 · 채팅 채널을 더했다. 쓰지 않는 표기에서 「egress-only」 를 뺐다. 기준 문서가 그 말을 원칙 이름(1.1 절)으로 쓴다. 「값-패턴 마스킹」 은 정책 이름으로 쓸 때만 막는다. 기준 문서는 「값 패턴」 을 판정 방식 이름으로 쓴다. 정책 전체를 부르는 이름은 「응답 마스킹」 하나다. 「마스킹 값 재제출 거부」 는 수동 실행 경로로 한정했다([응답 자격 증명 마스킹](CLE-API/CLE-API-EGRESS.md) 규칙 10).
 - 「append-only」: 대상을 쌓기만 하는 테이블(감사 로그 · 사용량 · 이력 · 체크포인트)로 넓혔다. 기준 문서 칸에 그 테이블을 append-only 로 선언한 문서 넷을 더했다(감사 로그 · 사용량 · 이력 · 체크포인트 순).
 - 「반복 작업」: 사용자 스케줄도 job scheduler 로 돌지만 본문에서는 「스케줄」 로 부른다고 적었다([비동기 큐와 Redis 키 목록](CLE-PLAT/CLE-PLAT-QUEUE.md)). 「Redis 키 형식」 은 꼬리 식별자를 `[:{식별자}...]` 로 맞췄다([Redis 키 명명 규약](CLE-ENG/CLE-ENG-REDIS.md) 규칙 1).
 - 「다중 인스턴스」: 프로세스 하나는 「서버 인스턴스」 로 부른다고 적었다.
 - 「문서 상태」 · 「구현 상태」 · 「옛 스펙 상태」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다.
 
-### 전환 단계 5 뒤 고친 행 (2026-10-03)
+### 전환 단계 5 뒤 고친 행
+
+결정일: 2026-10-03
 
 전환 단계 5 에서 옛 스펙 트리를 지운 뒤 맞췄다(NERV Task `CLE-T-RGZBCQ`).
 
 - 「옛 스펙 상태」: "동결된 옛 스펙 트리" 를 현재형으로 적었다. 옛 트리는 지웠으므로 걷은 값으로 고쳤다.
 - 「구현 위치」 · 「키 링크」: [스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 이 새로 쓴 말이라 행을 더했다. 코드 주석이 스펙을 상대 경로로 링크하는 것은 그 규약이 위반으로 본다(규칙 18).
 
-### 분할 검토에서 고친 행 (2026-10-02)
+### 분할 검토에서 고친 행
+
+결정일: 2026-10-02
 
 분할한 초안의 일관성 검토가 기준 문서에 그 용어의 정의가 없는 행을 찾았다. 옮겨 온 행에 이미 있던 문제라 분할과 함께 고쳤다.
 
@@ -110,14 +118,32 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「스펙 상태」: NERV 이전 뒤 문서 상태(`doc_status`)와 머리 줄 구현 상태로 갈렸다([스펙과 구현 근거 규약](CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 의 「NERV 이전 영향」). 옛 다섯 값은 「옛 스펙 상태」 로 한정하고 두 행을 더했다.
 - 「리뷰 라운드」 · 「리뷰 발견」 · 「처분」: 운영 규칙은 아직 NERV 문서에 없고 저장소 `code-review-agents` SKILL 이 정한다. [리뷰 산출물 인용 규약](CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 세 이름을 쓰는 NERV 문서라 기준 문서로 두었다. 리뷰 절차를 담은 NERV 문서가 생기면 기준 문서를 바꾼다. 2026-10-03 에 NERV Task `CLE-T-52JYHM` 이 확인했을 때 그런 문서는 아직 없었다.
 
-### 채팅 채널 전역 한도 면제에 서명 참조 조건을 붙였다 (2026-11-14)
+### 채팅 채널 전역 한도 면제에 서명 참조 조건을 붙였다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-EVGA56` 에서 고쳤다. 「요청 빈도 제한」 의 면제 조건을 [HTTP API 규약 — 요청 빈도 제한](CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 머리 콜아웃과 맞췄다. 서명 참조(`config.chatChannel.inboundSigningRef`)가 없는 채팅 채널 트리거는 서명을 검증하지 않아서 전역 한도를 그대로 받는다. 코드 후속인 NERV Task `CLE-T-ZC34Y0` 이 끝나서 2026-11-12 항목에 남아 있던 「코드는 아직 전역 한도를 건다」 문장을 지웠다. 「요청 빈도 제한」 의 기준 문서 칸은 한도 표가 있는 하위 문서 §7 로 바꿨다. 「클라이언트 IP 추출」 에는 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) 과 [채팅 채널 — 인바운드 관문](CLE-CHAT/CLE-CHAT-CORE-GATE.md#서명-검증-실패-한도) 이 적은 대로 채팅 채널 서명 검증 실패 한도의 별도 IP 읽기를 더했다.
 
-### 「글로브」 행을 더했다 (2026-11-19)
+### 「글로브」 행을 더했다
+
+결정일: 2026-11-19
 
 스펙 본문이 파일 경로 패턴을 「글로브」 로 쓰는데 이 사전에 행이 없었다. 본문 표기는 그대로 두고 이 행에서 뜻을 정했다(NERV Task `CLE-T-4H77EB`).
 
-### 「ack 이벤트」 행을 더했다 (2026-11-20)
+### 「ack 이벤트」 행을 더했다
+
+결정일: 2026-11-20
 
 WebSocket 문서는 클라이언트 명령에 서버가 보내는 응답 이벤트를 「ack 이벤트」 로 부르는데 이 사전에 행이 없었다. 같은 「ack」 를 Socket.IO 의 ack callback 과 [HTTP API 규약](CLE-API/CLE-API-CONV.md) 규칙 9 의 HTTP ack 본문도 쓴다. 그래서 이 행에서 뜻을 하나로 정하고 두 말과 갈랐다(NERV Task `CLE-T-KYPH36`).
+
+### 채팅 채널 인바운드 한도의 세는 단위를 「대화」 로 맞췄다
+
+결정일: 2026-11-27
+
+NERV Task `CLE-T-Y4RZGZ` 가 고쳤다. NERV Task `CLE-T-KYPH36` 이 [HTTP API 규약 — 요청 빈도 제한](CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 의 채팅 채널 인바운드 한도 단위를 [채팅 채널](CLE-CHAT/CLE-CHAT-CORE.md) 의 대화 단위(REQ-CHAT-046)로 바꿨다. 이 사전에는 «채팅방» 이 남아 같은 한도에 이름이 둘이었다. 「요청 빈도 제한」 행과 위 두 결정 기록의 «채팅방» 을 «대화» 로 고쳤다. 한도 수치와 동작은 바꾸지 않았다.
+
+### 「운영 환경 가드」 의 기준 문서를 가드 절로 바꿨다
+
+결정일: 2026-11-27
+
+NERV Task `CLE-T-2JG0HW` 8번 항목이다. 가드 대상 목록은 [세션과 토큰 — 운영 환경 가드](CLE-ACCT/CLE-ACCT-SESSION-GUARD.md#운영-환경-가드) 한 절에 있다. 기준 문서 칸이 상위 문서 [세션과 토큰](CLE-ACCT/CLE-ACCT-SESSION.md) 을 가리켜 목록을 찾으려면 한 번 더 따라가야 했다.

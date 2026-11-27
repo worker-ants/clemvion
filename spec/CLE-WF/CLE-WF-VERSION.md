@@ -2,19 +2,19 @@
 id: "CLE-WF-VERSION"
 title: "버전 기록"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-WFVER-001", "REQ-WFVER-002", "REQ-WFVER-003", "REQ-WFVER-004", "REQ-WFVER-005", "REQ-WFVER-006", "REQ-WFVER-007", "REQ-WFVER-008", "REQ-WFVER-009", "REQ-WFVER-010", "REQ-WFVER-011", "REQ-WFVER-012", "REQ-WFVER-013", "REQ-WFVER-014", "REQ-WFVER-015", "REQ-WFVER-016", "REQ-WFVER-017", "REQ-WFVER-018", "REQ-WFVER-019", "REQ-WFVER-020", "REQ-WFVER-021", "REQ-WFVER-022", "REQ-WFVER-023", "REQ-WFVER-024", "REQ-WFVER-025", "REQ-WFVER-026", "REQ-WFVER-027"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "38c7a0ad60288345118d85479d837765c6500795dc5c0a79b5c13e86f6c3e1ef"
+content_hash: "5cdd3452a4d279d776c92f34b02ffc7ae66324e88741f33b38cd21f2b43686cb"
 read_as: "approved_fallback"
-task: "CLE-T-1BQZ10"
+task: "CLE-T-CNGC0P"
 source_paths: ["spec/3-workflow-editor/0-canvas.md", "spec/3-workflow-editor/5-version-history.md", "spec/3-workflow-editor/_product-overview.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "19b5514bc78119d76701d6b246683b6a5dd251600c8c907faa99fe89ddaa28fe"
-etag: "sha256-dfae3af5ef1ebbab9d91620bc097f3d6c55a21a7a88ba5d6479d8f1f8fb2ce64"
+mirror_sha256: "9d55bf6411d2f4dccc979f68b21baba0b48c204820b0f3b9a0dfa1bdcdfed182"
+etag: "sha256-6ea3c5d1c0d21b1ffb1175a985f1343837dc83ccc2c57b57339eefed7153e564"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/5-version-history.md`, `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-03·04), `spec/3-workflow-editor/0-canvas.md` (§8.1, R-5), `spec/data-flow/11-workflow.md` (§1.1 버전 복원) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -240,7 +240,9 @@ interface VersionSnapshot {
 
 ## Rationale
 
-### 변경 요약을 자동으로 만들지 않는다 (2026-09-19)
+### 변경 요약을 자동으로 만들지 않는다
+
+결정일: 2026-09-19
 
 한때 캔버스 명세는 "버전에는 자동 생성한 `change_summary` 가 들어간다(예: '노드 3개 추가, 연결선 2개 수정')" 고 적었다. **자동 생성은 없다.** 서버가 스스로 채우는 것은 복원의 `Restored from vN` 하나이고, 저장 API 는 요청의 `changeSummary` 를 그대로 담는다. 에디터(수동 저장, 실행 직전 저장)는 그 필드를 보내지 않는다. 명세가 없는 저장 기능을 약속한 경우라 명세를 현재 동작으로 고쳤다. 자동 요약 기능은 만들지 않기로 했다(사용자 결정, 2026-09-19). 사용자 가이드의 "저장 요청에 `changeSummary` 메모를 넣으면" 안내도 같은 때 고쳤다.
 
@@ -248,7 +250,9 @@ interface VersionSnapshot {
 
 버저닝과 복원의 대상은 캔버스와 이름·설명이다. 그래서 버전을 복원해도 `settings` 는 되돌아가지 않는다. 스냅샷 구성과 JSONB 로 둔 근거는 [워크플로우 데이터와 저장 흐름](CLE-WF-DATA.md) 의 Rationale 이 정한다.
 
-### 복원은 걸린 통합 참조를 비우고 끝낸다 (2026-10-24)
+### 복원은 걸린 통합 참조를 비우고 끝낸다
+
+결정일: 2026-10-24
 
 NERV Task `CLE-T-MG0EQZ` 에서 사용자는 노드의 통합 참조를 저장할 때 검사하고 복제 · 가져오기는 걸린 참조를 비우기로 정했다(2026-10-24). 버전 복원은 그때 같게 하는 쪽을 권했고 이 문서에서 그대로 정했다. 무엇을 비울지는 같은 날 승인한 초안을 다시 리뷰한 뒤 좁혔다(아래 «저장자 조건을 보지 않는 이유»).
 

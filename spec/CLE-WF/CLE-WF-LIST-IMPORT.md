@@ -2,19 +2,19 @@
 id: "CLE-WF-LIST-IMPORT"
 title: "워크플로우 목록 — 내보내기 · 가져오기 형식"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-LIST"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-LIST"]
 area: "CLE-WF"
-content_hash: "736ee6c132872851c4b84517983957798efa3c27bd30881feea5479eb12d9d6a"
+content_hash: "2d9553b7ea262e960d4f2e4b5cf52277c6646c00fc4d213afbbc7e702968480d"
 read_as: "approved_fallback"
-task: "CLE-T-9Q304H"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "bf595bed1bbb1361a2afc5fbcdff3248824f1b32ce2273b4d5de85a97ae67b89"
-etag: "sha256-f2666c4df6c8af7e544fba749bc7c97f951f48a9d59879e703c72f59d56ee862"
+mirror_sha256: "823c6d0189f2cbe5faec020db0d3d0455a6d07b95d0033d3f485ef3f9c28d347"
+etag: "sha256-d6bd64f158ddc5806e70bb0a1076467e911ee245fb60f1ee127ce4c7a8ceca32"
 ---
 ## 개요
 
@@ -73,7 +73,9 @@ Swagger 응답 DTO(`ExportWorkflowDto`)는 `formatVersion` 필드를 선언하�
 - 워크플로우 `settings` 는 이 느슨한 예외에 들지 않는다. 느슨한 정책은 사용자가 손으로 고친 뒤 에디터에서 복구할 수 있는 노드 `config` 에만 쓴다. `settings.maxConcurrentExecutions` 는 동시 실행 상한이라 잘못된 값을 조용히 무시하면 상한 정책이 어긋난다. 그래서 쓰기 경계에서 엄격한 중첩 DTO(`WorkflowSettingsDto`)로 거부한다. 가져오기와 PATCH(`UpdateWorkflowDto`)가 같은 규칙을 쓰고 데이터 모델도 `Workflow.settings` 를 이 키로 한정한다(2026-07-04 결정).
 - `maxConcurrentExecutions: null` 은 받는다. 숫자 키라서 `null` 말고는 상한을 지울 방법이 없기 때문이다(2026-11-20, NERV Task `CLE-T-9Q304H`). 같은 규칙을 쓰는 워크스페이스 설정의 근거는 [생성 · 전환 · 설정](../CLE-ACCT/CLE-ACCT-WS-SPACE.md) 의 Rationale 에 있다.
 
-### 2. 가져오기·복제는 쓸 수 없는 통합 참조를 비우고 경고한다 (2026-10-24)
+### 2. 가져오기·복제는 쓸 수 없는 통합 참조를 비우고 경고한다
+
+결정일: 2026-10-24
 
 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰도록 정했다(2026-10-24 사용자 결정. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 가져오기와 복제로 만든 워크플로우의 작성자는 요청 사용자다. 그래서 다른 사람의 개인 통합을 가리키는 참조는 새 워크플로우에서 실행될 수 없다.
 

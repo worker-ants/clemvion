@@ -2,19 +2,19 @@
 id: "CLE-CHAT-TELEGRAM"
 title: "Telegram 어댑터"
 type: "feature"
-version: 12
+version: 13
 status: "approved"
 requirements: ["REQ-TGRAM-001", "REQ-TGRAM-002", "REQ-TGRAM-003", "REQ-TGRAM-004", "REQ-TGRAM-005", "REQ-TGRAM-006", "REQ-TGRAM-007", "REQ-TGRAM-008", "REQ-TGRAM-009", "REQ-TGRAM-010", "REQ-TGRAM-011", "REQ-TGRAM-012", "REQ-TGRAM-013", "REQ-TGRAM-014", "REQ-TGRAM-015", "REQ-TGRAM-016", "REQ-TGRAM-017", "REQ-TGRAM-018", "REQ-TGRAM-019", "REQ-TGRAM-020", "REQ-TGRAM-021", "REQ-TGRAM-022", "REQ-TGRAM-023", "REQ-TGRAM-024", "REQ-TGRAM-025", "REQ-TGRAM-026", "REQ-TGRAM-027", "REQ-TGRAM-028", "REQ-TGRAM-029", "REQ-TGRAM-030", "REQ-TGRAM-031", "REQ-TGRAM-032", "REQ-TGRAM-033"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "f22a147d339ebe901ba6c15e141e770fab99a233ace863c10baf76510568eb28"
+content_hash: "1b75a4d2c093a9b5ecd866d8657b40695badff5864c8b7d0d294d797e925f4b3"
 read_as: "approved_fallback"
-task: "CLE-T-0400J6"
+task: "CLE-T-P4TSAA"
 source_paths: []
-mirror_sha256: "076d8e965bab0693473ad10e720c258c2e9770b8e7839716709de3d4455add2e"
-etag: "sha256-883e4c8385985724788f78161a43250b7e2199fa92a2f772b6edfea46b607d7f"
+mirror_sha256: "d43e22529264e69085b9ea5f590855feb529e7590a1eab3db2b8ee0a8e533d28"
+etag: "sha256-22e2474cfefd385710abf59f0b92361951c9c19f8c370076b49d4a774dfd7d93"
 ---
 > 구현 상태: 부분 구현 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -71,7 +71,7 @@ etag: "sha256-883e4c8385985724788f78161a43250b7e2199fa92a2f772b6edfea46b607d7f"
 요구사항 보충 설명은 다음과 같다.
 
 - 관련 REQ-TGRAM-011·012: 처리한 클릭의 순서는 EIA `click_button` 요청 큐 등록, `answerCallbackQuery`, 키보드 제거, 웹훅 HTTP 응답(`202`)이다. EIA 요청은 큐에 넣기만 하고 처리를 기다리지 않는다. 수신 확인과 키보드 제거는 `ackInteraction` 이 한다. 활성 실행이 없는 대화로 온 클릭은 새 실행을 시작하는 update 로 처리되고 그 뒤 같은 수신 확인과 키보드 제거를 한다(현재 구현).
-- 관련 REQ-TGRAM-011·032·033: 버린 클릭의 수신 확인은 `HooksService` 의 `ackDroppedUpdateAndIgnore` 가 채널 어댑터의 `ackDroppedUpdate` 를 불러 보낸다. 클릭을 버리는 경로는 여섯 가지다. 파서가 버린 `callback_query`, 30초 안에 다시 온 같은 update, 대화 단위 분당 한도 초과, 실행이 `running`·`pending` 이라 입력 대기가 아닌 경우(`executionStillRunning` 안내 뒤), 활성 실행이 없는 대화인데 워크플로우가 비활성인 경우, 트리거의 워크플로우가 그 워크스페이스에 없는 경우다. Telegram 어댑터는 본문의 `callback_query.id` 가 비어 있지 않은 문자열일 때만 `answerCallbackQuery` 를 부르고 `editMessageReplyMarkup` 은 부르지 않는다. 클릭이 아닌 update 에는 아무것도 하지 않는다. `HooksService` 는 이 수신 확인을 보내기만 하고 끝나기를 기다리지 않아 웹훅 HTTP 응답이 늦어지지 않는다. 호출이 실패하면 `HooksService` 가 경고 로그만 남기고 응답은 그대로 `202 + { executionId: 'ignored' }` 다. 트리거가 비활성이면 서명 검증 뒤 외부 호출 없이 끝나므로 수신 확인도 보내지 않는다.
+- 관련 REQ-TGRAM-011·032·033: 버린 클릭의 수신 확인은 `HooksService` 의 `ackDroppedUpdateAndIgnore` 가 채널 어댑터의 `ackDroppedUpdate` 를 불러 보낸다. 클릭을 버리는 경우는 [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-081 이 정한다. 파서가 버린 `callback_query`, 30초 안에 다시 온 같은 update, 실행이 `running`·`pending` 이라 입력 대기가 아닌 경우(`executionStillRunning` 안내 뒤) 등이다. Telegram 어댑터는 본문의 `callback_query.id` 가 비어 있지 않은 문자열일 때만 `answerCallbackQuery` 를 부르고 `editMessageReplyMarkup` 은 부르지 않는다. 클릭이 아닌 update 에는 아무것도 하지 않는다. `HooksService` 는 이 수신 확인을 보내기만 하고 끝나기를 기다리지 않아 웹훅 HTTP 응답이 늦어지지 않는다. 호출이 실패하면 `HooksService` 가 경고 로그만 남기고 응답은 그대로 `202 + { executionId: 'ignored' }` 다. 트리거가 비활성이면 서명 검증 뒤 외부 호출 없이 끝나므로 수신 확인도 보내지 않는다.
 - 관련 REQ-TGRAM-013·014: 전화번호 preset 은 [Form 노드](../CLE-NODE-PRES/CLE-NODE-FORM.md) 에 아직 없다(스키마, 서버 정규식, 어댑터 힌트 모두 없음). Form 의 `type` enum 자체는 바꾸지 않는다.
 - 관련 REQ-TGRAM-018·019: 현재 구현(`telegram.adapter.ts` 의 `image` 분기, `renderCarouselFallback`)은 이미지 메시지를 caption·`fallbackText` 텍스트로 보내고 Carousel 카드도 모두 텍스트로 보낸다. multipart 업로드와 SSR PNG 인프라가 없다.
 - 관련 REQ-TGRAM-024·025: 활성 실행 중 `/start` 의 명령 우선 규칙, 취소 실패 처리, 대화 상태 정리는 [채팅 채널](CLE-CHAT-CORE.md) 의 REQ-CHAT-062~065 가 정한다. 트리거의 워크플로우가 비활성이면 두 경우 모두 새 실행을 시작하지 않고 기존 실행도 취소하지 않는다(REQ-CHAT-066). 처리 세부는 [명령 처리](#명령-처리) 표에 있다.

@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET"
 title: "시크릿 저장소"
 type: "convention"
-version: 19
+version: 20
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "064e265e175d9711c3f01c8988810c65c260d30ea94ce708e3fe1cb12265054c"
+content_hash: "aa142cf6ab0e8a5db66cefb6ac28bef2ef73ee34a00c23b4d1a377404bc85131"
 read_as: "approved_fallback"
-task: "CLE-T-FTSKJW"
+task: "CLE-T-ZPT9W7"
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "28d1e10195728dea27e09d7c48690f8f7bd0c168cc6d2a2ee27f76c0726c69c5"
-etag: "sha256-84c56c3040ea7bc979c049552f5265970846b7600e6b2ae8cf211538b841467c"
+mirror_sha256: "ca580afa0062a117f49b95788a7d6808dd68c9378110be6dab517f9a088c1a5f"
+etag: "sha256-fd3ac6085ef30283a0eb91206466b230cb211ea8f62cf2f6ec09df993e917399"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -59,8 +59,8 @@ etag: "sha256-84c56c3040ea7bc979c049552f5265970846b7600e6b2ae8cf211538b841467c"
 5. 규칙 4 는 두 축으로 시행한다. [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 응답-계약 검증(선언하지 않은 키를 위반으로 본다)과 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 의 엔티티 패스스루 금지다. 규칙 4 의 예외 응답도 이 검증을 받는다. 그래서 평문을 싣는 필드는 그 응답의 DTO 에 선언한다. 같은 DTO 가 평문을 싣지 않는 응답에도 쓰이면 그 필드는 선택 필드로 선언하고 [HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV.md#55-부재-표현-null-과-키-생략) 기준 (b) 사유를 적는다. 두 축 모두 열린 맵(`additionalProperties: true` 로 선언한 객체, 예: `TriggerDto.config`) 안의 키는 보지 않는다. 그래서 열린 맵 안에 두는 저장소 예외 필드와 시크릿 참조는 응답에 그 키가 없음을 단언하는 e2e 를 함께 둔다. 공개 API 로 더는 저장할 수 없는 옛 값은 단위 테스트로 단언한다([R19](CLE-INT-SECRET-EXPOSE.md#r19-열린-맵-안의-비밀은-응답-부재를-테스트로-단언한다)).
 6. 엔티티를 그대로 반환하는 경로에서는 응답 경계에서 지운다. 컬럼 수준 `select: false` 는 쓰지 않는다. 그 컬럼을 읽는 내부 경로(교체 승격, 정리 스윕)가 예외 없이 `undefined` 를 받아 조용히 오작동하기 때문이다.
 7. 트리거를 만들 때(알림 웹훅·채팅 채널 설정 포함)와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때 비밀 저장은 `rotate(ref, workspaceId, plaintext)` 를 쓴다. PATCH 가 저장된 행의 옛 평문 `signing.secret` 을 시크릿 저장소로 옮길 때도 `rotate` 를 쓴다. UPSERT 라 같은 워크스페이스에서 설정을 다시 시도해도 안전하다(다른 워크스페이스의 행은 규칙 25). `store()` 도 결과는 같지만 같은 참조가 이미 있을 때의 동작(덮어쓰기 또는 throw)이 백엔드 구현에 따라 달라질 수 있다.
-8. 트리거 행이 없어질 때(트리거·스케줄·워크플로우·워크스페이스 삭제) 그 트리거의 모든 참조를 `deleteByPrefix('secret://triggers/{id}/')` 로 한꺼번에 지운다. 행 삭제가 커밋된 **뒤에** 지운다. 채널 프로바이더 쪽 정리 작업이 이 비밀을 읽으므로 먼저 지울 수 없고, 행 삭제 전에 지우면 그 사이 커밋된 쓰기가 남긴 비밀을 아무도 지우지 않는다. DB FK 가 없으므로 애플리케이션 책임이다. 개별 `delete()` 보다 prefix 삭제를 쓴다.
-9. 트리거 락 밖에서 비밀을 쓴 뒤 락 안 재기록이 행 부재로 실패하면 `deleteByPrefix('secret://triggers/{id}/')` 로 되돌린다. 채팅 채널 설정과 저장된 옛 평문을 옮기는 PATCH 정규화(`migrateLegacyPlaintext`)가 이 경우다. 트리거 락 안에서 비밀을 쓰는 경로(생성 · PATCH 의 첫 알림 서명 시크릿 발급과 옛 평문 옮기기, 시크릿 승격)는 그 락을 쥔 트랜잭션의 매니저로 쓴다. 그래서 풀 연결을 더 쓰지 않는다. 그 트랜잭션이 예외로 끝나면 비밀 쓰기도 함께 롤백되므로 따로 되돌릴 것이 없다. 생성은 행을 넣은 트랜잭션 안에서 쓴다. 커밋 전의 행은 다른 트랜잭션이 지우지 못하므로 행 부재가 생기지 않는다. 남는 것은 시크릿 승격이다. 워크플로우 · 워크스페이스 삭제의 FK CASCADE 는 이 락을 거치지 않아 락 안에서도 행이 사라질 수 있다. 그때 승격의 `config` 쓰기는 예외 없이 0행으로 끝나고 비밀 쓰기는 커밋된다. 그래서 커밋 뒤 같은 prefix 로 되돌린다. 규칙 8 과 짝이다. 행이 없으므로 prefix 전체를 지워도 안전하다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)).
+8. 트리거 행이 없어질 때(트리거·스케줄·워크플로우·워크스페이스 삭제) 그 트리거의 모든 참조를 `deleteByPrefix('secret://triggers/{id}/')` 로 한꺼번에 지운다. 행 삭제가 커밋된 **뒤에** 지운다. 채널 프로바이더 쪽 정리 작업이 이 비밀을 읽으므로 먼저 지울 수 없고, 행 삭제 전에 지우면 그 사이 커밋된 쓰기가 남긴 비밀을 아무도 지우지 않는다. DB FK 가 없으므로 애플리케이션 책임이다. 개별 `delete()` 보다 prefix 삭제를 쓴다. 예외로 트리거가 남는 부분 해제(`notification: null` 로 EIA 알림 웹훅 설정을 해제)는 알림 서명 시크릿 참조 하나만 `delete(ref, manager)` 로 지운다. 같은 prefix 아래의 다른 비밀(채팅 채널 봇 토큰 등)은 남겨야 하기 때문이다. 순서와 조건은 [EIA 알림 웹훅 — 시크릿 교체 「알림 설정 해제」](../CLE-IX/CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제) 가 정한다.
+9. 트리거 락 밖에서 비밀을 쓴 뒤 락 안 재기록이 행 부재로 실패하면 `deleteByPrefix('secret://triggers/{id}/')` 로 되돌린다. 채팅 채널 설정과 저장된 옛 평문을 옮기는 PATCH 정규화(`migrateLegacyPlaintext`)가 이 경우다. 트리거 락 안에서 비밀을 쓰는 경로(생성 · PATCH 의 첫 알림 서명 시크릿 발급과 옛 평문 옮기기, 시크릿 승격, 알림 설정 해제 뒤 서명 시크릿 행 삭제(규칙 8 의 예외))는 그 락을 쥔 트랜잭션의 매니저로 쓴다. 그래서 풀 연결을 더 쓰지 않는다. 그 트랜잭션이 예외로 끝나면 비밀 쓰기도 함께 롤백되므로 따로 되돌릴 것이 없다. 생성은 행을 넣은 트랜잭션 안에서 쓴다. 커밋 전의 행은 다른 트랜잭션이 지우지 못하므로 행 부재가 생기지 않는다. 남는 것은 시크릿 승격이다. 워크플로우 · 워크스페이스 삭제의 FK CASCADE 는 이 락을 거치지 않아 락 안에서도 행이 사라질 수 있다. 그때 승격의 `config` 쓰기는 예외 없이 0행으로 끝나고 비밀 쓰기는 커밋된다. 그래서 커밋 뒤 같은 prefix 로 되돌린다. 규칙 8 과 짝이다. 행이 없으므로 prefix 전체를 지워도 안전하다([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화)).
 10. 외부 API 호출 직전(메시지 전송, HMAC 서명 등)에는 매번 `resolve(ref)` 로 값을 가져온다. 캐싱 여부는 `SecretResolver` 내부가 정한다.
 11. 비밀 교체도 `rotate()`(UPSERT)로 쓴다. 채팅 채널 봇 토큰 재발급은 옛 토큰을 `bot-token.v2` 참조에 `rotate` 로 백업한 뒤 기본 참조(`bot-token`)를 새 토큰으로 `rotate` 한다([봇 토큰 재발급](CLE-INT-SECRET-USAGE.md#봇-토큰-재발급)). 저장된 옛 토큰이 비었거나 공백만 있으면(규칙 27 이 생기기 전에 저장된 옛 행) 백업을 건너뛴다. `.v2` 참조에 새 값을 쓰는 교체는 현재 없다.
 12. `deleteByPrefix` 의 prefix 는 `secret://` 로 시작해야 한다. LIKE 메타문자(`%`·`_`·`\`)가 들어 있으면 throw 한다. 구현은 `ref LIKE :prefix` 에 `` `${prefix}%` `` 를 바인딩하고 `ESCAPE` 절을 두지 않는다. `ESCAPE` 절이 없다는 것도 계약의 일부다.

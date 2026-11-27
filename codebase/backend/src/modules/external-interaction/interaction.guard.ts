@@ -11,8 +11,8 @@ import { Repository } from 'typeorm';
 import {
   InteractionTokenService,
   IEXT_PREFIX,
-  ITK_PREFIX,
 } from './interaction-token.service';
+import { ITK_PREFIX } from './per-trigger-token';
 import { Execution } from '../executions/entities/execution.entity';
 
 /**

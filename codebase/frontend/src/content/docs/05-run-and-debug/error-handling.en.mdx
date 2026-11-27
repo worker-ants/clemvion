@@ -4,7 +4,7 @@ This page covers the **five error policies** that decide how a workflow continue
 
 <FieldTable rows={[
   { name: "Stop Workflow", type: "Default", description: "Immediately stops the entire run and records it as failed." },
-  { name: "Skip Node", type: "Skip", description: "Skips the failing node and passes `null` to the next node as input." },
+  { name: "Skip Node", type: "Skip", description: "Skips the failing node and moves on. The skipped node writes no output, so the next node receives an empty value (`undefined`) as input." },
   { name: "Use Default Output", type: "Default output", description: "Emits a preset default value as if the node succeeded." },
   { name: "Retry", type: "Retry", description: "Auto-retries up to a configurable number of times. If all fail, falls back to Stop Workflow." },
   { name: "Route to Error Port", type: "Error port", description: "Sends the error payload out through a dedicated error port so a recovery branch can take over." }
@@ -25,9 +25,10 @@ The default policy. Execution halts the moment an error occurs.
 The failing node is ignored; execution continues.
 
 - `NodeExecution.status = "skipped"`; error info is preserved on `NodeExecution.error`.
-- The output is `null`. The next node receives `null` as input.
+- The skipped node writes no output. The next node receives an empty value (`undefined`) as input.
+- Because no port is picked, every outgoing edge except `error` is followed.
 
-<Callout type="warn">If the next node can't handle `null` input, you might chain a failure. Pair with null checks or `||` default values.</Callout>
+<Callout type="warn">If the next node can't handle an empty input, you might chain a failure. Check that the value exists, or pair it with `||` default values.</Callout>
 
 **When to use it**: non-critical side steps like Slack/email notifications where the main flow must continue regardless.
 

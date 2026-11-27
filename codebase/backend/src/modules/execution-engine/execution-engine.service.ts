@@ -429,7 +429,7 @@ interface ParallelBranchBodyOptions {
   allNodes: Node[];
   allEdges: Edge[];
   /** {@link ParallelExecutor} 가 이 병렬 분기에 만든 컨텍스트 사본. */
-  branchContext: ExecutionContext;
+  branchContext: ParallelBranchContext;
   executionId: string;
   executedNodes: Set<string>;
   executionMeta: { startedAt?: string; mode?: string };
@@ -803,20 +803,6 @@ export class ExecutionEngineService
    * {@link stuckRecoveryPort} 에 적었다.
    */
   private readonly parallelPrecheck: ParallelPrecheck;
-
-  /**
-   * 병렬 분기 컨텍스트의 `nodeOutputCache`(분기 전용 얕은 복사본) → 이번 분기 실행에서
-   * 엔진이 출력을 쓴 노드 ID 집합. {@link syncParallelBranchCacheEntry} 가 채우고
-   * {@link executeParallelBranchBody} 가 결과 노드(REQ-PARALLEL-030)를 고를 때 읽는다.
-   * 캐시 값을 앞뒤로 비교하지 않고 "썼다" 는 사실을 직접 적으므로, 앞 실행이 남긴
-   * 출력과 값이 같거나(원시값 출력) 같은 객체여도(`use_default_output` 의
-   * `defaultOutput` 참조) 새로 쓴 노드로 센다. 키가 캐시 객체라 분기가 끝나면
-   * 가비지 컬렉션이 항목을 거둔다.
-   */
-  private readonly parallelBranchWrittenNodeIds = new WeakMap<
-    object,
-    Set<string>
-  >();
 
   /**
    * ai-review W10 (2026-07-26) — 컨테이너 아이템 경계 cancel 가드의 스로틀 간격(ms).
@@ -5033,6 +5019,9 @@ export class ExecutionEngineService
   }
 
   /**
+   * NodeExecution 한 행을 취소로 마감한다. 이름이 비슷한 {@link markExecutionCancelled} 는
+   * Execution 단위로 resume 실패 뒤 시스템이 취소하는 경로이고 이 함수와 무관하다.
+   *
    * ai-review 5R (maintainability) — 노드 단위 취소 종결. `executeNode` catch 의 두
    * 분기(`isAbortError` / `ExecutionCancelledError`)가 상태 마킹·`finishedAt`/
    * `durationMs` 계산·`save`·`NODE_CANCELLED` emit 20여 줄을 문자 그대로 복제하고
@@ -8100,10 +8089,10 @@ export class ExecutionEngineService
    * {@link runContainer} 가 실행)는 후보가 아니다. 실행된 노드가 없으면
    * `undefined` 다.
    *
-   * "출력을 남겼는가" 는 {@link parallelBranchWrittenNodeIds} 로 판정한다. 엔진이
-   * 분기 캐시에 쓸 때마다 {@link commitNodeOutput} 이 노드 ID 를 적으므로, 캐시에 앞
-   * 실행의 출력이 남아 있어도(Parallel 이 같은 실행에서 다시 실행되는 경우) 값이나
-   * 참조가 같은지 비교하지 않고 이번 실행이 쓴 노드만 센다.
+   * "출력을 남겼는가" 는 분기 컨텍스트의 `branchWrittenNodeIds` 로 판정한다
+   * ({@link commitNodeOutput} 이 채운다). 캐시 값을 앞뒤로 비교하지 않고 "썼다" 는
+   * 사실을 적으므로 앞 실행이 남긴 출력과 값이 같거나(원시값 출력) 같은 객체여도
+   * (`use_default_output` 의 `defaultOutput` 참조) 이번 실행이 쓴 노드로 센다.
    */
   private async executeParallelBranchBody({
     parallelNode,
@@ -8119,11 +8108,7 @@ export class ExecutionEngineService
     if (plan.sortedNodeIds.length === 0) return undefined;
     const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
     let resultNodeId: string | undefined;
-    const writtenNodeIds = new Set<string>();
-    this.parallelBranchWrittenNodeIds.set(
-      context.nodeOutputCache,
-      writtenNodeIds,
-    );
+    const writtenNodeIds = context.branchWrittenNodeIds;
 
     const reachable = new Set<string>();
     for (const id of plan.entryNodeIds) {
@@ -8241,9 +8226,12 @@ export class ExecutionEngineService
    * 평면 출력에는 라우팅 표지(`_selectedPort`)가 섞여 있어서 다시 만들면 그 키가
    * `$node[X].output` 과 다음 노드 `$input` 에 보인다(NERV Task CLE-T-CE5YR3).
    * `contextService.seedNodeOutput` · `setNodeOutputs` 를 직접 부르는 다른 지점은 병렬 분기
-   * 본문에서 닿지 않는다. 재개 시 캐시 복원, 서브워크플로 호출자 출력 주입, 서브워크플로 트리거
-   * 출력은 분기 사본이 만들어지기 전이거나 별도 그래프의 루프에서 실행되고, 폼 · 버튼
-   * · AI 턴 상호작용은 분기 금지 노드(블로킹)가 쓴다.
+   * 본문에서 닿지 않는다. 재개 시 캐시 복원(`rehydrateContext`), 단일 노드 실행의 앞 노드
+   * 출력 채우기(`seedSingleNodePredecessorOutputs` → `restoreStoredNodeOutput`), 서브워크플로
+   * 호출자 출력 주입(`injectInvokerOutput`), 서브워크플로 트리거 출력(`executeInline`),
+   * 멈춘 AI 턴 재실행(`replayCrashedAiTurn`)은 분기 사본이 만들어지기 전이거나 별도
+   * 그래프의 루프에서 실행된다. 폼 · 버튼 · AI 턴 상호작용과 재시도 턴은 분기에 둘 수 없는
+   * 블로킹 노드가 쓴다. 이 목록은 `output-write-sites.spec.ts` 가 고정한다.
    */
   private commitNodeOutput(
     context: ExecutionContext,
@@ -8264,8 +8252,9 @@ export class ExecutionEngineService
   /**
    * {@link commitNodeOutput} 의 사본 반영 단계. 등록된 컨텍스트의 캐시와 `context` 의
    * 캐시가 같은 객체면(분기 밖, 컨테이너 반복 컨텍스트) 아무것도 하지 않는다. 다르면
-   * (병렬 분기 사본) 방금 쓴 항목을 사본에 옮기고, 그 사본을 쓰는 분기 루프가
-   * 결과 노드를 고를 수 있게 노드 ID 를 {@link parallelBranchWrittenNodeIds} 에 적는다.
+   * (병렬 분기 사본) 방금 쓴 항목을 사본에 옮기고 노드 ID 를 분기 컨텍스트의
+   * `branchWrittenNodeIds` 에 적는다. 사본인데 그 집합이 없으면 결과 노드가 조용히
+   * `null` 이 되므로 예외를 던진다.
    */
   private syncParallelBranchCacheEntry(
     context: ExecutionContext,
@@ -8279,10 +8268,15 @@ export class ExecutionEngineService
       registered.nodeOutputCache !== context.nodeOutputCache &&
       Object.hasOwn(registered.nodeOutputCache, nodeId)
     ) {
+      const written = (context as Partial<ParallelBranchContext>)
+        .branchWrittenNodeIds;
+      if (!written) {
+        throw new Error(
+          `Internal error: node "${nodeId}" wrote to a copied output cache that has no branchWrittenNodeIds.`,
+        );
+      }
       context.nodeOutputCache[nodeId] = registered.nodeOutputCache[nodeId];
-      this.parallelBranchWrittenNodeIds
-        .get(context.nodeOutputCache)
-        ?.add(nodeId);
+      written.add(nodeId);
     }
     const registeredStructured = registered.structuredOutputCache;
     if (
@@ -8566,7 +8560,7 @@ export class ExecutionEngineService
       throw err;
     }
 
-    // CLE-NODE-PARALLEL v3 — 완료 출력 `{ branches, count, skipped? }`.
+    // [Parallel 출력](CLE-NODE-PARALLEL-OUTPUT) — 완료 출력 `{ branches, count, skipped? }`.
     // 실패한 병렬 분기(`errorPolicy='continue'` 에서만 여기까지 온다) 자리는 `null`
     // 이고 실패 정보는 `skipped` 에 병렬 분기 번호 오름차순으로 모은다
     // (ForEach 와 같은 형태, REQ-PARALLEL-012). 실패가 없으면 `skipped` 를 싣지
@@ -8707,12 +8701,9 @@ export class ExecutionEngineService
    */
   private publishBranchOutputsToParent(
     parentContext: ExecutionContext,
-    branchContext: ExecutionContext,
+    branchContext: ParallelBranchContext,
   ): ReadonlySet<string> {
-    const written = this.parallelBranchWrittenNodeIds.get(
-      branchContext.nodeOutputCache,
-    );
-    if (!written) return new Set();
+    const written = branchContext.branchWrittenNodeIds;
     for (const nodeId of written) {
       this.syncParallelBranchCacheEntry(parentContext, nodeId);
     }

@@ -71,6 +71,10 @@
           {
             "type": "command",
             "command": "test ! -f \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_spec_body_size.py\" || python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_spec_body_size.py\""
+          },
+          {
+            "type": "command",
+            "command": "test ! -f \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_spec_heading_date.py\" || python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_spec_heading_date.py\""
           }
         ]
       }

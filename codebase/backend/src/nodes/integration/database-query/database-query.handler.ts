@@ -235,6 +235,9 @@ export class DatabaseQueryHandler
     // 얻은 통합. 활동 로그는 이 통합에만 남긴다 — 얻기 전에 끝난 실패(파라미터 파싱 · 서비스 미주입 · 워크스페이스
     // 확인 · 조회 거절 · 조회 중 일시 오류)는 기록하지 않는다(REQ-INTMGMT-053 · 062).
     let integration: Integration | undefined;
+    // 쿼리를 시작했는지. 시작 전에 잡힌 `IntegrationError` 아닌 예외(통합 조회 거절 `RESOURCE_NOT_FOUND`, 조회 중
+    // 일시 오류 등)는 사용자 DB 의 실패가 아니라서 `mapDbError` 로 분류하지 않는다(아래 catch, CLE-T-MWR7C5).
+    let queryStarted = false;
     try {
       const parameters = parseParameters(config.parameters);
 
@@ -259,7 +262,7 @@ export class DatabaseQueryHandler
       // SSRF/DNS-rebinding guard: 사용자 제공 DB host 가 loopback/private IP 로
       // 해석되면 차단. 정상 사용 사례 (private VPC 안 RDS) 는 환경변수
       // ALLOW_PRIVATE_HOST_TARGETS=true 로 의식적 opt-in (W-5).
-      // 차단 시 공용 guard 의 plain Error 를 전용 `DB_HOST_BLOCKED` 로 승격해
+      // `runSsrfPreflight` 가 돌려준 판정이 `blocked` 면 전용 `DB_HOST_BLOCKED` 로 던져
       // HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 대칭으로 surface 한다.
       // 메시지는 차단된 host/IP 를 노출하지 않는 일반화 문구 — 정찰 면 축소.
       // 판정 원문(host · IP)은 헬퍼가 서버 경고 로그에만 남긴다(CLE-T-CT6SHS · CLE-T-NTKWWV). 활동 로그(`toLogError`)는
@@ -293,6 +296,7 @@ export class DatabaseQueryHandler
       }
 
       driver = creds.driver ?? 'postgres';
+      queryStarted = true;
       const result =
         driver === 'mysql'
           ? await this.executeMysql(
@@ -350,13 +354,10 @@ export class DatabaseQueryHandler
       // 두 갈래로 승격돼 온다 — 차단 판정은 `DB_HOST_BLOCKED`, 판정 아닌 오류(가드의
       // 고장)는 `INTEGRATION_CALL_FAILED`. 둘 다 IntegrationError 라 여기서 code 가
       // 보존되고 `mapDbError` 로는 흐르지 않는다.
-      const errorEnvelope =
-        err instanceof IntegrationError
-          ? {
-              code: err.code,
-              message: sanitizeMessage(err.message),
-            }
-          : mapDbError(err, driver);
+      // 쿼리를 시작하기 전에 잡힌 그 밖의 예외(통합 조회 거절 `RESOURCE_NOT_FOUND`, 조회 중 일시 오류)는 드라이버
+      // code 가 붙어 있어도 사용자 DB 의 실패가 아니다. 분류되지 않은 실패 `INTEGRATION_CALL_FAILED` 로 낸다(HTTP
+      // Request · Cafe24 와 같다. [통합 노드 공통 「공통 에러 코드」](CLE-NODE-INT-COMMON-ERROR#공통-에러-코드)).
+      const errorEnvelope = classifyExecuteError(err, queryStarted, driver);
       return {
         config: configEcho,
         output: {
@@ -375,11 +376,10 @@ export class DatabaseQueryHandler
     parameters: unknown[],
     abortSignal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
+    // mysql2 는 `?` 를 쓴다. 화면 안내의 PostgreSQL 식 `$N` 을 `?` 로 바꾸고 바인딩 배열을 번호대로 다시 만든다.
+    // 연결을 얻기 전에 바꿔서 잘못된 번호(`INVALID_PARAMETERS`)는 쿼리를 보내지 않고 끝낸다.
+    const { sql, values } = convertMysqlPlaceholders(query, parameters);
     const pool = this.resolveMysqlPool(integrationId, creds);
-    // mysql2 uses `?` placeholders. Convert `$1, $2, ...` from the
-    // PostgreSQL-flavoured UI hint into positional `?` marks. Parameters
-    // are still bound positionally against `parameters[]`.
-    const sql = convertPgPlaceholders(query);
     // getConnection 으로 명시 획득 — in-flight cancel(§2.1)에 connection `threadId`
     // 가 필요하다. abort 시 **일회성 별도 연결**로 `KILL QUERY <threadId>` 를 발행해
     // 진행 중 쿼리만 끊는다(연결은 유지). best-effort — 권한(PROCESS)·타이밍에 의존.
@@ -398,7 +398,7 @@ export class DatabaseQueryHandler
     if (abortSignal)
       abortSignal.addEventListener('abort', onAbort, { once: true });
     try {
-      const [rawRows, fields] = await connection.query(sql, parameters);
+      const [rawRows, fields] = await connection.query(sql, values);
       if (Array.isArray(rawRows)) {
         const rows = rawRows as RowDataPacket[];
         return {
@@ -781,9 +781,37 @@ function skipSqlBlank(
  *   전체가 실행되지 않는다.
  * - 달러 인용(`$$…$$` · `$tag$…$tag$`)은 PostgreSQL 에서만 인용이다. MySQL 에서 `$` 는 식별자 글자다.
  * - 같은 따옴표를 두 번 쓰면 따옴표 글자 하나다. 닫히지 않았으면 `ambiguous` 다.
+ *
+ * `backslash` 가 `'escape'` 면 방언을 아는 실행 경로다({@link convertMysqlPlaceholders}). MySQL 의 작은따옴표 ·
+ * 큰따옴표 안에서 백슬래시는 다음 글자 하나를 이스케이프하고 `ambiguous` 가 되지 않는다. mysql2 가 `?` 를 채울 때
+ * 리터럴을 읽는 법(기본 SQL 모드)과 같다. 단 mysql2 는 큰따옴표 리터럴 안의 `?` 도 치환한다. 기본값 `'ambiguous'` 는 두 방언을 함께 읽는 dry-run 판정용이다.
  */
-function skipSqlQuoted(sql: string, pos: number, dialect: SqlDialect): SqlSkip {
+function skipSqlQuoted(
+  sql: string,
+  pos: number,
+  dialect: SqlDialect,
+  backslash: 'ambiguous' | 'escape' = 'ambiguous',
+): SqlSkip {
   const ch = sql[pos];
+  if (
+    backslash === 'escape' &&
+    dialect === 'mysql' &&
+    (ch === "'" || ch === '"')
+  ) {
+    for (let i = pos + 1; i < sql.length; i += 1) {
+      if (sql[i] === '\\') {
+        i += 1;
+        continue;
+      }
+      if (sql[i] !== ch) continue;
+      if (sql[i + 1] === ch) {
+        i += 1;
+        continue;
+      }
+      return { kind: 'skip', next: i + 1 };
+    }
+    return SQL_AMBIGUOUS;
+  }
   if (ch === "'" || ch === '"' || ch === '`') {
     const backslashAmbiguous =
       ch === "'" || (ch === '"' && dialect === 'mysql');
@@ -922,10 +950,124 @@ function parseParameters(raw: unknown): unknown[] {
   );
 }
 
-function convertPgPlaceholders(sql: string): string {
-  // Convert `$1, $2, ...` to `?`. Parameters remain positional, so authors
-  // must list `$N` markers in the same order as the `parameters` array.
-  return sql.replace(/\$\d+/g, '?');
+/** MySQL 비인용 식별자에 쓸 수 있는 글자(`$` 포함). `$N` 앞뒤에 붙으면 플레이스홀더가 아니라 식별자의 일부다. */
+const MYSQL_IDENTIFIER_CHAR = /[\p{L}\p{N}_$]/u;
+
+/**
+ * `pos` 의 `$` 가 `$N` 플레이스홀더면 번호와 끝 위치를 돌려준다. 앞이나 뒤에 식별자 글자가 붙으면(`a$1` · `$1a`)
+ * 식별자의 일부라 null 이다.
+ */
+function matchMysqlPlaceholder(
+  sql: string,
+  pos: number,
+): { n: number; end: number } | null {
+  const digits = /^\$(\d+)/.exec(sql.slice(pos));
+  if (!digits) return null;
+  const before = pos > 0 ? sql[pos - 1] : '';
+  const end = pos + digits[0].length;
+  const after = sql[end] ?? '';
+  if (MYSQL_IDENTIFIER_CHAR.test(before) || MYSQL_IDENTIFIER_CHAR.test(after)) {
+    return null;
+  }
+  return { n: Number(digits[1]), end };
+}
+
+/**
+ * MySQL 실행용 플레이스홀더 변환([Database Query 「실행 로직」](CLE-NODE-DBQUERY#실행-로직) 3단계, REQ-DBQ-003 · 007).
+ * 쿼리의 `$N` 을 mysql2 의 `?` 로 바꾸고 바인딩 배열을 `$N` 이 나온 순서대로 `parameters[N-1]` 로 다시 만든다.
+ * `$2 … $1` 처럼 번호가 등장 순서와 달라도 번호대로 바인딩하고, 같은 번호를 두 번 쓰면 값도 두 번 싣는다.
+ *
+ * - 문자열 리터럴 · 따옴표 식별자 · 주석 안의 `$N` 은 바꾸지 않는다. 스캔은 dry-run 판정의 MySQL 규칙
+ *   ({@link skipSqlQuoted} · {@link skipSqlComment})을 그대로 쓰고, 리터럴 안 백슬래시는 이스케이프로 읽는다.
+ *   MySQL 이 SQL 로 읽는 `--x`(공백 없는 `--`)와 실행 주석 `/*! … *\/` 의 안쪽은 바꾼다.
+ * - 앞이나 뒤에 식별자 글자가 붙은 `$N`(`a$1` · `$1a`)은 식별자라 바꾸지 않는다.
+ * - `$N` 이 하나도 없으면 쿼리와 `parameters` 를 그대로 돌려준다. MySQL 고유의 `?` 를 쓴 쿼리가 이 경로다.
+ * - mysql2 는 `?` 를 채울 때 작은따옴표 · 백틱 · `-- ` 와 블록 주석 안은 건너뛰지만 큰따옴표 리터럴과 `#` 주석 안의
+ *   `?` 에는 값을 묶는다(mysql2 3.24.6 실측). 이 변환기는 그 안의 `$N` 도 바꾸지 않으므로, 그 안에 `?` 가 있으면
+ *   고유 `?` 로 셈해 혼용으로 거절한다.
+ * - `$N` 과 고유 `?` 를 섞어 쓰거나, N 이 0 이거나 `parameters` 길이보다 크면 `INVALID_PARAMETERS` 다. 어느 값을
+ *   어디에 묶을지 정할 수 없어서 쿼리를 보내지 않는다.
+ * - 닫히지 않은 리터럴을 만나면 그 뒤는 손대지 않는다. 쿼리 자체가 MySQL 구문 오류다.
+ *
+ * 한계: 서버가 `NO_BACKSLASH_ESCAPES` 모드면 백슬래시를 글자로 읽어 리터럴 경계가 이 스캔과 다를 수 있다.
+ */
+export function convertMysqlPlaceholders(
+  sql: string,
+  parameters: unknown[],
+): { sql: string; values: unknown[] } {
+  let out = '';
+  let copied = 0;
+  const values: unknown[] = [];
+  let nativePlaceholder = false;
+  let pos = 0;
+  while (pos < sql.length) {
+    const quoted = skipSqlQuoted(sql, pos, 'mysql', 'escape');
+    if (quoted.kind === 'ambiguous') break;
+    if (quoted.kind === 'skip') {
+      // mysql2 는 큰따옴표 리터럴 안의 `?` 에도 값을 묶는다(실측). 변환기는 리터럴이라 건너뛰지만 `?` 가 있으면 혼용이다.
+      if (sql[pos] === '"' && sql.slice(pos, quoted.next).includes('?')) {
+        nativePlaceholder = true;
+      }
+      pos = quoted.next;
+      continue;
+    }
+    const comment = skipSqlComment(sql, pos, 'mysql', false);
+    if (comment.kind === 'skip') {
+      // `#` 주석 안의 `?` 도 mysql2 가 치환한다(실측). `-- ` · 블록 주석 안은 건너뛴다.
+      if (sql[pos] === '#' && sql.slice(pos, comment.next).includes('?')) {
+        nativePlaceholder = true;
+      }
+      pos = comment.next;
+      continue;
+    }
+    // 판정용 스캐너가 `ambiguous` 로 돌려주는 주석 모양(`--x` · `/*!` · 닫히지 않거나 겹친 블록)은 MySQL 이 SQL 로
+    // 읽는 글자로 보고 한 글자씩 넘어간다.
+    const ch = sql[pos];
+    if (ch === '?') {
+      nativePlaceholder = true;
+      pos += 1;
+      continue;
+    }
+    const token = ch === '$' ? matchMysqlPlaceholder(sql, pos) : null;
+    if (token) {
+      if (token.n < 1 || token.n > parameters.length) {
+        throw new IntegrationError(
+          'INVALID_PARAMETERS',
+          `query uses $${token.n} but parameters has ${parameters.length} value(s)`,
+        );
+      }
+      values.push(parameters[token.n - 1]);
+      out += sql.slice(copied, pos) + '?';
+      copied = token.end;
+      pos = token.end;
+      continue;
+    }
+    pos += 1;
+  }
+  if (values.length === 0) return { sql, values: parameters };
+  if (nativePlaceholder) {
+    throw new IntegrationError(
+      'INVALID_PARAMETERS',
+      'query mixes $N placeholders with ? placeholders',
+    );
+  }
+  return { sql: out + sql.slice(copied), values };
+}
+
+/** 실행 중 예외를 error 포트의 `{ code, message }` 로 분류한다. */
+function classifyExecuteError(
+  err: unknown,
+  queryStarted: boolean,
+  driver: 'postgres' | 'mysql',
+): { code: string; message: string } {
+  if (err instanceof IntegrationError) {
+    return { code: err.code, message: sanitizeMessage(err.message) };
+  }
+  if (queryStarted) return mapDbError(err, driver);
+  return {
+    code: 'INTEGRATION_CALL_FAILED',
+    message: sanitizeMessage(err instanceof Error ? err.message : String(err)),
+  };
 }
 
 function hashCredentials(creds: DbCredentials): string {

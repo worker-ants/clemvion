@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-DRAWER"
 title: "에디터 실행과 디버깅 — 실행 결과 드로어"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "936cfea1a59f26cd9bfbc207226ee4d0b9a27b31cdbf8078fe400593457c0fc0"
+content_hash: "e70d37c6549fcb5315f8914bee2af8a1b60bdcc2fa351913df4d0fbee6974023"
 read_as: "approved_fallback"
-task: "CLE-T-T9HZX7"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "06ca581bde1ebb05e1ddff7561b49120f0559d1ed530f28fb7b4bab406bc3a7c"
-etag: "sha256-953c7d135dc679072df48b5753c193494cb19ed2319901b8e1afc39a592a23fe"
+mirror_sha256: "73ba899e0c299c47705b14b8c453c9c631c5f381e514876c38711818e6edfaa3"
+etag: "sha256-ac39a101f1055dc3b3d940df8e70a96678db6c113e8ec1db1598611c381925ad"
 ---
 ## 개요
 
@@ -294,6 +294,8 @@ Presentation 이 아닌 노드는 일반 렌더러로 표시한다.
 
 예전에는 `LLM Information` 탭 하나 아래에 `Response`·`Request`·`Usage` 하위 탭이 있었다. 멀티턴 타임라인에서 assistant 메시지를 고른 뒤 원문 요청을 보려면 탭을 두 번 들어가야 했다. 특정 턴의 요청·응답 페이로드를 확인하는 메시지 수준 검사는 실패 진단에서 가장 자주 쓰는 동선이다. 그래서 응답·요청·LLM 사용량을 최상위 탭으로 펴 클릭 수를 줄였다. 노드 수준(메시지 미선택)에서는 합계 성격의 LLM 사용량만 의미가 있어 그것만 보여 준다.
 
-### 버튼 대기 카운트다운을 옮기지 않는다 (2026-10-24)
+### 버튼 대기 카운트다운을 옮기지 않는다
+
+결정일: 2026-10-24
 
 옛 에디터 실행 문서는 버튼 대기 중 "타임아웃 설정 시 잔여 시간 카운트다운" 을 표시한다고 적었다. 입력 대기에 기한을 두지 않기로 정해서 카운트다운도 옮기지 않는다(NERV Task `CLE-T-PERSR7`). 결정과 기각한 대안은 [Presentation 노드 공통](../CLE-NODE-PRES/CLE-NODE-PRES-COMMON.md#rationale) 에 있다.

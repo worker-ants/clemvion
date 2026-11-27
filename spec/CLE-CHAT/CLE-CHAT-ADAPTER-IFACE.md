@@ -2,19 +2,19 @@
 id: "CLE-CHAT-ADAPTER-IFACE"
 title: "채팅 채널 어댑터 규약 — 인터페이스와 함수 책임"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-ADAPTER"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-ADAPTER"]
 area: "CLE-CHAT"
-content_hash: "e785cfd211ea5b8e8549f573e23e8b0b31ac08a66aea545939e90c551b23e946"
+content_hash: "f23539a3e438e8aa65246226d0e1a14af2fb1bd0379bf0d170121f83f7601299"
 read_as: "approved_fallback"
-task: "CLE-T-0400J6"
+task: "CLE-T-P4TSAA"
 source_paths: []
-mirror_sha256: "a15df3f8e17091b7dbb8f3f2cbb2dcac71b2d83689fa18b8dd1b6aefb5fe0dbd"
-etag: "sha256-a38b672bdec74bea9948098115f43eda3c218983dcf1919d2f6fabc85a8bac82"
+mirror_sha256: "95838a8515d9aea9fbc82daab14bd1bfd837edd7bbcced14d99fa1f1f20a7611"
+etag: "sha256-66016493660fb5fb05299297865bd2a53130b8e1303c4822c886c4c800ed11b3"
 ---
 ## 개요
 
@@ -130,8 +130,7 @@ interface ChatChannelAdapter {
 
   /**
    * (선택) 버린 update 의 수신 확인. 순수 함수가 아니다.
-   * HooksService 가 update 를 버리는 여섯 경로(파싱 실패, 중복, 분당 한도 초과, 입력 대기가 아닌 실행 중,
-   * 워크플로우 비활성, 워크플로우 없음)에서 부른다. 트리거가 비활성일 때는 부르지 않는다.
+   * HooksService 가 update 를 버리는 경우(채팅 채널 REQ-CHAT-081)에 부른다. 트리거가 비활성일 때는 부르지 않는다.
    * 실패는 HooksService 가 경고 로그만 남기고 삼키며 웹훅 HTTP 응답은 바뀌지 않는다.
    * 파싱하지 못한 update 에도 불러야 해서 raw body 를 받는다(R-CCA-14).
    */
@@ -174,7 +173,7 @@ interface ChatChannelAdapter {
 | `enrichInbound?` | `parseUpdate` 결과를 외부 API 로 보강한다(Slack `files.info` 로 파일 이름·MIME·다운로드 URL). 호출자는 `HooksService` 이고 인바운드 중복 제거와 분당 한도 검사 뒤에 부른다. 보강할 정보가 없으면 구현하지 않는다 | 프로바이더에 따라 외부 API 호출 | 멱등 |
 | `defaultInteractionResponse?` | 인터랙션의 3초 안 기본 응답 본문을 raw body 로 만든다. `undefined` 면 `202` 다. 비활성 트리거에도 쓴다([인터랙션 기본 응답과 수신 확인](#인터랙션-기본-응답과-수신-확인)) | 없음 | 순수 |
 | `handshakeResponse?` | 핸드셰이크(Slack URL Verification, Discord PING)의 응답 본문을 raw body 로 만든다. 핸드셰이크가 아니면 `undefined` 다. 트리거 활성 관문 뒤에 불려 비활성 트리거에는 쓰지 않는다(R-CCA-15) | 없음 | 순수 |
-| `ackDroppedUpdate?` | 버린 update 의 수신 확인을 raw body 로 보낸다. 버리는 여섯 경로에서 부르고 비활성 트리거에서는 부르지 않는다. 실패는 호출자가 삼킨다. Telegram 은 이미 답한 `callback_query.id` 에 다시 보내지 않는다(R-CCA-15) | 프로바이더에 따라 외부 API 호출 | 요구하지 않는다(실패해도 결과에 영향이 없다) |
+| `ackDroppedUpdate?` | 버린 update 의 수신 확인을 raw body 로 보낸다. [채팅 채널](CLE-CHAT-CORE.md) REQ-CHAT-081 의 경우에 부르고 비활성 트리거에서는 부르지 않는다. 실패는 호출자가 삼킨다. Telegram 은 이미 답한 `callback_query.id` 에 다시 보내지 않는다(R-CCA-15) | 프로바이더에 따라 외부 API 호출 | 요구하지 않는다(실패해도 결과에 영향이 없다) |
 | `openFormModal?` | `form_modal` 버튼 클릭(`open_form_modal` 명령) 때 모달을 연다. Slack 은 `views.open(trigger_id, view)`, Discord 는 웹훅 응답 본문 `{ type: 9 }`. 모달 합성에 채널 대화 상태의 `pendingFormModal.fields` 가 필요해 호출자는 `HooksService` 다. Discord 의 AI 답장 모달(`modalKind: "reply"`)도 이 함수로 열고, 이때는 `pendingFormModal` 없이 부른다 | 외부 API 호출 또는 HTTP 응답 본문 합성 | 멱등 |
 | `buildFormSubmissionResponse?` | 모달 제출(`form_submission`)의 HTTP 응답 합성. ack(Slack 빈 200, Discord `{ type: 4 }` ephemeral)나 검증 실패 재표시(Slack `response_action: errors`)만 만든다. 제출을 재개 큐에 넣지 못하면 호출자는 이 함수를 부르지 않고 기본 응답으로 답한다([네이티브 모달 경로](CLE-CHAT-ADAPTER-FORM.md#네이티브-모달-경로)) | 없음 | 순수 |
 

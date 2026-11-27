@@ -1,15 +1,17 @@
 import { Logger } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import {
-  SSE_BUFFER_MAX_MESSAGE_BYTES,
   SSE_CLOSE_CHANNEL,
-  SSE_SUBSCRIBER_CONNECTION_NAME,
   SseFanoutService,
   sseBufferKey,
   sseConnectionSlotsKey,
   sseLiveChannel,
   type SseFanoutHandlers,
 } from './sse-fanout.service';
+import {
+  SSE_BUFFER_MAX_MESSAGE_BYTES,
+  SSE_SUBSCRIBER_CONNECTION_NAME,
+} from './sse.constants';
 import {
   FakeRedisClient,
   FakeRedisServer,

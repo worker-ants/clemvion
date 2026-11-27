@@ -2,19 +2,19 @@
 id: "CLE-ENG-REVIEWCITE"
 title: "리뷰 산출물 인용 규약"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "3bbe72e482dc0df04cf0d0c0ea3517f86d508f7e57f37c7ac656fa6c05260d9b"
+content_hash: "8e0b9d14ed28a4c7a24f74396c15e2a07cce466d45ef76212ba520c57d97c534"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-15DBHE"
 source_paths: ["spec/conventions/review-citations.md"]
-mirror_sha256: "10bf8b99185a7388de1c149db3a2259e20398224ece3bb55bd0bde8f630c2a59"
-etag: "sha256-106817c1e35c3faf060953e81d236d8af514d2e214b328df1fb69a1edb357ed7"
+mirror_sha256: "d571779f70fdaf00dbd578bde5802a885bc153024843cb1f18a7f4e5da010f3b"
+etag: "sha256-a6fa0380478a5fc319d29329ed59003b55f750938c9c0a82dc612ddaac764061"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/review-citations.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -148,7 +148,9 @@ etag: "sha256-106817c1e35c3faf060953e81d236d8af514d2e214b328df1fb69a1edb357ed7"
 
 ## Rationale
 
-### 규약을 만들 때의 실측 (2026-09-05)
+### 규약을 만들 때의 실측
+
+결정일: 2026-09-05
 
 `origin/main` 의 `codebase/` 안에 리뷰 산출물 인용이 **107개 파일·514회** 있었다(2026-09-05 09시 측정). 날짜를 확인할 수 있는 가장 이른 인용은 2026-05-26 세션이다. 날짜 없는 형태는 그보다 이른 것이 있는지 알 수 없다. 그 점도 규칙 2 의 근거다.
 
@@ -214,7 +216,9 @@ etag: "sha256-106817c1e35c3faf060953e81d236d8af514d2e214b328df1fb69a1edb357ed7"
 
 처음 규모를 셀 때도 `-E "\b[0-9]{2}_…"` 정규식이 걸리지 않아 "0건" 이 나와 정반대 결론을 낼 뻔했다. 확실히 있는 문자열로 명령 자체를 먼저 검증해서 잡았고 이 문서의 수치는 모두 그 절차를 거쳤다. 0 은 늘 "없다" 와 "못 찾았다" 두 가지로 읽힌다.
 
-### 응답 DTO 클래스 JSDoc 도 인용을 쓰지 않는다 (2026-09-27)
+### 응답 DTO 클래스 JSDoc 도 인용을 쓰지 않는다
+
+결정일: 2026-09-27
 
 적용 범위 표는 원래 "DTO·컨트롤러의 JSDoc" 한 행이었고 근거는 "공개 OpenAPI `description` 으로 나간다" 였다. 빌드 산출물로 재 보니 이 근거는 **필드 JSDoc 에만 맞았다**. 플러그인의 `_OPENAPI_METADATA_FACTORY` 는 프로퍼티 메타데이터만 만들고 `TriggerWorkflowRefDto` 의 클래스 JSDoc 문구는 산출물 어디에도 없었다(`codebase/backend/dist`, 2026-09-27). 클래스 수준 설명은 `@ApiSchema({ description })` 를 명시하면 스키마에 실린다.
 
@@ -229,7 +233,9 @@ etag: "sha256-106817c1e35c3faf060953e81d236d8af514d2e214b328df1fb69a1edb357ed7"
 
 DTO JSDoc 행을 둘 때(2026-09-05) 적은 "실제 위반 사례는 없지만" 은 그 시점에는 맞았다. 다음 날 클래스 JSDoc 인용 두 건이 들어왔고, 가드가 그 둘을 동결했다가 이 결정으로 갚았다(`//` 로 옮겼다). 같은 근거 문장이 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) §3 에도 있어 거기에도 필드 한정을 붙였다.
 
-### NERV 발견 인용 형식 (2026-10-01)
+### NERV 발견 인용 형식
+
+결정일: 2026-10-01
 
 전환 단계 2 부터 새 리뷰는 `review/**` 경로를 만들지 않는다. 그래서 규칙 3 의 권장 형식은 새로 생기지 않고 새 리뷰를 가리킬 형식이 필요해졌다. 단계 2 의 일관성 검토(finding 01a0f6c1-82ee-70a0-bd66-0bee03bc92b6)가 이 공백을 찾았다.
 
@@ -248,7 +254,9 @@ NERV 발견 전체 ID 를 택했다.
 
 전환 단계 4e 전의 통합 검토(`kind=merge`) · spec-coverage 감사(`kind=spec_coverage`) 결과는 Task 키로 가리킨다(규칙 9). 그 결과에는 발견이 없고 그 결과로 올린 NERV Task 가 유일한 NERV 레코드다. Task 키에도 같은 접근 한계(NERV 서버와 읽기 권한)가 있다. 리뷰 인용을 보는 두 가드(`dto-jsdoc-citation` · `review-citation-form`)는 이 형태를 보지 않는다.
 
-### 시행 가드를 넓힌 경위 (2026-10-03, 전환 단계 4g)
+### 시행 가드를 넓힌 경위 (전환 단계 4g)
+
+결정일: 2026-10-03
 
 시행 가드는 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 두 갈래로 넓혔다.
 
@@ -271,7 +279,9 @@ git grep -nE '(^|[^[:alnum:]_])finding[[:space:]]+[0-9a-f]{8}([^0-9a-f-]|$)|(^|[
 
 `dto-jsdoc-citation` 첫 패턴과 `.review/` 경로의 겹침은 우연이다([강제 범위](#강제-범위)). 규칙 6 은 형식과 무관하게 그대로다.
 
-### 규칙 6 의 범위를 두 파일 종류의 `/** */` 전부로 넓혔다 (2026-11-07)
+### 규칙 6 의 범위를 두 파일 종류의 `/** */` 전부로 넓혔다
+
+결정일: 2026-11-07
 
 규칙 6 은 필드 · 컨트롤러 · 응답 DTO 클래스의 `/** */` 만 금지했다. [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17 은 DTO · 컨트롤러 파일의 `/** */` 전부를 공개 채널로 보고 리뷰 인용은 이 규약에 맡긴다. 그래서 요청 DTO 클래스와 파일 수준 선언의 `/** */` 는 두 문서 어느 쪽도 정하지 않은 빈칸이었고 2026-11-07 에 메웠다(NERV Task `CLE-T-5GYWFA`).
 

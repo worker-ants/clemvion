@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG-REVEAL"
 title: "외부 호출 인증 설정 — 마스킹과 평문 보기"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-AUTHCFG"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-AUTHCFG"]
 area: "CLE-TRIG"
-content_hash: "6f91b1191783bf2371362d2fdbd9097cc3557313d1fcbfa4526da2113914766a"
+content_hash: "7f544fd8ec3b27131eae0d982678ae98a317f16a526d60e3231f6bb83c037d8c"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-XQYZR7"
 source_paths: []
-mirror_sha256: "3fd1940034e515c75d65cb78374990a0135cef4a35cde9413606248bc0dccbd9"
-etag: "sha256-8367c15cd2ba58469eceac255455f2b43f719571a4fd9be855dd715c84a24069"
+mirror_sha256: "a1013c51bfae02bf89c191746c07b1f3cfb65c9d095653a3cd477c2b0baabc39"
+etag: "sha256-cfc75f2ee9c11b4fef75e0864d2e8842799b186060e543760f650b0454dc0c0c"
 ---
 ## 개요
 
@@ -60,7 +60,7 @@ sequenceDiagram
 
 1. 행의 ⋮ 메뉴에서 "Reveal" 을 누른다. 이 항목은 관리자 이상에게만 보인다.
 2. 현재 로그인 비밀번호를 다시 확인하는 대화상자가 뜬다.
-3. `POST /api/auth-configs/:id/reveal { password }` 를 보낸다. 통과하면 200 과 config 평문 전체를 한 번 받는다. 비밀번호가 틀리면 401, 편집자·뷰어는 403 이다.
+3. `POST /api/auth-configs/:id/reveal { password }` 를 보낸다. 통과하면 200 과 config 평문 전체를 한 번 받는다. 계정에 비밀번호가 없거나(OAuth 전용) 비밀번호가 틀리면 401 `AUTH_FAILED` 다. `AuthConfigsService.reveal` 이 `bcrypt.compare` 로 직접 비교하고 계정 본인 확인 헬퍼(`verifyPasswordForUser`)를 쓰지 않아 `PASSWORD_REQUIRED` · `PASSWORD_INVALID` 를 내지 않는다. 편집자·뷰어는 403 이다.
 4. 화면은 평문과 "Copy" 버튼을 보이고 30초 뒤 자동으로 숨긴다.
 5. 감사 로그에 `action='auth_config.reveal'` 을 남긴다.
 
@@ -78,15 +78,17 @@ sequenceDiagram
 
 상태 필드로 바꾸면 응답 DTO 에 필드가 늘고 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 의 `auth_config.config` 행과 [용어 사전](../CLE-GLOSSARY.md) 「복호화 불가 표식」 이 저장 층과 응답 층을 따로 적어야 한다. 응답 `config` 를 읽어 그리는 화면은 인증 설정 화면 하나다(트리거 화면의 인증 설정 선택은 이름과 유형만 쓴다). 표식이 있으면 config 의 다른 키는 없다. 그래서 표식 하나로 «읽지 못한 설정» 을 알리는 데 모자람이 없다. 응답 DTO 의 설명은 표식 모양을 적는다.
 
-### 복호화 불가 인증 설정의 응답에서 원래 저장값을 뺀다 (2026-10-31)
+### 복호화 불가 인증 설정의 응답에서 원래 저장값을 뺀다
+
+결정일: 2026-10-31
 
 복호화하지 못한 인증 설정의 표식에는 원래 저장값(코드의 `__original_ciphertext`)이 함께 담길 수 있다. 다시 저장할 때 행을 그대로 쓰려고 붙인 값이다. 전에는 응답에서 `key`·`token`·`secret`·`password` 만 가려서 이 값이 목록(`GET /api/auth-configs`)과 상세(`GET /api/auth-configs/:id`) 응답에 그대로 실렸다. 두 API 는 뷰어도 부른다. 원래 저장값이 암호문이면 옛 키가 공개 예시 값이던 배포에서 풀 수 있다. 원래 저장값이 평문이면 그대로 읽힌다. 그러면 평문 보기 권한이 없는 뷰어도 비밀 값을 얻는다. 편집·재생성·평문 보기 응답에도 같은 값이 실렸다.
 
-그래서 목록·상세·편집·재생성·평문 보기 다섯 응답 모두에서 원래 저장값을 뺐다. 2026-11-05 부터 재생성은 표식 대신 새로 만든 config 를 응답하므로([복호화 불가 인증 설정은 재생성으로 새로 만든다](CLE-TRIG-AUTHCFG-EDIT.md#복호화-불가-인증-설정은-재생성으로-새로-만든다-2026-11-05)) [외부 호출 인증 설정 「요구사항」](CLE-TRIG-AUTHCFG.md#요구사항)의 복호화 불가 응답 요구(목록·상세·편집·평문 보기 응답의 `config` 에서 원래 저장값을 빼는 요구)는 재생성을 뺀 나머지 네 응답을 정한다.
+그래서 목록·상세·편집·재생성·평문 보기 다섯 응답 모두에서 원래 저장값을 뺐다. 2026-11-05 부터 재생성은 표식 대신 새로 만든 config 를 응답하므로([복호화 불가 인증 설정은 재생성으로 새로 만든다](CLE-TRIG-AUTHCFG-EDIT.md#복호화-불가-인증-설정은-재생성으로-새로-만든다)) [외부 호출 인증 설정 「요구사항」](CLE-TRIG-AUTHCFG.md#요구사항)의 복호화 불가 응답 요구(목록·상세·편집·평문 보기 응답의 `config` 에서 원래 저장값을 빼는 요구)는 재생성을 뺀 나머지 네 응답을 정한다.
 
 빼는 곳은 응답을 만드는 경계다. `AuthConfigsService.toResponseConfig` 는 표식이면 원래 저장값을 뺀 복제본을 돌려주고 표식이 아니면 입력을 그대로 돌려준다. 목록·상세·편집 응답은 그 결과를 필드 마스킹해 싣는다. 재생성·평문 보기 응답은 그 결과를 그대로 싣는다. 엔티티와 transformer 는 바꾸지 않는다. 원래 저장값을 담은 표식은 다시 저장해도 원래 저장값이 그대로 저장된다. 그래서 키를 바꿔 읽지 못한 설정은 원래 키를 되돌리면 다시 읽힌다.
 
-원래 저장값을 보존하는 목적은 이름 변경 같은 무관한 재저장에서 행을 원래 모습대로 다시 쓰는 것이다. 새 값을 쓰려는 저장은 따로 풀었다. 재생성은 표식을 버리고 새 config 를 만들고, config 편집은 표식에 병합하지 않는다([복호화 불가 인증 설정의 편집은 config 를 병합하지 않는다](CLE-TRIG-AUTHCFG-EDIT.md#복호화-불가-인증-설정의-편집은-config-를-병합하지-않는다-2026-11-05)).
+원래 저장값을 보존하는 목적은 이름 변경 같은 무관한 재저장에서 행을 원래 모습대로 다시 쓰는 것이다. 새 값을 쓰려는 저장은 따로 풀었다. 재생성은 표식을 버리고 새 config 를 만들고, config 편집은 표식에 병합하지 않는다([복호화 불가 인증 설정의 편집은 config 를 병합하지 않는다](CLE-TRIG-AUTHCFG-EDIT.md#복호화-불가-인증-설정의-편집은-config-를-병합하지-않는다)).
 
 웹훅 수신 헤더는 저장할 때 가린다([웹훅 「수신 헤더 마스킹을 저장 시점에 하는 이유」](CLE-TRIG-WEBHOOK.md#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07)). 그 원칙은 복구에 쓰지 않는 값에 적용한다. 원래 저장값은 키를 복구할 때 필요하다. 그래서 저장해 두고 응답 경계에서 뺀다.
 
@@ -99,3 +101,9 @@ sequenceDiagram
 - 원래 저장값의 키를 비밀 마스킹 대상 키에 넣어 `***<last4>` 로 가린다: 끝 네 글자가 응답에 남는다. 복구용으로 보관하는 내부 값이 사용자 비밀 값의 마스킹 규칙에 섞인다.
 
 표식은 응답 `config` 에 남긴다. 인증 설정 응답에는 통합의 `credentialsStatus` 같은 상태 표시가 없다. 그래서 표식이 «읽지 못한 설정» 을 알리는 유일한 신호다. 표식을 상태 표시로 바꾸지 않기로 한 결정은 [복호화 불가 표식을 응답에 그대로 둔다](#복호화-불가-표식을-응답에-그대로-둔다-2026-11-05) 에 있다.
+
+### 평문 보기의 비밀번호 확인 실패는 401 `AUTH_FAILED` 하나다
+
+결정일: 2026-11-27
+
+동작은 그대로이고 「평문 보기 흐름」 3번 문장만 코드에 맞췄다. 전에는 "비밀번호가 틀리면 401" 만 적어서 계정 본인 확인 규약의 `PASSWORD_REQUIRED` · `PASSWORD_INVALID` 를 내는 것처럼 읽혔다(9번 묶음 CLE-T-WYJEAQ 발견 I2). 코드에서는 `AuthConfigsService.reveal` 이 계정의 비밀번호 해시를 `bcrypt.compare` 로 직접 비교한다. 해시가 없는 OAuth 전용 계정과 틀린 비밀번호는 둘 다 401 `AUTH_FAILED` 다. 평문 보기를 본인 확인 헬퍼(`verifyPasswordForUser`)로 옮겨 두 코드로 나눌지는 여기서 정하지 않는다. 옮기면 응답 코드가 바뀌므로 따로 초안을 쓴다.

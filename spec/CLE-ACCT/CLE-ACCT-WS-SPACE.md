@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-SPACE"
 title: "워크스페이스와 멤버 — 생성 · 전환 · 설정 · API"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "3b382f31e2ab36a9a535ebd431587fd474516d415e380f18fbf3ec87e58b1126"
+content_hash: "bd6739a46969afd319ec9045ab79f31dad7d51dc8e8e9a6f6149fb50f8256ebe"
 read_as: "approved_fallback"
-task: "CLE-T-86E38Q"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "65f560d57eb18abd5065bffd0ad1438252b3f93110b0f51d1b7dd0326d02fd5d"
-etag: "sha256-a4ddf4ade74aafc6d9cbc32471f36d7a74909cfd3e53f6c97a7555248a0a8dc3"
+mirror_sha256: "d0501bd8471ce996b4a85486b94193a0de052cda2803fbb9d805e4fa2b6754a4"
+etag: "sha256-d34a96e3bedcadbd76dd576eafa0b9a94ccf569c4fde900b080a105205f0fa75"
 ---
 ## 개요
 
@@ -120,28 +120,30 @@ etag: "sha256-a4ddf4ade74aafc6d9cbc32471f36d7a74909cfd3e53f6c97a7555248a0a8dc3"
 
 | 메서드 | 경로 | 권한 | 설명 |
 | --- | --- | --- | --- |
-| GET | `/api/workspaces` | 로그인 | 내 워크스페이스 목록. 슬러그를 싣는다 |
+| GET | `/api/workspaces` | 로그인 | 내 워크스페이스 목록. 배열 원소는 `{ id, name, type, slug, role }` 이고 `role` 은 그 워크스페이스에서 내 역할이다 |
 | POST | `/api/workspaces` | 로그인 | 팀 워크스페이스 생성. 본문 `{ name }`. 요청자가 소유자. 201 `{ id, name, type, slug }` |
-| PATCH | `/api/workspaces/:id` | 관리자 이상 | 이름 변경 전용. 본문 `{ name: string }`(2~100자) |
-| GET | `/api/workspaces/:id/settings` | 멤버(뷰어 포함) | 설정 조회. 응답 `{ interactionAllowedOrigins: string[]; timezone?: string; maxConcurrentExecutions?: number }`. 비멤버 403 `NOT_A_MEMBER` |
+| PATCH | `/api/workspaces/:id` | 관리자 이상 | 이름 변경 전용. 본문 `{ name: string }`(2~100자). 200 `{ id, name, type, slug }` |
+| GET | `/api/workspaces/:id/settings` | 멤버(뷰어 포함) | 설정 조회. 응답 `{ interactionAllowedOrigins: string[]; timezone?: string; maxConcurrentExecutions?: number }`. `timezone` 은 키가 없거나 빈 문자열이면 빠지고 `maxConcurrentExecutions` 는 키가 없으면 빠진다. 비멤버 403 `NOT_A_MEMBER` |
 | PATCH | `/api/workspaces/:id/settings` | 관리자 이상 | 설정 변경. 본문 키는 모두 선택: `interactionAllowedOrigins?: string[]`, `timezone?: string`, `maxConcurrentExecutions?: number \| null`. 보낸 키만 부분 병합한다. `maxConcurrentExecutions: null` 은 저장하지 않고 키를 지워 기본값으로 돌린다. 다른 두 키의 `null` 은 400 `VALIDATION_ERROR` 다. 키별 검증은 [워크스페이스 설정](#워크스페이스-설정) 과 [임베드 허용 도메인](#임베드-허용-도메인). 응답 200 `{ id, name, type, slug, settings }`. 권한 부족 403 `ADMIN_REQUIRED` |
 | DELETE | `/api/workspaces/:id` | 소유자 | 팀 워크스페이스 삭제. 트랜잭션 처리 |
 | POST | `/api/workspaces/:id/leave` | 본인 | 스스로 탈퇴. 유일한 소유자는 막는다 |
 | POST | `/api/workspaces/:id/transfer-ownership` | 소유자 | 소유자 이양. 본문 `{ newOwnerMemberId }`(멤버 ID). 대상은 소유자가 아닌 멤버. 트랜잭션 안에서 역할 교환과 `ownerId` 동기화 |
-| GET | `/api/workspaces/:id/members` | 멤버 | 멤버 목록 |
-| POST | `/api/workspaces/:id/members` | 관리자 이상 | 이미 가입한 사용자 직접 추가. 본문 `{ email, role }`. `role=admin` 은 소유자만(403 `OWNER_REQUIRED`) |
-| PATCH | `/api/workspaces/:id/members/:memberId` | 관리자 이상 | 역할 변경. 본문 `{ role }`. 대상의 지금 역할이나 새 역할이 관리자면 소유자만(403 `OWNER_REQUIRED`) |
+| GET | `/api/workspaces/:id/members` | 멤버 | 멤버 목록. 배열 원소는 `{ id, userId, email, name, role, joinedAt }` 이고 `id` 는 멤버 ID 다 |
+| POST | `/api/workspaces/:id/members` | 관리자 이상 | 이미 가입한 사용자 직접 추가. 본문 `{ email, role }`. `role=admin` 은 소유자만(403 `OWNER_REQUIRED`). 201 `{ id, role }` |
+| PATCH | `/api/workspaces/:id/members/:memberId` | 관리자 이상 | 역할 변경. 본문 `{ role }`. 대상의 지금 역할이나 새 역할이 관리자면 소유자만(403 `OWNER_REQUIRED`). 200 `{ id, role }` |
 | DELETE | `/api/workspaces/:id/members/:memberId` | 관리자 이상 | 멤버 제거. 관리자도 제거할 수 있다. 자기 자신이면 나가기로 넘긴다 |
-| GET | `/api/workspaces/:id/invitations` | 관리자 이상 | 대기 중 초대 목록 |
-| POST | `/api/workspaces/:id/invitations` | 관리자 이상 | 초대 토큰 발송. 본문 `{ email, role }`. 같은 이메일에 대기 중 초대가 있으면 그 행의 토큰을 바꾼다. `role=admin` 이나 관리자 역할 대기 초대 덮어쓰기는 소유자만(403 `OWNER_REQUIRED`). 201 `{ id, email, role, expiresAt }`. 분당 10건 |
-| POST | `/api/workspaces/:id/invitations/:invitationId/resend` | 관리자 이상 | 초대 재발송. 토큰 교체, 만료 재시작. 관리자 역할 초대도 같다. 분당 10건 |
+| GET | `/api/workspaces/:id/invitations` | 관리자 이상 | 대기 중 초대 목록(최근 생성 순). 배열 원소는 `{ id, email, role, expiresAt, invitedBy, createdAt }` 이다. `invitedBy` 는 초대한 사용자 ID 이고 null 일 수 있다 |
+| POST | `/api/workspaces/:id/invitations` | 관리자 이상 | 초대 토큰 발송. 본문 `{ email, role }`. 같은 이메일에 대기 중 초대가 있으면 그 행의 토큰을 바꾼다. `role=admin` 이나 관리자 역할 대기 초대 덮어쓰기는 소유자만(403 `OWNER_REQUIRED`). 201 `{ id, email, role, expiresAt }` |
+| POST | `/api/workspaces/:id/invitations/:invitationId/resend` | 관리자 이상 | 초대 재발송. 토큰 교체, 만료 재시작. 관리자 역할 초대도 같다. 200 `{ id, email, role, expiresAt }` |
 | DELETE | `/api/workspaces/:id/invitations/:invitationId` | 관리자 이상 | 초대 취소. `acceptedAt IS NULL` 인 행만. 관리자 역할 초대도 같다 |
-| GET | `/api/invitations/:token` | 공개(인증 불요) | 초대 토큰 메타 조회. 가입 페이지 입력란 채우기용. 응답 `{ workspaceName, invitedByName, email, expiresAt, role }`. 없음 404, 만료·사용됨 410. 분당 30건 |
+| GET | `/api/invitations/:token` | 공개(인증 불요) | 초대 토큰 메타 조회. 가입 페이지 입력란 채우기용. 응답 `{ workspaceName, invitedByName, email, expiresAt, role }`. 없음 404, 만료·사용됨 410 |
 | POST | `/api/workspaces/invitations/accept` | 로그인 | 초대 수락. 본문 `{ token }`. 본인 이메일과 토큰 이메일이 같아야 한다. 200 `{ workspaceId, role }` |
 | GET | `/api/users/me/invitations/:invitationId` | 로그인 | 초대 id 로 본인 초대 메타 조회. 응답은 토큰 메타 조회와 같다. 초대 이메일이 로그인 이메일과 다르거나 없으면 404, 만료·사용됨 410 |
 | POST | `/api/users/me/invitations/:invitationId/accept` | 로그인 | 초대 id 로 본인 초대 수락. 404 · 410 은 위 조회와 같다. 200 `{ workspaceId, role }`. 근거는 [초대 — 이미 가입한 사용자의 수락 경로](CLE-ACCT-WS-INVITE.md#이미-가입한-사용자의-수락-경로) |
 | POST | `/api/auth/workspaces/:id/switch` | 로그인(`JwtAuthGuard`) | 워크스페이스 전환. `:id` 는 `ParseUUIDPipe`. 비멤버 403 `NOT_A_MEMBER`. 액세스 토큰만 `activeWorkspaceId=:id` 로 재발급하고 리프레시 쿠키는 그대로다. 응답 `{ accessToken }` |
 
+- 결과만 알리는 성공 응답은 200 `{ ok: true }` 다. 워크스페이스 삭제 · 나가기 · 소유자 이양 · 멤버 제거 · 초대 취소가 여기에 든다.
+- 초대 발송 · 재발송과 공개 토큰 메타 조회에는 요청 한도가 있다. 수치는 [HTTP API 규약 — 요청 빈도 제한](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 이 정한다.
 - 컨트롤러는 세 개다. `workspaces.controller.ts`(`@Controller('workspaces')`)가 생성·멤버·초대 발급·수락 등 대부분을 받고, `invitations.controller.ts`(`@Controller('invitations')`)가 공개 토큰 메타 조회 하나를 받는다. `my-invitations.controller.ts`(`@Controller('users/me/invitations')`)가 초대 id 로 하는 본인 초대 조회 · 수락을 받는다.
 - `POST /api/auth/register` 가 본문에 `invitationToken?` 을 받으면 [초대 — 미가입자 가입 경로](CLE-ACCT-WS-INVITE.md#미가입자-가입-경로) 의 트랜잭션을 한다. 가입 API 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 에 있다.
 - 초대 가입 화면의 가입 여부 확인은 공개 API `POST /api/auth/check-email` 을 쓴다. 이 API 는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 이 정한다.

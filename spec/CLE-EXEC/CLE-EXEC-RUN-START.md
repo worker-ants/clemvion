@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-START"
 title: "에디터 실행과 디버깅 — 실행 시작·중지와 캔버스 표시"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "3ec36e1f17fcf8b28476ef263b03af943ae91574bd2f5d12885a3ee7d3c6096f"
+content_hash: "55992880f95934ef8901c5e9aa0da46b753e4028f000b7c93d7b7952918fc989"
 read_as: "approved_fallback"
-task: "CLE-T-VXPW7G"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "6d792cc89fbecba462409f76f0df11d857cd9d9e9651ae582840fb7ccf7999da"
-etag: "sha256-c319bd2b1f4114ffe25c38dc8b25f3ace3c989dda344d7edf207922b958c5b19"
+mirror_sha256: "33f92d94b188dc1d66281d40b4d79fb24aa8f41ed6004571fbf94aab58391799"
+etag: "sha256-49f890474fb432a2c8a7bfca9c6a0b684c0538a0003f6c51dbf235fdc8c96fc6"
 ---
 ## 개요
 
@@ -201,7 +201,9 @@ Presentation 노드 결과는 실행 결과 드로어와 설정 패널 Info 탭 
 
 ## Rationale
 
-### 단일 노드 실행은 전용 진입점과 상류 출력 복원으로 만든다 (2026-06-15)
+### 단일 노드 실행은 전용 진입점과 상류 출력 복원으로 만든다
+
+결정일: 2026-06-15
 
 - **전용 엔드포인트**: 선택 노드부터 실행은 `execute` 본문 `input.fromNodeId` 로 "노드부터 하류 끝까지" 를 실행한다. 단일 노드는 범위가 분명히 달라서(하류 미진행) 본문 플래그로 나누면 두 방식이 헷갈린다. 그래서 진입점을 따로 두었다. 경로는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 의 자원 액션 패턴(`/execute`·`/stop` 선례)을 따라 노드 하위 자원의 `execute` 액션으로 지었다. 그 패턴이 정하는 것은 동사의 개수가 아니라 목적어의 위치다. 목적어(노드)는 경로에 두고 액션 이름에 넣지 않는다(`execute-node` 를 피함).
 - **입력은 직전 실행의 상류 출력을 자동으로 넣는다**: 단일 노드를 의미 있게 테스트하려면 상류 입력이 필요하다. 직속 상류 `NodeExecution.output_data` 를 캐시에 복원하면 `gatherNodeInput` 과 표현식 해석기가 정상 실행과 같은 경로로 입력을 만들어 별도 입력 격리 로직이 필요 없다. `previousExecutionId` 를 지정하지 않으면 본문 `input` 으로 대신해 "입력을 직접 준 단발 테스트" 도 지원한다.
@@ -209,7 +211,9 @@ Presentation 노드 결과는 실행 결과 드로어와 설정 패널 Info 탭 
 - **호출 기록 엔티티를 따로 두지 않는다**: 단일 노드 실행도 일반 실행으로 기록해 기존 실행 이벤트·드로어·`GET /api/executions/:id` 를 그대로 쓴다. nullable 컬럼 `single_node_id`·`previous_execution_id` 두 개만 더했다(`dry_run`·`re_run_of` 처럼 실행 방식을 컬럼에 담은 선례).
 - **범위 한계**: 블로킹 대화형 노드의 park, 컨테이너 안 노드, 인접하지 않은 컨텍스트는 디버그 도구 v1 범위 밖으로 두었다. [재실행](CLE-EXEC-RERUN.md) 향후 확장의 C3(single-node debug) 중 "표현식 컨텍스트 mock" 을 직속 상류 출력 복원으로만 채운다. 전체 mock 은 아니다.
 
-### 테스트 데이터셋은 사용자 소유, 워크스페이스 읽기 전용 공유, 복제 모델로 둔다 (2026-06-14)
+### 테스트 데이터셋은 사용자 소유, 워크스페이스 읽기 전용 공유, 복제 모델로 둔다
+
+결정일: 2026-06-14
 
 - **기본은 사용자 소유(`private`)**: 테스트 입력은 개인 디버깅 자료다. 작성자 전용이 기본이어야 사생활과 목록 소음 면에서 자연스럽다. 워크스페이스 공유를 기본으로 하면 다른 사람의 임시 데이터셋이 목록을 어지럽힌다.
 - **워크스페이스 공유는 읽기 전용**: 공유본을 여러 사람이 직접 고치면 "누구의 테스트인가" 가 흐려지고 동시 수정 충돌이 생긴다.

@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE"
 title: "트리거 관리"
 type: "feature"
-version: 15
+version: 16
 status: "approved"
 requirements: ["REQ-TRIG-001", "REQ-TRIG-002", "REQ-TRIG-003", "REQ-TRIG-004", "REQ-TRIG-005", "REQ-TRIG-006", "REQ-TRIG-007", "REQ-TRIG-008", "REQ-TRIG-009", "REQ-TRIG-010", "REQ-TRIG-011", "REQ-TRIG-012", "REQ-TRIG-013", "REQ-TRIG-014", "REQ-TRIG-015", "REQ-TRIG-016", "REQ-TRIG-017", "REQ-TRIG-018", "REQ-TRIG-019", "REQ-TRIG-020", "REQ-TRIG-021", "REQ-TRIG-022", "REQ-TRIG-023", "REQ-TRIG-024", "REQ-TRIG-025", "REQ-TRIG-026", "REQ-TRIG-027", "REQ-TRIG-028", "REQ-TRIG-029", "REQ-TRIG-030", "REQ-TRIG-031", "REQ-TRIG-032", "REQ-TRIG-033", "REQ-TRIG-034", "REQ-TRIG-035", "REQ-TRIG-036", "REQ-TRIG-037", "REQ-TRIG-038", "REQ-TRIG-039", "REQ-TRIG-040", "REQ-TRIG-041", "REQ-TRIG-042", "REQ-TRIG-043", "REQ-TRIG-044", "REQ-TRIG-045", "REQ-TRIG-046", "REQ-TRIG-047", "REQ-TRIG-048", "REQ-TRIG-049", "REQ-TRIG-050", "REQ-TRIG-051", "REQ-TRIG-052", "REQ-TRIG-053", "REQ-TRIG-054", "REQ-TRIG-055", "REQ-TRIG-056", "REQ-TRIG-057", "REQ-TRIG-058", "REQ-TRIG-059", "REQ-TRIG-061", "REQ-TRIG-062", "REQ-TRIG-063"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "5b8e29d7338e2b8c189ff37c6a2671a90098804c91ef0bdc7789f2955a846023"
+content_hash: "bfa816efb5e1b584a9c05c75941c30751097d4ebce80d88f8085e538870e6474"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-PK8EKG"
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "159e0bc55056342e73f15d296cc12f0b5e782967af779d2fddfbe3c73e4b76d5"
-etag: "sha256-c306a21813012828a41508e7914c8f0a2beca4d44c3eef9f3f6f7ffb64f7cffa"
+mirror_sha256: "ceac7c19dacc49383500367115d4e4dfdd5091a01e31974f3e9f9b43ca7fc618"
+etag: "sha256-949f2ab25386bc1f930c40deb670fa05a6a377274ebb30f834ceba3c0ff056ab"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -100,6 +100,8 @@ etag: "sha256-c306a21813012828a41508e7914c8f0a2beca4d44c3eef9f3f6f7ffb64f7cffa"
 - REQ-TRIG-061 IF REQ-TRIG-053 에 걸리지 않는 요청에서 생성(`POST /api/triggers`)이나 수정(`PATCH /api/triggers/:id`) 본문의 원시 `config` 바로 아래에 `notification` · `interaction` · `chatChannel` 키가 있으면 THE SYSTEM SHALL 값과 상관없이 400 `VALIDATION_ERROR`(`details: { field: 'config.<키>', code: 'INVALID_FIELD' }`)로 거부한다. 세 키 가운데 둘 이상이 있으면 `notification`, `interaction`, `chatChannel` 순서로 따져 처음 걸린 키 하나만 보고한다.
 - REQ-TRIG-062 IF REQ-TRIG-053 · 061 에 걸리지 않는 요청에서 생성이나 수정 본문의 원시 `config` 아래 어디에든 `secret://` 로 시작하는 문자열 값이 있으면 THE SYSTEM SHALL 400 `VALIDATION_ERROR`(`details: { field: 'config.<경로>', code: 'INVALID_FIELD' }`)로 거부한다.
 - REQ-TRIG-063 WHEN PATCH 본문에 원시 `config` 가 있으면 THE SYSTEM SHALL 잠금 안에서 다시 읽은 행의 `config` 위에 `config` 바로 아래 키 단위로 병합한다. 보낸 키는 그 값으로 바꾸고 보내지 않은 키는 두고 값이 `null` 인 키는 지운다.
+
+SSE 스트림을 REQ-TRIG-041 · 059 대로 닫을 때 닫기 신호를 놓친 서버 인스턴스의 스트림은 최대 60초 안에 닫힌다. 그 서버 인스턴스가 60초마다 토큰을 다시 확인할 때 DB 를 읽지 못하면 스트림을 유지하므로 그보다 오래 남을 수 있다. 규칙은 [EIA 데이터와 흐름 — SSE 스트림](../CLE-IX/CLE-EIA-DATA-SSE.md#sse-스트림) 에 있다.
 
 ## 하위 문서
 

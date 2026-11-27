@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-SSE"
 title: "EIA 데이터와 흐름 — SSE 스트림"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "fbf1d1267af498f9775e2ad927a1631dc4669e9831b6b6a079fe39e4318e7335"
+content_hash: "8ab1f0259030ffc2eca16a8c48a416eff3b7263947f4829d7dc6a4066743223a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-8PYFDB"
 source_paths: []
-mirror_sha256: "ddb68e674bfe7d3352d3c4b5cbe193190ae88c450c35f5da28a8d1cdef6307ac"
-etag: "sha256-b5977253f1f29d4f9efb73cc5546549ec7de673a3243de2026f174a4bb517a7c"
+mirror_sha256: "1c24ac358d07698c67b23ce464f29a550623f3d9d70104c360c0986a2b2e8e2f"
+etag: "sha256-e8fa6f5ee504933a79b0cad3e578490aa41d4a2a3d868b96d4708bda2ffcacd1"
 ---
 ## 개요
 
@@ -55,7 +55,7 @@ flowchart TD
 - 트리거 단위 토큰(`itk_*`)으로 연 스트림은 열려 있는 동안 60초마다 토큰을 다시 확인한다. 간격은 `SSE_TOKEN_RECHECK_INTERVAL_MS`(heartbeat 네 번에 한 번)이고 코드 상수라 설정으로 바꿀 수 없다. 토큰이 무효면 닫기 신호를 받았을 때처럼 따로 보내는 이벤트 없이 응답을 끝낸다. 그래서 닫기 신호가 유실돼도 이 간격 안에 닫힌다. 다시 확인하다 DB 오류가 나면 스트림을 유지하고 경고 로그를 남긴다(fail-open). 실행 단위 토큰으로 연 스트림은 토큰이 만료되거나 갱신돼도 닫지 않고 다시 확인하지도 않는다([실행 단위 토큰](CLE-EIA-DATA-TOKEN.md#실행-단위-토큰)).
 - 동시 연결 상한의 수치는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md#7-요청-빈도-제한) 의 요청 빈도 제한 표가 정한다. 상한은 서버 인스턴스마다 세지 않는다. 실행 하나에 대해 모든 서버 인스턴스의 연결을 합쳐 센다(`eia:sse:subs:<executionId>`). 연결 자리마다 마지막 heartbeat 시각을 둔다. 이 시각은 heartbeat(15초)마다 갱신한다. 서버 인스턴스가 죽어 자리를 돌려주지 못해도 마지막 갱신에서 45초가 지나면 그 자리는 상한에 세지 않는다. Redis 를 못 쓰면(메모리 모드) 상한을 서버 인스턴스마다 센다.
 - SSE 의 `id:` 와 알림 웹훅의 `seq` 는 같은 카운터(Redis `exec:seq:<id>`)를 쓴다. 클라이언트는 SSE 와 EIA 알림 웹훅으로 받은 이벤트를 한 순서로 정렬할 수 있다.
-- 서버 인스턴스 사이 전달(`sse-fanout.service.ts`): 재전송 버퍼는 실행별 Redis Stream `eia:sse:buf:<executionId>` 이다. 실시간 전달은 실행별 Pub/Sub 채널 `eia:sse:live:<executionId>` 로 한다. 다른 서버 인스턴스로 다시 연결해도 5분 재전송을 받는다. sticky-session 에 기대지 않는다. 같은 서버 인스턴스의 구독자에게는 Redis 를 거치지 않고 바로 보낸다. 실행 채널로 받은 메시지 가운데 자기 서버 인스턴스가 낸 것(`origin`)은 건너뛴다. 그래서 Redis 를 못 써도 같은 서버 인스턴스의 구독자는 이벤트를 받는다. 키와 채널의 용도 · TTL · 실패 정책은 [EIA 엔티티와 저장소](CLE-EIA-DATA-STORE.md#redis-와-bullmq) 의 「Redis 와 BullMQ」 표에 있다. 결정의 이유는 [SSE 버퍼와 실시간 전달을 Redis 에 둔다](#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 에 있다.
+- 서버 인스턴스 사이 전달(창구는 `sse-fanout.service.ts`, 부분별 파일은 「구현 위치」): 재전송 버퍼는 실행별 Redis Stream `eia:sse:buf:<executionId>` 이다. 실시간 전달은 실행별 Pub/Sub 채널 `eia:sse:live:<executionId>` 로 한다. 다른 서버 인스턴스로 다시 연결해도 5분 재전송을 받는다. sticky-session 에 기대지 않는다. 같은 서버 인스턴스의 구독자에게는 Redis 를 거치지 않고 바로 보낸다. 실행 채널로 받은 메시지 가운데 자기 서버 인스턴스가 낸 것(`origin`)은 건너뛴다. 그래서 Redis 를 못 써도 같은 서버 인스턴스의 구독자는 이벤트를 받는다. 키와 채널의 용도 · TTL · 실패 정책은 [EIA 엔티티와 저장소](CLE-EIA-DATA-STORE.md#redis-와-bullmq) 의 「Redis 와 BullMQ」 표에 있다. 결정의 이유는 [SSE 버퍼와 실시간 전달을 Redis 에 둔다](#sse-버퍼와-실시간-전달을-redis-에-둔다-2026-10-17) 에 있다.
 - 실행 채널 구독: 서버 인스턴스에 그 실행의 첫 구독자가 생기면 전용 구독 연결로 실행 채널을 `SUBSCRIBE` 한다. 마지막 구독자가 떠나면 `UNSUBSCRIBE` 한다. `SUBSCRIBE` 가 실패하거나 확인이 늦어도 스트림은 그대로 이어 간다. 그때 그 서버 인스턴스가 낸 이벤트는 받는다. 다른 서버 인스턴스의 이벤트는 구독 연결이 다시 준비되거나 늦은 확인이 온 뒤부터 받는다. 그 사이 놓친 구간은 아래 「구독이 다시 확정될 때」 로 채운다.
 - 구독 순서: 새 구독자는 다음 순서로 합류한다.
   1. 구독자를 대기 상태로 등록한다. 이때부터 도착한 실시간 이벤트를 모은다.
@@ -99,9 +99,18 @@ flowchart TD
 
 ## 구현 위치
 
-- `codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts` (SSE 응답, heartbeat, 연결 상한 초과 429, 트리거 단위 토큰 재확인, 열린 트리거 단위 토큰 스트림의 60초 재확인)
-- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (구독자 등록과 구독 순서, 재전송 판정, 종료 이벤트 뒤 닫기, 메모리 버퍼, 쓰기 대상 판정 대기열, 구독 재확정 뒤 따라잡기)
-- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (Redis Stream 재전송 버퍼, 실행별 실시간 채널, 전역 닫기 채널, 전역 동시 연결 상한, 순번 카운터 읽기, 항목 크기 상한과 생략 표시)
+- `codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts` (요청을 풀어 SSE 연결 하나를 열고 트리거 단위 토큰 재확인 창구를 묶는다)
+- `codebase/backend/src/modules/external-interaction/sse-stream-session.ts` (SSE 헤더와 프레임, heartbeat, 연결 상한 초과 429, 트리거 단위 토큰 재확인, 열린 트리거 단위 토큰 스트림의 60초 재확인)
+- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (구독자 등록과 구독 순서, 재전송 실행, 종료 이벤트 뒤 닫기, 구독 재확정 뒤 따라잡기)
+- `codebase/backend/src/modules/external-interaction/sse-replay-plan.ts` (재전송 판정, 순번 카운터와 견주기)
+- `codebase/backend/src/modules/external-interaction/sse-event-store.ts` (메모리 버퍼, 쓰기 대상 판정 대기열)
+- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (아래 Redis 부분을 묶은 창구)
+- `codebase/backend/src/modules/external-interaction/sse-replay-buffer.ts` (Redis Stream 재전송 버퍼, 순번 카운터 읽기, 항목 크기 상한과 생략 표시)
+- `codebase/backend/src/modules/external-interaction/sse-signal-bus.ts` (실행별 실시간 채널, 전역 닫기 채널)
+- `codebase/backend/src/modules/external-interaction/sse-connection-slots.ts` (전역 동시 연결 상한)
+- `codebase/backend/src/modules/external-interaction/sse-fanout-shared.ts` (메시지 형식, 실패 · 복구 로그 상태)
+- `codebase/backend/src/modules/external-interaction/sse-redis-keys.ts` (키와 채널 이름)
+- `codebase/backend/src/modules/external-interaction/sse.constants.ts` (코드 상수)
 - `codebase/backend/src/modules/external-interaction/sse-stream-eligibility.service.ts` (Redis 에 쓰는 실행 판정, 조회 상한 `SSE_ELIGIBILITY_TIMEOUT_MS`)
 - `codebase/backend/src/modules/external-interaction/interaction-stream-closer.ts` (트리거 단위 토큰 스트림 닫기 포트)
 - `codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts` (`exec:seq` 발급과 만료 · 종료 뒤 삭제)

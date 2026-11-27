@@ -2,19 +2,19 @@
 id: "CLE-OBS-LOGGING-METRICS"
 title: "로깅과 헬스 체크 — 메트릭과 트레이싱"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-OBS-LOGGING"
 ancestors: ["CLE-VISION", "CLE-OBS", "CLE-OBS-LOGGING"]
 area: "CLE-OBS"
-content_hash: "effb1f7f3525c2635d9b35055db6b33287a2250f586d36acd9f3e6ef82484d47"
+content_hash: "b45b207a3e78b7c7ff9e8810ad44facbe6b9e5b2437e5ba882bb18224c32a1ee"
 read_as: "approved_fallback"
-task: "CLE-T-JK1JFZ"
+task: "CLE-T-FHG7MT"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "d54a84a4d66421a2b66712dff9239acada443fc5b6485630d9bf6c6c29283c79"
-etag: "sha256-e43771800f8528a98cc4d5d083eaafe716c8ae683c1fde7591c3f5993afdba78"
+mirror_sha256: "dc9ce317482504b0fd82a9d171f5b2a8835b1934f55c79fc9f6af592bfc8773c"
+etag: "sha256-0f93b212d04fd0ef8f33c5373d1c9660358ac7b23a27ec72a3ad51b77abfc399"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md`, `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -112,7 +112,7 @@ OTel 메트릭은 운영 관측을 돕는 보조 노출이며 제품 데이터�
 - `instrumentation.ts` (OTel 메트릭 · 트레이스 수집)
 - `modules/metrics/business-metrics.service.ts` (비즈니스 메트릭 카탈로그, `RedisFailOpenReasonMap`)
 - Redis fail-open 기록 호출부(`recordRedisFailOpen`):
-  - `modules/external-interaction/`: `idempotency.interceptor.ts` · `interaction-rate-limiter.service.ts` · `interaction-token.service.ts` · `outbound-notification-rate-limiter.service.ts` · `sse-fanout.service.ts`
+  - `modules/external-interaction/`: `idempotency.interceptor.ts` · `interaction-rate-limiter.service.ts` · `interaction-token.service.ts` · `outbound-notification-rate-limiter.service.ts` · `sse-replay-buffer.ts` · `sse-signal-bus.ts` · `sse-connection-slots.ts`
   - `modules/chat-channel/`: `channel-conversation.service.ts` · `chat-channel-dedup.service.ts` · `chat-channel-rate-limiter.service.ts` · `chat-channel-signature-failure-limiter.service.ts` · `channel-listener.bus.ts`
   - `modules/hooks/public-webhook-quota.service.ts`
   - `modules/integrations/`: `cafe24-install-rate-limit.service.ts` · `cafe24-install-nonce-cache.service.ts`
