@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-EXEC"
 title: "에러 코드 카탈로그 — 워크플로우 실행"
 type: "convention"
-version: 9
+version: 10
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "d5a917fb63049bdee5550fc545a084579af62ec8b332be666fd78ae8d5acaa24"
+content_hash: "e3768e56294885587d047b2cf4578f11cbaa74099ad28979d79c16fc7a5328cb"
 read_as: "approved_fallback"
-task: "CLE-T-7ZRNKV"
+task: "CLE-T-0TAE5G"
 source_paths: []
-mirror_sha256: "3dbca21c220b028d0f85c6eb3d0e0f96c4e34fbed0fecd0593d44158dc65f5e5"
-etag: "sha256-77054a93fadacfe909c195ac7198a5c0bfda8d135cc7376974443ca27f131ba6"
+mirror_sha256: "579d0257dd5e54e376aea78400234f7f3c4366cc599a3dc906b9ea5394aace36"
+etag: "sha256-1b715d0b5520a8887269eb98e416c31dec467c0ca23701db10726faf7cec4602"
 ---
 ## 개요
 
@@ -88,7 +88,9 @@ etag: "sha256-77054a93fadacfe909c195ac7198a5c0bfda8d135cc7376974443ca27f131ba6"
 
 ## Rationale
 
-### `RESUME_CHECKPOINT_MISSING` 정의에 중첩 재개의 호출 스택을 더한 이유 (2026-10-04)
+### `RESUME_CHECKPOINT_MISSING` 정의에 중첩 재개의 호출 스택을 더한 이유
+
+결정일: 2026-10-04
 
 카탈로그 행은 `NodeExecution.outputData` 결손만 적었다. 엔진은 그 전부터 중첩 재개의 빈 frame 목록, 호출 노드 부재, frame 에서 재개를 시작할 노드의 부재에도 이 코드를 냈다. 2026-10-04 에 frame 의 `workflowId` · `invokerNodeId` 결손도 조회 전에 이 코드로 마감하도록 했다(NERV Task `CLE-T-BV4YXZ`, [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 의 「rehydration 실패」). 그래서 행을 넓혔다.
 
@@ -97,14 +99,18 @@ etag: "sha256-77054a93fadacfe909c195ac7198a5c0bfda8d135cc7376974443ca27f131ba6"
 - 같은 코드를 영속 상태 손상 밖의 재개 불변식 위반에도 쓴다. 맞는 처리기가 없을 때가 그 예다([큐 워커와 동시 실행 제한](../CLE-EXEC/CLE-EXEC-WORKER.md) Rationale). 행의 괄호를 "예:" 로 적은 이유다.
 - 호출 스택의 버전이 지원 범위보다 크면 이 코드가 아니라 `RESUME_INCOMPATIBLE_STATE` 다. 경계는 [장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md) 「rehydration 실패」 에 적었다.
 
-### LLM 타임아웃에 `LLM_TIMEOUT` 을 쓰지 않는다 (2026-10-10)
+### LLM 타임아웃에 `LLM_TIMEOUT` 을 쓰지 않는다
+
+결정일: 2026-10-10
 
 `LLM_TIMEOUT` 은 enum 에 있지만 발행처가 없었다. [워크플로우 AI 어시스턴트](../CLE-WF/CLE-WF-ASSIST.md) 만 스트리밍 턴 타임아웃에 이 코드를 약속했다. 2026-10-10 에 사람이 LLM 호출 타임아웃 문서를 코드에 맞추기로 정하면서 이 코드도 내지 않기로 했다. 결정 근거는 [AI 노드 공통](../CLE-NODE-AI/CLE-NODE-AI-COMMON.md) 의 Rationale 에 있다. 2026-11-20 에 enum 과 등재는 «발행하지 않음» 표시로 남기기로 했다([에러 코드 규약과 카탈로그 「발행처가 없는 등재 코드를 코드별로 정리했다」](CLE-API-ERRCODES.md#발행처가-없는-등재-코드를-코드별로-정리했다)). 2026-11-26 에 enum 과 등재를 지웠다(아래 「발행하지 않는 이름을 enum · 분류기 · 카탈로그에서 걷었다」).
 
 - 단일 턴 AI 에이전트의 LLM 호출(첫 호출 · 도구 루프 호출 · 롤링 요약 호출)이 실패하면 노드는 멀티턴과 같은 분류의 에러를 `error` 포트로 낸다(NERV Task `CLE-T-ZHBMAC` · `CLE-T-Q38K9F`). 타임아웃은 재시도할 수 있는 `LLM_CALL_FAILED` 다. 롤링 요약 `chat` 실패는 첫 호출과 같은 HTTP status 기준으로 나뉜다. 요약 모델 설정(`summaryModelConfigId`)을 찾지 못한 실패는 429 · 5xx · 네트워크 신호가 없어 재시도할 수 없는 `LLM_CALL_FAILED` 로 나온다. 멀티턴 재개와 같은 분류다.
 - 남은 공백은 노드 LLM 설정(`llmConfigId`)을 해석하지 못하는 경우다. 이때는 아직 에러 코드 없이 노드가 실패한다.
 
-### 반복 · 병렬 실패 회차의 대체 코드 `UNKNOWN_ERROR` 를 새로 만들었다 (2026-11-05)
+### 반복 · 병렬 실패 회차의 대체 코드 `UNKNOWN_ERROR` 를 새로 만들었다
+
+결정일: 2026-11-05
 
 ForEach · Map · Parallel 은 `errorPolicy='continue'` 에서 실패한 회차 · 병렬 분기를 `skipped[].error.code`(Map 은 `mapped[i].error.code`)에 담는다. 그전에는 던진 에러의 `name`(`Error` · `TypeError` 등)을 그대로 실어 규칙 2 와 맞지 않았다. Error 가 아닌 값에 쓰던 `UNKNOWN_ERROR` 는 카탈로그에 없었다(규칙 8). NERV Task `CLE-T-REC4X3` 이 세 노드의 규칙을 하나로 모았다. 정의는 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#반복-결과-출력-구조) 4 · 5번이다.
 
@@ -115,14 +121,18 @@ ForEach · Map · Parallel 은 `errorPolicy='continue'` 에서 실패한 회차 
 - 허용 목록을 카탈로그와 대조하다가 §6.6 표에 없던 에러 포트 코드 둘(`INVALID_PARAMETERS`([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md)), `TOOL_DEFINITION_PAYLOAD_EXCEEDED`([AI 에이전트 노드](../CLE-NODE-AI/CLE-NODE-AGENT.md)))을 더했다(규칙 8). `USER_CANCELLED` 는 `ErrorCode` 에 정의만 있고 내보내는 곳이 없어 표에 올리지 않았다. 목록과 카탈로그를 대조하는 테스트는 두지 않았다. 새 코드는 규칙 8 에 따라 등재한다.
 - 기각한 대안은 두 가지다. 하나는 `UPPER_SNAKE_CASE` 모양이면 그대로 내는 안이다. 런타임 · 드라이버의 `code`(`ECONNREFUSED` 등)가 카탈로그 밖 값으로 나간다. 다른 하나는 런타임 · 드라이버 모양을 걸러 내는 안이다. 휴리스틱이라 다른 드라이버의 값이 새어 나갈 수 있다. 자세한 근거는 [Logic 노드 공통 「실패한 회차와 병렬 분기의 `error.code`」](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode) 에 있다.
 
-### Send Email 의 빈 수신자에 `EMAIL_NO_RECIPIENTS` 를 등재했다 (2026-11-06)
+### Send Email 의 빈 수신자에 `EMAIL_NO_RECIPIENTS` 를 등재했다
+
+결정일: 2026-11-06
 
 NERV Task `CLE-T-3PRYB4` 이다. Send Email 노드는 정규화한 수신자(`to`)가 비면 실행을 실패시키지 않고 에러 포트로 `EMAIL_NO_RECIPIENTS` 를 낸다. 이 코드를 발행하기 시작해 규칙 9 에 따라 §6.6 Email 행에 등재했다.
 
 - 같은 행의 `EMAIL_SEND_FAILED` 설명을 구현에 맞췄다. 실제로는 `IntegrationError` 의 코드가 그대로 `output.error.code` 로 나오고 `details.integrationCode` 에도 같은 값이 들어간다. `EMAIL_SEND_FAILED` 는 `IntegrationError` 가 아닌 예외에만 쓰고 이때 `details.integrationCode` 는 없다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 의 서술과 같다.
 - 빈 수신자를 에러 포트로 보내는 결정과 이유의 정본은 [Send Email 노드](../CLE-NODE-INT/CLE-NODE-EMAIL.md) Rationale 「빈 수신자를 에러 포트로 보낸다」 다.
 
-### 컨테이너 구조 검사의 접두를 행 없이 메시지 접두로 적었다 (2026-11-12)
+### 컨테이너 구조 검사의 접두를 행 없이 메시지 접두로 적었다
+
+결정일: 2026-11-12
 
 NERV Task `CLE-T-1W44RD` 의 결정이다.
 
@@ -131,28 +141,36 @@ NERV Task `CLE-T-1W44RD` 의 결정이다.
 - **경로 자리표시자 접두는 출력 코드를 바꾸지 않았다.** Cafe24 · MakeShop 노드가 경로 자리표시자를 채우지 못하면 던지는 `CAFE24_UNRESOLVED_PATH_PARAM: ` · `MAKESHOP_UNRESOLVED_PATH_PARAM: ` 은 노드의 바깥 catch 에서 `INTEGRATION_CALL_FAILED` 가 된다. `IntegrationError` 로 바꿔 서비스별 코드를 주는 안도 견줬다. 이 실패는 메타데이터나 입력 매핑의 오류라 흐름에서 따로 분기할 일이 없고, 그 안은 코드 변경과 새 코드 등재가 함께 필요하다. 그래서 출력은 그대로 두고 노드 문서의 에러 코드 절에 메시지 전체와 출력 코드를 적었다.
 - **가이드 식별자 가드의 주석과 탈출구** (`guide-identifier-scan.ts` 의 «`CONTAINER_*` 를 6.5 에 등재하면 카탈로그 탈출구가 발화한다») 는 NERV Task `CLE-T-82M3MB` 가 그대로 두기로 했다. 카탈로그 탈출구는 남겼다.
 
-### `route_to_error_port` 의 `output.error.code` 대체값도 `UNKNOWN_ERROR` 로 적었다 (2026-11-14)
+### `route_to_error_port` 의 `output.error.code` 대체값도 `UNKNOWN_ERROR` 로 적었다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-14VQC2` 다. 핸들러가 throw 한 실패를 `route_to_error_port` 로 보낼 때 엔진은 2026-11-13 부터 `output.error.code` 를 반복 결과와 같은 함수로 고른다(NERV Task `CLE-T-KXARNK`). 그래서 카탈로그 코드가 없는 실패는 이 경로에서도 `UNKNOWN_ERROR` 로 나간다. §6.6 머리말 · 표 · 설명이 아직 반복 · 병렬 결과만 적고 있어 이 경로를 더했다.
 
 - **규칙 6 의 새 조건으로 보지 않았다**: 던진 에러에 백엔드가 직접 싣는 카탈로그 코드가 없다는 같은 뜻이다. 고르는 함수도 같아서 새 코드를 만들지 않았다.
 - 결정과 기각한 대안의 정본은 [노드 에러 처리 정책](../CLE-NODE/CLE-NODE-ERROR.md) Rationale 「throw 한 실패의 `error.code` 를 반복 결과와 같은 규칙으로 고른다」 다.
 
-### HTTP Request 노드의 리다이렉트 한도 초과와 활동 로그 코드를 적었다 (2026-11-14)
+### HTTP Request 노드의 리다이렉트 한도 초과와 활동 로그 코드를 적었다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-6G3084` 다. 두 경우 모두 동작은 그대로 두고 카탈로그를 지금 동작에 맞췄다.
 
 - **`HTTP_BLOCKED` 의 리다이렉트 한도 초과**: HTTP 행은 이 코드를 사설망 차단으로만 적었다. 실제로는 한도를 넘긴 리다이렉트에도 판정 없이 같은 코드가 나간다. [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 규칙 9 와 [HTTP Request 노드 — 출력과 에러](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md) 에는 이 예외가 이미 있고 이 카탈로그에만 없었다. 새 조건에 기존 코드를 쓰는 것이라 규칙 6 과 맞지 않는다. 같은 날 NERV Task `CLE-T-43KCNP` 에서 이 예외를 받아들였다(아래 절).
 - **활동 로그의 `HTTP_{status}`**: 통합 활동 로그와 통합 `last_error.code` 로 나가는 코드인데 카탈로그에 없었다(규칙 8). 이름이 조건의 뜻 대신 상태 번호를 적어 규칙 1 을 어기므로 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 행을 두고 이 절에는 그 행을 가리키는 설명만 두었다. `CAFE24_404` 등이 §6.22 와 §3 에 함께 있는 것과 같은 배치다.
 
-### HTTP Request 노드의 3xx 와 리다이렉트 한도 초과에 새 코드를 만들지 않았다 (2026-11-14)
+### HTTP Request 노드의 3xx 와 리다이렉트 한도 초과에 새 코드를 만들지 않았다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-43KCNP` 에서 사람이 정했다. 근거와 기각한 대안의 정본은 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) 다.
 
 - **리다이렉트 한도 초과**: `HTTP_BLOCKED` 를 규칙 6 의 받아들인 예외로 둔다. 기존 코드를 다시 쓰는 결정이라 §3 에는 올리지 않는다(부모 문서 Rationale 「규칙 7 의 「규칙」 을 이름 규칙으로 좁혔다」). 부모 문서 규칙 6 의 예외 목록에 이 경우를 더하는 일은 NERV Task `CLE-T-J6M2JG` 가 맡는다.
 - **`HTTP_4XX` 의 3xx**: 2xx 도 5xx 도 아닌 응답이라는 같은 조건이라 새 조건으로 보지 않았다. 그래도 이름이 4xx 만 말하고 조건의 뜻 대신 상태 범주를 적어 규칙 1 과 맞지 않는다. 그래서 `CAFE24_4XX` 처럼 `HTTP_4XX` · `HTTP_5XX` 를 §3 에 올렸다.
 
-### 발행하지 않는 이름을 enum · 분류기 · 카탈로그에서 걷었다 (2026-11-26)
+### 발행하지 않는 이름을 enum · 분류기 · 카탈로그에서 걷었다
+
+결정일: 2026-11-26
 
 NERV Task `CLE-T-P0W82J` 다. 사람이 2026-11-26 조율 세션에서 권장안으로 정했다. 모두 어디서도 발행하지 않는 이름이라 실제로 나가는 코드와 그 안내는 바뀌지 않는다.
 

@@ -2,19 +2,19 @@
 id: "CLE-UI-I18N-BACKEND"
 title: "다국어와 화면 문구 — 백엔드 문구 매핑"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-UI-I18N"
 ancestors: ["CLE-VISION", "CLE-UI", "CLE-UI-I18N"]
 area: "CLE-UI"
-content_hash: "f31cee7216fc688a7a64980cb580b9ebfbe860038ae84aea06b497cd7826531a"
+content_hash: "7c029e8b0c7dbaf232d8dc9fae0f4247e60a67244f2de89edce54a5ece94878f"
 read_as: "approved_fallback"
-task: "CLE-T-0VS826"
+task: "CLE-T-Q1PD62"
 source_paths: []
-mirror_sha256: "6b07ccd7461d586c82491c8968d6413888529fa9b1e3e69fdf141d2c4b5a7479"
-etag: "sha256-4a5ef4a0d8ed213f5b0ef57dc56c441c1c57b96632c3ed9c97d1b2d3ca7b5136"
+mirror_sha256: "63c0e67bca8f49a77cafbc384e03370169c622350ef4b02b0921ec06d01e4deb"
+etag: "sha256-de052a43201c0baeae128a6102013f11b8a37bf1800e56d542d793517ed6b83d"
 ---
 ## 개요
 
@@ -92,7 +92,7 @@ etag: "sha256-4a5ef4a0d8ed213f5b0ef57dc56c441c1c57b96632c3ed9c97d1b2d3ca7b5136"
 규칙 5 의 불변 조건은 그대로 지킨다. 문구는 코드를 키로 고른다. 서버에서 지역화하지 않는다. 사전 키를 쓰므로 규칙 1 · 2 의 사전 경유와 ko/en 동등성 가드도 함께 받는다.
 
 - **표에 없는 코드는 서버 영문으로 폴백한다.** 에러 버블이 비지 않게 하려는 것이다. 서버 `message` 는 코드별 고정 영문이거나 공통 폴백 문구라 예외 원문은 나가지 않는다.
-- **기각: 어시스턴트 코드를 `ERROR_KO` 에 더한다.** `ERROR_KO` 에는 한국어 템플릿만 있어 영어 로케일에서는 서버 영문이 보인다. 또 문구는 표시 면마다 하나다(규칙 5 의 「어시스턴트 에러 코드는 `ERROR_KO` 밖에 둔다」). 노드가 내는 LLM 오류 코드는 `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` 이다(`LLM_TIMEOUT` 은 카탈로그에만 있고 발행하지 않는다). `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED` 는 LLM 클라이언트 층의 코드라 노드에서는 `LLM_CALL_FAILED` 로 나타난다([에러 코드 규약과 카탈로그 §6.17](../CLE-API/CLE-API-ERRCODES.md#617-llm-클라이언트-도메인-문서-참조)). 노드 화면용 `ERROR_KO` 등록은 따로 허용한다.
+- **기각: 어시스턴트 코드를 `ERROR_KO` 에 더한다.** `ERROR_KO` 에는 한국어 템플릿만 있어 영어 로케일에서는 서버 영문이 보인다. 또 문구는 표시 면마다 하나다(규칙 5 의 「어시스턴트 에러 코드는 `ERROR_KO` 밖에 둔다」). 노드가 내는 LLM 오류 코드는 `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` 이다. `LLM_CONNECTION_ERROR` · `LLM_OUTPUT_MALFORMED` 는 LLM 클라이언트 층의 코드라 노드에서는 `LLM_CALL_FAILED` 로 나타난다([에러 코드 규약과 카탈로그 §6.17](../CLE-API/CLE-API-ERRCODES.md#617-llm-클라이언트-도메인-문서-참조)). 노드 화면용 `ERROR_KO` 등록은 따로 허용한다.
 - **기각: `backend-labels.ts` 안에 어시스턴트 전용 표를 둔다.** 이 표를 읽는 곳은 어시스턴트 에러 버블 하나다. 같은 모듈에는 코드로 이어서 진행 버튼을 보일지 정하는 지역 집합 `RESUMABLE_ERROR_CODES` 가 이미 있다. 문구는 표시 면마다 정하므로 그 면의 모듈에 두는 편이 찾기 쉽다.
 - **두 표의 코드 집합은 백엔드 테스트가 프론트엔드 리터럴을 읽어 맞춘다(2026-11-12).** 양쪽 테스트가 같은 코드 목록을 따로 적으면 한쪽의 표와 테스트를 함께 고쳤을 때 다른 쪽 테스트가 깨지지 않는다. 그래서 백엔드 테스트(`workflow-assistant-stream-errors.spec.ts`)가 프론트엔드 소스의 `ERROR_MESSAGE_KEYS` 리터럴에서 코드를 뽑아 백엔드 문구 표와 맞춘다. 프론트엔드만 바꾼 변경에서도 이 테스트가 돌도록 그 프론트엔드 파일을 `backend-checks` 의 경로 목록에 올렸고(NERV Task `CLE-T-GXCJAB`) 하네스 테스트(`test_assistant_error_codes_ci_coverage.py`)가 등재를 고정한다. 프론트엔드 테스트(`assistant-message-error.test.tsx`)는 코드마다 사전 문구가 나오는지 따로 본다.
 - **대조의 남은 한계.** 백엔드 테스트는 프론트엔드 소스를 문자열로 읽는다. `export const ERROR_MESSAGE_KEYS` 선언 줄에서 시작하는 `new Map([["CODE", "assistant.key"], ...])` 리터럴에서만 코드를 뽑는다. 표 모양을 바꾸면(다른 파일로 옮기기, 객체 리터럴로 바꾸기 등) 추출식도 같은 변경에서 고쳐야 한다. 선언을 못 찾거나 코드를 하나도 뽑지 못하면 테스트는 통과하지 않고 지켜야 할 리터럴 모양을 적어 실패한다. 프론트엔드 테스트의 코드 목록은 여전히 사람이 적고 `ERROR_MESSAGE_KEYS` 와만 맞춘다.

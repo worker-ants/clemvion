@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-INTMGMT"
 title: "에러 코드 카탈로그 — 통합 관리 · OAuth"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "bcd6e79090efd11e5a46e81d5dd73f7756a5a741b664a467d807ec2942c8a97c"
+content_hash: "f4eaec24493dd03ea56b60344f201a9e1b4d2c222e13884dfa24dc3322145c3e"
 read_as: "approved_fallback"
-task: "CLE-T-BYT4S2"
+task: "CLE-T-0TAE5G"
 source_paths: []
-mirror_sha256: "491463737405c34ed13131ec4757a65cd711a661e4693519afbc3c1edb0cc0fc"
-etag: "sha256-6e09bb91dc9630091062d15cffb25b7ca7ddbf1c399bc4abdfd674b43e952e16"
+mirror_sha256: "a4e25315613270d5839b89f86b3551f71615bd34bd87ee8c85b195c83b39d5f7"
+etag: "sha256-b56c14546bb3d0fa485e53f87322e2c362936afe2c7bebd2200140ed054097e5"
 ---
 ## 개요
 
@@ -78,7 +78,9 @@ etag: "sha256-6e09bb91dc9630091062d15cffb25b7ca7ddbf1c399bc4abdfd674b43e952e16"
 
 ## Rationale
 
-### 설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다 (2026-11-06)
+### 설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다
+
+결정일: 2026-11-06
 
 NERV Task `CLE-T-909H23` 이다. 설치 엔드포인트는 `@Res` 로 응답을 직접 써서 전역 예외 필터를 거치지 않는다. 그래서 코드가 없는 예외를 400 `*_INSTALL_FAILED` 로 바꾸면서 예외 메시지를 그대로 실었다. DB · 런타임 오류의 원문이 Cafe24 · MakeShop 콘솔에서 연 브라우저에 보였다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 규칙 2). 실패 본문에 `requestId` 가 없어 서버 로그와 이을 수도 없었다(같은 문서 규칙 3).
 
@@ -88,7 +90,9 @@ NERV Task `CLE-T-909H23` 이다. 설치 엔드포인트는 `@Res` 로 응답을 
 - **앞단 가드(빈도 제한 · 토큰 형식 · 필수 query)의 JSON 에도 `requestId` 를 싣는다.** 한 엔드포인트의 실패 본문을 한 모양으로 맞췄다. §6.21 머리말의 「표준 봉투를 쓰지 않는다」 불릿은 이 변경에 맞춰 고쳤다. 그 불릿은 사실만 적었고 까닭을 적은 Rationale 은 없다. 응답을 `@Res` 로 직접 써서 전역 필터가 봉투와 `requestId` 를 채우지 못한 결과였다. 이제 컨트롤러가 봉투를 조립하고 `requestId` 를 발급하므로 표준 봉투로 맞췄다.
 - 열거 공격 실패 카운트는 바꾸지 않았다. `*_INSTALL_INVALID_TOKEN` · `*_INSTALL_INVALID_HMAC` 만 센다.
 
-### `new` 가 아닌 모드의 begin 이 대상 통합과 맞지 않는 요청에 `OAUTH_TARGET_MISMATCH` 를 새로 만들었다 (2026-11-06)
+### `new` 가 아닌 모드의 begin 이 대상 통합과 맞지 않는 요청에 `OAUTH_TARGET_MISMATCH` 를 새로 만들었다
+
+결정일: 2026-11-06
 
 NERV Task `CLE-T-9J6W7H` 다. `oauth/begin` 을 `new` 가 아닌 모드로 부르면서 본문의 서비스나 Cafe24 상점 식별자 · 앱 유형을 `integrationId` 의 대상 통합과 다르게 실으면 400 `OAUTH_TARGET_MISMATCH` 로 거절한다(§6.21). 전에는 거절하지 않아 콜백이 다른 상점이나 다른 서비스의 토큰을 대상 통합에 쓸 수 있었다. 동작과 근거의 정본은 [OAuth 연결과 토큰 갱신 「`new` 가 아닌 모드의 begin 은 본문이 대상 통합과 다르면 거절한다」](../CLE-INT/CLE-INT-OAUTH.md#new-가-아닌-모드의-begin-은-본문이-대상-통합과-다르면-거절한다-2026-11-06) 다.
 
@@ -97,15 +101,19 @@ NERV Task `CLE-T-9J6W7H` 다. `oauth/begin` 을 `new` 가 아닌 모드로 부�
 - **409 를 쓰지 않는다.** 대상 행의 상태와 부딪힌 것이 아니라 요청이 대상을 잘못 가리킨 것이다. 같은 요청을 다시 보내도 결과가 같은 클라이언트 오류라 400 이다.
 - **이름은 `<DOMAIN>_<CONDITION>` 이다(규칙 1 · 3).** 조건이 OAuth 흐름의 시작 요청에 속해 `OAUTH_*` 를 붙였다. 미리보기 토큰과 요청의 서비스 유형이 다를 때 쓰는 `OAUTH_PREVIEW_MISMATCH` 와 같은 꼴이다. 서비스와 상점 식별자를 나눠 코드 둘로 만드는 안은 기각했다. 클라이언트가 할 일이 «대상 통합의 값으로 다시 보낸다» 로 같다.
 
-### 자격 증명 교체의 연결 테스트 실패를 통합 관리 결정에 맞췄다 (2026-11-12)
+### 자격 증명 교체의 연결 테스트 실패를 통합 관리 결정에 맞췄다
+
+결정일: 2026-11-12
 
 결정의 정본은 [통합 관리 「자격 증명 교체의 연결 테스트 실패는 400 이다 (2026-11-12)」](../CLE-INT/CLE-INT-MANAGE.md#자격-증명-교체의-연결-테스트-실패는-400-이다-2026-11-12) 다(NERV Task `CLE-T-J6TZGK`).
 
 - **`INTEGRATION_TEST_FAILED` 의 상태는 400 이다.** 이 카탈로그는 통합 관리가 상태를 미결로 둔다고 적었다. 그 미결이 400 으로 닫혀서 행의 문장을 결정으로 바꿨다. 이름과 상태는 그대로라 새 코드가 아니다.
-- **테스트 결과 코드는 `details.testCode` 에 싣는다.** 값은 연결 테스트 결과의 이름공간이라 이 카탈로그에 등재하지 않는다. `details.code` 로 두지 않은 이유는 [에러 응답과 클라이언트 처리 2.5](CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다-2026-09-11) 에 적었다. 구현은 NERV Task `CLE-T-XCMNP6` 이다.
+- **테스트 결과 코드는 `details.testCode` 에 싣는다.** 값은 연결 테스트 결과의 이름공간이라 이 카탈로그에 등재하지 않는다. `details.code` 로 두지 않은 이유는 [에러 응답과 클라이언트 처리 2.5](CLE-API-ERROR.md#25-field-를-실으면-code-도-싣는다) 에 적었다. 구현은 NERV Task `CLE-T-XCMNP6` 이다.
 - **`MAKESHOP_AUTH_FAILED` 행(§6.22)에 연결 테스트와 노드의 차이를 적었다.** 연결 테스트의 403 은 통합 상태를 바꾸지 않는다. 노드에서는 같은 이름이 다른 결과를 낸다. 이 차이를 행에 한 문장으로 드러내고 통합 관리의 정의 자리를 링크했다.
 
-### MakeShop 통합 재인증 · 추가 권한 요청의 거절을 `MAKESHOP_CREDENTIALS_REQUIRED` 행에 더했다 (2026-11-14)
+### MakeShop 통합 재인증 · 추가 권한 요청의 거절을 `MAKESHOP_CREDENTIALS_REQUIRED` 행에 더했다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-6G3084` 다. 행은 begin 의 자격 증명 누락과 본문 없는 MakeShop 재인증만 적었다. 2026-11-13 에 사용자가 MakeShop 통합의 `:id/reauthorize` · `:id/request-scopes` 를 이 코드로 거절한다고 정했다([OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청 「MakeShop 통합 재인증과 추가 권한 요청의 거절 코드를 정했다」](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13)). 그래서 두 경로를 행에 더하고 정의 문서에 그 요청 흐름을 적은 절을 더했다.
 
@@ -114,7 +122,9 @@ NERV Task `CLE-T-6G3084` 다. 행은 begin 의 자격 증명 누락과 본문 �
 - **규칙 6 의 예외 목록에 올렸다.** 이 개정 때 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 규칙 6 은 예외를 웹훅 인증의 `AUTH_FAILED` 하나로 적었다. 같은 날 NERV Task `CLE-T-H5NJZ3` 가 이 경우를 규칙 6 의 예외 목록에 더했다. 쓰는 표면은 MakeShop 통합의 두 경로뿐이다.
 - 행에 begin 의 검사 순서를 적었다. 자격 증명을 실은 begin 이 `new` 가 아닌 모드로 오면 모드 검사에 닿아 `MAKESHOP_USE_SHOPSTORE_INSTALL`(§3)이 나간다. 두 코드가 갈리는 지점이 이 순서다.
 
-### 정의 문서와 구현 서술을 맞췄다 (2026-11-14)
+### 정의 문서와 구현 서술을 맞췄다
+
+결정일: 2026-11-14
 
 NERV Task `CLE-T-6G3084` · `CLE-T-NFNMZG` · `CLE-T-FCN55B` · `CLE-T-4F33EZ` 다.
 
