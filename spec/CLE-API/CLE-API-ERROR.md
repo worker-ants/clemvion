@@ -2,19 +2,19 @@
 id: "CLE-API-ERROR"
 title: "에러 응답과 클라이언트 처리"
 type: "convention"
-version: 11
+version: 12
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "9f61e92547d9322ce7cb4a5c1431b5776c1be136b4a1dbea68055233253e2cf3"
+content_hash: "401737f392068f889af6e45286ab5660493bb096e2d5839966fc45fb959691d3"
 read_as: "approved_fallback"
 task: "CLE-T-KKJ2A0"
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "6a136bc089ee7f0191fe46659a0fd97d2c33f21b7aa075d7b508f57e8e6e4984"
-etag: "sha256-0aae325db3e17b50fffcfe234bffe95f7cb842455b40074e47a0f6b22800074a"
+mirror_sha256: "87a761117681029e6e3523f31d8cb1c10a71ed2034527dcb1d5ef66738fd63df"
+etag: "sha256-162bc120df52049a95f9ad32e7e00905becb6f97e15d86c3e642db7389c0ad04"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,7 +46,7 @@ etag: "sha256-0aae325db3e17b50fffcfe234bffe95f7cb842455b40074e47a0f6b22800074a"
 1. 모든 HTTP 에러 응답은 에러 응답 봉투 `{ error: { code, message, requestId, details? } }` 형식이다. 헬스 체크 준비 상태 API(`GET /api/health`)의 503 은 이 규칙의 예외다. 정상 응답과 같은 `{ data: { status, version, uptime, checks } }` 본문을 돌려준다([로깅과 헬스 체크 「`/api/health` 응답」](../CLE-OBS/CLE-OBS-LOGGING.md#apihealth-응답)).
 2. `message` 는 사람이 읽을 짧은 설명이다. 라이브러리 예외 메시지·스택·파일 경로 같은 내부 구현 원문을 싣지 않는다(CWE-209).
 3. 요청 ID(`requestId`)는 모든 에러 응답에 늘 싣는다.
-4. 에러 상세(`details`)는 추가 맥락이 있을 때만 싣는다. 배열과 객체 두 형태가 모두 유효하고 어느 형태를 쓸지는 발행 지점이 정해 그 엔드포인트 문서에 적는다.
+4. 에러 상세(`details`)는 추가 맥락이 있을 때만 싣는다. 5xx 에는 싣지 않는다(§2.1). 배열과 객체 두 형태가 모두 유효하고 어느 형태를 쓸지는 발행 지점이 정해 그 엔드포인트 문서에 적는다.
 5. `details` 항목에 `field` 를 실으면 `code` 도 싣는다. 도메인 사유가 없으면 `INVALID_FIELD` 를 쓴다.
 6. 도메인 세부 사유는 top-level `code` 를 바꾸는 자리와 `details[].code` 중 한 곳에만 싣는다. 같은 사유를 두 자리에 싣지 않는다.
 7. 새 에러 코드는 어느 자리에 싣든 [에러 코드 규약과 카탈로그](CLE-API-ERRCODES.md) 에 등재한다. 등재하지 않은 코드는 소비자가 알 방법이 없다.
@@ -108,7 +108,7 @@ etag: "sha256-0aae325db3e17b50fffcfe234bffe95f7cb842455b40074e47a0f6b22800074a"
 
 - body-parser 같은 http-errors 미들웨어가 던지는 4xx 는 상태별 고정 문구로 바꿔 보낸다. `413` 은 `"Request payload too large."`, 그 밖의 4xx 는 `"The request could not be processed."` 다.
 - `code` 를 지정하지 않은 `HttpException` 413 도 같은 고정 문구 `"Request payload too large."` 로 바꾼다. Nest 가 multer `LIMIT_FILE_SIZE` 를 바꾼 `PayloadTooLargeException`(원문 `"File too large"`)이 여기에 든다. `code` 를 지정한 413(공개 웹훅 `PUBLIC_WEBHOOK_BODY_TOO_LARGE` 등)은 발행 지점이 정한 코드와 문구를 그대로 둔다.
-- 5xx 는 `HttpException` 으로 던진 것도 `message` 를 고정 문구 `"An unexpected error occurred. Please try again later."` 로 바꾼다. 상태와 `code` 는 그대로 둔다(`code` 가 없으면 `INTERNAL_ERROR`). 처리하지 못한 내부 예외와 `Error` 가 아닌 값의 throw 는 500 `INTERNAL_ERROR` 이고 문구도 같다. 화면 문구는 클라이언트가 `code` 로 고른다.
+- 5xx 는 `HttpException` 으로 던진 것도 `message` 를 고정 문구 `"An unexpected error occurred. Please try again later."` 로 바꾼다. 상태와 `code` 는 그대로 두고 `details` 는 싣지 않는다(`code` 가 없으면 `INTERNAL_ERROR`). 처리하지 못한 내부 예외와 `Error` 가 아닌 값의 throw 는 500 `INTERNAL_ERROR` 이고 문구도 같다. 화면 문구는 클라이언트가 `code` 로 고른다.
 - 원문은 서버 로그에만 남긴다. 4xx 원문은 `logger.warn` 에, 5xx 원문은 상태 · `code` · `requestId` 와 함께 `logger.error` 에 남긴다.
 
 **검증 에러 항목**: ValidationPipe 가 만드는 항목은 `{ field, message, code: "INVALID_FIELD" }` 구조다. `field` 는 중첩·배열 경로를 `nodes[3].type` 형식으로 유지한다.
@@ -160,7 +160,7 @@ OpenAPI 에서는 `ErrorResponseDto` 가 `GlobalExceptionFilter` 출력을 1:1 �
 | **배열** `details: [{ field, message, code }]` | 여러 항목이 각각 실패할 수 있을 때 (ValidationPipe 다중 필드) | §2.1 예시 |
 | **객체** `details: { field, code, … }` | 도메인 예외 하나가 사유 하나를 붙일 때 | `TRIGGER_ENDPOINT_PATH_CONFLICT` (`{ field: 'endpoint_path', code: … }`) |
 
-`GlobalExceptionFilter` 는 `details` 를 값이 있을 때만 싣고 형태를 바꾸지 않고 그대로 넘긴다. OpenAPI 선언도 `type: 'object', additionalProperties: true` 로 열려 있다. 그래서 형태 선택은 발행 지점의 책임이고 그 엔드포인트를 문서화하는 절에 어느 형태인지 적는다.
+`GlobalExceptionFilter` 는 `details` 를 값이 있을 때만 싣고 형태를 바꾸지 않고 그대로 넘긴다. 5xx 는 예외로 `details` 를 싣지 않는다(§2.1). OpenAPI 선언도 `type: 'object', additionalProperties: true` 로 열려 있다. 그래서 형태 선택은 발행 지점의 책임이고 그 엔드포인트를 문서화하는 절에 어느 형태인지 적는다.
 
 ### 2.5 `field` 를 실으면 `code` 도 싣는다
 
@@ -343,10 +343,10 @@ NERV Task `CLE-T-HGBHF2` 에서 더했다. [통합 관리](../CLE-INT/CLE-INT-MA
 
 결정일: 2026-11-27
 
-규칙은 "5xx 는 일반 500 으로 가린다" 였지만 `GlobalExceptionFilter` 는 `HttpException` 으로 던진 5xx 의 `message` 를 그대로 냈다. `OAUTH_CONFIG_MISSING`(500)의 문구에는 환경 변수 이름이 들어 있었다(NERV Task `CLE-T-KKJ2A0`).
+규칙은 "5xx 는 일반 500 으로 가린다" 였지만 `GlobalExceptionFilter` 는 `HttpException` 으로 던진 5xx 의 `message` 를 그대로 냈다. `OAUTH_CONFIG_MISSING`(500)의 문구에는 환경 변수 이름이 들어 있었다(NERV Task `CLE-T-KKJ2A0`). `details` 도 같은 이유로 싣지 않는다. 지금 5xx 에 `details` 를 싣는 발행처는 없어서 잃는 정보가 없다.
 
 고정 문구도 하나로 모았다. 처리하지 못한 예외와 `Error` 가 아닌 throw 의 문구는 영문 두 가지였고 카탈로그 `INTERNAL_ERROR` 의 사용자 메시지는 한국어였다. 서버 `message` 는 영문 문구 하나로 둔다. 카탈로그의 사용자 메시지 열은 프런트엔드 화면 문구로 읽는다([에러 코드 카탈로그 시스템 코드](CLE-API-ERRCODES-SYSVAL.md) §6.1, NERV Task `CLE-T-V11GV1`).
 
 - **기각한 대안 (a)**: 5xx 를 모두 `INTERNAL_ERROR` 로 바꾸는 것. `WEBAUTHN_DISABLED` · `SERVER_SHUTTING_DOWN` · `EXECUTION_ENQUEUE_FAILED` 처럼 클라이언트가 분기하는 코드를 잃는다.
 - **기각한 대안 (b)**: 발행처마다 문구를 검토해 안전한 것만 통과시키는 것. 새 5xx 발행처가 생길 때마다 같은 누출을 리뷰로 막아야 한다. 그 리뷰를 강제하는 가드는 없다.
-- **대가**: 5xx 문구로 원인을 알리던 발행처(`OAUTH_CONFIG_MISSING`)는 프런트엔드 공용 코드 매핑에 화면 문구를 둬야 한다. 설치 엔드포인트(`@Res` 직접 응답)도 같은 규칙을 따른다([OAuth 설치 엔드포인트](../CLE-INT/CLE-INT-OAUTH-INSTALL.md)).
+- **대가**: 5xx 문구로 원인을 알리던 발행처(`OAUTH_CONFIG_MISSING`)는 프런트엔드 공용 코드 매핑에 화면 문구를 둬야 한다. 다른 5xx 코드는 화면이 바뀌지 않는다. `WEBAUTHN_DISABLED` 는 이미 공용 매핑에 있고 `EXECUTION_ENQUEUE_FAILED` 는 웹채팅 위젯이 `code` 로 처리하며 `SERVER_SHUTTING_DOWN` 은 원래도 일반 영문 문구였다. 설치 엔드포인트(`@Res` 직접 응답)도 같은 규칙을 따른다([OAuth 설치 엔드포인트](../CLE-INT/CLE-INT-OAUTH-INSTALL.md)).
