@@ -1641,6 +1641,70 @@ describe('IntegrationOAuthService', () => {
       },
     );
 
+    // 토큰 교환 실패도 같은 규칙이다. 같은 state 에서 mode 만 다르면 `reauthorize` 만 행에 기록된다(`mode !== 'new'` 가
+    // reauthorize 를 막는 회귀를 잡는 대조 쌍).
+    it.each([
+      ['new', false],
+      ['reauthorize', true],
+    ])(
+      'mode=%s state 의 토큰 교환 실패는 그 행에 기록 여부=%s',
+      async (mode, recorded) => {
+        delete process.env.OAUTH_STUB_MODE;
+        oauthMock.env.google = { clientId: 'cid', clientSecret: 'csec' };
+        const originalFetch = global.fetch;
+        (global as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({
+          ok: false,
+          status: 401,
+          text: async () => 'unauthorized',
+        });
+        const spy = jest
+          .spyOn(service, 'markIntegrationCallbackError')
+          .mockResolvedValue(undefined);
+        try {
+          dataSource.query.mockResolvedValue([
+            [
+              {
+                provider: 'google',
+                serviceType: 'google',
+                mode,
+                workspaceId: 'ws-1',
+                userId: 'u-1',
+                requestedScopes: ['scope'],
+                integrationId: 'int-token-fail',
+                expiresAt: new Date(Date.now() + 60_000),
+              },
+            ],
+            1,
+          ]);
+          const err = await service
+            .handleCallbackWithErrorCapture('google', {
+              code: 'bad-code',
+              state: 's',
+            })
+            .catch((err_: unknown) => err_);
+          expect((err as { response?: { code?: string } }).response?.code).toBe(
+            'OAUTH_TOKEN_EXCHANGE_FAILED',
+          );
+          if (recorded) {
+            expect(spy).toHaveBeenCalledWith(
+              'int-token-fail',
+              'ws-1',
+              'OAUTH_TOKEN_EXCHANGE_FAILED',
+              expect.any(String),
+              undefined,
+            );
+          } else {
+            expect(callbackContextOf(err)).toBeUndefined();
+            expect(spy).not.toHaveBeenCalled();
+          }
+        } finally {
+          spy.mockRestore();
+          global.fetch = originalFetch;
+          process.env.OAUTH_STUB_MODE = 'true';
+        }
+      },
+    );
+
     it('does NOT record when no callback context (pre-state-consumption mismatch)', async () => {
       dataSource.query.mockResolvedValue([[], 0]); // DELETE…RETURNING 0 rows
       const spy = jest.spyOn(service, 'markIntegrationCallbackError');
