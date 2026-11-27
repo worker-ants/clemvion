@@ -12,6 +12,7 @@ import {
   SsrfBlockedError,
 } from '../../../common/utils/ssrf/outbound-guard.js';
 import { DB_HOST_BLOCKED_MESSAGE } from './database-connection.js';
+import { integrationNotFoundError } from '../../../modules/integrations/integration-visibility.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 import { setEnvForEach, withEnv } from '../../../shared/testing/env';
@@ -1124,6 +1125,64 @@ describe('DatabaseQueryHandler', () => {
       };
       expect(output.error.code).toBe('INVALID_PARAMETERS');
       expect(output.error.message).toMatch(/JSON array/);
+    });
+
+    // 통합을 얻기 전에 잡힌 `IntegrationError` 아닌 예외는 쿼리를 시작하지 않았으므로 `mapDbError` 로 보내지 않는다.
+    // 분류되지 않은 실패 `INTEGRATION_CALL_FAILED` 다(CLE-NODE-DBQUERY-OUTPUT 에러 코드 표, CLE-T-MWR7C5).
+    it('maps a missing integration (RESOURCE_NOT_FOUND) to INTEGRATION_CALL_FAILED, not DB_QUERY_FAILED', async () => {
+      const { service, logUsage } = makeService();
+      service.getForExecution.mockRejectedValue(integrationNotFoundError());
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-missing', query: 'SELECT 1' },
+        ctx(),
+      )) as unknown as ErrorPortOutput;
+      expect(out.port).toBe('error');
+      expect(out.output.error.code).toBe('INTEGRATION_CALL_FAILED');
+      expect(out.output.error.message).toBe(integrationNotFoundError().message);
+      expect(out.output.error.details).toBeUndefined();
+      // 통합을 얻기 전 실패는 활동 로그를 남기지 않는다(REQ-INTMGMT-053 · 062).
+      expect(logUsage).not.toHaveBeenCalled();
+      expect(queryMock).not.toHaveBeenCalled();
+      await handler.shutdown();
+    });
+
+    it('maps a transient lookup failure before the query to INTEGRATION_CALL_FAILED even when it carries a driver code', async () => {
+      const { service, logUsage } = makeService();
+      // 통합 조회가 플랫폼 DB 의 연결 오류로 실패해도 사용자 DB 쿼리의 실패가 아니다. 드라이버 code 가 붙어 있어도
+      // `DB_CONNECTION_ERROR` 로 읽지 않는다.
+      service.getForExecution.mockRejectedValue(
+        Object.assign(new Error('Connection terminated unexpectedly'), {
+          code: 'ECONNRESET',
+        }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT 1' },
+        ctx(),
+      )) as unknown as ErrorPortOutput;
+      expect(out.port).toBe('error');
+      expect(out.output.error.code).toBe('INTEGRATION_CALL_FAILED');
+      expect(out.output.error.details).toBeUndefined();
+      expect(logUsage).not.toHaveBeenCalled();
+      await handler.shutdown();
+    });
+
+    it('still classifies a driver error thrown by the query with mapDbError after the integration is acquired', async () => {
+      const { service } = makeService();
+      queryMock.mockRejectedValue(
+        Object.assign(new Error('connection reset'), { code: 'ECONNRESET' }),
+      );
+      const handler = new DatabaseQueryHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT 1' },
+        ctx(),
+      )) as unknown as ErrorPortOutput;
+      expect(out.output.error.code).toBe('DB_CONNECTION_ERROR');
+      await handler.shutdown();
     });
 
     it('routes missing integrations service to port:error (D4)', async () => {

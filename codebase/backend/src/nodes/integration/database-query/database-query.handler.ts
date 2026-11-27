@@ -235,6 +235,9 @@ export class DatabaseQueryHandler
     // 얻은 통합. 활동 로그는 이 통합에만 남긴다 — 얻기 전에 끝난 실패(파라미터 파싱 · 서비스 미주입 · 워크스페이스
     // 확인 · 조회 거절 · 조회 중 일시 오류)는 기록하지 않는다(REQ-INTMGMT-053 · 062).
     let integration: Integration | undefined;
+    // 쿼리를 시작했는지. 시작 전에 잡힌 `IntegrationError` 아닌 예외(통합 조회 거절 `RESOURCE_NOT_FOUND`, 조회 중
+    // 일시 오류 등)는 사용자 DB 의 실패가 아니라서 `mapDbError` 로 분류하지 않는다(아래 catch, CLE-T-MWR7C5).
+    let queryStarted = false;
     try {
       const parameters = parseParameters(config.parameters);
 
@@ -259,7 +262,7 @@ export class DatabaseQueryHandler
       // SSRF/DNS-rebinding guard: 사용자 제공 DB host 가 loopback/private IP 로
       // 해석되면 차단. 정상 사용 사례 (private VPC 안 RDS) 는 환경변수
       // ALLOW_PRIVATE_HOST_TARGETS=true 로 의식적 opt-in (W-5).
-      // 차단 시 공용 guard 의 plain Error 를 전용 `DB_HOST_BLOCKED` 로 승격해
+      // `runSsrfPreflight` 가 돌려준 판정이 `blocked` 면 전용 `DB_HOST_BLOCKED` 로 던져
       // HTTP(`HTTP_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)과 대칭으로 surface 한다.
       // 메시지는 차단된 host/IP 를 노출하지 않는 일반화 문구 — 정찰 면 축소.
       // 판정 원문(host · IP)은 헬퍼가 서버 경고 로그에만 남긴다(CLE-T-CT6SHS · CLE-T-NTKWWV). 활동 로그(`toLogError`)는
@@ -293,6 +296,7 @@ export class DatabaseQueryHandler
       }
 
       driver = creds.driver ?? 'postgres';
+      queryStarted = true;
       const result =
         driver === 'mysql'
           ? await this.executeMysql(
@@ -350,13 +354,23 @@ export class DatabaseQueryHandler
       // 두 갈래로 승격돼 온다 — 차단 판정은 `DB_HOST_BLOCKED`, 판정 아닌 오류(가드의
       // 고장)는 `INTEGRATION_CALL_FAILED`. 둘 다 IntegrationError 라 여기서 code 가
       // 보존되고 `mapDbError` 로는 흐르지 않는다.
+      // 쿼리를 시작하기 전에 잡힌 그 밖의 예외(통합 조회 거절 `RESOURCE_NOT_FOUND`, 조회 중 일시 오류)는 드라이버
+      // code 가 붙어 있어도 사용자 DB 의 실패가 아니다. 분류되지 않은 실패 `INTEGRATION_CALL_FAILED` 로 낸다(HTTP
+      // Request · Cafe24 와 같다. [통합 노드 공통 「공통 에러 코드」](CLE-NODE-INT-COMMON-ERROR#공통-에러-코드)).
       const errorEnvelope =
         err instanceof IntegrationError
           ? {
               code: err.code,
               message: sanitizeMessage(err.message),
             }
-          : mapDbError(err, driver);
+          : queryStarted
+            ? mapDbError(err, driver)
+            : {
+                code: 'INTEGRATION_CALL_FAILED',
+                message: sanitizeMessage(
+                  err instanceof Error ? err.message : String(err),
+                ),
+              };
       return {
         config: configEcho,
         output: {
