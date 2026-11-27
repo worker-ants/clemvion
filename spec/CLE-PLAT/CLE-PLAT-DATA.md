@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA"
 title: "데이터 모델 개요"
 type: "design"
-version: 16
+version: 17
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "db9e86e79849056a24990826f718d06d263db4f5ab16090e603dbdc7b4eb356d"
+content_hash: "f60985a62f0362bcdc9af9a05a39d062a0a931adabd8714316d69e0b6b825a39"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-72BN09"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "f441ac6ab851ee8faec3753cd4afc22bbb1ebf00027ea28412a34efb1b4ef14b"
-etag: "sha256-8bdadff66fcd88b2f1eab5df031f7439c93fec3765748f63b48cd58f29c377c4"
+mirror_sha256: "abf78c82603596036089736758c85a83cdeeed9bfdd0b8b8cdacab0e4c13741d"
+etag: "sha256-2bbd5b73e82ff8e893e367ab435d6b87368a561e5151f1933ef3f448fd85b945"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -195,7 +195,7 @@ erDiagram
 4. **FK 표기**: FK 컬럼은 `FK → 부모 (삭제 동작)` 으로 적는다. 모든 FK 행에 삭제 동작을 적는다. 동작 목록은 [FK 삭제 동작](CLE-PLAT-DATA-FK.md#fk-삭제-동작) 에 있다. 범위 참조([범위 참조의 DB 제약](CLE-PLAT-DATA-FK.md#범위-참조의-db-제약))는 괄호에 범위를 덧붙인다. 예: `FK → Workflow (CASCADE, 같은 워크스페이스)`, `FK → Node (SET NULL, 같은 워크플로우)`. 이 표기의 SET NULL 은 참조 컬럼만 비운다.
 5. **워크스페이스 소속**: 워크스페이스 리소스는 `workspace_id` 로 워크스페이스에 속하고, 워크스페이스를 지우면 CASCADE 로 함께 지워진다. 시크릿 저장소만 `workspace_id` 에 FK 가 없고 앱이 트리거 단위로 정리한다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)).
 6. **비정규화 컬럼**: 조회를 빠르게 하려고 부모의 부모를 함께 적는 컬럼이 있다. 활동 로그의 `workflow_id`, 청크의 `knowledge_base_id`, 테스트 데이터셋의 `workspace_id` 가 그 예다. 테스트 데이터셋의 `workspace_id` 는 복합 외래 키(composite foreign key, 복합 FK)가 워크플로우의 워크스페이스와 같게 지킨다([범위 참조의 DB 제약](CLE-PLAT-DATA-FK.md#범위-참조의-db-제약)).
-7. **스키마의 기준**: 스키마는 Flyway SQL 마이그레이션이 만들고 ORM(TypeORM)이 만들지 않는다(`synchronize: false`). 엔티티 파일(`*.entity.ts`)과 마이그레이션이 다르면 마이그레이션이 기준이다. 둘 사이의 drift 는 e2e 가드 `entity-schema-declarations` 가 잡는다. 인덱스와 제약은 선언에서 DB 한 방향으로, 컬럼 정의는 양방향으로 대조한다. 관계 FK 는 선언한 컬럼 그대로이거나, 선언한 단일 컬럼 뒤에 같은 범위 컬럼(`workspace_id` · `workflow_id`)을 자식 · 부모에 하나씩 덧붙인 복합 FK 면 같다고 본다. 그런 복합 FK 의 SET NULL 은 참조 컬럼만 비워야 한다([Rationale](CLE-PLAT-DATA-FK.md#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05)).
+7. **스키마의 기준**: 스키마는 Flyway SQL 마이그레이션이 만들고 ORM(TypeORM)이 만들지 않는다(`synchronize: false`). 엔티티 파일(`*.entity.ts`)과 마이그레이션이 다르면 마이그레이션이 기준이다. 둘 사이의 drift 는 e2e 가드 `entity-schema-declarations` 가 잡는다. 인덱스와 제약은 선언에서 DB 한 방향으로, 컬럼 정의는 양방향으로 대조한다. 관계 FK 는 선언한 컬럼 그대로이거나, 선언한 단일 컬럼 뒤에 같은 범위 컬럼(`workspace_id` · `workflow_id`)을 자식 · 부모에 하나씩 덧붙인 복합 FK 면 같다고 본다. 그런 복합 FK 의 SET NULL 은 참조 컬럼만 비워야 한다([Rationale](CLE-PLAT-DATA-FK.md#워크스페이스-범위-참조를-복합-fk-로도-막는다)).
 8. **응답 노출**: 해시·토큰 같은 민감 컬럼을 API 응답에서 빼는 규칙은 엔티티 소유 문서가 정한다. 예: 사용자 민감 컬럼 7개는 [계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md).
 
 ## 하위 문서
@@ -224,7 +224,7 @@ TypeORM 의 find 계열(`find` · `findOne` · `findBy` · `findOneBy` · `exist
 - 리터럴 `null` · `undefined` 를 `never` · `any` · `unknown` 으로 단언하는 캐스트(`null as never` 등)는 백엔드 프로덕션 소스(`codebase/backend/src` 의 비-spec `.ts`)에 두지 않는다. 그 캐스트는 where 의 null 을 타입 검사에서 숨긴다. 가드 `nullable-type-lie-cast` 가 이 형태 하나를 막는다. 식 전체를 단언하는 형태(`(x ?? null) as never`, `{ … } as FindOptionsWhere<…>`)는 가드가 보지 않는다.
 - 영속 데이터에서 꺼낸 id 처럼 타입이 보장하지 않는 값은 실패를 분류해야 하는 자리에서 조회 전에 확인한다. 확인하지 않은 자리는 위 예외가 마지막 방어선이다. 지금 확인하는 곳은 호출 스택(`resume_call_stack`)의 frame 하나다. `workflowId` · `invokerNodeId` 가 비면 조회하지 않고 `RESUME_CHECKPOINT_MISSING` 으로 마감한다([장애 복구와 안전 종료](../CLE-EXEC/CLE-EXEC-RECOVERY.md)).
 
-근거는 [Rationale](#where-의-null--undefined-를-예외로-막는다-2026-10-04) 에 있다.
+근거는 [Rationale](#where-의-null--undefined-를-예외로-막는다) 에 있다.
 
 ## FK 삭제 동작
 
@@ -263,11 +263,15 @@ TypeORM 의 find 계열(`find` · `findOne` · `findBy` · `findOneBy` · `exist
 
 ## Rationale
 
-### 노드의 통합 참조는 저장할 때 보고 복제·가져오기·복원은 비운다 (2026-10-24)
+### 노드의 통합 참조는 저장할 때 보고 복제·가져오기·복원은 비운다
 
-→ [데이터 모델 개요 — 노드의 통합 참조](CLE-PLAT-DATA-INTREF.md#노드의-통합-참조는-저장할-때-보고-복제가져오기복원은-비운다-2026-10-24)
+결정일: 2026-10-24
 
-### where 의 null · undefined 를 예외로 막는다 (2026-10-04)
+→ [데이터 모델 개요 — 노드의 통합 참조](CLE-PLAT-DATA-INTREF.md#노드의-통합-참조는-저장할-때-보고-복제가져오기복원은-비운다)
+
+### where 의 null · undefined 를 예외로 막는다
+
+결정일: 2026-10-04
 
 TypeORM 0.3 은 where 의 null · undefined 키를 조용히 빼고 조회했다. 그래서 `{ id, workspaceId }` 의 `workspaceId` 가 undefined 면 워크스페이스 조건 없이 조회돼 범위가 넓어졌다. [참조의 소속](CLE-PLAT-DATA-REFSCOPE.md#참조의-소속) 이 저장 때 막는 것과 같은 종류의 경계 침범이 조회 조건에서도 값 하나로 생기는 구조다. 이것은 조회 조건 하나하나를 방어선으로 삼는다는 뜻이 아니다. 경계는 여전히 저장 때 지키고, 조회 조건은 그 경계를 넓히지 않아야 한다는 뜻이다. 트리거 · 스케줄의 워크플로우 참조에 대한 두 번째 방어선은 실행 엔진 진입 한 곳에 둔다(2026-10-05 보완, [저장된 교차 행 점검](CLE-PLAT-DATA-REFSCOPE.md#저장된-교차-행-점검)). TypeORM 1 은 이 경우를 예외로 막는 것이 기본값이고, 1.x 상향에서 그 기본값을 따르기로 했다(사람 결정). 앱 루트와 eval CLI 에는 같은 값을 명시해 라이브러리 기본값이 바뀌어도 동작이 그대로이게 했다.
 
@@ -275,7 +279,9 @@ TypeORM 0.3 은 where 의 null · undefined 키를 조용히 빼고 조회했다
 
 타입이 `string` 이어도 런타임에 비는 값(영속 데이터에서 꺼낸 id 등)은 정적으로 가려낼 수 없다. DataSource 옵션 파일과 단위 가드를 구현 위치에 넣은 것은 그 둘이 이 규칙의 시행 지점이라서다. 풀 설정 변경도 이 문서와 대조되는 비용은 받아들인다. 그런 자리에서 예외는 조회 범위가 넓어지는 대신 실패로 드러나는 쪽이다. 실행 재개의 call-stack frame 은 일반 예외 대신 체크포인트 결손으로 분류하도록 조회 전에 확인한다.
 
-### 전용 e2e 가드를 구현 위치에 나열한 이유 (2026-09-19)
+### 전용 e2e 가드를 구현 위치에 나열한 이유
+
+결정일: 2026-09-19
 
 이 문서의 사실을 기계적으로 지키는 e2e 를 구현 위치에 넣었다(사용자 결정). `deletion-cascade-indexes` 는 FK 인덱스를, `trigger-endpoint-path-dedupe` 는 웹훅 경로 중복 정리(V131)를, `entity-schema-declarations` 는 엔티티 선언과 DB 를 지킨다. 인덱스와 제약은 선언에서 DB 한 방향으로, 컬럼 정의는 양방향으로 본다. `webhook-endpoint-reservation` 은 웹훅 경로 예약(V133 백필과 DB 트리거)을 지킨다([트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) «지우거나 바꾼 웹훅 경로를 영구 예약하는 결정»). `composite-fk-scope` 는 범위 참조의 복합 FK 와 V134 사전 점검을 지킨다(2026-10-05). 구현 위치에 넣은 목적은 이 파일을 고치는 변경도 이 문서와 대조하는 것이다. 가드를 약하게 고치는 변경이 코드 리뷰만 거치고 지나가지 않게 하려는 것이다.
 
@@ -288,22 +294,32 @@ TypeORM 0.3 은 where 의 null · undefined 키를 조용히 빼고 조회했다
 
 옛 데이터 모델 문서는 모든 엔티티의 컬럼을 한 문서에 두었다. 그런데 그 문서에 없는 테이블 다섯(`workspace_invitation`, `auth_oauth_state`, `integration_oauth_state`, `integration_oauth_preview`, `integration_expiry_dispatch`)은 데이터 흐름 문서에만 컬럼이 있었다. 데이터 흐름 문서는 엔티티 정의가 데이터 모델 문서에 있다고 선언하면서도 실제로는 일부 정의를 스스로 들고 있었다. 이 문서는 엔티티 목록과 소유 문서만 두고, 컬럼 정의는 흐름과 함께 읽히는 영역 데이터 문서가 온전히 갖는다. 다섯 테이블도 각자의 소유 문서가 컬럼을 정한다.
 
-### 워크스페이스 범위 참조를 복합 FK 로도 막는다 (2026-10-05)
+### 워크스페이스 범위 참조를 복합 FK 로도 막는다
 
-→ [데이터 모델 개요 — 외래 키와 범위 제약](CLE-PLAT-DATA-FK.md#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05)
+결정일: 2026-10-05
 
-### 저장된 교차 행은 실행 때 한 번 더 막고 운영 점검으로 찾는다 (2026-10-05)
+→ [데이터 모델 개요 — 외래 키와 범위 제약](CLE-PLAT-DATA-FK.md#워크스페이스-범위-참조를-복합-fk-로도-막는다)
 
-→ [데이터 모델 개요 — 참조의 소속](CLE-PLAT-DATA-REFSCOPE.md#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다-2026-10-05)
+### 저장된 교차 행은 실행 때 한 번 더 막고 운영 점검으로 찾는다
 
-### 본문 참조 id 도 저장 전에 소속을 본다 (2026-09-27)
+결정일: 2026-10-05
 
-→ [데이터 모델 개요 — 참조의 소속](CLE-PLAT-DATA-REFSCOPE.md#본문-참조-id-도-저장-전에-소속을-본다-2026-09-27)
+→ [데이터 모델 개요 — 참조의 소속](CLE-PLAT-DATA-REFSCOPE.md#저장된-교차-행은-실행-때-한-번-더-막고-운영-점검으로-찾는다)
 
-### 모든 FK 행에 삭제 동작을 적는 이유 (2026-09-19)
+### 본문 참조 id 도 저장 전에 소속을 본다
 
-→ [데이터 모델 개요 — 외래 키와 범위 제약](CLE-PLAT-DATA-FK.md#모든-fk-행에-삭제-동작을-적는-이유-2026-09-19)
+결정일: 2026-09-27
 
-### 쓸 인덱스가 없는 FK 서른하나의 처분 (2026-09-18)
+→ [데이터 모델 개요 — 참조의 소속](CLE-PLAT-DATA-REFSCOPE.md#본문-참조-id-도-저장-전에-소속을-본다)
 
-→ [데이터 모델 개요 — 인덱스 전략](CLE-PLAT-DATA-INDEX.md#쓸-인덱스가-없는-fk-서른하나의-처분-2026-09-18)
+### 모든 FK 행에 삭제 동작을 적는 이유
+
+결정일: 2026-09-19
+
+→ [데이터 모델 개요 — 외래 키와 범위 제약](CLE-PLAT-DATA-FK.md#모든-fk-행에-삭제-동작을-적는-이유)
+
+### 쓸 인덱스가 없는 FK 서른하나의 처분
+
+결정일: 2026-09-18
+
+→ [데이터 모델 개요 — 인덱스 전략](CLE-PLAT-DATA-INDEX.md#쓸-인덱스가-없는-fk-서른하나의-처분)

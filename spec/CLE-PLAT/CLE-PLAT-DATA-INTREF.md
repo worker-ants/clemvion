@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA-INTREF"
 title: "데이터 모델 개요 — 노드의 통합 참조"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT-DATA"
 ancestors: ["CLE-VISION", "CLE-PLAT", "CLE-PLAT-DATA"]
 area: "CLE-PLAT"
-content_hash: "430356954a2b8878f0b60ad9db20bdcb2e6284428b311d157225f6fa838bddae"
+content_hash: "9be9868daab7402f28dd4a61e039200836cd5e99e86bed8ed814a7e89de9d5f4"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "f16fd4b6a26fc6d5a30cf5db3b75b11d2e0e3f528789742b58ad6442a73a80ed"
-etag: "sha256-dcd6ab57d0b089ca06c8ece8f72003a7691345587e6de900f5e066b4b1566fe1"
+mirror_sha256: "18d25ffac36524d1582edfa1a313266d70d29eaab08e5d279303800022dabc1b"
+etag: "sha256-9b86eb284316e06f0ca033bfced0d63ddf4ece3c1b67d3de72966798e45e73da"
 ---
 ## 개요
 
@@ -69,7 +69,9 @@ etag: "sha256-dcd6ab57d0b089ca06c8ece8f72003a7691345587e6de900f5e066b4b1566fe1"
 
 ## Rationale
 
-### 노드의 통합 참조는 저장할 때 보고 복제·가져오기·복원은 비운다 (2026-10-24)
+### 노드의 통합 참조는 저장할 때 보고 복제·가져오기·복원은 비운다
+
+결정일: 2026-10-24
 
 노드 `config.integrationId`·`config.mcpServers[].integrationId` 는 2026-09-27 의 본문 참조 검사에 들지 않았다. 그때 표는 컬럼에 저장되는 참조 id 만 대상으로 했다. 노드 `config` 같은 JSONB 안의 id 참조는 다루지 않았다. 2026-10-24 에 개인 통합의 노드 사용 기준을 워크플로우 작성자로 정하면서([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale) 저장 경로에도 검사를 두기로 했다(2026-10-24 사용자 결정). 실행 시점에만 막으면 사용자는 실행해 보기 전까지 노드가 깨진 줄 모른다.
 

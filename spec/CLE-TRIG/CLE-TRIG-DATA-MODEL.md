@@ -2,19 +2,19 @@
 id: "CLE-TRIG-DATA-MODEL"
 title: "트리거 데이터와 흐름 — 엔티티"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-DATA"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-DATA"]
 area: "CLE-TRIG"
-content_hash: "614422f81f3ec66168a4bf15cc7b46262244e23508b2862a8896ad5cff1c5035"
+content_hash: "66434213faa75af5e75bf9ea885a0a1059067221a289062dddfcfb798f6668dc"
 read_as: "approved_fallback"
-task: "CLE-T-XQYZR7"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "c9e5f33756167a65fa8a13ccfedc7becd7d80b46f0141edfd225cce8a23233ec"
-etag: "sha256-39b105e1579dc8774a7842752f2c577433996120c9bf85ecc51c3d45e8588cc2"
+mirror_sha256: "a1472d01715ae3735a121c15d71e960abdc87e83f1cc2dcb8b2e57e5d2aaddb4"
+etag: "sha256-188b60b2377c291cd5e491e8d3611eadd3c13b0580676cc0231a37ebb11a7db8"
 ---
 ## 개요
 
@@ -36,11 +36,11 @@ etag: "sha256-39b105e1579dc8774a7842752f2c577433996120c9bf85ecc51c3d45e8588cc2"
 | auth_config_id | UUID? | FK → AuthConfig (SET NULL, 같은 워크스페이스). 웹훅 인증. NULL 이면 인증 없음 |
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
 | notification_health | VARCHAR(16) | `unknown` / `healthy` / `degraded` 세 값만 받는다(CHECK 제약, V059). EIA 알림 웹훅 발송 건강도. 기본 `unknown`. `degraded` 가 되는 원인은 [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) 의 「재시도와 실패 처리」 와 「폭주 감지」 가 정한다 |
-| notification_last_error | Text? | EIA 알림 웹훅 발송 건강도가 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 발송 실패면 그 실패 사유이고 폭주면 폭주 전용 문구다. 응답에서는 자격 증명 모양을 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
+| notification_last_error | Text? | EIA 알림 웹훅 발송 건강도가 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 발송 실패면 그 실패 사유이고 폭주면 폭주 전용 문구다. 응답에서는 자격 증명 모양을 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류)) |
 | notification_secret_v2 | Text? | EIA 알림 웹훅 HMAC 시크릿 교체의 24시간 유예 동안 쓰는 새 시크릿. NOT NULL 이면 발송 쪽이 주 시크릿(트리거 id 로 다시 만든 참조 `secret://triggers/<id>/notification-signing` 이 가리키는 값. 저장된 `config.notification.signing.secretRef` 는 있는지만 본다)과 이 값으로 각각 서명해 `v1=` 를 두 개 싣는다. 저장 형태는 시크릿 참조(`secret://`)가 아니라 컬럼에 담긴 평문이고 승격하면 컬럼을 `null` 로 비운다. 이 예외의 조건과 근거는 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 의 저장소 예외 필드 등재가 정한다. 교체 흐름은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) |
 | notification_rotated_at | Timestamp? | 시크릿 교체 시작 시각(유예 종료 판정용) |
 | chat_channel_health | VARCHAR(16) | `unknown` / `healthy` / `degraded` 세 값만 받는다(CHECK 제약, V062). 채팅 채널의 동작 상태. `degraded` 가 되는 원인은 [채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도) 가 정한다. 기본 `unknown`. 값 집합과 저장 형태는 `notification_health` 와 같다 |
-| chat_channel_last_error | Text? | 채팅 채널이 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 어댑터 실패(렌더 · 발송 · 채널 설정)면 그 에러 메시지이고 그 밖의 원인은 서버가 정한 문구다. 화면은 번역하지 않고 그대로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). 새로 저장되는 값에서는 프로바이더 API 클라이언트가 자기 실패 문장의 봇 토큰을 지우고 응답에서는 자격 증명 모양을 가린다(한계까지 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
+| chat_channel_last_error | Text? | 채팅 채널이 마지막으로 `degraded` 가 된 이유(잘릴 수 있음). 어댑터 실패(렌더 · 발송 · 채널 설정)면 그 에러 메시지이고 그 밖의 원인은 서버가 정한 문구다. 화면은 번역하지 않고 그대로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). 새로 저장되는 값에서는 프로바이더 API 클라이언트가 자기 실패 문장의 봇 토큰을 지우고 응답에서는 자격 증명 모양을 가린다(한계까지 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류)) |
 | chat_channel_setup_at | Timestamp? | `setupChannel()` 성공 시각. setup 을 하지 않았으면 NULL |
 | chat_channel_token_v2 | Text? | 봇 토큰 재발급의 24시간 유예 동안 **옛** 봇 토큰을 백업한 시크릿 참조(`secret://triggers/{id}/bot-token.v2`). 토큰이 아니라 참조만 둔다. primary 로 올리는 단계는 없고 유예가 끝나면 지운다. `notification_secret_v2` 와 이름 패턴은 같지만 등급(평문 대 참조)과 뜻(새 값 대 옛 값)이 다르다. 기준은 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) |
 | chat_channel_rotated_at | Timestamp? | 봇 토큰 재발급 시작 시각(유예 종료 판정용) |

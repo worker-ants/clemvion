@@ -2,19 +2,19 @@
 id: "CLE-NODE-OUTPUT"
 title: "노드 출력 규약"
 type: "convention"
-version: 19
+version: 20
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE"
 ancestors: ["CLE-VISION", "CLE-NODE"]
 area: "CLE-NODE"
-content_hash: "0850904764660b2878d9f10af4691c98fc43d9eee31861a4c48cd880175ef696"
+content_hash: "cd4bdbaac917a7fc33cc99cfeb993ad6c2482265c24103b52e75e773737e1a93"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-72BN09"
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "02932c4cb857f439ee43375910d282f79f8abe17660c93ccb8bb10bc399d24a5"
-etag: "sha256-3e65cfbff591c0c77f5f661724a63650e8ce3cadf0db44090d7d1ef0e50204a3"
+mirror_sha256: "69044edcbcfa01b102f020409d329c12ef23074579bc1f44a3b8379565d7c389"
+etag: "sha256-5a1c6a26914f9b018b117d94729f4703cf488793c222b9801e2af845ad21cf8a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -66,7 +66,7 @@ etag: "sha256-3e65cfbff591c0c77f5f661724a63650e8ce3cadf0db44090d7d1ef0e50204a3"
    | `wire 전용 (chat-channel 렌더러)` | `payload` · `title` · `rendered` · `nodeType` | Discord·Telegram·Slack 렌더러(평면 레거시 형태) |
 
    이 8키는 `nodeOutput` 안(노드 출력 층)의 키다. 봉투 층에도 `interactionType` · `buttonConfig` 같은 키가 있다. 봉투 키는 [WebSocket 이벤트와 명령](../CLE-API/CLE-API-WS-EVENTS.md)과 [입력 대기 이벤트](../CLE-API/CLE-API-WS-EVENTS-WAITING.md)가 정한다.
-5. 다섯 필드 목록을 넓히지 않는다. wire 전용 키는 핸들러가 만드는 값이 아니라 전송 조립 계층이 만드는 값이다. 정본 목록은 `codebase/backend/src/nodes/core/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS` 다. 컴파일 타임 assertion 이 다섯 필드를 묶고 나머지 8키는 리터럴 테스트가 지킨다. 범위 표는 [응답 자격 증명 마스킹 §3.8](../CLE-API/CLE-API-EGRESS.md#38-외부-nodeoutput-의-fail-closed-허용-목록-2026-08-23-2026-08-24)이 가진다. 갈래 라벨은 그 표와 같은 문구를 쓴다.
+5. 다섯 필드 목록을 넓히지 않는다. wire 전용 키는 핸들러가 만드는 값이 아니라 전송 조립 계층이 만드는 값이다. 정본 목록은 `codebase/backend/src/nodes/core/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS` 다. 컴파일 타임 assertion 이 다섯 필드를 묶고 나머지 8키는 리터럴 테스트가 지킨다. 범위 표는 [응답 자격 증명 마스킹 §3.8](../CLE-API/CLE-API-EGRESS.md#38-외부-nodeoutput-의-fail-closed-허용-목록)이 가진다. 갈래 라벨은 그 표와 같은 문구를 쓴다.
 6. 내부 최상위 필드 세 개는 다섯 필드 밖 최상위 위치를 예외로 허용한다. `_resumeState`(멀티턴 입력 대기·재개 중 내부 전달), `_resumeCheckpoint`(재시작 뒤 재개용 DB 보존 부분집합), `_retryState`(재시도 가능 에러로 끝날 때 DB 보존)다. 세 필드는 표현식 해석기와 자동완성에 노출하지 않고, 자격 증명 제외 정책도 같다. 자세한 규칙은 [4.2.1](CLE-NODE-OUTPUT-FLOW.md#421-보존-예외--_resumecheckpoint--_retrystate)에 있다.
 7. 출력 값이 배열이나 원시값(문자열 · 숫자 · 불리언 · `null`)이어도 다음 노드는 그 값을 그대로 받는다. `$input` 과 `$node["X"].output` 은 핸들러가 `output` 에 둔 값과 같다. `port` · `status` · `meta` 가 함께 있어도 `{ data: … }` 같은 객체로 감싸지 않는다. 사용자 코드가 `{ data: [...] }` 객체를 돌려주면 그 객체가 출력 값이다. 엔진이 포트 라우팅을 위해 이 값을 어떻게 들고 다니는지는 [노드 핸들러 계약 §포트 선택](../CLE-EXEC/CLE-EXEC-HANDLER.md#포트-선택)에 있다. 실행 결과(`Execution.outputData`) · 동기 서브워크플로 결과 · Background 본문 · 재개 뒤의 값 · 컨테이너 emit · Parallel 분기 결과도 같고 `_selectedPort` 같은 엔진 내부 키가 붙지 않는다([다음 노드가 받는 값](CLE-NODE-OUTPUT-VALUE.md)).
 

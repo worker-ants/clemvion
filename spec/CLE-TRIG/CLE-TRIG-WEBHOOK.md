@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK"
 title: "웹훅"
 type: "feature"
-version: 16
+version: 17
 status: "approved"
 requirements: ["REQ-WEBHOOK-001", "REQ-WEBHOOK-002", "REQ-WEBHOOK-003", "REQ-WEBHOOK-004", "REQ-WEBHOOK-005", "REQ-WEBHOOK-006", "REQ-WEBHOOK-007", "REQ-WEBHOOK-008", "REQ-WEBHOOK-009", "REQ-WEBHOOK-010", "REQ-WEBHOOK-011", "REQ-WEBHOOK-012", "REQ-WEBHOOK-013", "REQ-WEBHOOK-014", "REQ-WEBHOOK-015", "REQ-WEBHOOK-016", "REQ-WEBHOOK-017", "REQ-WEBHOOK-018", "REQ-WEBHOOK-019", "REQ-WEBHOOK-020", "REQ-WEBHOOK-021", "REQ-WEBHOOK-022", "REQ-WEBHOOK-023", "REQ-WEBHOOK-024", "REQ-WEBHOOK-025", "REQ-WEBHOOK-026", "REQ-WEBHOOK-027", "REQ-WEBHOOK-028", "REQ-WEBHOOK-029", "REQ-WEBHOOK-030", "REQ-WEBHOOK-031", "REQ-WEBHOOK-032", "REQ-WEBHOOK-033", "REQ-WEBHOOK-034", "REQ-WEBHOOK-035", "REQ-WEBHOOK-036", "REQ-WEBHOOK-037", "REQ-WEBHOOK-038", "REQ-WEBHOOK-039", "REQ-WEBHOOK-040", "REQ-WEBHOOK-041", "REQ-WEBHOOK-042", "REQ-WEBHOOK-043", "REQ-WEBHOOK-044", "REQ-WEBHOOK-045", "REQ-WEBHOOK-046", "REQ-WEBHOOK-047", "REQ-WEBHOOK-048", "REQ-WEBHOOK-049", "REQ-WEBHOOK-050", "REQ-WEBHOOK-051", "REQ-WEBHOOK-052", "REQ-WEBHOOK-053"]
 basis_superseded: false
 parent: "CLE-TRIG"
 ancestors: ["CLE-VISION", "CLE-TRIG"]
 area: "CLE-TRIG"
-content_hash: "a49415f2224d40fbe44ee1d855957e6e4ffd012192a645d2480b0dfac30698f6"
+content_hash: "621cd0d2578239de606b5e8ebdf9a20b219ed0d1f6d44937bb1a52463709cbab"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-72BN09"
 source_paths: ["spec/5-system/12-webhook.md"]
-mirror_sha256: "88e894d7ffe1eb70b472f4a25009b60c1c7040cb90b19d42c484c98b02f72dd6"
-etag: "sha256-f54428821bbe5d50fa57b12294ed9aa3853dcbd7b360d68194e8a291550b1939"
+mirror_sha256: "04fa03356f66bb0a23e4e544ee11a4fdef246372b69f47333dc681fc8030f292"
+etag: "sha256-16037dd4dcbba7b1c4bde701ffd48e020526877c962b2de3b489cfe707dd34c4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/12-webhook.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -197,7 +197,9 @@ flowchart TD
 
 채팅 채널은 웹훅 트리거의 `config.chatChannel` 한 갈래로 동작하지만 어댑터 설계와 provider 별 정의가 따로 떨어지는 별도 층이라 [채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) 로 나눴다. 이 문서는 `chatChannel` config 의 위치, WH-MG-08/09 관리 요구사항, 처리 흐름의 분기점만 정한다. 어댑터 인터페이스, provider 별 정의, EIA 와의 관계는 모두 채팅 채널 문서가 정한다. 트리거 유형 목록(수동·웹훅·스케줄 세 가지)은 그대로다.
 
-### 수신 헤더 마스킹을 저장 시점에 하는 이유 (2026-07-07)
+### 수신 헤더 마스킹을 저장 시점에 하는 이유
+
+결정일: 2026-07-07
 
 → [웹훅 — 인증과 워크플로우 입력](CLE-TRIG-WEBHOOK-AUTH.md#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07)
 

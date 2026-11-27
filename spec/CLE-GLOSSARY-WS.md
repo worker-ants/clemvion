@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-WS"
 title: "용어 사전 — 제품과 워크스페이스"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "9e40b58e6c7e44fe08683e3050f1b85646d0733c923542008cd6c82f32a9d6e8"
+content_hash: "c001a98ecbb476cb370ab75f2e087a3410e4c907ce6a46cca9381cece28fd006"
 read_as: "approved_fallback"
-task: "CLE-T-TV4VA8"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "cafb426b3ba3c23c0635e02ed3e8fb0f56556682ebf73e8b0092c1ad62a67729"
-etag: "sha256-fbf873477b292dbd40671bf9ae40920184db5dc10ae3ff7f17cf20c84bc41b7f"
+mirror_sha256: "886d7e73769eb1e38cb0520149429ba0a4953eb3e2cde954ddb3efd356f975ef"
+etag: "sha256-e42438e4bc704e5560c455f4f0b4ab019d091cd3c0d630d654dd38891d361944"
 ---
 ## 개요
 
@@ -107,7 +107,7 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
 결정일: 2026-10-05
 
-2026-10-05 에 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05) 가 범위 참조를 복합 외래 키로도 막았다(NERV Task `CLE-T-QTRRE6`). 「참조의 소속」 정의가 «서버가 저장할 때 본다» 만 적어서 DB 층이 빠져 보였다. 그 결정의 스펙 초안 검토가 짚었고(finding 01a10aa3-fc14-73ad-a139-29324f1fed98) NERV Task `CLE-T-K9S0TE` 로 넘겼다. DB 층을 정의에 더하는 대신 «서버가 저장할 때 본다» 도 빼고 «범위와 검사하는 시점 · 층은 기준 문서에 있다» 로 일반화했다. 2026-10-04 에 범위와 거부 시점을 정의 칸에서 뺀 것과 같은 방향이다. 대상 참조의 수는 기준 문서가 바뀔 때 사전을 낡게 만든다(색인 표기 원칙 14). 「복합 외래 키」 는 등재하지 않았다. 약어 `FK` 는 색인 약어 표에 있고 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) 가 첫 사용에 풀어 쓴다.
+2026-10-05 에 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md#워크스페이스-범위-참조를-복합-fk-로도-막는다) 가 범위 참조를 복합 외래 키로도 막았다(NERV Task `CLE-T-QTRRE6`). 「참조의 소속」 정의가 «서버가 저장할 때 본다» 만 적어서 DB 층이 빠져 보였다. 그 결정의 스펙 초안 검토가 짚었고(finding 01a10aa3-fc14-73ad-a139-29324f1fed98) NERV Task `CLE-T-K9S0TE` 로 넘겼다. DB 층을 정의에 더하는 대신 «서버가 저장할 때 본다» 도 빼고 «범위와 검사하는 시점 · 층은 기준 문서에 있다» 로 일반화했다. 2026-10-04 에 범위와 거부 시점을 정의 칸에서 뺀 것과 같은 방향이다. 대상 참조의 수는 기준 문서가 바뀔 때 사전을 낡게 만든다(색인 표기 원칙 14). 「복합 외래 키」 는 등재하지 않았다. 약어 `FK` 는 색인 약어 표에 있고 [데이터 모델 개요](CLE-PLAT/CLE-PLAT-DATA.md) 가 첫 사용에 풀어 쓴다.
 
 ### 「비밀번호 재확인」 을 한 줄 정의로 줄였다
 
