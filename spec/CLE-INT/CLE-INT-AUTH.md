@@ -2,19 +2,19 @@
 id: "CLE-INT-AUTH"
 title: "서비스별 인증 방식과 자격 증명"
 type: "design"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT"
 ancestors: ["CLE-VISION", "CLE-INT"]
 area: "CLE-INT"
-content_hash: "63df777b9765611abd48fa24da2c358ce94ae33478b6a4288730488812fc46d4"
+content_hash: "4ac0ccafe5bcf23e96e70440b0c78f3aab0b148f3e4f960cf654d2de5f17a0d8"
 read_as: "approved_fallback"
-task: "CLE-T-BYT4S2"
+task: "CLE-T-JDSC37"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "cbf352a2f1c439349187bf840ac514f22cd4b47a9f80558576083927dd7d3a31"
-etag: "sha256-26aacc133ef778eb025af1b680c3c3ce5bdd9da9e480000850ca23f373ed4e78"
+mirror_sha256: "43f0a0e964bb6ec847cc461cbd0047991e17d37fbec414312901bff43a6bc42a"
+etag: "sha256-da27d6ab37a3f3556262e855237451f83feb79ab563755507992149e35feb7a7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -177,6 +177,8 @@ OAuth2 연결은 토큰 교환 뒤 `GET https://api.github.com/user` 응답에�
 | `password` | string | ✓ | 🔒 |
 | `default_from` | string | ✓ | × |
 
+`secure` 의 뜻: `tls` 는 처음부터 TLS 로 연결하고, `starttls` 는 STARTTLS 를 강제한다(nodemailer `requireTLS`). `none` 은 TLS 를 강제하지 않는다. 서버가 STARTTLS 를 알리면 쓰지만, 중간자가 그 알림을 지우면 자격 증명과 메일 본문이 평문으로 나간다. 기본값은 `starttls` 이고, 통합 화면은 이 위험을 `secure` 필드 설명으로 보여 준다. `none` 을 남긴 근거는 [Rationale](#smtp-통합의-secure-none-을-남기고-위험을-알린다) 에 있다.
+
 연결 테스트: `nodemailer` transporter 의 `verify()` 로 SMTP 연결, 인증, STARTTLS·TLS 핸드셰이크를 확인한다. 실제 메일은 보내지 않는다. 저장 전 연결 테스트, 저장 후 `:id/test`, 자격 증명 교체 세 경로 모두 실제 `verify()` 를 한다.
 
 SMTP host 의 사설망 차단은 Send Email 노드와 같다. 막는 대역과 판정 시점은 [통합 노드 공통 — 에러 코드와 사설망 차단 「사설망 차단」](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 이 정한다. 연결 전에 host 를 해석해 검사하고, 연결할 때 푼 주소도 같은 대역으로 다시 판정한다. 두 번째 판정은 transport 옵션 `getSocket` 으로 가드가 TCP 소켓을 직접 열어 한다([Send Email 노드 「연결 시점 판정」](../CLE-NODE-INT/CLE-NODE-EMAIL.md#연결-시점-판정)). 셀프 호스팅은 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 두 판정을 함께 끈다(내부 SMTP relay 보존). 그러면 `getSocket` 을 싣지 않고 nodemailer 의 기본 연결을 쓴다. 연결 테스트와 Send Email 노드 발송에 똑같이 적용한다.
@@ -299,6 +301,15 @@ HTTP · Database 연결 테스트에서 SSRF 가드가 차단 판정이 아닌 �
 
 결정일: 2026-11-20
 
-NERV Task `CLE-T-691T4G`(Database) · `CLE-T-PTCRM4`(Email) 에서 두 연결 테스트도 노드와 같은 연결 시점 판정을 쓰게 했다. 연결 테스트만 연결 전 검사에 머물면 같은 자격 증명으로 테스트는 통과하는데 노드 실행은 막힐 수 있다. 테스트 결과와 노드 실행 결과가 갈리지 않도록 Database 는 노드와 같은 연결 옵션 빌더를, Email 은 노드와 같은 `getSocket` 을 쓴다. 방식과 기각한 대안은 [통합 노드 공통 — 에러 코드와 사설망 차단 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
+NERV Task `CLE-T-691T4G`(Database) · `CLE-T-PTCRM4`(Email) 에서 두 연결 테스트도 노드와 같은 연결 시점 판정을 쓰게 했다. 연결 테스트만 연결 전 검사에 머물면 같은 자격 증명으로 테스트는 통과하는데 노드 실행은 막힐 수 있다. 테스트 결과와 노드 실행 결과가 갈리지 않도록 Database 는 노드와 같은 연결 옵션 빌더를, Email 은 노드와 같은 `getSocket` 을 쓴다. 방식과 기각한 대안은 [통합 노드 공통 — 에러 코드와 사설망 차단 Rationale](../CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다) 에 있다.
 
 - Email 연결 테스트의 가드 고장은 코드를 `EMAIL_CONNECT_FAILED` 그대로 두고 메시지만 고정 문구 `The outbound address check failed.` 로 바꿨다. 2026-11-20 조율 세션에서 사람이 권장안을 골랐다. HTTP · Database 연결 테스트도 가드 고장을 각자의 연결 실패 코드로 내므로 같은 규칙을 따른다. 메시지를 고정한 이유는 [「연결 테스트도 가드 고장을 고정 문구로 알린다」](#연결-테스트도-가드-고장을-고정-문구로-알린다) 와 같다.
+
+### SMTP 통합의 `secure: none` 을 남기고 위험을 알린다
+
+결정일: 2026-11-27
+
+시스템 SMTP 는 STARTTLS 를 기본으로 강제한다([계정과 워크스페이스 데이터 흐름 — 테이블 쓰기 · 배치 · 외부 의존](../CLE-ACCT/CLE-ACCT-DATA-OPS.md#시스템-smtp-는-starttls-를-기본으로-강제한다)). 워크스페이스 SMTP 통합의 `none` 은 그 강제 밖이다. NERV Task `CLE-T-JDSC37` 에서 사람이 `none` 을 남기고 필드 설명으로 위험을 알리는 안을 골랐다.
+
+- 기각한 안: `none` 을 없애거나 `none` 에서도 STARTTLS 를 강제하는 안. TLS 를 지원하지 않는 내부 릴레이를 쓰는 통합이 끊기고, 이미 저장된 통합의 값을 말없이 바꾸게 된다.
+- 받아들인 위험: `none` 을 고른 통합은 능동 중간자에게 자격 증명과 메일 본문이 드러날 수 있다. [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) REQ-NFR-010(전송 구간 TLS)의 예외다.
