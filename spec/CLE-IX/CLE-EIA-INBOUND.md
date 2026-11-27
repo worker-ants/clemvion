@@ -2,19 +2,19 @@
 id: "CLE-EIA-INBOUND"
 title: "EIA 수신 API와 SSE"
 type: "feature"
-version: 5
+version: 6
 status: "approved"
 requirements: ["REQ-EIAIN-001", "REQ-EIAIN-002", "REQ-EIAIN-003", "REQ-EIAIN-004", "REQ-EIAIN-005", "REQ-EIAIN-006", "REQ-EIAIN-007", "REQ-EIAIN-008", "REQ-EIAIN-009", "REQ-EIAIN-010", "REQ-EIAIN-011", "REQ-EIAIN-012", "REQ-EIAIN-013", "REQ-EIAIN-014", "REQ-EIAIN-015", "REQ-EIAIN-016", "REQ-EIAIN-017", "REQ-EIAIN-018", "REQ-EIAIN-019", "REQ-EIAIN-020", "REQ-EIAIN-021", "REQ-EIAIN-022", "REQ-EIAIN-023", "REQ-EIAIN-024", "REQ-EIAIN-025", "REQ-EIAIN-026", "REQ-EIAIN-027", "REQ-EIAIN-028", "REQ-EIAIN-029", "REQ-EIAIN-030", "REQ-EIAIN-031", "REQ-EIAIN-032", "REQ-EIAIN-033", "REQ-EIAIN-034", "REQ-EIAIN-035", "REQ-EIAIN-036", "REQ-EIAIN-037", "REQ-EIAIN-038", "REQ-EIAIN-039", "REQ-EIAIN-040", "REQ-EIAIN-041", "REQ-EIAIN-042", "REQ-EIAIN-043", "REQ-EIAIN-044", "REQ-EIAIN-045", "REQ-EIAIN-046", "REQ-EIAIN-047", "REQ-EIAIN-048", "REQ-EIAIN-049"]
 basis_superseded: false
 parent: "CLE-IX"
 ancestors: ["CLE-VISION", "CLE-IX"]
 area: "CLE-IX"
-content_hash: "1728bd13c59fefb9c65b5bb29d20adf924cf6f7b6aaefcce54b16e7b3c265dc9"
+content_hash: "7a01c159874367ee124eb59b9c546c084f2eaa89d48d6b1d82e717c3932b81e0"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-FHG7MT"
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "e8b8e02f5bb77bbe0d31cbe0cd0c14fd4fc389ba1cef6dddde67d1ed9486e347"
-etag: "sha256-81db53bfb0cce043888f5ba5ce821716ecbf60a139826717e7b0a6eb3c211c02"
+mirror_sha256: "e2d87fef7887a64cd53c9c8cba4a6249f394de04adae562ca67a6b574030a827"
+etag: "sha256-98d77ea87ab5a86940eb27bcf60664999ce838d6a4c0b36271542f77d8c9d58d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.2, §5, §11, Rationale R3·R5·R8·R11·R13·R14·R16·R17 앞부분·R18·R-replay-unavailable) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -100,7 +100,7 @@ etag: "sha256-81db53bfb0cce043888f5ba5ce821716ecbf60a139826717e7b0a6eb3c211c02"
 
 - **전송 봉투**: 하위 문서의 성공 응답 JSON 은 논리 payload 다. 실제 응답은 전역 `TransformInterceptor` 가 응답 봉투(`{ "data": { ... } }`)로 감싼다([HTTP API 규약](../CLE-API/CLE-API-CONV.md)). 예를 들어 상태 조회 응답은 `{ "data": { "id", "status", ... } }`, 토큰 갱신은 `{ "data": { "token", "expiresAt" } }` 다. 클라이언트는 `res.data` 를 풀어 읽는다. SSE 프레임(`data: <payload>`)만 인터셉터를 거치지 않아 봉투가 없다.
 - `interact`·`cancel` 은 비동기라 `202 Accepted` 로 답하지만 본문이 없는 응답이 아니다. 둘 다 `InteractAckDto`(`{ executionId, accepted, currentStatus }`)를 응답 봉투에 담아 돌려준다.
-- **에러 응답**: `{ "error": { "code", "message", "requestId", "details" } }` 형태의 에러 응답 봉투를 따른다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 웹훅 진입점도 같은 봉투를 쓴다.
+- **에러 응답**: `{ "error": { "code", "message", "requestId", "details"? } }` 형태의 에러 응답 봉투를 따른다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md)). 웹훅 진입점도 같은 봉투를 쓴다.
 - **인증**: `Authorization: Bearer <iext_jwt | itk_token>` 을 쓴다. SSE 만 브라우저 `EventSource` 가 헤더를 못 보내므로 `?token=` 쿼리를 허용한다. 토큰 규칙은 [External Interaction API](CLE-EIA.md) 에서 정한다.
 - **경로**: 모든 엔드포인트는 `/api/external/executions/:id` 아래에 있다. 기존 `/api/executions/*` 와 prefix·인증 계열이 다르다.
 
@@ -151,11 +151,13 @@ etag: "sha256-81db53bfb0cce043888f5ba5ce821716ecbf60a139826717e7b0a6eb3c211c02"
 ## 구현 위치
 
 - `codebase/backend/src/modules/external-interaction/interaction.controller.ts` (`/interact`·`/cancel`·`/refresh-token`·상태 조회)
-- `codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts` (SSE, 동시 연결 한도, `writeSseFrame`)
+- `codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts` (SSE 엔드포인트, 요청을 풀어 SSE 연결 하나를 연다)
+- `codebase/backend/src/modules/external-interaction/sse-stream-session.ts` (SSE 헤더와 프레임 `writeSseFrame`, heartbeat, 동시 연결 한도 초과 429, 트리거 단위 토큰 재확인)
 - `codebase/backend/src/modules/external-interaction/interaction.service.ts` (`interact`·`cancel`·`refreshToken`·`getStatus`)
 - `codebase/backend/src/modules/external-interaction/interaction.guard.ts` (토큰 검증·`deny()`)
-- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (구독자 관리, 재전송 판정 `replayOrSignalUnavailable`, 트리거 단위 토큰 스트림 닫기)
-- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (Redis Stream 재전송 버퍼, 실행별 실시간 채널, 전역 닫기 채널, 전역 동시 연결 상한)
+- `codebase/backend/src/modules/external-interaction/sse-adapter.service.ts` (구독자 관리, 재전송 실행, 트리거 단위 토큰 스트림 닫기)
+- `codebase/backend/src/modules/external-interaction/sse-replay-plan.ts` (재전송 판정 `planReplay` · `mayHaveMissed`)
+- `codebase/backend/src/modules/external-interaction/sse-fanout.service.ts` (서버 인스턴스 사이 전달에 쓰는 Redis 부분의 창구. 부분별 파일은 [EIA 데이터와 흐름 — SSE 스트림](CLE-EIA-DATA-SSE.md#구현-위치) 의 「구현 위치」)
 - `codebase/backend/src/modules/external-interaction/idempotency.interceptor.ts`
 - `codebase/backend/src/modules/external-interaction/dto/interact.dto.ts`, `dto/cancel.dto.ts`
 - `codebase/backend/src/modules/external-interaction/dto/responses/execution-status-response.dto.ts`, `interact-ack-response.dto.ts`, `refresh-token-response.dto.ts`
