@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RUN-SYNC"
 title: "에디터 실행과 디버깅 — 실시간 수신·내역·Background"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RUN"]
 area: "CLE-EXEC"
-content_hash: "eca5a9bdaa51318ac5b38163c1082c0b760de6c7bf5f396c2d6e79ce3d704735"
+content_hash: "05ca6695bf48695dc70024833aaef4c2617ff4c8ccb8dcc3d270e6311b8247eb"
 read_as: "approved_fallback"
-task: "CLE-T-YWSS9K"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "baaf2be07a9f986ce088e6302ec1932eb1ae0dae87d1e0c1deddef5d23b13405"
-etag: "sha256-2d8a35344c3e90f1cf6f951fdda1c47904bd4ac057bea87e34a5b5f334ee1681"
+mirror_sha256: "8f714d701a7d6682ae056c718718e123efc1a41dd6b96529acebcc6db473c305"
+etag: "sha256-08065159b8f5321b41b4e321e95969581a20aaed91992dd6822135df1b057ec0"
 ---
 ## 개요
 
@@ -88,7 +88,7 @@ etag: "sha256-2d8a35344c3e90f1cf6f951fdda1c47904bd4ac057bea87e34a5b5f334ee1681"
 
 | 요소 | 표시 조건 | 동작 |
 | --- | --- | --- |
-| `[⟳ Re-run]` 버튼 | 드로어가 끝난 실행을 보여 줄 때. 어느 상태까지 "끝난 실행" 으로 볼지는 정의가 갈린다. [미결 사항](CLE-EXEC-RUN.md#미결-사항) 참조 | 권한이 없으면 숨긴다. 누르면 [재실행](CLE-EXEC-RERUN.md) 모달을 연다 |
+| `[⟳ 재실행]` 버튼 | 드로어가 끝난 실행을 보여 줄 때. 어느 상태까지 "끝난 실행" 으로 볼지는 정의가 갈린다. [미결 사항](CLE-EXEC-RUN.md#미결-사항) 참조 | 권한이 없으면 숨긴다. 누르면 [재실행](CLE-EXEC-RERUN.md) 모달을 연다 |
 | 진행 중 실행 | `running` 이거나 멀티턴 대화가 진행 중일 때 | 버튼을 숨긴다 |
 | 새 실행 시작 뒤 | 모달이 새 실행 ID 를 받았을 때 | 드로어를 초기화하고 [라이프사이클](CLE-EXEC-RUN-DRAWER.md#라이프사이클) 의 실행 시작 순서로 들어간다. 실행 상세 화면으로 이동하지 않고 지금 에디터에서 새 실행을 지켜본다 |
 
@@ -116,7 +116,7 @@ etag: "sha256-2d8a35344c3e90f1cf6f951fdda1c47904bd4ac057bea87e34a5b5f334ee1681"
 **실시간 갱신**:
 
 - Background 노드 카드가 처음 표시되면 `background:run:<backgroundRunId>` 채널을 자동으로 구독한다.
-- 카드의 run 상태는 REST(`backgroundRunsApi.getById`, React Query)로 받고 받은 상태가 `running` · `pending` 이면 5초마다 다시 받는다. 채널 이벤트는 이 조회를 앞당기는 캐시 무효화일 뿐이다(`use-background-run.ts`). 그래서 구독이 거부되면([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.5 최대 구독 수」](../CLE-API/CLE-API-WS-MSG.md#45-최대-구독-수) 의 연결당 구독 상한 20개를 넘은 `SUBSCRIPTION_LIMIT_EXCEEDED`, 인가 실패 등) 콘솔 경고만 남기고 5초 조회가 최종 상태를 맞춘다. 콘솔 경고는 실패 응답의 `channel` 이 이 카드의 채널(`background:run:<id>`)이거나 `channel` 이 없을 때만 남긴다. 실행 구독 쪽은 실패 응답의 `channel` 을 보고 이 거부를 무시한다([Rationale](#에디터의-rest-폴링은-실시간-경로가-막혔을-때만-켠다-2026-10-22) 의 「실패 응답의 `channel` 로 구독 채널을 가린다」).
+- 카드의 run 상태는 REST(`backgroundRunsApi.getById`, React Query)로 받고 받은 상태가 `running` · `pending` 이면 5초마다 다시 받는다. 채널 이벤트는 이 조회를 앞당기는 캐시 무효화일 뿐이다(`use-background-run.ts`). 그래서 구독이 거부되면([WebSocket 연결과 채널 구독 — 메시지 · 구독 · 에러 「4.5 최대 구독 수」](../CLE-API/CLE-API-WS-MSG.md#45-최대-구독-수) 의 연결당 구독 상한 20개를 넘은 `SUBSCRIPTION_LIMIT_EXCEEDED`, 인가 실패 등) 콘솔 경고만 남기고 5초 조회가 최종 상태를 맞춘다. 콘솔 경고는 실패 응답의 `channel` 이 이 카드의 채널(`background:run:<id>`)이거나 `channel` 이 없을 때만 남긴다. 실행 구독 쪽은 실패 응답의 `channel` 을 보고 이 거부를 무시한다([Rationale](#에디터의-rest-폴링은-실시간-경로가-막혔을-때만-켠다) 의 「실패 응답의 `channel` 로 구독 채널을 가린다」).
 - 본문 안 개별 노드 이벤트(`execution.node.started`·`completed`·`failed`)는 기존 `execution:<id>` 채널로 받는다. 에디터는 `parentNodeExecutionId === <Background 노드의 NodeExecution.id>` 로 걸러 본문 타임라인을 갱신한다.
 - `execution.background_run.completed` 를 받으면 카드 배지를 최종 상태로 바꾸고 `background:run:<id>` 채널 구독을 해제한다. 최종 상태 값은 [WebSocket 이벤트와 명령 — 채널별 부가 이벤트 「8. Background 본문 실행 이벤트」](../CLE-API/CLE-API-WS-EVENTS-CHANNELS.md#8-background-본문-실행-이벤트-server--client) 를 따른다.
 - 드로어를 닫거나 다른 실행으로 옮기면 활성 Background 채널을 모두 구독 해제한다.
@@ -129,7 +129,9 @@ etag: "sha256-2d8a35344c3e90f1cf6f951fdda1c47904bd4ac057bea87e34a5b5f334ee1681"
 
 ## Rationale
 
-### 에디터의 REST 폴링은 실시간 경로가 막혔을 때만 켠다 (2026-10-22)
+### 에디터의 REST 폴링은 실시간 경로가 막혔을 때만 켠다
+
+결정일: 2026-10-22
 
 2026-10-22 에 실행 채널 구독이 깨지자 에디터의 실행 결과 드로어가 비었다(NERV Task `CLE-T-A3W8B8`). "폴링으로 진행됩니다" 토스트가 떴지만 상시 폴링은 실행 상세 화면에만 있었고 에디터에는 폴링이 없었다. 이 결정은 NERV Task `CLE-T-KMQ43W` 에서 내렸다.
 
@@ -144,7 +146,9 @@ etag: "sha256-2d8a35344c3e90f1cf6f951fdda1c47904bd4ac057bea87e34a5b5f334ee1681"
 - **기각 (c) 토스트 문구에서 "폴링으로 진행" 만 지운다**: 문구와 동작은 맞아지지만 구독이 막히면 드로어가 계속 빈다. 2026-10-22 장애(`CLE-T-A3W8B8`)가 바로 그 상황이었다.
 - (b) · (c) 는 구현하면서 비교한 안이다.
 
-### 소켓이 끊긴 입력 대기는 폼만 REST 로 보낸다 (2026-11-14)
+### 소켓이 끊긴 입력 대기는 폼만 REST 로 보낸다
+
+결정일: 2026-11-14
 
 REST 폴링 대체 경로 중 입력 대기 응답을 어떻게 보낼지 정하지 않아, 에디터는 소켓이 끊겨도 WebSocket 명령을 보냈고 폴링 중 AI 응답은 화면에 나오지 않았다. 이 결정은 NERV Task `CLE-T-5P1ADY` 에서 사람이 골랐다.
 
@@ -155,7 +159,9 @@ REST 폴링 대체 경로 중 입력 대기 응답을 어떻게 보낼지 정하
 - **기각 (a) 모든 입력을 REST 로 보낸다**: 버튼·메시지·대화 종료·재시도용 REST 엔드포인트를 새로 만들어야 한다. [WebSocket 연결과 채널 구독](../CLE-API/CLE-API-WS.md) 의 2026-07-08 REST 대체 비채택이 막은 중복 경로다.
 - **기각 (b) 소켓이 끊겨도 WebSocket 명령을 그대로 보낸다**: 버퍼에 쌓인 명령이 언제 갈지 알 수 없고 그동안 화면은 응답 대기로 멈춘다.
 
-### 에디터 안 실행 내역 패널은 프런트만으로 만들고 기존 API 를 다시 쓴다 (2026-06-16)
+### 에디터 안 실행 내역 패널은 프런트만으로 만들고 기존 API 를 다시 쓴다
+
+결정일: 2026-06-16
 
 - **새 엔드포인트 없음**: 목록·상세 모두 실행 내역 화면이 이미 쓰는 검증된 API 를 그대로 쓴다.
 - **라이브 실행과 같은 store 채우기 경로**: 항목을 누르면 `applyExecutionSnapshot`(WebSocket 스냅샷과 REST 폴링이 함께 쓰는 진입점)을 그대로 불러 드로어와 캔버스 `nodeStatuses` 를 채운다. 내역 전용 렌더 경로를 만들지 않아 라이브와 내역 표시가 저절로 같아진다. 끝난 실행은 `applyExecutionSnapshot` 이 `executionId`·`startedAt` 을 채우지 않으므로 그 직전에 `startHistoryView`(executionId·과거 startedAt 설정과 실행별 상태 초기화)를 부르는 얇은 래퍼 `loadHistoricalExecution` 만 더했다.

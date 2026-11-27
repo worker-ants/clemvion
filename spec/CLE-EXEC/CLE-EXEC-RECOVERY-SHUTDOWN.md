@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RECOVERY-SHUTDOWN"
 title: "장애 복구와 안전 종료 — 안전 종료와 영속 재개 큐"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RECOVERY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RECOVERY"]
 area: "CLE-EXEC"
-content_hash: "4ca2c382a29bba923e787400eb3ce9d0490ff64545b234585c628349bae1c766"
+content_hash: "f91a1c429bed1567e1251009da13d9a761e93ab74827c985a22d29ae4682108c"
 read_as: "approved_fallback"
-task: "CLE-T-E6PW00"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "371b4c32f28c27c7001a9631a11f56aa1428d0993d2a9dd5667ec7ba7f1db33b"
-etag: "sha256-1f9848de6696e440f7ce7f033e412c44d7278a9f23c1cff56ee46ba1be77b8f0"
+mirror_sha256: "62f2e800fa6c8c8f5164d7981baa8b0e0167adf797c6a2f5ed2b8ec6f5378e95"
+etag: "sha256-b748f86780467a4dc2229dfc59d66edde01317fe46d72ae6628bb9ced949768a"
 ---
 ## 개요
 
@@ -93,7 +93,9 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 - `/health` 엔드포인트에 DLQ 적재량을 싣지 않는다. readiness probe 가 DLQ 누적으로 unhealthy 가 되면 정상 트래픽까지 막힌다. 적재량은 gauge 관측과 경고의 대상이지 readiness 대상이 아니다.
 - DLQ 모니터 환경 변수 4종(`CONTINUATION_DLQ_*`)은 안전 종료 유예 시간과 같은 `useFactory` 주입 방식을 따른다. 서비스가 `process.env` 를 직접 읽지 않는다. 안전 종료 쪽의 DI 토큰 이름은 `SHUTDOWN_GRACE_MS` 이고 그 값을 주는 환경 변수는 `SIGTERM_GRACE_MS` 다.
 
-### 끊긴 노드는 정책과 상관없이 `failed` 로 끝낸다 (2026-11-14, CLE-T-GQ7WHS)
+### 끊긴 노드는 정책과 상관없이 `failed` 로 끝낸다
+
+결정일: 2026-11-14
 
 원래 4단계는 유예 시간을 넘긴 노드의 실행을 노드 에러 처리 정책대로 처리한다고 적었다. `stop` 이면 실행이 `failed` 로 끝나고 `continue` 면 다음 노드로 진행하며 다른 인스턴스가 미완료 세그먼트를 이어받을 수도 있다는 약속이었다. 노드 에러 처리 정책 enum 에는 `continue` 가 없고 구현은 늘 노드 실행과 실행을 `failed` 로 끝냈다. 사람 결정(2026-11-14, 질문 `01a1d831-1847-7708-9d89-32bc5322ea64` · `01a1d831-1cd9-77a3-bff3-024ba0abd51b`)으로 약속을 거두고 구현을 계약으로 삼았다.
 
@@ -103,7 +105,9 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 - **기각: `continue` 를 노드 에러 처리 정책으로 정의하기**: 끊긴 노드 뒤를 이어 돌리려면 인스턴스 사이에서 세그먼트를 넘겨받는 재개 경로를 새로 만들어야 한다. 그렇게 해도 반쯤 끝난 부수효과 문제는 남는다. 이 방향을 맡던 NERV Task `CLE-T-FTBSKJ` 는 닫았다.
 - **기각: `cancelled` 로 바꾸기**: 이미 구현하고 테스트한 `failed` + `SERVER_INTERRUPTED` 계약을 바꿔야 한다. [실행 데이터와 흐름](CLE-EXEC-DATA.md) 의 상태별 에러 코드 표와 [에러 코드 카탈로그 — 워크플로우 실행](../CLE-API/CLE-API-ERRCODES-EXEC.md) 도 함께 바뀐다. 실패 목록에서 서버 중단이 빠지는 것에 비해 얻는 것이 없다.
 
-### 종료는 워커 close 보다 먼저 시작한다 (2026-11-14, CLE-T-9YHJSD)
+### 종료는 워커 close 보다 먼저 시작한다
+
+결정일: 2026-11-14
 
 **실측**: 원래 구현은 `onApplicationShutdown` 에서 종료 표시를 켜고 유예 시간을 셌다. Nest 는 SIGTERM 을 받으면 모든 모듈의 `onModuleDestroy` 를 먼저 부르고 HTTP 서버를 닫은 뒤에야 `onApplicationShutdown` 을 부른다. `@nestjs/bullmq` 는 `onModuleDestroy` 에서 워커를 close 하고, BullMQ 의 기본 close 는 진행 중 작업이 끝날 때까지 기다린다. 2026-11-14 e2e 이미지로 잰 결과(Nest 12.4.0 · `@nestjs/bullmq` 12.0.1 · BullMQ 6.7.2)는 다음과 같았다.
 
@@ -128,7 +132,9 @@ SIGTERM 을 받았을 때의 절차다. k8s 재배포, Docker Compose `docker co
 - **기각: 종료 표시만 앞당기기**: 503 은 바로 나가지만 워커 close 가 진행 중 작업을 한도 없이 기다리는 문제가 남는다. 긴 노드는 여전히 SIGKILL 로 끝나 `SERVER_INTERRUPTED` 표시를 놓친다.
 - **기각: 워커 close 대기에만 유예 시간 한도를 걸기**: 표시는 지켜지지만 종료 표시가 여전히 HTTP 서버를 닫은 뒤에 켜져 워커를 기다리는 동안 수동 실행 진입점이 계속 202 를 준다.
 
-### 2단계 문안을 구현에 맞췄다 (2026-11-14, CLE-T-CPZBVH)
+### 2단계 문안을 구현에 맞췄다
+
+결정일: 2026-11-14
 
 2단계는 실행 큐 워커 세 개만 적었다. 구현과 「구현」 항목은 이 인스턴스의 BullMQ 워커를 모두 멈춘다. 그래서 2단계를 이 인스턴스의 워커 전체로 고쳤다. 동작은 바꾸지 않았다. 모든 워커를 멈추는 이유는 위 「종료는 워커 close 보다 먼저 시작한다」에 있다.
 

@@ -2,19 +2,19 @@
 id: "CLE-EXEC-DATA-FLOW"
 title: "실행 데이터와 흐름 — 흐름과 저장소 매핑"
 type: "design"
-version: 4
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-DATA"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-DATA"]
 area: "CLE-EXEC"
-content_hash: "814c8ab25cb55c91abca672c24a08fef25de06809071821c6493d70f128bcd26"
+content_hash: "a49ff1ff35624eb5ab53f2c813913a07ee4b7962d0393832a8180cf5d337e915"
 read_as: "approved_fallback"
-task: "CLE-T-YWSS9K"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "12db7c74d5b63949363308b394a6975c6d6597bcd11e82bbf3a1b0431f22d43e"
-etag: "sha256-3933413013876c6f523e1e14d5b56b3267d01b06d53f7040c1dac13b4a12bf84"
+mirror_sha256: "64fc7ef904abc7fbb2aef3424bdc77141a5bbd573e9a897873ff4a9fa39d3159"
+etag: "sha256-257a90d07100c9f5273eda3f74a9130f5e994503f8dc4b5d161f90b225062b32"
 ---
 ## 개요
 
@@ -98,7 +98,7 @@ sequenceDiagram
 그림은 첫 세그먼트에서 노드마다 어떤 행이 쓰이는지 보여 준다.
 
 - **노드 실행 순서 로그는 처리 완료 로그다.** 기록 시점은 [노드 실행 순서 로그](CLE-EXEC-DATA-MODEL.md#노드-실행-순서-로그) 에 있다.
-- **세그먼트 시간 누적**: `updateExecutionStatus` 가 `running` 에 들어가고 나올 때마다 세그먼트 시간을 `execution.active_running_ms` 에 더한다. dispatch 반복문은 노드 사이마다 `assertActiveTimeWithinLimit` 를 부른다. 누적(저장분 + 진행 중 세그먼트 경과분)이 한도(`EXECUTION_MAX_ACTIVE_RUNNING_MS`, 기본 30분, `0`=무제한, `execution-limits.ts`) 이상이면 `ExecutionTimeLimitError` 를 던져 `error.code='EXECUTION_TIME_LIMIT_EXCEEDED'` 로 `failed` 마감한다. 입력 대기 park 시간은 `running` 이 아니므로 누적에서 저절로 빠진다(불변식). 실행 중(`running`)에 REST 중지로 끝나면 엔진은 취소를 알아챈 다음 경계(노드 · AI 턴)에서 마지막 구간을 중지 시각(`finished_at`)까지만 이 컬럼에 더한다([REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14)).
+- **세그먼트 시간 누적**: `updateExecutionStatus` 가 `running` 에 들어가고 나올 때마다 세그먼트 시간을 `execution.active_running_ms` 에 더한다. dispatch 반복문은 노드 사이마다 `assertActiveTimeWithinLimit` 를 부른다. 누적(저장분 + 진행 중 세그먼트 경과분)이 한도(`EXECUTION_MAX_ACTIVE_RUNNING_MS`, 기본 30분, `0`=무제한, `execution-limits.ts`) 이상이면 `ExecutionTimeLimitError` 를 던져 `error.code='EXECUTION_TIME_LIMIT_EXCEEDED'` 로 `failed` 마감한다. 입력 대기 park 시간은 `running` 이 아니므로 누적에서 저절로 빠진다(불변식). 실행 중(`running`)에 REST 중지로 끝나면 엔진은 취소를 알아챈 다음 경계(노드 · AI 턴)에서 마지막 구간을 중지 시각(`finished_at`)까지만 이 컬럼에 더한다([REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다)).
 - 노드 실행은 try 첫 줄에서 `ShutdownStateService.registerInFlight` 로 등록되고 finally 에서 해제된다. 안전 종료 drain 이 이 목록을 추적한다([장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md)).
 
 ### Background 본문
@@ -184,7 +184,7 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 | --- | --- | --- | --- |
 | `execution` | 실행 진입 | INSERT `workflow_id, trigger_id?, status='pending', input_data, started_at, executed_by?, parent_execution_id?, recursion_depth, re_run_of?, chain_id?, dry_run`. `re_run_of`/`chain_id` 는 재실행 체인(decision F2), `dry_run` 은 컨텍스트 변수 `__dryRun` 으로 핸들러에 넣는다(V068). | `(workflow_id, started_at DESC)`, `(status)` |
 | `execution` | 상태 전이 | UPDATE `status, finished_at, duration_ms, output_data, error, active_running_ms`. `error` 는 최초 `failed` 노드 실행의 에러 + nodeId 복사다. **`status IN (종료 아닌 상태)` 조건부 UPDATE 이며 트랜잭션 안에서 실행한다**(2026-08-30). 결과 shape 확인이 throw 하면 이 UPDATE 도 함께 롤백된다. 원자성 규칙은 [실행 상태 머신과 대기·재개](CLE-EXEC-STATE.md), 결정 배경은 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) 의 Rationale 에 있다. 0행으로 끝난 뒤의 예외 쓰기는 다음 행에 있다. | 없음 |
-| `execution` | REST 중지 행의 마지막 구간 가산 | UPDATE `active_running_ms` 만. 위 상태 전이 UPDATE 가 0행으로 끝난 뒤 한 번 더 쓴다. 조건은 `WHERE id = $1 AND status = 'cancelled'` 다. 구간 끝은 엔진이 취소를 알아챈 시각과 `finished_at` 가운데 이른 쪽이다. 합은 int4 상한에서 멈춘다. `status` · `finished_at` · `duration_ms` 는 바꾸지 않는다. 이 예외가 쓰는 컬럼은 이것 하나뿐이다. 종결 뒤 쓰기의 다른 예외는 아래 재시도 claim 행이다. SQL 은 `ADD_STOPPED_SEGMENT_SQL`(`executions/utils/active-running-ms.ts`)이다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다-2026-11-14) 에 있다. | 없음 |
+| `execution` | REST 중지 행의 마지막 구간 가산 | UPDATE `active_running_ms` 만. 위 상태 전이 UPDATE 가 0행으로 끝난 뒤 한 번 더 쓴다. 조건은 `WHERE id = $1 AND status = 'cancelled'` 다. 구간 끝은 엔진이 취소를 알아챈 시각과 `finished_at` 가운데 이른 쪽이다. 합은 int4 상한에서 멈춘다. `status` · `finished_at` · `duration_ms` 는 바꾸지 않는다. 이 예외가 쓰는 컬럼은 이것 하나뿐이다. 종결 뒤 쓰기의 다른 예외는 아래 재시도 claim 행이다. SQL 은 `ADD_STOPPED_SEGMENT_SQL`(`executions/utils/active-running-ms.ts`)이다. 근거는 [REST 중지 실행의 마지막 구간은 중지 시각까지 센다](CLE-EXEC-DATA-MODEL.md#rest-중지-실행의-마지막-구간은-중지-시각까지-센다) 에 있다. | 없음 |
 | `execution` | 마지막 턴 재시도의 실행 단위 claim | UPDATE `finished_at = NULL, error = NULL, duration_ms = NULL`. 조건은 `WHERE id = :id AND status = 'failed' AND finished_at IS NOT NULL` 이고 `status` 는 바꾸지 않는다. affected=1 인 재시도만 턴에 들어간다. 비운 `finished_at` 이 재시도 턴이 도는 중이라는 표지다. 턴이 다시 실패로 끝나면 위 상태 전이 UPDATE 가 셋을 다시 쓴다. 규칙은 [재시도 전제와 재시도 턴 시작](CLE-EXEC-STATE-RETRY.md#재시도-전제와-재시도-턴-시작) 에 있다. | 없음 |
 | `execution` | park 진입(영속 재개) | UPDATE `conversation_thread, user_variables, resume_call_stack`. `waiting_for_input` 전이와 같은 트랜잭션으로 커밋한다(V084/V085/V087). | 없음 |
 | `node_execution` | 노드 실행 시작 | INSERT `execution_id, node_id, status='running', started_at, input_data, retry_count=0, parent_node_execution_id?`(V006/V012). 건너뛴 노드는 `status='skipped'` 로 바로 INSERT | `(execution_id)`, V034 `(execution_id, node_id, started_at DESC)` 복합, V095 `(execution_id, status) WHERE status IN ('waiting_for_input','running')` 부분 인덱스(활성 노드 조회·전이), V112 `(node_id)`(FK CASCADE, 캔버스 노드 삭제·워크플로우 삭제) |
@@ -199,7 +199,7 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 | --- | --- | --- | --- |
 | `execution-run`(시작 큐) | `ExecutionEngineService.execute`(실행 행 `pending` 저장 뒤) | `ExecutionRunProcessor` → `runExecutionFromQueue`(work-stealing) | `{executionId, input?}`. jobId, 우선순위, 작업 옵션은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) |
 | `execution-continuation`(재개 큐) | `ContinuationBusService.publish`(WS gateway, REST controller 경유) | `ContinuationExecutionProcessor` | `{type, executionId, nodeExecutionId, payload}`. jobId 와 수명은 [큐 워커와 동시 실행 제한](CLE-EXEC-WORKER.md) |
-| `background-execution` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | `executionId, parentNodeExecutionId, backgroundRunId?, workspaceId, workflowId, bodyEntryNodeIds[], containerScopeId?, itemContext?, loopContext?, input, variables, nodeOutputCache, expressionContext, conversationThread?, config{notifyOnFailure, maxDurationMs}`(`background-execution.queue.ts`). `input` 의 뜻은 [Rationale](#background-본문에-스냅샷-컨텍스트를-싣는다) 에 있다. `containerScopeId?` · `itemContext?` · `loopContext?` 는 컨테이너 본문 안(그 안 병렬 분기 포함) Background 가 큐에 넣을 때만 싣는다([컨테이너 실행 §컨테이너 본문 안 Background](CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). `backgroundRunId?` 와 `conversationThread?` 는 하위 호환용 선택 필드이며 옛 큐 메시지에는 없다. 선택 필드 다섯 개 모두 그 필드를 넣기 전에 큐에 들어간 메시지에는 없다. |
+| `background-execution` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | `executionId, parentNodeExecutionId, backgroundRunId?, workspaceId, workflowId, bodyEntryNodeIds[], containerScopeId?, itemContext?, loopContext?, input, variables, nodeOutputCache, structuredOutputCache?, expressionContext, conversationThread?, config{notifyOnFailure, maxDurationMs}`(`background-execution.queue.ts`). `input` 의 뜻은 [Rationale](#background-본문에-스냅샷-컨텍스트를-싣는다) 에 있다. `containerScopeId?` · `itemContext?` · `loopContext?` 는 컨테이너 본문 안(그 안 병렬 분기 포함) Background 가 큐에 넣을 때만 싣는다([컨테이너 실행 §컨테이너 본문 안 Background](CLE-EXEC-CONTAINER.md#컨테이너-본문-안-background)). `backgroundRunId?` · `structuredOutputCache?` · `conversationThread?` 는 하위 호환용 선택 필드이며 옛 큐 메시지에는 없다. 선택 필드 여섯 개 모두 그 필드를 넣기 전에 큐에 들어간 메시지에는 없다. |
 
 - 재개 큐는 `removeOnFail:false` 라 시도(`RESUME_BULLMQ_ATTEMPTS`, 기본 3)를 소진한 작업이 `failed`(DLQ)로 쌓인다. `ContinuationDlqMonitorService` 가 `failed`/`delayed` 적재량을 주기적으로 보고 임계를 넘으면 구조화된 `logger.error` 경고를 cooldown 단위로 남긴다. 설정은 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 에 있다.
 - 보조 키 `exec:recover:lock`(부팅 복구 스캔 전역 lock, TTL 60초)과 `exec:cont:seq:<executionId>`(재개 큐 jobId 용 단조 seq, `CONTINUATION_SEQ_TTL_SECONDS` 기본 24시간 sliding TTL)의 정의는 [비동기 큐와 Redis 키 목록](../CLE-PLAT/CLE-PLAT-QUEUE.md) 이 기준이다.
@@ -229,6 +229,6 @@ Workflow 노드(`flow.workflow`)가 서브 워크플로우를 부를 때의 진�
 
 ### Background 본문에 스냅샷 컨텍스트를 싣는다
 
-Background 본문이 도는 동안 메인 흐름이 변수를 바꿔도 본문에 영향이 없어야 한다. 그래서 발송 시점에 메인의 `variables / nodeOutputCache / expressionContext` 를 얕은 복사로 떠서 payload 에 담는다(`background-execution.queue.ts` 주석). 소비자는 이 스냅샷으로 다시 만든 컨텍스트 위에서 `executeBackgroundSubgraph` 를 부른다.
+Background 본문이 도는 동안 메인 흐름이 변수를 바꿔도 본문에 영향이 없어야 한다. 그래서 발송 시점에 메인의 `variables / nodeOutputCache / structuredOutputCache / expressionContext` 를 얕은 복사로 떠서 payload 에 담는다(`background-execution.queue.ts` 주석). `nodeOutputCache` 는 구조화 항목이 있는 노드의 값을 표지로 줄인 새 객체로 싣는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#작업-데이터의-flat-노드-출력은-표지로-줄인다)). 소비자는 이 스냅샷으로 다시 만든 컨텍스트 위에서 `executeBackgroundSubgraph` 를 부른다.
 
 payload 에는 Background 노드가 받은 입력의 스냅샷(`input`)도 싣는다. 본문 진입 노드가 이 값을 입력으로 받는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#본문-진입-노드는-background-노드가-받은-입력을-받는다)). 컨테이너 본문 안 Background 면 그 컨테이너 ID(`containerScopeId`)와 큐에 넣은 회차의 반복 변수(`itemContext` · `loopContext`)도 싣는다. 워커는 그 컨테이너 단계 그래프로 본문을 실행하고 본문 노드 식은 그 회차의 반복 변수를 읽는다([Background 노드 Rationale](../CLE-NODE-LOGIC/CLE-NODE-BACKGROUND.md#컨테이너-본문-안-background-는-컨테이너-단계-그래프로-실행한다)).
