@@ -2,19 +2,19 @@
 id: "CLE-EXEC-STATE-RETRY"
 title: "실행 상태 머신과 대기·재개 — 마지막 턴 재시도"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-STATE"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-STATE"]
 area: "CLE-EXEC"
-content_hash: "0586e1c5be0b23e47534d2ae9c8860994e0419464a66352554bad35bcf948e0b"
+content_hash: "48afd89537eef5c80672979152f5d46058280b603330c794335add155b6dd8e1"
 read_as: "approved_fallback"
-task: "CLE-T-0ZHAC4"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "829c7d64b578bd4d62139fe2b6e18c250e96b4eed4eb88f82460321353411eaf"
-etag: "sha256-364f80a44b77b46dbb62ba82d5cecad3d31759cf8bd0be43191866ea345ecf50"
+mirror_sha256: "380c7cbc31b327c57088490b23657d8a84e5dc92575d1593f3100c24fdfe8472"
+etag: "sha256-9507b5a1f702d657bb0dd9d1417d0f093bfcd50d1290570a7170ad8feb673095"
 ---
 ## 개요
 
@@ -118,13 +118,17 @@ sequenceDiagram
 - 고른 안은 `ended` 와 `port: 'error'` 의 뜻을 그대로 두므로 에러 포트 뒤 노드(알림 등)의 의미가 바뀌지 않는다. 재시도 가능 여부는 `output.error.details.retryable` 하나로 충분히 전달되고 재시도는 에러 라우팅 뒤의 별도 사용자 행동(`execution.retry_last_turn`)으로 들어온다.
 - `_retryState` 는 `_resumeState` 처럼 표현식에 노출하지 않고 자격 증명을 뺀다. TTL(기본 60분)이 사실상 재시도 상한이다.
 
-### `failed → running` 마지막 턴 재시도 전이를 둔다 (옛 "park 도달 후 발효" 철회, 2026-07-28)
+### `failed → running` 마지막 턴 재시도 전이를 둔다 (옛 "park 도달 후 발효" 철회)
+
+결정일: 2026-07-28
 
 마지막 턴 재시도가 실제로 실행될 때의 전이다. 재시도는 새 노드 실행 행을 만들어 마지막 턴을 다시 돌리고 새 행이 이벤트를 내려면 실행이 `running` 이어야 하므로 `failed → running` 을 더했다. 기각한 새 상태 `waiting_for_retry` 와는 무관한 경로이고 입력을 기다리지 않고 새 행을 바로 구동한다는 점에서 재개 흐름과도 다르다. 일반 노드 실패로 번지지 않도록 `allowRetryReentry` opt-in 으로만 허용한다.
 
 처음에는 "재진입이 park 없이 끝나면 취소는 효과 없이 흘려보낸다" 고 적었다. 당시 구현(조건 없는 전체 엔티티 `save()`)을 그대로 적은 것이었다. 이후 하류 dispatch 계속, 엔진의 조건 없는 종결 쓰기, 재시도 턴 종결 경로를 모두 "사용자 실행 중지가 사라진다" 는 결함으로 보고 막았다. 그래서 park 도달 여부는 취소가 효과를 내는 조건이 아니다. 문서가 반대 내용을 계약으로 남기면 나중에 구현이 가드를 되돌리는 근거로 오해할 수 있어 철회했다.
 
-### 마지막 턴 재시도에 배달 단위 claim 을 둔다 (2026-07-28)
+### 마지막 턴 재시도에 배달 단위 claim 을 둔다
+
+결정일: 2026-07-28
 
 재개 진입 claim 은 `waiting_for_input → running` 조건부 전이로 경쟁을 가른다. 마지막 턴 재시도의 대상은 `retryLastTurn` 이 이미 `running` 으로 만든 새 행이라 이 전이가 성립하지 않는다. 그래서 이 유형만 claim 에서 빠져 있었고 대신 `applyRetryLastTurn` 첫머리의 `status !== RUNNING → 버림` 검사가 멱등 가드로 쓰였다.
 
@@ -138,7 +142,9 @@ sequenceDiagram
 
 2026-11-12 갱신: 버린 새 행과 claim 뒤 턴 진입 전 예외 · 크래시로 남은 행은 [부팅 복구 스캔의 종결된 실행 아래 남은 노드 실행 행 정리](CLE-EXEC-RECOVERY.md#종결된-실행-아래-남은-노드-실행-행) 가 30분 뒤 `failed` 로 닫는다. 이 30분은 노드 실행 행의 `started_at` 으로 잰다. 실행이 이미 종결된 행에만 적용하므로 크래시로 멈춘 `running` 세그먼트를 재구동하게 하면서(2026-07-04) 폐기한 실행 단위 30분 일괄 실패와 대상이 다르다. "크래시로 멈춘 턴" 에 claim 과 턴 진입 사이의 일반 예외가 드는지 열려 있던 범위도 같은 정리가 덮는다. 버림 결정은 그대로다. 결정 경위는 [장애 복구와 안전 종료](CLE-EXEC-RECOVERY.md) Rationale 의 "종결된 실행 아래 남은 running 노드 행은 부팅 스캔이 닫는다" 에 있다(NERV Task `CLE-T-CCEQEC`).
 
-### 재시도 전에 실행 `failed` 를 두 번 확인한다 (2026-11-06)
+### 재시도 전에 실행 `failed` 를 두 번 확인한다
+
+결정일: 2026-11-06
 
 **문제**: 재시도 명령은 `_retryState` 만 보고 실행 상태는 보지 않았다. 에러 포트로 흐름이 이어졌거나 병렬 분기의 다른 분기가 아직 돌아 실행이 `running` 인데도 재시도 턴이 시작됐다. 재시도 턴은 같은 실행의 본 흐름과 함께 `node.*` 이벤트를 내고, 턴 끝에서 `running → waiting_for_input` 같은 일반 전이로 본 흐름의 상태를 덮을 수 있었다. 실행이 `completed` 였다면 턴 끝 전이가 거절돼 새 행이 `running` 으로 남았다. 또 재시도 턴 동안 실행에는 앞선 실패의 `error`·`finishedAt`·`durationMs` 가 그대로 있었고 다시 종결할 때 옛 `durationMs` 를 다시 썼다.
 

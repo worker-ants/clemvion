@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-AGENT"
 title: "재실행 — dry-run 의 AI 에이전트 도구"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "60276eaecf2c94ba0f7e1f84f0b4660e490d13893628ded509e7038d95a866bc"
+content_hash: "bf22c60f28e7fdb5f50b41d67484291f75eace9e8b73bf487a398ea9e9403e13"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "e6d72e377df1b55ed1cfb65bbe526e38f080f67da3d2da61232f136393dce586"
-etag: "sha256-f5902180f00cea4512fec2d6781d60ae25cb2036c43ab0230c1d8b427a4c50c0"
+mirror_sha256: "a98270ecf6757ea66c5340de398117f7c75c00d3c75b9aab8b876076e2e9e29c"
+etag: "sha256-0a7547de54e4727ca2438f219fb93b7a53a97d151a07597c3dd1100584b82f4d"
 ---
 ## 개요
 
@@ -80,7 +80,7 @@ AI 에이전트에는 노드를 도구로 연결하는 입력 경로가 없다([
 | 2 | dry-run 에서 MCP 도구 호출을 막는다 | 1 이 들어갈 때까지 쓰는 임시 가드로 먼저 넣었다(CLE-T-8BX1HK). 2026-10-23 에 1 로 바꾸면서 걷었다 |
 | 3 | 문서만 실제 동작에 맞추고 경고한다 | 실제 쇼핑몰 데이터가 바뀌는 위험이 그대로 남아 기각했다 |
 
-**가드 범위**: 가드는 같은 실행 컨텍스트에서 LLM 이 고른 도구 호출의 실행(`execute`) 단계를 막았다. 업무 데이터를 외부 시스템에 쓰는 위험이 가장 큰 경로라서다. 가드 밖에 남은 경로는 셋이었고 모두 가드 이전부터 있던 갭이라 선택지 3 을 기각한 판단과 어긋나지 않는다. (a) 비동기 서브 워크플로우 자식 실행의 dry-run 상속(CLE-T-Y2F1NG)은 2026-11-12 에 해소했다([비동기 서브 워크플로우 자식도 dry-run 을 이어받는다](CLE-EXEC-RERUN-DRYRUN.md#비동기-서브-워크플로우-자식도-dry-run-을-이어받는다-2026-11-12-cle-t-y2f1ng)). (b) 도구 목록 구성(`buildTools`) 단계의 목록 조회와 `expired` 통합의 토큰 갱신(CLE-T-8B66BK)은 2026-11-13 에 평소처럼 두기로 정했다([MCP 클라이언트 Rationale](../CLE-INT/CLE-INT-MCP.md#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다)). (c) `persistent` 메모리 추출의 저장(CLE-T-C9GF9F)은 [미결 사항](CLE-EXEC-RERUN.md#미결-사항) 에 있다. (b) · (c) 는 외부 업무 데이터를 쓰지 않는다. 다만 토큰 갱신은 통합 상태를 바꾸고 `agent_memory` 기록은 이후 실행이 회수한다. 2026-10-23 의 모의 응답도 같은 범위에서 동작한다.
+**가드 범위**: 가드는 같은 실행 컨텍스트에서 LLM 이 고른 도구 호출의 실행(`execute`) 단계를 막았다. 업무 데이터를 외부 시스템에 쓰는 위험이 가장 큰 경로라서다. 가드 밖에 남은 경로는 셋이었고 모두 가드 이전부터 있던 갭이라 선택지 3 을 기각한 판단과 어긋나지 않는다. (a) 비동기 서브 워크플로우 자식 실행의 dry-run 상속(CLE-T-Y2F1NG)은 2026-11-12 에 해소했다([비동기 서브 워크플로우 자식도 dry-run 을 이어받는다](CLE-EXEC-RERUN-DRYRUN.md#비동기-서브-워크플로우-자식도-dry-run-을-이어받는다)). (b) 도구 목록 구성(`buildTools`) 단계의 목록 조회와 `expired` 통합의 토큰 갱신(CLE-T-8B66BK)은 2026-11-13 에 평소처럼 두기로 정했다([MCP 클라이언트 Rationale](../CLE-INT/CLE-INT-MCP.md#dry-run-에서도-도구-목록-구성과-인증-처리는-평소처럼-한다)). (c) `persistent` 메모리 추출의 저장(CLE-T-C9GF9F)은 [미결 사항](CLE-EXEC-RERUN.md#미결-사항) 에 있다. (b) · (c) 는 외부 업무 데이터를 쓰지 않는다. 다만 토큰 갱신은 통합 상태를 바꾸고 `agent_memory` 기록은 이후 실행이 회수한다. 2026-10-23 의 모의 응답도 같은 범위에서 동작한다.
 
 **GET 도 막았다**: 임시 가드에는 도구마다 읽기와 쓰기를 가르는 분류가 없어 브리지의 GET operation 도 막혔다. 노드 dry-run 은 Cafe24 · MakeShop 의 GET 을 그대로 부르므로 당시 노드와 도구의 동작이 달랐다. 안전을 위해 재현 충실도를 일시적으로 낮춘 것이고 2026-10-23 에 부수효과 판정이 들어가 풀렸다.
 
