@@ -2,19 +2,19 @@
 id: "CLE-ACCT"
 title: "계정과 워크스페이스"
 type: "area"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-VISION"
 ancestors: ["CLE-VISION"]
 area: null
-content_hash: "0367abfeb845898c149fb6616d12ad92262721ab842d7c5fec3ad3ee6cf86147"
-read_as: "approved"
-task: null
+content_hash: "c5ca52b24279a5acd081df66183ba799a704aed42f1415b51a42c5acf9af2c9e"
+read_as: "approved_fallback"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "d8fd4f1c0bc1779ef94a6ce171e85c3c390e3159888a53314159c9c5c6f1fd2b"
-etag: "sha256-234cea8e236f1069d2b44588af50f78c2dcea8574dee95c2b662ad7c734f3e16"
+mirror_sha256: "7c626e097bfc13b489a844fad7da6922d79c017ac119efeb92218cba042173bf"
+etag: "sha256-1dbc7672ba81e56b4a457c820f81c4b4a363deb293e3cf48f9a9d0edf61ea9ea"
 ---
 > 구현 상태: 부분 구현 · 원문: 영역 문서라 원문이 없다(자식 문서의 원문 참조) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -29,7 +29,7 @@ etag: "sha256-234cea8e236f1069d2b44588af50f78c2dcea8574dee95c2b662ad7c734f3e16"
 ## 문서
 
 - [가입과 로그인](CLE-ACCT-SIGNIN.md): 이메일 가입과 인증, 로그인, 2단계 인증(TOTP, Passkey·보안 키), 소셜 로그인, 비밀번호 재설정, 이메일 변경의 화면과 API.
-- [세션과 토큰](CLE-ACCT-SESSION.md): 액세스 토큰과 리프레시 토큰, 로그인 세션 단위의 토큰 회전, 리프레시 쿠키, 세션 목록과 강제 종료, 계정 재인증 에러 코드, 로그아웃, 프론트엔드 라우트 가드.
+- [세션과 토큰](CLE-ACCT-SESSION.md): 액세스 토큰과 리프레시 토큰, 로그인 세션 단위의 토큰 회전, 리프레시 쿠키, 세션 목록과 세션 강제 종료, 계정 재인증 에러 코드, 로그아웃, 프론트엔드 라우트 가드, 운영 환경에서 안전하지 않은 설정으로 기동하지 않게 막는 운영 환경 가드(`assertProductionConfig`).
 - [내 프로필](CLE-ACCT-PROFILE.md): 사이드바 사용자 영역과 팝업, 내 프로필 화면의 편집 방식, 아바타·언어·테마, 비밀번호 변경, 사용자 API.
 - [워크스페이스와 멤버](CLE-ACCT-WS.md): 워크스페이스 생성·전환·설정, 멤버 관리와 초대, 역할과 권한 매트릭스, 요청마다 워크스페이스와 역할을 판정하는 서버 인가 규칙.
 - [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md): User·Workspace·WorkspaceMember·WorkspaceInvitation·RefreshToken·LoginHistory·WebAuthnCredential 엔티티와 인증·워크스페이스 데이터 흐름, 상태 전이.

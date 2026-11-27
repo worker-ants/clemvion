@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-MODEL"
 title: "계정과 워크스페이스 데이터 흐름 — 사용자 · 인증 엔티티"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "f0abeed08c6916d7f7ffa490a9b61493cf518c859b408784e254efc0073a8f76"
+content_hash: "a68a54c4f98ee52221fc9561b8996f9db7e88e6d4b1b27b9a21ec96f9b36a4e2"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "35830d5a1aad99c158b78719a655ab3d76028fcc52694f7e26eb09f0ce229b03"
-etag: "sha256-1f91b856366528d906ff82c3344f8aeb18df237a9b7f16334b9332ed165f8f40"
+mirror_sha256: "ede39ea205efe364b2eecd1e90e5016d51398d5a4255b868d0c586ee03bad08e"
+etag: "sha256-e66c90b0d04bb2e2a6b2732f8e454370ffb059adff720085d7c6131f421be436"
 ---
 ## 개요
 
@@ -66,7 +66,7 @@ etag: "sha256-1f91b856366528d906ff82c3344f8aeb18df237a9b7f16334b9332ed165f8f40"
   ```
 
 - `theme` 의 CHECK 는 `chk_user_theme` 이고 `light`·`dark`·`system` 을 받는다. V001 의 자동 이름 제약 `user_theme_check`(`light`·`dark`)를 대신한다. V149 가 새 제약을 `NOT VALID` 로 걸고 V150 이 검증한 뒤 옛 제약을 지운다(Rationale 「`user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다」).
-- `two_factor_setup_started_at` 은 `codebase/backend/migrations/V*__user_two_factor_setup_started_at.sql` 이 더한다. 이 마이그레이션은 기존 행을 바꾸지 않는다. 그래서 컬럼을 더하기 전에 설정 시작한 대기 secret 은 시각이 NULL 이고 활성화 검증이 만료로 본다.
+- `two_factor_setup_started_at` 은 `codebase/backend/migrations/V155__user_two_factor_setup_started_at.sql` 이 더한다. 이 마이그레이션은 기존 행을 바꾸지 않는다. 그래서 컬럼을 더하기 전에 설정 시작한 대기 secret 은 시각이 NULL 이고 활성화 검증이 만료로 본다.
 - Passkey credential 은 별도 엔티티 [WebAuthnCredential](#webauthncredential) 에 둔다. User 행에는 `webauthn_recovery_codes` 와 간접적으로 credential 개수만 영향을 준다.
 
 ### 응답에 싣지 않는 민감 컬럼 7개
@@ -83,17 +83,17 @@ etag: "sha256-1f91b856366528d906ff82c3344f8aeb18df237a9b7f16334b9332ed165f8f40"
 
 ## RefreshToken
 
-세션 단위는 `family_id` 다. 토큰 회전 때 행이 새로 생기지만 같은 `family_id` 는 하나의 로그인 세션이다. 사용자에게 보이는 활성 세션은 `is_revoked = false` 인 같은 `family_id` 의 가장 최신 행 메타데이터다.
+로그인 세션의 단위는 `family_id` 다. 토큰 회전 때 행이 새로 생기지만 같은 `family_id` 는 하나의 로그인 세션이다. 사용자에게 보이는 활성 로그인 세션은 `is_revoked = false` 인 같은 `family_id` 의 가장 최신 행 메타데이터다.
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
 | id | UUID | PK |
 | user_id | UUID | FK → User (CASCADE) |
 | token_hash | String | SHA-256(리프레시 토큰), UNIQUE |
-| family_id | UUID | 로그인 세션 식별자 (회전 뒤에도 유지) |
+| family_id | UUID | 로그인 세션 식별자 (토큰 회전 뒤에도 유지) |
 | is_revoked | Boolean | 강제·자연 만료 여부 |
-| expires_at | Timestamp | 만료 시각. 발급하거나 회전한 시점부터 로그인 유지(`remember_me`)면 30일, 아니면 7일 |
-| remember_me | Boolean | 로그인 유지 여부 (NOT NULL, 기본 `false`). 로그인 · 소셜 로그인 · Passkey 로그인 · TOTP 2단계 로그인 · 초대 가입이 발급할 때 정한다. 갱신으로 회전하면 새 행이 옛 행 값을 이어받는다. 토큰 수명과 갱신 쿠키 `maxAge` 를 정하는 정본이다([세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지)). V156 이 더했다 |
+| expires_at | Timestamp | 만료 시각. 발급하거나 토큰을 회전한 시점부터 로그인 유지(`remember_me`)면 30일, 아니면 7일 |
+| remember_me | Boolean | 로그인 유지 여부 (NOT NULL, 기본 `false`). 로그인 · 소셜 로그인 · Passkey 로그인 · TOTP 2단계 로그인 · 초대 가입이 발급할 때 정한다. 갱신이 토큰을 회전하면 새 행이 옛 행 값을 이어받는다. 토큰 수명과 갱신 쿠키 `maxAge` 를 정하는 정본이다([세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지)). V156 이 더했다 |
 | device_label | String? | UA 에서 만든 표시 라벨 ("Chrome on macOS") |
 | user_agent | String? | 발급 시점 원래 UA |
 | ip_address | String? | 발급 시점 클라이언트 IP. IP 추출 순서는 [세션과 토큰](CLE-ACCT-SESSION.md) |
@@ -193,13 +193,14 @@ etag: "sha256-1f91b856366528d906ff82c3344f8aeb18df237a9b7f16334b9332ed165f8f40"
 
 ### 로그인 이력 CHECK 변경을 한 문장 마이그레이션으로 했다
 
-V058(`chk_login_history_event` 에 `webauthn_failed` 추가)은 `DROP/ADD CONSTRAINT` 한 문장으로 썼다. 마이그레이션 기본 규약은 NOT VALID 와 VALIDATE 두 단계지만([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)), 이 건은 다음 조건을 모두 만족해 한 문장이 안전하다고 판단했다.
+V058(`chk_login_history_event` 에 `webauthn_failed` 추가)은 `DROP CONSTRAINT` 와 `ADD CONSTRAINT` 를 `NOT VALID` 없이 바로 이어 썼다. 마이그레이션 기본 절차는 NOT VALID 와 VALIDATE 두 단계다. 그 절차와 한 단계로 써도 되는 예외 조건의 정본은 `codebase/backend/migrations/README.md` §1 이다. 조건은 셋이고 모두 맞아야 한다. append-only 테이블, 기존 행 위반이 0건으로 보장되는 enum 확장, 잠금 영향 평가와 DBA 검토다. 행 수 상한도 README 가 정한다. 이 건이 앞의 두 조건에 맞는 이유는 아래와 같다.
 
 1. append-only 테이블이다. `login_history` 는 INSERT 만 한다(보존 배치의 DELETE 만 예외). 오래 도는 쓰기 트랜잭션이 ACCESS EXCLUSIVE 잠금과 부딪칠 가능성이 낮다.
 2. enum 확장이다. 새 값(`webauthn_failed`)은 기존 행에 없으므로 NOT VALID 의 "기존 행 검증 건너뛰기" 이득이 없다. 전체 검증을 해도 위반은 0건이다.
-3. 테이블이 아직 작다. 잠금 영향을 무시할 수 있는 규모다. 다만 100만 행에 이르면 다음 CHECK 변경부터 NOT VALID 와 VALIDATE 로 나누는 것을 의무로 하고, 180일 보존 배치(`login-history-pruner`)가 제대로 도는지 모니터링한다.
 
-이미 적용한 제약을 NOT VALID 로 다시 선언하는 것은 뜻이 없다(이름이 같으면 `ERROR: relation already exists`). DROP, NOT VALID ADD, VALIDATE 세 단계로 우회하면 한 문장보다 잠금 창이 길어진다(ACCESS EXCLUSIVE 잠금 3회). 같은 형태의 변경은 위 조건을 점검한 뒤 고르고, append-only 테이블도 100만 행 이후에는 두 단계를 권한다.
+셋째 조건에 대해 V058 헤더에는 잠금 영향 메모(append-only 라 짧은 잠금은 안전하다)만 있고 DBA 검토 기록은 없다. 180일 보존 배치(`login-history-pruner`)가 테이블 크기를 묶는다.
+
+이미 적용한 제약을 NOT VALID 로 다시 선언하는 것은 뜻이 없다(이름이 같으면 `ERROR: relation already exists`). DROP, NOT VALID ADD, VALIDATE 세 단계로 우회하면 한 문장보다 잠금 창이 길어진다(ACCESS EXCLUSIVE 잠금 3회). 같은 형태의 변경은 README §1 의 조건을 점검한 뒤 고른다.
 
 ### `user.theme` CHECK 확장은 두 단계 마이그레이션으로 했다
 
@@ -228,11 +229,11 @@ V058(`chk_login_history_event` 에 `webauthn_failed` 추가)은 `DROP/ADD CONSTR
 
 NERV Task `CLE-T-BYCGF1` 에서 바꿨다. 규칙과 근거, 기각한 안은 [세션과 토큰 「토큰 회전이 로그인 유지 여부를 이어받는다」](CLE-ACCT-SESSION.md#토큰-회전이-로그인-유지-여부를-이어받는다) 에 있다. 이 문서에는 컬럼 정의와 백필 근거만 적는다.
 
-- 그 전에는 토큰 행에 로그인 유지 여부가 없어서 갱신이 토큰을 회전할 때 늘 `false` 로 넘겼다. 그래서 30일로 로그인한 세션도 첫 회전 뒤에는 7일 만료가 됐다. 회전이 이어받을 값을 남기려고 `refresh_token.remember_me`(NOT NULL, 기본 `false`)를 더했다.
+- 그 전에는 토큰 행에 로그인 유지 여부가 없어서 갱신이 토큰을 회전할 때 늘 `false` 로 넘겼다. 그래서 30일로 로그인한 로그인 세션도 첫 토큰 회전 뒤에는 7일 만료가 됐다. 토큰 회전이 이어받을 값을 남기려고 `refresh_token.remember_me`(NOT NULL, 기본 `false`)를 더했다.
 - `auth_oauth_state.remember_me` 는 그대로 둔다. 소셜 로그인 시작부터 콜백까지 값을 나르는 단명 행이고 콜백이 소비하면 사라진다. 콜백이 발급한 리프레시 토큰의 `remember_me` 가 그 값을 받는다.
-- 백필은 `expires_at - created_at` 으로 발급 수명을 가른다. 7일 행은 차이가 7일이고 30일 행은 30일이라 8일을 경계로 둔다. 이미 한 번 회전한 행은 고치기 전 규칙대로 7일로 발급돼 원래 로그인 유지 여부를 알 수 없다. 그래서 `false` 로 남긴다. 그 사용자는 다음 로그인부터 30일을 받는다.
-- **기각: 기존 행을 모두 `false` 로 두기.** 배포 시점에 30일로 로그인해 아직 한 번도 회전하지 않은 세션도 다음 회전부터 7일이 된다. 이런 행은 발급 수명으로 판별할 수 있으므로 살린다.
-- **기각: 살아 있는 행을 모두 `true` 로 채우기.** 로그인 유지를 끄고 로그인한 세션까지 30일로 늘어난다.
+- 백필은 `expires_at - created_at` 으로 발급 수명을 가른다. 7일 행은 차이가 7일이고 30일 행은 30일이라 8일을 경계로 둔다. 이미 한 번 토큰 회전을 거친 행은 고치기 전 규칙대로 7일로 발급돼 원래 로그인 유지 여부를 알 수 없다. 그래서 `false` 로 남긴다. 그 사용자는 다음 로그인부터 30일을 받는다.
+- **기각: 기존 행을 모두 `false` 로 두기.** 배포 시점에 30일로 로그인해 아직 토큰 회전을 거치지 않은 로그인 세션도 다음 토큰 회전부터 7일이 된다. 이런 행은 발급 수명으로 판별할 수 있으므로 살린다.
+- **기각: 살아 있는 행을 모두 `true` 로 채우기.** 로그인 유지를 끄고 로그인한 로그인 세션까지 30일로 늘어난다.
 - 상수 기본값이 있는 NOT NULL 컬럼 추가는 PostgreSQL 11 이상에서 메타데이터만 바꾼다. 다만 ACCESS EXCLUSIVE 잠금을 잡으므로 V149 와 같이 `lock_timeout` 을 3초로 둔다. 잡지 못하면 그 파일이 롤백되므로 다시 배포하면 된다.
 
 ### 새로 저장하는 이메일을 소문자로 정규화하고 기존 행은 바꾸지 않는다

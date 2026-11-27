@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-TOTP"
 title: "가입과 로그인 — 2단계 인증 설정과 TOTP"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "7e291babc877b77866206f45dd454fa32dc96d6ad620d40c5e8d4f11047be418"
+content_hash: "daa29e368c20234c53dc4191d686c90db415cc44de489ea8606414e2e5311529"
 read_as: "approved_fallback"
-task: "CLE-T-VYNVGP"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "50ce70619858859bbea792cd329768fef574574446ef6912153569949a89be72"
-etag: "sha256-c9a98a430da7ae5fa9091036ff7c83363e447e6ab889513278a59d191e790f0a"
+mirror_sha256: "47dabd070b6159805d303f292233b9a6a91fe284b6a5ae93e56ad7d167c1dd01"
+etag: "sha256-cb41d2b42e0a1f8a34a66eb6936397ec915bfff822d9192dc61c09ef386bc35b"
 ---
 ## 개요
 
@@ -171,7 +171,7 @@ NERV Task `CLE-T-75TDTN` 의 결정이다. 원문 인증 명세의 2단계 인�
 
 결정일: 2026-10-10
 
-이메일 변경과 세션 강제 종료의 계정 재인증은 등록된 TOTP 코드만 받고 TOTP 복구 코드는 받지 않는다([세션과 토큰](CLE-ACCT-SESSION.md) 의 「세션 정책」 표 「강제 종료 재인증」 행). TOTP 끄기는 복구 코드도 받는다. 두 규칙은 일부러 다르게 두었다.
+이메일 변경과 세션 강제 종료의 계정 재인증은 등록된 TOTP 코드만 받고 TOTP 복구 코드는 받지 않는다([세션 정책과 세션 관리](CLE-ACCT-SESSION-POLICY.md#세션-정책) 의 「세션 정책」 표 「강제 종료 계정 재인증」 행). TOTP 끄기는 복구 코드도 받는다. 두 규칙은 일부러 다르게 두었다.
 
 - 계정 재인증은 비밀번호와 TOTP 가운데 하나만 통과하면 된다. 비밀번호가 있는 사용자는 인증 앱을 잃어도 비밀번호로 계정 재인증을 한다. 복구 코드를 받지 않아도 잠기지 않는다.
 - 비밀번호가 없는 OAuth 전용 계정만 TOTP 코드에 기댄다. 이 사용자도 [비밀번호 재설정](CLE-ACCT-SIGNIN-SIGNUP.md#비밀번호-재설정) 으로 비밀번호를 추가하면 비밀번호로 계정 재인증을 할 수 있다.
