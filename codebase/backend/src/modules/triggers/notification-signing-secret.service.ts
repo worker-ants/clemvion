@@ -49,7 +49,8 @@ function hasPendingRotation(
  * 근거: [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY#시크릿-교체), [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙),
  * [트리거 관리 「동시 쓰기 직렬화」](CLE-TRIG-MANAGE#동시-쓰기-직렬화).
  *
- * `TriggersService` 에서 옮겨 왔고 동작은 그대로다(NERV Task `CLE-T-EQDYC1`). 요청 흐름(잠금을 언제 잡고 응답에 무엇을
+ * `TriggersService` 에서 옮겨 왔다(NERV Task `CLE-T-EQDYC1`). 옮기면서 두 가지를 바꿨다. 승격 후보 조회는 `id` 와
+ * v2 컬럼만 읽고, `writeRotation` 은 엔티티를 고치지 않고 쓴 값을 돌려준다. 요청 흐름(잠금을 언제 잡고 응답에 무엇을
  * 싣는지)은 `TriggersService` 가 정하고, 이 서비스는 시크릿 한 종류의 규칙만 안다.
  *
  * | 메서드 | 부르는 자리 | 잠금 |
