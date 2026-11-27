@@ -184,3 +184,19 @@ describe('service-registry — makeshop service', () => {
     expect(scopes.some((s) => s.requiresApproval)).toBe(false);
   });
 });
+
+describe('service-registry — email secure 필드 (CLE-T-JDSC37)', () => {
+  const secure = findVariant('email', 'smtp')?.fields.find(
+    (f) => f.key === 'secure',
+  );
+
+  it('none 을 선택지로 남기고 기본값은 starttls 다', () => {
+    expect(secure?.enum).toEqual(['none', 'starttls', 'tls']);
+    expect(secure?.default).toBe('starttls');
+  });
+
+  it('none 의 평문 전송 위험을 설명으로 알린다', () => {
+    expect(secure?.description).toContain('none');
+    expect(secure?.description).toContain('평문');
+  });
+});

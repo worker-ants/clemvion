@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL-CONFIG"
 title: "Parallel 노드 — 설정과 에러"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PARALLEL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-PARALLEL"]
 area: "CLE-NODE-LOGIC"
-content_hash: "ca8b974babc0d51200568fe16bee1657b538bf77f29ace32826c461f85eefb60"
+content_hash: "c1940d3b2dd6d5fa3c11ec4e02ebbde4539a2968c94397298d2c0ccd904a4c1f"
 read_as: "approved_fallback"
-task: "CLE-T-CKJQZD"
+task: "CLE-T-7JJHF2"
 source_paths: []
-mirror_sha256: "4d9312f127946eee6455e6334c74591ee308b5c1c71432bc3eb0496cfb44ecb5"
-etag: "sha256-0cc95c8389bc537176bfacaee42fd3819f728e5d98f3a758bc5b1d598b4a6d41"
+mirror_sha256: "f79847c51dbfde86b4a87a89e068875746a4f519bf4f29261bc97d5ce56ace19"
+etag: "sha256-e9765a2460eddb0c88de16da2c5f2f460d4f93c6dbfeb1ec50a0dc9c63074905"
 ---
 ## 개요
 
@@ -63,7 +63,7 @@ etag: "sha256-0cc95c8389bc537176bfacaee42fd3819f728e5d98f3a758bc5b1d598b4a6d41"
 
 Parallel 은 런타임 에러 포트가 없다(에러 처리 정책으로 생기는 동적 에러 포트는 제외, [Parallel 노드](CLE-NODE-PARALLEL.md#요구사항)). 설정 검증 실패는 사전 검증 에러로 던지고 병렬 분기 실행 중의 에러는 항목 에러 정책으로 처리한다. 메시지는 영문 원문이 기준이고 캔버스는 프론트엔드 i18n 으로 한국어를 렌더링한다.
 
-`branchCount` 범위 검사는 노드 경고 규칙 한 곳에만 둔다. `handler.validate` 는 경고 규칙과 `validateConfig` 의 결과를 합쳐 돌려주므로 같은 문구가 캔버스 배지와 검증 결과에 한 번씩 보인다. `validateConfig`(`validateParallelConfig`)는 경고 규칙의 표현식으로 쓸 수 없는 정수 검사만 맡는다.
+`branchCount` 의 범위 검사와 정수 검사는 노드 경고 규칙에만 둔다. `handler.validate` 는 경고 규칙과 `validateConfig` 의 결과를 합쳐 돌려주므로 같은 문구가 캔버스 배지와 검증 결과에 한 번씩 보인다. 정수 규칙은 0 보다 큰 값만 보고 0 이하의 값은 범위 규칙이 잡는다. `validateConfig`(`validateParallelConfig`)는 `branchCount` 가 유한한 숫자인지만 본다.
 
 표의 `PARALLEL_INVALID_CHILD` · `PARALLEL_BACK_EDGE` · `PARALLEL_NESTED_DEPTH_EXCEEDED` 는 에러 메시지 앞에 붙는 접두사다. `ErrorCode` enum 값이 아니고 `output.skipped[].error.code` 값도 아니다. [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#컨테이너-패턴) 규칙 1 의 `CONTAINER_*` 와 같은 방식이다. 그래서 `errorPolicy='continue'` 에서 실행 중 대기로 실패한 병렬 분기는 `error.code` 가 `'UNKNOWN_ERROR'` 이고 접두사는 `error.message` 앞에 붙는다. 접두사는 진단용이며 클라이언트가 분기 근거로 쓰지 않는다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#규칙) 규칙 4). 접두사는 안정된 코드로 올리지 않는다(2026-11-05, [Logic 노드 공통](CLE-NODE-LOGIC-COMMON.md#실패한-회차와-병렬-분기의-errorcode)).
 
@@ -72,7 +72,8 @@ Parallel 은 런타임 에러 포트가 없다(에러 처리 정책으로 생기
 | 발생 조건 | 메시지 · 처리 | 시점 |
 |-----------|--------------|------|
 | `branchCount` 가 `[2, 16]` 밖 | `branchCount must be a value between 2 and 16.` | 노드 경고 규칙(캔버스 배지와 `handler.validate`) |
-| `branchCount` 가 정수 아님 | `branchCount must be an integer.` | `handler.validate` |
+| `branchCount` 가 0 보다 크고 정수가 아닌 숫자 | `branchCount must be an integer.` | 노드 경고 규칙(캔버스 배지와 `handler.validate`) |
+| `branchCount` 가 유한한 숫자 아님 | `branchCount must be a number.` | `handler.validate` |
 | `maxConcurrency` 가 숫자 아님 | `maxConcurrency must be a number.` | `handler.validate` |
 | `maxConcurrency` 가 정수 아님 | `maxConcurrency must be an integer.` | `handler.validate` |
 | `maxConcurrency` 가 `[0, 16]` 밖 | `maxConcurrency must be a value between 0 and 16 (0 = unlimited).` | `handler.validate` |
@@ -122,3 +123,9 @@ Parallel 은 런타임 에러 포트가 없다(에러 처리 정책으로 생기
 결정일: 2026-11-01
 
 노드 경고 규칙(`branchCount must be 2 to 16.`)과 `validateParallelConfig`(`branchCount must be a value between 2 and 16.`)가 같은 범위를 따로 검사했다. `handler.validate` 는 두 결과를 합치므로 `branchCount=1` 이면 같은 뜻의 문구가 두 번 나왔다. 범위 검사는 경고 규칙 한 곳에만 두고 문구는 `maxConcurrency` 문구와 같은 모양으로 정했다. 두 문구를 그대로 두고 이 문서의 에러 표만 실제에 맞추는 안은 같은 뜻의 문구가 계속 두 번 보여 기각했다.
+
+### `branchCount` 정수 검사도 경고 규칙에 둔다
+
+결정일: 2026-11-27
+
+경고 규칙 표현식에 정수 검사가 없어 `validateParallelConfig` 가 정수 검사를 맡았다. 그래서 REQ-PARALLEL-019 가 정한 정수 아님 배지가 캔버스에 보이지 않았다. 표현식에 `isInteger(path)` 를 더하고(문법의 정본은 `@workflow/node-summary` 의 `WarningRule` 주석) 정수 검사를 경고 규칙 `parallel:branch-count-not-integer` 로 옮겼다(NERV Task `CLE-T-7JJHF2`). 범위 검사를 한 곳에 둔 것과 같은 이유로 `validateParallelConfig` 는 정수 검사를 그만두고 숫자가 아닌 값만 거부한다. 두 곳에 두면 `handler.validate` 결과에 같은 문구가 두 번 나온다. 기각한 대안은 REQ-PARALLEL-019 에서 정수 아님 배지를 빼는 안이다. 그러면 저장하기 전에 알 수 있는 설정 오류를 검증을 돌려야 알게 된다.

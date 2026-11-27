@@ -2,19 +2,19 @@
 id: "CLE-API-CONV"
 title: "HTTP API 규약"
 type: "convention"
-version: 21
+version: 22
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "0a43c7449910b7c0aaf6166b3f9b507df6b5060e81de4052a64ac1ef420eaea9"
+content_hash: "a96bb2f22fcfafb058b54f54ac5a226558e0009d2eb1ffaf765d992adc83ef2e"
 read_as: "approved_fallback"
-task: "CLE-T-VPF9EH"
+task: "CLE-T-VWC60Z"
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "7019547a5132b4bc07f2aa7d2a7f9f42b299295f49a5d3f0fe8276c133670851"
-etag: "sha256-f84685c6ccc8e4b2470eb47d4365bc72b874b03764192afbe08c028712018451"
+mirror_sha256: "788cab9f86171c24f3064b45723065582cbe3ec36fbb3a04eb2fa4644a5caec3"
+etag: "sha256-a6ba7389fba33adb45ec48ea0b5eaa08bbffb2ec11da0c3fcd73a8c1c42af0e6"
 ---
 > 구현 상태: 부분 구현 (WebSocket `execution.continue` 는 미구현) · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -98,7 +98,7 @@ API 를 읽는 쪽은 웹 프론트엔드 하나가 아니다. External Interact
 
 - **`204` 삭제 응답의 건수 헤더**: [에이전트 메모리](../CLE-AI/CLE-AI-MEMORY.md) 의 범위 삭제(`DELETE /api/agent-memories?scopeKey=`)가 프로젝트 첫 커스텀 응답 헤더 `X-Deleted-Count` 를 쓴다. `204` 라 본문이 없어 실제 삭제 행 수를 헤더로 싣고(0 가능, 멱등 삭제) cross-origin 에서 읽히도록 CORS `exposedHeaders` 에 넣는다. 그 문서는 이 방식을 이 규약의 공통 규칙(멱등 DELETE 와 커스텀 건수 헤더)으로 올리는 일을 별도 작업으로 넘겼다. 공통 규칙으로 올릴지 결정이 필요하다.
 - **자원을 만들지 않는 POST 의 성공 코드**: [§6](CLE-API-CONV-RESP.md#6-http-상태-코드) 은 `200` 을 조회·수정에, `201` 을 생성에 배정한다. 저장소에는 `@HttpCode(200)` 을 단 액션 POST 가 여럿 있고 OAuth 시작(설치 대기 통합 행 생성)이나 초대 수락(멤버십 행 생성)처럼 부수적으로 행을 만드는 POST 도 `200` 이다. [OpenAPI 문서화](CLE-API-SWAGGER.md) 는 광고한 코드와 실제 코드의 짝만 강제하고 어느 코드가 맞는지는 정하지 않는다고 스스로 적는다. §6 에 "액션 POST(자원 생성 없음 또는 부수 생성) = `200`" 행을 둘지 결정이 필요하다.
-- **서버 설정으로 꺼진 기능의 상태 코드**: `WEBAUTHN_DISABLED` 는 503 이고 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 두 코드를 한 상태로 맞출지, 맞춘다면 어느 쪽으로 맞출지 결정이 필요하다. 배경은 [응답 형식과 상태 코드](CLE-API-CONV-RESP.md#passkey-기능이-꺼졌을-때의-503-을-예외로-적었다-2026-10-17) 의 Rationale 에 있다.
+- **서버 설정으로 꺼진 기능의 상태 코드**: `WEBAUTHN_DISABLED` 는 503 이고 같은 부류인 `OAUTH_CONFIG_MISSING`(서버 OAuth 설정 없음)은 500 이다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md)). 두 코드를 한 상태로 맞출지, 맞춘다면 어느 쪽으로 맞출지 결정이 필요하다. 배경은 [응답 형식과 상태 코드](CLE-API-CONV-RESP.md#passkey-기능이-꺼졌을-때의-503-을-예외로-적었다) 의 Rationale 에 있다.
 
 ## 구현 위치
 

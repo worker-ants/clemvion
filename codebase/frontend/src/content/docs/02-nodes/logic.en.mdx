@@ -117,7 +117,7 @@ A container's `emit` port must have **exactly one body node** connected. Wiring 
   {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "Policy when an item's execution fails. Result array preserves original indices.", default: "stop"}
 ]} />
 
-Inside the body you can reference `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`.
+Inside the body you can reference `$item`, `$itemIndex`, `$itemIsFirst`, `$itemIsLast`.
 
 If the array path resolves to something that isn't an array (a number, string, object, `null`, or a missing path), ForEach treats it as an empty array without an error and never runs the body. In that case `$node["ForEach"].meta.fellBackToEmpty` is `true`. Check `meta.iterations` for how many times the body ran, and `meta.skippedCount` for how many items were skipped (present only when some were).
 
@@ -327,7 +327,7 @@ Modifying a variable that has not been declared raises an error. Always declare 
 <FieldTable rows={[
   { name: "Branch Count", required: true, type: "number", description: "Number of branches to run in parallel. Between 2 and 16.", default: "2" },
   { name: "Max Concurrency", required: false, type: "number", description: "Max branches running at once. `0` runs everything in parallel; 1–16 caps the concurrent count.", default: "0 (unlimited)" },
-  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "What happens when a branch fails. `stop` fails the whole Parallel on the first failure. `continue` waits for every branch to finish, leaves `null` in a failed branch's slot, and collects the failure info in `skipped`. `cancel-others-on-fail` aborts other branches' in-flight external I/O (e.g. HTTP) the moment the first failure surfaces.", default: "stop" }
+  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "What happens when a branch fails. `stop` waits for every branch to finish, then fails the Parallel with the error of the lowest-numbered failed branch (a failure does not stop the other branches). `continue` waits for every branch to finish, leaves `null` in a failed branch's slot, and collects the failure info in `skipped`. `cancel-others-on-fail` aborts other branches' in-flight external I/O (e.g. HTTP) the moment the first failure surfaces.", default: "stop" }
 ]} />
 
 ### Ports
@@ -341,9 +341,9 @@ Modifying a variable that has not been declared raises an error. Always declare 
 - On input, **the same value is emitted simultaneously** to `branch_0`, `branch_1`, and so on.
 - Branches run **truly in parallel** by default. If the server sets `PARALLEL_ENGINE=off`, branches run one at a time in topological order. In that mode the completion output below (`branches`, `count`, `skipped`) is not produced.
 - Max Concurrency caps the number of concurrent branches to protect resources.
-- Nodes inside one branch run one at a time in topological order. From the second node on, each node receives the previous node's output as its input, and a path that an If or Switch inside the branch did not pick does not run.
+- Nodes inside one branch run one at a time in topological order. Each node receives the output of the node connected before it as its input, and a path that an If or Switch inside the branch did not pick does not run.
 - When every branch completes, the output of **the latest node that actually ran** in each branch goes into `done.branches`. Nodes that did not run are not used as the result.
-- If more than one end node runs in a branch (for example, both B and C run after A), which one becomes the result depends on internal node ID order. Editing nodes or connections can change it, so to pin the result, collect those paths into a single Merge node at the end of the branch.
+- If more than one end node runs in a branch (for example, both B and C run after A), the one that runs last becomes the result. Run order follows the connections, and nodes at the same step are ordered by internal node ID. Editing nodes or connections can change it, so to pin the result, collect those paths into a single Merge node at the end of the branch.
 
 ### Reading results and failures
 

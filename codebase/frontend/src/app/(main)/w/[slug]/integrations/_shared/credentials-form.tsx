@@ -63,6 +63,11 @@ function Field({ field, value, secretsMasked, onChange }: FieldProps) {
             </option>
           ))}
         </select>
+        {field.description && (
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+            {field.description}
+          </p>
+        )}
       </div>
     );
   }

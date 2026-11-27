@@ -2,19 +2,19 @@
 id: "CLE-PLAT-NFR"
 title: "비기능 요구사항"
 type: "feature"
-version: 6
+version: 7
 status: "approved"
 requirements: ["REQ-NFR-001", "REQ-NFR-002", "REQ-NFR-003", "REQ-NFR-004", "REQ-NFR-005", "REQ-NFR-006", "REQ-NFR-007", "REQ-NFR-008", "REQ-NFR-009", "REQ-NFR-010", "REQ-NFR-011", "REQ-NFR-012", "REQ-NFR-013", "REQ-NFR-014", "REQ-NFR-015", "REQ-NFR-016", "REQ-NFR-017", "REQ-NFR-018", "REQ-NFR-019", "REQ-NFR-020", "REQ-NFR-021", "REQ-NFR-022", "REQ-NFR-023", "REQ-NFR-024", "REQ-NFR-025", "REQ-NFR-026", "REQ-NFR-027", "REQ-NFR-028", "REQ-NFR-029", "REQ-NFR-030", "REQ-NFR-031", "REQ-NFR-032", "REQ-NFR-033", "REQ-NFR-034", "REQ-NFR-035", "REQ-NFR-036", "REQ-NFR-037", "REQ-NFR-038", "REQ-NFR-039", "REQ-NFR-040", "REQ-NFR-041", "REQ-NFR-042", "REQ-NFR-043", "REQ-NFR-044", "REQ-NFR-045", "REQ-NFR-046", "REQ-NFR-047", "REQ-NFR-048"]
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "be9f9f5a1fe70b9a0b47e4b37ffb8c88882f73c9399368ea21a10512e3c1bd0e"
+content_hash: "f2cbf67040d9ff54d8d2ff40604e33839d9ec16aa6b37f45e8b4b74f0f199718"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-JDSC37"
 source_paths: ["spec/5-system/_product-overview.md"]
-mirror_sha256: "7398dbf1685557ebe3843da1adcea4b180a37d9d4d19c798a5fe49b7d410d1d0"
-etag: "sha256-a725f16d4b66515c93f1fadf60d8e4e3f0c18007de974104da7fe7575807834a"
+mirror_sha256: "7fa793e9213d7ce54d3c3bff68bc2355a920410d573dea834ff132f1c9fb5e0c"
+etag: "sha256-dcde24988c155733110eb032c1cd97f778c2831c463cf572904c05587e26b18d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/_product-overview.md` (§1~§7) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -114,6 +114,7 @@ etag: "sha256-a725f16d4b66515c93f1fadf60d8e4e3f0c18007de974104da7fe7575807834a"
   - 동시 로그인 세션 수 제한은 미구현이다. 초과 시 가장 오래된 로그인 세션을 끝내는 동작도 없다. 구현 요구는 [세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md) 의 REQ-SESSION-033 이 소유한다. 한도 값과 설정 주체는 후속 NERV Task `CLE-T-VBQV4H` 가 정한다.
 - **2단계 인증(NF-SC-10)**: TOTP 와 Passkey·보안 키(WebAuthn, 여러 개 등록 가능)를 지원한다. 방식마다 복구 코드 10개를 따로 발급한다. Passkey·보안 키를 우선하고 TOTP 로 자동 전환하지 않는다. 규칙은 [가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 이 정한다. Passkey 기능이 꺼진 서버의 예외는 [가입과 로그인 「2단계 인증 방식 선택」](../CLE-ACCT/CLE-ACCT-SIGNIN.md#2단계-인증-방식-선택) 에 있다.
 - **샌드박싱(NF-SC-09)**: 샌드박싱 정책은 [노드 시스템 구조와 카탈로그](../CLE-NODE/CLE-NODE-ARCH.md) 와 [Code 노드](../CLE-NODE-DATA/CLE-NODE-CODE.md) 가 정한다.
+- **전송 구간 암호화(NF-SC-04)의 메일 예외**: 메일 발송 두 곳은 TLS 강제를 끌 수 있다. 시스템 SMTP 는 운영자가 `MAIL_REQUIRE_TLS=false` 로 STARTTLS 강제를 끈다([근거](../CLE-ACCT/CLE-ACCT-DATA-OPS.md#시스템-smtp-는-starttls-를-기본으로-강제한다)). 워크스페이스 SMTP 통합은 `secure: none` 을 고르면 TLS 를 강제하지 않는다([근거](../CLE-INT/CLE-INT-AUTH.md#smtp-통합의-secure-none-을-남기고-위험을-알린다)). 둘 다 TLS 를 지원하지 않는 서버를 위해 남긴 선택이고 REQ-NFR-010 의 받아들인 예외다.
 
 ### 가용성
 

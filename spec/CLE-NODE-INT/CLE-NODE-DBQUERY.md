@@ -2,19 +2,19 @@
 id: "CLE-NODE-DBQUERY"
 title: "Database Query 노드"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-DBQ-001", "REQ-DBQ-002", "REQ-DBQ-003", "REQ-DBQ-004", "REQ-DBQ-005", "REQ-DBQ-006", "REQ-DBQ-007", "REQ-DBQ-008", "REQ-DBQ-009", "REQ-DBQ-010", "REQ-DBQ-011", "REQ-DBQ-012", "REQ-DBQ-013", "REQ-DBQ-014", "REQ-DBQ-015", "REQ-DBQ-016", "REQ-DBQ-017", "REQ-DBQ-018", "REQ-DBQ-019", "REQ-DBQ-020", "REQ-DBQ-021", "REQ-DBQ-022", "REQ-DBQ-023", "REQ-DBQ-024", "REQ-DBQ-025", "REQ-DBQ-026", "REQ-DBQ-027", "REQ-DBQ-028", "REQ-DBQ-029", "REQ-DBQ-030", "REQ-DBQ-031", "REQ-DBQ-032"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "b870435e61e1d431ad516d54d996deb04c6cf74f68cbc40b8c7414d7b8a0e0eb"
+content_hash: "2d006abb35195d92e15ea37f6df0b75c4f22a55c805dd42d699893c2fec97f32"
 read_as: "approved_fallback"
-task: "CLE-T-NTNXZS"
+task: "CLE-T-DC5Y0P"
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0b15612fd329ad848a4c67471ec880085e42e10f07bd49bb677d6b5e61d543be"
-etag: "sha256-be7fde46eb0b5a904dce8972db51b2cf6777e4d69300b8b2fb838495203d2b7e"
+mirror_sha256: "bb0b765e9f388290860c824938b3a8e5dd306662ea5a8d86a8708fb45a5c5422"
+etag: "sha256-466eb4328e4d5081cdec8977c2f87da0c2f003c35e4f42b8ffade9aa2b9a1185"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -28,14 +28,14 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 - REQ-DBQ-001 WHEN 노드가 실행되면 THE SYSTEM SHALL 설정한 SQL 을 통합의 데이터베이스에 실행해 데이터를 조회하거나 조작한다. (원본: ND-DQ-01)
 - REQ-DBQ-002 WHEN 노드가 실행되면 THE SYSTEM SHALL DB 연결 정보를 `service_type='database'` 통합에서 읽는다. (원본: ND-DQ-02)
-- REQ-DBQ-003 WHEN 쿼리에 `$1`, `$2` 같은 플레이스홀더가 있으면 THE SYSTEM SHALL `parameters` 배열 값을 순서대로 바인딩한다. (원본: ND-DQ-03)
+- REQ-DBQ-003 WHEN 쿼리에 `$1`, `$2` 같은 플레이스홀더가 있으면 THE SYSTEM SHALL `$N` 에 `parameters` 배열의 N 번째 값을 바인딩한다. (원본: ND-DQ-03)
 - REQ-DBQ-004 WHEN SELECT 계열 쿼리가 끝나면 THE SYSTEM SHALL 결과 행을 `output.rows` 에, 행 수를 `output.rowCount` 에 담는다. (원본: ND-DQ-04)
 - REQ-DBQ-005 WHEN INSERT·UPDATE·DELETE 계열 쿼리가 끝나면 THE SYSTEM SHALL 영향받은 행 수를 `output.rowCount` 에 담고 `output.rows` 를 빈 배열로 둔다. (원본: ND-DQ-04)
 - REQ-DBQ-006 WHEN `credentials.driver` 가 `mysql` 이면 THE SYSTEM SHALL `mysql2/promise` 풀을 쓰고, 그 밖이면 `pg` 풀을 쓴다. (원본: ND-DQ-05)
-- REQ-DBQ-007 WHILE 드라이버가 MySQL 인 동안 THE SYSTEM SHALL `$N` 플레이스홀더를 `?` 로 바꿔 실행한다.
+- REQ-DBQ-007 WHILE 드라이버가 MySQL 인 동안 THE SYSTEM SHALL 문자열 리터럴 · 따옴표 식별자 · 주석 밖의 `$N` 을 `?` 로 바꾸고 그 자리에 `parameters[N-1]` 을 바인딩한다.
 - REQ-DBQ-008 WHEN MySQL INSERT 가 auto-increment id 를 돌려주면 THE SYSTEM SHALL 그 값을 `output.insertId` 에 담는다.
 - REQ-DBQ-009 WHEN SELECT 결과가 0건이면 THE SYSTEM SHALL 에러가 아니라 `success` 포트로 `rowCount: 0` 을 내보낸다.
-- REQ-DBQ-010 IF `parameters` 가 배열도 JSON 배열 문자열도 아니면 THE SYSTEM SHALL `INVALID_PARAMETERS` 로 에러 포트에 내보낸다.
+- REQ-DBQ-010 IF `parameters` 가 배열도 JSON 배열 문자열도 아니거나, MySQL 쿼리의 `$N` 이 배열 범위를 벗어나거나 `?` 와 섞여 있으면 THE SYSTEM SHALL 쿼리를 보내지 않고 `INVALID_PARAMETERS` 로 에러 포트에 내보낸다.
 - REQ-DBQ-011 WHEN 같은 통합과 같은 자격 증명으로 쿼리하면 THE SYSTEM SHALL 인스턴스 안의 연결 풀을 재사용한다.
 - REQ-DBQ-012 WHEN 자격 증명 해시가 캐시된 풀과 다르면 THE SYSTEM SHALL 옛 풀을 버리고 새 풀을 만든다.
 - REQ-DBQ-013 WHEN 통합의 자격 증명이 교체(`rotate`)되거나 통합이 삭제되면 THE SYSTEM SHALL 모든 인스턴스가 캐시한 그 통합의 풀을 바로 버리게 한다. 무효화 방송의 채널과 발행 시점은 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 가 정한다.
@@ -93,7 +93,7 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 | 출력 | `success` | Success | data | false | 쿼리 실행 성공 |
 | 출력 | `error` | Error | error | false | 런타임 실패(구문 에러·연결 끊김·제약 위반·권한 부족 등). 노드 출력 규약 Principle 3.1 |
 
-동적 포트는 없다. 자격 증명 누락, `INVALID_PARAMETERS`, 통합 해소 실패를 포함한 모든 실행 중 실패가 `error` 포트로 간다(D4). 실행 취소로 생긴 `AbortError` 는 예외다. 어느 포트로도 나가지 않고 노드가 `cancelled` 로 끝난다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
+동적 포트는 없다. 자격 증명 누락, `INVALID_PARAMETERS`, 통합 해소 실패를 포함한 모든 실행 중 실패가 `error` 포트로 간다. 실행 취소로 생긴 `AbortError` 는 예외다. 어느 포트로도 나가지 않고 노드가 `cancelled` 로 끝난다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)).
 
 ## 실행 로직
 
@@ -102,12 +102,12 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 0. **취소 확인**: 실행에 들어올 때 `context.abortSignal?.aborted` 면 즉시 `AbortError`(`err.name='AbortError'`)를 던진다. `cancel-others-on-fail` 등으로 이미 취소된 뒤 dispatch 된 경우다. 진행 중 abort 가 오면 **별도 풀 연결**로 PostgreSQL `SELECT pg_cancel_backend(<pid>)` 나 MySQL `KILL QUERY <threadId>` 를 보내 진행 중인 쿼리만 끊는다(연결은 유지). 취소로 생긴 드라이버 에러(PostgreSQL `57014`, MySQL `ER_QUERY_INTERRUPTED`)는 catch 에서 `AbortError` 로 다시 던져 `cancelled` 로 분류되게 한다([노드 취소](../CLE-EXEC/CLE-EXEC-CANCEL.md)). best-effort 다. 취소 권한과 타이밍에 따라 실패해도 해는 없다. 정상 완료되면 리스너를 해제한다.
 1. **드라이버 선택**: `Integration.credentials.driver` 가 `'mysql'` 이면 `mysql2/promise` 풀, 그 밖(기본 `'postgres'`)은 `pg` 풀을 쓴다.
 2. **풀 캐시**: integrationId 와 자격 증명 SHA-256 해시를 키로 풀을 재사용한다(`POOL_MAX_CONNECTIONS=5`, `POOL_IDLE_TIMEOUT_MS=30000`). 자격 증명이 바뀌면 옛 풀을 버리고 새 풀을 만든다. 여러 인스턴스 사이의 무효화는 아래 "풀 캐시 무효화" 에서 정한다.
-3. **플레이스홀더 변환**(MySQL 전용): `$1, $2, ...` 를 `?` 로 바꾼다(정규식 `\$\d+`). 파라미터는 그대로 배열 순서로 바인딩한다.
-4. **파라미터 정규화**(`config.parameters`):
+3. **파라미터 정규화**(`config.parameters`, 통합을 얻기 전):
    - 배열이면 그대로 쓴다.
    - 문자열이면 `JSON.parse` 를 시도해 결과가 배열이면 쓴다.
    - `undefined`·`null`·`''` 이면 `[]` 다.
-   - 그 밖이거나 JSON 파싱에 실패하면 `INVALID_PARAMETERS` 로 에러 포트에 보낸다(D4).
+   - 그 밖이거나 JSON 파싱에 실패하면 `INVALID_PARAMETERS` 로 에러 포트에 보낸다.
+4. **플레이스홀더 변환**(MySQL 전용, 연결 전): 리터럴 · 따옴표 식별자 · 주석 밖의 `$N` 을 `?` 로 바꾸고 `$N` 이 나온 순서대로 `parameters[N-1]` 을 묶는다. 번호가 등장 순서와 달라도 번호대로 묶고, 같은 번호를 두 번 쓰면 값도 두 번 싣는다. `$N` 이 없으면 쿼리와 배열을 그대로 보낸다(MySQL 고유 `?`). 식별자에 붙은 `$`(`a$1`)는 그대로 두고, MySQL 이 SQL 로 읽는 `--x` · `/*! */` 안은 바꾼다.
 5. **PostgreSQL 실행**: `pool.connect()` → `client.query(sql, params)` → `client.release()`.
 6. **MySQL 실행**: `pool.getConnection()` → `connection.query(sql, params)` → `connection.release()`. 결과가 배열이면 SELECT 계열(`rows`·`fields`), `ResultSetHeader` 면 INSERT·UPDATE·DELETE 계열(`rowCount = affectedRows`, `insertId`)이다. 연결을 명시적으로 얻는 이유는 진행 중 취소에 쓸 `threadId` 를 확보하기 위해서다(0단계).
 7. **SSL 매핑**:
@@ -123,11 +123,11 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
    - `api_label` = NULL. 임의 SQL 을 부르므로 엔드포인트 카탈로그가 없다.
    - `api_method` = 평가된 SQL 의 첫 동사(`SELECT`·`INSERT`·`UPDATE`·`DELETE` 등). `queryType` 과 관계없이 앞 공백을 뺀 첫 영문 단어를 대문자로 쓴다. 첫 글자가 영문이 아니면(맨 앞 주석 포함) NULL 이다. 근거는 [엔티티 「채우기 규칙」 Rationale](../CLE-INT/CLE-INT-DATA-ENTITY.md#database-query-의-api_method-는-실행한-sql-의-첫-동사다).
    - `api_path` = 드라이버 토큰(`postgres`·`mysql`). SQL 본문 파싱을 피하고 개인정보가 드러나지 않게 한다. 드라이버가 늘면 토큰 목록을 넓힌다.
-9. **포트 라우팅**: 정상 종료는 `port: 'success'`, 그 밖의 모든 실패(쿼리 throw·자격 증명 누락·통합 해소 실패 등)는 `port: 'error'` 다(D4). 실행 취소로 생긴 `AbortError` 는 포트로 보내지 않고 다시 던진다(8단계).
+9. **포트 라우팅**: 정상 종료는 `port: 'success'`, 그 밖의 모든 실패(쿼리 throw·자격 증명 누락·통합 해소 실패 등)는 `port: 'error'` 다. 실행 취소로 생긴 `AbortError` 는 포트로 보내지 않고 다시 던진다(8단계).
 
 ### 풀 캐시 무효화
 
-풀 캐시는 인스턴스마다 따로 있는 메모리 캐시라 다른 인스턴스의 풀에는 교체 전 자격 증명으로 맺은 유휴 연결이 남는다(근거는 [Rationale](#풀-캐시-무효화에-redis-pubsub-방송-채택-2026-06-11-refactor-04-m-4)). 그래서 이 노드는 자격 증명 캐시 무효화 방송을 구독한다. 채널, 발행 시점, 페이로드, 방송 실패 처리는 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 가 정한다. 이 절은 풀이 방송을 받았을 때 하는 일만 정한다.
+풀 캐시는 인스턴스마다 따로 있는 메모리 캐시라 다른 인스턴스의 풀에는 교체 전 자격 증명으로 맺은 유휴 연결이 남는다(근거는 [Rationale](#풀-캐시-무효화에-redis-pubsub-방송-채택)). 그래서 이 노드는 자격 증명 캐시 무효화 방송을 구독한다. 채널, 발행 시점, 페이로드, 방송 실패 처리는 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 가 정한다. 이 절은 풀이 방송을 받았을 때 하는 일만 정한다.
 
 - 핸들러는 생성될 때 무효화 버스(`IntegrationCacheBus`)에 처리 함수 하나를 등록한다.
 - 방송으로 통합 ID 를 받으면 그 통합의 풀을 캐시에서 빼고 닫는다(`invalidatePool`). 캐시에 그 통합의 풀이 없으면 아무것도 하지 않는다. 풀을 닫다가 난 오류는 무시한다.
@@ -182,33 +182,41 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 - `codebase/backend/src/nodes/integration/database-query/database-query.schema.ts`
 - `codebase/backend/src/nodes/integration/database-query/database-connection.ts` (연결 옵션 빌더와 연결 시점 판정 `stream` 팩토리. 노드 실행 · 취소 연결 · 연결 테스트가 함께 쓴다)
 - `codebase/backend/src/common/utils/ssrf/outbound-guard.ts` (연결 전 검사 `assertSafeOutboundHostResolved` 와 연결 시점 판정 `safeOutboundLookup`)
+- `codebase/backend/src/common/utils/ssrf/socket-adapters.ts` (연결 시점 판정 소켓 어댑터. pg · mysql2 `stream` 팩토리를 만든다)
+- `codebase/backend/src/common/utils/ssrf/guard-outcome.ts` (사설망 차단 판정 결과를 경고 로그와 결과 분류로 바꾸는 헬퍼)
 - `codebase/backend/src/nodes/core/abort-error.util.ts` (`AbortError` 공용 판정 `isAbortErrorLike`)
 - `codebase/backend/src/common/redis/integration-cache-bus.service.ts` (무효화 버스. 이 노드는 처리 함수를 등록해 구독한다. 채널 정의는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화))
 
 ## Rationale
 
-### 풀 캐시 무효화에 Redis pub/sub 방송 채택 (2026-06-11, refactor 04 m-4)
+### 풀 캐시 무효화에 Redis pub/sub 방송 채택
 
-단일 프로세스에서는 자격 증명이 바뀌면 다음 쿼리가 해시 불일치를 감지해 옛 풀을 교체하므로 충분하다. 여러 인스턴스로 배포하면 다른 인스턴스의 풀에 교체된 자격 증명의 유휴 연결이 `POOL_IDLE_TIMEOUT_MS`(30초) 또는 다음 쿼리까지 남는다. 침해 대응에서는 이 창이 MTTR 공백이다.
+결정일: 2026-06-11
+
+refactor 04 m-4 에서 정했다. 단일 프로세스에서는 자격 증명이 바뀌면 다음 쿼리가 해시 불일치를 감지해 옛 풀을 교체하므로 충분하다. 여러 인스턴스로 배포하면 다른 인스턴스의 풀에 교체된 자격 증명의 유휴 연결이 `POOL_IDLE_TIMEOUT_MS`(30초) 또는 다음 쿼리까지 남는다. 침해 대응에서는 이 창이 MTTR 공백이다.
 
 채택안(옵션 A)은 `IntegrationsService` 가 자격 증명이 바뀐 통합 id 를 `integration:cache:invalidate` 로 publish 하고 모든 인스턴스가 즉시 풀을 버리는 방식이다(채널 정의는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화)). 교체 즉시 모든 인스턴스에서 옛 연결이 사라져 MTTR 이 가장 짧다. 방송은 즉시성 보강 층일 뿐이라 유실돼도 해시 비교가 정합성을 지킨다.
 
 기각한 대안(옵션 B, `POOL_IDLE_TIMEOUT_MS` 낮추기): 시간 기반 완화일 뿐 즉시성이 없고, 낮출수록 연결 churn 이 늘어 풀 캐시의 존재 이유(연결 재사용)와 부딪힌다. 활성 사용 중인 연결은 유휴 타이머에 걸리지도 않는다.
 
-실행 엔진은 유실되면 실행이 멈추는 재개 신호를 옛 Redis pub/sub 에서 BullMQ 영속 큐로 옮겼다([실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) Rationale). 이 채널은 그 결정과 부딪히지 않는다. 재개 신호는 내구성이 필요해 큐가 맞고, 캐시 무효화는 유실돼도 해시 비교로 정합성이 보장되는 best-effort 라 가벼운 pub/sub 가 맞다. 목적과 허용 의미(at-most-once 대 at-least-once)가 다르다.
+실행 엔진이 재개 신호를 Redis pub/sub 에서 BullMQ 영속 큐로 옮긴 결정([실행 엔진 개요와 그래프 순회](../CLE-EXEC/CLE-EXEC-ENGINE.md) Rationale)과 이 채널은 부딪히지 않는다. 재개 신호는 유실되면 실행이 멈춰 내구성이 필요하고, 캐시 무효화는 유실돼도 해시 비교가 정합성을 지키는 best-effort 라 pub/sub 로 충분하다.
 
-### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다 (2026-10-24)
+### 통합을 얻기 전에 끝난 실패는 활동 로그에 남기지 않는다
+
+결정일: 2026-10-24
 
 규칙과 근거는 [통합 노드 공통](CLE-NODE-INT-COMMON.md#남의-개인-통합-조회는-없는-통합과-같게-실패한다-2026-10-24) Rationale 에 있다(REQ-INTMGMT-053).
 
 - 요구사항 변경: REQ-DBQ-027 은 «실행이 끝나면» 에서 «통합을 얻은 뒤 실행이 끝나면» 으로 범위를 좁혔다.
 
-### 풀 캐시 무효화 채널의 정본을 통합 데이터와 흐름으로 옮겼다 (2026-11-13)
+### 풀 캐시 무효화 채널의 정본을 통합 데이터와 흐름으로 옮겼다
+
+결정일: 2026-11-13
 
 사람이 정했다(NERV Task `CLE-T-VQX844`). `integration:cache:invalidate` 채널은 이 노드만의 것이 아니고 통합 모듈이 발행한다. 채널을 구독하는 노드가 늘면 노드마다 발행 시점 · 페이로드 · 연결 분리 · 방송 실패 처리를 다시 적게 된다. 그래서 채널 정의를 [통합 데이터와 흐름 「자격 증명 캐시 무효화」](../CLE-INT/CLE-INT-DATA.md#자격-증명-캐시-무효화) 로 옮기고 이 문서의 「풀 캐시 무효화」 에는 풀이 방송을 받았을 때 하는 일만 남겼다.
 
 - 방송 트리거는 `rotate` 와 통합 삭제 전체다. 삭제 쪽 발행은 삭제 뒤 후처리가 하므로 멤버가 나가거나 제거될 때의 개인 통합 삭제도 방송한다. 지금 구독하는 소비자는 이 노드의 풀뿐이다.
-- 요구사항 변경: REQ-DBQ-013 은 결과(모든 인스턴스가 그 통합의 풀을 버린다)만 남기고 채널은 통합 데이터와 흐름을 가리키게 했고, 트리거를 «통합이 삭제(`remove`)되면» 에서 «통합이 삭제되면» 으로 넓혔다. REQ-DBQ-014 는 «무효화 방송이 실패하거나 이 인스턴스에 닿지 않으면» 으로 고쳤다. 경고 로그와 실패 계수는 발행하는 쪽의 동작이라 통합 데이터와 흐름이 정한다. 동작은 바뀌지 않았다.
+- 요구사항 변경: REQ-DBQ-013 은 채널을, REQ-DBQ-014 는 방송 실패 기록을 통합 데이터와 흐름에 맡겼고 REQ-DBQ-013 의 트리거를 «통합이 삭제되면» 으로 넓혔다(동작은 그대로다).
 
 ### 실행 취소로 끝난 호출은 활동 로그에 남기지 않는다
 
@@ -257,8 +265,17 @@ Database Query 노드(`database_query`)는 외부 데이터베이스에 SQL 을 
 
 결정일: 2026-11-20
 
-전에는 풀 연결 전에 한 번만 검사해서 검사와 연결 사이에 DNS 응답이 바뀌면(DNS rebinding) 막지 못했다. NERV Task `CLE-T-691T4G` 에서 드라이버가 새 연결을 맺을 때도 같은 대역표로 판정하게 했다. 방식과 기각한 대안은 [통합 노드 공통 — 에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
+전에는 풀 연결 전에 한 번만 검사해서 검사와 연결 사이에 DNS 응답이 바뀌면(DNS rebinding) 막지 못했다. NERV Task `CLE-T-691T4G` 에서 드라이버가 새 연결을 맺을 때도 같은 대역표로 판정하게 했다. 방식과 기각한 대안은 [통합 노드 공통 — 에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다) 에 있다.
 
 - 취소용 일회성 연결도 같은 연결 옵션 빌더를 쓴다. 이 연결만 판정에서 빠지면 막힌 대역에 닿는 길이 하나 남는다.
 - 요구사항 변경: REQ-DBQ-018 에 고정 문구와 서버 경고 로그를 적었다. 동작은 NERV Task `CLE-T-E991S1` 이 바꾼 그대로다. REQ-DBQ-030 · REQ-DBQ-031 · REQ-DBQ-032 를 새로 두었다.
 - 미결이던 «사설망 차단 원본 상세를 남기는 위치» 는 REQ-DBQ-032 대로 서버 경고 로그로 닫았다(NERV Task `CLE-T-R8GDTY`). 연결 전 검사의 경고 로그는 NERV Task `CLE-T-CT6SHS` 가 더했다.
+
+### MySQL `$N` 을 번호대로 바인딩한다
+
+결정일: 2026-11-27
+
+전에는 `$N` 을 정규식으로 모두 `?` 로 바꾸고 배열 순서대로 묶었다. 번호를 보지 않아서 `$2 … $1` 은 값이 뒤바뀌었고 리터럴 안의 `'$1'` 도 바뀌었다. NERV Task `CLE-T-6BV9VP` 에서 사람이 번호대로 다시 묶는 안을 골랐다. PostgreSQL 과 뜻이 같아지고 리터럴 · 주석 판별은 dry-run 판정의 스캐너를 그대로 쓴다.
+
+- 동작 변경: 번호와 등장 순서가 다른 저장된 MySQL 워크플로우는 바인딩이 바뀐다. 범위를 벗어난 번호와 `?` 섞기는 드라이버 오류 대신 `INVALID_PARAMETERS` 가 된다.
+- 한계: 서버가 `NO_BACKSLASH_ESCAPES` 모드면 백슬래시를 글자로 읽어 리터럴 경계가 스캔과 다를 수 있다.
