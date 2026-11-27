@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { axiosMessage } from "@/lib/api/errors";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import {
   usersApi,
   USER_PROFILE_QUERY_KEY,
@@ -24,6 +24,8 @@ import { Loader2 } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
+
+const normalize = (email: string) => email.trim().toLowerCase();
 
 export default function ChangeEmailPage() {
   const t = useT();
@@ -57,13 +59,13 @@ export default function ChangeEmailPage() {
       toast.success(t("profile.changeEmailRequestSuccess"));
       queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
     },
-    onError: (err) => toast.error(axiosMessage(err, t("profile.changeEmailFailed"))),
+    onError: (err) => toast.error(serverErrorMessage(err, t, t("profile.changeEmailFailed"))),
   });
 
   const resendMutation = useMutation({
     mutationFn: () => usersApi.resendEmailChange(),
     onSuccess: () => toast.success(t("profile.changeEmailResent")),
-    onError: (err) => toast.error(axiosMessage(err, t("profile.changeEmailFailed"))),
+    onError: (err) => toast.error(serverErrorMessage(err, t, t("profile.changeEmailFailed"))),
   });
 
   const cancelMutation = useMutation({
@@ -72,7 +74,7 @@ export default function ChangeEmailPage() {
       toast.success(t("profile.changeEmailCancelled"));
       queryClient.invalidateQueries({ queryKey: USER_PROFILE_QUERY_KEY });
     },
-    onError: (err) => toast.error(axiosMessage(err, t("profile.changeEmailFailed"))),
+    onError: (err) => toast.error(serverErrorMessage(err, t, t("profile.changeEmailFailed"))),
   });
 
   const busy =
@@ -133,6 +135,11 @@ export default function ChangeEmailPage() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!newEmail.trim()) return;
+              // 서버는 같은 주소를 영문 VALIDATION_ERROR 로 거부한다. 서버와 같은 정규화(앞뒤 공백 제거 · 소문자)로 먼저 막는다.
+              if (user && normalize(newEmail) === normalize(user.email)) {
+                toast.error(t("profile.changeEmailSameAsCurrent"));
+                return;
+              }
               requestMutation.mutate();
             }}
             noValidate

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,19 +26,6 @@ type DialogState =
   | { open: false }
   | { open: true; scope: "single"; familyId: string }
   | { open: true; scope: "all" };
-
-function axiosMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    return (
-      err.response?.data?.error?.message ??
-      err.response?.data?.message ??
-      err.message ??
-      fallback
-    );
-  }
-  if (err instanceof Error) return err.message || fallback;
-  return fallback;
-}
 
 export function SessionsPanel() {
   const t = useT();
@@ -106,7 +93,7 @@ export function SessionsPanel() {
     } catch (err) {
       const next = nextReauthMode(err, reauthMode, Boolean(user?.twoFactorEnabled));
       if (next) setReauthMode(next);
-      toast.error(axiosMessage(err, t("profile.sessions.revokeFailedToast")));
+      toast.error(serverErrorMessage(err, t, t("profile.sessions.revokeFailedToast")));
       throw err instanceof Error ? err : new Error(String(err));
     }
   }

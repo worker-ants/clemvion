@@ -1300,8 +1300,8 @@ describe('WorkspacesService', () => {
         workspaceRepo.findOne.mockResolvedValue(workspace);
         memberRepo.findOne.mockResolvedValue({ id: 'mem-1', role: 'admin' });
 
-        // 코드는 가드와 같은 OWNER_REQUIRED 이고, 문장은 이 동작의 서비스 고유 문구다 — 가드의 «Owner 권한이
-        // 필요합니다.» 로 바뀌면 e2e 가 어느 층이 막았는지 가르는 근거가 사라진다.
+        // 코드는 가드와 같은 OWNER_REQUIRED 이고, 문장은 이 동작의 서비스 고유 문구다 — 가드의 «Owner role is
+        // required.» 로 바뀌면 e2e 가 어느 층이 막았는지 가르는 근거가 사라진다.
         await expect(
           service.transferOwnership('ws-uuid-1', 'user-uuid-1', 'mem-target'),
         ).rejects.toMatchObject({
@@ -1323,7 +1323,7 @@ describe('WorkspacesService', () => {
     const REQUESTER = 'user-requester';
     const OWNER_ONLY = {
       code: 'OWNER_REQUIRED',
-      message: '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
+      message: 'Only the owner can grant or revoke the admin role.',
     };
 
     /** 요청자 role 조회(userId)와 대상 멤버 조회(id)를 호출 순서가 아니라 where 로 가른다. */

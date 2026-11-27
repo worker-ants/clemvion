@@ -187,14 +187,30 @@ describe("LoginForm — Passkey 2단계 거부 코드별 안내", () => {
   });
 
   it("Passkey 검증이 모르는 코드면 에러 봉투의 error.message 를 보여 준다", async () => {
+    mockVerify.mockRejectedValue(apiError(401, "SOMETHING_NEW", "Server text."));
+    render(<LoginForm />);
+
+    await reachPasskeyStep();
+
+    expect(await screen.findByText("Server text.")).toBeInTheDocument();
+  });
+
+  // 서버 message 는 영문이라 공용 코드 매핑에 있는 코드는 사전 문구를 고른다(CLE-UI-I18N-BACKEND 규칙 5, CLE-T-MNX9KP).
+  it("Passkey 검증이 공용 매핑에 있는 코드면 사전 문구를 보인다", async () => {
     mockVerify.mockRejectedValue(
-      apiError(401, "WEBAUTHN_COUNTER_REGRESSION", "보안 키 카운터가 뒤로 갔어요."),
+      apiError(
+        401,
+        "WEBAUTHN_COUNTER_REGRESSION",
+        "An abnormal signal was detected from the authenticator, so it was removed. Register it again.",
+      ),
     );
     render(<LoginForm />);
 
     await reachPasskeyStep();
 
-    expect(await screen.findByText("보안 키 카운터가 뒤로 갔어요.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("인증기에서 이상 신호가 감지돼 등록을 해제했어요. 다시 등록해 주세요."),
+    ).toBeInTheDocument();
   });
 
   async function submitRecovery() {

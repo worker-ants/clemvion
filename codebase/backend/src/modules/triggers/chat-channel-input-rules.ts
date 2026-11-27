@@ -205,7 +205,7 @@ export function assertChatChannelAlreadySetUp(
   if (!current?.provider) {
     throwInvalidField(
       'chatChannel',
-      'chatChannel 최초 설정은 트리거 생성(POST /api/triggers)에서만 할 수 있어요. PATCH 는 bot token 을 받지 않으므로 채널을 새로 붙일 수 없어요.',
+      'chatChannel can be set up for the first time only when creating the trigger (POST /api/triggers). PATCH does not accept a bot token, so it cannot attach a new channel.',
     );
   }
   // provider 전환도 막는다. 허용하면 **다른 provider 의 토큰을 넘기게 된다** —
@@ -223,7 +223,7 @@ export function assertChatChannelAlreadySetUp(
   if (incoming.provider && incoming.provider !== current.provider) {
     throwInvalidField(
       'provider',
-      `provider 는 PATCH 로 바꿀 수 없어요 (현재 ${current.provider}). 다른 provider 로 옮기려면 트리거를 삭제 후 다시 만들어 주세요.`,
+      `provider cannot be changed with PATCH (current: ${current.provider}). To move to another provider, delete the trigger and create it again.`,
     );
   }
 }
@@ -297,7 +297,7 @@ export function assertInboundSigningPlaintextByProvider(
     if (typeof plaintext === 'string' && plaintext.length > 0) {
       throwInvalidField(
         'inboundSigningPlaintext',
-        'Telegram inboundSigning 은 server-issued 입니다. inboundSigningPlaintext 를 입력하지 마세요 (setupChannel 의 randomBytes 가 자동 발급).',
+        'Telegram inboundSigning is server-issued. Do not send inboundSigningPlaintext; setupChannel generates it automatically.',
       );
     }
     return;
@@ -311,7 +311,7 @@ export function assertInboundSigningPlaintextByProvider(
         : 'Discord application public key';
     throwInvalidField(
       'inboundSigningPlaintext',
-      `${label} 가 필요합니다. inboundSigningPlaintext 를 입력하세요.`,
+      `${label} is required. Send it in inboundSigningPlaintext.`,
     );
   }
 
@@ -321,14 +321,14 @@ export function assertInboundSigningPlaintextByProvider(
   if (provider === 'slack' && !SLACK_SIGNING_SECRET_REGEX.test(plaintext)) {
     throwInvalidField(
       'inboundSigningPlaintext',
-      'Slack signing secret 형식이 올바르지 않습니다 (lowercase hex 32 chars 필요).',
+      'Slack signing secret format is invalid (32 lowercase hex characters required).',
     );
   }
 
   if (provider === 'discord' && !DISCORD_PUBLIC_KEY_REGEX.test(plaintext)) {
     throwInvalidField(
       'inboundSigningPlaintext',
-      'Discord application public key 형식이 올바르지 않습니다 (ed25519 public key lowercase hex 64 chars 필요).',
+      'Discord application public key format is invalid (an ed25519 public key of 64 lowercase hex characters is required).',
     );
   }
 }

@@ -50,6 +50,7 @@ export const profile: Dict["profile"] = {
   changeEmailSubmit: "Send confirmation email",
   changeEmailRequestSuccess: "Confirmation email sent",
   changeEmailFailed: "Failed to request the email change",
+  changeEmailSameAsCurrent: "The new email is the same as your current email.",
   changeEmailPendingTitle: "Awaiting confirmation",
   changeEmailPendingDescription:
     "Click the link in the confirmation email sent to the address below to complete the change. You can resend it if it didn't arrive.",

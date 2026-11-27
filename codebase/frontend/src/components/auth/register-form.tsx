@@ -12,11 +12,8 @@ import { authApi } from "@/lib/api/auth";
 import { establishSession } from "@/lib/auth/establish-session";
 import type { OAuthProvider } from "@/lib/api/auth-providers";
 import { INVITATION_ERROR } from "@/lib/api/invitations";
-import {
-  extractApiCode,
-  extractApiMessage,
-  type ApiErrorBody,
-} from "@/lib/api/errors";
+import { extractApiCode, type ApiErrorBody } from "@/lib/api/errors";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -172,7 +169,7 @@ function RegisterFormInner({
       const message =
         code === INVITATION_ERROR.EMAIL_MISMATCH
           ? t("auth.register.invitationEmailMismatch")
-          : (extractApiMessage(error) ?? t("auth.register.genericFailed"));
+          : serverErrorMessage(error, t, t("auth.register.genericFailed"));
       toast.error(message);
     } finally {
       setIsLoading(false);

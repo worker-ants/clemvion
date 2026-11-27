@@ -642,7 +642,7 @@ describe('AuthController', () => {
       authService.disableTwoFactor.mockRejectedValue(
         new UnauthorizedException({
           code: 'PASSWORD_INVALID',
-          message: '비밀번호가 일치하지 않습니다.',
+          message: 'The password is incorrect.',
         }),
       );
 
@@ -660,7 +660,7 @@ describe('AuthController', () => {
       authService.disableTwoFactor.mockRejectedValue(
         new UnauthorizedException({
           code: 'TOTP_INVALID',
-          message: '인증 코드가 올바르지 않습니다.',
+          message: 'The verification code is incorrect.',
         }),
       );
 

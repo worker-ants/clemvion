@@ -9,13 +9,13 @@ import { CHAT_CHANNEL_BLOCKED_FIELDS } from './chat-channel-rejection-messages.c
 
 /** 거부 메시지 뒤에 붙는 안내. 받은 값은 싣지 않는다. */
 const CHAT_CHANNEL_HINT =
-  '채팅 채널은 요청 본문의 chatChannel 로 설정하세요. 봇 토큰은 POST /api/triggers/:id/chat-channel/rotate-bot-token 으로만 바꿉니다.';
+  'Set the chat channel with chatChannel in the request body. Change the bot token only with POST /api/triggers/:id/chat-channel/rotate-bot-token.';
 
 const NOTIFICATION_HINT =
-  '알림 서명 시크릿은 POST /api/triggers/:id/notification/rotate-secret 으로만 바꿉니다.';
+  'Change the notification signing secret only with POST /api/triggers/:id/notification/rotate-secret.';
 
 const INTERACTION_TOKEN_HINT =
-  '트리거 단위 토큰은 서버가 발급하고 POST /api/triggers/:id/interaction/revoke-token 으로만 바꿉니다.';
+  'The server issues the per-trigger token. Change it only with POST /api/triggers/:id/interaction/revoke-token.';
 
 /**
  * 원시 `config` 에서 받지 않는 내부 필드의 경로와 안내 문구.
@@ -86,7 +86,7 @@ export function assertConfigCarriesNoInternalFields(config: unknown): void {
     const field = `config.${path.join('.')}`;
     throwInvalidField(
       field,
-      `${field} 는 서버가 관리하는 필드라 config 로 보낼 수 없습니다. ${hint}`,
+      `${field} is managed by the server and cannot be sent in config. ${hint}`,
     );
   }
 }
@@ -188,14 +188,14 @@ export function assertRawConfigAccepted(config: unknown): void {
     const field = `config.${key}`;
     throwInvalidField(
       field,
-      `${field} 는 config 로 보낼 수 없습니다. 요청 본문의 최상위 ${key} 로 보내세요.`,
+      `${field} cannot be sent in config. Send it as the top-level ${key} field of the request body.`,
     );
   }
   const secretRefPath = findSecretRefPath(config);
   if (secretRefPath !== null) {
     throwInvalidField(
       secretRefPath,
-      `${secretRefPath} 에 시크릿 참조(${SECRET_REF_PREFIX}…)를 실을 수 없습니다. 시크릿 참조는 서버가 만들고 관리합니다.`,
+      `${secretRefPath} cannot carry a secret reference (${SECRET_REF_PREFIX}…). The server creates and manages secret references.`,
     );
   }
 }

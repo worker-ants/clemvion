@@ -345,7 +345,7 @@ describe('Workspace RBAC (e2e)', () => {
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('OWNER_REQUIRED');
       expect(res.body.error.message).toBe(
-        '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
+        'Only the owner can grant or revoke the admin role.',
       );
     }
 

@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA-WS"
 title: "계정과 워크스페이스 데이터 흐름 — 워크스페이스 데이터와 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "dbb9d2ac1c00d2bb26b7f1c0e38556bd74b24c7fe098d2647bb9bc6f5f5dbe9b"
+content_hash: "c46a8d55c2ea2be00f8deca1802e92ac06e777c086c83ff495bc6a4223eb8aac"
 read_as: "approved_fallback"
-task: "CLE-T-WYJEAQ"
+task: "CLE-T-CHP94Z"
 source_paths: []
-mirror_sha256: "3c2c3f919c02888c2cd73589379622ef0f20b3992913c8ead98b032743ccf348"
-etag: "sha256-debc26d0a58a3848e501eb256a32fa76658304765d9a175103cb546a8301fb2d"
+mirror_sha256: "91fdb1c2c72daed5ba6e3ea66d2b137104edcaa67dedb45ba415cd2db30ca0c9"
+etag: "sha256-f3865510655dc9e804c6e9fbd9472b04da40aa485dc3958bd78156e5179626c7"
 ---
 ## 개요
 
@@ -120,7 +120,7 @@ sequenceDiagram
 ```
 
 - 조회와 쓰기는 한 트랜잭션이다. 부분 UNIQUE 경합은 500 대신 409 `invitation_already_pending` 으로 바꾼다(`workspace-invitations.service.ts` 의 `invite`).
-- 관리자 역할 초대와 대기 중인 관리자 초대를 덮어쓰는 재초대는 소유자만 한다. 소유자가 아니면 403 `OWNER_REQUIRED` 이고 메시지는 «관리자 역할은 소유자만 주거나 뺄 수 있습니다.» 다(`common/constants/workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`). 대기 초대 검사는 트랜잭션 안에서 행을 읽은 뒤에 한다. 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
+- 관리자 역할 초대와 대기 중인 관리자 초대를 덮어쓰는 재초대는 소유자만 한다. 소유자가 아니면 403 `OWNER_REQUIRED` 이고 메시지는 «Only the owner can grant or revoke the admin role.» 다(`common/constants/workspace-roles.ts` 의 `ADMIN_ROLE_CHANGE_REQUIRES_OWNER`). 대기 초대 검사는 트랜잭션 안에서 행을 읽은 뒤에 한다. 규칙은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 가 정한다.
 - 초대 재발송과 취소는 초대 역할을 보지 않는다. 관리자 이상이면 할 수 있다.
 - 메일 발송이 실패해도 초대 행을 되돌리지 않고 에러 로그만 남긴다. 관리자가 재발송할 수 있다(`MailService.sendWorkspaceInvitationEmail`).
 
@@ -275,7 +275,7 @@ stateDiagram-v2
 3. 초대 발급의 `role=admin`.
 4. 대기 중인 관리자 초대를 다른 역할로 덮어쓰는 재초대.
 
-거부 코드는 `OWNER_REQUIRED` 다. 가드의 소유자 역할 미달과 같은 코드를 서비스 계층에서도 쓴다. 뜻이 같아서(소유자 역할이 필요하다) 새 코드를 만들지 않았다. 메시지는 이 규칙에 맞는 문구를 따로 둔다([초대 발급](#초대-발급)). 이 코드로 갈리는 프론트엔드 분기는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 Rationale 에서 확인했다.
+거부 코드는 `OWNER_REQUIRED` 다. 가드의 소유자 역할 미달과 같은 코드를 서비스 계층에서도 쓴다. 뜻이 같아서(소유자 역할이 필요하다) 새 코드를 만들지 않았다. 메시지는 이 규칙에 맞는 문구를 따로 둔다([초대 발급](#초대-발급)). 2026-11-27 에 메시지를 영문으로 옮겼고(NERV Task `CLE-T-CHP94Z`) 화면은 코드로 문구를 고른다. 근거는 [워크스페이스 가드](CLE-ACCT-WS-AUTHZ.md) 의 Rationale 「가드 거부와 관리 경로의 메시지를 영문으로 옮긴다」 에 있다. 이 코드로 갈리는 프론트엔드 분기는 [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 Rationale 에서 확인했다.
 
 멤버 제거와 초대 재발송·취소는 바꾸지 않았다. 관리자 이상이면 할 수 있다. [워크스페이스와 멤버](CLE-ACCT-WS.md) 의 Rationale 「멤버 관리에서 관리자는 삭제(D)까지 할 수 있다」 를 그대로 따른다.
 

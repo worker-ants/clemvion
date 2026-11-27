@@ -438,8 +438,7 @@ export class TriggersService {
   private throwNotPerTriggerStrategy(): never {
     throw new BadRequestException({
       code: 'NOT_PER_TRIGGER_STRATEGY',
-      message:
-        'Trigger 의 interaction.tokenStrategy 가 "per_trigger" 가 아닙니다.',
+      message: 'The trigger interaction.tokenStrategy is not "per_trigger".',
     });
   }
 
@@ -841,7 +840,7 @@ export class TriggersService {
       if (disallowed.length > 0) {
         throw new BadRequestException({
           code: 'VALIDATION_ERROR',
-          message: `Schedule 타입 트리거는 name·isActive 만 수정할 수 있어요 (거부 필드: ${disallowed.join(', ')}). cron·timezone 등 스케줄 메타는 Schedule 화면에서 편집하세요.`,
+          message: `Schedule triggers accept only name and isActive (rejected fields: ${disallowed.join(', ')}). Edit schedule settings such as cron and timezone on the Schedule screen.`,
           details: { field: 'type', disallowed, code: ErrorCode.INVALID_FIELD },
         });
       }
@@ -1447,7 +1446,7 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'NOTIFICATION_NOT_CONFIGURED',
         message:
-          'Trigger 에 notification 설정이 없어 secret rotation 을 수행할 수 없습니다.',
+          'The trigger has no notification settings, so the secret cannot be rotated.',
       });
     }
     // 교체 쓰기(잠금 · 재읽기 · 컬럼 쓰기)는 `NotificationSigningSecretService.writeRotation` 이 한다. 응답의 교체
@@ -1974,7 +1973,7 @@ export class TriggersService {
         message:
           // 워크스페이스를 말하지 않는다 — 충돌 상대가 다른 워크스페이스의 트리거일 수 있다.
           // «쓰고 있다» 도 말하지 않는다 — 예약만 남은 경로(지웠거나 바꾼 경로)에는 거짓이다.
-          '그 엔드포인트 경로는 쓸 수 없어요. 새 경로를 쓰세요.',
+          'That endpoint path cannot be used. Use a new path.',
         // **세부 코드는 `details.code` 다.**
         //
         // 두 번 좁혔다. 처음엔 봉투 top-level 에 `subCode` 를 실었는데

@@ -1185,7 +1185,7 @@ describe('AuthService', () => {
       totpService.verifyForDisable.mockRejectedValue(
         new UnauthorizedException({
           code: 'TOTP_INVALID',
-          message: '인증 코드가 올바르지 않습니다.',
+          message: 'The verification code is incorrect.',
         }),
       );
 
@@ -1257,7 +1257,7 @@ describe('AuthService', () => {
         new ConflictException({
           code: 'TOTP_ALREADY_ENABLED',
           message:
-            '2단계 인증이 이미 켜져 있습니다. 다시 설정하려면 먼저 끄세요.',
+            'Two-factor authentication is already enabled. Turn it off first to set it up again.',
         }),
       );
 

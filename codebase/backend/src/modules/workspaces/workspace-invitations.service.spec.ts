@@ -125,7 +125,7 @@ describe('WorkspaceInvitationsService', () => {
     describe('관리자 역할 초대는 owner 만 한다', () => {
       const OWNER_ONLY = {
         code: 'OWNER_REQUIRED',
-        message: '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
+        message: 'Only the owner can grant or revoke the admin role.',
       };
 
       function arrange(requesterRole: string, pendingRole?: string): void {

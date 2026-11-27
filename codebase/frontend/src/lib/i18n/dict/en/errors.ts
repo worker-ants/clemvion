@@ -9,4 +9,34 @@ export const errors: Dict["errors"] = {
   validation: "Please check your input",
   server: "Server error",
   unknown: "An unknown error occurred",
+  codes: {
+    notAMember: "You are not a member of this workspace.",
+    workspaceNotFound: "Workspace not found.",
+    editorRequired: "Editor role or higher is required.",
+    adminRequired: "Admin role or higher is required.",
+    ownerRequired: "Owner role is required.",
+    sessionNotFound: "Session not found. Refresh the list.",
+    currentSessionRequired:
+      "The current session cannot be identified. Sign in again and retry.",
+    reauthRequired:
+      "Enter your password or two-factor authentication code to continue.",
+    totpNotEnabled:
+      "Two-factor authentication is not enabled for this account. Sign in again.",
+    challengeMethodMismatch:
+      "This request is for a different authentication method. Sign in again from the start.",
+    webauthnDisabled:
+      "Passkeys and security keys are turned off on this server. Contact your administrator.",
+    webauthnNotRegistered: "No Passkey or security key is registered.",
+    webauthnCounterRegression:
+      "An abnormal signal was detected from the authenticator, so it was removed. Register it again.",
+    invalidOptionsToken:
+      "The authentication request expired or is invalid. Try again.",
+    serviceUnavailable:
+      "The service is temporarily unavailable. Try again in a moment.",
+    userNotFound: "The account was not found.",
+    totpAlreadyEnabled: "Two-factor authentication is already enabled.",
+    recoveryCodeInvalid: "The recovery code is incorrect or already used.",
+    challengeInvalid:
+      "The sign-in request expired or is invalid. Sign in again from the start.",
+  },
 };

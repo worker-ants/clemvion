@@ -284,7 +284,7 @@ export class WebAuthnController {
     if (!ok) {
       throw new UnauthorizedException({
         code: 'RECOVERY_CODE_INVALID',
-        message: '복구 코드가 올바르지 않아요.',
+        message: 'The recovery code is incorrect.',
       });
     }
     const tokens = await this.authService.issueTokensAfterMfa(

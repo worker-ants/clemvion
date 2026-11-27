@@ -46,6 +46,7 @@ import {
   type WorkspaceInvitationSummary,
   type WorkspaceMemberSummary,
 } from "@/lib/api/workspaces";
+import { serverErrorMessage } from "@/lib/api/server-error-messages";
 import { useT } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils/date";
 import { roleLabelKey } from "@/lib/utils/workspace";
@@ -207,8 +208,7 @@ function OverviewTab({ workspace, onRenamed }: OverviewTabProps) {
       await onRenamed();
     },
     onError: (err: unknown) => {
-      const parsed = parseApiError(err);
-      toast.error(parsed.message ?? t("workspace.renameFailed"));
+      toast.error(serverErrorMessage(err, t, t("workspace.renameFailed")));
     },
   });
 
@@ -349,8 +349,7 @@ function EmbedOriginsEditor({
       });
     },
     onError: (err: unknown) => {
-      const parsed = parseApiError(err);
-      toast.error(parsed.message ?? t("workspace.settingsSaveFailed"));
+      toast.error(serverErrorMessage(err, t, t("workspace.settingsSaveFailed")));
     },
   });
 
@@ -520,8 +519,7 @@ function WorkspaceTimezoneEditor({
       });
     },
     onError: (err: unknown) => {
-      const parsed = parseApiError(err);
-      toast.error(parsed.message ?? t("workspace.settingsSaveFailed"));
+      toast.error(serverErrorMessage(err, t, t("workspace.settingsSaveFailed")));
     },
   });
 
@@ -622,8 +620,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       });
     },
     onError: (err: unknown) => {
-      const parsed = parseApiError(err);
-      toast.error(parsed.message ?? t("workspace.inviteFailed"));
+      toast.error(serverErrorMessage(err, t, t("workspace.inviteFailed")));
     },
   });
 
@@ -637,8 +634,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       });
     },
     onError: (err: unknown) => {
-      const parsed = parseApiError(err);
-      toast.error(parsed.message ?? t("workspace.cancelInviteFailed"));
+      toast.error(serverErrorMessage(err, t, t("workspace.cancelInviteFailed")));
     },
   });
 
@@ -652,8 +648,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       });
     },
     onError: (err: unknown) => {
-      const parsed = parseApiError(err);
-      toast.error(parsed.message ?? t("workspace.resendInviteFailed"));
+      toast.error(serverErrorMessage(err, t, t("workspace.resendInviteFailed")));
     },
   });
 
@@ -672,11 +667,12 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       });
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : t("workspace.roleUpdateFailedShort");
-      toast.error(msg);
+      // 역할 변경의 `OWNER_REQUIRED` 는 관리자 역할을 주거나 빼는 요청에서만 난다(라우트 가드는 admin).
+      if (parseApiError(err).code === "OWNER_REQUIRED") {
+        toast.error(t("workspace.adminRoleOwnerOnly"));
+        return;
+      }
+      toast.error(serverErrorMessage(err, t, t("workspace.roleUpdateFailedShort")));
     },
   });
 
@@ -691,9 +687,7 @@ function MembersTab({ workspaceId }: MembersTabProps) {
       });
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error ? err.message : t("workspace.removeFailedShort");
-      toast.error(msg);
+      toast.error(serverErrorMessage(err, t, t("workspace.removeFailedShort")));
     },
   });
 
@@ -1033,7 +1027,7 @@ function DangerZoneTab({
         toast.error(t("workspace.dangerLeaveOnlyOwner"));
         return;
       }
-      toast.error(parsed.message ?? t("workspace.leaveFailed"));
+      toast.error(serverErrorMessage(err, t, t("workspace.leaveFailed")));
     },
   });
 
@@ -1046,8 +1040,7 @@ function DangerZoneTab({
       await onAfterMutation({ switchAway: true });
     },
     onError: (err: unknown) => {
-      const parsed = parseApiError(err);
-      toast.error(parsed.message ?? t("workspace.deleteFailed"));
+      toast.error(serverErrorMessage(err, t, t("workspace.deleteFailed")));
     },
   });
 
@@ -1082,7 +1075,7 @@ function DangerZoneTab({
       } else if (code === "MEMBER_NOT_FOUND") {
         toast.error(t("workspace.transferOwnerMemberNotFound"));
       } else {
-        toast.error(parsed.message ?? t("workspace.transferOwnerFailed"));
+        toast.error(serverErrorMessage(err, t, t("workspace.transferOwnerFailed")));
       }
     },
   });

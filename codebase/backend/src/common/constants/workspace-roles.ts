@@ -70,7 +70,7 @@ export interface WorkspaceRoleRejection {
  */
 export const NOT_A_MEMBER: WorkspaceRoleRejection = {
   code: 'NOT_A_MEMBER',
-  message: '워크스페이스 멤버가 아닙니다.',
+  message: 'You are not a member of this workspace.',
 };
 
 /**
@@ -84,10 +84,13 @@ export const ROLE_REQUIRED: Readonly<
   viewer: NOT_A_MEMBER,
   editor: {
     code: 'EDITOR_REQUIRED',
-    message: 'Editor 이상의 권한이 필요합니다.',
+    message: 'Editor role or higher is required.',
   },
-  admin: { code: 'ADMIN_REQUIRED', message: 'Admin 이상의 권한이 필요합니다.' },
-  owner: { code: 'OWNER_REQUIRED', message: 'Owner 권한이 필요합니다.' },
+  admin: {
+    code: 'ADMIN_REQUIRED',
+    message: 'Admin role or higher is required.',
+  },
+  owner: { code: 'OWNER_REQUIRED', message: 'Owner role is required.' },
 };
 
 /**
@@ -97,7 +100,7 @@ export const ROLE_REQUIRED: Readonly<
  */
 export const ADMIN_ROLE_CHANGE_REQUIRES_OWNER: WorkspaceRoleRejection = {
   code: ROLE_REQUIRED.owner.code,
-  message: '관리자 역할은 소유자만 주거나 뺄 수 있습니다.',
+  message: 'Only the owner can grant or revoke the admin role.',
 };
 
 /**

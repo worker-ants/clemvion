@@ -292,7 +292,7 @@ describe('Workspace path guard (e2e)', () => {
       // 본문 메시지로 **어느 층이** 막았는지 가른다 — 서비스의 OWNER_REQUIRED 는 «owner 이양은 현재
       // owner 만 수행할 수 있습니다.» 이고, 가드의 것은 아래 문장이다. 코드만 보면 두 층이 같아
       // 가드가 빠져도 이 테스트가 초록이 된다.
-      expect(res.body.error.message).toBe('Owner 권한이 필요합니다.');
+      expect(res.body.error.message).toBe('Owner role is required.');
     }, 60_000);
   });
 });
