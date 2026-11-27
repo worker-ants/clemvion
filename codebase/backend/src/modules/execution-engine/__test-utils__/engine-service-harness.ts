@@ -1,14 +1,26 @@
 /**
  * `ExecutionEngineService` 통합 스펙 공용 하네스.
  *
- * `execution-engine.service.spec.ts` 와 그 파일에서 나눠 낸 스펙
- * (`containers/parallel-execution.integration.spec.ts`) 이 같은 서비스 구성을 쓴다.
+ * `execution-engine.service.spec.ts` 와 그 파일에서 나눠 낸 Parallel 스펙
+ * (`containers/parallel-*.integration.spec.ts`)이 같은 서비스 구성을 쓴다.
  * 테스트마다 `beforeEach` 에서 `createEngineServiceHarness()` 를 불러 새 Nest 테스트
  * 모듈과 mock 레포지토리를 받는다.
  *
  * 테스트가 다시 대입하는 값(`dbExecutionStatus` · `waitingRawRows` ·
  * `waitingQueryError`)은 하네스 객체의 필드다. mock 클로저가 이 필드를 매번 읽으므로
  * 테스트는 `h.dbExecutionStatus = …` 처럼 하네스 객체에 대입한다.
+ *
+ * 쓰는 규칙:
+ * - mock 클로저는 모듈 범위 `live` 를 읽고 `createEngineServiceHarness()` 가 부를 때마다
+ *   그 값을 덮어쓴다(아래 `live` 주석). 그래서 한 스펙 파일 안에서 살아 있는 하네스는
+ *   늘 하나다. 한 테스트에서 하네스를 둘 만들면 먼저 만든 하네스의 mock 이 나중 것을 읽는다.
+ * - 같은 이유로 `describe.concurrent` · `it.concurrent` 같은 병렬 테스트에 쓰지 않는다.
+ *   jest 는 스펙 파일마다 모듈을 따로 읽으므로 파일 사이에서는 `live` 가 섞이지 않는다.
+ * - 이 파일은 `__test-utils__/` 에 둔다. `tsconfig.build.json` 의 exclude 가 이 디렉터리를
+ *   이름으로 빌드에서 빼고 `production-build-devdep` 가드가 그 규칙을 고정하므로
+ *   devDependency 인 `@nestjs/testing` 을 import 해도 `dist/` 로 나가지 않는다.
+ *   `execution-engine/` 바로 아래에 두면 빌드에 들어가고 `output-write-sites.spec.ts` 의
+ *   출력 쓰기 지점 검사 대상에도 들어간다.
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
@@ -151,6 +163,17 @@ export const mockEdges: Partial<Edge>[] = [
   },
 ];
 
+/**
+ * 하네스 `ConfigService.get` mock 의 기본 응답. 테스트가 바꾼 응답을 되돌릴 때도 쓴다.
+ */
+export function defaultEngineConfig(
+  key: string,
+  defaultValue?: unknown,
+): unknown {
+  if (key === 'MAX_NODE_ITERATIONS') return 100;
+  return defaultValue;
+}
+
 // Mock handler
 export const mockHandler: NodeHandler = {
   validate: () => ({ valid: true, errors: [] }),
@@ -182,6 +205,8 @@ export interface EngineServiceHarness extends EngineServiceHarnessState {
   conversationThreadService: ConversationThreadService;
   mockExecutionRunQueue: { add: jest.Mock };
   handlerRegistry: NodeHandlerRegistry;
+  // 서비스가 주입받은 것과 같은 인스턴스다(Nest 기본 singleton 범위).
+  contextService: ExecutionContextService;
   mockWebsocketService: {
     emitExecutionEvent: jest.Mock;
     emitNodeEvent: jest.Mock;
@@ -211,6 +236,10 @@ export interface EngineServiceHarness extends EngineServiceHarnessState {
  * 최신 mock · 서비스를 읽었다. 하네스도 같은 동작을 지키려고 클로저가 이 객체를 읽는다.
  * 하네스 지역 변수를 바로 읽게 하면 남은 실행이 옛 mock 을 계속 써서 다음 테스트가
  * 끝나지 않는 경우가 있다(원래 스펙의 runExecutionFromQueue describe 에서 확인).
+ *
+ * 하네스 인스턴스 안으로 옮기지 않는다. 남은 실행이 다음 테스트의 mock 을 읽으려면 하네스
+ * 인스턴스 사이에 공유되는 참조가 있어야 해서, 인스턴스 필드로 옮기면 위 동작이 바뀐다.
+ * 그 대신 머리 주석의 "쓰는 규칙"(파일마다 하네스 하나 · 병렬 테스트 금지)을 지킨다.
  */
 const live = {} as Pick<
   EngineServiceHarness,
@@ -589,10 +618,7 @@ export async function createEngineServiceHarness(): Promise<EngineServiceHarness
       {
         provide: ConfigService,
         useValue: {
-          get: jest.fn((key: string, defaultValue?: unknown) => {
-            if (key === 'MAX_NODE_ITERATIONS') return 100;
-            return defaultValue;
-          }),
+          get: jest.fn(defaultEngineConfig),
         },
       },
       {
@@ -714,6 +740,9 @@ export async function createEngineServiceHarness(): Promise<EngineServiceHarness
     ConversationThreadService,
   );
   const handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
+  const contextService = module.get<ExecutionContextService>(
+    ExecutionContextService,
+  );
   const mockWebsocketService: EngineServiceHarness['mockWebsocketService'] =
     module.get(WebsocketService);
   const mockExecutionRunQueue: EngineServiceHarness['mockExecutionRunQueue'] =
@@ -734,6 +763,7 @@ export async function createEngineServiceHarness(): Promise<EngineServiceHarness
     conversationThreadService,
     mockExecutionRunQueue,
     handlerRegistry,
+    contextService,
     mockWebsocketService,
     mockConfigService,
     mockExecutionRepo,

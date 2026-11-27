@@ -15,7 +15,7 @@ code: ["codebase/backend/src/modules/executions"]
 
 <FieldTable rows={[
   { name: "Stop Workflow", type: "기본값", description: "에러 즉시 워크플로우 전체 실행을 중단하고 상태를 failed로 기록해요." },
-  { name: "Skip Node", type: "건너뛰기", description: "실패한 노드를 건너뛰고 출력을 null로 다음 노드에 전달해요." },
+  { name: "Skip Node", type: "건너뛰기", description: "실패한 노드를 건너뛰고 다음 노드로 진행해요. 건너뛴 노드는 출력을 쓰지 않아 다음 노드는 빈 값(`undefined`)을 입력으로 받아요." },
   { name: "Use Default Output", type: "기본 출력값", description: "미리 설정한 기본값을 노드 결과로 대신 내보내요." },
   { name: "Retry", type: "재시도", description: "설정된 횟수만큼 자동 재시도해요. 모두 실패하면 Stop Workflow로 폴백돼요." },
   { name: "Route to Error Port", type: "에러 포트", description: "에러 데이터를 별도 error 포트로 보내서 복구 흐름을 잇게 해요." }
@@ -36,9 +36,10 @@ code: ["codebase/backend/src/modules/executions"]
 실패한 노드를 무시하고 다음 노드로 진행해요.
 
 - `NodeExecution.status = "skipped"`가 되고, 에러 정보는 `NodeExecution.error` 필드에 보존돼요.
-- 출력은 `null`이에요. 다음 노드는 `null`을 입력으로 받아요.
+- 건너뛴 노드는 출력을 쓰지 않아요. 다음 노드는 빈 값(`undefined`)을 입력으로 받아요.
+- 고른 포트가 없으므로 `error`를 뺀 출력 연결선이 모두 이어져요.
 
-<Callout type="warn">다음 노드가 `null` 입력을 견디지 못하면 연쇄 실패가 날 수 있어요. `null` 체크나 `||` 기본값과 함께 쓰는 걸 권장해요.</Callout>
+<Callout type="warn">다음 노드가 빈 입력을 견디지 못하면 연쇄 실패가 날 수 있어요. 값이 있는지 확인하거나 `||` 기본값과 함께 쓰는 걸 권장해요.</Callout>
 
 **언제 쓰나요**: 부가적인 알림 전송(Slack, 이메일) 같은 비필수 단계에서 써요. 실패해도 본 흐름은 계속되어야 할 때요.
 
