@@ -99,6 +99,8 @@ describe("formatIntegrationErrorToast", () => {
     ["NOT_A_MEMBER", "errors.codes.notAMember"],
     ["OWNER_REQUIRED", "errors.codes.ownerRequired"],
     ["WORKSPACE_NOT_FOUND", "errors.codes.workspaceNotFound"],
+    // 5xx 는 서버가 message 를 고정 문구로 가리므로 코드로 고른다(CLE-T-KKJ2A0).
+    ["OAUTH_CONFIG_MISSING", "errors.codes.oauthConfigMissing"],
   ])(
     "통합 표에 없고 공용 매핑에 있는 %s 는 공용 사전 문구 %s 만 보인다",
     (code, key) => {

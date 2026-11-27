@@ -38,5 +38,8 @@ export const errors = {
     recoveryCodeInvalid: "복구 코드가 맞지 않거나 이미 사용했어요.",
     challengeInvalid:
       "인증 요청이 만료됐거나 올바르지 않아요. 처음부터 다시 로그인해 주세요.",
+    oauthConfigMissing:
+      "서버에 이 서비스의 OAuth 설정이 없어요. 운영자에게 문의해 주세요.",
+    internalError: "서버 오류가 발생했어요. 잠시 뒤 다시 시도해 주세요.",
   },
 } as const;

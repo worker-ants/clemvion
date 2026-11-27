@@ -4,8 +4,10 @@ import {
   BadRequestException,
   HttpException,
   HttpStatus,
+  InternalServerErrorException,
   Logger,
   PayloadTooLargeException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { GlobalExceptionFilter } from './http-exception.filter';
@@ -326,21 +328,118 @@ describe('GlobalExceptionFilter', () => {
     ]);
   });
 
-  it('passes through a 502 BadGatewayException without masking (chat-channel setupChannel §5.4)', () => {
-    // 이 저장소의 첫 502 실사용 경로 — mapHttpErrorLike 의 "5xx-ish 는 의심해 500 으로
-    // 마스킹" 철학이 HttpException 분기까지 조용히 확장되는 회귀를 캐너리로 잠근다.
-    const { host, status, json } = mockHost();
-    new GlobalExceptionFilter().catch(
-      new BadGatewayException({
-        code: 'CHAT_CHANNEL_SETUP_FAILED',
-        message: 'Chat channel setup failed',
-      }),
-      host,
-    );
+  describe('5xx HttpException 의 message (CWE-209, CLE-T-KKJ2A0)', () => {
+    /** 5xx 가 싣는 고정 문구 — 매핑 안 된 Error · 비-Error throw 와 같은 하나의 문구다(CLE-T-V11GV1). */
+    const MASKED = 'An unexpected error occurred. Please try again later.';
 
-    expect(status).toHaveBeenCalledWith(502);
-    const body = bodyOf(json);
-    expect(body.error.code).toBe('CHAT_CHANNEL_SETUP_FAILED');
+    it('code 를 지정한 502 는 상태와 code 를 두고 message 만 고정 문구로 바꾼다', () => {
+      // 저장소의 첫 502 실사용 경로(chat-channel setupChannel §5.4). 상태 · code 는 프런트가
+      // 문구를 고르는 데 쓰므로 그대로 둔다.
+      const { host, status, json } = mockHost();
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      new GlobalExceptionFilter().catch(
+        new BadGatewayException({
+          code: 'CHAT_CHANNEL_SETUP_FAILED',
+          message: 'Chat channel setup failed after rotation.',
+        }),
+        host,
+      );
+
+      expect(status).toHaveBeenCalledWith(502);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('CHAT_CHANNEL_SETUP_FAILED');
+      expect(body.error.message).toBe(MASKED);
+    });
+
+    it('환경 변수 이름이 든 원문(OAUTH_CONFIG_MISSING)은 응답에 싣지 않고 requestId 와 로그에 남긴다', () => {
+      const { host, status, json } = mockHost();
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      new GlobalExceptionFilter().catch(
+        new InternalServerErrorException({
+          code: 'OAUTH_CONFIG_MISSING',
+          message: 'OAuth client ID (GOOGLE_CLIENT_ID) is not configured',
+        }),
+        host,
+      );
+
+      expect(status).toHaveBeenCalledWith(500);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('OAUTH_CONFIG_MISSING');
+      expect(body.error.message).toBe(MASKED);
+      expect(JSON.stringify(body)).not.toContain('GOOGLE_CLIENT_ID');
+      expect(error).toHaveBeenCalledTimes(1);
+      const logged = String(error.mock.calls[0][0]);
+      expect(logged).toContain('GOOGLE_CLIENT_ID');
+      expect(logged).toContain('OAUTH_CONFIG_MISSING');
+      expect(logged).toContain(`requestId=${body.error.requestId}`);
+    });
+
+    it('nested `{ error: { code, message } }` 모양의 503 도 code 를 두고 가린다', () => {
+      const { host, status, json } = mockHost();
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      new GlobalExceptionFilter().catch(
+        new ServiceUnavailableException({
+          error: {
+            code: 'EXECUTION_ENQUEUE_FAILED',
+            message:
+              'Command could not be queued (continuation bus unavailable). Please retry.',
+          },
+        }),
+        host,
+      );
+
+      expect(status).toHaveBeenCalledWith(503);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('EXECUTION_ENQUEUE_FAILED');
+      expect(body.error.message).toBe(MASKED);
+    });
+
+    it('code 를 지정하지 않은 5xx 는 INTERNAL_ERROR 와 고정 문구다', () => {
+      const { host, status, json } = mockHost();
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      new GlobalExceptionFilter().catch(
+        new InternalServerErrorException('pool exhausted at /srv/db.ts:42'),
+        host,
+      );
+
+      expect(status).toHaveBeenCalledWith(500);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.message).toBe(MASKED);
+    });
+
+    it('문자열 응답으로 만든 5xx HttpException 도 가린다', () => {
+      const { host, status, json } = mockHost();
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      new GlobalExceptionFilter().catch(
+        new HttpException('raw internal detail', HttpStatus.GATEWAY_TIMEOUT),
+        host,
+      );
+
+      expect(status).toHaveBeenCalledWith(504);
+      const body = bodyOf(json);
+      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.message).toBe(MASKED);
+    });
+
+    it('4xx HttpException 은 가리지 않고 로그도 남기지 않는다 (가림 범위는 5xx)', () => {
+      const { host, json } = mockHost();
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      new GlobalExceptionFilter().catch(
+        new BadRequestException({
+          code: 'INVALID_WEBHOOK_PAYLOAD',
+          message: 'Invalid webhook payload',
+        }),
+        host,
+      );
+
+      expect(bodyOf(json).error.message).toBe('Invalid webhook payload');
+      expect(error).not.toHaveBeenCalled();
+    });
   });
 
   it('defaults unknown errors to 500 INTERNAL_ERROR', () => {
@@ -351,16 +450,53 @@ describe('GlobalExceptionFilter', () => {
     expect(bodyOf(json).error.code).toBe('INTERNAL_ERROR');
   });
 
-  it('비-Error 값 throw(문자열 등)은 UNKNOWN_ERROR_MESSAGE 로 500 처리', () => {
-    // Error 인스턴스가 아닌 값(문자열·객체)이 throw 되면 어떤 분기에도 안 걸려
-    // UNKNOWN_ERROR_MESSAGE fallthrough 가 그대로 응답된다(UNHANDLED 경로와 구분).
+  it('매핑 안 된 Error 의 원문은 requestId 와 함께 로그에만 남긴다', () => {
+    const { host, json } = mockHost();
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    new GlobalExceptionFilter().catch(new Error('boom detail'), host);
+
+    const body = bodyOf(json);
+    expect(body.error.message).toBe(
+      'An unexpected error occurred. Please try again later.',
+    );
+    const logged = String(error.mock.calls[0][0]);
+    expect(logged).toContain('boom detail');
+    expect(logged).toContain(`requestId=${body.error.requestId}`);
+  });
+
+  it('비-Error 값 throw(문자열 등)도 같은 고정 문구로 500 처리하고 requestId 와 로그에 남긴다', () => {
+    // Error 인스턴스가 아닌 값(문자열·객체)이 throw 되면 어떤 분기에도 안 걸린다. 그래도
+    // INTERNAL_ERROR 의 문구는 하나다(CLE-T-V11GV1). stack 이 없어 로그에는 값만 남는다.
     const { host, status, json } = mockHost();
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
     new GlobalExceptionFilter().catch('a raw string thrown', host);
 
     expect(status).toHaveBeenCalledWith(500);
     const body = bodyOf(json);
     expect(body.error.code).toBe('INTERNAL_ERROR');
-    expect(body.error.message).toBe('An unexpected error occurred');
+    expect(body.error.message).toBe(
+      'An unexpected error occurred. Please try again later.',
+    );
+    const logged = String(error.mock.calls[0][0]);
+    expect(logged).toContain('a raw string thrown');
+    expect(logged).toContain(`requestId=${body.error.requestId}`);
+  });
+
+  it('프로토타입이 없는 객체를 throw 해도 필터가 다시 throw 하지 않는다', () => {
+    // `String(Object.create(null))` 은 TypeError 다. 로그 문자열을 만들다 필터가 터지면 응답이 나가지 않는다.
+    const { host, status, json } = mockHost();
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    new GlobalExceptionFilter().catch(Object.create(null), host);
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(bodyOf(json).error.code).toBe('INTERNAL_ERROR');
+    expect(String(error.mock.calls[0][0])).toContain('<object>');
   });
 
   /**
@@ -533,6 +669,7 @@ describe('GlobalExceptionFilter', () => {
       // 열거에서 빼고 여기 따로 둔다. 이 케이스가 고정하는 축은 "fallthrough 도 같은 봉투를
       // 만든다" 이지 `cause` 비노출이 아니다. 축이 다른 것을 한 열거에 섞지 않는다.
       const { host, json } = mockHost();
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
       new GlobalExceptionFilter().catch('a raw string thrown', host);
 
       expect(Object.keys(bodyOf(json).error).sort()).toEqual(

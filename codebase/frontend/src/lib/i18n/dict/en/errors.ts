@@ -38,5 +38,8 @@ export const errors: Dict["errors"] = {
     recoveryCodeInvalid: "The recovery code is incorrect or already used.",
     challengeInvalid:
       "The sign-in request expired or is invalid. Sign in again from the start.",
+    oauthConfigMissing:
+      "OAuth is not configured for this service on the server. Contact your administrator.",
+    internalError: "A server error occurred. Try again in a moment.",
   },
 };

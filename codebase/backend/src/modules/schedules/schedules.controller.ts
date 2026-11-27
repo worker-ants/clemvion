@@ -84,11 +84,10 @@ export class SchedulesController {
     // (`review/code/2026/09/06/00_24_34` W1). 정상 데이터로는 도달 불가다 —
     // `Schedule.trigger_id` 가 NOT NULL 이고 FK 가 `onDelete: 'CASCADE'` 다.
     //
-    // **진단은 로그에만.** `GlobalExceptionFilter` 는 `HttpException` 의 `message` 를
-    // 응답 바디로 그대로 흘린다(마스킹은 매핑되지 않은 순수 `Error` 에만 걸린다) —
-    // 첫 판이 `schedule.id` 와 조인 추론을 문자열 인자로 넘겨 500 바디에 실었다
-    // (`review/consistency/2026/09/06/00_48_52` W1, CWE-209). 클라이언트에게는
-    // `3-error-handling.md` 의 `INTERNAL_ERROR` 고정 문구만 간다.
+    // **진단은 로그에만.** 첫 판이 `schedule.id` 와 조인 추론을 문자열 인자로 넘겨 500 바디에
+    // 실었다(`review/consistency/2026/09/06/00_48_52` W1, CWE-209). 지금은 `GlobalExceptionFilter`
+    // 가 5xx `HttpException` 의 `message` 를 고정 문구로 바꾸므로(CLE-T-KKJ2A0) 아래 문구도
+    // 응답에 실리지 않는다. 클라이언트에는 `INTERNAL_ERROR` 코드와 필터의 고정 문구만 간다.
     if (!t) {
       this.logger.error(
         `Schedule ${schedule.id} has no loaded trigger — ` +

@@ -1,6 +1,8 @@
 import {
+  BadGatewayException,
   BadRequestException,
   HttpException,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -56,6 +58,36 @@ describe('resolveInstallFailure', () => {
       'CAFE24_INSTALL_FAILED',
     );
     expect(failure.code).toBe('CAFE24_INSTALL_FAILED');
+  });
+
+  it('masks the message of a coded 5xx HttpException but keeps its status and code (CLE-T-KKJ2A0)', () => {
+    // OAUTH_CONFIG_MISSING 의 원문에는 환경 변수 이름이 들어 있다. 원문은 호출부가 requestId 와 로그에 남긴다.
+    const failure = resolveInstallFailure(
+      new InternalServerErrorException({
+        code: 'OAUTH_CONFIG_MISSING',
+        message: 'CAFE24_CLIENT_ID / CAFE24_CLIENT_SECRET env not configured',
+      }),
+      'CAFE24_INSTALL_FAILED',
+    );
+    expect(failure).toEqual({
+      status: 500,
+      code: 'OAUTH_CONFIG_MISSING',
+      message: INSTALL_UNEXPECTED_ERROR_MESSAGE,
+      unexpected: true,
+    });
+  });
+
+  it('masks an uncoded 5xx HttpException with the provider code and keeps its status', () => {
+    const failure = resolveInstallFailure(
+      new BadGatewayException('upstream 10.0.0.5 refused'),
+      'MAKESHOP_INSTALL_FAILED',
+    );
+    expect(failure).toEqual({
+      status: 502,
+      code: 'MAKESHOP_INSTALL_FAILED',
+      message: INSTALL_UNEXPECTED_ERROR_MESSAGE,
+      unexpected: true,
+    });
   });
 
   it.each([
