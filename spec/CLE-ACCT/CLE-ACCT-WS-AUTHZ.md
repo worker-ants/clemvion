@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS-AUTHZ"
 title: "워크스페이스와 멤버 — API 인가"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-WS"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-WS"]
 area: "CLE-ACCT"
-content_hash: "3476302bbd7daaa6edc0995d01eb14a6b80666787a95ac56e54278c76b4986ed"
+content_hash: "c7a321302e4355bdb82f6c314cce02de8e98fb8d71425aa8ddf7554a7398272b"
 read_as: "approved_fallback"
-task: "CLE-T-86E38Q"
+task: "CLE-T-VWC60Z"
 source_paths: []
-mirror_sha256: "d872ec577f36f34acd64fe90c2093eeaed5b9f6b3ed9c8ad099cd50e8b43c7d6"
-etag: "sha256-97bfd1baeb4493b02f0f3d673636fd4fca6a15896cc2220a2441be2e442545e2"
+mirror_sha256: "42bfd412d3965ff68384bff6576f8df0c8503c42bdbc11793ed64560a04b04d5"
+etag: "sha256-be85cee6c97a16ad63eb0ea01e50f7313b9303218afc755626b1cb0f953b8f2b"
 ---
 ## 개요
 
@@ -25,15 +25,15 @@ etag: "sha256-97bfd1baeb4493b02f0f3d673636fd4fca6a15896cc2220a2441be2e442545e2"
 요청마다 서버가 워크스페이스와 역할을 판정하는 순서는 다음과 같다.
 
 1. 요청을 받으면 액세스 토큰을 검증한다.
-2. 현재 워크스페이스와 역할을 정한다. `jwt.strategy` 의 토큰 클레임 해석은 [전환 API 와 토큰](CLE-ACCT-WS-SPACE.md#전환-api-와-토큰) 과 같다. 워크스페이스 컨텍스트는 헤더 우선이다. `WorkspaceId` 데코레이터와 `RolesGuard` 는 `X-Workspace-Id` 헤더가 있으면 그 워크스페이스를 먼저 쓰고, 없으면 토큰 클레임을 쓴다. 두 곳이 같은 규칙이라 컨텍스트와 역할 검증 대상이 일치한다.
+2. 현재 워크스페이스와 역할을 정한다. `jwt.strategy` 의 토큰 클레임 해석은 [전환 API 와 토큰](CLE-ACCT-WS-SPACE.md#전환-api-와-토큰) 과 같다. 현재 워크스페이스는 헤더 값이 우선이다. `WorkspaceId` 데코레이터와 `RolesGuard` 는 `X-Workspace-Id` 헤더가 있으면 그 워크스페이스를 먼저 쓰고, 없으면 토큰 클레임을 쓴다. 두 곳이 같은 규칙이라 핸들러가 받는 워크스페이스와 가드가 역할을 검증하는 워크스페이스가 같다.
 3. 요청 리소스가 그 워크스페이스에 속하는지 확인한다.
 4. 역할이 그 동작의 권한을 갖는지 확인한다.
 5. 권한이 없으면 403 이다.
 
 ### 멤버십 검증은 가드가 무조건 한다
 
-- `RolesGuard` 는 전역(`APP_GUARD`) 가드다. 워크스페이스 컨텍스트를 쓰는 인증 라우트라면 라우트에 `@Roles()` 가 있든 없든 헤더로 지정한 워크스페이스의 멤버십을 확인한다(경로로 워크스페이스를 받는 라우트는 아래 「경로 파라미터로 받는 워크스페이스」). `@Roles()` 는 역할 계층 비교만 통제한다.
-- 헤더가 없으면 워크스페이스 컨텍스트는 `jwt.strategy` 가 이미 멤버십을 확인한 값이라 추가 검사가 필요 없다. 검증이 필요한 경로는 헤더가 토큰 값을 덮을 때다.
+- `RolesGuard` 는 전역(`APP_GUARD`) 가드다. 현재 워크스페이스를 쓰는 인증 라우트라면 라우트에 `@Roles()` 가 있든 없든 헤더로 지정한 워크스페이스의 멤버십을 확인한다(경로로 워크스페이스를 받는 라우트는 아래 「경로 파라미터로 받는 워크스페이스」). `@Roles()` 는 역할 계층 비교만 통제한다.
+- 헤더가 없으면 현재 워크스페이스는 `jwt.strategy` 가 이미 멤버십을 확인한 토큰 클레임 값이라 추가 검사가 필요 없다. 검증이 필요한 경로는 헤더 값이 토큰 클레임 값을 덮을 때다.
 - 가드는 `@WorkspaceId()` 를 소비하는(`handlerConsumesWorkspaceId`) 라우트와 경로 파라미터로 받는 워크스페이스 없이 `@Roles()` 가 붙은 라우트에서 헤더 · 토큰이 가리키는 현재 워크스페이스를 검사한다. `@Roles()` 라우트는 파라미터로 드러내지 않아도 토큰의 `activeWorkspaceId` 클레임이 가리키는 현재 워크스페이스를 쓸 수 있어서다. 경로로 받는 워크스페이스(`@WorkspaceParam(...)`)는 아래 「경로 파라미터로 받는 워크스페이스」 가 다룬다. 그 라우트는 검증에서 빠지는 것이 아니라 인가 대상이 경로 값으로 바뀐다. `@WorkspaceId()` 도 함께 쓸 때만 헤더 · 토큰이 가리키는 현재 워크스페이스의 멤버십을 따로 본다.
 - 제외 대상은 (a) `@Public()` 라우트와 `request.user` 가 없는 미인증 요청(판정은 `JwtAuthGuard` 몫), (b) `@Roles()` · `@WorkspaceId()` · `@WorkspaceParam(...)` 을 하나도 쓰지 않는 라우트다. 시스템 전역 API `GET /api/system-status/overview` 가 (b) 의 예이고 헤더가 와도 멤버십을 확인하지 않는다([시스템 상태](../CLE-OBS/CLE-OBS-STATUS.md)).
 - WebSocket 게이트웨이는 (a) 에 든다. 게이트웨이는 `@Public()` 이고 소켓 요청에는 `request.user` 가 없다. 핸드셰이크에서 토큰의 서명과 `exp` 만 확인하고 토큰 클레임의 워크스페이스를 그대로 쓴다. 그래서 멤버 제거는 액세스 토큰 만료(최대 15분)까지 소켓에 반영되지 않는다. 이 창은 받아들인 동작이다([WebSocket 연결 「멤버 제거는 …」](../CLE-API/CLE-API-WS-CONN.md#멤버-제거는-액세스-토큰-만료까지-소켓에-전파하지-않는다)).
@@ -42,10 +42,10 @@ etag: "sha256-97bfd1baeb4493b02f0f3d673636fd4fca6a15896cc2220a2441be2e442545e2"
 
 - 경로로 워크스페이스를 받는 라우트(`/api/workspaces/:id/...` 14곳과 전환 `POST /api/auth/workspaces/:id/switch` 1곳)는 헤더·토큰이 아니라 경로 값이 인가 대상이다. 이 파라미터는 `@WorkspaceParam('<name>')` 으로 바인딩한다.
 - `RolesGuard` 는 `@WorkspaceId()` 와 같은 방식(`ROUTE_ARGS_METADATA` 의 팩토리 identity)으로 이 소비를 알아보고 등록된 이름의 경로 값을 인가 대상으로 쓴다. 경로 값은 토큰이 확인한 적이 없으므로 멤버십을 항상 조회한다.
-- 역할 요구는 서비스 계층과 같게 `@Roles()` 로 적는다. 소유자·관리자 요구 8곳은 `@Roles('admin')`, 소유자 요구 2곳(워크스페이스 삭제 `remove`, `transferOwnership`)은 `@Roles('owner')`, 멤버면 되는 곳은 `@Roles()` 없이 둔다.
+- 역할 요구는 서비스 계층과 같게 `@Roles()` 로 적는다. 소유자·관리자 요구 8곳은 `@Roles('admin')`, 소유자 요구 2곳(워크스페이스 삭제 `remove`, `transferOwnership`)은 `@Roles('owner')`, 멤버면 되는 곳은 `@Roles()` 없이 둔다. `transferOwnership` 은 처음 만들 때부터 `@Roles('owner')` 였다.
 - 컨트롤러 핸들러가 워크스페이스 ID 를 평범한 `@Param` 으로 받는 것은 저장소 가드가 금지한다. `@Param(...)` 으로 받은 파라미터 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나면 CI 가 실패한다. 허용 목록은 없다. 이름이 규칙 밖(`id` 등)이면 가드가 알아보지 못한다. 이것이 가드의 한계다.
 - Nest 는 가드를 파이프보다 먼저 돌린다. 가드가 받는 경로 값은 검증 전 원문이다. 가드는 헤더와 같은 `isUuidShaped` 로 형식만 보고, 형식이 아니면 판정하지 않고 넘긴다. 뒤의 `ParseUUIDPipe` 가 400 을 내고 핸들러는 돌지 않는다. 형식이 맞으면 파이프 범위 밖의 값이든 없는 워크스페이스든 가드가 멤버십을 조회해 403 이 된다.
-- 서비스 계층의 `assertMembership`·`assertAdmin` 검사는 남긴다. 가드 인식이 깨져 조용히 통과될 때의 두 번째 방어선이다. `leaveWorkspace`·`addMemberByEmail`·`transferOwnership` 은 워크스페이스를 조회하기 전에 인가를 먼저 한다. 트랜잭션 안에서 잠금을 잡고 다시 검사하는 곳(`leaveWorkspace`, `transferOwnership`)은 그 재검사를 두고 앞에 잠금 없는 인가를 먼저 둔다.
+- 서비스 계층의 `assertMembership`·`assertAdmin` 검사는 남긴다. 가드 인식이 깨져 조용히 통과될 때의 두 번째 방어선이다. `leaveWorkspace`·`addMemberByEmail`·`transferOwnership` 은 워크스페이스를 조회하기 전에 인가를 먼저 한다. `removeMember` 는 대상 멤버를 조회하기 전에 요청자 멤버십을 먼저 본다. 관리자 이상 판정은 자기 자신 제거를 나가기로 넘긴 뒤에 한다. 트랜잭션 안에서 잠금을 잡고 다시 검사하는 곳(`leaveWorkspace`, `transferOwnership`)은 그 재검사를 두고 앞에 잠금 없는 인가를 먼저 둔다.
 
 ### 가드 거부 에러 코드
 
@@ -61,7 +61,7 @@ etag: "sha256-97bfd1baeb4493b02f0f3d673636fd4fca6a15896cc2220a2441be2e442545e2"
 - 통합 OAuth 콜백도 가드 밖에서 `EDITOR_REQUIRED`·`ADMIN_REQUIRED` 를 낸다. 통합 재인증·추가 권한 요청 콜백의 커밋 직전 인가 재판정이 서비스 계층에서 개인 통합은 편집자 미만을 `EDITOR_REQUIRED` 로, 조직 통합은 관리자 미만을 `ADMIN_REQUIRED` 로 거부한다. 이 거부는 콜백 팝업과 통합의 `last_error` 로 알린다([통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드)).
 - `NOT_A_MEMBER` 도 가드 밖에서 난다. 통합 행을 만드는 트랜잭션(통합 생성, Cafe24 Private·MakeShop `oauth/begin`)은 맨 먼저 워크스페이스 행을 잠근다. 그 사이 워크스페이스가 지워졌으면 공개 범위와 관계없이 이 코드로 거부한다. 개인 통합이면 이어서 요청자의 멤버십을 잠가 다시 읽고 없을 때도 이 코드다. 둘 다 가드를 지난 뒤 워크스페이스가 지워지거나 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 경로는 가드처럼 없는 워크스페이스와 비멤버를 구분하지 않는다. 워크스페이스 관리 경로는 같은 경합에서 404 `WORKSPACE_NOT_FOUND` 를 낸다([워크스페이스를 찾지 못할 때](#워크스페이스를-찾지-못할-때)). 코드의 뜻은 [통합 관리 「에러 코드」](../CLE-INT/CLE-INT-MANAGE.md#에러-코드) 에 있다.
 - 조직 통합을 개인으로 바꾸는 전환은 같은 순서로 잠그지만 `NOT_A_MEMBER` 를 쓰지 않는다. 워크스페이스가 그 사이 지워졌으면 통합도 함께 지워져 404 `RESOURCE_NOT_FOUND` 다. 통합을 만든 사람이 멤버가 아니면 409 `INTEGRATION_OWNER_NOT_MEMBER` 다. 요청자는 멤버이고 거절 이유는 통합을 만든 사람에게 있다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md#나간-멤버의-개인-통합으로-바꾸는-전환은-거절한다-2026-10-29)).
-- 코드를 붙이지 않는 가드 거부 두 자리가 남는다. 미인증 요청이 `@Roles()` 라우트에 닿는 경우(`JwtAuthGuard` 가 먼저 401 을 내므로 실제로 닿지 않는다)와 `@Roles()` 라우트에 워크스페이스 컨텍스트가 전혀 없는 경우(가입 직후에도 토큰이 개인 워크스페이스를 갖는다)다. 도달 경로가 없어 범위 밖이다.
+- 코드를 붙이지 않는 가드 거부 두 자리가 남는다. 미인증 요청이 `@Roles()` 라우트에 닿는 경우(`JwtAuthGuard` 가 먼저 401 을 내므로 실제로 닿지 않는다)와 `@Roles()` 라우트에 헤더 값도 토큰 클레임 값도 없어 현재 워크스페이스가 없는 경우(가입 직후에도 토큰이 개인 워크스페이스를 갖는다)다. 도달 경로가 없어 범위 밖이다.
 
 ### 워크스페이스를 찾지 못할 때
 
@@ -121,7 +121,7 @@ etag: "sha256-97bfd1baeb4493b02f0f3d673636fd4fca6a15896cc2220a2441be2e442545e2"
 
 ### 경로 파라미터 워크스페이스도 가드가 본다
 
-2026-09-25 결정이다. 위 결정은 헤더·토큰 컨텍스트만 봤다. 경로 `:id` 로 워크스페이스를 받는 라우트 15곳(`workspaces.controller.ts` 14, `auth.controller.ts` 전환 1)은 서비스 계층 `assertMembership`·`assertAdmin` 에만 기댔다. 그날 실측에서 인가 누락은 없었지만 세 메서드(`leaveWorkspace`, `addMemberByEmail`, `transferOwnership`)가 인가 전에 워크스페이스를 조회해 비멤버가 "없음·개인·팀" 을 구분할 수 있었다(존재·종류 오라클). `transferOwnership` 은 트랜잭션 안에서 워크스페이스를 먼저 읽어 "없음 404, 개인 `CANNOT_TRANSFER_PERSONAL`, 팀 비소유자 `OWNER_REQUIRED`" 로 갈렸고, 가드가 토큰 워크스페이스로 판정해 HTTP 로도 닿았다. `@Roles('owner')` 가 붙은 `transferOwnership` 조차 가드는 핸들러가 다루는 경로 워크스페이스가 아니라 헤더·토큰 워크스페이스를 검사했다.
+2026-09-25 결정이다. 위 결정은 헤더 값과 토큰 클레임 값이 가리키는 현재 워크스페이스만 봤다. 경로 `:id` 로 워크스페이스를 받는 라우트 15곳(`workspaces.controller.ts` 14, `auth.controller.ts` 전환 1)은 서비스 계층 `assertMembership`·`assertAdmin` 에만 기댔다. 그날 실측에서 인가 누락은 없었지만 세 메서드(`leaveWorkspace`, `addMemberByEmail`, `transferOwnership`)가 인가 전에 워크스페이스를 조회해 비멤버가 "없음·개인·팀" 을 구분할 수 있었다(존재·종류 오라클). `transferOwnership` 은 트랜잭션 안에서 워크스페이스를 먼저 읽어 "없음 404, 개인 `CANNOT_TRANSFER_PERSONAL`, 팀 비소유자 `OWNER_REQUIRED`" 로 갈렸고, 가드가 토큰 워크스페이스로 판정해 HTTP 로도 닿았다. `@Roles('owner')` 가 붙은 `transferOwnership` 조차 가드는 핸들러가 다루는 경로 워크스페이스가 아니라 헤더·토큰 워크스페이스를 검사했다.
 
 그래서 경로 워크스페이스를 `@WorkspaceParam('<name>')` 으로 바인딩하고 가드가 그 값을 인가 대상으로 쓰게 했다.
 

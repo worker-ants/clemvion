@@ -2,19 +2,19 @@
 id: "CLE-ACCT-DATA"
 title: "계정과 워크스페이스 데이터 흐름"
 type: "design"
-version: 25
+version: 26
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "46331fd8146ceac991668049c50de241dc2e0f643b168edb03b2b927aea036ce"
+content_hash: "de3250d57c2cdc411e07008115e75fc36cf836785ed215aa2311681ab1222464"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-WYJEAQ"
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "b43b435ca2de10bb2f31453de7dc4afb86ad137615d23f6e3bb92de573f32400"
-etag: "sha256-e3b1a1bbd32074eaebdbf5fe77279e6399c1e4a41bf06dd8ead1f7aaceed9d3c"
+mirror_sha256: "7a66e232afe40520f85f5e5169500adcd385d596a0ee7f7cb19afa9f72ff6159"
+etag: "sha256-bb83315936593152e4ee2a0d97b946c0a52298e479f4b6e21ba149e28ebfee80"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -27,7 +27,7 @@ etag: "sha256-e3b1a1bbd32074eaebdbf5fe77279e6399c1e4a41bf06dd8ead1f7aaceed9d3c"
 동작 규칙과 화면은 기능 문서가 정하고 이 문서와 하위 문서는 그 규칙을 데이터 관점에서 풀어 쓴다. 이 문서가 정하지 않는 것은 아래와 같다.
 
 - 가입·로그인·2단계 인증·소셜 로그인·비밀번호 재설정·이메일 변경 규칙: [가입과 로그인](CLE-ACCT-SIGNIN.md)
-- 토큰 수명·쿠키·세션 정책·재인증 코드: [세션과 토큰](CLE-ACCT-SESSION.md)
+- 토큰 수명·쿠키·세션 정책·계정 재인증 코드: [세션과 토큰](CLE-ACCT-SESSION.md)
 - 워크스페이스·멤버·초대 규칙, 권한 매트릭스, 서버 인가: [워크스페이스와 멤버](CLE-ACCT-WS.md)
 - 로그인 이력 이벤트의 뜻·조회 API·180일 보존 정책과 `audit_log`: [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md)
 - 전체 엔티티 관계 지도와 공통 컬럼 규칙: [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md)
@@ -104,7 +104,7 @@ erDiagram
 
 - `codebase/backend/src/modules/auth/auth.controller.ts`, `codebase/backend/src/modules/auth/auth.service.ts` (가입·로그인·갱신·로그아웃, TOTP 설정 시작과 끄기의 비밀번호 재확인)
 - `codebase/backend/src/modules/auth/auth-oauth.service.ts` (OAuth state 발급과 콜백)
-- `codebase/backend/src/modules/auth/sessions.controller.ts`, `codebase/backend/src/modules/auth/sessions.service.ts` (세션 목록과 강제 종료 `/api/auth/sessions*`, 로그인 이력 조회 `/api/users/me/login-history`)
+- `codebase/backend/src/modules/auth/sessions.controller.ts`, `codebase/backend/src/modules/auth/sessions.service.ts` (로그인 세션 목록과 세션 강제 종료 `/api/auth/sessions*`, 로그인 이력 조회 `/api/users/me/login-history`)
 - `codebase/backend/src/modules/auth/login-history.service.ts`, `codebase/backend/src/modules/auth/jobs/login-history-pruner.service.ts`
 - `codebase/backend/src/modules/auth/totp.service.ts`, `codebase/backend/src/modules/auth/dto/totp.dto.ts` (TOTP 켜기·끄기, 설정 시작 · 활성화 검증의 조건부 UPDATE, 대기 secret 의 10분 만료와 비우기, 끄기의 코드 확인 `verifyForDisable`)
 - `codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts`, `codebase/backend/src/modules/auth/webauthn/webauthn.service.ts`
@@ -115,12 +115,20 @@ erDiagram
 - `codebase/backend/src/modules/users/utils/normalize-email.ts` (`normalizeEmail`. 새로 저장하는 이메일의 앞뒤 공백 제거와 소문자 변환)
 - `codebase/backend/src/modules/users/users.service.ts` (`lookupByEmail` · `emailExists` · `emailTakenByOther`. 대소문자를 무시한 이메일 조회와 중복 확인)
 - `codebase/backend/src/modules/users/users.controller.ts`, `codebase/backend/src/modules/users/dto/update-me.dto.ts` (프로필 수정과 테마 값 `USER_THEMES`, 이메일 변경 진입)
+- `codebase/backend/migrations/V013__auth_oauth_state.sql` (`auth_oauth_state` 테이블)
+- `codebase/backend/migrations/V017__workspace_invitations.sql` (`workspace_invitation` 테이블과 `workspace_id` FK)
+- `codebase/backend/migrations/V040__auth_session_metadata_and_login_history.sql` (리프레시 토큰 메타데이터 컬럼, `login_history` 테이블과 `chk_login_history_event`)
+- `codebase/backend/migrations/V058__login_history_webauthn_failed_event.sql` (`chk_login_history_event` 에 `webauthn_failed` 추가)
+- `codebase/backend/migrations/V101__add_user_email_lower_index.sql` (`LOWER(email)` 조회 인덱스)
+- `codebase/backend/migrations/V108__workspace_personal_dedup_guard.sql`, `codebase/backend/migrations/V109__workspace_personal_owner_unique.sql` (개인 워크스페이스 중복 사전 검사와 소유자당 부분 유니크 인덱스)
+- `codebase/backend/migrations/V129__workspace_member_user_id_index.sql` (`workspace_member (user_id)` 인덱스)
 - `codebase/backend/migrations/V149__user_theme_allow_system.sql`, `codebase/backend/migrations/V150__user_theme_allow_system_validate.sql` (`chk_user_theme` 을 `NOT VALID` 로 건 뒤 검증하고 옛 제약 `user_theme_check` 를 지운다)
 - `codebase/backend/migrations/V152__webauthn_device_name_empty_to_null.sql` (이름 변경이 남긴 빈 문자열 `device_name` 을 NULL 로 바꾼다)
-- `codebase/backend/migrations/V*__user_two_factor_setup_started_at.sql` (`user.two_factor_setup_started_at` 컬럼 추가. 기존 행은 바꾸지 않는다. NULL 허용 컬럼 추가라 NOT VALID 단계는 없고 `lock_timeout` 은 V149 와 같은 3초다)
+- `codebase/backend/migrations/V155__user_two_factor_setup_started_at.sql` (`user.two_factor_setup_started_at` 컬럼 추가. 기존 행은 바꾸지 않는다. NULL 허용 컬럼 추가라 NOT VALID 단계는 없고 `lock_timeout` 은 V149 와 같은 3초다)
 - `codebase/backend/migrations/V156__refresh_token_remember_me.sql` (`refresh_token.remember_me` 컬럼 추가와 배포 시점 백필. `lock_timeout` 은 3초다)
 - `codebase/backend/src/modules/workspaces/workspaces.service.ts`, `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts`
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts`, `codebase/backend/src/modules/workspaces/invitations.controller.ts`
+- `codebase/backend/src/modules/workspaces/jobs/workspace-invitations-pruner.service.ts` (만료되고 수락되지 않은 초대를 지우는 매일 배치 `workspace-invitations-pruner`)
 - `codebase/backend/src/modules/workspaces/member-personal-integrations.port.ts`, `codebase/backend/src/modules/integrations/member-personal-integrations-purger.service.ts` (멤버 제거 · 나가기 트랜잭션이 개인 통합을 지우는 포트 `MEMBER_PERSONAL_INTEGRATIONS_PURGER` 와 그 구현)
 - `codebase/backend/migrations/V153__purge_departed_member_personal_integrations.sql` (통합 소유자가 멤버가 아닌 개인 통합을 한 번 지운다)
 - `codebase/backend/src/common/constants/workspace-roles.ts` (`ADMIN_ROLE_CHANGE_REQUIRES_OWNER`)
@@ -131,7 +139,7 @@ erDiagram
 - `codebase/backend/src/common/config/mail.config.ts` (`MAIL_*` 해석과 운영 경고 판정), `codebase/backend/src/main.ts` (운영 경고)
 - `codebase/backend/src/modules/mail/mail.transporter.spec.ts`, `codebase/backend/src/common/config/mail.config.spec.ts` (TLS 강제 · 설정 기본값 · 운영 경고 판정 테스트)
 - `codebase/backend/src/shared/testing/user-secret-absence.ts` (`USER_SECRET_KEYS`)
-- `codebase/backend/test/users-theme.e2e-spec.ts` (테마 저장과 거부), `codebase/backend/test/session-revocation.e2e-spec.ts` (세션 경로와 현재 세션 식별)
+- `codebase/backend/test/users-theme.e2e-spec.ts` (테마 저장과 거부), `codebase/backend/test/session-revocation.e2e-spec.ts` (세션 라우트 경로와 현재 로그인 세션 식별)
 - `codebase/backend/test/totp-enable-guard.e2e-spec.ts` (TOTP 설정 시작 · 활성화 검증이 켜진 계정을 거부한 뒤의 `user` 컬럼 상태)
 - `codebase/backend/test/totp-setup-expiry.e2e-spec.ts` (TOTP 대기 secret 의 10분 만료, 시각이 없는 대기 secret, 만료 뒤 `user` 컬럼 상태)
 

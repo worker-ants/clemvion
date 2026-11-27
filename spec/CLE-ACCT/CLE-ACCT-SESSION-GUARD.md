@@ -2,44 +2,44 @@
 id: "CLE-ACCT-SESSION-GUARD"
 title: "세션과 토큰 — 운영 환경 가드"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SESSION"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SESSION"]
 area: "CLE-ACCT"
-content_hash: "7a3da186e50e1d54f1c19178219838e55dc43315551c079d5f56f86199037895"
+content_hash: "8317120aa43f71d061c6bcc674fc26f9d14638df4fd2a5f725833c7f0fd088dd"
 read_as: "approved_fallback"
-task: "CLE-T-6F4W2A"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "bd1a0e20eb702a815e8d123cd4860a04b14ce13fafb498de85a31e1845b9838f"
-etag: "sha256-e88e42a6cb87d6722061bd10182b042904477b12e69723ca8f46736d3caac496"
+mirror_sha256: "96b0429ec60a530cea9074be86a0ad5b18ebe73c4feabbe876fcebd306b04af7"
+etag: "sha256-cc48020e616a9e6085884beff35e0aa90aecf90ab3a51525cce8c0d41f0dcda9"
 ---
 > 구현 상태: 구현됨 · 상위: [세션과 토큰](CLE-ACCT-SESSION.md)
 
 ## 개요
 
-이 문서는 [세션과 토큰](CLE-ACCT-SESSION.md) 의 하위 문서로 운영 환경 부팅 가드(`assertProductionConfig`)가 막는 설정의 전체 목록, 두 암호화 키의 검사 기준, 이 가드에 넣는 설정과 넣지 않는 설정의 기준을 정한다.
+이 문서는 [세션과 토큰](CLE-ACCT-SESSION.md) 의 하위 문서로 운영 환경 가드(`assertProductionConfig`)가 막는 설정의 전체 목록, 두 암호화 키의 검사 기준, 이 가드에 넣는 설정과 넣지 않는 설정의 기준을 정한다.
 
 ## 운영 환경 가드
 
 `NODE_ENV=production` 에서 아래 설정 가운데 하나라도 안전하지 않으면 서버가 기동하지 않는다. `main.ts` 가 bootstrap 첫 단계에서 `assertProductionConfig`(`common/config/production-guards.ts`)를 부른다. 이 함수는 첫 위반에서 바로 예외를 던진다. 그래서 여러 설정이 함께 걸려도 메시지에는 코드가 먼저 검사한 하나만 나온다. 아래 표의 행 순서는 검사 순서가 아니다. 예외 메시지는 `production fail-closed 가드:` 로 시작한다. 개발·테스트·e2e(`NODE_ENV≠production`)에서는 검사하지 않는다.
 
-이 절이 `assertProductionConfig` 가 검사하는 대상의 전체 목록이다. 다른 문서는 목록을 옮겨 적지 않고 이 절을 링크한다. 검사를 더하거나 빼면 아래 표에도 행을 더하거나 뺀다. 단위 테스트 `production-guards.spec.ts` 가 `assertProductionConfig` 가 읽는 환경 변수와 표의 첫 열을 대조한다.
+이 절이 `assertProductionConfig` 가 검사하는 대상의 전체 목록이다. 다른 문서는 목록을 옮겨 적지 않고 이 절을 링크한다. 검사를 더하거나 빼면 아래 표에도 행을 더하거나 뺀다. 단위 테스트 `production-guards.spec.ts` 가 `assertProductionConfig` 가 읽는 환경 변수와 표의 첫 열을 대조한다. 「테스트」 열은 그 파일의 `assertProductionConfig` 아래에서 그 행을 검사하는 `describe` 이름이다. 행마다 맡는 요구사항 번호는 [상위 문서 「하위 문서」](CLE-ACCT-SESSION.md#하위-문서) 에 있다.
 
-| 설정 | 기동을 막는 값 | 막는 위험 |
-| --- | --- | --- |
-| `JWT_SECRET` | 없음, 공백뿐인 값, 기본 sentinel(`dev-jwt-secret`), 저장소에 커밋된 예시 값, 앞뒤 공백을 뗀 길이가 32자 미만 | 기본값이나 예측 가능한 비밀로 서명하면 누구나 액세스 토큰을 위조해 인증을 우회한다(CWE-521 약한 비밀) |
-| `INTERACTION_JWT_SECRET` | 설정했을 때만 검사한다. 빈 값, 공백뿐인 값, 저장소에 커밋된 예시 값(`JWT_SECRET` 의 예시 값 포함), 앞뒤 공백을 뗀 길이가 32자 미만. 설정하지 않으면 `JWT_SECRET` 으로 서명하므로 위 행이 대신 막는다 | 실행 단위 인터랙션 토큰(`iext_*`)의 서명 비밀이다. 예측 가능한 값이면 누구나 토큰을 위조해 남의 실행에 입력을 보내거나 실행을 취소한다([External Interaction API 「인터랙션 토큰」](../CLE-IX/CLE-EIA.md#인터랙션-토큰)) |
-| `ENCRYPTION_KEY`(마스터키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 시크릿 저장소 값과 모델 설정의 API 키가 사실상 평문이 된다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) |
-| `INTEGRATION_ENCRYPTION_KEY`(통합 암호화 키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 통합 자격 증명과 인증 설정이 평문으로 저장된다. 대상 컬럼은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 표에 있다 |
-| `MCP_ALLOW_INSECURE_URL` | 켜짐 | MCP 클라이언트의 SSRF 방어(https 만 허용, 호스트 차단 목록)를 통째로 우회한다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)) |
-| `OAUTH_STUB_MODE` | 켜짐 | 실제 OAuth 제공자 검증을 건너뛰어 소셜 로그인 인증이 무력해진다 |
-| `LLM_STUB_MODE` | 켜짐 | 실제 LLM 호출 대신 스텁 응답을 돌려준다([LLM 클라이언트 「LLM 스텁 모드」](../CLE-AI/CLE-AI-LLM.md#llm-스텁-모드)) |
-| `ALLOW_HTTP_HOOKS` | 켜짐 | 알림 웹훅 URL 에 `http://` 를 허용한다. 그러면 서명한 알림 본문과 `X-Clemvion-*` 헤더가 평문으로 나간다([EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지)) |
+| 설정 | 기동을 막는 값 | 막는 위험 | 테스트 |
+| --- | --- | --- | --- |
+| `JWT_SECRET` | 없음, 공백뿐인 값, 기본 sentinel(`dev-jwt-secret`), 저장소에 커밋된 예시 값, 앞뒤 공백을 뗀 길이가 32자 미만 | 기본값이나 예측 가능한 비밀로 서명하면 누구나 액세스 토큰을 위조해 인증을 우회한다(CWE-521 약한 비밀) | `JWT_SECRET` |
+| `INTERACTION_JWT_SECRET` | 설정했을 때만 검사한다. 빈 값, 공백뿐인 값, 저장소에 커밋된 예시 값(`JWT_SECRET` 의 예시 값 포함), 앞뒤 공백을 뗀 길이가 32자 미만. 설정하지 않으면 `JWT_SECRET` 으로 서명하므로 위 행이 대신 막는다 | 실행 단위 인터랙션 토큰(`iext_*`)의 서명 비밀이다. 예측 가능한 값이면 누구나 토큰을 위조해 남의 실행에 입력을 보내거나 실행을 취소한다([External Interaction API 「인터랙션 토큰」](../CLE-IX/CLE-EIA.md#인터랙션-토큰)) | `INTERACTION_JWT_SECRET (CLE-T-0VV3VR)` |
+| `ENCRYPTION_KEY`(마스터키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 시크릿 저장소 값과 모델 설정의 API 키가 사실상 평문이 된다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md)) | `ENCRYPTION_KEY` |
+| `INTEGRATION_ENCRYPTION_KEY`(통합 암호화 키) | [암호화 키 검사](#암호화-키-검사) 에 걸리는 값 | 통합 자격 증명과 인증 설정이 평문으로 저장된다. 대상 컬럼은 [통합 데이터와 흐름 「암호화」](../CLE-INT/CLE-INT-DATA.md#암호화) 표에 있다 | `INTEGRATION_ENCRYPTION_KEY` |
+| `MCP_ALLOW_INSECURE_URL` | 켜짐 | MCP 클라이언트의 SSRF 방어(https 만 허용, 호스트 차단 목록)를 통째로 우회한다([MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md)) | `flag MCP_ALLOW_INSECURE_URL` |
+| `OAUTH_STUB_MODE` | 켜짐 | 실제 OAuth 제공자 검증을 건너뛰어 소셜 로그인 인증이 무력해진다 | `flag OAUTH_STUB_MODE` |
+| `LLM_STUB_MODE` | 켜짐 | 실제 LLM 호출 대신 스텁 응답을 돌려준다([LLM 클라이언트 「LLM 스텁 모드」](../CLE-AI/CLE-AI-LLM.md#llm-스텁-모드)) | `flag LLM_STUB_MODE` |
+| `ALLOW_HTTP_HOOKS` | 켜짐 | 알림 웹훅 URL 에 `http://` 를 허용한다. 그러면 서명한 알림 본문과 `X-Clemvion-*` 헤더가 평문으로 나간다([EIA 알림 웹훅 「SSRF 방지」](../CLE-IX/CLE-EIA-NOTIFY.md#ssrf-방지)) | `flag ALLOW_HTTP_HOOKS` |
 
-이 가드는 플래그 값이 정확히 `true` 또는 `1` 이면 켜진 것으로 보고 기동을 막는다(`isFlagOn`). `TRUE` · `yes` · `on` · 빈 문자열은 꺼진 것으로 본다. 기능을 실제로 켜는 판정은 설정마다 따로 한다. `OAUTH_STUB_MODE` · `LLM_STUB_MODE` 는 `true` 일 때만, `MCP_ALLOW_INSECURE_URL` 은 `true` 나 `1` 일 때, `ALLOW_HTTP_HOOKS` 는 `1` 일 때만 켜진다. 가드가 막는 값이 켜지는 값을 모두 담으므로 운영 환경에서 이 기능이 켜진 채 기동하는 일은 없다. 단위 테스트가 설정마다 기능을 켜는 판정과 가드를 대조해 이 관계를 확인한다.
+이 가드는 플래그 값이 정확히 `true` 또는 `1` 이면 켜진 것으로 보고 기동을 막는다(`isFlagOn`). `TRUE` · `yes` · `on` · 빈 문자열은 꺼진 것으로 본다. 기능을 실제로 켜는 판정은 설정마다 따로 한다. `OAUTH_STUB_MODE` · `LLM_STUB_MODE` 는 `true` 일 때만, `MCP_ALLOW_INSECURE_URL` 은 `true` 나 `1` 일 때, `ALLOW_HTTP_HOOKS` 는 `1` 일 때만 켜진다. 가드가 막는 값이 켜지는 값을 모두 담으므로 운영 환경에서 이 기능이 켜진 채 기동하는 일은 없다. 단위 테스트(`flag guard covers every value that turns the feature on`)가 설정마다 기능을 켜는 판정과 가드를 대조해 이 관계를 확인한다.
 
 `JWT_SECRET` 은 앞뒤 공백을 뗀 값으로 검사한다. 뗀 값이 비었으면 공백뿐인 값으로 보고 막는다. 예시 값 대조와 길이 하한도 뗀 값에 적용한다. 뗀 값은 검사에만 쓰고 토큰 서명에 쓰는 값은 바꾸지 않는다. 예시 값 목록의 정본은 `production-guards.ts` 의 `INSECURE_JWT_SECRETS` 다. 코드의 기본 sentinel 과 저장소에 커밋된 예시 값(`.env.example`, 배포 예시 Secret, 로컬 · e2e 설정, README)을 담는다. 이 문서에는 예시 값을 옮기지 않는다. 단위 테스트가 저장소의 예시 파일 값과 이 목록을 대조한다.
 
@@ -47,7 +47,7 @@ etag: "sha256-e88e42a6cb87d6722061bd10182b042904477b12e69723ca8f46736d3caac496"
 
 ### 암호화 키 검사
 
-마스터키와 통합 암호화 키는 같은 규칙으로 검사한다. 이 규칙의 정본은 이 절이다.
+마스터키와 통합 암호화 키는 같은 규칙으로 검사한다. 이 규칙의 정본은 이 절이다. 아래 가운데 하나에 걸리는 값이 [운영 환경 가드](#운영-환경-가드) 표에서 두 키의 «기동을 막는 값» 이다.
 
 - 값이 없거나 빈 문자열이면 막는다.
 - 공백뿐인 값을 막는다.
@@ -58,7 +58,7 @@ etag: "sha256-e88e42a6cb87d6722061bd10182b042904477b12e69723ca8f46736d3caac496"
 - 길이 하한은 두지 않는다. 키를 만드는 방식은 [시크릿 저장소 「마스터키」](../CLE-INT/CLE-INT-SECRET.md#마스터키) 와 [통합 데이터와 흐름 「키」](../CLE-INT/CLE-INT-DATA.md#키) 가 정한다.
 - 거부 메시지에 키 값을 싣지 않는다.
 
-이 가드 밖에서 키가 없을 때의 동작은 키마다 다르다. 마스터키가 없거나 빈 값이면 환경과 상관없이 `SecretResolver` 초기화가 부팅을 멈춘다([시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 규칙 17). 운영 환경 밖에서 통합 암호화 키가 없으면 transformer 가 경고를 남기고 평문으로 저장한다([통합 데이터와 흐름 「키가 없을 때」](../CLE-INT/CLE-INT-DATA.md#키가-없을-때)).
+이 가드 밖에서 키가 없을 때의 동작은 키마다 다르다. 마스터키가 없거나 빈 값이면 환경과 상관없이 `SecretResolver` 초기화가 부팅을 멈춘다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 의 규칙 17). 운영 환경 밖에서 통합 암호화 키가 없으면 transformer 가 경고를 남기고 평문으로 저장한다([통합 데이터와 흐름 「키가 없을 때」](../CLE-INT/CLE-INT-DATA.md#키가-없을-때)).
 
 ### 가드에 넣는 것과 넣지 않는 것
 
@@ -67,10 +67,11 @@ etag: "sha256-e88e42a6cb87d6722061bd10182b042904477b12e69723ca8f46736d3caac496"
 - 모듈 안 컨텍스트가 필요한 부팅 검사는 그 모듈에 둔다. EIA 의 종료 토큰 폐기 스케줄러 등록 fail-fast 는 [External Interaction API](../CLE-IX/CLE-EIA.md) 에 있다. 워크스페이스 멤버십 가드의 부팅 자가 검증은 [워크스페이스와 멤버](CLE-ACCT-WS.md) 에 있다.
 - `INTERACTION_JWT_SECRET` 은 환경 변수만으로 판정할 수 있어 이 함수가 검사한다. `InteractionTokenService` 생성자는 그와 별도로 두 서명 비밀이 모두 없으면 예외를 던진다([External Interaction API](../CLE-IX/CLE-EIA.md) 의 「인터랙션 토큰」 절).
 - 정당한 용도가 있는 완화 플래그는 기동을 막지 않고 경고 로그만 남긴다. 이 판정은 `main.ts` 가 한다. 예를 들어 `ALLOW_PRIVATE_HOST_TARGETS` 의 뜻은 [통합 노드 공통](../CLE-NODE-INT/CLE-NODE-INT-COMMON.md) 이 정한다. 이 플래그가 기동을 막지 않고 경고만 남기는 이유는 [MCP 클라이언트](../CLE-INT/CLE-INT-MCP.md) 에 있다. `MAIL_REQUIRE_TLS=false` 는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 이 정한다.
+- `ENABLE_SWAGGER_IN_PROD` 는 운영 환경에서 Swagger UI 를 잠깐 켜는 opt-in 플래그라 이 가드에 넣지 않는다. 켜도 기동을 막지 않는다. 판정 함수(`isSwaggerEnabled`)는 같은 `production-guards.ts` 에 있고 규칙은 [OpenAPI 문서화 「Swagger UI 노출 정책」](../CLE-API/CLE-API-SWAGGER.md#0-swagger-ui-노출-정책) 이 정한다.
 
 ## 구현 위치
 
-- `codebase/backend/src/common/config/production-guards.ts` (`assertProductionConfig`, 플래그 판정 `isFlagOn`, `JWT_SECRET` 예시 값 목록 `INSECURE_JWT_SECRETS`, 암호화 키 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` · `INSECURE_INTEGRATION_ENCRYPTION_KEYS`)
+- `codebase/backend/src/common/config/production-guards.ts` (`assertProductionConfig`, 플래그 판정 `isFlagOn`, `JWT_SECRET` 예시 값 목록 `INSECURE_JWT_SECRETS`, 암호화 키 예시 값 목록 `KNOWN_EXAMPLE_ENCRYPTION_KEYS` · `INSECURE_INTEGRATION_ENCRYPTION_KEYS`, 가드 밖의 Swagger 노출 판정 `isSwaggerEnabled`)
 - `codebase/backend/src/common/config/production-guards.spec.ts` (가드 분기, 저장소 예시 파일 값 대조, 설정마다 기능을 켜는 판정과 가드의 대조, 이 문서 「운영 환경 가드」 표와 검사 대상의 대조)
 - `codebase/backend/src/main.ts` (가드를 부르는 곳, 경고만 남기는 완화 플래그 판정)
 
@@ -78,11 +79,17 @@ etag: "sha256-e88e42a6cb87d6722061bd10182b042904477b12e69723ca8f46736d3caac496"
 
 ### 운영 환경 가드를 한 함수에 모은다
 
-`NODE_ENV=production` 의 부팅 거부 검사를 `assertProductionConfig` 한 함수에 모았다. 같은 성격의 비밀·stub(`INTERACTION_JWT_SECRET`, `OAUTH_STUB_MODE`, `LLM_STUB_MODE`)에 production throw 표준이 이미 있었다. 위치(`main.ts` 부팅)와 패턴도 같았다. 한 함수로 모으면 비밀을 더할 때 빠뜨리는 일을 구조로 막는다. 환경 변수만으로 부팅 직전에 판정할 수 있는 절대 금지 항목만 넣는다. 정당한 용도가 있는 항목(예: throw 가 아니라 warn 인 `ALLOW_PRIVATE_HOST_TARGETS`)은 일부러 뺐다. 설정이 없으면 기동을 거부하는 쪽이 안전하지 않은 부팅보다 낫다는 fail-closed 의도다. 개발·테스트·e2e 는 영향이 없다. `INTERACTION_JWT_SECRET` 은 처음에 DI 컨텍스트가 필요하다며 뺐다가 2026-11-06 에 이 함수로 옮겼다(「[`INTERACTION_JWT_SECRET` 을 운영 환경 가드에 더했다](#interaction_jwt_secret-을-운영-환경-가드에-더했다)」).
+`NODE_ENV=production` 의 부팅 거부 검사를 `assertProductionConfig` 한 함수에 모았다. 같은 성격의 stub(`OAUTH_STUB_MODE`, `LLM_STUB_MODE`)에 production throw 표준이 이미 있었다. 위치(`main.ts` 부팅)와 패턴도 같았다. 한 함수로 모으면 비밀을 더할 때 빠뜨리는 일을 구조로 막는다. 설정이 없으면 기동을 거부하는 쪽이 안전하지 않은 부팅보다 낫다는 fail-closed 의도다. 개발·테스트·e2e 는 영향이 없다. 어떤 설정을 넣고 빼는지는 본문 [가드에 넣는 것과 넣지 않는 것](#가드에-넣는-것과-넣지-않는-것) 이 정한다.
 
-`JWT_SECRET` 에는 32자 길이 하한을 두고 두 암호화 키에는 두지 않는다. `JWT_SECRET` 은 서명 키라 짧으면 무차별 대입에 약하다. 두 암호화 키는 이미 그 키로 암호화한 값이 있으면 키를 바꾸는 순간 그 값을 복호화하지 못한다. 그래서 짧아도 비밀인 키는 막지 않는다. 키 길이 계약은 NERV Task `CLE-T-C6GCKV` 가 정한다. 공백뿐인 값과 앞뒤 공백이 붙은 예시 값까지 막는 이유는 [시크릿 저장소 「R5」](../CLE-INT/CLE-INT-SECRET.md#r5-envexample-에는-형식-예시만-두고-production-에서-막는다) 에 있다.
+`JWT_SECRET` 에만 32자 길이 하한을 두고 두 암호화 키에는 두지 않는 이유는 [시크릿 저장소 「R13」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다. 공백뿐인 값과 앞뒤 공백이 붙은 예시 값까지 막는 이유는 [시크릿 저장소 「R5」](../CLE-INT/CLE-INT-SECRET.md#r5-envexample-에는-형식-예시만-두고-production-에서-막는다) 에 있다.
 
-`INTEGRATION_ENCRYPTION_KEY` 는 2026-10-31 에 목록에 더했다. `assertProductionConfig` 는 이 키를 이미 검사했는데 목록에는 빠져 있었다. 키가 없으면 통합 자격 증명과 인증 설정이 평문으로 저장되므로 운영 환경에서는 부팅을 거부한다. 결정 배경은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다. 범위 문장도 «인증 계열의 공통 부팅 가드» 에서 «`assertProductionConfig` 의 공통 부팅 가드» 로 바꿨다. 목록에는 원래 `MCP_ALLOW_INSECURE_URL` · `LLM_STUB_MODE` 같은 인증 밖 항목이 있어 «인증 계열» 이 사실과 맞지 않았다.
+### 통합 암호화 키를 가드 목록에 더했다
+
+결정일: 2026-10-31
+
+`assertProductionConfig` 는 `INTEGRATION_ENCRYPTION_KEY` 를 이미 검사했는데 가드 목록에는 빠져 있었다. 그래서 목록에 행을 더했다(NERV Task `CLE-T-KQ37NJ`). 키가 없으면 통합 자격 증명과 인증 설정이 평문으로 저장되므로 운영 환경에서는 부팅을 거부한다. 결정 배경은 [시크릿 저장소 「R13. 통합 암호화 키를 마스터키와 따로 둔다」](../CLE-INT/CLE-INT-SECRET.md#r13-통합-암호화-키-integration_encryption_key-를-마스터키와-따로-두고-production-에서-키-없이-기동하지-않는다-2026-10-10) 에 있다.
+
+같은 때 가드의 범위를 적은 문장도 «인증 계열의 공통 부팅 가드» 에서 «`assertProductionConfig` 의 공통 부팅 가드» 로 바꿨다. 목록에는 원래 `MCP_ALLOW_INSECURE_URL` · `LLM_STUB_MODE` 같은 인증 밖 항목이 있어 «인증 계열» 이 사실과 맞지 않았다. 그 문장은 문서를 나누기 전의 [세션과 토큰](CLE-ACCT-SESSION.md) 에 있었다. 지금은 이 문서의 [개요](#개요) 가 범위를 적는다.
 
 ### 운영 환경 가드 목록을 본문으로 옮기고 암호화 키 검사 규칙을 한 곳에 모았다
 
@@ -124,3 +131,12 @@ etag: "sha256-e88e42a6cb87d6722061bd10182b042904477b12e69723ca8f46736d3caac496"
 
 - **생성자에 같은 검사를 더한다**: 규칙이 `assertProductionConfig` 와 생성자 두 곳으로 갈린다. 표와 코드를 대조하는 단위 테스트도 이 항목을 보지 못한다.
 - **빈 값을 `JWT_SECRET` 으로 대신 쓰게 바꾼다(`??` 를 `||` 로)**: 서명 비밀의 대체 순서를 바꾸는 일이라 이번 범위 밖이다. 이 Task 는 서명 방식과 대체 순서를 바꾸지 않는다.
+
+### 두 암호화 키와 네 플래그의 부팅 거부를 요구사항 줄로 올렸다
+
+결정일: 2026-11-27
+
+- 두 암호화 키와 네 플래그(`MCP_ALLOW_INSECURE_URL` · `OAUTH_STUB_MODE` · `LLM_STUB_MODE` · `ALLOW_HTTP_HOOKS`)의 부팅 거부는 이 문서 본문에만 있었다. 요구사항을 인용하는 문서와 spec-coverage 감사는 요구사항 줄을 기준으로 읽으므로 이 항목들을 보지 못했다. 그래서 [상위 문서](CLE-ACCT-SESSION.md) 의 요구사항 절에 요구사항 줄로 올렸다(NERV Task `CLE-T-2JG0HW`). 번호는 [상위 문서 「하위 문서」](CLE-ACCT-SESSION.md#하위-문서) 에 있다. `JWT_SECRET` 과 `INTERACTION_JWT_SECRET` 에는 이미 요구사항 줄이 있었다.
+- 가드 동작은 바뀌지 않았다. 요구사항 줄의 조건은 [운영 환경 가드](#운영-환경-가드) 표와 `production-guards.ts` 에 맞췄다.
+- 표에 「테스트」 열을 더해 행마다 단위 테스트의 `describe` 이름을 적었다.
+- 같은 묶음에서 「운영 환경 가드를 한 함수에 모은다」 에는 한 함수에 모은 이유만 남겼다. 포함 기준과 예시는 본문 [가드에 넣는 것과 넣지 않는 것](#가드에-넣는-것과-넣지-않는-것) 에 있다. 그 절의 통합 암호화 키 이력은 「[통합 암호화 키를 가드 목록에 더했다](#통합-암호화-키를-가드-목록에-더했다)」 로 떼었다. 가드에 넣지 않는 설정에 `ENABLE_SWAGGER_IN_PROD` 를 더했다.

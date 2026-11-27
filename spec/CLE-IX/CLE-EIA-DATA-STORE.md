@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
 content_hash: "5f44ad2a97d31bef31a47280bc7690112326273421e3184cba89aeb053c86654"
 read_as: "approved_fallback"
-task: "CLE-T-FHG7MT"
+task: "CLE-T-ZPT9W7"
 source_paths: []
-mirror_sha256: "e087e2768d0e61f6a073c48a9df9f69d228b02e9978bb349ab738d400f0b1f21"
-etag: "sha256-8ae6458e4fcf59094b7337912523aafa741d4883362f59c05cb5e08219281dc9"
+mirror_sha256: "3c2a5892e01c25f2aadef1622604318390cbf2544460c09ee5e45c37a231f01b"
+etag: "sha256-19b1ee18ed02175628af80477315ebf6058e7bf13650bc9bac98b293f41deb26"
 ---
 ## 개요
 

@@ -2,19 +2,19 @@
 id: "CLE-NODE-PARALLEL-OUTPUT"
 title: "Parallel 노드 — 출력 구조"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-PARALLEL"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-LOGIC", "CLE-NODE-PARALLEL"]
 area: "CLE-NODE-LOGIC"
-content_hash: "2ef1c3b5ff0974025e8621b9650aaf05b7dd136200a7d47c60f30f2de6532995"
+content_hash: "03ba14e54ec7b8847105797458e374c01c9d432e257e7b74c7cdc85ea926bd93"
 read_as: "approved_fallback"
-task: "CLE-T-T87TKE"
+task: "CLE-T-7JJHF2"
 source_paths: []
-mirror_sha256: "5319a9bdc60aef1635622ac3e64ae92fc9c1bebf7aa411528329f62746ae780f"
-etag: "sha256-6a7422bc94e848eba37b62243775c5bba8c04461792ad79995a9326ad7628cde"
+mirror_sha256: "a3339415139e3a0906767e9433ee72072482f6f65b97065a8cbb4ab69e901903"
+etag: "sha256-2784871e8f079c6a4c02286de8442b4501740f431305b625dba4c0ce44a7e062"
 ---
 ## 개요
 
@@ -178,7 +178,7 @@ ForEach 와 같은 이름을 쓰면 사용자는 "실패한 항목은 `output.sk
 
 되돌림 경로에서도 핸들러가 `port: ['branch_0', …]` 를 돌려주면 엔진이 `done` 을 포함한 모든 연결선을 활성화한다. 그래서 놓인 위치와 상관없이 `done` 뒤 노드가 실행된다(2026-11-06 실측). 그 노드의 `$input` 은 시작 시점 출력의 `output` 인 `null` 이다([다음 노드가 받는 값](../CLE-NODE/CLE-NODE-OUTPUT-VALUE.md)). 2026-11-19 전에는 설정 에코를 받았다.
 
-기각한 대안은 되돌림 경로에도 완료 출력을 만드는 안이다. 되돌림 경로에 새 동작을 넣으면 v1 엔진을 끄고 예전 동작으로 돌아간다는 스위치의 뜻이 흐려진다. 되돌림 경로에서 `done` 뒤 노드가 언제 실행되는지와 k8s 기본 매니페스트가 `off` 인 현황은 [미결 사항](CLE-NODE-PARALLEL.md#미결-사항) 에 남겼다.
+기각한 대안은 되돌림 경로에도 완료 출력을 만드는 안이다. 되돌림 경로에 새 동작을 넣으면 v1 엔진을 끄고 예전 동작으로 돌아간다는 스위치의 뜻이 흐려진다. 되돌림 경로에서 `done` 뒤 노드는 병렬 분기 완료를 기다리지 않는다. 실행 순서가 메인 루프의 위상 순서에만 달려 있어 병렬 분기 노드보다 먼저 실행될 수 있다. 이것은 결함으로 보지 않고 되돌림 경로의 한계로 둔다(2026-11-27 사람 결정, NERV Task `CLE-T-7JJHF2`). 기다리게 하려면 되돌림 경로에 새 동작을 넣어야 해서 위와 같은 이유로 기각했다.
 
 ### 완료 출력 쓰기 순서
 
