@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-EXPOSE"
 title: "시크릿 저장소 — 저장소 예외 필드와 응답 노출"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "39357fa41ad4c87e712908afa3c5d000e9c7b5ff8b0859c15be54d58343d3ea9"
+content_hash: "0ea5be9d5130ff2509322830ebe3e353bb1a11a3cd381cdbd8f7222c954db333"
 read_as: "approved_fallback"
-task: "CLE-T-FTSKJW"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "a68780e801db4fb2adec68236476d69a261817faf511c72e570154dbce6d288d"
-etag: "sha256-26c27a6ace6a4c6795d7c4de6fe8c2f639a71cdb47a6bc81c853857cb5127eac"
+mirror_sha256: "a58f64de2c6153fc3611781485ea966cbd8c7c98bf298c9ccd84bb3046ebbadc"
+etag: "sha256-20fbcfd356d5bdffc5ecceab672f212898c527a66e25b676eef02d97237e8d0c"
 ---
 ## 개요
 
@@ -42,7 +42,7 @@ etag: "sha256-26c27a6ace6a4c6795d7c4de6fe8c2f639a71cdb47a6bc81c853857cb5127eac"
 
 이 항목을 «평문 보관 일반의 선례» 로 인용하면 안 된다. (a)~(c) 를 함께 만족하지 않는 필드가 이 문단을 근거로 예외를 얻는 것이 이 등재의 실패 모드다.
 
-같은 `Trigger.config` 안의 `notification.signing.secretRef` 는 `SecretResolver` 를 거친다. 한 객체 안의 이 비대칭은 의도한 것이고 (a)~(c) 가 그 이유다. 알림 서명 시크릿의 첫 값은 서버가 발급한다(트리거를 만들 때와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때). 호출자가 원시 `config` 의 옛 키 `signing.secret` 으로 평문을 보내던 경로는 2026-10-31 에 닫혔다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31)). 다만 그 전에 호출자가 고른 평문은 그대로 쓰인다. 시크릿 저장소로 옮겨진 값도 있고 아직 행에 남은 값도 있다. 그래서 값 공간이 서버가 발급한 값으로 닫혀 있지 않아 (c) 를 만족하지 않는다. 표면 서술은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 기준이다.
+같은 `Trigger.config` 안의 `notification.signing.secretRef` 는 `SecretResolver` 를 거친다. 한 객체 안의 이 비대칭은 의도한 것이고 (a)~(c) 가 그 이유다. 알림 서명 시크릿의 첫 값은 서버가 발급한다(트리거를 만들 때와 PATCH 가 EIA 알림 웹훅 설정을 처음 붙일 때). 호출자가 원시 `config` 의 옛 키 `signing.secret` 으로 평문을 보내던 경로는 2026-10-31 에 닫혔다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다)). 다만 그 전에 호출자가 고른 평문은 그대로 쓰인다. 시크릿 저장소로 옮겨진 값도 있고 아직 행에 남은 값도 있다. 그래서 값 공간이 서버가 발급한 값으로 닫혀 있지 않아 (c) 를 만족하지 않는다. 표면 서술은 [EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 이 기준이다.
 
 ### `Trigger.notification_secret_v2`
 
@@ -53,7 +53,7 @@ EIA 알림 웹훅 HMAC 서명 시크릿을 교체하는 24시간 유예 동안 *
 위 `itk_*` 항목의 (a)~(c) 를 근거로 삼지 않는다. 근거는 따로 세운다. 아래 3 은 (c) 를 인용하지 않고 이 필드의 값(`wsk_*`)에서 따로 확인했다.
 
 1. **평문이 종착지가 아니라 경유지다.** 승격되면 값은 `secrets.rotate` 로 저장소에 들어가고 컬럼은 `null` 로 비운다([EIA 데이터와 흐름](../CLE-IX/CLE-EIA-DATA.md) 의 승격 경로). `AuthConfig.config`(영구·암호화)와 `itk_*`(영구·평문) 어느 쪽과도 다른 세 번째 형태다.
-2. **노출 창이 정책으로 닫혀 있다.** 유예 종료 cron 이 컬럼을 비운다. EIA 알림 웹훅 설정이 없는 트리거도 승격하지 않고 컬럼만 비운다([EIA 데이터와 흐름 「서명 시크릿 교체와 승격」](../CLE-IX/CLE-EIA-DATA.md#서명-시크릿-교체와-승격)). 비우지 않고 건너뛰는 분기는 [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다-2026-10-04) 의 워크스페이스 불일치 하나이고 방어용이다. 응답으로 새지 않도록 트리거 응답 분류 표(`trigger-response-strip.ts` 의 `TRIGGER_COLUMN_RESPONSE`)가 이 컬럼을 `strip` 으로 두고 `TriggersService` 가 응답 경계에서 지운다. 부재는 두 자리에서 단언한다. 트리거 직접 응답은 `shared/testing/trigger-workflow-ref.ts`, 스케줄 조인 응답은 `shared/testing/schedule-trigger-ref.ts` 가 같은 컬럼 목록으로 확인한다.
+2. **노출 창이 정책으로 닫혀 있다.** 유예 종료 cron 이 컬럼을 비운다. EIA 알림 웹훅 설정이 없는 트리거도 승격하지 않고 컬럼만 비운다([EIA 데이터와 흐름 「서명 시크릿 교체와 승격」](../CLE-IX/CLE-EIA-DATA.md#서명-시크릿-교체와-승격)). 비우지 않고 건너뛰는 분기는 [R10](CLE-INT-SECRET-REFS.md#r10-저장된-참조는-읽는-쪽도-다시-만들고-rotate-는-다른-워크스페이스의-행을-덮어쓰지-않는다) 의 워크스페이스 불일치 하나이고 방어용이다. 응답으로 새지 않도록 트리거 응답 분류 표(`trigger-response-strip.ts` 의 `TRIGGER_COLUMN_RESPONSE`)가 이 컬럼을 `strip` 으로 두고 `TriggersService` 가 응답 경계에서 지운다. 부재는 두 자리에서 단언한다. 트리거 직접 응답은 `shared/testing/trigger-workflow-ref.ts`, 스케줄 조인 응답은 `shared/testing/schedule-trigger-ref.ts` 가 같은 컬럼 목록으로 확인한다.
 3. **서버가 발급하고 영향 범위가 트리거 하나다.** `wsk_` + `randomBytes(32)` 이며 사용자가 입력한 외부 자격 증명이 아니다.
 4. **기본 경로는 그대로다.** 이 예외는 유예 기간의 보조 키에만 적용되며 `signing.secretRef` 정책을 건드리지 않는다.
 
@@ -71,7 +71,7 @@ EIA 알림 웹훅 HMAC 서명 시크릿을 교체하는 24시간 유예 동안 *
 
 ### R7. 저장소 예외 필드도 응답에는 나가지 않는다고 규범으로 적는다
 
-2026-09-05 전까지 «이 컬럼들이 응답에 나가면 안 된다» 는 요구가 스펙 어디에도 규범 문장으로 없었고(실측 0건), 실제로 두 엔드포인트에서 나가고 있었다. `notification_secret_v2` 예외를 올릴 때도 예외의 대상은 «컬럼에 평문으로 보관» 이지 «응답에 실어도 된다» 가 아니었다. 그래서 규칙 4~6 으로 경계를 규범으로 적었다. 이후 응답 경계 스트립을 세웠고 두 단언 자리가 부재를 고정한다. 같은 컬럼 목록이 EIA 문서에도 있으면 한쪽만 고쳐 다른 쪽이 낡으므로, 목록은 이 규약에 두고 EIA 문서는 링크한다. 값을 한 번 보여 주는 응답의 면제는 규칙 4 의 목록과 [R12](CLE-INT-SECRET-USAGE.md#r12-첫-알림-서명-시크릿을-서버가-발급한다-2026-10-09) · R15 가 정한다.
+2026-09-05 전까지 «이 컬럼들이 응답에 나가면 안 된다» 는 요구가 스펙 어디에도 규범 문장으로 없었고(실측 0건), 실제로 두 엔드포인트에서 나가고 있었다. `notification_secret_v2` 예외를 올릴 때도 예외의 대상은 «컬럼에 평문으로 보관» 이지 «응답에 실어도 된다» 가 아니었다. 그래서 규칙 4~6 으로 경계를 규범으로 적었다. 이후 응답 경계 스트립을 세웠고 두 단언 자리가 부재를 고정한다. 같은 컬럼 목록이 EIA 문서에도 있으면 한쪽만 고쳐 다른 쪽이 낡으므로, 목록은 이 규약에 두고 EIA 문서는 링크한다. 값을 한 번 보여 주는 응답의 면제는 규칙 4 의 목록과 [R12](CLE-INT-SECRET-USAGE.md#r12-첫-알림-서명-시크릿을-서버가-발급한다) · R15 가 정한다.
 
 ### R11. 실패 문장의 평문과 예외 메시지의 참조를 만든 자리에서 지운다
 
@@ -109,7 +109,7 @@ NERV Task `CLE-T-H0GF4K` 가 채팅 채널의 마지막 에러 필드를 점검�
 | --- | --- |
 | `config.interaction.triggerToken` · `config.notification.signing.secretRef` | `codebase/backend/test/trigger-issued-secrets.e2e-spec.ts` |
 | `config.chatChannel.botTokenRef` · `config.chatChannel.inboundSigningRef` | `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`. 응답-계약 검증(`assertMatchesContract`)을 통과한 같은 응답에서 두 키의 부재를 따로 단언한다 |
-| 옛 평문 `config.notification.signing.secret` | `codebase/backend/src/modules/triggers/triggers.service.spec.ts`(단위). 2026-10-31 뒤로는 공개 API 로 이 키를 저장할 수 없다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다-2026-10-31)). 그래서 e2e 대신 저장된 옛 값을 fixture 로 만든다 |
+| 옛 평문 `config.notification.signing.secret` | `codebase/backend/src/modules/triggers/triggers.service.spec.ts`(단위). 2026-10-31 뒤로는 공개 API 로 이 키를 저장할 수 없다([R16](CLE-INT-SECRET-REFS.md#r16-원시-config-의-타입-키와-secret-값을-막는다)). 그래서 e2e 대신 저장된 옛 값을 fixture 로 만든다 |
 
 `## 구현 위치` 의 두 헬퍼(`trigger-workflow-ref.ts` · `schedule-trigger-ref.ts`)는 최상위 컬럼(`notificationSecretV2` · `chatChannelTokenV2`)의 부재를 본다. 맵 안의 키는 위 테스트가 맡는다.
 

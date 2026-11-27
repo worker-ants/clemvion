@@ -2,19 +2,19 @@
 id: "CLE-INT-STATUS-SCAN"
 title: "통합 상태와 만료 알림 — 만료 스캐너와 알림"
 type: "design"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-STATUS"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-STATUS"]
 area: "CLE-INT"
-content_hash: "d763522a80f635c4779457acba92f4c19fdbd80f336a3086f05a78756c5d2b2e"
+content_hash: "d0086bbf22adc871493d023e59a9d20d9bf1575c18defcc25b1cdd1fefab0caf"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "f13db3f0628b4f20c2546b8937564aaadb8624f1b284eb1d2c416d1db9dedd54"
-etag: "sha256-e72833399878e6d7a84125da0a6e549208a5c9a4ec0155a01da599174d87f0b8"
+mirror_sha256: "9711eb4b00d1bda0238f4139b194fddd6b47ebe51a49d4808b012a58913da805"
+etag: "sha256-d805464bb18ef19ba4b93773734dfc784aba41bb506f117190e5d82b65235265"
 ---
 ## 개요
 
@@ -96,7 +96,7 @@ flowchart TD
 
 - 만료 알림(`integration_expired`)은 수신자의 인앱 키 `integrationExpiryInApp` 과 이메일 키 `integrationExpiryEmail` 로 [알림 설정 「채널 계산」](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md#채널-계산) 의 네 결과(`both` · `in_app` · `email` · 보내지 않음) 가운데 하나를 고른다. 둘 다 끈 수신자에게는 알림 행을 만들지 않는다. 발사 기록 선점과 당일(0d) 격하는 수신자 설정과 상관없이 진행한다.
 - 조치 필요 알림(`integration_action_required`)은 늘 인앱으로 보낸다. 이메일만 `integrationExpiryEmail` 을 따른다. 켰으면 `both`, 아니면 `in_app` 이다. 전용 토글은 없다.
-- 통합 소유자가 워크스페이스를 떠난 개인 통합은 노드에서 쓸 수 없다. 통합 소유자가 나가거나 제거되면 그 개인 통합을 지우므로([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)) 그 통합의 알림과 Cafe24 백그라운드 갱신도 끝난다.
+- 통합 소유자가 워크스페이스를 떠난 개인 통합은 노드에서 쓸 수 없다. 통합 소유자가 나가거나 제거되면 그 개인 통합을 지우므로([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다)) 그 통합의 알림과 Cafe24 백그라운드 갱신도 끝난다.
 - 뷰어가 소유한 개인 통합도 같은 알림을 받는다. 뷰어는 통합 재인증과 자격 증명 교체를 할 수 없으므로 알림을 받고 할 수 있는 일은 통합 삭제와 역할 변경 요청뿐이다. 알림 문구는 역할로 나누지 않는다([통합 관리](CLE-INT-MANAGE.md) Rationale 의 받아들인 잔여).
 - 이메일 키는 opt-in(기본 꺼짐)이고 인앱 키는 opt-out(기본 켬)이다. 저장 위치는 `User.notification_preferences` JSONB 이고 설정 화면은 [알림 설정과 이메일](../CLE-OBS/CLE-OBS-NOTIFY-SETTINGS.md) 이 정한다.
 - 채널이 `both` · `email` 인 알림은 `NotificationsService.dispatchEmails`(`MailService` 주입)가 이메일을 best-effort 로 보낸다.
