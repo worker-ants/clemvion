@@ -24,7 +24,7 @@ import {
 import { graphEdge, graphNode } from '../__test-utils__/graph-fixtures';
 import {
   resetEngineConfig,
-  useDoneOutputFixture,
+  setupDoneOutputFixture,
   useParallelEngine,
 } from '../__test-utils__/parallel-engine-fixtures';
 
@@ -55,11 +55,12 @@ describe('ExecutionEngineService', () => {
         registerHandler,
         parallelStructured,
         runGraph,
-        failingGraph,
-      } = useDoneOutputFixture(() => h);
+        setupFailingGraph,
+        twoBranchGraph,
+      } = setupDoneOutputFixture(() => h);
 
       it('continue 에서 실패한 병렬 분기 자리는 null 이고 skipped 에 { index, error: { code, message } } 가 모인다', async () => {
-        const g = failingGraph(() => {
+        const g = setupFailingGraph(() => {
           throw new Error('notify failed');
         });
         await runGraph({ errorPolicy: 'continue' }, g.nodes, g.edges);
@@ -144,19 +145,8 @@ describe('ExecutionEngineService', () => {
 
       it('실패한 병렬 분기가 없으면 skipped 키를 싣지 않는다 (REQ-PARALLEL-029)', async () => {
         registerHandler('ok_node', async () => mockOutput({ ok: true }));
-        await runGraph(
-          { errorPolicy: 'continue' },
-          [
-            graphNode('a', 'ok_node'),
-            graphNode('b', 'ok_node'),
-            graphNode('sink', 'sink_node'),
-          ],
-          [
-            graphEdge('par', 'branch_0', 'a'),
-            graphEdge('par', 'branch_1', 'b'),
-            graphEdge('par', 'done', 'sink'),
-          ],
-        );
+        const g = twoBranchGraph('ok_node', 'ok_node');
+        await runGraph({ errorPolicy: 'continue' }, g.nodes, g.edges);
 
         expect(doneReceived).toHaveLength(1);
         expect(doneReceived[0]).not.toHaveProperty('skipped');
@@ -173,7 +163,7 @@ describe('ExecutionEngineService', () => {
       it.each(['stop', 'cancel-others-on-fail'])(
         'errorPolicy=%s 면 병렬 분기 실패 때 done 포트를 거치지 않는다',
         async (errorPolicy) => {
-          const g = failingGraph(() => {
+          const g = setupFailingGraph(() => {
             throw new Error('notify failed');
           });
           await runGraph({ errorPolicy }, g.nodes, g.edges);
@@ -187,19 +177,8 @@ describe('ExecutionEngineService', () => {
         registerHandler('ok_node', async () => mockOutput({ ok: true }));
         const createSpy = jest.spyOn(contextService, 'createContext');
         try {
-          await runGraph(
-            {},
-            [
-              graphNode('a', 'ok_node'),
-              graphNode('b', 'ok_node'),
-              graphNode('sink', 'sink_node'),
-            ],
-            [
-              graphEdge('par', 'branch_0', 'a'),
-              graphEdge('par', 'branch_1', 'b'),
-              graphEdge('par', 'done', 'sink'),
-            ],
-          );
+          const g = twoBranchGraph('ok_node', 'ok_node');
+          await runGraph({}, g.nodes, g.edges);
           const rootContext = createSpy.mock.results[0]?.value as {
             nodeOutputCache: Record<string, Record<string, unknown>>;
           };
@@ -229,21 +208,12 @@ describe('ExecutionEngineService', () => {
         const createSpy = jest.spyOn(contextService, 'createContext');
         let rootPort: unknown;
         try {
-          await runGraph(
-            {},
-            [
-              graphNode('a', 'array_node'),
-              graphNode('b', 'ok_node'),
-              graphNode('sink', 'sink_node', {
-                first: '{{ $node["par"].output.branches[0] }}',
-              }),
-            ],
-            [
-              graphEdge('par', 'branch_0', 'a'),
-              graphEdge('par', 'branch_1', 'b'),
-              graphEdge('par', 'done', 'sink'),
-            ],
-          );
+          const g = twoBranchGraph('array_node', 'ok_node', {
+            sinkConfig: {
+              first: '{{ $node["par"].output.branches[0] }}',
+            },
+          });
+          await runGraph({}, g.nodes, g.edges);
           const rootContext = createSpy.mock.results[0]?.value as {
             nodeOutputCache: Record<string, Record<string, unknown>>;
           };
@@ -266,22 +236,13 @@ describe('ExecutionEngineService', () => {
 
       it('done 뒤 노드의 표현식이 branches[0].<필드> 와 port 를 읽는다', async () => {
         registerHandler('ok_node', async () => mockOutput({ ok: true, n: 7 }));
-        await runGraph(
-          {},
-          [
-            graphNode('a', 'ok_node'),
-            graphNode('b', 'ok_node'),
-            graphNode('sink', 'sink_node', {
-              picked: '{{ $node["par"].output.branches[0].n }}',
-              port: '{{ $node["par"].port }}',
-            }),
-          ],
-          [
-            graphEdge('par', 'branch_0', 'a'),
-            graphEdge('par', 'branch_1', 'b'),
-            graphEdge('par', 'done', 'sink'),
-          ],
-        );
+        const g = twoBranchGraph('ok_node', 'ok_node', {
+          sinkConfig: {
+            picked: '{{ $node["par"].output.branches[0].n }}',
+            port: '{{ $node["par"].port }}',
+          },
+        });
+        await runGraph({}, g.nodes, g.edges);
 
         expect(sinkConfigs).toHaveLength(1);
         expect(sinkConfigs[0]).toEqual(
@@ -329,19 +290,8 @@ describe('ExecutionEngineService', () => {
           executed.push('ok');
           return mockOutput({ ok: true });
         });
-        await runGraph(
-          {},
-          [
-            graphNode('a', 'ok_node'),
-            graphNode('b', 'ok_node'),
-            graphNode('sink', 'sink_node'),
-          ],
-          [
-            graphEdge('par', 'branch_0', 'a'),
-            graphEdge('par', 'branch_1', 'b'),
-            graphEdge('par', 'done', 'sink'),
-          ],
-        );
+        const g = twoBranchGraph('ok_node', 'ok_node');
+        await runGraph({}, g.nodes, g.edges);
 
         expect(executed).toEqual(['ok', 'ok']);
         // done 뒤 노드는 Parallel 자신의 출력(핸들러 output = null)을 받는다. 설정 에코를
@@ -356,7 +306,7 @@ describe('ExecutionEngineService', () => {
       });
 
       it('Parallel 뒤에 노드가 없어도 continue 실패가 완료 출력에 남는다', async () => {
-        const g = failingGraph(() => {
+        const g = setupFailingGraph(() => {
           throw new Error('notify failed');
         });
         await runGraph(

@@ -28,7 +28,7 @@ import {
 import { graphEdge, graphNode } from '../__test-utils__/graph-fixtures';
 import {
   resetEngineConfig,
-  useDoneOutputFixture,
+  setupDoneOutputFixture,
   useParallelEngine,
 } from '../__test-utils__/parallel-engine-fixtures';
 
@@ -64,8 +64,8 @@ describe('ExecutionEngineService', () => {
     // 와 `port: 'done'`(단일 문자열). 실패한 병렬 분기 자리는 `null`, 실패 정보는
     // `skipped[{ index, error: { code, message } }]` (REQ-PARALLEL-012 · 017 · 029).
     describe('done 포트 완료 출력 (CLE-NODE-PARALLEL v3)', () => {
-      const { doneReceived, registerHandler, runGraph, failingGraph } =
-        useDoneOutputFixture(() => h);
+      const { doneReceived, registerHandler, runGraph, setupFailingGraph } =
+        setupDoneOutputFixture(() => h);
 
       // CLE-T-JXD0W5 — Parallel 행도 done 포트 완료 출력 · 노드 전체 실행 시간으로 한 번만
       // COMPLETED 가 되고, 분기 실패(stop · cancel-others-on-fail)면 FAILED 로 끝난다.
@@ -153,7 +153,7 @@ describe('ExecutionEngineService', () => {
         it.each(['stop', 'cancel-others-on-fail'])(
           'errorPolicy=%s 분기 실패면 Parallel 행을 FAILED 로 마감하고 completed 이벤트를 보내지 않는다',
           async (errorPolicy) => {
-            const g = failingGraph(() => {
+            const g = setupFailingGraph(() => {
               throw new Error('notify failed');
             });
             await runGraph({ errorPolicy }, g.nodes, g.edges);
@@ -384,7 +384,7 @@ describe('ExecutionEngineService', () => {
         });
 
         it('continue 정책의 분기 실패는 Parallel 행을 done 완료 출력으로 COMPLETED 저장한다', async () => {
-          const g = failingGraph(() => {
+          const g = setupFailingGraph(() => {
             throw new Error('notify failed');
           });
           await runGraph({ errorPolicy: 'continue' }, g.nodes, g.edges);

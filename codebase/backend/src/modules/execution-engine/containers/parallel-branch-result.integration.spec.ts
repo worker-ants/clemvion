@@ -22,7 +22,7 @@ import {
 import { graphEdge, graphNode } from '../__test-utils__/graph-fixtures';
 import {
   resetEngineConfig,
-  useDoneOutputFixture,
+  setupDoneOutputFixture,
 } from '../__test-utils__/parallel-engine-fixtures';
 
 describe('ExecutionEngineService', () => {
@@ -45,9 +45,8 @@ describe('ExecutionEngineService', () => {
     // 와 `port: 'done'`(단일 문자열). 실패한 병렬 분기 자리는 `null`, 실패 정보는
     // `skipped[{ index, error: { code, message } }]` (REQ-PARALLEL-012 · 017 · 029).
     describe('done 포트 완료 출력 (CLE-NODE-PARALLEL v3)', () => {
-      const { doneReceived, registerHandler, runGraph } = useDoneOutputFixture(
-        () => h,
-      );
+      const { doneReceived, registerHandler, runGraph } =
+        setupDoneOutputFixture(() => h);
 
       describe('결과 노드 (REQ-PARALLEL-030)', () => {
         // branch_0 → a(ok). branch_1 은 테스트마다 다르다.

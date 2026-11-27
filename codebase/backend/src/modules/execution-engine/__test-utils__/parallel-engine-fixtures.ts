@@ -3,12 +3,15 @@
  *
  * - `useParallelEngine` · `resetEngineConfig`: 하네스 `ConfigService.get` mock 의
  *   `PARALLEL_ENGINE` 응답을 바꾸고 되돌린다.
- * - `useDoneOutputFixture`: 「done 포트 완료 출력」 describe 범위의 준비와 헬퍼다.
- *   그 describe 안에서 부르면 `beforeEach` · `afterEach` 를 그 자리에 등록한다.
+ * - `makeHandler` · `registerParallelHandler`: 노드 핸들러 mock 을 만들고 `parallel` 로 등록한다.
+ * - `setupDoneOutputFixture`: 「done 포트 완료 출력」 describe 범위의 준비와 헬퍼다.
+ *   **describe 본문에서만 부른다.** 부른 자리에 `beforeEach` · `afterEach` 를 등록하므로
+ *   `it` 안이나 훅 안에서 부르면 훅이 엉뚱한 범위에 걸리거나 등록되지 않는다.
  */
 import { Node } from '../../nodes/entities/node.entity';
 import { Edge } from '../../edges/entities/edge.entity';
 import { NodeHandler } from '../../../nodes/core/node-handler.interface';
+import type { NodeHandlerRegistry } from '../../../nodes/core/node-handler.registry';
 import { mockOutput } from '../__test__/mock-output';
 import {
   type EngineServiceHarness,
@@ -17,6 +20,41 @@ import {
   workflowId,
 } from './engine-service-harness';
 import { graphEdge, graphNode } from './graph-fixtures';
+
+/** 항상 유효한 검증과 주어진 `execute` 를 가진 핸들러 mock. */
+export function makeHandler(execute: NodeHandler['execute']): NodeHandler {
+  return {
+    validate: () => ({ valid: true, errors: [] }),
+    execute: jest.fn(execute) as NodeHandler['execute'],
+  };
+}
+
+/**
+ * `parallel` 핸들러를 `kind: 'parallel'` 메타데이터와 함께 등록한다.
+ *
+ * - 함수를 주면 그것이 `execute` 다.
+ * - `{ config, echoInput }` 를 주면 `config` 를 돌려주고 `branch_0` · `branch_1` 을 연다.
+ *   `echoInput` 이 true 면 받은 입력을 출력으로 그대로 돌려주고 아니면 출력은 `null` 이다.
+ */
+export function registerParallelHandler(
+  handlerRegistry: NodeHandlerRegistry,
+  spec:
+    | NodeHandler['execute']
+    | { config: Record<string, unknown>; echoInput?: boolean },
+): NodeHandler {
+  const execute: NodeHandler['execute'] =
+    typeof spec === 'function'
+      ? spec
+      : // eslint-disable-next-line @typescript-eslint/require-await -- Promise 를 돌려주는 mock
+        async (input: unknown) => ({
+          config: spec.config,
+          output: spec.echoInput ? input : null,
+          port: ['branch_0', 'branch_1'],
+        });
+  const handler = makeHandler(execute);
+  handlerRegistry.register('parallel', handler, { kind: 'parallel' });
+  return handler;
+}
 
 export type ParallelEngineMode = 'v1' | 'off';
 
@@ -46,6 +84,7 @@ export interface DoneOutputFixture {
   doneReceived: unknown[];
   /** `sink_node` 가 받은 설정(표현식을 푼 값). 테스트마다 비운다. */
   sinkConfigs: Record<string, unknown>[];
+  /** `type` 핸들러를 등록한다. 같은 `type` 을 다시 부르면 덮어쓴다. */
   registerHandler: (
     type: string,
     execute: (
@@ -65,11 +104,25 @@ export interface DoneOutputFixture {
     extraNodes: Partial<Node>[],
     extraEdges: Partial<Edge>[],
   ) => Promise<void>;
-  /** trigger → par → [branch_0 → a(ok), branch_1 → b(fail)] | done → sink */
-  failingGraph: (failure: () => never) => {
-    nodes: Partial<Node>[];
-    edges: Partial<Edge>[];
-  };
+  /**
+   * `ok_node` · `fail_node` 핸들러를 등록하고(`fail_node` 는 `failure` 를 던진다) 그 그래프를 돌려준다.
+   * trigger → par → [branch_0 → a(ok), branch_1 → b(fail)] | done → sink
+   */
+  setupFailingGraph: (failure: () => never) => GraphParts;
+  /**
+   * 핸들러 등록 없이 `par → branch_0(a) / branch_1(b) / done → sink` 노드와 연결선만 만든다.
+   * `sinkConfig` 는 `sink` 노드 설정이다.
+   */
+  twoBranchGraph: (
+    typeA: string,
+    typeB: string,
+    options?: { sinkConfig?: Record<string, unknown> },
+  ) => GraphParts;
+}
+
+export interface GraphParts {
+  nodes: Partial<Node>[];
+  edges: Partial<Edge>[];
 }
 
 /**
@@ -81,7 +134,7 @@ export interface DoneOutputFixture {
  *
  * `harness` 는 바깥 `beforeEach` 가 만든 지금 테스트의 하네스를 돌려준다.
  */
-export function useDoneOutputFixture(
+export function setupDoneOutputFixture(
   harness: () => EngineServiceHarness,
 ): DoneOutputFixture {
   const doneReceived: unknown[] = [];
@@ -119,10 +172,7 @@ export function useDoneOutputFixture(
     type,
     execute,
   ) => {
-    const handler: NodeHandler = {
-      validate: () => ({ valid: true, errors: [] }),
-      execute: jest.fn(execute) as NodeHandler['execute'],
-    };
+    const handler = makeHandler(execute as NodeHandler['execute']);
     harness().handlerRegistry.register(type, handler);
     return handler;
   };
@@ -132,27 +182,18 @@ export function useDoneOutputFixture(
     useParallelEngine(mockConfigService, 'v1');
     doneReceived.length = 0;
     sinkConfigs.length = 0;
-    const parallelHandler: NodeHandler = {
-      validate: () => ({ valid: true, errors: [] }),
-      // eslint-disable-next-line @typescript-eslint/require-await -- 원래 spec 의 async mock 을 그대로 옮겼다
-      execute: jest.fn(async (_input: unknown, config) => ({
-        config,
-        output: null,
-        port: ['branch_0', 'branch_1'],
-      })),
-    };
-    handlerRegistry.register('parallel', parallelHandler, {
-      kind: 'parallel',
+    // eslint-disable-next-line @typescript-eslint/require-await -- 원래 spec 의 async mock 을 그대로 옮겼다
+    registerParallelHandler(handlerRegistry, async (_input, config) => ({
+      config,
+      output: null,
+      port: ['branch_0', 'branch_1'],
+    }));
+    // eslint-disable-next-line @typescript-eslint/require-await -- 원래 spec 의 async mock 을 그대로 옮겼다
+    const sinkHandler = makeHandler(async (input, config) => {
+      doneReceived.push(input);
+      sinkConfigs.push(config);
+      return mockOutput({ sink: true });
     });
-    const sinkHandler: NodeHandler = {
-      validate: () => ({ valid: true, errors: [] }),
-      // eslint-disable-next-line @typescript-eslint/require-await -- 원래 spec 의 async mock 을 그대로 옮겼다
-      execute: jest.fn(async (input: unknown, config) => {
-        doneReceived.push(input);
-        sinkConfigs.push(config);
-        return mockOutput({ sink: true });
-      }),
-    };
     handlerRegistry.register('sink_node', sinkHandler);
     structuredSpy = jest.spyOn(contextService, 'setStructuredOutput');
     nodeOutputsSpy = jest.spyOn(contextService, 'setNodeOutputs');
@@ -182,24 +223,32 @@ export function useDoneOutputFixture(
     await flushPromises();
   };
 
-  const failingGraph: DoneOutputFixture['failingGraph'] = (failure) => {
+  const twoBranchGraph: DoneOutputFixture['twoBranchGraph'] = (
+    typeA,
+    typeB,
+    options = {},
+  ) => ({
+    nodes: [
+      graphNode('a', typeA),
+      graphNode('b', typeB),
+      graphNode('sink', 'sink_node', options.sinkConfig),
+    ],
+    edges: [
+      graphEdge('par', 'branch_0', 'a'),
+      graphEdge('par', 'branch_1', 'b'),
+      graphEdge('par', 'done', 'sink'),
+    ],
+  });
+
+  const setupFailingGraph: DoneOutputFixture['setupFailingGraph'] = (
+    failure,
+  ) => {
     // eslint-disable-next-line @typescript-eslint/require-await -- 원래 spec 의 async mock 을 그대로 옮겼다
     registerHandler('ok_node', async () => mockOutput({ ok: true }));
     // 동기로 던지지 않고 reject 하는 Promise 를 돌려주도록 async 로 둔다.
     // eslint-disable-next-line @typescript-eslint/require-await -- 원래 spec 의 async mock 을 그대로 옮겼다
     registerHandler('fail_node', async () => failure());
-    return {
-      nodes: [
-        graphNode('a', 'ok_node'),
-        graphNode('b', 'fail_node'),
-        graphNode('sink', 'sink_node'),
-      ],
-      edges: [
-        graphEdge('par', 'branch_0', 'a'),
-        graphEdge('par', 'branch_1', 'b'),
-        graphEdge('par', 'done', 'sink'),
-      ],
-    };
+    return twoBranchGraph('ok_node', 'fail_node');
   };
 
   return {
@@ -210,6 +259,7 @@ export function useDoneOutputFixture(
     structuredOf,
     parallelStructured,
     runGraph,
-    failingGraph,
+    setupFailingGraph,
+    twoBranchGraph,
   };
 }

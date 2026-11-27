@@ -16,10 +16,7 @@ import { ExecutionStatus } from '../../executions/entities/execution.entity';
 import { PARALLEL_BRANCH_COUNT_MAX } from '../graph/parallel-precheck';
 import { Node } from '../../nodes/entities/node.entity';
 import { Edge } from '../../edges/entities/edge.entity';
-import {
-  ExecutionContext,
-  NodeHandler,
-} from '../../../nodes/core/node-handler.interface';
+import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { mockOutput } from '../__test__/mock-output';
 import {
   type EngineServiceHarness,
@@ -30,6 +27,8 @@ import {
 } from '../__test-utils__/engine-service-harness';
 import { graphEdge, graphNode } from '../__test-utils__/graph-fixtures';
 import {
+  makeHandler,
+  registerParallelHandler,
   resetEngineConfig,
   useParallelEngine,
 } from '../__test-utils__/parallel-engine-fixtures';
@@ -67,36 +66,23 @@ describe('ExecutionEngineService', () => {
     it('should execute branch bodies concurrently and feed Merge', async () => {
       // Branch handlers record their call order
       const executionOrder: string[] = [];
-      const branchHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => {
-          executionOrder.push('branch');
-          return mockOutput({ branchOutput: true, input });
-        }),
-      };
-      const mergeHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => {
-          executionOrder.push('merge');
-          return {
-            config: { strategy: 'wait_all', outputFormat: 'array' },
-            output: input,
-          };
-        }),
-      };
-      const parallelHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({
-          config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
-          output: input,
-          port: ['branch_0', 'branch_1'],
-        })),
-      };
-
-      // PR-G — metadata 동봉 (kind: 'parallel') 으로 dispatch 식별.
-      handlerRegistry.register('parallel', parallelHandler, {
-        kind: 'parallel',
+      const branchHandler = makeHandler(async (input: unknown) => {
+        executionOrder.push('branch');
+        return mockOutput({ branchOutput: true, input });
       });
+      const mergeHandler = makeHandler(async (input: unknown) => {
+        executionOrder.push('merge');
+        return {
+          config: { strategy: 'wait_all', outputFormat: 'array' },
+          output: input,
+        };
+      });
+      registerParallelHandler(handlerRegistry, async (input: unknown) => ({
+        config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
+        output: input,
+        port: ['branch_0', 'branch_1'],
+      }));
+
       handlerRegistry.register('branch_node', branchHandler);
       handlerRegistry.register('merge', mergeHandler);
 
@@ -170,48 +156,33 @@ describe('ExecutionEngineService', () => {
       let a1Calls = 0;
       let a2Calls = 0;
       let b1Calls = 0;
-      const a1Handler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => {
-          a1Calls++;
-          // A1 완료 직후부터 외부 cancel 이 관측되도록 무장 — 같은 브랜치의 A2
-          // 진입 가드와, 아직 시작 안 한 branch1/B1 의 진입 가드가 이걸 본다.
-          mockExecutionRepo.findOneBy.mockImplementation(() =>
-            Promise.resolve({
-              id: executionId,
-              workflowId,
-              status: ExecutionStatus.CANCELLED,
-              startedAt: new Date(),
-            }),
-          );
-          return mockOutput({ step: 'a1' });
-        }),
-      };
-      const a2Handler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => {
-          a2Calls++;
-          return mockOutput({ step: 'a2' });
-        }),
-      };
-      const b1Handler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => {
-          b1Calls++;
-          return mockOutput({ step: 'b1' });
-        }),
-      };
-      const parallelHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({
-          config: { branchCount: 2, maxConcurrency: 1, waitAll: true },
-          output: input,
-          port: ['branch_0', 'branch_1'],
-        })),
-      };
-      handlerRegistry.register('parallel', parallelHandler, {
-        kind: 'parallel',
+      const a1Handler = makeHandler(async () => {
+        a1Calls++;
+        // A1 완료 직후부터 외부 cancel 이 관측되도록 무장 — 같은 브랜치의 A2
+        // 진입 가드와, 아직 시작 안 한 branch1/B1 의 진입 가드가 이걸 본다.
+        mockExecutionRepo.findOneBy.mockImplementation(() =>
+          Promise.resolve({
+            id: executionId,
+            workflowId,
+            status: ExecutionStatus.CANCELLED,
+            startedAt: new Date(),
+          }),
+        );
+        return mockOutput({ step: 'a1' });
       });
+      const a2Handler = makeHandler(async () => {
+        a2Calls++;
+        return mockOutput({ step: 'a2' });
+      });
+      const b1Handler = makeHandler(async () => {
+        b1Calls++;
+        return mockOutput({ step: 'b1' });
+      });
+      registerParallelHandler(handlerRegistry, async (input: unknown) => ({
+        config: { branchCount: 2, maxConcurrency: 1, waitAll: true },
+        output: input,
+        port: ['branch_0', 'branch_1'],
+      }));
       handlerRegistry.register('a1_node', a1Handler);
       handlerRegistry.register('a2_node', a2Handler);
       handlerRegistry.register('b1_node', b1Handler);
@@ -261,35 +232,22 @@ describe('ExecutionEngineService', () => {
 
     it('should collect branch results on the done port', async () => {
       const doneReceived: unknown[] = [];
-      const branchHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) =>
-          mockOutput({
-            branchResult: true,
-            fromInput: input,
-          }),
-        ),
-      };
-      const sinkHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => {
-          doneReceived.push(input);
-          return mockOutput({ sink: true });
+      const branchHandler = makeHandler(async (input: unknown) =>
+        mockOutput({
+          branchResult: true,
+          fromInput: input,
         }),
-      };
-      const parallelHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async (input: unknown) => ({
-          config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
-          output: input,
-          port: ['branch_0', 'branch_1'],
-        })),
-      };
-
-      // PR-G — metadata 동봉 (kind: 'parallel') 으로 dispatch 식별.
-      handlerRegistry.register('parallel', parallelHandler, {
-        kind: 'parallel',
+      );
+      const sinkHandler = makeHandler(async (input: unknown) => {
+        doneReceived.push(input);
+        return mockOutput({ sink: true });
       });
+      registerParallelHandler(handlerRegistry, async (input: unknown) => ({
+        config: { branchCount: 2, maxConcurrency: 0, waitAll: true },
+        output: input,
+        port: ['branch_0', 'branch_1'],
+      }));
+
       handlerRegistry.register('branch_node', branchHandler);
       handlerRegistry.register('sink_node', sinkHandler);
 
@@ -343,47 +301,38 @@ describe('ExecutionEngineService', () => {
     // 값으로 컨테이너 동작에 도달해야 한다.
     it('engine-config-bug — uses evaluated branchCount when input is expression {{N}}', async () => {
       const branchCalls: number[] = [];
-      const branchHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => {
-          branchCalls.push(branchCalls.length);
-          return mockOutput({ ok: true });
-        }),
-      };
+      const branchHandler = makeHandler(async () => {
+        branchCalls.push(branchCalls.length);
+        return mockOutput({ ok: true });
+      });
       // Use a handler that echoes raw branchCount (mirrors the real
       // ParallelHandler's Phase 3 raw-echo) so the bug surface is exercised.
-      const parallelHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(
-          async (
-            input: unknown,
-            config: Record<string, unknown>,
-            context: ExecutionContext,
-          ) => {
-            const branchCount =
-              typeof config.branchCount === 'number' ? config.branchCount : 2;
-            const ports = Array.from(
-              { length: branchCount },
-              (_, i) => `branch_${i}`,
-            );
-            const rawConfig = context.rawConfig ?? config;
-            return {
-              config: {
-                branchCount: rawConfig.branchCount,
-                maxConcurrency: rawConfig.maxConcurrency,
-                waitAll: rawConfig.waitAll,
-              },
-              output: input,
-              port: ports,
-            };
-          },
-        ),
-      };
+      registerParallelHandler(
+        handlerRegistry,
+        async (
+          input: unknown,
+          config: Record<string, unknown>,
+          context: ExecutionContext,
+        ) => {
+          const branchCount =
+            typeof config.branchCount === 'number' ? config.branchCount : 2;
+          const ports = Array.from(
+            { length: branchCount },
+            (_, i) => `branch_${i}`,
+          );
+          const rawConfig = context.rawConfig ?? config;
+          return {
+            config: {
+              branchCount: rawConfig.branchCount,
+              maxConcurrency: rawConfig.maxConcurrency,
+              waitAll: rawConfig.waitAll,
+            },
+            output: input,
+            port: ports,
+          };
+        },
+      );
 
-      // PR-G — metadata 동봉 (kind: 'parallel') 으로 dispatch 식별.
-      handlerRegistry.register('parallel', parallelHandler, {
-        kind: 'parallel',
-      });
       handlerRegistry.register('branch_node', branchHandler);
 
       const nodes: Partial<Node>[] = [
@@ -430,42 +379,33 @@ describe('ExecutionEngineService', () => {
       // Force the handler to honour the engine clamp by always returning
       // 16 ports (it derives `ports.length` from `branchCount` clamped to
       // 2-16 itself), then assert the engine's view matches.
-      const branchHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(async () => mockOutput({ ok: true })),
-      };
-      const parallelHandler: NodeHandler = {
-        validate: () => ({ valid: true, errors: [] }),
-        execute: jest.fn(
-          async (
-            input: unknown,
-            config: Record<string, unknown>,
-            context: ExecutionContext,
-          ) => {
-            const raw = Number(config.branchCount);
-            // 하한 PARALLEL_BRANCH_COUNT_MIN 은 서비스 안 상수라 export 되지 않아 값 2 로 둔다.
-            const clamped = Math.max(
-              2,
-              Math.min(PARALLEL_BRANCH_COUNT_MAX, Math.floor(raw)),
-            );
-            const ports = Array.from(
-              { length: clamped },
-              (_, i) => `branch_${i}`,
-            );
-            const rawConfig = context.rawConfig ?? config;
-            return {
-              config: { branchCount: rawConfig.branchCount },
-              output: input,
-              port: ports,
-            };
-          },
-        ),
-      };
+      const branchHandler = makeHandler(async () => mockOutput({ ok: true }));
+      registerParallelHandler(
+        handlerRegistry,
+        async (
+          input: unknown,
+          config: Record<string, unknown>,
+          context: ExecutionContext,
+        ) => {
+          const raw = Number(config.branchCount);
+          // 하한 PARALLEL_BRANCH_COUNT_MIN 은 서비스 안 상수라 export 되지 않아 값 2 로 둔다.
+          const clamped = Math.max(
+            2,
+            Math.min(PARALLEL_BRANCH_COUNT_MAX, Math.floor(raw)),
+          );
+          const ports = Array.from(
+            { length: clamped },
+            (_, i) => `branch_${i}`,
+          );
+          const rawConfig = context.rawConfig ?? config;
+          return {
+            config: { branchCount: rawConfig.branchCount },
+            output: input,
+            port: ports,
+          };
+        },
+      );
 
-      // PR-G — metadata 동봉 (kind: 'parallel') 으로 dispatch 식별.
-      handlerRegistry.register('parallel', parallelHandler, {
-        kind: 'parallel',
-      });
       handlerRegistry.register('branch_node', branchHandler);
 
       // {{20}} should clamp to 16 — wire 16 branches.

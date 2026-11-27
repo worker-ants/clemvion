@@ -35,7 +35,7 @@ import {
 import { graphEdge, graphNode } from '../__test-utils__/graph-fixtures';
 import {
   resetEngineConfig,
-  useDoneOutputFixture,
+  setupDoneOutputFixture,
   useParallelEngine,
 } from '../__test-utils__/parallel-engine-fixtures';
 
@@ -70,7 +70,7 @@ describe('ExecutionEngineService', () => {
     // `skipped[{ index, error: { code, message } }]` (REQ-PARALLEL-012 · 017 · 029).
     describe('done 포트 완료 출력 (CLE-NODE-PARALLEL v3)', () => {
       const { doneReceived, registerHandler, structuredOf, runGraph } =
-        useDoneOutputFixture(() => h);
+        setupDoneOutputFixture(() => h);
 
       // CLE-T-0DGHGF — 컨테이너 본문 루프와 동기 서브 워크플로우 루프도 Parallel 을 엔진의
       // Parallel 실행 경로로 넘긴다. 고치기 전에는 두 루프가 Parallel 핸들러만 실행했다.

@@ -26,7 +26,7 @@ import {
 import { graphEdge, graphNode } from '../__test-utils__/graph-fixtures';
 import {
   resetEngineConfig,
-  useDoneOutputFixture,
+  setupDoneOutputFixture,
 } from '../__test-utils__/parallel-engine-fixtures';
 
 describe('ExecutionEngineService', () => {
@@ -50,7 +50,7 @@ describe('ExecutionEngineService', () => {
     // `skipped[{ index, error: { code, message } }]` (REQ-PARALLEL-012 · 017 · 029).
     describe('done 포트 완료 출력 (CLE-NODE-PARALLEL v3)', () => {
       const { doneReceived, registerHandler, structuredOf, runGraph } =
-        useDoneOutputFixture(() => h);
+        setupDoneOutputFixture(() => h);
 
       // CLE-T-GGZSC2 — 병렬 분기 안의 안쪽 Parallel 도 엔진의 Parallel 실행 경로를 탄다.
       // 고치기 전에는 바깥 병렬 분기 루프가 안쪽 Parallel 의 핸들러만 실행하고 안쪽 병렬
