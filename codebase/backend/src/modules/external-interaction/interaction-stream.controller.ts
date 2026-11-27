@@ -2,8 +2,6 @@ import {
   Controller,
   Get,
   Headers,
-  HttpException,
-  HttpStatus,
   Logger,
   Param,
   ParseUUIDPipe,
@@ -22,31 +20,14 @@ import {
   ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { randomUUID } from 'crypto';
 import { Public } from '../../common/decorators';
 import { InteractionGuard } from './interaction.guard';
 import type {
   ExternalInteractionRequestContext,
   RequestWithInteraction,
 } from './interaction.guard';
-import {
-  SseAdapter,
-  type SseStreamToken,
-  type SseSubscriber,
-} from './sse-adapter.service';
-import {
-  SSE_HEARTBEAT_INTERVAL_MS,
-  SSE_MAX_CONNECTIONS_PER_EXECUTION,
-  SSE_TOKEN_RECHECK_INTERVAL_MS,
-} from './sse.constants';
-import { errorMessage } from '../../common/utils/error-message';
-import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
-
-/** {@link SSE_TOKEN_RECHECK_INTERVAL_MS} 를 heartbeat 횟수로 바꾼 값. */
-const TOKEN_RECHECK_EVERY_HEARTBEATS = Math.max(
-  1,
-  Math.round(SSE_TOKEN_RECHECK_INTERVAL_MS / SSE_HEARTBEAT_INTERVAL_MS),
-);
+import { SseAdapter, type SseStreamToken } from './sse-adapter.service';
+import { SseStreamSession, type SseTokenCheck } from './sse-stream-session';
 
 // 근거: [EIA 데이터와 흐름 「SSE 스트림」](CLE-EIA-DATA#sse-스트림), NERV Task `CLE-T-Z35F7P` · `CLE-T-EQDYC1`.
 // 토큰 재확인 주기의 근거: [EIA 데이터와 흐름 「트리거 단위 토큰」](CLE-EIA-DATA#트리거-단위-토큰), NERV Task `CLE-T-1GR2JE`.
@@ -62,12 +43,15 @@ const TOKEN_RECHECK_EVERY_HEARTBEATS = Math.max(
  * - terminal event (`completed`/`failed`/`cancelled`) 발송 후 자동 종료
  * - `itk_*` 로 연 스트림은 그 트리거 단위 토큰이 무효가 되면(재발급 · 전략 변경 · 인터랙션 끄기 · 트리거 삭제) 서버가
  *   응답을 끝낸다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다. 닫힘을 알리는 이벤트는 없다. 새 토큰으로 다시 연결한다.
- *   옛 토큰으로 다시 연결하면 가드가 401 로 거부한다. 닫기 신호를 놓친 스트림도 {@link SSE_TOKEN_RECHECK_INTERVAL_MS}
+ *   옛 토큰으로 다시 연결하면 가드가 401 로 거부한다. 닫기 신호를 놓친 스트림도 `SSE_TOKEN_RECHECK_INTERVAL_MS`(60초)
  *   마다 토큰을 다시 확인해 닫는다. 닫기 신호는 Redis pub/sub 이라 발행이 실패하거나 구독 연결이 끊긴 사이 나가면 다른
  *   서버 인스턴스의 스트림에 닿지 않는다. 그래도 이 주기 안에는 닫힌다. 스트림 하나가 주기마다 트리거 행 하나를 읽는다.
  * - execution 당 동시 연결 한도 3 — 모든 서버 인스턴스를 합쳐 센다. 초과 시 429 `TOO_MANY_CONNECTIONS`. SSE 헤더를
  *   보내기 전이라 `HttpException` 을 던져 전역 필터가 `requestId` 를 담은 오류 봉투를 만든다.
  * - EventSource 는 헤더를 못 보내므로 토큰을 `?token=` 쿼리로도 받는다.
+ *
+ * 연결 하나의 수명주기(연결 상한 · 토큰 재확인 · heartbeat · 정리)는 {@link SseStreamSession} 이 맡는다. 이 핸들러는 요청을
+ * 풀어 세션을 만들고 실행시킨다.
  */
 @ApiTags('External Interaction')
 @ApiBearerAuth('interaction-token')
@@ -109,130 +93,31 @@ export class InteractionStreamController {
       res.status(500).end('interaction context missing');
       return;
     }
-
-    // SSE 헤더를 보냈는지. 보내기 전이면 401 · 429 를 낼 수 있다.
-    let streaming = false;
-    // SSE 헤더를 보내기 전에 서버가 닫았는지(트리거 단위 토큰 무효). 그러면 401 로 답한다.
-    let closedBeforeStreaming = false;
-    let finished = false;
-    let heartbeat: ReturnType<typeof setInterval> | null = null;
-    // 응답을 끝낸다. 구독 해제는 하지 않는다(서버가 닫을 때는 어댑터가 이미 했다).
-    const finish = (): void => {
-      if (finished) return;
-      finished = true;
-      if (heartbeat) clearInterval(heartbeat);
-      try {
-        res.end();
-      } catch {
-        // 이미 종료된 응답.
-      }
-    };
-
-    const subscriber: SseSubscriber = {
-      id: randomUUID(),
+    const session = new SseStreamSession(
+      res,
       executionId,
-      token: toStreamToken(ctx),
-      push: (event: ExecutionChannelEvent) => writeSseFrame(res, event),
-      // 종료 이벤트 뒤와 트리거 단위 토큰 무효 때 어댑터가 부른다.
-      close: () => {
-        if (streaming) {
-          finish();
-        } else {
-          closedBeforeStreaming = true;
-        }
-      },
-    };
-
-    // 클라이언트 disconnect 처리. 첫 await 앞에 걸어야 기다리는 사이에 끊긴 연결도 정리된다.
-    req.on('close', () => {
-      this.sseAdapter.unsubscribe(subscriber);
-      finish();
-    });
-
-    // 구독자를 먼저 등록하고 연결 상한을 센다. 등록 뒤에 온 닫기 신호는 이 구독자를 닫는다.
-    const admitted = await this.sseAdapter.admit(subscriber);
-    if (finished) return;
-    if (closedBeforeStreaming) this.interactionGuard.rejectTriggerToken(req);
-    if (!admitted) {
-      throw new HttpException(
-        {
-          error: {
-            code: 'TOO_MANY_CONNECTIONS',
-            message: `Execution-scope SSE 연결이 최대 ${SSE_MAX_CONNECTIONS_PER_EXECUTION} 개를 초과합니다.`,
-          },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    // 가드를 통과한 뒤 등록하기 전에 트리거 단위 토큰이 무효가 됐을 수 있다. 등록 뒤에 다시 확인한다.
-    if (subscriber.token.family === 'itk') {
-      try {
-        await this.interactionGuard.reverifyTriggerToken(req);
-      } catch (err) {
-        this.sseAdapter.unsubscribe(subscriber);
-        throw err;
-      }
-      if (finished) return;
-      // 다시 확인하는 동안 닫기 신호가 왔다. 읽기가 커밋 앞의 값을 봤을 수 있으므로 신호를 따른다.
-      if (closedBeforeStreaming) this.interactionGuard.rejectTriggerToken(req);
-    }
-
-    // SSE 헤더
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // nginx 등 proxy 버퍼링 무력화
-    res.flushHeaders?.();
-    streaming = true;
-
-    const lastEventIdRaw =
-      headerLastEventId ?? (req.query as { lastEventId?: string }).lastEventId;
-    const lastEventId =
-      lastEventIdRaw !== undefined && lastEventIdRaw !== ''
-        ? Number(lastEventIdRaw)
-        : undefined;
-
-    // `itk_*` 스트림의 토큰 주기 재확인. 무효면 서버가 닫을 때와 같이 구독을 풀고 응답을 끝낸다. 조회가 실패하면 스트림을
-    // 그대로 두고 다음 주기에 다시 본다. 확인이 끝나기 전에 다음 주기가 와도 겹쳐 확인하지 않는다.
-    let beats = 0;
-    let rechecking = false;
-    const recheckTriggerToken = async (): Promise<void> => {
-      let valid: boolean;
-      try {
-        valid = await this.interactionGuard.isTriggerTokenValid(req);
-      } catch (err) {
-        this.logger.warn(
-          `EIA SSE 트리거 단위 토큰 재확인 실패 — 스트림을 그대로 두고 다음 주기에 다시 확인한다 (executionId=${executionId}): ${errorMessage(err)}`,
-        );
-        return;
-      }
-      if (valid || finished) return;
-      this.sseAdapter.unsubscribe(subscriber);
-      finish();
-    };
-
-    // heartbeat. 연결 상한 자리의 시각도 함께 갱신한다.
-    heartbeat = setInterval(() => {
-      try {
-        res.write(`: heartbeat\n\n`);
-      } catch {
-        // 연결 끊긴 후의 write 는 무시.
-      }
-      this.sseAdapter.touch(subscriber);
-      if (subscriber.token.family !== 'itk') return;
-      beats += 1;
-      if (beats % TOKEN_RECHECK_EVERY_HEARTBEATS !== 0 || rechecking) return;
-      rechecking = true;
-      void recheckTriggerToken().finally(() => {
-        rechecking = false;
-      });
-    }, SSE_HEARTBEAT_INTERVAL_MS);
-
-    await this.sseAdapter.start(
-      subscriber,
-      Number.isFinite(lastEventId) ? lastEventId : undefined,
+      toStreamToken(ctx),
+      this.sseAdapter,
+      this.tokenCheckFor(req),
+      this.logger,
     );
+    req.on('close', () => session.onClientClose());
+    await session.run(
+      parseLastEventId(
+        headerLastEventId ??
+          (req.query as { lastEventId?: string }).lastEventId,
+      ),
+    );
+  }
+
+  /** 이 요청의 트리거 단위 토큰을 다시 확인하는 창구. 확인은 가드가 한다. */
+  private tokenCheckFor(req: RequestWithInteraction): SseTokenCheck {
+    const guard = this.interactionGuard;
+    return {
+      reverify: () => guard.reverifyTriggerToken(req),
+      isValid: () => guard.isTriggerTokenValid(req),
+      reject: () => guard.rejectTriggerToken(req),
+    };
   }
 }
 
@@ -247,34 +132,9 @@ function toStreamToken(ctx: ExternalInteractionRequestContext): SseStreamToken {
     : { family: 'iext' };
 }
 
-/**
- * 단일 ExecutionChannelEvent 를 SSE frame 형식으로 응답에 write.
- *
- * Frame format:
- *   event: <eventType>
- *   id: <seq>            # 실행-scope monotonic seq(>0) 를 가진 이벤트만
- *   data: <JSON.stringify(payload)>
- *   (빈 줄)
- *
- * `id:` 규약: 실행-scope monotonic seq(1부터)를 가진 이벤트만 `id:` 를 싣는다. control
- * frame(`execution.replay_unavailable`, seq=0)은 스트림 위치가 아니므로 `id:` 를 생략한다 —
- * 브라우저 native EventSource 의 Last-Event-Id 가 0 으로 오염돼 다음 자동 재연결이 전체
- * replay(`?lastEventId=0`)를 촉발하는 것을 막는다 (Spec EIA §5.2 / §5.3 seq sentinel 관례와 정합).
- *
- * @internal 단위 테스트(`interaction-stream.controller.spec.ts`)를 위해 export.
- */
-export function writeSseFrame(
-  res: Response,
-  event: ExecutionChannelEvent,
-): void {
-  const lines = [`event: ${event.eventType}`];
-  if (Number.isFinite(event.seq) && event.seq > 0) {
-    lines.push(`id: ${event.seq}`);
-  }
-  lines.push(`data: ${JSON.stringify(event.payload)}`, '', '');
-  try {
-    res.write(lines.join('\n'));
-  } catch {
-    // 연결 끊긴 후 write 무시.
-  }
+/** `Last-Event-Id` 헤더나 `?lastEventId=` 값. 비었거나 숫자가 아니면 `undefined` 다. 정수로 맞추는 일은 어댑터가 한다. */
+function parseLastEventId(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
 }

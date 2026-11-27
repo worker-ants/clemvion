@@ -1,10 +1,8 @@
 import { HttpException, Logger, UnauthorizedException } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import type { Response } from 'express';
-import {
-  InteractionStreamController,
-  writeSseFrame,
-} from './interaction-stream.controller';
+import { InteractionStreamController } from './interaction-stream.controller';
+import { writeSseFrame } from './sse-stream-session';
 import { SSE_TOKEN_RECHECK_INTERVAL_MS } from './sse.constants';
 import { SseAdapter, type SseSubscriber } from './sse-adapter.service';
 import { SseFanoutService } from './sse-fanout.service';

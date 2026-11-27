@@ -13,7 +13,7 @@ import {
   sseLiveChannel,
 } from './sse-fanout.service';
 import { SSE_BUFFER_MAX_MESSAGE_BYTES } from './sse.constants';
-import { writeSseFrame } from './interaction-stream.controller';
+import { writeSseFrame } from './sse-stream-session';
 import {
   FakeRedisClient,
   FakeRedisServer,
