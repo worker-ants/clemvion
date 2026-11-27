@@ -2,19 +2,19 @@
 id: "CLE-ACCT-SIGNIN-PKAUTH"
 title: "가입과 로그인 — Passkey 로그인 인증과 counter 역행"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-SIGNIN"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-SIGNIN"]
 area: "CLE-ACCT"
-content_hash: "370ca7deaf353213b5a3c0b41784930d9cf302b0796afe0ce5900366a6447e0a"
+content_hash: "63b409cc8bef95a8eeed6078c54129b1534ff0799b31421c2904f07064bbf31f"
 read_as: "approved_fallback"
-task: "CLE-T-6F4W2A"
+task: "CLE-T-1K5CWP"
 source_paths: []
-mirror_sha256: "d36b273d244902a17052fb6bfd34cc32c0f46a4e8e8c83aaff717fbc9497c146"
-etag: "sha256-e089d7a8736e1d0672fe521e173be77069141d778704ebedec6ffff4345a0bd2"
+mirror_sha256: "fff499dac3154713736e1dcdbf1968c06d105390443626a111b0fa11ffaa35ee"
+etag: "sha256-94a6bd62f21a0a5fde95526403d326fcf8b990f9e1b866a702ab0f11d74aeb63"
 ---
 ## 개요
 
@@ -127,7 +127,7 @@ NERV Task `CLE-T-D331TT` 에서 사람 결정으로 정했다. 같은 assertion 
 
 결정일: 2026-11-12
 
-NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했고 2026-11-14 에 NERV Task `CLE-T-ZPPWK4` 가 구현했다. 메시지도 서명 실패와 같은 「WebAuthn 인증에 실패했어요.」 다.
+NERV Task `CLE-T-3P4ENZ` 에서 사람이 정했고 2026-11-14 에 NERV Task `CLE-T-ZPPWK4` 가 구현했다. 메시지도 서명 실패와 같은 「WebAuthn authentication failed.」 다.
 
 - **한 이름이 두 뜻으로 쓰였다.** `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 등록한 Passkey 의 이름 변경 · 삭제에서 대상이 없다는 404 이고, 로그인 2단계 검증에서는 인증이 실패했다는 401 이다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 규칙 6 은 뜻이 갈리면 코드를 나누라고 정한다.
 - **로그인 쪽을 기존 `WEBAUTHN_INVALID` 로 옮긴다.** 서명이 틀린 응답과 이미 쓴 챌린지를 이 코드로 묶은 이유와 같다. 사용자가 할 일은 「Passkey 로 다시 시도」 하나이고 credential 이 없다는 사실을 서명 실패와 구별해 알려 줄 이유도 없다. 로그인 화면은 `WEBAUTHN_INVALID` 만 안내 문구(`auth.login.webauthnFailed`)로 바꾸므로 옮기면 이 경우에도 같은 안내가 나간다.
