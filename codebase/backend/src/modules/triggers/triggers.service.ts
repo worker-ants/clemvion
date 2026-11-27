@@ -47,7 +47,7 @@ import {
 } from '../chat-channel/chat-channel-secret-refs';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
-import { newPerTriggerToken } from '../external-interaction/interaction-token.service';
+import { newPerTriggerToken } from '../external-interaction/per-trigger-token';
 import type { TriggerIssuedSecretsDto } from './dto/responses/trigger-secret-issue-response.dto';
 import { NotificationSigningSecretService } from './notification-signing-secret.service';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -1525,7 +1525,7 @@ export class TriggersService {
       },
     );
     if (!wroteInteraction) this.throwTriggerNotFound();
-    // 옛 토큰으로 연 SSE 스트림을 닫는다 — 이 서버 인스턴스의 구독자만(best-effort).
+    // 옛 토큰으로 연 SSE 스트림을 모든 서버 인스턴스에서 닫는다(best-effort, 던지지 않는다).
     // 근거: [트리거 관리 「API」](CLE-TRIG-MANAGE#api) 의 `revoke-token` 행, REQ-TRIG-041.
     // 새 토큰을 쓴 트랜잭션이 커밋된 직후에 닫는다. 감사 기록을 기다린 뒤에 닫으면 옛 토큰 스트림이 그만큼 더 열려 있다.
     this.resourceReleaser.closeTriggerTokenStreams(

@@ -1,10 +1,9 @@
 import {
   InteractionTokenService,
   IEXT_PREFIX,
-  ITK_PREFIX,
   INTERACTION_TOKEN_AUDIENCE,
-  newPerTriggerToken,
 } from './interaction-token.service';
+import { ITK_PREFIX, newPerTriggerToken } from './per-trigger-token';
 import { Logger } from '@nestjs/common';
 import { sign } from 'jsonwebtoken';
 

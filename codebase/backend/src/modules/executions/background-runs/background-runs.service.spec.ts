@@ -645,7 +645,7 @@ describe('BackgroundRunsService', () => {
         'utf8',
       ).toString('base64');
 
-      // **클래스만 보지 않는다** — 인접 가드(소유권·limit)도 같은 400 을 내므로,
+      // **클래스만 보지 않는다** — 다른 거부도 400 일 수 있으므로,
       // 무엇이 거부했는지까지 단언해야 대조군이 조용히 흡수되지 않는다.
       await expect(
         service.getBackgroundRun('exec-1', 'bg-run-id', { cursor }, 'ws-1'),
@@ -658,7 +658,7 @@ describe('BackgroundRunsService', () => {
       // **이 diff 가 만든 관측 가능한 우선순위 변화**를 고정한다
       // (`review/code/2026/09/13/00_13_51` testing W1).
       //
-      // `getBackgroundRun` 은 `resolveLimit` → `decodeCursor` → `verifyExecutionAccess` 순이라
+      // `getBackgroundRun` 은 `decodeCursor` → `verifyExecutionAccess` 순이라
       // (기존 관행), 타 워크스페이스 요청이 잘못된 커서를 함께 보내면 종전 404 대신 400 이 된다.
       // **정보 누설이 아니다** — 커서는 리소스를 조회하기 **전에** 형태만으로 거부되므로
       // 존재 여부를 구별해 주지 않는다. 소유권 mock 을 아예 세우지 않는 것이 그 증거다:
@@ -732,10 +732,41 @@ describe('BackgroundRunsService', () => {
       );
     });
 
-    it('rejects out-of-range limit', async () => {
-      await expect(
-        service.getBackgroundRun('exec-1', 'bg-run-id', { limit: 999 }, 'ws-1'),
-      ).rejects.toThrow(BadRequestException);
+    // `limit` 범위(1~200)는 요청 DTO(`QueryBackgroundRunDto` 의 `@Min(1) @Max(200)`)가
+    // 서비스보다 먼저 검증해 400 `VALIDATION_ERROR` 로 답한다. 그 응답은
+    // `test/background-monitoring.e2e-spec.ts` 가 고정한다. 서비스는 기본값만 채운다.
+    it.each([
+      { name: 'limit 이 없으면 기본값 50', limit: undefined, take: 51 },
+      {
+        name: '범위를 다시 검사하지 않고 받은 값을 쓴다',
+        limit: 999,
+        take: 1000,
+      },
+    ])('$name', async ({ limit, take }) => {
+      const bodyPageQB = buildBodyPageQB([]);
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
+      nodeExecutionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildBgNodeExecQB(makeBgNodeExec()))
+        .mockReturnValueOnce(bodyPageQB)
+        .mockReturnValueOnce(
+          buildAggregateQB({
+            total: '0',
+            pending: '0',
+            running: '0',
+            completed: '0',
+            failed: '0',
+            skipped: '0',
+            waiting: '0',
+            latestFinished: null,
+          }),
+        );
+
+      await service.getBackgroundRun('exec-1', 'bg-run-id', { limit }, 'ws-1');
+
+      // 한 행을 더 읽어 `hasMore` 를 판정한다(`fetchBodyPage` 의 `take(limit + 1)`).
+      expect(bodyPageQB.take).toHaveBeenCalledWith(take);
     });
 
     it('falls back to NodeExecution.startedAt when meta.forkedAt is missing', async () => {
