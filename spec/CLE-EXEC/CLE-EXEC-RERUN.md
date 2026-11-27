@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN"
 title: "재실행"
 type: "feature"
-version: 8
+version: 9
 status: "approved"
 requirements: ["REQ-RERUN-001", "REQ-RERUN-002", "REQ-RERUN-003", "REQ-RERUN-004", "REQ-RERUN-005", "REQ-RERUN-006", "REQ-RERUN-007", "REQ-RERUN-008", "REQ-RERUN-009", "REQ-RERUN-010", "REQ-RERUN-011", "REQ-RERUN-012", "REQ-RERUN-013", "REQ-RERUN-014", "REQ-RERUN-015", "REQ-RERUN-016", "REQ-RERUN-017", "REQ-RERUN-018", "REQ-RERUN-019", "REQ-RERUN-020", "REQ-RERUN-021", "REQ-RERUN-022", "REQ-RERUN-023", "REQ-RERUN-024", "REQ-RERUN-025", "REQ-RERUN-026", "REQ-RERUN-027", "REQ-RERUN-028", "REQ-RERUN-029", "REQ-RERUN-030", "REQ-RERUN-031", "REQ-RERUN-032", "REQ-RERUN-033", "REQ-RERUN-034", "REQ-RERUN-035", "REQ-RERUN-036", "REQ-RERUN-037", "REQ-RERUN-038", "REQ-RERUN-039", "REQ-RERUN-040", "REQ-RERUN-041", "REQ-RERUN-042", "REQ-RERUN-047", "REQ-RERUN-048", "REQ-RERUN-049", "REQ-RERUN-050", "REQ-RERUN-051", "REQ-RERUN-052", "REQ-RERUN-053", "REQ-RERUN-054", "REQ-RERUN-055"]
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "10ebb176095b9a03b07e26b9dbc2af911a0b53b1e9d8f82f0d548e6353e068dc"
+content_hash: "cd6e940a3d0d535bb8d47c94c46e38e2a7e724947e44ddc8b2ac38de1a7fd54b"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-B87H23"
 source_paths: ["spec/5-system/13-replay-rerun.md"]
-mirror_sha256: "db151e9f1e5530c0cc091c0875917b38fe610a96bd801c4c4c28715810c1720f"
-etag: "sha256-ceb362b20a03aab7786e16f9a2d85be86e3de7694e01a0c07c258bec2131f8cd"
+mirror_sha256: "cbed73a37e297368d3d5c3294831619e2b9c4e4114453abaa23a679f57d6a9d0"
+etag: "sha256-7cc7d63f84458c04afe80e1a74d562fe3103ce05a4cc192e267e98eaa43ebbcf"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -162,9 +162,11 @@ etag: "sha256-ceb362b20a03aab7786e16f9a2d85be86e3de7694e01a0c07c258bec2131f8cd"
 
 결정마다 근거는 그 주제의 하위 문서 끝 Rationale 에 있다. 다른 문서가 링크하는 절은 아래에서 이어 준다.
 
-### `chain_id` 는 NULLABLE 이다 (2026-05-31, 결정 F2)
+### `chain_id` 는 NULLABLE 이다
 
-→ [재실행 — API 와 데이터 모델](CLE-EXEC-RERUN-API.md#chain_id-는-nullable-이다-2026-05-31-결정-f2)
+결정일: 2026-05-31
+
+→ [재실행 — API 와 데이터 모델](CLE-EXEC-RERUN-API.md#chain_id-는-nullable-이다)
 
 ### dry-run 에서 AI 에이전트의 MCP 도구를 막는다
 
@@ -178,6 +180,8 @@ etag: "sha256-ceb362b20a03aab7786e16f9a2d85be86e3de7694e01a0c07c258bec2131f8cd"
 
 → [재실행 — dry-run 의 AI 에이전트 도구](CLE-EXEC-RERUN-AGENT.md#dry-run-에서-부수효과-도구만-모의-응답으로-대신한다)
 
-### 체인 조회 권한은 실행 상세 조회와 같다 (2026-10-10)
+### 체인 조회 권한은 실행 상세 조회와 같다
 
-→ [재실행 — 정책](CLE-EXEC-RERUN-POLICY.md#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10)
+결정일: 2026-10-10
+
+→ [재실행 — 정책](CLE-EXEC-RERUN-POLICY.md#체인-조회-권한은-실행-상세-조회와-같다)

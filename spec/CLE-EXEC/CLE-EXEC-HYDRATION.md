@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HYDRATION"
 title: "실행 화면 복원 규약"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC"
 ancestors: ["CLE-VISION", "CLE-EXEC"]
 area: "CLE-EXEC"
-content_hash: "0ba3a3b05fb5f8816d46ff6887851093210dedaaac5d763460712af8d75b14db"
+content_hash: "13e3b2802e5065ac4242e92d368eeec2fd0739e75522fb50025eba4ab744c5c9"
 read_as: "approved_fallback"
-task: "CLE-T-88KRHT"
+task: "CLE-T-B87H23"
 source_paths: ["spec/conventions/data-hydration-surfaces.md"]
-mirror_sha256: "d68cfd692f5f15c7f0ebbb3f7cb0418cf72450db826f423083f56a737f553daf"
-etag: "sha256-8e7b870cd9a0c317740eacef3beb7adf10003ae7472d04991009cb7fc354f882"
+mirror_sha256: "671c44476e532a8478e976e5049c066f2cba93c9d8ff5aed8a0430bf43d9475d"
+etag: "sha256-15170bdc3437771f50aabc4b225ef01742d8a5d39219e8d1c64c582c8259e12f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/data-hydration-surfaces.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -116,8 +116,10 @@ etag: "sha256-8e7b870cd9a0c317740eacef3beb7adf10003ae7472d04991009cb7fc354f882"
 
 근본 원인은 같은 데이터가 화면마다 다른 복원 경로를 거치는데 새 필드를 더할 때 "어느 경로에서 어떻게 보여야 하는지" 가 스펙에 없었던 것이다. 그래서 개발자가 한 화면만 고치고 다른 화면을 빠뜨렸다. 이 규약은 매트릭스와 가드로 N개 화면을 함께 고치게 강제한다. `output.result.presentations` 행이 첫 적용 사례다.
 
-### 에디터 폴링 대체 경로는 저장된 대화가 앞설 때만 바꾼다 (2026-11-14)
+### 에디터 폴링 대체 경로는 저장된 대화가 앞설 때만 바꾼다
+
+결정일: 2026-11-14
 
 대체 경로에서는 `execution.ai_message` 가 오지 않으므로 폴링 응답의 저장된 대화가 AI 응답을 보여 줄 유일한 길이다. 비어 있을 때만 채우는 기존 규칙으로는 첫 응답 뒤로 대화가 멈춘다. 그래서 확정된 사용자·AI 메시지 수가 앞설 때만 바꾼다. 실시간 경로와 실행 상세 화면은 WebSocket 이 대화를 채우므로 기존 규칙(비어 있을 때만 채운다)을 그대로 둔다. 이 결정은 NERV Task `CLE-T-5P1ADY` 에서 내렸다.
 
-- **기각: 응답마다 덮기**: 폴링 응답이 올 때마다 저장된 대화로 바꾸면 사용자가 방금 보낸 낙관적 메시지가 사라졌다가 다시 나타난다. 같은 근거가 [에디터 실행과 디버깅 — 실시간 수신·내역·Background 의 Rationale](CLE-EXEC-RUN-SYNC.md#소켓이-끊긴-입력-대기는-폼만-rest-로-보낸다-2026-11-14) 의 「AI 대화는 저장된 대화가 앞설 때만 바꾼다」 에 있다.
+- **기각: 응답마다 덮기**: 폴링 응답이 올 때마다 저장된 대화로 바꾸면 사용자가 방금 보낸 낙관적 메시지가 사라졌다가 다시 나타난다. 같은 근거가 [에디터 실행과 디버깅 — 실시간 수신·내역·Background 의 Rationale](CLE-EXEC-RUN-SYNC.md#소켓이-끊긴-입력-대기는-폼만-rest-로-보낸다) 의 「AI 대화는 저장된 대화가 앞설 때만 바꾼다」 에 있다.
