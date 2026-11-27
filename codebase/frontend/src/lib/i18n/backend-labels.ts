@@ -170,8 +170,8 @@ const LABEL_KO: Record<string, string> = {
 const HINT_KO: Record<string, string> = {
   "0 = deterministic, 2 = creative. Not applied to Anthropic models":
     "0 = 결정적, 2 = 창의적. Anthropic 모델에는 적용되지 않아요",
-  "stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches; a failed branch leaves null in output.branches[i] and its error is collected in output.skipped. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).":
-    "stop: 첫 분기 실패 시 즉시 throw (Parallel 노드 FAILED). continue: 모든 분기 종료 대기 후 실패한 분기 자리는 output.branches[i] 에 null 로 두고 에러는 output.skipped 에 수집. cancel-others-on-fail: 첫 실패 시 AbortSignal 로 다른 분기의 외부 I/O 즉시 abort (signal 인지 노드만 cleanup, best-effort).",
+  "stop: wait for all branches, then fail the Parallel node with the error of the lowest-numbered failed branch (other branches are not stopped). continue: wait for all branches; a failed branch leaves null in output.branches[i] and its error is collected in output.skipped. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).":
+    "stop: 모든 분기가 끝나기를 기다린 뒤 실패한 분기 가운데 번호가 가장 작은 분기의 에러로 Parallel 노드를 실패시켜요(다른 분기는 멈추지 않아요). continue: 모든 분기가 끝나기를 기다려요. 실패한 분기 자리는 output.branches[i] 에 null 로 남고 에러는 output.skipped 에 모여요. cancel-others-on-fail: 첫 실패가 나면 AbortSignal 로 실행 중인 다른 분기를 중단해요(signal 을 따르는 노드만 일찍 정리되며 best-effort 예요).",
   "Brand/style fixed values that override LLM payload on deep-merge":
     "brand/style 고정값. LLM 페이로드와 deep-merge 시 이 값이 우선 적용돼요.",
   "Let the LLM render tables / charts / carousels / templates / forms in chat by calling render_* tools.":
@@ -448,6 +448,7 @@ export const WARNING_KO: Record<string, string> = {
   "Y-axis field must be entered.": "Y축 필드를 입력해야 합니다.",
   "branchCount must be a value between 2 and 16.": "branchCount는 2 이상 16 이하의 값이어야 합니다.",
   "branchCount must be an integer.": "branchCount는 정수여야 합니다.",
+  "branchCount must be a number.": "branchCount는 숫자여야 해요.",
   "maxConcurrency must be a number.": "maxConcurrency는 숫자여야 합니다.",
   "maxConcurrency must be a value between 0 and 16 (0 = unlimited).":
     "maxConcurrency는 0 이상 16 이하의 값이어야 합니다 (0 = 제한 없음).",
