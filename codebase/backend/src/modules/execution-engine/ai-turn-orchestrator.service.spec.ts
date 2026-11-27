@@ -596,7 +596,7 @@ describe('AiTurnOrchestrator', () => {
   // 를 save 해, 그 확인~save 사이에 좁은 검사-후-사용 창이 남았다. 아래 테스트는
   // `tryLockActiveExecutionAndSaveNodeExec`(형제 분기와 동일하게 FOR UPDATE 로
   // 원자화된 관측+save) 로 갱신됐다 — 실제 트랜잭션 원자성 자체의 회귀는
-  // `execution-engine.service.spec.ts` 의 동명 describe 가 가드한다.
+  // `execution-engine.service.execute-intake.spec.ts` 의 동명 describe 가 가드한다.
   describe('finalizeAiNode — RUNNING 유지 분기 선점 (CRITICAL #1 / WARNING #1 3차 라운드 원자화)', () => {
     const endNode: Partial<Node> = {
       id: 'node-end-crit1',
@@ -641,7 +641,7 @@ describe('AiTurnOrchestrator', () => {
       expect(driver.updateExecutionStatus).not.toHaveBeenCalled();
       // ai-review WARNING #1 (3차 라운드) — 관측+save 가 원자화된 단일 호출로
       // 대체됐는지 고정한다(형제 분기의 updateExecutionStatus FOR UPDATE 와
-      // 동일 계약 — 실제 트랜잭션 원자성은 execution-engine.service.spec.ts
+      // 동일 계약 — 실제 트랜잭션 원자성은 execution-engine.service.execute-intake.spec.ts
       // 의 동명 describe 가 가드).
       expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,

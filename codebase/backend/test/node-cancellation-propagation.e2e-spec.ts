@@ -37,8 +37,9 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * `runExecution`/`runNodeDispatchLoop`/`executeInline` 세 순회 루프 전부에 배치했다(§2.3).
  * 노드 사이마다 Execution 행을 다시 읽어 외부 cancel(DB UPDATE)을 관측하고
  * `ExecutionCancelledError` 로 dispatch 를 중단한다. 엔진 단위 테스트
- * (`execution-engine.service.spec.ts` 의 "선형 경로 외부 cancel 전파" / "재개 중 외부 cancel..."
- * describe)가 이 계약을 mutation 검증까지 마쳐 결정적으로 고정한다 — 가드를 한 줄씩 제거하면
+ * (`execution-engine.service.run-execution.spec.ts` 의 "선형 경로 외부 cancel 전파" describe ·
+ * `execution-engine.service.form-button.spec.ts` 의 "재개 중 외부 cancel..." 테스트)가
+ * 이 계약을 mutation 검증까지 마쳐 결정적으로 고정한다 — 가드를 한 줄씩 제거하면
  * 각각 RED, 복원하면 GREEN. 본 e2e 는 그 위에서 HTTP 왕복 + 실 DB 를 통한 통합 확인이다.
  * 관측 시점도 함께 고쳤다 — A 의 종료를 기다린 뒤 하류를 조회하도록(옛 관측은 A 가 아직
  * busy-wait 중일 때 조회해 가드 없이도 통과했다).

@@ -18,7 +18,7 @@ import { DataSource } from 'typeorm';
 
 // 엔진을 src 모듈 중 맨 먼저 불러온다. 엔진 ↔ 이벤트 발행기(웹소켓 경유)가 순환 import 라, 다른 서비스가 먼저
 // 사슬을 열면 엔진 클래스가 정의될 때 발행기가 아직 undefined 이고 DI 메타데이터의 그 자리가 비어 주입이 실패한다.
-// 유닛 스펙(`execution-engine.service.spec.ts`)도 같은 순서다.
+// 유닛 스펙(`execution-engine.service.*.spec.ts`)도 같은 순서다.
 import { ExecutionEngineService } from '../src/modules/execution-engine/execution-engine.service';
 
 import { ROOT_ENTITIES } from '../src/database/root-entities';

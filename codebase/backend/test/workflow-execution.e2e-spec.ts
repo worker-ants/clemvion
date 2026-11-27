@@ -24,7 +24,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *
  * 단순화 — 노드 그래프 구성(saveCanvas) 은 unit/integration 이 보장하므로 본 spec
  * 은 워크플로우 생성 직후 (Manual Trigger 1개) 의 실행으로 한정한다. 실행 엔진의
- * 분기·에러 처리 정밀 검증은 execution-engine.service.spec.ts 가 담당.
+ * 분기·에러 처리 정밀 검증은 execution-engine.service.*.spec.ts 가 담당.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';

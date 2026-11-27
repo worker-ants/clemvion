@@ -11,7 +11,7 @@
  * 하위 키를 다음 노드 입력으로 넘긴다" 와 다르면 어느 쪽을 고칠지는 NERV Task
  * CLE-T-2F5H0E 가 정한다. 엔진이나 스펙을 고치면 이 파일의 단언도 함께 바꾼다.
  *
- * `execution-engine.service.spec.ts` 의 공용 셋업은 Parallel 작업과 겹치지 않게
+ * 엔진 서비스 스펙(`execution-engine.service.*.spec.ts`)의 공용 셋업은 Parallel 작업과 겹치지 않게
  * 쓰지 않고, 이 측정에 필요한 의존성만 따로 묶었다.
  */
 import { Test } from '@nestjs/testing';
