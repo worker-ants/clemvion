@@ -64,6 +64,16 @@ describe("serverErrorMessage", () => {
     expect(serverErrorMessage(undefined, t, "fallback")).toBe("fallback");
   });
 
+  it("서버가 message 를 가린 5xx 코드도 사전 문구를 고른다(CLE-T-KKJ2A0)", () => {
+    const masked = "An unexpected error occurred. Please try again later.";
+    expect(
+      serverErrorMessage(wrapped("OAUTH_CONFIG_MISSING", masked), t, "fallback"),
+    ).toBe("errors.codes.oauthConfigMissing");
+    expect(
+      serverErrorMessage(wrapped("INTERNAL_ERROR", masked), t, "fallback"),
+    ).toBe("errors.codes.internalError");
+  });
+
   it("serverErrorKey 는 모르는 코드에 undefined 다", () => {
     expect(serverErrorKey(wrapped("SOMETHING_ELSE"))).toBeUndefined();
     expect(serverErrorKey(wrapped("TOTP_INVALID"))).toBe(
@@ -94,7 +104,6 @@ describe("백엔드 auth 에러 코드 대조", () => {
     "LOGIN_FAILED",
     "NO_WORKSPACE_AVAILABLE",
     "OAUTH_ACCOUNT_AMBIGUOUS",
-    "OAUTH_CONFIG_MISSING",
     "OAUTH_EMAIL_REQUIRED",
     "OAUTH_PROFILE_FAILED",
     "OAUTH_PROVIDER_UNKNOWN",

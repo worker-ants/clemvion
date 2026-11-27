@@ -194,6 +194,10 @@ describe('저장된 트리거 config 의 시크릿 참조 읽기 (e2e)', () => {
     expect(await secretWorkspace(victimBotTokenRef)).toBe(attacker.workspaceId);
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    // 전역 예외 필터의 고정 문구 하나만 간다(CLE-T-KKJ2A0 · CLE-T-V11GV1).
+    expect(res.body.error.message).toBe(
+      'An unexpected error occurred. Please try again later.',
+    );
     expect(JSON.stringify(res.body)).not.toContain('secret://');
   });
 });

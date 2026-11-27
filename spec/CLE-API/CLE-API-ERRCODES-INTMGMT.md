@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-INTMGMT"
 title: "에러 코드 카탈로그 — 통합 관리 · OAuth"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "f4eaec24493dd03ea56b60344f201a9e1b4d2c222e13884dfa24dc3322145c3e"
+content_hash: "c67e5581a1812991583afb36f46083867789f1f29f7d7dca89aea9a8879c3514"
 read_as: "approved_fallback"
-task: "CLE-T-0TAE5G"
+task: "CLE-T-KKJ2A0"
 source_paths: []
-mirror_sha256: "a4e25315613270d5839b89f86b3551f71615bd34bd87ee8c85b195c83b39d5f7"
-etag: "sha256-b56c14546bb3d0fa485e53f87322e2c362936afe2c7bebd2200140ed054097e5"
+mirror_sha256: "c0eb65ba908030710d68a4dc3f6404b4ea4462c827e19fe5918055d96e816c50"
+etag: "sha256-a49166cebbf7dcad7be524c3538ec9db0f79efa1d494aeb041dbcf255d8e76d5"
 ---
 ## 개요
 
@@ -58,7 +58,7 @@ etag: "sha256-b56c14546bb3d0fa485e53f87322e2c362936afe2c7bebd2200140ed054097e5"
 | `CAFE24_INSTALL_REPLAY` · `MAKESHOP_INSTALL_REPLAY` | 400 | 설치 요청의 `timestamp` 가 ±5분 밖이거나 해석되지 않음, 또는 같은 요청을 다시 보냄(nonce 재사용) | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `CAFE24_INSTALL_INVALID_HMAC` | 403 | HMAC 검증 실패, 통합에 `client_secret` 이 없음, 또는 요청의 `mall_id` · 앱 유형이 토큰의 통합과 다름. IP 실패로 센다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `MAKESHOP_INSTALL_INVALID_HMAC` | 403 | HMAC 검증 실패, 통합에 시크릿이 없음, 또는 요청의 `shop_uid` 가 토큰의 통합과 다름. IP 실패로 센다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
-| `CAFE24_INSTALL_FAILED` · `MAKESHOP_INSTALL_FAILED` | 예외의 상태 · 500 | 설치 처리 중 코드가 없는 실패가 남. 코드가 없는 `HttpException` 이면 그 상태와 메시지를 싣는다. 그 밖의 예외(DB · 런타임 오류 등)는 500 과 고정 문구로 답하고 예외 원문은 `requestId` 와 함께 서버 로그에만 남긴다. IP 실패로 세지 않는다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
+| `CAFE24_INSTALL_FAILED` · `MAKESHOP_INSTALL_FAILED` | 예외의 상태 · 500 | 설치 처리 중 코드가 없는 실패가 남. 코드가 없는 4xx `HttpException` 이면 그 상태와 메시지를 싣는다. 5xx `HttpException` 이면 그 상태로 답하고 메시지는 고정 문구로 가린다. 그 밖의 예외(DB · 런타임 오류 등)는 500 과 고정 문구로 답하고 예외 원문은 `requestId` 와 함께 서버 로그에만 남긴다. IP 실패로 세지 않는다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `MAKESHOP_ALREADY_CONNECTED` | 409 | MakeShop 설치에서 같은 워크스페이스에 같은 `shop_uid` 의 연결된 MakeShop 통합이 이미 있음. 사전 검사와 상점 식별자 UNIQUE 경합에서 난다. 응답에 기존 통합의 ID 를 싣지 않는다 | [통합 관리 — API 와 에러 코드 「에러 코드」](../CLE-INT/CLE-INT-MANAGE-API.md#에러-코드), [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url) |
 | `MAKESHOP_INVALID_SHOP_UID` | 400 · 없음 (노드 `output.error.code`) | `shop_uid` 형식 위반. 설치 엔드포인트는 400 으로 답하고 MakeShop 노드는 에러 포트로 낸다 | [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](../CLE-INT/CLE-INT-OAUTH.md#설치-엔드포인트-app-url), [MakeShop 노드 「에러 코드」](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md#에러-코드) |
 | `OAUTH_STATE_EXPIRED` | 없음 (통합 `last_error.code`) | 콜백의 state 가 만료됨. `new` 모드 state 는 통합이 없어 HTML 로만 끝난다 | [OAuth 연결과 토큰 갱신 「에러 매핑」](../CLE-INT/CLE-INT-OAUTH.md#에러-매핑) |
@@ -85,7 +85,7 @@ etag: "sha256-b56c14546bb3d0fa485e53f87322e2c362936afe2c7bebd2200140ed054097e5"
 NERV Task `CLE-T-909H23` 이다. 설치 엔드포인트는 `@Res` 로 응답을 직접 써서 전역 예외 필터를 거치지 않는다. 그래서 코드가 없는 예외를 400 `*_INSTALL_FAILED` 로 바꾸면서 예외 메시지를 그대로 실었다. DB · 런타임 오류의 원문이 Cafe24 · MakeShop 콘솔에서 연 브라우저에 보였다([에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 규칙 2). 실패 본문에 `requestId` 가 없어 서버 로그와 이을 수도 없었다(같은 문서 규칙 3).
 
 - **코드 이름은 그대로 쓰고 상태와 문구만 바꿨다.** 코드가 없는 실패라는 뜻은 바뀌지 않는다. `INTERNAL_ERROR` 로 바꾸는 안은 기각했다. 이름 바꾸기는 호환을 깨는 변경이다(규칙 5).
-- **상태는 예외 종류로 가른다.** 코드가 없는 `HttpException` 의 상태와 문구는 작성자가 정한 값이라 전역 필터처럼 그대로 싣는다. 그 밖의 예외는 500 과 고정 문구로 가리고 원문은 `requestId` 와 함께 `logger.error` 로만 남긴다.
+- **상태는 예외 종류로 가른다.** 코드가 없는 4xx `HttpException` 의 상태와 문구는 작성자가 정한 값이라 그대로 싣는다. 5xx `HttpException` 은 상태만 두고 문구를 가린다. 전역 필터와 같은 규칙이다(2026-11-27, NERV Task `CLE-T-KKJ2A0`). 그 밖의 예외는 500 과 고정 문구로 가리고 원문은 `requestId` 와 함께 `logger.error` 로만 남긴다.
 - **예외를 전역 필터로 다시 던지는 안은 기각했다.** 필터는 JSON 만 그려서 콘솔에서 연 브라우저에 HTML 안내 페이지를 보일 수 없다. 열거 공격 실패 카운트도 컨트롤러가 해야 한다.
 - **앞단 가드(빈도 제한 · 토큰 형식 · 필수 query)의 JSON 에도 `requestId` 를 싣는다.** 한 엔드포인트의 실패 본문을 한 모양으로 맞췄다. §6.21 머리말의 「표준 봉투를 쓰지 않는다」 불릿은 이 변경에 맞춰 고쳤다. 그 불릿은 사실만 적었고 까닭을 적은 Rationale 은 없다. 응답을 `@Res` 로 직접 써서 전역 필터가 봉투와 `requestId` 를 채우지 못한 결과였다. 이제 컨트롤러가 봉투를 조립하고 `requestId` 를 발급하므로 표준 봉투로 맞췄다.
 - 열거 공격 실패 카운트는 바꾸지 않았다. `*_INSTALL_INVALID_TOKEN` · `*_INSTALL_INVALID_HMAC` 만 센다.

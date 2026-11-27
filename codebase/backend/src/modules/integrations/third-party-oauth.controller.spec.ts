@@ -938,7 +938,7 @@ describe('ThirdPartyOAuthController — install failure responses', () => {
       expect(loggerError).not.toHaveBeenCalled();
     });
 
-    it('a codeless HttpException keeps its status and message under CAFE24_INSTALL_FAILED', async () => {
+    it('a codeless 5xx HttpException keeps its status under CAFE24_INSTALL_FAILED and masks the message (CLE-T-KKJ2A0)', async () => {
       oauthService.handleInstall.mockRejectedValue(
         new InternalServerErrorException(
           'Cafe24 token exchange is unavailable',
@@ -949,10 +949,33 @@ describe('ThirdPartyOAuthController — install failure responses', () => {
       expect(res.statusCode).toBe(500);
       const body = res.body as ErrorBody;
       expect(body.error.code).toBe('CAFE24_INSTALL_FAILED');
-      expect(body.error.message).toBe('Cafe24 token exchange is unavailable');
+      expect(body.error.message).toBe(INSTALL_UNEXPECTED_ERROR_MESSAGE);
       expect(body.error.requestId).toMatch(UUID_V4);
-      expect(loggerError).not.toHaveBeenCalled();
+      expect(loggerError).toHaveBeenCalledTimes(1);
+      const [line] = loggerError.mock.calls[0] as [string];
+      expect(line).toContain(`requestId=${body.error.requestId}`);
+      expect(line).toContain('Cafe24 token exchange is unavailable');
       expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('a coded 5xx HttpException keeps its code, masks the message and logs the original (CLE-T-KKJ2A0)', async () => {
+      oauthService.handleInstall.mockRejectedValue(
+        new InternalServerErrorException({
+          code: 'OAUTH_CONFIG_MISSING',
+          message: 'CAFE24_CLIENT_ID / CAFE24_CLIENT_SECRET env not configured',
+        }),
+      );
+      const res = await cafe24();
+
+      expect(res.statusCode).toBe(500);
+      const body = res.body as ErrorBody;
+      expect(body.error.code).toBe('OAUTH_CONFIG_MISSING');
+      expect(body.error.message).toBe(INSTALL_UNEXPECTED_ERROR_MESSAGE);
+      expect(JSON.stringify(body)).not.toContain('CAFE24_CLIENT_ID');
+      expect(loggerError).toHaveBeenCalledTimes(1);
+      const [line] = loggerError.mock.calls[0] as [string];
+      expect(line).toContain(`requestId=${body.error.requestId}`);
+      expect(line).toContain('CAFE24_CLIENT_ID');
     });
 
     it('the HTML page for a coded rejection shows the requestId', async () => {

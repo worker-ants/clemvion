@@ -14,21 +14,29 @@ import { isPostgresUniqueViolation } from '../db/pg-error';
 /** http-errors(body-parser 등)·express 미들웨어 오류가 싣는 숫자 상태 필드. */
 type HttpErrorLike = { status?: number; statusCode?: number };
 
+/**
+ * `Error` 가 아닌 throw 값을 로그 한 줄로 바꾼다. `String()` 은 프로토타입이 없는 객체에서
+ * `TypeError` 를 내므로 그때는 타입만 남긴다. 필터 안에서 다시 throw 하면 응답이 나가지 않는다.
+ */
+function describeThrown(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return `<${typeof value}>`;
+  }
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
   /**
-   * 비-`Error` 값이 throw 된 경우(문자열·객체 등 어떤 분기에도 안 걸린 fallthrough)의 기본 메시지.
-   * `UNHANDLED_ERROR_MESSAGE` 와 **의도적으로 다름** — 이쪽은 `Error` 조차 아닌 값이라 stack 도 없다.
+   * `INTERNAL_ERROR` 와 5xx 가 싣는 고정 문구 하나. 매핑되지 않은 내부 `Error`, `Error` 가 아닌
+   * 값의 throw, 5xx `HttpException` 이 모두 이 문구를 쓴다. 원문은 `requestId` 와 함께
+   * `logger.error` 로만 남긴다(CWE-209, CLE-API-ERROR 「`message` 에 내부 원문을 싣지 않는다」).
+   * 한국어 화면 문구는 프런트엔드가 `code` 로 고른다(CLE-API-ERRCODES-SYSVAL §6.1).
    */
-  private static readonly UNKNOWN_ERROR_MESSAGE =
-    'An unexpected error occurred';
-  /**
-   * 매핑되지 않은 내부 `Error` 의 마스킹 메시지 — 원문은 `logger.error` 로만 남기고
-   * 클라이언트엔 일반 문구만 반환한다(CWE-209).
-   */
-  private static readonly UNHANDLED_ERROR_MESSAGE =
+  private static readonly INTERNAL_ERROR_MESSAGE =
     'An unexpected error occurred. Please try again later.';
   /**
    * 413 의 고정 문구. http-errors(body-parser) 413 과 `code` 를 지정하지 않은 `HttpException`
@@ -45,7 +53,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_ERROR';
-    let message = GlobalExceptionFilter.UNKNOWN_ERROR_MESSAGE;
+    let message = GlobalExceptionFilter.INTERNAL_ERROR_MESSAGE;
     let details: unknown = undefined;
 
     if (exception instanceof HttpException) {
@@ -76,6 +84,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         code = this.getCodeFromStatus(status);
         message = this.maskUncodedPayloadTooLarge(status, exception.message);
       }
+      if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+        ({ message, details } = this.maskServerError(
+          status,
+          code,
+          message,
+          requestId,
+          exception.stack,
+        ));
+      }
     } else if (isPostgresUniqueViolation(exception)) {
       // race window 에서의 unique constraint 위반은 클라이언트에게 409 가 옳다.
       // (애플리케이션 단의 사전 체크 후 동시 두 요청이 모두 통과한 케이스 등)
@@ -90,11 +107,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         this.logger.warn(`http-error ${status}: ${exception.message}`);
       } else {
         this.logger.error(
-          `Unhandled exception: ${exception.message}`,
+          `Unhandled exception requestId=${requestId}: ${exception.message}`,
           exception.stack,
         );
-        message = GlobalExceptionFilter.UNHANDLED_ERROR_MESSAGE;
       }
+    } else {
+      // `Error` 가 아닌 값(문자열 · 객체)의 throw. stack 이 없어 값만 남긴다.
+      this.logger.error(
+        `Unhandled non-Error throw requestId=${requestId}: ${describeThrown(exception)}`,
+      );
     }
 
     const errorResponse: Record<string, unknown> = {
@@ -136,6 +157,29 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       };
     }
     return null;
+  }
+
+  /**
+   * 5xx `HttpException` 의 `message` 와 `details` 를 가린다. `code` 는 두고 호출부가 그대로 쓴다.
+   * 작성자가 쓴 문구와 `details` 에는 환경 변수 이름 같은 구성 정보가 섞일 수 있다
+   * (`OAUTH_CONFIG_MISSING`, CWE-209). 원문은 `requestId` 와 함께 `logger.error` 로만 남기고
+   * 프런트엔드는 `code` 로 문구를 고른다. 5xx 가 `details` 를 응답에 싣는 사용처는 없다.
+   */
+  private maskServerError(
+    status: number,
+    code: string,
+    message: string,
+    requestId: string,
+    stack: string | undefined,
+  ): { message: string; details: undefined } {
+    this.logger.error(
+      `HttpException ${status} ${code} requestId=${requestId}: ${message}`,
+      stack,
+    );
+    return {
+      message: GlobalExceptionFilter.INTERNAL_ERROR_MESSAGE,
+      details: undefined,
+    };
   }
 
   /**

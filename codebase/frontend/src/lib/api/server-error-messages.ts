@@ -9,6 +9,9 @@ import { extractApiCode, extractApiMessage, type ApiErrorBody } from "./errors";
  * 인증 · 세션 · 워크스페이스 가드처럼 여러 화면이 같은 뜻으로 받는 코드만 둔다. 한 화면에서만 다르게 읽어야 하는
  * 코드는 그 화면이 먼저 고르고(예: 로그인 2단계의 `TOTP_INVALID`, owner 이양의 `OWNER_REQUIRED`), 여기 없는 코드는
  * 서버 문구를 그대로 보인다. 통합 화면의 토스트는 따로 `integration-error-codes.ts` 가 조립한다.
+ *
+ * 5xx 응답의 `message` 는 전역 예외 필터가 고정 문구로 바꾼다(NERV CLE-API-ERROR, Task CLE-T-KKJ2A0). 그래서
+ * 작성자가 문구로 원인을 알리던 5xx 코드(`OAUTH_CONFIG_MISSING`)와 `INTERNAL_ERROR` 는 여기서 문구를 고른다.
  */
 export const SERVER_ERROR_CODE_TO_I18N: Readonly<
   Record<string, TranslationKey>
@@ -38,6 +41,8 @@ export const SERVER_ERROR_CODE_TO_I18N: Readonly<
   TOTP_ALREADY_ENABLED: "errors.codes.totpAlreadyEnabled",
   RECOVERY_CODE_INVALID: "errors.codes.recoveryCodeInvalid",
   CHALLENGE_INVALID: "errors.codes.challengeInvalid",
+  OAUTH_CONFIG_MISSING: "errors.codes.oauthConfigMissing",
+  INTERNAL_ERROR: "errors.codes.internalError",
 };
 
 function asApiError(err: unknown): AxiosError<ApiErrorBody> | undefined {
