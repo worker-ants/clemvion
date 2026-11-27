@@ -5033,6 +5033,9 @@ export class ExecutionEngineService
   }
 
   /**
+   * NodeExecution 한 행을 취소로 마감한다. 이름이 비슷한 {@link markExecutionCancelled} 는
+   * Execution 단위로 resume 실패 뒤 시스템이 취소하는 경로이고 이 함수와 무관하다.
+   *
    * ai-review 5R (maintainability) — 노드 단위 취소 종결. `executeNode` catch 의 두
    * 분기(`isAbortError` / `ExecutionCancelledError`)가 상태 마킹·`finishedAt`/
    * `durationMs` 계산·`save`·`NODE_CANCELLED` emit 20여 줄을 문자 그대로 복제하고
