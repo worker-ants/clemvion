@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-AI"
 title: "용어 사전 — AI 와 지식 저장소"
 type: "convention"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "bae79147e18ad015f46669f7dcb0ff03f34b8d60f473f576eef8853429071fd0"
+content_hash: "6d91eb0edf9ddfacbade40b9ae00f95f971eda6a1ed563479b490d29b1316048"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-SCFC83"
 source_paths: []
-mirror_sha256: "cf9947a39ea2677403ca2d2aac656462e99ea1ce5c55ab96c6b0fd172facb2ea"
-etag: "sha256-8c864865bb3591753e548df9a2349355bb63b8f6c6de2c0aee7cda6b13719368"
+mirror_sha256: "e11fbb207439b5483f0781ca98ba57496bda81ca99eaa089ab210587e3d38488"
+etag: "sha256-b82ab93f30cd9b3513dca1692afffdfc89cd0df6cda12de96fcd64d508129558"
 ---
 ## 개요
 
@@ -87,7 +87,9 @@ etag: "sha256-8c864865bb3591753e548df9a2349355bb63b8f6c6de2c0aee7cda6b13719368"
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「AI 와 지식 저장소」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
 
-### 정의 보정 (2026-10-03)
+### 정의 보정
+
+결정일: 2026-10-03
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 

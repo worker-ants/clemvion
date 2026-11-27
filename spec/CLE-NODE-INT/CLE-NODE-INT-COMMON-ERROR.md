@@ -2,19 +2,19 @@
 id: "CLE-NODE-INT-COMMON-ERROR"
 title: "통합 노드 공통 — 에러 코드와 사설망 차단"
 type: "convention"
-version: 8
+version: 9
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-NODE-INT-COMMON"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT", "CLE-NODE-INT-COMMON"]
 area: "CLE-NODE-INT"
-content_hash: "a06248dc1e034b1b50d71f63c80c7037d95a998080793e5b3dd2f7d8dfeccd9d"
+content_hash: "02302cf9b2e24fe0e8f54ed027adf5f9761130a34aa4351f7f800bcd2b66c573"
 read_as: "approved_fallback"
-task: "CLE-T-MYDNQN"
+task: "CLE-T-DC5Y0P"
 source_paths: []
-mirror_sha256: "c42a87d18d1c41a22c92d459c4fc41608d816d9a499bd62156cfc8c6e737b736"
-etag: "sha256-072d70bb74e94d6390d0e4001f0af9ce221a58fb91a9528b990552281ad7301b"
+mirror_sha256: "0deb515193234f65be8d2802d86aee3608df35ea237dc64f78e4f0336163dada"
+etag: "sha256-811dbed3beeb9538473f5c2ba7b644bba0a17ff68af56b0ac040832d5c764889"
 ---
 ## 개요
 
@@ -34,7 +34,7 @@ etag: "sha256-072d70bb74e94d6390d0e4001f0af9ce221a58fb91a9528b990552281ad7301b"
 - **[개인 통합 사용 판정](../CLE-INT/CLE-INT-MANAGE.md#개인-통합-사용-판정)을 통과하지 못한 개인 통합일 때**: 위와 같은 코드와 같은 문구로 실패한다. 노드 출력만 보고는 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합을 구분할 수 없다.
 - **통합을 얻기 전에 끝난 실행의 기록**: 통합을 얻기 전에 끝난 실패는 활동 로그를 남기지 않는다. 설정의 `integrationId` 가 가리키는 통합의 `last_used_at`·`last_error` 도 바꾸지 않는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 «통합을 얻기 전 실패는 기록하지 않는다» 요구사항). 노드별 문서의 «매 호출 활동 로그» 서술은 통합을 얻은 뒤의 호출을 말한다. 유형 불일치·미연결·자격 증명 부족과 그 뒤의 실패는 통합을 얻은 뒤의 실패라 얻은 통합으로 활동 로그를 남긴다.
   - 통합을 얻기 전에 끝나는 실패는 워크스페이스 확인(1단계) 실패(`INTEGRATION_SERVICE_UNAVAILABLE`), 조회 거절(위 세 경우), 조회 중 일시 에러(DB 연결 에러 등), 자격 증명 읽기 실패다. 통합을 얻기 전의 노드 사전 검사 실패도 여기에 든다. Cafe24·MakeShop 노드의 API 클라이언트 미주입, operation 조회 실패(`CAFE24_UNKNOWN_OPERATION`·`MAKESHOP_UNKNOWN_OPERATION`), 필수 필드·조건 검사 실패(`CAFE24_MISSING_FIELDS`·`MAKESHOP_MISSING_FIELDS`), MakeShop 노드의 `MAKESHOP_INVALID_PAGINATION`, Database Query 노드의 파라미터 파싱 실패, Send Email 노드의 빈 수신자 확인 실패(`EMAIL_NO_RECIPIENTS`)가 해당한다. HTTP Request 노드는 인증 방식이 `none`·`custom` 이면 `integrationId` 가 남아 있어도 통합을 조회하지 않으므로 기록하지 않는다.
-  - 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)는 조회가 통합을 찾았어도 얻지 못한 통합으로 본다. `getForExecution` 이 통합을 돌려주지 않고 이 예외를 던지기 때문이다. 근거는 [Rationale 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05) 에 있다.
+  - 자격 증명을 읽지 못한 경우(`IntegrationCredentialsUnreadableError`)는 조회가 통합을 찾았어도 얻지 못한 통합으로 본다. `getForExecution` 이 통합을 돌려주지 않고 이 예외를 던지기 때문이다. 근거는 [Rationale 「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다) 에 있다.
   - 서비스가 주입되지 않은 경우는 기록할 서비스가 없어 남지 않는다.
 - **기록할 통합은 얻은 통합뿐이다**: `logUsage` 는 통합 ID 대신 `getForExecution` 이 돌려준 통합을 받는다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 «얻은 통합에만 기록한다» 요구사항). 얻지 못한 통합은 넘길 수 없으므로 위 규칙을 핸들러와 도구 프로바이더가 따로 지키지 않아도 된다. 다른 워크스페이스 통합도 `getForExecution` 이 돌려주지 않으므로 기록되지 않는다.
 - **에러 포트 라우팅**: 위 코드가 생기는 모든 경우는 핸들러 안에서 잡혀 `port: 'error'` 와 `output.error.{code, message, details?}` 로 나간다. 다섯 노드 모두 Send Email 노드의 catch 패턴으로 통일했다. `IntegrationError` 를 throw 해서 노드 실행이 실패하는 경로는 없다. 모든 `IntegrationError.code` 는 `output.error.code` 로 나온다. 통합을 얻은 뒤의 실패는 활동 로그에 `status: 'failed'` 와 `error: {code, message}` 로 기록한다. 통합을 얻기 전의 실패는 위 «통합을 얻기 전에 끝난 실행의 기록» 대로 남기지 않는다. 노드 취소로 생긴 `AbortError` 는 이 라우팅에 들지 않는다. 핸들러가 다시 던져 노드 실행이 `cancelled` 로 끝나고 활동 로그도 남기지 않는다([통합 노드 공통](CLE-NODE-INT-COMMON.md) 규칙 6 · 7).
@@ -54,7 +54,7 @@ etag: "sha256-072d70bb74e94d6390d0e4001f0af9ce221a58fb91a9528b990552281ad7301b"
 | [MakeShop](CLE-NODE-MAKESHOP.md#에러-코드) | `MAKESHOP_4XX`·`MAKESHOP_404`·`MAKESHOP_422`·`MAKESHOP_5XX`, `MAKESHOP_AUTH_FAILED`, `MAKESHOP_RATE_LIMITED`, `MAKESHOP_TRANSPORT_FAILED`, `MAKESHOP_UNKNOWN_OPERATION`, `MAKESHOP_MISSING_FIELDS`, `MAKESHOP_INVALID_PAGINATION`, `MAKESHOP_INVALID_SHOP_UID` |
 
 - Cafe24 노드가 403 에 어떤 코드를 내는지는 정의가 갈린다. [Cafe24 노드 미결 사항](CLE-NODE-CAFE24.md#미결-사항) 참조.
-- 통합 연결 테스트만 쓰는 코드(`EMAIL_CONNECT_FAILED`·`DB_AUTH_FAILED`·`DB_CONNECT_FAILED`·`HTTP_AUTH_FAILED`·`HTTP_SERVER_ERROR`·`HTTP_CONNECT_FAILED`)는 노드 출력에 나오지 않는다. [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md)에서 정한다. 사설망 차단 코드(`HTTP_BLOCKED`·`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)는 노드와 연결 테스트가 같이 쓴다.
+- 통합 연결 테스트만 쓰는 코드(예: `EMAIL_CONNECT_FAILED` · `DB_AUTH_FAILED` · `HTTP_CONNECT_FAILED`)는 노드 출력에 나오지 않는다. 전체 목록과 정의는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md)에 있다. 사설망 차단 코드(`HTTP_BLOCKED`·`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)는 노드와 연결 테스트가 같이 쓴다.
 
 ## 사설망 차단
 
@@ -78,7 +78,7 @@ etag: "sha256-072d70bb74e94d6390d0e4001f0af9ce221a58fb91a9528b990552281ad7301b"
   - 외부 MCP 서버([MCP 클라이언트 — 연결과 URL 검증](../CLE-INT/CLE-INT-MCP-CONN.md))
   - 알림 웹훅. DNS 가드 플래그가 켜져 있을 때만 판정한다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md))
   - LLM 엔드포인트의 OpenAI · Azure OpenAI · Cohere 리랭크 호출([LLM 클라이언트 「SSRF 가드」](../CLE-AI/CLE-AI-LLM.md#ssrf-가드))
-- Database Query · Send Email 의 연결 시점 판정은 공용 조회 함수(`safeOutboundLookup`)가 맡는다. 이 함수는 `dns.lookup` 이 돌려준 주소를 모두 공용 대역표로 판정하고, 통과한 주소로만 연결하게 한다. 드라이버가 소켓을 여는 자리에 이 함수를 건다. pg · mysql2 는 `stream` 팩토리로, nodemailer 는 transport 옵션 `getSocket` 으로 가드가 소켓을 직접 연다. 근거는 [Rationale 「Database Query · Send Email 에도 연결 시점 판정을 넣는다」](#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
+- Database Query · Send Email 의 연결 시점 판정은 공용 조회 함수(`safeOutboundLookup`)가 맡는다. 이 함수는 `dns.lookup` 이 돌려준 주소를 모두 공용 대역표로 판정하고, 통과한 주소로만 연결하게 한다. 드라이버가 소켓을 여는 자리에 이 함수를 건다. pg · mysql2 는 `stream` 팩토리로, nodemailer 는 transport 옵션 `getSocket` 으로 가드가 소켓을 직접 연다. 근거는 [Rationale 「Database Query · Send Email 에도 연결 시점 판정을 넣는다」](#database-query--send-email-에도-연결-시점-판정을-넣는다) 에 있다.
   - 풀은 새 연결을 맺을 때마다 판정한다. 이미 열린 연결은 다시 판정하지 않는다.
   - TLS · STARTTLS 는 드라이버가 그 소켓 위에서 원래 host 이름으로 맺는다. 그래서 SSL 매핑과 SNI · 인증서 검증의 이름은 바뀌지 않는다.
   - IP 리터럴 host 는 조회를 거치지 않으므로 연결 전 검사가 판정한다. 해석 실패는 판정하지 않고 전송 오류로 둔다. 연결 전 검사의 fail-open 과 같다.
@@ -90,6 +90,15 @@ etag: "sha256-072d70bb74e94d6390d0e4001f0af9ce221a58fb91a9528b990552281ad7301b"
 - 차단 코드는 차단 판정(`SsrfBlockedError`)에만 쓴다. 가드가 판정이 아닌 오류를 던지면(예: DNS 해석기가 낸 예기치 않은 예외) 가드의 고장으로 보고 분류되지 않은 실패 코드로 내보낸다. HTTP Request · Database Query 노드는 `INTEGRATION_CALL_FAILED`, HTTP 통합 연결 테스트는 `HTTP_CONNECT_FAILED`, Database 연결 테스트는 `DB_CONNECT_FAILED` 를 낸다. Send Email 노드는 `EMAIL_SEND_FAILED`, Email 연결 테스트는 `EMAIL_CONNECT_FAILED` 를 낸다. 메시지는 모두 고정 문구 `The outbound address check failed.` 이고 원문은 서버 경고 로그에만 남긴다. HTTP Request 노드는 preflight 와 리다이렉트 홉에서 같은 코드와 문구를 낸다. Send Email 노드는 `IntegrationError` 가 아닌 실패를 모두 `EMAIL_SEND_FAILED` 로 내는 노드라 가드 고장도 그 코드로 내고 `INTEGRATION_CALL_FAILED` 를 출력하지 않는다.
 - 위 규칙의 예외가 하나 있다. HTTP Request 노드는 통합 인증에서 리다이렉트를 5홉 넘게 따라가야 하면 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 메시지는 차단 판정과 같은 일반화 문구다. 사람이 2026-11-14 에 이 예외를 받아들이기로 정했다. 이 예외는 그 경우에만 쓰고 다른 실패로 넓히지 않는다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md) Rationale 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」 에 있다.
 - 클라이언트에 나가는 `output.error.message` 에는 차단된 호스트나 IP 를 넣지 않는다. 일반화된 문구만 쓴다(내부망 정찰 방지, CWE-209). HTTP Request · Database Query · Send Email 노드와 두 연결 테스트는 차단된 host · IP 원문을 서버 경고 로그에만 남기고 노드 에러 · 활동 로그 · 연결 테스트 응답에는 싣지 않는다.
+
+## 구현 위치
+
+「사설망 차단」의 공용 구현이다. 노드별 호출 자리는 각 노드 문서의 구현 위치에 있다.
+
+- `codebase/backend/src/common/utils/ssrf/outbound-guard.ts` (연결 전 검사 `assertSafeOutboundHostResolved` 와 연결 시점 판정 `safeOutboundLookup`)
+- `codebase/backend/src/common/utils/ssrf/ip-classifier.ts` (IP 리터럴 분류와 막는 대역 판정)
+- `codebase/backend/src/common/utils/ssrf/socket-adapters.ts` (연결 시점 판정 소켓 어댑터. pg · mysql2 `stream` 팩토리와 nodemailer `getSocket`)
+- `codebase/backend/src/common/utils/ssrf/guard-outcome.ts` (연결 전 검사 결과 분류 `runSsrfPreflight` 와 드라이버 오류에서 연결 시점 차단을 찾는 `findConnectTimeBlock`. 노드와 연결 테스트가 함께 쓴다)
 
 ## Rationale
 
@@ -105,15 +114,19 @@ HTTP Request·Database Query·Send Email 노드는 노드별 플래그를 새로
 
 HTTP Request 노드의 리다이렉트 한도 초과는 이 원칙의 예외다. 판정 없이 `HTTP_BLOCKED` 를 낸다. 2026-11-13 에 지금 동작을 그대로 적었고, 2026-11-14 에 NERV Task `CLE-T-43KCNP` 에서 사람이 전용 코드를 만들지 않고 받아들인 예외로 두기로 정했다. 근거는 [HTTP Request 노드 — 출력과 에러](CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) Rationale 에 있다. [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 의 `HTTP_BLOCKED` 행에는 NERV Task `CLE-T-6G3084` 가 이 예외를 적었다.
 
-### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다 (2026-11-14)
+### 연결 시점 판정은 대역표와 우회 플래그를 호출자가 정한다
+
+결정일: 2026-11-14
 
 > 2026-11-20 NERV Task `CLE-T-753725` 에서 네 가드의 대역표를 공용 표(`common/utils/ssrf/ip-classifier.ts`) 하나로 합쳤다. 우회 플래그는 지금도 경로마다 다르다. 같은 날 NERV Task `CLE-T-PT5YB5` 가 LLM 호출에도 같은 헬퍼로 연결 시점 판정을 넣었다. NERV Task `CLE-T-691T4G` · `CLE-T-PTCRM4` 는 Database Query · Send Email 에 넣었다. 아래는 결정 당시 기록이다.
 
 NERV Task `CLE-T-BS1WD1` · `CLE-T-GAQCF9` 에서 HTTP Request · 외부 MCP 서버 · 알림 웹훅의 연결에 연결 시점 주소 판정을 넣었다. NERV Task `CLE-T-NESSYD` 에서 HTTP 통합 연결 테스트도 HTTP Request 와 같은 판정 dispatcher 를 쓰게 했다. 세 경로는 공용 헬퍼(`createGuardedLookupDispatcher`)를 쓰고 판정 함수는 각 경로가 넘긴다. HTTP Request 는 이 문서의 대역표와 `ALLOW_PRIVATE_HOST_TARGETS` 를, MCP 는 MCP 의 대역표와 `MCP_ALLOW_INSECURE_URL` 을, 알림 웹훅은 알림의 대역표와 DNS 가드 플래그(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)를 그대로 쓴다([EIA 알림 웹훅 — SSRF 방지](../CLE-IX/CLE-EIA-NOTIFY-SSRF.md)). 대역표와 우회 플래그를 합치는 일은 이번 범위가 아니다. 합치면 각 경로의 Rationale 이 함께 바뀐다. 그 결정 뒤 2026-11-20 에 대역표는 공용 판정(`codebase/backend/src/common/utils/ssrf/ip-classifier.ts`)으로 합쳤다(NERV Task `CLE-T-753725` · `CLE-T-63RSH6`). 우회 플래그는 합치지 않았다. 근거는 [대역표를 SSRF 가드 넷이 함께 쓴다 (2026-11-20)](../CLE-INT/CLE-INT-MCP-CONN.md#대역표를-ssrf-가드-넷이-함께-쓴다-2026-11-20) 에 있다. HTTP Request 쪽 근거는 [HTTP Request 노드 — 실행 로직](CLE-NODE-HTTP-EXEC.md) Rationale 「연결할 때 푼 주소를 다시 판정한다」 에 있다.
 
-### Database Query · Send Email 에는 연결 시점 판정을 아직 넣지 않는다 (2026-11-20)
+### Database Query · Send Email 에는 연결 시점 판정을 아직 넣지 않는다
 
-> 같은 날 후속 NERV Task `CLE-T-691T4G`(Database Query) · `CLE-T-PTCRM4`(Send Email) 에서 두 경로에도 연결 시점 판정을 넣었다. 지금 규칙은 [사설망 차단](#사설망-차단) 에 있고, 고른 방식의 근거는 [「Database Query · Send Email 에도 연결 시점 판정을 넣는다」](#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다. 아래는 결정 당시 기록이다.
+결정일: 2026-11-20
+
+> 같은 날 후속 NERV Task `CLE-T-691T4G`(Database Query) · `CLE-T-PTCRM4`(Send Email) 에서 두 경로에도 연결 시점 판정을 넣었다. 지금 규칙은 [사설망 차단](#사설망-차단) 에 있고, 고른 방식의 근거는 [「Database Query · Send Email 에도 연결 시점 판정을 넣는다」](#database-query--send-email-에도-연결-시점-판정을-넣는다) 에 있다. 아래는 결정 당시 기록이다.
 
 NERV Task `CLE-T-PT5YB5` 에서 연결 시점 판정이 없던 경로(LLM · Database Query · Send Email)의 범위를 정했다. 2026-11-20 에 사람이 LLM 의 OpenAI · Azure OpenAI · Cohere 리랭크 호출에만 넣고 Database Query · Send Email 은 미루기로 정했다.
 
@@ -122,7 +135,9 @@ NERV Task `CLE-T-PT5YB5` 에서 연결 시점 판정이 없던 경로(LLM · Dat
 - 그동안은 연결 전 사전 검사(`assertSafeOutboundHostResolved`)와 egress 방화벽으로 보완한다.
 - 후속 Task 는 경로마다 하나다. Database Query 는 NERV Task `CLE-T-691T4G`, Send Email 은 NERV Task `CLE-T-PTCRM4` 다.
 
-### Database Query · Send Email 에도 연결 시점 판정을 넣는다 (2026-11-20)
+### Database Query · Send Email 에도 연결 시점 판정을 넣는다
+
+결정일: 2026-11-20
 
 NERV Task `CLE-T-691T4G`(Database Query) · `CLE-T-PTCRM4`(Send Email) 에서 두 경로에 연결 시점 판정을 넣었다. 미룰 때 든 두 걱정은 이렇게 풀었다.
 
@@ -140,9 +155,11 @@ NERV Task `CLE-T-691T4G`(Database Query) · `CLE-T-PTCRM4`(Send Email) 에서 �
 
 남는 한계: IP 리터럴 host 와 해석 실패는 연결 시점 판정이 보지 않는다. 리터럴은 연결 전 검사가 막고, 해석되지 않는 host 에는 닿을 수 없다. 이미 열린 풀 연결은 다시 판정하지 않는다.
 
-### 거절된 조회는 임시 장치로 건너뛴다 (2026-10-25)
+### 거절된 조회는 임시 장치로 건너뛴다
 
-> 2026-11-05 NERV Task `CLE-T-PTC4SF` 에서 이 장치를 지웠다. 아래는 결정 당시 기록이다. 지금 규칙은 [공통 에러 코드](#공통-에러-코드) 의 «통합을 얻기 전에 끝난 실행의 기록» 과 [「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다-2026-11-05) 에 있다.
+결정일: 2026-10-25
+
+> 2026-11-05 NERV Task `CLE-T-PTC4SF` 에서 이 장치를 지웠다. 아래는 결정 당시 기록이다. 지금 규칙은 [공통 에러 코드](#공통-에러-코드) 의 «통합을 얻기 전에 끝난 실행의 기록» 과 [「자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다」](#자격-증명을-읽지-못한-통합은-얻지-못한-통합으로-본다) 에 있다.
 
 얻기와 검증을 나눈 뒤에도(`CLE-T-1BQZ10`) `logUsage` 의 서명은 그대로라 다섯 핸들러는 실패하면 설정의 `integrationId` 로 기록했다. 그대로 두면 개인 통합 사용 판정에서 거절된 통합의 활동 탭과 `last_error` 에 남의 워크플로우 실행이 남았다([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) 의 «남의 개인 통합은 없는 통합과 같게 실패한다» · «통합을 얻기 전 실패는 기록하지 않는다» 요구사항). 그래서 서명을 바꾸기 전까지 임시 장치를 두었다.
 
@@ -152,7 +169,9 @@ NERV Task `CLE-T-691T4G`(Database Query) · `CLE-T-PTCRM4`(Send Email) 에서 �
 - **남는 경로**: 워크스페이스 확인 실패, 일시 에러, 자격 증명 읽기 실패의 기록은 이 장치가 막지 않았다. 이 경로에서는 설정의 `integrationId` 가 가리키는 통합에 기록이 남았다. 받아들인 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 「개인 통합의 역할 하한과 노드 사용 기준을 정한다」 이행의 «활동 로그 규칙은 노드 사용 기준보다 늦게 내지 않는다» 항목에 있다.
 - **걷는 시점**: `logUsage` 를 얻은 통합만 받는 서명으로 바꾸면 얻지 못한 통합은 넘길 값이 없다. 그때 이 장치와 `acquireIntegration` 의 기록 코드를 지우기로 했고, 2026-11-05 에 NERV Task `CLE-T-PTC4SF` 가 그렇게 했다.
 
-### 자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다 (2026-11-05)
+### 자격 증명을 읽지 못한 통합은 얻지 못한 통합으로 본다
+
+결정일: 2026-11-05
 
 NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로 바꾸면서 자격 증명을 읽지 못한 통합을 어느 쪽으로 볼지 정했다. `getForExecution` 은 통합을 찾은 뒤 복호화에 실패하면 통합을 돌려주지 않고 `IntegrationCredentialsUnreadableError` 를 던진다. 이 경우를 얻지 못한 통합으로 본다. 핸들러에 넘길 통합이 없으므로 활동 로그를 남기지 않고 `last_used_at`·`last_error` 도 바꾸지 않는다.
 
@@ -163,7 +182,9 @@ NERV Task `CLE-T-PTC4SF` 가 `logUsage` 를 얻은 통합만 받는 서명으로
 - 기각: 이 경우만 통합 ID 로 기록하는 안. 위 둘째 이유로 뺐다.
 - 이 예외의 노드 출력 코드는 이 결정으로 정하지 않았다. [미결 사항](CLE-NODE-INT-COMMON.md#미결-사항) 의 «자격 증명 복호화 실패의 출력 코드» 는 그대로 남는다.
 
-### 워크스페이스 누락도 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다 (2026-11-26)
+### 워크스페이스 누락도 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다
+
+결정일: 2026-11-26
 
 이 문서의 코드 표는 워크스페이스 누락을 이미 이 코드로 적었다. 그런데 공통 베이스가 일반 `Error` 를 던져서 노드별 fallback 코드가 나왔다. 사람이 구현을 규칙에 맞추기로 정했고(NERV Task `CLE-T-MYDNQN`) 코드 행의 정의는 바꾸지 않았다. 경위와 기각한 안은 [핸들러 실행 계약](CLE-NODE-INT-COMMON-HANDLER.md) Rationale 의 같은 제목 절에 있다.
 

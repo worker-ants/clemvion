@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-EXEC"
 title: "용어 사전 — 실행"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "1424b6624d7d7b4ac76bfd01f51a7d6397fbdc4d07630c04c5640bfe90780873"
+content_hash: "902227d05e24bd96642eb73a855eb73206a734a57270b9410de9fedd19282019"
 read_as: "approved_fallback"
-task: "CLE-T-M6W7RE"
+task: "CLE-T-SCFC83"
 source_paths: []
-mirror_sha256: "a8dfd1506e82f857b8412710876aabb829129a847bf1cdd22afbf8721866f8f4"
-etag: "sha256-42bbd1699ef99852fab84d53d00393e5e8575b54f85438bd4ae7610d1f98761e"
+mirror_sha256: "b247138c859e169089be7245210b0c76f1e24576baeb7d87759042d8d7fdce29"
+etag: "sha256-56d46319798994cacdc5a800e168d0e4dc993f8484b7560e5a59221bedbe50a5"
 ---
 ## 개요
 
@@ -88,7 +88,9 @@ etag: "sha256-42bbd1699ef99852fab84d53d00393e5e8575b54f85438bd4ae7610d1f98761e"
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「실행」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
 
-### 정의 보정 (2026-10-03)
+### 정의 보정
+
+결정일: 2026-10-03
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 

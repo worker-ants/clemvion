@@ -2,23 +2,25 @@
 id: "CLE-ACCT-DATA-AUTH"
 title: "계정과 워크스페이스 데이터 흐름 — 인증 흐름"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ACCT-DATA"
 ancestors: ["CLE-VISION", "CLE-ACCT", "CLE-ACCT-DATA"]
 area: "CLE-ACCT"
-content_hash: "557f4c6054a1af6b2159116ec7b97cb58f8cced64e167fa960688515ff738a3c"
+content_hash: "e1e7a3cdc5a2f45d2fc52b2af2b9817b77c1eead3953f72b4d51a68c30b3f42a"
 read_as: "approved_fallback"
-task: "CLE-T-M3Z08T"
+task: "CLE-T-WYJEAQ"
 source_paths: []
-mirror_sha256: "64aa157e883050542a6333750d8a9a61b12b2148d050c87fbd91d488499d05b3"
-etag: "sha256-aa64c1ab6dcc65c80fc820ef5e768631ba676a4d85584d960cf21efed4e8b383"
+mirror_sha256: "cff291e41a3adc16f617073fb6566f333e34102bb1d79f3ee18f95bf340b351a"
+etag: "sha256-14edf1e2af36ecbf54a231cf6c7c6d672a97b8e0d463675b069b566353948adb"
 ---
 ## 개요
 
-이 문서는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 하위 문서로 인증 동작(가입 · 로그인과 2단계 인증 · 소셜 로그인 · 토큰 회전 · 세션 종료 · 비밀번호 재설정 · 이메일 변경)이 어느 테이블을 어떤 순서로 읽고 쓰는지와 인증 상태의 전이를 정한다. 컬럼 정의는 [사용자 · 인증 엔티티](CLE-ACCT-DATA-MODEL.md), 흐름별 쓰기 컬럼 표와 요청 빈도 제한은 [테이블 쓰기 · 배치 · 외부 의존](CLE-ACCT-DATA-OPS.md) 에 있다. 동작 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 과 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다.
+이 문서는 [계정과 워크스페이스 데이터 흐름](CLE-ACCT-DATA.md) 의 하위 문서로 인증 동작(가입 · 로그인과 2단계 인증 · 소셜 로그인 · 토큰 회전 · 세션 강제 종료 · 비밀번호 재설정 · 이메일 변경)이 어느 테이블을 어떤 순서로 읽고 쓰는지와 인증 상태의 전이를 정한다. 컬럼 정의는 [사용자 · 인증 엔티티](CLE-ACCT-DATA-MODEL.md), 흐름별 쓰기 컬럼 표와 요청 빈도 제한의 집계 키는 [테이블 쓰기 · 배치 · 외부 의존](CLE-ACCT-DATA-OPS.md), 라우트별 한도 수치는 [HTTP API 규약 §7](../CLE-API/CLE-API-CONV-RATE.md#7-요청-빈도-제한) 에 있다. 동작 규칙은 [가입과 로그인](CLE-ACCT-SIGNIN.md) 과 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정한다.
+
+응답 표기는 `{ data }` 봉투 안의 내용만 적는다([HTTP API 규약 §5](../CLE-API/CLE-API-CONV-RESP.md#5-응답-형식)). 다이어그램의 `USER_NOT_FOUND` 같은 로그인 이력 `failure_reason` 은 기록용 사유값이고 응답 에러 코드와 다른 층이다([LoginHistory](CLE-ACCT-DATA-MODEL.md#loginhistory)).
 
 ## 회원가입 (로컬)
 
@@ -30,7 +32,7 @@ sequenceDiagram
   participant Svc as AuthService
   participant PG as Postgres
   participant Mail as MailService
-  C->>Ctl: POST /api/auth/register {email, password, name}
+  C->>Ctl: POST /api/auth/register {name, email, password, termsAccepted}
   Ctl->>Svc: register()
   Svc->>PG: SELECT user WHERE email (중복 검사)
   Svc->>Svc: 비밀번호 강도 검증, bcrypt 해시
@@ -41,7 +43,7 @@ sequenceDiagram
 ```
 
 - 로컬 가입은 두 단계다. `register` 는 사용자 행과 인증 메일만 만들고 토큰을 발급하지 않는다. 개인 워크스페이스 생성과 토큰·`Set-Cookie` 는 `POST /api/auth/verify-email` 단계에서 한다. `auth.service.ts` 의 `verifyEmail` 트랜잭션이 `createPersonalWorkspace` 를 부르고 `generateTokens` 로 토큰을 만든다.
-- 예외: `invitationToken` 을 담은 가입은 인증 메일 없이 한 트랜잭션에서 사용자와 초대받은 팀의 `workspace_member` 를 만들고 바로 로그인한다. 응답은 `{ message, accessToken }` 과 리프레시 쿠키이고 개인 워크스페이스는 만들지 않는다([초대 가입](CLE-ACCT-DATA-WS.md#초대-가입-미가입자)).
+- 예외: 본문에 `invitationToken` 을 함께 보낸 가입은 인증 메일 없이 한 트랜잭션에서 사용자와 초대받은 팀의 `workspace_member` 를 만들고 바로 로그인한다. 응답은 `{ message, accessToken }` 과 리프레시 쿠키이고 개인 워크스페이스는 만들지 않는다([초대 가입](CLE-ACCT-DATA-WS.md#초대-가입-미가입자)).
 
 ## 로그인과 2단계 인증
 
@@ -94,7 +96,7 @@ sequenceDiagram
   Svc-->>C: { accessToken } + 리프레시 쿠키
 ```
 
-- 2단계 검증에서 인증에 실패하면 Passkey 는 `webauthn_failed`, TOTP 는 `totp_failed` 를 기록하고 401 을 준다. Passkey 인증 챌린지를 기록하지 못해 판정까지 가지 못한 503 은 이 규칙 밖이다(아래 503 불릿).
+- 2단계 검증에서 인증에 실패하면 Passkey 는 `webauthn_failed` 를 기록하고 401 `WEBAUTHN_INVALID` 를 준다. TOTP 는 `totp_failed` 를 기록하고 401 `TOTP_INVALID` 를 준다. Passkey 인증 챌린지를 기록하지 못해 판정까지 가지 못한 503 은 이 규칙 밖이다(아래 503 불릿).
 - 성공 응답 본문은 `{ accessToken }` 뿐이다. 리프레시 토큰은 httpOnly 쿠키로만 내려가고 `user` 객체는 없다(`auth.controller.ts` 의 `login`).
 - Passkey 를 쓸 수 없는 사용자는 `POST /api/auth/2fa/webauthn/recovery` 로 등록 때 받은 복구 코드를 내 2단계를 통과한다(`webauthn/webauthn.controller.ts`).
 - 이메일 인증 여부는 비밀번호 확인 뒤에 보므로 비밀번호가 틀린 인증 전 계정은 `INVALID_PASSWORD` 로 기록된다. 다이어그램의 `EMAIL_VERIFICATION_REQUIRED` 와 `WEBAUTHN_DISABLED` 두 경우 모두 비밀번호가 맞았으므로 `login_attempts` 는 0 으로 되돌린다. 규칙은 [가입과 로그인 「로그인 처리」](CLE-ACCT-SIGNIN.md#로그인-처리) 에 있다.
@@ -145,9 +147,9 @@ sequenceDiagram
 - 이메일 매칭 연결은 기존 계정의 이메일 인증 여부에 따라 갈린다(`auth-oauth.service.ts` 의 `resolveUser` · `claimUnverifiedAccount`). 규칙과 근거는 [로그인과 소셜 로그인](CLE-ACCT-SIGNIN-LOGIN.md) 에 있다.
   1. 이메일 인증 전 계정이면 트랜잭션 하나를 열고 조건부 UPDATE 하나로 `oauth_provider` · `oauth_provider_id` · `email_verified=true` · `avatar_url`(기존 값 우선)을 쓰고 `password_hash` · `password_reset_token` · `password_reset_expires_at` · `email_verify_token` · `email_verify_expires_at` 을 NULL 로 비운다. 조건은 `id = :id AND oauth_provider IS NULL AND email_verified = false` 다.
   2. 그 UPDATE 가 한 행을 바꿨으면 같은 트랜잭션에서 `SessionsService.revokeAllFamilies` 로 그 사용자의 리프레시 토큰을 모두 `is_revoked=true` 로 바꾼다. 폐기가 실패하면 1의 UPDATE 도 롤백하고 콜백은 토큰을 발급하지 않고 실패한다. 계정이 인증 전 상태로 남으므로 다음 로그인 시도는 다시 이 경로로 들어온다. 폐기한 행이 있으면 로그인 이력 `session_revoked`(일괄, `family_id=null`)를 1건 남긴다. 폐기를 마친 뒤에 콜백이 새 로그인 세션을 발급한다.
-  3. 그 UPDATE 가 0행이면 그 사이 인증을 마쳤거나 다른 제공자에 묶인 계정이다. 세션을 폐기하지 않고 4의 조건부 연결로 넘어간다.
-  4. 이메일 인증을 마친 계정은 `oauth_provider IS NULL` 조건부 UPDATE 로 연결한다. 이미 다른 제공자에 묶인 계정은 덮어쓰지 않는다. `email_verified=true` 와 아바타 URL 도 함께 쓰고 비밀번호와 세션은 그대로 둔다.
-- 미인증 계정에는 보통 세션이 없어서 위 2의 폐기는 방어용이다. TOTP 와 Passkey 는 로그인해야 설정할 수 있어 미인증 계정에는 없으므로 이 경로가 건드리지 않는다. 비밀번호를 다시 쓰려는 사용자는 「비밀번호 찾기」로 새로 정한다.
+  3. 그 UPDATE 가 0행이면 그 사이 인증을 마쳤거나 다른 제공자에 묶인 계정이다. 로그인 세션을 폐기하지 않고 4의 조건부 연결로 넘어간다.
+  4. 이메일 인증을 마친 계정은 `oauth_provider IS NULL` 조건부 UPDATE 로 연결한다. 이미 다른 제공자에 묶인 계정은 덮어쓰지 않는다. `email_verified=true` 와 아바타 URL 도 함께 쓰고 비밀번호와 로그인 세션은 그대로 둔다.
+- 미인증 계정에는 보통 로그인 세션이 없어서 위 2의 폐기는 방어용이다. TOTP 와 Passkey 는 로그인해야 설정할 수 있어 미인증 계정에는 없으므로 이 경로가 건드리지 않는다. 비밀번호를 다시 쓰려는 사용자는 「비밀번호 찾기」로 새로 정한다.
 - 신규 사용자 경로에서 첫 콜백이 동시에 와 unique index 충돌(23505)이 나면 이긴 쪽이 만든 행을 다시 조회해 복구한다.
 - `OAUTH_STUB_MODE` 는 개발·테스트에서만 제공자 토큰·userinfo 호출을 stub 으로 바꾼다. 운영에서 켜면 부팅을 거부한다([세션과 토큰](CLE-ACCT-SESSION.md)).
 
@@ -161,25 +163,26 @@ sequenceDiagram
   participant PG as Postgres
   participant Hist as LoginHistoryService
   C->>Svc: POST /api/auth/refresh (리프레시 쿠키, 본문 없음)
-  Note over Svc: 쿠키가 없으면 401
+  Note over Svc: 쿠키가 없으면 401 AUTH_REQUIRED
   Svc->>PG: SELECT refresh_token WHERE token_hash = sha256(쿠키)
   alt is_revoked (재사용 감지)
     Svc->>PG: UPDATE 같은 family_id 전체 is_revoked=true
     Svc->>Hist: token_reuse_detected, family_id
     Svc-->>C: 401 TOKEN_INVALID
   else expires_at < now
-    Svc-->>C: 401 TOKEN_EXPIRED (세션 무효화·이력 없음)
+    Svc-->>C: 401 TOKEN_EXPIRED (로그인 세션 무효화·이력 없음)
   end
   Note over Svc,PG: 한 트랜잭션 (무효화 + INSERT)
   Svc->>PG: UPDATE refresh_token SET is_revoked=true, last_used_at=now WHERE id AND is_revoked=false AND expires_at > now
-  Note over Svc: 영향 행이 0이면 동시 회전 경합으로 보고 401 TOKEN_INVALID
+  Note over Svc: 영향 행이 0이면 동시 토큰 회전 경합으로 보고 401 TOKEN_INVALID
   Svc->>PG: INSERT refresh_token (같은 family_id, 새 token_hash, 옛 행의 remember_me, expires_at = now + 30일 또는 7일)
   Svc-->>C: { accessToken } + 새 리프레시 쿠키 (maxAge 30일 또는 7일)
 ```
 
 - 재사용 감지(같은 `family_id` 전체 무효화와 `token_reuse_detected` 기록)는 `is_revoked=true` 인 토큰이 다시 쓰일 때만 동작한다. 단순 만료는 부작용 없이 401 `TOKEN_EXPIRED` 만 준다(`auth.service.ts` 의 `refresh`). 현재 구현에서 워크스페이스 JWT 층의 `TOKEN_EXPIRED` 발행처는 이 갱신 경로 하나다. 만료된 액세스 토큰에 전용 코드를 줄지는 별도 제품 결정이다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md#token_expired-설명을-리프레시-토큰-만료로-맞춘-이유) 의 Rationale 「`TOKEN_EXPIRED` 설명을 리프레시 토큰 만료로 맞춘 이유」).
-- 재사용 분기의 전체 무효화는 단일 UPDATE 라 그 자체로 원자적이고 로그인 이력 기록은 트랜잭션 밖에 둔다. 정상 회전은 로그인 이력에 남기지 않는다.
-- 새 행은 옛 행의 `remember_me` 를 이어받는다. `expires_at` 은 회전한 시점부터 다시 잡는다. 로그인 유지면 30일이고 아니면 7일이다. 갱신 응답의 리프레시 쿠키 `maxAge` 도 같은 값이다. 규칙은 [세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지) 가 정한다.
+- 쿠키가 없을 때의 401 은 컨트롤러가 코드 없이 던지고 전역 필터가 401 기본 코드 `AUTH_REQUIRED` 로 채운다(`auth.controller.ts` 의 `refresh`).
+- 재사용 분기의 전체 무효화는 단일 UPDATE 라 그 자체로 원자적이고 로그인 이력 기록은 트랜잭션 밖에 둔다. 정상 토큰 회전은 로그인 이력에 남기지 않는다.
+- 새 행은 옛 행의 `remember_me` 를 이어받는다. `expires_at` 은 토큰 회전 시점부터 다시 잡는다. 로그인 유지면 30일이고 아니면 7일이다. 갱신 응답의 리프레시 쿠키 `maxAge` 도 같은 값이다. 규칙은 [세션과 토큰 「로그인 유지」](CLE-ACCT-SESSION.md#로그인-유지) 가 정한다.
 
 ## 세션 강제 종료
 
@@ -191,13 +194,13 @@ sequenceDiagram
   C->>Svc: POST /api/auth/sessions/:familyId/revoke {비밀번호 또는 TOTP}
   Svc->>PG: UPDATE refresh_token SET is_revoked=true WHERE user_id=me AND family_id
   Svc->>PG: INSERT login_history (session_revoked, family_id)
-  Svc-->>C: 200 { items: 갱신된 세션 목록 }
+  Svc-->>C: 200 { items: 갱신된 로그인 세션 목록 }
 ```
 
 - 세션 라우트 세 개(목록, 개별 종료, 일괄 종료)는 `/api/auth/sessions` 아래에 있다. 현재 로그인 세션은 요청의 리프레시 쿠키로 가리는데 그 쿠키의 Path 가 `/api/auth` 라서 그 아래 경로에만 쿠키가 실린다(`sessions.controller.ts`). 경로를 옮긴 이유는 Rationale 「세션 API 를 리프레시 쿠키 경로 아래로 옮겼다」 에 있다.
-- 응답은 204 가 아니라 200 과 갱신된 세션 목록이다. 일괄 종료 `POST /api/auth/sessions/revoke-others` 는 요청의 리프레시 쿠키가 없거나 그 쿠키로 현재 로그인 세션을 찾지 못하면 400 `CURRENT_SESSION_REQUIRED` 로 거부한다.
-- 세부 규칙(`sessions.service.ts`): 현재 요청의 리프레시 쿠키와 맞는 로그인 세션은 스스로 종료할 수 없다(400 `CANNOT_REVOKE_CURRENT_SESSION`, 로그아웃을 쓰게 한다). 계정 재인증 수단이 없는 사용자(비밀번호도 TOTP 도 없음. Passkey 만 등록한 계정 포함)는 403 `REAUTH_NOT_AVAILABLE`. 다른 사용자의 로그인 세션과 없는 로그인 세션은 똑같이 404 다(정보 누출 방지).
-- 읽기 경로 `GET /api/auth/sessions` 는 활성 세션을 로그인 세션 단위로 돌려주고 요청 쿠키와 맞는 세션에 `isCurrent=true` 를 표시한다.
+- 응답은 204 가 아니라 200 과 갱신된 로그인 세션 목록이다. 일괄 종료 `POST /api/auth/sessions/revoke-others` 는 요청의 리프레시 쿠키가 없거나 그 쿠키로 현재 로그인 세션을 찾지 못하면 400 `CURRENT_SESSION_REQUIRED` 로 거부한다.
+- 세부 규칙(`sessions.service.ts`): 현재 요청의 리프레시 쿠키와 맞는 로그인 세션은 스스로 종료할 수 없다(400 `CANNOT_REVOKE_CURRENT_SESSION`, 로그아웃을 쓰게 한다). 계정 재인증은 비공개 메서드 `verifyReauth` 가 한다. 계정 재인증 수단이 없는 사용자(비밀번호도 TOTP 도 없음. Passkey 만 등록한 계정 포함)는 403 `REAUTH_NOT_AVAILABLE`. 다른 사용자의 로그인 세션과 없는 로그인 세션은 똑같이 404 다(정보 누출 방지).
+- 읽기 경로 `GET /api/auth/sessions` 는 활성 로그인 세션 목록을 돌려주고 요청 쿠키와 맞는 로그인 세션에 `isCurrent=true` 를 표시한다.
 - 로그인 이력 조회 `GET /api/users/me/login-history` 는 쿠키가 필요 없어 `/api/users/me` 아래에 그대로 둔다. 같은 컨트롤러가 받는다.
 - 로그아웃은 요청 쿠키의 `family_id` 전체를 무효화하고 `login_history.event=logout` 을 남긴다. 절차는 [세션과 토큰](CLE-ACCT-SESSION.md).
 
@@ -205,19 +208,19 @@ sequenceDiagram
 
 `auth.controller.ts`·`auth.service.ts` 의 `forgotPassword`·`resetPassword`·`resendVerification`·`checkEmail` 이다.
 
-1. `POST /api/auth/forgot-password`(IP 당 분당 5회): 사용자가 있으면 30분짜리 재설정 토큰을 만들어 `password_reset_token`(SHA-256 해시)으로 저장하고 SMTP 로 보낸다. DB·메일 에러를 포함한 모든 실패를 드러내지 않고 존재 여부와 상관없이 같은 응답을 준다.
+1. `POST /api/auth/forgot-password`: 사용자가 있으면 30분짜리 재설정 토큰을 만들어 `password_reset_token`(SHA-256 해시)으로 저장하고 SMTP 로 보낸다. DB·메일 에러를 포함한 모든 실패를 드러내지 않고 존재 여부와 상관없이 같은 응답을 준다.
 2. `POST /api/auth/reset-password`: 토큰과 비밀번호 강도를 검증한 뒤 `password_hash` 를 바꾸고 재설정 토큰 필드를 지운다. 그 사용자의 `refresh_token` 을 모두 무효화한다.
-3. `POST /api/auth/resend-verification`(IP 당 분당 5회): 미인증 계정에 24시간짜리 인증 토큰을 다시 발급해 보낸다. 재설정 요청과 같은 방식으로 항상 같은 응답을 준다.
-4. `POST /api/auth/check-email`(IP 당 분당 5회): 가입 전 이메일 사용 가능 여부 `{ available }` 을 돌려준다.
+3. `POST /api/auth/resend-verification`: 미인증 계정에 24시간짜리 인증 토큰을 다시 발급해 보낸다. 재설정 요청과 같은 방식으로 항상 같은 응답을 준다.
+4. `POST /api/auth/check-email`: 가입 전 이메일 사용 가능 여부 `{ available }` 을 돌려준다.
 
 ## 이메일 변경
 
 모두 JWT 인증이 필요하다. `users.controller.ts` 가 받아 `AuthService` 로 넘긴다. 규칙과 이유는 [가입과 로그인](CLE-ACCT-SIGNIN.md) 에 있다.
 
-1. `POST .../request { newEmail, password? | totpCode? }`(request·resend 사용자당 분당 5회): `SessionsService.reauthenticate`(내부 `verifyReauth`)로 비밀번호 또는 TOTP 로 계정 재인증을 하고 새 이메일을 검증(현재와 같음, 중복)한다. `pending_email` 과 `email_change_token`(SHA-256, 1시간)을 저장하고 새 이메일로 확인 메일을 보낸다. 발송이 실패하면 대기 필드 3개를 되돌리고(`clearPendingEmailChange`) 에러를 전파한다.
-2. `POST .../verify { token }`(로그인한 본인 세션): 토큰 SHA-256 이 `email_change_token` 과 같고 만료되지 않았는지 확인한다. 트랜잭션에서 선점을 다시 검사하고 `email = pending_email`, `email_verified=true`, 대기 필드 3개 NULL 로 바꾼다. 이어서 모든 로그인 세션을 무효화(`revokeAllFamilies`)하고 현재 기기에 다시 발급한다(`{ accessToken }` 과 리프레시 쿠키 회전). 옛 이메일 통지(best-effort, 실패하면 `logger.warn`)와 감사 로그 `user.email_changed` 가 뒤따르고 무효화한 행이 있으면 `login_history` `session_revoked`(일괄, `family_id=null`)도 남는다([세션 정책](CLE-ACCT-SESSION-POLICY.md#세션-정책)).
-3. `POST .../resend`: 토큰을 다시 발급한다. 발송이 실패해도 토큰을 유지하고 재시도로 복구한다.
-4. `POST .../cancel`: 대기 필드 3개를 NULL 로 지운다. 재인증이 필요 없고 멱등이다.
+1. `POST /api/users/me/email-change/request { newEmail, password? | totpCode? }`: `SessionsService.reauthenticate` 로 비밀번호 또는 TOTP 계정 재인증을 하고 새 이메일을 검증(현재와 같음, 중복)한다. `reauthenticate` 는 사용자를 찾아 세션 강제 종료와 같은 `verifyReauth` 를 부르는 공개 메서드다. `pending_email` 과 `email_change_token`(SHA-256, 1시간)을 저장하고 새 이메일로 확인 메일을 보낸다. 발송이 실패하면 대기 필드 3개를 되돌리고(`clearPendingEmailChange`) 에러를 전파한다.
+2. `POST /api/users/me/email-change/verify { token }`(로그인한 본인이 보낸다): 토큰 SHA-256 이 `email_change_token` 과 같고 만료되지 않았는지 확인한다. 트랜잭션에서 선점을 다시 검사하고 `email = pending_email`, `email_verified=true`, 대기 필드 3개 NULL 로 바꾼다. 이어서 모든 로그인 세션을 무효화(`revokeAllFamilies`)하고 현재 기기에 다시 발급한다(`{ accessToken }` 과 새 리프레시 쿠키). 옛 이메일 통지(best-effort, 실패하면 `logger.warn`)와 감사 로그 `user.email_changed` 가 뒤따르고 무효화한 행이 있으면 `login_history` `session_revoked`(일괄, `family_id=null`)도 남는다([세션 정책](CLE-ACCT-SESSION-POLICY.md#세션-정책)).
+3. `POST /api/users/me/email-change/resend`: 토큰을 다시 발급한다. 발송이 실패해도 토큰을 유지하고 재시도로 복구한다.
+4. `POST /api/users/me/email-change/cancel`: 대기 필드 3개를 NULL 로 지운다. 계정 재인증이 필요 없고 멱등이다.
 
 ## 상태 전이
 
@@ -225,8 +228,8 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Active: 로그인·회전 INSERT
-  Active --> Revoked: 회전 (옛 행)
+  [*] --> Active: 로그인·토큰 회전 INSERT
+  Active --> Revoked: 토큰 회전 (옛 행)
   Active --> Revoked: 로그아웃·세션 강제 종료
   Active --> Revoked: 재사용 감지로 family 전체
   Active --> Revoked: 비밀번호 재설정·변경, 이메일 변경, Passkey counter 역행, 미인증 계정의 소셜 연결
@@ -270,15 +273,15 @@ stateDiagram-v2
 
 ### 토큰 회전은 트랜잭션과 조건부 UPDATE 로 원자화한다
 
-회전(정상 분기)은 옛 토큰 무효화와 새 토큰 INSERT 를 한 DB 트랜잭션으로 묶는다. 따로 하면 그 사이에 크래시가 날 때 옛 토큰만 무효가 되고 새 토큰이 없어 세션이 통째로 사라진다. 트랜잭션으로 묶으면 중간 실패 때 둘 다 되돌아가 옛 토큰이 `is_revoked=false` 로 남는다. 가입 인증 `verifyEmail` 트랜잭션(사용자, 개인 워크스페이스, 토큰 발급을 한 번에)과 같은 원자성 정책이다.
+토큰 회전(정상 분기)은 옛 토큰 무효화와 새 토큰 INSERT 를 한 DB 트랜잭션으로 묶는다. 따로 하면 그 사이에 크래시가 날 때 옛 토큰만 무효가 되고 새 토큰이 없어 로그인 세션이 통째로 사라진다. 트랜잭션으로 묶으면 중간 실패 때 둘 다 되돌아가 옛 토큰이 `is_revoked=false` 로 남는다. 가입 인증 `verifyEmail` 트랜잭션(사용자, 개인 워크스페이스, 토큰 발급을 한 번에)과 같은 원자성 정책이다.
 
-무효화는 단순 `WHERE id` UPDATE 가 아니라 조건부 UPDATE(`is_revoked=false AND expires_at>now`)다. 조회, 검증, UPDATE 사이에는 TOCTOU 창이 있어 같은 토큰으로 동시에 온 두 갱신 요청이 모두 회전하려 할 수 있다. 조건부 UPDATE 의 영향 행이 0이면 다른 요청이 먼저 회전한 것이라 새 토큰을 주지 않고 `TOKEN_INVALID` 로 거부해 이중 회전을 막는다. 경합 판정을 DB 단일 UPDATE 의 원자성에 맡기는 것이다.
+무효화는 단순 `WHERE id` UPDATE 가 아니라 조건부 UPDATE(`is_revoked=false AND expires_at>now`)다. 조회, 검증, UPDATE 사이에는 TOCTOU 창이 있어 같은 토큰으로 동시에 온 두 갱신 요청이 모두 토큰을 회전하려 할 수 있다. 조건부 UPDATE 의 영향 행이 0이면 다른 요청이 먼저 토큰을 회전한 것이라 새 토큰을 주지 않고 `TOKEN_INVALID` 로 거부한다. 그래서 한 토큰이 두 번 회전되지 않는다. 경합 판정을 DB 단일 UPDATE 의 원자성에 맡기는 것이다.
 
-JWT 서명은 DB I/O 가 없는 순수 연산이라 트랜잭션의 커밋·롤백에 참여하지 않는다. 트랜잭션 범위를 무효화와 INSERT 로 좁게 두려는 개념상 분리다. 로그인 이력 기록도 회전 원자성과 무관해 트랜잭션 밖에 둔다. 정상 회전은 보안 이벤트가 아니라서 재사용 분기와 달리 기록하지 않는다.
+JWT 서명은 DB I/O 가 없는 순수 연산이라 트랜잭션의 커밋·롤백에 참여하지 않는다. 트랜잭션 범위를 무효화와 INSERT 로 좁게 두려는 개념상 분리다. 로그인 이력 기록도 토큰 회전의 원자성과 무관해 트랜잭션 밖에 둔다. 정상 토큰 회전은 보안 이벤트가 아니라서 재사용 분기와 달리 기록하지 않는다.
 
 ### `login_history` 와 `audit_log` 를 나눈다
 
-`audit_log` 는 워크스페이스 컨텍스트가 있는 변경을 기록한다. 로그인·로그아웃·2단계 인증 실패는 워크스페이스 없이도 일어나므로 별도 `login_history` 에 두고 사용자 본인이 직접 조회한다(180일 보존). 비밀번호 변경·2단계 인증 켜기와 끄기·이메일 변경처럼 로그인한 세션에서 일어나는 사용자 보안 동작은 그 세션의 현재 워크스페이스에 귀속해 `audit_log` 에 남긴다. 귀속 규칙은 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다.
+`audit_log` 는 현재 워크스페이스에 속한 변경을 기록한다. 로그인·로그아웃·2단계 인증 실패는 워크스페이스 없이도 일어나므로 별도 `login_history` 에 두고 사용자 본인이 직접 조회한다(180일 보존). 비밀번호 변경·2단계 인증 켜기와 끄기·이메일 변경처럼 로그인한 상태에서 일어나는 사용자 보안 동작은 그 요청의 현재 워크스페이스에 귀속해 `audit_log` 에 남긴다. 귀속 규칙은 [감사 로그](../CLE-OBS/CLE-OBS-AUDIT.md) 가 정한다.
 
 ### OAuth state 를 한 번의 DELETE 로 소비한다
 
@@ -288,7 +291,7 @@ CSRF 와 재전송을 막기 위해 `auth_oauth_state` 는 콜백 한 번에 소
 
 ### 세션 API 를 리프레시 쿠키 경로 아래로 옮겼다
 
-2026-10-10 결정이다(NERV Task `CLE-T-ERAJ7P`). 세션 목록과 종료는 요청의 리프레시 쿠키로 현재 로그인 세션을 가린다. 그런데 쿠키의 Path 가 `/api/auth` 라서 브라우저는 예전 경로 `/api/users/me/sessions*` 에 쿠키를 싣지 않았다. 그 결과 목록의 `isCurrent` 는 늘 false 였고 다른 세션 일괄 종료는 늘 400 `CURRENT_SESSION_REQUIRED` 였다. 현재 세션을 스스로 종료하지 못하게 막는 검사도 동작하지 않았다.
+2026-10-10 결정이다(NERV Task `CLE-T-ERAJ7P`). 로그인 세션 목록과 세션 강제 종료는 요청의 리프레시 쿠키로 현재 로그인 세션을 가린다. 그런데 쿠키의 Path 가 `/api/auth` 라서 브라우저는 예전 경로 `/api/users/me/sessions*` 에 쿠키를 싣지 않았다. 그 결과 목록의 `isCurrent` 는 늘 false 였고 다른 로그인 세션 일괄 종료는 늘 400 `CURRENT_SESSION_REQUIRED` 였다. 현재 로그인 세션을 스스로 종료하지 못하게 막는 검사도 동작하지 않았다.
 
 | 안 | 채택·기각 이유 |
 | --- | --- |
@@ -297,7 +300,7 @@ CSRF 와 재전송을 막기 위해 `auth_oauth_state` 는 콜백 한 번에 소
 | 컨트롤러 접두를 통째로 `auth` 로 바꾸기 | 기각. 쿠키가 필요 없는 로그인 이력까지 함께 옮겨진다 |
 | 세션 라우트 세 개만 `/api/auth/sessions` 아래로 옮기기 | 채택 |
 
-로그인 이력 `GET /api/users/me/login-history` 는 그대로 둔다. 쿠키 정책과 현재 세션 식별 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정하고, 경로 명명 규칙의 예외는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 이 정한다.
+로그인 이력 `GET /api/users/me/login-history` 는 그대로 둔다. 쿠키 정책과 현재 로그인 세션 식별 규칙은 [세션과 토큰](CLE-ACCT-SESSION.md) 이 정하고, 경로 명명 규칙의 예외는 [HTTP API 규약](../CLE-API/CLE-API-CONV.md) 이 정한다.
 
 ### 2단계 인증 끄기에 코드 확인을 더했다
 

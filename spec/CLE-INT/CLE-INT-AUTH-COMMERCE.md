@@ -11,10 +11,10 @@ ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-AUTH"]
 area: "CLE-INT"
 content_hash: "32559170323a9af50ff593c74ecec7159c3d0e8384cfbab2bfd94f5c167abb7e"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-0TAE5G"
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "7b719d65f2b30f45d628f7d4227b1ddef5f8e27168f5d079bc60d99fb2677351"
-etag: "sha256-e2845ffa7c0dd76e6a52997673247d7b49be39588270df14b1ec71dc40f3cc06"
+mirror_sha256: "3fcf44c3be05bdd62f9c6740f98c4579a93ab1e30c013fa6251155cafc01773c"
+etag: "sha256-7e7a3746ba35e968070328103a9f2a92698bb1589142c080bfa1c95eec669b22"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

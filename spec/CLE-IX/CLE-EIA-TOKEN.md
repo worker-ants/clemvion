@@ -2,19 +2,19 @@
 id: "CLE-EIA-TOKEN"
 title: "External Interaction API — 트리거 설정과 인터랙션 토큰"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA"]
 area: "CLE-IX"
-content_hash: "2a9a27e99287d4f09c7ae3375f3b030ef62c80a8c327c7b1bed88818ba40dffa"
+content_hash: "c1e0b71df59d01defdca79e533d5bf3ad2585d4e2706679a408ed0a50c50a99e"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-PK8EKG"
 source_paths: []
-mirror_sha256: "b3a8ba205eba0200ea5e1781de9c6ba04fc9504bb4d9ae180f047c09ac709e5b"
-etag: "sha256-d4645cb732cc9f3deb9fc167773f113eacf89fffe9989cd04ae22a5b7f467edf"
+mirror_sha256: "04ec3071db716098a754775cad7cac0e1373c42a3832bfec524527d4540f4f37"
+etag: "sha256-bef41d2be852e5de2c98039c0405ca9b551f81277a129a688a469b161a384c03"
 ---
 ## 개요
 
@@ -163,7 +163,7 @@ PATCH 는 `mergeExternalConfig` 로 `interaction` 키를 통째로 바꾼다. �
 | 인터랙션을 끄면 | 새 웹훅 호출 응답에 토큰을 싣지 않는다. 이미 발급한 토큰은 실행에 묶여 있어 만료나 실행 종료까지 쓸 수 있다 | 토큰 값은 남는다. 가드가 그 토큰을 401 `TOKEN_INVALID` 로 거부한다. 그 토큰으로 연 SSE 스트림은 모든 서버 인스턴스에서 닫힌다. 다시 켜면 같은 토큰을 쓴다 |
 | 서명 비밀 | 전역 비밀 하나(`INTERACTION_JWT_SECRET`, 없으면 `JWT_SECRET`) | trigger 별로 분리돼 다른 trigger 의 토큰과 교차 검증할 수 없다 |
 | 폐기 | 실행 종료 때 jti 를 Redis 블랙리스트에 올린다 | 가드가 요청마다 트리거 설정의 현재 값과만 비교한다. 그래서 바꾸거나 지우는 즉시 옛 값은 새 요청에 대해 무효다 |
-| 열린 SSE 스트림 | 토큰이 만료되거나 갱신돼도 닫지 않는다. 그 실행의 종료 이벤트까지 이어진다 | 토큰이 무효가 되거나 인터랙션을 끄면 서버가 닫는다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다 |
+| 열린 SSE 스트림 | 토큰이 만료되거나 갱신돼도 닫지 않는다. 그 실행의 종료 이벤트까지 이어진다 | 토큰이 무효가 되거나 인터랙션을 끄면 서버가 닫는다. 어느 서버 인스턴스에 붙은 스트림이든 닫는다. 닫기 신호를 놓친 서버 인스턴스의 스트림은 60초마다 하는 토큰 재확인 때 닫힌다([EIA 데이터와 흐름 — SSE 스트림](CLE-EIA-DATA-SSE.md#sse-스트림)) |
 
 기본값은 실행 단위다. 실행 단위 토큰은 trigger 별로 비밀을 나누지 않지만, payload 가 실행 하나에 묶여 있고 jti 를 블랙리스트로 폐기할 수 있어 실행 범위로 한정된다.
 

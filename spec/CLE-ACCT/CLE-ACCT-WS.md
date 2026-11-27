@@ -2,19 +2,19 @@
 id: "CLE-ACCT-WS"
 title: "워크스페이스와 멤버"
 type: "feature"
-version: 29
+version: 30
 status: "approved"
 requirements: ["REQ-WSPACE-001", "REQ-WSPACE-002", "REQ-WSPACE-003", "REQ-WSPACE-004", "REQ-WSPACE-005", "REQ-WSPACE-006", "REQ-WSPACE-007", "REQ-WSPACE-008", "REQ-WSPACE-009", "REQ-WSPACE-010", "REQ-WSPACE-011", "REQ-WSPACE-012", "REQ-WSPACE-013", "REQ-WSPACE-014", "REQ-WSPACE-015", "REQ-WSPACE-016", "REQ-WSPACE-017", "REQ-WSPACE-018", "REQ-WSPACE-019", "REQ-WSPACE-020", "REQ-WSPACE-021", "REQ-WSPACE-022", "REQ-WSPACE-023", "REQ-WSPACE-024", "REQ-WSPACE-025", "REQ-WSPACE-026", "REQ-WSPACE-027", "REQ-WSPACE-028", "REQ-WSPACE-029", "REQ-WSPACE-030", "REQ-WSPACE-031", "REQ-WSPACE-032", "REQ-WSPACE-033", "REQ-WSPACE-034", "REQ-WSPACE-035", "REQ-WSPACE-036", "REQ-WSPACE-037", "REQ-WSPACE-038", "REQ-WSPACE-039", "REQ-WSPACE-040", "REQ-WSPACE-041", "REQ-WSPACE-042", "REQ-WSPACE-043", "REQ-WSPACE-044", "REQ-WSPACE-045", "REQ-WSPACE-046", "REQ-WSPACE-047", "REQ-WSPACE-048", "REQ-WSPACE-049", "REQ-WSPACE-050", "REQ-WSPACE-051", "REQ-WSPACE-052", "REQ-WSPACE-053", "REQ-WSPACE-054", "REQ-WSPACE-055", "REQ-WSPACE-056", "REQ-WSPACE-057", "REQ-WSPACE-058", "REQ-WSPACE-059", "REQ-WSPACE-060", "REQ-WSPACE-061", "REQ-WSPACE-062", "REQ-WSPACE-063", "REQ-WSPACE-064", "REQ-WSPACE-065", "REQ-WSPACE-066", "REQ-WSPACE-067", "REQ-WSPACE-068", "REQ-WSPACE-069", "REQ-WSPACE-070", "REQ-WSPACE-071", "REQ-WSPACE-072", "REQ-WSPACE-073"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "62e57b60c702dd1ed9c4e02cb805e425b2ecc34152fc418a58998f3b5eefa0b5"
+content_hash: "af1bcf6d6d7fac4ecd52bab6152a6ba455010c3d555ef37c425cfb3a7184eca1"
 read_as: "approved_fallback"
-task: "CLE-T-TV4VA8"
+task: "CLE-T-VWC60Z"
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "6f48eb9a29922516737b90753743fb603230c29737385a10ef35d691b1f85fd9"
-etag: "sha256-02076359e65c60cbb18f322a918132846a05b38cfbfa91cff2fddcd939f9ee74"
+mirror_sha256: "ecfeebb3cfc58214a82bfb5636b60552d9e0c4fed7cf444f96537338fc49942c"
+etag: "sha256-0ea221a9fe1ba57a8a89d98f1829b9b298b0c1a7ab430a0f01768c1a512e22a7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -90,7 +90,7 @@ etag: "sha256-02076359e65c60cbb18f322a918132846a05b38cfbfa91cff2fddcd939f9ee74"
 - REQ-WSPACE-048 WHEN 소유자가 팀 워크스페이스 삭제를 확인하면 THE SYSTEM SHALL 트리거 외부 자원을 해제한 뒤 초대·멤버·워크스페이스를 한 트랜잭션에서 지운다.
 - REQ-WSPACE-049 WHEN 서버가 역할을 비교하면 THE SYSTEM SHALL 소유자·관리자·편집자·뷰어 순의 계층으로 보고 위 역할이 아래 역할의 권한을 모두 갖게 한다.
 - REQ-WSPACE-050 IF 뷰어가 워크플로우 실행을 요청하면 THE SYSTEM SHALL 403 으로 거부한다.
-- REQ-WSPACE-051 WHEN 인증된 요청이 워크스페이스 컨텍스트를 쓰면 THE SYSTEM SHALL `X-Workspace-Id` 헤더가 있으면 그 값을, 없으면 토큰의 `activeWorkspaceId` 를 현재 워크스페이스로 쓴다.
+- REQ-WSPACE-051 WHEN 인증된 요청을 현재 워크스페이스에서 처리하면 THE SYSTEM SHALL `X-Workspace-Id` 헤더가 있으면 그 헤더 값을, 없으면 토큰의 `activeWorkspaceId` 클레임 값을 현재 워크스페이스로 쓴다.
 - REQ-WSPACE-052 IF 토큰의 워크스페이스 클레임이 없거나 그 멤버십이 사라졌으면 THE SYSTEM SHALL 개인 워크스페이스, 없으면 첫 멤버십을 현재 워크스페이스로 쓴다.
 - REQ-WSPACE-053 WHEN 요청이 헤더로 워크스페이스를 지정하고 라우트가 `@WorkspaceId()` 를 쓰는 라우트(`@Roles()` 가 없어도 된다)이거나 경로 파라미터로 받는 워크스페이스(`@WorkspaceParam(...)`) 없이 `@Roles()` 를 쓰는 라우트이면 THE SYSTEM SHALL 가드에서 그 워크스페이스의 멤버십을 확인한다.
 - REQ-WSPACE-054 WHEN 라우트가 경로 파라미터로 워크스페이스를 받으면 THE SYSTEM SHALL 헤더·토큰이 아니라 경로 값을 인가 대상으로 삼아 멤버십을 항상 조회한다.

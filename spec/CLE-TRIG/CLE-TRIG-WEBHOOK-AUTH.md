@@ -2,19 +2,19 @@
 id: "CLE-TRIG-WEBHOOK-AUTH"
 title: "웹훅 — 인증과 워크플로우 입력"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-WEBHOOK"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-WEBHOOK"]
 area: "CLE-TRIG"
-content_hash: "954b0ec4e28bec0f0c2a28bee20b0125c64678bddf166dfa8a2a0f601df5f47b"
+content_hash: "f3b8f6f06d387e30400f8a6a4fe1bcfa30a75da19ef3f18b209ac4c58d937298"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-XQYZR7"
 source_paths: []
-mirror_sha256: "784aa8ca06233158adec368f03446f955f07d74452781cd005326ce109100ab7"
-etag: "sha256-7970752ff89ea3ad464b87ebb10505c2b3167d4e6ab254f348e7f887111bd4b7"
+mirror_sha256: "d557aac6be2f8a41702fa45300ce096ea40a99fb39295a295a22f756571db5af"
+etag: "sha256-4befc29a86cc8991b73f4d2e177737b3efebabfafba30107d82cad2a9df6840c"
 ---
 ## 개요
 
@@ -155,7 +155,9 @@ required 파라미터 누락이나 타입 강제 변환 실패가 나면 `hooks.
 
 `auth_config_id IS NULL` 인 트리거는 인증 없음으로 동작한다.
 
-### 빈 기대값과 복호화 불가 인증 설정을 거부한다 (2026-10-31)
+### 빈 기대값과 복호화 불가 인증 설정을 거부한다
+
+결정일: 2026-10-31
 
 인증 설정의 기대값이 비었거나 인증 설정이 복호화 불가 표식으로 읽히면 요청 값과 상관없이 `401 AUTH_FAILED` 로 거부한다. 이 규칙은 2026-10-31 에 문서에 적었다(NERV Task `CLE-T-KQ37NJ`).
 

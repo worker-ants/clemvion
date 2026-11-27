@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-NOTIFY"
 title: "EIA 데이터와 흐름 — 알림 웹훅 발송과 서명 시크릿"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "acf4154c66471fbac4632937ef54c43373acac8ac71e474db7f2db612b7b06da"
+content_hash: "671262eff677053fa6e430f3eb9e2e0798070e26c018aa46351ac8c99a5183b1"
 read_as: "approved_fallback"
-task: "CLE-T-753725"
+task: "CLE-T-ZPT9W7"
 source_paths: []
-mirror_sha256: "2992d1a9ba038a396e3e04c539a781061a6d70c2e7932631ad22ef5e4408f7c3"
-etag: "sha256-1c57df90f703713f459396ec252cf1441128f8fb77347e7b3e71769dbab76cb4"
+mirror_sha256: "7a438103e7bc6fc9c3d187de13e3f1e912e367d7d3b5ab8f6302b5ca72056250"
+etag: "sha256-2eb18df71384f5a8333a16412ee617c0fd420bcd9edcc05e7e4ad4922e6c0849"
 ---
 ## 개요
 
@@ -79,7 +79,9 @@ flowchart TD
   E --> F[notification-secret-rotator 매시 정각 승격 작업]
   F --> G{rotated_at 이 24시간 지났나}
   G -->|예| H{잠금 안에서 승격 조건을 확인했나}
-  H -->|예| I[같은 잠금 안에서 secrets.rotate 로 정식 참조 내용 교체, signing.secretRef 연결, notification_secret_v2·notification_rotated_at 비움]
+  H -->|예| N{EIA 알림 웹훅 설정이 있나}
+  N -->|예| I[같은 잠금 안에서 secrets.rotate 로 정식 참조 내용 교체, signing.secretRef 연결, notification_secret_v2·notification_rotated_at 비움]
+  N -->|아니오| J[승격하지 않고 notification_secret_v2·notification_rotated_at 만 비움]
   H -->|아니오| E
   G -->|아니오| E
 ```
@@ -87,8 +89,8 @@ flowchart TD
 - 교체 요청은 `TriggersService.rotateNotificationSecret` 이 받는다. 잠금 안에서 `notification_secret_v2` 와 `notification_rotated_at` 을 쓰는 일은 `NotificationSigningSecretService.writeRotation` 이 한다.
 - 승격은 `NotificationSigningSecretService.promoteRotated` 가 한다. 매시 승격 작업은 `TriggersService.promoteRotatedNotificationSecrets` 를 거쳐 이 메서드를 부른다. `rotated_at ≤ now-24h` 인 트리거의 v2 를 시크릿 저장소 정식 참조(`secret://triggers/<id>/notification-signing`) 내용으로 바꾸고 `signing.secretRef` 를 연결한다. 정식 참조는 저장된 `signing.secretRef` 값을 읽지 않고 트리거 id 로 만든다(`notificationSigningSecretRef`).
 - 승격은 평문을 설정에 쓰지 않는다. `secrets.rotate(정식 참조, 트리거의 워크스페이스 id, v2)` 로 시크릿 저장소 내용을 바꾸고, `signing.secretRef` 를 정식 참조로 맞추고, 옛 `signing.secret` 평문 키를 지운다(`migrateLegacyPlaintext` 와 같은 참조 규약). 발송 쪽 `resolveSigningSecret` 이 `secretRef` 를 먼저 보므로, 승격 즉시 새 시크릿으로 주 서명이 바뀐다.
-- 교체와 승격은 같은 트리거 설정 잠금(`acquireTriggerConfigLock`)을 잡는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)). 유예 중에 `rotate-secret` 을 다시 부르면 앞의 새 시크릿(v2)을 덮고 `notification_rotated_at` 을 지금 시각으로 바꾼다. 그래서 24시간 유예를 처음부터 다시 센다. 승격은 대상 트리거의 v2 를 먼저 고른다. 그 뒤 잠금 안에서 승격 조건을 확인한다. 조건이 맞을 때만 같은 잠금 안에서 v2 를 정식 참조로 옮기고 v2 와 `notification_rotated_at` 을 비운다. 확인보다 먼저 옮기면 그사이 재교체로 덮인 옛 v2 가 주 시크릿이 된다. 승격 조건은 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다.
-- EIA 알림 웹훅 설정(`config.notification`)이 없는 트리거는 승격하지 않는다. 서명할 대상이 없으므로 v2 와 `notification_rotated_at` 을 비운다. 이때 경고 로그를 남긴다.
+- 교체와 승격은 같은 트리거 설정 잠금(`acquireTriggerConfigLock`)을 잡는다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화)). 유예 중에 `rotate-secret` 을 다시 부르면 앞의 새 시크릿(v2)을 덮고 `notification_rotated_at` 을 지금 시각으로 바꾼다. 그래서 24시간 유예를 처음부터 다시 센다. 승격은 대상 트리거의 v2 를 먼저 고른다. 그 뒤 잠금 안에서 승격 조건을 확인한다. 조건이 맞을 때만 같은 잠금 안에서 v2 를 정식 참조로 옮기고 v2 와 `notification_rotated_at` 을 비운다. 확인보다 먼저 옮기면 그사이 재교체로 덮인 옛 v2 가 주 시크릿이 된다. 승격 조건은 [EIA 알림 웹훅 「시크릿 교체」](CLE-EIA-NOTIFY.md#시크릿-교체) 가 정한다.
+- EIA 알림 웹훅 설정(`config.notification`)이 없는 트리거는 승격하지 않는다. 서명할 대상이 없으므로 v2 와 `notification_rotated_at` 을 비운다. 이때 경고 로그를 남긴다. 해제와 승격이 엇갈린 행이 이 경우다([EIA 알림 웹훅 — 시크릿 교체 「알림 설정 해제」](CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제)).
 - 시크릿 저장소에 정식 참조의 행이 이미 있고 그 행의 `workspace_id` 가 트리거의 워크스페이스와 다르면 `rotate` 가 거부한다([시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 25). 승격은 그 트리거만 건너뛰고 에러 로그를 남긴다. v2 와 `notification_rotated_at` 은 비우지 않는다. 그래서 매시 승격 작업이 그 트리거를 다시 고르고 다시 건너뛴다. 운영자가 정리하기 전까지 그 트리거는 주 시크릿과 v2 두 키로 서명한다. 정리 순서는 [시크릿 저장소 「교차 행 점검과 정리」](../CLE-INT/CLE-INT-SECRET.md#교차-행-점검과-정리) 에 있다. 그 밖의 실패는 다시 던져 작업 재시도에 맡긴다.
 
 ## 상태 전이
@@ -99,12 +101,19 @@ flowchart TD
 stateDiagram-v2
   state "주 시크릿만" as Primary
   state "유예: 주 시크릿과 v2 이중 서명" as Grace
+  state "알림 설정 없음" as None
   [*] --> Primary: 트리거 생성이나 EIA 알림 웹훅 설정 PATCH 때 서버가 첫 wsk 시크릿을 발급하거나 PATCH 때 저장된 옛 평문을 시크릿 저장소로 옮김
   Primary --> Grace: rotate-secret 호출
   Grace --> Grace: 유예 중 rotate-secret 재호출, 앞의 v2 를 덮고 유예를 다시 시작
   Grace --> Primary: 매시 승격 작업이 24시간 지난 v2 를 승격하고 비움
   Grace --> Grace: 시크릿 저장소 행의 워크스페이스가 달라 매시 승격 작업이 건너뜀, v2 유지
+  [*] --> None: EIA 알림 웹훅 설정 없이 트리거 생성
+  Primary --> None: PATCH 의 notification null 로 해제, 커밋 뒤 시크릿 저장소 행 삭제
+  Grace --> None: PATCH 의 notification null 로 해제, notification_secret_v2·notification_rotated_at 도 비움
+  None --> Primary: PATCH 로 EIA 알림 웹훅 설정을 다시 붙이면 첫 시크릿을 새로 발급하고 남은 교체 대기 값을 비움
 ```
+
+해제와 다시 붙일 때의 규칙은 [EIA 알림 웹훅 — 시크릿 교체 「알림 설정 해제」](CLE-EIA-NOTIFY-SECRET.md#알림-설정-해제) 가 정한다. 첫 시크릿을 발급하는 PATCH 는 잠금 안에서 다시 읽은 행에 `notification_secret_v2` · `notification_rotated_at` 이 남아 있으면 함께 비운다. 비우지 않으면 유예가 끝난 뒤 승격이 남은 값으로 방금 발급한 주 시크릿을 덮는다.
 
 ## 구현 위치
 
@@ -114,7 +123,7 @@ stateDiagram-v2
 - `codebase/backend/src/modules/external-interaction/notification-webhook.processor.ts`
 - `codebase/backend/src/modules/external-interaction/notification-signature.util.ts`
 - `codebase/backend/src/modules/external-interaction/outbound-notification-rate-limiter.service.ts`
-- `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 첫 시크릿 판정과 시크릿 저장소 쓰기 `settle`, 저장된 옛 평문 정규화 `migrateLegacyPlaintext`, 교체 쓰기 `writeRotation`, 승격 `promoteRotated`)
+- `codebase/backend/src/modules/triggers/notification-signing-secret.service.ts` (`NotificationSigningSecretService`. 첫 시크릿 판정과 시크릿 저장소 쓰기 `settle`, 저장된 옛 평문 정규화 `migrateLegacyPlaintext`, 교체 쓰기 `writeRotation`, 승격 `promoteRotated`, 해제 뒤 시크릿 행 삭제 `deleteAfterUnset`)
 - `codebase/backend/src/modules/triggers/notification-signing-secret.ts` (첫 시크릿 발급 판정 `decideNotificationSigning`, 서명 설정에 참조 얹기. 이름이 비슷한 `notification-signing-secret-ref.ts` 는 트리거 id 로 참조 문자열을 만드는 일만 한다)
 - `codebase/backend/src/modules/triggers/notification-secret-rotator.service.ts` (`NotificationSecretRotatorService`. 유예가 끝난 시크릿의 승격을 매시 시작하는 스케줄러)
 

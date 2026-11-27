@@ -2,19 +2,19 @@
 id: "CLE-ENG-FRONTEND"
 title: "프론트엔드 레이어 규약"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "adfd17d9ece177906e41f7c8224c09bf2fbfb45c8c641f1f35012e600d583086"
-read_as: "approved"
-task: null
+content_hash: "8d6213261c4786c7c6580d051db4374d0651f3cfe99f78f841a65f912ba9a992"
+read_as: "approved_fallback"
+task: "CLE-T-15DBHE"
 source_paths: ["spec/conventions/frontend-layering.md"]
-mirror_sha256: "1edc49c67127c0f4aaedbe201333be8b25ef723dc7ca3e1237fdc95411933fe5"
-etag: "sha256-79038d50bb3317f4710f5f7dc1bbb199a1e07cf5f1d43e4b09e051a29612e12b"
+mirror_sha256: "74f377bdb3853270736a8c102905456b121ad0fe9f07426b7fafa7663d6fe513"
+etag: "sha256-4420a734bc7c9327a06832d9556327eabd0c9f09ae9bc10c389e0a34336189c3"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/frontend-layering.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -141,7 +141,9 @@ CI 가 막는 `{lib, types} → components` import 의 우회 형태는 다음�
 
 `@/lib/websocket/` 이 `conversation-utils` 의 함수를 써야 했다. 그 함수가 `components/` 에 있으면 `lib → components` 역전이 된다. 그래서 정본을 `@/lib/conversation/` 으로 옮겼고 그 함수가 받는 타입(`TurnRagDelta[]`)도 같은 이유로 `rag-types.ts` 와 함께 옮겼다. 규약은 이 판단을 나중에 일반화한 것이다.
 
-### `src/types/**` 도 범위에 넣은 이유 (2026-07-17 결정)
+### `src/types/**` 도 범위에 넣은 이유
+
+결정일: 2026-07-17
 
 `src/types/` 에는 `transform.ts` 하나뿐이고 위반도 0건이라 당장의 실익은 없다. 그래도 넣은 이유는 `src/types` 가 `src/lib` 보다도 아래이기 때문이다. `lib`(2개 파일)과 `components`(5개 파일)가 함께 쓰는 leaf 라 `types → components` 역전은 `lib → components` 보다 더 나쁘다. 범위를 `src/lib/**` 로만 두면 규칙의 근거가 레이어의 위치에서 벗어나 `lib` 이라는 디렉터리 이름에 우연히 묶인다.
 

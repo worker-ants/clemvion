@@ -2,19 +2,19 @@
 id: "CLE-EIA-FLOW"
 title: "External Interaction API — 처리 흐름과 한도"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA"]
 area: "CLE-IX"
-content_hash: "f9449364e87b707880c636602cbb9b0a0dd6f4f4802a5b6a5dc9693e4efeb030"
+content_hash: "52a7aa958b588d2c62614a4892b7fd46b174359db7fc827e4d497d10d1b402a1"
 read_as: "approved_fallback"
-task: "CLE-T-7ZRNKV"
+task: "CLE-T-FHG7MT"
 source_paths: []
-mirror_sha256: "ab7996d751cdf804f4cceed3ca175537c0be306e671ae788d5f3fc170e899148"
-etag: "sha256-07d8da6d2c63b23b1b42b0b33e39d46d26bb1251bb95ade6fd91c99213674890"
+mirror_sha256: "93e4a319b4035da344370f2fbc93f346206db42d06717bc62c55c139198c8298"
+etag: "sha256-07951f153fe56e5828f41aea7bc7994b195976bc480c828b3e2506329cf0acc7"
 ---
 ## 개요
 
@@ -27,7 +27,7 @@ etag: "sha256-07d8da6d2c63b23b1b42b0b33e39d46d26bb1251bb95ade6fd91c99213674890"
 | 대상 | 한도 | 구현 | 초과 응답 |
 |---|---|---|---|
 | 인바운드 명령(`/interact`, `/cancel` 합산) | 실행당 분당 60 | 구현됨. `InteractionRateLimiterService`(Redis 고정 윈도우, fail-open) + `InteractionRateLimitGuard` | `429 RATE_LIMITED` + `Retry-After`(남은 윈도우 초) |
-| SSE 동시 연결 | 실행당 3. 모든 서버 인스턴스의 연결을 합해 센다 | 구현됨. `interaction-stream.controller.ts`, 전역 집계는 `sse-fanout.service.ts` | `429 TOO_MANY_CONNECTIONS` |
+| SSE 동시 연결 | 실행당 3. 모든 서버 인스턴스의 연결을 합해 센다 | 구현됨. `sse-stream-session.ts`, 전역 집계는 `sse-connection-slots.ts` | `429 TOO_MANY_CONNECTIONS` |
 | 단발 상태 조회 | 실행당 분당 120 | 구현됨. 위 리미터의 별도 버킷 | `429 RATE_LIMITED` + `Retry-After` |
 | EIA 알림 웹훅 발송 | 트리거당 분당 60 | 구현됨. `OutboundNotificationRateLimiterService`(Redis 고정 윈도우 `INCR`+`EXPIRE NX`) | 버리지 않고 발송한다. 넘으면 발송 건강도를 저하됨으로 표시한다([EIA 알림 웹훅](CLE-EIA-NOTIFY.md)) |
 
@@ -150,8 +150,9 @@ EIA 컨트롤러는 워크스페이스 JWT(`access-token` scheme) 대신 별도 
   - `terminal-revoke-reconciler.service.ts`, `terminal-revoke-reconciler.types.ts` (종료 토큰 정리 작업과 큐 이름 상수)
   - `webchat-idle-reaper.service.ts`, `webchat-idle-reaper.types.ts` (웹채팅 위젯 입력 대기 회수, `WEBCHAT_IDLE_REAP_GRACE_MS`)
   - `notification-fanout.service.ts`, `notification-dispatcher.service.ts`, `notification-webhook.processor.ts`, `notification-signature.util.ts` (알림 발송)
-  - `sse-adapter.service.ts` (SSE 구독자 관리와 재전송 판정)
-  - `sse-fanout.service.ts` (Redis Stream 재전송 버퍼, 실행별 실시간 채널, 전역 닫기 채널, 전역 동시 연결 상한)
+  - `sse-adapter.service.ts` (SSE 구독자 관리, 재전송 실행)
+  - `sse-replay-plan.ts` (재전송 판정 `planReplay` · `mayHaveMissed`)
+  - `sse-fanout.service.ts` (서버 인스턴스 사이 전달에 쓰는 Redis 부분의 창구. 부분별 파일은 [EIA 데이터와 흐름 — SSE 스트림](CLE-EIA-DATA-SSE.md#구현-위치) 의 「구현 위치」)
   - `idempotency.interceptor.ts` (멱등 키)
   - `entities/execution-token.entity.ts`
   - `dto/interact.dto.ts`, `dto/cancel.dto.ts`, `dto/responses/*-response.dto.ts` (`ExecutionStatusDto`·`InteractAckDto`·`RefreshTokenResponseDto`)

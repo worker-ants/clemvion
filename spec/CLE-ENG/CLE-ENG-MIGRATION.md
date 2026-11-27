@@ -2,19 +2,19 @@
 id: "CLE-ENG-MIGRATION"
 title: "DB 마이그레이션 규약"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "84b72e4a923b03c1b3e828a672670e4141b272e8e1f30ac62394281444173178"
+content_hash: "1f2c49319271d49650eaf5e4447cc0dacd3b698f1e64a64c45de91643efb8793"
 read_as: "approved_fallback"
-task: "CLE-T-FBCP2N"
+task: "CLE-T-15DBHE"
 source_paths: ["spec/0-overview.md", "spec/conventions/migrations.md"]
-mirror_sha256: "1fa7979dbfaeb5921c37ac2d2473bb9639ad1d4e48691a0ca500a35b8d6b6a83"
-etag: "sha256-cdfd792f73929d49696ceb6dbff8ae93c32041f642bd203a73659746fa35e1e7"
+mirror_sha256: "3126388ae0838c816378d003cc76e2122df9fdc7921d6051755c4549b21301c4"
+etag: "sha256-8a7ea0090f2a68f8c94c5688498fb4cf1d103754e3fbe59a4d8dc0bbd4d069f8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/migrations.md`, `spec/0-overview.md` (§2.8 DB 마이그레이션, Rationale 「DB 마이그레이션 도구로 Flyway 채택」) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -230,13 +230,17 @@ codebase/backend/migrations/check-duplicate-versions.sh codebase/backend/migrati
 
 이 결정을 내릴 때 저장소는 GitHub 무료 플랜의 private 저장소였다. 이 환경에서는 branch protection 의 "Require branches to be up to date before merging" 옵션을 쓸 수 없다. 그래서 머지 직전 최신화(작성자 책임)와 `migration-recheck-on-main`(머지 뒤 안전망)으로 race 를 대신 막는다. 자세한 제약은 아래 「기각한 대안 4」 에 있다.
 
-### 최신화에 merge 를 허용한 이유 (2026-10-01)
+### 최신화에 merge 를 허용한 이유
+
+결정일: 2026-10-01
 
 처음 규약은 머지 직전 최신화를 `git rebase origin/main` 하나로 적었다. 그때 리뷰 게이트는 커밋된 리뷰 산출물의 시각과 코드 커밋의 author 시각을 견줬다. rebase 는 author 시각을 그대로 두므로 게이트는 일부러 rebase 에 영향받지 않게 설계돼 있었다. 전환 단계 2 의 NERV 판정은 그렇지 않다. rebase 는 커밋을 다시 써서 리뷰 라운드의 `head_sha` 를 HEAD 의 조상에서 빼고, `fixed` 처분에 적힌 `commit_sha` 도 브랜치에서 닿지 않게 만든다. 그래서 리뷰를 낸 PR 이 rebase 하면 전체 재리뷰가 필요하다. merge 는 두 해시를 그대로 둔다. 단계 2 의 일관성 검토(finding 01a0f6c1-82ed-755d-b6ae-6c3af354438a)가 이 충돌을 찾았다.
 
 race 를 막는 데 필요한 것은 base 를 최신으로 맞추는 일이고 그 방법이 rebase 일 필요는 없다. 그래서 merge 를 허용했다. 2026-10-03(NERV Task `CLE-T-VP5KDJ`)에 PR 템플릿 Migration checklist · `migration-recheck-on-main` 알림 코멘트 · PR CI 가드 `scripts/check-migration-versions.py` 의 안내 문구를 같은 내용으로 맞췄다. 빌드 시점 가드(`check-duplicate-versions.sh`)의 안내는 그때 바꾸지 않았다. 그 안내와 `Dockerfile` · `README.md` · `migrations.spec.ts` 의 정책 인용은 전환 단계 4g(2026-10-03, NERV Task `CLE-T-M7K35H`)에서 옛 경로 래칫과 함께 이 문서 키로 바꿨다. 게이트가 rebase 를 받아 주게 하는 안은 「기각한 대안 5」 에 있다.
 
-### merge 커밋은 combined diff 의 hunk 로 센다 (2026-10-10)
+### merge 커밋은 combined diff 의 hunk 로 센다
+
+결정일: 2026-10-10
 
 게이트는 처음에 라운드 뒤 merge 커밋을 `git diff-tree --cc --name-only` 로 봤다. 이 출력은 hunk 를 거르지 않고 모든 부모와 다른 파일을 낸다. 그래서 양쪽이 같은 파일의 다른 줄을 고쳐 git 이 자동으로 합친 merge 도 손으로 푼 merge 로 셌다. PR #1520 세션이 main 을 merge 하자 게이트 검사(`scripts/check-review-gate.py`)가 그 merge 를 리뷰 뒤 변경으로 셌다. 그대로 push 했으면 push 훅과 CI `review-gate` 가 PR 을 막았을 것이다(NERV Task `CLE-T-QT69YT`).
 
@@ -244,7 +248,9 @@ race 를 막는 데 필요한 것은 base 를 최신으로 맞추는 일이고 �
 
 깨끗이 합쳐졌는데도 세는 모양 셋이 남는다. 한쪽이 줄을 지우고 상대가 두 줄 안쪽을 고친 경우, 한쪽은 모드만 다른 쪽은 내용만 바꾼 파일, 한쪽이 파일을 옮기고 다른 쪽이 옛 경로를 고친 경우다. 이 목록은 이 날짜 기준이고 정본은 `_commits_after` docstring 이다. 셋 모두 막는 쪽으로 틀리므로 게이트가 열리지는 않는다. 2026-10-10 에 로컬 저장소의 모든 ref 에서 merge 커밋 227개를 대조했다. 옛 판정은 5개를 셌고 새 판정은 하나도 세지 않았다. `git merge-tree --write-tree` 로 두 부모가 충돌 없이 합쳐지는지 보면 셋을 없앨 수 있다. 이 명령은 git 2.38 이상이 필요하고 같은 날 CI 는 2.55, 로컬은 2.54 였다. 그래도 지금은 넣지 않는다. 그 명령을 쓰면 읽기만 하던 게이트가 저장소에 객체를 쓴다. 남은 세 모양은 막는 쪽 오탐이고 위 대조에서 해당하는 merge 가 없었다. 이 모양으로 PR 이 막힌 사례가 나오면 다시 본다.
 
-### 적용된 마이그레이션의 옛 경로 주석을 고치지 않는다 (2026-10-03)
+### 적용된 마이그레이션의 옛 경로 주석을 고치지 않는다
+
+결정일: 2026-10-03
 
 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 codebase 의 옛 스펙 경로와 지운 `plan/` 경로를 옛 경로 래칫(양방향 래칫)으로 막았다. 다른 파일은 고칠 때 그 언급을 바꾼다. 적용된 마이그레이션의 주석은 바꾸지 않고 래칫 기준값에 남긴다. 규칙 9(append-only)가 적용된 파일의 수정을 막는다. `.sql` 은 주석 한 글자만 바뀌어도 checksum 이 어긋나 부팅이 실패한다. 규칙 10 의 `migrate-repair` 는 운영 사고 때 checksum 을 다시 맞추는 수단이라 주석 정리에는 쓰지 않는다. 래칫의 판정과 기준값은 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) R-15 에 있다.
 

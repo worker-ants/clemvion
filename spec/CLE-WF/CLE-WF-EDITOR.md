@@ -2,19 +2,19 @@
 id: "CLE-WF-EDITOR"
 title: "워크플로우 에디터와 캔버스"
 type: "feature"
-version: 10
+version: 11
 status: "approved"
 requirements: ["REQ-EDITOR-001", "REQ-EDITOR-002", "REQ-EDITOR-003", "REQ-EDITOR-004", "REQ-EDITOR-005", "REQ-EDITOR-006", "REQ-EDITOR-007", "REQ-EDITOR-008", "REQ-EDITOR-009", "REQ-EDITOR-010", "REQ-EDITOR-011", "REQ-EDITOR-012", "REQ-EDITOR-013", "REQ-EDITOR-014", "REQ-EDITOR-015", "REQ-EDITOR-016", "REQ-EDITOR-017", "REQ-EDITOR-018", "REQ-EDITOR-019", "REQ-EDITOR-020", "REQ-EDITOR-021", "REQ-EDITOR-022", "REQ-EDITOR-023", "REQ-EDITOR-024", "REQ-EDITOR-025", "REQ-EDITOR-026", "REQ-EDITOR-027", "REQ-EDITOR-028", "REQ-EDITOR-029", "REQ-EDITOR-030", "REQ-EDITOR-031", "REQ-EDITOR-032", "REQ-EDITOR-033", "REQ-EDITOR-034", "REQ-EDITOR-035", "REQ-EDITOR-036", "REQ-EDITOR-037", "REQ-EDITOR-038", "REQ-EDITOR-039", "REQ-EDITOR-040", "REQ-EDITOR-041", "REQ-EDITOR-042", "REQ-EDITOR-043", "REQ-EDITOR-044", "REQ-EDITOR-045", "REQ-EDITOR-046", "REQ-EDITOR-047", "REQ-EDITOR-048", "REQ-EDITOR-049", "REQ-EDITOR-050", "REQ-EDITOR-051", "REQ-EDITOR-052", "REQ-EDITOR-053", "REQ-EDITOR-054", "REQ-EDITOR-055", "REQ-EDITOR-056", "REQ-EDITOR-057", "REQ-EDITOR-058", "REQ-EDITOR-059"]
 basis_superseded: false
 parent: "CLE-WF"
 ancestors: ["CLE-VISION", "CLE-WF"]
 area: "CLE-WF"
-content_hash: "60c6bb34ee151631f70db2b8c6382adfff7121e0f5a7ef91a632b12c19d87196"
+content_hash: "459a94685687cdfa74224ab4cd5cd00c0bd6210384a8ea5659f517e96c90bef5"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CNGC0P"
 source_paths: ["spec/3-workflow-editor/0-canvas.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "ae6e2a5e22bd828a4ac992860e66330eb8304e460a1d08a56ae95e3d847ae245"
-etag: "sha256-024cd0228b41bd7cf6f691c7cc087df15271e183fb8c2bda74d6764797e9f332"
+mirror_sha256: "45849045e9a0bddab00feb6ea4b5bf4229bcc81f8553587e3573a95b98f5ac25"
+etag: "sha256-4a1e388a027cd545fabd32c463cfdf8a58f2fb672536886d333b392416bf2a4e"
 ---
 > 구현 상태: 부분 구현 (팔레트 Installed 섹션, AI 에이전트 · 정보 추출기 · 수동 트리거 노드의 설정 요약, Undo/Redo 를 줌 오버레이로 합치기는 미구현. 그리드 스냅은 미결 사항) · 원문: `spec/3-workflow-editor/_product-overview.md` (§1~§4, §6 ED-SV-01·02, §9), `spec/3-workflow-editor/0-canvas.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -211,13 +211,17 @@ flowchart LR
 
 팔레트(R-1·R-2)와 붙여넣기·복제의 통합 참조 거르기(R-5)의 근거는 [캔버스 조작과 팔레트 §Rationale](CLE-WF-EDITOR-CANVAS.md#rationale) 에, 컨테이너 중첩(R-4)의 근거는 [컨테이너 편집 §Rationale](CLE-WF-EDITOR-CONTAINER.md#rationale) 에 있다.
 
-### R-3. 저장은 수동 저장과 실행 직전 저장 두 경로만 둔다 (2026-07-08)
+### R-3. 저장은 수동 저장과 실행 직전 저장 두 경로만 둔다
+
+결정일: 2026-07-08
 
 한때 명세는 "노드·연결선·설정 변경 뒤 2초 디바운스 자동 저장", "오프라인 로컬 스토리지 임시 저장", "동시 편집 충돌 감지" 를 약속했고, 설정 패널 요구사항 ED-SP-05 는 "설정 변경 즉시 반영(별도 저장 버튼 불필요)" 을 약속했다. 구현에는 셋 다 없었다. 저장은 수동(`Ctrl+S`·`Save`)과 실행 직전 저장 두 경로뿐이다(`saveWorkflow` 호출처는 툴바, `Ctrl+S` 핸들러, Run 직전 세 곳). 설정 패널은 `변경 저장`·`JSON 적용` 을 눌러야 에디터 상태에 반영한다(`node-settings-panel.tsx`, `key={selectedNodeId}` 로 다시 마운트해 저장하지 않은 편집을 버린다). `workflow-editor.tsx` 의 500ms 디바운스는 저장이 아니라 그래프 경고 평가(`evaluateGraphWarningsLocal`)용이다.
 
 명시 저장과 실행 직전 저장은 `Save` 버튼, "저장되지 않은 변경 사항" 상태 텍스트, 실행 전 저장이 서로 맞물린 **의도된 설계**로 판단했다(사용자 확인, 2026-07-08). 그래서 구현을 옛 명세에 맞추지 않고 명세를 현재 동작으로 고쳤다. 사용자 가이드도 이미 현재 동작을 설명한다. 타이머 자동 저장이나 오프라인 초안 복원을 되살릴지는 별도 기획 판단으로 남긴다.
 
-### R-6. 더보기(⋮) 메뉴에는 내보내기만 둔다 (2026-10-25)
+### R-6. 더보기(⋮) 메뉴에는 내보내기만 둔다
+
+결정일: 2026-10-25
 
 이전 판은 에디터 헤더 더보기(⋮) 메뉴에 가져오기도 있다고 적었지만 구현에는 없다. `editor-toolbar.tsx` 의 더보기 메뉴에는 내보내기(`handleExport`)만 있고, 가져오기(`importWorkflow`)를 부르는 곳은 워크플로우 목록 화면(`page.tsx`) 하나뿐이다. 사용자 가이드도 가져오기를 목록 화면에서만 안내한다. 그래서 명세를 구현에 맞춰 더보기 메뉴에는 내보내기만 적고 가져오기는 목록 화면 헤더의 `⤓ Import` 에만 둔다.
 

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-RENDER"
 title: "채팅 채널 — 메시지 발송과 채널 건강도"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "5bd820334124d28d863263f7c735683fe84cfeaec7d3cbb537f803496805d4f9"
+content_hash: "e02873ad8fd89b2d2fc68700655e9bad982cf063416b9730eac1f59278d1c48a"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-P4TSAA"
 source_paths: []
-mirror_sha256: "4d7dd47eddb7d67bae42dd8411ea7f93058ac8966e2e6320c16382410ac50dca"
-etag: "sha256-b8803aad0869de3dafef56b8828ec664ff844b995f76f7c1a046054fcaa8fea7"
+mirror_sha256: "76ea44c69c6342a0eb0e4b31102fab1178715587d40bf15ee43e16c8f54dcea6"
+etag: "sha256-209643da4a90640bf426ec33e50fe0508dd3caccafba07e5915229fbb756a74d"
 ---
 ## 개요
 
@@ -44,7 +44,7 @@ etag: "sha256-b8803aad0869de3dafef56b8828ec664ff844b995f76f7c1a046054fcaa8fea7"
 
 ## 채널 건강도
 
-채널 건강도(`chat_channel_health`)는 채팅 채널의 동작 상태다([용어 사전 — 외부 상호작용과 채널](../CLE-GLOSSARY-IX.md)). `degraded` 가 되는 원인은 아래 넷이고 이 표가 기준이다. 어느 원인도 트리거를 자동으로 비활성화하지 않는다. 다음 성공 때 `healthy` 로 돌아가는 전이는 [채팅 채널 데이터와 흐름 「채널 건강도」](CLE-CHAT-DATA.md#채널-건강도) 가 정한다. 각 원인의 요구사항 번호는 [채팅 채널 「하위 문서」](CLE-CHAT-CORE.md#하위-문서) 에 있다.
+채널 건강도(`chat_channel_health`)는 채팅 채널의 동작 상태다([용어 사전 — 외부 상호작용과 채널](../CLE-GLOSSARY-IX.md)). `degraded` 가 되는 원인은 아래 넷이고 이 표가 기준이다. 어느 원인도 트리거를 자동으로 비활성화하지 않는다. `healthy` 로 돌아가는 조건(한 디스패치에서 보낸 메시지가 있고 실패가 없을 때)은 [채팅 채널 데이터와 흐름 — 저장 모델과 상태 「채널 건강도」](CLE-CHAT-DATA-STORE.md#채널-건강도) 가 정한다. 각 원인의 요구사항 번호는 [채팅 채널 「하위 문서」](CLE-CHAT-CORE.md#하위-문서) 에 있다.
 
 | 원인 | 정하는 곳 | `chat_channel_last_error` |
 | --- | --- | --- |

@@ -2,19 +2,19 @@
 id: "CLE-NODE-EMAIL"
 title: "Send Email 노드"
 type: "feature"
-version: 13
+version: 14
 status: "approved"
 requirements: ["REQ-EMAIL-001", "REQ-EMAIL-002", "REQ-EMAIL-003", "REQ-EMAIL-004", "REQ-EMAIL-005", "REQ-EMAIL-006", "REQ-EMAIL-007", "REQ-EMAIL-008", "REQ-EMAIL-010", "REQ-EMAIL-011", "REQ-EMAIL-012", "REQ-EMAIL-013", "REQ-EMAIL-014", "REQ-EMAIL-015", "REQ-EMAIL-016", "REQ-EMAIL-017", "REQ-EMAIL-018", "REQ-EMAIL-019", "REQ-EMAIL-020", "REQ-EMAIL-021", "REQ-EMAIL-022", "REQ-EMAIL-023", "REQ-EMAIL-024", "REQ-EMAIL-025", "REQ-EMAIL-026", "REQ-EMAIL-027", "REQ-EMAIL-028", "REQ-EMAIL-029", "REQ-EMAIL-030", "REQ-EMAIL-031"]
 basis_superseded: false
 parent: "CLE-NODE-INT"
 ancestors: ["CLE-VISION", "CLE-NODE", "CLE-NODE-INT"]
 area: "CLE-NODE-INT"
-content_hash: "e45195f3b21fafaf3522c3d26f53de5fc6df2e18e389877fa38d374e99b417d8"
+content_hash: "d50113b842eec04184a5e41187def56c0f407b9f61c7ebd9217577eca58bdf02"
 read_as: "approved_fallback"
-task: "CLE-T-MYDNQN"
+task: "CLE-T-DC5Y0P"
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0fdfc552a137a1e1b73a5f47f8d25290367a04cdfa9b50865f824a6b9a919dae"
-etag: "sha256-b037e105383b20316b4a3276a1cd5d0dc13b54c37c8a8cdf8abf5316efc6751a"
+mirror_sha256: "b25d08a2460a20df67212e56c9c633853b27bcaa081fd51b11ed3ed5670ea2bb"
+etag: "sha256-a2a7d9aec85764bc75b3b04c78b7a53cfe41d4b65ae04682a294f5780838948b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -181,12 +181,14 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 - `codebase/backend/src/nodes/integration/send-email/send-email.handler.ts`
 - `codebase/backend/src/nodes/integration/send-email/send-email.schema.ts`
 - `codebase/backend/src/nodes/integration/send-email/smtp-host-guard.ts` (연결 전 검사와 연결 시점 판정 `getSocket`. 노드와 연결 테스트가 함께 쓴다)
+- `codebase/backend/src/common/utils/ssrf/socket-adapters.ts` (연결 시점 판정 소켓 어댑터. nodemailer `getSocket` 을 만든다)
+- `codebase/backend/src/common/utils/ssrf/guard-outcome.ts` (사설망 차단 판정 결과 처리 헬퍼)
 
 ## Rationale
 
 ### SMTP 호스트에도 사설망 차단 적용
 
-발송 경로의 사설망 차단은 HTTP Request·Database Query 노드와 같은 `ALLOW_PRIVATE_HOST_TARGETS` 플래그를 쓴다(기본 차단, 셀프 호스팅만 해제). 통합 노드 전체의 보안 자세를 한 가지로 유지하고, 연결 테스트만 막고 발송은 뚫리는 비대칭을 막기 위해서다. 별도 opt-in 플래그를 만들지 않은 근거, 코드 이름(`EMAIL_HOST_BLOCKED`)을 고른 근거, 채팅 채널 분류표에 영향이 없다는 분석은 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale "SMTP SSRF 가드를 http/db 와 동일 `ALLOW_PRIVATE_HOST_TARGETS` 로 통일" 에 있다.
+발송 경로의 사설망 차단은 HTTP Request·Database Query 노드와 같은 `ALLOW_PRIVATE_HOST_TARGETS` 플래그를 쓴다. 근거는 [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale "SMTP SSRF 가드를 http/db 와 동일 `ALLOW_PRIVATE_HOST_TARGETS` 로 통일" 에 있다.
 
 ### 수신자 필드를 배열만 받게 정리
 
@@ -203,9 +205,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 층별 결과 동작:
 
-- 저장(zod): `z.array(z.string())` 유지. 배열이 아닌 원본 입력은 파싱 실패
-- 검증기(`validateSendEmailConfig`): 문자열 경로를 지우고 배열만 받음. zod 와 일치
-- 핸들러(`normalizeRecipients`): 문자열 콤마 분리 경로를 지움. 배열이 아닌 입력은 방어적으로 `[]`([실행 로직](#실행-로직) 2단계)
+- 저장(zod) · 검증기 · 핸들러: 배열만 받는다. 핸들러의 문자열 콤마 분리 경로를 지웠다([실행 로직](#실행-로직) 2단계)
 - 출력 에코(`sendEmailNodeOutputSchema.config.to/cc/bcc`): `z.unknown()` 에서 `z.array(z.string())` 로 바꿔 배열만 에코함을 명시
 - 표현식: 배열 원소 단위로 `{{ ... }}` 를 쓴다(예: `["{{ $input.email }}"]`)
 
@@ -219,7 +219,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 결정일: 2026-11-06
 
-정규화한 `to` 가 비는 경우는 설정 형식 오류가 아니다. 수신자 표현식이 빈 값으로 평가될 때 생기므로 입력 데이터에 따라 결과가 달라진다. 워크플로우 작성자는 이런 실패를 에러 포트로 분기할 수 있어야 한다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.1 · 3.2). 노드 실행을 실패시키면 설정 오류와 구별되지 않고 평가된 제목과 본문도 출력에 남지 않는다. 그래서 확인을 `execute()` 의 try 블록 안으로 옮기고 `IntegrationError('EMAIL_NO_RECIPIENTS')` 로 던지게 했다.
+정규화한 `to` 가 비는 경우는 설정 형식 오류가 아니고 입력 데이터에 따라 달라진다. 워크플로우 작성자는 이런 실패를 에러 포트로 분기할 수 있어야 한다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) Principle 3.1 · 3.2). 노드 실행을 실패시키면 설정 오류와 구별되지 않고 평가된 제목과 본문도 출력에 남지 않는다. 그래서 확인을 `execute()` 의 try 블록 안으로 옮기고 `IntegrationError('EMAIL_NO_RECIPIENTS')` 로 던지게 했다.
 
 확인 위치는 dry-run 분기와 서비스 미주입 확인 앞에 두었다. 그래야 dry-run 에서도 실제 실행과 같은 에러 포트 출력이 나온다. 설정에 수신자가 하나도 없는 경우는 그대로 `handler.validate()` 의 사전 검증 에러다.
 
@@ -232,15 +232,15 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 요구사항의 코드 이름을 구현과 [에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) 에 맞췄다. 동작은 바꾸지 않았다.
 
-- 워크스페이스 누락만 REQ-EMAIL-022 에 남기고 코드를 `INTEGRATION_SERVICE_UNAVAILABLE` 로 적었다. 카탈로그의 이 코드 행이 워크스페이스 컨텍스트 누락을 이미 담고 있고, [통합 노드 공통](CLE-NODE-INT-COMMON.md) 도 다른 통합 노드의 같은 경우에 이 코드를 적는다.
-- 통합 없음은 REQ-EMAIL-022 에서 뺐다. 카탈로그와 코드에 전용 코드가 없고, 통합 노드 공통은 없는 통합 · 다른 워크스페이스 통합 · 남의 개인 통합을 같은 실패로 둔다. 전용 코드를 새로 둘지는 이 문서에서 정하지 않는다. 지금 동작은 REQ-EMAIL-021 이 정한다.
-- 핸들러는 `IntegrationError` 에만 `toLogError` 를 쓰고 그 밖은 `EMAIL_SEND_FAILED` 로 직접 정한다. 활동 로그에 공통 fallback `INTEGRATION_CALL_FAILED` 가 남는다고 적었던 이전 서술을 구현에 맞춰 고치고 REQ-EMAIL-027 을 더했다.
+- 워크스페이스 누락만 REQ-EMAIL-022 에 남기고 코드를 카탈로그와 [통합 노드 공통](CLE-NODE-INT-COMMON.md) 에 맞춰 `INTEGRATION_SERVICE_UNAVAILABLE` 로 적었다.
+- 통합 없음은 REQ-EMAIL-022 에서 뺐다. 근거는 [이 노드에서 나오지 않는 코드](#이-노드에서-나오지-않는-코드) 에 있다. 전용 코드를 새로 둘지는 이 문서에서 정하지 않는다.
+- 활동 로그에 공통 fallback `INTEGRATION_CALL_FAILED` 가 남는다고 적었던 이전 서술을 구현([실행 로직](#실행-로직) 10단계)에 맞춰 고치고 REQ-EMAIL-027 을 더했다.
 
 ### 워크스페이스 누락을 `INTEGRATION_SERVICE_UNAVAILABLE` 로 낸다
 
 결정일: 2026-11-26
 
-앞 절(2026-11-13)은 요구사항의 코드 이름만 정했고 구현은 여전히 `EMAIL_SEND_FAILED` 를 냈다. 이 절은 그 결정을 바꾸지 않고 구현을 맞춘다. 공통 베이스 `acquireIntegration` 이 워크스페이스 누락과 서비스 미주입을 일반 `Error` 대신 `IntegrationError('INTEGRATION_SERVICE_UNAVAILABLE')` 로 던지게 고쳤다(NERV Task `CLE-T-MYDNQN`). 그래서 REQ-EMAIL-022 의 코드가 그대로 나온다.
+앞 절(2026-11-13)이 정한 코드에 구현을 맞춘다. 공통 베이스 `acquireIntegration` 이 워크스페이스 누락과 서비스 미주입을 일반 `Error` 대신 `IntegrationError('INTEGRATION_SERVICE_UNAVAILABLE')` 로 던지게 고쳤다(NERV Task `CLE-T-MYDNQN`). 그래서 REQ-EMAIL-022 의 코드가 그대로 나온다.
 
 - 기각: 요구사항을 이전 동작(`EMAIL_SEND_FAILED`)에 맞추는 안. 이 코드를 이미 적은 공통 코드 표 · 카탈로그 · 다른 통합 노드 문서를 모두 바꿔야 한다.
 
@@ -257,7 +257,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 결정일: 2026-11-19
 
-`normalizeRecipients` 는 배열이 아닌 수신자 값을 `[]` 로 둔다. 이 값은 입력에서 설정 경로로 꺼낸 배열이 아니고 스키마와 검증기가 이미 거부한 설정 필드다. Principle 10 은 반복 · 분리 노드가 꺼낸 배열 입력의 대체 규칙이라 이 처리를 다루지 않는다. 그래서 이 처리를 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 규칙 2 의 대상이 아닌 처리 목록에 올렸다(NERV Task `CLE-T-1GJKB2`).
+배열이 아닌 수신자 값은 스키마와 검증기가 이미 거부한 설정 필드다. 반복 · 분리 노드가 꺼낸 배열 입력의 대체 규칙인 Principle 10 이 다루지 않으므로 [Logic 노드 공통](../CLE-NODE-LOGIC/CLE-NODE-LOGIC-COMMON.md#배열이-아닌-입력-처리) 규칙 2 의 대상이 아닌 처리 목록에 올렸다(NERV Task `CLE-T-1GJKB2`).
 
 기각한 대안은 이 경우에 throw 하는 안이다. `normalizeRecipients` 는 `execute()` 의 try 블록 앞에서 불리므로 옛 데이터의 워크플로우가 에러 포트 분기 없이 노드 실행 실패로 끝난다.
 
@@ -265,7 +265,7 @@ Send Email 노드(`send_email`)는 SMTP 로 이메일을 보내는 서비스 특
 
 결정일: 2026-11-20
 
-전에는 발송 전에 한 번만 검사해서 검사와 연결 사이에 DNS 응답이 바뀌면 막지 못했다. NERV Task `CLE-T-PTCRM4` 에서 연결할 때도 판정하게 했다. 방식과 기각한 대안은 [통합 노드 공통 — 에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다-2026-11-20) 에 있다.
+전에는 발송 전에 한 번만 검사해서 검사와 연결 사이에 DNS 응답이 바뀌면 막지 못했다. NERV Task `CLE-T-PTCRM4` 에서 연결할 때도 판정하게 했다. 방식과 기각한 대안은 [통합 노드 공통 — 에러 코드와 사설망 차단 Rationale](CLE-NODE-INT-COMMON-ERROR.md#database-query--send-email-에도-연결-시점-판정을-넣는다) 에 있다.
 
 - 가드 고장의 코드는 `EMAIL_SEND_FAILED` 로 두고 메시지만 고정 문구로 바꿨다. 2026-11-20 조율 세션에서 사람이 권장안을 골랐다. `INTEGRATION_CALL_FAILED` 로 바꾸면 이 노드가 그 코드를 내지 않는다는 규칙(REQ-EMAIL-021 · REQ-EMAIL-027)에 예외가 생긴다.
 - 요구사항 변경: REQ-EMAIL-021 에 예외 문장을 더하고 REQ-EMAIL-028 ~ REQ-EMAIL-031 을 새로 두었다.

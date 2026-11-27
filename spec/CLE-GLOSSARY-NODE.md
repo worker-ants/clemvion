@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-NODE"
 title: "용어 사전 — 노드"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "44b6fc857f9dea706f6aff5dc6b66f973a2dc35758550d143a191ec44895343b"
+content_hash: "75c58d219ada22e3f71029d9270642ba052f0daa26a670a655a431c902353d35"
 read_as: "approved_fallback"
-task: "CLE-T-3M0KRA"
+task: "CLE-T-SCFC83"
 source_paths: []
-mirror_sha256: "ef7f443b3f94603a58dcf293a181bfb842edd563bb9c47b9899bca0d3a19bc59"
-etag: "sha256-b9f605c971375e77f20b6bcd9830b236fc01791cd210aab92f6b67f7f69d41af"
+mirror_sha256: "09ad78522d0a8327c28426e50c05228e042081737eca80e41121c95d39f2e37d"
+etag: "sha256-49a578271f95f21463c5e4385919e7af60b348acfd7371728e15fce0834c2554"
 ---
 ## 개요
 
@@ -141,7 +141,9 @@ etag: "sha256-b9f605c971375e77f20b6bcd9830b236fc01791cd210aab92f6b67f7f69d41af"
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「노드」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
 
-### 정의 보정 (2026-10-03)
+### 정의 보정
+
+결정일: 2026-10-03
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
@@ -149,10 +151,14 @@ NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 - 「흐름 지시 상태」 · 「항목 에러 정책」 · 「에러 처리 정책」 · 「사용자 입력 기록」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다.
 - 「재귀 깊이」 · 「도구 호출 한도」 · 「종료 사유」 · 「표시 전용」 · 「출력 크기 한도」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14). 「폼 필드」 는 유형 개수를 지웠다.
 
-### 「원본 설정」 에 원시 `config` 와 다르다는 안내를 더했다 (2026-11-19)
+### 「원본 설정」 에 원시 `config` 와 다르다는 안내를 더했다
+
+결정일: 2026-11-19
 
 NERV Task `CLE-T-YQMP4N` 이 더했다. 두 말 모두 영문으로 «raw config» 라 부를 수 있어서다. [용어 사전 — 트리거](CLE-GLOSSARY-TRIG.md) 의 「원시 `config`」 도 이 행과 다르다고 적고 있어 양쪽에서 갈리게 했다.
 
-### 「사설망 차단」 의 막는 대역을 링크로 바꿨다 (2026-11-20)
+### 「사설망 차단」 의 막는 대역을 링크로 바꿨다
+
+결정일: 2026-11-20
 
 NERV Task `CLE-T-PTCRM4` · `CLE-T-691T4G` 에서 바꿨다. 막는 대역은 공용 판정이 정하고 [통합 노드 공통 — 에러 코드와 사설망 차단](CLE-NODE-INT/CLE-NODE-INT-COMMON-ERROR.md#사설망-차단) 한 곳에 적는다. 정의에 주소 종류를 늘어놓으면 대역표가 바뀔 때 이 행만 남아 어긋난다.

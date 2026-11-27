@@ -2,25 +2,25 @@
 id: "CLE-ACCT-SESSION"
 title: "세션과 토큰"
 type: "feature"
-version: 21
+version: 22
 status: "approved"
-requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047", "REQ-SESSION-048"]
+requirements: ["REQ-SESSION-001", "REQ-SESSION-002", "REQ-SESSION-003", "REQ-SESSION-004", "REQ-SESSION-005", "REQ-SESSION-006", "REQ-SESSION-007", "REQ-SESSION-008", "REQ-SESSION-009", "REQ-SESSION-010", "REQ-SESSION-011", "REQ-SESSION-012", "REQ-SESSION-013", "REQ-SESSION-014", "REQ-SESSION-015", "REQ-SESSION-016", "REQ-SESSION-017", "REQ-SESSION-018", "REQ-SESSION-019", "REQ-SESSION-020", "REQ-SESSION-021", "REQ-SESSION-022", "REQ-SESSION-023", "REQ-SESSION-024", "REQ-SESSION-025", "REQ-SESSION-026", "REQ-SESSION-027", "REQ-SESSION-028", "REQ-SESSION-029", "REQ-SESSION-030", "REQ-SESSION-031", "REQ-SESSION-032", "REQ-SESSION-033", "REQ-SESSION-035", "REQ-SESSION-036", "REQ-SESSION-037", "REQ-SESSION-038", "REQ-SESSION-039", "REQ-SESSION-040", "REQ-SESSION-041", "REQ-SESSION-042", "REQ-SESSION-043", "REQ-SESSION-044", "REQ-SESSION-045", "REQ-SESSION-046", "REQ-SESSION-047", "REQ-SESSION-048", "REQ-SESSION-049", "REQ-SESSION-050", "REQ-SESSION-051", "REQ-SESSION-052", "REQ-SESSION-053", "REQ-SESSION-054"]
 basis_superseded: false
 parent: "CLE-ACCT"
 ancestors: ["CLE-VISION", "CLE-ACCT"]
 area: "CLE-ACCT"
-content_hash: "fa7c67a06f334f19ae3b5bca72316044639f0890de5ea3a320eaa089bb6a9440"
+content_hash: "abfd7806ff744a3d4fc87309074451c2c6406100f948ffa7295d8327628c0841"
 read_as: "approved_fallback"
-task: "CLE-T-YAHNQ6"
+task: "CLE-T-VWC60Z"
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "4e0848d17c6c5e56b591bf8deee3123e5c94786ccb775f6ace91ff0abb63af81"
-etag: "sha256-d044567ad3c0ed8e7d069478cbf9b45145b8e69cb4b08bc304b55b5023235183"
+mirror_sha256: "602294b16f6373c88029072d4843e341f28174f48108fd37573d25b1f1258df0"
+etag: "sha256-b86128ab45dc40c8afd02530c2050cc2aa7971d0da566d96831148a2727b555b"
 ---
-> 구현 상태: 부분 구현 (동시 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
+> 구현 상태: 부분 구현 (동시 로그인 세션 제한은 미구현) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-이 문서는 로그인한 뒤 사용자가 로그인 상태를 어떻게 유지하고 끝내는지 정한다. 액세스 토큰(access token, `accessToken`)과 리프레시 토큰(refresh token, `refreshToken`)의 형태와 수명, 로그인 세션(login session, `family_id`) 단위의 토큰 회전(refresh token rotation)과 재사용 감지, 리프레시 쿠키 속성, 세션 목록과 세션 강제 종료(session revoke), 계정 재인증(reauthentication, `verifyReauth`)과 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드, 로그아웃, 프론트엔드 라우트 가드와 로그인 뒤 이동할 곳, 운영 환경 부팅 가드(`assertProductionConfig`)가 막는 설정과 그 가드의 암호화 키 검사 기준이 범위다. 이 문서는 입구이고 주제별 본문은 [하위 문서](#하위-문서) 에 있다.
+이 문서는 로그인한 뒤 사용자가 로그인 상태를 어떻게 유지하고 끝내는지 정한다. 액세스 토큰(access token, `accessToken`)과 리프레시 토큰(refresh token, `refreshToken`)의 형태와 수명, 로그인 세션(login session, `family_id`) 단위의 토큰 회전(refresh token rotation)과 재사용 감지, 리프레시 쿠키 속성, 세션 목록과 세션 강제 종료(session revoke), 계정 재인증(reauthentication, `verifyReauth`)과 비밀번호 재확인(password re-check, `verifyPasswordForUser`)의 에러 코드, 로그아웃, 프론트엔드 라우트 가드와 로그인 뒤 이동할 곳, 운영 환경 가드(`assertProductionConfig`)가 막는 설정과 그 가드의 암호화 키 검사 기준이 범위다. 이 문서는 입구이고 주제별 본문은 [하위 문서](#하위-문서) 에 있다.
 
 범위 밖 주제는 다음 문서가 정한다.
 
@@ -80,8 +80,14 @@ etag: "sha256-d044567ad3c0ed8e7d069478cbf9b45145b8e69cb4b08bc304b55b5023235183"
 - REQ-SESSION-046 WHEN 사용자가 세션 강제 종료 확인 창에서 계정 재인증을 하면 THE SYSTEM SHALL 처음에는 비밀번호 입력란을 보여 주고 400 `REAUTH_REQUIRED` 를 받았는데 그 계정의 TOTP 가 켜져 있으면 TOTP 코드 입력란으로 바꾸며 403 `REAUTH_NOT_AVAILABLE` 을 받으면 입력란 없이 계정 재인증을 할 수 없다고 안내한다.
 - REQ-SESSION-047 WHEN 갱신으로 리프레시 토큰을 회전하면 THE SYSTEM SHALL 새 리프레시 토큰이 그 로그인 세션의 로그인 유지 여부를 이어받게 하고 새 리프레시 토큰과 갱신 응답의 리프레시 쿠키를 회전한 시점부터 로그인 유지를 켰으면 30일, 껐으면 7일 동안 유효하게 한다.
 - REQ-SESSION-048 WHEN 사용자가 초대 수락 페이지의 «다른 계정으로 로그인» 으로 로그아웃하면 THE SYSTEM SHALL `/login` 대신 `/login?redirect=<인코딩한 /invitations/accept?token=…>` 로 보낸다.
+- REQ-SESSION-049 IF `NODE_ENV=production` 에서 마스터키(`ENCRYPTION_KEY`)가 없거나 빈 값이거나 공백뿐이거나 저장소에 커밋된 예시 값이면 THE SYSTEM SHALL 부팅을 거부한다. 예시 값은 앞뒤 공백을 뗀 값으로도 대조한다.
+- REQ-SESSION-050 IF `NODE_ENV=production` 에서 통합 암호화 키(`INTEGRATION_ENCRYPTION_KEY`)가 없거나 빈 값이거나 공백뿐이거나 저장소에 커밋된 예시 값(마스터키의 예시 값 포함)이면 THE SYSTEM SHALL 부팅을 거부한다. 예시 값은 앞뒤 공백을 뗀 값으로도 대조한다.
+- REQ-SESSION-051 IF `NODE_ENV=production` 에서 `MCP_ALLOW_INSECURE_URL` 이 `true` 나 `1` 이면 THE SYSTEM SHALL 부팅을 거부한다.
+- REQ-SESSION-052 IF `NODE_ENV=production` 에서 `OAUTH_STUB_MODE` 가 `true` 나 `1` 이면 THE SYSTEM SHALL 부팅을 거부한다.
+- REQ-SESSION-053 IF `NODE_ENV=production` 에서 `LLM_STUB_MODE` 가 `true` 나 `1` 이면 THE SYSTEM SHALL 부팅을 거부한다.
+- REQ-SESSION-054 IF `NODE_ENV=production` 에서 `ALLOW_HTTP_HOOKS` 가 `true` 나 `1` 이면 THE SYSTEM SHALL 부팅을 거부한다.
 
-REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않는다. 이유는 [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#30일-비활동-만료를-지우고-동시-세션-제한을-미구현으로-적는다) 에 있다.
+REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않는다. 이유는 [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md#30일-비활동-만료를-지우고-동시-로그인-세션-제한을-미구현으로-적는다) 에 있다.
 
 ## 하위 문서
 
@@ -90,9 +96,9 @@ REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않
 | [세션과 토큰 — 토큰과 갱신](CLE-ACCT-SESSION-TOKEN.md) | 토큰 종류와 수명, 로그인 유지, 액세스 토큰 payload, 토큰 갱신과 재사용 감지, 클라이언트 갱신 재시도, 로그아웃 | REQ-SESSION-001 ~ 005, 007 ~ 012, 030 ~ 032, 043, 044, 047, 048 |
 | [세션과 토큰 — 세션 정책과 세션 관리](CLE-ACCT-SESSION-POLICY.md) | 로그인 세션 정책, 리프레시 쿠키 속성, 클라이언트 IP, 본인 확인 에러 코드, 세션 화면, 세션 API | REQ-SESSION-013 ~ 029, 033, 039, 041, 042, 046 |
 | [세션과 토큰 — 라우트 가드와 로그인 뒤 이동](CLE-ACCT-SESSION-ROUTE.md) | 공개 경로와 두 층의 가드, 로그인 힌트 쿠키, 로그인 뒤 이동, 소셜 로그인의 복귀 경로 | REQ-SESSION-035 ~ 038, 040, 045 |
-| [세션과 토큰 — 운영 환경 가드](CLE-ACCT-SESSION-GUARD.md) | `assertProductionConfig` 가 막는 설정의 전체 목록, 암호화 키 검사, 가드에 넣는 기준 | REQ-SESSION-006 |
+| [세션과 토큰 — 운영 환경 가드](CLE-ACCT-SESSION-GUARD.md) | `assertProductionConfig` 가 막는 설정의 전체 목록, 암호화 키 검사, 가드에 넣는 기준 | REQ-SESSION-006, 049 ~ 054 |
 
-하위 문서가 다루지만 다른 문서에 있는 요구도 있다. 동시 세션 제한의 근거는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-048(NF-SC-07)이다(토큰과 갱신 · 세션 정책). `INTERACTION_JWT_SECRET` 의 운영 환경 가드는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 REQ-EIA-018 이 맡는다(운영 환경 가드).
+하위 문서가 다루지만 다른 문서에 있는 요구도 있다. 동시 로그인 세션 제한의 근거는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-048(NF-SC-07)이다(토큰과 갱신 · 세션 정책). `INTERACTION_JWT_SECRET` 의 운영 환경 가드는 [External Interaction API](../CLE-IX/CLE-EIA.md) 의 REQ-EIA-018 이 맡는다(운영 환경 가드).
 
 다른 문서가 링크하던 절은 아래 이름 그대로 남기고 하위 문서로 잇는다.
 
@@ -142,7 +148,7 @@ REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않
 
 ## 미결 사항
 
-- **동시 세션 한도의 값과 설정 주체**: 세션 정책 표는 동시 세션 기본 5개(관리자 설정 가능)와 초과 시 가장 오래된 세션 종료를 약속하지만 둘 다 미구현이다(2026-10-10 코드 확인). 5개가 맞는 값인지, "관리자 설정" 의 주체가 운영자 환경 변수인지 워크스페이스 관리자인지 정해지지 않았다. 후속 Task CLE-T-VBQV4H 가 둘을 정하고 구현한다. 관련 요구는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-048(NF-SC-07)이다.
+- **동시 로그인 세션 한도의 값과 설정 주체**: 세션 정책 표는 동시 로그인 세션 기본 5개(관리자 설정 가능)와 초과 시 가장 오래된 로그인 세션 종료를 약속하지만 둘 다 미구현이다(2026-10-10 코드 확인). 5개가 맞는 값인지, "관리자 설정" 의 주체가 운영자 환경 변수인지 워크스페이스 관리자인지 정해지지 않았다. 후속 Task CLE-T-VBQV4H 가 둘을 정하고 구현한다. 관련 요구는 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-048(NF-SC-07)이다.
 - **`/auth/` 아래 다른 JWT 라우트는 401 에서 갱신하지 않는다**: 클라이언트의 갱신 제외 규칙은 `/auth/sessions` 만 예외로 둔다. 2단계 인증 설정·켜기·끄기(`/auth/2fa/setup`·`/auth/2fa/verify`·`/auth/2fa/disable`), Passkey 등록 · 관리(`/auth/2fa/webauthn/*` 의 JWT 라우트), 워크스페이스 전환(`/auth/workspaces/:id/switch`)도 Bearer 액세스 토큰이 필요한 라우트다. 이 라우트들은 액세스 토큰이 만료된 뒤 첫 호출이 갱신 없이 401 로 끝난다. 제외 조건을 갱신이 필요 없는 라우트의 명시 목록(`/auth/login`, `/auth/login/totp`, `/auth/refresh` 등)으로 좁힐지 결정 필요.
 
 ## 구현 위치
@@ -193,6 +199,16 @@ REQ-SESSION-034(30일 비활동 만료)는 지웠고 번호를 다시 쓰지 않
 - 세 경로 모두 무효화한 리프레시 토큰 행이 하나 이상일 때만 이력을 남긴다(`SessionsService.revokeAllFamilies` · `recordBulkRevoked`). 비밀번호 변경과 이메일 변경 확인도 원래 이렇게 동작했지만 요구사항 줄에는 이 조건이 없었다. 이번에 함께 적었다.
 - 미인증 계정 연결은 무효화를 계정 연결과 같은 트랜잭션에서 하고 이력은 커밋한 뒤에 남긴다.
 - NERV Task `CLE-T-YAHNQ6` 에서 고쳤다.
+
+### 운영 환경 가드 대상의 요구사항 줄을 더했다
+
+결정일: 2026-11-27
+
+동작은 바뀌지 않았고 하위 문서 본문에만 있던 규칙을 요구사항 줄로 올렸다.
+
+- 요구사항 REQ-SESSION-049 ~ 054 를 더했다. 두 암호화 키와 네 플래그의 부팅 거부다. 조건의 정본은 [세션과 토큰 — 운영 환경 가드](CLE-ACCT-SESSION-GUARD.md#운영-환경-가드) 표다. 근거는 그 문서의 Rationale 에 있다.
+- 용어 사전 표기에 맞춰 개요의 «운영 환경 부팅 가드» 를 «운영 환경 가드» 로, 단독으로 쓴 «동시 세션» 을 «동시 로그인 세션» 으로 고쳤다.
+- NERV Task `CLE-T-2JG0HW` · `CLE-T-WYJEAQ` 에서 고쳤다.
 
 다른 문서가 링크하던 Rationale 절은 아래 이름 그대로 남기고 하위 문서로 잇는다.
 

@@ -78,7 +78,7 @@ export const parallelNodeConfigSchema = z
         ui: {
           label: 'Error Policy',
           widget: 'select',
-          hint: 'stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches; a failed branch leaves null in output.branches[i] and its error is collected in output.skipped. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).',
+          hint: 'stop: wait for all branches, then fail the Parallel node with the error of the lowest-numbered failed branch (other branches are not stopped). continue: wait for all branches; a failed branch leaves null in output.branches[i] and its error is collected in output.skipped. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).',
         },
       }),
   })
@@ -94,10 +94,10 @@ export const parallelNodePorts: NodePorts = {
 
 /**
  * Imperative escape hatch — 경고 규칙 DSL 로 쓸 수 없는 검사만 맡는다.
- * `branchCount` 는 정수 검사만 하고 `[2, 16]` 범위는 `warningRules` 의
- * `parallel:branch-count-out-of-range` 한 곳에 둔다(CLE-NODE-PARALLEL 「에러」).
- * handler.validate 가 두 결과를 합쳐 돌려주므로 범위 문구가 두 번 나오지 않게
- * 여기서는 범위를 보지 않는다.
+ * `branchCount` 는 숫자인지만 보고 정수 · `[2, 16]` 범위 검사는 `warningRules` 의
+ * `parallel:branch-count-not-integer` · `parallel:branch-count-out-of-range` 에 둔다
+ * ([CLE-NODE-PARALLEL-CONFIG](CLE-NODE-PARALLEL-CONFIG) 「에러」). handler.validate 가
+ * 두 결과를 합쳐 돌려주므로 같은 문구가 두 번 나오지 않게 여기서는 그 둘을 보지 않는다.
  */
 export function validateParallelConfig(config: unknown): string[] {
   const c = (config ?? {}) as Record<string, unknown>;
@@ -105,12 +105,8 @@ export function validateParallelConfig(config: unknown): string[] {
 
   const rawBranch = c.branchCount;
   if (rawBranch !== undefined) {
-    if (
-      typeof rawBranch !== 'number' ||
-      !Number.isFinite(rawBranch) ||
-      !Number.isInteger(rawBranch)
-    ) {
-      errors.push('branchCount must be an integer.');
+    if (typeof rawBranch !== 'number' || !Number.isFinite(rawBranch)) {
+      errors.push('branchCount must be a number.');
     }
   }
 
@@ -168,11 +164,17 @@ export const parallelNodeMetadata: NodeComponentMetadata = {
   dynamicPorts: { kind: 'parallel-branches' },
   summaryTemplate: '{{branchCount}} branches',
   // SSOT for warnings (frontend canvas + backend handler.validate).
-  // branchCount 범위 검사는 아래 규칙 한 곳에만 둔다(캔버스 배지와 handler.validate
-  // 에 같은 문구가 한 번씩 보인다). 범위 검사가 여기에만 있으므로 심각도는 기본
-  // blocking 을 지킨다. 정수 · maxConcurrency · waitAll 검사는 mini-DSL 에
-  // Number.isInteger 가 없어 `validateConfig` 가 맡는다.
+  // branchCount 정수 · 범위 검사는 아래 규칙에만 둔다(캔버스 배지와 handler.validate
+  // 에 같은 문구가 한 번씩 보인다, REQ-PARALLEL-019). 검사가 여기에만 있으므로
+  // 심각도는 기본 blocking 을 지킨다. 정수 규칙은 양수일 때만 보고 0 · 음수는 범위
+  // 규칙이 잡는다. 숫자가 아닌 값 · maxConcurrency · waitAll 검사는 `validateConfig`
+  // 가 맡는다.
   warningRules: [
+    {
+      id: 'parallel:branch-count-not-integer',
+      when: 'branchCount > 0 && !isInteger(branchCount)',
+      message: 'branchCount must be an integer.',
+    },
     {
       id: 'parallel:branch-count-out-of-range',
       when: 'branchCount < 2 || branchCount > 16',

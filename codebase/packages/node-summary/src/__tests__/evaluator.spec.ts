@@ -59,6 +59,24 @@ describe('evaluateWhen — atom forms', () => {
     // legacy `path.length` form still works (mirrors old interpreter)
     expect(evaluateWhen('!buttons.length', { buttons: [] })).toBe(true);
   });
+
+  it('isInteger(path) call is true only for an integer number', () => {
+    expect(evaluateWhen('isInteger(count)', { count: 3 })).toBe(true);
+    expect(evaluateWhen('isInteger(count)', { count: 0 })).toBe(true);
+    expect(evaluateWhen('isInteger(count)', { count: 2.5 })).toBe(false);
+    // numeric strings are not coerced — the value itself must be a number.
+    expect(evaluateWhen('isInteger(count)', { count: '3' })).toBe(false);
+    expect(evaluateWhen('isInteger(count)', { count: Number.NaN })).toBe(false);
+    expect(evaluateWhen('isInteger(missing)', {})).toBe(false);
+    expect(evaluateWhen('!isInteger(count)', { count: 2.5 })).toBe(true);
+    expect(
+      evaluateWhen('count > 0 && !isInteger(count)', { count: 2.5 }),
+    ).toBe(true);
+    expect(evaluateWhen('count > 0 && !isInteger(count)', { count: 4 })).toBe(
+      false,
+    );
+    expect(evaluateWhen('count > 0 && !isInteger(count)', {})).toBe(false);
+  });
 });
 
 describe('evaluateWhen — combinators', () => {

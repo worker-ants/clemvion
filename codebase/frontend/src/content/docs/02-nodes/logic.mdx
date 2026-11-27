@@ -128,7 +128,7 @@ Loop는 컨테이너 노드예요. 입력은 `in`, `emit` 두 개, 출력은 `bo
   {name: "errorPolicy", required: false, type: "`stop` / `skip` / `continue`", description: "항목 실행 중 에러가 났을 때의 정책이에요. 결과 배열은 원본 인덱스를 유지해요.", default: "stop"}
 ]} />
 
-body 내부에서 `$item`, `$itemIndex`, `$item.isFirst`, `$item.isLast`를 참조할 수 있어요.
+body 내부에서 `$item`, `$itemIndex`, `$itemIsFirst`, `$itemIsLast`를 참조할 수 있어요.
 
 배열 경로가 배열이 아닌 값(숫자 · 문자열 · 객체 · `null` · 없는 경로)으로 풀리면 에러 없이 빈 배열로 보고 body를 한 번도 실행하지 않아요. 이때 `$node["ForEach"].meta.fellBackToEmpty`가 `true`예요. body를 실행한 횟수는 `meta.iterations`, 건너뛴 항목이 있으면 그 수는 `meta.skippedCount`로 확인해요.
 
@@ -338,7 +338,7 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 <FieldTable rows={[
   { name: "Branch Count", required: true, type: "number", description: "동시에 실행할 분기 수예요. 2~16 사이로 지정해요.", default: "2" },
   { name: "Max Concurrency", required: false, type: "number", description: "동시에 실행할 최대 분기 수예요. 0이면 전부 동시에, 1~16이면 그 수만큼만 동시에 실행해요.", default: "0 (무제한)" },
-  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "분기에서 오류가 났을 때의 정책이에요. `stop`은 첫 실패에서 Parallel 전체를 실패시키고, `continue`는 모든 분기가 끝날 때까지 기다린 뒤 실패한 분기 자리를 `null`로 두고 실패 정보를 `skipped`에 모아요. `cancel-others-on-fail`은 첫 실패가 나는 순간 다른 분기의 외부 호출(HTTP 등)을 즉시 취소해 자원을 아껴요.", default: "stop" }
+  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "분기에서 오류가 났을 때의 정책이에요. `stop`은 모든 분기가 끝나기를 기다린 뒤 실패한 분기 가운데 번호가 가장 작은 분기의 에러로 Parallel을 실패시키고(실패 뒤에도 다른 분기를 멈추지 않아요), `continue`는 모든 분기가 끝날 때까지 기다린 뒤 실패한 분기 자리를 `null`로 두고 실패 정보를 `skipped`에 모아요. `cancel-others-on-fail`은 첫 실패가 나는 순간 다른 분기의 외부 호출(HTTP 등)을 즉시 취소해 자원을 아껴요.", default: "stop" }
 ]} />
 
 ### 포트
@@ -352,9 +352,9 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 - 입력이 들어오면 `branch_0`, `branch_1`, … 모든 분기 포트로 **동일한 입력을 동시에** 내보내요.
 - 각 분기는 기본으로 **진짜 병렬로** 실행돼요. 서버에서 `PARALLEL_ENGINE=off`로 끄면 분기를 위상 순서대로 하나씩 실행해요. 이때는 아래 완료 출력(`branches` · `count` · `skipped`)을 만들지 않아요.
 - Max Concurrency를 지정하면 리소스를 보호하면서 동시 실행 수를 제한할 수 있어요.
-- 한 분기 안의 노드는 위상 순서대로 하나씩 실행돼요. 두 번째 노드부터는 앞 노드의 출력을 입력으로 받고, 분기 안의 If·Switch가 고르지 않은 경로는 실행되지 않아요.
+- 한 분기 안의 노드는 위상 순서대로 하나씩 실행돼요. 각 노드는 연결선으로 이어진 앞 노드의 출력을 입력으로 받고, 분기 안의 If·Switch가 고르지 않은 경로는 실행되지 않아요.
 - 모든 분기가 완료되면 각 분기에서 **실제로 실행된 노드 가운데 가장 뒤에 있는 노드**의 출력이 `done` 포트의 `branches` 배열에 담겨요. 실행되지 않은 노드는 결과로 쓰이지 않아요.
-- 한 분기에서 끝 노드가 둘 이상 실행되면(예: A 뒤에 B와 C가 모두 실행) 어느 쪽이 결과가 될지는 내부 노드 ID 순서로 정해져요. 노드나 연결선을 바꾸면 결과 노드가 바뀔 수 있으니, 결과를 하나로 정하려면 분기 끝에 Merge를 두어 한 노드로 모으세요.
+- 한 분기에서 끝 노드가 둘 이상 실행되면(예: A 뒤에 B와 C가 모두 실행) 실행 순서가 가장 늦은 노드가 결과가 돼요. 실행 순서는 연결선 방향을 따르고, 같은 단계의 노드끼리는 내부 노드 ID 순서로 정해져요. 노드나 연결선을 바꾸면 결과 노드가 바뀔 수 있으니, 결과를 하나로 정하려면 분기 끝에 Merge를 두어 한 노드로 모으세요.
 
 ### 결과와 실패 읽기
 

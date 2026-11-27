@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OPEN"
 title: "용어 사전 — 결정이 필요한 표기"
 type: "convention"
-version: 6
+version: 7
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "be3f5153fd26866566a78013797a8a369f00398aaf35bd28e8c6e420d640d502"
+content_hash: "fd42f5beb8938aebc183c2af9ecda84fb6f57da0eac05ce9aaab0458ed6acf07"
 read_as: "approved_fallback"
-task: "CLE-T-VTA8KJ"
+task: "CLE-T-SCFC83"
 source_paths: []
-mirror_sha256: "2800f5bf5c8deecae5277c7e2238f2caff87e09f9a6faf48ec5a6e1aaa060c21"
-etag: "sha256-5bb613ba85b5a272fa5d1d1fbcba2794b083430dee2659bb21daf56c51ab1791"
+mirror_sha256: "39b7d7608e75219f92f62419a9edd32aab09a4f6a77bcb721f5a491e0cbf2d93"
+etag: "sha256-586ab16c1885afd3905c5c2f69a847d24cb1f7f6b4d770c6bc6a2d7c9c2c3df2"
 ---
 ## 개요
 
@@ -97,14 +97,18 @@ etag: "sha256-5bb613ba85b5a272fa5d1d1fbcba2794b083430dee2659bb21daf56c51ab1791"
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「결정이 필요한 표기」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
 
-### 정의 보정 (2026-10-03)
+### 정의 보정
+
+결정일: 2026-10-03
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
 - Rationale 의 분할 설명을 색인을 가리키는 한 줄로 줄였다(NERV Task `CLE-T-V22XN8`).
 - 하위 문서의 용어 행이 「(결정 항목)」 으로만 가리키던 곳에 이 표의 번호를 붙였다. NERV Task `CLE-T-V22XN8` 본문이 두 안(번호를 붙이는 안, 이 표에 「관련 용어 행」 열을 두는 안)을 제시했고 번호를 택했다. 열을 두면 용어 행이 바뀔 때마다 이 표도 고쳐야 한다. 결정이 나면 번호로 짝을 찾아 함께 고친다. 본문에서는 번호를 항목 이름과 함께 쓴다(색인 표기 원칙 10).
 
-### 결정 항목 D40 을 걷었다 (2026-10-31)
+### 결정 항목 D40 을 걷었다
+
+결정일: 2026-10-31
 
 결정 항목 D40(통합 자격 증명 암호화 키 이름이 문서마다 다르다)은 [시크릿 저장소](CLE-INT/CLE-INT-SECRET.md) 의 Rationale R13 「통합 암호화 키를 마스터키와 따로 둔다」 에서 결정돼 표에서 걷었다(2026-10-31, NERV Task `CLE-T-KQ37NJ`).
 

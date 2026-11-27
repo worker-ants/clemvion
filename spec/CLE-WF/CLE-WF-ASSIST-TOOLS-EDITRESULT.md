@@ -2,19 +2,19 @@
 id: "CLE-WF-ASSIST-TOOLS-EDITRESULT"
 title: "AI 어시스턴트 도구 — 편집 응답의 포트와 선택 후보"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-ASSIST-TOOLS"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-ASSIST-TOOLS"]
 area: "CLE-WF"
-content_hash: "2225836ac7697fd97380858a3d087ff8618729502f255c789d861f20709a66ed"
+content_hash: "d42bcb85669531dac6787469d901af8845c4b7ea71552fbe11ee3866706dd949"
 read_as: "approved_fallback"
-task: "CLE-T-P3SKS4"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "a93c12ced387ba38bf9e131400de34be14ec6bf97570465968db170ccef6c6ec"
-etag: "sha256-d1426f5f045f45034a156a7f55b3dc787b9969b7ecb763cd31eaf56f801e5cb9"
+mirror_sha256: "1727227aa8817cd1b9a53f7dc0926eb0043db0b171390442c6f41391a9af8e29"
+etag: "sha256-608314dd35bf1eecc6bc8ac711b8e124905649c0d99fdbdd9a966f4afdcbdb1a"
 ---
 ## 개요
 
@@ -167,7 +167,7 @@ backend `tools/resolve-dynamic-ports.ts` 가 동적 포트 해석의 단일 기�
 
 ### 통합 후보의 워크플로우 작성자 조건
 
-`integration-selector`·`mcp-server-selector` 후보에서 워크플로우 작성자가 아닌 요청자의 개인 통합을 빼는 결정의 근거는 `list_integrations` 와 함께 [부모 문서 Rationale](CLE-WF-ASSIST-TOOLS.md#통합-후보는-워크플로우-작성자-조건도-본다-2026-10-24)에 있다.
+`integration-selector`·`mcp-server-selector` 후보에서 워크플로우 작성자가 아닌 요청자의 개인 통합을 빼는 결정의 근거는 `list_integrations` 와 함께 [부모 문서 Rationale](CLE-WF-ASSIST-TOOLS.md#통합-후보는-워크플로우-작성자-조건도-본다)에 있다.
 
 ### 유지보수 점검
 

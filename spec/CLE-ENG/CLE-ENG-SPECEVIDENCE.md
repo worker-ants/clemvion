@@ -2,19 +2,19 @@
 id: "CLE-ENG-SPECEVIDENCE"
 title: "스펙과 구현 근거 규약"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "948d8ba654dc679a2cd7e07f2f59ac073884ffe37846107b2706c5d5118fde5a"
+content_hash: "98d1076ef72a18263e6c285c2aec10ee793682faded9d65cbc8406939ae14c77"
 read_as: "approved_fallback"
-task: "CLE-T-4H77EB"
+task: "CLE-T-15DBHE"
 source_paths: ["spec/conventions/spec-impl-evidence.md"]
-mirror_sha256: "590bf47d06f821357ec0d67c1919dd81cd118ec59f4e8080db1dae587cd9e6d4"
-etag: "sha256-c09c41690eb8f22f880f4adb59962e2d3239ead78f7d98d1caa9639fc0234147"
+mirror_sha256: "136f7fbb5febab98df7ad6cd807c71438c17d8efbf088c327ae197cb16608fa9"
+etag: "sha256-3b76c221277e99a4556abd29eee0aac9c1a380fea746b9429dfbb3a08ae4dfc0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/spec-impl-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -153,7 +153,9 @@ Rationale 번호(R-n)는 다른 문서와 코드 주석이 인용하므로 하�
 
 옛 frontmatter `code:` 의 결정이다. 같은 이유로 규칙 20 도 글로브를 허용한다. 명시 파일만 받는 안 대신 글로브를 허용했다. 영역 단위 책임(예: `codebase/backend/src/modules/chat-channel/**`)을 자연스럽게 적을 수 있고 옮기는 부담이 적다. 단점은 stale 글로브다. 없어진 파일을 가리키던 글로브가 다른 파일에 매치해 통과하는 경우를 이 가드만으로는 못 잡는다. 이 약점은 `/spec-coverage` 정기 감사가 보완한다. NLP 휴리스틱으로 스펙 본문이 약속한 UI·API 표면에 맞는 코드가 없는지 찾는다.
 
-### R-16. 옛 트리를 지우고 frontmatter 근거를 `## 구현 위치` 검사로 바꾼 이유 (2026-10-03, 전환 단계 5)
+### R-16. 옛 트리를 지우고 frontmatter 근거를 `## 구현 위치` 검사로 바꾼 이유 (전환 단계 5)
+
+결정일: 2026-10-03
 
 NERV 정본 전환 단계 5(NERV Task `CLE-T-7M4C4X`)에서 저장소의 옛 스펙 트리 파일 138개를 지웠다. 루트 `spec/0-overview.md` · `spec/1-data-model.md` · `spec/6-brand.md` 와 폴더 `spec/2-navigation/` · `spec/3-workflow-editor/` · `spec/4-nodes/` · `spec/5-system/` · `spec/7-channel-web-chat/` · `spec/conventions/` · `spec/data-flow/` 다. 저장소 `spec/` 에는 NERV 미러(`spec/<영역 키>/<KEY>.md` · `spec/<KEY>.md`)와 미러 안내 `spec/README.md` 만 남는다. 같은 PR 에서 옛 트리 전용 가드와 공용 파서 `spec-frontmatter-parse.ts`(와 그 테스트)를 걷었다. 가드별 처분은 다음과 같다.
 

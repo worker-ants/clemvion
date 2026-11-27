@@ -2,19 +2,19 @@
 id: "CLE-GLOSSARY-OBS"
 title: "용어 사전 — 관측과 운영"
 type: "convention"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-GLOSSARY"
 ancestors: ["CLE-VISION", "CLE-GLOSSARY"]
 area: null
-content_hash: "6d031c8cfb3791951b1e234ff7a73e501df66b701b026c7aa3083902e0f00e4b"
+content_hash: "ef499a2247027cf8fdc7d18800712c1f5b18f5785b1d3ce3423751ce747f1f6d"
 read_as: "approved_fallback"
-task: "CLE-T-EJFQ1Y"
+task: "CLE-T-SCFC83"
 source_paths: []
-mirror_sha256: "2383d98be6cc67109cd392546726fb7dd1cc547feedda430cb030da481aeb249"
-etag: "sha256-ef1d11b7dd9f66a26c4edd87bb2a1e46cd9e0893726d2431f62be2fc04149e14"
+mirror_sha256: "b8e61596d274862d2d0cb8f61636fff30754d4356e9b3080aa5a0380cbd5bc8a"
+etag: "sha256-e9c787da6cbc3a3bd0b9bffa27cce3802a279bc3851dbe45ceeeb8c4a8bd3596"
 ---
 ## 개요
 
@@ -55,14 +55,18 @@ etag: "sha256-ef1d11b7dd9f66a26c4edd87bb2a1e46cd9e0893726d2431f62be2fc04149e14"
 
 2026-10-02 에 [용어 사전](CLE-GLOSSARY.md) 한 문서의 「관측과 운영」 절에서 옮겼다. 나눈 이유와 표준을 고른 기준은 그 문서의 Rationale 에 있다.
 
-### 정의 보정 (2026-10-03)
+### 정의 보정
+
+결정일: 2026-10-03
 
 NERV Task `CLE-T-V22XN8` 가 정한 정의 보정을 반영했다.
 
 - 「큐 건강도」 · 「알림 채널」: 값 목록을 지우고 색인 「상태값과 enum 표기」 를 가리킨다. 「알림 유형」 은 값 개수(열 가지)를 지우고 대표 값만 남겼다. 값이 늘 때마다 정의가 낡는다.
 - 「최근 실패·누적 보관」 · 「로그인 이력」 · 「평가 기간」 · 「보존 배치」: 정의에서 기준 문서의 수치를 뺐다(색인 표기 원칙 14).
 
-### 「평균 실행 시간」을 「평균 전체 경과」로 바꿨다 (2026-11-14)
+### 「평균 실행 시간」을 「평균 전체 경과」로 바꿨다
+
+결정일: 2026-11-14
 
 대시보드와 통계의 평균은 완료(`completed`) 실행의 `duration_ms` 평균이다. 실행 화면에서 「실행 시간」은 입력 대기를 뺀 순수 실행 시간이고 `duration_ms` 는 「전체 경과」다. 그래서 이 평균을 「평균 실행 시간」으로 부르면 두 화면의 기준이 갈린다. 이름은 [통계](CLE-OBS/CLE-OBS-STATS.md) 의 Rationale 「평균은 「전체 경과」로 부른다 (2026-11-14)」 를 따른다. 옛 이름은 「쓰지 않는 표기」 열로 옮겼다.
 

@@ -2,19 +2,19 @@
 id: "CLE-WF-EDITOR-CANVAS"
 title: "워크플로우 에디터 — 캔버스 조작과 팔레트"
 type: "design"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-WF-EDITOR"
 ancestors: ["CLE-VISION", "CLE-WF", "CLE-WF-EDITOR"]
 area: "CLE-WF"
-content_hash: "75ed83dc867353882df9c3ccdea35139b32982538d48ddfcd987b0fe03152090"
+content_hash: "3a97284b70c3a443a55da7330dcd393343766783368488cb93997e2e221ba038"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-CNGC0P"
 source_paths: []
-mirror_sha256: "b84d6388e29298e0e860acaa46cd00d8373deceb1215cd87a88317898e55a1d0"
-etag: "sha256-faadc60d37894ab1c12dbc7e482964476671386a6a7b82598b6a155a7b97df0b"
+mirror_sha256: "49d7f816ca09026601658e99c9a9440f076b687cee16d74edbe3ded3d18f012b"
+etag: "sha256-4f65974757b0f71548dd8abae01525328a94daf9cf153eff79e88ff32c0e9e38"
 ---
 ## 개요
 
@@ -223,17 +223,23 @@ etag: "sha256-faadc60d37894ab1c12dbc7e482964476671386a6a7b82598b6a155a7b97df0b"
 
 ## Rationale
 
-### R-1. 팔레트 Recent 는 구현하고 Installed 는 미룬다 (2026-07-07)
+### R-1. 팔레트 Recent 는 구현하고 Installed 는 미룬다
+
+결정일: 2026-07-07
 
 팔레트의 새 섹션 두 개 가운데 Recent 만 구현하고 Installed(마켓플레이스)는 미룬다. Recent 는 기존 노드 정의(카테고리 목록)만으로 만들 수 있는 순수 프론트엔드 기능이라 먼저 필요한 것이 없다. Installed 는 마켓플레이스에서 설치한 노드 목록을 전제한다. 그런데 마켓플레이스와 플러그인 SDK 자체가 아직 백로그라 보여 줄 데이터 출처가 없다([마켓플레이스 (구상)](../CLE-UI/CLE-UI-MARKET.md)). 데이터 없는 빈 섹션을 미리 그리지 않고 마켓플레이스 모듈을 도입할 때 함께 만든다.
 
 Recent 는 세션 한정(저장하지 않음)으로 둔다. 저장하면 상관없는 다른 워크플로우나 세션에서 쓰던 유형이 새 에디터에 처음 들어갈 때 섞여 나오고, 범위(워크스페이스 단위인지 워크플로우 단위인지)를 정하는 결정이 하나 더 생긴다. 최근 사용 기록은 모든 노드 추가 경로가 지나는 `editor-store.addNode` 한 곳에 두었다. 그래서 끌어 놓기·팔레트 클릭·노드 검색 팝업·복제·AI 어시스턴트가 똑같이 반영된다. 복제와 붙여넣기도 "그 유형을 최근에 썼다" 는 뜻이라 함께 센다.
 
-### R-2. 팔레트에서 캔버스로 노드를 추가할 때는 브리지를 거친다 (2026-07-07)
+### R-2. 팔레트에서 캔버스로 노드를 추가할 때는 브리지를 거친다
+
+결정일: 2026-07-07
 
 팔레트 클릭으로 노드를 추가하려면 뷰포트 가운데 좌표(ReactFlow 인스턴스), locale, 기본 모델 설정이 필요하다. 이 셋은 모두 `WorkflowCanvas` 에만 있다. 이 로직을 순수 상태인 `editor-store` 로 옮기면 React Query·ReactFlow 인스턴스·i18n 의존이 store 로 새어 들어가 계층이 무너진다. 그래서 캔버스가 노드 추가 핸들러를 `palette-canvas-bridge`(모듈 레지스트리)에 등록하고 팔레트가 그것을 부른다. 두 쪽이 서로 import 하지 않아 순환을 피한다. `assistant-editor-bridge` 와 같은 방식이다.
 
-### R-5. 붙여넣기와 복제는 쓸 수 없는 통합 참조를 비운다 (2026-10-24)
+### R-5. 붙여넣기와 복제는 쓸 수 없는 통합 참조를 비운다
+
+결정일: 2026-10-24
 
 개인 통합은 통합 소유자가 작성한 워크플로우에서만 쓰고 저장할 때 새로 넣은 참조를 검사하기로 정했다(NERV Task `CLE-T-MG0EQZ`, [통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale). 붙여넣기와 복제는 노드 id 를 새로 발급하므로 그 안의 참조는 모두 새 참조다. 그대로 두면 워크플로우 작성자가 아닌 사용자가 워크플로우 작성자의 노드를 복제한 순간 저장이 400 으로 막히고 어느 노드 때문인지는 저장을 누른 뒤에야 안다. 그래서 붙여 넣을 때 미리 비우고 알린다. 선택기와 어시스턴트 후보를 좁힌 결정([통합 관리](../CLE-INT/CLE-INT-MANAGE.md) Rationale 의 «고르는 화면은 저장 검사를 통과할 통합만 고르게 한다»)과 같은 이유다.
 
