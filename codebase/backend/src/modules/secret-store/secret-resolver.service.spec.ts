@@ -599,6 +599,24 @@ describe('SecretResolverService', () => {
       await svc.delete(ref);
       expect(await injected.findOne({ where: { ref } })).toBeNull();
     });
+
+    it('잘못된 ref 형식이면 형식 검사가 먼저 거부하고 어느 저장소도 건드리지 않는다', async () => {
+      const injected = createInMemoryRepository();
+      const injectedDelete = jest.spyOn(injected, 'delete');
+      const getRepository = jest.fn();
+      const manager = { getRepository } as unknown as EntityManager;
+      const svc = new SecretResolverService(
+        injected,
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+
+      await expect(svc.delete('not-a-ref', manager)).rejects.toThrow(
+        /invalid ref format/,
+      );
+      expect(getRepository).not.toHaveBeenCalled();
+      expect(injectedDelete).not.toHaveBeenCalled();
+    });
   });
 
   describe('deleteByPrefix', () => {

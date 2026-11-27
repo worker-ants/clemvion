@@ -36,13 +36,17 @@ export class InteractionRevokeTokenDto {
 
 /** 생성 · 수정 응답의 일회성 평문 묶음. 서버가 새 비밀을 만든 응답에만 있고, 그 응답이 발급한 비밀의 키만 있다. */
 export class TriggerIssuedSecretsDto {
-  /** 서버가 처음 발급한 알림 서명 시크릿(`wsk_*`) 평문 — 이 응답에서만 보인다. 외부 검증자에 즉시 배포한다. */
+  /**
+   * 서버가 처음 발급한 알림 서명 시크릿(`wsk_*`) 평문 — 이 응답에서만 보인다. 외부 검증자에 즉시 배포한다.
+   * notification 을 처음 붙인 생성 · 수정 응답에 있다. 잃어버리면 `rotate-secret` 으로 새로 받는다.
+   */
   @ApiPropertyOptional({ example: 'wsk_...', readOnly: true })
   notificationSigningSecret?: string;
 
   /**
    * 서버가 처음 발급한 트리거 단위 인터랙션 토큰(`itk_*`) 평문 — 이 응답에서만 보인다.
-   * 인터랙션이 켜져 있고 토큰 전략이 `per_trigger` 인데 토큰이 없을 때 발급한다. 외부 시스템에 즉시 배포한다.
+   * 인터랙션이 켜져 있고 토큰 전략이 `per_trigger` 인데 토큰이 없을 때 발급한다(끈 뒤 다시 켜면 남은 토큰을 쓴다).
+   * 외부 시스템에 즉시 배포한다. 잃어버리면 `interaction/revoke-token` 으로 새로 받는다.
    */
   @ApiPropertyOptional({ example: 'itk_...', readOnly: true })
   interactionToken?: string;
