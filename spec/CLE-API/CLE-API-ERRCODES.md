@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES"
 title: "에러 코드 규약과 카탈로그"
 type: "convention"
-version: 44
+version: 45
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "8c1be825bd923251f5e815f01045136506663e3fa5065fa075f2af1958d532df"
+content_hash: "d5300f0035238c24f421c421cc56445e15d6335ce1ac9f8d28f37796fa2a29a7"
 read_as: "approved_fallback"
-task: "CLE-T-ZVYG4H"
+task: "CLE-T-24PRNR"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "cd63269ab4237f5cbdf7e858bb6e0cf5bc2d500f570de79b2a53d255b4bf3964"
-etag: "sha256-90f57638909d33573caac1af3ced42fd21b077aa4edfff048abe90cd9ccaca42"
+mirror_sha256: "64f426c64c4e0cdb5689e432d55352010872d9be87833a83c79b50028de58d6f"
+etag: "sha256-4ef704e9b1c957715900dbdcf1ff12dc7700f1f8d79f5dea86c9479fb5317237"
 ---
 > 구현 상태: 부분 구현 (LLM 세분화 코드 `LLM_AUTH_ERROR` · `LLM_MODEL_NOT_FOUND` · `LLM_CONTEXT_EXCEEDED` 는 미구현) · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -42,8 +42,8 @@ etag: "sha256-90f57638909d33573caac1af3ced42fd21b077aa4edfff048abe90cd9ccaca42"
 5. 에러 코드 이름 바꾸기는 호환성을 깨는 변경이다. 이름을 더 정확하게 하려는 목적만으로 바꾸지 않는다.
 6. 의미가 갈리거나 새 조건이 생기면 새 코드를 만든다. 새 코드는 처음부터 의미가 정확한 이름을 붙여 뒤에 이름을 바꿀 압력을 만들지 않는다. 다만 같은 표면(같은 엔드포인트) 안에서 구분하면 리소스가 다른 워크스페이스에 있다는 것이 드러나는 조건은 같은 코드를 쓴다([`TRIGGER_NOT_FOUND` 를 다른 워크스페이스의 워크플로우에도 쓰는 이유](CLE-API-ERRCODES-TRIGGER.md#trigger_not_found-를-다른-워크스페이스의-워크플로우에도-쓰는-이유)). 표면이 다르면 같은 뜻도 다른 코드를 쓰는 카탈로그 관행(§6.19 의 `WORKFLOW_NOT_FOUND`)과는 부딪치지 않는다. 이 단서는 한 표면 안의 조건만 묶는다. 비활성 트리거의 `TRIGGER_INACTIVE`(410)와 비활성 워크플로우의 `WORKFLOW_INACTIVE`(410)처럼 다른 워크스페이스 소속이 아닌 상태는 이 단서 밖이다. 이 규칙에는 사람이 받아들인 예외가 셋 있다. 세 예외 모두 새 조건에 기존 코드를 쓴다. 아래 세 항목에 적은 경우에만 쓰고 다른 조건이나 다른 표면으로 넓히지 않는다.
    - 웹훅 인증(§6.10)에서 인증 설정의 기대값이 비었거나 문자열이 아니거나 읽지 못하는 경우와 헤더 이름이 문자열이 아닌 경우는 `AUTH_FAILED` 를 쓴다. 근거는 [웹훅 인증 설정의 기대값이 비었거나 읽지 못해도 `AUTH_FAILED` 를 쓴다](CLE-API-ERRCODES-TRIGGER.md#웹훅-인증-설정의-기대값이-비었거나-읽지-못해도-auth_failed-를-쓴다) 에 있다.
-   - `integration` 인증의 HTTP Request 노드가 리다이렉트를 5홉 따라간 뒤에도 `Location` 이 있는 3xx 를 받으면 사설망 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 근거는 [에러 코드 카탈로그 — 실행 「HTTP Request 노드의 3xx 와 리다이렉트 한도 초과에 새 코드를 만들지 않았다」](CLE-API-ERRCODES-EXEC.md#http-request-노드의-3xx-와-리다이렉트-한도-초과에-새-코드를-만들지-않았다-2026-11-14) 와 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) 에 있다.
-   - MakeShop 통합의 통합 재인증(`POST /api/integrations/:id/reauthorize`)과 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)은 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절한다. 이 두 경로에만 쓴다. 근거는 [에러 코드 카탈로그 — 통합 관리 · OAuth 「MakeShop 통합 재인증 · 추가 권한 요청의 거절을 `MAKESHOP_CREDENTIALS_REQUIRED` 행에 더했다」](CLE-API-ERRCODES-INTMGMT.md#makeshop-통합-재인증--추가-권한-요청의-거절을-makeshop_credentials_required-행에-더했다-2026-11-14) 와 [OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청 「MakeShop 통합 재인증과 추가 권한 요청의 거절 코드를 정했다」](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13) 에 있다.
+   - `integration` 인증의 HTTP Request 노드가 리다이렉트를 5홉 따라간 뒤에도 `Location` 이 있는 3xx 를 받으면 사설망 차단 판정 없이 `HTTP_BLOCKED` 를 낸다. 근거는 [에러 코드 카탈로그 — 실행 「HTTP Request 노드의 3xx 와 리다이렉트 한도 초과에 새 코드를 만들지 않았다」](CLE-API-ERRCODES-EXEC.md#http-request-노드의-3xx-와-리다이렉트-한도-초과에-새-코드를-만들지-않았다) 와 [HTTP Request 노드 — 출력과 에러 「3xx 와 리다이렉트 한도 초과의 코드를 바꾸지 않는다」](../CLE-NODE-INT/CLE-NODE-HTTP-OUTPUT.md#3xx-와-리다이렉트-한도-초과의-코드를-바꾸지-않는다-2026-11-14) 에 있다.
+   - MakeShop 통합의 통합 재인증(`POST /api/integrations/:id/reauthorize`)과 추가 권한 요청(`POST /api/integrations/:id/request-scopes`)은 400 `MAKESHOP_CREDENTIALS_REQUIRED` 로 거절한다. 이 두 경로에만 쓴다. 근거는 [에러 코드 카탈로그 — 통합 관리 · OAuth 「MakeShop 통합 재인증 · 추가 권한 요청의 거절을 `MAKESHOP_CREDENTIALS_REQUIRED` 행에 더했다」](CLE-API-ERRCODES-INTMGMT.md#makeshop-통합-재인증--추가-권한-요청의-거절을-makeshop_credentials_required-행에-더했다) 와 [OAuth 연결과 토큰 갱신 — 재인증과 추가 권한 요청 「MakeShop 통합 재인증과 추가 권한 요청의 거절 코드를 정했다」](../CLE-INT/CLE-INT-OAUTH-REAUTH.md#makeshop-통합-재인증과-추가-권한-요청의-거절-코드를-정했다-2026-11-13) 에 있다.
 7. 이름 규칙(규칙 1~3)을 따르지 않지만 유지하는 기존 코드는 §3 예외 등록부에 적는다. 새 코드는 예외를 선례로 삼지 않는다.
 8. 발행하는 코드는 모두 §6 카탈로그에 등재한다. 정의·발생 조건이 도메인 문서에 있으면 그 문서를 정의 문서로 적고 카탈로그는 공용 가시성을 위해 등재만 한다.
 9. 발행된 적 없는 코드는 등재하지 않는다. 문서 표에만 있고 코드가 한 번도 내지 않은 코드는 이름 바꾸기가 아니라 기록 실수이므로 등재를 지우고 그 자리에 실측을 남긴다. 사람이 정했지만 아직 구현하지 않은 코드는 표에 넣지 않는다. 해당 절의 표 아래 문장에 상태 코드와 조건을 적고 구현 Task 가 있으면 함께 적는다. 발행과 함께 표에 등재한다. 그 코드를 정의하는 영역 문서는 자기 표에 미구현 표시를 붙여 먼저 적을 수 있다.
@@ -148,7 +148,7 @@ etag: "sha256-90f57638909d33573caac1af3ced42fd21b077aa4edfff048abe90cd9ccaca42"
 
 ## 미결 사항
 
-- **`ASSISTANT_STREAM_FAILED` 의 원인 묶음**: §6.25 의 `ASSISTANT_STREAM_FAILED` 한 코드에 클라이언트 생성 실패(모델 설정 값 오류 · 키 복호화 실패 등), 모델 설정 조회 실패(DB 장애 등), 서비스 내부 실패가 함께 담긴다. 설정 값 오류는 다시 보내도 같은 결과지만 나머지는 일시적일 수 있어 규칙 6 과 맞지 않을 수 있다. 코드를 나눌지 결정이 필요하다. 같은 429 · SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가던 규칙 4 의 어긋남은 2026-11-14 에 풀었다([LLM 클라이언트 · AI 어시스턴트 「어시스턴트 스트림 코드의 프로바이더 분기를 없앴다」](CLE-API-ERRCODES-LLM.md#어시스턴트-스트림-코드의-프로바이더-분기를-없앴다-2026-11-14)).
+- **`ASSISTANT_STREAM_FAILED` 의 원인 묶음**: §6.25 의 `ASSISTANT_STREAM_FAILED` 한 코드에 클라이언트 생성 실패(모델 설정 값 오류 · 키 복호화 실패 등), 모델 설정 조회 실패(DB 장애 등), 서비스 내부 실패가 함께 담긴다. 설정 값 오류는 다시 보내도 같은 결과지만 나머지는 일시적일 수 있어 규칙 6 과 맞지 않을 수 있다. 코드를 나눌지 결정이 필요하다. 같은 429 · SDK 요청 타임아웃이 프로바이더에 따라 다른 코드로 나가던 규칙 4 의 어긋남은 2026-11-14 에 풀었다([LLM 클라이언트 · AI 어시스턴트 「어시스턴트 스트림 코드의 프로바이더 분기를 없앴다」](CLE-API-ERRCODES-LLM.md#어시스턴트-스트림-코드의-프로바이더-분기를-없앴다)).
 - **비밀번호 재설정 실패의 두 원인**: `POST /api/auth/reset-password` 는 토큰 무효 · 만료와 새 비밀번호 규칙 위반을 모두 400 `VALIDATION_ERROR` 로 돌려준다. 원인이 갈리면 코드로 가르는 규칙 4 · 6 과 맞지 않는다. 코드를 나눌지는 NERV Task `CLE-T-DTVTM9` 에서 정한다([가입과 로그인](../CLE-ACCT/CLE-ACCT-SIGNIN.md) 「미결 사항」).
 
 ## 구현 위치
@@ -162,6 +162,11 @@ etag: "sha256-90f57638909d33573caac1af3ced42fd21b077aa4edfff048abe90cd9ccaca42"
 - `codebase/backend/src/modules/hooks/hooks.service.ts` (웹훅 수신의 `TRIGGER_INACTIVE` · `WORKFLOW_INACTIVE` 발행)
 - `codebase/backend/src/modules/auth/auth.service.ts` (로그인의 `EMAIL_VERIFICATION_REQUIRED` · `WEBAUTHN_DISABLED` 발행)
 - `codebase/backend/src/modules/auth-configs/auth-configs.service.ts` (인증 설정 재생성의 `AUTH_CONFIG_REGENERATE_UNSUPPORTED` 발행, 웹훅 인증의 `AUTH_FAILED` 판정)
+- `codebase/backend/src/modules/integrations/integrations.service.ts` (통합 관리의 `INTEGRATION_*` · `OAUTH_PREVIEW_MISMATCH` · `CAFE24_PRIVATE_APP_*` 발행, 연결 테스트의 `INTEGRATION_INCOMPLETE` · `INTEGRATION_CREDENTIALS_UNREADABLE` · `MCP_CONNECT_FAILED`. §6.21 · §6.22 · §6.23)
+- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` (통합 OAuth 흐름의 `OAUTH_*` 와 Cafe24 · MakeShop 설치 · 연결의 `CAFE24_*` · `MAKESHOP_*` 발행. §6.21)
+- `codebase/backend/src/modules/integrations/third-party-oauth.controller.ts` (설치 엔드포인트의 `CAFE24_INSTALL_*` · `MAKESHOP_INSTALL_*` 발행. §6.21)
+- `codebase/backend/src/modules/mcp/mcp-error-codes.ts` (`MCP_ERROR_CODES`. §6.23 의 MCP 코드 목록)
+- `codebase/backend/src/modules/executions/background-runs/background-runs.service.ts` (Background Runs 의 `INVALID_CURSOR` · `EXECUTION_NOT_FOUND` · `BACKGROUND_RUN_NOT_FOUND` 발행. §6.24)
 
 ## Rationale
 
@@ -182,17 +187,21 @@ etag: "sha256-90f57638909d33573caac1af3ced42fd21b077aa4edfff048abe90cd9ccaca42"
 카탈로그가 제품 전체 목록이라고 선언하면서도 도메인 문서의 코드가 빠져 있어 여러 번에 걸쳐 채웠다. 방식은 늘 같았다. 정의 기준은 도메인 문서에 두고 카탈로그에는 공용 가시성을 위해 등재만 한다. 새 원칙도 코드 재정의도 아니다.
 
 - 코드에만 있고 도메인 문서에 없던 코드(재인증 세부 코드, 역할 · 멤버십 관리 코드)는 "문서화 → 등재" 순서를 지켜 도메인 문서가 상태 코드를 적은 뒤 등재했다. 재인증 세부 코드를 등재할 때 옛 주석의 상태 오기(`REAUTH_REQUIRED` 403 → 400, `PASSWORD_INVALID` 400 → 401)를 코드 기준으로 고쳤다.
-- 인증 문서의 "강제 종료 재인증" 행이 구현(`verifyReauth` = 비밀번호 또는 TOTP)보다 부풀려져 있어(WebAuthn·이메일 OTP 대체) 실제 지원으로 맞추고 나머지를 미지원으로 명시했다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md)).
+- 인증 문서의 "강제 종료 재인증" 행이 구현(`verifyReauth` = 비밀번호 또는 TOTP)보다 부풀려져 있어(Passkey·이메일 OTP 대체) 실제 지원으로 맞추고 나머지를 미지원으로 명시했다([세션과 토큰](../CLE-ACCT/CLE-ACCT-SESSION.md)).
 - `INVALID_PASSWORD` 는 등재 뒤 2026-09-02 에 은퇴해 응답에 나가지 않는다(§5 등급 B). 등재를 되돌린 것이 아니라 등재가 기록하던 비슷한 이름의 원인을 없앤 것이다.
 - `USER_NOT_FOUND` 는 여러 모듈이 같이 쓰는 일반 코드라 §6.12 가 아니라 §6.4 에 두었다. `WORKSPACE_NOT_FOUND` 는 관리 경로의 404 와 토큰 검증의 401 이 상태도 뜻도 달라 두 행으로 적었다. 2026-11-14 에 토큰 검증의 401 을 `NO_WORKSPACE_AVAILABLE`(§6.4)로 나눠 지금은 404 행만 남았다. 두 코드의 발행 자리는 [워크스페이스와 멤버 「워크스페이스를 찾지 못할 때」](../CLE-ACCT/CLE-ACCT-WS.md#워크스페이스를-찾지-못할-때) 가 정한다.
 
-### 규칙 7 의 「규칙」 을 이름 규칙으로 좁혔다 (2026-11-01)
+### 규칙 7 의 「규칙」 을 이름 규칙으로 좁혔다
+
+결정일: 2026-11-01
 
 규칙 7 은 「규칙을 따르지 않지만 유지하는 기존 코드」 를 §3 에 적게 했다. 그런데 개요 · 규칙 2 · §3 첫 문단은 §3 을 이름 규칙을 따르지 않는 코드의 등록부로 적는다. 규칙 7 만 넓게 읽혀서 규칙 6 의 예외를 §3 에 올릴지 판단할 근거가 둘로 갈렸다. 그래서 규칙 7 을 이름 규칙(규칙 1~3)으로 좁히고 개요 · 규칙 7 · §3 첫 문단을 같은 말로 맞췄다(NERV Task `CLE-T-H9QJTA`). 기존 코드를 다시 쓰는 결정은 이름을 정하는 결정이 아니어서 §3 에 올리지 않는다. prefix 없는 공용 코드도 규칙 3 을 따른 것이라 §3 에 올리지 않는다(§1).
 
 기각한 대안은 규칙 7 을 넓게 두고 개요 · 규칙 2 · §3 첫 문단을 그 범위로 넓히는 안이다. 그러면 기존 코드를 다시 쓰는 결정도 §3 에 올려야 해서 이름이 부정확한 코드를 찾는 표에 이름이 정확한 코드(`AUTH_FAILED` 등)가 섞인다.
 
-### 규칙 6 의 예외 목록에 두 경우를 더했다 (2026-11-14)
+### 규칙 6 의 예외 목록에 두 경우를 더했다
+
+결정일: 2026-11-14
 
 규칙 6 은 예외를 웹훅 인증의 `AUTH_FAILED` 하나로 적었다. 그런데 하위 문서에는 사람이 받아들인 예외가 둘 더 있었다. HTTP Request 노드의 리다이렉트 한도 초과에 쓰는 `HTTP_BLOCKED`(NERV Task `CLE-T-43KCNP`, 2026-11-14 결정)와 MakeShop 통합 재인증 · 추가 권한 요청에 쓰는 `MAKESHOP_CREDENTIALS_REQUIRED`(2026-11-13 결정)다. 두 하위 문서는 이 부모 문서를 고치지 못해 그 일을 후속으로 넘겼다. NERV Task `CLE-T-J6M2JG` · `CLE-T-H5NJZ3` 에서 목록을 셋으로 맞췄다.
 
@@ -200,7 +209,9 @@ etag: "sha256-90f57638909d33573caac1af3ced42fd21b077aa4edfff048abe90cd9ccaca42"
 - **따라가지 않은 3xx 의 `HTTP_4XX` 는 규칙 6 의 예외로 적지 않았다.** HTTP Request 노드는 `HTTP_4XX` 를 처음부터 «2xx 도 5xx 도 아닌 응답» 에 냈다. 3xx 는 그 조건 안에 있어서 새 조건이 아니다. 이름이 3xx 를 담지 못하는 문제는 이름 규칙의 문제라 [예외 등록 코드](CLE-API-ERRCODES-EXCEPT.md#3-예외-등록-코드) 에 이미 올라 있다.
 - **예외마다 표면을 적었다.** 예외가 늘면 다른 조건으로 넓혀 읽힐 위험도 커진다. 그래서 세 예외 모두 쓰는 경우와 근거 링크를 따로 적고, 넓히지 않는다는 문장을 셋에 함께 걸었다.
 
-### 규칙 9 에 정했지만 아직 발행하지 않은 코드의 자리를 적었다 (2026-11-05)
+### 규칙 9 에 정했지만 아직 발행하지 않은 코드의 자리를 적었다
+
+결정일: 2026-11-05
 
 규칙 9 는 발행한 적 없는 코드를 등재하지 않는다고만 적었다. 그런데 사람이 정했고 아직 구현하지 않은 코드를 표 아래 문장으로 적는 관행이 있었다(§6.2 의 `EMAIL_VERIFICATION_REQUIRED`, §6.17 의 LLM 세분화 코드). NERV Task `CLE-T-693G4E` 에서 이 관행을 규칙 9 의 단서로 올렸다.
 
@@ -212,21 +223,29 @@ etag: "sha256-90f57638909d33573caac1af3ced42fd21b077aa4edfff048abe90cd9ccaca42"
 
 → [에러 코드 카탈로그 — 인증 · 인가 · 워크스페이스](CLE-API-ERRCODES-AUTH.md#token_expired-설명을-리프레시-토큰-만료로-맞춘-이유)
 
-### 트리거 단위 토큰 경로의 부재는 401 `EXECUTION_NOT_FOUND` 로 적는다 (2026-10-17)
+### 트리거 단위 토큰 경로의 부재는 401 `EXECUTION_NOT_FOUND` 로 적는다
+
+결정일: 2026-10-17
 
 → [에러 코드 카탈로그 — WebSocket · EIA · Background Runs](CLE-API-ERRCODES-WSEIA.md#트리거-단위-토큰-경로의-부재는-401-execution_not_found-로-적는다)
 
-### 설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다 (2026-11-06)
+### 설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다
 
-→ [에러 코드 카탈로그 — 통합 관리 · OAuth](CLE-API-ERRCODES-INTMGMT.md#설치-엔드포인트의-예상-밖-예외를-500-으로-가리고-requestid-를-싣는다-2026-11-06)
+결정일: 2026-11-06
 
-### Cafe24 · MakeShop 연결 테스트의 401 · 403 밖 실패에 `*_API_ERROR` 를 새로 만들었다 (2026-11-06)
+→ [에러 코드 카탈로그 — 통합 관리 · OAuth](CLE-API-ERRCODES-INTMGMT.md#설치-엔드포인트의-예상-밖-예외를-500-으로-가리고-requestid-를-싣는다)
 
-→ [에러 코드 카탈로그 — 통합 노드 · MCP](CLE-API-ERRCODES-INTNODE.md#cafe24--makeshop-연결-테스트의-401--403-밖-실패에-_api_error-를-새로-만들었다-2026-11-06)
+### Cafe24 · MakeShop 연결 테스트의 401 · 403 밖 실패에 `*_API_ERROR` 를 새로 만들었다
 
-### `new` 가 아닌 모드의 begin 이 대상 통합과 맞지 않는 요청에 `OAUTH_TARGET_MISMATCH` 를 새로 만들었다 (2026-11-06)
+결정일: 2026-11-06
 
-→ [에러 코드 카탈로그 — 통합 관리 · OAuth](CLE-API-ERRCODES-INTMGMT.md#new-가-아닌-모드의-begin-이-대상-통합과-맞지-않는-요청에-oauth_target_mismatch-를-새로-만들었다-2026-11-06)
+→ [에러 코드 카탈로그 — 통합 노드 · MCP](CLE-API-ERRCODES-INTNODE.md#cafe24--makeshop-연결-테스트의-401--403-밖-실패에-_api_error-를-새로-만들었다)
+
+### `new` 가 아닌 모드의 begin 이 대상 통합과 맞지 않는 요청에 `OAUTH_TARGET_MISMATCH` 를 새로 만들었다
+
+결정일: 2026-11-06
+
+→ [에러 코드 카탈로그 — 통합 관리 · OAuth](CLE-API-ERRCODES-INTMGMT.md#new-가-아닌-모드의-begin-이-대상-통합과-맞지-않는-요청에-oauth_target_mismatch-를-새로-만들었다)
 
 ### 발행처가 없는 등재 코드를 코드별로 정리했다
 

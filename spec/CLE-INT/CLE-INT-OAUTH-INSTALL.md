@@ -2,19 +2,19 @@
 id: "CLE-INT-OAUTH-INSTALL"
 title: "OAuth 연결과 토큰 갱신 — 설치 우선 흐름과 App URL"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-OAUTH"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-OAUTH"]
 area: "CLE-INT"
-content_hash: "48075e885025cba7571c335f4243209dc6ed0904d1503fe6f0fdcb3a63be9b0b"
+content_hash: "09334d178f039e3333ea63a01463ffc9933a0411abb6c25d24f25b1d204c5ad7"
 read_as: "approved_fallback"
-task: "CLE-T-JK1JFZ"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "7d50928b33c44a464296a5c6a1f703d5905399016ef9993f1d020033e9bcbefb"
-etag: "sha256-f8bfb2dde23c710325f388d622d728d0254c1efd7e095edaaa78eba7cfcfd5c8"
+mirror_sha256: "b6136268265818bec5db9461599d48d162bf0711d345cc99d9e8ea80e3a699cb"
+etag: "sha256-a78ae1cc021e846f52a8e5ec840bc1d2c84406706f666d74d37ffd3bd5521fd3"
 ---
 ## 개요
 
@@ -67,7 +67,7 @@ sequenceDiagram
 4. **App URL 처리**: 경로의 설치 토큰으로 통합 한 행을 찾고 그 행의 `client_secret` 으로 HMAC 을 한 번 검증한다. 통과하면 상태와 재설치 대기 표시로 나눈다. 설치 대기이거나 유효한 재설치 대기 표시(남긴 지 24시간 안)가 있으면 OAuth state(`mode='reauthorize'`)를 만들고 Cafe24 인가 URL 로 302 한다. 그 밖의 연결됨·오류·만료됨이면 `${FRONTEND_URL}/integrations/<id>` 로 302 한다. 24시간이 지난 표시는 없는 것으로 본다. Cafe24 쇼핑몰 관리자의 «앱으로 가기» 버튼이 같은 App URL 을 쓰므로 이 분기가 꼭 필요하다(아래 Rationale). 재설치 대기 표시는 통합 재인증과 추가 권한 요청이 남긴다([재설치 대기 표시](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)).
 5. 쇼핑몰 관리자가 동의 화면에서 동의한다. «앱으로 가기» 분기는 동의 화면 없이 4번에서 바로 우리 화면으로 온다.
 6. Cafe24 가 콜백(`/api/3rd-party/cafe24/callback`)으로 code 와 state 를 보내면 토큰을 교환하고 `pending_install → connected` 로 바꾼다. 재설치 대기 표시가 있던 행은 자격 증명을 새 토큰으로 바꾸고 표시를 지운다. 설치 토큰은 지우지 않고 보존한다.
-7. 그동안 설정 안내 화면은 그 통합을 3초마다 조회한다. «테스트 실행» 이 띄운 창의 `window.opener` 는 Cafe24 탭이라 `postMessage` 복귀를 쓸 수 없다. 연결됨을 감지하면 토스트를 띄우고 목록 쿼리를 무효화한 뒤 상세(`/integrations/<id>`)로 이동한다. 10분이 지나면 조회를 멈추고 «아직 대기 중» 안내를 보인다. 행은 백엔드에 남아 있고 페이지에 다시 들어오거나 창에 포커스가 오면 조회를 다시 시작한다. 설치 대기인 채 콜백 실패가 기록되면 `last_error`·`status_reason` 진단 단서를 같은 화면에 보인다. 통합 목록의 상태 배지로도 확인할 수 있다.
+7. 그동안 설정 안내 화면은 그 통합을 3초마다 조회한다. «테스트 실행» 이 띄운 창의 `window.opener` 는 Cafe24 탭이라 `postMessage` 복귀를 쓸 수 없다. 연결됨을 감지하면 토스트를 띄우고 목록 쿼리를 무효화한 뒤 상세(`/integrations/<id>`)로 이동한다. 연결됨이 아닌 다른 상태로 바뀌어도 조회를 멈춘다. 설치 기한이 지나 만료됐으면(`expired`·`install_timeout`) 이 통합을 지우지 않고 같은 상점을 새로 등록하라고 안내하고(사전 키 `integrations.cafe24PrivatePendingExpired`), 그 밖의 상태면 상세 화면에서 확인하라고 안내한다. 10분이 지나면 조회를 멈추고 «아직 대기 중» 안내를 보인다. 행은 백엔드에 남아 있고 페이지에 다시 들어오거나 창에 포커스가 오면 조회를 다시 시작한다. 설치 대기인 채 콜백 실패가 기록되면 `last_error`·`status_reason` 진단 단서를 같은 화면에 보인다. 통합 목록의 상태 배지로도 확인할 수 있다.
 
 설치를 마친 통합에 통합 재인증이나 추가 권한 요청을 하면 [재설치 대기 표시](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)를 남기고 같은 «테스트 실행» 흐름(3~6번)을 다시 탄다. 표시는 24시간 동안만 유효하므로 그 안에 «테스트 실행» 을 눌러야 한다.
 
@@ -76,12 +76,12 @@ sequenceDiagram
 1. **사전 입력**: `Client ID`, `Client Secret`(파트너센터 앱 등록 때 발급). 하나라도 비어 있으면 폼 검증 에러로 막는다. `shop_uid` 는 이 단계에서 입력하지 않는다. ShopStore 설치 redirect 의 파라미터로 온다.
 2. **제출**: `POST /api/integrations/oauth/begin`(본문 `{ "service": "makeshop", "mode": "new", "client_id": "...", "client_secret": "...", "scopes": [...] }`). 응답은 `{ "mode": "makeshop_pending_install", "integrationId": "...", "appUrl": "https://<host>/api/3rd-party/makeshop/install/:installToken", "callbackUrl": "...", "scope": "..." }` 이고 통합이 토큰 없이 설치 대기로 생긴다.
 3. **설치 안내 화면**: Cafe24 Private 설정 안내와 같은 복사 UX(라벨, 모노스페이스 URL, 복사 버튼)로 `App URL`·`Redirect URI` 를 파트너센터 앱 설정에 등록하라고 안내한다.
-4. **자동 조회**: Cafe24 Private 7번과 같다(3초 간격, 연결됨이면 토스트와 상세 이동, 10분 soft timeout).
+4. **자동 조회**: Cafe24 Private 7번과 같다(3초 간격, 연결됨이면 토스트와 상세 이동, 10분 soft timeout, 설치 기한이 지나 만료되면 조회를 멈추고 `integrations.makeshopPendingExpired` 로 안내).
 5. 사용자가 ShopStore 에서 앱을 설치하면 MakeShop 이 App URL 을 `?shop_uid=...&timestamp=...&action_type=install&hmac=...` 로 부른다. HMAC 검증 뒤 인가, 콜백을 거쳐 `pending_install → connected` 가 된다.
 6. 설치 대기가 아닌 통합의 App URL 이 다시 불리면(ShopStore 재설치 포함) 상세 화면으로 302 하고 그 통합의 자격 증명과 상태는 그대로 둔다. MakeShop 에는 재설치 대기 표시가 없다. MakeShop 통합의 복구는 삭제 후 재등록이다([MakeShop 은 삭제 후 재등록으로만 복구한다](CLE-INT-OAUTH-REAUTH.md#makeshop-은-삭제-후-재등록으로만-복구한다)).
 
 - 설치 HMAC 은 `client_secret` 으로 만든 HMAC-SHA256 이고 ±5분 재사용 방어를 한다. Cafe24 Private 과 같은 방식이며 설치 토큰 capability 모델, rate limit, nonce 보호를 다시 쓴다. MakeShop HMAC 메시지 구성(정렬, 인코딩)은 코드에 `VERIFY` 로 표시돼 있어 운영 전에 공식 문서로 확정해야 한다([MakeShop 노드](../CLE-NODE-INT/CLE-NODE-MAKESHOP.md)).
-- **설치 안내 화면의 에러 표시**: 콜백 실패로 기록된 사유 중 알려진 다섯 개(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`·`oauth_invalid_scope`·`hmac_verification_failed`)만 i18n 문구로 매핑한다. 모르는 사유는 일반 메시지로 보인다. HMAC 상세나 토큰 교환 trace 같은 백엔드 원문을 사용자에게 보이지 않는다. `hmac_verification_failed` 는 상태 사유가 아니라서 이 문구가 실제로 보이는 경우는 없다. MakeShop 설치 요청의 HMAC 검증이 실패하면 서버는 행을 쓰지 않고 403 `MAKESHOP_INSTALL_INVALID_HMAC` 으로 거절한다([HMAC 검증 실패는 상태 사유로 남기지 않는다 (2026-11-13)](CLE-INT-STATUS.md#hmac-검증-실패는-상태-사유로-남기지-않는다-2026-11-13)). 이 매핑을 지우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다.
+- **설치 안내 화면의 에러 표시**: 콜백 실패로 기록된 사유 중 알려진 다섯 개(`oauth_token_exchange_failed`·`oauth_state_mismatch`·`oauth_state_expired`·`oauth_invalid_scope`·`hmac_verification_failed`)만 i18n 문구로 매핑한다. 모르는 사유는 일반 메시지로 보인다. HMAC 상세나 토큰 교환 trace 같은 백엔드 원문을 사용자에게 보이지 않는다. `hmac_verification_failed` 는 상태 사유가 아니라서 이 문구가 실제로 보이는 경우는 없다. MakeShop 설치 요청의 HMAC 검증이 실패하면 서버는 행을 쓰지 않고 403 `MAKESHOP_INSTALL_INVALID_HMAC` 으로 거절한다([HMAC 검증 실패는 상태 사유로 남기지 않는다](CLE-INT-STATUS.md#hmac-검증-실패는-상태-사유로-남기지-않는다)). 이 매핑을 지우는 일은 NERV Task `CLE-T-22PSME` 가 맡는다.
 - MakeShop 에는 Cafe24 의 설치 토큰 불일치 회복(`tryRecoverByMallId`)이 없다. 조회에 실패하면 바로 404 다.
 
 ## 설치 엔드포인트 (App URL)
@@ -103,7 +103,7 @@ sequenceDiagram
 | ③ | 필수 파라미터(`mall_id`·`timestamp`·`hmac`) | 400 `CAFE24_INSTALL_MISSING_PARAMS` |
 | ④ | timestamp ±5분 | 400 `CAFE24_INSTALL_REPLAY` (MakeShop 은 `MAKESHOP_INSTALL_REPLAY`) |
 | ⑤ | MakeShop 만: `shop_uid` 형식(SSRF 가드) | 400 `MAKESHOP_INVALID_SHOP_UID` |
-| ⑥ | 설치 토큰으로 한 행 조회(상태 무관, V043 부분 UNIQUE). Cafe24 는 실패하면 `tryRecoverByMallId` 회복 | 404 `CAFE24_INSTALL_INVALID_TOKEN` (통합 삭제, 24시간 만료로 지워짐, 회복 실패) |
+| ⑥ | 설치 토큰으로 한 행 조회(상태 무관, V043 부분 UNIQUE). Cafe24 는 실패하면 `tryRecoverByMallId` 회복 | 404 `CAFE24_INSTALL_INVALID_TOKEN` (통합 삭제, 설치 기한 만료로 설치 토큰이 지워짐, 회복 실패) |
 | ⑦ | `mall_id`·앱 유형 일치와 HMAC(`client_secret`) timing-safe 비교 | 403 `CAFE24_INSTALL_INVALID_HMAC` |
 | ⑧ | `(mall_id, timestamp, hmac)` nonce 재사용 검사(Redis, 없으면 건너뜀) | 재사용 거절 |
 | ⑨ | MakeShop 설치 대기 분기만: 같은 `(워크스페이스, shop_uid)` 연결됨 행 | 409 `MAKESHOP_ALREADY_CONNECTED` |
@@ -200,10 +200,12 @@ Cafe24 개발자 센터에 등록한 App URL 은 첫 설치(«테스트 실행»
 
 그래서 안내 화면이 그 통합을 3초마다 조회한다. 10분 soft timeout 은 화면 쪽 안내일 뿐 상태를 바꾸지 않는다(설치 24시간 기한보다 훨씬 짧다). 3초는 외부 콘솔 왕복(수십 초에서 수 분)에 비해 충분히 빠르면서 한 행 GET 이라 부하가 무시할 만하다. MakeShop 은 알려진 사유만 i18n 문구로 매핑해 백엔드 원문 노출을 막는다.
 
-### 설치 엔드포인트의 예상 밖 예외는 500 으로 가린다 (2026-11-06)
+### 설치 엔드포인트의 예상 밖 예외는 500 으로 가린다
+
+결정일: 2026-11-06
 
 설치 엔드포인트는 코드가 없는 예외를 400 `*_INSTALL_FAILED` 로 바꾸면서 예외 메시지를 그대로 실었다. 실패 본문에는 `requestId` 가 없었다. DB·런타임 오류의 원문이 Cafe24·MakeShop 콘솔에서 연 브라우저에 보였다([에러 응답과 클라이언트 처리](../CLE-API/CLE-API-ERROR.md) 규칙 2·3).
 
 - 예외를 전역 예외 필터로 다시 던지는 안은 기각했다. 필터는 JSON 만 그려서 HTML 안내 페이지를 보일 수 없다. 열거 공격 실패 카운트도 컨트롤러가 해야 한다.
-- 코드 이름은 그대로 두고 상태와 문구만 바꿨다. 이름과 상태를 정한 근거는 [에러 코드 규약과 카탈로그 「설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다 (2026-11-06)」](../CLE-API/CLE-API-ERRCODES.md#설치-엔드포인트의-예상-밖-예외를-500-으로-가리고-requestid-를-싣는다-2026-11-06) 에 있다.
+- 코드 이름은 그대로 두고 상태와 문구만 바꿨다. 이름과 상태를 정한 근거는 [에러 코드 규약과 카탈로그 「설치 엔드포인트의 예상 밖 예외를 500 으로 가리고 `requestId` 를 싣는다」](../CLE-API/CLE-API-ERRCODES.md#설치-엔드포인트의-예상-밖-예외를-500-으로-가리고-requestid-를-싣는다) 에 있다.
 - HTML 페이지는 404 만이 아니라 서비스가 거절한 실패에 상태와 관계없이 보인다([에러 코드 규약과 카탈로그](../CLE-API/CLE-API-ERRCODES.md) §6.21 과 같다).

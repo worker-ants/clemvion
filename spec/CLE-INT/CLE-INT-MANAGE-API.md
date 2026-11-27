@@ -2,19 +2,19 @@
 id: "CLE-INT-MANAGE-API"
 title: "통합 관리 — API 와 에러 코드"
 type: "design"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-MANAGE"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-MANAGE"]
 area: "CLE-INT"
-content_hash: "77d2a31b1af62841068a9a8867a733efea45320c5db0295fd9b5b2dd90fc1476"
+content_hash: "e2a2af5a0b81dc4c211f63cff23fd9951ade96dcd326ca5998a263cd37051709"
 read_as: "approved_fallback"
-task: "CLE-T-T8M5XV"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "13c52d602b6762ac6e08fe40426174ea3863d345cc4dcceb847244b7cdd90df5"
-etag: "sha256-e7787716ec960894cad94fb58c725483e99fc78bfbb3b2e007609552bca9056f"
+mirror_sha256: "bcff348eaa8d7cc1604286facd14547b245827421f9c3fbdec5031f04c9893c6"
+etag: "sha256-799a18c6b7ca9ee5e5dccaf4b4b7ef140bb1a776debfdb3818dc38d78d22975b"
 ---
 ## 개요
 
@@ -69,6 +69,7 @@ etag: "sha256-e7787716ec960894cad94fb58c725483e99fc78bfbb3b2e007609552bca9056f"
 - `GET /api/integrations/cafe24/precheck`: 쿼리 `mallId`(`^[a-z0-9-]{3,50}$`). 응답 `Cafe24PrecheckResultDto`(`ApiOkWrappedResponse` 래퍼) = `{ conflict: bool, existingIntegrationId?: string, existingName?: string, status?: 'connected'|'pending_install'|'expired'|'error' }`.
 - `GET /api/integrations/makeshop/precheck`: 쿼리 `shopUid`(`^[A-Za-z0-9_-]{2,64}$`). 응답 모양은 Cafe24 와 같다. MakeShop begin 에는 `shop_uid` 입력이 없으므로(설치 redirect 로 온다) 설치 뒤 식별된 `shop_uid` 의 중복 확인 같은 선제 화면에서 쓴다.
 - 인증된 사용자의 현재 워크스페이스(`X-Workspace-Id` 헤더) 소속 행만 본다. 워크스페이스를 넘는 조회 경로가 아니다. 충돌 행이 남의 개인 통합이면 `existingIntegrationId`·`existingName` 을 싣지 않는다. 자격 증명, 토큰, 시각은 싣지 않는다.
+- 설치 기한이 지나 만료된 행(`status_reason='install_timeout'`)은 상점 자리를 놓았으므로 세지 않는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다)). begin 의 사전 검사도 같다.
 - 여러 행이 있으면 `connected > pending_install > error > expired` 순으로 가장 제한적인 상태 하나만 돌려준다. enum 밖의 과도 상태(`initializing` 등)가 오면 `status` 를 빼서 프런트엔드가 모르는 값을 조용히 흘려보내지 않게 한다.
 - throttle 은 분당 60회이고 이 엔드포인트 전용 상한이다(`@Throttle`). 일반 API rate limit 위에 더하지 않고 이 값으로 바꾼다. 입력 350ms debounce 기준으로 입력당 정상 호출은 1~2회다.
 - NestJS 라우트 선언 순서: `:id` 동적 경로보다 앞에 선언해야 `cafe24`·`makeshop` 이 UUID 로 해석되지 않는다. 컨트롤러 주석에 회귀 방지로 적어 둔다.
@@ -88,8 +89,8 @@ etag: "sha256-e7787716ec960894cad94fb58c725483e99fc78bfbb3b2e007609552bca9056f"
 | --- | --- | --- |
 | `id` | UUID | `integration_usage_log.id` |
 | `integrationId` | UUID | `integration_usage_log.integration_id` |
-| `nodeExecutionId` | UUID? | `integration_usage_log.node_execution_id`. 컬럼은 NOT NULL 이고 노드 실행이 없으면 행을 쓰지 않으므로 저장된 행에는 늘 있다 |
-| `workflowId` | UUID? | 연관 워크플로우(조인) |
+| `nodeExecutionId` | UUID | `integration_usage_log.node_execution_id`. 컬럼은 NOT NULL 이고 노드 실행이 없으면 행을 쓰지 않으므로 저장된 행에는 늘 있다 |
+| `workflowId` | UUID | 연관 워크플로우(조인) |
 | `status` | `'success' \| 'failed'` | 호출 결과 |
 | `error` | `{ code, message } \| null` | 실패 코드와 메시지(sanitize 적용) |
 | `durationMs` | number | 호출 소요 시간 |
@@ -110,18 +111,18 @@ etag: "sha256-e7787716ec960894cad94fb58c725483e99fc78bfbb3b2e007609552bca9056f"
 
 ### 에러 코드
 
-통합 관리 API(`/api/integrations/*`, `oauth/begin` 포함)가 JSON 에러 응답으로 내는 코드를 모은다. OAuth 콜백은 거절을 HTTP 상태로 내지 않고 상태 200 의 HTML 페이지와 통합의 `last_error.code` 로 알린다. 콜백 코드와 설치 엔드포인트(App URL) 코드는 [에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 가 정한다([Rationale](#에러-코드-표를-통합-관리-api-의-json-에러로-좁혔다-2026-11-14)).
+통합 관리 API(`/api/integrations/*`, `oauth/begin` 포함)가 JSON 에러 응답으로 내는 코드를 모은다. OAuth 콜백은 거절을 HTTP 상태로 내지 않고 상태 200 의 HTML 페이지와 통합의 `last_error.code` 로 알린다. 콜백 코드와 설치 엔드포인트(App URL) 코드는 [에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 가 정한다([Rationale](#에러-코드-표를-통합-관리-api-의-json-에러로-좁혔다)).
 
 | 코드 | HTTP | 뜻 |
 | --- | --- | --- |
 | `INTEGRATION_IN_USE` | 409 | 사용처가 있어 삭제를 막았다. 사용처 목록은 `details.usages` 에 싣는다. 현재 구현은 목록을 싣지 못한다([미결](CLE-INT-MANAGE.md#미결-사항)) |
-| `INTEGRATION_NAME_TAKEN` | 409 | 워크스페이스에 같은 이름의 통합이 있다(`integration_workspace_name_unique`, 공개 범위 무관). 생성과 별칭 수정이 낸다. Cafe24 Private·MakeShop 의 `oauth/begin` 이 설치 대기 행을 만들 때도 낸다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 겹친 쪽이 남의 개인 통합이어도 난다([받아들인 잔여](CLE-INT-MANAGE-PERM.md#개인-통합-소유자를-강제한다-404-로-숨기고-역할-우위를-두지-않으며-노드-실행은-후속으로-둔다-2026-09-25)) |
+| `INTEGRATION_NAME_TAKEN` | 409 | 워크스페이스에 같은 이름의 통합이 있다(`integration_workspace_name_unique`, 공개 범위 무관). 생성과 별칭 수정이 낸다. Cafe24 Private·MakeShop 의 `oauth/begin` 이 설치 대기 행을 만들 때도 낸다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#설치-대기-행-재사용의-권한)). 겹친 쪽이 남의 개인 통합이어도 난다([받아들인 잔여](CLE-INT-MANAGE-PERM.md#개인-통합-소유자를-강제한다-404-로-숨기고-역할-우위를-두지-않으며-노드-실행은-후속으로-둔다)) |
 | `INTEGRATION_TEST_FAILED` | 400 | 자격 증명 교체(`:id/rotate`)가 새 자격 증명으로 돌린 연결 테스트가 실패했다. 자격 증명과 상태는 그대로다. `message` 는 테스트 결과의 `message` 다. 결과에 `code` 가 있으면 `details: { testCode }` 로 싣고 없으면 `details` 를 싣지 않는다. 무엇을 확인하는지는 서비스마다 다르다([서비스별 인증 방식과 자격 증명](CLE-INT-AUTH.md)). HTTP 는 `base_url` 이 401·403 을 돌려줄 때만 자격 증명 거부를 안다. `:id/test`·`preview-test` 의 실패는 이 코드가 아니라 200 결과 객체다([연결 테스트](CLE-INT-MANAGE-RUN.md#연결-테스트)) |
 | `INTEGRATION_INVALID_SERVICE` | 400 | 지원하지 않는 서비스 유형·인증 유형 조합. 생성과 저장 전 연결 테스트가 공유하는 `IntegrationsService.validateServiceAuthType` 이 서비스 레지스트리(`findVariant`)에 없는 조합을 거부한다. 메시지 `Unsupported service/auth combination: {serviceType}/{authType}` |
 | `INTEGRATION_INVALID_CREDENTIALS` | 400 | 생성이나 자격 증명 교체(`:id/rotate`)의 자격 증명이 서비스의 필드 규칙(필수 필드 · 형식)에 맞지 않는다. 교체는 저장된 자격 증명에 새 값을 합친 결과를 본다. 이름이 비슷한 `INTEGRATION_CREDENTIALS_INVALID` 와 다른 코드다 |
 | `INTEGRATION_CREDENTIALS_INVALID` | 400 | `previewToken` 으로 통합을 만들 때 저장된 미리보기 자격 증명이 암호화되지 않은 문자열이라 쓰지 않는다 |
-| `INTEGRATION_ROTATE_UNSUPPORTED` | 400 | `oauth2` 통합에 자격 증명 교체(`:id/rotate`)를 요청했다. 가시성(404)과 역할(403) 판정 뒤에 본다. 관리자 미만이 OAuth2 조직 통합에 요청하면 403 `ADMIN_REQUIRED` 다([Rationale](#추가-권한-요청은-역할을-인증-유형보다-먼저-판정한다-2026-11-14)) |
-| `INTEGRATION_SCOPE_UNSUPPORTED` | 400 | 인증 유형이 `oauth2` 가 아닌 통합에 추가 권한 요청(`:id/request-scopes`)을 했다. 가시성(404)과 역할(403) 판정 뒤에 본다. 관리자 미만이 OAuth2 가 아닌 조직 통합에 요청하면 403 이다([Rationale](#추가-권한-요청은-역할을-인증-유형보다-먼저-판정한다-2026-11-14)) |
+| `INTEGRATION_ROTATE_UNSUPPORTED` | 400 | `oauth2` 통합에 자격 증명 교체(`:id/rotate`)를 요청했다. 가시성(404)과 역할(403) 판정 뒤에 본다. 관리자 미만이 OAuth2 조직 통합에 요청하면 403 `ADMIN_REQUIRED` 다([Rationale](#추가-권한-요청은-역할을-인증-유형보다-먼저-판정한다)) |
+| `INTEGRATION_SCOPE_UNSUPPORTED` | 400 | 인증 유형이 `oauth2` 가 아닌 통합에 추가 권한 요청(`:id/request-scopes`)을 했다. 가시성(404)과 역할(403) 판정 뒤에 본다. 관리자 미만이 OAuth2 가 아닌 조직 통합에 요청하면 403 이다([Rationale](#추가-권한-요청은-역할을-인증-유형보다-먼저-판정한다)) |
 | `RESOURCE_NOT_FOUND` | 404 | 없는 통합, 다른 워크스페이스 통합, 남의 개인 통합. 공개 범위 전환 도중 워크스페이스와 함께 지워진 통합도 같다([위험 영역 탭](CLE-INT-MANAGE-DETAIL.md#위험-영역-탭)) |
 | `NOT_A_MEMBER` | 403 | 개인 통합 행을 만드는 트랜잭션이 통합 소유자(요청자)의 멤버십을 다시 읽었는데 없다. 라우트 가드가 멤버십을 확인한 뒤 같은 사람이 나가거나 제거된 경쟁에서만 난다. 통합을 만드는 트랜잭션이 먼저 잠글 워크스페이스 행이 그 사이 지워졌을 때도 공개 범위와 관계없이 같은 코드다([통합 쓰기의 잠금 순서](CLE-INT-MANAGE-PERM.md#통합-쓰기의-잠금-순서)). 가드 거부와 같은 코드다([워크스페이스와 멤버 「가드 거부 에러 코드」](../CLE-ACCT/CLE-ACCT-WS.md#가드-거부-에러-코드)) |
 | `INTEGRATION_OWNER_NOT_MEMBER` | 409 | 조직 통합을 개인으로 바꾸려는데 통합을 만든 사람(`created_by`, 전환하면 통합 소유자가 된다)이 워크스페이스 멤버가 아니다. 통합은 바뀌지 않는다. 요청자는 멤버이고 통합의 상태와 부딪힌 요청이라 `NOT_A_MEMBER` 를 쓰지 않는다 |
@@ -153,21 +154,27 @@ etag: "sha256-e7787716ec960894cad94fb58c725483e99fc78bfbb3b2e007609552bca9056f"
 
 ## Rationale
 
-### 에러 코드 표를 통합 관리 API 의 JSON 에러로 좁혔다 (2026-11-14)
+### 에러 코드 표를 통합 관리 API 의 JSON 에러로 좁혔다
+
+결정일: 2026-11-14
 
 - **차이**: 표는 콜백 코드(`OAUTH_STATE_MISMATCH` · `OAUTH_STATE_EXPIRED` · `INTEGRATION_INSTALL_EXPIRED`)를 HTTP 400 으로 적었다. 콜백 컨트롤러는 서비스 예외를 잡아 상태 200 의 HTML 로 답하므로 클라이언트가 400 을 받는 일이 없다. 설치 엔드포인트 코드는 카탈로그와 조건이 달랐다. `*_INSTALL_REPLAY` 에 nonce 재사용이, `CAFE24_INSTALL_INVALID_HMAC` 에 시크릿 없음 · 식별자 불일치가 빠졌고 `MAKESHOP_INSTALL_INVALID_HMAC` 은 행이 없었다.
 - **결정**: 표를 통합 관리 API 가 JSON 에러 응답으로 내는 코드로 좁혔다. 콜백 · 설치 코드는 [에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 한 곳에만 둔다. 사람이 고른 안이다(NERV Task `CLE-T-2ZZ3D2`).
 - **기각한 안**: 빠진 코드를 모두 더하고 표를 하위 문서로 나누는 안. 같은 조건을 두 문서에 적으면 이번 같은 차이가 다시 생긴다.
 - **`INSUFFICIENT_SCOPE` 행도 뺐다.** 이 코드를 내는 곳이 없다([에러 코드 — 통합 관리 · OAuth](../CLE-API/CLE-API-ERRCODES-INTMGMT.md) 의 «`INSUFFICIENT_SCOPE` 는 행이 없다» 항목). 사유 `insufficient_scope` 와 `last_error.details.requiresCafe24Approval` 은 [통합 상태 모델](CLE-INT-STATUS-MODEL.md) 이 정한다. 노드 실행 중 403 의 출력 코드는 [통합 관리 「미결 사항」](CLE-INT-MANAGE.md#미결-사항) 에 남아 있다.
 
-### 추가 권한 요청은 역할을 인증 유형보다 먼저 판정한다 (2026-11-14)
+### 추가 권한 요청은 역할을 인증 유형보다 먼저 판정한다
+
+결정일: 2026-11-14
 
 `:id/request-scopes` 는 가시성(404), 역할(403), 인증 유형(400) 순서로 판정한다(NERV Task `CLE-T-RW69WZ`). 전에는 인증 유형을 먼저 봐서 관리자 미만이 OAuth2 가 아닌 조직 통합에 요청하면 400 을 받았다. [통합 관리](CLE-INT-MANAGE.md) 의 역할 거부 요구사항은 이 요청을 403 으로 거절한다.
 
 - **기각한 안**: 요구사항을 400 우선으로 고치는 안. 드러나는 것은 요청자가 이미 볼 수 있는 인증 유형뿐이라 보안 차이는 없다. 그래도 권한이 없는 요청자가 요청 형식 오류를 받아 맞지 않는 안내를 보게 된다.
 - **자격 증명 교체도 같은 순서다 (2026-11-14, NERV Task `CLE-T-4F33EZ`).** `:id/rotate` 도 인증 유형보다 역할을 먼저 본다. 관리자 미만이 OAuth2 조직 통합에 교체를 요청하면 403 `ADMIN_REQUIRED` 다. 소유자 · 관리자가 보낸 요청과 본인 개인 통합에 보낸 요청은 400 `INTEGRATION_ROTATE_UNSUPPORTED` 다.
 
-### MakeShop 거절 코드를 계약으로 정하고 에러 표를 구현에 맞춘다 (2026-11-13)
+### MakeShop 거절 코드를 계약으로 정하고 에러 표를 구현에 맞춘다
+
+결정일: 2026-11-13
 
 이 개정은 동작을 바꾸지 않고 문서와 구현의 어긋남을 맞췄다.
 
@@ -175,7 +182,9 @@ etag: "sha256-e7787716ec960894cad94fb58c725483e99fc78bfbb3b2e007609552bca9056f"
 - **`MAKESHOP_USE_SHOPSTORE_INSTALL` 은 `oauth/begin` 을 직접 부른 요청에서만 난다.** 두 `:id` 경로가 이 코드를 받는 것처럼 읽히던 설명을 고쳤다.
 - **세 `api*` 값의 채우기 규칙은 [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA.md#호출-api-식별-채우기-규칙) 한 곳에 둔다.** 한쪽만 바뀌면 두 문서가 갈리므로 이 문서에는 화면이 세 값을 보이는 규칙과 링크만 둔다.
 
-### `IntegrationDto` 인벤토리 주장의 경계 (2026-09-10)
+### `IntegrationDto` 인벤토리 주장의 경계
+
+결정일: 2026-09-10
 
 «`IntegrationDto` 는 파생 값 두 개를 싣는다» 는 문자 그대로는 참이지만 읽는 사람에게는 응답 모양의 전수 목록처럼 보인다. 실제 DTO 는 컬럼 투영을 더 싣는다. 그래서 경계 문장을 덧붙였다. 원문을 지우지 않은 이유는 그 문장이 왜 두 파생 값만 이 절이 소유하는지(계산 값과 컬럼 투영의 차이)를 담고 있어서다.
 

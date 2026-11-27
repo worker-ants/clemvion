@@ -2,19 +2,19 @@
 id: "CLE-INT-DATA-ENTITY"
 title: "통합 데이터와 흐름 — 엔티티와 인덱스"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-DATA"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-DATA"]
 area: "CLE-INT"
-content_hash: "9fe4a248958a6420c9986d905b0d63cfa866ee44cb2d7501b72006752d1ab592"
+content_hash: "523f45c9da4891a77f2bf311ffe37b02aecc812fadb4709151cd27e933ba0c7a"
 read_as: "approved_fallback"
-task: "CLE-T-NTNXZS"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "18edb5fc51e25c597d7de241ca7391cf9b2ae849379290b9788192853291e09d"
-etag: "sha256-ba9bfd543ce2c484b65d9764bcc89bdae37daa01b62c18b097060ed7b59a299a"
+mirror_sha256: "01f102f96141882cc061ed69634ed7ce9d65a8df82775c6d0e568f027698740a"
+etag: "sha256-2e5469325968553cb6784297eb6f04a780176f28eef6f0a32fff061a036d1113"
 ---
 > 구현 상태: 구현됨 · 원문 출처는 부모 [통합 데이터와 흐름](CLE-INT-DATA.md) 머리 줄 · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -46,14 +46,14 @@ etag: "sha256-ba9bfd543ce2c484b65d9764bcc89bdae37daa01b62c18b097060ed7b59a299a"
 | last_rotated_at | Timestamp? | 자격 증명을 마지막으로 바꾼 시각(OAuth 통합 재인증, 자격 증명 교체, 토큰 자동 갱신) |
 | reinstall_requested_at | Timestamp? | 재설치 대기 표시(reinstall request mark). 설치를 마친 Cafe24 Private 통합에 통합 재인증이나 추가 권한 요청이 들어온 시각이다. 설치 대기 행과 그 밖의 서비스 유형은 늘 NULL 이다. 24시간 유효 기간과 상태와의 관계는 [상태 모델 「재설치 대기 표시」](CLE-INT-STATUS-MODEL.md#재설치-대기-표시), 남기는 엔드포인트와 App URL 분기는 [재인증과 추가 권한 요청](CLE-INT-OAUTH-REAUTH.md#재설치-대기-표시)이 정한다. `TIMESTAMPTZ NULL`, V151 |
 | last_error | JSONB? (encrypted) | 최근 호출 실패 요약 `{ code, message, at, details? }`. 암호화해 저장한다([암호화](CLE-INT-DATA.md#암호화)). `details` 는 사유별 추가 맥락을 담는 `Record<string, unknown>` 이다. 현재 정의된 키는 `oauth_invalid_scope` 의 `details.requiresCafe24Approval: string[]`(요청 권한 범위와 [Cafe24 별도 승인 scope](CLE-C24-SCOPES) §1 명단의 교집합) 하나다. 새 사유가 키를 쓰면 이 행에 정의를 더한다. 이 컬럼은 저장만 책임지고 응답 노출은 각 API 정의가 통제한다 |
-| created_by | UUID | FK → User (NO ACTION). 통합 소유자(`created_by`). 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 행을 지운다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다-2026-10-29)) |
+| created_by | UUID | FK → User (NO ACTION). 통합 소유자(`created_by`). 개인 통합의 통합 소유자가 워크스페이스를 나가거나 제거되면 그 행을 지운다([통합 관리](CLE-INT-MANAGE.md#나간-멤버의-개인-통합은-나갈-때-지운다)) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
 제약:
 
 - `UNIQUE(workspace_id, name)`: 워크스페이스 안에서 별칭은 하나뿐이다. 공개 범위와 상관없다.
-- 상점 식별자 유일성: 한 워크스페이스 안에서 같은 `(service_type, mall_id)` 의 통합은 최대 1행이다. Cafe24 는 앱 유형과 상관없다. 한 상점에 Public 앱 통합과 Private 앱 통합을 함께 두면 토큰과 웹훅 처리 주체가 갈려 사용자 혼란과 회계 충돌이 생기므로 금지한다. 서로 다른 서비스 유형이 같은 `mall_id` 값을 쓰는 것은 괜찮다. 설치 기한을 넘겨 만료된 행은 `mall_id` 를 비우므로 이 유일성에 들지 않는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
+- 상점 식별자 유일성: 한 워크스페이스 안에서 같은 `(service_type, mall_id)` 의 통합은 최대 1행이다. Cafe24 는 앱 유형과 상관없다. 한 상점에 Public 앱 통합과 Private 앱 통합을 함께 두면 토큰과 웹훅 처리 주체가 갈려 사용자 혼란과 회계 충돌이 생기므로 금지한다. 서로 다른 서비스 유형이 같은 `mall_id` 값을 쓰는 것은 괜찮다. 설치 기한을 넘겨 만료된 행은 `mall_id` 를 비우므로 이 유일성에 들지 않는다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다)).
   - 같은 상점의 행을 찾는 네 지점(중복 사전 감지, `oauth/begin`, 설치 엔드포인트, 설치 토큰 불일치 회복)은 조회 함수 하나를 거친다. 만료 행 제외는 그 함수가 한다. `mall_id` 컬럼이 빈 옛 행을 `credentials.mall_id` 로 맞추는 대체 경로(`findAllCafe24RowsForMall`)도 같은 함수 안에서 만료 행을 거른다.
   - 만료 행은 상점 자리를 놓아도 이름은 그대로다. 같은 이름으로 다시 등록하면 409 `INTEGRATION_NAME_TAKEN` 이다.
 
@@ -242,13 +242,17 @@ etag: "sha256-ba9bfd543ce2c484b65d9764bcc89bdae37daa01b62c18b097060ed7b59a299a"
 
 ### 상점 식별자를 평문 컬럼으로 복제하고 인덱스를 하나로 합쳤다
 
-`mall_id` 가 암호화 JSONB 안에만 있으면 SQL 로 거를 수 없어 중복 검사가 복호화 후 메모리 비교가 되고, 조회와 INSERT 사이의 경쟁도 막을 수 없다. 평문 컬럼(V045)과 부분 UNIQUE 인덱스를 두면 DB 가 중복을 거부한다. 처음에는 서비스별 인덱스(V046 cafe24, V071 makeshop)였으나 서비스 유형을 키에 넣은 인덱스 하나(V072)로 합쳤다. 새 서비스를 더할 때 인덱스와 마이그레이션이 필요 없다. 옛 행의 NULL 은 부분 인덱스 비교에서 빠지므로 새 행과 충돌하지 않고, 다음 저장 때 채워진다. 설치 기한이 지나 만료된 행이 `mall_id` 를 비워 상점 자리를 놓는 것도 이 성질을 쓴다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다-2026-10-29)).
+`mall_id` 가 암호화 JSONB 안에만 있으면 SQL 로 거를 수 없어 중복 검사가 복호화 후 메모리 비교가 되고, 조회와 INSERT 사이의 경쟁도 막을 수 없다. 평문 컬럼(V045)과 부분 UNIQUE 인덱스를 두면 DB 가 중복을 거부한다. 처음에는 서비스별 인덱스(V046 cafe24, V071 makeshop)였으나 서비스 유형을 키에 넣은 인덱스 하나(V072)로 합쳤다. 새 서비스를 더할 때 인덱스와 마이그레이션이 필요 없다. 옛 행의 NULL 은 부분 인덱스 비교에서 빠지므로 새 행과 충돌하지 않고, 다음 저장 때 채워진다. 설치 기한이 지나 만료된 행이 `mall_id` 를 비워 상점 자리를 놓는 것도 이 성질을 쓴다([OAuth 연결과 토큰 갱신](CLE-INT-OAUTH.md#만료된-설치-대기-행은-상점-자리를-놓는다)).
 
-### 재설치 대기 표시를 상태와 따로 둔 시각 컬럼으로 둔다 (2026-10-10)
+### 재설치 대기 표시를 상태와 따로 둔 시각 컬럼으로 둔다
+
+결정일: 2026-10-10
 
 Cafe24 Private 의 통합 재인증과 추가 권한 요청을 «테스트 실행» 으로 마치게 하면서 «이 행은 App URL 이 OAuth 로 보내야 한다» 는 사실을 저장할 자리가 필요했다. `status`·`status_reason` 과 따로 둔 nullable 시각 컬럼 `reinstall_requested_at`(V151)을 택했다. 시각이라 화면이 요청 시각을 보이고 서버가 24시간 유효 기간을 판정할 수 있다. 상태 컬럼을 쓰지 않으므로 만료 스캐너, 주의 필요 술어, 노드 실행 가드가 바뀌지 않는다. 지난 값은 지우지 않고 판정할 때 시각을 비교하므로 정리 작업도 없다. 설치 대기 재사용, 연결됨의 새 상태 사유, 새 상태 값을 기각한 이유와 24시간 유효 기간을 둔 이유는 [상태 모델 「재설치 대기 표시는 상태와 따로 둔 컬럼이다」](CLE-INT-STATUS-MODEL.md#재설치-대기-표시는-상태와-따로-둔-컬럼이다) 에 있다.
 
-### `api_*` 채우기 표를 정본으로 확인하고 외부 MCP 행을 더했다 (2026-11-13)
+### `api_*` 채우기 표를 정본으로 확인하고 외부 MCP 행을 더했다
+
+결정일: 2026-11-13
 
 `api_*` 채우기 표의 정본을 이 문서 한 곳으로 정했다([Database Query 노드](../CLE-NODE-INT/CLE-NODE-DBQUERY.md) 의 실행 로직도 이 표를 가리킨다). 코드와 대조하니 외부 MCP 서버의 도구 호출(`McpToolProvider`)만 `api` 를 넘기지 않아서 지금 동작대로 `mcp` 행과 적용 범위 3 을 더했다.
 

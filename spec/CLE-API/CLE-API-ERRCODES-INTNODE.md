@@ -2,19 +2,19 @@
 id: "CLE-API-ERRCODES-INTNODE"
 title: "에러 코드 카탈로그 — 통합 노드 · MCP"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-ERRCODES"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-ERRCODES"]
 area: "CLE-API"
-content_hash: "7436e8fea3e8f2b723777bc32c6ed4def1ce1c3335f65fb26d12eb1b0b256f78"
+content_hash: "2e76fa32f482a8d599709205106ebdd7452be1f3a838eafcc4ff9e9c9d2d57d5"
 read_as: "approved_fallback"
-task: "CLE-T-DDN3MS"
+task: "CLE-T-24PRNR"
 source_paths: []
-mirror_sha256: "041bdf8341f4bf73f4bd70b5275717575a84ab08da97954e44d49249479f636f"
-etag: "sha256-3b5027d97b74bd4cabff017a265fde7b9591e4128398050ee9ff807e076c04e3"
+mirror_sha256: "563c4b49534ef6f1b344d93b229e5ae0fa7ff66e17ffccb2202e8c530c4625af"
+etag: "sha256-68dfda1f2e8fc510315c0a1a4ad9b1945b71eb82c44a023a33529d529821ed0e"
 ---
 ## 개요
 
@@ -66,21 +66,23 @@ etag: "sha256-3b5027d97b74bd4cabff017a265fde7b9591e4128398050ee9ff807e076c04e3"
 
 | 코드 | HTTP | 설명 | 정의 문서 |
 |------|--------|------|-----------|
-| `MCP_CONNECT_FAILED` | 200 (연결 테스트 결과 `code`) · 없음 (`mcpDiagnostics.errors[].code`) | 연결 · TLS · DNS 실패나 `initialize` 실패. 도구 목록을 만들 때 통합이 `connected` 가 아니어도 이 코드로 남는다. 도구 목록을 만들 때는 `MCP_HTTPS_REQUIRED` · `MCP_HOST_BLOCKED` 에 해당하는 실패도 이 코드로 남는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「연결 테스트」](../CLE-INT/CLE-INT-MCP.md#연결-테스트) |
-| `MCP_LIST_FAILED` | 200 (연결 테스트 결과 `code`) · 없음 (`mcpDiagnostics.errors[].code`) | `tools/list` 등 목록 RPC 실패 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드) |
-| `MCP_CALL_FAILED` | 없음 (도구 결과 `error`) | `tools/call` 이나 메타 도구(`resources/read` · `prompts/get` · `resources/list` · `prompts/list`) 호출 실패 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드) |
-| `MCP_TOOL_ERROR` | 없음 (도구 결과 `error`) | `tools/call` 응답이 `isError: true` 임. 도구 결과에 서버 content 를 함께 싣는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드) |
-| `MCP_TIMEOUT` | 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error`) | 연결 · 목록 · 호출 단계가 시간 안에 끝나지 않음 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드) |
-| `MCP_AUTH_FAILED` | 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error`) | 자격 증명이 없거나 형식이 틀림, 또는 401 · 403. 도구 호출에서 나면 통합이 `error(auth_failed)` 가 된다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「인증 실패 상태 전환」](../CLE-INT/CLE-INT-MCP.md#인증-실패-상태-전환) |
-| `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | URL 이 `https://` 가 아니거나 파싱되지 않음. 이름의 경위는 §3 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「연결 테스트」](../CLE-INT/CLE-INT-MCP.md#연결-테스트) |
-| `MCP_HOST_BLOCKED` | 200 (연결 테스트 결과 `code`) | 호스트가 사설 · loopback · 메타데이터 주소이거나 그런 주소로 풀림(SSRF 차단). 리터럴 판정 · 연결 직전 해석 주소 검사 · 연결 시점 판정이 낸다. `message` 에는 호스트 이름만 싣는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드), [MCP 클라이언트 「자격 증명과 URL 검증」](../CLE-INT/CLE-INT-MCP.md#자격-증명과-url-검증) |
-| `MCP_UNKNOWN_TOOL` | 없음 (도구 결과 `error`) | 실행에 활성 세션이 없거나 세션이 노출하지 않은 도구를 LLM 이 부름 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드) |
-| `INVALID_TOOL_ARGUMENTS` | 없음 (도구 결과 `error`) | 도구 이름 형식이 틀림, 인자가 JSON 객체가 아님, 또는 메타 도구 인자에 `uri` · `name` 이 없음. 호출하지 않고 돌려준다. prefix 가 없는 이유는 §1 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드) |
-| `MCP_RESPONSE_TOO_LARGE` | 없음 (도구 결과 `error`) | 도구 결과 content 가 크기 상한을 넘음. 호출은 성공했고 결과 대신 `originalSizeBytes` 와 `previewBase64` 를 싣는다 | [MCP 클라이언트 「에러 코드」](../CLE-INT/CLE-INT-MCP.md#에러-코드) |
+| `MCP_CONNECT_FAILED` | 200 (연결 테스트 결과 `code`) · 없음 (`mcpDiagnostics.errors[].code`) | 연결 · TLS · DNS 실패나 `initialize` 실패. 도구 목록을 만들 때 통합이 `connected` 가 아니어도 이 코드로 남는다. 도구 목록을 만들 때는 `MCP_HTTPS_REQUIRED` · `MCP_HOST_BLOCKED` 에 해당하는 실패도 이 코드로 남는다 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드), [MCP 클라이언트 — 연결과 URL 검증 「연결 테스트」](../CLE-INT/CLE-INT-MCP-CONN.md#연결-테스트) |
+| `MCP_LIST_FAILED` | 200 (연결 테스트 결과 `code`) · 없음 (`mcpDiagnostics.errors[].code`) | `tools/list` 등 목록 RPC 실패 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드) |
+| `MCP_CALL_FAILED` | 없음 (도구 결과 `error`) | `tools/call` 이나 메타 도구(`resources/read` · `prompts/get` · `resources/list` · `prompts/list`) 호출 실패 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드) |
+| `MCP_TOOL_ERROR` | 없음 (도구 결과 `error`) | `tools/call` 응답이 `isError: true` 임. 도구 결과에 서버 content 를 함께 싣는다 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드) |
+| `MCP_TIMEOUT` | 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error`) | 연결 · 목록 · 호출 단계가 시간 안에 끝나지 않음 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드) |
+| `MCP_AUTH_FAILED` | 200 (연결 테스트 결과 `code`) · 없음 (도구 결과 `error`) | 자격 증명이 없거나 형식이 틀림, 또는 401 · 403. 도구 호출에서 나면 통합이 `error(auth_failed)` 가 된다 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드), [MCP 클라이언트 — 에러 처리 「인증 실패 상태 전환」](../CLE-INT/CLE-INT-MCP-ERROR.md#인증-실패-상태-전환) |
+| `MCP_HTTPS_REQUIRED` | 200 (연결 테스트 결과 `code`) | URL 이 `https://` 가 아니거나 파싱되지 않음. 이름의 경위는 §3 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드), [MCP 클라이언트 — 연결과 URL 검증 「연결 테스트」](../CLE-INT/CLE-INT-MCP-CONN.md#연결-테스트) |
+| `MCP_HOST_BLOCKED` | 200 (연결 테스트 결과 `code`) | 호스트가 사설 · loopback · 메타데이터 주소이거나 그런 주소로 풀림(SSRF 차단). 리터럴 판정 · 연결 직전 해석 주소 검사 · 연결 시점 판정이 낸다. `message` 에는 호스트 이름만 싣는다 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드), [MCP 클라이언트 — 연결과 URL 검증 「자격 증명과 URL 검증」](../CLE-INT/CLE-INT-MCP-CONN.md#자격-증명과-url-검증) |
+| `MCP_UNKNOWN_TOOL` | 없음 (도구 결과 `error`) | 실행에 활성 세션이 없거나 세션이 노출하지 않은 도구를 LLM 이 부름 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드) |
+| `INVALID_TOOL_ARGUMENTS` | 없음 (도구 결과 `error`) | 도구 이름 형식이 틀림, 인자가 JSON 객체가 아님, 또는 메타 도구 인자에 `uri` · `name` 이 없음. 호출하지 않고 돌려준다. prefix 가 없는 이유는 §1 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드) |
+| `MCP_RESPONSE_TOO_LARGE` | 없음 (도구 결과 `error`) | 도구 결과 content 가 크기 상한을 넘음. 호출은 성공했고 결과 대신 `originalSizeBytes` 와 `previewBase64` 를 싣는다 | [MCP 클라이언트 — 에러 처리 「에러 코드」](../CLE-INT/CLE-INT-MCP-ERROR.md#에러-코드) |
 
 ## Rationale
 
-### Cafe24 · MakeShop 연결 테스트의 401 · 403 밖 실패에 `*_API_ERROR` 를 새로 만들었다 (2026-11-06)
+### Cafe24 · MakeShop 연결 테스트의 401 · 403 밖 실패에 `*_API_ERROR` 를 새로 만들었다
+
+결정일: 2026-11-06
 
 NERV Task `CLE-T-H9FQHR` 이다. Cafe24 · MakeShop 연결 테스트는 첫 요청이 401 · 403 이 아닌 상태로 실패해도 401 처럼 토큰을 갱신하고 다시 보냈다. 다시 보낸 요청이 5xx · 429 로 실패하면 `*_AUTH_FAILED` 로 답해 서버 장애나 호출 제한을 인증 실패로 안내했다. 정의는 [서비스별 인증 방식과 자격 증명](../CLE-INT/CLE-INT-AUTH.md#연결-테스트는-401-만-토큰-문제로-본다-2026-11-06) 에 있다.
 
@@ -91,14 +93,18 @@ NERV Task `CLE-T-H9FQHR` 이다. Cafe24 · MakeShop 연결 테스트는 첫 요�
 - HTTP 통합 연결 테스트처럼 401 · 403 이 아닌 4xx 를 성공으로 보는 안도 기각했다. HTTP 통합은 사용자가 정한 주소를 부르므로 4xx 응답도 서버가 살아 있다는 신호다. Cafe24 · MakeShop 연결 테스트는 정해진 진단 주소를 부르므로 4xx 도 실패다.
 - 토큰 갱신 요청 자체가 401 · 403 이 아닌 상태로 실패하면 연결 테스트는 지금도 `*_TRANSPORT_FAILED` 로 답한다. 갱신 경로는 노드와 함께 써서 이 변경에 넣지 않았다. 응답을 받은 실패라 `*_TRANSPORT_FAILED` 의 뜻(응답을 받지 못한 실패)과 어긋난다. 위에서 `*_TRANSPORT_FAILED` 를 기각한 근거와 같은 어긋남이며 NERV Task `CLE-T-DJGSBR` 이 고칠 때까지 남겨 두는 한시 예외다.
 
-### 통합 · MCP · Background Runs 코드를 도메인 참조 절 6.21~6.24 로 등재했다 (2026-11-05)
+### 통합 · MCP · Background Runs 코드를 도메인 참조 절 6.21~6.24 로 등재했다
+
+결정일: 2026-11-05
 
 NERV Task `CLE-T-5BZ3M2` 다. 통합 관리 · OAuth, 통합 노드, MCP 클라이언트, Background Runs REST 가 내는 코드는 도메인 문서에만 있고 이 카탈로그에 행이 없었다(규칙 8). 2026-11-05 에 사람이 구조와 이름을 정했다.
 
 - **§6.1~6.20 은 그대로 두고 §6.21~6.24 를 더했다.** 6.21 과 6.22 를 한 절로 합치는 안, §6 번호를 다시 매기는 안, 도구 결과 코드와 콜백 코드의 등재를 미루는 안은 기각했다. 번호를 다시 매기면 절 앵커와 링크가 깨진다. 코드 주석도 절 제목을 인용한다. 6.21 의 코드는 REST 응답 · 설치 진입점 응답 · 콜백 기록으로 나가고 6.22 의 코드는 노드 출력 · 연결 테스트 결과 · 도구 결과로 나간다. 나가는 곳이 달라 절을 나눴다. 도구 결과 코드와 콜백 코드는 이미 발행 중이라 등재를 미루면 규칙 8 위반이 그대로 남는다.
-- **이름은 모두 유지하고 이름이 부정확한 코드를 §3 에 올렸다.** `MCP_HTTPS_REQUIRED` 를 지금 나누는 안, `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` 의 이름을 지금 바꾸는 안, 상태 번호 코드를 §3 에서 빼는 안은 기각했다. 이름 바꾸기는 규칙 5 에 따라 호환을 깨는 변경이다. 상태 번호 코드를 §3 에서 빼면 규칙 1 에 맞지 않는 이름이 예외 표시 없이 남는다. 그러면 새 코드가 그 이름을 선례로 삼을 수 있다. `MCP_HTTPS_REQUIRED` 를 나누는 일은 코드 변경이라 NERV Task `CLE-T-DDN3MS` 로 넘겼고 2026-11-20 에 나눴다([아래 절](#mcp-주소-차단-코드-mcp_host_blocked-를-등재했다-2026-11-20)).
+- **이름은 모두 유지하고 이름이 부정확한 코드를 §3 에 올렸다.** `MCP_HTTPS_REQUIRED` 를 지금 나누는 안, `CAFE24_PRIVATE_APP_INSTALL_PENDING` · `MAKESHOP_INSTALL_PENDING` 의 이름을 지금 바꾸는 안, 상태 번호 코드를 §3 에서 빼는 안은 기각했다. 이름 바꾸기는 규칙 5 에 따라 호환을 깨는 변경이다. 상태 번호 코드를 §3 에서 빼면 규칙 1 에 맞지 않는 이름이 예외 표시 없이 남는다. 그러면 새 코드가 그 이름을 선례로 삼을 수 있다. `MCP_HTTPS_REQUIRED` 를 나누는 일은 코드 변경이라 NERV Task `CLE-T-DDN3MS` 로 넘겼고 2026-11-20 에 나눴다([아래 절](#mcp-주소-차단-코드-mcp_host_blocked-를-등재했다)).
 
-### MCP 주소 차단 코드 `MCP_HOST_BLOCKED` 를 등재했다 (2026-11-20)
+### MCP 주소 차단 코드 `MCP_HOST_BLOCKED` 를 등재했다
+
+결정일: 2026-11-20
 
 NERV Task `CLE-T-DDN3MS` 가 MCP 서버의 주소 차단(리터럴 판정 · 연결 직전 해석 주소 검사 · 연결 시점 판정)을 `MCP_HTTPS_REQUIRED` 에서 새 코드 `MCP_HOST_BLOCKED` 로 갈랐다. 2026-11-05 에 미룬 일을 2026-11-20 에 사람이 정했다.
 
