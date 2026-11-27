@@ -8243,7 +8243,7 @@ export class ExecutionEngineService
       outputs.structured,
       outputs.flat,
     );
-    this.copyToBranchCacheAndRecord(context, nodeId);
+    this.syncParallelBranchCacheEntry(context, nodeId);
   }
 
   /**
@@ -8253,7 +8253,7 @@ export class ExecutionEngineService
    * `branchWrittenNodeIds` 에 적는다. 사본인데 그 집합이 없으면 결과 노드가 조용히
    * `null` 이 되므로 예외를 던진다.
    */
-  private copyToBranchCacheAndRecord(
+  private syncParallelBranchCacheEntry(
     context: ExecutionContext,
     nodeId: string,
   ): void {
@@ -8702,7 +8702,7 @@ export class ExecutionEngineService
   ): ReadonlySet<string> {
     const written = branchContext.branchWrittenNodeIds;
     for (const nodeId of written) {
-      this.copyToBranchCacheAndRecord(parentContext, nodeId);
+      this.syncParallelBranchCacheEntry(parentContext, nodeId);
     }
     return written;
   }
