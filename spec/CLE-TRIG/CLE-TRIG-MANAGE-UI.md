@@ -2,19 +2,19 @@
 id: "CLE-TRIG-MANAGE-UI"
 title: "트리거 관리 — 화면"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-MANAGE"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-MANAGE"]
 area: "CLE-TRIG"
-content_hash: "3407e82d29e109f0b5f6f574531507fa2bd6374b8cc49588e70c8a11c08949a7"
+content_hash: "ce826a547e29279091a3878bf71bd505f801a843dedbaa2fdb3e0bf2cc575f8b"
 read_as: "approved_fallback"
-task: "CLE-T-XQYZR7"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "c5c7546db931722f8a2b5f68a91108736296db88b7e45fc03b85a0679ce5ba3a"
-etag: "sha256-1e1a1b527712f0b6751bc749cbe371edff9041a7f3fbdb6db2053c0fc0d5e675"
+mirror_sha256: "42686c4a75698f58505e49d0bf325afedb2cd41d920973fa22ee5604c120cf20"
+etag: "sha256-d399b08932ea658378ce9e9c3d9b522cf71e60b38c19783d4d59dd5e494fa330"
 ---
 ## 개요
 
@@ -96,7 +96,7 @@ etag: "sha256-1e1a1b527712f0b6751bc749cbe371edff9041a7f3fbdb6db2053c0fc0d5e675"
 | 스케줄 설정 | `timezone` | 읽기 전용 | 위와 같다 |
 | 스케줄 설정 | `nextRunAt` | 읽기 전용(시스템 계산) | 스케줄 생성·수정 때와 실행이 끝난 직후 다시 계산한다. 다음 실행 시각이 없으면(Cron 파싱 실패 등) 응답(`TriggerDto`)은 `null` 을 싣지 않고 키를 뺀다([HTTP API 규약 §5.5](../CLE-API/CLE-API-CONV-RESP.md#55-부재-표현-null-과-키-생략) 기준 (b)). `cronExpression` · `timezone` 과 같은 형태다. 화면은 이때 `-` 로 표시한다. 발사와 상관없는 정보성 값이다 |
 | 외부 인터랙션 (EIA 알림 웹훅) | `url` / `events` / `signing` / `retry` | 편집 | 필드 정의는 [External Interaction API](../CLE-IX/CLE-EIA.md). `retry` 의 뜻과 범위(총 시도 횟수, 상한, 간격)는 [EIA 알림 웹훅 「재시도와 실패 처리」](../CLE-IX/CLE-EIA-NOTIFY.md#재시도와-실패-처리) 가 정한다. 읽기 모드는 `retry.maxAttempts` 를 «최대 시도 횟수» 로 보여 준다 |
-| 외부 인터랙션 (EIA 알림 웹훅) | `notificationHealth` / `notificationLastError` | 읽기 전용(시스템 계산) | `notificationHealth` 는 트리거 상세에 배지로 보인다([웹훅](CLE-TRIG-WEBHOOK.md) 의 상세 화면 요구사항). `notificationLastError` 는 API 응답에만 실리고 화면에 그리지 않는다. 자격 증명 모양은 가려 내보낸다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
+| 외부 인터랙션 (EIA 알림 웹훅) | `notificationHealth` / `notificationLastError` | 읽기 전용(시스템 계산) | `notificationHealth` 는 트리거 상세에 배지로 보인다([웹훅](CLE-TRIG-WEBHOOK.md) 의 상세 화면 요구사항). `notificationLastError` 는 API 응답에만 실리고 화면에 그리지 않는다. 자격 증명 모양은 가려 내보낸다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류)) |
 | 외부 인터랙션 (인터랙션) | `enabled` / `tokenStrategy` | 편집 | 위와 같다 |
 | 인증 설정 | `authConfigId` | 편집 | 인증 메뉴(`/authentication`)에서 만든 인증 설정을 셀렉터로 트리거에 연결한다. `PATCH /api/triggers/:id { authConfigId }`. `null` 은 인증 없음이다. 비밀 값의 편집·평문 보기·재생성은 인증 메뉴에서만 한다([외부 호출 인증 설정](CLE-TRIG-AUTHCFG.md)). 셀렉터는 워크스페이스 인증 설정 목록, "인증 없음", "+ 새 인증 설정 만들기"(→ `/authentication`)로 이루어진다. "+ 새 인증 설정 만들기" 는 관리자 이상에게만 보인다. 연결 자체는 편집자 이상이 할 수 있다 |
 | 채팅 채널 | `provider` | 읽기 전용 | v1 은 `telegram` / `slack` / `discord`([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) provider 목록). 바꾸려면 트리거를 지우고 다시 만든다. PATCH 로 바꾸면 400 |
@@ -109,7 +109,7 @@ etag: "sha256-1e1a1b527712f0b6751bc749cbe371edff9041a7f3fbdb6db2053c0fc0d5e675"
 | 채팅 채널 | `rateLimitPerMinute` | 편집 | 정수 override, 기본 60([채팅 채널 「비기능」](../CLE-CHAT/CLE-CHAT-CORE.md#비기능)). Telegram 그룹 한도에 맞춘다 |
 | 채팅 채널 | `languageHints` | 편집 | `Record<string, string>`. `groupChatRefusal`·`executionStarted`·`executionCompleted`·`executionStillRunning`·`help` 같은 봇 안내 문구 |
 | 채팅 채널 | `languageLocale` | 편집 | `ko` / `en`, 기본 `ko`. `languageHints` 에 없는 키의 기본 문구 언어다. 문구를 찾는 순서와 기본 문구는 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) 이 정한다 |
-| 채팅 채널 | `chatChannelHealth` / `chatChannelLastError` / `chatChannelSetupAt` / `chatChannelRotatedAt` | 읽기 전용(시스템 계산) | 응답은 camelCase, DB 컬럼은 snake_case(`chat_channel_health` 등). `degraded` 여도 트리거를 자동으로 비활성화하지 않는다([채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도)). `chatChannelLastError` 는 자격 증명 모양을 가려 내보낸다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
+| 채팅 채널 | `chatChannelHealth` / `chatChannelLastError` / `chatChannelSetupAt` / `chatChannelRotatedAt` | 읽기 전용(시스템 계산) | 응답은 camelCase, DB 컬럼은 snake_case(`chat_channel_health` 등). `degraded` 여도 트리거를 자동으로 비활성화하지 않는다([채팅 채널 「채널 건강도」](../CLE-CHAT/CLE-CHAT-CORE.md#채널-건강도)). `chatChannelLastError` 는 자격 증명 모양을 가려 내보낸다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류)) |
 
 시크릿 참조(`botTokenRef`, `inboundSigningRef`)는 사용자에게 보이지 않는다. 응답에는 `hasBotToken: boolean` 만 들어가고 화면도 "등록됨 / 등록 안 됨" 만 표시한다. 이것은 [채팅 채널 「응답 파생 필드 hasBotToken」](../CLE-CHAT/CLE-CHAT-CORE.md#응답-파생-필드-hasbottoken) 을 화면에 적용한 것이다. `config.chatChannel` 필드 정의 전체는 [채팅 채널 데이터와 흐름](../CLE-CHAT/CLE-CHAT-DATA.md) 이 정한다.
 

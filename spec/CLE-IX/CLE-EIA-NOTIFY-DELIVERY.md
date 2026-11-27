@@ -2,19 +2,19 @@
 id: "CLE-EIA-NOTIFY-DELIVERY"
 title: "EIA 알림 웹훅 — 서명과 발송"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-NOTIFY"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-NOTIFY"]
 area: "CLE-IX"
-content_hash: "31ef28239e83d16c00292f88dc9cb4d9f7bc7fdd04464db005ee60d712d22651"
+content_hash: "b171d777b784bd9d307fdb5dbcc856f9629a740486e167651583daf0ee994482"
 read_as: "approved_fallback"
-task: "CLE-T-GBQE3X"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "2f25d5fca2edef15271d2d247a4f85d951f346f749327cf0471482bca1b370ee"
-etag: "sha256-66cb0bd1f4a40265ca77c778e26e7adc6f7a5cbb11166482599fa9b337ccd079"
+mirror_sha256: "4d5593d651158788c6e4e68ed5094d25551bb7154a3c4631ad24a434d5c3cf00"
+etag: "sha256-90c85d9f7e9f046c8fad0dbf5a7959f8a4ebc711dc0c23a8309d66d72417b951"
 ---
 ## 개요
 
@@ -66,7 +66,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 간격 | 1초에서 시작해 4배씩 늘어나고 한 간격은 1시간을 넘지 않는다(1s · 4s · 16s · 64s … 최대 1시간). 간격 수는 총 시도 횟수보다 하나 적다. 1시간 상한은 일곱째 간격부터 걸린다. 그래서 총 시도 횟수가 8 이상일 때만 걸리고 기본값 5 에는 걸리지 않는다. 총 시도 횟수가 상한 10 이면 간격은 1 · 4 · 16 · 64 · 256 · 1024 · 3600 · 3600 · 3600초다. 마지막 재시도는 첫 시도 뒤 12,165초(약 3.4시간)에 나간다. 이 값은 간격만 더한 것이다. 시도마다 응답을 최대 10초 기다리는 시간은 따로 더해진다. 설정 값 `backoff: "exponential"` 은 이 간격을 뜻한다. BullMQ 내장 `exponential`(2배씩 늘어남)과는 이름만 같다. 내장 전략으로는 4배 간격을 낼 수 없어 사용자 정의 전략을 쓴다. 워커 `settings.backoffStrategy`(`NotificationWebhookProcessor`)가 `min(1000·4^(attemptsMade-1), 3600000)` 밀리초를 돌려준다(`notificationBackoffDelayMs`). 작업 옵션 `backoff.type = NOTIFICATION_BACKOFF_TYPE`(`exp-base4`)이 이 전략을 가리킨다 |
 | 같은 이벤트 식별 | `X-Clemvion-Delivery` UUID(다시 보내도 같다) |
 | 연결 시점 차단 | DNS 결과 검사(`NOTIFICATION_ENFORCE_DNS_REBIND_GUARD`)가 켜져 있을 때만 해당한다. 발송 `fetch` 가 연결하며 푼 주소가 막힌 대역이면 보내지 않는다. 재시도하지 않고 그 시도에서 바로 발송 건강도를 `degraded` 로 둔다. `notification_last_error` 는 `DNS rebinding 차단:` 으로 시작한다. 발송 직전 DNS 결과 검사에 걸렸을 때와 처리가 같다. 막는 대역과 켜짐 조건은 [EIA 알림 웹훅 — SSRF 방지](CLE-EIA-NOTIFY-SSRF.md#ssrf-방지) 가 정한다 |
-| 최종 실패 | 발송 건강도 `degraded` + `notification_last_error`(500자로 자름). 트리거를 자동으로 끄지 않는다(사용자 승인 필요). 발송 건강도 배지는 트리거 상세 화면에 보인다. 실패 기록(`notificationLastError`)은 트리거 REST 응답에만 실리고 자격 증명 모양은 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
+| 최종 실패 | 발송 건강도 `degraded` + `notification_last_error`(500자로 자름). 트리거를 자동으로 끄지 않는다(사용자 승인 필요). 발송 건강도 배지는 트리거 상세 화면에 보인다. 실패 기록(`notificationLastError`)은 트리거 REST 응답에만 실리고 자격 증명 모양은 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류)) |
 | 낡은 알림 웹훅 차단 | 발송 직전 실행 상태를 다시 읽어 이미 종료면 진행 중 이벤트(`waiting_for_input`·`ai_message`)를 보내지 않는다 |
 
 최소 한 번 전달은 발송 작업이 발송 큐(`notification-webhook`)에 적재된 뒤에만 성립한다. 적재 전에 프로세스가 끝나거나 적재가 실패하면 그 발송은 사라지고 발송 건강도에도 남지 않는다. 적재가 실패하면 경고 로그만 남긴다. 적재 실패의 처리는 [EIA 데이터와 흐름 「알림 웹훅 발송」](CLE-EIA-DATA.md#알림-웹훅-발송) 이 정한다. 발송 큐 적재를 fail-open 으로 두는 근거는 [EIA 데이터와 흐름 「인프라 장애에는 fail-open 한다」](CLE-EIA-DATA.md#인프라-장애에는-fail-open-한다) 에 있다.

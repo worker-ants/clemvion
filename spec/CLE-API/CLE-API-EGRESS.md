@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS"
 title: "응답 자격 증명 마스킹"
 type: "convention"
-version: 10
+version: 11
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "69e9b118d8292a97577a1e33f64aecae7f24206082d4654003e47ba7a5c03354"
+content_hash: "eb3c3b411009653d3925dce90f746d2ea3b9fc793ee1b65ca4b5b9fae1f75626"
 read_as: "approved_fallback"
-task: "CLE-T-KYPH36"
+task: "CLE-T-72BN09"
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "0ab49f991008f9ea9b378035737e27bdd9bb3cd59c36a31cc77a9a6f3579fc0b"
-etag: "sha256-1b8f6ad7db73d09dce244fd11141c50053062dce1827aaa9109388bdff3a5614"
+mirror_sha256: "d6c4a34e21a8c584cadfe40daf93417823d1db295b85cd4a7243ee2687c2895d"
+etag: "sha256-79d63c2a93c29c83ded37fb7a2e111e5aa4608d8e0739deec898a79cccbfdf77"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -120,11 +120,15 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 
 표면은 이름으로 적는다(규칙 3). "모든 내부 읽기 경로" 로 읽으면 잔여 갭이 가려진다. 표면별 규칙은 [하위 문서](#하위-문서) 에 있다. 이 절의 3.8 · 3.10 과 §4 · 4.3 제목은 다른 문서가 거는 앵커를 지키려고 남긴 링크 자리다. 나머지 절은 다른 문서가 앵커로 걸지 않아 자리를 두지 않았다.
 
-### 3.8 외부 `nodeOutput` 의 fail-closed 허용 목록 (2026-08-23, 2026-08-24)
+### 3.8 외부 `nodeOutput` 의 fail-closed 허용 목록
 
-→ [응답 자격 증명 마스킹 — 실행 표면](CLE-API-EGRESS-SURFACE.md#38-외부-nodeoutput-의-fail-closed-허용-목록-2026-08-23-2026-08-24)
+결정일: 2026-08-23
 
-### 3.10 트리거 응답의 마지막 오류 (2026-10-05)
+→ [응답 자격 증명 마스킹 — 실행 표면](CLE-API-EGRESS-SURFACE.md#38-외부-nodeoutput-의-fail-closed-허용-목록)
+
+### 3.10 트리거 응답의 마지막 오류
+
+결정일: 2026-10-05
 
 → [응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](CLE-API-EGRESS-TRIGGER.md#310-트리거-응답의-마지막-오류-2026-10-05)
 
@@ -179,10 +183,14 @@ DB 는 원문을 보존하고 나가는 페이로드만 가린다.
 
 `execution.ai_message` 마스킹은 발행 지점에 걸려 내부 WebSocket wire 와 채팅 채널 능동 발송(Telegram·Slack·Discord)에도 적용된다. 보수적 패턴(특히 `Bearer\s+\S+`, `pwd:`)이 기술적인 대화에서 오탐하면 이미 사용자에게 간 응답이 `***` 로 바뀔 수 있다. **보안을 우선**해(실제 시크릿을 외부 채널로 흘리지 않음) 이 드문 오탐을 받아들였다. 에디터는 외부 strip 대상이 아닌 `llmCalls` 디버그로 원문을 확인할 수 있다. 관찰자 표면만 가리는 식의 참여자·관찰자 분리는 뒤의 개선 여지로 남긴다.
 
-### 마커 값을 공유 패키지로 옮긴 이유 (2026-08-21)
+### 마커 값을 공유 패키지로 옮긴 이유
+
+결정일: 2026-08-21
 
 예전에는 두 스택이 마커 값을 손으로 복제했고 한쪽만 늘면 다른 쪽이 그 새 마커에 대해 조용히 fail-open 했다. 미러를 기계가 대조하게 만들려 했더니 CI 경로 게이팅에 막혔다(한쪽 CI 워크플로우(GitHub Actions)가 반대쪽 변경 때 검사를 건너뛴다). 그래서 값 자체를 공유 패키지로 옮겼다.
 
-### 트리거 응답의 마지막 오류를 표면에 올린 이유 (2026-10-05)
+### 트리거 응답의 마지막 오류를 표면에 올린 이유
+
+결정일: 2026-10-05
 
 → [응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류](CLE-API-EGRESS-TRIGGER.md#트리거-응답의-마지막-오류를-표면에-올린-이유-2026-10-05)

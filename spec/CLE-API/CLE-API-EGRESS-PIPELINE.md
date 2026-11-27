@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS-PIPELINE"
 title: "응답 자격 증명 마스킹 — 재제출 거부와 마스커 좌표계"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "1b065b908b184142dd1d40c1bf781531a6ee76a21099a7fda2acf646622b3450"
+content_hash: "746eb85e64b31a110c880ea767fe4b52afaf22f9312290b477e15e1a0f6b1c2b"
 read_as: "approved_fallback"
-task: "CLE-T-DV6PN7"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "7794f1ccb62288784f5d0ce1c34dbde47155730390d2e2bc9c9db436543bd64d"
-etag: "sha256-3be1dba66800d0ac47c0d17aec65c7979aee76456afa5f511a067fe393e4bb4c"
+mirror_sha256: "08fad2560e28279e875454ca3ccff5696b7af7be3e137aa98d32f837006ee8c4"
+etag: "sha256-865464846b527271a77e3a61688913db23e55204d65afcb3d9479de827a70f1f"
 ---
 ## 개요
 
@@ -24,7 +24,9 @@ etag: "sha256-3be1dba66800d0ac47c0d17aec65c7979aee76456afa5f511a067fe393e4bb4c"
 
 마스킹은 "읽혀서 다시 쓰이는 값" 과 만나면 가시성이 아니라 **데이터 무결성** 문제가 된다. 원문 문서는 이 형태를 두 번 겪었다. `Execution.inputData`(재실행 재제출)와 폼 `defaultValue` 다.
 
-### 4.1 `inputData` 는 두 수준 모두 가린다 (2026-08-20)
+### 4.1 `inputData` 는 두 수준 모두 가린다
+
+결정일: 2026-08-20
 
 | 값 | 마스킹 | 이유 |
 |---|---|---|
@@ -109,7 +111,7 @@ flowchart LR
 - **"값" 열은 깊이 값이지 행 번호가 아니다.** 지금 네 상한이 모두 `10` 이지만 표 2·3행은 표 1행을 참조하고 표 4행은 따로 선언해 우연히 같을 뿐이다. 문장에서 행을 가리킬 때는 늘 "표 N행" 으로 적는다.
 - **표 5행의 호출부는 둘이다.** `InteractionService` 의 공개 표면 조립부가 `MAX_REDACT_DEPTH` 를, `WebsocketService.toFanoutEnvelope` 이 `MAX_SANITIZE_DEPTH` 를 넘긴다. `stripExternalOnlyFields` 에는 자기 상한이 없다. 표면마다 자매 sanitizer 와 어긋나면 strip 이 닿지 않는 층에 마스킹만 걸리거나 그 반대가 된다.
 - **이름이 한 단어 다른 스캐너가 둘 있다.** 백엔드 `hasMaskedLeaf`(`reject-masked-resubmission.ts`, 표 2행)와 프론트엔드 `hasMaskedMarkerLeaf`(`lib/utils/masked-markers.ts`, 표 3행)다. 같은 상한을 쓰지만 파일도 스택도 다르다. 한쪽만 고치고 "양쪽 고쳤다" 고 적는 사고가 실제로 두 번 났다.
-- **표 4행의 키 패턴은 공용본과 갈라 둔다.** `sanitizePayloadForWs` 가 쓰는 파일 안 `CREDENTIAL_KEY_PATTERN` 에는 공용본(`sanitize-error-message.ts`)의 `x[_-]api[_-]?key` 가 없다. 두 마스커가 서로 다른 불변식을 지킨다는 기존 결정([좌표계를 문서로 둔 이유](#좌표계를-문서로-둔-이유-2026-08-22) 의 기각한 대안 「세 상한을 하나로 합쳐 좌표계를 없앤다」)을 키 패턴에도 그대로 적용한다. 이 차이가 외부로 나가던 자리는 값 마스킹 뒤에 붙던 `chatChannel` 하나였다. 2026-11-20 부터 그 객체는 `routing` 필드로 서버 안에만 머문다(Rationale 「`chatChannel` 을 외부 fanout payload 에서 뺀 이유」).
+- **표 4행의 키 패턴은 공용본과 갈라 둔다.** `sanitizePayloadForWs` 가 쓰는 파일 안 `CREDENTIAL_KEY_PATTERN` 에는 공용본(`sanitize-error-message.ts`)의 `x[_-]api[_-]?key` 가 없다. 두 마스커가 서로 다른 불변식을 지킨다는 기존 결정([좌표계를 문서로 둔 이유](#좌표계를-문서로-둔-이유) 의 기각한 대안 「세 상한을 하나로 합쳐 좌표계를 없앤다」)을 키 패턴에도 그대로 적용한다. 이 차이가 외부로 나가던 자리는 값 마스킹 뒤에 붙던 `chatChannel` 하나였다. 2026-11-20 부터 그 객체는 `routing` 필드로 서버 안에만 머문다(Rationale 「`chatChannel` 을 외부 fanout payload 에서 뺀 이유」).
 - **인용은 심볼 기준이다.** 줄 번호는 리팩터링마다 낡아 쓰지 않는다.
 - **`maskSensitiveFields` 는 이 표에 행이 없다**(2026-08-24). 옛 소비처는 노드 설정 에코(`handler-output.adapter.ts`)와 워크플로우 AI 어시스턴트(`explore-tools.service.ts`) 둘이었는데 앞의 것이 없어졌다. 설정 에코를 표현식이 읽는데 가려져 있어 기능이 오염됐기 때문이다(§3.9). 남은 소비처는 깊이 상한이 없어 이 표의 축(깊이)에 해당하지 않는다.
 - **대신 지켜야 할 축이 하나 생겼다.** 설정 에코는 이제 나가는 시점의 `deepRedactSecrets*` **하나에만** 기대므로 그 키 축이 `DEFAULT_SENSITIVE_KEYS` 를 **포함**해야 한다. `mask-sensitive-fields.util.spec.ts` 의 포함 관계 캐너리가 정본 구현으로 그것을 단언한다(목록에서 파생하므로 목록이 넓어져도 자동으로 검사한다).
@@ -134,7 +136,9 @@ flowchart LR
 
 ## Rationale
 
-### 좌표계를 문서로 둔 이유 (2026-08-22)
+### 좌표계를 문서로 둔 이유
+
+결정일: 2026-08-22
 
 문서를 새로 두는 것이 자동으로 옳지는 않았다. 이 저장소는 마스킹 관련 **미러를 없앴고**, JSDoc 을 되풀이하는 문서는 그 미러를 문서 층에서 되살린다. 그래서 먼저 무엇이 정말 문서에 없는지 전수로 셌다.
 
@@ -154,7 +158,9 @@ flowchart LR
 - **EIA R17 을 넓힌다**: 원문에서 R17 은 EIA 표면의 정책이 주제였다. WebSocket·노드 출력까지 걸치는 좌표계를 거기 넣으면 EIA 가 자기 표면 밖을 갖게 된다. 그래서 좌표계는 별도 규약으로 두었다. R17 의 마스킹 정책 부분은 이 규약으로 모았고 단발 상태 조회의 노출 결정은 [External Interaction API](../CLE-IX/CLE-EIA.md) 에 남겼다.
 - **좌표계를 기계가 검사하게 한다(새 repo-guard)**: 표를 파싱해 소스와 대조하려면 TS AST 파서가 필요하다. 이 저장소는 가드 설계에서 "유한한 문제를 무한한 문제와 바꾸지 말 것" 을 결론으로 얻었다. 대신 §8 에 문서가 낡을 수 있다는 사실과 낡는 조건을 적는 쪽을 골랐다.
 
-### `inputData` 카브아웃을 닫은 이유 (2026-08-20)
+### `inputData` 카브아웃을 닫은 이유
+
+결정일: 2026-08-20
 
 `Execution.inputData` 를 한동안 가리지 않은 것은 그것이 **다시 제출되는 값**이기 때문이었다. 재실행 모달이 `inputData` 로 프리필해 `inputOverride` 로 되보내고(`useOriginalInput` 기본값이 `false` 라 사용자가 손대지 않아도 제출된다), 에디터 "히스토리에서 불러오기" 도 같은 값을 textarea 에 넣어 다시 실행한다. 가리면 리터럴 `'***'` 가 새 실행의 실제 입력값이 된다. 가시성 저하가 아니라 조용한 기능 오염이다. 두 검토가 독립적으로 CRITICAL 을 냈고 소스 추적으로 확증했다.
 
@@ -176,13 +182,17 @@ flowchart LR
 - **2026-08-14 갱신**: 이 결정은 문서상 "모든 외부 수신자" 였으나 구현이 더 좁았다. fanout 은 최상위 필드만 지웠고(depth 1) REST 단발 상태 조회는 값 마스킹만 걸려 있어, 입력 대기의 중첩 경로 두 곳(`turnDebug.llmCalls`, `nodeOutput.meta.turnDebug[].llmCalls`)이 실제로 새고 있었다. 필드 이름 기준 깊이 무관 strip 으로 바꾸고 WebSocket fanout 과 EIA REST 가 같은 공용 유틸을 부르게 맞췄다. 같은 데이터에 출구가 셋(fanout, REST 입력 대기, REST 종결)이었고 출구를 따로 조립하면 한 번에 하나씩만 고쳐진다. 실제로 세 라운드에 걸쳐 하나씩 발견됐다. 그래서 처방을 한 곳에 두었다.
 - **2026-08-16 보강**: 위 "기각한 대안" 은 `llmCalls` 를 값 수준 마스킹으로 **대체**하는 안이고 그 근거는 지금도 유효하다. `llmCalls` 가 아닌 자유 텍스트 필드에 값 패턴 마스킹이 **추가**된 것(§3.6, §5)은 이 결정을 번복하지 않는다.
 
-### fanout 봉투를 타입으로 묶은 이유 (2026-11-06)
+### fanout 봉투를 타입으로 묶은 이유
+
+결정일: 2026-11-06
 
 이전에는 §6 에 «이 순서는 구조가 아니라 규율이다» 라고 적고 JSDoc 으로 알렸다. subject 의 payload 타입이 `Record<string, unknown>` 이라 서비스 안의 새 발행 경로가 `toFanoutEnvelope` 를 건너뛰어도 컴파일됐다. 그래서 1단계 → fanout 진입과 subject 입력을 타입으로 묶었다(§6).
 
 기각한 대안은 소비처가 보는 `ExecutionChannelEvent` 자체에 brand 를 거는 안이다. SSE 어댑터의 replay 제어 프레임(`buildReplayUnavailableEvent`)과 Redis 버퍼 재구성이 그 타입을 직접 만든다. 그 타입에 brand 를 걸면 그쪽까지 단언이 퍼진다. 그래서 subject 입력 전용 타입 `FanoutExecutionChannelEvent` 를 따로 뒀다.
 
-### `chatChannel` 을 외부 fanout payload 에서 뺀 이유 (2026-11-20)
+### `chatChannel` 을 외부 fanout payload 에서 뺀 이유
+
+결정일: 2026-11-20
 
 NERV Task `CLE-T-FTA848` 에서 사람이 정한 결정 (a)다. 구현은 NERV Task `CLE-T-DV6PN7` 이 한다.
 
@@ -192,5 +202,5 @@ NERV Task `CLE-T-FTA848` 에서 사람이 정한 결정 (a)다. 구현은 NERV T
 - **채널 정보가 필요한 워크플로우**: 실행 입력 `inputData.chatChannel` 을 자기 출력에 싣는다. 무엇을 내보낼지는 워크플로우 작성자가 정한다.
 - **`routing.chatChannel` 의 마스킹**: 지금처럼 키 이름 마스킹(`sanitizePayloadForWs`, §7 표 4행)을 거친다. 받는 쪽이 서버 안 소비자뿐이라 더 걸지 않는다.
 - **기각한 대안 (b)**: `chatChannel` 을 외부 필드로 문서화하고 세 키(`provider` · `conversationKey` · `channelUserKey`)로 좁힌다. 문서에 없던 필드라 이 필드를 쓰는 소비자가 없다. 최종 사용자 식별자를 외부로 보낼 이유도 없다. 그래서 계약으로 굳히지 않고 뺐다.
-- **마스커는 합치지 않는다(carve-out 유지)**: 두 마스커가 서로 다른 불변식을 지킨다는 기존 결정을 잇는다([좌표계를 문서로 둔 이유](#좌표계를-문서로-둔-이유-2026-08-22) 의 기각한 대안 「세 상한을 하나로 합쳐 좌표계를 없앤다」). 그 결정은 깊이 상한을 두고 내렸고 키 패턴도 같은 이유로 갈라 둔다. WebSocket 쪽 `CREDENTIAL_KEY_PATTERN` 에는 공용본의 `x[_-]api[_-]?key` 가 없다. 이 차이가 외부 표면에 남던 자리는 값 마스킹 뒤에 붙는 `chatChannel` 하나였다. 이제 그 객체는 외부로 나가지 않으므로 키 패턴을 합칠 새 이유도 생기지 않았다(§7). 코드 JSDoc 의 «REST 표면 전용» 서술은 «값 마스킹 뒤에 붙는 서버 조립 객체에만 쓰인다» 로 고친다.
+- **마스커는 합치지 않는다(carve-out 유지)**: 두 마스커가 서로 다른 불변식을 지킨다는 기존 결정을 잇는다([좌표계를 문서로 둔 이유](#좌표계를-문서로-둔-이유) 의 기각한 대안 「세 상한을 하나로 합쳐 좌표계를 없앤다」). 그 결정은 깊이 상한을 두고 내렸고 키 패턴도 같은 이유로 갈라 둔다. WebSocket 쪽 `CREDENTIAL_KEY_PATTERN` 에는 공용본의 `x[_-]api[_-]?key` 가 없다. 이 차이가 외부 표면에 남던 자리는 값 마스킹 뒤에 붙는 `chatChannel` 하나였다. 이제 그 객체는 외부로 나가지 않으므로 키 패턴을 합칠 새 이유도 생기지 않았다(§7). 코드 JSDoc 의 «REST 표면 전용» 서술은 «값 마스킹 뒤에 붙는 서버 조립 객체에만 쓰인다» 로 고친다.
 - **호환성 주의**: 외부 wire 에서 `chatChannel` 필드가 빠진다. SSE 프레임과 EIA 알림 웹훅 본문의 `payload` 가 그 자리다. 저장소에 CHANGELOG 가 없어 이 항목과 구현 PR 본문에 남긴다.

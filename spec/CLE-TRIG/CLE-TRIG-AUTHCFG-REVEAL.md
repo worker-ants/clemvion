@@ -2,19 +2,19 @@
 id: "CLE-TRIG-AUTHCFG-REVEAL"
 title: "외부 호출 인증 설정 — 마스킹과 평문 보기"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-TRIG-AUTHCFG"
 ancestors: ["CLE-VISION", "CLE-TRIG", "CLE-TRIG-AUTHCFG"]
 area: "CLE-TRIG"
-content_hash: "7f544fd8ec3b27131eae0d982678ae98a317f16a526d60e3231f6bb83c037d8c"
+content_hash: "27a6f5d2707746e3b8c0f30fcc23778a33dd71d77c10ac3a44a2715540c34524"
 read_as: "approved_fallback"
-task: "CLE-T-XQYZR7"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "a1013c51bfae02bf89c191746c07b1f3cfb65c9d095653a3cd477c2b0baabc39"
-etag: "sha256-cfc75f2ee9c11b4fef75e0864d2e8842799b186060e543760f650b0454dc0c0c"
+mirror_sha256: "b9044973b75c5c3cd11dd03bc63e1ffb9c90ca6dc22b449bc5864dcd23570dd1"
+etag: "sha256-4a71c7e65523ca46832f8c5e072ee8cea7b8c6b4405b1da8b3ecbc14ba1eed5f"
 ---
 ## 개요
 
@@ -90,7 +90,7 @@ sequenceDiagram
 
 원래 저장값을 보존하는 목적은 이름 변경 같은 무관한 재저장에서 행을 원래 모습대로 다시 쓰는 것이다. 새 값을 쓰려는 저장은 따로 풀었다. 재생성은 표식을 버리고 새 config 를 만들고, config 편집은 표식에 병합하지 않는다([복호화 불가 인증 설정의 편집은 config 를 병합하지 않는다](CLE-TRIG-AUTHCFG-EDIT.md#복호화-불가-인증-설정의-편집은-config-를-병합하지-않는다)).
 
-웹훅 수신 헤더는 저장할 때 가린다([웹훅 「수신 헤더 마스킹을 저장 시점에 하는 이유」](CLE-TRIG-WEBHOOK.md#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07)). 그 원칙은 복구에 쓰지 않는 값에 적용한다. 원래 저장값은 키를 복구할 때 필요하다. 그래서 저장해 두고 응답 경계에서 뺀다.
+웹훅 수신 헤더는 저장할 때 가린다([웹훅 「수신 헤더 마스킹을 저장 시점에 하는 이유」](CLE-TRIG-WEBHOOK.md#수신-헤더-마스킹을-저장-시점에-하는-이유)). 그 원칙은 복구에 쓰지 않는 값에 적용한다. 원래 저장값은 키를 복구할 때 필요하다. 그래서 저장해 두고 응답 경계에서 뺀다.
 
 이 선택은 기존 규약과 같은 방향이다. [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 의 규칙 4 는 저장소 밖에 사는 비밀을 응답에 싣지 않게 한다. 규칙 6 은 엔티티를 그대로 반환하는 경로에서 그 값을 응답 경계에서 지우게 한다. [OpenAPI 문서화 「5-1. 응답 DTO 위치」](../CLE-API/CLE-API-SWAGGER.md#5-1-응답-dto-위치) 도 응답의 비밀값을 가리거나 빼게 한다.
 

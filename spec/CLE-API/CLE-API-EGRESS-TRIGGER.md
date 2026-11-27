@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS-TRIGGER"
 title: "응답 자격 증명 마스킹 — 트리거 응답의 마지막 오류"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "3491dafc73c10853c20406263d7bba69fc1bf9345bfab6774e444ae7248a23fa"
+content_hash: "52344b1e2b77243f4785697c18e77eee10137454804e87c173145410ab8bd012"
 read_as: "approved_fallback"
-task: "CLE-T-FTSKJW"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "dafef92e01bfb35f7f921f22a90377e8d0ac4b5c52fe82cb23022f4c3ec0dbd3"
-etag: "sha256-a771e9ecd150ab997afd62d4fea952865fde2d4d6913b74d6383d5de3da1d2e2"
+mirror_sha256: "7403d3011fd27c4c295ad7ea881758a1b7b85a14b19869092b2bf2657023a7e8"
+etag: "sha256-520f3bf600f10bd3dd35b53aa91ff395fa1c72ea77f0a0ed88ab28a04a21f7f6"
 ---
 ## 개요
 
@@ -70,6 +70,6 @@ NERV Task `CLE-T-H0GF4K` 가 Node 24 의 fetch 로 두 경로를 재현했다. S
 
 이 패턴은 따옴표 안을 통째로 값 마커 하나로 바꿔 안에 든 다른 마커도 덮는다. 규칙 5 를 이 패턴 하나에서 좁힌 이유다. 마커를 건너뛰려면 패턴이 마커 경계를 알아야 해 복잡해진다. 이 오류 원문에 다른 마커가 들 일은 드물고(알려진 비밀 치환의 값 마커 정도) 들어도 그 구간은 가려야 할 헤더 값이다. 키 마커(`[REDACTED]`)까지 덮는 것은 알려진 부산물이다. 이 오류 문장은 받는 층을 거쳐 온 값이 아니라서 표면 사이에 마커가 갈리는 일은 생기지 않는다. 동작은 캐너리로 고정했다. MCP 클라이언트는 소비자 전용 모양을 자기 훅에 두었지만 이 패턴은 fetch 가 모든 소비자에 내는 일반 형태라 공유 목록에 둔다.
 
-2026-11-20 해소 기록: `config.notification.url` 이 원문으로 남는 동안 `notificationLastError` 의 `user:pass@` 가림은 실효가 작았다. 왕복 값이라 규칙 9 와 함께 정해야 해서 §3.5 원칙의 한시 예외로 남겼었다. 해소 조건은 userinfo 가 든 알림 URL 을 등록에서 거부하거나 응답에서 가리는 것이었다. NERV Task `CLE-T-RCQGCC` 에서 사람이 등록 거부 안(B)을 골랐고 두 조건을 모두 채웠다. Node fetch 는 userinfo 가 든 URL 로 요청을 만들지 않아 그런 알림 URL 은 한 번도 발송되지 않으므로 등록에서 거부해도 잃는 발송이 없다([EIA 알림 웹훅 Rationale](../CLE-IX/CLE-EIA-NOTIFY.md#알림-url-의-userinfo-를-받지-않는다-2026-11-20)). 그 전에 저장된 행은 마이그레이션하지 않고 응답에서 가린다. 가린 URL 을 되보내면 등록 검사가 거부하므로 그 거부가 규칙 9 의 소비 쪽 가드가 된다. 소비 쪽 거부가 선 뒤 카브아웃을 닫은 `inputData`([재제출 거부와 마스커 좌표계 문서 Rationale 「`inputData` 카브아웃을 닫은 이유」](CLE-API-EGRESS-PIPELINE.md#inputdata-카브아웃을-닫은-이유-2026-08-20))와 같은 길이다. `notificationLastError` 에는 국소 userinfo 패턴을 더 걸었다. 응답의 URL 을 가린 뒤라 이제 효과가 있다. 이 칼럼은 알림 웹훅 발송 오류만 담아서 공유 패턴을 넓힐 때처럼 대화 스레드나 재제출 표면에 닿지 않는다.
+2026-11-20 해소 기록: `config.notification.url` 이 원문으로 남는 동안 `notificationLastError` 의 `user:pass@` 가림은 실효가 작았다. 왕복 값이라 규칙 9 와 함께 정해야 해서 §3.5 원칙의 한시 예외로 남겼었다. 해소 조건은 userinfo 가 든 알림 URL 을 등록에서 거부하거나 응답에서 가리는 것이었다. NERV Task `CLE-T-RCQGCC` 에서 사람이 등록 거부 안(B)을 골랐고 두 조건을 모두 채웠다. Node fetch 는 userinfo 가 든 URL 로 요청을 만들지 않아 그런 알림 URL 은 한 번도 발송되지 않으므로 등록에서 거부해도 잃는 발송이 없다([EIA 알림 웹훅 Rationale](../CLE-IX/CLE-EIA-NOTIFY.md#알림-url-의-userinfo-를-받지-않는다-2026-11-20)). 그 전에 저장된 행은 마이그레이션하지 않고 응답에서 가린다. 가린 URL 을 되보내면 등록 검사가 거부하므로 그 거부가 규칙 9 의 소비 쪽 가드가 된다. 소비 쪽 거부가 선 뒤 카브아웃을 닫은 `inputData`([재제출 거부와 마스커 좌표계 문서 Rationale 「`inputData` 카브아웃을 닫은 이유」](CLE-API-EGRESS-PIPELINE.md#inputdata-카브아웃을-닫은-이유))와 같은 길이다. `notificationLastError` 에는 국소 userinfo 패턴을 더 걸었다. 응답의 URL 을 가린 뒤라 이제 효과가 있다. 이 칼럼은 알림 웹훅 발송 오류만 담아서 공유 패턴을 넓힐 때처럼 대화 스레드나 재제출 표면에 닿지 않는다.
 
 2026-10-17 보강: 생성 · 수정 응답의 `data.secrets` 를 §3.10 비대상에 적었다(NERV Task `CLE-T-EMB0YG`). 이 묶음은 서버가 그 요청에서 발급한 평문(첫 알림 서명 시크릿, 트리거 단위 토큰 `itk_*`)을 한 번 싣기 때문에 `sanitizeForResponse` 를 지난 응답에 붙인다. 이 묶음을 마스커에 통과시키는 안은 택하지 않았다. 키 이름 판정이나 값 패턴에 걸리면 호출자가 다시 받을 수 없는 평문이 가려진다. 면제 대상 응답의 목록은 [시크릿 저장소 「규칙」](../CLE-INT/CLE-INT-SECRET.md#규칙) 4 한 곳에 둔다.

@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-RENDER"
 title: "채팅 채널 — 메시지 발송과 채널 건강도"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "e02873ad8fd89b2d2fc68700655e9bad982cf063416b9730eac1f59278d1c48a"
+content_hash: "cf5da78a8361ab222c9277395071fab9e92391cef62f14e583cabb13d0b45775"
 read_as: "approved_fallback"
-task: "CLE-T-P4TSAA"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "76ea44c69c6342a0eb0e4b31102fab1178715587d40bf15ee43e16c8f54dcea6"
-etag: "sha256-209643da4a90640bf426ec33e50fe0508dd3caccafba07e5915229fbb756a74d"
+mirror_sha256: "f43c4e26c83634715e27a8bbb0f62fa6daba58685003e8921aada3a67345f70a"
+etag: "sha256-0dc9ee030fce5fcf400e35baf4bbaad1d20a516767e4c4b93cd480e264dbe940"
 ---
 ## 개요
 
@@ -55,7 +55,7 @@ etag: "sha256-209643da4a90640bf426ec33e50fe0508dd3caccafba07e5915229fbb756a74d"
 
 뒤의 셋이 이미 `degraded` 면 쓰지 않는 것은 한도 초과나 큐 적재 실패가 몰릴 때 같은 쓰기를 되풀이하지 않으려는 것이다. 그래서 한도 초과, id 참조 교차 행, 큐 적재 실패가 나중에 와도 `chat_channel_last_error` 는 먼저 `degraded` 가 된 원인의 문구로 남는다. 채널 어댑터 실패는 그때마다 덮어쓴다. 서명 검증 뒤 처리 중 예상하지 못한 오류로 버린 update 는 건강도를 바꾸지 않는다([인바운드 HTTP 응답 계약](CLE-CHAT-CORE-RESPONSE.md#인바운드-http-응답-계약)).
 
-`chat_channel_last_error` 는 트리거 상세를 볼 수 있는 워크스페이스 멤버에게 보이는 진단 필드다. 화면은 이 값을 번역하지 않고 원문으로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). 트리거 응답은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05) 으로 자격 증명 모양만 가리고 그 밖의 원문은 진단을 위해 워크스페이스 멤버에게 보인다. 새로 저장되는 값에는 그 호출에 쓴 봇 토큰이 글자 그대로 남지 않는다. 프로바이더 API 클라이언트가 자기가 만든 실패 문장에서 지운다([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10). 프로바이더가 돌려준 4xx 본문은 바꾸지 않는다. 한계는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05) 에 있다. 재발급 API 의 에러 응답이 원문을 싣지 않는 것([R-CC-23](CLE-CHAT-CORE-TOKEN.md#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다))과의 관계는 [R-CC-26](#r-cc-26-마지막-오류-필드는-프로바이더-원문을-싣고-자격-증명-모양만-가린다) 에 있다. 화면 도움말과 사용자 가이드는 원인을 나열하지 않고 «마지막 오류» 를 가리킨다. 원인이 늘 때마다 화면 문구가 낡지 않게 하려는 것이다.
+`chat_channel_last_error` 는 트리거 상세를 볼 수 있는 워크스페이스 멤버에게 보이는 진단 필드다. 화면은 이 값을 번역하지 않고 원문으로 보여 준다([다국어와 화면 문구](../CLE-UI/CLE-UI-I18N.md#규칙) 규칙 3). 트리거 응답은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류) 으로 자격 증명 모양만 가리고 그 밖의 원문은 진단을 위해 워크스페이스 멤버에게 보인다. 새로 저장되는 값에는 그 호출에 쓴 봇 토큰이 글자 그대로 남지 않는다. 프로바이더 API 클라이언트가 자기가 만든 실패 문장에서 지운다([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10). 프로바이더가 돌려준 4xx 본문은 바꾸지 않는다. 한계는 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류) 에 있다. 재발급 API 의 에러 응답이 원문을 싣지 않는 것([R-CC-23](CLE-CHAT-CORE-TOKEN.md#r-cc-23-setupchannel-실패는-전송-방식이-아니라-원인으로-분류한다))과의 관계는 [R-CC-26](#r-cc-26-마지막-오류-필드는-프로바이더-원문을-싣고-자격-증명-모양만-가린다) 에 있다. 화면 도움말과 사용자 가이드는 원인을 나열하지 않고 «마지막 오류» 를 가리킨다. 원인이 늘 때마다 화면 문구가 낡지 않게 하려는 것이다.
 
 ## 미결 사항
 
@@ -109,7 +109,7 @@ EIA 알림 웹훅 허용 목록에 `node.completed` 를 더하는 안은 EIA 클
 
 ### R-CC-26 마지막 오류 필드는 프로바이더 원문을 싣고 자격 증명 모양만 가린다
 
-2026-10-05 결정이다(NERV Task `CLE-T-H0GF4K`). `chat_channel_last_error` 는 채널 어댑터 실패의 원문(프로바이더 응답 포함)을 담는다. 트리거 응답은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05) 으로 자격 증명 모양만 가리고 봇 토큰은 프로바이더 API 클라이언트가 자기 실패 문장에서 지운다([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10).
+2026-10-05 결정이다(NERV Task `CLE-T-H0GF4K`). `chat_channel_last_error` 는 채널 어댑터 실패의 원문(프로바이더 응답 포함)을 담는다. 트리거 응답은 [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류) 으로 자격 증명 모양만 가리고 봇 토큰은 프로바이더 API 클라이언트가 자기 실패 문장에서 지운다([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10).
 
 같은 `setupChannel` 실패 원문이 재발급 API 의 에러 응답에는 실리지 않는데(R-CC-23) 최초 설정 · 수정 경로에서는 이 필드에 저장돼 트리거 조회로 보인다. 받는 사람도 이 필드 쪽이 넓다. 트리거 조회는 뷰어도 한다. 그래도 원문을 싣는 근거는 넷이다.
 

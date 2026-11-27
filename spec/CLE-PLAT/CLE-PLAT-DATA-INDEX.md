@@ -2,19 +2,19 @@
 id: "CLE-PLAT-DATA-INDEX"
 title: "데이터 모델 개요 — 인덱스 전략"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT-DATA"
 ancestors: ["CLE-VISION", "CLE-PLAT", "CLE-PLAT-DATA"]
 area: "CLE-PLAT"
-content_hash: "a3b5f17e1fcf99df7c2207d23c2b8b3c21d924a3a430dea394be5a3244076518"
+content_hash: "adb9d673c7ebf206a759c36feff9e7b605a002dc8bec2bfb40d38ddbe4f04a7a"
 read_as: "approved_fallback"
-task: "CLE-T-28MDF3"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "cc9a394e057d48b4497658ab0d0c026b8add0860e0eba97a31928626bd530e45"
-etag: "sha256-c343d72f4f570fb03295331d8ac7a6ae39bf650209286964a3b2fa10d5eb867e"
+mirror_sha256: "6450e57958cf7aa4335b8fe53bcc58ff262a57416ec6897774e96a2ed351ed99"
+etag: "sha256-a23f1b7657f6c520c45c7ca04c322b662091c1f97b9c2ed51de708b05c85ebe5"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-c343d72f4f570fb03295331d8ac7a6ae39bf650209286964a3b2fa10d5eb867e"
 2. 복합 인덱스는 선두 컬럼이 조회 조건과 맞아야 쓰인다. 선두가 다른 기존 인덱스가 있어도 그 컬럼으로 찾는 조회나 FK 삭제는 인덱스 전체를 훑거나 테이블을 훑는다.
 3. FK 삭제가 부모 행마다 부르는 조회(`$1 = col`)가 쓸 수 있는 부분 인덱스는 조건이 `col IS NOT NULL` 인 것뿐이다. 다른 조건이 붙은 부분 인덱스만 있으면 인덱스가 없는 것과 같다.
 4. nullable FK 컬럼의 인덱스는 `WHERE col IS NOT NULL` 부분 인덱스로 둔다. NULL 행을 빼서 인덱스를 가볍게 한다.
-5. 인덱스를 둘지는 "자식 테이블 크기 × 연쇄로 지워지는 부모 행 수" 가운데 어느 쪽이 사용자 데이터로 자라는지로 가른다. 호출당 ms 문턱 하나로 자르면 규모가 바뀔 때마다 결론이 바뀐다. 기준 세부는 [Rationale](#쓸-인덱스가-없는-fk-서른하나의-처분-2026-09-18) 에 있다.
+5. 인덱스를 둘지는 "자식 테이블 크기 × 연쇄로 지워지는 부모 행 수" 가운데 어느 쪽이 사용자 데이터로 자라는지로 가른다. 호출당 ms 문턱 하나로 자르면 규모가 바뀔 때마다 결론이 바뀐다. 기준 세부는 [Rationale](#쓸-인덱스가-없는-fk-서른하나의-처분) 에 있다.
 6. 운영 테이블에 인덱스를 더할 때는 `CREATE INDEX CONCURRENTLY` 를 쓴다. `CONCURRENTLY` 와 `ALTER` 는 한 마이그레이션에 함께 둘 수 없어 파일을 나눈다([DB 마이그레이션 규약](../CLE-ENG/CLE-ENG-MIGRATION.md)).
 
 ## 벡터 인덱스
@@ -179,7 +179,9 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 
 ## Rationale
 
-### 쓸 인덱스가 없는 FK 서른하나의 처분 (2026-09-18)
+### 쓸 인덱스가 없는 FK 서른하나의 처분
+
+결정일: 2026-09-18
 
 앞선 두 조사([실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md) 의 «삭제 연쇄의 FK 인덱스 다섯», [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) 의 «그래프 RAG 삭제 연쇄의 FK 인덱스 넷»)가 닫고 남긴 FK 28개와 그 셈이 놓친 셋을 모두 처분했다. 인덱스 열은 V121~V130 으로 만들고, 스물하나는 대상에서 뺐다.
 

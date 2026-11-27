@@ -2,19 +2,19 @@
 id: "CLE-EIA-DATA-STORE"
 title: "EIA 데이터와 흐름 — 엔티티와 저장소"
 type: "design"
-version: 5
+version: 6
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EIA-DATA"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-EIA-DATA"]
 area: "CLE-IX"
-content_hash: "5f44ad2a97d31bef31a47280bc7690112326273421e3184cba89aeb053c86654"
+content_hash: "535f0a575732e3218a8032da7a7924408af52f05cba5226f129baf31d2717141"
 read_as: "approved_fallback"
-task: "CLE-T-ZPT9W7"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "3c2a5892e01c25f2aadef1622604318390cbf2544460c09ee5e45c37a231f01b"
-etag: "sha256-19b1ee18ed02175628af80477315ebf6058e7bf13650bc9bac98b293f41deb26"
+mirror_sha256: "fe57e11a247b92102cfa057d72a4dba909e413b14a2fac47367acf9a24772b1f"
+etag: "sha256-487a4c3b93995bacc693bd46a2b43e34bd86686ad9916824f2d2c4cb8209dd5c"
 ---
 ## 개요
 
@@ -29,7 +29,7 @@ etag: "sha256-19b1ee18ed02175628af80477315ebf6058e7bf13650bc9bac98b293f41deb26"
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `notification_health` | VARCHAR(16) NOT NULL DEFAULT `'unknown'` | 발송 건강도. `unknown`·`healthy`·`degraded` 만 받는다(CHECK `chk_trigger_notification_health`, V059) |
-| `notification_last_error` | TEXT NULL | 마지막 발송 실패나 폭주 사유(500자로 자름). 응답에서는 자격 증명 모양을 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류-2026-10-05)) |
+| `notification_last_error` | TEXT NULL | 마지막 발송 실패나 폭주 사유(500자로 자름). 응답에서는 자격 증명 모양을 가린다([응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#310-트리거-응답의-마지막-오류)) |
 | `notification_secret_v2` | TEXT NULL | 시크릿 교체의 24시간 유예 동안 쓰는 새 알림 서명 시크릿의 평문 |
 | `notification_rotated_at` | TIMESTAMPTZ NULL | 시크릿 교체 시각 |
 

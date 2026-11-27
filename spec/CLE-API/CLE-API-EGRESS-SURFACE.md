@@ -2,19 +2,19 @@
 id: "CLE-API-EGRESS-SURFACE"
 title: "응답 자격 증명 마스킹 — 실행 표면"
 type: "convention"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API-EGRESS"
 ancestors: ["CLE-VISION", "CLE-API", "CLE-API-EGRESS"]
 area: "CLE-API"
-content_hash: "b98ef14c7e140731e3809be58b8f6aff2d4b74feb26d74e5229c195cc0819894"
+content_hash: "c2074fdab5076373b0ba0c773639fc2ebe0ecd0c4952ca207745668177548f57"
 read_as: "approved_fallback"
-task: "CLE-T-GGDQSJ"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "ffdf2fb841c81097afb4d9d11dac44e36889d0756378e4cfa1a78bdd6fc6b7e4"
-etag: "sha256-16226dc0f70afb329c7e833c187ea607403bc33d0b7c040c3c16015eb5a14545"
+mirror_sha256: "6a84b524b2e1f90b8ce421a6a4b1a89803b3219992ff4aa9149b6afb4d9d0be4"
+etag: "sha256-8a8b73143e4bbe878275d237f85e8a790520565e0d01b09079b361a9bf96016d"
 ---
 ## 개요
 
@@ -56,7 +56,9 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 - **`execution.cancelled` 의 `error` 는 이 마스킹 대상이 아니다.** 시스템 취소 경로는 `{code, message}` 를 손으로 조립하고 `toTerminalErrorPayload` 를 거치지 않는다. 지금은 모두 정적 상수 문자열이라 샐 위험이 없지만 구조적 보장은 아니다. [EIA 알림 웹훅](../CLE-IX/CLE-EIA-NOTIFY.md) 의 종결 이벤트 필드 집합 표가 두 이벤트의 `error` 를 한 행에 묶으므로 이 비대칭을 여기 적는다.
 - DB 는 원문을 보존한다(§1.1).
 
-## 3.5 내부 읽기 경로 (2026-08-16)
+## 3.5 내부 읽기 경로
+
+결정일: 2026-08-16
 
 같은 `Execution.error` 를 내부 표면은 원문으로 보여 주던 비대칭을 없앴다. 형태는 바꾸지 않고 값만 가린다.
 
@@ -73,7 +75,9 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 - **형태는 바꾸지 않는다.** `toTerminalErrorPayload`(종결 wire 형태로 정규화)를 다시 쓰지 않는다. 내부 응답 계약(`Record<string, unknown> | null`)은 그대로 두고 값만 가린다.
 - **HTTP 에러 응답 봉투와 다른 층이다.** [에러 응답과 클라이언트 처리](CLE-API-ERROR.md) 의 `message` 비노출 원칙은 요청 실패 응답의 메시지 구성 규칙이다. 여기는 도메인 데이터(`Execution.error` 컬럼 값)의 나가는 시점 마스킹이고 자격 증명 패턴만 겨냥한다. 같은 CWE-209 동기를 공유하지만 강도와 대상이 다르므로 한쪽을 근거로 다른 쪽을 판정하지 않는다.
 
-## 3.6 실행·노드 이벤트 발행의 자유 텍스트 (2026-08-16)
+## 3.6 실행·노드 이벤트 발행의 자유 텍스트
+
+결정일: 2026-08-16
 
 §3.4 와 **또 다른 층**이다. 노드 수준 이벤트(`execution.node.*`) payload 와 `ai_message` 같은 비종결 실행 이벤트의 자유 텍스트다.
 
@@ -87,7 +91,9 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 - **부작용(수용)**: 워크플로우가 정당하게 자격 증명을 다루면 그 값이 발행·읽기 표면에서 `***` 로 보인다. §3.2 와 같은 판단이며 외부 EIA 단발 상태 조회는 이미 같은 마스킹을 걸고 있었다(내부에만 없었다). 참여자와 관찰자를 나눠 가리는 방식은 실제 요구가 관측되면 검토한다.
 - **설정 에코와도 충돌하지 않는다.** [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 7 이 설정 에코의 자격 증명 echo 를 이미 금지하므로 이 마스킹은 그 규칙의 나가는 시점 backstop 이다. 자격 증명이 아닌 설정은 바뀌지 않는다. 설정 에코에 자격 증명 패턴이 박혀 있으면 원본 그대로 echo 하는 계약보다 값 마스킹이 우선한다.
 
-## 3.7 워크플로우 AI 어시스턴트 도구 (2026-08-23)
+## 3.7 워크플로우 AI 어시스턴트 도구
+
+결정일: 2026-08-23
 
 워크플로우 AI 어시스턴트의 LLM 도구(`explore-tools.service.ts`)는 실행의 `inputData`·`outputData`·`error` 세 필드를 내보낸다. 원래는 `maskSensitiveFields`(키 이름 기반)만 걸어 자유 텍스트 안의 자격 증명이 통과했다.
 
@@ -95,7 +101,11 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 - `maskSensitiveFields` 자체의 형식은 바뀌지 않는다. 겹치는 것은 그 도구의 로컬 합성이다. 형식 기준은 [워크플로우 AI 어시스턴트 도구](../CLE-WF/CLE-WF-ASSIST-TOOLS.md) 다.
 - 이 합성으로 `CREDENTIAL_KEY_PATTERN` 이 그 표면에도 적용돼 `token` 접두 계열이 함께 닫혔다.
 
-## 3.8 외부 `nodeOutput` 의 fail-closed 허용 목록 (2026-08-23, 2026-08-24)
+## 3.8 외부 `nodeOutput` 의 fail-closed 허용 목록
+
+결정일: 2026-08-23
+
+2026-08-24 에 보완했다.
 
 옛 방어는 deny-list(`EXTERNAL_STRIPPED_FIELDS = ['llmCalls']`) 한 칸이라 새 핸들러 키가 기본으로 통과했다. 실제로 엔진 내부 `_retryState`(`NodeExecution.outputData` 에 저장)가 그렇게 나가고 있었다. 런타임 fail-closed 허용 목록(`allowlistNodeOutputKeys`)을 도입했다.
 
@@ -132,7 +142,9 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
   - `nodeOutput.payload`(핸들러가 만든 옛 카드 렌더 데이터)는 EIA 알림 웹훅 봉투 최상위 `payload` 와 **같은 키 이름이지만 중첩 수준이 다른 별개 필드**다. 웹훅 wire 에서는 `<봉투>.payload.….nodeOutput.payload` 로 같은 이름이 두 층에 실린다.
 - 작성자 설정에 값으로 박힌 시크릿은 여전히 값·키 기반 마스킹 소관이다.
 
-## 3.9 노드 설정 에코 `config` (2026-08-24)
+## 3.9 노드 설정 에코 `config`
+
+결정일: 2026-08-24
 
 노드 핸들러가 노드 출력에 싣는 실행 시 설정(설정 에코, `NodeHandlerOutput.config`)이다. 실행 상세의 설정 탭이 이 값을 보이고 뷰어도 그 탭을 본다([실행 내역](../CLE-EXEC/CLE-EXEC-HISTORY.md)).
 
@@ -156,7 +168,9 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 - 간접화(`llmConfigId`·`integrationId`)는 이미 표준이다. 남은 과제는 사용자 자유 입력 자리를 다루는 일이고 이 좁힌 형태로 후속 작업에 올렸다.
 - 새 핸들러와 통합이 `config` 에 시크릿 평문을 싣지 않게 하는 것은 이와 별개인 상시 불변식이다([노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 의 Principle 7).
 
-## 3.11 지식 저장소 · Background 채널 발행 (2026-11-06)
+## 3.11 지식 저장소 · Background 채널 발행
+
+결정일: 2026-11-06
 
 `execution:` 밖의 두 구독 채널에도 내부 WebSocket wire 와 같은 값 마스킹을 건다(NERV Task `CLE-T-7ZYES5`).
 
@@ -175,19 +189,29 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 
 ## Rationale
 
-### 내부 읽기 경로에도 마스킹을 건 이유 (2026-08-16)
+### 내부 읽기 경로에도 마스킹을 건 이유
+
+결정일: 2026-08-16
 
 옛 서술은 이 틈을 REST 표면의 미결 비대칭으로 적었지만 WebSocket `execution.snapshot` 도 같은 원문을 싣고 있었다. 실제로 갈리는 축은 **종결 발행과 그 밖의 모든 읽기 경로**였다. "`ExecutionsService` 4경로" 라는 수도 실측하니 낡아 있었다(`toResponseExecution` 의 `...rest` 가 엔티티를 펼쳐 세 표면이 한 관문을 함께 쓰고 `nodeExecutions[]` 가 따로였다). 그래서 표면을 수가 아니라 이름으로 열거한다(§3.5).
 
-### 설정 에코의 경계 마스킹을 없앤 이유 (2026-08-24)
+### 설정 에코의 경계 마스킹을 없앤 이유
+
+결정일: 2026-08-24
 
 예전에는 엔진 경계(`handler-output.adapter.ts` 의 `maskSensitiveFields`)에서 설정 에코를 저장 전에 가려 DB·WebSocket·REST 모든 경로가 가린 값을 받았다. 그런데 표현식 컨텍스트(`expression-resolver.service.ts`)가 같은 `config` 를 읽는다. `migrate-node-output-refs.ts` 가 사용자를 `$node["X"].config.<field>` 참조로 옮겨 놓은 뒤라 리터럴 `****abcd` 가 워크플로우에 흘러들었다. 그래서 경계 마스킹을 없애고 나가는 시점 마스킹만 남겼다(§3.9). 설정 탭의 안전성 결론은 그대로다. 그 엔드포인트가 REST 나가는 관문을 지나므로 뷰어가 보는 값은 여전히 가려진다. 바뀐 것은 어디서 가리느냐다. 이 변경의 대가 두 가지는 §3.9 에 적었다.
 
-### 워크플로우 AI 어시스턴트 도구: 유출 차단을 우선한 결정 (2026-08-23)
+### 워크플로우 AI 어시스턴트 도구: 유출 차단을 우선한 결정
+
+결정일: 2026-08-23
 
 처음에는 "값 패턴 마스킹을 단순 합성하면 안 된다" 고 적었다. `maskSensitiveFields` 는 자격 증명 키를 `****9876` 처럼 끝 네 글자 힌트를 남겨 어떤 키가 가려졌는지 알게 하는데 값 마스킹을 겹치면 그 힌트가 사라지기 때문이다. 그 경고는 옳았고 실제로 겹치자 기존 테스트 6건이 RED 였다. 무엇을 알고 선택했는지 남기려고 이 경위를 둔다. 결정은 유출 차단 우선이다. 잃는 것은 값의 끝 네 글자뿐이고 키 이름은 남는다.
 
-### 허용 목록 확대를 한때 미뤘다가 닫은 경위 (2026-08-23, 2026-08-24)
+### 허용 목록 확대를 한때 미뤘다가 닫은 경위
+
+결정일: 2026-08-23
+
+2026-08-24 에 닫았다.
 
 2026-08-23 초판의 "REST 와 SSE 는 같은 강도다" 는 구현보다 넓은 서술이었다. 입력 대기의 두 자리는 닫혔지만 `execution.node.completed`·`.failed` 는 같은 `NodeExecution.outputData` 를 `output` 이라는 다른 키로 최상위에 싣는다. 발행 지점은 **6곳**이다(`execution-engine` 2, `form-interaction` 1, `button-interaction` 1, `ai-turn-orchestrator` 2).
 
@@ -197,7 +221,9 @@ EIA 단발 상태 조회(`GET /api/external/executions/:id`)와 SSE `waiting_for
 
 **교훈**: "그 객체에 목록을 걸면 어떻게 되나" 를 쟀지만 물었어야 할 것은 "그 객체가 이 표면에 도달하나" 였다. 대리 지표를 재고 유예 결론을 냈다.
 
-### 지식 저장소 · Background 채널에도 값 마스킹을 건 이유 (2026-11-06)
+### 지식 저장소 · Background 채널에도 값 마스킹을 건 이유
+
+결정일: 2026-11-06
 
 두 채널은 뷰어도 받는다. 수신 인구가 `execution:` 과 같아 규칙 2 에 따라 같은 마스킹을 건다(§3.11). 지금 새는 값은 없다. 발행처가 이미 정제하기 때문이다.
 

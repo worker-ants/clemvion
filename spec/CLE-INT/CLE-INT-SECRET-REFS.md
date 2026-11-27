@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-REFS"
 title: "시크릿 저장소 — 참조 소유와 교차 행"
 type: "convention"
-version: 7
+version: 8
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "66c4f39f66bc5c411e91e9001485118f96b1b951da7ed62183658f6e2ffca031"
+content_hash: "13a413e817e7fd121e05a2bdf70fb9e03ed0491dd4b31c3a9ca2a7e58b4913b1"
 read_as: "approved_fallback"
-task: "CLE-T-24PRNR"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "5e9dd2bbbb80ac9210275479e12409c628b7bf61cba83a85e41fbe02b8c40beb"
-etag: "sha256-bcace5241020a09945b0e15b50aba72a1c2dd099c9adbe9c293fc3c7cb17690a"
+mirror_sha256: "ab075b2e5a5c94f98909e4298b1c1d09d961ae05b321aefb3701a150c05ec99c"
+etag: "sha256-3aff9133e29b42daf30ec25f9b9b4e0a05de568aded5128d03887ee17e59940c"
 ---
 ## 개요
 
@@ -26,7 +26,7 @@ etag: "sha256-bcace5241020a09945b0e15b50aba72a1c2dd099c9adbe9c293fc3c7cb17690a"
 
 2026-10-05 운영 DB 에서 점검 SQL 이 0 행이어서 점검 · 정리 SQL 을 걷었다(R10). 알려진 경로는 막혀 있다. 다른 트리거의 참조를 심는 입력은 규칙 23 이 막고, 다른 워크스페이스의 행을 덮어쓰는 `rotate` 는 규칙 25 가 막는다. 새 비밀 슬롯이 규칙 22 를 빠뜨리면 교차 행이 다시 생길 수 있다(R9). 남은 행 가운데 다른 트리거의 참조가 든 설정은 규칙 24 의 읽기 관문이 그 비밀을 쓰지 못하게 하고 에러 로그를 남긴다. 이미 덮어써진 비밀 행은 정리 전까지 소유자의 발송 · 검증에서 그대로 쓰인다(R10).
 
-트리거 `config` 안의 비밀 참조는 컬럼이 아니라서 FK 대상이 아니다([데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md#워크스페이스-범위-참조를-복합-fk-로도-막는다-2026-10-05) 의 «막지 않는 것»). 비밀 저장소 행에도 FK 를 두지 않는다([R4](CLE-INT-SECRET-BACKEND.md#r4-fk-를-두지-않는다)). 그래서 DB 가 막지 않는다. 교차 행이 다시 생기면 서버 로그로 드러난다. 규칙 24 의 참조 불일치 에러 로그, 규칙 25 의 `rotate` 거부 로그, 같은 요청에서 남는 `resolve` 실패 경고가 그 신호다. 운영자가 그 로그를 보거나 백업 복원처럼 옛 데이터를 되살렸으면 아래 순서를 따른다(근거는 R10). 점검 SQL `2026-10-04-trigger-secret-ref-audit.sql` 과 정리 SQL `2026-10-04-trigger-secret-ref-cleanup.sql` 은 저장소에는 없고 커밋 `d5cb730ec` 의 `codebase/backend/scripts/ops/` 에서 꺼낸다. 두 SQL 은 그 커밋 시점의 스냅샷이다. 지금 스키마와 트리거 설정 잠금 키(`trigger-config-lock.ts` 의 `TRIGGER_CONFIG_LOCK_PREFIX`)에 맞는지는 검증하지 않았다. 되살릴 때는 같은 커밋의 e2e 케이스(`trigger-stored-secret-refs.e2e-spec.ts` 의 점검 · 정리 케이스)도 되살려 지금 스키마에서 돌려 본다.
+트리거 `config` 안의 비밀 참조는 컬럼이 아니라서 FK 대상이 아니다([데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md#워크스페이스-범위-참조를-복합-fk-로도-막는다) 의 «막지 않는 것»). 비밀 저장소 행에도 FK 를 두지 않는다([R4](CLE-INT-SECRET-BACKEND.md#r4-fk-를-두지-않는다)). 그래서 DB 가 막지 않는다. 교차 행이 다시 생기면 서버 로그로 드러난다. 규칙 24 의 참조 불일치 에러 로그, 규칙 25 의 `rotate` 거부 로그, 같은 요청에서 남는 `resolve` 실패 경고가 그 신호다. 운영자가 그 로그를 보거나 백업 복원처럼 옛 데이터를 되살렸으면 아래 순서를 따른다(근거는 R10). 점검 SQL `2026-10-04-trigger-secret-ref-audit.sql` 과 정리 SQL `2026-10-04-trigger-secret-ref-cleanup.sql` 은 저장소에는 없고 커밋 `d5cb730ec` 의 `codebase/backend/scripts/ops/` 에서 꺼낸다. 두 SQL 은 그 커밋 시점의 스냅샷이다. 지금 스키마와 트리거 설정 잠금 키(`trigger-config-lock.ts` 의 `TRIGGER_CONFIG_LOCK_PREFIX`)에 맞는지는 검증하지 않았다. 되살릴 때는 같은 커밋의 e2e 케이스(`trigger-stored-secret-refs.e2e-spec.ts` 의 점검 · 정리 케이스)도 되살려 지금 스키마에서 돌려 본다.
 
 1. 점검 SQL 로 찾는다. 다른 워크스페이스가 덮어쓴 비밀 행과 다른 트리거를 가리키는 참조가 나온다. 출력에 비밀 값과 평문은 없다.
 2. 정리 SQL 로 덮어쓴 비밀 행을 지우고 어긋난 참조를 트리거 id 로 만든 값으로 맞춘다.

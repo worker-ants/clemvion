@@ -7,7 +7,7 @@ import { deepRedactSecrets } from './sanitize-error-message';
  * DB `Execution.error`/`NodeExecution.error` **컬럼 값**을 응답으로 내보내기 직전에
  * 자격증명 값-패턴 마스킹한다. **형태는 보존한다** — 값만 바꾼다.
  *
- * SoT: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로-2026-08-16) "내부 읽기 경로" 불릿.
+ * SoT: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로) "내부 읽기 경로" 불릿.
  *
  * - **`ExecutionError` 예외 클래스와 무관하다**(`execution-engine/workflow-errors.ts`).
  *   그쪽은 제어흐름, 이쪽은 데이터(JSONB 컬럼 값)다 — 이름을 겹치지 않게 고른 이유다.
@@ -38,7 +38,7 @@ export function redactStoredErrorForResponse(
  * DB `inputData`/`outputData` **컬럼 값**의 응답 egress 마스킹 — 자매
  * {@link redactStoredErrorForResponse} 와 **같은 프리미티브·같은 원칙**이고 대상 컬럼만 다르다.
  *
- * SoT: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로-2026-08-16) "내부 읽기 경로" 불릿.
+ * SoT: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS-SURFACE#35-내부-읽기-경로) "내부 읽기 경로" 불릿.
  *
  * ## 왜 별건인가 — `error` 와 달리 **앞선 마스킹 층이 있다**
  *
@@ -55,7 +55,7 @@ export function redactStoredErrorForResponse(
  *
  * ## ingestion-time 마스킹과 경쟁하지 않는다 (방어 계층이 다르다)
  *
- * [웹훅 「수신 헤더 마스킹을 저장 시점에 하는 이유 (2026-07-07)」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07)
+ * [웹훅 「수신 헤더 마스킹을 저장 시점에 하는 이유」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹을-저장-시점에-하는-이유)
  * 는 "display 시점 마스킹" 을 기각하고 ingestion 시점을 택했다.
  * 본 함수는 그 결정을 **번복하지 않는다** — 그쪽은 *알려진 헤더 key* 를 저장 전에 지우는
  * 층이고, 이쪽은 *임의 값-패턴*(자유 텍스트에 박힌 `Bearer …`·자격증명 포함 URI)을 응답

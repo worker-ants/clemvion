@@ -2,19 +2,19 @@
 id: "CLE-CHAT-CORE-TOKEN"
 title: "채팅 채널 — 봇 토큰 재발급"
 type: "design"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-CHAT-CORE"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT", "CLE-CHAT-CORE"]
 area: "CLE-CHAT"
-content_hash: "bf45cb8f67d4ec72e9a54f35372f9f97717a8c202d4ef2879033ffb7f0fc82b1"
+content_hash: "2789a5e3502c555a83d7f1149df801f4b7ca932fe23021c6c905cef857fdff62"
 read_as: "approved_fallback"
-task: "CLE-T-E8STMT"
+task: "CLE-T-72BN09"
 source_paths: []
-mirror_sha256: "fcf44e7231abf04e35c510970a9bd13086c5413148a49e283bb6d81de6546a23"
-etag: "sha256-5901d36d36d9881d1ff5ff70881abb42b65e8ccbc209e3a501a5f0f706e42395"
+mirror_sha256: "b182f9e26870a4b049e9ec63a24290326b49a0cd9655917dc88be8a2edbafc49"
+etag: "sha256-cd7d9a2baec074d9de79a38a08a7dd8f32ab7f19847aed5c3c3feb9cef8c01c4"
 ---
 ## 개요
 
@@ -144,4 +144,4 @@ EIA `notification/rotate-secret`(알림 서명 시크릿 교체)과 자원이 �
 
 **이미 저장된 토큰.** 이 결정 전에 저장된 토큰은 바꾸지 않는다. 그런 토큰이 남은 트리거는 지금처럼 `degraded` 로 드러나고 사용자가 재발급으로 고친다.
 
-**알려진 비밀 치환과의 관계.** 프로바이더 API 클라이언트가 실패 문장에서 그 호출의 봇 토큰을 지우는 알려진 비밀 치환([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10, [응답 자격 증명 마스킹 §1.1](../CLE-API/CLE-API-EGRESS.md#11-egress-only))은 그대로 둔다. 입력 거부는 치환을 대신하지 않고 치환 앞에 덧붙인 검사다. 입력 거부로는 이미 저장된 토큰과 다른 모양의 유입을 막지 못하고 알려진 비밀 치환은 입력 모양과 상관없이 닫는다. [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#트리거-응답의-마지막-오류를-표면에-올린-이유-2026-10-05) 이 「봇 토큰 입력에서 제어 문자만 거부하기」 를 기각한 이유와 같다.
+**알려진 비밀 치환과의 관계.** 프로바이더 API 클라이언트가 실패 문장에서 그 호출의 봇 토큰을 지우는 알려진 비밀 치환([채팅 채널 어댑터 규약 「규칙」](CLE-CHAT-ADAPTER.md#규칙) 10, [응답 자격 증명 마스킹 §1.1](../CLE-API/CLE-API-EGRESS.md#11-egress-only))은 그대로 둔다. 입력 거부는 치환을 대신하지 않고 치환 앞에 덧붙인 검사다. 입력 거부로는 이미 저장된 토큰과 다른 모양의 유입을 막지 못하고 알려진 비밀 치환은 입력 모양과 상관없이 닫는다. [응답 자격 증명 마스킹](../CLE-API/CLE-API-EGRESS.md#트리거-응답의-마지막-오류를-표면에-올린-이유) 이 「봇 토큰 입력에서 제어 문자만 거부하기」 를 기각한 이유와 같다.
