@@ -332,11 +332,17 @@ describe('GlobalExceptionFilter', () => {
     /** 5xx 가 싣는 고정 문구 — 매핑 안 된 Error · 비-Error throw 와 같은 하나의 문구다(CLE-T-V11GV1). */
     const MASKED = 'An unexpected error occurred. Please try again later.';
 
+    let errorSpy: jest.SpyInstance;
+    beforeEach(() => {
+      errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+    });
+
     it('code 를 지정한 502 는 상태와 code 를 두고 message 만 고정 문구로 바꾼다', () => {
       // 저장소의 첫 502 실사용 경로(chat-channel setupChannel §5.4). 상태 · code 는 프런트가
       // 문구를 고르는 데 쓰므로 그대로 둔다.
       const { host, status, json } = mockHost();
-      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
       new GlobalExceptionFilter().catch(
         new BadGatewayException({
           code: 'CHAT_CHANNEL_SETUP_FAILED',
@@ -353,9 +359,7 @@ describe('GlobalExceptionFilter', () => {
 
     it('환경 변수 이름이 든 원문(OAUTH_CONFIG_MISSING)은 응답에 싣지 않고 requestId 와 로그에 남긴다', () => {
       const { host, status, json } = mockHost();
-      const error = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation(() => undefined);
+      const error = errorSpy;
       new GlobalExceptionFilter().catch(
         new InternalServerErrorException({
           code: 'OAUTH_CONFIG_MISSING',
@@ -378,7 +382,6 @@ describe('GlobalExceptionFilter', () => {
 
     it('nested `{ error: { code, message } }` 모양의 503 도 code 를 두고 가린다', () => {
       const { host, status, json } = mockHost();
-      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
       new GlobalExceptionFilter().catch(
         new ServiceUnavailableException({
           error: {
@@ -398,7 +401,6 @@ describe('GlobalExceptionFilter', () => {
 
     it('code 를 지정하지 않은 5xx 는 INTERNAL_ERROR 와 고정 문구다', () => {
       const { host, status, json } = mockHost();
-      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
       new GlobalExceptionFilter().catch(
         new InternalServerErrorException('pool exhausted at /srv/db.ts:42'),
         host,
@@ -412,7 +414,6 @@ describe('GlobalExceptionFilter', () => {
 
     it('문자열 응답으로 만든 5xx HttpException 도 가린다', () => {
       const { host, status, json } = mockHost();
-      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
       new GlobalExceptionFilter().catch(
         new HttpException('raw internal detail', HttpStatus.GATEWAY_TIMEOUT),
         host,
@@ -424,11 +425,25 @@ describe('GlobalExceptionFilter', () => {
       expect(body.error.message).toBe(MASKED);
     });
 
+    it('5xx HttpException 의 details 도 응답에 싣지 않는다', () => {
+      const { host, json } = mockHost();
+      new GlobalExceptionFilter().catch(
+        new InternalServerErrorException({
+          code: 'OAUTH_CONFIG_MISSING',
+          message: 'not configured',
+          details: { env: 'GOOGLE_CLIENT_ID', path: '/srv/app/.env' },
+        }),
+        host,
+      );
+
+      const body = bodyOf(json);
+      expect(body.error.details).toBeUndefined();
+      expect(JSON.stringify(body)).not.toContain('GOOGLE_CLIENT_ID');
+    });
+
     it('4xx HttpException 은 가리지 않고 로그도 남기지 않는다 (가림 범위는 5xx)', () => {
       const { host, json } = mockHost();
-      const error = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation(() => undefined);
+      const error = errorSpy;
       new GlobalExceptionFilter().catch(
         new BadRequestException({
           code: 'INVALID_WEBHOOK_PAYLOAD',

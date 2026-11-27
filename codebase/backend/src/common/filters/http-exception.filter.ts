@@ -84,14 +84,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         code = this.getCodeFromStatus(status);
         message = this.maskUncodedPayloadTooLarge(status, exception.message);
       }
-      // 5xx 는 `code` 를 두고 `message` 만 가린다. 작성자가 쓴 문구라도 환경 변수 이름 같은
-      // 구성 정보가 섞인다(`OAUTH_CONFIG_MISSING`). 프런트엔드는 `code` 로 문구를 고른다.
       if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-        this.logger.error(
-          `HttpException ${status} ${code} requestId=${requestId}: ${message}`,
+        ({ message, details } = this.maskServerError(
+          status,
+          code,
+          message,
+          requestId,
           exception.stack,
-        );
-        message = GlobalExceptionFilter.INTERNAL_ERROR_MESSAGE;
+        ));
       }
     } else if (isPostgresUniqueViolation(exception)) {
       // race window 에서의 unique constraint 위반은 클라이언트에게 409 가 옳다.
@@ -157,6 +157,29 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       };
     }
     return null;
+  }
+
+  /**
+   * 5xx `HttpException` 의 `message` 와 `details` 를 가린다. `code` 는 두고 호출부가 그대로 쓴다.
+   * 작성자가 쓴 문구와 `details` 에는 환경 변수 이름 같은 구성 정보가 섞일 수 있다
+   * (`OAUTH_CONFIG_MISSING`, CWE-209). 원문은 `requestId` 와 함께 `logger.error` 로만 남기고
+   * 프런트엔드는 `code` 로 문구를 고른다. 5xx 가 `details` 를 응답에 싣는 사용처는 없다.
+   */
+  private maskServerError(
+    status: number,
+    code: string,
+    message: string,
+    requestId: string,
+    stack: string | undefined,
+  ): { message: string; details: undefined } {
+    this.logger.error(
+      `HttpException ${status} ${code} requestId=${requestId}: ${message}`,
+      stack,
+    );
+    return {
+      message: GlobalExceptionFilter.INTERNAL_ERROR_MESSAGE,
+      details: undefined,
+    };
   }
 
   /**

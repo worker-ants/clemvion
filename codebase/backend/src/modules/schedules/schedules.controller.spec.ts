@@ -93,9 +93,10 @@ describe('SchedulesController — 행위자(userId) 배선', () => {
    * **불변식 위반은 던지되, 진단은 새지 않는다.**
    *
    * `trigger` 가 없는 행이 응답 경계에 오면 던진다 — 키를 생략하면 `ScheduleDto.trigger`
-   * 의 §5.5 기본형 선언(`@ApiProperty`)을 깨기 때문이다. 다만 `GlobalExceptionFilter` 는
-   * `HttpException` 의 `message` 를 **응답 바디로 그대로 흘리므로**, 진단 문구를 예외
-   * 인자로 넘기면 `schedule.id` 와 내부 쿼리 구조가 500 바디에 실린다(CWE-209).
+   * 의 §5.5 기본형 선언(`@ApiProperty`)을 깨기 때문이다. 지금은 `GlobalExceptionFilter` 가
+   * 5xx `HttpException` 의 `message` 를 고정 문구로 바꾸지만(CLE-T-KKJ2A0), 컨트롤러도
+   * 진단 문구를 예외 인자로 넘기지 않는다. 넘기면 필터가 바뀔 때 `schedule.id` 와 내부 쿼리
+   * 구조가 500 바디에 실린다(CWE-209).
    *
    * 첫 판이 정확히 그렇게 했고 `review/consistency/2026/09/06/00_48_52` W1 이 잡았다.
    * 여기서 **두 가지를 함께** 문다 — 던지는가, 그리고 무엇을 말하지 **않는가**.
