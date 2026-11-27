@@ -52,7 +52,7 @@ import { ExecutionContext } from '../../nodes/core/node-handler.interface';
  * ExecutionEngineService 단위 테스트: nested AI re-park · 첫 세그먼트 준비 실패 · 재개 바깥 catch 흡수.
  *
  * 옛 `execution-engine.service.spec.ts` 를 관심사별로 나눈 파일 가운데 하나다(CLE-T-YEDCJK).
- * 서비스 구성과 mock 레포지토리는 `__test-utils__/engine-service-harness.ts` 공용 하네스가 만든다.
+ * 이 파일은 공용 하네스를 쓰지 않고 `Test.createTestingModule` 로 자체 TestingModule 과 mock 레포지토리를 만든다.
  */
 // ────────────────────────────────────────────────────────────────────────────
 // WARNING #3 (SUMMARY) — driveCallStackResume 중 nested AI re-park.

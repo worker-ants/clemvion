@@ -50,7 +50,7 @@ import { BusinessMetricsService } from '../metrics/business-metrics.service';
  * ExecutionEngineService 단위 테스트: NF-OB-07 BusinessMetrics 메트릭 발행.
  *
  * 옛 `execution-engine.service.spec.ts` 를 관심사별로 나눈 파일 가운데 하나다(CLE-T-YEDCJK).
- * 서비스 구성과 mock 레포지토리는 `__test-utils__/engine-service-harness.ts` 공용 하네스가 만든다.
+ * 이 파일은 공용 하네스를 쓰지 않고 `Test.createTestingModule` 로 자체 TestingModule 과 mock 레포지토리를 만든다.
  */
 // ── SUMMARY W-3 / W-4 / W-5 — NF-OB-07 메트릭 동작 단위 테스트 ─────────────────
 // BusinessMetricsService 를 mock 으로 주입해 emitTerminalExecutionMetrics /

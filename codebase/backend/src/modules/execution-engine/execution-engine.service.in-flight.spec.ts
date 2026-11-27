@@ -45,7 +45,7 @@ import { NodeHandler } from '../../nodes/core/node-handler.interface';
  * ExecutionEngineService 단위 테스트: registerInFlight · unregisterInFlight 짝 호출.
  *
  * 옛 `execution-engine.service.spec.ts` 를 관심사별로 나눈 파일 가운데 하나다(CLE-T-YEDCJK).
- * 서비스 구성과 mock 레포지토리는 `__test-utils__/engine-service-harness.ts` 공용 하네스가 만든다.
+ * 이 파일은 공용 하네스를 쓰지 않고 `Test.createTestingModule` 로 자체 TestingModule 과 mock 레포지토리를 만든다.
  */
 // W-10 fix (SUMMARY#W-10): executeNode 가 registerInFlight/unregisterInFlight 를
 // 성공 경로와 throw 경로 모두에서 짝으로 호출하는지 검증.

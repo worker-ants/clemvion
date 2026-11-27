@@ -25,7 +25,7 @@ export function flushResumeDrive(ms = 200): Promise<void> {
  * resume(continue*)은 항상 §7.5 slow-path(applyContinuation → rehydrateAndResume
  * → rehydrateContext 로 context 재구성 → awaited driveResumeAwaited)로 일원화됐다.
  * 이 헬퍼는 그 slow-path 가 통과하는 DB
- * lookup mock 을 무장한다 (Phase 2.7 통합 테스트 L3357~ 패턴의 재사용 추출):
+ * lookup mock 을 무장한다 (Phase 2.7 통합 테스트 패턴의 재사용 추출):
  *   - mockExecutionRepo.findOneBy → WAITING_FOR_INPUT execution
  *   - mockNodeExecutionRepo.find → resolveWaitingNodeExecutionId 의 단일 WAITING row
  *   - mockNodeExecutionRepo.findOneBy → rehydrateAndResume 의 NodeExecution lookup
@@ -36,7 +36,13 @@ export function flushResumeDrive(ms = 200): Promise<void> {
  * 엔진 spec 분할 뒤 Form · Button · AI 스펙이 함께 써서 하네스 `h` 를 받는 함수로 옮겼다(CLE-T-YEDCJK).
  */
 export function armSlowPathResume(
-  h: EngineServiceHarness,
+  h: Pick<
+    EngineServiceHarness,
+    | 'mockExecutionRepo'
+    | 'mockNodeExecutionRepo'
+    | 'mockNodeRepo'
+    | 'waitingRawRows'
+  >,
   waitingNodeId: string,
   nodeDef: Partial<Node>,
 ): void {

@@ -369,7 +369,7 @@ describe('ExecutionEngineService', () => {
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
 
-    // ai-review WARNING #8 (2026-07-28) — 통합 레벨(execution-engine.service.spec.ts)
+    // ai-review WARNING #8 (2026-07-28) — 통합 레벨(옛 execution-engine.service.spec.ts)
     // 이 claim 실패(affected=0) 분기를 한 번도 실행하지 않았다(`retryClaimQb.execute`
     // 가 스펙 전체에서 `{affected:1}` 로 한 번만 설정되고 override 되지 않음). 정상
     // `_retryState` 가 존재하는 케이스에서 claim 자체가 다른 delivery 에 선점된
