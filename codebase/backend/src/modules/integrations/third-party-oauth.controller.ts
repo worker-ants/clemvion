@@ -392,7 +392,7 @@ export class ThirdPartyOAuthController {
   /**
    * Generic OAuth callback for all integration providers. Provider 마다 별도
    * controller 를 만들지 않고 :provider 파라메트릭 단일 핸들러로 유지 (현
-   * google/github/cafe24 3종 모두 동일 처리 흐름).
+   * google/github/cafe24/makeshop 4종 모두 동일 처리 흐름).
    *
    * ※ 사용자 소셜 로그인 콜백 (`/api/auth/oauth/:provider/callback`) 과 별개다.
    *
@@ -406,30 +406,43 @@ export class ThirdPartyOAuthController {
     summary: 'OAuth 콜백 처리 (통합 연동)',
     description:
       'OAuth provider 가 리디렉션하는 콜백 엔드포인트입니다. 인증 불필요. 처리 후 결과를 담은 HTML 페이지를 반환하며 `postMessage`로 부모 창에 결과를 전달합니다. 사용자 소셜 로그인 콜백(/api/auth/oauth/:provider/callback) 과 별개입니다.\n\n' +
-      '**postMessage payload 의 에러 코드 어휘:**\n' +
-      '- `OAUTH_PROVIDER_UNKNOWN` — 허용되지 않은 provider\n' +
-      '- `OAUTH_DENIED` — 사용자가 authorize 단계에서 거부 (`?error=...`)\n' +
-      '- `OAUTH_STATE_MISSING` / `OAUTH_STATE_MISMATCH` — CSRF state 토큰 검증 실패\n' +
+      '**postMessage payload:** 성공은 `{ status: "success", result }`, 실패는 `{ status: "error", provider, error }` 입니다. 실패의 `error` 는 서버 오류 **메시지 문자열**이고 에러 코드는 payload 에 싣지 않습니다. 코드는 대상 통합을 알 수 있을 때 그 행의 `last_error.code` 에 남습니다(`mode=new` 는 대상 통합이 없어 남기지 않습니다).\n\n' +
+      '**응답 HTTP status:**\n' +
+      '- 200 — 처리 결과 HTML. 아래 실패도 모두 200 으로 돌려줍니다\n' +
+      '- 400 — 지원하지 않는 provider. 같은 콜백 HTML 에 `error: "Unsupported OAuth provider"` 를 싣습니다\n' +
+      '- 500 — 서버의 `FRONTEND_URL` / `APP_URL` 이 없거나 구체적인 origin 이 아님. postMessage 없이 안내 문단만 돌려줍니다\n\n' +
+      '**실패 메시지 뒤의 에러 코드:** 대상 통합을 알 수 있는 실패만 그 행의 `last_error.code` 로 남습니다.\n' +
+      '- `OAUTH_DENIED` — 사용자가 authorize 단계에서 거부 (`?error=...`). state 소비 전이라 기록하지 않음\n' +
+      '- `OAUTH_STATE_MISSING` / `OAUTH_STATE_MISMATCH` — CSRF state 토큰 누락 · 불일치 (state 소비 전이면 행을 알 수 없어 기록하지 않음)\n' +
       '- `OAUTH_STATE_EXPIRED` — state TTL 이 지남(`OAuth state has expired`)\n' +
-      '- `INTEGRATION_INSTALL_EXPIRED` — state 는 유효하지만 대상 통합이 설치 기한을 넘겨 만료됨(`The install window for this integration has expired`). 행을 되살리지 않고 `last_error` 도 기록하지 않음\n' +
-      '- `OAUTH_CODE_MISSING` — authorization code 미수신\n' +
-      '- `OAUTH_TOKEN_EXCHANGE_FAILED` — provider 토큰 endpoint 호출 실패\n' +
+      '- `OAUTH_CODE_MISSING` — authorization code 미수신. state 소비 전이라 기록하지 않음\n' +
+      '- `OAUTH_TOKEN_EXCHANGE_FAILED` — provider 토큰 endpoint 또는 계정 식별자 조회 실패\n' +
+      '- `OAUTH_INVALID_SCOPE` — Cafe24 가 권한 범위를 거부함. `last_error.details.requiresCafe24Approval` 을 함께 기록\n' +
       '- `OAUTH_STATE_INVALID` — reauthorize state 의 integrationId 누락 등 구조 오류\n' +
-      '- `RESOURCE_NOT_FOUND` — state 의 integrationId 가 가리키는 row 부재\n' +
-      '\n' +
-      'frontend 는 `postMessage` event.data.error.code 로 분기. 응답 HTTP status 는 항상 200 (HTML page 자체는 정상 반환).',
+      '- `ADMIN_REQUIRED` / `EDITOR_REQUIRED` — 커밋 직전 인가 재판정 실패(시작 뒤 요청자가 강등됨)\n' +
+      '- `RESOURCE_NOT_FOUND` — 대상 행이 없거나 요청자에게 보이지 않음. 행에 기록하지 않음\n' +
+      '- `INTEGRATION_INSTALL_EXPIRED` — state 는 유효하지만 대상 통합이 설치 기한을 넘겨 만료됨(`The install window for this integration has expired`). 행을 되살리지 않고 `last_error` 도 기록하지 않음\n' +
+      '- `OAUTH_CALLBACK_FAILED` — 코드가 없는 예외를 `last_error` 에 기록할 때의 대체 코드(팝업에는 그 예외의 메시지)\n\n' +
+      'frontend 는 `event.data.status` 로 성공 · 실패를 나누고 실패면 `event.data.error` 메시지를 보여 줍니다.',
   })
   @ApiParam({
     name: 'provider',
-    description: 'OAuth provider 식별자 (google, github, cafe24)',
+    description: 'OAuth provider 식별자 (google, github, cafe24, makeshop)',
     example: 'google',
   })
   @ApiProduces('text/html')
   @ApiOkResponse({
     description:
-      'OAuth 처리 결과 HTML 페이지 (postMessage payload 에 분기 정보 포함)',
+      'OAuth 처리 결과 HTML 페이지 (postMessage payload 에 성공 결과나 실패 메시지 포함)',
   })
-  @ApiBadRequestResponse({ description: '지원하지 않는 OAuth provider' })
+  @ApiBadRequestResponse({
+    description:
+      '지원하지 않는 OAuth provider (콜백 HTML 에 `Unsupported OAuth provider` 메시지)',
+  })
+  @ApiInternalServerErrorResponse({
+    description:
+      '`FRONTEND_URL` / `APP_URL` 이 없거나 구체적인 origin 이 아닌 서버 설정 오류',
+  })
   async oauthCallback(
     @Param('provider') provider: string,
     @Query('code') code: string | undefined,
