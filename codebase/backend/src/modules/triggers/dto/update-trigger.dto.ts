@@ -99,6 +99,8 @@ export class UpdateTriggerDto {
    * `null` 은 해제다. 보내지 않은 필드는 그대로 두므로 `null` 말고는 이 블록을 지울 방법이 없다. 그래서
    * `@IsOptionalNonNull` 로 거부하지 않고 `@IsOptional()` 과 `nullable: true` 로 받는다. 서비스(`mergeExternalConfig`)는
    * `null` 을 저장하지 않고 `config` 에서 키를 지운다.
+   *
+   * 통째로 교체해도 `signing.secretRef` 는 요청으로 받지 않고 서버가 정한다. 처음 붙이면 서버가 서명 시크릿을 발급한다.
    */
   // 근거: [트리거 관리 「PATCH 본문 계약」](CLE-TRIG-MANAGE-API#patch-본문-계약)
   @ApiPropertyOptional({
@@ -118,6 +120,9 @@ export class UpdateTriggerDto {
    *
    * `null` 은 `notification` 과 같은 해제 계약이다. 키를 지우면 저장된 트리거 단위 토큰도 함께 사라지므로 서비스가 커밋 뒤
    * 그 토큰으로 연 스트림을 닫는다.
+   *
+   * `triggerToken` 은 요청으로 받지 않고 서버가 정한다. `tokenStrategy` 가 `per_trigger` 가 아니게 되면 저장된 토큰을 지우고
+   * 그 토큰으로 연 SSE 스트림을 닫는다. `enabled=false` 면 토큰은 남기고 스트림만 닫는다.
    */
   @ApiPropertyOptional({
     type: () => InteractionConfigDto,
