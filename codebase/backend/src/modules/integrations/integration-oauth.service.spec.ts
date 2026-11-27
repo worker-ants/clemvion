@@ -1652,7 +1652,7 @@ describe('IntegrationOAuthService', () => {
         delete process.env.OAUTH_STUB_MODE;
         oauthMock.env.google = { clientId: 'cid', clientSecret: 'csec' };
         const originalFetch = global.fetch;
-        (global as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({
+        (global as unknown as { fetch: jest.Mock }).fetch = jest.fn().mockResolvedValue({
           ok: false,
           status: 401,
           text: async () => 'unauthorized',
