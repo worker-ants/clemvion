@@ -2,19 +2,19 @@
 id: "CLE-INT-SECRET-BACKEND"
 title: "시크릿 저장소 — 인터페이스와 저장 백엔드"
 type: "convention"
-version: 1
+version: 2
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-INT-SECRET"
 ancestors: ["CLE-VISION", "CLE-INT", "CLE-INT-SECRET"]
 area: "CLE-INT"
-content_hash: "426f5f8d643c4765fe1acf661a3453ab223fa1d0ef859d05eab6ee068b27d71a"
+content_hash: "37c7343c4da3af5ca7fe7150b6c412e31cf592bd08622007c33ee9cac156c9ff"
 read_as: "approved_fallback"
-task: "CLE-T-55J6ZX"
+task: "CLE-T-4JM4R9"
 source_paths: []
-mirror_sha256: "dc8f282382ed80042bdea4ebd212590fe2830c614574302edfa417e3adcf2fb9"
-etag: "sha256-ba49657cdb9f75a817cb80e6f0e39b392232f37fd41214fc96bed0f25f39d058"
+mirror_sha256: "f7ba75d2f6efa7ca0b57ca1d480ba78ffda24e48bb0641157f097e1181fd82bd"
+etag: "sha256-a4e437611b778b794beae9b314e15d6c3adef397bc9315ef0848a508713a7a7a"
 ---
 ## 개요
 
@@ -36,8 +36,8 @@ interface SecretResolver {
    *  manager 를 주면 그 트랜잭션에서 쓴다. 트리거 설정 잠금 안 쓰기가 이 인자를 쓴다 (규칙 9) */
   rotate(ref: string, workspaceId: string, newPlaintext: string, manager?: EntityManager): Promise<void>;
 
-  /** ref 삭제. 미존재 ref 는 noop */
-  delete(ref: string): Promise<void>;
+  /** ref 삭제. 미존재 ref 는 noop. manager 를 주면 그 트랜잭션에서 지운다. 알림 설정 해제 뒤 삭제가 이 인자를 쓴다 (규칙 8) */
+  delete(ref: string, manager?: EntityManager): Promise<void>;
 
   /** ref 존재 여부 확인 (validation 용) */
   exists(ref: string): Promise<boolean>;
@@ -52,7 +52,7 @@ interface SecretResolver {
 | `resolve` | DB SELECT 1회 | 순수(읽기 전용) |
 | `store` | DB INSERT. 평문이 문자열이 아니거나 비었거나 공백뿐이면 throw 하고 쓰지 않는다(규칙 27) | 멱등이 아니다. 중복 참조는 throw |
 | `rotate` | DB SELECT 뒤 UPSERT. `manager` 를 받으면 그 트랜잭션에서 한다. 기존 행의 `workspace_id` 가 인자와 다르면 throw 하고 쓰지 않는다. 평문이 문자열이 아니거나 비었거나 공백뿐이어도 throw 하고 쓰지 않는다(규칙 27) | 멱등. 같은 참조 · 워크스페이스 · 평문으로 다시 불러도 된다 |
-| `delete` | DB DELETE | 멱등. 없는 참조는 아무것도 하지 않는다 |
+| `delete` | DB DELETE. `manager` 를 받으면 그 트랜잭션에서 한다 | 멱등. 없는 참조는 아무것도 하지 않는다 |
 | `exists` | DB SELECT 1회 | 순수 |
 | `deleteByPrefix` | DB DELETE(prefix 로 시작하는 행 전부). 삭제 행 수를 돌려준다 | 이 규약에 정의 없음([미결 사항](CLE-INT-SECRET.md#미결-사항)) |
 
@@ -111,7 +111,7 @@ const plaintext = Buffer.concat([decipher.update(ct), decipher.final()]).toStrin
 
 ### 다른 백엔드로 바꾸기
 
-`SecretResolver` 인터페이스는 PostgreSQL 과 묶여 있지 않다. AWS Secrets Manager 나 HashiCorp Vault 가 필요해지면 `AwsSecretsManagerResolver`·`VaultResolver` 같은 구현을 더하고 `ConfigModule` 에서 환경별로 바꾼다. 인터페이스와 이 규약의 규칙은 바뀌지 않는다. 다만 트리거 설정 잠금 안에서 시크릿 저장소에 쓰는 경로(생성 · PATCH 의 첫 알림 서명 시크릿 발급과 옛 평문 옮기기, 시크릿 승격)는 예외다. 이 경로들은 백엔드가 같은 DB 의 테이블이라는 전제에 기댄다. 잠금 안에서는 HTTP 호출을 하지 않고([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE.md#동시-쓰기-직렬화)) 비밀 쓰기를 잠금을 쥔 트랜잭션에 묶기 때문이다(`rotate` 의 `manager` 인자, 규칙 9). 외부 백엔드로 바꾸면 이 경로를 다시 설계한다.
+`SecretResolver` 인터페이스는 PostgreSQL 과 묶여 있지 않다. AWS Secrets Manager 나 HashiCorp Vault 가 필요해지면 `AwsSecretsManagerResolver`·`VaultResolver` 같은 구현을 더하고 `ConfigModule` 에서 환경별로 바꾼다. 인터페이스와 이 규약의 규칙은 바뀌지 않는다. 다만 트리거 설정 잠금 안에서 시크릿 저장소에 쓰는 경로(생성 · PATCH 의 첫 알림 서명 시크릿 발급과 옛 평문 옮기기, 시크릿 승격, 알림 설정 해제 뒤 서명 시크릿 삭제)는 예외다. 이 경로들은 백엔드가 같은 DB 의 테이블이라는 전제에 기댄다. 잠금 안에서는 HTTP 호출을 하지 않고([트리거 관리 「동시 쓰기 직렬화」](../CLE-TRIG/CLE-TRIG-MANAGE-WRITE.md#동시-쓰기-직렬화)) 비밀 쓰기를 잠금을 쥔 트랜잭션에 묶기 때문이다(`rotate` · `delete` 의 `manager` 인자, 규칙 8 · 9, R22). 외부 백엔드로 바꾸면 이 경로를 다시 설계한다.
 
 ## 구현 위치
 
@@ -213,3 +213,16 @@ Node `crypto` 의 AES-256-GCM 을 채택한다. 마스터키가 애플리케이�
 
 - **`allowEmpty` 옵션을 둔다.** 빈 값이 필요한 호출부가 한 곳도 없다. 쓰는 곳 없는 옵션은 가드를 끄는 길만 열어 둔다.
 - **호출부 책임으로 문서에 적는다.** 위 두 경로는 호출부 가드가 빠지면 빈 비밀이 조용히 저장된다는 것을 보였다. 문서에 적어도 새 호출부가 가드를 빠뜨리는 일은 막지 못한다.
+
+### R22. `rotate` · `delete` 는 트랜잭션 매니저를 선택 인자로 받는다
+
+결정일: 2026-11-27
+
+인터페이스는 PostgreSQL 과 묶여 있지 않다고 적었지만 `rotate` 와 `delete` 는 TypeORM `EntityManager` 를 선택 인자로 받는다. 트리거 설정 잠금 안에서 시크릿 저장소에 쓰는 경로가 이 인자를 쓴다. `rotate` 의 인자는 생성 · PATCH 의 첫 알림 서명 시크릿 발급과 승격을 잠금 트랜잭션에 묶으려고 더했다([사용처](CLE-INT-SECRET-USAGE.md) R14). `delete` 의 인자는 알림 설정 해제 뒤 서명 시크릿 삭제에 쓰려고 더했다(NERV Task `CLE-T-919WVA`, 2026-11-26).
+
+- **인자로 받는 이유**: 잠금을 쥔 트랜잭션 밖에서 쓰면 풀에서 연결을 하나 더 빌린다. 잠금 보유자가 연결 둘을 쥐고 트랜잭션이 롤백돼도 시크릿 쓰기는 남는다. 같은 매니저로 쓰면 두 문제가 없다.
+- **예외로 적는다**: 인터페이스가 DB 와 묶인 곳은 이 인자뿐이다. [다른 백엔드로 바꾸기](#다른-백엔드로-바꾸기) 에 이 경로를 예외로 적고 외부 백엔드를 들일 때 다시 설계한다.
+
+기각한 대안:
+
+- **트랜잭션용 인터페이스를 따로 둔다**: 백엔드 구현이 하나뿐이라 나눠도 호출부와 구현이 같다. 외부 백엔드를 들이면 잠금 안 경로를 어차피 다시 설계하므로 그때 나눈다. 이 안과 함께 이 권장안을 2026-11-27 에 사용자가 받았다(NERV Task `CLE-T-4JM4R9`).
