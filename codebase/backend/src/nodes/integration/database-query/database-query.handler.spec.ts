@@ -1824,6 +1824,20 @@ describe('convertMysqlPlaceholders (CLE-T-6BV9VP)', () => {
     });
   });
 
+  it.each<[string, string]>([
+    ['double-quoted literal', 'SELECT "?", $1'],
+    ['# comment', 'SELECT $1 # ?\n'],
+  ])('rejects $N mixed with a ? that mysql2 would bind (%s)', (_label, sql) => {
+    let thrown: unknown;
+    try {
+      convert(sql, ['v']);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(IntegrationError);
+    expect((thrown as IntegrationError).code).toBe('INVALID_PARAMETERS');
+  });
+
   it('stops at an unclosed literal and leaves the rest as written', () => {
     expect(convert("SELECT $1, 'open $1", ['v'])).toEqual({
       sql: "SELECT ?, 'open $1",
