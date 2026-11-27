@@ -2,19 +2,19 @@
 id: "CLE-EXEC-RERUN-API"
 title: "재실행 — API 와 데이터 모델"
 type: "design"
-version: 3
+version: 4
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-RERUN"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-RERUN"]
 area: "CLE-EXEC"
-content_hash: "60b48669a20ba2a79280b11a7e6d985fbe66b38da381b3af4950800a461fb290"
+content_hash: "2beb7514bf97689985ebc73756c8fc3df49639b01a07f83407049ce223e2df04"
 read_as: "approved_fallback"
-task: "CLE-T-AQQMY1"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "e2fd5e4cbe26c78786e983811ae72b8e304b11519d53865a1ec3b60d45af1add"
-etag: "sha256-2c957a361833cc222b0ce73dc5af7f756bcbca161b57d756c4cb29b53ecae051"
+mirror_sha256: "72750789022ab040f6ad4f7cada6ea7cee30af9f234b60fa9404f6f14ba03afc"
+etag: "sha256-2bc1b8dbcaf564f5cdf421f297bee1c71b2af94192ed7f8dcb20196a3b3590f3"
 ---
 ## 개요
 
@@ -183,7 +183,9 @@ flowchart LR
 
 E1(`re_run_of` 만)은 직계 부모 조회는 빠르지만 체인 전체 조회에 재귀 CTE 가 필요해 느려진다(깊이 32 까지 가능). E2(`chain_id` 만)는 체인 전체 조회는 빠르지만 직계 부모를 알려면 같은 체인의 모든 행을 정렬해야 한다. E3 는 컬럼 하나(`chain_id`)와 인덱스 하나(`(chain_id, started_at)`)를 더하는 비용으로 두 조회를 모두 빠르게 한다. 체인 배지가 직계 부모와 체인 안 위치를 함께 보여 주는 UX 에 잘 맞는다.
 
-### `chain_id` 는 NULLABLE 이다 (2026-05-31, 결정 F2)
+### `chain_id` 는 NULLABLE 이다
+
+결정일: 2026-05-31
 
 초기 설계는 `chain_id NOT NULL` 에 원본이 자기를 가리키는(`chain_id = id`) 모델이었다. 그런데 실행 행은 서브 워크플로우·Background·재시도 등 **여러 경로**에서 INSERT 된다. 모든 경로에 `chain_id` 채우기를 강제하면 핵심 실행 경로가 회귀할 위험이 크다. 그래서 v1 은 `chain_id` 를 NULLABLE 로 두고 재실행 행만 채운다(일반 실행 NULL, 체인 루트는 원본 ID). 백필은 필요 없다. NOT NULL·자기 체인으로 강화하는 것은 모든 생성 경로를 정리한 뒤 v2 에서 검토한다.
 

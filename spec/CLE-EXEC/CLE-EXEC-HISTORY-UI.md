@@ -2,19 +2,19 @@
 id: "CLE-EXEC-HISTORY-UI"
 title: "실행 내역 — 화면 구성"
 type: "design"
-version: 4
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-EXEC-HISTORY"
 ancestors: ["CLE-VISION", "CLE-EXEC", "CLE-EXEC-HISTORY"]
 area: "CLE-EXEC"
-content_hash: "a5f3b421227e5ee7e069a58df551b5f0c6b690000b3b1fdc49e426f8ee52c09c"
+content_hash: "62a6b85204f97e1da7db42cc10dd4924b75bc7e5a559df4842c2ea35d56d2531"
 read_as: "approved_fallback"
-task: "CLE-T-0V6FDN"
+task: "CLE-T-B87H23"
 source_paths: []
-mirror_sha256: "f6041426db82882093887608554682822fa072605b0a9a45eca5341e361c085f"
-etag: "sha256-e90c8ecf351cdda7e404d2db932fc5e173dc76318fa6f8c58209f1b9545541ff"
+mirror_sha256: "29adf62b776af18b58c0e683b6efc9867b1e7c8d91470b2c63764b18fc7ec5f3"
+etag: "sha256-43ee1977248d536a6332619a8339455d344190ab7d7b7159ec6a41c8d1a39979"
 ---
 ## 개요
 
@@ -160,14 +160,14 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 
 | 영역 | 위치 | 들어가는 요소 |
 | --- | --- | --- |
-| 머리 | 위 | "← Executions", `[⟳ Re-run]`, `[← Prev] [Next →]` |
+| 머리 | 위 | "← Executions", `[⟳ 재실행]`, `[← Prev] [Next →]` |
 | 요약 | 가운데 | 상태, 시작 시각과 실행 시간, 노드 현황 |
-| 체인 줄 | 요약 아래 | `📎 #3-th re-run · dry-run · 원본: #1234` 와 체인 보기 드롭다운(`history.rerun.viewChain`, 체인 실행 수를 함께 보인다) |
+| 체인 줄 | 요약 아래 | `📎 3번째 재실행 · dry-run · 원본: #1234` 와 체인 보기 드롭다운(`history.rerun.viewChain`, 체인 실행 수를 함께 보인다) |
 
 | 요소 | 표시 조건 | 동작 |
 | --- | --- | --- |
-| `[⟳ Re-run]` 버튼 | 항상 표시 | 권한이 없으면 비활성화하고 툴팁 `history.rerun.permissionDenied` 를 단다([역할별 표시](#역할별-표시)). 누르면 재실행 모달을 연다 |
-| 체인 배지 | `execution.reRunOf != null` | "#N-th re-run · 원본: <ID>". dry-run 이면 "· dry-run" 을 붙인다. 원본 ID 를 누르면 **같은 탭**에서 원본 상세로 이동한다(`<Link href>`, `target=_blank` 없음). 재실행 **모달**의 원본 ID 링크는 편집 맥락을 지키려고 새 탭이다(의도한 구분) |
+| `[⟳ 재실행]` 버튼 | 항상 표시 | 권한이 없으면 비활성화하고 툴팁 `history.rerun.permissionDenied` 를 단다([역할별 표시](#역할별-표시)). 누르면 재실행 모달을 연다 |
+| 체인 배지 | `execution.reRunOf != null` | "N번째 재실행 · 원본: <ID>"(en "#N-th re-run"). dry-run 이면 "· dry-run" 을 붙인다. 원본 ID 를 누르면 **같은 탭**에서 원본 상세로 이동한다(`<Link href>`, `target=_blank` 없음). 재실행 **모달**의 원본 ID 링크는 편집 맥락을 지키려고 새 탭이다(의도한 구분) |
 | 체인 보기 드롭다운(`history.rerun.viewChain`) | 체인의 실행이 2개 이상 | 누르면 `GET /api/executions/:id/chain` 응답을 펼친다. 항목마다 ID, 시작 시각, 최종 상태, dry-run 여부를 보여 준다 |
 
 모달에서 "재실행" 을 누르면 `POST /api/executions/:id/re-run` 응답의 새 실행 ID 로 `/w/<slug>/workflows/:workflowId/executions/:newId` 로 이동한다. i18n 키와 에러 매핑은 [재실행](CLE-EXEC-RERUN.md) 에 있다.
@@ -178,7 +178,7 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 
 체인 배지와 체인 보기 드롭다운은 실행 상세를 볼 수 있는 워크스페이스 멤버 모두에게(재실행 권한과 무관하게) 같은 조건으로 보인다. 재실행은 편집자 이상만 할 수 있고 버튼은 역할과 원본 실행의 시작자를 함께 보고 켠다(`canReRun`). 자세한 기준은 [재실행](CLE-EXEC-RERUN.md) 이 정한다.
 
-| 역할 | 체인 배지 · 드롭다운 | `[⟳ Re-run]` 버튼 |
+| 역할 | 체인 배지 · 드롭다운 | `[⟳ 재실행]` 버튼 |
 | --- | --- | --- |
 | 뷰어 | 보인다 | 늘 비활성. 툴팁 `history.rerun.permissionDenied` 를 단다 |
 | 편집자 | 보인다 | 자기가 시작한 실행과 시작자가 없는 자동 실행에서 활성. 남이 시작한 실행에서는 비활성이고 툴팁을 단다 |
@@ -218,4 +218,4 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 
 ### 재실행 버튼과 체인 표시의 설계 결정은 재실행 문서에 둔다
 
-재실행 버튼과 체인 추적의 설계 결정은 [재실행](CLE-EXEC-RERUN.md) 의 Rationale 이 기준이다. 뷰어에게도 체인을 보이고 재실행 버튼만 막은 결정(2026-10-10)의 근거도 [재실행](CLE-EXEC-RERUN.md#체인-조회-권한은-실행-상세-조회와-같다-2026-10-10) 에 있다.
+재실행 버튼과 체인 추적의 설계 결정은 [재실행](CLE-EXEC-RERUN.md) 의 Rationale 이 기준이다. 뷰어에게도 체인을 보이고 재실행 버튼만 막은 결정(2026-10-10)의 근거도 [재실행](CLE-EXEC-RERUN.md#체인-조회-권한은-실행-상세-조회와-같다) 에 있다.
