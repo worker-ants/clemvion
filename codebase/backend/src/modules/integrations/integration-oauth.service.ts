@@ -300,11 +300,6 @@ export function callbackContextOf(err: unknown): CallbackContext | undefined {
 }
 
 /**
- * 커밋 직전 재판정이 «요청자가 볼 수 없는 행» 을 만났을 때의 거절. 응답은 없는 통합 · 남의 personal 과 같은 404 이고,
- * 컨텍스트에 `recordable: false` 를 붙여 콜백 오류 수집이 그 행에 쓰지 않게 한다.
- * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH-CALLBACK#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
- */
-/**
  * state 가 기존 통합 행을 가리키는지 본다. `new` 는 새 통합을 만드는 흐름이라 대상 행이 없고, 그 외 모드는
  * integrationId 가 있어야 한다. begin 의 저장, 콜백 오류 context, cafe24 invalid_scope 기록이 같은 규칙을 쓴다
  * (CLE-T-HBDGPZ).
@@ -316,6 +311,11 @@ function stateTargetsIntegration(state: {
   return state.mode !== 'new' && !!state.integrationId;
 }
 
+/**
+ * 커밋 직전 재판정이 «요청자가 볼 수 없는 행» 을 만났을 때의 거절. 응답은 없는 통합 · 남의 personal 과 같은 404 이고,
+ * 컨텍스트에 `recordable: false` 를 붙여 콜백 오류 수집이 그 행에 쓰지 않게 한다.
+ * 근거: [OAuth 연결과 토큰 갱신 「커밋 직전 재판정의 `RESOURCE_NOT_FOUND` 는 행에 쓰지 않는다」](CLE-INT-OAUTH-CALLBACK#커밋-직전-재판정의-resource_not_found-는-행에-쓰지-않는다-2026-10-29)
+ */
 function hiddenCallbackTargetRejection(
   context: CallbackContext,
 ): NotFoundException {
